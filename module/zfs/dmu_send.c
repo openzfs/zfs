@@ -18,14 +18,18 @@
  *
  * CDDL HEADER END
  */
+
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
- * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
- * Copyright (c) 2014, Joyent, Inc. All rights reserved.
- * Copyright 2014 HybridCluster. All rights reserved.
- * Copyright 2016 RackTop Systems.
- * Copyright (c) 2016 Actifio, Inc. All rights reserved.
+ * Copyright (c) 2011, Nexenta Systems, Inc. All rights reserved.
+ * Copyright (c) 2011, 2018, Delphix. All rights reserved.
+ * Copyright (c) 2014, Joyent Inc. All rights reserved.
+ * Copyright (c) 2014, HybridCluster. All rights reserved.
+ * Copyright (c) 2016, RackTop Systems. All rights reserved.
+ * Copyright (c) 2016, Actifio Inc. All rights reserved.
+ * Copyright (c) 2019, Klara Inc. All rights reserved.
+ * Copyright (c) 2019, Allan Jude. All rights reserved.
+ * Use is subject to license terms.
  */
 
 #include <sys/dmu.h>
@@ -1954,6 +1958,7 @@ setup_featureflags(struct dmu_send_params *dspp, objset_t *os,
 	/* raw send implies compressok */
 	if (dspp->compressok || dspp->rawok)
 		*featureflags |= DMU_BACKUP_FEATURE_COMPRESSED;
+
 	if (dspp->rawok && os->os_encrypted)
 		*featureflags |= DMU_BACKUP_FEATURE_RAW;
 
@@ -1962,6 +1967,13 @@ setup_featureflags(struct dmu_send_params *dspp, objset_t *os,
 	    DMU_BACKUP_FEATURE_RAW)) != 0 &&
 	    spa_feature_is_active(dp->dp_spa, SPA_FEATURE_LZ4_COMPRESS)) {
 		*featureflags |= DMU_BACKUP_FEATURE_LZ4;
+	}
+
+	if ((*featureflags &
+	    (DMU_BACKUP_FEATURE_EMBED_DATA | DMU_BACKUP_FEATURE_COMPRESSED |
+	    DMU_BACKUP_FEATURE_RAW)) != 0 &&
+	    dsl_dataset_feature_is_active(to_ds, SPA_FEATURE_ZSTD_COMPRESS)) {
+		*featureflags |= DMU_BACKUP_FEATURE_ZSTD;
 	}
 
 	if (dspp->resumeobj != 0 || dspp->resumeoff != 0) {

@@ -43,7 +43,7 @@
 #include <sys/zfs_onexit.h>
 #include <sys/zvol.h>
 #include <zfs_fletcher.h>
-#include <zlib.h>
+#include <sys/zstd/zstd.h>
 
 /*
  * Emulation of kernel services in userland.
@@ -836,18 +836,26 @@ kernel_init(int mode)
 	system_taskq_init();
 	icp_init();
 
+	zstd_init();
+
 	spa_init((spa_mode_t)mode);
+
 
 	fletcher_4_init();
 
 	tsd_create(&rrw_tsd_key, rrw_tsd_destroy);
+
 }
 
 void
 kernel_fini(void)
 {
 	fletcher_4_fini();
+
+
 	spa_fini();
+
+	zstd_fini();
 
 	icp_fini();
 	system_taskq_fini();

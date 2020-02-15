@@ -4191,7 +4191,7 @@ dump_l2arc_log_blocks(int fd, l2arc_dev_hdr_phys_t l2dhdr,
 			abd_copy_from_buf_off(abd, &this_lb, 0, asize);
 			zio_decompress_data(L2BLK_GET_COMPRESS(
 			    (&lbps[0])->lbp_prop), abd, &this_lb,
-			    asize, sizeof (this_lb));
+			    asize, sizeof (this_lb), NULL);
 			abd_free(abd);
 			break;
 		default:
@@ -7684,9 +7684,9 @@ zdb_decompress_block(abd_t *pabd, void *buf, void *lbuf, uint64_t lsize,
 			VERIFY0(random_get_pseudo_bytes(lbuf2, lsize));
 
 			if (zio_decompress_data(*cfuncp, pabd,
-			    lbuf, psize, lsize) == 0 &&
+			    lbuf, psize, lsize, NULL) == 0 &&
 			    zio_decompress_data(*cfuncp, pabd,
-			    lbuf2, psize, lsize) == 0 &&
+			    lbuf2, psize, lsize, NULL) == 0 &&
 			    bcmp(lbuf, lbuf2, lsize) == 0)
 				break;
 		}

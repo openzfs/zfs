@@ -6,6 +6,9 @@ if BUILD_LINUX
 SUBDIRS += libefi
 endif
 
+# zstd intermediary build component
+SUBDIRS += libzstd
+
 # libzutil depends on libefi if present
 SUBDIRS += libzutil libunicode
 

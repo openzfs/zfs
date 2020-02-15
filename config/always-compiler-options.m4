@@ -202,3 +202,24 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_NO_IPA_SRA], [
 	CFLAGS="$saved_flags"
 	AC_SUBST([NO_IPA_SRA])
 ])
+
+dnl #
+dnl # Check if cc supports -Wno-stringop-truncation option.
+dnl #
+AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_NO_STRINGOP_TRUNCATION], [
+	AC_MSG_CHECKING([whether $CC supports -Wno-stringop-truncation])
+
+	saved_flags="$CFLAGS"
+	CFLAGS="$CFLAGS -Werror -Wno-stringop-truncation"
+
+	AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [])], [
+		NO_STRINGOP_TRUNCATION=-Wno-stringop-truncation
+		AC_MSG_RESULT([yes])
+	], [
+		NO_STRINGOP_TRUNCATION=
+		AC_MSG_RESULT([no])
+	])
+
+	CFLAGS="$saved_flags"
+	AC_SUBST([NO_STRINGOP_TRUNCATION])
+])

@@ -21,11 +21,14 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
- * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
- * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
+ * Copyright (c) 2011, Nexenta Systems, Inc. All rights reserved.
+ * Copyright (c) 2012, 2018, Delphix. All rights reserved.
+ * Copyright (c) 2013, Saso Kiselkov. All rights reserved.
  * Copyright (c) 2013, Joyent, Inc. All rights reserved.
- * Copyright 2016 Toomas Soome <tsoome@me.com>
+ * Copyright (c) 2016, Toomas Soome. All rights reserved.
+ * Copyright (c) 2019, Allan Jude. All rights reserved.
+ * Copyright (c) 2019, Klara Inc. All rights reserved.
+ * Use is subject to license terms.
  */
 
 #ifndef _ZIO_H
@@ -156,6 +159,7 @@ enum zio_encrypt {
 	(compress) == ZIO_COMPRESS_GZIP_8 ||		\
 	(compress) == ZIO_COMPRESS_GZIP_9 ||		\
 	(compress) == ZIO_COMPRESS_ZLE ||		\
+	(compress) == ZIO_COMPRESS_ZSTD ||		\
 	(compress) == ZIO_COMPRESS_ON ||		\
 	(compress) == ZIO_COMPRESS_OFF)
 
@@ -329,6 +333,7 @@ struct zbookmark_phys {
 typedef struct zio_prop {
 	enum zio_checksum	zp_checksum;
 	enum zio_compress	zp_compress;
+	uint8_t			zp_complevel;
 	dmu_object_type_t	zp_type;
 	uint8_t			zp_level;
 	uint8_t			zp_copies;
@@ -627,6 +632,8 @@ extern enum zio_checksum zio_checksum_dedup_select(spa_t *spa,
     enum zio_checksum child, enum zio_checksum parent);
 extern enum zio_compress zio_compress_select(spa_t *spa,
     enum zio_compress child, enum zio_compress parent);
+extern uint8_t zio_complevel_select(spa_t *spa, enum zio_compress compress,
+    uint8_t child, uint8_t parent);
 
 extern void zio_suspend(spa_t *spa, zio_t *zio, zio_suspend_reason_t);
 extern int zio_resume(spa_t *spa);

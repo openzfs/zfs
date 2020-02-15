@@ -18,12 +18,16 @@
  *
  * CDDL HEADER END
  */
+
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
- * Copyright (c) 2012, 2019 by Delphix. All rights reserved.
- * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
- * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
+ * Copyright (c) 2011, Nexenta Systems Inc. All rights reserved.
+ * Copyright (c) 2012, 2019, Delphix. All rights reserved.
+ * Copyright (c) 2013, Saso Kiselkov. All rights reserved.
+ * Copyright (c) 2014, Spectra Logic Corporation. All rights reserved.
+ * Copyright (c) 2019, Klara Inc. All rights reserved.
+ * Copyright (c) 2019, Allan Jude. All rights reserved.
+ * Use is subject to license terms.
  */
 
 #include <sys/zfs_context.h>
@@ -1095,11 +1099,13 @@ dbuf_alloc_arcbuf_from_arcbuf(dmu_buf_impl_t *db, arc_buf_t *data)
 	spa_t *spa = os->os_spa;
 	arc_buf_contents_t type = DBUF_GET_BUFC_TYPE(db);
 	enum zio_compress compress_type;
+	uint8_t complevel;
 	int psize, lsize;
 
 	psize = arc_buf_size(data);
 	lsize = arc_buf_lsize(data);
 	compress_type = arc_get_compression(data);
+	complevel = arc_get_complevel(data);
 
 	if (arc_is_encrypted(data)) {
 		boolean_t byteorder;
@@ -1111,11 +1117,11 @@ dbuf_alloc_arcbuf_from_arcbuf(dmu_buf_impl_t *db, arc_buf_t *data)
 		arc_get_raw_params(data, &byteorder, salt, iv, mac);
 		data = arc_alloc_raw_buf(spa, db, dmu_objset_id(os),
 		    byteorder, salt, iv, mac, dn->dn_type, psize, lsize,
-		    compress_type);
+		    compress_type, complevel);
 	} else if (compress_type != ZIO_COMPRESS_OFF) {
 		ASSERT3U(type, ==, ARC_BUFC_DATA);
 		data = arc_alloc_compressed_buf(spa, db,
-		    psize, lsize, compress_type);
+		    psize, lsize, compress_type, complevel);
 	} else {
 		data = arc_alloc_buf(spa, db, type, psize);
 	}
