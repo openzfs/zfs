@@ -117,8 +117,7 @@ gcm_mode_encrypt_contiguous_blocks(gcm_ctx_t *ctx, char *data, size_t length,
 	}
 
 	lastp = (uint8_t *)ctx->gcm_cb;
-	if (out != NULL)
-		crypto_init_ptrs(out, &iov_or_mp, &offset);
+	crypto_init_ptrs(out, &iov_or_mp, &offset);
 
 	gops = gcm_impl_get_ops();
 	do {
@@ -154,39 +153,22 @@ gcm_mode_encrypt_contiguous_blocks(gcm_ctx_t *ctx, char *data, size_t length,
 
 		ctx->gcm_processed_data_len += block_size;
 
-		/*
-		 * The following copies a complete GCM block back to where it
-		 * came from if there was a remainder in the last call and out
-		 * is NULL. That doesn't seem to make sense. So we assert this
-		 * can't happen and leave the code in for reference.
-		 * See https://github.com/zfsonlinux/zfs/issues/9661
-		 */
-		ASSERT(out != NULL);
-		if (out == NULL) {
-			if (ctx->gcm_remainder_len > 0) {
-				bcopy(blockp, ctx->gcm_copy_to,
-				    ctx->gcm_remainder_len);
-				bcopy(blockp + ctx->gcm_remainder_len, datap,
-				    need);
-			}
-		} else {
-			crypto_get_ptrs(out, &iov_or_mp, &offset, &out_data_1,
-			    &out_data_1_len, &out_data_2, block_size);
+		crypto_get_ptrs(out, &iov_or_mp, &offset, &out_data_1,
+		    &out_data_1_len, &out_data_2, block_size);
 
-			/* copy block to where it belongs */
-			if (out_data_1_len == block_size) {
-				copy_block(lastp, out_data_1);
-			} else {
-				bcopy(lastp, out_data_1, out_data_1_len);
-				if (out_data_2 != NULL) {
-					bcopy(lastp + out_data_1_len,
-					    out_data_2,
-					    block_size - out_data_1_len);
-				}
+		/* copy block to where it belongs */
+		if (out_data_1_len == block_size) {
+			copy_block(lastp, out_data_1);
+		} else {
+			bcopy(lastp, out_data_1, out_data_1_len);
+			if (out_data_2 != NULL) {
+				bcopy(lastp + out_data_1_len,
+				    out_data_2,
+				    block_size - out_data_1_len);
 			}
-			/* update offset */
-			out->cd_offset += block_size;
 		}
+		/* update offset */
+		out->cd_offset += block_size;
 
 		/* add ciphertext to the hash */
 		GHASH(ctx, ctx->gcm_tmp, ctx->gcm_ghash, gops);
@@ -1093,7 +1075,7 @@ gcm_toggle_avx(void)
 }
 
 /*
- * Clear senssitve data in the context.
+ * Clear sensitive data in the context.
  *
  * ctx->gcm_remainder may contain a plaintext remainder. ctx->gcm_H and
  * ctx->gcm_Htable contain the hash sub key which protects authentication.
@@ -1189,13 +1171,6 @@ gcm_mode_encrypt_contiguous_blocks_avx(gcm_ctx_t *ctx, char *data,
 		GHASH_AVX(ctx, tmp, block_size);
 		clear_fpu_regs();
 		kfpu_end();
-		/*
-		 * We don't follow gcm_mode_encrypt_contiguous_blocks() here
-		 * but assert that out is not null.
-		 * See gcm_mode_encrypt_contiguous_blocks() above and
-		 * https://github.com/zfsonlinux/zfs/issues/9661
-		 */
-		ASSERT(out != NULL);
 		rv = crypto_put_output_data(tmp, out, block_size);
 		out->cd_offset += block_size;
 		gcm_incr_counter_block(ctx);
@@ -1217,13 +1192,11 @@ gcm_mode_encrypt_contiguous_blocks_avx(gcm_ctx_t *ctx, char *data,
 			rv = CRYPTO_FAILED;
 			goto out_nofpu;
 		}
-		if (out != NULL) {
-			rv = crypto_put_output_data(ct_buf, out, chunk_size);
-			if (rv != CRYPTO_SUCCESS) {
-				goto out_nofpu;
-			}
-			out->cd_offset += chunk_size;
+		rv = crypto_put_output_data(ct_buf, out, chunk_size);
+		if (rv != CRYPTO_SUCCESS) {
+			goto out_nofpu;
 		}
+		out->cd_offset += chunk_size;
 		datap += chunk_size;
 		ctx->gcm_processed_data_len += chunk_size;
 	}
@@ -1239,13 +1212,11 @@ gcm_mode_encrypt_contiguous_blocks_avx(gcm_ctx_t *ctx, char *data,
 			rv = CRYPTO_FAILED;
 			goto out;
 		}
-		if (out != NULL) {
-			rv = crypto_put_output_data(ct_buf, out, done);
-			if (rv != CRYPTO_SUCCESS) {
-				goto out;
-			}
-			out->cd_offset += done;
+		rv = crypto_put_output_data(ct_buf, out, done);
+		if (rv != CRYPTO_SUCCESS) {
+			goto out;
 		}
+		out->cd_offset += done;
 		ctx->gcm_processed_data_len += done;
 		datap += done;
 		bleft -= done;
@@ -1265,13 +1236,11 @@ gcm_mode_encrypt_contiguous_blocks_avx(gcm_ctx_t *ctx, char *data,
 
 		gcm_xor_avx(datap, tmp);
 		GHASH_AVX(ctx, tmp, block_size);
-		if (out != NULL) {
-			rv = crypto_put_output_data(tmp, out, block_size);
-			if (rv != CRYPTO_SUCCESS) {
-				goto out;
-			}
-			out->cd_offset += block_size;
+		rv = crypto_put_output_data(tmp, out, block_size);
+		if (rv != CRYPTO_SUCCESS) {
+			goto out;
 		}
+		out->cd_offset += block_size;
 		gcm_incr_counter_block(ctx);
 		ctx->gcm_processed_data_len += block_size;
 		datap += block_size;
