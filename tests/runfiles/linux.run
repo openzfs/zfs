@@ -59,11 +59,6 @@ tags = ['functional', 'cli_root', 'zfs_sysfs']
 tests = ['add_nested_replacing_spare']
 tags = ['functional', 'cli_root', 'zpool_add']
 
-[tests/functional/cli_root/zpool_events:Linux]
-tests = ['zpool_events_clear', 'zpool_events_cliargs', 'zpool_events_follow',
-    'zpool_events_poolname', 'zpool_events_errors']
-tags = ['functional', 'cli_root', 'zpool_events']
-
 [tests/functional/cli_root/zpool_expand:Linux]
 tests = ['zpool_expand_001_pos', 'zpool_expand_002_pos',
     'zpool_expand_003_neg', 'zpool_expand_004_pos', 'zpool_expand_005_pos']
