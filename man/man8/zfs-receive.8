@@ -30,7 +30,7 @@
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
 .\"
-.Dd January 27, 2020
+.Dd February 16, 2020
 .Dt ZFS-RECEIVE 8
 .Os Linux
 .Sh NAME
@@ -231,6 +231,7 @@ snapshot as described in the paragraph above.
 Skip the receive of holds.  There is no effect if holds are not sent.
 .It Fl M
 Force an unmount of the file system while receiving a snapshot.
+This option is not supported on Linux.
 .It Fl n
 Do not actually receive the stream.
 This can be useful in conjunction with the
