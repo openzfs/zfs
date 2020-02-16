@@ -4431,7 +4431,7 @@ top:
 	if (!is_tmpfile && zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		zil_commit(zilog, 0);
 
-	if (is_tmpfile)
+	if (is_tmpfile && zfsvfs->z_os->os_sync != ZFS_SYNC_DISABLED)
 		txg_wait_synced(dmu_objset_pool(zfsvfs->z_os), txg);
 
 	zfs_inode_update(tdzp);
