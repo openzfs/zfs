@@ -1623,6 +1623,7 @@ dmu_object_cached_size(objset_t *os, uint64_t object,
 	 * Hold all valid L1 blocks, asking ARC the status of each BP
 	 * contained in each such L1 block.
 	 */
+	rw_enter(&dn->dn_struct_rwlock, RW_READER);
 	uint8_t nbps = bp_span_in_blocks(dn->dn_indblkshift, level);
 	for (uint64_t off = 0; off < doi.doi_max_offset;
 	    off += doi.doi_metadata_block_size) {
@@ -1642,6 +1643,7 @@ dmu_object_cached_size(objset_t *os, uint64_t object,
 		if (issig(JUSTLOOKING) && issig(FORREAL))
 			break;
 	}
+	rw_exit(&dn->dn_struct_rwlock);
 
 	dnode_rele(dn, FTAG);
 }
