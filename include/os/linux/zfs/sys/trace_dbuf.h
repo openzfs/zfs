@@ -107,6 +107,14 @@ DECLARE_EVENT_CLASS(zfs_dbuf_class,
 	TP_fast_assign(DBUF_TP_FAST_ASSIGN),
 	TP_printk("%s", __get_str(msg))
 );
+
+DECLARE_EVENT_CLASS(zfs_dbuf_state_class,
+	TP_PROTO(dmu_buf_impl_t *db, const char *why),
+	TP_ARGS(db, why),
+	TP_STRUCT__entry(DBUF_TP_STRUCT_ENTRY),
+	TP_fast_assign(DBUF_TP_FAST_ASSIGN),
+	TP_printk("%s", __get_str(msg))
+);
 /* END CSTYLED */
 
 /* BEGIN CSTYLED */
@@ -116,6 +124,14 @@ DEFINE_EVENT(zfs_dbuf_class, name, \
 	TP_ARGS(db, zio))
 /* END CSTYLED */
 DEFINE_DBUF_EVENT(zfs_blocked__read);
+
+/* BEGIN CSTYLED */
+#define	DEFINE_DBUF_STATE_EVENT(name) \
+DEFINE_EVENT(zfs_dbuf_state_class, name, \
+	TP_PROTO(dmu_buf_impl_t *db, const char *why), \
+	TP_ARGS(db, why))
+/* END CSTYLED */
+DEFINE_DBUF_STATE_EVENT(zfs_dbuf__state_change);
 
 /* BEGIN CSTYLED */
 DECLARE_EVENT_CLASS(zfs_dbuf_evict_one_class,
@@ -147,6 +163,7 @@ DEFINE_DBUF_EVICT_ONE_EVENT(zfs_dbuf__evict__one);
 
 DEFINE_DTRACE_PROBE2(blocked__read);
 DEFINE_DTRACE_PROBE2(dbuf__evict__one);
+DEFINE_DTRACE_PROBE2(dbuf__state_change);
 
 #endif /* HAVE_DECLARE_EVENT_CLASS */
 #endif /* _KERNEL */
