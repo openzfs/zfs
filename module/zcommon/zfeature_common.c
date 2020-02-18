@@ -259,6 +259,19 @@ zfeature_register(spa_feature_t fid, const char *guid, const char *name,
 	feature->fi_zfs_mod_supported = zfs_mod_supported_feature(guid);
 }
 
+/*
+ * Every feature has a GUID of the form com.example:feature_name.  The
+ * reversed DNS name ensures that the feature's GUID is unique across all ZFS
+ * implementations.  This allows companies to independently develop and
+ * release features.  Examples include org.delphix and org.datto.  Previously,
+ * features developed on one implementation have used that implementation's
+ * domain name (e.g. org.illumos and org.zfsonlinux).  Use of the org.openzfs
+ * domain name is recommended for new features which are developed by the
+ * OpenZFS community and its platforms.  This domain may optionally be used by
+ * companies developing features for initial release through an OpenZFS
+ * implementation.  Use of the org.openzfs domain requires reserving the
+ * feature name in advance with the OpenZFS project.
+ */
 void
 zpool_feature_init(void)
 {
@@ -548,12 +561,10 @@ zpool_feature_init(void)
 	    ZFEATURE_TYPE_BOOLEAN, project_quota_deps);
 	}
 
-	{
 	zfeature_register(SPA_FEATURE_ALLOCATION_CLASSES,
 	    "org.zfsonlinux:allocation_classes", "allocation_classes",
 	    "Support for separate allocation classes.",
 	    ZFEATURE_FLAG_READONLY_COMPAT, ZFEATURE_TYPE_BOOLEAN, NULL);
-	}
 
 	zfeature_register(SPA_FEATURE_RESILVER_DEFER,
 	    "com.datto:resilver_defer", "resilver_defer",

@@ -52,8 +52,8 @@ log_must zfs snapshot "$SENDFS@s1"
 log_must zfs bookmark "$SENDFS@s1" "$SENDFS#bm"
 log_must zfs snapshot "$SENDFS@s2"
 log_must zfs set "compression=gzip" $SENDFS
-log_must zfs set "org.zfsonlinux:prop=val" $SENDFS
-log_must zfs set "org.zfsonlinux:snapprop=val" "$SENDFS@s1"
+log_must zfs set "org.openzfs:prop=val" $SENDFS
+log_must zfs set "org.openzfs:snapprop=val" "$SENDFS@s1"
 
 # 2. Verify command line options interact with '-b' correctly
 typeset opts=("" "p" "Rp" "cew" "nv" "D" "DLPRcenpvw")
@@ -78,21 +78,21 @@ for opt in ${opts[@]}; do
 	# NOTE: override "received" values and set some new properties as well
 	log_must zfs set "compression=lz4" $BACKUP
 	log_must zfs set "exec=off" $BACKUP
-	log_must zfs set "org.zfsonlinux:prop=newval" $BACKUP
-	log_must zfs set "org.zfsonlinux:newprop=newval" $BACKUP
-	log_must zfs set "org.zfsonlinux:snapprop=newval" "$BACKUP@s1"
-	log_must zfs set "org.zfsonlinux:newsnapprop=newval" "$BACKUP@s1"
+	log_must zfs set "org.openzfs:prop=newval" $BACKUP
+	log_must zfs set "org.openzfs:newprop=newval" $BACKUP
+	log_must zfs set "org.openzfs:snapprop=newval" "$BACKUP@s1"
+	log_must zfs set "org.openzfs:newsnapprop=newval" "$BACKUP@s1"
 
 	# 5. Restore the "backup" dataset to a new destination
 	log_must eval "zfs send -b$opt $BACKUP@s1 | zfs recv $RESTORE"
 
 	# 6. Verify only original (received) properties are sent from "backup"
 	log_must eval "check_prop_source $RESTORE compression gzip received"
-	log_must eval "check_prop_source $RESTORE org.zfsonlinux:prop val received"
-	log_must eval "check_prop_source $RESTORE@s1 org.zfsonlinux:snapprop val received"
+	log_must eval "check_prop_source $RESTORE org.openzfs:prop val received"
+	log_must eval "check_prop_source $RESTORE@s1 org.openzfs:snapprop val received"
 	log_must eval "check_prop_source $RESTORE exec on default"
-	log_must eval "check_prop_missing $RESTORE org.zfsonlinux:newprop"
-	log_must eval "check_prop_missing $RESTORE@s1 org.zfsonlinux:newsnapprop"
+	log_must eval "check_prop_missing $RESTORE org.openzfs:newprop"
+	log_must eval "check_prop_missing $RESTORE@s1 org.openzfs:newsnapprop"
 
 	# cleanup
 	log_must zfs destroy -r $BACKUP

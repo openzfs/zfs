@@ -591,8 +591,8 @@ typedef struct zpool_load_policy {
 
 /*
  * The following are configuration names used in the nvlist describing a pool's
- * configuration.  New on-disk names should be prefixed with "<reverse-DNS>:"
- * (e.g. "org.open-zfs:") to avoid conflicting names being developed
+ * configuration.  New on-disk names should be prefixed with "<reversed-DNS>:"
+ * (e.g. "org.openzfs:") to avoid conflicting names being developed
  * independently.
  */
 #define	ZPOOL_CONFIG_VERSION		"version"
