@@ -27,7 +27,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd August 9, 2019
+.Dd February 16, 2020
 .Dt ZPOOL-EXPORT 8
 .Os Linux
 .Sh NAME
@@ -72,6 +72,7 @@ Exports all pools imported on the system.
 Forcefully unmount all datasets, using the
 .Nm unmount Fl f
 command.
+This option is not supported on Linux.
 .Pp
 This command will forcefully export the pool even if it has a shared spare that
 is currently being used.
