@@ -129,11 +129,11 @@ function do_test
 		fi
 	fi
 
-	if [ "$val" == "0" ] || [ "$events" == "" ] ; then
+	if [ -z "$val" -o $val -eq 0 -o -z "$events" -o $events -eq 0 ] ; then
 		log_fail "Didn't see any errors or events ($val/$events)"
 	fi
 
-	if [ "$val" != "$events" ] ; then
+	if [ $val -ne $events ] ; then
 		log_fail "$val $POOLTYPE $str errors != $events events"
 	else
 		log_note "$val $POOLTYPE $str errors == $events events"

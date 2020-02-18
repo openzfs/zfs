@@ -70,6 +70,7 @@ enum scope_prefix_types {
 	zfs_vdev,
 	zfs_vdev_cache,
 	zfs_vdev_mirror,
+	zfs_zevent,
 	zfs_zio,
 	zfs_zil,
 	spa
