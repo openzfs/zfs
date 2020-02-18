@@ -40,7 +40,7 @@ extern "C" {
  * anyhow.
  */
 #if defined(__x86_64__) && defined(HAVE_AVX) && \
-    defined(HAVE_AES) && defined(HAVE_PCLMULQDQ) && defined(HAVE_MOVBE)
+    defined(HAVE_AES) && defined(HAVE_PCLMULQDQ)
 #define	CAN_USE_GCM_ASM
 #endif
 

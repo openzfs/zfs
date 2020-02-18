@@ -44,9 +44,6 @@
 # and modified for ICP. Modification are kept at a bare minimum to ease later
 # upstream merges.
 
-#if defined(__x86_64__) && defined(HAVE_AVX) && \
-    defined(HAVE_AES) && defined(HAVE_PCLMULQDQ) && defined(HAVE_MOVBE)
-
 .text
 
 .type	_aesni_ctr32_ghash_6x,@function
@@ -112,9 +109,9 @@ _aesni_ctr32_ghash_6x:
 	vpclmulqdq	$0x11,%xmm3,%xmm0,%xmm3
 	vmovdqu	64+8(%rsp),%xmm0
 	vaesenc	%xmm15,%xmm10,%xmm10
-	movbeq	88(%r14),%r13
+	MOVQ_AND_BYTESWAP(88(%r14),%r13)
 	vaesenc	%xmm15,%xmm11,%xmm11
-	movbeq	80(%r14),%r12
+	MOVQ_AND_BYTESWAP(80(%r14),%r12)
 	vaesenc	%xmm15,%xmm12,%xmm12
 	movq	%r13,32+8(%rsp)
 	vaesenc	%xmm15,%xmm13,%xmm13
@@ -147,11 +144,11 @@ _aesni_ctr32_ghash_6x:
 	vpxor	%xmm3,%xmm6,%xmm6
 	vpclmulqdq	$0x10,%xmm1,%xmm0,%xmm3
 	vaesenc	%xmm15,%xmm10,%xmm10
-	movbeq	72(%r14),%r13
+	MOVQ_AND_BYTESWAP(72(%r14),%r13)
 	vpxor	%xmm5,%xmm7,%xmm7
 	vpclmulqdq	$0x01,%xmm1,%xmm0,%xmm5
 	vaesenc	%xmm15,%xmm11,%xmm11
-	movbeq	64(%r14),%r12
+	MOVQ_AND_BYTESWAP(64(%r14),%r12)
 	vpclmulqdq	$0x11,%xmm1,%xmm0,%xmm1
 	vmovdqu	96+8(%rsp),%xmm0
 	vaesenc	%xmm15,%xmm12,%xmm12
@@ -169,12 +166,12 @@ _aesni_ctr32_ghash_6x:
 	vpxor	%xmm5,%xmm6,%xmm6
 	vpclmulqdq	$0x10,%xmm2,%xmm0,%xmm5
 	vaesenc	%xmm15,%xmm10,%xmm10
-	movbeq	56(%r14),%r13
+	MOVQ_AND_BYTESWAP(56(%r14),%r13)
 	vpxor	%xmm1,%xmm7,%xmm7
 	vpclmulqdq	$0x01,%xmm2,%xmm0,%xmm1
 	vpxor	112+8(%rsp),%xmm8,%xmm8
 	vaesenc	%xmm15,%xmm11,%xmm11
-	movbeq	48(%r14),%r12
+	MOVQ_AND_BYTESWAP(48(%r14),%r12)
 	vpclmulqdq	$0x11,%xmm2,%xmm0,%xmm2
 	vaesenc	%xmm15,%xmm12,%xmm12
 	movq	%r13,64+8(%rsp)
@@ -191,11 +188,11 @@ _aesni_ctr32_ghash_6x:
 	vpxor	%xmm1,%xmm6,%xmm6
 	vpclmulqdq	$0x01,%xmm3,%xmm8,%xmm1
 	vaesenc	%xmm15,%xmm10,%xmm10
-	movbeq	40(%r14),%r13
+	MOVQ_AND_BYTESWAP(40(%r14),%r13)
 	vpxor	%xmm2,%xmm7,%xmm7
 	vpclmulqdq	$0x00,%xmm3,%xmm8,%xmm2
 	vaesenc	%xmm15,%xmm11,%xmm11
-	movbeq	32(%r14),%r12
+	MOVQ_AND_BYTESWAP(32(%r14),%r12)
 	vpclmulqdq	$0x11,%xmm3,%xmm8,%xmm8
 	vaesenc	%xmm15,%xmm12,%xmm12
 	movq	%r13,80+8(%rsp)
@@ -214,9 +211,9 @@ _aesni_ctr32_ghash_6x:
 	vpxor	%xmm8,%xmm7,%xmm7
 	vaesenc	%xmm15,%xmm10,%xmm10
 	vpxor	%xmm5,%xmm4,%xmm4
-	movbeq	24(%r14),%r13
+	MOVQ_AND_BYTESWAP(24(%r14),%r13)
 	vaesenc	%xmm15,%xmm11,%xmm11
-	movbeq	16(%r14),%r12
+	MOVQ_AND_BYTESWAP(16(%r14),%r12)
 	vpalignr	$8,%xmm4,%xmm4,%xmm0
 	vpclmulqdq	$0x10,%xmm3,%xmm4,%xmm4
 	movq	%r13,96+8(%rsp)
@@ -234,9 +231,9 @@ _aesni_ctr32_ghash_6x:
 	vpxor	%xmm6,%xmm7,%xmm7
 	vaesenc	%xmm1,%xmm12,%xmm12
 	vpxor	%xmm0,%xmm4,%xmm4
-	movbeq	8(%r14),%r13
+	MOVQ_AND_BYTESWAP(8(%r14),%r13)
 	vaesenc	%xmm1,%xmm13,%xmm13
-	movbeq	0(%r14),%r12
+	MOVQ_AND_BYTESWAP(0(%r14),%r12)
 	vaesenc	%xmm1,%xmm14,%xmm14
 	vmovups	160-128(%rcx),%xmm1
 	cmpl	$12,%ebp	// ICP uses 10,12,14 not 9,11,13 for rounds.
@@ -361,10 +358,10 @@ _aesni_ctr32_ghash_6x:
 
 	.byte	0xf3,0xc3
 .size	_aesni_ctr32_ghash_6x,.-_aesni_ctr32_ghash_6x
-.globl	aesni_gcm_decrypt
-.type	aesni_gcm_decrypt,@function
+.globl	ZFS_ENTRY_SYMBOL_RENAME(aesni_gcm_decrypt)
+.type	ZFS_ENTRY_SYMBOL_RENAME(aesni_gcm_decrypt),@function
 .align	32
-aesni_gcm_decrypt:
+ZFS_ENTRY_SYMBOL_RENAME(aesni_gcm_decrypt):
 .cfi_startproc
 	xorq	%r10,%r10
 	cmpq	$0x60,%rdx
@@ -462,7 +459,7 @@ aesni_gcm_decrypt:
 	movq	%r10,%rax
 	.byte	0xf3,0xc3
 .cfi_endproc
-.size	aesni_gcm_decrypt,.-aesni_gcm_decrypt
+.size	ZFS_ENTRY_SYMBOL_RENAME(aesni_gcm_decrypt),.-ZFS_ENTRY_SYMBOL_RENAME(aesni_gcm_decrypt)
 .type	_aesni_ctr32_6x,@function
 .align	32
 _aesni_ctr32_6x:
@@ -554,10 +551,10 @@ _aesni_ctr32_6x:
 	jmp	.Loop_ctr32
 .size	_aesni_ctr32_6x,.-_aesni_ctr32_6x
 
-.globl	aesni_gcm_encrypt
-.type	aesni_gcm_encrypt,@function
+.globl	ZFS_ENTRY_SYMBOL_RENAME(aesni_gcm_encrypt)
+.type	ZFS_ENTRY_SYMBOL_RENAME(aesni_gcm_encrypt),@function
 .align	32
-aesni_gcm_encrypt:
+ZFS_ENTRY_SYMBOL_RENAME(aesni_gcm_encrypt):
 .cfi_startproc
 	xorq	%r10,%r10
 	cmpq	$288,%rdx
@@ -819,56 +816,7 @@ aesni_gcm_encrypt:
 	movq	%r10,%rax
 	.byte	0xf3,0xc3
 .cfi_endproc
-.size	aesni_gcm_encrypt,.-aesni_gcm_encrypt
-
-/* Some utility routines */
-
-/*
- * clear all fpu registers
- * void clear_fpu_regs_avx(void);
- */
-.globl	clear_fpu_regs_avx
-.type	clear_fpu_regs_avx,@function
-.align	32
-clear_fpu_regs_avx:
-	vzeroall
-	ret
-.size	clear_fpu_regs_avx,.-clear_fpu_regs_avx
-
-/*
- * void gcm_xor_avx(const uint8_t *src, uint8_t *dst);
- *
- * XORs one pair of unaligned 128-bit blocks from `src' and `dst' and
- * stores the result at `dst'. The XOR is performed using FPU registers,
- * so make sure FPU state is saved when running this in the kernel.
- */
-.globl  gcm_xor_avx
-.type	gcm_xor_avx,@function
-.align	32
-gcm_xor_avx:
-	movdqu  (%rdi), %xmm0
-	movdqu  (%rsi), %xmm1
-	pxor    %xmm1, %xmm0
-	movdqu  %xmm0, (%rsi)
-	ret
-.size	gcm_xor_avx,.-gcm_xor_avx
-
-/*
- * Toggle a boolean_t value atomically and return the new value.
- * boolean_t atomic_toggle_boolean_nv(volatile boolean_t *);
- */
-.globl	atomic_toggle_boolean_nv
-.type	atomic_toggle_boolean_nv,@function
-.align	32
-atomic_toggle_boolean_nv:
-	xorl	%eax, %eax
-	lock
-	xorl	$1, (%rdi)
-	jz	1f
-	movl	$1, %eax
-1:
-	ret
-.size	atomic_toggle_boolean_nv,.-atomic_toggle_boolean_nv
+.size	ZFS_ENTRY_SYMBOL_RENAME(aesni_gcm_encrypt),.-ZFS_ENTRY_SYMBOL_RENAME(aesni_gcm_encrypt)
 
 .align	64
 .Lbswap_mask:
@@ -887,6 +835,4 @@ atomic_toggle_boolean_nv:
 /* Mark the stack non-executable. */
 #if defined(__linux__) && defined(__ELF__)
 .section .note.GNU-stack,"",%progbits
-#endif
-
-#endif /* defined(__x86_64__) && defined(HAVE_AVX) && defined(HAVE_AES) ... */
+#endif /* defined(__linux__) && defined(__ELF__) */

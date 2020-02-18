@@ -1042,18 +1042,26 @@ extern void gcm_init_htab_avx(uint64_t Htable[16][2], const uint64_t H[2]);
 extern void gcm_ghash_avx(uint64_t ghash[2], const uint64_t Htable[16][2],
     const uint8_t *in, size_t len);
 
-extern size_t aesni_gcm_encrypt(const uint8_t *, uint8_t *, size_t,
+extern size_t aesni_gcm_encrypt_bswap(const uint8_t *, uint8_t *, size_t,
     const void *, uint64_t *, uint64_t *);
 
-extern size_t aesni_gcm_decrypt(const uint8_t *, uint8_t *, size_t,
+extern size_t aesni_gcm_decrypt_bswap(const uint8_t *, uint8_t *, size_t,
     const void *, uint64_t *, uint64_t *);
+
+#if defined(HAVE_MOVBE)
+extern size_t aesni_gcm_encrypt_movbe(const uint8_t *, uint8_t *, size_t,
+    const void *, uint64_t *, uint64_t *);
+
+extern size_t aesni_gcm_decrypt_movbe(const uint8_t *, uint8_t *, size_t,
+    const void *, uint64_t *, uint64_t *);
+#endif /* defined(HAVE_MOVBE) */
 
 static inline boolean_t
 gcm_avx_will_work(void)
 {
 	/* Avx should imply aes-ni and pclmulqdq, but make sure anyhow. */
 	return (kfpu_allowed() &&
-	    zfs_avx_available() && zfs_movbe_available() &&
+	    zfs_avx_available() &&
 	    zfs_aes_available() && zfs_pclmulqdq_available());
 }
 
@@ -1116,6 +1124,11 @@ static int
 gcm_mode_encrypt_contiguous_blocks_avx(gcm_ctx_t *ctx, char *data,
     size_t length, crypto_data_t *out, size_t block_size)
 {
+#if defined(HAVE_MOVBE)
+	/* movbe-using variant of encryption/decryption is
+	   faster where available */
+	const boolean_t movbe_ok = zfs_movbe_available();
+#endif /* defined(HAVE_MOVBE) */
 	size_t bleft = length;
 	size_t need = 0;
 	size_t done = 0;
@@ -1191,7 +1204,13 @@ gcm_mode_encrypt_contiguous_blocks_avx(gcm_ctx_t *ctx, char *data,
 	/* Do the bulk encryption in chunk_size blocks. */
 	for (; bleft >= chunk_size; bleft -= chunk_size) {
 		kfpu_begin();
-		done = aesni_gcm_encrypt(
+#if defined(HAVE_MOVBE)
+		if (movbe_ok)
+			done = aesni_gcm_encrypt_movbe(
+		    datap, ct_buf, chunk_size, key, cb, ghash);
+		else
+#endif /* defined(HAVE_MOVBE) */
+		done = aesni_gcm_encrypt_bswap(
 		    datap, ct_buf, chunk_size, key, cb, ghash);
 
 		clear_fpu_regs();
@@ -1217,7 +1236,14 @@ gcm_mode_encrypt_contiguous_blocks_avx(gcm_ctx_t *ctx, char *data,
 	/* Bulk encrypt the remaining data. */
 	kfpu_begin();
 	if (bleft >= GCM_AVX_MIN_ENCRYPT_BYTES) {
-		done = aesni_gcm_encrypt(datap, ct_buf, bleft, key, cb, ghash);
+#if defined(HAVE_MOVBE)
+		if (movbe_ok)
+			done = aesni_gcm_encrypt_movbe(
+				datap, ct_buf, bleft, key, cb, ghash);
+		else
+#endif /* defined(HAVE_MOVBE) */
+		done = aesni_gcm_encrypt_bswap(
+			datap, ct_buf, bleft, key, cb, ghash);
 		if (done == 0) {
 			rv = CRYPTO_FAILED;
 			goto out;
@@ -1344,6 +1370,11 @@ gcm_decrypt_final_avx(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size)
 	ASSERT3U(ctx->gcm_processed_data_len, ==, ctx->gcm_pt_buf_len);
 	ASSERT3U(block_size, ==, 16);
 
+#if defined(HAVE_MOVBE)
+	/* movbe-using variant of encryption/decryption is
+	   faster where available */
+	const boolean_t movbe_ok = zfs_movbe_available();
+#endif /* defined(HAVE_MOVBE) */
 	size_t chunk_size = (size_t)GCM_CHUNK_SIZE_READ;
 	size_t pt_len = ctx->gcm_processed_data_len - ctx->gcm_tag_len;
 	uint8_t *datap = ctx->gcm_pt_buf;
@@ -1361,7 +1392,13 @@ gcm_decrypt_final_avx(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size)
 	 */
 	for (bleft = pt_len; bleft >= chunk_size; bleft -= chunk_size) {
 		kfpu_begin();
-		done = aesni_gcm_decrypt(datap, datap, chunk_size,
+#if defined(HAVE_MOVBE)
+		if (movbe_ok)
+			done = aesni_gcm_decrypt_movbe(datap, datap, chunk_size,
+		    (const void *)key, ctx->gcm_cb, ghash);
+		else
+#endif /* defined(HAVE_MOVBE) */
+		done = aesni_gcm_decrypt_bswap(datap, datap, chunk_size,
 		    (const void *)key, ctx->gcm_cb, ghash);
 		clear_fpu_regs();
 		kfpu_end();
@@ -1373,7 +1410,13 @@ gcm_decrypt_final_avx(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size)
 	/* Decrypt remainder, which is less then chunk size, in one go. */
 	kfpu_begin();
 	if (bleft >= GCM_AVX_MIN_DECRYPT_BYTES) {
-		done = aesni_gcm_decrypt(datap, datap, bleft,
+#if defined(HAVE_MOVBE)
+		if (movbe_ok)
+			done = aesni_gcm_decrypt_movbe(datap, datap, bleft,
+		    (const void *)key, ctx->gcm_cb, ghash);
+		else
+#endif /* defined(HAVE_MOVBE) */
+		done = aesni_gcm_decrypt_bswap(datap, datap, bleft,
 		    (const void *)key, ctx->gcm_cb, ghash);
 		if (done == 0) {
 			clear_fpu_regs();
