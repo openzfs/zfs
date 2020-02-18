@@ -43,14 +43,14 @@ for i in `seq 1 $EVENTS_NUM`; do
 done
 # wait a bit to allow the kernel module to process new events
 zpool_events_settle
-EVENTS_NUM="$(zpool events -H | wc -l)"
+EVENTS_NUM=$(zpool events -H | wc -l | xargs)
 
 # 3. Verify 'zpool events -c' successfully clear new events
-CLEAR_OUTPUT="$(zpool events -c)"
+CLEAR_OUTPUT=$(zpool events -c)
 if [[ "$CLEAR_OUTPUT" != "cleared $EVENTS_NUM events" ]]; then
 	log_fail "Failed to clear $EVENTS_NUM events: $CLEAR_OUTPUT"
 fi
-EVENTS_NUM="$(zpool events -H | wc -l)"
+EVENTS_NUM=$(zpool events -H | wc -l)
 if [[ $EVENTS_NUM -ne 0 ]];  then
 	log_fail "Unexpected events number: $EVENTS_NUM != 0"
 fi
