@@ -51,7 +51,8 @@ $(MODULE)-$(CONFIG_X86_64) += asm-x86_64/aes/aeskey.o
 $(MODULE)-$(CONFIG_X86_64) += asm-x86_64/aes/aes_amd64.o
 $(MODULE)-$(CONFIG_X86_64) += asm-x86_64/aes/aes_aesni.o
 $(MODULE)-$(CONFIG_X86_64) += asm-x86_64/modes/gcm_pclmulqdq.o
-$(MODULE)-$(CONFIG_X86_64) += asm-x86_64/modes/aesni-gcm-x86_64.o
+$(MODULE)-$(CONFIG_X86_64) += asm-x86_64/modes/aesni-gcm-x86_64_movbe.o
+$(MODULE)-$(CONFIG_X86_64) += asm-x86_64/modes/aesni-gcm-x86_64_bswap.o
 $(MODULE)-$(CONFIG_X86_64) += asm-x86_64/modes/ghash-x86_64.o
 $(MODULE)-$(CONFIG_X86_64) += asm-x86_64/sha1/sha1-x86_64.o
 $(MODULE)-$(CONFIG_X86_64) += asm-x86_64/sha2/sha256_impl.o
@@ -65,7 +66,8 @@ $(MODULE)-$(CONFIG_X86) += algs/aes/aes_impl_x86-64.o
 # are caused by the constants which are defined in the text section of the
 # assembly file using .byte instructions (e.g. bswap_mask).  The objtool
 # utility tries to interpret them as opcodes and obviously fails doing so.
-OBJECT_FILES_NON_STANDARD_aesni-gcm-x86_64.o := y
+OBJECT_FILES_NON_STANDARD_aesni-gcm-x86_64_movbe.o := y
+OBJECT_FILES_NON_STANDARD_aesni-gcm-x86_64_bswap.o := y
 OBJECT_FILES_NON_STANDARD_ghash-x86_64.o := y
 
 ICP_DIRS = \
