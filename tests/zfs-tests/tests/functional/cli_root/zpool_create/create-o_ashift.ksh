@@ -73,15 +73,21 @@ function verify_device_uberblocks # <device> <count>
 	typeset device=$1
 	typeset ubcount=$2
 
-	zdb -quuul $device | egrep '^(\s+)?Uberblock' |
-	    awk -v ubcount=$ubcount 'BEGIN { count=0 } { uberblocks[$0]++; }
+	zdb -quuul $device | awk -v ubcount=$ubcount '
+	    /Uberblock/ && ! /invalid/ { uberblocks[$0]++ }
 	    END {
+	        count = 0
 	        for (i in uberblocks) {
-	            if (i ~ /invalid/) { continue; }
-	            if (uberblocks[i] != 4) { exit 1; }
+	            if (uberblocks[i] != 4) {
+	                printf "%s count: %s != 4\n", i, uberblocks[i]
+	                exit 1
+	            }
 	            count++;
 	        }
-	        if (count != ubcount) { exit 1; }
+	        if (count != ubcount) {
+	            printf "Total uberblock count: %s != %s\n", count, ubcount
+	            exit 1
+	        }
 	    }'
 
 	return $?
