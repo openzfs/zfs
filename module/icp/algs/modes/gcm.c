@@ -50,6 +50,8 @@ static uint32_t icp_gcm_impl = IMPL_FASTEST;
 static uint32_t user_sel_impl = IMPL_FASTEST;
 
 #ifdef CAN_USE_GCM_ASM
+/* Does the architecture we run on support the MOVBE instruction? */
+boolean_t gcm_avx_can_use_movbe = B_FALSE;
 /*
  * Whether to use the optimized openssl gcm and ghash implementations.
  * Set to true if module parameter icp_gcm_impl == "avx".
@@ -60,6 +62,7 @@ static boolean_t gcm_use_avx = B_FALSE;
 static inline boolean_t gcm_avx_will_work(void);
 static inline void gcm_set_avx(boolean_t);
 static inline boolean_t gcm_toggle_avx(void);
+extern boolean_t atomic_toggle_boolean_nv(volatile boolean_t *);
 
 static int gcm_mode_encrypt_contiguous_blocks_avx(gcm_ctx_t *, char *, size_t,
     crypto_data_t *, size_t);
@@ -622,19 +625,28 @@ gcm_init_ctx(gcm_ctx_t *gcm_ctx, char *param, size_t block_size,
 	}
 
 #ifdef CAN_USE_GCM_ASM
-	/*
-	 * Handle the "cycle" implementation by creating avx and non avx
-	 * contexts alternately.
-	 */
 	if (GCM_IMPL_READ(icp_gcm_impl) != IMPL_CYCLE) {
 		gcm_ctx->gcm_use_avx = GCM_IMPL_USE_AVX;
 	} else {
+		/*
+		 * Handle the "cycle" implementation by creating avx and
+		 * non-avx contexts alternately.
+		 */
 		gcm_ctx->gcm_use_avx = gcm_toggle_avx();
-	}
-	/* We don't handle byte swapped key schedules in the avx code path. */
-	aes_key_t *ks = (aes_key_t *)gcm_ctx->gcm_keysched;
-	if (ks->ops->needs_byteswap == B_TRUE) {
-		gcm_ctx->gcm_use_avx = B_FALSE;
+		/*
+		 * We don't handle byte swapped key schedules in the avx
+		 * code path.
+		 */
+		aes_key_t *ks = (aes_key_t *)gcm_ctx->gcm_keysched;
+		if (ks->ops->needs_byteswap == B_TRUE) {
+			gcm_ctx->gcm_use_avx = B_FALSE;
+		}
+		/* Use the MOVBE and the BSWAP variants alternately. */
+		if (gcm_ctx->gcm_use_avx == B_TRUE &&
+		    zfs_movbe_available() == B_TRUE) {
+			(void) atomic_toggle_boolean_nv(
+			    (volatile boolean_t *)&gcm_avx_can_use_movbe);
+		}
 	}
 	/* Avx and non avx context initialization differs from here on. */
 	if (gcm_ctx->gcm_use_avx == B_FALSE) {
@@ -856,9 +868,15 @@ gcm_impl_init(void)
 	 * Use the avx implementation if it's available and the implementation
 	 * hasn't changed from its default value of fastest on module load.
 	 */
-	if (gcm_avx_will_work() &&
-	    GCM_IMPL_READ(user_sel_impl) == IMPL_FASTEST) {
-		gcm_set_avx(B_TRUE);
+	if (gcm_avx_will_work()) {
+#ifdef HAVE_MOVBE
+		if (zfs_movbe_available() == B_TRUE) {
+			atomic_swap_32(&gcm_avx_can_use_movbe, B_TRUE);
+		}
+#endif
+		if (GCM_IMPL_READ(user_sel_impl) == IMPL_FASTEST) {
+			gcm_set_avx(B_TRUE);
+		}
 	}
 #endif
 	/* Finish initialization */
@@ -1032,7 +1050,6 @@ MODULE_PARM_DESC(icp_gcm_impl, "Select gcm implementation.");
 static uint32_t gcm_avx_chunk_size =
 	((32 * 1024) / GCM_AVX_MIN_DECRYPT_BYTES) * GCM_AVX_MIN_DECRYPT_BYTES;
 
-extern boolean_t atomic_toggle_boolean_nv(volatile boolean_t *);
 extern void clear_fpu_regs_avx(void);
 extern void gcm_xor_avx(const uint8_t *src, uint8_t *dst);
 extern void aes_encrypt_intel(const uint32_t rk[], int nr,
@@ -1053,8 +1070,8 @@ gcm_avx_will_work(void)
 {
 	/* Avx should imply aes-ni and pclmulqdq, but make sure anyhow. */
 	return (kfpu_allowed() &&
-	    zfs_avx_available() && zfs_movbe_available() &&
-	    zfs_aes_available() && zfs_pclmulqdq_available());
+	    zfs_avx_available() && zfs_aes_available() &&
+	    zfs_pclmulqdq_available());
 }
 
 static inline void
