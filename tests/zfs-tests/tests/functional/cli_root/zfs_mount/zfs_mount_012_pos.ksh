@@ -18,9 +18,6 @@
 
 #
 # DESCRIPTION:
-#  Linux:
-#   Verify that zfs mount fails with a non-empty directory
-#  FreeSD:
 #   Verify that zfs mount succeeds with a non-empty directory
 #
 
@@ -34,18 +31,12 @@
 # 6. Unmount the dataset
 # 7. Create a file in the directory created in step 2
 # 8. Attempt to mount the dataset
-# 9. Verify the mount fails
+# 9. Verify the mount succeeds
 #
 
 verify_runnable "both"
 
-if is_linux; then
-	behaves="fails"
-else
-	behaves="succeeds"
-fi
-
-log_assert "zfs mount $behaves with non-empty directory"
+log_assert "zfs mount succeeds with non-empty directory"
 
 fs=$TESTPOOL/$TESTFS
 
@@ -55,12 +46,8 @@ log_must zfs set mountpoint=$TESTDIR $fs
 log_must zfs mount $fs
 log_must zfs umount $fs
 log_must touch $TESTDIR/testfile.$$
-if is_linux; then
-	log_mustnot zfs mount $fs
-else
-	log_must zfs mount $fs
-	log_must zfs umount $fs
-fi
+log_must zfs mount $fs
+log_must zfs umount $fs
 log_must rm -rf $TESTDIR
 
-log_pass "zfs mount $behaves with non-empty directory as expected."
+log_pass "zfs mount succeeds with non-empty directory as expected."
