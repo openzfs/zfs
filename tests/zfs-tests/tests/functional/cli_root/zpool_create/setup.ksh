@@ -34,24 +34,4 @@
 
 verify_runnable "global"
 
-if ! is_physical_device $DISKS; then
-	log_unsupported "This directory cannot be run on raw files."
-fi
-
-if [[ -n $DISK ]]; then
-	#
-        # Use 'zpool create' to clean up the information in
-        # in the given disk to avoid slice overlapping.
-        #
-	cleanup_devices $DISK
-
-        partition_disk $((($MINVDEVSIZE / (1024 * 1024)) * 2))m $DISK 7
-else
-	for disk in `echo $DISKSARRAY`; do
-		cleanup_devices $disk
-
-		partition_disk $((($MINVDEVSIZE / (1024 * 1024)) * 2))m $disk 7
-	done
-fi
-
 log_pass

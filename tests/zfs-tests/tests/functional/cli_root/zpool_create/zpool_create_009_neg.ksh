@@ -50,15 +50,10 @@ verify_runnable "global"
 
 function cleanup
 {
-	typeset dtst
-	typeset disk
+	typeset pool
 
-	for dtst in $TESTPOOL $TESTPOOL1; do
-		poolexists $dtst && destroy_pool $dtst
-	done
-
-	for disk in $DISKS; do
-		partition_disk $SIZE $disk 6
+	for pool in $TESTPOOL $TESTPOOL1; do
+		poolexists $pool && destroy_pool $pool
 	done
 }
 
@@ -69,26 +64,24 @@ log_onexit cleanup
 unset NOINUSE_CHECK
 typeset opt
 for opt in "" "mirror" "raidz" "raidz1"; do
-	typeset disk="$DISKS"
-	(( ${#opt} == 0 )) && disk=${DISKS%% *}
-
-	typeset -i count=$(get_word_count $disk)
-	if (( count < 2  && ${#opt} != 0 )) ; then
-		continue
+	if [[ $opt == "" ]]; then
+		typeset disks=$DISK0
+	else
+		typeset disks=$DISKS
 	fi
 
 	# Create two pools but using the same disks.
-	create_pool $TESTPOOL $opt $disk
-	log_mustnot zpool create -f $TESTPOOL1 $opt $disk
+	create_pool $TESTPOOL $opt $disks
+	log_mustnot zpool create -f $TESTPOOL1 $opt $disks
 	destroy_pool $TESTPOOL
 
 	# Create two pools and part of the devices were overlapped
-	create_pool $TESTPOOL $opt $disk
-	log_mustnot zpool create -f $TESTPOOL1 $opt ${DISKS% *}
+	create_pool $TESTPOOL $opt $disks
+	log_mustnot zpool create -f $TESTPOOL1 $opt $DISK0
 	destroy_pool $TESTPOOL
 
 	# Create one pool but using the same disks twice.
-	log_mustnot zpool create -f $TESTPOOL $opt $disk $disk
+	log_mustnot zpool create -f $TESTPOOL $opt $disks $disks
 done
 
 log_pass "Using overlapping or in-use disks to create a new pool fails as expected."

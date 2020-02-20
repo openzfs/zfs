@@ -53,65 +53,15 @@ function create_pool_test
 }
 
 #
-# Create a ufs|ext file system and make a file within the file
-# system for storage pool vdev
+# Create a file for storage pool vdev
 # $1, file size
-# $2, file name
-# $3, disk name to create ufs|ext file system
 #
 function create_blockfile
 {
 	typeset size=$1
-	typeset file=$2
-	typeset disk=$3
-	typeset dir=`dirname $file`
-
-	if [[ -d $dir ]]; then
-		ismounted $dir $NEWFS_DEFAULT_FS
-		(( $? == 0 )) && \
-			log_must umount -f $dir
-	else
-		log_must mkdir -p $dir
-	fi
-
-	log_must eval "new_fs ${DEV_RDSKDIR}/$disk >/dev/null 2>&1"
-
-        log_must mount ${DEV_DSKDIR}/$disk $dir
-        log_must truncate -s $size $file
-}
-
-#
-# Umount the ufs|ext filesystem and remove the mountpoint
-# $1, the mount point
-#
-function clean_blockfile
-{
-	typeset dirs=$1
-
-	for dir in $dirs; do
-		if [[ -d $dir ]]; then
-			if is_linux; then
-				if ismounted $dir ext2; then
-					typeset dev=$(df -lht ext2 | \
-						grep "$dir" | \
-						awk '{print $1}')
-					log_must umount -f $dir
-					create_pool ${TESTPOOL}.tmp $dev
-					destroy_pool ${TESTPOOL}.tmp
-				fi
-			else
-				if ismounted $dir ufs; then
-					typeset dev=$(df -lhF ufs | \
-						grep "$dir" | \
-						awk '{print $1}')
-					log_must umount -f $dir
-					create_pool ${TESTPOOL}.tmp $dev
-					destroy_pool ${TESTPOOL}.tmp
-				fi
-			fi
-			log_must rm -rf $dir
-		fi
-	done
+	typeset file=$(mktemp)
+	truncate -s $size $file
+	echo $file
 }
 
 #
