@@ -3515,21 +3515,12 @@ zfs_ioc_log_history(const char *unused, nvlist_t *innvl, nvlist_t *outnvl)
 /*
  * This ioctl is used to set the bootenv configuration on the current
  * pool. This configuration is stored in the second padding area of the label,
- * and it is used by the FreeBSD-derived bootloader used on Illumos when
- * determining what dataset to boot. The bootenv configuratoin has 4 main
- * elements. The first is the command to pass to the bootloader. This is
- * primarily to be used to tell the bootloader what dataset to use as the
- * bootfs. If this isn't used, the bootloader will use the bootfs property
- * from the pool.  The second is the environment map. We use this to pass a
- * few environment variables to the bootloader.  The third component is the
- * number of boots to attempt before switching to the bootenv configuration.
- * The final component is the number of boots that have been attempted.
- *
- * When we boot, we first increment the number of attempted boots. If the
- * maximum number of boots is 0, or the number of attempted boots is equal to
- * the maximum boot count, we clear the bootenv configuration and use the
- * command and environment map to control the boot. Otherwise, we proceed with
- * boot as normal.
+ * and it is used by the GRUB bootloader used on Linux to store the contengs
+ * of the grubenv file.  The file is stored as raw ASCII, and is protected by
+ * an embedded checksum.  By default, GRUB will check if the boot filesystem
+ * supports storing the environment data in a special location, and if so,
+ * will invoke filesystem specific logic to retrieve it. This can be overriden
+ * by a variable, should the user so desire.
  */
 /* ARGSUSED */
 static const zfs_ioc_key_t zfs_keys_set_bootenv[] = {
