@@ -668,10 +668,6 @@ tags = ['functional', 'pool_names']
 tests = ['poolversion_001_pos', 'poolversion_002_pos']
 tags = ['functional', 'poolversion']
 
-[tests/functional/privilege]
-tests = ['privilege_001_pos', 'privilege_002_pos']
-tags = ['functional', 'privilege']
-
 [tests/functional/pyzfs]
 tests = ['pyzfs_unittest']
 pre =
