@@ -45,11 +45,14 @@ verify_runnable "both"
 function cleanup
 {
 	poolexists $TESTPOOL1 && destroy_pool $TESTPOOL1
+	rm -f $testfile0
 }
 
 log_onexit cleanup
 
 log_assert "ENOSPC is returned on pools with large physical block size"
+
+typeset testfile0=${TESTDIR}/testfile0
 
 log_must zpool create -o ashift=13 $TESTPOOL1 $DISK_LARGE
 log_must zfs set mountpoint=$TESTDIR $TESTPOOL1
@@ -57,12 +60,12 @@ log_must zfs set compression=off $TESTPOOL1
 log_must zfs set recordsize=512 $TESTPOOL1
 log_must zfs set copies=3 $TESTPOOL1
 
-log_note "Writing file: $TESTFILE0 until ENOSPC."
-file_write -o create -f $TESTDIR/$TESTFILE0 -b $BLOCKSZ \
+log_note "Writing file: $testfile0 until ENOSPC."
+file_write -o create -f $testfile0 -b $BLOCKSZ \
     -c $NUM_WRITES -d $DATA
 ret=$?
 
 (( $ret != $ENOSPC )) && \
-    log_fail "$TESTFILE0 returned: $ret rather than ENOSPC."
+    log_fail "$testfile0 returned: $ret rather than ENOSPC."
 
 log_pass "ENOSPC returned as expected."

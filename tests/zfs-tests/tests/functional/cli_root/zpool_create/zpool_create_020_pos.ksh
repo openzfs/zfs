@@ -57,15 +57,9 @@ log_assert "zpool create -R works as expected"
 
 typeset values=$TEST_BASE_DIR/values.$$
 
-if [[ -n $DISK ]]; then
-	disk=$DISK
-else
-	disk=$DISK0
-fi
-
 log_must rm -f /etc/zfs/zpool.cache
 log_must rm -rf /${TESTPOOL}.root
-log_must zpool create -R /${TESTPOOL}.root $TESTPOOL $disk
+log_must zpool create -R /${TESTPOOL}.root $TESTPOOL $DISK0
 if [ ! -d /${TESTPOOL}.root ]
 then
 	log_fail "Mountpoint was not created when using zpool with -R flag!"

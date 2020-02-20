@@ -52,7 +52,7 @@ log_onexit cleanup
 
 log_assert "zpool set can modify 'ashift' property"
 
-disk=$TEST_BASE_DIR/$FILEDISK0
+disk=$TEST_BASE_DIR/disk
 log_must mkfile $SIZE $disk
 log_must zpool create $TESTPOOL1 $disk
 

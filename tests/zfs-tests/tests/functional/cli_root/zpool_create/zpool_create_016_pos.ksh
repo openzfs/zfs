@@ -67,12 +67,6 @@ function cleanup
 	fi
 }
 
-if [[ -n $DISK ]]; then
-	disk=$DISK
-else
-	disk=$DISK0
-fi
-typeset pool_dev=${disk}${SLICE_PREFIX}${SLICE0}
 typeset swap_disks=$(swap -l | grep -v "swapfile" | awk '{print $1}')
 typeset dump_device=$(dumpadm | grep "Dump device" | awk '{print $3}')
 
@@ -88,7 +82,7 @@ for sdisk in $swap_disks; do
 	fi
 done
 
-log_must zpool create $TESTPOOL $pool_dev
+log_must zpool create $TESTPOOL $DISK0
 log_must zpool destroy $TESTPOOL
 
 log_pass "'zpool create' passed as expected with applicable scenario."

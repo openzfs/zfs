@@ -62,7 +62,10 @@ log_assert "Verify '-o' will set filesystem property temporarily, " \
 	"without affecting the property that is stored on disk."
 log_onexit cleanup
 
-set -A properties "atime" "devices" "exec" "readonly" "setuid"
+set -A properties "atime" "exec" "readonly" "setuid"
+if ! is_freebsd; then
+	properties+=("devices")
+fi
 
 #
 # Get the specified filesystem property reverse mount option.
@@ -78,16 +81,21 @@ function get_reverse_option
 	# Define property value: "reverse if value=on" "reverse if value=off"
 	if is_linux; then
 		set -A values "noatime"   "atime" \
-			      "nodev"     "dev" \
 			      "noexec"    "exec" \
 			      "rw"        "ro" \
-			      "nosuid"    "suid"
-	else
+			      "nosuid"    "suid" \
+			      "nodev"     "dev"
+	elif is_freebsd; then
 		set -A values "noatime"   "atime" \
-			      "nodevices" "devices" \
 			      "noexec"    "exec" \
 			      "rw"        "ro" \
 			      "nosetuid"  "setuid"
+	else
+		set -A values "noatime"   "atime" \
+			      "noexec"    "exec" \
+			      "rw"        "ro" \
+			      "nosetuid"  "setuid" \
+			      "nodevices" "devices"
 	fi
 
 	typeset -i i=0
