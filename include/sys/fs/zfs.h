@@ -1290,7 +1290,7 @@ typedef enum zfs_ioc {
 	ZFS_IOC_WAIT_FS,			/* 0x5a54 */
 
 	/*
-	 * Per-platform (Optional) - 6/128 numbers reserved.
+	 * Per-platform (Optional) - 8/128 numbers reserved.
 	 */
 	ZFS_IOC_PLATFORM = ZFS_IOC_FIRST + 0x80,
 	ZFS_IOC_EVENTS_NEXT,			/* 0x81 (Linux) */

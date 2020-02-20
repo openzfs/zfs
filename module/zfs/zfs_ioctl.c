@@ -3543,8 +3543,7 @@ zfs_ioc_set_bootenv(const char *name, nvlist_t *innvl, nvlist_t *outnvl)
 	int error;
 	spa_t *spa;
 
-	if (nvlist_lookup_string(innvl, "envmap", &envmap) != 0)
-		return (EINVAL);
+	envmap = fnvlist_lookup_string(innvl, "envmap");
 	if ((error = spa_open(name, &spa, FTAG)) != 0)
 		return (error);
 	spa_vdev_state_enter(spa, SCL_ALL);

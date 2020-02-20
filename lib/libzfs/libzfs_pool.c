@@ -4476,7 +4476,7 @@ zpool_get_bootenv(zpool_handle_t *zhp, char *outbuf, size_t size, off_t offset)
 		(void) zpool_standard_error_fmt(zhp->zpool_hdl, error,
 		    dgettext(TEXT_DOMAIN,
 		    "error getting bootenv in pool '%s'"), zhp->zpool_name);
-		return (error * -1);
+		return (-1);
 	}
 	strncpy(outbuf, fnvlist_lookup_string(nvl, "envmap") + offset,
 	    size);
