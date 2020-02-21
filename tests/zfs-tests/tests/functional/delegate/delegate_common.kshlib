@@ -101,7 +101,7 @@ function verify_perm
 
 			log_note "Check $type $user $perm $dtst"
 			if ((ret != 0)) ; then
-				log_note "Fail: $user should have $perm " \
+				log_note "Fail: $user should have $perm" \
 					"on $dtst"
 				return 1
 			fi
