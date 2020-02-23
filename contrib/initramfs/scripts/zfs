@@ -6,16 +6,8 @@
 # Enable this by passing boot=zfs on the kernel command line.
 #
 
-# Source the common init script
+# Source the common functions
 . /etc/zfs/zfs-functions
-
-# Paths to what we need - in the initrd, these paths are hardcoded,
-# so override the defines in zfs-functions.
-ZFS="@sbindir@/zfs"
-ZPOOL="@sbindir@/zpool"
-ZPOOL_CACHE="@sysconfdir@/zfs/zpool.cache"
-export ZFS ZPOOL ZPOOL_CACHE
-
 
 # Start interactive shell.
 # Use debian's panic() if defined, because it allows to prevent shell access
