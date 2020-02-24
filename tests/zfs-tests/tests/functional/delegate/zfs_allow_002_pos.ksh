@@ -50,6 +50,14 @@ function cleanup
 {
 	if id $STAFF_GROUP > /dev/null 2>&1; then
 		log_must del_user $STAFF_GROUP
+		if is_freebsd; then
+			# pw userdel also deletes the group with the same name
+			# and has no way to opt out of this behavior (yet).
+			# Recreate the group as a workaround.
+			log_must add_group $STAFF_GROUP
+			log_must add_user $STAFF_GROUP $STAFF1
+			log_must add_user $STAFF_GROUP $STAFF2
+		fi
 	fi
 
 	restore_root_datasets
@@ -71,6 +79,14 @@ done
 log_must restore_root_datasets
 
 log_must del_user $STAFF_GROUP
+if is_freebsd; then
+	# pw userdel also deletes the group with the same name
+	# and has no way to opt out of this behavior (yet).
+	# Recreate the group as a workaround.
+	log_must add_group $STAFF_GROUP
+	log_must add_user $STAFF_GROUP $STAFF1
+	log_must add_user $STAFF_GROUP $STAFF2
+fi
 for dtst in $datasets ; do
 	log_must zfs allow $STAFF_GROUP $perms $dtst
 	log_must verify_perm $dtst $perms $STAFF1 $STAFF2

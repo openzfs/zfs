@@ -93,7 +93,7 @@ elif is_freebsd; then
 #		Permission	Filesystem	Volume
 #
 # Removed for FreeBSD
-# - zoned	- spelled "jailed"
+# - jailed	- jailing requires superuser privileges
 # - sharenfs	- sharing requires superuser privileges
 # - share	- sharing requires superuser privileges
 # - xattr	- Not supported on FreeBSD
@@ -125,7 +125,6 @@ set -A perms	create		true		false	\
 		clone		true		true	\
 		rename		true		true	\
 		promote		true		true	\
-		jailed		true		false	\
 		receive		true		false   \
 		destroy		true		true
 

@@ -45,20 +45,24 @@ function nesting_cleanup
 log_onexit nesting_cleanup
 
 set -A test_depths 30 16 3
+typeset mountpoint=/$TESTPOOL/mnt
 
 dsA32=$(printf 'a/%.0s' {1..32})"a"
 log_must zfs create -p $TESTPOOL/$dsA32
 
 dsB32=$(printf 'b/%.0s' {1..32})"b"
 log_must zfs create -o mountpoint=none -p $TESTPOOL/$dsB32
-log_mustnot mount -t zfs $TESTPOOL/$dsB32 /mnt
+# FreeBSD's mount command ignores the mountpoint property.
+if ! is_freebsd; then
+	log_mustnot mount -t zfs $TESTPOOL/$dsB32 /mnt
+fi
 
 dsC32=$(printf 'c/%.0s' {1..32})"c"
 log_must zfs create -o mountpoint=legacy -p $TESTPOOL/$dsC32
 log_must mount -t zfs $TESTPOOL/$dsC32 /mnt
 
 dsD32=$(printf 'd/%.0s' {1..32})"d"
-log_must zfs create -o mountpoint=/$TESTPOOL/mnt -p $TESTPOOL/$dsD32
+log_must zfs create -o mountpoint=$mountpoint -p $TESTPOOL/$dsD32
 
 
 for d in ${test_depths[@]}; do
@@ -152,7 +156,7 @@ for d in ${test_depths[@]}; do
 	fi
 
 
-	# mountpoint=testpool/mnt
+	# mountpoint=/testpool/mnt
 	ds_pre=$(printf 'd/%.0s' {1..$(($d-2))})"d"
 	ds=$(printf 'd/%.0s' {1..$(($d-1))})"d"
 	ds_post=$(printf 'd/%.0s' {1..$(($d))})"d"
@@ -182,8 +186,8 @@ for d in ${test_depths[@]}; do
 	fi
 done
 
+log_must rmdir $mountpoint # remove the mountpoint we created
 log_must zpool export $TESTPOOL
-log_must rmdir /testpool/mnt # remove the mountpoint we created
 log_must zpool import $TESTPOOL
 
 log_pass "Verified nested dataset are unmounted."
