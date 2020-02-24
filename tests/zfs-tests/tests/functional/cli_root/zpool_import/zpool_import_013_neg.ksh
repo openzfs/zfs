@@ -60,9 +60,8 @@ function uncompress_pool
 
 function cleanup
 {
-	poolexists $POOL_NAME && log_must zpool destroy $POOL_NAME
-	[[ -e /$TESTPOOL/$POOL_FILE ]] && rm /$TESTPOOL/$POOL_FILE
-	return 0
+	poolexists $POOL_NAME && destroy_pool $POOL_NAME
+	rm -f /$TESTPOOL/$POOL_FILE
 }
 
 log_assert "'zpool import' fails for pool that was not cleanly exported"

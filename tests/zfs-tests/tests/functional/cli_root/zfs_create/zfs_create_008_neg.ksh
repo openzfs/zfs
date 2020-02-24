@@ -97,8 +97,16 @@ log_assert "'zfs create' should return an error with badly-formed parameters."
 
 typeset -i i=0
 while [[ $i -lt ${#args[*]} ]]; do
-	log_mustnot zfs create ${args[i]} $TESTPOOL/$TESTFS1
-	log_mustnot zfs create -p ${args[i]} $TESTPOOL/$TESTFS1
+	typeset arg=${args[i]}
+	if is_freebsd; then
+		# FreeBSD does not strictly validate share options (yet).
+		if [[ "$arg" == "-o sharenfs="* ]]; then
+			((i = i + 1))
+			continue
+		fi
+	fi
+	log_mustnot zfs create $arg $TESTPOOL/$TESTFS1
+	log_mustnot zfs create -p $arg $TESTPOOL/$TESTFS1
 	((i = i + 1))
 done
 

@@ -56,11 +56,7 @@ function check_zdb
 
 function cleanup
 {
-	if [ -e $TEST_BASE_DIR/zdb_001_neg.$$.txt ]
-	then
-		rm $TEST_BASE_DIR/zdb_001_neg.$$.txt
-	fi
-
+	rm -f $TEST_BASE_DIR/zdb_001_neg.$$.txt $TEST_BASE_DIR/zdb.$$
 }
 
 verify_runnable "global"

@@ -1328,7 +1328,7 @@ function is_shared_freebsd
 {
 	typeset fs=$1
 
-	showmount -E | grep -qx $fs
+	pgrep -q mountd && showmount -E | grep -qx $fs
 }
 
 function is_shared_illumos
