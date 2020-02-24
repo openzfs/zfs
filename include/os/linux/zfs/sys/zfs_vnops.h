@@ -59,7 +59,6 @@ extern int zfs_rmdir(znode_t *dzp, char *name, znode_t *cwd,
     cred_t *cr, int flags);
 extern int zfs_readdir(struct inode *ip, zpl_dir_context_t *ctx, cred_t *cr);
 extern int zfs_fsync(znode_t *zp, int syncflag, cred_t *cr);
-extern int zfs_getattr(struct inode *ip, vattr_t *vap, int flag, cred_t *cr);
 extern int zfs_getattr_fast(struct inode *ip, struct kstat *sp);
 extern int zfs_setattr(znode_t *zp, vattr_t *vap, int flag, cred_t *cr);
 extern int zfs_rename(znode_t *sdzp, char *snm, znode_t *tdzp,
