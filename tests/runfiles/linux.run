@@ -30,7 +30,7 @@ tests = ['dbufstats_001_pos', 'dbufstats_002_pos', 'dbufstats_003_pos',
 tags = ['functional', 'arc']
 
 [tests/functional/atime:Linux]
-tests = ['root_relatime_on']
+tests = ['atime_003_pos', 'root_relatime_on']
 tags = ['functional', 'atime']
 
 [tests/functional/chattr:Linux]
