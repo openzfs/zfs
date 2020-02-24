@@ -33,7 +33,7 @@
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/delegate/delegate_common.kshlib
 
-if ! is_linux; then
+if is_illumos; then
 	# check svc:/network/nis/client:default state
 	# disable it if the state is ON
 	# and the state will be restored during cleanup.ksh

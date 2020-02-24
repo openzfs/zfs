@@ -117,13 +117,11 @@ struct send_thread_arg {
 	bqueue_t	q;
 	dsl_dataset_t	*ds;		/* Dataset to traverse */
 	redaction_list_t *redaction_list;
-	struct send_redact_record *current_record;
 	uint64_t	fromtxg;	/* Traverse from this txg */
 	int		flags;		/* flags to pass to traverse_dataset */
 	int		error_code;
 	boolean_t	cancel;
 	zbookmark_phys_t resume;
-	objlist_t	*deleted_objs;
 	uint64_t	*num_blocks_visited;
 };
 
@@ -137,23 +135,6 @@ struct redact_list_thread_arg {
 	uint64_t		*num_blocks_visited;
 };
 
-/*
- * A wrapper around struct redact_block so it can be stored in a list_t.
- */
-struct redact_block_list_node {
-	redact_block_phys_t	block;
-	list_node_t		node;
-};
-
-struct redact_bookmark_info {
-	redact_block_phys_t	rbi_furthest[TXG_SIZE];
-	/* Lists of struct redact_block_list_node. */
-	list_t			rbi_blocks[TXG_SIZE];
-	boolean_t		rbi_synctasc_txg[TXG_SIZE];
-	uint64_t		rbi_latest_synctask_txg;
-	redaction_list_t	*rbi_redaction_list;
-};
-
 struct send_merge_thread_arg {
 	bqueue_t			q;
 	objset_t			*os;
@@ -162,18 +143,6 @@ struct send_merge_thread_arg {
 	struct redact_list_thread_arg	*redact_arg;
 	int				error;
 	boolean_t			cancel;
-	struct redact_bookmark_info	rbi;
-	/*
-	 * If we're resuming a redacted send, then the object/offset from the
-	 * resume token may be different from the object/offset that we have
-	 * updated the bookmark to.  resume_redact_zb will store the earlier of
-	 * the two object/offset pairs, and bookmark_before will be B_TRUE if
-	 * resume_redact_zb has the object/offset for resuming the redaction
-	 * bookmark, and B_FALSE if resume_redact_zb is storing the
-	 * object/offset from the resume token.
-	 */
-	zbookmark_phys_t		resume_redact_zb;
-	boolean_t			bookmark_before;
 };
 
 struct send_range {
@@ -2120,7 +2089,6 @@ setup_resume_points(struct dmu_send_params *dspp,
 	 * If we're resuming a redacted send, we can skip to the appropriate
 	 * point in the redaction bookmark by binary searching through it.
 	 */
-	smt_arg->bookmark_before = B_FALSE;
 	if (redact_rl != NULL) {
 		SET_BOOKMARK(&rlt_arg->resume, to_ds->ds_object, obj, 0, blkid);
 	}

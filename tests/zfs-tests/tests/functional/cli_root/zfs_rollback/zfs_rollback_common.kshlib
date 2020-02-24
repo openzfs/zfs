@@ -83,8 +83,7 @@ function setup_snap_env
 		# Make sure the ufs|ext filesystem hasn't been mounted,
 		# then mount the new ufs|ext filesystem.
 		if ! ismounted $TESTDIR1 $NEWFS_DEFAULT_FS; then
-			log_must mount \
-				$ZVOL_DEVDIR/$TESTPOOL/$TESTVOL $TESTDIR1
+			log_must mount $ZVOL_DEVDIR/$VOL $TESTDIR1
 		fi
 	fi
 
@@ -127,7 +126,21 @@ function setup_snap_env
 						log_must lockfs -f $TESTDIR1
 					fi
 				fi
+				if is_freebsd && [[ $dtst == $VOL ]]; then
+					# Though sync does start a fs sync on
+					# FreeBSD, it does not wait for it to
+					# finish.  We can force a blocking sync
+					# by updating the fs mount instead.
+					# Otherwise, the snapshot might occur
+					# with the fs in an unmountable state.
+					log_must mount -ur \
+					    $ZVOL_DEVDIR/$VOL $TESTDIR1
+				fi
 				log_must zfs snapshot $snap
+				if is_freebsd && [[ $dtst == $VOL ]]; then
+					log_must mount -uw \
+					    $ZVOL_DEVDIR/$VOL $TESTDIR1
+				fi
 			fi
 			if [[ $createclone == "true" ]]; then
 				if datasetnonexists $clone; then

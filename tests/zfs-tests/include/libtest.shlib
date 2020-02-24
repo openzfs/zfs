@@ -1324,19 +1324,17 @@ function datasetnonexists
 	return 0
 }
 
-function is_shared_impl
+function is_shared_freebsd
+{
+	typeset fs=$1
+
+	showmount -E | grep -qx $fs
+}
+
+function is_shared_illumos
 {
 	typeset fs=$1
 	typeset mtpt
-
-	if is_linux; then
-		for mtpt in `share | awk '{print $1}'` ; do
-			if [[ $mtpt == $fs ]] ; then
-				return 0
-			fi
-		done
-		return 1
-	fi
 
 	for mtpt in `share | awk '{print $2}'` ; do
 		if [[ $mtpt == $fs ]] ; then
@@ -1349,6 +1347,19 @@ function is_shared_impl
 		log_note "Current nfs/server status: $stat"
 	fi
 
+	return 1
+}
+
+function is_shared_linux
+{
+	typeset fs=$1
+	typeset mtpt
+
+	for mtpt in `share | awk '{print $1}'` ; do
+		if [[ $mtpt == $fs ]] ; then
+			return 0
+		fi
+	done
 	return 1
 }
 
@@ -1376,7 +1387,11 @@ function is_shared
 		fi
 	fi
 
-	is_shared_impl "$fs"
+	case $(uname) in
+	FreeBSD)	is_shared_freebsd "$fs"	;;
+	Linux)		is_shared_linux "$fs"	;;
+	*)		is_shared_illumos "$fs"	;;
+	esac
 }
 
 function is_exported
