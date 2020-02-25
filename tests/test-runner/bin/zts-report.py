@@ -145,12 +145,8 @@ summary = {
 # reasons listed above can be used.
 #
 known = {
-    'casenorm/sensitive_formd_lookup': ['FAIL', '7633'],
-    'casenorm/sensitive_formd_delete': ['FAIL', '7633'],
     'casenorm/mixed_none_lookup_ci': ['FAIL', '7633'],
-    'casenorm/mixed_formd_lookup': ['FAIL', '7633'],
     'casenorm/mixed_formd_lookup_ci': ['FAIL', '7633'],
-    'casenorm/mixed_formd_delete': ['FAIL', '7633'],
     'cli_root/zfs_receive/zfs_receive_004_neg': ['FAIL', known_reason],
     'cli_root/zfs_unshare/zfs_unshare_002_pos': ['SKIP', na_reason],
     'cli_root/zfs_unshare/zfs_unshare_006_pos': ['SKIP', na_reason],
@@ -177,6 +173,10 @@ known = {
 #
 maybe = {
     'cache/cache_010_neg': ['FAIL', known_reason],
+    'casenorm/mixed_formd_lookup': ['FAIL', '7633'],
+    'casenorm/mixed_formd_delete': ['FAIL', '7633'],
+    'casenorm/sensitive_formd_lookup': ['FAIL', '7633'],
+    'casenorm/sensitive_formd_delete': ['FAIL', '7633'],
     'chattr/setup': ['SKIP', exec_reason],
     'cli_root/zdb/zdb_006_pos': ['FAIL', known_reason],
     'cli_root/zfs_get/zfs_get_004_pos': ['FAIL', known_reason],
