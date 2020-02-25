@@ -70,9 +70,10 @@ function verify_restarts # <msg> <cnt> <defer>
 	[[ -z "$defer" ]] && return
 
 	# use zdb to find which vdevs have the resilver defer flag
-	VDEV_DEFERS=$(zdb -C $TESTPOOL | \
-	    sed -n -e '/^ *children\[[0-9]\].*$/{h}' \
-	    -e '/ *com.datto:resilver_defer$/{g;p}')
+	VDEV_DEFERS=$(zdb -C $TESTPOOL | awk '
+	    /children/ { gsub(/[^0-9]/, ""); child = $0 }
+	    /com\.datto:resilver_defer$/ { print child }
+	')
 
 	if [[ "$defer" == "-" ]]
 	then
@@ -81,7 +82,7 @@ function verify_restarts # <msg> <cnt> <defer>
 		return
 	fi
 
-	[[ "x${VDEV_DEFERS}x" =~ "x +children[$defer]:x" ]] ||
+	[[ $VDEV_DEFERS -eq $defer ]] ||
 	    log_fail "resilver deferred set on unexpected vdev: $VDEV_DEFERS"
 }
 
