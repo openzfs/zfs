@@ -756,7 +756,7 @@ tags = ['functional', 'rootpool']
 tests = ['rsend_001_pos', 'rsend_002_pos', 'rsend_003_pos', 'rsend_004_pos',
     'rsend_005_pos', 'rsend_006_pos', 'rsend_007_pos', 'rsend_008_pos',
     'rsend_009_pos', 'rsend_010_pos', 'rsend_011_pos', 'rsend_012_pos',
-    'rsend_013_pos', 'rsend_014_pos',
+    'rsend_013_pos', 'rsend_014_pos', 'rsend_016_neg',
     'rsend_019_pos', 'rsend_020_pos',
     'rsend_021_pos', 'rsend_022_pos', 'rsend_024_pos',
     'send-c_verify_ratio', 'send-c_verify_contents', 'send-c_props',
