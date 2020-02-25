@@ -107,24 +107,17 @@ dsl_wrapping_key_free(dsl_wrapping_key_t *wkey)
 	kmem_free(wkey, sizeof (dsl_wrapping_key_t));
 }
 
-static int
+static void
 dsl_wrapping_key_create(uint8_t *wkeydata, zfs_keyformat_t keyformat,
     uint64_t salt, uint64_t iters, dsl_wrapping_key_t **wkey_out)
 {
-	int ret;
 	dsl_wrapping_key_t *wkey;
 
 	/* allocate the wrapping key */
 	wkey = kmem_alloc(sizeof (dsl_wrapping_key_t), KM_SLEEP);
-	if (!wkey)
-		return (SET_ERROR(ENOMEM));
 
 	/* allocate and initialize the underlying crypto key */
 	wkey->wk_key.ck_data = kmem_alloc(WRAPPING_KEY_LEN, KM_SLEEP);
-	if (!wkey->wk_key.ck_data) {
-		ret = ENOMEM;
-		goto error;
-	}
 
 	wkey->wk_key.ck_format = CRYPTO_KEY_RAW;
 	wkey->wk_key.ck_length = CRYPTO_BYTES2BITS(WRAPPING_KEY_LEN);
@@ -137,13 +130,6 @@ dsl_wrapping_key_create(uint8_t *wkeydata, zfs_keyformat_t keyformat,
 	wkey->wk_iters = iters;
 
 	*wkey_out = wkey;
-	return (0);
-
-error:
-	dsl_wrapping_key_free(wkey);
-
-	*wkey_out = NULL;
-	return (ret);
 }
 
 int
@@ -161,11 +147,6 @@ dsl_crypto_params_create_nvlist(dcp_cmd_t cmd, nvlist_t *props,
 	char *keylocation = NULL;
 
 	dcp = kmem_zalloc(sizeof (dsl_crypto_params_t), KM_SLEEP);
-	if (!dcp) {
-		ret = SET_ERROR(ENOMEM);
-		goto error;
-	}
-
 	dcp->cp_cmd = cmd;
 
 	/* get relevant arguments from the nvlists */
@@ -234,11 +215,8 @@ dsl_crypto_params_create_nvlist(dcp_cmd_t cmd, nvlist_t *props,
 	/* create the wrapping key from the raw data */
 	if (wkeydata != NULL) {
 		/* create the wrapping key with the verified parameters */
-		ret = dsl_wrapping_key_create(wkeydata, keyformat, salt,
+		dsl_wrapping_key_create(wkeydata, keyformat, salt,
 		    iters, &wkey);
-		if (ret != 0)
-			goto error;
-
 		dcp->cp_wkey = wkey;
 	}
 
@@ -561,8 +539,6 @@ dsl_crypto_key_open(objset_t *mos, dsl_wrapping_key_t *wkey,
 
 	/* allocate and initialize the key */
 	dck = kmem_zalloc(sizeof (dsl_crypto_key_t), KM_SLEEP);
-	if (!dck)
-		return (SET_ERROR(ENOMEM));
 
 	/* fetch all of the values we need from the ZAP */
 	ret = zap_lookup(mos, dckobj, DSL_CRYPTO_KEY_CRYPTO_SUITE, 8, 1,
@@ -2430,9 +2406,7 @@ dsl_crypto_populate_key_nvlist(dsl_dataset_t *ds, uint64_t from_ivset_guid,
 	VERIFY0(dmu_objset_from_ds(ds, &os));
 	mdn = DMU_META_DNODE(os);
 
-	ret = nvlist_alloc(&nvl, NV_UNIQUE_NAME, KM_SLEEP);
-	if (ret != 0)
-		goto error;
+	nvl = fnvlist_alloc();
 
 	/* lookup values from the DSL Crypto Key */
 	ret = zap_lookup(mos, dckobj, DSL_CRYPTO_KEY_CRYPTO_SUITE, 8, 1,
