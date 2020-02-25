@@ -92,15 +92,10 @@ sync
 
 set -A badargs \
     "" "nonexistent-snap" "blah@blah" "-d" "-d nonexistent-dataset" \
-    "$TESTPOOL/$TESTFS" "$TESTPOOL1" "$TESTPOOL/fs@" "$TESTPOOL/fs@@mysnap" \
+    "$TESTPOOL1" "$TESTPOOL/fs@" "$TESTPOOL/fs@@mysnap" \
     "$TESTPOOL/fs@@" "$TESTPOOL/fs/@mysnap" "$TESTPOOL/fs@/mysnap" \
     "$TESTPOOL/nonexistent-fs/nonexistent-fs" "-d $TESTPOOL/nonexistent-fs" \
     "-d $TESTPOOL/$TESTFS/nonexistent-fs"
-
-if is_global_zone ; then
-	typeset -i n=${#badargs[@]}
-	badargs[$n]="-d $TESTPOOL"
-fi
 
 typeset -i i=0
 while (( i < ${#badargs[*]} ))

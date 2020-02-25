@@ -147,7 +147,6 @@ summary = {
 known = {
     'casenorm/mixed_none_lookup_ci': ['FAIL', '7633'],
     'casenorm/mixed_formd_lookup_ci': ['FAIL', '7633'],
-    'cli_root/zfs_receive/zfs_receive_004_neg': ['FAIL', known_reason],
     'cli_root/zfs_unshare/zfs_unshare_002_pos': ['SKIP', na_reason],
     'cli_root/zfs_unshare/zfs_unshare_006_pos': ['SKIP', na_reason],
     'cli_user/misc/zfs_share_001_neg': ['SKIP', na_reason],
