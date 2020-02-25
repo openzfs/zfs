@@ -8127,10 +8127,8 @@ spa_free_sync_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx)
 {
 	zio_t *pio = arg;
 
-	zio_t *zio = zio_free_sync(pio, pio->io_spa, dmu_tx_get_txg(tx), bp,
-	    pio->io_flags);
-	if (zio != NULL)
-		zio_nowait(zio);
+	zio_nowait(zio_free_sync(pio, pio->io_spa, dmu_tx_get_txg(tx), bp,
+	    pio->io_flags));
 	return (0);
 }
 

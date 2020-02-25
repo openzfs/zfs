@@ -2171,6 +2171,15 @@ __zio_execute(zio_t *zio)
 int
 zio_wait(zio_t *zio)
 {
+	/*
+	 * Some routines, like zio_free_sync(), may return a NULL zio
+	 * to avoid the performance overhead of creating and then destroying
+	 * an unneeded zio.  For the callers' simplicity, we accept a NULL
+	 * zio and ignore it.
+	 */
+	if (zio == NULL)
+		return (0);
+
 	long timeout = MSEC_TO_TICK(zfs_deadman_ziotime_ms);
 	int error;
 
@@ -2208,6 +2217,12 @@ zio_wait(zio_t *zio)
 void
 zio_nowait(zio_t *zio)
 {
+	/*
+	 * See comment in zio_wait().
+	 */
+	if (zio == NULL)
+		return;
+
 	ASSERT3P(zio->io_executor, ==, NULL);
 
 	if (zio->io_child_type == ZIO_CHILD_LOGICAL &&
@@ -2497,9 +2512,10 @@ zio_free_gang(zio_t *pio, blkptr_t *bp, zio_gang_node_t *gn, abd_t *data,
 {
 	zio_t *zio = zio_free_sync(pio, pio->io_spa, pio->io_txg, bp,
 	    ZIO_GANG_CHILD_FLAGS(pio));
-	if (zio == NULL)
+	if (zio == NULL) {
 		zio = zio_null(pio, pio->io_spa,
 		    NULL, NULL, NULL, ZIO_GANG_CHILD_FLAGS(pio));
+	}
 	return (zio);
 }
 
@@ -3283,8 +3299,7 @@ zio_ddt_write(zio_t *zio)
 
 	ddt_exit(ddt);
 
-	if (cio)
-		zio_nowait(cio);
+	zio_nowait(cio);
 
 	return (zio);
 }
