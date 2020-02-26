@@ -27,7 +27,7 @@
 
 typedef struct zfs_dbgmsg {
 	procfs_list_node_t	zdm_node;
-	time_t			zdm_timestamp;
+	uint64_t		zdm_timestamp;
 	int			zdm_size;
 	char			zdm_msg[1]; /* variable length allocation */
 } zfs_dbgmsg_t;
