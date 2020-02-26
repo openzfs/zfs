@@ -85,7 +85,7 @@ gethrestime(inode_timespec_t *ts)
 #endif
 }
 
-static inline time_t
+static inline uint64_t
 gethrestime_sec(void)
 {
 #if defined(HAVE_INODE_TIMESPEC64_TIMES)
