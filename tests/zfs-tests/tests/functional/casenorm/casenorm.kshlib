@@ -65,10 +65,10 @@ function lookup_file
 {
 	typeset name=$1
 
-	if is_linux; then
-		test -f "${TESTDIR}/${name}" >/dev/null 2>&1
-	else
+	if is_illumos; then
 		zlook -l $TESTDIR $name >/dev/null 2>&1
+	else
+		test -f "${TESTDIR}/${name}" >/dev/null 2>&1
 	fi
 }
 
@@ -76,10 +76,10 @@ function lookup_file_ci
 {
 	typeset name=$1
 
-	if is_linux; then
-		test -f "${TESTDIR}/${name}" >/dev/null 2>&1
-	else
+	if is_illumos; then
 		zlook -il $TESTDIR $name >/dev/null 2>&1
+	else
+		test -f "${TESTDIR}/${name}" >/dev/null 2>&1
 	fi
 }
 
