@@ -1859,14 +1859,15 @@ zio_taskq_dispatch(zio_t *zio, zio_taskq_type_t q, boolean_t cutinline)
 static boolean_t
 zio_taskq_member(zio_t *zio, zio_taskq_type_t q)
 {
-	kthread_t *executor = zio->io_executor;
 	spa_t *spa = zio->io_spa;
+
+	taskq_t *tq = taskq_of_curthread();
 
 	for (zio_type_t t = 0; t < ZIO_TYPES; t++) {
 		spa_taskqs_t *tqs = &spa->spa_zio_taskq[t][q];
 		uint_t i;
 		for (i = 0; i < tqs->stqs_count; i++) {
-			if (taskq_member(tqs->stqs_taskq[i], executor))
+			if (tqs->stqs_taskq[i] == tq)
 				return (B_TRUE);
 		}
 	}
