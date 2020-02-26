@@ -44,10 +44,7 @@
 
 function cleanup
 {
-	if [ -e "$TEMPFILE" ]
-	then
-		rm -f "$TEMPFILE"
-	fi
+	rm -f "$TEMPFILE"
 }
 
 log_onexit cleanup
@@ -55,7 +52,7 @@ log_assert "zfs shows a usage message when run as a user"
 
 TEMPFILE="$TEST_BASE_DIR/zfs_001_neg.$$.txt"
 
-eval "zfs > $TEMPFILE 2>&1"
+zfs > $TEMPFILE 2>&1
 log_must grep "usage: zfs command args" "$TEMPFILE"
 
 log_must eval "awk '{if (length(\$0) > 80) exit 1}' < $TEMPFILE"

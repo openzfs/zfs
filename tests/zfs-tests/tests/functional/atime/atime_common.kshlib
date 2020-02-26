@@ -48,7 +48,7 @@ function check_atime_updated
 		typeset before=$(stat -c %X $filename)
 		sleep 2
 	elif is_freebsd; then
-		typeset before=$(ls -luD "%Y-%m-%d %R.%s" $filename | awk '{print $7}')
+		typeset before=$(stat -f %a $filename)
 		sleep 2
 	else
 		typeset before=$(ls -Eu $filename | awk '{print $7}')
@@ -59,7 +59,7 @@ function check_atime_updated
 	if is_linux; then
 		typeset after=$(stat -c %X $filename)
 	elif is_freebsd; then
-		typeset after=$(ls -luD "%Y-%m-%d %R.%s" $filename | awk '{print $7}')
+		typeset after=$(stat -f %a $filename)
 	else
 		typeset after=$(ls -Eu $filename | awk '{print $7}')
 	fi

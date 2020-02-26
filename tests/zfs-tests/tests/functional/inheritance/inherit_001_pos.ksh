@@ -406,14 +406,15 @@ if is_linux; then
 	def_val+=("off")
 	local_val+=("off")
 else
-	prop+=("aclmode" "" \
-		"mountpoint" "")
-	def_val+=("discard" \
-		"")
-	local_val+=("groupmask" \
-		"$TESTDIR")
+	prop+=("aclmode" "")
+	def_val+=("discard")
+	local_val+=("groupmask")
 fi
-
+if is_illumos; then
+	prop+=("mountpoint" "")
+	def_val+=("")
+	local_val+=("$TESTDIR")
+fi
 
 #
 # Global flag indicating whether the default record size had been
