@@ -76,7 +76,7 @@ sync
 log_note "Verify 'zfs list' can correctly list the space charged."
 fsize=${FILESIZE%[m|M]}
 for val in 1 2 3; do
-	used=$(get_used_prop $TESTPOOL/fs_$val)
+	used=$(get_prop used $TESTPOOL/fs_$val)
 	check_used $used $val
 done
 
