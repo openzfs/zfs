@@ -105,8 +105,13 @@ gethrestime_sec(void)
 static inline hrtime_t
 gethrtime(void)
 {
+#if defined(HAVE_KTIME_GET_RAW_TS64)
+	struct timespec64 ts;
+	ktime_get_raw_ts64(&ts);
+#else
 	struct timespec ts;
 	getrawmonotonic(&ts);
+#endif
 	return (((hrtime_t)ts.tv_sec * NSEC_PER_SEC) + ts.tv_nsec);
 }
 
