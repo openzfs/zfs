@@ -1183,7 +1183,7 @@ dmu_tx_abort(dmu_tx_t *tx)
 	 * Call any registered callbacks with an error code.
 	 */
 	if (!list_is_empty(&tx->tx_callbacks))
-		dmu_tx_do_callbacks(&tx->tx_callbacks, ECANCELED);
+		dmu_tx_do_callbacks(&tx->tx_callbacks, SET_ERROR(ECANCELED));
 
 	dmu_tx_destroy(tx);
 }

@@ -990,7 +990,7 @@ zfs_check_global_label(const char *dsname, const char *hexsl)
 		if (dsl_prop_get_integer(dsname,
 		    zfs_prop_to_name(ZFS_PROP_READONLY), &rdonly, NULL))
 			return (SET_ERROR(EACCES));
-		return (rdonly ? 0 : EACCES);
+		return (rdonly ? 0 : SET_ERROR(EACCES));
 	}
 	return (SET_ERROR(EACCES));
 }

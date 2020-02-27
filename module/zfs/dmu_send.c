@@ -2464,7 +2464,7 @@ dmu_send_impl(struct dmu_send_params *dspp)
 		err = do_dump(&dsc, range);
 		range = get_next_range(&spt_arg->q, range);
 		if (issig(JUSTLOOKING) && issig(FORREAL))
-			err = EINTR;
+			err = SET_ERROR(EINTR);
 	}
 
 	/*
