@@ -14,6 +14,7 @@ ccflags-y += $(NO_UNUSED_BUT_SET_VARIABLE)
 # Suppress unused-value warnings in sparc64 architecture headers
 ccflags-$(CONFIG_SPARC64) += -Wno-unused-value
 
+$(MODULE)-objs += abd.o
 $(MODULE)-objs += aggsum.o
 $(MODULE)-objs += arc.o
 $(MODULE)-objs += blkptr.o

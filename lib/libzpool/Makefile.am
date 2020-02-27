@@ -39,6 +39,7 @@ KERNEL_C = \
 	zpool_prop.c \
 	zprop_common.c \
 	abd.c \
+	abd_os.c \
 	aggsum.c \
 	arc.c \
 	arc_os.c \
