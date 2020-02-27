@@ -1051,7 +1051,7 @@ vdev_trim_restart(vdev_t *vd)
 		    vd->vdev_leaf_zap, VDEV_LEAF_ZAP_TRIM_ACTION_TIME,
 		    sizeof (timestamp), 1, &timestamp);
 		ASSERT(err == 0 || err == ENOENT);
-		vd->vdev_trim_action_time = (time_t)timestamp;
+		vd->vdev_trim_action_time = timestamp;
 
 		if (vd->vdev_trim_state == VDEV_TRIM_SUSPENDED ||
 		    vd->vdev_offline) {
