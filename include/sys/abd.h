@@ -42,6 +42,7 @@ typedef int abd_iter_func_t(void *buf, size_t len, void *private);
 typedef int abd_iter_func2_t(void *bufa, void *bufb, size_t len, void *private);
 
 extern int zfs_abd_scatter_enabled;
+extern abd_t *abd_zero_scatter;
 
 /*
  * Allocations and deallocations
@@ -49,13 +50,16 @@ extern int zfs_abd_scatter_enabled;
 
 abd_t *abd_alloc(size_t, boolean_t);
 abd_t *abd_alloc_linear(size_t, boolean_t);
+abd_t *abd_alloc_gang_abd(void);
 abd_t *abd_alloc_for_io(size_t, boolean_t);
 abd_t *abd_alloc_sametype(abd_t *, size_t);
+void abd_gang_add(abd_t *, abd_t *, boolean_t);
 void abd_free(abd_t *);
+void abd_put(abd_t *);
 abd_t *abd_get_offset(abd_t *, size_t);
 abd_t *abd_get_offset_size(abd_t *, size_t, size_t);
+abd_t *abd_get_zeros(size_t);
 abd_t *abd_get_from_buf(void *, size_t);
-void abd_put(abd_t *);
 
 /*
  * Conversion to and from a normal buffer
@@ -132,6 +136,7 @@ abd_zero(abd_t *abd, size_t size)
  * ABD type check functions
  */
 boolean_t abd_is_linear(abd_t *);
+boolean_t abd_is_gang(abd_t *);
 boolean_t abd_is_linear_page(abd_t *);
 
 /*
@@ -146,8 +151,7 @@ void abd_fini(void);
  * Linux ABD bio functions
  */
 #if defined(__linux__) && defined(_KERNEL)
-unsigned int abd_scatter_bio_map_off(struct bio *, abd_t *, unsigned int,
-    size_t);
+unsigned int abd_bio_map_off(struct bio *, abd_t *, unsigned int, size_t);
 unsigned long abd_nr_pages_off(abd_t *, unsigned int, size_t);
 #endif
 

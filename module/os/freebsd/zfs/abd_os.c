@@ -90,6 +90,15 @@ SYSCTL_ULONG(_vfs_zfs, OID_AUTO, abd_chunk_size, CTLFLAG_RDTUN,
 kmem_cache_t *abd_chunk_cache;
 static kstat_t *abd_ksp;
 
+/*
+ * We use a scattered SPA_MAXBLOCKSIZE sized ABD whose chunks are
+ * just a single zero'd sized zfs_abd_chunk_size buffer. This
+ * allows us to conserve memory by only using a single zero buffer
+ * for the scatter chunks.
+ */
+abd_t *abd_zero_scatter = NULL;
+static char *abd_zero_buf = NULL;
+
 static void
 abd_free_chunk(void *c)
 {
@@ -193,6 +202,8 @@ abd_alloc_struct(size_t size)
 	    abd_u.abd_scatter.abd_chunks[chunkcnt]);
 	abd_t *abd = kmem_alloc(abd_size, KM_PUSHPAGE);
 	ASSERT3P(abd, !=, NULL);
+	list_link_init(&abd->abd_gang_link);
+	mutex_init(&abd->abd_mtx, NULL, MUTEX_DEFAULT, NULL);
 	ABDSTAT_INCR(abdstat_struct_size, abd_size);
 
 	return (abd);
@@ -203,8 +214,51 @@ abd_free_struct(abd_t *abd)
 {
 	size_t chunkcnt = abd_is_linear(abd) ? 0 : abd_scatter_chunkcnt(abd);
 	int size = offsetof(abd_t, abd_u.abd_scatter.abd_chunks[chunkcnt]);
+	mutex_destroy(&abd->abd_mtx);
+	ASSERT(!list_link_active(&abd->abd_gang_link));
 	kmem_free(abd, size);
 	ABDSTAT_INCR(abdstat_struct_size, -size);
+}
+
+/*
+ * Allocate scatter ABD of size SPA_MAXBLOCKSIZE, where
+ * each chunk in the scatterlist will be set to abd_zero_buf.
+ */
+static void
+abd_alloc_zero_scatter(void)
+{
+	size_t n = abd_chunkcnt_for_bytes(SPA_MAXBLOCKSIZE);
+	abd_zero_buf = kmem_zalloc(zfs_abd_chunk_size, KM_SLEEP);
+	abd_zero_scatter = abd_alloc_struct(SPA_MAXBLOCKSIZE);
+
+	abd_zero_scatter->abd_flags = ABD_FLAG_OWNER | ABD_FLAG_ZEROS;
+	abd_zero_scatter->abd_size = SPA_MAXBLOCKSIZE;
+	abd_zero_scatter->abd_parent = NULL;
+	zfs_refcount_create(&abd_zero_scatter->abd_children);
+
+	ABD_SCATTER(abd_zero_scatter).abd_offset = 0;
+	ABD_SCATTER(abd_zero_scatter).abd_chunk_size =
+	    zfs_abd_chunk_size;
+
+	for (int i = 0; i < n; i++) {
+		ABD_SCATTER(abd_zero_scatter).abd_chunks[i] =
+		    abd_zero_buf;
+	}
+
+	ABDSTAT_BUMP(abdstat_scatter_cnt);
+	ABDSTAT_INCR(abdstat_scatter_data_size, zfs_abd_chunk_size);
+}
+
+static void
+abd_free_zero_scatter(void)
+{
+	zfs_refcount_destroy(&abd_zero_scatter->abd_children);
+	ABDSTAT_BUMPDOWN(abdstat_scatter_cnt);
+	ABDSTAT_INCR(abdstat_scatter_data_size, -(int)zfs_abd_chunk_size);
+
+	abd_free_struct(abd_zero_scatter);
+	abd_zero_scatter = NULL;
+	kmem_free(abd_zero_buf, zfs_abd_chunk_size);
 }
 
 void
@@ -219,11 +273,15 @@ abd_init(void)
 		abd_ksp->ks_data = &abd_stats;
 		kstat_install(abd_ksp);
 	}
+
+	abd_alloc_zero_scatter();
 }
 
 void
 abd_fini(void)
 {
+	abd_free_zero_scatter();
+
 	if (abd_ksp != NULL) {
 		kstat_delete(abd_ksp);
 		abd_ksp = NULL;
@@ -271,11 +329,12 @@ abd_alloc_scatter_offset_chunkcnt(size_t chunkcnt)
 	    abd_u.abd_scatter.abd_chunks[chunkcnt]);
 	abd_t *abd = kmem_alloc(abd_size, KM_PUSHPAGE);
 	ASSERT3P(abd, !=, NULL);
+	list_link_init(&abd->abd_gang_link);
+	mutex_init(&abd->abd_mtx, NULL, MUTEX_DEFAULT, NULL);
 	ABDSTAT_INCR(abdstat_struct_size, abd_size);
 
 	return (abd);
 }
-
 
 abd_t *
 abd_get_offset_scatter(abd_t *sabd, size_t off)
@@ -332,6 +391,7 @@ abd_iter_scatter_chunk_index(struct abd_iter *aiter)
 void
 abd_iter_init(struct abd_iter *aiter, abd_t *abd)
 {
+	ASSERT(!abd_is_gang(abd));
 	abd_verify(abd);
 	aiter->iter_abd = abd;
 	aiter->iter_pos = 0;
