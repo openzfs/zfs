@@ -60,7 +60,7 @@ ZFS_TXG_TIMEOUT=""
 function custom_cleanup
 {
 	# Revert zfs_txg_timeout to defaults
-	[[ -n ZFS_TXG_TIMEOUT ]] &&
+	[[ -n $ZFS_TXG_TIMEOUT ]] &&
 	    log_must set_zfs_txg_timeout $ZFS_TXG_TIMEOUT
 	log_must rm -rf $BACKUP_DEVICE_DIR
 	log_must set_tunable32 SCAN_SUSPEND_PROGRESS 0

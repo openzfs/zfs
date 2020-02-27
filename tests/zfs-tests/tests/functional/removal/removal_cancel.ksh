@@ -67,19 +67,14 @@ log_must randwritecomp $SAMPLEFILE 25000
 log_must zpool add -f $TESTPOOL $NOTREMOVEDISK
 
 #
-# Start removal.
-#
-log_must zpool remove $TESTPOOL $REMOVEDISK
-
-#
-# Sleep a bit and hopefully allow removal to copy some data.
-#
-log_must sleep 1
-
-#
 # Block removal.
 #
 log_must set_tunable32 REMOVAL_SUSPEND_PROGRESS 1
+
+#
+# Start removal.
+#
+log_must zpool remove $TESTPOOL $REMOVEDISK
 
 #
 # Only for debugging purposes in test logs.

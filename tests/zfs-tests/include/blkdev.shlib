@@ -577,6 +577,11 @@ function corrupt_blocks_at_level # input_file corrupt_level
 
 	[[ -f $input_file ]] || log_fail "Couldn't find $input_file"
 
+	if is_freebsd; then
+		# Temporarily allow corrupting an inuse device.
+		debugflags=$(sysctl -n kern.geom.debugflags)
+		sysctl kern.geom.debugflags=16
+	fi
 
 	log_must list_file_blocks $input_file | \
 	    while read level path offset length; do
@@ -585,6 +590,10 @@ function corrupt_blocks_at_level # input_file corrupt_level
 			    count=$length seek=$offset conv=notrunc
 		fi
 	    done
+
+	if is_freebsd; then
+		sysctl kern.geom.debugflags=$debugflags
+	fi
 
 	# This is necessary for pools made of loop devices.
 	sync

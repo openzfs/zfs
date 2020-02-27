@@ -346,42 +346,11 @@ function set_zfs_max_missing_tvds
 }
 
 #
-# Use mdb to find the last txg that was synced in an active pool.
+# Use zdb to find the last txg that was synced in an active pool.
 #
 function get_last_txg_synced
 {
 	typeset pool=$1
 
-	if is_linux; then
-		txg=$(tail "/proc/spl/kstat/zfs/$pool/txgs" |
-		    awk '$3=="C" {print $1}' | tail -1)
-		[[ "$txg" ]] || txg=0
-		echo $txg
-		return 0
-	fi
-
-	typeset spas
-	spas=$(mdb -k -e "::spa")
-	[[ $? -ne 0 ]] && return 1
-
-	typeset spa=""
-	print "$spas\n" | while read line; do
-		typeset poolname=$(echo "$line" | awk '{print $3}')
-		typeset addr=$(echo "$line" | awk '{print $1}')
-		if [[ $poolname == $pool ]]; then
-			spa=$addr
-			break
-		fi
-	done
-	if [[ -z $spa ]]; then
-		log_fail "Couldn't find pool '$pool'"
-		return 1
-	fi
-	typeset mdbcmd="$spa::print spa_t spa_ubsync.ub_txg | ::eval '.=E'"
-	typeset -i txg
-	txg=$(mdb -k -e "$mdbcmd")
-	[[ $? -ne 0 ]] && return 1
-
-	echo $txg
-	return 0
+	zdb -u $pool | awk '$1 == "txg" { print $3 }' | sort -n | tail -n 1
 }
