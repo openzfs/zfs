@@ -47,10 +47,8 @@ verify_runnable "global"
 
 function cleanup
 {
-	poolexists $TESTPOOL && \
-		destroy_pool $TESTPOOL
-
-	partition_cleanup
+	poolexists $TESTPOOL && destroy_pool $TESTPOOL
+	rm -f $disk0 $disk1
 }
 
 log_assert "'zpool add <pool> <vdev> ...' can add devices to the pool."
@@ -59,36 +57,15 @@ log_onexit cleanup
 
 set -A keywords "" "mirror" "raidz" "raidz1" "spare"
 
-case $DISK_ARRAY_NUM in
-0|1)
-	pooldevs="${disk}${SLICE_PREFIX}${SLICE0} \
-		${DEV_DSKDIR}/${disk}${SLICE_PREFIX}${SLICE0} \
-		\"${disk}${SLICE_PREFIX}${SLICE0} \
-		${disk}${SLICE_PREFIX}${SLICE1}\""
-	mirrordevs="\"${DEV_DSKDIR}/${disk}${SLICE_PREFIX}${SLICE0} \
-		${disk}${SLICE_PREFIX}${SLICE1}\""
-	raidzdevs="\"${DEV_DSKDIR}/${disk}${SLICE_PREFIX}${SLICE0} \
-		${disk}${SLICE_PREFIX}${SLICE1}\""
+pooldevs="${DISK0} \
+	\"${DISK0} ${DISK1}\" \
+	\"${DISK0} ${DISK1} ${DISK2}\""
+mirrordevs="\"${DISK0} ${DISK1}\""
+raidzdevs="\"${DISK0} ${DISK1}\""
 
-	;;
-2|*)
-	pooldevs="${DISK0}${SLICE_PREFIX}${SLICE0} \
-		\"${DEV_DSKDIR}/${DISK0}${SLICE_PREFIX}${SLICE0} \
-		${DISK1}${SLICE_PREFIX}${SLICE0}\" \
-		\"${DISK0}${SLICE_PREFIX}${SLICE0} \
-		${DISK0}${SLICE_PREFIX}${SLICE1} \
-		${DISK1}${SLICE_PREFIX}${SLICE1}\"\
-		\"${DISK0}${SLICE_PREFIX}${SLICE0} \
-		${DISK1}${SLICE_PREFIX}${SLICE0} \
-		${DISK0}${SLICE_PREFIX}${SLICE1}\
-		${DISK1}${SLICE_PREFIX}${SLICE1}\""
-	mirrordevs="\"${DEV_DSKDIR}/${DISK0}${SLICE_PREFIX}${SLICE0} \
-		${DISK1}${SLICE_PREFIX}${SLICE0}\""
-	raidzdevs="\"${DEV_DSKDIR}/${DISK0}${SLICE_PREFIX}${SLICE0} \
-		${DISK1}${SLICE_PREFIX}${SLICE0}\""
-
-	;;
-esac
+disk0=$TEST_BASE_DIR/disk0
+disk1=$TEST_BASE_DIR/disk1
+truncate -s $MINVDEVSIZE $disk0 $disk1
 
 typeset -i i=0
 typeset vdev
@@ -101,7 +78,7 @@ while (( $i < ${#keywords[*]} )); do
         case ${keywords[i]} in
         ""|spare)
 		for vdev in "${poolarray[@]}"; do
-			create_pool "$TESTPOOL" "${disk}${SLICE_PREFIX}${SLICE6}"
+			create_pool "$TESTPOOL" "$disk0"
 			log_must poolexists "$TESTPOOL"
 			log_must zpool add -f "$TESTPOOL" ${keywords[i]} $vdev
 			log_must vdevs_in_pool "$TESTPOOL" "$vdev"
@@ -112,8 +89,7 @@ while (( $i < ${#keywords[*]} )); do
         mirror)
 		for vdev in "${mirrorarray[@]}"; do
 			create_pool "$TESTPOOL" "${keywords[i]}" \
-				"${disk}${SLICE_PREFIX}${SLICE4}" \
-				"${disk}${SLICE_PREFIX}${SLICE5}"
+				"$disk0" "$disk1"
 			log_must poolexists "$TESTPOOL"
 			log_must zpool add "$TESTPOOL" ${keywords[i]} $vdev
 			log_must vdevs_in_pool "$TESTPOOL" "$vdev"
@@ -124,8 +100,7 @@ while (( $i < ${#keywords[*]} )); do
         raidz|raidz1)
 		for vdev in "${raidzarray[@]}"; do
 			create_pool "$TESTPOOL" "${keywords[i]}" \
-				"${disk}${SLICE_PREFIX}${SLICE4}" \
-				"${disk}${SLICE_PREFIX}${SLICE5}"
+				"$disk0" "$disk1"
 			log_must poolexists "$TESTPOOL"
 			log_must zpool add "$TESTPOOL" ${keywords[i]} $vdev
 			log_must vdevs_in_pool "$TESTPOOL" "$vdev"

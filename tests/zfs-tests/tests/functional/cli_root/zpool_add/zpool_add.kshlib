@@ -109,20 +109,3 @@ function save_dump_dev
 	fi
 	echo $dumpdev
 }
-
-#
-# Common cleanup routine for partitions used in testing
-#
-function partition_cleanup
-{
-
-	if [[ -n $DISK ]]; then
-		partition_disk $SIZE $DISK 7
-	else
-		typeset disk=""
-		for disk in $DISK0 $DISK1; do
-			partition_disk $SIZE $disk 7
-		done
-	fi
-
-}
