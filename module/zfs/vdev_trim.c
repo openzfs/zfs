@@ -346,6 +346,9 @@ vdev_trim_change_state(vdev_t *vd, vdev_trim_state_t new_state,
 	}
 
 	dmu_tx_commit(tx);
+
+	if (new_state != VDEV_TRIM_ACTIVE)
+		spa_notify_waiters(spa);
 }
 
 /*

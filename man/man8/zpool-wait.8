@@ -27,7 +27,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd August 9, 2019
+.Dd February 25, 2020
 .Dt ZPOOL-WAIT 8
 .Os Linux
 .Sh NAME
@@ -73,6 +73,7 @@ along with what each one waits for:
         remove        Device removal to cease
         resilver      Resilver to cease
         scrub         Scrub to cease
+        trim          Manual trim to cease
 .Ed
 .Pp
 If an
@@ -109,4 +110,5 @@ See
 .Xr zpool-replace 8 ,
 .Xr zpool-remove 8 ,
 .Xr zpool-resilver 8 ,
-.Xr zpool-scrub 8
+.Xr zpool-scrub 8 ,
+.Xr zpool-trim 8
