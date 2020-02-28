@@ -57,5 +57,6 @@ int zfs_file_unlink(const char *);
 
 int zfs_file_get(int fd, zfs_file_t **fp);
 void zfs_file_put(int fd);
+void *zfs_file_private(zfs_file_t *fp);
 
 #endif /* _SYS_ZFS_FILE_H */

@@ -6918,7 +6918,7 @@ zdb_read_block(char *thing, spa_t *spa)
 	 */
 	if ((flags & ZDB_FLAG_CHECKSUM) && !(flags & ZDB_FLAG_RAW) &&
 	    !(flags & ZDB_FLAG_GBH)) {
-		zio_t *czio, *cio;
+		zio_t *czio;
 		(void) printf("\n");
 		for (enum zio_checksum ck = ZIO_CHECKSUM_LABEL;
 		    ck < ZIO_CHECKSUM_FUNCTIONS; ck++) {
@@ -6934,12 +6934,11 @@ zdb_read_block(char *thing, spa_t *spa)
 			czio->io_bp = bp;
 
 			if (vd == vd->vdev_top) {
-				cio = zio_read(czio, spa, bp, pabd, psize,
+				zio_nowait(zio_read(czio, spa, bp, pabd, psize,
 				    NULL, NULL,
 				    ZIO_PRIORITY_SYNC_READ,
 				    ZIO_FLAG_CANFAIL | ZIO_FLAG_RAW |
-				    ZIO_FLAG_DONT_RETRY, NULL);
-				zio_nowait(cio);
+				    ZIO_FLAG_DONT_RETRY, NULL));
 			} else {
 				zio_nowait(zio_vdev_child_io(czio, bp, vd,
 				    offset, pabd, psize, ZIO_TYPE_READ,

@@ -7156,6 +7156,41 @@ pool_status_check(const char *name, zfs_ioc_namecheck_t type,
 	return (error);
 }
 
+int
+zfsdev_getminor(int fd, minor_t *minorp)
+{
+	zfsdev_state_t *zs, *fpd;
+	zfs_file_t *fp;
+	int rc;
+
+	ASSERT(!MUTEX_HELD(&zfsdev_state_lock));
+
+	if ((rc = zfs_file_get(fd, &fp)))
+		return (rc);
+
+	fpd = zfs_file_private(fp);
+	if (fpd == NULL)
+		return (SET_ERROR(EBADF));
+
+	mutex_enter(&zfsdev_state_lock);
+
+	for (zs = zfsdev_state_list; zs != NULL; zs = zs->zs_next) {
+
+		if (zs->zs_minor == -1)
+			continue;
+
+		if (fpd == zs) {
+			*minorp = fpd->zs_minor;
+			mutex_exit(&zfsdev_state_lock);
+			return (0);
+		}
+	}
+
+	mutex_exit(&zfsdev_state_lock);
+
+	return (SET_ERROR(EBADF));
+}
+
 static void *
 zfsdev_get_state_impl(minor_t minor, enum zfsdev_state_type which)
 {
