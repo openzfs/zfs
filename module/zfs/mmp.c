@@ -296,7 +296,7 @@ mmp_next_leaf(spa_t *spa)
 	int fail_mask = 0;
 
 	ASSERT(MUTEX_HELD(&spa->spa_mmp.mmp_io_lock));
-	ASSERT(spa_config_held(spa, SCL_STATE, RW_READER));
+	ASSERT(spa_config_held(spa, SCL_ZIO, RW_READER));
 	ASSERT(list_link_active(&spa->spa_leaf_list.list_head) == B_TRUE);
 	ASSERT(!list_is_empty(&spa->spa_leaf_list));
 
@@ -401,7 +401,7 @@ mmp_write_done(zio_t *zio)
 	vd->vdev_mmp_kstat_id = 0;
 
 	mutex_exit(&mts->mmp_io_lock);
-	spa_config_exit(spa, SCL_STATE, mmp_tag);
+	spa_config_exit(spa, SCL_ZIO, mmp_tag);
 
 	spa_mmp_history_set(spa, mmp_kstat_id, zio->io_error,
 	    mmp_write_duration);
@@ -443,10 +443,10 @@ mmp_write_uberblock(spa_t *spa)
 	uint64_t offset;
 
 	hrtime_t lock_acquire_time = gethrtime();
-	spa_config_enter(spa, SCL_STATE, mmp_tag, RW_READER);
+	spa_config_enter(spa, SCL_ZIO, mmp_tag, RW_READER);
 	lock_acquire_time = gethrtime() - lock_acquire_time;
 	if (lock_acquire_time > (MSEC2NSEC(MMP_MIN_INTERVAL) / 10))
-		zfs_dbgmsg("MMP SCL_STATE acquisition pool '%s' took %llu ns "
+		zfs_dbgmsg("MMP SCL_ZIO acquisition pool '%s' took %llu ns "
 		    "gethrtime %llu", spa_name(spa), lock_acquire_time,
 		    gethrtime());
 
@@ -476,7 +476,7 @@ mmp_write_uberblock(spa_t *spa)
 			    gethrtime(), error);
 		}
 		mutex_exit(&mmp->mmp_io_lock);
-		spa_config_exit(spa, SCL_STATE, mmp_tag);
+		spa_config_exit(spa, SCL_ZIO, mmp_tag);
 		return;
 	}
 
@@ -525,7 +525,7 @@ mmp_write_uberblock(spa_t *spa)
 	    MMP_BLOCKS_PER_LABEL + spa_get_random(MMP_BLOCKS_PER_LABEL));
 
 	label = spa_get_random(VDEV_LABELS);
-	vdev_label_write(zio, vd, label, ub_abd, offset,
+	vdev_mmp_write(zio, vd, label, ub_abd, offset,
 	    VDEV_UBERBLOCK_SIZE(vd), mmp_write_done, mmp,
 	    flags | ZIO_FLAG_DONT_PROPAGATE);
 

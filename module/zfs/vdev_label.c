@@ -196,6 +196,20 @@ vdev_label_read(zio_t *zio, vdev_t *vd, int l, abd_t *buf, uint64_t offset,
 }
 
 void
+vdev_mmp_write(zio_t *zio, vdev_t *vd, int l, abd_t *buf, uint64_t offset,
+    uint64_t size, zio_done_func_t *done, void *private, int flags)
+{
+	ASSERT(
+	    spa_config_held(zio->io_spa, SCL_ZIO, RW_READER) == SCL_ZIO);
+	ASSERT(flags & ZIO_FLAG_CONFIG_WRITER);
+
+	zio_nowait(zio_write_phys(zio, vd,
+	    vdev_label_offset(vd->vdev_psize, l, offset),
+	    size, buf, ZIO_CHECKSUM_LABEL, done, private,
+	    ZIO_PRIORITY_SYNC_WRITE, flags, B_TRUE));
+}
+
+void
 vdev_label_write(zio_t *zio, vdev_t *vd, int l, abd_t *buf, uint64_t offset,
     uint64_t size, zio_done_func_t *done, void *private, int flags)
 {
