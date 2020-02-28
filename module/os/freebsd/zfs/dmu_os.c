@@ -186,11 +186,11 @@ dmu_read_pages(objset_t *os, uint64_t object, vm_page_t *ma, int count,
 #endif
 
 	vmobj = ma[0]->object;
-	zfs_vmobject_wlock(vmobj);
+	zfs_vmobject_wlock_12(vmobj);
 
 	db = dbp[0];
 	for (i = 0; i < *rbehind; i++) {
-		m = vm_page_grab(vmobj, ma[0]->pindex - 1 - i,
+		m = vm_page_grab_unlocked(vmobj, ma[0]->pindex - 1 - i,
 		    VM_ALLOC_NORMAL | VM_ALLOC_NOWAIT | VM_ALLOC_BUSY_FLAGS);
 		if (m == NULL)
 			break;
@@ -200,7 +200,7 @@ dmu_read_pages(objset_t *os, uint64_t object, vm_page_t *ma, int count,
 			break;
 		}
 		ASSERT(m->dirty == 0);
-		ASSERT(!pmap_page_is_mapped(m));
+		ASSERT(!pmap_page_is_write_mapped(m));
 
 		ASSERT(db->db_size > PAGE_SIZE);
 		bufoff = IDX_TO_OFF(m->pindex) % db->db_size;
@@ -227,7 +227,7 @@ dmu_read_pages(objset_t *os, uint64_t object, vm_page_t *ma, int count,
 				vm_page_assert_xbusied(m);
 				ASSERT(vm_page_none_valid(m));
 				ASSERT(m->dirty == 0);
-				ASSERT(!pmap_page_is_mapped(m));
+				ASSERT(!pmap_page_is_write_mapped(m));
 				va = zfs_map_page(m, &sf);
 			}
 		}
@@ -306,7 +306,7 @@ dmu_read_pages(objset_t *os, uint64_t object, vm_page_t *ma, int count,
 	}
 
 	for (i = 0; i < *rahead; i++) {
-		m = vm_page_grab(vmobj, ma[count - 1]->pindex + 1 + i,
+		m = vm_page_grab_unlocked(vmobj, ma[count - 1]->pindex + 1 + i,
 		    VM_ALLOC_NORMAL | VM_ALLOC_NOWAIT | VM_ALLOC_BUSY_FLAGS);
 		if (m == NULL)
 			break;
@@ -339,7 +339,7 @@ dmu_read_pages(objset_t *os, uint64_t object, vm_page_t *ma, int count,
 		vm_page_do_sunbusy(m);
 	}
 	*rahead = i;
-	zfs_vmobject_wunlock(vmobj);
+	zfs_vmobject_wunlock_12(vmobj);
 
 	dmu_buf_rele_array(dbp, numbufs, FTAG);
 	return (0);
