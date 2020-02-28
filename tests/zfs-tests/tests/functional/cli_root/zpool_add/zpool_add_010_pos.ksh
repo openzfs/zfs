@@ -51,7 +51,7 @@ function cleanup
 
 	typeset -i i=0
 	while ((i < 10)); do
-		log_must rm -f $TEST_BASE_DIR/vdev$i
+		rm -f $TEST_BASE_DIR/vdev$i
 		((i += 1))
 	done
 }
