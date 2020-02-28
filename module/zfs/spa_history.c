@@ -180,16 +180,6 @@ spa_history_write(spa_t *spa, void *buf, uint64_t len, spa_history_phys_t *shpp,
 	return (0);
 }
 
-static char *
-spa_history_zone(void)
-{
-#ifdef _KERNEL
-	return ("linux");
-#else
-	return (NULL);
-#endif
-}
-
 /*
  * Post a history sysevent.
  *
@@ -621,6 +611,14 @@ spa_history_log_version(spa_t *spa, const char *operation, dmu_tx_t *tx)
 	    (u_longlong_t)spa_version(spa), ZFS_META_GITREV,
 	    u->nodename, u->release, u->version, u->machine);
 }
+
+#ifndef _KERNEL
+const char *
+spa_history_zone(void)
+{
+	return (NULL);
+}
+#endif
 
 #if defined(_KERNEL)
 EXPORT_SYMBOL(spa_history_create_obj);
