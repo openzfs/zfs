@@ -111,6 +111,28 @@ if sys.platform.startswith('freebsd'):
         version = sysctl.filter(mib)[0].value
         return '{} version {}'.format(name, version)
 
+    def get_descriptions(_request):
+        # py-sysctl doesn't give descriptions, so we have to shell out.
+        command = ['sysctl', '-d', 'vfs.zfs']
+
+        # The recommended way to do this is with subprocess.run(). However,
+        # some installed versions of Python are < 3.5, so we offer them
+        # the option of doing it the old way (for now)
+        if 'run' in dir(subprocess):
+            info = subprocess.run(command, stdout=subprocess.PIPE,
+                                  universal_newlines=True)
+            lines = info.stdout.split('\n')
+        else:
+            info = subprocess.check_output(command, universal_newlines=True)
+            lines = info.split('\n')
+
+        def fmt(line):
+            name, desc = line.split(':', 1)
+            return (name.strip(), desc.strip())
+
+        return dict([fmt(line) for line in lines if len(line) > 0])
+
+
 elif sys.platform.startswith('linux'):
     KSTAT_PATH = '/proc/spl/kstat/zfs'
     SPL_PATH = '/sys/module/spl/parameters'
@@ -164,6 +186,60 @@ elif sys.platform.startswith('linux'):
             version = info.strip()
 
         return version
+
+    def get_descriptions(request):
+        """Get the descriptions of the Solaris Porting Layer (SPL) or the
+        tunables, return with minimal formatting.
+        """
+
+        if request not in ('spl', 'zfs'):
+            print('ERROR: description of "{0}" requested)'.format(request))
+            sys.exit(1)
+
+        descs = {}
+        target_prefix = 'parm:'
+
+        # We would prefer to do this with /sys/modules -- see the discussion at
+        # get_version() -- but there isn't a way to get the descriptions from
+        # there, so we fall back on modinfo
+        command = ["/sbin/modinfo", request, "-0"]
+
+        # The recommended way to do this is with subprocess.run(). However,
+        # some installed versions of Python are < 3.5, so we offer them
+        # the option of doing it the old way (for now)
+        info = ''
+
+        try:
+
+            if 'run' in dir(subprocess):
+                info = subprocess.run(command, stdout=subprocess.PIPE,
+                                      universal_newlines=True)
+                raw_output = info.stdout.split('\0')
+            else:
+                info = subprocess.check_output(command,
+                                               universal_newlines=True)
+                raw_output = info.split('\0')
+
+        except subprocess.CalledProcessError:
+            print("Error: Descriptions not available",
+                  "(can't access kernel module)")
+            sys.exit(1)
+
+        for line in raw_output:
+
+            if not line.startswith(target_prefix):
+                continue
+
+            line = line[len(target_prefix):].strip()
+            name, raw_desc = line.split(':', 1)
+            desc = raw_desc.rsplit('(', 1)[0]
+
+            if desc == '':
+                desc = '(No description found)'
+
+            descs[name.strip()] = desc.strip()
+
+        return descs
 
 
 def cleanup_line(single_line):
@@ -341,59 +417,6 @@ def get_kstats():
             result[section] = load_kstats(section)
 
     return result
-
-
-def get_descriptions(request):
-    """Get the descriptions of the Solaris Porting Layer (SPL) or the
-    tunables, return with minimal formatting.
-    """
-
-    if request not in ('spl', 'zfs'):
-        print('ERROR: description of "{0}" requested)'.format(request))
-        sys.exit(1)
-
-    descs = {}
-    target_prefix = 'parm:'
-
-    # We would prefer to do this with /sys/modules -- see the discussion at
-    # get_version() -- but there isn't a way to get the descriptions from
-    # there, so we fall back on modinfo
-    command = ["/sbin/modinfo", request, "-0"]
-
-    # The recommended way to do this is with subprocess.run(). However,
-    # some installed versions of Python are < 3.5, so we offer them
-    # the option of doing it the old way (for now)
-    info = ''
-
-    try:
-
-        if 'run' in dir(subprocess):
-            info = subprocess.run(command, stdout=subprocess.PIPE,
-                                  universal_newlines=True)
-            raw_output = info.stdout.split('\0')
-        else:
-            info = subprocess.check_output(command, universal_newlines=True)
-            raw_output = info.split('\0')
-
-    except subprocess.CalledProcessError:
-        print("Error: Descriptions not available (can't access kernel module)")
-        sys.exit(1)
-
-    for line in raw_output:
-
-        if not line.startswith(target_prefix):
-            continue
-
-        line = line[len(target_prefix):].strip()
-        name, raw_desc = line.split(':', 1)
-        desc = raw_desc.rsplit('(', 1)[0]
-
-        if desc == '':
-            desc = '(No description found)'
-
-        descs[name.strip()] = desc.strip()
-
-    return descs
 
 
 def get_version(request):
