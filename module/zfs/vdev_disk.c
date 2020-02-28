@@ -474,6 +474,36 @@ vdev_submit_bio_impl(struct bio *bio)
 #ifdef HAVE_BIO_SET_DEV
 #if defined(CONFIG_BLK_CGROUP) && defined(HAVE_BIO_SET_DEV_GPL_ONLY)
 /*
+ * The Linux 5.5 kernel updated percpu_ref_tryget() which is inlined by
+ * blkg_tryget() to use rcu_read_lock() instead of rcu_read_lock_sched().
+ * As a side effect the function was converted to GPL-only.  Define our
+ * own version when needed which uses rcu_read_lock_sched().
+ */
+#if defined(HAVE_BLKG_TRYGET_GPL_ONLY)
+static inline bool
+vdev_blkg_tryget(struct blkcg_gq *blkg)
+{
+	struct percpu_ref *ref = &blkg->refcnt;
+	unsigned long __percpu *count;
+	bool rc;
+
+	rcu_read_lock_sched();
+
+	if (__ref_is_percpu(ref, &count)) {
+		this_cpu_inc(*count);
+		rc = true;
+	} else {
+		rc = atomic_long_inc_not_zero(&ref->count);
+	}
+
+	rcu_read_unlock_sched();
+
+	return (rc);
+}
+#elif defined(HAVE_BLKG_TRYGET)
+#define	vdev_blkg_tryget(bg)	blkg_tryget(bg)
+#endif
+/*
  * The Linux 5.0 kernel updated the bio_set_dev() macro so it calls the
  * GPL-only bio_associate_blkg() symbol thus inadvertently converting
  * the entire macro.  Provide a minimal version which always assigns the
@@ -487,7 +517,7 @@ vdev_bio_associate_blkg(struct bio *bio)
 	ASSERT3P(q, !=, NULL);
 	ASSERT3P(bio->bi_blkg, ==, NULL);
 
-	if (q->root_blkg && blkg_tryget(q->root_blkg))
+	if (q->root_blkg && vdev_blkg_tryget(q->root_blkg))
 		bio->bi_blkg = q->root_blkg;
 }
 #define	bio_associate_blkg vdev_bio_associate_blkg
