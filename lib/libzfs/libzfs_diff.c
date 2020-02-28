@@ -697,7 +697,7 @@ setup_differ_info(zfs_handle_t *zhp, const char *fromsnap,
 {
 	di->zhp = zhp;
 
-	di->cleanupfd = open(ZFS_DEV, O_RDWR|O_EXCL);
+	di->cleanupfd = open(ZFS_DEV, O_RDWR);
 	VERIFY(di->cleanupfd >= 0);
 
 	if (get_snapshot_names(di, fromsnap, tosnap) != 0)
