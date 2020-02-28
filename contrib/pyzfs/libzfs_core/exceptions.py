@@ -21,6 +21,9 @@ from __future__ import absolute_import, division, print_function
 
 import errno
 from ._constants import (
+    ECHRNG,
+    ECKSUM,
+    ETIME,
     ZFS_ERR_CHECKPOINT_EXISTS,
     ZFS_ERR_DISCARDING_CHECKPOINT,
     ZFS_ERR_NO_CHECKPOINT,
@@ -324,7 +327,7 @@ class DestinationModified(ZFSError):
 
 
 class BadStream(ZFSError):
-    errno = errno.EBADE
+    errno = ECKSUM
     message = "Bad backup stream"
 
 
@@ -532,7 +535,7 @@ class ZCPSyntaxError(ZCPError):
 
 
 class ZCPRuntimeError(ZCPError):
-    errno = errno.ECHRNG
+    errno = ECHRNG
     message = "Channel programs encountered a runtime error"
 
     def __init__(self, details):
@@ -545,7 +548,7 @@ class ZCPLimitInvalid(ZCPError):
 
 
 class ZCPTimeout(ZCPError):
-    errno = errno.ETIME
+    errno = ETIME
     message = "Channel program timed out"
 
 

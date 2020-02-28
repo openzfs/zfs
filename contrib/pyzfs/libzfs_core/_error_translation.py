@@ -33,6 +33,9 @@ import re
 import string
 from . import exceptions as lzc_exc
 from ._constants import (
+    ECHRNG,
+    ECKSUM,
+    ETIME,
     MAXNAMELEN,
     ZFS_ERR_CHECKPOINT_EXISTS,
     ZFS_ERR_DISCARDING_CHECKPOINT,
@@ -462,7 +465,7 @@ def lzc_receive_translate_errors(
         raise lzc_exc.ReadOnlyPool(_pool_name(snapname))
     if ret == errno.EAGAIN:
         raise lzc_exc.SuspendedPool(_pool_name(snapname))
-    if ret == errno.EBADE:  # ECKSUM
+    if ret == ECKSUM:
         raise lzc_exc.BadStream()
     if ret == ZFS_ERR_WRONG_PARENT:
         raise lzc_exc.WrongParent(_fs_name(snapname))
@@ -550,7 +553,7 @@ def lzc_channel_program_translate_error(ret, name, error):
         return
     if ret == errno.ENOENT:
         raise lzc_exc.PoolNotFound(name)
-    if ret == errno.ETIME:
+    if ret == ETIME:
         raise lzc_exc.ZCPTimeout()
     if ret == errno.ENOMEM:
         raise lzc_exc.ZCPMemoryError()
@@ -558,7 +561,7 @@ def lzc_channel_program_translate_error(ret, name, error):
         raise lzc_exc.ZCPSpaceError()
     if ret == errno.EPERM:
         raise lzc_exc.ZCPPermissionError()
-    if ret == errno.ECHRNG:
+    if ret == ECHRNG:
         raise lzc_exc.ZCPRuntimeError(error)
     if ret == errno.EINVAL:
         if error is None:
