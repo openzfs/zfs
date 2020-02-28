@@ -101,6 +101,38 @@ zfs_onexit_destroy(zfs_onexit_t *zo)
 	kmem_free(zo, sizeof (zfs_onexit_t));
 }
 
+/*
+ * Consumers might need to operate by minor number instead of fd, since
+ * they might be running in another thread (e.g. txg_sync_thread). Callers
+ * of this function must call zfs_onexit_fd_rele() when they're finished
+ * using the minor number.
+ */
+int
+zfs_onexit_fd_hold(int fd, minor_t *minorp)
+{
+	zfs_onexit_t *zo = NULL;
+	int error;
+
+	error = zfsdev_getminor(fd, minorp);
+	if (error) {
+		zfs_onexit_fd_rele(fd);
+		return (error);
+	}
+
+	zo = zfsdev_get_state(*minorp, ZST_ONEXIT);
+	if (zo == NULL) {
+		zfs_onexit_fd_rele(fd);
+		return (SET_ERROR(EBADF));
+	}
+	return (0);
+}
+
+void
+zfs_onexit_fd_rele(int fd)
+{
+	zfs_file_put(fd);
+}
+
 static int
 zfs_onexit_minor_to_state(minor_t minor, zfs_onexit_t **zo)
 {
