@@ -8396,7 +8396,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 
 			mutex_exit(hash_lock);
 
-			(void) zio_nowait(wzio);
+			zio_nowait(wzio);
 		}
 
 		multilist_sublist_unlock(mls);

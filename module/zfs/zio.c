@@ -1194,40 +1194,46 @@ zio_free(spa_t *spa, uint64_t txg, const blkptr_t *bp)
 	    !spa_feature_is_active(spa, SPA_FEATURE_LOG_SPACEMAP))) {
 		bplist_append(&spa->spa_free_bplist[txg & TXG_MASK], bp);
 	} else {
-		VERIFY0(zio_wait(zio_free_sync(NULL, spa, txg, bp, 0)));
+		VERIFY3P(zio_free_sync(NULL, spa, txg, bp, 0), ==, NULL);
 	}
 }
 
+/*
+ * To improve performance, this function may return NULL if we were able
+ * to do the free immediately.  This avoids the cost of creating a zio
+ * (and linking it to the parent, etc).
+ */
 zio_t *
 zio_free_sync(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
     enum zio_flag flags)
 {
-	zio_t *zio;
-	enum zio_stage stage = ZIO_FREE_PIPELINE;
-
 	ASSERT(!BP_IS_HOLE(bp));
 	ASSERT(spa_syncing_txg(spa) == txg);
 
 	if (BP_IS_EMBEDDED(bp))
-		return (zio_null(pio, spa, NULL, NULL, NULL, 0));
+		return (NULL);
 
 	metaslab_check_free(spa, bp);
 	arc_freed(spa, bp);
 	dsl_scan_freed(spa, bp);
 
-	/*
-	 * GANG and DEDUP blocks can induce a read (for the gang block header,
-	 * or the DDT), so issue them asynchronously so that this thread is
-	 * not tied up.
-	 */
-	if (BP_IS_GANG(bp) || BP_GET_DEDUP(bp))
-		stage |= ZIO_STAGE_ISSUE_ASYNC;
+	if (BP_IS_GANG(bp) || BP_GET_DEDUP(bp)) {
+		/*
+		 * GANG and DEDUP blocks can induce a read (for the gang block
+		 * header, or the DDT), so issue them asynchronously so that
+		 * this thread is not tied up.
+		 */
+		enum zio_stage stage =
+		    ZIO_FREE_PIPELINE | ZIO_STAGE_ISSUE_ASYNC;
 
-	zio = zio_create(pio, spa, txg, bp, NULL, BP_GET_PSIZE(bp),
-	    BP_GET_PSIZE(bp), NULL, NULL, ZIO_TYPE_FREE, ZIO_PRIORITY_NOW,
-	    flags, NULL, 0, NULL, ZIO_STAGE_OPEN, stage);
-
-	return (zio);
+		return (zio_create(pio, spa, txg, bp, NULL, BP_GET_PSIZE(bp),
+		    BP_GET_PSIZE(bp), NULL, NULL,
+		    ZIO_TYPE_FREE, ZIO_PRIORITY_NOW,
+		    flags, NULL, 0, NULL, ZIO_STAGE_OPEN, stage));
+	} else {
+		metaslab_free(spa, bp, txg, B_FALSE);
+		return (NULL);
+	}
 }
 
 zio_t *
@@ -2165,6 +2171,15 @@ __zio_execute(zio_t *zio)
 int
 zio_wait(zio_t *zio)
 {
+	/*
+	 * Some routines, like zio_free_sync(), may return a NULL zio
+	 * to avoid the performance overhead of creating and then destroying
+	 * an unneeded zio.  For the callers' simplicity, we accept a NULL
+	 * zio and ignore it.
+	 */
+	if (zio == NULL)
+		return (0);
+
 	long timeout = MSEC_TO_TICK(zfs_deadman_ziotime_ms);
 	int error;
 
@@ -2202,6 +2217,12 @@ zio_wait(zio_t *zio)
 void
 zio_nowait(zio_t *zio)
 {
+	/*
+	 * See comment in zio_wait().
+	 */
+	if (zio == NULL)
+		return;
+
 	ASSERT3P(zio->io_executor, ==, NULL);
 
 	if (zio->io_child_type == ZIO_CHILD_LOGICAL &&
@@ -2489,8 +2510,13 @@ static zio_t *
 zio_free_gang(zio_t *pio, blkptr_t *bp, zio_gang_node_t *gn, abd_t *data,
     uint64_t offset)
 {
-	return (zio_free_sync(pio, pio->io_spa, pio->io_txg, bp,
-	    ZIO_GANG_CHILD_FLAGS(pio)));
+	zio_t *zio = zio_free_sync(pio, pio->io_spa, pio->io_txg, bp,
+	    ZIO_GANG_CHILD_FLAGS(pio));
+	if (zio == NULL) {
+		zio = zio_null(pio, pio->io_spa,
+		    NULL, NULL, NULL, ZIO_GANG_CHILD_FLAGS(pio));
+	}
+	return (zio);
 }
 
 /* ARGSUSED */
@@ -3273,8 +3299,7 @@ zio_ddt_write(zio_t *zio)
 
 	ddt_exit(ddt);
 
-	if (cio)
-		zio_nowait(cio);
+	zio_nowait(cio);
 
 	return (zio);
 }

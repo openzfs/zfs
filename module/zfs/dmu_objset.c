@@ -1714,8 +1714,7 @@ dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 	while ((dr = list_head(list)) != NULL) {
 		ASSERT0(dr->dr_dbuf->db_level);
 		list_remove(list, dr);
-		if (dr->dr_zio)
-			zio_nowait(dr->dr_zio);
+		zio_nowait(dr->dr_zio);
 	}
 
 	/* Enable dnode backfill if enough objects have been freed. */
