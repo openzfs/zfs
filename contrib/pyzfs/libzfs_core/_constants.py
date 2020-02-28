@@ -19,6 +19,19 @@ Important `libzfs_core` constants.
 """
 
 from __future__ import absolute_import, division, print_function
+import errno
+import sys
+
+
+# Compat for platform-specific errnos
+if sys.platform.startswith('freebsd'):
+    ECHRNG = errno.ENXIO
+    ECKSUM = 97  # EINTEGRITY
+    ETIME = errno.ETIMEDOUT
+else:
+    ECHRNG = errno.ECHRNG
+    ECKSUM = errno.EBADE
+    ETIME = errno.ETIME
 
 
 # https://stackoverflow.com/a/1695250
