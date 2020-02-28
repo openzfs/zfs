@@ -811,11 +811,20 @@ dnl # $2 - source
 dnl # $3 - run on success (valid .ko generated)
 dnl # $4 - run on failure (unable to compile)
 dnl #
+dnl # When configuring as builtin (--enable-linux-builtin) for kernels
+dnl # without loadable module support (CONFIG_MODULES=n) only the object
+dnl # file is created.  See ZFS_LINUX_TEST_COMPILE_ALL for details.
+dnl #
 AC_DEFUN([ZFS_LINUX_TRY_COMPILE], [
-	ZFS_LINUX_COMPILE_IFELSE(
-	    [ZFS_LINUX_TEST_PROGRAM([[$1]], [[$2]])],
-	    [test -f build/conftest/conftest.ko],
-	    [$3], [$4])
+	AS_IF([test "x$enable_linux_builtin" = "xyes"], [
+		ZFS_LINUX_COMPILE_IFELSE(
+		    [ZFS_LINUX_TEST_PROGRAM([[$1]], [[$2]])],
+		    [test -f build/conftest/conftest.o], [$3], [$4])
+	], [
+		ZFS_LINUX_COMPILE_IFELSE(
+		    [ZFS_LINUX_TEST_PROGRAM([[$1]], [[$2]])],
+		    [test -f build/conftest/conftest.ko], [$3], [$4])
+	])
 ])
 
 dnl #
