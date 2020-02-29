@@ -327,7 +327,8 @@ get_usage(zfs_help_t idx)
 	case HELP_SHARE:
 		return (gettext("\tshare [-l] <-a [nfs|smb] | filesystem>\n"));
 	case HELP_SNAPSHOT:
-		return (gettext("\tsnapshot [-r] [-o property=value] ... "
+		return (gettext("\tsnapshot [-n] [-v] [-r] "
+		    "[-m minfree] [-o property=value]... "
 		    "<filesystem|volume>@<snap> ...\n"));
 	case HELP_UNMOUNT:
 		return (gettext("\tunmount [-fu] "
@@ -4076,6 +4077,9 @@ typedef struct snap_cbdata {
 	nvlist_t *sd_nvl;
 	boolean_t sd_recursive;
 	const char *sd_snapname;
+	uint64_t sd_min_avail;
+	boolean_t sd_verbose;
+	boolean_t sd_no_update;
 } snap_cbdata_t;
 
 static int
@@ -4085,6 +4089,7 @@ zfs_snapshot_cb(zfs_handle_t *zhp, void *arg)
 	char *name;
 	int rv = 0;
 	int error;
+	uint64_t avail;
 
 	if (sd->sd_recursive &&
 	    zfs_prop_get_int(zhp, ZFS_PROP_INCONSISTENT) != 0) {
@@ -4092,20 +4097,34 @@ zfs_snapshot_cb(zfs_handle_t *zhp, void *arg)
 		return (0);
 	}
 
-	error = asprintf(&name, "%s@%s", zfs_get_name(zhp), sd->sd_snapname);
-	if (error == -1)
-		nomem();
-	fnvlist_add_boolean(sd->sd_nvl, name);
-	free(name);
+	if (!sd->sd_min_avail ||
+	    (avail = zfs_prop_get_int(zhp,
+	    ZFS_PROP_AVAILABLE)) >= sd->sd_min_avail) {
 
+		error = asprintf(&name, "%s@%s",
+		    zfs_get_name(zhp), sd->sd_snapname);
+		if (error == -1)
+			nomem();
+		fnvlist_add_boolean(sd->sd_nvl, name);
+		free(name);
+
+	} else if (sd->sd_verbose) {
+		fprintf(stderr,
+		    gettext("skipping snapshot of '%s'"
+		    ": avail (%llu) too low (< %llu)\n"),
+		    zfs_get_name(zhp),
+		    (unsigned long long) avail,
+		    (unsigned long long) sd->sd_min_avail);
+	}
 	if (sd->sd_recursive)
 		rv = zfs_iter_filesystems(zhp, zfs_snapshot_cb, sd);
+
 	zfs_close(zhp);
 	return (rv);
 }
 
 /*
- * zfs snapshot [-r] [-o prop=value] ... <fs@snap>
+ * zfs snapshot [-v] [-n] [-r] [-o prop=value] [-m minfree] ... <fs@snap>
  *
  * Creates a snapshot with the given name.  While functionally equivalent to
  * 'zfs create', it is a separate command to differentiate intent.
@@ -4118,14 +4137,20 @@ zfs_do_snapshot(int argc, char **argv)
 	nvlist_t *props;
 	snap_cbdata_t sd = { 0 };
 	boolean_t multiple_snaps = B_FALSE;
+	char pfx;
+	unsigned long avail = 0;
 
 	if (nvlist_alloc(&props, NV_UNIQUE_NAME, 0) != 0)
 		nomem();
 	if (nvlist_alloc(&sd.sd_nvl, NV_UNIQUE_NAME, 0) != 0)
 		nomem();
 
+	sd.sd_min_avail = 0;
+	sd.sd_verbose = 0;
+	sd.sd_no_update = 0;
+
 	/* check options */
-	while ((c = getopt(argc, argv, "ro:")) != -1) {
+	while ((c = getopt(argc, argv, "nvro:m:")) != -1) {
 		switch (c) {
 		case 'o':
 			if (!parseprop(props, optarg)) {
@@ -4134,9 +4159,45 @@ zfs_do_snapshot(int argc, char **argv)
 				return (1);
 			}
 			break;
+		case 'n':
+			sd.sd_no_update = 1;
+			break;
+		case 'v':
+			sd.sd_verbose = 1;
+			break;
 		case 'r':
 			sd.sd_recursive = B_TRUE;
 			multiple_snaps = B_TRUE;
+			break;
+		case 'm':
+			pfx = 0;
+			if (!optarg ||
+			    sscanf(optarg, "%lu%c",
+			    &avail, &pfx) < 1) {
+				(void) fprintf(stderr,
+				    gettext("invalid minfree '%s'"), optarg);
+				goto usage;
+			}
+			sd.sd_min_avail = avail;
+			switch (toupper(pfx)) {
+			case 'K':
+				sd.sd_min_avail *= 1000;
+				break;
+			case 'M':
+				sd.sd_min_avail *= 1000000;
+				break;
+			case 'G':
+				sd.sd_min_avail *= 1000000000;
+				break;
+			case 'T':
+				sd.sd_min_avail *= 1000000000000;
+				break;
+			default:
+				(void) fprintf(stderr,
+				    gettext("invalid minfree suffix '%s'"),
+				    optarg);
+				goto usage;
+			}
 			break;
 		case '?':
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
@@ -4173,7 +4234,10 @@ zfs_do_snapshot(int argc, char **argv)
 			goto usage;
 	}
 
-	ret = zfs_snapshot_nvl(g_zfs, sd.sd_nvl, props);
+	ret = 0;
+	if (!sd.sd_no_update && !nvlist_empty(sd.sd_nvl))
+		ret = zfs_snapshot_nvl(g_zfs, sd.sd_nvl, props);
+
 	nvlist_free(sd.sd_nvl);
 	nvlist_free(props);
 	if (ret != 0 && multiple_snaps)

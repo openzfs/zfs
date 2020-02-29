@@ -40,6 +40,9 @@
 .Nm
 .Cm snapshot
 .Op Fl r
+.Op Fl n
+.Op Fl v
+.Op Fl m Ar minfree
 .Oo Fl o Ar property Ns = Ns Ar value Oc Ns ...
 .Ar filesystem Ns @ Ns Ar snapname Ns | Ns Ar volume Ns @ Ns Ar snapname Ns ...
 .Sh DESCRIPTION
@@ -70,6 +73,14 @@ Sets the specified property; see
 for details.
 .It Fl r
 Recursively create snapshots of all descendent datasets
+.It Fl m Ar minfree
+Set a limit on the minimum free space available for
+snapshots to be taken. Size suffixes (K, M, G or T) can
+be used.
+.It Fl n
+Do a dry-run (do not actually create any snapshots).
+.It Fl v
+Be more verbose (list snapshots skipped due to minfree).
 .El
 .El
 .Sh SEE ALSO
