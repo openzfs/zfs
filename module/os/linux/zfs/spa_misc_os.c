@@ -102,3 +102,9 @@ param_set_slop_shift(const char *buf, zfs_kernel_param_t *kp)
 
 	return (0);
 }
+
+const char *
+spa_history_zone(void)
+{
+	return ("linux");
+}

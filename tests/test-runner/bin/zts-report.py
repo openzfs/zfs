@@ -296,7 +296,7 @@ if __name__ == "__main__":
 
     print("\nTests with results other than PASS that are expected:")
     for test in sorted(expected):
-        issue_url = 'https://github.com/zfsonlinux/zfs/issues/'
+        issue_url = 'https://github.com/openzfs/zfs/issues/'
 
         # Include the reason why the result is expected, given the following:
         # 1. Suppress test results which set the "N/A on Linux" reason.
