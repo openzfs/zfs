@@ -81,7 +81,7 @@ log_must truncate -s 1G /$sendfs/file1
 log_must dd if=/dev/urandom of=/$sendfs/file1 bs=4k count=11264 seek=1152
 log_must zfs snapshot $sendfs@snap1
 
-log_must truncate -s 4194304 /$sendfs/file1
+log_must truncate -s 4M /$sendfs/file1
 log_must dd if=/dev/urandom of=/$sendfs/file1 bs=4k count=152 seek=384 \
     conv=notrunc
 log_must dd if=/dev/urandom of=/$sendfs/file1 bs=4k count=10 seek=1408 \

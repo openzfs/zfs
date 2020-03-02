@@ -84,7 +84,7 @@ while (( $i < ${#args[*]} )); do
 	typeset arg=${args[i]}
 	if is_freebsd; then
 		# FreeBSD does not strictly validate share opts (yet).
-		if [[ $arg == "-o sharenfs="* ]]; then
+		if [[ $arg == "sharenfs="* ]]; then
 			((i = i + 1))
 			continue
 		fi
