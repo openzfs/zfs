@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2020 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  * Copyright (c) 2013, Joyent, Inc. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
@@ -1235,7 +1235,7 @@ dmu_objset_create_sync(void *arg, dmu_tx_t *tx)
 		}
 		VERIFY0(zio_wait(rzio));
 
-		dmu_objset_do_userquota_updates(os, tx);
+		dmu_objset_sync_done(os, tx);
 		taskq_wait(dp->dp_sync_taskq);
 		if (txg_list_member(&dp->dp_dirty_datasets, ds, tx->tx_txg)) {
 			ASSERT3P(ds->ds_key_mapping, !=, NULL);
@@ -1502,23 +1502,13 @@ dmu_objset_sync_dnodes(multilist_sublist_t *list, dmu_tx_t *tx)
 		multilist_sublist_remove(list, dn);
 
 		/*
-		 * If we are not doing useraccounting (os_synced_dnodes == NULL)
-		 * we are done with this dnode for this txg. Unset dn_dirty_txg
-		 * if later txgs aren't dirtying it so that future holders do
-		 * not get a stale value. Otherwise, we will do this in
-		 * userquota_updates_task() when processing has completely
-		 * finished for this txg.
+		 * See the comment above dnode_rele_task() for an explanation
+		 * of why this dnode hold is always needed (even when not
+		 * doing user accounting).
 		 */
 		multilist_t *newlist = dn->dn_objset->os_synced_dnodes;
-		if (newlist != NULL) {
-			(void) dnode_add_ref(dn, newlist);
-			multilist_insert(newlist, dn);
-		} else {
-			mutex_enter(&dn->dn_mtx);
-			if (dn->dn_dirty_txg == tx->tx_txg)
-				dn->dn_dirty_txg = 0;
-			mutex_exit(&dn->dn_mtx);
-		}
+		(void) dnode_add_ref(dn, newlist);
+		multilist_insert(newlist, dn);
 
 		dnode_sync(dn, tx);
 	}
@@ -1680,22 +1670,19 @@ dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 
 	txgoff = tx->tx_txg & TXG_MASK;
 
-	if (dmu_objset_userused_enabled(os) &&
-	    (!os->os_encrypted || !dmu_objset_is_receiving(os))) {
-		/*
-		 * We must create the list here because it uses the
-		 * dn_dirty_link[] of this txg.  But it may already
-		 * exist because we call dsl_dataset_sync() twice per txg.
-		 */
-		if (os->os_synced_dnodes == NULL) {
-			os->os_synced_dnodes =
-			    multilist_create(sizeof (dnode_t),
-			    offsetof(dnode_t, dn_dirty_link[txgoff]),
-			    dnode_multilist_index_func);
-		} else {
-			ASSERT3U(os->os_synced_dnodes->ml_offset, ==,
-			    offsetof(dnode_t, dn_dirty_link[txgoff]));
-		}
+	/*
+	 * We must create the list here because it uses the
+	 * dn_dirty_link[] of this txg.  But it may already
+	 * exist because we call dsl_dataset_sync() twice per txg.
+	 */
+	if (os->os_synced_dnodes == NULL) {
+		os->os_synced_dnodes =
+		    multilist_create(sizeof (dnode_t),
+		    offsetof(dnode_t, dn_dirty_link[txgoff]),
+		    dnode_multilist_index_func);
+	} else {
+		ASSERT3U(os->os_synced_dnodes->ml_offset, ==,
+		    offsetof(dnode_t, dn_dirty_link[txgoff]));
 	}
 
 	ml = os->os_dirty_dnodes[txgoff];
@@ -2002,8 +1989,6 @@ userquota_updates_task(void *arg)
 				dn->dn_id_flags |= DN_ID_CHKED_BONUS;
 		}
 		dn->dn_id_flags &= ~(DN_ID_NEW_EXIST);
-		if (dn->dn_dirty_txg == spa_syncing_txg(os->os_spa))
-			dn->dn_dirty_txg = 0;
 		mutex_exit(&dn->dn_mtx);
 
 		multilist_sublist_remove(list, dn);
@@ -2014,13 +1999,44 @@ userquota_updates_task(void *arg)
 	kmem_free(uua, sizeof (*uua));
 }
 
-void
-dmu_objset_do_userquota_updates(objset_t *os, dmu_tx_t *tx)
+/*
+ * Release dnode holds from dmu_objset_sync_dnodes().  When the dnode is being
+ * synced (i.e. we have issued the zio's for blocks in the dnode), it can't be
+ * evicted because the block containing the dnode can't be evicted until it is
+ * written out.  However, this hold is necessary to prevent the dnode_t from
+ * being moved (via dnode_move()) while it's still referenced by
+ * dbuf_dirty_record_t:dr_dnode.  And dr_dnode is needed for
+ * dirty_lightweight_leaf-type dirty records.
+ *
+ * If we are doing user-object accounting, the dnode_rele() happens from
+ * userquota_updates_task() instead.
+ */
+static void
+dnode_rele_task(void *arg)
 {
-	int num_sublists;
+	userquota_updates_arg_t *uua = arg;
+	objset_t *os = uua->uua_os;
 
+	multilist_sublist_t *list =
+	    multilist_sublist_lock(os->os_synced_dnodes, uua->uua_sublist_idx);
+
+	dnode_t *dn;
+	while ((dn = multilist_sublist_head(list)) != NULL) {
+		multilist_sublist_remove(list, dn);
+		dnode_rele(dn, os->os_synced_dnodes);
+	}
+	multilist_sublist_unlock(list);
+	kmem_free(uua, sizeof (*uua));
+}
+
+/*
+ * Return TRUE if userquota updates are needed.
+ */
+static boolean_t
+dmu_objset_do_userquota_updates_prep(objset_t *os, dmu_tx_t *tx)
+{
 	if (!dmu_objset_userused_enabled(os))
-		return;
+		return (B_FALSE);
 
 	/*
 	 * If this is a raw receive just return and handle accounting
@@ -2030,10 +2046,10 @@ dmu_objset_do_userquota_updates(objset_t *os, dmu_tx_t *tx)
 	 * used for recovery.
 	 */
 	if (os->os_encrypted && dmu_objset_is_receiving(os))
-		return;
+		return (B_FALSE);
 
 	if (tx->tx_txg <= os->os_spa->spa_claim_max_txg)
-		return;
+		return (B_FALSE);
 
 	/* Allocate the user/group/project used objects if necessary. */
 	if (DMU_USERUSED_DNODE(os)->dn_type == DMU_OT_NONE) {
@@ -2050,22 +2066,38 @@ dmu_objset_do_userquota_updates(objset_t *os, dmu_tx_t *tx)
 		VERIFY0(zap_create_claim(os, DMU_PROJECTUSED_OBJECT,
 		    DMU_OT_USERGROUP_USED, DMU_OT_NONE, 0, tx));
 	}
+	return (B_TRUE);
+}
 
-	num_sublists = multilist_get_num_sublists(os->os_synced_dnodes);
+/*
+ * Dispatch taskq tasks to dp_sync_taskq to update the user accounting, and
+ * also release the holds on the dnodes from dmu_objset_sync_dnodes().
+ * The caller must taskq_wait(dp_sync_taskq).
+ */
+void
+dmu_objset_sync_done(objset_t *os, dmu_tx_t *tx)
+{
+	boolean_t need_userquota = dmu_objset_do_userquota_updates_prep(os, tx);
+
+	int num_sublists = multilist_get_num_sublists(os->os_synced_dnodes);
 	for (int i = 0; i < num_sublists; i++) {
-		if (multilist_sublist_is_empty_idx(os->os_synced_dnodes, i))
-			continue;
 		userquota_updates_arg_t *uua =
 		    kmem_alloc(sizeof (*uua), KM_SLEEP);
 		uua->uua_os = os;
 		uua->uua_sublist_idx = i;
 		uua->uua_tx = tx;
-		/* note: caller does taskq_wait() */
+
+		/*
+		 * If we don't need to update userquotas, use
+		 * dnode_rele_task() to call dnode_rele()
+		 */
 		(void) taskq_dispatch(dmu_objset_pool(os)->dp_sync_taskq,
-		    userquota_updates_task, uua, 0);
+		    need_userquota ? userquota_updates_task : dnode_rele_task,
+		    uua, 0);
 		/* callback frees uua */
 	}
 }
+
 
 /*
  * Returns a pointer to data to find uid/gid from
@@ -2088,18 +2120,11 @@ dmu_objset_userquota_find_data(dmu_buf_impl_t *db, dmu_tx_t *tx)
 	if (dr == NULL) {
 		data = NULL;
 	} else {
-		dnode_t *dn;
-
-		DB_DNODE_ENTER(dr->dr_dbuf);
-		dn = DB_DNODE(dr->dr_dbuf);
-
-		if (dn->dn_bonuslen == 0 &&
+		if (dr->dr_dnode->dn_bonuslen == 0 &&
 		    dr->dr_dbuf->db_blkid == DMU_SPILL_BLKID)
 			data = dr->dt.dl.dr_data->b_data;
 		else
 			data = dr->dt.dl.dr_data;
-
-		DB_DNODE_EXIT(dr->dr_dbuf);
 	}
 
 	return (data);
@@ -2990,7 +3015,7 @@ EXPORT_SYMBOL(dmu_objset_create_impl);
 EXPORT_SYMBOL(dmu_objset_open_impl);
 EXPORT_SYMBOL(dmu_objset_evict);
 EXPORT_SYMBOL(dmu_objset_register_type);
-EXPORT_SYMBOL(dmu_objset_do_userquota_updates);
+EXPORT_SYMBOL(dmu_objset_sync_done);
 EXPORT_SYMBOL(dmu_objset_userquota_get_ids);
 EXPORT_SYMBOL(dmu_objset_userused_enabled);
 EXPORT_SYMBOL(dmu_objset_userspace_upgrade);
