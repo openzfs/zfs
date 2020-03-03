@@ -491,6 +491,13 @@ taskq_member(taskq_t *tq, kthread_t *t)
 }
 EXPORT_SYMBOL(taskq_member);
 
+taskq_t *
+taskq_of_curthread(void)
+{
+	return (tsd_get(taskq_tsd));
+}
+EXPORT_SYMBOL(taskq_of_curthread);
+
 /*
  * Cancel an already dispatched task given the task id.  Still pending tasks
  * will be immediately canceled, and if the task is active the function will
