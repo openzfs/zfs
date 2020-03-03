@@ -186,6 +186,7 @@ typedef enum {
 	ZFS_PROP_IVSET_GUID,		/* not exposed to the user */
 	ZFS_PROP_REDACTED,
 	ZFS_PROP_REDACT_SNAPS,
+	ZFS_PROP_MOUNT_OPTIONS,		/* OS-specific mount properties */
 	ZFS_NUM_PROPS
 } zfs_prop_t;
 
@@ -311,6 +312,7 @@ boolean_t zfs_prop_valid_keylocation(const char *, boolean_t);
 const char *zfs_prop_to_name(zfs_prop_t);
 zfs_prop_t zfs_name_to_prop(const char *);
 boolean_t zfs_prop_user(const char *);
+boolean_t zfs_prop_system(const char *);
 boolean_t zfs_prop_userquota(const char *);
 boolean_t zfs_prop_written(const char *);
 int zfs_prop_index_to_string(zfs_prop_t, uint64_t, const char **);

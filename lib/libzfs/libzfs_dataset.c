@@ -1331,6 +1331,24 @@ badlabel:
 #endif /* HAVE_MLSLABEL */
 		}
 
+		/*
+		 * This is an aliased property; we call an OS-supplied
+		 * routine to verify it.
+		 */
+		case ZFS_PROP_MOUNT_OPTIONS:
+		{
+			int error;
+
+			/*
+			 * Replace the nvpair with the OS-specific one,
+			 * or error out.
+			 */
+			error = zfs_os_set_mount_options(hdl, ret, elem);
+			if (error == 0)
+				break;
+			(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
+			goto error;
+		}
 		case ZFS_PROP_MOUNTPOINT:
 		{
 			namecheck_err_t why;
@@ -2956,6 +2974,11 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 			zfs_nicebytes(val, propbuf, proplen);
 		}
 		zcp_check(zhp, prop, val, NULL);
+		break;
+	case ZFS_PROP_MOUNT_OPTIONS:
+		if (zfs_os_get_mount_options(zhp, propbuf,
+			proplen, src) != 0)
+			return (-1);
 		break;
 
 	default:
