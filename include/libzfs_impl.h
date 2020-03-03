@@ -264,6 +264,9 @@ extern int zpool_relabel_disk(libzfs_handle_t *hdl, const char *path,
 extern int find_shares_object(differ_info_t *di);
 extern void libzfs_set_pipe_max(int infd);
 
+extern int zfs_os_set_mount_options(libzfs_handle_t *, nvlist_t *, nvpair_t *);
+extern int zfs_os_get_mount_options(zfs_handle_t *, char *,
+    size_t, zprop_source_t *);
 #ifdef	__cplusplus
 }
 #endif
