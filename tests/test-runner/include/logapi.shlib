@@ -281,7 +281,23 @@ function log_pos
 
 function log_onexit
 {
-	_CLEANUP="$@"
+	_CLEANUP=("$*")
+}
+
+# Push an exit handler on the cleanup stack
+#
+# $@ - function(s) to perform on exit
+
+function log_onexit_push
+{
+	_CLEANUP+=("$*")
+}
+
+# Pop an exit handler off the cleanup stack
+
+function log_onexit_pop
+{
+	_CLEANUP=("${_CLEANUP[@]:0:${#_CLEANUP[@]}-1}")
 }
 
 #
@@ -425,12 +441,14 @@ function _endlog
 		_execute_testfail_callbacks
 	fi
 
-	if [[ -n $_CLEANUP ]] ; then
-		typeset cleanup=$_CLEANUP
-		log_onexit ""
+	typeset stack=("${_CLEANUP[@]}")
+	log_onexit ""
+	typeset i=${#stack[@]}
+	while (( i-- )); do
+		typeset cleanup="${stack[i]}"
 		log_note "Performing local cleanup via log_onexit ($cleanup)"
 		$cleanup
-	fi
+	done
 
 	exit $exitcode
 }
