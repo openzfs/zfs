@@ -664,7 +664,7 @@ valid_char(char c)
 {
 	return ((c >= 'a' && c <= 'z') ||
 	    (c >= '0' && c <= '9') ||
-	    c == '-' || c == '_' || c == '.' || c == ':');
+	    c == '-' || c == '_' || c == '.' || c == ':' || c == '!');
 }
 
 /*
@@ -675,20 +675,19 @@ zfs_prop_user(const char *name)
 {
 	int i;
 	char c;
-	boolean_t foundsep = B_FALSE;
+	boolean_t found_usersep = B_FALSE, found_syssep = B_FALSE;
 
 	for (i = 0; i < strlen(name); i++) {
 		c = name[i];
 		if (!valid_char(c))
 			return (B_FALSE);
+		if (c == '!')
+			found_syssep = B_TRUE;
 		if (c == ':')
-			foundsep = B_TRUE;
+			found_usersep = B_TRUE;
 	}
 
-	if (!foundsep)
-		return (B_FALSE);
-
-	return (B_TRUE);
+	return (found_usersep ^ found_syssep);
 }
 
 /*
