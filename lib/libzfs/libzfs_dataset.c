@@ -1360,7 +1360,7 @@ badlabel:
 			 * Replace the nvpair with the OS-specific one,
 			 * or error out.
 			 */
-			error = zfs_os_set_mount_options(hdl, ret, elem);
+			error = zfs_os_set_system_property(hdl, ret, elem);
 			if (error == 0)
 				break;
 			(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
