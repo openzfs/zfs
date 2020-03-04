@@ -903,6 +903,7 @@ zfs_blkptr_verify_log(spa_t *spa, const blkptr_t *bp,
 
 	switch (blk_verify) {
 	case BLK_VERIFY_HALT:
+		dprintf_bp(bp, "blkptr at %p dprintf_bp():", bp);
 		zfs_panic_recover("%s: %s", spa_name(spa), buf);
 		break;
 	case BLK_VERIFY_LOG:
@@ -1029,6 +1030,8 @@ zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp, boolean_t config_held,
 			    bp, i, (longlong_t)offset);
 		}
 	}
+	if (errors > 0)
+		dprintf_bp(bp, "blkptr at %p dprintf_bp():", bp);
 	if (!config_held)
 		spa_config_exit(spa, SCL_VDEV, bp);
 
