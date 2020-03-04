@@ -17,6 +17,8 @@ user = root
 timeout = 600
 post_user = root
 post = cleanup
+failsafe_user = root
+failsafe = callbacks/zfs_failsafe
 outputdir = /var/tmp/test_results
 tags = ['functional']
 
