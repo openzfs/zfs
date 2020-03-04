@@ -27,7 +27,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd August 9, 2019
+.Dd February 25, 2020
 .Dt ZPOOL-TRIM 8
 .Os Linux
 .Sh NAME
@@ -36,7 +36,7 @@
 .Sh SYNOPSIS
 .Nm
 .Cm trim
-.Op Fl d
+.Op Fl dw
 .Op Fl r Ar rate
 .Op Fl c | Fl s
 .Ar pool
@@ -46,7 +46,7 @@
 .It Xo
 .Nm
 .Cm trim
-.Op Fl d
+.Op Fl dw
 .Op Fl c | Fl s
 .Ar pool
 .Op Ar device Ns ...
@@ -84,6 +84,8 @@ trimmed, the command will fail and no suspension will occur on any device.
 Trimming can then be resumed by running
 .Nm zpool Cm trim
 with no flags on the relevant target devices.
+.It Fl w -wait
+Wait until the devices are done being trimmed before returning.
 .El
 .El
 .Sh SEE ALSO

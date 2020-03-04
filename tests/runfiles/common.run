@@ -470,6 +470,7 @@ tests = ['zpool_wait_discard', 'zpool_wait_freeing',
     'zpool_wait_initialize_basic', 'zpool_wait_initialize_cancel',
     'zpool_wait_initialize_flag', 'zpool_wait_multiple',
     'zpool_wait_no_activity', 'zpool_wait_remove', 'zpool_wait_remove_cancel',
+    'zpool_wait_trim_basic', 'zpool_wait_trim_cancel', 'zpool_wait_trim_flag',
     'zpool_wait_usage']
 tags = ['functional', 'cli_root', 'zpool_wait']
 

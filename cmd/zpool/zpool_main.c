@@ -396,7 +396,7 @@ get_usage(zpool_help_t idx)
 	case HELP_RESILVER:
 		return (gettext("\tresilver <pool> ...\n"));
 	case HELP_TRIM:
-		return (gettext("\ttrim [-d] [-r <rate>] [-c | -s] <pool> "
+		return (gettext("\ttrim [-dw] [-r <rate>] [-c | -s] <pool> "
 		    "[<device> ...]\n"));
 	case HELP_STATUS:
 		return (gettext("\tstatus [-c [script1,script2,...]] "
@@ -6989,6 +6989,7 @@ zpool_do_resilver(int argc, char **argv)
  *	-r <rate>	Sets the TRIM rate in bytes (per second). Supports
  *			adding a multiplier suffix such as 'k' or 'm'.
  *	-s		Suspend. TRIM can then be restarted with no flags.
+ *	-w		Wait. Blocks until trimming has completed.
  */
 int
 zpool_do_trim(int argc, char **argv)
@@ -6998,15 +6999,17 @@ zpool_do_trim(int argc, char **argv)
 		{"secure",	no_argument,		NULL,	'd'},
 		{"rate",	required_argument,	NULL,	'r'},
 		{"suspend",	no_argument,		NULL,	's'},
+		{"wait",	no_argument,		NULL,	'w'},
 		{0, 0, 0, 0}
 	};
 
 	pool_trim_func_t cmd_type = POOL_TRIM_START;
 	uint64_t rate = 0;
 	boolean_t secure = B_FALSE;
+	boolean_t wait = B_FALSE;
 
 	int c;
-	while ((c = getopt_long(argc, argv, "cdr:s", long_options, NULL))
+	while ((c = getopt_long(argc, argv, "cdr:sw", long_options, NULL))
 	    != -1) {
 		switch (c) {
 		case 'c':
@@ -7047,6 +7050,9 @@ zpool_do_trim(int argc, char **argv)
 			}
 			cmd_type = POOL_TRIM_SUSPEND;
 			break;
+		case 'w':
+			wait = B_TRUE;
+			break;
 		case '?':
 			if (optopt != 0) {
 				(void) fprintf(stderr,
@@ -7069,6 +7075,12 @@ zpool_do_trim(int argc, char **argv)
 		return (-1);
 	}
 
+	if (wait && (cmd_type != POOL_TRIM_START)) {
+		(void) fprintf(stderr, gettext("-w cannot be used with -c or "
+		    "-s\n"));
+		usage(B_FALSE);
+	}
+
 	char *poolname = argv[0];
 	zpool_handle_t *zhp = zpool_open(g_zfs, poolname);
 	if (zhp == NULL)
@@ -7077,6 +7089,7 @@ zpool_do_trim(int argc, char **argv)
 	trimflags_t trim_flags = {
 		.secure = secure,
 		.rate = rate,
+		.wait = wait,
 	};
 
 	nvlist_t *vdevs = fnvlist_alloc();
@@ -9476,21 +9489,30 @@ zpool_do_set(int argc, char **argv)
 
 	return (error);
 }
-/* Add up the total number of bytes left to initialize across all vdevs */
+
+/* Add up the total number of bytes left to initialize/trim across all vdevs */
 static uint64_t
-vdev_initialize_remaining(nvlist_t *nv)
+vdev_activity_remaining(nvlist_t *nv, zpool_wait_activity_t activity)
 {
 	uint64_t bytes_remaining;
 	nvlist_t **child;
 	uint_t c, children;
 	vdev_stat_t *vs;
 
+	assert(activity == ZPOOL_WAIT_INITIALIZE ||
+	    activity == ZPOOL_WAIT_TRIM);
+
 	verify(nvlist_lookup_uint64_array(nv, ZPOOL_CONFIG_VDEV_STATS,
 	    (uint64_t **)&vs, &c) == 0);
 
-	if (vs->vs_initialize_state == VDEV_INITIALIZE_ACTIVE)
+	if (activity == ZPOOL_WAIT_INITIALIZE &&
+	    vs->vs_initialize_state == VDEV_INITIALIZE_ACTIVE)
 		bytes_remaining = vs->vs_initialize_bytes_est -
 		    vs->vs_initialize_bytes_done;
+	else if (activity == ZPOOL_WAIT_TRIM &&
+	    vs->vs_trim_state == VDEV_TRIM_ACTIVE)
+		bytes_remaining = vs->vs_trim_bytes_est -
+		    vs->vs_trim_bytes_done;
 	else
 		bytes_remaining = 0;
 
@@ -9499,7 +9521,7 @@ vdev_initialize_remaining(nvlist_t *nv)
 		children = 0;
 
 	for (c = 0; c < children; c++)
-		bytes_remaining += vdev_initialize_remaining(child[c]);
+		bytes_remaining += vdev_activity_remaining(child[c], activity);
 
 	return (bytes_remaining);
 }
@@ -9557,7 +9579,7 @@ print_wait_status_row(wait_data_t *wd, zpool_handle_t *zhp, int row)
 	pool_scan_stat_t *pss = NULL;
 	pool_removal_stat_t *prs = NULL;
 	char *headers[] = {"DISCARD", "FREE", "INITIALIZE", "REPLACE",
-	    "REMOVE", "RESILVER", "SCRUB"};
+	    "REMOVE", "RESILVER", "SCRUB", "TRIM"};
 	int col_widths[ZPOOL_WAIT_NUM_ACTIVITIES];
 
 	/* Calculate the width of each column */
@@ -9613,7 +9635,10 @@ print_wait_status_row(wait_data_t *wd, zpool_handle_t *zhp, int row)
 			bytes_rem[ZPOOL_WAIT_RESILVER] = rem;
 	}
 
-	bytes_rem[ZPOOL_WAIT_INITIALIZE] = vdev_initialize_remaining(nvroot);
+	bytes_rem[ZPOOL_WAIT_INITIALIZE] =
+	    vdev_activity_remaining(nvroot, ZPOOL_WAIT_INITIALIZE);
+	bytes_rem[ZPOOL_WAIT_TRIM] =
+	    vdev_activity_remaining(nvroot, ZPOOL_WAIT_TRIM);
 
 	/*
 	 * A replace finishes after resilvering finishes, so the amount of work
@@ -9741,7 +9766,7 @@ zpool_do_wait(int argc, char **argv)
 		{
 			static char *col_subopts[] = { "discard", "free",
 			    "initialize", "replace", "remove", "resilver",
-			    "scrub", NULL };
+			    "scrub", "trim", NULL };
 
 			/* Reset activities array */
 			bzero(&wd.wd_enabled, sizeof (wd.wd_enabled));

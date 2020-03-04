@@ -76,8 +76,7 @@ for type in "" "mirror" "raidz" "raidz2" "raidz3"; do
 	done
 	log_must du -hs /$TESTPOOL
 
-	log_must zpool trim $TESTPOOL
-	wait_trim $TESTPOOL $TRIM_VDEVS
+	log_must timeout 120 zpool trim -w $TESTPOOL
 
 	verify_trim_io $TESTPOOL "ind" 10
 	verify_pool $TESTPOOL
