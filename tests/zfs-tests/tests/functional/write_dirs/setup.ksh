@@ -33,4 +33,4 @@
 
 verify_runnable "global"
 
-default_setup $DISKS
+default_setup "$DISKS"
