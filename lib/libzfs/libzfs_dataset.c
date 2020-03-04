@@ -1343,7 +1343,7 @@ badlabel:
 			 * Replace the nvpair with the OS-specific one,
 			 * or error out.
 			 */
-			error = zfs_os_set_mount_options(hdl, ret, elem);
+			error = zfs_os_set_system_property(hdl, ret, elem);
 			if (error == 0)
 				break;
 			(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
@@ -2976,8 +2976,8 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 		zcp_check(zhp, prop, val, NULL);
 		break;
 	case ZFS_PROP_MOUNT_OPTIONS:
-		if (zfs_os_get_mount_options(zhp, propbuf,
-			proplen, src) != 0)
+		if (zfs_os_get_system_property(zhp, zfs_prop_to_name(prop),
+			propbuf, proplen) != 0)
 			return (-1);
 		break;
 

@@ -497,10 +497,15 @@ zfs_prop_init(void)
 	    "redact_snaps", NULL, PROP_READONLY,
 	    ZFS_TYPE_DATASET | ZFS_TYPE_BOOKMARK, "<snapshot>[,...]",
 	    "RSNAPS");
+#if 0
 	zprop_register_string(ZFS_PROP_MOUNT_OPTIONS, "mount_options",
-	    NULL, PROP_DEFAULT, ZFS_TYPE_DATASET, "<mount options>",
-	    "MOUNTOPTS");
-
+	    NULL, PROP_DEFAULT | PROP_INHERIT, ZFS_TYPE_DATASET,
+	    "<mount options>", "MOUNTOPTS");
+#else
+	zprop_register_hidden(ZFS_PROP_MOUNT_OPTIONS, "mount_options",
+	    PROP_TYPE_STRING, PROP_INHERIT, ZFS_TYPE_DATASET,
+	    "MOUNT_OPTIONS");
+#endif
 	/* readonly number properties */
 	zprop_register_number(ZFS_PROP_USED, "used", 0, PROP_READONLY,
 	    ZFS_TYPE_DATASET, "<size>", "USED");
