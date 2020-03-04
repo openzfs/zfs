@@ -118,37 +118,3 @@ function verify_vdevs # op size vdevs
 		fi
 	done
 }
-
-#
-# Wait for up to 120 seconds for trimming of the listed vdevs to complete.
-#
-function wait_trim # pool vdevs
-{
-	typeset stop_time=$(( $(date +%s) + 120 ))
-	typeset pool="$1"
-	shift
-	typeset vdevs=$@
-	typeset complete
-
-	while [[ $complete -eq 0 ]]; do
-		complete=1
-
-		for vdev in $vdevs; do
-			if [[ "$(trim_progress $pool $vdev)" -lt "100" ]]; then
-				complete=0
-				break
-			else
-				log_must eval "trim_prog_line $pool $vdev | \
-				    grep complete"
-			fi
-		done
-
-		if [ "$(date +%s)" -ge $stop_time ]; then
-			log_fail "Exceeded trim time limit of 120s"
-		fi
-
-		sleep 0.5
-	done
-
-	log_note "Pool completed trim successfully."
-}

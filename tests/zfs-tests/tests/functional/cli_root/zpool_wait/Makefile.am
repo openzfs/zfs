@@ -11,6 +11,9 @@ dist_pkgdata_SCRIPTS = \
 	zpool_wait_no_activity.ksh \
 	zpool_wait_remove.ksh \
 	zpool_wait_remove_cancel.ksh \
+	zpool_wait_trim_basic.ksh \
+	zpool_wait_trim_cancel.ksh \
+	zpool_wait_trim_flag.ksh \
 	zpool_wait_usage.ksh
 
 dist_pkgdata_DATA = \

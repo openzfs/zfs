@@ -269,6 +269,9 @@ typedef struct trimflags {
 	/* request a secure trim, requires support from device */
 	boolean_t secure;
 
+	/* after starting trim, block until trim completes */
+	boolean_t wait;
+
 	/* trim at the requested rate in bytes/second */
 	uint64_t rate;
 } trimflags_t;

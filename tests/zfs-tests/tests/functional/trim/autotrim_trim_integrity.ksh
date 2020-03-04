@@ -77,8 +77,7 @@ for type in "" "mirror" "raidz" "raidz2" "raidz3"; do
 		zpool sync
 
 		if [[ $((n % 4)) -eq 0 ]]; then
-			log_must zpool trim $TESTPOOL
-			wait_trim $TESTPOOL $TRIM_VDEVS
+			log_must timeout 120 zpool trim -w $TESTPOOL
 		fi
 	done
 	log_must du -hs /$TESTPOOL
