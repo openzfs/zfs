@@ -121,11 +121,11 @@ fio_reason = 'Fio v2.3 or newer required'
 trim_reason = 'DISKS must support discard (TRIM/UNMAP)'
 
 #
-# Some tests are not applicable to Linux or need to be updated to operate
-# in the manor required by Linux.  Any tests which are skipped for this
+# Some tests are not applicable to a platform or need to be updated to operate
+# in the manor required by the platform.  Any tests which are skipped for this
 # reason will be suppressed in the final analysis output.
 #
-na_reason = "N/A on Linux"
+na_reason = "Not applicable"
 
 summary = {
     'total': float(0),
@@ -153,11 +153,17 @@ known = {
     'cli_user/misc/zfs_unshare_001_neg': ['SKIP', na_reason],
     'privilege/setup': ['SKIP', na_reason],
     'refreserv/refreserv_004_pos': ['FAIL', known_reason],
-    'removal/removal_with_zdb': ['SKIP', known_reason],
     'rootpool/setup': ['SKIP', na_reason],
     'rsend/rsend_008_pos': ['SKIP', '6066'],
     'vdev_zaps/vdev_zaps_007_pos': ['FAIL', known_reason],
 }
+
+if sys.platform.startswith('freebsd'):
+    known.update({
+        'link_count/link_count_001': ['SKIP', na_reason],
+        'removal/removal_condense_export': ['FAIL', known_reason],
+        'upgrade/upgrade_userobj_001_pos': ['FAIL', known_reason],
+    })
 
 #
 # These tests may occasionally fail or be skipped.  We want there failures
@@ -207,6 +213,7 @@ maybe = {
     'no_space/enospc_002_pos': ['FAIL', enospc_reason],
     'projectquota/setup': ['SKIP', exec_reason],
     'redundancy/redundancy_004_neg': ['FAIL', '7290'],
+    'removal/removal_with_zdb': ['SKIP', known_reason],
     'reservation/reservation_008_pos': ['FAIL', '7741'],
     'reservation/reservation_018_pos': ['FAIL', '5642'],
     'rsend/rsend_019_pos': ['FAIL', '6086'],
@@ -300,7 +307,7 @@ if __name__ == "__main__":
         issue_url = 'https://github.com/openzfs/zfs/issues/'
 
         # Include the reason why the result is expected, given the following:
-        # 1. Suppress test results which set the "N/A on Linux" reason.
+        # 1. Suppress test results which set the "Not applicable" reason.
         # 2. Numerical reasons are assumed to be GitHub issue numbers.
         # 3. When an entire test group is skipped only report the setup reason.
         if test in known:
