@@ -47,11 +47,8 @@ verify_runnable "both"
 
 function cleanup
 {
-	for file in `find $TESTDIR -type f`; do
-		cat /dev/null > $file
-	done
-	log_must sync
-	log_must rm -rf $TESTDIR/*
+	destroy_dataset $TESTPOOL/$TESTFS
+	zfs create -o mountpoint=$TESTDIR $TESTPOOL/$TESTFS
 }
 
 typeset -i retval=0
