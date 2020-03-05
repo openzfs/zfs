@@ -8720,13 +8720,14 @@ spa_sync_adjust_vdev_max_queue_depth(spa_t *spa)
 		 * allocations look at mg_max_alloc_queue_depth, and async
 		 * allocations all happen from spa_sync().
 		 */
-		for (int i = 0; i < spa->spa_alloc_count; i++)
+		for (int i = 0; i < mg->mg_allocators; i++) {
 			ASSERT0(zfs_refcount_count(
-			    &(mg->mg_alloc_queue_depth[i])));
+			    &(mg->mg_allocator[i].mga_alloc_queue_depth)));
+		}
 		mg->mg_max_alloc_queue_depth = max_queue_depth;
 
-		for (int i = 0; i < spa->spa_alloc_count; i++) {
-			mg->mg_cur_max_alloc_queue_depth[i] =
+		for (int i = 0; i < mg->mg_allocators; i++) {
+			mg->mg_allocator[i].mga_cur_max_alloc_queue_depth =
 			    zfs_vdev_def_queue_depth;
 		}
 		slots_per_allocator += zfs_vdev_def_queue_depth;
