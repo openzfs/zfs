@@ -4132,7 +4132,6 @@ zfs_ioc_wait_fs(const char *name, nvlist_t *innvl, nvlist_t *outnvl)
 	mutex_exit(&dd->dd_activity_lock);
 
 	dsl_dataset_rele(ds, FTAG);
-	dsl_dir_rele(dd, FTAG);
 
 	if (error == 0)
 		fnvlist_add_boolean_value(outnvl, ZFS_WAIT_WAITED, waited);

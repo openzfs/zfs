@@ -2309,9 +2309,11 @@ dsl_dir_activity_in_progress(dsl_dir_t *dd, dsl_dataset_t *ds,
 		if (error != 0)
 			break;
 
+		mutex_enter(&os->os_user_ptr_lock);
+		void *user = dmu_objset_get_user(os);
+		mutex_exit(&os->os_user_ptr_lock);
 		if (dmu_objset_type(os) != DMU_OST_ZFS ||
-		    dmu_objset_get_user(os) == NULL || 
-		    zfs_get_vfs_flag_unmounted(os)) {
+		    user == NULL || zfs_get_vfs_flag_unmounted(os)) {
 			*in_progress = B_FALSE;
 			return (0);
 		}
