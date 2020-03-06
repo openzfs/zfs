@@ -1157,14 +1157,16 @@ See
 for more information on
 .Sy nbmand
 mounts. This property is not used on Linux.
-.It Sy overlay Ns = Ns Sy off Ns | Ns Sy on
+.It Sy overlay Ns = Ns Sy on Ns | Ns Sy off
 Allow mounting on a busy directory or a directory which already contains
-files or directories. This is the default mount behavior for Linux file systems.
-For consistency with OpenZFS on other platforms overlay mounts are
-.Sy off
-by default. Set to
+files or directories.
+This is the default mount behavior for Linux and FreeBSD file systems.
+On these platforms the property is
 .Sy on
-to enable overlay mounts.
+by default.
+Set to
+.Sy off
+to disable overlay mounts for consistency with OpenZFS on other platforms.
 .It Sy primarycache Ns = Ns Sy all Ns | Ns Sy none Ns | Ns Sy metadata
 Controls what is cached in the primary cache
 .Pq ARC .
