@@ -64,9 +64,10 @@ log_must zfs create -o encryption=on -o keyformat=passphrase \
 	-o keylocation=file:///$TESTPOOL/pkey $TESTPOOL/$TESTFS1
 
 log_mustnot zfs set keylocation=none $TESTPOOL/$TESTFS1
-if is_linux; then
+if true; then
 	log_mustnot zfs set keylocation=/$TESTPOOL/pkey $TESTPOOL/$TESTFS1
 else
+	### SOON: ###
 	# file:///$TESTPOOL/pkey and /$TESTPOOL/pkey are equivalent on FreeBSD
 	# thanks to libfetch. Eventually we want to make the other platforms
 	# work this way as well, either by porting libfetch or by other means.

@@ -612,8 +612,8 @@ function default_cleanup_noexit
 				then
 					destroy_pool $pool
 				fi
-				ALL_POOLS=$(get_all_pools)
 			done
+			ALL_POOLS=$(get_all_pools)
 		done
 
 		zfs mount -a
@@ -3315,13 +3315,7 @@ function user_run
 	shift
 
 	log_note "user:$user $@"
-	if is_freebsd; then
-		eval "su \$user -c \"$@\"" > $TEST_BASE_DIR/out 2>$TEST_BASE_DIR/err
-		return $?
-	else
-		eval su - \$user -c \"$@\" > $TEST_BASE_DIR/out 2>$TEST_BASE_DIR/err
-		return $?
-	fi
+	eval su - \$user -c \"$@\" > $TEST_BASE_DIR/out 2>$TEST_BASE_DIR/err
 }
 
 #

@@ -35,7 +35,7 @@ function cleanup
 	destroy_pool $TESTPOOL
 	destroy_pool $TESTPOOL2
 	rm -f $DEVICE1 $DEVICE2
-	log_must mmp_clear_hostid
+	! is_freebsd && log_must mmp_clear_hostid
 }
 
 function setup_mirror
@@ -48,9 +48,8 @@ function setup_mirror
 log_assert "'zpool split' can set new property values on the new pool"
 log_onexit cleanup
 
-if [ -e $HOSTID_FILE ]; then
-	log_unsupported "System has existing $HOSTID_FILE file"
-fi
+DEVICE1="$TEST_BASE_DIR/device-1"
+DEVICE2="$TEST_BASE_DIR/device-2"
 
 typeset good_props=('comment=text' 'ashift=12' 'multihost=on'
     'listsnapshots=on' 'autoexpand=on' 'autoreplace=on'
@@ -59,12 +58,15 @@ typeset bad_props=("bootfs=$TESTPOOL2/bootfs" 'version=28' 'ashift=4'
     'allocated=1234' 'capacity=5678' 'multihost=none'
     'feature@async_destroy=disabled' 'feature@xxx_fake_xxx=enabled'
     'propname=propval' 'readonly=on')
-
-DEVICE1="$TEST_BASE_DIR/device-1"
-DEVICE2="$TEST_BASE_DIR/device-2"
-
-# Needed to set multihost=on
-log_must mmp_set_hostid $HOSTID1
+if ! is_freebsd; then
+	good_props+=('multihost=on')
+	bad_props+=('multihost=none')
+	if [ -e $HOSTID_FILE ]; then
+		log_unsupported "System has existing $HOSTID_FILE file"
+	fi
+	# Needed to set multihost=on
+	log_must mmp_set_hostid $HOSTID1
+fi
 
 # Verify we can set a combination of valid property values on the new pool
 for prop in "${good_props[@]}"
