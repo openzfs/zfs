@@ -160,9 +160,10 @@ known = {
 
 if sys.platform.startswith('freebsd'):
     known.update({
+        'cli_root/zpool_wait/zpool_wait_trim_basic': ['SKIP', trim_reason],
+        'cli_root/zpool_wait/zpool_wait_trim_cancel': ['SKIP', trim_reason],
+        'cli_root/zpool_wait/zpool_wait_trim_flag': ['SKIP', trim_reason],
         'link_count/link_count_001': ['SKIP', na_reason],
-        'removal/removal_condense_export': ['FAIL', known_reason],
-        'upgrade/upgrade_userobj_001_pos': ['FAIL', known_reason],
     })
 
 #

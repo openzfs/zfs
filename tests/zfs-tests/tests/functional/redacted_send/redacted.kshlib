@@ -63,11 +63,11 @@ function setup_embedded
 	typeset recsize
 	typeset mntpnt=$(get_prop mountpoint $sendfs)
 	for recsize in 512 1024 2048 4096 8192 16384; do
-		if is_linux; then
+		if is_illumos; then
+			log_must mkholes -d $((recsize - 8)):8 $mntpnt/$recsize
+		else
 			log_must dd if=/dev/urandom of=$mntpnt/$recsize bs=8 \
 			    count=1 seek=$(((recsize / 8) - 1))
-		else
-			log_must mkholes -d $((recsize - 8)):8 $mntpnt/$recsize
 		fi
 	done
 }
@@ -79,7 +79,12 @@ function setup_holes
 	typeset mntpnt=$(get_prop mountpoint $sendfs)
 	typeset M=$((1024 * 1024))
 
-	if is_linux; then
+	if is_illumos; then
+		log_must mkholes -d 0:$((8 * M)) $mntpnt/f1
+		log_must mkholes -d 0:$M -d $((7 * M)):$M $mntpnt/f2
+		log_must mkholes -d $M:$((6 * M)) -h $((7 * M)):$M $mntpnt/f3
+		log_must mkholes -h 0:$((8 * M)) $mntpnt/f4
+	else
 		log_must dd if=/dev/urandom of=$mntpnt/f1 bs=8M count=1
 
 		log_must dd if=/dev/urandom of=$mntpnt/f2 bs=1M count=1
@@ -87,14 +92,9 @@ function setup_holes
 		    conv=notrunc
 
 		log_must dd if=/dev/urandom of=$mntpnt/f3 bs=1M count=6 seek=1
-		log_must truncate $mntpnt/f3 --size=$((8 * M))
+		log_must truncate -s $((8 * M)) $mntpnt/f3
 
-		log_must truncate $mntpnt/f4 --size=$((8 * M))
-	else
-		log_must mkholes -d 0:$((8 * M)) $mntpnt/f1
-		log_must mkholes -d 0:$M -d $((7 * M)):$M $mntpnt/f2
-		log_must mkholes -d $M:$((6 * M)) -h $((7 * M)):$M $mntpnt/f3
-		log_must mkholes -h 0:$((8 * M)) $mntpnt/f4
+		log_must truncate -s $((8 * M)) $mntpnt/f4
 	fi
 
 	log_must zfs create $sendfs/manyrm
@@ -237,15 +237,11 @@ function redacted_cleanup
 	typeset ds_list=$@
 	typeset ds
 
-	# Verify the receiving pool can still be exported and imported.
-	log_must zpool export $POOL2
-	log_must zpool import $POOL2
-
 	for ds in $ds_list; do
-		datasetexists $ds && log_must zfs destroy -R $ds
+		zfs destroy -R $ds
 	done
 
-	log_must set_tunable32 ALLOW_REDACTED_DATASET_MOUNT 0
+	set_tunable32 ALLOW_REDACTED_DATASET_MOUNT 0
 	rm -f $(get_prop mountpoint $POOL)/tmp/*
 }
 

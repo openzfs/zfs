@@ -74,14 +74,33 @@ function block_device_wait
 {
 	if is_linux; then
 		udevadm trigger $*
-		typeset local start=$SECONDS
+		typeset start=$SECONDS
 		udevadm settle
-		typeset local elapsed=$((SECONDS - start))
+		typeset elapsed=$((SECONDS - start))
 		[[ $elapsed > 60 ]] && \
 		    log_note udevadm settle time too long: $elapsed
 	elif is_freebsd; then
-		sleep 3
+		if [[ ${#@} -eq 0 ]]; then
+			sleep 3
+			return
+		fi
 	fi
+	# Poll for the given paths to appear, but give up eventually.
+	typeset -i i
+	for (( i = 0; i < 5; ++i )); do
+		typeset missing=false
+		typeset dev
+		for dev in "${@}"; do
+			if ! [[ -f $dev ]]; then
+				missing=true
+				break
+			fi
+		done
+		if ! $missing; then
+			break
+		fi
+		sleep ${#@}
+	done
 }
 
 #

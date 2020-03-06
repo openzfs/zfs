@@ -474,8 +474,8 @@ zfs_mount_at(zfs_handle_t *zhp, const char *options, int flags,
 	}
 
 	/*
-	 * Overlay mounts are disabled by default but may be enabled
-	 * via the 'overlay' property or the 'zfs mount -O' option.
+	 * Overlay mounts are enabled by default but may be disabled
+	 * via the 'overlay' property. The -O flag remains for compatibility.
 	 */
 	if (!(flags & MS_OVERLAY)) {
 		if (zfs_prop_get(zhp, ZFS_PROP_OVERLAY, overlay,
@@ -489,7 +489,7 @@ zfs_mount_at(zfs_handle_t *zhp, const char *options, int flags,
 	/*
 	 * Determine if the mountpoint is empty.  If so, refuse to perform the
 	 * mount.  We don't perform this check if 'remount' is
-	 * specified or if overlay option(-O) is given
+	 * specified or if overlay option (-O) is given
 	 */
 	if ((flags & MS_OVERLAY) == 0 && !remount &&
 	    !dir_is_empty(mountpoint)) {
