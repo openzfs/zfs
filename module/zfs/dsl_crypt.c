@@ -2381,11 +2381,11 @@ dsl_crypto_recv_raw(const char *poolname, uint64_t dsobj, uint64_t fromobj,
 }
 
 int
-dsl_crypto_populate_key_nvlist(dsl_dataset_t *ds, uint64_t from_ivset_guid,
+dsl_crypto_populate_key_nvlist(objset_t *os, uint64_t from_ivset_guid,
     nvlist_t **nvl_out)
 {
 	int ret;
-	objset_t *os;
+	dsl_dataset_t *ds = os->os_dsl_dataset;
 	dnode_t *mdn;
 	uint64_t rddobj;
 	nvlist_t *nvl = NULL;
@@ -2403,7 +2403,6 @@ dsl_crypto_populate_key_nvlist(dsl_dataset_t *ds, uint64_t from_ivset_guid,
 
 	ASSERT(dckobj != 0);
 
-	VERIFY0(dmu_objset_from_ds(ds, &os));
 	mdn = DMU_META_DNODE(os);
 
 	nvl = fnvlist_alloc();

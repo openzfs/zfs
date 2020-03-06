@@ -415,6 +415,11 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 	ASSERT(!BP_IS_REDACTED(bp));
 
 	/*
+	 * We need the pool config lock to get properties.
+	 */
+	ASSERT(ds == NULL || dsl_pool_config_held(ds->ds_dir->dd_pool));
+
+	/*
 	 * The $ORIGIN dataset (if it exists) doesn't have an associated
 	 * objset, so there's no reason to open it. The $ORIGIN dataset
 	 * will not exist on pools older than SPA_VERSION_ORIGIN.
@@ -503,19 +508,7 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 	 * checksum/compression/copies.
 	 */
 	if (ds != NULL) {
-		boolean_t needlock = B_FALSE;
-
 		os->os_encrypted = (ds->ds_dir->dd_crypto_obj != 0);
-
-		/*
-		 * Note: it's valid to open the objset if the dataset is
-		 * long-held, in which case the pool_config lock will not
-		 * be held.
-		 */
-		if (!dsl_pool_config_held(dmu_objset_pool(os))) {
-			needlock = B_TRUE;
-			dsl_pool_config_enter(dmu_objset_pool(os), FTAG);
-		}
 
 		err = dsl_prop_register(ds,
 		    zfs_prop_to_name(ZFS_PROP_PRIMARYCACHE),
@@ -579,8 +572,6 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 				    smallblk_changed_cb, os);
 			}
 		}
-		if (needlock)
-			dsl_pool_config_exit(dmu_objset_pool(os), FTAG);
 		if (err != 0) {
 			arc_buf_destroy(os->os_phys_buf, &os->os_phys_buf);
 			kmem_free(os, sizeof (objset_t));
@@ -650,11 +641,11 @@ dmu_objset_from_ds(dsl_dataset_t *ds, objset_t **osp)
 	int err = 0;
 
 	/*
-	 * We shouldn't be doing anything with dsl_dataset_t's unless the
-	 * pool_config lock is held, or the dataset is long-held.
+	 * We need the pool_config lock to manipulate the dsl_dataset_t.
+	 * Even if the dataset is long-held, we need the pool_config lock
+	 * to open the objset, as it needs to get properties.
 	 */
-	ASSERT(dsl_pool_config_held(ds->ds_dir->dd_pool) ||
-	    dsl_dataset_long_held(ds));
+	ASSERT(dsl_pool_config_held(ds->ds_dir->dd_pool));
 
 	mutex_enter(&ds->ds_opening_lock);
 	if (ds->ds_objset == NULL) {

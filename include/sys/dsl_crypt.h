@@ -189,7 +189,7 @@ void key_mapping_rele(spa_t *spa, dsl_key_mapping_t *km, void *tag);
 int spa_keystore_lookup_key(spa_t *spa, uint64_t dsobj, void *tag,
     dsl_crypto_key_t **dck_out);
 
-int dsl_crypto_populate_key_nvlist(struct dsl_dataset *ds,
+int dsl_crypto_populate_key_nvlist(struct objset *os,
     uint64_t from_ivset_guid, nvlist_t **nvl_out);
 int dsl_crypto_recv_raw_key_check(struct dsl_dataset *ds,
     nvlist_t *nvl, dmu_tx_t *tx);

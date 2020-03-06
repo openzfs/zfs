@@ -123,7 +123,7 @@ struct receive_writer_arg {
 typedef struct guid_map_entry {
 	uint64_t	guid;
 	boolean_t	raw;
-	dsl_dataset_t	*gme_ds;
+	objset_t	*gme_os;
 	avl_node_t	avlnode;
 } guid_map_entry_t;
 
@@ -914,6 +914,7 @@ dmu_recv_begin_sync(void *arg, dmu_tx_t *tx)
 	rrw_exit(&newds->ds_bp_rwlock, FTAG);
 
 	drba->drba_cookie->drc_ds = newds;
+	drba->drba_cookie->drc_os = os;
 
 	spa_history_log_internal_ds(newds, "receive", tx, " ");
 }
@@ -1095,6 +1096,7 @@ dmu_recv_resume_begin_sync(void *arg, dmu_tx_t *tx)
 	rrw_exit(&ds->ds_bp_rwlock, FTAG);
 
 	drba->drba_cookie->drc_ds = ds;
+	VERIFY0(dmu_objset_from_ds(ds, &drba->drba_cookie->drc_os));
 	drba->drba_cookie->drc_should_save = B_TRUE;
 
 	spa_history_log_internal_ds(ds, "resume receive", tx, " ");
@@ -1227,11 +1229,12 @@ free_guid_map_onexit(void *arg)
 		ds_hold_flags_t dsflags = DS_HOLD_FLAG_DECRYPT;
 
 		if (gmep->raw) {
-			gmep->gme_ds->ds_objset->os_raw_receive = B_FALSE;
+			gmep->gme_os->os_raw_receive = B_FALSE;
 			dsflags &= ~DS_HOLD_FLAG_DECRYPT;
 		}
 
-		dsl_dataset_disown(gmep->gme_ds, dsflags, gmep);
+		dsl_dataset_disown(gmep->gme_os->os_dsl_dataset,
+		    dsflags, gmep);
 		kmem_free(gmep, sizeof (guid_map_entry_t));
 	}
 	avl_destroy(ca);
@@ -1797,8 +1800,7 @@ receive_write_byref(struct receive_writer_arg *rwa,
 		    &where)) == NULL) {
 			return (SET_ERROR(EINVAL));
 		}
-		if (dmu_objset_from_ds(gmep->gme_ds, &ref_os))
-			return (SET_ERROR(EINVAL));
+		ref_os = gmep->gme_os;
 	} else {
 		ref_os = rwa->os;
 	}
@@ -2661,10 +2663,6 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, int cleanup_fd,
 	    DMU_SUBSTREAM);
 	ASSERT3U(drc->drc_drrb->drr_type, <, DMU_OST_NUMTYPES);
 
-	/*
-	 * Open the objset we are modifying.
-	 */
-	VERIFY0(dmu_objset_from_ds(drc->drc_ds, &drc->drc_os));
 	ASSERT(dsl_dataset_phys(drc->drc_ds)->ds_flags & DS_FLAG_INCONSISTENT);
 	ASSERT0(drc->drc_os->os_encrypted &&
 	    (drc->drc_featureflags & DMU_BACKUP_FEATURE_EMBED_DATA));
@@ -3013,6 +3011,12 @@ dmu_recv_end_sync(void *arg, dmu_tx_t *tx)
 
 		dsl_dataset_clone_swap_sync_impl(drc->drc_ds,
 		    origin_head, tx);
+		/*
+		 * The objset was evicted by dsl_dataset_clone_swap_sync_impl,
+		 * so drc_os is no longer valid.
+		 */
+		drc->drc_os = NULL;
+
 		dsl_dataset_snapshot_sync_impl(origin_head,
 		    drc->drc_tosnap, tx);
 
@@ -3127,26 +3131,25 @@ add_ds_to_guidmap(const char *name, avl_tree_t *guid_map, uint64_t snapobj,
 	err = dsl_dataset_own_obj(dp, snapobj, dsflags, gmep, &snapds);
 
 	if (err == 0) {
+		err = dmu_objset_from_ds(snapds, &os);
+		if (err != 0) {
+			dsl_dataset_disown(snapds, dsflags, FTAG);
+			dsl_pool_rele(dp, FTAG);
+			kmem_free(gmep, sizeof (*gmep));
+			return (err);
+		}
 		/*
 		 * If this is a deduplicated raw send stream, we need
 		 * to make sure that we can still read raw blocks from
 		 * earlier datasets in the stream, so we set the
 		 * os_raw_receive flag now.
 		 */
-		if (raw) {
-			err = dmu_objset_from_ds(snapds, &os);
-			if (err != 0) {
-				dsl_dataset_disown(snapds, dsflags, FTAG);
-				dsl_pool_rele(dp, FTAG);
-				kmem_free(gmep, sizeof (*gmep));
-				return (err);
-			}
+		if (raw)
 			os->os_raw_receive = B_TRUE;
-		}
 
 		gmep->raw = raw;
 		gmep->guid = dsl_dataset_phys(snapds)->ds_guid;
-		gmep->gme_ds = snapds;
+		gmep->gme_os = os;
 		avl_add(guid_map, gmep);
 	} else {
 		kmem_free(gmep, sizeof (*gmep));
