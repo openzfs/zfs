@@ -32,3 +32,4 @@
 . $STF_SUITE/include/libtest.shlib
 
 default_cleanup
+rm -f $TEST_BASE_DIR/disk0
