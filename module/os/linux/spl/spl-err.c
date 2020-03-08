@@ -86,6 +86,9 @@ vcmn_err(int ce, const char *fmt, va_list ap)
 {
 	char msg[MAXMSGLEN];
 
+#ifndef _KERNEL
+	(void) fflush(stdout);
+#endif
 	vsnprintf(msg, MAXMSGLEN, fmt, ap);
 
 	switch (ce) {
