@@ -299,7 +299,7 @@ zfs_os_get_system_property(zfs_handle_t *zhp, zfs_prop_t prop,
 		os_nvlist = fnvlist_lookup_nvlist(user_props, ptr->os_name);
 		elem_value = fnvlist_lookup_string(os_nvlist, "value");
 		if (elem_value && elem_value[0] != '\0' &&
-			strcmp(elem_value, "none") != 0)
+		    strcmp(elem_value, "none") != 0)
 			strlcpy(propbuf, elem_value, proplen);
 		else
 			*propbuf = '\0';
