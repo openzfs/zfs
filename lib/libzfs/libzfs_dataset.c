@@ -1348,24 +1348,6 @@ badlabel:
 #endif /* HAVE_MLSLABEL */
 		}
 
-		/*
-		 * This is an aliased property; we call an OS-supplied
-		 * routine to verify it.
-		 */
-		case ZFS_PROP_MOUNT_OPTIONS:
-		{
-			int error;
-
-			/*
-			 * Replace the nvpair with the OS-specific one,
-			 * or error out.
-			 */
-			error = zfs_os_set_system_property(hdl, ret, elem);
-			if (error == 0)
-				break;
-			(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
-			goto error;
-		}
 		case ZFS_PROP_MOUNTPOINT:
 		{
 			namecheck_err_t why;
