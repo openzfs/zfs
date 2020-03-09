@@ -151,13 +151,9 @@ process_line() {
         else
           keymountdep="RequiresMountsFor='${p_keyloc#file://}'"
         fi
-        keyloadcmd="@sbindir@/zfs load-key '${dataset}'"
+        keyloadscript="@sbindir@/zfs load-key \"${dataset}\""
       elif [ "${p_keyloc}" = "prompt" ] ; then
-        keyloadcmd="\
-/bin/sh -c '\
-set -eu;\
-keystatus=\"\$\$(@sbindir@/zfs get -H -o value keystatus \"${dataset}\")\";\
-[ \"\$\$keystatus\" = \"unavailable\" ] || exit 0;\
+        keyloadscript="\
 count=0;\
 while [ \$\$count -lt 3 ];do\
   systemd-ask-password --id=\"zfs:${dataset}\"\
@@ -165,11 +161,19 @@ while [ \$\$count -lt 3 ];do\
     @sbindir@/zfs load-key \"${dataset}\" && exit 0;\
   count=\$\$((count + 1));\
 done;\
-exit 1'"
+exit 1"
       else
         printf 'zfs-mount-generator: (%s) invalid keylocation\n' \
           "${dataset}" >/dev/kmsg
       fi
+      keyloadcmd="\
+/bin/sh -c '\
+set -eu;\
+keystatus=\"\$\$(@sbindir@/zfs get -H -o value keystatus \"${dataset}\")\";\
+[ \"\$\$keystatus\" = \"unavailable\" ] || exit 0;\
+${keyloadscript}'"
+
+
 
       # Generate the key-load .service unit
       #
