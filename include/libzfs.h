@@ -865,9 +865,11 @@ extern int zfs_version_print(void);
  * Functions to handle setting/getting (and mapping) of
  * system properties to OS-specific properties.
  */
+extern boolean_t zfs_prop_os_alias(zfs_prop_t);
+extern const char *zfs_prop_os_alias_name(zfs_prop_t);
 extern int zfs_os_set_system_property(libzfs_handle_t *, nvlist_t *,
     nvpair_t *);
-extern int zfs_os_get_system_property(zfs_handle_t *, const char *, char *,
+extern int zfs_os_get_system_property(zfs_handle_t *, zfs_prop_t, char *,
     size_t);
 /*
  * Given a device or file, determine if it is part of a pool.

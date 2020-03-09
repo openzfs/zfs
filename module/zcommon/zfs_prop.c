@@ -502,9 +502,11 @@ zfs_prop_init(void)
 	    NULL, PROP_DEFAULT | PROP_INHERIT, ZFS_TYPE_DATASET,
 	    "<mount options>", "MOUNTOPTS");
 #else
-	zprop_register_hidden(ZFS_PROP_MOUNT_OPTIONS, "mount_options",
-	    PROP_TYPE_STRING, PROP_INHERIT, ZFS_TYPE_DATASET,
-	    "MOUNT_OPTIONS");
+//	zprop_register_hidden(ZFS_PROP_MOUNT_OPTIONS, "mount_options",
+//	    PROP_TYPE_STRING, PROP_INHERIT, ZFS_TYPE_DATASET,
+//	    "MOUNT_OPTIONS");
+	zprop_register_alias(ZFS_PROP_MOUNT_OPTIONS, "mount_options",
+	    PROP_INHERIT, ZFS_TYPE_DATASET, "MOUNTOPTS");
 #endif
 	/* readonly number properties */
 	zprop_register_number(ZFS_PROP_USED, "used", 0, PROP_READONLY,

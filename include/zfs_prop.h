@@ -79,6 +79,7 @@ typedef struct {
 	boolean_t pd_visible;		/* do we list this property with the */
 					/* "zfs get" help message */
 	boolean_t pd_zfs_mod_supported;	/* supported by running zfs module */
+	boolean_t pd_alias;		/* Is this an alias prop? */
 	const zprop_index_t *pd_table;	/* for index properties, a table */
 					/* defining the possible values */
 	size_t pd_table_size;		/* number of entries in pd_table[] */
@@ -113,7 +114,8 @@ void zprop_register_index(int, const char *, uint64_t, zprop_attr_t, int,
     const char *, const char *, const zprop_index_t *);
 void zprop_register_hidden(int, const char *, zprop_type_t, zprop_attr_t,
     int, const char *);
-
+void zprop_register_alias(int, const char *, zprop_attr_t, int,
+    const char *);
 /*
  * Common routines for zfs and zpool property management
  */

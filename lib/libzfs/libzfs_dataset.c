@@ -1057,6 +1057,23 @@ zfs_valid_proplist(libzfs_handle_t *hdl, zfs_type_t type, nvlist_t *nvl,
 		}
 
 		/*
+		 * If the prop is one that is aliased by OS-specific code,
+		 * we'll set it here.
+		 */
+		if (zfs_prop_os_alias(prop)) {
+			int error;
+
+			/*
+			 * Replace the nvpair with the OS-specific one,
+			 * or error out.
+			 */
+			error = zfs_os_set_system_property(hdl, ret, elem);
+			if (error == 0)
+				continue;
+			(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
+			goto error;
+		}
+		/*
 		 * Currently, only user properties can be modified on
 		 * snapshots.
 		 */
@@ -1331,24 +1348,6 @@ badlabel:
 #endif /* HAVE_MLSLABEL */
 		}
 
-		/*
-		 * This is an aliased property; we call an OS-supplied
-		 * routine to verify it.
-		 */
-		case ZFS_PROP_MOUNT_OPTIONS:
-		{
-			int error;
-
-			/*
-			 * Replace the nvpair with the OS-specific one,
-			 * or error out.
-			 */
-			error = zfs_os_set_system_property(hdl, ret, elem);
-			if (error == 0)
-				break;
-			(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
-			goto error;
-		}
 		case ZFS_PROP_MOUNTPOINT:
 		{
 			namecheck_err_t why;
@@ -1990,11 +1989,20 @@ zfs_prop_inherit(zfs_handle_t *zhp, const char *propname, boolean_t received)
 	    "cannot inherit %s for '%s'"), propname, zhp->zfs_name);
 
 	zc.zc_cookie = received;
-	if ((prop = zfs_name_to_prop(propname)) == ZPROP_INVAL) {
+	prop = zfs_name_to_prop(propname);
+
+	if (prop == ZPROP_INVAL || zfs_prop_os_alias(prop)) {
 		/*
 		 * For user properties, the amount of work we have to do is very
 		 * small, so just do it here.
 		 */
+		if (zfs_prop_os_alias(prop)) {
+			const char *tmp_name;
+			tmp_name = zfs_prop_os_alias_name(prop);
+			if (tmp_name != NULL)
+				propname = tmp_name;
+		}
+
 		if (!zfs_prop_user(propname)) {
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "invalid property"));
@@ -2676,6 +2684,14 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 	if (src)
 		*src = ZPROP_SRC_NONE;
 
+	if (zfs_prop_os_alias(prop)) {
+		if (zfs_os_get_system_property(zhp, prop, propbuf,
+			proplen) != 0)
+			return (-1);
+		get_source(zhp, src, source, statbuf, statlen);
+		return (0);
+	}
+
 	switch (prop) {
 	case ZFS_PROP_CREATION:
 		/*
@@ -2975,12 +2991,6 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 		}
 		zcp_check(zhp, prop, val, NULL);
 		break;
-	case ZFS_PROP_MOUNT_OPTIONS:
-		if (zfs_os_get_system_property(zhp, zfs_prop_to_name(prop),
-			propbuf, proplen) != 0)
-			return (-1);
-		break;
-
 	default:
 		switch (zfs_prop_get_type(prop)) {
 		case PROP_TYPE_NUMBER:
