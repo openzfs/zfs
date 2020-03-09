@@ -34,18 +34,6 @@ typeset -r DISK3=${disk_array[2]}
 #
 typeset -r WAIT_EXIT_GRACE=2.0
 
-function add_io_delay # pool
-{
-	for disk in $(get_disklist $1); do
-		log_must zinject -d $disk -D20:1 $1
-	done
-}
-
-function remove_io_delay
-{
-	log_must zinject -c all
-}
-
 function proc_exists # pid
 {
 	ps -p $1 >/dev/null

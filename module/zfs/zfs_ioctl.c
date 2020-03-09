@@ -4103,10 +4103,10 @@ zfs_ioc_wait_fs(const char *name, nvlist_t *innvl, nvlist_t *outnvl)
 	dsl_dataset_t *ds;
 
 	if (nvlist_lookup_int32(innvl, ZFS_WAIT_ACTIVITY, &activity) != 0)
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 
 	if (activity >= ZFS_WAIT_NUM_ACTIVITIES || activity < 0)
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 
 	if ((error = dsl_pool_hold(name, FTAG, &dp)) != 0)
 		return (error);

@@ -2325,7 +2325,7 @@ dsl_dir_activity_in_progress(dsl_dir_t *dd, dsl_dataset_t *ds,
 		if (error != 0)
 			break;
 
-		if (readonly) {
+		if (readonly || !spa_writeable(dd->dd_pool->dp_spa)) {
 			*in_progress = B_FALSE;
 			return (0);
 		}
@@ -2374,7 +2374,7 @@ dsl_dir_wait(dsl_dir_t *dd, dsl_dataset_t *ds, zfs_wait_activity_t activity,
 
 		if (cv_wait_sig(&dd->dd_activity_cv, &dd->dd_activity_lock) ==
 		    0 || dd->dd_activity_cancelled) {
-			error = EINTR;
+			error = SET_ERROR(EINTR);
 			break;
 		}
 	}
