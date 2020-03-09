@@ -2686,7 +2686,7 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 
 	if (zfs_prop_os_alias(prop)) {
 		if (zfs_os_get_system_property(zhp, prop, propbuf,
-			proplen) != 0)
+		    proplen) != 0)
 			return (-1);
 		get_source(zhp, src, source, statbuf, statlen);
 		return (0);

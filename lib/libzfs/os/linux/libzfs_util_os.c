@@ -229,8 +229,8 @@ zfs_prop_os_alias(zfs_prop_t prop)
 	const struct system_property_map *ptr;
 
 	for (ptr = system_property_map;
-	     ptr->system_name != NULL;
-	     ptr++)
+		ptr->system_name != NULL;
+		ptr++)
 		if (ptr->prop == prop)
 			return (B_TRUE);
 	return (B_FALSE);
@@ -242,8 +242,8 @@ zfs_prop_os_alias_name(zfs_prop_t prop)
 	const struct system_property_map *ptr;
 
 	for (ptr = system_property_map;
-	     ptr->system_name != NULL;
-	     ptr++)
+		ptr->system_name != NULL;
+		ptr++)
 		if (ptr->prop == prop)
 			return (ptr->os_name);
 	return (NULL);
@@ -262,20 +262,19 @@ zfs_os_set_system_property(libzfs_handle_t *hdl, nvlist_t *dest, nvpair_t *elem)
 	assert(nvpair_type(elem) == DATA_TYPE_STRING);
 
 	elem_name = nvpair_name(elem);
-	(void)nvpair_value_string(elem, &elem_value);
+	(void) nvpair_value_string(elem, &elem_value);
 
 	for (ptr = system_property_map;
-	     ptr && ptr->system_name;
-	     ptr++) {
+		ptr && ptr->system_name;
+		ptr++) {
 		if (strcmp(ptr->system_name, elem_name) != 0)
 			continue;
 
-		(void)nvlist_remove(dest, ptr->system_name, DATA_TYPE_STRING);
-		(void)nvlist_remove(dest, ptr->os_name, DATA_TYPE_STRING);
+		(void) nvlist_remove(dest, ptr->system_name, DATA_TYPE_STRING);
+		(void) nvlist_remove(dest, ptr->os_name, DATA_TYPE_STRING);
 		return (nvlist_add_string(dest, ptr->os_name, elem_value));
 	}
 	return (ENOENT);
-	
 }
 
 int
@@ -291,8 +290,8 @@ zfs_os_get_system_property(zfs_handle_t *zhp, zfs_prop_t prop,
 		return (ENOENT);
 
 	for (ptr = system_property_map;
-	     ptr && ptr->system_name;
-	     ptr++) {
+		ptr && ptr->system_name;
+		ptr++) {
 		if (ptr->prop != prop)
 			continue;
 		if (nvlist_exists(user_props, ptr->os_name) == B_FALSE)
@@ -300,7 +299,7 @@ zfs_os_get_system_property(zfs_handle_t *zhp, zfs_prop_t prop,
 		os_nvlist = fnvlist_lookup_nvlist(user_props, ptr->os_name);
 		elem_value = fnvlist_lookup_string(os_nvlist, "value");
 		if (elem_value && elem_value[0] != '\0' &&
-		    strcmp(elem_value, "none") != 0)
+			strcmp(elem_value, "none") != 0)
 			strlcpy(propbuf, elem_value, proplen);
 		else
 			*propbuf = '\0';
