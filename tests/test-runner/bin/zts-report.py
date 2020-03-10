@@ -165,6 +165,17 @@ if sys.platform.startswith('freebsd'):
         'cli_root/zpool_wait/zpool_wait_trim_flag': ['SKIP', trim_reason],
         'link_count/link_count_001': ['SKIP', na_reason],
     })
+elif sys.platform.startswith('linux'):
+    known.update({
+        'casenorm/mixed_formd_lookup': ['FAIL', '7633'],
+        'casenorm/mixed_formd_delete': ['FAIL', '7633'],
+        'casenorm/sensitive_formd_lookup': ['FAIL', '7633'],
+        'casenorm/sensitive_formd_delete': ['FAIL', '7633'],
+        'limits/filesystem_limit': ['FAIL', '8226'],
+        'limits/snapshot_limit': ['FAIL', '8226'],
+        'removal/removal_with_zdb': ['SKIP', known_reason],
+    })
+
 
 #
 # These tests may occasionally fail or be skipped.  We want there failures
@@ -179,10 +190,6 @@ if sys.platform.startswith('freebsd'):
 #
 maybe = {
     'cache/cache_010_neg': ['FAIL', known_reason],
-    'casenorm/mixed_formd_lookup': ['FAIL', '7633'],
-    'casenorm/mixed_formd_delete': ['FAIL', '7633'],
-    'casenorm/sensitive_formd_lookup': ['FAIL', '7633'],
-    'casenorm/sensitive_formd_delete': ['FAIL', '7633'],
     'chattr/setup': ['SKIP', exec_reason],
     'cli_root/zdb/zdb_006_pos': ['FAIL', known_reason],
     'cli_root/zfs_get/zfs_get_004_pos': ['FAIL', known_reason],
@@ -208,13 +215,10 @@ maybe = {
     'history/history_010_pos': ['SKIP', exec_reason],
     'io/mmap': ['SKIP', fio_reason],
     'largest_pool/largest_pool_001_pos': ['FAIL', known_reason],
-    'limits/filesystem_limit': ['FAIL', '8226'],
-    'limits/snapshot_limit': ['FAIL', '8226'],
     'pyzfs/pyzfs_unittest': ['SKIP', python_deps_reason],
     'no_space/enospc_002_pos': ['FAIL', enospc_reason],
     'projectquota/setup': ['SKIP', exec_reason],
     'redundancy/redundancy_004_neg': ['FAIL', '7290'],
-    'removal/removal_with_zdb': ['SKIP', known_reason],
     'reservation/reservation_008_pos': ['FAIL', '7741'],
     'reservation/reservation_018_pos': ['FAIL', '5642'],
     'rsend/rsend_019_pos': ['FAIL', '6086'],
@@ -235,6 +239,15 @@ maybe = {
     'vdev_zaps/vdev_zaps_004_pos': ['FAIL', '6935'],
     'zvol/zvol_ENOSPC/zvol_ENOSPC_001_pos': ['FAIL', '5848'],
 }
+
+if sys.platform.startswith('freebsd'):
+    maybe.update({
+        'cli_root/zfs_copies/zfs_copies_002_pos': ['FAIL', known_reason],
+        'cli_root/zpool_import/zpool_import_missing_003_pos':
+            ['FAIL', known_reason],
+        'delegate/zfs_allow_003_pos': ['FAIL', known_reason],
+        'resilver/resilver_restart_001': ['FAIL', known_reason],
+    })
 
 
 def usage(s):
