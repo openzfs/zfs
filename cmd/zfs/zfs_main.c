@@ -4328,6 +4328,16 @@ zfs_do_send(int argc, char **argv)
 		}
 	}
 
+	if (flags.dedup) {
+		(void) fprintf(stderr,
+		    gettext("WARNING: deduplicated send is "
+		    "deprecated, and will be removed in a\n"
+		    "future release. (In the future, the flag will be "
+		    "accepted, but a\n"
+		    "regular, non-deduplicated stream will be "
+		    "generated.)\n\n"));
+	}
+
 	if (flags.parsable && flags.verbosity == 0)
 		flags.verbosity = 1;
 

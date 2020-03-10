@@ -4699,6 +4699,26 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			(void) printf("found clone origin %s\n", origin);
 	}
 
+	if (!hdl->libzfs_dedup_warning_printed &&
+	    (DMU_GET_FEATUREFLAGS(drrb->drr_versioninfo) &
+	    DMU_BACKUP_FEATURE_DEDUP)) {
+		(void) fprintf(stderr,
+		    gettext("WARNING: This is a deduplicated send stream.  "
+		    "The ability to send and\n"
+		    "receive deduplicated send streams is deprecated.  "
+		    "In the future, the\n"
+		    "ability to receive a deduplicated send stream with "
+		    "\"zfs receive\" will be\n"
+		    "removed. However, in the future, a utility will be "
+		    "provided to convert a\n"
+		    "deduplicated send stream to a regular "
+		    "(non-deduplicated) stream. This\n"
+		    "future utility will require that the send stream be "
+		    "located in a\n"
+		    "seek-able file, rather than provided by a pipe.\n\n"));
+		hdl->libzfs_dedup_warning_printed = B_TRUE;
+	}
+
 	boolean_t resuming = DMU_GET_FEATUREFLAGS(drrb->drr_versioninfo) &
 	    DMU_BACKUP_FEATURE_RESUMING;
 	boolean_t raw = DMU_GET_FEATUREFLAGS(drrb->drr_versioninfo) &
