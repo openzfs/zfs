@@ -178,6 +178,8 @@ if sys.platform.startswith('freebsd'):
 # reasons listed above can be used.
 #
 maybe = {
+    'alloc_class/alloc_class_012_pos': ['FAIL', '9142'],
+    'alloc_class/alloc_class_013_pos': ['FAIL', '9142'],
     'cache/cache_010_neg': ['FAIL', known_reason],
     'casenorm/mixed_formd_lookup': ['FAIL', '7633'],
     'casenorm/mixed_formd_delete': ['FAIL', '7633'],
