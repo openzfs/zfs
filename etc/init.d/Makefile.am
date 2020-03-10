@@ -15,7 +15,7 @@ EXTRA_DIST = \
 	$(top_srcdir)/etc/init.d/zfs-zed.in \
 	$(top_srcdir)/etc/init.d/zfs.in
 
-$(init_SCRIPTS) $(initconf_SCRIPTS) $(initcommon_SCRIPTS):%:%.in
+$(init_SCRIPTS) $(initconf_SCRIPTS) $(initcommon_SCRIPTS):%:%.in Makefile
 	-(if [ -e /etc/debian_version ]; then \
 		NFS_SRV=nfs-kernel-server; \
 	  else \
@@ -40,6 +40,4 @@ $(init_SCRIPTS) $(initconf_SCRIPTS) $(initcommon_SCRIPTS):%:%.in
 	  [ '$@' = 'zfs-functions' -o '$@' = 'zfs' ] || \
 		chmod +x '$@')
 
-# Double-colon rules are allowed; there are multiple independent definitions.
-distclean-local::
-	-$(RM) $(init_SCRIPTS) $(initcommon_SCRIPTS) $(initconf_SCRIPTS)
+CLEANFILES = $(init_SCRIPTS) $(initcommon_SCRIPTS) $(initconf_SCRIPTS)
