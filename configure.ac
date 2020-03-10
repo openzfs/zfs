@@ -99,6 +99,7 @@ AC_CONFIG_FILES([
 	contrib/pyzfs/setup.py
 	contrib/zcp/Makefile
 	etc/Makefile
+	etc/default/Makefile
 	etc/init.d/Makefile
 	etc/modules-load.d/Makefile
 	etc/sudoers.d/Makefile

@@ -13,8 +13,8 @@ lib/systemd/system-preset/
 usr/lib/systemd/system-generators/zfs-mount-generator
 usr/lib/modules-load.d/ lib/
 lib/udev/
-etc/default/zfs
-etc/zfs/zfs-functions
+debian/tmp/etc/default/zfs etc/default/
+debian/tmp/etc/zfs/zfs-functions etc/zfs/
 etc/zfs/zpool.d/
 usr/lib/*/zfs/zpool.d/
 sbin/fsck.zfs
