@@ -165,6 +165,29 @@ function log_mustnot_expect
 	(( $? != 0 )) && log_fail
 }
 
+# Exit status encoding is platform-dependent
+case $(uname) in
+Darwin|FreeBSD)
+	EXIT_SIGNAL=128
+	SIGBUS=10
+	SIGSEGV=11
+	;;
+illumos)
+	EXIT_SIGNAL=256
+	SIGBUS=7
+	SIGSEGV=11
+	;;
+Linux|*)
+	EXIT_SIGNAL=128
+	SIGBUS=7
+	SIGSEGV=11
+	;;
+esac
+EXIT_SUCCESS=0
+EXIT_NOTFOUND=127
+EXIT_SIGBUS=$((EXIT_SIGNAL + SIGBUS))
+EXIT_SIGSEGV=$((EXIT_SIGNAL + SIGSEGV))
+
 # Execute and print command with status where success equals non-zero result
 # or output includes expected keyword
 #
@@ -191,19 +214,19 @@ function log_neg_expect
 	out="cat $logfile"
 
 	# unexpected status
-	if (( $status == 0 )); then
+	if (( $status == EXIT_SUCCESS )); then
 		 print -u2 $($out)
 		_printerror "$@" "unexpectedly exited $status"
 	# missing binary
-	elif (( $status == 127 )); then
+	elif (( $status == EXIT_NOTFOUND )); then
 		print -u2 $($out)
 		_printerror "$@" "unexpectedly exited $status (File not found)"
-	# bus error - core dump (256+signal, SIGBUS=7)
-	elif (( $status == 263 )); then
+	# bus error - core dump
+	elif (( $status == EXIT_SIGBUS )); then
 		print -u2 $($out)
 		_printerror "$@" "unexpectedly exited $status (Bus Error)"
-	# segmentation violation - core dump (256+signal, SIGSEGV=11)
-	elif (( $status == 267 )); then
+	# segmentation violation - core dump
+	elif (( $status == EXIT_SIGSEGV )); then
 		print -u2 $($out)
 		_printerror "$@" "unexpectedly exited $status (SEGV)"
 	else
