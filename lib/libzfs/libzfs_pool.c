@@ -4470,7 +4470,7 @@ zpool_set_bootenv(zpool_handle_t *zhp, const char *envmap)
 int
 zpool_get_bootenv(zpool_handle_t *zhp, char *outbuf, size_t size, off_t offset)
 {
-	nvlist_t *nvl;
+	nvlist_t *nvl = NULL;
 	int error = lzc_get_bootenv(zhp->zpool_name, &nvl);
 	if (error != 0) {
 		(void) zpool_standard_error_fmt(zhp->zpool_hdl, error,
@@ -4478,10 +4478,12 @@ zpool_get_bootenv(zpool_handle_t *zhp, char *outbuf, size_t size, off_t offset)
 		    "error getting bootenv in pool '%s'"), zhp->zpool_name);
 		return (-1);
 	}
-	strncpy(outbuf, fnvlist_lookup_string(nvl, "envmap") + offset,
-	    size);
-	int bytes = MIN(strlen(fnvlist_lookup_string(nvl, "envmap") + offset),
-	    size);
+	char *envmap = fnvlist_lookup_string(nvl, "envmap");
+	if (offset >= strlen(envmap))
+		return (0);
+
+	strncpy(outbuf, envmap + offset, size);
+	int bytes = MIN(strlen(envmap + offset), size);
 	fnvlist_free(nvl);
 	return (bytes);
 }
