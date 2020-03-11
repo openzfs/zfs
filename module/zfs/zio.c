@@ -47,7 +47,7 @@
 #include <sys/trace_zfs.h>
 #include <sys/abd.h>
 #include <sys/dsl_crypt.h>
-#include <sys/cityhash.h>
+#include <cityhash.h>
 
 /*
  * ==========================================================================
