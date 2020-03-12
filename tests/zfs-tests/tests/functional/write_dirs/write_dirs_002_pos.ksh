@@ -48,6 +48,8 @@ verify_runnable "both"
 function cleanup
 {
 	destroy_dataset $TESTPOOL/$TESTFS
+	wait_freeing $TESTPOOL
+	sync_pool $TESTPOOL
 	zfs create -o mountpoint=$TESTDIR $TESTPOOL/$TESTFS
 }
 
