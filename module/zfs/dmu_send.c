@@ -115,8 +115,7 @@ overflow_multiply(uint64_t a, uint64_t b, uint64_t *c)
 
 struct send_thread_arg {
 	bqueue_t	q;
-	dsl_dataset_t	*ds;		/* Dataset to traverse */
-	redaction_list_t *redaction_list;
+	objset_t	*os;		/* Objset to traverse */
 	uint64_t	fromtxg;	/* Traverse from this txg */
 	int		flags;		/* flags to pass to traverse_dataset */
 	int		error_code;
@@ -1092,19 +1091,16 @@ send_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 
 	ASSERT(zb->zb_object == DMU_META_DNODE_OBJECT ||
 	    zb->zb_object >= sta->resume.zb_object);
-	ASSERT3P(sta->ds, !=, NULL);
 
 	/*
 	 * All bps of an encrypted os should have the encryption bit set.
 	 * If this is not true it indicates tampering and we report an error.
 	 */
-	objset_t *os;
-	VERIFY0(dmu_objset_from_ds(sta->ds, &os));
-	if (os->os_encrypted &&
+	if (sta->os->os_encrypted &&
 	    !BP_IS_HOLE(bp) && !BP_USES_CRYPT(bp)) {
 		spa_log_error(spa, zb);
 		zfs_panic_recover("unencrypted block in encrypted "
-		    "object set %llu", sta->ds->ds_object);
+		    "object set %llu", dmu_objset_id(sta->os));
 		return (SET_ERROR(EIO));
 	}
 
@@ -1211,10 +1207,7 @@ redact_list_cb(redact_block_phys_t *rb, void *arg)
 /*
  * This function kicks off the traverse_dataset.  It also handles setting the
  * error code of the thread in case something goes wrong, and pushes the End of
- * Stream record when the traverse_dataset call has finished.  If there is no
- * dataset to traverse, then we traverse the redaction list provided and enqueue
- * records for that.  If neither is provided, the thread immediately pushes an
- * End of Stream marker.
+ * Stream record when the traverse_dataset call has finished.
  */
 static void
 send_traverse_thread(void *arg)
@@ -1224,20 +1217,9 @@ send_traverse_thread(void *arg)
 	struct send_range *data;
 	fstrans_cookie_t cookie = spl_fstrans_mark();
 
-	if (st_arg->ds != NULL) {
-		ASSERT3P(st_arg->redaction_list, ==, NULL);
-		err = traverse_dataset_resume(st_arg->ds,
-		    st_arg->fromtxg, &st_arg->resume,
-		    st_arg->flags, send_cb, st_arg);
-	} else if (st_arg->redaction_list != NULL) {
-		struct redact_list_cb_arg rlcba = {0};
-		rlcba.cancel = &st_arg->cancel;
-		rlcba.num_blocks_visited = st_arg->num_blocks_visited;
-		rlcba.q = &st_arg->q;
-		rlcba.mark_redact = B_FALSE;
-		err = dsl_redaction_list_traverse(st_arg->redaction_list,
-		    &st_arg->resume, redact_list_cb, &rlcba);
-	}
+	err = traverse_dataset_resume(st_arg->os->os_dsl_dataset,
+	    st_arg->fromtxg, &st_arg->resume,
+	    st_arg->flags, send_cb, st_arg);
 
 	if (err != EINTR)
 		st_arg->error_code = err;
@@ -2029,7 +2011,7 @@ create_begin_record(struct dmu_send_params *dspp, objset_t *os,
 }
 
 static void
-setup_to_thread(struct send_thread_arg *to_arg, dsl_dataset_t *to_ds,
+setup_to_thread(struct send_thread_arg *to_arg, objset_t *to_os,
     dmu_sendstatus_t *dssp, uint64_t fromtxg, boolean_t rawok)
 {
 	VERIFY0(bqueue_init(&to_arg->q, zfs_send_no_prefetch_queue_ff,
@@ -2037,12 +2019,11 @@ setup_to_thread(struct send_thread_arg *to_arg, dsl_dataset_t *to_ds,
 	    offsetof(struct send_range, ln)));
 	to_arg->error_code = 0;
 	to_arg->cancel = B_FALSE;
-	to_arg->ds = to_ds;
+	to_arg->os = to_os;
 	to_arg->fromtxg = fromtxg;
 	to_arg->flags = TRAVERSE_PRE | TRAVERSE_PREFETCH_METADATA;
 	if (rawok)
 		to_arg->flags |= TRAVERSE_NO_DECRYPT;
-	to_arg->redaction_list = NULL;
 	to_arg->num_blocks_visited = &dssp->dss_blocks;
 	(void) thread_create(NULL, 0, send_traverse_thread, to_arg, 0,
 	    curproc, TS_RUN, minclsyspri);
@@ -2489,7 +2470,7 @@ dmu_send_impl(struct dmu_send_params *dspp)
 		nvlist_t *keynvl = NULL;
 		ASSERT(os->os_encrypted);
 
-		err = dsl_crypto_populate_key_nvlist(to_ds, ivset_guid,
+		err = dsl_crypto_populate_key_nvlist(os, ivset_guid,
 		    &keynvl);
 		if (err != 0) {
 			fnvlist_free(nvl);
@@ -2513,7 +2494,7 @@ dmu_send_impl(struct dmu_send_params *dspp)
 		goto out;
 	}
 
-	setup_to_thread(to_arg, to_ds, dssp, fromtxg, dspp->rawok);
+	setup_to_thread(to_arg, os, dssp, fromtxg, dspp->rawok);
 	setup_from_thread(from_arg, from_rl, dssp);
 	setup_redact_list_thread(rlt_arg, dspp, redact_rl, dssp);
 	setup_merge_thread(smt_arg, dspp, from_arg, to_arg, rlt_arg, os);
