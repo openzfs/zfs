@@ -332,6 +332,7 @@ struct dnode {
 	uint64_t dn_assigned_txg;
 	uint64_t dn_dirty_txg;			/* txg dnode was last dirtied */
 	kcondvar_t dn_notxholds;
+	kcondvar_t dn_nodnholds;
 	enum dnode_dirtycontext dn_dirtyctx;
 	void *dn_dirtyctx_firstset;		/* dbg: contents meaningless */
 
