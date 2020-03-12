@@ -6178,6 +6178,17 @@ arc_read(zio_t *pio, spa_t *spa, const blkptr_t *bp,
 	ASSERT(!embedded_bp ||
 	    BPE_GET_ETYPE(bp) == BP_EMBEDDED_TYPE_DATA);
 
+	/*
+	 * Normally SPL_FSTRANS will already be set since kernel threads which
+	 * expect to call the DMU interfaces will set it when created.  System
+	 * calls are similarly handled by setting/cleaning the bit in the
+	 * registered callback (module/os/.../zfs/zpl_*).
+	 *
+	 * External consumers such as Lustre which call the exported DMU
+	 * interfaces may not have set SPL_FSTRANS.  To avoid a deadlock
+	 * on the hash_lock always set and clear the bit.
+	 */
+	fstrans_cookie_t cookie = spl_fstrans_mark();
 top:
 	if (!embedded_bp) {
 		/*
@@ -6636,6 +6647,7 @@ out:
 	/* embedded bps don't actually go to disk */
 	if (!embedded_bp)
 		spa_read_history_add(spa, zb, *arc_flags);
+	spl_fstrans_unmark(cookie);
 	return (rc);
 }
 
