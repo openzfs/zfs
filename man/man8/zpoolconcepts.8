@@ -323,8 +323,28 @@ If a read error is encountered on a cache device, that read I/O is reissued to
 the original storage pool device, which might be part of a mirrored or raidz
 configuration.
 .Pp
-The content of the cache devices is considered volatile, as is the case with
-other system caches.
+The content of the cache devices is persistent across reboots and restored
+asynchronously when importing the pool in L2ARC (persistent L2ARC).
+This can be disabled by setting
+.Sy l2arc_rebuild_enabled = 0 .
+For cache devices smaller than 1GB we do not write the metadata structures
+required for rebuilding the L2ARC in order not to waste space. This can be
+changed with
+.Sy l2arc_rebuild_blocks_min_l2size .
+The cache device header (512 bytes) is updated even if no metadata structures
+are written. Setting
+.Sy l2arc_headroom = 0
+will result in scanning the full-length ARC lists for cacheable content to be
+written in L2ARC (persistent ARC). If a cache device is added with
+.Nm zpool Cm add
+its label and header will be overwritten and its contents are not going to be
+restored in L2ARC, even if the device was previously part of the pool. If a
+cache device is onlined with
+.Nm zpool Cm online
+its contents will be restored in L2ARC. This is useful in case of memory pressure
+where the contents of the cache device are not fully restored in L2ARC.
+The user can off/online the cache device when there is less memory pressure
+in order to fully restore its contents to L2ARC.
 .Ss Pool checkpoint
 Before starting critical procedures that include destructive actions (e.g
 .Nm zfs Cm destroy

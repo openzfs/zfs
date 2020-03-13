@@ -4860,6 +4860,8 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, char **ereport)
 	}
 
 	spa_import_progress_remove(spa_guid(spa));
+	spa_async_request(spa, SPA_ASYNC_L2CACHE_REBUILD);
+
 	spa_load_note(spa, "LOADED");
 
 	return (0);
@@ -7980,6 +7982,17 @@ spa_async_thread(void *arg)
 		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 		vdev_autotrim_restart(spa);
 		spa_config_exit(spa, SCL_CONFIG, FTAG);
+		mutex_exit(&spa_namespace_lock);
+	}
+
+	/*
+	 * Kick off L2 cache rebuilding.
+	 */
+	if (tasks & SPA_ASYNC_L2CACHE_REBUILD) {
+		mutex_enter(&spa_namespace_lock);
+		spa_config_enter(spa, SCL_L2ARC, FTAG, RW_READER);
+		l2arc_spa_rebuild_start(spa);
+		spa_config_exit(spa, SCL_L2ARC, FTAG);
 		mutex_exit(&spa_namespace_lock);
 	}
 
