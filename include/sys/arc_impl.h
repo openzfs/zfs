@@ -554,6 +554,7 @@ typedef struct arc_stats {
 	kstat_named_t arcstat_need_free;
 	kstat_named_t arcstat_sys_free;
 	kstat_named_t arcstat_raw_size;
+	kstat_named_t arcstat_cached_only_in_progress;
 } arc_stats_t;
 
 typedef enum free_memory_reason_t {
