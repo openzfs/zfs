@@ -1175,7 +1175,7 @@ function partition_disk	#<slice_size> <whole_disk_name>	<total_slices>
 #	data:	    the data that will be written
 #
 #	E.g.
-#	file_fs /testdir 20 25 1024 256 0
+#	fill_fs /testdir 20 25 1024 256 0
 #
 # Note: bytes * num_writes equals the size of the testfile
 #
@@ -1188,33 +1188,12 @@ function fill_fs # destdir dirnum filenum bytes num_writes data
 	typeset -i num_writes=${5:-10240}
 	typeset data=${6:-0}
 
-	typeset -i odirnum=1
-	typeset -i idirnum=0
-	typeset -i fn=0
-	typeset -i retval=0
-
-	mkdir -p $destdir/$idirnum
-	while (($odirnum > 0)); do
-		if ((dirnum >= 0 && idirnum >= dirnum)); then
-			odirnum=0
-			break
-		fi
-		file_write -o create -f $destdir/$idirnum/$TESTFILE.$fn \
-		    -b $bytes -c $num_writes -d $data
-		retval=$?
-		if (($retval != 0)); then
-			odirnum=0
-			break
-		fi
-		if (($fn >= $filenum)); then
-			fn=0
-			((idirnum = idirnum + 1))
-			mkdir -p $destdir/$idirnum
-		else
-			((fn = fn + 1))
-		fi
+	mkdir -p $destdir/{1..$dirnum}
+	for f in $destdir/{1..$dirnum}/$TESTFILE{1..$filenum}; do
+		file_write -o create -f $f -b $bytes -c $num_writes -d $data \
+		|| return $?
 	done
-	return $retval
+	return 0
 }
 
 #
@@ -3332,7 +3311,7 @@ function get_cpu_freq
 	if is_linux; then
 		lscpu | awk '/CPU MHz/ { print $3 }'
 	elif is_freebsd; then
-		cat /var/run/dmesg.boot | grep '^CPU:' | cut -d '(' -f 2 | cut -d ')' -f 1
+		sysctl -n hw.clockrate
 	else
 		psrinfo -v 0 | awk '/processor operates at/ {print $6}'
 	fi
@@ -3390,7 +3369,7 @@ function get_max
 	shift
 
 	for i in "$@"; do
-		max=$(echo $((max > i ? max : i)))
+		max=$((max > i ? max : i))
 	done
 
 	echo $max
@@ -3402,7 +3381,7 @@ function get_min
 	shift
 
 	for i in "$@"; do
-		min=$(echo $((min < i ? min : i)))
+		min=$((min < i ? min : i))
 	done
 
 	echo $min
