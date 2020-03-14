@@ -79,7 +79,7 @@ log_mustnot zfs redact testpool2/recvfs@snap2 book7 testpool2/recvfs@snap
 
 # Non-redaction bookmark cannot be sent and produces invalid argument error
 log_must zfs bookmark "$sendfs@snap1" "$sendfs#book8"
-log_must eval "zfs send --redact book8 -i $sendfs@snap1 $sendfs@snap2 2>&1 | head -n 100 | grep 'internal error: Invalid argument'"
+log_must eval "zfs send --redact book8 -i $sendfs@snap1 $sendfs@snap2 2>&1 | head -n 100 | grep 'not a redaction bookmark'"
 
 # Error messages for common usage errors
 log_mustnot_expect "not contain '#'"    zfs redact $sendfs@snap1 \#book $sendfs@snap2
