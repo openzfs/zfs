@@ -165,26 +165,20 @@ function log_mustnot_expect
 	(( $? != 0 )) && log_fail
 }
 
-# Exit status encoding is platform-dependent
+# Signal numbers are platform-dependent
 case $(uname) in
 Darwin|FreeBSD)
-	EXIT_SIGNAL=128
 	SIGBUS=10
 	SIGSEGV=11
 	;;
-illumos)
-	EXIT_SIGNAL=256
-	SIGBUS=7
-	SIGSEGV=11
-	;;
-Linux|*)
-	EXIT_SIGNAL=128
+illumos|Linux|*)
 	SIGBUS=7
 	SIGSEGV=11
 	;;
 esac
 EXIT_SUCCESS=0
 EXIT_NOTFOUND=127
+EXIT_SIGNAL=256
 EXIT_SIGBUS=$((EXIT_SIGNAL + SIGBUS))
 EXIT_SIGSEGV=$((EXIT_SIGNAL + SIGSEGV))
 
