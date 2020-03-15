@@ -219,7 +219,7 @@ static const struct system_property_map {
 	const char *system_name;
 	const char *os_name;
 } system_property_map[] = {
-	{ ZFS_PROP_MOUNT_OPTIONS, "mount_options", "org.openzfs.linux!mount_options" },
+	{ ZFS_PROP_MOUNT_OPTIONS, "mount_options", "org.openzfs.linux:mount_options" },
 	{ ZFS_PROP_TYPE, NULL, NULL },
 };
 
