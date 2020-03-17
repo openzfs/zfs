@@ -355,7 +355,7 @@ class StreamFeatureIncompatible(ZFSError):
 class StreamTruncated(ZFSError):
     errno = zfs_errno.ZFS_ERR_STREAM_TRUNCATED
     message = "incomplete stream"
-    
+
 
 class ReceivePropertyFailure(MultipleOperationsFailure):
     message = "Receiving of properties failed for one or more reasons"
