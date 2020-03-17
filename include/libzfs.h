@@ -758,6 +758,9 @@ typedef struct recvflags {
 
 	/* mount the filesystem unless nomount is specified */
 	boolean_t domount;
+
+	/* force unmount while recv snapshot (private) */
+	boolean_t forceunmount;
 } recvflags_t;
 
 extern int zfs_receive(libzfs_handle_t *, const char *, nvlist_t *,

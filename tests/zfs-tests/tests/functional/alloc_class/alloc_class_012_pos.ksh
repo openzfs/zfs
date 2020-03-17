@@ -57,50 +57,66 @@ if (match($0,"L0 [0-9]+")) {
 }}'
 }
 
+#
+# Check that device removal works for special class vdevs
+#
+function check_removal
+{
+	#
+	# Create a non-raidz pool so we can remove top-level vdevs
+	#
+	log_must disk_setup
+	log_must zpool create $TESTPOOL $ZPOOL_DISKS \
+	    special $CLASS_DISK0 special $CLASS_DISK1
+	log_must display_status "$TESTPOOL"
+
+	#
+	# Generate some metadata and small blocks in the special class vdev
+	# before removal
+	#
+	typeset -l i=1
+	typeset -l blocks=25
+
+	log_must zfs create -o special_small_blocks=32K -o recordsize=32K \
+	    $TESTPOOL/$TESTFS
+	for i in 1 2 3 4; do
+		log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/testfile.$i \
+		    bs=1M count=$blocks
+		((blocks = blocks + 25))
+	done
+	log_must sync_pool $TESTPOOL
+	log_must zpool list -v $TESTPOOL
+
+	# Verify the files were written in the special class vdevs
+	for i in 1 2 3 4; do
+		dataset="$TESTPOOL/$TESTFS"
+		inum="$(get_objnum /$TESTPOOL/$TESTFS/testfile.$i)"
+		log_must file_in_special_vdev $dataset $inum
+	done
+
+	log_must zpool remove $TESTPOOL $CLASS_DISK0
+
+	sleep 5
+	log_must sync_pool $TESTPOOL
+	sleep 1
+
+	log_must zdb -bbcc $TESTPOOL
+	log_must zpool list -v $TESTPOOL
+	log_must zpool destroy -f "$TESTPOOL"
+	log_must disk_cleanup
+}
+
 claim="Removing a special device from a pool succeeds."
 
 log_assert $claim
 log_onexit cleanup
 
-#
-# Create a non-raidz pool so we can remove top-level vdevs
-#
-log_must disk_setup
-log_must zpool create $TESTPOOL $ZPOOL_DISK0 $ZPOOL_DISK1 $ZPOOL_DISK2 \
-  special $CLASS_DISK0 special $CLASS_DISK1
-log_must display_status "$TESTPOOL"
-
-#
-# Generate some metadata and small blocks in the special class before removal
-#
-typeset -l i=1
-typeset -l blocks=25
-
-log_must zfs create -o special_small_blocks=32K -o recordsize=32K \
-	$TESTPOOL/$TESTFS
-for i in 1 2 3 4; do
-	log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/testfile.$i bs=1M \
-	    count=$blocks
-	((blocks = blocks + 25))
+typeset CLASS_DEVSIZE=$CLASS_DEVSIZE
+for CLASS_DEVSIZE in $CLASS_DEVSIZE $ZPOOL_DEVSIZE; do
+	typeset ZPOOL_DISKS=$ZPOOL_DISKS
+	for ZPOOL_DISKS in "$ZPOOL_DISKS" $ZPOOL_DISK0; do
+		check_removal
+	done
 done
-log_must sync_pool $TESTPOOL
-log_must zpool list -v $TESTPOOL
-
-# Verify the files were written in the special class vdevs
-for i in 1 2 3 4; do
-	dataset="$TESTPOOL/$TESTFS"
-	inum="$(stat -c '%i' /$TESTPOOL/$TESTFS/testfile.$i)"
-	log_must file_in_special_vdev $dataset $inum
-done
-
-log_must zpool remove $TESTPOOL $CLASS_DISK0
-
-sleep 5
-log_must sync_pool $TESTPOOL
-sleep 1
-
-log_must zdb -bbcc $TESTPOOL
-log_must zpool list -v $TESTPOOL
-log_must zpool destroy -f "$TESTPOOL"
 
 log_pass $claim

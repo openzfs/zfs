@@ -3012,6 +3012,20 @@ Default value: \fB16,777,216\fR.
 .sp
 .ne 2
 .na
+\fBzfs_recv_write_batch_size\fR (int)
+.ad
+.RS 12n
+The maximum amount of data (in bytes) that \fBzfs receive\fR will write in
+one DMU transaction.  This is the uncompressed size, even when receiving a
+compressed send stream.  This setting will not reduce the write size below
+a single block. Capped at a maximum of 32MB
+.sp
+Default value: \fB1MB\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_override_estimate_recordsize\fR (ulong)
 .ad
 .RS 12n

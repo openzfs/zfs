@@ -17,6 +17,8 @@ user = root
 timeout = 600
 post_user = root
 post = cleanup
+failsafe_user = root
+failsafe = callbacks/zfs_failsafe
 outputdir = /var/tmp/test_results
 tags = ['functional']
 
@@ -206,9 +208,10 @@ tests = ['zfs_receive_001_pos', 'zfs_receive_002_pos', 'zfs_receive_003_pos',
     'zfs_receive_007_neg', 'zfs_receive_008_pos', 'zfs_receive_009_neg',
     'zfs_receive_010_pos', 'zfs_receive_011_pos', 'zfs_receive_012_pos',
     'zfs_receive_013_pos', 'zfs_receive_014_pos', 'zfs_receive_015_pos',
-    'receive-o-x_props_override', 'zfs_receive_from_encrypted',
-    'zfs_receive_to_encrypted', 'zfs_receive_raw',
-    'zfs_receive_raw_incremental', 'zfs_receive_-e', 'zfs_receive_raw_-d']
+    'zfs_receive_016_pos', 'receive-o-x_props_override',
+    'zfs_receive_from_encrypted', 'zfs_receive_to_encrypted',
+    'zfs_receive_raw', 'zfs_receive_raw_incremental', 'zfs_receive_-e',
+    'zfs_receive_raw_-d']
 tags = ['functional', 'cli_root', 'zfs_receive']
 
 [tests/functional/cli_root/zfs_rename]

@@ -298,10 +298,10 @@ get_usage(zfs_help_t idx)
 	case HELP_PROMOTE:
 		return (gettext("\tpromote <clone-filesystem>\n"));
 	case HELP_RECEIVE:
-		return (gettext("\treceive [-vnsFhu] "
+		return (gettext("\treceive [-vMnsFhu] "
 		    "[-o <property>=<value>] ... [-x <property>] ...\n"
 		    "\t    <filesystem|volume|snapshot>\n"
-		    "\treceive [-vnsFhu] [-o <property>=<value>] ... "
+		    "\treceive [-vMnsFhu] [-o <property>=<value>] ... "
 		    "[-x <property>] ... \n"
 		    "\t    [-d | -e] <filesystem>\n"
 		    "\treceive -A <filesystem|volume>\n"));
@@ -4566,7 +4566,7 @@ zfs_do_receive(int argc, char **argv)
 		nomem();
 
 	/* check options */
-	while ((c = getopt(argc, argv, ":o:x:dehnuvFsA")) != -1) {
+	while ((c = getopt(argc, argv, ":o:x:dehMnuvFsA")) != -1) {
 		switch (c) {
 		case 'o':
 			if (!parseprop(props, optarg)) {
@@ -4600,6 +4600,9 @@ zfs_do_receive(int argc, char **argv)
 			break;
 		case 'h':
 			flags.skipholds = B_TRUE;
+			break;
+		case 'M':
+			flags.forceunmount = B_TRUE;
 			break;
 		case 'n':
 			flags.dryrun = B_TRUE;

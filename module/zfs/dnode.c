@@ -119,6 +119,7 @@ dnode_cons(void *arg, void *unused, int kmflag)
 	mutex_init(&dn->dn_mtx, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&dn->dn_dbufs_mtx, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&dn->dn_notxholds, NULL, CV_DEFAULT, NULL);
+	cv_init(&dn->dn_nodnholds, NULL, CV_DEFAULT, NULL);
 
 	/*
 	 * Every dbuf has a reference, and dropping a tracked reference is
@@ -183,6 +184,7 @@ dnode_dest(void *arg, void *unused)
 	mutex_destroy(&dn->dn_mtx);
 	mutex_destroy(&dn->dn_dbufs_mtx);
 	cv_destroy(&dn->dn_notxholds);
+	cv_destroy(&dn->dn_nodnholds);
 	zfs_refcount_destroy(&dn->dn_holds);
 	zfs_refcount_destroy(&dn->dn_tx_holds);
 	ASSERT(!list_link_active(&dn->dn_link));
@@ -1171,13 +1173,15 @@ dnode_special_close(dnode_handle_t *dnh)
 	dnode_t *dn = dnh->dnh_dnode;
 
 	/*
-	 * Wait for final references to the dnode to clear.  This can
-	 * only happen if the arc is asynchronously evicting state that
-	 * has a hold on this dnode while we are trying to evict this
-	 * dnode.
+	 * Ensure dnode_rele_and_unlock() has released dn_mtx, after final
+	 * zfs_refcount_remove()
 	 */
-	while (zfs_refcount_count(&dn->dn_holds) > 0)
-		delay(1);
+	mutex_enter(&dn->dn_mtx);
+	if (zfs_refcount_count(&dn->dn_holds) > 0)
+		cv_wait(&dn->dn_nodnholds, &dn->dn_mtx);
+	mutex_exit(&dn->dn_mtx);
+	ASSERT3U(zfs_refcount_count(&dn->dn_holds), ==, 0);
+
 	ASSERT(dn->dn_dbuf == NULL ||
 	    dmu_buf_get_user(&dn->dn_dbuf->db) == NULL);
 	zrl_add(&dnh->dnh_zrlock);
@@ -1606,7 +1610,10 @@ dnode_rele_and_unlock(dnode_t *dn, void *tag, boolean_t evicting)
 	dnode_handle_t *dnh = dn->dn_handle;
 
 	refs = zfs_refcount_remove(&dn->dn_holds, tag);
+	if (refs == 0)
+		cv_broadcast(&dn->dn_nodnholds);
 	mutex_exit(&dn->dn_mtx);
+	/* dnode could get destroyed at this point, so don't use it anymore */
 
 	/*
 	 * It's unsafe to release the last hold on a dnode by dnode_rele() or

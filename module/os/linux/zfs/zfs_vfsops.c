@@ -1804,7 +1804,10 @@ zfs_resume_fs(zfsvfs_t *zfsvfs, dsl_dataset_t *ds)
 	objset_t *os;
 	VERIFY3P(ds->ds_owner, ==, zfsvfs);
 	VERIFY(dsl_dataset_long_held(ds));
+	dsl_pool_t *dp = spa_get_dsl(dsl_dataset_get_spa(ds));
+	dsl_pool_config_enter(dp, FTAG);
 	VERIFY0(dmu_objset_from_ds(ds, &os));
+	dsl_pool_config_exit(dp, FTAG);
 
 	err = zfsvfs_init(zfsvfs, os);
 	if (err != 0)
@@ -1895,7 +1898,10 @@ zfs_end_fs(zfsvfs_t *zfsvfs, dsl_dataset_t *ds)
 	objset_t *os;
 	VERIFY3P(ds->ds_owner, ==, zfsvfs);
 	VERIFY(dsl_dataset_long_held(ds));
+	dsl_pool_t *dp = spa_get_dsl(dsl_dataset_get_spa(ds));
+	dsl_pool_config_enter(dp, FTAG);
 	VERIFY0(dmu_objset_from_ds(ds, &os));
+	dsl_pool_config_exit(dp, FTAG);
 	zfsvfs->z_os = os;
 
 	/* release the VOPs */

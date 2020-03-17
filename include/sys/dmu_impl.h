@@ -164,6 +164,7 @@ extern "C" {
  * 	dn_dirty_txg
  * 	dd_assigned_tx
  * 	dn_notxholds
+ *	dn_nodnholds
  * 	dn_dirtyctx
  * 	dn_dirtyctx_firstset
  * 	(dn_phys copy fields?)

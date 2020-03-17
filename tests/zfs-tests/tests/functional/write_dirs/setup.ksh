@@ -33,4 +33,6 @@
 
 verify_runnable "global"
 
-default_setup "$DISKS"
+DISK=$TEST_BASE_DIR/disk0
+truncate -s 2G $DISK
+default_setup $DISK
