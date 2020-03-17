@@ -30,7 +30,7 @@
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
 .\"
-.Dd June 30, 2019
+.Dd February 16, 2020
 .Dt ZFS-RECEIVE 8
 .Os Linux
 .Sh NAME
@@ -39,14 +39,14 @@
 .Sh SYNOPSIS
 .Nm
 .Cm receive
-.Op Fl Fhnsuv
+.Op Fl FhMnsuv
 .Op Fl o Sy origin Ns = Ns Ar snapshot
 .Op Fl o Ar property Ns = Ns Ar value
 .Op Fl x Ar property
 .Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot
 .Nm
 .Cm receive
-.Op Fl Fhnsuv
+.Op Fl FhMnsuv
 .Op Fl d Ns | Ns Fl e
 .Op Fl o Sy origin Ns = Ns Ar snapshot
 .Op Fl o Ar property Ns = Ns Ar value
@@ -61,7 +61,7 @@
 .It Xo
 .Nm
 .Cm receive
-.Op Fl Fhnsuv
+.Op Fl FhMnsuv
 .Op Fl o Sy origin Ns = Ns Ar snapshot
 .Op Fl o Ar property Ns = Ns Ar value
 .Op Fl x Ar property
@@ -70,7 +70,7 @@
 .It Xo
 .Nm
 .Cm receive
-.Op Fl Fhnsuv
+.Op Fl FhMnsuv
 .Op Fl d Ns | Ns Fl e
 .Op Fl o Sy origin Ns = Ns Ar snapshot
 .Op Fl o Ar property Ns = Ns Ar value
@@ -229,6 +229,9 @@ that element to determine the name of the target file system for the new
 snapshot as described in the paragraph above.
 .It Fl h
 Skip the receive of holds.  There is no effect if holds are not sent.
+.It Fl M
+Force an unmount of the file system while receiving a snapshot.
+This option is not supported on Linux.
 .It Fl n
 Do not actually receive the stream.
 This can be useful in conjunction with the
