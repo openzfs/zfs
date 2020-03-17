@@ -94,6 +94,7 @@ zfs_errno = enum_with_offset(1024, [
         'ZFS_ERR_UNKNOWN_SEND_STREAM_FEATURE',
         'ZFS_ERR_EXPORT_IN_PROGRESS',
         'ZFS_ERR_BOOKMARK_SOURCE_NOT_ANCESTOR',
+        'ZFS_ERR_STREAM_TRUNCATED',
     ],
     {}
 )

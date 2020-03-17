@@ -2714,7 +2714,7 @@ class ZFSTest(unittest.TestCase):
             lzc.lzc_send(src, None, stream.fileno())
             stream.seek(0)
             stream.truncate(1024 * 3)
-            with self.assertRaises(lzc_exc.BadStream):
+            with self.assertRaises(lzc_exc.StreamTruncated):
                 lzc.lzc_receive_resumable(dst, stream.fileno())
             # Resume token code from zfs_send_resume_token_to_nvlist()
             # XXX: if used more than twice move this code into an external func
@@ -2771,7 +2771,7 @@ class ZFSTest(unittest.TestCase):
             lzc.lzc_send(snap2, snap1, stream.fileno())
             stream.seek(0)
             stream.truncate(1024 * 3)
-            with self.assertRaises(lzc_exc.BadStream):
+            with self.assertRaises(lzc_exc.StreamTruncated):
                 lzc.lzc_receive_resumable(dst2, stream.fileno())
             # Resume token code from zfs_send_resume_token_to_nvlist()
             # format: <version>-<cksum>-<packed-size>-<compressed-payload>

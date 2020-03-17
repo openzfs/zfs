@@ -469,6 +469,8 @@ def lzc_receive_translate_errors(
         raise lzc_exc.BadStream()
     if ret == ZFS_ERR_WRONG_PARENT:
         raise lzc_exc.WrongParent(_fs_name(snapname))
+    if ret == zfs_errno.ZFS_ERR_STREAM_TRUNCATED:
+        raise lzc_exc.StreamTruncated()
 
     raise lzc_exc.StreamIOError(ret)
 
