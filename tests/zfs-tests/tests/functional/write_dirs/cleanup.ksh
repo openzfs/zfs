@@ -31,5 +31,7 @@
 
 . $STF_SUITE/include/libtest.shlib
 
-default_cleanup
+default_cleanup_noexit
 rm -f $TEST_BASE_DIR/disk0
+
+log_pass
