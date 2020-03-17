@@ -1265,10 +1265,11 @@ receive_read(dmu_recv_cookie_t *drc, int len, void *buf)
 		    len - done, &resid);
 		if (resid == len - done) {
 			/*
-			 * Note: ECKSUM indicates that the receive
-			 * was interrupted and can potentially be resumed.
+			 * Note: ECKSUM or ZFS_ERR_STREAM_TRUNCATED indicates
+			 * that the receive was interrupted and can
+			 * potentially be resumed.
 			 */
-			drc->drc_err = SET_ERROR(ECKSUM);
+			drc->drc_err = SET_ERROR(ZFS_ERR_STREAM_TRUNCATED);
 		}
 		drc->drc_voff += len - done - resid;
 		done = len - resid;

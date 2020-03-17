@@ -4253,12 +4253,12 @@ recv_skip(libzfs_handle_t *hdl, int fd, boolean_t byteswap)
 
 static void
 recv_ecksum_set_aux(libzfs_handle_t *hdl, const char *target_snap,
-    boolean_t resumable)
+    boolean_t resumable, boolean_t checksum)
 {
 	char target_fs[ZFS_MAX_DATASET_NAME_LEN];
 
-	zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-	    "checksum mismatch or incomplete stream"));
+	zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, (checksum ?
+	    "checksum mismatch" : "incomplete stream")));
 
 	if (!resumable)
 		return;
@@ -5206,7 +5206,9 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			(void) zfs_error(hdl, EZFS_BADSTREAM, errbuf);
 			break;
 		case ECKSUM:
-			recv_ecksum_set_aux(hdl, destsnap, flags->resumable);
+		case ZFS_ERR_STREAM_TRUNCATED:
+			recv_ecksum_set_aux(hdl, destsnap, flags->resumable,
+			    ioctl_err == ECKSUM);
 			(void) zfs_error(hdl, EZFS_BADSTREAM, errbuf);
 			break;
 		case ENOTSUP:
