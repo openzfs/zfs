@@ -3082,19 +3082,13 @@ dsl_dataset_handoff_check(dsl_dataset_t *ds, void *owner, dmu_tx_t *tx)
 	if (!dmu_tx_is_syncing(tx))
 		return (0);
 
-	if (owner != NULL) {
-		VERIFY3P(ds->ds_owner, ==, owner);
-		dsl_dataset_long_rele(ds, owner);
-	}
-
 	dsl_dir_t *dd = ds->ds_dir;
 	mutex_enter(&dd->dd_activity_lock);
-	if (zfs_refcount_count(&ds->ds_longholds) != dd->dd_activity_count)
+	uint64_t holds = zfs_refcount_count(&ds->ds_longholds) -
+	    (owner != NULL ? 1 : 0);
+	if (holds != dd->dd_activity_waiters)
 		held = B_TRUE;
 	mutex_exit(&dd->dd_activity_lock);
-
-	if (owner != NULL)
-		dsl_dataset_long_hold(ds, owner);
 
 	if (held)
 		return (SET_ERROR(EBUSY));

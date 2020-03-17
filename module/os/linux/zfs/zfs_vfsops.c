@@ -1427,8 +1427,7 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 	}
 	dmu_objset_evict_dbufs(zfsvfs->z_os);
 	dsl_dir_t *dd = os->os_dsl_dataset->ds_dir;
-	dd->dd_activity_cancelled = B_TRUE;
-	cv_broadcast(&dd->dd_activity_cv);
+	dsl_dir_cancel_waiters(dd);
 
 	return (0);
 }

@@ -124,7 +124,7 @@ struct dsl_dir {
 	kmutex_t dd_activity_lock;
 	kcondvar_t dd_activity_cv;
 	boolean_t dd_activity_cancelled;
-	uint64_t dd_activity_count;
+	uint64_t dd_activity_waiters;
 
 	/* protected by dd_lock; keep at end of struct for better locality */
 	char dd_myname[ZFS_MAX_DATASET_NAME_LEN];

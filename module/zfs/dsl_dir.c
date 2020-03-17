@@ -2387,7 +2387,7 @@ dsl_dir_cancel_waiters(dsl_dir_t *dd)
 	mutex_enter(&dd->dd_activity_lock);
 	dd->dd_activity_cancelled = B_TRUE;
 	cv_broadcast(&dd->dd_activity_cv);
-	while (dd->dd_activity_count > 0)
+	while (dd->dd_activity_waiters > 0)
 		cv_wait(&dd->dd_activity_cv, &dd->dd_activity_lock);
 	mutex_exit(&dd->dd_activity_lock);
 }

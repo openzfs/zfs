@@ -766,7 +766,7 @@ dsl_destroy_head_check_impl(dsl_dataset_t *ds, int expected_holds)
 	if (zfs_refcount_count(&ds->ds_longholds) != expected_holds)
 		return (SET_ERROR(EBUSY));
 
-	ASSERT0(ds->ds_dir->dd_activity_count);
+	ASSERT0(ds->ds_dir->dd_activity_waiters);
 
 	mos = ds->ds_dir->dd_pool->dp_meta_objset;
 
