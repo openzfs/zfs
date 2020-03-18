@@ -739,9 +739,15 @@ zfs_rmnode(znode_t *zp)
 		zfs_unlinked_add(xzp, tx);
 	}
 
-	/* Remove this znode from the unlinked set */
-	VERIFY3U(0, ==,
-	    zap_remove_int(zfsvfs->z_os, zfsvfs->z_unlinkedobj, zp->z_id, tx));
+	/*
+	 * Remove this znode from the unlinked set.  If a has rollback has
+	 * occurred while a file is open and unlinked.  Then when the file
+	 * is closed post rollback it will not exist in the rolled back
+	 * version of the unlinked object.
+	 */
+	error = zap_remove_int(zfsvfs->z_os, zfsvfs->z_unlinkedobj,
+	    zp->z_id, tx);
+	VERIFY(error == 0 || error == ENOENT);
 
 	dataset_kstats_update_nunlinked_kstat(&zfsvfs->z_kstat, 1);
 
