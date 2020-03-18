@@ -222,12 +222,12 @@ log_must zfs redact "$DATASET@$TESTSNAP" "$TESTBM" "$DATASET@$TESTSNAP2"
 log_must eval "zfs get all $DATASET#$TESTBM | grep redact_snaps"
 ## copy the redaction bookmark
 log_must zfs bookmark "$DATASET#$TESTBM" "#$TESTBMCOPY"
-log_must eval "zfs send --redact "$TESTBMCOPY" -i $DATASET@$TESTSNAP $DATASET@$TESTSNAP2 2>&1 | head -n 100 | grep 'internal error: Invalid argument'"
 log_mustnot eval "zfs get all $DATASET#$TESTBMCOPY | grep redact_snaps"
+log_must eval "zfs send --redact "$TESTBMCOPY" -i $DATASET@$TESTSNAP $DATASET@$TESTSNAP2 2>&1 | head -n 100 | grep 'not a redaction bookmark'"
 # try the above again after destroying the source bookmark, preventive measure for future work
 log_must zfs destroy "$DATASET#$TESTBM"
-log_must eval "zfs send --redact "$TESTBMCOPY" -i $DATASET@$TESTSNAP $DATASET@$TESTSNAP2 2>&1 | head -n 100 | grep 'internal error: Invalid argument'"
 log_mustnot eval "zfs get all $DATASET#$TESTBMCOPY | grep redact_snaps"
+log_must eval "zfs send --redact "$TESTBMCOPY" -i $DATASET@$TESTSNAP $DATASET@$TESTSNAP2 2>&1 | head -n 100 | grep 'not a redaction bookmark'"
 ## cleanup
 log_must eval "destroy_dataset $DATASET@$TESTSNAP2"
 log_must zfs destroy "$DATASET#$TESTBMCOPY"

@@ -2816,6 +2816,7 @@ zfs_send_one(zfs_handle_t *zhp, const char *from, int fd, sendflags_t *flags,
 {
 	int err;
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
+	char *name = zhp->zfs_name;
 	int orig_fd = fd;
 	pthread_t ddtid, ptid;
 	progress_arg_t pa = { 0 };
@@ -2823,7 +2824,7 @@ zfs_send_one(zfs_handle_t *zhp, const char *from, int fd, sendflags_t *flags,
 
 	char errbuf[1024];
 	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
-	    "warning: cannot send '%s'"), zhp->zfs_name);
+	    "warning: cannot send '%s'"), name);
 
 	if (from != NULL && strchr(from, '@')) {
 		zfs_handle_t *from_zhp = zfs_open(hdl, from,
@@ -2837,6 +2838,44 @@ zfs_send_one(zfs_handle_t *zhp, const char *from, int fd, sendflags_t *flags,
 			return (zfs_error(hdl, EZFS_CROSSTARGET, errbuf));
 		}
 		zfs_close(from_zhp);
+	}
+
+	if (redactbook != NULL) {
+		char bookname[ZFS_MAX_DATASET_NAME_LEN];
+		nvlist_t *redact_snaps;
+		zfs_handle_t *book_zhp;
+		char *at, *pound;
+		int dsnamelen;
+
+		pound = strchr(redactbook, '#');
+		if (pound != NULL)
+			redactbook = pound + 1;
+		at = strchr(name, '@');
+		if (at == NULL) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "cannot do a redacted send to a filesystem"));
+			return (zfs_error(hdl, EZFS_BADTYPE, errbuf));
+		}
+		dsnamelen = at - name;
+		if (snprintf(bookname, sizeof (bookname), "%.*s#%s",
+		    dsnamelen, name, redactbook)
+		    >= sizeof (bookname)) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "invalid bookmark name"));
+			return (zfs_error(hdl, EZFS_INVALIDNAME, errbuf));
+		}
+		book_zhp = zfs_open(hdl, bookname, ZFS_TYPE_BOOKMARK);
+		if (book_zhp == NULL)
+			return (-1);
+		if (nvlist_lookup_nvlist(book_zhp->zfs_props,
+		    zfs_prop_to_name(ZFS_PROP_REDACT_SNAPS),
+		    &redact_snaps) != 0 || redact_snaps == NULL) {
+			zfs_close(book_zhp);
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "not a redaction bookmark"));
+			return (zfs_error(hdl, EZFS_BADTYPE, errbuf));
+		}
+		zfs_close(book_zhp);
 	}
 
 	/*
@@ -2909,7 +2948,7 @@ zfs_send_one(zfs_handle_t *zhp, const char *from, int fd, sendflags_t *flags,
 		}
 	}
 
-	err = lzc_send_redacted(zhp->zfs_name, from, fd,
+	err = lzc_send_redacted(name, from, fd,
 	    lzc_flags_from_sendflags(flags), redactbook);
 
 	if (flags->progress) {
@@ -2948,7 +2987,7 @@ zfs_send_one(zfs_handle_t *zhp, const char *from, int fd, sendflags_t *flags,
 
 		case ENOENT:
 		case ESRCH:
-			if (lzc_exists(zhp->zfs_name)) {
+			if (lzc_exists(name)) {
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 				    "incremental source (%s) does not exist"),
 				    from);
@@ -2967,7 +3006,9 @@ zfs_send_one(zfs_handle_t *zhp, const char *from, int fd, sendflags_t *flags,
 			return (zfs_error(hdl, EZFS_BUSY, errbuf));
 
 		case EDQUOT:
+		case EFAULT:
 		case EFBIG:
+		case EINVAL:
 		case EIO:
 		case ENOLINK:
 		case ENOSPC:
@@ -2975,7 +3016,6 @@ zfs_send_one(zfs_handle_t *zhp, const char *from, int fd, sendflags_t *flags,
 		case ENXIO:
 		case EPIPE:
 		case ERANGE:
-		case EFAULT:
 		case EROFS:
 			zfs_error_aux(hdl, strerror(errno));
 			return (zfs_error(hdl, EZFS_BADBACKUP, errbuf));
