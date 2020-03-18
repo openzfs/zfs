@@ -4120,6 +4120,16 @@ zfs_ioc_wait_fs(const char *name, nvlist_t *innvl, nvlist_t *outnvl)
 	mutex_enter(&dd->dd_activity_lock);
 	dd->dd_activity_waiters++;
 
+	/*
+	 * We get a long-hold here so that the dsl_dataset_t and dsl_dir_t
+	 * aren't evicted while we're waiting. Normally this is prevented by
+	 * holding the pool, but we can't do that while we're waiting since
+	 * that would prevent TXGs from syncing out. Some of the functionality
+	 * of long-holds (e.g. preventing deletion) is unnecessary for this
+	 * case, since we would cancel the waiters before proceeding with a
+	 * deletion. An alternative mechanism for keeping the dataset around
+	 * could be developed but this is simpler.
+	 */
 	dsl_dataset_long_hold(ds, FTAG);
 	dsl_pool_rele(dp, FTAG);
 

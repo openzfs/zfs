@@ -3086,6 +3086,14 @@ dsl_dataset_handoff_check(dsl_dataset_t *ds, void *owner, dmu_tx_t *tx)
 	mutex_enter(&dd->dd_activity_lock);
 	uint64_t holds = zfs_refcount_count(&ds->ds_longholds) -
 	    (owner != NULL ? 1 : 0);
+	/*
+	 * The value of dd_activity_waiters can chance as soon as we drop the
+	 * lock, but we're fine with that; new waiters coming in or old
+	 * waiters leaving doesn't cause problems, since we're going to cancel
+	 * waiters later anyway. The goal of this check is to verify that no
+	 * non-waiters have long-holds, and all new long-holds will be
+	 * prevented because we're holding the pool config as writer.
+	 */
 	if (holds != dd->dd_activity_waiters)
 		held = B_TRUE;
 	mutex_exit(&dd->dd_activity_lock);

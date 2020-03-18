@@ -28,7 +28,7 @@
 # 4. Start a background process waiting for the delete queue to empty.
 # 5. Verify that the command doesn't return immediately.
 # 6. Close the open file descriptor.
-# 7. Verify that the command returns soon after the descriptor is closedd.
+# 7. Verify that the command returns soon after the descriptor is closed.
 #
 
 function cleanup
@@ -54,4 +54,4 @@ exec 3<&-
 log_must sleep 0.5
 bkgrnd_proc_succeeded $pid
 
-log_pass "'zfs wait -t discard' and 'zpool checkpoint -dw' work."
+log_pass "'zfs wait -t discard' works."
