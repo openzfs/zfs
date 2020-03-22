@@ -829,6 +829,22 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 			uio->uio_fault_disable = B_FALSE;
 			if (error == EFAULT) {
 				dmu_tx_commit(tx);
+				/*
+				/ This is the only special case in the loop
+				/ where we "continue" to the next iteration,
+				/ and if we execute this code, we did a partial copy.
+				/ Account for bytes written, otherwise we end up
+				/ with invalid sizes/offsets at the next iteration.
+				/ Also, this needs to be done before the following
+				/ uio_prefault. Otherwise, in case we're writing
+				/ the last chunk, we we try to prefault n bytes
+				/ (<max_blksz), but n could be bigger than the
+				/ data itself, generate an EFAULT, and make
+				/ the loop break early without completing the
+				/ last chunk.
+				*/
+				if (tx_bytes != uio->uio_resid)
+					n -= tx_bytes - uio->uio_resid;
 				if (uio_prefaultpages(MIN(n, max_blksz), uio)) {
 					break;
 				}
