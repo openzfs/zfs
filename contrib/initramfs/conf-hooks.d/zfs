@@ -8,16 +8,35 @@ KEYMAP=y
 # prompting.
 FRAMEBUFFER=y
 
-# Workaround for https://bugs.launchpad.net/ubuntu/+source/initramfs-tools/+bug/1661629
+# We initially set MODULES=most as a workaround for the following bug:
+# https://bugs.launchpad.net/ubuntu/+source/initramfs-tools/+bug/1661629
 #
-# When building an initrd with MODULES=dep, which ubuntu tries to do when
-# installing kdump-tools, mkinitramfs tries to detect which modules are
-# necessary based on the hardware and filesystem, and include only those
-# moules in the image.
+# Since then that bug has been fixed so ideally we'd want to use
+# MODULES=dep or pass an explicit list of modules for the initramfs to
+# keep it light (especially important for the crash kernel to not run
+# out of memory and collect crash dumps consistently).
 #
-# However, the detection logic doesn't understand zfs on root, so building the
-# initramfs fails. As a workaround, override MODULES to get mkinitramfs to just
-# includes most modules without checking whether they are really needed. The
-# result is a larger initrd image than is strictly necessary, but at least it is
-# created successfully.
+# Unfortunately there are 2 problems with doing any of the above:
+#
+# [1] When building the initramfs archive in appliance-build we are
+#     doing so from a chroot environment under which MODULES=dep
+#     cannot work as it is completely different from the bootstrap
+#     system used for building the appliance. On the other hand,
+#     avoiding chroot would make us look into the running kernel of
+#     the bootstrap image for information which is also wrong.
+#
+# [2] Our appliance is used in multiple environments in on-premise
+#     setups and the public cloud for which we use the appropriate
+#     kernel variant (e.g. -aws, -azure, etc..). Making an explicit
+#     module list for each of those would complicate our build. In
+#     addition, that list wouldn't work around the fact that a customer
+#     may decide to change their hardware on-prem or instance type on
+#     the public cloud forcing the kernel to use different modules
+#     than before.
+#
+# As a result of the above we maintain the MODULES=most workaround that
+# includes most of the kernel modules on the system wihout checking if
+# they are really needed. The result is a larger initrd image than is
+# strictly necessary, but at least we can be confident that it is created
+# sucessfully and should be functional under most scenarios.
 MODULES=most
