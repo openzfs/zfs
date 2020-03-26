@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
  * Copyright Joyent, Inc.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  * Copyright (c) 2016, Intel Corporation.
@@ -651,8 +651,8 @@ typedef struct sendflags {
 	/* if dataset is a clone, do incremental from its origin */
 	boolean_t fromorigin;
 
-	/* do deduplication */
-	boolean_t dedup;
+	/* field no longer used, maintained for backwards compatibility */
+	boolean_t pad;
 
 	/* send properties (ie, -p) */
 	boolean_t props;

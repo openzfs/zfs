@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2020 by Delphix. All rights reserved.
  * Copyright 2016 RackTop Systems.
  * Copyright (c) 2017, Intel Corporation.
  */
@@ -111,8 +111,7 @@ typedef enum drr_headertype {
 /*
  * Mask of all supported backup features
  */
-#define	DMU_BACKUP_FEATURE_MASK	(DMU_BACKUP_FEATURE_DEDUP | \
-    DMU_BACKUP_FEATURE_DEDUPPROPS | DMU_BACKUP_FEATURE_SA_SPILL | \
+#define	DMU_BACKUP_FEATURE_MASK	(DMU_BACKUP_FEATURE_SA_SPILL | \
     DMU_BACKUP_FEATURE_EMBED_DATA | DMU_BACKUP_FEATURE_LZ4 | \
     DMU_BACKUP_FEATURE_RESUMING | DMU_BACKUP_FEATURE_LARGE_BLOCKS | \
     DMU_BACKUP_FEATURE_COMPRESSED | DMU_BACKUP_FEATURE_LARGE_DNODE | \

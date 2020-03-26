@@ -21,7 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
- * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
  * Copyright (c) 2014, Joyent, Inc. All rights reserved.
  * Copyright 2014 HybridCluster. All rights reserved.
  * Copyright (c) 2018, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
@@ -101,8 +101,6 @@ struct receive_writer_arg {
 	boolean_t done;
 
 	int err;
-	/* A map from guid to dataset to help handle dedup'd streams. */
-	avl_tree_t *guid_to_ds_map;
 	boolean_t resumable;
 	boolean_t raw;   /* DMU_BACKUP_FEATURE_RAW set */
 	boolean_t spill; /* DRR_FLAG_SPILL_BLOCK set */
@@ -122,13 +120,6 @@ struct receive_writer_arg {
 	uint8_t or_mac[ZIO_DATA_MAC_LEN];
 	boolean_t or_byteorder;
 };
-
-typedef struct guid_map_entry {
-	uint64_t	guid;
-	boolean_t	raw;
-	objset_t	*gme_os;
-	avl_node_t	avlnode;
-} guid_map_entry_t;
 
 typedef struct dmu_recv_begin_arg {
 	const char *drba_origin;
@@ -1213,38 +1204,6 @@ dmu_recv_begin(char *tofs, char *tosnap, dmu_replay_record_t *drr_begin,
 }
 
 static int
-guid_compare(const void *arg1, const void *arg2)
-{
-	const guid_map_entry_t *gmep1 = (const guid_map_entry_t *)arg1;
-	const guid_map_entry_t *gmep2 = (const guid_map_entry_t *)arg2;
-
-	return (TREE_CMP(gmep1->guid, gmep2->guid));
-}
-
-static void
-free_guid_map_onexit(void *arg)
-{
-	avl_tree_t *ca = arg;
-	void *cookie = NULL;
-	guid_map_entry_t *gmep;
-
-	while ((gmep = avl_destroy_nodes(ca, &cookie)) != NULL) {
-		ds_hold_flags_t dsflags = DS_HOLD_FLAG_DECRYPT;
-
-		if (gmep->raw) {
-			gmep->gme_os->os_raw_receive = B_FALSE;
-			dsflags &= ~DS_HOLD_FLAG_DECRYPT;
-		}
-
-		dsl_dataset_disown(gmep->gme_os->os_dsl_dataset,
-		    dsflags, gmep);
-		kmem_free(gmep, sizeof (guid_map_entry_t));
-	}
-	avl_destroy(ca);
-	kmem_free(ca, sizeof (avl_tree_t));
-}
-
-static int
 receive_read(dmu_recv_cookie_t *drc, int len, void *buf)
 {
 	int done = 0;
@@ -1843,81 +1802,6 @@ receive_process_write_record(struct receive_writer_arg *rwa,
 	 * so the caller should not free it
 	 */
 	return (EAGAIN);
-}
-
-/*
- * Handle a DRR_WRITE_BYREF record.  This record is used in dedup'ed
- * streams to refer to a copy of the data that is already on the
- * system because it came in earlier in the stream.  This function
- * finds the earlier copy of the data, and uses that copy instead of
- * data from the stream to fulfill this write.
- */
-noinline static int
-receive_write_byref(struct receive_writer_arg *rwa,
-    struct drr_write_byref *drrwbr)
-{
-	dmu_tx_t *tx;
-	int err;
-	guid_map_entry_t gmesrch;
-	guid_map_entry_t *gmep;
-	avl_index_t where;
-	objset_t *ref_os = NULL;
-	int flags = DMU_READ_PREFETCH;
-	dmu_buf_t *dbp;
-
-	if (drrwbr->drr_offset + drrwbr->drr_length < drrwbr->drr_offset)
-		return (SET_ERROR(EINVAL));
-
-	/*
-	 * If the GUID of the referenced dataset is different from the
-	 * GUID of the target dataset, find the referenced dataset.
-	 */
-	if (drrwbr->drr_toguid != drrwbr->drr_refguid) {
-		gmesrch.guid = drrwbr->drr_refguid;
-		if ((gmep = avl_find(rwa->guid_to_ds_map, &gmesrch,
-		    &where)) == NULL) {
-			return (SET_ERROR(EINVAL));
-		}
-		ref_os = gmep->gme_os;
-	} else {
-		ref_os = rwa->os;
-	}
-
-	if (drrwbr->drr_object > rwa->max_object)
-		rwa->max_object = drrwbr->drr_object;
-
-	if (rwa->raw)
-		flags |= DMU_READ_NO_DECRYPT;
-
-	/* may return either a regular db or an encrypted one */
-	err = dmu_buf_hold(ref_os, drrwbr->drr_refobject,
-	    drrwbr->drr_refoffset, FTAG, &dbp, flags);
-	if (err != 0)
-		return (err);
-
-	tx = dmu_tx_create(rwa->os);
-
-	dmu_tx_hold_write(tx, drrwbr->drr_object,
-	    drrwbr->drr_offset, drrwbr->drr_length);
-	err = dmu_tx_assign(tx, TXG_WAIT);
-	if (err != 0) {
-		dmu_tx_abort(tx);
-		return (err);
-	}
-
-	if (rwa->raw) {
-		dmu_copy_from_buf(rwa->os, drrwbr->drr_object,
-		    drrwbr->drr_offset, dbp, tx);
-	} else {
-		dmu_write(rwa->os, drrwbr->drr_object,
-		    drrwbr->drr_offset, drrwbr->drr_length, dbp->db_data, tx);
-	}
-	dmu_buf_rele(dbp, FTAG);
-
-	/* See comment in restore_write. */
-	save_resume_state(rwa, drrwbr->drr_object, drrwbr->drr_offset, tx);
-	dmu_tx_commit(tx);
-	return (0);
 }
 
 static int
@@ -2607,13 +2491,6 @@ receive_process_record(struct receive_writer_arg *rwa,
 		}
 		break;
 	}
-	case DRR_WRITE_BYREF:
-	{
-		struct drr_write_byref *drrwbr =
-		    &rrd->header.drr_u.drr_write_byref;
-		err = receive_write_byref(rwa, drrwbr);
-		break;
-	}
 	case DRR_WRITE_EMBEDDED:
 	{
 		struct drr_write_embedded *drrwe =
@@ -2754,8 +2631,7 @@ resume_check(dmu_recv_cookie_t *drc, nvlist_t *begin_nvl)
  * NB: callers *must* call dmu_recv_end() if this succeeds.
  */
 int
-dmu_recv_stream(dmu_recv_cookie_t *drc, int cleanup_fd,
-    uint64_t *action_handlep, offset_t *voffp)
+dmu_recv_stream(dmu_recv_cookie_t *drc, offset_t *voffp)
 {
 	int err = 0;
 	struct receive_writer_arg *rwa = kmem_zalloc(sizeof (*rwa), KM_SLEEP);
@@ -2778,41 +2654,6 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, int cleanup_fd,
 	ASSERT(dsl_dataset_phys(drc->drc_ds)->ds_flags & DS_FLAG_INCONSISTENT);
 	ASSERT0(drc->drc_os->os_encrypted &&
 	    (drc->drc_featureflags & DMU_BACKUP_FEATURE_EMBED_DATA));
-
-	/* if this stream is dedup'ed, set up the avl tree for guid mapping */
-	if (drc->drc_featureflags & DMU_BACKUP_FEATURE_DEDUP) {
-		minor_t minor;
-
-		if (cleanup_fd == -1) {
-			err = SET_ERROR(EBADF);
-			goto out;
-		}
-		err = zfs_onexit_fd_hold(cleanup_fd, &minor);
-		if (err != 0) {
-			cleanup_fd = -1;
-			goto out;
-		}
-
-		if (*action_handlep == 0) {
-			rwa->guid_to_ds_map =
-			    kmem_alloc(sizeof (avl_tree_t), KM_SLEEP);
-			avl_create(rwa->guid_to_ds_map, guid_compare,
-			    sizeof (guid_map_entry_t),
-			    offsetof(guid_map_entry_t, avlnode));
-			err = zfs_onexit_add_cb(minor,
-			    free_guid_map_onexit, rwa->guid_to_ds_map,
-			    action_handlep);
-			if (err != 0)
-				goto out;
-		} else {
-			err = zfs_onexit_cb_data(minor, *action_handlep,
-			    (void **)&rwa->guid_to_ds_map);
-			if (err != 0)
-				goto out;
-		}
-
-		drc->drc_guid_to_ds_map = rwa->guid_to_ds_map;
-	}
 
 	/* handle DSL encryption key payload */
 	if (drc->drc_featureflags & DMU_BACKUP_FEATURE_RAW) {
@@ -2980,9 +2821,6 @@ out:
 
 	kmem_free(rwa, sizeof (*rwa));
 	nvlist_free(drc->drc_begin_nvl);
-	if ((drc->drc_featureflags & DMU_BACKUP_FEATURE_DEDUP) &&
-	    (cleanup_fd != -1))
-		zfs_onexit_fd_rele(cleanup_fd);
 
 	if (err != 0) {
 		/*
@@ -3083,6 +2921,7 @@ dmu_recv_end_sync(void *arg, dmu_tx_t *tx)
 	dmu_recv_cookie_t *drc = arg;
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	boolean_t encrypted = drc->drc_ds->ds_dir->dd_crypto_obj != 0;
+	uint64_t newsnapobj;
 
 	spa_history_log_internal_ds(drc->drc_ds, "finish receiving",
 	    tx, "snap=%s", drc->drc_tosnap);
@@ -3148,7 +2987,7 @@ dmu_recv_end_sync(void *arg, dmu_tx_t *tx)
 		dsl_dataset_phys(origin_head)->ds_flags &=
 		    ~DS_FLAG_INCONSISTENT;
 
-		drc->drc_newsnapobj =
+		newsnapobj =
 		    dsl_dataset_phys(origin_head)->ds_prev_snap_obj;
 
 		dsl_dataset_rele(origin_head, FTAG);
@@ -3188,7 +3027,7 @@ dmu_recv_end_sync(void *arg, dmu_tx_t *tx)
 			(void) zap_remove(dp->dp_meta_objset, ds->ds_object,
 			    DS_FIELD_RESUME_REDACT_BOOKMARK_SNAPS, tx);
 		}
-		drc->drc_newsnapobj =
+		newsnapobj =
 		    dsl_dataset_phys(drc->drc_ds)->ds_prev_snap_obj;
 	}
 
@@ -3203,9 +3042,9 @@ dmu_recv_end_sync(void *arg, dmu_tx_t *tx)
 	 * value.
 	 */
 	if (drc->drc_raw && drc->drc_ivset_guid != 0) {
-		dmu_object_zapify(dp->dp_meta_objset, drc->drc_newsnapobj,
+		dmu_object_zapify(dp->dp_meta_objset, newsnapobj,
 		    DMU_OT_DSL_DATASET, tx);
-		VERIFY0(zap_update(dp->dp_meta_objset, drc->drc_newsnapobj,
+		VERIFY0(zap_update(dp->dp_meta_objset, newsnapobj,
 		    DS_FIELD_IVSET_GUID, sizeof (uint64_t), 1,
 		    &drc->drc_ivset_guid, tx));
 	}
@@ -3224,54 +3063,6 @@ dmu_recv_end_sync(void *arg, dmu_tx_t *tx)
 	}
 	dsl_dataset_disown(drc->drc_ds, 0, dmu_recv_tag);
 	drc->drc_ds = NULL;
-}
-
-static int
-add_ds_to_guidmap(const char *name, avl_tree_t *guid_map, uint64_t snapobj,
-    boolean_t raw)
-{
-	dsl_pool_t *dp;
-	dsl_dataset_t *snapds;
-	guid_map_entry_t *gmep;
-	objset_t *os;
-	ds_hold_flags_t dsflags = (raw) ? 0 : DS_HOLD_FLAG_DECRYPT;
-	int err;
-
-	ASSERT(guid_map != NULL);
-
-	err = dsl_pool_hold(name, FTAG, &dp);
-	if (err != 0)
-		return (err);
-	gmep = kmem_alloc(sizeof (*gmep), KM_SLEEP);
-	err = dsl_dataset_own_obj(dp, snapobj, dsflags, gmep, &snapds);
-
-	if (err == 0) {
-		err = dmu_objset_from_ds(snapds, &os);
-		if (err != 0) {
-			dsl_dataset_disown(snapds, dsflags, FTAG);
-			dsl_pool_rele(dp, FTAG);
-			kmem_free(gmep, sizeof (*gmep));
-			return (err);
-		}
-		/*
-		 * If this is a deduplicated raw send stream, we need
-		 * to make sure that we can still read raw blocks from
-		 * earlier datasets in the stream, so we set the
-		 * os_raw_receive flag now.
-		 */
-		if (raw)
-			os->os_raw_receive = B_TRUE;
-
-		gmep->raw = raw;
-		gmep->guid = dsl_dataset_phys(snapds)->ds_guid;
-		gmep->gme_os = os;
-		avl_add(guid_map, gmep);
-	} else {
-		kmem_free(gmep, sizeof (*gmep));
-	}
-
-	dsl_pool_rele(dp, FTAG);
-	return (err);
 }
 
 static int dmu_recv_end_modified_blocks = 3;
@@ -3325,12 +3116,6 @@ dmu_recv_end(dmu_recv_cookie_t *drc, void *owner)
 		    drc->drc_tofs, drc->drc_tosnap);
 		zvol_create_minor(snapname);
 		kmem_strfree(snapname);
-
-		if (drc->drc_guid_to_ds_map != NULL) {
-			(void) add_ds_to_guidmap(drc->drc_tofs,
-			    drc->drc_guid_to_ds_map,
-			    drc->drc_newsnapobj, drc->drc_raw);
-		}
 	}
 	return (error);
 }

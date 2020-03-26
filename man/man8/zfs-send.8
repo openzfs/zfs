@@ -86,21 +86,9 @@ The output can be redirected to a file or to a different system
 By default, a full stream is generated.
 .Bl -tag -width "-D"
 .It Fl D, -dedup
-Generate a deduplicated stream.
-\fBDeduplicated send is deprecated and will be removed in a future release.\fR
-(In the future, the flag will be accepted but a regular, non-deduplicated
-stream will be generated.)
-Blocks which would have been sent multiple times in the send stream will only be
-sent once.
-The receiving system must also support this feature to receive a deduplicated
-stream.
-This flag can be used regardless of the dataset's
-.Sy dedup
-property, but performance will be much better if the filesystem uses a
-dedup-capable checksum
-.Po for example,
-.Sy sha256
-.Pc .
+Deduplicated send is no longer supported.
+This flag is accepted for backwards compatibility, but a regular,
+non-deduplicated stream will be generated.
 .It Fl I Ar snapshot
 Generate a stream package that sends all intermediary snapshots from the first
 snapshot to the second snapshot.

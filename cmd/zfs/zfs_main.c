@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2019 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
  * Copyright 2012 Milan Jurik. All rights reserved.
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  * Copyright (c) 2013 Steven Hartland.  All rights reserved.
@@ -4266,7 +4266,10 @@ zfs_do_send(int argc, char **argv)
 			flags.progress = B_TRUE;
 			break;
 		case 'D':
-			flags.dedup = B_TRUE;
+			(void) fprintf(stderr,
+			    gettext("WARNING: deduplicated send is no "
+			    "longer supported.  A regular,\n"
+			    "non-deduplicated stream will be generated.\n\n"));
 			break;
 		case 'n':
 			flags.dryrun = B_TRUE;
@@ -4333,16 +4336,6 @@ zfs_do_send(int argc, char **argv)
 		}
 	}
 
-	if (flags.dedup) {
-		(void) fprintf(stderr,
-		    gettext("WARNING: deduplicated send is "
-		    "deprecated, and will be removed in a\n"
-		    "future release. (In the future, the flag will be "
-		    "accepted, but a\n"
-		    "regular, non-deduplicated stream will be "
-		    "generated.)\n\n"));
-	}
-
 	if (flags.parsable && flags.verbosity == 0)
 		flags.verbosity = 1;
 
@@ -4351,7 +4344,7 @@ zfs_do_send(int argc, char **argv)
 
 	if (resume_token != NULL) {
 		if (fromname != NULL || flags.replicate || flags.props ||
-		    flags.backup || flags.dedup || flags.holds ||
+		    flags.backup || flags.holds ||
 		    flags.saved || redactbook != NULL) {
 			(void) fprintf(stderr,
 			    gettext("invalid flags combined with -t\n"));
@@ -4375,7 +4368,7 @@ zfs_do_send(int argc, char **argv)
 
 	if (flags.saved) {
 		if (fromname != NULL || flags.replicate || flags.props ||
-		    flags.doall || flags.backup || flags.dedup ||
+		    flags.doall || flags.backup ||
 		    flags.holds || flags.largeblock || flags.embed_data ||
 		    flags.compress || flags.raw || redactbook != NULL) {
 			(void) fprintf(stderr, gettext("incompatible flags "
