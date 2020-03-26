@@ -612,7 +612,7 @@ extern void arc_prune_async(int64_t);
 extern int arc_memory_throttle(spa_t *spa, uint64_t reserve, uint64_t txg);
 extern uint64_t arc_free_memory(void);
 extern int64_t arc_available_memory(void);
-extern void arc_tuning_update(void);
+extern void arc_tuning_update(boolean_t);
 
 extern int param_set_arc_long(const char *buf, zfs_kernel_param_t *kp);
 extern int param_set_arc_int(const char *buf, zfs_kernel_param_t *kp);
