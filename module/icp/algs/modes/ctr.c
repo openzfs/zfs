@@ -61,8 +61,7 @@ ctr_mode_contiguous_blocks(ctr_ctx_t *ctx, char *data, size_t length,
 	}
 
 	lastp = (uint8_t *)ctx->ctr_cb;
-	if (out != NULL)
-		crypto_init_ptrs(out, &iov_or_mp, &offset);
+	crypto_init_ptrs(out, &iov_or_mp, &offset);
 
 	do {
 		/* Unprocessed data from last call. */
@@ -111,26 +110,17 @@ ctr_mode_contiguous_blocks(ctr_ctx_t *ctx, char *data, size_t length,
 		 */
 		xor_block(blockp, lastp);
 
-		if (out == NULL) {
-			if (ctx->ctr_remainder_len > 0) {
-				bcopy(lastp, ctx->ctr_copy_to,
-				    ctx->ctr_remainder_len);
-				bcopy(lastp + ctx->ctr_remainder_len, datap,
-				    need);
-			}
-		} else {
-			crypto_get_ptrs(out, &iov_or_mp, &offset, &out_data_1,
-			    &out_data_1_len, &out_data_2, block_size);
+		crypto_get_ptrs(out, &iov_or_mp, &offset, &out_data_1,
+		    &out_data_1_len, &out_data_2, block_size);
 
-			/* copy block to where it belongs */
-			bcopy(lastp, out_data_1, out_data_1_len);
-			if (out_data_2 != NULL) {
-				bcopy(lastp + out_data_1_len, out_data_2,
-				    block_size - out_data_1_len);
-			}
-			/* update offset */
-			out->cd_offset += block_size;
+		/* copy block to where it belongs */
+		bcopy(lastp, out_data_1, out_data_1_len);
+		if (out_data_2 != NULL) {
+			bcopy(lastp + out_data_1_len, out_data_2,
+			    block_size - out_data_1_len);
 		}
+		/* update offset */
+		out->cd_offset += block_size;
 
 		/* Update pointer to next block of data to be processed. */
 		if (ctx->ctr_remainder_len != 0) {
