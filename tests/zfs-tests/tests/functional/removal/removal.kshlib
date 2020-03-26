@@ -34,7 +34,7 @@ function wait_for_removal # pool
 	# The pool state changes before the TXG finishes syncing; wait for
 	# the removal to be completed on disk.
 	#
-	sync_pool
+	sync_pool $pool
 
 	log_must is_pool_removed $pool
 	return 0
