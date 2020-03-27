@@ -94,13 +94,11 @@ uiomove_iov(void *p, size_t n, enum uio_rw rw, struct uio *uio)
 				}
 				if (bytes_left > 0) {
 					unsigned long copied_bytes = cnt - bytes_left;
-					skip += copied_bytes;
-					if (skip == iov->iov_len) {
-						skip = 0;
-						uio->uio_iov = (++iov);
-						uio->uio_iovcnt--;
-					}
-					uio->uio_skip += skip;
+					/*
+					 * This is the partial write case, skip cannot reach iov->iov_len
+					 * so we don't handle its zeroing
+					*/
+					uio->uio_skip += copied_bytes;
 					uio->uio_resid -= copied_bytes;
 					uio->uio_loffset += copied_bytes;
 					return (EFAULT);
