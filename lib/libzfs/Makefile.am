@@ -38,6 +38,7 @@ endif
 
 KERNEL_C = \
 	algs/sha2/sha2.c \
+	cityhash.c \
 	zfeature_common.c \
 	zfs_comutil.c \
 	zfs_deleg.c \

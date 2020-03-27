@@ -22,7 +22,7 @@
  * Copyright (c) 2017 by Delphix. All rights reserved.
  */
 
-#include <sys/cityhash.h>
+#include <cityhash.h>
 
 #define	HASH_K1 0xb492b66fbe98f273ULL
 #define	HASH_K2 0x9ae16a3b2f90404fULL
@@ -61,3 +61,7 @@ cityhash4(uint64_t w1, uint64_t w2, uint64_t w3, uint64_t w4)
 	    a + rotate(b + HASH_K2, 18) + c, mul));
 
 }
+
+#if defined(_KERNEL)
+EXPORT_SYMBOL(cityhash4);
+#endif
