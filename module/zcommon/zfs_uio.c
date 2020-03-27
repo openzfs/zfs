@@ -80,25 +80,28 @@ uiomove_iov(void *p, size_t n, enum uio_rw rw, struct uio *uio)
 				if (copy_to_user(iov->iov_base+skip, p, cnt))
 					return (EFAULT);
 			} else {
-				unsigned long bytes_left = 0;
+				unsigned long b_left = 0;
 				if (uio->uio_fault_disable) {
 					if (!zfs_access_ok(VERIFY_READ,
 					    (iov->iov_base + skip), cnt)) {
 						return (EFAULT);
 					}
 					pagefault_disable();
-					bytes_left = __copy_from_user_inatomic(p, (iov->iov_base + skip), cnt);
+					b_left =
+					    __copy_from_user_inatomic(p,
+					    (iov->iov_base + skip), cnt);
 					pagefault_enable();
 				} else {
-					bytes_left = copy_from_user(p, (iov->iov_base + skip), cnt);
+					b_left =
+					    copy_from_user(p,
+					    (iov->iov_base + skip), cnt);
 				}
-				if (bytes_left > 0) {
-					unsigned long copied_bytes = cnt - bytes_left;
-					/*
-					 * This is the partial write case, skip cannot reach iov->iov_len
-					 * so we don't handle its zeroing
-					*/
+				if (b_left > 0) {
+					unsigned long c_bytes =
+					    cnt - b_left;
 					uio->uio_skip += copied_bytes;
+					ASSERT3U(uio->uio_skip, <,
+					    iov->iov_len);
 					uio->uio_resid -= copied_bytes;
 					uio->uio_loffset += copied_bytes;
 					return (EFAULT);
