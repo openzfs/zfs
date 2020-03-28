@@ -99,11 +99,11 @@ uiomove_iov(void *p, size_t n, enum uio_rw rw, struct uio *uio)
 				if (b_left > 0) {
 					unsigned long c_bytes =
 					    cnt - b_left;
-					uio->uio_skip += copied_bytes;
+					uio->uio_skip += c_bytes;
 					ASSERT3U(uio->uio_skip, <,
 					    iov->iov_len);
-					uio->uio_resid -= copied_bytes;
-					uio->uio_loffset += copied_bytes;
+					uio->uio_resid -= c_bytes;
+					uio->uio_loffset += c_bytes;
 					return (EFAULT);
 				}
 			}
