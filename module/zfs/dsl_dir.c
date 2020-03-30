@@ -2364,9 +2364,12 @@ dsl_dir_wait(dsl_dir_t *dd, dsl_dataset_t *ds, zfs_wait_activity_t activity,
 {
 	int error = 0;
 	boolean_t in_progress;
+	dsl_pool_t *dp = dd->dd_pool;
 	for (;;) {
+		dsl_pool_config_enter(dp, FTAG);
 		error = dsl_dir_activity_in_progress(dd, ds, activity,
 		    &in_progress);
+		dsl_pool_config_exit(dp, FTAG);
 		if (error != 0 || !in_progress)
 			break;
 
