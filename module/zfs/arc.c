@@ -7467,9 +7467,9 @@ l2arc_write_eligible(uint64_t spa_guid, arc_buf_hdr_t *hdr)
 }
 
 static uint64_t
-l2arc_write_size(void)
+l2arc_write_size(l2arc_dev_t *dev)
 {
-	uint64_t size;
+	uint64_t size, dev_size;
 
 	/*
 	 * Make sure our globals have meaningful values in case the user
@@ -7485,6 +7485,23 @@ l2arc_write_size(void)
 
 	if (arc_warm == B_FALSE)
 		size += l2arc_write_boost;
+
+	/*
+	 * Make sure the write size does not exceed the size of the cache
+	 * device. This is important in l2arc_evict(), otherwise infinite
+	 * iteration can occur.
+	 */
+	dev_size = dev->l2ad_end - dev->l2ad_start;
+	if (size >= dev_size) {
+		cmn_err(CE_NOTE, "l2arc_write_max or l2arc_write_boost "
+		    "exceeds the size of the cache device (guid %llu), "
+		    "resetting them to the default (%d)",
+		    dev->l2ad_vdev->vdev_guid, L2ARC_WRITE_SIZE);
+		size = l2arc_write_max = l2arc_write_boost = L2ARC_WRITE_SIZE;
+
+		if (arc_warm == B_FALSE)
+			size += l2arc_write_boost;
+	}
 
 	return (size);
 
@@ -8008,22 +8025,22 @@ l2arc_evict(l2arc_dev_t *dev, uint64_t distance, boolean_t all)
 	arc_buf_hdr_t *hdr, *hdr_prev;
 	kmutex_t *hash_lock;
 	uint64_t taddr;
+	boolean_t rerun;
 
 	buflist = &dev->l2ad_buflist;
 
-	if (!all && dev->l2ad_first) {
+top:
+	rerun = B_FALSE;
+	if (dev->l2ad_hand >= (dev->l2ad_end - distance)) {
 		/*
-		 * This is the first sweep through the device.  There is
-		 * nothing to evict.
+		 * When there is no space to accomodate upcoming writes,
+		 * evict to the end. Then bump the write hand to the start
+		 * and iterate. This iteration does not happen indefinitely
+		 * as we make sure in l2arc_write_size() that when l2ad_hand
+		 * is reset, the write size does not exceed the end of the
+		 * device.
 		 */
-		return;
-	}
-
-	if (dev->l2ad_hand >= (dev->l2ad_end - (2 * distance))) {
-		/*
-		 * When nearing the end of the device, evict to the end
-		 * before the device write hand jumps to the start.
-		 */
+		rerun = B_TRUE;
 		taddr = dev->l2ad_end;
 	} else {
 		taddr = dev->l2ad_hand + distance;
@@ -8031,7 +8048,15 @@ l2arc_evict(l2arc_dev_t *dev, uint64_t distance, boolean_t all)
 	DTRACE_PROBE4(l2arc__evict, l2arc_dev_t *, dev, list_t *, buflist,
 	    uint64_t, taddr, boolean_t, all);
 
-top:
+	if (!all && dev->l2ad_first) {
+		/*
+		 * This is the first sweep through the device.  There is
+		 * nothing to evict.
+		 */
+		goto out;
+	}
+
+retry:
 	mutex_enter(&dev->l2ad_mtx);
 	for (hdr = list_tail(buflist); hdr; hdr = hdr_prev) {
 		hdr_prev = list_prev(buflist, hdr);
@@ -8052,7 +8077,7 @@ top:
 			mutex_exit(&dev->l2ad_mtx);
 			mutex_enter(hash_lock);
 			mutex_exit(hash_lock);
-			goto top;
+			goto retry;
 		}
 
 		/*
@@ -8101,6 +8126,17 @@ top:
 		mutex_exit(hash_lock);
 	}
 	mutex_exit(&dev->l2ad_mtx);
+
+out:
+	if (rerun) {
+		/*
+		 * Bump device hand to the device start if it is approaching the
+		 * end. l2arc_evict() has already evicted ahead for this case.
+		 */
+		dev->l2ad_hand = dev->l2ad_start;
+		dev->l2ad_first = B_FALSE;
+		goto top;
+	}
 }
 
 /*
@@ -8448,15 +8484,6 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 	ARCSTAT_INCR(arcstat_l2_lsize, write_lsize);
 	ARCSTAT_INCR(arcstat_l2_psize, write_psize);
 
-	/*
-	 * Bump device hand to the device start if it is approaching the end.
-	 * l2arc_evict() will already have evicted ahead for this case.
-	 */
-	if (dev->l2ad_hand >= (dev->l2ad_end - target_sz)) {
-		dev->l2ad_hand = dev->l2ad_start;
-		dev->l2ad_first = B_FALSE;
-	}
-
 	dev->l2ad_writing = B_TRUE;
 	(void) zio_wait(pio);
 	dev->l2ad_writing = B_FALSE;
@@ -8539,7 +8566,7 @@ l2arc_feed_thread(void *unused)
 
 		ARCSTAT_BUMP(arcstat_l2_feeds);
 
-		size = l2arc_write_size();
+		size = l2arc_write_size(dev);
 
 		/*
 		 * Evict L2ARC buffers that will be overwritten.
