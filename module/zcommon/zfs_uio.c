@@ -80,22 +80,31 @@ uiomove_iov(void *p, size_t n, enum uio_rw rw, struct uio *uio)
 				if (copy_to_user(iov->iov_base+skip, p, cnt))
 					return (EFAULT);
 			} else {
+				unsigned long b_left = 0;
 				if (uio->uio_fault_disable) {
 					if (!zfs_access_ok(VERIFY_READ,
 					    (iov->iov_base + skip), cnt)) {
 						return (EFAULT);
 					}
 					pagefault_disable();
-					if (__copy_from_user_inatomic(p,
-					    (iov->iov_base + skip), cnt)) {
-						pagefault_enable();
-						return (EFAULT);
-					}
+					b_left =
+					    __copy_from_user_inatomic(p,
+					    (iov->iov_base + skip), cnt);
 					pagefault_enable();
 				} else {
-					if (copy_from_user(p,
-					    (iov->iov_base + skip), cnt))
-						return (EFAULT);
+					b_left =
+					    copy_from_user(p,
+					    (iov->iov_base + skip), cnt);
+				}
+				if (b_left > 0) {
+					unsigned long c_bytes =
+					    cnt - b_left;
+					uio->uio_skip += c_bytes;
+					ASSERT3U(uio->uio_skip, <,
+					    iov->iov_len);
+					uio->uio_resid -= c_bytes;
+					uio->uio_loffset += c_bytes;
+					return (EFAULT);
 				}
 			}
 			break;
