@@ -829,6 +829,15 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 			uio->uio_fault_disable = B_FALSE;
 			if (error == EFAULT) {
 				dmu_tx_commit(tx);
+				/*
+				 * Account for partial writes before
+				 * continuing the loop.
+				 * Update needs to occur before the next
+				 * uio_prefaultpages, or prefaultpages may
+				 * error, and we may break the loop early.
+				 */
+				if (tx_bytes != uio->uio_resid)
+					n -= tx_bytes - uio->uio_resid;
 				if (uio_prefaultpages(MIN(n, max_blksz), uio)) {
 					break;
 				}
