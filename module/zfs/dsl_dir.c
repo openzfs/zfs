@@ -51,6 +51,9 @@
 #include <sys/zthr.h>
 #include "zfs_namecheck.h"
 #include "zfs_prop.h"
+#ifdef _KERNEL
+#include <sys/zfs_vfsops.h>
+#endif
 
 /*
  * Filesystem and Snapshot Limits
@@ -160,6 +163,8 @@ dsl_dir_evict_async(void *dbu)
 		dsl_dir_livelist_close(dd);
 
 	dsl_prop_fini(dd);
+	cv_destroy(&dd->dd_activity_cv);
+	mutex_destroy(&dd->dd_activity_lock);
 	mutex_destroy(&dd->dd_lock);
 	kmem_free(dd, sizeof (dsl_dir_t));
 }
@@ -207,6 +212,8 @@ dsl_dir_hold_obj(dsl_pool_t *dp, uint64_t ddobj,
 		}
 
 		mutex_init(&dd->dd_lock, NULL, MUTEX_DEFAULT, NULL);
+		mutex_init(&dd->dd_activity_lock, NULL, MUTEX_DEFAULT, NULL);
+		cv_init(&dd->dd_activity_cv, NULL, CV_DEFAULT, NULL);
 		dsl_prop_init(dd);
 
 		dsl_dir_snap_cmtime_update(dd);
@@ -280,6 +287,8 @@ dsl_dir_hold_obj(dsl_pool_t *dp, uint64_t ddobj,
 			if (dsl_deadlist_is_open(&dd->dd_livelist))
 				dsl_dir_livelist_close(dd);
 			dsl_prop_fini(dd);
+			cv_destroy(&dd->dd_activity_cv);
+			mutex_destroy(&dd->dd_activity_lock);
 			mutex_destroy(&dd->dd_lock);
 			kmem_free(dd, sizeof (dsl_dir_t));
 			dd = winner;
@@ -310,6 +319,8 @@ errout:
 	if (dsl_deadlist_is_open(&dd->dd_livelist))
 		dsl_dir_livelist_close(dd);
 	dsl_prop_fini(dd);
+	cv_destroy(&dd->dd_activity_cv);
+	mutex_destroy(&dd->dd_activity_lock);
 	mutex_destroy(&dd->dd_lock);
 	kmem_free(dd, sizeof (dsl_dir_t));
 	dmu_buf_rele(dbuf, tag);
@@ -2280,6 +2291,108 @@ dsl_dir_remove_livelist(dsl_dir_t *dd, dmu_tx_t *tx, boolean_t total)
 	} else {
 		ASSERT3U(err, !=, ENOENT);
 	}
+}
+
+static int
+dsl_dir_activity_in_progress(dsl_dir_t *dd, dsl_dataset_t *ds,
+    zfs_wait_activity_t activity, boolean_t *in_progress)
+{
+	int error = 0;
+
+	ASSERT(MUTEX_HELD(&dd->dd_activity_lock));
+
+	switch (activity) {
+	case ZFS_WAIT_DELETEQ: {
+#ifdef _KERNEL
+		objset_t *os;
+		error = dmu_objset_from_ds(ds, &os);
+		if (error != 0)
+			break;
+
+		mutex_enter(&os->os_user_ptr_lock);
+		void *user = dmu_objset_get_user(os);
+		mutex_exit(&os->os_user_ptr_lock);
+		if (dmu_objset_type(os) != DMU_OST_ZFS ||
+		    user == NULL || zfs_get_vfs_flag_unmounted(os)) {
+			*in_progress = B_FALSE;
+			return (0);
+		}
+
+		uint64_t readonly = B_FALSE;
+		error = zfs_get_temporary_prop(ds, ZFS_PROP_READONLY, &readonly,
+		    NULL);
+
+		if (error != 0)
+			break;
+
+		if (readonly || !spa_writeable(dd->dd_pool->dp_spa)) {
+			*in_progress = B_FALSE;
+			return (0);
+		}
+
+		uint64_t count, unlinked_obj;
+		error = zap_lookup(os, MASTER_NODE_OBJ, ZFS_UNLINKED_SET, 8, 1,
+		    &unlinked_obj);
+		if (error != 0) {
+			dsl_dataset_rele(ds, FTAG);
+			break;
+		}
+		error = zap_count(os, unlinked_obj, &count);
+
+		if (error == 0)
+			*in_progress = (count != 0);
+		break;
+#else
+		/*
+		 * The delete queue is ZPL specific, and libzpool doesn't have
+		 * it. It doesn't make sense to wait for it.
+		 */
+		*in_progress = B_FALSE;
+		break;
+#endif
+	}
+	default:
+		panic("unrecognized value for activity %d", activity);
+	}
+
+	return (error);
+}
+
+int
+dsl_dir_wait(dsl_dir_t *dd, dsl_dataset_t *ds, zfs_wait_activity_t activity,
+    boolean_t *waited)
+{
+	int error = 0;
+	boolean_t in_progress;
+	dsl_pool_t *dp = dd->dd_pool;
+	for (;;) {
+		dsl_pool_config_enter(dp, FTAG);
+		error = dsl_dir_activity_in_progress(dd, ds, activity,
+		    &in_progress);
+		dsl_pool_config_exit(dp, FTAG);
+		if (error != 0 || !in_progress)
+			break;
+
+		*waited = B_TRUE;
+
+		if (cv_wait_sig(&dd->dd_activity_cv, &dd->dd_activity_lock) ==
+		    0 || dd->dd_activity_cancelled) {
+			error = SET_ERROR(EINTR);
+			break;
+		}
+	}
+	return (error);
+}
+
+void
+dsl_dir_cancel_waiters(dsl_dir_t *dd)
+{
+	mutex_enter(&dd->dd_activity_lock);
+	dd->dd_activity_cancelled = B_TRUE;
+	cv_broadcast(&dd->dd_activity_cv);
+	while (dd->dd_activity_waiters > 0)
+		cv_wait(&dd->dd_activity_cv, &dd->dd_activity_lock);
+	mutex_exit(&dd->dd_activity_lock);
 }
 
 #if defined(_KERNEL)

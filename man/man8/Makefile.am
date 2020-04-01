@@ -41,6 +41,7 @@ dist_man_MANS = \
 	zfs-unmount.8 \
 	zfs-upgrade.8 \
 	zfs-userspace.8 \
+	zfs-wait.8 \
 	zgenhostid.8 \
 	zinject.8 \
 	zpool.8 \
