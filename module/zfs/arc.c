@@ -3241,7 +3241,8 @@ arc_hdr_realloc(arc_buf_hdr_t *hdr, kmem_cache_t *old, kmem_cache_t *new)
  * new fields will be zeroed out.
  */
 static arc_buf_hdr_t *
-arc_hdr_realloc_crypt(arc_buf_hdr_t *hdr, boolean_t need_crypt)
+arc_hdr_realloc_crypt(arc_buf_hdr_t *hdr, boolean_t need_crypt,
+    boolean_t need_transfer)
 {
 	arc_buf_hdr_t *nhdr;
 	arc_buf_t *buf;
@@ -3312,7 +3313,10 @@ arc_hdr_realloc_crypt(arc_buf_hdr_t *hdr, boolean_t need_crypt)
 		buf->b_hdr = nhdr;
 		mutex_exit(&buf->b_evict_lock);
 	}
-
+	if (need_transfer)
+		zfs_refcount_transfer_ownership_many(
+		    &hdr->b_l1hdr.b_state->arcs_size,
+		    arc_hdr_size(hdr), hdr, nhdr);
 	zfs_refcount_transfer(&nhdr->b_l1hdr.b_refcnt, &hdr->b_l1hdr.b_refcnt);
 	(void) zfs_refcount_remove(&nhdr->b_l1hdr.b_refcnt, FTAG);
 	ASSERT0(zfs_refcount_count(&hdr->b_l1hdr.b_refcnt));
@@ -3374,14 +3378,22 @@ arc_convert_to_raw(arc_buf_t *buf, uint64_t dsobj, boolean_t byteorder,
     const uint8_t *mac)
 {
 	arc_buf_hdr_t *hdr = buf->b_hdr;
+	boolean_t need_transfer = B_TRUE;
 
 	ASSERT(ot == DMU_OT_DNODE || ot == DMU_OT_OBJSET);
 	ASSERT(HDR_HAS_L1HDR(hdr));
 	ASSERT3P(hdr->b_l1hdr.b_state, ==, arc_anon);
 
+	if (arc_buf_is_shared(buf)) {
+		arc_unshare_buf(hdr, buf);
+		arc_hdr_alloc_abd(hdr, B_FALSE);
+		abd_copy_from_buf(hdr->b_l1hdr.b_pabd, buf->b_data,
+		    HDR_GET_PSIZE(hdr));
+		need_transfer = B_FALSE;
+	}
 	buf->b_flags |= (ARC_BUF_FLAG_COMPRESSED | ARC_BUF_FLAG_ENCRYPTED);
 	if (!HDR_PROTECTED(hdr))
-		hdr = arc_hdr_realloc_crypt(hdr, B_TRUE);
+		hdr = arc_hdr_realloc_crypt(hdr, B_TRUE, need_transfer);
 	hdr->b_crypt_hdr.b_dsobj = dsobj;
 	hdr->b_crypt_hdr.b_ot = ot;
 	hdr->b_l1hdr.b_byteswap = (byteorder == ZFS_HOST_BYTEORDER) ?
@@ -6411,7 +6423,7 @@ arc_write_ready(zio_t *zio)
 	arc_hdr_set_flags(hdr, ARC_FLAG_IO_IN_PROGRESS);
 
 	if (BP_IS_PROTECTED(bp) != !!HDR_PROTECTED(hdr))
-		hdr = arc_hdr_realloc_crypt(hdr, BP_IS_PROTECTED(bp));
+		hdr = arc_hdr_realloc_crypt(hdr, BP_IS_PROTECTED(bp), B_FALSE);
 
 	if (BP_IS_PROTECTED(bp)) {
 		/* ZIL blocks are written through zio_rewrite */
