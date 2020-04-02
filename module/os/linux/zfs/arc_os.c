@@ -60,6 +60,22 @@
 int64_t last_free_memory;
 free_memory_reason_t last_free_reason;
 
+/*
+ * Return a default max arc size based on the amount of physical memory.
+ */
+uint64_t
+arc_default_max(uint64_t min, uint64_t allmem)
+{
+	uint64_t max;
+
+	/* set max to 3/4 of all memory, or all but 1GB, whichever is more */
+	if (allmem >= 1 << 30)
+		max = allmem - (1 << 30);
+	else
+		max = min;
+	return (MAX(allmem * 3 / 4, max));
+}
+
 #ifdef _KERNEL
 /*
  * Return maximum amount of memory that we could possibly use.  Reduced
