@@ -614,8 +614,8 @@ extern uint64_t arc_free_memory(void);
 extern int64_t arc_available_memory(void);
 extern void arc_tuning_update(void);
 
-extern int param_set_arc_long(const char *buf, zfs_kernel_param_t *kp);
-extern int param_set_arc_int(const char *buf, zfs_kernel_param_t *kp);
+extern int param_set_arc_long(ZFS_MODULE_PARAM_ARGS);
+extern int param_set_arc_int(ZFS_MODULE_PARAM_ARGS);
 
 #ifdef __cplusplus
 }
