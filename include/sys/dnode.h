@@ -46,6 +46,7 @@ extern "C" {
  */
 #define	DNODE_MUST_BE_ALLOCATED	1
 #define	DNODE_MUST_BE_FREE	2
+#define	DNODE_DRY_RUN		4
 
 /*
  * dnode_next_offset() flags.
@@ -331,8 +332,9 @@ struct dnode {
 	uint64_t dn_assigned_txg;
 	uint64_t dn_dirty_txg;			/* txg dnode was last dirtied */
 	kcondvar_t dn_notxholds;
+	kcondvar_t dn_nodnholds;
 	enum dnode_dirtycontext dn_dirtyctx;
-	uint8_t *dn_dirtyctx_firstset;		/* dbg: contents meaningless */
+	void *dn_dirtyctx_firstset;		/* dbg: contents meaningless */
 
 	/* protected by own devices */
 	zfs_refcount_t dn_tx_holds;
@@ -370,6 +372,13 @@ struct dnode {
 	/* holds prefetch structure */
 	struct zfetch	dn_zfetch;
 };
+
+/*
+ * Since AVL already has embedded element counter, use dn_dbufs_count
+ * only for dbufs not counted there (bonus buffers) and just add them.
+ */
+#define	DN_DBUFS_COUNT(dn)	((dn)->dn_dbufs_count + \
+    avl_numnodes(&(dn)->dn_dbufs))
 
 /*
  * We use this (otherwise unused) bit to indicate if the value of
@@ -415,7 +424,9 @@ int dnode_hold_impl(struct objset *dd, uint64_t object, int flag, int dn_slots,
 boolean_t dnode_add_ref(dnode_t *dn, void *ref);
 void dnode_rele(dnode_t *dn, void *ref);
 void dnode_rele_and_unlock(dnode_t *dn, void *tag, boolean_t evicting);
+int dnode_try_claim(objset_t *os, uint64_t object, int slots);
 void dnode_setdirty(dnode_t *dn, dmu_tx_t *tx);
+void dnode_set_dirtyctx(dnode_t *dn, dmu_tx_t *tx, void *tag);
 void dnode_sync(dnode_t *dn, dmu_tx_t *tx);
 void dnode_allocate(dnode_t *dn, dmu_object_type_t ot, int blocksize, int ibs,
     dmu_object_type_t bonustype, int bonuslen, int dn_slots, dmu_tx_t *tx);
@@ -440,7 +451,6 @@ int dnode_next_offset(dnode_t *dn, int flags, uint64_t *off,
 void dnode_evict_dbufs(dnode_t *dn);
 void dnode_evict_bonus(dnode_t *dn);
 void dnode_free_interior_slots(dnode_t *dn);
-boolean_t dnode_needs_remap(const dnode_t *dn);
 
 #define	DNODE_IS_DIRTY(_dn)						\
 	((_dn)->dn_dirty_txg >= spa_syncing_txg((_dn)->dn_objset->os_spa))
@@ -532,11 +542,6 @@ typedef struct dnode_stats {
 	 * a range of dnode slots which would overflow the dnode_phys_t.
 	 */
 	kstat_named_t dnode_hold_free_overflow;
-	/*
-	 * Number of times a dnode_hold(...) was attempted on a dnode
-	 * which had already been unlinked in an earlier txg.
-	 */
-	kstat_named_t dnode_hold_free_txg;
 	/*
 	 * Number of times dnode_free_interior_slots() needed to retry
 	 * acquiring a slot zrl lock due to contention.

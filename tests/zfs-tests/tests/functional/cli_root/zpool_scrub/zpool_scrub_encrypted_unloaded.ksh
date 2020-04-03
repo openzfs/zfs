@@ -58,11 +58,7 @@ done
 log_must zfs unmount $TESTPOOL/$TESTFS2
 log_must zfs unload-key $TESTPOOL/$TESTFS2
 
-log_must zpool scrub $TESTPOOL
-
-while ! is_pool_scrubbed $TESTPOOL; do
-	sleep 1
-done
+log_must zpool scrub -w $TESTPOOL
 
 log_must check_pool_status $TESTPOOL "scan" "with 0 errors"
 

@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 #
 # Copyright (c) 2008 Ben Rockwood <benr@cuddletech.com>,
 # Copyright (c) 2010 Martin Matuska <mm@FreeBSD.org>,
@@ -43,12 +43,9 @@ import subprocess
 import sys
 import time
 
-DECRIPTION = 'Print ARC and other statistics for ZFS on Linux'
+DESCRIPTION = 'Print ARC and other statistics for ZFS on Linux'
 INDENT = ' '*8
 LINE_LENGTH = 72
-PROC_PATH = '/proc/spl/kstat/zfs/'
-SPL_PATH = '/sys/module/spl/parameters/'
-TUNABLES_PATH = '/sys/module/zfs/parameters/'
 DATE_FORMAT = '%a %b %d %H:%M:%S %Y'
 TITLE = 'ZFS Subsystem Report'
 
@@ -65,7 +62,7 @@ SECTION_PATHS = {'arc': 'arcstats',
                  'zfetch': 'zfetchstats',
                  'zil': 'zil'}
 
-parser = argparse.ArgumentParser(description=DECRIPTION)
+parser = argparse.ArgumentParser(description=DESCRIPTION)
 parser.add_argument('-a', '--alternate', action='store_true', default=False,
                     help='use alternate formatting for tunables and SPL',
                     dest='alt')
@@ -81,6 +78,168 @@ parser.add_argument('-r', '--raw', action='store_true', default=False,
                     dest='raw')
 parser.add_argument('-s', '--section', dest='section', help=SECTION_HELP)
 ARGS = parser.parse_args()
+
+
+if sys.platform.startswith('freebsd'):
+    # Requires py36-sysctl on FreeBSD
+    import sysctl
+
+    VDEV_CACHE_SIZE = 'vdev.cache_size'
+
+    def load_kstats(section):
+        base = 'kstat.zfs.misc.{section}.'.format(section=section)
+        # base is removed from the name
+        fmt = lambda kstat: '{name} : {value}'.format(name=kstat.name[len(base):],
+                                                      value=kstat.value)
+        return [fmt(kstat) for kstat in sysctl.filter(base)]
+
+    def get_params(base):
+        cut = 8 # = len('vfs.zfs.')
+        return {ctl.name[cut:]: str(ctl.value) for ctl in sysctl.filter(base)}
+
+    def get_tunable_params():
+        return get_params('vfs.zfs')
+
+    def get_vdev_params():
+        return get_params('vfs.zfs.vdev')
+
+    def get_version_impl(request):
+        # FreeBSD reports versions for zpl and spa instead of zfs and spl.
+        name = {'zfs': 'zpl',
+                'spl': 'spa'}[request]
+        mib = 'vfs.zfs.version.{}'.format(name)
+        version = sysctl.filter(mib)[0].value
+        return '{} version {}'.format(name, version)
+
+    def get_descriptions(_request):
+        # py-sysctl doesn't give descriptions, so we have to shell out.
+        command = ['sysctl', '-d', 'vfs.zfs']
+
+        # The recommended way to do this is with subprocess.run(). However,
+        # some installed versions of Python are < 3.5, so we offer them
+        # the option of doing it the old way (for now)
+        if 'run' in dir(subprocess):
+            info = subprocess.run(command, stdout=subprocess.PIPE,
+                                  universal_newlines=True)
+            lines = info.stdout.split('\n')
+        else:
+            info = subprocess.check_output(command, universal_newlines=True)
+            lines = info.split('\n')
+
+        def fmt(line):
+            name, desc = line.split(':', 1)
+            return (name.strip(), desc.strip())
+
+        return dict([fmt(line) for line in lines if len(line) > 0])
+
+
+elif sys.platform.startswith('linux'):
+    KSTAT_PATH = '/proc/spl/kstat/zfs'
+    SPL_PATH = '/sys/module/spl/parameters'
+    TUNABLES_PATH = '/sys/module/zfs/parameters'
+
+    VDEV_CACHE_SIZE = 'zfs_vdev_cache_size'
+
+    def load_kstats(section):
+        path = os.path.join(KSTAT_PATH, section)
+        with open(path) as f:
+            return list(f)[2:] # Get rid of header
+
+    def get_params(basepath):
+        """Collect information on the Solaris Porting Layer (SPL) or the
+        tunables, depending on the PATH given. Does not check if PATH is
+        legal.
+        """
+        result = {}
+        for name in os.listdir(basepath):
+            path = os.path.join(basepath, name)
+            with open(path) as f:
+                value = f.read()
+                result[name] = value.strip()
+        return result
+
+    def get_spl_params():
+        return get_params(SPL_PATH)
+
+    def get_tunable_params():
+        return get_params(TUNABLES_PATH)
+
+    def get_vdev_params():
+        return get_params(TUNABLES_PATH)
+
+    def get_version_impl(request):
+        # The original arc_summary called /sbin/modinfo/{spl,zfs} to get
+        # the version information. We switch to /sys/module/{spl,zfs}/version
+        # to make sure we get what is really loaded in the kernel
+        command = ["cat", "/sys/module/{0}/version".format(request)]
+        req = request.upper()
+
+        # The recommended way to do this is with subprocess.run(). However,
+        # some installed versions of Python are < 3.5, so we offer them
+        # the option of doing it the old way (for now)
+        if 'run' in dir(subprocess):
+            info = subprocess.run(command, stdout=subprocess.PIPE,
+                                  universal_newlines=True)
+            version = info.stdout.strip()
+        else:
+            info = subprocess.check_output(command, universal_newlines=True)
+            version = info.strip()
+
+        return version
+
+    def get_descriptions(request):
+        """Get the descriptions of the Solaris Porting Layer (SPL) or the
+        tunables, return with minimal formatting.
+        """
+
+        if request not in ('spl', 'zfs'):
+            print('ERROR: description of "{0}" requested)'.format(request))
+            sys.exit(1)
+
+        descs = {}
+        target_prefix = 'parm:'
+
+        # We would prefer to do this with /sys/modules -- see the discussion at
+        # get_version() -- but there isn't a way to get the descriptions from
+        # there, so we fall back on modinfo
+        command = ["/sbin/modinfo", request, "-0"]
+
+        # The recommended way to do this is with subprocess.run(). However,
+        # some installed versions of Python are < 3.5, so we offer them
+        # the option of doing it the old way (for now)
+        info = ''
+
+        try:
+
+            if 'run' in dir(subprocess):
+                info = subprocess.run(command, stdout=subprocess.PIPE,
+                                      universal_newlines=True)
+                raw_output = info.stdout.split('\0')
+            else:
+                info = subprocess.check_output(command,
+                                               universal_newlines=True)
+                raw_output = info.split('\0')
+
+        except subprocess.CalledProcessError:
+            print("Error: Descriptions not available",
+                  "(can't access kernel module)")
+            sys.exit(1)
+
+        for line in raw_output:
+
+            if not line.startswith(target_prefix):
+                continue
+
+            line = line[len(target_prefix):].strip()
+            name, raw_desc = line.split(':', 1)
+            desc = raw_desc.rsplit('(', 1)[0]
+
+            if desc == '':
+                desc = '(No description found)'
+
+            descs[name.strip()] = desc.strip()
+
+        return descs
 
 
 def cleanup_line(single_line):
@@ -245,132 +404,37 @@ def format_raw_line(name, value):
 
 
 def get_kstats():
-    """Collect information on the ZFS subsystem from the /proc Linux virtual
-    file system. The step does not perform any further processing, giving us
-    the option to only work on what is actually needed. The name "kstat" is a
-    holdover from the Solaris utility of the same name.
+    """Collect information on the ZFS subsystem. The step does not perform any
+    further processing, giving us the option to only work on what is actually
+    needed. The name "kstat" is a holdover from the Solaris utility of the same
+    name.
     """
 
     result = {}
-    secs = SECTION_PATHS.values()
 
-    for section in secs:
-
-        with open(PROC_PATH+section, 'r') as proc_location:
-            lines = [line for line in proc_location]
-
-        del lines[0:2]  # Get rid of header
-        result[section] = lines
+    for section in SECTION_PATHS.values():
+        if section not in result:
+            result[section] = load_kstats(section)
 
     return result
-
-
-def get_spl_tunables(PATH):
-    """Collect information on the Solaris Porting Layer (SPL) or the
-    tunables, depending on the PATH given. Does not check if PATH is
-    legal.
-    """
-
-    result = {}
-    parameters = os.listdir(PATH)
-
-    for name in parameters:
-
-        with open(PATH+name, 'r') as para_file:
-            value = para_file.read()
-            result[name] = value.strip()
-
-    return result
-
-
-def get_descriptions(request):
-    """Get the decriptions of the Solaris Porting Layer (SPL) or the
-    tunables, return with minimal formatting.
-    """
-
-    if request not in ('spl', 'zfs'):
-        print('ERROR: description of "{0}" requested)'.format(request))
-        sys.exit(1)
-
-    descs = {}
-    target_prefix = 'parm:'
-
-    # We would prefer to do this with /sys/modules -- see the discussion at
-    # get_version() -- but there isn't a way to get the descriptions from
-    # there, so we fall back on modinfo
-    command = ["/sbin/modinfo", request, "-0"]
-
-    # The recommended way to do this is with subprocess.run(). However,
-    # some installed versions of Python are < 3.5, so we offer them
-    # the option of doing it the old way (for now)
-    info = ''
-
-    try:
-
-        if 'run' in dir(subprocess):
-            info = subprocess.run(command, stdout=subprocess.PIPE,
-                                  universal_newlines=True)
-            raw_output = info.stdout.split('\0')
-        else:
-            info = subprocess.check_output(command, universal_newlines=True)
-            raw_output = info.split('\0')
-
-    except subprocess.CalledProcessError:
-        print("Error: Descriptions not available (can't access kernel module)")
-        sys.exit(1)
-
-    for line in raw_output:
-
-        if not line.startswith(target_prefix):
-            continue
-
-        line = line[len(target_prefix):].strip()
-        name, raw_desc = line.split(':', 1)
-        desc = raw_desc.rsplit('(', 1)[0]
-
-        if desc == '':
-            desc = '(No description found)'
-
-        descs[name.strip()] = desc.strip()
-
-    return descs
 
 
 def get_version(request):
     """Get the version number of ZFS or SPL on this machine for header.
     Returns an error string, but does not raise an error, if we can't
-    get the ZFS/SPL version via modinfo.
+    get the ZFS/SPL version.
     """
 
     if request not in ('spl', 'zfs'):
         error_msg = '(ERROR: "{0}" requested)'.format(request)
         return error_msg
 
-    # The original arc_summary called /sbin/modinfo/{spl,zfs} to get
-    # the version information. We switch to /sys/module/{spl,zfs}/version
-    # to make sure we get what is really loaded in the kernel
-    command = ["cat", "/sys/module/{0}/version".format(request)]
-    req = request.upper()
-    version = "(Can't get {0} version)".format(req)
-
-    # The recommended way to do this is with subprocess.run(). However,
-    # some installed versions of Python are < 3.5, so we offer them
-    # the option of doing it the old way (for now)
-    info = ''
-    if 'run' in dir(subprocess):
-        info = subprocess.run(command, stdout=subprocess.PIPE,
-                              universal_newlines=True)
-        version = info.stdout.strip()
-    else:
-        info = subprocess.check_output(command, universal_newlines=True)
-        version = info.strip()
-
-    return version
+    return get_version_impl(request)
 
 
 def print_header():
     """Print the initial heading with date and time as well as info on the
-    Linux and ZFS versions. This is not called for the graph.
+    kernel and ZFS versions. This is not called for the graph.
     """
 
     # datetime is now recommended over time but we keep the exact formatting
@@ -677,10 +741,10 @@ def section_l2arc(kstats_dict):
     prt_1('L2ARC breakdown:', f_hits(l2_access_total))
     prt_i2('Hit ratio:',
            f_perc(arc_stats['l2_hits'], l2_access_total),
-           f_bytes(arc_stats['l2_hits']))
+           f_hits(arc_stats['l2_hits']))
     prt_i2('Miss ratio:',
            f_perc(arc_stats['l2_misses'], l2_access_total),
-           f_bytes(arc_stats['l2_misses']))
+           f_hits(arc_stats['l2_misses']))
     prt_i1('Feeds:', f_hits(arc_stats['l2_feeds']))
 
     print()
@@ -708,10 +772,14 @@ def section_l2arc(kstats_dict):
 
 def section_spl(*_):
     """Print the SPL parameters, if requested with alternative format
-    and/or decriptions. This does not use kstats.
+    and/or descriptions. This does not use kstats.
     """
 
-    spls = get_spl_tunables(SPL_PATH)
+    if sys.platform.startswith('freebsd'):
+        # No SPL support in FreeBSD
+        return
+
+    spls = get_spl_params()
     keylist = sorted(spls.keys())
     print('Solaris Porting Layer (SPL):')
 
@@ -725,7 +793,7 @@ def section_spl(*_):
             try:
                 print(INDENT+'#', descriptions[key])
             except KeyError:
-                print(INDENT+'# (No decription found)')  # paranoid
+                print(INDENT+'# (No description found)')  # paranoid
 
         print(format_raw_line(key, value))
 
@@ -734,10 +802,10 @@ def section_spl(*_):
 
 def section_tunables(*_):
     """Print the tunables, if requested with alternative format and/or
-    decriptions. This does not use kstasts.
+    descriptions. This does not use kstasts.
     """
 
-    tunables = get_spl_tunables(TUNABLES_PATH)
+    tunables = get_tunable_params()
     keylist = sorted(tunables.keys())
     print('Tunables:')
 
@@ -751,7 +819,7 @@ def section_tunables(*_):
             try:
                 print(INDENT+'#', descriptions[key])
             except KeyError:
-                print(INDENT+'# (No decription found)')  # paranoid
+                print(INDENT+'# (No description found)')  # paranoid
 
         print(format_raw_line(key, value))
 
@@ -765,9 +833,9 @@ def section_vdev(kstats_dict):
     # harmful. When this is the case, we just skip the whole entry. See
     # https://github.com/zfsonlinux/zfs/blob/master/module/zfs/vdev_cache.c
     # for details
-    tunables = get_spl_tunables(TUNABLES_PATH)
+    tunables = get_vdev_params()
 
-    if tunables['zfs_vdev_cache_size'] == '0':
+    if tunables[VDEV_CACHE_SIZE] == '0':
         print('VDEV cache disabled, skipping section\n')
         return
 

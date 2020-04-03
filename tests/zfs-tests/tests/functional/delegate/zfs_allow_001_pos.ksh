@@ -83,7 +83,7 @@ if ! cat /etc/group | awk -F: '{print $1}' | \
 	grep -w 'everyone' > /dev/null 2>&1
 then
 	group_added="TRUE"
-	log_must groupadd everyone
+	log_must add_group everyone
 fi
 
 for dtst in $DATASETS ; do
@@ -92,7 +92,7 @@ for dtst in $DATASETS ; do
 done
 log_must restore_root_datasets
 if [[ $group_added == "TRUE" ]]; then
-	log_must groupdel everyone
+	log_must del_group everyone
 fi
 
 log_pass "everyone is always interpreted as keyword passed."

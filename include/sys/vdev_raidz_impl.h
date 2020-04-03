@@ -91,7 +91,7 @@ typedef boolean_t	(*will_work_f)(void);
 typedef void		(*init_impl_f)(void);
 typedef void		(*fini_impl_f)(void);
 
-#define	RAIDZ_IMPL_NAME_MAX	(16)
+#define	RAIDZ_IMPL_NAME_MAX	(20)
 
 typedef struct raidz_impl_ops {
 	init_impl_f init;
@@ -117,7 +117,7 @@ typedef struct raidz_map {
 	uintptr_t rm_reports;		/* # of referencing checksum reports */
 	uint8_t	rm_freed;		/* map no longer has referencing ZIO */
 	uint8_t	rm_ecksuminjected;	/* checksum error was injected */
-	raidz_impl_ops_t *rm_ops;	/* RAIDZ math operations */
+	const raidz_impl_ops_t *rm_ops;	/* RAIDZ math operations */
 	raidz_col_t rm_col[1];		/* Flexible array of I/O columns */
 } raidz_map_t;
 #endif
@@ -151,7 +151,7 @@ typedef struct raidz_map {
 	boolean_t rm_ecksuminjected;	/* checksum error was injected */
 	int rm_nrows;
 	int rm_nskip;			/* Sectors skipped for padding */
-	locked_range_t *rm_lr;
+	zfs_locked_range_t *rm_lr;
 	raidz_impl_ops_t *rm_ops;	/* RAIDZ math operations */
 	raidz_row_t *rm_row[0];		/* flexible array of rows */
 } raidz_map_t;
@@ -179,14 +179,17 @@ extern const raidz_impl_ops_t vdev_raidz_avx512bw_impl;
 extern const raidz_impl_ops_t vdev_raidz_aarch64_neon_impl;
 extern const raidz_impl_ops_t vdev_raidz_aarch64_neonx2_impl;
 #endif
+#if defined(__powerpc__)
+extern const raidz_impl_ops_t vdev_raidz_powerpc_altivec_impl;
+#endif
 
 /*
  * Commonly used raidz_map helpers
  *
  * raidz_parity		Returns parity of the RAIDZ block
  * raidz_ncols		Returns number of columns the block spans
- *                      Note, all rows have the same number of columns.
- * raidz_nbigcols	Returns number of big columns columns
+ *			Note, all rows have the same number of columns.
+ * raidz_nbigcols	Returns number of big columns
  * raidz_col_p		Returns pointer to a column
  * raidz_col_size	Returns size of a column
  * raidz_big_size	Returns size of big columns

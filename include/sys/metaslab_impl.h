@@ -24,7 +24,7 @@
  */
 
 /*
- * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2019 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_METASLAB_IMPL_H
@@ -36,6 +36,7 @@
 #include <sys/vdev.h>
 #include <sys/txg.h>
 #include <sys/avl.h>
+#include <sys/multilist.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -194,6 +195,12 @@ struct metaslab_class {
 	uint64_t		mc_space;	/* total space (alloc + free) */
 	uint64_t		mc_dspace;	/* total deflated space */
 	uint64_t		mc_histogram[RANGE_TREE_HISTOGRAM_SIZE];
+
+	/*
+	 * List of all loaded metaslabs in the class, sorted in order of most
+	 * recent use.
+	 */
+	multilist_t		*mc_metaslab_txg_list;
 };
 
 /*
@@ -357,7 +364,7 @@ struct metaslab {
 	 * write to metaslab data on-disk (i.e flushing entries to
 	 * the metaslab's space map). It helps coordinate readers of
 	 * the metaslab's space map [see spa_vdev_remove_thread()]
-	 * with writers [see metaslab_sync()].
+	 * with writers [see metaslab_sync() or metaslab_flush()].
 	 *
 	 * Note that metaslab_load(), even though a reader, uses
 	 * a completely different mechanism to deal with the reading
@@ -378,6 +385,7 @@ struct metaslab {
 	range_tree_t	*ms_allocating[TXG_SIZE];
 	range_tree_t	*ms_allocatable;
 	uint64_t	ms_allocated_this_txg;
+	uint64_t	ms_allocating_total;
 
 	/*
 	 * The following range trees are accessed only from syncing context.
@@ -401,7 +409,6 @@ struct metaslab {
 
 	boolean_t	ms_condensing;	/* condensing? */
 	boolean_t	ms_condense_wanted;
-	uint64_t	ms_condense_checked_txg;
 
 	/*
 	 * The number of consumers which have disabled the metaslab.
@@ -414,6 +421,8 @@ struct metaslab {
 	 */
 	boolean_t	ms_loaded;
 	boolean_t	ms_loading;
+	kcondvar_t	ms_flush_cv;
+	boolean_t	ms_flushing;
 
 	/*
 	 * The following histograms count entries that are in the
@@ -474,6 +483,13 @@ struct metaslab {
 	 * stay cached.
 	 */
 	uint64_t	ms_selected_txg;
+	/*
+	 * ms_load/unload_time can be used for performance monitoring
+	 * (e.g. by dtrace or mdb).
+	 */
+	hrtime_t	ms_load_time;	/* time last loaded */
+	hrtime_t	ms_unload_time;	/* time last unloaded */
+	hrtime_t	ms_selected_time; /* time last allocated from */
 
 	uint64_t	ms_alloc_txg;	/* last successful alloc (debug only) */
 	uint64_t	ms_max_size;	/* maximum allocatable size	*/
@@ -493,18 +509,44 @@ struct metaslab {
 	 * only difference is that the ms_allocatable_by_size is ordered by
 	 * segment sizes.
 	 */
-	avl_tree_t	ms_allocatable_by_size;
+	zfs_btree_t		ms_allocatable_by_size;
+	zfs_btree_t		ms_unflushed_frees_by_size;
 	uint64_t	ms_lbas[MAX_LBAS];
 
 	metaslab_group_t *ms_group;	/* metaslab group		*/
 	avl_node_t	ms_group_node;	/* node in metaslab group tree	*/
 	txg_node_t	ms_txg_node;	/* per-txg dirty metaslab links	*/
+	avl_node_t	ms_spa_txg_node; /* node in spa_metaslabs_by_txg */
+	/*
+	 * Node in metaslab class's selected txg list
+	 */
+	multilist_node_t	ms_class_txg_node;
+
+	/*
+	 * Allocs and frees that are committed to the vdev log spacemap but
+	 * not yet to this metaslab's spacemap.
+	 */
+	range_tree_t	*ms_unflushed_allocs;
+	range_tree_t	*ms_unflushed_frees;
+
+	/*
+	 * We have flushed entries up to but not including this TXG. In
+	 * other words, all changes from this TXG and onward should not
+	 * be in this metaslab's space map and must be read from the
+	 * log space maps.
+	 */
+	uint64_t	ms_unflushed_txg;
 
 	/* updated every time we are done syncing the metaslab's space map */
 	uint64_t	ms_synced_length;
 
 	boolean_t	ms_new;
 };
+
+typedef struct metaslab_unflushed_phys {
+	/* on-disk counterpart of ms_unflushed_txg */
+	uint64_t	msp_unflushed_txg;
+} metaslab_unflushed_phys_t;
 
 #ifdef	__cplusplus
 }

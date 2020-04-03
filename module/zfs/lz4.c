@@ -383,7 +383,7 @@ static inline int
 LZ4_NbCommonBytes(register U64 val)
 {
 #if defined(LZ4_BIG_ENDIAN)
-#if defined(__GNUC__) && (GCC_VERSION >= 304) && \
+#if ((defined(__GNUC__) && (GCC_VERSION >= 304)) || defined(__clang__)) && \
 	!defined(LZ4_FORCE_SW_BITCOUNT)
 	return (__builtin_clzll(val) >> 3);
 #else
@@ -404,7 +404,7 @@ LZ4_NbCommonBytes(register U64 val)
 	return (r);
 #endif
 #else
-#if defined(__GNUC__) && (GCC_VERSION >= 304) && \
+#if ((defined(__GNUC__) && (GCC_VERSION >= 304)) || defined(__clang__)) && \
 	!defined(LZ4_FORCE_SW_BITCOUNT)
 	return (__builtin_ctzll(val) >> 3);
 #else
@@ -426,7 +426,7 @@ static inline int
 LZ4_NbCommonBytes(register U32 val)
 {
 #if defined(LZ4_BIG_ENDIAN)
-#if defined(__GNUC__) && (GCC_VERSION >= 304) && \
+#if ((defined(__GNUC__) && (GCC_VERSION >= 304)) || defined(__clang__)) && \
 	!defined(LZ4_FORCE_SW_BITCOUNT)
 	return (__builtin_clz(val) >> 3);
 #else

@@ -21,7 +21,7 @@
 #
 
 #
-# Copyright (c) 2018 by Delphix. All rights reserved.
+# Copyright (c) 2018, 2019 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -32,8 +32,8 @@
 # Sanity test to make sure checksum algorithms work.
 # For each checksum, create a file in the pool using that checksum.  Verify
 # that there are no checksum errors.  Next, for each checksum, create a single
-# file in the pool using that checksum, scramble the underlying vdev, and
-# verify that we correctly catch the checksum errors.
+# file in the pool using that checksum, corrupt the file, and verify that we
+# correctly catch the checksum errors.
 #
 # STRATEGY:
 # Test 1
@@ -46,19 +46,15 @@
 # Test 2
 # 6. For each checksum:
 # 7.	Create a file using the checksum
-# 8.	Export the pool
-# 9.	Scramble the data on one of the underlying VDEVs
-# 10.	Import the pool
-# 11.	Scrub the pool
-# 12.	Verify that there are checksum errors
+# 8.	Corrupt all level 0 blocks in the file
+# 9.	Scrub the pool
+# 10.	Verify that there are checksum errors
 
 verify_runnable "both"
 
 function cleanup
 {
-	echo cleanup
-	[[ -e $TESTDIR ]] && \
-		log_must rm -rf $TESTDIR/* > /dev/null 2>&1
+	rm -fr $TESTDIR/*
 }
 
 log_assert "Create and read back files with using different checksum algorithms"
@@ -66,8 +62,6 @@ log_assert "Create and read back files with using different checksum algorithms"
 log_onexit cleanup
 
 WRITESZ=1048576
-SKIPCNT=$(((4194304 / $WRITESZ) * 2))
-WRITECNT=$((($MINVDEVSIZE / $WRITESZ) - $SKIPCNT))
 
 # Get a list of vdevs in our pool
 set -A array $(get_disklist_fullpath)
@@ -96,7 +90,7 @@ log_must [ $cksum -eq 0 ]
 
 rm -fr $TESTDIR/*
 
-log_assert "Test scrambling the disk and seeing checksum errors"
+log_assert "Test corrupting the files and seeing checksum errors"
 typeset -i j=1
 while [[ $j -lt ${#CHECKSUM_TYPES[*]} ]]; do
 	type=${CHECKSUM_TYPES[$j]}
@@ -104,14 +98,9 @@ while [[ $j -lt ${#CHECKSUM_TYPES[*]} ]]; do
 	log_must file_write -o overwrite -f $TESTDIR/test_$type \
 	    -b $WRITESZ -c 5 -d R
 
-	log_must zpool export $TESTPOOL
+	# Corrupt the level 0 blocks of this file
+	corrupt_blocks_at_level $TESTDIR/test_$type
 
-	# Scramble the data on the first vdev in our pool.  Skip the first
-	# and last 16MB of data, then scramble the rest after that.
-	log_must dd if=/dev/zero of=$firstvdev bs=$WRITESZ skip=$SKIPCNT \
-	    count=$WRITECNT
-
-	log_must zpool import $TESTPOOL
 	log_must zpool scrub $TESTPOOL
 	log_must wait_scrubbed $TESTPOOL
 

@@ -44,7 +44,7 @@ extern "C" {
 #ifdef	ZFS_DEBUG
 typedef struct reference {
 	list_node_t ref_link;
-	void *ref_holder;
+	const void *ref_holder;
 	uint64_t ref_number;
 	uint8_t *ref_removed;
 } reference_t;
@@ -70,16 +70,17 @@ void zfs_refcount_destroy(zfs_refcount_t *);
 void zfs_refcount_destroy_many(zfs_refcount_t *, uint64_t);
 int zfs_refcount_is_zero(zfs_refcount_t *);
 int64_t zfs_refcount_count(zfs_refcount_t *);
-int64_t zfs_refcount_add(zfs_refcount_t *, void *);
-int64_t zfs_refcount_remove(zfs_refcount_t *, void *);
-int64_t zfs_refcount_add_many(zfs_refcount_t *, uint64_t, void *);
-int64_t zfs_refcount_remove_many(zfs_refcount_t *, uint64_t, void *);
+int64_t zfs_refcount_add(zfs_refcount_t *, const void *);
+int64_t zfs_refcount_remove(zfs_refcount_t *, const void *);
+int64_t zfs_refcount_add_many(zfs_refcount_t *, uint64_t, const void *);
+int64_t zfs_refcount_remove_many(zfs_refcount_t *, uint64_t, const void *);
 void zfs_refcount_transfer(zfs_refcount_t *, zfs_refcount_t *);
-void zfs_refcount_transfer_ownership(zfs_refcount_t *, void *, void *);
+void zfs_refcount_transfer_ownership(zfs_refcount_t *, const void *,
+    const void *);
 void zfs_refcount_transfer_ownership_many(zfs_refcount_t *, uint64_t,
-    void *, void *);
-boolean_t zfs_refcount_held(zfs_refcount_t *, void *);
-boolean_t zfs_refcount_not_held(zfs_refcount_t *, void *);
+    const void *, const void *);
+boolean_t zfs_refcount_held(zfs_refcount_t *, const void *);
+boolean_t zfs_refcount_not_held(zfs_refcount_t *, const void *);
 
 void zfs_refcount_init(void);
 void zfs_refcount_fini(void);

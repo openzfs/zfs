@@ -217,8 +217,11 @@ zfs_mod_supported_feature(const char *name)
 	 * libzpool, always supports all the features. libzfs needs to
 	 * query the running module, via sysfs, to determine which
 	 * features are supported.
+	 *
+	 * The equivalent _can_ be done on FreeBSD by way of the sysctl
+	 * tree, but this has not been done yet.
 	 */
-#if defined(_KERNEL) || defined(LIB_ZPOOL_BUILD)
+#if defined(_KERNEL) || defined(LIB_ZPOOL_BUILD) || defined(__FreeBSD__)
 	return (B_TRUE);
 #else
 	return (zfs_mod_supported(ZFS_SYSFS_POOL_FEATURES, name));
@@ -256,6 +259,19 @@ zfeature_register(spa_feature_t fid, const char *guid, const char *name,
 	feature->fi_zfs_mod_supported = zfs_mod_supported_feature(guid);
 }
 
+/*
+ * Every feature has a GUID of the form com.example:feature_name.  The
+ * reversed DNS name ensures that the feature's GUID is unique across all ZFS
+ * implementations.  This allows companies to independently develop and
+ * release features.  Examples include org.delphix and org.datto.  Previously,
+ * features developed on one implementation have used that implementation's
+ * domain name (e.g. org.illumos and org.zfsonlinux).  Use of the org.openzfs
+ * domain name is recommended for new features which are developed by the
+ * OpenZFS community and its platforms.  This domain may optionally be used by
+ * companies developing features for initial release through an OpenZFS
+ * implementation.  Use of the org.openzfs domain requires reserving the
+ * feature name in advance with the OpenZFS project.
+ */
 void
 zpool_feature_init(void)
 {
@@ -349,6 +365,31 @@ zpool_feature_init(void)
 	    ZFEATURE_TYPE_BOOLEAN, NULL);
 
 	{
+	static const spa_feature_t livelist_deps[] = {
+		SPA_FEATURE_EXTENSIBLE_DATASET,
+		SPA_FEATURE_NONE
+	};
+	zfeature_register(SPA_FEATURE_LIVELIST,
+	    "com.delphix:livelist", "livelist",
+	    "Improved clone deletion performance.",
+	    ZFEATURE_FLAG_READONLY_COMPAT, ZFEATURE_TYPE_BOOLEAN,
+	    livelist_deps);
+	}
+
+	{
+	static const spa_feature_t log_spacemap_deps[] = {
+		SPA_FEATURE_SPACEMAP_V2,
+		SPA_FEATURE_NONE
+	};
+	zfeature_register(SPA_FEATURE_LOG_SPACEMAP,
+	    "com.delphix:log_spacemap", "log_spacemap",
+	    "Log metaslab changes on a single spacemap and "
+	    "flush them periodically.",
+	    ZFEATURE_FLAG_READONLY_COMPAT, ZFEATURE_TYPE_BOOLEAN,
+	    log_spacemap_deps);
+	}
+
+	{
 	static const spa_feature_t large_blocks_deps[] = {
 		SPA_FEATURE_EXTENSIBLE_DATASET,
 		SPA_FEATURE_NONE
@@ -396,6 +437,8 @@ zpool_feature_init(void)
 	    skein_deps);
 	}
 
+#if !defined(__FreeBSD__)
+
 	{
 	static const spa_feature_t edonr_deps[] = {
 		SPA_FEATURE_EXTENSIBLE_DATASET,
@@ -406,6 +449,48 @@ zpool_feature_init(void)
 	    "Edon-R hash algorithm.",
 	    ZFEATURE_FLAG_PER_DATASET, ZFEATURE_TYPE_BOOLEAN,
 	    edonr_deps);
+	}
+#endif
+
+	{
+	static const spa_feature_t redact_books_deps[] = {
+		SPA_FEATURE_BOOKMARK_V2,
+		SPA_FEATURE_EXTENSIBLE_DATASET,
+		SPA_FEATURE_BOOKMARKS,
+		SPA_FEATURE_NONE
+	};
+	zfeature_register(SPA_FEATURE_REDACTION_BOOKMARKS,
+	    "com.delphix:redaction_bookmarks", "redaction_bookmarks",
+	    "Support for bookmarks which store redaction lists for zfs "
+	    "redacted send/recv.", 0, ZFEATURE_TYPE_BOOLEAN,
+	    redact_books_deps);
+	}
+
+	{
+	static const spa_feature_t redact_datasets_deps[] = {
+		SPA_FEATURE_EXTENSIBLE_DATASET,
+		SPA_FEATURE_NONE
+	};
+	zfeature_register(SPA_FEATURE_REDACTED_DATASETS,
+	    "com.delphix:redacted_datasets", "redacted_datasets", "Support for "
+	    "redacted datasets, produced by receiving a redacted zfs send "
+	    "stream.", ZFEATURE_FLAG_PER_DATASET, ZFEATURE_TYPE_UINT64_ARRAY,
+	    redact_datasets_deps);
+	}
+
+	{
+	static const spa_feature_t bookmark_written_deps[] = {
+		SPA_FEATURE_BOOKMARK_V2,
+		SPA_FEATURE_EXTENSIBLE_DATASET,
+		SPA_FEATURE_BOOKMARKS,
+		SPA_FEATURE_NONE
+	};
+	zfeature_register(SPA_FEATURE_BOOKMARK_WRITTEN,
+	    "com.delphix:bookmark_written", "bookmark_written",
+	    "Additional accounting, enabling the written#<bookmark> property"
+	    "(space written since a bookmark), and estimates of send stream "
+	    "sizes for incrementals from bookmarks.",
+	    0, ZFEATURE_TYPE_BOOLEAN, bookmark_written_deps);
 	}
 
 	zfeature_register(SPA_FEATURE_DEVICE_REMOVAL,
@@ -476,16 +561,14 @@ zpool_feature_init(void)
 	    ZFEATURE_TYPE_BOOLEAN, project_quota_deps);
 	}
 
-	{
 	zfeature_register(SPA_FEATURE_ALLOCATION_CLASSES,
 	    "org.zfsonlinux:allocation_classes", "allocation_classes",
 	    "Support for separate allocation classes.",
 	    ZFEATURE_FLAG_READONLY_COMPAT, ZFEATURE_TYPE_BOOLEAN, NULL);
-	}
 
 	zfeature_register(SPA_FEATURE_RESILVER_DEFER,
 	    "com.datto:resilver_defer", "resilver_defer",
-	    "Support for defering new resilvers when one is already running.",
+	    "Support for deferring new resilvers when one is already running.",
 	    ZFEATURE_FLAG_READONLY_COMPAT, ZFEATURE_TYPE_BOOLEAN, NULL);
 }
 

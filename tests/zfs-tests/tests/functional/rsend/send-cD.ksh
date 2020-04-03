@@ -45,7 +45,7 @@ typeset inc=$BACKDIR/stream.inc
 log_must zfs create -o compress=lz4 $sendfs
 log_must zfs create -o compress=lz4 $recvfs
 typeset dir=$(get_prop mountpoint $sendfs)
-# Don't use write_compressible: we want compressible but undedupable data here.
+# Don't use write_compressible: we want compressible but undeduplicable data.
 log_must eval "dd if=/dev/urandom bs=1024k count=4 | base64 >$dir/file"
 log_must zfs snapshot $sendfs@snap0
 log_must eval "zfs send -D -c $sendfs@snap0 >$stream0"
@@ -60,8 +60,8 @@ log_must zfs snapshot $sendfs@snap1
 
 # The stream sizes should match, since the second stream contains no new blocks
 log_must eval "zfs send -D -c $sendfs@snap1 >$stream1"
-typeset size0=$(stat -c %s $stream0)
-typeset size1=$(stat -c %s $stream1)
+typeset size0=$(stat_size $stream0)
+typeset size1=$(stat_size $stream1)
 within_percent $size0 $size1 90 || log_fail "$size0 and $size1"
 
 # Finally, make sure the receive works correctly.
@@ -71,7 +71,7 @@ log_must eval "zfs recv -d $recvfs <$inc"
 cmp_ds_cont $sendfs $recvfs
 
 # The size of the incremental should be the same as the initial send.
-typeset size2=$(stat -c %s $inc)
+typeset size2=$(stat_size $inc)
 within_percent $size0 $size2 90 || log_fail "$size0 and $size1"
 
 log_pass "The -c and -D flags do not interfere with each other"

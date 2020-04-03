@@ -87,12 +87,12 @@
  *
  *    In this case, a weak guarantee is provided.  Since the host which last had
  *    the pool imported will suspend the pool if no mmp writes land within
- *    fail_intervals * multihost_interval ms, the absense of writes during that
+ *    fail_intervals * multihost_interval ms, the absence of writes during that
  *    time means either the pool is not imported, or it is imported but the pool
  *    is suspended and no further writes will occur.
  *
  *    Note that resuming the suspended pool on the remote host would invalidate
- *    this gurantee, and so it is not allowed.
+ *    this guarantee, and so it is not allowed.
  *
  *    The factor of 2 provides a conservative safety factor and derives from
  *    MMP_IMPORT_SAFETY_FACTOR;
@@ -672,14 +672,13 @@ mmp_thread(void *arg)
 
 		CALLB_CPR_SAFE_BEGIN(&cpr);
 		(void) cv_timedwait_sig_hires(&mmp->mmp_thread_cv,
-		    &mmp->mmp_thread_lock, next_time, USEC2NSEC(1),
+		    &mmp->mmp_thread_lock, next_time, USEC2NSEC(100),
 		    CALLOUT_FLAG_ABSOLUTE);
 		CALLB_CPR_SAFE_END(&cpr, &mmp->mmp_thread_lock);
 	}
 
 	/* Outstanding writes are allowed to complete. */
-	if (mmp->mmp_zio_root)
-		zio_wait(mmp->mmp_zio_root);
+	zio_wait(mmp->mmp_zio_root);
 
 	mmp->mmp_zio_root = NULL;
 	mmp_thread_exit(mmp, &mmp->mmp_thread, &cpr);
@@ -716,36 +715,8 @@ mmp_signal_all_threads(void)
 	mutex_exit(&spa_namespace_lock);
 }
 
-#if defined(_KERNEL)
-#include <linux/mod_compat.h>
-
-static int
-param_set_multihost_interval(const char *val, zfs_kernel_param_t *kp)
-{
-	int ret;
-
-	ret = param_set_ulong(val, kp);
-	if (ret < 0)
-		return (ret);
-
-	if (spa_mode_global != 0)
-		mmp_signal_all_threads();
-
-	return (ret);
-}
-
-/* BEGIN CSTYLED */
-module_param(zfs_multihost_fail_intervals, uint, 0644);
-MODULE_PARM_DESC(zfs_multihost_fail_intervals,
+ZFS_MODULE_PARAM(zfs_multihost, zfs_multihost_, fail_intervals, UINT, ZMOD_RW,
 	"Max allowed period without a successful mmp write");
 
-module_param_call(zfs_multihost_interval, param_set_multihost_interval,
-    param_get_ulong, &zfs_multihost_interval, 0644);
-MODULE_PARM_DESC(zfs_multihost_interval,
-	"Milliseconds between mmp writes to each leaf");
-
-module_param(zfs_multihost_import_intervals, uint, 0644);
-MODULE_PARM_DESC(zfs_multihost_import_intervals,
+ZFS_MODULE_PARAM(zfs_multihost, zfs_multihost_, import_intervals, UINT, ZMOD_RW,
 	"Number of zfs_multihost_interval periods to wait for activity");
-/* END CSTYLED */
-#endif

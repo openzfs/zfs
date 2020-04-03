@@ -38,9 +38,9 @@
 #include <stdio.h>
 #include <sys/note.h>
 #include <sys/time.h>
+#include <sys/stdtypes.h>
 
-typedef enum boolean { B_FALSE, B_TRUE } boolean_t;
-typedef	unsigned long long	u_longlong_t;
+int aok = 0;
 
 /*
  * Test messages from:

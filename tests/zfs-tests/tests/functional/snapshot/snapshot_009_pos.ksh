@@ -88,7 +88,7 @@ else
 fi
 
 log_must zfs snapshot -r $snappool
-log_must block_device_wait
+block_device_wait
 
 #verify the snapshot -r results
 for snap in $snappool $snapfs $snapvol $snapctr $snapctrvol \

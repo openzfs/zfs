@@ -44,24 +44,11 @@
 
 verify_runnable "global"
 
-if is_linux; then
-	# Versions of libblkid older than 2.27.0 will not always detect member
-	# devices of a pool, therefore skip this test case for old versions.
-	currentver="$(blkid -v | tr ',' ' ' | awk '/libblkid/ { print $6 }')"
-	requiredver="2.27.0"
-
-	if [ "$(printf "$requiredver\n$currentver" | sort -V | head -n1)" ==  \
-	    "$currentver" ] && [ "$currentver" != "$requiredver" ]; then
-		log_unsupported "libblkid ($currentver) may not detect pools"
-	fi
-fi
-
 function cleanup
 {
 	if [[ $exported_pool == true ]]; then
 		if [[ $force_pool == true ]]; then
-			log_must zpool create \
-				-f $TESTPOOL ${disk}${SLICE_PREFIX}${SLICE0}
+			log_must zpool create -f $TESTPOOL $DISK0
 		else
 			log_must zpool import $TESTPOOL
 		fi
@@ -74,49 +61,6 @@ function cleanup
 	if poolexists $TESTPOOL1 ; then
                 destroy_pool $TESTPOOL1
 	fi
-
-	#
-	# recover it back to EFI label
-	#
-	create_pool $TESTPOOL $disk
-	destroy_pool $TESTPOOL
-
-        partition_disk $SIZE $disk 6
-}
-
-#
-# create overlap slice 0 and 1 on $disk
-#
-function create_overlap_slice
-{
-        typeset format_file=$TEST_BASE_DIR/format_overlap.$$
-        typeset disk=$1
-
-        echo "partition" >$format_file
-        echo "0" >> $format_file
-        echo "" >> $format_file
-        echo "" >> $format_file
-        echo "0" >> $format_file
-        echo "200m" >> $format_file
-        echo "1" >> $format_file
-        echo "" >> $format_file
-        echo "" >> $format_file
-        echo "0" >> $format_file
-        echo "400m" >> $format_file
-        echo "label" >> $format_file
-        echo "" >> $format_file
-        echo "q" >> $format_file
-        echo "q" >> $format_file
-
-        format -e -s -d $disk -f $format_file
-	typeset -i ret=$?
-        rm -fr $format_file
-
-	if (( ret != 0 )); then
-                log_fail "unable to create overlap slice."
-        fi
-
-        return 0
 }
 
 log_assert "'zpool create' have to use '-f' scenarios"
@@ -125,42 +69,21 @@ log_onexit cleanup
 typeset exported_pool=false
 typeset force_pool=false
 
-if [[ -n $DISK ]]; then
-        disk=$DISK
-else
-        disk=$DISK0
-fi
-
 # overlapped slices as vdev need -f to create pool
 
 # Make the disk is EFI labeled first via pool creation
-create_pool $TESTPOOL $disk
+create_pool $TESTPOOL $DISK0
 destroy_pool $TESTPOOL
-
-if ! is_linux; then
-	# Make the disk is VTOC labeled since only VTOC label supports overlap
-	log_must labelvtoc $disk
-	log_must create_overlap_slice $disk
-
-	unset NOINUSE_CHECK
-	log_mustnot zpool create $TESTPOOL ${disk}${SLICE_PREFIX}${SLICE0}
-	log_must zpool create -f $TESTPOOL ${disk}${SLICE_PREFIX}${SLICE0}
-	destroy_pool $TESTPOOL
-fi
 
 # exported device to be as spare vdev need -f to create pool
 
-log_must zpool create -f $TESTPOOL $disk
+log_must zpool create -f $TESTPOOL $DISK0
 destroy_pool $TESTPOOL
-log_must partition_disk $SIZE $disk 6
-create_pool $TESTPOOL ${disk}${SLICE_PREFIX}${SLICE0} \
-	${disk}${SLICE_PREFIX}${SLICE1}
+create_pool $TESTPOOL $DISK0 $DISK1
 log_must zpool export $TESTPOOL
 exported_pool=true
-log_mustnot zpool create $TESTPOOL1 ${disk}${SLICE_PREFIX}${SLICE3} \
-	spare ${disk}${SLICE_PREFIX}${SLICE1}
-create_pool $TESTPOOL1 ${disk}${SLICE_PREFIX}${SLICE3} \
-	spare ${disk}${SLICE_PREFIX}${SLICE1}
+log_mustnot zpool create $TESTPOOL1 $DISK1 spare $DISK2
+create_pool $TESTPOOL1 $DISK1 spare $DISK2
 force_pool=true
 destroy_pool $TESTPOOL1
 

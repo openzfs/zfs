@@ -21,7 +21,7 @@
 /*
  * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2017 by Delphix. All rights reserved.
- * Copyright (c) 2017 Datto Inc.
+ * Copyright (c) 2017, 2019, Datto Inc. All rights reserved.
  */
 
 #ifndef	_SYS_DSL_SCAN_H
@@ -138,6 +138,7 @@ typedef struct dsl_scan {
 
 	/* per txg statistics */
 	uint64_t scn_visited_this_txg;	/* total bps visited this txg */
+	uint64_t scn_dedup_frees_this_txg;	/* dedup bps freed this txg */
 	uint64_t scn_holes_this_txg;
 	uint64_t scn_lt_min_this_txg;
 	uint64_t scn_gt_max_this_txg;
@@ -164,10 +165,12 @@ void dsl_scan_fini(struct dsl_pool *dp);
 void dsl_scan_sync(struct dsl_pool *, dmu_tx_t *);
 int dsl_scan_cancel(struct dsl_pool *);
 int dsl_scan(struct dsl_pool *, pool_scan_func_t);
+void dsl_scan_assess_vdev(struct dsl_pool *dp, vdev_t *vd);
 boolean_t dsl_scan_scrubbing(const struct dsl_pool *dp);
 int dsl_scrub_set_pause_resume(const struct dsl_pool *dp, pool_scrub_cmd_t cmd);
-void dsl_resilver_restart(struct dsl_pool *, uint64_t txg);
+void dsl_scan_restart_resilver(struct dsl_pool *, uint64_t txg);
 boolean_t dsl_scan_resilvering(struct dsl_pool *dp);
+boolean_t dsl_scan_resilver_scheduled(struct dsl_pool *dp);
 boolean_t dsl_dataset_unstable(struct dsl_dataset *ds);
 void dsl_scan_ddt_entry(dsl_scan_t *scn, enum zio_checksum checksum,
     ddt_entry_t *dde, dmu_tx_t *tx);

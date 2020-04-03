@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright (c) 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2016, 2019 by Delphix. All rights reserved.
  */
 
 #include <sys/spa.h>
@@ -32,6 +32,7 @@
 #include <sys/dsl_synctask.h>
 #include <sys/zap.h>
 #include <sys/dmu_tx.h>
+#include <sys/vdev_initialize.h>
 
 /*
  * Value that is written to disk during initialization.
@@ -46,7 +47,7 @@ unsigned long zfs_initialize_value = 0xdeadbeefdeadbeeeULL;
 int zfs_initialize_limit = 1;
 
 /* size of initializing writes; default 1MiB, see zfs_remove_max_segment */
-uint64_t zfs_initialize_chunk_size = 1024 * 1024;
+unsigned long zfs_initialize_chunk_size = 1024 * 1024;
 
 static boolean_t
 vdev_initialize_should_stop(vdev_t *vd)
@@ -150,6 +151,9 @@ vdev_initialize_change_state(vdev_t *vd, vdev_initializing_state_t new_state)
 	}
 
 	dmu_tx_commit(tx);
+
+	if (new_state != VDEV_INITIALIZE_ACTIVE)
+		spa_notify_waiters(spa);
 }
 
 static void
@@ -288,11 +292,13 @@ vdev_initialize_block_free(abd_t *data)
 static int
 vdev_initialize_ranges(vdev_t *vd, abd_t *data)
 {
-	avl_tree_t *rt = &vd->vdev_initialize_tree->rt_root;
+	range_tree_t *rt = vd->vdev_initialize_tree;
+	zfs_btree_t *bt = &rt->rt_root;
+	zfs_btree_index_t where;
 
-	for (range_seg_t *rs = avl_first(rt); rs != NULL;
-	    rs = AVL_NEXT(rt, rs)) {
-		uint64_t size = rs->rs_end - rs->rs_start;
+	for (range_seg_t *rs = zfs_btree_first(bt, &where); rs != NULL;
+	    rs = zfs_btree_next(bt, &where, &where)) {
+		uint64_t size = rs_get_end(rs, rt) - rs_get_start(rs, rt);
 
 		/* Split range into legally-sized physical chunks */
 		uint64_t writes_required =
@@ -302,7 +308,7 @@ vdev_initialize_ranges(vdev_t *vd, abd_t *data)
 			int error;
 
 			error = vdev_initialize_write(vd,
-			    VDEV_LABEL_START_SIZE + rs->rs_start +
+			    VDEV_LABEL_START_SIZE + rs_get_start(rs, rt) +
 			    (w * zfs_initialize_chunk_size),
 			    MIN(size - (w * zfs_initialize_chunk_size),
 			    zfs_initialize_chunk_size), data);
@@ -338,7 +344,7 @@ vdev_initialize_calculate_progress(vdev_t *vd)
 		 * on our vdev. We use this to determine if we are
 		 * in the middle of this metaslab range.
 		 */
-		range_seg_t logical_rs, physical_rs;
+		range_seg64_t logical_rs, physical_rs;
 		logical_rs.rs_start = msp->ms_start;
 		logical_rs.rs_end = msp->ms_start + msp->ms_size;
 		vdev_xlate(vd, &logical_rs, &physical_rs);
@@ -362,10 +368,14 @@ vdev_initialize_calculate_progress(vdev_t *vd)
 		 */
 		VERIFY0(metaslab_load(msp));
 
-		for (range_seg_t *rs = avl_first(&msp->ms_allocatable->rt_root);
-		    rs; rs = AVL_NEXT(&msp->ms_allocatable->rt_root, rs)) {
-			logical_rs.rs_start = rs->rs_start;
-			logical_rs.rs_end = rs->rs_end;
+		zfs_btree_index_t where;
+		range_tree_t *rt = msp->ms_allocatable;
+		for (range_seg_t *rs =
+		    zfs_btree_first(&rt->rt_root, &where); rs;
+		    rs = zfs_btree_next(&rt->rt_root, &where,
+		    &where)) {
+			logical_rs.rs_start = rs_get_start(rs, rt);
+			logical_rs.rs_end = rs_get_end(rs, rt);
 			vdev_xlate(vd, &logical_rs, &physical_rs);
 
 			uint64_t size = physical_rs.rs_end -
@@ -415,11 +425,11 @@ vdev_initialize_load(vdev_t *vd)
  * Convert the logical range into a physical range and add it to our
  * avl tree.
  */
-void
+static void
 vdev_initialize_range_add(void *arg, uint64_t start, uint64_t size)
 {
 	vdev_t *vd = arg;
-	range_seg_t logical_rs, physical_rs;
+	range_seg64_t logical_rs, physical_rs;
 	logical_rs.rs_start = start;
 	logical_rs.rs_end = start + size;
 
@@ -478,11 +488,13 @@ vdev_initialize_thread(void *arg)
 
 	abd_t *deadbeef = vdev_initialize_block_alloc();
 
-	vd->vdev_initialize_tree = range_tree_create(NULL, NULL);
+	vd->vdev_initialize_tree = range_tree_create(NULL, RANGE_SEG64, NULL,
+	    0, 0);
 
 	for (uint64_t i = 0; !vd->vdev_detached &&
 	    i < vd->vdev_top->vdev_ms_count; i++) {
 		metaslab_t *msp = vd->vdev_top->vdev_ms[i];
+		boolean_t unload_when_done = B_FALSE;
 
 		/*
 		 * If we've expanded the top-level vdev or it's our
@@ -496,6 +508,8 @@ vdev_initialize_thread(void *arg)
 		spa_config_exit(spa, SCL_CONFIG, FTAG);
 		metaslab_disable(msp);
 		mutex_enter(&msp->ms_lock);
+		if (!msp->ms_loaded && !msp->ms_loading)
+			unload_when_done = B_TRUE;
 		VERIFY0(metaslab_load(msp));
 
 		range_tree_walk(msp->ms_allocatable, vdev_initialize_range_add,
@@ -503,7 +517,7 @@ vdev_initialize_thread(void *arg)
 		mutex_exit(&msp->ms_lock);
 
 		error = vdev_initialize_ranges(vd, deadbeef);
-		metaslab_enable(msp, B_TRUE);
+		metaslab_enable(msp, B_TRUE, unload_when_done);
 		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 
 		range_tree_vacate(vd->vdev_initialize_tree, NULL, NULL);
@@ -599,7 +613,7 @@ vdev_initialize_stop_wait(spa_t *spa, list_t *vd_list)
 }
 
 /*
- * Stop initializing a device, with the resultant initialing state being
+ * Stop initializing a device, with the resultant initializing state being
  * tgt_state.  For blocking behavior pass NULL for vd_list.  Otherwise, when
  * a list_t is provided the stopping vdev is inserted in to the list.  Callers
  * are then required to call vdev_initialize_stop_wait() to block for all the
@@ -699,7 +713,7 @@ vdev_initialize_restart(vdev_t *vd)
 		    vd->vdev_leaf_zap, VDEV_LEAF_ZAP_INITIALIZE_ACTION_TIME,
 		    sizeof (timestamp), 1, &timestamp);
 		ASSERT(err == 0 || err == ENOENT);
-		vd->vdev_initialize_action_time = (time_t)timestamp;
+		vd->vdev_initialize_action_time = timestamp;
 
 		if (vd->vdev_initialize_state == VDEV_INITIALIZE_SUSPENDED ||
 		    vd->vdev_offline) {
@@ -720,15 +734,16 @@ vdev_initialize_restart(vdev_t *vd)
 	}
 }
 
-#if defined(_KERNEL)
 EXPORT_SYMBOL(vdev_initialize);
 EXPORT_SYMBOL(vdev_initialize_stop);
 EXPORT_SYMBOL(vdev_initialize_stop_all);
 EXPORT_SYMBOL(vdev_initialize_stop_wait);
 EXPORT_SYMBOL(vdev_initialize_restart);
 
-/* CSTYLED */
-module_param(zfs_initialize_value, ulong, 0644);
-MODULE_PARM_DESC(zfs_initialize_value,
+/* BEGIN CSTYLED */
+ZFS_MODULE_PARAM(zfs, zfs_, initialize_value, ULONG, ZMOD_RW,
 	"Value written during zpool initialize");
-#endif
+
+ZFS_MODULE_PARAM(zfs, zfs_, initialize_chunk_size, ULONG, ZMOD_RW,
+	"Size in bytes of writes by zpool initialize");
+/* END CSTYLED */

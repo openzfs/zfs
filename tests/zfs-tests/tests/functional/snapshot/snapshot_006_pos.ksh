@@ -35,7 +35,7 @@
 #
 # DESCRIPTION:
 # An archive of a zfs dataset and an archive of its snapshot
-# changed sinced the snapshot was taken.
+# changed since the snapshot was taken.
 #
 # STRATEGY:
 # 1) Create some files in a ZFS dataset

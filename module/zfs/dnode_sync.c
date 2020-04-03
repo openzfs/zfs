@@ -51,7 +51,6 @@ dnode_increase_indirection(dnode_t *dn, dmu_tx_t *tx)
 
 	/* this dnode can't be paged out because it's dirty */
 	ASSERT(dn->dn_phys->dn_type != DMU_OT_NONE);
-	ASSERT(RW_WRITE_HELD(&dn->dn_struct_rwlock));
 	ASSERT(new_level > 1 && dn->dn_phys->dn_nlevels > 0);
 
 	db = dbuf_hold_level(dn, dn->dn_phys->dn_nlevels, 0, FTAG);
@@ -61,8 +60,24 @@ dnode_increase_indirection(dnode_t *dn, dmu_tx_t *tx)
 	dprintf("os=%p obj=%llu, increase to %d\n", dn->dn_objset,
 	    dn->dn_object, dn->dn_phys->dn_nlevels);
 
+	/*
+	 * Lock ordering requires that we hold the children's db_mutexes (by
+	 * calling dbuf_find()) before holding the parent's db_rwlock.  The lock
+	 * order is imposed by dbuf_read's steps of "grab the lock to protect
+	 * db_parent, get db_parent, hold db_parent's db_rwlock".
+	 */
+	dmu_buf_impl_t *children[DN_MAX_NBLKPTR];
+	ASSERT3U(nblkptr, <=, DN_MAX_NBLKPTR);
+	for (i = 0; i < nblkptr; i++) {
+		children[i] =
+		    dbuf_find(dn->dn_objset, dn->dn_object, old_toplvl, i);
+	}
+
 	/* transfer dnode's block pointers to new indirect block */
 	(void) dbuf_read(db, NULL, DB_RF_MUST_SUCCEED|DB_RF_HAVESTRUCT);
+	if (dn->dn_dbuf != NULL)
+		rw_enter(&dn->dn_dbuf->db_rwlock, RW_WRITER);
+	rw_enter(&db->db_rwlock, RW_WRITER);
 	ASSERT(db->db.db_data);
 	ASSERT(arc_released(db->db_buf));
 	ASSERT3U(sizeof (blkptr_t) * nblkptr, <=, db->db.db_size);
@@ -72,8 +87,7 @@ dnode_increase_indirection(dnode_t *dn, dmu_tx_t *tx)
 
 	/* set dbuf's parent pointers to new indirect buf */
 	for (i = 0; i < nblkptr; i++) {
-		dmu_buf_impl_t *child =
-		    dbuf_find(dn->dn_objset, dn->dn_object, old_toplvl, i);
+		dmu_buf_impl_t *child = children[i];
 
 		if (child == NULL)
 			continue;
@@ -105,6 +119,10 @@ dnode_increase_indirection(dnode_t *dn, dmu_tx_t *tx)
 	}
 
 	bzero(dn->dn_phys->dn_blkptr, sizeof (blkptr_t) * nblkptr);
+
+	rw_exit(&db->db_rwlock);
+	if (dn->dn_dbuf != NULL)
+		rw_exit(&dn->dn_dbuf->db_rwlock);
 
 	dbuf_rele(db, FTAG);
 
@@ -182,17 +200,14 @@ free_verify(dmu_buf_impl_t *db, uint64_t start, uint64_t end, dmu_tx_t *tx)
 		ASSERT(db->db_level == 1);
 
 		rw_enter(&dn->dn_struct_rwlock, RW_READER);
-		err = dbuf_hold_impl(dn, db->db_level-1,
+		err = dbuf_hold_impl(dn, db->db_level - 1,
 		    (db->db_blkid << epbs) + i, TRUE, FALSE, FTAG, &child);
 		rw_exit(&dn->dn_struct_rwlock);
 		if (err == ENOENT)
 			continue;
 		ASSERT(err == 0);
 		ASSERT(child->db_level == 0);
-		dr = child->db_last_dirty;
-		while (dr && dr->dr_txg > txg)
-			dr = dr->dr_next;
-		ASSERT(dr == NULL || dr->dr_txg == txg);
+		dr = dbuf_find_dirty_eq(child, txg);
 
 		/* data_old better be zeroed */
 		if (dr) {
@@ -213,7 +228,7 @@ free_verify(dmu_buf_impl_t *db, uint64_t start, uint64_t end, dmu_tx_t *tx)
 		mutex_enter(&child->db_mtx);
 		buf = child->db.db_data;
 		if (buf != NULL && child->db_state != DB_FILL &&
-		    child->db_last_dirty == NULL) {
+		    list_is_empty(&child->db_dirty_records)) {
 			for (j = 0; j < child->db.db_size >> 3; j++) {
 				if (buf[j] != 0) {
 					panic("freed data not zero: "
@@ -280,7 +295,9 @@ free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks,
 	 * ancestor of the first or last block to be freed.  The first and
 	 * last L1 indirect blocks are always dirtied by dnode_free_range().
 	 */
+	db_lock_type_t dblt = dmu_buf_lock_parent(db, RW_READER, FTAG);
 	VERIFY(BP_GET_FILL(db->db_blkptr) == 0 || db->db_dirtycnt > 0);
+	dmu_buf_unlock_parent(db, dblt, FTAG);
 
 	dbuf_release_bp(db);
 	bp = db->db.db_data;
@@ -306,7 +323,9 @@ free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks,
 
 	if (db->db_level == 1) {
 		FREE_VERIFY(db, start, end, tx);
-		free_blocks(dn, bp, end-start+1, tx);
+		rw_enter(&db->db_rwlock, RW_WRITER);
+		free_blocks(dn, bp, end - start + 1, tx);
+		rw_exit(&db->db_rwlock);
 	} else {
 		for (uint64_t id = start; id <= end; id++, bp++) {
 			if (BP_IS_HOLE(bp))
@@ -323,10 +342,12 @@ free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks,
 	}
 
 	if (free_indirects) {
+		rw_enter(&db->db_rwlock, RW_WRITER);
 		for (i = 0, bp = db->db.db_data; i < 1 << epbs; i++, bp++)
 			ASSERT(BP_IS_HOLE(bp));
 		bzero(db->db.db_data, db->db.db_size);
 		free_blocks(dn, db->db_blkptr, 1, tx);
+		rw_exit(&db->db_rwlock);
 	}
 
 	DB_DNODE_EXIT(db);
@@ -378,18 +399,31 @@ dnode_sync_free_range_impl(dnode_t *dn, uint64_t blkid, uint64_t nblks,
 			VERIFY0(dbuf_hold_impl(dn, dnlevel - 1, i,
 			    TRUE, FALSE, FTAG, &db));
 			rw_exit(&dn->dn_struct_rwlock);
-
 			free_children(db, blkid, nblks, free_indirects, tx);
 			dbuf_rele(db, FTAG);
 		}
 	}
 
-	if (trunc) {
-		ASSERTV(uint64_t off);
+	/*
+	 * Do not truncate the maxblkid if we are performing a raw
+	 * receive. The raw receive sets the maxblkid manually and
+	 * must not be overridden. Usually, the last DRR_FREE record
+	 * will be at the maxblkid, because the source system sets
+	 * the maxblkid when truncating. However, if the last block
+	 * was freed by overwriting with zeros and being compressed
+	 * away to a hole, the source system will generate a DRR_FREE
+	 * record while leaving the maxblkid after the end of that
+	 * record. In this case we need to leave the maxblkid as
+	 * indicated in the DRR_OBJECT record, so that it matches the
+	 * source system, ensuring that the cryptographic hashes will
+	 * match.
+	 */
+	if (trunc && !dn->dn_objset->os_raw_receive) {
+		uint64_t off __maybe_unused;
 		dn->dn_phys->dn_maxblkid = blkid == 0 ? 0 : blkid - 1;
 
-		ASSERTV(off = (dn->dn_phys->dn_maxblkid + 1) *
-		    (dn->dn_phys->dn_datablkszsec << SPA_MINBLOCKSHIFT));
+		off = (dn->dn_phys->dn_maxblkid + 1) *
+		    (dn->dn_phys->dn_datablkszsec << SPA_MINBLOCKSHIFT);
 		ASSERT(off < dn->dn_phys->dn_maxblkid ||
 		    dn->dn_phys->dn_maxblkid == 0 ||
 		    dnode_next_offset(dn, 0, &off, 1, 1, 0) != 0);
@@ -504,8 +538,9 @@ dnode_undirty_dbufs(list_t *list)
 		mutex_enter(&db->db_mtx);
 		/* XXX - use dbuf_undirty()? */
 		list_remove(list, dr);
-		ASSERT(db->db_last_dirty == dr);
-		db->db_last_dirty = NULL;
+		ASSERT(list_head(&db->db_dirty_records) == dr);
+		list_remove_head(&db->db_dirty_records);
+		ASSERT(list_is_empty(&db->db_dirty_records));
 		db->db_dirtycnt -= 1;
 		if (db->db_level == 0) {
 			ASSERT(db->db_blkid == DMU_BONUS_BLKID ||
@@ -591,7 +626,7 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 	dnode_phys_t *dnp = dn->dn_phys;
 	int txgoff = tx->tx_txg & TXG_MASK;
 	list_t *list = &dn->dn_dirty_records[txgoff];
-	ASSERTV(static const dnode_phys_t zerodn = { 0 });
+	static const dnode_phys_t zerodn __maybe_unused = { 0 };
 	boolean_t kill_spill = B_FALSE;
 
 	ASSERT(dmu_tx_is_syncing(tx));

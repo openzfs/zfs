@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 
 #
 # This file and its contents are supplied under the terms of the
@@ -61,14 +61,6 @@ known_reason = 'Known issue'
 exec_reason = 'Test user execute permissions required for utilities'
 
 #
-# Some tests require that the DISKS provided can be partitioned.  This is
-# normally not an issue because loop back devices are used for DISKS and they
-# can be partition.  There is one notable exception, the CentOS 6.x kernel is
-# old enough that it does not support partitioning loop back devices.
-#
-disk_reason = 'Partitionable DISKS required'
-
-#
 # Some tests require a minimum python version of 3.5 and will be skipped when
 # the default system version is too old.  There may also be tests which require
 # additional python modules be installed, for example python-cffi is required
@@ -82,13 +74,6 @@ python_deps_reason = 'Python modules missing: python-cffi'
 # 3.11 kernel.
 #
 tmpfile_reason = 'Kernel O_TMPFILE support required'
-
-#
-# Some tests may depend on udev change events being generated when block
-# devices change capacity.  This functionality wasn't available until the
-# 2.6.38 kernel.
-#
-udev_reason = 'Kernel block device udev change events required'
 
 #
 # Some tests require that the NFS client and server utilities be installed.
@@ -136,11 +121,11 @@ fio_reason = 'Fio v2.3 or newer required'
 trim_reason = 'DISKS must support discard (TRIM/UNMAP)'
 
 #
-# Some tests are not applicable to Linux or need to be updated to operate
-# in the manor required by Linux.  Any tests which are skipped for this
+# Some tests are not applicable to a platform or need to be updated to operate
+# in the manor required by the platform.  Any tests which are skipped for this
 # reason will be suppressed in the final analysis output.
 #
-na_reason = "N/A on Linux"
+na_reason = "Not applicable"
 
 summary = {
     'total': float(0),
@@ -160,50 +145,37 @@ summary = {
 # reasons listed above can be used.
 #
 known = {
-    'casenorm/sensitive_none_lookup': ['FAIL', '7633'],
-    'casenorm/sensitive_none_delete': ['FAIL', '7633'],
-    'casenorm/sensitive_formd_lookup': ['FAIL', '7633'],
-    'casenorm/sensitive_formd_delete': ['FAIL', '7633'],
-    'casenorm/insensitive_none_lookup': ['FAIL', '7633'],
-    'casenorm/insensitive_none_delete': ['FAIL', '7633'],
-    'casenorm/insensitive_formd_lookup': ['FAIL', '7633'],
-    'casenorm/insensitive_formd_delete': ['FAIL', '7633'],
-    'casenorm/mixed_none_lookup': ['FAIL', '7633'],
     'casenorm/mixed_none_lookup_ci': ['FAIL', '7633'],
-    'casenorm/mixed_none_delete': ['FAIL', '7633'],
-    'casenorm/mixed_formd_lookup': ['FAIL', '7633'],
     'casenorm/mixed_formd_lookup_ci': ['FAIL', '7633'],
-    'casenorm/mixed_formd_delete': ['FAIL', '7633'],
-    'cli_root/zfs_receive/zfs_receive_004_neg': ['FAIL', known_reason],
     'cli_root/zfs_unshare/zfs_unshare_002_pos': ['SKIP', na_reason],
     'cli_root/zfs_unshare/zfs_unshare_006_pos': ['SKIP', na_reason],
-    'cli_root/zpool_create/zpool_create_016_pos': ['SKIP', na_reason],
     'cli_user/misc/zfs_share_001_neg': ['SKIP', na_reason],
     'cli_user/misc/zfs_unshare_001_neg': ['SKIP', na_reason],
-    'inuse/inuse_001_pos': ['SKIP', na_reason],
-    'inuse/inuse_003_pos': ['SKIP', na_reason],
-    'inuse/inuse_006_pos': ['SKIP', na_reason],
-    'inuse/inuse_007_pos': ['SKIP', na_reason],
     'privilege/setup': ['SKIP', na_reason],
     'refreserv/refreserv_004_pos': ['FAIL', known_reason],
-    'removal/removal_condense_export': ['SKIP', known_reason],
-    'removal/removal_with_zdb': ['SKIP', known_reason],
     'rootpool/setup': ['SKIP', na_reason],
     'rsend/rsend_008_pos': ['SKIP', '6066'],
-    'snapshot/rollback_003_pos': ['SKIP', '6143'],
     'vdev_zaps/vdev_zaps_007_pos': ['FAIL', known_reason],
-    'xattr/xattr_008_pos': ['SKIP', na_reason],
-    'xattr/xattr_009_neg': ['SKIP', na_reason],
-    'xattr/xattr_010_neg': ['SKIP', na_reason],
-    'zvol/zvol_misc/zvol_misc_001_neg': ['SKIP', na_reason],
-    'zvol/zvol_misc/zvol_misc_003_neg': ['SKIP', na_reason],
-    'zvol/zvol_misc/zvol_misc_004_pos': ['SKIP', na_reason],
-    'zvol/zvol_misc/zvol_misc_005_neg': ['SKIP', na_reason],
-    'zvol/zvol_misc/zvol_misc_006_pos': ['SKIP', na_reason],
-    'zvol/zvol_swap/zvol_swap_003_pos': ['SKIP', na_reason],
-    'zvol/zvol_swap/zvol_swap_005_pos': ['SKIP', na_reason],
-    'zvol/zvol_swap/zvol_swap_006_pos': ['SKIP', na_reason],
 }
+
+if sys.platform.startswith('freebsd'):
+    known.update({
+        'cli_root/zpool_wait/zpool_wait_trim_basic': ['SKIP', trim_reason],
+        'cli_root/zpool_wait/zpool_wait_trim_cancel': ['SKIP', trim_reason],
+        'cli_root/zpool_wait/zpool_wait_trim_flag': ['SKIP', trim_reason],
+        'link_count/link_count_001': ['SKIP', na_reason],
+    })
+elif sys.platform.startswith('linux'):
+    known.update({
+        'casenorm/mixed_formd_lookup': ['FAIL', '7633'],
+        'casenorm/mixed_formd_delete': ['FAIL', '7633'],
+        'casenorm/sensitive_formd_lookup': ['FAIL', '7633'],
+        'casenorm/sensitive_formd_delete': ['FAIL', '7633'],
+        'limits/filesystem_limit': ['FAIL', '8226'],
+        'limits/snapshot_limit': ['FAIL', '8226'],
+        'removal/removal_with_zdb': ['SKIP', known_reason],
+    })
+
 
 #
 # These tests may occasionally fail or be skipped.  We want there failures
@@ -217,45 +189,32 @@ known = {
 # reasons listed above can be used.
 #
 maybe = {
-    'cache/setup': ['SKIP', disk_reason],
+    'alloc_class/alloc_class_012_pos': ['FAIL', '9142'],
+    'alloc_class/alloc_class_013_pos': ['FAIL', '9142'],
     'cache/cache_010_neg': ['FAIL', known_reason],
     'chattr/setup': ['SKIP', exec_reason],
     'cli_root/zdb/zdb_006_pos': ['FAIL', known_reason],
     'cli_root/zfs_get/zfs_get_004_pos': ['FAIL', known_reason],
     'cli_root/zfs_get/zfs_get_009_pos': ['SKIP', '5479'],
-    'cli_root/zfs_rollback/zfs_rollback_001_pos': ['FAIL', '6415'],
-    'cli_root/zfs_rollback/zfs_rollback_002_pos': ['FAIL', '6416'],
     'cli_root/zfs_share/setup': ['SKIP', share_reason],
     'cli_root/zfs_snapshot/zfs_snapshot_002_neg': ['FAIL', known_reason],
     'cli_root/zfs_unshare/setup': ['SKIP', share_reason],
-    'cli_root/zpool_add/setup': ['SKIP', disk_reason],
     'cli_root/zpool_add/zpool_add_004_pos': ['FAIL', known_reason],
-    'cli_root/zpool_create/setup': ['SKIP', disk_reason],
-    'cli_root/zpool_create/zpool_create_008_pos': ['FAIL', known_reason],
     'cli_root/zpool_destroy/zpool_destroy_001_pos': ['SKIP', '6145'],
-    'cli_root/zpool_expand/setup': ['SKIP', udev_reason],
-    'cli_root/zpool_export/setup': ['SKIP', disk_reason],
-    'cli_root/zpool_import/setup': ['SKIP', disk_reason],
     'cli_root/zpool_import/import_rewind_device_replaced':
         ['FAIL', rewind_reason],
     'cli_root/zpool_import/import_rewind_config_changed':
         ['FAIL', rewind_reason],
     'cli_root/zpool_import/zpool_import_missing_003_pos': ['SKIP', '6839'],
-    'cli_root/zpool_remove/setup': ['SKIP', disk_reason],
     'cli_root/zpool_trim/setup': ['SKIP', trim_reason],
     'cli_root/zpool_upgrade/zpool_upgrade_004_pos': ['FAIL', '6141'],
     'cli_user/misc/arc_summary3_001_pos': ['SKIP', python_reason],
     'delegate/setup': ['SKIP', exec_reason],
-    'fault/auto_online_001_pos': ['SKIP', disk_reason],
-    'fault/auto_replace_001_pos': ['SKIP', disk_reason],
     'history/history_004_pos': ['FAIL', '7026'],
     'history/history_005_neg': ['FAIL', '6680'],
     'history/history_006_neg': ['FAIL', '5657'],
     'history/history_008_pos': ['FAIL', known_reason],
     'history/history_010_pos': ['SKIP', exec_reason],
-    'inuse/inuse_005_pos': ['SKIP', disk_reason],
-    'inuse/inuse_008_pos': ['SKIP', disk_reason],
-    'inuse/inuse_009_pos': ['SKIP', disk_reason],
     'io/mmap': ['SKIP', fio_reason],
     'largest_pool/largest_pool_001_pos': ['FAIL', known_reason],
     'pyzfs/pyzfs_unittest': ['SKIP', python_deps_reason],
@@ -280,9 +239,17 @@ maybe = {
     'user_namespace/setup': ['SKIP', user_ns_reason],
     'userquota/setup': ['SKIP', exec_reason],
     'vdev_zaps/vdev_zaps_004_pos': ['FAIL', '6935'],
-    'write_dirs/setup': ['SKIP', disk_reason],
     'zvol/zvol_ENOSPC/zvol_ENOSPC_001_pos': ['FAIL', '5848'],
 }
+
+if sys.platform.startswith('freebsd'):
+    maybe.update({
+        'cli_root/zfs_copies/zfs_copies_002_pos': ['FAIL', known_reason],
+        'cli_root/zpool_import/zpool_import_missing_003_pos':
+            ['FAIL', known_reason],
+        'delegate/zfs_allow_003_pos': ['FAIL', known_reason],
+        'resilver/resilver_restart_001': ['FAIL', known_reason],
+    })
 
 
 def usage(s):
@@ -299,7 +266,8 @@ def process_results(pathname):
 
     prefix = '/zfs-tests/tests/functional/'
     pattern = \
-        r'^Test:\s*\S*%s(\S+)\s*\(run as (\S+)\)\s*\[(\S+)\]\s*\[(\S+)\]' \
+        r'^Test(?:\s+\(\S+\))?:' + \
+        r'\s*\S*%s(\S+)\s*\(run as (\S+)\)\s*\[(\S+)\]\s*\[(\S+)\]' \
         % prefix
     pattern_log = r'^\s*Log directory:\s*(\S*)'
 
@@ -352,10 +320,10 @@ if __name__ == "__main__":
 
     print("\nTests with results other than PASS that are expected:")
     for test in sorted(expected):
-        issue_url = 'https://github.com/zfsonlinux/zfs/issues/'
+        issue_url = 'https://github.com/openzfs/zfs/issues/'
 
         # Include the reason why the result is expected, given the following:
-        # 1. Suppress test results which set the "N/A on Linux" reason.
+        # 1. Suppress test results which set the "Not applicable" reason.
         # 2. Numerical reasons are assumed to be GitHub issue numbers.
         # 3. When an entire test group is skipped only report the setup reason.
         if test in known:

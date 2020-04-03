@@ -30,6 +30,8 @@
 
 #include <sys/arc.h>
 #include <sys/zio_crypt.h>
+#include <sys/zthr.h>
+#include <sys/aggsum.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -39,7 +41,7 @@ extern "C" {
  * Note that buffers can be in one of 6 states:
  *	ARC_anon	- anonymous (discussed below)
  *	ARC_mru		- recently used, currently cached
- *	ARC_mru_ghost	- recentely used, no longer in cache
+ *	ARC_mru_ghost	- recently used, no longer in cache
  *	ARC_mfu		- frequently used, currently cached
  *	ARC_mfu_ghost	- frequently used, no longer in cache
  *	ARC_l2c_only	- exists in L2ARC but not other states
@@ -278,6 +280,343 @@ struct arc_buf_hdr {
 	 */
 	arc_buf_hdr_crypt_t b_crypt_hdr;
 };
+
+typedef struct arc_stats {
+	kstat_named_t arcstat_hits;
+	kstat_named_t arcstat_misses;
+	kstat_named_t arcstat_demand_data_hits;
+	kstat_named_t arcstat_demand_data_misses;
+	kstat_named_t arcstat_demand_metadata_hits;
+	kstat_named_t arcstat_demand_metadata_misses;
+	kstat_named_t arcstat_prefetch_data_hits;
+	kstat_named_t arcstat_prefetch_data_misses;
+	kstat_named_t arcstat_prefetch_metadata_hits;
+	kstat_named_t arcstat_prefetch_metadata_misses;
+	kstat_named_t arcstat_mru_hits;
+	kstat_named_t arcstat_mru_ghost_hits;
+	kstat_named_t arcstat_mfu_hits;
+	kstat_named_t arcstat_mfu_ghost_hits;
+	kstat_named_t arcstat_deleted;
+	/*
+	 * Number of buffers that could not be evicted because the hash lock
+	 * was held by another thread.  The lock may not necessarily be held
+	 * by something using the same buffer, since hash locks are shared
+	 * by multiple buffers.
+	 */
+	kstat_named_t arcstat_mutex_miss;
+	/*
+	 * Number of buffers skipped when updating the access state due to the
+	 * header having already been released after acquiring the hash lock.
+	 */
+	kstat_named_t arcstat_access_skip;
+	/*
+	 * Number of buffers skipped because they have I/O in progress, are
+	 * indirect prefetch buffers that have not lived long enough, or are
+	 * not from the spa we're trying to evict from.
+	 */
+	kstat_named_t arcstat_evict_skip;
+	/*
+	 * Number of times arc_evict_state() was unable to evict enough
+	 * buffers to reach its target amount.
+	 */
+	kstat_named_t arcstat_evict_not_enough;
+	kstat_named_t arcstat_evict_l2_cached;
+	kstat_named_t arcstat_evict_l2_eligible;
+	kstat_named_t arcstat_evict_l2_ineligible;
+	kstat_named_t arcstat_evict_l2_skip;
+	kstat_named_t arcstat_hash_elements;
+	kstat_named_t arcstat_hash_elements_max;
+	kstat_named_t arcstat_hash_collisions;
+	kstat_named_t arcstat_hash_chains;
+	kstat_named_t arcstat_hash_chain_max;
+	kstat_named_t arcstat_p;
+	kstat_named_t arcstat_c;
+	kstat_named_t arcstat_c_min;
+	kstat_named_t arcstat_c_max;
+	/* Not updated directly; only synced in arc_kstat_update. */
+	kstat_named_t arcstat_size;
+	/*
+	 * Number of compressed bytes stored in the arc_buf_hdr_t's b_pabd.
+	 * Note that the compressed bytes may match the uncompressed bytes
+	 * if the block is either not compressed or compressed arc is disabled.
+	 */
+	kstat_named_t arcstat_compressed_size;
+	/*
+	 * Uncompressed size of the data stored in b_pabd. If compressed
+	 * arc is disabled then this value will be identical to the stat
+	 * above.
+	 */
+	kstat_named_t arcstat_uncompressed_size;
+	/*
+	 * Number of bytes stored in all the arc_buf_t's. This is classified
+	 * as "overhead" since this data is typically short-lived and will
+	 * be evicted from the arc when it becomes unreferenced unless the
+	 * zfs_keep_uncompressed_metadata or zfs_keep_uncompressed_level
+	 * values have been set (see comment in dbuf.c for more information).
+	 */
+	kstat_named_t arcstat_overhead_size;
+	/*
+	 * Number of bytes consumed by internal ARC structures necessary
+	 * for tracking purposes; these structures are not actually
+	 * backed by ARC buffers. This includes arc_buf_hdr_t structures
+	 * (allocated via arc_buf_hdr_t_full and arc_buf_hdr_t_l2only
+	 * caches), and arc_buf_t structures (allocated via arc_buf_t
+	 * cache).
+	 * Not updated directly; only synced in arc_kstat_update.
+	 */
+	kstat_named_t arcstat_hdr_size;
+	/*
+	 * Number of bytes consumed by ARC buffers of type equal to
+	 * ARC_BUFC_DATA. This is generally consumed by buffers backing
+	 * on disk user data (e.g. plain file contents).
+	 * Not updated directly; only synced in arc_kstat_update.
+	 */
+	kstat_named_t arcstat_data_size;
+	/*
+	 * Number of bytes consumed by ARC buffers of type equal to
+	 * ARC_BUFC_METADATA. This is generally consumed by buffers
+	 * backing on disk data that is used for internal ZFS
+	 * structures (e.g. ZAP, dnode, indirect blocks, etc).
+	 * Not updated directly; only synced in arc_kstat_update.
+	 */
+	kstat_named_t arcstat_metadata_size;
+	/*
+	 * Number of bytes consumed by dmu_buf_impl_t objects.
+	 * Not updated directly; only synced in arc_kstat_update.
+	 */
+	kstat_named_t arcstat_dbuf_size;
+	/*
+	 * Number of bytes consumed by dnode_t objects.
+	 * Not updated directly; only synced in arc_kstat_update.
+	 */
+	kstat_named_t arcstat_dnode_size;
+	/*
+	 * Number of bytes consumed by bonus buffers.
+	 * Not updated directly; only synced in arc_kstat_update.
+	 */
+	kstat_named_t arcstat_bonus_size;
+	/*
+	 * Total number of bytes consumed by ARC buffers residing in the
+	 * arc_anon state. This includes *all* buffers in the arc_anon
+	 * state; e.g. data, metadata, evictable, and unevictable buffers
+	 * are all included in this value.
+	 * Not updated directly; only synced in arc_kstat_update.
+	 */
+	kstat_named_t arcstat_anon_size;
+	/*
+	 * Number of bytes consumed by ARC buffers that meet the
+	 * following criteria: backing buffers of type ARC_BUFC_DATA,
+	 * residing in the arc_anon state, and are eligible for eviction
+	 * (e.g. have no outstanding holds on the buffer).
+	 * Not updated directly; only synced in arc_kstat_update.
+	 */
+	kstat_named_t arcstat_anon_evictable_data;
+	/*
+	 * Number of bytes consumed by ARC buffers that meet the
+	 * following criteria: backing buffers of type ARC_BUFC_METADATA,
+	 * residing in the arc_anon state, and are eligible for eviction
+	 * (e.g. have no outstanding holds on the buffer).
+	 * Not updated directly; only synced in arc_kstat_update.
+	 */
+	kstat_named_t arcstat_anon_evictable_metadata;
+	/*
+	 * Total number of bytes consumed by ARC buffers residing in the
+	 * arc_mru state. This includes *all* buffers in the arc_mru
+	 * state; e.g. data, metadata, evictable, and unevictable buffers
+	 * are all included in this value.
+	 * Not updated directly; only synced in arc_kstat_update.
+	 */
+	kstat_named_t arcstat_mru_size;
+	/*
+	 * Number of bytes consumed by ARC buffers that meet the
+	 * following criteria: backing buffers of type ARC_BUFC_DATA,
+	 * residing in the arc_mru state, and are eligible for eviction
+	 * (e.g. have no outstanding holds on the buffer).
+	 * Not updated directly; only synced in arc_kstat_update.
+	 */
+	kstat_named_t arcstat_mru_evictable_data;
+	/*
+	 * Number of bytes consumed by ARC buffers that meet the
+	 * following criteria: backing buffers of type ARC_BUFC_METADATA,
+	 * residing in the arc_mru state, and are eligible for eviction
+	 * (e.g. have no outstanding holds on the buffer).
+	 * Not updated directly; only synced in arc_kstat_update.
+	 */
+	kstat_named_t arcstat_mru_evictable_metadata;
+	/*
+	 * Total number of bytes that *would have been* consumed by ARC
+	 * buffers in the arc_mru_ghost state. The key thing to note
+	 * here, is the fact that this size doesn't actually indicate
+	 * RAM consumption. The ghost lists only consist of headers and
+	 * don't actually have ARC buffers linked off of these headers.
+	 * Thus, *if* the headers had associated ARC buffers, these
+	 * buffers *would have* consumed this number of bytes.
+	 * Not updated directly; only synced in arc_kstat_update.
+	 */
+	kstat_named_t arcstat_mru_ghost_size;
+	/*
+	 * Number of bytes that *would have been* consumed by ARC
+	 * buffers that are eligible for eviction, of type
+	 * ARC_BUFC_DATA, and linked off the arc_mru_ghost state.
+	 * Not updated directly; only synced in arc_kstat_update.
+	 */
+	kstat_named_t arcstat_mru_ghost_evictable_data;
+	/*
+	 * Number of bytes that *would have been* consumed by ARC
+	 * buffers that are eligible for eviction, of type
+	 * ARC_BUFC_METADATA, and linked off the arc_mru_ghost state.
+	 * Not updated directly; only synced in arc_kstat_update.
+	 */
+	kstat_named_t arcstat_mru_ghost_evictable_metadata;
+	/*
+	 * Total number of bytes consumed by ARC buffers residing in the
+	 * arc_mfu state. This includes *all* buffers in the arc_mfu
+	 * state; e.g. data, metadata, evictable, and unevictable buffers
+	 * are all included in this value.
+	 * Not updated directly; only synced in arc_kstat_update.
+	 */
+	kstat_named_t arcstat_mfu_size;
+	/*
+	 * Number of bytes consumed by ARC buffers that are eligible for
+	 * eviction, of type ARC_BUFC_DATA, and reside in the arc_mfu
+	 * state.
+	 * Not updated directly; only synced in arc_kstat_update.
+	 */
+	kstat_named_t arcstat_mfu_evictable_data;
+	/*
+	 * Number of bytes consumed by ARC buffers that are eligible for
+	 * eviction, of type ARC_BUFC_METADATA, and reside in the
+	 * arc_mfu state.
+	 * Not updated directly; only synced in arc_kstat_update.
+	 */
+	kstat_named_t arcstat_mfu_evictable_metadata;
+	/*
+	 * Total number of bytes that *would have been* consumed by ARC
+	 * buffers in the arc_mfu_ghost state. See the comment above
+	 * arcstat_mru_ghost_size for more details.
+	 * Not updated directly; only synced in arc_kstat_update.
+	 */
+	kstat_named_t arcstat_mfu_ghost_size;
+	/*
+	 * Number of bytes that *would have been* consumed by ARC
+	 * buffers that are eligible for eviction, of type
+	 * ARC_BUFC_DATA, and linked off the arc_mfu_ghost state.
+	 * Not updated directly; only synced in arc_kstat_update.
+	 */
+	kstat_named_t arcstat_mfu_ghost_evictable_data;
+	/*
+	 * Number of bytes that *would have been* consumed by ARC
+	 * buffers that are eligible for eviction, of type
+	 * ARC_BUFC_METADATA, and linked off the arc_mru_ghost state.
+	 * Not updated directly; only synced in arc_kstat_update.
+	 */
+	kstat_named_t arcstat_mfu_ghost_evictable_metadata;
+	kstat_named_t arcstat_l2_hits;
+	kstat_named_t arcstat_l2_misses;
+	kstat_named_t arcstat_l2_feeds;
+	kstat_named_t arcstat_l2_rw_clash;
+	kstat_named_t arcstat_l2_read_bytes;
+	kstat_named_t arcstat_l2_write_bytes;
+	kstat_named_t arcstat_l2_writes_sent;
+	kstat_named_t arcstat_l2_writes_done;
+	kstat_named_t arcstat_l2_writes_error;
+	kstat_named_t arcstat_l2_writes_lock_retry;
+	kstat_named_t arcstat_l2_evict_lock_retry;
+	kstat_named_t arcstat_l2_evict_reading;
+	kstat_named_t arcstat_l2_evict_l1cached;
+	kstat_named_t arcstat_l2_free_on_write;
+	kstat_named_t arcstat_l2_abort_lowmem;
+	kstat_named_t arcstat_l2_cksum_bad;
+	kstat_named_t arcstat_l2_io_error;
+	kstat_named_t arcstat_l2_lsize;
+	kstat_named_t arcstat_l2_psize;
+	/* Not updated directly; only synced in arc_kstat_update. */
+	kstat_named_t arcstat_l2_hdr_size;
+	kstat_named_t arcstat_memory_throttle_count;
+	kstat_named_t arcstat_memory_direct_count;
+	kstat_named_t arcstat_memory_indirect_count;
+	kstat_named_t arcstat_memory_all_bytes;
+	kstat_named_t arcstat_memory_free_bytes;
+	kstat_named_t arcstat_memory_available_bytes;
+	kstat_named_t arcstat_no_grow;
+	kstat_named_t arcstat_tempreserve;
+	kstat_named_t arcstat_loaned_bytes;
+	kstat_named_t arcstat_prune;
+	/* Not updated directly; only synced in arc_kstat_update. */
+	kstat_named_t arcstat_meta_used;
+	kstat_named_t arcstat_meta_limit;
+	kstat_named_t arcstat_dnode_limit;
+	kstat_named_t arcstat_meta_max;
+	kstat_named_t arcstat_meta_min;
+	kstat_named_t arcstat_async_upgrade_sync;
+	kstat_named_t arcstat_demand_hit_predictive_prefetch;
+	kstat_named_t arcstat_demand_hit_prescient_prefetch;
+	kstat_named_t arcstat_need_free;
+	kstat_named_t arcstat_sys_free;
+	kstat_named_t arcstat_raw_size;
+	kstat_named_t arcstat_cached_only_in_progress;
+} arc_stats_t;
+
+typedef enum free_memory_reason_t {
+	FMR_UNKNOWN,
+	FMR_NEEDFREE,
+	FMR_LOTSFREE,
+	FMR_SWAPFS_MINFREE,
+	FMR_PAGES_PP_MAXIMUM,
+	FMR_HEAP_ARENA,
+	FMR_ZIO_ARENA,
+} free_memory_reason_t;
+
+#define	ARCSTAT(stat)	(arc_stats.stat.value.ui64)
+
+#define	ARCSTAT_INCR(stat, val) \
+	atomic_add_64(&arc_stats.stat.value.ui64, (val))
+
+#define	ARCSTAT_BUMP(stat)	ARCSTAT_INCR(stat, 1)
+#define	ARCSTAT_BUMPDOWN(stat)	ARCSTAT_INCR(stat, -1)
+
+#define	arc_no_grow	ARCSTAT(arcstat_no_grow) /* do not grow cache size */
+#define	arc_p		ARCSTAT(arcstat_p)	/* target size of MRU */
+#define	arc_c		ARCSTAT(arcstat_c)	/* target size of cache */
+#define	arc_c_min	ARCSTAT(arcstat_c_min)	/* min target cache size */
+#define	arc_c_max	ARCSTAT(arcstat_c_max)	/* max target cache size */
+#define	arc_sys_free	ARCSTAT(arcstat_sys_free) /* target system free bytes */
+#define	arc_need_free	ARCSTAT(arcstat_need_free) /* bytes to be freed */
+
+extern int arc_zio_arena_free_shift;
+extern taskq_t *arc_prune_taskq;
+extern arc_stats_t arc_stats;
+extern hrtime_t arc_growtime;
+extern boolean_t arc_warm;
+extern int arc_grow_retry;
+extern int arc_shrink_shift;
+extern zthr_t		*arc_adjust_zthr;
+extern kmutex_t		arc_adjust_lock;
+extern kcondvar_t	arc_adjust_waiters_cv;
+extern boolean_t	arc_adjust_needed;
+extern kmutex_t arc_prune_mtx;
+extern list_t arc_prune_list;
+extern aggsum_t arc_size;
+extern arc_state_t	*arc_mfu;
+extern arc_state_t	*arc_mru;
+extern uint_t zfs_arc_pc_percent;
+extern int arc_lotsfree_percent;
+
+extern void arc_reduce_target_size(int64_t to_free);
+extern boolean_t arc_reclaim_needed(void);
+extern void arc_kmem_reap_soon(void);
+
+extern void arc_lowmem_init(void);
+extern void arc_lowmem_fini(void);
+extern void arc_prune_async(int64_t);
+extern int arc_memory_throttle(spa_t *spa, uint64_t reserve, uint64_t txg);
+extern uint64_t arc_free_memory(void);
+extern int64_t arc_available_memory(void);
+extern void arc_tuning_update(void);
+
+extern int param_set_arc_long(const char *buf, zfs_kernel_param_t *kp);
+extern int param_set_arc_int(const char *buf, zfs_kernel_param_t *kp);
+
 #ifdef __cplusplus
 }
 #endif

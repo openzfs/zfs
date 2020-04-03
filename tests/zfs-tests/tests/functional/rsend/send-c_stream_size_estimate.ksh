@@ -12,10 +12,11 @@
 #
 
 #
-# Copyright (c) 2015 by Delphix. All rights reserved.
+# Copyright (c) 2015, Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/rsend/rsend.kshlib
+. $STF_SUITE/include/properties.shlib
 
 #
 # Description:
@@ -28,7 +29,6 @@
 #
 
 verify_runnable "both"
-typeset compress_types="off gzip lz4"
 typeset send_ds="$POOL2/testfs"
 typeset send_vol="$POOL2/vol"
 typeset send_voldev="$ZVOL_DEVDIR/$POOL2/vol"
@@ -40,7 +40,12 @@ function get_estimated_size
 {
 	typeset cmd=$1
 	typeset ds=${cmd##* }
-	typeset tmpfile=$(mktemp -p $BACKDIR)
+	if is_freebsd; then
+		mkdir -p $BACKDIR
+		typeset tmpfile=$(TMPDIR=$BACKDIR mktemp)
+	else
+		typeset tmpfile=$(mktemp -p $BACKDIR)
+	fi
 
 	eval "$cmd >$tmpfile"
 	[[ $? -eq 0 ]] || log_fail "get_estimated_size: $cmd"
@@ -55,7 +60,7 @@ log_onexit cleanup_pool $POOL2
 
 write_compressible $BACKDIR ${megs}m
 
-for compress in $compress_types; do
+for compress in "${compress_prop_vals[@]}"; do
 	datasetexists $send_ds && log_must_busy zfs destroy -r $send_ds
 	datasetexists $send_vol && log_must_busy zfs destroy -r $send_vol
 	log_must zfs create -o compress=$compress $send_ds
@@ -89,4 +94,4 @@ for compress in $compress_types; do
 	    "$vol_csize and $vol_refer differed by too much"
 done
 
-log_pass "The the stream size given by -P accounts for compressed send."
+log_pass "The stream size given by -P accounts for compressed send."

@@ -126,7 +126,8 @@ zhack_import(char *target, boolean_t readonly)
 	nvlist_t *props;
 	int error;
 
-	kernel_init(readonly ? FREAD : (FREAD | FWRITE));
+	kernel_init(readonly ? SPA_MODE_READ :
+	    (SPA_MODE_READ | SPA_MODE_WRITE));
 
 	dmu_objset_register_type(DMU_OST_ZFS, space_delta_cb);
 

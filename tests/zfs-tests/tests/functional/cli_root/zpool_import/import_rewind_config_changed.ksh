@@ -48,7 +48,7 @@ function custom_cleanup
 {
 	set_vdev_validate_skip 0
 	cleanup
-	log_must set_tunable64 zfs_vdev_min_ms_count 16
+	log_must set_tunable64 VDEV_MIN_MS_COUNT 16
 }
 
 log_onexit custom_cleanup
@@ -115,7 +115,7 @@ function test_common
 	# further than the time that we took the checkpoint.
 	#
 	# Note that, ideally we would want to take a checkpoint
-	# right after we recond the txg we plan to rewind to.
+	# right after we record the txg we plan to rewind to.
 	# But since we can't attach, detach or remove devices
 	# while having a checkpoint, we take it after the
 	# operation that changes the config.
@@ -201,14 +201,14 @@ function test_remove_vdev
 }
 
 # Record txg history
-is_linux && log_must set_tunable32 zfs_txg_history 100
+is_linux && log_must set_tunable32 TXG_HISTORY 100
 
 # Make the devices bigger to reduce chances of overwriting MOS metadata.
 increase_device_sizes $(( FILE_SIZE * 4 ))
 
 # Increase the number of metaslabs for small pools temporarily to
 # reduce the chance of reusing a metaslab that holds old MOS metadata.
-log_must set_tunable64 zfs_vdev_min_ms_count 150
+log_must set_tunable64 VDEV_MIN_MS_COUNT 150
 
 # Part of the rewind test is to see how it reacts to path changes
 typeset pathstochange="$VDEV0 $VDEV1 $VDEV2 $VDEV3"

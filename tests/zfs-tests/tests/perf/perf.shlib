@@ -23,6 +23,9 @@
 export PERF_RUNTIME_WEEKLY=$((30 * 60))
 export PERF_RUNTIME_NIGHTLY=$((10 * 60))
 
+# Default to JSON for fio output
+export PERF_FIO_FORMAT=${PERF_FIO_FORMAT:-'json'}
+
 # Default fs creation options
 export PERF_FS_OPTS=${PERF_FS_OPTS:-'-o recsize=8k -o compress=lz4' \
     ' -o checksum=sha256 -o redundant_metadata=most'}
@@ -106,6 +109,9 @@ function do_fio_run_impl
 	log_note "DIRECTORY: " $DIRECTORY
 
 	export RUNTIME=$PERF_RUNTIME
+	export RANDSEED=$PERF_RANDSEED
+	export COMPPERCENT=$PERF_COMPPERCENT
+	export COMPCHUNK=$PERF_COMPCHUNK
 	export FILESIZE=$((TOTAL_SIZE / threads))
 	export NUMJOBS=$threads
 	export SYNC_TYPE=$sync
@@ -136,11 +142,13 @@ function do_fio_run_impl
 	# Start the load
 	if [[ $NFS -eq 1 ]]; then
 		log_must ssh -t $NFS_USER@$NFS_CLIENT "
-			fio --output /tmp/fio.out /tmp/test.fio
+			fio --output-format=${PERF_FIO_FORMAT} \
+			    --output /tmp/fio.out /tmp/test.fio
 		"
 		log_must scp $NFS_USER@$NFS_CLIENT:/tmp/fio.out $outfile
 	else
-		log_must fio --output $outfile $FIO_SCRIPTS/$script
+		log_must fio --output-format=${PERF_FIO_FORMAT} \
+		    --output $outfile $FIO_SCRIPTS/$script
 	fi
 }
 
@@ -373,16 +381,41 @@ function get_directory
 	echo $directory
 }
 
+function get_min_arc_size
+{
+	typeset -l min_arc_size
+
+	if is_freebsd; then
+		min_arc_size=$(sysctl -n kstat.zfs.misc.arcstats.c_min)
+	elif is_illumos; then
+		min_arc_size=$(dtrace -qn 'BEGIN {
+		    printf("%u\n", `arc_stats.arcstat_c_min.value.ui64);
+		    exit(0);
+		}')
+	elif is_linux; then
+		min_arc_size=`awk '$1 == "c_min" { print $3 }' \
+		    /proc/spl/kstat/zfs/arcstats`
+	fi
+
+	[[ $? -eq 0 ]] || log_fail "get_min_arc_size failed"
+
+	echo $min_arc_size
+}
+
 function get_max_arc_size
 {
-	if is_linux; then
-		typeset -l max_arc_size=`awk '$1 == "c_max" { print $3 }' \
-		    /proc/spl/kstat/zfs/arcstats`
-	else
-		typeset -l max_arc_size=$(dtrace -qn 'BEGIN {
+	typeset -l max_arc_size
+
+	if is_freebsd; then
+		max_arc_size=$(sysctl -n kstat.zfs.misc.arcstats.c_max)
+	elif is_illumos; then
+		max_arc_size=$(dtrace -qn 'BEGIN {
 		    printf("%u\n", `arc_stats.arcstat_c_max.value.ui64);
 		    exit(0);
 		}')
+	elif is_linux; then
+		max_arc_size=`awk '$1 == "c_max" { print $3 }' \
+		    /proc/spl/kstat/zfs/arcstats`
 	fi
 
 	[[ $? -eq 0 ]] || log_fail "get_max_arc_size failed"
@@ -394,16 +427,16 @@ function get_max_dbuf_cache_size
 {
 	typeset -l max_dbuf_cache_size
 
-	if is_linux; then
-		max_dbuf_cache_size=$(get_tunable dbuf_cache_max_bytes)
-	else
+	if is_illumos; then
 		max_dbuf_cache_size=$(dtrace -qn 'BEGIN {
 		    printf("%u\n", `dbuf_cache_max_bytes);
 		    exit(0);
 		}')
-
-		[[ $? -eq 0 ]] || log_fail "get_max_dbuf_cache_size failed"
+	else
+		max_dbuf_cache_size=$(get_tunable DBUF_CACHE_MAX_BYTES)
 	fi
+
+	[[ $? -eq 0 ]] || log_fail "get_max_dbuf_cache_size failed"
 
 	echo $max_dbuf_cache_size
 }
@@ -506,14 +539,7 @@ function pool_to_lun_list
 	typeset ctd ctds devname lun
 	typeset lun_list=':'
 
-	if is_linux; then
-		ctds=$(zpool list -HLv $pool | \
-		    awk '/sd[a-z]*|loop[0-9]*|dm-[0-9]*/ {print $1}')
-
-		for ctd in $ctds; do
-			lun_list="$lun_list$ctd:"
-		done
-	else
+	if is_illumos; then
 		ctds=$(zpool list -v $pool |
 		    awk '/c[0-9]*t[0-9a-fA-F]*d[0-9]*/ {print $1}')
 
@@ -525,7 +551,18 @@ function pool_to_lun_list
 		# number to the list for comparison with dev_statname.
 		lun=$(sed 's/"//g' /etc/path_to_inst | grep \
 		    $devname | awk '{print $3$2}')
-		un_list="$lun_list$lun:"
+		lun_list="$lun_list$lun:"
+		done
+	elif is_freebsd; then
+		lun_list+=$(zpool list -HLv $pool | \
+		    awk '/a?da[0-9]+|md[0-9]+|mfid[0-9]+|nda[0-9]+|nvd[0-9]+|vtbd[0-9]+/
+		         { printf "%s:", $1 }')
+	elif is_linux; then
+		ctds=$(zpool list -HLv $pool | \
+		    awk '/sd[a-z]*|loop[0-9]*|dm-[0-9]*/ {print $1}')
+
+		for ctd in $ctds; do
+			lun_list="$lun_list$ctd:"
 		done
 	fi
 	echo $lun_list

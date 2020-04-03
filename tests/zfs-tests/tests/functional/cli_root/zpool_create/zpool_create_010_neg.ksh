@@ -48,24 +48,17 @@ verify_runnable "global"
 
 function cleanup
 {
-        poolexists $TOOSMALL && destroy_pool $TOOSMALL
-        poolexists $TESTPOOL1 && destroy_pool $TESTPOOL1
+	typeset pool
 
-        poolexists $TESTPOOL && destroy_pool $TESTPOOL
+	for pool in $TOOSMALL $TESTPOOL1 $TESTPOOL; do
+		poolexists $pool && destroy_pool $pool
+	done
 
-	[[ -d $TESTDIR ]] && rm -rf $TESTDIR
-
-	partition_disk $SIZE $disk 6
+	rm -rf $TESTDIR
 }
 log_onexit cleanup
 
-if [[ -n $DISK ]]; then
-        disk=$DISK
-else
-        disk=$DISK0
-fi
-
-create_pool $TESTPOOL $disk
+create_pool $TESTPOOL $DISK0
 log_must zfs create $TESTPOOL/$TESTFS
 log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
 

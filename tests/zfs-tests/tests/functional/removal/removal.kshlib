@@ -28,15 +28,13 @@ function wait_for_removal # pool
 	typeset pool=$1
 	typeset callback=$2
 
-	while is_pool_removing $pool; do
-		sleep 1
-	done
+	log_must zpool wait -t remove $pool
 
 	#
 	# The pool state changes before the TXG finishes syncing; wait for
 	# the removal to be completed on disk.
 	#
-	sync_pool
+	sync_pool $pool
 
 	log_must is_pool_removed $pool
 	return 0
@@ -62,7 +60,8 @@ function attempt_during_removal # pool disk callback [args]
 	typeset callback=$3
 
 	shift 3
-	set_tunable32 zfs_removal_suspend_progress 1
+	log_onexit_push set_tunable32 REMOVAL_SUSPEND_PROGRESS 0
+	set_tunable32 REMOVAL_SUSPEND_PROGRESS 1
 
 	log_must zpool remove $pool $disk
 
@@ -81,7 +80,8 @@ function attempt_during_removal # pool disk callback [args]
 	#
 	log_must is_pool_removing $pool
 
-	set_tunable32 zfs_removal_suspend_progress 0
+	set_tunable32 REMOVAL_SUSPEND_PROGRESS 0
+	log_onexit_pop
 
 	log_must wait_for_removal $pool
 	log_mustnot vdevs_in_pool $pool $disk
@@ -99,7 +99,7 @@ function random_write # file write_size
 {
 	typeset file=$1
 	typeset block_size=$2
-	typeset file_size=$(stat -c%s $file 2>/dev/null)
+	typeset file_size=$(stat_size $file 2>/dev/null)
 	typeset nblocks=$((file_size / block_size))
 
 	[[ -w $file ]] || return 1

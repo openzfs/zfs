@@ -42,15 +42,14 @@ verify_runnable "global"
 function cleanup
 {
 	poolexists $TESTPOOL1 && destroy_pool $TESTPOOL1
-	log_must rm -f $disk1
-	log_must rm -f $disk2
+	rm -f $disk1 $disk2
 }
 
 log_assert "zpool replace -o ashift=<n>' works with different ashift values"
 log_onexit cleanup
 
-disk1=$TEST_BASE_DIR/$FILEDISK0
-disk2=$TEST_BASE_DIR/$FILEDISK1
+disk1=$TEST_BASE_DIR/disk1
+disk2=$TEST_BASE_DIR/disk2
 log_must truncate -s $SIZE $disk1
 log_must truncate -s $SIZE $disk2
 

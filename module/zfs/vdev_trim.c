@@ -346,6 +346,9 @@ vdev_trim_change_state(vdev_t *vd, vdev_trim_state_t new_state,
 	}
 
 	dmu_tx_commit(tx);
+
+	if (new_state != VDEV_TRIM_ACTIVE)
+		spa_notify_waiters(spa);
 }
 
 /*
@@ -523,7 +526,8 @@ static int
 vdev_trim_ranges(trim_args_t *ta)
 {
 	vdev_t *vd = ta->trim_vdev;
-	avl_tree_t *rt = &ta->trim_tree->rt_root;
+	zfs_btree_t *t = &ta->trim_tree->rt_root;
+	zfs_btree_index_t idx;
 	uint64_t extent_bytes_max = ta->trim_extent_bytes_max;
 	uint64_t extent_bytes_min = ta->trim_extent_bytes_min;
 	spa_t *spa = vd->vdev_spa;
@@ -531,9 +535,10 @@ vdev_trim_ranges(trim_args_t *ta)
 	ta->trim_start_time = gethrtime();
 	ta->trim_bytes_done = 0;
 
-	for (range_seg_t *rs = avl_first(rt); rs != NULL;
-	    rs = AVL_NEXT(rt, rs)) {
-		uint64_t size = rs->rs_end - rs->rs_start;
+	for (range_seg_t *rs = zfs_btree_first(t, &idx); rs != NULL;
+	    rs = zfs_btree_next(t, &idx, &idx)) {
+		uint64_t size = rs_get_end(rs, ta->trim_tree) - rs_get_start(rs,
+		    ta->trim_tree);
 
 		if (extent_bytes_min && size < extent_bytes_min) {
 			spa_iostats_trim_add(spa, ta->trim_type,
@@ -548,9 +553,9 @@ vdev_trim_ranges(trim_args_t *ta)
 			int error;
 
 			error = vdev_trim_range(ta, VDEV_LABEL_START_SIZE +
-			    rs->rs_start + (w * extent_bytes_max),
-			    MIN(size - (w * extent_bytes_max),
-			    extent_bytes_max));
+			    rs_get_start(rs, ta->trim_tree) +
+			    (w *extent_bytes_max), MIN(size -
+			    (w * extent_bytes_max), extent_bytes_max));
 			if (error != 0) {
 				return (error);
 			}
@@ -588,7 +593,7 @@ vdev_trim_calculate_progress(vdev_t *vd)
 		 * on our vdev. We use this to determine if we are
 		 * in the middle of this metaslab range.
 		 */
-		range_seg_t logical_rs, physical_rs;
+		range_seg64_t logical_rs, physical_rs;
 		logical_rs.rs_start = msp->ms_start;
 		logical_rs.rs_end = msp->ms_start + msp->ms_size;
 		vdev_xlate(vd, &logical_rs, &physical_rs);
@@ -611,10 +616,13 @@ vdev_trim_calculate_progress(vdev_t *vd)
 		 */
 		VERIFY0(metaslab_load(msp));
 
-		for (range_seg_t *rs = avl_first(&msp->ms_allocatable->rt_root);
-		    rs; rs = AVL_NEXT(&msp->ms_allocatable->rt_root, rs)) {
-			logical_rs.rs_start = rs->rs_start;
-			logical_rs.rs_end = rs->rs_end;
+		range_tree_t *rt = msp->ms_allocatable;
+		zfs_btree_t *bt = &rt->rt_root;
+		zfs_btree_index_t idx;
+		for (range_seg_t *rs = zfs_btree_first(bt, &idx);
+		    rs != NULL; rs = zfs_btree_next(bt, &idx, &idx)) {
+			logical_rs.rs_start = rs_get_start(rs, rt);
+			logical_rs.rs_end = rs_get_end(rs, rt);
 			vdev_xlate(vd, &logical_rs, &physical_rs);
 
 			uint64_t size = physical_rs.rs_end -
@@ -706,7 +714,7 @@ vdev_trim_range_add(void *arg, uint64_t start, uint64_t size)
 {
 	trim_args_t *ta = arg;
 	vdev_t *vd = ta->trim_vdev;
-	range_seg_t logical_rs, physical_rs;
+	range_seg64_t logical_rs, physical_rs;
 	logical_rs.rs_start = start;
 	logical_rs.rs_end = start + size;
 
@@ -719,7 +727,7 @@ vdev_trim_range_add(void *arg, uint64_t start, uint64_t size)
 		metaslab_t *msp = ta->trim_msp;
 		VERIFY0(metaslab_load(msp));
 		VERIFY3B(msp->ms_loaded, ==, B_TRUE);
-		VERIFY(range_tree_find(msp->ms_allocatable, start, size));
+		VERIFY(range_tree_contains(msp->ms_allocatable, start, size));
 	}
 
 	ASSERT(vd->vdev_ops->vdev_op_leaf);
@@ -798,7 +806,7 @@ vdev_trim_thread(void *arg)
 	ta.trim_vdev = vd;
 	ta.trim_extent_bytes_max = zfs_trim_extent_bytes_max;
 	ta.trim_extent_bytes_min = zfs_trim_extent_bytes_min;
-	ta.trim_tree = range_tree_create(NULL, NULL);
+	ta.trim_tree = range_tree_create(NULL, RANGE_SEG64, NULL, 0, 0);
 	ta.trim_type = TRIM_TYPE_MANUAL;
 	ta.trim_flags = 0;
 
@@ -837,7 +845,7 @@ vdev_trim_thread(void *arg)
 		 */
 		if (msp->ms_sm == NULL && vd->vdev_trim_partial) {
 			mutex_exit(&msp->ms_lock);
-			metaslab_enable(msp, B_FALSE);
+			metaslab_enable(msp, B_FALSE, B_FALSE);
 			spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 			vdev_trim_calculate_progress(vd);
 			continue;
@@ -849,7 +857,7 @@ vdev_trim_thread(void *arg)
 		mutex_exit(&msp->ms_lock);
 
 		error = vdev_trim_ranges(&ta);
-		metaslab_enable(msp, B_TRUE);
+		metaslab_enable(msp, B_TRUE, B_FALSE);
 		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 
 		range_tree_vacate(ta.trim_tree, NULL, NULL);
@@ -1046,7 +1054,7 @@ vdev_trim_restart(vdev_t *vd)
 		    vd->vdev_leaf_zap, VDEV_LEAF_ZAP_TRIM_ACTION_TIME,
 		    sizeof (timestamp), 1, &timestamp);
 		ASSERT(err == 0 || err == ENOENT);
-		vd->vdev_trim_action_time = (time_t)timestamp;
+		vd->vdev_trim_action_time = timestamp;
 
 		if (vd->vdev_trim_state == VDEV_TRIM_SUSPENDED ||
 		    vd->vdev_offline) {
@@ -1080,7 +1088,7 @@ vdev_trim_range_verify(void *arg, uint64_t start, uint64_t size)
 
 	VERIFY3B(msp->ms_loaded, ==, B_TRUE);
 	VERIFY3U(msp->ms_disabled, >, 0);
-	VERIFY(range_tree_find(msp->ms_allocatable, start, size) != NULL);
+	VERIFY(range_tree_contains(msp->ms_allocatable, start, size));
 }
 
 /*
@@ -1154,7 +1162,7 @@ vdev_autotrim_thread(void *arg)
 			if (msp->ms_sm == NULL ||
 			    range_tree_is_empty(msp->ms_trim)) {
 				mutex_exit(&msp->ms_lock);
-				metaslab_enable(msp, B_FALSE);
+				metaslab_enable(msp, B_FALSE, B_FALSE);
 				continue;
 			}
 
@@ -1170,7 +1178,7 @@ vdev_autotrim_thread(void *arg)
 			 */
 			if (msp->ms_disabled > 1) {
 				mutex_exit(&msp->ms_lock);
-				metaslab_enable(msp, B_FALSE);
+				metaslab_enable(msp, B_FALSE, B_FALSE);
 				continue;
 			}
 
@@ -1178,7 +1186,8 @@ vdev_autotrim_thread(void *arg)
 			 * Allocate an empty range tree which is swapped in
 			 * for the existing ms_trim tree while it is processed.
 			 */
-			trim_tree = range_tree_create(NULL, NULL);
+			trim_tree = range_tree_create(NULL, RANGE_SEG64, NULL,
+			    0, 0);
 			range_tree_swap(&msp->ms_trim, &trim_tree);
 			ASSERT(range_tree_is_empty(msp->ms_trim));
 
@@ -1232,7 +1241,8 @@ vdev_autotrim_thread(void *arg)
 				if (!cvd->vdev_ops->vdev_op_leaf)
 					continue;
 
-				ta->trim_tree = range_tree_create(NULL, NULL);
+				ta->trim_tree = range_tree_create(NULL,
+				    RANGE_SEG64, NULL, 0, 0);
 				range_tree_walk(trim_tree,
 				    vdev_trim_range_add, ta);
 			}
@@ -1288,7 +1298,7 @@ vdev_autotrim_thread(void *arg)
 			range_tree_vacate(trim_tree, NULL, NULL);
 			range_tree_destroy(trim_tree);
 
-			metaslab_enable(msp, issued_trim);
+			metaslab_enable(msp, issued_trim, B_FALSE);
 			spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 
 			for (uint64_t c = 0; c < children; c++) {
@@ -1425,7 +1435,6 @@ vdev_autotrim_restart(spa_t *spa)
 		vdev_autotrim(spa);
 }
 
-#if defined(_KERNEL)
 EXPORT_SYMBOL(vdev_trim);
 EXPORT_SYMBOL(vdev_trim_stop);
 EXPORT_SYMBOL(vdev_trim_stop_all);
@@ -1437,24 +1446,18 @@ EXPORT_SYMBOL(vdev_autotrim_stop_wait);
 EXPORT_SYMBOL(vdev_autotrim_restart);
 
 /* BEGIN CSTYLED */
-module_param(zfs_trim_extent_bytes_max, uint, 0644);
-MODULE_PARM_DESC(zfs_trim_extent_bytes_max,
+ZFS_MODULE_PARAM(zfs_trim, zfs_trim_, extent_bytes_max, UINT, ZMOD_RW,
     "Max size of TRIM commands, larger will be split");
 
-module_param(zfs_trim_extent_bytes_min, uint, 0644);
-MODULE_PARM_DESC(zfs_trim_extent_bytes_min,
+ZFS_MODULE_PARAM(zfs_trim, zfs_trim_, extent_bytes_min, UINT, ZMOD_RW,
     "Min size of TRIM commands, smaller will be skipped");
 
-module_param(zfs_trim_metaslab_skip, uint, 0644);
-MODULE_PARM_DESC(zfs_trim_metaslab_skip,
+ZFS_MODULE_PARAM(zfs_trim, zfs_trim_, metaslab_skip, UINT, ZMOD_RW,
     "Skip metaslabs which have never been initialized");
 
-module_param(zfs_trim_txg_batch, uint, 0644);
-MODULE_PARM_DESC(zfs_trim_txg_batch,
+ZFS_MODULE_PARAM(zfs_trim, zfs_trim_, txg_batch, UINT, ZMOD_RW,
     "Min number of txgs to aggregate frees before issuing TRIM");
 
-module_param(zfs_trim_queue_limit, uint, 0644);
-MODULE_PARM_DESC(zfs_trim_queue_limit,
+ZFS_MODULE_PARAM(zfs_trim, zfs_trim_, queue_limit, UINT, ZMOD_RW,
     "Max queued TRIMs outstanding per leaf vdev");
 /* END CSTYLED */
-#endif

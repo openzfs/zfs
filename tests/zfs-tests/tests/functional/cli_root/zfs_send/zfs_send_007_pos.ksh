@@ -89,7 +89,7 @@ test_pool ()
 }
 
 test_pool $TESTPOOL
-log_must truncate --size=1G $vdev
+log_must truncate -s 1G $vdev
 log_must zpool create -o version=1 tmp_pool $vdev
 test_pool tmp_pool
 log_must zpool destroy tmp_pool

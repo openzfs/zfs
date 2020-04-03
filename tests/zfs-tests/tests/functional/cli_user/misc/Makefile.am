@@ -46,7 +46,7 @@ dist_pkgdata_SCRIPTS = \
 	arcstat_001_pos.ksh \
 	arc_summary_001_pos.ksh \
 	arc_summary_002_neg.ksh \
-	dbufstat_001_pos.ksh
+	zpool_wait_privilege.ksh
 
 dist_pkgdata_DATA = \
 	misc.cfg

@@ -25,6 +25,7 @@
  * Copyright (c) 2017 Datto Inc.
  * Copyright 2017 RackTop Systems.
  * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+ * Copyright (c) 2019, 2020 by Christian Schwarz. All rights reserved.
  */
 
 /*
@@ -52,7 +53,7 @@
  *
  *  - Thin Layer.  libzfs_core is a thin layer, marshaling arguments
  *  to/from the kernel ioctls.  There is generally a 1:1 correspondence
- *  between libzfs_core functions and ioctls to /dev/zfs.
+ *  between libzfs_core functions and ioctls to ZFS_DEV.
  *
  *  - Clear Atomicity.  Because libzfs_core functions are generally 1:1
  *  with kernel ioctls, and kernel ioctls are general atomic, each
@@ -84,6 +85,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
+#include <libzutil.h>
 #include <sys/nvpair.h>
 #include <sys/param.h>
 #include <sys/types.h>
@@ -135,7 +137,7 @@ libzfs_core_init(void)
 {
 	(void) pthread_mutex_lock(&g_lock);
 	if (g_refcount == 0) {
-		g_fd = open("/dev/zfs", O_RDWR);
+		g_fd = open(ZFS_DEV, O_RDWR);
 		if (g_fd < 0) {
 			(void) pthread_mutex_unlock(&g_lock);
 			return (errno);
@@ -208,7 +210,7 @@ lzc_ioctl(zfs_ioc_t ioc, const char *name,
 		}
 	}
 
-	while (ioctl(g_fd, ioc, &zc) != 0) {
+	while (zfs_ioctl_fd(g_fd, ioc, &zc) != 0) {
 		/*
 		 * If ioctl exited with ENOMEM, we retry the ioctl after
 		 * increasing the size of the destination nvlist.
@@ -297,23 +299,13 @@ lzc_promote(const char *fsname, char *snapnamebuf, int snapnamelen)
 	VERIFY3S(g_fd, !=, -1);
 
 	(void) strlcpy(zc.zc_name, fsname, sizeof (zc.zc_name));
-	if (ioctl(g_fd, ZFS_IOC_PROMOTE, &zc) != 0) {
+	if (zfs_ioctl_fd(g_fd, ZFS_IOC_PROMOTE, &zc) != 0) {
 		int error = errno;
 		if (error == EEXIST && snapnamebuf != NULL)
 			(void) strlcpy(snapnamebuf, zc.zc_string, snapnamelen);
 		return (error);
 	}
 	return (0);
-}
-
-int
-lzc_remap(const char *fsname)
-{
-	int error;
-	nvlist_t *args = fnvlist_alloc();
-	error = lzc_ioctl(ZFS_IOC_REMAP, fsname, args, NULL);
-	nvlist_free(args);
-	return (error);
 }
 
 int
@@ -325,7 +317,7 @@ lzc_rename(const char *source, const char *target)
 	VERIFY3S(g_fd, !=, -1);
 	(void) strlcpy(zc.zc_name, source, sizeof (zc.zc_name));
 	(void) strlcpy(zc.zc_value, target, sizeof (zc.zc_value));
-	error = ioctl(g_fd, ZFS_IOC_RENAME, &zc);
+	error = zfs_ioctl_fd(g_fd, ZFS_IOC_RENAME, &zc);
 	if (error != 0)
 		error = errno;
 	return (error);
@@ -475,7 +467,7 @@ lzc_exists(const char *dataset)
 	VERIFY3S(g_fd, !=, -1);
 
 	(void) strlcpy(zc.zc_name, dataset, sizeof (zc.zc_name));
-	return (ioctl(g_fd, ZFS_IOC_OBJSET_STATS, &zc) == 0);
+	return (zfs_ioctl_fd(g_fd, ZFS_IOC_OBJSET_STATS, &zc) == 0);
 }
 
 /*
@@ -499,7 +491,7 @@ lzc_sync(const char *pool_name, nvlist_t *innvl, nvlist_t **outnvl)
  * The snapshots must all be in the same pool.
  * The value is the name of the hold (string type).
  *
- * If cleanup_fd is not -1, it must be the result of open("/dev/zfs", O_EXCL).
+ * If cleanup_fd is not -1, it must be the result of open(ZFS_DEV, O_EXCL).
  * In this case, when the cleanup_fd is closed (including on process
  * termination), the holds will be released.  If the system is shut down
  * uncleanly, the holds will be released when the pool is next opened
@@ -632,12 +624,42 @@ int
 lzc_send(const char *snapname, const char *from, int fd,
     enum lzc_send_flags flags)
 {
-	return (lzc_send_resume(snapname, from, fd, flags, 0, 0));
+	return (lzc_send_resume_redacted(snapname, from, fd, flags, 0, 0,
+	    NULL));
+}
+
+int
+lzc_send_redacted(const char *snapname, const char *from, int fd,
+    enum lzc_send_flags flags, const char *redactbook)
+{
+	return (lzc_send_resume_redacted(snapname, from, fd, flags, 0, 0,
+	    redactbook));
 }
 
 int
 lzc_send_resume(const char *snapname, const char *from, int fd,
     enum lzc_send_flags flags, uint64_t resumeobj, uint64_t resumeoff)
+{
+	return (lzc_send_resume_redacted(snapname, from, fd, flags, resumeobj,
+	    resumeoff, NULL));
+}
+
+/*
+ * snapname: The name of the "tosnap", or the snapshot whose contents we are
+ * sending.
+ * from: The name of the "fromsnap", or the incremental source.
+ * fd: File descriptor to write the stream to.
+ * flags: flags that determine features to be used by the stream.
+ * resumeobj: Object to resume from, for resuming send
+ * resumeoff: Offset to resume from, for resuming send.
+ * redactnv: nvlist of string -> boolean(ignored) containing the names of all
+ * the snapshots that we should redact with respect to.
+ * redactbook: Name of the redaction bookmark to create.
+ */
+int
+lzc_send_resume_redacted(const char *snapname, const char *from, int fd,
+    enum lzc_send_flags flags, uint64_t resumeobj, uint64_t resumeoff,
+    const char *redactbook)
 {
 	nvlist_t *args;
 	int err;
@@ -654,10 +676,15 @@ lzc_send_resume(const char *snapname, const char *from, int fd,
 		fnvlist_add_boolean(args, "compressok");
 	if (flags & LZC_SEND_FLAG_RAW)
 		fnvlist_add_boolean(args, "rawok");
+	if (flags & LZC_SEND_FLAG_SAVED)
+		fnvlist_add_boolean(args, "savedok");
 	if (resumeobj != 0 || resumeoff != 0) {
 		fnvlist_add_uint64(args, "resume_object", resumeobj);
 		fnvlist_add_uint64(args, "resume_offset", resumeoff);
 	}
+	if (redactbook != NULL)
+		fnvlist_add_string(args, "redactbook", redactbook);
+
 	err = lzc_ioctl(ZFS_IOC_SEND_NEW, snapname, args, NULL);
 	nvlist_free(args);
 	return (err);
@@ -676,11 +703,13 @@ lzc_send_resume(const char *snapname, const char *from, int fd,
  * are traversed, looking for blocks with a birth time since the creation TXG of
  * the snapshot this bookmark was created from.  This will result in
  * significantly more I/O and be less efficient than a send space estimation on
- * an equivalent snapshot.
+ * an equivalent snapshot. This process is also used if redact_snaps is
+ * non-null.
  */
 int
-lzc_send_space(const char *snapname, const char *from,
-    enum lzc_send_flags flags, uint64_t *spacep)
+lzc_send_space_resume_redacted(const char *snapname, const char *from,
+    enum lzc_send_flags flags, uint64_t resumeobj, uint64_t resumeoff,
+    uint64_t resume_bytes, const char *redactbook, int fd, uint64_t *spacep)
 {
 	nvlist_t *args;
 	nvlist_t *result;
@@ -697,12 +726,30 @@ lzc_send_space(const char *snapname, const char *from,
 		fnvlist_add_boolean(args, "compressok");
 	if (flags & LZC_SEND_FLAG_RAW)
 		fnvlist_add_boolean(args, "rawok");
+	if (resumeobj != 0 || resumeoff != 0) {
+		fnvlist_add_uint64(args, "resume_object", resumeobj);
+		fnvlist_add_uint64(args, "resume_offset", resumeoff);
+		fnvlist_add_uint64(args, "bytes", resume_bytes);
+	}
+	if (redactbook != NULL)
+		fnvlist_add_string(args, "redactbook", redactbook);
+	if (fd != -1)
+		fnvlist_add_int32(args, "fd", fd);
+
 	err = lzc_ioctl(ZFS_IOC_SEND_SPACE, snapname, args, &result);
 	nvlist_free(args);
 	if (err == 0)
 		*spacep = fnvlist_lookup_uint64(result, "space");
 	nvlist_free(result);
 	return (err);
+}
+
+int
+lzc_send_space(const char *snapname, const char *from,
+    enum lzc_send_flags flags, uint64_t *spacep)
+{
+	return (lzc_send_space_resume_redacted(snapname, from, flags, 0, 0, 0,
+	    NULL, -1, spacep));
 }
 
 static int
@@ -744,6 +791,7 @@ recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
 	char fsname[MAXPATHLEN];
 	char *atp;
 	int error;
+	boolean_t payload = B_FALSE;
 
 	ASSERT3S(g_refcount, >, 0);
 	VERIFY3S(g_fd, !=, -1);
@@ -774,13 +822,13 @@ recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
 			return (error);
 	} else {
 		drr = *begin_record;
+		payload = (begin_record->drr_payloadlen != 0);
 	}
 
 	/*
-	 * Raw receives, resumable receives, and receives that include a
-	 * wrapping key all use the new interface.
+	 * All receives with a payload should use the new interface.
 	 */
-	if (resumable || raw || wkeydata != NULL) {
+	if (resumable || raw || wkeydata != NULL || payload) {
 		nvlist_t *outnvl = NULL;
 		nvlist_t *innvl = fnvlist_alloc();
 
@@ -893,7 +941,7 @@ recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
 		zc.zc_nvlist_dst = (uint64_t)(uintptr_t)
 		    malloc(zc.zc_nvlist_dst_size);
 
-		error = ioctl(g_fd, ZFS_IOC_RECV, &zc);
+		error = zfs_ioctl_fd(g_fd, ZFS_IOC_RECV, &zc);
 		if (error != 0) {
 			error = errno;
 		} else {
@@ -1080,11 +1128,13 @@ lzc_rollback_to(const char *fsname, const char *snapname)
 }
 
 /*
- * Creates bookmarks.
+ * Creates new bookmarks from existing snapshot or bookmark.
  *
- * The bookmarks nvlist maps from name of the bookmark (e.g. "pool/fs#bmark") to
- * the name of the snapshot (e.g. "pool/fs@snap").  All the bookmarks and
- * snapshots must be in the same pool.
+ * The bookmarks nvlist maps from the full name of the new bookmark to
+ * the full name of the source snapshot or bookmark.
+ * All the bookmarks and snapshots must be in the same pool.
+ * The new bookmarks names must be unique.
+ * => see function dsl_bookmark_create_nvl_validate
  *
  * The returned results nvlist will have an entry for each bookmark that failed.
  * The value will be the (int32) error code.
@@ -1099,7 +1149,7 @@ lzc_bookmark(nvlist_t *bookmarks, nvlist_t **errlist)
 	int error;
 	char pool[ZFS_MAX_DATASET_NAME_LEN];
 
-	/* determine the pool name */
+	/* determine pool name from first bookmark */
 	elem = nvlist_next_nvpair(bookmarks, NULL);
 	if (elem == NULL)
 		return (0);
@@ -1118,18 +1168,32 @@ lzc_bookmark(nvlist_t *bookmarks, nvlist_t **errlist)
  * parameter is an nvlist of property names (with no values) that will be
  * returned for each bookmark.
  *
- * The following are valid properties on bookmarks, all of which are numbers
- * (represented as uint64 in the nvlist)
+ * The following are valid properties on bookmarks, most of which are numbers
+ * (represented as uint64 in the nvlist), except redact_snaps, which is a
+ * uint64 array, and redact_complete, which is a boolean
  *
  * "guid" - globally unique identifier of the snapshot it refers to
  * "createtxg" - txg when the snapshot it refers to was created
  * "creation" - timestamp when the snapshot it refers to was created
  * "ivsetguid" - IVset guid for identifying encrypted snapshots
+ * "redact_snaps" - list of guids of the redaction snapshots for the specified
+ *     bookmark.  If the bookmark is not a redaction bookmark, the nvlist will
+ *     not contain an entry for this value.  If it is redacted with respect to
+ *     no snapshots, it will contain value -> NULL uint64 array
+ * "redact_complete" - boolean value; true if the redaction bookmark is
+ *     complete, false otherwise.
  *
  * The format of the returned nvlist as follows:
  * <short name of bookmark> -> {
  *     <name of property> -> {
  *         "value" -> uint64
+ *     }
+ *     ...
+ *     "redact_snaps" -> {
+ *         "value" -> uint64 array
+ *     }
+ *     "redact_complete" -> {
+ *         "value" -> boolean value
  *     }
  *  }
  */
@@ -1137,6 +1201,33 @@ int
 lzc_get_bookmarks(const char *fsname, nvlist_t *props, nvlist_t **bmarks)
 {
 	return (lzc_ioctl(ZFS_IOC_GET_BOOKMARKS, fsname, props, bmarks));
+}
+
+/*
+ * Get bookmark properties.
+ *
+ * Given a bookmark's full name, retrieve all properties for the bookmark.
+ *
+ * The format of the returned property list is as follows:
+ * {
+ *     <name of property> -> {
+ *         "value" -> uint64
+ *     }
+ *     ...
+ *     "redact_snaps" -> {
+ *         "value" -> uint64 array
+ * }
+ */
+int
+lzc_get_bookmark_props(const char *bookmark, nvlist_t **props)
+{
+	int error;
+
+	nvlist_t *innvl = fnvlist_alloc();
+	error = lzc_ioctl(ZFS_IOC_GET_BOOKMARK_PROPS, bookmark, innvl, props);
+	fnvlist_free(innvl);
+
+	return (error);
 }
 
 /*
@@ -1476,6 +1567,77 @@ lzc_trim(const char *poolname, pool_trim_func_t cmd_type, uint64_t rate,
 	error = lzc_ioctl(ZFS_IOC_POOL_TRIM, poolname, args, errlist);
 
 	fnvlist_free(args);
+
+	return (error);
+}
+
+/*
+ * Create a redaction bookmark named bookname by redacting snapshot with respect
+ * to all the snapshots in snapnv.
+ */
+int
+lzc_redact(const char *snapshot, const char *bookname, nvlist_t *snapnv)
+{
+	nvlist_t *args = fnvlist_alloc();
+	fnvlist_add_string(args, "bookname", bookname);
+	fnvlist_add_nvlist(args, "snapnv", snapnv);
+	int error = lzc_ioctl(ZFS_IOC_REDACT, snapshot, args, NULL);
+	fnvlist_free(args);
+	return (error);
+}
+
+static int
+wait_common(const char *pool, zpool_wait_activity_t activity, boolean_t use_tag,
+    uint64_t tag, boolean_t *waited)
+{
+	nvlist_t *args = fnvlist_alloc();
+	nvlist_t *result = NULL;
+
+	fnvlist_add_int32(args, ZPOOL_WAIT_ACTIVITY, activity);
+	if (use_tag)
+		fnvlist_add_uint64(args, ZPOOL_WAIT_TAG, tag);
+
+	int error = lzc_ioctl(ZFS_IOC_WAIT, pool, args, &result);
+
+	if (error == 0 && waited != NULL)
+		*waited = fnvlist_lookup_boolean_value(result,
+		    ZPOOL_WAIT_WAITED);
+
+	fnvlist_free(args);
+	fnvlist_free(result);
+
+	return (error);
+}
+
+int
+lzc_wait(const char *pool, zpool_wait_activity_t activity, boolean_t *waited)
+{
+	return (wait_common(pool, activity, B_FALSE, 0, waited));
+}
+
+int
+lzc_wait_tag(const char *pool, zpool_wait_activity_t activity, uint64_t tag,
+    boolean_t *waited)
+{
+	return (wait_common(pool, activity, B_TRUE, tag, waited));
+}
+
+int
+lzc_wait_fs(const char *fs, zfs_wait_activity_t activity, boolean_t *waited)
+{
+	nvlist_t *args = fnvlist_alloc();
+	nvlist_t *result = NULL;
+
+	fnvlist_add_int32(args, ZFS_WAIT_ACTIVITY, activity);
+
+	int error = lzc_ioctl(ZFS_IOC_WAIT_FS, fs, args, &result);
+
+	if (error == 0 && waited != NULL)
+		*waited = fnvlist_lookup_boolean_value(result,
+		    ZFS_WAIT_WAITED);
+
+	fnvlist_free(args);
+	fnvlist_free(result);
 
 	return (error);
 }

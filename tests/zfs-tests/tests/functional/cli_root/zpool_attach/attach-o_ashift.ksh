@@ -42,15 +42,14 @@ verify_runnable "global"
 function cleanup
 {
 	poolexists $TESTPOOL1 && destroy_pool $TESTPOOL1
-	log_must rm -f $disk1
-	log_must rm -f $disk2
+	rm -f $disk1 $disk2
 }
 
 log_assert "zpool attach -o ashift=<n>' works with different ashift values"
 log_onexit cleanup
 
-disk1=$TEST_BASE_DIR/$FILEDISK0
-disk2=$TEST_BASE_DIR/$FILEDISK1
+disk1=$TEST_BASE_DIR/disk1
+disk2=$TEST_BASE_DIR/disk2
 log_must truncate -s $SIZE $disk1
 log_must truncate -s $SIZE $disk2
 
@@ -92,7 +91,7 @@ typeset badvals=("off" "on" "1" "8" "17" "1b" "ff" "-")
 for badval in ${badvals[@]}
 do
 	log_must zpool create $TESTPOOL1 $disk1
-	log_mustnot zpool attach $TESTPOOL1 -o ashift=$badval $disk1 $disk2
+	log_mustnot zpool attach -o ashift=$badval $TESTPOOL1 $disk1 $disk2
 	log_must zpool destroy $TESTPOOL1
 	log_must zpool labelclear $disk1
 	log_mustnot zpool labelclear $disk2

@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 #
 # Print out ZFS ARC Statistics exported via kstat(1)
 # For a definition of fields, or usage, use arctstat.pl -v
@@ -51,8 +51,8 @@ import getopt
 import re
 import copy
 
-from decimal import Decimal
 from signal import signal, SIGINT, SIGWINCH, SIG_DFL
+
 
 cols = {
     # HDR:        [Size, Scale, Description]
@@ -118,6 +118,48 @@ out = None
 kstat = None
 
 
+if sys.platform.startswith('freebsd'):
+    # Requires py27-sysctl on FreeBSD
+    import sysctl
+
+    def kstat_update():
+        global kstat
+
+        k = sysctl.filter('kstat.zfs.misc.arcstats')
+
+        if not k:
+            sys.exit(1)
+
+        kstat = {}
+
+        for s in k:
+            if not s:
+                continue
+
+            name, value = s.name, s.value
+            # Trims 'kstat.zfs.misc.arcstats' from the name
+            kstat[name[24:]] = int(value)
+
+elif sys.platform.startswith('linux'):
+    def kstat_update():
+        global kstat
+
+        k = [line.strip() for line in open('/proc/spl/kstat/zfs/arcstats')]
+
+        if not k:
+            sys.exit(1)
+
+        del k[0:2]
+        kstat = {}
+
+        for s in k:
+            if not s:
+                continue
+
+            name, unused, value = s.split()
+            kstat[name] = int(value)
+
+
 def detailed_usage():
     sys.stderr.write("%s\n" % cmd)
     sys.stderr.write("Field definitions are as follows:\n")
@@ -146,25 +188,6 @@ def usage():
     sys.stderr.write("\n")
 
     sys.exit(1)
-
-
-def kstat_update():
-    global kstat
-
-    k = [line.strip() for line in open('/proc/spl/kstat/zfs/arcstats')]
-
-    if not k:
-        sys.exit(1)
-
-    del k[0:2]
-    kstat = {}
-
-    for s in k:
-        if not s:
-            continue
-
-        name, unused, value = s.split()
-        kstat[name] = Decimal(value)
 
 
 def snap_stats():
@@ -311,16 +334,8 @@ def init():
         i += 1
 
     argv = sys.argv[i:]
-    sint = Decimal(argv[0]) if argv else sint
-    count = int(argv[1]) if len(argv) > 1 else count
-
-    if len(argv) > 1:
-        sint = Decimal(argv[0])
-        count = int(argv[1])
-
-    elif len(argv) > 0:
-        sint = Decimal(argv[0])
-        count = 0
+    sint = int(argv[0]) if argv else sint
+    count = int(argv[1]) if len(argv) > 1 else (0 if len(argv) > 0 else 1)
 
     if hflag or (xflag and desired_cols):
         usage()

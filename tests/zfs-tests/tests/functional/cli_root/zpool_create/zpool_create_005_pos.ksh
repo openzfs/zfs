@@ -46,12 +46,8 @@ verify_runnable "global"
 
 function cleanup
 {
-	poolexists $TESTPOOL && \
-		log_must zpool destroy -f $TESTPOOL
-
-	for dir in $TESTDIR $TESTDIR1; do
-		[[ -d $dir ]] && rm -rf $dir
-	done
+	poolexists $TESTPOOL && destroy_pool $TESTPOOL
+	rm -rf $TESTDIR $TESTDIR1
 }
 
 log_assert "'zpool create [-R root][-m mountpoint] <pool> <vdev> ...' can create" \
@@ -64,13 +60,11 @@ set -A pooltype "" "mirror" "raidz" "raidz1" "raidz2"
 # cleanup the pools created in previous case if zpool_create_004_pos timedout
 #
 for pool in $TESTPOOL2 $TESTPOOL1 $TESTPOOL; do
-	if poolexists $pool; then
-		destroy_pool $pool
-	fi
+	poolexists $pool && destroy_pool $pool
 done
 
 #prepare raw file for file disk
-[[ -d $TESTDIR ]] && rm -rf $TESTDIR
+rm -rf $TESTDIR
 log_must mkdir -p $TESTDIR
 typeset -i i=1
 while (( i < 4 )); do
@@ -80,7 +74,7 @@ while (( i < 4 )); do
 done
 
 #Remove the directory with name as pool name if it exists
-[[ -d /$TESTPOOL ]] && rm -rf /$TESTPOOL
+rm -rf /$TESTPOOL
 file=$TESTDIR/file
 
 for opt in "-R $TESTDIR1" "-m $TESTDIR1" \
@@ -95,7 +89,7 @@ do
 		log_must zpool create $opt $TESTPOOL ${pooltype[i]} \
 			$file.1 $file.2 $file.3
 		! poolexists $TESTPOOL && \
-			log_fail "Createing pool with $opt fails."
+			log_fail "Creating pool with $opt fails."
 		mpt=`zfs mount | egrep "^$TESTPOOL[^/]" | awk '{print $2}'`
 		(( ${#mpt} == 0 )) && \
 			log_fail "$TESTPOOL created with $opt is not mounted."
@@ -105,12 +99,12 @@ do
 				from the output of zfs mount"
 		if [[ "$opt" == "-m $TESTDIR1" ]]; then
 			[[ ! -d $TESTDIR1 ]] && \
-				log_fail "$TESTDIR1 is not created auotmatically."
+				log_fail "$TESTDIR1 is not created automatically."
 			[[ "$mpt" != "$TESTDIR1" ]] && \
 				log_fail "$TESTPOOL is not mounted on $TESTDIR1."
 		elif [[ "$opt" == "-R $TESTDIR1" ]]; then
 			[[ ! -d $TESTDIR1/$TESTPOOL ]] && \
-				log_fail "$TESTDIR1/$TESTPOOL is not created auotmatically."
+				log_fail "$TESTDIR1/$TESTPOOL is not created automatically."
 			[[ "$mpt" != "$TESTDIR1/$TESTPOOL" ]] && \
 				log_fail "$TESTPOOL is not mounted on $TESTDIR1/$TESTPOOL."
 		else

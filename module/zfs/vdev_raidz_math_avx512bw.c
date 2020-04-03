@@ -28,7 +28,7 @@
 #if defined(__x86_64) && defined(HAVE_AVX512BW)
 
 #include <sys/types.h>
-#include <linux/simd_x86.h>
+#include <sys/simd.h>
 
 #define	__asm __asm__ __volatile__
 
@@ -393,9 +393,8 @@ DEFINE_REC_METHODS(avx512bw);
 static boolean_t
 raidz_will_avx512bw_work(void)
 {
-	return (zfs_avx_available() &&
-	    zfs_avx512f_available() &&
-	    zfs_avx512bw_available());
+	return (kfpu_allowed() && zfs_avx_available() &&
+	    zfs_avx512f_available() && zfs_avx512bw_available());
 }
 
 const raidz_impl_ops_t vdev_raidz_avx512bw_impl = {

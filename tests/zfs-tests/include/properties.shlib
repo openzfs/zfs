@@ -10,13 +10,17 @@
 #
 
 #
-# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2016, Delphix. All rights reserved.
 #
 
-typeset -a compress_prop_vals=('on' 'off' 'lzjb' 'gzip' 'gzip-1' 'gzip-2'
-    'gzip-3' 'gzip-4' 'gzip-5' 'gzip-6' 'gzip-7' 'gzip-8' 'gzip-9' 'zle' 'lz4')
+. $STF_SUITE/include/libtest.shlib
+
+typeset -a compress_prop_vals=('off' 'lzjb' 'lz4' 'gzip' 'zle')
 typeset -a checksum_prop_vals=('on' 'off' 'fletcher2' 'fletcher4' 'sha256'
-    'noparity' 'sha512' 'skein' 'edonr')
+    'noparity' 'sha512' 'skein')
+if ! is_freebsd; then
+	checksum_prop_vals+=('edonr')
+fi
 typeset -a recsize_prop_vals=('512' '1024' '2048' '4096' '8192' '16384'
     '32768' '65536' '131072' '262144' '524288' '1048576')
 typeset -a canmount_prop_vals=('on' 'off' 'noauto')
@@ -35,64 +39,66 @@ typeset -a vol_props=('compress' 'checksum' 'copies' 'logbias' 'primarycache'
     'secondarycache' 'redundant_metadata' 'sync')
 
 #
-# Given the property array passed in, return 'num_props' elements to the
-# user, excluding any elements below 'start.' This allows us to exclude
-# 'off' and 'on' which can be either unwanted, or a duplicate of another
-# property respectively.
+# Given the 'prop' passed in, return 'num_vals' elements of the corresponding
+# values array to the user, excluding any elements below 'first.' This allows
+# us to exclude 'off' and 'on' which can be either unwanted, or a duplicate of
+# another property respectively.
 #
-function get_rand_prop
+function get_rand_prop_vals
 {
-	typeset prop_array=($(eval echo \${$1[@]}))
-	typeset -i num_props=$2
-	typeset -i start=$3
+	typeset prop=$1
+	typeset -i num_vals=$2
+	typeset -i first=$3
+
+	[[ -z $prop || -z $num_vals || -z $first ]] && \
+	    log_fail "get_rand_prop_vals: bad arguments"
+
 	typeset retstr=""
 
-	[[ -z $prop_array || -z $num_props || -z $start ]] && \
-	    log_fail "get_rand_prop: bad arguments"
+	typeset prop_vals_var=${prop}_prop_vals
+	typeset -a prop_vals=($(eval echo \${${prop_vals_var}[@]}))
 
-	typeset prop_max=$((${#prop_array[@]} - 1))
+	[[ -z $prop_vals ]] && \
+	    log_fail "get_rand_prop_vals: bad prop $prop"
+
+	typeset -i last=$((${#prop_vals[@]} - 1))
 	typeset -i i
-	for i in $(shuf -i $start-$prop_max -n $num_props); do
-		retstr="${prop_array[$i]} $retstr"
+	for i in $(range_shuffle $first $last | head -n $num_vals); do
+		retstr="${prop_vals[$i]} $retstr"
 	done
 	echo $retstr
 }
 
-function get_rand_compress
-{
-	get_rand_prop compress_prop_vals $1 2
-}
-
-function get_rand_compress_any
-{
-	get_rand_prop compress_prop_vals $1 0
-}
-
 function get_rand_checksum
 {
-	get_rand_prop checksum_prop_vals $1 2
+	get_rand_prop_vals checksum $1 2
 }
 
 function get_rand_checksum_any
 {
-	get_rand_prop checksum_prop_vals $1 0
+	get_rand_prop_vals checksum $1 0
 }
 
 function get_rand_recsize
 {
-	get_rand_prop recsize_prop_vals $1 0
+	get_rand_prop_vals recsize $1 0
 }
 
 function get_rand_large_recsize
 {
-	get_rand_prop recsize_prop_vals $1 9
+	get_rand_prop_vals recsize $1 9
 }
 
 #
 # Functions to toggle on/off properties
 #
-typeset -a binary_props=('atime' 'devices' 'exec' 'readonly' 'setuid' 'xattr'
-    'zoned')
+typeset -a binary_props=('atime' 'devices' 'exec' 'readonly' 'setuid' 'xattr')
+
+if is_freebsd; then
+	binary_props+=('jailed')
+else
+	binary_props+=('zoned')
+fi
 
 if is_linux; then
 	# Only older kernels support non-blocking mandatory locks
@@ -143,7 +149,7 @@ function randomize_ds_props
 	fi
 
 	for prop in $proplist; do
-		typeset val=$(get_rand_prop "${prop}_prop_vals" 1 0)
+		typeset val=$(get_rand_prop_vals $prop 1 0)
 		log_must zfs set $prop=$val $ds
 	done
 }

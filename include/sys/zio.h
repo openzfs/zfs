@@ -85,7 +85,9 @@ enum zio_checksum {
 	ZIO_CHECKSUM_NOPARITY,
 	ZIO_CHECKSUM_SHA512,
 	ZIO_CHECKSUM_SKEIN,
+#if !defined(__FreeBSD__)
 	ZIO_CHECKSUM_EDONR,
+#endif
 	ZIO_CHECKSUM_FUNCTIONS
 };
 
@@ -102,7 +104,6 @@ enum zio_checksum {
 #define	ZIO_CHECKSUM_VERIFY	(1 << 8)
 
 #define	ZIO_DEDUPCHECKSUM	ZIO_CHECKSUM_SHA256
-#define	ZIO_DEDUPDITTO_MIN	100
 
 /* supported encryption algorithms */
 enum zio_encrypt {
@@ -118,7 +119,7 @@ enum zio_encrypt {
 	ZIO_CRYPT_FUNCTIONS
 };
 
-#define	ZIO_CRYPT_ON_VALUE	ZIO_CRYPT_AES_256_CCM
+#define	ZIO_CRYPT_ON_VALUE	ZIO_CRYPT_AES_256_GCM
 #define	ZIO_CRYPT_DEFAULT	ZIO_CRYPT_OFF
 
 /* macros defining encryption lengths */
@@ -266,18 +267,9 @@ enum zio_wait_type {
 	ZIO_WAIT_TYPES
 };
 
-/*
- * We'll take the unused errnos, 'EBADE' and 'EBADR' (from the Convergent
- * graveyard) to indicate checksum errors and fragmentation.
- */
-#define	ECKSUM	EBADE
-#define	EFRAGS	EBADR
-
-/* Similar for ENOACTIVE */
-#define	ENOTACTIVE	ENOANO
-
 typedef void zio_done_func_t(zio_t *zio);
 
+extern int zio_exclude_metadata;
 extern int zio_dva_throttle_enabled;
 extern const char *zio_type_name[ZIO_TYPES];
 
@@ -511,6 +503,7 @@ struct zio {
 	zio_gang_node_t	*io_gang_tree;
 	void		*io_executor;
 	void		*io_waiter;
+	void		*io_bio;
 	kmutex_t	io_lock;
 	kcondvar_t	io_cv;
 	int		io_allocator;
@@ -521,6 +514,12 @@ struct zio {
 
 	/* Taskq dispatching state */
 	taskq_ent_t	io_tqent;
+};
+
+enum blk_verify_flag {
+	BLK_VERIFY_ONLY,
+	BLK_VERIFY_LOG,
+	BLK_VERIFY_HALT
 };
 
 extern int zio_bookmark_compare(const void *, const void *);
@@ -632,6 +631,9 @@ extern enum zio_compress zio_compress_select(spa_t *spa,
 extern void zio_suspend(spa_t *spa, zio_t *zio, zio_suspend_reason_t);
 extern int zio_resume(spa_t *spa);
 extern void zio_resume_wait(spa_t *spa);
+
+extern boolean_t zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp,
+    boolean_t config_held, enum blk_verify_flag blk_verify);
 
 /*
  * Initial setup and teardown.

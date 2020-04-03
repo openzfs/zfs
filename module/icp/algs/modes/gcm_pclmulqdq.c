@@ -24,11 +24,11 @@
 
 #if defined(__x86_64) && defined(HAVE_PCLMULQDQ)
 
-#include <linux/simd_x86.h>
+#include <sys/types.h>
+#include <sys/simd.h>
 
 /* These functions are used to execute pclmulqdq based assembly methods */
 extern void gcm_mul_pclmulqdq(uint64_t *, uint64_t *, uint64_t *);
-
 
 #include <modes/gcm_impl.h>
 
@@ -52,7 +52,7 @@ gcm_pclmulqdq_mul(uint64_t *x_in, uint64_t *y, uint64_t *res)
 static boolean_t
 gcm_pclmulqdq_will_work(void)
 {
-	return (zfs_pclmulqdq_available());
+	return (kfpu_allowed() && zfs_pclmulqdq_available());
 }
 
 const gcm_impl_ops_t gcm_pclmulqdq_impl = {

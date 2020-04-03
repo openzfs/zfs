@@ -1,5 +1,5 @@
 pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/perf
-dist_pkgdata_SCRIPTS = \
+dist_pkgdata_DATA = \
 	nfs-sample.cfg \
 	perf.shlib
 

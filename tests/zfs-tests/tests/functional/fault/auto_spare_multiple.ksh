@@ -53,8 +53,11 @@ function cleanup
 log_assert "ZED should be able to handle multiple faulted devices"
 log_onexit cleanup
 
-# Clear events from previous runs
-zed_events_drain
+# Events not supported on FreeBSD
+if ! is_freebsd; then
+	# Clear events from previous runs
+	zed_events_drain
+fi
 
 FAULT_DEV1="$TEST_BASE_DIR/fault-dev1"
 FAULT_DEV2="$TEST_BASE_DIR/fault-dev2"
@@ -116,7 +119,7 @@ for type in "mirror" "raidz" "raidz2" "raidz3"; do
 done
 
 # Rinse and repeat, this time faulting both devices at the same time
-# NOTE: "raidz" is exluded since it cannot survive 2 faulted devices
+# NOTE: "raidz" is excluded since it cannot survive 2 faulted devices
 # NOTE: "mirror" is a 4-way mirror here and should survive this test
 for type in "mirror" "raidz2" "raidz3"; do
 	# 1. Create a pool with two hot spares

@@ -149,6 +149,7 @@ crypto_update_iov(void *ctx, crypto_data_t *input, crypto_data_t *output,
 	common_ctx_t *common_ctx = ctx;
 	int rv;
 
+	ASSERT(input != output);
 	if (input->cd_miscdata != NULL) {
 		copy_block((uint8_t *)input->cd_miscdata,
 		    &common_ctx->cc_iv[0]);
@@ -158,7 +159,7 @@ crypto_update_iov(void *ctx, crypto_data_t *input, crypto_data_t *output,
 		return (CRYPTO_ARGUMENTS_BAD);
 
 	rv = (cipher)(ctx, input->cd_raw.iov_base + input->cd_offset,
-	    input->cd_length, (input == output) ? NULL : output);
+	    input->cd_length, output);
 
 	return (rv);
 }
@@ -175,6 +176,7 @@ crypto_update_uio(void *ctx, crypto_data_t *input, crypto_data_t *output,
 	uint_t vec_idx;
 	size_t cur_len;
 
+	ASSERT(input != output);
 	if (input->cd_miscdata != NULL) {
 		copy_block((uint8_t *)input->cd_miscdata,
 		    &common_ctx->cc_iv[0]);
@@ -207,9 +209,12 @@ crypto_update_uio(void *ctx, crypto_data_t *input, crypto_data_t *output,
 		cur_len = MIN(uiop->uio_iov[vec_idx].iov_len -
 		    offset, length);
 
-		(cipher)(ctx, uiop->uio_iov[vec_idx].iov_base + offset,
-		    cur_len, (input == output) ? NULL : output);
+		int rv = (cipher)(ctx, uiop->uio_iov[vec_idx].iov_base + offset,
+		    cur_len, output);
 
+		if (rv != CRYPTO_SUCCESS) {
+			return (rv);
+		}
 		length -= cur_len;
 		vec_idx++;
 		offset = 0;

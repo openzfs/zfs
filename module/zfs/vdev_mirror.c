@@ -282,10 +282,11 @@ vdev_mirror_map_init(zio_t *zio)
 		}
 
 		/*
-		 * If we do not trust the pool config, some DVAs might be
-		 * invalid or point to vdevs that do not exist. We skip them.
+		 * If the pool cannot be written to, then infer that some
+		 * DVAs might be invalid or point to vdevs that do not exist.
+		 * We skip them.
 		 */
-		if (!spa_trust_config(spa)) {
+		if (!spa_writeable(spa)) {
 			ASSERT3U(zio->io_type, ==, ZIO_TYPE_READ);
 			int j = 0;
 			for (int i = 0; i < c; i++) {
@@ -309,6 +310,13 @@ vdev_mirror_map_init(zio_t *zio)
 
 			mc->mc_vd = vdev_lookup_top(spa, DVA_GET_VDEV(&dva[c]));
 			mc->mc_offset = DVA_GET_OFFSET(&dva[c]);
+			if (mc->mc_vd == NULL) {
+				kmem_free(mm, vdev_mirror_map_size(
+				    mm->mm_children));
+				zio->io_vsd = NULL;
+				zio->io_error = ENXIO;
+				return (NULL);
+			}
 		}
 	} else {
 		/*
@@ -485,7 +493,7 @@ vdev_mirror_preferred_child_randomize(zio_t *zio)
 
 /*
  * Try to find a vdev whose DTL doesn't contain the block we want to read
- * prefering vdevs based on determined load.
+ * preferring vdevs based on determined load.
  *
  * Try to find a child whose DTL doesn't contain the block we want to read.
  * If we can't, try the read on any vdev we haven't already tried.
@@ -786,75 +794,67 @@ vdev_mirror_state_change(vdev_t *vd, int faulted, int degraded)
 }
 
 vdev_ops_t vdev_mirror_ops = {
-	vdev_mirror_open,
-	vdev_mirror_close,
-	vdev_default_asize,
-	vdev_mirror_io_start,
-	vdev_mirror_io_done,
-	vdev_mirror_state_change,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	vdev_default_xlate,
-	VDEV_TYPE_MIRROR,	/* name of this vdev type */
-	B_FALSE			/* not a leaf vdev */
+	.vdev_op_open = vdev_mirror_open,
+	.vdev_op_close = vdev_mirror_close,
+	.vdev_op_asize = vdev_default_asize,
+	.vdev_op_io_start = vdev_mirror_io_start,
+	.vdev_op_io_done = vdev_mirror_io_done,
+	.vdev_op_state_change = vdev_mirror_state_change,
+	.vdev_op_need_resilver = NULL,
+	.vdev_op_hold = NULL,
+	.vdev_op_rele = NULL,
+	.vdev_op_remap = NULL,
+	.vdev_op_xlate = vdev_default_xlate,
+	.vdev_op_type = VDEV_TYPE_MIRROR,	/* name of this vdev type */
+	.vdev_op_leaf = B_FALSE			/* not a leaf vdev */
 };
 
 vdev_ops_t vdev_replacing_ops = {
-	vdev_mirror_open,
-	vdev_mirror_close,
-	vdev_default_asize,
-	vdev_mirror_io_start,
-	vdev_mirror_io_done,
-	vdev_mirror_state_change,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	vdev_default_xlate,
-	VDEV_TYPE_REPLACING,	/* name of this vdev type */
-	B_FALSE			/* not a leaf vdev */
+	.vdev_op_open = vdev_mirror_open,
+	.vdev_op_close = vdev_mirror_close,
+	.vdev_op_asize = vdev_default_asize,
+	.vdev_op_io_start = vdev_mirror_io_start,
+	.vdev_op_io_done = vdev_mirror_io_done,
+	.vdev_op_state_change = vdev_mirror_state_change,
+	.vdev_op_need_resilver = NULL,
+	.vdev_op_hold = NULL,
+	.vdev_op_rele = NULL,
+	.vdev_op_remap = NULL,
+	.vdev_op_xlate = vdev_default_xlate,
+	.vdev_op_type = VDEV_TYPE_REPLACING,	/* name of this vdev type */
+	.vdev_op_leaf = B_FALSE			/* not a leaf vdev */
 };
 
 vdev_ops_t vdev_spare_ops = {
-	vdev_mirror_open,
-	vdev_mirror_close,
-	vdev_default_asize,
-	vdev_mirror_io_start,
-	vdev_mirror_io_done,
-	vdev_mirror_state_change,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	vdev_default_xlate,
-	VDEV_TYPE_SPARE,	/* name of this vdev type */
-	B_FALSE			/* not a leaf vdev */
+	.vdev_op_open = vdev_mirror_open,
+	.vdev_op_close = vdev_mirror_close,
+	.vdev_op_asize = vdev_default_asize,
+	.vdev_op_io_start = vdev_mirror_io_start,
+	.vdev_op_io_done = vdev_mirror_io_done,
+	.vdev_op_state_change = vdev_mirror_state_change,
+	.vdev_op_need_resilver = NULL,
+	.vdev_op_hold = NULL,
+	.vdev_op_rele = NULL,
+	.vdev_op_remap = NULL,
+	.vdev_op_xlate = vdev_default_xlate,
+	.vdev_op_type = VDEV_TYPE_SPARE,	/* name of this vdev type */
+	.vdev_op_leaf = B_FALSE			/* not a leaf vdev */
 };
 
-#if defined(_KERNEL)
 /* BEGIN CSTYLED */
-module_param(zfs_vdev_mirror_rotating_inc, int, 0644);
-MODULE_PARM_DESC(zfs_vdev_mirror_rotating_inc,
+ZFS_MODULE_PARAM(zfs_vdev_mirror, zfs_vdev_mirror_, rotating_inc, INT, ZMOD_RW,
 	"Rotating media load increment for non-seeking I/O's");
 
-module_param(zfs_vdev_mirror_rotating_seek_inc, int, 0644);
-MODULE_PARM_DESC(zfs_vdev_mirror_rotating_seek_inc,
+ZFS_MODULE_PARAM(zfs_vdev_mirror, zfs_vdev_mirror_, rotating_seek_inc, INT, ZMOD_RW,
 	"Rotating media load increment for seeking I/O's");
 
-module_param(zfs_vdev_mirror_rotating_seek_offset, int, 0644);
+ZFS_MODULE_PARAM(zfs_vdev_mirror, zfs_vdev_mirror_, rotating_seek_offset, INT, ZMOD_RW,
+	"Offset in bytes from the last I/O which triggers "
+	"a reduced rotating media seek increment");
 
-MODULE_PARM_DESC(zfs_vdev_mirror_rotating_seek_offset,
-	"Offset in bytes from the last I/O which "
-	"triggers a reduced rotating media seek increment");
-
-module_param(zfs_vdev_mirror_non_rotating_inc, int, 0644);
-MODULE_PARM_DESC(zfs_vdev_mirror_non_rotating_inc,
+ZFS_MODULE_PARAM(zfs_vdev_mirror, zfs_vdev_mirror_, non_rotating_inc, INT, ZMOD_RW,
 	"Non-rotating media load increment for non-seeking I/O's");
 
-module_param(zfs_vdev_mirror_non_rotating_seek_inc, int, 0644);
-MODULE_PARM_DESC(zfs_vdev_mirror_non_rotating_seek_inc,
+ZFS_MODULE_PARAM(zfs_vdev_mirror, zfs_vdev_mirror_, non_rotating_seek_inc, INT, ZMOD_RW,
 	"Non-rotating media load increment for seeking I/O's");
 /* END CSTYLED */
-#endif

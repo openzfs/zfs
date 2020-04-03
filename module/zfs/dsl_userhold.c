@@ -197,7 +197,7 @@ dsl_dataset_user_hold_sync_one_impl(nvlist_t *tmpholds, dsl_dataset_t *ds,
 
 	spa_history_log_internal_ds(ds, "hold", tx,
 	    "tag=%s temp=%d refs=%llu",
-	    htag, minor != 0, ds->ds_userrefs);
+	    htag, minor != 0, (u_longlong_t)ds->ds_userrefs);
 }
 
 typedef struct zfs_hold_cleanup_arg {
@@ -302,7 +302,7 @@ dsl_dataset_user_hold_sync(void *arg, dmu_tx_t *tx)
  * holds is nvl of snapname -> holdname
  * errlist will be filled in with snapname -> error
  *
- * The snaphosts must all be in the same pool.
+ * The snapshots must all be in the same pool.
  *
  * Holds for snapshots that don't exist will be skipped.
  *
@@ -406,7 +406,7 @@ dsl_dataset_user_release_check_one(dsl_dataset_user_release_arg_t *ddura,
 				    snapname, holdname);
 				fnvlist_add_int32(ddura->ddura_errlist, errtag,
 				    ENOENT);
-				strfree(errtag);
+				kmem_strfree(errtag);
 			}
 			continue;
 		}
@@ -556,9 +556,9 @@ dsl_dataset_user_release_sync(void *arg, dmu_tx_t *tx)
  * errlist will be filled in with snapname -> error
  *
  * If tmpdp is not NULL the names for holds should be the dsobj's of snapshots,
- * otherwise they should be the names of shapshots.
+ * otherwise they should be the names of snapshots.
  *
- * As a release may cause snapshots to be destroyed this trys to ensure they
+ * As a release may cause snapshots to be destroyed this tries to ensure they
  * aren't mounted.
  *
  * The release of non-existent holds are skipped.

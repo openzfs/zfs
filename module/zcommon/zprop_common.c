@@ -41,11 +41,7 @@
 #include "zfs_prop.h"
 #include "zfs_deleg.h"
 
-#if defined(_KERNEL)
-#include <linux/sort.h>
-#define	qsort(base, num, size, cmp) \
-    sort(base, num, size, cmp, NULL)
-#else
+#if !defined(_KERNEL)
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
@@ -77,8 +73,11 @@ zfs_mod_supported_prop(const char *name, zfs_type_t type)
  * The zfs module spa_feature_table[], whether in-kernel or in libzpool,
  * always supports all the properties. libzfs needs to query the running
  * module, via sysfs, to determine which properties are supported.
+ *
+ * The equivalent _can_ be done on FreeBSD by way of the sysctl
+ * tree, but this has not been done yet.
  */
-#if defined(_KERNEL) || defined(LIB_ZPOOL_BUILD)
+#if defined(_KERNEL) || defined(LIB_ZPOOL_BUILD) || defined(__FreeBSD__)
 	return (B_TRUE);
 #else
 	return (zfs_mod_supported(type == ZFS_TYPE_POOL ?
@@ -144,7 +143,7 @@ zprop_register_index(int prop, const char *name, uint64_t def,
     const char *colname, const zprop_index_t *idx_tbl)
 {
 	zprop_register_impl(prop, name, PROP_TYPE_INDEX, def, NULL, attr,
-	    objset_types, values, colname, B_TRUE, B_TRUE, idx_tbl);
+	    objset_types, values, colname, B_FALSE, B_TRUE, idx_tbl);
 }
 
 void

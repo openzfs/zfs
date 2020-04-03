@@ -176,11 +176,7 @@ function do_testing #<clear type> <vdevs>
 	dd if=/dev/zero of=$fbase.$i seek=512 bs=1024 count=$wcount conv=notrunc \
 			> /dev/null 2>&1
 	log_must sync
-	log_must zpool scrub $TESTPOOL1
-	# Wait for the completion of scrub operation
-	while is_pool_scrubbing $TESTPOOL1; do
-		sleep 1
-	done
+	log_must zpool scrub -w $TESTPOOL1
 
 	check_err $TESTPOOL1 && \
 		log_fail "No error generated."

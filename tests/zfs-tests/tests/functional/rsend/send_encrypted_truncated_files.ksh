@@ -52,8 +52,16 @@ log_onexit cleanup
 
 function recursive_cksum
 {
-	find $1 -type f -exec sha256sum {} \; | \
-		sort -k 2 | awk '{ print $1 }' | sha256sum
+	case "$(uname)" in
+	FreeBSD)
+		find $1 -type f -exec sha256 -q {} \; | \
+		    sort | sha256digest
+		;;
+	*)
+		find $1 -type f -exec sha256sum {} \; | \
+		    sort -k 2 | awk '{ print $1 }' | sha256digest
+		;;
+	esac
 }
 
 log_assert "Verify 'zfs send -w' works with many different file layouts"

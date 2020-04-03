@@ -11,7 +11,7 @@ Release:        @RELEASE@%{?dist}
 Summary:        Kernel module(s)
 Group:          System Environment/Kernel
 License:        @ZFS_META_LICENSE@
-URL:            http://zfsonlinux.org/
+URL:            https://zfsonlinux.org/
 BuildRequires:  %kernel_module_package_buildreqs
 Source0:        @PACKAGE@-%{version}.tar.gz
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
@@ -41,6 +41,7 @@ This package contains the ZFS kernel modules.
 %package -n kmod-%{kmod_name}-devel
 Summary:        ZFS kernel module(s) devel common
 Group:          System Environment/Kernel
+Provides:       kmod-spl-devel = %{version}
 
 %description -n  kmod-%{kmod_name}-devel
 This package provides the header files and objects to build kernel modules.

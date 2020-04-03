@@ -30,6 +30,8 @@
 #
 
 . $STF_SUITE/include/libtest.shlib
-. $STF_SUITE/tests/functional/write_dirs/write_dirs.cfg
 
-default_cleanup
+default_cleanup_noexit
+rm -f $TEST_BASE_DIR/disk0
+
+log_pass

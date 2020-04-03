@@ -23,7 +23,7 @@
  * Use is subject to license terms.
  */
 /*
- * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2019 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -523,8 +523,9 @@ space_map_write_intro_debug(space_map_t *sm, maptype_t maptype, dmu_tx_t *tx)
  * dbuf must be dirty for the changes in sm_phys to take effect.
  */
 static void
-space_map_write_seg(space_map_t *sm, range_seg_t *rs, maptype_t maptype,
-    uint64_t vdev_id, uint8_t words, dmu_buf_t **dbp, void *tag, dmu_tx_t *tx)
+space_map_write_seg(space_map_t *sm, uint64_t rstart, uint64_t rend,
+    maptype_t maptype, uint64_t vdev_id, uint8_t words, dmu_buf_t **dbp,
+    void *tag, dmu_tx_t *tx)
 {
 	ASSERT3U(words, !=, 0);
 	ASSERT3U(words, <=, 2);
@@ -548,14 +549,14 @@ space_map_write_seg(space_map_t *sm, range_seg_t *rs, maptype_t maptype,
 
 	ASSERT3P(block_cursor, <=, block_end);
 
-	uint64_t size = (rs->rs_end - rs->rs_start) >> sm->sm_shift;
-	uint64_t start = (rs->rs_start - sm->sm_start) >> sm->sm_shift;
+	uint64_t size = (rend - rstart) >> sm->sm_shift;
+	uint64_t start = (rstart - sm->sm_start) >> sm->sm_shift;
 	uint64_t run_max = (words == 2) ? SM2_RUN_MAX : SM_RUN_MAX;
 
-	ASSERT3U(rs->rs_start, >=, sm->sm_start);
-	ASSERT3U(rs->rs_start, <, sm->sm_start + sm->sm_size);
-	ASSERT3U(rs->rs_end - rs->rs_start, <=, sm->sm_size);
-	ASSERT3U(rs->rs_end, <=, sm->sm_start + sm->sm_size);
+	ASSERT3U(rstart, >=, sm->sm_start);
+	ASSERT3U(rstart, <, sm->sm_start + sm->sm_size);
+	ASSERT3U(rend - rstart, <=, sm->sm_size);
+	ASSERT3U(rend, <=, sm->sm_start + sm->sm_size);
 
 	while (size != 0) {
 		ASSERT3P(block_cursor, <=, block_end);
@@ -673,10 +674,14 @@ space_map_write_impl(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
 
 	dmu_buf_will_dirty(db, tx);
 
-	avl_tree_t *t = &rt->rt_root;
-	for (range_seg_t *rs = avl_first(t); rs != NULL; rs = AVL_NEXT(t, rs)) {
-		uint64_t offset = (rs->rs_start - sm->sm_start) >> sm->sm_shift;
-		uint64_t length = (rs->rs_end - rs->rs_start) >> sm->sm_shift;
+	zfs_btree_t *t = &rt->rt_root;
+	zfs_btree_index_t where;
+	for (range_seg_t *rs = zfs_btree_first(t, &where); rs != NULL;
+	    rs = zfs_btree_next(t, &where, &where)) {
+		uint64_t offset = (rs_get_start(rs, rt) - sm->sm_start) >>
+		    sm->sm_shift;
+		uint64_t length = (rs_get_end(rs, rt) - rs_get_start(rs, rt)) >>
+		    sm->sm_shift;
 		uint8_t words = 1;
 
 		/*
@@ -701,8 +706,8 @@ space_map_write_impl(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
 		    spa_get_random(100) == 0)))
 			words = 2;
 
-		space_map_write_seg(sm, rs, maptype, vdev_id, words,
-		    &db, FTAG, tx);
+		space_map_write_seg(sm, rs_get_start(rs, rt), rs_get_end(rs,
+		    rt), maptype, vdev_id, words, &db, FTAG, tx);
 	}
 
 	dmu_buf_rele(db, FTAG);
@@ -749,7 +754,7 @@ space_map_write(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
 	else
 		sm->sm_phys->smp_alloc -= range_tree_space(rt);
 
-	uint64_t nodes = avl_numnodes(&rt->rt_root);
+	uint64_t nodes = zfs_btree_numnodes(&rt->rt_root);
 	uint64_t rt_space = range_tree_space(rt);
 
 	space_map_write_impl(sm, rt, maptype, vdev_id, tx);
@@ -758,7 +763,7 @@ space_map_write(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
 	 * Ensure that the space_map's accounting wasn't changed
 	 * while we were in the middle of writing it out.
 	 */
-	VERIFY3U(nodes, ==, avl_numnodes(&rt->rt_root));
+	VERIFY3U(nodes, ==, zfs_btree_numnodes(&rt->rt_root));
 	VERIFY3U(range_tree_space(rt), ==, rt_space);
 }
 
@@ -1066,4 +1071,12 @@ uint64_t
 space_map_length(space_map_t *sm)
 {
 	return (sm != NULL ? sm->sm_phys->smp_length : 0);
+}
+
+uint64_t
+space_map_nblocks(space_map_t *sm)
+{
+	if (sm == NULL)
+		return (0);
+	return (DIV_ROUND_UP(space_map_length(sm), sm->sm_blksz));
 }

@@ -50,8 +50,8 @@ function cleanup
 log_assert "'zpool add' uses the ashift pool property value as default."
 log_onexit cleanup
 
-disk1=$TEST_BASE_DIR/$FILEDISK0
-disk2=$TEST_BASE_DIR/$FILEDISK1
+disk1=$TEST_BASE_DIR/disk1
+disk2=$TEST_BASE_DIR/disk2
 log_must mkfile $SIZE $disk1
 log_must mkfile $SIZE $disk2
 
@@ -77,7 +77,7 @@ do
 	for cmdval in ${ashifts[@]}
 	do
 		log_must zpool create -o ashift=$ashift $TESTPOOL $disk1
-		log_must zpool add $TESTPOOL -o ashift=$cmdval $disk2
+		log_must zpool add -o ashift=$cmdval $TESTPOOL $disk2
 		verify_ashift $disk2 $cmdval
 		if [[ $? -ne 0 ]]
 		then

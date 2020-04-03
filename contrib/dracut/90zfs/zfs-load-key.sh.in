@@ -25,23 +25,34 @@ while true; do
 done
 
 # run this after import as zfs-import-cache/scan service is confirmed good
+# we do not overwrite the ${root} variable, but create a new one, BOOTFS, to hold the dataset
 if [ "${root}" = "zfs:AUTO" ] ; then
-    root="$(zpool list -H -o bootfs | awk '$1 != "-" {print; exit}')"
+    BOOTFS="$(zpool list -H -o bootfs | awk '$1 != "-" {print; exit}')"
 else
-    root="${root##zfs:}"
-    root="${root##ZFS=}"
+    BOOTFS="${root##zfs:}"
+    BOOTFS="${BOOTFS##ZFS=}"
 fi
 
 # if pool encryption is active and the zfs command understands '-o encryption'
-if [ "$(zpool list -H -o feature@encryption $(echo "${root}" | awk -F\/ '{print $1}'))" = 'active' ]; then
+if [ "$(zpool list -H -o feature@encryption $(echo "${BOOTFS}" | awk -F\/ '{print $1}'))" = 'active' ]; then
     # if the root dataset has encryption enabled
-    ENCRYPTIONROOT=$(zfs get -H -o value encryptionroot "${root}")
+    ENCRYPTIONROOT=$(zfs get -H -o value encryptionroot "${BOOTFS}")
+    # where the key is stored (in a file or loaded via prompt)
+    KEYLOCATION=$(zfs get -H -o value keylocation "${ENCRYPTIONROOT}")
     if ! [ "${ENCRYPTIONROOT}" = "-" ]; then
-        # decrypt them
-        TRY_COUNT=5
-        while [ $TRY_COUNT -gt 0 ]; do
-            systemd-ask-password "Encrypted ZFS password for ${root}" --no-tty | zfs load-key "${ENCRYPTIONROOT}" && break
-            TRY_COUNT=$((TRY_COUNT - 1))
-        done
+        KEYSTATUS="$(zfs get -H -o value keystatus "${ENCRYPTIONROOT}")"
+        # continue only if the key needs to be loaded
+        [ "$KEYSTATUS" = "unavailable" ] || exit 0
+        # if key is stored in a file, do not prompt
+        if ! [ "${KEYLOCATION}" = "prompt" ]; then
+            zfs load-key "${ENCRYPTIONROOT}"
+        else
+            # decrypt them
+            TRY_COUNT=5
+            while [ $TRY_COUNT -gt 0 ]; do
+                systemd-ask-password "Encrypted ZFS password for ${BOOTFS}" --no-tty | zfs load-key "${ENCRYPTIONROOT}" && break
+                TRY_COUNT=$((TRY_COUNT - 1))
+            done
+        fi
     fi
 fi

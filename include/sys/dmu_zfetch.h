@@ -24,7 +24,7 @@
  */
 
 /*
- * Copyright (c) 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2014, 2017 by Delphix. All rights reserved.
  */
 
 #ifndef	_DMU_ZFETCH_H
@@ -56,7 +56,7 @@ typedef struct zstream {
 } zstream_t;
 
 typedef struct zfetch {
-	krwlock_t	zf_rwlock;	/* protects zfetch structure */
+	kmutex_t	zf_lock;	/* protects zfetch structure */
 	list_t		zf_stream;	/* list of zstream_t's */
 	struct dnode	*zf_dnode;	/* dnode that owns this zfetch */
 } zfetch_t;
@@ -66,7 +66,8 @@ void		zfetch_fini(void);
 
 void		dmu_zfetch_init(zfetch_t *, struct dnode *);
 void		dmu_zfetch_fini(zfetch_t *);
-void		dmu_zfetch(zfetch_t *, uint64_t, uint64_t, boolean_t);
+void		dmu_zfetch(zfetch_t *, uint64_t, uint64_t, boolean_t,
+    boolean_t);
 
 
 #ifdef	__cplusplus

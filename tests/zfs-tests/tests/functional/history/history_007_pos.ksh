@@ -73,7 +73,7 @@ for arch in "i386" "sparc"; do
 	cat $orig_cmds_f | grep -v "^$" > $orig_cmds_f1
 
 	log_must cp $tst_dir/${arch}.migratedpool.DAT.Z $import_dir
-	log_must uncompress $import_dir/${arch}.migratedpool.DAT.Z
+	log_must uncompress -f $import_dir/${arch}.migratedpool.DAT.Z
 
 	# destroy the pool with same name, so that import operation succeeds.
 	poolexists $migratedpoolname && \
@@ -83,7 +83,7 @@ for arch in "i386" "sparc"; do
 	TZ=$TIMEZONE zpool history $migratedpoolname | grep -v "^$" \
 	    >$migrated_cmds_f
 	RET=$?
-	(( $RET != 0 )) && log_fail "zpool histroy $migratedpoolname fails."
+	(( $RET != 0 )) && log_fail "zpool history $migratedpoolname fails."
 
 	# The migrated history file should differ with original history file on
 	# two commands -- 'export' and 'import', which are included in migrated

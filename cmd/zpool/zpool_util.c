@@ -99,20 +99,6 @@ array64_max(uint64_t array[], unsigned int len)
 }
 
 /*
- * Return 1 if "str" is a number string, 0 otherwise.  Works for integer and
- * floating point numbers.
- */
-int
-isnumber(char *str)
-{
-	for (; *str; str++)
-		if (!(isdigit(*str) || (*str == '.')))
-			return (0);
-
-	return (1);
-}
-
-/*
  * Find highest one bit set.
  * Returns bit number + 1 of highest bit that is set, otherwise returns 0.
  */

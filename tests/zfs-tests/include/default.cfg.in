@@ -143,7 +143,7 @@ export SPA_MINDEVSIZE=$((64 * 1024 * 1024))
 # For iscsi target support
 export ISCSITGTFILE=/tmp/iscsitgt_file
 export ISCSITGT_FMRI=svc:/system/iscsitgt:default
-if ! is_linux; then
+if is_illumos; then
 export AUTO_SNAP=$(svcs -a | grep auto-snapshot | grep online | awk \
     '{print $3}')
 fi
@@ -173,6 +173,7 @@ if is_linux; then
 
 	ZVOL_DEVDIR="/dev/zvol"
 	ZVOL_RDEVDIR="/dev/zvol"
+	DEV_DSKDIR="/dev"
 	DEV_RDSKDIR="/dev"
 	DEV_MPATHDIR="/dev/mapper"
 
@@ -182,8 +183,23 @@ if is_linux; then
 	VDEVID_CONF="$ZEDLET_DIR/vdev_id.conf"
 	VDEVID_CONF_ETC="/etc/zfs/vdev_id.conf"
 
-
 	NEWFS_DEFAULT_FS="ext2"
+	SLICE_PREFIX=""
+elif is_freebsd; then
+	unpack_opts="xv"
+	pack_opts="cf"
+	verbose="v"
+	unpack_preserve="xpf"
+	pack_preserve="cpf"
+
+	ZVOL_DEVDIR="/dev/zvol"
+	ZVOL_RDEVDIR="/dev/zvol"
+	DEV_DSKDIR="/dev"
+	DEV_RDSKDIR="/dev"
+	DEV_MPATHDIR="/dev/multipath"
+
+	NEWFS_DEFAULT_FS="ufs"
+	SLICE_PREFIX="p"
 else
 	unpack_opts="xv"
 	pack_opts="cf"
@@ -197,7 +213,9 @@ else
 	DEV_RDSKDIR="/dev/rdsk"
 
 	NEWFS_DEFAULT_FS="ufs"
+	SLICE_PREFIX="s"
 fi
 export unpack_opts pack_opts verbose unpack_preserve pack_preserve \
-       ZVOL_DEVDIR ZVOL_RDEVDIR NEWFS_DEFAULT_FS DEV_RDSKDIR DEV_MPATHDIR \
-       ZEDLET_DIR ZED_LOG ZED_DEBUG_LOG VDEVID_CONF VDEVID_CONF_ETC
+       ZVOL_DEVDIR ZVOL_RDEVDIR DEV_DSKDIR DEV_RDSKDIR DEV_MPATHDIR \
+       ZEDLET_DIR ZED_LOG ZED_DEBUG_LOG VDEVID_CONF VDEVID_CONF_ETC \
+       NEWFS_DEFAULT_FS SLICE_PREFIX

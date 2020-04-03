@@ -49,7 +49,7 @@ verify_runnable "both"
 function cleanup
 {
 	datasetexists $TEST_FS && log_must zfs destroy $TEST_FS
-	log_must set_tunable64 zfs_async_block_max_blocks 100000
+	log_must set_tunable64 ASYNC_BLOCK_MAX_BLOCKS 100000
 }
 
 log_onexit cleanup
@@ -64,7 +64,7 @@ log_must dd bs=1024k count=128 if=/dev/zero of=/$TEST_FS/file
 # Decrease the max blocks to free each txg, so that freeing takes
 # long enough that we can observe it.
 #
-log_must set_tunable64 zfs_async_block_max_blocks 100
+log_must set_tunable64 ASYNC_BLOCK_MAX_BLOCKS 100
 
 log_must sync
 log_must zfs destroy $TEST_FS
@@ -88,7 +88,7 @@ done
 # per txg.
 #
 sleep 10
-log_must set_tunable64 zfs_async_block_max_blocks 100000
+log_must set_tunable64 ASYNC_BLOCK_MAX_BLOCKS 100000
 
 # Wait for everything to be freed.
 while [[ "0" != "$(zpool list -Ho freeing $TESTPOOL)" ]]; do

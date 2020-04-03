@@ -23,12 +23,13 @@
 
 #
 # DESCRIPTION:
-# 'zfs rename' should not rename an unencrypted dataset to a child
+# 'zfs rename' should be able to move an unencrypted dataset to a child
 # of an encrypted dataset
 #
 # STRATEGY:
 # 1. Create an encrypted dataset
-# 2. Attempt to rename the default dataset to a child of the encrypted dataset
+# 2. Rename the default dataset to a child of the encrypted dataset
+# 3. Confirm the child dataset doesn't have any encryption properties
 #
 
 verify_runnable "both"
@@ -36,16 +37,17 @@ verify_runnable "both"
 function cleanup
 {
 	datasetexists $TESTPOOL/$TESTFS2 && \
-		log_must zfs destroy $TESTPOOL/$TESTFS2
+		log_must zfs destroy -r $TESTPOOL/$TESTFS2
 }
 log_onexit cleanup
 
-log_assert "'zfs rename' should not rename an unencrypted dataset to a" \
+log_assert "'zfs rename' should allow renaming an unencrypted dataset to a" \
 	"child of an encrypted dataset"
 
 log_must eval "echo $PASSPHRASE | zfs create -o encryption=on" \
 	"-o keyformat=passphrase -o keylocation=prompt $TESTPOOL/$TESTFS2"
-log_mustnot zfs rename $TESTPOOL/$TESTFS $TESTPOOL/$TESTFS2/$TESTFS
+log_must zfs rename $TESTPOOL/$TESTFS $TESTPOOL/$TESTFS2/$TESTFS
+log_must test "$(get_prop 'encryption' $TESTPOOL/$TESTFS2/$TESTFS)" == "off"
 
-log_pass "'zfs rename' does not rename an unencrypted dataset to a child" \
+log_pass "'zfs rename' allows renaming an unencrypted dataset to a child" \
 	"of an encrypted dataset"

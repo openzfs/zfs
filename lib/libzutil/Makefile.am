@@ -3,17 +3,23 @@ include $(top_srcdir)/config/Rules.am
 # Suppress unused but set variable warnings often due to ASSERTs
 AM_CFLAGS += $(NO_UNUSED_BUT_SET_VARIABLE)
 
-DEFAULT_INCLUDES += \
-	-I$(top_srcdir)/include \
-	-I$(top_srcdir)/lib/libspl/include
+DEFAULT_INCLUDES += -I.
 
 noinst_LTLIBRARIES = libzutil.la
 
 USER_C = \
 	zutil_device_path.c \
 	zutil_import.c \
+	zutil_import.h \
 	zutil_nicenum.c \
 	zutil_pool.c
+
+if BUILD_LINUX
+USER_C += \
+	os/linux/zutil_device_path_os.c \
+	os/linux/zutil_import_os.c \
+	os/linux/zutil_compat.c
+endif
 
 nodist_libzutil_la_SOURCES = $(USER_C)
 

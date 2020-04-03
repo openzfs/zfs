@@ -21,9 +21,6 @@
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/removal/removal.kshlib
 
-# N.B. The 'zfs remap' command has been disabled and may be removed.
-export ZFS_REMAP_ENABLED=YES
-
 default_setup_noexit "$DISKS"
 log_onexit default_cleanup_noexit
 
@@ -37,7 +34,7 @@ log_must zfs snapshot $TESTPOOL/$TESTFS@snap-pre2
 log_must dd if=/dev/zero of=$TESTDIR/file bs=1024k count=100 \
     conv=notrunc seek=200
 
-if is_linux; then
+if is_linux || is_freebsd; then
 	log_must attempt_during_removal $TESTPOOL $REMOVEDISK zdb -cd $TESTPOOL
 else
 	log_must attempt_during_removal $TESTPOOL $REMOVEDISK
@@ -45,7 +42,14 @@ fi
 log_mustnot vdevs_in_pool $TESTPOOL $REMOVEDISK
 log_must zdb -cd $TESTPOOL
 
-log_must zfs remap $TESTPOOL/$TESTFS
+#
+# Touch one block under each L1 indirect block, so that the other data blocks
+# will be remapped to their concrete locations.  These parameters assume
+# recordsize=128K, indirect block size of 128K (1024 block pointers per
+# indirect block), and file size of less than 3*1024 blocks (384MB).
+#
+log_must stride_dd -i /dev/urandom -o $TESTDIR/file -b 131072 -c 3 -s 1024
+
 log_must zdb -cd $TESTPOOL
 
 log_must zfs snapshot $TESTPOOL/$TESTFS@snap-post3

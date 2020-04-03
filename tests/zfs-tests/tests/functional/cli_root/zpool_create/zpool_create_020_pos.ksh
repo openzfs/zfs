@@ -46,14 +46,9 @@
 
 function cleanup
 {
-	if poolexists $TESTPOOL ; then
-                destroy_pool $TESTPOOL
-        fi
-	if [ -d /${TESTPOOL}.root ]
-	then
-		log_must rmdir /${TESTPOOL}.root
-	fi
-	[[ -e $values ]] && log_must rm -f $values
+	poolexists $TESTPOOL && destroy_pool $TESTPOOL
+	rm -rf /${TESTPOOL}.root
+	rm -f $values
 }
 
 log_onexit cleanup
@@ -62,18 +57,12 @@ log_assert "zpool create -R works as expected"
 
 typeset values=$TEST_BASE_DIR/values.$$
 
-if [[ -n $DISK ]]; then
-	disk=$DISK
-else
-	disk=$DISK0
-fi
-
 log_must rm -f /etc/zfs/zpool.cache
-log_must mkdir /${TESTPOOL}.root
-log_must zpool create -R /${TESTPOOL}.root $TESTPOOL $disk
+log_must rm -rf /${TESTPOOL}.root
+log_must zpool create -R /${TESTPOOL}.root $TESTPOOL $DISK0
 if [ ! -d /${TESTPOOL}.root ]
 then
-	log_fail "Mountpoint was not create when using zpool with -R flag!"
+	log_fail "Mountpoint was not created when using zpool with -R flag!"
 fi
 
 FS=$(zfs list $TESTPOOL)

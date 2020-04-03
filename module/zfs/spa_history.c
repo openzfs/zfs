@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2006, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2014 Integros [integros.com]
  * Copyright 2017 Joyent, Inc.
  */
@@ -63,7 +63,7 @@
  * overwrite the original creation of the pool.  'sh_phys_max_off' is the
  * physical ending offset in bytes of the log.  This tells you the length of
  * the buffer. 'sh_eof' is the logical EOF (in bytes).  Whenever a record
- * is added, 'sh_eof' is incremented by the the size of the record.
+ * is added, 'sh_eof' is incremented by the size of the record.
  * 'sh_eof' is never decremented.  'sh_bof' is the logical BOF (in bytes).
  * This is where the consumer should start reading from after reading in
  * the 'zpool create' portion of the log.
@@ -178,16 +178,6 @@ spa_history_write(spa_t *spa, void *buf, uint64_t len, spa_history_phys_t *shpp,
 	}
 
 	return (0);
-}
-
-static char *
-spa_history_zone(void)
-{
-#ifdef _KERNEL
-	return ("linux");
-#else
-	return (NULL);
-#endif
 }
 
 /*
@@ -413,7 +403,6 @@ spa_history_log_nvl(spa_t *spa, nvlist_t *nvl)
 
 	/* spa_history_log_sync will free nvl */
 	return (err);
-
 }
 
 /*
@@ -534,7 +523,7 @@ log_internal(nvlist_t *nvl, const char *operation, spa_t *spa,
 
 	msg = kmem_vasprintf(fmt, adx);
 	fnvlist_add_string(nvl, ZPOOL_HIST_INT_STR, msg);
-	strfree(msg);
+	kmem_strfree(msg);
 
 	fnvlist_add_string(nvl, ZPOOL_HIST_INT_NAME, operation);
 	fnvlist_add_uint64(nvl, ZPOOL_HIST_TXG, tx->tx_txg);
@@ -622,6 +611,14 @@ spa_history_log_version(spa_t *spa, const char *operation, dmu_tx_t *tx)
 	    (u_longlong_t)spa_version(spa), ZFS_META_GITREV,
 	    u->nodename, u->release, u->version, u->machine);
 }
+
+#ifndef _KERNEL
+const char *
+spa_history_zone(void)
+{
+	return (NULL);
+}
+#endif
 
 #if defined(_KERNEL)
 EXPORT_SYMBOL(spa_history_create_obj);

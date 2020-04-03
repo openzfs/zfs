@@ -4,6 +4,7 @@ VPATH = \
 	$(top_srcdir)/module/zfs \
 	$(top_srcdir)/module/zcommon \
 	$(top_srcdir)/module/lua \
+	$(top_srcdir)/module/os/linux/zfs \
 	$(top_srcdir)/lib/libzpool
 
 # Suppress unused but set variable warnings often due to ASSERTs
@@ -14,10 +15,6 @@ AM_CFLAGS += $(FRAME_LARGER_THAN)
 
 AM_CFLAGS += -DLIB_ZPOOL_BUILD
 
-DEFAULT_INCLUDES += \
-	-I$(top_srcdir)/include \
-	-I$(top_srcdir)/lib/libspl/include
-
 lib_LTLIBRARIES = libzpool.la
 
 USER_C = \
@@ -25,6 +22,7 @@ USER_C = \
 	taskq.c \
 	util.c
 
+# BUGBUG raidz expansion, removed raidz math from following
 KERNEL_C = \
 	zfeature_common.c \
 	zfs_comutil.c \
@@ -44,10 +42,12 @@ KERNEL_C = \
 	abd.c \
 	aggsum.c \
 	arc.c \
+	arc_os.c \
 	blkptr.c \
 	bplist.c \
 	bpobj.c \
 	bptree.c \
+	btree.c \
 	bqueue.c \
 	cityhash.c \
 	dbuf.c \
@@ -59,6 +59,7 @@ KERNEL_C = \
 	dmu_object.c \
 	dmu_objset.c \
 	dmu_recv.c \
+	dmu_redact.c \
 	dmu_send.c \
 	dmu_traverse.c \
 	dmu_tx.c \
@@ -86,6 +87,7 @@ KERNEL_C = \
 	metaslab.c \
 	mmp.c \
 	multilist.c \
+	objlist.c \
 	pathname.c \
 	range_tree.c \
 	refcount.c \
@@ -99,6 +101,7 @@ KERNEL_C = \
 	spa_config.c \
 	spa_errlog.c \
 	spa_history.c \
+	spa_log_spacemap.c \
 	spa_misc.c \
 	spa_stats.c \
 	space_map.c \
@@ -129,6 +132,7 @@ KERNEL_C = \
 	zcp_get.c \
 	zcp_global.c \
 	zcp_iter.c \
+	zcp_set.c \
 	zcp_synctask.c \
 	zfeature.c \
 	zfs_byteswap.c \
@@ -190,3 +194,8 @@ libzpool_la_LIBADD += $(ZLIB) -ldl
 libzpool_la_LDFLAGS = -pthread -version-info 2:0:0
 
 EXTRA_DIST = $(USER_C)
+
+if TARGET_CPU_POWERPC
+vdev_raidz_math_powerpc_altivec.$(OBJEXT): CFLAGS += -maltivec
+vdev_raidz_math_powerpc_altivec.l$(OBJEXT): CFLAGS += -maltivec
+endif

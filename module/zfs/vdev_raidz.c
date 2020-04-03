@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2019 by Delphix. All rights reserved.
  * Copyright (c) 2016 Gvozden Nešković. All rights reserved.
  */
 
@@ -103,7 +103,7 @@
  *	R = 4^n-1 * D_0 + 4^n-2 * D_1 + ... + 4^1 * D_n-2 + 4^0 * D_n-1
  *	  = ((...((D_0) * 4 + D_1) * 4 + ...) * 4 + D_n-2) * 4 + D_n-1
  *
- * We chose 1, 2, and 4 as our generators because 1 corresponds to the trival
+ * We chose 1, 2, and 4 as our generators because 1 corresponds to the trivial
  * XOR operation, and 2 and 4 can be computed quickly and generate linearly-
  * independent coefficients. (There are no additional coefficients that have
  * this property which is why the uncorrected Plank method breaks down.)
@@ -551,7 +551,7 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t ashift, uint64_t dcols,
 	/*
 	 * If all data stored spans all columns, there's a danger that parity
 	 * will always be on the same device and, since parity isn't read
-	 * during normal operation, that that device's I/O bandwidth won't be
+	 * during normal operation, that device's I/O bandwidth won't be
 	 * used effectively. We therefore switch the parity every 1MB.
 	 *
 	 * ... at least that was, ostensibly, the theory. As a practical
@@ -1970,7 +1970,7 @@ vdev_raidz_io_verify(zio_t *zio, raidz_row_t *rr, int col)
 	vdev_t *vd = zio->io_vd;
 	vdev_t *tvd = vd->vdev_top;
 
-	range_seg_t logical_rs, physical_rs;
+	range_seg64_t logical_rs, physical_rs;
 	logical_rs.rs_start = zio->io_offset;
 	logical_rs.rs_end = logical_rs.rs_start +
 	    vdev_raidz_asize(zio->io_vd, zio->io_size);
@@ -2111,8 +2111,8 @@ vdev_raidz_io_start(zio_t *zio)
 
 	if (vdrz->vd_logical_width != vdrz->vd_physical_width) {
 		/* XXX rangelock not needed after expansion completes */
-		locked_range_t *lr =
-		    rangelock_enter(&vdrz->vn_vre.vre_rangelock,
+		zfs_locked_range_t *lr =
+		    zfs_rangelock_enter(&vdrz->vn_vre.vre_rangelock,
 		    zio->io_offset, zio->io_size, RL_READER);
 
 		rm = vdev_raidz_map_alloc_expanded(zio->io_abd,
@@ -2911,7 +2911,7 @@ vdev_raidz_io_done(zio_t *zio)
 		}
 	}
 	if (rm->rm_lr != NULL) {
-		rangelock_exit(rm->rm_lr);
+		zfs_rangelock_exit(rm->rm_lr);
 		rm->rm_lr = NULL;
 	}
 }
@@ -2932,7 +2932,7 @@ vdev_raidz_state_change(vdev_t *vd, int faulted, int degraded)
 /*
  * Determine if any portion of the provided block resides on a child vdev
  * with a dirty DTL and therefore needs to be resilvered.  The function
- * assumes that at least one DTL is dirty which imples that full stripe
+ * assumes that at least one DTL is dirty which implies that full stripe
  * width blocks must be resilvered.
  */
 static boolean_t
@@ -2968,7 +2968,7 @@ vdev_raidz_need_resilver(vdev_t *vd, uint64_t offset, size_t psize)
 }
 
 static void
-vdev_raidz_xlate(vdev_t *cvd, const range_seg_t *in, range_seg_t *res)
+vdev_raidz_xlate(vdev_t *cvd, const range_seg64_t *in, range_seg64_t *res)
 {
 	vdev_t *raidvd = cvd->vdev_parent;
 	ASSERT(raidvd->vdev_ops == &vdev_raidz_ops);
@@ -3011,7 +3011,7 @@ raidz_reflow_sync(void *arg, dmu_tx_t *tx)
 	 * Ensure there are no i/os to the range that is being committed.
 	 * XXX This might be overkill?
 	 */
-	locked_range_t *lr = rangelock_enter(&vre->vre_rangelock,
+	zfs_locked_range_t *lr = zfs_rangelock_enter(&vre->vre_rangelock,
 	    vre->vre_offset_phys,
 	    vre->vre_offset_pertxg[txgoff] - vre->vre_offset_phys,
 	    RL_WRITER);
@@ -3021,7 +3021,7 @@ raidz_reflow_sync(void *arg, dmu_tx_t *tx)
 	 */
 	vre->vre_offset_phys = vre->vre_offset_pertxg[txgoff];
 	vre->vre_offset_pertxg[txgoff] = 0;
-	rangelock_exit(lr);
+	zfs_rangelock_exit(lr);
 
 	/*
 	 * vre_offset_phys will be added to the on-disk config by
@@ -3068,7 +3068,7 @@ raidz_reflow_complete_sync(void *arg, dmu_tx_t *tx)
 
 	spa_history_log_internal(spa, "raidz vdev expansion completed",  tx,
 	    "%s vdev %llu new width %llu", spa_name(spa),
-	    vd->vdev_id, vd->vdev_children);
+	    (unsigned long long)vd->vdev_id, (unsigned long long)vd->vdev_children);
 }
 
 /*
@@ -3076,7 +3076,7 @@ raidz_reflow_complete_sync(void *arg, dmu_tx_t *tx)
  */
 typedef struct raidz_reflow_arg {
 	vdev_raidz_expand_t *rra_vre;
-	locked_range_t *rra_lr;
+	zfs_locked_range_t *rra_lr;
 } raidz_reflow_arg_t;
 
 /*
@@ -3096,7 +3096,7 @@ raidz_reflow_write_done(zio_t *zio)
 	cv_signal(&vre->vre_cv);
 	mutex_exit(&vre->vre_lock);
 
-	rangelock_exit(rra->rra_lr);
+	zfs_rangelock_exit(rra->rra_lr);
 
 	kmem_free(rra, sizeof (*rra));
 	spa_config_exit(zio->io_spa, SCL_STATE, zio->io_spa);
@@ -3118,12 +3118,14 @@ raidz_reflow_impl(vdev_t *vd, vdev_raidz_expand_t *vre, range_tree_t *rt,
 {
 	spa_t *spa = vd->vdev_spa;
 	int ashift = vd->vdev_top->vdev_ashift;
-	range_seg_t *rs = avl_first(&rt->rt_root);
-	if (rs == NULL)
+	uint64_t offset, size;
+
+	if (!range_tree_find_in(rt, 0, vd->vdev_top->vdev_asize,
+	    &offset, &size)) {
 		return (B_FALSE);
-	uint64_t offset = rs->rs_start;
+	}
 	ASSERT(IS_P2ALIGNED(offset, 1 << ashift));
-	ASSERT3U(rs->rs_end - rs->rs_start, >=, 1 << ashift);
+	ASSERT3U(size, >=, 1 << ashift);
 	uint64_t length = 1 << ashift;
 	int txgoff = dmu_tx_get_txg(tx) & TXG_MASK;
 
@@ -3169,7 +3171,7 @@ raidz_reflow_impl(vdev_t *vd, vdev_raidz_expand_t *vre, range_tree_t *rt,
 
 	raidz_reflow_arg_t *rra = kmem_zalloc(sizeof (*rra), KM_SLEEP);
 	rra->rra_vre = vre;
-	rra->rra_lr = rangelock_enter(&vre->vre_rangelock,
+	rra->rra_lr = zfs_rangelock_enter(&vre->vre_rangelock,
 	    offset, length, RL_WRITER);
 
 	mutex_enter(&vre->vre_lock);
@@ -3249,7 +3251,7 @@ spa_raidz_expand_cb(void *arg, zthr_t *zthr)
 		 */
 		if (msp->ms_new) {
 			mutex_exit(&msp->ms_lock);
-			metaslab_enable(msp, B_FALSE);
+			metaslab_enable(msp, B_FALSE, B_FALSE);
 			continue;
 		}
 
@@ -3260,7 +3262,7 @@ spa_raidz_expand_cb(void *arg, zthr_t *zthr)
 		 * space.  Note that there may be a little bit more free
 		 * space (e.g. in ms_defer), and it's fine to copy that too.
 		 */
-		range_tree_t *rt = range_tree_create(NULL, NULL);
+		range_tree_t *rt = range_tree_create(NULL, RANGE_SEG64, NULL, 0, 0);
 		range_tree_add(rt, msp->ms_start, msp->ms_size);
 		range_tree_walk(msp->ms_allocatable, range_tree_remove, rt);
 		mutex_exit(&msp->ms_lock);
@@ -3348,7 +3350,7 @@ spa_raidz_expand_cb(void *arg, zthr_t *zthr)
 		mutex_exit(&vre->vre_lock);
 #endif
 
-		metaslab_enable(msp, B_FALSE);
+		metaslab_enable(msp, B_FALSE, B_FALSE);
 		range_tree_vacate(rt, NULL, NULL);
 		range_tree_destroy(rt);
 
@@ -3428,7 +3430,7 @@ vdev_raidz_attach_sync(void *arg, dmu_tx_t *tx)
 
 	spa_history_log_internal(spa, "raidz vdev expansion started",  tx,
 	    "%s vdev %llu new width %llu", spa_name(spa),
-	    raidvd->vdev_id, raidvd->vdev_children);
+	    (unsigned long long)raidvd->vdev_id, (unsigned long long)raidvd->vdev_children);
 }
 
 /*
@@ -3438,7 +3440,6 @@ vdev_raidz_attach_sync(void *arg, dmu_tx_t *tx)
 void
 vdev_raidz_config_generate(vdev_t *vd, nvlist_t *nv)
 {
-	spa_t *spa = vd->vdev_spa;
 	ASSERT3P(vd->vdev_ops, ==, &vdev_raidz_ops);
 	vdev_raidz_t *vdrz = vd->vdev_tsd;
 
@@ -3448,9 +3449,9 @@ vdev_raidz_config_generate(vdev_t *vd, nvlist_t *nv)
 	 */
 	ASSERT(vdrz->vd_nparity == 1 ||
 	    (vdrz->vd_nparity <= 2 &&
-	    spa_version(spa) >= SPA_VERSION_RAIDZ2) ||
+	    spa_version(vd->vdev_spa) >= SPA_VERSION_RAIDZ2) ||
 	    (vdrz->vd_nparity <= 3 &&
-	    spa_version(spa) >= SPA_VERSION_RAIDZ3));
+	    spa_version(vd->vdev_spa) >= SPA_VERSION_RAIDZ3));
 
 	/*
 	 * Note that we'll add these even on storage pools where they
@@ -3482,7 +3483,7 @@ vdev_raidz_get_tsd(spa_t *spa, nvlist_t *nv)
 	vdrz->vn_vre.vre_offset_phys = UINT64_MAX;
 	mutex_init(&vdrz->vn_vre.vre_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&vdrz->vn_vre.vre_cv, NULL, CV_DEFAULT, NULL);
-	rangelock_init(&vdrz->vn_vre.vre_rangelock, NULL, NULL);
+	zfs_rangelock_init(&vdrz->vn_vre.vre_rangelock, NULL, NULL);
 
 	uint_t children;
 	nvlist_t **child;
@@ -3640,17 +3641,17 @@ spa_raidz_expand_get_stats(spa_t *spa, pool_raidz_expand_stat_t *pres)
 
 
 vdev_ops_t vdev_raidz_ops = {
-	vdev_raidz_open,
-	vdev_raidz_close,
-	vdev_raidz_asize,
-	vdev_raidz_io_start,
-	vdev_raidz_io_done,
-	vdev_raidz_state_change,
-	vdev_raidz_need_resilver,
-	NULL,
-	NULL,
-	NULL,
-	vdev_raidz_xlate,
-	VDEV_TYPE_RAIDZ,	/* name of this vdev type */
-	B_FALSE			/* not a leaf vdev */
+	.vdev_op_open = vdev_raidz_open,
+	.vdev_op_close = vdev_raidz_close,
+	.vdev_op_asize = vdev_raidz_asize,
+	.vdev_op_io_start = vdev_raidz_io_start,
+	.vdev_op_io_done = vdev_raidz_io_done,
+	.vdev_op_state_change = vdev_raidz_state_change,
+	.vdev_op_need_resilver = vdev_raidz_need_resilver,
+	.vdev_op_hold = NULL,
+	.vdev_op_rele = NULL,
+	.vdev_op_remap = NULL,
+	.vdev_op_xlate = vdev_raidz_xlate,
+	.vdev_op_type = VDEV_TYPE_RAIDZ,	/* name of this vdev type */
+	.vdev_op_leaf = B_FALSE			/* not a leaf vdev */
 };

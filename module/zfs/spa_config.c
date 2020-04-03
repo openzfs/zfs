@@ -37,8 +37,8 @@
 #include <sys/systeminfo.h>
 #include <sys/sunddi.h>
 #include <sys/zfeature.h>
+#include <sys/zfs_file.h>
 #ifdef _KERNEL
-#include <sys/kobj.h>
 #include <sys/zone.h>
 #endif
 
@@ -80,8 +80,10 @@ spa_config_load(void)
 	nvlist_t *nvlist, *child;
 	nvpair_t *nvpair;
 	char *pathname;
-	struct _buf *file;
+	zfs_file_t *fp;
+	zfs_file_attr_t zfa;
 	uint64_t fsize;
+	int err;
 
 #ifdef _KERNEL
 	if (zfs_autoimport_disable)
@@ -93,25 +95,25 @@ spa_config_load(void)
 	 */
 	pathname = kmem_alloc(MAXPATHLEN, KM_SLEEP);
 
-	(void) snprintf(pathname, MAXPATHLEN, "%s%s",
-	    (rootdir != NULL) ? "./" : "", spa_config_path);
+	(void) snprintf(pathname, MAXPATHLEN, "%s", spa_config_path);
 
-	file = kobj_open_file(pathname);
+	err = zfs_file_open(pathname, O_RDONLY, 0, &fp);
 
 	kmem_free(pathname, MAXPATHLEN);
 
-	if (file == (struct _buf *)-1)
+	if (err)
 		return;
 
-	if (kobj_get_filesize(file, &fsize) != 0)
+	if (zfs_file_getattr(fp, &zfa))
 		goto out;
 
+	fsize = zfa.zfa_size;
 	buf = kmem_alloc(fsize, KM_SLEEP);
 
 	/*
 	 * Read the nvlist from the file.
 	 */
-	if (kobj_read_file(file, buf, fsize, 0) < 0)
+	if (zfs_file_read(fp, buf, fsize, NULL) < 0)
 		goto out;
 
 	/*
@@ -144,27 +146,32 @@ out:
 	if (buf != NULL)
 		kmem_free(buf, fsize);
 
-	kobj_close_file(file);
+	zfs_file_close(fp);
 }
 
 static int
 spa_config_remove(spa_config_dirent_t *dp)
 {
-#if defined(__linux__) && defined(_KERNEL)
-	int error, flags = FWRITE | FTRUNC;
-	uio_seg_t seg = UIO_SYSSPACE;
-	vnode_t *vp;
+	int error = 0;
 
-	error = vn_open(dp->scd_path, seg, flags, 0644, &vp, 0, 0);
-	if (error == 0) {
-		(void) VOP_FSYNC(vp, FSYNC, kcred, NULL);
-		(void) VOP_CLOSE(vp, 0, 1, 0, kcred, NULL);
+	/*
+	 * Remove the cache file.  If zfs_file_unlink() in not supported by the
+	 * platform fallback to truncating the file which is functionally
+	 * equivalent.
+	 */
+	error = zfs_file_unlink(dp->scd_path);
+	if (error == EOPNOTSUPP) {
+		int flags = O_RDWR | O_TRUNC;
+		zfs_file_t *fp;
+
+		error = zfs_file_open(dp->scd_path, flags, 0644, &fp);
+		if (error == 0) {
+			(void) zfs_file_fsync(fp, O_SYNC);
+			(void) zfs_file_close(fp);
+		}
 	}
 
 	return (error);
-#else
-	return (vn_remove(dp->scd_path, UIO_SYSSPACE, RMFILE));
-#endif
 }
 
 static int
@@ -172,10 +179,10 @@ spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
 {
 	size_t buflen;
 	char *buf;
-	vnode_t *vp;
-	int oflags = FWRITE | FTRUNC | FCREAT | FOFFMAX;
+	int oflags = O_RDWR | O_TRUNC | O_CREAT | O_LARGEFILE;
 	char *temp;
 	int err;
+	zfs_file_t *fp;
 
 	/*
 	 * If the nvlist is empty (NULL), then remove the old cachefile.
@@ -194,46 +201,22 @@ spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
 	buf = fnvlist_pack(nvl, &buflen);
 	temp = kmem_zalloc(MAXPATHLEN, KM_SLEEP);
 
-#if defined(__linux__) && defined(_KERNEL)
 	/*
 	 * Write the configuration to disk.  Due to the complexity involved
 	 * in performing a rename and remove from within the kernel the file
 	 * is instead truncated and overwritten in place.  This way we always
 	 * have a consistent view of the data or a zero length file.
 	 */
-	err = vn_open(dp->scd_path, UIO_SYSSPACE, oflags, 0644, &vp, 0, 0);
+	err = zfs_file_open(dp->scd_path, oflags, 0644, &fp);
 	if (err == 0) {
-		err = vn_rdwr(UIO_WRITE, vp, buf, buflen, 0,
-		    UIO_SYSSPACE, 0, RLIM64_INFINITY, kcred, NULL);
+		err = zfs_file_write(fp, buf, buflen, NULL);
 		if (err == 0)
-			err = VOP_FSYNC(vp, FSYNC, kcred, NULL);
+			err = zfs_file_fsync(fp, O_SYNC);
 
-		(void) VOP_CLOSE(vp, oflags, 1, 0, kcred, NULL);
+		zfs_file_close(fp);
 		if (err)
 			(void) spa_config_remove(dp);
 	}
-#else
-	/*
-	 * Write the configuration to disk.  We need to do the traditional
-	 * 'write to temporary file, sync, move over original' to make sure we
-	 * always have a consistent view of the data.
-	 */
-	(void) snprintf(temp, MAXPATHLEN, "%s.tmp", dp->scd_path);
-
-	err = vn_open(temp, UIO_SYSSPACE, oflags, 0644, &vp, CRCREAT, 0);
-	if (err == 0) {
-		err = vn_rdwr(UIO_WRITE, vp, buf, buflen, 0, UIO_SYSSPACE,
-		    0, RLIM64_INFINITY, kcred, NULL);
-		if (err == 0)
-			err = VOP_FSYNC(vp, FSYNC, kcred, NULL);
-		if (err == 0)
-			err = vn_rename(temp, dp->scd_path, UIO_SYSSPACE);
-		(void) VOP_CLOSE(vp, oflags, 1, 0, kcred, NULL);
-	}
-
-	(void) vn_remove(temp, UIO_SYSSPACE, RMFILE);
-#endif
-
 	fnvlist_pack_free(buf, buflen);
 	kmem_free(temp, MAXPATHLEN);
 	return (err);
@@ -259,7 +242,7 @@ spa_write_cachefile(spa_t *target, boolean_t removing, boolean_t postsysevent)
 
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
 
-	if (rootdir == NULL || !(spa_mode_global & FWRITE))
+	if (!(spa_mode_global & SPA_MODE_WRITE))
 		return;
 
 	/*
@@ -458,7 +441,7 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
 		fnvlist_add_string(config, ZPOOL_CONFIG_COMMENT,
 		    spa->spa_comment);
 
-	hostid = spa_get_hostid();
+	hostid = spa_get_hostid(spa);
 	if (hostid != 0)
 		fnvlist_add_uint64(config, ZPOOL_CONFIG_HOSTID, hostid);
 	fnvlist_add_string(config, ZPOOL_CONFIG_HOSTNAME, utsname()->nodename);
@@ -612,17 +595,19 @@ spa_config_update(spa_t *spa, int what)
 		spa_config_update(spa, SPA_CONFIG_UPDATE_VDEVS);
 }
 
-#if defined(_KERNEL)
 EXPORT_SYMBOL(spa_config_load);
 EXPORT_SYMBOL(spa_all_configs);
 EXPORT_SYMBOL(spa_config_set);
 EXPORT_SYMBOL(spa_config_generate);
 EXPORT_SYMBOL(spa_config_update);
 
-module_param(spa_config_path, charp, 0444);
-MODULE_PARM_DESC(spa_config_path, "SPA config file (/etc/zfs/zpool.cache)");
-
-module_param(zfs_autoimport_disable, int, 0644);
-MODULE_PARM_DESC(zfs_autoimport_disable, "Disable pool import at module load");
-
+/* BEGIN CSTYLED */
+#ifdef __linux__
+/* string sysctls require a char array on FreeBSD */
+ZFS_MODULE_PARAM(zfs_spa, spa_, config_path, STRING, ZMOD_RD,
+	"SPA config file (/etc/zfs/zpool.cache)");
 #endif
+
+ZFS_MODULE_PARAM(zfs, zfs_, autoimport_disable, INT, ZMOD_RW,
+	"Disable pool import at module load");
+/* END CSTYLED */

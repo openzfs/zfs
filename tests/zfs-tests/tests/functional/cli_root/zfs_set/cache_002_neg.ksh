@@ -64,4 +64,4 @@ do
 	done
 done
 
-log_pass "Setting invalid {primary|secondary}cache on fs or volume fail as expeced."
+log_pass "Setting invalid {primary|secondary}cache on fs or volume fail as expected."

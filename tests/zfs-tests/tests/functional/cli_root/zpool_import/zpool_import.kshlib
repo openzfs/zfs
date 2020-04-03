@@ -1,5 +1,3 @@
-#!/bin/ksh
-
 #
 # This file and its contents are supplied under the terms of the
 # Common Development and Distribution License ("CDDL"), version 1.0.
@@ -36,7 +34,7 @@ function cleanup
 		log_must mkfile $FILE_SIZE ${DEVICE_DIR}/${DEVICE_FILE}$i
 		((i += 1))
 	done
-	is_linux && set_tunable32 "zfs_txg_history" 0
+	is_linux && set_tunable32 TXG_HISTORY 0
 }
 
 #
@@ -81,10 +79,10 @@ function write_some_data
 
 #
 # Create/overwrite a few datasets with files.
-# Apply md5sum on all the files and store checksums in a file.
+# Checksum all the files and store digests in a file.
 #
 # newdata: overwrite existing files if false.
-# md5file: file where to store md5sums
+# md5file: file where to store md5 digests
 # datasetname: base name for datasets
 #
 function _generate_data_common
@@ -104,7 +102,10 @@ function _generate_data_common
 		for j in {1..$files}; do
 			typeset file="/$pool/$datasetname$i/file$j"
 			dd if=/dev/urandom of=$file bs=128k count=$blocks > /dev/null
-			[[ -n $md5file ]] && md5sum $file >> $md5file
+			if [[ -n $md5file ]]; then
+				typeset cksum=$(md5digest $file)
+				echo $cksum $file >> $md5file
+			fi
 		done
 		( $newdata ) && sync_pool "$pool"
 	done
@@ -142,8 +143,15 @@ function verify_data_md5sums
 		return 1
 	fi
 
-	md5sum -c --quiet $md5file
-	return $?
+	cat $md5file | \
+	while read digest file; do
+		typeset digest1=$(md5digest $file)
+		if [[ "$digest1" != "$digest" ]]; then
+			return 1
+		fi
+	done
+
+	return 0
 }
 
 #
@@ -309,71 +317,40 @@ function pool_is_replacing
 
 function set_vdev_validate_skip
 {
-	set_tunable32 "vdev_validate_skip" "$1"
+	set_tunable32 VDEV_VALIDATE_SKIP "$1"
 }
 
 function get_zfs_txg_timeout
 {
-	get_tunable "zfs_txg_timeout"
+	get_tunable TXG_TIMEOUT
 }
 
 function set_zfs_txg_timeout
 {
-	set_tunable32 "zfs_txg_timeout" "$1"
+	set_tunable32 TXG_TIMEOUT "$1"
 }
 
 function set_spa_load_verify_metadata
 {
-	set_tunable32 "spa_load_verify_metadata" "$1"
+	set_tunable32 SPA_LOAD_VERIFY_METADATA "$1"
 }
 
 function set_spa_load_verify_data
 {
-	set_tunable32 "spa_load_verify_data" "$1"
+	set_tunable32 SPA_LOAD_VERIFY_DATA "$1"
 }
 
 function set_zfs_max_missing_tvds
 {
-	set_tunable32 "zfs_max_missing_tvds" "$1"
+	set_tunable32 MAX_MISSING_TVDS "$1"
 }
 
 #
-# Use mdb to find the last txg that was synced in an active pool.
+# Use zdb to find the last txg that was synced in an active pool.
 #
 function get_last_txg_synced
 {
 	typeset pool=$1
 
-	if is_linux; then
-		txg=$(tail "/proc/spl/kstat/zfs/$pool/txgs" |
-		    awk '$3=="C" {print $1}' | tail -1)
-		[[ "$txg" ]] || txg=0
-		echo $txg
-		return 0
-	fi
-
-	typeset spas
-	spas=$(mdb -k -e "::spa")
-	[[ $? -ne 0 ]] && return 1
-
-	typeset spa=""
-	print "$spas\n" | while read line; do
-		typeset poolname=$(echo "$line" | awk '{print $3}')
-		typeset addr=$(echo "$line" | awk '{print $1}')
-		if [[ $poolname == $pool ]]; then
-			spa=$addr
-			break
-		fi
-	done
-	if [[ -z $spa ]]; then
-		log_fail "Couldn't find pool '$pool'"
-		return 1
-	fi
-	typeset mdbcmd="$spa::print spa_t spa_ubsync.ub_txg | ::eval '.=E'"
-	typeset -i txg
-	txg=$(mdb -k -e "$mdbcmd")
-	[[ $? -ne 0 ]] && return 1
-
-	echo $txg
-	return 0
+	zdb -u $pool | awk '$1 == "txg" { print $3 }' | sort -n | tail -n 1
 }

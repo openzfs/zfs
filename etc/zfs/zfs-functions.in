@@ -1,0 +1,432 @@
+# This is a script with common functions etc used by zfs-import, zfs-mount,
+# zfs-share and zfs-zed.
+#
+# It is _NOT_ to be called independently
+#
+# Released under the 2-clause BSD license.
+#
+# The original script that acted as a template for this script came from
+# the Debian GNU/Linux kFreeBSD ZFS packages (which did not include a
+# licensing stansa) in the commit dated Mar 24, 2011:
+#   https://github.com/zfsonlinux/pkg-zfs/commit/80a3ae582b59c0250d7912ba794dca9e669e605a
+
+PATH=/sbin:/bin:/usr/bin:/usr/sbin
+
+# Source function library
+if [ -f /etc/rc.d/init.d/functions ]; then
+	# RedHat and derivates
+	. /etc/rc.d/init.d/functions
+elif [ -L /etc/init.d/functions.sh ]; then
+	# Gentoo
+	. /etc/init.d/functions.sh
+elif [ -f /lib/lsb/init-functions ]; then
+	# LSB, Debian GNU/Linux and derivates
+	. /lib/lsb/init-functions
+fi
+
+# Of course the functions we need are called differently
+# on different distributions - it would be way too easy
+# otherwise!!
+if type log_failure_msg > /dev/null 2>&1 ; then
+	# LSB functions - fall through
+	zfs_log_begin_msg() { log_begin_msg "$1"; }
+	zfs_log_end_msg() { log_end_msg "$1"; }
+	zfs_log_failure_msg() { log_failure_msg "$1"; }
+	zfs_log_progress_msg() { log_progress_msg "$1"; }
+elif type success > /dev/null 2>&1 ; then
+	# Fedora/RedHat functions
+	zfs_set_ifs() {
+		# For some reason, the init function library have a problem
+		# with a changed IFS, so this function goes around that.
+		local tIFS="$1"
+		if [ -n "$tIFS" ]
+		then
+			TMP_IFS="$IFS"
+			IFS="$tIFS"
+		fi
+	}
+
+	zfs_log_begin_msg() { echo -n "$1 "; }
+	zfs_log_end_msg() {
+		zfs_set_ifs "$OLD_IFS"
+		if [ "$1" -eq 0 ]; then
+			success
+		else
+			failure
+		fi
+		echo
+		zfs_set_ifs "$TMP_IFS"
+	}
+	zfs_log_failure_msg() {
+		zfs_set_ifs "$OLD_IFS"
+		failure
+		echo
+		zfs_set_ifs "$TMP_IFS"
+	}
+	zfs_log_progress_msg() { echo -n $"$1"; }
+elif type einfo > /dev/null 2>&1 ; then
+	# Gentoo functions
+	zfs_log_begin_msg() { ebegin "$1"; }
+	zfs_log_end_msg() { eend "$1"; }
+	zfs_log_failure_msg() { eend "$1"; }
+#	zfs_log_progress_msg() { echo -n "$1"; }
+	zfs_log_progress_msg() { echo -n; }
+else
+	# Unknown - simple substitutes.
+	zfs_log_begin_msg() { echo -n "$1"; }
+	zfs_log_end_msg() {
+		ret=$1
+		if [ "$ret" -ge 1 ]; then
+			echo " failed!"
+		else
+			echo " success"
+		fi
+		return "$ret"
+	}
+	zfs_log_failure_msg() { echo "$1"; }
+	zfs_log_progress_msg() { echo -n "$1"; }
+fi
+
+# Paths to what we need
+ZFS="@sbindir@/zfs"
+ZED="@sbindir@/zed"
+ZPOOL="@sbindir@/zpool"
+ZPOOL_CACHE="@sysconfdir@/zfs/zpool.cache"
+
+# Sensible defaults
+ZFS_MOUNT='yes'
+ZFS_UNMOUNT='yes'
+
+export ZFS ZED ZPOOL ZPOOL_CACHE ZFS_MOUNT ZFS_UNMOUNT
+
+# Source zfs configuration, overriding the defaults
+if [ -f @initconfdir@/zfs ]; then
+	. @initconfdir@/zfs
+fi
+
+# ----------------------------------------------------
+
+zfs_action()
+{
+	local MSG="$1";	shift
+	local CMD="$*"
+	local ret
+
+	zfs_log_begin_msg "$MSG "
+	$CMD
+	ret=$?
+	if [ "$ret" -eq 0 ]; then
+		zfs_log_end_msg $ret
+	else
+		zfs_log_failure_msg $ret
+	fi
+
+	return $ret
+}
+
+# Returns
+#   0 if daemon has been started
+#   1 if daemon was already running
+#   2 if daemon could not be started
+#   3 if unsupported
+#
+zfs_daemon_start()
+{
+	local PIDFILE="$1";	shift
+	local DAEMON_BIN="$1";	shift
+	local DAEMON_ARGS="$*"
+
+	if type start-stop-daemon > /dev/null 2>&1 ; then
+		# LSB functions
+		start-stop-daemon --start --quiet --pidfile "$PIDFILE" \
+		    --exec "$DAEMON_BIN" --test > /dev/null || return 1
+
+	        start-stop-daemon --start --quiet --exec "$DAEMON_BIN" -- \
+		    $DAEMON_ARGS || return 2
+
+		# On Debian GNU/Linux, there's a 'sendsigs' script that will
+		# kill basically everything quite early and zed is stopped
+		# much later than that. We don't want zed to be among them,
+		# so add the zed pid to list of pids to ignore.
+		if [ -f "$PIDFILE" -a -d /run/sendsigs.omit.d ]
+		then
+			ln -sf "$PIDFILE" /run/sendsigs.omit.d/zed
+		fi
+	elif type daemon > /dev/null 2>&1 ; then
+	        # Fedora/RedHat functions
+		daemon --pidfile "$PIDFILE" "$DAEMON_BIN" $DAEMON_ARGS
+		return $?
+	else
+		# Unsupported
+		return 3
+	fi
+
+	return 0
+}
+
+# Returns
+#   0 if daemon has been stopped
+#   1 if daemon was already stopped
+#   2 if daemon could not be stopped
+#   3 if unsupported
+#
+zfs_daemon_stop()
+{
+	local PIDFILE="$1"
+	local DAEMON_BIN="$2"
+	local DAEMON_NAME="$3"
+
+	if type start-stop-daemon > /dev/null 2>&1 ; then
+		# LSB functions
+		start-stop-daemon --stop --quiet --retry=TERM/30/KILL/5 \
+		    --pidfile "$PIDFILE" --name "$DAEMON_NAME"
+		[ "$?" = 0 ] && rm -f "$PIDFILE"
+
+		return $?
+	elif type killproc > /dev/null 2>&1 ; then
+		# Fedora/RedHat functions
+		killproc -p "$PIDFILE" "$DAEMON_NAME"
+		[ "$?" = 0 ] && rm -f "$PIDFILE"
+
+		return $?
+	else
+		# Unsupported
+		return 3
+	fi
+
+	return 0
+}
+
+# Returns status
+zfs_daemon_status()
+{
+	local PIDFILE="$1"
+	local DAEMON_BIN="$2"
+	local DAEMON_NAME="$3"
+
+	if type status_of_proc > /dev/null 2>&1 ; then
+		# LSB functions
+		status_of_proc "$DAEMON_NAME" "$DAEMON_BIN"
+		return $?
+	elif type status > /dev/null 2>&1 ; then
+		# Fedora/RedHat functions
+		status -p "$PIDFILE" "$DAEMON_NAME"
+		return $?
+	else
+		# Unsupported
+		return 3
+	fi
+
+	return 0
+}
+
+zfs_daemon_reload()
+{
+	local PIDFILE="$1"
+	local DAEMON_NAME="$2"
+
+	if type start-stop-daemon > /dev/null 2>&1 ; then
+		# LSB functions
+		start-stop-daemon --stop --signal 1 --quiet \
+		    --pidfile "$PIDFILE" --name "$DAEMON_NAME"
+		return $?
+	elif type killproc > /dev/null 2>&1 ; then
+		# Fedora/RedHat functions
+                killproc -p "$PIDFILE" "$DAEMON_NAME" -HUP
+		return $?
+	else
+		# Unsupported
+		return 3
+	fi
+
+	return 0
+}
+
+zfs_installed()
+{
+	if [ ! -x "$ZPOOL" ]; then
+		return 1
+	else
+		# Test if it works (will catch missing/broken libs etc)
+		"$ZPOOL" -? > /dev/null 2>&1
+		return $?
+	fi
+
+	if [ ! -x "$ZFS" ]; then
+		return 2
+	else
+		# Test if it works (will catch missing/broken libs etc)
+		"$ZFS" -? > /dev/null 2>&1
+		return $?
+	fi
+
+	return 0
+}
+
+# Trigger udev and wait for it to settle.
+udev_trigger()
+{
+	if [ -x /sbin/udevadm ]; then
+		/sbin/udevadm trigger --action=change --subsystem-match=block
+		/sbin/udevadm settle
+	elif [ -x /sbin/udevsettle ]; then
+		/sbin/udevtrigger
+		/sbin/udevsettle
+	fi
+}
+
+# Do a lot of checks to make sure it's 'safe' to continue with the import.
+checksystem()
+{
+	if grep -qiE '(^|[^\\](\\\\)* )zfs=(off|no|0)( |$)' /proc/cmdline;
+	then
+		# Called with zfs=(off|no|0) - bail because we don't
+		# want anything import, mounted or shared.
+		# HOWEVER, only do this if we're called at the boot up
+		# (from init), not if we're running interactively (as in
+		# from the shell - we know what we're doing).
+		[ -n "$init" ] && exit 3
+	fi
+
+	# Check if ZFS is installed.
+	zfs_installed || return 5
+
+	# Just make sure that /dev/zfs is created.
+	udev_trigger
+
+	return 0
+}
+
+get_root_pool()
+{
+	set -- $(mount | grep ' on / ')
+	[ "$5" = "zfs" ] && echo "${1%%/*}"
+}
+
+# Check if a variable is 'yes' (any case) or '1'
+# Returns TRUE if set.
+check_boolean()
+{
+	local var="$1"
+
+	echo "$var" | grep -Eiq "^yes$|^on$|^true$|^1$" && return 0 || return 1
+}
+
+check_module_loaded()
+{
+	module="$1"
+
+	[ -r "/sys/module/${module}/version" ] && return 0 || return 1
+}
+
+load_module()
+{
+	module="$1"
+
+	# Load the zfs module stack
+	if ! check_module_loaded "$module"; then
+		if ! /sbin/modprobe "$module"; then
+			return 5
+		fi
+	fi
+	return 0
+}
+
+# first parameter is a regular expression that filters mtab
+read_mtab()
+{
+	local match="$1"
+	local fs mntpnt fstype opts rest TMPFILE
+
+	# Unset all MTAB_* variables
+	unset $(env | grep ^MTAB_ | sed 's,=.*,,')
+
+	while read -r fs mntpnt fstype opts rest; do
+		if echo "$fs $mntpnt $fstype $opts" | grep -qE "$match"; then
+			# * Fix problems (!?) in the mounts file. It will record
+			#   'rpool 1' as 'rpool\0401' instead of 'rpool\00401'
+			#   which seems to be the correct (at least as far as
+			#   'printf' is concerned).
+			# * We need to use the external echo, because the
+			#   internal one would interpret the backslash code
+			#   (incorrectly), giving us a  instead.
+			mntpnt=$(/bin/echo "$mntpnt" | sed "s,\\\0,\\\00,g")
+			fs=$(/bin/echo "$fs" | sed "s,\\\0,\\\00,")
+
+			# Remove 'unwanted' characters.
+			mntpnt=$(printf '%b\n' "$mntpnt" | sed -e 's,/,,g' \
+			    -e 's,-,,g' -e 's,\.,,g' -e 's, ,,g')
+			fs=$(printf '%b\n' "$fs")
+
+			# Set the variable.
+			eval export MTAB_$mntpnt=\"$fs\"
+		fi
+	done < /proc/self/mounts
+}
+
+in_mtab()
+{
+	local mntpnt="$1"
+	# Remove 'unwanted' characters.
+	mntpnt=$(printf '%b\n' "$mntpnt" | sed -e 's,/,,g' \
+	    -e 's,-,,g' -e 's,\.,,g' -e 's, ,,g')   
+	local var
+
+	var="$(eval echo MTAB_$mntpnt)"
+	[ "$(eval echo "$""$var")" != "" ]
+	return "$?"
+}
+
+# first parameter is a regular expression that filters fstab
+read_fstab()
+{
+	local match="$1"
+	local i var TMPFILE
+
+	# Unset all FSTAB_* variables
+	unset $(env | grep ^FSTAB_ | sed 's,=.*,,')
+
+	i=0
+	while read -r fs mntpnt fstype opts; do
+		echo "$fs" | egrep -qE '^#|^$' && continue
+		echo "$mntpnt" | egrep -qE '^none|^swap' && continue
+		echo "$fstype" | egrep -qE '^swap' && continue
+
+		if echo "$fs $mntpnt $fstype $opts" | grep -qE "$match"; then
+			eval export FSTAB_dev_$i="$fs"
+			fs=$(printf '%b\n' "$fs" | sed 's,/,_,g')
+			eval export FSTAB_$i="$mntpnt"
+
+			i=$((i + 1))
+		fi
+	done < /etc/fstab
+}
+
+in_fstab()
+{
+	local var
+
+	var="$(eval echo FSTAB_$1)"
+	[ "${var}" != "" ]
+	return $?
+}
+
+is_mounted()
+{
+	local mntpt="$1"
+	local line
+
+	mount | \
+	    while read line; do
+		if echo "$line" | grep -q " on $mntpt "; then
+		    # returns:
+		    #   0 on unsuccessful match
+		    #   1 on a successful match
+		    return 1
+		fi
+	    done
+
+	# The negation will flip the subshell return result where the default
+	# return value is 0 when a match is not found.
+	return $(( !$? ))
+}

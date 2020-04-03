@@ -1,0 +1,17 @@
+$(MODULE)-objs += ../os/linux/spl/spl-atomic.o
+$(MODULE)-objs += ../os/linux/spl/spl-condvar.o
+$(MODULE)-objs += ../os/linux/spl/spl-cred.o
+$(MODULE)-objs += ../os/linux/spl/spl-err.o
+$(MODULE)-objs += ../os/linux/spl/spl-generic.o
+$(MODULE)-objs += ../os/linux/spl/spl-kmem.o
+$(MODULE)-objs += ../os/linux/spl/spl-kmem-cache.o
+$(MODULE)-objs += ../os/linux/spl/spl-kstat.o
+$(MODULE)-objs += ../os/linux/spl/spl-proc.o
+$(MODULE)-objs += ../os/linux/spl/spl-procfs-list.o
+$(MODULE)-objs += ../os/linux/spl/spl-taskq.o
+$(MODULE)-objs += ../os/linux/spl/spl-thread.o
+$(MODULE)-objs += ../os/linux/spl/spl-trace.o
+$(MODULE)-objs += ../os/linux/spl/spl-tsd.o
+$(MODULE)-objs += ../os/linux/spl/spl-vmem.o
+$(MODULE)-objs += ../os/linux/spl/spl-xdr.o
+$(MODULE)-objs += ../os/linux/spl/spl-zlib.o

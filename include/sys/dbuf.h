@@ -108,6 +108,12 @@ typedef enum override_states {
 	DR_OVERRIDDEN
 } override_states_t;
 
+typedef enum db_lock_type {
+	DLT_NONE,
+	DLT_PARENT,
+	DLT_OBJSET
+} db_lock_type_t;
+
 typedef struct dbuf_dirty_record {
 	/* link on our parents dirty list */
 	list_node_t dr_dirty_node;
@@ -121,8 +127,8 @@ typedef struct dbuf_dirty_record {
 	/* pointer back to our dbuf */
 	struct dmu_buf_impl *dr_dbuf;
 
-	/* pointer to next dirty record */
-	struct dbuf_dirty_record *dr_next;
+	/* list link for dbuf dirty records */
+	list_node_t dr_dbuf_node;
 
 	/* pointer to parent dirty record */
 	struct dbuf_dirty_record *dr_parent;
@@ -200,6 +206,13 @@ typedef struct dmu_buf_impl {
 	 */
 	struct dmu_buf_impl *db_hash_next;
 
+	/*
+	 * Our link on the owner dnodes's dn_dbufs list.
+	 * Protected by its dn_dbufs_mtx.  Should be on the same cache line
+	 * as db_level and db_blkid for the best avl_add() performance.
+	 */
+	avl_node_t db_link;
+
 	/* our block number */
 	uint64_t db_blkid;
 
@@ -217,6 +230,22 @@ typedef struct dmu_buf_impl {
 	 */
 	uint8_t db_level;
 
+	/*
+	 * Protects db_buf's contents if they contain an indirect block or data
+	 * block of the meta-dnode. We use this lock to protect the structure of
+	 * the block tree. This means that when modifying this dbuf's data, we
+	 * grab its rwlock. When modifying its parent's data (including the
+	 * blkptr to this dbuf), we grab the parent's rwlock. The lock ordering
+	 * for this lock is:
+	 * 1) dn_struct_rwlock
+	 * 2) db_rwlock
+	 * We don't currently grab multiple dbufs' db_rwlocks at once.
+	 */
+	krwlock_t db_rwlock;
+
+	/* buffer holding our data */
+	arc_buf_t *db_buf;
+
 	/* db_mtx protects the members below */
 	kmutex_t db_mtx;
 
@@ -232,20 +261,11 @@ typedef struct dmu_buf_impl {
 	 */
 	zfs_refcount_t db_holds;
 
-	/* buffer holding our data */
-	arc_buf_t *db_buf;
-
 	kcondvar_t db_changed;
 	dbuf_dirty_record_t *db_data_pending;
 
-	/* pointer to most recent dirty record for this buffer */
-	dbuf_dirty_record_t *db_last_dirty;
-
-	/*
-	 * Our link on the owner dnodes's dn_dbufs list.
-	 * Protected by its dn_dbufs_mtx.
-	 */
-	avl_node_t db_link;
+	/* List of dirty records for the buffer sorted newest to oldest. */
+	list_t db_dirty_records;
 
 	/* Link in dbuf_cache or dbuf_metadata_cache */
 	multilist_node_t db_cache_link;
@@ -329,13 +349,14 @@ void dmu_buf_write_embedded(dmu_buf_t *dbuf, void *data,
     bp_embedded_type_t etype, enum zio_compress comp,
     int uncompressed_size, int compressed_size, int byteorder, dmu_tx_t *tx);
 
+void dmu_buf_redact(dmu_buf_t *dbuf, dmu_tx_t *tx);
 void dbuf_destroy(dmu_buf_impl_t *db);
 
 void dbuf_unoverride(dbuf_dirty_record_t *dr);
 void dbuf_sync_list(list_t *list, int level, dmu_tx_t *tx);
 void dbuf_release_bp(dmu_buf_impl_t *db);
-
-boolean_t dbuf_can_remap(const dmu_buf_impl_t *buf);
+db_lock_type_t dmu_buf_lock_parent(dmu_buf_impl_t *db, krw_t rw, void *tag);
+void dmu_buf_unlock_parent(dmu_buf_impl_t *db, db_lock_type_t type, void *tag);
 
 void dbuf_free_range(struct dnode *dn, uint64_t start, uint64_t end,
     struct dmu_tx *);
@@ -344,6 +365,9 @@ void dbuf_new_size(dmu_buf_impl_t *db, int size, dmu_tx_t *tx);
 
 void dbuf_stats_init(dbuf_hash_table_t *hash);
 void dbuf_stats_destroy(void);
+
+int dbuf_dnode_findbp(dnode_t *dn, uint64_t level, uint64_t blkid,
+    blkptr_t *bp, uint16_t *datablkszsec, uint8_t *indblkshift);
 
 #define	DB_DNODE(_db)		((_db)->db_dnode_handle->dnh_dnode)
 #define	DB_DNODE_LOCK(_db)	((_db)->db_dnode_handle->dnh_zrlock)
@@ -355,6 +379,29 @@ void dbuf_init(void);
 void dbuf_fini(void);
 
 boolean_t dbuf_is_metadata(dmu_buf_impl_t *db);
+
+static inline dbuf_dirty_record_t *
+dbuf_find_dirty_lte(dmu_buf_impl_t *db, uint64_t txg)
+{
+	dbuf_dirty_record_t *dr;
+
+	for (dr = list_head(&db->db_dirty_records);
+	    dr != NULL && dr->dr_txg > txg;
+	    dr = list_next(&db->db_dirty_records, dr))
+		continue;
+	return (dr);
+}
+
+static inline dbuf_dirty_record_t *
+dbuf_find_dirty_eq(dmu_buf_impl_t *db, uint64_t txg)
+{
+	dbuf_dirty_record_t *dr;
+
+	dr = dbuf_find_dirty_lte(db, txg);
+	if (dr && dr->dr_txg == txg)
+		return (dr);
+	return (NULL);
+}
 
 #define	DBUF_GET_BUFC_TYPE(_db)	\
 	(dbuf_is_metadata(_db) ? ARC_BUFC_METADATA : ARC_BUFC_DATA)

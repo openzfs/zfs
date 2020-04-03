@@ -101,7 +101,7 @@ function verify_perm
 
 			log_note "Check $type $user $perm $dtst"
 			if ((ret != 0)) ; then
-				log_note "Fail: $user should have $perm " \
+				log_note "Fail: $user should have $perm" \
 					"on $dtst"
 				return 1
 			fi
@@ -483,6 +483,7 @@ function verify_userprop
 	typeset stamp=${perm}.${user}.$(date +'%F-%T-%N')
 
 	user_run $user zfs set "$user:ts=$stamp" $dtst
+	zpool sync ${dtst%%/*}
 	if [[ $stamp != $(get_prop "$user:ts" $dtst) ]]; then
 		return 1
 	fi
@@ -684,7 +685,7 @@ function verify_fs_destroy
 
 # Verify that given the correct delegation, a regular user can:
 #	Take a snapshot of an unmounted dataset
-#	Take a snapshot of an mounted dataset
+# 	Take a snapshot of a mounted dataset
 #	Create a snapshot by making a directory in the .zfs/snapshot directory
 function verify_fs_snapshot
 {
@@ -716,12 +717,15 @@ function verify_fs_snapshot
 	fi
 	log_must zfs destroy $snap
 
-	typeset snapdir=${mntpt}/.zfs/snapshot/snap.$stamp
-	user_run $user mkdir $snapdir
-	if ! datasetexists $snap ; then
-		return 1
+	# Creating snaps via mkdir is not supported on FreeBSD
+	if ! is_freebsd; then
+		typeset snapdir=${mntpt}/.zfs/snapshot/snap.$stamp
+		user_run $user mkdir $snapdir
+		if ! datasetexists $snap ; then
+			return 1
+		fi
+		log_must zfs destroy $snap
 	fi
-	log_must zfs destroy $snap
 
 	return 0
 }

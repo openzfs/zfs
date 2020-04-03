@@ -22,7 +22,7 @@
 #	Ensure that MMP updates uberblocks with MMP info at expected intervals. 
 #
 # STRATEGY:
-#	1. Set zfs_txg_timeout to large value
+#	1. Set TXG_TIMEOUT to large value
 #	2. Create a zpool
 #	3. Clear multihost history
 #	4. Sleep, then collect count of uberblocks written
@@ -47,15 +47,15 @@ MIN_SEQ_VALUES=7
 function cleanup
 {
 	default_cleanup_noexit
-	log_must set_tunable64 zfs_multihost_interval $MMP_INTERVAL_DEFAULT
-	set_tunable64 zfs_txg_timeout $TXG_TIMEOUT_DEFAULT
+	log_must set_tunable64 MULTIHOST_INTERVAL $MMP_INTERVAL_DEFAULT
+	set_tunable64 TXG_TIMEOUT $TXG_TIMEOUT_DEFAULT
 	log_must mmp_clear_hostid
 }
 
 log_assert "Ensure MMP uberblocks update at the correct interval"
 log_onexit cleanup
 
-log_must set_tunable64 zfs_txg_timeout $TXG_TIMEOUT_LONG
+log_must set_tunable64 TXG_TIMEOUT $TXG_TIMEOUT_LONG
 log_must mmp_set_hostid $HOSTID1
 
 default_setup_noexit "$DISKS"
@@ -66,14 +66,14 @@ UBER_CHANGES=$(count_mmp_writes $TESTPOOL 10)
 log_note "Uberblock changed $UBER_CHANGES times"
 
 if [ $UBER_CHANGES -lt $MIN_UB_WRITES ]; then
-	log_fail "Fewer uberblock writes occured than expected ($EXPECTED)"
+	log_fail "Fewer uberblock writes occurred than expected ($EXPECTED)"
 fi
 
 if [ $UBER_CHANGES -gt $MAX_UB_WRITES ]; then
-	log_fail "More uberblock writes occured than expected ($EXPECTED)"
+	log_fail "More uberblock writes occurred than expected ($EXPECTED)"
 fi
 
-log_must set_tunable64 zfs_multihost_interval $MMP_INTERVAL_MIN
+log_must set_tunable64 MULTIHOST_INTERVAL $MMP_INTERVAL_MIN
 SEQ_BEFORE=$(zdb -luuuu ${DISK[0]} | awk '/mmp_seq/ {if ($NF>max) max=$NF}; END {print max}')
 sleep 1
 SEQ_AFTER=$(zdb  -luuuu ${DISK[0]} | awk '/mmp_seq/ {if ($NF>max) max=$NF}; END {print max}')

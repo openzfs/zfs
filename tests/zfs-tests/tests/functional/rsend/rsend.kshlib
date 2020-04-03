@@ -25,7 +25,7 @@
 #
 
 #
-# Copyright (c) 2013, 2016 by Delphix. All rights reserved.
+# Copyright (c) 2013, 2018 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -158,14 +158,9 @@ function cmp_md5s {
 	typeset file1=$1
 	typeset file2=$2
 
-	eval md5sum $file1 | awk '{ print $1 }'	> $BACKDIR/md5_file1
-	eval md5sum $file2 | awk '{ print $1 }'	> $BACKDIR/md5_file2
-	diff $BACKDIR/md5_file1 $BACKDIR/md5_file2
-	typeset -i ret=$?
-
-	rm -f $BACKDIR/md5_file1 $BACKDIR/md5_file2
-
-	return $ret
+	typeset sum1=$(md5digest $file1)
+	typeset sum2=$(md5digest $file2)
+	test "$sum1" = "$sum2"
 }
 
 #
@@ -222,15 +217,21 @@ function cmp_ds_prop
 {
 	typeset dtst1=$1
 	typeset dtst2=$2
-
-	for item in "type" "origin" "volblocksize" "acltype" "dnodesize" \
+	typeset -a props=("type" "origin" "volblocksize" "acltype" "dnodesize" \
 	    "atime" "canmount" "checksum" "compression" "copies" "devices" \
 	    "exec" "quota" "readonly" "recordsize" "reservation" "setuid" \
-	    "snapdir" "version" "volsize" "xattr" "zoned" "mountpoint";
+	    "snapdir" "version" "volsize" "xattr" "mountpoint");
+	if is_freebsd; then
+		props+=("jailed")
+	else
+		props+=("zoned")
+	fi
+
+	for prop in $props;
 	do
-		zfs get -H -o property,value,source $item $dtst1 >> \
+		zfs get -H -o property,value,source $prop $dtst1 >> \
 		    $BACKDIR/dtst1
-		zfs get -H -o property,value,source $item $dtst2 >> \
+		zfs get -H -o property,value,source $prop $dtst2 >> \
 		    $BACKDIR/dtst2
 	done
 
@@ -343,7 +344,7 @@ function getds_with_suffix
 }
 
 #
-# Output inherited properties whitch is edited for file system
+# Output inherited properties which is edited for file system
 #
 function fs_inherit_prop
 {
@@ -522,10 +523,9 @@ function churn_files
 				attrlen="$(((RANDOM % 1000) + 1))"
 				attrvalue="$(random_string VALID_NAME_CHAR \
 				    $attrlen)"
-				attr -qr $attrname $file_name || \
+				rm_xattr $attrname $file_name || \
 				    log_fail "Failed to remove $attrname"
-				attr -qs $attrname \
-				    -V "$attrvalue" $file_name || \
+				set_xattr $attrname "$attrvalue" $file_name || \
 				    log_fail "Failed to set $attrname"
 			elif [ $value -eq 1 ]; then
 				dd if=/dev/urandom of=$file_name \
@@ -556,8 +556,8 @@ function churn_files
 					attrlen="$(((RANDOM % 1000) + 1))"
 					attrvalue="$(random_string \
 					    VALID_NAME_CHAR $attrlen)"
-					attr -qs $attrname \
-					    -V "$attrvalue" $file_name || \
+					set_xattr $attrname \
+					    "$attrvalue" $file_name || \
 					    log_fail "Failed to set $attrname"
 				done
 			fi
@@ -568,16 +568,31 @@ function churn_files
 }
 
 #
-# Mess up file contents
+# Mess up a send file's contents
 #
-# $1 The file path
+# $1 The send file path
 #
-function mess_file
+function mess_send_file
 {
 	file=$1
 
-	filesize=$(stat -c '%s' $file)
+	filesize=$(stat_size $file)
+
 	offset=$(($RANDOM * $RANDOM % $filesize))
+
+	# The random offset might truncate the send stream to be
+	# smaller than the DRR_BEGIN record. If this happens, then
+	# the receiving system won't have enough info to create the
+	# partial dataset at all. We use zstreamdump to check for
+	# this and retry in this case.
+	nr_begins=$(head -c $offset $file | zstreamdump | \
+	    grep DRR_BEGIN | awk '{ print $5 }')
+	while [ "$nr_begins" -eq 0 ]; do
+		offset=$(($RANDOM * $RANDOM % $filesize))
+		nr_begins=$(head -c $offset $file | zstreamdump | \
+		    grep DRR_BEGIN | awk '{ print $5 }')
+	done
+
 	if (($RANDOM % 7 <= 1)); then
 		#
 		# We corrupt 2 bytes to minimize the chance that we
@@ -630,12 +645,12 @@ function resume_test
 	log_must eval "$sendcmd >/$streamfs/$stream_num"
 
 	for ((i=0; i<2; i=i+1)); do
-		mess_file /$streamfs/$stream_num
+		mess_send_file /$streamfs/$stream_num
 		log_mustnot zfs recv -suv $recvfs </$streamfs/$stream_num
 		stream_num=$((stream_num+1))
 
 		token=$(zfs get -Hp -o value receive_resume_token $recvfs)
-		log_must eval "zfs send -v -t $token >/$streamfs/$stream_num"
+		log_must eval "zfs send -t $token  >/$streamfs/$stream_num"
 		[[ -f /$streamfs/$stream_num ]] || \
 		    log_fail "NO FILE /$streamfs/$stream_num"
 	done
@@ -754,7 +769,7 @@ function verify_stream_size
 	datasetexists $ds || log_fail "No such dataset: $ds"
 
 	typeset stream_size=$(cat $stream | zstreamdump | sed -n \
-	    's/	Total write size = \(.*\) (0x.*)/\1/p')
+	    's/	Total payload size = \(.*\) (0x.*)/\1/p')
 
 	typeset inc_size=0
 	if [[ -n $inc_src ]]; then
@@ -800,10 +815,20 @@ function rand_set_prop
 }
 
 # Generate a recursive checksum of a filesystem which includes the file
-# contents and any associated xattrs.
+# contents and any associated extended attributes.
 function recursive_cksum
 {
-	find $1 -type f -exec sh -c 'sha256sum {}; getfattr \
-	    --absolute-names --only-values -d {} | sha256sum' \; | \
-	    sort -k 2 | awk '{ print $1 }' | sha256sum
+	case "$(uname)" in
+	FreeBSD)
+		find $1 -type f -exec sh -c 'sha256 -q {}; lsextattr -q \
+		    system {} | sha256 -q; lsextattr -q user {} | sha256 -q' \
+		    \; | sort | sha256 -q
+		;;
+	*)
+		find $1 -type f -exec sh -c 'sha256sum {}; getfattr \
+		    --absolute-names --only-values -d {} | sha256sum' \; | \
+		    sort -k 2 | awk '{ print $1 }' | sha256sum | \
+		    awk '{ print $1 }'
+		;;
+	esac
 }

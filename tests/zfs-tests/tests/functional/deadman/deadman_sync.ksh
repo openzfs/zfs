@@ -46,17 +46,17 @@ function cleanup
 	log_must zinject -c all
 	default_cleanup_noexit
 
-	log_must set_tunable64 zfs_deadman_synctime_ms $SYNCTIME_DEFAULT
-	log_must set_tunable64 zfs_deadman_checktime_ms $CHECKTIME_DEFAULT
-	log_must set_tunable64 zfs_deadman_failmode $FAILMODE_DEFAULT
+	log_must set_tunable64 DEADMAN_SYNCTIME_MS $SYNCTIME_DEFAULT
+	log_must set_tunable64 DEADMAN_CHECKTIME_MS $CHECKTIME_DEFAULT
+	log_must set_tunable64 DEADMAN_FAILMODE $FAILMODE_DEFAULT
 }
 
 log_assert "Verify spa deadman detects a hung txg"
 log_onexit cleanup
 
-log_must set_tunable64 zfs_deadman_synctime_ms 5000
-log_must set_tunable64 zfs_deadman_checktime_ms 1000
-log_must set_tunable64 zfs_deadman_failmode "wait"
+log_must set_tunable64 DEADMAN_SYNCTIME_MS 5000
+log_must set_tunable64 DEADMAN_CHECKTIME_MS 1000
+log_must set_tunable64 DEADMAN_FAILMODE "wait"
 
 # Create a new pool in order to use the updated deadman settings.
 default_setup_noexit $DISK1

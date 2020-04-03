@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2013, 2019 by Delphix. All rights reserved.
  * Copyright 2014 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2019 Datto Inc.
  */
@@ -69,7 +69,7 @@ zfs_do_list_ioctl(zfs_handle_t *zhp, int arg, zfs_cmd_t *zc)
 	orig_cookie = zc->zc_cookie;
 top:
 	(void) strlcpy(zc->zc_name, zhp->zfs_name, sizeof (zc->zc_name));
-	rc = ioctl(zhp->zfs_hdl->libzfs_fd, arg, zc);
+	rc = zfs_ioctl(zhp->zfs_hdl, arg, zc);
 
 	if (rc == -1) {
 		switch (errno) {
@@ -212,10 +212,12 @@ zfs_iter_bookmarks(zfs_handle_t *zhp, zfs_iter_f func, void *data)
 
 	/* Setup the requested properties nvlist. */
 	props = fnvlist_alloc();
-	fnvlist_add_boolean(props, zfs_prop_to_name(ZFS_PROP_GUID));
-	fnvlist_add_boolean(props, zfs_prop_to_name(ZFS_PROP_CREATETXG));
-	fnvlist_add_boolean(props, zfs_prop_to_name(ZFS_PROP_CREATION));
-	fnvlist_add_boolean(props, zfs_prop_to_name(ZFS_PROP_IVSET_GUID));
+	for (zfs_prop_t p = 0; p < ZFS_NUM_PROPS; p++) {
+		if (zfs_prop_valid_for_type(p, ZFS_TYPE_BOOKMARK, B_FALSE)) {
+			fnvlist_add_boolean(props, zfs_prop_to_name(p));
+		}
+	}
+	fnvlist_add_boolean(props, "redact_complete");
 
 	if ((err = lzc_get_bookmarks(zhp->zfs_name, props, &bmarks)) != 0)
 		goto out;
@@ -300,7 +302,7 @@ zfs_snapshot_compare(const void *larg, const void *rarg)
 	lcreate = zfs_prop_get_int(l, ZFS_PROP_CREATETXG);
 	rcreate = zfs_prop_get_int(r, ZFS_PROP_CREATETXG);
 
-	return (AVL_CMP(lcreate, rcreate));
+	return (TREE_CMP(lcreate, rcreate));
 }
 
 int

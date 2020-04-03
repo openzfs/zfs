@@ -20,10 +20,10 @@
  */
 /*
  * Copyright (c) 2008, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
  * Copyright 2016 Gary Mills
- * Copyright (c) 2017 Datto Inc.
- * Copyright 2017 Joyent, Inc.
+ * Copyright (c) 2017, 2019, Datto Inc. All rights reserved.
+ * Copyright 2019 Joyent, Inc.
  */
 
 #include <sys/dsl_scan.h>
@@ -175,7 +175,9 @@ int zfs_no_scrub_io = B_FALSE; /* set to disable scrub i/o */
 int zfs_no_scrub_prefetch = B_FALSE; /* set to disable scrub prefetch */
 enum ddt_class zfs_scrub_ddt_class_max = DDT_CLASS_DUPLICATE;
 /* max number of blocks to free in a single TXG */
-unsigned long zfs_async_block_max_blocks = 100000;
+unsigned long zfs_async_block_max_blocks = ULONG_MAX;
+/* max number of dedup blocks to free in a single TXG */
+unsigned long zfs_max_async_dedup_frees = 100000;
 
 int zfs_resilver_disable_defer = 0; /* set to disable resilver deferring */
 
@@ -279,7 +281,7 @@ struct dsl_scan_io_queue {
 
 	/* trees used for sorting I/Os and extents of I/Os */
 	range_tree_t	*q_exts_by_addr;
-	avl_tree_t	q_exts_by_size;
+	zfs_btree_t		q_exts_by_size;
 	avl_tree_t	q_sios_by_addr;
 	uint64_t	q_sio_memused;
 
@@ -592,6 +594,13 @@ dsl_scan_restarting(dsl_scan_t *scn, dmu_tx_t *tx)
 }
 
 boolean_t
+dsl_scan_resilver_scheduled(dsl_pool_t *dp)
+{
+	return ((dp->dp_scan && dp->dp_scan->scn_restart_txg != 0) ||
+	    (spa_async_tasks(dp->dp_spa) & SPA_ASYNC_RESILVER));
+}
+
+boolean_t
 dsl_scan_scrubbing(const dsl_pool_t *dp)
 {
 	dsl_scan_phys_t *scn_phys = &dp->dp_scan->scn_phys;
@@ -646,7 +655,8 @@ dsl_scan_sync_state(dsl_scan_t *scn, dmu_tx_t *tx, state_sync_type_t sync_type)
 
 			mutex_enter(&vd->vdev_scan_io_queue_lock);
 			ASSERT3P(avl_first(&q->q_sios_by_addr), ==, NULL);
-			ASSERT3P(avl_first(&q->q_exts_by_size), ==, NULL);
+			ASSERT3P(zfs_btree_first(&q->q_exts_by_size, NULL), ==,
+			    NULL);
 			ASSERT3P(range_tree_first(q->q_exts_by_addr), ==, NULL);
 			mutex_exit(&vd->vdev_scan_io_queue_lock);
 		}
@@ -759,7 +769,8 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 
 	spa_history_log_internal(spa, "scan setup", tx,
 	    "func=%u mintxg=%llu maxtxg=%llu",
-	    *funcp, scn->scn_phys.scn_min_txg, scn->scn_phys.scn_max_txg);
+	    *funcp, (u_longlong_t)scn->scn_phys.scn_min_txg,
+	    (u_longlong_t)scn->scn_phys.scn_max_txg);
 }
 
 /*
@@ -786,7 +797,7 @@ dsl_scan(dsl_pool_t *dp, pool_scan_func_t func)
 	(void) spa_vdev_state_exit(spa, NULL, 0);
 
 	if (func == POOL_SCAN_RESILVER) {
-		dsl_resilver_restart(spa->spa_dsl_pool, 0);
+		dsl_scan_restart_resilver(spa->spa_dsl_pool, 0);
 		return (0);
 	}
 
@@ -796,7 +807,7 @@ dsl_scan(dsl_pool_t *dp, pool_scan_func_t func)
 		    POOL_SCRUB_NORMAL);
 		if (err == 0) {
 			spa_event_notify(spa, NULL, NULL, ESC_ZFS_SCRUB_RESUME);
-			return (ECANCELED);
+			return (SET_ERROR(ECANCELED));
 		}
 
 		return (SET_ERROR(err));
@@ -804,41 +815,6 @@ dsl_scan(dsl_pool_t *dp, pool_scan_func_t func)
 
 	return (dsl_sync_task(spa_name(spa), dsl_scan_setup_check,
 	    dsl_scan_setup_sync, &func, 0, ZFS_SPACE_CHECK_EXTRA_RESERVED));
-}
-
-/*
- * Sets the resilver defer flag to B_FALSE on all leaf devs under vd. Returns
- * B_TRUE if we have devices that need to be resilvered and are available to
- * accept resilver I/Os.
- */
-static boolean_t
-dsl_scan_clear_deferred(vdev_t *vd, dmu_tx_t *tx)
-{
-	boolean_t resilver_needed = B_FALSE;
-	spa_t *spa = vd->vdev_spa;
-
-	for (int c = 0; c < vd->vdev_children; c++) {
-		resilver_needed |=
-		    dsl_scan_clear_deferred(vd->vdev_child[c], tx);
-	}
-
-	if (vd == spa->spa_root_vdev &&
-	    spa_feature_is_active(spa, SPA_FEATURE_RESILVER_DEFER)) {
-		spa_feature_decr(spa, SPA_FEATURE_RESILVER_DEFER, tx);
-		vdev_config_dirty(vd);
-		spa->spa_resilver_deferred = B_FALSE;
-		return (resilver_needed);
-	}
-
-	if (!vdev_is_concrete(vd) || vd->vdev_aux ||
-	    !vd->vdev_ops->vdev_op_leaf)
-		return (resilver_needed);
-
-	if (vd->vdev_resilver_deferred)
-		vd->vdev_resilver_deferred = B_FALSE;
-
-	return (!vdev_is_dead(vd) && !vd->vdev_offline &&
-	    vdev_resilver_needed(vd, NULL, NULL));
 }
 
 /* ARGSUSED */
@@ -898,15 +874,17 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 
 	scn->scn_phys.scn_state = complete ? DSS_FINISHED : DSS_CANCELED;
 
+	spa_notify_waiters(spa);
+
 	if (dsl_scan_restarting(scn, tx))
 		spa_history_log_internal(spa, "scan aborted, restarting", tx,
-		    "errors=%llu", spa_get_errlog_size(spa));
+		    "errors=%llu", (u_longlong_t)spa_get_errlog_size(spa));
 	else if (!complete)
 		spa_history_log_internal(spa, "scan cancelled", tx,
-		    "errors=%llu", spa_get_errlog_size(spa));
+		    "errors=%llu", (u_longlong_t)spa_get_errlog_size(spa));
 	else
 		spa_history_log_internal(spa, "scan done", tx,
-		    "errors=%llu", spa_get_errlog_size(spa));
+		    "errors=%llu", (u_longlong_t)spa_get_errlog_size(spa));
 
 	if (DSL_SCAN_IS_SCRUB_RESILVER(scn)) {
 		spa->spa_scrub_started = B_FALSE;
@@ -943,21 +921,20 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 		spa_async_request(spa, SPA_ASYNC_RESILVER_DONE);
 
 		/*
-		 * Clear any deferred_resilver flags in the config.
+		 * Clear any resilver_deferred flags in the config.
 		 * If there are drives that need resilvering, kick
 		 * off an asynchronous request to start resilver.
-		 * dsl_scan_clear_deferred() may update the config
+		 * vdev_clear_resilver_deferred() may update the config
 		 * before the resilver can restart. In the event of
 		 * a crash during this period, the spa loading code
 		 * will find the drives that need to be resilvered
-		 * when the machine reboots and start the resilver then.
+		 * and start the resilver then.
 		 */
-		boolean_t resilver_needed =
-		    dsl_scan_clear_deferred(spa->spa_root_vdev, tx);
-		if (resilver_needed) {
+		if (spa_feature_is_enabled(spa, SPA_FEATURE_RESILVER_DEFER) &&
+		    vdev_clear_resilver_deferred(spa->spa_root_vdev, tx)) {
 			spa_history_log_internal(spa,
-			    "starting deferred resilver", tx,
-			    "errors=%llu", spa_get_errlog_size(spa));
+			    "starting deferred resilver", tx, "errors=%llu",
+			    (u_longlong_t)spa_get_errlog_size(spa));
 			spa_async_request(spa, SPA_ASYNC_RESILVER);
 		}
 	}
@@ -1036,6 +1013,7 @@ dsl_scrub_pause_resume_sync(void *arg, dmu_tx_t *tx)
 		scn->scn_phys_cached.scn_flags |= DSF_SCRUB_PAUSED;
 		dsl_scan_sync_state(scn, tx, SYNC_CACHED);
 		spa_event_notify(spa, NULL, NULL, ESC_ZFS_SCRUB_PAUSED);
+		spa_notify_waiters(spa);
 	} else {
 		ASSERT3U(*cmd, ==, POOL_SCRUB_NORMAL);
 		if (dsl_scan_is_paused_scrub(scn)) {
@@ -1068,7 +1046,7 @@ dsl_scrub_set_pause_resume(const dsl_pool_t *dp, pool_scrub_cmd_t cmd)
 
 /* start a new scan, or restart an existing one. */
 void
-dsl_resilver_restart(dsl_pool_t *dp, uint64_t txg)
+dsl_scan_restart_resilver(dsl_pool_t *dp, uint64_t txg)
 {
 	if (txg == 0) {
 		dmu_tx_t *tx;
@@ -1216,10 +1194,13 @@ scan_ds_queue_sync(dsl_scan_t *scn, dmu_tx_t *tx)
 static boolean_t
 dsl_scan_should_clear(dsl_scan_t *scn)
 {
+	spa_t *spa = scn->scn_dp->dp_spa;
 	vdev_t *rvd = scn->scn_dp->dp_spa->spa_root_vdev;
-	uint64_t mlim_hard, mlim_soft, mused;
-	uint64_t alloc = metaslab_class_get_alloc(spa_normal_class(
-	    scn->scn_dp->dp_spa));
+	uint64_t alloc, mlim_hard, mlim_soft, mused;
+
+	alloc = metaslab_class_get_alloc(spa_normal_class(spa));
+	alloc += metaslab_class_get_alloc(spa_special_class(spa));
+	alloc += metaslab_class_get_alloc(spa_dedup_class(spa));
 
 	mlim_hard = MAX((physmem / zfs_scan_mem_lim_fact) * PAGESIZE,
 	    zfs_scan_mem_lim_min);
@@ -1235,8 +1216,8 @@ dsl_scan_should_clear(dsl_scan_t *scn)
 		queue = tvd->vdev_scan_io_queue;
 		if (queue != NULL) {
 			/* # extents in exts_by_size = # in exts_by_addr */
-			mused += avl_numnodes(&queue->q_exts_by_size) *
-			    sizeof (range_seg_t) + queue->q_sio_memused;
+			mused += zfs_btree_numnodes(&queue->q_exts_by_size) *
+			    sizeof (range_seg_gap_t) + queue->q_sio_memused;
 		}
 		mutex_exit(&tvd->vdev_scan_io_queue_lock);
 	}
@@ -1272,8 +1253,8 @@ dsl_scan_check_suspend(dsl_scan_t *scn, const zbookmark_phys_t *zb)
 	if (!ZB_IS_ZERO(&scn->scn_phys.scn_bookmark))
 		return (B_FALSE); /* we're resuming */
 
-	/* We only know how to resume from level-0 blocks. */
-	if (zb && zb->zb_level != 0)
+	/* We only know how to resume from level-0 and objset blocks. */
+	if (zb && (zb->zb_level != 0 && zb->zb_level != ZB_ROOT_LEVEL))
 		return (B_FALSE);
 
 	/*
@@ -1304,7 +1285,16 @@ dsl_scan_check_suspend(dsl_scan_t *scn, const zbookmark_phys_t *zb)
 	    NSEC2SEC(sync_time_ns) >= zfs_txg_timeout)) ||
 	    spa_shutting_down(scn->scn_dp->dp_spa) ||
 	    (zfs_scan_strict_mem_lim && dsl_scan_should_clear(scn))) {
-		if (zb) {
+		if (zb && zb->zb_level == ZB_ROOT_LEVEL) {
+			dprintf("suspending at first available bookmark "
+			    "%llx/%llx/%llx/%llx\n",
+			    (longlong_t)zb->zb_objset,
+			    (longlong_t)zb->zb_object,
+			    (longlong_t)zb->zb_level,
+			    (longlong_t)zb->zb_blkid);
+			SET_BOOKMARK(&scn->scn_phys.scn_bookmark,
+			    zb->zb_objset, 0, 0, 0);
+		} else if (zb != NULL) {
 			dprintf("suspending at bookmark %llx/%llx/%llx/%llx\n",
 			    (longlong_t)zb->zb_objset,
 			    (longlong_t)zb->zb_object,
@@ -1343,6 +1333,7 @@ dsl_scan_zil_block(zilog_t *zilog, blkptr_t *bp, void *arg, uint64_t claim_txg)
 	zil_header_t *zh = zsa->zsa_zh;
 	zbookmark_phys_t zb;
 
+	ASSERT(!BP_IS_REDACTED(bp));
 	if (BP_IS_HOLE(bp) || bp->blk_birth <= scn->scn_phys.scn_cur_min_txg)
 		return (0);
 
@@ -1375,6 +1366,7 @@ dsl_scan_zil_record(zilog_t *zilog, lr_t *lrc, void *arg, uint64_t claim_txg)
 		blkptr_t *bp = &lr->lr_blkptr;
 		zbookmark_phys_t zb;
 
+		ASSERT(!BP_IS_REDACTED(bp));
 		if (BP_IS_HOLE(bp) ||
 		    bp->blk_birth <= scn->scn_phys.scn_cur_min_txg)
 			return (0);
@@ -1519,7 +1511,7 @@ dsl_scan_prefetch(scan_prefetch_ctx_t *spc, blkptr_t *bp, zbookmark_phys_t *zb)
 	spa_t *spa = scn->scn_dp->dp_spa;
 	scan_prefetch_issue_ctx_t *spic;
 
-	if (zfs_no_scrub_prefetch)
+	if (zfs_no_scrub_prefetch || BP_IS_REDACTED(bp))
 		return;
 
 	if (BP_IS_HOLE(bp) || bp->blk_birth <= scn->scn_phys.scn_cur_min_txg ||
@@ -1771,6 +1763,8 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 	int zio_flags = ZIO_FLAG_CANFAIL | ZIO_FLAG_SCAN_THREAD;
 	int err;
 
+	ASSERT(!BP_IS_REDACTED(bp));
+
 	if (BP_GET_LEVEL(bp) > 0) {
 		arc_flags_t flags = ARC_FLAG_WAIT;
 		int i;
@@ -1908,7 +1902,7 @@ dsl_scan_visitbp(blkptr_t *bp, const zbookmark_phys_t *zb,
 
 	/*
 	 * This debugging is commented out to conserve stack space.  This
-	 * function is called recursively and the debugging addes several
+	 * function is called recursively and the debugging adds several
 	 * bytes to the stack for each call.  It can be commented back in
 	 * if required to debug an issue in dsl_scan_visitbp().
 	 *
@@ -1921,6 +1915,12 @@ dsl_scan_visitbp(blkptr_t *bp, const zbookmark_phys_t *zb,
 
 	if (BP_IS_HOLE(bp)) {
 		scn->scn_holes_this_txg++;
+		return;
+	}
+
+	if (BP_IS_REDACTED(bp)) {
+		ASSERT(dsl_dataset_feature_is_active(ds,
+		    SPA_FEATURE_REDACTED_DATASETS));
 		return;
 	}
 
@@ -2165,16 +2165,17 @@ ds_clone_swapped_bookmark(dsl_dataset_t *ds1, dsl_dataset_t *ds2,
 }
 
 /*
- * Called when a parent dataset and its clone are swapped. If we were
+ * Called when an origin dataset and its clone are swapped.  If we were
  * currently traversing the dataset, we need to switch to traversing the
- * newly promoted parent.
+ * newly promoted clone.
  */
 void
 dsl_scan_ds_clone_swapped(dsl_dataset_t *ds1, dsl_dataset_t *ds2, dmu_tx_t *tx)
 {
 	dsl_pool_t *dp = ds1->ds_dir->dd_pool;
 	dsl_scan_t *scn = dp->dp_scan;
-	uint64_t mintxg;
+	uint64_t mintxg1, mintxg2;
+	boolean_t ds1_queued, ds2_queued;
 
 	if (!dsl_scan_is_running(scn))
 		return;
@@ -2182,44 +2183,81 @@ dsl_scan_ds_clone_swapped(dsl_dataset_t *ds1, dsl_dataset_t *ds2, dmu_tx_t *tx)
 	ds_clone_swapped_bookmark(ds1, ds2, &scn->scn_phys.scn_bookmark);
 	ds_clone_swapped_bookmark(ds1, ds2, &scn->scn_phys_cached.scn_bookmark);
 
-	if (scan_ds_queue_contains(scn, ds1->ds_object, &mintxg)) {
-		scan_ds_queue_remove(scn, ds1->ds_object);
-		scan_ds_queue_insert(scn, ds2->ds_object, mintxg);
+	/*
+	 * Handle the in-memory scan queue.
+	 */
+	ds1_queued = scan_ds_queue_contains(scn, ds1->ds_object, &mintxg1);
+	ds2_queued = scan_ds_queue_contains(scn, ds2->ds_object, &mintxg2);
+
+	/* Sanity checking. */
+	if (ds1_queued) {
+		ASSERT3U(mintxg1, ==, dsl_dataset_phys(ds1)->ds_prev_snap_txg);
+		ASSERT3U(mintxg1, ==, dsl_dataset_phys(ds2)->ds_prev_snap_txg);
 	}
-	if (scan_ds_queue_contains(scn, ds2->ds_object, &mintxg)) {
-		scan_ds_queue_remove(scn, ds2->ds_object);
-		scan_ds_queue_insert(scn, ds1->ds_object, mintxg);
+	if (ds2_queued) {
+		ASSERT3U(mintxg2, ==, dsl_dataset_phys(ds1)->ds_prev_snap_txg);
+		ASSERT3U(mintxg2, ==, dsl_dataset_phys(ds2)->ds_prev_snap_txg);
 	}
 
-	if (zap_lookup_int_key(dp->dp_meta_objset, scn->scn_phys.scn_queue_obj,
-	    ds1->ds_object, &mintxg) == 0) {
-		int err;
-		ASSERT3U(mintxg, ==, dsl_dataset_phys(ds1)->ds_prev_snap_txg);
-		ASSERT3U(mintxg, ==, dsl_dataset_phys(ds2)->ds_prev_snap_txg);
-		VERIFY3U(0, ==, zap_remove_int(dp->dp_meta_objset,
+	if (ds1_queued && ds2_queued) {
+		/*
+		 * If both are queued, we don't need to do anything.
+		 * The swapping code below would not handle this case correctly,
+		 * since we can't insert ds2 if it is already there. That's
+		 * because scan_ds_queue_insert() prohibits a duplicate insert
+		 * and panics.
+		 */
+	} else if (ds1_queued) {
+		scan_ds_queue_remove(scn, ds1->ds_object);
+		scan_ds_queue_insert(scn, ds2->ds_object, mintxg1);
+	} else if (ds2_queued) {
+		scan_ds_queue_remove(scn, ds2->ds_object);
+		scan_ds_queue_insert(scn, ds1->ds_object, mintxg2);
+	}
+
+	/*
+	 * Handle the on-disk scan queue.
+	 * The on-disk state is an out-of-date version of the in-memory state,
+	 * so the in-memory and on-disk values for ds1_queued and ds2_queued may
+	 * be different. Therefore we need to apply the swap logic to the
+	 * on-disk state independently of the in-memory state.
+	 */
+	ds1_queued = zap_lookup_int_key(dp->dp_meta_objset,
+	    scn->scn_phys.scn_queue_obj, ds1->ds_object, &mintxg1) == 0;
+	ds2_queued = zap_lookup_int_key(dp->dp_meta_objset,
+	    scn->scn_phys.scn_queue_obj, ds2->ds_object, &mintxg2) == 0;
+
+	/* Sanity checking. */
+	if (ds1_queued) {
+		ASSERT3U(mintxg1, ==, dsl_dataset_phys(ds1)->ds_prev_snap_txg);
+		ASSERT3U(mintxg1, ==, dsl_dataset_phys(ds2)->ds_prev_snap_txg);
+	}
+	if (ds2_queued) {
+		ASSERT3U(mintxg2, ==, dsl_dataset_phys(ds1)->ds_prev_snap_txg);
+		ASSERT3U(mintxg2, ==, dsl_dataset_phys(ds2)->ds_prev_snap_txg);
+	}
+
+	if (ds1_queued && ds2_queued) {
+		/*
+		 * If both are queued, we don't need to do anything.
+		 * Alternatively, we could check for EEXIST from
+		 * zap_add_int_key() and back out to the original state, but
+		 * that would be more work than checking for this case upfront.
+		 */
+	} else if (ds1_queued) {
+		VERIFY3S(0, ==, zap_remove_int(dp->dp_meta_objset,
 		    scn->scn_phys.scn_queue_obj, ds1->ds_object, tx));
-		err = zap_add_int_key(dp->dp_meta_objset,
-		    scn->scn_phys.scn_queue_obj, ds2->ds_object, mintxg, tx);
-		VERIFY(err == 0 || err == EEXIST);
-		if (err == EEXIST) {
-			/* Both were there to begin with */
-			VERIFY(0 == zap_add_int_key(dp->dp_meta_objset,
-			    scn->scn_phys.scn_queue_obj,
-			    ds1->ds_object, mintxg, tx));
-		}
+		VERIFY3S(0, ==, zap_add_int_key(dp->dp_meta_objset,
+		    scn->scn_phys.scn_queue_obj, ds2->ds_object, mintxg1, tx));
 		zfs_dbgmsg("clone_swap ds %llu; in queue; "
 		    "replacing with %llu",
 		    (u_longlong_t)ds1->ds_object,
 		    (u_longlong_t)ds2->ds_object);
-	}
-	if (zap_lookup_int_key(dp->dp_meta_objset, scn->scn_phys.scn_queue_obj,
-	    ds2->ds_object, &mintxg) == 0) {
-		ASSERT3U(mintxg, ==, dsl_dataset_phys(ds1)->ds_prev_snap_txg);
-		ASSERT3U(mintxg, ==, dsl_dataset_phys(ds2)->ds_prev_snap_txg);
-		VERIFY3U(0, ==, zap_remove_int(dp->dp_meta_objset,
+	} else if (ds2_queued) {
+		VERIFY3S(0, ==, zap_remove_int(dp->dp_meta_objset,
 		    scn->scn_phys.scn_queue_obj, ds2->ds_object, tx));
-		VERIFY(0 == zap_add_int_key(dp->dp_meta_objset,
-		    scn->scn_phys.scn_queue_obj, ds1->ds_object, mintxg, tx));
+		VERIFY3S(0, ==, zap_add_int_key(dp->dp_meta_objset,
+		    scn->scn_phys.scn_queue_obj, ds1->ds_object, mintxg2, tx));
 		zfs_dbgmsg("clone_swap ds %llu; in queue; "
 		    "replacing with %llu",
 		    (u_longlong_t)ds2->ds_object,
@@ -2783,7 +2821,7 @@ scan_io_queue_gather(dsl_scan_io_queue_t *queue, range_seg_t *rs, list_t *list)
 
 	srch_sio = sio_alloc(1);
 	srch_sio->sio_nr_dvas = 1;
-	SIO_SET_OFFSET(srch_sio, rs->rs_start);
+	SIO_SET_OFFSET(srch_sio, rs_get_start(rs, queue->q_exts_by_addr));
 
 	/*
 	 * The exact start of the extent might not contain any matching zios,
@@ -2795,10 +2833,12 @@ scan_io_queue_gather(dsl_scan_io_queue_t *queue, range_seg_t *rs, list_t *list)
 	if (sio == NULL)
 		sio = avl_nearest(&queue->q_sios_by_addr, idx, AVL_AFTER);
 
-	while (sio != NULL &&
-	    SIO_GET_OFFSET(sio) < rs->rs_end && num_sios <= 32) {
-		ASSERT3U(SIO_GET_OFFSET(sio), >=, rs->rs_start);
-		ASSERT3U(SIO_GET_END_OFFSET(sio), <=, rs->rs_end);
+	while (sio != NULL && SIO_GET_OFFSET(sio) < rs_get_end(rs,
+	    queue->q_exts_by_addr) && num_sios <= 32) {
+		ASSERT3U(SIO_GET_OFFSET(sio), >=, rs_get_start(rs,
+		    queue->q_exts_by_addr));
+		ASSERT3U(SIO_GET_END_OFFSET(sio), <=, rs_get_end(rs,
+		    queue->q_exts_by_addr));
 
 		next_sio = AVL_NEXT(&queue->q_sios_by_addr, sio);
 		avl_remove(&queue->q_sios_by_addr, sio);
@@ -2816,16 +2856,19 @@ scan_io_queue_gather(dsl_scan_io_queue_t *queue, range_seg_t *rs, list_t *list)
 	 * in the segment we update it to reflect the work we were able to
 	 * complete. Otherwise, we remove it from the range tree entirely.
 	 */
-	if (sio != NULL && SIO_GET_OFFSET(sio) < rs->rs_end) {
+	if (sio != NULL && SIO_GET_OFFSET(sio) < rs_get_end(rs,
+	    queue->q_exts_by_addr)) {
 		range_tree_adjust_fill(queue->q_exts_by_addr, rs,
 		    -bytes_issued);
 		range_tree_resize_segment(queue->q_exts_by_addr, rs,
-		    SIO_GET_OFFSET(sio), rs->rs_end - SIO_GET_OFFSET(sio));
+		    SIO_GET_OFFSET(sio), rs_get_end(rs,
+		    queue->q_exts_by_addr) - SIO_GET_OFFSET(sio));
 
 		return (B_TRUE);
 	} else {
-		range_tree_remove(queue->q_exts_by_addr, rs->rs_start,
-		    rs->rs_end - rs->rs_start);
+		uint64_t rstart = rs_get_start(rs, queue->q_exts_by_addr);
+		uint64_t rend = rs_get_end(rs, queue->q_exts_by_addr);
+		range_tree_remove(queue->q_exts_by_addr, rstart, rend - rstart);
 		return (B_FALSE);
 	}
 }
@@ -2845,6 +2888,7 @@ static range_seg_t *
 scan_io_queue_fetch_ext(dsl_scan_io_queue_t *queue)
 {
 	dsl_scan_t *scn = queue->q_scn;
+	range_tree_t *rt = queue->q_exts_by_addr;
 
 	ASSERT(MUTEX_HELD(&queue->q_vd->vdev_scan_io_queue_lock));
 	ASSERT(scn->scn_is_sorted);
@@ -2852,9 +2896,26 @@ scan_io_queue_fetch_ext(dsl_scan_io_queue_t *queue)
 	/* handle tunable overrides */
 	if (scn->scn_checkpointing || scn->scn_clearing) {
 		if (zfs_scan_issue_strategy == 1) {
-			return (range_tree_first(queue->q_exts_by_addr));
+			return (range_tree_first(rt));
 		} else if (zfs_scan_issue_strategy == 2) {
-			return (avl_first(&queue->q_exts_by_size));
+			/*
+			 * We need to get the original entry in the by_addr
+			 * tree so we can modify it.
+			 */
+			range_seg_t *size_rs =
+			    zfs_btree_first(&queue->q_exts_by_size, NULL);
+			if (size_rs == NULL)
+				return (NULL);
+			uint64_t start = rs_get_start(size_rs, rt);
+			uint64_t size = rs_get_end(size_rs, rt) - start;
+			range_seg_t *addr_rs = range_tree_find(rt, start,
+			    size);
+			ASSERT3P(addr_rs, !=, NULL);
+			ASSERT3U(rs_get_start(size_rs, rt), ==,
+			    rs_get_start(addr_rs, rt));
+			ASSERT3U(rs_get_end(size_rs, rt), ==,
+			    rs_get_end(addr_rs, rt));
+			return (addr_rs);
 		}
 	}
 
@@ -2868,9 +2929,24 @@ scan_io_queue_fetch_ext(dsl_scan_io_queue_t *queue)
 	 * In this case, we instead switch to issuing extents in LBA order.
 	 */
 	if (scn->scn_checkpointing) {
-		return (range_tree_first(queue->q_exts_by_addr));
+		return (range_tree_first(rt));
 	} else if (scn->scn_clearing) {
-		return (avl_first(&queue->q_exts_by_size));
+		/*
+		 * We need to get the original entry in the by_addr
+		 * tree so we can modify it.
+		 */
+		range_seg_t *size_rs = zfs_btree_first(&queue->q_exts_by_size,
+		    NULL);
+		if (size_rs == NULL)
+			return (NULL);
+		uint64_t start = rs_get_start(size_rs, rt);
+		uint64_t size = rs_get_end(size_rs, rt) - start;
+		range_seg_t *addr_rs = range_tree_find(rt, start, size);
+		ASSERT3P(addr_rs, !=, NULL);
+		ASSERT3U(rs_get_start(size_rs, rt), ==, rs_get_start(addr_rs,
+		    rt));
+		ASSERT3U(rs_get_end(size_rs, rt), ==, rs_get_end(addr_rs, rt));
+		return (addr_rs);
 	} else {
 		return (NULL);
 	}
@@ -3025,8 +3101,15 @@ dsl_scan_async_block_should_pause(dsl_scan_t *scn)
 	if (zfs_recover)
 		return (B_FALSE);
 
-	if (scn->scn_visited_this_txg >= zfs_async_block_max_blocks)
+	if (zfs_async_block_max_blocks != 0 &&
+	    scn->scn_visited_this_txg >= zfs_async_block_max_blocks) {
 		return (B_TRUE);
+	}
+
+	if (zfs_max_async_dedup_frees != 0 &&
+	    scn->scn_dedup_frees_this_txg >= zfs_max_async_dedup_frees) {
+		return (B_TRUE);
+	}
 
 	elapsed_nanosecs = gethrtime() - scn->scn_sync_start_time;
 	return (elapsed_nanosecs / NANOSEC > zfs_txg_timeout ||
@@ -3052,6 +3135,8 @@ dsl_scan_free_block_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx)
 	    -bp_get_dsize_sync(scn->scn_dp->dp_spa, bp),
 	    -BP_GET_PSIZE(bp), -BP_GET_UCSIZE(bp), tx);
 	scn->scn_visited_this_txg++;
+	if (BP_GET_DEDUP(bp))
+		scn->scn_dedup_frees_this_txg++;
 	return (0);
 }
 
@@ -3091,8 +3176,18 @@ dsl_scan_update_stats(dsl_scan_t *scn)
 }
 
 static int
-dsl_scan_obsolete_block_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx)
+bpobj_dsl_scan_free_block_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed,
+    dmu_tx_t *tx)
 {
+	ASSERT(!bp_freed);
+	return (dsl_scan_free_block_cb(arg, bp, tx));
+}
+
+static int
+dsl_scan_obsolete_block_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed,
+    dmu_tx_t *tx)
+{
+	ASSERT(!bp_freed);
 	dsl_scan_t *scn = arg;
 	const dva_t *dva = &bp->blk_dva[0];
 
@@ -3111,6 +3206,7 @@ dsl_scan_active(dsl_scan_t *scn)
 {
 	spa_t *spa = scn->scn_dp->dp_spa;
 	uint64_t used = 0, comp, uncomp;
+	boolean_t clones_left;
 
 	if (spa->spa_load_state != SPA_LOAD_NONE)
 		return (B_FALSE);
@@ -3124,7 +3220,8 @@ dsl_scan_active(dsl_scan_t *scn)
 		(void) bpobj_space(&scn->scn_dp->dp_free_bpobj,
 		    &used, &comp, &uncomp);
 	}
-	return (used != 0);
+	clones_left = spa_livelist_delete_check(spa);
+	return ((used != 0) || (clones_left));
 }
 
 static boolean_t
@@ -3221,7 +3318,7 @@ dsl_process_async_destroys(dsl_pool_t *dp, dmu_tx_t *tx)
 		scn->scn_zio_root = zio_root(spa, NULL,
 		    NULL, ZIO_FLAG_MUSTSUCCEED);
 		err = bpobj_iterate(&dp->dp_free_bpobj,
-		    dsl_scan_free_block_cb, scn, tx);
+		    bpobj_dsl_scan_free_block_cb, scn, tx);
 		VERIFY0(zio_wait(scn->scn_zio_root));
 		scn->scn_zio_root = NULL;
 
@@ -3280,6 +3377,7 @@ dsl_process_async_destroys(dsl_pool_t *dp, dmu_tx_t *tx)
 		    NSEC2MSEC(gethrtime() - scn->scn_sync_start_time),
 		    (longlong_t)tx->tx_txg, err);
 		scn->scn_visited_this_txg = 0;
+		scn->scn_dedup_frees_this_txg = 0;
 
 		/*
 		 * Write out changes to the DDT that may be required as a
@@ -3318,12 +3416,15 @@ dsl_process_async_destroys(dsl_pool_t *dp, dmu_tx_t *tx)
 		    -dsl_dir_phys(dp->dp_free_dir)->dd_uncompressed_bytes, tx);
 	}
 
-	if (dp->dp_free_dir != NULL && !scn->scn_async_destroying) {
+	if (dp->dp_free_dir != NULL && !scn->scn_async_destroying &&
+	    !spa_livelist_delete_check(spa)) {
 		/* finished; verify that space accounting went to zero */
 		ASSERT0(dsl_dir_phys(dp->dp_free_dir)->dd_used_bytes);
 		ASSERT0(dsl_dir_phys(dp->dp_free_dir)->dd_compressed_bytes);
 		ASSERT0(dsl_dir_phys(dp->dp_free_dir)->dd_uncompressed_bytes);
 	}
+
+	spa_notify_waiters(spa);
 
 	EQUIV(bpobj_is_open(&dp->dp_obsolete_bpobj),
 	    0 == zap_contains(dp->dp_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
@@ -3348,7 +3449,7 @@ dsl_process_async_destroys(dsl_pool_t *dp, dmu_tx_t *tx)
 /*
  * This is the primary entry point for scans that is called from syncing
  * context. Scans must happen entirely during syncing context so that we
- * cna guarantee that blocks we are currently scanning will not change out
+ * can guarantee that blocks we are currently scanning will not change out
  * from under us. While a scan is active, this function controls how quickly
  * transaction groups proceed, instead of the normal handling provided by
  * txg_sync_thread().
@@ -3405,6 +3506,7 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 
 	/* reset scan statistics */
 	scn->scn_visited_this_txg = 0;
+	scn->scn_dedup_frees_this_txg = 0;
 	scn->scn_holes_this_txg = 0;
 	scn->scn_lt_min_this_txg = 0;
 	scn->scn_gt_max_this_txg = 0;
@@ -3628,6 +3730,13 @@ static void
 count_block(dsl_scan_t *scn, zfs_all_blkstats_t *zab, const blkptr_t *bp)
 {
 	int i;
+
+	/*
+	 * Don't count embedded bp's, since we already did the work of
+	 * scanning these when we scanned the containing block.
+	 */
+	if (BP_IS_EMBEDDED(bp))
+		return;
 
 	/*
 	 * Update the spa's stats on how many bytes we have issued.
@@ -3945,14 +4054,15 @@ scan_exec_io(dsl_pool_t *dp, const blkptr_t *bp, int zio_flags,
  * As can be seen, at fill_ratio=3, the algorithm is slightly biased towards
  * extents that are more completely filled (in a 3:2 ratio) vs just larger.
  * Note that as an optimization, we replace multiplication and division by
- * 100 with bitshifting by 7 (which effecitvely multiplies and divides by 128).
+ * 100 with bitshifting by 7 (which effectively multiplies and divides by 128).
  */
 static int
 ext_size_compare(const void *x, const void *y)
 {
-	const range_seg_t *rsa = x, *rsb = y;
-	uint64_t sa = rsa->rs_end - rsa->rs_start,
-	    sb = rsb->rs_end - rsb->rs_start;
+	const range_seg_gap_t *rsa = x, *rsb = y;
+
+	uint64_t sa = rsa->rs_end - rsa->rs_start;
+	uint64_t sb = rsb->rs_end - rsb->rs_start;
 	uint64_t score_a, score_b;
 
 	score_a = rsa->rs_fill + ((((rsa->rs_fill << 7) / sa) *
@@ -3981,7 +4091,7 @@ sio_addr_compare(const void *x, const void *y)
 {
 	const scan_io_t *a = x, *b = y;
 
-	return (AVL_CMP(SIO_GET_OFFSET(a), SIO_GET_OFFSET(b)));
+	return (TREE_CMP(SIO_GET_OFFSET(a), SIO_GET_OFFSET(b)));
 }
 
 /* IO queues are created on demand when they are needed. */
@@ -3995,8 +4105,8 @@ scan_io_queue_create(vdev_t *vd)
 	q->q_vd = vd;
 	q->q_sio_memused = 0;
 	cv_init(&q->q_zio_cv, NULL, CV_DEFAULT, NULL);
-	q->q_exts_by_addr = range_tree_create_impl(&rt_avl_ops,
-	    &q->q_exts_by_size, ext_size_compare, zfs_scan_max_ext_gap);
+	q->q_exts_by_addr = range_tree_create_impl(&rt_btree_ops, RANGE_SEG_GAP,
+	    &q->q_exts_by_size, 0, 0, ext_size_compare, zfs_scan_max_ext_gap);
 	avl_create(&q->q_sios_by_addr, sio_addr_compare,
 	    sizeof (scan_io_t), offsetof(scan_io_t, sio_nodes.sio_addr_node));
 
@@ -4173,74 +4283,95 @@ dsl_scan_freed(spa_t *spa, const blkptr_t *bp)
 		dsl_scan_freed_dva(spa, bp, i);
 }
 
-#if defined(_KERNEL)
-/* CSTYLED */
-module_param(zfs_scan_vdev_limit, ulong, 0644);
-MODULE_PARM_DESC(zfs_scan_vdev_limit,
+/*
+ * Check if a vdev needs resilvering (non-empty DTL), if so, and resilver has
+ * not started, start it. Otherwise, only restart if max txg in DTL range is
+ * greater than the max txg in the current scan. If the DTL max is less than
+ * the scan max, then the vdev has not missed any new data since the resilver
+ * started, so a restart is not needed.
+ */
+void
+dsl_scan_assess_vdev(dsl_pool_t *dp, vdev_t *vd)
+{
+	uint64_t min, max;
+
+	if (!vdev_resilver_needed(vd, &min, &max))
+		return;
+
+	if (!dsl_scan_resilvering(dp)) {
+		spa_async_request(dp->dp_spa, SPA_ASYNC_RESILVER);
+		return;
+	}
+
+	if (max <= dp->dp_scan->scn_phys.scn_max_txg)
+		return;
+
+	/* restart is needed, check if it can be deferred */
+	if (spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_RESILVER_DEFER))
+		vdev_defer_resilver(vd);
+	else
+		spa_async_request(dp->dp_spa, SPA_ASYNC_RESILVER);
+}
+
+/* BEGIN CSTYLED */
+ZFS_MODULE_PARAM(zfs, zfs_, scan_vdev_limit, ULONG, ZMOD_RW,
 	"Max bytes in flight per leaf vdev for scrubs and resilvers");
 
-module_param(zfs_scrub_min_time_ms, int, 0644);
-MODULE_PARM_DESC(zfs_scrub_min_time_ms, "Min millisecs to scrub per txg");
+ZFS_MODULE_PARAM(zfs, zfs_, scrub_min_time_ms, INT, ZMOD_RW,
+	"Min millisecs to scrub per txg");
 
-module_param(zfs_obsolete_min_time_ms, int, 0644);
-MODULE_PARM_DESC(zfs_obsolete_min_time_ms, "Min millisecs to obsolete per txg");
+ZFS_MODULE_PARAM(zfs, zfs_, obsolete_min_time_ms, INT, ZMOD_RW,
+	"Min millisecs to obsolete per txg");
 
-module_param(zfs_free_min_time_ms, int, 0644);
-MODULE_PARM_DESC(zfs_free_min_time_ms, "Min millisecs to free per txg");
+ZFS_MODULE_PARAM(zfs, zfs_, free_min_time_ms, INT, ZMOD_RW,
+	"Min millisecs to free per txg");
 
-module_param(zfs_resilver_min_time_ms, int, 0644);
-MODULE_PARM_DESC(zfs_resilver_min_time_ms, "Min millisecs to resilver per txg");
+ZFS_MODULE_PARAM(zfs, zfs_, resilver_min_time_ms, INT, ZMOD_RW,
+	"Min millisecs to resilver per txg");
 
-module_param(zfs_scan_suspend_progress, int, 0644);
-MODULE_PARM_DESC(zfs_scan_suspend_progress,
+ZFS_MODULE_PARAM(zfs, zfs_, scan_suspend_progress, INT, ZMOD_RW,
 	"Set to prevent scans from progressing");
 
-module_param(zfs_no_scrub_io, int, 0644);
-MODULE_PARM_DESC(zfs_no_scrub_io, "Set to disable scrub I/O");
+ZFS_MODULE_PARAM(zfs, zfs_, no_scrub_io, INT, ZMOD_RW,
+	"Set to disable scrub I/O");
 
-module_param(zfs_no_scrub_prefetch, int, 0644);
-MODULE_PARM_DESC(zfs_no_scrub_prefetch, "Set to disable scrub prefetching");
+ZFS_MODULE_PARAM(zfs, zfs_, no_scrub_prefetch, INT, ZMOD_RW,
+	"Set to disable scrub prefetching");
 
-/* CSTYLED */
-module_param(zfs_async_block_max_blocks, ulong, 0644);
-MODULE_PARM_DESC(zfs_async_block_max_blocks,
+ZFS_MODULE_PARAM(zfs, zfs_, async_block_max_blocks, ULONG, ZMOD_RW,
 	"Max number of blocks freed in one txg");
 
-module_param(zfs_free_bpobj_enabled, int, 0644);
-MODULE_PARM_DESC(zfs_free_bpobj_enabled, "Enable processing of the free_bpobj");
+ZFS_MODULE_PARAM(zfs, zfs_, max_async_dedup_frees, ULONG, ZMOD_RW,
+	"Max number of dedup blocks freed in one txg");
 
-module_param(zfs_scan_mem_lim_fact, int, 0644);
-MODULE_PARM_DESC(zfs_scan_mem_lim_fact, "Fraction of RAM for scan hard limit");
+ZFS_MODULE_PARAM(zfs, zfs_, free_bpobj_enabled, INT, ZMOD_RW,
+	"Enable processing of the free_bpobj");
 
-module_param(zfs_scan_issue_strategy, int, 0644);
-MODULE_PARM_DESC(zfs_scan_issue_strategy,
-	"IO issuing strategy during scrubbing. 0 = default, 1 = LBA, 2 = size");
+ZFS_MODULE_PARAM(zfs, zfs_, scan_mem_lim_fact, INT, ZMOD_RW,
+	"Fraction of RAM for scan hard limit");
 
-module_param(zfs_scan_legacy, int, 0644);
-MODULE_PARM_DESC(zfs_scan_legacy, "Scrub using legacy non-sequential method");
+ZFS_MODULE_PARAM(zfs, zfs_, scan_issue_strategy, INT, ZMOD_RW,
+	"IO issuing strategy during scrubbing. "
+	"0 = default, 1 = LBA, 2 = size");
 
-module_param(zfs_scan_checkpoint_intval, int, 0644);
-MODULE_PARM_DESC(zfs_scan_checkpoint_intval,
+ZFS_MODULE_PARAM(zfs, zfs_, scan_legacy, INT, ZMOD_RW,
+	"Scrub using legacy non-sequential method");
+
+ZFS_MODULE_PARAM(zfs, zfs_, scan_checkpoint_intval, INT, ZMOD_RW,
 	"Scan progress on-disk checkpointing interval");
 
-/* CSTYLED */
-module_param(zfs_scan_max_ext_gap, ulong, 0644);
-MODULE_PARM_DESC(zfs_scan_max_ext_gap,
+ZFS_MODULE_PARAM(zfs, zfs_, scan_max_ext_gap, ULONG, ZMOD_RW,
 	"Max gap in bytes between sequential scrub / resilver I/Os");
 
-module_param(zfs_scan_mem_lim_soft_fact, int, 0644);
-MODULE_PARM_DESC(zfs_scan_mem_lim_soft_fact,
+ZFS_MODULE_PARAM(zfs, zfs_, scan_mem_lim_soft_fact, INT, ZMOD_RW,
 	"Fraction of hard limit used as soft limit");
 
-module_param(zfs_scan_strict_mem_lim, int, 0644);
-MODULE_PARM_DESC(zfs_scan_strict_mem_lim,
+ZFS_MODULE_PARAM(zfs, zfs_, scan_strict_mem_lim, INT, ZMOD_RW,
 	"Tunable to attempt to reduce lock contention");
 
-module_param(zfs_scan_fill_weight, int, 0644);
-MODULE_PARM_DESC(zfs_scan_fill_weight,
+ZFS_MODULE_PARAM(zfs, zfs_, scan_fill_weight, INT, ZMOD_RW,
 	"Tunable to adjust bias towards more filled segments during scans");
 
-module_param(zfs_resilver_disable_defer, int, 0644);
-MODULE_PARM_DESC(zfs_resilver_disable_defer,
+ZFS_MODULE_PARAM(zfs, zfs_, resilver_disable_defer, INT, ZMOD_RW,
 	"Process all resilvers immediately");
-#endif
+/* END CSTYLED */

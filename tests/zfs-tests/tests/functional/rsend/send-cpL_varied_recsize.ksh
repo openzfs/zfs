@@ -72,8 +72,12 @@ function check_recsize
 	[[ -f $file ]] || log_fail "file '$file' doesn't exist"
 
 	typeset read_recsize=$(get_prop recsize $recv_ds)
-	typeset read_file_bs=$(stat $file | sed -n \
-	    's/.*IO Block: \([0-9]*\).*/\1/p')
+	if is_freebsd; then
+		typeset read_file_bs=$(stat -f "%k" $file)
+	else
+		typeset read_file_bs=$(stat $file | sed -n \
+		    's/.*IO Block: \([0-9]*\).*/\1/p')
+	fi
 
 	[[ $read_recsize = $expected_recsize ]] || log_fail \
 	    "read_recsize: $read_recsize expected_recsize: $expected_recsize"

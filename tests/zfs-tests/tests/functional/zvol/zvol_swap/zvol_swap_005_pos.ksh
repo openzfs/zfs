@@ -44,10 +44,6 @@
 
 verify_runnable "global"
 
-if is_linux; then
-	log_unsupported "swaplow + swaplen unsupported Linux options"
-fi
-
 assertion="Verify the sum of swaplow and swaplen is less or equal to volsize"
 log_assert $assertion
 
@@ -63,9 +59,9 @@ typeset -i pageblocks volblocks max_swaplow
 ((max_swaplow = (volblocks - (pageblocks * 2))))
 
 for i in {0..10}; do
-	swaplow=$(shuf -n 1 -i ${pageblocks}-${max_swaplow})
+	swaplow=$(range_shuffle ${pageblocks} ${max_swaplow} | head -n 1)
 	((maxlen = max_swaplow - swaplow))
-	swaplen=$(shuf -n 1 -i ${pageblocks}-${maxlen})
+	swaplen=$(range_shuffle ${pageblocks} ${maxlen} | head -n 1)
 	log_must swap -a $swapname $swaplow $swaplen
 	log_must swap -d $swapname $swaplow
 done

@@ -85,8 +85,6 @@ parse_pathname(const char *inpath, char *dataset, char *relpath,
     struct stat64 *statbuf)
 {
 	struct extmnttab mp;
-	FILE *fp;
-	int match;
 	const char *rel;
 	char fullpath[MAXPATHLEN];
 
@@ -99,35 +97,7 @@ parse_pathname(const char *inpath, char *dataset, char *relpath,
 		return (-1);
 	}
 
-	if (strlen(fullpath) >= MAXPATHLEN) {
-		(void) fprintf(stderr, "invalid object; pathname too long\n");
-		return (-1);
-	}
-
-	if (stat64(fullpath, statbuf) != 0) {
-		(void) fprintf(stderr, "cannot open '%s': %s\n",
-		    fullpath, strerror(errno));
-		return (-1);
-	}
-
-#ifdef HAVE_SETMNTENT
-	if ((fp = setmntent(MNTTAB, "r")) == NULL) {
-#else
-	if ((fp = fopen(MNTTAB, "r")) == NULL) {
-#endif
-		(void) fprintf(stderr, "cannot open %s\n", MNTTAB);
-		return (-1);
-	}
-
-	match = 0;
-	while (getextmntent(fp, &mp, sizeof (mp)) == 0) {
-		if (makedev(mp.mnt_major, mp.mnt_minor) == statbuf->st_dev) {
-			match = 1;
-			break;
-		}
-	}
-
-	if (!match) {
+	if (getextmntent(fullpath, &mp, statbuf) != 0) {
 		(void) fprintf(stderr, "cannot find mountpoint for '%s'\n",
 		    fullpath);
 		return (-1);
@@ -176,7 +146,7 @@ object_from_path(const char *dataset, uint64_t object, zinject_record_t *record)
 }
 
 /*
- * Intialize the range based on the type, level, and range given.
+ * Initialize the range based on the type, level, and range given.
  */
 static int
 initialize_range(err_type_t type, int level, char *range,
@@ -310,7 +280,7 @@ translate_record(err_type_t type, const char *object, const char *range,
 	ziprintf("raw object: %llu\n", record->zi_object);
 
 	/*
-	 * For the given object, intialize the range in bytes
+	 * For the given object, initialize the range in bytes
 	 */
 	if (initialize_range(type, level, (char *)range, record) != 0)
 		goto err;

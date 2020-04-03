@@ -19,11 +19,11 @@
 #
 
 # DESCRIPTION:
-#	zfs_multihost_interval should only accept valid values.
+#	MULTIHOST_INTERVAL should only accept valid values.
 #
 # STRATEGY:
-#	1. Set zfs_multihost_interval to invalid values (negative).
-#	2. Set zfs_multihost_interval to valid values.
+#	1. Set MULTIHOST_INTERVAL to invalid values (negative).
+#	2. Set MULTIHOST_INTERVAL to valid values.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -34,14 +34,14 @@ verify_runnable "both"
 
 function cleanup
 {
-	log_must set_tunable64 zfs_multihost_interval $MMP_INTERVAL_DEFAULT
+	log_must set_tunable64 MULTIHOST_INTERVAL $MMP_INTERVAL_DEFAULT
 }
 
-log_assert "zfs_multihost_interval cannot be set to an invalid value"
+log_assert "MULTIHOST_INTERVAL cannot be set to an invalid value"
 log_onexit cleanup
 
-log_mustnot set_tunable64 zfs_multihost_interval -1
-log_must set_tunable64 zfs_multihost_interval $MMP_INTERVAL_MIN
-log_must set_tunable64 zfs_multihost_interval $MMP_INTERVAL_DEFAULT
+log_mustnot set_tunable64 MULTIHOST_INTERVAL -1
+log_must set_tunable64 MULTIHOST_INTERVAL $MMP_INTERVAL_MIN
+log_must set_tunable64 MULTIHOST_INTERVAL $MMP_INTERVAL_DEFAULT
 
-log_pass "zfs_multihost_interval cannot be set to an invalid value"
+log_pass "MULTIHOST_INTERVAL cannot be set to an invalid value"

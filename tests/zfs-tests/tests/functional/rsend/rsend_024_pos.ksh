@@ -25,7 +25,7 @@
 #
 # Strategy:
 # 1. Destroy the filesystem for the receive
-# 2. Unmount the source filsesystem
+# 2. Unmount the source filesystem
 # 3. Start a full ZFS send, redirect output to a file
 # 4. Mess up the contents of the stream state file on disk
 # 5. Try ZFS receive, which should fail with a checksum mismatch error

@@ -39,6 +39,7 @@
 #include <sys/zvol.h>
 
 #ifdef _KERNEL
+#include <sys/zfs_quota.h>
 #include <sys/zfs_vfsops.h>
 #endif
 
@@ -206,89 +207,10 @@ get_dsl_dir_prop(dsl_dataset_t *ds, zfs_prop_t zfs_prop,
 		break;
 	default:
 		mutex_exit(&dd->dd_lock);
-		return (ENOENT);
+		return (SET_ERROR(ENOENT));
 	}
 	mutex_exit(&dd->dd_lock);
 	return (0);
-}
-
-/*
- * Takes a dataset, a property, a value and that value's setpoint as
- * found in the ZAP. Checks if the property has been changed in the vfs.
- * If so, val and setpoint will be overwritten with updated content.
- * Otherwise, they are left unchanged.
- */
-static int
-get_temporary_prop(dsl_dataset_t *ds, zfs_prop_t zfs_prop, uint64_t *val,
-    char *setpoint)
-{
-#if	!defined(_KERNEL)
-	return (0);
-#else
-	int error;
-	zfsvfs_t *zfvp;
-	vfs_t *vfsp;
-	objset_t *os;
-	uint64_t tmp = *val;
-
-	error = dmu_objset_from_ds(ds, &os);
-	if (error != 0)
-		return (error);
-
-	if (dmu_objset_type(os) != DMU_OST_ZFS)
-		return (EINVAL);
-
-	mutex_enter(&os->os_user_ptr_lock);
-	zfvp = dmu_objset_get_user(os);
-	mutex_exit(&os->os_user_ptr_lock);
-	if (zfvp == NULL)
-		return (ESRCH);
-
-	vfsp = zfvp->z_vfs;
-
-	switch (zfs_prop) {
-	case ZFS_PROP_ATIME:
-		if (vfsp->vfs_do_atime)
-			tmp = vfsp->vfs_atime;
-		break;
-	case ZFS_PROP_RELATIME:
-		if (vfsp->vfs_do_relatime)
-			tmp = vfsp->vfs_relatime;
-		break;
-	case ZFS_PROP_DEVICES:
-		if (vfsp->vfs_do_devices)
-			tmp = vfsp->vfs_devices;
-		break;
-	case ZFS_PROP_EXEC:
-		if (vfsp->vfs_do_exec)
-			tmp = vfsp->vfs_exec;
-		break;
-	case ZFS_PROP_SETUID:
-		if (vfsp->vfs_do_setuid)
-			tmp = vfsp->vfs_setuid;
-		break;
-	case ZFS_PROP_READONLY:
-		if (vfsp->vfs_do_readonly)
-			tmp = vfsp->vfs_readonly;
-		break;
-	case ZFS_PROP_XATTR:
-		if (vfsp->vfs_do_xattr)
-			tmp = vfsp->vfs_xattr;
-		break;
-	case ZFS_PROP_NBMAND:
-		if (vfsp->vfs_do_nbmand)
-			tmp = vfsp->vfs_nbmand;
-		break;
-	default:
-		return (ENOENT);
-	}
-
-	if (tmp != *val) {
-		(void) strcpy(setpoint, "temporary");
-		*val = tmp;
-	}
-	return (0);
-#endif
 }
 
 /*
@@ -423,19 +345,17 @@ get_special_prop(lua_State *state, dsl_dataset_t *ds, const char *dsname,
 	case ZFS_PROP_RECEIVE_RESUME_TOKEN: {
 		char *token = get_receive_resume_stats_impl(ds);
 
-		VERIFY3U(strlcpy(strval, token, ZAP_MAXVALUELEN),
-		    <, ZAP_MAXVALUELEN);
+		(void) strlcpy(strval, token, ZAP_MAXVALUELEN);
 		if (strcmp(strval, "") == 0) {
 			char *childval = get_child_receive_stats(ds);
 
-			VERIFY3U(strlcpy(strval, childval, ZAP_MAXVALUELEN),
-			    <, ZAP_MAXVALUELEN);
+			(void) strlcpy(strval, childval, ZAP_MAXVALUELEN);
 			if (strcmp(strval, "") == 0)
 				error = ENOENT;
 
-			strfree(childval);
+			kmem_strfree(childval);
 		}
-		strfree(token);
+		kmem_strfree(token);
 		break;
 	}
 	case ZFS_PROP_VOLSIZE:
@@ -549,9 +469,14 @@ get_zap_prop(lua_State *state, dsl_dataset_t *ds, zfs_prop_t zfs_prop)
 		error = dsl_prop_get_ds(ds, prop_name, sizeof (numval),
 		    1, &numval, setpoint);
 
-		/* Fill in temorary value for prop, if applicable */
-		(void) get_temporary_prop(ds, zfs_prop, &numval, setpoint);
-
+#ifdef _KERNEL
+		/* Fill in temporary value for prop, if applicable */
+		(void) zfs_get_temporary_prop(ds, zfs_prop, &numval, setpoint);
+#else
+		return (luaL_error(state,
+		    "temporary properties only supported in kernel mode",
+		    prop_name));
+#endif
 		/* Push value to lua stack */
 		if (prop_type == PROP_TYPE_INDEX) {
 			const char *propval;
@@ -663,7 +588,7 @@ get_userquota_prop(const char *prop_name)
  * prop type as well as the numeric group/user ids based on the string
  * following the '@' in the property name. On success, returns 0. On failure,
  * returns a non-zero error.
- * 'domain' must be free'd by caller using strfree()
+ * 'domain' must be free'd by caller using kmem_strfree()
  */
 static int
 parse_userquota_prop(const char *prop_name, zfs_userquota_prop_t *type,
@@ -680,7 +605,7 @@ parse_userquota_prop(const char *prop_name, zfs_userquota_prop_t *type,
 	if (strncmp(cp, "S-1-", 4) == 0) {
 		/*
 		 * It's a numeric SID (eg "S-1-234-567-89") and we want to
-		 * seperate the domain id and the rid
+		 * separate the domain id and the rid
 		 */
 		int domain_len = strrchr(cp, '-') - cp;
 		domain_val = kmem_alloc(domain_len + 1, KM_SLEEP);
@@ -690,7 +615,7 @@ parse_userquota_prop(const char *prop_name, zfs_userquota_prop_t *type,
 
 		(void) ddi_strtoll(cp, &end, 10, (longlong_t *)rid);
 		if (*end != '\0') {
-			strfree(domain_val);
+			kmem_strfree(domain_val);
 			return (EINVAL);
 		}
 	} else {
@@ -738,13 +663,13 @@ zcp_get_userquota_prop(lua_State *state, dsl_pool_t *dp,
 			}
 		}
 		if (domain != NULL)
-			strfree(domain);
+			kmem_strfree(domain);
 	}
 	dsl_dataset_rele(ds, FTAG);
 
 	if ((value == 0) && ((type == ZFS_PROP_USERQUOTA) ||
 	    (type == ZFS_PROP_GROUPQUOTA)))
-		error = ENOENT;
+		error = SET_ERROR(ENOENT);
 	if (error != 0) {
 		return (zcp_handle_error(state, dataset_name,
 		    prop_name, error));

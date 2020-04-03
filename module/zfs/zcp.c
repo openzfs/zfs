@@ -66,7 +66,7 @@
  * consuming excessive system or running forever.  If one of these limits is
  * hit, the channel program will be stopped immediately and return from
  * zcp_eval() with an error code. No attempt will be made to roll back or undo
- * any changes made by the channel program before the error occured.
+ * any changes made by the channel program before the error occurred.
  * Consumers invoking zcp_eval() from elsewhere in the kernel may pass a time
  * limit of 0, disabling the time limit.
  *
@@ -77,7 +77,7 @@
  * In place of a return value, an error message will also be returned in the
  * 'result' nvlist containing information about the error. No attempt will be
  * made to roll back or undo any changes made by the channel program before the
- * error occured.
+ * error occurred.
  *
  * 3. If an error occurs inside a ZFS library call which returns an error code,
  * the error is returned to the Lua script to be handled as desired.
@@ -100,6 +100,7 @@
 #include <sys/zcp_iter.h>
 #include <sys/zcp_prop.h>
 #include <sys/zcp_global.h>
+#include <sys/zvol.h>
 
 #ifndef KM_NORMALPRI
 #define	KM_NORMALPRI	0
@@ -117,21 +118,6 @@ unsigned long zfs_lua_max_memlimit = ZCP_MAX_MEMLIMIT;
 static int zcp_nvpair_value_to_lua(lua_State *, nvpair_t *, char *, int);
 static int zcp_lua_to_nvlist_impl(lua_State *, int, nvlist_t *, const char *,
     int);
-
-typedef struct zcp_alloc_arg {
-	boolean_t	aa_must_succeed;
-	int64_t		aa_alloc_remaining;
-	int64_t		aa_alloc_limit;
-} zcp_alloc_arg_t;
-
-typedef struct zcp_eval_arg {
-	lua_State	*ea_state;
-	zcp_alloc_arg_t	*ea_allocargs;
-	cred_t		*ea_cred;
-	nvlist_t	*ea_outnvl;
-	int		ea_result;
-	uint64_t	ea_instrlimit;
-} zcp_eval_arg_t;
 
 /*
  * The outer-most error callback handler for use with lua_pcall(). On
@@ -175,7 +161,7 @@ zcp_argerror(lua_State *state, int narg, const char *msg, ...)
  * of a function call.
  *
  * If an error occurs, the cleanup function will be invoked exactly once and
- * then unreigstered.
+ * then unregistered.
  *
  * Returns the registered cleanup handler so the caller can deregister it
  * if no error occurs.
@@ -410,7 +396,7 @@ zcp_lua_to_nvlist_impl(lua_State *state, int index, nvlist_t *nvl,
 	case LUA_TTABLE: {
 		nvlist_t *value_nvl = zcp_table_to_nvlist(state, index, depth);
 		if (value_nvl == NULL)
-			return (EINVAL);
+			return (SET_ERROR(EINVAL));
 
 		fnvlist_add_nvlist(nvl, key, value_nvl);
 		fnvlist_free(value_nvl);
@@ -420,7 +406,7 @@ zcp_lua_to_nvlist_impl(lua_State *state, int index, nvlist_t *nvl,
 		(void) lua_pushfstring(state,
 		    "Invalid value type '%s' for key '%s'",
 		    lua_typename(state, lua_type(state, index)), key);
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 	}
 
 	return (0);
@@ -452,7 +438,7 @@ zcp_lua_to_nvlist_helper(lua_State *state)
 
 static void
 zcp_convert_return_values(lua_State *state, nvlist_t *nvl,
-    const char *key, zcp_eval_arg_t *evalargs)
+    const char *key, int *result)
 {
 	int err;
 	VERIFY3U(1, ==, lua_gettop(state));
@@ -464,7 +450,7 @@ zcp_convert_return_values(lua_State *state, nvlist_t *nvl,
 	err = lua_pcall(state, 3, 0, 0); /* zcp_lua_to_nvlist_helper */
 	if (err != 0) {
 		zcp_lua_to_nvlist(state, 1, nvl, ZCP_RET_ERROR);
-		evalargs->ea_result = SET_ERROR(ECHRNG);
+		*result = SET_ERROR(ECHRNG);
 	}
 }
 
@@ -599,7 +585,7 @@ zcp_nvpair_value_to_lua(lua_State *state, nvpair_t *pair,
 			    "Unhandled nvpair type %d for key '%s'",
 			    nvpair_type(pair), nvpair_name(pair));
 		}
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 	}
 	}
 	return (err);
@@ -791,19 +777,32 @@ zcp_lua_alloc(void *ud, void *ptr, size_t osize, size_t nsize)
 static void
 zcp_lua_counthook(lua_State *state, lua_Debug *ar)
 {
-	/*
-	 * If we're called, check how many instructions the channel program has
-	 * executed so far, and compare against the limit.
-	 */
 	lua_getfield(state, LUA_REGISTRYINDEX, ZCP_RUN_INFO_KEY);
 	zcp_run_info_t *ri = lua_touserdata(state, -1);
 
+	/*
+	 * Check if we were canceled while waiting for the
+	 * txg to sync or from our open context thread
+	 */
+	if (ri->zri_canceled ||
+	    (!ri->zri_sync && issig(JUSTLOOKING) && issig(FORREAL))) {
+		ri->zri_canceled = B_TRUE;
+		(void) lua_pushstring(state, "Channel program was canceled.");
+		(void) lua_error(state);
+		/* Unreachable */
+	}
+
+	/*
+	 * Check how many instructions the channel program has
+	 * executed so far, and compare against the limit.
+	 */
 	ri->zri_curinstrs += zfs_lua_check_instrlimit_interval;
 	if (ri->zri_maxinstrs != 0 && ri->zri_curinstrs > ri->zri_maxinstrs) {
 		ri->zri_timed_out = B_TRUE;
 		(void) lua_pushstring(state,
 		    "Channel program timed out.");
 		(void) lua_error(state);
+		/* Unreachable */
 	}
 }
 
@@ -816,31 +815,25 @@ zcp_panic_cb(lua_State *state)
 }
 
 static void
-zcp_eval_impl(dmu_tx_t *tx, boolean_t sync, zcp_eval_arg_t *evalargs)
+zcp_eval_impl(dmu_tx_t *tx, zcp_run_info_t *ri)
 {
 	int err;
-	zcp_run_info_t ri;
-	lua_State *state = evalargs->ea_state;
+	lua_State *state = ri->zri_state;
 
 	VERIFY3U(3, ==, lua_gettop(state));
+
+	/* finish initializing our runtime state */
+	ri->zri_pool = dmu_tx_pool(tx);
+	ri->zri_tx = tx;
+	list_create(&ri->zri_cleanup_handlers, sizeof (zcp_cleanup_handler_t),
+	    offsetof(zcp_cleanup_handler_t, zch_node));
 
 	/*
 	 * Store the zcp_run_info_t struct for this run in the Lua registry.
 	 * Registry entries are not directly accessible by the Lua scripts but
 	 * can be accessed by our callbacks.
 	 */
-	ri.zri_space_used = 0;
-	ri.zri_pool = dmu_tx_pool(tx);
-	ri.zri_cred = evalargs->ea_cred;
-	ri.zri_tx = tx;
-	ri.zri_timed_out = B_FALSE;
-	ri.zri_sync = sync;
-	list_create(&ri.zri_cleanup_handlers, sizeof (zcp_cleanup_handler_t),
-	    offsetof(zcp_cleanup_handler_t, zch_node));
-	ri.zri_curinstrs = 0;
-	ri.zri_maxinstrs = evalargs->ea_instrlimit;
-
-	lua_pushlightuserdata(state, &ri);
+	lua_pushlightuserdata(state, ri);
 	lua_setfield(state, LUA_REGISTRYINDEX, ZCP_RUN_INFO_KEY);
 	VERIFY3U(3, ==, lua_gettop(state));
 
@@ -857,7 +850,7 @@ zcp_eval_impl(dmu_tx_t *tx, boolean_t sync, zcp_eval_arg_t *evalargs)
 	 * off control to the channel program. Channel programs that use too
 	 * much memory should die with ENOSPC.
 	 */
-	evalargs->ea_allocargs->aa_must_succeed = B_FALSE;
+	ri->zri_allocargs->aa_must_succeed = B_FALSE;
 
 	/*
 	 * Call the Lua function that open-context passed us. This pops the
@@ -869,14 +862,14 @@ zcp_eval_impl(dmu_tx_t *tx, boolean_t sync, zcp_eval_arg_t *evalargs)
 	/*
 	 * Let Lua use KM_SLEEP while we interpret the return values.
 	 */
-	evalargs->ea_allocargs->aa_must_succeed = B_TRUE;
+	ri->zri_allocargs->aa_must_succeed = B_TRUE;
 
 	/*
 	 * Remove the error handler callback from the stack. At this point,
 	 * there shouldn't be any cleanup handler registered in the handler
 	 * list (zri_cleanup_handlers), regardless of whether it ran or not.
 	 */
-	list_destroy(&ri.zri_cleanup_handlers);
+	list_destroy(&ri->zri_cleanup_handlers);
 	lua_remove(state, 1);
 
 	switch (err) {
@@ -896,16 +889,16 @@ zcp_eval_impl(dmu_tx_t *tx, boolean_t sync, zcp_eval_arg_t *evalargs)
 		int return_count = lua_gettop(state);
 
 		if (return_count == 1) {
-			evalargs->ea_result = 0;
-			zcp_convert_return_values(state, evalargs->ea_outnvl,
-			    ZCP_RET_RETURN, evalargs);
+			ri->zri_result = 0;
+			zcp_convert_return_values(state, ri->zri_outnvl,
+			    ZCP_RET_RETURN, &ri->zri_result);
 		} else if (return_count > 1) {
-			evalargs->ea_result = SET_ERROR(ECHRNG);
+			ri->zri_result = SET_ERROR(ECHRNG);
 			lua_settop(state, 0);
 			(void) lua_pushfstring(state, "Multiple return "
 			    "values not supported");
-			zcp_convert_return_values(state, evalargs->ea_outnvl,
-			    ZCP_RET_ERROR, evalargs);
+			zcp_convert_return_values(state, ri->zri_outnvl,
+			    ZCP_RET_ERROR, &ri->zri_result);
 		}
 		break;
 	}
@@ -919,19 +912,20 @@ zcp_eval_impl(dmu_tx_t *tx, boolean_t sync, zcp_eval_arg_t *evalargs)
 		 * stack.
 		 */
 		VERIFY3U(1, ==, lua_gettop(state));
-		if (ri.zri_timed_out) {
-			evalargs->ea_result = SET_ERROR(ETIME);
+		if (ri->zri_timed_out) {
+			ri->zri_result = SET_ERROR(ETIME);
+		} else if (ri->zri_canceled) {
+			ri->zri_result = SET_ERROR(EINTR);
 		} else {
-			evalargs->ea_result = SET_ERROR(ECHRNG);
+			ri->zri_result = SET_ERROR(ECHRNG);
 		}
 
-		zcp_convert_return_values(state, evalargs->ea_outnvl,
-		    ZCP_RET_ERROR, evalargs);
+		zcp_convert_return_values(state, ri->zri_outnvl,
+		    ZCP_RET_ERROR, &ri->zri_result);
 
-		if (evalargs->ea_result == ETIME &&
-		    evalargs->ea_outnvl != NULL) {
-			(void) nvlist_add_uint64(evalargs->ea_outnvl,
-			    ZCP_ARG_INSTRLIMIT, ri.zri_curinstrs);
+		if (ri->zri_result == ETIME && ri->zri_outnvl != NULL) {
+			(void) nvlist_add_uint64(ri->zri_outnvl,
+			    ZCP_ARG_INSTRLIMIT, ri->zri_curinstrs);
 		}
 		break;
 	}
@@ -943,14 +937,16 @@ zcp_eval_impl(dmu_tx_t *tx, boolean_t sync, zcp_eval_arg_t *evalargs)
 		 * return the error message.
 		 */
 		VERIFY3U(1, ==, lua_gettop(state));
-		if (ri.zri_timed_out) {
-			evalargs->ea_result = SET_ERROR(ETIME);
+		if (ri->zri_timed_out) {
+			ri->zri_result = SET_ERROR(ETIME);
+		} else if (ri->zri_canceled) {
+			ri->zri_result = SET_ERROR(EINTR);
 		} else {
-			evalargs->ea_result = SET_ERROR(ECHRNG);
+			ri->zri_result = SET_ERROR(ECHRNG);
 		}
 
-		zcp_convert_return_values(state, evalargs->ea_outnvl,
-		    ZCP_RET_ERROR, evalargs);
+		zcp_convert_return_values(state, ri->zri_outnvl,
+		    ZCP_RET_ERROR, &ri->zri_result);
 		break;
 	}
 	case LUA_ERRMEM:
@@ -958,7 +954,7 @@ zcp_eval_impl(dmu_tx_t *tx, boolean_t sync, zcp_eval_arg_t *evalargs)
 		 * Lua ran out of memory while running the channel program.
 		 * There's not much we can do.
 		 */
-		evalargs->ea_result = SET_ERROR(ENOSPC);
+		ri->zri_result = SET_ERROR(ENOSPC);
 		break;
 	default:
 		VERIFY0(err);
@@ -966,21 +962,35 @@ zcp_eval_impl(dmu_tx_t *tx, boolean_t sync, zcp_eval_arg_t *evalargs)
 }
 
 static void
-zcp_pool_error(zcp_eval_arg_t *evalargs, const char *poolname)
+zcp_pool_error(zcp_run_info_t *ri, const char *poolname)
 {
-	evalargs->ea_result = SET_ERROR(ECHRNG);
-	lua_settop(evalargs->ea_state, 0);
-	(void) lua_pushfstring(evalargs->ea_state, "Could not open pool: %s",
+	ri->zri_result = SET_ERROR(ECHRNG);
+	lua_settop(ri->zri_state, 0);
+	(void) lua_pushfstring(ri->zri_state, "Could not open pool: %s",
 	    poolname);
-	zcp_convert_return_values(evalargs->ea_state, evalargs->ea_outnvl,
-	    ZCP_RET_ERROR, evalargs);
+	zcp_convert_return_values(ri->zri_state, ri->zri_outnvl,
+	    ZCP_RET_ERROR, &ri->zri_result);
 
+}
+
+/*
+ * This callback is called when txg_wait_synced_sig encountered a signal.
+ * The txg_wait_synced_sig will continue to wait for the txg to complete
+ * after calling this callback.
+ */
+/* ARGSUSED */
+static void
+zcp_eval_sig(void *arg, dmu_tx_t *tx)
+{
+	zcp_run_info_t *ri = arg;
+
+	ri->zri_canceled = B_TRUE;
 }
 
 static void
 zcp_eval_sync(void *arg, dmu_tx_t *tx)
 {
-	zcp_eval_arg_t *evalargs = arg;
+	zcp_run_info_t *ri = arg;
 
 	/*
 	 * Open context should have setup the stack to contain:
@@ -988,15 +998,14 @@ zcp_eval_sync(void *arg, dmu_tx_t *tx)
 	 * 2: Script to run (converted to a Lua function)
 	 * 3: nvlist input to function (converted to Lua table or nil)
 	 */
-	VERIFY3U(3, ==, lua_gettop(evalargs->ea_state));
+	VERIFY3U(3, ==, lua_gettop(ri->zri_state));
 
-	zcp_eval_impl(tx, B_TRUE, evalargs);
+	zcp_eval_impl(tx, ri);
 }
 
 static void
-zcp_eval_open(zcp_eval_arg_t *evalargs, const char *poolname)
+zcp_eval_open(zcp_run_info_t *ri, const char *poolname)
 {
-
 	int error;
 	dsl_pool_t *dp;
 	dmu_tx_t *tx;
@@ -1004,11 +1013,11 @@ zcp_eval_open(zcp_eval_arg_t *evalargs, const char *poolname)
 	/*
 	 * See comment from the same assertion in zcp_eval_sync().
 	 */
-	VERIFY3U(3, ==, lua_gettop(evalargs->ea_state));
+	VERIFY3U(3, ==, lua_gettop(ri->zri_state));
 
 	error = dsl_pool_hold(poolname, FTAG, &dp);
 	if (error != 0) {
-		zcp_pool_error(evalargs, poolname);
+		zcp_pool_error(ri, poolname);
 		return;
 	}
 
@@ -1023,7 +1032,7 @@ zcp_eval_open(zcp_eval_arg_t *evalargs, const char *poolname)
 	 */
 	tx = dmu_tx_create_dd(dp->dp_mos_dir);
 
-	zcp_eval_impl(tx, B_FALSE, evalargs);
+	zcp_eval_impl(tx, ri);
 
 	dmu_tx_abort(tx);
 
@@ -1036,7 +1045,7 @@ zcp_eval(const char *poolname, const char *program, boolean_t sync,
 {
 	int err;
 	lua_State *state;
-	zcp_eval_arg_t evalargs;
+	zcp_run_info_t runinfo;
 
 	if (instrlimit > zfs_lua_max_instrlimit)
 		return (SET_ERROR(EINVAL));
@@ -1136,24 +1145,40 @@ zcp_eval(const char *poolname, const char *program, boolean_t sync,
 	}
 	VERIFY3U(3, ==, lua_gettop(state));
 
-	evalargs.ea_state = state;
-	evalargs.ea_allocargs = &allocargs;
-	evalargs.ea_instrlimit = instrlimit;
-	evalargs.ea_cred = CRED();
-	evalargs.ea_outnvl = outnvl;
-	evalargs.ea_result = 0;
+	runinfo.zri_state = state;
+	runinfo.zri_allocargs = &allocargs;
+	runinfo.zri_outnvl = outnvl;
+	runinfo.zri_result = 0;
+	runinfo.zri_cred = CRED();
+	runinfo.zri_timed_out = B_FALSE;
+	runinfo.zri_canceled = B_FALSE;
+	runinfo.zri_sync = sync;
+	runinfo.zri_space_used = 0;
+	runinfo.zri_curinstrs = 0;
+	runinfo.zri_maxinstrs = instrlimit;
+	runinfo.zri_new_zvols = fnvlist_alloc();
 
 	if (sync) {
-		err = dsl_sync_task(poolname, NULL,
-		    zcp_eval_sync, &evalargs, 0, ZFS_SPACE_CHECK_ZCP_EVAL);
+		err = dsl_sync_task_sig(poolname, NULL, zcp_eval_sync,
+		    zcp_eval_sig, &runinfo, 0, ZFS_SPACE_CHECK_ZCP_EVAL);
 		if (err != 0)
-			zcp_pool_error(&evalargs, poolname);
+			zcp_pool_error(&runinfo, poolname);
 	} else {
-		zcp_eval_open(&evalargs, poolname);
+		zcp_eval_open(&runinfo, poolname);
 	}
 	lua_close(state);
 
-	return (evalargs.ea_result);
+	/*
+	 * Create device minor nodes for any new zvols.
+	 */
+	for (nvpair_t *pair = nvlist_next_nvpair(runinfo.zri_new_zvols, NULL);
+	    pair != NULL;
+	    pair = nvlist_next_nvpair(runinfo.zri_new_zvols, pair)) {
+		zvol_create_minor(nvpair_name(pair));
+	}
+	fnvlist_free(runinfo.zri_new_zvols);
+
+	return (runinfo.zri_result);
 }
 
 /*
@@ -1421,14 +1446,10 @@ zcp_parse_args(lua_State *state, const char *fname, const zcp_arg_t *pargs,
 	}
 }
 
-#if defined(_KERNEL)
 /* BEGIN CSTYLED */
-module_param(zfs_lua_max_instrlimit, ulong, 0644);
-MODULE_PARM_DESC(zfs_lua_max_instrlimit,
+ZFS_MODULE_PARAM(zfs_lua, zfs_lua_, max_instrlimit, ULONG, ZMOD_RW,
 	"Max instruction limit that can be specified for a channel program");
 
-module_param(zfs_lua_max_memlimit, ulong, 0644);
-MODULE_PARM_DESC(zfs_lua_max_memlimit,
+ZFS_MODULE_PARAM(zfs_lua, zfs_lua_, max_memlimit, ULONG, ZMOD_RW,
 	"Max memory limit that can be specified for a channel program");
 /* END CSTYLED */
-#endif

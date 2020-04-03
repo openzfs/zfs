@@ -69,7 +69,7 @@ log_must eval "echo $passphrase | zfs create -o encryption=on" \
 log_must zfs snapshot $snap1
 
 log_must mkfile 1M /$TESTPOOL/$TESTFS1/$TESTFILE0
-typeset checksum=$(md5sum /$TESTPOOL/$TESTFS1/$TESTFILE0 | awk '{ print $1 }')
+typeset checksum=$(md5digest /$TESTPOOL/$TESTFS1/$TESTFILE0)
 
 log_must zfs snapshot $snap2
 
@@ -77,7 +77,7 @@ log_must eval "zfs send -w $snap1 | zfs receive $TESTPOOL/$TESTFS2"
 log_must eval "echo $passphrase2 | zfs change-key $TESTPOOL/$TESTFS1"
 log_must eval "zfs send -w -i $snap1 $snap2 > $ibackup"
 
-typeset trunc_size=$(stat -c %s $ibackup)
+typeset trunc_size=$(stat_size $ibackup)
 trunc_size=$(expr $trunc_size - 64)
 log_must cp $ibackup $ibackup_trunc
 log_must truncate -s $trunc_size $ibackup_trunc
@@ -89,7 +89,7 @@ log_must zfs unload-key $TESTPOOL/$TESTFS2
 log_must eval "zfs receive $TESTPOOL/$TESTFS2 < $ibackup"
 log_must eval "echo $passphrase2 | zfs mount -l $TESTPOOL/$TESTFS2"
 
-typeset cksum1=$(md5sum /$TESTPOOL/$TESTFS2/$TESTFILE0 | awk '{ print $1 }')
+typeset cksum1=$(md5digest /$TESTPOOL/$TESTFS2/$TESTFILE0)
 [[ "$cksum1" == "$checksum" ]] || \
 	log_fail "Checksums differ ($cksum1 != $checksum)"
 

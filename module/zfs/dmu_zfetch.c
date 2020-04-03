@@ -24,7 +24,7 @@
  */
 
 /*
- * Copyright (c) 2013, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2013, 2017 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -110,13 +110,13 @@ dmu_zfetch_init(zfetch_t *zf, dnode_t *dno)
 	list_create(&zf->zf_stream, sizeof (zstream_t),
 	    offsetof(zstream_t, zs_node));
 
-	rw_init(&zf->zf_rwlock, NULL, RW_DEFAULT, NULL);
+	mutex_init(&zf->zf_lock, NULL, MUTEX_DEFAULT, NULL);
 }
 
 static void
 dmu_zfetch_stream_remove(zfetch_t *zf, zstream_t *zs)
 {
-	ASSERT(RW_WRITE_HELD(&zf->zf_rwlock));
+	ASSERT(MUTEX_HELD(&zf->zf_lock));
 	list_remove(&zf->zf_stream, zs);
 	mutex_destroy(&zs->zs_lock);
 	kmem_free(zs, sizeof (*zs));
@@ -131,14 +131,12 @@ dmu_zfetch_fini(zfetch_t *zf)
 {
 	zstream_t *zs;
 
-	ASSERT(!RW_LOCK_HELD(&zf->zf_rwlock));
-
-	rw_enter(&zf->zf_rwlock, RW_WRITER);
+	mutex_enter(&zf->zf_lock);
 	while ((zs = list_head(&zf->zf_stream)) != NULL)
 		dmu_zfetch_stream_remove(zf, zs);
-	rw_exit(&zf->zf_rwlock);
+	mutex_exit(&zf->zf_lock);
 	list_destroy(&zf->zf_stream);
-	rw_destroy(&zf->zf_rwlock);
+	mutex_destroy(&zf->zf_lock);
 
 	zf->zf_dnode = NULL;
 }
@@ -155,7 +153,7 @@ dmu_zfetch_stream_create(zfetch_t *zf, uint64_t blkid)
 	zstream_t *zs_next;
 	int numstreams = 0;
 
-	ASSERT(RW_WRITE_HELD(&zf->zf_rwlock));
+	ASSERT(MUTEX_HELD(&zf->zf_lock));
 
 	/*
 	 * Clean up old streams.
@@ -205,7 +203,8 @@ dmu_zfetch_stream_create(zfetch_t *zf, uint64_t blkid)
  *   TRUE -- prefetch predicted data blocks plus following indirect blocks.
  */
 void
-dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data)
+dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data,
+    boolean_t have_lock)
 {
 	zstream_t *zs;
 	int64_t pf_start, ipf_start, ipf_istart, ipf_iend;
@@ -214,7 +213,6 @@ dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data)
 	uint64_t end_of_access_blkid;
 	end_of_access_blkid = blkid + nblks;
 	spa_t *spa = zf->zf_dnode->dn_objset->os_spa;
-	krw_t rw = RW_READER;
 
 	if (zfs_prefetch_disable)
 		return;
@@ -223,7 +221,7 @@ dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data)
 	 * can only read from blocks that we carefully ensure are on
 	 * concrete vdevs (or previously-loaded indirect vdevs).  So we
 	 * can't allow the predictive prefetcher to attempt reads of other
-	 * blocks (e.g. of the MOS's dnode obejct).
+	 * blocks (e.g. of the MOS's dnode object).
 	 */
 	if (!spa_indirect_vdevs_loaded(spa))
 		return;
@@ -235,8 +233,9 @@ dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data)
 	if (blkid == 0)
 		return;
 
-retry:
-	rw_enter(&zf->zf_rwlock, rw);
+	if (!have_lock)
+		rw_enter(&zf->zf_dnode->dn_struct_rwlock, RW_READER);
+	mutex_enter(&zf->zf_lock);
 
 	/*
 	 * Find matching prefetch stream.  Depending on whether the accesses
@@ -259,7 +258,11 @@ retry:
 				if (nblks == 0) {
 					/* Already prefetched this before. */
 					mutex_exit(&zs->zs_lock);
-					rw_exit(&zf->zf_rwlock);
+					mutex_exit(&zf->zf_lock);
+					if (!have_lock) {
+						rw_exit(&zf->zf_dnode->
+						    dn_struct_rwlock);
+					}
 					return;
 				}
 				break;
@@ -274,14 +277,11 @@ retry:
 		 * a new stream for it.
 		 */
 		ZFETCHSTAT_BUMP(zfetchstat_misses);
-		if (rw == RW_READER && !rw_tryupgrade(&zf->zf_rwlock)) {
-			rw_exit(&zf->zf_rwlock);
-			rw = RW_WRITER;
-			goto retry;
-		}
 
 		dmu_zfetch_stream_create(zf, end_of_access_blkid);
-		rw_exit(&zf->zf_rwlock);
+		mutex_exit(&zf->zf_lock);
+		if (!have_lock)
+			rw_exit(&zf->zf_dnode->dn_struct_rwlock);
 		return;
 	}
 
@@ -345,7 +345,7 @@ retry:
 	zs->zs_atime = gethrtime();
 	zs->zs_blkid = end_of_access_blkid;
 	mutex_exit(&zs->zs_lock);
-	rw_exit(&zf->zf_rwlock);
+	mutex_exit(&zf->zf_lock);
 
 	/*
 	 * dbuf_prefetch() is asynchronous (even when it needs to read
@@ -361,25 +361,24 @@ retry:
 		dbuf_prefetch(zf->zf_dnode, 1, iblk,
 		    ZIO_PRIORITY_ASYNC_READ, ARC_FLAG_PREDICTIVE_PREFETCH);
 	}
+	if (!have_lock)
+		rw_exit(&zf->zf_dnode->dn_struct_rwlock);
 	ZFETCHSTAT_BUMP(zfetchstat_hits);
 }
 
-#if defined(_KERNEL)
 /* BEGIN CSTYLED */
-module_param(zfs_prefetch_disable, int, 0644);
-MODULE_PARM_DESC(zfs_prefetch_disable, "Disable all ZFS prefetching");
+ZFS_MODULE_PARAM(zfs_prefetch, zfs_prefetch_, disable, INT, ZMOD_RW,
+	"Disable all ZFS prefetching");
 
-module_param(zfetch_max_streams, uint, 0644);
-MODULE_PARM_DESC(zfetch_max_streams, "Max number of streams per zfetch");
+ZFS_MODULE_PARAM(zfs_prefetch, zfetch_, max_streams, UINT, ZMOD_RW,
+	"Max number of streams per zfetch");
 
-module_param(zfetch_min_sec_reap, uint, 0644);
-MODULE_PARM_DESC(zfetch_min_sec_reap, "Min time before stream reclaim");
+ZFS_MODULE_PARAM(zfs_prefetch, zfetch_, min_sec_reap, UINT, ZMOD_RW,
+	"Min time before stream reclaim");
 
-module_param(zfetch_max_distance, uint, 0644);
-MODULE_PARM_DESC(zfetch_max_distance,
+ZFS_MODULE_PARAM(zfs_prefetch, zfetch_, max_distance, UINT, ZMOD_RW,
 	"Max bytes to prefetch per stream (default 8MB)");
 
-module_param(zfetch_array_rd_sz, ulong, 0644);
-MODULE_PARM_DESC(zfetch_array_rd_sz, "Number of bytes in a array_read");
+ZFS_MODULE_PARAM(zfs_prefetch, zfetch_, array_rd_sz, ULONG, ZMOD_RW,
+	"Number of bytes in a array_read");
 /* END CSTYLED */
-#endif

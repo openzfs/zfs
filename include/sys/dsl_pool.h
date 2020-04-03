@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2013, 2018 by Delphix. All rights reserved.
  * Copyright 2016 Nexenta Systems, Inc.  All rights reserved.
  */
 
@@ -54,6 +54,7 @@ struct dsl_pool;
 struct dmu_tx;
 struct dsl_scan;
 struct dsl_crypto_params;
+struct dsl_deadlist;
 
 extern unsigned long zfs_dirty_data_max;
 extern unsigned long zfs_dirty_data_max_max;
@@ -95,7 +96,7 @@ typedef struct dsl_pool {
 	struct dsl_dir *dp_leak_dir;
 	struct dsl_dataset *dp_origin_snap;
 	uint64_t dp_root_dir_obj;
-	struct taskq *dp_iput_taskq;
+	struct taskq *dp_zrele_taskq;
 	struct taskq *dp_unlinked_drain_taskq;
 
 	/* No lock needed - sync context only */
@@ -176,7 +177,7 @@ void dsl_pool_config_exit(dsl_pool_t *dp, void *tag);
 boolean_t dsl_pool_config_held(dsl_pool_t *dp);
 boolean_t dsl_pool_config_held_writer(dsl_pool_t *dp);
 
-taskq_t *dsl_pool_iput_taskq(dsl_pool_t *dp);
+taskq_t *dsl_pool_zrele_taskq(dsl_pool_t *dp);
 taskq_t *dsl_pool_unlinked_drain_taskq(dsl_pool_t *dp);
 
 int dsl_pool_user_hold(dsl_pool_t *dp, uint64_t dsobj,

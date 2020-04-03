@@ -1032,9 +1032,29 @@ class ZFSTest(unittest.TestCase):
         bmarks = [ZFSTest.pool.makeName(
             b'fs1#bmark1'), ZFSTest.pool.makeName(b'fs2#bmark1')]
         bmark_dict = {x: y for x, y in zip(bmarks, snaps)}
-
         lzc.lzc_snapshot(snaps)
         lzc.lzc_bookmark(bmark_dict)
+        lzc.lzc_destroy_snaps(snaps, defer=False)
+
+    @skipUnlessBookmarksSupported
+    def test_bookmark_copying(self):
+        snaps = [ZFSTest.pool.makeName(s) for s in [
+            b'fs1@snap1', b'fs1@snap2', b'fs2@snap1']]
+        bmarks = [ZFSTest.pool.makeName(x) for x in [
+            b'fs1#bmark1', b'fs1#bmark2', b'fs2#bmark1']]
+        bmarks_copies = [ZFSTest.pool.makeName(x) for x in [
+            b'fs1#bmark1_copy', b'fs1#bmark2_copy', b'fs2#bmark1_copy']]
+        bmark_dict = {x: y for x, y in zip(bmarks, snaps)}
+        bmark_copies_dict = {x: y for x, y in zip(bmarks_copies, bmarks)}
+
+        for snap in snaps:
+            lzc.lzc_snapshot([snap])
+        lzc.lzc_bookmark(bmark_dict)
+
+        lzc.lzc_bookmark(bmark_copies_dict)
+        lzc.lzc_destroy_bookmarks(bmarks_copies)
+
+        lzc.lzc_destroy_bookmarks(bmarks)
         lzc.lzc_destroy_snaps(snaps, defer=False)
 
     @skipUnlessBookmarksSupported
@@ -1042,7 +1062,7 @@ class ZFSTest(unittest.TestCase):
         lzc.lzc_bookmark({})
 
     @skipUnlessBookmarksSupported
-    def test_bookmarks_mismatching_name(self):
+    def test_bookmarks_foregin_source(self):
         snaps = [ZFSTest.pool.makeName(b'fs1@snap1')]
         bmarks = [ZFSTest.pool.makeName(b'fs2#bmark1')]
         bmark_dict = {x: y for x, y in zip(bmarks, snaps)}
@@ -1107,7 +1127,7 @@ class ZFSTest(unittest.TestCase):
             self.assertIsInstance(e, lzc_exc.NameTooLong)
 
     @skipUnlessBookmarksSupported
-    def test_bookmarks_mismatching_names(self):
+    def test_bookmarks_foreign_sources(self):
         snaps = [ZFSTest.pool.makeName(
             b'fs1@snap1'), ZFSTest.pool.makeName(b'fs2@snap1')]
         bmarks = [ZFSTest.pool.makeName(
@@ -1122,7 +1142,7 @@ class ZFSTest(unittest.TestCase):
             self.assertIsInstance(e, lzc_exc.BookmarkMismatch)
 
     @skipUnlessBookmarksSupported
-    def test_bookmarks_partially_mismatching_names(self):
+    def test_bookmarks_partially_foreign_sources(self):
         snaps = [ZFSTest.pool.makeName(
             b'fs1@snap1'), ZFSTest.pool.makeName(b'fs2@snap1')]
         bmarks = [ZFSTest.pool.makeName(
@@ -1154,32 +1174,47 @@ class ZFSTest(unittest.TestCase):
 
     @skipUnlessBookmarksSupported
     def test_bookmarks_missing_snap(self):
+        fss = [ZFSTest.pool.makeName(b'fs1'), ZFSTest.pool.makeName(b'fs2')]
         snaps = [ZFSTest.pool.makeName(
             b'fs1@snap1'), ZFSTest.pool.makeName(b'fs2@snap1')]
         bmarks = [ZFSTest.pool.makeName(
             b'fs1#bmark1'), ZFSTest.pool.makeName(b'fs2#bmark1')]
         bmark_dict = {x: y for x, y in zip(bmarks, snaps)}
 
-        lzc.lzc_snapshot(snaps[0:1])
+        lzc.lzc_snapshot(snaps[0:1])  # only create fs1@snap1
+
         with self.assertRaises(lzc_exc.BookmarkFailure) as ctx:
             lzc.lzc_bookmark(bmark_dict)
 
         for e in ctx.exception.errors:
             self.assertIsInstance(e, lzc_exc.SnapshotNotFound)
+
+        # no new bookmarks are created if one or more sources do not exist
+        for fs in fss:
+            fsbmarks = lzc.lzc_get_bookmarks(fs)
+            self.assertEqual(len(fsbmarks), 0)
 
     @skipUnlessBookmarksSupported
     def test_bookmarks_missing_snaps(self):
+        fss = [ZFSTest.pool.makeName(b'fs1'), ZFSTest.pool.makeName(b'fs2')]
         snaps = [ZFSTest.pool.makeName(
             b'fs1@snap1'), ZFSTest.pool.makeName(b'fs2@snap1')]
         bmarks = [ZFSTest.pool.makeName(
             b'fs1#bmark1'), ZFSTest.pool.makeName(b'fs2#bmark1')]
         bmark_dict = {x: y for x, y in zip(bmarks, snaps)}
 
+        # do not create any snapshots
+
         with self.assertRaises(lzc_exc.BookmarkFailure) as ctx:
             lzc.lzc_bookmark(bmark_dict)
 
         for e in ctx.exception.errors:
             self.assertIsInstance(e, lzc_exc.SnapshotNotFound)
+
+        # no new bookmarks are created if one or more sources do not exist
+        for fs in fss:
+            fsbmarks = lzc.lzc_get_bookmarks(fs)
+            self.assertEqual(len(fsbmarks), 0)
 
     @skipUnlessBookmarksSupported
     def test_bookmarks_for_the_same_snap(self):
@@ -1913,7 +1948,7 @@ class ZFSTest(unittest.TestCase):
                 filecmp.cmp(
                     os.path.join(mnt1, name), os.path.join(mnt2, name), False))
 
-    # This test case fails unless unless a patch from
+    # This test case fails unless a patch from
     # https://clusterhq.atlassian.net/browse/ZFS-20
     # is applied to libzfs_core, otherwise it succeeds.
     @unittest.skip("fails with unpatched libzfs_core")
@@ -2160,7 +2195,7 @@ class ZFSTest(unittest.TestCase):
         with streams(srcfs, src1, src2) as (_, (full, incr)):
             lzc.lzc_receive(dst1, full.fileno())
             lzc.lzc_snapshot([dst_snap])
-            # becase cannot receive incremental and set origin on a non-clone
+            # because cannot receive incremental and set origin on a non-clone
             with self.assertRaises(lzc_exc.BadStream):
                 lzc.lzc_receive(dst2, incr.fileno(), origin=dst1)
 
@@ -2375,7 +2410,7 @@ class ZFSTest(unittest.TestCase):
                 for i in range(1024):
                     f.write(b'x' * 1024)
                 lzc.lzc_receive(dst, stream.fileno(), force=True)
-                # The temporary file dissappears and any access, even close(),
+                # The temporary file disappears and any access, even close(),
                 # results in EIO.
                 self.assertFalse(os.path.exists(f.name))
                 with self.assertRaises(IOError):
@@ -2462,7 +2497,7 @@ class ZFSTest(unittest.TestCase):
                 for i in range(1024):
                     f.write(b'x' * 1024)
                 lzc.lzc_receive(dst2, incr.fileno(), force=True)
-                # The temporary file dissappears and any access, even close(),
+                # The temporary file disappears and any access, even close(),
                 # results in EIO.
                 self.assertFalse(os.path.exists(f.name))
                 with self.assertRaises(IOError):
@@ -2679,7 +2714,7 @@ class ZFSTest(unittest.TestCase):
             lzc.lzc_send(src, None, stream.fileno())
             stream.seek(0)
             stream.truncate(1024 * 3)
-            with self.assertRaises(lzc_exc.BadStream):
+            with self.assertRaises(lzc_exc.StreamTruncated):
                 lzc.lzc_receive_resumable(dst, stream.fileno())
             # Resume token code from zfs_send_resume_token_to_nvlist()
             # XXX: if used more than twice move this code into an external func
@@ -2736,7 +2771,7 @@ class ZFSTest(unittest.TestCase):
             lzc.lzc_send(snap2, snap1, stream.fileno())
             stream.seek(0)
             stream.truncate(1024 * 3)
-            with self.assertRaises(lzc_exc.BadStream):
+            with self.assertRaises(lzc_exc.StreamTruncated):
                 lzc.lzc_receive_resumable(dst2, stream.fileno())
             # Resume token code from zfs_send_resume_token_to_nvlist()
             # format: <version>-<cksum>-<packed-size>-<compressed-payload>
@@ -3631,31 +3666,6 @@ zfs.sync.snapshot('""" + pool + b"""@zcp')
             lzc.lzc_unload_key(fs)
             with self.assertRaises(lzc_exc.EncryptionKeyNotLoaded):
                 lzc.lzc_unload_key(fs)
-
-    def test_remap_missing_fs(self):
-        name = b"nonexistent"
-
-        with self.assertRaises(lzc_exc.DatasetNotFound):
-            lzc.lzc_remap(name)
-
-    def test_remap_invalid_fs(self):
-        ds = ZFSTest.pool.makeName(b"fs1")
-        snap = ds + b"@snap1"
-
-        lzc.lzc_snapshot([snap])
-        with self.assertRaises(lzc_exc.NameInvalid):
-            lzc.lzc_remap(snap)
-
-    def test_remap_too_long_fs_name(self):
-        name = ZFSTest.pool.makeTooLongName()
-
-        with self.assertRaises(lzc_exc.NameTooLong):
-            lzc.lzc_remap(name)
-
-    def test_remap(self):
-        name = ZFSTest.pool.makeName(b"fs1")
-
-        lzc.lzc_remap(name)
 
     def test_checkpoint(self):
         pool = ZFSTest.pool.getRoot().getName()

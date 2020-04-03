@@ -1,5 +1,5 @@
 '\" te
-.\" Copyright (c) 2013, 2017 by Delphix. All rights reserved.
+.\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
 .\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
 .\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
 .\" The contents of this file are subject to the terms of the Common Development
@@ -39,7 +39,7 @@ this set may include unsupported features.
 .sp
 .LP
 Every feature has a GUID of the form \fIcom.example:feature_name\fR. The
-reverse DNS name ensures that the feature's GUID is unique across all ZFS
+reversed DNS name ensures that the feature's GUID is unique across all ZFS
 implementations. When unsupported features are encountered on a pool they will
 be identified by their GUIDs. Refer to the documentation for the ZFS
 implementation that created the pool for information about those features.
@@ -237,6 +237,27 @@ returned to the \fBenabled\fR state when all v2 bookmarks are destroyed.
 .sp
 .ne 2
 .na
+\fBbookmark_written\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	com.delphix:bookmark_written
+READ\-ONLY COMPATIBLE	no
+DEPENDENCIES	bookmark, extensible_dataset, bookmark_v2
+.TE
+
+This feature enables additional bookmark accounting fields, enabling the
+written#<bookmark> property (space written since a bookmark) and estimates of
+send stream sizes for incrementals from bookmarks.
+
+This feature becomes \fBactive\fR when a bookmark is created and will be
+returned to the \fBenabled\fR state when all bookmarks with these fields are destroyed.
+.RE
+
+.sp
+.ne 2
+.na
 \fBdevice_removal\fR
 .ad
 .RS 4n
@@ -292,6 +313,8 @@ ever had their checksum set to \fBedonr\fR are destroyed.
 
 The \fBedonr\fR feature is not supported by GRUB and must not be used on
 the pool if GRUB needs to access the pool (e.g. for /boot).
+
+FreeBSD does not support the \fBedonr\fR feature.
 .RE
 
 .sp
@@ -529,6 +552,48 @@ improving performance by avoiding the use of spill blocks.
 .sp
 .ne 2
 .na
+\fB\fBlivelist\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	com.delphix:livelist
+READ\-ONLY COMPATIBLE	yes
+DEPENDENCIES	none
+.TE
+This feature allows clones to be deleted faster than the traditional method
+when a large number of random/sparse writes have been made to the clone.
+All blocks allocated and freed after a clone is created are tracked by the
+the clone's livelist which is referenced during the deletion of the clone.
+The feature is activated when a clone is created and remains active until all
+clones have been destroyed.
+.RE
+
+.sp
+.ne 2
+.na
+\fBlog_spacemap\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	com.delphix:log_spacemap
+READ\-ONLY COMPATIBLE	yes
+DEPENDENCIES	com.delphix:spacemap_v2
+.TE
+
+This feature improves performance for heavily-fragmented pools,
+especially when workloads are heavy in random-writes. It does so by
+logging all the metaslab changes on a single spacemap every TXG
+instead of scattering multiple writes to all the metaslab spacemaps.
+
+This feature becomes \fBactive\fR as soon as it is enabled and will never
+return to being \fBenabled\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBlz4_compress\fR
 .ad
 .RS 4n
@@ -643,6 +708,46 @@ when remounted or when new file is created under that filesystem. The upgrade
 can also be triggered on filesystems via `zfs set version=current <pool/fs>`.
 The upgrade process runs in the background and may take a while to complete
 for the filesystems containing a large number of files.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBredaction_bookmarks\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	com.delphix:redaction_bookmarks
+READ\-ONLY COMPATIBLE	no
+DEPENDENCIES	bookmarks, extensible_dataset
+.TE
+
+This feature enables the use of the redacted zfs send.  Redacted \fBzfs send\fR
+creates redaction bookmarks, which store the list of blocks redacted by the
+send that created them.  For more information about redacted send,
+see \fBzfs\fR(8).
+
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBredacted_datasets\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	com.delphix:redacted_datasets
+READ\-ONLY COMPATIBLE	no
+DEPENDENCIES	extensible_dataset
+.TE
+
+This feature enables the receiving of redacted zfs send streams.  Redacted zfs
+send streams create redacted datasets when received.  These datasets are
+missing some of their blocks, and so cannot be safely mounted, and their
+contents cannot be safely read.  For more information about redacted receive,
+see \fBzfs\fR(8).
 .RE
 
 .sp
@@ -821,7 +926,6 @@ This feature becomes \fBactive\fR when the \fBzpool checkpoint\fR subcommand
 is used to checkpoint the pool.
 The feature will only return back to being \fBenabled\fR when the pool
 is rewound or the checkpoint has been discarded.
-.RE
 
 .SH "SEE ALSO"
 zpool(8)

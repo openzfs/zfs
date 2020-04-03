@@ -47,31 +47,30 @@ verify_runnable "global"
 
 function cleanup
 {
-	poolexists $TESTPOOL && \
-		destroy_pool "$TESTPOOL"
-
-	datasetexists $TESTPOOL1/$TESTVOL && \
-		log_must zfs destroy -f $TESTPOOL1/$TESTVOL
-	poolexists $TESTPOOL1 && \
-		destroy_pool "$TESTPOOL1"
-
-	partition_cleanup
-
+	poolexists $TESTPOOL && destroy_pool $TESTPOOL
+	poolexists $TESTPOOL1 && destroy_pool $TESTPOOL1
+	if [ -n "$recursive" ]; then
+		set_tunable64 VOL_RECURSIVE $recursive
+	fi
 }
 
 log_assert "'zpool add <pool> <vdev> ...' can add zfs volume to the pool."
 
 log_onexit cleanup
 
-create_pool "$TESTPOOL" "${disk}${SLICE_PREFIX}${SLICE0}"
-log_must poolexists "$TESTPOOL"
+create_pool $TESTPOOL $DISK0
+log_must poolexists $TESTPOOL
 
-create_pool "$TESTPOOL1" "${disk}${SLICE_PREFIX}${SLICE1}"
-log_must poolexists "$TESTPOOL1"
+create_pool $TESTPOOL1 $DISK1
+log_must poolexists $TESTPOOL1
 log_must zfs create -V $VOLSIZE $TESTPOOL1/$TESTVOL
 block_device_wait
 
-log_must zpool add "$TESTPOOL" $ZVOL_DEVDIR/$TESTPOOL1/$TESTVOL
+if is_freebsd; then
+	recursive=$(get_tunable VOL_RECURSIVE)
+	log_must set_tunable64 VOL_RECURSIVE 1
+fi
+log_must zpool add $TESTPOOL $ZVOL_DEVDIR/$TESTPOOL1/$TESTVOL
 
 log_must vdevs_in_pool "$TESTPOOL" "$ZVOL_DEVDIR/$TESTPOOL1/$TESTVOL"
 

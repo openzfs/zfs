@@ -107,6 +107,11 @@ typedef union {
 } aes_ks_t;
 
 typedef struct aes_impl_ops aes_impl_ops_t;
+
+/*
+ * The absolute offset of the encr_ks (0) and the nr (504) fields are hard
+ * coded in aesni-gcm-x86_64, so please don't change (or adjust accordingly).
+ */
 typedef struct aes_key aes_key_t;
 struct aes_key {
 	aes_ks_t	encr_ks;  /* encryption key schedule */
@@ -162,7 +167,7 @@ typedef enum aes_mech_type {
 #endif /* _AES_IMPL */
 
 /*
- * Methods used to define aes implementation
+ * Methods used to define AES implementation
  *
  * @aes_gen_f Key generation
  * @aes_enc_f Function encrypts one block
@@ -201,9 +206,9 @@ extern const aes_impl_ops_t aes_aesni_impl;
 void aes_impl_init(void);
 
 /*
- * Get selected aes implementation
+ * Returns optimal allowed AES implementation
  */
-struct aes_impl_ops *aes_impl_get_ops(void);
+const struct aes_impl_ops *aes_impl_get_ops(void);
 
 #ifdef	__cplusplus
 }

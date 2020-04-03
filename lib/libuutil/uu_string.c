@@ -29,8 +29,6 @@
 
 #include <string.h>
 #include <sys/types.h>
-#include <stdio.h>
-#include <malloc.h>
 #include <ctype.h>
 #include "libuutil.h"
 

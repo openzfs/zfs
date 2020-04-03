@@ -52,7 +52,7 @@ populate_test_pool
 #
 # Create big empty file and do some writes at random
 # offsets to ensure that it takes up space. Note that
-# the implcitly created filesystem ($FS0) does not
+# the implicitly created filesystem ($FS0) does not
 # have compression enabled.
 #
 log_must mkfile $BIGFILESIZE $FS0FILE

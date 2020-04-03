@@ -52,7 +52,7 @@ int vdev_raidz_reconstruct(struct raidz_map *, const int *, int);
  */
 void vdev_raidz_math_init(void);
 void vdev_raidz_math_fini(void);
-struct raidz_impl_ops *vdev_raidz_math_get_ops(void);
+const struct raidz_impl_ops *vdev_raidz_math_get_ops(void);
 int vdev_raidz_math_generate(struct raidz_map *);
 int vdev_raidz_math_reconstruct(struct raidz_map *, const int *, const int *,
     const int);
@@ -85,7 +85,7 @@ typedef struct vdev_raidz_expand {
 	time_t vre_start_time;
 	time_t vre_end_time;
 
-	rangelock_t vre_rangelock;
+	zfs_rangelock_t vre_rangelock;
 } vdev_raidz_expand_t;
 
 typedef struct vdev_raidz {

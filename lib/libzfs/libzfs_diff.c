@@ -48,7 +48,6 @@
 #include "libzfs_impl.h"
 
 #define	ZDIFF_SNAPDIR		"/.zfs/snapshot/"
-#define	ZDIFF_SHARESDIR		"/.zfs/shares/"
 #define	ZDIFF_PREFIX		"zfs-diff-%d"
 
 #define	ZDIFF_ADDED	'+'
@@ -56,26 +55,6 @@
 #define	ZDIFF_REMOVED	'-'
 #define	ZDIFF_RENAMED	'R'
 
-typedef struct differ_info {
-	zfs_handle_t *zhp;
-	char *fromsnap;
-	char *frommnt;
-	char *tosnap;
-	char *tomnt;
-	char *ds;
-	char *dsmnt;
-	char *tmpsnap;
-	char errbuf[1024];
-	boolean_t isclone;
-	boolean_t scripted;
-	boolean_t classify;
-	boolean_t timestamped;
-	uint64_t shares;
-	int zerr;
-	int cleanupfd;
-	int outputfd;
-	int datafd;
-} differ_info_t;
 
 /*
  * Given a {dsname, object id}, get the object path
@@ -91,7 +70,7 @@ get_stats_for_obj(differ_info_t *di, const char *dsname, uint64_t obj,
 	zc.zc_obj = obj;
 
 	errno = 0;
-	error = ioctl(di->zhp->zfs_hdl->libzfs_fd, ZFS_IOC_OBJ_TO_STATS, &zc);
+	error = zfs_ioctl(di->zhp->zfs_hdl, ZFS_IOC_OBJ_TO_STATS, &zc);
 	di->zerr = errno;
 
 	/* we can get stats even if we failed to get a path */
@@ -394,7 +373,7 @@ write_free_diffs(FILE *fp, differ_info_t *di, dmu_diff_record_t *dr)
 	while (zc.zc_obj < dr->ddr_last) {
 		int err;
 
-		err = ioctl(lhdl->libzfs_fd, ZFS_IOC_NEXT_OBJ, &zc);
+		err = zfs_ioctl(lhdl, ZFS_IOC_NEXT_OBJ, &zc);
 		if (err == 0) {
 			if (zc.zc_obj == di->shares) {
 				zc.zc_obj++;
@@ -488,25 +467,6 @@ differ(void *arg)
 }
 
 static int
-find_shares_object(differ_info_t *di)
-{
-	char fullpath[MAXPATHLEN];
-	struct stat64 sb = { 0 };
-
-	(void) strlcpy(fullpath, di->dsmnt, MAXPATHLEN);
-	(void) strlcat(fullpath, ZDIFF_SHARESDIR, MAXPATHLEN);
-
-	if (stat64(fullpath, &sb) != 0) {
-		(void) snprintf(di->errbuf, sizeof (di->errbuf),
-		    dgettext(TEXT_DOMAIN, "Cannot stat %s"), fullpath);
-		return (zfs_error(di->zhp->zfs_hdl, EZFS_DIFF, di->errbuf));
-	}
-
-	di->shares = (uint64_t)sb.st_ino;
-	return (0);
-}
-
-static int
 make_temp_snapshot(differ_info_t *di)
 {
 	libzfs_handle_t *hdl = di->zhp->zfs_hdl;
@@ -517,7 +477,7 @@ make_temp_snapshot(differ_info_t *di)
 	(void) strlcpy(zc.zc_name, di->ds, sizeof (zc.zc_name));
 	zc.zc_cleanup_fd = di->cleanupfd;
 
-	if (ioctl(hdl->libzfs_fd, ZFS_IOC_TMP_SNAPSHOT, &zc) != 0) {
+	if (zfs_ioctl(hdl, ZFS_IOC_TMP_SNAPSHOT, &zc) != 0) {
 		int err = errno;
 		if (err == EPERM) {
 			(void) snprintf(di->errbuf, sizeof (di->errbuf),
@@ -798,7 +758,7 @@ zfs_show_diffs(zfs_handle_t *zhp, int outfd, const char *fromsnap,
 	(void) strlcpy(zc.zc_name, di.tosnap, strlen(di.tosnap) + 1);
 	zc.zc_cookie = pipefd[1];
 
-	iocerr = ioctl(zhp->zfs_hdl->libzfs_fd, ZFS_IOC_DIFF, &zc);
+	iocerr = zfs_ioctl(zhp->zfs_hdl, ZFS_IOC_DIFF, &zc);
 	if (iocerr != 0) {
 		(void) snprintf(errbuf, sizeof (errbuf),
 		    dgettext(TEXT_DOMAIN, "Unable to obtain diffs"));

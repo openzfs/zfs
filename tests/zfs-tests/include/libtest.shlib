@@ -20,20 +20,21 @@
 #
 
 #
-# Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
-# Use is subject to license terms.
-# Copyright (c) 2012, 2017 by Delphix. All rights reserved.
-# Copyright (c) 2017 by Tim Chase. All rights reserved.
-# Copyright (c) 2017 by Nexenta Systems, Inc. All rights reserved.
-# Copyright (c) 2017 Lawrence Livermore National Security, LLC.
-# Copyright (c) 2017 Datto Inc.
-# Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+# Copyright (c) 2009, Sun Microsystems Inc. All rights reserved.
+# Copyright (c) 2012, 2018, Delphix. All rights reserved.
+# Copyright (c) 2017, Tim Chase. All rights reserved.
+# Copyright (c) 2017, Nexenta Systems Inc. All rights reserved.
+# Copyright (c) 2017, Lawrence Livermore National Security LLC.
+# Copyright (c) 2017, Datto Inc. All rights reserved.
+# Copyright (c) 2017, Open-E Inc. All rights reserved.
 # Use is subject to license terms.
 #
 
 . ${STF_TOOLS}/include/logapi.shlib
 . ${STF_SUITE}/include/math.shlib
 . ${STF_SUITE}/include/blkdev.shlib
+
+. ${STF_SUITE}/include/tunables.cfg
 
 #
 # Apply constrained path when available.  This is required since the
@@ -93,6 +94,46 @@ function is_linux
 	fi
 }
 
+# Determine if this is an illumos test system
+#
+# Return 0 if platform illumos, 1 if otherwise
+function is_illumos
+{
+	if [[ $(uname -o) == "illumos" ]]; then
+		return 0
+	else
+		return 1
+	fi
+}
+
+# Determine if this is a FreeBSD test system
+#
+# Return 0 if platform FreeBSD, 1 if otherwise
+
+function is_freebsd
+{
+	if [[ $(uname -o) == "FreeBSD" ]]; then
+		return 0
+	else
+		return 1
+	fi
+}
+
+# Determine if this is a DilOS test system
+#
+# Return 0 if platform DilOS, 1 if otherwise
+
+function is_dilos
+{
+	typeset ID=""
+	[[ -f /etc/os-release ]] && . /etc/os-release
+	if [[ $ID == "dilos" ]]; then
+		return 0
+	else
+		return 1
+	fi
+}
+
 # Determine if this is a 32-bit system
 #
 # Return 0 if platform is 32-bit, 1 if otherwise
@@ -145,17 +186,23 @@ function ismounted
 			fi
 		;;
 		ufs|nfs)
-			out=$(df -F $fstype $1 2>/dev/null)
-			ret=$?
-			(($ret != 0)) && return $ret
+			if is_freebsd; then
+				mount -pt $fstype | while read dev dir _t _flags; do
+					[[ "$1" == "$dev" || "$1" == "$dir" ]] && return 0
+				done
+			else
+				out=$(df -F $fstype $1 2>/dev/null)
+				ret=$?
+				(($ret != 0)) && return $ret
 
-			dir=${out%%\(*}
-			dir=${dir%% *}
-			name=${out##*\(}
-			name=${name%%\)*}
-			name=${name%% *}
+				dir=${out%%\(*}
+				dir=${dir%% *}
+				name=${out##*\(}
+				name=${name%%\)*}
+				name=${name%% *}
 
-			[[ "$1" == "$dir" || "$1" == "$name" ]] && return 0
+				[[ "$1" == "$dir" || "$1" == "$name" ]] && return 0
+			fi
 		;;
 		ext*)
 			out=$(df -t $fstype $1 2>/dev/null)
@@ -405,7 +452,8 @@ function create_recv_clone
 	log_must eval "zfs send $snap | zfs recv -u $recvfs"
 	log_must mkfile 1m "$mountpoint/data"
 	log_must zfs snapshot $incr
-	log_must eval "zfs send -i $snap $incr | dd bs=10K count=1 > $sendfile"
+	log_must eval "zfs send -i $snap $incr | dd bs=10K count=1 \
+	    iflag=fullblock > $sendfile"
 	log_mustnot eval "zfs recv -su $recvfs < $sendfile"
 	destroy_dataset "$sendfs" "-r"
 	log_must rm -f "$sendfile"
@@ -564,8 +612,8 @@ function default_cleanup_noexit
 				then
 					destroy_pool $pool
 				fi
-				ALL_POOLS=$(get_all_pools)
 			done
+			ALL_POOLS=$(get_all_pools)
 		done
 
 		zfs mount -a
@@ -741,6 +789,18 @@ function bkmarkexists
 }
 
 #
+# Return 0 if a hold exists; $? otherwise
+#
+# $1 - hold tag
+# $2 - snapshot name
+#
+function holdexists
+{
+	zfs holds "$2" | awk '{ print $2 }' | grep "$1" > /dev/null 2>&1
+	return $?
+}
+
+#
 # Set a property to a certain value on a dataset.
 # Sets a property of the dataset to the value as passed in.
 # @param:
@@ -834,7 +894,9 @@ function zero_partitions #<whole_disk_name>
 	typeset diskname=$1
 	typeset i
 
-	if is_linux; then
+	if is_freebsd; then
+		gpart destroy -F $diskname
+	elif is_linux; then
 		DSK=$DEV_DSKDIR/$diskname
 		DSK=$(echo $DSK | sed -e "s|//|/|g")
 		log_must parted $DSK -s -- mklabel gpt
@@ -856,22 +918,26 @@ function zero_partitions #<whole_disk_name>
 # Size should be specified with units as per
 # the `format` command requirements eg. 100mb 3gb
 #
-# NOTE: This entire interface is problematic for the Linux parted utilty
+# NOTE: This entire interface is problematic for the Linux parted utility
 # which requires the end of the partition to be specified.  It would be
 # best to retire this interface and replace it with something more flexible.
 # At the moment a best effort is made.
 #
-function set_partition #<slice_num> <slice_start> <size_plus_units>  <whole_disk_name>
+# arguments: <slice_num> <slice_start> <size_plus_units>  <whole_disk_name>
+function set_partition
 {
 	typeset -i slicenum=$1
 	typeset start=$2
 	typeset size=$3
-	typeset disk=$4
+	typeset disk=${4#$DEV_DSKDIR/}
+	disk=${disk#$DEV_RDSKDIR/}
 
-	if is_linux; then
+	case "$(uname)" in
+	Linux)
 		if [[ -z $size || -z $disk ]]; then
 			log_fail "The size or disk name is unspecified."
 		fi
+		disk=$DEV_DSKDIR/$disk
 		typeset size_mb=${size%%[mMgG]}
 
 		size_mb=${size_mb%%[mMgG][bB]}
@@ -881,10 +947,10 @@ function set_partition #<slice_num> <slice_start> <size_plus_units>  <whole_disk
 
 		# Create GPT partition table when setting slice 0 or
 		# when the device doesn't already contain a GPT label.
-		parted $DEV_DSKDIR/$disk -s -- print 1 >/dev/null
+		parted $disk -s -- print 1 >/dev/null
 		typeset ret_val=$?
 		if [[ $slicenum -eq 0 || $ret_val -ne 0 ]]; then
-			parted $DEV_DSKDIR/$disk -s -- mklabel gpt
+			parted $disk -s -- mklabel gpt
 			if [[ $? -ne 0 ]]; then
 				log_note "Failed to create GPT partition table on $disk"
 				return 1
@@ -899,21 +965,51 @@ function set_partition #<slice_num> <slice_start> <size_plus_units>  <whole_disk
 		# Determine the cylinder size for the device and using
 		# that calculate the end offset in cylinders.
 		typeset -i cly_size_kb=0
-		cly_size_kb=$(parted -m $DEV_DSKDIR/$disk -s -- \
+		cly_size_kb=$(parted -m $disk -s -- \
 			unit cyl print | head -3 | tail -1 | \
 			awk -F '[:k.]' '{print $4}')
 		((end = (size_mb * 1024 / cly_size_kb) + start))
 
-		parted $DEV_DSKDIR/$disk -s -- \
+		parted $disk -s -- \
 		    mkpart part$slicenum ${start}cyl ${end}cyl
-		if [[ $? -ne 0 ]]; then
+		typeset ret_val=$?
+		if [[ $ret_val -ne 0 ]]; then
 			log_note "Failed to create partition $slicenum on $disk"
 			return 1
 		fi
 
-		blockdev --rereadpt $DEV_DSKDIR/$disk 2>/dev/null
-		block_device_wait
-	else
+		blockdev --rereadpt $disk 2>/dev/null
+		block_device_wait $disk
+		;;
+	FreeBSD)
+		if [[ -z $size || -z $disk ]]; then
+			log_fail "The size or disk name is unspecified."
+		fi
+		disk=$DEV_DSKDIR/$disk
+
+		if [[ $slicenum -eq 0 ]] || ! gpart show $disk >/dev/null 2>&1; then
+			gpart destroy -F $disk >/dev/null 2>&1
+			gpart create -s GPT $disk
+			if [[ $? -ne 0 ]]; then
+				log_note "Failed to create GPT partition table on $disk"
+				return 1
+			fi
+		fi
+
+		typeset index=$((slicenum + 1))
+
+		if [[ -n $start ]]; then
+			start="-b $start"
+		fi
+		gpart add -t freebsd-zfs $start -s $size -i $index $disk
+		if [[ $ret_val -ne 0 ]]; then
+			log_note "Failed to create partition $slicenum on $disk"
+			return 1
+		fi
+
+		block_device_wait $disk
+		;;
+	*)
 		if [[ -z $slicenum || -z $size || -z $disk ]]; then
 			log_fail "The slice, size or disk name is unspecified."
 		fi
@@ -932,10 +1028,11 @@ function set_partition #<slice_num> <slice_start> <size_plus_units>  <whole_disk
 		echo "q" >> $format_file
 
 		format -e -s -d $disk -f $format_file
-	fi
+		typeset ret_val=$?
+		rm -f $format_file
+		;;
+	esac
 
-	typeset ret_val=$?
-	rm -f $format_file
 	if [[ $ret_val -ne 0 ]]; then
 		log_note "Unable to format $disk slice $slicenum to $size"
 		return 1
@@ -950,61 +1047,34 @@ function set_partition #<slice_num> <slice_start> <size_plus_units>  <whole_disk
 #
 function delete_partitions
 {
-	typeset -i j=1
+	typeset disk
 
-	if [[ -z $DISK_ARRAY_NUM ]]; then
-		DISK_ARRAY_NUM=$(echo ${DISKS} | nawk '{print NF}')
-	fi
 	if [[ -z $DISKSARRAY ]]; then
 		DISKSARRAY=$DISKS
 	fi
 
 	if is_linux; then
-		if (( $DISK_ARRAY_NUM == 1 )); then
-			while ((j < MAX_PARTITIONS)); do
-				parted $DEV_DSKDIR/$DISK -s rm $j \
-				    > /dev/null 2>&1
-				if (( $? == 1 )); then
-					lsblk | egrep ${DISK}${SLICE_PREFIX}${j} > /dev/null
-						if (( $? == 1 )); then
-							log_note "Partitions for $DISK should be deleted"
-						else
-							log_fail "Partition for ${DISK}${SLICE_PREFIX}${j} not deleted"
-						fi
-						return 0
+		typeset -i part
+		for disk in $DISKSARRAY; do
+			for (( part = 1; part < MAX_PARTITIONS; part++ )); do
+				typeset partition=${disk}${SLICE_PREFIX}${part}
+				parted $DEV_DSKDIR/$disk -s rm $part > /dev/null 2>&1
+				if lsblk | grep -qF ${partition}; then
+					log_fail "Partition ${partition} not deleted"
 				else
-					lsblk | egrep ${DISK}${SLICE_PREFIX}${j} > /dev/null
-						if (( $? == 0 )); then
-							log_fail "Partition for ${DISK}${SLICE_PREFIX}${j} not deleted"
-						fi
+					log_note "Partition ${partition} deleted"
 				fi
-				((j = j+1))
 			done
-		else
-			for disk in `echo $DISKSARRAY`; do
-				while ((j < MAX_PARTITIONS)); do
-					parted $DEV_DSKDIR/$disk -s rm $j > /dev/null 2>&1
-					if (( $? == 1 )); then
-						lsblk | egrep ${disk}${SLICE_PREFIX}${j} > /dev/null
-						if (( $? == 1 )); then
-							log_note "Partitions for $disk should be deleted"
-						else
-							log_fail "Partition for ${disk}${SLICE_PREFIX}${j} not deleted"
-						fi
-						j=7
-					else
-						lsblk | egrep ${disk}${SLICE_PREFIX}${j} > /dev/null
-						if (( $? == 0 )); then
-							log_fail "Partition for ${disk}${SLICE_PREFIX}${j} not deleted"
-						fi
-					fi
-					((j = j+1))
-				done
-				j=1
-			done
-		fi
+		done
+	elif is_freebsd; then
+		for disk in $DISKSARRAY; do
+			if gpart destroy -F $disk; then
+				log_note "Partitions for ${disk} deleted"
+			else
+				log_fail "Partitions for ${disk} not deleted"
+			fi
+		done
 	fi
-	return 0
 }
 
 #
@@ -1018,13 +1088,22 @@ function get_endslice #<disk> <slice>
 		log_fail "The disk name or slice number is unspecified."
 	fi
 
-	if is_linux; then
+	case "$(uname)" in
+	Linux)
 		endcyl=$(parted -s $DEV_DSKDIR/$disk -- unit cyl print | \
 			grep "part${slice}" | \
 			awk '{print $3}' | \
 			sed 's,cyl,,')
 		((endcyl = (endcyl + 1)))
-	else
+		;;
+	FreeBSD)
+		disk=${disk#/dev/zvol/}
+		disk=${disk%p*}
+		slice=$((slice + 1))
+		endcyl=$(gpart show $disk | \
+			awk -v slice=$slice '$3 == slice { print $1 + $2 }')
+		;;
+	*)
 		disk=${disk#/dev/dsk/}
 		disk=${disk#/dev/rdsk/}
 		disk=${disk%s*}
@@ -1042,7 +1121,8 @@ function get_endslice #<disk> <slice>
 		    nawk -v token="$slice" '{if ($1==token) print $6}')
 
 		((endcyl = (endcyl + 1) / ratio))
-	fi
+		;;
+	esac
 
 	echo $endcyl
 }
@@ -1091,11 +1171,11 @@ function partition_disk	#<slice_size> <whole_disk_name>	<total_slices>
 #	dirnum:	    the maximum number of subdirectories to use, -1 no limit
 #	filenum:    the maximum number of files per subdirectory
 #	bytes:	    number of bytes to write
-#	num_writes: numer of types to write out bytes
+#	num_writes: number of types to write out bytes
 #	data:	    the data that will be written
 #
 #	E.g.
-#	file_fs /testdir 20 25 1024 256 0
+#	fill_fs /testdir 20 25 1024 256 0
 #
 # Note: bytes * num_writes equals the size of the testfile
 #
@@ -1108,33 +1188,12 @@ function fill_fs # destdir dirnum filenum bytes num_writes data
 	typeset -i num_writes=${5:-10240}
 	typeset data=${6:-0}
 
-	typeset -i odirnum=1
-	typeset -i idirnum=0
-	typeset -i fn=0
-	typeset -i retval=0
-
-	mkdir -p $destdir/$idirnum
-	while (($odirnum > 0)); do
-		if ((dirnum >= 0 && idirnum >= dirnum)); then
-			odirnum=0
-			break
-		fi
-		file_write -o create -f $destdir/$idirnum/$TESTFILE.$fn \
-		    -b $bytes -c $num_writes -d $data
-		retval=$?
-		if (($retval != 0)); then
-			odirnum=0
-			break
-		fi
-		if (($fn >= $filenum)); then
-			fn=0
-			((idirnum = idirnum + 1))
-			mkdir -p $destdir/$idirnum
-		else
-			((fn = fn + 1))
-		fi
+	mkdir -p $destdir/{1..$dirnum}
+	for f in $destdir/{1..$dirnum}/$TESTFILE{1..$filenum}; do
+		file_write -o create -f $f -b $bytes -c $num_writes -d $data \
+		|| return $?
 	done
-	return $retval
+	return 0
 }
 
 #
@@ -1244,19 +1303,17 @@ function datasetnonexists
 	return 0
 }
 
-function is_shared_impl
+function is_shared_freebsd
+{
+	typeset fs=$1
+
+	pgrep -q mountd && showmount -E | grep -qx $fs
+}
+
+function is_shared_illumos
 {
 	typeset fs=$1
 	typeset mtpt
-
-	if is_linux; then
-		for mtpt in `share | awk '{print $1}'` ; do
-			if [[ $mtpt == $fs ]] ; then
-				return 0
-			fi
-		done
-		return 1
-	fi
 
 	for mtpt in `share | awk '{print $2}'` ; do
 		if [[ $mtpt == $fs ]] ; then
@@ -1269,6 +1326,19 @@ function is_shared_impl
 		log_note "Current nfs/server status: $stat"
 	fi
 
+	return 1
+}
+
+function is_shared_linux
+{
+	typeset fs=$1
+	typeset mtpt
+
+	for mtpt in `share | awk '{print $1}'` ; do
+		if [[ $mtpt == $fs ]] ; then
+			return 0
+		fi
+	done
 	return 1
 }
 
@@ -1296,7 +1366,11 @@ function is_shared
 		fi
 	fi
 
-	is_shared_impl "$fs"
+	case $(uname) in
+	FreeBSD)	is_shared_freebsd "$fs"	;;
+	Linux)		is_shared_linux "$fs"	;;
+	*)		is_shared_illumos "$fs"	;;
+	esac
 }
 
 #
@@ -1461,7 +1535,7 @@ function setup_nfs_server
 		return
 	fi
 
-	if is_linux; then
+	if is_linux || is_freebsd; then
 		#
 		# Re-synchronize /var/lib/nfs/etab with /etc/exports and
 		# /etc/exports.d./* to provide a clean test environment.
@@ -1517,7 +1591,7 @@ function setup_nfs_server
 #
 function is_global_zone
 {
-	if is_linux; then
+	if is_linux || is_freebsd; then
 		return 0
 	else
 		typeset cur_zone=$(zonename 2>/dev/null)
@@ -2149,7 +2223,7 @@ function check_pool_status # pool token keyword <verbose>
 }
 
 #
-# These 6 following functions are instance of check_pool_status()
+# The following functions are instance of check_pool_status()
 #	is_pool_resilvering - to check if the pool is resilver in progress
 #	is_pool_resilvered - to check if the pool is resilver completed
 #	is_pool_scrubbing - to check if the pool is scrub in progress
@@ -2158,6 +2232,7 @@ function check_pool_status # pool token keyword <verbose>
 #	is_pool_scrub_paused - to check if the pool has scrub paused
 #	is_pool_removing - to check if the pool is removing a vdev
 #	is_pool_removed - to check if the pool is remove completed
+#	is_pool_discarding - to check if the pool has checkpoint being discarded
 #
 function is_pool_resilvering #pool <verbose>
 {
@@ -2207,6 +2282,12 @@ function is_pool_removed #pool
 	return $?
 }
 
+function is_pool_discarding #pool
+{
+	check_pool_status "$1" "checkpoint" "discarding"
+	return $?
+}
+
 function wait_for_degraded
 {
 	typeset pool=$1
@@ -2234,10 +2315,11 @@ function cleanup_devices #vdevs
 {
 	typeset pool="foopool$$"
 
-	if poolexists $pool ; then
-		destroy_pool $pool
-	fi
+	for vdev in $@; do
+		zero_partitions $vdev
+	done
 
+	poolexists $pool && destroy_pool $pool
 	create_pool $pool $@
 	destroy_pool $pool
 
@@ -2257,7 +2339,7 @@ function cleanup_devices #vdevs
 function find_disks
 {
 	# Trust provided list, no attempt is made to locate unused devices.
-	if is_linux; then
+	if is_linux || is_freebsd; then
 		echo "$@"
 		return
 	fi
@@ -2325,17 +2407,234 @@ EOF
 # each case. limit the number to max_finddisksnum
 	count=0
 	for disk in $unused_candidates; do
-		if [ -b $DEV_DSKDIR/${disk}s0 ]; then
-		if [ $count -lt $max_finddisksnum ]; then
+		if is_disk_device $DEV_DSKDIR/${disk}s0 && \
+		    [ $count -lt $max_finddisksnum ]; then
 			unused="$unused $disk"
 			# do not impose limit if $@ is provided
 			[[ -z $@ ]] && ((count = count + 1))
-		fi
 		fi
 	done
 
 # finally, return our disk list
 	echo $unused
+}
+
+function add_user_freebsd #<group_name> <user_name> <basedir>
+{
+	typeset group=$1
+	typeset user=$2
+	typeset basedir=$3
+
+	# Check to see if the user exists.
+	if id $user > /dev/null 2>&1; then
+		return 0
+	fi
+
+	# Assign 1000 as the base uid
+	typeset -i uid=1000
+	while true; do
+		typeset -i ret
+		pw useradd -u $uid -g $group -d $basedir/$user -m -n $user
+		ret=$?
+		case $ret in
+			0) break ;;
+			# The uid is not unique
+			65) ((uid += 1)) ;;
+			*) return 1 ;;
+		esac
+		if [[ $uid == 65000 ]]; then
+			log_fail "No user id available under 65000 for $user"
+		fi
+	done
+
+	# Silence MOTD
+	touch $basedir/$user/.hushlogin
+
+	return 0
+}
+
+#
+# Delete the specified user.
+#
+# $1 login name
+#
+function del_user_freebsd #<logname>
+{
+	typeset user=$1
+
+	if id $user > /dev/null 2>&1; then
+		log_must pw userdel $user
+	fi
+
+	return 0
+}
+
+#
+# Select valid gid and create specified group.
+#
+# $1 group name
+#
+function add_group_freebsd #<group_name>
+{
+	typeset group=$1
+
+	# See if the group already exists.
+	if pw groupshow $group >/dev/null 2>&1; then
+		return 0
+	fi
+
+	# Assign 1000 as the base gid
+	typeset -i gid=1000
+	while true; do
+		pw groupadd -g $gid -n $group > /dev/null 2>&1
+		typeset -i ret=$?
+		case $ret in
+			0) return 0 ;;
+			# The gid is not  unique
+			65) ((gid += 1)) ;;
+			*) return 1 ;;
+		esac
+		if [[ $gid == 65000 ]]; then
+			log_fail "No user id available under 65000 for $group"
+		fi
+	done
+}
+
+#
+# Delete the specified group.
+#
+# $1 group name
+#
+function del_group_freebsd #<group_name>
+{
+	typeset group=$1
+
+	pw groupdel -n $group > /dev/null 2>&1
+	typeset -i ret=$?
+	case $ret in
+		# Group does not exist, or was deleted successfully.
+		0|6|65) return 0 ;;
+		# Name already exists as a group name
+		9) log_must pw groupdel $group ;;
+		*) return 1 ;;
+	esac
+
+	return 0
+}
+
+function add_user_illumos #<group_name> <user_name> <basedir>
+{
+	typeset group=$1
+	typeset user=$2
+	typeset basedir=$3
+
+	log_must useradd -g $group -d $basedir/$user -m $user
+
+	return 0
+}
+
+function del_user_illumos #<user_name>
+{
+	typeset user=$1
+
+	if id $user > /dev/null 2>&1; then
+		log_must_retry "currently used" 6 userdel $user
+	fi
+
+	return 0
+}
+
+function add_group_illumos #<group_name>
+{
+	typeset group=$1
+
+	typeset -i gid=100
+	while true; do
+		groupadd -g $gid $group > /dev/null 2>&1
+		typeset -i ret=$?
+		case $ret in
+			0) return 0 ;;
+			# The gid is not  unique
+			4) ((gid += 1)) ;;
+			*) return 1 ;;
+		esac
+	done
+}
+
+function del_group_illumos #<group_name>
+{
+	typeset group=$1
+
+	groupmod -n $grp $grp > /dev/null 2>&1
+	typeset -i ret=$?
+	case $ret in
+		# Group does not exist.
+		6) return 0 ;;
+		# Name already exists as a group name
+		9) log_must groupdel $grp ;;
+		*) return 1 ;;
+	esac
+}
+
+function add_user_linux #<group_name> <user_name> <basedir>
+{
+	typeset group=$1
+	typeset user=$2
+	typeset basedir=$3
+
+	log_must useradd -g $group -d $basedir/$user -m $user
+
+	# Add new users to the same group and the command line utils.
+	# This allows them to be run out of the original users home
+	# directory as long as it permissioned to be group readable.
+	cmd_group=$(stat --format="%G" $(which zfs))
+	log_must usermod -a -G $cmd_group $user
+
+	return 0
+}
+
+function del_user_linux #<user_name>
+{
+	typeset user=$1
+
+	if id $user > /dev/null 2>&1; then
+		log_must_retry "currently used" 6 userdel $user
+	fi
+
+	return 0
+}
+
+function add_group_linux #<group_name>
+{
+	typeset group=$1
+
+	# Assign 100 as the base gid, a larger value is selected for
+	# Linux because for many distributions 1000 and under are reserved.
+	while true; do
+		groupadd $group > /dev/null 2>&1
+		typeset -i ret=$?
+		case $ret in
+			0) return 0 ;;
+			*) return 1 ;;
+		esac
+	done
+}
+
+function del_group_linux #<group_name>
+{
+	typeset group=$1
+
+	getent group $group > /dev/null 2>&1
+	typeset -i ret=$?
+	case $ret in
+		# Group does not exist.
+		2) return 0 ;;
+		# Name already exists as a group name
+		0) log_must groupdel $group ;;
+		*) return 1 ;;
+	esac
+
+	return 0
 }
 
 #
@@ -2347,26 +2646,29 @@ EOF
 #
 function add_user #<group_name> <user_name> <basedir>
 {
-	typeset gname=$1
-	typeset uname=$2
+	typeset group=$1
+	typeset user=$2
 	typeset basedir=${3:-"/var/tmp"}
 
-	if ((${#gname} == 0 || ${#uname} == 0)); then
+	if ((${#group} == 0 || ${#user} == 0)); then
 		log_fail "group name or user name are not defined."
 	fi
 
-	log_must useradd -g $gname -d $basedir/$uname -m $uname
-	echo "export PATH=\"$STF_PATH\"" >>$basedir/$uname/.profile
-	echo "export PATH=\"$STF_PATH\"" >>$basedir/$uname/.bash_profile
-	echo "export PATH=\"$STF_PATH\"" >>$basedir/$uname/.login
+	case $(uname) in
+	FreeBSD)
+		add_user_freebsd "$group" "$user" "$basedir"
+		;;
+	Linux)
+		add_user_linux "$group" "$user" "$basedir"
+		;;
+	*)
+		add_user_illumos "$group" "$user" "$basedir"
+		;;
+	esac
 
-	# Add new users to the same group and the command line utils.
-	# This allows them to be run out of the original users home
-	# directory as long as it permissioned to be group readable.
-	if is_linux; then
-		cmd_group=$(stat --format="%G" $(which zfs))
-		log_must usermod -a -G $cmd_group $uname
-	fi
+	echo "export PATH=\"$STF_PATH\"" >>$basedir/$user/.profile
+	echo "export PATH=\"$STF_PATH\"" >>$basedir/$user/.bash_profile
+	echo "export PATH=\"$STF_PATH\"" >>$basedir/$user/.login
 
 	return 0
 }
@@ -2386,9 +2688,17 @@ function del_user #<logname> <basedir>
 		log_fail "login name is necessary."
 	fi
 
-	if id $user > /dev/null 2>&1; then
-		log_must_retry "currently used" 5 userdel $user
-	fi
+	case $(uname) in
+	FreeBSD)
+		del_user_freebsd "$user"
+		;;
+	Linux)
+		del_user_linux "$user"
+		;;
+	*)
+		del_user_illumos "$user"
+		;;
+	esac
 
 	[[ -d $basedir/$user ]] && rm -fr $basedir/$user
 
@@ -2408,30 +2718,19 @@ function add_group #<group_name>
 		log_fail "group name is necessary."
 	fi
 
-	# Assign 100 as the base gid, a larger value is selected for
-	# Linux because for many distributions 1000 and under are reserved.
-	if is_linux; then
-		while true; do
-			groupadd $group > /dev/null 2>&1
-			typeset -i ret=$?
-			case $ret in
-				0) return 0 ;;
-				*) return 1 ;;
-			esac
-		done
-	else
-		typeset -i gid=100
-		while true; do
-			groupadd -g $gid $group > /dev/null 2>&1
-			typeset -i ret=$?
-			case $ret in
-				0) return 0 ;;
-				# The gid is not  unique
-				4) ((gid += 1)) ;;
-				*) return 1 ;;
-			esac
-		done
-	fi
+	case $(uname) in
+	FreeBSD)
+		add_group_freebsd "$group"
+		;;
+	Linux)
+		add_group_linux "$group"
+		;;
+	*)
+		add_group_illumos "$group"
+		;;
+	esac
+
+	return 0
 }
 
 #
@@ -2441,32 +2740,23 @@ function add_group #<group_name>
 #
 function del_group #<group_name>
 {
-	typeset grp=$1
-	if ((${#grp} == 0)); then
+	typeset group=$1
+
+	if ((${#group} == 0)); then
 		log_fail "group name is necessary."
 	fi
 
-	if is_linux; then
-		getent group $grp > /dev/null 2>&1
-		typeset -i ret=$?
-		case $ret in
-			# Group does not exist.
-			2) return 0 ;;
-			# Name already exists as a group name
-			0) log_must groupdel $grp ;;
-			*) return 1 ;;
-		esac
-	else
-		groupmod -n $grp $grp > /dev/null 2>&1
-		typeset -i ret=$?
-		case $ret in
-			# Group does not exist.
-			6) return 0 ;;
-			# Name already exists as a group name
-			9) log_must groupdel $grp ;;
-			*) return 1 ;;
-		esac
-	fi
+	case $(uname) in
+	FreeBSD)
+		del_group_freebsd "$group"
+		;;
+	Linux)
+		del_group_linux "$group"
+		;;
+	*)
+		del_group_illumos "$group"
+		;;
+	esac
 
 	return 0
 }
@@ -2540,29 +2830,6 @@ function safe_to_destroy_pool { # $1 the pool name
 		log_note "Warning: it is not safe to destroy $1!"
 		return 1
 	fi
-}
-
-#
-# Get the available ZFS compression options
-# $1 option type zfs_set|zfs_compress
-#
-function get_compress_opts
-{
-	typeset COMPRESS_OPTS
-	typeset GZIP_OPTS="gzip gzip-1 gzip-2 gzip-3 gzip-4 gzip-5 \
-			gzip-6 gzip-7 gzip-8 gzip-9"
-
-	if [[ $1 == "zfs_compress" ]] ; then
-		COMPRESS_OPTS="on lzjb"
-	elif [[ $1 == "zfs_set" ]] ; then
-		COMPRESS_OPTS="on off lzjb"
-	fi
-	typeset valid_opts="$COMPRESS_OPTS"
-	zfs get 2>&1 | grep gzip >/dev/null 2>&1
-	if [[ $? -eq 0 ]]; then
-		valid_opts="$valid_opts $GZIP_OPTS"
-	fi
-	echo "$valid_opts"
 }
 
 #
@@ -2836,7 +3103,7 @@ function labelvtoc
 	typeset label_file=/var/tmp/labelvtoc.$$
 	typeset arch=$(uname -p)
 
-	if is_linux; then
+	if is_linux || is_freebsd; then
 		log_note "Currently unsupported by the test framework"
 		return 1
 	fi
@@ -2878,7 +3145,7 @@ function labelvtoc
 
 #
 # check if the system was installed as zfsroot or not
-# return: 0 ture, otherwise false
+# return: 0 if zfsroot, non-zero if not
 #
 function is_zfsroot
 {
@@ -2894,7 +3161,9 @@ function get_rootfs
 {
 	typeset rootfs=""
 
-	if ! is_linux; then
+	if is_freebsd; then
+		rootfs=$(mount -p | awk '$2 == "/" && $3 == "zfs" {print $1}')
+	elif ! is_linux; then
 		rootfs=$(awk '{if ($2 == "/" && $3 == "zfs") print $1}' \
 			/etc/mnttab)
 	fi
@@ -2919,7 +3188,9 @@ function get_rootpool
 	typeset rootfs=""
 	typeset rootpool=""
 
-	if ! is_linux; then
+	if is_freebsd; then
+		rootfs=$(mount -p | awk '$2 == "/" && $3 == "zfs" {print $1}')
+	elif ! is_linux; then
 		rootfs=$(awk '{if ($2 == "/" && $3 =="zfs") print $1}' \
 			 /etc/mnttab)
 	fi
@@ -2928,21 +3199,10 @@ function get_rootpool
 	fi
 	zfs list $rootfs > /dev/null 2>&1
 	if (($? == 0)); then
-		rootpool=`echo $rootfs | awk -F\/ '{print $1}'`
-		echo $rootpool
+		echo ${rootfs%%/*}
 	else
 		log_fail "This is not a zfsroot system."
 	fi
-}
-
-#
-# Get the package name
-#
-function get_package_name
-{
-	typeset dirpath=${1:-$STC_NAME}
-
-	echo "SUNWstc-${dirpath}" | /usr/bin/sed -e "s/\//-/g"
 }
 
 #
@@ -3007,6 +3267,8 @@ function is_mp
 {
 	if is_linux; then
 		(($(nproc) > 1))
+	elif is_freebsd; then
+		sysctl -n kern.smp.cpus
 	else
 		(($(psrinfo | wc -l) > 1))
 	fi
@@ -3018,6 +3280,8 @@ function get_cpu_freq
 {
 	if is_linux; then
 		lscpu | awk '/CPU MHz/ { print $3 }'
+	elif is_freebsd; then
+		sysctl -n hw.clockrate
 	else
 		psrinfo -v 0 | awk '/processor operates at/ {print $6}'
 	fi
@@ -3031,7 +3295,6 @@ function user_run
 
 	log_note "user:$user $@"
 	eval su - \$user -c \"$@\" > $TEST_BASE_DIR/out 2>$TEST_BASE_DIR/err
-	return $?
 }
 
 #
@@ -3076,7 +3339,7 @@ function get_max
 	shift
 
 	for i in "$@"; do
-		max=$(echo $((max > i ? max : i)))
+		max=$((max > i ? max : i))
 	done
 
 	echo $max
@@ -3088,19 +3351,10 @@ function get_min
 	shift
 
 	for i in "$@"; do
-		min=$(echo $((min < i ? min : i)))
+		min=$((min < i ? min : i))
 	done
 
 	echo $min
-}
-
-#
-# Generate a random number between 1 and the argument.
-#
-function random
-{
-        typeset max=$1
-        echo $(( ($RANDOM % $max) + 1 ))
 }
 
 # Write data that can be compressed into a directory
@@ -3157,7 +3411,11 @@ function get_objnum
 	typeset objnum
 
 	[[ -e $pathname ]] || log_fail "No such file or directory: $pathname"
-	objnum=$(stat -c %i $pathname)
+	if is_freebsd; then
+		objnum=$(stat -f "%i" $pathname)
+	else
+		objnum=$(stat -c %i $pathname)
+	fi
 	echo $objnum
 }
 
@@ -3250,7 +3508,7 @@ function zed_rc_restore
 function zed_setup
 {
 	if ! is_linux; then
-		return
+		log_unsupported "No zed on $(uname)"
 	fi
 
 	if [[ ! -d $ZEDLET_DIR ]]; then
@@ -3336,15 +3594,15 @@ function zed_start
 	# Verify the ZED is not already running.
 	pgrep -x zed > /dev/null
 	if (($? == 0)); then
-		log_fail "ZED already running"
+		log_note "ZED already running"
+	else
+		log_note "Starting ZED"
+		# run ZED in the background and redirect foreground logging
+		# output to $ZED_LOG.
+		log_must truncate -s 0 $ZED_DEBUG_LOG
+		log_must eval "zed -vF -d $ZEDLET_DIR -p $ZEDLET_DIR/zed.pid -P $PATH" \
+		    "-s $ZEDLET_DIR/state 2>$ZED_LOG &"
 	fi
-
-	log_note "Starting ZED"
-	# run ZED in the background and redirect foreground logging
-	# output to $ZED_LOG.
-	log_must truncate -s 0 $ZED_DEBUG_LOG
-	log_must eval "zed -vF -d $ZEDLET_DIR -p $ZEDLET_DIR/zed.pid -P $PATH" \
-	    "-s $ZEDLET_DIR/state 2>$ZED_LOG &"
 
 	return 0
 }
@@ -3412,6 +3670,8 @@ function is_swap_inuse
 
 	if is_linux; then
 		swapon -s | grep -w $(readlink -f $device) > /dev/null 2>&1
+	elif is_freebsd; then
+		swapctl -l | grep -w $device
 	else
 		swap -l | grep -w $device > /dev/null 2>&1
 	fi
@@ -3429,6 +3689,8 @@ function swap_setup
 	if is_linux; then
 		log_must eval "mkswap $swapdev > /dev/null 2>&1"
 		log_must swapon $swapdev
+	elif is_freebsd; then
+		log_must swapctl -a $swapdev
 	else
 	        log_must swap -a $swapdev
 	fi
@@ -3446,6 +3708,8 @@ function swap_cleanup
 	if is_swap_inuse $swapdev; then
 		if is_linux; then
 			log_must swapoff $swapdev
+		elif is_freebsd; then
+			log_must swapoff $swapdev
 		else
 			log_must swap -d $swapdev
 		fi
@@ -3457,7 +3721,7 @@ function swap_cleanup
 #
 # Set a global system tunable (64-bit value)
 #
-# $1 tunable name
+# $1 tunable name (use a NAME defined in tunables.cfg)
 # $2 tunable values
 #
 function set_tunable64
@@ -3468,7 +3732,7 @@ function set_tunable64
 #
 # Set a global system tunable (32-bit value)
 #
-# $1 tunable name
+# $1 tunable name (use a NAME defined in tunables.cfg)
 # $2 tunable values
 #
 function set_tunable32
@@ -3478,12 +3742,23 @@ function set_tunable32
 
 function set_tunable_impl
 {
-	typeset tunable="$1"
+	typeset name="$1"
 	typeset value="$2"
 	typeset mdb_cmd="$3"
 	typeset module="${4:-zfs}"
 
-	[[ -z "$tunable" ]] && return 1
+	eval "typeset tunable=\$$name"
+	case "$tunable" in
+	UNSUPPORTED)
+		log_unsupported "Tunable '$name' is unsupported on $(uname)"
+		;;
+	"")
+		log_fail "Tunable '$name' must be added to tunables.cfg"
+		;;
+	*)
+		;;
+	esac
+
 	[[ -z "$value" ]] && return 1
 	[[ -z "$mdb_cmd" ]] && return 1
 
@@ -3491,13 +3766,17 @@ function set_tunable_impl
 	Linux)
 		typeset zfs_tunables="/sys/module/$module/parameters"
 		[[ -w "$zfs_tunables/$tunable" ]] || return 1
-		echo -n "$value" > "$zfs_tunables/$tunable"
+		cat >"$zfs_tunables/$tunable" <<<"$value"
+		return $?
+		;;
+	FreeBSD)
+		sysctl vfs.zfs.$tunable=$value
 		return "$?"
 		;;
 	SunOS)
 		[[ "$module" -eq "zfs" ]] || return 1
 		echo "${tunable}/${mdb_cmd}0t${value}" | mdb -kw
-		return "$?"
+		return $?
 		;;
 	esac
 }
@@ -3505,7 +3784,7 @@ function set_tunable_impl
 #
 # Get a global system tunable
 #
-# $1 tunable name
+# $1 tunable name (use a NAME defined in tunables.cfg)
 #
 function get_tunable
 {
@@ -3514,17 +3793,30 @@ function get_tunable
 
 function get_tunable_impl
 {
-	typeset tunable="$1"
+	typeset name="$1"
 	typeset module="${2:-zfs}"
 
-	[[ -z "$tunable" ]] && return 1
+	eval "typeset tunable=\$$name"
+	case "$tunable" in
+	UNSUPPORTED)
+		log_unsupported "Tunable '$name' is unsupported on $(uname)"
+		;;
+	"")
+		log_fail "Tunable '$name' must be added to tunables.cfg"
+		;;
+	*)
+		;;
+	esac
 
 	case "$(uname)" in
 	Linux)
 		typeset zfs_tunables="/sys/module/$module/parameters"
 		[[ -f "$zfs_tunables/$tunable" ]] || return 1
 		cat $zfs_tunables/$tunable
-		return "$?"
+		return $?
+		;;
+	FreeBSD)
+		sysctl -n vfs.zfs.$tunable
 		;;
 	SunOS)
 		[[ "$module" -eq "zfs" ]] || return 1
@@ -3593,4 +3885,184 @@ function mdb_ctf_set_int
 	fi
 
 	return 0
+}
+
+#
+# Compute MD5 digest for given file or stdin if no file given.
+# Note: file path must not contain spaces
+#
+function md5digest
+{
+	typeset file=$1
+
+	case $(uname) in
+	FreeBSD)
+		md5 -q $file
+		;;
+	*)
+		md5sum -b $file | awk '{ print $1 }'
+		;;
+	esac
+}
+
+#
+# Compute SHA256 digest for given file or stdin if no file given.
+# Note: file path must not contain spaces
+#
+function sha256digest
+{
+	typeset file=$1
+
+	case $(uname) in
+	FreeBSD)
+		sha256 -q $file
+		;;
+	*)
+		sha256sum -b $file | awk '{ print $1 }'
+		;;
+	esac
+}
+
+function new_fs #<args>
+{
+	case $(uname) in
+	FreeBSD)
+		newfs "$@"
+		;;
+	*)
+		echo y | newfs -v "$@"
+		;;
+	esac
+}
+
+function stat_size #<path>
+{
+	typeset path=$1
+
+	case $(uname) in
+	FreeBSD)
+		stat -f %z "$path"
+		;;
+	*)
+		stat -c %s "$path"
+		;;
+	esac
+}
+
+# Run a command as if it was being run in a TTY.
+#
+# Usage:
+#
+#    faketty command
+#
+function faketty
+{
+    if is_freebsd; then
+        script -q /dev/null env "$@"
+    else
+        script --return --quiet -c "$*" /dev/null
+    fi
+}
+
+#
+# Produce a random permutation of the integers in a given range (inclusive).
+#
+function range_shuffle # begin end
+{
+	typeset -i begin=$1
+	typeset -i end=$2
+
+	seq ${begin} ${end} | sort -R
+}
+
+#
+# Cross-platform xattr helpers
+#
+
+function get_xattr # name path
+{
+	typeset name=$1
+	typeset path=$2
+
+	case $(uname) in
+	FreeBSD)
+		getextattr -qq user "${name}" "${path}"
+		;;
+	*)
+		attr -qg "${name}" "${path}"
+		;;
+	esac
+}
+
+function set_xattr # name value path
+{
+	typeset name=$1
+	typeset value=$2
+	typeset path=$3
+
+	case $(uname) in
+	FreeBSD)
+		setextattr user "${name}" "${value}" "${path}"
+		;;
+	*)
+		attr -qs "${name}" -V "${value}" "${path}"
+		;;
+	esac
+}
+
+function set_xattr_stdin # name value
+{
+	typeset name=$1
+	typeset path=$2
+
+	case $(uname) in
+	FreeBSD)
+		setextattr -i user "${name}" "${path}"
+		;;
+	*)
+		attr -qs "${name}" "${path}"
+		;;
+	esac
+}
+
+function rm_xattr # name path
+{
+	typeset name=$1
+	typeset path=$2
+
+	case $(uname) in
+	FreeBSD)
+		rmextattr -q user "${name}" "${path}"
+		;;
+	*)
+		attr -qr "${name}" "${path}"
+		;;
+	esac
+}
+
+function ls_xattr # path
+{
+	typeset path=$1
+
+	case $(uname) in
+	FreeBSD)
+		lsextattr -qq user "${path}"
+		;;
+	*)
+		attr -ql "${path}"
+		;;
+	esac
+}
+
+function get_arcstat # stat
+{
+	if is_linux; then
+		typeset stat=$1
+		typeset zfs_arcstats="/proc/spl/kstat/zfs/arcstats"
+		[[ -f "$zfs_arcstats" ]] || return 1
+		grep $stat $zfs_arcstats | awk '{print $3}'
+		return $?
+	else
+		return 1
+	fi
 }

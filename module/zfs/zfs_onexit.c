@@ -101,16 +101,6 @@ zfs_onexit_destroy(zfs_onexit_t *zo)
 	kmem_free(zo, sizeof (zfs_onexit_t));
 }
 
-static int
-zfs_onexit_minor_to_state(minor_t minor, zfs_onexit_t **zo)
-{
-	*zo = zfsdev_get_state(minor, ZST_ONEXIT);
-	if (*zo == NULL)
-		return (SET_ERROR(EBADF));
-
-	return (0);
-}
-
 /*
  * Consumers might need to operate by minor number instead of fd, since
  * they might be running in another thread (e.g. txg_sync_thread). Callers
@@ -120,28 +110,37 @@ zfs_onexit_minor_to_state(minor_t minor, zfs_onexit_t **zo)
 int
 zfs_onexit_fd_hold(int fd, minor_t *minorp)
 {
-	file_t *fp;
-	zfs_onexit_t *zo;
+	zfs_onexit_t *zo = NULL;
 	int error;
 
-	fp = getf(fd);
-	if (fp == NULL)
-		return (SET_ERROR(EBADF));
-
-	error = zfsdev_getminor(fp->f_file, minorp);
-	if (error == 0)
-		error = zfs_onexit_minor_to_state(*minorp, &zo);
-
-	if (error)
+	error = zfsdev_getminor(fd, minorp);
+	if (error) {
 		zfs_onexit_fd_rele(fd);
+		return (error);
+	}
 
-	return (error);
+	zo = zfsdev_get_state(*minorp, ZST_ONEXIT);
+	if (zo == NULL) {
+		zfs_onexit_fd_rele(fd);
+		return (SET_ERROR(EBADF));
+	}
+	return (0);
 }
 
 void
 zfs_onexit_fd_rele(int fd)
 {
-	releasef(fd);
+	zfs_file_put(fd);
+}
+
+static int
+zfs_onexit_minor_to_state(minor_t minor, zfs_onexit_t **zo)
+{
+	*zo = zfsdev_get_state(minor, ZST_ONEXIT);
+	if (*zo == NULL)
+		return (SET_ERROR(EBADF));
+
+	return (0);
 }
 
 /*

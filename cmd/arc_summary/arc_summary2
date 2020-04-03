@@ -1,4 +1,4 @@
-#!/usr/bin/python2
+#!/usr/bin/env python2
 #
 # $Id: arc_summary.pl,v 388:e27800740aa2 2011-07-08 02:53:29Z jhell $
 #
@@ -54,6 +54,44 @@ import errno
 from subprocess import Popen, PIPE
 from decimal import Decimal as D
 
+
+if sys.platform.startswith('freebsd'):
+    # Requires py27-sysctl on FreeBSD
+    import sysctl
+
+    def load_kstats(namespace):
+        """Collect information on a specific subsystem of the ARC"""
+
+        base = 'kstat.zfs.misc.%s.' % namespace
+        return [(kstat.name, D(kstat.value)) for kstat in sysctl.filter(base)]
+
+    def load_tunables():
+        return dict((ctl.name, ctl.value) for ctl in sysctl.filter('vfs.zfs'))
+
+elif sys.platform.startswith('linux'):
+
+    def load_kstats(namespace):
+        """Collect information on a specific subsystem of the ARC"""
+
+        kstat = 'kstat.zfs.misc.%s.%%s' % namespace
+        path = '/proc/spl/kstat/zfs/%s' % namespace
+        with open(path) as f:
+            entries = [line.strip().split() for line in f][2:] # Skip header
+        return [(kstat % name, D(value)) for name, _, value in entries]
+
+    def load_tunables():
+        basepath = '/sys/module/zfs/parameters'
+        tunables = {}
+        for name in os.listdir(basepath):
+            if not name:
+                continue
+            path = '%s/%s' % (basepath, name)
+            with open(path) as f:
+                value = f.read()
+            tunables[name] = value.strip()
+        return tunables
+
+
 show_tunable_descriptions = False
 alternate_tunable_layout = False
 
@@ -76,24 +114,10 @@ def get_Kstat():
     of the same name.
     """
 
-    def load_proc_kstats(fn, namespace):
-        """Collect information on a specific subsystem of the ARC"""
-
-        kstats = [line.strip() for line in open(fn)]
-        del kstats[0:2]
-        for kstat in kstats:
-            kstat = kstat.strip()
-            name, _, value = kstat.split()
-            Kstat[namespace + name] = D(value)
-
     Kstat = {}
-    load_proc_kstats('/proc/spl/kstat/zfs/arcstats',
-                     'kstat.zfs.misc.arcstats.')
-    load_proc_kstats('/proc/spl/kstat/zfs/zfetchstats',
-                     'kstat.zfs.misc.zfetchstats.')
-    load_proc_kstats('/proc/spl/kstat/zfs/vdev_cache_stats',
-                     'kstat.zfs.misc.vdev_cache_stats.')
-
+    Kstat.update(load_kstats('arcstats'))
+    Kstat.update(load_kstats('zfetchstats'))
+    Kstat.update(load_kstats('vdev_cache_stats'))
     return Kstat
 
 
@@ -921,14 +945,7 @@ def _tunable_summary(Kstat):
     global show_tunable_descriptions
     global alternate_tunable_layout
 
-    names = os.listdir("/sys/module/zfs/parameters/")
-
-    values = {}
-    for name in names:
-        with open("/sys/module/zfs/parameters/" + name) as f:
-            value = f.read()
-        values[name] = value.strip()
-
+    tunables = load_tunables()
     descriptions = {}
 
     if show_tunable_descriptions:
@@ -966,22 +983,17 @@ def _tunable_summary(Kstat):
             sys.stderr.write("Tunable descriptions will be disabled.\n")
 
     sys.stdout.write("ZFS Tunables:\n")
-    names.sort()
 
     if alternate_tunable_layout:
         fmt = "\t%s=%s\n"
     else:
         fmt = "\t%-50s%s\n"
 
-    for name in names:
-
-        if not name:
-            continue
-
+    for name in sorted(tunables.keys()):
         if show_tunable_descriptions and name in descriptions:
             sys.stdout.write("\t# %s\n" % descriptions[name])
 
-        sys.stdout.write(fmt % (name, values[name]))
+        sys.stdout.write(fmt % (name, tunables[name]))
 
 
 unSub = [

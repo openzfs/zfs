@@ -24,7 +24,7 @@
  */
 /*
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
- * Copyright (c) 2013, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2013, 2018 by Delphix. All rights reserved.
  */
 
 #ifndef _SYS_DMU_IMPL_H
@@ -164,6 +164,7 @@ extern "C" {
  * 	dn_dirty_txg
  * 	dd_assigned_tx
  * 	dn_notxholds
+ *	dn_nodnholds
  * 	dn_dirtyctx
  * 	dn_dirtyctx_firstset
  * 	(dn_phys copy fields?)
@@ -243,39 +244,13 @@ typedef struct dmu_xuio {
 	iovec_t *iovp;
 } dmu_xuio_t;
 
-/*
- * The list of data whose inclusion in a send stream can be pending from
- * one call to backup_cb to another.  Multiple calls to dump_free() and
- * dump_freeobjects() can be aggregated into a single DRR_FREE or
- * DRR_FREEOBJECTS replay record.
- */
-typedef enum {
-	PENDING_NONE,
-	PENDING_FREE,
-	PENDING_FREEOBJECTS
-} dmu_pendop_t;
-
-typedef struct dmu_sendarg {
-	list_node_t dsa_link;
-	dmu_replay_record_t *dsa_drr;
-	vnode_t *dsa_vp;
-	int dsa_outfd;
-	proc_t *dsa_proc;
-	offset_t *dsa_off;
-	objset_t *dsa_os;
-	zio_cksum_t dsa_zc;
-	uint64_t dsa_toguid;
-	uint64_t dsa_fromtxg;
-	int dsa_err;
-	dmu_pendop_t dsa_pending_op;
-	uint64_t dsa_featureflags;
-	uint64_t dsa_last_data_object;
-	uint64_t dsa_last_data_offset;
-	uint64_t dsa_resume_object;
-	uint64_t dsa_resume_offset;
-	boolean_t dsa_sent_begin;
-	boolean_t dsa_sent_end;
-} dmu_sendarg_t;
+typedef struct dmu_sendstatus {
+	list_node_t dss_link;
+	int dss_outfd;
+	proc_t *dss_proc;
+	offset_t *dss_off;
+	uint64_t dss_blocks; /* blocks visited during the sending process */
+} dmu_sendstatus_t;
 
 void dmu_object_zapify(objset_t *, uint64_t, dmu_object_type_t, dmu_tx_t *);
 void dmu_object_free_zapified(objset_t *, uint64_t, dmu_tx_t *);

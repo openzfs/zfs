@@ -143,33 +143,29 @@ datasets="$TESTPOOL/$TESTFS1 $TESTPOOL/$TESTFS1/$TESTFS2
 typeset -a d_clones
 typeset -a deferred_snaps
 typeset -i i
-i=1
 log_must setup_ds
 
 log_note "Verify zfs clone property for multiple clones"
 names=$(zfs list -rt all -o name $TESTPOOL)
 log_must verify_clones 3 0
 
-log_note "verfify clone property for clone deletion"
+log_note "verify clone property for clone deletion"
 i=1
 for ds in $datasets; do
 	log_must zfs destroy $ds/$TESTCLONE.$i
 	((i=i+1))
 done
 names=$(zfs list -rt all -o name $TESTPOOL)
-i=1
 log_must verify_clones 2 1
 
 log_must local_cleanup
 log_must setup_ds
 
 log_note "verify zfs deferred destroy on clones property"
-i=1
 names=$(zfs list -rt all -o name $TESTPOOL)
 for ds in $datasets; do
 	log_must zfs destroy -d $ds@snap
 	deferred_snaps=( "${deferred_snaps[@]}" "$ds@snap" )
-	((i=i+1))
 done
 log_must verify_clones 3 0
 
@@ -206,17 +202,14 @@ for ds in $datasets; do
 done
 names=$(zfs list -rt all -o name,clones $TESTPOOL)
 log_must verify_clones 3 1 $TESTCLONE
-i=1
 for ds in $datasets; do
 	log_must zfs promote $ds
-	((i=i+1))
 done
 log_must local_cleanup
 
 log_note "verify clone list truncated correctly"
-typeset -i j=200
-i=1
 fs=$TESTPOOL/$TESTFS1
+xs=""; for i in {1..200}; do xs+="x"; done
 if is_linux; then
 	ZFS_MAXPROPLEN=4096
 else
@@ -224,10 +217,8 @@ else
 fi
 log_must zfs create $fs
 log_must zfs snapshot $fs@snap
-while((i <= $(( ZFS_MAXPROPLEN/200+1 )))); do
-	log_must zfs clone $fs@snap $fs/$TESTCLONE$(python -c 'print "x" * 200').$i
-	((i=i+1))
-	((j=j+200))
+for (( i = 1; i <= (ZFS_MAXPROPLEN / 200 + 1); i++ )); do
+	log_must zfs clone ${fs}@snap ${fs}/${TESTCLONE}${xs}.${i}
 done
 clone_list=$(zfs list -o clones $fs@snap)
 char_count=$(echo "$clone_list" | tail -1 | wc | awk '{print $3}')

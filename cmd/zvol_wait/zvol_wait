@@ -1,0 +1,116 @@
+#!/bin/sh
+
+count_zvols() {
+	if [ -z "$zvols" ]; then
+		echo 0
+	else
+		echo "$zvols" | wc -l
+	fi
+}
+
+filter_out_zvols_with_links() {
+	while read -r zvol; do
+		if [ ! -L "/dev/zvol/$zvol" ]; then
+			echo "$zvol"
+		fi
+	done
+}
+
+filter_out_deleted_zvols() {
+	while read -r zvol; do
+		if zfs list "$zvol" >/dev/null 2>&1; then
+			echo "$zvol"
+		fi
+	done
+}
+
+list_zvols() {
+	zfs list -t volume -H -o \
+		name,volmode,receive_resume_token,redact_snaps |
+		while read -r zvol_line; do
+		name=$(echo "$zvol_line" | awk '{print $1}')
+		volmode=$(echo "$zvol_line" | awk '{print $2}')
+		token=$(echo "$zvol_line" | awk '{print $3}')
+		redacted=$(echo "$zvol_line" | awk '{print $4}')
+		#
+		# /dev links are not created for zvols with volmode = "none"
+		# or for redacted zvols.
+		#
+		[ "$volmode" = "none" ] && continue
+		[ "$redacted" = "-" ] || continue
+		#
+		# We also also ignore partially received zvols if it is
+		# not an incremental receive, as those won't even have a block
+		# device minor node created yet.
+		#
+		if [ "$token" != "-" ]; then
+			#
+			# Incremental receives create an invisible clone that
+			# is not automatically displayed by zfs list.
+			#
+			if ! zfs list "$name/%recv" >/dev/null 2>&1; then
+				continue
+			fi
+		fi
+		echo "$name"
+	done
+}
+
+zvols=$(list_zvols)
+zvols_count=$(count_zvols)
+if [ "$zvols_count" -eq 0 ]; then
+	echo "No zvols found, nothing to do."
+	exit 0
+fi
+
+echo "Testing $zvols_count zvol links"
+
+outer_loop=0
+while [ "$outer_loop" -lt 20 ]; do
+	outer_loop=$((outer_loop + 1))
+
+	old_zvols_count=$(count_zvols)
+
+	inner_loop=0
+	while [ "$inner_loop" -lt 30 ]; do
+		inner_loop=$((inner_loop + 1))
+
+		zvols="$(echo "$zvols" | filter_out_zvols_with_links)"
+
+		zvols_count=$(count_zvols)
+		if [ "$zvols_count" -eq 0 ]; then
+			echo "All zvol links are now present."
+			exit 0
+		fi
+		sleep 1
+	done
+
+	echo "Still waiting on $zvols_count zvol links ..."
+	#
+	# Although zvols should normally not be deleted at boot time,
+	# if that is the case then their links will be missing and
+	# we would stall.
+	#
+	if [ "$old_zvols_count" -eq "$zvols_count" ]; then
+		echo "No progress since last loop."
+		echo "Checking if any zvols were deleted."
+
+		zvols=$(echo "$zvols" | filter_out_deleted_zvols)
+		zvols_count=$(count_zvols)
+
+		if [ "$old_zvols_count" -ne "$zvols_count" ]; then
+			echo "$((old_zvols_count - zvols_count)) zvol(s) deleted."
+		fi
+
+		if [ "$zvols_count" -ne 0 ]; then
+			echo "Remaining zvols:"
+			echo "$zvols"
+		else
+			echo "All zvol links are now present."
+			exit 0
+		fi
+	fi
+done
+
+echo "Timed out waiting on zvol links"
+exit 1

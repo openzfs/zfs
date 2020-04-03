@@ -3,31 +3,11 @@ obj = @abs_builddir@
 
 MODULE := icp
 
-TARGET_ASM_DIR = @TARGET_ASM_DIR@
-
-ifeq ($(TARGET_ASM_DIR), asm-x86_64)
-ASM_SOURCES := asm-x86_64/aes/aeskey.o
-ASM_SOURCES += asm-x86_64/aes/aes_amd64.o
-ASM_SOURCES += asm-x86_64/aes/aes_aesni.o
-ASM_SOURCES += asm-x86_64/modes/gcm_pclmulqdq.o
-ASM_SOURCES += asm-x86_64/sha1/sha1-x86_64.o
-ASM_SOURCES += asm-x86_64/sha2/sha256_impl.o
-ASM_SOURCES += asm-x86_64/sha2/sha512_impl.o
-endif
-
-ifeq ($(TARGET_ASM_DIR), asm-i386)
-ASM_SOURCES :=
-endif
-
-ifeq ($(TARGET_ASM_DIR), asm-generic)
-ASM_SOURCES :=
-endif
-
 obj-$(CONFIG_ZFS) := $(MODULE).o
 
-asflags-y := -I$(src)/include
+asflags-y := -I@abs_top_srcdir@/module/icp/include
 asflags-y += $(ZFS_MODULE_CFLAGS) $(ZFS_MODULE_CPPFLAGS)
-ccflags-y := -I$(src)/include
+ccflags-y := -I@abs_top_srcdir@/module/icp/include
 ccflags-y += $(ZFS_MODULE_CFLAGS) $(ZFS_MODULE_CPPFLAGS)
 
 $(MODULE)-objs += illumos-crypto.o
@@ -66,11 +46,27 @@ $(MODULE)-objs += algs/sha1/sha1.o
 $(MODULE)-objs += algs/skein/skein.o
 $(MODULE)-objs += algs/skein/skein_block.o
 $(MODULE)-objs += algs/skein/skein_iv.o
-$(MODULE)-objs += $(ASM_SOURCES)
+
+$(MODULE)-$(CONFIG_X86_64) += asm-x86_64/aes/aeskey.o
+$(MODULE)-$(CONFIG_X86_64) += asm-x86_64/aes/aes_amd64.o
+$(MODULE)-$(CONFIG_X86_64) += asm-x86_64/aes/aes_aesni.o
+$(MODULE)-$(CONFIG_X86_64) += asm-x86_64/modes/gcm_pclmulqdq.o
+$(MODULE)-$(CONFIG_X86_64) += asm-x86_64/modes/aesni-gcm-x86_64.o
+$(MODULE)-$(CONFIG_X86_64) += asm-x86_64/modes/ghash-x86_64.o
+$(MODULE)-$(CONFIG_X86_64) += asm-x86_64/sha1/sha1-x86_64.o
+$(MODULE)-$(CONFIG_X86_64) += asm-x86_64/sha2/sha256_impl.o
+$(MODULE)-$(CONFIG_X86_64) += asm-x86_64/sha2/sha512_impl.o
 
 $(MODULE)-$(CONFIG_X86) += algs/modes/gcm_pclmulqdq.o
 $(MODULE)-$(CONFIG_X86) += algs/aes/aes_impl_aesni.o
 $(MODULE)-$(CONFIG_X86) += algs/aes/aes_impl_x86-64.o
+
+# Suppress objtool "can't find jump dest instruction at" warnings.  They
+# are caused by the constants which are defined in the text section of the
+# assembly file using .byte instructions (e.g. bswap_mask).  The objtool
+# utility tries to interpret them as opcodes and obviously fails doing so.
+OBJECT_FILES_NON_STANDARD_aesni-gcm-x86_64.o := y
+OBJECT_FILES_NON_STANDARD_ghash-x86_64.o := y
 
 ICP_DIRS = \
 	api \

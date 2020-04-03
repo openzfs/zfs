@@ -33,13 +33,17 @@ import re
 import string
 from . import exceptions as lzc_exc
 from ._constants import (
+    ECHRNG,
+    ECKSUM,
+    ETIME,
     MAXNAMELEN,
     ZFS_ERR_CHECKPOINT_EXISTS,
     ZFS_ERR_DISCARDING_CHECKPOINT,
     ZFS_ERR_NO_CHECKPOINT,
     ZFS_ERR_DEVRM_IN_PROGRESS,
     ZFS_ERR_VDEV_TOO_BIG,
-    ZFS_ERR_WRONG_PARENT
+    ZFS_ERR_WRONG_PARENT,
+    zfs_errno
 )
 
 
@@ -147,21 +151,36 @@ def lzc_destroy_snaps_translate_errors(ret, errlist, snaps, defer):
 
 
 def lzc_bookmark_translate_errors(ret, errlist, bookmarks):
+
     if ret == 0:
         return
 
     def _map(ret, name):
+        source = bookmarks[name]
         if ret == errno.EINVAL:
             if name:
-                snap = bookmarks[name]
                 pool_names = map(_pool_name, bookmarks.keys())
-                if not _is_valid_bmark_name(name):
-                    return lzc_exc.BookmarkNameInvalid(name)
-                elif not _is_valid_snap_name(snap):
-                    return lzc_exc.SnapshotNameInvalid(snap)
-                elif _fs_name(name) != _fs_name(snap):
-                    return lzc_exc.BookmarkMismatch(name)
-                elif any(x != _pool_name(name) for x in pool_names):
+
+                # use _validate* functions for MAXNAMELEN check
+                try:
+                    _validate_bmark_name(name)
+                except lzc_exc.ZFSError as e:
+                    return e
+
+                try:
+                    _validate_snap_name(source)
+                    source_is_snap = True
+                except lzc_exc.ZFSError:
+                    source_is_snap = False
+                try:
+                    _validate_bmark_name(source)
+                    source_is_bmark = True
+                except lzc_exc.ZFSError:
+                    source_is_bmark = False
+                if not source_is_snap and not source_is_bmark:
+                    return lzc_exc.BookmarkSourceInvalid(source)
+
+                if any(x != _pool_name(name) for x in pool_names):
                     return lzc_exc.PoolsDiffer(name)
             else:
                 invalid_names = [
@@ -174,6 +193,8 @@ def lzc_bookmark_translate_errors(ret, errlist, bookmarks):
             return lzc_exc.SnapshotNotFound(name)
         if ret == errno.ENOTSUP:
             return lzc_exc.BookmarkNotSupported(name)
+        if ret == zfs_errno.ZFS_ERR_BOOKMARK_SOURCE_NOT_ANCESTOR:
+            return lzc_exc.BookmarkMismatch(source)
         return _generic_exception(ret, name, "Failed to create bookmark")
 
     _handle_err_list(
@@ -444,10 +465,12 @@ def lzc_receive_translate_errors(
         raise lzc_exc.ReadOnlyPool(_pool_name(snapname))
     if ret == errno.EAGAIN:
         raise lzc_exc.SuspendedPool(_pool_name(snapname))
-    if ret == errno.EBADE:  # ECKSUM
+    if ret == ECKSUM:
         raise lzc_exc.BadStream()
     if ret == ZFS_ERR_WRONG_PARENT:
         raise lzc_exc.WrongParent(_fs_name(snapname))
+    if ret == zfs_errno.ZFS_ERR_STREAM_TRUNCATED:
+        raise lzc_exc.StreamTruncated()
 
     raise lzc_exc.StreamIOError(ret)
 
@@ -532,7 +555,7 @@ def lzc_channel_program_translate_error(ret, name, error):
         return
     if ret == errno.ENOENT:
         raise lzc_exc.PoolNotFound(name)
-    if ret == errno.ETIME:
+    if ret == ETIME:
         raise lzc_exc.ZCPTimeout()
     if ret == errno.ENOMEM:
         raise lzc_exc.ZCPMemoryError()
@@ -540,7 +563,7 @@ def lzc_channel_program_translate_error(ret, name, error):
         raise lzc_exc.ZCPSpaceError()
     if ret == errno.EPERM:
         raise lzc_exc.ZCPPermissionError()
-    if ret == errno.ECHRNG:
+    if ret == ECHRNG:
         raise lzc_exc.ZCPRuntimeError(error)
     if ret == errno.EINVAL:
         if error is None:
@@ -548,18 +571,6 @@ def lzc_channel_program_translate_error(ret, name, error):
         else:
             raise lzc_exc.ZCPSyntaxError(error)
     raise _generic_exception(ret, name, "Failed to execute channel program")
-
-
-def lzc_remap_translate_error(ret, name):
-    if ret == 0:
-        return
-    if ret == errno.ENOENT:
-        raise lzc_exc.DatasetNotFound(name)
-    if ret == errno.EINVAL:
-        _validate_fs_name(name)
-    if ret == errno.ENOTSUP:
-        return lzc_exc.FeatureNotSupported(name)
-    raise _generic_exception(ret, name, "Failed to remap dataset")
 
 
 def lzc_pool_checkpoint_translate_error(ret, name, discard=False):

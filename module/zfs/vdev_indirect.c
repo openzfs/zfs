@@ -15,6 +15,8 @@
 
 /*
  * Copyright (c) 2014, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2019, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
+ * Copyright (c) 2014, 2019 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -419,7 +421,7 @@ vdev_indirect_should_condense(vdev_t *vd)
 	 * If nothing new has been marked obsolete, there is no
 	 * point in condensing.
 	 */
-	ASSERTV(uint64_t obsolete_sm_obj);
+	uint64_t obsolete_sm_obj __maybe_unused;
 	ASSERT0(vdev_obsolete_sm_object(vd, &obsolete_sm_obj));
 	if (vd->vdev_obsolete_sm == NULL) {
 		ASSERT0(obsolete_sm_obj);
@@ -542,7 +544,7 @@ spa_condense_indirect_commit_sync(void *arg, dmu_tx_t *tx)
 {
 	spa_condensing_indirect_t *sci = arg;
 	uint64_t txg = dmu_tx_get_txg(tx);
-	ASSERTV(spa_t *spa = dmu_tx_pool(tx)->dp_spa);
+	spa_t *spa __maybe_unused = dmu_tx_pool(tx)->dp_spa;
 
 	ASSERT(dmu_tx_is_syncing(tx));
 	ASSERT3P(sci, ==, spa->spa_condensing_indirect);
@@ -813,7 +815,7 @@ void
 vdev_indirect_sync_obsolete(vdev_t *vd, dmu_tx_t *tx)
 {
 	spa_t *spa = vd->vdev_spa;
-	ASSERTV(vdev_indirect_config_t *vic = &vd->vdev_indirect_config);
+	vdev_indirect_config_t *vic __maybe_unused = &vd->vdev_indirect_config;
 
 	ASSERT3U(vic->vic_mapping_object, !=, 0);
 	ASSERT(range_tree_space(vd->vdev_obsolete_segments) > 0);
@@ -824,7 +826,7 @@ vdev_indirect_sync_obsolete(vdev_t *vd, dmu_tx_t *tx)
 	VERIFY0(vdev_obsolete_sm_object(vd, &obsolete_sm_object));
 	if (obsolete_sm_object == 0) {
 		obsolete_sm_object = space_map_alloc(spa->spa_meta_objset,
-		    vdev_standard_sm_blksz, tx);
+		    zfs_vdev_standard_sm_blksz, tx);
 
 		ASSERT(vd->vdev_top_zap != 0);
 		VERIFY0(zap_add(vd->vdev_spa->spa_meta_objset, vd->vdev_top_zap,
@@ -902,7 +904,7 @@ vdev_obsolete_sm_object(vdev_t *vd, uint64_t *sm_obj)
 	}
 
 	int error = zap_lookup(vd->vdev_spa->spa_meta_objset, vd->vdev_top_zap,
-	    VDEV_TOP_ZAP_INDIRECT_OBSOLETE_SM, sizeof (sm_obj), 1, sm_obj);
+	    VDEV_TOP_ZAP_INDIRECT_OBSOLETE_SM, sizeof (uint64_t), 1, sm_obj);
 	if (error == ENOENT) {
 		*sm_obj = 0;
 		error = 0;
@@ -1296,7 +1298,7 @@ vdev_indirect_read_all(zio_t *zio)
 static void
 vdev_indirect_io_start(zio_t *zio)
 {
-	ASSERTV(spa_t *spa = zio->io_spa);
+	spa_t *spa __maybe_unused = zio->io_spa;
 	indirect_vsd_t *iv = kmem_zalloc(sizeof (*iv), KM_SLEEP);
 	list_create(&iv->iv_splits,
 	    sizeof (indirect_split_t), offsetof(indirect_split_t, is_node));
@@ -1841,22 +1843,21 @@ vdev_indirect_io_done(zio_t *zio)
 }
 
 vdev_ops_t vdev_indirect_ops = {
-	vdev_indirect_open,
-	vdev_indirect_close,
-	vdev_default_asize,
-	vdev_indirect_io_start,
-	vdev_indirect_io_done,
-	NULL,
-	NULL,
-	NULL,
-	NULL,
-	vdev_indirect_remap,
-	NULL,
-	VDEV_TYPE_INDIRECT,	/* name of this vdev type */
-	B_FALSE			/* leaf vdev */
+	.vdev_op_open = vdev_indirect_open,
+	.vdev_op_close = vdev_indirect_close,
+	.vdev_op_asize = vdev_default_asize,
+	.vdev_op_io_start = vdev_indirect_io_start,
+	.vdev_op_io_done = vdev_indirect_io_done,
+	.vdev_op_state_change = NULL,
+	.vdev_op_need_resilver = NULL,
+	.vdev_op_hold = NULL,
+	.vdev_op_rele = NULL,
+	.vdev_op_remap = vdev_indirect_remap,
+	.vdev_op_xlate = NULL,
+	.vdev_op_type = VDEV_TYPE_INDIRECT,	/* name of this vdev type */
+	.vdev_op_leaf = B_FALSE			/* leaf vdev */
 };
 
-#if defined(_KERNEL)
 EXPORT_SYMBOL(rs_alloc);
 EXPORT_SYMBOL(spa_condense_fini);
 EXPORT_SYMBOL(spa_start_indirect_condensing_thread);
@@ -1869,25 +1870,21 @@ EXPORT_SYMBOL(vdev_indirect_sync_obsolete);
 EXPORT_SYMBOL(vdev_obsolete_counts_are_precise);
 EXPORT_SYMBOL(vdev_obsolete_sm_object);
 
-module_param(zfs_condense_indirect_vdevs_enable, int, 0644);
-MODULE_PARM_DESC(zfs_condense_indirect_vdevs_enable,
+/* BEGIN CSTYLED */
+ZFS_MODULE_PARAM(zfs_condense, zfs_condense_, indirect_vdevs_enable, INT, ZMOD_RW,
 	"Whether to attempt condensing indirect vdev mappings");
 
-/* CSTYLED */
-module_param(zfs_condense_min_mapping_bytes, ulong, 0644);
-MODULE_PARM_DESC(zfs_condense_min_mapping_bytes,
-	"Minimum size of vdev mapping to condense");
+ZFS_MODULE_PARAM(zfs_condense, zfs_condense_, min_mapping_bytes, ULONG, ZMOD_RW,
+	"Don't bother condensing if the mapping uses less than this amount of "
+	"memory");
 
-/* CSTYLED */
-module_param(zfs_condense_max_obsolete_bytes, ulong, 0644);
-MODULE_PARM_DESC(zfs_condense_max_obsolete_bytes,
+ZFS_MODULE_PARAM(zfs_condense, zfs_condense_, max_obsolete_bytes, ULONG, ZMOD_RW,
 	"Minimum size obsolete spacemap to attempt condensing");
 
-module_param(zfs_condense_indirect_commit_entry_delay_ms, int, 0644);
-MODULE_PARM_DESC(zfs_condense_indirect_commit_entry_delay_ms,
-	"Delay while condensing vdev mapping");
+ZFS_MODULE_PARAM(zfs_condense, zfs_condense_, indirect_commit_entry_delay_ms, INT, ZMOD_RW,
+	"Used by tests to ensure certain actions happen in the middle of a "
+	"condense. A maximum value of 1 should be sufficient.");
 
-module_param(zfs_reconstruct_indirect_combinations_max, int, 0644);
-MODULE_PARM_DESC(zfs_reconstruct_indirect_combinations_max,
+ZFS_MODULE_PARAM(zfs_reconstruct, zfs_reconstruct_, indirect_combinations_max, INT, ZMOD_RW,
 	"Maximum number of combinations when reconstructing split segments");
-#endif
+/* END CSTYLED */

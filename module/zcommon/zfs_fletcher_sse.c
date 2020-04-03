@@ -43,7 +43,7 @@
 
 #if defined(HAVE_SSE2)
 
-#include <linux/simd_x86.h>
+#include <sys/simd.h>
 #include <sys/spa_checksum.h>
 #include <sys/byteorder.h>
 #include <sys/strings.h>
@@ -157,7 +157,7 @@ fletcher_4_sse2_byteswap(fletcher_4_ctx_t *ctx, const void *buf, uint64_t size)
 
 static boolean_t fletcher_4_sse2_valid(void)
 {
-	return (zfs_sse2_available());
+	return (kfpu_allowed() && zfs_sse2_available());
 }
 
 const fletcher_4_ops_t fletcher_4_sse2_ops = {
@@ -214,7 +214,8 @@ fletcher_4_ssse3_byteswap(fletcher_4_ctx_t *ctx, const void *buf, uint64_t size)
 
 static boolean_t fletcher_4_ssse3_valid(void)
 {
-	return (zfs_sse2_available() && zfs_ssse3_available());
+	return (kfpu_allowed() && zfs_sse2_available() &&
+	    zfs_ssse3_available());
 }
 
 const fletcher_4_ops_t fletcher_4_ssse3_ops = {

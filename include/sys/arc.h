@@ -147,6 +147,12 @@ typedef enum arc_flags
 	ARC_FLAG_SHARED_DATA		= 1 << 21,
 
 	/*
+	 * Fail this arc_read() (with ENOENT) if the data is not already present
+	 * in cache.
+	 */
+	ARC_FLAG_CACHED_ONLY		= 1 << 22,
+
+	/*
 	 * The arc buffer's compression mode is stored in the top 7 bits of the
 	 * flags field, so these dummy flags are included so that MDB can
 	 * interpret the enum properly.
@@ -187,7 +193,7 @@ typedef enum arc_buf_contents {
 } arc_buf_contents_t;
 
 /*
- * The following breakdows of arc_size exist for kstat only.
+ * The following breakdowns of arc_size exist for kstat only.
  */
 typedef enum arc_space_type {
 	ARC_SPACE_DATA,
@@ -291,6 +297,8 @@ void arc_flush(spa_t *spa, boolean_t retry);
 void arc_tempreserve_clear(uint64_t reserve);
 int arc_tempreserve_space(spa_t *spa, uint64_t reserve, uint64_t txg);
 
+uint64_t arc_all_memory(void);
+uint64_t arc_default_max(uint64_t min, uint64_t allmem);
 uint64_t arc_target_bytes(void);
 void arc_init(void);
 void arc_fini(void);

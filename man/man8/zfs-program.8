@@ -9,8 +9,10 @@
 .\"
 .\"
 .\" Copyright (c) 2016, 2019 by Delphix. All Rights Reserved.
+.\" Copyright (c) 2019, 2020 by Christian Schwarz. All Rights Reserved.
+.\" Copyright 2020 Joyent, Inc.
 .\"
-.Dd February 26, 2019
+.Dd February 3, 2020
 .Dt ZFS-PROGRAM 8
 .Os
 .Sh NAME
@@ -153,7 +155,7 @@ can guarantee that it will finish successfully against a similar size system.
 If a channel program attempts to return too large a value, the program will
 fully execute but exit with a nonzero status code and no return value.
 .Pp
-.Em Note:
+.Em Note :
 ZFS API functions do not generate Fatal Errors when correctly invoked, they
 return an error code and the channel program continues executing.
 See the
@@ -364,6 +366,27 @@ Valid only for destroying snapshots.
 If set to true, and the snapshot has holds or clones, allows the snapshot to be
 marked for deferred deletion rather than failing.
 .Ed
+.It Em zfs.sync.inherit(dataset, property)
+Clears the specified property in the given dataset, causing it to be inherited
+from an ancestor, or restored to the default if no ancestor property is set.
+The
+.Ql zfs inherit -S
+option has not been implemented.
+Returns 0 on success, or a nonzero error code if the property could not be
+cleared.
+.Pp
+dataset (string)
+.Bd -ragged -compact -offset "xxxx"
+Filesystem or snapshot containing the property to clear.
+.Ed
+.Pp
+property (string)
+.Bd -ragged -compact -offset "xxxx"
+The property to clear.
+Allowed properties are the same as those for the
+.Nm zfs Cm inherit
+command.
+.Ed
 .It Em zfs.sync.promote(dataset)
 Promote the given clone to a filesystem.
 Returns 0 on successful promotion, or a nonzero error code otherwise.
@@ -385,6 +408,26 @@ filesystem (string)
 .Bd -ragged -compact -offset "xxxx"
 Filesystem to rollback.
 .Ed
+.It Em zfs.sync.set_prop(dataset, property, value)
+Sets the given property on a dataset.
+Currently only user properties are supported.
+Returns 0 if the property was set, or a nonzero error code otherwise.
+.Pp
+dataset (string)
+.Bd -ragged -compact -offset "xxxx"
+The dataset where the property will be set.
+.Ed
+.Pp
+property (string)
+.Bd -ragged -compact -offset "xxxx"
+The property to set.
+Only user properties are supported.
+.Ed
+.Pp
+value (string)
+.Bd -ragged -compact -offset "xxxx"
+The value of the property to be set.
+.Ed
 .It Em zfs.sync.snapshot(dataset)
 Create a snapshot of a filesystem.
 Returns 0 if the snapshot was successfully created,
@@ -397,6 +440,21 @@ dataset (string)
 .Bd -ragged -compact -offset "xxxx"
 Name of snapshot to create.
 .Ed
+.It Em zfs.sync.bookmark(source, newbookmark)
+Create a bookmark of an existing source snapshot or bookmark.
+Returns 0 if the new bookmark was successfully created,
+and a nonzero error code otherwise.
+.Pp
+Note: Bookmarking requires the corresponding pool feature to be enabled.
+.Pp
+source (string)
+.Bd -ragged -compact -offset "xxxx"
+Full name of the existing snapshot or bookmark.
+.Ed
+.Pp
+newbookmark (string)
+.Bd -ragged -compact -offset "xxxx"
+Full name of the new bookmark.
 .El
 .It Sy zfs.check submodule
 For each function in the zfs.sync submodule, there is a corresponding zfs.check
@@ -417,6 +475,7 @@ The available zfs.check functions are:
 .It Em zfs.check.destroy(dataset, [defer=true|false])
 .It Em zfs.check.promote(dataset)
 .It Em zfs.check.rollback(filesystem)
+.It Em zfs.check.set_property(dataset, property, value)
 .It Em zfs.check.snapshot(dataset)
 .El
 .It Sy zfs.list submodule
@@ -457,8 +516,34 @@ dataset (string)
 .Bd -ragged -compact -offset "xxxx"
 Must be a valid filesystem or volume.
 .Ed
+.It Em zfs.list.bookmarks(dataset)
+Iterate through all bookmarks of the given dataset. Each bookmark is returned
+as a string containing the full dataset name, e.g. "pool/fs#bookmark".
+.Pp
+dataset (string)
+.Bd -ragged -compact -offset "xxxx"
+Must be a valid filesystem or volume.
+.Ed
+.It Em zfs.list.holds(snapshot)
+Iterate through all user holds on the given snapshot. Each hold is returned
+as a pair of the hold's tag and the timestamp (in seconds since the epoch) at
+which it was created.
+.Pp
+snapshot (string)
+.Bd -ragged -compact -offset "xxxx"
+Must be a valid snapshot.
+.Ed
 .It Em zfs.list.properties(dataset)
-Iterate through all user properties for the given dataset.
+An alias for zfs.list.user_properties (see relevant entry).
+.Pp
+dataset (string)
+.Bd -ragged -compact -offset "xxxx"
+Must be a valid filesystem, snapshot, or volume.
+.Ed
+.It Em zfs.list.user_properties(dataset)
+Iterate through all user properties for the given dataset. For each
+step of the iteration, output the property name, its value, and its source.
+Throws a Lua error if the dataset is invalid.
 .Pp
 dataset (string)
 .Bd -ragged -compact -offset "xxxx"

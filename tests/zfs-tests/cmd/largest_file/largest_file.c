@@ -33,11 +33,8 @@
 #include <signal.h>
 #include <stdio.h>
 #include <string.h>
-#include <sys/types.h>
+#include <sys/stdtypes.h>
 #include <unistd.h>
-
-typedef long long	offset_t;
-#define	MAXOFFSET_T	LLONG_MAX
 
 /*
  * --------------------------------------------------------------

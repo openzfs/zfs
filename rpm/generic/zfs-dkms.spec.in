@@ -18,7 +18,7 @@ Summary:        Kernel module(s) (dkms)
 
 Group:          System Environment/Kernel
 License:        @ZFS_META_LICENSE@
-URL:            http://zfsonlinux.org/
+URL:            https://zfsonlinux.org/
 Source0:        %{module}-%{version}.tar.gz
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 BuildArch:      noarch
@@ -73,7 +73,7 @@ exit 1
 
 %preun
 # Are we doing an upgrade?
-if [ $1 -ne 0 ] ; then
+if [ "$1" = "1" -o "$1" = "upgrade" ] ; then
 	# Yes we are.  Are we upgrading to a new ZFS version?
 	NEWEST_VER=$(dkms status zfs | sed 's/,//g' | sort -r -V | awk '/installed/{print $2; exit}')
 	if [ "$NEWEST_VER" != "%{version}" ] ; then

@@ -5,6 +5,7 @@ dist_pkgdata_DATA = \
 	libtest.shlib \
 	math.shlib \
 	properties.shlib \
+	tunables.cfg \
 	zpool_script.shlib
 
 EXTRA_DIST = default.cfg.in
@@ -16,5 +17,6 @@ $(nodist_pkgdata_DATA): %: %.in
 		-e 's,@sysconfdir\@,$(sysconfdir),g' \
 		$< >'$@'
 
+# Double-colon rules are allowed; there are multiple independent definitions.
 distclean-local::
 	-$(RM) default.cfg

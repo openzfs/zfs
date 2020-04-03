@@ -25,6 +25,7 @@
 #include <sys/zfs_context.h>
 #include <sys/crypto/icp.h>
 #include <sys/crypto/spi.h>
+#include <sys/simd.h>
 #include <modes/modes.h>
 #include <aes/aes_impl.h>
 
@@ -40,9 +41,9 @@
 void
 aes_init_keysched(const uint8_t *cipherKey, uint_t keyBits, void *keysched)
 {
-	aes_impl_ops_t	*ops = aes_impl_get_ops();
-	aes_key_t	*newbie = keysched;
-	uint_t		keysize, i, j;
+	const aes_impl_ops_t *ops = aes_impl_get_ops();
+	aes_key_t *newbie = keysched;
+	uint_t keysize, i, j;
 	union {
 		uint64_t	ka64[4];
 		uint32_t	ka32[8];
@@ -252,12 +253,17 @@ static size_t aes_supp_impl_cnt = 0;
 static aes_impl_ops_t *aes_supp_impl[ARRAY_SIZE(aes_all_impl)];
 
 /*
- * Selects the aes operations for encrypt/decrypt/key setup
+ * Returns the AES operations for encrypt/decrypt/key setup.  When a
+ * SIMD implementation is not allowed in the current context, then
+ * fallback to the fastest generic implementation.
  */
-aes_impl_ops_t *
-aes_impl_get_ops()
+const aes_impl_ops_t *
+aes_impl_get_ops(void)
 {
-	aes_impl_ops_t *ops = NULL;
+	if (!kfpu_allowed())
+		return (&aes_generic_impl);
+
+	const aes_impl_ops_t *ops = NULL;
 	const uint32_t impl = AES_IMPL_READ(icp_aes_impl);
 
 	switch (impl) {
@@ -266,15 +272,13 @@ aes_impl_get_ops()
 		ops = &aes_fastest_impl;
 		break;
 	case IMPL_CYCLE:
-	{
+		/* Cycle through supported implementations */
 		ASSERT(aes_impl_initialized);
 		ASSERT3U(aes_supp_impl_cnt, >, 0);
-		/* Cycle through supported implementations */
 		static size_t cycle_impl_idx = 0;
 		size_t idx = (++cycle_impl_idx) % aes_supp_impl_cnt;
 		ops = aes_supp_impl[idx];
-	}
-	break;
+		break;
 	default:
 		ASSERT3U(impl, <, aes_supp_impl_cnt);
 		ASSERT3U(aes_supp_impl_cnt, >, 0);
@@ -288,13 +292,16 @@ aes_impl_get_ops()
 	return (ops);
 }
 
+/*
+ * Initialize all supported implementations.
+ */
 void
 aes_impl_init(void)
 {
 	aes_impl_ops_t *curr_impl;
 	int i, c;
 
-	/* move supported impl into aes_supp_impls */
+	/* Move supported implementations into aes_supp_impls */
 	for (i = 0, c = 0; i < ARRAY_SIZE(aes_all_impl); i++) {
 		curr_impl = (aes_impl_ops_t *)aes_all_impl[i];
 
@@ -303,16 +310,21 @@ aes_impl_init(void)
 	}
 	aes_supp_impl_cnt = c;
 
-	/* set fastest implementation. assume hardware accelerated is fastest */
+	/*
+	 * Set the fastest implementation given the assumption that the
+	 * hardware accelerated version is the fastest.
+	 */
 #if defined(__x86_64)
 #if defined(HAVE_AES)
-	if (aes_aesni_impl.is_supported())
+	if (aes_aesni_impl.is_supported()) {
 		memcpy(&aes_fastest_impl, &aes_aesni_impl,
 		    sizeof (aes_fastest_impl));
-	else
+	} else
 #endif
+	{
 		memcpy(&aes_fastest_impl, &aes_x86_64_impl,
 		    sizeof (aes_fastest_impl));
+	}
 #else
 	memcpy(&aes_fastest_impl, &aes_generic_impl,
 	    sizeof (aes_fastest_impl));
@@ -394,7 +406,6 @@ aes_impl_set(const char *val)
 }
 
 #if defined(_KERNEL)
-#include <linux/mod_compat.h>
 
 static int
 icp_aes_impl_set(const char *val, zfs_kernel_param_t *kp)

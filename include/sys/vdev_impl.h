@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2019 by Delphix. All rights reserved.
  * Copyright (c) 2017, Intel Corporation.
  */
 
@@ -86,8 +86,8 @@ typedef void	vdev_remap_func_t(vdev_t *vd, uint64_t offset, uint64_t size,
  * Given a target vdev, translates the logical range "in" to the physical
  * range "res"
  */
-typedef void vdev_xlation_func_t(vdev_t *cvd, const range_seg_t *in,
-    range_seg_t *res);
+typedef void vdev_xlation_func_t(vdev_t *cvd, const range_seg64_t *in,
+    range_seg64_t *res);
 
 typedef const struct vdev_ops {
 	vdev_open_func_t		*vdev_op_open;
@@ -220,8 +220,6 @@ struct vdev {
 	vdev_ops_t	*vdev_ops;	/* vdev operations		*/
 	spa_t		*vdev_spa;	/* spa for this vdev		*/
 	void		*vdev_tsd;	/* type-specific data		*/
-	vnode_t		*vdev_name_vp;	/* vnode for pathname		*/
-	vnode_t		*vdev_devid_vp;	/* vnode for devid		*/
 	vdev_t		*vdev_top;	/* top-level vdev		*/
 	vdev_t		*vdev_parent;	/* parent vdev			*/
 	vdev_t		**vdev_child;	/* array of children		*/
@@ -274,7 +272,7 @@ struct vdev {
 	range_tree_t	*vdev_initialize_tree;	/* valid while initializing */
 	uint64_t	vdev_initialize_bytes_est;
 	uint64_t	vdev_initialize_bytes_done;
-	time_t		vdev_initialize_action_time;	/* start and end time */
+	uint64_t	vdev_initialize_action_time;	/* start and end time */
 
 	/* TRIM related */
 	boolean_t	vdev_trim_exit_wanted;
@@ -295,7 +293,7 @@ struct vdev {
 	uint64_t	vdev_trim_rate;		/* requested rate (bytes/sec) */
 	uint64_t	vdev_trim_partial;	/* requested partial TRIM */
 	uint64_t	vdev_trim_secure;	/* requested secure TRIM */
-	time_t		vdev_trim_action_time;	/* start and end time */
+	uint64_t	vdev_trim_action_time;	/* start and end time */
 
 	/* for limiting outstanding I/Os (initialize and TRIM) */
 	kmutex_t	vdev_initialize_io_lock;
@@ -526,8 +524,8 @@ extern vdev_ops_t vdev_indirect_ops;
 /*
  * Common size functions
  */
-extern void vdev_default_xlate(vdev_t *vd, const range_seg_t *in,
-    range_seg_t *out);
+extern void vdev_default_xlate(vdev_t *vd, const range_seg64_t *in,
+    range_seg64_t *out);
 extern uint64_t vdev_default_asize(vdev_t *vd, uint64_t psize);
 extern uint64_t vdev_get_min_asize(vdev_t *vd);
 extern void vdev_set_min_asize(vdev_t *vd);
@@ -535,7 +533,7 @@ extern void vdev_set_min_asize(vdev_t *vd);
 /*
  * Global variables
  */
-extern int vdev_standard_sm_blksz;
+extern int zfs_vdev_standard_sm_blksz;
 /* zdb uses this tunable, so it must be declared here to make lint happy. */
 extern int zfs_vdev_cache_size;
 

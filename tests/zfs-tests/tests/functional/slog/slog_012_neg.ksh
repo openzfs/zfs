@@ -45,6 +45,7 @@ verify_runnable "global"
 
 log_assert "Pool can survive when one of mirror log device get corrupted."
 log_onexit cleanup
+log_must setup
 
 for type in "" "mirror" "raidz" "raidz2"
 do

@@ -33,32 +33,8 @@
 . $STF_SUITE/tests/functional/cli_root/zpool_import/zpool_import.cfg
 
 verify_runnable "global"
-verify_disk_count "$DISKS" 2
 
-if ! $(is_physical_device $ZFS_DISK1) ; then
-	log_unsupported "Only partitionable physical disks can be used"
-fi
-
-DISK=${DISKS%% *}
-
-for dev in $ZFS_DISK1 $ZFS_DISK2 ; do
-	log_must cleanup_devices $dev
-done
-
-typeset -i i=0
-while (( i <= $GROUP_NUM )); do
-	if ! is_linux; then
-		if (( i == 2 )); then
-			(( i = i + 1 ))
-			continue
-		fi
-	fi
-	log_must set_partition $i "$cyl" $SLICE_SIZE $ZFS_DISK1
-	cyl=$(get_endslice $ZFS_DISK1 $i)
-	(( i = i + 1 ))
-done
-
-create_pool "$TESTPOOL" "$ZFSSIDE_DISK1"
+create_pool "$TESTPOOL" "$DISK"
 
 if [[ -d $TESTDIR ]]; then
 	rm -rf $TESTDIR  || log_unresolved Could not remove $TESTDIR

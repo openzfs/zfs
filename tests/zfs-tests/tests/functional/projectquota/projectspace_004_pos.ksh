@@ -38,7 +38,7 @@
 #
 # STRATEGY:
 #	1. set project [obj]quota on the directory
-#	2. set project ID and inherit flag on the directoty
+#	2. set project ID and inherit flag on the directory
 #	3. run 'df [-i]' on the directory and check the result
 #
 

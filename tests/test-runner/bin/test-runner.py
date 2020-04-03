@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 
 #
 # This file and its contents are supplied under the terms of the
@@ -155,9 +155,10 @@ class Output(object):
 class Cmd(object):
     verified_users = []
 
-    def __init__(self, pathname, outputdir=None, timeout=None, user=None,
-                 tags=None):
+    def __init__(self, pathname, identifier=None, outputdir=None,
+                 timeout=None, user=None, tags=None):
         self.pathname = pathname
+        self.identifier = identifier
         self.outputdir = outputdir or 'BASEDIR'
         """
         The timeout for tests is measured in wall-clock time
@@ -172,8 +173,13 @@ class Cmd(object):
             self.timeout = 60
 
     def __str__(self):
-        return "Pathname: %s\nOutputdir: %s\nTimeout: %d\nUser: %s\n" % \
-            (self.pathname, self.outputdir, self.timeout, self.user)
+        return '''\
+Pathname: %s
+Identifier: %s
+Outputdir: %s
+Timeout: %d
+User: %s
+''' % (self.pathname, self.identifier, self.outputdir, self.timeout, self.user)
 
     def kill_cmd(self, proc, keyboard_interrupt=False):
         """
@@ -302,12 +308,12 @@ class Cmd(object):
         self.result.runtime = '%02d:%02d' % (m, s)
         self.result.result = 'SKIP'
 
-    def log(self, options):
+    def log(self, options, suppress_console=False):
         """
         This function is responsible for writing all output. This includes
         the console output, the logfile of all results (with timestamped
         merged stdout and stderr), and for each test, the unmodified
-        stdout/stderr/merged in it's own file.
+        stdout/stderr/merged in its own file.
         """
 
         logname = getpwuid(os.getuid()).pw_name
@@ -315,19 +321,24 @@ class Cmd(object):
         if self.reran is True:
             rer = ' (RERAN)'
         user = ' (run as %s)' % (self.user if len(self.user) else logname)
-        msga = 'Test: %s%s ' % (self.pathname, user)
+        if self.identifier:
+            msga = 'Test (%s): %s%s ' % (self.identifier, self.pathname, user)
+        else:
+            msga = 'Test: %s%s ' % (self.pathname, user)
         msgb = '[%s] [%s]%s\n' % (self.result.runtime, self.result.result, rer)
         pad = ' ' * (80 - (len(msga) + len(msgb)))
         result_line = msga + pad + msgb
 
         # The result line is always written to the log file. If -q was
         # specified only failures are written to the console, otherwise
-        # the result line is written to the console.
+        # the result line is written to the console. The console output
+        # may be suppressed by calling log() with suppress_console=True.
         write_log(bytearray(result_line, encoding='utf-8'), LOG_FILE)
-        if not options.quiet:
-            write_log(result_line, LOG_OUT)
-        elif options.quiet and self.result.result != 'PASS':
-            write_log(result_line, LOG_OUT)
+        if not suppress_console:
+            if not options.quiet:
+                write_log(result_line, LOG_OUT)
+            elif options.quiet and self.result.result != 'PASS':
+                write_log(result_line, LOG_OUT)
 
         lines = sorted(self.result.stdout + self.result.stderr,
                        key=lambda x: x[0])
@@ -355,36 +366,49 @@ class Cmd(object):
 
 class Test(Cmd):
     props = ['outputdir', 'timeout', 'user', 'pre', 'pre_user', 'post',
-             'post_user', 'tags']
+             'post_user', 'failsafe', 'failsafe_user', 'tags']
 
-    def __init__(self, pathname, outputdir=None, timeout=None, user=None,
+    def __init__(self, pathname,
                  pre=None, pre_user=None, post=None, post_user=None,
-                 tags=None):
-        super(Test, self).__init__(pathname, outputdir, timeout, user)
+                 failsafe=None, failsafe_user=None, tags=None, **kwargs):
+        super(Test, self).__init__(pathname, **kwargs)
         self.pre = pre or ''
         self.pre_user = pre_user or ''
         self.post = post or ''
         self.post_user = post_user or ''
+        self.failsafe = failsafe or ''
+        self.failsafe_user = failsafe_user or ''
         self.tags = tags or []
 
     def __str__(self):
-        post_user = pre_user = ''
+        post_user = pre_user = failsafe_user = ''
         if len(self.pre_user):
             pre_user = ' (as %s)' % (self.pre_user)
         if len(self.post_user):
             post_user = ' (as %s)' % (self.post_user)
-        return "Pathname: %s\nOutputdir: %s\nTimeout: %d\nPre: %s%s\nPost: " \
-               "%s%s\nUser: %s\nTags: %s\n" % \
-               (self.pathname, self.outputdir, self.timeout, self.pre,
-                pre_user, self.post, post_user, self.user, self.tags)
+        if len(self.failsafe_user):
+            failsafe_user = ' (as %s)' % (self.failsafe_user)
+        return '''\
+Pathname: %s
+Identifier: %s
+Outputdir: %s
+Timeout: %d
+User: %s
+Pre: %s%s
+Post: %s%s
+Failsafe: %s%s
+Tags: %s
+''' % (self.pathname, self.identifier, self.outputdir, self.timeout, self.user,
+            self.pre, pre_user, self.post, post_user, self.failsafe,
+            failsafe_user, self.tags)
 
     def verify(self):
         """
-        Check the pre/post scripts, user and Test. Omit the Test from this
-        run if there are any problems.
+        Check the pre/post/failsafe scripts, user and Test. Omit the Test from
+        this run if there are any problems.
         """
-        files = [self.pre, self.pathname, self.post]
-        users = [self.pre_user, self.user, self.post_user]
+        files = [self.pre, self.pathname, self.post, self.failsafe]
+        users = [self.pre_user, self.user, self.post_user, self.failsafe_user]
 
         for f in [f for f in files if len(f)]:
             if not verify_file(f):
@@ -402,17 +426,23 @@ class Test(Cmd):
 
     def run(self, options):
         """
-        Create Cmd instances for the pre/post scripts. If the pre script
-        doesn't pass, skip this Test. Run the post script regardless.
+        Create Cmd instances for the pre/post/failsafe scripts. If the pre
+        script doesn't pass, skip this Test. Run the post script regardless.
+        If the Test is killed, also run the failsafe script.
         """
         odir = os.path.join(self.outputdir, os.path.basename(self.pre))
-        pretest = Cmd(self.pre, outputdir=odir, timeout=self.timeout,
-                      user=self.pre_user)
-        test = Cmd(self.pathname, outputdir=self.outputdir,
-                   timeout=self.timeout, user=self.user)
+        pretest = Cmd(self.pre, identifier=self.identifier, outputdir=odir,
+                      timeout=self.timeout, user=self.pre_user)
+        test = Cmd(self.pathname, identifier=self.identifier,
+                   outputdir=self.outputdir, timeout=self.timeout,
+                   user=self.user)
+        odir = os.path.join(self.outputdir, os.path.basename(self.failsafe))
+        failsafe = Cmd(self.failsafe, identifier=self.identifier,
+                       outputdir=odir, timeout=self.timeout,
+                       user=self.failsafe_user)
         odir = os.path.join(self.outputdir, os.path.basename(self.post))
-        posttest = Cmd(self.post, outputdir=odir, timeout=self.timeout,
-                       user=self.post_user)
+        posttest = Cmd(self.post, identifier=self.identifier, outputdir=odir,
+                       timeout=self.timeout, user=self.post_user)
 
         cont = True
         if len(pretest.pathname):
@@ -422,6 +452,9 @@ class Test(Cmd):
 
         if cont:
             test.run(options.dryrun)
+            if test.result.result == 'KILLED' and len(failsafe.pathname):
+                failsafe.run(options.dryrun)
+                failsafe.log(options, suppress_console=True)
         else:
             test.skip()
 
@@ -435,42 +468,53 @@ class Test(Cmd):
 class TestGroup(Test):
     props = Test.props + ['tests']
 
-    def __init__(self, pathname, outputdir=None, timeout=None, user=None,
-                 pre=None, pre_user=None, post=None, post_user=None,
-                 tests=None, tags=None):
-        super(TestGroup, self).__init__(pathname, outputdir, timeout, user,
-                                        pre, pre_user, post, post_user, tags)
+    def __init__(self, pathname, tests=None, **kwargs):
+        super(TestGroup, self).__init__(pathname, **kwargs)
         self.tests = tests or []
 
     def __str__(self):
-        post_user = pre_user = ''
+        post_user = pre_user = failsafe_user = ''
         if len(self.pre_user):
             pre_user = ' (as %s)' % (self.pre_user)
         if len(self.post_user):
             post_user = ' (as %s)' % (self.post_user)
-        return "Pathname: %s\nOutputdir: %s\nTests: %s\nTimeout: %s\n" \
-               "Pre: %s%s\nPost: %s%s\nUser: %s\nTags: %s\n" % \
-               (self.pathname, self.outputdir, self.tests, self.timeout,
-                self.pre, pre_user, self.post, post_user, self.user, self.tags)
+        if len(self.failsafe_user):
+            failsafe_user = ' (as %s)' % (self.failsafe_user)
+        return '''\
+Pathname: %s
+Identifier: %s
+Outputdir: %s
+Tests: %s
+Timeout: %s
+User: %s
+Pre: %s%s
+Post: %s%s
+Failsafe: %s%s
+Tags: %s
+''' % (self.pathname, self.identifier, self.outputdir, self.tests,
+            self.timeout, self.user, self.pre, pre_user, self.post, post_user,
+            self.failsafe, failsafe_user, self.tags)
 
     def verify(self):
         """
-        Check the pre/post scripts, user and tests in this TestGroup. Omit
-        the TestGroup entirely, or simply delete the relevant tests in the
+        Check the pre/post/failsafe scripts, user and tests in this TestGroup.
+        Omit the TestGroup entirely, or simply delete the relevant tests in the
         group, if that's all that's required.
         """
-        # If the pre or post scripts are relative pathnames, convert to
+        # If the pre/post/failsafe scripts are relative pathnames, convert to
         # absolute, so they stand a chance of passing verification.
         if len(self.pre) and not os.path.isabs(self.pre):
             self.pre = os.path.join(self.pathname, self.pre)
         if len(self.post) and not os.path.isabs(self.post):
             self.post = os.path.join(self.pathname, self.post)
+        if len(self.failsafe) and not os.path.isabs(self.failsafe):
+            self.post = os.path.join(self.pathname, self.post)
 
-        auxfiles = [self.pre, self.post]
-        users = [self.pre_user, self.user, self.post_user]
+        auxfiles = [self.pre, self.post, self.failsafe]
+        users = [self.pre_user, self.user, self.post_user, self.failsafe_user]
 
         for f in [f for f in auxfiles if len(f)]:
-            if self.pathname != os.path.dirname(f):
+            if f != self.failsafe and self.pathname != os.path.dirname(f):
                 write_log("Warning: TestGroup '%s' not added to this run. "
                           "Auxiliary script '%s' exists in a different "
                           "directory.\n" % (self.pathname, f), LOG_ERR)
@@ -500,9 +544,9 @@ class TestGroup(Test):
 
     def run(self, options):
         """
-        Create Cmd instances for the pre/post scripts. If the pre script
-        doesn't pass, skip all the tests in this TestGroup. Run the post
-        script regardless.
+        Create Cmd instances for the pre/post/failsafe scripts. If the pre
+        script doesn't pass, skip all the tests in this TestGroup. Run the
+        post script regardless. Run the failsafe script when a test is killed.
         """
         # tags assigned to this test group also include the test names
         if options.tags and not set(self.tags).intersection(set(options.tags)):
@@ -510,10 +554,10 @@ class TestGroup(Test):
 
         odir = os.path.join(self.outputdir, os.path.basename(self.pre))
         pretest = Cmd(self.pre, outputdir=odir, timeout=self.timeout,
-                      user=self.pre_user)
+                      user=self.pre_user, identifier=self.identifier)
         odir = os.path.join(self.outputdir, os.path.basename(self.post))
         posttest = Cmd(self.post, outputdir=odir, timeout=self.timeout,
-                       user=self.post_user)
+                       user=self.post_user, identifier=self.identifier)
 
         cont = True
         if len(pretest.pathname):
@@ -522,11 +566,18 @@ class TestGroup(Test):
             pretest.log(options)
 
         for fname in self.tests:
-            test = Cmd(os.path.join(self.pathname, fname),
-                       outputdir=os.path.join(self.outputdir, fname),
-                       timeout=self.timeout, user=self.user)
+            odir = os.path.join(self.outputdir, fname)
+            test = Cmd(os.path.join(self.pathname, fname), outputdir=odir,
+                       timeout=self.timeout, user=self.user,
+                       identifier=self.identifier)
+            odir = os.path.join(odir, os.path.basename(self.failsafe))
+            failsafe = Cmd(self.failsafe, outputdir=odir, timeout=self.timeout,
+                           user=self.failsafe_user, identifier=self.identifier)
             if cont:
                 test.run(options.dryrun)
+                if test.result.result == 'KILLED' and len(failsafe.pathname):
+                    failsafe.run(options.dryrun)
+                    failsafe.log(options, suppress_console=True)
             else:
                 test.skip()
 
@@ -556,6 +607,8 @@ class TestRun(object):
             ('pre_user', ''),
             ('post', ''),
             ('post_user', ''),
+            ('failsafe', ''),
+            ('failsafe_user', ''),
             ('tags', [])
         ]
 
@@ -593,8 +646,8 @@ class TestRun(object):
             for prop in Test.props:
                 setattr(testgroup, prop, getattr(options, prop))
 
-            # Prevent pre/post scripts from running as regular tests
-            for f in [testgroup.pre, testgroup.post]:
+            # Prevent pre/post/failsafe scripts from running as regular tests
+            for f in [testgroup.pre, testgroup.post, testgroup.failsafe]:
                 if f in filenames:
                     del filenames[filenames.index(f)]
 
@@ -605,7 +658,7 @@ class TestRun(object):
 
     def read(self, options):
         """
-        Read in the specified runfile, and apply the TestRun properties
+        Read in the specified runfiles, and apply the TestRun properties
         listed in the 'DEFAULT' section to our TestRun. Then read each
         section, and apply the appropriate properties to the Test or
         TestGroup. Properties from individual sections override those set
@@ -613,30 +666,43 @@ class TestRun(object):
         verification, add it to the TestRun.
         """
         config = configparser.RawConfigParser()
-        if not len(config.read(options.runfile)):
-            fail("Coulnd't read config file %s" % options.runfile)
+        parsed = config.read(options.runfiles)
+        failed = options.runfiles - set(parsed)
+        if len(failed):
+            files = ' '.join(sorted(failed))
+            fail("Couldn't read config files: %s" % files)
 
         for opt in TestRun.props:
             if config.has_option('DEFAULT', opt):
                 setattr(self, opt, config.get('DEFAULT', opt))
         self.outputdir = os.path.join(self.outputdir, self.timestamp)
 
+        testdir = options.testdir
+
         for section in config.sections():
             if 'tests' in config.options(section):
-                if os.path.isdir(section):
-                    pathname = section
-                elif os.path.isdir(os.path.join(options.testdir, section)):
-                    pathname = os.path.join(options.testdir, section)
+                parts = section.split(':', 1)
+                sectiondir = parts[0]
+                identifier = parts[1] if len(parts) == 2 else None
+                if os.path.isdir(sectiondir):
+                    pathname = sectiondir
+                elif os.path.isdir(os.path.join(testdir, sectiondir)):
+                    pathname = os.path.join(testdir, sectiondir)
                 else:
-                    pathname = section
+                    pathname = sectiondir
 
-                testgroup = TestGroup(os.path.abspath(pathname))
+                testgroup = TestGroup(os.path.abspath(pathname),
+                                      identifier=identifier)
                 for prop in TestGroup.props:
                     for sect in ['DEFAULT', section]:
                         if config.has_option(sect, prop):
-                            if prop == "tags":
+                            if prop == 'tags':
                                 setattr(testgroup, prop,
                                         eval(config.get(sect, prop)))
+                            elif prop == 'failsafe':
+                                failsafe = config.get(sect, prop)
+                                setattr(testgroup, prop,
+                                        os.path.join(testdir, failsafe))
                             else:
                                 setattr(testgroup, prop,
                                         config.get(sect, prop))
@@ -651,7 +717,12 @@ class TestRun(object):
                 for prop in Test.props:
                     for sect in ['DEFAULT', section]:
                         if config.has_option(sect, prop):
-                            setattr(test, prop, config.get(sect, prop))
+                            if prop == 'failsafe':
+                                failsafe = config.get(sect, prop)
+                                setattr(test, prop,
+                                        os.path.join(testdir, failsafe))
+                            else:
+                                setattr(test, prop, config.get(sect, prop))
 
                 if test.verify():
                     self.tests[section] = test
@@ -693,7 +764,8 @@ class TestRun(object):
         outputdir, and are guaranteed uniqueness because a group can only
         contain files in one directory. Pre and post tests will create a
         directory rooted at the outputdir of the Test or TestGroup in
-        question for their output.
+        question for their output. Failsafe scripts will create a directory
+        rooted at the outputdir of each Test for their output.
         """
         done = False
         components = 0
@@ -716,7 +788,7 @@ class TestRun(object):
 
     def setup_logging(self, options):
         """
-        This funtion creates the output directory and gets a file object
+        This function creates the output directory and gets a file object
         for the logfile. This function must be called before write_log()
         can be used.
         """
@@ -873,32 +945,34 @@ def fail(retstr, ret=1):
 
 
 def options_cb(option, opt_str, value, parser):
-    path_options = ['runfile', 'outputdir', 'template', 'testdir']
+    path_options = ['outputdir', 'template', 'testdir']
 
-    if option.dest == 'runfile' and '-w' in parser.rargs or \
+    if option.dest == 'runfiles' and '-w' in parser.rargs or \
             option.dest == 'template' and '-c' in parser.rargs:
         fail('-c and -w are mutually exclusive.')
 
     if opt_str in parser.rargs:
         fail('%s may only be specified once.' % opt_str)
 
-    if option.dest == 'runfile':
+    if option.dest == 'runfiles':
         parser.values.cmd = 'rdconfig'
+        value = set(os.path.abspath(p) for p in value.split(','))
     if option.dest == 'template':
         parser.values.cmd = 'wrconfig'
     if option.dest == 'tags':
         value = [x.strip() for x in value.split(',')]
 
-    setattr(parser.values, option.dest, value)
     if option.dest in path_options:
         setattr(parser.values, option.dest, os.path.abspath(value))
+    else:
+        setattr(parser.values, option.dest, value)
 
 
 def parse_args():
     parser = OptionParser()
     parser.add_option('-c', action='callback', callback=options_cb,
-                      type='string', dest='runfile', metavar='runfile',
-                      help='Specify tests to run via config file.')
+                      type='string', dest='runfiles', metavar='runfiles',
+                      help='Specify tests to run via config files.')
     parser.add_option('-d', action='store_true', default=False, dest='dryrun',
                       help='Dry run. Print tests, but take no other action.')
     parser.add_option('-g', action='store_true', default=False,
@@ -917,6 +991,13 @@ def parse_args():
                       type='string', help='Specify a post script.')
     parser.add_option('-q', action='store_true', default=False, dest='quiet',
                       help='Silence on the console during a test run.')
+    parser.add_option('-s', action='callback', callback=options_cb,
+                      default='', dest='failsafe', metavar='script',
+                      type='string', help='Specify a failsafe script.')
+    parser.add_option('-S', action='callback', callback=options_cb,
+                      default='', dest='failsafe_user',
+                      metavar='failsafe_user', type='string',
+                      help='Specify a user to execute the failsafe script.')
     parser.add_option('-t', action='callback', callback=options_cb, default=60,
                       dest='timeout', metavar='seconds', type='int',
                       help='Timeout (in seconds) for an individual test.')
@@ -940,10 +1021,10 @@ def parse_args():
                       help='Number of times to run the test run.')
     (options, pathnames) = parser.parse_args()
 
-    if not options.runfile and not options.template:
+    if not options.runfiles and not options.template:
         options.cmd = 'runtests'
 
-    if options.runfile and len(pathnames):
+    if options.runfiles and len(pathnames):
         fail('Extraneous arguments.')
 
     options.pathnames = [os.path.abspath(path) for path in pathnames]

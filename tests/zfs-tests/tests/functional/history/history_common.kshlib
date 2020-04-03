@@ -51,11 +51,11 @@ function run_and_verify
 	fullcmd="$1"
 	flags="$2"
 
-	if is_linux; then
+	if is_illumos; then
+		histcmd=$(echo $fullcmd | sed 's/\/usr\/sbin\///g')
+	else
 		histcmd=$(echo $fullcmd | sed 's/^.*\/\(zpool .*\).*$/\1/')
 		histcmd=$(echo $histcmd | sed 's/^.*\/\(zfs .*\).*$/\1/')
-	else
-		histcmd=$(echo $fullcmd | sed 's/\/usr\/sbin\///g')
 	fi
 
 	cmd=$(echo $histcmd | awk '{print $1}')
@@ -110,12 +110,13 @@ function verify_long
 	fi
 
 	typeset suffix=""
-	if [ is_linux ]; then
+	if is_linux; then
 		suffix=":linux"
+	elif is_freebsd; then
+		suffix=":freebsd"
 	fi
 
-	grep "$cmd \[user $uid ($user) on $hname$suffix\]" \
-	    $NEW_HISTORY >/dev/null 2>&1
+	grep -q "$cmd \[user $uid ($user) on $hname$suffix\]" $NEW_HISTORY
 	if [[ $? != 0 ]]; then
 		log_note "Couldn't find long information for \"$cmd\""
 		return 1
@@ -224,7 +225,7 @@ function verify_allow
 
 	#
 	# Here, we determine three things:
-	# - Whether we're operating on a set or an indivdual permission (which
+	# - Whether we're operating on a set or an individual permission (which
 	#   dictates the case of the first character in the code)
 	# - The name of the dataset we're operating on.
 	# - Whether the operation applies locally or to descendent datasets (or

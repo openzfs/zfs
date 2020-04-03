@@ -23,6 +23,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011, 2017 by Delphix. All rights reserved.
  * Copyright (c) 2017, Intel Corporation.
+ * Copyright (c) 2019, Datto Inc. All rights reserved.
  */
 
 #ifndef _SYS_VDEV_H
@@ -85,6 +86,7 @@ extern void vdev_indirect_mark_obsolete(vdev_t *vd, uint64_t offset,
     uint64_t size);
 extern void spa_vdev_indirect_mark_obsolete(spa_t *spa, uint64_t vdev,
     uint64_t offset, uint64_t size, dmu_tx_t *tx);
+extern boolean_t vdev_replace_in_progress(vdev_t *vdev);
 
 extern void vdev_hold(vdev_t *);
 extern void vdev_rele(vdev_t *);
@@ -95,8 +97,8 @@ extern void vdev_metaslab_set_size(vdev_t *);
 extern void vdev_expand(vdev_t *vd, uint64_t txg);
 extern void vdev_split(vdev_t *vd);
 extern void vdev_deadman(vdev_t *vd, char *tag);
-extern void vdev_xlate(vdev_t *vd, const range_seg_t *logical_rs,
-    range_seg_t *physical_rs);
+extern void vdev_xlate(vdev_t *vd, const range_seg64_t *logical_rs,
+    range_seg64_t *physical_rs);
 
 extern void vdev_get_stats_ex(vdev_t *vd, vdev_stat_t *vs, vdev_stat_ex_t *vsx);
 extern void vdev_get_stats(vdev_t *vd, vdev_stat_t *vs);
@@ -151,7 +153,8 @@ extern int vdev_config_sync(vdev_t **svd, int svdcount, uint64_t txg);
 extern void vdev_state_dirty(vdev_t *vd);
 extern void vdev_state_clean(vdev_t *vd);
 
-extern void vdev_set_deferred_resilver(spa_t *spa, vdev_t *vd);
+extern void vdev_defer_resilver(vdev_t *vd);
+extern boolean_t vdev_clear_resilver_deferred(vdev_t *vd, dmu_tx_t *tx);
 
 typedef enum vdev_config_flag {
 	VDEV_CONFIG_SPARE = 1 << 0,

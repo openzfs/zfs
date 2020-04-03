@@ -95,15 +95,14 @@ for arg in ${badargs[@]}; do
 	log_mustnot eval "zfs unmount $arg $fs >/dev/null 2>&1"
 done
 
-
-#Testing invalid datasets
+# Testing invalid datasets
 for ds in $snap $vol "blah"; do
 	for opt in "" "-f"; do
 		log_mustnot eval "zfs unmount $opt $ds >/dev/null 2>&1"
 	done
 done
 
-#Testing invalid mountpoint
+# Testing invalid mountpoint
 dir=foodir.$$
 file=foo.$$
 fs1=$TESTPOOL/fs.$$
@@ -119,22 +118,22 @@ for mpt in "./$dir" "./$file" "/tmp"; do
 done
 cd $curpath
 
-#Testing null argument and too many arguments
+# Testing null argument and too many arguments
 for opt in "" "-f"; do
 	log_mustnot eval "zfs unmount $opt >/dev/null 2>&1"
 	log_mustnot eval "zfs unmount $opt $fs $fs1 >/dev/null 2>&1"
 done
 
-#Testing already unmounted filesystem
+# Testing already unmounted filesystem
 log_must zfs unmount $fs1
 for opt in "" "-f"; do
 	log_mustnot eval "zfs unmount $opt $fs1 >/dev/null 2>&1"
 	log_mustnot eval "zfs unmount /tmp/$dir >/dev/null 2>&1"
 done
 
-#Testing legacy mounted filesystem
+# Testing legacy mounted filesystem
 log_must zfs set mountpoint=legacy $fs1
-if is_linux; then
+if is_linux || is_freebsd; then
 	log_must mount -t zfs $fs1 /tmp/$dir
 else
 	log_must mount -F zfs $fs1 /tmp/$dir

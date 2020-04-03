@@ -192,10 +192,29 @@ extern "C" {
 
 #define	_SUNOS_VTOC_16
 
+/*
+ * RISC-V arch specific defines
+ * only RV64G (including atomic) LP64 is supported yetxi
+ */
+#elif defined(__riscv) && defined(_LP64) && _LP64 && \
+	defined(__riscv_atomic) && __riscv_atomic
+
+#ifndef	__riscv__
+#define	__riscv__
+#endif
+
+#ifndef	__rv64g__
+#define	__rv64g__
+#endif
+
+#define	_LITTLE_ENDIAN
+
+#define	_SUNOS_VTOC_16
+
 #else
 /*
  * Currently supported:
- * x86_64, i386, arm, powerpc, s390, sparc, and mips
+ * x86_64, i386, arm, powerpc, s390, sparc, mips, and RV64G
  */
 #error "Unsupported ISA type"
 #endif
