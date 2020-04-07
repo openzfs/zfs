@@ -3077,20 +3077,26 @@ dsl_dataset_rename_snapshot(const char *fsname,
 static int
 dsl_dataset_handoff_check(dsl_dataset_t *ds, void *owner, dmu_tx_t *tx)
 {
-	boolean_t held;
+	boolean_t held = B_FALSE;
 
 	if (!dmu_tx_is_syncing(tx))
 		return (0);
 
-	if (owner != NULL) {
-		VERIFY3P(ds->ds_owner, ==, owner);
-		dsl_dataset_long_rele(ds, owner);
-	}
-
-	held = dsl_dataset_long_held(ds);
-
-	if (owner != NULL)
-		dsl_dataset_long_hold(ds, owner);
+	dsl_dir_t *dd = ds->ds_dir;
+	mutex_enter(&dd->dd_activity_lock);
+	uint64_t holds = zfs_refcount_count(&ds->ds_longholds) -
+	    (owner != NULL ? 1 : 0);
+	/*
+	 * The value of dd_activity_waiters can chance as soon as we drop the
+	 * lock, but we're fine with that; new waiters coming in or old
+	 * waiters leaving doesn't cause problems, since we're going to cancel
+	 * waiters later anyway. The goal of this check is to verify that no
+	 * non-waiters have long-holds, and all new long-holds will be
+	 * prevented because we're holding the pool config as writer.
+	 */
+	if (holds != dd->dd_activity_waiters)
+		held = B_TRUE;
+	mutex_exit(&dd->dd_activity_lock);
 
 	if (held)
 		return (SET_ERROR(EBUSY));
@@ -4035,6 +4041,8 @@ dsl_dataset_clone_swap_sync_impl(dsl_dataset_t *clone,
 	    dsl_dataset_phys(clone)->ds_unique_bytes <= origin_head->ds_quota +
 	    DMU_MAX_ACCESS * spa_asize_inflation);
 	ASSERT3P(clone->ds_prev, ==, origin_head->ds_prev);
+
+	dsl_dir_cancel_waiters(origin_head->ds_dir);
 
 	/*
 	 * Swap per-dataset feature flags.

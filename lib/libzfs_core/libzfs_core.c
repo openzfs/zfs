@@ -1639,3 +1639,23 @@ lzc_wait_tag(const char *pool, zpool_wait_activity_t activity, uint64_t tag,
 {
 	return (wait_common(pool, activity, B_TRUE, tag, waited));
 }
+
+int
+lzc_wait_fs(const char *fs, zfs_wait_activity_t activity, boolean_t *waited)
+{
+	nvlist_t *args = fnvlist_alloc();
+	nvlist_t *result = NULL;
+
+	fnvlist_add_int32(args, ZFS_WAIT_ACTIVITY, activity);
+
+	int error = lzc_ioctl(ZFS_IOC_WAIT_FS, fs, args, &result);
+
+	if (error == 0 && waited != NULL)
+		*waited = fnvlist_lookup_boolean_value(result,
+		    ZFS_WAIT_WAITED);
+
+	fnvlist_free(args);
+	fnvlist_free(result);
+
+	return (error);
+}

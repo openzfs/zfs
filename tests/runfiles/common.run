@@ -49,7 +49,7 @@ post =
 [tests/functional/cache]
 tests = ['cache_001_pos', 'cache_002_pos', 'cache_003_pos', 'cache_004_neg',
     'cache_005_neg', 'cache_006_pos', 'cache_007_neg', 'cache_008_neg',
-    'cache_009_pos', 'cache_010_neg', 'cache_011_pos']
+    'cache_009_pos', 'cache_010_neg', 'cache_011_pos', 'cache_012_pos']
 tags = ['functional', 'cache']
 
 [tests/functional/cachefile]
@@ -287,6 +287,10 @@ tests = ['zfs_upgrade_001_pos', 'zfs_upgrade_002_pos', 'zfs_upgrade_003_pos',
     'zfs_upgrade_004_pos', 'zfs_upgrade_005_pos', 'zfs_upgrade_006_neg',
     'zfs_upgrade_007_neg']
 tags = ['functional', 'cli_root', 'zfs_upgrade']
+
+[tests/functional/cli_root/zfs_wait]
+tests = ['zfs_wait_deleteq']
+tags = ['functional', 'cli_root', 'zfs_wait']
 
 [tests/functional/cli_root/zpool]
 tests = ['zpool_001_neg', 'zpool_002_pos', 'zpool_003_pos', 'zpool_colors']

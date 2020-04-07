@@ -38,9 +38,7 @@
 function udev_wait
 {
 	sleep 1
-	if is_freebsd; then
-		return 0
-	fi
+	is_linux || return 0
 	udevadm trigger --action=change
 	udevadm settle
 	for i in {1..3}; do
@@ -60,7 +58,9 @@ function udev_wait
 #
 function udev_cleanup
 {
+	is_linux || return 0
 	log_note "Pruning broken ZVOL symlinks ..."
+
 	udevadm settle
 	# find all dangling links and delete them
 	find -L "${ZVOL_DEVDIR}" -type l -print -delete

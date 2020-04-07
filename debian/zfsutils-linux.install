@@ -72,6 +72,7 @@ usr/share/man/man8/zfs-unload-key.8
 usr/share/man/man8/zfs-unmount.8
 usr/share/man/man8/zfs-upgrade.8
 usr/share/man/man8/zfs-userspace.8
+usr/share/man/man8/zfs-wait.8
 usr/share/man/man8/zfsconcepts.8
 usr/share/man/man8/zfsprops.8
 usr/share/man/man8/zdb.8

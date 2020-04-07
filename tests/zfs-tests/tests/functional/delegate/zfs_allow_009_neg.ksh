@@ -51,7 +51,6 @@ longset="set123456789012345678901234567890123456789012345678901234567890123"
 for dtst in $DATASETS ; do
 	log_mustnot eval "zfs allow -s @$longset $dtst"
 	# Create non-existent permission set
-	typeset timestamp=$(date +'%F-%R:%S')
 	log_mustnot zfs allow -s @non-existent $dtst
 	log_mustnot zfs allow $STAFF "atime,created,mounted" $dtst
 	log_mustnot zfs allow $dtst $TESTPOOL
