@@ -26,8 +26,6 @@
 #include <libzfs.h>
 #include <libzutil.h>
 #include <stddef.h>
-#include <stddef.h>
-#include <stdio.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <strings.h>
@@ -63,7 +61,7 @@ int
 highbit64(uint64_t i)
 {
 	if (i == 0)
-	return (0);
+		return (0);
 
 	return (NBBY * sizeof (uint64_t) - __builtin_clzll(i));
 }
@@ -220,7 +218,8 @@ zfs_redup_stream(int infd, int outfd, boolean_t verbose)
 	if (!ISP2(numbuckets))
 		numbuckets = 1ULL << highbit64(numbuckets);
 
-	rdt.redup_hash_array = calloc(numbuckets, sizeof (redup_entry_t *));
+	rdt.redup_hash_array =
+	    safe_calloc(numbuckets * sizeof (redup_entry_t *));
 	rdt.ddecache = umem_cache_create("rde", sizeof (redup_entry_t), 0,
 	    NULL, NULL, NULL, NULL, NULL, 0);
 	rdt.numhashbits = highbit64(numbuckets) - 1;

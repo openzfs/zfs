@@ -64,14 +64,26 @@ typeset size0=$(stat_size $stream0)
 typeset size1=$(stat_size $stream1)
 within_percent $size0 $size1 90 || log_fail "$size0 and $size1"
 
-# Finally, make sure the receive works correctly.
+# make sure the receive works correctly.
 log_must eval "zfs send -D -c -i snap0 $sendfs@snap1 >$inc"
 log_must eval "zfs recv -d $recvfs <$stream0"
 log_must eval "zfs recv -d $recvfs <$inc"
 cmp_ds_cont $sendfs $recvfs
 
+# check receive with redup.
+log_must zfs destroy -r $recvfs
+log_must zfs create -o compress=lz4 $recvfs
+log_must eval "zstream redup $stream0 | zfs recv -d $recvfs"
+log_must eval "zstream redup $inc | zfs recv -d $recvfs"
+cmp_ds_cont $sendfs $recvfs
+
 # The size of the incremental should be the same as the initial send.
 typeset size2=$(stat_size $inc)
 within_percent $size0 $size2 90 || log_fail "$size0 and $size1"
+
+# The redup'ed size should be 4x
+typeset size3=$(zstream redup $inc | wc -c)
+let size4=size0*4
+within_percent $size4 $size3 90 || log_fail "$size4 and $size3"
 
 log_pass "The -c and -D flags do not interfere with each other"
