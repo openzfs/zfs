@@ -29,9 +29,8 @@
 #include <libzfs.h>
 #include "zstream.h"
 
-
 void
-usage(void)
+zstream_usage(void)
 {
 	(void) fprintf(stderr,
 	    "usage: zstream command args ...\n"
@@ -48,7 +47,7 @@ int
 main(int argc, char *argv[])
 {
 	if (argc < 2)
-		usage();
+		zstream_usage();
 
 	char *subcommand = argv[1];
 
@@ -57,6 +56,6 @@ main(int argc, char *argv[])
 	} else if (strcmp(subcommand, "redup") == 0) {
 		return (zstream_do_redup(argc - 1, argv + 1));
 	} else {
-		usage();
+		zstream_usage();
 	}
 }

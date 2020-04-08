@@ -263,12 +263,12 @@ zstream_do_dump(int argc, char *argv[])
 		case ':':
 			(void) fprintf(stderr,
 			    "missing argument for '%c' option\n", optopt);
-			usage();
+			zstream_usage();
 			break;
 		case '?':
 			(void) fprintf(stderr, "invalid option '%c'\n",
 			    optopt);
-			usage();
+			zstream_usage();
 			break;
 		}
 	}
