@@ -1359,8 +1359,13 @@ dmu_read_uio_dnode(dnode_t *dn, uio_t *uio, uint64_t size)
 				XUIOSTAT_BUMP(xuiostat_rbuf_copied);
 		} else
 #endif
+#ifdef __FreeBSD__
+			err = vn_io_fault_uiomove((char *)db->db_data + bufoff,
+			    tocpy, uio);
+#else
 			err = uiomove((char *)db->db_data + bufoff, tocpy,
 			    UIO_READ, uio);
+#endif
 		if (err)
 			break;
 
@@ -1459,9 +1464,13 @@ dmu_write_uio_dnode(dnode_t *dn, uio_t *uio, uint64_t size, dmu_tx_t *tx)
 		 * to lock the pages in memory, so that uiomove won't
 		 * block.
 		 */
+#ifdef __FreeBSD__
+		err = vn_io_fault_uiomove((char *)db->db_data + bufoff,
+		    tocpy, uio);
+#else
 		err = uiomove((char *)db->db_data + bufoff, tocpy,
 		    UIO_WRITE, uio);
-
+#endif
 		if (tocpy == db->db_size)
 			dmu_buf_fill_done(db, tx);
 
