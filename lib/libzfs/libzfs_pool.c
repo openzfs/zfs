@@ -1351,11 +1351,6 @@ zpool_create(libzfs_handle_t *hdl, const char *pool, nvlist_t *nvroot,
 			    "one or more devices is out of space"));
 			return (zfs_error(hdl, EZFS_BADDEV, msg));
 
-		case ENOTBLK:
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "cache device must be a disk or disk slice"));
-			return (zfs_error(hdl, EZFS_BADDEV, msg));
-
 		default:
 			return (zpool_standard_error(hdl, errno, msg));
 		}
@@ -1541,12 +1536,6 @@ zpool_add(zpool_handle_t *zhp, nvlist_t *nvroot)
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "pool must be upgraded to add these vdevs"));
 			(void) zfs_error(hdl, EZFS_BADVERSION, msg);
-			break;
-
-		case ENOTBLK:
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "cache device must be a disk or disk slice"));
-			(void) zfs_error(hdl, EZFS_BADDEV, msg);
 			break;
 
 		default:

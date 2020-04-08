@@ -198,6 +198,7 @@ typedef struct zfs_kernel_param {
 } zfs_kernel_param_t;
 
 #define	ZFS_MODULE_PARAM(scope_prefix, name_prefix, name, type, perm, desc)
+#define	ZFS_MODULE_PARAM_ARGS void
 #define	ZFS_MODULE_PARAM_CALL(scope_prefix, name_prefix, name, setfunc, \
 	getfunc, perm, desc)
 

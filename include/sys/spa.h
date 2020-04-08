@@ -1179,10 +1179,10 @@ extern void spa_notify_waiters(spa_t *spa);
 extern void spa_wake_waiters(spa_t *spa);
 
 /* module param call functions */
-int param_set_deadman_ziotime(const char *val, zfs_kernel_param_t *kp);
-int param_set_deadman_synctime(const char *val, zfs_kernel_param_t *kp);
-int param_set_slop_shift(const char *buf, zfs_kernel_param_t *kp);
-int param_set_deadman_failmode(const char *val, zfs_kernel_param_t *kp);
+int param_set_deadman_ziotime(ZFS_MODULE_PARAM_ARGS);
+int param_set_deadman_synctime(ZFS_MODULE_PARAM_ARGS);
+int param_set_slop_shift(ZFS_MODULE_PARAM_ARGS);
+int param_set_deadman_failmode(ZFS_MODULE_PARAM_ARGS);
 
 #ifdef ZFS_DEBUG
 #define	dprintf_bp(bp, fmt, ...) do {				\

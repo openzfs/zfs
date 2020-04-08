@@ -2902,5 +2902,5 @@ ZFS_MODULE_PARAM(zfs, zfs_, special_class_metadata_reserve_pct, INT, ZMOD_RW,
 	"free space available");
 /* END CSTYLED */
 
-ZFS_MODULE_PARAM_CALL(spa, spa_, slop_shift, param_set_slop_shift,
+ZFS_MODULE_PARAM_CALL(zfs_spa, spa_, slop_shift, param_set_slop_shift,
 	param_get_int, ZMOD_RW, "Reserved free space in pool");
