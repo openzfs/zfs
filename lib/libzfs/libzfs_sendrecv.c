@@ -83,6 +83,8 @@ typedef struct progress_arg {
 	boolean_t pa_parsable;
 	boolean_t pa_estimate;
 	int pa_verbosity;
+	boolean_t pa_astitle;
+	uint64_t pa_size;
 } progress_arg_t;
 
 static int
@@ -712,6 +714,7 @@ typedef struct send_dump_data {
 	boolean_t seenfrom, seento, replicate, doall, fromorigin;
 	boolean_t dryrun, parsable, progress, embed_data, std_out;
 	boolean_t large_block, compress, raw, holds;
+	boolean_t progressastitle;
 	int outfd;
 	boolean_t err;
 	nvlist_t *fss;
@@ -908,6 +911,10 @@ send_progress_thread(void *arg)
 	struct tm *tm;
 	boolean_t firstloop = B_TRUE;
 
+#ifdef HAVE_PROCTITLE
+	uint64_t total = pa->pa_size / 100;
+#endif
+
 	/*
 	 * Print the progress from ZFS_IOC_SEND_PROGRESS every second.
 	 */
@@ -921,7 +928,7 @@ send_progress_thread(void *arg)
 			return ((void *)(uintptr_t)err);
 		}
 
-		if (firstloop && !pa->pa_parsable) {
+		if (firstloop && !pa->pa_parsable && !pa->pa_astitle) {
 			(void) fprintf(stderr,
 			    "TIME       %s   %sSNAPSHOT %s\n",
 			    pa->pa_estimate ? "BYTES" : " SENT",
@@ -933,6 +940,21 @@ send_progress_thread(void *arg)
 		(void) time(&t);
 		tm = localtime(&t);
 
+#ifdef HAVE_PROCTITLE
+		if (pa->pa_astitle) {
+			int pct;
+			if (total > 0)
+				pct = bytes / total;
+			else
+				pct = 100;
+			if (pct > 100)
+				pct = 100;
+
+			setproctitle("sending %s (%d%%: %llu/%llu)",
+			    zhp->zfs_name, pct, (u_longlong_t)bytes,
+			    (u_longlong_t)pa->pa_size);
+		} else
+#endif
 		if (pa->pa_verbosity >= 2 && pa->pa_parsable) {
 			(void) fprintf(stderr,
 			    "%02d:%02d:%02d\t%llu\t%llu\t%s\n",
@@ -1012,7 +1034,6 @@ dump_snapshot(zfs_handle_t *zhp, void *arg)
 	int err;
 	boolean_t isfromsnap, istosnap, fromorigin;
 	boolean_t exclude = B_FALSE;
-	FILE *fout = sdd->std_out ? stdout : stderr;
 
 	err = 0;
 	thissnap = strchr(zhp->zfs_name, '@') + 1;
@@ -1100,10 +1121,6 @@ dump_snapshot(zfs_handle_t *zhp, void *arg)
 		if (zfs_send_space(zhp, zhp->zfs_name,
 		    sdd->prevsnap[0] ? fromds : NULL, flags, &size) != 0) {
 			size = 0; /* cannot estimate send space */
-		} else {
-			send_print_verbose(fout, zhp->zfs_name,
-			    sdd->prevsnap[0] ? sdd->prevsnap : NULL,
-			    size, sdd->parsable);
 		}
 		sdd->size += size;
 	}
@@ -1119,6 +1136,8 @@ dump_snapshot(zfs_handle_t *zhp, void *arg)
 			pa.pa_parsable = sdd->parsable;
 			pa.pa_estimate = B_FALSE;
 			pa.pa_verbosity = sdd->verbosity;
+			pa.pa_size = sdd->size;
+			pa.pa_astitle = sdd->progressastitle;
 
 			if ((err = pthread_create(&tid, NULL,
 			    send_progress_thread, &pa)) != 0) {
@@ -1461,7 +1480,7 @@ lzc_flags_from_sendflags(const sendflags_t *flags)
 static int
 estimate_size(zfs_handle_t *zhp, const char *from, int fd, sendflags_t *flags,
     uint64_t resumeobj, uint64_t resumeoff, uint64_t bytes,
-    const char *redactbook, char *errbuf)
+    const char *redactbook, char *errbuf, uint64_t *sizep)
 {
 	uint64_t size;
 	FILE *fout = flags->dryrun ? stdout : stderr;
@@ -1488,6 +1507,7 @@ estimate_size(zfs_handle_t *zhp, const char *from, int fd, sendflags_t *flags,
 	err = lzc_send_space_resume_redacted(zhp->zfs_name, from,
 	    lzc_flags_from_sendflags(flags), resumeobj, resumeoff, bytes,
 	    redactbook, fd, &size);
+	*sizep = size;
 
 	if (flags->progress) {
 		void *status = NULL;
@@ -1509,6 +1529,10 @@ estimate_size(zfs_handle_t *zhp, const char *from, int fd, sendflags_t *flags,
 		return (zfs_error(zhp->zfs_hdl, EZFS_BADBACKUP,
 		    errbuf));
 	}
+
+	if (flags->verbosity == 0)
+		return (0);
+
 	send_print_verbose(fout, zhp->zfs_name, from, size,
 	    flags->parsable);
 
@@ -1637,6 +1661,7 @@ zfs_send_resume_impl(libzfs_handle_t *hdl, sendflags_t *flags, int outfd,
 	uint64_t *redact_snap_guids = NULL;
 	int num_redact_snaps = 0;
 	char *redact_book = NULL;
+	uint64_t size = 0;
 
 	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
 	    "cannot resume send"));
@@ -1730,7 +1755,7 @@ zfs_send_resume_impl(libzfs_handle_t *hdl, sendflags_t *flags, int outfd,
 		}
 	}
 
-	if (flags->verbosity != 0) {
+	if ((flags->progress && !flags->dryrun) || flags->verbosity != 0) {
 		/*
 		 * Some of these may have come from the resume token, set them
 		 * here for size estimate purposes.
@@ -1743,7 +1768,7 @@ zfs_send_resume_impl(libzfs_handle_t *hdl, sendflags_t *flags, int outfd,
 		if (lzc_flags & LZC_SEND_FLAG_EMBED_DATA)
 			tmpflags.embed_data = B_TRUE;
 		error = estimate_size(zhp, fromname, outfd, &tmpflags,
-		    resumeobj, resumeoff, bytes, redact_book, errbuf);
+		    resumeobj, resumeoff, bytes, redact_book, errbuf, &size);
 	}
 
 	if (!flags->dryrun) {
@@ -1759,6 +1784,8 @@ zfs_send_resume_impl(libzfs_handle_t *hdl, sendflags_t *flags, int outfd,
 			pa.pa_parsable = flags->parsable;
 			pa.pa_estimate = B_FALSE;
 			pa.pa_verbosity = flags->verbosity;
+			pa.pa_size = size;
+			pa.pa_astitle = flags->progressastitle;
 
 			error = pthread_create(&tid, NULL,
 			    send_progress_thread, &pa);
@@ -2189,6 +2216,7 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 	sdd.verbosity = flags->verbosity;
 	sdd.parsable = flags->parsable;
 	sdd.progress = flags->progress;
+	sdd.progressastitle = flags->progressastitle;
 	sdd.dryrun = flags->dryrun;
 	sdd.large_block = flags->largeblock;
 	sdd.embed_data = flags->embed_data;
@@ -2401,6 +2429,7 @@ zfs_send_one(zfs_handle_t *zhp, const char *from, int fd, sendflags_t *flags,
 	int orig_fd = fd;
 	pthread_t ptid;
 	progress_arg_t pa = { 0 };
+	uint64_t size = 0;
 
 	char errbuf[1024];
 	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
@@ -2483,9 +2512,9 @@ zfs_send_one(zfs_handle_t *zhp, const char *from, int fd, sendflags_t *flags,
 	/*
 	 * Perform size estimate if verbose was specified.
 	 */
-	if (flags->verbosity != 0) {
+	if ((flags->progress && !flags->dryrun) || flags->verbosity != 0) {
 		err = estimate_size(zhp, from, fd, flags, 0, 0, 0, redactbook,
-		    errbuf);
+		    errbuf, &size);
 		if (err != 0)
 			return (err);
 	}
@@ -2503,6 +2532,8 @@ zfs_send_one(zfs_handle_t *zhp, const char *from, int fd, sendflags_t *flags,
 		pa.pa_parsable = flags->parsable;
 		pa.pa_estimate = B_FALSE;
 		pa.pa_verbosity = flags->verbosity;
+		pa.pa_size = size;
+		pa.pa_astitle = flags->progressastitle;
 
 		err = pthread_create(&ptid, NULL,
 		    send_progress_thread, &pa);
