@@ -30,7 +30,7 @@
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
 .\"
-.Dd June 30, 2019
+.Dd August 27, 2020
 .Dt ZFS-SEND 8
 .Os
 .Sh NAME
@@ -39,29 +39,29 @@
 .Sh SYNOPSIS
 .Nm
 .Cm send
-.Op Fl DLPRbcehnpvw
+.Op Fl DLPRVbcehnpvw
 .Op Oo Fl I Ns | Ns Fl i Oc Ar snapshot
 .Ar snapshot
 .Nm
 .Cm send
-.Op Fl DLPRcenpvw
+.Op Fl DLPRVcenpvw
 .Op Fl i Ar snapshot Ns | Ns Ar bookmark
 .Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot
 .Nm
 .Cm send
 .Fl -redact Ar redaction_bookmark
-.Op Fl DLPcenpv
+.Op Fl DLPVcenpv
 .br
 .Op Fl i Ar snapshot Ns | Ns Ar bookmark
 .Ar snapshot
 .Nm
 .Cm send
-.Op Fl Penv
+.Op Fl PVenv
 .Fl t
 .Ar receive_resume_token
 .Nm
 .Cm send
-.Op Fl Pnv
+.Op Fl PVnv
 .Fl S Ar filesystem
 .Nm
 .Cm redact
@@ -72,7 +72,7 @@
 .It Xo
 .Nm
 .Cm send
-.Op Fl DLPRbcehnpvw
+.Op Fl DLPRVbcehnpvw
 .Op Oo Fl I Ns | Ns Fl i Oc Ar snapshot
 .Ar snapshot
 .Xc
@@ -139,6 +139,8 @@ do not exist on the sending side are destroyed. If the
 flag is used to send encrypted datasets, then
 .Fl w
 must also be specified.
+.It Fl V, -proctitle
+Set the process title to a per-second report of how much data has been sent.
 .It Fl e, -embed
 Generate a more compact stream by using
 .Sy WRITE_EMBEDDED
@@ -268,7 +270,7 @@ You will be able to receive your streams on future versions of ZFS.
 .It Xo
 .Nm
 .Cm send
-.Op Fl DLPRcenpvw
+.Op Fl DLPRVcenpvw
 .Op Fl i Ar snapshot Ns | Ns Ar bookmark
 .Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot
 .Xc
@@ -394,7 +396,7 @@ This information includes a per-second report of how much data has been sent.
 .Nm
 .Cm send
 .Fl -redact Ar redaction_bookmark
-.Op Fl DLPcenpv
+.Op Fl DLPVcenpv
 .br
 .Op Fl i Ar snapshot Ns | Ns Ar bookmark
 .Ar snapshot
@@ -484,7 +486,7 @@ and redacted sends cannot be combined at this time.
 .It Xo
 .Nm
 .Cm send
-.Op Fl Penv
+.Op Fl PVenv
 .Fl t
 .Ar receive_resume_token
 .Xc
@@ -499,7 +501,7 @@ for more details.
 .It Xo
 .Nm
 .Cm send
-.Op Fl Pnv
+.Op Fl PVnv
 .Op Fl i Ar snapshot Ns | Ns Ar bookmark
 .Fl S
 .Ar filesystem

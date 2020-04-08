@@ -89,5 +89,7 @@ else
 libzfs_la_LDFLAGS += -version-info 2:0:0
 endif
 
+libzfs_la_LIBADD += -lm $(BSDLIB) $(LIBSSL)
+
 # Licensing data
 EXTRA_DIST = THIRDPARTYLICENSE.openssl THIRDPARTYLICENSE.openssl.descrip

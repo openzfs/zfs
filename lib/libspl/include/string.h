@@ -27,6 +27,10 @@
 #ifndef _LIBSPL_STRING_H
 #define	_LIBSPL_STRING_H
 
+#ifdef HAVE_LIBBSD
+#include <bsd/string.h>
+#endif
+
 #include_next <string.h>
 
 #ifndef HAVE_STRLCAT
