@@ -383,7 +383,7 @@ param_set_arc_long(const char *buf, zfs_kernel_param_t *kp)
 	if (error < 0)
 		return (SET_ERROR(error));
 
-	arc_tuning_update();
+	arc_tuning_update(B_TRUE);
 
 	return (0);
 }
@@ -397,7 +397,7 @@ param_set_arc_int(const char *buf, zfs_kernel_param_t *kp)
 	if (error < 0)
 		return (SET_ERROR(error));
 
-	arc_tuning_update();
+	arc_tuning_update(B_TRUE);
 
 	return (0);
 }
