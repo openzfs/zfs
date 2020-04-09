@@ -1703,11 +1703,10 @@ zvol_alloc(dev_t dev, const char *name)
 
 	mutex_init(&zv->zv_state_lock, NULL, MUTEX_DEFAULT, NULL);
 
-	zv->zv_queue = blk_alloc_queue(GFP_ATOMIC);
+	zv->zv_queue = blk_generic_alloc_queue(zvol_request, NUMA_NO_NODE);
 	if (zv->zv_queue == NULL)
 		goto out_kmem;
 
-	blk_queue_make_request(zv->zv_queue, zvol_request);
 	blk_queue_set_write_cache(zv->zv_queue, B_TRUE, B_TRUE);
 
 	/* Limit read-ahead to a single page to prevent over-prefetching. */
