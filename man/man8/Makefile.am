@@ -78,6 +78,7 @@ dist_man_MANS = \
 	zpool-trim.8 \
 	zpool-upgrade.8 \
 	zpool-wait.8 \
+	zstream.8 \
 	zstreamdump.8
 
 nodist_man_MANS = \

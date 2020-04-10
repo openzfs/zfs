@@ -80,6 +80,7 @@ AC_CONFIG_FILES([
 	cmd/zhack/Makefile
 	cmd/zinject/Makefile
 	cmd/zpool/Makefile
+	cmd/zstream/Makefile
 	cmd/zstreamdump/Makefile
 	cmd/ztest/Makefile
 	cmd/zvol_id/Makefile
