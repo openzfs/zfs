@@ -20,6 +20,7 @@ usr/lib/*/zfs/zpool.d/
 sbin/fsck.zfs
 sbin/mount.zfs
 sbin/ztest
+sbin/zstream
 sbin/zstreamdump
 sbin/zinject
 sbin/zhack
@@ -34,6 +35,7 @@ usr/sbin/arcstat
 usr/sbin/dbufstat
 usr/share/man/man1/
 usr/share/man/man5/
+usr/share/man/man8/zstream.8
 usr/share/man/man8/zstreamdump.8
 usr/share/man/man8/zpool.8
 usr/share/man/man8/zinject.8
