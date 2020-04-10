@@ -573,6 +573,11 @@ typedef enum zfs_key_location {
 #define	ZPL_VERSION_USERSPACE		ZPL_VERSION_4
 #define	ZPL_VERSION_SA			ZPL_VERSION_5
 
+/* Persistent L2ARC version */
+#define	L2ARC_PERSISTENT_VERSION_1	1ULL
+#define	L2ARC_PERSISTENT_VERSION	L2ARC_PERSISTENT_VERSION_1
+#define	L2ARC_PERSISTENT_VERSION_STRING	"1"
+
 /* Rewind policy information */
 #define	ZPOOL_NO_REWIND		1  /* No policy - default behavior */
 #define	ZPOOL_NEVER_REWIND	2  /* Do not search for best txg or rewind */

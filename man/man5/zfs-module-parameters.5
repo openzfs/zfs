@@ -87,7 +87,7 @@ Default value: \fB10\fR%.
 .ad
 .RS 12n
 Set the size of the dbuf cache, \fBdbuf_cache_max_bytes\fR, to a log2 fraction
-of the target arc size.
+of the target ARC size.
 .sp
 Default value: \fB5\fR.
 .RE
@@ -99,7 +99,7 @@ Default value: \fB5\fR.
 .ad
 .RS 12n
 Set the size of the dbuf metadata cache, \fBdbuf_metadata_cache_max_bytes\fR,
-to a log2 fraction of the target arc size.
+to a log2 fraction of the target ARC size.
 .sp
 Default value: \fB6\fR.
 .RE
@@ -179,7 +179,10 @@ Default value: \fB1\fR.
 .ad
 .RS 12n
 How far through the ARC lists to search for L2ARC cacheable content, expressed
-as a multiplier of \fBl2arc_write_max\fR
+as a multiplier of \fBl2arc_write_max\fR.
+ARC persistence across reboots can be achieved with persistent L2ARC by setting
+this parameter to \fB0\fR allowing the full length of ARC lists to be searched
+for cacheable content.
 .sp
 Default value: \fB2\fR.
 .RE
@@ -203,7 +206,7 @@ Default value: \fB200\fR%.
 .ad
 .RS 12n
 Do not write buffers to L2ARC if they were prefetched but not used by
-applications
+applications.
 .sp
 Use \fB1\fR for yes (default) and \fB0\fR to disable.
 .RE
@@ -214,7 +217,7 @@ Use \fB1\fR for yes (default) and \fB0\fR to disable.
 \fBl2arc_norw\fR (int)
 .ad
 .RS 12n
-No reads during writes
+No reads during writes.
 .sp
 Use \fB1\fR for yes and \fB0\fR for no (default).
 .RE
@@ -237,9 +240,39 @@ Default value: \fB8,388,608\fR.
 \fBl2arc_write_max\fR (ulong)
 .ad
 .RS 12n
-Max write bytes per interval
+Max write bytes per interval.
 .sp
 Default value: \fB8,388,608\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBl2arc_rebuild_enabled\fR (int)
+.ad
+.RS 12n
+Rebuild the L2ARC when importing a pool (persistent L2ARC). This can be
+disabled if there are problems importing a pool or attaching an L2ARC device
+(e.g. the L2ARC device is slow in reading stored log metadata, or the metadata
+has become somehow fragmented/unusable).
+.sp
+Use \fB1\fR for yes (default) and \fB0\fR for no.
+.RE
+
+.sp
+.ne 2
+.na
+\fBl2arc_rebuild_blocks_min_l2size\fR (ulong)
+.ad
+.RS 12n
+Min size (in bytes) of an L2ARC device required in order to write log blocks
+in it. The log blocks are used upon importing the pool to rebuild
+the L2ARC (persistent L2ARC). Rationale: for L2ARC devices less than 1GB, the
+amount of data l2arc_evict() evicts is significant compared to the amount of
+restored L2ARC data. In this case do not write log blocks in L2ARC in order not
+to waste space.
+.sp
+Default value: \fB1,073,741,824\fR (1GB).
 .RE
 
 .sp
@@ -614,7 +647,7 @@ Default value: \fB1\fR.
 .ad
 .RS 12n
 Sets the maximum number of bytes to consume during pool import to the log2
-fraction of the target arc size.
+fraction of the target ARC size.
 .sp
 Default value: \fB4\fR.
 .RE
@@ -963,7 +996,7 @@ Default value: \fB1\fR.
 \fBzfs_arc_min\fR (ulong)
 .ad
 .RS 12n
-Min arc size of ARC in bytes. If set to 0 then arc_c_min will default to
+Min size of ARC in bytes. If set to 0 then arc_c_min will default to
 consuming the larger of 32M or 1/32 of total system memory.
 .sp
 Default value: \fB0\fR.
@@ -1088,7 +1121,7 @@ Default value: \fB0\fR.
 Percent of pagecache to reclaim arc to
 
 This tunable allows ZFS arc to play more nicely with the kernel's LRU
-pagecache. It can guarantee that the arc size won't collapse under scanning
+pagecache. It can guarantee that the ARC size won't collapse under scanning
 pressure on the pagecache, yet still allows arc to be reclaimed down to
 zfs_arc_min if necessary. This value is specified as percent of pagecache
 size (as measured by NR_FILE_PAGES) where that percent may exceed 100. This
