@@ -7387,6 +7387,7 @@ print_removal_status(zpool_handle_t *zhp, pool_removal_stat_t *prs)
 			    ", (copy is slow, no estimated time)\n"));
 		}
 	}
+	free(vdev_name);
 
 	if (prs->prs_mapping_memory > 0) {
 		char mem_buf[7];
