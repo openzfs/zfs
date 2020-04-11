@@ -164,3 +164,9 @@ tags = ['functional', 'user_namespace']
 tests = ['groupspace_001_pos', 'groupspace_002_pos', 'groupspace_003_pos',
     'userquota_013_pos', 'userspace_003_pos']
 tags = ['functional', 'userquota']
+
+[tests/functional/persist_l2arc:Linux]
+tests = ['persist_l2arc_001_pos', 'persist_l2arc_002_pos',
+    'persist_l2arc_003_neg', 'persist_l2arc_004_pos', 'persist_l2arc_005_pos',
+    'persist_l2arc_006_pos', 'persist_l2arc_007_pos', 'persist_l2arc_008_pos']
+tags = ['functional', 'persist_l2arc']

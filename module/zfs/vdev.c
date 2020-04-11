@@ -2279,9 +2279,22 @@ vdev_reopen(vdev_t *vd)
 	if (vd->vdev_aux) {
 		(void) vdev_validate_aux(vd);
 		if (vdev_readable(vd) && vdev_writeable(vd) &&
-		    vd->vdev_aux == &spa->spa_l2cache &&
-		    !l2arc_vdev_present(vd))
-			l2arc_add_vdev(spa, vd);
+		    vd->vdev_aux == &spa->spa_l2cache) {
+			/*
+			 * When reopening we can assume the device label has
+			 * already the attribute l2cache_persistent, since we've
+			 * opened the device in the past and updated the label.
+			 * In case the vdev is present we should evict all ARC
+			 * buffers and pointers to log blocks and reclaim their
+			 * space before restoring its contents to L2ARC.
+			 */
+			if (l2arc_vdev_present(vd)) {
+				l2arc_rebuild_vdev(vd, B_TRUE);
+			} else {
+				l2arc_add_vdev(spa, vd);
+			}
+			spa_async_request(spa, SPA_ASYNC_L2CACHE_REBUILD);
+		}
 	} else {
 		(void) vdev_validate(vd);
 	}

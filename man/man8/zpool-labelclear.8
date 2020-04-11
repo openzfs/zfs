@@ -48,7 +48,10 @@
 .Xc
 Removes ZFS label information from the specified
 .Ar device .
-The
+If the
+.Ar device
+is a cache device, it also removes the L2ARC header
+(persistent L2ARC). The
 .Ar device
 must not be part of an active pool configuration.
 .Bl -tag -width Ds
