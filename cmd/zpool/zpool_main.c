@@ -4395,10 +4395,10 @@ print_vdev_stats(zpool_handle_t *zhp, const char *name, nvlist_t *oldnv,
 	uint64_t tdelta;
 	double scale;
 
-	calcvs = safe_malloc(sizeof (*calcvs));
-
 	if (strcmp(name, VDEV_TYPE_INDIRECT) == 0)
 		return (ret);
+
+	calcvs = safe_malloc(sizeof (*calcvs));
 
 	if (oldnv != NULL) {
 		verify(nvlist_lookup_uint64_array(oldnv,
