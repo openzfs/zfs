@@ -218,6 +218,7 @@ zfs_redup_stream(int infd, int outfd, boolean_t verbose)
 	rdt.ddecache = umem_cache_create("rde", sizeof (redup_entry_t), 0,
 	    NULL, NULL, NULL, NULL, NULL, 0);
 	rdt.numhashbits = highbit64(numbuckets) - 1;
+	rdt.ddt_count = 0;
 
 	char *buf = safe_calloc(bufsz);
 	FILE *ofp = fdopen(infd, "r");
