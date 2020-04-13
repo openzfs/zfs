@@ -34,12 +34,12 @@
 
 #
 # DESCRIPTION:
-#	Verify cache device must be a block device.
+#	Verify that cache devices can be block devices, files or character devices
 #
 # STRATEGY:
 #	1. Create a pool
 #	2. Add different object as cache
-#	3. Verify character devices and files fail
+#	3. Verify character devices and files pass
 #
 
 verify_runnable "global"
@@ -50,51 +50,55 @@ function cleanup_testenv
 	if [[ -n $lofidev ]]; then
 		if is_linux; then
 			losetup -d $lofidev
+		elif is_freebsd; then
+			mdconfig -du ${lofidev#md}
 		else
 			lofiadm -d $lofidev
 		fi
 	fi
 }
 
-log_assert "Cache device can only be block devices."
+log_assert "Verify cache devices can be disk, file, lofi device or any " \
+  "device that presents a block interface"
+
+verify_disk_count "$DISKS" 2
 log_onexit cleanup_testenv
 
 TESTVOL=testvol1$$
 dsk1=${DISKS%% *}
 log_must zpool create $TESTPOOL ${DISKS#$dsk1}
 
-# Add nomal ${DEV_RDSKDIR} device
+# Add normal ${DEV_RDSKDIR} device
 log_must zpool add $TESTPOOL cache \
-    ${DEV_RDSKDIR}/${dsk1}${SLICE_PREFIX}${SLICE0}
+    ${DEV_RDSKDIR}/${dsk1}
+log_must zpool remove $TESTPOOL ${DEV_RDSKDIR}/${dsk1}
+
+
+# Add provided disk
+log_must zpool add $TESTPOOL cache $dsk1
 log_must verify_cache_device $TESTPOOL $dsk1 'ONLINE'
+log_must zpool remove $TESTPOOL $dsk1
 
 # Add normal file
-log_mustnot zpool add $TESTPOOL cache $VDEV2
+log_must zpool add $TESTPOOL cache $VDEV
+ldev=$(random_get $VDEV)
+log_must verify_cache_device $TESTPOOL $ldev 'ONLINE'
 
-# Add /dev/rlofi device (allowed under Linux)
+# Add loop back device
 if is_linux; then
 	lofidev=$(losetup -f)
-	lofidev=${lofidev##*/}
 	log_must losetup $lofidev ${VDEV2%% *}
-	log_must zpool add $TESTPOOL cache $lofidev
-	log_must zpool remove $TESTPOOL $lofidev
-	log_must losetup -d $lofidev
-	lofidev=""
+	lofidev=${lofidev##*/}
+elif is_freebsd; then
+	lofidev=$(mdconfig -a ${VDEV2%% *})
 else
 	lofidev=${VDEV2%% *}
 	log_must lofiadm -a $lofidev
 	lofidev=$(lofiadm $lofidev)
-	log_mustnot zpool add $TESTPOOL cache "/dev/rlofi/${lofidev#/dev/lofi/}"
-	log_must lofiadm -d $lofidev
-	lofidev=""
 fi
 
-# Add /dev/zvol/rdsk device (allowed under Linux)
-if ! is_linux; then
-	log_must zpool create $TESTPOOL2 $VDEV2
-	log_must zfs create -V $SIZE $TESTPOOL2/$TESTVOL
-	log_mustnot zpool add $TESTPOOL cache \
-	    ${ZVOL_RDEVDIR}/$TESTPOOL2/$TESTVOL
-fi
+log_must zpool add $TESTPOOL cache $lofidev
+log_must verify_cache_device $TESTPOOL $lofidev 'ONLINE'
 
-log_pass "Cache device can only be block devices."
+log_pass "Verify cache devices can be disk, file, lofi device or any " \
+  "device that presents a block interface"
