@@ -10,7 +10,9 @@ pkgdracut_SCRIPTS = \
 	zfs-lib.sh
 
 pkgdracut_DATA = \
-	zfs-env-bootfs.service
+	zfs-env-bootfs.service \
+	zfs-snapshot-bootfs.service \
+	zfs-rollback-bootfs.service
 
 EXTRA_DIST = \
 	$(top_srcdir)/contrib/dracut/90zfs/export-zfs.sh.in \
@@ -21,7 +23,9 @@ EXTRA_DIST = \
 	$(top_srcdir)/contrib/dracut/90zfs/zfs-load-key.sh.in \
 	$(top_srcdir)/contrib/dracut/90zfs/zfs-needshutdown.sh.in \
 	$(top_srcdir)/contrib/dracut/90zfs/zfs-lib.sh.in \
-	$(top_srcdir)/contrib/dracut/90zfs/zfs-env-bootfs.service.in
+	$(top_srcdir)/contrib/dracut/90zfs/zfs-env-bootfs.service.in \
+	$(top_srcdir)/contrib/dracut/90zfs/zfs-snapshot-bootfs.service.in \
+	$(top_srcdir)/contrib/dracut/90zfs/zfs-rollback-bootfs.service.in
 
 $(pkgdracut_SCRIPTS) $(pkgdracut_DATA) :%:%.in
 	-$(SED) -e 's,@bindir\@,$(bindir),g' \
