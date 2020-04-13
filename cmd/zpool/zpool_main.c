@@ -4395,10 +4395,10 @@ print_vdev_stats(zpool_handle_t *zhp, const char *name, nvlist_t *oldnv,
 	uint64_t tdelta;
 	double scale;
 
-	calcvs = safe_malloc(sizeof (*calcvs));
-
 	if (strcmp(name, VDEV_TYPE_INDIRECT) == 0)
 		return (ret);
+
+	calcvs = safe_malloc(sizeof (*calcvs));
 
 	if (oldnv != NULL) {
 		verify(nvlist_lookup_uint64_array(oldnv,
@@ -7387,6 +7387,7 @@ print_removal_status(zpool_handle_t *zhp, pool_removal_stat_t *prs)
 			    ", (copy is slow, no estimated time)\n"));
 		}
 	}
+	free(vdev_name);
 
 	if (prs->prs_mapping_memory > 0) {
 		char mem_buf[7];
