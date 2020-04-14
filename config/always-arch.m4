@@ -17,7 +17,7 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_ARCH], [
 	i?86)
 		TARGET_CPU=i386
 		;;
-	x86_64)
+	amd64|x86_64)
 		TARGET_CPU=x86_64
 		;;
 	powerpc*)

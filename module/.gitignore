@@ -2,6 +2,8 @@
 *.ko.unsigned
 *.ko.out
 *.ko.out.sig
+*.ko.debug
+*.ko.full
 *.dwo
 .*.cmd
 .*.d
@@ -11,5 +13,13 @@
 /.tmp_versions
 /Module.markers
 /Module.symvers
+/vnode_if*
+/bus_if.h
+/device_if.h
+/opt_global.h
+
+/export_syms
+/machine
+/x86
 
 !Makefile.in

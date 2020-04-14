@@ -881,7 +881,7 @@ libzfs_init(void)
 		return (NULL);
 	}
 
-	if ((hdl->libzfs_fd = open(ZFS_DEV, O_RDWR)) < 0) {
+	if ((hdl->libzfs_fd = open(ZFS_DEV, O_RDWR|O_EXCL)) < 0) {
 		free(hdl);
 		return (NULL);
 	}

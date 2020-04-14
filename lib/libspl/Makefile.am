@@ -42,6 +42,15 @@ USER_C += \
 	os/linux/getmntany.c
 endif
 
+if BUILD_FREEBSD
+USER_C += \
+	os/freebsd/getexecname.c \
+	os/freebsd/gethostid.c \
+	os/freebsd/getmntany.c \
+	os/freebsd/mnttab.c
+
+endif
+
 USER_ASM = atomic.S
 
 nodist_libspl_la_SOURCES = \
