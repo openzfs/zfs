@@ -95,6 +95,8 @@ typedef struct progress_arg {
 	boolean_t pa_parsable;
 	boolean_t pa_estimate;
 	int pa_verbosity;
+	boolean_t pa_astitle;
+	uint64_t pa_size;
 } progress_arg_t;
 
 typedef struct dataref {
@@ -1072,6 +1074,7 @@ typedef struct send_dump_data {
 	boolean_t seenfrom, seento, replicate, doall, fromorigin;
 	boolean_t dryrun, parsable, progress, embed_data, std_out;
 	boolean_t large_block, compress, raw, holds;
+	boolean_t progressastitle;
 	int outfd;
 	boolean_t err;
 	nvlist_t *fss;
@@ -1264,10 +1267,17 @@ send_progress_thread(void *arg)
 	zfs_handle_t *zhp = pa->pa_zhp;
 	uint64_t bytes;
 	uint64_t blocks;
+	uint64_t total;
 	char buf[16];
 	time_t t;
 	struct tm *tm;
 	boolean_t firstloop = B_TRUE;
+
+	if (!pa->pa_parsable && !pa->pa_astitle)
+		(void) fprintf(stderr, "TIME        SENT   SNAPSHOT\n");
+
+	if (pa->pa_astitle)
+		total = pa->pa_size / 100;
 
 	/*
 	 * Print the progress from ZFS_IOC_SEND_PROGRESS every second.
@@ -1294,6 +1304,21 @@ send_progress_thread(void *arg)
 		(void) time(&t);
 		tm = localtime(&t);
 
+#ifdef HAVE_PROCTITLE
+		if (pa->pa_astitle) {
+			int pct;
+			if (total > 0)
+				pct = bytes / total;
+			else
+				pct = 100;
+			if (pct > 100)
+				pct = 100;
+
+			setproctitle("sending %s (%d%%: %llu/%llu)",
+			    zhp->zfs_name, pct, (u_longlong_t)bytes,
+			    (u_longlong_t)pa->pa_size);
+		}
+#endif
 		if (pa->pa_verbosity >= 2 && pa->pa_parsable) {
 			(void) fprintf(stderr,
 			    "%02d:%02d:%02d\t%llu\t%llu\t%s\n",
@@ -1311,10 +1336,18 @@ send_progress_thread(void *arg)
 			    tm->tm_hour, tm->tm_min, tm->tm_sec,
 			    (u_longlong_t)bytes, zhp->zfs_name);
 		} else {
-			zfs_nicebytes(bytes, buf, sizeof (buf));
-			(void) fprintf(stderr, "%02d:%02d:%02d   %5s   %s\n",
-			    tm->tm_hour, tm->tm_min, tm->tm_sec,
-			    buf, zhp->zfs_name);
+			if (pa->pa_parsable) {
+				(void) fprintf(stderr,
+				    "%02d:%02d:%02d\t%llu\t%s\n",
+				    tm->tm_hour, tm->tm_min, tm->tm_sec,
+				    (u_longlong_t)bytes, zhp->zfs_name);
+			} else {
+				zfs_nicebytes(bytes, buf, sizeof (buf));
+				(void) fprintf(stderr,
+				    "%02d:%02d:%02d   %5s   %s\n",
+				    tm->tm_hour, tm->tm_min, tm->tm_sec,
+				    buf, zhp->zfs_name);
+			}
 		}
 	}
 }
@@ -1373,7 +1406,6 @@ dump_snapshot(zfs_handle_t *zhp, void *arg)
 	int err;
 	boolean_t isfromsnap, istosnap, fromorigin;
 	boolean_t exclude = B_FALSE;
-	FILE *fout = sdd->std_out ? stdout : stderr;
 
 	err = 0;
 	thissnap = strchr(zhp->zfs_name, '@') + 1;
@@ -1463,10 +1495,6 @@ dump_snapshot(zfs_handle_t *zhp, void *arg)
 		if (zfs_send_space(zhp, zhp->zfs_name,
 		    sdd->prevsnap[0] ? fromds : NULL, flags, &size) != 0) {
 			size = 0; /* cannot estimate send space */
-		} else {
-			send_print_verbose(fout, zhp->zfs_name,
-			    sdd->prevsnap[0] ? sdd->prevsnap : NULL,
-			    size, sdd->parsable);
 		}
 		sdd->size += size;
 	}
@@ -1482,6 +1510,8 @@ dump_snapshot(zfs_handle_t *zhp, void *arg)
 			pa.pa_parsable = sdd->parsable;
 			pa.pa_estimate = B_FALSE;
 			pa.pa_verbosity = sdd->verbosity;
+			pa.pa_size = sdd->size;
+			pa.pa_astitle = sdd->progressastitle;
 
 			if ((err = pthread_create(&tid, NULL,
 			    send_progress_thread, &pa)) != 0) {
@@ -2000,6 +2030,7 @@ zfs_send_resume_impl(libzfs_handle_t *hdl, sendflags_t *flags, int outfd,
 	uint64_t *redact_snap_guids = NULL;
 	int num_redact_snaps = 0;
 	char *redact_book = NULL;
+	uint64_t size = 0;
 
 	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
 	    "cannot resume send"));
@@ -2122,6 +2153,8 @@ zfs_send_resume_impl(libzfs_handle_t *hdl, sendflags_t *flags, int outfd,
 			pa.pa_parsable = flags->parsable;
 			pa.pa_estimate = B_FALSE;
 			pa.pa_verbosity = flags->verbosity;
+			pa.pa_size = size;
+			pa.pa_astitle = flags->progressastitle;
 
 			error = pthread_create(&tid, NULL,
 			    send_progress_thread, &pa);
@@ -2569,6 +2602,7 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 	sdd.verbosity = flags->verbosity;
 	sdd.parsable = flags->parsable;
 	sdd.progress = flags->progress;
+	sdd.progressastitle = flags->progressastitle;
 	sdd.dryrun = flags->dryrun;
 	sdd.large_block = flags->largeblock;
 	sdd.embed_data = flags->embed_data;

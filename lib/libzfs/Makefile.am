@@ -85,7 +85,7 @@ else
 libzfs_la_LDFLAGS = -version-info 2:0:0
 endif
 
-libzfs_la_LIBADD += -lm $(LIBSSL)
+libzfs_la_LIBADD += -lm $(BSDLIB) $(LIBSSL)
 
 EXTRA_DIST = $(libzfs_pc_DATA) $(USER_C)
 

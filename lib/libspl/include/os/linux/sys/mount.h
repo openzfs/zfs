@@ -30,7 +30,11 @@
 #define	_LIBSPL_SYS_MOUNT_H
 
 #include <assert.h>
+#ifdef HAVE_LIBBSD
+#include <bsd/string.h>
+#else
 #include <string.h>
+#endif
 #include <stdlib.h>
 
 /*
