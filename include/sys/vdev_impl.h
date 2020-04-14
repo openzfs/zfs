@@ -442,9 +442,15 @@ typedef struct vdev_phys {
 } vdev_phys_t;
 
 typedef enum vbe_vers {
-	VB_RAW,
-	VB_NVLIST
-} vb_evers_t;
+	/* The bootenv file is stored as ascii text in the envblock */
+	VB_RAW = 0,
+
+	/*
+	 * The bootenv file is converted to an nvlist and then packed into the
+	 * envblock.
+	 */
+	VB_NVLIST = 1
+} vbe_vers_t;
 
 typedef struct vdev_boot_envblock {
 	uint64_t	vbe_version;
