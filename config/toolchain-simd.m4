@@ -3,7 +3,7 @@ dnl # Checks if host toolchain supports SIMD instructions
 dnl #
 AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_TOOLCHAIN_SIMD], [
 	case "$host_cpu" in
-		x86_64 | x86 | i686)
+		amd64 | x86_64 | x86 | i686)
 			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_SSE
 			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_SSE2
 			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_SSE3

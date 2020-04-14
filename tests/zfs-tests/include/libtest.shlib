@@ -4086,13 +4086,19 @@ function ls_xattr # path
 
 function get_arcstat # stat
 {
-	if is_linux; then
-		typeset stat=$1
+	typeset stat=$1
+
+	case $(uname) in
+	FreeBSD)
+		sysctl -n kstat.zfs.misc.arcstats.$stat
+		;;
+	Linux)
 		typeset zfs_arcstats="/proc/spl/kstat/zfs/arcstats"
 		[[ -f "$zfs_arcstats" ]] || return 1
 		grep $stat $zfs_arcstats | awk '{print $3}'
-		return $?
-	else
-		return 1
-	fi
+		;;
+	*)
+		false
+		;;
+	esac
 }

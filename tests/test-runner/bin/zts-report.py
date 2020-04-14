@@ -245,9 +245,10 @@ maybe = {
 if sys.platform.startswith('freebsd'):
     maybe.update({
         'cli_root/zfs_copies/zfs_copies_002_pos': ['FAIL', known_reason],
-        'cli_root/zpool_import/zpool_import_missing_003_pos':
-            ['FAIL', known_reason],
+        'cli_root/zfs_inherit/zfs_inherit_001_neg': ['FAIL', known_reason],
         'delegate/zfs_allow_003_pos': ['FAIL', known_reason],
+        'removal/removal_condense_export': ['FAIL', known_reason],
+        'removal/removal_with_export': ['FAIL', known_reason],
         'resilver/resilver_restart_001': ['FAIL', known_reason],
     })
 
