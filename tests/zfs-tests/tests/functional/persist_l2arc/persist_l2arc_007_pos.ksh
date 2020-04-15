@@ -72,7 +72,7 @@ log_must fio $FIO_SCRIPTS/random_reads.fio
 
 log_must zpool offline $TESTPOOL $VDEV_CACHE
 
-sleep 5
+sleep 10
 
 typeset l2_rebuild_log_blk_start=$(get_arcstat l2_rebuild_log_blks)
 
@@ -81,7 +81,7 @@ typeset l2_dh_log_blk=$(zdb -l $VDEV_CACHE | grep log_blk_count | \
 
 log_must zpool online $TESTPOOL $VDEV_CACHE
 
-sleep 5
+sleep 10
 
 typeset l2_rebuild_log_blk_end=$(get_arcstat l2_rebuild_log_blks)
 
