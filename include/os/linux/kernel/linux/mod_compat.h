@@ -54,6 +54,7 @@ enum scope_prefix_types {
 	zfs_dbuf,
 	zfs_dbuf_cache,
 	zfs_deadman,
+	zfs_dedup,
 	zfs_l2arc,
 	zfs_livelist,
 	zfs_livelist_condense,
@@ -67,13 +68,13 @@ enum scope_prefix_types {
 	zfs_send,
 	zfs_spa,
 	zfs_trim,
+	zfs_txg,
 	zfs_vdev,
 	zfs_vdev_cache,
 	zfs_vdev_mirror,
 	zfs_zevent,
 	zfs_zio,
-	zfs_zil,
-	spa
+	zfs_zil
 };
 
 /*
