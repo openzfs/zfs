@@ -27,6 +27,10 @@ AM_CFLAGS += -fPIC -Werror -Wno-unknown-pragmas -Wno-enum-conversion
 AM_CFLAGS += -include $(top_srcdir)/include/os/freebsd/spl/sys/ccompile.h
 AM_CFLAGS += -I/usr/include -I/usr/local/include
 endif
+if BUILD_MACOS
+AM_CFLAGS += \
+	-I$(top_srcdir)/lib/libspl/include/os/macos
+endif
 
 AM_CPPFLAGS += -D_GNU_SOURCE
 AM_CPPFLAGS += -D_REENTRANT
@@ -73,7 +77,6 @@ AM_LDFLAGS += -fstack-protector-strong -shared
 AM_LDFLAGS += -Wl,-x -Wl,--fatal-warnings -Wl,--warn-shared-textrel
 AM_LDFLAGS += -lm
 endif
-
 
 # If a target includes kernel code, generate warnings for large stack frames
 KERNEL_CFLAGS       = $(FRAME_LARGER_THAN)

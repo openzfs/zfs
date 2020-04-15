@@ -28,6 +28,13 @@
 
 #include "blake3_impl.h"
 
+#if defined(__APPLE__) && defined(__aarch64__)
+/* Sadly, toolchain sets this, but M1 can't compile it as-is */
+#undef __aarch64__
+#undef HAVE_SSE2
+#undef HAVE_SSE4_1
+#endif
+
 static const blake3_ops_t *const blake3_impls[] = {
 	&blake3_generic_impl,
 #if defined(__aarch64__) || \
@@ -305,7 +312,7 @@ blake3_param_set(const char *val, zfs_kernel_param_t *unused)
 	return (blake3_impl_setname(val));
 }
 
-#elif defined(__FreeBSD__)
+#elif defined(__FreeBSD__) || defined(__APPLE__)
 
 #include <sys/sbuf.h>
 
@@ -336,7 +343,12 @@ blake3_param(ZFS_MODULE_PARAM_ARGS)
 			(void) sbuf_printf(s, fmt, blake3_supp_impls[i]->name);
 		}
 
+#ifdef __APPLE__
+		err = SYSCTL_OUT(req, s->s_buf, s->s_len);
+		sbuf_finish(s);
+#else
 		err = sbuf_finish(s);
+#endif
 		sbuf_delete(s);
 
 		return (err);

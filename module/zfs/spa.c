@@ -1080,6 +1080,27 @@ spa_taskqs_init(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
 				pri++;
 #elif defined(__FreeBSD__)
 				pri += 4;
+#elif defined(__APPLE__)
+				pri -= 4;
+#if defined(_KERNEL)
+			} else {
+				/*
+				 * we want to be below maclsyspri for zio
+				 * taskqs on macOS, to avoid starving out
+				 * base=81 (maxclsyspri) kernel tasks when
+				 * doing computation-intensive checksums etc.
+				 */
+				pri -= 1;
+			}
+			/* macOS cannot handle TASKQ_DYNAMIC zio taskqs */
+
+			if ((flags & (TASKQ_DC_BATCH|TASKQ_DUTY_CYCLE)) == 0)
+				flags |= TASKQ_TIMESHARE;
+
+			if (flags & TASKQ_DYNAMIC) {
+				flags &= ~TASKQ_DYNAMIC;
+				/* fallthrough to closing brace after #endif */
+#endif
 #else
 #error "unknown OS"
 #endif
@@ -6244,11 +6265,11 @@ spa_import(char *pool, nvlist_t *config, nvlist_t *props, uint64_t flags)
 
 	spa_event_notify(spa, NULL, NULL, ESC_ZFS_POOL_IMPORT);
 
+	spa_import_os(spa);
+
 	mutex_exit(&spa_namespace_lock);
 
 	zvol_create_minors_recursive(pool);
-
-	spa_import_os(spa);
 
 	return (0);
 }

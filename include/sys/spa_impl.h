@@ -431,6 +431,9 @@ struct spa {
 	boolean_t	spa_waiters_cancel;	/* waiters should return */
 
 	char		*spa_compatibility;	/* compatibility file(s) */
+#ifdef __APPLE__
+	spa_iokit_t	*spa_iokit_proxy;	/* IOKit pool proxy */
+#endif
 
 	/*
 	 * spa_refcount & spa_config_lock must be the last elements

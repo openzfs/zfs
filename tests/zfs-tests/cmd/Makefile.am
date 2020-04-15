@@ -87,7 +87,9 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/send_doall
 	libnvpair.la
 
 scripts_zfs_tests_bin_PROGRAMS += %D%/stride_dd
+if !BUILD_MACOS
 %C%_stride_dd_LDADD = -lrt
+endif
 
 scripts_zfs_tests_bin_PROGRAMS += %D%/threadsappend
 %C%_threadsappend_LDADD = -lpthread
@@ -132,4 +134,8 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/randfree_file
 
 scripts_zfs_tests_bin_PROGRAMS += %D%/file_fadvise
 %C%_file_fadvise_SOURCES  = %D%/file/file_fadvise.c
+endif
+
+if BUILD_MACOS
+include $(srcdir)/%D%/librt/Makefile.am
 endif

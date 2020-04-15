@@ -33,6 +33,7 @@
  * Copyright (c) 2019 Datto Inc.
  * Copyright (c) 2019, loli10K <ezomori.nozomu@gmail.com>
  * Copyright (c) 2021 Matt Fiddaman
+ * Copyright (c) 2020, Jorgen Lundman <lundman@lundman.net>
  */
 
 #include <ctype.h>
@@ -2200,6 +2201,18 @@ get_numeric_property(zfs_handle_t *zhp, zfs_prop_t prop, zprop_source_t *src,
 		mntopt_off = MNTOPT_NONBMAND;
 		break;
 
+#ifdef __APPLE__ /* So they don't need to have MNTOPT_BROWSE */
+	case ZFS_PROP_BROWSE:
+		mntopt_on = MNTOPT_BROWSE;
+		mntopt_off = MNTOPT_NOBROWSE;
+		break;
+
+	case ZFS_PROP_IGNOREOWNER:
+		mntopt_on = MNTOPT_NOOWNERS;
+		mntopt_off = MNTOPT_OWNERS;
+		break;
+#endif
+
 	default:
 		break;
 	}
@@ -2236,6 +2249,10 @@ get_numeric_property(zfs_handle_t *zhp, zfs_prop_t prop, zprop_source_t *src,
 	case ZFS_PROP_SETUID:
 #ifndef __FreeBSD__
 	case ZFS_PROP_XATTR:
+#endif
+#ifdef __APPLE__
+	case ZFS_PROP_BROWSE:
+	case ZFS_PROP_IGNOREOWNER:
 #endif
 	case ZFS_PROP_NBMAND:
 		*val = getprop_uint64(zhp, prop, source);
@@ -2746,6 +2763,33 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 			    relpath[0] != '\0'))
 				str++;
 
+#ifdef __APPLE__
+			/*
+			 * On OSX by default we mount pools under /Volumes
+			 * unless the dataset property mountpoint specifies
+			 * otherwise.
+			 * In addition to this, there is an undocumented
+			 * environment variable __ZFS_MAIN_MOUNTPOINT_DIR,
+			 * used mainly by the testing environment, as it
+			 * expects "/" by default.
+			 */
+			const char *default_mountpoint;
+			default_mountpoint =
+			    getenv("__ZFS_MAIN_MOUNTPOINT_DIR");
+			if (!default_mountpoint)
+				default_mountpoint = "/Volumes/";
+
+			if (relpath[0] == '\0')
+				(void) snprintf(propbuf, proplen, "%s%s",
+				    root, str);
+			else
+				(void) snprintf(propbuf, proplen, "%s%s%s%s",
+				    root, str, source == NULL ||
+				    source[0] == '\0' ? default_mountpoint :
+				    "/", relpath);
+
+#else
+
 			if (relpath[0] == '\0')
 				(void) snprintf(propbuf, proplen, "%s%s",
 				    root, str);
@@ -2753,6 +2797,8 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 				(void) snprintf(propbuf, proplen, "%s%s%s%s",
 				    root, str, relpath[0] == '@' ? "" : "/",
 				    relpath);
+#endif /* APPLE */
+
 		} else {
 			/* 'legacy' or 'none' */
 			(void) strlcpy(propbuf, str, proplen);
@@ -3892,7 +3938,23 @@ zfs_destroy(zfs_handle_t *zhp, boolean_t defer)
 		error = lzc_destroy_snaps(nv, defer, NULL);
 		fnvlist_free(nv);
 	} else {
+
+#ifdef __APPLE__
+		/* DiskArbitrationd gets in the way a lot */
+		int retry = 0;
+		do {
+			if ((retry++) != 1) {
+				sleep(1);
+			}
+#endif
+
 		error = lzc_destroy(zhp->zfs_name);
+
+#ifdef __APPLE__
+		} while ((error == EBUSY) && (retry <= 5));
+#endif
+
+
 	}
 
 	if (error != 0 && error != ENOENT) {

@@ -131,6 +131,7 @@ typedef struct fletcher_4_func {
 
 _ZFS_FLETCHER_H const fletcher_4_ops_t fletcher_4_superscalar_ops;
 _ZFS_FLETCHER_H const fletcher_4_ops_t fletcher_4_superscalar4_ops;
+_ZFS_FLETCHER_H int fletcher_4_get(char *, size_t);
 
 #if defined(HAVE_SSE2)
 _ZFS_FLETCHER_H const fletcher_4_ops_t fletcher_4_sse2_ops;

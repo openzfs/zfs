@@ -61,7 +61,7 @@ static const raidz_impl_ops_t *const raidz_all_maths[] = {
 #if defined(__x86_64) && defined(HAVE_AVX512BW)	/* only x86_64 for now */
 	&vdev_raidz_avx512bw_impl,
 #endif
-#if defined(__aarch64__) && !defined(__FreeBSD__)
+#if defined(__aarch64__) && !defined(__FreeBSD__) && !defined(__APPLE__)
 	&vdev_raidz_aarch64_neon_impl,
 	&vdev_raidz_aarch64_neonx2_impl,
 #endif
@@ -633,7 +633,8 @@ vdev_raidz_impl_set(const char *val)
 	return (err);
 }
 
-#if defined(_KERNEL) && defined(__linux__)
+#if defined(_KERNEL)
+#if defined(__linux__) || defined(__APPLE__)
 
 static int
 zfs_vdev_raidz_impl_set(const char *val, zfs_kernel_param_t *kp)
@@ -666,6 +667,29 @@ zfs_vdev_raidz_impl_get(char *buffer, zfs_kernel_param_t *kp)
 
 	return (cnt);
 }
+
+#endif /* defined(Linux) || defined(APPLE) */
+
+#if defined(__APPLE__)
+/* get / set function */
+int
+param_zfs_vdev_raidz_impl_set(ZFS_MODULE_PARAM_ARGS)
+{
+	char buf[1024]; /* Linux module string limit */
+	int rc = 0;
+
+	/* Always fill in value before calling sysctl_handle_*() */
+	if (req->newptr == (user_addr_t)NULL)
+		(void) zfs_vdev_raidz_impl_get(buf, NULL);
+
+	rc = sysctl_handle_string(oidp, buf, sizeof (buf), req);
+	if (rc || req->newptr == (user_addr_t)NULL)
+		return (rc);
+
+	rc = vdev_raidz_impl_set(buf);
+	return (rc);
+}
+#endif /* defined(APPLE) */
 
 module_param_call(zfs_vdev_raidz_impl, zfs_vdev_raidz_impl_set,
     zfs_vdev_raidz_impl_get, NULL, 0644);

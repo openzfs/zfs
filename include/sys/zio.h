@@ -516,6 +516,10 @@ struct zio {
 	kcondvar_t	io_cv;
 	int		io_allocator;
 
+#ifdef ZIO_OS_FIELDS
+	ZIO_OS_FIELDS
+#endif
+
 	/* FMA state */
 	zio_cksum_report_t *io_cksum_report;
 	uint64_t	io_ena;

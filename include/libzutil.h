@@ -109,7 +109,11 @@ _LIBZUTIL_H void update_vdev_config_dev_strs(nvlist_t *);
  * Default device paths
  */
 #define	DISK_ROOT	"/dev"
+#ifdef __APPLE__
+#define	UDISK_ROOT	"/private/var/run/disk"
+#else
 #define	UDISK_ROOT	"/dev/disk"
+#endif
 #define	ZVOL_ROOT	"/dev/zvol"
 
 _LIBZUTIL_H int zfs_append_partition(char *path, size_t max_len);
@@ -182,9 +186,12 @@ _LIBZUTIL_H int printf_color(const char *color, const char *format, ...);
 
 _LIBZUTIL_H const char *zfs_basename(const char *path);
 _LIBZUTIL_H ssize_t zfs_dirnamelen(const char *path);
-#ifdef __linux__
+#if defined(__linux__)
 _LIBZUTIL_H void zfs_setproctitle_init(int argc, char *argv[], char *envp[]);
 _LIBZUTIL_H void zfs_setproctitle(const char *fmt, ...);
+#elif defined(__APPLE__)
+#define	zfs_setproctitle(fmt, ...)
+#define	zfs_setproctitle_init(x, y, z)	((void)0)
 #else
 #define	zfs_setproctitle(fmt, ...)	setproctitle(fmt, ##__VA_ARGS__)
 #define	zfs_setproctitle_init(x, y, z)	((void)0)

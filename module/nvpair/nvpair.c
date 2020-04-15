@@ -3250,6 +3250,34 @@ nvs_xdr_nvp_##type(XDR *xdrs, void *ptr)	\
 	return (xdr_##type(xdrs, ptr));		\
 }
 
+#elif defined(__APPLE__) && defined(_KERNEL)
+
+#define	NVS_BUILD_XDRPROC_T(type)		\
+static bool_t					\
+nvs_xdr_nvp_##type(XDR *xdrs, void *ptr)	\
+{						\
+	return (xdr_##type(xdrs, ptr));		\
+}
+
+#elif defined(__APPLE__) && defined(_KERNEL)
+
+#define	NVS_BUILD_XDRPROC_T(type)		\
+static bool_t					\
+nvs_xdr_nvp_##type(XDR *xdrs, void *ptr, ...)	\
+{						\
+	return (xdr_##type(xdrs, ptr));	\
+}
+
+#elif defined(__APPLE__) /* mac userland */
+
+#define	NVS_BUILD_XDRPROC_T(type)		\
+static bool_t					\
+nvs_xdr_nvp_##type(XDR *xdrs, void *ptr,        \
+    __unused unsigned int u)			\
+{						\
+	return (xdr_##type(xdrs, ptr));	\
+}
+
 #elif !defined(_KERNEL) && defined(XDR_CONTROL) /* tirpc */
 
 #define	NVS_BUILD_XDRPROC_T(type)		\

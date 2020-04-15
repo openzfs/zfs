@@ -1,0 +1,12 @@
+version: 1.0.{build}
+branches:
+  only:
+  - macos
+image: macOS
+build_script:
+- sh: >-
+    pwd
+    ls -l
+    sh autoconf.sh
+	./configure CPPFLAGS="-I/usr/local/opt/gettext/include -I/usr/local/opt/openssl@1.1/include" LDFLAGS="-L/usr/local/opt/gettext/lib/ -L/usr/local/opt/openssl@1.1/lib"
+	make

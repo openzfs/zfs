@@ -2418,7 +2418,12 @@
       <enumerator name='ZFS_PROP_REDACTED' value='93'/>
       <enumerator name='ZFS_PROP_REDACT_SNAPS' value='94'/>
       <enumerator name='ZFS_PROP_SNAPSHOTS_CHANGED' value='95'/>
-      <enumerator name='ZFS_NUM_PROPS' value='96'/>
+      <enumerator name='ZFS_PROP_BROWSE' value='96'/>
+      <enumerator name='ZFS_PROP_IGNOREOWNER' value='97'/>
+      <enumerator name='ZFS_PROP_LASTUNMOUNT' value='98'/>
+      <enumerator name='ZFS_PROP_MIMIC' value='99'/>
+      <enumerator name='ZFS_PROP_DEVDISK' value='100'/>
+      <enumerator name='ZFS_NUM_PROPS' value='101'/>
     </enum-decl>
     <typedef-decl name='zfs_prop_t' type-id='4b000d60' id='58603c44'/>
     <enum-decl name='zfs_userquota_prop_t' naming-typedef-id='279fde6a' id='5258d2f6'>

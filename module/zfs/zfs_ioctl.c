@@ -6984,7 +6984,7 @@ zfs_ioctl_register(const char *name, zfs_ioc_t ioc, zfs_ioc_func_t *func,
 	vec->zvec_nvl_key_count = num_keys;
 }
 
-static void
+void
 zfs_ioctl_register_pool(zfs_ioc_t ioc, zfs_ioc_legacy_func_t *func,
     zfs_secpolicy_func_t *secpolicy, boolean_t log_history,
     zfs_ioc_poolcheck_t pool_check)

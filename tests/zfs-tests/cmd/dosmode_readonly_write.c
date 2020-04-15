@@ -41,6 +41,12 @@
 #include <sys/fs/zfs.h>
 #endif
 
+#ifdef __APPLE__
+#ifndef UF_READONLY
+#define	UF_READONLY UF_IMMUTABLE
+#endif
+#endif
+
 int
 main(int argc, const char *argv[])
 {
@@ -56,6 +62,7 @@ main(int argc, const char *argv[])
 	fd = open(path, O_CREAT|O_RDWR, 0777);
 	if (fd == -1)
 		err(EXIT_FAILURE, "%s: open failed", path);
+
 #ifdef __linux__
 	uint64_t dosflags = ZFS_READONLY;
 	if (ioctl(fd, ZFS_IOC_SETDOSFLAGS, &dosflags) == -1)

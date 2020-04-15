@@ -1909,8 +1909,8 @@ zio_taskq_dispatch(zio_t *zio, zio_taskq_type_t q, boolean_t cutinline)
 	 * to dispatch the zio to another taskq at the same time.
 	 */
 	ASSERT(taskq_empty_ent(&zio->io_tqent));
-	spa_taskq_dispatch_ent(spa, t, q, zio_execute, zio, flags,
-	    &zio->io_tqent);
+	spa_taskq_dispatch_ent(spa, t, q, zio_execute, zio,
+	    flags, &zio->io_tqent);
 }
 
 static boolean_t

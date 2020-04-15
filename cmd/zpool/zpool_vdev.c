@@ -66,6 +66,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <libgen.h>
 #include <libintl.h>
 #include <libnvpair.h>
 #include <libzutil.h>
@@ -272,6 +273,9 @@ static nvlist_t *
 make_leaf_vdev(nvlist_t *props, const char *arg, boolean_t is_primary)
 {
 	char path[MAXPATHLEN];
+	char *d, *b;
+	char *dpath;
+	const char *bname;
 	struct stat64 statbuf;
 	nvlist_t *vdev = NULL;
 	const char *type = NULL;
@@ -307,8 +311,29 @@ make_leaf_vdev(nvlist_t *props, const char *arg, boolean_t is_primary)
 			return (NULL);
 		}
 
-		/* After whole disk check restore original passed path */
-		strlcpy(path, arg, sizeof (path));
+		/*
+		 * After whole disk check restore original passed path and use
+		 * the realpath of the directory.
+		 */
+		d = strdup(arg);
+		b = strdup(arg);
+		int idx = zfs_dirnamelen(d);
+		if (idx != -1)
+			d[idx] = 0;
+		dpath = d;
+		bname = zfs_basename(b);
+		if (realpath(dpath, path) == NULL) {
+			free(d);
+			free(b);
+			(void) fprintf(stderr,
+			    gettext("cannot resolve path '%s'\n"), dpath);
+			return (NULL);
+		}
+
+		strlcat(path, "/", sizeof (path));
+		strlcat(path, bname, sizeof (path));
+		free(d);
+		free(b);
 	} else if (zpool_is_draid_spare(arg)) {
 		if (!is_primary) {
 			(void) fprintf(stderr,

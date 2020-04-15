@@ -850,9 +850,17 @@ metaslab_group_create(metaslab_class_t *mc, vdev_t *vd, int allocators)
 		metaslab_group_allocator_t *mga = &mg->mg_allocator[i];
 		zfs_refcount_create_tracked(&mga->mga_alloc_queue_depth);
 	}
-
+#ifdef __APPLE__
+#ifndef _KERNEL
+#define	TASKQ_REALLY_DYNAMIC 0x0
+#endif
+	mg->mg_taskq = taskq_create("metaslab_group_taskq", metaslab_load_pct,
+	    maxclsyspri, 10, INT_MAX, TASKQ_THREADS_CPU_PCT | TASKQ_DYNAMIC
+	    | TASKQ_REALLY_DYNAMIC);
+#else
 	mg->mg_taskq = taskq_create("metaslab_group_taskq", metaslab_load_pct,
 	    maxclsyspri, 10, INT_MAX, TASKQ_THREADS_CPU_PCT | TASKQ_DYNAMIC);
+#endif
 
 	return (mg);
 }

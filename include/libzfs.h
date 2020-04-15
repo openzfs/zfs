@@ -968,6 +968,7 @@ _LIBZFS_H int zpool_enable_datasets(zpool_handle_t *, const char *, int);
 _LIBZFS_H int zpool_disable_datasets(zpool_handle_t *, boolean_t);
 _LIBZFS_H void zpool_disable_datasets_os(zpool_handle_t *, boolean_t);
 _LIBZFS_H void zpool_disable_volume_os(const char *);
+_LIBZFS_H void zfs_rollback_os(struct zfs_handle *);
 
 /*
  * Parse a features file for -o compatibility
@@ -1004,8 +1005,24 @@ _LIBZFS_H int zpool_nextboot(libzfs_handle_t *, uint64_t, uint64_t,
  * Add or delete the given filesystem to/from the given user namespace.
  */
 _LIBZFS_H int zfs_userns(zfs_handle_t *zhp, const char *nspath, int attach);
-
 #endif
+
+#ifdef __APPLE__
+_LIBZFS_H int zfs_snapshot_mount(zfs_handle_t *, const char *, int);
+_LIBZFS_H int zfs_snapshot_unmount(zfs_handle_t *, int);
+/* We moved these from libspl to libzfs to be able to do more */
+_LIBZFS_H int getmntent(FILE *, struct mnttab *);
+_LIBZFS_H char *hasmntopt(struct mnttab *, const char *);
+_LIBZFS_H int getextmntent(const char *, struct extmnttab *,
+    struct stat64 *);
+_LIBZFS_H int do_mount(zfs_handle_t *, const char *, const char *, int);
+#endif
+
+/*
+ * Manual mounting of snapshots.
+ */
+extern int zfs_snapshot_mount(zfs_handle_t *, const char *, int);
+extern int zfs_snapshot_unmount(zfs_handle_t *, int);
 
 #ifdef	__cplusplus
 }

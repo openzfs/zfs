@@ -28,6 +28,12 @@ libzutil_la_SOURCES += \
 	%D%/os/freebsd/zutil_import_os.c
 endif
 
+if BUILD_MACOS
+libzutil_la_SOURCES += \
+	%D%/os/macos/zutil_device_path_os.c \
+	%D%/os/macos/zutil_import_os.c
+endif
+
 libzutil_la_LIBADD = \
 	libavl.la \
 	libtpool.la \
@@ -38,6 +44,11 @@ if BUILD_LINUX
 libzutil_la_LIBADD += \
 	libefi.la \
 	-lrt
+endif
+
+if BUILD_MACOS
+libzutil_la_LIBADD += \
+        libefi.la
 endif
 
 libzutil_la_LIBADD += -lm $(LIBBLKID_LIBS) $(LIBUDEV_LIBS)

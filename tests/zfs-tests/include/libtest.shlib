@@ -103,6 +103,30 @@ function is_freebsd
 	[ "$UNAME" = "FreeBSD" ]
 }
 
+# Determine if this is a macOS test system
+#
+# Return 0 if platform macOS, 1 if otherwise
+
+function is_macos
+{
+	[ "$UNAME" = "Darwin" ]
+}
+
+# Determine if this is a DilOS test system
+#
+# Return 0 if platform DilOS, 1 if otherwise
+
+function is_dilos
+{
+	typeset ID=""
+	[[ -f /etc/os-release ]] && . /etc/os-release
+	if [[ $ID == "dilos" ]]; then
+		return 0
+	else
+		return 1
+	fi
+}
+
 # Determine if this is a 32-bit system
 #
 # Return 0 if platform is 32-bit, 1 if otherwise
@@ -162,6 +186,14 @@ function ismounted
 		ext*)
 			df -t $fstype $1 > /dev/null 2>&1
 		;;
+		hfs)
+			out=$(df -T $fstype $1 | sed -e /^Filesystem/d 2>/dev/null)
+			ret=$?
+			(($ret != 0)) && return $ret
+			dir=$(echo $out | awk '{print $9}')
+			name=$(echo $out | awk '{print $1}')
+			[[ "$1" == "$dir" || "/private${1}" == "$dir" || "$1" == "$name" ]] && return 0
+        ;;
 		zvol)
 			if [[ -L "$ZVOL_DEVDIR/$1" ]]; then
 				link=$(readlink -f $ZVOL_DEVDIR/$1)
@@ -751,6 +783,8 @@ function zero_partitions #<whole_disk_name>
 
 	if is_freebsd; then
 		gpart destroy -F $diskname
+	elif is_macos; then
+		set_partition 0 "" 0mb $diskname
 	elif is_linux; then
 		DSK=$DEV_DSKDIR/$diskname
 		DSK=$(echo $DSK | sed -e "s|//|/|g")
@@ -861,6 +895,41 @@ function set_partition
 
 		block_device_wait $disk
 		;;
+
+	Darwin)
+		if [[ -z $size || -z $disk ]]; then
+			log_fail "The size or disk name is unspecified."
+		fi
+		log_note diskutil info $disk | grep "Block Size:"
+		typeset -i sector_size=$(diskutil info $disk | grep "Block Size:" | awk '{print $4}')
+
+		# To create slice "0" erase this gpt, recreate, and add EFI partition.
+		if [[ $slicenum == 0 ]]; then
+		   log_must gpt destroy $disk
+		   log_must gpt create $disk
+		fi
+
+		typeset size_mb=${size%%[mMgG]}
+
+                size_mb=${size_mb%%[mMgG][bB]}
+		if [[ ${size:1:1} == 'g' ]]; then
+		   ((size_mb = size_mb * 1024))
+		fi
+
+		typeset bytes
+		bytes=size_mb * 1024
+
+		# Dont create zero sized partitions
+		[[ $bytes == 0 ]] && return 0
+
+		# Convert to a sector count
+		typeset sectors=$(( $bytes / $sector_size ))
+
+		# Add partition as "ZFS" - hopefully prevent DiskArbitrator popup.
+		log_must gpt add -s $sectors -t "6A898CC3-1DD2-11B2-99A6-080020736631" $disk
+		typeset ret_val=$?
+		;;
+
 	*)
 		if [[ -z $slicenum || -z $size || -z $disk ]]; then
 			log_fail "The slice, size or disk name is unspecified."
@@ -953,6 +1022,10 @@ function get_endslice #<disk> <slice>
 		endcyl=$(gpart show $disk | \
 			awk -v slice=$slice '$3 == slice { print $1 + $2 }')
 		;;
+	Darwin)
+		# OSX we just append partitions, so return rubbish
+		endcyl=0;
+		;;
 	*)
 		disk=${disk#/dev/dsk/}
 		disk=${disk#/dev/rdsk/}
@@ -989,6 +1062,15 @@ function partition_disk	#<slice_size> <whole_disk_name>	<total_slices>
 	typeset disk_name=$2
 	typeset total_slices=$3
 	typeset cyl
+
+	if is_macos; then
+		#OSX we ignore the start cylinder and just let gpt add a new partition
+		while ((i < $total_slices)); do
+	   		 set_partition $i "" $slice_size $disk_name
+			 ((i = i+1))
+		done
+		return
+	fi
 
 	zero_partitions $disk_name
 	while ((i < $total_slices)); do
@@ -1154,6 +1236,24 @@ function is_shared_linux
 	! exportfs -s | awk -v fs="${fs//\\/\\\\}" '/^\// && $1 == fs {exit 1}'
 }
 
+function is_shared_macos
+{
+	typeset fs=$1
+
+	for mtpt in `$CAT /etc/exports | $SED 's/\"//g' | $AWK '{ print $1 }'` ; do
+		if [[ $mtpt == $fs ]] ; then
+			log_note "filesystem ==>${fs}<== is shared"
+			return 0
+		fi
+	done
+
+	typeset stat=$(/sbin/nfsd status)
+	if ! [[ $stat =~ "enabled" ]]; then
+		log_note "Current nfs/server status: $stat"
+	fi
+	return 1
+}
+
 #
 # Given a mountpoint, or a dataset name, determine if it is shared via NFS.
 #
@@ -1181,6 +1281,7 @@ function is_shared
 	case "$UNAME" in
 	FreeBSD)	is_shared_freebsd "$fs"	;;
 	Linux)		is_shared_linux "$fs"	;;
+	Darwin)		is_shared_macos "$fs"	;;
 	*)		is_shared_illumos "$fs"	;;
 	esac
 }
@@ -1351,6 +1452,12 @@ function unshare_nfs #fs
 		log_must mv /etc/zfs/exports.$$ /etc/zfs/exports
 		log_must kill -s HUP "$mountd"
 		;;
+	Darwin)
+		/sbin/nfsd update
+		if [[ $? != 0 ]]; then
+			/sbin/nfsd start
+		fi
+		;;
 	*)
 		log_must unshare -F nfs $fs
 		;;
@@ -1401,6 +1508,11 @@ function setup_nfs_server
 	#
 	if ! is_global_zone; then
 		log_note "Cannot trigger NFS server by sharing in LZ."
+		return
+	fi
+
+	if is_macos; then
+		/sbin/nfsd start
 		return
 	fi
 
@@ -1465,7 +1577,7 @@ function setup_nfs_server
 #
 function is_global_zone
 {
-	if is_linux || is_freebsd; then
+	if is_macos || is_linux || is_freebsd; then
 		return 0
 	else
 		typeset cur_zone=$(zonename 2>/dev/null)
@@ -2049,7 +2161,7 @@ function cleanup_devices #vdevs
 function find_disks
 {
 	# Trust provided list, no attempt is made to locate unused devices.
-	if is_linux || is_freebsd; then
+	if is_macos || is_linux || is_freebsd; then
 		echo "$@"
 		return
 	fi
@@ -2212,6 +2324,60 @@ function del_group_freebsd #<group_name>
 	return 0
 }
 
+function add_user_macos #<group_name> <user_name> <basedir>
+{
+	typeset group=$1
+	typeset user=$2
+	typeset basedir=$3
+
+	# Find out the next available user ID
+	typeset -i maxid=$(dscl . -list /Users UniqueID | awk '{print $2}' | sort -ug | tail -1)
+	typeset -i userid=$((maxid+1))
+
+	# Create the user account by running dscl.
+	log_must dscl . -create /Users/$user
+	log_must dscl . -create /Users/$user UserShell /bin/bash
+	log_must dscl . -create /Users/$user RealName "$user"
+	log_must dscl . -create /Users/$user UniqueID "$userid"
+	log_must dscl . -create /Users/$user PrimaryGroupID 20
+	log_must dscl . -create /Users/$user NFSHomeDirectory $basedir/$user
+	# log_must dscl . -passwd /Users/$user $password
+
+	log_must dseditgroup -o edit -t user -a $user $group
+
+	# Create the home directory
+	log_must createhomedir -l -u $user 2>&1 | grep -v "shell-init"
+
+	return 0
+}
+
+function del_user_macos #<logname>
+{
+	typeset user=$1
+
+	if $ID $user > /dev/null 2>&1; then
+		log_must dscl . -delete /Users/$user
+	fi
+
+	return 0
+}
+
+function add_group_macos #<group_name>
+{
+	typeset group=$1
+
+	/usr/sbin/dseditgroup -o create $group
+	return 0
+}
+
+function del_group_macos #<group_name>
+{
+	typeset group=$1
+
+	/usr/sbin/dseditgroup -o delete $group
+	return 0
+}
+
 function add_user_illumos #<group_name> <user_name> <basedir>
 {
 	typeset group=$1
@@ -2345,6 +2511,9 @@ function add_user #<group_name> <user_name> <basedir>
 	Linux)
 		add_user_linux "$group" "$user" "$basedir"
 		;;
+	Darwin)
+		add_user_macos "$group" "$user" "$basedir"
+		;;
 	*)
 		add_user_illumos "$group" "$user" "$basedir"
 		;;
@@ -2374,6 +2543,9 @@ function del_user #<logname> <basedir>
 		;;
 	Linux)
 		del_user_linux "$user"
+		;;
+	Darwin)
+		del_user_macos "$user"
 		;;
 	*)
 		del_user_illumos "$user"
@@ -2405,6 +2577,9 @@ function add_group #<group_name>
 	Linux)
 		add_group_linux "$group"
 		;;
+	Darwin)
+		add_group_macos "$group"
+		;;
 	*)
 		add_group_illumos "$group"
 		;;
@@ -2432,6 +2607,9 @@ function del_group #<group_name>
 		;;
 	Linux)
 		del_group_linux "$group"
+		;;
+	Darwin)
+		del_group_macos "$group"
 		;;
 	*)
 		del_group_illumos "$group"
@@ -2777,6 +2955,8 @@ function get_num_cpus
 		grep -c '^processor' /proc/cpuinfo
 	elif is_freebsd; then
 		sysctl -n kern.smp.cpus
+	elif is_macos; then
+		sysctl -n hw.ncpu
 	else
 		psrinfo | wc -l
 	fi
@@ -2790,7 +2970,9 @@ function is_mp
 
 function get_cpu_freq
 {
-	if is_linux; then
+	if is_macos; then
+		sysctl -n hw.cpufrequency
+	elif is_linux; then
 		lscpu | awk '/CPU MHz/ { print $3 }'
 	elif is_freebsd; then
 		sysctl -n hw.clockrate
@@ -2919,7 +3101,7 @@ function get_objnum
 	typeset objnum
 
 	[[ -e $pathname ]] || log_fail "No such file or directory: $pathname"
-	if is_freebsd; then
+	if is_freebsd || is_macos; then
 		objnum=$(stat -f "%i" $pathname)
 	else
 		objnum=$(stat -c %i $pathname)
@@ -3028,7 +3210,7 @@ function zed_rc_restore
 # $@ Optional list of zedlets to run under zed.
 function zed_setup
 {
-	if ! is_linux; then
+	if ! is_linux && ! is_macos; then
 		log_unsupported "No zed on $UNAME"
 	fi
 
@@ -3075,7 +3257,7 @@ function zed_setup
 # $@ Optional list of zedlets to remove from our test zed.d directory.
 function zed_cleanup
 {
-	if ! is_linux; then
+	if ! is_linux && ! is_macos; then
 		return
 	fi
 
@@ -3105,7 +3287,7 @@ function zed_check
 #
 function zed_start
 {
-	if ! is_linux; then
+	if ! is_linux && ! is_macos; then
 		return
 	fi
 
@@ -3140,7 +3322,7 @@ function zed_start
 #
 function zed_stop
 {
-	if ! is_linux; then
+	if ! is_linux && ! is_macos; then
 		return ""
 	fi
 
@@ -3202,10 +3384,16 @@ function is_swap_inuse
 	FreeBSD)
 		swapctl -l | grep -wq $device
 		;;
+	Darwin)
+		# No swap devices on macOS
+		true
+		;;
 	*)
 		swap -l | grep -wq $device
 		;;
 	esac
+
+	return $?
 }
 
 #
@@ -3222,6 +3410,8 @@ function swap_setup
 		;;
 	FreeBSD)
 		log_must swapctl -a $swapdev
+		;;
+	Darwin)
 		;;
 	*)
     log_must swap -a $swapdev
@@ -3243,6 +3433,8 @@ function swap_cleanup
 			log_must swapoff $swapdev
 		elif is_freebsd; then
 			log_must swapoff $swapdev
+		elif is_macos; then
+			return 0
 		else
 			log_must swap -d $swapdev
 		fi
@@ -3302,6 +3494,10 @@ function set_tunable_impl
 	FreeBSD)
 		sysctl vfs.zfs.$tunable=$value
 		;;
+	Darwin)
+		sysctl kstat.zfs.darwin.tunable.$tunable=$value
+		return "$?"
+		;;
 	SunOS)
 		echo "${tunable}/${mdb_cmd}0t${value}" | mdb -kw
 		;;
@@ -3352,6 +3548,9 @@ function get_tunable_impl
 	FreeBSD)
 		sysctl -n vfs.zfs.$tunable
 		;;
+	Darwin)
+		sysctl -n kstat.zfs.darwin.tunable.$tunable
+		;;
 	SunOS)
 		[[ "$module" -eq "zfs" ]] || return 1
 		;;
@@ -3378,6 +3577,9 @@ function md5digest
 	FreeBSD)
 		md5 -q $file
 		;;
+	Darwin)
+		md5 -q $file
+		;;
 	*)
 		typeset sum _
 		read -r sum _ < <(md5sum -b $file)
@@ -3398,6 +3600,9 @@ function sha256digest
 	FreeBSD)
 		sha256 -q $file
 		;;
+	Darwin)
+		shasum -a 256 -p $file
+		;;
 	*)
 		typeset sum _
 		read -r sum _ < <(sha256sum -b $file)
@@ -3412,6 +3617,9 @@ function new_fs #<args>
 	FreeBSD)
 		newfs "$@"
 		;;
+	Darwin)
+		newfs_hfs "$@"
+		;;
 	*)
 		echo y | newfs -v "$@"
 		;;
@@ -3424,6 +3632,9 @@ function stat_size #<path>
 
 	case "$UNAME" in
 	FreeBSD)
+		stat -f %z "$path"
+		;;
+	Darwin)
 		stat -f %z "$path"
 		;;
 	*)
@@ -3496,7 +3707,7 @@ function stat_generation #<path>
 #
 function faketty
 {
-    if is_freebsd; then
+    if is_freebsd || is_macos; then
         script -q /dev/null env "$@"
     else
         script --return --quiet -c "$*" /dev/null
@@ -3527,6 +3738,10 @@ function get_xattr # name path
 	FreeBSD)
 		getextattr -qq user "${name}" "${path}"
 		;;
+	Darwin)
+		xattr -px "${name}" "${path}" > /dev/null &&
+		      xattr -px "${name}" "${path}" | xxd -r -p
+		;;
 	*)
 		attr -qg "${name}" "${path}"
 		;;
@@ -3543,6 +3758,9 @@ function set_xattr # name value path
 	FreeBSD)
 		setextattr user "${name}" "${value}" "${path}"
 		;;
+	Darwin)
+		xattr -wx "${name}" "`echo ${value} | xxd -p -`" "${path}"
+		;;
 	*)
 		attr -qs "${name}" -V "${value}" "${path}"
 		;;
@@ -3557,6 +3775,9 @@ function set_xattr_stdin # name value
 	case "$UNAME" in
 	FreeBSD)
 		setextattr -i user "${name}" "${path}"
+		;;
+	Darwin)
+		xattr -wx "${name}" "`xxd -p -`" "${path}"
 		;;
 	*)
 		attr -qs "${name}" "${path}"
@@ -3573,6 +3794,9 @@ function rm_xattr # name path
 	FreeBSD)
 		rmextattr -q user "${name}" "${path}"
 		;;
+	Darwin)
+		xattr -d "${name}" "${path}"
+		;;
 	*)
 		attr -qr "${name}" "${path}"
 		;;
@@ -3586,6 +3810,9 @@ function ls_xattr # path
 	case "$UNAME" in
 	FreeBSD)
 		lsextattr -qq user "${path}"
+		;;
+	Darwin)
+		xattr "${path}"
 		;;
 	*)
 		attr -ql "${path}"
@@ -3618,6 +3845,9 @@ function get_arcstat # stat
 	case "$UNAME" in
 	FreeBSD)
 		kstat arcstats.$stat
+		;;
+	Darwin)
+		sysctl -n kstat.zfs.misc.arcstats.$stat
 		;;
 	Linux)
 		kstat arcstats | awk "/$stat/"' { print $3 }'
@@ -3822,6 +4052,10 @@ function push_coredump_pattern # dir
 		sysctl -n kern.corefile
 		sysctl kern.corefile="$1/core.%N" >/dev/null
 		;;
+	Darwin)
+		sysctl -n kern.corefile
+		sysctl kern.corefile="$1/core.%N" >/dev/null
+		;;
 	*)
 		# Nothing to output – set only for this shell
 		coreadm -p "$1/core.%f"
@@ -3845,5 +4079,42 @@ function pop_coredump_pattern
 	FreeBSD)
 		sysctl kern.corefile="$(<"$1")" >/dev/null
 		;;
+	Darwin)
+		sysctl kern.corefile="$(<"$1")" >/dev/null
+		;;
 	esac
+}
+
+function disable_spotlight # pool
+{
+	if is_macos; then
+		typeset pool=$1
+		typeset mntpnt=$(get_prop mountpoint $pool)
+		mdutil -i off $mntpnt
+		mdutil -E $mntpnt
+	fi
+}
+
+function enable_spotlight # pool
+{
+	if is_macos; then
+		typeset pool=$1
+		typeset mntpnt=$(get_prop mountpoint $pool)
+		mdutil -i on $mntpnt
+		mdutil -E $mntpnt
+	fi
+}
+
+function disable_mds
+{
+	if is_macos; then
+		launchctl unload -w /System/Library/LaunchDaemons/com.apple.metadata.mds.plist
+	fi
+}
+
+function enable_mds
+{
+	if is_macos; then
+		launchctl load -w /System/Library/LaunchDaemons/com.apple.metadata.mds.plist
+	fi
 }

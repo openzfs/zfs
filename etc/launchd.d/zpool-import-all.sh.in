@@ -1,0 +1,60 @@
+#!/bin/bash
+
+echo "+zpool-import-all.sh"
+date
+export ZPOOL_IMPORT_ALL_COOKIE=/var/run/org.openzfsonosx.zpool-import-all.didRun
+export INVARIANT_DISKS_IDLE_FILE=/var/run/disk/invariant.idle
+export TIMEOUT_SECONDS=60
+export MAXIMUM_SLEEP_ITERATIONS=$((${TIMEOUT_SECONDS} * 10))
+
+/usr/bin/time /usr/sbin/system_profiler SPParallelATADataType SPCardReaderDataType SPFibreChannelDataType SPFireWireDataType SPHardwareRAIDDataType SPNetworkDataType SPPCIDataType SPParallelSCSIDataType SPSASDataType SPSerialATADataType SPStorageDataType SPThunderboltDataType SPUSBDataType SPNetworkVolumeDataType 1>/dev/null 2>&1
+
+/bin/sync
+
+echo "Waiting up to ${TIMEOUT_SECONDS} seconds for the InvariantDisks idle file ${INVARIANT_DISKS_IDLE_FILE} to exist"
+
+i=0
+while [ "${i}" -lt "${MAXIMUM_SLEEP_ITERATIONS}" -a ! -e "${INVARIANT_DISKS_IDLE_FILE}" ]
+do
+	i=$((i+1))
+	sleep .1
+done
+
+if [ -e "${INVARIANT_DISKS_IDLE_FILE}" ]
+then
+	echo "Found ${INVARIANT_DISKS_IDLE_FILE} after ${i} iterations of sleeping 0.1 seconds"
+else
+	echo "File ${INVARIANT_DISKS_IDLE_FILE} not found within ${TIMEOUT_SECONDS} seconds"
+fi
+date
+
+if [ -f "@sysconfdir@/zfs/zsysctl.conf" ]; then
+    @sbindir@/zsysctl -f @sysconfdir@/zfs/zsysctl.conf
+fi
+
+# check to see if we have been instructed not to try to import at all
+if [ -f /etc/zfs/noautoimport ];
+then
+    echo "/etc/zfs/noautoimport exits, exiting";
+    exit 0;
+fi
+
+date
+echo "-zpool-import-all.sh"
+
+sleep 10
+echo "Loading and starting org.openzfsonosx.zpool-import"
+date
+
+/bin/launchctl load /Library/LaunchDaemons/org.openzfsonosx.zpool-import.plist
+/bin/launchctl kickstart system/org.openzfsonosx.zpool-import
+
+echo Status: $?
+
+echo "Touching the file ${ZPOOL_IMPORT_ALL_COOKIE}"
+touch "${ZPOOL_IMPORT_ALL_COOKIE}"
+
+date
+echo "-zpool-import-all.sh"
+
+exit 0

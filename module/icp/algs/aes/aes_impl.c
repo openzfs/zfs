@@ -404,7 +404,8 @@ aes_impl_set(const char *val)
 	return (err);
 }
 
-#if defined(_KERNEL) && defined(__linux__)
+#if defined(_KERNEL)
+#if defined(__linux__) || defined(__APPLE__)
 
 static int
 icp_aes_impl_set(const char *val, zfs_kernel_param_t *kp)
@@ -437,6 +438,28 @@ icp_aes_impl_get(char *buffer, zfs_kernel_param_t *kp)
 
 	return (cnt);
 }
+#endif /* defined(Linux) || defined(APPLE) */
+
+#if defined(__APPLE__)
+/* get / set function */
+int
+param_icp_aes_impl_set(ZFS_MODULE_PARAM_ARGS)
+{
+	char buf[1024]; /* Linux module string limit */
+	int rc = 0;
+
+	/* Always fill in value before calling sysctl_handle_*() */
+	if (req->newptr == (user_addr_t)NULL)
+		(void) icp_aes_impl_get(buf, NULL);
+
+	rc = sysctl_handle_string(oidp, buf, sizeof (buf), req);
+	if (rc || req->newptr == (user_addr_t)NULL)
+		return (rc);
+
+	rc = aes_impl_set(buf);
+	return (rc);
+}
+#endif /* defined(APPLE) */
 
 module_param_call(icp_aes_impl, icp_aes_impl_set, icp_aes_impl_get,
     NULL, 0644);

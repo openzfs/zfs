@@ -39,9 +39,12 @@
 	.type	sym,#function; \
 sym:
 
+#ifdef __APPLE__
+#define	END(sym)
+#else
 #define	END(sym) \
 	.size	sym, . - sym
-
+#endif
 
 ENTRY(setjmp)
 	/* Store the stack pointer */

@@ -28,6 +28,10 @@ AC_DEFUN([ZFS_AC_CONFIG_KERNEL], [
 
 		AC_SUBST(KERNEL_MAKE)
 	])
+	AM_COND_IF([BUILD_MACOS], [
+		ZFS_AC_KERNEL_SRC_MACOS_HEADERS
+		ZFS_AC_CONFIG_ALWAYS_CC_FRAME_LARGER_THAN
+	])
 ])
 
 dnl #
@@ -336,6 +340,7 @@ dnl #     and `/usr/src/linux-*` with the highest version number according
 dnl #     to `sort -V` is assumed to be both source and build directory.
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL], [
+
 	AC_ARG_WITH([linux],
 		AS_HELP_STRING([--with-linux=PATH],
 		[Path to kernel source]),
@@ -345,6 +350,15 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 		AS_HELP_STRING([--with-linux-obj=PATH],
 		[Path to kernel build objects]),
 		[kernelbuild="$withval"])
+
+	AC_ARG_WITH([macos],
+		AS_HELP_STRING([--with-macos=PATH],
+		[Path to macOS source]),
+		[kernelsrc="$withval/sys"])
+	AC_ARG_WITH(macos-obj,
+		AS_HELP_STRING([--with-macos-obj=PATH],
+		[Path to macOS build objects]),
+		[kernelbuild="$withval/$kernelsrc"])
 
 	AC_MSG_CHECKING([kernel source and build directories])
 	AS_IF([test -n "$kernelsrc" && test -z "$kernelbuild"], [
@@ -409,7 +423,8 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 	*** Please make sure the kernel devel package for your distribution
 	*** is installed and then try again.  If that fails, you can specify the
 	*** location of the kernel source and build with the '--with-linux=PATH' and
-	*** '--with-linux-obj=PATH' options respectively.])
+	*** '--with-linux-obj=PATH' options respectively.
+	*** If you are configuring for macOS, use '--with-macos=PATH'.])
 	])
 
 	AC_MSG_CHECKING([kernel source version])
@@ -560,9 +575,9 @@ dnl # ZFS_LINUX_CONFTEST_H
 dnl #
 AC_DEFUN([ZFS_LINUX_CONFTEST_H], [
 test -d build/$2 || mkdir -p build/$2
-cat - <<_ACEOF >build/$2/$2.h
+cat - <<_ACEOF1 >build/$2/$2.h
 $1
-_ACEOF
+_ACEOF1
 ])
 
 dnl #
@@ -570,9 +585,9 @@ dnl # ZFS_LINUX_CONFTEST_C
 dnl #
 AC_DEFUN([ZFS_LINUX_CONFTEST_C], [
 test -d build/$2 || mkdir -p build/$2
-cat confdefs.h - <<_ACEOF >build/$2/$2.c
+cat confdefs.h - <<_ACEOF2 >build/$2/$2.c
 $1
-_ACEOF
+_ACEOF2
 ])
 
 dnl #
@@ -589,12 +604,12 @@ AC_DEFUN([ZFS_LINUX_CONFTEST_MAKEFILE], [
 	file=build/$1/Makefile
 
 	dnl # Example command line to manually build source.
-	cat - <<_ACEOF >$file
+	cat - <<_ACEOF3 >$file
 # Example command line to manually build source
 # make modules -C $LINUX_OBJ $ARCH_UM M=$PWD/build/$1
 
 ccflags-y := -Werror $FRAME_LARGER_THAN
-_ACEOF
+_ACEOF3
 
 	dnl # Additional custom CFLAGS as requested.
 	m4_ifval($3, [echo "ccflags-y += $3" >>$file], [])

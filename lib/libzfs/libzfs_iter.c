@@ -585,17 +585,19 @@ zfs_iter_mounted(zfs_handle_t *zhp, zfs_iter_f func, void *data)
 			continue;
 
 		if ((mtab_zhp = zfs_open(zhp->zfs_hdl, entry.mnt_special,
-		    ZFS_TYPE_FILESYSTEM)) == NULL)
+		    ZFS_TYPE_FILESYSTEM|ZFS_TYPE_SNAPSHOT)) == NULL)
 			continue;
 
 		/* Ignore legacy mounts as they are user managed */
-		verify(zfs_prop_get(mtab_zhp, ZFS_PROP_MOUNTPOINT, mnt_prop,
-		    sizeof (mnt_prop), NULL, NULL, 0, B_FALSE) == 0);
-		if (strcmp(mnt_prop, "legacy") == 0) {
-			zfs_close(mtab_zhp);
-			continue;
+		if (mtab_zhp->zfs_type != ZFS_TYPE_SNAPSHOT) {
+			verify(zfs_prop_get(mtab_zhp, ZFS_PROP_MOUNTPOINT,
+			    mnt_prop, sizeof (mnt_prop), NULL, NULL, 0,
+			    B_FALSE) == 0);
+			if (strcmp(mnt_prop, "legacy") == 0) {
+				zfs_close(mtab_zhp);
+				continue;
+			}
 		}
-
 		err = func(mtab_zhp, data);
 	}
 

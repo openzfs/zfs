@@ -1141,6 +1141,8 @@ extern boolean_t zfs_ereport_is_valid(const char *clazz, spa_t *spa, vdev_t *vd,
     zio_t *zio);
 extern void zfs_ereport_taskq_fini(void);
 extern void zfs_ereport_clear(spa_t *spa, vdev_t *vd);
+extern void zfs_ereport_zvol_post(const char *subclass, const char *name,
+    const char *bsd, const char *rbsd);
 extern nvlist_t *zfs_event_create(spa_t *spa, vdev_t *vd, const char *type,
     const char *name, nvlist_t *aux);
 extern void zfs_post_remove(spa_t *spa, vdev_t *vd);

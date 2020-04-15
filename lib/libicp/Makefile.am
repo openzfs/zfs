@@ -40,10 +40,12 @@ nodist_libicp_la_SOURCES = \
 	module/icp/core/kcf_mech_tabs.c \
 	module/icp/core/kcf_prov_tabs.c
 
+if !BUILD_MACOS
 if TARGET_CPU_AARCH64
 nodist_libicp_la_SOURCES += \
 	module/icp/asm-aarch64/blake3/b3_aarch64_sse2.S \
 	module/icp/asm-aarch64/blake3/b3_aarch64_sse41.S
+endif
 endif
 
 if TARGET_CPU_POWERPC
@@ -53,6 +55,23 @@ nodist_libicp_la_SOURCES += \
 endif
 
 if TARGET_CPU_X86_64
+
+# Until we can work out how to share assembler files:
+if BUILD_MACOS
+nodist_libicp_la_SOURCES += \
+	module/icp/asm-x86_64/aes/aeskey.c \
+	module/icp/asm-x86_64/os/macos/aes/aes_amd64.S \
+	module/icp/asm-x86_64/os/macos/aes/aes_aesni.S \
+	module/icp/asm-x86_64/os/macos/blake3/blake3_avx2.S \
+	module/icp/asm-x86_64/os/macos/blake3/blake3_avx512.S \
+	module/icp/asm-x86_64/os/macos/blake3/blake3_sse2.S \
+	module/icp/asm-x86_64/os/macos/blake3/blake3_sse41.S \
+	module/icp/asm-x86_64/os/macos/modes/aesni-gcm-x86_64.S \
+	module/icp/asm-x86_64/os/macos/modes/gcm_pclmulqdq.S \
+	module/icp/asm-x86_64/os/macos/modes/ghash-x86_64.S \
+	module/icp/asm-x86_64/os/macos/sha2/sha256_impl.S \
+	module/icp/asm-x86_64/os/macos/sha2/sha512_impl.S
+else
 nodist_libicp_la_SOURCES += \
 	module/icp/asm-x86_64/aes/aeskey.c \
 	module/icp/asm-x86_64/aes/aes_amd64.S \
@@ -67,4 +86,4 @@ nodist_libicp_la_SOURCES += \
 	module/icp/asm-x86_64/blake3/blake3_sse2.S \
 	module/icp/asm-x86_64/blake3/blake3_sse41.S
 endif
-
+endif

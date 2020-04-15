@@ -30,6 +30,7 @@ extern "C" {
 #define	BE_FREEBSD_VENDOR	"freebsd"
 #define	BE_GRUB_VENDOR		"grub"
 #define	BE_LINUX_VENDOR		"linux"
+#define	BE_MACOS_VENDOR		"macos"
 
 #include <sys/zfs_bootenv_os.h>
 
