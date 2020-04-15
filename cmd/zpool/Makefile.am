@@ -21,6 +21,10 @@ if BUILD_LINUX
 zpool_SOURCES += os/linux/zpool_vdev_os.c
 endif
 
+if BUILD_MACOS
+zpool_SOURCES += os/macos/zpool_vdev_os.c
+endif
+
 zpool_LDADD = \
 	$(abs_top_builddir)/lib/libzfs/libzfs.la \
 	$(abs_top_builddir)/lib/libzfs_core/libzfs_core.la \

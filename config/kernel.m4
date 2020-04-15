@@ -28,6 +28,9 @@ AC_DEFUN([ZFS_AC_CONFIG_KERNEL], [
 
 		AC_SUBST(KERNEL_MAKE)
 	])
+	AM_COND_IF([BUILD_MACOS], [
+		ZFS_AC_KERNEL_SRC_MACOS_HEADERS
+	])
 ])
 
 dnl #
@@ -257,6 +260,7 @@ dnl #
 dnl # Detect the kernel to be built against
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL], [
+
 	AC_ARG_WITH([linux],
 		AS_HELP_STRING([--with-linux=PATH],
 		[Path to kernel source]),
@@ -266,6 +270,15 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 		AS_HELP_STRING([--with-linux-obj=PATH],
 		[Path to kernel build objects]),
 		[kernelbuild="$withval"])
+
+	AC_ARG_WITH([macos],
+		AS_HELP_STRING([--with-macos=PATH],
+		[Path to macOS source]),
+		[kernelsrc="$withval/sys"])
+	AC_ARG_WITH(macos-obj,
+		AS_HELP_STRING([--with-macos-obj=PATH],
+		[Path to macOS build objects]),
+		[kernelbuild="$withval/$kernelsrc"])
 
 	AC_MSG_CHECKING([kernel source directory])
 	AS_IF([test -z "$kernelsrc"], [
@@ -298,7 +311,8 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 		AC_MSG_ERROR([
 	*** Please make sure the kernel devel package for your distribution
 	*** is installed and then try again.  If that fails, you can specify the
-	*** location of the kernel source with the '--with-linux=PATH' option.])
+	*** location of the kernel source with the '--with-linux=PATH' option.
+	*** If you are configuring for macOS, use '--with-macos=PATH'.])
 	])
 
 	AC_MSG_CHECKING([kernel build directory])

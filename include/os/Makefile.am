@@ -4,3 +4,6 @@ endif
 if BUILD_FREEBSD
 SUBDIRS = freebsd
 endif
+if BUILD_MACOS
+SUBDIRS = macos
+endif

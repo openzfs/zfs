@@ -9,6 +9,10 @@ SUBDIRS += libefi
 CPPCHECKDIRS += libefi
 endif
 
+if BUILD_MACOS
+SUBDIRS += libefi
+endif
+
 # libnvpair is installed as part of the final build product
 # libzutil depends on it, so it must be compiled before libzutil
 SUBDIRS += libnvpair

@@ -47,12 +47,24 @@ USER_C += \
 	os/freebsd/zone.c
 endif
 
+if BUILD_MACOS
+USER_C += \
+	os/macos/getexecname.c \
+	os/macos/gethostid.c \
+	os/macos/getmntany.c \
+	os/macos/zone.c
+endif
+
 libspl_la_SOURCES = \
 	$(USER_C) \
 	$(TARGET_CPU_ATOMIC_SOURCE)
 
 libspl_la_LIBADD = \
 	libspl_assert.la
+
+if !BUILD_MACOS
+libspl_la_LIBADD += -lrt $(LIBTIRPC_LIBS)
+endif
 
 libspl_la_LIBADD += $(LIBCLOCK_GETTIME)
 

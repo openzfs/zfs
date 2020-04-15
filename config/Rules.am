@@ -21,6 +21,11 @@ DEFAULT_INCLUDES += \
 	-I$(top_srcdir)/lib/libspl/include/os/freebsd
 endif
 
+if BUILD_MACOS
+DEFAULT_INCLUDES += \
+	-I$(top_srcdir)/lib/libspl/include/os/macos
+endif
+
 AM_LIBTOOLFLAGS = --silent
 
 AM_CFLAGS  = -std=gnu99 -Wall -Wstrict-prototypes -Wmissing-prototypes
@@ -33,6 +38,13 @@ if BUILD_FREEBSD
 AM_CFLAGS += -fPIC -Werror -Wno-unknown-pragmas -Wno-enum-conversion
 AM_CFLAGS += -include $(top_srcdir)/include/os/freebsd/spl/sys/ccompile.h
 AM_CFLAGS += -I/usr/include -I/usr/local/include
+endif
+
+if BUILD_MACOS
+#AM_CFLAGS += ${NO_UNUSED_BUT_SET_VARIABLE} ${DEBUG_CFLAGS} -Wno-tautological-constant-out-of-range-compare
+#AM_CFLAGS += -D_GNU_SOURCE -D__EXTENSIONS__ -D_REENTRANT
+#AM_CFLAGS += -D_POSIX_PTHREAD_SEMANTICS -D_FILE_OFFSET_BITS=64
+#AM_CFLAGS += -D_LARGEFILE64_SOURCE
 endif
 
 AM_CPPFLAGS  = -D_GNU_SOURCE
@@ -53,6 +65,9 @@ endif
 if BUILD_FREEBSD
 AM_CPPFLAGS += -DTEXT_DOMAIN=\"zfs-freebsd-user\"
 endif
+if BUILD_MACOS
+AM_CPPFLAGS += -DTEXT_DOMAIN=\"zfs-macos-user\"
+endif
 
 AM_LDFLAGS  = $(DEBUG_LDFLAGS)
 AM_LDFLAGS += $(ASAN_LDFLAGS)
@@ -61,4 +76,8 @@ if BUILD_FREEBSD
 AM_LDFLAGS += -fstack-protector-strong -shared
 AM_LDFLAGS += -Wl,-x -Wl,--fatal-warnings -Wl,--warn-shared-textrel
 AM_LDFLAGS += -lm
+endif
+
+if BUILD_MACOS
+#AM_LDFLAGS +=
 endif

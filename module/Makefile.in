@@ -53,6 +53,11 @@ modules-Linux:
 modules-FreeBSD:
 	+$(FMAKE)
 
+modules-macOS:
+	flags="$$(echo $$MAKEFLAGS | tr ' ' '\n'|grep '^-j')"; \
+	env MAKEFLAGS="" \
+		make $${flags} -C os/macos/
+
 modules-unknown:
 	@true
 
@@ -71,6 +76,11 @@ clean-Linux:
 clean-FreeBSD:
 	+$(FMAKE) clean
 
+clean-macOS:
+	flags="$$(echo $$MAKEFLAGS | tr ' ' '\n'|grep '^-j')"; \
+	env MAKEFLAGS="" SYSDIR=@LINUX@ \
+		make $${flags} -C os/macos/ clean
+
 clean: clean-@ac_system@
 
 modules_install-Linux:
@@ -88,6 +98,11 @@ modules_install-Linux:
 	if [ -f $$sysmap ]; then \
 		depmod -ae -F $$sysmap @LINUX_VERSION@; \
 	fi
+
+modules_install-macOS:
+	flags="$$(echo $$MAKEFLAGS | tr ' ' '\n'|grep '^-j')"; \
+	env MAKEFLAGS="" SYSDIR=@LINUX@ \
+		make $${flags} -C os/macos/ install
 
 modules_install-FreeBSD:
 	@# Install the kernel modules

@@ -29,9 +29,9 @@
  *
  * CDDL HEADER END
  */
-
-AC_INIT(m4_esyscmd(grep ^Name: META | cut -d ':' -f 2 | tr -d ' \n'),
-	m4_esyscmd(grep ^Version: META | cut -d ':' -f 2 | tr -d ' \n'))
+m4_define([NAME], m4_esyscmd([awk '/^Name:/ {print $2}' META | tr -d '\n']))
+m4_define([VERS], m4_esyscmd([awk '/^Version:/ {print $2}' META | tr -d '\n']))
+AC_INIT(NAME, VERS)
 AC_LANG(C)
 ZFS_AC_META
 AC_CONFIG_AUX_DIR([config])
@@ -54,6 +54,11 @@ AM_PROG_CC_C_O
 AX_CODE_COVERAGE
 _AM_PROG_TAR(pax)
 
+dnl macOS additionals
+AC_PROG_CXX(clang++)
+AC_PROG_OBJC(clang)
+AC_PROG_OBJCXX(clang++)
+
 ZFS_AC_LICENSE
 ZFS_AC_CONFIG
 ZFS_AC_PACKAGE
@@ -61,6 +66,7 @@ ZFS_AC_DEBUG
 ZFS_AC_DEBUGINFO
 ZFS_AC_DEBUG_KMEM
 ZFS_AC_DEBUG_KMEM_TRACKING
+
 
 AC_CONFIG_FILES([
 	Makefile
@@ -130,6 +136,10 @@ AC_CONFIG_FILES([
 	include/os/linux/spl/sys/Makefile
 	include/os/linux/zfs/Makefile
 	include/os/linux/zfs/sys/Makefile
+	include/os/macos/Makefile
+	include/os/macos/spl/Makefile
+	include/os/macos/spl/rpc/Makefile
+	include/os/macos/spl/sys/Makefile
 	include/sys/Makefile
 	include/sys/crypto/Makefile
 	include/sys/fm/Makefile
@@ -181,6 +191,10 @@ AC_CONFIG_FILES([
 	module/nvpair/Makefile
 	module/os/linux/spl/Makefile
 	module/os/linux/zfs/Makefile
+	module/os/macos/Makefile
+	module/os/macos/kernel/Makefile
+	module/os/macos/spl/Makefile
+	module/os/macos/zfs/Makefile
 	module/spl/Makefile
 	module/unicode/Makefile
 	module/zcommon/Makefile
