@@ -1054,6 +1054,6 @@ EXPORT_SYMBOL(txg_stalled);
 EXPORT_SYMBOL(txg_sync_waiting);
 
 /* BEGIN CSTYLED */
-ZFS_MODULE_PARAM(zfs, zfs_, txg_timeout, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_txg, zfs_txg_, timeout, INT, ZMOD_RW,
 	"Max seconds worth of delta per txg");
 /* END CSTYLED */

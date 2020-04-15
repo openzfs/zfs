@@ -60,6 +60,46 @@ uint_t zfs_arc_free_target = 0;
 int64_t last_free_memory;
 free_memory_reason_t last_free_reason;
 
+static void
+arc_free_target_init(void *unused __unused)
+{
+	zfs_arc_free_target = vm_cnt.v_free_target;
+}
+SYSINIT(arc_free_target_init, SI_SUB_KTHREAD_PAGE, SI_ORDER_ANY,
+    arc_free_target_init, NULL);
+
+/*
+ * We don't have a tunable for arc_free_target due to the dependency on
+ * pagedaemon initialisation.
+ */
+static int
+sysctl_vfs_zfs_arc_free_target(SYSCTL_HANDLER_ARGS)
+{
+	uint_t val;
+	int err;
+
+	val = zfs_arc_free_target;
+	err = sysctl_handle_int(oidp, &val, 0, req);
+	if (err != 0 || req->newptr == NULL)
+		return (err);
+
+	if (val < minfree)
+		return (EINVAL);
+	if (val > vm_cnt.v_page_count)
+		return (EINVAL);
+
+	zfs_arc_free_target = val;
+
+	return (0);
+}
+SYSCTL_DECL(_vfs_zfs);
+/* BEGIN CSTYLED */
+SYSCTL_PROC(_vfs_zfs, OID_AUTO, arc_free_target,
+    CTLTYPE_UINT | CTLFLAG_MPSAFE | CTLFLAG_RW, 0, sizeof (uint_t),
+    sysctl_vfs_zfs_arc_free_target, "IU",
+    "Desired number of free pages below which ARC triggers reclaim");
+/* END CSTYLED */
+
 int64_t
 arc_available_memory(void)
 {
@@ -67,7 +107,6 @@ arc_available_memory(void)
 	int64_t n __unused;
 	free_memory_reason_t r = FMR_UNKNOWN;
 
-#ifdef _KERNEL
 	/*
 	 * Cooperate with pagedaemon when it's time for it to scan
 	 * and reclaim some pages.
@@ -114,12 +153,6 @@ arc_available_memory(void)
 			r = FMR_ZIO_ARENA;
 		}
 	}
-
-#else	/* _KERNEL */
-	/* Every 100 calls, free a small amount */
-	if (spa_get_random(100) == 0)
-		lowest = -1024;
-#endif	/* _KERNEL */
 
 	last_free_memory = lowest;
 	last_free_reason = r;

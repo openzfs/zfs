@@ -94,32 +94,35 @@ __FBSDID("$FreeBSD$");
 
 /* BEGIN CSTYLED */
 SYSCTL_DECL(_vfs_zfs);
-SYSCTL_NODE(_vfs_zfs, OID_AUTO, zevent, CTLFLAG_RW, 0, "ZFS events");
-SYSCTL_NODE(_vfs_zfs, OID_AUTO, zio, CTLFLAG_RW, 0, "ZFS ZIO");
-SYSCTL_NODE(_vfs_zfs, OID_AUTO, zil, CTLFLAG_RW, 0, "ZFS ZIL");
-SYSCTL_NODE(_vfs_zfs, OID_AUTO, vdev, CTLFLAG_RW, 0, "ZFS VDEV");
-SYSCTL_NODE(_vfs_zfs, OID_AUTO, trim, CTLFLAG_RW, 0, "ZFS TRIM");
-SYSCTL_NODE(_vfs_zfs, OID_AUTO, spa, CTLFLAG_RW, 0, "space allocation");
-SYSCTL_NODE(_vfs_zfs, OID_AUTO, reconstruct, CTLFLAG_RW, 0, "reconstruct");
-SYSCTL_NODE(_vfs_zfs, OID_AUTO, prefetch, CTLFLAG_RW, 0, "ZFS ZFETCH");
-SYSCTL_NODE(_vfs_zfs, OID_AUTO, multihost, CTLFLAG_RW, 0, "multihost protection");
-SYSCTL_NODE(_vfs_zfs, OID_AUTO, mg, CTLFLAG_RW, 0, "metaslab group");
-SYSCTL_NODE(_vfs_zfs, OID_AUTO, metaslab, CTLFLAG_RW, 0, "ZFS metaslab");
-SYSCTL_NODE(_vfs_zfs, OID_AUTO, lua, CTLFLAG_RW, 0, "lua");
-SYSCTL_NODE(_vfs_zfs, OID_AUTO, l2arc, CTLFLAG_RW, 0, "l2arc");
+SYSCTL_NODE(_vfs_zfs, OID_AUTO, arc, CTLFLAG_RW, 0, "ZFS adaptive replacement cache");
+SYSCTL_NODE(_vfs_zfs, OID_AUTO, condense, CTLFLAG_RW, 0, "ZFS condense");
 SYSCTL_NODE(_vfs_zfs, OID_AUTO, dbuf, CTLFLAG_RW, 0, "ZFS disk buf cache");
 SYSCTL_NODE(_vfs_zfs, OID_AUTO, dbuf_cache, CTLFLAG_RW, 0, "ZFS disk buf cache");
 SYSCTL_NODE(_vfs_zfs, OID_AUTO, deadman, CTLFLAG_RW, 0, "ZFS deadman");
-SYSCTL_NODE(_vfs_zfs, OID_AUTO, condense, CTLFLAG_RW, 0, "ZFS condense");
-SYSCTL_NODE(_vfs_zfs, OID_AUTO, arc, CTLFLAG_RW, 0, "ZFS Adaptive Replacement Cache");
+SYSCTL_NODE(_vfs_zfs, OID_AUTO, dedup, CTLFLAG_RW, 0, "ZFS dedup");
+SYSCTL_NODE(_vfs_zfs, OID_AUTO, l2arc, CTLFLAG_RW, 0, "ZFS l2arc");
+SYSCTL_NODE(_vfs_zfs, OID_AUTO, livelist, CTLFLAG_RW, 0, "ZFS livelist");
+SYSCTL_NODE(_vfs_zfs, OID_AUTO, lua, CTLFLAG_RW, 0, "ZFS lua");
+SYSCTL_NODE(_vfs_zfs, OID_AUTO, metaslab, CTLFLAG_RW, 0, "ZFS metaslab");
+SYSCTL_NODE(_vfs_zfs, OID_AUTO, mg, CTLFLAG_RW, 0, "ZFS metaslab group");
+SYSCTL_NODE(_vfs_zfs, OID_AUTO, multihost, CTLFLAG_RW, 0, "ZFS multihost protection");
+SYSCTL_NODE(_vfs_zfs, OID_AUTO, prefetch, CTLFLAG_RW, 0, "ZFS prefetch");
+SYSCTL_NODE(_vfs_zfs, OID_AUTO, reconstruct, CTLFLAG_RW, 0, "ZFS reconstruct");
+SYSCTL_NODE(_vfs_zfs, OID_AUTO, recv, CTLFLAG_RW, 0, "ZFS receive");
+SYSCTL_NODE(_vfs_zfs, OID_AUTO, send, CTLFLAG_RW, 0, "ZFS send");
+SYSCTL_NODE(_vfs_zfs, OID_AUTO, spa, CTLFLAG_RW, 0, "ZFS space allocation");
+SYSCTL_NODE(_vfs_zfs, OID_AUTO, trim, CTLFLAG_RW, 0, "ZFS TRIM");
+SYSCTL_NODE(_vfs_zfs, OID_AUTO, txg, CTLFLAG_RW, 0, "ZFS transaction group");
+SYSCTL_NODE(_vfs_zfs, OID_AUTO, vdev, CTLFLAG_RW, 0, "ZFS VDEV");
+SYSCTL_NODE(_vfs_zfs, OID_AUTO, zevent, CTLFLAG_RW, 0, "ZFS event");
+SYSCTL_NODE(_vfs_zfs, OID_AUTO, zil, CTLFLAG_RW, 0, "ZFS ZIL");
+SYSCTL_NODE(_vfs_zfs, OID_AUTO, zio, CTLFLAG_RW, 0, "ZFS ZIO");
 
-SYSCTL_NODE(_vfs_zfs_vdev, OID_AUTO, mirror, CTLFLAG_RD, 0,
-    "ZFS VDEV Mirror");
+SYSCTL_NODE(_vfs_zfs_livelist, OID_AUTO, condense, CTLFLAG_RW, 0,
+    "ZFS livelist condense");
 SYSCTL_NODE(_vfs_zfs_vdev, OID_AUTO, cache, CTLFLAG_RW, 0, "ZFS VDEV Cache");
-SYSCTL_NODE(_vfs_zfs, OID_AUTO, livelist, CTLFLAG_RW, 0, "livelist state");
-SYSCTL_NODE(_vfs_zfs_livelist, OID_AUTO, condense, CTLFLAG_RW, 0, "condense knobs");
-SYSCTL_NODE(_vfs_zfs, OID_AUTO, recv, CTLFLAG_RW, 0, "receive knobs");
-SYSCTL_NODE(_vfs_zfs, OID_AUTO, send, CTLFLAG_RW, 0, "send knobs");
+SYSCTL_NODE(_vfs_zfs_vdev, OID_AUTO, mirror, CTLFLAG_RD, 0,
+    "ZFS VDEV mirror");
 
 SYSCTL_DECL(_vfs_zfs_version);
 SYSCTL_CONST_STRING(_vfs_zfs_version, OID_AUTO, module, CTLFLAG_RD,
@@ -267,7 +270,7 @@ SYSCTL_PROC(_vfs_zfs, OID_AUTO, arc_no_grow_shift, CTLTYPE_U32 | CTLFLAG_RWTUN,
 /* dmu.c */
 
 /* dmu_zfetch.c */
-SYSCTL_NODE(_vfs_zfs, OID_AUTO, zfetch, CTLFLAG_RW, 0, "ZFS ZFETCH");
+SYSCTL_NODE(_vfs_zfs, OID_AUTO, zfetch, CTLFLAG_RW, 0, "ZFS ZFETCH (LEGACY)");
 
 /* max bytes to prefetch per stream (default 8MB) */
 extern uint32_t	zfetch_max_distance;
@@ -294,15 +297,6 @@ SYSCTL_INT(_vfs_zfs, OID_AUTO, default_ibs, CTLFLAG_RWTUN,
 /* dsl_scan.c */
 
 /* metaslab.c */
-
-/*
- * Enable/disable lba weighting (i.e. outer tracks are given preference).
- */
-extern boolean_t metaslab_lba_weighting_enabled;
-SYSCTL_INT(_vfs_zfs_metaslab, OID_AUTO, lba_weighting, CTLFLAG_RWTUN,
-    &metaslab_lba_weighting_enabled, 0,
-    "Enable LBA weighting (i.e. outer tracks are given preference)");
-
 
 /*
  * In pools where the log space map feature is not enabled we touch
