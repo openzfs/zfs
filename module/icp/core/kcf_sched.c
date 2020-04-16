@@ -576,15 +576,6 @@ kcf_resubmit_request(kcf_areq_node_t *areq)
 	return (error);
 }
 
-static inline int EMPTY_TASKQ(taskq_t *tq)
-{
-#ifdef _KERNEL
-	return (tq->tq_lowest_id == tq->tq_next_id);
-#else
-	return (tq->tq_task.tqent_next == &tq->tq_task || tq->tq_active == 0);
-#endif
-}
-
 /*
  * Routine called by both ioctl and k-api. The consumer should
  * bundle the parameters into a kcf_req_params_t structure. A bunch

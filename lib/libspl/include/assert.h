@@ -129,6 +129,7 @@ do {									\
 #define	assert(x)		((void)0)
 #define	IMPLY(A, B)		((void)0)
 #define	EQUIV(A, B)		((void)0)
+#define	ASSERTV(x)		((void)0)
 #else
 #define	ASSERT3B	VERIFY3B
 #define	ASSERT3S	VERIFY3S
@@ -137,6 +138,7 @@ do {									\
 #define	ASSERT0		VERIFY0
 #define	ASSERT		VERIFY
 #define	assert		VERIFY
+#define	ASSERTV(x)	x
 #define	IMPLY(A, B) \
 	((void)(((!(A)) || (B)) || \
 	    libspl_assert("(" #A ") implies (" #B ")", \

@@ -162,6 +162,8 @@ extern taskq_t *taskq_of_curthread(void);
 #define	taskq_create_sysdc(name, nthreads, min, max, proc, dc, flags) \
     taskq_create(name, nthreads, maxclsyspri, min, max, flags)
 
+extern int EMPTY_TASKQ(taskq_t *tq);
+
 int spl_taskq_init(void);
 void spl_taskq_fini(void);
 
