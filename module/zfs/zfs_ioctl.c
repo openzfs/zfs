@@ -5468,7 +5468,7 @@ zfs_ioc_send_progress(zfs_cmd_t *zc)
 	for (dsp = list_head(&ds->ds_sendstreams); dsp != NULL;
 	    dsp = list_next(&ds->ds_sendstreams, dsp)) {
 		if (dsp->dss_outfd == zc->zc_cookie &&
-		    dsp->dss_proc == curproc)
+		    zfs_proc_is_caller(dsp->dss_proc))
 			break;
 	}
 
