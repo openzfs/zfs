@@ -54,6 +54,8 @@ dist_pkgdata_SCRIPTS = \
 
 dist_pkgdata_DATA = \
 	dedup.zsend.bz2 \
+	dedup_encrypted_zvol.bz2 \
+	dedup_encrypted_zvol.zsend.bz2 \
 	fs.tar.gz \
 	rsend.cfg \
 	rsend.kshlib
