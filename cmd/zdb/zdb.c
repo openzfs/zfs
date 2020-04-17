@@ -3606,8 +3606,7 @@ dump_l2arc_log_blocks(int fd, l2arc_dev_hdr_phys_t l2dhdr)
 		}
 
 		if (this_lb.lb_magic == BSWAP_64(L2ARC_LOG_BLK_MAGIC))
-			byteswap_uint64_array(&this_lb, psize);
-
+			byteswap_uint64_array(&this_lb, sizeof (this_lb));
 		if (this_lb.lb_magic != L2ARC_LOG_BLK_MAGIC) {
 			(void) printf("Invalid log block magic\n\n");
 			break;

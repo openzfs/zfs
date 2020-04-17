@@ -394,7 +394,7 @@ page_busy(vnode_t *vp, int64_t start, int64_t off, int64_t nbytes)
 	nbytes = end - off;
 
 	obj = vp->v_object;
-	zfs_vmobject_assert_wlocked(obj);
+	zfs_vmobject_assert_wlocked_12(obj);
 #if __FreeBSD_version < 1300050
 	for (;;) {
 		if ((pp = vm_page_lookup(obj, OFF_TO_IDX(start))) != NULL &&
@@ -427,8 +427,9 @@ page_busy(vnode_t *vp, int64_t start, int64_t off, int64_t nbytes)
 		break;
 	}
 #else
-	vm_page_grab_valid(&pp, obj, OFF_TO_IDX(start), VM_ALLOC_NOCREAT |
-	    VM_ALLOC_SBUSY | VM_ALLOC_NORMAL | VM_ALLOC_IGN_SBUSY);
+	vm_page_grab_valid_unlocked(&pp, obj, OFF_TO_IDX(start),
+	    VM_ALLOC_NOCREAT | VM_ALLOC_SBUSY | VM_ALLOC_NORMAL |
+	    VM_ALLOC_IGN_SBUSY);
 	if (pp != NULL) {
 		ASSERT3U(pp->valid, ==, VM_PAGE_BITS_ALL);
 		vm_object_pip_add(obj, 1);
@@ -460,10 +461,9 @@ page_hold(vnode_t *vp, int64_t start)
 	vm_page_t m;
 
 	obj = vp->v_object;
-	zfs_vmobject_assert_wlocked(obj);
-
-	vm_page_grab_valid(&m, obj, OFF_TO_IDX(start), VM_ALLOC_NOCREAT |
-	    VM_ALLOC_WIRED | VM_ALLOC_IGN_SBUSY | VM_ALLOC_NOBUSY);
+	vm_page_grab_valid_unlocked(&m, obj, OFF_TO_IDX(start),
+	    VM_ALLOC_NOCREAT | VM_ALLOC_WIRED | VM_ALLOC_IGN_SBUSY |
+	    VM_ALLOC_NOBUSY);
 	return (m);
 }
 #else
@@ -541,7 +541,7 @@ update_pages(vnode_t *vp, int64_t start, int len, objset_t *os, uint64_t oid,
 	ASSERT(obj != NULL);
 
 	off = start & PAGEOFFSET;
-	zfs_vmobject_wlock(obj);
+	zfs_vmobject_wlock_12(obj);
 #if __FreeBSD_version >= 1300041
 	vm_object_pip_add(obj, 1);
 #endif
@@ -550,14 +550,14 @@ update_pages(vnode_t *vp, int64_t start, int len, objset_t *os, uint64_t oid,
 		int nbytes = imin(PAGESIZE - off, len);
 
 		if ((pp = page_busy(vp, start, off, nbytes)) != NULL) {
-			zfs_vmobject_wunlock(obj);
+			zfs_vmobject_wunlock_12(obj);
 
 			va = zfs_map_page(pp, &sf);
 			(void) dmu_read(os, oid, start+off, nbytes,
 			    va+off, DMU_READ_PREFETCH);
 			zfs_unmap_page(sf);
 
-			zfs_vmobject_wlock(obj);
+			zfs_vmobject_wlock_12(obj);
 			page_unbusy(pp);
 		}
 		len -= nbytes;
@@ -568,7 +568,7 @@ update_pages(vnode_t *vp, int64_t start, int len, objset_t *os, uint64_t oid,
 #else
 	vm_object_pip_wakeupn(obj, 0);
 #endif
-	zfs_vmobject_wunlock(obj);
+	zfs_vmobject_wunlock_12(obj);
 }
 
 /*
@@ -599,36 +599,37 @@ mappedread_sf(vnode_t *vp, int nbytes, uio_t *uio)
 	ASSERT(obj != NULL);
 	ASSERT((uio->uio_loffset & PAGEOFFSET) == 0);
 
-	zfs_vmobject_wlock(obj);
+	zfs_vmobject_wlock_12(obj);
 	for (start = uio->uio_loffset; len > 0; start += PAGESIZE) {
 		int bytes = MIN(PAGESIZE, len);
 
-		pp = vm_page_grab(obj, OFF_TO_IDX(start), VM_ALLOC_SBUSY |
-		    VM_ALLOC_NORMAL | VM_ALLOC_IGN_SBUSY);
+		pp = vm_page_grab_unlocked(obj, OFF_TO_IDX(start),
+		    VM_ALLOC_SBUSY | VM_ALLOC_NORMAL | VM_ALLOC_IGN_SBUSY);
 		if (vm_page_none_valid(pp)) {
-			zfs_vmobject_wunlock(obj);
+			zfs_vmobject_wunlock_12(obj);
 			va = zfs_map_page(pp, &sf);
 			error = dmu_read(os, zp->z_id, start, bytes, va,
 			    DMU_READ_PREFETCH);
 			if (bytes != PAGESIZE && error == 0)
 				bzero(va + bytes, PAGESIZE - bytes);
 			zfs_unmap_page(sf);
-			zfs_vmobject_wlock(obj);
-			vm_page_do_sunbusy(pp);
-#if __FreeBSD_version >= 1300047 && __FreeBSD_version < 1300051
-#error "unsupported version window"
-#elif  __FreeBSD_version >= 1300051
+			zfs_vmobject_wlock_12(obj);
+#if  __FreeBSD_version >= 1300081
 			if (error == 0) {
 				vm_page_valid(pp);
-				vm_page_lock(pp);
 				vm_page_activate(pp);
-				vm_page_unlock(pp);
+				vm_page_do_sunbusy(pp);
+			} else {
+				zfs_vmobject_wlock(obj);
+				if (!vm_page_wired(pp) && pp->valid == 0 &&
+				    vm_page_busy_tryupgrade(pp))
+					vm_page_free(pp);
+				else
+					vm_page_sunbusy(pp);
+				zfs_vmobject_wunlock(obj);
 			}
-			vm_page_do_sunbusy(pp);
-			if (error != 0 && !vm_page_wired(pp) == 0 &&
-			    pp->valid == 0 && vm_page_tryxbusy(pp))
-				vm_page_free(pp);
 #else
+			vm_page_do_sunbusy(pp);
 			vm_page_lock(pp);
 			if (error) {
 				if (pp->wire_count == 0 && pp->valid == 0 &&
@@ -650,7 +651,7 @@ mappedread_sf(vnode_t *vp, int nbytes, uio_t *uio)
 		uio->uio_offset += bytes;
 		len -= bytes;
 	}
-	zfs_vmobject_wunlock(obj);
+	zfs_vmobject_wunlock_12(obj);
 	return (error);
 }
 
@@ -680,7 +681,7 @@ mappedread(vnode_t *vp, int nbytes, uio_t *uio)
 
 	start = uio->uio_loffset;
 	off = start & PAGEOFFSET;
-	zfs_vmobject_wlock(obj);
+	zfs_vmobject_wlock_12(obj);
 	for (start &= PAGEMASK; len > 0; start += PAGESIZE) {
 		vm_page_t pp;
 		uint64_t bytes = MIN(PAGESIZE - off, len);
@@ -689,24 +690,24 @@ mappedread(vnode_t *vp, int nbytes, uio_t *uio)
 			struct sf_buf *sf;
 			caddr_t va;
 
-			zfs_vmobject_wunlock(obj);
+			zfs_vmobject_wunlock_12(obj);
 			va = zfs_map_page(pp, &sf);
 			error = vn_io_fault_uiomove(va + off, bytes, uio);
 			zfs_unmap_page(sf);
-			zfs_vmobject_wlock(obj);
+			zfs_vmobject_wlock_12(obj);
 			page_unhold(pp);
 		} else {
-			zfs_vmobject_wunlock(obj);
+			zfs_vmobject_wunlock_12(obj);
 			error = dmu_read_uio_dbuf(sa_get_db(zp->z_sa_hdl),
 			    uio, bytes);
-			zfs_vmobject_wlock(obj);
+			zfs_vmobject_wlock_12(obj);
 		}
 		len -= bytes;
 		off = 0;
 		if (error)
 			break;
 	}
-	zfs_vmobject_wunlock(obj);
+	zfs_vmobject_wunlock_12(obj);
 	return (error);
 }
 

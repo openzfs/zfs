@@ -9578,6 +9578,7 @@ l2arc_log_blk_read(l2arc_dev_t *dev,
 	int		err = 0;
 	zio_cksum_t	cksum;
 	abd_t		*abd = NULL;
+	uint64_t	psize;
 
 	ASSERT(this_lbp != NULL && next_lbp != NULL);
 	ASSERT(this_lb != NULL && next_lb != NULL);
@@ -9616,8 +9617,8 @@ l2arc_log_blk_read(l2arc_dev_t *dev,
 	}
 
 	/* Make sure the buffer checks out */
-	fletcher_4_native(this_lb,
-	    L2BLK_GET_PSIZE((this_lbp)->lbp_prop), NULL, &cksum);
+	psize = L2BLK_GET_PSIZE((this_lbp)->lbp_prop);
+	fletcher_4_native(this_lb, psize, NULL, &cksum);
 	if (!ZIO_CHECKSUM_EQUAL(cksum, this_lbp->lbp_cksum)) {
 		ARCSTAT_BUMP(arcstat_l2_rebuild_abort_cksum_lb_errors);
 		zfs_dbgmsg("L2ARC log block cksum failed, offset: %llu, "
@@ -9633,14 +9634,11 @@ l2arc_log_blk_read(l2arc_dev_t *dev,
 	case ZIO_COMPRESS_OFF:
 		break;
 	case ZIO_COMPRESS_LZ4:
-		abd = abd_alloc_for_io(L2BLK_GET_PSIZE(
-		    (this_lbp)->lbp_prop), B_TRUE);
-		abd_copy_from_buf_off(abd, this_lb, 0,
-		    L2BLK_GET_PSIZE((this_lbp)->lbp_prop));
+		abd = abd_alloc_for_io(psize, B_TRUE);
+		abd_copy_from_buf_off(abd, this_lb, 0, psize);
 		if ((err = zio_decompress_data(
 		    L2BLK_GET_COMPRESS((this_lbp)->lbp_prop),
-		    abd, this_lb, L2BLK_GET_PSIZE((this_lbp)->lbp_prop),
-		    sizeof (*this_lb))) != 0) {
+		    abd, this_lb, psize, sizeof (*this_lb))) != 0) {
 			err = SET_ERROR(EINVAL);
 			goto cleanup;
 		}
