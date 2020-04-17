@@ -31,6 +31,7 @@ verify_runnable "both"
 function cleanup
 {
 	destroy_dataset $TESTPOOL/recv "-r"
+	rm -r /$TESTPOOL/tar
 	rm $sendfile
 }
 log_onexit cleanup
@@ -45,8 +46,8 @@ log_must eval "bzcat <$sendfile_compressed >$sendfile"
 log_must zfs create $TESTPOOL/recv
 log_must eval "zstream redup $sendfile | zfs recv -d $TESTPOOL/recv"
 
-log_must cd /$TESTPOOL/recv
-log_must tar -z -d -f $tarfile
-log_must cd -
+log_must mkdir /$TESTPOOL/tar
+log_must tar --directory /$TESTPOOL/tar -xzf $tarfile
+log_must diff -r /$TESTPOOL/tar /$TESTPOOL/recv
 
 log_pass "zfs can receive dedup send streams with 'zstream redup'"
