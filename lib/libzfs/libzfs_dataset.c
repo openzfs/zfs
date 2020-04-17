@@ -937,9 +937,9 @@ libzfs_mnttab_add(libzfs_handle_t *hdl, const char *special,
 			free(mtn->mtn_mt.mnt_fstype);
 			free(mtn->mtn_mt.mnt_mntopts);
 			free(mtn);
-		}
-		else
+		} else {
 			avl_add(&hdl->libzfs_mnttab_cache, mtn);
+		}
 	}
 	pthread_mutex_unlock(&hdl->libzfs_mnttab_cache_lock);
 }
