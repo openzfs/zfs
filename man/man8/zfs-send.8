@@ -39,18 +39,18 @@
 .Sh SYNOPSIS
 .Nm
 .Cm send
-.Op Fl DLPRbcehnpvw
+.Op Fl DLPRVbcehnpvw
 .Op Oo Fl I Ns | Ns Fl i Oc Ar snapshot
 .Ar snapshot
 .Nm
 .Cm send
-.Op Fl DLPRcenpvw
+.Op Fl DLPRVcenpvw
 .Op Fl i Ar snapshot Ns | Ns Ar bookmark
 .Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot
 .Nm
 .Cm send
 .Fl -redact Ar redaction_bookmark
-.Op Fl DLPcenpv
+.Op Fl DLPVcenpv
 .br
 .Op Fl i Ar snapshot Ns | Ns Ar bookmark
 .Ar snapshot
@@ -61,7 +61,7 @@
 .Ar receive_resume_token
 .Nm
 .Cm send
-.Op Fl Pnv
+.Op Fl PVnv
 .Fl S Ar filesystem
 .Nm
 .Cm redact
@@ -151,6 +151,9 @@ do not exist on the sending side are destroyed. If the
 flag is used to send encrypted datasets, then
 .Fl w
 must also be specified.
+.It Fl V
+Modifty the process title (on systems that support this feature) to show
+the progress.
 .It Fl e, -embed
 Generate a more compact stream by using
 .Sy WRITE_EMBEDDED
