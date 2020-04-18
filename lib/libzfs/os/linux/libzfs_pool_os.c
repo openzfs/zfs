@@ -104,6 +104,7 @@ read_efi_label(nvlist_t *config, diskaddr_t *sb)
 	int fd;
 	char diskname[MAXPATHLEN];
 	int err = -1;
+	int blksz_ratio512;
 
 	if (nvlist_lookup_string(config, ZPOOL_CONFIG_PATH, &path) != 0)
 		return (err);
@@ -114,8 +115,15 @@ read_efi_label(nvlist_t *config, diskaddr_t *sb)
 		struct dk_gpt *vtoc;
 
 		if ((err = efi_alloc_and_read(fd, &vtoc)) >= 0) {
-			if (sb != NULL)
-				*sb = vtoc->efi_parts[0].p_start;
+			if (sb != NULL) {
+				/*
+				 * Normalize sector sizes to 512 byte
+				 * block increments for later use.
+				 */
+				blksz_ratio512 = vtoc->efi_lbasize / 512;
+				*sb = vtoc->efi_parts[0].p_start
+				    * blksz_ratio512;
+			}
 			efi_free(vtoc);
 		}
 		(void) close(fd);
@@ -220,6 +228,7 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
 	size_t resv = EFI_MIN_RESV_SIZE;
 	uint64_t slice_size;
 	diskaddr_t start_block;
+	int blksz_ratio512;
 	char errbuf[1024];
 
 	/* prepare an error message just in case */
@@ -269,12 +278,26 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
 		return (zfs_error(hdl, EZFS_NOCAP, errbuf));
 	}
 
+	/*
+	 * Block size macros assume disks use 512 byte sectors. Disks which
+	 * do not feature nor emulate 512 byte sectors will need the sector
+	 * offsets adjusted accordingly.
+	 * FIXME: This should be a power-of-2 check, not multiple-of-512.
+	 */
+	blksz_ratio512 = vtoc->efi_lbasize / 512;
+	if ((vtoc->efi_lbasize % 512) != 0) {
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "sector size of disk"
+		    "'%s' is not a multiple of 512"), path);
+		return (zfs_error(hdl, EZFS_BAD_BLOCK_SIZE, errbuf));
+	}
+	start_block /= blksz_ratio512;
+	resv /= blksz_ratio512;
+
 	slice_size = vtoc->efi_last_u_lba + 1;
-	slice_size -= EFI_MIN_RESV_SIZE;
-	if (start_block == MAXOFFSET_T)
-		start_block = NEW_START_BLOCK;
+	slice_size -= EFI_MIN_RESV_SIZE / blksz_ratio512;
 	slice_size -= start_block;
-	slice_size = P2ALIGN(slice_size, PARTITION_END_ALIGNMENT);
+	slice_size = P2ALIGN(slice_size, PARTITION_END_ALIGNMENT /
+	    blksz_ratio512);
 
 	vtoc->efi_parts[0].p_start = start_block;
 	vtoc->efi_parts[0].p_size = slice_size;
@@ -331,7 +354,7 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
 		return (zfs_error(hdl, EZFS_LABELFAILED, errbuf));
 	}
 
-	/* We can't be to paranoid.  Read the label back and verify it. */
+	/* We can't be too paranoid.  Read the label back and verify it. */
 	(void) snprintf(path, sizeof (path), "%s/%s", DISK_ROOT, name);
 	rval = zpool_label_disk_check(path);
 	if (rval) {
