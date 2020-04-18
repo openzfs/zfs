@@ -445,7 +445,8 @@ zpool_collect_leaves(zpool_handle_t *zhp, nvlist_t *nvroot, nvlist_t *res)
 		char *path = zpool_vdev_name(g_zfs, zhp, nvroot,
 		    VDEV_NAME_PATH);
 
-		if (strcmp(path, VDEV_TYPE_INDIRECT) != 0)
+		if (strcmp(path, VDEV_TYPE_INDIRECT) != 0 &&
+		    strcmp(path, VDEV_TYPE_HOLE) != 0)
 			fnvlist_add_boolean(res, path);
 
 		free(path);
