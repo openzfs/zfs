@@ -71,7 +71,12 @@ all-local:
 	    ${top_builddir}/scripts/zfs-tests.sh -c
 
 dist-hook: gitrev
-	cp ${top_srcdir}/include/zfs_gitrev.h $(distdir)/include; \
+	cp ${top_srcdir}/include/zfs_gitrev.h $(distdir)/include
+	sed	-e '/^\.PHONY: gitrev$$/,/^$$/d' \
+		-e '/^BUILT_SOURCES = gitrev$$/d' \
+		-e 's/^dist-hook: gitrev$$/dist-hook:/' \
+		-i $(distdir)/Makefile.am $(distdir)/Makefile.in
+	rm $(distdir)/scripts/make_gitrev.sh
 	sed ${ac_inplace} -e 's/Release:[[:print:]]*/Release:      $(RELEASE)/' \
 		$(distdir)/META
 
