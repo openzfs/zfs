@@ -3493,12 +3493,13 @@ print_l2arc_log_blocks(void)
 
 static void
 dump_l2arc_log_entries(uint64_t log_entries,
-    l2arc_log_ent_phys_t *le, int i)
+    l2arc_log_ent_phys_t *le, uint64_t i)
 {
 	for (int j = 0; j < log_entries; j++) {
 		dva_t dva = le[j].le_dva;
-		(void) printf("lb[%4d]\tle[%4d]\tDVA asize: %llu, "
-		    "vdev: %llu, offset: %llu\n", i, j + 1,
+		(void) printf("lb[%4llu]\tle[%4d]\tDVA asize: %llu, "
+		    "vdev: %llu, offset: %llu\n",
+		    (u_longlong_t)i, j + 1,
 		    (u_longlong_t)DVA_GET_ASIZE(&dva),
 		    (u_longlong_t)DVA_GET_VDEV(&dva),
 		    (u_longlong_t)DVA_GET_OFFSET(&dva));
@@ -3533,7 +3534,7 @@ dump_l2arc_log_blkptr(l2arc_log_blkptr_t lbps)
 	    (u_longlong_t)lbps.lbp_payload_start);
 	(void) printf("|\t\tlsize: %llu\n",
 	    (u_longlong_t)L2BLK_GET_LSIZE((&lbps)->lbp_prop));
-	(void) printf("|\t\tpsize: %llu\n",
+	(void) printf("|\t\tasize: %llu\n",
 	    (u_longlong_t)L2BLK_GET_PSIZE((&lbps)->lbp_prop));
 	(void) printf("|\t\tcompralgo: %llu\n",
 	    (u_longlong_t)L2BLK_GET_COMPRESS((&lbps)->lbp_prop));
@@ -3543,17 +3544,19 @@ dump_l2arc_log_blkptr(l2arc_log_blkptr_t lbps)
 }
 
 static void
-dump_l2arc_log_blocks(int fd, l2arc_dev_hdr_phys_t l2dhdr)
+dump_l2arc_log_blocks(int fd, l2arc_dev_hdr_phys_t l2dhdr,
+    l2arc_dev_hdr_phys_t *rebuild)
 {
 	l2arc_log_blk_phys_t this_lb;
-	uint64_t psize;
+	uint64_t asize;
 	l2arc_log_blkptr_t lbps[2];
 	abd_t *abd;
 	zio_cksum_t cksum;
-	int i = 0, failed = 0;
+	int failed = 0;
 	l2arc_dev_t dev;
 
-	print_l2arc_log_blocks();
+	if (!dump_opt['q'])
+		print_l2arc_log_blocks();
 	bcopy((&l2dhdr)->dh_start_lbps, lbps, sizeof (lbps));
 
 	dev.l2ad_evict = l2dhdr.dh_evict;
@@ -3562,8 +3565,10 @@ dump_l2arc_log_blocks(int fd, l2arc_dev_hdr_phys_t l2dhdr)
 
 	if (l2dhdr.dh_start_lbps[0].lbp_daddr == 0) {
 		/* no log blocks to read */
-		(void) printf("No log blocks to read\n");
-		(void) printf("\n");
+		if (!dump_opt['q']) {
+			(void) printf("No log blocks to read\n");
+			(void) printf("\n");
+		}
 		return;
 	} else {
 		dev.l2ad_hand = lbps[0].lbp_daddr +
@@ -3576,17 +3581,23 @@ dump_l2arc_log_blocks(int fd, l2arc_dev_hdr_phys_t l2dhdr)
 		if (!l2arc_log_blkptr_valid(&dev, &lbps[0]))
 			break;
 
-		psize = L2BLK_GET_PSIZE((&lbps[0])->lbp_prop);
-		if (pread64(fd, &this_lb, psize, lbps[0].lbp_daddr) != psize) {
-			(void) printf("Error while reading next log block\n\n");
+		/* L2BLK_GET_PSIZE returns aligned size for log blocks */
+		asize = L2BLK_GET_PSIZE((&lbps[0])->lbp_prop);
+		if (pread64(fd, &this_lb, asize, lbps[0].lbp_daddr) != asize) {
+			if (!dump_opt['q']) {
+				(void) printf("Error while reading next log "
+				    "block\n\n");
+			}
 			break;
 		}
 
-		fletcher_4_native_varsize(&this_lb, psize, &cksum);
+		fletcher_4_native_varsize(&this_lb, asize, &cksum);
 		if (!ZIO_CHECKSUM_EQUAL(cksum, lbps[0].lbp_cksum)) {
 			failed++;
-			(void) printf("Invalid cksum\n");
-			dump_l2arc_log_blkptr(lbps[0]);
+			if (!dump_opt['q']) {
+				(void) printf("Invalid cksum\n");
+				dump_l2arc_log_blkptr(lbps[0]);
+			}
 			break;
 		}
 
@@ -3594,11 +3605,11 @@ dump_l2arc_log_blocks(int fd, l2arc_dev_hdr_phys_t l2dhdr)
 		case ZIO_COMPRESS_OFF:
 			break;
 		case ZIO_COMPRESS_LZ4:
-			abd = abd_alloc_for_io(psize, B_TRUE);
-			abd_copy_from_buf_off(abd, &this_lb, 0, psize);
+			abd = abd_alloc_for_io(asize, B_TRUE);
+			abd_copy_from_buf_off(abd, &this_lb, 0, asize);
 			zio_decompress_data(L2BLK_GET_COMPRESS(
 			    (&lbps[0])->lbp_prop), abd, &this_lb,
-			    psize, sizeof (this_lb));
+			    asize, sizeof (this_lb));
 			abd_free(abd);
 			break;
 		default:
@@ -3608,38 +3619,51 @@ dump_l2arc_log_blocks(int fd, l2arc_dev_hdr_phys_t l2dhdr)
 		if (this_lb.lb_magic == BSWAP_64(L2ARC_LOG_BLK_MAGIC))
 			byteswap_uint64_array(&this_lb, sizeof (this_lb));
 		if (this_lb.lb_magic != L2ARC_LOG_BLK_MAGIC) {
-			(void) printf("Invalid log block magic\n\n");
+			if (!dump_opt['q'])
+				(void) printf("Invalid log block magic\n\n");
 			break;
 		}
 
-		i++;
-		if (dump_opt['l'] > 1) {
-			(void) printf("lb[%4d]\tmagic: %llu\n", i,
+		rebuild->dh_lb_count++;
+		rebuild->dh_lb_asize += asize;
+		if (dump_opt['l'] > 1 && !dump_opt['q']) {
+			(void) printf("lb[%4llu]\tmagic: %llu\n",
+			    (u_longlong_t)rebuild->dh_lb_count,
 			    (u_longlong_t)this_lb.lb_magic);
 			dump_l2arc_log_blkptr(lbps[0]);
 		}
 
-		if (dump_opt['l'] > 2)
-			dump_l2arc_log_entries(l2dhdr.dh_log_blk_ent,
-			    this_lb.lb_entries, i);
+		if (dump_opt['l'] > 2 && !dump_opt['q'])
+			dump_l2arc_log_entries(l2dhdr.dh_log_entries,
+			    this_lb.lb_entries,
+			    rebuild->dh_lb_count);
 
-		if (l2arc_range_check_overlap(lbps[1].lbp_daddr,
-		    lbps[0].lbp_daddr, dev.l2ad_evict) && !dev.l2ad_first)
+		if (l2arc_range_check_overlap(lbps[1].lbp_payload_start,
+		    lbps[0].lbp_payload_start, dev.l2ad_evict) &&
+		    !dev.l2ad_first)
 			break;
 
 		lbps[0] = lbps[1];
 		lbps[1] = this_lb.lb_prev_lbp;
 	}
 
-	(void) printf("log_blk_count:\t %d with valid cksum\n", i);
-	(void) printf("\t\t %d with invalid cksum\n\n", failed);
+	if (!dump_opt['q']) {
+		(void) printf("log_blk_count:\t %llu with valid cksum\n",
+		    (u_longlong_t)rebuild->dh_lb_count);
+		(void) printf("\t\t %d with invalid cksum\n", failed);
+		(void) printf("log_blk_asize:\t %llu\n\n",
+		    (u_longlong_t)rebuild->dh_lb_asize);
+	}
 }
 
-static void
+static int
 dump_l2arc_header(int fd)
 {
-	l2arc_dev_hdr_phys_t l2dhdr;
+	l2arc_dev_hdr_phys_t l2dhdr, rebuild;
 	int error = B_FALSE;
+
+	bzero(&l2dhdr, sizeof (l2dhdr));
+	bzero(&rebuild, sizeof (rebuild));
 
 	if (pread64(fd, &l2dhdr, sizeof (l2dhdr),
 	    VDEV_LABEL_START_SIZE) != sizeof (l2dhdr)) {
@@ -3654,6 +3678,8 @@ dump_l2arc_header(int fd)
 
 	if (error) {
 		(void) printf("L2ARC device header not found\n\n");
+		/* Do not return an error here for backward compatibility */
+		return (0);
 	} else if (!dump_opt['q']) {
 		print_l2arc_header();
 
@@ -3672,16 +3698,39 @@ dump_l2arc_header(int fd)
 		    (u_longlong_t)
 		    l2dhdr.dh_start_lbps[1].lbp_daddr);
 		(void) printf("    log_blk_ent: %llu\n",
-		    (u_longlong_t)l2dhdr.dh_log_blk_ent);
+		    (u_longlong_t)l2dhdr.dh_log_entries);
 		(void) printf("    start: %llu\n",
 		    (u_longlong_t)l2dhdr.dh_start);
 		(void) printf("    end: %llu\n",
 		    (u_longlong_t)l2dhdr.dh_end);
-		(void) printf("    evict: %llu\n\n",
+		(void) printf("    evict: %llu\n",
 		    (u_longlong_t)l2dhdr.dh_evict);
-
-		dump_l2arc_log_blocks(fd, l2dhdr);
+		(void) printf("    lb_asize_refcount: %llu\n",
+		    (u_longlong_t)l2dhdr.dh_lb_asize);
+		(void) printf("    lb_count_refcount: %llu\n\n",
+		    (u_longlong_t)l2dhdr.dh_lb_count);
 	}
+
+	dump_l2arc_log_blocks(fd, l2dhdr, &rebuild);
+	/*
+	 * The total aligned size of log blocks and the number of log blocks
+	 * reported in the header of the device may be less than what zdb
+	 * reports by dump_l2arc_log_blocks() which emulates l2arc_rebuild().
+	 * This happens because dump_l2arc_log_blocks() lacks the memory
+	 * pressure valve that l2arc_rebuild() has. Thus, if we are on a system
+	 * with low memory, l2arc_rebuild will exit prematurely and dh_lb_asize
+	 * and dh_lb_count will be lower to begin with than what exists on the
+	 * device. This is normal and zdb should not exit with an error. The
+	 * opposite case should never happen though, the values reported in the
+	 * header should never be higher than what dump_l2arc_log_blocks() and
+	 * l2arc_rebuild() report. If this happens there is a leak in the
+	 * accounting of log blocks.
+	 */
+	if (l2dhdr.dh_lb_asize > rebuild.dh_lb_asize ||
+	    l2dhdr.dh_lb_count > rebuild.dh_lb_count)
+		return (1);
+
+	return (0);
 }
 
 static void
@@ -4009,7 +4058,7 @@ dump_label(const char *dev)
 	 * Dump the L2ARC header, if existent.
 	 */
 	if (read_l2arc_header)
-		dump_l2arc_header(fd);
+		error |= dump_l2arc_header(fd);
 
 	cookie = NULL;
 	while ((node = avl_destroy_nodes(&config_tree, &cookie)) != NULL)
