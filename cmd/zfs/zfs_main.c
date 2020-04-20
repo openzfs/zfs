@@ -4262,6 +4262,10 @@ zfs_do_send(int argc, char **argv)
 			flags.parsable = B_TRUE;
 			break;
 		case 'V':
+			/*
+			 * NB: On systems without setproctitle(), this
+			 * will essentially just half turn on -v.
+			 */
 			flags.progress = B_TRUE;
 			flags.progressastitle = B_TRUE;
 			break;
