@@ -6647,8 +6647,8 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing)
 		spa_strfree(oldvd->vdev_path);
 		oldvd->vdev_path = kmem_alloc(strlen(newvd->vdev_path) + 5,
 		    KM_SLEEP);
-		(void) sprintf(oldvd->vdev_path, "%s/%s",
-		    newvd->vdev_path, "old");
+		(void) snprintf(oldvd->vdev_path, strlen(newvd->vdev_path) + 5,
+		    "%s/%s", newvd->vdev_path, "old");
 		if (oldvd->vdev_devid != NULL) {
 			spa_strfree(oldvd->vdev_devid);
 			oldvd->vdev_devid = NULL;

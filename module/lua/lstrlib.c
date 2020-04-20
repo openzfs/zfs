@@ -853,9 +853,9 @@ static void addquoted (lua_State *L, luaL_Buffer *b, int arg) {
     else if (*s == '\0' || iscntrl(uchar(*s))) {
       char buff[10];
       if (!isdigit(uchar(*(s+1))))
-        sprintf(buff, "\\%d", (int)uchar(*s));
+        snprintf(buff, sizeof(buff), "\\%d", (int)uchar(*s));
       else
-        sprintf(buff, "\\%03d", (int)uchar(*s));
+        snprintf(buff, sizeof(buff), "\\%03d", (int)uchar(*s));
       luaL_addstring(b, buff);
     }
     else
@@ -890,11 +890,11 @@ static const char *scanformat (lua_State *L, const char *strfrmt, char *form) {
 /*
 ** add length modifier into formats
 */
-static void addlenmod (char *form, const char *lenmod) {
+static void addlenmod (char *form, const char *lenmod, size_t size) {
   size_t l = strlen(form);
   size_t lm = strlen(lenmod);
   char spec = form[l - 1];
-  strcpy(form + l - 1, lenmod);
+  strlcpy(form + l - 1, lenmod, size - (l - 1));
   form[l + lm - 1] = spec;
   form[l + lm] = '\0';
 }
@@ -931,7 +931,7 @@ static int str_format (lua_State *L) {
           lua_Number diff = n - (lua_Number)ni;
           luaL_argcheck(L, -1 < diff && diff < 1, arg,
                         "not a number in proper range");
-          addlenmod(form, LUA_INTFRMLEN);
+          addlenmod(form, LUA_INTFRMLEN, MAX_FORMAT);
           nb = str_sprintf(buff, form, ni);
           break;
         }
@@ -941,7 +941,7 @@ static int str_format (lua_State *L) {
           lua_Number diff = n - (lua_Number)ni;
           luaL_argcheck(L, -1 < diff && diff < 1, arg,
                         "not a non-negative number in proper range");
-          addlenmod(form, LUA_INTFRMLEN);
+          addlenmod(form, LUA_INTFRMLEN, MAX_FORMAT);
           nb = str_sprintf(buff, form, ni);
           break;
         }
@@ -951,7 +951,7 @@ static int str_format (lua_State *L) {
         case 'a': case 'A':
 #endif
         case 'g': case 'G': {
-          addlenmod(form, LUA_FLTFRMLEN);
+          addlenmod(form, LUA_FLTFRMLEN, MAX_FORMAT);
           nb = str_sprintf(buff, form, (LUA_FLTFRM_T)luaL_checknumber(L, arg));
           break;
         }

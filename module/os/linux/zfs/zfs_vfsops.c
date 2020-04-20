@@ -1021,7 +1021,7 @@ zfs_statfs_project(zfsvfs_t *zfsvfs, znode_t *zp, struct kstatfs *statp,
 
 	strlcpy(buf, DMU_OBJACCT_PREFIX, DMU_OBJACCT_PREFIX_LEN + 1);
 	err = zfs_id_to_fuidstr(zfsvfs, NULL, zp->z_projid, buf + offset,
-	    B_FALSE);
+	    sizeof (buf) - offset, B_FALSE);
 	if (err)
 		return (err);
 
