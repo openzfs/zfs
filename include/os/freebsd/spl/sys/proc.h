@@ -117,4 +117,11 @@ do_thread_create(caddr_t stk, size_t stksize, void (*proc)(void *), void *arg,
 
 int	uread(proc_t *, void *, size_t, uintptr_t);
 int	uwrite(proc_t *, void *, size_t, uintptr_t);
+
+static inline boolean_t
+zfs_proc_is_caller(proc_t *p)
+{
+	return (p == curproc);
+}
+
 #endif	/* _OPENSOLARIS_SYS_PROC_H_ */
