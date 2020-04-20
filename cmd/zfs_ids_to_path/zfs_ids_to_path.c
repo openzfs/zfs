@@ -82,12 +82,9 @@ main(int argc, char **argv)
 	}
 
 	char pathname[PATH_MAX * 2];
-	zpool_obj_to_path(pool, objset, object, pathname, PATH_MAX * 2);
-	if (! verbose) {
-		printf("%s\n", pathname);
-	} else {
-		printf("%s\n%s\n", "awef", pathname);
-	}
+	zpool_obj_to_path_impl(pool, objset, object, pathname, PATH_MAX * 2,
+	    verbose);
+	printf("%s\n", pathname);
 	zpool_close(pool);
 	libzfs_fini(g_zfs);
 	return (0);

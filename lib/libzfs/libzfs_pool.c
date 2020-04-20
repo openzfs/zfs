@@ -4360,6 +4360,12 @@ void
 zpool_obj_to_path(zpool_handle_t *zhp, uint64_t dsobj, uint64_t obj,
     char *pathname, size_t len)
 {
+	zpool_obj_to_path_impl(zhp, dsobj, obj, pathname, len, B_FALSE);
+}
+void
+zpool_obj_to_path_impl(zpool_handle_t *zhp, uint64_t dsobj, uint64_t obj,
+    char *pathname, size_t len, boolean_t always_unmounted)
+{
 	zfs_cmd_t zc = {"\0"};
 	boolean_t mounted = B_FALSE;
 	char *mntpnt = NULL;
@@ -4385,7 +4391,8 @@ zpool_obj_to_path(zpool_handle_t *zhp, uint64_t dsobj, uint64_t obj,
 	(void) strlcpy(dsname, zc.zc_value, sizeof (dsname));
 
 	/* find out if the dataset is mounted */
-	mounted = is_mounted(zhp->zpool_hdl, dsname, &mntpnt);
+	mounted = !always_unmounted && is_mounted(zhp->zpool_hdl, dsname,
+	    &mntpnt);
 
 	/* get the corrupted object's path */
 	(void) strlcpy(zc.zc_name, dsname, sizeof (zc.zc_name));
