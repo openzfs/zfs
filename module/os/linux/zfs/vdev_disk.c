@@ -37,6 +37,11 @@
 #include <linux/msdos_fs.h>
 #include <linux/vfs_compat.h>
 
+typedef struct vdev_disk {
+	struct block_device		*vd_bdev;
+	krwlock_t			vd_lock;
+} vdev_disk_t;
+
 /*
  * Unique identifier for the exclusive vdev holder.
  */
