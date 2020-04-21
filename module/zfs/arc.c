@@ -5677,6 +5677,11 @@ arc_read(zio_t *pio, spa_t *spa, const blkptr_t *bp,
 	 */
 	fstrans_cookie_t cookie = spl_fstrans_mark();
 top:
+	if (*arc_flags & ARC_FLAG_COMPRESSED_ARC) {
+		zio_flags |= ZIO_FLAG_RAW;
+		compressed_read = TRUE;
+	}
+
 	if (!embedded_bp) {
 		/*
 		 * Embedded BP's have no DVA and require no I/O to "read".

@@ -1506,6 +1506,10 @@ dbuf_read_impl(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags,
 
 	if ((flags & DB_RF_NO_DECRYPT) && BP_IS_PROTECTED(db->db_blkptr))
 		zio_flags |= ZIO_FLAG_RAW;
+
+	if (flags & DB_RF_NO_DECOMPRESS)
+		zio_flags |= ZIO_FLAG_RAW_COMPRESS;
+
 	/*
 	 * The zio layer will copy the provided blkptr later, but we need to
 	 * do this now so that we can release the parent's rwlock. We have to
@@ -1620,6 +1624,7 @@ dbuf_read(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
 		 */
 		if (err == 0 && db->db_buf != NULL &&
 		    (flags & DB_RF_NO_DECRYPT) == 0 &&
+		    (flags & DB_RF_NO_DECOMPRESS) == 0 &&
 		    (arc_is_encrypted(db->db_buf) ||
 		    arc_is_unauthenticated(db->db_buf) ||
 		    arc_get_compression(db->db_buf) != ZIO_COMPRESS_OFF)) {
@@ -2782,7 +2787,7 @@ dbuf_destroy(dmu_buf_impl_t *db)
 __attribute__((always_inline))
 static inline int
 dbuf_findbp(dnode_t *dn, int level, uint64_t blkid, int fail_sparse,
-    dmu_buf_impl_t **parentp, blkptr_t **bpp)
+    dmu_buf_impl_t **parentp, int dbflag, blkptr_t **bpp)
 {
 	*parentp = NULL;
 	*bpp = NULL;
@@ -2837,13 +2842,14 @@ dbuf_findbp(dnode_t *dn, int level, uint64_t blkid, int fail_sparse,
 		/* this block is referenced from an indirect block */
 		int err;
 
-		err = dbuf_hold_impl(dn, level + 1,
-		    blkid >> epbs, fail_sparse, FALSE, NULL, parentp);
+		err = dbuf_hold_db_impl(dn, level + 1,
+		    blkid >> epbs, fail_sparse, FALSE, dbflag, NULL, parentp);
 
 		if (err)
 			return (err);
 		err = dbuf_read(*parentp, NULL,
-		    (DB_RF_HAVESTRUCT | DB_RF_NOPREFETCH | DB_RF_CANFAIL));
+		    (DB_RF_HAVESTRUCT | DB_RF_NOPREFETCH | DB_RF_CANFAIL |
+		    dbflag));
 		if (err) {
 			dbuf_rele(*parentp, NULL);
 			*parentp = NULL;
@@ -2974,7 +2980,7 @@ dbuf_dnode_findbp(dnode_t *dn, uint64_t level, uint64_t blkid,
 	int err = 0;
 	ASSERT(RW_LOCK_HELD(&dn->dn_struct_rwlock));
 
-	err = dbuf_findbp(dn, level, blkid, B_FALSE, &dbp, &bp2);
+	err = dbuf_findbp(dn, level, blkid, B_FALSE, &dbp, 0, &bp2);
 	if (err == 0) {
 		*bp = *bp2;
 		if (dbp != NULL)
@@ -3018,8 +3024,9 @@ dbuf_issue_final_prefetch(dbuf_prefetch_arg_t *dpa, blkptr_t *bp)
 	    dpa->dpa_aflags | ARC_FLAG_NOWAIT | ARC_FLAG_PREFETCH;
 
 	/* dnodes are always read as raw and then converted later */
-	if (BP_GET_TYPE(bp) == DMU_OT_DNODE && BP_IS_PROTECTED(bp) &&
-	    dpa->dpa_curlevel == 0)
+	if ((BP_GET_TYPE(bp) == DMU_OT_DNODE && BP_IS_PROTECTED(bp) &&
+	    dpa->dpa_curlevel == 0) ||
+	    (aflags & ARC_FLAG_COMPRESSED_ARC) != 0)
 		zio_flags |= ZIO_FLAG_RAW;
 
 	ASSERT3U(dpa->dpa_curlevel, ==, BP_GET_LEVEL(bp));
@@ -3283,13 +3290,9 @@ dbuf_hold_copy(dnode_t *dn, dmu_buf_impl_t *db)
 	rw_exit(&db->db_rwlock);
 }
 
-/*
- * Returns with db_holds incremented, and db_mtx not held.
- * Note: dn_struct_rwlock must be held.
- */
 int
-dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid,
-    boolean_t fail_sparse, boolean_t fail_uncached,
+dbuf_hold_db_impl(dnode_t *dn, uint8_t level, uint64_t blkid,
+    boolean_t fail_sparse, boolean_t fail_uncached, int dbflag,
     void *tag, dmu_buf_impl_t **dbp)
 {
 	dmu_buf_impl_t *db, *parent = NULL;
@@ -3318,7 +3321,8 @@ dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid,
 			return (SET_ERROR(ENOENT));
 
 		ASSERT3P(parent, ==, NULL);
-		err = dbuf_findbp(dn, level, blkid, fail_sparse, &parent, &bp);
+		err = dbuf_findbp(dn, level, blkid, fail_sparse, &parent,
+		    dbflag, &bp);
 		if (fail_sparse) {
 			if (err == 0 && bp && BP_IS_HOLE(bp))
 				err = SET_ERROR(ENOENT);
@@ -3394,6 +3398,19 @@ dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid,
 	return (0);
 }
 
+/*
+ * Returns with db_holds incremented, and db_mtx not held.
+ * Note: dn_struct_rwlock must be held.
+ */
+int
+dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid,
+    boolean_t fail_sparse, boolean_t fail_uncached,
+    void *tag, dmu_buf_impl_t **dbp)
+{
+	return dbuf_hold_db_impl(dn, level, blkid, fail_sparse, fail_uncached,
+	    0, tag, dbp);
+}
+
 dmu_buf_impl_t *
 dbuf_hold(dnode_t *dn, uint64_t blkid, void *tag)
 {
@@ -3406,6 +3423,17 @@ dbuf_hold_level(dnode_t *dn, int level, uint64_t blkid, void *tag)
 	dmu_buf_impl_t *db;
 	int err = dbuf_hold_impl(dn, level, blkid, FALSE, FALSE, tag, &db);
 	return (err ? NULL : db);
+}
+
+dmu_buf_impl_t *
+dbuf_hold_db(dnode_t *dn, int level, uint64_t blkid, int dbflag, void *tag)
+{
+	dmu_buf_impl_t *db;
+
+	int error = dbuf_hold_db_impl(dn, level, blkid, FALSE, FALSE, dbflag,
+	    tag, &db);
+
+	return (error ? NULL : db);
 }
 
 void
@@ -4697,6 +4725,7 @@ EXPORT_SYMBOL(dbuf_assign_arcbuf);
 EXPORT_SYMBOL(dbuf_prefetch);
 EXPORT_SYMBOL(dbuf_hold_impl);
 EXPORT_SYMBOL(dbuf_hold);
+EXPORT_SYMBOL(dbuf_hold_db);
 EXPORT_SYMBOL(dbuf_hold_level);
 EXPORT_SYMBOL(dbuf_create_bonus);
 EXPORT_SYMBOL(dbuf_spill_set_blksz);

@@ -419,8 +419,12 @@ void dnode_rm_spill(dnode_t *dn, dmu_tx_t *tx);
 
 int dnode_hold(struct objset *dd, uint64_t object,
     void *ref, dnode_t **dnp);
+int dnode_hold_db(struct objset *dd, uint64_t object, int dbflag,
+    void *ref, dnode_t **dnp);
 int dnode_hold_impl(struct objset *dd, uint64_t object, int flag, int dn_slots,
     void *ref, dnode_t **dnp);
+int dnode_hold_db_impl(struct objset *dd, uint64_t object, int dnflag,
+    int dbflag, int dn_slots, void *ref, dnode_t **dnp);
 boolean_t dnode_add_ref(dnode_t *dn, void *ref);
 void dnode_rele(dnode_t *dn, void *ref);
 void dnode_rele_and_unlock(dnode_t *dn, void *tag, boolean_t evicting);

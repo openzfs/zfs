@@ -1246,38 +1246,9 @@ dnode_buf_evict_async(void *dbu)
 	    dnc->dnc_count * sizeof (dnode_handle_t));
 }
 
-/*
- * When the DNODE_MUST_BE_FREE flag is set, the "slots" parameter is used
- * to ensure the hole at the specified object offset is large enough to
- * hold the dnode being created. The slots parameter is also used to ensure
- * a dnode does not span multiple dnode blocks. In both of these cases, if
- * a failure occurs, ENOSPC is returned. Keep in mind, these failure cases
- * are only possible when using DNODE_MUST_BE_FREE.
- *
- * If the DNODE_MUST_BE_ALLOCATED flag is set, "slots" must be 0.
- * dnode_hold_impl() will check if the requested dnode is already consumed
- * as an extra dnode slot by an large dnode, in which case it returns
- * ENOENT.
- *
- * If the DNODE_DRY_RUN flag is set, we don't actually hold the dnode, just
- * return whether the hold would succeed or not. tag and dnp should set to
- * NULL in this case.
- *
- * errors:
- * EINVAL - Invalid object number or flags.
- * ENOSPC - Hole too small to fulfill "slots" request (DNODE_MUST_BE_FREE)
- * EEXIST - Refers to an allocated dnode (DNODE_MUST_BE_FREE)
- *        - Refers to a freeing dnode (DNODE_MUST_BE_FREE)
- *        - Refers to an interior dnode slot (DNODE_MUST_BE_ALLOCATED)
- * ENOENT - The requested dnode is not allocated (DNODE_MUST_BE_ALLOCATED)
- *        - The requested dnode is being freed (DNODE_MUST_BE_ALLOCATED)
- * EIO    - I/O error when reading the meta dnode dbuf.
- *
- * succeeds even for free dnodes.
- */
 int
-dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
-    void *tag, dnode_t **dnp)
+dnode_hold_db_impl(objset_t *os, uint64_t object, int flag, int dbflag,
+    int slots, void *tag, dnode_t **dnp)
 {
 	int epb, idx, err;
 	int drop_struct_lock = FALSE;
@@ -1343,7 +1314,7 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 	}
 
 	blk = dbuf_whichblock(mdn, 0, object * sizeof (dnode_phys_t));
-	db = dbuf_hold(mdn, blk, FTAG);
+	db = dbuf_hold_db(mdn, 0, blk, dbflag, FTAG);
 	if (drop_struct_lock)
 		rw_exit(&mdn->dn_struct_rwlock);
 	if (db == NULL) {
@@ -1355,7 +1326,7 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 	 * We do not need to decrypt to read the dnode so it doesn't matter
 	 * if we get the encrypted or decrypted version.
 	 */
-	err = dbuf_read(db, NULL, DB_RF_CANFAIL | DB_RF_NO_DECRYPT);
+	err = dbuf_read(db, NULL, DB_RF_CANFAIL | DB_RF_NO_DECRYPT | dbflag);
 	if (err) {
 		DNODE_STAT_BUMP(dnode_hold_dbuf_read);
 		dbuf_rele(db, FTAG);
@@ -1567,6 +1538,41 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 }
 
 /*
+ * When the DNODE_MUST_BE_FREE flag is set, the "slots" parameter is used
+ * to ensure the hole at the specified object offset is large enough to
+ * hold the dnode being created. The slots parameter is also used to ensure
+ * a dnode does not span multiple dnode blocks. In both of these cases, if
+ * a failure occurs, ENOSPC is returned. Keep in mind, these failure cases
+ * are only possible when using DNODE_MUST_BE_FREE.
+ *
+ * If the DNODE_MUST_BE_ALLOCATED flag is set, "slots" must be 0.
+ * dnode_hold_impl() will check if the requested dnode is already consumed
+ * as an extra dnode slot by an large dnode, in which case it returns
+ * ENOENT.
+ *
+ * If the DNODE_DRY_RUN flag is set, we don't actually hold the dnode, just
+ * return whether the hold would succeed or not. tag and dnp should set to
+ * NULL in this case.
+ *
+ * errors:
+ * EINVAL - Invalid object number or flags.
+ * ENOSPC - Hole too small to fulfill "slots" request (DNODE_MUST_BE_FREE)
+ * EEXIST - Refers to an allocated dnode (DNODE_MUST_BE_FREE)
+ *        - Refers to a freeing dnode (DNODE_MUST_BE_FREE)
+ *        - Refers to an interior dnode slot (DNODE_MUST_BE_ALLOCATED)
+ * ENOENT - The requested dnode is not allocated (DNODE_MUST_BE_ALLOCATED)
+ *        - The requested dnode is being freed (DNODE_MUST_BE_ALLOCATED)
+ * EIO    - I/O error when reading the meta dnode dbuf.
+ *
+ * succeeds even for free dnodes.
+ */
+int dnode_hold_impl(struct objset *dd, uint64_t object, int flag, int dn_slots,
+    void *ref, dnode_t **dnp)
+{
+	return (dnode_hold_db_impl(dd, object, flag, 0, dn_slots, ref, dnp));
+}
+
+/*
  * Return held dnode if the object is allocated, NULL if not.
  */
 int
@@ -1574,6 +1580,17 @@ dnode_hold(objset_t *os, uint64_t object, void *tag, dnode_t **dnp)
 {
 	return (dnode_hold_impl(os, object, DNODE_MUST_BE_ALLOCATED, 0, tag,
 	    dnp));
+}
+
+/*
+ * Return held dnode if the object is allocated, NULL if not.
+ */
+int
+dnode_hold_db(objset_t *os, uint64_t object, int dbflag, void *tag,
+    dnode_t **dnp)
+{
+	return (dnode_hold_db_impl(os, object, DNODE_MUST_BE_ALLOCATED, dbflag,
+	    0, tag, dnp));
 }
 
 /*

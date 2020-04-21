@@ -529,6 +529,8 @@ void dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp,
  * Returns ENOENT, EIO, or 0.
  */
 int dmu_bonus_hold(objset_t *os, uint64_t object, void *tag, dmu_buf_t **dbp);
+int dmu_bonus_hold_compressed(objset_t *os, uint64_t object, void *tag,
+    dmu_buf_t **dbp);
 int dmu_bonus_hold_by_dnode(dnode_t *dn, void *tag, dmu_buf_t **dbp,
     uint32_t flags);
 int dmu_bonus_max(void);
@@ -601,6 +603,9 @@ uint64_t dmu_buf_user_refcount(dmu_buf_t *db);
 int dmu_buf_hold_array_by_bonus(dmu_buf_t *db, uint64_t offset,
     uint64_t length, boolean_t read, void *tag,
     int *numbufsp, dmu_buf_t ***dbpp);
+int dmu_buf_hold_array_by_bonus_compressed(dmu_buf_t *db, uint64_t offset,
+    uint64_t length, boolean_t read, void *tag,
+    int *numbufsp, dmu_buf_t ***dbpp, enum zio_compress **comp);
 void dmu_buf_rele_array(dmu_buf_t **, int numbufs, void *tag);
 
 typedef void dmu_buf_evict_func_t(void *user_ptr);
@@ -772,6 +777,8 @@ void dmu_buf_set_crypt_params(dmu_buf_t *db_fake, boolean_t byteorder,
 
 dmu_tx_t *dmu_tx_create(objset_t *os);
 void dmu_tx_hold_write(dmu_tx_t *tx, uint64_t object, uint64_t off, int len);
+void dmu_tx_hold_write_db(dmu_tx_t *tx, uint64_t object, int dbflag,
+    uint64_t off, int len);
 void dmu_tx_hold_write_by_dnode(dmu_tx_t *tx, dnode_t *dn, uint64_t off,
     int len);
 void dmu_tx_hold_free(dmu_tx_t *tx, uint64_t object, uint64_t off,
@@ -834,8 +841,9 @@ int dmu_free_long_object(objset_t *os, uint64_t object);
  * nonrecoverable I/O error.
  */
 #define	DMU_READ_PREFETCH	0 /* prefetch */
-#define	DMU_READ_NO_PREFETCH	1 /* don't prefetch */
-#define	DMU_READ_NO_DECRYPT	2 /* don't decrypt */
+#define	DMU_READ_NO_PREFETCH	(1 << 0) /* don't prefetch */
+#define	DMU_READ_NO_DECRYPT	(1 << 1) /* don't decrypt */
+#define	DMU_READ_NO_DECOMPRESS	(1 << 2) /* don't decompress */
 int dmu_read(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 	void *buf, uint32_t flags);
 int dmu_read_by_dnode(dnode_t *dn, uint64_t offset, uint64_t size, void *buf,
@@ -858,6 +866,8 @@ int dmu_write_uio_dnode(dnode_t *dn, struct uio *uio, uint64_t size,
 	dmu_tx_t *tx);
 #endif
 struct arc_buf *dmu_request_arcbuf(dmu_buf_t *handle, int size);
+struct arc_buf *dmu_request_compressed_arcbuf(dmu_buf_t *handle, int psize,
+    int lsize, enum zio_compress compression_type);
 void dmu_return_arcbuf(struct arc_buf *buf);
 int dmu_assign_arcbuf_by_dnode(dnode_t *dn, uint64_t offset,
     struct arc_buf *buf, dmu_tx_t *tx);
@@ -866,6 +876,8 @@ int dmu_assign_arcbuf_by_dbuf(dmu_buf_t *handle, uint64_t offset,
 #define	dmu_assign_arcbuf	dmu_assign_arcbuf_by_dbuf
 void dmu_copy_from_buf(objset_t *os, uint64_t object, uint64_t offset,
     dmu_buf_t *handle, dmu_tx_t *tx);
+void dmu_assign_compressed_arcbuf(dmu_buf_t *handle, uint64_t offset,
+    uint64_t psize, struct arc_buf *buf, dmu_tx_t *tx);
 #ifdef HAVE_UIO_ZEROCOPY
 int dmu_xuio_init(struct xuio *uio, int niov);
 void dmu_xuio_fini(struct xuio *uio);

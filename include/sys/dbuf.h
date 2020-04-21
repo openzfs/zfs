@@ -55,6 +55,7 @@ extern "C" {
 #define	DB_RF_NEVERWAIT		(1 << 4)
 #define	DB_RF_CACHED		(1 << 5)
 #define	DB_RF_NO_DECRYPT	(1 << 6)
+#define	DB_RF_NO_DECOMPRESS	(1 << 7)
 
 /*
  * The simplified state transition diagram for dbufs looks like:
@@ -318,8 +319,13 @@ int dbuf_spill_set_blksz(dmu_buf_t *db, uint64_t blksz, dmu_tx_t *tx);
 void dbuf_rm_spill(struct dnode *dn, dmu_tx_t *tx);
 
 dmu_buf_impl_t *dbuf_hold(struct dnode *dn, uint64_t blkid, void *tag);
+dmu_buf_impl_t *dbuf_hold_db(dnode_t *dn, int level, uint64_t blkid,
+    int dbflag, void *tag);
 dmu_buf_impl_t *dbuf_hold_level(struct dnode *dn, int level, uint64_t blkid,
     void *tag);
+int dbuf_hold_db_impl(struct dnode *dn, uint8_t level, uint64_t blkid,
+    boolean_t fail_sparse, boolean_t fail_uncached, int dbflag,
+    void *tag, dmu_buf_impl_t **dbp);
 int dbuf_hold_impl(struct dnode *dn, uint8_t level, uint64_t blkid,
     boolean_t fail_sparse, boolean_t fail_uncached,
     void *tag, dmu_buf_impl_t **dbp);
