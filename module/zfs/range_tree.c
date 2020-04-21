@@ -195,8 +195,8 @@ range_tree_create_impl(range_tree_ops_t *ops, range_seg_type_t type, void *arg,
 
 	ASSERT3U(shift, <, 64);
 	ASSERT3U(type, <=, RANGE_SEG_NUM_TYPES);
-	size_t size;
-	int (*compare) (const void *, const void *);
+	size_t size = 0;
+	int (*compare) (const void *, const void *) = NULL;
 	switch (type) {
 	case RANGE_SEG32:
 		size = sizeof (range_seg32_t);
@@ -731,7 +731,7 @@ rt_btree_create(range_tree_t *rt, void *arg)
 {
 	zfs_btree_t *size_tree = arg;
 
-	size_t size;
+	size_t size = 0;
 	switch (rt->rt_type) {
 	case RANGE_SEG32:
 		size = sizeof (range_seg32_t);

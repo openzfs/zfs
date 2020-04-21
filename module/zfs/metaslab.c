@@ -1371,8 +1371,8 @@ metaslab_rt_create(range_tree_t *rt, void *arg)
 	metaslab_rt_arg_t *mrap = arg;
 	zfs_btree_t *size_tree = mrap->mra_bt;
 
-	size_t size;
-	int (*compare) (const void *, const void *);
+	size_t size = 0;
+	int (*compare) (const void *, const void *) = NULL;
 	switch (rt->rt_type) {
 	case RANGE_SEG32:
 		size = sizeof (range_seg32_t);
