@@ -4356,13 +4356,7 @@ zpool_events_seek(libzfs_handle_t *hdl, uint64_t eid, int zevent_fd)
 	return (error);
 }
 
-void
-zpool_obj_to_path(zpool_handle_t *zhp, uint64_t dsobj, uint64_t obj,
-    char *pathname, size_t len)
-{
-	zpool_obj_to_path_impl(zhp, dsobj, obj, pathname, len, B_FALSE);
-}
-void
+static void
 zpool_obj_to_path_impl(zpool_handle_t *zhp, uint64_t dsobj, uint64_t obj,
     char *pathname, size_t len, boolean_t always_unmounted)
 {
@@ -4413,6 +4407,19 @@ zpool_obj_to_path_impl(zpool_handle_t *zhp, uint64_t dsobj, uint64_t obj,
 	free(mntpnt);
 }
 
+void
+zpool_obj_to_path(zpool_handle_t *zhp, uint64_t dsobj, uint64_t obj,
+    char *pathname, size_t len)
+{
+	zpool_obj_to_path_impl(zhp, dsobj, obj, pathname, len, B_FALSE);
+}
+
+void
+zpool_obj_to_path_ds(zpool_handle_t *zhp, uint64_t dsobj, uint64_t obj,
+    char *pathname, size_t len)
+{
+	zpool_obj_to_path_impl(zhp, dsobj, obj, pathname, len, B_TRUE);
+}
 /*
  * Wait while the specified activity is in progress in the pool.
  */

@@ -52,19 +52,19 @@ function test_one
 
 	typeset mntpnt=$(get_prop mountpoint $ds_path)
 	typeset file_id=$(ls -i /$mntpnt/$file_path | sed 's/ .*//')
-	typeset output=$(/sbin/zfs_ids_to_path $TESTPOOL $ds_id $file_id)
+	typeset output=$(zfs_ids_to_path $TESTPOOL $ds_id $file_id)
 	[[ "$output" == "$mntpnt/$file_path" ]] || \
-		log_fail "Incorrect output for non-verbose while mounted"
-	output=$(/sbin/zfs_ids_to_path -v $TESTPOOL $ds_id $file_id)
+		log_fail "Incorrect output for non-verbose while mounted: $output"
+	output=$(zfs_ids_to_path -v $TESTPOOL $ds_id $file_id)
 	[[ "$output" == "$ds_path:/$file_path" ]] || \
-		log_fail "Incorrect output for verbose while mounted"
+		log_fail "Incorrect output for verbose while mounted: $output"
 	log_must zfs unmount $ds_path
-	output=$(/sbin/zfs_ids_to_path $TESTPOOL $ds_id $file_id)
+	output=$(zfs_ids_to_path $TESTPOOL $ds_id $file_id)
 	[[ "$output" == "$ds_path:/$file_path" ]] || \
-		log_fail "Incorrect output for non-verbose while unmounted"
-	output=$(/sbin/zfs_ids_to_path -v $TESTPOOL $ds_id $file_id)
+		log_fail "Incorrect output for non-verbose while unmounted: $output"
+	output=$(zfs_ids_to_path -v $TESTPOOL $ds_id $file_id)
 	[[ "$output" == "$ds_path:/$file_path" ]] || \
-		log_fail "Incorrect output for verbose while unmounted"
+		log_fail "Incorrect output for verbose while unmounted: $output"
 	log_must zfs mount $ds_path
 }
 

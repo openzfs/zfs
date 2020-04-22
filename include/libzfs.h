@@ -441,8 +441,8 @@ extern int zpool_events_next(libzfs_handle_t *, nvlist_t **, int *, unsigned,
     int);
 extern int zpool_events_clear(libzfs_handle_t *, int *);
 extern int zpool_events_seek(libzfs_handle_t *, uint64_t, int);
-extern void zpool_obj_to_path_impl(zpool_handle_t *, uint64_t, uint64_t, char *,
-    size_t, boolean_t);
+extern void zpool_obj_to_path_ds(zpool_handle_t *, uint64_t, uint64_t, char *,
+    size_t);
 extern void zpool_obj_to_path(zpool_handle_t *, uint64_t, uint64_t, char *,
     size_t);
 extern int zfs_ioctl(libzfs_handle_t *, int, struct zfs_cmd *);

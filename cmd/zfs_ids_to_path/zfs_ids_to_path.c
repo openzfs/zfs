@@ -82,8 +82,13 @@ main(int argc, char **argv)
 	}
 
 	char pathname[PATH_MAX * 2];
-	zpool_obj_to_path_impl(pool, objset, object, pathname, PATH_MAX * 2,
-	    verbose);
+	if (verbose) {
+		zpool_obj_to_path_ds(pool, objset, object, pathname,
+		    sizeof (pathname));
+	} else {
+		zpool_obj_to_path(pool, objset, object, pathname,
+		    sizeof (pathname));
+	}
 	printf("%s\n", pathname);
 	zpool_close(pool);
 	libzfs_fini(g_zfs);
