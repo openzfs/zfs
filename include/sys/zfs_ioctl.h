@@ -224,6 +224,19 @@ typedef enum dmu_send_resume_token_version {
 /*
  * zfs ioctl command structure
  */
+
+/* Header is used in C++ so can't forward declare untagged struct */
+struct drr_begin {
+	uint64_t drr_magic;
+	uint64_t drr_versioninfo; /* was drr_version */
+	uint64_t drr_creation_time;
+	dmu_objset_type_t drr_type;
+	uint32_t drr_flags;
+	uint64_t drr_toguid;
+	uint64_t drr_fromguid;
+	char drr_toname[MAXNAMELEN];
+};
+
 typedef struct dmu_replay_record {
 	enum {
 		DRR_BEGIN, DRR_OBJECT, DRR_FREEOBJECTS,
@@ -233,16 +246,7 @@ typedef struct dmu_replay_record {
 	} drr_type;
 	uint32_t drr_payloadlen;
 	union {
-		struct drr_begin {
-			uint64_t drr_magic;
-			uint64_t drr_versioninfo; /* was drr_version */
-			uint64_t drr_creation_time;
-			dmu_objset_type_t drr_type;
-			uint32_t drr_flags;
-			uint64_t drr_toguid;
-			uint64_t drr_fromguid;
-			char drr_toname[MAXNAMELEN];
-		} drr_begin;
+		struct drr_begin drr_begin;
 		struct drr_end {
 			zio_cksum_t drr_checksum;
 			uint64_t drr_toguid;
