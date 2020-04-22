@@ -818,10 +818,6 @@ metaslab_group_create(metaslab_class_t *mc, vdev_t *vd, int allocators)
 	mutex_init(&mg->mg_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&mg->mg_ms_disabled_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&mg->mg_ms_disabled_cv, NULL, CV_DEFAULT, NULL);
-	mg->mg_primaries = kmem_zalloc(allocators * sizeof (metaslab_t *),
-	    KM_SLEEP);
-	mg->mg_secondaries = kmem_zalloc(allocators * sizeof (metaslab_t *),
-	    KM_SLEEP);
 	avl_create(&mg->mg_metaslab_tree, metaslab_compare,
 	    sizeof (metaslab_t), offsetof(metaslab_t, ms_group_node));
 	mg->mg_vd = vd;
@@ -831,13 +827,11 @@ metaslab_group_create(metaslab_class_t *mc, vdev_t *vd, int allocators)
 	mg->mg_no_free_space = B_TRUE;
 	mg->mg_allocators = allocators;
 
-	mg->mg_alloc_queue_depth = kmem_zalloc(allocators *
-	    sizeof (zfs_refcount_t), KM_SLEEP);
-	mg->mg_cur_max_alloc_queue_depth = kmem_zalloc(allocators *
-	    sizeof (uint64_t), KM_SLEEP);
+	mg->mg_allocator = kmem_zalloc(allocators *
+	    sizeof (metaslab_group_allocator_t), KM_SLEEP);
 	for (int i = 0; i < allocators; i++) {
-		zfs_refcount_create_tracked(&mg->mg_alloc_queue_depth[i]);
-		mg->mg_cur_max_alloc_queue_depth[i] = 0;
+		metaslab_group_allocator_t *mga = &mg->mg_allocator[i];
+		zfs_refcount_create_tracked(&mga->mga_alloc_queue_depth);
 	}
 
 	mg->mg_taskq = taskq_create("metaslab_group_taskq", metaslab_load_pct,
@@ -860,21 +854,16 @@ metaslab_group_destroy(metaslab_group_t *mg)
 
 	taskq_destroy(mg->mg_taskq);
 	avl_destroy(&mg->mg_metaslab_tree);
-	kmem_free(mg->mg_primaries, mg->mg_allocators * sizeof (metaslab_t *));
-	kmem_free(mg->mg_secondaries, mg->mg_allocators *
-	    sizeof (metaslab_t *));
 	mutex_destroy(&mg->mg_lock);
 	mutex_destroy(&mg->mg_ms_disabled_lock);
 	cv_destroy(&mg->mg_ms_disabled_cv);
 
 	for (int i = 0; i < mg->mg_allocators; i++) {
-		zfs_refcount_destroy(&mg->mg_alloc_queue_depth[i]);
-		mg->mg_cur_max_alloc_queue_depth[i] = 0;
+		metaslab_group_allocator_t *mga = &mg->mg_allocator[i];
+		zfs_refcount_destroy(&mga->mga_alloc_queue_depth);
 	}
-	kmem_free(mg->mg_alloc_queue_depth, mg->mg_allocators *
-	    sizeof (zfs_refcount_t));
-	kmem_free(mg->mg_cur_max_alloc_queue_depth, mg->mg_allocators *
-	    sizeof (uint64_t));
+	kmem_free(mg->mg_allocator, mg->mg_allocators *
+	    sizeof (metaslab_group_allocator_t));
 
 	kmem_free(mg, sizeof (metaslab_group_t));
 }
@@ -955,14 +944,15 @@ metaslab_group_passivate(metaslab_group_t *mg)
 	spa_config_enter(spa, locks & ~(SCL_ZIO - 1), spa, RW_WRITER);
 	metaslab_group_alloc_update(mg);
 	for (int i = 0; i < mg->mg_allocators; i++) {
-		metaslab_t *msp = mg->mg_primaries[i];
+		metaslab_group_allocator_t *mga = &mg->mg_allocator[i];
+		metaslab_t *msp = mga->mga_primary;
 		if (msp != NULL) {
 			mutex_enter(&msp->ms_lock);
 			metaslab_passivate(msp,
 			    metaslab_weight_from_range_tree(msp));
 			mutex_exit(&msp->ms_lock);
 		}
-		msp = mg->mg_secondaries[i];
+		msp = mga->mga_secondary;
 		if (msp != NULL) {
 			mutex_enter(&msp->ms_lock);
 			metaslab_passivate(msp,
@@ -1228,9 +1218,9 @@ metaslab_group_allocatable(metaslab_group_t *mg, metaslab_group_t *rotor,
 	 * regardless of the mg_allocatable or throttle settings.
 	 */
 	if (mg->mg_allocatable) {
-		metaslab_group_t *mgp;
+		metaslab_group_allocator_t *mga = &mg->mg_allocator[allocator];
 		int64_t qdepth;
-		uint64_t qmax = mg->mg_cur_max_alloc_queue_depth[allocator];
+		uint64_t qmax = mga->mga_cur_max_alloc_queue_depth;
 
 		if (!mc->mc_alloc_throttle_enabled)
 			return (B_TRUE);
@@ -1249,8 +1239,7 @@ metaslab_group_allocatable(metaslab_group_t *mg, metaslab_group_t *rotor,
 		 */
 		qmax = qmax * (4 + d) / 4;
 
-		qdepth = zfs_refcount_count(
-		    &mg->mg_alloc_queue_depth[allocator]);
+		qdepth = zfs_refcount_count(&mga->mga_alloc_queue_depth);
 
 		/*
 		 * If this metaslab group is below its qmax or it's
@@ -1268,11 +1257,14 @@ metaslab_group_allocatable(metaslab_group_t *mg, metaslab_group_t *rotor,
 		 * racy since we can't hold the locks for all metaslab
 		 * groups at the same time when we make this check.
 		 */
-		for (mgp = mg->mg_next; mgp != rotor; mgp = mgp->mg_next) {
-			qmax = mgp->mg_cur_max_alloc_queue_depth[allocator];
+		for (metaslab_group_t *mgp = mg->mg_next;
+		    mgp != rotor; mgp = mgp->mg_next) {
+			metaslab_group_allocator_t *mgap =
+			    &mgp->mg_allocator[allocator];
+			qmax = mgap->mga_cur_max_alloc_queue_depth;
 			qmax = qmax * (4 + d) / 4;
-			qdepth = zfs_refcount_count(
-			    &mgp->mg_alloc_queue_depth[allocator]);
+			qdepth =
+			    zfs_refcount_count(&mgap->mga_alloc_queue_depth);
 
 			/*
 			 * If there is another metaslab group that
@@ -3225,6 +3217,7 @@ static int
 metaslab_activate_allocator(metaslab_group_t *mg, metaslab_t *msp,
     int allocator, uint64_t activation_weight)
 {
+	metaslab_group_allocator_t *mga = &mg->mg_allocator[allocator];
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
 
 	/*
@@ -3239,16 +3232,16 @@ metaslab_activate_allocator(metaslab_group_t *mg, metaslab_t *msp,
 		return (0);
 	}
 
-	metaslab_t **arr = (activation_weight == METASLAB_WEIGHT_PRIMARY ?
-	    mg->mg_primaries : mg->mg_secondaries);
+	metaslab_t **mspp = (activation_weight == METASLAB_WEIGHT_PRIMARY ?
+	    &mga->mga_primary : &mga->mga_secondary);
 
 	mutex_enter(&mg->mg_lock);
-	if (arr[allocator] != NULL) {
+	if (*mspp != NULL) {
 		mutex_exit(&mg->mg_lock);
 		return (EEXIST);
 	}
 
-	arr[allocator] = msp;
+	*mspp = msp;
 	ASSERT3S(msp->ms_allocator, ==, -1);
 	msp->ms_allocator = allocator;
 	msp->ms_primary = (activation_weight == METASLAB_WEIGHT_PRIMARY);
@@ -3257,7 +3250,6 @@ metaslab_activate_allocator(metaslab_group_t *mg, metaslab_t *msp,
 	msp->ms_activation_weight = msp->ms_weight;
 	metaslab_group_sort_impl(mg, msp,
 	    msp->ms_weight | activation_weight);
-
 	mutex_exit(&mg->mg_lock);
 
 	return (0);
@@ -3357,14 +3349,15 @@ metaslab_passivate_allocator(metaslab_group_t *mg, metaslab_t *msp,
 	ASSERT3S(0, <=, msp->ms_allocator);
 	ASSERT3U(msp->ms_allocator, <, mg->mg_allocators);
 
+	metaslab_group_allocator_t *mga = &mg->mg_allocator[msp->ms_allocator];
 	if (msp->ms_primary) {
-		ASSERT3P(mg->mg_primaries[msp->ms_allocator], ==, msp);
+		ASSERT3P(mga->mga_primary, ==, msp);
 		ASSERT(msp->ms_weight & METASLAB_WEIGHT_PRIMARY);
-		mg->mg_primaries[msp->ms_allocator] = NULL;
+		mga->mga_primary = NULL;
 	} else {
-		ASSERT3P(mg->mg_secondaries[msp->ms_allocator], ==, msp);
+		ASSERT3P(mga->mga_secondary, ==, msp);
 		ASSERT(msp->ms_weight & METASLAB_WEIGHT_SECONDARY);
-		mg->mg_secondaries[msp->ms_allocator] = NULL;
+		mga->mga_secondary = NULL;
 	}
 	msp->ms_allocator = -1;
 	metaslab_group_sort_impl(mg, msp, weight);
@@ -4513,22 +4506,24 @@ metaslab_group_alloc_increment(spa_t *spa, uint64_t vdev, void *tag, int flags,
 	if (!mg->mg_class->mc_alloc_throttle_enabled)
 		return;
 
-	(void) zfs_refcount_add(&mg->mg_alloc_queue_depth[allocator], tag);
+	metaslab_group_allocator_t *mga = &mg->mg_allocator[allocator];
+	(void) zfs_refcount_add(&mga->mga_alloc_queue_depth, tag);
 }
 
 static void
 metaslab_group_increment_qdepth(metaslab_group_t *mg, int allocator)
 {
+	metaslab_group_allocator_t *mga = &mg->mg_allocator[allocator];
 	uint64_t max = mg->mg_max_alloc_queue_depth;
-	uint64_t cur = mg->mg_cur_max_alloc_queue_depth[allocator];
+	uint64_t cur = mga->mga_cur_max_alloc_queue_depth;
 	while (cur < max) {
-		if (atomic_cas_64(&mg->mg_cur_max_alloc_queue_depth[allocator],
+		if (atomic_cas_64(&mga->mga_cur_max_alloc_queue_depth,
 		    cur, cur + 1) == cur) {
 			atomic_inc_64(
 			    &mg->mg_class->mc_alloc_max_slots[allocator]);
 			return;
 		}
-		cur = mg->mg_cur_max_alloc_queue_depth[allocator];
+		cur = mga->mga_cur_max_alloc_queue_depth;
 	}
 }
 
@@ -4544,7 +4539,8 @@ metaslab_group_alloc_decrement(spa_t *spa, uint64_t vdev, void *tag, int flags,
 	if (!mg->mg_class->mc_alloc_throttle_enabled)
 		return;
 
-	(void) zfs_refcount_remove(&mg->mg_alloc_queue_depth[allocator], tag);
+	metaslab_group_allocator_t *mga = &mg->mg_allocator[allocator];
+	(void) zfs_refcount_remove(&mga->mga_alloc_queue_depth, tag);
 	if (io_complete)
 		metaslab_group_increment_qdepth(mg, allocator);
 }
@@ -4560,8 +4556,8 @@ metaslab_group_alloc_verify(spa_t *spa, const blkptr_t *bp, void *tag,
 	for (int d = 0; d < ndvas; d++) {
 		uint64_t vdev = DVA_GET_VDEV(&dva[d]);
 		metaslab_group_t *mg = vdev_lookup_top(spa, vdev)->vdev_mg;
-		VERIFY(zfs_refcount_not_held(
-		    &mg->mg_alloc_queue_depth[allocator], tag));
+		metaslab_group_allocator_t *mga = &mg->mg_allocator[allocator];
+		VERIFY(zfs_refcount_not_held(&mga->mga_alloc_queue_depth, tag));
 	}
 #endif
 }
@@ -4736,6 +4732,7 @@ metaslab_group_alloc_normal(metaslab_group_t *mg, zio_alloc_list_t *zal,
 	 */
 	if (mg->mg_ms_ready < mg->mg_allocators * 3)
 		allocator = 0;
+	metaslab_group_allocator_t *mga = &mg->mg_allocator[allocator];
 
 	ASSERT3U(mg->mg_vd->vdev_ms_count, >=, 2);
 
@@ -4757,8 +4754,8 @@ metaslab_group_alloc_normal(metaslab_group_t *mg, zio_alloc_list_t *zal,
 		mutex_enter(&mg->mg_lock);
 
 		if (activation_weight == METASLAB_WEIGHT_PRIMARY &&
-		    mg->mg_primaries[allocator] != NULL) {
-			msp = mg->mg_primaries[allocator];
+		    mga->mga_primary != NULL) {
+			msp = mga->mga_primary;
 
 			/*
 			 * Even though we don't hold the ms_lock for the
@@ -4773,8 +4770,8 @@ metaslab_group_alloc_normal(metaslab_group_t *mg, zio_alloc_list_t *zal,
 			was_active = B_TRUE;
 			ASSERT(msp->ms_weight & METASLAB_ACTIVE_MASK);
 		} else if (activation_weight == METASLAB_WEIGHT_SECONDARY &&
-		    mg->mg_secondaries[allocator] != NULL) {
-			msp = mg->mg_secondaries[allocator];
+		    mga->mga_secondary != NULL) {
+			msp = mga->mga_secondary;
 
 			/*
 			 * See comment above about the similar assertions
