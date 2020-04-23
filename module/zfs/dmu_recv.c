@@ -1022,7 +1022,7 @@ dmu_recv_resume_begin_check(void *arg, dmu_tx_t *tx)
 		return (SET_ERROR(EINVAL));
 	}
 
-	if (ds->ds_prev != NULL)
+	if (ds->ds_prev != NULL && drrb->drr_fromguid != 0)
 		drc->drc_fromsnapobj = ds->ds_prev->ds_object;
 
 	/*
