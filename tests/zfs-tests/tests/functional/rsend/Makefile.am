@@ -2,6 +2,8 @@ pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/rsend
 dist_pkgdata_SCRIPTS = \
 	setup.ksh \
 	cleanup.ksh \
+	recv_dedup.ksh \
+	recv_dedup_encrypted_zvol.ksh \
 	rsend_001_pos.ksh \
 	rsend_002_pos.ksh \
 	rsend_003_pos.ksh \
@@ -25,7 +27,6 @@ dist_pkgdata_SCRIPTS = \
 	send_encrypted_hierarchy.ksh \
 	send_encrypted_props.ksh \
 	send_encrypted_truncated_files.ksh \
-	send-cD.ksh \
 	send-c_embedded_blocks.ksh \
 	send-c_incremental.ksh \
 	send-c_lz4_disabled.ksh \
@@ -49,8 +50,12 @@ dist_pkgdata_SCRIPTS = \
 	send_holds.ksh \
 	send_hole_birth.ksh \
 	send_mixed_raw.ksh \
-	send-wDR_encrypted_zvol.ksh
+	send-wR_encrypted_zvol.ksh
 
 dist_pkgdata_DATA = \
+	dedup.zsend.bz2 \
+	dedup_encrypted_zvol.bz2 \
+	dedup_encrypted_zvol.zsend.bz2 \
+	fs.tar.gz \
 	rsend.cfg \
 	rsend.kshlib

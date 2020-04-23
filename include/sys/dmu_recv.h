@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2020 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2013, Joyent, Inc. All rights reserved.
  */
@@ -53,10 +53,8 @@ typedef struct dmu_recv_cookie {
 	boolean_t drc_raw;
 	boolean_t drc_clone;
 	boolean_t drc_spill;
-	struct avl_tree *drc_guid_to_ds_map;
 	nvlist_t *drc_keynvl;
 	uint64_t drc_fromsnapobj;
-	uint64_t drc_newsnapobj;
 	uint64_t drc_ivset_guid;
 	void *drc_owner;
 	cred_t *drc_cred;
@@ -80,13 +78,11 @@ typedef struct dmu_recv_cookie {
 	objlist_t *drc_ignore_objlist;
 } dmu_recv_cookie_t;
 
-int dmu_recv_begin(char *tofs, char *tosnap, dmu_replay_record_t *drr_begin,
-    boolean_t force, boolean_t resumable, nvlist_t *localprops,
-    nvlist_t *hidden_args, char *origin, dmu_recv_cookie_t *drc,
-    zfs_file_t *fp, offset_t *voffp);
-int dmu_recv_stream(dmu_recv_cookie_t *drc, int cleanup_fd,
-    uint64_t *action_handlep, offset_t *voffp);
-int dmu_recv_end(dmu_recv_cookie_t *drc, void *owner);
-boolean_t dmu_objset_is_receiving(objset_t *os);
+int dmu_recv_begin(char *, char *, dmu_replay_record_t *,
+    boolean_t, boolean_t, nvlist_t *, nvlist_t *, char *,
+    dmu_recv_cookie_t *, zfs_file_t *, offset_t *);
+int dmu_recv_stream(dmu_recv_cookie_t *, offset_t *);
+int dmu_recv_end(dmu_recv_cookie_t *, void *);
+boolean_t dmu_objset_is_receiving(objset_t *);
 
 #endif /* _DMU_RECV_H */

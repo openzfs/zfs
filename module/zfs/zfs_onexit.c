@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 by Delphix. All rights reserved.
+ * Copyright (c) 2013, 2020 by Delphix. All rights reserved.
  */
 
 #include <sys/types.h>
@@ -170,81 +170,4 @@ zfs_onexit_add_cb(minor_t minor, void (*func)(void *), void *data,
 		*action_handle = (uint64_t)(uintptr_t)ap;
 
 	return (0);
-}
-
-static zfs_onexit_action_node_t *
-zfs_onexit_find_cb(zfs_onexit_t *zo, uint64_t action_handle)
-{
-	zfs_onexit_action_node_t *match;
-	zfs_onexit_action_node_t *ap;
-	list_t *l;
-
-	ASSERT(MUTEX_HELD(&zo->zo_lock));
-
-	match = (zfs_onexit_action_node_t *)(uintptr_t)action_handle;
-	l = &zo->zo_actions;
-	for (ap = list_head(l); ap != NULL; ap = list_next(l, ap)) {
-		if (match == ap)
-			break;
-	}
-	return (ap);
-}
-
-/*
- * Delete the callback, triggering it first if 'fire' is set.
- */
-int
-zfs_onexit_del_cb(minor_t minor, uint64_t action_handle, boolean_t fire)
-{
-	zfs_onexit_t *zo;
-	zfs_onexit_action_node_t *ap;
-	int error;
-
-	error = zfs_onexit_minor_to_state(minor, &zo);
-	if (error)
-		return (error);
-
-	mutex_enter(&zo->zo_lock);
-	ap = zfs_onexit_find_cb(zo, action_handle);
-	if (ap != NULL) {
-		list_remove(&zo->zo_actions, ap);
-		mutex_exit(&zo->zo_lock);
-		if (fire)
-			ap->za_func(ap->za_data);
-		kmem_free(ap, sizeof (zfs_onexit_action_node_t));
-	} else {
-		mutex_exit(&zo->zo_lock);
-		error = SET_ERROR(ENOENT);
-	}
-
-	return (error);
-}
-
-/*
- * Return the data associated with this callback.  This allows consumers
- * of the cleanup-on-exit interfaces to stash kernel data across system
- * calls, knowing that it will be cleaned up if the calling process exits.
- */
-int
-zfs_onexit_cb_data(minor_t minor, uint64_t action_handle, void **data)
-{
-	zfs_onexit_t *zo;
-	zfs_onexit_action_node_t *ap;
-	int error;
-
-	*data = NULL;
-
-	error = zfs_onexit_minor_to_state(minor, &zo);
-	if (error)
-		return (error);
-
-	mutex_enter(&zo->zo_lock);
-	ap = zfs_onexit_find_cb(zo, action_handle);
-	if (ap != NULL)
-		*data = ap->za_data;
-	else
-		error = SET_ERROR(ENOENT);
-	mutex_exit(&zo->zo_lock);
-
-	return (error);
 }
