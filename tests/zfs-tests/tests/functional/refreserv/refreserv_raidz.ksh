@@ -63,7 +63,11 @@ poolexists "$TESTPOOL" && log_must_busy zpool destroy "$TESTPOOL"
 # that small test disks may fill before creating small volumes.  However,
 # testing 512b and 1K blocks on ashift=9 pools is an ok approximation for
 # testing the problems that arise from 4K and 8K blocks on ashift=12 pools.
-bps=$(lsblk -nrdo min-io /dev/${alldisks[0]})
+if is_freebsd; then
+	bps=$(diskinfo -v ${alldisks[0]} | awk '/sectorsize/ { print $1 }')
+elif is_linux; then
+	bps=$(lsblk -nrdo min-io /dev/${alldisks[0]})
+fi
 log_must test "$bps" -eq 512 -o "$bps" -eq 4096
 case "$bps" in
 512)
@@ -121,6 +125,7 @@ for parity in 1 2 3; do
 			log_must test "$deltapct" -le $maxpct
 
 			log_must_busy zfs destroy "$vol"
+			block_device_wait
 		done
 
 		log_must_busy zpool destroy "$TESTPOOL"

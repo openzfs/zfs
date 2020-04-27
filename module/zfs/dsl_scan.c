@@ -175,7 +175,9 @@ int zfs_no_scrub_io = B_FALSE; /* set to disable scrub i/o */
 int zfs_no_scrub_prefetch = B_FALSE; /* set to disable scrub prefetch */
 enum ddt_class zfs_scrub_ddt_class_max = DDT_CLASS_DUPLICATE;
 /* max number of blocks to free in a single TXG */
-unsigned long zfs_async_block_max_blocks = 100000;
+unsigned long zfs_async_block_max_blocks = ULONG_MAX;
+/* max number of dedup blocks to free in a single TXG */
+unsigned long zfs_max_async_dedup_frees = 100000;
 
 int zfs_resilver_disable_defer = 0; /* set to disable resilver deferring */
 
@@ -805,7 +807,7 @@ dsl_scan(dsl_pool_t *dp, pool_scan_func_t func)
 		    POOL_SCRUB_NORMAL);
 		if (err == 0) {
 			spa_event_notify(spa, NULL, NULL, ESC_ZFS_SCRUB_RESUME);
-			return (ECANCELED);
+			return (SET_ERROR(ECANCELED));
 		}
 
 		return (SET_ERROR(err));
@@ -1192,10 +1194,13 @@ scan_ds_queue_sync(dsl_scan_t *scn, dmu_tx_t *tx)
 static boolean_t
 dsl_scan_should_clear(dsl_scan_t *scn)
 {
+	spa_t *spa = scn->scn_dp->dp_spa;
 	vdev_t *rvd = scn->scn_dp->dp_spa->spa_root_vdev;
-	uint64_t mlim_hard, mlim_soft, mused;
-	uint64_t alloc = metaslab_class_get_alloc(spa_normal_class(
-	    scn->scn_dp->dp_spa));
+	uint64_t alloc, mlim_hard, mlim_soft, mused;
+
+	alloc = metaslab_class_get_alloc(spa_normal_class(spa));
+	alloc += metaslab_class_get_alloc(spa_special_class(spa));
+	alloc += metaslab_class_get_alloc(spa_dedup_class(spa));
 
 	mlim_hard = MAX((physmem / zfs_scan_mem_lim_fact) * PAGESIZE,
 	    zfs_scan_mem_lim_min);
@@ -3101,6 +3106,11 @@ dsl_scan_async_block_should_pause(dsl_scan_t *scn)
 		return (B_TRUE);
 	}
 
+	if (zfs_max_async_dedup_frees != 0 &&
+	    scn->scn_dedup_frees_this_txg >= zfs_max_async_dedup_frees) {
+		return (B_TRUE);
+	}
+
 	elapsed_nanosecs = gethrtime() - scn->scn_sync_start_time;
 	return (elapsed_nanosecs / NANOSEC > zfs_txg_timeout ||
 	    (NSEC2MSEC(elapsed_nanosecs) > scn->scn_async_block_min_time_ms &&
@@ -3125,6 +3135,8 @@ dsl_scan_free_block_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx)
 	    -bp_get_dsize_sync(scn->scn_dp->dp_spa, bp),
 	    -BP_GET_PSIZE(bp), -BP_GET_UCSIZE(bp), tx);
 	scn->scn_visited_this_txg++;
+	if (BP_GET_DEDUP(bp))
+		scn->scn_dedup_frees_this_txg++;
 	return (0);
 }
 
@@ -3365,6 +3377,7 @@ dsl_process_async_destroys(dsl_pool_t *dp, dmu_tx_t *tx)
 		    NSEC2MSEC(gethrtime() - scn->scn_sync_start_time),
 		    (longlong_t)tx->tx_txg, err);
 		scn->scn_visited_this_txg = 0;
+		scn->scn_dedup_frees_this_txg = 0;
 
 		/*
 		 * Write out changes to the DDT that may be required as a
@@ -3493,6 +3506,7 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 
 	/* reset scan statistics */
 	scn->scn_visited_this_txg = 0;
+	scn->scn_dedup_frees_this_txg = 0;
 	scn->scn_holes_this_txg = 0;
 	scn->scn_lt_min_this_txg = 0;
 	scn->scn_gt_max_this_txg = 0;
@@ -4326,6 +4340,9 @@ ZFS_MODULE_PARAM(zfs, zfs_, no_scrub_prefetch, INT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs, zfs_, async_block_max_blocks, ULONG, ZMOD_RW,
 	"Max number of blocks freed in one txg");
+
+ZFS_MODULE_PARAM(zfs, zfs_, max_async_dedup_frees, ULONG, ZMOD_RW,
+	"Max number of dedup blocks freed in one txg");
 
 ZFS_MODULE_PARAM(zfs, zfs_, free_bpobj_enabled, INT, ZMOD_RW,
 	"Enable processing of the free_bpobj");

@@ -65,6 +65,12 @@
 #include <linux/miscdevice.h>
 #include <linux/slab.h>
 
+boolean_t
+zfs_vfs_held(zfsvfs_t *zfsvfs)
+{
+	return (zfsvfs->z_sb != NULL);
+}
+
 int
 zfs_vfs_ref(zfsvfs_t **zfvp)
 {
@@ -73,6 +79,12 @@ zfs_vfs_ref(zfsvfs_t **zfvp)
 		return (SET_ERROR(ESRCH));
 	}
 	return (0);
+}
+
+void
+zfs_vfs_rele(zfsvfs_t *zfsvfs)
+{
+	deactivate_super(zfsvfs->z_sb);
 }
 
 static int
@@ -187,41 +199,6 @@ out:
 	kmem_free(zc, sizeof (zfs_cmd_t));
 	return (error);
 
-}
-
-int
-zfsdev_getminor(int fd, minor_t *minorp)
-{
-	zfsdev_state_t *zs, *fpd;
-	struct file *fp;
-	int rc;
-
-	ASSERT(!MUTEX_HELD(&zfsdev_state_lock));
-
-	if ((rc = zfs_file_get(fd, &fp)))
-		return (rc);
-
-	fpd = fp->private_data;
-	if (fpd == NULL)
-		return (SET_ERROR(EBADF));
-
-	mutex_enter(&zfsdev_state_lock);
-
-	for (zs = zfsdev_state_list; zs != NULL; zs = zs->zs_next) {
-
-		if (zs->zs_minor == -1)
-			continue;
-
-		if (fpd == zs) {
-			*minorp = fpd->zs_minor;
-			mutex_exit(&zfsdev_state_lock);
-			return (0);
-		}
-	}
-
-	mutex_exit(&zfsdev_state_lock);
-
-	return (SET_ERROR(EBADF));
 }
 
 void

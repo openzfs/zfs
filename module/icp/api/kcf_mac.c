@@ -30,9 +30,6 @@
 #include <sys/crypto/spi.h>
 #include <sys/crypto/sched_impl.h>
 
-#define	CRYPTO_OPS_OFFSET(f)		offsetof(crypto_ops_t, co_##f)
-#define	CRYPTO_MAC_OFFSET(f)		offsetof(crypto_mac_ops_t, f)
-
 /*
  * Message authentication codes routines.
  */

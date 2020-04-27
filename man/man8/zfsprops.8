@@ -22,15 +22,22 @@
 .\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
 .\" Copyright (c) 2011, 2019 by Delphix. All rights reserved.
+.\" Copyright (c) 2011, Pawel Jakub Dawidek <pjd@FreeBSD.org>
+.\" Copyright (c) 2012, Glen Barber <gjb@FreeBSD.org>
+.\" Copyright (c) 2012, Bryan Drewery <bdrewery@FreeBSD.org>
+.\" Copyright (c) 2013, Steven Hartland <smh@FreeBSD.org>
 .\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
 .\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
 .\" Copyright (c) 2014 by Adam Stevko. All rights reserved.
 .\" Copyright (c) 2014 Integros [integros.com]
+.\" Copyright (c) 2016 Nexenta Systems, Inc. All Rights Reserved.
+.\" Copyright (c) 2014, Xin LI <delphij@FreeBSD.org>
+.\" Copyright (c) 2014-2015, The FreeBSD Foundation, All Rights Reserved.
 .\" Copyright 2019 Richard Laager. All rights reserved.
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
 .\"
-.Dd June 30, 2019
+.Dd January 30, 2020
 .Dt ZFSPROPS 8
 .Os Linux
 .Sh NAME
@@ -592,8 +599,58 @@ accordance to the requested mode from the application.
 The
 .Sy aclinherit
 property does not apply to POSIX ACLs.
+.It Sy aclmode Ns = Ns Sy discard Ns | Ns Sy groupmask Ns | Ns Sy passthrough
+.Ns Sy restricted
+Controls how an
+.Tn ACL
+is modified during
+.Xr chmod 2 .
+This property is not visible on Linux yet.
+.Bl -tag -width "passthrough"
+.It Sy discard
+default, deletes all
+.Tn ACL
+entries that do not represent the mode of the file.
+.It Sy groupmask
+reduces permissions granted in all
+.Em ALLOW
+entried found in the
+.Tn ACL
+such that they are no greater than the group permissions specified by
+.Xr chmod 2 .
+.It Sy passthrough
+indicates that no changes are made to the
+.Tn ACL
+other than creating or updating the necessary
+.Tn ACL
+entries to represent the new mode of the file or directory.
+.It Sy restricted
+will cause the
+.Xr chmod 2
+operation to return an error when used on any file or directory which has
+a non-trivial
+.Tn ACL
+whose entries can not be represented by a mode.
+.Xr chmod 2
+is required to change the set user ID, set group ID, or sticky bits on a file
+or directory, as they do not have equivalent
+.Tn ACL
+entries.
+In order to use
+.Xr chmod 2
+on a file or directory with a non-trivial
+.Tn ACL
+when
+.Sy aclmode
+is set to
+.Sy restricted ,
+you must first remove all
+.Tn ACL
+entries which do not represent the current mode.
+.El
 .It Sy acltype Ns = Ns Sy off Ns | Ns Sy noacl Ns | Ns Sy posixacl
 Controls whether ACLs are enabled and if so what type of ACL to use.
+This property is not visible on FreeBSD yet.
 .Bl -tag -width "posixacl"
 .It Sy off
 default, when a file system has the
@@ -705,6 +762,9 @@ and
 checksum algorithms require enabling the appropriate features on the pool.
 These pool features are not supported by GRUB and must not be used on the
 pool if GRUB needs to access the pool (e.g. for /boot).
+FreeBSD does not support the
+.Sy edonr
+algorithm.
 .Pp
 Please see
 .Xr zpool-features 5
@@ -950,7 +1010,7 @@ Selecting
 .Sy encryption Ns = Ns Sy on
 when creating a dataset indicates that the default encryption suite will be
 selected, which is currently
-.Sy aes-256-ccm .
+.Sy aes-256-gcm .
 In order to provide consistent data protection, encryption must be specified at
 dataset creation time and it cannot be changed afterwards.
 .Pp
@@ -1097,14 +1157,16 @@ See
 for more information on
 .Sy nbmand
 mounts. This property is not used on Linux.
-.It Sy overlay Ns = Ns Sy off Ns | Ns Sy on
+.It Sy overlay Ns = Ns Sy on Ns | Ns Sy off
 Allow mounting on a busy directory or a directory which already contains
-files or directories. This is the default mount behavior for Linux file systems.
-For consistency with OpenZFS on other platforms overlay mounts are
-.Sy off
-by default. Set to
+files or directories.
+This is the default mount behavior for Linux and FreeBSD file systems.
+On these platforms the property is
 .Sy on
-to enable overlay mounts.
+by default.
+Set to
+.Sy off
+to disable overlay mounts for consistency with OpenZFS on other platforms.
 .It Sy primarycache Ns = Ns Sy all Ns | Ns Sy none Ns | Ns Sy metadata
 Controls what is cached in the primary cache
 .Pq ARC .
@@ -1706,9 +1768,17 @@ are equivalent to the
 and
 .Sy noxattr
 mount options.
+.It Sy jailed Ns = Ns Cm off | on
+Controls whether the dataset is managed from a jail. See the
+.Qq Sx Jails
+section in
+.Xr zfs 8
+for more information. Jails are a FreeBSD feature and are not relevant on
+other platforms. The default value is
+.Cm off .
 .It Sy zoned Ns = Ns Sy on Ns | Ns Sy off
 Controls whether the dataset is managed from a non-global zone. Zones are a
-Solaris feature and are not relevant on Linux. The default value is
+Solaris feature and are not relevant on other platforms. The default value is
 .Sy off .
 .El
 .Pp

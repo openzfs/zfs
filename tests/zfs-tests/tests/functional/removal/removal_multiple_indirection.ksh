@@ -57,14 +57,14 @@ function cleanup
 	default_cleanup_noexit
 	log_must rm -f $DISKS
 
-	# reset zfs_remove_max_segment to 1M
-	set_tunable32 zfs_remove_max_segment 1048576
+	# reset REMOVE_MAX_SEGMENT to 1M
+	set_tunable32 REMOVE_MAX_SEGMENT 1048576
 }
 
 log_onexit cleanup
 
-# set zfs_remove_max_segment to 32k
-log_must set_tunable32 zfs_remove_max_segment 32768
+# set REMOVE_MAX_SEGMENT to 32k
+log_must set_tunable32 REMOVE_MAX_SEGMENT 32768
 
 log_must dd if=/dev/urandom of=$TESTDIR/$TESTFILE0 bs=128k count=1
 FILE_CONTENTS=$(<$TESTDIR/$TESTFILE0)

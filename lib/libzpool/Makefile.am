@@ -130,6 +130,7 @@ KERNEL_C = \
 	vdev_raidz_math_scalar.c \
 	vdev_raidz_math_sse2.c \
 	vdev_raidz_math_ssse3.c \
+	vdev_raidz_math_powerpc_altivec.c \
 	vdev_removal.c \
 	vdev_root.c \
 	vdev_trim.c \
@@ -140,6 +141,7 @@ KERNEL_C = \
 	zcp_get.c \
 	zcp_global.c \
 	zcp_iter.c \
+	zcp_set.c \
 	zcp_synctask.c \
 	zfeature.c \
 	zfs_byteswap.c \
@@ -152,7 +154,6 @@ KERNEL_C = \
 	zfs_rlock.c \
 	zil.c \
 	zio.c \
-	zio_os.c \
 	zio_checksum.c \
 	zio_compress.c \
 	zio_crypt.c \
@@ -198,7 +199,17 @@ libzpool_la_LIBADD = \
 	$(top_builddir)/lib/libunicode/libunicode.la \
 	$(top_builddir)/lib/libzutil/libzutil.la
 
+if BUILD_FREEBSD
+libzpool_la_LIBADD += $(ZLIB) -ldl -lgeom
+libzpool_la_LDFLAGS = -pthread -version-info 4:0:0
+else
 libzpool_la_LIBADD += $(ZLIB) -ldl
 libzpool_la_LDFLAGS = -pthread -version-info 2:0:0
+endif
 
 EXTRA_DIST = $(USER_C)
+
+if TARGET_CPU_POWERPC
+vdev_raidz_math_powerpc_altivec.$(OBJEXT): CFLAGS += -maltivec
+vdev_raidz_math_powerpc_altivec.l$(OBJEXT): CFLAGS += -maltivec
+endif

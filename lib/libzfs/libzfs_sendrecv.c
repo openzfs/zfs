@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  * Copyright (c) 2012 Pawel Jakub Dawidek <pawel@dawidek.net>.
  * All rights reserved
@@ -61,6 +61,7 @@
 #include "zfs_prop.h"
 #include "zfs_fletcher.h"
 #include "libzfs_impl.h"
+#include <cityhash.h>
 #include <zlib.h>
 #include <sys/zio_checksum.h>
 #include <sys/dsl_crypt.h>
@@ -72,21 +73,13 @@
 extern void zfs_setprop_error(libzfs_handle_t *, zfs_prop_t, int, char *);
 
 static int zfs_receive_impl(libzfs_handle_t *, const char *, const char *,
-    recvflags_t *, int, const char *, nvlist_t *, avl_tree_t *, char **, int,
-    uint64_t *, const char *, nvlist_t *);
+    recvflags_t *, int, const char *, nvlist_t *, avl_tree_t *, char **,
+    const char *, nvlist_t *);
 static int guid_to_name_redact_snaps(libzfs_handle_t *hdl, const char *parent,
     uint64_t guid, boolean_t bookmark_ok, uint64_t *redact_snap_guids,
     uint64_t num_redact_snaps, char *name);
 static int guid_to_name(libzfs_handle_t *, const char *,
     uint64_t, boolean_t, char *);
-
-static const zio_cksum_t zero_cksum = { { 0 } };
-
-typedef struct dedup_arg {
-	int	inputfd;
-	int	outputfd;
-	libzfs_handle_t  *dedup_hdl;
-} dedup_arg_t;
 
 typedef struct progress_arg {
 	zfs_handle_t *pa_zhp;
@@ -95,112 +88,6 @@ typedef struct progress_arg {
 	boolean_t pa_estimate;
 	int pa_verbosity;
 } progress_arg_t;
-
-typedef struct dataref {
-	uint64_t ref_guid;
-	uint64_t ref_object;
-	uint64_t ref_offset;
-} dataref_t;
-
-typedef struct dedup_entry {
-	struct dedup_entry	*dde_next;
-	zio_cksum_t dde_chksum;
-	uint64_t dde_prop;
-	dataref_t dde_ref;
-} dedup_entry_t;
-
-#define	MAX_DDT_PHYSMEM_PERCENT		20
-#define	SMALLEST_POSSIBLE_MAX_DDT_MB		128
-
-typedef struct dedup_table {
-	dedup_entry_t	**dedup_hash_array;
-	umem_cache_t	*ddecache;
-	uint64_t	max_ddt_size;  /* max dedup table size in bytes */
-	uint64_t	cur_ddt_size;  /* current dedup table size in bytes */
-	uint64_t	ddt_count;
-	int		numhashbits;
-	boolean_t	ddt_full;
-} dedup_table_t;
-
-static int
-high_order_bit(uint64_t n)
-{
-	int count;
-
-	for (count = 0; n != 0; count++)
-		n >>= 1;
-	return (count);
-}
-
-static size_t
-ssread(void *buf, size_t len, FILE *stream)
-{
-	size_t outlen;
-
-	if ((outlen = fread(buf, len, 1, stream)) == 0)
-		return (0);
-
-	return (outlen);
-}
-
-static void
-ddt_hash_append(libzfs_handle_t *hdl, dedup_table_t *ddt, dedup_entry_t **ddepp,
-    zio_cksum_t *cs, uint64_t prop, dataref_t *dr)
-{
-	dedup_entry_t	*dde;
-
-	if (ddt->cur_ddt_size >= ddt->max_ddt_size) {
-		if (ddt->ddt_full == B_FALSE) {
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "Dedup table full.  Deduplication will continue "
-			    "with existing table entries"));
-			ddt->ddt_full = B_TRUE;
-		}
-		return;
-	}
-
-	if ((dde = umem_cache_alloc(ddt->ddecache, UMEM_DEFAULT))
-	    != NULL) {
-		assert(*ddepp == NULL);
-		dde->dde_next = NULL;
-		dde->dde_chksum = *cs;
-		dde->dde_prop = prop;
-		dde->dde_ref = *dr;
-		*ddepp = dde;
-		ddt->cur_ddt_size += sizeof (dedup_entry_t);
-		ddt->ddt_count++;
-	}
-}
-
-/*
- * Using the specified dedup table, do a lookup for an entry with
- * the checksum cs.  If found, return the block's reference info
- * in *dr. Otherwise, insert a new entry in the dedup table, using
- * the reference information specified by *dr.
- *
- * return value:  true - entry was found
- *		  false - entry was not found
- */
-static boolean_t
-ddt_update(libzfs_handle_t *hdl, dedup_table_t *ddt, zio_cksum_t *cs,
-    uint64_t prop, dataref_t *dr)
-{
-	uint32_t hashcode;
-	dedup_entry_t **ddepp;
-
-	hashcode = BF64_GET(cs->zc_word[0], 0, ddt->numhashbits);
-
-	for (ddepp = &(ddt->dedup_hash_array[hashcode]); *ddepp != NULL;
-	    ddepp = &((*ddepp)->dde_next)) {
-		if (ZIO_CHECKSUM_EQUAL(((*ddepp)->dde_chksum), *cs) &&
-		    (*ddepp)->dde_prop == prop) {
-			*dr = (*ddepp)->dde_ref;
-			return (B_TRUE);
-		}
-	}
-	ddt_hash_append(hdl, ddt, ddepp, cs, prop, dr);
-	return (B_FALSE);
-}
 
 static int
 dump_record(dmu_replay_record_t *drr, void *payload, int payload_len,
@@ -225,274 +112,6 @@ dump_record(dmu_replay_record_t *drr, void *payload, int payload_len,
 			return (errno);
 	}
 	return (0);
-}
-
-/*
- * This function is started in a separate thread when the dedup option
- * has been requested.  The main send thread determines the list of
- * snapshots to be included in the send stream and makes the ioctl calls
- * for each one.  But instead of having the ioctl send the output to the
- * the output fd specified by the caller of zfs_send()), the
- * ioctl is told to direct the output to a pipe, which is read by the
- * alternate thread running THIS function.  This function does the
- * dedup'ing by:
- *  1. building a dedup table (the DDT)
- *  2. doing checksums on each data block and inserting a record in the DDT
- *  3. looking for matching checksums, and
- *  4.  sending a DRR_WRITE_BYREF record instead of a write record whenever
- *      a duplicate block is found.
- * The output of this function then goes to the output fd requested
- * by the caller of zfs_send().
- */
-static void *
-cksummer(void *arg)
-{
-	dedup_arg_t *dda = arg;
-	char *buf = zfs_alloc(dda->dedup_hdl, SPA_MAXBLOCKSIZE);
-	dmu_replay_record_t thedrr = { 0 };
-	dmu_replay_record_t *drr = &thedrr;
-	FILE *ofp;
-	int outfd;
-	dedup_table_t ddt;
-	zio_cksum_t stream_cksum;
-	uint64_t numbuckets;
-
-#ifdef _ILP32
-	ddt.max_ddt_size = SMALLEST_POSSIBLE_MAX_DDT_MB << 20;
-#else
-	uint64_t physmem = sysconf(_SC_PHYS_PAGES) * sysconf(_SC_PAGESIZE);
-	ddt.max_ddt_size =
-	    MAX((physmem * MAX_DDT_PHYSMEM_PERCENT) / 100,
-	    SMALLEST_POSSIBLE_MAX_DDT_MB << 20);
-#endif
-
-	numbuckets = ddt.max_ddt_size / (sizeof (dedup_entry_t));
-
-	/*
-	 * numbuckets must be a power of 2.  Increase number to
-	 * a power of 2 if necessary.
-	 */
-	if (!ISP2(numbuckets))
-		numbuckets = 1ULL << high_order_bit(numbuckets);
-
-	ddt.dedup_hash_array = calloc(numbuckets, sizeof (dedup_entry_t *));
-	ddt.ddecache = umem_cache_create("dde", sizeof (dedup_entry_t), 0,
-	    NULL, NULL, NULL, NULL, NULL, 0);
-	ddt.cur_ddt_size = numbuckets * sizeof (dedup_entry_t *);
-	ddt.numhashbits = high_order_bit(numbuckets) - 1;
-	ddt.ddt_full = B_FALSE;
-
-	outfd = dda->outputfd;
-	ofp = fdopen(dda->inputfd, "r");
-	while (ssread(drr, sizeof (*drr), ofp) != 0) {
-
-		/*
-		 * kernel filled in checksum, we are going to write same
-		 * record, but need to regenerate checksum.
-		 */
-		if (drr->drr_type != DRR_BEGIN) {
-			bzero(&drr->drr_u.drr_checksum.drr_checksum,
-			    sizeof (drr->drr_u.drr_checksum.drr_checksum));
-		}
-
-		switch (drr->drr_type) {
-		case DRR_BEGIN:
-		{
-			struct drr_begin *drrb = &drr->drr_u.drr_begin;
-			int fflags;
-			int sz = 0;
-			ZIO_SET_CHECKSUM(&stream_cksum, 0, 0, 0, 0);
-
-			ASSERT3U(drrb->drr_magic, ==, DMU_BACKUP_MAGIC);
-
-			/* set the DEDUP feature flag for this stream */
-			fflags = DMU_GET_FEATUREFLAGS(drrb->drr_versioninfo);
-			fflags |= (DMU_BACKUP_FEATURE_DEDUP |
-			    DMU_BACKUP_FEATURE_DEDUPPROPS);
-			DMU_SET_FEATUREFLAGS(drrb->drr_versioninfo, fflags);
-
-			if (drr->drr_payloadlen != 0) {
-				sz = drr->drr_payloadlen;
-
-				if (sz > SPA_MAXBLOCKSIZE) {
-					buf = zfs_realloc(dda->dedup_hdl, buf,
-					    SPA_MAXBLOCKSIZE, sz);
-				}
-				(void) ssread(buf, sz, ofp);
-				if (ferror(stdin))
-					perror("fread");
-			}
-			if (dump_record(drr, buf, sz, &stream_cksum,
-			    outfd) != 0)
-				goto out;
-			break;
-		}
-
-		case DRR_END:
-		{
-			struct drr_end *drre = &drr->drr_u.drr_end;
-			/* use the recalculated checksum */
-			drre->drr_checksum = stream_cksum;
-			if (dump_record(drr, NULL, 0, &stream_cksum,
-			    outfd) != 0)
-				goto out;
-			break;
-		}
-
-		case DRR_OBJECT:
-		{
-			struct drr_object *drro = &drr->drr_u.drr_object;
-			if (drro->drr_bonuslen > 0) {
-				(void) ssread(buf,
-				    DRR_OBJECT_PAYLOAD_SIZE(drro), ofp);
-			}
-			if (dump_record(drr, buf, DRR_OBJECT_PAYLOAD_SIZE(drro),
-			    &stream_cksum, outfd) != 0)
-				goto out;
-			break;
-		}
-
-		case DRR_SPILL:
-		{
-			struct drr_spill *drrs = &drr->drr_u.drr_spill;
-			(void) ssread(buf, DRR_SPILL_PAYLOAD_SIZE(drrs), ofp);
-			if (dump_record(drr, buf, DRR_SPILL_PAYLOAD_SIZE(drrs),
-			    &stream_cksum, outfd) != 0)
-				goto out;
-			break;
-		}
-
-		case DRR_FREEOBJECTS:
-		{
-			if (dump_record(drr, NULL, 0, &stream_cksum,
-			    outfd) != 0)
-				goto out;
-			break;
-		}
-
-		case DRR_WRITE:
-		{
-			struct drr_write *drrw = &drr->drr_u.drr_write;
-			dataref_t	dataref;
-			uint64_t	payload_size;
-
-			payload_size = DRR_WRITE_PAYLOAD_SIZE(drrw);
-			(void) ssread(buf, payload_size, ofp);
-
-			/*
-			 * Use the existing checksum if it's dedup-capable,
-			 * else calculate a SHA256 checksum for it.
-			 */
-
-			if (ZIO_CHECKSUM_EQUAL(drrw->drr_key.ddk_cksum,
-			    zero_cksum) ||
-			    !DRR_IS_DEDUP_CAPABLE(drrw->drr_flags)) {
-				SHA2_CTX ctx;
-				zio_cksum_t tmpsha256;
-
-				SHA2Init(SHA256, &ctx);
-				SHA2Update(&ctx, buf, payload_size);
-				SHA2Final(&tmpsha256, &ctx);
-
-				drrw->drr_key.ddk_cksum.zc_word[0] =
-				    BE_64(tmpsha256.zc_word[0]);
-				drrw->drr_key.ddk_cksum.zc_word[1] =
-				    BE_64(tmpsha256.zc_word[1]);
-				drrw->drr_key.ddk_cksum.zc_word[2] =
-				    BE_64(tmpsha256.zc_word[2]);
-				drrw->drr_key.ddk_cksum.zc_word[3] =
-				    BE_64(tmpsha256.zc_word[3]);
-				drrw->drr_checksumtype = ZIO_CHECKSUM_SHA256;
-				drrw->drr_flags |= DRR_CHECKSUM_DEDUP;
-			}
-
-			dataref.ref_guid = drrw->drr_toguid;
-			dataref.ref_object = drrw->drr_object;
-			dataref.ref_offset = drrw->drr_offset;
-
-			if (ddt_update(dda->dedup_hdl, &ddt,
-			    &drrw->drr_key.ddk_cksum, drrw->drr_key.ddk_prop,
-			    &dataref)) {
-				dmu_replay_record_t wbr_drr = {0};
-				struct drr_write_byref *wbr_drrr =
-				    &wbr_drr.drr_u.drr_write_byref;
-
-				/* block already present in stream */
-				wbr_drr.drr_type = DRR_WRITE_BYREF;
-
-				wbr_drrr->drr_object = drrw->drr_object;
-				wbr_drrr->drr_offset = drrw->drr_offset;
-				wbr_drrr->drr_length = drrw->drr_logical_size;
-				wbr_drrr->drr_toguid = drrw->drr_toguid;
-				wbr_drrr->drr_refguid = dataref.ref_guid;
-				wbr_drrr->drr_refobject =
-				    dataref.ref_object;
-				wbr_drrr->drr_refoffset =
-				    dataref.ref_offset;
-
-				wbr_drrr->drr_checksumtype =
-				    drrw->drr_checksumtype;
-				wbr_drrr->drr_flags = drrw->drr_flags;
-				wbr_drrr->drr_key.ddk_cksum =
-				    drrw->drr_key.ddk_cksum;
-				wbr_drrr->drr_key.ddk_prop =
-				    drrw->drr_key.ddk_prop;
-
-				if (dump_record(&wbr_drr, NULL, 0,
-				    &stream_cksum, outfd) != 0)
-					goto out;
-			} else {
-				/* block not previously seen */
-				if (dump_record(drr, buf, payload_size,
-				    &stream_cksum, outfd) != 0)
-					goto out;
-			}
-			break;
-		}
-
-		case DRR_WRITE_EMBEDDED:
-		{
-			struct drr_write_embedded *drrwe =
-			    &drr->drr_u.drr_write_embedded;
-			(void) ssread(buf,
-			    P2ROUNDUP((uint64_t)drrwe->drr_psize, 8), ofp);
-			if (dump_record(drr, buf,
-			    P2ROUNDUP((uint64_t)drrwe->drr_psize, 8),
-			    &stream_cksum, outfd) != 0)
-				goto out;
-			break;
-		}
-
-		case DRR_FREE:
-		{
-			if (dump_record(drr, NULL, 0, &stream_cksum,
-			    outfd) != 0)
-				goto out;
-			break;
-		}
-
-		case DRR_OBJECT_RANGE:
-		{
-			if (dump_record(drr, NULL, 0, &stream_cksum,
-			    outfd) != 0)
-				goto out;
-			break;
-		}
-
-		default:
-			(void) fprintf(stderr, "INVALID record type 0x%x\n",
-			    drr->drr_type);
-			/* should never happen, so assert */
-			assert(B_FALSE);
-		}
-	}
-out:
-	umem_cache_destroy(ddt.ddecache);
-	free(ddt.dedup_hash_array);
-	free(buf);
-	(void) fclose(ofp);
-
-	return (NULL);
 }
 
 /*
@@ -1815,6 +1434,8 @@ lzc_flags_from_sendflags(const sendflags_t *flags)
 		lzc_flags |= LZC_SEND_FLAG_COMPRESS;
 	if (flags->raw)
 		lzc_flags |= LZC_SEND_FLAG_RAW;
+	if (flags->saved)
+		lzc_flags |= LZC_SEND_FLAG_SAVED;
 	return (lzc_flags);
 }
 
@@ -1981,9 +1602,9 @@ find_redact_book(libzfs_handle_t *hdl, const char *path,
 	return (0);
 }
 
-int
-zfs_send_resume(libzfs_handle_t *hdl, sendflags_t *flags, int outfd,
-    const char *resume_token)
+static int
+zfs_send_resume_impl(libzfs_handle_t *hdl, sendflags_t *flags, int outfd,
+    nvlist_t *resume_nvl)
 {
 	char errbuf[1024];
 	char *toname;
@@ -2001,15 +1622,6 @@ zfs_send_resume(libzfs_handle_t *hdl, sendflags_t *flags, int outfd,
 	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
 	    "cannot resume send"));
 
-	nvlist_t *resume_nvl =
-	    zfs_send_resume_token_to_nvlist(hdl, resume_token);
-	if (resume_nvl == NULL) {
-		/*
-		 * zfs_error_aux has already been set by
-		 * zfs_send_resume_token_to_nvlist
-		 */
-		return (zfs_error(hdl, EZFS_FAULT, errbuf));
-	}
 	if (flags->verbosity != 0) {
 		(void) fprintf(fout, dgettext(TEXT_DOMAIN,
 		    "resume token contents:\n"));
@@ -2036,19 +1648,27 @@ zfs_send_resume(libzfs_handle_t *hdl, sendflags_t *flags, int outfd,
 		lzc_flags |= LZC_SEND_FLAG_COMPRESS;
 	if (flags->raw || nvlist_exists(resume_nvl, "rawok"))
 		lzc_flags |= LZC_SEND_FLAG_RAW;
+	if (flags->saved || nvlist_exists(resume_nvl, "savedok"))
+		lzc_flags |= LZC_SEND_FLAG_SAVED;
 
-	if (guid_to_name(hdl, toname, toguid, B_FALSE, name) != 0) {
-		if (zfs_dataset_exists(hdl, toname, ZFS_TYPE_DATASET)) {
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "'%s' is no longer the same snapshot used in "
-			    "the initial send"), toname);
-		} else {
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "'%s' used in the initial send no longer exists"),
-			    toname);
+	if (flags->saved) {
+		(void) strcpy(name, toname);
+	} else {
+		error = guid_to_name(hdl, toname, toguid, B_FALSE, name);
+		if (error != 0) {
+			if (zfs_dataset_exists(hdl, toname, ZFS_TYPE_DATASET)) {
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "'%s' is no longer the same snapshot "
+				    "used in the initial send"), toname);
+			} else {
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "'%s' used in the initial send no "
+				    "longer exists"), toname);
+			}
+			return (zfs_error(hdl, EZFS_BADPATH, errbuf));
 		}
-		return (zfs_error(hdl, EZFS_BADPATH, errbuf));
 	}
+
 	zhp = zfs_open(hdl, name, ZFS_TYPE_DATASET);
 	if (zhp == NULL) {
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
@@ -2197,6 +1817,122 @@ zfs_send_resume(libzfs_handle_t *hdl, sendflags_t *flags, int outfd,
 	zfs_close(zhp);
 
 	return (error);
+}
+
+int
+zfs_send_resume(libzfs_handle_t *hdl, sendflags_t *flags, int outfd,
+    const char *resume_token)
+{
+	int ret;
+	char errbuf[1024];
+	nvlist_t *resume_nvl;
+
+	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
+	    "cannot resume send"));
+
+	resume_nvl = zfs_send_resume_token_to_nvlist(hdl, resume_token);
+	if (resume_nvl == NULL) {
+		/*
+		 * zfs_error_aux has already been set by
+		 * zfs_send_resume_token_to_nvlist()
+		 */
+		return (zfs_error(hdl, EZFS_FAULT, errbuf));
+	}
+
+	ret = zfs_send_resume_impl(hdl, flags, outfd, resume_nvl);
+	nvlist_free(resume_nvl);
+
+	return (ret);
+}
+
+int
+zfs_send_saved(zfs_handle_t *zhp, sendflags_t *flags, int outfd,
+    const char *resume_token)
+{
+	int ret;
+	libzfs_handle_t *hdl = zhp->zfs_hdl;
+	nvlist_t *saved_nvl = NULL, *resume_nvl = NULL;
+	uint64_t saved_guid = 0, resume_guid = 0;
+	uint64_t obj = 0, off = 0, bytes = 0;
+	char token_buf[ZFS_MAXPROPLEN];
+	char errbuf[1024];
+
+	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
+	    "saved send failed"));
+
+	ret = zfs_prop_get(zhp, ZFS_PROP_RECEIVE_RESUME_TOKEN,
+	    token_buf, sizeof (token_buf), NULL, NULL, 0, B_TRUE);
+	if (ret != 0)
+		goto out;
+
+	saved_nvl = zfs_send_resume_token_to_nvlist(hdl, token_buf);
+	if (saved_nvl == NULL) {
+		/*
+		 * zfs_error_aux has already been set by
+		 * zfs_send_resume_token_to_nvlist()
+		 */
+		ret = zfs_error(hdl, EZFS_FAULT, errbuf);
+		goto out;
+	}
+
+	/*
+	 * If a resume token is provided we use the object and offset
+	 * from that instead of the default, which starts from the
+	 * beginning.
+	 */
+	if (resume_token != NULL) {
+		resume_nvl = zfs_send_resume_token_to_nvlist(hdl,
+		    resume_token);
+		if (resume_nvl == NULL) {
+			ret = zfs_error(hdl, EZFS_FAULT, errbuf);
+			goto out;
+		}
+
+		if (nvlist_lookup_uint64(resume_nvl, "object", &obj) != 0 ||
+		    nvlist_lookup_uint64(resume_nvl, "offset", &off) != 0 ||
+		    nvlist_lookup_uint64(resume_nvl, "bytes", &bytes) != 0 ||
+		    nvlist_lookup_uint64(resume_nvl, "toguid",
+		    &resume_guid) != 0) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "provided resume token is corrupt"));
+			ret = zfs_error(hdl, EZFS_FAULT, errbuf);
+			goto out;
+		}
+
+		if (nvlist_lookup_uint64(saved_nvl, "toguid",
+		    &saved_guid)) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "dataset's resume token is corrupt"));
+			ret = zfs_error(hdl, EZFS_FAULT, errbuf);
+			goto out;
+		}
+
+		if (resume_guid != saved_guid) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "provided resume token does not match dataset"));
+			ret = zfs_error(hdl, EZFS_BADBACKUP, errbuf);
+			goto out;
+		}
+	}
+
+	(void) nvlist_remove_all(saved_nvl, "object");
+	fnvlist_add_uint64(saved_nvl, "object", obj);
+
+	(void) nvlist_remove_all(saved_nvl, "offset");
+	fnvlist_add_uint64(saved_nvl, "offset", off);
+
+	(void) nvlist_remove_all(saved_nvl, "bytes");
+	fnvlist_add_uint64(saved_nvl, "bytes", bytes);
+
+	(void) nvlist_remove_all(saved_nvl, "toname");
+	fnvlist_add_string(saved_nvl, "toname", zhp->zfs_name);
+
+	ret = zfs_send_resume_impl(hdl, flags, outfd, saved_nvl);
+
+out:
+	nvlist_free(saved_nvl);
+	nvlist_free(resume_nvl);
+	return (ret);
 }
 
 /*
@@ -2360,7 +2096,6 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 	int spa_version;
 	pthread_t tid = 0;
 	int pipefd[2];
-	dedup_arg_t dda = { 0 };
 	int featureflags = 0;
 	FILE *fout;
 
@@ -2383,33 +2118,6 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 
 	if (flags->holds)
 		featureflags |= DMU_BACKUP_FEATURE_HOLDS;
-
-	/*
-	 * Start the dedup thread if this is a dedup stream. We do not bother
-	 * doing this if this a raw send of an encrypted dataset with dedup off
-	 * because normal encrypted blocks won't dedup.
-	 */
-	if (flags->dedup && !flags->dryrun && !(flags->raw &&
-	    zfs_prop_get_int(zhp, ZFS_PROP_ENCRYPTION) != ZIO_CRYPT_OFF &&
-	    zfs_prop_get_int(zhp, ZFS_PROP_DEDUP) == ZIO_CHECKSUM_OFF)) {
-		featureflags |= (DMU_BACKUP_FEATURE_DEDUP |
-		    DMU_BACKUP_FEATURE_DEDUPPROPS);
-		if ((err = socketpair(AF_UNIX, SOCK_STREAM, 0, pipefd)) != 0) {
-			zfs_error_aux(zhp->zfs_hdl, strerror(errno));
-			return (zfs_error(zhp->zfs_hdl, EZFS_PIPEFAILED,
-			    errbuf));
-		}
-		dda.outputfd = outfd;
-		dda.inputfd = pipefd[1];
-		dda.dedup_hdl = zhp->zfs_hdl;
-		if ((err = pthread_create(&tid, NULL, cksummer, &dda)) != 0) {
-			(void) close(pipefd[0]);
-			(void) close(pipefd[1]);
-			zfs_error_aux(zhp->zfs_hdl, strerror(errno));
-			return (zfs_error(zhp->zfs_hdl,
-			    EZFS_THREADCREATEFAILED, errbuf));
-		}
-	}
 
 	if (flags->replicate || flags->doall || flags->props ||
 	    flags->holds || flags->backup) {
@@ -2479,7 +2187,7 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 		++holdseq;
 		(void) snprintf(sdd.holdtag, sizeof (sdd.holdtag),
 		    ".send-%d-%llu", getpid(), (u_longlong_t)holdseq);
-		sdd.cleanup_fd = open(ZFS_DEV, O_RDWR|O_EXCL);
+		sdd.cleanup_fd = open(ZFS_DEV, O_RDWR);
 		if (sdd.cleanup_fd < 0) {
 			err = errno;
 			goto stderr_out;
@@ -2588,34 +2296,6 @@ err_out:
 	return (err);
 }
 
-static int
-get_dedup_fd(zfs_handle_t *zhp, dedup_arg_t *dda, int fd, pthread_t *tid,
-    int *outfd)
-{
-	int pipefd[2];
-	char errbuf[1024];
-	int err;
-	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
-	    "warning: cannot send '%s'"), zhp->zfs_name);
-	if ((err = socketpair(AF_UNIX, SOCK_STREAM, 0, pipefd)) != 0) {
-		zfs_error_aux(zhp->zfs_hdl, strerror(errno));
-		return (zfs_error(zhp->zfs_hdl, EZFS_PIPEFAILED,
-		    errbuf));
-	}
-	dda->outputfd = fd;
-	dda->inputfd = pipefd[1];
-	dda->dedup_hdl = zhp->zfs_hdl;
-	if ((err = pthread_create(tid, NULL, cksummer, dda)) != 0) {
-		(void) close(pipefd[0]);
-		(void) close(pipefd[1]);
-		zfs_error_aux(zhp->zfs_hdl, strerror(err));
-		return (zfs_error(zhp->zfs_hdl, EZFS_THREADCREATEFAILED,
-		    errbuf));
-	}
-	*outfd = pipefd[0];
-	return (0);
-}
-
 zfs_handle_t *
 name_to_dir_handle(libzfs_handle_t *hdl, const char *snapname)
 {
@@ -2699,14 +2379,14 @@ zfs_send_one(zfs_handle_t *zhp, const char *from, int fd, sendflags_t *flags,
 {
 	int err;
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
+	char *name = zhp->zfs_name;
 	int orig_fd = fd;
-	pthread_t ddtid, ptid;
+	pthread_t ptid;
 	progress_arg_t pa = { 0 };
-	dedup_arg_t dda = { 0 };
 
 	char errbuf[1024];
 	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
-	    "warning: cannot send '%s'"), zhp->zfs_name);
+	    "warning: cannot send '%s'"), name);
 
 	if (from != NULL && strchr(from, '@')) {
 		zfs_handle_t *from_zhp = zfs_open(hdl, from,
@@ -2720,6 +2400,44 @@ zfs_send_one(zfs_handle_t *zhp, const char *from, int fd, sendflags_t *flags,
 			return (zfs_error(hdl, EZFS_CROSSTARGET, errbuf));
 		}
 		zfs_close(from_zhp);
+	}
+
+	if (redactbook != NULL) {
+		char bookname[ZFS_MAX_DATASET_NAME_LEN];
+		nvlist_t *redact_snaps;
+		zfs_handle_t *book_zhp;
+		char *at, *pound;
+		int dsnamelen;
+
+		pound = strchr(redactbook, '#');
+		if (pound != NULL)
+			redactbook = pound + 1;
+		at = strchr(name, '@');
+		if (at == NULL) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "cannot do a redacted send to a filesystem"));
+			return (zfs_error(hdl, EZFS_BADTYPE, errbuf));
+		}
+		dsnamelen = at - name;
+		if (snprintf(bookname, sizeof (bookname), "%.*s#%s",
+		    dsnamelen, name, redactbook)
+		    >= sizeof (bookname)) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "invalid bookmark name"));
+			return (zfs_error(hdl, EZFS_INVALIDNAME, errbuf));
+		}
+		book_zhp = zfs_open(hdl, bookname, ZFS_TYPE_BOOKMARK);
+		if (book_zhp == NULL)
+			return (-1);
+		if (nvlist_lookup_nvlist(book_zhp->zfs_props,
+		    zfs_prop_to_name(ZFS_PROP_REDACT_SNAPS),
+		    &redact_snaps) != 0 || redact_snaps == NULL) {
+			zfs_close(book_zhp);
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "not a redaction bookmark"));
+			return (zfs_error(hdl, EZFS_BADTYPE, errbuf));
+		}
+		zfs_close(book_zhp);
 	}
 
 	/*
@@ -2758,16 +2476,6 @@ zfs_send_one(zfs_handle_t *zhp, const char *from, int fd, sendflags_t *flags,
 		return (0);
 
 	/*
-	 * If deduplication is requested, spawn a thread that will deduplicate
-	 * the data coming out of the kernel.
-	 */
-	if (flags->dedup) {
-		err = get_dedup_fd(zhp, &dda, fd, &ddtid, &fd);
-		if (err != 0)
-			return (err);
-	}
-
-	/*
 	 * If progress reporting is requested, spawn a new thread to poll
 	 * ZFS_IOC_SEND_PROGRESS at a regular interval.
 	 */
@@ -2782,17 +2490,12 @@ zfs_send_one(zfs_handle_t *zhp, const char *from, int fd, sendflags_t *flags,
 		    send_progress_thread, &pa);
 		if (err != 0) {
 			zfs_error_aux(zhp->zfs_hdl, strerror(errno));
-			if (flags->dedup) {
-				(void) pthread_cancel(ddtid);
-				(void) close(fd);
-				(void) pthread_join(ddtid, NULL);
-			}
 			return (zfs_error(zhp->zfs_hdl,
 			    EZFS_THREADCREATEFAILED, errbuf));
 		}
 	}
 
-	err = lzc_send_redacted(zhp->zfs_name, from, fd,
+	err = lzc_send_redacted(name, from, fd,
 	    lzc_flags_from_sendflags(flags), redactbook);
 
 	if (flags->progress) {
@@ -2808,12 +2511,6 @@ zfs_send_one(zfs_handle_t *zhp, const char *from, int fd, sendflags_t *flags,
 			    "nonzero"));
 			return (zfs_standard_error(hdl, error, errbuf));
 		}
-	}
-	if (flags->dedup) {
-		if (err != 0)
-			(void) pthread_cancel(ddtid);
-		(void) close(fd);
-		(void) pthread_join(ddtid, NULL);
 	}
 
 	if (flags->props || flags->holds || flags->backup) {
@@ -2831,7 +2528,7 @@ zfs_send_one(zfs_handle_t *zhp, const char *from, int fd, sendflags_t *flags,
 
 		case ENOENT:
 		case ESRCH:
-			if (lzc_exists(zhp->zfs_name)) {
+			if (lzc_exists(name)) {
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 				    "incremental source (%s) does not exist"),
 				    from);
@@ -2850,7 +2547,9 @@ zfs_send_one(zfs_handle_t *zhp, const char *from, int fd, sendflags_t *flags,
 			return (zfs_error(hdl, EZFS_BUSY, errbuf));
 
 		case EDQUOT:
+		case EFAULT:
 		case EFBIG:
+		case EINVAL:
 		case EIO:
 		case ENOLINK:
 		case ENOSPC:
@@ -2858,7 +2557,6 @@ zfs_send_one(zfs_handle_t *zhp, const char *from, int fd, sendflags_t *flags,
 		case ENXIO:
 		case EPIPE:
 		case ERANGE:
-		case EFAULT:
 		case EROFS:
 			zfs_error_aux(hdl, strerror(errno));
 			return (zfs_error(hdl, EZFS_BADBACKUP, errbuf));
@@ -3807,8 +3505,7 @@ doagain:
 static int
 zfs_receive_package(libzfs_handle_t *hdl, int fd, const char *destname,
     recvflags_t *flags, dmu_replay_record_t *drr, zio_cksum_t *zc,
-    char **top_zfs, int cleanup_fd, uint64_t *action_handlep,
-    nvlist_t *cmdprops)
+    char **top_zfs, nvlist_t *cmdprops)
 {
 	nvlist_t *stream_nv = NULL;
 	avl_tree_t *stream_avl = NULL;
@@ -3942,7 +3639,8 @@ zfs_receive_package(libzfs_handle_t *hdl, int fd, const char *destname,
 				    ZFS_TYPE_FILESYSTEM);
 				if (zhp != NULL) {
 					clp = changelist_gather(zhp,
-					    ZFS_PROP_MOUNTPOINT, 0, 0);
+					    ZFS_PROP_MOUNTPOINT, 0,
+					    flags->forceunmount ? MS_FORCE : 0);
 					zfs_close(zhp);
 					if (clp != NULL) {
 						softerr |=
@@ -3984,8 +3682,7 @@ zfs_receive_package(libzfs_handle_t *hdl, int fd, const char *destname,
 		 * recv_skip() and return 0).
 		 */
 		error = zfs_receive_impl(hdl, destname, NULL, flags, fd,
-		    sendfs, stream_nv, stream_avl, top_zfs, cleanup_fd,
-		    action_handlep, sendsnap, cmdprops);
+		    sendfs, stream_nv, stream_avl, top_zfs, sendsnap, cmdprops);
 		if (error == ENODATA) {
 			error = 0;
 			break;
@@ -4135,12 +3832,12 @@ recv_skip(libzfs_handle_t *hdl, int fd, boolean_t byteswap)
 
 static void
 recv_ecksum_set_aux(libzfs_handle_t *hdl, const char *target_snap,
-    boolean_t resumable)
+    boolean_t resumable, boolean_t checksum)
 {
 	char target_fs[ZFS_MAX_DATASET_NAME_LEN];
 
-	zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-	    "checksum mismatch or incomplete stream"));
+	zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, (checksum ?
+	    "checksum mismatch" : "incomplete stream")));
 
 	if (!resumable)
 		return;
@@ -4371,8 +4068,8 @@ static int
 zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
     const char *originsnap, recvflags_t *flags, dmu_replay_record_t *drr,
     dmu_replay_record_t *drr_noswap, const char *sendfs, nvlist_t *stream_nv,
-    avl_tree_t *stream_avl, char **top_zfs, int cleanup_fd,
-    uint64_t *action_handlep, const char *finalsnap, nvlist_t *cmdprops)
+    avl_tree_t *stream_avl, char **top_zfs,
+    const char *finalsnap, nvlist_t *cmdprops)
 {
 	time_t begin_time;
 	int ioctl_err, ioctl_errno, err;
@@ -4582,6 +4279,18 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			(void) printf("found clone origin %s\n", origin);
 	}
 
+	if ((DMU_GET_FEATUREFLAGS(drrb->drr_versioninfo) &
+	    DMU_BACKUP_FEATURE_DEDUP)) {
+		(void) fprintf(stderr,
+		    gettext("ERROR: \"zfs receive\" no longer supports "
+		    "deduplicated send streams.  Use\n"
+		    "the \"zstream redup\" command to convert this stream "
+		    "to a regular,\n"
+		    "non-deduplicated stream.\n"));
+		err = zfs_error(hdl, EZFS_NOTSUP, errbuf);
+		goto out;
+	}
+
 	boolean_t resuming = DMU_GET_FEATUREFLAGS(drrb->drr_versioninfo) &
 	    DMU_BACKUP_FEATURE_RESUMING;
 	boolean_t raw = DMU_GET_FEATUREFLAGS(drrb->drr_versioninfo) &
@@ -4759,7 +4468,8 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		if (!flags->dryrun && zhp->zfs_type == ZFS_TYPE_FILESYSTEM &&
 		    stream_wantsnewfs) {
 			/* We can't do online recv in this case */
-			clp = changelist_gather(zhp, ZFS_PROP_NAME, 0, 0);
+			clp = changelist_gather(zhp, ZFS_PROP_NAME, 0,
+			    flags->forceunmount ? MS_FORCE : 0);
 			if (clp == NULL) {
 				zfs_close(zhp);
 				err = -1;
@@ -4923,8 +4633,8 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 
 	err = ioctl_err = lzc_receive_with_cmdprops(destsnap, rcvprops,
 	    oxprops, wkeydata, wkeylen, origin, flags->force, flags->resumable,
-	    raw, infd, drr_noswap, cleanup_fd, &read_bytes, &errflags,
-	    action_handlep, &prop_errors);
+	    raw, infd, drr_noswap, -1, &read_bytes, &errflags,
+	    NULL, &prop_errors);
 	ioctl_errno = ioctl_err;
 	prop_errflags = errflags;
 
@@ -5087,7 +4797,9 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			(void) zfs_error(hdl, EZFS_BADSTREAM, errbuf);
 			break;
 		case ECKSUM:
-			recv_ecksum_set_aux(hdl, destsnap, flags->resumable);
+		case ZFS_ERR_STREAM_TRUNCATED:
+			recv_ecksum_set_aux(hdl, destsnap, flags->resumable,
+			    ioctl_err == ECKSUM);
 			(void) zfs_error(hdl, EZFS_BADSTREAM, errbuf);
 			break;
 		case ENOTSUP:
@@ -5103,7 +4815,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		case ZFS_ERR_FROM_IVSET_GUID_MISSING:
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "IV set guid missing. See errata %u at "
-			    "http://zfsonlinux.org/msg/ZFS-8000-ER."),
+			    "https://zfsonlinux.org/msg/ZFS-8000-ER."),
 			    ZPOOL_ERRATA_ZOL_8308_ENCRYPTION);
 			(void) zfs_error(hdl, EZFS_BADSTREAM, errbuf);
 			break;
@@ -5253,8 +4965,8 @@ zfs_receive_checkprops(libzfs_handle_t *hdl, nvlist_t *props,
 static int
 zfs_receive_impl(libzfs_handle_t *hdl, const char *tosnap,
     const char *originsnap, recvflags_t *flags, int infd, const char *sendfs,
-    nvlist_t *stream_nv, avl_tree_t *stream_avl, char **top_zfs, int cleanup_fd,
-    uint64_t *action_handlep, const char *finalsnap, nvlist_t *cmdprops)
+    nvlist_t *stream_nv, avl_tree_t *stream_avl, char **top_zfs,
+    const char *finalsnap, nvlist_t *cmdprops)
 {
 	int err;
 	dmu_replay_record_t drr, drr_noswap;
@@ -5337,9 +5049,7 @@ zfs_receive_impl(libzfs_handle_t *hdl, const char *tosnap,
 	}
 
 	/* Holds feature is set once in the compound stream header. */
-	boolean_t holds = (DMU_GET_FEATUREFLAGS(drrb->drr_versioninfo) &
-	    DMU_BACKUP_FEATURE_HOLDS);
-	if (holds)
+	if (featureflags & DMU_BACKUP_FEATURE_HOLDS)
 		flags->holds = B_TRUE;
 
 	if (strchr(drrb->drr_toname, '@') == NULL) {
@@ -5366,12 +5076,12 @@ zfs_receive_impl(libzfs_handle_t *hdl, const char *tosnap,
 		}
 		return (zfs_receive_one(hdl, infd, tosnap, originsnap, flags,
 		    &drr, &drr_noswap, sendfs, stream_nv, stream_avl, top_zfs,
-		    cleanup_fd, action_handlep, finalsnap, cmdprops));
+		    finalsnap, cmdprops));
 	} else {
 		assert(DMU_GET_STREAM_HDRTYPE(drrb->drr_versioninfo) ==
 		    DMU_COMPOUNDSTREAM);
 		return (zfs_receive_package(hdl, infd, tosnap, flags, &drr,
-		    &zcksum, top_zfs, cleanup_fd, action_handlep, cmdprops));
+		    &zcksum, top_zfs, cmdprops));
 	}
 }
 
@@ -5388,8 +5098,6 @@ zfs_receive(libzfs_handle_t *hdl, const char *tosnap, nvlist_t *props,
 {
 	char *top_zfs = NULL;
 	int err;
-	int cleanup_fd;
-	uint64_t action_handle = 0;
 	struct stat sb;
 	char *originsnap = NULL;
 
@@ -5415,13 +5123,8 @@ zfs_receive(libzfs_handle_t *hdl, const char *tosnap, nvlist_t *props,
 			return (err);
 	}
 
-	cleanup_fd = open(ZFS_DEV, O_RDWR|O_EXCL);
-	VERIFY(cleanup_fd >= 0);
-
 	err = zfs_receive_impl(hdl, tosnap, originsnap, flags, infd, NULL, NULL,
-	    stream_avl, &top_zfs, cleanup_fd, &action_handle, NULL, props);
-
-	VERIFY(0 == close(cleanup_fd));
+	    stream_avl, &top_zfs, NULL, props);
 
 	if (err == 0 && !flags->nomount && flags->domount && top_zfs) {
 		zfs_handle_t *zhp = NULL;
@@ -5439,7 +5142,8 @@ zfs_receive(libzfs_handle_t *hdl, const char *tosnap, nvlist_t *props,
 			}
 
 			clp = changelist_gather(zhp, ZFS_PROP_MOUNTPOINT,
-			    CL_GATHER_MOUNT_ALWAYS, 0);
+			    CL_GATHER_MOUNT_ALWAYS,
+			    flags->forceunmount ? MS_FORCE : 0);
 			zfs_close(zhp);
 			if (clp == NULL) {
 				err = -1;

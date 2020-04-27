@@ -207,10 +207,7 @@ free_verify(dmu_buf_impl_t *db, uint64_t start, uint64_t end, dmu_tx_t *tx)
 			continue;
 		ASSERT(err == 0);
 		ASSERT(child->db_level == 0);
-		dr = child->db_last_dirty;
-		while (dr && dr->dr_txg > txg)
-			dr = dr->dr_next;
-		ASSERT(dr == NULL || dr->dr_txg == txg);
+		dr = dbuf_find_dirty_eq(child, txg);
 
 		/* data_old better be zeroed */
 		if (dr) {
@@ -231,7 +228,7 @@ free_verify(dmu_buf_impl_t *db, uint64_t start, uint64_t end, dmu_tx_t *tx)
 		mutex_enter(&child->db_mtx);
 		buf = child->db.db_data;
 		if (buf != NULL && child->db_state != DB_FILL &&
-		    child->db_last_dirty == NULL) {
+		    list_is_empty(&child->db_dirty_records)) {
 			for (j = 0; j < child->db.db_size >> 3; j++) {
 				if (buf[j] != 0) {
 					panic("freed data not zero: "
@@ -422,11 +419,11 @@ dnode_sync_free_range_impl(dnode_t *dn, uint64_t blkid, uint64_t nblks,
 	 * match.
 	 */
 	if (trunc && !dn->dn_objset->os_raw_receive) {
-		ASSERTV(uint64_t off);
+		uint64_t off __maybe_unused;
 		dn->dn_phys->dn_maxblkid = blkid == 0 ? 0 : blkid - 1;
 
-		ASSERTV(off = (dn->dn_phys->dn_maxblkid + 1) *
-		    (dn->dn_phys->dn_datablkszsec << SPA_MINBLOCKSHIFT));
+		off = (dn->dn_phys->dn_maxblkid + 1) *
+		    (dn->dn_phys->dn_datablkszsec << SPA_MINBLOCKSHIFT);
 		ASSERT(off < dn->dn_phys->dn_maxblkid ||
 		    dn->dn_phys->dn_maxblkid == 0 ||
 		    dnode_next_offset(dn, 0, &off, 1, 1, 0) != 0);
@@ -541,8 +538,9 @@ dnode_undirty_dbufs(list_t *list)
 		mutex_enter(&db->db_mtx);
 		/* XXX - use dbuf_undirty()? */
 		list_remove(list, dr);
-		ASSERT(db->db_last_dirty == dr);
-		db->db_last_dirty = NULL;
+		ASSERT(list_head(&db->db_dirty_records) == dr);
+		list_remove_head(&db->db_dirty_records);
+		ASSERT(list_is_empty(&db->db_dirty_records));
 		db->db_dirtycnt -= 1;
 		if (db->db_level == 0) {
 			ASSERT(db->db_blkid == DMU_BONUS_BLKID ||
@@ -628,7 +626,7 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 	dnode_phys_t *dnp = dn->dn_phys;
 	int txgoff = tx->tx_txg & TXG_MASK;
 	list_t *list = &dn->dn_dirty_records[txgoff];
-	ASSERTV(static const dnode_phys_t zerodn = { 0 });
+	static const dnode_phys_t zerodn __maybe_unused = { 0 };
 	boolean_t kill_spill = B_FALSE;
 
 	ASSERT(dmu_tx_is_syncing(tx));

@@ -47,7 +47,7 @@
 #include <sys/trace_zfs.h>
 #include <sys/abd.h>
 #include <sys/dsl_crypt.h>
-#include <sys/cityhash.h>
+#include <cityhash.h>
 
 /*
  * ==========================================================================
@@ -121,6 +121,11 @@ int zfs_sync_pass_rewrite = 2; /* rewrite new bps starting in this pass */
  */
 #define	IO_IS_ALLOCATING(zio) ((zio)->io_orig_pipeline & ZIO_STAGE_DVA_ALLOCATE)
 
+/*
+ * Enable smaller cores by excluding metadata
+ * allocations as well.
+ */
+int zio_exclude_metadata = 0;
 int zio_requeue_io_start_cut_in_line = 1;
 
 #ifdef ZFS_DEBUG
@@ -153,7 +158,11 @@ zio_init(void)
 		size_t size = (c + 1) << SPA_MINBLOCKSHIFT;
 		size_t p2 = size;
 		size_t align = 0;
-		size_t cflags = (size > zio_buf_debug_limit) ? KMC_NODEBUG : 0;
+		size_t data_cflags, cflags;
+
+		data_cflags = KMC_NODEBUG;
+		cflags = (zio_exclude_metadata || size > zio_buf_debug_limit) ?
+		    KMC_NODEBUG : 0;
 
 #if defined(_ILP32) && defined(_KERNEL)
 		/*
@@ -201,7 +210,7 @@ zio_init(void)
 			(void) sprintf(name, "zio_data_buf_%lu", (ulong_t)size);
 			zio_data_buf_cache[c] = kmem_cache_create(name, size,
 			    align, NULL, NULL, NULL, NULL,
-			    data_alloc_arena, cflags);
+			    data_alloc_arena, data_cflags);
 		}
 	}
 
@@ -881,35 +890,83 @@ zio_root(spa_t *spa, zio_done_func_t *done, void *private, enum zio_flag flags)
 	return (zio_null(NULL, spa, NULL, done, private, flags));
 }
 
-static void
-zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp, boolean_t config_held)
+static int
+zfs_blkptr_verify_log(spa_t *spa, const blkptr_t *bp,
+    enum blk_verify_flag blk_verify, const char *fmt, ...)
 {
+	va_list adx;
+	char buf[256];
+
+	va_start(adx, fmt);
+	(void) vsnprintf(buf, sizeof (buf), fmt, adx);
+	va_end(adx);
+
+	switch (blk_verify) {
+	case BLK_VERIFY_HALT:
+		dprintf_bp(bp, "blkptr at %p dprintf_bp():", bp);
+		zfs_panic_recover("%s: %s", spa_name(spa), buf);
+		break;
+	case BLK_VERIFY_LOG:
+		zfs_dbgmsg("%s: %s", spa_name(spa), buf);
+		break;
+	case BLK_VERIFY_ONLY:
+		break;
+	}
+
+	return (1);
+}
+
+/*
+ * Verify the block pointer fields contain reasonable values.  This means
+ * it only contains known object types, checksum/compression identifiers,
+ * block sizes within the maximum allowed limits, valid DVAs, etc.
+ *
+ * If everything checks out B_TRUE is returned.  The zfs_blkptr_verify
+ * argument controls the behavior when an invalid field is detected.
+ *
+ * Modes for zfs_blkptr_verify:
+ *   1) BLK_VERIFY_ONLY (evaluate the block)
+ *   2) BLK_VERIFY_LOG (evaluate the block and log problems)
+ *   3) BLK_VERIFY_HALT (call zfs_panic_recover on error)
+ */
+boolean_t
+zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp, boolean_t config_held,
+    enum blk_verify_flag blk_verify)
+{
+	int errors = 0;
+
 	if (!DMU_OT_IS_VALID(BP_GET_TYPE(bp))) {
-		zfs_panic_recover("blkptr at %p has invalid TYPE %llu",
+		errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
+		    "blkptr at %p has invalid TYPE %llu",
 		    bp, (longlong_t)BP_GET_TYPE(bp));
 	}
 	if (BP_GET_CHECKSUM(bp) >= ZIO_CHECKSUM_FUNCTIONS ||
 	    BP_GET_CHECKSUM(bp) <= ZIO_CHECKSUM_ON) {
-		zfs_panic_recover("blkptr at %p has invalid CHECKSUM %llu",
+		errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
+		    "blkptr at %p has invalid CHECKSUM %llu",
 		    bp, (longlong_t)BP_GET_CHECKSUM(bp));
 	}
 	if (BP_GET_COMPRESS(bp) >= ZIO_COMPRESS_FUNCTIONS ||
 	    BP_GET_COMPRESS(bp) <= ZIO_COMPRESS_ON) {
-		zfs_panic_recover("blkptr at %p has invalid COMPRESS %llu",
+		errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
+		    "blkptr at %p has invalid COMPRESS %llu",
 		    bp, (longlong_t)BP_GET_COMPRESS(bp));
 	}
 	if (BP_GET_LSIZE(bp) > SPA_MAXBLOCKSIZE) {
-		zfs_panic_recover("blkptr at %p has invalid LSIZE %llu",
+		errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
+		    "blkptr at %p has invalid LSIZE %llu",
 		    bp, (longlong_t)BP_GET_LSIZE(bp));
 	}
 	if (BP_GET_PSIZE(bp) > SPA_MAXBLOCKSIZE) {
-		zfs_panic_recover("blkptr at %p has invalid PSIZE %llu",
+		errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
+		    "blkptr at %p has invalid PSIZE %llu",
 		    bp, (longlong_t)BP_GET_PSIZE(bp));
 	}
 
 	if (BP_IS_EMBEDDED(bp)) {
 		if (BPE_GET_ETYPE(bp) >= NUM_BP_EMBEDDED_TYPES) {
-			zfs_panic_recover("blkptr at %p has invalid ETYPE %llu",
+			errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
+			    "blkptr at %p has invalid ETYPE %llu",
 			    bp, (longlong_t)BPE_GET_ETYPE(bp));
 		}
 	}
@@ -919,7 +976,7 @@ zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp, boolean_t config_held)
 	 * will be done once the zio is executed in vdev_mirror_map_alloc.
 	 */
 	if (!spa->spa_trust_config)
-		return;
+		return (B_TRUE);
 
 	if (!config_held)
 		spa_config_enter(spa, SCL_VDEV, bp, RW_READER);
@@ -937,21 +994,21 @@ zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp, boolean_t config_held)
 		uint64_t vdevid = DVA_GET_VDEV(&bp->blk_dva[i]);
 
 		if (vdevid >= spa->spa_root_vdev->vdev_children) {
-			zfs_panic_recover("blkptr at %p DVA %u has invalid "
-			    "VDEV %llu",
+			errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
+			    "blkptr at %p DVA %u has invalid VDEV %llu",
 			    bp, i, (longlong_t)vdevid);
 			continue;
 		}
 		vdev_t *vd = spa->spa_root_vdev->vdev_child[vdevid];
 		if (vd == NULL) {
-			zfs_panic_recover("blkptr at %p DVA %u has invalid "
-			    "VDEV %llu",
+			errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
+			    "blkptr at %p DVA %u has invalid VDEV %llu",
 			    bp, i, (longlong_t)vdevid);
 			continue;
 		}
 		if (vd->vdev_ops == &vdev_hole_ops) {
-			zfs_panic_recover("blkptr at %p DVA %u has hole "
-			    "VDEV %llu",
+			errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
+			    "blkptr at %p DVA %u has hole VDEV %llu",
 			    bp, i, (longlong_t)vdevid);
 			continue;
 		}
@@ -968,13 +1025,17 @@ zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp, boolean_t config_held)
 		if (BP_IS_GANG(bp))
 			asize = vdev_psize_to_asize(vd, SPA_GANGBLOCKSIZE);
 		if (offset + asize > vd->vdev_asize) {
-			zfs_panic_recover("blkptr at %p DVA %u has invalid "
-			    "OFFSET %llu",
+			errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
+			    "blkptr at %p DVA %u has invalid OFFSET %llu",
 			    bp, i, (longlong_t)offset);
 		}
 	}
+	if (errors > 0)
+		dprintf_bp(bp, "blkptr at %p dprintf_bp():", bp);
 	if (!config_held)
 		spa_config_exit(spa, SCL_VDEV, bp);
+
+	return (errors == 0);
 }
 
 boolean_t
@@ -1014,7 +1075,8 @@ zio_read(zio_t *pio, spa_t *spa, const blkptr_t *bp,
 {
 	zio_t *zio;
 
-	zfs_blkptr_verify(spa, bp, flags & ZIO_FLAG_CONFIG_WRITER);
+	(void) zfs_blkptr_verify(spa, bp, flags & ZIO_FLAG_CONFIG_WRITER,
+	    BLK_VERIFY_HALT);
 
 	zio = zio_create(pio, spa, BP_PHYSICAL_BIRTH(bp), bp,
 	    data, size, size, done, private,
@@ -1107,7 +1169,7 @@ void
 zio_free(spa_t *spa, uint64_t txg, const blkptr_t *bp)
 {
 
-	zfs_blkptr_verify(spa, bp, B_FALSE);
+	(void) zfs_blkptr_verify(spa, bp, B_FALSE, BLK_VERIFY_HALT);
 
 	/*
 	 * The check for EMBEDDED is a performance optimization.  We
@@ -1135,40 +1197,46 @@ zio_free(spa_t *spa, uint64_t txg, const blkptr_t *bp)
 	    !spa_feature_is_active(spa, SPA_FEATURE_LOG_SPACEMAP))) {
 		bplist_append(&spa->spa_free_bplist[txg & TXG_MASK], bp);
 	} else {
-		VERIFY0(zio_wait(zio_free_sync(NULL, spa, txg, bp, 0)));
+		VERIFY3P(zio_free_sync(NULL, spa, txg, bp, 0), ==, NULL);
 	}
 }
 
+/*
+ * To improve performance, this function may return NULL if we were able
+ * to do the free immediately.  This avoids the cost of creating a zio
+ * (and linking it to the parent, etc).
+ */
 zio_t *
 zio_free_sync(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
     enum zio_flag flags)
 {
-	zio_t *zio;
-	enum zio_stage stage = ZIO_FREE_PIPELINE;
-
 	ASSERT(!BP_IS_HOLE(bp));
 	ASSERT(spa_syncing_txg(spa) == txg);
 
 	if (BP_IS_EMBEDDED(bp))
-		return (zio_null(pio, spa, NULL, NULL, NULL, 0));
+		return (NULL);
 
 	metaslab_check_free(spa, bp);
 	arc_freed(spa, bp);
 	dsl_scan_freed(spa, bp);
 
-	/*
-	 * GANG and DEDUP blocks can induce a read (for the gang block header,
-	 * or the DDT), so issue them asynchronously so that this thread is
-	 * not tied up.
-	 */
-	if (BP_IS_GANG(bp) || BP_GET_DEDUP(bp))
-		stage |= ZIO_STAGE_ISSUE_ASYNC;
+	if (BP_IS_GANG(bp) || BP_GET_DEDUP(bp)) {
+		/*
+		 * GANG and DEDUP blocks can induce a read (for the gang block
+		 * header, or the DDT), so issue them asynchronously so that
+		 * this thread is not tied up.
+		 */
+		enum zio_stage stage =
+		    ZIO_FREE_PIPELINE | ZIO_STAGE_ISSUE_ASYNC;
 
-	zio = zio_create(pio, spa, txg, bp, NULL, BP_GET_PSIZE(bp),
-	    BP_GET_PSIZE(bp), NULL, NULL, ZIO_TYPE_FREE, ZIO_PRIORITY_NOW,
-	    flags, NULL, 0, NULL, ZIO_STAGE_OPEN, stage);
-
-	return (zio);
+		return (zio_create(pio, spa, txg, bp, NULL, BP_GET_PSIZE(bp),
+		    BP_GET_PSIZE(bp), NULL, NULL,
+		    ZIO_TYPE_FREE, ZIO_PRIORITY_NOW,
+		    flags, NULL, 0, NULL, ZIO_STAGE_OPEN, stage));
+	} else {
+		metaslab_free(spa, bp, txg, B_FALSE);
+		return (NULL);
+	}
 }
 
 zio_t *
@@ -1177,7 +1245,8 @@ zio_claim(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 {
 	zio_t *zio;
 
-	zfs_blkptr_verify(spa, bp, flags & ZIO_FLAG_CONFIG_WRITER);
+	(void) zfs_blkptr_verify(spa, bp, flags & ZIO_FLAG_CONFIG_WRITER,
+	    BLK_VERIFY_HALT);
 
 	if (BP_IS_EMBEDDED(bp))
 		return (zio_null(pio, spa, NULL, NULL, NULL, 0));
@@ -1799,14 +1868,15 @@ zio_taskq_dispatch(zio_t *zio, zio_taskq_type_t q, boolean_t cutinline)
 static boolean_t
 zio_taskq_member(zio_t *zio, zio_taskq_type_t q)
 {
-	kthread_t *executor = zio->io_executor;
 	spa_t *spa = zio->io_spa;
+
+	taskq_t *tq = taskq_of_curthread();
 
 	for (zio_type_t t = 0; t < ZIO_TYPES; t++) {
 		spa_taskqs_t *tqs = &spa->spa_zio_taskq[t][q];
 		uint_t i;
 		for (i = 0; i < tqs->stqs_count; i++) {
-			if (taskq_member(tqs->stqs_taskq[i], executor))
+			if (tqs->stqs_taskq[i] == tq)
 				return (B_TRUE);
 		}
 	}
@@ -1826,6 +1896,77 @@ void
 zio_interrupt(zio_t *zio)
 {
 	zio_taskq_dispatch(zio, ZIO_TASKQ_INTERRUPT, B_FALSE);
+}
+
+void
+zio_delay_interrupt(zio_t *zio)
+{
+	/*
+	 * The timeout_generic() function isn't defined in userspace, so
+	 * rather than trying to implement the function, the zio delay
+	 * functionality has been disabled for userspace builds.
+	 */
+
+#ifdef _KERNEL
+	/*
+	 * If io_target_timestamp is zero, then no delay has been registered
+	 * for this IO, thus jump to the end of this function and "skip" the
+	 * delay; issuing it directly to the zio layer.
+	 */
+	if (zio->io_target_timestamp != 0) {
+		hrtime_t now = gethrtime();
+
+		if (now >= zio->io_target_timestamp) {
+			/*
+			 * This IO has already taken longer than the target
+			 * delay to complete, so we don't want to delay it
+			 * any longer; we "miss" the delay and issue it
+			 * directly to the zio layer. This is likely due to
+			 * the target latency being set to a value less than
+			 * the underlying hardware can satisfy (e.g. delay
+			 * set to 1ms, but the disks take 10ms to complete an
+			 * IO request).
+			 */
+
+			DTRACE_PROBE2(zio__delay__miss, zio_t *, zio,
+			    hrtime_t, now);
+
+			zio_interrupt(zio);
+		} else {
+			taskqid_t tid;
+			hrtime_t diff = zio->io_target_timestamp - now;
+			clock_t expire_at_tick = ddi_get_lbolt() +
+			    NSEC_TO_TICK(diff);
+
+			DTRACE_PROBE3(zio__delay__hit, zio_t *, zio,
+			    hrtime_t, now, hrtime_t, diff);
+
+			if (NSEC_TO_TICK(diff) == 0) {
+				/* Our delay is less than a jiffy - just spin */
+				zfs_sleep_until(zio->io_target_timestamp);
+				zio_interrupt(zio);
+			} else {
+				/*
+				 * Use taskq_dispatch_delay() in the place of
+				 * OpenZFS's timeout_generic().
+				 */
+				tid = taskq_dispatch_delay(system_taskq,
+				    (task_func_t *)zio_interrupt,
+				    zio, TQ_NOSLEEP, expire_at_tick);
+				if (tid == TASKQID_INVALID) {
+					/*
+					 * Couldn't allocate a task.  Just
+					 * finish the zio without a delay.
+					 */
+					zio_interrupt(zio);
+				}
+			}
+		}
+		return;
+	}
+#endif
+	DTRACE_PROBE1(zio__delay__skip, zio_t *, zio);
+	zio_interrupt(zio);
 }
 
 static void
@@ -2034,6 +2175,15 @@ __zio_execute(zio_t *zio)
 int
 zio_wait(zio_t *zio)
 {
+	/*
+	 * Some routines, like zio_free_sync(), may return a NULL zio
+	 * to avoid the performance overhead of creating and then destroying
+	 * an unneeded zio.  For the callers' simplicity, we accept a NULL
+	 * zio and ignore it.
+	 */
+	if (zio == NULL)
+		return (0);
+
 	long timeout = MSEC_TO_TICK(zfs_deadman_ziotime_ms);
 	int error;
 
@@ -2071,6 +2221,12 @@ zio_wait(zio_t *zio)
 void
 zio_nowait(zio_t *zio)
 {
+	/*
+	 * See comment in zio_wait().
+	 */
+	if (zio == NULL)
+		return;
+
 	ASSERT3P(zio->io_executor, ==, NULL);
 
 	if (zio->io_child_type == ZIO_CHILD_LOGICAL &&
@@ -2358,8 +2514,13 @@ static zio_t *
 zio_free_gang(zio_t *pio, blkptr_t *bp, zio_gang_node_t *gn, abd_t *data,
     uint64_t offset)
 {
-	return (zio_free_sync(pio, pio->io_spa, pio->io_txg, bp,
-	    ZIO_GANG_CHILD_FLAGS(pio)));
+	zio_t *zio = zio_free_sync(pio, pio->io_spa, pio->io_txg, bp,
+	    ZIO_GANG_CHILD_FLAGS(pio));
+	if (zio == NULL) {
+		zio = zio_null(pio, pio->io_spa,
+		    NULL, NULL, NULL, ZIO_GANG_CHILD_FLAGS(pio));
+	}
+	return (zio);
 }
 
 /* ARGSUSED */
@@ -2550,7 +2711,7 @@ zio_write_gang_member_ready(zio_t *zio)
 	dva_t *cdva = zio->io_bp->blk_dva;
 	dva_t *pdva = pio->io_bp->blk_dva;
 	uint64_t asize;
-	ASSERTV(zio_t *gio = zio->io_gang_leader);
+	zio_t *gio __maybe_unused = zio->io_gang_leader;
 
 	if (BP_IS_HOLE(zio->io_bp))
 		return;
@@ -3142,8 +3303,7 @@ zio_ddt_write(zio_t *zio)
 
 	ddt_exit(ddt);
 
-	if (cio)
-		zio_nowait(cio);
+	zio_nowait(cio);
 
 	return (zio);
 }
@@ -4184,7 +4344,7 @@ zio_ready(zio_t *zio)
 static void
 zio_dva_throttle_done(zio_t *zio)
 {
-	ASSERTV(zio_t *lio = zio->io_logical);
+	zio_t *lio __maybe_unused = zio->io_logical;
 	zio_t *pio = zio_unique_parent(zio);
 	vdev_t *vd = zio->io_vd;
 	int flags = METASLAB_ASYNC_ALLOC;

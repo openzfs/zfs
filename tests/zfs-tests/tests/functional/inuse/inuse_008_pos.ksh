@@ -61,15 +61,15 @@ function cleanup
 	cleanup_devices $vdisks $sdisks
 }
 
-function verify_assertion #slices
+function verify_assertion # disks
 {
 	typeset targets=$1
 
 	for t in $targets; do
-		echo "y" | newfs -v $t > /dev/null 2>&1
-		(( $? !=0 )) && \
+		if ! new_fs $t; then
 			log_fail "newfs over exported pool " \
 				"fails unexpectedly."
+		fi
 	done
 
 	return 0
@@ -82,32 +82,14 @@ log_onexit cleanup
 set -A vdevs "" "mirror" "raidz" "raidz1" "raidz2"
 
 typeset -i i=0
-typeset cyl=""
-
-for num in 0 1 2 3 ; do
-	eval typeset disk=\${FS_DISK$num}
-	zero_partitions $disk
-done
-
-for num in 0 1 2 3 ; do
-	eval typeset slice=\${FS_SIDE$num}
-	disk=${slice%${SLICE_PREFIX}*}
-	[[ -z $SLICE_PREFIX ]] && eval typeset disk=\${FS_DISK$num}
-	slice=$(echo $slice | awk '{ print substr($1,length($1),1) }')
-	log_must set_partition $slice "$cyl" $FS_SIZE $disk
-	[[ $num < 3 ]] && cyl=$(get_endslice $disk $slice)
-done
-
 while (( i < ${#vdevs[*]} )); do
-	if [[ -n $SINGLE_DISK && -n ${vdevs[i]} ]]; then
-		(( i = i + 1 ))
-		continue
-	fi
+	typeset spare="spare $sdisks"
 
-	create_pool $TESTPOOL1 ${vdevs[i]} $vslices spare $sslices
+	# If this is for raidz2, use 3 disks for the pool.
+	[[ ${vdevs[i]} = "raidz2" ]] && spare="$sdisks"
+	create_pool $TESTPOOL1 ${vdevs[i]} $vdisks $spare
 	log_must zpool export $TESTPOOL1
 	verify_assertion "$rawtargets"
-	cleanup_devices $vslices $sslices
 
 	(( i = i + 1 ))
 done

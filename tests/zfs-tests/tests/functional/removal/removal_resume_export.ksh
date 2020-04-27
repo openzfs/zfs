@@ -43,13 +43,28 @@
 
 function cleanup
 {
-	log_must zinject -c all
+	zinject -c all
 	default_cleanup_noexit
 }
 
 function callback
 {
+	#
+	# Inject an error so export fails after having just suspended
+	# the removal thread. [spa_inject_ref gets incremented]
+	#
+	log_must zinject -d $REMOVEDISK -D 10:1 $TESTPOOL
+
+	#
+	# Because of the above error export should fail.
+	#
 	log_mustnot zpool export $TESTPOOL
+
+	#
+	# Let the removal finish.
+	#
+	log_must zinject -c all
+
 	return 0
 }
 
@@ -78,13 +93,7 @@ log_must dd if=/dev/urandom of=$TESTDIR/$TESTFILE0 bs=64M count=32
 log_must zpool add -f $TESTPOOL $NOTREMOVEDISK
 
 #
-# Inject an error so export fails after having just suspended
-# the removal thread. [spa_inject_ref gets incremented]
-#
-log_must zinject -d $REMOVEDISK -D 10:1 $TESTPOOL
-
-#
-# Because of the above error export should fail.
+# Attempt the export with errors injected.
 #
 log_must attempt_during_removal $TESTPOOL $REMOVEDISK callback
 

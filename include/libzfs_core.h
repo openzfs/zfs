@@ -79,6 +79,7 @@ enum lzc_send_flags {
 	LZC_SEND_FLAG_LARGE_BLOCK = 1 << 1,
 	LZC_SEND_FLAG_COMPRESS = 1 << 2,
 	LZC_SEND_FLAG_RAW = 1 << 3,
+	LZC_SEND_FLAG_SAVED = 1 << 4,
 };
 
 int lzc_send(const char *, const char *, int, enum lzc_send_flags);
@@ -132,6 +133,7 @@ int lzc_pool_checkpoint_discard(const char *);
 
 int lzc_wait(const char *, zpool_wait_activity_t, boolean_t *);
 int lzc_wait_tag(const char *, zpool_wait_activity_t, uint64_t, boolean_t *);
+int lzc_wait_fs(const char *, zfs_wait_activity_t, boolean_t *);
 
 #ifdef	__cplusplus
 }

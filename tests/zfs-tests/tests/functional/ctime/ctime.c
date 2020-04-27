@@ -31,7 +31,9 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
+#ifndef __FreeBSD__
 #include <sys/xattr.h>
+#endif
 #include <utime.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -251,6 +253,7 @@ do_chown(const char *pfile)
 	return (ret);
 }
 
+#ifndef __FreeBSD__
 static int
 do_xattr(const char *pfile)
 {
@@ -268,6 +271,7 @@ do_xattr(const char *pfile)
 	}
 	return (ret);
 }
+#endif
 
 static void
 cleanup(void)
@@ -289,7 +293,9 @@ static timetest_t timetest_table[] = {
 	{ ST_CTIME,	"st_ctime",	do_chown 	},
 	{ ST_CTIME,	"st_ctime",	do_link		},
 	{ ST_CTIME,	"st_ctime",	do_utime	},
+#ifndef __FreeBSD__
 	{ ST_CTIME,	"st_ctime",	do_xattr	},
+#endif
 };
 
 #define	NCOMMAND (sizeof (timetest_table) / sizeof (timetest_table[0]))

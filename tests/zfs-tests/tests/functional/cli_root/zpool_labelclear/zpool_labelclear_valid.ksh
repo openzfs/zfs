@@ -39,13 +39,15 @@ verify_runnable "global"
 function cleanup
 {
 	poolexists $TESTPOOL && destroy_pool $TESTPOOL
-	rm -f $PATTERN_FILE $DEVICE1 $DEVICE2 $DEVICE3 $DEVICE4
+	rm -f $PATTERN_FILE $DISK_PATTERN_FILE \
+	    $DEVICE1 $DEVICE2 $DEVICE3 $DEVICE4
 }
 
 log_onexit cleanup
 log_assert "zpool labelclear will only clear valid labels"
 
 PATTERN_FILE=$TEST_BASE_DIR/pattern
+DISK_PATTERN_FILE=$TEST_BASE_DIR/disk-pattern
 
 DEVICE1="$TEST_BASE_DIR/device-1"
 DEVICE2="$TEST_BASE_DIR/device-2"
@@ -79,7 +81,8 @@ log_mustnot eval "zpool import -d $TEST_BASE_DIR | grep $TESTPOOL"
 
 # Verify the original pattern over the first two labels is intact
 for dev in $DEVICE1 $DEVICE2 $DEVICE3 $DEVICE4; do
-	log_must cmp -n $((4 * 1048576)) $dev $PATTERN_FILE
+	log_must dd if=$dev of=$DISK_PATTERN_FILE bs=1048576 count=4
+	log_must cmp $DISK_PATTERN_FILE $PATTERN_FILE
 	log_mustnot zdb -lq $dev
 done
 

@@ -20,11 +20,12 @@
  */
 
 /*
- * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2020 by Delphix. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  * Copyright (c) 2017 Datto Inc.
  * Copyright 2017 RackTop Systems.
  * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+ * Copyright (c) 2019, 2020 by Christian Schwarz. All rights reserved.
  */
 
 /*
@@ -675,6 +676,8 @@ lzc_send_resume_redacted(const char *snapname, const char *from, int fd,
 		fnvlist_add_boolean(args, "compressok");
 	if (flags & LZC_SEND_FLAG_RAW)
 		fnvlist_add_boolean(args, "rawok");
+	if (flags & LZC_SEND_FLAG_SAVED)
+		fnvlist_add_boolean(args, "savedok");
 	if (resumeobj != 0 || resumeoff != 0) {
 		fnvlist_add_uint64(args, "resume_object", resumeobj);
 		fnvlist_add_uint64(args, "resume_offset", resumeoff);
@@ -780,9 +783,8 @@ static int
 recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
     uint8_t *wkeydata, uint_t wkeylen, const char *origin, boolean_t force,
     boolean_t resumable, boolean_t raw, int input_fd,
-    const dmu_replay_record_t *begin_record, int cleanup_fd,
-    uint64_t *read_bytes, uint64_t *errflags, uint64_t *action_handle,
-    nvlist_t **errors)
+    const dmu_replay_record_t *begin_record, uint64_t *read_bytes,
+    uint64_t *errflags, nvlist_t **errors)
 {
 	dmu_replay_record_t drr;
 	char fsname[MAXPATHLEN];
@@ -865,12 +867,6 @@ recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
 		if (resumable)
 			fnvlist_add_boolean(innvl, "resumable");
 
-		if (cleanup_fd >= 0)
-			fnvlist_add_int32(innvl, "cleanup_fd", cleanup_fd);
-
-		if (action_handle != NULL)
-			fnvlist_add_uint64(innvl, "action_handle",
-			    *action_handle);
 
 		error = lzc_ioctl(ZFS_IOC_RECV_NEW, fsname, innvl, &outnvl);
 
@@ -881,10 +877,6 @@ recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
 		if (error == 0 && errflags != NULL)
 			error = nvlist_lookup_uint64(outnvl, "error_flags",
 			    errflags);
-
-		if (error == 0 && action_handle != NULL)
-			error = nvlist_lookup_uint64(outnvl, "action_handle",
-			    action_handle);
 
 		if (error == 0 && errors != NULL) {
 			nvlist_t *nvl;
@@ -928,12 +920,6 @@ recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
 		zc.zc_cleanup_fd = -1;
 		zc.zc_action_handle = 0;
 
-		if (cleanup_fd >= 0)
-			zc.zc_cleanup_fd = cleanup_fd;
-
-		if (action_handle != NULL)
-			zc.zc_action_handle = *action_handle;
-
 		zc.zc_nvlist_dst_size = 128 * 1024;
 		zc.zc_nvlist_dst = (uint64_t)(uintptr_t)
 		    malloc(zc.zc_nvlist_dst_size);
@@ -947,9 +933,6 @@ recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
 
 			if (errflags != NULL)
 				*errflags = zc.zc_obj;
-
-			if (action_handle != NULL)
-				*action_handle = zc.zc_action_handle;
 
 			if (errors != NULL)
 				VERIFY0(nvlist_unpack(
@@ -983,7 +966,7 @@ lzc_receive(const char *snapname, nvlist_t *props, const char *origin,
     boolean_t force, boolean_t raw, int fd)
 {
 	return (recv_impl(snapname, props, NULL, NULL, 0, origin, force,
-	    B_FALSE, raw, fd, NULL, -1, NULL, NULL, NULL, NULL));
+	    B_FALSE, raw, fd, NULL, NULL, NULL, NULL));
 }
 
 /*
@@ -997,7 +980,7 @@ lzc_receive_resumable(const char *snapname, nvlist_t *props, const char *origin,
     boolean_t force, boolean_t raw, int fd)
 {
 	return (recv_impl(snapname, props, NULL, NULL, 0, origin, force,
-	    B_TRUE, raw, fd, NULL, -1, NULL, NULL, NULL, NULL));
+	    B_TRUE, raw, fd, NULL, NULL, NULL, NULL));
 }
 
 /*
@@ -1020,7 +1003,7 @@ lzc_receive_with_header(const char *snapname, nvlist_t *props,
 		return (EINVAL);
 
 	return (recv_impl(snapname, props, NULL, NULL, 0, origin, force,
-	    resumable, raw, fd, begin_record, -1, NULL, NULL, NULL, NULL));
+	    resumable, raw, fd, begin_record, NULL, NULL, NULL));
 }
 
 /*
@@ -1036,9 +1019,7 @@ lzc_receive_with_header(const char *snapname, nvlist_t *props,
  * The 'errflags' value will contain zprop_errflags_t flags which are
  * used to describe any failures.
  *
- * The 'action_handle' is used to pass the handle for this guid/ds mapping.
- * It should be set to zero on first call and will contain an updated handle
- * on success, it should be passed in subsequent calls.
+ * The 'action_handle' and 'cleanup_fd' are no longer used, and are ignored.
  *
  * The 'errors' nvlist contains an entry for each unapplied received
  * property.  Callers are responsible for freeing this nvlist.
@@ -1050,8 +1031,8 @@ int lzc_receive_one(const char *snapname, nvlist_t *props,
     nvlist_t **errors)
 {
 	return (recv_impl(snapname, props, NULL, NULL, 0, origin, force,
-	    resumable, raw, input_fd, begin_record, cleanup_fd, read_bytes,
-	    errflags, action_handle, errors));
+	    resumable, raw, input_fd, begin_record,
+	    read_bytes, errflags, errors));
 }
 
 /*
@@ -1070,8 +1051,8 @@ int lzc_receive_with_cmdprops(const char *snapname, nvlist_t *props,
     nvlist_t **errors)
 {
 	return (recv_impl(snapname, props, cmdprops, wkeydata, wkeylen, origin,
-	    force, resumable, raw, input_fd, begin_record, cleanup_fd,
-	    read_bytes, errflags, action_handle, errors));
+	    force, resumable, raw, input_fd, begin_record,
+	    read_bytes, errflags, errors));
 }
 
 /*
@@ -1125,11 +1106,13 @@ lzc_rollback_to(const char *fsname, const char *snapname)
 }
 
 /*
- * Creates bookmarks.
+ * Creates new bookmarks from existing snapshot or bookmark.
  *
- * The bookmarks nvlist maps from name of the bookmark (e.g. "pool/fs#bmark") to
- * the name of the snapshot (e.g. "pool/fs@snap").  All the bookmarks and
- * snapshots must be in the same pool.
+ * The bookmarks nvlist maps from the full name of the new bookmark to
+ * the full name of the source snapshot or bookmark.
+ * All the bookmarks and snapshots must be in the same pool.
+ * The new bookmarks names must be unique.
+ * => see function dsl_bookmark_create_nvl_validate
  *
  * The returned results nvlist will have an entry for each bookmark that failed.
  * The value will be the (int32) error code.
@@ -1144,7 +1127,7 @@ lzc_bookmark(nvlist_t *bookmarks, nvlist_t **errlist)
 	int error;
 	char pool[ZFS_MAX_DATASET_NAME_LEN];
 
-	/* determine the pool name */
+	/* determine pool name from first bookmark */
 	elem = nvlist_next_nvpair(bookmarks, NULL);
 	if (elem == NULL)
 		return (0);
@@ -1615,4 +1598,24 @@ lzc_wait_tag(const char *pool, zpool_wait_activity_t activity, uint64_t tag,
     boolean_t *waited)
 {
 	return (wait_common(pool, activity, B_TRUE, tag, waited));
+}
+
+int
+lzc_wait_fs(const char *fs, zfs_wait_activity_t activity, boolean_t *waited)
+{
+	nvlist_t *args = fnvlist_alloc();
+	nvlist_t *result = NULL;
+
+	fnvlist_add_int32(args, ZFS_WAIT_ACTIVITY, activity);
+
+	int error = lzc_ioctl(ZFS_IOC_WAIT_FS, fs, args, &result);
+
+	if (error == 0 && waited != NULL)
+		*waited = fnvlist_lookup_boolean_value(result,
+		    ZFS_WAIT_WAITED);
+
+	fnvlist_free(args);
+	fnvlist_free(result);
+
+	return (error);
 }

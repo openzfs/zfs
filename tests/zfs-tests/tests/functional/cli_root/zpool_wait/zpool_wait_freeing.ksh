@@ -34,9 +34,9 @@
 
 function cleanup
 {
-	log_must set_tunable64 zfs_async_block_max_blocks $default_async_block_max_blocks
-	log_must set_tunable64 zfs_livelist_max_entries $default_max_livelist_entries
-	log_must set_tunable64 zfs_livelist_min_percent_shared $default_min_pct_shared
+	log_must set_tunable64 ASYNC_BLOCK_MAX_BLOCKS $default_async_block_max_blocks
+	log_must set_tunable64 LIVELIST_MAX_ENTRIES $default_max_livelist_entries
+	log_must set_tunable64 LIVELIST_MIN_PERCENT_SHARED $default_min_pct_shared
 
 	poolexists $TESTPOOL && destroy_pool $TESTPOOL
 	kill_if_running $pid
@@ -63,18 +63,18 @@ log_must zpool create $TESTPOOL $DISK1
 # Limit the number of blocks that can be freed in a single txg. This slows down
 # freeing so that we actually have something to wait for.
 #
-default_async_block_max_blocks=$(get_tunable zfs_async_block_max_blocks)
-log_must set_tunable64 zfs_async_block_max_blocks 8
+default_async_block_max_blocks=$(get_tunable ASYNC_BLOCK_MAX_BLOCKS)
+log_must set_tunable64 ASYNC_BLOCK_MAX_BLOCKS 8
 #
 # Space from clones gets freed one livelist per txg instead of being controlled
 # by zfs_async_block_max_blocks. Limit the rate at which space is freed by
 # limiting the size of livelists so that we end up with a number of them.
 #
-default_max_livelist_entries=$(get_tunable zfs_livelist_max_entries)
-log_must set_tunable64 zfs_livelist_max_entries 16
+default_max_livelist_entries=$(get_tunable LIVELIST_MAX_ENTRIES)
+log_must set_tunable64 LIVELIST_MAX_ENTRIES 16
 # Don't disable livelists, no matter how much clone diverges from snapshot
-default_min_pct_shared=$(get_tunable zfs_livelist_min_percent_shared)
-log_must set_tunable64 zfs_livelist_min_percent_shared -1
+default_min_pct_shared=$(get_tunable LIVELIST_MIN_PERCENT_SHARED)
+log_must set_tunable64 LIVELIST_MIN_PERCENT_SHARED -1
 
 #
 # Test waiting for space from destroyed filesystem to be freed

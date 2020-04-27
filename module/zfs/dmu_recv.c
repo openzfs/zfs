@@ -21,7 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
- * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
  * Copyright (c) 2014, Joyent, Inc. All rights reserved.
  * Copyright 2014 HybridCluster. All rights reserved.
  * Copyright (c) 2018, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
@@ -65,6 +65,7 @@
 
 int zfs_recv_queue_length = SPA_MAXBLOCKSIZE;
 int zfs_recv_queue_ff = 20;
+int zfs_recv_write_batch_size = 1024 * 1024;
 
 static char *dmu_recv_tag = "dmu_recv_tag";
 const char *recv_clone_name = "%recv";
@@ -100,8 +101,6 @@ struct receive_writer_arg {
 	boolean_t done;
 
 	int err;
-	/* A map from guid to dataset to help handle dedup'd streams. */
-	avl_tree_t *guid_to_ds_map;
 	boolean_t resumable;
 	boolean_t raw;   /* DMU_BACKUP_FEATURE_RAW set */
 	boolean_t spill; /* DRR_FLAG_SPILL_BLOCK set */
@@ -109,6 +108,8 @@ struct receive_writer_arg {
 	uint64_t last_offset;
 	uint64_t max_object; /* highest object ID referenced in stream */
 	uint64_t bytes_read; /* bytes read when current record created */
+
+	list_t write_batch;
 
 	/* Encryption parameters for the last received DRR_OBJECT_RANGE */
 	boolean_t or_crypt_params_present;
@@ -119,13 +120,6 @@ struct receive_writer_arg {
 	uint8_t or_mac[ZIO_DATA_MAC_LEN];
 	boolean_t or_byteorder;
 };
-
-typedef struct guid_map_entry {
-	uint64_t	guid;
-	boolean_t	raw;
-	dsl_dataset_t	*gme_ds;
-	avl_node_t	avlnode;
-} guid_map_entry_t;
 
 typedef struct dmu_recv_begin_arg {
 	const char *drba_origin;
@@ -887,7 +881,6 @@ dmu_recv_begin_sync(void *arg, dmu_tx_t *tx)
 		drba->drba_cookie->drc_raw = B_TRUE;
 	}
 
-
 	if (featureflags & DMU_BACKUP_FEATURE_REDACTED) {
 		uint64_t *redact_snaps;
 		uint_t numredactsnaps;
@@ -915,6 +908,7 @@ dmu_recv_begin_sync(void *arg, dmu_tx_t *tx)
 	rrw_exit(&newds->ds_bp_rwlock, FTAG);
 
 	drba->drba_cookie->drc_ds = newds;
+	drba->drba_cookie->drc_os = os;
 
 	spa_history_log_internal_ds(newds, "receive", tx, " ");
 }
@@ -1019,6 +1013,9 @@ dmu_recv_resume_begin_check(void *arg, dmu_tx_t *tx)
 		return (SET_ERROR(EINVAL));
 	}
 
+	if (ds->ds_prev != NULL && drrb->drr_fromguid != 0)
+		drc->drc_fromsnapobj = ds->ds_prev->ds_object;
+
 	/*
 	 * If we're resuming, and the send is redacted, then the original send
 	 * must have been redacted, and must have been redacted with respect to
@@ -1093,6 +1090,8 @@ dmu_recv_resume_begin_sync(void *arg, dmu_tx_t *tx)
 	rrw_exit(&ds->ds_bp_rwlock, FTAG);
 
 	drba->drba_cookie->drc_ds = ds;
+	VERIFY0(dmu_objset_from_ds(ds, &drba->drba_cookie->drc_os));
+	drba->drba_cookie->drc_should_save = B_TRUE;
 
 	spa_history_log_internal_ds(ds, "resume receive", tx, " ");
 }
@@ -1205,37 +1204,6 @@ dmu_recv_begin(char *tofs, char *tosnap, dmu_replay_record_t *drr_begin,
 }
 
 static int
-guid_compare(const void *arg1, const void *arg2)
-{
-	const guid_map_entry_t *gmep1 = (const guid_map_entry_t *)arg1;
-	const guid_map_entry_t *gmep2 = (const guid_map_entry_t *)arg2;
-
-	return (TREE_CMP(gmep1->guid, gmep2->guid));
-}
-
-static void
-free_guid_map_onexit(void *arg)
-{
-	avl_tree_t *ca = arg;
-	void *cookie = NULL;
-	guid_map_entry_t *gmep;
-
-	while ((gmep = avl_destroy_nodes(ca, &cookie)) != NULL) {
-		ds_hold_flags_t dsflags = DS_HOLD_FLAG_DECRYPT;
-
-		if (gmep->raw) {
-			gmep->gme_ds->ds_objset->os_raw_receive = B_FALSE;
-			dsflags &= ~DS_HOLD_FLAG_DECRYPT;
-		}
-
-		dsl_dataset_disown(gmep->gme_ds, dsflags, gmep);
-		kmem_free(gmep, sizeof (guid_map_entry_t));
-	}
-	avl_destroy(ca);
-	kmem_free(ca, sizeof (avl_tree_t));
-}
-
-static int
 receive_read(dmu_recv_cookie_t *drc, int len, void *buf)
 {
 	int done = 0;
@@ -1256,10 +1224,11 @@ receive_read(dmu_recv_cookie_t *drc, int len, void *buf)
 		    len - done, &resid);
 		if (resid == len - done) {
 			/*
-			 * Note: ECKSUM indicates that the receive
-			 * was interrupted and can potentially be resumed.
+			 * Note: ECKSUM or ZFS_ERR_STREAM_TRUNCATED indicates
+			 * that the receive was interrupted and can
+			 * potentially be resumed.
 			 */
-			drc->drc_err = SET_ERROR(ECKSUM);
+			drc->drc_err = SET_ERROR(ZFS_ERR_STREAM_TRUNCATED);
 		}
 		drc->drc_voff += len - done - resid;
 		done = len - resid;
@@ -1692,13 +1661,108 @@ receive_freeobjects(struct receive_writer_arg *rwa,
 	return (0);
 }
 
-noinline static int
-receive_write(struct receive_writer_arg *rwa, struct drr_write *drrw,
-    arc_buf_t *abuf)
+/*
+ * Note: if this fails, the caller will clean up any records left on the
+ * rwa->write_batch list.
+ */
+static int
+flush_write_batch_impl(struct receive_writer_arg *rwa)
 {
-	int err;
-	dmu_tx_t *tx;
 	dnode_t *dn;
+	int err;
+
+	if (dnode_hold(rwa->os, rwa->last_object, FTAG, &dn) != 0)
+		return (SET_ERROR(EINVAL));
+
+	struct receive_record_arg *last_rrd = list_tail(&rwa->write_batch);
+	struct drr_write *last_drrw = &last_rrd->header.drr_u.drr_write;
+
+	struct receive_record_arg *first_rrd = list_head(&rwa->write_batch);
+	struct drr_write *first_drrw = &first_rrd->header.drr_u.drr_write;
+
+	ASSERT3U(rwa->last_object, ==, last_drrw->drr_object);
+	ASSERT3U(rwa->last_offset, ==, last_drrw->drr_offset);
+
+	dmu_tx_t *tx = dmu_tx_create(rwa->os);
+	dmu_tx_hold_write_by_dnode(tx, dn, first_drrw->drr_offset,
+	    last_drrw->drr_offset - first_drrw->drr_offset +
+	    last_drrw->drr_logical_size);
+	err = dmu_tx_assign(tx, TXG_WAIT);
+	if (err != 0) {
+		dmu_tx_abort(tx);
+		dnode_rele(dn, FTAG);
+		return (err);
+	}
+
+	struct receive_record_arg *rrd;
+	while ((rrd = list_head(&rwa->write_batch)) != NULL) {
+		struct drr_write *drrw = &rrd->header.drr_u.drr_write;
+		arc_buf_t *abuf = rrd->arc_buf;
+
+		ASSERT3U(drrw->drr_object, ==, rwa->last_object);
+
+		if (rwa->byteswap && !arc_is_encrypted(abuf) &&
+		    arc_get_compression(abuf) == ZIO_COMPRESS_OFF) {
+			dmu_object_byteswap_t byteswap =
+			    DMU_OT_BYTESWAP(drrw->drr_type);
+			dmu_ot_byteswap[byteswap].ob_func(abuf->b_data,
+			    DRR_WRITE_PAYLOAD_SIZE(drrw));
+		}
+
+		err = dmu_assign_arcbuf_by_dnode(dn,
+		    drrw->drr_offset, abuf, tx);
+		if (err != 0) {
+			/*
+			 * This rrd is left on the list, so the caller will
+			 * free it (and the arc_buf).
+			 */
+			break;
+		}
+
+		/*
+		 * Note: If the receive fails, we want the resume stream to
+		 * start with the same record that we last successfully
+		 * received (as opposed to the next record), so that we can
+		 * verify that we are resuming from the correct location.
+		 */
+		save_resume_state(rwa, drrw->drr_object, drrw->drr_offset, tx);
+
+		list_remove(&rwa->write_batch, rrd);
+		kmem_free(rrd, sizeof (*rrd));
+	}
+
+	dmu_tx_commit(tx);
+	dnode_rele(dn, FTAG);
+	return (err);
+}
+
+noinline static int
+flush_write_batch(struct receive_writer_arg *rwa)
+{
+	if (list_is_empty(&rwa->write_batch))
+		return (0);
+	int err = rwa->err;
+	if (err == 0)
+		err = flush_write_batch_impl(rwa);
+	if (err != 0) {
+		struct receive_record_arg *rrd;
+		while ((rrd = list_remove_head(&rwa->write_batch)) != NULL) {
+			dmu_return_arcbuf(rrd->arc_buf);
+			kmem_free(rrd, sizeof (*rrd));
+		}
+	}
+	ASSERT(list_is_empty(&rwa->write_batch));
+	return (err);
+}
+
+noinline static int
+receive_process_write_record(struct receive_writer_arg *rwa,
+    struct receive_record_arg *rrd)
+{
+	int err = 0;
+
+	ASSERT3U(rrd->header.drr_type, ==, DRR_WRITE);
+	struct drr_write *drrw = &rrd->header.drr_u.drr_write;
 
 	if (drrw->drr_offset + drrw->drr_logical_size < drrw->drr_offset ||
 	    !DMU_OT_IS_VALID(drrw->drr_type))
@@ -1713,128 +1777,31 @@ receive_write(struct receive_writer_arg *rwa, struct drr_write *drrw,
 	    drrw->drr_offset < rwa->last_offset)) {
 		return (SET_ERROR(EINVAL));
 	}
+
+	struct receive_record_arg *first_rrd = list_head(&rwa->write_batch);
+	struct drr_write *first_drrw = &first_rrd->header.drr_u.drr_write;
+	uint64_t batch_size =
+	    MIN(zfs_recv_write_batch_size, DMU_MAX_ACCESS / 2);
+	if (first_rrd != NULL &&
+	    (drrw->drr_object != first_drrw->drr_object ||
+	    drrw->drr_offset >= first_drrw->drr_offset + batch_size)) {
+		err = flush_write_batch(rwa);
+		if (err != 0)
+			return (err);
+	}
+
 	rwa->last_object = drrw->drr_object;
 	rwa->last_offset = drrw->drr_offset;
 
 	if (rwa->last_object > rwa->max_object)
 		rwa->max_object = rwa->last_object;
 
-	if (dmu_object_info(rwa->os, drrw->drr_object, NULL) != 0)
-		return (SET_ERROR(EINVAL));
-
-	tx = dmu_tx_create(rwa->os);
-	dmu_tx_hold_write(tx, drrw->drr_object,
-	    drrw->drr_offset, drrw->drr_logical_size);
-	err = dmu_tx_assign(tx, TXG_WAIT);
-	if (err != 0) {
-		dmu_tx_abort(tx);
-		return (err);
-	}
-
-	if (rwa->byteswap && !arc_is_encrypted(abuf) &&
-	    arc_get_compression(abuf) == ZIO_COMPRESS_OFF) {
-		dmu_object_byteswap_t byteswap =
-		    DMU_OT_BYTESWAP(drrw->drr_type);
-		dmu_ot_byteswap[byteswap].ob_func(abuf->b_data,
-		    DRR_WRITE_PAYLOAD_SIZE(drrw));
-	}
-
-	/* use the bonus buf to look up the dnode in dmu_assign_arcbuf */
-	VERIFY0(dnode_hold(rwa->os, drrw->drr_object, FTAG, &dn));
-	err = dmu_assign_arcbuf_by_dnode(dn, drrw->drr_offset, abuf, tx);
-	if (err != 0) {
-		dnode_rele(dn, FTAG);
-		dmu_tx_commit(tx);
-		return (err);
-	}
-	dnode_rele(dn, FTAG);
-
+	list_insert_tail(&rwa->write_batch, rrd);
 	/*
-	 * Note: If the receive fails, we want the resume stream to start
-	 * with the same record that we last successfully received (as opposed
-	 * to the next record), so that we can verify that we are
-	 * resuming from the correct location.
+	 * Return EAGAIN to indicate that we will use this rrd again,
+	 * so the caller should not free it
 	 */
-	save_resume_state(rwa, drrw->drr_object, drrw->drr_offset, tx);
-	dmu_tx_commit(tx);
-
-	return (0);
-}
-
-/*
- * Handle a DRR_WRITE_BYREF record.  This record is used in dedup'ed
- * streams to refer to a copy of the data that is already on the
- * system because it came in earlier in the stream.  This function
- * finds the earlier copy of the data, and uses that copy instead of
- * data from the stream to fulfill this write.
- */
-noinline static int
-receive_write_byref(struct receive_writer_arg *rwa,
-    struct drr_write_byref *drrwbr)
-{
-	dmu_tx_t *tx;
-	int err;
-	guid_map_entry_t gmesrch;
-	guid_map_entry_t *gmep;
-	avl_index_t where;
-	objset_t *ref_os = NULL;
-	int flags = DMU_READ_PREFETCH;
-	dmu_buf_t *dbp;
-
-	if (drrwbr->drr_offset + drrwbr->drr_length < drrwbr->drr_offset)
-		return (SET_ERROR(EINVAL));
-
-	/*
-	 * If the GUID of the referenced dataset is different from the
-	 * GUID of the target dataset, find the referenced dataset.
-	 */
-	if (drrwbr->drr_toguid != drrwbr->drr_refguid) {
-		gmesrch.guid = drrwbr->drr_refguid;
-		if ((gmep = avl_find(rwa->guid_to_ds_map, &gmesrch,
-		    &where)) == NULL) {
-			return (SET_ERROR(EINVAL));
-		}
-		if (dmu_objset_from_ds(gmep->gme_ds, &ref_os))
-			return (SET_ERROR(EINVAL));
-	} else {
-		ref_os = rwa->os;
-	}
-
-	if (drrwbr->drr_object > rwa->max_object)
-		rwa->max_object = drrwbr->drr_object;
-
-	if (rwa->raw)
-		flags |= DMU_READ_NO_DECRYPT;
-
-	/* may return either a regular db or an encrypted one */
-	err = dmu_buf_hold(ref_os, drrwbr->drr_refobject,
-	    drrwbr->drr_refoffset, FTAG, &dbp, flags);
-	if (err != 0)
-		return (err);
-
-	tx = dmu_tx_create(rwa->os);
-
-	dmu_tx_hold_write(tx, drrwbr->drr_object,
-	    drrwbr->drr_offset, drrwbr->drr_length);
-	err = dmu_tx_assign(tx, TXG_WAIT);
-	if (err != 0) {
-		dmu_tx_abort(tx);
-		return (err);
-	}
-
-	if (rwa->raw) {
-		dmu_copy_from_buf(rwa->os, drrwbr->drr_object,
-		    drrwbr->drr_offset, dbp, tx);
-	} else {
-		dmu_write(rwa->os, drrwbr->drr_object,
-		    drrwbr->drr_offset, drrwbr->drr_length, dbp->db_data, tx);
-	}
-	dmu_buf_rele(dbp, FTAG);
-
-	/* See comment in restore_write. */
-	save_resume_state(rwa, drrwbr->drr_object, drrwbr->drr_offset, tx);
-	dmu_tx_commit(tx);
-	return (0);
+	return (EAGAIN);
 }
 
 static int
@@ -2069,7 +2036,8 @@ dmu_recv_cleanup_ds(dmu_recv_cookie_t *drc)
 	ds->ds_objset->os_raw_receive = B_FALSE;
 
 	rrw_enter(&ds->ds_bp_rwlock, RW_READER, FTAG);
-	if (drc->drc_resumable && !BP_IS_HOLE(dsl_dataset_get_blkptr(ds))) {
+	if (drc->drc_resumable && drc->drc_should_save &&
+	    !BP_IS_HOLE(dsl_dataset_get_blkptr(ds))) {
 		rrw_exit(&ds->ds_bp_rwlock, FTAG);
 		dsl_dataset_disown(ds, dsflags, dmu_recv_tag);
 	} else {
@@ -2476,6 +2444,22 @@ receive_process_record(struct receive_writer_arg *rwa,
 	ASSERT3U(rrd->bytes_read, >=, rwa->bytes_read);
 	rwa->bytes_read = rrd->bytes_read;
 
+	if (rrd->header.drr_type != DRR_WRITE) {
+		err = flush_write_batch(rwa);
+		if (err != 0) {
+			if (rrd->arc_buf != NULL) {
+				dmu_return_arcbuf(rrd->arc_buf);
+				rrd->arc_buf = NULL;
+				rrd->payload = NULL;
+			} else if (rrd->payload != NULL) {
+				kmem_free(rrd->payload, rrd->payload_size);
+				rrd->payload = NULL;
+			}
+
+			return (err);
+		}
+	}
+
 	switch (rrd->header.drr_type) {
 	case DRR_OBJECT:
 	{
@@ -2494,20 +2478,17 @@ receive_process_record(struct receive_writer_arg *rwa,
 	}
 	case DRR_WRITE:
 	{
-		struct drr_write *drrw = &rrd->header.drr_u.drr_write;
-		err = receive_write(rwa, drrw, rrd->arc_buf);
-		/* if receive_write() is successful, it consumes the arc_buf */
-		if (err != 0)
+		err = receive_process_write_record(rwa, rrd);
+		if (err != EAGAIN) {
+			/*
+			 * On success, receive_process_write_record() returns
+			 * EAGAIN to indicate that we do not want to free
+			 * the rrd or arc_buf.
+			 */
+			ASSERT(err != 0);
 			dmu_return_arcbuf(rrd->arc_buf);
-		rrd->arc_buf = NULL;
-		rrd->payload = NULL;
-		break;
-	}
-	case DRR_WRITE_BYREF:
-	{
-		struct drr_write_byref *drrwbr =
-		    &rrd->header.drr_u.drr_write_byref;
-		err = receive_write_byref(rwa, drrwbr);
+			rrd->arc_buf = NULL;
+		}
 		break;
 	}
 	case DRR_WRITE_EMBEDDED:
@@ -2576,8 +2557,9 @@ receive_writer_thread(void *arg)
 		 * on the queue, but we need to clear everything in it before we
 		 * can exit.
 		 */
+		int err = 0;
 		if (rwa->err == 0) {
-			rwa->err = receive_process_record(rwa, rrd);
+			err = receive_process_record(rwa, rrd);
 		} else if (rrd->arc_buf != NULL) {
 			dmu_return_arcbuf(rrd->arc_buf);
 			rrd->arc_buf = NULL;
@@ -2586,9 +2568,22 @@ receive_writer_thread(void *arg)
 			kmem_free(rrd->payload, rrd->payload_size);
 			rrd->payload = NULL;
 		}
-		kmem_free(rrd, sizeof (*rrd));
+		/*
+		 * EAGAIN indicates that this record has been saved (on
+		 * raw->write_batch), and will be used again, so we don't
+		 * free it.
+		 */
+		if (err != EAGAIN) {
+			rwa->err = err;
+			kmem_free(rrd, sizeof (*rrd));
+		}
 	}
 	kmem_free(rrd, sizeof (*rrd));
+
+	int err = flush_write_batch(rwa);
+	if (rwa->err == 0)
+		rwa->err = err;
+
 	mutex_enter(&rwa->mutex);
 	rwa->done = B_TRUE;
 	cv_signal(&rwa->cv);
@@ -2636,8 +2631,7 @@ resume_check(dmu_recv_cookie_t *drc, nvlist_t *begin_nvl)
  * NB: callers *must* call dmu_recv_end() if this succeeds.
  */
 int
-dmu_recv_stream(dmu_recv_cookie_t *drc, int cleanup_fd,
-    uint64_t *action_handlep, offset_t *voffp)
+dmu_recv_stream(dmu_recv_cookie_t *drc, offset_t *voffp)
 {
 	int err = 0;
 	struct receive_writer_arg *rwa = kmem_zalloc(sizeof (*rwa), KM_SLEEP);
@@ -2657,48 +2651,9 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, int cleanup_fd,
 	    DMU_SUBSTREAM);
 	ASSERT3U(drc->drc_drrb->drr_type, <, DMU_OST_NUMTYPES);
 
-	/*
-	 * Open the objset we are modifying.
-	 */
-	VERIFY0(dmu_objset_from_ds(drc->drc_ds, &drc->drc_os));
 	ASSERT(dsl_dataset_phys(drc->drc_ds)->ds_flags & DS_FLAG_INCONSISTENT);
 	ASSERT0(drc->drc_os->os_encrypted &&
 	    (drc->drc_featureflags & DMU_BACKUP_FEATURE_EMBED_DATA));
-
-	/* if this stream is dedup'ed, set up the avl tree for guid mapping */
-	if (drc->drc_featureflags & DMU_BACKUP_FEATURE_DEDUP) {
-		minor_t minor;
-
-		if (cleanup_fd == -1) {
-			err = SET_ERROR(EBADF);
-			goto out;
-		}
-		err = zfs_onexit_fd_hold(cleanup_fd, &minor);
-		if (err != 0) {
-			cleanup_fd = -1;
-			goto out;
-		}
-
-		if (*action_handlep == 0) {
-			rwa->guid_to_ds_map =
-			    kmem_alloc(sizeof (avl_tree_t), KM_SLEEP);
-			avl_create(rwa->guid_to_ds_map, guid_compare,
-			    sizeof (guid_map_entry_t),
-			    offsetof(guid_map_entry_t, avlnode));
-			err = zfs_onexit_add_cb(minor,
-			    free_guid_map_onexit, rwa->guid_to_ds_map,
-			    action_handlep);
-			if (err != 0)
-				goto out;
-		} else {
-			err = zfs_onexit_cb_data(minor, *action_handlep,
-			    (void **)&rwa->guid_to_ds_map);
-			if (err != 0)
-				goto out;
-		}
-
-		drc->drc_guid_to_ds_map = rwa->guid_to_ds_map;
-	}
 
 	/* handle DSL encryption key payload */
 	if (drc->drc_featureflags & DMU_BACKUP_FEATURE_RAW) {
@@ -2739,6 +2694,13 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, int cleanup_fd,
 			goto out;
 	}
 
+	/*
+	 * If we failed before this point we will clean up any new resume
+	 * state that was created. Now that we've gotten past the initial
+	 * checks we are ok to retain that resume state.
+	 */
+	drc->drc_should_save = B_TRUE;
+
 	(void) bqueue_init(&rwa->q, zfs_recv_queue_ff,
 	    MAX(zfs_recv_queue_length, 2 * zfs_max_recordsize),
 	    offsetof(struct receive_record_arg, node));
@@ -2750,6 +2712,8 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, int cleanup_fd,
 	rwa->raw = drc->drc_raw;
 	rwa->spill = drc->drc_spill;
 	rwa->os->os_raw_receive = drc->drc_raw;
+	list_create(&rwa->write_batch, sizeof (struct receive_record_arg),
+	    offsetof(struct receive_record_arg, node.bqn_node));
 
 	(void) thread_create(NULL, 0, receive_writer_thread, rwa, 0, curproc,
 	    TS_RUN, minclsyspri);
@@ -2836,6 +2800,7 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, int cleanup_fd,
 	cv_destroy(&rwa->cv);
 	mutex_destroy(&rwa->mutex);
 	bqueue_destroy(&rwa->q);
+	list_destroy(&rwa->write_batch);
 	if (err == 0)
 		err = rwa->err;
 
@@ -2848,11 +2813,14 @@ out:
 	if (drc->drc_next_rrd != NULL)
 		kmem_free(drc->drc_next_rrd, sizeof (*drc->drc_next_rrd));
 
+	/*
+	 * The objset will be invalidated by dmu_recv_end() when we do
+	 * dsl_dataset_clone_swap_sync_impl().
+	 */
+	drc->drc_os = NULL;
+
 	kmem_free(rwa, sizeof (*rwa));
 	nvlist_free(drc->drc_begin_nvl);
-	if ((drc->drc_featureflags & DMU_BACKUP_FEATURE_DEDUP) &&
-	    (cleanup_fd != -1))
-		zfs_onexit_fd_rele(cleanup_fd);
 
 	if (err != 0) {
 		/*
@@ -2953,6 +2921,7 @@ dmu_recv_end_sync(void *arg, dmu_tx_t *tx)
 	dmu_recv_cookie_t *drc = arg;
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	boolean_t encrypted = drc->drc_ds->ds_dir->dd_crypto_obj != 0;
+	uint64_t newsnapobj;
 
 	spa_history_log_internal_ds(drc->drc_ds, "finish receiving",
 	    tx, "snap=%s", drc->drc_tosnap);
@@ -2996,6 +2965,12 @@ dmu_recv_end_sync(void *arg, dmu_tx_t *tx)
 
 		dsl_dataset_clone_swap_sync_impl(drc->drc_ds,
 		    origin_head, tx);
+		/*
+		 * The objset was evicted by dsl_dataset_clone_swap_sync_impl,
+		 * so drc_os is no longer valid.
+		 */
+		drc->drc_os = NULL;
+
 		dsl_dataset_snapshot_sync_impl(origin_head,
 		    drc->drc_tosnap, tx);
 
@@ -3012,7 +2987,7 @@ dmu_recv_end_sync(void *arg, dmu_tx_t *tx)
 		dsl_dataset_phys(origin_head)->ds_flags &=
 		    ~DS_FLAG_INCONSISTENT;
 
-		drc->drc_newsnapobj =
+		newsnapobj =
 		    dsl_dataset_phys(origin_head)->ds_prev_snap_obj;
 
 		dsl_dataset_rele(origin_head, FTAG);
@@ -3052,7 +3027,7 @@ dmu_recv_end_sync(void *arg, dmu_tx_t *tx)
 			(void) zap_remove(dp->dp_meta_objset, ds->ds_object,
 			    DS_FIELD_RESUME_REDACT_BOOKMARK_SNAPS, tx);
 		}
-		drc->drc_newsnapobj =
+		newsnapobj =
 		    dsl_dataset_phys(drc->drc_ds)->ds_prev_snap_obj;
 	}
 
@@ -3067,14 +3042,12 @@ dmu_recv_end_sync(void *arg, dmu_tx_t *tx)
 	 * value.
 	 */
 	if (drc->drc_raw && drc->drc_ivset_guid != 0) {
-		dmu_object_zapify(dp->dp_meta_objset, drc->drc_newsnapobj,
+		dmu_object_zapify(dp->dp_meta_objset, newsnapobj,
 		    DMU_OT_DSL_DATASET, tx);
-		VERIFY0(zap_update(dp->dp_meta_objset, drc->drc_newsnapobj,
+		VERIFY0(zap_update(dp->dp_meta_objset, newsnapobj,
 		    DS_FIELD_IVSET_GUID, sizeof (uint64_t), 1,
 		    &drc->drc_ivset_guid, tx));
 	}
-
-	zvol_create_minors(dp->dp_spa, drc->drc_tofs, B_TRUE);
 
 	/*
 	 * Release the hold from dmu_recv_begin.  This must be done before
@@ -3090,55 +3063,6 @@ dmu_recv_end_sync(void *arg, dmu_tx_t *tx)
 	}
 	dsl_dataset_disown(drc->drc_ds, 0, dmu_recv_tag);
 	drc->drc_ds = NULL;
-}
-
-static int
-add_ds_to_guidmap(const char *name, avl_tree_t *guid_map, uint64_t snapobj,
-    boolean_t raw)
-{
-	dsl_pool_t *dp;
-	dsl_dataset_t *snapds;
-	guid_map_entry_t *gmep;
-	objset_t *os;
-	ds_hold_flags_t dsflags = (raw) ? 0 : DS_HOLD_FLAG_DECRYPT;
-	int err;
-
-	ASSERT(guid_map != NULL);
-
-	err = dsl_pool_hold(name, FTAG, &dp);
-	if (err != 0)
-		return (err);
-	gmep = kmem_alloc(sizeof (*gmep), KM_SLEEP);
-	err = dsl_dataset_own_obj(dp, snapobj, dsflags, gmep, &snapds);
-
-	if (err == 0) {
-		/*
-		 * If this is a deduplicated raw send stream, we need
-		 * to make sure that we can still read raw blocks from
-		 * earlier datasets in the stream, so we set the
-		 * os_raw_receive flag now.
-		 */
-		if (raw) {
-			err = dmu_objset_from_ds(snapds, &os);
-			if (err != 0) {
-				dsl_dataset_disown(snapds, dsflags, FTAG);
-				dsl_pool_rele(dp, FTAG);
-				kmem_free(gmep, sizeof (*gmep));
-				return (err);
-			}
-			os->os_raw_receive = B_TRUE;
-		}
-
-		gmep->raw = raw;
-		gmep->guid = dsl_dataset_phys(snapds)->ds_guid;
-		gmep->gme_ds = snapds;
-		avl_add(guid_map, gmep);
-	} else {
-		kmem_free(gmep, sizeof (*gmep));
-	}
-
-	dsl_pool_rele(dp, FTAG);
-	return (err);
 }
 
 static int dmu_recv_end_modified_blocks = 3;
@@ -3184,9 +3108,14 @@ dmu_recv_end(dmu_recv_cookie_t *drc, void *owner)
 	if (error != 0) {
 		dmu_recv_cleanup_ds(drc);
 		nvlist_free(drc->drc_keynvl);
-	} else if (drc->drc_guid_to_ds_map != NULL) {
-		(void) add_ds_to_guidmap(drc->drc_tofs, drc->drc_guid_to_ds_map,
-		    drc->drc_newsnapobj, drc->drc_raw);
+	} else {
+		if (drc->drc_newfs) {
+			zvol_create_minor(drc->drc_tofs);
+		}
+		char *snapname = kmem_asprintf("%s@%s",
+		    drc->drc_tofs, drc->drc_tosnap);
+		zvol_create_minor(snapname);
+		kmem_strfree(snapname);
 	}
 	return (error);
 }
@@ -3207,4 +3136,7 @@ ZFS_MODULE_PARAM(zfs_recv, zfs_recv_, queue_length, INT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_recv, zfs_recv_, queue_ff, INT, ZMOD_RW,
 	"Receive queue fill fraction");
+
+ZFS_MODULE_PARAM(zfs_recv, zfs_recv_, write_batch_size, INT, ZMOD_RW,
+	"Maximum amount of writes to batch into one transaction");
 /* END CSTYLED */

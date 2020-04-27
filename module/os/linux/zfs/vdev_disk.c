@@ -37,9 +37,21 @@
 #include <linux/msdos_fs.h>
 #include <linux/vfs_compat.h>
 
+/*
+ * Unique identifier for the exclusive vdev holder.
+ */
 static void *zfs_vdev_holder = VDEV_HOLDER;
 
-/* size of the "reserved" partition, in blocks */
+/*
+ * Wait up to zfs_vdev_open_timeout_ms milliseconds before determining the
+ * device is missing. The missing path may be transient since the links
+ * can be briefly removed and recreated in response to udev events.
+ */
+static unsigned zfs_vdev_open_timeout_ms = 1000;
+
+/*
+ * Size of the "reserved" partition, in blocks.
+ */
 #define	EFI_MIN_RESV_SIZE	(16 * 1024)
 
 /*
@@ -146,8 +158,7 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 {
 	struct block_device *bdev;
 	fmode_t mode = vdev_bdev_mode(spa_mode(v->vdev_spa));
-	int count = 0, block_size;
-	int bdev_retry_count = 50;
+	hrtime_t timeout = MSEC2NSEC(zfs_vdev_open_timeout_ms);
 	vdev_disk_t *vd;
 
 	/* Must have a pathname and it must be absolute. */
@@ -162,7 +173,7 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 	 * partition force re-scanning the partition table while closed
 	 * in order to get an accurate updated block device size.  Then
 	 * since udev may need to recreate the device links increase the
-	 * open retry count before reporting the device as unavailable.
+	 * open retry timeout before reporting the device as unavailable.
 	 */
 	vd = v->vdev_tsd;
 	if (vd) {
@@ -188,8 +199,10 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 			if (!IS_ERR(bdev)) {
 				int error = vdev_bdev_reread_part(bdev);
 				blkdev_put(bdev, mode | FMODE_EXCL);
-				if (error == 0)
-					bdev_retry_count = 100;
+				if (error == 0) {
+					timeout = MSEC2NSEC(
+					    zfs_vdev_open_timeout_ms * 2);
+				}
 			}
 		}
 	} else {
@@ -222,13 +235,13 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 	 * and it is reasonable to sleep and retry before giving up.  In
 	 * practice delays have been observed to be on the order of 100ms.
 	 */
+	hrtime_t start = gethrtime();
 	bdev = ERR_PTR(-ENXIO);
-	while (IS_ERR(bdev) && count < bdev_retry_count) {
+	while (IS_ERR(bdev) && ((gethrtime() - start) < timeout)) {
 		bdev = blkdev_get_by_path(v->vdev_path, mode | FMODE_EXCL,
 		    zfs_vdev_holder);
 		if (unlikely(PTR_ERR(bdev) == -ENOENT)) {
 			schedule_timeout(MSEC_TO_TICK(10));
-			count++;
 		} else if (IS_ERR(bdev)) {
 			break;
 		}
@@ -236,7 +249,9 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 
 	if (IS_ERR(bdev)) {
 		int error = -PTR_ERR(bdev);
-		vdev_dbgmsg(v, "open error=%d count=%d", error, count);
+		vdev_dbgmsg(v, "open error=%d timeout=%llu/%llu", error,
+		    (u_longlong_t)(gethrtime() - start),
+		    (u_longlong_t)timeout);
 		vd->vd_bdev = NULL;
 		v->vdev_tsd = vd;
 		rw_exit(&vd->vd_lock);
@@ -250,7 +265,7 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 	struct request_queue *q = bdev_get_queue(vd->vd_bdev);
 
 	/*  Determine the physical block size */
-	block_size = bdev_physical_block_size(vd->vd_bdev);
+	int block_size = bdev_physical_block_size(vd->vd_bdev);
 
 	/* Clear the nowritecache bit, causes vdev_reopen() to try again. */
 	v->vdev_nowritecache = B_FALSE;
@@ -442,6 +457,36 @@ vdev_submit_bio_impl(struct bio *bio)
 #ifdef HAVE_BIO_SET_DEV
 #if defined(CONFIG_BLK_CGROUP) && defined(HAVE_BIO_SET_DEV_GPL_ONLY)
 /*
+ * The Linux 5.5 kernel updated percpu_ref_tryget() which is inlined by
+ * blkg_tryget() to use rcu_read_lock() instead of rcu_read_lock_sched().
+ * As a side effect the function was converted to GPL-only.  Define our
+ * own version when needed which uses rcu_read_lock_sched().
+ */
+#if defined(HAVE_BLKG_TRYGET_GPL_ONLY)
+static inline bool
+vdev_blkg_tryget(struct blkcg_gq *blkg)
+{
+	struct percpu_ref *ref = &blkg->refcnt;
+	unsigned long __percpu *count;
+	bool rc;
+
+	rcu_read_lock_sched();
+
+	if (__ref_is_percpu(ref, &count)) {
+		this_cpu_inc(*count);
+		rc = true;
+	} else {
+		rc = atomic_long_inc_not_zero(&ref->count);
+	}
+
+	rcu_read_unlock_sched();
+
+	return (rc);
+}
+#elif defined(HAVE_BLKG_TRYGET)
+#define	vdev_blkg_tryget(bg)	blkg_tryget(bg)
+#endif
+/*
  * The Linux 5.0 kernel updated the bio_set_dev() macro so it calls the
  * GPL-only bio_associate_blkg() symbol thus inadvertently converting
  * the entire macro.  Provide a minimal version which always assigns the
@@ -455,7 +500,7 @@ vdev_bio_associate_blkg(struct bio *bio)
 	ASSERT3P(q, !=, NULL);
 	ASSERT3P(bio->bi_blkg, ==, NULL);
 
-	if (q->root_blkg && blkg_tryget(q->root_blkg))
+	if (q->root_blkg && vdev_blkg_tryget(q->root_blkg))
 		bio->bi_blkg = q->root_blkg;
 }
 #define	bio_associate_blkg vdev_bio_associate_blkg

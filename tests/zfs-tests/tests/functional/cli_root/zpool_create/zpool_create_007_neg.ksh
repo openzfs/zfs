@@ -44,38 +44,26 @@
 
 verify_runnable "global"
 
-if [[ -n $DISK ]]; then
-	disk=$DISK
-else
-	disk=$DISK0
-fi
-
 set -A args  "" "-?" "-n" "-f" "-nf" "-fn" "-f -n" "--f" "-e" "-s" \
 	"-m" "-R" "-m -R" "-Rm" "-mR" "-m $TESTDIR $TESTPOOL" \
-	"-R $TESTDIR $TESTPOOL" "-m nodir $TESTPOOL $disk" \
-	"-R nodir $TESTPOOL $disk" "-m nodir -R nodir $TESTPOOL $disk" \
-	"-R nodir -m nodir $TESTPOOL $disk" "-R $TESTDIR -m nodir $TESTPOOL $disk" \
-	"-R nodir -m $TESTDIR $TESTPOOL $disk" \
+	"-R $TESTDIR $TESTPOOL" "-m nodir $TESTPOOL $DISK0" \
+	"-R nodir $TESTPOOL $DISK0" "-m nodir -R nodir $TESTPOOL $DISK0" \
+	"-R nodir -m nodir $TESTPOOL $DISK0" "-R $TESTDIR -m nodir $TESTPOOL $DISK0" \
+	"-R nodir -m $TESTDIR $TESTPOOL $DISK0" \
 	"-blah" "$TESTPOOL" "$TESTPOOL blah" "$TESTPOOL c?t0d0" \
 	"$TESTPOOL c0txd0" "$TESTPOOL c0t0dx" "$TESTPOOL cxtxdx" \
 	"$TESTPOOL mirror" "$TESTPOOL raidz" "$TESTPOOL mirror raidz" \
 	"$TESTPOOL raidz1" "$TESTPOOL mirror raidz1" \
-	"$TESTPOOL mirror c?t?d?" "$TESTPOOL mirror $disk c0t1d?" \
-	"$TESTPOOL RAIDZ ${disk}${SLICE_PREFIX}${SLICE0} \
-	${disk}${SLICE_PREFIX}${SLICE1}" \
-	"$TESTPOOL ${disk}${SLICE_PREFIX}${SLICE0} \
-	log ${disk}${SLICE_PREFIX}${SLICE1} \
-	log ${disk}${SLICE_PREFIX}${SLICE3}" \
-	"$TESTPOOL ${disk}${SLICE_PREFIX}${SLICE0} \
-	spare ${disk}${SLICE_PREFIX}${SLICE1} \
-	spare ${disk}${SLICE_PREFIX}${SLICE3}" \
-	"$TESTPOOL RAIDZ1 ${disk}${SLICE_PREFIX}${SLICE0} \
-	${disk}${SLICE_PREFIX}${SLICE1}" \
-	"$TESTPOOL MIRROR $disk" "$TESTPOOL raidz $disk" \
-	"$TESTPOOL raidz1 $disk" \
-	"1tank $disk" "1234 $disk" "?tank $disk" \
-	"tan%k $disk" "ta@# $disk" "tan+k $disk" \
-	"$BYND_MAX_NAME $disk"
+	"$TESTPOOL mirror c?t?d?" "$TESTPOOL mirror $DISK0 c0t1d?" \
+	"$TESTPOOL RAIDZ $DISK0 $DISK1" \
+	"$TESTPOOL $DISK0 log $DISK1 log $DISK2" \
+	"$TESTPOOL $DISK0 spare $DISK1 spare $DISK2" \
+	"$TESTPOOL RAIDZ1 $DISK0 $DISK1" \
+	"$TESTPOOL MIRROR $DISK0" "$TESTPOOL raidz $DISK0" \
+	"$TESTPOOL raidz1 $DISK0" \
+	"1tank $DISK0" "1234 $DISK0" "?tank $DISK0" \
+	"tan%k $DISK0" "ta@# $DISK0" "tan+k $DISK0" \
+	"$BYND_MAX_NAME $DISK0"
 
 log_assert "'zpool create' should return an error with badly-formed parameters."
 log_onexit default_cleanup_noexit

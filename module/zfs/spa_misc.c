@@ -303,20 +303,20 @@ int zfs_free_leak_on_eio = B_FALSE;
  * has not completed in zfs_deadman_synctime_ms is considered "hung" resulting
  * in one of three behaviors controlled by zfs_deadman_failmode.
  */
-unsigned long zfs_deadman_synctime_ms = 600000ULL;
+unsigned long zfs_deadman_synctime_ms = 600000UL;
 
 /*
  * This value controls the maximum amount of time zio_wait() will block for an
  * outstanding IO.  By default this is 300 seconds at which point the "hung"
  * behavior will be applied as described for zfs_deadman_synctime_ms.
  */
-unsigned long zfs_deadman_ziotime_ms = 300000ULL;
+unsigned long zfs_deadman_ziotime_ms = 300000UL;
 
 /*
  * Check time in milliseconds. This defines the frequency at which we check
  * for hung I/O.
  */
-unsigned long zfs_deadman_checktime_ms = 60000ULL;
+unsigned long zfs_deadman_checktime_ms = 60000UL;
 
 /*
  * By default the deadman is enabled.
@@ -1999,6 +1999,32 @@ spa_set_deadman_failmode(spa_t *spa, const char *failmode)
 		spa->spa_deadman_failmode = ZIO_FAILURE_MODE_WAIT;
 }
 
+void
+spa_set_deadman_ziotime(hrtime_t ns)
+{
+	spa_t *spa = NULL;
+
+	if (spa_mode_global != SPA_MODE_UNINIT) {
+		mutex_enter(&spa_namespace_lock);
+		while ((spa = spa_next(spa)) != NULL)
+			spa->spa_deadman_ziotime = ns;
+		mutex_exit(&spa_namespace_lock);
+	}
+}
+
+void
+spa_set_deadman_synctime(hrtime_t ns)
+{
+	spa_t *spa = NULL;
+
+	if (spa_mode_global != SPA_MODE_UNINIT) {
+		mutex_enter(&spa_namespace_lock);
+		while ((spa = spa_next(spa)) != NULL)
+			spa->spa_deadman_synctime = ns;
+		mutex_exit(&spa_namespace_lock);
+	}
+}
+
 uint64_t
 dva_get_dsize_sync(spa_t *spa, const dva_t *dva)
 {
@@ -2708,21 +2734,21 @@ spa_suspend_async_destroy(spa_t *spa)
 
 #if defined(_KERNEL)
 
-static int
-param_set_deadman_failmode(const char *val, zfs_kernel_param_t *kp)
+int
+param_set_deadman_failmode_common(const char *val)
 {
 	spa_t *spa = NULL;
 	char *p;
 
 	if (val == NULL)
-		return (SET_ERROR(-EINVAL));
+		return (SET_ERROR(EINVAL));
 
 	if ((p = strchr(val, '\n')) != NULL)
 		*p = '\0';
 
 	if (strcmp(val, "wait") != 0 && strcmp(val, "continue") != 0 &&
 	    strcmp(val, "panic"))
-		return (SET_ERROR(-EINVAL));
+		return (SET_ERROR(EINVAL));
 
 	if (spa_mode_global != SPA_MODE_UNINIT) {
 		mutex_enter(&spa_namespace_lock);
@@ -2731,7 +2757,7 @@ param_set_deadman_failmode(const char *val, zfs_kernel_param_t *kp)
 		mutex_exit(&spa_namespace_lock);
 	}
 
-	return (param_set_charp(val, kp));
+	return (0);
 }
 #endif
 
@@ -2847,13 +2873,11 @@ ZFS_MODULE_PARAM(zfs, zfs_, ddt_data_is_special, INT, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs, zfs_, user_indirect_is_special, INT, ZMOD_RW,
 	"Place user data indirect blocks into the special class");
 
-#ifdef _KERNEL
-module_param_call(zfs_deadman_failmode, param_set_deadman_failmode,
-	param_get_charp, &zfs_deadman_failmode, 0644);
-MODULE_PARM_DESC(zfs_deadman_failmode, "Failmode for deadman timer");
-#endif
-
 /* BEGIN CSTYLED */
+ZFS_MODULE_PARAM_CALL(zfs_deadman, zfs_deadman_, failmode,
+	param_set_deadman_failmode, param_get_charp, ZMOD_RW,
+	"Failmode for deadman timer");
+
 ZFS_MODULE_PARAM_CALL(zfs_deadman, zfs_deadman_, synctime_ms,
 	param_set_deadman_synctime, param_get_ulong, ZMOD_RW,
 	"Pool sync expiration time in milliseconds");
@@ -2867,5 +2891,5 @@ ZFS_MODULE_PARAM(zfs, zfs_, special_class_metadata_reserve_pct, INT, ZMOD_RW,
 	"free space available");
 /* END CSTYLED */
 
-ZFS_MODULE_PARAM_CALL(spa, spa_, slop_shift, param_set_slop_shift,
+ZFS_MODULE_PARAM_CALL(zfs_spa, spa_, slop_shift, param_set_slop_shift,
 	param_get_int, ZMOD_RW, "Reserved free space in pool");

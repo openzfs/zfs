@@ -22,10 +22,17 @@
 .\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
 .\" Copyright (c) 2011, 2019 by Delphix. All rights reserved.
+.\" Copyright (c) 2011, Pawel Jakub Dawidek <pjd@FreeBSD.org>
+.\" Copyright (c) 2012, Glen Barber <gjb@FreeBSD.org>
+.\" Copyright (c) 2012, Bryan Drewery <bdrewery@FreeBSD.org>
+.\" Copyright (c) 2013, Steven Hartland <smh@FreeBSD.org>
 .\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
 .\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
 .\" Copyright (c) 2014 by Adam Stevko. All rights reserved.
 .\" Copyright (c) 2014 Integros [integros.com]
+.\" Copyright (c) 2014, Xin LI <delphij@FreeBSD.org>
+.\" Copyright (c) 2014-2015, The FreeBSD Foundation, All Rights Reserved.
+.\" Copyright (c) 2016 Nexenta Systems, Inc. All Rights Reserved.
 .\" Copyright 2019 Richard Laager. All rights reserved.
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
@@ -193,7 +200,7 @@ Streams are created using the
 .Xr zfs-send 8
 subcommand, which by default creates a full stream.
 .It Xr zfs-bookmark 8
-Creates a bookmark of the given snapshot.
+Creates a new bookmark of the given snapshot or bookmark.
 Bookmarks mark the point in time when the snapshot was created, and can be used
 as the incremental source for a
 .Nm zfs Cm send
@@ -266,6 +273,18 @@ Unload a key for the specified dataset, removing the ability to access the datas
 .It Xr zfs-program 8
 Execute ZFS administrative operations
 programmatically via a Lua script-language channel program.
+.El
+.Ss Jails
+.Bl -tag -width ""
+.It Xr zfs-jail 8
+Attaches a filesystem to a jail.
+.It Xr zfs-unjail 8
+Detaches a filesystem from a jail.
+.El
+.Ss Waiting
+.Bl -tag -width ""
+.It Xr zfs-wait 8
+Wait for background activity in a filesystem to complete.
 .El
 .Sh EXIT STATUS
 The

@@ -9,30 +9,21 @@ AM_CFLAGS += $(FRAME_LARGER_THAN)
 
 noinst_LTLIBRARIES = libicp.la
 
-if TARGET_ASM_X86_64
+if TARGET_CPU_X86_64
 ASM_SOURCES_C = asm-x86_64/aes/aeskey.c
 ASM_SOURCES_AS = \
 	asm-x86_64/aes/aes_amd64.S \
 	asm-x86_64/aes/aes_aesni.S \
 	asm-x86_64/modes/gcm_pclmulqdq.S \
+	asm-x86_64/modes/aesni-gcm-x86_64.S \
+	asm-x86_64/modes/ghash-x86_64.S \
 	asm-x86_64/sha1/sha1-x86_64.S \
 	asm-x86_64/sha2/sha256_impl.S \
 	asm-x86_64/sha2/sha512_impl.S
-endif
-
-if TARGET_ASM_I386
+else
 ASM_SOURCES_C =
 ASM_SOURCES_AS =
 endif
-
-if TARGET_ASM_GENERIC
-ASM_SOURCES_C =
-ASM_SOURCES_AS =
-endif
-
-USER_C =
-
-USER_ASM =
 
 KERNEL_C = \
 	spi/kcf_spi.c \
@@ -78,8 +69,6 @@ KERNEL_C = \
 KERNEL_ASM = $(ASM_SOURCES_AS)
 
 nodist_libicp_la_SOURCES = \
-	$(USER_C) \
-	$(USER_ASM) \
 	$(KERNEL_C) \
 	$(KERNEL_ASM)
 

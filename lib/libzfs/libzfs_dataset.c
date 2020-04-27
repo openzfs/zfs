@@ -931,10 +931,15 @@ libzfs_mnttab_add(libzfs_handle_t *hdl, const char *special,
 		 * Another thread may have already added this entry
 		 * via libzfs_mnttab_update. If so we should skip it.
 		 */
-		if (avl_find(&hdl->libzfs_mnttab_cache, mtn, NULL) != NULL)
+		if (avl_find(&hdl->libzfs_mnttab_cache, mtn, NULL) != NULL) {
+			free(mtn->mtn_mt.mnt_special);
+			free(mtn->mtn_mt.mnt_mountp);
+			free(mtn->mtn_mt.mnt_fstype);
+			free(mtn->mtn_mt.mnt_mntopts);
 			free(mtn);
-		else
+		} else {
 			avl_add(&hdl->libzfs_mnttab_cache, mtn);
+		}
 	}
 	pthread_mutex_unlock(&hdl->libzfs_mnttab_cache_lock);
 }
@@ -2344,7 +2349,9 @@ get_numeric_property(zfs_handle_t *zhp, zfs_prop_t prop, zprop_source_t *src,
 	case ZFS_PROP_EXEC:
 	case ZFS_PROP_READONLY:
 	case ZFS_PROP_SETUID:
+#ifndef __FreeBSD__
 	case ZFS_PROP_XATTR:
+#endif
 	case ZFS_PROP_NBMAND:
 		*val = getprop_uint64(zhp, prop, source);
 
@@ -5596,4 +5603,32 @@ zvol_volsize_to_reservation(zpool_handle_t *zph, uint64_t volsize,
 	numdb *= 1ULL << DN_MAX_INDBLKSHIFT;
 	volsize += numdb;
 	return (volsize);
+}
+
+/*
+ * Wait for the given activity and return the status of the wait (whether or not
+ * any waiting was done) in the 'waited' parameter. Non-existent fses are
+ * reported via the 'missing' parameter, rather than by printing an error
+ * message. This is convenient when this function is called in a loop over a
+ * long period of time (as it is, for example, by zfs's wait cmd). In that
+ * scenario, a fs being exported or destroyed should be considered a normal
+ * event, so we don't want to print an error when we find that the fs doesn't
+ * exist.
+ */
+int
+zfs_wait_status(zfs_handle_t *zhp, zfs_wait_activity_t activity,
+    boolean_t *missing, boolean_t *waited)
+{
+	int error = lzc_wait_fs(zhp->zfs_name, activity, waited);
+	*missing = (error == ENOENT);
+	if (*missing)
+		return (0);
+
+	if (error != 0) {
+		(void) zfs_standard_error_fmt(zhp->zfs_hdl, error,
+		    dgettext(TEXT_DOMAIN, "error waiting in fs '%s'"),
+		    zhp->zfs_name);
+	}
+
+	return (error);
 }

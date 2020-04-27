@@ -67,6 +67,9 @@ const raidz_impl_ops_t *raidz_all_maths[] = {
 	&vdev_raidz_aarch64_neon_impl,
 	&vdev_raidz_aarch64_neonx2_impl,
 #endif
+#if defined(__powerpc__)
+	&vdev_raidz_powerpc_altivec_impl,
+#endif
 };
 
 /* Indicate that benchmark has been completed */

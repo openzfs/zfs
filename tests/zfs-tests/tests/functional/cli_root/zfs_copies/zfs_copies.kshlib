@@ -91,18 +91,32 @@ function do_vol_test
 
 	case "$type" in
 	"ext2")
-		log_must eval "echo y | newfs $vol_r_path >/dev/null 2>&1"
+		if is_freebsd; then
+			log_unsupported "ext2 test not implemented for freebsd"
+		fi
+		log_must eval "new_fs $vol_r_path >/dev/null 2>&1"
 		log_must mount -o rw $vol_b_path $mntp
 		;;
 	"ufs")
 		if is_linux; then
 			log_unsupported "ufs test not implemented for linux"
 		fi
-		log_must eval "newfs $vol_r_path >/dev/null 2>&1"
+		log_must eval "new_fs $vol_r_path >/dev/null 2>&1"
 		log_must mount $vol_b_path $mntp
 		;;
 	"zfs")
-		log_must zpool create $TESTPOOL1 $vol_b_path
+		if is_freebsd; then
+			# Pool creation on zvols is forbidden by default.
+			# Save and restore the current setting.
+			typeset _saved=$(get_tunable VOL_RECURSIVE)
+			log_must set_tunable64 VOL_RECURSIVE 1 # Allow
+			zpool create $TESTPOOL1 $vol_b_path
+			typeset _zpool_create_result=$?
+			log_must set_tunable64 VOL_RECURSIVE $_saved # Restore
+			log_must test $_zpool_create_result = 0
+		else
+			log_must zpool create $TESTPOOL1 $vol_b_path
+		fi
 		log_must zfs create $TESTPOOL1/$TESTFS1
 		;;
 	*)

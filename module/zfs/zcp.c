@@ -100,6 +100,7 @@
 #include <sys/zcp_iter.h>
 #include <sys/zcp_prop.h>
 #include <sys/zcp_global.h>
+#include <sys/zvol.h>
 
 #ifndef KM_NORMALPRI
 #define	KM_NORMALPRI	0
@@ -395,7 +396,7 @@ zcp_lua_to_nvlist_impl(lua_State *state, int index, nvlist_t *nvl,
 	case LUA_TTABLE: {
 		nvlist_t *value_nvl = zcp_table_to_nvlist(state, index, depth);
 		if (value_nvl == NULL)
-			return (EINVAL);
+			return (SET_ERROR(EINVAL));
 
 		fnvlist_add_nvlist(nvl, key, value_nvl);
 		fnvlist_free(value_nvl);
@@ -405,7 +406,7 @@ zcp_lua_to_nvlist_impl(lua_State *state, int index, nvlist_t *nvl,
 		(void) lua_pushfstring(state,
 		    "Invalid value type '%s' for key '%s'",
 		    lua_typename(state, lua_type(state, index)), key);
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 	}
 
 	return (0);
@@ -584,7 +585,7 @@ zcp_nvpair_value_to_lua(lua_State *state, nvpair_t *pair,
 			    "Unhandled nvpair type %d for key '%s'",
 			    nvpair_type(pair), nvpair_name(pair));
 		}
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 	}
 	}
 	return (err);
@@ -1155,6 +1156,7 @@ zcp_eval(const char *poolname, const char *program, boolean_t sync,
 	runinfo.zri_space_used = 0;
 	runinfo.zri_curinstrs = 0;
 	runinfo.zri_maxinstrs = instrlimit;
+	runinfo.zri_new_zvols = fnvlist_alloc();
 
 	if (sync) {
 		err = dsl_sync_task_sig(poolname, NULL, zcp_eval_sync,
@@ -1165,6 +1167,16 @@ zcp_eval(const char *poolname, const char *program, boolean_t sync,
 		zcp_eval_open(&runinfo, poolname);
 	}
 	lua_close(state);
+
+	/*
+	 * Create device minor nodes for any new zvols.
+	 */
+	for (nvpair_t *pair = nvlist_next_nvpair(runinfo.zri_new_zvols, NULL);
+	    pair != NULL;
+	    pair = nvlist_next_nvpair(runinfo.zri_new_zvols, pair)) {
+		zvol_create_minor(nvpair_name(pair));
+	}
+	fnvlist_free(runinfo.zri_new_zvols);
 
 	return (runinfo.zri_result);
 }

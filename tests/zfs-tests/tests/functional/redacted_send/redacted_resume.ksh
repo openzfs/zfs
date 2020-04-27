@@ -50,7 +50,7 @@ log_must zfs snapshot $clone@snap1
 log_must zfs redact $sendfs@snap book1 $clone@snap1
 resume_test "zfs send --redact book1 $sendfs@snap" $tmpdir $recvfs
 log_must mount_redacted -f $recvfs
-log_must set_tunable32 zfs_allow_redacted_dataset_mount 1
+log_must set_tunable32 ALLOW_REDACTED_DATASET_MOUNT 1
 log_must diff $send_mnt/f1 $recv_mnt/f1
 log_must eval "get_diff $send_mnt/f2 $recv_mnt/f2 >$tmpdir/get_diff.out"
 typeset range=$(cat $tmpdir/get_diff.out)
@@ -73,7 +73,7 @@ log_must eval "get_diff $send_mnt/f3 $recv_mnt/f3 >$tmpdir/get_diff.out"
 range=$(cat $tmpdir/get_diff.out)
 [[ "$RANGE10" = "$range" ]] || log_fail "Unexpected range: $range"
 
-# Test recv -A works properly
+# Test recv -A works properly and verify saved sends are not allowed
 log_mustnot zfs recv -A $recvfs
 log_must zfs destroy -R $recvfs
 log_mustnot zfs recv -A $recvfs
@@ -81,6 +81,7 @@ log_must eval "zfs send --redact book1 $sendfs@snap >$stream"
 dd if=$stream bs=64k count=1 | log_mustnot zfs receive -s $recvfs
 [[ "-" = $(get_prop receive_resume_token $recvfs) ]] && \
     log_fail "Receive token not found."
+log_mustnot eval "zfs send --saved --redact book1 $recvfs > /dev/null"
 log_must zfs recv -A $recvfs
 log_must datasetnonexists $recvfs
 

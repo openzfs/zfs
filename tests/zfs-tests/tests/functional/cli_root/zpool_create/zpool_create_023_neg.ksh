@@ -45,7 +45,7 @@ verify_runnable "global"
 
 function cleanup
 {
-	datasetexists $TESTPOOL && log_must zpool destroy $TESTPOOL
+	poolexists $TESTPOOL && destroy_pool $TESTPOOL
 }
 
 log_onexit cleanup
@@ -63,7 +63,6 @@ set -A args "QuOta=none" "quota=non" "quota=abcd" "quota=0" "quota=" \
     "deviCes=on" "devices=OFF" "devices=aaa" \
     "exec=ON" "EXec=off" "exec=aaa" \
     "readonly=ON" "reADOnly=off" "rdonly=OFF" "rdonly=aaa" \
-    "zoned=ON" "ZoNed=off" "zoned=aaa" \
     "snapdIR=hidden" "snapdir=VISible" "snapdir=aaa" \
     "acltype=DIScard" "acltYPE=groupmask" "acltype=aaa" \
     "aclinherit=deny" "aclinHerit=secure" "aclinherit=aaa" \
@@ -72,12 +71,25 @@ set -A args "QuOta=none" "quota=non" "quota=abcd" "quota=0" "quota=" \
     "referenced=10K" "compressratio=1.00x" \
     "version=0" "version=1.234" "version=10K" "version=-1" \
     "version=aaa" "version=999"
+if is_freebsd; then
+	args+=("jailed=ON" "JaiLed=off" "jailed=aaa")
+else
+	args+=("zoned=ON" "ZoNed=off" "zoned=aaa")
+fi
 
 log_assert "'zpool create -O' should return an error with badly formed parameters."
 
 typeset -i i=0
 while (( $i < ${#args[*]} )); do
-	log_mustnot zpool create -O ${args[i]} -f $TESTPOOL $DISKS
+	typeset arg=${args[i]}
+	if is_freebsd; then
+		# FreeBSD does not strictly validate share opts (yet).
+		if [[ $arg == "sharenfs="* ]]; then
+			((i = i + 1))
+			continue
+		fi
+	fi
+	log_mustnot zpool create -O $arg -f $TESTPOOL $DISKS
 	((i = i + 1))
 done
 

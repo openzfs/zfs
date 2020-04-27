@@ -75,7 +75,7 @@ msgs2=$(mktemp) || log_fail
 # Truncate the result of the read that completed second in case it picked up an
 # extra message that was logged after the first read completed.
 #
-log_must truncate -s $(stat -c "%s" $msgs1) $msgs2
+log_must truncate -s $(stat_size $msgs1) $msgs2
 
 log_must diff $msgs1 $msgs2
 

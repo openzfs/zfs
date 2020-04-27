@@ -1,5 +1,6 @@
 #!/bin/ksh
-# file and its contents are supplied under the terms of the
+
+# This file and its contents are supplied under the terms of the
 # Common Development and Distribution License ("CDDL"), version 1.0.
 # You may only use this file in accordance with the terms of version
 # 1.0 of the CDDL.
@@ -10,7 +11,7 @@
 #
 
 #
-# Copyright (c) 2017 by Delphix. All rights reserved.
+# Copyright (c) 2017, 2020 by Delphix. All rights reserved.
 #
 
 #
@@ -47,6 +48,9 @@ export TOTAL_SIZE=$(($(get_prop avail $PERFPOOL) * 3 / 2))
 # Variables for use by fio.
 if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_WEEKLY}
+	export PERF_RANDSEED=${PERF_RANDSEED:-'1234'}
+	export PERF_COMPPERCENT=${PERF_COMPPERCENT:-'66'}
+	export PERF_COMPCHUNK=${PERF_COMPCHUNK:-'4096'}
 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'weekly'}
 	export PERF_NTHREADS=${PERF_NTHREADS:-'8 16 32 64'}
 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
@@ -54,6 +58,9 @@ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
 	export PERF_IOSIZES='8k 64k'
 elif [[ -n $PERF_REGRESSION_NIGHTLY ]]; then
 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_NIGHTLY}
+	export PERF_RANDSEED=${PERF_RANDSEED:-'1234'}
+	export PERF_COMPPERCENT=${PERF_COMPPERCENT:-'66'}
+	export PERF_COMPCHUNK=${PERF_COMPCHUNK:-'4096'}
 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'nightly'}
 	export PERF_NTHREADS=${PERF_NTHREADS:-'64 128'}
 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}

@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
  * Copyright Joyent, Inc.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  * Copyright (c) 2016, Intel Corporation.
@@ -269,6 +269,9 @@ typedef struct trimflags {
 	/* request a secure trim, requires support from device */
 	boolean_t secure;
 
+	/* after starting trim, block until trim completes */
+	boolean_t wait;
+
 	/* trim at the requested rate in bytes/second */
 	uint64_t rate;
 } trimflags_t;
@@ -504,6 +507,9 @@ extern nvlist_t *zfs_get_user_props(zfs_handle_t *);
 extern nvlist_t *zfs_get_recvd_props(zfs_handle_t *);
 extern nvlist_t *zfs_get_clones_nvl(zfs_handle_t *);
 
+extern int zfs_wait_status(zfs_handle_t *, zfs_wait_activity_t,
+    boolean_t *, boolean_t *);
+
 /*
  * zfs encryption management
  */
@@ -645,8 +651,8 @@ typedef struct sendflags {
 	/* if dataset is a clone, do incremental from its origin */
 	boolean_t fromorigin;
 
-	/* do deduplication */
-	boolean_t dedup;
+	/* field no longer used, maintained for backwards compatibility */
+	boolean_t pad;
 
 	/* send properties (ie, -p) */
 	boolean_t props;
@@ -677,6 +683,9 @@ typedef struct sendflags {
 
 	/* include snapshot holds in send stream */
 	boolean_t holds;
+
+	/* stream represents a partially received dataset */
+	boolean_t saved;
 } sendflags_t;
 
 typedef boolean_t (snapfilter_cb_t)(zfs_handle_t *, void *);
@@ -688,6 +697,7 @@ extern int zfs_send_one(zfs_handle_t *, const char *, int, sendflags_t *,
 extern int zfs_send_progress(zfs_handle_t *, int, uint64_t *, uint64_t *);
 extern int zfs_send_resume(libzfs_handle_t *, sendflags_t *, int outfd,
     const char *);
+extern int zfs_send_saved(zfs_handle_t *, sendflags_t *, int, const char *);
 extern nvlist_t *zfs_send_resume_token_to_nvlist(libzfs_handle_t *hdl,
     const char *token);
 
@@ -751,6 +761,9 @@ typedef struct recvflags {
 
 	/* mount the filesystem unless nomount is specified */
 	boolean_t domount;
+
+	/* force unmount while recv snapshot (private) */
+	boolean_t forceunmount;
 } recvflags_t;
 
 extern int zfs_receive(libzfs_handle_t *, const char *, nvlist_t *,
@@ -784,6 +797,7 @@ extern boolean_t zfs_bookmark_exists(const char *path);
 extern boolean_t is_mounted(libzfs_handle_t *, const char *special, char **);
 extern boolean_t zfs_is_mounted(zfs_handle_t *, char **);
 extern int zfs_mount(zfs_handle_t *, const char *, int);
+extern int zfs_mount_at(zfs_handle_t *, const char *, int, const char *);
 extern int zfs_unmount(zfs_handle_t *, const char *, int);
 extern int zfs_unmountall(zfs_handle_t *, int);
 
@@ -821,15 +835,15 @@ extern int zfs_nicestrtonum(libzfs_handle_t *, const char *, uint64_t *);
 #define	STDERR_VERBOSE	0x02
 #define	NO_DEFAULT_PATH	0x04 /* Don't use $PATH to lookup the command */
 
-int libzfs_run_process(const char *, char **, int flags);
-int libzfs_run_process_get_stdout(const char *path, char *argv[], char *env[],
-    char **lines[], int *lines_cnt);
-int libzfs_run_process_get_stdout_nopath(const char *path, char *argv[],
-    char *env[], char **lines[], int *lines_cnt);
+int libzfs_run_process(const char *, char **, int);
+int libzfs_run_process_get_stdout(const char *, char *[], char *[],
+    char **[], int *);
+int libzfs_run_process_get_stdout_nopath(const char *, char *[], char *[],
+    char **[], int *);
 
-void libzfs_free_str_array(char **strs, int count);
+void libzfs_free_str_array(char **, int);
 
-int libzfs_envvar_is_set(char *envvar);
+int libzfs_envvar_is_set(char *);
 
 /*
  * Utility functions for zfs version

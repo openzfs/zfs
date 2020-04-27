@@ -8,13 +8,11 @@ obj-$(CONFIG_ZFS) := $(MODULE).o
 
 ccflags-y := $(ZFS_MODULE_CFLAGS) $(ZFS_MODULE_CPPFLAGS)
 
-# Suppress unused-value warnings in sparc64 architecture headers
-ifeq ($(target_cpu),sparc64)
-ccflags-y += -Wno-unused-value
-endif
-
 # Suppress unused but set variable warnings often due to ASSERTs
 ccflags-y += $(NO_UNUSED_BUT_SET_VARIABLE)
+
+# Suppress unused-value warnings in sparc64 architecture headers
+ccflags-$(CONFIG_SPARC64) += -Wno-unused-value
 
 $(MODULE)-objs += aggsum.o
 $(MODULE)-objs += arc.o
@@ -24,7 +22,6 @@ $(MODULE)-objs += bpobj.o
 $(MODULE)-objs += bptree.o
 $(MODULE)-objs += btree.o
 $(MODULE)-objs += bqueue.o
-$(MODULE)-objs += cityhash.o
 $(MODULE)-objs += dataset_kstats.o
 $(MODULE)-objs += dbuf.o
 $(MODULE)-objs += dbuf_stats.o
@@ -107,6 +104,7 @@ $(MODULE)-objs += zcp.o
 $(MODULE)-objs += zcp_get.o
 $(MODULE)-objs += zcp_global.o
 $(MODULE)-objs += zcp_iter.o
+$(MODULE)-objs += zcp_set.o
 $(MODULE)-objs += zcp_synctask.o
 $(MODULE)-objs += zfeature.o
 $(MODULE)-objs += zfs_byteswap.o
@@ -115,6 +113,7 @@ $(MODULE)-objs += zfs_fuid.o
 $(MODULE)-objs += zfs_ioctl.o
 $(MODULE)-objs += zfs_log.o
 $(MODULE)-objs += zfs_onexit.o
+$(MODULE)-objs += zfs_quota.o
 $(MODULE)-objs += zfs_ratelimit.o
 $(MODULE)-objs += zfs_replay.o
 $(MODULE)-objs += zfs_rlock.o
@@ -142,5 +141,12 @@ $(MODULE)-$(CONFIG_X86) += vdev_raidz_math_avx512bw.o
 
 $(MODULE)-$(CONFIG_ARM64) += vdev_raidz_math_aarch64_neon.o
 $(MODULE)-$(CONFIG_ARM64) += vdev_raidz_math_aarch64_neonx2.o
+
+$(MODULE)-$(CONFIG_PPC) += vdev_raidz_math_powerpc_altivec.o
+$(MODULE)-$(CONFIG_PPC64) += vdev_raidz_math_powerpc_altivec.o
+
+ifeq ($(CONFIG_ALTIVEC),y)
+$(obj)/vdev_raidz_math_powerpc_altivec.o: c_flags += -maltivec
+endif
 
 -include @abs_top_builddir@/module/os/linux/zfs/Makefile

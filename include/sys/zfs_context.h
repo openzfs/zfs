@@ -198,6 +198,7 @@ typedef struct zfs_kernel_param {
 } zfs_kernel_param_t;
 
 #define	ZFS_MODULE_PARAM(scope_prefix, name_prefix, name, type, perm, desc)
+#define	ZFS_MODULE_PARAM_ARGS void
 #define	ZFS_MODULE_PARAM_CALL(scope_prefix, name_prefix, name, setfunc, \
 	getfunc, perm, desc)
 
@@ -494,6 +495,7 @@ extern void	taskq_wait(taskq_t *);
 extern void	taskq_wait_id(taskq_t *, taskqid_t);
 extern void	taskq_wait_outstanding(taskq_t *, taskqid_t);
 extern int	taskq_member(taskq_t *, kthread_t *);
+extern taskq_t	*taskq_of_curthread(void);
 extern int	taskq_cancel_id(taskq_t *, taskqid_t);
 extern void	system_taskq_init(void);
 extern void	system_taskq_fini(void);

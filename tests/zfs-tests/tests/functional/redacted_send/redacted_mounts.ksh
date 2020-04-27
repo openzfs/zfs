@@ -20,11 +20,11 @@
 #
 # Description:
 # Verify that received redacted datasets are not mounted by default, but
-# can still be mounted after setting zfs_allow_redacted_dataset_mount.
+# can still be mounted after setting ALLOW_REDACTED_DATASET_MOUNT.
 #
 # Strategy:
 # 1. Verify a received redacted stream isn't mounted by default.
-# 2. Set zfs_allow_redacted_dataset_mount and verify it can't be mounted
+# 2. Set ALLOW_REDACTED_DATASET_MOUNT and verify it can't be mounted
 #    without the -f flag, but can with -f.
 # 3. Receive a redacted volume.
 # 4. Verify the device file isn't present until the kernel variable is set.
@@ -76,23 +76,23 @@ log_must diff <(echo ${contents//$recv_mnt/}) \
 log_must zfs redact $sendvol@snap book2 $clonevol@snap
 log_must eval "zfs send --redact book2 $sendvol@snap >$stream"
 log_must eval "zfs receive $recvvol <$stream"
-[[ -b $recv_vol_file ]] && log_fail "Volume device file should not exist."
-log_must set_tunable32 zfs_allow_redacted_dataset_mount 1
+is_disk_device $recv_vol_file && log_fail "Volume device file should not exist."
+log_must set_tunable32 ALLOW_REDACTED_DATASET_MOUNT 1
 log_must zpool export $POOL2
 log_must zpool import $POOL2
 udevadm settle
 
 # The device file isn't guaranteed to show up right away.
-if [[ ! -b $recv_vol_file ]]; then
+if ! is_disk_device $recv_vol_file; then
 	udevadm settle
 	for t in 10 5 3 2 1; do
 		log_note "Polling $t seconds for device file."
 		udevadm settle
 		sleep $t
-		[[ -b $recv_vol_file ]] && break
+		is_disk_device $recv_vol_file && break
 	done
 fi
-[[ -b $recv_vol_file ]] || log_fail "Volume device file should exist."
+is_disk_device $recv_vol_file || log_fail "Volume device file should exist."
 
 log_must dd if=/dev/urandom of=$send_mnt/dir1/contents1 bs=512 count=2
 log_must rm $send_mnt/dir1/dir2/empty

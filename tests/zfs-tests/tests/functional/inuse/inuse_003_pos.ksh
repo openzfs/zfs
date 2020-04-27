@@ -50,10 +50,6 @@
 
 verify_runnable "global"
 
-if is_linux; then
-	log_unsupported "Test case isn't applicable to Linux"
-fi
-
 function cleanup
 {
 	poolexists $TESTPOOL1 && destroy_pool $TESTPOOL1
@@ -98,18 +94,9 @@ typeset restored_files="${UFSMP}/restored_files"
 typeset -i dirnum=0
 typeset -i filenum=0
 typeset cwd=""
-typeset cyl=""
-
-for num in 0 1 2; do
-	eval typeset slice=\${FS_SIDE$num}
-	disk=${slice%s*}
-	slice=${slice##*${SLICE_PREFIX}}
-	log_must set_partition $slice "$cyl" $FS_SIZE $disk
-	cyl=$(get_endslice $disk $slice)
-done
 
 log_note "Make a ufs filesystem on source $rawdisk1"
-echo "y" | newfs -v $rawdisk1 > /dev/null 2>&1
+new_fs $rawdisk1 > /dev/null 2>&1
 (($? != 0)) && log_untested "Unable to create ufs filesystem on $rawdisk1"
 
 log_must mkdir -p $UFSMP
@@ -149,7 +136,7 @@ log_mustnot zpool create $TESTPOOL1 "$disk1"
 log_mustnot poolexists $TESTPOOL1
 
 log_note "Attempt to take the source device in use by ufsdump as spare device"
-log_mustnot zpool create $TESTPOOL1 "$FS_SIDE2" spare "$disk1"
+log_mustnot zpool create $TESTPOOL1 "$FS_DISK2" spare "$disk1"
 log_mustnot poolexists $TESTPOOL1
 
 wait $PIDUFSDUMP
@@ -175,7 +162,7 @@ log_mustnot poolexists $TESTPOOL2
 
 log_note "Attempt to take the restored device in use by ufsrestore as spare" \
     "device"
-log_mustnot zpool create -f $TESTPOOL2 "$FS_SIDE2" spare "$disk1"
+log_mustnot zpool create -f $TESTPOOL2 "$FS_DISK2" spare "$disk1"
 log_mustnot poolexists $TESTPOOL2
 
 log_pass "Unable to zpool over a device in use by ufsdump or ufsrestore"

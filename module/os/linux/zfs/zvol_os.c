@@ -18,6 +18,9 @@
  *
  * CDDL HEADER END
  */
+/*
+ * Copyright (c) 2012, 2020 by Delphix. All rights reserved.
+ */
 
 #include <sys/dataset_kstats.h>
 #include <sys/dbuf.h>
@@ -57,7 +60,7 @@ static struct ida zvol_ida;
 typedef struct zv_request {
 	zvol_state_t	*zv;
 	struct bio	*bio;
-	zfs_locked_range_t	*lr;
+	taskq_ent_t	ent;
 } zv_request_t;
 
 /*
@@ -108,6 +111,18 @@ zvol_write(void *arg)
 	ASSERT(zv && zv->zv_open_count > 0);
 	ASSERT(zv->zv_zilog != NULL);
 
+	/* bio marked as FLUSH need to flush before write */
+	if (bio_is_flush(bio))
+		zil_commit(zv->zv_zilog, ZVOL_OBJ);
+
+	/* Some requests are just for flush and nothing else. */
+	if (uio.uio_resid == 0) {
+		rw_exit(&zv->zv_suspend_lock);
+		BIO_END_IO(bio, 0);
+		kmem_free(zvr, sizeof (zv_request_t));
+		return;
+	}
+
 	ssize_t start_resid = uio.uio_resid;
 	unsigned long start_jif = jiffies;
 	blk_generic_start_io_acct(zv->zv_zso->zvo_queue, WRITE,
@@ -115,6 +130,9 @@ zvol_write(void *arg)
 
 	boolean_t sync =
 	    bio_is_fua(bio) || zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS;
+
+	zfs_locked_range_t *lr = zfs_rangelock_enter(&zv->zv_rangelock,
+	    uio.uio_loffset, uio.uio_resid, RL_WRITER);
 
 	uint64_t volsize = zv->zv_volsize;
 	while (uio.uio_resid > 0 && uio.uio_loffset < volsize) {
@@ -125,7 +143,7 @@ zvol_write(void *arg)
 		if (bytes > volsize - off)	/* don't write past the end */
 			bytes = volsize - off;
 
-		dmu_tx_hold_write(tx, ZVOL_OBJ, off, bytes);
+		dmu_tx_hold_write_by_dnode(tx, zv->zv_dn, off, bytes);
 
 		/* This will only fail for ENOSPC */
 		error = dmu_tx_assign(tx, TXG_WAIT);
@@ -142,7 +160,7 @@ zvol_write(void *arg)
 		if (error)
 			break;
 	}
-	zfs_rangelock_exit(zvr->lr);
+	zfs_rangelock_exit(lr);
 
 	int64_t nwritten = start_resid - uio.uio_resid;
 	dataset_kstats_update_write_kstats(&zv->zv_zso->zvo_kstat, nwritten);
@@ -201,6 +219,9 @@ zvol_discard(void *arg)
 	if (start >= end)
 		goto unlock;
 
+	zfs_locked_range_t *lr = zfs_rangelock_enter(&zv->zv_rangelock,
+	    start, size, RL_WRITER);
+
 	tx = dmu_tx_create(zv->zv_objset);
 	dmu_tx_mark_netfree(tx);
 	error = dmu_tx_assign(tx, TXG_WAIT);
@@ -212,12 +233,12 @@ zvol_discard(void *arg)
 		error = dmu_free_long_range(zv->zv_objset,
 		    ZVOL_OBJ, start, size);
 	}
-unlock:
-	zfs_rangelock_exit(zvr->lr);
+	zfs_rangelock_exit(lr);
 
 	if (error == 0 && sync)
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
 
+unlock:
 	rw_exit(&zv->zv_suspend_lock);
 	blk_generic_end_io_acct(zv->zv_zso->zvo_queue, WRITE,
 	    &zv->zv_zso->zvo_disk->part0, start_jif);
@@ -243,6 +264,9 @@ zvol_read(void *arg)
 	blk_generic_start_io_acct(zv->zv_zso->zvo_queue, READ, bio_sectors(bio),
 	    &zv->zv_zso->zvo_disk->part0);
 
+	zfs_locked_range_t *lr = zfs_rangelock_enter(&zv->zv_rangelock,
+	    uio.uio_loffset, uio.uio_resid, RL_READER);
+
 	uint64_t volsize = zv->zv_volsize;
 	while (uio.uio_resid > 0 && uio.uio_loffset < volsize) {
 		uint64_t bytes = MIN(uio.uio_resid, DMU_MAX_ACCESS >> 1);
@@ -259,7 +283,7 @@ zvol_read(void *arg)
 			break;
 		}
 	}
-	zfs_rangelock_exit(zvr->lr);
+	zfs_rangelock_exit(lr);
 
 	int64_t nread = start_resid - uio.uio_resid;
 	dataset_kstats_update_read_kstats(&zv->zv_zso->zvo_kstat, nread);
@@ -294,16 +318,15 @@ zvol_request(struct request_queue *q, struct bio *bio)
 	}
 
 	if (rw == WRITE) {
-		boolean_t need_sync = B_FALSE;
-
 		if (unlikely(zv->zv_flags & ZVOL_RDONLY)) {
 			BIO_END_IO(bio, -SET_ERROR(EROFS));
 			goto out;
 		}
 
 		/*
-		 * To be released in the I/O function. See the comment on
-		 * rangelock_enter() below.
+		 * Prevents the zvol from being suspended, or the ZIL being
+		 * concurrently opened.  Will be released after the i/o
+		 * completes.
 		 */
 		rw_enter(&zv->zv_suspend_lock, RW_READER);
 
@@ -324,47 +347,55 @@ zvol_request(struct request_queue *q, struct bio *bio)
 			rw_downgrade(&zv->zv_suspend_lock);
 		}
 
-		/* bio marked as FLUSH need to flush before write */
-		if (bio_is_flush(bio))
-			zil_commit(zv->zv_zilog, ZVOL_OBJ);
-
-		/* Some requests are just for flush and nothing else. */
-		if (size == 0) {
-			rw_exit(&zv->zv_suspend_lock);
-			BIO_END_IO(bio, 0);
-			goto out;
-		}
-
 		zvr = kmem_alloc(sizeof (zv_request_t), KM_SLEEP);
 		zvr->zv = zv;
 		zvr->bio = bio;
+		taskq_init_ent(&zvr->ent);
 
 		/*
-		 * To be released in the I/O function. Since the I/O functions
-		 * are asynchronous, we take it here synchronously to make
-		 * sure overlapped I/Os are properly ordered.
+		 * We don't want this thread to be blocked waiting for i/o to
+		 * complete, so we instead wait from a taskq callback. The
+		 * i/o may be a ZIL write (via zil_commit()), or a read of an
+		 * indirect block, or a read of a data block (if this is a
+		 * partial-block write).  We will indicate that the i/o is
+		 * complete by calling BIO_END_IO() from the taskq callback.
+		 *
+		 * This design allows the calling thread to continue and
+		 * initiate more concurrent operations by calling
+		 * zvol_request() again. There are typically only a small
+		 * number of threads available to call zvol_request() (e.g.
+		 * one per iSCSI target), so keeping the latency of
+		 * zvol_request() low is important for performance.
+		 *
+		 * The zvol_request_sync module parameter allows this
+		 * behavior to be altered, for performance evaluation
+		 * purposes.  If the callback blocks, setting
+		 * zvol_request_sync=1 will result in much worse performance.
+		 *
+		 * We can have up to zvol_threads concurrent i/o's being
+		 * processed for all zvols on the system.  This is typically
+		 * a vast improvement over the zvol_request_sync=1 behavior
+		 * of one i/o at a time per zvol.  However, an even better
+		 * design would be for zvol_request() to initiate the zio
+		 * directly, and then be notified by the zio_done callback,
+		 * which would call BIO_END_IO().  Unfortunately, the DMU/ZIL
+		 * interfaces lack this functionality (they block waiting for
+		 * the i/o to complete).
 		 */
-		zvr->lr = zfs_rangelock_enter(&zv->zv_rangelock, offset, size,
-		    RL_WRITER);
-		/*
-		 * Sync writes and discards execute zil_commit() which may need
-		 * to take a RL_READER lock on the whole block being modified
-		 * via its zillog->zl_get_data(): to avoid circular dependency
-		 * issues with taskq threads execute these requests
-		 * synchronously here in zvol_request().
-		 */
-		need_sync = bio_is_fua(bio) ||
-		    zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS;
 		if (bio_is_discard(bio) || bio_is_secure_erase(bio)) {
-			if (zvol_request_sync || need_sync ||
-			    taskq_dispatch(zvol_taskq, zvol_discard, zvr,
-			    TQ_SLEEP) == TASKQID_INVALID)
+			if (zvol_request_sync) {
 				zvol_discard(zvr);
+			} else {
+				taskq_dispatch_ent(zvol_taskq,
+				    zvol_discard, zvr, 0, &zvr->ent);
+			}
 		} else {
-			if (zvol_request_sync || need_sync ||
-			    taskq_dispatch(zvol_taskq, zvol_write, zvr,
-			    TQ_SLEEP) == TASKQID_INVALID)
+			if (zvol_request_sync) {
 				zvol_write(zvr);
+			} else {
+				taskq_dispatch_ent(zvol_taskq,
+				    zvol_write, zvr, 0, &zvr->ent);
+			}
 		}
 	} else {
 		/*
@@ -380,14 +411,17 @@ zvol_request(struct request_queue *q, struct bio *bio)
 		zvr = kmem_alloc(sizeof (zv_request_t), KM_SLEEP);
 		zvr->zv = zv;
 		zvr->bio = bio;
+		taskq_init_ent(&zvr->ent);
 
 		rw_enter(&zv->zv_suspend_lock, RW_READER);
 
-		zvr->lr = zfs_rangelock_enter(&zv->zv_rangelock, offset, size,
-		    RL_READER);
-		if (zvol_request_sync || taskq_dispatch(zvol_taskq,
-		    zvol_read, zvr, TQ_SLEEP) == TASKQID_INVALID)
+		/* See comment in WRITE case above. */
+		if (zvol_request_sync) {
 			zvol_read(zvr);
+		} else {
+			taskq_dispatch_ent(zvol_taskq,
+			    zvol_read, zvr, 0, &zvr->ent);
+		}
 	}
 
 out:
@@ -720,6 +754,7 @@ static zvol_state_t *
 zvol_alloc(dev_t dev, const char *name)
 {
 	zvol_state_t *zv;
+	struct zvol_state_os *zso;
 	uint64_t volmode;
 
 	if (dsl_prop_get_integer(name, "volmode", &volmode, NULL) != 0)
@@ -732,39 +767,38 @@ zvol_alloc(dev_t dev, const char *name)
 		return (NULL);
 
 	zv = kmem_zalloc(sizeof (zvol_state_t), KM_SLEEP);
-	zv->zv_zso = kmem_zalloc(sizeof (struct zvol_state_os), KM_SLEEP);
+	zso = kmem_zalloc(sizeof (struct zvol_state_os), KM_SLEEP);
+	zv->zv_zso = zso;
 
 	list_link_init(&zv->zv_next);
-
 	mutex_init(&zv->zv_state_lock, NULL, MUTEX_DEFAULT, NULL);
 
-	zv->zv_zso->zvo_queue = blk_alloc_queue(GFP_ATOMIC);
-	if (zv->zv_zso->zvo_queue == NULL)
+	zso->zvo_queue = blk_generic_alloc_queue(zvol_request, NUMA_NO_NODE);
+	if (zso->zvo_queue == NULL)
 		goto out_kmem;
 
-	blk_queue_make_request(zv->zv_zso->zvo_queue, zvol_request);
-	blk_queue_set_write_cache(zv->zv_zso->zvo_queue, B_TRUE, B_TRUE);
+	blk_queue_set_write_cache(zso->zvo_queue, B_TRUE, B_TRUE);
 
 	/* Limit read-ahead to a single page to prevent over-prefetching. */
-	blk_queue_set_read_ahead(zv->zv_zso->zvo_queue, 1);
+	blk_queue_set_read_ahead(zso->zvo_queue, 1);
 
 	/* Disable write merging in favor of the ZIO pipeline. */
-	blk_queue_flag_set(QUEUE_FLAG_NOMERGES, zv->zv_zso->zvo_queue);
+	blk_queue_flag_set(QUEUE_FLAG_NOMERGES, zso->zvo_queue);
 
-	zv->zv_zso->zvo_disk = alloc_disk(ZVOL_MINORS);
-	if (zv->zv_zso->zvo_disk == NULL)
+	zso->zvo_disk = alloc_disk(ZVOL_MINORS);
+	if (zso->zvo_disk == NULL)
 		goto out_queue;
 
-	zv->zv_zso->zvo_queue->queuedata = zv;
-	zv->zv_zso->zvo_dev = dev;
+	zso->zvo_queue->queuedata = zv;
+	zso->zvo_dev = dev;
 	zv->zv_open_count = 0;
 	strlcpy(zv->zv_name, name, MAXNAMELEN);
 
 	zfs_rangelock_init(&zv->zv_rangelock, NULL, NULL);
 	rw_init(&zv->zv_suspend_lock, NULL, RW_DEFAULT, NULL);
 
-	zv->zv_zso->zvo_disk->major = zvol_major;
-	zv->zv_zso->zvo_disk->events = DISK_EVENT_MEDIA_CHANGE;
+	zso->zvo_disk->major = zvol_major;
+	zso->zvo_disk->events = DISK_EVENT_MEDIA_CHANGE;
 
 	if (volmode == ZFS_VOLMODE_DEV) {
 		/*
@@ -774,27 +808,27 @@ zvol_alloc(dev_t dev, const char *name)
 		 * and suppresses partition scanning (GENHD_FL_NO_PART_SCAN)
 		 * setting gendisk->flags accordingly.
 		 */
-		zv->zv_zso->zvo_disk->minors = 1;
+		zso->zvo_disk->minors = 1;
 #if defined(GENHD_FL_EXT_DEVT)
-		zv->zv_zso->zvo_disk->flags &= ~GENHD_FL_EXT_DEVT;
+		zso->zvo_disk->flags &= ~GENHD_FL_EXT_DEVT;
 #endif
 #if defined(GENHD_FL_NO_PART_SCAN)
-		zv->zv_zso->zvo_disk->flags |= GENHD_FL_NO_PART_SCAN;
+		zso->zvo_disk->flags |= GENHD_FL_NO_PART_SCAN;
 #endif
 	}
-	zv->zv_zso->zvo_disk->first_minor = (dev & MINORMASK);
-	zv->zv_zso->zvo_disk->fops = &zvol_ops;
-	zv->zv_zso->zvo_disk->private_data = zv;
-	zv->zv_zso->zvo_disk->queue = zv->zv_zso->zvo_queue;
-	snprintf(zv->zv_zso->zvo_disk->disk_name, DISK_NAME_LEN, "%s%d",
+	zso->zvo_disk->first_minor = (dev & MINORMASK);
+	zso->zvo_disk->fops = &zvol_ops;
+	zso->zvo_disk->private_data = zv;
+	zso->zvo_disk->queue = zso->zvo_queue;
+	snprintf(zso->zvo_disk->disk_name, DISK_NAME_LEN, "%s%d",
 	    ZVOL_DEV_NAME, (dev & MINORMASK));
 
 	return (zv);
 
 out_queue:
-	blk_cleanup_queue(zv->zv_zso->zvo_queue);
+	blk_cleanup_queue(zso->zvo_queue);
 out_kmem:
-	kmem_free(zv->zv_zso, sizeof (struct zvol_state_os));
+	kmem_free(zso, sizeof (struct zvol_state_os));
 	kmem_free(zv, sizeof (zvol_state_t));
 	return (NULL);
 }
@@ -842,7 +876,7 @@ zvol_free(zvol_state_t *zv)
  * device is live and ready for use.
  */
 static int
-zvol_create_minor(const char *name)
+zvol_os_create_minor(const char *name)
 {
 	zvol_state_t *zv;
 	objset_t *os;
@@ -967,7 +1001,7 @@ out_doi:
 		ida_simple_remove(&zvol_ida, idx);
 	}
 
-	return (SET_ERROR(error));
+	return (error);
 }
 
 static void
@@ -1014,7 +1048,7 @@ zvol_set_capacity_impl(zvol_state_t *zv, uint64_t capacity)
 const static zvol_platform_ops_t zvol_linux_ops = {
 	.zv_free = zvol_free,
 	.zv_rename_minor = zvol_rename_minor,
-	.zv_create_minor = zvol_create_minor,
+	.zv_create_minor = zvol_os_create_minor,
 	.zv_update_volsize = zvol_update_volsize,
 	.zv_clear_private = zvol_clear_private,
 	.zv_is_zvol = zvol_is_zvol_impl,

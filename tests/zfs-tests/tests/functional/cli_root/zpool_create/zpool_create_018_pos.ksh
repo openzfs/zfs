@@ -47,17 +47,11 @@
 function cleanup
 {
 	poolexists $TESTPOOL && destroy_pool $TESTPOOL
-	[[ -f $CPATH ]] && log_must rm $CPATH
+	rm -f $CPATH
 }
 
 log_onexit cleanup
 log_assert "zpool create can create pools with specified properties"
-
-if [[ -n $DISK ]]; then
-	disk=$DISK
-else
-	disk=$DISK0
-fi
 
 #
 # we don't include "root" property in this list, as it requires both "cachefile"
@@ -70,7 +64,7 @@ typeset vals=("off" "off" "$CPATH" "3" "on")
 typeset -i i=0;
 while [ $i -lt "${#props[@]}" ]
 do
-	log_must zpool create -o ${props[$i]}=${vals[$i]} $TESTPOOL $disk
+	log_must zpool create -o ${props[$i]}=${vals[$i]} $TESTPOOL $DISK0
 	RESULT=$(get_pool_prop ${props[$i]} $TESTPOOL)
 	if [[ $RESULT != ${vals[$i]} ]]
 	then
@@ -86,7 +80,7 @@ done
 poolexists $TESTPOOL && destroy_pool $TESTPOOL
 
 # pick two properties, and verify we can create with those as well
-log_must zpool create -o delegation=off -o cachefile=$CPATH $TESTPOOL $disk
+log_must zpool create -o delegation=off -o cachefile=$CPATH $TESTPOOL $DISK0
 RESULT=$(get_pool_prop delegation $TESTPOOL)
 if [[ $RESULT != off ]]
 then

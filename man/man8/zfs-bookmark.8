@@ -29,6 +29,7 @@
 .\" Copyright 2019 Richard Laager. All rights reserved.
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
+.\" Copyright (c) 2019, 2020 by Christian Schwarz. All Rights Reserved.
 .\"
 .Dd June 30, 2019
 .Dt ZFS-BOOKMARK 8 SMM
@@ -42,13 +43,18 @@
 .It Xo
 .Nm
 .Cm bookmark
-.Ar snapshot bookmark
+.Ar snapshot Ns | Ns Ar bookmark newbookmark
 .Xc
-Creates a bookmark of the given snapshot.
+Creates a new bookmark of the given snapshot or bookmark.
 Bookmarks mark the point in time when the snapshot was created, and can be used
 as the incremental source for a
 .Xr zfs-send 8
 command.
+.Pp
+When creating a bookmark from an existing redaction bookmark, the resulting
+bookmark is
+.Sy not
+a redaction bookmark.
 .Pp
 This feature must be enabled to be used.
 See

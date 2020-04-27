@@ -42,6 +42,7 @@
 #include <sys/zfs_fuid.h>
 #include <sys/zfs_acl.h>
 #include <sys/zfs_dir.h>
+#include <sys/zfs_quota.h>
 #include <sys/zfs_vfsops.h>
 #include <sys/dmu.h>
 #include <sys/dnode.h>
@@ -2540,14 +2541,14 @@ zfs_zaccess(znode_t *zp, int mode, int flags, boolean_t skipaclchk, cred_t *cr)
 	if ((error = zfs_zaccess_common(check_zp, mode, &working_mode,
 	    &check_privs, skipaclchk, cr)) == 0) {
 		if (is_attr)
-			iput(ZTOI(xzp));
+			zrele(xzp);
 		return (secpolicy_vnode_access2(cr, ZTOI(zp), owner,
 		    needed_bits, needed_bits));
 	}
 
 	if (error && !check_privs) {
 		if (is_attr)
-			iput(ZTOI(xzp));
+			zrele(xzp);
 		return (error);
 	}
 
@@ -2609,7 +2610,7 @@ zfs_zaccess(znode_t *zp, int mode, int flags, boolean_t skipaclchk, cred_t *cr)
 	}
 
 	if (is_attr)
-		iput(ZTOI(xzp));
+		zrele(xzp);
 
 	return (error);
 }

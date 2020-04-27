@@ -76,12 +76,12 @@ sync
 log_note "Verify 'zfs list' can correctly list the space charged."
 fsize=${FILESIZE%[m|M]}
 for val in 1 2 3; do
-	used=$(get_used_prop $TESTPOOL/fs_$val)
+	used=$(get_prop used $TESTPOOL/fs_$val)
 	check_used $used $val
 done
 
 log_note "Verify 'ls -s' can correctly list the space charged."
-if is_linux; then
+if is_linux || is_freebsd; then
 	blksize=1024
 else
 	blksize=512
@@ -94,16 +94,25 @@ done
 
 log_note "Verify df(1M) can correctly display the space charged."
 for val in 1 2 3; do
-	used=`df -F zfs -k /$TESTPOOL/fs_$val/$FILE | grep $TESTPOOL/fs_$val \
-		| awk '{print $3}'`
-	(( used = used * 1024 )) # kb -> bytes
+	if is_freebsd; then
+		used=`df -m /$TESTPOOL/fs_$val | grep $TESTPOOL/fs_$val \
+			| awk -v fs=fs_$val '$4 ~ fs {print $3}'`
+	else
+		used=`df -F zfs -k /$TESTPOOL/fs_$val/$FILE | grep $TESTPOOL/fs_$val \
+			| awk '{print $3}'`
+		(( used = used * 1024 )) # kb -> bytes
+	fi
 	check_used $used $val
 done
 
 log_note "Verify du(1) can correctly display the space charged."
 for val in 1 2 3; do
-	used=`du -k /$TESTPOOL/fs_$val/$FILE | awk '{print $1}'`
-	(( used = used * 1024 )) # kb -> bytes
+	if is_freebsd; then
+		used=`du -h /$TESTPOOL/fs_$val/$FILE | awk '{print $1}'`
+	else
+		used=`du -k /$TESTPOOL/fs_$val/$FILE | awk '{print $1}'`
+		(( used = used * 1024 )) # kb -> bytes
+	fi
 	check_used $used $val
 done
 

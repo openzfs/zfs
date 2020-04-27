@@ -51,7 +51,6 @@ import getopt
 import re
 import copy
 
-from decimal import Decimal
 from signal import signal, SIGINT, SIGWINCH, SIG_DFL
 
 
@@ -139,7 +138,7 @@ if sys.platform.startswith('freebsd'):
 
             name, value = s.name, s.value
             # Trims 'kstat.zfs.misc.arcstats' from the name
-            kstat[name[24:]] = Decimal(value)
+            kstat[name[24:]] = int(value)
 
 elif sys.platform.startswith('linux'):
     def kstat_update():
@@ -158,7 +157,7 @@ elif sys.platform.startswith('linux'):
                 continue
 
             name, unused, value = s.split()
-            kstat[name] = Decimal(value)
+            kstat[name] = int(value)
 
 
 def detailed_usage():
@@ -335,16 +334,8 @@ def init():
         i += 1
 
     argv = sys.argv[i:]
-    sint = Decimal(argv[0]) if argv else sint
-    count = int(argv[1]) if len(argv) > 1 else count
-
-    if len(argv) > 1:
-        sint = Decimal(argv[0])
-        count = int(argv[1])
-
-    elif len(argv) > 0:
-        sint = Decimal(argv[0])
-        count = 0
+    sint = int(argv[0]) if argv else sint
+    count = int(argv[1]) if len(argv) > 1 else (0 if len(argv) > 0 else 1)
 
     if hflag or (xflag and desired_cols):
         usage()

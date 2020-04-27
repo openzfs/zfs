@@ -22,7 +22,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
  * Copyright (c) 2013 Martin Matuska. All rights reserved.
- * Copyright 2015, Joyent, Inc.
+ * Copyright 2019 Joyent, Inc.
  */
 
 #include <sys/zfs_context.h>
@@ -73,7 +73,7 @@ int
 dsl_prop_get_dd(dsl_dir_t *dd, const char *propname,
     int intsz, int numints, void *buf, char *setpoint, boolean_t snapshot)
 {
-	int err = ENOENT;
+	int err;
 	dsl_dir_t *target = dd;
 	objset_t *mos = dd->dd_pool->dp_meta_objset;
 	zfs_prop_t prop;
@@ -98,8 +98,10 @@ dsl_prop_get_dd(dsl_dir_t *dd, const char *propname,
 	 */
 	for (; dd != NULL; dd = dd->dd_parent) {
 		if (dd != target || snapshot) {
-			if (!inheritable)
+			if (!inheritable) {
+				err = SET_ERROR(ENOENT);
 				break;
+			}
 			inheriting = B_TRUE;
 		}
 
@@ -283,7 +285,7 @@ dsl_prop_register(dsl_dataset_t *ds, const char *propname,
 	dsl_prop_record_t *pr;
 	dsl_prop_cb_record_t *cbr;
 	int err;
-	ASSERTV(dsl_pool_t *dp = dd->dd_pool);
+	dsl_pool_t *dp __maybe_unused = dd->dd_pool;
 
 	ASSERT(dsl_pool_config_held(dp));
 
@@ -649,7 +651,7 @@ dsl_prop_set_sync_impl(dsl_dataset_t *ds, const char *propname,
     dmu_tx_t *tx)
 {
 	objset_t *mos = ds->ds_dir->dd_pool->dp_meta_objset;
-	uint64_t zapobj, intval, dummy;
+	uint64_t zapobj, intval, dummy, count;
 	int isint;
 	char valbuf[32];
 	const char *valstr = NULL;
@@ -663,7 +665,8 @@ dsl_prop_set_sync_impl(dsl_dataset_t *ds, const char *propname,
 
 	if (ds->ds_is_snapshot) {
 		ASSERT(version >= SPA_VERSION_SNAP_PROPS);
-		if (dsl_dataset_phys(ds)->ds_props_obj == 0) {
+		if (dsl_dataset_phys(ds)->ds_props_obj == 0 &&
+		    (source & ZPROP_SRC_NONE) == 0) {
 			dmu_buf_will_dirty(ds->ds_dbuf, tx);
 			dsl_dataset_phys(ds)->ds_props_obj =
 			    zap_create(mos,
@@ -673,6 +676,10 @@ dsl_prop_set_sync_impl(dsl_dataset_t *ds, const char *propname,
 	} else {
 		zapobj = dsl_dir_phys(ds->ds_dir)->dd_props_zapobj;
 	}
+
+	/* If we are removing objects from a non-existent ZAP just return */
+	if (zapobj == 0)
+		return;
 
 	if (version < SPA_VERSION_RECVD_PROPS) {
 		if (source & ZPROP_SRC_NONE)
@@ -754,6 +761,18 @@ dsl_prop_set_sync_impl(dsl_dataset_t *ds, const char *propname,
 
 	kmem_strfree(inheritstr);
 	kmem_strfree(recvdstr);
+
+	/*
+	 * If we are left with an empty snap zap we can destroy it.
+	 * This will prevent unnecessary calls to zap_lookup() in
+	 * the "zfs list" and "zfs get" code paths.
+	 */
+	if (ds->ds_is_snapshot &&
+	    zap_count(mos, zapobj, &count) == 0 && count == 0) {
+		dmu_buf_will_dirty(ds->ds_dbuf, tx);
+		dsl_dataset_phys(ds)->ds_props_obj = 0;
+		zap_destroy(mos, zapobj, tx);
+	}
 
 	if (isint) {
 		VERIFY0(dsl_prop_get_int_ds(ds, propname, &intval));
@@ -839,13 +858,7 @@ dsl_prop_inherit(const char *dsname, const char *propname,
 	return (error);
 }
 
-typedef struct dsl_props_set_arg {
-	const char *dpsa_dsname;
-	zprop_source_t dpsa_source;
-	nvlist_t *dpsa_props;
-} dsl_props_set_arg_t;
-
-static int
+int
 dsl_props_set_check(void *arg, dmu_tx_t *tx)
 {
 	dsl_props_set_arg_t *dpsa = arg;
@@ -923,7 +936,7 @@ dsl_props_set_sync_impl(dsl_dataset_t *ds, zprop_source_t source,
 	}
 }
 
-static void
+void
 dsl_props_set_sync(void *arg, dmu_tx_t *tx)
 {
 	dsl_props_set_arg_t *dpsa = arg;

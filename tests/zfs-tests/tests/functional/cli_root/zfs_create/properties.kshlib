@@ -61,9 +61,13 @@ set -A FS_ONLY_PROP "quota=536870912" \
                     "devices=off" \
                     "exec=off" \
                     "setuid=off" \
-                    "zoned=on" \
                     "snapdir=visible" \
 		    "canmount=off" \
 		    "version=1"
+if is_freebsd; then
+	FS_ONLY_PROP+=("jailed=on")
+else
+	FS_ONLY_PROP+=("zoned=on")
+fi
 
 set -A VOL_ONLY_PROP "volblocksize=16384" "volsize=536870912"

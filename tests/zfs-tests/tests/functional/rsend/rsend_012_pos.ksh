@@ -26,7 +26,6 @@
 # Use is subject to license terms.
 #
 
-#
 . $STF_SUITE/include/properties.shlib
 . $STF_SUITE/tests/functional/rsend/rsend.kshlib
 
@@ -129,7 +128,9 @@ for fs in "$POOL" "$POOL/pclone" "$POOL/$FS" "$POOL/$FS/fs1" \
 	rand_set_prop $fs dnodesize "legacy" "auto" "1k" "2k" "4k" "8k" "16k"
 	rand_set_prop $fs setuid "on" "off"
 	rand_set_prop $fs snapdir "hidden" "visible"
-	rand_set_prop $fs xattr "on" "off"
+	if ! is_freebsd; then
+		rand_set_prop $fs xattr "on" "off"
+	fi
 	rand_set_prop $fs user:prop "aaa" "bbb" "23421" "()-+?"
 done
 

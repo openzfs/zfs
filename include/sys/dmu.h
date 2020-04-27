@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  * Copyright 2014 HybridCluster. All rights reserved.
@@ -864,8 +864,6 @@ int dmu_assign_arcbuf_by_dnode(dnode_t *dn, uint64_t offset,
 int dmu_assign_arcbuf_by_dbuf(dmu_buf_t *handle, uint64_t offset,
     struct arc_buf *buf, dmu_tx_t *tx);
 #define	dmu_assign_arcbuf	dmu_assign_arcbuf_by_dbuf
-void dmu_copy_from_buf(objset_t *os, uint64_t object, uint64_t offset,
-    dmu_buf_t *handle, dmu_tx_t *tx);
 #ifdef HAVE_UIO_ZEROCOPY
 int dmu_xuio_init(struct xuio *uio, int niov);
 void dmu_xuio_fini(struct xuio *uio);
@@ -938,7 +936,7 @@ void dmu_object_info_from_dnode(dnode_t *dn, dmu_object_info_t *doi);
 void dmu_object_info_from_db(dmu_buf_t *db, dmu_object_info_t *doi);
 /*
  * Like dmu_object_info_from_db, but faster still when you only care about
- * the size.  This is specifically optimized for zfs_getattr().
+ * the size.
  */
 void dmu_object_size_from_db(dmu_buf_t *db, uint32_t *blksize,
     u_longlong_t *nblk512);

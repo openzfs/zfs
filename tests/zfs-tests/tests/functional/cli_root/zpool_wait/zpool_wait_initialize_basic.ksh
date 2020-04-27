@@ -38,7 +38,7 @@ function cleanup
         [[ -d "$TESTDIR" ]] && log_must rm -r "$TESTDIR"
 
         [[ "$default_chunk_sz" ]] && \
-            log_must set_tunable64 zfs_initialize_chunk_size $default_chunk_sz
+            log_must set_tunable64 INITIALIZE_CHUNK_SIZE $default_chunk_sz
 }
 
 typeset -r FILE_VDEV="$TESTDIR/file_vdev"
@@ -46,8 +46,8 @@ typeset pid default_chunk_sz
 
 log_onexit cleanup
 
-default_chunk_sz=$(get_tunable zfs_initialize_chunk_size)
-log_must set_tunable64 zfs_initialize_chunk_size 2048
+default_chunk_sz=$(get_tunable INITIALIZE_CHUNK_SIZE)
+log_must set_tunable64 INITIALIZE_CHUNK_SIZE 2048
 
 log_must mkdir "$TESTDIR"
 log_must mkfile 256M "$FILE_VDEV"

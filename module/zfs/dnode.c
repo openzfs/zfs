@@ -74,7 +74,7 @@ dnode_stats_t dnode_stats = {
 static kstat_t *dnode_ksp;
 static kmem_cache_t *dnode_cache;
 
-ASSERTV(static dnode_phys_t dnode_phys_zero);
+static dnode_phys_t dnode_phys_zero __maybe_unused;
 
 int zfs_default_bs = SPA_MINBLOCKSHIFT;
 int zfs_default_ibs = DN_MAX_INDBLKSHIFT;
@@ -119,6 +119,7 @@ dnode_cons(void *arg, void *unused, int kmflag)
 	mutex_init(&dn->dn_mtx, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&dn->dn_dbufs_mtx, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&dn->dn_notxholds, NULL, CV_DEFAULT, NULL);
+	cv_init(&dn->dn_nodnholds, NULL, CV_DEFAULT, NULL);
 
 	/*
 	 * Every dbuf has a reference, and dropping a tracked reference is
@@ -183,6 +184,7 @@ dnode_dest(void *arg, void *unused)
 	mutex_destroy(&dn->dn_mtx);
 	mutex_destroy(&dn->dn_dbufs_mtx);
 	cv_destroy(&dn->dn_notxholds);
+	cv_destroy(&dn->dn_nodnholds);
 	zfs_refcount_destroy(&dn->dn_holds);
 	zfs_refcount_destroy(&dn->dn_tx_holds);
 	ASSERT(!list_link_active(&dn->dn_link));
@@ -541,10 +543,7 @@ dnode_destroy(dnode_t *dn)
 	dn->dn_dirty_txg = 0;
 
 	dn->dn_dirtyctx = 0;
-	if (dn->dn_dirtyctx_firstset != NULL) {
-		kmem_free(dn->dn_dirtyctx_firstset, 1);
-		dn->dn_dirtyctx_firstset = NULL;
-	}
+	dn->dn_dirtyctx_firstset = NULL;
 	if (dn->dn_bonus != NULL) {
 		mutex_enter(&dn->dn_bonus->db_mtx);
 		dbuf_destroy(dn->dn_bonus);
@@ -649,10 +648,7 @@ dnode_allocate(dnode_t *dn, dmu_object_type_t ot, int blocksize, int ibs,
 	dn->dn_dirtyctx = 0;
 
 	dn->dn_free_txg = 0;
-	if (dn->dn_dirtyctx_firstset) {
-		kmem_free(dn->dn_dirtyctx_firstset, 1);
-		dn->dn_dirtyctx_firstset = NULL;
-	}
+	dn->dn_dirtyctx_firstset = NULL;
 
 	dn->dn_allocated_txg = tx->tx_txg;
 	dn->dn_id_flags = 0;
@@ -1004,7 +1000,7 @@ dnode_move(void *buf, void *newbuf, size_t size, void *arg)
 	 */
 	refcount = zfs_refcount_count(&odn->dn_holds);
 	ASSERT(refcount >= 0);
-	dbufs = odn->dn_dbufs_count;
+	dbufs = DN_DBUFS_COUNT(odn);
 
 	/* We can't have more dbufs than dnode holds. */
 	ASSERT3U(dbufs, <=, refcount);
@@ -1031,7 +1027,7 @@ dnode_move(void *buf, void *newbuf, size_t size, void *arg)
 	list_link_replace(&odn->dn_link, &ndn->dn_link);
 	/* If the dnode was safe to move, the refcount cannot have changed. */
 	ASSERT(refcount == zfs_refcount_count(&ndn->dn_holds));
-	ASSERT(dbufs == ndn->dn_dbufs_count);
+	ASSERT(dbufs == DN_DBUFS_COUNT(ndn));
 	zrl_exit(&ndn->dn_handle->dnh_zrlock); /* handle has moved */
 	mutex_exit(&os->os_lock);
 
@@ -1177,13 +1173,15 @@ dnode_special_close(dnode_handle_t *dnh)
 	dnode_t *dn = dnh->dnh_dnode;
 
 	/*
-	 * Wait for final references to the dnode to clear.  This can
-	 * only happen if the arc is asynchronously evicting state that
-	 * has a hold on this dnode while we are trying to evict this
-	 * dnode.
+	 * Ensure dnode_rele_and_unlock() has released dn_mtx, after final
+	 * zfs_refcount_remove()
 	 */
-	while (zfs_refcount_count(&dn->dn_holds) > 0)
-		delay(1);
+	mutex_enter(&dn->dn_mtx);
+	if (zfs_refcount_count(&dn->dn_holds) > 0)
+		cv_wait(&dn->dn_nodnholds, &dn->dn_mtx);
+	mutex_exit(&dn->dn_mtx);
+	ASSERT3U(zfs_refcount_count(&dn->dn_holds), ==, 0);
+
 	ASSERT(dn->dn_dbuf == NULL ||
 	    dmu_buf_get_user(&dn->dn_dbuf->db) == NULL);
 	zrl_add(&dnh->dnh_zrlock);
@@ -1559,6 +1557,7 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 	dnode_slots_rele(dnc, idx, slots);
 
 	DNODE_VERIFY(dn);
+	ASSERT3P(dnp, !=, NULL);
 	ASSERT3P(dn->dn_dbuf, ==, db);
 	ASSERT3U(dn->dn_object, ==, object);
 	dbuf_rele(db, FTAG);
@@ -1611,7 +1610,10 @@ dnode_rele_and_unlock(dnode_t *dn, void *tag, boolean_t evicting)
 	dnode_handle_t *dnh = dn->dn_handle;
 
 	refs = zfs_refcount_remove(&dn->dn_holds, tag);
+	if (refs == 0)
+		cv_broadcast(&dn->dn_nodnholds);
 	mutex_exit(&dn->dn_mtx);
+	/* dnode could get destroyed at this point, so don't use it anymore */
 
 	/*
 	 * It's unsafe to release the last hold on a dnode by dnode_rele() or
@@ -2007,6 +2009,32 @@ dnode_dirty_l1range(dnode_t *dn, uint64_t start_blkid, uint64_t end_blkid,
 }
 
 void
+dnode_set_dirtyctx(dnode_t *dn, dmu_tx_t *tx, void *tag)
+{
+	/*
+	 * Don't set dirtyctx to SYNC if we're just modifying this as we
+	 * initialize the objset.
+	 */
+	if (dn->dn_dirtyctx == DN_UNDIRTIED) {
+		dsl_dataset_t *ds = dn->dn_objset->os_dsl_dataset;
+
+		if (ds != NULL) {
+			rrw_enter(&ds->ds_bp_rwlock, RW_READER, tag);
+		}
+		if (!BP_IS_HOLE(dn->dn_objset->os_rootbp)) {
+			if (dmu_tx_is_syncing(tx))
+				dn->dn_dirtyctx = DN_DIRTY_SYNC;
+			else
+				dn->dn_dirtyctx = DN_DIRTY_OPEN;
+			dn->dn_dirtyctx_firstset = tag;
+		}
+		if (ds != NULL) {
+			rrw_exit(&ds->ds_bp_rwlock, tag);
+		}
+	}
+}
+
+void
 dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx)
 {
 	dmu_buf_impl_t *db;
@@ -2073,7 +2101,7 @@ dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx)
 			db_lock_type_t dblt = dmu_buf_lock_parent(db, RW_READER,
 			    FTAG);
 			/* don't dirty if it isn't on disk and isn't dirty */
-			dirty = db->db_last_dirty ||
+			dirty = !list_is_empty(&db->db_dirty_records) ||
 			    (db->db_blkptr && !BP_IS_HOLE(db->db_blkptr));
 			dmu_buf_unlock_parent(db, dblt, FTAG);
 			if (dirty) {
@@ -2116,7 +2144,7 @@ dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx)
 			/* don't dirty if not on disk and not dirty */
 			db_lock_type_t type = dmu_buf_lock_parent(db, RW_READER,
 			    FTAG);
-			dirty = db->db_last_dirty ||
+			dirty = !list_is_empty(&db->db_dirty_records) ||
 			    (db->db_blkptr && !BP_IS_HOLE(db->db_blkptr));
 			dmu_buf_unlock_parent(db, type, FTAG);
 			if (dirty) {

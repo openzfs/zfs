@@ -60,6 +60,16 @@
 int64_t last_free_memory;
 free_memory_reason_t last_free_reason;
 
+/*
+ * Return a default max arc size based on the amount of physical memory.
+ */
+uint64_t
+arc_default_max(uint64_t min, uint64_t allmem)
+{
+	/* Default to 1/2 of all memory. */
+	return (MAX(allmem / 2, min));
+}
+
 #ifdef _KERNEL
 /*
  * Return maximum amount of memory that we could possibly use.  Reduced
@@ -367,7 +377,7 @@ param_set_arc_long(const char *buf, zfs_kernel_param_t *kp)
 	if (error < 0)
 		return (SET_ERROR(error));
 
-	arc_tuning_update();
+	arc_tuning_update(B_TRUE);
 
 	return (0);
 }
@@ -381,7 +391,7 @@ param_set_arc_int(const char *buf, zfs_kernel_param_t *kp)
 	if (error < 0)
 		return (SET_ERROR(error));
 
-	arc_tuning_update();
+	arc_tuning_update(B_TRUE);
 
 	return (0);
 }

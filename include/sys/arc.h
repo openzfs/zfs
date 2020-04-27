@@ -147,6 +147,12 @@ typedef enum arc_flags
 	ARC_FLAG_SHARED_DATA		= 1 << 21,
 
 	/*
+	 * Fail this arc_read() (with ENOENT) if the data is not already present
+	 * in cache.
+	 */
+	ARC_FLAG_CACHED_ONLY		= 1 << 22,
+
+	/*
 	 * The arc buffer's compression mode is stored in the top 7 bits of the
 	 * flags field, so these dummy flags are included so that MDB can
 	 * interpret the enum properly.
@@ -292,6 +298,7 @@ void arc_tempreserve_clear(uint64_t reserve);
 int arc_tempreserve_space(spa_t *spa, uint64_t reserve, uint64_t txg);
 
 uint64_t arc_all_memory(void);
+uint64_t arc_default_max(uint64_t min, uint64_t allmem);
 uint64_t arc_target_bytes(void);
 void arc_init(void);
 void arc_fini(void);
@@ -303,10 +310,14 @@ void arc_fini(void);
 void l2arc_add_vdev(spa_t *spa, vdev_t *vd);
 void l2arc_remove_vdev(vdev_t *vd);
 boolean_t l2arc_vdev_present(vdev_t *vd);
+void l2arc_rebuild_vdev(vdev_t *vd, boolean_t reopen);
+boolean_t l2arc_range_check_overlap(uint64_t bottom, uint64_t top,
+    uint64_t check);
 void l2arc_init(void);
 void l2arc_fini(void);
 void l2arc_start(void);
 void l2arc_stop(void);
+void l2arc_spa_rebuild_start(spa_t *spa);
 
 #ifndef _KERNEL
 extern boolean_t arc_watch;

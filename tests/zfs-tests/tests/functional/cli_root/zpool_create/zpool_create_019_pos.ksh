@@ -43,20 +43,12 @@
 
 function cleanup
 {
-	if poolexists $TESTPOOL ; then
-                destroy_pool $TESTPOOL
-        fi
+	poolexists $TESTPOOL && destroy_pool $TESTPOOL
 }
 
 log_onexit cleanup
 
 log_assert "zpool create cannot create pools specifying readonly properties"
-
-if [[ -n $DISK ]]; then
-	disk=$DISK
-else
-	disk=$DISK0
-fi
 
 set -A props "available" "capacity" "guid"  "health"  "size" "used"
 set -A vals  "100"       "10"       "12345" "HEALTHY" "10"   "10"
@@ -65,7 +57,7 @@ typeset -i i=0;
 while [ $i -lt "${#props[@]}" ]
 do
         # try to set each property in the prop list with it's corresponding val
-        log_mustnot zpool create -o ${props[$i]}=${vals[$i]} $TESTPOOL $disk
+        log_mustnot zpool create -o ${props[$i]}=${vals[$i]} $TESTPOOL $DISK0
 	if poolexists $TESTPOOL
 	then
 		log_fail "$TESTPOOL was created when setting ${props[$i]}!"

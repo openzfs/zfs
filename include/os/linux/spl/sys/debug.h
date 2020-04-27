@@ -30,7 +30,6 @@
  *
  * PANIC()	- Panic the node and print message.
  * ASSERT()	- Assert X is true, if not panic.
- * ASSERTV()	- Wraps a variable declaration which is only used by ASSERT().
  * ASSERT3B()	- Assert boolean X OP Y is true, if not panic.
  * ASSERT3S()	- Assert signed X OP Y is true, if not panic.
  * ASSERT3U()	- Assert unsigned X OP Y is true, if not panic.
@@ -51,6 +50,10 @@
  * Common DEBUG functionality.
  */
 #define	__printflike(a, b)	__printf(a, b)
+
+#ifndef __maybe_unused
+#define	__maybe_unused __attribute__((unused))
+#endif
 
 int spl_panic(const char *file, const char *func, int line,
     const char *fmt, ...);
@@ -132,7 +135,6 @@ void spl_dumpstack(void);
 #ifdef NDEBUG
 
 #define	ASSERT(x)		((void)0)
-#define	ASSERTV(x)
 #define	ASSERT3B(x,y,z)		((void)0)
 #define	ASSERT3S(x,y,z)		((void)0)
 #define	ASSERT3U(x,y,z)		((void)0)
@@ -152,7 +154,6 @@ void spl_dumpstack(void);
 #define	ASSERT3P	VERIFY3P
 #define	ASSERT0		VERIFY0
 #define	ASSERT		VERIFY
-#define	ASSERTV(x)		x
 #define	IMPLY(A, B) \
 	((void)(((!(A)) || (B)) || \
 	    spl_panic(__FILE__, __FUNCTION__, __LINE__, \

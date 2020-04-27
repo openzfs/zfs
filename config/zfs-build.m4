@@ -59,9 +59,9 @@ AC_DEFUN([ZFS_AC_DEBUG], [
 ])
 
 AC_DEFUN([ZFS_AC_DEBUGINFO_ENABLE], [
-	DEBUG_CFLAGS="$DEBUG_CFLAGS -g -fno-inline"
+	DEBUG_CFLAGS="$DEBUG_CFLAGS -g -fno-inline $NO_IPA_SRA"
 
-	KERNEL_DEBUG_CFLAGS="$KERNEL_DEBUG_CFLAGS -fno-inline"
+	KERNEL_DEBUG_CFLAGS="$KERNEL_DEBUG_CFLAGS -fno-inline $NO_IPA_SRA"
 	KERNEL_MAKE="$KERNEL_MAKE CONFIG_DEBUG_INFO=y"
 
 	DEBUGINFO_ZFS="_with_debuginfo"
@@ -157,7 +157,9 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS], [
 	ZFS_AC_CONFIG_ALWAYS_CC_NO_BOOL_COMPARE
 	ZFS_AC_CONFIG_ALWAYS_CC_FRAME_LARGER_THAN
 	ZFS_AC_CONFIG_ALWAYS_CC_NO_FORMAT_TRUNCATION
+	ZFS_AC_CONFIG_ALWAYS_CC_NO_FORMAT_ZERO_LENGTH
 	ZFS_AC_CONFIG_ALWAYS_CC_NO_OMIT_FRAME_POINTER
+	ZFS_AC_CONFIG_ALWAYS_CC_NO_IPA_SRA
 	ZFS_AC_CONFIG_ALWAYS_CC_ASAN
 	ZFS_AC_CONFIG_ALWAYS_TOOLCHAIN_SIMD
 	ZFS_AC_CONFIG_ALWAYS_SYSTEM
@@ -171,13 +173,6 @@ AC_DEFUN([ZFS_AC_CONFIG], [
 
         dnl # Remove the previous build test directory.
         rm -Rf build
-
-	AC_ARG_VAR([TEST_JOBS],
-	    [simultaneous jobs during configure (defaults to $(nproc))])
-	if test "x$ac_cv_env_TEST_JOBS_set" != "xset"; then
-		TEST_JOBS=$(nproc)
-	fi
-	AC_SUBST(TEST_JOBS)
 
 	ZFS_CONFIG=all
 	AC_ARG_WITH([config],
@@ -195,6 +190,16 @@ AC_DEFUN([ZFS_AC_CONFIG], [
 	AC_SUBST(ZFS_CONFIG)
 
 	ZFS_AC_CONFIG_ALWAYS
+
+
+	AM_COND_IF([BUILD_LINUX], [
+		AC_ARG_VAR([TEST_JOBS],
+		    [simultaneous jobs during configure (defaults to $(nproc))])
+		if test "x$ac_cv_env_TEST_JOBS_set" != "xset"; then
+			TEST_JOBS=$(nproc)
+		fi
+		AC_SUBST(TEST_JOBS)
+	])
 
 	case "$ZFS_CONFIG" in
 		kernel) ZFS_AC_CONFIG_KERNEL ;;
@@ -404,7 +409,7 @@ dnl # Using the VENDOR tag from config.guess set the default
 dnl # package type for 'make pkg': (rpm | deb | tgz)
 dnl #
 AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
-	AC_MSG_CHECKING([linux distribution])
+	AC_MSG_CHECKING([os distribution])
 	if test -f /etc/toss-release ; then
 		VENDOR=toss ;
 	elif test -f /etc/fedora-release ; then
@@ -427,6 +432,8 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 		VENDOR=debian ;
 	elif test -f /etc/alpine-release ; then
 		VENDOR=alpine ;
+	elif test -f /bin/freebsd-version ; then
+		VENDOR=freebsd ;
 	else
 		VENDOR= ;
 	fi
@@ -446,13 +453,17 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 		lunar)      DEFAULT_PACKAGE=tgz  ;;
 		ubuntu)     DEFAULT_PACKAGE=deb  ;;
 		debian)     DEFAULT_PACKAGE=deb  ;;
+		freebsd)    DEFAULT_PACKAGE=pkg  ;;
 		*)          DEFAULT_PACKAGE=rpm  ;;
 	esac
 	AC_MSG_RESULT([$DEFAULT_PACKAGE])
 	AC_SUBST(DEFAULT_PACKAGE)
 
-	DEFAULT_INIT_DIR=$sysconfdir/init.d
 	AC_MSG_CHECKING([default init directory])
+	case "$VENDOR" in
+		freebsd)    DEFAULT_INIT_DIR=$sysconfdir/rc.d  ;;
+		*)          DEFAULT_INIT_DIR=$sysconfdir/init.d;;
+	esac
 	AC_MSG_RESULT([$DEFAULT_INIT_DIR])
 	AC_SUBST(DEFAULT_INIT_DIR)
 
@@ -469,6 +480,7 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 		lunar)      DEFAULT_INIT_SCRIPT=lunar  ;;
 		ubuntu)     DEFAULT_INIT_SCRIPT=lsb    ;;
 		debian)     DEFAULT_INIT_SCRIPT=lsb    ;;
+		freebsd)    DEFAULT_INIT_SCRIPT=freebsd;;
 		*)          DEFAULT_INIT_SCRIPT=lsb    ;;
 	esac
 	AC_MSG_RESULT([$DEFAULT_INIT_SCRIPT])
@@ -484,6 +496,7 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 		sles)       DEFAULT_INITCONF_DIR=/etc/sysconfig ;;
 		ubuntu)     DEFAULT_INITCONF_DIR=/etc/default   ;;
 		debian)     DEFAULT_INITCONF_DIR=/etc/default   ;;
+		freebsd)    DEFAULT_INITCONF_DIR=$sysconfdir/rc.conf.d;;
 		*)          DEFAULT_INITCONF_DIR=/etc/default   ;;
 	esac
 	AC_MSG_RESULT([$DEFAULT_INITCONF_DIR])
@@ -505,7 +518,9 @@ dnl # Default ZFS package configuration
 dnl #
 AC_DEFUN([ZFS_AC_PACKAGE], [
 	ZFS_AC_DEFAULT_PACKAGE
-	ZFS_AC_RPM
-	ZFS_AC_DPKG
-	ZFS_AC_ALIEN
+	AS_IF([test x$VENDOR != xfreebsd], [
+		ZFS_AC_RPM
+		ZFS_AC_DPKG
+		ZFS_AC_ALIEN
+	])
 ])

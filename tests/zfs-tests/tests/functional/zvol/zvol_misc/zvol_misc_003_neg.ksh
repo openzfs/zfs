@@ -46,7 +46,7 @@
 
 verify_runnable "global"
 
-if ! $(is_physical_device $DISKS) ; then
+if ! is_physical_device $DISKS; then
 	log_unsupported "This directory cannot be run on raw files."
 fi
 
@@ -74,10 +74,7 @@ savedumpdev=$(get_dumpdevice)
 safe_dumpadm $voldev
 
 unset NOINUSE_CHECK
-echo "y" | newfs -v $voldev > /dev/null 2>&1
-if (( $? == 0 )) ; then
-	log_fail "newfs on dump zvol succeeded unexpectedly"
-fi
+log_mustnot eval "new_fs $voldev > /dev/null 2>&1"
 
 log_mustnot zpool create $TESTPOOL1 $voldev
 

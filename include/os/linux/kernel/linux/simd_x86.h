@@ -135,6 +135,8 @@
  */
 #if defined(HAVE_KERNEL_FPU_INTERNAL)
 
+#include <linux/mm.h>
+
 extern union fpregs_state **zfs_kfpu_fpregs;
 
 /*
@@ -147,7 +149,8 @@ kfpu_fini(void)
 
 	for_each_possible_cpu(cpu) {
 		if (zfs_kfpu_fpregs[cpu] != NULL) {
-			kfree(zfs_kfpu_fpregs[cpu]);
+			free_pages((unsigned long)zfs_kfpu_fpregs[cpu],
+			    get_order(sizeof (union fpregs_state)));
 		}
 	}
 
@@ -157,20 +160,28 @@ kfpu_fini(void)
 static inline int
 kfpu_init(void)
 {
-	int cpu;
-
 	zfs_kfpu_fpregs = kzalloc(num_possible_cpus() *
 	    sizeof (union fpregs_state *), GFP_KERNEL);
 	if (zfs_kfpu_fpregs == NULL)
 		return (-ENOMEM);
 
+	/*
+	 * The fxsave and xsave operations require 16-/64-byte alignment of
+	 * the target memory. Since kmalloc() provides no alignment
+	 * guarantee instead use alloc_pages_node().
+	 */
+	unsigned int order = get_order(sizeof (union fpregs_state));
+	int cpu;
+
 	for_each_possible_cpu(cpu) {
-		zfs_kfpu_fpregs[cpu] = kmalloc_node(sizeof (union fpregs_state),
-		    GFP_KERNEL | __GFP_ZERO, cpu_to_node(cpu));
-		if (zfs_kfpu_fpregs[cpu] == NULL) {
+		struct page *page = alloc_pages_node(cpu_to_node(cpu),
+		    GFP_KERNEL | __GFP_ZERO, order);
+		if (page == NULL) {
 			kfpu_fini();
 			return (-ENOMEM);
 		}
+
+		zfs_kfpu_fpregs[cpu] = page_address(page);
 	}
 
 	return (0);
@@ -461,6 +472,19 @@ zfs_pclmulqdq_available(void)
 {
 #if defined(X86_FEATURE_PCLMULQDQ)
 	return (!!boot_cpu_has(X86_FEATURE_PCLMULQDQ));
+#else
+	return (B_FALSE);
+#endif
+}
+
+/*
+ * Check if MOVBE instruction is available
+ */
+static inline boolean_t
+zfs_movbe_available(void)
+{
+#if defined(X86_FEATURE_MOVBE)
+	return (!!boot_cpu_has(X86_FEATURE_MOVBE));
 #else
 	return (B_FALSE);
 #endif

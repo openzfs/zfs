@@ -34,7 +34,7 @@
 
 function cleanup
 {
-	log_must set_tunable32 zfs_scan_suspend_progress 0
+	log_must set_tunable32 SCAN_SUSPEND_PROGRESS 0
 	kill_if_running $pid
 	is_pool_scrubbing $TESTPOOL && log_must zpool scrub -s $TESTPOOL
 }
@@ -58,7 +58,7 @@ typeset pid
 
 log_onexit cleanup
 
-log_must set_tunable32 zfs_scan_suspend_progress 1
+log_must set_tunable32 SCAN_SUSPEND_PROGRESS 1
 
 do_test "zpool scrub -p $TESTPOOL"
 do_test "zpool scrub -s $TESTPOOL"

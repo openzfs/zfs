@@ -144,7 +144,7 @@ proc_doslab(struct ctl_table *table, int write,
 	int rc = 0;
 	unsigned long min = 0, max = ~0, val = 0, mask;
 	spl_ctl_table dummy = *table;
-	spl_kmem_cache_t *skc;
+	spl_kmem_cache_t *skc = NULL;
 
 	dummy.data = &val;
 	dummy.proc_handler = &proc_dointvec;
@@ -249,7 +249,7 @@ static int
 taskq_seq_show_impl(struct seq_file *f, void *p, boolean_t allflag)
 {
 	taskq_t *tq = p;
-	taskq_thread_t *tqt;
+	taskq_thread_t *tqt = NULL;
 	spl_wait_queue_entry_t *wq;
 	struct task_struct *tsk;
 	taskq_ent_t *tqe;
@@ -532,11 +532,18 @@ proc_slab_open(struct inode *inode, struct file *filp)
 	return (seq_open(filp, &slab_seq_ops));
 }
 
-static struct file_operations proc_slab_operations = {
-	.open	   = proc_slab_open,
-	.read	   = seq_read,
-	.llseek	 = seq_lseek,
+static const kstat_proc_op_t proc_slab_operations = {
+#ifdef HAVE_PROC_OPS_STRUCT
+	.proc_open	= proc_slab_open,
+	.proc_read	= seq_read,
+	.proc_lseek	= seq_lseek,
+	.proc_release	= seq_release,
+#else
+	.open		= proc_slab_open,
+	.read		= seq_read,
+	.llseek		= seq_lseek,
 	.release	= seq_release,
+#endif
 };
 
 static void
@@ -571,18 +578,32 @@ proc_taskq_open(struct inode *inode, struct file *filp)
 	return (seq_open(filp, &taskq_seq_ops));
 }
 
-static struct file_operations proc_taskq_all_operations = {
+static const kstat_proc_op_t proc_taskq_all_operations = {
+#ifdef HAVE_PROC_OPS_STRUCT
+	.proc_open	= proc_taskq_all_open,
+	.proc_read	= seq_read,
+	.proc_lseek	= seq_lseek,
+	.proc_release	= seq_release,
+#else
 	.open		= proc_taskq_all_open,
 	.read		= seq_read,
 	.llseek		= seq_lseek,
 	.release	= seq_release,
+#endif
 };
 
-static struct file_operations proc_taskq_operations = {
+static const kstat_proc_op_t proc_taskq_operations = {
+#ifdef HAVE_PROC_OPS_STRUCT
+	.proc_open	= proc_taskq_open,
+	.proc_read	= seq_read,
+	.proc_lseek	= seq_lseek,
+	.proc_release	= seq_release,
+#else
 	.open		= proc_taskq_open,
 	.read		= seq_read,
 	.llseek		= seq_lseek,
 	.release	= seq_release,
+#endif
 };
 
 static struct ctl_table spl_kmem_table[] = {

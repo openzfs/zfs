@@ -216,6 +216,7 @@ struct spa {
 	spa_load_state_t spa_load_state;	/* current load operation */
 	boolean_t	spa_indirect_vdevs_loaded; /* mappings loaded? */
 	boolean_t	spa_trust_config;	/* do we trust vdev tree? */
+	boolean_t	spa_is_splitting;	/* in the middle of a split? */
 	spa_config_source_t spa_config_source;	/* where config comes from? */
 	uint64_t	spa_import_flags;	/* import specific flags */
 	spa_taskqs_t	spa_zio_taskq[ZIO_TYPES][ZIO_TASKQ_TYPES];
@@ -433,6 +434,7 @@ struct spa {
 };
 
 extern char *spa_config_path;
+extern char *zfs_deadman_failmode;
 extern int spa_slop_shift;
 extern void spa_taskq_dispatch_ent(spa_t *spa, zio_type_t t, zio_taskq_type_t q,
     task_func_t *func, void *arg, uint_t flags, taskq_ent_t *ent);
@@ -443,7 +445,10 @@ extern void spa_load_l2cache(spa_t *spa);
 extern sysevent_t *spa_event_create(spa_t *spa, vdev_t *vd, nvlist_t *hist_nvl,
     const char *name);
 extern void spa_event_post(sysevent_t *ev);
-
+extern int param_set_deadman_failmode_common(const char *val);
+extern void spa_set_deadman_synctime(hrtime_t ns);
+extern void spa_set_deadman_ziotime(hrtime_t ns);
+extern const char *spa_history_zone(void);
 
 #ifdef	__cplusplus
 }

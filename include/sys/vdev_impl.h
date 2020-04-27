@@ -272,7 +272,7 @@ struct vdev {
 	range_tree_t	*vdev_initialize_tree;	/* valid while initializing */
 	uint64_t	vdev_initialize_bytes_est;
 	uint64_t	vdev_initialize_bytes_done;
-	time_t		vdev_initialize_action_time;	/* start and end time */
+	uint64_t	vdev_initialize_action_time;	/* start and end time */
 
 	/* TRIM related */
 	boolean_t	vdev_trim_exit_wanted;
@@ -293,7 +293,7 @@ struct vdev {
 	uint64_t	vdev_trim_rate;		/* requested rate (bytes/sec) */
 	uint64_t	vdev_trim_partial;	/* requested partial TRIM */
 	uint64_t	vdev_trim_secure;	/* requested secure TRIM */
-	time_t		vdev_trim_action_time;	/* start and end time */
+	uint64_t	vdev_trim_action_time;	/* start and end time */
 
 	/* for limiting outstanding I/Os (initialize and TRIM) */
 	kmutex_t	vdev_initialize_io_lock;

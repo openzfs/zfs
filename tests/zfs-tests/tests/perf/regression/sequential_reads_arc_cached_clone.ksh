@@ -12,7 +12,7 @@
 #
 
 #
-# Copyright (c) 2015, 2016 by Delphix. All rights reserved.
+# Copyright (c) 2015, 2020 by Delphix. All rights reserved.
 #
 
 #
@@ -54,6 +54,9 @@ export TOTAL_SIZE=$(($(get_max_arc_size) / 2))
 # Variables for use by fio.
 if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_WEEKLY}
+	export PERF_RANDSEED=${PERF_RANDSEED:-'1234'}
+	export PERF_COMPPERCENT=${PERF_COMPPERCENT:-'66'}
+	export PERF_COMPCHUNK=${PERF_COMPCHUNK:-'4096'}
 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'weekly'}
 	export PERF_NTHREADS=${PERF_NTHREADS:-'8 16 32 64'}
 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
@@ -61,6 +64,9 @@ if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
 	export PERF_IOSIZES=${PERF_IOSIZES:-'8k 64k 128k'}
 elif [[ -n $PERF_REGRESSION_NIGHTLY ]]; then
 	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_NIGHTLY}
+	export PERF_RANDSEED=${PERF_RANDSEED:-'1234'}
+	export PERF_COMPPERCENT=${PERF_COMPPERCENT:-'66'}
+	export PERF_COMPCHUNK=${PERF_COMPCHUNK:-'4096'}
 	export PERF_RUNTYPE=${PERF_RUNTYPE:-'nightly'}
 	export PERF_NTHREADS=${PERF_NTHREADS:-'64 128'}
 	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}

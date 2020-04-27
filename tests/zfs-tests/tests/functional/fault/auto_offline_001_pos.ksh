@@ -73,13 +73,11 @@ filedev3="$TEST_BASE_DIR/file-vdev-3"
 sparedev="$TEST_BASE_DIR/file-vdev-spare"
 removedev=$(get_debug_device)
 
-typeset poolconfs=("mirror $filedev1 $removedev"
-    "raidz $filedev1 $removedev"
-    "raidz2 $filedev1 $filedev2 $removedev"
+typeset poolconfs=(
+    "mirror $filedev1 $removedev"
     "raidz3 $filedev1 $filedev2 $filedev3 $removedev"
     "$filedev1 cache $removedev"
-    "mirror $filedev1 $filedev2 cache $removedev"
-    "raidz $filedev1 $filedev2 $filedev3 cache $removedev"
+    "mirror $filedev1 $filedev2 special mirror $filedev3 $removedev"
 )
 
 log_must truncate -s $SPA_MINDEVSIZE $filedev1
@@ -91,7 +89,7 @@ for conf in "${poolconfs[@]}"
 do
 	# 1. Create a pool
 	log_must zpool create -f $TESTPOOL $conf
-	block_device_wait
+	block_device_wait ${DEV_DSKDIR}/${removedev}
 
 	# 2. Simulate physical removal of one device
 	remove_disk $removedev
@@ -107,8 +105,8 @@ do
 
 	# cleanup
 	destroy_pool $TESTPOOL
-	log_must parted "/dev/${removedev}" -s -- mklabel msdos
-	block_device_wait
+	log_must parted "${DEV_DSKDIR}/${removedev}" -s -- mklabel msdos
+	block_device_wait ${DEV_DSKDIR}/${removedev}
 done
 
 # 6. Repeat the same tests with a spare device: zed will use the spare to handle
@@ -117,7 +115,7 @@ for conf in "${poolconfs[@]}"
 do
 	# 1. Create a pool with a spare
 	log_must zpool create -f $TESTPOOL $conf
-	block_device_wait
+	block_device_wait ${DEV_DSKDIR}/${removedev}
 	log_must zpool add $TESTPOOL spare $sparedev
 
 	# 3. Simulate physical removal of one device
@@ -139,8 +137,8 @@ do
 
 	# cleanup
 	destroy_pool $TESTPOOL
-	log_must parted "/dev/${removedev}" -s -- mklabel msdos
-	block_device_wait
+	log_must parted "${DEV_DSKDIR}/${removedev}" -s -- mklabel msdos
+	block_device_wait ${DEV_DSKDIR}/${removedev}
 done
 
 # 7. Repeat the same tests again with a faulted spare device: zed should offline
@@ -149,7 +147,7 @@ for conf in "${poolconfs[@]}"
 do
 	# 1. Create a pool with a spare
 	log_must zpool create -f $TESTPOOL $conf
-	block_device_wait
+	block_device_wait ${DEV_DSKDIR}/${removedev}
 	log_must zpool add $TESTPOOL spare $sparedev
 
 	# 2. Fault the spare device making it unavailable
@@ -170,8 +168,8 @@ do
 
 	# cleanup
 	destroy_pool $TESTPOOL
-	log_must parted "/dev/${removedev}" -s -- mklabel msdos
-	block_device_wait
+	log_must parted "${DEV_DSKDIR}/${removedev}" -s -- mklabel msdos
+	block_device_wait ${DEV_DSKDIR}/${removedev}
 done
 
 log_pass "ZED detects physically removed devices"

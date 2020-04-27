@@ -202,26 +202,8 @@ kv_alloc(spl_kmem_cache_t *skc, int size, int flags)
 	if (skc->skc_flags & KMC_KMEM) {
 		ASSERT(ISP2(size));
 		ptr = (void *)__get_free_pages(lflags, get_order(size));
-	} else if (skc->skc_flags & KMC_KVMEM) {
-		ptr = spl_kvmalloc(size, lflags);
 	} else {
-		/*
-		 * GFP_KERNEL allocations can safely use kvmalloc which may
-		 * improve performance by avoiding a) high latency caused by
-		 * vmalloc's on-access allocation, b) performance loss due to
-		 * MMU memory address mapping and c) vmalloc locking overhead.
-		 * This has the side-effect that the slab statistics will
-		 * incorrectly report this as a vmem allocation, but that is
-		 * purely cosmetic.
-		 *
-		 * For non-GFP_KERNEL allocations we stick to __vmalloc.
-		 */
-		if ((lflags & GFP_KERNEL) == GFP_KERNEL) {
-			ptr = spl_kvmalloc(size, lflags);
-		} else {
-			ptr = __vmalloc(size, lflags | __GFP_HIGHMEM,
-			    PAGE_KERNEL);
-		}
+		ptr = __vmalloc(size, lflags | __GFP_HIGHMEM, PAGE_KERNEL);
 	}
 
 	/* Resulting allocated memory will be page aligned */
@@ -249,7 +231,7 @@ kv_free(spl_kmem_cache_t *skc, void *ptr, int size)
 		ASSERT(ISP2(size));
 		free_pages((unsigned long)ptr, get_order(size));
 	} else {
-		spl_kmem_free_impl(ptr, size);
+		vfree(ptr);
 	}
 }
 
@@ -344,7 +326,7 @@ static spl_kmem_slab_t *
 spl_slab_alloc(spl_kmem_cache_t *skc, int flags)
 {
 	spl_kmem_slab_t *sks;
-	spl_kmem_obj_t *sko, *n;
+	spl_kmem_obj_t *sko;
 	void *base, *obj;
 	uint32_t obj_size, offslab_size = 0;
 	int i,  rc = 0;
@@ -388,6 +370,7 @@ spl_slab_alloc(spl_kmem_cache_t *skc, int flags)
 
 out:
 	if (rc) {
+		spl_kmem_obj_t *n = NULL;
 		if (skc->skc_flags & KMC_OFFSLAB)
 			list_for_each_entry_safe(sko,
 			    n, &sks->sks_free_list, sko_list) {
@@ -437,8 +420,8 @@ spl_slab_free(spl_kmem_slab_t *sks,
 static void
 spl_slab_reclaim(spl_kmem_cache_t *skc)
 {
-	spl_kmem_slab_t *sks, *m;
-	spl_kmem_obj_t *sko, *n;
+	spl_kmem_slab_t *sks = NULL, *m = NULL;
+	spl_kmem_obj_t *sko = NULL, *n = NULL;
 	LIST_HEAD(sks_list);
 	LIST_HEAD(sko_list);
 	uint32_t size = 0;
@@ -834,7 +817,7 @@ spl_magazine_free(spl_kmem_magazine_t *skm)
 static int
 spl_magazine_create(spl_kmem_cache_t *skc)
 {
-	int i;
+	int i = 0;
 
 	if (skc->skc_flags & KMC_NOMAGAZINE)
 		return (0);
@@ -865,7 +848,7 @@ static void
 spl_magazine_destroy(spl_kmem_cache_t *skc)
 {
 	spl_kmem_magazine_t *skm;
-	int i;
+	int i = 0;
 
 	if (skc->skc_flags & KMC_NOMAGAZINE)
 		return;
@@ -1202,7 +1185,6 @@ __spl_cache_grow(spl_kmem_cache_t *skc, int flags)
 		smp_mb__before_atomic();
 		clear_bit(KMC_BIT_DEADLOCKED, &skc->skc_flags);
 		smp_mb__after_atomic();
-		wake_up_all(&skc->skc_waitq);
 	}
 	spin_unlock(&skc->skc_lock);
 
@@ -1215,12 +1197,14 @@ spl_cache_grow_work(void *data)
 	spl_kmem_alloc_t *ska = (spl_kmem_alloc_t *)data;
 	spl_kmem_cache_t *skc = ska->ska_cache;
 
-	(void) __spl_cache_grow(skc, ska->ska_flags);
+	int error = __spl_cache_grow(skc, ska->ska_flags);
 
 	atomic_dec(&skc->skc_ref);
 	smp_mb__before_atomic();
 	clear_bit(KMC_BIT_GROWING, &skc->skc_flags);
 	smp_mb__after_atomic();
+	if (error == 0)
+		wake_up_all(&skc->skc_waitq);
 
 	kfree(ska);
 }
@@ -1271,8 +1255,10 @@ spl_cache_grow(spl_kmem_cache_t *skc, int flags, void **obj)
 	 */
 	if (!(skc->skc_flags & KMC_VMEM) && !(skc->skc_flags & KMC_KVMEM)) {
 		rc = __spl_cache_grow(skc, flags | KM_NOSLEEP);
-		if (rc == 0)
+		if (rc == 0) {
+			wake_up_all(&skc->skc_waitq);
 			return (0);
+		}
 	}
 
 	/*
@@ -1644,7 +1630,7 @@ static spl_shrinker_t
 __spl_kmem_cache_generic_shrinker(struct shrinker *shrink,
     struct shrink_control *sc)
 {
-	spl_kmem_cache_t *skc;
+	spl_kmem_cache_t *skc = NULL;
 	int alloc = 0;
 
 	/*

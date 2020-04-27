@@ -37,8 +37,8 @@ function cleanup
 	poolexists $TESTPOOL && destroy_pool $TESTPOOL
 
 	[[ "$default_chunk_sz" ]] && log_must set_tunable64 \
-	    zfs_initialize_chunk_size $default_chunk_sz
-	log_must set_tunable32 zfs_scan_suspend_progress 0
+	    INITIALIZE_CHUNK_SIZE $default_chunk_sz
+	log_must set_tunable32 SCAN_SUSPEND_PROGRESS 0
 }
 
 typeset pid default_chunk_sz
@@ -48,9 +48,9 @@ log_onexit cleanup
 log_must zpool create -f $TESTPOOL $DISK1
 log_must dd if=/dev/urandom of="/$TESTPOOL/testfile" bs=64k count=1k
 
-default_chunk_sz=$(get_tunable zfs_initialize_chunk_size)
-log_must set_tunable64 zfs_initialize_chunk_size 512
-log_must set_tunable32 zfs_scan_suspend_progress 1
+default_chunk_sz=$(get_tunable INITIALIZE_CHUNK_SIZE)
+log_must set_tunable64 INITIALIZE_CHUNK_SIZE 512
+log_must set_tunable32 SCAN_SUSPEND_PROGRESS 1
 
 log_must zpool scrub $TESTPOOL
 

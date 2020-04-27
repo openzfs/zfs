@@ -87,7 +87,7 @@ Default value: \fB10\fR%.
 .ad
 .RS 12n
 Set the size of the dbuf cache, \fBdbuf_cache_max_bytes\fR, to a log2 fraction
-of the target arc size.
+of the target ARC size.
 .sp
 Default value: \fB5\fR.
 .RE
@@ -99,9 +99,21 @@ Default value: \fB5\fR.
 .ad
 .RS 12n
 Set the size of the dbuf metadata cache, \fBdbuf_metadata_cache_max_bytes\fR,
-to a log2 fraction of the target arc size.
+to a log2 fraction of the target ARC size.
 .sp
 Default value: \fB6\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBdmu_object_alloc_chunk_shift\fR (int)
+.ad
+.RS 12n
+dnode slots allocated in a single operation as a power of 2. The default value
+minimizes lock contention for the bulk operation performed.
+.sp
+Default value: \fB7\fR (128).
 .RE
 
 .sp
@@ -167,7 +179,10 @@ Default value: \fB1\fR.
 .ad
 .RS 12n
 How far through the ARC lists to search for L2ARC cacheable content, expressed
-as a multiplier of \fBl2arc_write_max\fR
+as a multiplier of \fBl2arc_write_max\fR.
+ARC persistence across reboots can be achieved with persistent L2ARC by setting
+this parameter to \fB0\fR allowing the full length of ARC lists to be searched
+for cacheable content.
 .sp
 Default value: \fB2\fR.
 .RE
@@ -191,7 +206,7 @@ Default value: \fB200\fR%.
 .ad
 .RS 12n
 Do not write buffers to L2ARC if they were prefetched but not used by
-applications
+applications.
 .sp
 Use \fB1\fR for yes (default) and \fB0\fR to disable.
 .RE
@@ -202,7 +217,7 @@ Use \fB1\fR for yes (default) and \fB0\fR to disable.
 \fBl2arc_norw\fR (int)
 .ad
 .RS 12n
-No reads during writes
+No reads during writes.
 .sp
 Use \fB1\fR for yes and \fB0\fR for no (default).
 .RE
@@ -225,9 +240,39 @@ Default value: \fB8,388,608\fR.
 \fBl2arc_write_max\fR (ulong)
 .ad
 .RS 12n
-Max write bytes per interval
+Max write bytes per interval.
 .sp
 Default value: \fB8,388,608\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBl2arc_rebuild_enabled\fR (int)
+.ad
+.RS 12n
+Rebuild the L2ARC when importing a pool (persistent L2ARC). This can be
+disabled if there are problems importing a pool or attaching an L2ARC device
+(e.g. the L2ARC device is slow in reading stored log metadata, or the metadata
+has become somehow fragmented/unusable).
+.sp
+Use \fB1\fR for yes (default) and \fB0\fR for no.
+.RE
+
+.sp
+.ne 2
+.na
+\fBl2arc_rebuild_blocks_min_l2size\fR (ulong)
+.ad
+.RS 12n
+Min size (in bytes) of an L2ARC device required in order to write log blocks
+in it. The log blocks are used upon importing the pool to rebuild
+the L2ARC (persistent L2ARC). Rationale: for L2ARC devices less than 1GB, the
+amount of data l2arc_evict() evicts is significant compared to the amount of
+restored L2ARC data. In this case do not write log blocks in L2ARC in order not
+to waste space.
+.sp
+Default value: \fB1,073,741,824\fR (1GB).
 .RE
 
 .sp
@@ -437,7 +482,19 @@ Default value: \fB16\fR.
 .sp
 .ne 2
 .na
-\fBvdev_ms_count_limit\fR (int)
+\fBvdev_validate_skip\fR (int)
+.ad
+.RS 12n
+Skip label validation steps during pool import. Changing is not recommended
+unless you know what you are doing and are recovering a damaged label.
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_ms_count_limit\fR (int)
 .ad
 .RS 12n
 Practical upper limit of total metaslabs per top-level vdev.
@@ -590,7 +647,7 @@ Default value: \fB1\fR.
 .ad
 .RS 12n
 Sets the maximum number of bytes to consume during pool import to the log2
-fraction of the target arc size.
+fraction of the target ARC size.
 .sp
 Default value: \fB4\fR.
 .RE
@@ -684,6 +741,31 @@ Default value: \fB8\fR.
 Min time before an active prefetch stream can be reclaimed
 .sp
 Default value: \fB2\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_abd_scatter_enabled\fR (int)
+.ad
+.RS 12n
+Enables ARC from using scatter/gather lists and forces all allocations to be
+linear in kernel memory. Disabling can improve performance in some code paths
+at the expense of fragmented kernel memory.
+.sp
+Default value: \fB1\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_abd_scatter_max_order\fR (iunt)
+.ad
+.RS 12n
+Maximum number of consecutive memory pages allocated in a single block for
+scatter/gather lists. Default value is specified by the kernel itself.
+.sp
+Default value: \fB10\fR at the time of this writing.
 .RE
 
 .sp
@@ -805,8 +887,11 @@ Default value: \fB10\fR%.
 \fBzfs_arc_max\fR (ulong)
 .ad
 .RS 12n
-Max arc size of ARC in bytes. If set to 0 then it will consume 1/2 of system
-RAM. This value must be at least 67108864 (64 megabytes).
+Max size of ARC in bytes.  If set to 0 then the max size of ARC is determined
+by the amount of system memory installed.  For Linux, 1/2 of system memory will
+be used as the limit.  For FreeBSD, the larger of all system memory - 1GB or
+5/8 of system memory will be used as the limit.  This value must be at least
+67108864 (64 megabytes).
 .sp
 This value can be changed dynamically with some caveats. It cannot be set back
 to 0 while running and reducing it below the current ARC size will not cause
@@ -911,7 +996,7 @@ Default value: \fB1\fR.
 \fBzfs_arc_min\fR (ulong)
 .ad
 .RS 12n
-Min arc size of ARC in bytes. If set to 0 then arc_c_min will default to
+Min size of ARC in bytes. If set to 0 then arc_c_min will default to
 consuming the larger of 32M or 1/32 of total system memory.
 .sp
 Default value: \fB0\fR.
@@ -1036,7 +1121,7 @@ Default value: \fB0\fR.
 Percent of pagecache to reclaim arc to
 
 This tunable allows ZFS arc to play more nicely with the kernel's LRU
-pagecache. It can guarantee that the arc size won't collapse under scanning
+pagecache. It can guarantee that the ARC size won't collapse under scanning
 pressure on the pagecache, yet still allows arc to be reclaimed down to
 zfs_arc_min if necessary. This value is specified as percent of pagecache
 size (as measured by NR_FILE_PAGES) where that percent may exceed 100. This
@@ -1072,7 +1157,7 @@ Use \fB1\fR for yes (default) and \fB0\fR for no.
 .sp
 .ne 2
 .na
-\fBzfs_checksums_per_second\fR (int)
+\fBzfs_checksum_events_per_second\fR (uint)
 .ad
 .RS 12n
 Rate limit checksum events to this many per second.  Note that this should
@@ -1095,6 +1180,19 @@ latency to avoid significantly impacting the latency of each individual
 transaction record (itx).
 .sp
 Default value: \fB5\fR%.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_condense_indirect_commit_entry_delay_ms\fR (int)
+.ad
+.RS 12n
+Vdev indirection layer (used for device removal) sleeps for this many
+milliseconds during mapping generation. Intended for use with the test suite
+to throttle vdev removal speed.
+.sp
+Default value: \fB0\fR (no throttle).
 .RE
 
 .sp
@@ -1297,6 +1395,48 @@ See the section "ZFS TRANSACTION DELAY".
 Note: \fBzfs_delay_scale\fR * \fBzfs_dirty_data_max\fR must be < 2^64.
 .sp
 Default value: \fB500,000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_disable_ivset_guid_check\fR (int)
+.ad
+.RS 12n
+Disables requirement for IVset guids to be present and match when doing a raw
+receive of encrypted datasets. Intended for users whose pools were created with
+ZFS on Linux pre-release versions and now have compatibility issues.
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_key_max_salt_uses\fR (ulong)
+.ad
+.RS 12n
+Maximum number of uses of a single salt value before generating a new one for
+encrypted datasets. The default value is also the maximum that will be
+accepted.
+.sp
+Default value: \fB400,000,000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_object_mutex_size\fR (uint)
+.ad
+.RS 12n
+Size of the znode hashtable used for holds.
+
+Due to the need to hold locks on objects that may not exist yet, kernel mutexes
+are not created per-object and instead a hashtable is used where collisions
+will result in objects waiting when there is not actually contention on the
+same object.
+.sp
+Default value: \fB64\fR.
 .RE
 
 .sp
@@ -1537,6 +1677,17 @@ Default value: \fB1\fR.
 .ad
 .RS 12n
 Maximum number of blocks freed in a single txg.
+.sp
+Default value: \fBULONG_MAX\fR (unlimited).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_max_async_dedup_frees\fR (ulong)
+.ad
+.RS 12n
+Maximum number of dedup blocks freed in a single txg.
 .sp
 Default value: \fB100,000\fR.
 .RE
@@ -1943,6 +2094,18 @@ During a \fBzfs destroy\fR operation using \fBfeature@async_destroy\fR a minimum
 of this much time will be spent working on freeing blocks per txg.
 .sp
 Default value: \fB1,000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_obsolete_min_time_ms\fR (int)
+.ad
+.RS 12n
+Simlar to \fBzfs_free_min_time_ms\fR but for cleanup of old indirection records
+for removed vdevs.
+.sp
+Default value: \fB500\fR.
 .RE
 
 .sp
@@ -2580,6 +2743,18 @@ Default value: \fB16,777,216\fR (16MB).
 .sp
 .ne 2
 .na
+\fBzfs_resilver_disable_defer\fR (int)
+.ad
+.RS 12n
+Disables the \fBresilver_defer\fR feature, causing an operation that would
+start a resilver to restart one in progress immediately.
+.sp
+Default value: \fB0\fR (feature enabled).
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_resilver_min_time_ms\fR (int)
 .ad
 .RS 12n
@@ -2725,6 +2900,31 @@ Default value: \fB20\fR which is 5% of the hard limit (1/20).
 .sp
 .ne 2
 .na
+\fBzfs_scan_strict_mem_lim\fR (int)
+.ad
+.RS 12n
+Enforces tight memory limits on pool scans when a sequential scan is in
+progress. When disabled the memory limit may be exceeded by fast disks.
+.sp
+Default value: \fB0\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_scan_suspend_progress\fR (int)
+.ad
+.RS 12n
+Freezes a scrub/resilver in progress without actually pausing it. Intended for
+testing/debugging.
+.sp
+Default value: \fB0\fR.
+.RE
+
+
+.sp
+.ne 2
+.na
 \fBzfs_scan_vdev_limit\fR (int)
 .ad
 .RS 12n
@@ -2834,6 +3034,20 @@ Default value: \fB16,777,216\fR.
 .sp
 .ne 2
 .na
+\fBzfs_recv_write_batch_size\fR (int)
+.ad
+.RS 12n
+The maximum amount of data (in bytes) that \fBzfs receive\fR will write in
+one DMU transaction.  This is the uncompressed size, even when receiving a
+compressed send stream.  This setting will not reduce the write size below
+a single block. Capped at a maximum of 32MB
+.sp
+Default value: \fB1MB\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_override_estimate_recordsize\fR (ulong)
 .ad
 .RS 12n
@@ -2932,7 +3146,7 @@ Default value: \fB75\fR%.
 .sp
 .ne 2
 .na
-\fBzfs_trim_extent_bytes_max\fR (unsigned int)
+\fBzfs_trim_extent_bytes_max\fR (uint)
 .ad
 .RS 12n
 Maximum size of TRIM command.  Ranges larger than this will be split in to
@@ -2945,7 +3159,7 @@ Default value: \fB134,217,728\fR.
 .sp
 .ne 2
 .na
-\fBzfs_trim_extent_bytes_min\fR (unsigned int)
+\fBzfs_trim_extent_bytes_min\fR (uint)
 .ad
 .RS 12n
 Minimum size of TRIM commands.  TRIM ranges smaller than this will be skipped
@@ -2959,7 +3173,7 @@ Default value: \fB32,768\fR.
 .sp
 .ne 2
 .na
-\fBzfs_trim_metaslab_skip\fR (unsigned int)
+\fBzfs_trim_metaslab_skip\fR (uint)
 .ad
 .RS 12n
 Skip uninitialized metaslabs during the TRIM process.  This option is useful
@@ -2975,7 +3189,7 @@ Default value: \fB0\fR.
 .sp
 .ne 2
 .na
-\fBzfs_trim_queue_limit\fR (unsigned int)
+\fBzfs_trim_queue_limit\fR (uint)
 .ad
 .RS 12n
 Maximum number of queued TRIMs outstanding per leaf vdev.  The number of
@@ -2989,7 +3203,7 @@ Default value: \fB10\fR.
 .sp
 .ne 2
 .na
-\fBzfs_trim_txg_batch\fR (unsigned int)
+\fBzfs_trim_txg_batch\fR (uint)
 .ad
 .RS 12n
 The number of transaction groups worth of frees which should be aggregated
@@ -3221,8 +3435,21 @@ Possible options are:
   avx512bw - implementation using AVX512F & AVX512BW instruction sets (64bit x86 only)
   aarch64_neon - implementation using NEON (Aarch64/64 bit ARMv8 only)
   aarch64_neonx2 - implementation using NEON with more unrolling (Aarch64/64 bit ARMv8 only)
+  powerpc_altivec - implementation using Altivec (PowerPC only)
 .sp
 Default value: \fBfastest\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_scheduler\fR (charp)
+.ad
+.RS 12n
+\fBDEPRECATED\fR: This option exists for compatibility with older user
+configurations. It does nothing except print a warning to the kernel log if
+set.
+.sp
 .RE
 
 .sp

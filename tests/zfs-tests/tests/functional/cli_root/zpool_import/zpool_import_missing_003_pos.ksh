@@ -59,8 +59,8 @@
 
 verify_runnable "global"
 
-# See issue: https://github.com/zfsonlinux/zfs/issues/6839
-if is_linux; then
+# See issue: https://github.com/openzfs/zfs/issues/6839
+if ! is_illumos; then
 	log_unsupported "Test case may be slow"
 fi
 

@@ -13,6 +13,7 @@
 
 #
 # Copyright (c) 2017 by Lawrence Livermore National Security, LLC.
+# Copyright (c) 2020 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -40,7 +41,16 @@ function cleanup
 	for DISK in $DISKS; do
 		zpool labelclear -f $DEV_RDSKDIR/$DISK
 	done
+	if is_freebsd; then
+		log_must sysctl kern.geom.debugflags=$saved_debugflags
+	fi
 }
+
+if is_freebsd; then
+	# FreeBSD won't allow writing to an in-use device without this set
+	saved_debugflags=$(sysctl -n kern.geom.debugflags)
+	log_must sysctl kern.geom.debugflags=16
+fi
 
 verify_runnable "global"
 verify_disk_count "$DISKS" 2
@@ -51,7 +61,7 @@ default_mirror_setup_noexit $DISKS
 DEVS=$(get_pool_devices ${TESTPOOL} ${DEV_RDSKDIR})
 [[ -n $DEVS ]] && set -A DISK $DEVS
 
-log_must zpool offline $TESTPOOL ${WHOLE_DISK}
+log_must zpool offline $TESTPOOL $WHOLE_DISK
 log_must dd if=/dev/urandom of=$TESTDIR/testfile bs=1K count=2
 log_must zpool export $TESTPOOL
 

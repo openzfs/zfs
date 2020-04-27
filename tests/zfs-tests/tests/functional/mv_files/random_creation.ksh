@@ -11,7 +11,7 @@ DIR="${TESTDIR}/RANDOM_SMALL"
 log_must mkdir "${DIR}"
 
 count=0
-for i in $(shuf -i 1-"${RC_PASS1}") ; do
+for i in $(range_shuffle 1 "${RC_PASS1}") ; do
     if ! touch "${DIR}/${i}" ; then
 	    log_fail "error creating ${i} after ${count} files"
     fi

@@ -26,11 +26,12 @@
 #include <sys/zfs_context.h>
 #include <sys/refcount.h>
 
-#ifdef _KERNEL
-int reference_tracking_enable = FALSE; /* runs out of memory too easily */
-#else
-int reference_tracking_enable = TRUE;
-#endif
+/*
+ * Reference count tracking is disabled by default.  It's memory requirements
+ * are reasonable, however as implemented it consumes a significant amount of
+ * cpu time.  Until its performance is improved it should be manually enabled.
+ */
+int reference_tracking_enable = FALSE;
 int reference_history = 3; /* tunable */
 
 #ifdef	ZFS_DEBUG

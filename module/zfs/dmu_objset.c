@@ -415,6 +415,11 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 	ASSERT(!BP_IS_REDACTED(bp));
 
 	/*
+	 * We need the pool config lock to get properties.
+	 */
+	ASSERT(ds == NULL || dsl_pool_config_held(ds->ds_dir->dd_pool));
+
+	/*
 	 * The $ORIGIN dataset (if it exists) doesn't have an associated
 	 * objset, so there's no reason to open it. The $ORIGIN dataset
 	 * will not exist on pools older than SPA_VERSION_ORIGIN.
@@ -503,19 +508,7 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 	 * checksum/compression/copies.
 	 */
 	if (ds != NULL) {
-		boolean_t needlock = B_FALSE;
-
 		os->os_encrypted = (ds->ds_dir->dd_crypto_obj != 0);
-
-		/*
-		 * Note: it's valid to open the objset if the dataset is
-		 * long-held, in which case the pool_config lock will not
-		 * be held.
-		 */
-		if (!dsl_pool_config_held(dmu_objset_pool(os))) {
-			needlock = B_TRUE;
-			dsl_pool_config_enter(dmu_objset_pool(os), FTAG);
-		}
 
 		err = dsl_prop_register(ds,
 		    zfs_prop_to_name(ZFS_PROP_PRIMARYCACHE),
@@ -579,8 +572,6 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 				    smallblk_changed_cb, os);
 			}
 		}
-		if (needlock)
-			dsl_pool_config_exit(dmu_objset_pool(os), FTAG);
 		if (err != 0) {
 			arc_buf_destroy(os->os_phys_buf, &os->os_phys_buf);
 			kmem_free(os, sizeof (objset_t));
@@ -650,11 +641,11 @@ dmu_objset_from_ds(dsl_dataset_t *ds, objset_t **osp)
 	int err = 0;
 
 	/*
-	 * We shouldn't be doing anything with dsl_dataset_t's unless the
-	 * pool_config lock is held, or the dataset is long-held.
+	 * We need the pool_config lock to manipulate the dsl_dataset_t.
+	 * Even if the dataset is long-held, we need the pool_config lock
+	 * to open the objset, as it needs to get properties.
 	 */
-	ASSERT(dsl_pool_config_held(ds->ds_dir->dd_pool) ||
-	    dsl_dataset_long_held(ds));
+	ASSERT(dsl_pool_config_held(ds->ds_dir->dd_pool));
 
 	mutex_enter(&ds->ds_opening_lock);
 	if (ds->ds_objset == NULL) {
@@ -1263,7 +1254,6 @@ dmu_objset_create_sync(void *arg, dmu_tx_t *tx)
 	}
 
 	spa_history_log_internal_ds(ds, "create", tx, " ");
-	zvol_create_minors(spa, doca->doca_name, B_TRUE);
 
 	dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
 	dsl_dir_rele(pdd, FTAG);
@@ -1293,9 +1283,13 @@ dmu_objset_create(const char *name, dmu_objset_type_t type, uint64_t flags,
 	 */
 	doca.doca_dcp = (dcp != NULL) ? dcp : &tmp_dcp;
 
-	return (dsl_sync_task(name,
+	int rv = dsl_sync_task(name,
 	    dmu_objset_create_check, dmu_objset_create_sync, &doca,
-	    6, ZFS_SPACE_CHECK_NORMAL));
+	    6, ZFS_SPACE_CHECK_NORMAL);
+
+	if (rv == 0)
+		zvol_create_minor(name);
+	return (rv);
 }
 
 typedef struct dmu_objset_clone_arg {
@@ -1376,7 +1370,6 @@ dmu_objset_clone_sync(void *arg, dmu_tx_t *tx)
 	dsl_dataset_name(origin, namebuf);
 	spa_history_log_internal_ds(ds, "clone", tx,
 	    "origin=%s (%llu)", namebuf, (u_longlong_t)origin->ds_object);
-	zvol_create_minors(dp->dp_spa, doca->doca_clone, B_TRUE);
 	dsl_dataset_rele(ds, FTAG);
 	dsl_dataset_rele(origin, FTAG);
 	dsl_dir_rele(pdd, FTAG);
@@ -1391,9 +1384,14 @@ dmu_objset_clone(const char *clone, const char *origin)
 	doca.doca_origin = origin;
 	doca.doca_cred = CRED();
 
-	return (dsl_sync_task(clone,
+	int rv = dsl_sync_task(clone,
 	    dmu_objset_clone_check, dmu_objset_clone_sync, &doca,
-	    6, ZFS_SPACE_CHECK_NORMAL));
+	    6, ZFS_SPACE_CHECK_NORMAL);
+
+	if (rv == 0)
+		zvol_create_minor(clone);
+
+	return (rv);
 }
 
 int
@@ -1707,8 +1705,7 @@ dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 	while ((dr = list_head(list)) != NULL) {
 		ASSERT0(dr->dr_dbuf->db_level);
 		list_remove(list, dr);
-		if (dr->dr_zio)
-			zio_nowait(dr->dr_zio);
+		zio_nowait(dr->dr_zio);
 	}
 
 	/* Enable dnode backfill if enough objects have been freed. */
@@ -2057,15 +2054,13 @@ dmu_objset_do_userquota_updates(objset_t *os, dmu_tx_t *tx)
 static void *
 dmu_objset_userquota_find_data(dmu_buf_impl_t *db, dmu_tx_t *tx)
 {
-	dbuf_dirty_record_t *dr, **drp;
+	dbuf_dirty_record_t *dr;
 	void *data;
 
 	if (db->db_dirtycnt == 0)
 		return (db->db.db_data);  /* Nothing is changing */
 
-	for (drp = &db->db_last_dirty; (dr = *drp) != NULL; drp = &dr->dr_next)
-		if (dr->dr_txg == tx->tx_txg)
-			break;
+	dr = dbuf_find_dirty_eq(db, tx->tx_txg);
 
 	if (dr == NULL) {
 		data = NULL;

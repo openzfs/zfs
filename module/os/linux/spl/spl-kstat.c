@@ -431,7 +431,7 @@ static struct seq_operations kstat_seq_ops = {
 static kstat_module_t *
 kstat_find_module(char *name)
 {
-	kstat_module_t *module;
+	kstat_module_t *module = NULL;
 
 	list_for_each_entry(module, &kstat_module_list, ksm_module_list) {
 		if (strncmp(name, module->ksm_name, KSTAT_STRLEN) == 0)
@@ -507,12 +507,20 @@ proc_kstat_write(struct file *filp, const char __user *buf, size_t len,
 	return (len);
 }
 
-static struct file_operations proc_kstat_operations = {
+static const kstat_proc_op_t proc_kstat_operations = {
+#ifdef HAVE_PROC_OPS_STRUCT
+	.proc_open	= proc_kstat_open,
+	.proc_write	= proc_kstat_write,
+	.proc_read	= seq_read,
+	.proc_lseek	= seq_lseek,
+	.proc_release	= seq_release,
+#else
 	.open		= proc_kstat_open,
 	.write		= proc_kstat_write,
 	.read		= seq_read,
 	.llseek		= seq_lseek,
 	.release	= seq_release,
+#endif
 };
 
 void
@@ -624,7 +632,7 @@ static int
 kstat_detect_collision(kstat_proc_entry_t *kpep)
 {
 	kstat_module_t *module;
-	kstat_proc_entry_t *tmp;
+	kstat_proc_entry_t *tmp = NULL;
 	char *parent;
 	char *cp;
 
@@ -656,10 +664,10 @@ kstat_detect_collision(kstat_proc_entry_t *kpep)
  */
 void
 kstat_proc_entry_install(kstat_proc_entry_t *kpep, mode_t mode,
-    const struct file_operations *file_ops, void *data)
+    const kstat_proc_op_t *proc_ops, void *data)
 {
 	kstat_module_t *module;
-	kstat_proc_entry_t *tmp;
+	kstat_proc_entry_t *tmp = NULL;
 
 	ASSERT(kpep);
 
@@ -690,7 +698,7 @@ kstat_proc_entry_install(kstat_proc_entry_t *kpep, mode_t mode,
 
 	kpep->kpe_owner = module;
 	kpep->kpe_proc = proc_create_data(kpep->kpe_name, mode,
-	    module->ksm_proc, file_ops, data);
+	    module->ksm_proc, proc_ops, data);
 	if (kpep->kpe_proc == NULL) {
 		list_del_init(&kpep->kpe_list);
 		if (list_empty(&module->ksm_kstat_list))

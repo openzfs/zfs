@@ -73,7 +73,8 @@ log_must mkfile 1M $testfile $testfile1
 
 log_must zfs unmount $fs1
 log_must zfs set mountpoint=$mntpnt $fs1
-log_mustnot zfs mount $fs1
+log_must zfs mount $fs1
+log_must zfs unmount $fs1
 log_must zfs mount -O $fs1
 
 # Create new file in override mountpoint

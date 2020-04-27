@@ -80,6 +80,7 @@ struct redact_record {
 
 struct redact_thread_arg {
 	bqueue_t	q;
+	objset_t	*os;		/* Objset to traverse */
 	dsl_dataset_t	*ds;		/* Dataset to traverse */
 	struct redact_record *current_record;
 	int		error_code;
@@ -355,11 +356,9 @@ redact_traverse_thread(void *arg)
 	struct redact_thread_arg *rt_arg = arg;
 	int err;
 	struct redact_record *data;
-	objset_t *os;
-	VERIFY0(dmu_objset_from_ds(rt_arg->ds, &os));
 #ifdef _KERNEL
-	if (os->os_phys->os_type == DMU_OST_ZFS)
-		rt_arg->deleted_objs = zfs_get_deleteq(os);
+	if (rt_arg->os->os_phys->os_type == DMU_OST_ZFS)
+		rt_arg->deleted_objs = zfs_get_deleteq(rt_arg->os);
 	else
 		rt_arg->deleted_objs = objlist_create();
 #else
@@ -1004,9 +1003,8 @@ dmu_redact_snap(const char *snapname, nvlist_t *redactnvl,
 	int err = 0;
 	dsl_pool_t *dp = NULL;
 	dsl_dataset_t *ds = NULL;
-	objset_t *os;
 	int numsnaps = 0;
-	dsl_dataset_t **redactsnaparr = NULL;
+	objset_t *os;
 	struct redact_thread_arg *args = NULL;
 	redaction_list_t *new_rl = NULL;
 
@@ -1026,38 +1024,44 @@ dmu_redact_snap(const char *snapname, nvlist_t *redactnvl,
 		err = EALREADY;
 		goto out;
 	}
-	nvpair_t *pair;
 
-	if (fnvlist_num_pairs(redactnvl) > 0 && err == 0) {
-		redactsnaparr = kmem_zalloc(fnvlist_num_pairs(redactnvl) *
-		    sizeof (dsl_dataset_t *), KM_SLEEP);
-	}
-	for (pair = nvlist_next_nvpair(redactnvl, NULL); err == 0 &&
-	    pair != NULL; pair = nvlist_next_nvpair(redactnvl, pair)) {
+	numsnaps = fnvlist_num_pairs(redactnvl);
+	if (numsnaps > 0)
+		args = kmem_zalloc(numsnaps * sizeof (*args), KM_SLEEP);
+
+	nvpair_t *pair = NULL;
+	for (int i = 0; i < numsnaps; i++) {
+		pair = nvlist_next_nvpair(redactnvl, pair);
 		const char *name = nvpair_name(pair);
+		struct redact_thread_arg *rta = &args[i];
 		err = dsl_dataset_hold_flags(dp, name, DS_HOLD_FLAG_DECRYPT,
-		    FTAG, redactsnaparr + numsnaps);
+		    FTAG, &rta->ds);
 		if (err != 0)
 			break;
-		dsl_dataset_long_hold(redactsnaparr[numsnaps], FTAG);
-		if (!dsl_dataset_is_before(redactsnaparr[numsnaps], ds, 0)) {
+		/*
+		 * We want to do the long hold before we can get any other
+		 * errors, because the cleanup code will release the long
+		 * hold if rta->ds is filled in.
+		 */
+		dsl_dataset_long_hold(rta->ds, FTAG);
+
+		err = dmu_objset_from_ds(rta->ds, &rta->os);
+		if (err != 0)
+			break;
+		if (!dsl_dataset_is_before(rta->ds, ds, 0)) {
 			err = EINVAL;
-			numsnaps++;
 			break;
 		}
-		if (dsl_dataset_feature_is_active(redactsnaparr[numsnaps],
+		if (dsl_dataset_feature_is_active(rta->ds,
 		    SPA_FEATURE_REDACTED_DATASETS)) {
 			err = EALREADY;
-			numsnaps++;
 			break;
 
 		}
-		numsnaps++;
 	}
+	VERIFY3P(nvlist_next_nvpair(redactnvl, pair), ==, NULL);
 	if (err != 0)
 		goto out;
-
-	ASSERT3U(fnvlist_num_pairs(redactnvl), ==, numsnaps);
 
 	boolean_t resuming = B_FALSE;
 	char newredactbook[ZFS_MAX_DATASET_NAME_LEN];
@@ -1091,15 +1095,14 @@ dmu_redact_snap(const char *snapname, nvlist_t *redactnvl,
 			goto out;
 		}
 		for (int i = 0; i < numsnaps; i++) {
+			struct redact_thread_arg *rta = &args[i];
 			if (!redact_snaps_contains(new_rl->rl_phys->rlp_snaps,
 			    new_rl->rl_phys->rlp_num_snaps,
-			    dsl_dataset_phys(redactsnaparr[i])->ds_guid)) {
+			    dsl_dataset_phys(rta->ds)->ds_guid)) {
 				err = ESRCH;
 				goto out;
 			}
 		}
-		if (numsnaps > 0)
-			args = kmem_zalloc(numsnaps * sizeof (*args), KM_SLEEP);
 		if (new_rl->rl_phys->rlp_last_blkid == UINT64_MAX &&
 		    new_rl->rl_phys->rlp_last_object == UINT64_MAX) {
 			err = EEXIST;
@@ -1112,10 +1115,11 @@ dmu_redact_snap(const char *snapname, nvlist_t *redactnvl,
 		if (numsnaps > 0) {
 			guids = kmem_zalloc(numsnaps * sizeof (uint64_t),
 			    KM_SLEEP);
-			args = kmem_zalloc(numsnaps * sizeof (*args), KM_SLEEP);
 		}
-		for (int i = 0; i < numsnaps; i++)
-			guids[i] = dsl_dataset_phys(redactsnaparr[i])->ds_guid;
+		for (int i = 0; i < numsnaps; i++) {
+			struct redact_thread_arg *rta = &args[i];
+			guids[i] = dsl_dataset_phys(rta->ds)->ds_guid;
+		}
 
 		dsl_pool_rele(dp, FTAG);
 		dp = NULL;
@@ -1128,18 +1132,18 @@ dmu_redact_snap(const char *snapname, nvlist_t *redactnvl,
 	}
 
 	for (int i = 0; i < numsnaps; i++) {
-		args[i].ds = redactsnaparr[i];
-		(void) bqueue_init(&args[i].q, zfs_redact_queue_ff,
+		struct redact_thread_arg *rta = &args[i];
+		(void) bqueue_init(&rta->q, zfs_redact_queue_ff,
 		    zfs_redact_queue_length,
 		    offsetof(struct redact_record, ln));
 		if (resuming) {
-			args[i].resume.zb_blkid =
+			rta->resume.zb_blkid =
 			    new_rl->rl_phys->rlp_last_blkid;
-			args[i].resume.zb_object =
+			rta->resume.zb_object =
 			    new_rl->rl_phys->rlp_last_object;
 		}
-		args[i].txg = dsl_dataset_phys(ds)->ds_creation_txg;
-		(void) thread_create(NULL, 0, redact_traverse_thread, &args[i],
+		rta->txg = dsl_dataset_phys(ds)->ds_creation_txg;
+		(void) thread_create(NULL, 0, redact_traverse_thread, rta,
 		    0, curproc, TS_RUN, minclsyspri);
 	}
 	struct redact_merge_thread_arg rmta = { { {0} } };
@@ -1152,23 +1156,25 @@ dmu_redact_snap(const char *snapname, nvlist_t *redactnvl,
 	    TS_RUN, minclsyspri);
 	err = perform_redaction(os, new_rl, &rmta);
 out:
-	if (args != NULL) {
-		kmem_free(args, numsnaps * sizeof (*args));
-	}
 	if (new_rl != NULL) {
 		dsl_redaction_list_long_rele(new_rl, FTAG);
 		dsl_redaction_list_rele(new_rl, FTAG);
 	}
 	for (int i = 0; i < numsnaps; i++) {
-		dsl_dataset_long_rele(redactsnaparr[i], FTAG);
-		dsl_dataset_rele_flags(redactsnaparr[i], DS_HOLD_FLAG_DECRYPT,
-		    FTAG);
+		struct redact_thread_arg *rta = &args[i];
+		/*
+		 * rta->ds may be NULL if we got an error while filling
+		 * it in.
+		 */
+		if (rta->ds != NULL) {
+			dsl_dataset_long_rele(rta->ds, FTAG);
+			dsl_dataset_rele_flags(rta->ds,
+			    DS_HOLD_FLAG_DECRYPT, FTAG);
+		}
 	}
 
-	if (redactsnaparr != NULL) {
-		kmem_free(redactsnaparr, fnvlist_num_pairs(redactnvl) *
-		    sizeof (dsl_dataset_t *));
-	}
+	if (args != NULL)
+		kmem_free(args, numsnaps * sizeof (*args));
 	if (dp != NULL)
 		dsl_pool_rele(dp, FTAG);
 	if (ds != NULL) {

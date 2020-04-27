@@ -108,12 +108,15 @@ log_must rmdir /$TESTPOOL/$TESTFS/dir_to_delete
 
 # Create a simple validation payload
 log_must mkdir -p $TESTDIR
-log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/payload bs=1k count=8
+log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/payload \
+    oflag=sync bs=1k count=8
 typeset checksum=$(sha256digest /$TESTPOOL/$TESTFS/payload)
 
 # TX_WRITE (small file with ordering)
-log_must mkfile 1k /$TESTPOOL/$TESTFS/small_file
-log_must mkfile 512b /$TESTPOOL/$TESTFS/small_file
+log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/small_file \
+    oflag=sync bs=1k count=1
+log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/small_file \
+    oflag=sync bs=512 count=1
 
 # TX_CREATE, TX_MKDIR, TX_REMOVE, TX_RMDIR
 log_must cp -R /usr/share/dict /$TESTPOOL/$TESTFS
@@ -122,7 +125,11 @@ log_must rm -rf /$TESTPOOL/$TESTFS/dict
 # TX_SETATTR
 log_must touch /$TESTPOOL/$TESTFS/setattr
 log_must chmod 567 /$TESTPOOL/$TESTFS/setattr
-log_must chgrp root /$TESTPOOL/$TESTFS/setattr
+if is_freebsd; then
+	log_must chgrp wheel /$TESTPOOL/$TESTFS/setattr
+else
+	log_must chgrp root /$TESTPOOL/$TESTFS/setattr
+fi
 log_must touch -cm -t 201311271200 /$TESTPOOL/$TESTFS/setattr
 
 # TX_TRUNCATE (to zero)
@@ -131,34 +138,39 @@ log_must truncate -s 0 /$TESTPOOL/$TESTFS/truncated_file
 
 # TX_WRITE (large file)
 log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/large \
-    bs=128k count=64 oflag=sync
+    oflag=sync bs=128k count=64
 
 # Write zeros, which compress to holes, in the middle of a file
-log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/holes.1 bs=128k count=8
-log_must dd if=/dev/zero of=/$TESTPOOL/$TESTFS/holes.1 bs=128k count=2
+log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/holes.1 \
+    oflag=sync bs=128k count=8
+log_must dd if=/dev/zero of=/$TESTPOOL/$TESTFS/holes.1 \
+    oflag=sync bs=128k count=2
 
-log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/holes.2 bs=128k count=8
-log_must dd if=/dev/zero of=/$TESTPOOL/$TESTFS/holes.2 bs=128k count=2 seek=2
+log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/holes.2 \
+    oflag=sync bs=128k count=8
+log_must dd if=/dev/zero of=/$TESTPOOL/$TESTFS/holes.2 \
+    oflag=sync bs=128k count=2 seek=2
 
-log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/holes.3 bs=128k count=8
-log_must dd if=/dev/zero of=/$TESTPOOL/$TESTFS/holes.3 bs=128k count=2 \
-   seek=2 conv=notrunc
+log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/holes.3 \
+    oflag=sync bs=128k count=8
+log_must dd if=/dev/zero of=/$TESTPOOL/$TESTFS/holes.3 \
+    oflag=sync bs=128k count=2 seek=2 conv=notrunc
 
 # TX_MKXATTR
 log_must mkdir /$TESTPOOL/$TESTFS/xattr.dir
-log_must attr -qs fileattr -V HelloWorld /$TESTPOOL/$TESTFS/xattr.dir
-log_must attr -qs tmpattr -V HelloWorld /$TESTPOOL/$TESTFS/xattr.dir
-log_must attr -qr tmpattr /$TESTPOOL/$TESTFS/xattr.dir
-
 log_must touch /$TESTPOOL/$TESTFS/xattr.file
-log_must attr -qs fileattr -V HelloWorld /$TESTPOOL/$TESTFS/xattr.file
-log_must attr -qs tmpattr -V HelloWorld /$TESTPOOL/$TESTFS/xattr.file
-log_must attr -qr tmpattr /$TESTPOOL/$TESTFS/xattr.file
+log_must set_xattr fileattr HelloWorld /$TESTPOOL/$TESTFS/xattr.dir
+log_must set_xattr tmpattr HelloWorld /$TESTPOOL/$TESTFS/xattr.dir
+log_must rm_xattr fileattr /$TESTPOOL/$TESTFS/xattr.dir
+
+log_must set_xattr fileattr HelloWorld /$TESTPOOL/$TESTFS/xattr.file
+log_must set_xattr tmpattr HelloWorld /$TESTPOOL/$TESTFS/xattr.file
+log_must rm_xattr tmpattr /$TESTPOOL/$TESTFS/xattr.file
 
 # TX_WRITE, TX_LINK, TX_REMOVE
 # Make sure TX_REMOVE won't affect TX_WRITE if file is not destroyed
-log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/link_and_unlink bs=128k \
-   count=8
+log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/link_and_unlink \
+    oflag=sync bs=128k count=8
 log_must ln /$TESTPOOL/$TESTFS/link_and_unlink \
    /$TESTPOOL/$TESTFS/link_and_unlink.link
 log_must rm /$TESTPOOL/$TESTFS/link_and_unlink.link
@@ -197,8 +209,8 @@ log_note "Verify current block usage:"
 log_must zdb -bcv $TESTPOOL
 
 log_note "Verify copy of xattrs:"
-log_must attr -l /$TESTPOOL/$TESTFS/xattr.dir
-log_must attr -l /$TESTPOOL/$TESTFS/xattr.file
+log_must ls_xattr /$TESTPOOL/$TESTFS/xattr.dir
+log_must ls_xattr /$TESTPOOL/$TESTFS/xattr.file
 
 log_note "Verify working set diff:"
 log_must diff -r /$TESTPOOL/$TESTFS $TESTDIR/copy

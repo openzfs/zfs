@@ -30,7 +30,7 @@
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
 .\"
-.Dd June 30, 2019
+.Dd January 13, 2020
 .Dt ZFS-LOAD-KEY 8
 .Os Linux
 .Sh NAME
@@ -154,7 +154,7 @@ Unloads the keys for all encryption roots in all imported pools.
 .Op Fl l
 .Ar filesystem
 .Xc
-Allows a user to change the encryption key used to access a dataset. This
+Changes the user's key (e.g. a passphrase) used to access a dataset. This
 command requires that the existing key for the dataset is already loaded into
 ZFS. This command may also be used to change the
 .Sy keylocation ,
@@ -166,6 +166,29 @@ will become one. Alternatively, the
 .Fl i
 flag may be provided to cause an encryption root to inherit the parent's key
 instead.
+.Pp
+If the user's key is compromised,
+.Nm zfs Cm change-key
+does not necessarily protect existing or newly-written data from attack.
+Newly-written data will continue to be encrypted with the same master key as
+the existing data.  The master key is compromised if an attacker obtains a
+user key and the corresponding wrapped master key. Currently,
+.Nm zfs Cm change-key
+does not overwrite the previous wrapped master key on disk, so it is
+accessible via forensic analysis for an indeterminate length of time.
+.Pp
+In the event of a master key compromise, ideally the drives should be securely
+erased to remove all the old data (which is readable using the compromised
+master key), a new pool created, and the data copied back. This can be
+approximated in place by creating new datasets, copying the data
+(e.g. using
+.Nm zfs Cm send
+|
+.Nm zfs Cm recv Ns
+), and then clearing the free space with
+.Nm zpool Cm trim --secure
+if supported by your hardware, otherwise
+.Nm zpool Cm initialize Ns .
 .Bl -tag -width "-r"
 .It Fl l
 Ensures the key is loaded before attempting to change the key. This is

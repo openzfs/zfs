@@ -1351,11 +1351,6 @@ zpool_create(libzfs_handle_t *hdl, const char *pool, nvlist_t *nvroot,
 			    "one or more devices is out of space"));
 			return (zfs_error(hdl, EZFS_BADDEV, msg));
 
-		case ENOTBLK:
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "cache device must be a disk or disk slice"));
-			return (zfs_error(hdl, EZFS_BADDEV, msg));
-
 		default:
 			return (zpool_standard_error(hdl, errno, msg));
 		}
@@ -1541,12 +1536,6 @@ zpool_add(zpool_handle_t *zhp, nvlist_t *nvroot)
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "pool must be upgraded to add these vdevs"));
 			(void) zfs_error(hdl, EZFS_BADVERSION, msg);
-			break;
-
-		case ENOTBLK:
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "cache device must be a disk or disk slice"));
-			(void) zfs_error(hdl, EZFS_BADDEV, msg);
 			break;
 
 		default:
@@ -2263,6 +2252,30 @@ xlate_trim_err(int err)
 	return (err);
 }
 
+static int
+zpool_trim_wait(zpool_handle_t *zhp, nvlist_t *vdev_guids)
+{
+	int err;
+	nvpair_t *elem;
+
+	for (elem = nvlist_next_nvpair(vdev_guids, NULL); elem != NULL;
+	    elem = nvlist_next_nvpair(vdev_guids, elem)) {
+
+		uint64_t guid = fnvpair_value_uint64(elem);
+
+		err = lzc_wait_tag(zhp->zpool_name,
+		    ZPOOL_WAIT_TRIM, guid, NULL);
+		if (err != 0) {
+			(void) zpool_standard_error_fmt(zhp->zpool_hdl,
+			    err, dgettext(TEXT_DOMAIN, "error "
+			    "waiting to trim '%s'"), nvpair_name(elem));
+
+			return (err);
+		}
+	}
+	return (0);
+}
+
 /*
  * Begin, suspend, or cancel the TRIM (discarding of all free blocks) for
  * the given vdevs in the given pool.
@@ -2286,9 +2299,12 @@ zpool_trim(zpool_handle_t *zhp, pool_trim_func_t cmd_type, nvlist_t *vds,
 		err = lzc_trim(zhp->zpool_name, cmd_type, trim_flags->rate,
 		    trim_flags->secure, vdev_guids, &errlist);
 		if (err == 0) {
+			if (trim_flags->wait)
+				err = zpool_trim_wait(zhp, vdev_guids);
+
 			fnvlist_free(vdev_guids);
 			fnvlist_free(guids_to_paths);
-			return (0);
+			return (err);
 		}
 
 		if (errlist != NULL) {

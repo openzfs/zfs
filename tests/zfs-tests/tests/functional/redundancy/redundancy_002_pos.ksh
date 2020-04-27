@@ -29,6 +29,7 @@
 # Copyright (c) 2013 by Delphix. All rights reserved.
 #
 
+. $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/redundancy/redundancy.kshlib
 
 #
@@ -50,7 +51,7 @@ verify_runnable "global"
 log_assert "Verify raidz2 pool can withstand two devices are failing."
 log_onexit cleanup
 
-typeset -i cnt=$(random 3 5)
+typeset -i cnt=$(random_int_between 3 5)
 setup_test_env $TESTPOOL raidz2 $cnt
 
 #

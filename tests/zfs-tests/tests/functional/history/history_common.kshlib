@@ -51,11 +51,11 @@ function run_and_verify
 	fullcmd="$1"
 	flags="$2"
 
-	if is_linux; then
+	if is_illumos; then
+		histcmd=$(echo $fullcmd | sed 's/\/usr\/sbin\///g')
+	else
 		histcmd=$(echo $fullcmd | sed 's/^.*\/\(zpool .*\).*$/\1/')
 		histcmd=$(echo $histcmd | sed 's/^.*\/\(zfs .*\).*$/\1/')
-	else
-		histcmd=$(echo $fullcmd | sed 's/\/usr\/sbin\///g')
 	fi
 
 	cmd=$(echo $histcmd | awk '{print $1}')
@@ -112,10 +112,11 @@ function verify_long
 	typeset suffix=""
 	if is_linux; then
 		suffix=":linux"
+	elif is_freebsd; then
+		suffix=":freebsd"
 	fi
 
-	grep "$cmd \[user $uid ($user) on $hname$suffix\]" \
-	    $NEW_HISTORY >/dev/null 2>&1
+	grep -q "$cmd \[user $uid ($user) on $hname$suffix\]" $NEW_HISTORY
 	if [[ $? != 0 ]]; then
 		log_note "Couldn't find long information for \"$cmd\""
 		return 1

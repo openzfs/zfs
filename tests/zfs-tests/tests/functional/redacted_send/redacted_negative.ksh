@@ -77,4 +77,16 @@ log_mustnot zfs redact $recvfs@snap book5 $clone3@snap
 # Nor may a redacted dataset appear in the redaction list.
 log_mustnot zfs redact testpool2/recvfs@snap2 book7 testpool2/recvfs@snap
 
+# Non-redaction bookmark cannot be sent and produces invalid argument error
+log_must zfs bookmark "$sendfs@snap1" "$sendfs#book8"
+log_must eval "zfs send --redact book8 -i $sendfs@snap1 $sendfs@snap2 2>&1 | head -n 100 | grep 'not a redaction bookmark'"
+
+# Error messages for common usage errors
+log_mustnot_expect "not contain '#'"    zfs redact $sendfs@snap1 \#book $sendfs@snap2
+log_mustnot_expect "not contain '#'"    zfs redact $sendfs@snap1 $sendfs#book $sendfs@snap2
+log_mustnot_expect "full dataset names" zfs redact $sendfs@snap1 book @snap2
+log_mustnot_expect "full dataset names" zfs redact $sendfs@snap1 book @snap2
+log_mustnot_expect "full dataset names" zfs redact $sendfs@snap1 \#book @snap2
+log_mustnot_expect "descendent of snapshot" zfs redact $sendfs@snap2 book $sendfs@snap1
+
 log_pass "Verify that redacted send correctly detects invalid arguments."

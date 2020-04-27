@@ -120,6 +120,9 @@ Otherwise, open a new issue and describe your proposed feature.  Why is this
 feature needed?  What problem does it solve?
 
 ### Pull Requests
+
+#### General
+
 * All pull requests must be based on the current master branch and apply
 without conflicts.
 * Please attempt to limit pull requests to a single commit which resolves
@@ -133,7 +136,20 @@ logically independent patches which build on each other.  This makes large
 changes easier to review and approve which speeds up the merging process.
 * Try to keep pull requests simple. Simple code with comments is much easier
 to review and approve.
+* All proposed changes must be approved by a ZFS on Linux organization member.
+* If you have an idea you'd like to discuss or which requires additional testing, consider opening it as a draft pull request.
+Once everything is in good shape and the details have been worked out you can remove its draft status.
+Any required reviews can then be finalized and the pull request merged.
+
+#### Tests and Benchmarks
+* Every pull request will by tested by the buildbot on multiple platforms by running the [zfs-tests.sh and zloop.sh](
+https://github.com/zfsonlinux/zfs/wiki/Building-ZFS#running-zloopsh-and-zfs-testssh) test suites.
+* To verify your changes conform to the [style guidelines](
+https://github.com/zfsonlinux/zfs/blob/master/.github/CONTRIBUTING.md#style-guides
+), please run `make checkstyle` and resolve any warnings.
+* Static code analysis of each pull request is performed by the buildbot; run `make lint` to check your changes.
 * Test cases should be provided when appropriate.
+This includes making sure new features have adequate code coverage.
 * If your pull request improves performance, please include some benchmarks.
 * The pull request must pass all required [ZFS
 Buildbot](http://build.zfsonlinux.org/) builders before
@@ -142,7 +158,6 @@ builder failures, you may be experiencing a [test suite
 issue](https://github.com/zfsonlinux/zfs/issues?q=is%3Aissue+is%3Aopen+label%3A%22Test+Suite%22).
 There are also various [buildbot options](https://github.com/zfsonlinux/zfs/wiki/Buildbot-Options)
 to control how changes are tested.
-* All proposed changes must be approved by a ZFS on Linux organization member.
 
 ### Testing
 All help is appreciated! If you're in a position to run the latest code
@@ -161,6 +176,16 @@ to verify ZFS is behaving as intended.
 We currently use [C  Style  and  Coding  Standards  for
 SunOS](http://www.cis.upenn.edu/%7Elee/06cse480/data/cstyle.ms.pdf) as our
 coding convention.
+
+This repository has an `.editorconfig` file. If your editor [supports
+editorconfig](https://editorconfig.org/#download), it will
+automatically respect most of this project's whitespace preferences.
+
+Additionally, Git can help warn on whitespace problems as well:
+
+```
+git config --local core.whitespace trailing-space,space-before-tab,indent-with-non-tab,-tab-in-indent
+```
 
 ### Commit Message Formats
 #### New Changes
@@ -290,3 +315,13 @@ Git can append the `Signed-off-by` line to your commit messages. Simply
 provide the `-s` or `--signoff` option when performing a `git commit`.
 For more information about writing commit messages, visit [How to Write
 a Git Commit Message](https://chris.beams.io/posts/git-commit/).
+
+#### Co-authored By
+If someone else had part in your pull request, please add the following to the commit:
+`Co-authored-by: Name <gitregistered@email.address>`
+This is useful if their authorship was lost during squashing, rebasing, etc.,
+but may be used in any situation where there are co-authors.
+
+The email address used here should be the same as on the GitHub profile of said user.
+If said user does not have their email address public, please use the following instead:
+`Co-authored-by: Name <[username]@users.noreply.github.com>`

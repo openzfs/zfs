@@ -46,10 +46,6 @@
 
 verify_runnable "global"
 
-if is_linux; then
-	log_unsupported "Modifies global non-ZFS system config"
-fi
-
 function cleanup
 {
 	[[ -f $TESTDIR/$TESTFILE ]] && log_must rm -f $TESTDIR/$TESTFILE

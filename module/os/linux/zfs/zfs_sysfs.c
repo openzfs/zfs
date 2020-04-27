@@ -353,13 +353,14 @@ pool_property_show(struct kobject *kobj, struct attribute *attr, char *buf)
  * This list is intended for kernel features that don't have a pool feature
  * association or that extend existing user kernel interfaces.
  *
- * A user processes can easily check if the running zfs kernel module
+ * A user process can easily check if the running zfs kernel module
  * supports the new feature.
  */
 static const char *zfs_kernel_features[] = {
 	/* --> Add new kernel features here */
 	"com.delphix:vdev_initialize",
 	"org.zfsonlinux:vdev_trim",
+	"org.openzfs:l2arc_persistent",
 };
 
 #define	KERNEL_FEATURE_COUNT	ARRAY_SIZE(zfs_kernel_features)

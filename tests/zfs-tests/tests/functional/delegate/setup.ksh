@@ -33,7 +33,7 @@
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/delegate/delegate_common.kshlib
 
-if ! is_linux; then
+if is_illumos; then
 	# check svc:/network/nis/client:default state
 	# disable it if the state is ON
 	# and the state will be restored during cleanup.ksh
@@ -42,6 +42,11 @@ if ! is_linux; then
 		log_must svcadm disable -t svc:/network/nis/client:default
 		log_must touch $NISSTAFILE
 	fi
+fi
+
+if is_freebsd; then
+	# To pass user mount tests
+	log_must sysctl vfs.usermount=1
 fi
 
 cleanup_user_group
@@ -71,7 +76,7 @@ fi
 DISK=${DISKS%% *}
 
 if is_linux; then
-	log_must set_tunable64 zfs_admin_snapshot 1
+	log_must set_tunable64 ADMIN_SNAPSHOT 1
 fi
 
 default_volume_setup $DISK

@@ -32,8 +32,6 @@
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zpool_create/zpool_create.shlib
 
-clean_blockfile "$TESTDIR $TESTDIR0 $TESTDIR1"
-
 cleanup_devices $DISKS
 
 log_pass

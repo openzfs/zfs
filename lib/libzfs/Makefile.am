@@ -27,6 +27,15 @@ USER_C = \
 	libzfs_status.c \
 	libzfs_util.c
 
+
+if BUILD_FREEBSD
+USER_C += \
+	os/freebsd/libzfs_fsshare.c \
+	os/freebsd/libzfs_compat.c \
+	os/freebsd/libzfs_ioctl_compat.c \
+	os/freebsd/libzfs_zmount.c
+endif
+
 if BUILD_LINUX
 USER_C += \
 	os/linux/libzfs_mount_os.c \
@@ -35,9 +44,9 @@ USER_C += \
 	os/linux/libzfs_util_os.c
 endif
 
-
 KERNEL_C = \
 	algs/sha2/sha2.c \
+	cityhash.c \
 	zfeature_common.c \
 	zfs_comutil.c \
 	zfs_deleg.c \
@@ -69,7 +78,12 @@ libzfs_la_LIBADD += \
 	$(top_builddir)/lib/libshare/libshare.la
 endif
 
+if BUILD_FREEBSD
+libzfs_la_LIBADD += -lutil -lgeom
+libzfs_la_LDFLAGS = -version-info 4:0:0
+else
 libzfs_la_LDFLAGS = -version-info 2:0:0
+endif
 
 libzfs_la_LIBADD += -lm $(LIBSSL)
 

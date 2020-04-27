@@ -29,7 +29,7 @@ BLOCKSIZE=8192
 origin="$TESTPOOL/$TESTFS"
 
 log_must zfs set compress=on $origin
-log_must zfs set checksum=edonr $origin
+log_must zfs set checksum=skein $origin
 
 log_must zfs set recordsize=8k $origin
 dd if=/dev/urandom of=$TESTDIR/file_8k bs=1024k count=$MEGS oflag=sync \

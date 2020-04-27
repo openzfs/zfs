@@ -248,7 +248,7 @@ vdev_remove_initiate_sync(void *arg, dmu_tx_t *tx)
 	vdev_indirect_config_t *vic = &vd->vdev_indirect_config;
 	objset_t *mos = spa->spa_dsl_pool->dp_meta_objset;
 	spa_vdev_removal_t *svr = NULL;
-	ASSERTV(uint64_t txg = dmu_tx_get_txg(tx));
+	uint64_t txg __maybe_unused = dmu_tx_get_txg(tx);
 
 	ASSERT3P(vd->vdev_ops, !=, &vdev_raidz_ops);
 	svr = spa_vdev_removal_create(vd);
@@ -268,7 +268,7 @@ vdev_remove_initiate_sync(void *arg, dmu_tx_t *tx)
 		VERIFY0(zap_add(spa->spa_meta_objset, vd->vdev_top_zap,
 		    VDEV_TOP_ZAP_OBSOLETE_COUNTS_ARE_PRECISE, sizeof (one), 1,
 		    &one, tx));
-		ASSERTV(boolean_t are_precise);
+		boolean_t are_precise __maybe_unused;
 		ASSERT0(vdev_obsolete_counts_are_precise(vd, &are_precise));
 		ASSERT3B(are_precise, ==, B_TRUE);
 	}
@@ -725,7 +725,7 @@ vdev_mapping_sync(void *arg, dmu_tx_t *tx)
 	spa_vdev_removal_t *svr = arg;
 	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
 	vdev_t *vd = vdev_lookup_top(spa, svr->svr_vdev_id);
-	ASSERTV(vdev_indirect_config_t *vic = &vd->vdev_indirect_config);
+	vdev_indirect_config_t *vic __maybe_unused = &vd->vdev_indirect_config;
 	uint64_t txg = dmu_tx_get_txg(tx);
 	vdev_indirect_mapping_t *vim = vd->vdev_indirect_mapping;
 
@@ -1871,6 +1871,13 @@ spa_vdev_remove_log(vdev_t *vd, uint64_t *txg)
 	    *txg + TXG_CONCURRENT_STATES + TXG_DEFER_SIZE, 0, FTAG);
 
 	/*
+	 * Cancel any initialize or TRIM which was in progress.
+	 */
+	vdev_initialize_stop_all(vd, VDEV_INITIALIZE_CANCELED);
+	vdev_trim_stop_all(vd, VDEV_TRIM_CANCELED);
+	vdev_autotrim_stop_wait(vd);
+
+	/*
 	 * Evacuate the device.  We don't hold the config lock as
 	 * writer since we need to do I/O but we do keep the
 	 * spa_namespace_lock held.  Once this completes the device
@@ -1921,12 +1928,6 @@ spa_vdev_remove_log(vdev_t *vd, uint64_t *txg)
 	spa_log_sm_set_blocklimit(spa);
 
 	spa_vdev_config_exit(spa, NULL, *txg, 0, FTAG);
-
-	/* Stop initializing and TRIM */
-	vdev_initialize_stop_all(vd, VDEV_INITIALIZE_CANCELED);
-	vdev_trim_stop_all(vd, VDEV_TRIM_CANCELED);
-	vdev_autotrim_stop_wait(vd);
-
 	*txg = spa_vdev_config_enter(spa);
 
 	sysevent_t *ev = spa_event_create(spa, vd, NULL,
@@ -2166,7 +2167,7 @@ spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare)
 	int error = 0, error_log;
 	boolean_t locked = MUTEX_HELD(&spa_namespace_lock);
 	sysevent_t *ev = NULL;
-	char *vd_type = NULL, *vd_path = NULL, *vd_path_log = NULL;
+	char *vd_type = NULL, *vd_path = NULL;
 
 	ASSERT(spa_writeable(spa));
 
@@ -2201,7 +2202,8 @@ spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare)
 			    ESC_ZFS_VDEV_REMOVE_AUX);
 
 			vd_type = VDEV_TYPE_SPARE;
-			vd_path = fnvlist_lookup_string(nv, ZPOOL_CONFIG_PATH);
+			vd_path = spa_strdup(fnvlist_lookup_string(
+			    nv, ZPOOL_CONFIG_PATH));
 			spa_vdev_remove_aux(spa->spa_spares.sav_config,
 			    ZPOOL_CONFIG_SPARES, spares, nspares, nv);
 			spa_load_spares(spa);
@@ -2214,7 +2216,8 @@ spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare)
 	    ZPOOL_CONFIG_L2CACHE, &l2cache, &nl2cache) == 0 &&
 	    (nv = spa_nvlist_lookup_by_guid(l2cache, nl2cache, guid)) != NULL) {
 		vd_type = VDEV_TYPE_L2CACHE;
-		vd_path = fnvlist_lookup_string(nv, ZPOOL_CONFIG_PATH);
+		vd_path = spa_strdup(fnvlist_lookup_string(
+		    nv, ZPOOL_CONFIG_PATH));
 		/*
 		 * Cache devices can always be removed.
 		 */
@@ -2227,7 +2230,8 @@ spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare)
 	} else if (vd != NULL && vd->vdev_islog) {
 		ASSERT(!locked);
 		vd_type = VDEV_TYPE_LOG;
-		vd_path = (vd->vdev_path != NULL) ? vd->vdev_path : "-";
+		vd_path = spa_strdup((vd->vdev_path != NULL) ?
+		    vd->vdev_path : "-");
 		error = spa_vdev_remove_log(vd, &txg);
 	} else if (vd != NULL) {
 		ASSERT(!locked);
@@ -2238,9 +2242,6 @@ spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare)
 		 */
 		error = SET_ERROR(ENOENT);
 	}
-
-	if (vd_path != NULL)
-		vd_path_log = spa_strdup(vd_path);
 
 	error_log = error;
 
@@ -2254,12 +2255,12 @@ spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare)
 	 * Doing that would prevent the txg sync from actually happening,
 	 * causing a deadlock.
 	 */
-	if (error_log == 0 && vd_type != NULL && vd_path_log != NULL) {
+	if (error_log == 0 && vd_type != NULL && vd_path != NULL) {
 		spa_history_log_internal(spa, "vdev remove", NULL,
-		    "%s vdev (%s) %s", spa_name(spa), vd_type, vd_path_log);
+		    "%s vdev (%s) %s", spa_name(spa), vd_type, vd_path);
 	}
-	if (vd_path_log != NULL)
-		spa_strfree(vd_path_log);
+	if (vd_path != NULL)
+		spa_strfree(vd_path);
 
 	if (ev != NULL)
 		spa_event_post(ev);

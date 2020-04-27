@@ -60,40 +60,11 @@ log_onexit cleanup
 # Create a ufs|ext file system that we can work in
 log_must zfs create -V128m $TESTPOOL/$TESTFS/zvol
 block_device_wait
-log_must eval "echo y | newfs $ZVOL_DEVDIR/$TESTPOOL/$TESTFS/zvol > /dev/null 2>&1"
+log_must eval "new_fs $ZVOL_DEVDIR/$TESTPOOL/$TESTFS/zvol > /dev/null 2>&1"
 
 log_must mkdir /tmp/$NEWFS_DEFAULT_FS.$$
-if is_linux; then
-	log_must mount -o user_xattr \
-	    $ZVOL_DEVDIR/$TESTPOOL/$TESTFS/zvol /tmp/$NEWFS_DEFAULT_FS.$$
-
-	# Create files in ext and tmpfs, and set some xattrs on them.
-	# Use small values for xattrs for ext compatibility.
-	log_must touch /tmp/$NEWFS_DEFAULT_FS.$$/$NEWFS_DEFAULT_FS-file.$$
-
-	log_must touch /tmp/tmpfs-file.$$
-	echo "TEST XATTR" >/tmp/xattr1
-	echo "1234567890" >/tmp/xattr2
-	log_must attr -q -s xattr1 \
-	    /tmp/$NEWFS_DEFAULT_FS.$$/$NEWFS_DEFAULT_FS-file.$$ </tmp/xattr1
-	log_must attr -q -s xattr2 /tmp/tmpfs-file.$$ </tmp/xattr2
-
-	# copy those files to ZFS
-	log_must cp -a /tmp/$NEWFS_DEFAULT_FS.$$/$NEWFS_DEFAULT_FS-file.$$ \
-	    $TESTDIR
-	log_must cp -a /tmp/tmpfs-file.$$ $TESTDIR
-
-	# ensure the xattr information has been copied correctly
-	log_must eval "attr -q -g xattr1 $TESTDIR/$NEWFS_DEFAULT_FS-file.$$ \
-	    >/tmp/xattr1.$$"
-
-	log_must diff /tmp/xattr1.$$ /tmp/xattr1
-	log_must eval "attr -q -g xattr2 $TESTDIR/tmpfs-file.$$ >/tmp/xattr2.$$"
-	log_must diff /tmp/xattr2.$$ /tmp/xattr2
-	log_must rm /tmp/xattr1 /tmp/xattr1.$$ /tmp/xattr2 /tmp/xattr2.$$
-
-	log_must umount /tmp/$NEWFS_DEFAULT_FS.$$
-else
+log_must mkdir /tmp/tmpfs.$$
+if is_illumos; then
 	log_must mount $ZVOL_DEVDIR/$TESTPOOL/$TESTFS/zvol \
 	    /tmp/$NEWFS_DEFAULT_FS.$$
 
@@ -114,6 +85,57 @@ else
 	log_must runat $TESTDIR/$NEWFS_DEFAULT_FS-file.$$ \
 	    diff passwd /etc/passwd
 	log_must runat $TESTDIR/tmpfs-file.$$ diff group /etc/group
+
+	log_must umount /tmp/$NEWFS_DEFAULT_FS.$$
+else
+	if is_linux; then
+		options="-o user_xattr"
+	fi
+	log_must mount ${options:+""} \
+	    $ZVOL_DEVDIR/$TESTPOOL/$TESTFS/zvol /tmp/$NEWFS_DEFAULT_FS.$$
+
+	# Create files in ext and tmpfs, and set some xattrs on them.
+	# Use small values for xattrs for ext compatibility.
+	log_must touch /tmp/$NEWFS_DEFAULT_FS.$$/$NEWFS_DEFAULT_FS-file.$$
+
+	echo "TEST XATTR" >/tmp/xattr1
+	echo "1234567890" >/tmp/xattr2
+
+	log_must set_xattr_stdin xattr1 \
+	    /tmp/$NEWFS_DEFAULT_FS.$$/$NEWFS_DEFAULT_FS-file.$$ </tmp/xattr1
+
+	if is_linux; then
+		log_must touch /tmp/tmpfs-file.$$
+		log_must set_xattr_stdin xattr2 /tmp/tmpfs-file.$$ </tmp/xattr2
+	fi
+
+	# copy those files to ZFS
+	if is_freebsd; then
+		# cp does not preserve extattrs on FreeBSD
+		export TAPE="-"
+		log_must eval "tar cC /tmp/$NEWFS_DEFAULT_FS.$$ \
+		    $NEWFS_DEFAULT_FS-file.$$ | tar xC $TESTDIR"
+	else
+		log_must cp -a \
+		    /tmp/$NEWFS_DEFAULT_FS.$$/$NEWFS_DEFAULT_FS-file.$$ \
+		    $TESTDIR
+		log_must cp -a /tmp/tmpfs-file.$$ $TESTDIR
+	fi
+
+	# ensure the xattr information has been copied correctly
+	log_must eval "get_xattr xattr1 $TESTDIR/$NEWFS_DEFAULT_FS-file.$$ \
+	    >/tmp/xattr1.$$"
+	log_must diff /tmp/xattr1.$$ /tmp/xattr1
+	log_must rm $TESTDIR/$NEWFS_DEFAULT_FS-file.$$
+	log_must rm /tmp/xattr1 /tmp/xattr1.$$
+
+	if is_linux; then
+		log_must eval "get_xattr xattr2 $TESTDIR/tmpfs-file.$$ \
+		    >/tmp/xattr2.$$"
+		log_must diff /tmp/xattr2.$$ /tmp/xattr2
+		log_must rm /tmp/tmpfs-file.$$
+		log_must rm /tmp/xattr2 /tmp/xattr2.$$
+	fi
 
 	log_must umount /tmp/$NEWFS_DEFAULT_FS.$$
 fi

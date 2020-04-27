@@ -53,7 +53,7 @@ function cleanup
 {
 	cleanup_pool $sendpool
 	cleanup_pool $recvpool
-	set_tunable64 send_holes_without_birth_time 1
+	set_tunable64 SEND_HOLES_WITHOUT_BIRTH_TIME 1
 }
 
 function send_and_verify
@@ -72,7 +72,7 @@ function send_and_verify
 # to be re-enabled for this test case to verify correctness.  Once we're
 # comfortable that all hole_birth bugs has been resolved this behavior may
 # be re-enabled by default.
-log_must set_tunable64 send_holes_without_birth_time 0
+log_must set_tunable64 SEND_HOLES_WITHOUT_BIRTH_TIME 0
 
 # Incremental send truncating the file and adding new data.
 log_must zfs create -o recordsize=4k $sendfs
@@ -81,7 +81,7 @@ log_must truncate -s 1G /$sendfs/file1
 log_must dd if=/dev/urandom of=/$sendfs/file1 bs=4k count=11264 seek=1152
 log_must zfs snapshot $sendfs@snap1
 
-log_must truncate -s 4194304 /$sendfs/file1
+log_must truncate -s 4M /$sendfs/file1
 log_must dd if=/dev/urandom of=/$sendfs/file1 bs=4k count=152 seek=384 \
     conv=notrunc
 log_must dd if=/dev/urandom of=/$sendfs/file1 bs=4k count=10 seek=1408 \

@@ -132,6 +132,14 @@ typedef struct zcp_run_info {
 	nvlist_t	*zri_outnvl;
 
 	/*
+	 * The keys of this nvlist are datasets which may be zvols and may need
+	 * to have device minor nodes created.  This information is passed from
+	 * syncing context (where the zvol is created) to open context (where we
+	 * create the minor nodes).
+	 */
+	nvlist_t	*zri_new_zvols;
+
+	/*
 	 * The errno number returned to caller of zcp_eval().
 	 */
 	int		zri_result;

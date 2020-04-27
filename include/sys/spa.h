@@ -787,6 +787,7 @@ extern int bpobj_enqueue_free_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx);
 #define	SPA_ASYNC_INITIALIZE_RESTART		0x100
 #define	SPA_ASYNC_TRIM_RESTART			0x200
 #define	SPA_ASYNC_AUTOTRIM_RESTART		0x400
+#define	SPA_ASYNC_L2CACHE_REBUILD		0x800
 
 /*
  * Controls the behavior of spa_vdev_remove().
@@ -1179,9 +1180,10 @@ extern void spa_notify_waiters(spa_t *spa);
 extern void spa_wake_waiters(spa_t *spa);
 
 /* module param call functions */
-int param_set_deadman_ziotime(const char *val, zfs_kernel_param_t *kp);
-int param_set_deadman_synctime(const char *val, zfs_kernel_param_t *kp);
-int param_set_slop_shift(const char *buf, zfs_kernel_param_t *kp);
+int param_set_deadman_ziotime(ZFS_MODULE_PARAM_ARGS);
+int param_set_deadman_synctime(ZFS_MODULE_PARAM_ARGS);
+int param_set_slop_shift(ZFS_MODULE_PARAM_ARGS);
+int param_set_deadman_failmode(ZFS_MODULE_PARAM_ARGS);
 
 #ifdef ZFS_DEBUG
 #define	dprintf_bp(bp, fmt, ...) do {				\

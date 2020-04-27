@@ -43,7 +43,7 @@ function cleanup
                 rm -rf "$TESTDIR"
         fi
 
-	log_must set_tunable64 zfs_trim_extent_bytes_min $trim_extent_bytes_min
+	log_must set_tunable64 TRIM_EXTENT_BYTES_MIN $trim_extent_bytes_min
 }
 log_onexit cleanup
 
@@ -51,8 +51,8 @@ LARGESIZE=$((MINVDEVSIZE * 4))
 LARGEFILE="$TESTDIR/largefile"
 
 # Reduce trim size to allow for tighter tolerance below when checking.
-typeset trim_extent_bytes_min=$(get_tunable zfs_trim_extent_bytes_min)
-log_must set_tunable64 zfs_trim_extent_bytes_min 4096
+typeset trim_extent_bytes_min=$(get_tunable TRIM_EXTENT_BYTES_MIN)
+log_must set_tunable64 TRIM_EXTENT_BYTES_MIN 4096
 
 log_must mkdir "$TESTDIR"
 log_must truncate -s $LARGESIZE "$LARGEFILE"

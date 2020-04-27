@@ -17,6 +17,7 @@ dist_man_MANS = \
 	zfs-groupspace.8 \
 	zfs-hold.8 \
 	zfs-inherit.8 \
+	zfs-jail.8 \
 	zfs-list.8 \
 	zfs-load-key.8 \
 	zfs-mount.8 \
@@ -35,10 +36,12 @@ dist_man_MANS = \
 	zfs-share.8 \
 	zfs-snapshot.8 \
 	zfs-unallow.8 \
+	zfs-unjail.8 \
 	zfs-unload-key.8 \
 	zfs-unmount.8 \
 	zfs-upgrade.8 \
 	zfs-userspace.8 \
+	zfs-wait.8 \
 	zgenhostid.8 \
 	zinject.8 \
 	zpool.8 \
@@ -75,6 +78,7 @@ dist_man_MANS = \
 	zpool-trim.8 \
 	zpool-upgrade.8 \
 	zpool-wait.8 \
+	zstream.8 \
 	zstreamdump.8
 
 nodist_man_MANS = \
@@ -87,6 +91,7 @@ EXTRA_DIST = \
 
 $(nodist_man_MANS): %: %.in
 	-$(SED) -e 's,@zfsexecdir\@,$(zfsexecdir),g' \
+		-e 's,@systemdgeneratordir\@,$(systemdgeneratordir),g' \
 		-e 's,@runstatedir\@,$(runstatedir),g' \
 		-e 's,@sysconfdir\@,$(sysconfdir),g' \
 		$< >'$@'

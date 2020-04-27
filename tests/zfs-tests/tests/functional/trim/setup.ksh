@@ -23,15 +23,21 @@
 
 verify_runnable "global"
 
-DISK1=${DISKS%% *}
+if is_freebsd; then
+	log_unsupported "FreeBSD has no hole punching mechanism for the time being."
+	diskinfo -v $DISKS | grep -qE 'No.*# TRIM/UNMAP support' &&
+	    log_unsupported "DISKS do not support discard (TRIM/UNMAP)"
+else
+	DISK1=${DISKS%% *}
 
-typeset -i max_discard=0
-if [[ -b $DEV_RDSKDIR/$DISK1 ]]; then
-	max_discard=$(lsblk -Dbn $DEV_RDSKDIR/$DISK1 | awk '{ print $4; exit }')
-fi
+	typeset -i max_discard=0
+	if is_disk_device $DEV_RDSKDIR/$DISK1; then
+		max_discard=$(lsblk -Dbn $DEV_RDSKDIR/$DISK1 | awk '{ print $4; exit }')
+	fi
 
-if test $max_discard -eq 0; then
-	log_unsupported "DISKS do not support discard (TRIM/UNMAP)"
+	if test $max_discard -eq 0; then
+		log_unsupported "DISKS do not support discard (TRIM/UNMAP)"
+	fi
 fi
 
 log_pass

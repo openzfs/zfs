@@ -1032,9 +1032,29 @@ class ZFSTest(unittest.TestCase):
         bmarks = [ZFSTest.pool.makeName(
             b'fs1#bmark1'), ZFSTest.pool.makeName(b'fs2#bmark1')]
         bmark_dict = {x: y for x, y in zip(bmarks, snaps)}
-
         lzc.lzc_snapshot(snaps)
         lzc.lzc_bookmark(bmark_dict)
+        lzc.lzc_destroy_snaps(snaps, defer=False)
+
+    @skipUnlessBookmarksSupported
+    def test_bookmark_copying(self):
+        snaps = [ZFSTest.pool.makeName(s) for s in [
+            b'fs1@snap1', b'fs1@snap2', b'fs2@snap1']]
+        bmarks = [ZFSTest.pool.makeName(x) for x in [
+            b'fs1#bmark1', b'fs1#bmark2', b'fs2#bmark1']]
+        bmarks_copies = [ZFSTest.pool.makeName(x) for x in [
+            b'fs1#bmark1_copy', b'fs1#bmark2_copy', b'fs2#bmark1_copy']]
+        bmark_dict = {x: y for x, y in zip(bmarks, snaps)}
+        bmark_copies_dict = {x: y for x, y in zip(bmarks_copies, bmarks)}
+
+        for snap in snaps:
+            lzc.lzc_snapshot([snap])
+        lzc.lzc_bookmark(bmark_dict)
+
+        lzc.lzc_bookmark(bmark_copies_dict)
+        lzc.lzc_destroy_bookmarks(bmarks_copies)
+
+        lzc.lzc_destroy_bookmarks(bmarks)
         lzc.lzc_destroy_snaps(snaps, defer=False)
 
     @skipUnlessBookmarksSupported
@@ -1042,7 +1062,7 @@ class ZFSTest(unittest.TestCase):
         lzc.lzc_bookmark({})
 
     @skipUnlessBookmarksSupported
-    def test_bookmarks_mismatching_name(self):
+    def test_bookmarks_foregin_source(self):
         snaps = [ZFSTest.pool.makeName(b'fs1@snap1')]
         bmarks = [ZFSTest.pool.makeName(b'fs2#bmark1')]
         bmark_dict = {x: y for x, y in zip(bmarks, snaps)}
@@ -1107,7 +1127,7 @@ class ZFSTest(unittest.TestCase):
             self.assertIsInstance(e, lzc_exc.NameTooLong)
 
     @skipUnlessBookmarksSupported
-    def test_bookmarks_mismatching_names(self):
+    def test_bookmarks_foreign_sources(self):
         snaps = [ZFSTest.pool.makeName(
             b'fs1@snap1'), ZFSTest.pool.makeName(b'fs2@snap1')]
         bmarks = [ZFSTest.pool.makeName(
@@ -1122,7 +1142,7 @@ class ZFSTest(unittest.TestCase):
             self.assertIsInstance(e, lzc_exc.BookmarkMismatch)
 
     @skipUnlessBookmarksSupported
-    def test_bookmarks_partially_mismatching_names(self):
+    def test_bookmarks_partially_foreign_sources(self):
         snaps = [ZFSTest.pool.makeName(
             b'fs1@snap1'), ZFSTest.pool.makeName(b'fs2@snap1')]
         bmarks = [ZFSTest.pool.makeName(
@@ -1154,32 +1174,47 @@ class ZFSTest(unittest.TestCase):
 
     @skipUnlessBookmarksSupported
     def test_bookmarks_missing_snap(self):
+        fss = [ZFSTest.pool.makeName(b'fs1'), ZFSTest.pool.makeName(b'fs2')]
         snaps = [ZFSTest.pool.makeName(
             b'fs1@snap1'), ZFSTest.pool.makeName(b'fs2@snap1')]
         bmarks = [ZFSTest.pool.makeName(
             b'fs1#bmark1'), ZFSTest.pool.makeName(b'fs2#bmark1')]
         bmark_dict = {x: y for x, y in zip(bmarks, snaps)}
 
-        lzc.lzc_snapshot(snaps[0:1])
+        lzc.lzc_snapshot(snaps[0:1])  # only create fs1@snap1
+
         with self.assertRaises(lzc_exc.BookmarkFailure) as ctx:
             lzc.lzc_bookmark(bmark_dict)
 
         for e in ctx.exception.errors:
             self.assertIsInstance(e, lzc_exc.SnapshotNotFound)
+
+        # no new bookmarks are created if one or more sources do not exist
+        for fs in fss:
+            fsbmarks = lzc.lzc_get_bookmarks(fs)
+            self.assertEqual(len(fsbmarks), 0)
 
     @skipUnlessBookmarksSupported
     def test_bookmarks_missing_snaps(self):
+        fss = [ZFSTest.pool.makeName(b'fs1'), ZFSTest.pool.makeName(b'fs2')]
         snaps = [ZFSTest.pool.makeName(
             b'fs1@snap1'), ZFSTest.pool.makeName(b'fs2@snap1')]
         bmarks = [ZFSTest.pool.makeName(
             b'fs1#bmark1'), ZFSTest.pool.makeName(b'fs2#bmark1')]
         bmark_dict = {x: y for x, y in zip(bmarks, snaps)}
 
+        # do not create any snapshots
+
         with self.assertRaises(lzc_exc.BookmarkFailure) as ctx:
             lzc.lzc_bookmark(bmark_dict)
 
         for e in ctx.exception.errors:
             self.assertIsInstance(e, lzc_exc.SnapshotNotFound)
+
+        # no new bookmarks are created if one or more sources do not exist
+        for fs in fss:
+            fsbmarks = lzc.lzc_get_bookmarks(fs)
+            self.assertEqual(len(fsbmarks), 0)
 
     @skipUnlessBookmarksSupported
     def test_bookmarks_for_the_same_snap(self):
@@ -2679,7 +2714,7 @@ class ZFSTest(unittest.TestCase):
             lzc.lzc_send(src, None, stream.fileno())
             stream.seek(0)
             stream.truncate(1024 * 3)
-            with self.assertRaises(lzc_exc.BadStream):
+            with self.assertRaises(lzc_exc.StreamTruncated):
                 lzc.lzc_receive_resumable(dst, stream.fileno())
             # Resume token code from zfs_send_resume_token_to_nvlist()
             # XXX: if used more than twice move this code into an external func
@@ -2736,7 +2771,7 @@ class ZFSTest(unittest.TestCase):
             lzc.lzc_send(snap2, snap1, stream.fileno())
             stream.seek(0)
             stream.truncate(1024 * 3)
-            with self.assertRaises(lzc_exc.BadStream):
+            with self.assertRaises(lzc_exc.StreamTruncated):
                 lzc.lzc_receive_resumable(dst2, stream.fileno())
             # Resume token code from zfs_send_resume_token_to_nvlist()
             # format: <version>-<cksum>-<packed-size>-<compressed-payload>

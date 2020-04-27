@@ -39,7 +39,7 @@ this set may include unsupported features.
 .sp
 .LP
 Every feature has a GUID of the form \fIcom.example:feature_name\fR. The
-reverse DNS name ensures that the feature's GUID is unique across all ZFS
+reversed DNS name ensures that the feature's GUID is unique across all ZFS
 implementations. When unsupported features are encountered on a pool they will
 be identified by their GUIDs. Refer to the documentation for the ZFS
 implementation that created the pool for information about those features.
@@ -313,6 +313,8 @@ ever had their checksum set to \fBedonr\fR are destroyed.
 
 The \fBedonr\fR feature is not supported by GRUB and must not be used on
 the pool if GRUB needs to access the pool (e.g. for /boot).
+
+FreeBSD does not support the \fBedonr\fR feature.
 .RE
 
 .sp

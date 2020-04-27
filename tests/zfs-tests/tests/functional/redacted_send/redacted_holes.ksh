@@ -46,11 +46,11 @@ typeset M=$((1024 * 1024))
 log_onexit redacted_cleanup $sendfs $recvfs
 
 # Write holes at the start and end of a non-sparse file.
-if is_linux; then
+if is_illumos; then
+	log_must mkholes -h 0:$M -h $((7 * M)):$M $clone_mnt/f1
+else
 	log_must dd if=/dev/zero of=$clone_mnt/f1 bs=1M count=1 conv=notrunc
 	log_must dd if=/dev/zero of=$clone_mnt/f1 bs=1M count=1 conv=notrunc seek=7
-else
-	log_must mkholes -h 0:$M -h $((7 * M)):$M $clone_mnt/f1
 fi
 log_must zfs snapshot $clone@snap1
 log_must zfs redact $sendfs@snap book1 $clone@snap1
@@ -72,11 +72,11 @@ log_must zfs rollback -R $clone@snap
 log_must zfs destroy -R $recvfs
 
 # Write data into the middle of a hole.
-if is_linux; then
+if is_illumos; then
+	log_must mkholes -d $((3 * M)):$((2 * M)) $clone_mnt/f2
+else
 	log_must dd if=/dev/urandom of=$clone_mnt/f2 bs=1M count=2 seek=3 \
 	    conv=notrunc
-else
-	log_must mkholes -d $((3 * M)):$((2 * M)) $clone_mnt/f2
 fi
 log_must zfs snapshot $clone@snap1
 log_must zfs redact $sendfs@snap book3 $clone@snap1
@@ -109,8 +109,8 @@ for i in {1..31} {97..256}; do
 	    "File f$i did not match in the send and recv datasets."
 done
 for i in {32..96}; do
-	file_size=$(stat -c %s $send_mnt/manyrm/f$i)
-	redacted_size=$(stat -c %s $recv_mnt/f$i)
+	file_size=$(stat_size $send_mnt/manyrm/f$i)
+	redacted_size=$(stat_size $recv_mnt/f$i)
 	[[ $file_size -eq $redacted_size ]] || log_fail \
 	    "File f$i has size $file_size and redacted size $redacted_size"
 done

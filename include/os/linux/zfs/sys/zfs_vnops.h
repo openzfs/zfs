@@ -43,37 +43,38 @@ extern int zfs_close(struct inode *ip, int flag, cred_t *cr);
 extern int zfs_holey(struct inode *ip, int cmd, loff_t *off);
 extern int zfs_read(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr);
 extern int zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr);
+extern int zfs_write_simple(znode_t *zp, const void *data, size_t len,
+    loff_t pos, size_t *resid);
 extern int zfs_access(struct inode *ip, int mode, int flag, cred_t *cr);
-extern int zfs_lookup(struct inode *dip, char *nm, struct inode **ipp,
+extern int zfs_lookup(znode_t *dzp, char *nm, znode_t **zpp,
     int flags, cred_t *cr, int *direntflags, pathname_t *realpnp);
-extern int zfs_create(struct inode *dip, char *name, vattr_t *vap, int excl,
+extern int zfs_create(znode_t *dzp, char *name, vattr_t *vap, int excl,
+    int mode, znode_t **zpp, cred_t *cr, int flag, vsecattr_t *vsecp);
+extern int zfs_tmpfile(struct inode *dip, vattr_t *vapzfs, int excl,
     int mode, struct inode **ipp, cred_t *cr, int flag, vsecattr_t *vsecp);
-extern int zfs_tmpfile(struct inode *dip, vattr_t *vap, int excl,
-    int mode, struct inode **ipp, cred_t *cr, int flag, vsecattr_t *vsecp);
-extern int zfs_remove(struct inode *dip, char *name, cred_t *cr, int flags);
-extern int zfs_mkdir(struct inode *dip, char *dirname, vattr_t *vap,
-    struct inode **ipp, cred_t *cr, int flags, vsecattr_t *vsecp);
-extern int zfs_rmdir(struct inode *dip, char *name, struct inode *cwd,
+extern int zfs_remove(znode_t *dzp, char *name, cred_t *cr, int flags);
+extern int zfs_mkdir(znode_t *dzp, char *dirname, vattr_t *vap,
+    znode_t **zpp, cred_t *cr, int flags, vsecattr_t *vsecp);
+extern int zfs_rmdir(znode_t *dzp, char *name, znode_t *cwd,
     cred_t *cr, int flags);
 extern int zfs_readdir(struct inode *ip, zpl_dir_context_t *ctx, cred_t *cr);
-extern int zfs_fsync(struct inode *ip, int syncflag, cred_t *cr);
-extern int zfs_getattr(struct inode *ip, vattr_t *vap, int flag, cred_t *cr);
+extern int zfs_fsync(znode_t *zp, int syncflag, cred_t *cr);
 extern int zfs_getattr_fast(struct inode *ip, struct kstat *sp);
-extern int zfs_setattr(struct inode *ip, vattr_t *vap, int flag, cred_t *cr);
-extern int zfs_rename(struct inode *sdip, char *snm, struct inode *tdip,
+extern int zfs_setattr(znode_t *zp, vattr_t *vap, int flag, cred_t *cr);
+extern int zfs_rename(znode_t *sdzp, char *snm, znode_t *tdzp,
     char *tnm, cred_t *cr, int flags);
-extern int zfs_symlink(struct inode *dip, char *name, vattr_t *vap,
-    char *link, struct inode **ipp, cred_t *cr, int flags);
+extern int zfs_symlink(znode_t *dzp, char *name, vattr_t *vap,
+    char *link, znode_t **zpp, cred_t *cr, int flags);
 extern int zfs_readlink(struct inode *ip, uio_t *uio, cred_t *cr);
-extern int zfs_link(struct inode *tdip, struct inode *sip,
+extern int zfs_link(znode_t *tdzp, znode_t *szp,
     char *name, cred_t *cr, int flags);
 extern void zfs_inactive(struct inode *ip);
-extern int zfs_space(struct inode *ip, int cmd, flock64_t *bfp, int flag,
+extern int zfs_space(znode_t *zp, int cmd, flock64_t *bfp, int flag,
     offset_t offset, cred_t *cr);
 extern int zfs_fid(struct inode *ip, fid_t *fidp);
 extern int zfs_getsecattr(struct inode *ip, vsecattr_t *vsecp, int flag,
     cred_t *cr);
-extern int zfs_setsecattr(struct inode *ip, vsecattr_t *vsecp, int flag,
+extern int zfs_setsecattr(znode_t *zp, vsecattr_t *vsecp, int flag,
     cred_t *cr);
 extern int zfs_getpage(struct inode *ip, struct page *pl[], int nr_pages);
 extern int zfs_putpage(struct inode *ip, struct page *pp,
@@ -81,7 +82,7 @@ extern int zfs_putpage(struct inode *ip, struct page *pp,
 extern int zfs_dirty_inode(struct inode *ip, int flags);
 extern int zfs_map(struct inode *ip, offset_t off, caddr_t *addrp,
     size_t len, unsigned long vm_flags);
-extern void zfs_iput_async(struct inode *ip);
+extern void zfs_zrele_async(znode_t *zp);
 
 #ifdef	__cplusplus
 }

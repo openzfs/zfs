@@ -9,10 +9,9 @@ obj-$(CONFIG_ZFS) := $(MODULE).o
 ccflags-y := $(ZFS_MODULE_CFLAGS) $(ZFS_MODULE_CPPFLAGS)
 
 # Suppress unused-value warnings in sparc64 architecture headers
-ifeq ($(target_cpu),sparc64)
-ccflags-y += -Wno-unused-value
-endif
+ccflags-$(CONFIG_SPARC64) += -Wno-unused-value
 
+$(MODULE)-objs += cityhash.o
 $(MODULE)-objs += zfeature_common.o
 $(MODULE)-objs += zfs_comutil.o
 $(MODULE)-objs += zfs_deleg.o

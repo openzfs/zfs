@@ -77,7 +77,8 @@ typedef enum cpuid_inst_sets {
 	AVX512ER,
 	AVX512VL,
 	AES,
-	PCLMULQDQ
+	PCLMULQDQ,
+	MOVBE
 } cpuid_inst_sets_t;
 
 /*
@@ -101,6 +102,7 @@ typedef struct cpuid_feature_desc {
 #define	_AVX512VL_BIT		(1U << 31) /* if used also check other levels */
 #define	_AES_BIT		(1U << 25)
 #define	_PCLMULQDQ_BIT		(1U << 1)
+#define	_MOVBE_BIT		(1U << 22)
 
 /*
  * Descriptions of supported instruction sets
@@ -128,6 +130,7 @@ static const cpuid_feature_desc_t cpuid_features[] = {
 	[AVX512VL]	= {7U, 0U, _AVX512ER_BIT,	EBX	},
 	[AES]		= {1U, 0U, _AES_BIT,		ECX	},
 	[PCLMULQDQ]	= {1U, 0U, _PCLMULQDQ_BIT,	ECX	},
+	[MOVBE]		= {1U, 0U, _MOVBE_BIT,		ECX	},
 };
 
 /*
@@ -200,6 +203,7 @@ CPUID_FEATURE_CHECK(avx512er, AVX512ER);
 CPUID_FEATURE_CHECK(avx512vl, AVX512VL);
 CPUID_FEATURE_CHECK(aes, AES);
 CPUID_FEATURE_CHECK(pclmulqdq, PCLMULQDQ);
+CPUID_FEATURE_CHECK(movbe, MOVBE);
 
 /*
  * Detect register set support
@@ -333,6 +337,15 @@ zfs_pclmulqdq_available(void)
 }
 
 /*
+ * Check if MOVBE instruction is available
+ */
+static inline boolean_t
+zfs_movbe_available(void)
+{
+	return (__cpuid_has_movbe());
+}
+
+/*
  * AVX-512 family of instruction sets:
  *
  * AVX512F	Foundation
@@ -437,6 +450,46 @@ zfs_avx512vbmi_available(void)
 #define	kfpu_begin()		do {} while (0)
 #define	kfpu_end()		do {} while (0)
 
+#elif defined(__powerpc__)
+
+#define	kfpu_allowed()		1
+#define	kfpu_initialize(tsk)	do {} while (0)
+#define	kfpu_begin()		do {} while (0)
+#define	kfpu_end()		do {} while (0)
+
+/*
+ * Check if AltiVec instruction set is available
+ * No easy way beyond 'altivec works' :-(
+ */
+#include <signal.h>
+#include <setjmp.h>
+
+#ifdef __ALTIVEC__
+static jmp_buf env;
+static void sigillhandler(int x)
+{
+	longjmp(env, 1);
+}
+#endif
+
+static inline boolean_t
+zfs_altivec_available(void)
+{
+	boolean_t has_altivec = B_FALSE;
+#ifdef __ALTIVEC__
+	sighandler_t savesig;
+	savesig = signal(SIGILL, sigillhandler);
+	if (setjmp(env)) {
+		signal(SIGILL, savesig);
+		has_altivec = B_FALSE;
+	} else {
+		__asm__ __volatile__("vor 0,0,0\n" : : : "v0");
+		signal(SIGILL, savesig);
+		has_altivec = B_TRUE;
+	}
+#endif
+	return (has_altivec);
+}
 #else
 
 #define	kfpu_allowed()		0

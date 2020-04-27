@@ -24,8 +24,8 @@
  */
 
 
-#include <sys/zfs_vnops.h>
 #include <sys/zfs_znode.h>
+#include <sys/zfs_vnops.h>
 #include <sys/zfs_ctldir.h>
 #include <sys/zpl.h>
 
@@ -110,12 +110,12 @@ zpl_get_parent(struct dentry *child)
 {
 	cred_t *cr = CRED();
 	fstrans_cookie_t cookie;
-	struct inode *ip;
+	znode_t *zp;
 	int error;
 
 	crhold(cr);
 	cookie = spl_fstrans_mark();
-	error = -zfs_lookup(child->d_inode, "..", &ip, 0, cr, NULL, NULL);
+	error = -zfs_lookup(ITOZ(child->d_inode), "..", &zp, 0, cr, NULL, NULL);
 	spl_fstrans_unmark(cookie);
 	crfree(cr);
 	ASSERT3S(error, <=, 0);
@@ -123,7 +123,7 @@ zpl_get_parent(struct dentry *child)
 	if (error)
 		return (ERR_PTR(error));
 
-	return (d_obtain_alias(ip));
+	return (d_obtain_alias(ZTOI(zp)));
 }
 
 static int
@@ -138,7 +138,7 @@ zpl_commit_metadata(struct inode *inode)
 
 	crhold(cr);
 	cookie = spl_fstrans_mark();
-	error = -zfs_fsync(inode, 0, cr);
+	error = -zfs_fsync(ITOZ(inode), 0, cr);
 	spl_fstrans_unmark(cookie);
 	crfree(cr);
 	ASSERT3S(error, <=, 0);

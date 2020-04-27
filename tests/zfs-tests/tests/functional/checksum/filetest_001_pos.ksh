@@ -54,9 +54,7 @@ verify_runnable "both"
 
 function cleanup
 {
-	echo cleanup
-	[[ -e $TESTDIR ]] && \
-		log_must rm -rf $TESTDIR/* > /dev/null 2>&1
+	rm -fr $TESTDIR/*
 }
 
 log_assert "Create and read back files with using different checksum algorithms"

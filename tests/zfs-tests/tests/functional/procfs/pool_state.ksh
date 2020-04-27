@@ -105,8 +105,10 @@ check_all $TESTPOOL "ONLINE"
 
 # Fault one of the disks, and check that pool is degraded
 DISK1=$(echo "$DISKS" | awk '{print $2}')
-zpool offline -tf $TESTPOOL $DISK1
+log_must zpool offline -tf $TESTPOOL $DISK1
 check_all $TESTPOOL "DEGRADED"
+log_must zpool online $TESTPOOL $DISK1
+log_must zpool clear $TESTPOOL
 
 # Create a new pool out of a scsi_debug disk
 TESTPOOL2=testpool2
@@ -137,7 +139,7 @@ remove_disk $SDISK
 # background since the command will hang when the pool gets suspended.  The
 # command will resume and exit after we restore the missing disk later on.
 zpool scrub $TESTPOOL2 &
-sleep 1		# Give the scrub some time to run before we check if it fails
+sleep 3		# Give the scrub some time to run before we check if it fails
 
 log_must check_all $TESTPOOL2 "SUSPENDED"
 

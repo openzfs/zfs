@@ -13,6 +13,7 @@ dist_pkgdata_SCRIPTS = \
 	tst.get_type.ksh \
 	tst.get_userquota.ksh \
 	tst.get_written.ksh \
+	tst.inherit.ksh \
 	tst.list_bookmarks.ksh \
 	tst.list_children.ksh \
 	tst.list_clones.ksh \
@@ -26,9 +27,12 @@ dist_pkgdata_SCRIPTS = \
 	tst.promote_simple.ksh \
 	tst.rollback_mult.ksh \
 	tst.rollback_one.ksh \
+	tst.set_props.ksh \
 	tst.snapshot_destroy.ksh \
 	tst.snapshot_neg.ksh \
 	tst.snapshot_recursive.ksh \
+	tst.bookmark.create.ksh \
+	tst.bookmark.copy.ksh \
 	tst.snapshot_simple.ksh \
 	tst.terminate_by_signal.ksh
 
@@ -40,7 +44,10 @@ dist_pkgdata_DATA = \
 	tst.get_string_props.out \
 	tst.get_string_props.zcp \
 	tst.promote_conflict.zcp \
+	tst.set_props.zcp \
 	tst.snapshot_destroy.zcp \
 	tst.snapshot_neg.zcp \
 	tst.snapshot_recursive.zcp \
-	tst.snapshot_simple.zcp
+	tst.snapshot_simple.zcp \
+	tst.bookmark.create.zcp \
+	tst.bookmark.copy.zcp

@@ -30,7 +30,7 @@
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
 .\"
-.Dd June 30, 2019
+.Dd February 16, 2019
 .Dt ZFS-MOUNT 8
 .Os Linux
 .Sh NAME
@@ -117,6 +117,7 @@ Unmount all available ZFS file systems.
 Invoked automatically as part of the shutdown process.
 .It Fl f
 Forcefully unmount the file system, even if it is currently in use.
+This option is not supported on Linux.
 .It Fl u
 Unload keys for any encryption roots unmounted by this command.
 .It Ar filesystem Ns | Ns Ar mountpoint

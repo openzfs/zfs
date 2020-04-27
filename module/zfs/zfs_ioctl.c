@@ -27,7 +27,7 @@
  * Copyright (c) 2014, 2016 Joyent, Inc. All rights reserved.
  * Copyright 2016 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2014, Joyent, Inc. All rights reserved.
- * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  * Copyright (c) 2014 Integros [integros.com]
@@ -37,6 +37,7 @@
  * Copyright 2017 RackTop Systems.
  * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
  * Copyright (c) 2019 Datto Inc.
+ * Copyright (c) 2019, 2020 by Christian Schwarz. All rights reserved.
  */
 
 /*
@@ -162,6 +163,7 @@
 #include <sys/cmn_err.h>
 #include <sys/stat.h>
 #include <sys/zfs_ioctl.h>
+#include <sys/zfs_quota.h>
 #include <sys/zfs_vfsops.h>
 #include <sys/zfs_znode.h>
 #include <sys/zap.h>
@@ -1442,8 +1444,8 @@ zfsvfs_rele(zfsvfs_t *zfsvfs, void *tag)
 {
 	rrm_exit(&zfsvfs->z_teardown_lock, tag);
 
-	if (zfsvfs->z_sb) {
-		deactivate_super(zfsvfs->z_sb);
+	if (zfs_vfs_held(zfsvfs)) {
+		zfs_vfs_rele(zfsvfs);
 	} else {
 		dmu_objset_disown(zfsvfs->z_os, B_TRUE, zfsvfs);
 		zfsvfs_free(zfsvfs);
@@ -2290,7 +2292,7 @@ zfs_ioc_snapshot_list_next(zfs_cmd_t *zc)
 
 	error = dmu_objset_hold(zc->zc_name, FTAG, &os);
 	if (error != 0) {
-		return (error == ENOENT ? ESRCH : error);
+		return (error == ENOENT ? SET_ERROR(ESRCH) : error);
 	}
 
 	/*
@@ -3311,8 +3313,9 @@ zfs_ioc_create(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 
 			/*
 			 * Volumes will return EBUSY and cannot be destroyed
-			 * until all asynchronous minor handling has completed.
-			 * Wait for the spa_zvol_taskq to drain then retry.
+			 * until all asynchronous minor handling (e.g. from
+			 * setting the volmode property) has completed. Wait for
+			 * the spa_zvol_taskq to drain then retry.
 			 */
 			error2 = dsl_destroy_head(fsname);
 			while ((error2 == EBUSY) && (type == DMU_OST_ZVOL)) {
@@ -3612,11 +3615,13 @@ zfs_ioc_destroy_snaps(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 }
 
 /*
- * Create bookmarks.  Bookmark names are of the form <fs>#<bmark>.
- * All bookmarks must be in the same pool.
+ * Create bookmarks. The bookmark names are of the form <fs>#<bmark>.
+ * All bookmarks and snapshots must be in the same pool.
+ * dsl_bookmark_create_nvl_validate describes the nvlist schema in more detail.
  *
  * innvl: {
- *     bookmark1 -> snapshot1, bookmark2 -> snapshot2
+ *     new_bookmark1 -> existing_snapshot,
+ *     new_bookmark2 -> existing_bookmark,
  * }
  *
  * outnvl: bookmark -> error code (int32)
@@ -3630,25 +3635,6 @@ static const zfs_ioc_key_t zfs_keys_bookmark[] = {
 static int
 zfs_ioc_bookmark(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 {
-	for (nvpair_t *pair = nvlist_next_nvpair(innvl, NULL);
-	    pair != NULL; pair = nvlist_next_nvpair(innvl, pair)) {
-		char *snap_name;
-
-		/*
-		 * Verify the snapshot argument.
-		 */
-		if (nvpair_value_string(pair, &snap_name) != 0)
-			return (SET_ERROR(EINVAL));
-
-
-		/* Verify that the keys (bookmarks) are unique */
-		for (nvpair_t *pair2 = nvlist_next_nvpair(innvl, pair);
-		    pair2 != NULL; pair2 = nvlist_next_nvpair(innvl, pair2)) {
-			if (strcmp(nvpair_name(pair), nvpair_name(pair2)) == 0)
-				return (SET_ERROR(EINVAL));
-		}
-	}
-
 	return (dsl_bookmark_create(innvl, outnvl));
 }
 
@@ -4087,6 +4073,83 @@ zfs_ioc_wait(const char *name, nvlist_t *innvl, nvlist_t *outnvl)
 }
 
 /*
+ * This ioctl waits for activity of a particular type to complete. If there is
+ * no activity of that type in progress, it returns immediately, and the
+ * returned value "waited" is false. If there is activity in progress, and no
+ * tag is passed in, the ioctl blocks until all activity of that type is
+ * complete, and then returns with "waited" set to true.
+ *
+ * If a thread waiting in the ioctl receives a signal, the call will return
+ * immediately, and the return value will be EINTR.
+ *
+ * innvl: {
+ *     "wait_activity" -> int32_t
+ * }
+ *
+ * outnvl: "waited" -> boolean_t
+ */
+static const zfs_ioc_key_t zfs_keys_fs_wait[] = {
+	{ZFS_WAIT_ACTIVITY,	DATA_TYPE_INT32,		0},
+};
+
+static int
+zfs_ioc_wait_fs(const char *name, nvlist_t *innvl, nvlist_t *outnvl)
+{
+	int32_t activity;
+	boolean_t waited = B_FALSE;
+	int error;
+	dsl_pool_t *dp;
+	dsl_dir_t *dd;
+	dsl_dataset_t *ds;
+
+	if (nvlist_lookup_int32(innvl, ZFS_WAIT_ACTIVITY, &activity) != 0)
+		return (SET_ERROR(EINVAL));
+
+	if (activity >= ZFS_WAIT_NUM_ACTIVITIES || activity < 0)
+		return (SET_ERROR(EINVAL));
+
+	if ((error = dsl_pool_hold(name, FTAG, &dp)) != 0)
+		return (error);
+
+	if ((error = dsl_dataset_hold(dp, name, FTAG, &ds)) != 0) {
+		dsl_pool_rele(dp, FTAG);
+		return (error);
+	}
+
+	dd = ds->ds_dir;
+	mutex_enter(&dd->dd_activity_lock);
+	dd->dd_activity_waiters++;
+
+	/*
+	 * We get a long-hold here so that the dsl_dataset_t and dsl_dir_t
+	 * aren't evicted while we're waiting. Normally this is prevented by
+	 * holding the pool, but we can't do that while we're waiting since
+	 * that would prevent TXGs from syncing out. Some of the functionality
+	 * of long-holds (e.g. preventing deletion) is unnecessary for this
+	 * case, since we would cancel the waiters before proceeding with a
+	 * deletion. An alternative mechanism for keeping the dataset around
+	 * could be developed but this is simpler.
+	 */
+	dsl_dataset_long_hold(ds, FTAG);
+	dsl_pool_rele(dp, FTAG);
+
+	error = dsl_dir_wait(dd, ds, activity, &waited);
+
+	dsl_dataset_long_rele(ds, FTAG);
+	dd->dd_activity_waiters--;
+	if (dd->dd_activity_waiters == 0)
+		cv_signal(&dd->dd_activity_cv);
+	mutex_exit(&dd->dd_activity_lock);
+
+	dsl_dataset_rele(ds, FTAG);
+
+	if (error == 0)
+		fnvlist_add_boolean_value(outnvl, ZFS_WAIT_WAITED, waited);
+
+	return (error);
+}
+
+/*
  * fsname is name of dataset to rollback (to most recent snapshot)
  *
  * innvl may contain name of expected target snapshot
@@ -4133,7 +4196,7 @@ zfs_ioc_rollback(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 			resume_err = zfs_resume_fs(zfsvfs, ds);
 			error = error ? error : resume_err;
 		}
-		deactivate_super(zfsvfs->z_sb);
+		zfs_vfs_rele(zfsvfs);
 	} else if ((zv = zvol_suspend(fsname)) != NULL) {
 		error = dsl_dataset_rollback(fsname, target, zvol_tag(zv),
 		    outnvl);
@@ -4162,7 +4225,7 @@ recursive_unmount(const char *fsname, void *arg)
  * snapname is the snapshot to redact.
  * innvl: {
  *     "bookname" -> (string)
- *         name of the redaction bookmark to generate
+ *         shortname of the redaction bookmark to generate
  *     "snapnv" -> (nvlist, values ignored)
  *         snapshots to redact snapname with respect to
  * }
@@ -4702,9 +4765,9 @@ static boolean_t zfs_ioc_recv_inject_err;
 static int
 zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin, nvlist_t *recvprops,
     nvlist_t *localprops, nvlist_t *hidden_args, boolean_t force,
-    boolean_t resumable, int input_fd, dmu_replay_record_t *begin_record,
-    int cleanup_fd, uint64_t *read_bytes, uint64_t *errflags,
-    uint64_t *action_handle, nvlist_t **errors)
+    boolean_t resumable, int input_fd,
+    dmu_replay_record_t *begin_record, uint64_t *read_bytes,
+    uint64_t *errflags, nvlist_t **errors)
 {
 	dmu_recv_cookie_t drc;
 	int error = 0;
@@ -4833,7 +4896,7 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin, nvlist_t *recvprops,
 		nvlist_free(xprops);
 	}
 
-	error = dmu_recv_stream(&drc, cleanup_fd, action_handle, &off);
+	error = dmu_recv_stream(&drc, &off);
 
 	if (error == 0) {
 		zfsvfs_t *zfsvfs = NULL;
@@ -4866,7 +4929,7 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin, nvlist_t *recvprops,
 				error = zfs_resume_fs(zfsvfs, ds);
 			}
 			error = error ? error : end_err;
-			deactivate_super(zfsvfs->z_sb);
+			zfs_vfs_rele(zfsvfs);
 		} else if ((zv = zvol_suspend(tofs)) != NULL) {
 			error = dmu_recv_end(&drc, zvol_tag(zv));
 			zvol_resume(zv);
@@ -5025,13 +5088,10 @@ out:
  * zc_cookie		file descriptor to recv from
  * zc_begin_record	the BEGIN record of the stream (not byteswapped)
  * zc_guid		force flag
- * zc_cleanup_fd	cleanup-on-exit file descriptor
- * zc_action_handle	handle for this guid/ds mapping (or zero on first call)
  *
  * outputs:
  * zc_cookie		number of bytes read
  * zc_obj		zprop_errflags_t
- * zc_action_handle	handle for this guid/ds mapping
  * zc_nvlist_dst{_size} error for each unapplied received property
  */
 static int
@@ -5074,8 +5134,7 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 
 	error = zfs_ioc_recv_impl(tofs, tosnap, origin, recvdprops, localprops,
 	    NULL, zc->zc_guid, B_FALSE, zc->zc_cookie, &begin_record,
-	    zc->zc_cleanup_fd, &zc->zc_cookie, &zc->zc_obj,
-	    &zc->zc_action_handle, &errors);
+	    &zc->zc_cookie, &zc->zc_obj, &errors);
 	nvlist_free(recvdprops);
 	nvlist_free(localprops);
 
@@ -5108,15 +5167,14 @@ zfs_ioc_recv(zfs_cmd_t *zc)
  *     "input_fd" -> file descriptor to read stream from (int32)
  *     (optional) "force" -> force flag (value ignored)
  *     (optional) "resumable" -> resumable flag (value ignored)
- *     (optional) "cleanup_fd" -> cleanup-on-exit file descriptor
- *     (optional) "action_handle" -> handle for this guid/ds mapping
+ *     (optional) "cleanup_fd" -> unused
+ *     (optional) "action_handle" -> unused
  *     (optional) "hidden_args" -> { "wkeydata" -> value }
  * }
  *
  * outnvl: {
  *     "read_bytes" -> number of bytes read
  *     "error_flags" -> zprop_errflags_t
- *     "action_handle" -> handle for this guid/ds mapping
  *     "errors" -> error for each unapplied received property (nvlist)
  * }
  */
@@ -5149,11 +5207,9 @@ zfs_ioc_recv_new(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 	char tofs[ZFS_MAX_DATASET_NAME_LEN];
 	boolean_t force;
 	boolean_t resumable;
-	uint64_t action_handle = 0;
 	uint64_t read_bytes = 0;
 	uint64_t errflags = 0;
 	int input_fd = -1;
-	int cleanup_fd = -1;
 	int error;
 
 	snapname = fnvlist_lookup_string(innvl, "snapname");
@@ -5181,14 +5237,6 @@ zfs_ioc_recv_new(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 	force = nvlist_exists(innvl, "force");
 	resumable = nvlist_exists(innvl, "resumable");
 
-	error = nvlist_lookup_int32(innvl, "cleanup_fd", &cleanup_fd);
-	if (error && error != ENOENT)
-		return (error);
-
-	error = nvlist_lookup_uint64(innvl, "action_handle", &action_handle);
-	if (error && error != ENOENT)
-		return (error);
-
 	/* we still use "props" here for backwards compatibility */
 	error = nvlist_lookup_nvlist(innvl, "props", &recvprops);
 	if (error && error != ENOENT)
@@ -5203,12 +5251,11 @@ zfs_ioc_recv_new(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 		return (error);
 
 	error = zfs_ioc_recv_impl(tofs, tosnap, origin, recvprops, localprops,
-	    hidden_args, force, resumable, input_fd, begin_record, cleanup_fd,
-	    &read_bytes, &errflags, &action_handle, &errors);
+	    hidden_args, force, resumable, input_fd, begin_record,
+	    &read_bytes, &errflags, &errors);
 
 	fnvlist_add_uint64(outnvl, "read_bytes", read_bytes);
 	fnvlist_add_uint64(outnvl, "error_flags", errflags);
-	fnvlist_add_uint64(outnvl, "action_handle", action_handle);
 	fnvlist_add_nvlist(outnvl, "errors", errors);
 
 	nvlist_free(errors);
@@ -5290,6 +5337,7 @@ zfs_ioc_send(zfs_cmd_t *zc)
 	boolean_t large_block_ok = (zc->zc_flags & 0x2);
 	boolean_t compressok = (zc->zc_flags & 0x4);
 	boolean_t rawok = (zc->zc_flags & 0x8);
+	boolean_t savedok = (zc->zc_flags & 0x10);
 
 	if (zc->zc_obj != 0) {
 		dsl_pool_t *dp;
@@ -5339,7 +5387,7 @@ zfs_ioc_send(zfs_cmd_t *zc)
 		}
 
 		error = dmu_send_estimate_fast(tosnap, fromsnap, NULL,
-		    compressok || rawok, &zc->zc_objset_type);
+		    compressok || rawok, savedok, &zc->zc_objset_type);
 
 		if (fromsnap != NULL)
 			dsl_dataset_rele(fromsnap, FTAG);
@@ -5357,8 +5405,8 @@ zfs_ioc_send(zfs_cmd_t *zc)
 		out.dso_arg = fp;
 		out.dso_dryrun = B_FALSE;
 		error = dmu_send_obj(zc->zc_name, zc->zc_sendobj,
-		    zc->zc_fromobj, embedok, large_block_ok, compressok, rawok,
-		    zc->zc_cookie, &off, &out);
+		    zc->zc_fromobj, embedok, large_block_ok, compressok,
+		    rawok, savedok, zc->zc_cookie, &off, &out);
 
 		zfs_file_put(zc->zc_cookie);
 	}
@@ -5404,7 +5452,7 @@ zfs_ioc_send_progress(zfs_cmd_t *zc)
 	for (dsp = list_head(&ds->ds_sendstreams); dsp != NULL;
 	    dsp = list_next(&ds->ds_sendstreams, dsp)) {
 		if (dsp->dss_outfd == zc->zc_cookie &&
-		    dsp->dss_proc == curproc)
+		    zfs_proc_is_caller(dsp->dss_proc))
 			break;
 	}
 
@@ -5543,9 +5591,10 @@ zfs_ioc_clear(zfs_cmd_t *zc)
 	} else {
 		vd = spa_lookup_by_guid(spa, zc->zc_guid, B_TRUE);
 		if (vd == NULL) {
-			(void) spa_vdev_state_exit(spa, NULL, ENODEV);
+			error = SET_ERROR(ENODEV);
+			(void) spa_vdev_state_exit(spa, NULL, error);
 			spa_close(spa, FTAG);
-			return (SET_ERROR(ENODEV));
+			return (error);
 		}
 	}
 
@@ -5784,7 +5833,7 @@ zfs_ioc_userspace_upgrade(zfs_cmd_t *zc)
 		}
 		if (error == 0)
 			error = dmu_objset_userspace_upgrade(zfsvfs->z_os);
-		deactivate_super(zfsvfs->z_sb);
+		zfs_vfs_rele(zfsvfs);
 	} else {
 		/* XXX kind of reading contents without owning */
 		error = dmu_objset_hold_flags(zc->zc_name, B_TRUE, FTAG, &os);
@@ -6244,6 +6293,8 @@ zfs_ioc_space_snaps(const char *lastsnap, nvlist_t *innvl, nvlist_t *outnvl)
  *         presence indicates compressed DRR_WRITE records are permitted
  *     (optional) "rawok" -> (value ignored)
  *         presence indicates raw encrypted records should be used.
+ *     (optional) "savedok" -> (value ignored)
+ *         presence indicates we should send a partially received snapshot
  *     (optional) "resume_object" and "resume_offset" -> (uint64)
  *         if present, resume send stream from specified object and offset.
  *     (optional) "redactbook" -> (string)
@@ -6260,6 +6311,7 @@ static const zfs_ioc_key_t zfs_keys_send_new[] = {
 	{"embedok",		DATA_TYPE_BOOLEAN,	ZK_OPTIONAL},
 	{"compressok",		DATA_TYPE_BOOLEAN,	ZK_OPTIONAL},
 	{"rawok",		DATA_TYPE_BOOLEAN,	ZK_OPTIONAL},
+	{"savedok",		DATA_TYPE_BOOLEAN,	ZK_OPTIONAL},
 	{"resume_object",	DATA_TYPE_UINT64,	ZK_OPTIONAL},
 	{"resume_offset",	DATA_TYPE_UINT64,	ZK_OPTIONAL},
 	{"redactbook",		DATA_TYPE_STRING,	ZK_OPTIONAL},
@@ -6278,6 +6330,7 @@ zfs_ioc_send_new(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 	boolean_t embedok;
 	boolean_t compressok;
 	boolean_t rawok;
+	boolean_t savedok;
 	uint64_t resumeobj = 0;
 	uint64_t resumeoff = 0;
 	char *redactbook = NULL;
@@ -6290,6 +6343,7 @@ zfs_ioc_send_new(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 	embedok = nvlist_exists(innvl, "embedok");
 	compressok = nvlist_exists(innvl, "compressok");
 	rawok = nvlist_exists(innvl, "rawok");
+	savedok = nvlist_exists(innvl, "savedok");
 
 	(void) nvlist_lookup_uint64(innvl, "resume_object", &resumeobj);
 	(void) nvlist_lookup_uint64(innvl, "resume_offset", &resumeoff);
@@ -6305,8 +6359,9 @@ zfs_ioc_send_new(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 	out.dso_outfunc = dump_bytes;
 	out.dso_arg = fp;
 	out.dso_dryrun = B_FALSE;
-	error = dmu_send(snapname, fromname, embedok, largeblockok, compressok,
-	    rawok, resumeobj, resumeoff, redactbook, fd, &off, &out);
+	error = dmu_send(snapname, fromname, embedok, largeblockok,
+	    compressok, rawok, savedok, resumeobj, resumeoff,
+	    redactbook, fd, &off, &out);
 
 	zfs_file_put(fd);
 	return (error);
@@ -6371,6 +6426,7 @@ zfs_ioc_send_space(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 	boolean_t embedok;
 	boolean_t compressok;
 	boolean_t rawok;
+	boolean_t savedok;
 	uint64_t space = 0;
 	boolean_t full_estimate = B_FALSE;
 	uint64_t resumeobj = 0;
@@ -6394,6 +6450,7 @@ zfs_ioc_send_space(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 	embedok = nvlist_exists(innvl, "embedok");
 	compressok = nvlist_exists(innvl, "compressok");
 	rawok = nvlist_exists(innvl, "rawok");
+	savedok = nvlist_exists(innvl, "savedok");
 	boolean_t from = (nvlist_lookup_string(innvl, "from", &fromname) == 0);
 	boolean_t altbook = (nvlist_lookup_string(innvl, "redactbook",
 	    &redactlist_book) == 0);
@@ -6468,12 +6525,12 @@ zfs_ioc_send_space(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 		dsl_dataset_rele(tosnap, FTAG);
 		dsl_pool_rele(dp, FTAG);
 		error = dmu_send(snapname, fromname, embedok, largeblockok,
-		    compressok, rawok, resumeobj, resumeoff, redactlist_book,
-		    fd, &off, &out);
+		    compressok, rawok, savedok, resumeobj, resumeoff,
+		    redactlist_book, fd, &off, &out);
 	} else {
 		error = dmu_send_estimate_fast(tosnap, fromsnap,
 		    (from && strchr(fromname, '#') != NULL ? &zbm : NULL),
-		    compressok || rawok, &space);
+		    compressok || rawok, savedok, &space);
 		space -= resume_bytes;
 		if (fromsnap != NULL)
 			dsl_dataset_rele(fromsnap, FTAG);
@@ -6919,6 +6976,11 @@ zfs_ioctl_init(void)
 	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_FALSE, B_FALSE,
 	    zfs_keys_pool_wait, ARRAY_SIZE(zfs_keys_pool_wait));
 
+	zfs_ioctl_register("wait_fs", ZFS_IOC_WAIT_FS,
+	    zfs_ioc_wait_fs, zfs_secpolicy_none, DATASET_NAME,
+	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_FALSE, B_FALSE,
+	    zfs_keys_fs_wait, ARRAY_SIZE(zfs_keys_fs_wait));
+
 	/* IOCTLS that use the legacy function signature */
 
 	zfs_ioctl_register_legacy(ZFS_IOC_POOL_FREEZE, zfs_ioc_pool_freeze,
@@ -7156,6 +7218,41 @@ pool_status_check(const char *name, zfs_ioc_namecheck_t type,
 		spa_close(spa, FTAG);
 	}
 	return (error);
+}
+
+int
+zfsdev_getminor(int fd, minor_t *minorp)
+{
+	zfsdev_state_t *zs, *fpd;
+	zfs_file_t *fp;
+	int rc;
+
+	ASSERT(!MUTEX_HELD(&zfsdev_state_lock));
+
+	if ((rc = zfs_file_get(fd, &fp)))
+		return (rc);
+
+	fpd = zfs_file_private(fp);
+	if (fpd == NULL)
+		return (SET_ERROR(EBADF));
+
+	mutex_enter(&zfsdev_state_lock);
+
+	for (zs = zfsdev_state_list; zs != NULL; zs = zs->zs_next) {
+
+		if (zs->zs_minor == -1)
+			continue;
+
+		if (fpd == zs) {
+			*minorp = fpd->zs_minor;
+			mutex_exit(&zfsdev_state_lock);
+			return (0);
+		}
+	}
+
+	mutex_exit(&zfsdev_state_lock);
+
+	return (SET_ERROR(EBADF));
 }
 
 static void *

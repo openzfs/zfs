@@ -115,7 +115,7 @@ typedef enum {
 	ZFS_PROP_READONLY,
 	ZFS_PROP_ZONED,
 	ZFS_PROP_SNAPDIR,
-	ZFS_PROP_PRIVATE,		/* not exposed to user, temporary */
+	ZFS_PROP_ACLMODE,
 	ZFS_PROP_ACLINHERIT,
 	ZFS_PROP_CREATETXG,
 	ZFS_PROP_NAME,			/* not exposed to the user */
@@ -573,6 +573,11 @@ typedef enum zfs_key_location {
 #define	ZPL_VERSION_USERSPACE		ZPL_VERSION_4
 #define	ZPL_VERSION_SA			ZPL_VERSION_5
 
+/* Persistent L2ARC version */
+#define	L2ARC_PERSISTENT_VERSION_1	1ULL
+#define	L2ARC_PERSISTENT_VERSION	L2ARC_PERSISTENT_VERSION_1
+#define	L2ARC_PERSISTENT_VERSION_STRING	"1"
+
 /* Rewind policy information */
 #define	ZPOOL_NO_REWIND		1  /* No policy - default behavior */
 #define	ZPOOL_NEVER_REWIND	2  /* Do not search for best txg or rewind */
@@ -591,8 +596,8 @@ typedef struct zpool_load_policy {
 
 /*
  * The following are configuration names used in the nvlist describing a pool's
- * configuration.  New on-disk names should be prefixed with "<reverse-DNS>:"
- * (e.g. "org.open-zfs:") to avoid conflicting names being developed
+ * configuration.  New on-disk names should be prefixed with "<reversed-DNS>:"
+ * (e.g. "org.openzfs:") to avoid conflicting names being developed
  * independently.
  */
 #define	ZPOOL_CONFIG_VERSION		"version"
@@ -987,7 +992,7 @@ typedef enum dsl_scan_state {
 } dsl_scan_state_t;
 
 /*
- * Errata described by http://zfsonlinux.org/msg/ZFS-8000-ER.  The ordering
+ * Errata described by https://zfsonlinux.org/msg/ZFS-8000-ER.  The ordering
  * of this enum must be maintained to ensure the errata identifiers map to
  * the correct documentation.  New errata may only be appended to the list
  * and must contain corresponding documentation at the above link.
@@ -1190,9 +1195,13 @@ typedef enum {
  */
 typedef enum zfs_ioc {
 	/*
-	 * illumos - 81/128 numbers reserved.
+	 * Core features - 81/128 numbers reserved.
 	 */
+#ifdef __FreeBSD__
+	ZFS_IOC_FIRST =	0,
+#else
 	ZFS_IOC_FIRST =	('Z' << 8),
+#endif
 	ZFS_IOC = ZFS_IOC_FIRST,
 	ZFS_IOC_POOL_CREATE = ZFS_IOC_FIRST,	/* 0x5a00 */
 	ZFS_IOC_POOL_DESTROY,			/* 0x5a01 */
@@ -1278,20 +1287,18 @@ typedef enum zfs_ioc {
 	ZFS_IOC_REDACT,				/* 0x5a51 */
 	ZFS_IOC_GET_BOOKMARK_PROPS,		/* 0x5a52 */
 	ZFS_IOC_WAIT,				/* 0x5a53 */
+	ZFS_IOC_WAIT_FS,			/* 0x5a54 */
 
 	/*
-	 * Linux - 3/64 numbers reserved.
+	 * Per-platform (Optional) - 6/128 numbers reserved.
 	 */
-	ZFS_IOC_LINUX = ('Z' << 8) + 0x80,
-	ZFS_IOC_EVENTS_NEXT,			/* 0x5a81 */
-	ZFS_IOC_EVENTS_CLEAR,			/* 0x5a82 */
-	ZFS_IOC_EVENTS_SEEK,			/* 0x5a83 */
-
-	/*
-	 * FreeBSD - 1/64 numbers reserved.
-	 */
-	ZFS_IOC_FREEBSD = ('Z' << 8) + 0xC0,
-
+	ZFS_IOC_PLATFORM = ZFS_IOC_FIRST + 0x80,
+	ZFS_IOC_EVENTS_NEXT,			/* 0x81 (Linux) */
+	ZFS_IOC_EVENTS_CLEAR,			/* 0x82 (Linux) */
+	ZFS_IOC_EVENTS_SEEK,			/* 0x83 (Linux) */
+	ZFS_IOC_NEXTBOOT,			/* 0x84 (FreeBSD) */
+	ZFS_IOC_JAIL,				/* 0x85 (FreeBSD) */
+	ZFS_IOC_UNJAIL,				/* 0x86 (FreeBSD) */
 	ZFS_IOC_LAST
 } zfs_ioc_t;
 
@@ -1309,6 +1316,8 @@ typedef enum zfs_ioc {
  * not described precisely by generic errno codes.
  *
  * These numbers should not change over time. New entries should be appended.
+ *
+ * (Keep in sync with contrib/pyzfs/libzfs_core/_constants.py)
  */
 typedef enum {
 	ZFS_ERR_CHECKPOINT_EXISTS = 1024,
@@ -1326,6 +1335,8 @@ typedef enum {
 	ZFS_ERR_SPILL_BLOCK_FLAG_MISSING,
 	ZFS_ERR_UNKNOWN_SEND_STREAM_FEATURE,
 	ZFS_ERR_EXPORT_IN_PROGRESS,
+	ZFS_ERR_BOOKMARK_SOURCE_NOT_ANCESTOR,
+	ZFS_ERR_STREAM_TRUNCATED,
 } zfs_errno_t;
 
 /*
@@ -1349,8 +1360,14 @@ typedef enum {
 	ZPOOL_WAIT_REMOVE,
 	ZPOOL_WAIT_RESILVER,
 	ZPOOL_WAIT_SCRUB,
+	ZPOOL_WAIT_TRIM,
 	ZPOOL_WAIT_NUM_ACTIVITIES
 } zpool_wait_activity_t;
+
+typedef enum {
+	ZFS_WAIT_DELETEQ,
+	ZFS_WAIT_NUM_ACTIVITIES
+} zfs_wait_activity_t;
 
 /*
  * Bookmark name values.
@@ -1408,6 +1425,12 @@ typedef enum {
 #define	ZPOOL_WAIT_ACTIVITY		"wait_activity"
 #define	ZPOOL_WAIT_TAG			"wait_tag"
 #define	ZPOOL_WAIT_WAITED		"wait_waited"
+
+/*
+ * The following are names used when invoking ZFS_IOC_WAIT_FS.
+ */
+#define	ZFS_WAIT_ACTIVITY		"wait_activity"
+#define	ZFS_WAIT_WAITED			"wait_waited"
 
 /*
  * Flags for ZFS_IOC_VDEV_SET_STATE

@@ -5,6 +5,7 @@ dist_pkgdata_DATA = \
 	libtest.shlib \
 	math.shlib \
 	properties.shlib \
+	tunables.cfg \
 	zpool_script.shlib
 
 EXTRA_DIST = default.cfg.in

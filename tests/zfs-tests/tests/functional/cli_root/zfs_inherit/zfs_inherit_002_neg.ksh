@@ -56,8 +56,13 @@ log_onexit cleanup
 
 set -A badopts "r" "R" "-R" "-rR" "-a" "-" "-?" "-1" "-2" "-v" "-n"
 set -A props "recordsize" "mountpoint" "sharenfs" "checksum" "compression" \
-    "atime" "devices" "exec" "setuid" "readonly" "zoned" "snapdir" "aclmode" \
+    "atime" "devices" "exec" "setuid" "readonly" "snapdir" "aclmode" \
     "aclinherit" "xattr" "copies"
+if is_freebsd; then
+	props+=("jailed")
+else
+	props+=("zoned")
+fi
 set -A illprops "recordsiz" "mountpont" "sharen" "compres" "atme" "blah"
 
 log_must zfs snapshot $TESTPOOL/$TESTFS@$TESTSNAP

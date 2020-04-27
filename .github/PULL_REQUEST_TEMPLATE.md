@@ -19,6 +19,7 @@ https://github.com/zfsonlinux/zfs/wiki/Buildbot-Options
 <!--- Include details of your testing environment, and the tests you ran to -->
 <!--- see how your change affects other areas of the code, etc. -->
 <!--- If your change is a performance enhancement, please provide benchmarks here. -->
+<!--- Please think about using the draft PR feature if appropriate -->
 
 ### Types of changes
 <!--- What types of changes does your code introduce? Put an `x` in all the boxes that apply: -->
@@ -36,5 +37,5 @@ https://github.com/zfsonlinux/zfs/wiki/Buildbot-Options
 - [ ] I have updated the documentation accordingly.
 - [ ] I have read the [**contributing** document](https://github.com/zfsonlinux/zfs/blob/master/.github/CONTRIBUTING.md).
 - [ ] I have added [tests](https://github.com/zfsonlinux/zfs/tree/master/tests) to cover my changes.
-- [ ] All new and existing tests passed.
+- [ ] I have run the ZFS Test Suite with this change applied.
 - [ ] All commit messages are properly formatted and contain [`Signed-off-by`](https://github.com/zfsonlinux/zfs/blob/master/.github/CONTRIBUTING.md#signed-off-by).
