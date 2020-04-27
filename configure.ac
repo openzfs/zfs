@@ -257,6 +257,7 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/functional/cli_root/zfs_destroy/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zfs_diff/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zfs_get/Makefile
+	tests/zfs-tests/tests/functional/cli_root/zfs_ids_to_path/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zfs_inherit/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zfs_load-key/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zfs_mount/Makefile
@@ -385,7 +386,6 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/functional/vdev_zaps/Makefile
 	tests/zfs-tests/tests/functional/write_dirs/Makefile
 	tests/zfs-tests/tests/functional/xattr/Makefile
-	tests/zfs-tests/tests/functional/zfs_ids_to_path/Makefile
 	tests/zfs-tests/tests/functional/zvol/Makefile
 	tests/zfs-tests/tests/functional/zvol/zvol_ENOSPC/Makefile
 	tests/zfs-tests/tests/functional/zvol/zvol_cli/Makefile
