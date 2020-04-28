@@ -113,7 +113,6 @@ install() {
 			inst "${moddir}"/$_service "${systemdsystemunitdir}"/$_service
 			if ! [ -L "${initdir}/$systemdsystemunitdir/initrd.target.wants"/$_service ]; then
 				ln -s ../$_service "${initdir}/$systemdsystemunitdir/initrd.target.wants"/$_service
-				type mark_hostonly >/dev/null 2>&1 && mark_hostonly @systemdunitdir@/$_service
 			fi
 		done
 	fi
