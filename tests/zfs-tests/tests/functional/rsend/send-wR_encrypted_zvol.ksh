@@ -16,20 +16,21 @@
 
 #
 # Copyright (c) 2018 by Datto Inc. All rights reserved.
+# Copyright (c) 2020 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/tests/functional/rsend/rsend.kshlib
 
 #
 # DESCRIPTION:
-# Verify that zvols with dedup=on and encryption=on can be sent and received
-# with a deduplicated raw send stream.
+# Verify that zvols with encryption=on can be sent and received with a raw
+# send stream.
 #
 # STRATEGY:
-# 1. Create a zvol with dedup and encryption on and put a filesystem on it
+# 1. Create a zvol with encryption on and put a filesystem on it
 # 2. Copy a file into the zvol a few times and take a snapshot
 # 3. Repeat step 2 a few times to create more snapshots
-# 4. Send all snapshots in a recursive, raw, deduplicated send stream
+# 4. Send all snapshots in a recursive, raw send stream
 # 5. Mount the received zvol and verify that all of the data there is correct
 #
 
@@ -48,7 +49,7 @@ function cleanup
 }
 log_onexit cleanup
 
-log_assert "Verify zfs can receive raw, recursive, and deduplicated send streams"
+log_assert "Verify zfs can receive raw, recursive send streams"
 
 typeset keyfile=/$TESTPOOL/pkey
 typeset snap_count=5
@@ -93,7 +94,7 @@ for ((i = 1; i <= $snap_count; i++)); do
 	log_must mount $remount_rw $zdev $mntpnt
 done
 
-log_must eval "zfs send -wDR $TESTPOOL/$TESTVOL@snap$snap_count > $sendfile"
+log_must eval "zfs send -wR $TESTPOOL/$TESTVOL@snap$snap_count > $sendfile"
 log_must eval "zfs recv $TESTPOOL/recv < $sendfile"
 log_must zfs load-key $TESTPOOL/recv
 block_device_wait
@@ -104,4 +105,4 @@ md5_1=$(cat $mntpnt/* | md5digest)
 md5_2=$(cat $recvmnt/* | md5digest)
 [[ "$md5_1" == "$md5_2" ]] || log_fail "md5 mismatch: $md5_1 != $md5_2"
 
-log_pass "zfs can receive raw, recursive, and deduplicated send streams"
+log_pass "zfs can receive raw, recursive send streams"

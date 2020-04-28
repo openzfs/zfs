@@ -13,6 +13,7 @@
 
 #
 # Copyright (c) 2019 Datto Inc.
+# Copyright (c) 2020 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -98,7 +99,6 @@ set -A badargs \
 	"-R $POOL/recvfs" \
 	"-p $POOL/recvfs" \
 	"-I $POOL/recvfs" \
-	"-D $POOL/recvfs" \
 	"-h $POOL/recvfs"
 
 while (( i < ${#badargs[*]} ))

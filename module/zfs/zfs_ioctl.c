@@ -27,7 +27,7 @@
  * Copyright (c) 2014, 2016 Joyent, Inc. All rights reserved.
  * Copyright 2016 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2014, Joyent, Inc. All rights reserved.
- * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  * Copyright (c) 2014 Integros [integros.com]
@@ -4765,8 +4765,8 @@ static int
 zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin, nvlist_t *recvprops,
     nvlist_t *localprops, nvlist_t *hidden_args, boolean_t force,
     boolean_t resumable, boolean_t illumos, int input_fd,
-    dmu_replay_record_t *begin_record, int cleanup_fd, uint64_t *read_bytes,
-    uint64_t *errflags, uint64_t *action_handle, nvlist_t **errors)
+    dmu_replay_record_t *begin_record, uint64_t *read_bytes,
+    uint64_t *errflags, nvlist_t **errors)
 {
 	dmu_recv_cookie_t drc;
 	int error = 0;
@@ -4895,7 +4895,7 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin, nvlist_t *recvprops,
 		nvlist_free(xprops);
 	}
 
-	error = dmu_recv_stream(&drc, cleanup_fd, action_handle, &off);
+	error = dmu_recv_stream(&drc, &off);
 
 	if (error == 0) {
 		zfsvfs_t *zfsvfs = NULL;
@@ -5087,13 +5087,10 @@ out:
  * zc_cookie		file descriptor to recv from
  * zc_begin_record	the BEGIN record of the stream (not byteswapped)
  * zc_guid		force flag
- * zc_cleanup_fd	cleanup-on-exit file descriptor
- * zc_action_handle	handle for this guid/ds mapping (or zero on first call)
  *
  * outputs:
  * zc_cookie		number of bytes read
  * zc_obj		zprop_errflags_t
- * zc_action_handle	handle for this guid/ds mapping
  * zc_nvlist_dst{_size} error for each unapplied received property
  */
 static int
@@ -5136,8 +5133,7 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 
 	error = zfs_ioc_recv_impl(tofs, tosnap, origin, recvdprops, localprops,
 	    NULL, zc->zc_guid, B_FALSE, B_FALSE, zc->zc_cookie, &begin_record,
-	    zc->zc_cleanup_fd, &zc->zc_cookie, &zc->zc_obj,
-	    &zc->zc_action_handle, &errors);
+	    &zc->zc_cookie, &zc->zc_obj, &errors);
 	nvlist_free(recvdprops);
 	nvlist_free(localprops);
 
@@ -5170,15 +5166,14 @@ zfs_ioc_recv(zfs_cmd_t *zc)
  *     "input_fd" -> file descriptor to read stream from (int32)
  *     (optional) "force" -> force flag (value ignored)
  *     (optional) "resumable" -> resumable flag (value ignored)
- *     (optional) "cleanup_fd" -> cleanup-on-exit file descriptor
- *     (optional) "action_handle" -> handle for this guid/ds mapping
+ *     (optional) "cleanup_fd" -> unused
+ *     (optional) "action_handle" -> unused
  *     (optional) "hidden_args" -> { "wkeydata" -> value }
  * }
  *
  * outnvl: {
  *     "read_bytes" -> number of bytes read
  *     "error_flags" -> zprop_errflags_t
- *     "action_handle" -> handle for this guid/ds mapping
  *     "errors" -> error for each unapplied received property (nvlist)
  * }
  */
@@ -5213,11 +5208,9 @@ zfs_ioc_recv_new(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 	boolean_t force;
 	boolean_t resumable;
 	boolean_t illumos;
-	uint64_t action_handle = 0;
 	uint64_t read_bytes = 0;
 	uint64_t errflags = 0;
 	int input_fd = -1;
-	int cleanup_fd = -1;
 	int error;
 
 	snapname = fnvlist_lookup_string(innvl, "snapname");
@@ -5246,14 +5239,6 @@ zfs_ioc_recv_new(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 	resumable = nvlist_exists(innvl, "resumable");
 	illumos = nvlist_exists(innvl, "illumos");
 
-	error = nvlist_lookup_int32(innvl, "cleanup_fd", &cleanup_fd);
-	if (error && error != ENOENT)
-		return (error);
-
-	error = nvlist_lookup_uint64(innvl, "action_handle", &action_handle);
-	if (error && error != ENOENT)
-		return (error);
-
 	/* we still use "props" here for backwards compatibility */
 	error = nvlist_lookup_nvlist(innvl, "props", &recvprops);
 	if (error && error != ENOENT)
@@ -5269,11 +5254,10 @@ zfs_ioc_recv_new(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 
 	error = zfs_ioc_recv_impl(tofs, tosnap, origin, recvprops, localprops,
 	    hidden_args, force, resumable, illumos, input_fd, begin_record,
-	    cleanup_fd, &read_bytes, &errflags, &action_handle, &errors);
+	    &read_bytes, &errflags, &errors);
 
 	fnvlist_add_uint64(outnvl, "read_bytes", read_bytes);
 	fnvlist_add_uint64(outnvl, "error_flags", errflags);
-	fnvlist_add_uint64(outnvl, "action_handle", action_handle);
 	fnvlist_add_nvlist(outnvl, "errors", errors);
 
 	nvlist_free(errors);
