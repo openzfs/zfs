@@ -1008,6 +1008,7 @@ key_mapping_rele(spa_t *spa, dsl_key_mapping_t *km, void *tag)
 	rw_exit(&spa->spa_keystore.sk_km_lock);
 
 	spa_keystore_dsl_key_rele(spa, km->km_key, km);
+	zfs_refcount_destroy(&km->km_refcnt);
 	kmem_free(km, sizeof (dsl_key_mapping_t));
 }
 
