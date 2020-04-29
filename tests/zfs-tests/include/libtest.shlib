@@ -2029,7 +2029,12 @@ function verify_pool
 	log_must zpool scrub $pool
 	log_must wait_scrubbed $pool
 
-	cksum=$(zpool status $pool | awk 'L{print $NF;L=0} /CKSUM$/{L=1}')
+	typeset -i cksum=$(zpool status $pool | awk '
+	    !NF { isvdev = 0 }
+	    isvdev { errors += $NF }
+	    /CKSUM$/ { isvdev = 1 }
+	    END { print errors }
+	')
 	if [[ $cksum != 0 ]]; then
 		log_must zpool status -v
 	        log_fail "Unexpected CKSUM errors found on $pool ($cksum)"
