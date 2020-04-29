@@ -19,6 +19,7 @@ endif
 non_epoch_version=$(shell echo $(KVERS) | perl -pe 's/^\d+://')
 PACKAGE=zfs
 pmodules = $(PACKAGE)-modules-$(non_epoch_version)
+pmoddbg = ${pmodules}-dbg
 pheaders = $(PACKAGE)-headers-$(non_epoch_version)
 
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
@@ -193,16 +194,34 @@ override_dh_binary-modules: override_dh_prep-deb-files override_dh_configure_mod
 	$(MAKE) -C $(CURDIR)/module modules
 	$(MAKE) -C $(CURDIR)/include install DESTDIR='$(CURDIR)/debian/tmp' VERSION=build
 
-	dh_install -p${pmodules} -p${pheaders}
-	dh_installdocs -p${pmodules} -p${pheaders}
-	dh_installchangelogs -p${pmodules} -p${pheaders}
-	dh_compress -p${pmodules} -p${pheaders}
-	dh_strip -p${pmodules} -p${pheaders}
-	dh_fixperms -p${pmodules} -p${pheaders}
-	dh_installdeb -p${pmodules} -p${pheaders}
-	dh_gencontrol -p${pmodules} -p${pheaders}
-	dh_md5sums -p${pmodules} -p${pheaders}
-	dh_builddeb -p${pmodules} -p${pheaders}
+	dh_install -p${pmodules} -p${pheaders} -p${pmoddbg}
+	dh_installdocs -p${pmodules} -p${pheaders} -p${pmoddbg}
+	dh_installchangelogs -p${pmodules} -p${pheaders} -p${pmoddbg}
+	dh_compress -p${pmodules} -p${pheaders} -p${pmoddbg}
+
+	#
+	# At this point we'd like to decouple the debug info from
+	# the kernel modules into their own package using dh_strip
+	# like this:
+	#
+	# dh_strip -p${pmodules} -p${pheaders} --dbg-package=${pmoddbg}
+	#
+	# Unfortunately dh_strip doesn't work with kernel objects (or
+	# plain C objects) - only executables and libraries (static or
+	# shared). Thus we do the stripping ourselves.
+	#
+	mkdir -p $(CURDIR)/debian/${pmoddbg}/usr/lib/debug/modules/$(KVERS)/extra
+	cp -r $(CURDIR)/debian/${pmodules}/lib $(CURDIR)/debian/${pmoddbg}/usr/lib/debug
+	for module in $$(find $(CURDIR)/debian/${pmodules} -name *.ko); do \
+		strip --strip-debug $$module; \
+		objcopy --add-gnu-debuglink=$$(find $(CURDIR)/debian/${pmoddbg} -name $$(basename $$module)) $$module; \
+	done
+
+	dh_fixperms -p${pmodules} -p${pheaders} -p${pmoddbg}
+	dh_installdeb -p${pmodules} -p${pheaders} -p${pmoddbg}
+	dh_gencontrol -p${pmodules} -p${pheaders} -p${pmoddbg}
+	dh_md5sums -p${pmodules} -p${pheaders} -p${pmoddbg}
+	dh_builddeb -p${pmodules} -p${pheaders} -p${pmoddbg}
 
 debian-copyright:
 	cme update dpkg-copyright -file debian/copyright.cme

@@ -58,3 +58,16 @@ Depends: zfs-modules-_KVERS_ (= ${binary:Version}),
 Description: OpenZFS kernel header files for compiling software
  to function with OpenZFS kernel modules.
 
+Package: zfs-modules-_KVERS_-dbg
+Section: contrib/debug
+Priority: extra
+Architecture: linux-any
+Provides: zfs-modules-dbg, delphix-zfs-modules-dbg
+Depends: zfs-modules-_KVERS_ (= ${binary:Version}),
+         ${misc:Depends}
+Description: Debugging symbols for OpenZFS userland libraries and tools
+ The Z file system is a pooled filesystem designed for maximum data
+ integrity, supporting data snapshots, multiple copies, and data
+ checksums.
+ .
+ This package contains the debug symbols for all ZFS-related kernel modules.
