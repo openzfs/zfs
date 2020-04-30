@@ -308,7 +308,7 @@ zfs_redup_stream(int infd, int outfd, boolean_t verbose)
 			 * record with the found WRITE record, but with
 			 * drr_object,drr_offset,drr_toguid replaced with ours.
 			 */
-			uint64_t stream_offset;
+			uint64_t stream_offset = 0;
 			rdt_lookup(&rdt, drrwb.drr_refguid,
 			    drrwb.drr_refobject, drrwb.drr_refoffset,
 			    &stream_offset);

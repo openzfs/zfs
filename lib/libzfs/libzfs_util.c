@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2018, Joyent, Inc. All rights reserved.
+ * Copyright 2020 Joyent, Inc. All rights reserved.
  * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
  * Copyright 2016 Igor Kozhukhov <ikozhukhov@gmail.com>
  * Copyright (c) 2017 Datto Inc.
@@ -55,6 +55,12 @@
 #include <zfs_fletcher.h>
 #include <libzutil.h>
 
+/*
+ * We only care about the scheme in order to match the scheme
+ * with the handler. Each handler should validate the full URI
+ * as necessary.
+ */
+#define	URI_REGEX	"^\\([A-Za-z][A-Za-z0-9+.\\-]*\\):"
 
 int
 libzfs_errno(libzfs_handle_t *hdl)
@@ -881,6 +887,11 @@ libzfs_init(void)
 		return (NULL);
 	}
 
+	if (regcomp(&hdl->libzfs_urire, URI_REGEX, 0) != 0) {
+		free(hdl);
+		return (NULL);
+	}
+
 	if ((hdl->libzfs_fd = open(ZFS_DEV, O_RDWR|O_EXCL)) < 0) {
 		free(hdl);
 		return (NULL);
@@ -953,6 +964,7 @@ libzfs_fini(libzfs_handle_t *hdl)
 	namespace_clear(hdl);
 	libzfs_mnttab_fini(hdl);
 	libzfs_core_fini();
+	regfree(&hdl->libzfs_urire);
 	fletcher_4_fini();
 	free(hdl);
 }
