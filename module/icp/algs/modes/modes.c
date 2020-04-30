@@ -150,18 +150,7 @@ crypto_free_mode_ctx(void *ctx)
 
 	case GCM_MODE:
 	case GMAC_MODE:
-		if (((gcm_ctx_t *)ctx)->gcm_pt_buf != NULL)
-			vmem_free(((gcm_ctx_t *)ctx)->gcm_pt_buf,
-			    ((gcm_ctx_t *)ctx)->gcm_pt_buf_len);
-
-#ifdef CAN_USE_GCM_ASM
-		if (((gcm_ctx_t *)ctx)->gcm_Htable != NULL) {
-			gcm_ctx_t *gcm_ctx = (gcm_ctx_t *)ctx;
-			memset(gcm_ctx->gcm_Htable, 0, gcm_ctx->gcm_htab_len);
-			kmem_free(gcm_ctx->gcm_Htable, gcm_ctx->gcm_htab_len);
-		}
-#endif
-
+		gcm_clear_ctx((gcm_ctx_t *)ctx);
 		kmem_free(ctx, sizeof (gcm_ctx_t));
 	}
 }

@@ -1127,24 +1127,6 @@ gcm_simd_get_htab_size(boolean_t simd_mode)
 	}
 }
 
-/*
- * Clear sensitive data in the context.
- *
- * ctx->gcm_remainder may contain a plaintext remainder. ctx->gcm_H and
- * ctx->gcm_Htable contain the hash sub key which protects authentication.
- *
- * Although extremely unlikely, ctx->gcm_J0 and ctx->gcm_tmp could be used for
- * a known plaintext attack, they consists of the IV and the first and last
- * counter respectively. If they should be cleared is debatable.
- */
-static inline void
-gcm_clear_ctx(gcm_ctx_t *ctx)
-{
-	memset(ctx->gcm_remainder, 0, sizeof (ctx->gcm_remainder));
-	memset(ctx->gcm_H, 0, sizeof (ctx->gcm_H));
-	memset(ctx->gcm_J0, 0, sizeof (ctx->gcm_J0));
-	memset(ctx->gcm_tmp, 0, sizeof (ctx->gcm_tmp));
-}
 
 /* Increment the GCM counter block by n. */
 static inline void
@@ -1367,8 +1349,6 @@ gcm_encrypt_final_avx(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size)
 		return (rv);
 
 	out->cd_offset += ctx->gcm_tag_len;
-	/* Clear sensitive data in the context before returning. */
-	gcm_clear_ctx(ctx);
 	return (CRYPTO_SUCCESS);
 }
 
@@ -1478,7 +1458,6 @@ gcm_decrypt_final_avx(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size)
 		return (rv);
 	}
 	out->cd_offset += pt_len;
-	gcm_clear_ctx(ctx);
 	return (CRYPTO_SUCCESS);
 }
 
