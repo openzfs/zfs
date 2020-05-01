@@ -4479,10 +4479,12 @@ zpool_get_bootenv(zpool_handle_t *zhp, char *outbuf, size_t size, off_t offset)
 		return (-1);
 	}
 	char *envmap = fnvlist_lookup_string(nvl, "envmap");
-	if (offset >= strlen(envmap))
+	if (offset >= strlen(envmap)) {
+		fnvlist_free(nvl);
 		return (0);
+	}
 
-	strncpy(outbuf, envmap + offset, size);
+	strlcpy(outbuf, envmap + offset, size);
 	int bytes = MIN(strlen(envmap + offset), size);
 	fnvlist_free(nvl);
 	return (bytes);

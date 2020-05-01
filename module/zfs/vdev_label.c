@@ -1249,7 +1249,7 @@ vdev_label_read_bootenv(vdev_t *rvd, nvlist_t *command)
 		vdev_boot_envblock_t *vbe = abd_to_buf(cb);
 		if (vbe->vbe_version != VB_RAW) {
 			abd_free(cb);
-			return (ENOTSUP);
+			return (SET_ERROR(ENOTSUP));
 		}
 		fnvlist_add_string(command, "envmap", vbe->vbe_bootenv);
 		/* cb was allocated in vdev_label_read_bootenv_impl() */
@@ -1268,7 +1268,7 @@ vdev_label_write_bootenv(vdev_t *vd, char *envmap)
 	vdev_boot_envblock_t *bootenv;
 	abd_t *abd;
 	int flags = ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL;
-	int error = ENXIO, err;
+	int error = ENXIO;
 
 	if (strlen(envmap) >= sizeof (bootenv->vbe_bootenv)) {
 		return (SET_ERROR(E2BIG));
@@ -1277,8 +1277,11 @@ vdev_label_write_bootenv(vdev_t *vd, char *envmap)
 	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == SCL_ALL);
 
 	for (int c = 0; c < vd->vdev_children; c++) {
-		err = vdev_label_write_bootenv(vd->vdev_child[c], envmap);
-		/* Return "best" error. */
+		int err = vdev_label_write_bootenv(vd->vdev_child[c], envmap);
+		/*
+		 * As long as any of the labels was written, we return
+		 * success.
+		 */
 		if (err == 0)
 			error = err;
 	}

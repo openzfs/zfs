@@ -3515,7 +3515,7 @@ zfs_ioc_log_history(const char *unused, nvlist_t *innvl, nvlist_t *outnvl)
 /*
  * This ioctl is used to set the bootenv configuration on the current
  * pool. This configuration is stored in the second padding area of the label,
- * and it is used by the GRUB bootloader used on Linux to store the contengs
+ * and it is used by the GRUB bootloader used on Linux to store the contents
  * of the grubenv file.  The file is stored as raw ASCII, and is protected by
  * an embedded checksum.  By default, GRUB will check if the boot filesystem
  * supports storing the environment data in a special location, and if so,
