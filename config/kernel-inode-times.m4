@@ -10,6 +10,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_INODE_TIMES], [
 		struct timespec64 ts;
 		struct inode ip;
 
+		memset(&ts, 0, sizeof(ts));
 		ts = timestamp_truncate(ts, &ip);
 	])
 
