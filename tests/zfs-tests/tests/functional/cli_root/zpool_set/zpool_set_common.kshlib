@@ -1,0 +1,178 @@
+#
+# CDDL HEADER START
+#
+# The contents of this file are subject to the terms of the
+# Common Development and Distribution License (the "License").
+# You may not use this file except in compliance with the License.
+#
+# You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+# or https://opensource.org/licenses/CDDL-1.0.
+# See the License for the specific language governing permissions
+# and limitations under the License.
+#
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+# If applicable, add the following below this CDDL HEADER, with the
+# fields enclosed by brackets "[]" replaced with your own identifying
+# information: Portions Copyright [yyyy] [name of copyright owner]
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
+# Use is subject to license terms.
+#
+
+#
+# Copyright (c) 2014, 2016 by Delphix. All rights reserved.
+# Copyright (c) 2023 by Klara Inc.
+#
+
+. $STF_SUITE/include/libtest.shlib
+
+set -A VALID_NAME_CHAR a b c d e f g h i j k l m n o p q r s t u v w x y z \
+    0 1 2 3 4 5 6 7 8 9 ':' '-' '.' '_'
+set -A INVALID_NAME_CHAR A B C D E F G H I J K L M N O P Q R S T U V W X Y Z \
+    '`' '~' '!' '@' '#' '$' '%' '^' '&' '(' ')' '+' '=' '|' "\\" '{' '[' ']' \
+    '}' ';' '"' '<' ',' '>' '?' '/' ' '
+set -A ALL_CHAR ${VALID_NAME_CHAR[*]} ${INVALID_NAME_CHAR[*]}
+
+#
+# Cleanup all the user properties of the pool.
+#
+# $1 pool name
+#
+function cleanup_user_prop
+{
+	typeset pool=$1
+
+	typeset user_prop
+	user_prop=$(zpool get -H -o property all $pool | grep ":")
+
+	typeset prop
+	for prop in $user_prop; do
+		zpool set $prop="" $pool ||
+			log_must zpool set $prop="" $pool
+	done
+}
+
+#
+# Random select character from the specified character set and combine into a
+# random string
+#
+# $1 character set name
+# $2 String length
+#
+function random_string
+{
+	typeset char_set=${1:-VALID_NAME_CHAR}
+	typeset -i len=${2:-5}
+
+	eval typeset -i count=\${#$char_set[@]}
+
+	# No consumers want an empty string.
+	((len == 0)) && len=3
+
+	typeset str
+	typeset -i i=0
+	while ((i < len)); do
+		typeset -i ind
+		((ind = RANDOM % count))
+		eval str=\${str}\${$char_set[\$ind]}
+
+		((i += 1))
+	done
+
+	echo "$str"
+}
+
+#
+# Get valid user-defined property name
+#
+# $1 user-defined property name length
+#
+function valid_user_property
+{
+	typeset -i sumlen=${1:-10}
+	((sumlen < 2 )) && sumlen=2
+	typeset -i len
+	((len = RANDOM % sumlen))
+	typeset part1 part2
+
+	while true; do
+		part1="$(random_string VALID_NAME_CHAR $len)"
+		if [[ "$part1" == "-"* ]]; then
+			continue
+		fi
+		break
+	done
+	((len = sumlen - (len + 1)))
+
+	while true; do
+		part2="$(random_string VALID_NAME_CHAR $len)"
+		if [[ -z $part1 && -z $part2 ]]; then
+			continue
+		fi
+		break
+	done
+
+	echo "${part1}:${part2}"
+}
+
+#
+# Get invalid user-defined property name
+#
+# $1 user-defined property name length
+#
+function invalid_user_property
+{
+	typeset -i sumlen=${1:-10}
+	((sumlen == 0)) && sumlen=1
+	typeset -i len
+	((len = RANDOM % sumlen))
+
+	typeset part1 part2
+	while true; do
+		part1="$(random_string VALID_NAME_CHAR $len)"
+		((len = sumlen - len))
+		part2="$(random_string INVALID_NAME_CHAR $len)"
+
+		# Avoid $part1 is *:* and $part2 is "=*"
+		if [[ "$part1" == *":"* && "$part2" == "="* ]]; then
+			continue
+		fi
+		break
+	done
+
+	echo "${part1}${part2}"
+}
+
+#
+# Get user-defined property value
+#
+# $1 user-defined property name length
+#
+function user_property_value
+{
+	typeset -i len=${1:-100}
+
+	random_string ALL_CHAR $len
+}
+
+#
+# Check if the user-defined property is identical to the expected value.
+#
+# $1 pool
+# $2 user property
+# $3 expected value
+#
+function check_user_prop
+{
+	typeset pool=$1
+	typeset user_prop="$2"
+	typeset expect_value="$3"
+	typeset value=$(zpool get -p -H -o value "$user_prop" $pool 2>&1)
+
+	[ "$expect_value" = "$value" ]
+}
