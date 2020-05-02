@@ -92,6 +92,8 @@ AC_CONFIG_FILES([
 	contrib/dracut/90zfs/Makefile
 	contrib/dracut/Makefile
 	contrib/initramfs/Makefile
+	contrib/initramfs/conf.d/Makefile
+	contrib/initramfs/conf-hooks.d/Makefile
 	contrib/initramfs/hooks/Makefile
 	contrib/initramfs/scripts/Makefile
 	contrib/initramfs/scripts/local-top/Makefile
