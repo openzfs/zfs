@@ -21,6 +21,7 @@ COPY_FILE_LIST="$COPY_FILE_LIST @udevruledir@/69-vdev.rules"
 # These prerequisites are provided by the base system.
 COPY_EXEC_LIST="$COPY_EXEC_LIST /usr/bin/dirname /bin/hostname /sbin/blkid"
 COPY_EXEC_LIST="$COPY_EXEC_LIST /usr/bin/env"
+COPY_EXEC_LIST="$COPY_EXEC_LIST $(which systemd-ask-password)"
 
 # Explicitly specify all kernel modules because automatic dependency resolution
 # is unreliable on many systems.

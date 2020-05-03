@@ -72,3 +72,15 @@ The following kernel command line arguments are supported:
 * `zfsdebug=(on,yes,1)`: Show extra debugging information
 * `zfsforce=(on,yes,1)`: Force import the pool
 * `rollback=(on,yes,1)`: Rollback to (instead of clone) the snapshot
+
+### Unlocking a ZFS encrypted root over SSH
+
+To use this feature:
+
+1. Install the `dropbear-initramfs` package.  You may wish to uninstall the
+   `cryptsetup-initramfs` package to avoid warnings.
+2. Add your SSH key(s) to `/etc/dropbear-initramfs/authorized_keys`.  Note
+   that Dropbear does not support ed25519 keys; use RSA (2048-bit or more)
+   instead.
+3. Rebuild the initramfs with your keys: `update-initramfs -u`
+4. During the system boot, login via SSH and run: `zfsunlock`

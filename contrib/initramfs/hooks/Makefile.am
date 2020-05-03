@@ -1,10 +1,12 @@
 hooksdir = /usr/share/initramfs-tools/hooks
 
 hooks_SCRIPTS = \
-	zfs
+	zfs \
+	zfsunlock
 
 EXTRA_DIST = \
-	$(top_srcdir)/contrib/initramfs/hooks/zfs.in
+	$(top_srcdir)/contrib/initramfs/hooks/zfs.in \
+	$(top_srcdir)/contrib/initramfs/hooks/zfsunlock.in
 
 $(hooks_SCRIPTS):%:%.in Makefile
 	-$(SED) -e 's,@sbindir\@,$(sbindir),g' \
