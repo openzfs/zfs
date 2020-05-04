@@ -1,0 +1,455 @@
+.\"
+.\" This file and its contents are supplied under the terms of the
+.\" Common Development and Distribution License ("CDDL"), version 1.0.
+.\" You may only use this file in accordance with the terms of version
+.\" 1.0 of the CDDL.
+.\"
+.\" A full copy of the text of the CDDL should have accompanied this
+.\" source.  A copy of the CDDL is also available via the Internet at
+.\" http://www.illumos.org/license/CDDL.
+.\"
+.\"
+.\" Copyright 2014 Adam Stevko.  All rights reserved.
+.\" Copyright (c) 2015 by Delphix. All rights reserved.
+.\"
+.TH ARCSTAT 1M "Feb 4, 2014"
+.SH NAME
+arcstat \- report ZFS ARC and L2ARC statistics
+.SH SYNOPSIS
+.LP
+.nf
+\fBarcstat\fR [\fB-hvxr\fR] [\fB-f field[,field]...\fR] [\fB-o file\fR] [\fB-s string\fR] 
+      [\fBinterval\fR [\fBcount\fR]]
+.fi
+
+.SH DESCRIPTION
+.LP
+The \fBarcstat\fR utility print various ZFS ARC and L2ARC statistics in
+vmstat-like fashion.
+.sp
+
+.sp
+.LP
+The \fBarcstat\fR command reports the following information:
+.sp
+.ne 2
+
+.\"
+.sp
+.ne 1 
+.na
+\fBc \fR
+.ad
+.RS 14n
+ARC Target Size
+.RE
+
+.sp
+.ne 2
+.na
+\fBdh% \fR
+.ad
+.RS 14n
+Demand Data hit percentage
+.RE
+
+.sp
+.ne 2
+.na
+\fBdm% \fR
+.ad
+.RS 14n
+Demand Data miss percentage
+.RE
+
+.sp
+.ne 2
+.na
+\fBmfu \fR
+.ad
+.RS 14n
+MFU List hits per second
+.RE
+
+.sp
+.ne 2
+.na
+\fBmh% \fR
+.ad
+.RS 14n
+Metadata hit percentage
+.RE
+
+.sp
+.ne 2
+.na
+\fBmm% \fR
+.ad
+.RS 14n
+Metadata miss percentage
+.RE
+
+.sp
+.ne 2
+.na
+\fBmru \fR
+.ad
+.RS 14n
+MRU List hits per second
+.RE
+
+.sp
+.ne 2
+.na
+\fBph% \fR
+.ad
+.RS 14n
+Prefetch hits percentage
+.RE
+
+.sp
+.ne 2
+.na
+\fBpm% \fR
+.ad
+.RS 14n
+Prefetch miss percentage
+.RE
+
+.sp
+.ne 2
+.na
+\fBdhit \fR
+.ad
+.RS 14n
+Demand Data hits per second
+.RE
+
+.sp
+.ne 2
+.na
+\fBdmis \fR
+.ad
+.RS 14n
+Demand Data misses per second
+.RE
+
+.sp
+.ne 2
+.na
+\fBhit% \fR
+.ad
+.RS 14n
+ARC Hit percentage
+.RE
+
+.sp
+.ne 2
+.na
+\fBhits \fR
+.ad
+.RS 14n
+ARC reads per second
+.RE
+
+.sp
+.ne 2
+.na
+\fBmfug \fR
+.ad
+.RS 14n
+MFU Ghost List hits per second
+.RE
+
+.sp
+.ne 2
+.na
+\fBmhit \fR
+.ad
+.RS 14n
+Metadata hits per second
+.RE
+
+.sp
+.ne 2
+.na
+\fBmiss \fR
+.ad
+.RS 14n
+ARC misses per second
+.RE
+
+.sp
+.ne 2
+.na
+\fBmmis \fR
+.ad
+.RS 14n
+Metadata misses per second
+.RE
+
+.sp
+.ne 2
+.na
+\fBmrug \fR
+.ad
+.RS 14n
+MRU Ghost List hits per second
+.RE
+
+.sp
+.ne 2
+.na
+\fBphit \fR
+.ad
+.RS 14n
+Prefetch hits per second
+.RE
+
+.sp
+.ne 2
+.na
+\fBpmis \fR
+.ad
+.RS 14n
+Prefetch misses per second
+.RE
+
+.sp
+.ne 2
+.na
+\fBread \fR
+.ad
+.RS 14n
+Total ARC accesses per second
+.RE
+
+.sp
+.ne 2
+.na
+\fBtime \fR
+.ad
+.RS 14n
+Time
+.RE
+
+.sp
+.ne 2
+.na
+\fBarcsz \fR
+.ad
+.RS 14n
+ARC Size
+.RE
+
+.sp
+.ne 2
+.na
+\fBdread \fR
+.ad
+.RS 14n
+Demand data accesses per second
+.RE
+
+.sp
+.ne 2
+.na
+\fBeskip \fR
+.ad
+.RS 14n
+evict_skip per second
+.RE
+
+.sp
+.ne 2
+.na
+\fBmiss% \fR
+.ad
+.RS 14n
+ARC miss percentage
+.RE
+
+.sp
+.ne 2
+.na
+\fBmread \fR
+.ad
+.RS 14n
+Metadata accesses per second
+.RE
+
+.sp
+.ne 2
+.na
+\fBpread \fR
+.ad
+.RS 14n
+Prefetch accesses per second
+.RE
+
+.sp
+.ne 2
+.na
+\fBl2hit% \fR
+.ad
+.RS 14n
+L2ARC access hit percentage
+.RE
+
+.sp
+.ne 2
+.na
+\fBl2hits \fR
+.ad
+.RS 14n
+L2ARC hits per second
+.RE
+
+.sp
+.ne 2
+.na
+\fBl2miss \fR
+.ad
+.RS 14n
+L2ARC misses per second
+.RE
+
+.sp
+.ne 2
+.na
+\fBl2read \fR
+.ad
+.RS 14n
+Total L2ARC accesses per second
+.RE
+
+.sp
+.ne 2
+.na
+\fBl2size \fR
+.ad
+.RS 14n
+Size of the L2ARC
+.RE
+
+.sp
+.ne 2
+.na
+\fBmtxmis \fR
+.ad
+.RS 14n
+mutex_miss per second
+.RE
+
+.sp
+.ne 2
+.na
+\fBl2bytes \fR
+.ad
+.RS 14n
+bytes read per second from the L2ARC
+.RE
+
+.sp
+.ne 2
+.na
+\fBl2miss% \fR
+.ad
+.RS 14n
+L2ARC access miss percentage
+.RE
+
+.sp
+.ne 2
+.na
+\fBl2asize \fR
+.ad
+.RS 14n
+Actual (compressed) size of the L2ARC
+.RE
+.\"
+
+.SH OPTIONS
+.LP
+The following options are supported:
+
+.sp
+.ne 2
+.na
+\fB\fB-f\fR\fR
+.ad
+.RS 12n
+Display only specific fields. See \fBDESCRIPTION\fR for supported statistics.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fB-h\fR\fR
+.ad
+.RS 12n
+Display help message.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fB-o\fR\fR
+.ad
+.RS 12n
+Report statistics to a file instead of the standard output.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fB-s\fR\fR
+.ad
+.RS 12n
+Display data with a specified separator (default: 2 spaces).
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fB-x\fR\fR
+
+.ad
+.RS 12n
+Print extended stats (same as -f time,mfu,mru,mfug,mrug,eskip,mtxmis,dread,pread,read).
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fB-v\fR\fR
+.ad
+.RS 12n
+Show field headers and definitions
+.RE
+
+.SH OPERANDS
+.LP
+The following operands are supported:
+.sp
+.ne 2
+.na
+\fB\fIcount\fR\fR
+.ad
+.RS 12n
+Display only \fIcount\fR reports.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fIinterval\fR\fR
+.ad
+.RS 12n
+Specify the sampling interval in seconds.
+.RE
+
+.SH AUTHORS
+.LP
+arcstat was originally written by Neelakanth Nadgir and supported only ZFS ARC statistics.
+Mike Harsch updated it to support L2ARC statistics.
