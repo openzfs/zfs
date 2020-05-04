@@ -11,15 +11,15 @@
 .\"
 .\" Copyright 2014 Adam Stevko.  All rights reserved.
 .\" Copyright (c) 2015 by Delphix. All rights reserved.
+.\" Copyright (c) 2020 by AJ Jordan. All rights reserved.
 .\"
-.TH ARCSTAT 1M "Feb 4, 2014"
+.TH ARCSTAT 1 "May 7, 2020"
 .SH NAME
 arcstat \- report ZFS ARC and L2ARC statistics
 .SH SYNOPSIS
 .LP
 .nf
-\fBarcstat\fR [\fB-hvxr\fR] [\fB-f field[,field]...\fR] [\fB-o file\fR] [\fB-s string\fR] 
-      [\fBinterval\fR [\fBcount\fR]]
+\fBarcstat\fR [\fB-hvx\fR] [\fB-f field[,field]...\fR] [\fB-o file\fR] [\fB-s string\fR] [\fBinterval\fR [\fBcount\fR]]
 .fi
 
 .SH DESCRIPTION
@@ -36,12 +36,12 @@ The \fBarcstat\fR command reports the following information:
 
 .\"
 .sp
-.ne 1 
+.ne 1
 .na
 \fBc \fR
 .ad
 .RS 14n
-ARC Target Size
+ARC target size
 .RE
 
 .sp
@@ -50,7 +50,7 @@ ARC Target Size
 \fBdh% \fR
 .ad
 .RS 14n
-Demand Data hit percentage
+Demand data hit percentage
 .RE
 
 .sp
@@ -59,7 +59,7 @@ Demand Data hit percentage
 \fBdm% \fR
 .ad
 .RS 14n
-Demand Data miss percentage
+Demand data miss percentage
 .RE
 
 .sp
@@ -68,7 +68,7 @@ Demand Data miss percentage
 \fBmfu \fR
 .ad
 .RS 14n
-MFU List hits per second
+MFU list hits per second
 .RE
 
 .sp
@@ -95,7 +95,7 @@ Metadata miss percentage
 \fBmru \fR
 .ad
 .RS 14n
-MRU List hits per second
+MRU list hits per second
 .RE
 
 .sp
@@ -122,7 +122,7 @@ Prefetch miss percentage
 \fBdhit \fR
 .ad
 .RS 14n
-Demand Data hits per second
+Demand data hits per second
 .RE
 
 .sp
@@ -131,7 +131,7 @@ Demand Data hits per second
 \fBdmis \fR
 .ad
 .RS 14n
-Demand Data misses per second
+Demand data misses per second
 .RE
 
 .sp
@@ -140,7 +140,7 @@ Demand Data misses per second
 \fBhit% \fR
 .ad
 .RS 14n
-ARC Hit percentage
+ARC hit percentage
 .RE
 
 .sp
@@ -158,7 +158,7 @@ ARC reads per second
 \fBmfug \fR
 .ad
 .RS 14n
-MFU Ghost List hits per second
+MFU ghost list hits per second
 .RE
 
 .sp
@@ -194,7 +194,7 @@ Metadata misses per second
 \fBmrug \fR
 .ad
 .RS 14n
-MRU Ghost List hits per second
+MRU ghost list hits per second
 .RE
 
 .sp
@@ -239,7 +239,7 @@ Time
 \fBarcsz \fR
 .ad
 .RS 14n
-ARC Size
+ARC size
 .RE
 
 .sp
@@ -347,7 +347,7 @@ mutex_miss per second
 \fBl2bytes \fR
 .ad
 .RS 14n
-bytes read per second from the L2ARC
+Bytes read per second from the L2ARC
 .RE
 
 .sp
@@ -366,6 +366,33 @@ L2ARC access miss percentage
 .ad
 .RS 14n
 Actual (compressed) size of the L2ARC
+.RE
+
+.sp
+.ne 2
+.na
+\fBgrow \fR
+.ad
+.RS 14n
+ARC grow disabled
+.RE
+
+.sp
+.ne 2
+.na
+\fBneed \fR
+.ad
+.RS 14n
+ARC reclaim needed
+.RE
+
+.sp
+.ne 2
+.na
+\fBfree \fR
+.ad
+.RS 14n
+ARC free memory
 .RE
 .\"
 
@@ -413,7 +440,6 @@ Display data with a specified separator (default: 2 spaces).
 .ne 2
 .na
 \fB\fB-x\fR\fR
-
 .ad
 .RS 12n
 Print extended stats (same as -f time,mfu,mru,mfug,mrug,eskip,mtxmis,dread,pread,read).
@@ -451,5 +477,6 @@ Specify the sampling interval in seconds.
 
 .SH AUTHORS
 .LP
-arcstat was originally written by Neelakanth Nadgir and supported only ZFS ARC statistics.
+arcstat was originally written in Perl by Neelakanth Nadgir and supported only ZFS ARC statistics.
 Mike Harsch updated it to support L2ARC statistics.
+John Hixson ported it to Python for FreeNAS over some beer, after which many individuals from the OpenZFS community continued to maintain and improve it.
