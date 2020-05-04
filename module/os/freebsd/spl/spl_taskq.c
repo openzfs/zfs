@@ -97,6 +97,7 @@ static void
 system_taskq_fini(void *arg)
 {
 
+	taskq_destroy(system_delay_taskq);
 	taskq_destroy(system_taskq);
 	uma_zdestroy(taskq_zone);
 	tsd_destroy(&taskq_tsd);
