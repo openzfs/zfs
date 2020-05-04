@@ -1,20 +1,25 @@
 #!/usr/bin/env python3
 #
 # Print out ZFS ARC Statistics exported via kstat(1)
-# For a definition of fields, or usage, use arctstat.pl -v
+# For a definition of fields, or usage, use arcstat -v
 #
-# This script is a fork of the original arcstat.pl (0.1) by
-# Neelakanth Nadgir, originally published on his Sun blog on
+# This script was originally a fork of the original arcstat.pl (0.1)
+# by Neelakanth Nadgir, originally published on his Sun blog on
 # 09/18/2007
 #     http://blogs.sun.com/realneel/entry/zfs_arc_statistics
 #
-# This version aims to improve upon the original by adding features
-# and fixing bugs as needed.  This version is maintained by
-# Mike Harsch and is hosted in a public open source repository:
+# A new version aimed to improve upon the original by adding features
+# and fixing bugs as needed.  This version was maintained by Mike
+# Harsch and was hosted in a public open source repository:
 #    http://github.com/mharsch/arcstat
 #
-# Comments, Questions, or Suggestions are always welcome.
-# Contact the maintainer at ( mike at harschsystems dot com )
+# but has since moved to the illumos-gate repository.
+#
+# This Python port was written by John Hixson for FreeNAS, introduced
+# in commit e2c29f:
+#    https://github.com/freenas/freenas
+#
+# and has been improved by many people since.
 #
 # CDDL HEADER START
 #
