@@ -32,6 +32,10 @@ __FBSDID("$FreeBSD$");
 #include <sys/mutex.h>
 #include <sys/atomic.h>
 
+#if !defined(__LP64__) && !defined(__mips_n32) && \
+	!defined(ARM_HAVE_ATOMIC64) && !defined(I386_HAVE_ATOMIC64) && \
+	!defined(HAS_EMULATED_ATOMIC64)
+
 #ifdef _KERNEL
 #include <sys/kernel.h>
 
@@ -52,8 +56,6 @@ atomic_init(void)
 }
 #endif
 
-#if !defined(__LP64__) && !defined(__mips_n32) && \
-	!defined(ARM_HAVE_ATOMIC64) && !defined(I386_HAVE_ATOMIC64)
 void
 atomic_add_64(volatile uint64_t *target, int64_t delta)
 {
@@ -71,7 +73,29 @@ atomic_dec_64(volatile uint64_t *target)
 	*target -= 1;
 	mtx_unlock(&atomic_mtx);
 }
-#endif
+
+uint64_t
+atomic_swap_64(volatile uint64_t *a, uint64_t value)
+{
+	uint64_t ret;
+
+	mtx_lock(&atomic_mtx);
+	ret = *a;
+	*a = value;
+	mtx_unlock(&atomic_mtx);
+	return (ret);
+}
+
+uint64_t
+atomic_load_64(volatile uint64_t *a)
+{
+	uint64_t ret;
+
+	mtx_lock(&atomic_mtx);
+	ret = *a;
+	mtx_unlock(&atomic_mtx);
+	return (ret);
+}
 
 uint64_t
 atomic_add_64_nv(volatile uint64_t *target, int64_t delta)
@@ -80,27 +104,6 @@ atomic_add_64_nv(volatile uint64_t *target, int64_t delta)
 
 	mtx_lock(&atomic_mtx);
 	newval = (*target += delta);
-	mtx_unlock(&atomic_mtx);
-	return (newval);
-}
-
-#if defined(__powerpc__) || defined(__arm__) || defined(__mips__)
-void
-atomic_or_8(volatile uint8_t *target, uint8_t value)
-{
-	mtx_lock(&atomic_mtx);
-	*target |= value;
-	mtx_unlock(&atomic_mtx);
-}
-#endif
-
-uint8_t
-atomic_or_8_nv(volatile uint8_t *target, uint8_t value)
-{
-	uint8_t newval;
-
-	mtx_lock(&atomic_mtx);
-	newval = (*target |= value);
 	mtx_unlock(&atomic_mtx);
 	return (newval);
 }
@@ -117,22 +120,4 @@ atomic_cas_64(volatile uint64_t *target, uint64_t cmp, uint64_t newval)
 	mtx_unlock(&atomic_mtx);
 	return (oldval);
 }
-
-uint32_t
-atomic_cas_32(volatile uint32_t *target, uint32_t cmp, uint32_t newval)
-{
-	uint32_t oldval;
-
-	mtx_lock(&atomic_mtx);
-	oldval = *target;
-	if (oldval == cmp)
-		*target = newval;
-	mtx_unlock(&atomic_mtx);
-	return (oldval);
-}
-
-void
-membar_producer(void)
-{
-	/* nothing */
-}
+#endif
