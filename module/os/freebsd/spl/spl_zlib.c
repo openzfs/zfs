@@ -102,7 +102,7 @@ zlib_inflate(z_stream *stream, int finish)
 static int
 zlib_inflateEnd(z_stream *stream)
 {
-	return (inflateInit(stream));
+	return (inflateEnd(stream));
 }
 
 /*

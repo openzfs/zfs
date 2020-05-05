@@ -38,6 +38,10 @@
 #include <geom/geom_disk.h>
 #include <geom/geom_int.h>
 
+#ifndef g_topology_locked
+#define	g_topology_locked()	sx_xlocked(&topology_lock)
+#endif
+
 /*
  * Virtual device vector for GEOM.
  */
@@ -800,7 +804,7 @@ vdev_geom_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 {
 	struct g_provider *pp;
 	struct g_consumer *cp;
-	int error, has_trim;
+	int error, has_trim, locked;
 	uint16_t rate;
 
 	/*
@@ -827,7 +831,9 @@ vdev_geom_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 	}
 
 	DROP_GIANT();
-	g_topology_lock();
+	locked = g_topology_locked();
+	if (!locked)
+		g_topology_lock();
 	error = 0;
 
 	if (vd->vdev_spa->spa_is_splitting ||
@@ -922,7 +928,8 @@ vdev_geom_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 		vdev_geom_set_physpath(vd, cp, /* do_null_update */B_FALSE);
 	}
 
-	g_topology_unlock();
+	if (!locked)
+		g_topology_unlock();
 	PICKUP_GIANT();
 	if (cp == NULL) {
 		vd->vdev_stat.vs_aux = VDEV_AUX_OPEN_FAILED;
