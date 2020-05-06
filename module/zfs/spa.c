@@ -7315,7 +7315,8 @@ spa_vdev_split_mirror(spa_t *spa, char *newname, nvlist_t *config,
 		vdev_t *vd = rvd->vdev_child[c];
 
 		/* don't count the holes & logs as children */
-		if (vd->vdev_islog || !vdev_is_concrete(vd)) {
+		if (vd->vdev_islog || (vd->vdev_ops != &vdev_indirect_ops &&
+		    !vdev_is_concrete(vd))) {
 			if (lastlog == 0)
 				lastlog = c;
 			continue;
@@ -7350,6 +7351,11 @@ spa_vdev_split_mirror(spa_t *spa, char *newname, nvlist_t *config,
 				break;
 			}
 		}
+
+		/* deal with indirect vdevs */
+		if (spa->spa_root_vdev->vdev_child[c]->vdev_ops ==
+		    &vdev_indirect_ops)
+			continue;
 
 		/* which disk is going to be split? */
 		if (nvlist_lookup_uint64(child[c], ZPOOL_CONFIG_GUID,
@@ -7478,7 +7484,7 @@ spa_vdev_split_mirror(spa_t *spa, char *newname, nvlist_t *config,
 	    offsetof(vdev_t, vdev_trim_node));
 
 	for (c = 0; c < children; c++) {
-		if (vml[c] != NULL) {
+		if (vml[c] != NULL && vml[c]->vdev_ops != &vdev_indirect_ops) {
 			mutex_enter(&vml[c]->vdev_initialize_lock);
 			vdev_initialize_stop(vml[c],
 			    VDEV_INITIALIZE_ACTIVE, &vd_initialize_list);
@@ -7539,7 +7545,7 @@ spa_vdev_split_mirror(spa_t *spa, char *newname, nvlist_t *config,
 	if (error != 0)
 		dmu_tx_abort(tx);
 	for (c = 0; c < children; c++) {
-		if (vml[c] != NULL) {
+		if (vml[c] != NULL && vml[c]->vdev_ops != &vdev_indirect_ops) {
 			vdev_t *tvd = vml[c]->vdev_top;
 
 			/*
