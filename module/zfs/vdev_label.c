@@ -1200,6 +1200,8 @@ vdev_label_read_bootenv_done(zio_t *zio)
 			abd_free(zio->io_abd);
 		}
 		mutex_exit(&rio->io_lock);
+	} else {
+		abd_free(zio->io_abd);
 	}
 }
 
@@ -1232,29 +1234,29 @@ vdev_label_read_bootenv_impl(zio_t *zio, vdev_t *vd, int flags)
 int
 vdev_label_read_bootenv(vdev_t *rvd, nvlist_t *command)
 {
-	zio_t *zio;
 	spa_t *spa = rvd->vdev_spa;
-	abd_t *cb = NULL;
+	abd_t *abd = NULL;
 	int flags = ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL |
 	    ZIO_FLAG_SPECULATIVE | ZIO_FLAG_TRYHARD;
 
 	ASSERT(command);
 	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == SCL_ALL);
 
-	zio = zio_root(spa, NULL, &cb, flags);
+	zio_t *zio = zio_root(spa, NULL, &abd, flags);
 	vdev_label_read_bootenv_impl(zio, rvd, flags);
 	int err = zio_wait(zio);
 
-	if (cb != NULL) {
-		vdev_boot_envblock_t *vbe = abd_to_buf(cb);
+	if (abd != NULL) {
+		vdev_boot_envblock_t *vbe = abd_to_buf(abd);
 		if (vbe->vbe_version != VB_RAW) {
-			abd_free(cb);
+			abd_free(abd);
 			return (SET_ERROR(ENOTSUP));
 		}
+		vbe->vbe_bootenv[sizeof (vbe->vbe_bootenv) - 1] = '\0';
 		fnvlist_add_string(command, "envmap", vbe->vbe_bootenv);
-		/* cb was allocated in vdev_label_read_bootenv_impl() */
-		abd_free(cb);
-		/* If we managed to read any successfully, return no error. */
+		/* abd was allocated in vdev_label_read_bootenv_impl() */
+		abd_free(abd);
+		/* If we managed to read any successfully, return success. */
 		return (0);
 	}
 	return (err);
@@ -1263,10 +1265,9 @@ vdev_label_read_bootenv(vdev_t *rvd, nvlist_t *command)
 int
 vdev_label_write_bootenv(vdev_t *vd, char *envmap)
 {
-	spa_t *spa = vd->vdev_spa;
 	zio_t *zio;
+	spa_t *spa = vd->vdev_spa;
 	vdev_boot_envblock_t *bootenv;
-	abd_t *abd;
 	int flags = ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL;
 	int error = ENXIO;
 
@@ -1277,13 +1278,14 @@ vdev_label_write_bootenv(vdev_t *vd, char *envmap)
 	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == SCL_ALL);
 
 	for (int c = 0; c < vd->vdev_children; c++) {
-		int err = vdev_label_write_bootenv(vd->vdev_child[c], envmap);
+		int child_err = vdev_label_write_bootenv(vd->vdev_child[c],
+		    envmap);
 		/*
-		 * As long as any of the labels was written, we return
-		 * success.
+		 * As long as any of the disks managed to write all of their
+		 * labels successfully, return success.
 		 */
-		if (err == 0)
-			error = err;
+		if (child_err == 0)
+			error = child_err;
 	}
 
 	if (!vd->vdev_ops->vdev_op_leaf || vdev_is_dead(vd) ||
@@ -1291,7 +1293,7 @@ vdev_label_write_bootenv(vdev_t *vd, char *envmap)
 		return (error);
 	}
 	ASSERT3U(sizeof (*bootenv), ==, VDEV_PAD_SIZE);
-	abd = abd_alloc_for_io(VDEV_PAD_SIZE, B_TRUE);
+	abd_t *abd = abd_alloc_for_io(VDEV_PAD_SIZE, B_TRUE);
 	abd_zero(abd, VDEV_PAD_SIZE);
 	bootenv = abd_borrow_buf_copy(abd, VDEV_PAD_SIZE);
 

@@ -7039,8 +7039,8 @@ zfs_ioctl_init(void)
 	    zfs_keys_set_bootenv, ARRAY_SIZE(zfs_keys_set_bootenv));
 
 	zfs_ioctl_register("get_bootenv", ZFS_IOC_GET_BOOTENV,
-	    zfs_ioc_get_bootenv, zfs_secpolicy_config, POOL_NAME,
-	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_FALSE, B_TRUE,
+	    zfs_ioc_get_bootenv, zfs_secpolicy_none, POOL_NAME,
+	    POOL_CHECK_SUSPENDED, B_FALSE, B_TRUE,
 	    zfs_keys_get_bootenv, ARRAY_SIZE(zfs_keys_get_bootenv));
 
 	/* IOCTLS that use the legacy function signature */
