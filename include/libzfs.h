@@ -801,6 +801,13 @@ extern int zfs_mount_at(zfs_handle_t *, const char *, int, const char *);
 extern int zfs_unmount(zfs_handle_t *, const char *, int);
 extern int zfs_unmountall(zfs_handle_t *, int);
 
+#if defined(__linux__)
+extern int zfs_parse_mount_options(char *mntopts, unsigned long *mntflags,
+    unsigned long *zfsflags, int sloppy, char *badopt, char *mtabopt);
+extern void zfs_adjust_mount_options(zfs_handle_t *zhp, const char *mntpoint,
+    char *mntopts, char *mtabopt);
+#endif
+
 /*
  * Share support functions.
  */
