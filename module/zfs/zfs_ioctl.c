@@ -196,6 +196,7 @@
 #include <sys/rrwlock.h>
 #include <sys/zfs_file.h>
 
+#include <sys/dbuf.h>
 #include <sys/dmu_recv.h>
 #include <sys/dmu_send.h>
 #include <sys/dmu_recv.h>
@@ -7592,6 +7593,7 @@ zfs_kmod_init(void)
 	tsd_create(&zfs_fsyncer_key, NULL);
 	tsd_create(&rrw_tsd_key, rrw_tsd_destroy);
 	tsd_create(&zfs_allow_log_key, zfs_allow_log_destroy);
+	tsd_create(&zfs_async_io_key, dmu_thread_context_destroy);
 
 	return (0);
 out:
@@ -7626,4 +7628,5 @@ zfs_kmod_fini(void)
 	tsd_destroy(&zfs_fsyncer_key);
 	tsd_destroy(&rrw_tsd_key);
 	tsd_destroy(&zfs_allow_log_key);
+	tsd_destroy(&zfs_async_io_key);
 }

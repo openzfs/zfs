@@ -106,16 +106,29 @@ SYSUNINIT(system_taskq_fini, SI_SUB_CONFIGURE, SI_ORDER_ANY, system_taskq_fini,
     NULL);
 
 static void
-taskq_tsd_set(void *context)
+taskq_ctor(void *context)
 {
 	taskq_t *tq = context;
 
 	tsd_set(taskq_tsd, tq);
+	if (tq->tq_ctor)
+		tq->tq_ctor(tq);
+}
+
+static void
+taskq_dtor(void *context)
+{
+	taskq_t *tq = context;
+
+	tsd_set(taskq_tsd, NULL);
+	if (tq->tq_dtor)
+		tq->tq_dtor(tq);
 }
 
 static taskq_t *
 taskq_create_with_init(const char *name, int nthreads, pri_t pri,
-    int minalloc __unused, int maxalloc __unused, uint_t flags)
+    int minalloc __unused, int maxalloc __unused, uint_t flags,
+    taskq_callback_fn ctor, taskq_callback_fn dtor)
 {
 	taskq_t *tq;
 
@@ -125,10 +138,12 @@ taskq_create_with_init(const char *name, int nthreads, pri_t pri,
 	tq = kmem_alloc(sizeof (*tq), KM_SLEEP);
 	tq->tq_queue = taskqueue_create(name, M_WAITOK,
 	    taskqueue_thread_enqueue, &tq->tq_queue);
+	tq->tq_ctor = ctor;
+	tq->tq_dtor = dtor;
 	taskqueue_set_callback(tq->tq_queue, TASKQUEUE_CALLBACK_TYPE_INIT,
-	    taskq_tsd_set, tq);
+	    taskq_ctor, tq);
 	taskqueue_set_callback(tq->tq_queue, TASKQUEUE_CALLBACK_TYPE_SHUTDOWN,
-	    taskq_tsd_set, NULL);
+	    taskq_dtor, tq);
 	(void) taskqueue_start_threads(&tq->tq_queue, nthreads, pri,
 	    "%s", name);
 
@@ -141,16 +156,17 @@ taskq_create(const char *name, int nthreads, pri_t pri, int minalloc __unused,
 {
 
 	return (taskq_create_with_init(name, nthreads, pri, minalloc, maxalloc,
-	    flags));
+	    flags, NULL, NULL));
 }
 
 taskq_t *
 taskq_create_proc(const char *name, int nthreads, pri_t pri, int minalloc,
-    int maxalloc, proc_t *proc __unused, uint_t flags)
+    int maxalloc, proc_t *proc __unused, uint_t flags,
+    taskq_callback_fn ctor, taskq_callback_fn dtor)
 {
 
 	return (taskq_create_with_init(name, nthreads, pri, minalloc, maxalloc,
-	    flags));
+	    flags, ctor, dtor));
 }
 
 void

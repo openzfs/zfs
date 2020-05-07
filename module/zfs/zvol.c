@@ -595,7 +595,7 @@ zvol_log_write(zvol_state_t *zv, dmu_tx_t *tx, uint64_t offset,
 		    (wr_state == WR_COPIED ? len : 0));
 		lr = (lr_write_t *)&itx->itx_lr;
 		if (wr_state == WR_COPIED && dmu_read_by_dnode(zv->zv_dn,
-		    offset, len, lr+1, DMU_READ_NO_PREFETCH) != 0) {
+		    offset, len, lr+1, /* flags */ 0) != 0) {
 			zil_itx_destroy(itx);
 			itx = zil_itx_create(TX_WRITE, sizeof (*lr));
 			lr = (lr_write_t *)&itx->itx_lr;
@@ -687,7 +687,7 @@ zvol_get_data(void *arg, lr_write_t *lr, char *buf, struct lwb *lwb, zio_t *zio)
 		zgd->zgd_lr = zfs_rangelock_enter(&zv->zv_rangelock, offset,
 		    size, RL_READER);
 		error = dmu_read_by_dnode(zv->zv_dn, offset, size, buf,
-		    DMU_READ_NO_PREFETCH);
+		    /* flags */ 0);
 	} else { /* indirect write */
 		/*
 		 * Have to lock the whole block to ensure when it's written out
@@ -700,7 +700,7 @@ zvol_get_data(void *arg, lr_write_t *lr, char *buf, struct lwb *lwb, zio_t *zio)
 		zgd->zgd_lr = zfs_rangelock_enter(&zv->zv_rangelock, offset,
 		    size, RL_READER);
 		error = dmu_buf_hold_by_dnode(zv->zv_dn, offset, zgd, &db,
-		    DMU_READ_NO_PREFETCH);
+		    /* flags */ 0);
 		if (error == 0) {
 			blkptr_t *bp = &lr->lr_blkptr;
 
@@ -772,7 +772,7 @@ zvol_setup_zv(zvol_state_t *zv)
 	if (error)
 		return (SET_ERROR(error));
 
-	error = dnode_hold(os, ZVOL_OBJ, FTAG, &zv->zv_dn);
+	error = dnode_hold(os, ZVOL_OBJ, zv, &zv->zv_dn);
 	if (error)
 		return (SET_ERROR(error));
 
@@ -807,7 +807,7 @@ zvol_shutdown_zv(zvol_state_t *zv)
 
 	zv->zv_zilog = NULL;
 
-	dnode_rele(zv->zv_dn, FTAG);
+	dnode_rele(zv->zv_dn, zv);
 	zv->zv_dn = NULL;
 
 	/*
@@ -1691,6 +1691,93 @@ void
 zvol_register_ops(const zvol_platform_ops_t *zvol_ops)
 {
 	ops = zvol_ops;
+}
+
+static void
+zvol_dmu_buf_set_transfer_write(dmu_buf_set_t *dbs)
+{
+	zvol_dmu_state_t *zds = (zvol_dmu_state_t *)dbs->dbs_dc;
+	zvol_state_t *zv = zds->zds_zv;
+	dmu_tx_t *tx = dmu_buf_set_tx(dbs);
+
+	dmu_buf_set_transfer_write(dbs);
+
+	/* Log this write. */
+	if (zds->zds_sync)
+		zvol_log_write(zv, tx, dbs->dbs_dn_start, dbs->dbs_size,
+		    zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS);
+	dmu_tx_commit(tx);
+}
+
+int
+zvol_dmu_ctx_init(zvol_dmu_state_t *zds, void *data, uint64_t off,
+    uint64_t io_size, uint32_t dmu_flags, dmu_ctx_cb_t done_cb)
+{
+	zvol_state_t *zv = zds->zds_zv;
+	boolean_t reader = (dmu_flags & DMU_CTX_FLAG_READ) != 0;
+	int error;
+
+	ASSERT(zv->zv_objset != NULL);
+	atomic_inc(&zv->zv_suspend_ref);
+
+	zds->zds_sync |= !reader &&
+	    (zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS);
+	if (reader)
+		dmu_flags |= DMU_CTX_FLAG_PREFETCH;
+	else if (zv->zv_flags & ZVOL_RDONLY)
+		return (SET_ERROR(EIO));
+
+	/* Reject I/Os that don't fall within the volume. */
+	if (io_size > 0 && off >= zv->zv_volsize)
+		return (SET_ERROR(EIO));
+
+	/* Truncate I/Os to the end of the volume, if needed. */
+	io_size = MIN(io_size, zv->zv_volsize - off);
+
+	error = dmu_ctx_init(&zds->zds_dc, /* dnode */ NULL, zv->zv_objset,
+	    ZVOL_OBJ, off, io_size, data, FTAG, dmu_flags);
+	if (error)
+		return (error);
+	/* Override the writer case to log the writes. */
+	if (!reader)
+		dmu_ctx_set_buf_set_transfer_cb(&zds->zds_dc,
+		    zvol_dmu_buf_set_transfer_write);
+	dmu_ctx_set_complete_cb(&zds->zds_dc, done_cb);
+	zds->zds_lr = zfs_rangelock_enter(&zv->zv_rangelock, off, io_size,
+	    reader ? RL_READER : RL_WRITER);
+
+	return (error);
+}
+
+void
+zvol_dmu_issue(zvol_dmu_state_t *zds)
+{
+
+	/* Errors are reported to the done callback via dmu_ctx->err. */
+	(void) dmu_issue(&zds->zds_dc);
+	dmu_ctx_rele(&zds->zds_dc);
+}
+
+void
+zvol_dmu_done(dmu_ctx_t *dc)
+{
+	zvol_dmu_state_t *zds = (zvol_dmu_state_t *)dc;
+	zvol_state_t *zv = zds->zds_zv;
+
+	/*
+	 * Initialization failed
+	 */
+	if (zds->zds_lr != NULL)
+		zfs_rangelock_exit(zds->zds_lr);
+
+	if ((dc->dc_flags & DMU_CTX_FLAG_READ) == 0 &&
+	    (zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS))
+		zil_commit(zv->zv_zilog, ZVOL_OBJ);
+	if (dc->dc_completed_size < dc->dc_size &&
+	    dc->dc_dn_offset > zv->zv_volsize)
+		dc->dc_err = zio_worst_error(dc->dc_err, SET_ERROR(EINVAL));
+
+	atomic_dec(&zv->zv_suspend_ref);
 }
 
 int

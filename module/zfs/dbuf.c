@@ -762,6 +762,29 @@ dbuf_kstat_update(kstat_t *ksp, int rw)
 	return (0);
 }
 
+static void
+dbuf_process_buf_sets_(dmu_buf_impl_t *db, int err, const char *function)
+{
+	dmu_buf_set_node_t *dbsn, *next;
+	int count = 0;
+
+	ASSERT(db->db_buf != NULL || err);
+	for (dbsn = list_head(&db->db_buf_sets); dbsn != NULL; dbsn = next) {
+		next = list_next(&db->db_buf_sets, dbsn);
+		dmu_buf_set_rele(dbsn->dbsn_dbs, err);
+		dmu_buf_set_node_remove(&db->db_buf_sets, dbsn);
+		count++;
+	}
+#if 0
+	if (count)
+		printf("processed %d buf_sets for %p in %s\n",
+		    count, db, function);
+#endif
+}
+
+#define	dbuf_process_buf_sets(a, b)				\
+	dbuf_process_buf_sets_((a), (b), __func__)
+
 void
 dbuf_init(void)
 {
@@ -1244,6 +1267,7 @@ dbuf_read_done(zio_t *zio, const zbookmark_phys_t *zb, const blkptr_t *bp,
     arc_buf_t *buf, void *vdb)
 {
 	dmu_buf_impl_t *db = vdb;
+	int err = 0;
 
 	mutex_enter(&db->db_mtx);
 	ASSERT3U(db->db_state, ==, DB_READ);
@@ -1260,6 +1284,7 @@ dbuf_read_done(zio_t *zio, const zbookmark_phys_t *zb, const blkptr_t *bp,
 		ASSERT3P(db->db_buf, ==, NULL);
 		db->db_state = DB_UNCACHED;
 		DTRACE_SET_STATE(db, "i/o error");
+		err = EIO;
 	} else if (db->db_level == 0 && db->db_freed_in_flight) {
 		/* freed in flight */
 		ASSERT(zio == NULL || zio->io_error == 0);
@@ -1277,6 +1302,7 @@ dbuf_read_done(zio_t *zio, const zbookmark_phys_t *zb, const blkptr_t *bp,
 		db->db_state = DB_CACHED;
 		DTRACE_SET_STATE(db, "successful read");
 	}
+	dbuf_process_buf_sets(db, err);
 	cv_broadcast(&db->db_changed);
 	dbuf_rele_and_unlock(db, NULL, B_FALSE);
 }
@@ -1294,7 +1320,6 @@ dbuf_read_bonus(dmu_buf_impl_t *db, dnode_t *dn, uint32_t flags)
 	err = dbuf_read_verify_dnode_crypt(db, flags);
 	if (err)
 		return (err);
-
 	bonuslen = MIN(dn->dn_bonuslen, dn->dn_phys->dn_bonuslen);
 	max_bonuslen = DN_SLOTS_TO_BONUSLEN(dn->dn_num_slots);
 	ASSERT(MUTEX_HELD(&db->db_mtx));
@@ -1307,6 +1332,7 @@ dbuf_read_bonus(dmu_buf_impl_t *db, dnode_t *dn, uint32_t flags)
 	if (bonuslen)
 		bcopy(DN_BONUS(dn->dn_phys), db->db.db_data, bonuslen);
 	db->db_state = DB_CACHED;
+	/* XXX does this belong here ? */
 	DTRACE_SET_STATE(db, "bonus buffer filled");
 	return (0);
 }
@@ -1521,6 +1547,8 @@ dbuf_read_impl(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags,
 	return (err);
 early_unlock:
 	DB_DNODE_EXIT(db);
+	if (err || db->db_buf != NULL)
+		dbuf_process_buf_sets(db, err);
 	mutex_exit(&db->db_mtx);
 	dmu_buf_unlock_parent(db, dblt, tag);
 	return (err);
@@ -1871,7 +1899,8 @@ dbuf_free_range(dnode_t *dn, uint64_t start_blkid, uint64_t end_blkid,
 			rw_exit(&db->db_rwlock);
 			arc_buf_freeze(db->db_buf);
 		}
-
+		if (db->db_buf != NULL)
+			dbuf_process_buf_sets(db, /* err */ 0);
 		mutex_exit(&db->db_mtx);
 	}
 
@@ -2514,8 +2543,11 @@ dmu_buf_fill_done(dmu_buf_t *dbuf, dmu_tx_t *tx)
 		} else {
 			DTRACE_SET_STATE(db, "fill done");
 		}
+		dbuf_process_buf_sets(db, /* err */ 0);
 		cv_broadcast(&db->db_changed);
-	}
+	} else
+		dbuf_process_buf_sets(db, /* err */ 0);
+
 	mutex_exit(&db->db_mtx);
 }
 
@@ -2884,6 +2916,8 @@ dbuf_create(dnode_t *dn, uint8_t level, uint64_t blkid,
 
 	list_create(&db->db_dirty_records, sizeof (dbuf_dirty_record_t),
 	    offsetof(dbuf_dirty_record_t, dr_dbuf_node));
+	list_create(&db->db_buf_sets, sizeof (dmu_buf_set_node_t),
+	    offsetof(dmu_buf_set_node_t, dbsn_link));
 
 	db->db_objset = os;
 	db->db.db_object = dn->dn_object;
@@ -3283,14 +3317,49 @@ dbuf_hold_copy(dnode_t *dn, dmu_buf_impl_t *db)
 	rw_exit(&db->db_rwlock);
 }
 
+static void
+dbuf_hold_update_buf_set(dmu_buf_set_t *dbs, uint64_t dn_off,
+    uint64_t resid, dmu_buf_impl_t *db)
+{
+	dmu_ctx_t *dc;
+	uint64_t bufoff, tocpy;
+
+	if (dbs == NULL)
+		return;
+
+	dc = dbs->dbs_dc;
+	ASSERT(dn_off >= db->db.db_offset);
+
+	/* If a reading buffer set is associated, add the callback now. */
+	if (dc->dc_flags & DMU_CTX_FLAG_READ) {
+		if (db->db_state == DB_CACHED) {
+			/* Dbuf is already at the desired state. */
+			dmu_buf_set_rele(dbs, /* err */ 0);
+		} else {
+			dmu_buf_set_node_add(&db->db_buf_sets, dbs);
+		}
+	} else if (dc->dc_flags & DMU_CTX_FLAG_ASYNC) {
+		/* Calculate the amount of data this buffer contributes. */
+		bufoff = dn_off - db->db.db_offset;
+		tocpy = (int)MIN(db->db.db_size - bufoff, resid);
+		if (db->db_state == DB_CACHED || tocpy == db->db.db_size) {
+			/* Dbuf is resident or will be overwritten. */
+			dmu_buf_set_rele(dbs, /* err */ 0);
+		} else {
+			dmu_buf_set_node_add(&db->db_buf_sets, dbs);
+		}
+	}
+}
+
 /*
  * Returns with db_holds incremented, and db_mtx not held.
  * Note: dn_struct_rwlock must be held.
  */
 int
-dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid,
+dbuf_hold_impl_(dnode_t *dn, uint8_t level, uint64_t blkid,
     boolean_t fail_sparse, boolean_t fail_uncached,
-    void *tag, dmu_buf_impl_t **dbp)
+    void *tag, dmu_buf_impl_t **dbp, dmu_buf_set_t *dbs,
+    uint64_t dnoff, uint64_t resid)
 {
 	dmu_buf_impl_t *db, *parent = NULL;
 
@@ -3380,6 +3449,7 @@ dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid,
 	}
 	(void) zfs_refcount_add(&db->db_holds, tag);
 	DBUF_VERIFY(db);
+	dbuf_hold_update_buf_set(dbs, dnoff, resid, db);
 	mutex_exit(&db->db_mtx);
 
 	/* NOTE: we can't rele the parent until after we drop the db_mtx */
@@ -3394,6 +3464,16 @@ dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid,
 	return (0);
 }
 
+int
+dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid,
+    boolean_t fail_sparse, boolean_t fail_uncached,
+    void *tag, dmu_buf_impl_t **dbp)
+{
+
+	return (dbuf_hold_impl_(dn, level, blkid, fail_sparse, fail_uncached,
+	    tag, dbp, NULL, 0, 0));
+}
+
 dmu_buf_impl_t *
 dbuf_hold(dnode_t *dn, uint64_t blkid, void *tag)
 {
@@ -3404,7 +3484,8 @@ dmu_buf_impl_t *
 dbuf_hold_level(dnode_t *dn, int level, uint64_t blkid, void *tag)
 {
 	dmu_buf_impl_t *db;
-	int err = dbuf_hold_impl(dn, level, blkid, FALSE, FALSE, tag, &db);
+	int err = dbuf_hold_impl(dn, level, blkid, FALSE, FALSE,
+	    tag, &db);
 	return (err ? NULL : db);
 }
 
