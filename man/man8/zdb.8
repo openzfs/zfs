@@ -216,7 +216,10 @@ Read the vdev labels and L2ARC header from the specified device.
 .Nm Fl l
 will return 0 if valid label was found, 1 if error occurred, and 2 if no valid
 labels were found. The presence of L2ARC header is indicated by a specific
-sequence (L2ARC_DEV_HDR_MAGIC). Each unique configuration is displayed only
+sequence (L2ARC_DEV_HDR_MAGIC). If there is an accounting error in the size
+or the number of L2ARC log blocks
+.Nm Fl l
+will return 1. Each unique configuration is displayed only
 once.
 .It Fl ll Ar device
 In addition display label space usage stats. If a valid L2ARC header was found
