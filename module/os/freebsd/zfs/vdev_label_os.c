@@ -61,7 +61,7 @@ vdev_label_write_pad2(vdev_t *vd, const char *buf, size_t size)
 retry:
 	zio = zio_root(spa, NULL, NULL, flags);
 	vdev_label_write(zio, vd, 0, pad2,
-	    offsetof(vdev_label_t, vl_pad2),
+	    offsetof(vdev_label_t, vl_be),
 	    VDEV_PAD_SIZE, NULL, NULL, flags);
 	error = zio_wait(zio);
 	if (error != 0 && !(flags & ZIO_FLAG_TRYHARD)) {

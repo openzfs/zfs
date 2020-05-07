@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2013, 2017 Joyent, Inc. All rights reserved.
  * Copyright (c) 2014 Integros [integros.com]
@@ -1290,7 +1290,7 @@ typedef enum zfs_ioc {
 	ZFS_IOC_WAIT_FS,			/* 0x5a54 */
 
 	/*
-	 * Per-platform (Optional) - 6/128 numbers reserved.
+	 * Per-platform (Optional) - 8/128 numbers reserved.
 	 */
 	ZFS_IOC_PLATFORM = ZFS_IOC_FIRST + 0x80,
 	ZFS_IOC_EVENTS_NEXT,			/* 0x81 (Linux) */
@@ -1299,6 +1299,8 @@ typedef enum zfs_ioc {
 	ZFS_IOC_NEXTBOOT,			/* 0x84 (FreeBSD) */
 	ZFS_IOC_JAIL,				/* 0x85 (FreeBSD) */
 	ZFS_IOC_UNJAIL,				/* 0x86 (FreeBSD) */
+	ZFS_IOC_SET_BOOTENV,			/* 0x87 (Linux) */
+	ZFS_IOC_GET_BOOTENV,			/* 0x88 (Linux) */
 	ZFS_IOC_LAST
 } zfs_ioc_t;
 

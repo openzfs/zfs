@@ -1619,3 +1619,25 @@ lzc_wait_fs(const char *fs, zfs_wait_activity_t activity, boolean_t *waited)
 
 	return (error);
 }
+
+/*
+ * Set the bootenv contents for the given pool.
+ */
+int
+lzc_set_bootenv(const char *pool, const char *env)
+{
+	nvlist_t *args = fnvlist_alloc();
+	fnvlist_add_string(args, "envmap", env);
+	int error = lzc_ioctl(ZFS_IOC_SET_BOOTENV, pool, args, NULL);
+	fnvlist_free(args);
+	return (error);
+}
+
+/*
+ * Get the contents of the bootenv of the given pool.
+ */
+int
+lzc_get_bootenv(const char *pool, nvlist_t **outnvl)
+{
+	return (lzc_ioctl(ZFS_IOC_GET_BOOTENV, pool, NULL, outnvl));
+}

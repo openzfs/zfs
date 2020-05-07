@@ -3513,6 +3513,58 @@ zfs_ioc_log_history(const char *unused, nvlist_t *innvl, nvlist_t *outnvl)
 }
 
 /*
+ * This ioctl is used to set the bootenv configuration on the current
+ * pool. This configuration is stored in the second padding area of the label,
+ * and it is used by the GRUB bootloader used on Linux to store the contents
+ * of the grubenv file.  The file is stored as raw ASCII, and is protected by
+ * an embedded checksum.  By default, GRUB will check if the boot filesystem
+ * supports storing the environment data in a special location, and if so,
+ * will invoke filesystem specific logic to retrieve it. This can be overriden
+ * by a variable, should the user so desire.
+ */
+/* ARGSUSED */
+static const zfs_ioc_key_t zfs_keys_set_bootenv[] = {
+	{"envmap",	DATA_TYPE_STRING,	0},
+};
+
+static int
+zfs_ioc_set_bootenv(const char *name, nvlist_t *innvl, nvlist_t *outnvl)
+{
+	char *envmap;
+	int error;
+	spa_t *spa;
+
+	envmap = fnvlist_lookup_string(innvl, "envmap");
+	if ((error = spa_open(name, &spa, FTAG)) != 0)
+		return (error);
+	spa_vdev_state_enter(spa, SCL_ALL);
+	error = vdev_label_write_bootenv(spa->spa_root_vdev, envmap);
+	(void) spa_vdev_state_exit(spa, NULL, 0);
+	spa_close(spa, FTAG);
+	return (error);
+}
+
+static const zfs_ioc_key_t zfs_keys_get_bootenv[] = {
+	/* no nvl keys */
+};
+
+/* ARGSUSED */
+static int
+zfs_ioc_get_bootenv(const char *name, nvlist_t *innvl, nvlist_t *outnvl)
+{
+	spa_t *spa;
+	int error;
+
+	if ((error = spa_open(name, &spa, FTAG)) != 0)
+		return (error);
+	spa_vdev_state_enter(spa, SCL_ALL);
+	error = vdev_label_read_bootenv(spa->spa_root_vdev, outnvl);
+	(void) spa_vdev_state_exit(spa, NULL, 0);
+	spa_close(spa, FTAG);
+	return (error);
+}
+
+/*
  * The dp_config_rwlock must not be held when calling this, because the
  * unmount may need to write out data.
  *
@@ -6980,6 +7032,16 @@ zfs_ioctl_init(void)
 	    zfs_ioc_wait_fs, zfs_secpolicy_none, DATASET_NAME,
 	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_FALSE, B_FALSE,
 	    zfs_keys_fs_wait, ARRAY_SIZE(zfs_keys_fs_wait));
+
+	zfs_ioctl_register("set_bootenv", ZFS_IOC_SET_BOOTENV,
+	    zfs_ioc_set_bootenv, zfs_secpolicy_config, POOL_NAME,
+	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_FALSE, B_TRUE,
+	    zfs_keys_set_bootenv, ARRAY_SIZE(zfs_keys_set_bootenv));
+
+	zfs_ioctl_register("get_bootenv", ZFS_IOC_GET_BOOTENV,
+	    zfs_ioc_get_bootenv, zfs_secpolicy_none, POOL_NAME,
+	    POOL_CHECK_SUSPENDED, B_FALSE, B_TRUE,
+	    zfs_keys_get_bootenv, ARRAY_SIZE(zfs_keys_get_bootenv));
 
 	/* IOCTLS that use the legacy function signature */
 
