@@ -588,7 +588,7 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 
 		DB_DNODE_ENTER(db);
 		if (wr_state == WR_COPIED && dmu_read_by_dnode(DB_DNODE(db),
-		    off, len, lr + 1, DMU_READ_NO_PREFETCH) != 0) {
+		    off, len, lr + 1, /* flags */ 0) != 0) {
 			zil_itx_destroy(itx);
 			itx = zil_itx_create(txtype, sizeof (*lr));
 			lr = (lr_write_t *)&itx->itx_lr;

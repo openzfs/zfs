@@ -217,7 +217,7 @@ bptree_iterate(objset_t *os, uint64_t obj, boolean_t free, bptree_itor_t func,
 		    TRAVERSE_NO_DECRYPT;
 
 		err = dmu_read(os, obj, i * sizeof (bte), sizeof (bte),
-		    &bte, DMU_READ_NO_PREFETCH);
+		    &bte, /* flags */ 0);
 		if (err != 0)
 			break;
 

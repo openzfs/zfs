@@ -554,7 +554,7 @@ update_pages(vnode_t *vp, int64_t start, int len, objset_t *os, uint64_t oid,
 
 			va = zfs_map_page(pp, &sf);
 			(void) dmu_read(os, oid, start+off, nbytes,
-			    va+off, DMU_READ_PREFETCH);
+			    va+off, DMU_CTX_FLAG_PREFETCH);
 			zfs_unmap_page(sf);
 
 			zfs_vmobject_wlock_12(obj);
@@ -609,7 +609,7 @@ mappedread_sf(vnode_t *vp, int nbytes, uio_t *uio)
 			zfs_vmobject_wunlock_12(obj);
 			va = zfs_map_page(pp, &sf);
 			error = dmu_read(os, zp->z_id, start, bytes, va,
-			    DMU_READ_PREFETCH);
+			    DMU_CTX_FLAG_PREFETCH);
 			if (bytes != PAGESIZE && error == 0)
 				bzero(va + bytes, PAGESIZE - bytes);
 			zfs_unmap_page(sf);
@@ -1312,7 +1312,7 @@ zfs_get_data(void *arg, lr_write_t *lr, char *buf, struct lwb *lwb, zio_t *zio)
 			error = SET_ERROR(ENOENT);
 		} else {
 			error = dmu_read(os, object, offset, size, buf,
-			    DMU_READ_NO_PREFETCH);
+			    /* flags */ 0);
 		}
 		ASSERT(error == 0 || error == ENOENT);
 	} else { /* indirect write */
@@ -1345,7 +1345,7 @@ zfs_get_data(void *arg, lr_write_t *lr, char *buf, struct lwb *lwb, zio_t *zio)
 #endif
 		if (error == 0)
 			error = dmu_buf_hold(os, object, offset, zgd, &db,
-			    DMU_READ_NO_PREFETCH);
+			    0);
 
 		if (error == 0) {
 			blkptr_t *bp = &lr->lr_blkptr;

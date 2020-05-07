@@ -148,11 +148,20 @@ dbuf_stats_t dbuf_stats = {
 		continue;						\
 }
 
+typedef struct dbuf_hold_async_ctx {
+	dmu_buf_set_t *dbs;
+	zio_t *zio;
+	uint64_t dn_off;
+	uint64_t resid;
+} dbuf_hold_async_ctx_t;
+
 static boolean_t dbuf_undirty(dmu_buf_impl_t *db, dmu_tx_t *tx);
 static void dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx);
 static void dbuf_sync_leaf_verify_bonus_dnode(dbuf_dirty_record_t *dr);
 static int dbuf_read_verify_dnode_crypt(dmu_buf_impl_t *db, uint32_t flags);
-
+static int dbuf_hold_impl_(dnode_t *dn, uint8_t level, uint64_t blkid,
+    boolean_t fail_sparse, boolean_t fail_uncached, void *tag,
+    dmu_buf_impl_t **dbp, dbuf_hold_async_ctx_t *ctx);
 extern inline void dmu_buf_init_user(dmu_buf_user_t *dbu,
     dmu_buf_evict_func_t *evict_func_sync,
     dmu_buf_evict_func_t *evict_func_async,
@@ -762,6 +771,35 @@ dbuf_kstat_update(kstat_t *ksp, int rw)
 	return (0);
 }
 
+static dmu_buf_set_t *
+dbuf_process_buf_sets_(dmu_buf_impl_t *db, int err, const char *function)
+{
+	dmu_buf_set_node_t *dbsn, *next;
+	dmu_buf_set_t *dbs = NULL;
+	int count = 0;
+
+	ASSERT(db->db_buf != NULL || err);
+	for (dbsn = list_head(&db->db_buf_sets); dbsn != NULL; dbsn = next) {
+		next = list_next(&db->db_buf_sets, dbsn);
+		if (dbsn->dbsn_dmu_restart) {
+			ASSERT(dbs == NULL);
+			dbs = dbsn->dbsn_dbs;
+		} else
+			dmu_buf_set_rele(dbsn->dbsn_dbs, err);
+		dmu_buf_set_node_remove(&db->db_buf_sets, dbsn);
+		count++;
+	}
+#if 0
+	if (count)
+		printf("processed %d buf_sets for %p in %s\n",
+		    count, db, function);
+#endif
+	return (dbs);
+}
+
+#define	dbuf_process_buf_sets(a, b)				\
+	dbuf_process_buf_sets_((a), (b), __func__)
+
 void
 dbuf_init(void)
 {
@@ -1244,6 +1282,8 @@ dbuf_read_done(zio_t *zio, const zbookmark_phys_t *zb, const blkptr_t *bp,
     arc_buf_t *buf, void *vdb)
 {
 	dmu_buf_impl_t *db = vdb;
+	dmu_buf_set_t *dbs;
+	int err = 0;
 
 	mutex_enter(&db->db_mtx);
 	ASSERT3U(db->db_state, ==, DB_READ);
@@ -1260,6 +1300,7 @@ dbuf_read_done(zio_t *zio, const zbookmark_phys_t *zb, const blkptr_t *bp,
 		ASSERT3P(db->db_buf, ==, NULL);
 		db->db_state = DB_UNCACHED;
 		DTRACE_SET_STATE(db, "i/o error");
+		err = EIO;
 	} else if (db->db_level == 0 && db->db_freed_in_flight) {
 		/* freed in flight */
 		ASSERT(zio == NULL || zio->io_error == 0);
@@ -1277,8 +1318,11 @@ dbuf_read_done(zio_t *zio, const zbookmark_phys_t *zb, const blkptr_t *bp,
 		db->db_state = DB_CACHED;
 		DTRACE_SET_STATE(db, "successful read");
 	}
+	dbs = dbuf_process_buf_sets(db, err);
 	cv_broadcast(&db->db_changed);
 	dbuf_rele_and_unlock(db, NULL, B_FALSE);
+	if (dbs != NULL)
+		dmu_issue_restart(dbs, err);
 }
 
 /*
@@ -1294,7 +1338,6 @@ dbuf_read_bonus(dmu_buf_impl_t *db, dnode_t *dn, uint32_t flags)
 	err = dbuf_read_verify_dnode_crypt(db, flags);
 	if (err)
 		return (err);
-
 	bonuslen = MIN(dn->dn_bonuslen, dn->dn_phys->dn_bonuslen);
 	max_bonuslen = DN_SLOTS_TO_BONUSLEN(dn->dn_num_slots);
 	ASSERT(MUTEX_HELD(&db->db_mtx));
@@ -1307,6 +1350,7 @@ dbuf_read_bonus(dmu_buf_impl_t *db, dnode_t *dn, uint32_t flags)
 	if (bonuslen)
 		bcopy(DN_BONUS(dn->dn_phys), db->db.db_data, bonuslen);
 	db->db_state = DB_CACHED;
+	/* XXX does this belong here ? */
 	DTRACE_SET_STATE(db, "bonus buffer filled");
 	return (0);
 }
@@ -1437,6 +1481,7 @@ dbuf_read_impl(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags,
 	uint32_t aflags = ARC_FLAG_NOWAIT;
 	int err, zio_flags;
 	boolean_t bonus_read;
+	dmu_buf_set_t *dbs = NULL;
 
 	err = zio_flags = 0;
 	bonus_read = B_FALSE;
@@ -1521,8 +1566,13 @@ dbuf_read_impl(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags,
 	return (err);
 early_unlock:
 	DB_DNODE_EXIT(db);
+	if (err || db->db_buf != NULL)
+		dbs = dbuf_process_buf_sets(db, err);
 	mutex_exit(&db->db_mtx);
 	dmu_buf_unlock_parent(db, dblt, tag);
+	if (dbs != NULL)
+		dmu_issue_restart(dbs, err);
+
 	return (err);
 }
 
@@ -1578,8 +1628,9 @@ dbuf_fix_old_data(dmu_buf_impl_t *db, uint64_t txg)
 	}
 }
 
-int
-dbuf_read(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
+static int
+dbuf_read_(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags,
+    dmu_buf_set_t *dbs)
 {
 	int err = 0;
 	boolean_t prefetch;
@@ -1641,13 +1692,21 @@ dbuf_read(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
 	} else if (db->db_state == DB_UNCACHED) {
 		spa_t *spa = dn->dn_objset->os_spa;
 		boolean_t need_wait = B_FALSE;
+		boolean_t do_ewouldblock = B_FALSE;
 
 		db_lock_type_t dblt = dmu_buf_lock_parent(db, RW_READER, FTAG);
+
+		do_ewouldblock  = (dbs != NULL &&
+		    db->db_blkptr != NULL && !BP_IS_HOLE(db->db_blkptr));
 
 		if (zio == NULL &&
 		    db->db_blkptr != NULL && !BP_IS_HOLE(db->db_blkptr)) {
 			zio = zio_root(spa, NULL, NULL, ZIO_FLAG_CANFAIL);
 			need_wait = B_TRUE;
+		}
+		if (do_ewouldblock) {
+			ASSERT(zio != NULL);
+			dmu_buf_set_node_add(&db->db_buf_sets, dbs, B_TRUE);
 		}
 		err = dbuf_read_impl(db, zio, flags, dblt, FTAG);
 		/*
@@ -1661,6 +1720,8 @@ dbuf_read(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
 
 		DB_DNODE_EXIT(db);
 		DBUF_STAT_BUMP(hash_misses);
+		if (do_ewouldblock)
+			return (EWOULDBLOCK);
 
 		/*
 		 * If we created a zio_root we must execute it to avoid
@@ -1708,6 +1769,12 @@ dbuf_read(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
 	}
 
 	return (err);
+}
+
+int
+dbuf_read(dmu_buf_impl_t *db, zio_t *zio, uint32_t flags)
+{
+	return (dbuf_read_(db, zio, flags, NULL));
 }
 
 static void
@@ -1787,6 +1854,7 @@ dbuf_free_range(dnode_t *dn, uint64_t start_blkid, uint64_t end_blkid,
 	uint64_t txg = tx->tx_txg;
 	avl_index_t where;
 	dbuf_dirty_record_t *dr;
+	dmu_buf_set_t *dbs = NULL;
 
 	if (end_blkid > dn->dn_maxblkid &&
 	    !(start_blkid == DMU_SPILL_BLKID || end_blkid == DMU_SPILL_BLKID))
@@ -1871,10 +1939,11 @@ dbuf_free_range(dnode_t *dn, uint64_t start_blkid, uint64_t end_blkid,
 			rw_exit(&db->db_rwlock);
 			arc_buf_freeze(db->db_buf);
 		}
-
+		if (db->db_buf != NULL)
+			dbs = dbuf_process_buf_sets(db, /* err */ 0);
 		mutex_exit(&db->db_mtx);
 	}
-
+	ASSERT(dbs == NULL);
 	kmem_free(db_search, sizeof (dmu_buf_impl_t));
 	mutex_exit(&dn->dn_dbufs_mtx);
 }
@@ -2497,6 +2566,8 @@ dmu_buf_fill_done(dmu_buf_t *dbuf, dmu_tx_t *tx)
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)dbuf;
 	dbuf_states_t old_state;
+	dmu_buf_set_t *dbs;
+
 	mutex_enter(&db->db_mtx);
 	DBUF_VERIFY(db);
 
@@ -2514,9 +2585,12 @@ dmu_buf_fill_done(dmu_buf_t *dbuf, dmu_tx_t *tx)
 		} else {
 			DTRACE_SET_STATE(db, "fill done");
 		}
+		dbs = dbuf_process_buf_sets(db, /* err */ 0);
 		cv_broadcast(&db->db_changed);
-	}
+	} else
+		dbs = dbuf_process_buf_sets(db, /* err */ 0);
 	mutex_exit(&db->db_mtx);
+	ASSERT(dbs == NULL);
 }
 
 void
@@ -2782,7 +2856,8 @@ dbuf_destroy(dmu_buf_impl_t *db)
 __attribute__((always_inline))
 static inline int
 dbuf_findbp(dnode_t *dn, int level, uint64_t blkid, int fail_sparse,
-    dmu_buf_impl_t **parentp, blkptr_t **bpp)
+    dmu_buf_impl_t **parentp, blkptr_t **bpp,
+    dbuf_hold_async_ctx_t *ctx)
 {
 	*parentp = NULL;
 	*bpp = NULL;
@@ -2835,15 +2910,20 @@ dbuf_findbp(dnode_t *dn, int level, uint64_t blkid, int fail_sparse,
 		return (SET_ERROR(ENOENT));
 	} else if (level < nlevels-1) {
 		/* this block is referenced from an indirect block */
-		int err;
+		int err, flags;
+		dmu_buf_set_t *dbs = NULL;
+		zio_t *zio = NULL;
 
-		err = dbuf_hold_impl(dn, level + 1,
-		    blkid >> epbs, fail_sparse, FALSE, NULL, parentp);
-
+		err = dbuf_hold_impl_(dn, level + 1,
+		    blkid >> epbs, fail_sparse, FALSE, NULL, parentp, ctx);
 		if (err)
 			return (err);
-		err = dbuf_read(*parentp, NULL,
-		    (DB_RF_HAVESTRUCT | DB_RF_NOPREFETCH | DB_RF_CANFAIL));
+		flags = DB_RF_HAVESTRUCT | DB_RF_NOPREFETCH | DB_RF_CANFAIL;
+		if (ctx != NULL && ctx->zio != NULL) {
+			zio = ctx->zio;
+			dbs = ctx->dbs;
+		}
+		err = dbuf_read_(*parentp, zio, flags, dbs);
 		if (err) {
 			dbuf_rele(*parentp, NULL);
 			*parentp = NULL;
@@ -2884,6 +2964,8 @@ dbuf_create(dnode_t *dn, uint8_t level, uint64_t blkid,
 
 	list_create(&db->db_dirty_records, sizeof (dbuf_dirty_record_t),
 	    offsetof(dbuf_dirty_record_t, dr_dbuf_node));
+	list_create(&db->db_buf_sets, sizeof (dmu_buf_set_node_t),
+	    offsetof(dmu_buf_set_node_t, dbsn_link));
 
 	db->db_objset = os;
 	db->db.db_object = dn->dn_object;
@@ -2974,7 +3056,7 @@ dbuf_dnode_findbp(dnode_t *dn, uint64_t level, uint64_t blkid,
 	int err = 0;
 	ASSERT(RW_LOCK_HELD(&dn->dn_struct_rwlock));
 
-	err = dbuf_findbp(dn, level, blkid, B_FALSE, &dbp, &bp2);
+	err = dbuf_findbp(dn, level, blkid, B_FALSE, &dbp, &bp2, NULL);
 	if (err == 0) {
 		*bp = *bp2;
 		if (dbp != NULL)
@@ -3283,14 +3365,52 @@ dbuf_hold_copy(dnode_t *dn, dmu_buf_impl_t *db)
 	rw_exit(&db->db_rwlock);
 }
 
+static void
+dbuf_hold_update_buf_set(dbuf_hold_async_ctx_t *ctx, dmu_buf_impl_t *db)
+{
+	dmu_ctx_t *dc;
+	uint64_t bufoff, tocpy;
+	dmu_buf_set_t *dbs;
+	uint64_t resid, dn_off;
+
+	if (ctx == NULL)
+		return;
+
+	resid = ctx->resid;
+	dn_off = ctx->dn_off;
+	dbs = ctx->dbs;
+	dc = dbs->dbs_dc;
+	ASSERT(dn_off >= db->db.db_offset);
+
+	/* If a reading buffer set is associated, add the callback now. */
+	if (dc->dc_flags & DMU_CTX_FLAG_READ) {
+		if (db->db_state == DB_CACHED) {
+			/* Dbuf is already at the desired state. */
+			dmu_buf_set_rele(dbs, /* err */ 0);
+		} else {
+			dmu_buf_set_node_add(&db->db_buf_sets, dbs, B_FALSE);
+		}
+	} else if (dc->dc_flags & DMU_CTX_FLAG_ASYNC) {
+		/* Calculate the amount of data this buffer contributes. */
+		bufoff = dn_off - db->db.db_offset;
+		tocpy = (int)MIN(db->db.db_size - bufoff, resid);
+		if (db->db_state == DB_CACHED || tocpy == db->db.db_size) {
+			/* Dbuf is resident or will be overwritten. */
+			dmu_buf_set_rele(dbs, /* err */ 0);
+		} else {
+			dmu_buf_set_node_add(&db->db_buf_sets, dbs, B_FALSE);
+		}
+	}
+}
+
 /*
  * Returns with db_holds incremented, and db_mtx not held.
  * Note: dn_struct_rwlock must be held.
  */
-int
-dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid,
+static int
+dbuf_hold_impl_(dnode_t *dn, uint8_t level, uint64_t blkid,
     boolean_t fail_sparse, boolean_t fail_uncached,
-    void *tag, dmu_buf_impl_t **dbp)
+    void *tag, dmu_buf_impl_t **dbp, dbuf_hold_async_ctx_t *ctx)
 {
 	dmu_buf_impl_t *db, *parent = NULL;
 
@@ -3318,7 +3438,8 @@ dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid,
 			return (SET_ERROR(ENOENT));
 
 		ASSERT3P(parent, ==, NULL);
-		err = dbuf_findbp(dn, level, blkid, fail_sparse, &parent, &bp);
+		err = dbuf_findbp(dn, level, blkid, fail_sparse, &parent,
+		    &bp, ctx);
 		if (fail_sparse) {
 			if (err == 0 && bp && BP_IS_HOLE(bp))
 				err = SET_ERROR(ENOENT);
@@ -3380,6 +3501,8 @@ dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid,
 	}
 	(void) zfs_refcount_add(&db->db_holds, tag);
 	DBUF_VERIFY(db);
+	if (level == 0)
+		dbuf_hold_update_buf_set(ctx, db);
 	mutex_exit(&db->db_mtx);
 
 	/* NOTE: we can't rele the parent until after we drop the db_mtx */
@@ -3394,6 +3517,16 @@ dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid,
 	return (0);
 }
 
+int
+dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid,
+    boolean_t fail_sparse, boolean_t fail_uncached,
+    void *tag, dmu_buf_impl_t **dbp)
+{
+
+	return (dbuf_hold_impl_(dn, level, blkid, fail_sparse, fail_uncached,
+	    tag, dbp, NULL));
+}
+
 dmu_buf_impl_t *
 dbuf_hold(dnode_t *dn, uint64_t blkid, void *tag)
 {
@@ -3404,8 +3537,24 @@ dmu_buf_impl_t *
 dbuf_hold_level(dnode_t *dn, int level, uint64_t blkid, void *tag)
 {
 	dmu_buf_impl_t *db;
-	int err = dbuf_hold_impl(dn, level, blkid, FALSE, FALSE, tag, &db);
+	int err = dbuf_hold_impl(dn, level, blkid, FALSE, FALSE,
+	    tag, &db);
 	return (err ? NULL : db);
+}
+
+int
+dbuf_hold_level_async(struct dnode *dn, int level, uint64_t blkid,
+    void *tag, dmu_buf_impl_t **dbp, uint64_t dn_off, dmu_buf_set_t *dbs,
+    uint64_t resid, zio_t *zio)
+{
+	dbuf_hold_async_ctx_t ctx;
+
+	ctx.dn_off = dn_off;
+	ctx.dbs = dbs;
+	ctx.resid = resid;
+	ctx.zio = zio;
+	return (dbuf_hold_impl_(dn, level, blkid, FALSE, FALSE,
+	    tag, dbp, &ctx));
 }
 
 void

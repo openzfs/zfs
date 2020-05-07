@@ -452,6 +452,12 @@ void dnode_evict_dbufs(dnode_t *dn);
 void dnode_evict_bonus(dnode_t *dn);
 void dnode_free_interior_slots(dnode_t *dn);
 
+#if defined(ZFS_DEBUG) && defined(__linux__) && defined(_KERNEL)
+void dn_rlock(dnode_t *dn);
+#else
+#define	dn_rlock(dn) rw_enter(&(dn)->dn_struct_rwlock, RW_READER)
+#endif
+
 #define	DNODE_IS_DIRTY(_dn)						\
 	((_dn)->dn_dirty_txg >= spa_syncing_txg((_dn)->dn_objset->os_spa))
 

@@ -342,6 +342,7 @@ static ztest_shared_callstate_t *ztest_shared_callstate;
 #define	ZTEST_GET_SHARED_CALLSTATE(c) (&ztest_shared_callstate[c])
 
 ztest_func_t ztest_dmu_read_write;
+ztest_func_t ztest_dmu_async_read_write;
 ztest_func_t ztest_dmu_write_parallel;
 ztest_func_t ztest_dmu_object_alloc_free;
 ztest_func_t ztest_dmu_object_next_chunk;
@@ -378,6 +379,7 @@ ztest_func_t ztest_trim;
 ztest_func_t ztest_fletcher;
 ztest_func_t ztest_fletcher_incr;
 ztest_func_t ztest_verify_dnode_bt;
+ztest_func_t ztest_flush;
 
 uint64_t zopt_always = 0ULL * NANOSEC;		/* all the time */
 uint64_t zopt_incessant = 1ULL * NANOSEC / 10;	/* every 1/10 second */
@@ -392,6 +394,7 @@ uint64_t zopt_rarely = 60ULL * NANOSEC;		/* every 60 seconds */
 	    .zi_funcname = # func }
 
 ztest_info_t ztest_info[] = {
+	ZTI_INIT(ztest_dmu_async_read_write, 1, &zopt_always),
 	ZTI_INIT(ztest_dmu_read_write, 1, &zopt_always),
 	ZTI_INIT(ztest_dmu_write_parallel, 10, &zopt_always),
 	ZTI_INIT(ztest_dmu_object_alloc_free, 1, &zopt_always),
@@ -431,6 +434,7 @@ ztest_info_t ztest_info[] = {
 	ZTI_INIT(ztest_fletcher, 1, &zopt_rarely),
 	ZTI_INIT(ztest_fletcher_incr, 1, &zopt_rarely),
 	ZTI_INIT(ztest_verify_dnode_bt, 1, &zopt_sometimes),
+	ZTI_INIT(ztest_flush, 1, &zopt_sometimes),
 };
 
 #define	ZTEST_FUNCS	(sizeof (ztest_info) / sizeof (ztest_info_t))
@@ -1678,7 +1682,7 @@ ztest_log_write(ztest_ds_t *zd, dmu_tx_t *tx, lr_write_t *lr)
 
 	if (write_state == WR_COPIED &&
 	    dmu_read(zd->zd_os, lr->lr_foid, lr->lr_offset, lr->lr_length,
-	    ((lr_write_t *)&itx->itx_lr) + 1, DMU_READ_NO_PREFETCH) != 0) {
+	    ((lr_write_t *)&itx->itx_lr) + 1, 0) != 0) {
 		zil_itx_destroy(itx);
 		itx = zil_itx_create(TX_WRITE, sizeof (*lr));
 		write_state = WR_NEED_COPY;
@@ -1949,7 +1953,7 @@ ztest_replay_write(void *arg1, void *arg2, boolean_t byteswap)
 		ASSERT(offset % doi.doi_data_block_size == 0);
 		if (ztest_random(4) != 0) {
 			int prefetch = ztest_random(2) ?
-			    DMU_READ_PREFETCH : DMU_READ_NO_PREFETCH;
+			    DMU_CTX_FLAG_PREFETCH : 0;
 			ztest_block_tag_t rbt;
 
 			VERIFY(dmu_read(os, lr->lr_foid, offset,
@@ -2206,7 +2210,7 @@ ztest_get_data(void *arg, lr_write_t *lr, char *buf, struct lwb *lwb,
 		    object, offset, size, RL_READER);
 
 		error = dmu_read(os, object, offset, size, buf,
-		    DMU_READ_NO_PREFETCH);
+		    0);
 		ASSERT(error == 0);
 	} else {
 		size = doi.doi_data_block_size;
@@ -2221,7 +2225,7 @@ ztest_get_data(void *arg, lr_write_t *lr, char *buf, struct lwb *lwb,
 		    object, offset, size, RL_READER);
 
 		error = dmu_buf_hold(os, object, offset, zgd, &db,
-		    DMU_READ_NO_PREFETCH);
+		    0);
 
 		if (error == 0) {
 			blkptr_t *bp = &lr->lr_blkptr;
@@ -2563,7 +2567,7 @@ ztest_io(ztest_ds_t *zd, uint64_t object, uint64_t offset)
 		(void) pthread_rwlock_unlock(&ztest_name_lock);
 
 		VERIFY0(dmu_read(zd->zd_os, object, offset, blocksize, data,
-		    DMU_READ_NO_PREFETCH));
+		    0));
 
 		(void) ztest_write(zd, object, offset, blocksize, data);
 		break;
@@ -4468,10 +4472,10 @@ ztest_dmu_read_write(ztest_ds_t *zd, uint64_t id)
 	 * Read the current contents of our objects.
 	 */
 	error = dmu_read(os, packobj, packoff, packsize, packbuf,
-	    DMU_READ_PREFETCH);
+	    DMU_CTX_FLAG_PREFETCH);
 	ASSERT0(error);
 	error = dmu_read(os, bigobj, bigoff, bigsize, bigbuf,
-	    DMU_READ_PREFETCH);
+	    DMU_CTX_FLAG_PREFETCH);
 	ASSERT0(error);
 
 	/*
@@ -4589,9 +4593,9 @@ ztest_dmu_read_write(ztest_ds_t *zd, uint64_t id)
 		void *bigcheck = umem_alloc(bigsize, UMEM_NOFAIL);
 
 		VERIFY(0 == dmu_read(os, packobj, packoff,
-		    packsize, packcheck, DMU_READ_PREFETCH));
+		    packsize, packcheck, DMU_CTX_FLAG_PREFETCH));
 		VERIFY(0 == dmu_read(os, bigobj, bigoff,
-		    bigsize, bigcheck, DMU_READ_PREFETCH));
+		    bigsize, bigcheck, DMU_CTX_FLAG_PREFETCH));
 
 		ASSERT(bcmp(packbuf, packcheck, packsize) == 0);
 		ASSERT(bcmp(bigbuf, bigcheck, bigsize) == 0);
@@ -4603,6 +4607,316 @@ ztest_dmu_read_write(ztest_ds_t *zd, uint64_t id)
 	umem_free(packbuf, packsize);
 	umem_free(bigbuf, bigsize);
 	umem_free(od, size);
+}
+
+typedef struct ztest_dmu_ctx {
+	/* must be first for callback to find rest of context */
+	dmu_ctx_t	zdc_dc;
+	volatile	uint64_t *zdc_rc;
+	kcondvar_t *zdc_cv;
+	kmutex_t *zdc_lock;
+} ztest_dmu_ctx_t;
+
+static void
+ztest_dmu_async_done(dmu_ctx_t *dc)
+{
+	ztest_dmu_ctx_t *zdc = (ztest_dmu_ctx_t *)dc;
+
+	mutex_enter(zdc->zdc_lock);
+	(*zdc->zdc_rc)++;
+	pthread_cond_signal(zdc->zdc_cv);
+	mutex_exit(zdc->zdc_lock);
+}
+
+static void
+ztest_dmu_ctx_init(ztest_dmu_ctx_t *zdc, volatile uint64_t *rc, kcondvar_t *cv,
+    kmutex_t *lock)
+{
+	bzero(zdc, sizeof (*zdc));
+	zdc->zdc_rc = rc;
+	zdc->zdc_cv = cv;
+	zdc->zdc_lock = lock;
+}
+
+static void
+ztest_dmu_wait(volatile uint64_t *rc, kcondvar_t *cv, kmutex_t *lock, int count)
+{
+	hrtime_t start, now;
+
+	ASSERT(*rc <= count);
+	if (*rc == count)
+		return;
+
+	mutex_enter(lock);
+	start = gethrestime_sec();
+	while (*rc < count) {
+		cv_timedwait(cv, lock, ddi_get_lbolt() + 5*hz);
+		now = gethrestime_sec();
+		ASSERT(now - start < 20);
+	}
+	mutex_exit(lock);
+}
+
+/*
+ * Verify that dmu_{read,write}_async work as expected.
+ */
+void
+ztest_dmu_async_read_write(ztest_ds_t *zd, uint64_t id)
+{
+	int size;
+	ztest_od_t *od;
+
+	objset_t *os = zd->zd_os;
+	size = sizeof (ztest_od_t) * OD_ARRAY_SIZE;
+	od = umem_alloc(size, UMEM_NOFAIL);
+	dmu_tx_t *tx;
+	int i, freeit, error;
+	uint64_t n, s, txg;
+	bufwad_t *packbuf, *bigbuf, *pack, *bigH, *bigT;
+	uint64_t packobj, packoff, packsize, bigobj, bigoff, bigsize;
+	uint64_t chunksize = (1000 + ztest_random(1000)) * sizeof (uint64_t);
+	uint64_t regions = 997;
+	uint64_t stride = 123456789ULL;
+	uint64_t width = 40;
+	int free_percent = 5;
+
+	/*
+	 * Async dmu variables and initialization
+	 */
+	volatile uint64_t refcount;
+	ztest_dmu_ctx_t zdc0, zdc1;
+	kmutex_t zd_lock;
+	kcondvar_t zd_cv;
+
+	cv_init(&zd_cv, NULL, CV_DEFAULT, NULL);
+	mutex_init(&zd_lock, NULL, MUTEX_DEFAULT, NULL);
+	ztest_dmu_ctx_init(&zdc0, &refcount, &zd_cv, &zd_lock);
+	ztest_dmu_ctx_init(&zdc1, &refcount, &zd_cv, &zd_lock);
+
+	/*
+	 * This test uses two objects, packobj and bigobj, that are always
+	 * updated together (i.e. in the same tx) so that their contents are
+	 * in sync and can be compared.  Their contents relate to each other
+	 * in a simple way: packobj is a dense array of 'bufwad' structures,
+	 * while bigobj is a sparse array of the same bufwads.  Specifically,
+	 * for any index n, there are three bufwads that should be identical:
+	 *
+	 *	packobj, at offset n * sizeof (bufwad_t)
+	 *	bigobj, at the head of the nth chunk
+	 *	bigobj, at the tail of the nth chunk
+	 *
+	 * The chunk size is arbitrary. It doesn't have to be a power of two,
+	 * and it doesn't have any relation to the object blocksize.
+	 * The only requirement is that it can hold at least two bufwads.
+	 *
+	 * Normally, we write the bufwad to each of these locations.
+	 * However, free_percent of the time we instead write zeroes to
+	 * packobj and perform a dmu_free_range() on bigobj.  By comparing
+	 * bigobj to packobj, we can verify that the DMU is correctly
+	 * tracking which parts of an object are allocated and free,
+	 * and that the contents of the allocated blocks are correct.
+	 */
+
+	/*
+	 * Read the directory info.  If it's the first time, set things up.
+	 */
+	ztest_od_init(od, id, FTAG, 0, DMU_OT_UINT64_OTHER, 0, 0, chunksize);
+	ztest_od_init(od + 1, id, FTAG, 1, DMU_OT_UINT64_OTHER, 0, 0,
+	    chunksize);
+
+	if (ztest_object_init(zd, od, size, B_FALSE) != 0) {
+		umem_free(od, size);
+		goto done;
+	}
+
+	bigobj = od[0].od_object;
+	packobj = od[1].od_object;
+	chunksize = od[0].od_gen;
+	ASSERT(chunksize == od[1].od_gen);
+
+	/*
+	 * Prefetch a random chunk of the big object.
+	 * Our aim here is to get some async reads in flight
+	 * for blocks that we may free below; the DMU should
+	 * handle this race correctly.
+	 */
+	n = ztest_random(regions) * stride + ztest_random(width);
+	s = 1 + ztest_random(2 * width - 1);
+	dmu_prefetch(os, bigobj, 0, n * chunksize, s * chunksize,
+	    ZIO_PRIORITY_SYNC_READ);
+
+	/*
+	 * Pick a random index and compute the offsets into packobj and bigobj.
+	 */
+	n = ztest_random(regions) * stride + ztest_random(width);
+	s = 1 + ztest_random(width - 1);
+
+	packoff = n * sizeof (bufwad_t);
+	packsize = s * sizeof (bufwad_t);
+
+	bigoff = n * chunksize;
+	bigsize = s * chunksize;
+
+	packbuf = umem_alloc(packsize, UMEM_NOFAIL);
+	bigbuf = umem_alloc(bigsize, UMEM_NOFAIL);
+
+	/*
+	 * free_percent of the time, free a range of bigobj rather than
+	 * overwriting it.
+	 */
+	freeit = (ztest_random(100) < free_percent);
+
+	/*
+	 * Read the current contents of our objects.
+	 */
+	refcount = 0;
+	error = dmu_read_async(&zdc0.zdc_dc, os, packobj, packoff, packsize,
+	    packbuf, DMU_CTX_FLAG_PREFETCH, ztest_dmu_async_done);
+	ASSERT0(error);
+	error = dmu_read_async(&zdc1.zdc_dc, os, bigobj, bigoff, bigsize,
+	    bigbuf, DMU_CTX_FLAG_PREFETCH, ztest_dmu_async_done);
+	ASSERT0(error);
+	ztest_dmu_wait(&refcount, &zd_cv, &zd_lock, 2);
+
+	/*
+	 * Get a tx for the mods to both packobj and bigobj.
+	 */
+	tx = dmu_tx_create(os);
+
+	dmu_tx_hold_write(tx, packobj, packoff, packsize);
+
+	if (freeit)
+		dmu_tx_hold_free(tx, bigobj, bigoff, bigsize);
+	else
+		dmu_tx_hold_write(tx, bigobj, bigoff, bigsize);
+
+	/* This accounts for setting the checksum/compression. */
+	dmu_tx_hold_bonus(tx, bigobj);
+
+	txg = ztest_tx_assign(tx, TXG_MIGHTWAIT, FTAG);
+	if (txg == 0) {
+		umem_free(packbuf, packsize);
+		umem_free(bigbuf, bigsize);
+		umem_free(od, size);
+		goto done;
+	}
+
+	enum zio_checksum cksum;
+	do {
+		cksum = (enum zio_checksum)
+		    ztest_random_dsl_prop(ZFS_PROP_CHECKSUM);
+	} while (cksum >= ZIO_CHECKSUM_LEGACY_FUNCTIONS);
+	dmu_object_set_checksum(os, bigobj, cksum, tx);
+
+	enum zio_compress comp;
+	do {
+		comp = (enum zio_compress)
+		    ztest_random_dsl_prop(ZFS_PROP_COMPRESSION);
+	} while (comp >= ZIO_COMPRESS_LEGACY_FUNCTIONS);
+	dmu_object_set_compress(os, bigobj, comp, tx);
+
+	/*
+	 * For each index from n to n + s, verify that the existing bufwad
+	 * in packobj matches the bufwads at the head and tail of the
+	 * corresponding chunk in bigobj.  Then update all three bufwads
+	 * with the new values we want to write out.
+	 */
+	for (i = 0; i < s; i++) {
+		/* LINTED */
+		pack = (bufwad_t *)((char *)packbuf + i * sizeof (bufwad_t));
+		/* LINTED */
+		bigH = (bufwad_t *)((char *)bigbuf + i * chunksize);
+		/* LINTED */
+		bigT = (bufwad_t *)((char *)bigH + chunksize) - 1;
+
+		ASSERT((uintptr_t)bigH - (uintptr_t)bigbuf < bigsize);
+		ASSERT((uintptr_t)bigT - (uintptr_t)bigbuf < bigsize);
+
+		if (pack->bw_txg > txg)
+			fatal(0, "future leak: got %llx, open txg is %llx",
+			    pack->bw_txg, txg);
+
+		if (pack->bw_data != 0 && pack->bw_index != n + i)
+			fatal(0, "wrong index: got %llx, wanted %llx+%llx",
+			    pack->bw_index, n, i);
+
+		if (bcmp(pack, bigH, sizeof (bufwad_t)) != 0)
+			fatal(0, "pack/bigH mismatch in %p/%p", pack, bigH);
+
+		if (bcmp(pack, bigT, sizeof (bufwad_t)) != 0)
+			fatal(0, "pack/bigT mismatch in %p/%p", pack, bigT);
+
+		if (freeit) {
+			bzero(pack, sizeof (bufwad_t));
+		} else {
+			pack->bw_index = n + i;
+			pack->bw_txg = txg;
+			pack->bw_data = 1 + ztest_random(-2ULL);
+		}
+		*bigH = *pack;
+		*bigT = *pack;
+	}
+
+	/*
+	 * We've verified all the old bufwads, and made new ones.
+	 * Now write them out.
+	 */
+	refcount = 0;
+	dmu_write_async(&zdc0.zdc_dc, os, packobj, packoff, packsize, packbuf,
+	    tx, ztest_dmu_async_done);
+
+	if (freeit) {
+		if (ztest_opts.zo_verbose >= 7) {
+			(void) printf("freeing offset %llx size %llx"
+			    " txg %llx\n",
+			    (u_longlong_t)bigoff,
+			    (u_longlong_t)bigsize,
+			    (u_longlong_t)txg);
+		}
+		ztest_dmu_wait(&refcount, &zd_cv, &zd_lock, 1);
+		VERIFY(0 == dmu_free_range(os, bigobj, bigoff, bigsize, tx));
+	} else {
+		if (ztest_opts.zo_verbose >= 7) {
+			(void) printf("writing offset %llx size %llx"
+			    " txg %llx\n",
+			    (u_longlong_t)bigoff,
+			    (u_longlong_t)bigsize,
+			    (u_longlong_t)txg);
+		}
+		dmu_write_async(&zdc1.zdc_dc, os, bigobj, bigoff, bigsize,
+		    bigbuf, tx, ztest_dmu_async_done);
+		ztest_dmu_wait(&refcount, &zd_cv, &zd_lock, 2);
+	}
+
+	dmu_tx_commit(tx);
+
+	/*
+	 * Sanity check the stuff we just wrote.
+	 */
+	{
+		void *packcheck = umem_alloc(packsize, UMEM_NOFAIL);
+		void *bigcheck = umem_alloc(bigsize, UMEM_NOFAIL);
+		refcount = 0;
+		VERIFY0(dmu_read_async(&zdc0.zdc_dc, os, packobj, packoff,
+		    packsize, packcheck, DMU_CTX_FLAG_PREFETCH,
+		    ztest_dmu_async_done));
+		VERIFY0(dmu_read_async(&zdc1.zdc_dc, os, bigobj, bigoff,
+		    bigsize, bigcheck, DMU_CTX_FLAG_PREFETCH,
+		    ztest_dmu_async_done));
+		ztest_dmu_wait(&refcount, &zd_cv, &zd_lock, 2);
+		ASSERT(bcmp(packbuf, packcheck, packsize) == 0);
+		ASSERT(bcmp(bigbuf, bigcheck, bigsize) == 0);
+
+		umem_free(packcheck, packsize);
+		umem_free(bigcheck, bigsize);
+	}
+
+	umem_free(packbuf, packsize);
+	umem_free(bigbuf, bigsize);
+	umem_free(od, size);
+done:
+	cv_destroy(&zd_cv);
+	mutex_destroy(&zd_lock);
 }
 
 void
@@ -4807,10 +5121,10 @@ ztest_dmu_read_write_zcopy(ztest_ds_t *zd, uint64_t id)
 		 */
 		if (i != 0 || ztest_random(2) != 0) {
 			error = dmu_read(os, packobj, packoff,
-			    packsize, packbuf, DMU_READ_PREFETCH);
+			    packsize, packbuf, DMU_CTX_FLAG_PREFETCH);
 			ASSERT0(error);
 			error = dmu_read(os, bigobj, bigoff, bigsize,
-			    bigbuf, DMU_READ_PREFETCH);
+			    bigbuf, DMU_CTX_FLAG_PREFETCH);
 			ASSERT0(error);
 		}
 		compare_and_update_pbbufs(s, packbuf, bigbuf, bigsize,
@@ -4845,7 +5159,7 @@ ztest_dmu_read_write_zcopy(ztest_ds_t *zd, uint64_t id)
 
 			if (i == 1) {
 				VERIFY(dmu_buf_hold(os, bigobj, off,
-				    FTAG, &dbt, DMU_READ_NO_PREFETCH) == 0);
+				    FTAG, &dbt, 0) == 0);
 			}
 			if (i != 5 || chunksize < (SPA_MINBLOCKSIZE * 2)) {
 				VERIFY0(dmu_assign_arcbuf_by_dbuf(bonus_db,
@@ -4871,9 +5185,9 @@ ztest_dmu_read_write_zcopy(ztest_ds_t *zd, uint64_t id)
 			void *bigcheck = umem_alloc(bigsize, UMEM_NOFAIL);
 
 			VERIFY(0 == dmu_read(os, packobj, packoff,
-			    packsize, packcheck, DMU_READ_PREFETCH));
+			    packsize, packcheck, DMU_CTX_FLAG_PREFETCH));
 			VERIFY(0 == dmu_read(os, bigobj, bigoff,
-			    bigsize, bigcheck, DMU_READ_PREFETCH));
+			    bigsize, bigcheck, DMU_CTX_FLAG_PREFETCH));
 
 			ASSERT(bcmp(packbuf, packcheck, packsize) == 0);
 			ASSERT(bcmp(bigbuf, bigcheck, bigsize) == 0);
@@ -5420,7 +5734,7 @@ ztest_dmu_commit_callbacks(ztest_ds_t *zd, uint64_t id)
 	 * Read existing data to make sure there isn't a future leak.
 	 */
 	VERIFY(0 == dmu_read(os, od->od_object, 0, sizeof (uint64_t),
-	    &old_txg, DMU_READ_PREFETCH));
+	    &old_txg, DMU_CTX_FLAG_PREFETCH));
 
 	if (old_txg > txg)
 		fatal(0, "future leak: got %" PRIu64 ", open txg is %" PRIu64,
@@ -5482,6 +5796,14 @@ ztest_dmu_commit_callbacks(ztest_ds_t *zd, uint64_t id)
 	dmu_tx_commit(tx);
 
 	umem_free(od, sizeof (ztest_od_t));
+}
+
+void
+ztest_flush(ztest_ds_t *zd, uint64_t id)
+{
+	objset_t *os = zd->zd_os;
+
+	arc_flush(os->os_spa, B_FALSE);
 }
 
 /*

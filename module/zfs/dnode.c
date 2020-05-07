@@ -83,6 +83,66 @@ int zfs_default_ibs = DN_MAX_INDBLKSHIFT;
 static kmem_cbrc_t dnode_move(void *, void *, size_t, void *);
 #endif /* _KERNEL */
 
+#if defined(ZFS_DEBUG) && defined(__linux__) && defined(_KERNEL)
+/*
+ * Seconds between wait samples
+ */
+#define	DN_SAMPLE_INTERVAL 5
+
+static void
+dump_others(void *data)
+{
+	if (data != current)
+		spl_dumpstack();
+}
+
+#if 0
+static void
+rw_dump_owners(krwlock_t *rw)
+{
+	boolean_t dump_one = B_FALSE;
+	struct task_struct *owner;
+
+	rcu_read_lock();
+	owner = READ_ONCE(rw->rw_owner);
+	dump_one = owner && !owner->on_cpu;
+	rcu_read_unlock();
+
+	if (dump_one)
+		show_stack(owner, get_stack_pointer(owner, NULL));
+	else
+		on_each_cpu(dump_others, current, 0);
+}
+#endif
+
+void
+dn_rlock(dnode_t *dn)
+{
+	uint64_t spin_count, start, now;
+
+	ASSERT(!RW_WRITE_HELD(&dn->dn_struct_rwlock));
+	/*
+	 * Do nothing extra if we succeed
+	 */
+	if (likely(rw_tryenter(&dn->dn_struct_rwlock, RW_READER)))
+		return;
+	start = gethrestime_sec();
+	spin_count = 0;
+	while (!rw_tryenter(&dn->dn_struct_rwlock, RW_READER)) {
+		cpu_relax();
+		if (++spin_count % 1000 == 0) {
+			now = gethrestime_sec();
+			if (now - start >= DN_SAMPLE_INTERVAL) {
+				// rw_dump_owners(&dn->dn_struct_rwlock);
+				on_each_cpu(dump_others, current, 0);
+				start = now;
+			}
+			yield();
+		}
+	}
+}
+#endif
+
 static int
 dbuf_compare(const void *x1, const void *x2)
 {
@@ -271,7 +331,7 @@ dnode_verify(dnode_t *dn)
 	if (!(zfs_flags & ZFS_DEBUG_DNODE_VERIFY))
 		return;
 
-	if (!RW_WRITE_HELD(&dn->dn_struct_rwlock)) {
+	if (!RW_LOCK_HELD(&dn->dn_struct_rwlock)) {
 		rw_enter(&dn->dn_struct_rwlock, RW_READER);
 		drop_struct_lock = TRUE;
 	}

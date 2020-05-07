@@ -359,7 +359,7 @@ vdev_indirect_mapping_open(objset_t *os, uint64_t mapping_object)
 		uint64_t map_size = vdev_indirect_mapping_size(vim);
 		vim->vim_entries = vmem_alloc(map_size, KM_SLEEP);
 		VERIFY0(dmu_read(os, vim->vim_object, 0, map_size,
-		    vim->vim_entries, DMU_READ_PREFETCH));
+		    vim->vim_entries, DMU_CTX_FLAG_PREFETCH));
 	}
 
 	ASSERT(vdev_indirect_mapping_verify(vim));
@@ -485,7 +485,7 @@ vdev_indirect_mapping_add_entries(vdev_indirect_mapping_t *vim,
 	}
 	VERIFY0(dmu_read(vim->vim_objset, vim->vim_object, old_size,
 	    new_size - old_size, &vim->vim_entries[old_count],
-	    DMU_READ_PREFETCH));
+	    DMU_CTX_FLAG_PREFETCH));
 
 	zfs_dbgmsg("txg %llu: wrote %llu entries to "
 	    "indirect mapping obj %llu; max offset=0x%llx",
@@ -580,7 +580,7 @@ vdev_indirect_mapping_load_obsolete_counts(vdev_indirect_mapping_t *vim)
 		VERIFY0(dmu_read(vim->vim_objset,
 		    vim->vim_phys->vimp_counts_object,
 		    0, counts_size,
-		    counts, DMU_READ_PREFETCH));
+		    counts, DMU_CTX_FLAG_PREFETCH));
 	} else {
 		bzero(counts, counts_size);
 	}

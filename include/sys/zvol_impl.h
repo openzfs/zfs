@@ -58,6 +58,17 @@ typedef struct zvol_state {
 	struct zvol_state_os	*zv_zso;	/* private platform state */
 } zvol_state_t;
 
+typedef struct zvol_dmu_state {
+	/*
+	 * The DMU context associated with this DMU state.  Note that this
+	 * must be the first entry in order for the callback to be able to
+	 * discover the zvol_dmu_state_t.
+	 */
+	dmu_ctx_t zds_dc;
+	zvol_state_t *zds_zv;
+	boolean_t zds_sync;
+	struct zfs_locked_range *zds_lr;
+} zvol_dmu_state_t;
 
 extern list_t zvol_state_list;
 extern krwlock_t zvol_state_lock;
@@ -85,6 +96,10 @@ void zvol_log_write(zvol_state_t *zv, dmu_tx_t *tx, uint64_t offset,
     uint64_t size, int sync);
 int zvol_get_data(void *arg, lr_write_t *lr, char *buf, struct lwb *lwb,
     zio_t *zio);
+int zvol_dmu_ctx_init(zvol_dmu_state_t *zds, void *data, uint64_t off,
+    uint64_t io_size, uint32_t dmu_flags, dmu_ctx_cb_t done_cb);
+void zvol_dmu_issue(zvol_dmu_state_t *zds);
+void zvol_dmu_done(dmu_ctx_t *dmu_ctx);
 int zvol_init_impl(void);
 void zvol_fini_impl(void);
 

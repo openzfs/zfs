@@ -469,7 +469,7 @@ bpobj_iterate_impl(bpobj_t *initial_bpo, bpobj_itor_t func, void *arg,
 			uint64_t obj_from_sublist;
 			err = dmu_read(bpo->bpo_os, bpo->bpo_phys->bpo_subobjs,
 			    offset, sizeof (uint64_t), &obj_from_sublist,
-			    DMU_READ_PREFETCH);
+			    DMU_CTX_FLAG_PREFETCH);
 			if (err)
 				break;
 			bpobj_t *sublist = kmem_alloc(sizeof (bpobj_t),

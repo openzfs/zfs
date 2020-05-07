@@ -208,7 +208,7 @@ dmu_tx_check_ioerr(zio_t *zio, dnode_t *dn, int level, uint64_t blkid)
 	int err;
 	dmu_buf_impl_t *db;
 
-	rw_enter(&dn->dn_struct_rwlock, RW_READER);
+	dn_rlock(dn);
 	db = dbuf_hold_level(dn, level, blkid, FTAG);
 	rw_exit(&dn->dn_struct_rwlock);
 	if (db == NULL)
