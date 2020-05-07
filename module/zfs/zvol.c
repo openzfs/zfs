@@ -69,7 +69,6 @@
  * for this zvol are going to proceed in the order of issue.
  *
  */
-
 #include <sys/dataset_kstats.h>
 #include <sys/dbuf.h>
 #include <sys/dmu_traverse.h>
@@ -595,7 +594,7 @@ zvol_log_write(zvol_state_t *zv, dmu_tx_t *tx, uint64_t offset,
 		    (wr_state == WR_COPIED ? len : 0));
 		lr = (lr_write_t *)&itx->itx_lr;
 		if (wr_state == WR_COPIED && dmu_read_by_dnode(zv->zv_dn,
-		    offset, len, lr+1, DMU_READ_NO_PREFETCH) != 0) {
+		    offset, len, lr+1, /* flags */ 0) != 0) {
 			zil_itx_destroy(itx);
 			itx = zil_itx_create(TX_WRITE, sizeof (*lr));
 			lr = (lr_write_t *)&itx->itx_lr;
@@ -687,7 +686,7 @@ zvol_get_data(void *arg, lr_write_t *lr, char *buf, struct lwb *lwb, zio_t *zio)
 		zgd->zgd_lr = zfs_rangelock_enter(&zv->zv_rangelock, offset,
 		    size, RL_READER);
 		error = dmu_read_by_dnode(zv->zv_dn, offset, size, buf,
-		    DMU_READ_NO_PREFETCH);
+		    /* flags */ 0);
 	} else { /* indirect write */
 		/*
 		 * Have to lock the whole block to ensure when it's written out
@@ -700,7 +699,7 @@ zvol_get_data(void *arg, lr_write_t *lr, char *buf, struct lwb *lwb, zio_t *zio)
 		zgd->zgd_lr = zfs_rangelock_enter(&zv->zv_rangelock, offset,
 		    size, RL_READER);
 		error = dmu_buf_hold_by_dnode(zv->zv_dn, offset, zgd, &db,
-		    DMU_READ_NO_PREFETCH);
+		    /* flags */ 0);
 		if (error == 0) {
 			blkptr_t *bp = &lr->lr_blkptr;
 
@@ -846,6 +845,8 @@ zvol_suspend(const char *name)
 	ASSERT(MUTEX_HELD(&zv->zv_state_lock));
 	ASSERT(RW_WRITE_HELD(&zv->zv_suspend_lock));
 
+
+	ASSERT(atomic_read(&zv->zv_suspend_ref) >= 0);
 	atomic_inc(&zv->zv_suspend_ref);
 
 	if (zv->zv_open_count > 0)
@@ -888,6 +889,7 @@ zvol_resume(zvol_state_t *zv)
 	 * zv_suspend_lock to determine it is safe to free because rwlock is
 	 * not inherent atomic.
 	 */
+	ASSERT(atomic_read(&zv->zv_suspend_ref) > 0);
 	atomic_dec(&zv->zv_suspend_ref);
 
 	return (SET_ERROR(error));
@@ -1701,6 +1703,112 @@ void
 zvol_register_ops(const zvol_platform_ops_t *zvol_ops)
 {
 	ops = zvol_ops;
+}
+
+static void
+zvol_dmu_buf_set_transfer_write(dmu_buf_set_t *dbs)
+{
+	zvol_dmu_state_t *zds = (zvol_dmu_state_t *)dbs->dbs_dc;
+	zvol_state_t *zv = zds->zds_zv;
+	dmu_tx_t *tx = dmu_buf_set_tx(dbs);
+
+	dmu_buf_set_transfer(dbs);
+
+	/* Log this write. */
+	if (zds->zds_sync)
+		zvol_log_write(zv, tx, dbs->dbs_dn_start, dbs->dbs_size,
+		    zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS);
+	dmu_tx_commit(tx);
+}
+
+int
+zvol_dmu_ctx_init(zvol_dmu_state_t *zds, void *data, uint64_t off,
+    uint64_t io_size, uint32_t dmu_flags, dmu_ctx_cb_t done_cb)
+{
+	zvol_state_t *zv = zds->zds_zv;
+	boolean_t reader = (dmu_flags & DMU_CTX_FLAG_READ) != 0;
+	dmu_tx_t	*tx;
+	int error;
+
+	ASSERT(zv->zv_objset != NULL);
+
+	ASSERT(atomic_read(&zv->zv_suspend_ref) >= 0);
+	atomic_inc(&zv->zv_suspend_ref);
+	zds->zds_sync |= !reader &&
+	    (zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS);
+	dmu_flags |= DMU_CTX_FLAG_NO_HOLD;
+	if (reader)
+		dmu_flags |= DMU_CTX_FLAG_PREFETCH;
+	else if (zv->zv_flags & ZVOL_RDONLY)
+		return (SET_ERROR(EIO));
+
+	/* Reject I/Os that don't fall within the volume. */
+	if (io_size > 0 && off >= zv->zv_volsize)
+		return (SET_ERROR(EIO));
+
+	/* Truncate I/Os to the end of the volume, if needed. */
+	io_size = MIN(io_size, zv->zv_volsize - off);
+
+	error = dmu_ctx_init(&zds->zds_dc, zv->zv_dn, zv->zv_objset,
+	    ZVOL_OBJ, off, io_size, data, FTAG, dmu_flags);
+	if (error)
+		return (error);
+	/* Override the writer case to log the writes. */
+	if (!reader) {
+		tx = dmu_tx_create(zv->zv_objset);
+		dmu_tx_hold_write_by_dnode_impl(tx, zv->zv_dn, off,
+		    io_size, B_FALSE);
+		error = dmu_tx_assign(tx, TXG_WAIT);
+		if (error) {
+			dmu_tx_abort(tx);
+			return (error);
+		}
+		dmu_ctx_set_dmu_tx(&zds->zds_dc, tx);
+		dmu_ctx_set_buf_set_transfer_cb(&zds->zds_dc,
+		    zvol_dmu_buf_set_transfer_write);
+	}
+	dmu_ctx_set_complete_cb(&zds->zds_dc, done_cb);
+
+	error = zfs_rangelock_tryenter_async(&zv->zv_rangelock,
+	    off, io_size, reader ? RL_READER : RL_WRITER,
+	    &zds->zds_lr, (callback_fn)zvol_dmu_issue, zds);
+
+	return (error);
+}
+
+void
+zvol_dmu_issue(zvol_dmu_state_t *zds)
+{
+
+	ASSERT(zds->zds_lr->lr_owner == curthread);
+	zds->zds_dc.dc_lr = zds->zds_lr;
+	zds->zds_dc.dc_lr->lr_context = &zds->zds_dc;
+	/* Errors are reported to the done callback via dmu_ctx->err. */
+	(void) dmu_issue(&zds->zds_dc);
+	dmu_ctx_rele(&zds->zds_dc);
+}
+
+int
+zvol_dmu_done(dmu_ctx_t *dc, callback_fn cb, void *arg)
+{
+	zvol_dmu_state_t *zds = (zvol_dmu_state_t *)dc;
+	zvol_state_t *zv = zds->zds_zv;
+	int rc = 0;
+
+	/*
+	 * Initialization failed
+	 */
+	if (zds->zds_lr != NULL)
+		zfs_rangelock_exit(zds->zds_lr);
+
+	if (dc->dc_completed_size < dc->dc_size &&
+	    dc->dc_dn_offset > zv->zv_volsize)
+		dc->dc_err = zio_worst_error(dc->dc_err, SET_ERROR(EINVAL));
+	if ((dc->dc_flags & DMU_CTX_FLAG_READ) == 0 &&
+	    (zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS))
+		rc = zil_commit_async(zv->zv_zilog, ZVOL_OBJ,
+		    cb, arg);
+	return (rc);
 }
 
 int

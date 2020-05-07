@@ -220,7 +220,8 @@ dmu_tx_check_ioerr(zio_t *zio, dnode_t *dn, int level, uint64_t blkid)
 
 /* ARGSUSED */
 static void
-dmu_tx_count_write(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
+dmu_tx_count_write(dmu_tx_hold_t *txh, uint64_t off, uint64_t len,
+    boolean_t sync)
 {
 	dnode_t *dn = txh->txh_dnode;
 	int err = 0;
@@ -247,7 +248,11 @@ dmu_tx_count_write(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 				txh->txh_tx->tx_err = err;
 			}
 		}
-	} else {
+	} else /* if (sync) */ {
+		/*
+		 * For unknown reasons slower platforms will deadlock
+		 * without this
+		 */
 		zio_t *zio = zio_root(dn->dn_objset->os_spa,
 		    NULL, NULL, ZIO_FLAG_CANFAIL);
 
@@ -282,10 +287,13 @@ dmu_tx_count_write(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 			}
 		}
 
-		err = zio_wait(zio);
-		if (err != 0) {
-			txh->txh_tx->tx_err = err;
-		}
+		if (sync) {
+			err = zio_wait(zio);
+			if (err != 0) {
+				txh->txh_tx->tx_err = err;
+			}
+		} else
+			zio_nowait(zio);
 	}
 }
 
@@ -297,7 +305,8 @@ dmu_tx_count_dnode(dmu_tx_hold_t *txh)
 }
 
 void
-dmu_tx_hold_write(dmu_tx_t *tx, uint64_t object, uint64_t off, int len)
+dmu_tx_hold_write_impl(dmu_tx_t *tx, uint64_t object, uint64_t off, int len,
+    boolean_t sync)
 {
 	dmu_tx_hold_t *txh;
 
@@ -308,13 +317,21 @@ dmu_tx_hold_write(dmu_tx_t *tx, uint64_t object, uint64_t off, int len)
 	txh = dmu_tx_hold_object_impl(tx, tx->tx_objset,
 	    object, THT_WRITE, off, len);
 	if (txh != NULL) {
-		dmu_tx_count_write(txh, off, len);
+		dmu_tx_count_write(txh, off, len, sync);
 		dmu_tx_count_dnode(txh);
 	}
 }
 
 void
-dmu_tx_hold_write_by_dnode(dmu_tx_t *tx, dnode_t *dn, uint64_t off, int len)
+dmu_tx_hold_write(dmu_tx_t *tx, uint64_t object, uint64_t off, int len)
+{
+
+	dmu_tx_hold_write_impl(tx, object, off, len, B_TRUE);
+}
+
+void
+dmu_tx_hold_write_by_dnode_impl(dmu_tx_t *tx, dnode_t *dn, uint64_t off,
+    int len, boolean_t sync)
 {
 	dmu_tx_hold_t *txh;
 
@@ -324,9 +341,17 @@ dmu_tx_hold_write_by_dnode(dmu_tx_t *tx, dnode_t *dn, uint64_t off, int len)
 
 	txh = dmu_tx_hold_dnode_impl(tx, dn, THT_WRITE, off, len);
 	if (txh != NULL) {
-		dmu_tx_count_write(txh, off, len);
+		dmu_tx_count_write(txh, off, len, sync);
 		dmu_tx_count_dnode(txh);
 	}
+}
+
+void
+dmu_tx_hold_write_by_dnode(dmu_tx_t *tx, dnode_t *dn, uint64_t off,
+    int len)
+{
+
+	dmu_tx_hold_write_by_dnode_impl(tx, dn, off, len, B_TRUE);
 }
 
 /*
@@ -344,7 +369,8 @@ dmu_tx_mark_netfree(dmu_tx_t *tx)
 }
 
 static void
-dmu_tx_hold_free_impl(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
+dmu_tx_hold_free_impl(dmu_tx_hold_t *txh, uint64_t off, uint64_t len,
+    boolean_t sync)
 {
 	dmu_tx_t *tx = txh->txh_tx;
 	dnode_t *dn = txh->txh_dnode;
@@ -372,14 +398,14 @@ dmu_tx_hold_free_impl(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 	 */
 	if (dn->dn_datablkshift == 0) {
 		if (off != 0 || len < dn->dn_datablksz)
-			dmu_tx_count_write(txh, 0, dn->dn_datablksz);
+			dmu_tx_count_write(txh, 0, dn->dn_datablksz, sync);
 	} else {
 		/* first block will be modified if it is not aligned */
 		if (!IS_P2ALIGNED(off, 1 << dn->dn_datablkshift))
-			dmu_tx_count_write(txh, off, 1);
+			dmu_tx_count_write(txh, off, 1, sync);
 		/* last block will be modified if it is not aligned */
 		if (!IS_P2ALIGNED(off + len, 1 << dn->dn_datablkshift))
-			dmu_tx_count_write(txh, off + len, 1);
+			dmu_tx_count_write(txh, off + len, 1, sync);
 	}
 
 	/*
@@ -440,8 +466,11 @@ dmu_tx_hold_free(dmu_tx_t *tx, uint64_t object, uint64_t off, uint64_t len)
 
 	txh = dmu_tx_hold_object_impl(tx, tx->tx_objset,
 	    object, THT_FREE, off, len);
+	/*
+	 * Always treat as synchronous for now
+	 */
 	if (txh != NULL)
-		(void) dmu_tx_hold_free_impl(txh, off, len);
+		(void) dmu_tx_hold_free_impl(txh, off, len, B_TRUE);
 }
 
 void
@@ -451,7 +480,7 @@ dmu_tx_hold_free_by_dnode(dmu_tx_t *tx, dnode_t *dn, uint64_t off, uint64_t len)
 
 	txh = dmu_tx_hold_dnode_impl(tx, dn, THT_FREE, off, len);
 	if (txh != NULL)
-		(void) dmu_tx_hold_free_impl(txh, off, len);
+		(void) dmu_tx_hold_free_impl(txh, off, len, B_TRUE);
 }
 
 static void
@@ -1054,8 +1083,47 @@ dmu_tx_assign(dmu_tx_t *tx, uint64_t txg_how)
 	}
 
 	txg_rele_to_quiesce(&tx->tx_txgh);
-
 	return (0);
+}
+
+typedef struct dmu_tx_assign_state {
+	taskq_ent_t dtas_task;
+	dmu_tx_t *dtas_tx;
+	callback_fn dtas_cb;
+	void *dtas_arg;
+} dmu_tx_assign_state_t;
+
+static void
+dmu_tx_assign_callback(void *arg)
+{
+	dmu_tx_assign_state_t *dtas = arg;
+	dmu_tx_t *tx = dtas->dtas_tx;
+	callback_fn cb = dtas->dtas_cb;
+	void *cb_arg = dtas->dtas_arg;
+	int rc;
+
+	kmem_free(dtas, sizeof (*dtas));
+	rc = dmu_tx_assign(tx, TXG_WAIT);
+	cb(cb_arg);
+}
+
+int
+dmu_tx_assign_async(dmu_tx_t *tx, callback_fn cb, void *arg)
+{
+	int rc;
+	dmu_tx_assign_state_t *dtas;
+
+	rc = dmu_tx_assign(tx, TXG_NOWAIT);
+	if (rc != ERESTART)
+		return (rc);
+	dtas = kmem_alloc(sizeof (*dtas), KM_SLEEP);
+	taskq_init_ent(&dtas->dtas_task);
+	dtas->dtas_tx = tx;
+	dtas->dtas_cb = cb;
+	dtas->dtas_arg = arg;
+	taskq_dispatch_ent(system_taskq, dmu_tx_assign_callback, dtas,
+	    0, &dtas->dtas_task);
+	return (EINPROGRESS);
 }
 
 void

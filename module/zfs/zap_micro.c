@@ -585,7 +585,7 @@ zap_lockdir_by_dnode(dnode_t *dn, dmu_tx_t *tx,
 {
 	dmu_buf_t *db;
 
-	int err = dmu_buf_hold_by_dnode(dn, 0, tag, &db, DMU_READ_NO_PREFETCH);
+	int err = dmu_buf_hold_by_dnode(dn, 0, tag, &db, /* flags */ 0);
 	if (err != 0) {
 		return (err);
 	}
@@ -610,7 +610,7 @@ zap_lockdir(objset_t *os, uint64_t obj, dmu_tx_t *tx,
 {
 	dmu_buf_t *db;
 
-	int err = dmu_buf_hold(os, obj, 0, tag, &db, DMU_READ_NO_PREFETCH);
+	int err = dmu_buf_hold(os, obj, 0, tag, &db, /* flags */ 0);
 	if (err != 0)
 		return (err);
 #ifdef ZFS_DEBUG
@@ -702,7 +702,7 @@ mzap_create_impl(dnode_t *dn, int normflags, zap_flags_t flags, dmu_tx_t *tx)
 {
 	dmu_buf_t *db;
 
-	VERIFY0(dmu_buf_hold_by_dnode(dn, 0, FTAG, &db, DMU_READ_NO_PREFETCH));
+	VERIFY0(dmu_buf_hold_by_dnode(dn, 0, FTAG, &db, /* flags */ 0));
 
 	dmu_buf_will_dirty(db, tx);
 	mzap_phys_t *zp = db->db_data;

@@ -45,5 +45,8 @@ extern int zfs_uiomove(void *, size_t, zfs_uio_rw_t, zfs_uio_t *);
 extern int zfs_uio_prefaultpages(ssize_t, zfs_uio_t *);
 extern int zfs_uiocopy(void *, size_t, zfs_uio_rw_t, zfs_uio_t *, size_t *);
 extern void zfs_uioskip(zfs_uio_t *, size_t);
+extern int	uiobiomove(void *, int, struct uio_bio *);
+
+#define		OFF_TO_IDX(off) (((loff_t)(off)) >> PAGE_SHIFT)
 
 #endif	/* _SYS_UIO_IMPL_H */

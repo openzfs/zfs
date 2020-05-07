@@ -100,6 +100,24 @@ do {								\
 	rrm_exit(&(zfsvfs)->z_teardown_lock, FTAG);		\
 } while (0)
 
+#define	ZFS_ENTER_TAG(zfsvfs, uniq, tag)			\
+	{ \
+		rrm_enter_read_async(&(zfsvfs)->z_teardown_lock,	\
+		    uniq, tag);					\
+		if ((zfsvfs)->z_unmounted) { \
+			ZFS_EXIT_TAG(zfsvfs, uniq, tag);		\
+			return (EIO); \
+		} \
+	}
+
+#define	ZFS_EXIT_TAG(zfsvfs, uniq, tag)	\
+do {								\
+	zfs_exit_fs(zfsvfs);					\
+	rrm_exit_async(&(zfsvfs)->z_teardown_lock, \
+	    (void *)(uintptr_t)uniq, (void *)(uintptr_t)tag);	\
+} while (0)
+
+
 /* Verifies the znode is valid. */
 #define	ZFS_VERIFY_ZP_ERROR(zp, error)				\
 do {								\

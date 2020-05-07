@@ -306,6 +306,8 @@ void arc_freed(spa_t *spa, const blkptr_t *bp);
 void arc_flush(spa_t *spa, boolean_t retry);
 void arc_tempreserve_clear(uint64_t reserve);
 int arc_tempreserve_space(spa_t *spa, uint64_t reserve, uint64_t txg);
+void arc_buf_watch(arc_buf_t *);
+void arc_buf_unwatch(arc_buf_t *);
 
 uint64_t arc_all_memory(void);
 uint64_t arc_default_max(uint64_t min, uint64_t allmem);
@@ -330,9 +332,7 @@ void l2arc_start(void);
 void l2arc_stop(void);
 void l2arc_spa_rebuild_start(spa_t *spa);
 
-#ifndef _KERNEL
 extern boolean_t arc_watch;
-#endif
 
 #ifdef	__cplusplus
 }

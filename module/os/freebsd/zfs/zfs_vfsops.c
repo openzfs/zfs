@@ -971,7 +971,6 @@ zfsvfs_create(const char *osname, boolean_t readonly, zfsvfs_t **zfvp)
 	return (error);
 }
 
-
 int
 zfsvfs_create_impl(zfsvfs_t **zfvp, zfsvfs_t *zfsvfs, objset_t *os)
 {
@@ -986,11 +985,13 @@ zfsvfs_create_impl(zfsvfs_t **zfvp, zfsvfs_t *zfsvfs, objset_t *os)
 	    offsetof(znode_t, z_link_node));
 	TASK_INIT(&zfsvfs->z_unlinked_drain_task, 0,
 	    zfsvfs_task_unlinked_drain, zfsvfs);
-#ifdef DIAGNOSTIC
-	rrm_init(&zfsvfs->z_teardown_lock, B_TRUE);
-#else
+
+	/*
+	 * XXX track_all is incompatible with async vnops
+	 * as it uses TLS which requires that enter / exit
+	 * happen in the same thread.
+	 */
 	rrm_init(&zfsvfs->z_teardown_lock, B_FALSE);
-#endif
 	ZFS_INIT_TEARDOWN_INACTIVE(zfsvfs);
 	rw_init(&zfsvfs->z_fuid_lock, NULL, RW_DEFAULT, NULL);
 	for (int i = 0; i != ZFS_OBJ_MTX_SZ; i++)

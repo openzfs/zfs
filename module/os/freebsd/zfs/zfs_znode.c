@@ -145,7 +145,8 @@ zfs_znode_cache_constructor(void *buf, void *arg, int kmflags)
 
 	mutex_init(&zp->z_acl_lock, NULL, MUTEX_DEFAULT, NULL);
 
-	zfs_rangelock_init(&zp->z_rangelock, zfs_rangelock_cb, zp);
+	zfs_rangelock_init_named(&zp->z_rangelock, zfs_rangelock_cb, zp,
+	    "znode");
 
 	zp->z_acl_cached = NULL;
 	zp->z_vnode = NULL;

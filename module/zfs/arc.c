@@ -310,10 +310,8 @@
 #include <sys/vdev_trim.h>
 #include <sys/zstd/zstd.h>
 
-#ifndef _KERNEL
 /* set with ZFS_DEBUG=watch, to enable watchpoints on frozen buffers */
 boolean_t arc_watch = B_FALSE;
-#endif
 
 /*
  * This thread's job is to keep enough free memory in the system, by
@@ -891,7 +889,6 @@ static void arc_free_data_impl(arc_buf_hdr_t *hdr, uint64_t size, void *tag);
 static void arc_hdr_free_abd(arc_buf_hdr_t *, boolean_t);
 static void arc_hdr_alloc_abd(arc_buf_hdr_t *, int);
 static void arc_access(arc_buf_hdr_t *, kmutex_t *);
-static void arc_buf_watch(arc_buf_t *);
 
 static arc_buf_contents_t arc_buf_type(arc_buf_hdr_t *);
 static uint32_t arc_bufc_to_flags(arc_buf_contents_t);
@@ -1553,29 +1550,6 @@ arc_buf_sigsegv(int sig, siginfo_t *si, void *unused)
 	panic("Got SIGSEGV at address: 0x%lx\n", (long)si->si_addr);
 }
 #endif
-
-/* ARGSUSED */
-static void
-arc_buf_unwatch(arc_buf_t *buf)
-{
-#ifndef _KERNEL
-	if (arc_watch) {
-		ASSERT0(mprotect(buf->b_data, arc_buf_size(buf),
-		    PROT_READ | PROT_WRITE));
-	}
-#endif
-}
-
-/* ARGSUSED */
-static void
-arc_buf_watch(arc_buf_t *buf)
-{
-#ifndef _KERNEL
-	if (arc_watch)
-		ASSERT0(mprotect(buf->b_data, arc_buf_size(buf),
-		    PROT_READ));
-#endif
-}
 
 static arc_buf_contents_t
 arc_buf_type(arc_buf_hdr_t *hdr)

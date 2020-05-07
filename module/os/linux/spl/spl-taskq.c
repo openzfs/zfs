@@ -874,6 +874,9 @@ taskq_thread(void *args)
 	flush_signals(current);
 
 	tsd_set(taskq_tsd, tq);
+	if (tq->tq_ctor != NULL)
+		tq->tq_ctor(tq);
+
 	spin_lock_irqsave_nested(&tq->tq_lock, flags, tq->tq_lock_class);
 	/*
 	 * If we are dynamically spawned, decrease spawning count. Note that
@@ -993,8 +996,9 @@ error:
 	spin_unlock_irqrestore(&tq->tq_lock, flags);
 
 	tsd_set(taskq_tsd, NULL);
+	if (tq->tq_dtor != NULL)
+		tq->tq_dtor(tq);
 	thread_exit();
-
 	return (0);
 }
 
@@ -1031,8 +1035,9 @@ taskq_thread_create(taskq_t *tq)
 }
 
 taskq_t *
-taskq_create(const char *name, int threads_arg, pri_t pri,
-    int minalloc, int maxalloc, uint_t flags)
+taskq_create_with_callbacks(const char *name, int threads_arg, pri_t pri,
+    int minalloc, int maxalloc, uint_t flags, taskq_callback_fn ctor,
+    taskq_callback_fn dtor)
 {
 	taskq_t *tq;
 	taskq_thread_t *tqt;
@@ -1086,6 +1091,8 @@ taskq_create(const char *name, int threads_arg, pri_t pri,
 	tq->tq_flags = (flags | TASKQ_ACTIVE);
 	tq->tq_next_id = TASKQID_INITIAL;
 	tq->tq_lowest_id = TASKQID_INITIAL;
+	tq->tq_ctor = ctor;
+	tq->tq_dtor = dtor;
 	INIT_LIST_HEAD(&tq->tq_free_list);
 	INIT_LIST_HEAD(&tq->tq_pend_list);
 	INIT_LIST_HEAD(&tq->tq_prio_list);
@@ -1137,6 +1144,16 @@ taskq_create(const char *name, int threads_arg, pri_t pri,
 
 	return (tq);
 }
+EXPORT_SYMBOL(taskq_create_with_callbacks);
+
+taskq_t *
+taskq_create(const char *name, int nthreads, pri_t pri,
+    int minalloc, int maxalloc, uint_t flags)
+{
+	return (taskq_create_with_callbacks(name, nthreads, pri, minalloc,
+	    maxalloc, flags, NULL, NULL));
+}
+
 EXPORT_SYMBOL(taskq_create);
 
 void

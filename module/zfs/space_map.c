@@ -100,7 +100,7 @@ space_map_iterate(space_map_t *sm, uint64_t end, sm_cb_t callback, void *arg)
 	    block_base += blksz) {
 		dmu_buf_t *db;
 		error = dmu_buf_hold(sm->sm_os, space_map_object(sm),
-		    block_base, FTAG, &db, DMU_READ_PREFETCH);
+		    block_base, FTAG, &db, DMU_CTX_FLAG_PREFETCH);
 		if (error != 0)
 			return (error);
 
@@ -213,7 +213,7 @@ space_map_reversed_last_block_entries(space_map_t *sm, uint64_t *buf,
 	uint64_t last_word_offset =
 	    sm->sm_phys->smp_length - sizeof (uint64_t);
 	error = dmu_buf_hold(sm->sm_os, space_map_object(sm), last_word_offset,
-	    FTAG, &db, DMU_READ_NO_PREFETCH);
+	    FTAG, &db, /* flags */ 0);
 	if (error != 0)
 		return (error);
 
@@ -594,7 +594,7 @@ space_map_write_seg(space_map_t *sm, uint64_t rstart, uint64_t rend,
 			uint64_t next_word_offset = sm->sm_phys->smp_length;
 			VERIFY0(dmu_buf_hold(sm->sm_os,
 			    space_map_object(sm), next_word_offset,
-			    tag, &db, DMU_READ_PREFETCH));
+			    tag, &db, DMU_CTX_FLAG_PREFETCH));
 			dmu_buf_will_dirty(db, tx);
 
 			/* update caller's dbuf */
@@ -692,7 +692,7 @@ space_map_write_impl(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
 	 */
 	uint64_t next_word_offset = sm->sm_phys->smp_length;
 	VERIFY0(dmu_buf_hold(sm->sm_os, space_map_object(sm),
-	    next_word_offset, FTAG, &db, DMU_READ_PREFETCH));
+	    next_word_offset, FTAG, &db, DMU_CTX_FLAG_PREFETCH));
 	ASSERT3U(db->db_size, ==, sm->sm_blksz);
 
 	dmu_buf_will_dirty(db, tx);

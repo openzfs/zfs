@@ -68,7 +68,9 @@
 #include <sys/zap.h>
 #include <sys/sa.h>
 #include <sys/policy.h>
+#include <sys/resourcevar.h>
 #include <sys/sunddi.h>
+#include <sys/signalvar.h>
 #include <sys/filio.h>
 #include <sys/sid.h>
 #include <sys/zfs_ctldir.h>
@@ -87,6 +89,7 @@
 #include <sys/zfs_vnops.h>
 
 #include <vm/vm_object.h>
+#include <vm/vm_radix.h>
 
 #include <sys/extattr.h>
 #include <sys/priv.h>
@@ -311,9 +314,8 @@ zfs_ioctl(vnode_t *vp, ulong_t com, intptr_t data, int flag, cred_t *cred,
 }
 
 static vm_page_t
-page_busy(vnode_t *vp, int64_t start, int64_t off, int64_t nbytes)
+page_busy(vm_object_t obj, int64_t start, int64_t off, int64_t nbytes)
 {
-	vm_object_t obj;
 	vm_page_t pp;
 	int64_t end;
 
@@ -331,7 +333,6 @@ page_busy(vnode_t *vp, int64_t start, int64_t off, int64_t nbytes)
 	off = roundup2(off, DEV_BSIZE);
 	nbytes = end - off;
 
-	obj = vp->v_object;
 	zfs_vmobject_assert_wlocked_12(obj);
 #if __FreeBSD_version < 1300050
 	for (;;) {
@@ -486,12 +487,12 @@ update_pages(znode_t *zp, int64_t start, int len, objset_t *os)
 		vm_page_t pp;
 		int nbytes = imin(PAGESIZE - off, len);
 
-		if ((pp = page_busy(vp, start, off, nbytes)) != NULL) {
+		if ((pp = page_busy(obj, start, off, nbytes)) != NULL) {
 			zfs_vmobject_wunlock_12(obj);
 
 			va = zfs_map_page(pp, &sf);
 			(void) dmu_read(os, zp->z_id, start + off, nbytes,
-			    va + off, DMU_READ_PREFETCH);
+			    va + off, DMU_CTX_FLAG_PREFETCH);
 			zfs_unmap_page(sf);
 
 			zfs_vmobject_wlock_12(obj);
@@ -507,7 +508,6 @@ update_pages(znode_t *zp, int64_t start, int len, objset_t *os)
 #endif
 	zfs_vmobject_wunlock_12(obj);
 }
-
 /*
  * Read with UIO_NOCOPY flag means that sendfile(2) requests
  * ZFS to populate a range of page cache pages with data.
@@ -546,7 +546,7 @@ mappedread_sf(znode_t *zp, int nbytes, zfs_uio_t *uio)
 			zfs_vmobject_wunlock_12(obj);
 			va = zfs_map_page(pp, &sf);
 			error = dmu_read(os, zp->z_id, start, bytes, va,
-			    DMU_READ_PREFETCH);
+			    DMU_CTX_FLAG_PREFETCH);
 			if (bytes != PAGESIZE && error == 0)
 				bzero(va + bytes, PAGESIZE - bytes);
 			zfs_unmap_page(sf);
@@ -647,6 +647,45 @@ mappedread(znode_t *zp, int nbytes, zfs_uio_t *uio)
 	zfs_vmobject_wunlock_12(obj);
 	return (error);
 }
+
+
+boolean_t
+zp_has_cached_in_range(znode_t *zp, off_t start, ssize_t len)
+{
+	vnode_t *vp = ZTOV(zp);
+	vm_object_t obj;
+	vm_page_t pp;
+	boolean_t cached;
+
+	if (len == 0 || !vn_has_cached_data(vp))
+		return (B_FALSE);
+
+	obj = vp->v_object;
+	zfs_vmobject_rlock(obj);
+	pp = vm_radix_lookup_ge(&obj->rtree, OFF_TO_IDX(start));
+	cached = (pp != NULL) && (pp->pindex < OFF_TO_IDX(start + len));
+	zfs_vmobject_runlock(obj);
+	return (cached);
+}
+
+
+#ifdef HAVE_UBOP
+#ifndef _SYS_SYSPROTO_H_
+struct vop_ubop {
+	struct vop_generic_args a_gen;
+	struct vnode *a_vp;
+	struct uio_bio *a_uio;
+	int a_ioflag;
+};
+#endif
+
+static int
+zfs_freebsd_ubop(struct vop_ubop_args *ap)
+{
+
+	return (zfs_ubop(VTOZ(ap->a_vp), ap->a_uio, ap->a_ioflag));
+}
+#endif /* HAVE_UBOP */
 
 int
 zfs_write_simple(znode_t *zp, const void *data, size_t len,
@@ -5828,6 +5867,9 @@ struct vop_vector zfs_vnodeops = {
 #ifdef DIAGNOSTIC
 	.vop_lock1 =		zfs_lock,
 #endif
+#endif
+#ifdef HAVE_UBOP
+	.vop_ubop =	zfs_freebsd_ubop,
 #endif
 };
 VFS_VOP_VECTOR_REGISTER(zfs_vnodeops);

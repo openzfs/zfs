@@ -48,6 +48,8 @@
 #include <linux/kmap_compat.h>
 #include <linux/uaccess.h>
 
+#define	PAGEOFFSET (PAGE_SIZE-1)
+
 /*
  * Move "n" bytes at byte address "p"; "rw" indicates the direction
  * of the move, and the I/O parameters are provided in "uio", which is
@@ -215,6 +217,7 @@ EXPORT_SYMBOL(zfs_uiomove);
  * error will terminate the process as this is only a best attempt to get
  * the pages resident.
  */
+
 int
 zfs_uio_prefaultpages(ssize_t n, zfs_uio_t *uio)
 {
@@ -326,5 +329,59 @@ zfs_uioskip(zfs_uio_t *uio, size_t n)
 	uio->uio_resid -= n;
 }
 EXPORT_SYMBOL(zfs_uioskip);
+
+
+int
+uiobiomove(void *p, int n, struct uio_bio *uio)
+{
+	const struct bio_vec *bv = uio->uio_bvec;
+	loff_t off = uio->uio_bv_offset;
+	loff_t boff = off & PAGEOFFSET;
+	int bv_idx = OFF_TO_IDX(off);
+
+	bv += bv_idx;
+
+	while (n > 0 && uio->uio_resid > 0) {
+		int bytes = MIN(bv->bv_len - boff, n);
+		void *va;
+
+		ASSERT(n > 0 && uio->uio_resid > 0);
+
+		if ((uio->uio_flags & UIO_BIO_SPARSE) == 0 ||
+		    bv->bv_page != NULL) {
+			va = zfs_kmap_atomic(bv->bv_page, KM_USER1);
+			va += boff + bv->bv_offset;
+			switch (uio->uio_cmd) {
+				case UIO_BIO_READ:
+					memcpy(va, p, bytes);
+					break;
+				case UIO_BIO_WRITE:
+					memcpy(p, va, bytes);
+					break;
+				default:
+					spl_panic(__FILE__, __func__, __LINE__,
+					    "invalid command to uiobiomove: %u",
+					    uio->uio_cmd);
+			}
+			zfs_kunmap_atomic(va, KM_USER1);
+		}
+		boff += bytes;
+		uio->uio_bv_offset += bytes;
+		if (boff == bv->bv_len) {
+			uio->uio_bv_offset += (PAGE_SIZE - bv->bv_len);
+			ASSERT((uio->uio_bv_offset & PAGEOFFSET) == 0);
+			boff = 0;
+			bv++;
+			bv_idx++;
+		}
+		uio->uio_resid -= bytes;
+		uio->uio_offset += bytes;
+		p += bytes;
+		n -= bytes;
+	}
+	return (0);
+}
+EXPORT_SYMBOL(uiobiomove);
+
 
 #endif /* _KERNEL */

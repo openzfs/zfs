@@ -60,6 +60,7 @@ typedef struct zv_request {
 	zvol_state_t	*zv;
 	struct bio	*bio;
 	taskq_ent_t	ent;
+	boolean_t	flushed;
 } zv_request_t;
 
 /*
@@ -297,6 +298,138 @@ zvol_read(void *arg)
 	BIO_END_IO(bio, -error);
 	kmem_free(zvr, sizeof (zv_request_t));
 }
+/*
+ * Use another layer on top of zvol_dmu_state_t to provide additional
+ * context specific to zvol_freebsd_strategy(), namely, the bio and the done
+ * callback, which calls zvol_dmu_done, as is done for zvol_dmu_state_t.
+ */
+typedef struct zvol_strategy_state {
+	zvol_dmu_state_t zds;
+	zv_request_t *zr;
+	unsigned long start_time;
+	zfs_uio_t uio;
+} zvol_strategy_state_t;
+
+
+static void
+zvol_strategy_epilogue(void *arg)
+{
+	zvol_strategy_state_t *zss = arg;
+	dmu_ctx_t *dc = arg;
+	zv_request_t *zr = zss->zr;
+	zvol_state_t *zv = zr->zv;
+	struct request_queue *q = zv->zv_zso->zvo_queue;
+	struct gendisk *disk = zv->zv_zso->zvo_disk;
+	int err;
+	boolean_t reader;
+
+	reader = !!(dc->dc_flags & DMU_CTX_FLAG_READ);
+	err = dc->dc_err;
+
+	if (blk_queue_io_stat(q))
+		blk_generic_end_io_acct(q, disk, reader ? READ : WRITE,
+		    zr->bio, zss->start_time);
+	BIO_END_IO(zr->bio, -err);
+	ASSERT(atomic_read(&zv->zv_suspend_ref) > 0);
+	atomic_dec(&zv->zv_suspend_ref);
+	kmem_free(zr, sizeof (zv_request_t));
+	kmem_free(zss, sizeof (zvol_strategy_state_t));
+}
+
+static int
+zvol_strategy_dmu_done(dmu_ctx_t *dc)
+{
+	zvol_strategy_state_t *zss = (zvol_strategy_state_t *)dc;
+	zv_request_t *zr = zss->zr;
+	zvol_state_t *zv = zr->zv;
+	int64_t len;
+	int err;
+	boolean_t reader;
+
+	/*
+	 * Reading zeroes past the end of dnode allocated blocks
+	 * needs to be treated as success
+	 */
+	if (dc->dc_resid_init == dc->dc_size)
+		len = dc->dc_completed_size;
+	else
+		len = dc->dc_size;
+
+	reader = !!(dc->dc_flags & DMU_CTX_FLAG_READ);
+
+	if (reader) {
+		dataset_kstats_update_read_kstats(&zv->zv_kstat, len);
+		task_io_account_read(len);
+	} else {
+		dataset_kstats_update_write_kstats(&zv->zv_kstat, len);
+		task_io_account_write(len);
+
+	}
+	err = zvol_dmu_done(dc, zvol_strategy_epilogue, dc);
+	rw_exit(&zv->zv_suspend_lock);
+	if (err == EINPROGRESS)
+		return (err);
+	zvol_strategy_epilogue(dc);
+	return (err);
+}
+
+static void
+zvol_strategy(void *arg)
+{
+	zv_request_t *zr = arg;
+	zvol_strategy_state_t *zss;
+	zvol_state_t *zv = zr->zv;
+	zfs_uio_t *uio;
+	uint32_t dmu_flags = DMU_CTX_FLAG_ASYNC | DMU_CTX_FLAG_UIO;
+	struct bio *bio = zr->bio;
+	struct gendisk *disk = zv->zv_zso->zvo_disk;
+	struct request_queue *q = zv->zv_zso->zvo_queue;
+
+	int rw, error;
+
+	if (bio_is_flush(bio) && !zr->flushed) {
+		zr->flushed = B_TRUE;
+		int rc = zil_commit_async(zv->zv_zilog, ZVOL_OBJ,
+		    zvol_strategy, arg);
+		if (rc == EINPROGRESS)
+			return;
+	}
+	/* Some requests are just for flush and nothing else. */
+	if (BIO_BI_SIZE(bio) == 0) {
+		rw_exit(&zv->zv_suspend_lock);
+		BIO_END_IO(bio, 0);
+		kmem_free(zr,  sizeof (zv_request_t));
+		return;
+	}
+
+	rw = bio_data_dir(bio);
+	if (rw == READ)
+		dmu_flags |= DMU_CTX_FLAG_READ;
+
+	zss = kmem_zalloc(sizeof (zvol_strategy_state_t), KM_SLEEP);
+	zss->zr = zr;
+	zss->zds.zds_zv = zr->zv;
+	zss->zds.zds_sync = bio_is_fua(zr->bio);
+
+	if (blk_queue_io_stat(q))
+		zss->start_time = blk_generic_start_io_acct(q, disk, rw, bio);
+
+	uio = &zss->uio;
+	zfs_uio_bvec_init(uio, zr->bio);
+
+	error = zvol_dmu_ctx_init(&zss->zds, uio, uio->uio_loffset,
+	    uio->uio_resid, dmu_flags, zvol_strategy_dmu_done);
+	if (error == EINPROGRESS)
+		return;
+	if (error) {
+		zss->zds.zds_dc.dc_err = error;
+		zvol_strategy_dmu_done(&zss->zds.zds_dc);
+		return;
+	}
+
+	/* Errors are reported via the callback. */
+	zvol_dmu_issue(&zss->zds);
+}
 
 #ifdef HAVE_SUBMIT_BIO_IN_BLOCK_DEVICE_OPERATIONS
 static blk_qc_t
@@ -360,6 +493,7 @@ zvol_request(struct request_queue *q, struct bio *bio)
 		zvr = kmem_alloc(sizeof (zv_request_t), KM_SLEEP);
 		zvr->zv = zv;
 		zvr->bio = bio;
+		zvr->flushed = B_FALSE;
 		taskq_init_ent(&zvr->ent);
 
 		/*
@@ -404,7 +538,7 @@ zvol_request(struct request_queue *q, struct bio *bio)
 				zvol_write(zvr);
 			} else {
 				taskq_dispatch_ent(zvol_taskq,
-				    zvol_write, zvr, 0, &zvr->ent);
+				    zvol_strategy, zvr, 0, &zvr->ent);
 			}
 		}
 	} else {
@@ -430,7 +564,7 @@ zvol_request(struct request_queue *q, struct bio *bio)
 			zvol_read(zvr);
 		} else {
 			taskq_dispatch_ent(zvol_taskq,
-			    zvol_read, zvr, 0, &zvr->ent);
+			    zvol_strategy, zvr, 0, &zvr->ent);
 		}
 	}
 

@@ -244,6 +244,16 @@ zfs_close(struct inode *ip, int flag, cred_t *cr)
 }
 
 #if defined(_KERNEL)
+
+boolean_t
+zp_has_cached_in_range(znode_t *zp, off_t start, ssize_t len)
+{
+	if (len == 0 || !zn_has_cached_data(zp))
+		return (B_FALSE);
+
+	return (B_TRUE);
+}
+
 /*
  * When a file is memory mapped, we must keep the IO data synchronized
  * between the DMU cache and the memory mapped pages.  What this means:
@@ -272,7 +282,7 @@ update_pages(znode_t *zp, int64_t start, int len, objset_t *os)
 
 			pb = kmap(pp);
 			(void) dmu_read(os, zp->z_id, start + off, nbytes,
-			    pb + off, DMU_READ_PREFETCH);
+			    pb + off, DMU_CTX_FLAG_PREFETCH);
 			kunmap(pp);
 
 			if (mapping_writably_mapped(mp))
@@ -3778,7 +3788,7 @@ zfs_fillpage(struct inode *ip, struct page *pl[], int nr_pages)
 		cur_pp = pl[page_idx++];
 		va = kmap(cur_pp);
 		err = dmu_read(os, zp->z_id, io_off, PAGESIZE, va,
-		    DMU_READ_PREFETCH);
+		    DMU_CTX_FLAG_PREFETCH);
 		kunmap(cur_pp);
 		if (err) {
 			/* convert checksum errors into IO errors */

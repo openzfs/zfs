@@ -110,7 +110,7 @@ vdev_indirect_births_open(objset_t *os, uint64_t births_object)
 		uint64_t births_size = vdev_indirect_births_size_impl(vib);
 		vib->vib_entries = vmem_alloc(births_size, KM_SLEEP);
 		VERIFY0(dmu_read(vib->vib_objset, vib->vib_object, 0,
-		    births_size, vib->vib_entries, DMU_READ_PREFETCH));
+		    births_size, vib->vib_entries, DMU_CTX_FLAG_PREFETCH));
 	}
 
 	ASSERT(vdev_indirect_births_verify(vib));

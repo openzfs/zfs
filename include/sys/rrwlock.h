@@ -103,6 +103,8 @@ void rrm_enter(rrmlock_t *rrl, krw_t rw, void *tag);
 void rrm_enter_read(rrmlock_t *rrl, void *tag);
 void rrm_enter_write(rrmlock_t *rrl);
 void rrm_exit(rrmlock_t *rrl, void *tag);
+void rrm_enter_read_async(rrmlock_t *rrl, void *uniq, void *tag);
+void rrm_exit_async(rrmlock_t *rrl, void *uniq, void *tag);
 boolean_t rrm_held(rrmlock_t *rrl, krw_t rw);
 
 #define	RRM_READ_HELD(x)	rrm_held(x, RW_READER)

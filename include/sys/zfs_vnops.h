@@ -26,6 +26,26 @@
 #define	_SYS_FS_ZFS_VNOPS_H
 #include <sys/zfs_vnops_os.h>
 
+typedef enum {
+	ZRS_RANGELOCK	= 1 << 1,
+	ZRS_DMU_ISSUED	= 1 << 2,
+} zrs_done_t;
+
+typedef struct zfs_read_state {
+	dmu_ctx_t	zrs_dc;
+	znode_t	*zrs_zp;
+	dnode_t	*zrs_dn;
+	dmu_buf_t	*zrs_db;
+	zfs_locked_range_t	*zrs_lr;
+	struct uio_bio	*zrs_uio;
+	struct iovec	*zrs_holes;
+	struct uio_bio *zrs_uio_tmp;
+	kthread_t	*zrs_td;
+	uint16_t	zrs_done;
+	uint16_t	zrs_hole_count;
+	uint16_t	zrs_hole_index;
+} zfs_read_state_t;
+
 extern int zfs_fsync(znode_t *, int, cred_t *);
 extern int zfs_read(znode_t *, zfs_uio_t *, int, cred_t *);
 extern int zfs_write(znode_t *, zfs_uio_t *, int, cred_t *);
@@ -51,5 +71,20 @@ extern void update_pages(znode_t *, int64_t, int, objset_t *);
 extern void zfs_zrele_async(znode_t *zp);
 
 extern zil_get_data_t zfs_get_data;
+extern int zfs_sync_async(znode_t *, struct uio_bio *);
+extern int zfs_write_async(znode_t *, struct uio_bio *, int);
+extern int zfs_read_async(znode_t *, struct uio_bio *, int);
+extern void zfs_read_async_epilogue(zfs_read_state_t *);
+extern int update_pages_async(znode_t *, int64_t, int,
+    dnode_t *, objset_t *, uint64_t, callback_fn, void *);
+extern void zfs_mappedread_async(zfs_read_state_t *);
+
+
+extern int zfs_ubop(znode_t *, struct uio_bio *, int);
+
+
+extern boolean_t zp_has_cached_in_range(znode_t *, off_t, ssize_t);
+extern uint64_t dmu_physmove(dmu_buf_set_t *, dmu_buf_t *, uint64_t, uint64_t);
+
 
 #endif

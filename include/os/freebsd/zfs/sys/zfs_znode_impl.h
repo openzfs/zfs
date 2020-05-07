@@ -134,6 +134,21 @@ extern minor_t zfsdev_minor_alloc(void);
 /* Must be called before exiting the vop */
 #define	ZFS_EXIT(zfsvfs) rrm_exit(&(zfsvfs)->z_teardown_lock, FTAG)
 
+#define	ZFS_ENTER_TAG(zfsvfs, uniq, tag)			\
+	{ \
+		rrm_enter_read_async(&(zfsvfs)->z_teardown_lock,	\
+		    uniq, tag);					\
+		if ((zfsvfs)->z_unmounted) { \
+			ZFS_EXIT(zfsvfs); \
+			return (EIO); \
+		} \
+	}
+
+/* Must be called before exiting the vop */
+#define	ZFS_EXIT_TAG(zfsvfs, uniq, tag)			\
+	rrm_exit_async(&(zfsvfs)->z_teardown_lock,	\
+	    (void*)(uintptr_t)uniq, (void*)(uintptr_t)tag)
+
 /* Verifies the znode is valid */
 #define	ZFS_VERIFY_ZP(zp) \
 	if ((zp)->z_sa_hdl == NULL) { \

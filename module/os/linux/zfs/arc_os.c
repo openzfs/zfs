@@ -524,6 +524,28 @@ arc_prune_async(int64_t adjust)
 	mutex_exit(&arc_prune_mtx);
 }
 
+void
+arc_buf_unwatch(arc_buf_t *buf)
+{
+#ifndef _KERNEL
+	if (arc_watch) {
+		ASSERT0(mprotect(buf->b_data, arc_buf_size(buf),
+		    PROT_READ | PROT_WRITE));
+	}
+#endif
+}
+
+void
+arc_buf_watch(arc_buf_t *buf)
+{
+#ifndef _KERNEL
+	if (arc_watch)
+		ASSERT0(mprotect(buf->b_data, arc_buf_size(buf),
+		    PROT_READ));
+#endif
+}
+
+
 /* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, shrinker_limit, INT, ZMOD_RW,
 	"Limit on number of pages that ARC shrinker can reclaim at once");

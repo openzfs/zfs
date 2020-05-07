@@ -290,6 +290,10 @@ zio_fini(void)
 void *
 zio_buf_alloc(size_t size)
 {
+#if defined(ZFS_DEBUG)
+	if (arc_watch)
+		size = MAX(size, PAGESIZE);
+#endif
 	size_t c = (size - 1) >> SPA_MINBLOCKSHIFT;
 
 	VERIFY3U(c, <, SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT);
@@ -309,6 +313,10 @@ zio_buf_alloc(size_t size)
 void *
 zio_data_buf_alloc(size_t size)
 {
+#if defined(ZFS_DEBUG)
+	if (arc_watch)
+		size = MAX(size, PAGESIZE);
+#endif
 	size_t c = (size - 1) >> SPA_MINBLOCKSHIFT;
 
 	VERIFY3U(c, <, SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT);
@@ -319,6 +327,10 @@ zio_data_buf_alloc(size_t size)
 void
 zio_buf_free(void *buf, size_t size)
 {
+#if defined(ZFS_DEBUG)
+	if (arc_watch)
+		size = MAX(size, PAGESIZE);
+#endif
 	size_t c = (size - 1) >> SPA_MINBLOCKSHIFT;
 
 	VERIFY3U(c, <, SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT);
@@ -332,6 +344,10 @@ zio_buf_free(void *buf, size_t size)
 void
 zio_data_buf_free(void *buf, size_t size)
 {
+#if defined(ZFS_DEBUG)
+	if (arc_watch)
+		size = MAX(size, PAGESIZE);
+#endif
 	size_t c = (size - 1) >> SPA_MINBLOCKSHIFT;
 
 	VERIFY3U(c, <, SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT);
@@ -2142,7 +2158,7 @@ __zio_execute(zio_t *zio)
 			boolean_t cut = (stage == ZIO_STAGE_VDEV_IO_START) ?
 			    zio_requeue_io_start_cut_in_line : B_FALSE;
 			zio_taskq_dispatch(zio, ZIO_TASKQ_ISSUE, cut);
-			return;
+			goto done;
 		}
 
 		/*
@@ -2153,7 +2169,7 @@ __zio_execute(zio_t *zio)
 			boolean_t cut = (stage == ZIO_STAGE_VDEV_IO_START) ?
 			    zio_requeue_io_start_cut_in_line : B_FALSE;
 			zio_taskq_dispatch(zio, ZIO_TASKQ_ISSUE, cut);
-			return;
+			goto done;
 		}
 
 		zio->io_stage = stage;
@@ -2167,8 +2183,12 @@ __zio_execute(zio_t *zio)
 		zio = zio_pipeline[highbit64(stage) - 1](zio);
 
 		if (zio == NULL)
-			return;
+			goto done;
 	}
+
+done:
+	/* Process any deferred events placed on this thread's list. */
+	dmu_thread_context_process();
 }
 
 

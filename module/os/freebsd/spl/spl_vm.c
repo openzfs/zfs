@@ -73,3 +73,17 @@ zfs_vmobject_wunlock(vm_object_t object)
 
 	VM_OBJECT_WUNLOCK(object);
 }
+
+void
+zfs_vmobject_rlock(vm_object_t object)
+{
+
+	VM_OBJECT_RLOCK(object);
+}
+
+void
+zfs_vmobject_runlock(vm_object_t object)
+{
+
+	VM_OBJECT_RUNLOCK(object);
+}

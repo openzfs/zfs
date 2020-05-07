@@ -1432,7 +1432,7 @@ vdev_metaslab_init(vdev_t *vd, uint64_t txg)
 			error = dmu_read(spa->spa_meta_objset,
 			    vd->vdev_ms_array,
 			    m * sizeof (uint64_t), sizeof (uint64_t), &object,
-			    DMU_READ_PREFETCH);
+			    DMU_CTX_FLAG_PREFETCH);
 			if (error != 0) {
 				vdev_dbgmsg(vd, "unable to read the metaslab "
 				    "array [error=%d]", error);

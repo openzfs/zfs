@@ -1638,7 +1638,7 @@ dsl_redaction_list_traverse(redaction_list_t *rl, zbookmark_phys_t *resume,
 		ASSERT3U(maxidx, >, minidx);
 		uint64_t mididx = minidx + ((maxidx - minidx) / 2);
 		err = dmu_read(mos, rl->rl_object, mididx * sizeof (rbp),
-		    sizeof (rbp), &rbp, DMU_READ_NO_PREFETCH);
+		    sizeof (rbp), &rbp, /* flags */ 0);
 		if (err != 0)
 			break;
 
@@ -1661,7 +1661,7 @@ dsl_redaction_list_traverse(redaction_list_t *rl, zbookmark_phys_t *resume,
 	unsigned int entries_per_buf = bufsize / sizeof (redact_block_phys_t);
 	uint64_t start_block = minidx / entries_per_buf;
 	err = dmu_read(mos, rl->rl_object, start_block * bufsize, bufsize, buf,
-	    DMU_READ_PREFETCH);
+	    DMU_CTX_FLAG_PREFETCH);
 
 	for (uint64_t curidx = minidx;
 	    err == 0 && curidx < rl->rl_phys->rlp_num_entries;
@@ -1676,7 +1676,7 @@ dsl_redaction_list_traverse(redaction_list_t *rl, zbookmark_phys_t *resume,
 		if (curidx % entries_per_buf == 0) {
 			err = dmu_read(mos, rl->rl_object, curidx *
 			    sizeof (*buf), bufsize, buf,
-			    DMU_READ_PREFETCH);
+			    DMU_CTX_FLAG_PREFETCH);
 			if (err != 0)
 				break;
 		}

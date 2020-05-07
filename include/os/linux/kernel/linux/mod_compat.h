@@ -56,6 +56,7 @@ enum scope_prefix_types {
 	zfs_dbuf_cache,
 	zfs_deadman,
 	zfs_dedup,
+	zfs_dmu,
 	zfs_l2arc,
 	zfs_livelist,
 	zfs_livelist_condense,

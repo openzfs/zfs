@@ -39,6 +39,7 @@ __FBSDID("$FreeBSD$");
 #include <sys/proc.h>
 #include <sys/errno.h>
 #include <sys/uio.h>
+#include <sys/arc.h>
 #include <sys/buf.h>
 #include <sys/file.h>
 #include <sys/kmem.h>
@@ -84,6 +85,7 @@ __FBSDID("$FreeBSD$");
 #include <sys/zio_checksum.h>
 #include <sys/vdev_removal.h>
 #include <sys/dsl_crypt.h>
+#include <sys/sbuf.h>
 
 #include <sys/zfs_ioctl_compat.h>
 #include <sys/zfs_context.h>
@@ -103,12 +105,14 @@ SYSCTL_NODE(_vfs_zfs, OID_AUTO, dedup, CTLFLAG_RW, 0, "ZFS dedup");
 SYSCTL_NODE(_vfs_zfs, OID_AUTO, l2arc, CTLFLAG_RW, 0, "ZFS l2arc");
 SYSCTL_NODE(_vfs_zfs, OID_AUTO, livelist, CTLFLAG_RW, 0, "ZFS livelist");
 SYSCTL_NODE(_vfs_zfs, OID_AUTO, lua, CTLFLAG_RW, 0, "ZFS lua");
+SYSCTL_NODE(_vfs_zfs, OID_AUTO, dmu, CTLFLAG_RW, 0, "ZFS dmu");
 SYSCTL_NODE(_vfs_zfs, OID_AUTO, metaslab, CTLFLAG_RW, 0, "ZFS metaslab");
 SYSCTL_NODE(_vfs_zfs, OID_AUTO, mg, CTLFLAG_RW, 0, "ZFS metaslab group");
 SYSCTL_NODE(_vfs_zfs, OID_AUTO, multihost, CTLFLAG_RW, 0, "ZFS multihost protection");
 SYSCTL_NODE(_vfs_zfs, OID_AUTO, prefetch, CTLFLAG_RW, 0, "ZFS prefetch");
 SYSCTL_NODE(_vfs_zfs, OID_AUTO, reconstruct, CTLFLAG_RW, 0, "ZFS reconstruct");
 SYSCTL_NODE(_vfs_zfs, OID_AUTO, recv, CTLFLAG_RW, 0, "ZFS receive");
+SYSCTL_NODE(_vfs_zfs, OID_AUTO, rl, CTLFLAG_RW, 0, "ZFS rangelocks");
 SYSCTL_NODE(_vfs_zfs, OID_AUTO, send, CTLFLAG_RW, 0, "ZFS send");
 SYSCTL_NODE(_vfs_zfs, OID_AUTO, spa, CTLFLAG_RW, 0, "ZFS space allocation");
 SYSCTL_NODE(_vfs_zfs, OID_AUTO, trim, CTLFLAG_RW, 0, "ZFS TRIM");
@@ -118,6 +122,7 @@ SYSCTL_NODE(_vfs_zfs, OID_AUTO, vnops, CTLFLAG_RW, 0, "ZFS VNOPS");
 SYSCTL_NODE(_vfs_zfs, OID_AUTO, zevent, CTLFLAG_RW, 0, "ZFS event");
 SYSCTL_NODE(_vfs_zfs, OID_AUTO, zil, CTLFLAG_RW, 0, "ZFS ZIL");
 SYSCTL_NODE(_vfs_zfs, OID_AUTO, zio, CTLFLAG_RW, 0, "ZFS ZIO");
+SYSCTL_NODE(_vfs_zfs, OID_AUTO, zvol, CTLFLAG_RW, 0, "ZFS ZVOL");
 
 SYSCTL_NODE(_vfs_zfs_livelist, OID_AUTO, condense, CTLFLAG_RW, 0,
     "ZFS livelist condense");
@@ -225,6 +230,10 @@ SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, mfu_ghost_data_esize, CTLFLAG_RD,
 
 SYSCTL_UQUAD(_vfs_zfs, OID_AUTO, l2c_only_size, CTLFLAG_RD,
     &ARC_l2c_only.arcs_size.rc_count, 0, "size of mru state");
+
+
+SYSCTL_INT(_vfs_zfs_arc, OID_AUTO, arc_watch, CTLFLAG_RDTUN,
+    &arc_watch, 0,"map frozen buffers as read only");
 
 static int
 sysctl_vfs_zfs_arc_no_grow_shift(SYSCTL_HANDLER_ARGS)
@@ -698,3 +707,91 @@ param_set_multihost_interval(SYSCTL_HANDLER_ARGS)
 
 	return (0);
 }
+
+#ifdef ZFS_DEBUG
+#undef AT_UID
+#undef AT_GID
+#include <sys/linker.h>
+
+typedef struct zfs_rangelock_cb_entry {
+	list_node_t zrce_node;
+	zfs_locked_range_t *zrce_lr;
+	zfs_locked_range_t **zrce_lrp;
+	callback_fn zrce_cb;
+	void *zrce_arg;
+} zfs_rangelock_cb_entry_t;
+
+
+static int rangelock_dump_enable;
+SYSCTL_INT(_vfs_zfs_rl, OID_AUTO, rangelock_dump_enable, CTLFLAG_RW, &rangelock_dump_enable,
+    0, "enable context dump");
+
+static int
+sysctl_vfs_zfs_dump_rangelocks(SYSCTL_HANDLER_ARGS)
+{
+	int err, count;
+	zfs_rangelock_t *rl;
+	zfs_locked_range_t *lr;
+	zfs_rangelock_cb_entry_t *cbe;
+	struct sbuf *sb;
+	taskq_t *tqlast;
+	char namebuf[64];
+	long offset;
+
+
+	if (rangelock_dump_enable == 0)
+		return (0);
+	err = sysctl_wire_old_buffer(req, 0);
+	if (err != 0)
+		return (err);
+	sb = sbuf_new_for_sysctl(NULL, NULL, 80, req);
+	if (sb == NULL)
+		return (ENOMEM);
+
+	tqlast = NULL;
+	count = 0;
+	mutex_enter(&zfs_rangelocks_lock);
+	for (rl = list_head(&zfs_rangelocks_list); rl != NULL;
+		 rl = list_next(&zfs_rangelocks_list, rl)) {
+		mutex_enter(&rl->rl_lock);
+		if (rl->rl_name == NULL)
+			sbuf_printf(sb, "\n\trl: %p", rl);
+		else
+			sbuf_printf(sb, "\n\trl: %s(%p)", rl->rl_name, rl);
+		sbuf_printf(sb, "\n\tRunning:");
+		for (lr = list_head(&rl->rl_ranges); lr != NULL;
+			lr = list_next(&rl->rl_ranges, lr)) {
+			if (lr->lr_owner == NULL)
+				continue;
+			sbuf_printf(sb, "\n\t  tid: %d running: %d offset: %ju length: %ju ",
+			    lr->lr_owner->td_tid, TD_IS_RUNNING(lr->lr_owner),
+			    lr->lr_offset, lr->lr_length);
+
+			for (cbe = list_head(&lr->lr_cb); cbe != NULL;
+				 cbe = list_next(&lr->lr_cb, cbe)) {
+				if (linker_ddb_search_symbol_name(
+				    (caddr_t)cbe->zrce_cb, namebuf, sizeof(namebuf),
+				    &offset) == 0)
+					sbuf_printf(sb, "\n\t    cbfunc: %s", namebuf);
+				else
+					sbuf_printf(sb, "\n\t    cbfunc: %p", cbe->zrce_cb);
+			}
+		}
+		sbuf_printf(sb, "\n\tFree:");
+		for (lr = list_head(&rl->rl_free); lr != NULL;
+			lr = list_next(&rl->rl_free, lr)) {
+			sbuf_printf(sb, "\n\t  offset: %ju length: %ju ",
+			    lr->lr_offset, lr->lr_length);
+		}
+		mutex_exit(&rl->rl_lock);
+	}
+	mutex_exit(&zfs_rangelocks_lock);
+	err = sbuf_finish(sb);
+	sbuf_delete(sb);
+	return (err);
+}
+SYSCTL_PROC(_vfs_zfs_rl, OID_AUTO, dump_rangelocks,
+    CTLTYPE_STRING | CTLFLAG_MPSAFE | CTLFLAG_RD, 0, 0,
+    sysctl_vfs_zfs_dump_rangelocks, "A",
+    "Dump dmu thread contexts");
+#endif

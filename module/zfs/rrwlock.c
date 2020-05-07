@@ -319,6 +319,10 @@ rrw_tsd_destroy(void *arg)
  * it is used (filesystem unmount) performance is not critical.
  *
  * All the functions below are direct wrappers around functions above.
+ *
+ * XXX track_all is incompatible with async vnops
+ * as it uses TLS which requires that enter / exit
+ * happen in the same thread.
  */
 void
 rrm_init(rrmlock_t *rrl, boolean_t track_all)
@@ -384,6 +388,28 @@ rrm_exit(rrmlock_t *rrl, void *tag)
 		rrw_exit(&rrl->locks[RRM_TD_LOCK()], tag);
 	}
 }
+
+#define	RRM_UNIQ_LOCK(uniq)	(((uint32_t)(uintptr_t)(uniq)) % RRM_NUM_LOCKS)
+void
+rrm_enter_read_async(rrmlock_t *rrl, void *uniq, void *tag)
+{
+	rrw_enter_read(&rrl->locks[RRM_UNIQ_LOCK(uniq)], tag);
+}
+
+void
+rrm_exit_async(rrmlock_t *rrl, void *uniq, void *tag)
+{
+	int i;
+
+	if (rrl->locks[0].rr_writer == curthread) {
+		for (i = 0; i < RRM_NUM_LOCKS; i++)
+			rrw_exit(&rrl->locks[i], tag);
+	} else {
+		rrw_exit(&rrl->locks[RRM_UNIQ_LOCK(uniq)], tag);
+	}
+}
+
+
 
 boolean_t
 rrm_held(rrmlock_t *rrl, krw_t rw)

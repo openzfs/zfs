@@ -253,3 +253,19 @@ void
 arc_unregister_hotplug(void)
 {
 }
+
+void
+arc_buf_unwatch(arc_buf_t *buf)
+{
+	if (arc_watch)
+		pmap_change_prot((vm_offset_t)buf->b_data, arc_buf_size(buf),
+		    VM_PROT_READ|VM_PROT_WRITE);
+}
+
+void
+arc_buf_watch(arc_buf_t *buf)
+{
+	if (arc_watch)
+		pmap_change_prot((vm_offset_t)buf->b_data, arc_buf_size(buf),
+		    VM_PROT_READ);
+}
