@@ -56,10 +56,26 @@ struct zvol_state_os {
 taskq_t *zvol_taskq;
 static struct ida zvol_ida;
 
+
+/*
+ * Use another layer on top of zvol_dmu_state_t to provide additional
+ * context specific to zvol_strategy(), namely, the bio and the done
+ * callback, which calls zvol_dmu_done, as is done for zvol_dmu_state_t.
+ */
+struct zv_request;
+typedef struct zvol_strategy_state {
+	zvol_dmu_state_t zds;
+	struct zv_request *zr;
+	unsigned long start_jif;
+	uio_t uio;
+} zvol_strategy_state_t;
+
 typedef struct zv_request {
 	zvol_state_t	*zv;
 	struct bio	*bio;
+	zvol_strategy_state_t *zss;
 	taskq_ent_t	ent;
+	boolean_t	flushed;
 } zv_request_t;
 
 /*
@@ -295,6 +311,148 @@ zvol_read(void *arg)
 	kmem_free(zvr, sizeof (zv_request_t));
 }
 
+static void
+zvol_strategy_epilogue(void *arg)
+{
+	zvol_strategy_state_t *zss = arg;
+	dmu_ctx_t *dc = arg;
+	zv_request_t *zr = zss->zr;
+	zvol_state_t *zv = zr->zv;
+	int err;
+	boolean_t reader;
+
+	reader = !!(dc->dc_flags & DMU_CTX_FLAG_READ);
+	err = dc->dc_err;
+	blk_generic_end_io_acct(zv->zv_zso->zvo_queue, reader ? READ : WRITE,
+	    &zv->zv_zso->zvo_disk->part0, zss->start_jif);
+	BIO_END_IO(zr->bio, -err);
+	ASSERT(atomic_read(&zv->zv_suspend_ref) > 0);
+	atomic_dec(&zv->zv_suspend_ref);
+	kmem_free(zr, sizeof (zv_request_t));
+	kmem_free(zss, sizeof (zvol_strategy_state_t));
+}
+
+static void
+zvol_strategy_dmu_done(dmu_ctx_t *dc)
+{
+	zvol_strategy_state_t *zss = (zvol_strategy_state_t *)dc;
+	zv_request_t *zr = zss->zr;
+	zvol_state_t *zv = zr->zv;
+	int64_t len;
+	int err;
+	boolean_t reader;
+
+	/*
+	 * Reading zeroes past the end of dnode allocated blocks
+	 * needs to be treated as success
+	 */
+	if (dc->dc_resid_init == dc->dc_size)
+		len = dc->dc_completed_size;
+	else
+		len = dc->dc_size;
+
+	reader = !!(dc->dc_flags & DMU_CTX_FLAG_READ);
+
+	if (reader) {
+		dataset_kstats_update_read_kstats(&zv->zv_kstat, len);
+		task_io_account_read(len);
+	} else {
+		dataset_kstats_update_write_kstats(&zv->zv_kstat, len);
+		task_io_account_write(len);
+
+	}
+	err = zvol_dmu_done(dc, zvol_strategy_epilogue, dc);
+	rw_exit(&zv->zv_suspend_lock);
+	if (err == EINPROGRESS)
+		return;
+	zvol_strategy_epilogue(dc);
+}
+
+static void
+zvol_strategy(void *arg)
+{
+	zv_request_t *zr = arg;
+	zvol_state_t *zv = zr->zv;
+	uint32_t dmu_flags = DMU_CTX_FLAG_ASYNC | DMU_CTX_FLAG_UIO;
+	struct bio *bio = zr->bio;
+	boolean_t need_dispatch = B_FALSE;
+	int error = 0;
+	zvol_strategy_state_t *zss;
+	zvol_dmu_state_t *zds;
+	uio_t *uio;
+	int rw;
+
+	if (bio_is_flush(bio) && !zr->flushed) {
+		zr->flushed = B_TRUE;
+		int rc = zil_commit_async(zv->zv_zilog, ZVOL_OBJ,
+		    zvol_strategy, arg);
+		if (rc == EINPROGRESS)
+			return;
+	}
+	/* Some requests are just for flush and nothing else. */
+	if (BIO_BI_SIZE(bio) == 0) {
+		rw_exit(&zv->zv_suspend_lock);
+		BIO_END_IO(bio, 0);
+		kmem_free(zr,  sizeof (zv_request_t));
+		return;
+	}
+
+	if ((zss = zr->zss) == NULL) {
+		need_dispatch = (tsd_get(zfs_async_io_key) == NULL);
+		rw = bio_data_dir(bio);
+
+		if (rw == READ)
+			dmu_flags |= DMU_CTX_FLAG_READ;
+
+		blk_generic_start_io_acct(zv->zv_zso->zvo_queue, rw,
+		    bio_sectors(bio), &zv->zv_zso->zvo_disk->part0);
+		zss = kmem_zalloc(sizeof (zvol_strategy_state_t), KM_SLEEP);
+		zds = &zss->zds;
+		zss->zr = zr;
+		zss->start_jif = jiffies;
+		zss->zds.zds_zv = zr->zv;
+		zss->zds.zds_sync = bio_is_fua(zr->bio);
+		uio = &zss->uio;
+		uio_from_bio(uio, zr->bio);
+		zds->zds_off = uio->uio_loffset;
+		zds->zds_io_size = uio->uio_resid;
+		zds->zds_data = uio;
+		zds->zds_dmu_flags = dmu_flags;
+		zds->zds_dmu_done = zvol_strategy_dmu_done;
+		zds->zds_dmu_err = zvol_strategy_dmu_done;
+		zr->zss = zss;
+	} else {
+		zds = &zss->zds;
+	}
+
+	if (zvol_dmu_max_active(zv) && mutex_tryenter(&zv->zv_state_lock)) {
+		if (zv->zv_active > 1) {
+			zvol_dmu_ctx_init_enqueue(zds);
+			error = EINPROGRESS;
+		}
+		mutex_exit(&zv->zv_state_lock);
+		if (error)
+			return;
+	}
+	if (need_dispatch) {
+		taskq_dispatch_ent(zvol_taskq, zvol_strategy, zr, 0, &zr->ent);
+		return;
+	}
+
+	error = zvol_dmu_ctx_init(zds);
+	if (error == EINPROGRESS)
+		goto out;
+	if (error) {
+		zss->zds.zds_dc.dc_err = error;
+		zvol_strategy_dmu_done(&zss->zds.zds_dc);
+		goto out;
+	}
+	/* Errors are reported via the callback. */
+	zvol_dmu_issue(&zss->zds);
+out:
+	dmu_thread_context_process();
+}
+
 static MAKE_REQUEST_FN_RET
 zvol_request(struct request_queue *q, struct bio *bio)
 {
@@ -346,7 +504,7 @@ zvol_request(struct request_queue *q, struct bio *bio)
 			rw_downgrade(&zv->zv_suspend_lock);
 		}
 
-		zvr = kmem_alloc(sizeof (zv_request_t), KM_SLEEP);
+		zvr = kmem_zalloc(sizeof (zv_request_t), KM_SLEEP);
 		zvr->zv = zv;
 		zvr->bio = bio;
 		taskq_init_ent(&zvr->ent);
@@ -392,8 +550,7 @@ zvol_request(struct request_queue *q, struct bio *bio)
 			if (zvol_request_sync) {
 				zvol_write(zvr);
 			} else {
-				taskq_dispatch_ent(zvol_taskq,
-				    zvol_write, zvr, 0, &zvr->ent);
+				zvol_strategy(zvr);
 			}
 		}
 	} else {
@@ -407,7 +564,7 @@ zvol_request(struct request_queue *q, struct bio *bio)
 			goto out;
 		}
 
-		zvr = kmem_alloc(sizeof (zv_request_t), KM_SLEEP);
+		zvr = kmem_zalloc(sizeof (zv_request_t), KM_SLEEP);
 		zvr->zv = zv;
 		zvr->bio = bio;
 		taskq_init_ent(&zvr->ent);
@@ -418,8 +575,7 @@ zvol_request(struct request_queue *q, struct bio *bio)
 		if (zvol_request_sync) {
 			zvol_read(zvr);
 		} else {
-			taskq_dispatch_ent(zvol_taskq,
-			    zvol_read, zvr, 0, &zvr->ent);
+			zvol_strategy(zvr);
 		}
 	}
 
@@ -762,7 +918,8 @@ zvol_alloc(dev_t dev, const char *name)
 	zv = kmem_zalloc(sizeof (zvol_state_t), KM_SLEEP);
 	zso = kmem_zalloc(sizeof (struct zvol_state_os), KM_SLEEP);
 	zv->zv_zso = zso;
-
+	list_create(&zv->zv_deferred, sizeof (zvol_dmu_state_t),
+	    offsetof(zvol_dmu_state_t, zds_defer_node));
 	list_link_init(&zv->zv_next);
 	mutex_init(&zv->zv_state_lock, NULL, MUTEX_DEFAULT, NULL);
 
@@ -1048,6 +1205,19 @@ const static zvol_platform_ops_t zvol_linux_ops = {
 	.zv_set_disk_ro = zvol_set_disk_ro_impl,
 	.zv_set_capacity = zvol_set_capacity_impl,
 };
+static void
+zvol_thread_init(void *context __maybe_unused)
+{
+
+	VERIFY0(dmu_thread_context_create());
+}
+
+static void
+zvol_thread_destroy(void *context __maybe_unused)
+{
+
+	dmu_thread_context_destroy(NULL);
+}
 
 int
 zvol_init(void)
@@ -1060,8 +1230,9 @@ zvol_init(void)
 		printk(KERN_INFO "ZFS: register_blkdev() failed %d\n", error);
 		return (error);
 	}
-	zvol_taskq = taskq_create(ZVOL_DRIVER, threads, maxclsyspri,
-	    threads * 2, INT_MAX, TASKQ_PREPOPULATE | TASKQ_DYNAMIC);
+	zvol_taskq = taskq_create_with_callbacks(ZVOL_DRIVER, threads,
+	    maxclsyspri, threads * 2, INT_MAX, TASKQ_PREPOPULATE |
+	    TASKQ_DYNAMIC, zvol_thread_init, zvol_thread_destroy);
 	if (zvol_taskq == NULL) {
 		unregister_blkdev(zvol_major, ZVOL_DRIVER);
 		return (-ENOMEM);

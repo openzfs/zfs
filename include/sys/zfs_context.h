@@ -334,7 +334,7 @@ extern void cv_broadcast(kcondvar_t *cv);
 #define	tsd_get(k) pthread_getspecific(k)
 #define	tsd_set(k, v) pthread_setspecific(k, v)
 #define	tsd_create(kp, d) pthread_key_create((pthread_key_t *)kp, d)
-#define	tsd_destroy(kp) /* nothing */
+#define	tsd_destroy(kp) pthread_key_delete((pthread_key_t *)*kp)
 
 /*
  * kstat creation, installation and deletion
@@ -443,6 +443,8 @@ typedef struct taskq_ent {
 	uintptr_t		tqent_flags;
 } taskq_ent_t;
 
+typedef void (*taskq_callback_fn)(void *);
+
 typedef struct taskq {
 	char		tq_name[TASKQ_NAMELEN + 1];
 	kmutex_t	tq_lock;
@@ -460,6 +462,8 @@ typedef struct taskq {
 	int		tq_maxalloc_wait;
 	taskq_ent_t	*tq_freelist;
 	taskq_ent_t	tq_task;
+	taskq_callback_fn	tq_ctor;
+	taskq_callback_fn	tq_dtor;
 } taskq_t;
 
 #define	TQENT_FLAG_PREALLOC	0x1	/* taskq_dispatch_ent used */
@@ -479,10 +483,11 @@ typedef struct taskq {
 
 extern taskq_t *system_taskq;
 extern taskq_t *system_delay_taskq;
-
+extern taskq_t *taskq_create_with_callbacks(const char *, int, pri_t, int,
+    int, uint_t, taskq_callback_fn, taskq_callback_fn);
 extern taskq_t	*taskq_create(const char *, int, pri_t, int, int, uint_t);
-#define	taskq_create_proc(a, b, c, d, e, p, f) \
-	    (taskq_create(a, b, c, d, e, f))
+#define	taskq_create_proc(a, b, c, d, e, p, f, ct, dt) \
+	(taskq_create_with_callbacks(a, b, c, d, e, f, ct, dt))
 #define	taskq_create_sysdc(a, b, d, e, p, dc, f) \
 	    (taskq_create(a, b, maxclsyspri, d, e, f))
 extern taskqid_t taskq_dispatch(taskq_t *, task_func_t, void *, uint_t);
@@ -741,7 +746,7 @@ extern fstrans_cookie_t spl_fstrans_mark(void);
 extern void spl_fstrans_unmark(fstrans_cookie_t);
 extern int __spl_pf_fstrans_check(void);
 extern int kmem_cache_reap_active(void);
-
+extern int uiomove(void *, size_t, enum uio_rw, uio_t *);
 #define	____cacheline_aligned
 
 #endif /* _KERNEL */
@@ -749,5 +754,6 @@ extern int kmem_cache_reap_active(void);
 #ifdef __cplusplus
 };
 #endif
+typedef void (*callback_fn)(void *);
 
 #endif	/* _SYS_ZFS_CONTEXT_H */

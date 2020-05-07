@@ -66,6 +66,8 @@ typedef struct txg_list {
 
 struct dsl_pool;
 
+typedef void (*txg_wait_cb_t)(void *);
+
 extern void txg_init(struct dsl_pool *dp, uint64_t txg);
 extern void txg_fini(struct dsl_pool *dp);
 extern void txg_sync_start(struct dsl_pool *dp);
@@ -86,6 +88,9 @@ extern void txg_kick(struct dsl_pool *dp);
  * txg to finish syncing.
  */
 extern void txg_wait_synced(struct dsl_pool *dp, uint64_t txg);
+
+extern void txg_wait_synced_async(struct dsl_pool *dp, uint64_t txg,
+    txg_wait_cb_t cb, void *arg);
 
 /*
  * Wait as above. Returns true if the thread was signaled while waiting.

@@ -1561,6 +1561,45 @@ arc_bufc_to_flags(arc_buf_contents_t type)
 	return ((uint32_t)-1);
 }
 
+boolean_t
+arc_buf_frozen(arc_buf_t *buf)
+{
+
+	return (buf->b_hdr->b_l1hdr.b_freeze_cksum != NULL);
+}
+
+void
+arc_transfer_cache_state(arc_buf_t *from, arc_buf_t *to)
+{
+	arc_buf_hdr_t *anon_hdr;
+	arc_buf_hdr_t *hdr;
+	kmutex_t *hash_lock;
+
+	mutex_enter(&to->b_evict_lock);
+	anon_hdr = to->b_hdr;
+	ASSERT(anon_hdr->b_l1hdr.b_state == arc_anon);
+
+	mutex_enter(&from->b_evict_lock);
+	ASSERT(from->b_hdr->b_l1hdr.b_state != arc_anon);
+	hash_lock = HDR_LOCK(from->b_hdr);
+	mutex_enter(hash_lock);
+	hdr = from->b_hdr;
+
+	ASSERT3U(hdr->b_l1hdr.b_refcnt.rc_count, ==,
+	    anon_hdr->b_l1hdr.b_refcnt.rc_count);
+	ASSERT3U(bcmp(from->b_data, to->b_data,
+	    hdr->b_l1hdr.b_refcnt.rc_count), ==, 0);
+
+	anon_hdr->b_l1hdr.b_buf = from;
+	from->b_hdr = anon_hdr;
+	hdr->b_l1hdr.b_buf = to;
+	to->b_hdr = hdr;
+
+	mutex_exit(hash_lock);
+	mutex_exit(&from->b_evict_lock);
+	mutex_exit(&to->b_evict_lock);
+}
+
 void
 arc_buf_thaw(arc_buf_t *buf)
 {

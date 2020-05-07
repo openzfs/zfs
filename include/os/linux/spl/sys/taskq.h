@@ -74,6 +74,7 @@ typedef enum tq_lock_role {
 
 typedef unsigned long taskqid_t;
 typedef void (task_func_t)(void *);
+typedef void (*taskq_callback_fn)(void *);
 
 typedef struct taskq {
 	spinlock_t		tq_lock;	/* protects taskq_t */
@@ -100,6 +101,8 @@ typedef struct taskq {
 	spl_wait_queue_head_t	tq_work_waitq;	/* new work waitq */
 	spl_wait_queue_head_t	tq_wait_waitq;	/* wait waitq */
 	tq_lock_role_t		tq_lock_class;	/* class when taking tq_lock */
+	taskq_callback_fn	tq_ctor;
+	taskq_callback_fn	tq_dtor;
 } taskq_t;
 
 typedef struct taskq_ent {
@@ -145,6 +148,8 @@ extern void taskq_dispatch_ent(taskq_t *, task_func_t, void *, uint_t,
 extern int taskq_empty_ent(taskq_ent_t *);
 extern void taskq_init_ent(taskq_ent_t *);
 extern taskq_t *taskq_create(const char *, int, pri_t, int, int, uint_t);
+extern taskq_t *taskq_create_with_callbacks(const char *, int, pri_t, int,
+    int, uint_t, taskq_callback_fn, taskq_callback_fn);
 extern void taskq_destroy(taskq_t *);
 extern void taskq_wait_id(taskq_t *, taskqid_t);
 extern void taskq_wait_outstanding(taskq_t *, taskqid_t);
@@ -153,9 +158,11 @@ extern int taskq_cancel_id(taskq_t *, taskqid_t);
 extern int taskq_member(taskq_t *, kthread_t *);
 extern taskq_t *taskq_of_curthread(void);
 
-#define	taskq_create_proc(name, nthreads, pri, min, max, proc, flags) \
-    taskq_create(name, nthreads, pri, min, max, flags)
-#define	taskq_create_sysdc(name, nthreads, min, max, proc, dc, flags) \
+#define	taskq_create_proc(name, nthreads, pri, min, max, proc, flags, \
+    ctor, dtor) \
+    taskq_create_with_callbacks(name, nthreads, pri, min, max, flags, \
+    ctor, dtor)
+#define	taskq_create_sysdc(name, nthreads, min, max, proc, dc, flags)	\
     taskq_create(name, nthreads, maxclsyspri, min, max, flags)
 
 int spl_taskq_init(void);

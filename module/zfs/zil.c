@@ -2946,6 +2946,92 @@ zil_commit(zilog_t *zilog, uint64_t foid)
 	zil_commit_impl(zilog, foid);
 }
 
+typedef struct zil_commit_ctx {
+	zilog_t *zcc_zilog;
+	uint64_t zcc_foid;
+	callback_fn zcc_cb;
+	void *zcc_arg;
+	taskq_ent_t zcc_ent;
+} zil_commit_ctx_t;
+
+static void
+do_zil_commit_impl_async(void *arg)
+{
+	zil_commit_ctx_t *zcc = arg;
+
+	zil_commit_impl(zcc->zcc_zilog, zcc->zcc_foid);
+	zcc->zcc_cb(zcc->zcc_arg);
+	kmem_free(zcc, sizeof (*zcc));
+}
+
+static void
+zil_commit_impl_async(zilog_t *zilog, uint64_t foid, callback_fn cb,
+    void *arg)
+{
+	zil_commit_ctx_t *zcc;
+
+	zcc = kmem_alloc(sizeof (*zcc), KM_SLEEP);
+	zcc->zcc_zilog = zilog;
+	zcc->zcc_foid = foid;
+	zcc->zcc_cb = cb;
+	zcc->zcc_arg = arg;
+	taskq_init_ent(&zcc->zcc_ent);
+	taskq_dispatch_ent(zilog->zl_dmu_pool->dp_zil_clean_taskq,
+	    do_zil_commit_impl_async, zcc, 0, &zcc->zcc_ent);
+}
+
+int
+zil_commit_async(zilog_t *zilog, uint64_t foid, callback_fn cb, void *arg)
+{
+	/*
+	 * We should never attempt to call zil_commit on a snapshot for
+	 * a couple of reasons:
+	 *
+	 * 1. A snapshot may never be modified, thus it cannot have any
+	 *    in-flight itxs that would have modified the dataset.
+	 *
+	 * 2. By design, when zil_commit() is called, a commit itx will
+	 *    be assigned to this zilog; as a result, the zilog will be
+	 *    dirtied. We must not dirty the zilog of a snapshot; there's
+	 *    checks in the code that enforce this invariant, and will
+	 *    cause a panic if it's not upheld.
+	 */
+	ASSERT3B(dmu_objset_is_snapshot(zilog->zl_os), ==, B_FALSE);
+
+	if (zilog->zl_sync == ZFS_SYNC_DISABLED)
+		return (0);
+
+	if (!spa_writeable(zilog->zl_spa)) {
+		/*
+		 * If the SPA is not writable, there should never be any
+		 * pending itxs waiting to be committed to disk. If that
+		 * weren't true, we'd skip writing those itxs out, and
+		 * would break the semantics of zil_commit(); thus, we're
+		 * verifying that truth before we return to the caller.
+		 */
+		ASSERT(list_is_empty(&zilog->zl_lwb_list));
+		ASSERT3P(zilog->zl_last_lwb_opened, ==, NULL);
+		for (int i = 0; i < TXG_SIZE; i++)
+			ASSERT3P(zilog->zl_itxg[i].itxg_itxs, ==, NULL);
+		return (0);
+	}
+
+	/*
+	 * If the ZIL is suspended, we don't want to dirty it by calling
+	 * zil_commit_itx_assign() below, nor can we write out
+	 * lwbs like would be done in zil_commit_write(). Thus, we
+	 * simply rely on txg_wait_synced() to maintain the necessary
+	 * semantics, and avoid calling those functions altogether.
+	 */
+	if (zilog->zl_suspend > 0) {
+		txg_wait_synced_async(zilog->zl_dmu_pool, 0, cb, arg);
+		return (EINPROGRESS);
+	}
+
+	zil_commit_impl_async(zilog, foid, cb, arg);
+	return (EINPROGRESS);
+}
+
 void
 zil_commit_impl(zilog_t *zilog, uint64_t foid)
 {

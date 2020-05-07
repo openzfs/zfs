@@ -352,6 +352,273 @@ typedef struct dmu_buf {
 } dmu_buf_t;
 
 /*
+ * These structures are for DMU consumers that want async callbacks.
+ */
+struct dmu_ctx;
+struct dmu_tx_buf_set;
+struct dmu_buf_ctx;
+struct dmu_buf_set;
+struct zio;
+struct zfs_locked_range;
+typedef void (*dmu_ctx_cb_t)(struct dmu_ctx *);
+typedef void (*dmu_buf_set_cb_t)(struct dmu_buf_set *);
+typedef uint64_t (*dmu_buf_transfer_cb_t)(struct dmu_buf_set *, dmu_buf_t *,
+    uint64_t, uint64_t);
+typedef void (*dmu_tx_buf_set_cb_t)(struct dmu_tx_buf_set *);
+
+typedef void (*dmu_buf_ctx_cb_t)(struct dmu_buf_ctx *, int err);
+
+typedef enum {
+	DMU_CTX_FLAG_READ	= 1 << 1,
+	DMU_CTX_FLAG_UIO	= 1 << 2,
+	DMU_CTX_FLAG_PREFETCH	= 1 << 3,
+	DMU_CTX_FLAG_NO_HOLD	= 1 << 4,
+	DMU_CTX_FLAG_SUN_PAGES	= 1 << 5,
+	DMU_CTX_FLAG_NOFILL	= 1 << 6,
+	DMU_CTX_FLAG_ASYNC	= 1 << 7,
+	DMU_CTX_FLAG_NODECRYPT	= 1 << 8,
+	DMU_CTX_FLAG_PAGES	= 1 << 9,
+	DMU_CTX_WRITER_FLAGS	= DMU_CTX_FLAG_SUN_PAGES,
+	DMU_CTX_READER_FLAGS	= DMU_CTX_FLAG_PREFETCH
+} dmu_ctx_flag_t;
+
+
+enum dmu_buf_ctx_type {
+	DBC_DMU_ISSUE = 1,
+	DBC_DBUF_HOLD = 2,
+};
+
+typedef struct dmu_buf_ctx {
+	kthread_t *dbc_owner; /* thread context */
+	uint32_t dbc_flags;
+	uint8_t dbc_type;
+} dmu_buf_ctx_t;
+
+typedef struct dmu_ctx {
+	dmu_buf_ctx_t dc_buf_ctx;
+	/*
+	 * Lock protecting parts of the DMU context where necessary;
+	 * currently only used for err.
+	 */
+	kmutex_t dc_mtx;
+
+	/* The primary data associated with this context. */
+	uint64_t dc_size;	/* Requested total I/O size. */
+	uint64_t dc_resid_init;	/* Initial remaining bytes to process. */
+	uint64_t dc_resid;	/* Remaining bytes to process. */
+	uint64_t dc_dn_start;	/* Starting block offset into the dnode. */
+	uint64_t dc_dn_offset;	/* Current block offset. */
+	dmu_tx_t *dc_tx;	/* Caller's transaction, if specified. */
+	void *dc_data_buf;	/* UIO or char pointer */
+
+	/* The dnode held in association with this context. */
+	struct dnode *dc_dn;
+
+	objset_t *dc_os;	/* Object set associated with the dnode. */
+	uint64_t dc_object;	/* Object ID associated with the dnode. */
+
+	/* DEBUG */
+	struct zfs_locked_range *dc_lr; /* associated locked range */
+	struct dmu_buf_set *dc_dbs;
+
+	/* Number of buffer sets left to complete. */
+	zfs_refcount_t dc_holds;
+
+	/* The tag used for this context. */
+	void *dc_tag;
+
+	kcondvar_t dc_cv_done;
+
+	/* The callback to call once an I/O completes entirely. */
+	dmu_ctx_cb_t dc_complete_cb;
+
+	/*
+	 * Method called when all members of a buf set are
+	 * ready transfer data.
+	 */
+	dmu_buf_set_cb_t dc_buf_set_transfer_cb;
+
+	/*
+	 * Method called to perform a transfer operation on a DMU
+	 * buffer.  For reads, this is set to dc_data_trasnfer_cb
+	 * (no additional setup or book keeping required for the
+	 * transfer).  For writes, this method wraps a call to
+	 * dc_data_transfer_cb with logic to manage the dirty state
+	 * of the DMU buffer.
+	 */
+	dmu_buf_transfer_cb_t dc_buf_transfer_cb;
+
+	/*
+	 * Method to copy a range of data into or out of a DMU buffer.
+	 * This is normally only set by dmu_ctx_init().
+	 */
+	dmu_buf_transfer_cb_t dc_data_transfer_cb;
+
+	/* Total number of bytes transferred. */
+	uint64_t dc_completed_size;
+
+	/* Flags for this DMU context. */
+	dmu_ctx_flag_t dc_flags;
+
+	/* The worst that occurred. */
+	int dc_err;
+} dmu_ctx_t;
+
+typedef struct dmu_buf_set {
+	/* generic callback context */
+	dmu_buf_ctx_t	dbs_ctx;
+
+	/* The DMU context that this buffer set is associated with. */
+	dmu_ctx_t *dbs_dc;
+
+	/* Number of dmu_bufs associated with this context. */
+	int dbs_count;
+
+	/* Length of dbp; only used to free the correct size. */
+	int dbs_dbp_length;
+
+	/* Number of dmu_bufs left to complete. */
+	zfs_refcount_t dbs_holds;
+
+	/* The starting offset, relative to the associated dnode. */
+	uint64_t dbs_dn_start;
+	/* The size of the I/O. */
+	uint64_t dbs_size;
+	/* The amount of data remaining to process for this buffer set. */
+	uint64_t dbs_resid;
+
+	/* For writes only, if the context doesn't have a transaction. */
+	dmu_tx_t *dbs_tx;
+
+	/* The worst error that occurred. */
+	int dbs_err;
+
+	/* number of buffers held so far */
+	int dbs_async_holds;
+
+	/* The ZIO associated with this context. */
+	struct zio *dbs_zio;
+
+	/* The set of buffers themselves. */
+	struct dmu_buf *dbs_dbp[];
+} dmu_buf_set_t;
+
+typedef struct dmu_buf_id {
+	int dbi_level;
+	uint64_t dbi_blkid;
+	struct dmu_buf *dbi_buf;
+} dmu_buf_id_t;
+
+typedef struct dmu_tx_buf_set {
+	/* generic callback context */
+	dmu_buf_ctx_t	dtbs_ctx;
+
+	kmutex_t dtbs_mtx;
+
+	kcondvar_t dtbs_cv_done;
+
+	/* Number of dmu_bufs associated with this context. */
+	int dtbs_count;
+
+	/* Number of dmu_bufs left to complete. */
+	zfs_refcount_t dtbs_holds;
+
+	dnode_t *dtbs_dn;
+
+	void *dtbs_tag;
+
+	/* The worst error that occurred. */
+	int dtbs_err;
+
+	/* number of buffers held so far */
+	int dtbs_async_holds;
+
+	boolean_t dtbs_done;
+	/* The ZIO associated with this context. */
+	struct zio *dtbs_zio;
+
+	dmu_tx_buf_set_cb_t dtbs_completed_cb;
+
+	/* The set of buffers themselves. */
+	dmu_buf_id_t *dtbs_dbid;
+} dmu_tx_buf_set_t;
+
+int dmu_ctx_init(dmu_ctx_t *dc, struct dnode *dn, objset_t *os,
+    uint64_t object, uint64_t offset, uint64_t size, void *data_buf, void *tag,
+    dmu_ctx_flag_t flags);
+void dmu_ctx_seek(dmu_ctx_t *dc, uint64_t offset, uint64_t size,
+    void *data_buf);
+void dmu_ctx_rele(dmu_ctx_t *dc);
+void dmu_buf_set_rele(dmu_buf_ctx_t *ctx, int err);
+void dmu_buf_set_transfer(dmu_buf_set_t *dbs);
+void dmu_buf_set_transfer_write(dmu_buf_set_t *dbs);
+void dmu_thread_context_dispatch(dmu_buf_ctx_t *dbs_ctx, int err,
+    dmu_buf_ctx_cb_t cb);
+
+int dmu_tx_prefault_setup(dmu_tx_buf_set_t *dtbs, dnode_t *dn, uint64_t off,
+    uint64_t len, void *tag, boolean_t sync, dmu_tx_buf_set_cb_t cb);
+void dmu_tx_prefault(dmu_tx_buf_set_t *dtbs);
+void dmu_tx_buf_set_rele(dmu_tx_buf_set_t *dtbs);
+
+#ifndef __lint
+static inline boolean_t
+dmu_ctx_buf_is_char(dmu_ctx_t *dc)
+{
+	int flags = DMU_CTX_FLAG_UIO|DMU_CTX_FLAG_SUN_PAGES|
+	    DMU_CTX_FLAG_PAGES;
+
+	return ((dc->dc_flags & flags) ? B_FALSE : B_TRUE);
+}
+
+/* Optional context setters; use after calling dmu_ctx_init*(). */
+static inline void
+dmu_ctx_set_complete_cb(dmu_ctx_t *dc, dmu_ctx_cb_t cb)
+{
+	dc->dc_complete_cb = cb;
+}
+
+static inline void
+dmu_ctx_set_buf_set_transfer_cb(dmu_ctx_t *dc, dmu_buf_set_cb_t cb)
+{
+	dc->dc_buf_set_transfer_cb = cb;
+}
+
+static inline void
+dmu_ctx_set_buf_transfer_cb(dmu_ctx_t *dc, dmu_buf_transfer_cb_t cb)
+{
+	dc->dc_buf_transfer_cb = cb;
+}
+
+static inline void
+dmu_ctx_set_dmu_tx(dmu_ctx_t *dc, dmu_tx_t *tx)
+{
+	ASSERT(tx != NULL && ((dc->dc_flags & DMU_CTX_FLAG_READ) == 0));
+	dmu_ctx_set_buf_set_transfer_cb(dc, dmu_buf_set_transfer);
+	dc->dc_tx = tx;
+}
+
+static inline dmu_tx_t *
+dmu_buf_set_tx(dmu_buf_set_t *dbs)
+{
+	return (dbs->dbs_dc->dc_tx ? dbs->dbs_dc->dc_tx : dbs->dbs_tx);
+}
+#else
+extern boolean_t dmu_ctx_buf_is_char(dmu_ctx_t *dc);
+extern void dmu_ctx_set_complete_cb(dmu_ctx_t *dc, dmu_ctx_cb_t cb);
+extern void dmu_ctx_set_buf_set_transfer_cb(dmu_ctx_t *dc,
+    dmu_buf_set_cb_t cb);
+extern void dmu_ctx_set_buf_transfer_cb(dmu_ctx_t *dc,
+    dmu_buf_transfer_cb_t cb);
+extern void dmu_ctx_set_dmu_tx(dmu_ctx_t *dc, dmu_tx_t *tx);
+extern dmu_tx_t *dmu_buf_set_tx(dmu_buf_set_t *dbs);
+#endif
+
+/* DMU thread context handlers. */
+int dmu_thread_context_create(void);
+void dmu_thread_context_process(void);
+void dmu_thread_context_destroy(void *);
+
+/*
  * The names of zap entries in the DIRECTORY_OBJECT of the MOS.
  */
 #define	DMU_POOL_DIRECTORY_OBJECT	1
@@ -588,20 +855,8 @@ void dmu_buf_rele(dmu_buf_t *db, void *tag);
 uint64_t dmu_buf_refcount(dmu_buf_t *db);
 uint64_t dmu_buf_user_refcount(dmu_buf_t *db);
 
-/*
- * dmu_buf_hold_array holds the DMU buffers which contain all bytes in a
- * range of an object.  A pointer to an array of dmu_buf_t*'s is
- * returned (in *dbpp).
- *
- * dmu_buf_rele_array releases the hold on an array of dmu_buf_t*'s, and
- * frees the array.  The hold on the array of buffers MUST be released
- * with dmu_buf_rele_array.  You can NOT release the hold on each buffer
- * individually with dmu_buf_rele.
- */
-int dmu_buf_hold_array_by_bonus(dmu_buf_t *db, uint64_t offset,
-    uint64_t length, boolean_t read, void *tag,
-    int *numbufsp, dmu_buf_t ***dbpp);
-void dmu_buf_rele_array(dmu_buf_t **, int numbufs, void *tag);
+uint64_t dmu_buf_write_pages(dmu_buf_set_t *dbs, dmu_buf_t *db, uint64_t off,
+	uint64_t sz);
 
 typedef void dmu_buf_evict_func_t(void *user_ptr);
 
@@ -745,6 +1000,8 @@ struct blkptr *dmu_buf_get_blkptr(dmu_buf_t *db);
  * (ie. you've called dmu_tx_hold_object(tx, db->db_object)).
  */
 void dmu_buf_will_dirty(dmu_buf_t *db, dmu_tx_t *tx);
+void dmu_buf_will_dirty_range(dmu_buf_t *db, dmu_tx_t *tx, int offset,
+    int size);
 boolean_t dmu_buf_is_dirty(dmu_buf_t *db, dmu_tx_t *tx);
 void dmu_buf_set_crypt_params(dmu_buf_t *db_fake, boolean_t byteorder,
     const uint8_t *salt, const uint8_t *iv, const uint8_t *mac, dmu_tx_t *tx);
@@ -772,8 +1029,12 @@ void dmu_buf_set_crypt_params(dmu_buf_t *db_fake, boolean_t byteorder,
 
 dmu_tx_t *dmu_tx_create(objset_t *os);
 void dmu_tx_hold_write(dmu_tx_t *tx, uint64_t object, uint64_t off, int len);
+void dmu_tx_hold_write_impl(dmu_tx_t *tx, uint64_t object, uint64_t off,
+    int len, boolean_t sync);
 void dmu_tx_hold_write_by_dnode(dmu_tx_t *tx, dnode_t *dn, uint64_t off,
     int len);
+void dmu_tx_hold_write_by_dnode_impl(dmu_tx_t *tx, dnode_t *dn,
+    uint64_t off, int len, boolean_t sync);
 void dmu_tx_hold_free(dmu_tx_t *tx, uint64_t object, uint64_t off,
     uint64_t len);
 void dmu_tx_hold_free_by_dnode(dmu_tx_t *tx, dnode_t *dn, uint64_t off,
@@ -833,9 +1094,7 @@ int dmu_free_long_object(objset_t *os, uint64_t object);
  * Canfail routines will return 0 on success, or an errno if there is a
  * nonrecoverable I/O error.
  */
-#define	DMU_READ_PREFETCH	0 /* prefetch */
-#define	DMU_READ_NO_PREFETCH	1 /* don't prefetch */
-#define	DMU_READ_NO_DECRYPT	2 /* don't decrypt */
+int dmu_issue(dmu_ctx_t *dc);
 int dmu_read(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 	void *buf, uint32_t flags);
 int dmu_read_by_dnode(dnode_t *dn, uint64_t offset, uint64_t size, void *buf,
@@ -844,9 +1103,8 @@ void dmu_write(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 	const void *buf, dmu_tx_t *tx);
 void dmu_write_by_dnode(dnode_t *dn, uint64_t offset, uint64_t size,
     const void *buf, dmu_tx_t *tx);
-void dmu_prealloc(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
+int dmu_prealloc(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 	dmu_tx_t *tx);
-#ifdef _KERNEL
 int dmu_read_uio(objset_t *os, uint64_t object, struct uio *uio, uint64_t size);
 int dmu_read_uio_dbuf(dmu_buf_t *zdb, struct uio *uio, uint64_t size);
 int dmu_read_uio_dnode(dnode_t *dn, struct uio *uio, uint64_t size);
@@ -856,7 +1114,13 @@ int dmu_write_uio_dbuf(dmu_buf_t *zdb, struct uio *uio, uint64_t size,
 	dmu_tx_t *tx);
 int dmu_write_uio_dnode(dnode_t *dn, struct uio *uio, uint64_t size,
 	dmu_tx_t *tx);
-#endif
+int dmu_read_async(dmu_ctx_t *dc, objset_t *os, uint64_t object,
+    uint64_t offset, uint64_t size, void *buf, uint32_t flags,
+    dmu_ctx_cb_t done_cb);
+int dmu_write_async(dmu_ctx_t *dc, objset_t *os, uint64_t object,
+    uint64_t offset, uint64_t size, void *buf, dmu_tx_t *tx,
+    dmu_ctx_cb_t done_cb);
+
 struct arc_buf *dmu_request_arcbuf(dmu_buf_t *handle, int size);
 void dmu_return_arcbuf(struct arc_buf *buf);
 int dmu_assign_arcbuf_by_dnode(dnode_t *dn, uint64_t offset,

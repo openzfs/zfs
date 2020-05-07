@@ -720,6 +720,55 @@ txg_wait_synced(dsl_pool_t *dp, uint64_t txg)
 	VERIFY0(txg_wait_synced_impl(dp, txg, B_FALSE));
 }
 
+typedef struct txg_wait_ctx {
+	dmu_tx_callback_t twc_dcb;
+	dsl_pool_t *twc_dp;
+	uint64_t twc_txg;
+	txg_wait_cb_t twc_cb;
+	void *twc_arg;
+} txg_wait_ctx_t;
+
+static void
+do_txg_wait_synced_async(void *arg, int error)
+{
+	txg_wait_ctx_t *ctx = arg;
+	tx_state_t *tx = &ctx->twc_dp->dp_tx;
+	int g = ctx->twc_txg & TXG_MASK;
+	tx_cpu_t *tc;
+
+	if (ctx->twc_txg < tx->tx_synced_txg) {
+		tc = &tx->tx_cpu[CPU_SEQID];
+		mutex_enter(&tc->tc_lock);
+		list_insert_tail(&tc->tc_callbacks[g], &ctx->twc_dcb);
+		mutex_exit(&tc->tc_lock);
+		return;
+	}
+	ctx->twc_cb(ctx->twc_arg);
+	kmem_free(ctx, sizeof (*ctx));
+}
+
+void
+txg_wait_synced_async(dsl_pool_t *dp, uint64_t txg, txg_wait_cb_t cb, void *arg)
+{
+	txg_wait_ctx_t *ctx;
+	tx_state_t *tx = &dp->dp_tx;
+	tx_cpu_t *tc;
+	int g = txg & TXG_MASK;
+
+	ctx = kmem_alloc(sizeof (*ctx), KM_SLEEP);
+	ctx->twc_dp = dp;
+	ctx->twc_txg = txg;
+	ctx->twc_cb = cb;
+	ctx->twc_arg = arg;
+	ctx->twc_dcb.dcb_func = do_txg_wait_synced_async;
+	ctx->twc_dcb.dcb_data = ctx;
+
+	tc = &tx->tx_cpu[CPU_SEQID];
+	mutex_enter(&tc->tc_lock);
+	list_insert_tail(&tc->tc_callbacks[g], &ctx->twc_dcb);
+	mutex_exit(&tc->tc_lock);
+}
+
 /*
  * Similar to a txg_wait_synced but it can be interrupted from a signal.
  * Returns B_TRUE if the thread was signaled while waiting.

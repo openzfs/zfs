@@ -23,9 +23,11 @@
  * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  * Copyright (c) 2013, Joyent, Inc. All rights reserved.
+ * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  * Copyright (c) 2016, Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  * Copyright (c) 2019 Datto Inc.
+ * Copyright (c) 2020 iXsystems Inc.
  */
 
 #include <sys/dmu.h>
@@ -151,6 +153,1117 @@ const dmu_object_byteswap_info_t dmu_ot_byteswap[DMU_BSWAP_NUMFUNCS] = {
 	{	zfs_acl_byteswap,	"acl"		}
 };
 
+#ifdef _KERNEL
+#define	DPRINTF(...)
+#else
+#define	DPRINTF printf
+#endif
+
+#ifdef ZFS_DEBUG
+#define	DEBUG_COUNTER_U(a, b, c) uint64_t b
+#define	DEBUG_REFCOUNT_ADD(b) atomic_inc_32(&(b))
+#define	DEBUG_REFCOUNT_DEC(b) atomic_dec_32(&(b))
+
+/* BEGIN CSTYLED */
+static uint32_t dbsn_in_flight;
+ZFS_MODULE_PARAM(zfs_dmu,  , dbsn_in_flight, UINT, ZMOD_RD,
+    "DMU buf set nodes in flight");
+static uint32_t dmu_ctx_in_flight;
+ZFS_MODULE_PARAM(zfs_dmu, , dmu_ctx_in_flight, UINT, ZMOD_RD,
+    "DMU contexts in flight");
+static uint32_t buf_set_in_flight;
+ZFS_MODULE_PARAM(zfs_dmu, , buf_set_in_flight, UINT, ZMOD_RD,
+    "Buffer sets in flight");
+/* END CSTYLED */
+#else
+#define	DEBUG_COUNTER_U(a, b, c)
+#define	DEBUG_REFCOUNT_ADD(b)
+#define	DEBUG_REFCOUNT_DEC(b)
+#endif
+
+
+
+DEBUG_COUNTER_U(_vfs_zfs_dmu, dmu_ctx_total, "Total DMU contexts");
+DEBUG_COUNTER_U(_vfs_zfs_dmu, buf_set_total, "Total buffer sets");
+
+#if defined(_KERNEL) && defined(__FreeBSD__)
+#define	dmu_uiomove(data, sz, dir, uio)			\
+	vn_io_fault_uiomove((data), (sz), (uio))
+#else
+#define	dmu_uiomove(data, sz, dir, uio)			\
+	uiomove((data), (sz), (dir), (uio))
+#endif
+
+/*
+ * DMU Context based functions.
+ */
+static void dmu_issue_restart(dmu_buf_ctx_t *dbs_ctx, int err);
+
+/* Used for TSD for processing completed asynchronous I/Os. */
+uint_t zfs_async_io_key;
+
+static void
+dmu_buf_ctx_node_add_err(list_t *list, dmu_buf_ctx_t *ctx, dmu_buf_ctx_cb_t cb,
+    int err)
+{
+	dmu_buf_ctx_node_t *dbsn = kmem_zalloc(sizeof (dmu_buf_ctx_node_t),
+	    KM_SLEEP);
+	list_link_init(&dbsn->dbsn_link);
+	dbsn->dbsn_ctx = ctx;
+	dbsn->dbsn_cb = cb;
+	dbsn->dbsn_err = err;
+	list_insert_tail(list, dbsn);
+	DEBUG_REFCOUNT_ADD(dbsn_in_flight);
+}
+
+void
+dmu_buf_ctx_node_add(list_t *list, dmu_buf_ctx_t *ctx, dmu_buf_ctx_cb_t cb)
+{
+	dmu_buf_ctx_node_add_err(list, ctx, cb, 0);
+}
+
+void
+dmu_buf_ctx_node_remove(dmu_buf_ctx_node_t *dbsn)
+{
+	kmem_free(dbsn, sizeof (dmu_buf_ctx_node_t));
+	ASSERT(dbsn_in_flight > 0);
+	DEBUG_REFCOUNT_DEC(dbsn_in_flight);
+}
+
+
+/*
+ * Error reporting for dmu_buf_set and dmu_context objects.  These share a
+ * mutex because they are not expected to happen frequently, so they should
+ * only be called if an error occurs.
+ */
+static void
+dmu_buf_set_set_error(dmu_buf_set_t *dbs, int err)
+{
+	mutex_enter(&dbs->dbs_dc->dc_mtx);
+	dbs->dbs_err = zio_worst_error(dbs->dbs_err, err);
+	mutex_exit(&dbs->dbs_dc->dc_mtx);
+}
+
+static void
+dmu_ctx_set_error(dmu_ctx_t *dc, int err)
+{
+	if (err != 0) {
+		mutex_enter(&dc->dc_mtx);
+		dc->dc_err = zio_worst_error(dc->dc_err, err);
+		mutex_exit(&dc->dc_mtx);
+	}
+}
+#ifdef UIO_XUIO
+static void
+dmu_buf_read_xuio(dmu_buf_set_t *dbs, dmu_buf_t *db, uint64_t off,
+    uint64_t sz)
+{
+#ifdef _KERNEL
+	uio_t *uio = (uio_t *)dbs->dbs_dc->dc_data_buf;
+	xuio_t *xuio = (xuio_t *)uio;
+	dmu_buf_impl_t *dbi = (dmu_buf_impl_t *)db;
+	arc_buf_t *dbuf_abuf = dbi->db_buf;
+	arc_buf_t *abuf = dbuf_loan_arcbuf(dbi);
+
+	if (dmu_xuio_add(xuio, abuf, off, sz) == 0) {
+		uio->uio_resid -= sz;
+		uio->uio_loffset += sz;
+	}
+
+	if (abuf == dbuf_abuf)
+		XUIOSTAT_BUMP(xuiostat_rbuf_nocopy);
+	else
+		XUIOSTAT_BUMP(xuiostat_rbuf_copied);
+#endif
+}
+#endif
+
+static uint64_t
+dmu_buf_do_uio(dmu_buf_set_t *dbs, dmu_buf_t *db, uint64_t off,
+    uint64_t sz, enum uio_rw dir)
+{
+	int err;
+	uio_t *uio = (uio_t *)dbs->dbs_dc->dc_data_buf;
+	uint64_t adv = uio->uio_resid;
+
+	err = dmu_uiomove((char *)db->db_data + off, sz, dir, uio);
+	if (err)
+		dmu_buf_set_set_error(dbs, err);
+	adv -= uio->uio_resid;
+
+	return (adv);
+}
+
+static uint64_t
+dmu_buf_read_uio(dmu_buf_set_t *dbs, dmu_buf_t *db, uint64_t off,
+    uint64_t sz)
+{
+	return (dmu_buf_do_uio(dbs, db, off, sz, UIO_READ));
+}
+
+static uint64_t
+dmu_buf_write_uio(dmu_buf_set_t *dbs, dmu_buf_t *db, uint64_t off,
+    uint64_t sz)
+{
+	return (dmu_buf_do_uio(dbs, db, off, sz, UIO_WRITE));
+}
+
+static uint64_t
+dmu_buf_read_char(dmu_buf_set_t *buf_set, dmu_buf_t *db, uint64_t off,
+    uint64_t sz)
+{
+	char *data = (char *)buf_set->dbs_dc->dc_data_buf + db->db_offset -
+	    buf_set->dbs_dc->dc_dn_start + off;
+	bcopy((char *)db->db_data + off, data, sz);
+	return (sz);
+}
+
+static uint64_t
+dmu_buf_write_char(dmu_buf_set_t *buf_set, dmu_buf_t *db, uint64_t off,
+    uint64_t sz)
+{
+	char *data = (char *)buf_set->dbs_dc->dc_data_buf + db->db_offset -
+	    buf_set->dbs_dc->dc_dn_start + off;
+	bcopy(data, (char *)db->db_data + off, sz);
+	return (sz);
+}
+
+static uint64_t
+dmu_buf_transfer_nofill(dmu_buf_set_t *buf_set, dmu_buf_t *db, uint64_t off,
+    uint64_t sz)
+{
+	dmu_tx_t *tx = dmu_buf_set_tx(buf_set);
+	dmu_buf_will_not_fill(db, tx);
+	/* No need to do any more here. */
+	return (sz);
+}
+
+static uint64_t
+dmu_buf_transfer_write(dmu_buf_set_t *dbs, dmu_buf_t *db, uint64_t off,
+    uint64_t sz)
+{
+	dmu_tx_t *tx = dmu_buf_set_tx(dbs);
+	uint64_t adv;
+
+	if (sz == db->db_size)
+		dmu_buf_will_fill(db, tx);
+	else
+		dmu_buf_will_dirty_range(db, tx, off, sz);
+	adv = dbs->dbs_dc->dc_data_transfer_cb(dbs, db, off, sz);
+	/* XXX -- need to handle error condition */
+	dmu_buf_fill_done(db, tx);
+	return (adv);
+}
+
+void
+dmu_buf_set_transfer(dmu_buf_set_t *buf_set)
+{
+	uint64_t offset, size;
+	dmu_ctx_t *dmu_ctx = buf_set->dbs_dc;
+
+	/* Initialize the current state. */
+	size = buf_set->dbs_size;
+	offset = buf_set->dbs_dn_start;
+
+	/* Perform the I/O copy, one buffer at a time. */
+	for (int i = 0; i < buf_set->dbs_count; i++) {
+		dmu_buf_t *db = buf_set->dbs_dbp[i];
+		uint64_t off = offset - db->db_offset;
+		uint64_t sz = MIN(db->db_size - off, size);
+		uint64_t adv;
+
+		ASSERT(size > 0);
+		adv = dmu_ctx->dc_buf_transfer_cb(buf_set, db, off, sz);
+		if (buf_set->dbs_err)
+			break;
+		offset += adv;
+		size -= adv;
+	}
+}
+
+void
+dmu_buf_set_transfer_write(dmu_buf_set_t *dbs)
+{
+
+	dmu_buf_set_transfer(dbs);
+	ASSERT(dbs->dbs_dc->dc_dn != NULL);
+	/* Release the dnode immediately before committing the tx. */
+	dnode_rele(dbs->dbs_dc->dc_dn, dbs->dbs_dc->dc_tag);
+	dbs->dbs_dc->dc_dn = NULL;
+}
+
+static void
+dmu_buf_set_transfer_write_tx(dmu_buf_set_t *dbs)
+{
+
+	dmu_buf_set_transfer_write(dbs);
+	dmu_tx_commit(dbs->dbs_tx);
+}
+
+/*
+ * Release a DMU context hold, cleaning up if no holds remain.
+ *
+ * - dmu_ctx	DMU context to release.
+ */
+void
+dmu_ctx_rele(dmu_ctx_t *dmu_ctx)
+{
+	if (zfs_refcount_remove(&dmu_ctx->dc_holds, NULL) != 0)
+		return;
+
+	if ((dmu_ctx->dc_flags & (DMU_CTX_FLAG_ASYNC|DMU_CTX_FLAG_READ)) ==
+	    DMU_CTX_FLAG_READ) {
+		/*
+		 * Avoid race with dmu_buf_set_rele on
+		 * synchronous reads.
+		 */
+		mutex_enter(&dmu_ctx->dc_mtx);
+		mutex_exit(&dmu_ctx->dc_mtx);
+	}
+	mutex_destroy(&dmu_ctx->dc_mtx);
+	if ((dmu_ctx->dc_flags & (DMU_CTX_FLAG_ASYNC|DMU_CTX_FLAG_READ)) ==
+	    DMU_CTX_FLAG_READ)
+		cv_destroy(&dmu_ctx->dc_cv_done);
+	zfs_refcount_destroy(&dmu_ctx->dc_holds);
+	ASSERT(dmu_ctx_in_flight > 0);
+	DEBUG_REFCOUNT_DEC(dmu_ctx_in_flight);
+
+	if ((dmu_ctx->dc_flags & DMU_CTX_FLAG_NO_HOLD) == 0 &&
+	    (dmu_ctx->dc_dn != NULL))
+		dnode_rele(dmu_ctx->dc_dn, dmu_ctx->dc_tag);
+
+	if (dmu_ctx->dc_lr != NULL) {
+		ASSERT(dmu_ctx->dc_lr->lr_context == dmu_ctx);
+		dmu_ctx->dc_lr->lr_context = NULL;
+		dmu_ctx->dc_lr->lr_owner = curthread;
+	}
+
+	/* At this point, there are no buffer sets left.  Call back. */
+	if (dmu_ctx->dc_complete_cb != NULL)
+		dmu_ctx->dc_complete_cb(dmu_ctx);
+}
+
+/*
+ * Process a buffer set that is ready for transfer into/out of the
+ * user's buffers.
+ *
+ * NOTE: This can only be called once per dmu_buf_set, so access to the
+ *       dmu_buf_set's elements doesn't need a lock.
+ */
+static void
+dmu_buf_set_ready(dmu_buf_ctx_t *dbs_ctx, int err)
+{
+	dmu_buf_set_t *dbs = (dmu_buf_set_t *)dbs_ctx;
+	dmu_ctx_t *dc = dbs->dbs_dc;
+
+	/* Only perform I/O if no errors occurred for the buffer set. */
+	if (err == 0) {
+		dc->dc_buf_set_transfer_cb(dbs);
+		if (dbs->dbs_err == 0)
+			atomic_add_64(&dc->dc_completed_size, dbs->dbs_size);
+		err = dbs->dbs_err;
+	}
+	dmu_ctx_set_error(dc, err);
+
+	for (int i = 0; i < dbs->dbs_count; i++) {
+		dmu_buf_impl_t *db = (dmu_buf_impl_t *)dbs->dbs_dbp[i];
+
+		ASSERT(db != NULL);
+		dbuf_rele(db, dc->dc_tag);
+	}
+
+	DEBUG_REFCOUNT_DEC(buf_set_in_flight);
+	kmem_free(dbs, sizeof (dmu_buf_set_t) +
+	    dbs->dbs_dbp_length * sizeof (dmu_buf_t *));
+	dmu_ctx_rele(dc);
+}
+
+int
+dmu_thread_context_create(void)
+{
+	int ret = 0;
+	dmu_cb_state_t *dcs;
+
+	/* This function should never be called more than once in a thread. */
+	ASSERT3P(tsd_get(zfs_async_io_key), ==, NULL);
+	/* Called with taskqueue mutex held. */
+	dcs = kmem_zalloc(sizeof (dmu_cb_state_t), KM_SLEEP);
+	list_create(&dcs->dcs_io_list, sizeof (dmu_buf_ctx_node_t),
+	    offsetof(dmu_buf_ctx_node_t, dbsn_link));
+
+	ret = tsd_set(zfs_async_io_key, dcs);
+	VERIFY3B(ret, ==, 0);
+
+#ifdef ZFS_DEBUG
+	{
+		dmu_cb_state_t *check = tsd_get(zfs_async_io_key);
+		ASSERT(check == dcs);
+	}
+#endif
+	return (ret);
+}
+
+void
+dmu_thread_context_destroy(void *context)
+{
+	dmu_cb_state_t *dcs;
+
+	if (context == NULL)
+		dcs = tsd_get(zfs_async_io_key);
+	else
+		dcs = context;
+	/* This function may be called on a thread that didn't call create. */
+	if (dcs == NULL)
+		return;
+
+	/*
+	 * This function should only get called after a thread has finished
+	 * processing its queue.
+	 */
+	ASSERT(list_is_empty(&dcs->dcs_io_list));
+
+	kmem_free(dcs, sizeof (dmu_cb_state_t));
+	if (context == NULL)
+		VERIFY(tsd_set(zfs_async_io_key, NULL) == 0);
+}
+
+void
+dmu_thread_context_process(void)
+{
+	dmu_cb_state_t *dcs = tsd_get(zfs_async_io_key);
+	dmu_buf_ctx_node_t *dbsn;
+	dmu_buf_ctx_cb_t cb;
+	dmu_buf_ctx_t *ctx;
+	int err;
+
+	/*
+	 * If the current thread didn't register, it doesn't handle queued
+	 * async I/O's.  It is probably not a zio thread.  This is needed
+	 * because zio_execute() can be called from non-zio threads.
+	 */
+	if (dcs == NULL || dcs->dcs_in_process)
+		return;
+	dcs->dcs_in_process = B_TRUE;
+	while ((dbsn = list_remove_head(&dcs->dcs_io_list)) != NULL) {
+		ctx = dbsn->dbsn_ctx;
+		cb = dbsn->dbsn_cb;
+		err = dbsn->dbsn_err;
+		dmu_buf_ctx_node_remove(dbsn);
+		cb(ctx, err);
+	}
+	dcs->dcs_in_process = B_FALSE;
+}
+
+void
+dmu_thread_context_dispatch(dmu_buf_ctx_t *dbs_ctx, int err,
+    dmu_buf_ctx_cb_t cb)
+{
+	dmu_cb_state_t *dcs;
+
+	dcs = tsd_get(zfs_async_io_key);
+	if (dcs != NULL && (dbs_ctx->dbc_flags & DMU_CTX_FLAG_ASYNC)) {
+		dbs_ctx->dbc_owner = curthread;
+		dmu_buf_ctx_node_add_err(&dcs->dcs_io_list, dbs_ctx, cb, err);
+	} else {
+		/*
+		 * The current thread doesn't have anything
+		 * registered in its TSD, so it must not handle
+		 * queued delivery.  Dispatch this set now.
+		 */
+		cb(dbs_ctx, err);
+	}
+}
+
+/*
+ * Release a buffer set for a given dbuf.
+ *
+ * - buf_set	Buffer set to release.
+ * - err		Whether an error occurred.
+ *
+ * invariant:		If specified, the dbuf's mutex must be held.
+ */
+void
+dmu_buf_set_rele(dmu_buf_ctx_t *dbs_ctx, int err)
+{
+	dmu_buf_set_t *dbs = (dmu_buf_set_t *)dbs_ctx;
+	dmu_ctx_t *dmu_ctx;
+	boolean_t drop_lock = B_FALSE;
+	int count;
+
+	if (dbs == NULL)
+		return;
+	/* Report an error, if any. */
+	dmu_ctx = dbs->dbs_dc;
+	if ((dmu_ctx->dc_flags & (DMU_CTX_FLAG_ASYNC|DMU_CTX_FLAG_READ)) ==
+	    DMU_CTX_FLAG_READ && zfs_refcount_count(&dbs->dbs_holds) > 1) {
+		mutex_enter(&dmu_ctx->dc_mtx);
+		drop_lock = B_TRUE;
+	}
+	/* If we are finished, schedule this buffer set for delivery. */
+	ASSERT(!zfs_refcount_is_zero(&dbs->dbs_holds));
+	count = zfs_refcount_remove(&dbs->dbs_holds, NULL);
+	if (drop_lock) {
+		if (count == 1)
+			cv_broadcast(&dmu_ctx->dc_cv_done);
+		mutex_exit(&dmu_ctx->dc_mtx);
+	}
+	if (count != 0)
+		return;
+
+	dmu_thread_context_dispatch(dbs_ctx, err, dmu_buf_set_ready);
+}
+
+static void
+dmu_issue_restart_cb(dmu_buf_ctx_t *dbs_ctx, int err)
+{
+	dmu_thread_context_dispatch(dbs_ctx, err, dmu_issue_restart);
+}
+
+/*
+ * Set up the buffers for a given set.
+ *
+ * - buf_set	Buffer set to set up buffers for.
+ *
+ * returns: errno	If any buffer could not be held for this buffer set.
+ *          0		Success.
+ */
+static int
+dmu_buf_set_setup_buffers(dmu_buf_set_t *dbs, boolean_t restarted)
+{
+	dmu_ctx_t *dc = dbs->dbs_dc;
+	dnode_t *dn = dc->dc_dn;
+	zio_t *async_zio = NULL;
+	dmu_buf_impl_t *db;
+	uint64_t blkid;
+	uint64_t bufoff, bufsiz;
+	int i, dbuf_flags;
+	boolean_t read, prefetch;
+	dmu_buf_ctx_cb_t done_cb = NULL;
+
+	read = dc->dc_flags & DMU_CTX_FLAG_READ;
+	prefetch = dc->dc_flags & DMU_CTX_FLAG_PREFETCH;
+	dbuf_flags = DB_RF_CANFAIL | DB_RF_NEVERWAIT | DB_RF_HAVESTRUCT |
+	    DB_RF_NOPREFETCH;
+
+	if (!restarted) {
+		dbs->dbs_zio = zio_root(dn->dn_objset->os_spa, NULL, NULL,
+		    ZIO_FLAG_CANFAIL);
+	}
+	blkid = dbuf_whichblock(dn, 0, dbs->dbs_dn_start);
+	dbs->dbs_ctx.dbc_type = DBC_DMU_ISSUE;
+	if (read)
+		done_cb = dmu_buf_set_rele;
+
+	if (dc->dc_flags & DMU_CTX_FLAG_ASYNC)
+		async_zio = dbs->dbs_zio;
+
+	/*
+	 * Note that while this loop is running, any zio's set up for async
+	 * reads are not executing, therefore access to this dbs is
+	 * serialized within this function; i.e. atomics are not needed here.
+	 */
+	for (i = dbs->dbs_async_holds; i < dbs->dbs_count; i++) {
+		db = NULL;
+
+		int err = dbuf_hold_level_async(dn, /* level */ 0, blkid + i,
+		    dc->dc_tag, &db, &dbs->dbs_ctx,
+		    async_zio, dmu_issue_restart_cb, done_cb);
+		if (err == EINPROGRESS) {
+			ASSERT(dc->dc_flags & DMU_CTX_FLAG_ASYNC);
+			return (err);
+		}
+		VERIFY(err == 0);
+		if (db == NULL) {
+			VERIFY(err);
+			/* Only include counts for the processed buffers. */
+			dbs->dbs_count = i;
+			/* initiator */
+			zfs_refcount_destroy(&dbs->dbs_holds);
+			zfs_refcount_create_untracked(&dbs->dbs_holds);
+			zfs_refcount_add_many(&dbs->dbs_holds, i + 1, NULL);
+			zio_nowait(dbs->dbs_zio);
+			return (err);
+		}
+		dbs->dbs_async_holds++;
+		/* Calculate the amount of data this buffer contributes. */
+		bufoff = dc->dc_dn_offset - db->db.db_offset;
+		bufsiz = (int)MIN(db->db.db_size - bufoff, dbs->dbs_resid);
+		dbs->dbs_resid -= bufsiz;
+
+		/* initiate async i/o */
+		if (read)
+			(void) dbuf_read(db, dbs->dbs_zio, dbuf_flags);
+
+		/* Update the caller's data to let them know what's next. */
+		dc->dc_dn_offset += bufsiz;
+		dc->dc_resid -= bufsiz;
+		dc->dc_dbs = dbs;
+		/* Put this dbuf in the buffer set's list. */
+		dbs->dbs_dbp[i] = &db->db;
+	}
+
+	if (prefetch && DNODE_META_IS_CACHEABLE(dn) &&
+	    dbs->dbs_size <= zfetch_array_rd_sz) {
+		dmu_zfetch(&dn->dn_zfetch, blkid, dbs->dbs_count,
+		    read && DNODE_IS_CACHEABLE(dn), B_TRUE);
+	}
+	return (0);
+}
+
+/*
+ * Set up a new transaction for the DMU context.
+ *
+ * - dmu_ctx	DMU context to set up new transaction for.
+ * - txp		Address to store dmu_tx_t pointer.
+ * - dnp		Address to store dnode_t pointer for new dnode.
+ */
+static int
+dmu_ctx_setup_tx(dmu_ctx_t *dmu_ctx, dmu_tx_t **txp, dnode_t **dnp,
+    uint64_t size)
+{
+	int err;
+
+	/* Readers and writers with a context transaction do not apply. */
+	if ((dmu_ctx->dc_flags & DMU_CTX_FLAG_READ) || dmu_ctx->dc_tx != NULL)
+		return (0);
+
+	*txp = dmu_tx_create(dmu_ctx->dc_os);
+	dmu_tx_hold_write(*txp, dmu_ctx->dc_object,
+	    dmu_ctx->dc_dn_offset, size);
+	err = dmu_tx_assign(*txp, TXG_WAIT);
+	if (err)
+		goto out;
+
+	/*
+	 * Writer without caller TX: dnode hold is done here rather
+	 * than in dmu_ctx_init().
+	 */
+	err = dnode_hold(dmu_ctx->dc_os, dmu_ctx->dc_object,
+	    dmu_ctx->dc_tag, dnp);
+	if (err)
+		goto out;
+	dmu_ctx->dc_dn = *dnp;
+
+out:
+	if (err && *txp != NULL) {
+		dmu_tx_abort(*txp);
+		*txp = NULL;
+	}
+	return (err);
+}
+
+/*
+ * Allocate and initialize a dmu_buf_set_t *
+ *
+ */
+static int
+dmu_buf_set_allocate(dmu_ctx_t *dmu_ctx, dmu_buf_set_t **buf_set_p,
+    uint64_t size, dnode_t **dnp)
+{
+	dmu_tx_t *tx = NULL;
+	dmu_buf_set_t *dbs;
+	int err, nblks;
+	size_t set_size;
+	dnode_t *dn;
+
+	/*
+	 * Create a transaction for writes, if needed.  This must be done
+	 * first in order to hold the correct struct_rwlock, use the
+	 * correct values for dn_datablksz, etc.
+	 */
+	err = dmu_ctx_setup_tx(dmu_ctx, &tx, dnp, size);
+	*buf_set_p = NULL;
+	if (err)
+		return (err);
+	dn = *dnp;
+	rw_enter(&dn->dn_struct_rwlock, RW_READER);
+
+	/* Figure out how many blocks are needed for the requested size. */
+	if (dn->dn_datablkshift) {
+		nblks = P2ROUNDUP(dmu_ctx->dc_dn_offset + size,
+		    dn->dn_datablksz);
+		nblks -= P2ALIGN(dmu_ctx->dc_dn_offset, dn->dn_datablksz);
+		nblks >>= dn->dn_datablkshift;
+	} else {
+		if ((dmu_ctx->dc_dn_offset + size) > dn->dn_datablksz) {
+			zfs_panic_recover("zfs: accessing past end of object "
+			    "%llx/%llx (size=%u access=%llu+%llu)",
+			    (longlong_t)dn->dn_objset->
+			    os_dsl_dataset->ds_object,
+			    (longlong_t)dn->dn_object, dn->dn_datablksz,
+			    (longlong_t)dmu_ctx->dc_dn_offset,
+			    (longlong_t)size);
+			rw_exit(&dn->dn_struct_rwlock);
+			return (SET_ERROR(EIO));
+		}
+		nblks = 1;
+	}
+
+	/* Create the new buffer set. */
+	set_size = sizeof (dmu_buf_set_t) + nblks * sizeof (dmu_buf_t *);
+	dbs = kmem_zalloc(set_size, KM_SLEEP);
+
+	/* Initialize a new buffer set. */
+	DEBUG_REFCOUNT_ADD(buf_set_in_flight);
+#ifdef ZFS_DEBUG
+	atomic_add_64(&buf_set_total, 1);
+#endif
+	dbs->dbs_size = size;
+	dbs->dbs_resid = size;
+	dbs->dbs_dn_start = dmu_ctx->dc_dn_offset;
+	dbs->dbs_count = nblks;
+	dbs->dbs_dbp_length = nblks;
+	dbs->dbs_tx = tx;
+	dbs->dbs_ctx.dbc_flags |= (dmu_ctx->dc_flags & DMU_CTX_FLAG_ASYNC);
+	zfs_refcount_create_untracked(&dbs->dbs_holds);
+
+	/* Include a refcount for the initiator. */
+	if (dmu_ctx->dc_flags & DMU_CTX_FLAG_READ)
+		zfs_refcount_add_many(&dbs->dbs_holds, nblks + 1, NULL);
+	else
+		/* For writes, dbufs never need to call us back. */
+		zfs_refcount_add(&dbs->dbs_holds, NULL);
+	dbs->dbs_dc = dmu_ctx;
+	zfs_refcount_add(&dmu_ctx->dc_holds, NULL);
+	/* Either we're a reader or we have a transaction somewhere. */
+	ASSERT((dmu_ctx->dc_flags & DMU_CTX_FLAG_READ) || dmu_buf_set_tx(dbs));
+	*buf_set_p = dbs;
+	return (0);
+}
+/*
+ * Initialize a buffer set of a certain size.
+ *
+ * - dmu_ctx	DMU context to associate the buffer set with.
+ * - buf_set_p	Pointer to set to the new buffer set's address.
+ * - size		Requested size of the buffer set.
+ *
+ * returns: 0		Success.
+ *          EIO		I/O error: tried to access past the end of the dnode,
+ * 			or dmu_buf_set_setup_buffers() failed.
+ */
+static int
+dmu_buf_set_init(dmu_ctx_t *dmu_ctx, dmu_buf_set_t **buf_set_p,
+    uint64_t size)
+{
+	dmu_buf_set_t *dbs;
+	dmu_tx_t *tx;
+	size_t set_size;
+	int err, nblks;
+	dnode_t *dn = dmu_ctx->dc_dn;
+	boolean_t restarted;
+
+	ASSERT(dmu_ctx != NULL);
+	ASSERT(!zfs_refcount_is_zero(&dmu_ctx->dc_holds));
+	dbs = *buf_set_p;
+
+	if (dbs == NULL) {
+		restarted = B_FALSE;
+		if ((err = dmu_buf_set_allocate(dmu_ctx, &dbs, size, &dn)))
+			return (err);
+	} else {
+		restarted = B_TRUE;
+		rw_enter(&dn->dn_struct_rwlock, RW_READER);
+	}
+	tx = dbs->dbs_tx;
+	err = dmu_buf_set_setup_buffers(dbs, restarted);
+	if (err  == 0) {
+		*buf_set_p = dbs;
+	} else  if (err == EINPROGRESS) {
+		rw_exit(&dn->dn_struct_rwlock);
+		return (err);
+	} else {
+		/* XXX this whole error path needs revisiting */
+		nblks = dbs->dbs_count;
+		set_size = sizeof (dmu_buf_set_t) +
+		    nblks * sizeof (dmu_buf_t *);
+
+		if (dmu_ctx->dc_flags & DMU_CTX_FLAG_READ)
+			zfs_refcount_destroy_many(&dbs->dbs_holds, nblks + 1);
+		else
+			/* For writes, dbufs never need to call us back. */
+			zfs_refcount_destroy_many(&dbs->dbs_holds, 1);
+		zfs_refcount_remove(&dmu_ctx->dc_holds, NULL);
+		zio_nowait(dbs->dbs_zio);
+		kmem_free(dbs, set_size);
+		/* Initialize a new buffer set. */
+		DEBUG_REFCOUNT_ADD(buf_set_in_flight);
+#ifdef ZFS_DEBUG
+		atomic_add_64(&buf_set_total, -1);
+#endif
+	}
+	if (err && tx != NULL)
+		dmu_tx_abort(tx);
+	rw_exit(&dn->dn_struct_rwlock);
+	return (err);
+}
+
+/*
+ * Process the I/Os queued for a given buffer set.
+ *
+ * - buf_set	Buffer set to process I/Os for.
+ *
+ * returns: errno	Errors from zio_wait or a buffer went UNCACHED.
+ *          0		Success.
+ */
+static int
+dmu_buf_set_process_io(dmu_buf_set_t *dbs)
+{
+	int err, i;
+	dmu_ctx_t *dmu_ctx = dbs->dbs_dc;
+
+	/*
+	 * If the I/O is asynchronous, issue the I/O's without waiting.
+	 * Writes do not need to wait for any ZIOs.
+	 */
+	if ((dmu_ctx->dc_flags & DMU_CTX_FLAG_ASYNC) ||
+	    (dmu_ctx->dc_flags & DMU_CTX_FLAG_READ) == 0) {
+		zio_nowait(dbs->dbs_zio);
+		return (0);
+	}
+
+	/* Wait for async i/o. */
+	err = zio_wait(dbs->dbs_zio);
+	if (err)
+		return (err);
+	/* wait for io to complete */
+	if (zfs_refcount_count(&dbs->dbs_holds) > 1) {
+		mutex_enter(&dmu_ctx->dc_mtx);
+		while (zfs_refcount_count(&dbs->dbs_holds) > 1)
+			cv_wait(&dmu_ctx->dc_cv_done, &dmu_ctx->dc_mtx);
+		mutex_exit(&dmu_ctx->dc_mtx);
+	}
+	for (i = 0; i < dbs->dbs_count; i++) {
+		dmu_buf_impl_t *db = (dmu_buf_impl_t *)dbs->dbs_dbp[i];
+		if (db->db_state == DB_UNCACHED)
+			err = SET_ERROR(EIO);
+		if (err)
+			return (err);
+	}
+	return (0);
+}
+
+/*
+ * Issue the I/O specified in the given DMU context.
+ *
+ * - dmu_ctx	The DMU context.
+ *
+ * returns: errno	Errors executing I/O chunks.
+ *          0		If a DMU callback is specified; the callback
+ *			receives any errors.
+ *          0		If no DMU callback is specified: Success.
+ */
+int
+dmu_issue(dmu_ctx_t *dc)
+{
+	int err = 0;
+	uint64_t io_size;
+	dmu_buf_set_t *dbs;
+
+	/* If this context is async, it must have a context callback. */
+	ASSERT((dc->dc_flags & DMU_CTX_FLAG_ASYNC) == 0 ||
+	    dc->dc_complete_cb != NULL);
+
+	/*
+	 * For writers, if a tx was specified but a dnode wasn't, hold here.
+	 * This could be done in dmu_ctx_set_dmu_tx(), but that would
+	 * require dmu.h to include a dnode_hold() prototype.
+	 */
+	if (dc->dc_tx != NULL && dc->dc_dn == NULL) {
+		err = dnode_hold(dc->dc_os, dc->dc_object, dc->dc_tag,
+		    &dc->dc_dn);
+		if (err)
+			return (err);
+	}
+	/* While there is work left to do, execute the next chunk. */
+	dprintf("%s(%p) -> buf %p off %lu sz %lu\n", __func__, dc,
+	    dc->dc_data_buf, dc->dc_dn_offset, dc->dc_resid);
+	while (dc->dc_resid > 0 && err == 0) {
+		io_size = MIN(dc->dc_resid, DMU_MAX_ACCESS/2);
+		dbs = NULL;
+
+		dprintf("%s(%p@%lu+%lu) chunk %lu\n", __func__, dc,
+		    dc->dc_dn_offset, dc->dc_resid, io_size);
+		err = dmu_buf_set_init(dc, &dbs, io_size);
+		if (err == EINPROGRESS)
+			return (0);
+		/* Process the I/O requests, if the initialization passed. */
+		if (err == 0) {
+			err = dmu_buf_set_process_io(dbs);
+			dmu_buf_set_rele(&dbs->dbs_ctx, err);
+		}
+	}
+	/*
+	 * At this point, either this I/O is async, or all buffer sets
+	 * have finished processing.
+	 */
+	VERIFY((dc->dc_flags & DMU_CTX_FLAG_ASYNC) ||
+	    zfs_refcount_count(&dc->dc_holds) == 1);
+
+	/*
+	 * If an error occurs while actually performing I/O, propagate to
+	 * the caller.  If an error occurs in this context, ensure that
+	 * async callers also receive it via the context, if appropriate.
+	 */
+	dmu_ctx_set_error(dc, err);
+
+	return (dc->dc_err);
+}
+
+static void
+dmu_issue_restart(dmu_buf_ctx_t *dbs_ctx, int err)
+{
+	dmu_buf_set_t *dbs = (dmu_buf_set_t *)dbs_ctx;
+	uint64_t io_size;
+	dmu_ctx_t *dc;
+
+	dc = dbs->dbs_dc;
+	if (err) {
+		/*
+		 * We skipped a hold + rele || hold + read
+		 */
+		VERIFY(zfs_refcount_remove(&dbs->dbs_holds, NULL) != 0);
+		dmu_buf_set_rele(&dbs->dbs_ctx, err);
+	}
+	/* This context must be async */
+	ASSERT(dc->dc_flags & DMU_CTX_FLAG_ASYNC);
+
+	/* While there is work left to do, execute the next chunk. */
+	dprintf("%s(%p) -> buf %p off %lu sz %lu\n", __func__, dc,
+	    dc->dc_data_buf, dc->dc_dn_offset, dc->dc_resid);
+	while (dc->dc_resid > 0 && err == 0) {
+		io_size = MIN(dc->dc_resid, DMU_MAX_ACCESS/2);
+
+		dprintf("%s(%p@%lu+%lu) chunk %lu\n", __func__, dc,
+		    dc->dc_dn_offset, dc->dc_resid, io_size);
+		err = dmu_buf_set_init(dc, &dbs, io_size);
+		if (err == EINPROGRESS)
+			return;
+		/* Process the I/O requests, if the initialization passed. */
+		if (err == 0)
+			err = dmu_buf_set_process_io(dbs);
+		if (dbs != NULL)
+			dmu_buf_set_rele(&dbs->dbs_ctx, err);
+		dbs = NULL;
+	}
+
+	/*
+	 * If an error occurs while actually performing I/O, propagate to
+	 * the caller.  If an error occurs in this context, ensure that
+	 * async callers also receive it via the context, if appropriate.
+	 */
+	dmu_ctx_set_error(dc, err);
+}
+
+
+/*
+ * Set up a DMU context.
+ *
+ * - dmu_ctx	The DMU context.
+ * - dn		A held dnode to associate with the context, or NULL.
+ * - os		The object set associated with the context.
+ * - object	The object ID associated with the context.
+ * - size		Size of the I/O to be performed.
+ * - offset	Offset into the dnode to perform the I/O.
+ * - data_buf	Data buffer to perform I/O transfers with.
+ * - tag		Hold tag to use.
+ * - flags		DMU context flags.
+ *
+ * \note	The dnode must not be NULL, unless this is a writer.
+ * \note	The dnode, if specified, must be held, unless the
+ *		DMU_CTX_FLAG_NO_HOLD flag is specified.
+ */
+int
+dmu_ctx_init(dmu_ctx_t *dmu_ctx, struct dnode *dn, objset_t *os,
+    uint64_t object, uint64_t offset, uint64_t size, void *data_buf, void *tag,
+    dmu_ctx_flag_t flags)
+{
+	boolean_t reader = (flags & DMU_CTX_FLAG_READ) != 0;
+	int err;
+
+	DEBUG_REFCOUNT_ADD(dmu_ctx_in_flight);
+#ifdef ZFS_DEBUG
+	atomic_add_64(&dmu_ctx_total, 1);
+	/* Make sure the dnode is passed in appropriately. */
+	if (dn == NULL)
+		ASSERT(os != NULL);
+	else
+		ASSERT(!zfs_refcount_is_zero(&dn->dn_holds) ||
+		    (flags & DMU_CTX_FLAG_NO_HOLD));
+#endif
+
+	/* Make sure the flags are compatible with the I/O type. */
+	ASSERT(reader || ((flags & DMU_CTX_READER_FLAGS) == 0));
+	ASSERT(!reader || ((flags & DMU_CTX_WRITER_FLAGS) == 0));
+	/* The NOFILL flag and a NULL data_buf go hand in hand. */
+	ASSERT(((flags & DMU_CTX_FLAG_NOFILL) != 0) ^ (data_buf != NULL));
+
+	/*
+	 * If the caller is a reader and didn't pass in a dnode, hold it.
+	 * Writers (re-)hold a dnode in dmu_ctx_setup_tx(), or if a tx
+	 * is specified, in dmu_issue().
+	 */
+	if (dn == NULL && (flags & DMU_CTX_FLAG_READ)) {
+		err = dnode_hold(os, object, tag, &dn);
+		if (err)
+			return (err);
+	}
+
+	/* All set, actually initialize the context! */
+	bzero(dmu_ctx, sizeof (dmu_ctx_t));
+	mutex_init(&dmu_ctx->dc_mtx, "context lock", MUTEX_DEFAULT, NULL);
+	dmu_ctx->dc_buf_ctx.dbc_flags = (flags & DMU_CTX_FLAG_ASYNC);
+	dmu_ctx->dc_dn = dn;
+	dmu_ctx->dc_os = os;
+	dmu_ctx->dc_object = object;
+	dmu_ctx->dc_size = size;
+	dmu_ctx->dc_flags = flags;
+	dmu_ctx_seek(dmu_ctx, offset, size, data_buf);
+	dmu_ctx->dc_tag = tag;
+
+	if ((dmu_ctx->dc_flags & (DMU_CTX_FLAG_ASYNC|DMU_CTX_FLAG_READ)) ==
+	    DMU_CTX_FLAG_READ)
+		cv_init(&dmu_ctx->dc_cv_done, NULL, CV_DEFAULT, NULL);
+
+	/* Initialize default I/O callbacks. */
+	if (dmu_ctx->dc_flags & DMU_CTX_FLAG_UIO) {
+#ifdef UIO_XUIO
+		uio_t *uio = (uio_t *)dmu_ctx->dc_data_buf;
+		if (uio->uio_extflg == UIO_XUIO) {
+			ASSERT(reader);
+			dmu_ctx->dc_data_transfer_cb = dmu_buf_read_xuio;
+		} else
+#endif
+		{
+			dmu_ctx->dc_data_transfer_cb = reader ?
+			    dmu_buf_read_uio : dmu_buf_write_uio;
+		}
+#if defined(_KERNEL) && !defined(__linux__)
+	} else if (dmu_ctx->dc_flags & DMU_CTX_FLAG_SUN_PAGES) {
+		/* implies writer */
+		dmu_ctx->dc_data_transfer_cb = dmu_buf_write_pages;
+#endif
+	} else {
+		dmu_ctx->dc_data_transfer_cb = reader ? dmu_buf_read_char :
+		    dmu_buf_write_char;
+	}
+	dmu_ctx->dc_buf_set_transfer_cb = reader ? dmu_buf_set_transfer :
+	    dmu_buf_set_transfer_write_tx;
+	if ((dmu_ctx->dc_flags & DMU_CTX_FLAG_NOFILL) == 0) {
+		dmu_ctx->dc_buf_transfer_cb = reader ?
+		    dmu_ctx->dc_data_transfer_cb :
+		    dmu_buf_transfer_write;
+	} else
+		dmu_ctx->dc_buf_transfer_cb = dmu_buf_transfer_nofill;
+
+	/* Initialize including a refcount for the initiator. */
+	zfs_refcount_create(&dmu_ctx->dc_holds);
+	zfs_refcount_add(&dmu_ctx->dc_holds, NULL);
+	return (0);
+}
+
+/*
+ * Update a DMU context for the next call.
+ *
+ * - dmu_ctx	The DMU context.
+ * - data_buf	The updated destination data buffer.
+ * - offset	The offset into the dnode.
+ * - size		The size of the next call.
+ */
+void
+dmu_ctx_seek(dmu_ctx_t *dmu_ctx, uint64_t offset, uint64_t size,
+    void *data_buf)
+{
+	dnode_t *dn = dmu_ctx->dc_dn;
+
+#ifdef ZFS_DEBUG
+	if (dmu_ctx->dc_flags & DMU_CTX_FLAG_UIO) {
+		uio_t *uio = (uio_t *)data_buf;
+		/* Make sure UIO callers pass in the correct offset. */
+		ASSERT(uio->uio_loffset == offset);
+	}
+	/* Make sure non-char * pointers stay the same. */
+	if (!dmu_ctx_buf_is_char(dmu_ctx))
+		ASSERT(dmu_ctx->dc_data_buf == NULL ||
+		    dmu_ctx->dc_data_buf == data_buf);
+#endif /* ZFS_DEBUG */
+
+	/*
+	 * Deal with odd block sizes, where there can't be data past
+	 * the first block.  If we ever do the tail block optimization,
+	 * we will need to handle that here as well.
+	 */
+	if ((dmu_ctx->dc_flags & DMU_CTX_FLAG_READ) && dn->dn_maxblkid == 0 &&
+	    dmu_ctx_buf_is_char(dmu_ctx)) {
+		int newsz = offset > dn->dn_datablksz ? 0 :
+		    MIN(size, dn->dn_datablksz - offset);
+		bzero((char *)data_buf + newsz, size - newsz);
+		size = newsz;
+	}
+	dmu_ctx->dc_dn_offset = offset;
+	dmu_ctx->dc_dn_start = offset;
+	dmu_ctx->dc_resid = size;
+	dmu_ctx->dc_resid_init = size;
+	dmu_ctx->dc_data_buf = data_buf;
+}
+
+static int
+dmu_async_impl(dmu_ctx_t *dc, dnode_t *dn, objset_t *os, uint64_t object,
+    uint64_t offset, uint64_t size, void *buf, uint32_t flags, dmu_tx_t *tx,
+    dmu_ctx_cb_t done_cb)
+{
+	int err;
+
+	err = dmu_ctx_init(dc, dn, os, object, offset,
+	    size, buf, FTAG, flags|DMU_CTX_FLAG_ASYNC);
+	if (err)
+		return (err);
+	dmu_ctx_set_complete_cb(dc, done_cb);
+
+	if ((flags & DMU_CTX_FLAG_READ) == 0)
+		dmu_ctx_set_dmu_tx(dc, tx);
+	err = dmu_issue(dc);
+	dmu_ctx_rele(dc);
+
+	return (err);
+}
+
+static int
+dmu_write_impl(dnode_t *dn, objset_t *os, uint64_t object, uint64_t offset,
+    uint64_t size, const void *buf, dmu_tx_t *tx, uint32_t flags)
+{
+	void *bufp = (void *)(uintptr_t)buf;
+	dmu_ctx_t dmu_ctx;
+	int err;
+
+	err = dmu_ctx_init(&dmu_ctx, dn, os, object, offset,
+	    size, bufp, FTAG, flags);
+	if (err == 0) {
+		dmu_ctx_set_dmu_tx(&dmu_ctx, tx);
+
+		err = dmu_issue(&dmu_ctx);
+		dmu_ctx_rele(&dmu_ctx);
+	}
+	return (err);
+}
+
+int
+dmu_read_async(dmu_ctx_t *dc, objset_t *os, uint64_t object, uint64_t offset,
+    uint64_t size, void *buf, uint32_t flags, dmu_ctx_cb_t done_cb)
+{
+
+	return (dmu_async_impl(dc, /* dnode */NULL, os, object, offset, size,
+	    buf, flags|DMU_CTX_FLAG_READ, NULL, done_cb));
+}
+
+int
+dmu_write_async(dmu_ctx_t *dc, objset_t *os, uint64_t object, uint64_t offset,
+    uint64_t size, void *buf, dmu_tx_t *tx, dmu_ctx_cb_t done_cb)
+{
+
+	return (dmu_async_impl(dc, /* dnode */NULL, os, object, offset, size,
+	    buf, /* flags */ 0, tx, done_cb));
+}
+
 static int
 dmu_buf_hold_noread_by_dnode(dnode_t *dn, uint64_t offset,
     void *tag, dmu_buf_t **dbp)
@@ -205,9 +1318,9 @@ dmu_buf_hold_by_dnode(dnode_t *dn, uint64_t offset,
 	int err;
 	int db_flags = DB_RF_CANFAIL;
 
-	if (flags & DMU_READ_NO_PREFETCH)
+	if ((flags & DMU_CTX_FLAG_PREFETCH) == 0)
 		db_flags |= DB_RF_NOPREFETCH;
-	if (flags & DMU_READ_NO_DECRYPT)
+	if (flags & DMU_CTX_FLAG_NODECRYPT)
 		db_flags |= DB_RF_NO_DECRYPT;
 
 	err = dmu_buf_hold_noread_by_dnode(dn, offset, tag, dbp);
@@ -230,9 +1343,9 @@ dmu_buf_hold(objset_t *os, uint64_t object, uint64_t offset,
 	int err;
 	int db_flags = DB_RF_CANFAIL;
 
-	if (flags & DMU_READ_NO_PREFETCH)
+	if ((flags & DMU_CTX_FLAG_PREFETCH) == 0)
 		db_flags |= DB_RF_NOPREFETCH;
-	if (flags & DMU_READ_NO_DECRYPT)
+	if (flags & DMU_CTX_FLAG_NODECRYPT)
 		db_flags |= DB_RF_NO_DECRYPT;
 
 	err = dmu_buf_hold_noread(os, object, offset, tag, dbp);
@@ -342,9 +1455,9 @@ int dmu_bonus_hold_by_dnode(dnode_t *dn, void *tag, dmu_buf_t **dbp,
 	int error;
 	uint32_t db_flags = DB_RF_MUST_SUCCEED;
 
-	if (flags & DMU_READ_NO_PREFETCH)
+	if ((flags & DMU_CTX_FLAG_PREFETCH) == 0)
 		db_flags |= DB_RF_NOPREFETCH;
-	if (flags & DMU_READ_NO_DECRYPT)
+	if (flags & DMU_CTX_FLAG_NODECRYPT)
 		db_flags |= DB_RF_NO_DECRYPT;
 
 	rw_enter(&dn->dn_struct_rwlock, RW_READER);
@@ -391,7 +1504,7 @@ dmu_bonus_hold(objset_t *os, uint64_t object, void *tag, dmu_buf_t **dbp)
 	if (error)
 		return (error);
 
-	error = dmu_bonus_hold_by_dnode(dn, tag, dbp, DMU_READ_NO_PREFETCH);
+	error = dmu_bonus_hold_by_dnode(dn, tag, dbp, 0);
 	dnode_rele(dn, FTAG);
 
 	return (error);
@@ -472,7 +1585,7 @@ dmu_spill_hold_by_bonus(dmu_buf_t *bonus, uint32_t flags, void *tag,
 	int err;
 	uint32_t db_flags = DB_RF_CANFAIL;
 
-	if (flags & DMU_READ_NO_DECRYPT)
+	if (flags & DMU_CTX_FLAG_NODECRYPT)
 		db_flags |= DB_RF_NO_DECRYPT;
 
 	DB_DNODE_ENTER(db);
@@ -481,160 +1594,6 @@ dmu_spill_hold_by_bonus(dmu_buf_t *bonus, uint32_t flags, void *tag,
 	DB_DNODE_EXIT(db);
 
 	return (err);
-}
-
-/*
- * Note: longer-term, we should modify all of the dmu_buf_*() interfaces
- * to take a held dnode rather than <os, object> -- the lookup is wasteful,
- * and can induce severe lock contention when writing to several files
- * whose dnodes are in the same block.
- */
-int
-dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
-    boolean_t read, void *tag, int *numbufsp, dmu_buf_t ***dbpp, uint32_t flags)
-{
-	dmu_buf_t **dbp;
-	uint64_t blkid, nblks, i;
-	uint32_t dbuf_flags;
-	int err;
-	zio_t *zio;
-
-	ASSERT(length <= DMU_MAX_ACCESS);
-
-	/*
-	 * Note: We directly notify the prefetch code of this read, so that
-	 * we can tell it about the multi-block read.  dbuf_read() only knows
-	 * about the one block it is accessing.
-	 */
-	dbuf_flags = DB_RF_CANFAIL | DB_RF_NEVERWAIT | DB_RF_HAVESTRUCT |
-	    DB_RF_NOPREFETCH;
-
-	rw_enter(&dn->dn_struct_rwlock, RW_READER);
-	if (dn->dn_datablkshift) {
-		int blkshift = dn->dn_datablkshift;
-		nblks = (P2ROUNDUP(offset + length, 1ULL << blkshift) -
-		    P2ALIGN(offset, 1ULL << blkshift)) >> blkshift;
-	} else {
-		if (offset + length > dn->dn_datablksz) {
-			zfs_panic_recover("zfs: accessing past end of object "
-			    "%llx/%llx (size=%u access=%llu+%llu)",
-			    (longlong_t)dn->dn_objset->
-			    os_dsl_dataset->ds_object,
-			    (longlong_t)dn->dn_object, dn->dn_datablksz,
-			    (longlong_t)offset, (longlong_t)length);
-			rw_exit(&dn->dn_struct_rwlock);
-			return (SET_ERROR(EIO));
-		}
-		nblks = 1;
-	}
-	dbp = kmem_zalloc(sizeof (dmu_buf_t *) * nblks, KM_SLEEP);
-
-	zio = zio_root(dn->dn_objset->os_spa, NULL, NULL, ZIO_FLAG_CANFAIL);
-	blkid = dbuf_whichblock(dn, 0, offset);
-	for (i = 0; i < nblks; i++) {
-		dmu_buf_impl_t *db = dbuf_hold(dn, blkid + i, tag);
-		if (db == NULL) {
-			rw_exit(&dn->dn_struct_rwlock);
-			dmu_buf_rele_array(dbp, nblks, tag);
-			zio_nowait(zio);
-			return (SET_ERROR(EIO));
-		}
-
-		/* initiate async i/o */
-		if (read)
-			(void) dbuf_read(db, zio, dbuf_flags);
-		dbp[i] = &db->db;
-	}
-
-	if ((flags & DMU_READ_NO_PREFETCH) == 0 &&
-	    DNODE_META_IS_CACHEABLE(dn) && length <= zfetch_array_rd_sz) {
-		dmu_zfetch(&dn->dn_zfetch, blkid, nblks,
-		    read && DNODE_IS_CACHEABLE(dn), B_TRUE);
-	}
-	rw_exit(&dn->dn_struct_rwlock);
-
-	/* wait for async i/o */
-	err = zio_wait(zio);
-	if (err) {
-		dmu_buf_rele_array(dbp, nblks, tag);
-		return (err);
-	}
-
-	/* wait for other io to complete */
-	if (read) {
-		for (i = 0; i < nblks; i++) {
-			dmu_buf_impl_t *db = (dmu_buf_impl_t *)dbp[i];
-			mutex_enter(&db->db_mtx);
-			while (db->db_state == DB_READ ||
-			    db->db_state == DB_FILL)
-				cv_wait(&db->db_changed, &db->db_mtx);
-			if (db->db_state == DB_UNCACHED)
-				err = SET_ERROR(EIO);
-			mutex_exit(&db->db_mtx);
-			if (err) {
-				dmu_buf_rele_array(dbp, nblks, tag);
-				return (err);
-			}
-		}
-	}
-
-	*numbufsp = nblks;
-	*dbpp = dbp;
-	return (0);
-}
-
-static int
-dmu_buf_hold_array(objset_t *os, uint64_t object, uint64_t offset,
-    uint64_t length, int read, void *tag, int *numbufsp, dmu_buf_t ***dbpp)
-{
-	dnode_t *dn;
-	int err;
-
-	err = dnode_hold(os, object, FTAG, &dn);
-	if (err)
-		return (err);
-
-	err = dmu_buf_hold_array_by_dnode(dn, offset, length, read, tag,
-	    numbufsp, dbpp, DMU_READ_PREFETCH);
-
-	dnode_rele(dn, FTAG);
-
-	return (err);
-}
-
-int
-dmu_buf_hold_array_by_bonus(dmu_buf_t *db_fake, uint64_t offset,
-    uint64_t length, boolean_t read, void *tag, int *numbufsp,
-    dmu_buf_t ***dbpp)
-{
-	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
-	dnode_t *dn;
-	int err;
-
-	DB_DNODE_ENTER(db);
-	dn = DB_DNODE(db);
-	err = dmu_buf_hold_array_by_dnode(dn, offset, length, read, tag,
-	    numbufsp, dbpp, DMU_READ_PREFETCH);
-	DB_DNODE_EXIT(db);
-
-	return (err);
-}
-
-void
-dmu_buf_rele_array(dmu_buf_t **dbp_fake, int numbufs, void *tag)
-{
-	int i;
-	dmu_buf_impl_t **dbp = (dmu_buf_impl_t **)dbp_fake;
-
-	if (numbufs == 0)
-		return;
-
-	for (i = 0; i < numbufs; i++) {
-		if (dbp[i])
-			dbuf_rele(dbp[i], tag);
-	}
-
-	kmem_free(dbp, sizeof (dmu_buf_t *) * numbufs);
 }
 
 /*
@@ -965,55 +1924,20 @@ dmu_free_range(objset_t *os, uint64_t object, uint64_t offset,
 }
 
 static int
-dmu_read_impl(dnode_t *dn, uint64_t offset, uint64_t size,
-    void *buf, uint32_t flags)
+dmu_read_impl(dnode_t *dn, objset_t *os, uint64_t object, uint64_t offset,
+    uint64_t size, void *buf, uint32_t flags)
 {
-	dmu_buf_t **dbp;
-	int numbufs, err = 0;
+	int err;
+	dmu_ctx_t dmu_ctx;
 
-	/*
-	 * Deal with odd block sizes, where there can't be data past the first
-	 * block.  If we ever do the tail block optimization, we will need to
-	 * handle that here as well.
-	 */
-	if (dn->dn_maxblkid == 0) {
-		uint64_t newsz = offset > dn->dn_datablksz ? 0 :
-		    MIN(size, dn->dn_datablksz - offset);
-		bzero((char *)buf + newsz, size - newsz);
-		size = newsz;
-	}
+	err = dmu_ctx_init(&dmu_ctx, dn, os, object, offset,
+	    size, buf, FTAG, flags|DMU_CTX_FLAG_READ);
+	if (err)
+		return (err);
 
-	while (size > 0) {
-		uint64_t mylen = MIN(size, DMU_MAX_ACCESS / 2);
-		int i;
+	err = dmu_issue(&dmu_ctx);
+	dmu_ctx_rele(&dmu_ctx);
 
-		/*
-		 * NB: we could do this block-at-a-time, but it's nice
-		 * to be reading in parallel.
-		 */
-		err = dmu_buf_hold_array_by_dnode(dn, offset, mylen,
-		    TRUE, FTAG, &numbufs, &dbp, flags);
-		if (err)
-			break;
-
-		for (i = 0; i < numbufs; i++) {
-			uint64_t tocpy;
-			int64_t bufoff;
-			dmu_buf_t *db = dbp[i];
-
-			ASSERT(size > 0);
-
-			bufoff = offset - db->db_offset;
-			tocpy = MIN(db->db_size - bufoff, size);
-
-			(void) memcpy(buf, (char *)db->db_data + bufoff, tocpy);
-
-			offset += tocpy;
-			size -= tocpy;
-			buf = (char *)buf + tocpy;
-		}
-		dmu_buf_rele_array(dbp, numbufs, FTAG);
-	}
 	return (err);
 }
 
@@ -1021,113 +1945,55 @@ int
 dmu_read(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
     void *buf, uint32_t flags)
 {
-	dnode_t *dn;
-	int err;
 
-	err = dnode_hold(os, object, FTAG, &dn);
-	if (err != 0)
-		return (err);
-
-	err = dmu_read_impl(dn, offset, size, buf, flags);
-	dnode_rele(dn, FTAG);
-	return (err);
+	return (dmu_read_impl(/* dnode */NULL, os, object, offset, size,
+	    buf, flags));
 }
 
 int
 dmu_read_by_dnode(dnode_t *dn, uint64_t offset, uint64_t size, void *buf,
     uint32_t flags)
 {
-	return (dmu_read_impl(dn, offset, size, buf, flags));
-}
 
-static void
-dmu_write_impl(dmu_buf_t **dbp, int numbufs, uint64_t offset, uint64_t size,
-    const void *buf, dmu_tx_t *tx)
-{
-	int i;
-
-	for (i = 0; i < numbufs; i++) {
-		uint64_t tocpy;
-		int64_t bufoff;
-		dmu_buf_t *db = dbp[i];
-
-		ASSERT(size > 0);
-
-		bufoff = offset - db->db_offset;
-		tocpy = MIN(db->db_size - bufoff, size);
-
-		ASSERT(i == 0 || i == numbufs-1 || tocpy == db->db_size);
-
-		if (tocpy == db->db_size)
-			dmu_buf_will_fill(db, tx);
-		else
-			dmu_buf_will_dirty(db, tx);
-
-		(void) memcpy((char *)db->db_data + bufoff, buf, tocpy);
-
-		if (tocpy == db->db_size)
-			dmu_buf_fill_done(db, tx);
-
-		offset += tocpy;
-		size -= tocpy;
-		buf = (char *)buf + tocpy;
-	}
+	return (dmu_read_impl(dn, dn->dn_objset, dn->dn_object, offset, size,
+	    buf, flags|DMU_CTX_FLAG_NO_HOLD));
 }
 
 void
 dmu_write(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
     const void *buf, dmu_tx_t *tx)
 {
-	dmu_buf_t **dbp;
-	int numbufs;
-
-	if (size == 0)
-		return;
-
-	VERIFY0(dmu_buf_hold_array(os, object, offset, size,
-	    FALSE, FTAG, &numbufs, &dbp));
-	dmu_write_impl(dbp, numbufs, offset, size, buf, tx);
-	dmu_buf_rele_array(dbp, numbufs, FTAG);
+	dmu_write_impl(/* dnode */ NULL, os, object, offset, size, buf, tx, 0);
 }
 
-/*
- * Note: Lustre is an external consumer of this interface.
- */
 void
 dmu_write_by_dnode(dnode_t *dn, uint64_t offset, uint64_t size,
     const void *buf, dmu_tx_t *tx)
 {
-	dmu_buf_t **dbp;
-	int numbufs;
 
-	if (size == 0)
-		return;
-
-	VERIFY0(dmu_buf_hold_array_by_dnode(dn, offset, size,
-	    FALSE, FTAG, &numbufs, &dbp, DMU_READ_PREFETCH));
-	dmu_write_impl(dbp, numbufs, offset, size, buf, tx);
-	dmu_buf_rele_array(dbp, numbufs, FTAG);
+	dmu_write_impl(dn, dn->dn_objset, dn->dn_object, offset, size, buf,
+	    tx, 0);
 }
 
-void
+int
 dmu_prealloc(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
     dmu_tx_t *tx)
 {
-	dmu_buf_t **dbp;
-	int numbufs, i;
+	dmu_ctx_t dc;
+	int err;
 
 	if (size == 0)
-		return;
+		return (0);
 
-	VERIFY(0 == dmu_buf_hold_array(os, object, offset, size,
-	    FALSE, FTAG, &numbufs, &dbp));
+	err = dmu_ctx_init(&dc, /* dnode */ NULL, os, object, offset, size,
+	    /* data_buf */ NULL, FTAG, DMU_CTX_FLAG_NOFILL);
+	if (err)
+		return (err);
 
-	for (i = 0; i < numbufs; i++) {
-		dmu_buf_t *db = dbp[i];
-
-		dmu_buf_will_not_fill(db, tx);
-	}
-	dmu_buf_rele_array(dbp, numbufs, FTAG);
+	dmu_ctx_set_dmu_tx(&dc, tx);
+	err = dmu_issue(&dc);
+	dmu_ctx_rele(&dc);
+	return (err);
 }
 
 void
@@ -1149,18 +2015,39 @@ dmu_write_embedded(objset_t *os, uint64_t object, uint64_t offset,
 	dmu_buf_rele(db, FTAG);
 }
 
+typedef struct dmu_redact_cb_ctx {
+	dmu_ctx_t dc;
+	dmu_tx_t *tx;
+} dmu_redact_cb_ctx_t;
+
+static void
+dmu_redact_cb(dmu_buf_set_t *dbs)
+{
+	dmu_buf_t **dbp;
+	int numbufs, i;
+	dmu_redact_cb_ctx_t *ctx;
+
+	dbp = dbs->dbs_dbp;
+	numbufs = dbs->dbs_count;
+	ctx = (dmu_redact_cb_ctx_t *)dbs->dbs_dc;
+
+	for (i = 0; i < numbufs; i++)
+		dmu_buf_redact(dbp[i], ctx->tx);
+}
+
 void
 dmu_redact(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
     dmu_tx_t *tx)
 {
-	int numbufs, i;
-	dmu_buf_t **dbp;
+	dmu_redact_cb_ctx_t ctx;
+	uint32_t dmu_flags = DMU_CTX_FLAG_READ | DMU_CTX_FLAG_NOFILL;
 
-	VERIFY0(dmu_buf_hold_array(os, object, offset, size, FALSE, FTAG,
-	    &numbufs, &dbp));
-	for (i = 0; i < numbufs; i++)
-		dmu_buf_redact(dbp[i], tx);
-	dmu_buf_rele_array(dbp, numbufs, FTAG);
+	ctx.tx = tx;
+	VERIFY0(dmu_ctx_init(&ctx.dc, /* dnode */ NULL, os,
+	    object, offset, size, /* data_buf */ NULL, FTAG, dmu_flags));
+	dmu_ctx_set_buf_set_transfer_cb(&ctx.dc, dmu_redact_cb);
+	dmu_issue(&ctx.dc);
+	dmu_ctx_rele(&ctx.dc);
 }
 
 /*
@@ -1313,65 +2200,12 @@ xuio_stat_wbuf_nocopy(void)
 	XUIOSTAT_BUMP(xuiostat_wbuf_nocopy);
 }
 
-#ifdef _KERNEL
 int
 dmu_read_uio_dnode(dnode_t *dn, uio_t *uio, uint64_t size)
 {
-	dmu_buf_t **dbp;
-	int numbufs, i, err;
-#ifdef HAVE_UIO_ZEROCOPY
-	xuio_t *xuio = NULL;
-#endif
 
-	/*
-	 * NB: we could do this block-at-a-time, but it's nice
-	 * to be reading in parallel.
-	 */
-	err = dmu_buf_hold_array_by_dnode(dn, uio_offset(uio), size,
-	    TRUE, FTAG, &numbufs, &dbp, 0);
-	if (err)
-		return (err);
-
-	for (i = 0; i < numbufs; i++) {
-		uint64_t tocpy;
-		int64_t bufoff;
-		dmu_buf_t *db = dbp[i];
-
-		ASSERT(size > 0);
-
-		bufoff = uio_offset(uio) - db->db_offset;
-		tocpy = MIN(db->db_size - bufoff, size);
-
-#ifdef HAVE_UIO_ZEROCOPY
-		if (xuio) {
-			dmu_buf_impl_t *dbi = (dmu_buf_impl_t *)db;
-			arc_buf_t *dbuf_abuf = dbi->db_buf;
-			arc_buf_t *abuf = dbuf_loan_arcbuf(dbi);
-			err = dmu_xuio_add(xuio, abuf, bufoff, tocpy);
-			if (!err)
-				uio_advance(uio, tocpy);
-
-			if (abuf == dbuf_abuf)
-				XUIOSTAT_BUMP(xuiostat_rbuf_nocopy);
-			else
-				XUIOSTAT_BUMP(xuiostat_rbuf_copied);
-		} else
-#endif
-#ifdef __FreeBSD__
-			err = vn_io_fault_uiomove((char *)db->db_data + bufoff,
-			    tocpy, uio);
-#else
-			err = uiomove((char *)db->db_data + bufoff, tocpy,
-			    UIO_READ, uio);
-#endif
-		if (err)
-			break;
-
-		size -= tocpy;
-	}
-	dmu_buf_rele_array(dbp, numbufs, FTAG);
-
-	return (err);
+	return (dmu_read_impl(dn, NULL, 0, uio->uio_loffset, size, uio,
+	    DMU_CTX_FLAG_UIO|DMU_CTX_FLAG_NO_HOLD|DMU_CTX_FLAG_PREFETCH));
 }
 
 /*
@@ -1409,79 +2243,24 @@ dmu_read_uio_dbuf(dmu_buf_t *zdb, uio_t *uio, uint64_t size)
 int
 dmu_read_uio(objset_t *os, uint64_t object, uio_t *uio, uint64_t size)
 {
-	dnode_t *dn;
-	int err;
 
 	if (size == 0)
 		return (0);
 
-	err = dnode_hold(os, object, FTAG, &dn);
-	if (err)
-		return (err);
-
-	err = dmu_read_uio_dnode(dn, uio, size);
-
-	dnode_rele(dn, FTAG);
-
-	return (err);
+	return (dmu_read_impl(NULL, os, object, uio->uio_loffset, size, uio,
+	    DMU_CTX_FLAG_UIO));
 }
 
 int
 dmu_write_uio_dnode(dnode_t *dn, uio_t *uio, uint64_t size, dmu_tx_t *tx)
 {
-	dmu_buf_t **dbp;
-	int numbufs;
-	int err = 0;
-	int i;
 
-	err = dmu_buf_hold_array_by_dnode(dn, uio_offset(uio), size,
-	    FALSE, FTAG, &numbufs, &dbp, DMU_READ_PREFETCH);
-	if (err)
-		return (err);
+	if (size == 0)
+		return (0);
 
-	for (i = 0; i < numbufs; i++) {
-		uint64_t tocpy;
-		int64_t bufoff;
-		dmu_buf_t *db = dbp[i];
-
-		ASSERT(size > 0);
-
-		bufoff = uio_offset(uio) - db->db_offset;
-		tocpy = MIN(db->db_size - bufoff, size);
-
-		ASSERT(i == 0 || i == numbufs-1 || tocpy == db->db_size);
-
-		if (tocpy == db->db_size)
-			dmu_buf_will_fill(db, tx);
-		else
-			dmu_buf_will_dirty(db, tx);
-
-		/*
-		 * XXX uiomove could block forever (eg.nfs-backed
-		 * pages).  There needs to be a uiolockdown() function
-		 * to lock the pages in memory, so that uiomove won't
-		 * block.
-		 */
-#ifdef __FreeBSD__
-		err = vn_io_fault_uiomove((char *)db->db_data + bufoff,
-		    tocpy, uio);
-#else
-		err = uiomove((char *)db->db_data + bufoff, tocpy,
-		    UIO_WRITE, uio);
-#endif
-		if (tocpy == db->db_size)
-			dmu_buf_fill_done(db, tx);
-
-		if (err)
-			break;
-
-		size -= tocpy;
-	}
-
-	dmu_buf_rele_array(dbp, numbufs, FTAG);
-	return (err);
+	return (dmu_write_impl(dn, NULL, 0, uio->uio_loffset, size, uio, tx,
+	    DMU_CTX_FLAG_UIO|DMU_CTX_FLAG_NO_HOLD));
 }
-
 /*
  * Write 'size' bytes from the uio buffer.
  * To object zdb->db_object.
@@ -1504,9 +2283,9 @@ dmu_write_uio_dbuf(dmu_buf_t *zdb, uio_t *uio, uint64_t size,
 
 	DB_DNODE_ENTER(db);
 	dn = DB_DNODE(db);
-	err = dmu_write_uio_dnode(dn, uio, size, tx);
+	err = dmu_write_impl(dn, NULL, 0, uio->uio_loffset, size, uio, tx,
+	    DMU_CTX_FLAG_UIO|DMU_CTX_FLAG_NO_HOLD);
 	DB_DNODE_EXIT(db);
-
 	return (err);
 }
 
@@ -1519,23 +2298,12 @@ int
 dmu_write_uio(objset_t *os, uint64_t object, uio_t *uio, uint64_t size,
     dmu_tx_t *tx)
 {
-	dnode_t *dn;
-	int err;
 
 	if (size == 0)
 		return (0);
-
-	err = dnode_hold(os, object, FTAG, &dn);
-	if (err)
-		return (err);
-
-	err = dmu_write_uio_dnode(dn, uio, size, tx);
-
-	dnode_rele(dn, FTAG);
-
-	return (err);
+	return (dmu_write_impl(NULL, os, object, uio->uio_loffset, size,
+	    uio, tx, DMU_CTX_FLAG_UIO));
 }
-#endif /* _KERNEL */
 
 /*
  * Allocate a loaned anonymous arc buffer.
@@ -2431,8 +3199,6 @@ dmu_fini(void)
 
 EXPORT_SYMBOL(dmu_bonus_hold);
 EXPORT_SYMBOL(dmu_bonus_hold_by_dnode);
-EXPORT_SYMBOL(dmu_buf_hold_array_by_bonus);
-EXPORT_SYMBOL(dmu_buf_rele_array);
 EXPORT_SYMBOL(dmu_prefetch);
 EXPORT_SYMBOL(dmu_free_range);
 EXPORT_SYMBOL(dmu_free_long_range);

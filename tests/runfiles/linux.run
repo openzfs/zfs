@@ -152,7 +152,7 @@ tests = ['projectid_001_pos', 'projectid_002_pos', 'projectid_003_pos',
 tags = ['functional', 'projectquota']
 
 [tests/functional/rsend:Linux]
-tests = ['send_realloc_dnode_size', 'send_encrypted_files']
+tests = ['send_realloc_dnode_size']
 tags = ['functional', 'rsend']
 
 [tests/functional/snapshot:Linux]

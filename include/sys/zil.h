@@ -495,6 +495,8 @@ extern void	zil_itx_assign(zilog_t *zilog, itx_t *itx, dmu_tx_t *tx);
 
 extern void	zil_async_to_sync(zilog_t *zilog, uint64_t oid);
 extern void	zil_commit(zilog_t *zilog, uint64_t oid);
+extern int	zil_commit_async(zilog_t *zilog, uint64_t foid,
+    callback_fn cb, void *arg);
 extern void	zil_commit_impl(zilog_t *zilog, uint64_t oid);
 extern void	zil_remove_async(zilog_t *zilog, uint64_t oid);
 

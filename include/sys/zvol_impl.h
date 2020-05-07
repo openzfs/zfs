@@ -45,6 +45,7 @@ typedef struct zvol_state {
 	objset_t		*zv_objset;	/* objset handle */
 	uint32_t		zv_flags;	/* ZVOL_* flags */
 	uint32_t		zv_open_count;	/* open counts */
+	uint32_t		zv_active;	/* requests in process */
 	uint32_t		zv_changed;	/* disk changed */
 	zilog_t			*zv_zilog;	/* ZIL handle */
 	zfs_rangelock_t		zv_rangelock;	/* for range locking */
@@ -56,9 +57,29 @@ typedef struct zvol_state {
 	kmutex_t		zv_state_lock;	/* protects zvol_state_t */
 	atomic_t		zv_suspend_ref;	/* refcount for suspend */
 	krwlock_t		zv_suspend_lock;	/* suspend lock */
+	list_t			zv_deferred;	/* deferred requests */
 	struct zvol_state_os	*zv_zso;	/* private platform state */
 } zvol_state_t;
 
+typedef struct zvol_dmu_state {
+	/*
+	 * The DMU context associated with this DMU state.  Note that this
+	 * must be the first entry in order for the callback to be able to
+	 * discover the zvol_dmu_state_t.
+	 */
+	dmu_ctx_t zds_dc;
+	zvol_state_t *zds_zv;
+	uint64_t zds_off;
+	uint64_t zds_io_size;
+	dmu_ctx_cb_t zds_dmu_done;
+	dmu_ctx_cb_t zds_dmu_err;
+	struct zfs_locked_range *zds_lr;
+	void *zds_data;
+	list_node_t zds_defer_node;
+	uint32_t zds_dmu_flags;
+	boolean_t zds_sync;
+	boolean_t zds_retry;
+} zvol_dmu_state_t;
 
 extern list_t zvol_state_list;
 extern krwlock_t zvol_state_lock;
@@ -86,6 +107,11 @@ void zvol_log_write(zvol_state_t *zv, dmu_tx_t *tx, uint64_t offset,
     uint64_t size, int sync);
 int zvol_get_data(void *arg, lr_write_t *lr, char *buf, struct lwb *lwb,
     zio_t *zio);
+int zvol_dmu_ctx_init(zvol_dmu_state_t *zds);
+void zvol_dmu_issue(zvol_dmu_state_t *zds);
+boolean_t zvol_dmu_max_active(zvol_state_t *zv);
+void zvol_dmu_ctx_init_enqueue(zvol_dmu_state_t *zds);
+int zvol_dmu_done(dmu_ctx_t *dmu_ctx, callback_fn cb, void *arg);
 int zvol_init_impl(void);
 void zvol_fini_impl(void);
 

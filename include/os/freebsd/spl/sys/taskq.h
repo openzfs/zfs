@@ -37,9 +37,12 @@ extern "C" {
 #endif
 
 #define	TASKQ_NAMELEN	31
+typedef void (*taskq_callback_fn)(void *);
 
 typedef struct taskq {
 	struct taskqueue	*tq_queue;
+	taskq_callback_fn	tq_ctor;
+	taskq_callback_fn	tq_dtor;
 } taskq_t;
 
 typedef uintptr_t taskqid_t;
@@ -93,7 +96,7 @@ extern int taskq_empty_ent(taskq_ent_t *);
 taskq_t	*taskq_create(const char *, int, pri_t, int, int, uint_t);
 taskq_t	*taskq_create_instance(const char *, int, int, pri_t, int, int, uint_t);
 taskq_t	*taskq_create_proc(const char *, int, pri_t, int, int,
-    struct proc *, uint_t);
+    struct proc *, uint_t,    taskq_callback_fn, taskq_callback_fn);
 taskq_t	*taskq_create_sysdc(const char *, int, int, int,
     struct proc *, uint_t, uint_t);
 void	nulltask(void *);

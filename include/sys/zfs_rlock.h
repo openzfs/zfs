@@ -50,20 +50,25 @@ typedef struct zfs_rangelock {
 	kmutex_t rl_lock;
 	zfs_rangelock_cb_t *rl_cb;
 	void *rl_arg;
+	list_t rl_free;
+	uint8_t rl_processing;
 } zfs_rangelock_t;
 
 typedef struct zfs_locked_range {
 	zfs_rangelock_t *lr_rangelock; /* rangelock that this lock applies to */
+	kthread_t *lr_owner; /* thread holding the locked range */
+	void *lr_context; /* context referencing locked range */
 	avl_node_t lr_node;	/* avl node link */
 	uint64_t lr_offset;	/* file range offset */
 	uint64_t lr_length;	/* file range length */
+	uint64_t lr_orig_offset;	/* file range offset */
+	uint64_t lr_orig_length;	/* file range length */
 	uint_t lr_count;	/* range reference count in tree */
 	zfs_rangelock_type_t lr_type; /* range type */
-	kcondvar_t lr_write_cv;	/* cv for waiting writers */
-	kcondvar_t lr_read_cv;	/* cv for waiting readers */
+	zfs_rangelock_type_t lr_orig_type; /* range type */
+	list_t lr_cb; /* list of waiters */
 	uint8_t lr_proxy;	/* acting for original range */
 	uint8_t lr_write_wanted; /* writer wants to lock this range */
-	uint8_t lr_read_wanted;	/* reader wants to lock this range */
 } zfs_locked_range_t;
 
 void zfs_rangelock_init(zfs_rangelock_t *, zfs_rangelock_cb_t *, void *);
@@ -73,6 +78,10 @@ zfs_locked_range_t *zfs_rangelock_enter(zfs_rangelock_t *,
     uint64_t, uint64_t, zfs_rangelock_type_t);
 zfs_locked_range_t *zfs_rangelock_tryenter(zfs_rangelock_t *,
     uint64_t, uint64_t, zfs_rangelock_type_t);
+int zfs_rangelock_tryenter_async(zfs_rangelock_t *rl, uint64_t off,
+    uint64_t len, zfs_rangelock_type_t type, zfs_locked_range_t **lr,
+    callback_fn cb, void *arg);
+
 void zfs_rangelock_exit(zfs_locked_range_t *);
 void zfs_rangelock_reduce(zfs_locked_range_t *, uint64_t, uint64_t);
 

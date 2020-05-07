@@ -196,6 +196,7 @@
 #include <sys/rrwlock.h>
 #include <sys/zfs_file.h>
 
+#include <sys/dbuf.h>
 #include <sys/dmu_recv.h>
 #include <sys/dmu_send.h>
 #include <sys/dmu_recv.h>
@@ -7577,9 +7578,13 @@ zfs_kmod_init(void)
 {
 	int error;
 
-	if ((error = zvol_init()) != 0)
-		return (error);
+	tsd_create(&zfs_async_io_key, dmu_thread_context_destroy);
+	ASSERT(zfs_async_io_key != 0);
 
+	if ((error = zvol_init()) != 0) {
+		tsd_destroy(&zfs_async_io_key);
+		return (error);
+	}
 	spa_init(SPA_MODE_READ | SPA_MODE_WRITE);
 	zfs_init();
 
@@ -7588,6 +7593,7 @@ zfs_kmod_init(void)
 	mutex_init(&zfsdev_state_lock, NULL, MUTEX_DEFAULT, NULL);
 	zfsdev_state_list = kmem_zalloc(sizeof (zfsdev_state_t), KM_SLEEP);
 	zfsdev_state_list->zs_minor = -1;
+
 
 	if ((error = zfsdev_attach()) != 0)
 		goto out;
@@ -7598,6 +7604,7 @@ zfs_kmod_init(void)
 
 	return (0);
 out:
+	tsd_destroy(&zfs_async_io_key);
 	zfs_fini();
 	spa_fini();
 	zvol_fini();
@@ -7629,4 +7636,5 @@ zfs_kmod_fini(void)
 	tsd_destroy(&zfs_fsyncer_key);
 	tsd_destroy(&rrw_tsd_key);
 	tsd_destroy(&zfs_allow_log_key);
+	tsd_destroy(&zfs_async_io_key);
 }

@@ -220,7 +220,8 @@ dmu_tx_check_ioerr(zio_t *zio, dnode_t *dn, int level, uint64_t blkid)
 
 /* ARGSUSED */
 static void
-dmu_tx_count_write(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
+dmu_tx_count_write(dmu_tx_hold_t *txh, uint64_t off, uint64_t len,
+    boolean_t sync)
 {
 	dnode_t *dn = txh->txh_dnode;
 	int err = 0;
@@ -250,28 +251,14 @@ dmu_tx_count_write(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 				txh->txh_tx->tx_err = err;
 			}
 		}
-	} else {
+	} else if (sync) {
 		zio_t *zio = zio_root(dn->dn_objset->os_spa,
 		    NULL, NULL, ZIO_FLAG_CANFAIL);
 
 		/* first level-0 block */
 		uint64_t start = off >> dn->dn_datablkshift;
-		if (P2PHASE(off, dn->dn_datablksz) || len < dn->dn_datablksz) {
-			err = dmu_tx_check_ioerr(zio, dn, 0, start);
-			if (err != 0) {
-				txh->txh_tx->tx_err = err;
-			}
-		}
-
 		/* last level-0 block */
 		uint64_t end = (off + len - 1) >> dn->dn_datablkshift;
-		if (end != start && end <= dn->dn_maxblkid &&
-		    P2PHASE(off + len, dn->dn_datablksz)) {
-			err = dmu_tx_check_ioerr(zio, dn, 0, end);
-			if (err != 0) {
-				txh->txh_tx->tx_err = err;
-			}
-		}
 
 		/* level-1 blocks */
 		if (dn->dn_nlevels > 1) {
@@ -300,7 +287,8 @@ dmu_tx_count_dnode(dmu_tx_hold_t *txh)
 }
 
 void
-dmu_tx_hold_write(dmu_tx_t *tx, uint64_t object, uint64_t off, int len)
+dmu_tx_hold_write_impl(dmu_tx_t *tx, uint64_t object, uint64_t off, int len,
+    boolean_t sync)
 {
 	dmu_tx_hold_t *txh;
 
@@ -311,13 +299,21 @@ dmu_tx_hold_write(dmu_tx_t *tx, uint64_t object, uint64_t off, int len)
 	txh = dmu_tx_hold_object_impl(tx, tx->tx_objset,
 	    object, THT_WRITE, off, len);
 	if (txh != NULL) {
-		dmu_tx_count_write(txh, off, len);
+		dmu_tx_count_write(txh, off, len, sync);
 		dmu_tx_count_dnode(txh);
 	}
 }
 
 void
-dmu_tx_hold_write_by_dnode(dmu_tx_t *tx, dnode_t *dn, uint64_t off, int len)
+dmu_tx_hold_write(dmu_tx_t *tx, uint64_t object, uint64_t off, int len)
+{
+
+	dmu_tx_hold_write_impl(tx, object, off, len, B_TRUE);
+}
+
+void
+dmu_tx_hold_write_by_dnode_impl(dmu_tx_t *tx, dnode_t *dn, uint64_t off,
+    int len, boolean_t sync)
 {
 	dmu_tx_hold_t *txh;
 
@@ -327,9 +323,17 @@ dmu_tx_hold_write_by_dnode(dmu_tx_t *tx, dnode_t *dn, uint64_t off, int len)
 
 	txh = dmu_tx_hold_dnode_impl(tx, dn, THT_WRITE, off, len);
 	if (txh != NULL) {
-		dmu_tx_count_write(txh, off, len);
+		dmu_tx_count_write(txh, off, len, sync);
 		dmu_tx_count_dnode(txh);
 	}
+}
+
+void
+dmu_tx_hold_write_by_dnode(dmu_tx_t *tx, dnode_t *dn, uint64_t off,
+    int len)
+{
+
+	dmu_tx_hold_write_by_dnode_impl(tx, dn, off, len, B_TRUE);
 }
 
 /*
@@ -347,7 +351,8 @@ dmu_tx_mark_netfree(dmu_tx_t *tx)
 }
 
 static void
-dmu_tx_hold_free_impl(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
+dmu_tx_hold_free_impl(dmu_tx_hold_t *txh, uint64_t off, uint64_t len,
+    boolean_t sync)
 {
 	dmu_tx_t *tx = txh->txh_tx;
 	dnode_t *dn = txh->txh_dnode;
@@ -375,14 +380,14 @@ dmu_tx_hold_free_impl(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 	 */
 	if (dn->dn_datablkshift == 0) {
 		if (off != 0 || len < dn->dn_datablksz)
-			dmu_tx_count_write(txh, 0, dn->dn_datablksz);
+			dmu_tx_count_write(txh, 0, dn->dn_datablksz, sync);
 	} else {
 		/* first block will be modified if it is not aligned */
 		if (!IS_P2ALIGNED(off, 1 << dn->dn_datablkshift))
-			dmu_tx_count_write(txh, off, 1);
+			dmu_tx_count_write(txh, off, 1, sync);
 		/* last block will be modified if it is not aligned */
 		if (!IS_P2ALIGNED(off + len, 1 << dn->dn_datablkshift))
-			dmu_tx_count_write(txh, off + len, 1);
+			dmu_tx_count_write(txh, off + len, 1, sync);
 	}
 
 	/*
@@ -443,8 +448,11 @@ dmu_tx_hold_free(dmu_tx_t *tx, uint64_t object, uint64_t off, uint64_t len)
 
 	txh = dmu_tx_hold_object_impl(tx, tx->tx_objset,
 	    object, THT_FREE, off, len);
+	/*
+	 * Always treat as synchronous for now
+	 */
 	if (txh != NULL)
-		(void) dmu_tx_hold_free_impl(txh, off, len);
+		(void) dmu_tx_hold_free_impl(txh, off, len, B_TRUE);
 }
 
 void
@@ -454,7 +462,7 @@ dmu_tx_hold_free_by_dnode(dmu_tx_t *tx, dnode_t *dn, uint64_t off, uint64_t len)
 
 	txh = dmu_tx_hold_dnode_impl(tx, dn, THT_FREE, off, len);
 	if (txh != NULL)
-		(void) dmu_tx_hold_free_impl(txh, off, len);
+		(void) dmu_tx_hold_free_impl(txh, off, len, B_TRUE);
 }
 
 static void
@@ -1356,6 +1364,277 @@ dmu_tx_hold_sa(dmu_tx_t *tx, sa_handle_t *hdl, boolean_t may_grow)
 		}
 		DB_DNODE_EXIT(db);
 	}
+}
+
+static void
+dmu_tx_buf_set_ready(dmu_buf_ctx_t *ctx, int err)
+{
+	dmu_tx_buf_set_t *dtbs = (dmu_tx_buf_set_t *)ctx;
+	boolean_t sync;
+	dmu_buf_impl_t *db;
+
+	if (err)
+		dtbs->dtbs_err = err;
+
+	sync = ((ctx->dbc_flags & DMU_CTX_FLAG_ASYNC) == 0);
+	for (int i = 0; i < dtbs->dtbs_count; i++) {
+		db = (dmu_buf_impl_t *)dtbs->dtbs_dbid[i].dbi_buf;
+
+		ASSERT(dtbs->dtbs_err == 0 || db != NULL);
+		if (db)
+			dbuf_rele(db, dtbs->dtbs_tag);
+	}
+	mutex_destroy(&dtbs->dtbs_mtx);
+	if (sync)
+		cv_destroy(&dtbs->dtbs_cv_done);
+	zfs_refcount_destroy(&dtbs->dtbs_holds);
+	kmem_free(dtbs->dtbs_dbid, dtbs->dtbs_count * sizeof (dmu_buf_id_t));
+
+	if (dtbs->dtbs_completed_cb != NULL)
+		dtbs->dtbs_completed_cb(dtbs);
+}
+
+static void
+dmu_tx_buf_set_rele_impl(dmu_buf_ctx_t *ctx, int err)
+{
+	dmu_tx_buf_set_t *dtbs = (dmu_tx_buf_set_t *)ctx;
+	boolean_t sync, drop_lock = B_FALSE;
+	int count;
+
+	sync = ((ctx->dbc_flags & DMU_CTX_FLAG_ASYNC) == 0);
+	if (sync && zfs_refcount_count(&dtbs->dtbs_holds) > 1) {
+		mutex_enter(&dtbs->dtbs_mtx);
+		drop_lock = B_TRUE;
+	}
+	/* If we are finished, schedule this buffer set for delivery. */
+	ASSERT(!zfs_refcount_is_zero(&dtbs->dtbs_holds));
+	count = zfs_refcount_remove(&dtbs->dtbs_holds, NULL);
+	if (drop_lock) {
+		if (count == 1)
+			cv_broadcast(&dtbs->dtbs_cv_done);
+		mutex_exit(&dtbs->dtbs_mtx);
+	}
+	if (count != 0)
+		return;
+
+	dmu_thread_context_dispatch(ctx, err, dmu_tx_buf_set_ready);
+}
+
+void
+dmu_tx_buf_set_rele(dmu_tx_buf_set_t *dtbs)
+{
+
+	dmu_tx_buf_set_rele_impl(&dtbs->dtbs_ctx, 0);
+}
+
+static int
+dmu_tx_prefault_count(dnode_t *dn,  uint64_t off, uint64_t len)
+{
+	int count = 0;
+
+	/*
+	 * For i/o error checking, read the blocks that will be needed
+	 * to perform the write: the first and last level-0 blocks (if
+	 * they are not aligned, i.e. if they are partial-block writes),
+	 * and all the level-1 blocks.
+	 */
+	if (dn->dn_maxblkid == 0) {
+		if (off < dn->dn_datablksz &&
+		    (off > 0 || len < dn->dn_datablksz)) {
+			return (1);
+		}
+	} else {
+		/* first level-0 block */
+		uint64_t start = off >> dn->dn_datablkshift;
+		/* last level-0 block */
+		uint64_t end = (off + len - 1) >> dn->dn_datablkshift;
+		/* level-1 blocks */
+		if (dn->dn_nlevels > 1 && end > start) {
+			int shft = dn->dn_indblkshift - SPA_BLKPTRSHIFT;
+			int l1count = (end >> shft) - (start >> shft) - 1;
+
+			if (l1count > 0)
+				count += l1count;
+		}
+	}
+	return (count);
+}
+
+static void
+dmu_buf_id_init(dmu_buf_id_t *dbid,  dnode_t *dn,  uint64_t off, uint64_t len)
+{
+	int count = 0;
+
+	/*
+	 * For i/o error checking, read the blocks that will be needed
+	 * to perform the write: the first and last level-0 blocks (if
+	 * they are not aligned, i.e. if they are partial-block writes),
+	 * and all the level-1 blocks.
+	 */
+	if (dn->dn_maxblkid == 0) {
+		if (off < dn->dn_datablksz &&
+		    (off > 0 || len < dn->dn_datablksz)) {
+			dbid[0].dbi_blkid = 0;
+			dbid[0].dbi_level = 0;
+			return;
+		}
+	} else {
+		/* first level-0 block */
+		uint64_t start = off >> dn->dn_datablkshift;
+		/* last level-0 block */
+		uint64_t end = (off + len - 1) >> dn->dn_datablkshift;
+		/* level-1 blocks */
+		if (dn->dn_nlevels > 1) {
+			int shft = dn->dn_indblkshift - SPA_BLKPTRSHIFT;
+			for (uint64_t i = (start >> shft) + 1;
+			    i < end >> shft; i++, count++) {
+				dbid[count].dbi_blkid = i;
+				dbid[count].dbi_level = 1;
+			}
+		}
+	}
+}
+
+int
+dmu_tx_prefault_setup(dmu_tx_buf_set_t *dtbs,  dnode_t *dn,  uint64_t off,
+    uint64_t len, void *tag, boolean_t sync, dmu_tx_buf_set_cb_t cb)
+{
+	dmu_buf_id_t *dbid;
+	int count;
+
+	if ((count = dmu_tx_prefault_count(dn, off, len)) == 0)
+		return (0);
+
+	bzero(dtbs, sizeof (*dtbs));
+	dbid = kmem_zalloc(sizeof (dmu_buf_id_t) * count,
+	    KM_SLEEP);
+	dtbs->dtbs_dbid = dbid;
+	zfs_refcount_create_untracked(&dtbs->dtbs_holds);
+	zfs_refcount_add_many(&dtbs->dtbs_holds, count + 1, NULL);
+	mutex_init(&dtbs->dtbs_mtx, "tx buf set lock", MUTEX_DEFAULT, NULL);
+	if (sync) {
+		cv_init(&dtbs->dtbs_cv_done, NULL, CV_DEFAULT, NULL);
+	} else {
+		dtbs->dtbs_ctx.dbc_flags |= DMU_CTX_FLAG_ASYNC;
+	}
+	dtbs->dtbs_dn = dn;
+	dtbs->dtbs_count = count;
+	dtbs->dtbs_tag = tag;
+	dtbs->dtbs_completed_cb = cb;
+	dtbs->dtbs_zio = zio_root(dn->dn_objset->os_spa,
+	    NULL, NULL, ZIO_FLAG_CANFAIL);
+
+	dmu_buf_id_init(dbid,  dn, off, len);
+	return (count);
+}
+
+static void dmu_tx_prefault_cb(dmu_buf_ctx_t *ctx, int err);
+
+static void
+dmu_tx_prefault_impl(dmu_buf_ctx_t *ctx, int inerr)
+{
+	dmu_tx_buf_set_t *dtbs = (dmu_tx_buf_set_t *)ctx;
+	dmu_buf_id_t *dbid = dtbs->dtbs_dbid;
+	dnode_t *dn = dtbs->dtbs_dn;
+	zio_t *async_zio, *zio = dtbs->dtbs_zio;
+	dmu_buf_ctx_t *buf_ctx;
+	int dbuf_flags = DB_RF_CANFAIL | DB_RF_NEVERWAIT | DB_RF_HAVESTRUCT |
+	    DB_RF_NOPREFETCH;
+	boolean_t async = !!(dtbs->dtbs_ctx.dbc_flags & DMU_CTX_FLAG_ASYNC);
+	boolean_t drop_struct_rwlock = B_FALSE;
+	int i, err;
+
+	if (inerr) {
+		VERIFY(inerr != EINPROGRESS);
+		err = inerr;
+		goto fail_out_unlocked;
+	}
+	if (async) {
+		async_zio = zio;
+		buf_ctx = &dtbs->dtbs_ctx;
+		ASSERT(dtbs->dtbs_completed_cb != NULL);
+	} else {
+		async_zio = NULL;
+		buf_ctx = NULL;
+		ASSERT(dtbs->dtbs_completed_cb == NULL);
+	}
+	if (!RW_WRITE_HELD(&dn->dn_struct_rwlock)) {
+		rw_enter(&dn->dn_struct_rwlock, RW_READER);
+		drop_struct_rwlock = B_TRUE;
+	}
+	for (i = dtbs->dtbs_async_holds; i < dtbs->dtbs_count; i++) {
+		dmu_buf_impl_t *db  = NULL;
+		uint64_t blkid = dbid[i].dbi_blkid;
+		int level = dbid[i].dbi_level;
+
+		err = dbuf_hold_level_async(dn, level, blkid,
+		    dtbs->dtbs_tag, &db, &dtbs->dtbs_ctx,
+		    async_zio, dmu_tx_prefault_cb, dmu_tx_buf_set_rele_impl);
+		if (err == EINPROGRESS) {
+			ASSERT(async);
+			goto early_out;
+		}
+		if (err)
+			goto fail_out;
+		dtbs->dtbs_async_holds++;
+		dbuf_read(db, zio, dbuf_flags);
+		dbid[i].dbi_buf = &db->db;
+	}
+	if (drop_struct_rwlock)
+		rw_exit(&dn->dn_struct_rwlock);
+
+	if (async) {
+		zio_nowait(zio);
+		dtbs->dtbs_done = B_TRUE;
+		return;
+	}
+
+	err = zio_wait(zio);
+	if (err) {
+		dtbs->dtbs_err = err;
+		return;
+	}
+
+	if (zfs_refcount_count(&dtbs->dtbs_holds) > 1) {
+		mutex_enter(&dtbs->dtbs_mtx);
+		while (zfs_refcount_count(&dtbs->dtbs_holds) > 1)
+			cv_wait(&dtbs->dtbs_cv_done, &dtbs->dtbs_mtx);
+		mutex_exit(&dtbs->dtbs_mtx);
+	}
+	for (i = 0; i < dtbs->dtbs_count; i++) {
+		dmu_buf_impl_t *db = (dmu_buf_impl_t *)dbid[i].dbi_buf;
+		if (db->db_state == DB_UNCACHED)
+			err = SET_ERROR(EIO);
+		if (err) {
+			dtbs->dtbs_err = err;
+			return;
+		}
+	}
+	return;
+early_out:
+	if (drop_struct_rwlock)
+		rw_exit(&dn->dn_struct_rwlock);
+	return;
+fail_out:
+	if (drop_struct_rwlock)
+		rw_exit(&dn->dn_struct_rwlock);
+fail_out_unlocked:
+	zio_nowait(zio);
+	for (int i = dtbs->dtbs_async_holds; i < dtbs->dtbs_count; i++) {
+		dmu_tx_buf_set_rele_impl(&dtbs->dtbs_ctx, err);
+	}
+}
+
+static void
+dmu_tx_prefault_cb(dmu_buf_ctx_t *ctx, int err)
+{
+	dmu_thread_context_dispatch(ctx, err, dmu_tx_prefault_impl);
+}
+
+void
+dmu_tx_prefault(dmu_tx_buf_set_t *dtbs)
+{
+	dmu_tx_prefault_impl(&dtbs->dtbs_ctx, 0);
 }
 
 void
