@@ -5148,22 +5148,48 @@ print_zpool_script_list(char *subcommand)
 /*
  * Set the minimum pool/vdev name column width.  The width must be at least 10,
  * but may be as large as the column width - 42 so it still fits on one line.
+ * NOTE: 42 is the width of the default capacity/operations/bandwidth output
  */
 static int
 get_namewidth_iostat(zpool_handle_t *zhp, void *data)
 {
 	iostat_cbdata_t *cb = data;
-	int width, columns;
+	int width, available_width;
 
+	/*
+	 * get_namewidth() returns the maximum width of any name in that column
+	 * for any pool/vdev/device line that will be output.
+	 */
 	width = get_namewidth(zhp, cb->cb_namewidth, cb->cb_name_flags,
 	    cb->cb_verbose);
-	columns = get_columns();
 
+	/*
+	 * The width we are calculating is the width of the header and also the
+	 * padding width for names that are less than maximum width.  The stats
+	 * take up 42 characters, so the width available for names is:
+	 */
+	available_width = get_columns() - 42;
+
+	/*
+	 * If the maximum width fits on a screen, then great!  Make everything
+	 * line up by justifying all lines to the same width.  If that max
+	 * width is larger than what's available, the name plus stats won't fit
+	 * on one line, and justifying to that width would cause every line to
+	 * wrap on the screen.  We only want lines with long names to wrap.
+	 * Limit the padding to what won't wrap.
+	 */
+	if (width > available_width)
+		width = available_width;
+
+	/*
+	 * And regardless of whatever the screen width is (get_columns can
+	 * return 0 if the width is not known or less than 42 for a narrow
+	 * terminal) have the width be a minimum of 10.
+	 */
 	if (width < 10)
 		width = 10;
-	if (width > columns - 42)
-		width = columns - 42;
 
+	/* Save the calculated width */
 	cb->cb_namewidth = width;
 
 	return (0);
