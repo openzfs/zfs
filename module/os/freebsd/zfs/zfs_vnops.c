@@ -373,6 +373,59 @@ zfs_ioctl(vnode_t *vp, ulong_t com, intptr_t data, int flag, cred_t *cred,
 	return (SET_ERROR(ENOTTY));
 }
 
+/*
+ * ZFS support for posix_fadvise
+ *
+ *	IN:	vp	- vnode of file to be read from.
+ *		start	- starting file offset at which to consider advice
+ *		end	- ending file offset at which to consider advice
+ *		advice	- A POSIX_FADV_*
+ *
+ *	RETURN:	0 on success, error code on failure.
+ *
+ * Side Effects:
+ *	vp - cached data may be evicted from ARC
+ */
+static int
+zfs_advise(vnode_t *vp, off_t start, off_t end, int advice)
+{
+	znode_t		*zp = VTOZ(vp);
+	zfsvfs_t	*zfsvfs = zp->z_zfsvfs;
+	objset_t	*os;
+	int		error;
+
+	ZFS_ENTER(zfsvfs);
+	ZFS_VERIFY_ZP(zp);
+	os = zfsvfs->z_os;
+
+	/* Validate offsets */
+	if ((start > end) || (start < 0) || (end < 0)) {
+		ZFS_EXIT(zfsvfs);
+		return (SET_ERROR(EINVAL));
+	}
+
+	error = 0;
+	switch (advice) {
+		case POSIX_FADV_WILLNEED:
+		case POSIX_FADV_DONTNEED:
+			dmu_advise(os, zp->z_id, start, end, advice);
+			break;
+		default:
+			error = SET_ERROR(EINVAL);
+			break;
+	}
+
+	ZFS_EXIT(zfsvfs);
+	return (error);
+}
+
+static int
+zfs_freebsd_advise(struct vop_advise_args *ap)
+{
+	return (zfs_advise(ap->a_vp, ap->a_start, ap->a_end, ap->a_advice));
+}
+
+
 static vm_page_t
 page_busy(vnode_t *vp, int64_t start, int64_t off, int64_t nbytes)
 {
@@ -6499,6 +6552,7 @@ struct vop_vector zfs_vnodeops = {
 	.vop_lock1 =		zfs_lock,
 #endif
 #endif
+	.vop_advise =	zfs_freebsd_advise,
 };
 VFS_VOP_VECTOR_REGISTER(zfs_vnodeops);
 

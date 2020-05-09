@@ -2034,6 +2034,50 @@ dnode_set_dirtyctx(dnode_t *dn, dmu_tx_t *tx, void *tag)
 	}
 }
 
+static void
+dbuf_advise(dmu_buf_impl_t *db, int advice)
+{
+	int64_t holds;
+
+	mutex_enter(&db->db_mtx);
+	if (db->db_state >= DB_EVICTING) {
+		mutex_exit(&db->db_mtx);
+		return;
+	}
+
+	holds = zfs_refcount_count(&db->db_holds);
+	if (holds <= 1 && advice == POSIX_FADV_DONTNEED) {
+		if (holds == 0) {
+			dbuf_destroy(db); /* drops db_mtx */
+			return;
+		}
+	}
+	db->db_advice = advice;
+	mutex_exit(&db->db_mtx);
+}
+
+void
+dnode_advise_range(dnode_t *dn, uint64_t start, uint64_t end, int advice)
+{
+	dmu_buf_impl_t *db, *db_next;
+	uint64_t first, last;
+
+	first = start >> dn->dn_datablkshift;
+	last = end >> dn->dn_datablkshift;
+	mutex_enter(&dn->dn_dbufs_mtx);
+	/*
+	 * XXX It would be better to not have to search the whole list,
+	 *     but it's sorted by time-of-hold rather than by blkid.
+	 */
+	for (db = avl_first(&dn->dn_dbufs); db != NULL; db = db_next) {
+		db_next = AVL_NEXT(&dn->dn_dbufs, db);
+		if (db->db_level == 0 &&
+		    db->db_blkid >= first && db->db_blkid <= last)
+			dbuf_advise(db, advice);
+	}
+	mutex_exit(&dn->dn_dbufs_mtx);
+}
+
 void
 dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx)
 {

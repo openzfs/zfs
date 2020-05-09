@@ -3536,6 +3536,9 @@ dbuf_rele_and_unlock(dmu_buf_impl_t *db, void *tag, boolean_t evicting)
 		dbuf_evict_user(db);
 
 	if (holds == 0) {
+		if (db->db_advice == POSIX_FADV_WILLNEED)
+			db->db_advice = 0;
+
 		if (db->db_blkid == DMU_BONUS_BLKID) {
 			dnode_t *dn;
 			boolean_t evict_dbuf = db->db_pending_evict;
@@ -3594,7 +3597,8 @@ dbuf_rele_and_unlock(dmu_buf_impl_t *db, void *tag, boolean_t evicting)
 			}
 
 			if (!DBUF_IS_CACHEABLE(db) ||
-			    db->db_pending_evict) {
+			    db->db_pending_evict ||
+			    db->db_advice == POSIX_FADV_DONTNEED) {
 				dbuf_destroy(db);
 			} else if (!multilist_link_active(&db->db_cache_link)) {
 				ASSERT3U(db->db_caching_status, ==,

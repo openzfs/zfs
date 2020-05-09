@@ -439,6 +439,8 @@ void dnode_buf_byteswap(void *buf, size_t size);
 void dnode_verify(dnode_t *dn);
 int dnode_set_nlevels(dnode_t *dn, int nlevels, dmu_tx_t *tx);
 int dnode_set_blksz(dnode_t *dn, uint64_t size, int ibs, dmu_tx_t *tx);
+void dnode_advise_range(dnode_t *dn, uint64_t start, uint64_t end,
+    int advice);
 void dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx);
 void dnode_diduse_space(dnode_t *dn, int64_t space);
 void dnode_new_blkid(dnode_t *dn, uint64_t blkid, dmu_tx_t *tx,

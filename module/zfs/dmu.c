@@ -1034,6 +1034,23 @@ dmu_read(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 }
 
 int
+dmu_advise(objset_t *os, uint64_t object, uint64_t start, uint64_t end,
+    int advice)
+{
+	struct dnode *dn;
+	int err;
+
+	err = dnode_hold(os, object, FTAG, &dn);
+	if (err)
+		return (err);
+
+	dnode_advise_range(dn, start, end, advice);
+	dnode_rele(dn, FTAG);
+
+	return (0);
+}
+
+int
 dmu_read_by_dnode(dnode_t *dn, uint64_t offset, uint64_t size, void *buf,
     uint32_t flags)
 {
