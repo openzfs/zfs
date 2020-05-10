@@ -25,7 +25,7 @@ while [ ! -e /run/zfs_unlock_complete ]; do
 		/sbin/zfs load-key "$zfs_fs_name" || true
 	if [ "$(/sbin/zfs get -H -ovalue keystatus "$zfs_fs_name" 2> /dev/null)" = "available" ]; then
 		echo "Password for $zfs_fs_name accepted."
-		zfs_console_askpwd_pid=$(ps a -o pid= -o args | grep -v grep | grep "$zfs_console_askpwd_cmd" | cut -d ' ' -f3 | sort -n | head -n1)
+		zfs_console_askpwd_pid=$(ps | awk '!'"/awk/ && /$zfs_console_askpwd_cmd/ { print \$1; exit }")
 		if [ -n "$zfs_console_askpwd_pid" ]; then
 			kill "$zfs_console_askpwd_pid"
 		fi
