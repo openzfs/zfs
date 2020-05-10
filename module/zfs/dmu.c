@@ -1211,6 +1211,65 @@ dmu_read_uio_dnode(dnode_t *dn, zfs_uio_t *uio, uint64_t size)
 	return (err);
 }
 
+#ifdef __APPLE__
+struct iomem;
+
+extern uint64_t zvolIO_kit_read(struct iomem *iomem, uint64_t offset,
+    char *address, uint64_t len);
+
+extern uint64_t zvolIO_kit_write(struct iomem *iomem, uint64_t offset,
+    char *address, uint64_t len);
+
+int
+dmu_read_iokit_dnode(dnode_t *dn, uint64_t *offset,
+	uint64_t position, uint64_t *size, struct iomem *iomem)
+{
+	int err;
+
+	if (*size == 0)
+		return (0);
+
+	dmu_buf_t **dbp;
+	int numbufs, i;
+
+	/*
+	 * NB: we could do this block-at-a-time, but it's nice
+	 * to be reading in parallel.
+	 */
+	err = dmu_buf_hold_array_by_dnode(dn, (position+*offset), *size,
+	    TRUE, FTAG, &numbufs, &dbp, 0);
+	if (err)
+		return (err);
+
+	for (i = 0; i < numbufs; i++) {
+		uint64_t tocpy;
+		int64_t bufoff;
+		dmu_buf_t *db = dbp[i];
+		uint64_t done;
+
+		ASSERT(size > 0);
+
+		bufoff = (position+*offset) - db->db_offset;
+		tocpy = MIN(db->db_size - bufoff, *size);
+
+		done = zvolIO_kit_read(iomem,
+		    *offset,
+		    (char *)db->db_data + bufoff,
+		    tocpy);
+
+		if (!done) {
+			err = EIO;
+			break;
+		}
+		*size -= done;
+		*offset += done;
+	}
+
+	dmu_buf_rele_array(dbp, numbufs, FTAG);
+	return (err);
+}
+#endif /* APPLE */
+
 /*
  * Read 'size' bytes into the uio buffer.
  * From object zdb->db_object.
@@ -1314,6 +1373,60 @@ dmu_write_uio_dnode(dnode_t *dn, zfs_uio_t *uio, uint64_t size, dmu_tx_t *tx)
 	dmu_buf_rele_array(dbp, numbufs, FTAG);
 	return (err);
 }
+
+#ifdef __APPLE__
+int
+dmu_write_iokit_dnode(dnode_t *dn, uint64_t *offset, uint64_t position,
+    uint64_t *size, struct iomem *iomem, dmu_tx_t *tx)
+{
+	dmu_buf_t **dbp;
+	int numbufs;
+	int err = 0;
+	int i;
+
+    err = dmu_buf_hold_array_by_dnode(dn, *offset+position, *size,
+	    FALSE, FTAG, &numbufs, &dbp, DMU_READ_PREFETCH);
+	if (err)
+		return (err);
+
+	while(*size > 0) {
+
+		for (i = 0; i < numbufs; i++) {
+			int tocpy;
+			int bufoff;
+			uint64_t done;
+			dmu_buf_t *db = dbp[i];
+
+			ASSERT(size > 0);
+
+			bufoff = (position + *offset) - db->db_offset;
+			tocpy = (int)MIN(db->db_size - bufoff, *size);
+
+			ASSERT(i == 0 || i == numbufs-1 || tocpy == db->db_size);
+
+			if (tocpy == db->db_size)
+				dmu_buf_will_fill(db, tx);
+			else
+				dmu_buf_will_dirty(db, tx);
+
+			done = zvolIO_kit_write(iomem,
+			    *offset,
+			    (char *)db->db_data + bufoff,
+			    tocpy);
+
+			if (tocpy == db->db_size)
+				dmu_buf_fill_done(db, tx);
+			if (done > 0) {
+				*offset += done;
+				*size -= done;
+			}
+		}
+	}
+
+	dmu_buf_rele_array(dbp, numbufs, FTAG);
+	return (err);
+}
+#endif /* APPLE */
 
 /*
  * Write 'size' bytes from the uio buffer.
