@@ -896,6 +896,8 @@ vdev_trim_thread(void *arg)
 	vd->vdev_trim_thread = NULL;
 	cv_broadcast(&vd->vdev_trim_cv);
 	mutex_exit(&vd->vdev_trim_lock);
+
+	thread_exit();
 }
 
 /*
