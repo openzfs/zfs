@@ -7380,6 +7380,7 @@ zfsdev_ioctl_common(uint_t vecnum, zfs_cmd_t *zc, int flag)
 	int error, cmd;
 	const zfs_ioc_vec_t *vec;
 	char *saved_poolname = NULL;
+	size_t saved_poolname_len = 0;
 	nvlist_t *innvl = NULL;
 	fstrans_cookie_t cookie;
 
@@ -7479,13 +7480,15 @@ zfsdev_ioctl_common(uint_t vecnum, zfs_cmd_t *zc, int flag)
 		goto out;
 
 	/* legacy ioctls can modify zc_name */
-	saved_poolname = kmem_strdup(zc->zc_name);
-	if (saved_poolname == NULL) {
-		error = SET_ERROR(ENOMEM);
-		goto out;
-	} else {
-		saved_poolname[strcspn(saved_poolname, "/@#")] = '\0';
-	}
+	/*
+	 * Can't use kmem_strdup() as we might truncate the string and
+	 * kmem_strfree() would then free with incorrect size.
+	 */
+	saved_poolname_len = strlen(zc->zc_name) + 1;
+	saved_poolname = kmem_alloc(saved_poolname_len, KM_SLEEP);
+
+	strlcpy(saved_poolname, zc->zc_name, saved_poolname_len);
+	saved_poolname[strcspn(saved_poolname, "/@#")] = '\0';
 
 	if (vec->zvec_func != NULL) {
 		nvlist_t *outnvl;
@@ -7562,11 +7565,11 @@ out:
 		char *s = tsd_get(zfs_allow_log_key);
 		if (s != NULL)
 			kmem_strfree(s);
-		(void) tsd_set(zfs_allow_log_key, saved_poolname);
-	} else {
-		if (saved_poolname != NULL)
-			kmem_strfree(saved_poolname);
+		(void) tsd_set(zfs_allow_log_key, kmem_strdup(saved_poolname));
 	}
+	if (saved_poolname != NULL)
+		kmem_free(saved_poolname, saved_poolname_len);
+
 	return (error);
 }
 
