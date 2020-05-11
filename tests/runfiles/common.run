@@ -104,8 +104,9 @@ tags = ['functional', 'clean_mirror']
 
 [tests/functional/cli_root/zdb]
 tests = ['zdb_002_pos', 'zdb_003_pos', 'zdb_004_pos', 'zdb_005_pos',
-    'zdb_006_pos', 'zdb_args_neg', 'zdb_args_pos', 'zdb_checksum', 'zdb_decompress',
-    'zdb_object_range_neg', 'zdb_object_range_pos', 'zdb_display_block',
+    'zdb_006_pos', 'zdb_args_neg', 'zdb_args_pos',
+    'zdb_block_size_histogram', 'zdb_checksum', 'zdb_decompress',
+    'zdb_display_block', 'zdb_object_range_neg', 'zdb_object_range_pos',
     'zdb_objset_id']
 pre =
 post =
