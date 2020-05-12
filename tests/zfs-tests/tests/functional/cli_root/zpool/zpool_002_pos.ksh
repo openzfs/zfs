@@ -54,6 +54,7 @@ function cleanup
 	if poolexists $pool; then
 		log_must zpool destroy -f $pool
 	fi
+
 }
 
 log_assert "With ZFS_ABORT set, all zpool commands can abort and generate a core file."
@@ -94,6 +95,14 @@ elif is_freebsd; then
 	ulimit -c unlimited
 	log_must sysctl kern.corefile=$corepath/core.zpool
 	export ASAN_OPTIONS="abort_on_error=1:disable_coredump=0"
+elif is_macos; then
+	ulimit -c unlimited
+	log_must sysctl kern.corefile=$corepath/core.zpool
+	export ASAN_OPTIONS="abort_on_error=1:disable_coredump=0"
+	# cores are always >2g, so this test will not finish in time.
+	set -A cmds "create $pool mirror $vdev1 $vdev2" \
+	"destroy $pool"
+	set -A badparams "" "create"
 else
 	coreadm -p ${corepath}/core.%f
 fi

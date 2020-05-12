@@ -386,7 +386,7 @@ function get_min_arc_size
 {
 	typeset -l min_arc_size
 
-	if is_freebsd; then
+	if is_freebsd || is_macos; then
 		min_arc_size=$(sysctl -n kstat.zfs.misc.arcstats.c_min)
 	elif is_illumos; then
 		min_arc_size=$(dtrace -qn 'BEGIN {
@@ -407,7 +407,7 @@ function get_max_arc_size
 {
 	typeset -l max_arc_size
 
-	if is_freebsd; then
+	if is_freebsd || is_macos; then
 		max_arc_size=$(sysctl -n kstat.zfs.misc.arcstats.c_max)
 	elif is_illumos; then
 		max_arc_size=$(dtrace -qn 'BEGIN {

@@ -86,6 +86,11 @@ function block_device_wait
 			sysctl kern.geom.conftxt >/dev/null
 			return
 		fi
+	elif is_macos; then
+		if [[ ${#@} -eq 0 ]]; then
+			sleep 3
+			return
+		fi
 	fi
 	# Poll for the given paths to appear, but give up eventually.
 	typeset -i i
@@ -126,6 +131,11 @@ function is_physical_device #device
 		    -e '^nda[0-9]+$' \
 		    -e '^nvd[0-9]+$' \
 		    -e '^vtbd[0-9]+$'
+		return $?
+	elif is_macos; then
+		is_disk_device "$DEV_DSKDIR/$device" && \
+		echo $device | egrep -q \
+		    -e '^disk[0-9]+$'
 		return $?
 	else
 		echo $device | egrep "^c[0-F]+([td][0-F]+)+$" > /dev/null 2>&1
@@ -518,7 +528,7 @@ function get_pool_devices #testpool #devdir
 	typeset devdir=$2
 	typeset out=""
 
-	if is_linux || is_freebsd; then
+	if is_linux || is_freebsd || is_macos; then
 		out=$(zpool status -P $testpool |grep ${devdir} | awk '{print $1}')
 		out=$(echo $out | sed -e "s|${devdir}/||g" | tr '\n' ' ')
 	fi

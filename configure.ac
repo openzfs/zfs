@@ -246,6 +246,7 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/cmd/file_write/Makefile
 	tests/zfs-tests/cmd/get_diff/Makefile
 	tests/zfs-tests/cmd/largest_file/Makefile
+	tests/zfs-tests/cmd/librt/Makefile
 	tests/zfs-tests/cmd/libzfs_input_check/Makefile
 	tests/zfs-tests/cmd/mkbusy/Makefile
 	tests/zfs-tests/cmd/mkfile/Makefile

@@ -34,3 +34,8 @@ SUBDIRS += \
 	user_ns_exec \
 	xattrtest
 endif
+
+if BUILD_MACOS
+SUBDIRS += \
+	librt
+endif
