@@ -997,7 +997,7 @@ lzc_receive_resumable_illumos(const char *snapname, nvlist_t *props,
     const char *origin, boolean_t force, boolean_t raw, int fd)
 {
 	return (recv_impl(snapname, props, NULL, NULL, 0, origin, force,
-	    B_TRUE, raw, B_FALSE, fd, NULL, NULL, NULL, NULL));
+	    B_TRUE, raw, B_TRUE, fd, NULL, NULL, NULL, NULL));
 }
 
 /*
