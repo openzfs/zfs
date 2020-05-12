@@ -2574,7 +2574,8 @@ receive_writer_thread(void *arg)
 		 * free it.
 		 */
 		if (err != EAGAIN) {
-			rwa->err = err;
+			if (rwa->err == 0)
+				rwa->err = err;
 			kmem_free(rrd, sizeof (*rrd));
 		}
 	}
