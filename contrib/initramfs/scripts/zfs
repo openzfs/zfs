@@ -405,6 +405,8 @@ decrypt_fs()
 		ENCRYPTIONROOT="$(get_fs_value "${fs}" encryptionroot)"
 		KEYLOCATION="$(get_fs_value "${ENCRYPTIONROOT}" keylocation)"
 
+		echo "${ENCRYPTIONROOT}" > /run/zfs_fs_name
+
 		# If root dataset is encrypted...
 		if ! [ "${ENCRYPTIONROOT}" = "-" ]; then
 			KEYSTATUS="$(get_fs_value "${ENCRYPTIONROOT}" keystatus)"
@@ -418,6 +420,7 @@ decrypt_fs()
 
 			# Prompt with plymouth, if active
 			elif [ -e /bin/plymouth ] && /bin/plymouth --ping 2>/dev/null; then
+				echo "plymouth" > /run/zfs_console_askpwd_cmd
 				while [ $TRY_COUNT -gt 0 ]; do
 					plymouth ask-for-password --prompt "Encrypted ZFS password for ${ENCRYPTIONROOT}" | \
 						$ZFS load-key "${ENCRYPTIONROOT}" && break
@@ -426,6 +429,7 @@ decrypt_fs()
 
 			# Prompt with systemd, if active 
 			elif [ -e /run/systemd/system ]; then
+				echo "systemd-ask-password" > /run/zfs_console_askpwd_cmd
 				while [ $TRY_COUNT -gt 0 ]; do
 					systemd-ask-password "Encrypted ZFS password for ${ENCRYPTIONROOT}" --no-tty | \
 						$ZFS load-key "${ENCRYPTIONROOT}" && break
@@ -434,7 +438,8 @@ decrypt_fs()
 
 			# Prompt with ZFS tty, otherwise
 			else
-				# Setting "printk" temporarily to "7" will allow prompt even if kernel option "quiet"
+				# Temporarily setting "printk" to "7" allows the prompt to appear even when the "quiet" kernel option has been used
+				echo "load-key" > /run/zfs_console_askpwd_cmd
 				storeprintk="$(awk '{print $1}' /proc/sys/kernel/printk)"
 				echo 7 > /proc/sys/kernel/printk
 				$ZFS load-key "${ENCRYPTIONROOT}"
@@ -963,6 +968,11 @@ mountroot()
 	do
 		mount_fs "$fs"
 	done
+
+	touch /run/zfs_unlock_complete
+	if [ -e /run/zfs_unlock_complete_notify ]; then
+		read zfs_unlock_complete_notify < /run/zfs_unlock_complete_notify
+	fi
 
 	# ------------
 	# Debugging information

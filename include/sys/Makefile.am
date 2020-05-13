@@ -2,6 +2,7 @@ SUBDIRS = fm fs crypto lua sysevent
 
 COMMON_H = \
 	$(top_srcdir)/include/sys/abd.h \
+	$(top_srcdir)/include/sys/abd_impl.h \
 	$(top_srcdir)/include/sys/aggsum.h \
 	$(top_srcdir)/include/sys/arc.h \
 	$(top_srcdir)/include/sys/arc_impl.h \

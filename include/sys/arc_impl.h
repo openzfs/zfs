@@ -200,7 +200,7 @@ typedef struct l2arc_log_blkptr {
 	/*
 	 * lbp_prop has the following format:
 	 *	* logical size (in bytes)
-	 *	* physical (compressed) size (in bytes)
+	 *	* aligned (after compression) size (in bytes)
 	 *	* compression algorithm (we always LZ4-compress l2arc logs)
 	 *	* checksum algorithm (used for lbp_cksum)
 	 */
@@ -221,22 +221,26 @@ typedef struct l2arc_dev_hdr_phys {
 	 */
 	uint64_t	dh_spa_guid;
 	uint64_t	dh_vdev_guid;
-	uint64_t	dh_log_blk_ent;		/* entries per log blk */
+	uint64_t	dh_log_entries;		/* mirror of l2ad_log_entries */
 	uint64_t	dh_evict;		/* evicted offset in bytes */
 	uint64_t	dh_flags;		/* l2arc_dev_hdr_flags_t */
 	/*
 	 * Used in zdb.c for determining if a log block is valid, in the same
 	 * way that l2arc_rebuild() does.
 	 */
-	uint64_t	dh_start;
-	uint64_t	dh_end;
-
+	uint64_t	dh_start;		/* mirror of l2ad_start */
+	uint64_t	dh_end;			/* mirror of l2ad_end */
 	/*
 	 * Start of log block chain. [0] -> newest log, [1] -> one older (used
 	 * for initiating prefetch).
 	 */
 	l2arc_log_blkptr_t	dh_start_lbps[2];
-	const uint64_t		dh_pad[34];	/* pad to 512 bytes */
+	/*
+	 * Aligned size of all log blocks as accounted by vdev_space_update().
+	 */
+	uint64_t	dh_lb_asize;		/* mirror of l2ad_lb_asize */
+	uint64_t	dh_lb_count;		/* mirror of l2ad_lb_count */
+	const uint64_t		dh_pad[32];	/* pad to 512 bytes */
 	zio_eck_t		dh_tail;
 } l2arc_dev_hdr_phys_t;
 CTASSERT_GLOBAL(sizeof (l2arc_dev_hdr_phys_t) == SPA_MINBLOCKSIZE);
@@ -387,6 +391,14 @@ typedef struct l2arc_dev {
 	uint64_t		l2ad_evict;	 /* evicted offset in bytes */
 	/* List of pointers to log blocks present in the L2ARC device */
 	list_t			l2ad_lbptr_list;
+	/*
+	 * Aligned size of all log blocks as accounted by vdev_space_update().
+	 */
+	zfs_refcount_t		l2ad_lb_asize;
+	/*
+	 * Number of log blocks present on the device.
+	 */
+	zfs_refcount_t		l2ad_lb_count;
 } l2arc_dev_t;
 
 /*
@@ -738,14 +750,18 @@ typedef struct arc_stats {
 	 */
 	kstat_named_t arcstat_l2_log_blk_writes;
 	/*
-	 * Moving average of the physical size of the L2ARC log blocks, in
+	 * Moving average of the aligned size of the L2ARC log blocks, in
 	 * bytes. Updated during L2ARC rebuild and during writing of L2ARC
 	 * log blocks.
 	 */
-	kstat_named_t arcstat_l2_log_blk_avg_size;
+	kstat_named_t arcstat_l2_log_blk_avg_asize;
+	/* Aligned size of L2ARC log blocks on L2ARC devices. */
+	kstat_named_t arcstat_l2_log_blk_asize;
+	/* Number of L2ARC log blocks present on L2ARC devices. */
+	kstat_named_t arcstat_l2_log_blk_count;
 	/*
-	 * Moving average of the physical size of L2ARC restored data, in bytes,
-	 * to the physical size of their metadata in ARC, in bytes.
+	 * Moving average of the aligned size of L2ARC restored data, in bytes,
+	 * to the aligned size of their metadata in L2ARC, in bytes.
 	 * Updated during L2ARC rebuild and during writing of L2ARC log blocks.
 	 */
 	kstat_named_t arcstat_l2_data_to_meta_ratio;
@@ -780,6 +796,8 @@ typedef struct arc_stats {
 	kstat_named_t arcstat_l2_rebuild_abort_lowmem;
 	/* Logical size of L2ARC restored data, in bytes. */
 	kstat_named_t arcstat_l2_rebuild_size;
+	/* Aligned size of L2ARC restored data, in bytes. */
+	kstat_named_t arcstat_l2_rebuild_asize;
 	/*
 	 * Number of L2ARC log entries (buffers) that were successfully
 	 * restored in ARC.
@@ -790,8 +808,6 @@ typedef struct arc_stats {
 	 * were not restored again.
 	 */
 	kstat_named_t arcstat_l2_rebuild_bufs_precached;
-	/* Physical size of L2ARC restored data, in bytes. */
-	kstat_named_t arcstat_l2_rebuild_psize;
 	/*
 	 * Number of L2ARC log blocks that were restored successfully. Each
 	 * log block may hold up to L2ARC_LOG_BLK_MAX_ENTRIES buffers.

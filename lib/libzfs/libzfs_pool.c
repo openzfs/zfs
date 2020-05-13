@@ -22,7 +22,7 @@
 /*
  * Copyright 2015 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
  * Copyright 2016 Igor Kozhukhov <ikozhukhov@gmail.com>
  * Copyright (c) 2018 Datto Inc.
  * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
@@ -429,7 +429,7 @@ zpool_get_prop(zpool_handle_t *zhp, zpool_prop_t prop, char *buf,
  * Assuming bootfs is a valid dataset name.
  */
 static boolean_t
-bootfs_name_valid(const char *pool, char *bootfs)
+bootfs_name_valid(const char *pool, const char *bootfs)
 {
 	int len = strlen(pool);
 	if (bootfs[0] == '\0')
@@ -4458,4 +4458,40 @@ zpool_wait_status(zpool_handle_t *zhp, zpool_wait_activity_t activity,
 	}
 
 	return (error);
+}
+
+int
+zpool_set_bootenv(zpool_handle_t *zhp, const char *envmap)
+{
+	int error = lzc_set_bootenv(zhp->zpool_name, envmap);
+	if (error != 0) {
+		(void) zpool_standard_error_fmt(zhp->zpool_hdl, error,
+		    dgettext(TEXT_DOMAIN,
+		    "error setting bootenv in pool '%s'"), zhp->zpool_name);
+	}
+
+	return (error);
+}
+
+int
+zpool_get_bootenv(zpool_handle_t *zhp, char *outbuf, size_t size, off_t offset)
+{
+	nvlist_t *nvl = NULL;
+	int error = lzc_get_bootenv(zhp->zpool_name, &nvl);
+	if (error != 0) {
+		(void) zpool_standard_error_fmt(zhp->zpool_hdl, error,
+		    dgettext(TEXT_DOMAIN,
+		    "error getting bootenv in pool '%s'"), zhp->zpool_name);
+		return (-1);
+	}
+	char *envmap = fnvlist_lookup_string(nvl, "envmap");
+	if (offset >= strlen(envmap)) {
+		fnvlist_free(nvl);
+		return (0);
+	}
+
+	strlcpy(outbuf, envmap + offset, size);
+	int bytes = MIN(strlen(envmap + offset), size);
+	fnvlist_free(nvl);
+	return (bytes);
 }

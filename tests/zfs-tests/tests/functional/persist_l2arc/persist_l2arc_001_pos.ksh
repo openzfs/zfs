@@ -99,7 +99,7 @@ typeset l2_rebuild_log_blk_end=$(get_arcstat l2_rebuild_log_blks)
 log_must test $l2_dh_log_blk -eq $(( $l2_rebuild_log_blk_end - $l2_rebuild_log_blk_start ))
 log_must test $l2_dh_log_blk -gt 0
 
-log_must zdb -lq $VDEV_CACHE
+log_must zdb -lll $VDEV_CACHE
 
 log_must zpool destroy -f $TESTPOOL
 
