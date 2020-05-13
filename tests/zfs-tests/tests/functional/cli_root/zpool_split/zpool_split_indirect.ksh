@@ -16,6 +16,7 @@
 
 #
 # Copyright (c) 2020, George Amanakis. All rights reserved.
+# Copyright (c) 2020 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -42,7 +43,7 @@ function cleanup
 	if poolexists $TESTPOOL2 ; then
 		destroy_pool $TESTPOOL2
 	fi
-	rm -f $VDEV_*
+	rm -f $VDEV_TEMP $VDEV_M1 $VDEV_M2
 }
 log_onexit cleanup
 
