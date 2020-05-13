@@ -542,6 +542,22 @@ dsl_scan_init(dsl_pool_t *dp, uint64_t txg)
 			zfs_dbgmsg("new-style scrub was modified "
 			    "by old software; restarting in txg %llu",
 			    (longlong_t)scn->scn_restart_txg);
+		} else if (dsl_scan_resilvering(dp)) {
+			/*
+			 * If a resilver is in progress and there are already
+			 * errors, restart it instead of finishing this scan and
+			 * then restarting it. If there haven't been any errors
+			 * then remember that the incore DTL is valid.
+			 */
+			if (scn->scn_phys.scn_errors > 0) {
+				scn->scn_restart_txg = txg;
+				zfs_dbgmsg("resilver can't excise DTL_MISSING "
+				    "when finished; restarting in txg %llu",
+				    (u_longlong_t)scn->scn_restart_txg);
+			} else {
+				/* it's safe to excise DTL when finished */
+				spa->spa_scrub_started = B_TRUE;
+			}
 		}
 	}
 
@@ -887,7 +903,6 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 		    "errors=%llu", (u_longlong_t)spa_get_errlog_size(spa));
 
 	if (DSL_SCAN_IS_SCRUB_RESILVER(scn)) {
-		spa->spa_scrub_started = B_FALSE;
 		spa->spa_scrub_active = B_FALSE;
 
 		/*
@@ -913,6 +928,12 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 			    0, B_TRUE);
 		}
 		spa_errlog_rotate(spa);
+
+		/*
+		 * Don't clear flag until after vdev_dtl_reassess to ensure that
+		 * DTL_MISSING will get updated when possible.
+		 */
+		spa->spa_scrub_started = B_FALSE;
 
 		/*
 		 * We may have finished replacing a device.
