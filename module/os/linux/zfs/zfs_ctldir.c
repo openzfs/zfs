@@ -71,12 +71,14 @@
  * as that used by the parent zfsvfs_t to make NFS happy.
  */
 
+#include <linux/fs_context.h>
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/time.h>
 #include <sys/sysmacros.h>
 #include <sys/pathname.h>
 #include <sys/vfs.h>
+#include <sys/mount.h>
 #include <sys/zfs_ctldir.h>
 #include <sys/zfs_ioctl.h>
 #include <sys/zfs_vfsops.h>
@@ -722,6 +724,8 @@ zfsctl_snapshot_name(zfsvfs_t *zfsvfs, const char *snap_name, int len,
 	return (0);
 }
 
+#define	USE_FC_MOUNT
+#if defined(USE_FC_MOUNT)
 /*
  * Returns full path in full_path: "/pool/dataset/.zfs/snapshot/snap_name/"
  */
@@ -752,7 +756,7 @@ out:
 
 	return (error);
 }
-
+#endif
 /*
  * Returns full path in full_path: "/pool/dataset/.zfs/snapshot/snap_name/"
  */
@@ -1085,24 +1089,24 @@ zfsctl_snapshot_unmount(const char *snapname, int flags)
 
 	return (error);
 }
-
 int
-zfsctl_snapshot_mount(struct path *path, int flags)
+zfsctl_snapshot_mount(struct path *path, int flags, struct vfsmount **mnt_out)
 {
 	struct dentry *dentry = path->dentry;
 	struct inode *ip = dentry->d_inode;
 	zfsvfs_t *zfsvfs;
 	zfsvfs_t *snap_zfsvfs;
-	zfs_snapentry_t *se;
+	int error;
 	char *full_name, *full_path;
+#if !defined(USE_FC_MOUNT)
+	zfs_snapentry_t *se;
 	char *argv[] = { "/usr/bin/env", "mount", "-t", "zfs", "-n", NULL, NULL,
 	    NULL };
 	char *envp[] = { NULL };
-	int error;
 	struct path spath;
-
+#endif
 	if (ip == NULL)
-		return (SET_ERROR(EISDIR));
+		return (-SET_ERROR(EISDIR));
 
 	zfsvfs = ITOZSB(ip);
 	ZFS_ENTER(zfsvfs);
@@ -1110,14 +1114,19 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 	full_name = kmem_zalloc(ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP);
 	full_path = kmem_zalloc(MAXPATHLEN, KM_SLEEP);
 
-	error = zfsctl_snapshot_name(zfsvfs, dname(dentry),
+	error = -zfsctl_snapshot_name(zfsvfs, dname(dentry),
 	    ZFS_MAX_DATASET_NAME_LEN, full_name);
 	if (error)
 		goto error;
 
-	error = zfsctl_snapshot_path(path, MAXPATHLEN, full_path);
-	if (error)
-		goto error;
+	/*
+	 * Construct a mount point path from sb of the ctldir inode and dirent
+	 * name, instead of from d_path(), so that chroot'd process doesn't fail
+	 * on mount.zfs(8).
+	 */
+	snprintf(full_path, MAXPATHLEN, "%s/.zfs/snapshot/%s",
+	    zfsvfs->z_vfs->vfs_mntpoint ? zfsvfs->z_vfs->vfs_mntpoint : "",
+	    dname(dentry));
 
 	/*
 	 * Multiple concurrent automounts of a snapshot are never allowed.
@@ -1128,6 +1137,53 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 		goto error;
 	}
 
+#if defined(USE_FC_MOUNT)
+	(void) &zfsctl_snapshot_alloc; // For now..
+	error = -zfsctl_snapshot_path(path, MAXPATHLEN, full_path);
+	if (error)
+		goto error;
+
+	struct fs_context *fc;
+	struct vfsmount *mnt = NULL;
+	fc = fs_context_for_submount(&zpl_fs_type, dentry);
+	if (IS_ERR(fc)) {
+		zfs_dbgmsg("error-fc: %p", ERR_CAST(fc));
+	} else {
+		vfs_parse_fs_string(fc, "source", full_name, strlen(full_name));
+		mnt = fc_mount(fc);
+
+		if (IS_ERR(mnt)) {
+			zfs_dbgmsg("error-mnt: %p", ERR_CAST(mnt));
+		}
+		zfs_dbgmsg("mnt %p", mnt);
+		zfs_dbgmsg("put_fc %p", fc);
+		put_fs_context(fc);
+	}
+
+	if (!mnt || IS_ERR(mnt)) {
+		error = PTR_ERR(mnt);
+		goto error;
+	} else {
+		zfs_dbgmsg("yielding vfsmount %p", mnt);
+		mnt->mnt_flags |= MNT_SHRINKABLE;
+		mntget(mnt);
+		printk("adding mount to expiry list with timeout %d.",
+		    zfs_expire_snapshot);
+		spl_add_mount_to_expire(mnt, zfs_expire_snapshot);
+		printk("done!");
+		*mnt_out = mnt;
+	}
+
+	snap_zfsvfs = ITOZSB(mnt->mnt_root->d_inode);
+	snap_zfsvfs->z_parent = zfsvfs;
+
+	kmem_free(full_name, ZFS_MAX_DATASET_NAME_LEN);
+	kmem_free(full_path, MAXPATHLEN);
+
+	ZFS_EXIT(zfsvfs);
+
+	return (0);
+#else
 	/*
 	 * Attempt to mount the snapshot from user space.  Normally this
 	 * would be done using the vfs_kern_mount() function, however that
@@ -1148,7 +1204,7 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 		if (!(error & MOUNT_BUSY << 8)) {
 			zfs_dbgmsg("Unable to automount %s error=%d",
 			    full_path, error);
-			error = SET_ERROR(EISDIR);
+			error = -SET_ERROR(EISDIR);
 		} else {
 			/*
 			 * EBUSY, this could mean a concurrent mount, or the
@@ -1184,6 +1240,7 @@ zfsctl_snapshot_mount(struct path *path, int flags)
 		rw_exit(&zfs_snapshot_lock);
 	}
 	path_put(&spath);
+#endif
 error:
 	kmem_free(full_name, ZFS_MAX_DATASET_NAME_LEN);
 	kmem_free(full_path, MAXPATHLEN);

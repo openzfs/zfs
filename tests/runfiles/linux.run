@@ -121,7 +121,7 @@ tests = ['mmp_on_thread', 'mmp_on_uberblocks', 'mmp_on_off', 'mmp_interval',
 tags = ['functional', 'mmp']
 
 [tests/functional/mount:Linux]
-tests = ['umount_unlinked_drain']
+tests = ['umount_unlinked_drain', 'mount_chroot', 'mount_bind', 'mount_ns', 'mount_ns_pivot', 'mount_autoshrink']
 tags = ['functional', 'mount']
 
 [tests/functional/pam:Linux]

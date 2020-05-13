@@ -1,0 +1,26 @@
+#!/bin/sh
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+
+#
+# Copyright (c) 2020 by Felix Dörre. All rights reserved.
+#
+
+$1/bin/pivot_root "$1" "$1/mnt"
+cd /
+/bin/busybox cat > /newinit <<"EOF"
+/bin/busybox mount -t proc none /proc
+/bin/busybox cat /proc/self/mounts | /bin/busybox sed 's/[^ ]* \([^ ]*\) .*/\1/' | /bin/busybox grep '^/mnt\(/\|$\)' | /bin/busybox sort -r | xargs umount
+/bin/busybox mount
+/bin/busybox touch /ready
+exec /bin/busybox sleep 60
+EOF
+exec /bin/sh /newinit

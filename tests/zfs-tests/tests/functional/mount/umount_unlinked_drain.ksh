@@ -58,6 +58,7 @@ function unlinked_size_is
 		else
 			iters=0
 		fi
+		sleep 0.5
 		last_usize=$usize
 	done
 
