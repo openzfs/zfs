@@ -2566,7 +2566,6 @@ vdev_dtl_should_excise(vdev_t *vd)
 	spa_t *spa = vd->vdev_spa;
 	dsl_scan_t *scn = spa->spa_dsl_pool->dp_scan;
 
-	ASSERT0(scn->scn_phys.scn_errors);
 	ASSERT0(vd->vdev_children);
 
 	if (vd->vdev_state < VDEV_STATE_DEGRADED)
@@ -2617,6 +2616,7 @@ vdev_dtl_reassess(vdev_t *vd, uint64_t txg, uint64_t scrub_txg, int scrub_done)
 
 	if (vd->vdev_ops->vdev_op_leaf) {
 		dsl_scan_t *scn = spa->spa_dsl_pool->dp_scan;
+		boolean_t wasempty = B_TRUE;
 
 		mutex_enter(&vd->vdev_dtl_lock);
 
@@ -2625,6 +2625,18 @@ vdev_dtl_reassess(vdev_t *vd, uint64_t txg, uint64_t scrub_txg, int scrub_done)
 		 */
 		if (zfs_scan_ignore_errors && scn)
 			scn->scn_phys.scn_errors = 0;
+
+		if (scrub_txg != 0 &&
+		    !range_tree_is_empty(vd->vdev_dtl[DTL_MISSING])) {
+			wasempty = B_FALSE;
+			zfs_dbgmsg("guid:%llu txg:%llu scrub:%llu started:%d "
+			    "dtl:%llu/%llu errors:%llu",
+			    (u_longlong_t)vd->vdev_guid, (u_longlong_t)txg,
+			    (u_longlong_t)scrub_txg, spa->spa_scrub_started,
+			    (u_longlong_t)vdev_dtl_min(vd),
+			    (u_longlong_t)vdev_dtl_max(vd),
+			    (u_longlong_t)(scn ? scn->scn_phys.scn_errors : 0));
+		}
 
 		/*
 		 * If we've completed a scan cleanly then determine
@@ -2662,6 +2674,14 @@ vdev_dtl_reassess(vdev_t *vd, uint64_t txg, uint64_t scrub_txg, int scrub_done)
 			space_reftree_generate_map(&reftree,
 			    vd->vdev_dtl[DTL_MISSING], 1);
 			space_reftree_destroy(&reftree);
+
+			if (!range_tree_is_empty(vd->vdev_dtl[DTL_MISSING])) {
+				zfs_dbgmsg("update DTL_MISSING:%llu/%llu",
+				    (u_longlong_t)vdev_dtl_min(vd),
+				    (u_longlong_t)vdev_dtl_max(vd));
+			} else if (!wasempty) {
+				zfs_dbgmsg("DTL_MISSING is now empty");
+			}
 		}
 		range_tree_vacate(vd->vdev_dtl[DTL_PARTIAL], NULL, NULL);
 		range_tree_walk(vd->vdev_dtl[DTL_MISSING],

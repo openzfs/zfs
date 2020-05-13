@@ -797,7 +797,7 @@ tests = ['reservation_001_pos', 'reservation_002_pos', 'reservation_003_pos',
 tags = ['functional', 'reservation']
 
 [tests/functional/resilver]
-tests = ['resilver_restart_001']
+tests = ['resilver_restart_001', 'resilver_restart_002']
 tags = ['functional', 'resilver']
 
 [tests/functional/rootpool]
