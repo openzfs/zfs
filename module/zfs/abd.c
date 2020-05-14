@@ -703,7 +703,7 @@ abd_raidz_gen_iterate(abd_t **cabds, abd_t *dabd,
 	struct abd_iter caiters[3];
 	struct abd_iter daiter = {0};
 	void *caddrs[3];
-	unsigned long flags = 0;
+	unsigned long flags __maybe_unused = 0;
 
 	ASSERT3U(parity, <=, 3);
 
@@ -800,7 +800,7 @@ abd_raidz_rec_iterate(abd_t **cabds, abd_t **tabds,
 	struct abd_iter citers[3];
 	struct abd_iter xiters[3];
 	void *caddrs[3], *xaddrs[3];
-	unsigned long flags = 0;
+	unsigned long flags __maybe_unused = 0;
 
 	ASSERT3U(parity, <=, 3);
 

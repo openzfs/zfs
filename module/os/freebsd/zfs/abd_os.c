@@ -419,15 +419,3 @@ abd_iter_unmap(struct abd_iter *aiter)
 	aiter->iter_mapaddr = NULL;
 	aiter->iter_mapsize = 0;
 }
-
-void
-abd_enter_critical(unsigned long flags)
-{
-	critical_enter();
-}
-
-void
-abd_exit_critical(unsigned long flags)
-{
-	critical_exit();
-}

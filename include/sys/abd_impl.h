@@ -98,8 +98,6 @@ void abd_update_scatter_stats(abd_t *, abd_stats_op_t);
 void abd_update_linear_stats(abd_t *, abd_stats_op_t);
 void abd_verify_scatter(abd_t *);
 void abd_free_linear_page(abd_t *);
-void abd_enter_critical(unsigned long);
-void abd_exit_critical(unsigned long);
 /* OS specific abd_iter functions */
 void abd_iter_init(struct abd_iter  *, abd_t *);
 boolean_t abd_iter_at_end(struct abd_iter *);
@@ -118,6 +116,19 @@ void abd_iter_unmap(struct abd_iter *);
 
 #define	ABD_SCATTER(abd)	(abd->abd_u.abd_scatter)
 #define	ABD_LINEAR_BUF(abd)	(abd->abd_u.abd_linear.abd_buf)
+
+#if defined(_KERNEL)
+#if defined(__FreeBSD__)
+#define	abd_enter_critical(flags)	critical_enter()
+#define	abd_exit_critical(flags)	critical_exit()
+#else
+#define	abd_enter_critical(flags)	local_irq_save(flags)
+#define	abd_exit_critical(flags)	local_irq_restore(flags)
+#endif
+#else /* !_KERNEL */
+#define	abd_enter_critical(flags)	((void)0)
+#define	abd_exit_critical(flags)	((void)0)
+#endif
 
 #ifdef __cplusplus
 }
