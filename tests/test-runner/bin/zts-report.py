@@ -272,8 +272,8 @@ def process_results(pathname):
     pattern_log = r'^\s*Log directory:\s*(\S*)'
 
     d = {}
-    for l in f.readlines():
-        m = re.match(pattern, l)
+    for line in f.readlines():
+        m = re.match(pattern, line)
         if m and len(m.groups()) == 4:
             summary['total'] += 1
             if m.group(4) == "PASS":
@@ -281,7 +281,7 @@ def process_results(pathname):
             d[m.group(1)] = m.group(4)
             continue
 
-        m = re.match(pattern_log, l)
+        m = re.match(pattern_log, line)
         if m:
             summary['logfile'] = m.group(1)
 
