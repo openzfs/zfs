@@ -1319,6 +1319,8 @@ redact_list_thread(void *arg)
 	record = range_alloc(DATA, 0, 0, 0, B_TRUE);
 	bqueue_enqueue_flush(&rlt_arg->q, record, sizeof (*record));
 	spl_fstrans_unmark(cookie);
+
+	thread_exit();
 }
 
 /*
