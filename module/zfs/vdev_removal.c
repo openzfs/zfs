@@ -1600,6 +1600,8 @@ spa_vdev_remove_thread(void *arg)
 		ASSERT0(range_tree_space(svr->svr_allocd_segs));
 		vdev_remove_complete(spa);
 	}
+
+	thread_exit();
 }
 
 void

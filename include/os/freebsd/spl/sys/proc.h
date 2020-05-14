@@ -63,28 +63,12 @@ typedef struct proc	proc_t;
 
 extern struct proc *zfsproc;
 
-struct thread_wrap {
-	void *tw_arg;
-	void (*tw_proc)(void*);
-};
-
-static __inline void
-solthread_wrapper(void *arg)
-{
-	struct thread_wrap *tw = arg;
-
-	tw->tw_proc(tw->tw_arg);
-	free(tw, M_SOLARIS);
-	kthread_exit();
-}
-
 static __inline kthread_t *
 do_thread_create(caddr_t stk, size_t stksize, void (*proc)(void *), void *arg,
     size_t len, proc_t *pp, int state, pri_t pri)
 {
 	kthread_t *td = NULL;
 	int error;
-	struct thread_wrap *tw;
 
 	/*
 	 * Be sure there are no surprises.
@@ -92,11 +76,8 @@ do_thread_create(caddr_t stk, size_t stksize, void (*proc)(void *), void *arg,
 	ASSERT(stk == NULL);
 	ASSERT(len == 0);
 	ASSERT(state == TS_RUN);
-	tw = malloc(sizeof (*tw), M_SOLARIS, M_WAITOK);
-	tw->tw_proc = proc;
-	tw->tw_arg = arg;
 
-	error = kproc_kthread_add(solthread_wrapper, tw, &zfsproc, &td,
+	error = kproc_kthread_add(proc, arg, &zfsproc, &td,
 	    RFSTOPPED, stksize / PAGE_SIZE, "zfskern", "solthread %p", proc);
 	if (error == 0) {
 		thread_lock(td);
@@ -105,8 +86,6 @@ do_thread_create(caddr_t stk, size_t stksize, void (*proc)(void *), void *arg,
 #if __FreeBSD_version < 1300068
 		thread_unlock(td);
 #endif
-	} else {
-		free(tw, M_SOLARIS);
 	}
 	return (td);
 }
