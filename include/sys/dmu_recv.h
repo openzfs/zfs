@@ -74,7 +74,6 @@ typedef struct dmu_recv_cookie {
 	struct receive_record_arg *drc_next_rrd;
 	zio_cksum_t drc_cksum;
 	zio_cksum_t drc_prev_cksum;
-	int drc_err;
 	/* Sorted list of objects not to issue prefetches for. */
 	objlist_t *drc_ignore_objlist;
 } dmu_recv_cookie_t;

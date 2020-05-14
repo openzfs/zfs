@@ -1217,10 +1217,8 @@ receive_read(dmu_recv_cookie_t *drc, int len, void *buf)
 
 	while (done < len) {
 		ssize_t resid;
-		zfs_file_t *fp;
-
-		fp = drc->drc_fp;
-		drc->drc_err = zfs_file_read(fp, (char *)buf + done,
+		zfs_file_t *fp = drc->drc_fp;
+		int err = zfs_file_read(fp, (char *)buf + done,
 		    len - done, &resid);
 		if (resid == len - done) {
 			/*
@@ -1228,12 +1226,12 @@ receive_read(dmu_recv_cookie_t *drc, int len, void *buf)
 			 * that the receive was interrupted and can
 			 * potentially be resumed.
 			 */
-			drc->drc_err = SET_ERROR(ZFS_ERR_STREAM_TRUNCATED);
+			err = SET_ERROR(ZFS_ERR_STREAM_TRUNCATED);
 		}
 		drc->drc_voff += len - done - resid;
 		done = len - resid;
-		if (drc->drc_err != 0)
-			return (drc->drc_err);
+		if (err != 0)
+			return (err);
 	}
 
 	drc->drc_bytes_read += len;
