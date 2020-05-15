@@ -98,6 +98,7 @@
 
 #include "zfs_namecheck.h"
 
+#define	ZVOL_DIR		"/dev/zvol/"
 #define	ZVOL_DUMPSIZE		"dumpsize"
 
 #ifdef ZVOL_LOCK_DEBUG
