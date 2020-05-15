@@ -803,18 +803,6 @@ abd_iter_unmap(struct abd_iter *aiter)
 	aiter->iter_mapsize = 0;
 }
 
-void
-abd_enter_critical(unsigned long flags)
-{
-	local_irq_save(flags);
-}
-
-void
-abd_exit_critical(unsigned long flags)
-{
-	local_irq_restore(flags);
-}
-
 #if defined(_KERNEL)
 /*
  * bio_nr_pages for ABD.
