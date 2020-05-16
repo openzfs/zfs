@@ -1154,9 +1154,6 @@ typedef struct ddt_histogram {
 
 #define	ZFS_SUPER_MAGIC	0x2fc12fc1
 
-/* general zvol path */
-#define	ZVOL_DIR	"/dev"
-
 #define	ZVOL_MAJOR		230
 #define	ZVOL_MINOR_BITS		4
 #define	ZVOL_MINOR_MASK		((1U << ZVOL_MINOR_BITS) - 1)

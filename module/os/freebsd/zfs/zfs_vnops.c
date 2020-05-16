@@ -743,6 +743,12 @@ zfs_read(vnode_t *vp, uio_t *uio, int ioflag, cred_t *cr)
 	ZFS_ENTER(zfsvfs);
 	ZFS_VERIFY_ZP(zp);
 
+	/* We don't copy out anything useful for directories. */
+	if (vp->v_type == VDIR) {
+		ZFS_EXIT(zfsvfs);
+		return (SET_ERROR(EISDIR));
+	}
+
 	if (zp->z_pflags & ZFS_AV_QUARANTINED) {
 		ZFS_EXIT(zfsvfs);
 		return (SET_ERROR(EACCES));
