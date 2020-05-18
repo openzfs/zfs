@@ -35,6 +35,9 @@
 .Cm redup
 .Op Fl v
 .Ar file
+.Nm
+.Cm token
+.Ar resume_token
 .Sh DESCRIPTION
 .sp
 .LP
@@ -65,6 +68,12 @@ Print metadata for each record.
 Dump data contained in each record.
 Implies verbose.
 .El
+.It Xo
+.Nm
+.Cm token
+.Ar resume_token
+.Xc
+Dumps zfs resume token information
 .It Xo
 .Nm
 .Cm redup
