@@ -237,7 +237,7 @@ replace_with_spare(fmd_hdl_t *hdl, zpool_handle_t *zhp, nvlist_t *vdev)
 		    dev_name, basename(spare_name));
 
 		if (zpool_vdev_attach(zhp, dev_name, spare_name,
-		    replacement, B_TRUE) == 0) {
+		    replacement, B_TRUE, B_FALSE) == 0) {
 			free(dev_name);
 			nvlist_free(replacement);
 			return (B_TRUE);
@@ -319,12 +319,16 @@ zfs_retire_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl,
 
 	fmd_hdl_debug(hdl, "zfs_retire_recv: '%s'", class);
 
+	nvlist_lookup_uint64(nvl, FM_EREPORT_PAYLOAD_ZFS_VDEV_STATE, &state);
+
 	/*
 	 * If this is a resource notifying us of device removal then simply
 	 * check for an available spare and continue unless the device is a
 	 * l2arc vdev, in which case we just offline it.
 	 */
-	if (strcmp(class, "resource.fs.zfs.removed") == 0) {
+	if (strcmp(class, "resource.fs.zfs.removed") == 0 ||
+	    (strcmp(class, "resource.fs.zfs.statechange") == 0 &&
+	    state == VDEV_STATE_REMOVED)) {
 		char *devtype;
 		char *devname;
 
@@ -365,8 +369,7 @@ zfs_retire_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl,
 	 * healthy ones so we need to confirm the actual state value.
 	 */
 	if (strcmp(class, "resource.fs.zfs.statechange") == 0 &&
-	    nvlist_lookup_uint64(nvl, FM_EREPORT_PAYLOAD_ZFS_VDEV_STATE,
-	    &state) == 0 && state == VDEV_STATE_HEALTHY) {
+	    state == VDEV_STATE_HEALTHY) {
 		zfs_vdev_repair(hdl, nvl);
 		return;
 	}

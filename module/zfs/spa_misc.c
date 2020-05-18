@@ -1166,6 +1166,30 @@ spa_vdev_enter(spa_t *spa)
 }
 
 /*
+ * The same as spa_vdev_enter() above but additionally takes the guid of
+ * the vdev being detached.  When there is a rebuild in process it will be
+ * suspended while the vdev tree is modified then resumed by spa_vdev_exit().
+ * The rebuild is canceled if only a single child remains after the detach.
+ */
+uint64_t
+spa_vdev_detach_enter(spa_t *spa, uint64_t guid)
+{
+	mutex_enter(&spa->spa_vdev_top_lock);
+	mutex_enter(&spa_namespace_lock);
+
+	vdev_autotrim_stop_all(spa);
+
+	if (guid != 0) {
+		vdev_t *vd = spa_lookup_by_guid(spa, guid, B_FALSE);
+		if (vd) {
+			vdev_rebuild_stop_wait(vd->vdev_top);
+		}
+	}
+
+	return (spa_vdev_config_enter(spa));
+}
+
+/*
  * Internal implementation for spa_vdev_enter().  Used when a vdev
  * operation requires multiple syncs (i.e. removing a device) while
  * keeping the spa_namespace_lock held.
@@ -1198,7 +1222,7 @@ spa_vdev_config_exit(spa_t *spa, vdev_t *vd, uint64_t txg, int error, char *tag)
 	/*
 	 * Reassess the DTLs.
 	 */
-	vdev_dtl_reassess(spa->spa_root_vdev, 0, 0, B_FALSE);
+	vdev_dtl_reassess(spa->spa_root_vdev, 0, 0, B_FALSE, B_FALSE);
 
 	if (error == 0 && !list_is_empty(&spa->spa_config_dirty_list)) {
 		config_changed = B_TRUE;
@@ -1271,6 +1295,7 @@ int
 spa_vdev_exit(spa_t *spa, vdev_t *vd, uint64_t txg, int error)
 {
 	vdev_autotrim_restart(spa);
+	vdev_rebuild_restart(spa);
 
 	spa_vdev_config_exit(spa, vd, txg, error, FTAG);
 	mutex_exit(&spa_namespace_lock);
@@ -1322,7 +1347,7 @@ spa_vdev_state_exit(spa_t *spa, vdev_t *vd, int error)
 	}
 
 	if (vd != NULL || error == 0)
-		vdev_dtl_reassess(vdev_top, 0, 0, B_FALSE);
+		vdev_dtl_reassess(vdev_top, 0, 0, B_FALSE, B_FALSE);
 
 	if (vd != NULL) {
 		if (vd != spa->spa_root_vdev)

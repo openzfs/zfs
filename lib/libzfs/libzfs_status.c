@@ -84,6 +84,8 @@ static char *zfs_msgid_table[] = {
 	 *	ZPOOL_STATUS_RESILVERING
 	 *	ZPOOL_STATUS_OFFLINE_DEV
 	 *	ZPOOL_STATUS_REMOVED_DEV
+	 *	ZPOOL_STATUS_REBUILDING
+	 *	ZPOOL_STATUS_REBUILD_SCRUB
 	 *	ZPOOL_STATUS_OK
 	 */
 };
@@ -195,7 +197,7 @@ find_vdev_problem(nvlist_t *vdev, int (*func)(uint64_t, uint64_t, uint64_t))
  *	- Check for any data errors
  *	- Check for any faulted or missing devices in a replicated config
  *	- Look for any devices showing errors
- *	- Check for any resilvering devices
+ *	- Check for any resilvering or rebuilding devices
  *
  * There can obviously be multiple errors within a single pool, so this routine
  * only picks the most damaging of all the current errors to report.
@@ -232,6 +234,49 @@ check_status(nvlist_t *config, boolean_t isimport, zpool_errata_t *erratap)
 	if (ps != NULL && ps->pss_func == POOL_SCAN_RESILVER &&
 	    ps->pss_state == DSS_SCANNING)
 		return (ZPOOL_STATUS_RESILVERING);
+
+	/*
+	 * Currently rebuilding a vdev, check top-level vdevs.
+	 */
+	vdev_rebuild_stat_t *vrs = NULL;
+	nvlist_t **child;
+	uint_t c, i, children;
+	uint64_t rebuild_end_time = 0;
+	if (nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN,
+	    &child, &children) == 0) {
+		for (c = 0; c < children; c++) {
+			if ((nvlist_lookup_uint64_array(child[c],
+			    ZPOOL_CONFIG_REBUILD_STATS,
+			    (uint64_t **)&vrs, &i) == 0) && (vrs != NULL)) {
+				uint64_t state = vrs->vrs_state;
+
+				if (state == VDEV_REBUILD_ACTIVE) {
+					return (ZPOOL_STATUS_REBUILDING);
+				} else if (state == VDEV_REBUILD_COMPLETE &&
+				    vrs->vrs_end_time > rebuild_end_time) {
+					rebuild_end_time = vrs->vrs_end_time;
+				}
+			}
+		}
+
+		/*
+		 * If we can determine when the last scrub was run, and it
+		 * was before the last rebuild completed, then recommend
+		 * that the pool be scrubbed to verify all checksums.  When
+		 * ps is NULL we can infer the pool has never been scrubbed.
+		 */
+		if (rebuild_end_time > 0) {
+			if (ps != NULL) {
+				if ((ps->pss_state == DSS_FINISHED &&
+				    ps->pss_func == POOL_SCAN_SCRUB &&
+				    rebuild_end_time > ps->pss_end_time) ||
+				    ps->pss_state == DSS_NONE)
+					return (ZPOOL_STATUS_REBUILD_SCRUB);
+			} else {
+				return (ZPOOL_STATUS_REBUILD_SCRUB);
+			}
+		}
+	}
 
 	/*
 	 * The multihost property is set and the pool may be active.

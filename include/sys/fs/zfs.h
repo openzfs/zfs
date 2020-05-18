@@ -704,6 +704,7 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_SPLIT_LIST		"guid_list"
 #define	ZPOOL_CONFIG_REMOVING		"removing"
 #define	ZPOOL_CONFIG_RESILVER_TXG	"resilver_txg"
+#define	ZPOOL_CONFIG_REBUILD_TXG	"rebuild_txg"
 #define	ZPOOL_CONFIG_COMMENT		"comment"
 #define	ZPOOL_CONFIG_SUSPENDED		"suspended"	/* not stored on disk */
 #define	ZPOOL_CONFIG_SUSPENDED_REASON	"suspended_reason"	/* not stored */
@@ -730,6 +731,7 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_MMP_HOSTID		"mmp_hostid"	/* not stored on disk */
 #define	ZPOOL_CONFIG_ALLOCATION_BIAS	"alloc_bias"	/* not stored on disk */
 #define	ZPOOL_CONFIG_EXPANSION_TIME	"expansion_time"	/* not stored */
+#define	ZPOOL_CONFIG_REBUILD_STATS	"org.openzfs:rebuild_stats"
 
 /*
  * The persistent vdev state is stored as separate values rather than a single
@@ -777,6 +779,9 @@ typedef struct zpool_load_policy {
 	"com.delphix:pool_checkpoint_sm"
 #define	VDEV_TOP_ZAP_MS_UNFLUSHED_PHYS_TXGS \
 	"com.delphix:ms_unflushed_phys_txgs"
+
+#define	VDEV_TOP_ZAP_VDEV_REBUILD_PHYS \
+	"org.openzfs:vdev_rebuild"
 
 #define	VDEV_TOP_ZAP_ALLOCATION_BIAS \
 	"org.zfsonlinux:allocation_bias"
@@ -991,6 +996,21 @@ typedef enum dsl_scan_state {
 	DSS_NUM_STATES
 } dsl_scan_state_t;
 
+typedef struct vdev_rebuild_stat {
+	uint64_t vrs_state;		/* vdev_rebuild_state_t */
+	uint64_t vrs_start_time;	/* time_t */
+	uint64_t vrs_end_time;		/* time_t */
+	uint64_t vrs_scan_time_ms;	/* total run time (millisecs) */
+	uint64_t vrs_bytes_scanned;	/* allocated bytes scanned */
+	uint64_t vrs_bytes_issued;	/* read bytes issued */
+	uint64_t vrs_bytes_rebuilt;	/* rebuilt bytes */
+	uint64_t vrs_bytes_est;		/* total bytes to scan */
+	uint64_t vrs_errors;		/* scanning errors */
+	uint64_t vrs_pass_time_ms;	/* pass run time (millisecs) */
+	uint64_t vrs_pass_bytes_scanned; /* bytes scanned since start/resume */
+	uint64_t vrs_pass_bytes_issued;	/* bytes rebuilt since start/resume */
+} vdev_rebuild_stat_t;
+
 /*
  * Errata described by https://zfsonlinux.org/msg/ZFS-8000-ER.  The ordering
  * of this enum must be maintained to ensure the errata identifiers map to
@@ -1047,6 +1067,7 @@ typedef struct vdev_stat {
 	uint64_t	vs_trim_bytes_est;	/* total bytes to trim */
 	uint64_t	vs_trim_state;		/* vdev_trim_state_t */
 	uint64_t	vs_trim_action_time;	/* time_t */
+	uint64_t	vs_rebuild_processed;	/* bytes rebuilt */
 } vdev_stat_t;
 
 /*
@@ -1177,6 +1198,13 @@ typedef enum {
 	VDEV_TRIM_SUSPENDED,
 	VDEV_TRIM_COMPLETE,
 } vdev_trim_state_t;
+
+typedef enum {
+	VDEV_REBUILD_NONE,
+	VDEV_REBUILD_ACTIVE,
+	VDEV_REBUILD_CANCELED,
+	VDEV_REBUILD_COMPLETE,
+} vdev_rebuild_state_t;
 
 /*
  * nvlist name constants. Facilitate restricting snapshot iteration range for
@@ -1337,6 +1365,8 @@ typedef enum {
 	ZFS_ERR_BOOKMARK_SOURCE_NOT_ANCESTOR,
 	ZFS_ERR_STREAM_TRUNCATED,
 	ZFS_ERR_STREAM_LARGE_BLOCK_MISMATCH,
+	ZFS_ERR_RESILVER_IN_PROGRESS,
+	ZFS_ERR_REBUILD_IN_PROGRESS,
 } zfs_errno_t;
 
 /*
@@ -1361,6 +1391,7 @@ typedef enum {
 	ZPOOL_WAIT_RESILVER,
 	ZPOOL_WAIT_SCRUB,
 	ZPOOL_WAIT_TRIM,
+	ZPOOL_WAIT_REBUILD,
 	ZPOOL_WAIT_NUM_ACTIVITIES
 } zpool_wait_activity_t;
 
@@ -1478,7 +1509,9 @@ typedef enum {
  * given payloads:
  *
  *	ESC_ZFS_RESILVER_START
- *	ESC_ZFS_RESILVER_END
+ *	ESC_ZFS_RESILVER_FINISH
+ *	ESC_ZFS_REBUILD_START
+ *	ESC_ZFS_REBUILD_FINISH
  *	ESC_ZFS_POOL_DESTROY
  *	ESC_ZFS_POOL_REGUID
  *

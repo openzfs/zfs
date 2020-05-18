@@ -27,6 +27,7 @@
 
 #
 # Copyright (c) 2013, 2016 by Delphix. All rights reserved.
+# Copyright (c) 2020 by Lawrence Livermore National Security, LLC.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -42,15 +43,16 @@
 #	2. Attach a disk to the pool.
 #	3. Verify the integrity of the file system and the resilvering.
 #
+# NOTE: Raidz does not support the rebuild (-r) option.
+#
 
 verify_runnable "global"
 
 function cleanup
 {
 	if [[ -n "$child_pids" ]]; then
-		for wait_pid in $child_pids
-		do
-		        kill $wait_pid
+		for wait_pid in $child_pids; do
+			kill $wait_pid
 		done
 	fi
 
@@ -104,28 +106,25 @@ function attach_test
 		((i = i + 1))
 	done
 
-	log_must zpool attach $opt $TESTPOOL1 $disk1 $disk2
+	log_must zpool attach -rw $opt $TESTPOOL1 $disk1 $disk2
 
-	sleep 10
-
-	for wait_pid in $child_pids
-	do
+	for wait_pid in $child_pids; do
 		kill $wait_pid
 	done
 	child_pids=""
 
-        log_must zpool export $TESTPOOL1
-        log_must zpool import -d $TESTDIR $TESTPOOL1
-        log_must zfs umount $TESTPOOL1/$TESTFS1
-        log_must zdb -cdui $TESTPOOL1/$TESTFS1
-        log_must zfs mount $TESTPOOL1/$TESTFS1
-
+	log_must zpool export $TESTPOOL1
+	log_must zpool import -d $TESTDIR $TESTPOOL1
+	log_must zfs umount $TESTPOOL1/$TESTFS1
+	log_must zdb -cdui $TESTPOOL1/$TESTFS1
+	log_must zfs mount $TESTPOOL1/$TESTFS1
+	verify_pool $TESTPOOL1
 }
 
 specials_list=""
 i=0
-while [[ $i != 2 ]]; do
-	mkfile $MINVDEVSIZE $TESTDIR/$TESTFILE1.$i
+while [[ $i != 3 ]]; do
+	truncate -s $MINVDEVSIZE $TESTDIR/$TESTFILE1.$i
 	specials_list="$specials_list $TESTDIR/$TESTFILE1.$i"
 
 	((i = i + 1))
@@ -134,7 +133,7 @@ done
 #
 # Create a replacement disk special file.
 #
-mkfile $MINVDEVSIZE $TESTDIR/$REPLACEFILE
+truncate -s $MINVDEVSIZE $TESTDIR/$REPLACEFILE
 
 for op in "" "-f"; do
 	create_pool $TESTPOOL1 mirror $specials_list
@@ -143,7 +142,7 @@ for op in "" "-f"; do
 
 	attach_test "$opt" $TESTDIR/$TESTFILE1.1 $TESTDIR/$REPLACEFILE
 
-	zpool iostat -v $TESTPOOL1 | grep "$TESTDIR/$REPLACEFILE"
+	zpool iostat -v $TESTPOOL1 | grep "$REPLACEFILE"
 	if [[ $? -ne 0 ]]; then
 		log_fail "$REPLACEFILE is not present."
 	fi
@@ -159,12 +158,12 @@ for type in "" "raidz" "raidz1"; do
 		log_must zfs create $TESTPOOL1/$TESTFS1
 		log_must zfs set mountpoint=$TESTDIR1 $TESTPOOL1/$TESTFS1
 
-		log_mustnot zpool attach "$opt" $TESTDIR/$TESTFILE1.1 \
+		log_mustnot zpool attach -r "$opt" $TESTDIR/$TESTFILE1.1 \
 		    $TESTDIR/$REPLACEFILE
 
-		zpool iostat -v $TESTPOOL1 | grep "$TESTDIR/$REPLACEFILE"
+		zpool iostat -v $TESTPOOL1 | grep "$REPLACEFILE"
 		if [[ $? -eq 0 ]]; then
-		        log_fail "$REPLACEFILE should not be present."
+			log_fail "$REPLACEFILE should not be present."
 		fi
 
 		destroy_pool $TESTPOOL1

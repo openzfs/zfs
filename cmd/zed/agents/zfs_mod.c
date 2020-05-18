@@ -437,7 +437,7 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 		return;
 	}
 
-	ret = zpool_vdev_attach(zhp, fullpath, path, nvroot, B_TRUE);
+	ret = zpool_vdev_attach(zhp, fullpath, path, nvroot, B_TRUE, B_FALSE);
 
 	zed_log_msg(LOG_INFO, "  zpool_vdev_replace: %s with %s (%s)",
 	    fullpath, path, (ret == 0) ? "no errors" :

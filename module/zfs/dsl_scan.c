@@ -704,8 +704,9 @@ static int
 dsl_scan_setup_check(void *arg, dmu_tx_t *tx)
 {
 	dsl_scan_t *scn = dmu_tx_pool(tx)->dp_scan;
+	vdev_t *rvd = scn->scn_dp->dp_spa->spa_root_vdev;
 
-	if (dsl_scan_is_running(scn))
+	if (dsl_scan_is_running(scn) || vdev_rebuild_active(rvd))
 		return (SET_ERROR(EBUSY));
 
 	return (0);
@@ -918,14 +919,14 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 		if (complete &&
 		    !spa_feature_is_active(spa, SPA_FEATURE_POOL_CHECKPOINT)) {
 			vdev_dtl_reassess(spa->spa_root_vdev, tx->tx_txg,
-			    scn->scn_phys.scn_max_txg, B_TRUE);
+			    scn->scn_phys.scn_max_txg, B_TRUE, B_FALSE);
 
 			spa_event_notify(spa, NULL, NULL,
 			    scn->scn_phys.scn_min_txg ?
 			    ESC_ZFS_RESILVER_FINISH : ESC_ZFS_SCRUB_FINISH);
 		} else {
 			vdev_dtl_reassess(spa->spa_root_vdev, tx->tx_txg,
-			    0, B_TRUE);
+			    0, B_TRUE, B_FALSE);
 		}
 		spa_errlog_rotate(spa);
 

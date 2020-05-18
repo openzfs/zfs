@@ -258,6 +258,28 @@ returned to the \fBenabled\fR state when all bookmarks with these fields are des
 .sp
 .ne 2
 .na
+\fBdevice_rebuild\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	org.openzfs:device_rebuild
+READ\-ONLY COMPATIBLE	yes
+DEPENDENCIES	none
+.TE
+
+This feature enables the ability for the \fBzpool attach\fR and \fBzpool replace\fR
+subcommands to perform a sequential rebuild operation for top-level mirror vdevs.
+Unlike a resilver, rebuilds reconstruct the data on a vdev is LBA order but do not
+verify block checksums.
+
+This feature becomes \fBactive\fR while a rebuild is in progress, and returns to
+\fBenabled\fR when the rebuild completes.
+.RE
+
+.sp
+.ne 2
+.na
 \fBdevice_removal\fR
 .ad
 .RS 4n

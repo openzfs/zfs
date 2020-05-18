@@ -57,6 +57,7 @@
 #include <sys/vdev_indirect_mapping.h>
 #include <sys/vdev_indirect_births.h>
 #include <sys/vdev_initialize.h>
+#include <sys/vdev_rebuild.h>
 #include <sys/vdev_trim.h>
 #include <sys/vdev_disk.h>
 #include <sys/metaslab.h>
@@ -1562,6 +1563,7 @@ spa_unload(spa_t *spa)
 		vdev_initialize_stop_all(root_vdev, VDEV_INITIALIZE_ACTIVE);
 		vdev_trim_stop_all(root_vdev, VDEV_TRIM_ACTIVE);
 		vdev_autotrim_stop_all(spa);
+		vdev_rebuild_stop_all(spa);
 	}
 
 	/*
@@ -4240,7 +4242,7 @@ spa_ld_load_vdev_metadata(spa_t *spa)
 	 * Propagate the leaf DTLs we just loaded all the way up the vdev tree.
 	 */
 	spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
-	vdev_dtl_reassess(rvd, 0, 0, B_FALSE);
+	vdev_dtl_reassess(rvd, 0, 0, B_FALSE, B_FALSE);
 	spa_config_exit(spa, SCL_ALL, FTAG);
 
 	return (0);
@@ -4829,11 +4831,16 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, char **ereport)
 		    update_config_cache);
 
 		/*
-		 * Check all DTLs to see if anything needs resilvering.
+		 * Check if a rebuild was in progress and if so resume it.
+		 * Then check all DTLs to see if anything needs resilvering.
+		 * The resilver will be deferred if a rebuild was started.
 		 */
-		if (!dsl_scan_resilvering(spa->spa_dsl_pool) &&
-		    vdev_resilver_needed(spa->spa_root_vdev, NULL, NULL))
+		if (vdev_rebuild_active(spa->spa_root_vdev)) {
+			vdev_rebuild_restart(spa);
+		} else if (!dsl_scan_resilvering(spa->spa_dsl_pool) &&
+		    vdev_resilver_needed(spa->spa_root_vdev, NULL, NULL)) {
 			spa_async_request(spa, SPA_ASYNC_RESILVER);
+		}
 
 		/*
 		 * Log the fact that we booted up (so that we can detect if
@@ -6313,6 +6320,7 @@ spa_export_common(char *pool, int new_state, nvlist_t **oldconfig,
 			vdev_initialize_stop_all(rvd, VDEV_INITIALIZE_ACTIVE);
 			vdev_trim_stop_all(rvd, VDEV_TRIM_ACTIVE);
 			vdev_autotrim_stop_all(spa);
+			vdev_rebuild_stop_all(spa);
 		}
 
 		/*
@@ -6536,12 +6544,18 @@ spa_vdev_add(spa_t *spa, nvlist_t *nvroot)
  * extra rules: you can't attach to it after it's been created, and upon
  * completion of resilvering, the first disk (the one being replaced)
  * is automatically detached.
+ *
+ * If 'rebuild' is specified, then a device rebuild should be performed
+ * instead of a traditional resilver.  While a different reconstruction
+ * strategy is used to perform the replacement.  The goal is that it should
+ * behave the same way as a resilver from the administrators perspective.
  */
 int
-spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing)
+spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
+    int rebuild)
 {
 	uint64_t txg, dtl_max_txg;
-	vdev_t *rvd __maybe_unused = spa->spa_root_vdev;
+	vdev_t *rvd = spa->spa_root_vdev;
 	vdev_t *oldvd, *newvd, *newrootvd, *pvd, *tvd;
 	vdev_ops_t *pvops;
 	char *oldvdpath, *newvdpath;
@@ -6559,6 +6573,19 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing)
 		error = (spa_has_checkpoint(spa)) ?
 		    ZFS_ERR_CHECKPOINT_EXISTS : ZFS_ERR_DISCARDING_CHECKPOINT;
 		return (spa_vdev_exit(spa, NULL, txg, error));
+	}
+
+	if (rebuild) {
+		if (!spa_feature_is_enabled(spa, SPA_FEATURE_DEVICE_REBUILD))
+			return (spa_vdev_exit(spa, NULL, txg, ENOTSUP));
+
+		if (dsl_scan_resilvering(spa_get_dsl(spa)))
+			return (spa_vdev_exit(spa, NULL, txg,
+			    ZFS_ERR_RESILVER_IN_PROGRESS));
+	} else {
+		if (vdev_rebuild_active(rvd))
+			return (spa_vdev_exit(spa, NULL, txg,
+			    ZFS_ERR_REBUILD_IN_PROGRESS));
 	}
 
 	if (spa->spa_vdev_removal != NULL)
@@ -6592,6 +6619,17 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing)
 	 */
 	if (oldvd->vdev_top->vdev_islog && newvd->vdev_isspare)
 		return (spa_vdev_exit(spa, newrootvd, txg, ENOTSUP));
+
+	if (rebuild) {
+		/*
+		 * For rebuilds, the only allowable parents are a mirror,
+		 * the root vdev, or a dRAID with fixed width stripes.
+		 */
+		if (pvd->vdev_ops != &vdev_mirror_ops &&
+		    pvd->vdev_ops != &vdev_root_ops) {
+			return (spa_vdev_exit(spa, newrootvd, txg, ENOTSUP));
+		}
+	}
 
 	if (!replacing) {
 		/*
@@ -6646,7 +6684,7 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing)
 	 * than the top-level vdev.
 	 */
 	if (newvd->vdev_ashift > oldvd->vdev_top->vdev_ashift)
-		return (spa_vdev_exit(spa, newrootvd, txg, EDOM));
+		return (spa_vdev_exit(spa, newrootvd, txg, ENOTSUP));
 
 	/*
 	 * If this is an in-place replacement, update oldvd's path and devid
@@ -6663,9 +6701,6 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing)
 			oldvd->vdev_devid = NULL;
 		}
 	}
-
-	/* mark the device being resilvered */
-	newvd->vdev_resilver_txg = txg;
 
 	/*
 	 * If the parent is not a mirror, or if we're replacing, insert the new
@@ -6704,8 +6739,8 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing)
 	 */
 	dtl_max_txg = txg + TXG_CONCURRENT_STATES;
 
-	vdev_dtl_dirty(newvd, DTL_MISSING, TXG_INITIAL,
-	    dtl_max_txg - TXG_INITIAL);
+	vdev_dtl_dirty(newvd, DTL_MISSING,
+	    TXG_INITIAL, dtl_max_txg - TXG_INITIAL);
 
 	if (newvd->vdev_isspare) {
 		spa_spare_activate(newvd);
@@ -6722,16 +6757,25 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing)
 	vdev_dirty(tvd, VDD_DTL, newvd, txg);
 
 	/*
-	 * Schedule the resilver to restart in the future. We do this to
-	 * ensure that dmu_sync-ed blocks have been stitched into the
-	 * respective datasets. We do not do this if resilvers have been
-	 * deferred.
+	 * Schedule the resilver or rebuild to restart in the future. We do
+	 * this to ensure that dmu_sync-ed blocks have been stitched into the
+	 * respective datasets.
 	 */
-	if (dsl_scan_resilvering(spa_get_dsl(spa)) &&
-	    spa_feature_is_enabled(spa, SPA_FEATURE_RESILVER_DEFER))
-		vdev_defer_resilver(newvd);
-	else
-		dsl_scan_restart_resilver(spa->spa_dsl_pool, dtl_max_txg);
+	if (rebuild) {
+		newvd->vdev_rebuild_txg = txg;
+
+		vdev_rebuild(tvd);
+	} else {
+		newvd->vdev_resilver_txg = txg;
+
+		if (dsl_scan_resilvering(spa_get_dsl(spa)) &&
+		    spa_feature_is_enabled(spa, SPA_FEATURE_RESILVER_DEFER)) {
+			vdev_defer_resilver(newvd);
+		} else {
+			dsl_scan_restart_resilver(spa->spa_dsl_pool,
+			    dtl_max_txg);
+		}
+	}
 
 	if (spa->spa_bootfs)
 		spa_event_notify(spa, newvd, NULL, ESC_ZFS_BOOTFS_VDEV_ATTACH);
@@ -6774,7 +6818,7 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 
 	ASSERT(spa_writeable(spa));
 
-	txg = spa_vdev_enter(spa);
+	txg = spa_vdev_detach_enter(spa, guid);
 
 	vd = spa_lookup_by_guid(spa, guid, B_FALSE);
 
@@ -7728,6 +7772,12 @@ spa_vdev_resilver_done(spa_t *spa)
 	}
 
 	spa_config_exit(spa, SCL_ALL, FTAG);
+
+	/*
+	 * If a detach was not performed above replace waiters will not have
+	 * been notified.  In which case we must do so now.
+	 */
+	spa_notify_waiters(spa);
 }
 
 /*
@@ -7967,13 +8017,14 @@ spa_async_thread(void *arg)
 	/*
 	 * If any devices are done replacing, detach them.
 	 */
-	if (tasks & SPA_ASYNC_RESILVER_DONE)
+	if (tasks & SPA_ASYNC_RESILVER_DONE || tasks & SPA_ASYNC_REBUILD_DONE)
 		spa_vdev_resilver_done(spa);
 
 	/*
 	 * Kick off a resilver.
 	 */
 	if (tasks & SPA_ASYNC_RESILVER &&
+	    !vdev_rebuild_active(spa->spa_root_vdev) &&
 	    (!dsl_scan_resilvering(dp) ||
 	    !spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_RESILVER_DEFER)))
 		dsl_scan_restart_resilver(dp, 0);
@@ -9482,6 +9533,9 @@ spa_activity_in_progress(spa_t *spa, zpool_wait_activity_t activity,
 		    is_scrub == (activity == ZPOOL_WAIT_SCRUB));
 		break;
 	}
+	case ZPOOL_WAIT_REBUILD:
+		*in_progress = vdev_rebuild_active(spa->spa_root_vdev);
+		break;
 	default:
 		panic("unrecognized value for activity %d", activity);
 	}
