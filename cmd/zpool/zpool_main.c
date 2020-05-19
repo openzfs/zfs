@@ -8620,9 +8620,9 @@ zpool_do_events_short(nvlist_t *nvl, ev_opts_t *opts)
 	verify(nvlist_lookup_int64_array(nvl, FM_EREPORT_TIME, &tv, &n) == 0);
 	memset(str, ' ', 32);
 	(void) ctime_r((const time_t *)&tv[0], ctime_str);
-	(void) strncpy(str, ctime_str+4,  6);		/* 'Jun 30' */
-	(void) strncpy(str+7, ctime_str+20, 4);		/* '1993' */
-	(void) strncpy(str+12, ctime_str+11, 8);	/* '21:49:08' */
+	(void) memcpy(str, ctime_str+4,  6);		/* 'Jun 30' */
+	(void) memcpy(str+7, ctime_str+20, 4);		/* '1993' */
+	(void) memcpy(str+12, ctime_str+11, 8);		/* '21:49:08' */
 	(void) sprintf(str+20, ".%09lld", (longlong_t)tv[1]); /* '.123456789' */
 	if (opts->scripted)
 		(void) printf(gettext("%s\t"), str);
