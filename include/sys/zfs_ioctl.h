@@ -107,6 +107,22 @@ typedef enum drr_headertype {
 #define	DMU_BACKUP_FEATURE_RAW			(1 << 24)
 /* flag #25 is reserved for the ZSTD compression feature */
 #define	DMU_BACKUP_FEATURE_HOLDS		(1 << 26)
+/*
+ * The SWITCH_TO_LARGE_BLOCKS feature indicates that we can receive
+ * incremental LARGE_BLOCKS streams (those with WRITE records of >128KB) even
+ * if the previous send did not use LARGE_BLOCKS, and thus its large blocks
+ * were split into multiple 128KB WRITE records.  (See
+ * flush_write_batch_impl() and receive_object()).  Older software that does
+ * not support this flag may encounter a bug when switching to large blocks,
+ * which causes files to incorrectly be zeroed.
+ *
+ * This flag is currently not set on any send streams.  In the future, we
+ * intend for incremental send streams of snapshots that have large blocks to
+ * use LARGE_BLOCKS by default, and these streams will also have the
+ * SWITCH_TO_LARGE_BLOCKS feature set. This ensures that streams from the
+ * default use of "zfs send" won't encounter the bug mentioned above.
+ */
+#define	DMU_BACKUP_FEATURE_SWITCH_TO_LARGE_BLOCKS (1 << 27)
 
 /*
  * Mask of all supported backup features
@@ -116,7 +132,7 @@ typedef enum drr_headertype {
     DMU_BACKUP_FEATURE_RESUMING | DMU_BACKUP_FEATURE_LARGE_BLOCKS | \
     DMU_BACKUP_FEATURE_COMPRESSED | DMU_BACKUP_FEATURE_LARGE_DNODE | \
     DMU_BACKUP_FEATURE_RAW | DMU_BACKUP_FEATURE_HOLDS | \
-	DMU_BACKUP_FEATURE_REDACTED)
+    DMU_BACKUP_FEATURE_REDACTED | DMU_BACKUP_FEATURE_SWITCH_TO_LARGE_BLOCKS)
 
 /* Are all features in the given flag word currently supported? */
 #define	DMU_STREAM_SUPPORTED(x)	(!((x) & ~DMU_BACKUP_FEATURE_MASK))

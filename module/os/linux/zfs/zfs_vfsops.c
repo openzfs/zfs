@@ -2131,7 +2131,7 @@ zfs_init(void)
 {
 	zfsctl_init();
 	zfs_znode_init();
-	dmu_objset_register_type(DMU_OST_ZFS, zfs_space_delta_cb);
+	dmu_objset_register_type(DMU_OST_ZFS, zpl_get_file_info);
 	register_filesystem(&zpl_fs_type);
 }
 
