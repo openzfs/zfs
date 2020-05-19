@@ -352,7 +352,7 @@ zfs_quotactl(vfs_t *vfsp, int cmds, uid_t id, void *arg)
 		vfs_unbusy(vfsp);
 		break;
 	case Q_SETQUOTA:
-		error = copyin(&dqblk, arg, sizeof (dqblk));
+		error = copyin(arg, &dqblk, sizeof (dqblk));
 		if (error == 0)
 			error = zfs_set_userquota(zfsvfs, quota_type,
 			    "", id, dbtob(dqblk.dqb_bhardlimit));
