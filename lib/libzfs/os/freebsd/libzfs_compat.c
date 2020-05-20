@@ -362,3 +362,11 @@ zfs_version_kernel(char *version, int len)
 	return (sysctlbyname("vfs.zfs.version.module",
 	    version, &l, NULL, 0));
 }
+
+/* Called from the tail end of zfs_rollback() */
+int
+zfs_rollback_os(zfs_handle_t *zhp)
+{
+	(void) zhp;
+	return (0);
+}
