@@ -222,9 +222,9 @@ dsl_pool_open_impl(spa_t *spa, uint64_t txg)
 	cv_init(&dp->dp_spaceavail_cv, NULL, CV_DEFAULT, NULL);
 
 	dp->dp_iput_taskq = taskq_create("z_iput", max_ncpus, defclsyspri,
-	    max_ncpus * 8, INT_MAX, TASKQ_PREPOPULATE | TASKQ_DYNAMIC);
+	    boot_ncpus * 8, INT_MAX, TASKQ_PREPOPULATE | TASKQ_DYNAMIC);
 	dp->dp_unlinked_drain_taskq = taskq_create("z_unlinked_drain",
-	    max_ncpus, defclsyspri, max_ncpus, INT_MAX,
+	    boot_ncpus, defclsyspri, boot_ncpus, INT_MAX,
 	    TASKQ_PREPOPULATE | TASKQ_DYNAMIC);
 
 	return (dp);
