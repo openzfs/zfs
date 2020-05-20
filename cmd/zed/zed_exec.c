@@ -26,6 +26,8 @@
 #include <time.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <signal.h>
+
 #include "zed_exec.h"
 #include "zed_log.h"
 #include "zed_strings.h"

@@ -1170,6 +1170,8 @@ extern void spa_configfile_set(spa_t *, nvlist_t *, boolean_t);
 /* asynchronous event notification */
 extern void spa_event_notify(spa_t *spa, vdev_t *vdev, nvlist_t *hist_nvl,
     const char *name);
+extern void zfs_ereport_zvol_post(const char *subclass, const char *name,
+    const char *device_name, const char *raw_name);
 
 /* waiting for pool activities to complete */
 extern int spa_wait(const char *pool, zpool_wait_activity_t activity,
