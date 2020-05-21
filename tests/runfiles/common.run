@@ -169,6 +169,10 @@ tests = ['zfs_get_001_pos', 'zfs_get_002_pos', 'zfs_get_003_pos',
     'zfs_get_008_pos', 'zfs_get_009_pos', 'zfs_get_010_neg']
 tags = ['functional', 'cli_root', 'zfs_get']
 
+[tests/functional/cli_root/zfs_ids_to_path]
+tests = ['zfs_ids_to_path_001_pos']
+tags = ['functional', 'cli_root', 'zfs_ids_to_path']
+
 [tests/functional/cli_root/zfs_inherit]
 tests = ['zfs_inherit_001_neg', 'zfs_inherit_002_neg', 'zfs_inherit_003_pos',
     'zfs_inherit_mountpoint']

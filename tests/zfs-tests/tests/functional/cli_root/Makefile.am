@@ -13,6 +13,7 @@ SUBDIRS = \
 	zfs_destroy \
 	zfs_diff \
 	zfs_get \
+	zfs_ids_to_path \
 	zfs_inherit \
 	zfs_load-key \
 	zfs_mount \
