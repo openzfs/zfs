@@ -396,54 +396,6 @@ BIO_END_IO_PROTO(vdev_disk_physio_completion, bio, error)
 	rc = vdev_disk_dio_put(dr);
 }
 
-static unsigned int
-bio_map(struct bio *bio, void *bio_ptr, unsigned int bio_size)
-{
-	unsigned int offset, size, i;
-	struct page *page;
-
-	offset = offset_in_page(bio_ptr);
-	for (i = 0; i < bio->bi_max_vecs; i++) {
-		size = PAGE_SIZE - offset;
-
-		if (bio_size <= 0)
-			break;
-
-		if (size > bio_size)
-			size = bio_size;
-
-		if (is_vmalloc_addr(bio_ptr))
-			page = vmalloc_to_page(bio_ptr);
-		else
-			page = virt_to_page(bio_ptr);
-
-		/*
-		 * Some network related block device uses tcp_sendpage, which
-		 * doesn't behave well when using 0-count page, this is a
-		 * safety net to catch them.
-		 */
-		ASSERT3S(page_count(page), >, 0);
-
-		if (bio_add_page(bio, page, size, offset) != size)
-			break;
-
-		bio_ptr  += size;
-		bio_size -= size;
-		offset = 0;
-	}
-
-	return (bio_size);
-}
-
-static unsigned int
-bio_map_abd_off(struct bio *bio, abd_t *abd, unsigned int size, size_t off)
-{
-	if (abd_is_linear(abd))
-		return (bio_map(bio, ((char *)abd_to_buf(abd)) + off, size));
-
-	return (abd_scatter_bio_map_off(bio, abd, size, off));
-}
-
 static inline void
 vdev_submit_bio_impl(struct bio *bio)
 {
@@ -603,7 +555,7 @@ retry:
 		bio_set_op_attrs(dr->dr_bio[i], rw, flags);
 
 		/* Remaining size is returned to become the new size */
-		bio_size = bio_map_abd_off(dr->dr_bio[i], zio->io_abd,
+		bio_size = abd_bio_map_off(dr->dr_bio[i], zio->io_abd,
 		    bio_size, abd_offset);
 
 		/* Advance in buffer and construct another bio if needed */
