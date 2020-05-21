@@ -7319,9 +7319,6 @@ unshare_unmount(int op, int argc, char **argv)
 			const char *mntarg = NULL;
 
 			uu_avl_remove(tree, node);
-#ifndef __FreeBSD__
-			mntarg = node->un_zhp->zfs_name;
-#endif
 			switch (op) {
 			case OP_SHARE:
 				if (zfs_unshareall_bytype(node->un_zhp,
