@@ -1338,11 +1338,10 @@ xattr_handler_t zpl_xattr_acl_default_handler =
 
 #endif /* CONFIG_FS_POSIX_ACL */
 
-#if defined(ZFS_NFS4_ACL)
 int
 zpl_permission(struct inode *ip, int mask)
 {
-	if (ITOZSB(ip)->z_acl_type == ZFS_ACLTYPE_NFS4ACL) {
+	if (ITOZSB(ip)->z_acl_type == ZFS_ACLTYPE_NATIVE) {
 		/*
 		 * XXX - mask could also include
 		 * MAY_APPEND|MAY_ACCESS|MAY_OPEN|MAY_CHDIR, do we care?
@@ -1354,6 +1353,8 @@ zpl_permission(struct inode *ip, int mask)
 		return (generic_permission(ip, mask));
 	}
 }
+
+#if defined(ZFS_NFS4_ACL)
 
 static const struct cred *nfs4acl_resolver_cred;
 
@@ -1469,10 +1470,6 @@ nfs4acl_key_read(const struct key *k, char __user *ub, size_t ublen)
  *
  * create  zfs_nfs4acl_resolver    *      *     /usr/sbin/nfsidmap -t 600 %k %d
  *
- * It would be better to have a native kernel interface to NFS4 ACLs to avoid
- * dealing with uid/gid mappings in-kernel and the unnecessary local use of the
- * NFS4 domain, but this is also better than not having NFS4 ACL support at all
- * 8-/.
  */
 
 static struct key_type key_type_nfs4acl_resolver = {
@@ -1593,7 +1590,7 @@ __zpl_xattr_nfs4acl_list(struct inode *ip, char *list, size_t list_size,
 	char *xattr_name = NFS4ACL_XATTR;
 	size_t xattr_size = sizeof (NFS4ACL_XATTR);
 
-	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_NFS4ACL)
+	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_NATIVE)
 		return (0);
 
 	if (list && xattr_size <= list_size)
@@ -1689,7 +1686,7 @@ __zpl_xattr_nfs4acl_get(struct inode *ip, const char *name,
 	if (strcmp(name, "") != 0)
 		return (-EINVAL);
 #endif
-	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_NFS4ACL)
+	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_NATIVE)
 		return (-EOPNOTSUPP);
 
 	vsecp.vsa_mask = VSA_ACE_ALLTYPES | VSA_ACECNT | VSA_ACE |
@@ -1832,7 +1829,7 @@ __zpl_xattr_nfs4acl_set(struct inode *ip, const char *name,
 	if (strcmp(name, "") != 0)
 		return (-EINVAL);
 #endif
-	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_NFS4ACL)
+	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_NATIVE)
 		return (-EOPNOTSUPP);
 
 	bufp = (char *)value;

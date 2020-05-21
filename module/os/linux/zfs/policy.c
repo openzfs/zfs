@@ -106,7 +106,7 @@ secpolicy_sys_config(const cred_t *cr, boolean_t checkonly)
  * Like secpolicy_vnode_access() but we get the actual wanted mode and the
  * current mode of the file, not the missing bits.
  *
- * If filesystem is using native NFSv4 ACL, validate the current mode
+ * If filesystem is using native ACLs, validate the current mode
  * and the wanted mode are the same, otherwise access fails.
  *
  * If using POSIX ACL or no ACLs, enforced in the Linux VFS.
@@ -115,7 +115,7 @@ int
 secpolicy_vnode_access2(const cred_t *cr, struct inode *ip, uid_t owner,
     mode_t curmode, mode_t wantmode)
 {
-	if (ITOZSB(ip)->z_acl_type == ZFS_ACLTYPE_NFS4ACL &&
+	if (ITOZSB(ip)->z_acl_type == ZFS_ACLTYPE_NATIVE &&
 	    (~curmode & wantmode) != 0)
 		return (EACCES);
 
