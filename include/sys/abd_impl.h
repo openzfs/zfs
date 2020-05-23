@@ -39,6 +39,9 @@ typedef enum abd_flags {
 	ABD_FLAG_MULTI_ZONE  	= 1 << 3, /* pages split over memory zones */
 	ABD_FLAG_MULTI_CHUNK 	= 1 << 4, /* pages split over multiple chunks */
 	ABD_FLAG_LINEAR_PAGE 	= 1 << 5, /* linear but allocd from page */
+	ABD_FLAG_GANG		= 1 << 6, /* mult ABDs chained together */
+	ABD_FLAG_GANG_FREE	= 1 << 7, /* gang ABD is responsible for mem */
+	ABD_FLAG_ZEROS		= 1 << 8, /* ABD for zero-filled buffer */
 } abd_flags_t;
 
 typedef enum abd_stats_op {
@@ -49,8 +52,10 @@ typedef enum abd_stats_op {
 struct abd {
 	abd_flags_t	abd_flags;
 	uint_t		abd_size;	/* excludes scattered abd_offset */
+	list_node_t	abd_gang_link;
 	struct abd	*abd_parent;
 	zfs_refcount_t	abd_children;
+	kmutex_t	abd_mtx;
 	union {
 		struct abd_scatter {
 			uint_t		abd_offset;
@@ -66,6 +71,9 @@ struct abd {
 			void		*abd_buf;
 			struct scatterlist *abd_sgl; /* for LINEAR_PAGE */
 		} abd_linear;
+		struct abd_gang {
+			list_t abd_gang_chain;
+		} abd_gang;
 	} abd_u;
 };
 
@@ -83,6 +91,8 @@ struct abd_iter {
 					/* abd_offset included */
 	struct scatterlist *iter_sg;	/* current sg */
 };
+
+abd_t *abd_gang_get_offset(abd_t *, size_t *);
 
 /*
  * OS specific functions
@@ -116,6 +126,7 @@ void abd_iter_unmap(struct abd_iter *);
 
 #define	ABD_SCATTER(abd)	(abd->abd_u.abd_scatter)
 #define	ABD_LINEAR_BUF(abd)	(abd->abd_u.abd_linear.abd_buf)
+#define	ABD_GANG(abd)		(abd->abd_u.abd_gang)
 
 #if defined(_KERNEL)
 #if defined(__FreeBSD__)

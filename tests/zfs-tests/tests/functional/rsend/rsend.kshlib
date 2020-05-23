@@ -675,7 +675,7 @@ function test_fs_setup
 	datasetexists $recvfs && log_must_busy zfs destroy -r $recvpool
 	datasetexists $streamfs && log_must_busy zfs destroy -r $streamfs
 
-	if $(datasetexists $sendfs || zfs create -o compress=lz4 $sendfs); then
+	if datasetexists $sendfs || zfs create -o compress=lz4 $sendfs; then
 		mk_files 1000 256 0 $sendfs &
 		mk_files 1000 131072 0 $sendfs &
 		mk_files 100 1048576 0 $sendfs &

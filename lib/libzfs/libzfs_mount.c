@@ -500,7 +500,7 @@ zfs_mount_at(zfs_handle_t *zhp, const char *options, int flags,
 	}
 
 	/* perform the mount */
-	rc = do_mount(zfs_get_name(zhp), mountpoint, mntopts, flags);
+	rc = do_mount(zhp, mountpoint, mntopts, flags);
 	if (rc) {
 		/*
 		 * Generic errors are nasty, but there are just way too many

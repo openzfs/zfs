@@ -24,7 +24,7 @@
  */
 
 /*
- * See abd.c for an general overview of the arc buffered data (ABD).
+ * See abd.c for a general overview of the arc buffered data (ABD).
  *
  * Linear buffers act exactly like normal buffers and are always mapped into the
  * kernel's virtual memory space, while scattered ABD data chunks are allocated
@@ -48,7 +48,7 @@
  *
  * If we are not using HIGHMEM, scattered buffers which have only one chunk
  * can be treated as linear buffers, because they are contiguous in the
- * kernel's virtual address space. See abd_alloc_chunks() for details.
+ * kernel's virtual address space.  See abd_alloc_chunks() for details.
  */
 
 #include <sys/abd_impl.h>
@@ -160,6 +160,13 @@ unsigned zfs_abd_scatter_max_order = MAX_ORDER - 1;
  */
 int zfs_abd_scatter_min_size = 512 * 3;
 
+/*
+ * We use a scattered SPA_MAXBLOCKSIZE sized ABD whose pages are
+ * just a single zero'd page. This allows us to conserve memory by
+ * only using a single zero page for the scatterlist.
+ */
+abd_t *abd_zero_scatter = NULL;
+
 static kmem_cache_t *abd_cache = NULL;
 static kstat_t *abd_ksp;
 
@@ -178,6 +185,8 @@ abd_alloc_struct(size_t size)
 	 */
 	abd_t *abd = kmem_cache_alloc(abd_cache, KM_PUSHPAGE);
 	ASSERT3P(abd, !=, NULL);
+	list_link_init(&abd->abd_gang_link);
+	mutex_init(&abd->abd_mtx, NULL, MUTEX_DEFAULT, NULL);
 	ABDSTAT_INCR(abdstat_struct_size, sizeof (abd_t));
 
 	return (abd);
@@ -186,6 +195,8 @@ abd_alloc_struct(size_t size)
 void
 abd_free_struct(abd_t *abd)
 {
+	mutex_destroy(&abd->abd_mtx);
+	ASSERT(!list_link_active(&abd->abd_gang_link));
 	kmem_cache_free(abd_cache, abd);
 	ABDSTAT_INCR(abdstat_struct_size, -(int)sizeof (abd_t));
 }
@@ -426,13 +437,58 @@ abd_free_chunks(abd_t *abd)
 	abd_free_sg_table(abd);
 }
 
+/*
+ * Allocate scatter ABD of size SPA_MAXBLOCKSIZE, where each page in
+ * the scatterlist will be set to ZERO_PAGE(0). ZERO_PAGE(0) returns
+ * a global shared page that is always zero'd out.
+ */
+static void
+abd_alloc_zero_scatter(void)
+{
+	struct scatterlist *sg = NULL;
+	struct sg_table table;
+	gfp_t gfp = __GFP_NOWARN | GFP_NOIO;
+	int nr_pages = abd_chunkcnt_for_bytes(SPA_MAXBLOCKSIZE);
+	int i = 0;
+
+	while (sg_alloc_table(&table, nr_pages, gfp)) {
+		ABDSTAT_BUMP(abdstat_scatter_sg_table_retry);
+		schedule_timeout_interruptible(1);
+	}
+	ASSERT3U(table.nents, ==, nr_pages);
+
+	abd_zero_scatter = abd_alloc_struct(SPA_MAXBLOCKSIZE);
+	abd_zero_scatter->abd_flags = ABD_FLAG_OWNER;
+	ABD_SCATTER(abd_zero_scatter).abd_offset = 0;
+	ABD_SCATTER(abd_zero_scatter).abd_sgl = table.sgl;
+	ABD_SCATTER(abd_zero_scatter).abd_nents = nr_pages;
+	abd_zero_scatter->abd_size = SPA_MAXBLOCKSIZE;
+	abd_zero_scatter->abd_parent = NULL;
+	abd_zero_scatter->abd_flags |= ABD_FLAG_MULTI_CHUNK | ABD_FLAG_ZEROS;
+	zfs_refcount_create(&abd_zero_scatter->abd_children);
+
+	abd_for_each_sg(abd_zero_scatter, sg, nr_pages, i) {
+		sg_set_page(sg, ZERO_PAGE(0), PAGESIZE, 0);
+	}
+
+	ABDSTAT_BUMP(abdstat_scatter_cnt);
+	ABDSTAT_INCR(abdstat_scatter_data_size, PAGESIZE);
+	ABDSTAT_BUMP(abdstat_scatter_page_multi_chunk);
+}
+
 #else /* _KERNEL */
+
+struct page;
+
+/*
+ * In user space abd_zero_page we will be an allocated zero'd PAGESIZE
+ * buffer, which is assigned to set each of the pages of abd_zero_scatter.
+ */
+static struct page *abd_zero_page = NULL;
 
 #ifndef PAGE_SHIFT
 #define	PAGE_SHIFT (highbit64(PAGESIZE)-1)
 #endif
-
-struct page;
 
 #define	zfs_kmap_atomic(chunk, km)	((void *)chunk)
 #define	zfs_kunmap_atomic(addr, km)	do { (void)(addr); } while (0)
@@ -527,6 +583,37 @@ abd_free_chunks(abd_t *abd)
 	abd_free_sg_table(abd);
 }
 
+static void
+abd_alloc_zero_scatter(void)
+{
+	unsigned nr_pages = abd_chunkcnt_for_bytes(SPA_MAXBLOCKSIZE);
+	struct scatterlist *sg;
+	int i;
+
+	abd_zero_page = umem_alloc_aligned(PAGESIZE, 64, KM_SLEEP);
+	memset(abd_zero_page, 0, PAGESIZE);
+	abd_zero_scatter = abd_alloc_struct(SPA_MAXBLOCKSIZE);
+	abd_zero_scatter->abd_flags = ABD_FLAG_OWNER;
+	abd_zero_scatter->abd_flags |= ABD_FLAG_MULTI_CHUNK | ABD_FLAG_ZEROS;
+	ABD_SCATTER(abd_zero_scatter).abd_offset = 0;
+	ABD_SCATTER(abd_zero_scatter).abd_nents = nr_pages;
+	abd_zero_scatter->abd_size = SPA_MAXBLOCKSIZE;
+	abd_zero_scatter->abd_parent = NULL;
+	zfs_refcount_create(&abd_zero_scatter->abd_children);
+	ABD_SCATTER(abd_zero_scatter).abd_sgl = vmem_alloc(nr_pages *
+	    sizeof (struct scatterlist), KM_SLEEP);
+
+	sg_init_table(ABD_SCATTER(abd_zero_scatter).abd_sgl, nr_pages);
+
+	abd_for_each_sg(abd_zero_scatter, sg, nr_pages, i) {
+		sg_set_page(sg, abd_zero_page, PAGESIZE, 0);
+	}
+
+	ABDSTAT_BUMP(abdstat_scatter_cnt);
+	ABDSTAT_INCR(abdstat_scatter_data_size, PAGESIZE);
+	ABDSTAT_BUMP(abdstat_scatter_page_multi_chunk);
+}
+
 #endif /* _KERNEL */
 
 boolean_t
@@ -582,6 +669,22 @@ abd_verify_scatter(abd_t *abd)
 	}
 }
 
+static void
+abd_free_zero_scatter(void)
+{
+	zfs_refcount_destroy(&abd_zero_scatter->abd_children);
+	ABDSTAT_BUMPDOWN(abdstat_scatter_cnt);
+	ABDSTAT_INCR(abdstat_scatter_data_size, -(int)PAGESIZE);
+	ABDSTAT_BUMPDOWN(abdstat_scatter_page_multi_chunk);
+
+	abd_free_sg_table(abd_zero_scatter);
+	abd_free_struct(abd_zero_scatter);
+	abd_zero_scatter = NULL;
+#if !defined(_KERNEL)
+	umem_free(abd_zero_page, PAGESIZE);
+#endif /* _KERNEL */
+}
+
 void
 abd_init(void)
 {
@@ -602,11 +705,15 @@ abd_init(void)
 		abd_ksp->ks_data = &abd_stats;
 		kstat_install(abd_ksp);
 	}
+
+	abd_alloc_zero_scatter();
 }
 
 void
 abd_fini(void)
 {
+	abd_free_zero_scatter();
+
 	if (abd_ksp != NULL) {
 		kstat_delete(abd_ksp);
 		abd_ksp = NULL;
@@ -692,6 +799,7 @@ abd_get_offset_scatter(abd_t *sabd, size_t off)
 void
 abd_iter_init(struct abd_iter *aiter, abd_t *abd)
 {
+	ASSERT(!abd_is_gang(abd));
 	abd_verify(abd);
 	aiter->iter_abd = abd;
 	aiter->iter_mapaddr = NULL;
@@ -813,6 +921,10 @@ abd_nr_pages_off(abd_t *abd, unsigned int size, size_t off)
 {
 	unsigned long pos;
 
+	while (abd_is_gang(abd))
+		abd = abd_gang_get_offset(abd, &off);
+
+	ASSERT(!abd_is_gang(abd));
 	if (abd_is_linear(abd))
 		pos = (unsigned long)abd_to_buf(abd) + off;
 	else
@@ -822,20 +934,88 @@ abd_nr_pages_off(abd_t *abd, unsigned int size, size_t off)
 	    (pos >> PAGE_SHIFT);
 }
 
+static unsigned int
+bio_map(struct bio *bio, void *buf_ptr, unsigned int bio_size)
+{
+	unsigned int offset, size, i;
+	struct page *page;
+
+	offset = offset_in_page(buf_ptr);
+	for (i = 0; i < bio->bi_max_vecs; i++) {
+		size = PAGE_SIZE - offset;
+
+		if (bio_size <= 0)
+			break;
+
+		if (size > bio_size)
+			size = bio_size;
+
+		if (is_vmalloc_addr(buf_ptr))
+			page = vmalloc_to_page(buf_ptr);
+		else
+			page = virt_to_page(buf_ptr);
+
+		/*
+		 * Some network related block device uses tcp_sendpage, which
+		 * doesn't behave well when using 0-count page, this is a
+		 * safety net to catch them.
+		 */
+		ASSERT3S(page_count(page), >, 0);
+
+		if (bio_add_page(bio, page, size, offset) != size)
+			break;
+
+		buf_ptr += size;
+		bio_size -= size;
+		offset = 0;
+	}
+
+	return (bio_size);
+}
+
 /*
- * bio_map for scatter ABD.
+ * bio_map for gang ABD.
+ */
+static unsigned int
+abd_gang_bio_map_off(struct bio *bio, abd_t *abd,
+    unsigned int io_size, size_t off)
+{
+	ASSERT(abd_is_gang(abd));
+
+	for (abd_t *cabd = abd_gang_get_offset(abd, &off);
+	    cabd != NULL;
+	    cabd = list_next(&ABD_GANG(abd).abd_gang_chain, cabd)) {
+		ASSERT3U(off, <, cabd->abd_size);
+		int size = MIN(io_size, cabd->abd_size - off);
+		int remainder = abd_bio_map_off(bio, cabd, size, off);
+		io_size -= (size - remainder);
+		if (io_size == 0 || remainder > 0)
+			return (io_size);
+		off = 0;
+	}
+	ASSERT0(io_size);
+	return (io_size);
+}
+
+/*
+ * bio_map for ABD.
  * @off is the offset in @abd
  * Remaining IO size is returned
  */
 unsigned int
-abd_scatter_bio_map_off(struct bio *bio, abd_t *abd,
+abd_bio_map_off(struct bio *bio, abd_t *abd,
     unsigned int io_size, size_t off)
 {
 	int i;
 	struct abd_iter aiter;
 
-	ASSERT(!abd_is_linear(abd));
 	ASSERT3U(io_size, <=, abd->abd_size - off);
+	if (abd_is_linear(abd))
+		return (bio_map(bio, ((char *)abd_to_buf(abd)) + off, io_size));
+
+	ASSERT(!abd_is_linear(abd));
+	if (abd_is_gang(abd))
+		return (abd_gang_bio_map_off(bio, abd, io_size, off));
 
 	abd_iter_init(&aiter, abd);
 	abd_iter_advance(&aiter, off);

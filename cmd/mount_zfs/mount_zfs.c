@@ -42,185 +42,6 @@
 
 libzfs_handle_t *g_zfs;
 
-typedef struct option_map {
-	const char *name;
-	unsigned long mntmask;
-	unsigned long zfsmask;
-} option_map_t;
-
-static const option_map_t option_map[] = {
-	/* Canonicalized filesystem independent options from mount(8) */
-	{ MNTOPT_NOAUTO,	MS_COMMENT,	ZS_COMMENT	},
-	{ MNTOPT_DEFAULTS,	MS_COMMENT,	ZS_COMMENT	},
-	{ MNTOPT_NODEVICES,	MS_NODEV,	ZS_COMMENT	},
-	{ MNTOPT_DIRSYNC,	MS_DIRSYNC,	ZS_COMMENT	},
-	{ MNTOPT_NOEXEC,	MS_NOEXEC,	ZS_COMMENT	},
-	{ MNTOPT_GROUP,		MS_GROUP,	ZS_COMMENT	},
-	{ MNTOPT_NETDEV,	MS_COMMENT,	ZS_COMMENT	},
-	{ MNTOPT_NOFAIL,	MS_COMMENT,	ZS_COMMENT	},
-	{ MNTOPT_NOSUID,	MS_NOSUID,	ZS_COMMENT	},
-	{ MNTOPT_OWNER,		MS_OWNER,	ZS_COMMENT	},
-	{ MNTOPT_REMOUNT,	MS_REMOUNT,	ZS_COMMENT	},
-	{ MNTOPT_RO,		MS_RDONLY,	ZS_COMMENT	},
-	{ MNTOPT_RW,		MS_COMMENT,	ZS_COMMENT	},
-	{ MNTOPT_SYNC,		MS_SYNCHRONOUS,	ZS_COMMENT	},
-	{ MNTOPT_USER,		MS_USERS,	ZS_COMMENT	},
-	{ MNTOPT_USERS,		MS_USERS,	ZS_COMMENT	},
-	/* acl flags passed with util-linux-2.24 mount command */
-	{ MNTOPT_ACL,		MS_POSIXACL,	ZS_COMMENT	},
-	{ MNTOPT_NOACL,		MS_COMMENT,	ZS_COMMENT	},
-	{ MNTOPT_POSIXACL,	MS_POSIXACL,	ZS_COMMENT	},
-#ifdef MS_NOATIME
-	{ MNTOPT_NOATIME,	MS_NOATIME,	ZS_COMMENT	},
-#endif
-#ifdef MS_NODIRATIME
-	{ MNTOPT_NODIRATIME,	MS_NODIRATIME,	ZS_COMMENT	},
-#endif
-#ifdef MS_RELATIME
-	{ MNTOPT_RELATIME,	MS_RELATIME,	ZS_COMMENT	},
-#endif
-#ifdef MS_STRICTATIME
-	{ MNTOPT_STRICTATIME,	MS_STRICTATIME,	ZS_COMMENT	},
-#endif
-#ifdef MS_LAZYTIME
-	{ MNTOPT_LAZYTIME,	MS_LAZYTIME,	ZS_COMMENT	},
-#endif
-	{ MNTOPT_CONTEXT,	MS_COMMENT,	ZS_COMMENT	},
-	{ MNTOPT_FSCONTEXT,	MS_COMMENT,	ZS_COMMENT	},
-	{ MNTOPT_DEFCONTEXT,	MS_COMMENT,	ZS_COMMENT	},
-	{ MNTOPT_ROOTCONTEXT,	MS_COMMENT,	ZS_COMMENT	},
-#ifdef MS_I_VERSION
-	{ MNTOPT_IVERSION,	MS_I_VERSION,	ZS_COMMENT	},
-#endif
-#ifdef MS_MANDLOCK
-	{ MNTOPT_NBMAND,	MS_MANDLOCK,	ZS_COMMENT	},
-#endif
-	/* Valid options not found in mount(8) */
-	{ MNTOPT_BIND,		MS_BIND,	ZS_COMMENT	},
-#ifdef MS_REC
-	{ MNTOPT_RBIND,		MS_BIND|MS_REC,	ZS_COMMENT	},
-#endif
-	{ MNTOPT_COMMENT,	MS_COMMENT,	ZS_COMMENT	},
-#ifdef MS_NOSUB
-	{ MNTOPT_NOSUB,		MS_NOSUB,	ZS_COMMENT	},
-#endif
-#ifdef MS_SILENT
-	{ MNTOPT_QUIET,		MS_SILENT,	ZS_COMMENT	},
-#endif
-	/* Custom zfs options */
-	{ MNTOPT_XATTR,		MS_COMMENT,	ZS_COMMENT	},
-	{ MNTOPT_NOXATTR,	MS_COMMENT,	ZS_COMMENT	},
-	{ MNTOPT_ZFSUTIL,	MS_COMMENT,	ZS_ZFSUTIL	},
-	{ NULL,			0,		0		} };
-
-/*
- * Break the mount option in to a name/value pair.  The name is
- * validated against the option map and mount flags set accordingly.
- */
-static int
-parse_option(char *mntopt, unsigned long *mntflags,
-    unsigned long *zfsflags, int sloppy)
-{
-	const option_map_t *opt;
-	char *ptr, *name, *value = NULL;
-	int error = 0;
-
-	name = strdup(mntopt);
-	if (name == NULL)
-		return (ENOMEM);
-
-	for (ptr = name; ptr && *ptr; ptr++) {
-		if (*ptr == '=') {
-			*ptr = '\0';
-			value = ptr+1;
-			VERIFY3P(value, !=, NULL);
-			break;
-		}
-	}
-
-	for (opt = option_map; opt->name != NULL; opt++) {
-		if (strncmp(name, opt->name, strlen(name)) == 0) {
-			*mntflags |= opt->mntmask;
-			*zfsflags |= opt->zfsmask;
-			error = 0;
-			goto out;
-		}
-	}
-
-	if (!sloppy)
-		error = ENOENT;
-out:
-	/* If required further process on the value may be done here */
-	free(name);
-	return (error);
-}
-
-/*
- * Translate the mount option string in to MS_* mount flags for the
- * kernel vfs.  When sloppy is non-zero unknown options will be ignored
- * otherwise they are considered fatal are copied in to badopt.
- */
-static int
-parse_options(char *mntopts, unsigned long *mntflags, unsigned long *zfsflags,
-    int sloppy, char *badopt, char *mtabopt)
-{
-	int error = 0, quote = 0, flag = 0, count = 0;
-	char *ptr, *opt, *opts;
-
-	opts = strdup(mntopts);
-	if (opts == NULL)
-		return (ENOMEM);
-
-	*mntflags = 0;
-	opt = NULL;
-
-	/*
-	 * Scan through all mount options which must be comma delimited.
-	 * We must be careful to notice regions which are double quoted
-	 * and skip commas in these regions.  Each option is then checked
-	 * to determine if it is a known option.
-	 */
-	for (ptr = opts; ptr && !flag; ptr++) {
-		if (opt == NULL)
-			opt = ptr;
-
-		if (*ptr == '"')
-			quote = !quote;
-
-		if (quote)
-			continue;
-
-		if (*ptr == '\0')
-			flag = 1;
-
-		if ((*ptr == ',') || (*ptr == '\0')) {
-			*ptr = '\0';
-
-			error = parse_option(opt, mntflags, zfsflags, sloppy);
-			if (error) {
-				strcpy(badopt, opt);
-				goto out;
-
-			}
-
-			if (!(*mntflags & MS_REMOUNT) &&
-			    !(*zfsflags & ZS_ZFSUTIL)) {
-				if (count > 0)
-					strlcat(mtabopt, ",", MNT_LINE_MAX);
-
-				strlcat(mtabopt, opt, MNT_LINE_MAX);
-				count++;
-			}
-
-			opt = NULL;
-		}
-	}
-
-out:
-	free(opts);
-	return (error);
-}
-
 /*
  * Return the pool/dataset to mount given the name passed to mount.  This
  * is expected to be of the form pool/dataset, however may also refer to
@@ -345,34 +166,6 @@ mtab_update(char *dataset, char *mntpoint, char *type, char *mntopts)
 	return (MOUNT_SUCCESS);
 }
 
-static void
-append_mntopt(const char *name, const char *val, char *mntopts,
-    char *mtabopt, boolean_t quote)
-{
-	char tmp[MNT_LINE_MAX];
-
-	snprintf(tmp, MNT_LINE_MAX, quote ? ",%s=\"%s\"" : ",%s=%s", name, val);
-
-	if (mntopts)
-		strlcat(mntopts, tmp, MNT_LINE_MAX);
-
-	if (mtabopt)
-		strlcat(mtabopt, tmp, MNT_LINE_MAX);
-}
-
-static void
-zfs_selinux_setcontext(zfs_handle_t *zhp, zfs_prop_t zpt, const char *name,
-    char *mntopts, char *mtabopt)
-{
-	char context[ZFS_MAXPROPLEN];
-
-	if (zfs_prop_get(zhp, zpt, context, sizeof (context),
-	    NULL, NULL, 0, B_FALSE) == 0) {
-		if (strcmp(context, "none") != 0)
-			append_mntopt(name, context, mntopts, mtabopt, B_TRUE);
-	}
-}
-
 int
 main(int argc, char **argv)
 {
@@ -449,7 +242,7 @@ main(int argc, char **argv)
 	}
 
 	/* validate mount options and set mntflags */
-	error = parse_options(mntopts, &mntflags, &zfsflags, sloppy,
+	error = zfs_parse_mount_options(mntopts, &mntflags, &zfsflags, sloppy,
 	    badopt, mtabopt);
 	if (error) {
 		switch (error) {
@@ -502,32 +295,7 @@ main(int argc, char **argv)
 		return (MOUNT_USAGE);
 	}
 
-	/*
-	 * Checks to see if the ZFS_PROP_SELINUX_CONTEXT exists
-	 * if it does, create a tmp variable in case it's needed
-	 * checks to see if the selinux context is set to the default
-	 * if it is, allow the setting of the other context properties
-	 * this is needed because the 'context' property overrides others
-	 * if it is not the default, set the 'context' property
-	 */
-	if (zfs_prop_get(zhp, ZFS_PROP_SELINUX_CONTEXT, prop, sizeof (prop),
-	    NULL, NULL, 0, B_FALSE) == 0) {
-		if (strcmp(prop, "none") == 0) {
-			zfs_selinux_setcontext(zhp, ZFS_PROP_SELINUX_FSCONTEXT,
-			    MNTOPT_FSCONTEXT, mntopts, mtabopt);
-			zfs_selinux_setcontext(zhp, ZFS_PROP_SELINUX_DEFCONTEXT,
-			    MNTOPT_DEFCONTEXT, mntopts, mtabopt);
-			zfs_selinux_setcontext(zhp,
-			    ZFS_PROP_SELINUX_ROOTCONTEXT, MNTOPT_ROOTCONTEXT,
-			    mntopts, mtabopt);
-		} else {
-			append_mntopt(MNTOPT_CONTEXT, prop,
-			    mntopts, mtabopt, B_TRUE);
-		}
-	}
-
-	/* A hint used to determine an auto-mounted snapshot mount point */
-	append_mntopt(MNTOPT_MNTPOINT, mntpoint, mntopts, NULL, B_FALSE);
+	zfs_adjust_mount_options(zhp, mntpoint, mntopts, mtabopt);
 
 	/* treat all snapshots as legacy mount points */
 	if (zfs_get_type(zhp) == ZFS_TYPE_SNAPSHOT)

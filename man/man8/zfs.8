@@ -710,6 +710,15 @@ Do note that any changes done with the
 .Xr net 8
 command will be undone if the share is ever unshared (such as at a reboot etc).
 .El
+.Sh ENVIRONMENT VARIABLES
+.Bl -tag -width "ZFS_MOUNT_HELPER"
+.It Ev ZFS_MOUNT_HELPER
+Cause
+.Nm zfs mount
+to use
+.Em /bin/mount
+to mount zfs datasets. This option is provided for backwards compatibility with older zfs versions.
+.El
 .Sh INTERFACE STABILITY
 .Sy Committed .
 .Sh SEE ALSO
