@@ -110,7 +110,7 @@ function cleanup_filesystem #pool #fs
 
 	if datasetexists "$pool/$fs" ; then
 		mtpt=$(get_prop mountpoint "$pool/$fs")
-		log_must zfs destroy -r $pool/$fs
+		destroy_dataset "$pool/$fs" "-r"
 
 		[[ -d $mtpt ]] && \
 			log_must rm -rf $mtpt
