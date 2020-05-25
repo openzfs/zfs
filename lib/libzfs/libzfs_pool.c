@@ -2277,49 +2277,25 @@ zpool_trim_wait(zpool_handle_t *zhp, nvlist_t *vdev_guids)
 }
 
 /*
- * Begin, suspend, or cancel the TRIM (discarding of all free blocks) for
- * the given vdevs in the given pool.
+ * Check errlist and report any errors, omitting ones which should be
+ * suppressed. Returns B_TRUE if any errors were reported.
  */
-int
-zpool_trim(zpool_handle_t *zhp, pool_trim_func_t cmd_type, nvlist_t *vds,
-    trimflags_t *trim_flags)
+static boolean_t
+check_trim_errs(zpool_handle_t *zhp, trimflags_t *trim_flags,
+    nvlist_t *guids_to_paths, nvlist_t *vds, nvlist_t *errlist)
 {
-	char msg[1024];
-	int err;
-
-	nvlist_t *vdev_guids = fnvlist_alloc();
-	nvlist_t *guids_to_paths = fnvlist_alloc();
-	nvlist_t *vd_errlist = NULL;
-	nvlist_t *errlist;
 	nvpair_t *elem;
+	boolean_t reported_errs = B_FALSE;
+	int num_vds = 0;
+	int num_suppressed_errs = 0;
 
-	err = zpool_translate_vdev_guids(zhp, vds, vdev_guids,
-	    guids_to_paths, &vd_errlist);
-	if (err == 0) {
-		err = lzc_trim(zhp->zpool_name, cmd_type, trim_flags->rate,
-		    trim_flags->secure, vdev_guids, &errlist);
-		if (err == 0) {
-			if (trim_flags->wait)
-				err = zpool_trim_wait(zhp, vdev_guids);
-
-			fnvlist_free(vdev_guids);
-			fnvlist_free(guids_to_paths);
-			return (err);
-		}
-
-		if (errlist != NULL) {
-			vd_errlist = fnvlist_lookup_nvlist(errlist,
-			    ZPOOL_TRIM_VDEVS);
-		}
-
-		(void) snprintf(msg, sizeof (msg),
-		    dgettext(TEXT_DOMAIN, "operation failed"));
-	} else {
-		verify(vd_errlist != NULL);
+	for (elem = nvlist_next_nvpair(vds, NULL);
+	    elem != NULL; elem = nvlist_next_nvpair(vds, elem)) {
+		num_vds++;
 	}
 
-	for (elem = nvlist_next_nvpair(vd_errlist, NULL);
-	    elem != NULL; elem = nvlist_next_nvpair(vd_errlist, elem)) {
+	for (elem = nvlist_next_nvpair(errlist, NULL);
+	    elem != NULL; elem = nvlist_next_nvpair(errlist, elem)) {
 		int64_t vd_error = xlate_trim_err(fnvpair_value_int64(elem));
 		char *path;
 
@@ -2331,9 +2307,11 @@ zpool_trim(zpool_handle_t *zhp, pool_trim_func_t cmd_type, nvlist_t *vds,
 		if (vd_error == EZFS_TRIM_NOTSUP &&
 		    trim_flags->fullpool &&
 		    !trim_flags->secure) {
+			num_suppressed_errs++;
 			continue;
 		}
 
+		reported_errs = B_TRUE;
 		if (nvlist_lookup_string(guids_to_paths, nvpair_name(elem),
 		    &path) != 0)
 			path = nvpair_name(elem);
@@ -2342,15 +2320,72 @@ zpool_trim(zpool_handle_t *zhp, pool_trim_func_t cmd_type, nvlist_t *vds,
 		    "cannot trim '%s'", path);
 	}
 
-	fnvlist_free(vdev_guids);
-	fnvlist_free(guids_to_paths);
-
-	if (vd_errlist != NULL) {
-		fnvlist_free(vd_errlist);
-		return (-1);
+	if (num_suppressed_errs == num_vds) {
+		(void) zfs_error_aux(zhp->zpool_hdl, dgettext(TEXT_DOMAIN,
+		    "no devices in pool support trim operations"));
+		(void) (zfs_error(zhp->zpool_hdl, EZFS_TRIM_NOTSUP,
+		    dgettext(TEXT_DOMAIN, "cannot trim")));
+		reported_errs = B_TRUE;
 	}
 
-	return (zpool_standard_error(zhp->zpool_hdl, err, msg));
+	return (reported_errs);
+}
+
+/*
+ * Begin, suspend, or cancel the TRIM (discarding of all free blocks) for
+ * the given vdevs in the given pool.
+ */
+int
+zpool_trim(zpool_handle_t *zhp, pool_trim_func_t cmd_type, nvlist_t *vds,
+    trimflags_t *trim_flags)
+{
+	int err;
+	int retval = 0;
+
+	nvlist_t *vdev_guids = fnvlist_alloc();
+	nvlist_t *guids_to_paths = fnvlist_alloc();
+	nvlist_t *errlist = NULL;
+
+	err = zpool_translate_vdev_guids(zhp, vds, vdev_guids,
+	    guids_to_paths, &errlist);
+	if (err != 0) {
+		check_trim_errs(zhp, trim_flags, guids_to_paths, vds, errlist);
+		retval = -1;
+		goto out;
+	}
+
+	err = lzc_trim(zhp->zpool_name, cmd_type, trim_flags->rate,
+	    trim_flags->secure, vdev_guids, &errlist);
+	if (err != 0) {
+		nvlist_t *vd_errlist;
+		if (errlist != NULL && nvlist_lookup_nvlist(errlist,
+		    ZPOOL_TRIM_VDEVS, &vd_errlist) == 0) {
+			if (check_trim_errs(zhp, trim_flags, guids_to_paths,
+			    vds, vd_errlist)) {
+				retval = -1;
+				goto out;
+			}
+		} else {
+			char msg[1024];
+
+			(void) snprintf(msg, sizeof (msg),
+			    dgettext(TEXT_DOMAIN, "operation failed"));
+			zpool_standard_error(zhp->zpool_hdl, err, msg);
+			retval = -1;
+			goto out;
+		}
+	}
+
+
+	if (trim_flags->wait)
+		retval = zpool_trim_wait(zhp, vdev_guids);
+
+out:
+	if (errlist != NULL)
+		fnvlist_free(errlist);
+	fnvlist_free(vdev_guids);
+	fnvlist_free(guids_to_paths);
+	return (retval);
 }
 
 /*
