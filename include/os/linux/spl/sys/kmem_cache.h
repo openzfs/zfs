@@ -202,6 +202,7 @@ typedef struct spl_kmem_cache {
 	uint64_t		skc_slab_max;	/* Slab max historic  */
 	uint64_t		skc_obj_total;	/* Obj total current */
 	uint64_t		skc_obj_alloc;	/* Obj alloc current */
+	struct percpu_counter	skc_linux_alloc;   /* Linux-backed Obj alloc  */
 	uint64_t		skc_obj_max;	/* Obj max historic */
 	uint64_t		skc_obj_deadlock;  /* Obj emergency deadlocks */
 	uint64_t		skc_obj_emergency; /* Obj emergency current */

@@ -31,6 +31,7 @@
 #include <sys/wait.h>
 #include <linux/slab.h>
 #include <linux/swap.h>
+#include <linux/percpu_compat.h>
 #include <linux/prefetch.h>
 
 /*
@@ -948,6 +949,13 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 	skc->skc_obj_emergency = 0;
 	skc->skc_obj_emergency_max = 0;
 
+	rc = percpu_counter_init_common(&skc->skc_linux_alloc, 0,
+	    GFP_KERNEL);
+	if (rc != 0) {
+		kfree(skc);
+		return (NULL);
+	}
+
 	/*
 	 * Verify the requested alignment restriction is sane.
 	 */
@@ -1047,6 +1055,7 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 	return (skc);
 out:
 	kfree(skc->skc_name);
+	percpu_counter_destroy(&skc->skc_linux_alloc);
 	kfree(skc);
 	return (NULL);
 }
@@ -1116,6 +1125,9 @@ spl_kmem_cache_destroy(spl_kmem_cache_t *skc)
 	ASSERT3U(skc->skc_obj_total, ==, 0);
 	ASSERT3U(skc->skc_obj_emergency, ==, 0);
 	ASSERT(list_empty(&skc->skc_complete_list));
+
+	ASSERT3U(percpu_counter_sum(&skc->skc_linux_alloc), ==, 0);
+	percpu_counter_destroy(&skc->skc_linux_alloc);
 
 	spin_unlock(&skc->skc_lock);
 
@@ -1473,9 +1485,7 @@ spl_kmem_cache_alloc(spl_kmem_cache_t *skc, int flags)
 			 * how many objects we've allocated in it for
 			 * better debuggability.
 			 */
-			spin_lock(&skc->skc_lock);
-			skc->skc_obj_alloc++;
-			spin_unlock(&skc->skc_lock);
+			percpu_counter_inc(&skc->skc_linux_alloc);
 		}
 		goto ret;
 	}
@@ -1550,9 +1560,7 @@ spl_kmem_cache_free(spl_kmem_cache_t *skc, void *obj)
 	 */
 	if (skc->skc_flags & KMC_SLAB) {
 		kmem_cache_free(skc->skc_linux_cache, obj);
-		spin_lock(&skc->skc_lock);
-		skc->skc_obj_alloc--;
-		spin_unlock(&skc->skc_lock);
+		percpu_counter_dec(&skc->skc_linux_alloc);
 		return;
 	}
 

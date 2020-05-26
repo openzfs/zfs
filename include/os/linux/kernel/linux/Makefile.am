@@ -7,6 +7,7 @@ KERNEL_H = \
 	blkdev_compat.h \
 	utsname_compat.h \
 	kmap_compat.h \
+	percpu_compat.h \
 	simd.h \
 	simd_x86.h \
 	simd_aarch64.h \
