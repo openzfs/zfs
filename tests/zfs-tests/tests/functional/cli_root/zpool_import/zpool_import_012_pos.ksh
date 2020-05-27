@@ -147,9 +147,9 @@ for option in "" "-Df"; do
 				while ((guid_bit <= 1)); do
 					typeset guid_flag="pool name"
 					if [[ -z $option ]]; then
-						log_must zpool export $pool
+						log_must_busy zpool export $pool
 					else
-						log_must zpool destroy $pool
+						log_must_busy zpool destroy $pool
 					fi
 
 					typeset target=$pool
