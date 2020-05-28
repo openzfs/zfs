@@ -162,11 +162,36 @@ __kstat_create(const char *module, int instance, const char *name,
 static int
 kstat_sysctl(SYSCTL_HANDLER_ARGS)
 {
-	kstat_named_t *ksent = arg1;
+	kstat_t *ksp = arg1;
+	kstat_named_t *ksent = ksp->ks_data;
 	uint64_t val;
 
+	/* Select the correct element */
+	ksent += arg2;
+	/* Update the aggsums before reading */
+	(void) ksp->ks_update(ksp, KSTAT_READ);
 	val = ksent->value.ui64;
+
 	return (sysctl_handle_64(oidp, &val, 0, req));
+}
+
+static int
+kstat_sysctl_string(SYSCTL_HANDLER_ARGS)
+{
+	kstat_t *ksp = arg1;
+	kstat_named_t *ksent = ksp->ks_data;
+	char *val;
+	uint32_t len = 0;
+
+	/* Select the correct element */
+	ksent += arg2;
+	/* Update the aggsums before reading */
+	(void) ksp->ks_update(ksp, KSTAT_READ);
+	val = KSTAT_NAMED_STR_PTR(ksent);
+	len = KSTAT_NAMED_STR_BUFLEN(ksent);
+	val[len-1] = '\0';
+
+	return (sysctl_handle_string(oidp, val, len, req));
 }
 
 void
@@ -195,37 +220,57 @@ kstat_install(kstat_t *ksp)
 			namelast = ksent->name;
 		}
 		switch (typelast) {
+			case KSTAT_DATA_CHAR:
+				/* Not Implemented */
+				break;
 			case KSTAT_DATA_INT32:
 				SYSCTL_ADD_PROC(&ksp->ks_sysctl_ctx,
 				    SYSCTL_CHILDREN(ksp->ks_sysctl_root),
 				    OID_AUTO, namelast,
-				    CTLTYPE_S32 | CTLFLAG_RD, ksent,
-				    sizeof (*ksent), kstat_sysctl, "I",
-				    namelast);
+				    CTLTYPE_S32 | CTLFLAG_RD, ksp, i,
+				    kstat_sysctl, "I", namelast);
 				break;
 			case KSTAT_DATA_UINT32:
 				SYSCTL_ADD_PROC(&ksp->ks_sysctl_ctx,
 				    SYSCTL_CHILDREN(ksp->ks_sysctl_root),
 				    OID_AUTO, namelast,
-				    CTLTYPE_U32 | CTLFLAG_RD, ksent,
-				    sizeof (*ksent), kstat_sysctl, "IU",
-				    namelast);
+				    CTLTYPE_U32 | CTLFLAG_RD, ksp, i,
+				    kstat_sysctl, "IU", namelast);
 				break;
 			case KSTAT_DATA_INT64:
 				SYSCTL_ADD_PROC(&ksp->ks_sysctl_ctx,
 				    SYSCTL_CHILDREN(ksp->ks_sysctl_root),
 				    OID_AUTO, namelast,
-				    CTLTYPE_S64 | CTLFLAG_RD, ksent,
-				    sizeof (*ksent), kstat_sysctl, "Q",
-				    namelast);
+				    CTLTYPE_S64 | CTLFLAG_RD, ksp, i,
+				    kstat_sysctl, "Q", namelast);
 				break;
 			case KSTAT_DATA_UINT64:
 				SYSCTL_ADD_PROC(&ksp->ks_sysctl_ctx,
 				    SYSCTL_CHILDREN(ksp->ks_sysctl_root),
 				    OID_AUTO, namelast,
-				    CTLTYPE_U64 | CTLFLAG_RD, ksent,
-				    sizeof (*ksent), kstat_sysctl, "QU",
-				    namelast);
+				    CTLTYPE_U64 | CTLFLAG_RD, ksp, i,
+				    kstat_sysctl, "QU", namelast);
+				break;
+			case KSTAT_DATA_LONG:
+				SYSCTL_ADD_PROC(&ksp->ks_sysctl_ctx,
+				    SYSCTL_CHILDREN(ksp->ks_sysctl_root),
+				    OID_AUTO, namelast,
+				    CTLTYPE_LONG | CTLFLAG_RD, ksp, i,
+				    kstat_sysctl, "L", namelast);
+				break;
+			case KSTAT_DATA_ULONG:
+				SYSCTL_ADD_PROC(&ksp->ks_sysctl_ctx,
+				    SYSCTL_CHILDREN(ksp->ks_sysctl_root),
+				    OID_AUTO, namelast,
+				    CTLTYPE_ULONG | CTLFLAG_RD, ksp, i,
+				    kstat_sysctl, "LU", namelast);
+				break;
+			case KSTAT_DATA_STRING:
+				SYSCTL_ADD_PROC(&ksp->ks_sysctl_ctx,
+				    SYSCTL_CHILDREN(ksp->ks_sysctl_root),
+				    OID_AUTO, namelast,
+				    CTLTYPE_STRING | CTLFLAG_RD, ksp, i,
+				    kstat_sysctl_string, "A", namelast);
 				break;
 			default:
 				panic("unsupported type: %d", typelast);

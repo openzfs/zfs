@@ -1014,6 +1014,9 @@ zfsvfs_setup(zfsvfs_t *zfsvfs, boolean_t mounting)
 	if (mounting) {
 		boolean_t readonly;
 
+		ASSERT3P(zfsvfs->z_kstat.dk_kstats, ==, NULL);
+		dataset_kstats_create(&zfsvfs->z_kstat, zfsvfs->z_os);
+
 		/*
 		 * During replay we remove the read only flag to
 		 * allow replays to succeed.
@@ -1023,6 +1026,16 @@ zfsvfs_setup(zfsvfs_t *zfsvfs, boolean_t mounting)
 			zfsvfs->z_vfs->vfs_flag &= ~VFS_RDONLY;
 		} else {
 			dsl_dir_t *dd;
+			zap_stats_t zs;
+
+			if (zap_get_stats(zfsvfs->z_os, zfsvfs->z_unlinkedobj,
+			    &zs) == 0) {
+				dataset_kstats_update_nunlinks_kstat(
+				    &zfsvfs->z_kstat, zs.zs_num_entries);
+				dprintf_ds(zfsvfs->z_os->os_dsl_dataset,
+				    "num_entries in unlinked set: %llu",
+				    zs.zs_num_entries);
+			}
 
 			zfs_unlinked_drain(zfsvfs);
 			dd = zfsvfs->z_os->os_dsl_dataset->ds_dir;
@@ -1112,6 +1125,7 @@ zfsvfs_free(zfsvfs_t *zfsvfs)
 	rw_destroy(&zfsvfs->z_fuid_lock);
 	for (i = 0; i != ZFS_OBJ_MTX_SZ; i++)
 		mutex_destroy(&zfsvfs->z_hold_mtx[i]);
+	dataset_kstats_destroy(&zfsvfs->z_kstat);
 	kmem_free(zfsvfs, sizeof (zfsvfs_t));
 }
 

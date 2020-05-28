@@ -85,6 +85,7 @@
 #include <sys/vdev_raidz.h>
 #include <sys/zvol.h>
 #include <sys/zil_impl.h>
+#include <sys/dataset_kstats.h>
 #include <sys/dbuf.h>
 #include <sys/dmu_tx.h>
 #include <sys/zfeature.h>
@@ -672,6 +673,23 @@ unlock:
 	if (bp->bio_completed < bp->bio_length && off > volsize)
 		error = EINVAL;
 
+	switch (bp->bio_cmd) {
+	case BIO_FLUSH:
+		break;
+	case BIO_READ:
+		dataset_kstats_update_read_kstats(&zv->zv_kstat,
+		    bp->bio_completed);
+		break;
+	case BIO_WRITE:
+		dataset_kstats_update_write_kstats(&zv->zv_kstat,
+		    bp->bio_completed);
+		break;
+	case BIO_DELETE:
+		break;
+	default:
+		break;
+	}
+
 	if (sync) {
 sync:
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
@@ -1193,6 +1211,7 @@ zvol_free(zvol_state_t *zv)
 	}
 
 	mutex_destroy(&zv->zv_state_lock);
+	dataset_kstats_destroy(&zv->zv_kstat);
 	kmem_free(zv->zv_zso, sizeof (struct zvol_state_os));
 	kmem_free(zv, sizeof (zvol_state_t));
 	zvol_minors--;
@@ -1310,6 +1329,8 @@ zvol_create_minor_impl(const char *name)
 		else
 			zil_replay(os, zv, zvol_replay_vector);
 	}
+	ASSERT3P(zv->zv_kstat.dk_kstats, ==, NULL);
+	dataset_kstats_create(&zv->zv_kstat, zv->zv_objset);
 
 	/* XXX do prefetch */
 
