@@ -1,4 +1,5 @@
 pkgsysconfdir = $(sysconfdir)/zfs
+initconfdir = $(DEFAULT_INITCONF_DIR)
 
 pkgsysconf_DATA = \
 	vdev_id.conf.alias.example \
