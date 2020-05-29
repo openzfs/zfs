@@ -432,7 +432,7 @@ arc_free_memory(void)
 #endif /* _KERNEL */
 
 /*
- * Helper function for arc_prune_async() it is responsible for safely
+ * Helper function for arc_prune() it is responsible for safely
  * handling the execution of a registered arc_prune_func_t.
  */
 static void
@@ -453,13 +453,12 @@ arc_prune_task(void *ptr)
  * honor the arc_meta_limit and reclaim otherwise pinned ARC buffers.  This
  * is analogous to dnlc_reduce_cache() but more generic.
  *
- * This operation is performed asynchronously so it may be safely called
- * in the context of the arc_reclaim_thread().  A reference is taken here
- * for each registered arc_prune_t and the arc_prune_task() is responsible
- * for releasing it once the registered arc_prune_func_t has completed.
+ * A reference is taken here for each registered arc_prune_t and the
+ * arc_prune_task() is responsible for releasing it once the registered
+ * arc_prune_func_t has completed.
  */
 void
-arc_prune_async(int64_t adjust)
+arc_prune(int64_t adjust)
 {
 	arc_prune_t *ap;
 
@@ -480,4 +479,5 @@ arc_prune_async(int64_t adjust)
 		ARCSTAT_BUMP(arcstat_prune);
 	}
 	mutex_exit(&arc_prune_mtx);
+	taskq_wait(arc_prune_taskq);
 }

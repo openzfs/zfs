@@ -176,7 +176,7 @@ arc_default_max(uint64_t min, uint64_t allmem)
 }
 
 /*
- * Helper function for arc_prune_async() it is responsible for safely
+ * Helper function for arc_prune() it is responsible for safely
  * handling the execution of a registered arc_prune_func_t.
  */
 static void
@@ -195,13 +195,12 @@ arc_prune_task(void *arg)
  * honor the arc_meta_limit and reclaim otherwise pinned ARC buffers.  This
  * is analogous to dnlc_reduce_cache() but more generic.
  *
- * This operation is performed asynchronously so it may be safely called
- * in the context of the arc_reclaim_thread().  A reference is taken here
- * for each registered arc_prune_t and the arc_prune_task() is responsible
- * for releasing it once the registered arc_prune_func_t has completed.
+ * A reference is taken here for each registered arc_prune_t and the
+ * arc_prune_task() is responsible for releasing it once the registered
+ * arc_prune_func_t has completed.
  */
 void
-arc_prune_async(int64_t adjust)
+arc_prune(int64_t adjust)
 {
 
 	int64_t *adjustptr;
@@ -211,6 +210,7 @@ arc_prune_async(int64_t adjust)
 
 	*adjustptr = adjust;
 	taskq_dispatch(arc_prune_taskq, arc_prune_task, adjustptr, TQ_SLEEP);
+	taskq_wait(arc_prune_taskq);
 	ARCSTAT_BUMP(arcstat_prune);
 }
 
