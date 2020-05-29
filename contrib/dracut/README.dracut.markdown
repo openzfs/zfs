@@ -59,6 +59,30 @@ to recover from this, you may use the `zfs_force` option or boot from a
 different filesystem and `zpool import -f` then `zpool export` the pool
 before rebooting with the new hostid.
 
+* `bootfs.snapshot`: If listed, enables the zfs-snapshot-bootfs service on a Dracut system. The zfs-snapshot-bootfs service simply runs `zfs snapshot $BOOTFS@%v` after the pool has been imported but before the bootfs is mounted. `$BOOTFS` is substituted with the value of the bootfs setting on the pool. `%v` is substituted with the version string of the kernel currently being booted (e.g. 5.6.6-200.fc31.x86\_64). Failure to create the snapshot (e.g. because one with the same name already exists) will be logged, but will not otherwise interrupt the boot process.
+
+    It is safe to leave the bootfs.snapshot flag set persistently on your kernel command line so that a new snapshot of your bootfs will be created on every kernel update. If you leave bootfs.snapshot set persistently on your kernel command line, you may find the below script helpful for automatically removing old snapshots of the bootfs along with their associated kernel.
+
+        #!/usr/bin/sh
+
+        if [[ "$1" == "remove" ]] && grep -q "\bbootfs.snapshot\b" /proc/cmdline; then
+           zfs destroy $(findmnt -n -o source /)@$2 &> /dev/null
+        fi
+
+        exit 0
+
+    To use the above script place it in a plain text file named /etc/kernel/install.d/99-zfs-cleanup.install and mark it executable with the following command:
+
+        $ chmod +x /etc/kernel/install.d/99-zfs-cleanup.install
+
+    On Red Hat based systems, you can change the value of `installonly_limit` in /etc/dnf/dnf.conf to adjust the number of kernels and their associated snapshots that are kept.
+
+* `bootfs.snapshot=<snapname>`: Is identical to the bootfs.snapshot parameter explained above except that the value substituted for \<snapname\> will be used when creating the snapshot instead of the version string of the kernel currently being booted. 
+
+* `bootfs.rollback`: If listed, enables the zfs-rollback-bootfs service on a Dracut system. The zfs-rollback-bootfs service simply runs `zfs rollback -Rf $BOOTFS@%v` after the pool has been imported but before the bootfs is mounted. If the rollback operation fails, the boot process will be interrupted with a Dracut rescue shell. __Use this parameter with caution. Intermediate snapshots of the bootfs will be destroyed!__ TIP: Keep your user data (e.g. /home) on separate file systems (it can be in the same pool though).
+
+* `bootfs.rollback=<snapname>`: Is identical to the bootfs.rollback parameter explained above except that the value substituted for \<snapname\> will be used when rolling back the bootfs instead of the version string of the kernel currently being booted. If you use this form, choose a snapshot that is new enough to contain the needed kernel modules under /lib/modules or use a kernel that has all the needed modules built-in.
+
 How it Works
 ============
 
