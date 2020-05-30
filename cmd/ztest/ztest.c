@@ -6457,11 +6457,11 @@ ztest_run_zdb(char *pool)
 	ztest_get_zdb_bin(bin, len);
 
 	(void) sprintf(zdb,
-	    "%s -bcc%s%s -G -d -Y -U %s %s",
+	    "%s -bcc%s%s -G -d -Y -e -p %s %s",
 	    bin,
 	    ztest_opts.zo_verbose >= 3 ? "s" : "",
 	    ztest_opts.zo_verbose >= 4 ? "v" : "",
-	    spa_config_path,
+	    ztest_opts.zo_dir,
 	    pool);
 
 	if (ztest_opts.zo_verbose >= 5)
