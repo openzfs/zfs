@@ -126,9 +126,8 @@ do_mount(zfs_handle_t *zhp, const char *mntpt, char *opts, int flags)
 }
 
 int
-do_unmount(const char *mntpt, int flags)
+do_unmount(libzfs_handle_t *hdl, const char *mntpt, int flags)
 {
-
 	return (unmount(mntpt, flags));
 }
 
