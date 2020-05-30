@@ -343,9 +343,7 @@ freebsd_crypt_uio(boolean_t encrypt,
 		    CRYPTO_OP_VERIFY_DIGEST;
 	}
 	crp->crp_flags = CRYPTO_F_CBIFSYNC | CRYPTO_F_IV_SEPARATE;
-	crp->crp_buf_type = CRYPTO_BUF_UIO;
-	crp->crp_uio = (void*)data_uio;
-	crp->crp_ilen = data_uio->uio_resid;
+	crypto_use_uio(crp, data_uio);
 
 	crp->crp_aad_start = 0;
 	crp->crp_aad_length = auth_len;
