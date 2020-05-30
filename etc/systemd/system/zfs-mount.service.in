@@ -6,7 +6,6 @@ After=systemd-udev-settle.service
 After=zfs-import.target
 After=systemd-remount-fs.service
 Before=local-fs.target
-Before=systemd-random-seed.service
 ConditionPathIsDirectory=/sys/module/zfs
 
 [Service]
