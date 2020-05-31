@@ -221,6 +221,10 @@ ${keymountdep}
 [Service]
 Type=oneshot
 RemainAfterExit=yes
+# This avoids a dependency loop involving systemd-journald.socket if this
+# dataset is a parent of the root filesystem.
+StandardOutput=null
+StandardError=null
 ExecStart=${keyloadcmd}
 ExecStop=${keyunloadcmd}"   > "${dest_norm}/${keyloadunit}"
     fi
