@@ -51,6 +51,7 @@ typedef enum abd_flags {
 typedef struct abd {
 	abd_flags_t	abd_flags;
 	uint_t		abd_size;	/* excludes scattered abd_offset */
+	uint_t		abd_orig_size;
 	list_node_t	abd_gang_link;
 #ifdef ZFS_DEBUG
 	struct abd	*abd_parent;
