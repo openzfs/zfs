@@ -1,4 +1,4 @@
-![img](https://github.com/openzfs/zfs/wiki/img/480px-Open-ZFS-Secondary-Logo-Colour-halfsize.png)
+![img](https://openzfs.github.io/openzfs-docs/_static/img/logo/480px-Open-ZFS-Secondary-Logo-Colour-halfsize.png)
 
 OpenZFS is an advanced file system and volume manager which was originally
 developed for Solaris and is now maintained by the OpenZFS community.
@@ -9,9 +9,9 @@ This repository contains the code for running OpenZFS on Linux and FreeBSD.
 
 # Official Resources
 
-  * [Wiki](https://github.com/openzfs/zfs/wiki) - for using and developing this repo
+  * [Documentation](https://openzfs.github.io/openzfs-docs/) - for using and developing this repo
   * [ZoL Site](https://zfsonlinux.org) - Linux release info & links
-  * [Mailing lists](https://github.com/openzfs/zfs/wiki/Mailing-Lists)
+  * [Mailing lists](https://openzfs.github.io/openzfs-docs/Project%20and%20Community/Mailing%20Lists.html)
   * [OpenZFS site](http://open-zfs.org/) - for conference videos and info on other platforms (illumos, OSX, Windows, etc)
 
 # Installation

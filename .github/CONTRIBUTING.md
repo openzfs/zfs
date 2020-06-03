@@ -32,17 +32,17 @@ started?](#what-should-i-know-before-i-get-started)
 
 Helpful resources
 
-  * [ZFS on Linux wiki](https://github.com/zfsonlinux/zfs/wiki)
-  * [OpenZFS Documentation](http://open-zfs.org/wiki/Developer_resources)
-  * [Git and GitHub for beginners](https://github.com/zfsonlinux/zfs/wiki/Git-and-GitHub-for-beginners)
+  * [OpenZFS Documentation](https://openzfs.github.io/openzfs-docs/)
+  * [OpenZFS Developer Resources](http://open-zfs.org/wiki/Developer_resources)
+  * [Git and GitHub for beginners](https://openzfs.github.io/openzfs-docs/Developer%20Resources/Git%20and%20GitHub%20for%20beginners.html)
 
 ## What should I know before I get started?
 
 ### Get ZFS
 You can build zfs packages by following [these
-instructions](https://github.com/zfsonlinux/zfs/wiki/Building-ZFS),
+instructions](https://openzfs.github.io/openzfs-docs/Developer%20Resources/Building%20ZFS.html),
 or install stable packages from [your distribution's
-repository](https://github.com/zfsonlinux/zfs/wiki/Getting-Started).
+repository](https://openzfs.github.io/openzfs-docs/Getting%20Started/index.html).
 
 ### Debug ZFS
 A variety of methods and tools are available to aid ZFS developers.
@@ -52,8 +52,8 @@ checks and all the ASSERTs to help quickly catch potential issues.
 
 In addition, there are numerous utilities and debugging files which
 provide visibility into the inner workings of ZFS.  The most useful
-of these tools are discussed in detail on the [debugging ZFS wiki
-page](https://github.com/zfsonlinux/zfs/wiki/Debugging).
+of these tools are discussed in detail on the [Troubleshooting
+page](https://openzfs.github.io/openzfs-docs/Basic%20Concepts/Troubleshooting.html).
 
 ### Where can I ask for help?
 The [zfs-discuss mailing
@@ -144,7 +144,7 @@ Any required reviews can then be finalized and the pull request merged.
 
 #### Tests and Benchmarks
 * Every pull request will by tested by the buildbot on multiple platforms by running the [zfs-tests.sh and zloop.sh](
-https://github.com/zfsonlinux/zfs/wiki/Building-ZFS#running-zloopsh-and-zfs-testssh) test suites.
+https://openzfs.github.io/openzfs-docs/Developer%20Resources/Building%20ZFS.html#running-zloop-sh-and-zfs-tests-sh) test suites.
 * To verify your changes conform to the [style guidelines](
 https://github.com/zfsonlinux/zfs/blob/master/.github/CONTRIBUTING.md#style-guides
 ), please run `make checkstyle` and resolve any warnings.
@@ -157,7 +157,7 @@ Buildbot](http://build.zfsonlinux.org/) builders before
 being accepted. If you are experiencing intermittent TEST
 builder failures, you may be experiencing a [test suite
 issue](https://github.com/zfsonlinux/zfs/issues?q=is%3Aissue+is%3Aopen+label%3A%22Test+Suite%22).
-There are also various [buildbot options](https://github.com/zfsonlinux/zfs/wiki/Buildbot-Options)
+There are also various [buildbot options](https://openzfs.github.io/openzfs-docs/Developer%20Resources/Buildbot%20Options.html)
 to control how changes are tested.
 
 ### Testing
