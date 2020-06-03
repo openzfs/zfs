@@ -199,7 +199,6 @@ static int zvol_geom_access(struct g_provider *pp, int acr, int acw, int ace);
 static void zvol_geom_worker(void *arg);
 static void zvol_geom_bio_start(struct bio *bp);
 static int zvol_geom_bio_getattr(struct bio *bp);
-static void zvol_geom_bio_check_zilog(struct bio *bp);
 /* static d_strategy_t	zvol_geom_bio_strategy; (declared elsewhere) */
 
 /*
@@ -487,23 +486,7 @@ zvol_geom_worker(void *arg)
 			continue;
 		}
 		mtx_unlock(&zsg->zsg_queue_mtx);
-		rw_enter(&zv->zv_suspend_lock, ZVOL_RW_READER);
-		zvol_geom_bio_check_zilog(bp);
-		switch (bp->bio_cmd) {
-			case BIO_FLUSH:
-				zil_commit(zv->zv_zilog, ZVOL_OBJ);
-				g_io_deliver(bp, 0);
-				break;
-			case BIO_READ:
-			case BIO_WRITE:
-			case BIO_DELETE:
-				zvol_geom_bio_strategy(bp);
-				break;
-			default:
-				g_io_deliver(bp, EOPNOTSUPP);
-				break;
-		}
-		rw_exit(&zv->zv_suspend_lock);
+		zvol_geom_bio_strategy(bp);
 	}
 }
 
@@ -529,24 +512,8 @@ zvol_geom_bio_start(struct bio *bp)
 			wakeup_one(&zsg->zsg_queue);
 		return;
 	}
-	rw_enter(&zv->zv_suspend_lock, ZVOL_RW_READER);
-	zvol_geom_bio_check_zilog(bp);
 
-	switch (bp->bio_cmd) {
-	case BIO_FLUSH:
-		zil_commit(zv->zv_zilog, ZVOL_OBJ);
-		g_io_deliver(bp, 0);
-		break;
-	case BIO_READ:
-	case BIO_WRITE:
-	case BIO_DELETE:
-		zvol_geom_bio_strategy(bp);
-		break;
-	default:
-		g_io_deliver(bp, EOPNOTSUPP);
-		break;
-	}
-	rw_exit(&zv->zv_suspend_lock);
+	zvol_geom_bio_strategy(bp);
 }
 
 static int
@@ -587,24 +554,6 @@ zvol_geom_bio_getattr(struct bio *bp)
 }
 
 static void
-zvol_geom_bio_check_zilog(struct bio *bp)
-{
-	zvol_state_t *zv;
-
-	zv = bp->bio_to->private;
-	ASSERT(zv != NULL);
-
-	switch (bp->bio_cmd) {
-	case BIO_FLUSH:
-	case BIO_WRITE:
-	case BIO_DELETE:
-		zvol_ensure_zilog(zv);
-	default:
-		break;
-	}
-}
-
-static void
 zvol_geom_bio_strategy(struct bio *bp)
 {
 	zvol_state_t *zv;
@@ -614,7 +563,7 @@ zvol_geom_bio_strategy(struct bio *bp)
 	objset_t *os;
 	zfs_locked_range_t *lr;
 	int error = 0;
-	boolean_t doread = 0;
+	boolean_t doread = B_FALSE;
 	boolean_t is_dumpified;
 	boolean_t sync;
 
@@ -628,22 +577,26 @@ zvol_geom_bio_strategy(struct bio *bp)
 		goto out;
 	}
 
-	if (bp->bio_cmd != BIO_READ && (zv->zv_flags & ZVOL_RDONLY)) {
-		error = SET_ERROR(EROFS);
-		goto out;
-	}
+	rw_enter(&zv->zv_suspend_lock, ZVOL_RW_READER);
 
 	switch (bp->bio_cmd) {
-	case BIO_FLUSH:
-		goto sync;
 	case BIO_READ:
-		doread = 1;
+		doread = B_TRUE;
+		break;
 	case BIO_WRITE:
+	case BIO_FLUSH:
 	case BIO_DELETE:
+		if (zv->zv_flags & ZVOL_RDONLY) {
+			error = SET_ERROR(EROFS);
+			goto resume;
+		}
+		zvol_ensure_zilog(zv);
+		if (bp->bio_cmd == BIO_FLUSH)
+			goto sync;
 		break;
 	default:
 		error = EOPNOTSUPP;
-		goto out;
+		goto resume;
 	}
 
 	off = bp->bio_offset;
@@ -657,7 +610,7 @@ zvol_geom_bio_strategy(struct bio *bp)
 
 	if (resid > 0 && (off < 0 || off >= volsize)) {
 		error = SET_ERROR(EIO);
-		goto out;
+		goto resume;
 	}
 
 	is_dumpified = B_FALSE;
@@ -723,6 +676,8 @@ unlock:
 sync:
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
 	}
+resume:
+	rw_exit(&zv->zv_suspend_lock);
 out:
 	if (bp->bio_to)
 		g_io_deliver(bp, error);
@@ -797,7 +752,6 @@ zvol_cdev_write(struct cdev *dev, struct uio *uio, int ioflag)
 
 	rw_enter(&zv->zv_suspend_lock, ZVOL_RW_READER);
 	zvol_ensure_zilog(zv);
-	rw_exit(&zv->zv_suspend_lock);
 
 	lr = zfs_rangelock_enter(&zv->zv_rangelock, uio->uio_loffset,
 	    uio->uio_resid, RL_WRITER);
@@ -826,6 +780,7 @@ zvol_cdev_write(struct cdev *dev, struct uio *uio, int ioflag)
 	zfs_rangelock_exit(lr);
 	if (sync)
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
+	rw_exit(&zv->zv_suspend_lock);
 	return (error);
 }
 
@@ -1015,8 +970,10 @@ zvol_cdev_ioctl(struct cdev *dev, ulong_t cmd, caddr_t data,
 		*(off_t *)data = zv->zv_volsize;
 		break;
 	case DIOCGFLUSH:
+		rw_enter(&zv->zv_suspend_lock, ZVOL_RW_READER);
 		if (zv->zv_zilog != NULL)
 			zil_commit(zv->zv_zilog, ZVOL_OBJ);
+		rw_exit(&zv->zv_suspend_lock);
 		break;
 	case DIOCGDELETE:
 		if (!zvol_unmap_enabled)
@@ -1121,8 +1078,10 @@ zvol_ensure_zilog(zvol_state_t *zv)
 	 * additional lock in this path.
 	 */
 	if (zv->zv_zilog == NULL) {
-		rw_exit(&zv->zv_suspend_lock);
-		rw_enter(&zv->zv_suspend_lock, RW_WRITER);
+		if (!rw_tryupgrade(&zv->zv_suspend_lock)) {
+			rw_exit(&zv->zv_suspend_lock);
+			rw_enter(&zv->zv_suspend_lock, RW_WRITER);
+		}
 		if (zv->zv_zilog == NULL) {
 			zv->zv_zilog = zil_open(zv->zv_objset,
 			    zvol_get_data);
