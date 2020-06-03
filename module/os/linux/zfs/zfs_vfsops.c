@@ -878,10 +878,10 @@ zfsvfs_setup(zfsvfs_t *zfsvfs, boolean_t mounting)
 			    &zs) == 0) {
 				dataset_kstats_update_nunlinks_kstat(
 				    &zfsvfs->z_kstat, zs.zs_num_entries);
+				dprintf_ds(zfsvfs->z_os->os_dsl_dataset,
+				    "num_entries in unlinked set: %llu",
+				    zs.zs_num_entries);
 			}
-			dprintf_ds(zfsvfs->z_os->os_dsl_dataset,
-			    "num_entries in unlinked set: %llu",
-			    zs.zs_num_entries);
 			zfs_unlinked_drain(zfsvfs);
 			dsl_dir_t *dd = zfsvfs->z_os->os_dsl_dataset->ds_dir;
 			dd->dd_activity_cancelled = B_FALSE;
