@@ -690,7 +690,7 @@ ddt_remove(ddt_t *ddt, ddt_entry_t *dde)
 ddt_entry_t *
 ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t add)
 {
-	ddt_entry_t *dde, dde_search;
+	ddt_entry_t *dde, dde_search, *dde_temp;
 	enum ddt_type type;
 	enum ddt_class class;
 	avl_index_t where;
@@ -701,16 +701,17 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t add)
 	ddt_key_fill(&dde_search.dde_key, bp);
 
 	dde = avl_find(&ddt->ddt_tree, &dde_search, &where);
-	if (dde == NULL) {
+	if (dde) {
+		while (dde->dde_loading)
+			cv_wait(&dde->dde_cv, &ddt->ddt_lock);
+	} else {
 		dde = ddt_alloc(&dde_search.dde_key);
 		avl_insert(&ddt->ddt_tree, dde, where);
 	}
 
-	while (dde->dde_loading)
-		cv_wait(&dde->dde_cv, &ddt->ddt_lock);
-
-	if (dde->dde_loaded)
+	if (dde->dde_loaded) {
 		return (dde);
+	}
 
 	dde->dde_loading = B_TRUE;
 
@@ -732,8 +733,10 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t add)
 
 	ddt_enter(ddt);
 
-	if (error == ENOENT && add == B_FALSE) {
-		avl_remove(&ddt->ddt_tree, dde);
+	dde_temp = avl_find(&ddt->ddt_tree, &dde_search, &where);
+	if ((dde_temp == NULL) || (error == ENOENT && add == B_FALSE)) {
+		if (dde_temp != NULL)
+			avl_remove(&ddt->ddt_tree, dde);
 		dde->dde_loading = B_FALSE;
 		ddt_free(dde);
 		return (NULL);
