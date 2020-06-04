@@ -405,6 +405,32 @@ aes_impl_set(const char *val)
 	return (err);
 }
 
+int
+aes_impl_get(char *buffer, size_t max)
+{
+	int i, cnt = 0;
+	char *fmt;
+	const uint32_t impl = AES_IMPL_READ(icp_aes_impl);
+
+	ASSERT(aes_impl_initialized);
+
+	/* list mandatory options */
+	for (i = 0; i < ARRAY_SIZE(aes_impl_opts); i++) {
+		fmt = (impl == aes_impl_opts[i].sel) ? "[%s] " : "%s ";
+		cnt += snprintf(buffer + cnt, max - cnt, fmt,
+		    aes_impl_opts[i].name);
+	}
+
+	/* list all supported implementations */
+	for (i = 0; i < aes_supp_impl_cnt; i++) {
+		fmt = (i == impl) ? "[%s] " : "%s ";
+		cnt += snprintf(buffer + cnt, max - cnt, fmt,
+		    aes_supp_impl[i]->name);
+	}
+
+	return (cnt);
+}
+
 #if defined(_KERNEL) && defined(__linux__)
 
 static int

@@ -166,11 +166,9 @@ AC_CONFIG_FILES([
 	lib/libspl/include/os/linux/Makefile
 	lib/libspl/include/os/linux/sys/Makefile
 	lib/libspl/include/os/macos/Makefile
+	lib/libspl/include/os/macos/sys/Makefile
 	lib/libspl/include/os/macos/ia32/Makefile
 	lib/libspl/include/os/macos/ia32/sys/Makefile
-	lib/libspl/include/os/macos/mach/Makefile
-	lib/libspl/include/os/macos/rpc/Makefile
-	lib/libspl/include/os/macos/sys/Makefile
 	lib/libspl/include/rpc/Makefile
 	lib/libspl/include/sys/Makefile
 	lib/libspl/include/sys/dktp/Makefile

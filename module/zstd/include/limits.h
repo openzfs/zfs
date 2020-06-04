@@ -48,6 +48,7 @@ extern "C" {
 #elif defined(__linux__)
 #include <linux/limits.h>
 #include <linux/kernel.h>
+#elif defined(__APPLE__)
 #else
 #error "Unsupported platform"
 #endif

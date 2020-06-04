@@ -58,7 +58,8 @@ void fletcher_4_native_varsize(const void *, uint64_t, zio_cksum_t *);
 void fletcher_4_byteswap(const void *, uint64_t, const void *, zio_cksum_t *);
 int fletcher_4_incremental_native(void *, size_t, void *);
 int fletcher_4_incremental_byteswap(void *, size_t, void *);
-int fletcher_4_impl_set(const char *selector);
+int fletcher_4_impl_set(const char *);
+int fletcher_4_get(char *, size_t);
 void fletcher_4_init(void);
 void fletcher_4_fini(void);
 

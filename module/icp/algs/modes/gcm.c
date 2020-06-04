@@ -987,6 +987,38 @@ gcm_impl_set(const char *val)
 	return (err);
 }
 
+int
+gcm_impl_get(char *buffer, size_t max)
+{
+	int i, cnt = 0;
+	char *fmt;
+	const uint32_t impl = GCM_IMPL_READ(icp_gcm_impl);
+
+	ASSERT(gcm_impl_initialized);
+
+	/* list mandatory options */
+	for (i = 0; i < ARRAY_SIZE(gcm_impl_opts); i++) {
+#ifdef CAN_USE_GCM_ASM
+		/* Ignore avx implementation if it won't work. */
+		if (gcm_impl_opts[i].sel == IMPL_AVX && !gcm_avx_will_work()) {
+			continue;
+		}
+#endif
+		fmt = (impl == gcm_impl_opts[i].sel) ? "[%s] " : "%s ";
+		cnt += snprintf(buffer + cnt, max - cnt, fmt,
+		    gcm_impl_opts[i].name);
+	}
+
+	/* list all supported implementations */
+	for (i = 0; i < gcm_supp_impl_cnt; i++) {
+		fmt = (i == impl) ? "[%s] " : "%s ";
+		cnt += snprintf(buffer + cnt, max - cnt,
+		    fmt, gcm_supp_impl[i]->name);
+	}
+
+	return (cnt);
+}
+
 #if defined(_KERNEL) && defined(__linux__)
 
 static int

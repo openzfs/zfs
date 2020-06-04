@@ -410,6 +410,27 @@ fletcher_4_impl_set(const char *val)
 	return (err);
 }
 
+int
+fletcher_4_get(char *buffer, size_t max)
+{
+	const uint32_t impl = IMPL_READ(fletcher_4_impl_chosen);
+	char *fmt;
+	int i, cnt = 0;
+
+	/* list fastest */
+	fmt = (impl == IMPL_FASTEST) ? "[%s] " : "%s ";
+	cnt += snprintf(buffer + cnt, max - cnt, fmt, "fastest");
+
+	/* list all supported implementations */
+	for (i = 0; i < fletcher_4_supp_impls_cnt; i++) {
+		fmt = (i == impl) ? "[%s] " : "%s ";
+		cnt += snprintf(buffer + cnt, max - cnt, fmt,
+		    fletcher_4_supp_impls[i]->name);
+	}
+
+	return (cnt);
+}
+
 /*
  * Returns the Fletcher 4 operations for checksums.   When a SIMD
  * implementation is not allowed in the current context, then fallback
