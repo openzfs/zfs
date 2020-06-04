@@ -4,7 +4,7 @@
 
 <!---
 Documentation on ZFS Buildbot options can be found at
-https://github.com/zfsonlinux/zfs/wiki/Buildbot-Options
+https://openzfs.github.io/openzfs-docs/Developer%20Resources/Buildbot%20Options.html
 -->
 
 ### Motivation and Context
