@@ -478,11 +478,11 @@ spa_tx_assign_update(kstat_t *ksp, int rw)
 
 	if (rw == KSTAT_WRITE) {
 		for (i = 0; i < shk->count; i++)
-			((kstat_named_t *)shk->private)[i].value.ui64 = 0;
+			((kstat_named_t *)shk->priv)[i].value.ui64 = 0;
 	}
 
 	for (i = shk->count; i > 0; i--)
-		if (((kstat_named_t *)shk->private)[i-1].value.ui64 != 0)
+		if (((kstat_named_t *)shk->priv)[i-1].value.ui64 != 0)
 			break;
 
 	ksp->ks_ndata = i;
@@ -504,12 +504,12 @@ spa_tx_assign_init(spa_t *spa)
 
 	shk->count = 42; /* power of two buckets for 1ns to 2,199s */
 	shk->size = shk->count * sizeof (kstat_named_t);
-	shk->private = kmem_alloc(shk->size, KM_SLEEP);
+	shk->priv = kmem_alloc(shk->size, KM_SLEEP);
 
 	name = kmem_asprintf("zfs/%s", spa_name(spa));
 
 	for (i = 0; i < shk->count; i++) {
-		ks = &((kstat_named_t *)shk->private)[i];
+		ks = &((kstat_named_t *)shk->priv)[i];
 		ks->data_type = KSTAT_DATA_UINT64;
 		ks->value.ui64 = 0;
 		(void) snprintf(ks->name, KSTAT_STRLEN, "%llu ns",
@@ -522,7 +522,7 @@ spa_tx_assign_init(spa_t *spa)
 
 	if (ksp) {
 		ksp->ks_lock = &shk->lock;
-		ksp->ks_data = shk->private;
+		ksp->ks_data = shk->priv;
 		ksp->ks_ndata = shk->count;
 		ksp->ks_data_size = shk->size;
 		ksp->ks_private = spa;
@@ -542,7 +542,7 @@ spa_tx_assign_destroy(spa_t *spa)
 	if (ksp)
 		kstat_delete(ksp);
 
-	kmem_free(shk->private, shk->size);
+	kmem_free(shk->priv, shk->size);
 	mutex_destroy(&shk->lock);
 }
 
@@ -555,7 +555,7 @@ spa_tx_assign_add_nsecs(spa_t *spa, uint64_t nsecs)
 	while (((1ULL << idx) < nsecs) && (idx < shk->size - 1))
 		idx++;
 
-	atomic_inc_64(&((kstat_named_t *)shk->private)[idx].value.ui64);
+	atomic_inc_64(&((kstat_named_t *)shk->priv)[idx].value.ui64);
 }
 
 /*

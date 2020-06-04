@@ -294,7 +294,9 @@ typedef long loff_t;
 typedef long rlim64_t;
 typedef int bool_t;
 typedef int enum_t;
+#ifndef __cplusplus
 #define	__init
+#endif
 #define	__exit
 #define	FALSE 0
 #define	TRUE 1

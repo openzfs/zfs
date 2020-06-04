@@ -313,7 +313,7 @@ extern nvlist_t *zpool_find_vdev(zpool_handle_t *, const char *, boolean_t *,
     boolean_t *, boolean_t *);
 extern nvlist_t *zpool_find_vdev_by_physpath(zpool_handle_t *, const char *,
     boolean_t *, boolean_t *, boolean_t *);
-extern int zpool_label_disk(libzfs_handle_t *, zpool_handle_t *, char *);
+extern int zpool_label_disk(libzfs_handle_t *, zpool_handle_t *, const char *);
 extern uint64_t zpool_vdev_path_to_guid(zpool_handle_t *zhp, const char *path);
 
 const char *zpool_get_state_str(zpool_handle_t *);

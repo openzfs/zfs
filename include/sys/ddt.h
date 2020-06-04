@@ -182,15 +182,15 @@ typedef struct ddt_ops {
 #define	DDT_NAMELEN	80
 
 extern void ddt_object_name(ddt_t *ddt, enum ddt_type type,
-    enum ddt_class class, char *name);
+    enum ddt_class clazz, char *name);
 extern int ddt_object_walk(ddt_t *ddt, enum ddt_type type,
-    enum ddt_class class, uint64_t *walk, ddt_entry_t *dde);
+    enum ddt_class clazz, uint64_t *walk, ddt_entry_t *dde);
 extern int ddt_object_count(ddt_t *ddt, enum ddt_type type,
-    enum ddt_class class, uint64_t *count);
+    enum ddt_class clazz, uint64_t *count);
 extern int ddt_object_info(ddt_t *ddt, enum ddt_type type,
-    enum ddt_class class, dmu_object_info_t *);
+    enum ddt_class clazz, dmu_object_info_t *);
 extern boolean_t ddt_object_exists(ddt_t *ddt, enum ddt_type type,
-    enum ddt_class class);
+    enum ddt_class clazz);
 
 extern void ddt_bp_fill(const ddt_phys_t *ddp, blkptr_t *bp,
     uint64_t txg);
@@ -246,7 +246,7 @@ extern void ddt_unload(spa_t *spa);
 extern void ddt_sync(spa_t *spa, uint64_t txg);
 extern int ddt_walk(spa_t *spa, ddt_bookmark_t *ddb, ddt_entry_t *dde);
 extern int ddt_object_update(ddt_t *ddt, enum ddt_type type,
-    enum ddt_class class, ddt_entry_t *dde, dmu_tx_t *tx);
+    enum ddt_class clazz, ddt_entry_t *dde, dmu_tx_t *tx);
 
 extern const ddt_ops_t ddt_zap_ops;
 

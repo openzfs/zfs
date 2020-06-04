@@ -160,11 +160,11 @@ rs_get_fill_raw(const range_seg_t *rs, const range_tree_t *rt)
 	ASSERT3U(rt->rt_type, <=, RANGE_SEG_NUM_TYPES);
 	switch (rt->rt_type) {
 	case RANGE_SEG32: {
-		const range_seg32_t *r32 = rs;
+		const range_seg32_t *r32 = (const range_seg32_t *)rs;
 		return (r32->rs_end - r32->rs_start);
 	}
 	case RANGE_SEG64: {
-		const range_seg64_t *r64 = rs;
+		const range_seg64_t *r64 = (const range_seg64_t *)rs;
 		return (r64->rs_end - r64->rs_start);
 	}
 	case RANGE_SEG_GAP:
