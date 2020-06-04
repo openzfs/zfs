@@ -26,6 +26,15 @@ if BUILD_FREEBSD
 AM_CFLAGS += -fPIC -Werror -Wno-unknown-pragmas -Wno-enum-conversion
 AM_CFLAGS += -include $(top_srcdir)/include/os/freebsd/spl/sys/ccompile.h
 AM_CFLAGS += -I/usr/include -I/usr/local/include
+
+AM_CXXFLAGS  = -std=c++17 -Wall -Wstrict-prototypes -fno-strict-aliasing
+AM_CXXFLAGS += $(NO_OMIT_FRAME_POINTER)
+AM_CXXFLAGS += $(DEBUG_CFLAGS)
+AM_CXXFLAGS += $(ASAN_CFLAGS)
+AM_CXXFLAGS += $(CODE_COVERAGE_FLAGS) $(NO_FORMAT_ZERO_LENGTH)
+AM_CXXFLAGS += -fPIC -Werror -Wno-unknown-pragmas -Wno-enum-conversion
+AM_CXXFLAGS += -include $(top_srcdir)/include/os/freebsd/spl/sys/ccompile.h
+AM_CXXFLAGS += -I/usr/include -I/usr/local/include
 endif
 
 AM_CPPFLAGS += -D_GNU_SOURCE
