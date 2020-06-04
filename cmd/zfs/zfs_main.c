@@ -4140,6 +4140,11 @@ zfs_do_rollback(int argc, char **argv)
 	 */
 	ret = zfs_rollback(zhp, snap, force);
 
+#ifdef __APPLE__
+	if (ret == 0)
+		zfs_rollback_os(zhp);
+#endif
+
 out:
 	zfs_close(snap);
 	zfs_close(zhp);
