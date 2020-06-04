@@ -14,6 +14,10 @@ SUBDIRS += mount_zfs zed zgenhostid zvol_id zvol_wait
 CPPCHECKDIRS += mount_zfs zed zgenhostid zvol_id
 endif
 
+if BUILD_FREEBSD
+SUBDIRS += zfsd
+endif
+
 PHONY = cppcheck
 cppcheck: $(CPPCHECKDIRS)
 	set -e ; for dir in $(CPPCHECKDIRS) ; do \
