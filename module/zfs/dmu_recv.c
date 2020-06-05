@@ -1327,7 +1327,7 @@ save_resume_state(struct receive_writer_arg *rwa,
 static int
 receive_object_is_same_generation(objset_t *os, uint64_t object,
     dmu_object_type_t old_bonus_type, dmu_object_type_t new_bonus_type,
-    void *new_bonus, boolean_t *samegenp)
+    const void *new_bonus, boolean_t *samegenp)
 {
 	zfs_file_info_t zoi;
 	int err;
@@ -1352,13 +1352,221 @@ receive_object_is_same_generation(objset_t *os, uint64_t object,
 	return (0);
 }
 
+static int
+receive_handle_existing_object(const struct receive_writer_arg *rwa,
+    const struct drr_object *drro, const dmu_object_info_t *doi,
+    const void *bonus_data,
+    uint64_t *object_to_hold, uint32_t *new_blksz)
+{
+	uint32_t indblksz = drro->drr_indblkshift ?
+	    1ULL << drro->drr_indblkshift : 0;
+	int nblkptr = deduce_nblkptr(drro->drr_bonustype,
+	    drro->drr_bonuslen);
+	uint8_t dn_slots = drro->drr_dn_slots != 0 ?
+	    drro->drr_dn_slots : DNODE_MIN_SLOTS;
+	boolean_t do_free_range = B_FALSE;
+	int err;
+
+	*object_to_hold = drro->drr_object;
+
+	/* nblkptr should be bounded by the bonus size and type */
+	if (rwa->raw && nblkptr != drro->drr_nblkptr)
+		return (SET_ERROR(EINVAL));
+
+	/*
+	 * After the previous send stream, the sending system may
+	 * have freed this object, and then happened to re-allocate
+	 * this object number in a later txg. In this case, we are
+	 * receiving a different logical file, and the block size may
+	 * appear to be different.  i.e. we may have a different
+	 * block size for this object than what the send stream says.
+	 * In this case we need to remove the object's contents,
+	 * so that its structure can be changed and then its contents
+	 * entirely replaced by subsequent WRITE records.
+	 *
+	 * If this is a -L (--large-block) incremental stream, and
+	 * the previous stream was not -L, the block size may appear
+	 * to increase.  i.e. we may have a smaller block size for
+	 * this object than what the send stream says.  In this case
+	 * we need to keep the object's contents and block size
+	 * intact, so that we don't lose parts of the object's
+	 * contents that are not changed by this incremental send
+	 * stream.
+	 *
+	 * We can distinguish between the two above cases by using
+	 * the ZPL's generation number (see
+	 * receive_object_is_same_generation()).  However, we only
+	 * want to rely on the generation number when absolutely
+	 * necessary, because with raw receives, the generation is
+	 * encrypted.  We also want to minimize dependence on the
+	 * ZPL, so that other types of datasets can also be received
+	 * (e.g. ZVOLs, although note that ZVOLS currently do not
+	 * reallocate their objects or change their structure).
+	 * Therefore, we check a number of different cases where we
+	 * know it is safe to discard the object's contents, before
+	 * using the ZPL's generation number to make the above
+	 * distinction.
+	 */
+	if (drro->drr_blksz != doi->doi_data_block_size) {
+		if (rwa->raw) {
+			/*
+			 * RAW streams always have large blocks, so
+			 * we are sure that the data is not needed
+			 * due to changing --large-block to be on.
+			 * Which is fortunate since the bonus buffer
+			 * (which contains the ZPL generation) is
+			 * encrypted, and the key might not be
+			 * loaded.
+			 */
+			do_free_range = B_TRUE;
+		} else if (rwa->full) {
+			/*
+			 * This is a full send stream, so it always
+			 * replaces what we have.  Even if the
+			 * generation numbers happen to match, this
+			 * can not actually be the same logical file.
+			 * This is relevant when receiving a full
+			 * send as a clone.
+			 */
+			do_free_range = B_TRUE;
+		} else if (drro->drr_type !=
+		    DMU_OT_PLAIN_FILE_CONTENTS ||
+		    doi->doi_type != DMU_OT_PLAIN_FILE_CONTENTS) {
+			/*
+			 * PLAIN_FILE_CONTENTS are the only type of
+			 * objects that have ever been stored with
+			 * large blocks, so we don't need the special
+			 * logic below.  ZAP blocks can shrink (when
+			 * there's only one block), so we don't want
+			 * to hit the error below about block size
+			 * only increasing.
+			 */
+			do_free_range = B_TRUE;
+		} else if (doi->doi_max_offset <=
+		    doi->doi_data_block_size) {
+			/*
+			 * There is only one block.  We can free it,
+			 * because its contents will be replaced by a
+			 * WRITE record.  This can not be the no-L ->
+			 * -L case, because the no-L case would have
+			 * resulted in multiple blocks.  If we
+			 * supported -L -> no-L, it would not be safe
+			 * to free the file's contents.  Fortunately,
+			 * that is not allowed (see
+			 * recv_check_large_blocks()).
+			 */
+			do_free_range = B_TRUE;
+		} else {
+			boolean_t is_same_gen;
+			err = receive_object_is_same_generation(rwa->os,
+			    drro->drr_object, doi->doi_bonus_type,
+			    drro->drr_bonustype, bonus_data, &is_same_gen);
+			if (err != 0)
+				return (SET_ERROR(EINVAL));
+
+			if (is_same_gen) {
+				/*
+				 * This is the same logical file, and
+				 * the block size must be increasing.
+				 * It could only decrease if
+				 * --large-block was changed to be
+				 * off, which is checked in
+				 * recv_check_large_blocks().
+				 */
+				if (drro->drr_blksz <=
+				    doi->doi_data_block_size)
+					return (SET_ERROR(EINVAL));
+				/*
+				 * We keep the existing blocksize and
+				 * contents.
+				 */
+				*new_blksz =
+				    doi->doi_data_block_size;
+			} else {
+				do_free_range = B_TRUE;
+			}
+		}
+	}
+
+	/* nblkptr can only decrease if the object was reallocated */
+	if (nblkptr < doi->doi_nblkptr)
+		do_free_range = B_TRUE;
+
+	/* number of slots can only change on reallocation */
+	if (dn_slots != doi->doi_dnodesize >> DNODE_SHIFT)
+		do_free_range = B_TRUE;
+
+	/*
+	 * For raw sends we also check a few other fields to
+	 * ensure we are preserving the objset structure exactly
+	 * as it was on the receive side:
+	 *     - A changed indirect block size
+	 *     - A smaller nlevels
+	 */
+	if (rwa->raw) {
+		if (indblksz != doi->doi_metadata_block_size)
+			do_free_range = B_TRUE;
+		if (drro->drr_nlevels < doi->doi_indirection)
+			do_free_range = B_TRUE;
+	}
+
+	if (do_free_range) {
+		err = dmu_free_long_range(rwa->os, drro->drr_object,
+		    0, DMU_OBJECT_END);
+		if (err != 0)
+			return (SET_ERROR(EINVAL));
+	}
+
+	/*
+	 * The dmu does not currently support decreasing nlevels
+	 * or changing the number of dnode slots on an object. For
+	 * non-raw sends, this does not matter and the new object
+	 * can just use the previous one's nlevels. For raw sends,
+	 * however, the structure of the received dnode (including
+	 * nlevels and dnode slots) must match that of the send
+	 * side. Therefore, instead of using dmu_object_reclaim(),
+	 * we must free the object completely and call
+	 * dmu_object_claim_dnsize() instead.
+	 */
+	if ((rwa->raw && drro->drr_nlevels < doi->doi_indirection) ||
+	    dn_slots != doi->doi_dnodesize >> DNODE_SHIFT) {
+		err = dmu_free_long_object(rwa->os, drro->drr_object);
+		if (err != 0)
+			return (SET_ERROR(EINVAL));
+
+		txg_wait_synced(dmu_objset_pool(rwa->os), 0);
+		*object_to_hold = DMU_NEW_OBJECT;
+	}
+
+	/*
+	 * For raw receives, free everything beyond the new incoming
+	 * maxblkid. Normally this would be done with a DRR_FREE
+	 * record that would come after this DRR_OBJECT record is
+	 * processed. However, for raw receives we manually set the
+	 * maxblkid from the drr_maxblkid and so we must first free
+	 * everything above that blkid to ensure the DMU is always
+	 * consistent with itself. We will never free the first block
+	 * of the object here because a maxblkid of 0 could indicate
+	 * an object with a single block or one with no blocks. This
+	 * free may be skipped when dmu_free_long_range() was called
+	 * above since it covers the entire object's contents.
+	 */
+	if (rwa->raw && *object_to_hold != DMU_NEW_OBJECT && !do_free_range) {
+		err = dmu_free_long_range(rwa->os, drro->drr_object,
+		    (drro->drr_maxblkid + 1) * doi->doi_data_block_size,
+		    DMU_OBJECT_END);
+		if (err != 0)
+			return (SET_ERROR(EINVAL));
+	}
+	return (0);
+}
+
 noinline static int
 receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
     void *data)
 {
 	dmu_object_info_t doi;
 	dmu_tx_t *tx;
-	uint64_t object;
 	int err;
 	uint32_t new_blksz = drro->drr_blksz;
 	uint8_t dn_slots = drro->drr_dn_slots != 0 ?
@@ -1424,204 +1632,10 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 	 * Raw receives will also check that the indirect structure of the
 	 * dnode hasn't changed.
 	 */
+	uint64_t object_to_hold;
 	if (err == 0) {
-		uint32_t indblksz = drro->drr_indblkshift ?
-		    1ULL << drro->drr_indblkshift : 0;
-		int nblkptr = deduce_nblkptr(drro->drr_bonustype,
-		    drro->drr_bonuslen);
-		boolean_t do_free_range = B_FALSE;
-
-		object = drro->drr_object;
-
-		/* nblkptr should be bounded by the bonus size and type */
-		if (rwa->raw && nblkptr != drro->drr_nblkptr)
-			return (SET_ERROR(EINVAL));
-
-		/*
-		 * After the previous send stream, the sending system may
-		 * have freed this object, and then happened to re-allocate
-		 * this object number in a later txg. In this case, we are
-		 * receiving a different logical file, and the block size may
-		 * appear to be different.  i.e. we may have a different
-		 * block size for this object than what the send stream says.
-		 * In this case we need to remove the object's contents,
-		 * so that its structure can be changed and then its contents
-		 * entirely replaced by subsequent WRITE records.
-		 *
-		 * If this is a -L (--large-block) incremental stream, and
-		 * the previous stream was not -L, the block size may appear
-		 * to increase.  i.e. we may have a smaller block size for
-		 * this object than what the send stream says.  In this case
-		 * we need to keep the object's contents and block size
-		 * intact, so that we don't lose parts of the object's
-		 * contents that are not changed by this incremental send
-		 * stream.
-		 *
-		 * We can distinguish between the two above cases by using
-		 * the ZPL's generation number (see
-		 * receive_object_is_same_generation()).  However, we only
-		 * want to rely on the generation number when absolutely
-		 * necessary, because with raw receives, the generation is
-		 * encrypted.  We also want to minimize dependence on the
-		 * ZPL, so that other types of datasets can also be received
-		 * (e.g. ZVOLs, although note that ZVOLS currently do not
-		 * reallocate their objects or change their structure).
-		 * Therefore, we check a number of different cases where we
-		 * know it is safe to discard the object's contents, before
-		 * using the ZPL's generation number to make the above
-		 * distinction.
-		 */
-		if (drro->drr_blksz != doi.doi_data_block_size) {
-			if (rwa->raw) {
-				/*
-				 * RAW streams always have large blocks, so
-				 * we are sure that the data is not needed
-				 * due to changing --large-block to be on.
-				 * Which is fortunate since the bonus buffer
-				 * (which contains the ZPL generation) is
-				 * encrypted, and the key might not be
-				 * loaded.
-				 */
-				do_free_range = B_TRUE;
-			} else if (rwa->full) {
-				/*
-				 * This is a full send stream, so it always
-				 * replaces what we have.  Even if the
-				 * generation numbers happen to match, this
-				 * can not actually be the same logical file.
-				 * This is relevant when receiving a full
-				 * send as a clone.
-				 */
-				do_free_range = B_TRUE;
-			} else if (drro->drr_type !=
-			    DMU_OT_PLAIN_FILE_CONTENTS ||
-			    doi.doi_type != DMU_OT_PLAIN_FILE_CONTENTS) {
-				/*
-				 * PLAIN_FILE_CONTENTS are the only type of
-				 * objects that have ever been stored with
-				 * large blocks, so we don't need the special
-				 * logic below.  ZAP blocks can shrink (when
-				 * there's only one block), so we don't want
-				 * to hit the error below about block size
-				 * only increasing.
-				 */
-				do_free_range = B_TRUE;
-			} else if (doi.doi_max_offset <=
-			    doi.doi_data_block_size) {
-				/*
-				 * There is only one block.  We can free it,
-				 * because its contents will be replaced by a
-				 * WRITE record.  This can not be the no-L ->
-				 * -L case, because the no-L case would have
-				 * resulted in multiple blocks.  If we
-				 * supported -L -> no-L, it would not be safe
-				 * to free the file's contents.  Fortunately,
-				 * that is not allowed (see
-				 * recv_check_large_blocks()).
-				 */
-				do_free_range = B_TRUE;
-			} else {
-				boolean_t is_same_gen;
-				err = receive_object_is_same_generation(rwa->os,
-				    drro->drr_object, doi.doi_bonus_type,
-				    drro->drr_bonustype, data, &is_same_gen);
-				if (err != 0)
-					return (SET_ERROR(EINVAL));
-
-				if (is_same_gen) {
-					/*
-					 * This is the same logical file, and
-					 * the block size must be increasing.
-					 * It could only decrease if
-					 * --large-block was changed to be
-					 * off, which is checked in
-					 * recv_check_large_blocks().
-					 */
-					if (drro->drr_blksz <=
-					    doi.doi_data_block_size)
-						return (SET_ERROR(EINVAL));
-					/*
-					 * We keep the existing blocksize and
-					 * contents.
-					 */
-					new_blksz =
-					    doi.doi_data_block_size;
-				} else {
-					do_free_range = B_TRUE;
-				}
-			}
-		}
-
-		/* nblkptr can only decrease if the object was reallocated */
-		if (nblkptr < doi.doi_nblkptr)
-			do_free_range = B_TRUE;
-
-		/* number of slots can only change on reallocation */
-		if (dn_slots != doi.doi_dnodesize >> DNODE_SHIFT)
-			do_free_range = B_TRUE;
-
-		/*
-		 * For raw sends we also check a few other fields to
-		 * ensure we are preserving the objset structure exactly
-		 * as it was on the receive side:
-		 *     - A changed indirect block size
-		 *     - A smaller nlevels
-		 */
-		if (rwa->raw) {
-			if (indblksz != doi.doi_metadata_block_size)
-				do_free_range = B_TRUE;
-			if (drro->drr_nlevels < doi.doi_indirection)
-				do_free_range = B_TRUE;
-		}
-
-		if (do_free_range) {
-			err = dmu_free_long_range(rwa->os, drro->drr_object,
-			    0, DMU_OBJECT_END);
-			if (err != 0)
-				return (SET_ERROR(EINVAL));
-		}
-
-		/*
-		 * The dmu does not currently support decreasing nlevels
-		 * or changing the number of dnode slots on an object. For
-		 * non-raw sends, this does not matter and the new object
-		 * can just use the previous one's nlevels. For raw sends,
-		 * however, the structure of the received dnode (including
-		 * nlevels and dnode slots) must match that of the send
-		 * side. Therefore, instead of using dmu_object_reclaim(),
-		 * we must free the object completely and call
-		 * dmu_object_claim_dnsize() instead.
-		 */
-		if ((rwa->raw && drro->drr_nlevels < doi.doi_indirection) ||
-		    dn_slots != doi.doi_dnodesize >> DNODE_SHIFT) {
-			err = dmu_free_long_object(rwa->os, drro->drr_object);
-			if (err != 0)
-				return (SET_ERROR(EINVAL));
-
-			txg_wait_synced(dmu_objset_pool(rwa->os), 0);
-			object = DMU_NEW_OBJECT;
-		}
-
-		/*
-		 * For raw receives, free everything beyond the new incoming
-		 * maxblkid. Normally this would be done with a DRR_FREE
-		 * record that would come after this DRR_OBJECT record is
-		 * processed. However, for raw receives we manually set the
-		 * maxblkid from the drr_maxblkid and so we must first free
-		 * everything above that blkid to ensure the DMU is always
-		 * consistent with itself. We will never free the first block
-		 * of the object here because a maxblkid of 0 could indicate
-		 * an object with a single block or one with no blocks. This
-		 * free may be skipped when dmu_free_long_range() was called
-		 * above since it covers the entire object's contents.
-		 */
-		if (rwa->raw && object != DMU_NEW_OBJECT && !do_free_range) {
-			err = dmu_free_long_range(rwa->os, drro->drr_object,
-			    (drro->drr_maxblkid + 1) * doi.doi_data_block_size,
-			    DMU_OBJECT_END);
-			if (err != 0)
-				return (SET_ERROR(EINVAL));
-		}
+		err = receive_handle_existing_object(rwa, drro, &doi, data,
+		    &object_to_hold, &new_blksz);
 	} else if (err == EEXIST) {
 		/*
 		 * The object requested is currently an interior slot of a
@@ -1636,10 +1650,10 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 			return (SET_ERROR(EINVAL));
 
 		/* object was freed and we are about to allocate a new one */
-		object = DMU_NEW_OBJECT;
+		object_to_hold = DMU_NEW_OBJECT;
 	} else {
 		/* object is free and we are about to allocate a new one */
-		object = DMU_NEW_OBJECT;
+		object_to_hold = DMU_NEW_OBJECT;
 	}
 
 	/*
@@ -1674,15 +1688,15 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 	}
 
 	tx = dmu_tx_create(rwa->os);
-	dmu_tx_hold_bonus(tx, object);
-	dmu_tx_hold_write(tx, object, 0, 0);
+	dmu_tx_hold_bonus(tx, object_to_hold);
+	dmu_tx_hold_write(tx, object_to_hold, 0, 0);
 	err = dmu_tx_assign(tx, TXG_WAIT);
 	if (err != 0) {
 		dmu_tx_abort(tx);
 		return (err);
 	}
 
-	if (object == DMU_NEW_OBJECT) {
+	if (object_to_hold == DMU_NEW_OBJECT) {
 		/* Currently free, wants to be allocated */
 		err = dmu_object_claim_dnsize(rwa->os, drro->drr_object,
 		    drro->drr_type, new_blksz,

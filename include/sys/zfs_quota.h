@@ -29,7 +29,7 @@ struct zfsvfs;
 struct zfs_file_info_t;
 
 extern int zpl_get_file_info(dmu_object_type_t,
-    void *, struct zfs_file_info *);
+    const void *, struct zfs_file_info *);
 
 extern int zfs_userspace_one(struct zfsvfs *, zfs_userquota_prop_t,
     const char *, uint64_t, uint64_t *);

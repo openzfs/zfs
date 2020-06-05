@@ -1737,7 +1737,7 @@ dmu_objset_register_type(dmu_objset_type_t ost, file_info_cb_t *cb)
 }
 
 int
-dmu_get_file_info(objset_t *os, dmu_object_type_t bonustype, void *data,
+dmu_get_file_info(objset_t *os, dmu_object_type_t bonustype, const void *data,
     zfs_file_info_t *zfi)
 {
 	file_info_cb_t *cb = file_cbs[os->os_phys->os_type];

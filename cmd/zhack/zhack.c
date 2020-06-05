@@ -103,7 +103,7 @@ fatal(spa_t *spa, void *tag, const char *fmt, ...)
 
 /* ARGSUSED */
 static int
-space_delta_cb(dmu_object_type_t bonustype, void *data,
+space_delta_cb(dmu_object_type_t bonustype, const void *data,
     zfs_file_info_t *zoi)
 {
 	/*

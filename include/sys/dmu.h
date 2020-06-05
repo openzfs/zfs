@@ -75,7 +75,6 @@ struct zio_prop;
 struct sa_handle;
 struct dsl_crypto_params;
 struct locked_range;
-struct zfs_file_info;
 
 typedef struct objset objset_t;
 typedef struct dmu_tx dmu_tx_t;
@@ -1014,7 +1013,14 @@ extern int dmu_snapshot_realname(objset_t *os, char *name, char *real,
 extern int dmu_dir_list_next(objset_t *os, int namelen, char *name,
     uint64_t *idp, uint64_t *offp);
 
-typedef int file_info_cb_t(dmu_object_type_t bonustype, void *data,
+typedef struct zfs_file_info {
+	uint64_t zfi_user;
+	uint64_t zfi_group;
+	uint64_t zfi_project;
+	uint64_t zfi_generation;
+} zfs_file_info_t;
+
+typedef int file_info_cb_t(dmu_object_type_t bonustype, const void *data,
     struct zfs_file_info *zoi);
 extern void dmu_objset_register_type(dmu_objset_type_t ost,
     file_info_cb_t *cb);

@@ -39,7 +39,7 @@
 #include <sys/zfs_znode.h>
 
 int
-zpl_get_file_info(dmu_object_type_t bonustype, void *data,
+zpl_get_file_info(dmu_object_type_t bonustype, const void *data,
     zfs_file_info_t *zoi)
 {
 	/*
@@ -60,14 +60,14 @@ zpl_get_file_info(dmu_object_type_t bonustype, void *data,
 		return (SET_ERROR(EEXIST));
 
 	if (bonustype == DMU_OT_ZNODE) {
-		znode_phys_t *znp = data;
+		const znode_phys_t *znp = data;
 		zoi->zfi_user = znp->zp_uid;
 		zoi->zfi_group = znp->zp_gid;
 		zoi->zfi_generation = znp->zp_gen;
 		return (0);
 	}
 
-	sa_hdr_phys_t *sap = data;
+	const sa_hdr_phys_t *sap = data;
 	if (sap->sa_magic == 0) {
 		/*
 		 * This should only happen for newly created files
