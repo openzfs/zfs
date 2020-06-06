@@ -27,6 +27,7 @@
 #ifndef	_SYS_FS_ZFS_VFSOPS_H
 #define	_SYS_FS_ZFS_VFSOPS_H
 
+#include <sys/dataset_kstats.h>
 #include <sys/list.h>
 #include <sys/vfs.h>
 #include <sys/zil.h>
@@ -82,6 +83,7 @@ struct zfsvfs {
 	uint8_t		z_xattr;	/* xattr type in use */
 	uint64_t	z_version;	/* ZPL version */
 	uint64_t	z_shares_dir;	/* hidden shares dir */
+	dataset_kstats_t	z_kstat;	/* fs kstats */
 	kmutex_t	z_lock;
 	uint64_t	z_userquota_obj;
 	uint64_t	z_groupquota_obj;

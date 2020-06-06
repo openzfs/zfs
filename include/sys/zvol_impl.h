@@ -49,6 +49,7 @@ typedef struct zvol_state {
 	zilog_t			*zv_zilog;	/* ZIL handle */
 	zfs_rangelock_t		zv_rangelock;	/* for range locking */
 	dnode_t			*zv_dn;		/* dnode hold */
+	dataset_kstats_t	zv_kstat;	/* zvol kstats */
 	list_node_t		zv_next;	/* next zvol_state_t linkage */
 	uint64_t		zv_hash;	/* name hash */
 	struct hlist_node	zv_hlink;	/* hash link */
