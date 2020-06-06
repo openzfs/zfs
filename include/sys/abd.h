@@ -38,8 +38,8 @@ extern "C" {
 struct abd; /* forward declaration */
 typedef struct abd abd_t;
 
-typedef int abd_iter_func_t(void *buf, size_t len, void *private);
-typedef int abd_iter_func2_t(void *bufa, void *bufb, size_t len, void *private);
+typedef int abd_iter_func_t(void *buf, size_t len, void *priv);
+typedef int abd_iter_func2_t(void *bufa, void *bufb, size_t len, void *priv);
 
 extern int zfs_abd_scatter_enabled;
 extern abd_t *abd_zero_scatter;

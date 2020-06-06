@@ -6923,6 +6923,149 @@ ztest_replay_zil_cb(const char *name, void *arg)
 	return (0);
 }
 
+static void
+ztest_freeze(void)
+{
+	ztest_ds_t *zd = &ztest_ds[0];
+	spa_t *spa;
+	int numloops = 0;
+
+	if (ztest_opts.zo_verbose >= 3)
+		(void) printf("testing spa_freeze()...\n");
+
+	kernel_init(SPA_MODE_READ | SPA_MODE_WRITE);
+	VERIFY3U(0, ==, spa_open(ztest_opts.zo_pool, &spa, FTAG));
+	VERIFY3U(0, ==, ztest_dataset_open(0));
+	ztest_spa = spa;
+
+	/*
+	 * Force the first log block to be transactionally allocated.
+	 * We have to do this before we freeze the pool -- otherwise
+	 * the log chain won't be anchored.
+	 */
+	while (BP_IS_HOLE(&zd->zd_zilog->zl_header->zh_log)) {
+		ztest_dmu_object_alloc_free(zd, 0);
+		zil_commit(zd->zd_zilog, 0);
+	}
+
+	txg_wait_synced(spa_get_dsl(spa), 0);
+
+	/*
+	 * Freeze the pool.  This stops spa_sync() from doing anything,
+	 * so that the only way to record changes from now on is the ZIL.
+	 */
+	spa_freeze(spa);
+
+	/*
+	 * Because it is hard to predict how much space a write will actually
+	 * require beforehand, we leave ourselves some fudge space to write over
+	 * capacity.
+	 */
+	uint64_t capacity = metaslab_class_get_space(spa_normal_class(spa)) / 2;
+
+	/*
+	 * Run tests that generate log records but don't alter the pool config
+	 * or depend on DSL sync tasks (snapshots, objset create/destroy, etc).
+	 * We do a txg_wait_synced() after each iteration to force the txg
+	 * to increase well beyond the last synced value in the uberblock.
+	 * The ZIL should be OK with that.
+	 *
+	 * Run a random number of times less than zo_maxloops and ensure we do
+	 * not run out of space on the pool.
+	 */
+	while (ztest_random(10) != 0 &&
+	    numloops++ < ztest_opts.zo_maxloops &&
+	    metaslab_class_get_alloc(spa_normal_class(spa)) < capacity) {
+		ztest_od_t od;
+		ztest_od_init(&od, 0, FTAG, 0, DMU_OT_UINT64_OTHER, 0, 0, 0);
+		VERIFY0(ztest_object_init(zd, &od, sizeof (od), B_FALSE));
+		ztest_io(zd, od.od_object,
+		    ztest_random(ZTEST_RANGE_LOCKS) << SPA_MAXBLOCKSHIFT);
+		txg_wait_synced(spa_get_dsl(spa), 0);
+	}
+
+	/*
+	 * Commit all of the changes we just generated.
+	 */
+	zil_commit(zd->zd_zilog, 0);
+	txg_wait_synced(spa_get_dsl(spa), 0);
+
+	/*
+	 * Close our dataset and close the pool.
+	 */
+	ztest_dataset_close(0);
+	spa_close(spa, FTAG);
+	kernel_fini();
+
+	/*
+	 * Open and close the pool and dataset to induce log replay.
+	 */
+	kernel_init(SPA_MODE_READ | SPA_MODE_WRITE);
+	VERIFY3U(0, ==, spa_open(ztest_opts.zo_pool, &spa, FTAG));
+	ASSERT(spa_freeze_txg(spa) == UINT64_MAX);
+	VERIFY3U(0, ==, ztest_dataset_open(0));
+	ztest_spa = spa;
+	txg_wait_synced(spa_get_dsl(spa), 0);
+	ztest_dataset_close(0);
+	ztest_reguid(NULL, 0);
+
+	spa_close(spa, FTAG);
+	kernel_fini();
+}
+
+static void
+ztest_import_impl(ztest_shared_t *zs)
+{
+	importargs_t args = { 0 };
+	nvlist_t *cfg = NULL;
+	int nsearch = 1;
+	char *searchdirs[nsearch];
+	int flags = ZFS_IMPORT_MISSING_LOG;
+
+	searchdirs[0] = ztest_opts.zo_dir;
+	args.paths = nsearch;
+	args.path = searchdirs;
+	args.can_be_active = B_FALSE;
+
+	VERIFY0(zpool_find_config(NULL, ztest_opts.zo_pool, &cfg, &args,
+	    &libzpool_config_ops));
+	VERIFY0(spa_import(ztest_opts.zo_pool, cfg, NULL, flags));
+}
+
+/*
+ * Import a storage pool with the given name.
+ */
+static void
+ztest_import(ztest_shared_t *zs)
+{
+	spa_t *spa;
+
+	mutex_init(&ztest_vdev_lock, NULL, MUTEX_DEFAULT, NULL);
+	mutex_init(&ztest_checkpoint_lock, NULL, MUTEX_DEFAULT, NULL);
+	VERIFY0(pthread_rwlock_init(&ztest_name_lock, NULL));
+
+	kernel_init(SPA_MODE_READ | SPA_MODE_WRITE);
+
+	ztest_import_impl(zs);
+
+	VERIFY0(spa_open(ztest_opts.zo_pool, &spa, FTAG));
+	zs->zs_metaslab_sz =
+	    1ULL << spa->spa_root_vdev->vdev_child[0]->vdev_ms_shift;
+	spa_close(spa, FTAG);
+
+	kernel_fini();
+
+	if (!ztest_opts.zo_mmp_test) {
+		ztest_run_zdb(ztest_opts.zo_pool);
+		ztest_freeze();
+		ztest_run_zdb(ztest_opts.zo_pool);
+	}
+
+	(void) pthread_rwlock_destroy(&ztest_name_lock);
+	mutex_destroy(&ztest_vdev_lock);
+	mutex_destroy(&ztest_checkpoint_lock);
+}
+
 /*
  * Kick off threads to run tests on all datasets in parallel.
  */
@@ -6962,10 +7105,19 @@ ztest_run(ztest_shared_t *zs)
 	    offsetof(ztest_cb_data_t, zcd_node));
 
 	/*
-	 * Open our pool.
+	 * Open our pool.  It may need to be imported first depending on
+	 * what tests were running when the previous pass was terminated.
 	 */
 	kernel_init(SPA_MODE_READ | SPA_MODE_WRITE);
-	VERIFY0(spa_open(ztest_opts.zo_pool, &spa, FTAG));
+	error = spa_open(ztest_opts.zo_pool, &spa, FTAG);
+	if (error) {
+		VERIFY3S(error, ==, ENOENT);
+		ztest_import_impl(zs);
+		VERIFY0(spa_open(ztest_opts.zo_pool, &spa, FTAG));
+		zs->zs_metaslab_sz =
+		    1ULL << spa->spa_root_vdev->vdev_child[0]->vdev_ms_shift;
+	}
+
 	metaslab_preload_limit = ztest_random(20) + 1;
 	ztest_spa = spa;
 
@@ -7143,96 +7295,6 @@ ztest_run(ztest_shared_t *zs)
 	mutex_destroy(&ztest_checkpoint_lock);
 }
 
-static void
-ztest_freeze(void)
-{
-	ztest_ds_t *zd = &ztest_ds[0];
-	spa_t *spa;
-	int numloops = 0;
-
-	if (ztest_opts.zo_verbose >= 3)
-		(void) printf("testing spa_freeze()...\n");
-
-	kernel_init(SPA_MODE_READ | SPA_MODE_WRITE);
-	VERIFY3U(0, ==, spa_open(ztest_opts.zo_pool, &spa, FTAG));
-	VERIFY3U(0, ==, ztest_dataset_open(0));
-	ztest_spa = spa;
-
-	/*
-	 * Force the first log block to be transactionally allocated.
-	 * We have to do this before we freeze the pool -- otherwise
-	 * the log chain won't be anchored.
-	 */
-	while (BP_IS_HOLE(&zd->zd_zilog->zl_header->zh_log)) {
-		ztest_dmu_object_alloc_free(zd, 0);
-		zil_commit(zd->zd_zilog, 0);
-	}
-
-	txg_wait_synced(spa_get_dsl(spa), 0);
-
-	/*
-	 * Freeze the pool.  This stops spa_sync() from doing anything,
-	 * so that the only way to record changes from now on is the ZIL.
-	 */
-	spa_freeze(spa);
-
-	/*
-	 * Because it is hard to predict how much space a write will actually
-	 * require beforehand, we leave ourselves some fudge space to write over
-	 * capacity.
-	 */
-	uint64_t capacity = metaslab_class_get_space(spa_normal_class(spa)) / 2;
-
-	/*
-	 * Run tests that generate log records but don't alter the pool config
-	 * or depend on DSL sync tasks (snapshots, objset create/destroy, etc).
-	 * We do a txg_wait_synced() after each iteration to force the txg
-	 * to increase well beyond the last synced value in the uberblock.
-	 * The ZIL should be OK with that.
-	 *
-	 * Run a random number of times less than zo_maxloops and ensure we do
-	 * not run out of space on the pool.
-	 */
-	while (ztest_random(10) != 0 &&
-	    numloops++ < ztest_opts.zo_maxloops &&
-	    metaslab_class_get_alloc(spa_normal_class(spa)) < capacity) {
-		ztest_od_t od;
-		ztest_od_init(&od, 0, FTAG, 0, DMU_OT_UINT64_OTHER, 0, 0, 0);
-		VERIFY0(ztest_object_init(zd, &od, sizeof (od), B_FALSE));
-		ztest_io(zd, od.od_object,
-		    ztest_random(ZTEST_RANGE_LOCKS) << SPA_MAXBLOCKSHIFT);
-		txg_wait_synced(spa_get_dsl(spa), 0);
-	}
-
-	/*
-	 * Commit all of the changes we just generated.
-	 */
-	zil_commit(zd->zd_zilog, 0);
-	txg_wait_synced(spa_get_dsl(spa), 0);
-
-	/*
-	 * Close our dataset and close the pool.
-	 */
-	ztest_dataset_close(0);
-	spa_close(spa, FTAG);
-	kernel_fini();
-
-	/*
-	 * Open and close the pool and dataset to induce log replay.
-	 */
-	kernel_init(SPA_MODE_READ | SPA_MODE_WRITE);
-	VERIFY3U(0, ==, spa_open(ztest_opts.zo_pool, &spa, FTAG));
-	ASSERT(spa_freeze_txg(spa) == UINT64_MAX);
-	VERIFY3U(0, ==, ztest_dataset_open(0));
-	ztest_spa = spa;
-	txg_wait_synced(spa_get_dsl(spa), 0);
-	ztest_dataset_close(0);
-	ztest_reguid(NULL, 0);
-
-	spa_close(spa, FTAG);
-	kernel_fini();
-}
-
 void
 print_time(hrtime_t t, char *timebuf)
 {
@@ -7272,56 +7334,6 @@ make_random_props(void)
 	    zpool_prop_to_name(ZPOOL_PROP_AUTOREPLACE), 1));
 
 	return (props);
-}
-
-/*
- * Import a storage pool with the given name.
- */
-static void
-ztest_import(ztest_shared_t *zs)
-{
-	importargs_t args = { 0 };
-	spa_t *spa;
-	nvlist_t *cfg = NULL;
-	int nsearch = 1;
-	char *searchdirs[nsearch];
-	char *name = ztest_opts.zo_pool;
-	int flags = ZFS_IMPORT_MISSING_LOG;
-	int error;
-
-	mutex_init(&ztest_vdev_lock, NULL, MUTEX_DEFAULT, NULL);
-	mutex_init(&ztest_checkpoint_lock, NULL, MUTEX_DEFAULT, NULL);
-	VERIFY0(pthread_rwlock_init(&ztest_name_lock, NULL));
-
-	kernel_init(SPA_MODE_READ | SPA_MODE_WRITE);
-
-	searchdirs[0] = ztest_opts.zo_dir;
-	args.paths = nsearch;
-	args.path = searchdirs;
-	args.can_be_active = B_FALSE;
-
-	error = zpool_find_config(NULL, name, &cfg, &args,
-	    &libzpool_config_ops);
-	if (error)
-		(void) fatal(0, "No pools found\n");
-
-	VERIFY0(spa_import(name, cfg, NULL, flags));
-	VERIFY0(spa_open(name, &spa, FTAG));
-	zs->zs_metaslab_sz =
-	    1ULL << spa->spa_root_vdev->vdev_child[0]->vdev_ms_shift;
-	spa_close(spa, FTAG);
-
-	kernel_fini();
-
-	if (!ztest_opts.zo_mmp_test) {
-		ztest_run_zdb(ztest_opts.zo_pool);
-		ztest_freeze();
-		ztest_run_zdb(ztest_opts.zo_pool);
-	}
-
-	(void) pthread_rwlock_destroy(&ztest_name_lock);
-	mutex_destroy(&ztest_vdev_lock);
-	mutex_destroy(&ztest_checkpoint_lock);
 }
 
 /*

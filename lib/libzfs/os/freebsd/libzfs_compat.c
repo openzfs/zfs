@@ -247,7 +247,7 @@ zpool_relabel_disk(libzfs_handle_t *hdl, const char *path, const char *msg)
 }
 
 int
-zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, char *name)
+zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, const char *name)
 {
 	return (0);
 }

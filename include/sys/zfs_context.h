@@ -28,6 +28,10 @@
 #ifndef _SYS_ZFS_CONTEXT_H
 #define	_SYS_ZFS_CONTEXT_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifdef __KERNEL__
 #include <sys/note.h>
 #include <sys/types.h>
@@ -355,9 +359,6 @@ extern void kstat_set_raw_ops(kstat_t *ksp,
  * procfs list manipulation
  */
 
-struct seq_file { };
-void seq_printf(struct seq_file *m, const char *fmt, ...);
-
 typedef struct procfs_list {
 	void		*pl_private;
 	kmutex_t	pl_lock;
@@ -365,6 +366,10 @@ typedef struct procfs_list {
 	uint64_t	pl_next_id;
 	size_t		pl_node_offset;
 } procfs_list_t;
+
+#ifndef __cplusplus
+struct seq_file { };
+void seq_printf(struct seq_file *m, const char *fmt, ...);
 
 typedef struct procfs_list_node {
 	list_node_t	pln_link;
@@ -382,6 +387,7 @@ void procfs_list_install(const char *module,
 void procfs_list_uninstall(procfs_list_t *procfs_list);
 void procfs_list_destroy(procfs_list_t *procfs_list);
 void procfs_list_add(procfs_list_t *procfs_list, void *p);
+#endif
 
 /*
  * Kernel memory
@@ -742,4 +748,9 @@ extern int kmem_cache_reap_active(void);
 #define	____cacheline_aligned
 
 #endif /* _KERNEL */
+
+#ifdef __cplusplus
+};
+#endif
+
 #endif	/* _SYS_ZFS_CONTEXT_H */
