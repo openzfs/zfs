@@ -736,8 +736,9 @@ zfs_read(vnode_t *vp, uio_t *uio, int ioflag, cred_t *cr)
 {
 	znode_t		*zp = VTOZ(vp);
 	zfsvfs_t	*zfsvfs = zp->z_zfsvfs;
-	ssize_t		n, nbytes;
+	ssize_t		n, nbytes, start_resid;
 	int		error = 0;
+	int64_t		nread;
 	zfs_locked_range_t		*lr;
 
 	ZFS_ENTER(zfsvfs);
@@ -794,6 +795,7 @@ zfs_read(vnode_t *vp, uio_t *uio, int ioflag, cred_t *cr)
 
 	ASSERT(uio->uio_loffset < zp->z_size);
 	n = MIN(uio->uio_resid, zp->z_size - uio->uio_loffset);
+	start_resid = n;
 
 	while (n > 0) {
 		nbytes = MIN(n, zfs_read_chunk_size -
@@ -816,6 +818,10 @@ zfs_read(vnode_t *vp, uio_t *uio, int ioflag, cred_t *cr)
 
 		n -= nbytes;
 	}
+
+	nread = start_resid - n;
+	dataset_kstats_update_read_kstats(&zfsvfs->z_kstat, nread);
+
 out:
 	zfs_rangelock_exit(lr);
 
@@ -872,6 +878,7 @@ zfs_write(vnode_t *vp, uio_t *uio, int ioflag, cred_t *cr)
 	sa_bulk_attr_t	bulk[4];
 	uint64_t	mtime[2], ctime[2];
 	uint64_t	uid, gid, projid;
+	int64_t		nwritten;
 
 	/*
 	 * Fasttrack empty write
@@ -1213,6 +1220,9 @@ zfs_write(vnode_t *vp, uio_t *uio, int ioflag, cred_t *cr)
 	if (ioflag & (FSYNC | FDSYNC) ||
 	    zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		zil_commit(zilog, zp->z_id);
+
+	nwritten = start_resid - uio->uio_resid;
+	dataset_kstats_update_write_kstats(&zfsvfs->z_kstat, nwritten);
 
 	ZFS_EXIT(zfsvfs);
 	return (0);

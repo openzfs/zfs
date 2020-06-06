@@ -56,7 +56,6 @@ int zvol_fake_phys_block_size = 1;
 struct zvol_state_os {
 	struct gendisk		*zvo_disk;	/* generic disk */
 	struct request_queue	*zvo_queue;	/* request queue */
-	dataset_kstats_t	zvo_kstat;	/* zvol kstats */
 	dev_t			zvo_dev;	/* device id */
 };
 
@@ -169,7 +168,7 @@ zvol_write(void *arg)
 	zfs_rangelock_exit(lr);
 
 	int64_t nwritten = start_resid - uio.uio_resid;
-	dataset_kstats_update_write_kstats(&zv->zv_zso->zvo_kstat, nwritten);
+	dataset_kstats_update_write_kstats(&zv->zv_kstat, nwritten);
 	task_io_account_write(nwritten);
 
 	if (sync)
@@ -292,7 +291,7 @@ zvol_read(void *arg)
 	zfs_rangelock_exit(lr);
 
 	int64_t nread = start_resid - uio.uio_resid;
-	dataset_kstats_update_read_kstats(&zv->zv_zso->zvo_kstat, nread);
+	dataset_kstats_update_read_kstats(&zv->zv_kstat, nread);
 	task_io_account_read(nread);
 
 	rw_exit(&zv->zv_suspend_lock);
@@ -870,7 +869,7 @@ zvol_free(zvol_state_t *zv)
 	    MINOR(zv->zv_zso->zvo_dev) >> ZVOL_MINOR_BITS);
 
 	mutex_destroy(&zv->zv_state_lock);
-	dataset_kstats_destroy(&zv->zv_zso->zvo_kstat);
+	dataset_kstats_destroy(&zv->zv_kstat);
 
 	kmem_free(zv->zv_zso, sizeof (struct zvol_state_os));
 	kmem_free(zv, sizeof (zvol_state_t));
@@ -969,8 +968,8 @@ zvol_os_create_minor(const char *name)
 		else
 			zil_replay(os, zv, zvol_replay_vector);
 	}
-	ASSERT3P(zv->zv_zso->zvo_kstat.dk_kstats, ==, NULL);
-	dataset_kstats_create(&zv->zv_zso->zvo_kstat, zv->zv_objset);
+	ASSERT3P(zv->zv_kstat.dk_kstats, ==, NULL);
+	dataset_kstats_create(&zv->zv_kstat, zv->zv_objset);
 
 	/*
 	 * When udev detects the addition of the device it will immediately

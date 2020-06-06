@@ -34,6 +34,8 @@
 #include <string.h>
 #include <libintl.h>
 #include <errno.h>
+#include <sys/stdtypes.h>
+#include <sys/sysmacros.h>
 
 #define	BLOCKSIZE	512		/* bytes */
 #define	KILOBYTE	1024
