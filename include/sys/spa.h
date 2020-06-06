@@ -891,7 +891,7 @@ typedef struct spa_history_kstat {
 	uint64_t		count;
 	uint64_t		size;
 	kstat_t			*kstat;
-	void			*private;
+	void			*priv;
 	list_t			list;
 } spa_history_kstat_t;
 
@@ -1131,10 +1131,10 @@ extern const char *spa_state_to_name(spa_t *spa);
 /* error handling */
 struct zbookmark_phys;
 extern void spa_log_error(spa_t *spa, const zbookmark_phys_t *zb);
-extern int zfs_ereport_post(const char *class, spa_t *spa, vdev_t *vd,
+extern int zfs_ereport_post(const char *clazz, spa_t *spa, vdev_t *vd,
     const zbookmark_phys_t *zb, zio_t *zio, uint64_t stateoroffset,
     uint64_t length);
-extern boolean_t zfs_ereport_is_valid(const char *class, spa_t *spa, vdev_t *vd,
+extern boolean_t zfs_ereport_is_valid(const char *clazz, spa_t *spa, vdev_t *vd,
     zio_t *zio);
 extern nvlist_t *zfs_event_create(spa_t *spa, vdev_t *vd, const char *type,
     const char *name, nvlist_t *aux);

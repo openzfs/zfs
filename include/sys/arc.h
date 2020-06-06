@@ -70,9 +70,9 @@ typedef struct arc_prune arc_prune_t;
  * parameter will be NULL.
  */
 typedef void arc_read_done_func_t(zio_t *zio, const zbookmark_phys_t *zb,
-    const blkptr_t *bp, arc_buf_t *buf, void *private);
-typedef void arc_write_done_func_t(zio_t *zio, arc_buf_t *buf, void *private);
-typedef void arc_prune_func_t(int64_t bytes, void *private);
+    const blkptr_t *bp, arc_buf_t *buf, void *priv);
+typedef void arc_write_done_func_t(zio_t *zio, arc_buf_t *buf, void *priv);
+typedef void arc_prune_func_t(int64_t bytes, void *priv);
 
 /* Shared module parameters */
 extern int zfs_arc_average_blocksize;
@@ -280,16 +280,16 @@ int arc_referenced(arc_buf_t *buf);
 #endif
 
 int arc_read(zio_t *pio, spa_t *spa, const blkptr_t *bp,
-    arc_read_done_func_t *done, void *private, zio_priority_t priority,
+    arc_read_done_func_t *done, void *priv, zio_priority_t priority,
     int flags, arc_flags_t *arc_flags, const zbookmark_phys_t *zb);
 zio_t *arc_write(zio_t *pio, spa_t *spa, uint64_t txg,
     blkptr_t *bp, arc_buf_t *buf, boolean_t l2arc, const zio_prop_t *zp,
     arc_write_done_func_t *ready, arc_write_done_func_t *child_ready,
     arc_write_done_func_t *physdone, arc_write_done_func_t *done,
-    void *private, zio_priority_t priority, int zio_flags,
+    void *priv, zio_priority_t priority, int zio_flags,
     const zbookmark_phys_t *zb);
 
-arc_prune_t *arc_add_prune_callback(arc_prune_func_t *func, void *private);
+arc_prune_t *arc_add_prune_callback(arc_prune_func_t *func, void *priv);
 void arc_remove_prune_callback(arc_prune_t *p);
 void arc_freed(spa_t *spa, const blkptr_t *bp);
 
