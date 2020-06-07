@@ -170,13 +170,12 @@ AC_CONFIG_FILES([
 	man/man1/Makefile
 	man/man5/Makefile
 	man/man8/Makefile
+	module/Kbuild
 	module/Makefile
 	module/avl/Makefile
 	module/icp/Makefile
 	module/lua/Makefile
 	module/nvpair/Makefile
-	module/os/Makefile
-	module/os/linux/Makefile
 	module/os/linux/spl/Makefile
 	module/os/linux/zfs/Makefile
 	module/spl/Makefile

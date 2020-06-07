@@ -1,14 +1,17 @@
-src = @abs_top_srcdir@/module/icp
+ifneq ($(KBUILD_EXTMOD),)
+src = @abs_srcdir@
 obj = @abs_builddir@
+icp_include = $(src)/include
+else
+icp_include = $(srctree)/$(src)/include
+endif
 
 MODULE := icp
 
 obj-$(CONFIG_ZFS) := $(MODULE).o
 
-asflags-y := -I@abs_top_srcdir@/module/icp/include
-asflags-y += $(ZFS_MODULE_CFLAGS) $(ZFS_MODULE_CPPFLAGS)
-ccflags-y := -I@abs_top_srcdir@/module/icp/include
-ccflags-y += $(ZFS_MODULE_CFLAGS) $(ZFS_MODULE_CPPFLAGS)
+asflags-y := -I$(icp_include)
+ccflags-y := -I$(icp_include)
 
 $(MODULE)-objs += illumos-crypto.o
 $(MODULE)-objs += api/kcf_cipher.o
