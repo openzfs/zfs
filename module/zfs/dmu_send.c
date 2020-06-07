@@ -2008,7 +2008,8 @@ create_begin_record(struct dmu_send_params *dspp, objset_t *os,
 
 	if (dspp->savedok) {
 		drrb->drr_toguid = dspp->saved_guid;
-		strcpy(drrb->drr_toname, dspp->saved_toname);
+		strlcpy(drrb->drr_toname, dspp->saved_toname,
+		    sizeof (drrb->drr_toname));
 	} else {
 		dsl_dataset_name(to_ds, drrb->drr_toname);
 		if (!to_ds->ds_is_snapshot) {

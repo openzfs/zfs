@@ -253,7 +253,7 @@ void
 ddt_object_name(ddt_t *ddt, enum ddt_type type, enum ddt_class class,
     char *name)
 {
-	(void) sprintf(name, DMU_POOL_DDT,
+	(void) snprintf(name, DDT_NAMELEN, DMU_POOL_DDT,
 	    zio_checksum_table[ddt->ddt_checksum].ci_name,
 	    ddt_ops[type]->ddt_op_name, ddt_class_name[class]);
 }

@@ -2504,7 +2504,8 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 			zfs_cmd_t *zc;
 
 			zc = kmem_zalloc(sizeof (zfs_cmd_t), KM_SLEEP);
-			(void) strcpy(zc->zc_name, dsname);
+			(void) strlcpy(zc->zc_name, dsname,
+			    sizeof (zc->zc_name));
 			(void) zfs_ioc_userspace_upgrade(zc);
 			(void) zfs_ioc_id_quota_upgrade(zc);
 			kmem_free(zc, sizeof (zfs_cmd_t));
@@ -5271,7 +5272,7 @@ zfs_ioc_recv_new(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 	    strchr(snapname, '%'))
 		return (SET_ERROR(EINVAL));
 
-	(void) strcpy(tofs, snapname);
+	(void) strlcpy(tofs, snapname, sizeof (tofs));
 	tosnap = strchr(tofs, '@');
 	*tosnap++ = '\0';
 

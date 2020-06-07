@@ -269,7 +269,8 @@ zfs_userspace_one(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
 		offset = DMU_OBJACCT_PREFIX_LEN;
 	}
 
-	err = zfs_id_to_fuidstr(zfsvfs, domain, rid, buf + offset, B_FALSE);
+	err = zfs_id_to_fuidstr(zfsvfs, domain, rid, buf + offset,
+	    sizeof (buf) - offset, B_FALSE);
 	if (err)
 		return (err);
 
@@ -325,7 +326,7 @@ zfs_set_userquota(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
 		return (SET_ERROR(EINVAL));
 	}
 
-	err = zfs_id_to_fuidstr(zfsvfs, domain, rid, buf, B_TRUE);
+	err = zfs_id_to_fuidstr(zfsvfs, domain, rid, buf, sizeof (buf), B_TRUE);
 	if (err)
 		return (err);
 	fuid_dirtied = zfsvfs->z_fuid_dirty;
@@ -407,12 +408,13 @@ zfs_id_overobjquota(zfsvfs_t *zfsvfs, uint64_t usedobj, uint64_t id)
 	if (quotaobj == 0 || zfsvfs->z_replay)
 		return (B_FALSE);
 
-	(void) sprintf(buf, "%llx", (longlong_t)id);
+	(void) snprintf(buf, sizeof (buf), "%llx", (longlong_t)id);
 	err = zap_lookup(zfsvfs->z_os, quotaobj, buf, 8, 1, &quota);
 	if (err != 0)
 		return (B_FALSE);
 
-	(void) sprintf(buf, DMU_OBJACCT_PREFIX "%llx", (longlong_t)id);
+	(void) snprintf(buf, sizeof (buf), DMU_OBJACCT_PREFIX "%llx",
+	    (longlong_t)id);
 	err = zap_lookup(zfsvfs->z_os, usedobj, buf, 8, 1, &used);
 	if (err != 0)
 		return (B_FALSE);
@@ -448,7 +450,7 @@ zfs_id_overblockquota(zfsvfs_t *zfsvfs, uint64_t usedobj, uint64_t id)
 	if (quotaobj == 0 || zfsvfs->z_replay)
 		return (B_FALSE);
 
-	(void) sprintf(buf, "%llx", (longlong_t)id);
+	(void) snprintf(buf, sizeof (buf), "%llx", (longlong_t)id);
 	err = zap_lookup(zfsvfs->z_os, quotaobj, buf, 8, 1, &quota);
 	if (err != 0)
 		return (B_FALSE);
