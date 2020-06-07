@@ -209,10 +209,10 @@ __zfs_complete()
                     COMPREPLY=($(compgen -W "" -- "$cur"))
                     ;;
                 -t)
-                    __zfs_complete_multiple_options "filesystem volume snapshot all" "$cur"
+                    __zfs_complete_multiple_options "filesystem volume snapshot bookmark all" "$cur"
                     ;;
                 -s)
-                    __zfs_complete_multiple_options "local default inherited temporary none" "$cur"
+                    __zfs_complete_multiple_options "local default inherited temporary received none" "$cur"
                     ;;
                 -o)
                     __zfs_complete_multiple_options "name property value source received all" "$cur"
@@ -242,7 +242,7 @@ __zfs_complete()
                     COMPREPLY=($(compgen -W "" -- "$cur"))
                     ;;
                 -t)
-                    __zfs_complete_multiple_options "filesystem volume snapshot all" "$cur"
+                    __zfs_complete_multiple_options "filesystem volume snapshot bookmark all" "$cur"
                     ;;
                 -o)
                     __zfs_complete_multiple_options "$(__zfs_get_properties)" "$cur"
