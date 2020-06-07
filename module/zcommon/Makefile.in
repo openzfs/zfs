@@ -1,12 +1,11 @@
-src = @abs_top_srcdir@/module/zcommon
+ifneq ($(KBUILD_EXTMOD),)
+src = @abs_srcdir@
 obj = @abs_builddir@
-target_cpu = @target_cpu@
+endif
 
 MODULE := zcommon
 
 obj-$(CONFIG_ZFS) := $(MODULE).o
-
-ccflags-y := $(ZFS_MODULE_CFLAGS) $(ZFS_MODULE_CPPFLAGS)
 
 # Suppress unused-value warnings in sparc64 architecture headers
 ccflags-$(CONFIG_SPARC64) += -Wno-unused-value

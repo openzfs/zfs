@@ -1,11 +1,13 @@
-src = @abs_top_srcdir@/module/spl
+ifneq ($(KBUILD_EXTMOD),)
+src = @abs_srcdir@
 obj = @abs_builddir@
+mfdir = $(obj)
+else
+mfdir = $(srctree)/$(src)
+endif
 
 MODULE := spl
 
 obj-$(CONFIG_ZFS) := $(MODULE).o
 
-ccflags-y := $(ZFS_MODULE_CFLAGS) $(ZFS_MODULE_CPPFLAGS)
-
-
--include @abs_top_builddir@/module/os/linux/spl/Makefile
+include $(mfdir)/../os/linux/spl/Makefile
