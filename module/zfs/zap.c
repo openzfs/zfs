@@ -1030,7 +1030,7 @@ zap_value_search(objset_t *os, uint64_t zapobj, uint64_t value, uint64_t mask,
 	    (err = zap_cursor_retrieve(&zc, za)) == 0;
 	    zap_cursor_advance(&zc)) {
 		if ((za->za_first_integer & mask) == (value & mask)) {
-			(void) strcpy(name, za->za_name);
+			(void) strlcpy(name, za->za_name, MAXNAMELEN);
 			break;
 		}
 	}

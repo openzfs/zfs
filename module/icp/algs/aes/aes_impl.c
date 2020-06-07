@@ -330,7 +330,7 @@ aes_impl_init(void)
 	    sizeof (aes_fastest_impl));
 #endif
 
-	strcpy(aes_fastest_impl.name, "fastest");
+	strlcpy(aes_fastest_impl.name, "fastest", AES_IMPL_NAME_MAX);
 
 	/* Finish initialization */
 	atomic_swap_32(&icp_aes_impl, user_sel_impl);
@@ -405,7 +405,7 @@ aes_impl_set(const char *val)
 	return (err);
 }
 
-#if defined(_KERNEL)
+#if defined(_KERNEL) && defined(__linux__)
 #include <linux/mod_compat.h>
 
 static int

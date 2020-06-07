@@ -857,7 +857,7 @@ gcm_impl_init(void)
 		    sizeof (gcm_fastest_impl));
 	}
 
-	strcpy(gcm_fastest_impl.name, "fastest");
+	strlcpy(gcm_fastest_impl.name, "fastest", GCM_IMPL_NAME_MAX);
 
 #ifdef CAN_USE_GCM_ASM
 	/*
@@ -969,7 +969,7 @@ gcm_impl_set(const char *val)
 	return (err);
 }
 
-#if defined(_KERNEL)
+#if defined(_KERNEL) && defined(__linux__)
 #include <linux/mod_compat.h>
 
 static int

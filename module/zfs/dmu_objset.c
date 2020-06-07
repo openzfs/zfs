@@ -1967,14 +1967,15 @@ do_userquota_update(objset_t *os, userquota_cache_t *cache, uint64_t used,
 		if (subtract)
 			delta = -delta;
 
-		(void) sprintf(name, "%llx", (longlong_t)user);
+		(void) snprintf(name, sizeof (name), "%llx", (longlong_t)user);
 		userquota_update_cache(&cache->uqc_user_deltas, name, delta);
 
-		(void) sprintf(name, "%llx", (longlong_t)group);
+		(void) snprintf(name, sizeof (name), "%llx", (longlong_t)group);
 		userquota_update_cache(&cache->uqc_group_deltas, name, delta);
 
 		if (dmu_objset_projectquota_enabled(os)) {
-			(void) sprintf(name, "%llx", (longlong_t)project);
+			(void) snprintf(name, sizeof (name), "%llx",
+			    (longlong_t)project);
 			userquota_update_cache(&cache->uqc_project_deltas,
 			    name, delta);
 		}
@@ -2537,7 +2538,7 @@ dmu_snapshot_list_next(objset_t *os, int namelen, char *name,
 		return (SET_ERROR(ENAMETOOLONG));
 	}
 
-	(void) strcpy(name, attr.za_name);
+	(void) strlcpy(name, attr.za_name, namelen);
 	if (idp)
 		*idp = attr.za_first_integer;
 	if (case_conflict)
@@ -2582,7 +2583,7 @@ dmu_dir_list_next(objset_t *os, int namelen, char *name,
 		return (SET_ERROR(ENAMETOOLONG));
 	}
 
-	(void) strcpy(name, attr.za_name);
+	(void) strlcpy(name, attr.za_name, namelen);
 	if (idp)
 		*idp = attr.za_first_integer;
 	zap_cursor_advance(&cursor);

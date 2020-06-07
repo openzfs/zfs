@@ -101,9 +101,9 @@ dsl_dataset_user_hold_check(void *arg, dmu_tx_t *tx)
 		size_t len = strlen(nvpair_name(pair)) +
 		    strlen(fnvpair_value_string(pair));
 		char *nameval = kmem_zalloc(len + 2, KM_SLEEP);
-		(void) strcpy(nameval, nvpair_name(pair));
-		(void) strcat(nameval, "@");
-		(void) strcat(nameval, fnvpair_value_string(pair));
+		(void) strlcpy(nameval, nvpair_name(pair), len + 2);
+		(void) strlcat(nameval, "@", len + 2);
+		(void) strlcat(nameval, fnvpair_value_string(pair), len + 2);
 		fnvlist_add_string(tmp_holds, nameval, "");
 		kmem_free(nameval, len + 2);
 	}
