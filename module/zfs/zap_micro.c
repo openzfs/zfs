@@ -1602,7 +1602,8 @@ zap_cursor_retrieve(zap_cursor_t *zc, zap_attribute_t *za)
 			za->za_integer_length = 8;
 			za->za_num_integers = 1;
 			za->za_first_integer = mzep->mze_value;
-			(void) strcpy(za->za_name, mzep->mze_name);
+			(void) strlcpy(za->za_name, mzep->mze_name,
+			    sizeof (za->za_name));
 			zc->zc_hash = mze->mze_hash;
 			zc->zc_cd = mze->mze_cd;
 			err = 0;

@@ -360,7 +360,7 @@ scan_init(void)
 	for (int i = 0; i < SPA_DVAS_PER_BP; i++) {
 		char name[36];
 
-		(void) sprintf(name, "sio_cache_%d", i);
+		(void) snprintf(name, sizeof (name), "sio_cache_%d", i);
 		sio_cache[i] = kmem_cache_create(name,
 		    (sizeof (scan_io_t) + ((i + 1) * sizeof (dva_t))),
 		    0, NULL, NULL, NULL, NULL, NULL, 0);
