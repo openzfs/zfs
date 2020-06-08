@@ -196,7 +196,7 @@ zfsdev_ioctl(struct cdev *dev, ulong_t zcmd, caddr_t arg, int flag,
 		error = SET_ERROR(EFAULT);
 		goto out;
 	}
-	error = zfsdev_ioctl_common(vecnum, zc);
+	error = zfsdev_ioctl_common(vecnum, zc, 0);
 	if (zcl) {
 		zfs_cmd_zof_to_bsd12(zc, zcl);
 		rc = copyout(zcl, uaddr, sizeof (*zcl));
