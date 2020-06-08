@@ -4539,7 +4539,7 @@ zpool_get_bootenv(zpool_handle_t *zhp, char *outbuf, size_t size, off_t offset)
 		return (0);
 	}
 
-	strlcpy(outbuf, envmap + offset, size);
+	strncpy(outbuf, envmap + offset, size);
 	int bytes = MIN(strlen(envmap + offset), size);
 	fnvlist_free(nvl);
 	return (bytes);
