@@ -92,6 +92,8 @@ struct abd_iter {
 	struct scatterlist *iter_sg;	/* current sg */
 };
 
+extern abd_t *abd_zero_scatter;
+
 abd_t *abd_gang_get_offset(abd_t *, size_t *);
 
 /*

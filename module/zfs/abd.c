@@ -367,6 +367,32 @@ abd_alloc_gang_abd(void)
 }
 
 /*
+ * If we are adding a gang ABD to another gang ABD we will iterate
+ * though the child gang's individual ABD and add them individually
+ * to the parent.
+ */
+static void
+abd_gang_add_gang(abd_t *pabd, abd_t *cabd)
+{
+	abd_t *child = NULL;
+
+	ASSERT(abd_is_gang(pabd));
+	ASSERT(abd_is_gang(cabd));
+
+	for (child = list_head(&ABD_GANG(cabd).abd_gang_chain);
+	    child != NULL;
+	    child = list_next(&ABD_GANG(cabd).abd_gang_chain, child)) {
+		/*
+		 * We always pass B_FALSE for free_on_free as it is the
+		 * original child gang ABDs responsibilty to determine
+		 * if the any of it's children ABD should be free'd on
+		 * the call to abd_free().
+		 */
+		abd_gang_add(pabd, child, B_FALSE);
+	}
+}
+
+/*
  * Add a child ABD to a gang ABD's chained list.
  */
 void
@@ -374,6 +400,25 @@ abd_gang_add(abd_t *pabd, abd_t *cabd, boolean_t free_on_free)
 {
 	ASSERT(abd_is_gang(pabd));
 	abd_t *child_abd = NULL;
+
+	/*
+	 * If the child being added is a gang ABD, we will add each
+	 * of it's children ABDs separately to the parent gang ABD.
+	 * This allows us to account for the offset correctly in the
+	 * parent gang ABD. We do allow gang ABDs to have gang ABD
+	 * children.
+	 */
+	if (abd_is_gang(cabd)) {
+		/*
+		 * The parent ABD can not be responsible for freeing the
+		 * child gang ABD because we will just be adding the
+		 * child's ABDs to the parent individually.
+		 */
+		ASSERT(!list_link_active(&cabd->abd_gang_link));
+		ASSERT3B(free_on_free, ==, B_FALSE);
+		return (abd_gang_add_gang(pabd, cabd));
+	}
+	ASSERT(!abd_is_gang(cabd));
 
 	/*
 	 * In order to verify that an ABD is not already part of
@@ -717,14 +762,15 @@ abd_iterate_func(abd_t *abd, size_t off, size_t size,
 {
 	int ret = 0;
 	struct abd_iter aiter;
-	boolean_t abd_multi;
-	abd_t *c_abd;
 
 	abd_verify(abd);
 	ASSERT3U(off + size, <=, abd->abd_size);
 
-	abd_multi = abd_is_gang(abd);
-	c_abd = abd_init_abd_iter(abd, &aiter, off);
+	if (size == 0)
+		return (ret);
+
+	boolean_t abd_multi = abd_is_gang(abd);
+	abd_t *c_abd = abd_init_abd_iter(abd, &aiter, off);
 
 	while (size > 0) {
 		/* If we are at the end of the gang ABD we are done */
