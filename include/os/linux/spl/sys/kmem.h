@@ -173,6 +173,15 @@ extern void *spl_kmem_zalloc(size_t sz, int fl, const char *func, int line);
 extern void spl_kmem_free(const void *ptr, size_t sz);
 
 /*
+ * 5.8 API change, pgprot_t argument removed.
+ */
+#ifdef HAVE_VMALLOC_PAGE_KERNEL
+#define	spl_vmalloc(size, flags)	__vmalloc(size, flags, PAGE_KERNEL)
+#else
+#define	spl_vmalloc(size, flags)	__vmalloc(size, flags)
+#endif
+
+/*
  * The following functions are only available for internal use.
  */
 extern void *spl_kmem_alloc_impl(size_t size, int flags, int node);
