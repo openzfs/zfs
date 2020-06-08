@@ -133,15 +133,6 @@ kmem_strfree(char *str)
 }
 EXPORT_SYMBOL(kmem_strfree);
 
-/* Kernel compatibility for <4.13 */
-#ifndef __GFP_RETRY_MAYFAIL
-#define	__GFP_RETRY_MAYFAIL	__GFP_REPEAT
-#endif
-/* Kernel compatibility for <4.4 */
-#ifndef __GFP_RECLAIM
-#define	__GFP_RECLAIM		__GFP_WAIT
-#endif
-
 void *
 spl_kvmalloc(size_t size, gfp_t lflags)
 {
