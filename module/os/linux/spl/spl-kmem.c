@@ -26,7 +26,6 @@
 #include <sys/sysmacros.h>
 #include <sys/kmem.h>
 #include <sys/vmem.h>
-#include <linux/mm.h>
 
 /*
  * As a general rule kmem_alloc() allocations should be small, preferably
@@ -133,15 +132,6 @@ kmem_strfree(char *str)
 }
 EXPORT_SYMBOL(kmem_strfree);
 
-/* Kernel compatibility for <4.13 */
-#ifndef __GFP_RETRY_MAYFAIL
-#define	__GFP_RETRY_MAYFAIL	__GFP_REPEAT
-#endif
-/* Kernel compatibility for <4.4 */
-#ifndef __GFP_RECLAIM
-#define	__GFP_RECLAIM		__GFP_WAIT
-#endif
-
 void *
 spl_kvmalloc(size_t size, gfp_t lflags)
 {
@@ -188,12 +178,12 @@ spl_kvmalloc(size_t size, gfp_t lflags)
 
 	/*
 	 * We first try kmalloc - even for big sizes - and fall back to
-	 * __vmalloc if that fails.
+	 * spl_vmalloc if that fails.
 	 *
 	 * For non-__GFP-RECLAIM allocations we always stick to
 	 * kmalloc_node, and fail when kmalloc is not successful (returns
 	 * NULL).
-	 * We cannot fall back to __vmalloc in this case because __vmalloc
+	 * We cannot fall back to spl_vmalloc in this case because spl_vmalloc
 	 * internally uses GPF_KERNEL allocations.
 	 */
 	void *ptr = kmalloc_node(size, kmalloc_lflags, NUMA_NO_NODE);
@@ -202,7 +192,7 @@ spl_kvmalloc(size_t size, gfp_t lflags)
 		return (ptr);
 	}
 
-	return (__vmalloc(size, lflags | __GFP_HIGHMEM, PAGE_KERNEL));
+	return (spl_vmalloc(size, lflags | __GFP_HIGHMEM));
 }
 
 /*
@@ -243,16 +233,15 @@ spl_kmem_alloc_impl(size_t size, int flags, int node)
 		 * kmem_zalloc() callers.
 		 *
 		 * For vmem_alloc() and vmem_zalloc() callers it is permissible
-		 * to use __vmalloc().  However, in general use of __vmalloc()
-		 * is strongly discouraged because a global lock must be
-		 * acquired.  Contention on this lock can significantly
+		 * to use spl_vmalloc().  However, in general use of
+		 * spl_vmalloc() is strongly discouraged because a global lock
+		 * must be acquired.  Contention on this lock can significantly
 		 * impact performance so frequently manipulating the virtual
 		 * address space is strongly discouraged.
 		 */
 		if (size > spl_kmem_alloc_max) {
 			if (flags & KM_VMEM) {
-				ptr = __vmalloc(size, lflags | __GFP_HIGHMEM,
-				    PAGE_KERNEL);
+				ptr = spl_vmalloc(size, lflags | __GFP_HIGHMEM);
 			} else {
 				return (NULL);
 			}
