@@ -28,6 +28,8 @@
  * Copyright (c) 2016 Actifio, Inc. All rights reserved.
  * Copyright 2016, OmniTI Computer Consulting, Inc. All rights reserved.
  * Copyright 2017 Nexenta Systems, Inc.
+ * Copyright (c) 2019, Klara Inc.
+ * Copyright (c) 2019, Allan Jude
  * Copyright (c) 2020 The FreeBSD Foundation [1]
  *
  * [1] Portions of this software were developed by Allan Jude
@@ -131,6 +133,7 @@ dsl_dataset_block_born(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx)
 	int compressed = BP_GET_PSIZE(bp);
 	int uncompressed = BP_GET_UCSIZE(bp);
 	int64_t delta;
+	spa_feature_t f;
 
 	dprintf_bp(bp, "ds=%p", ds);
 
@@ -160,7 +163,15 @@ dsl_dataset_block_born(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx)
 		    (void *)B_TRUE;
 	}
 
-	spa_feature_t f = zio_checksum_to_feature(BP_GET_CHECKSUM(bp));
+
+	f = zio_checksum_to_feature(BP_GET_CHECKSUM(bp));
+	if (f != SPA_FEATURE_NONE) {
+		ASSERT3S(spa_feature_table[f].fi_type, ==,
+		    ZFEATURE_TYPE_BOOLEAN);
+		ds->ds_feature_activation[f] = (void *)B_TRUE;
+	}
+
+	f = zio_compress_to_feature(BP_GET_COMPRESS(bp));
 	if (f != SPA_FEATURE_NONE) {
 		ASSERT3S(spa_feature_table[f].fi_type, ==,
 		    ZFEATURE_TYPE_BOOLEAN);

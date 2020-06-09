@@ -38,6 +38,7 @@
 #include <sys/zfeature.h>
 #include <sys/zio.h>
 #include <sys/zio_compress.h>
+#include <sys/zstd/zstd.h>
 
 /*
  * If nonzero, every 1/X decompression attempts will fail, simulating
@@ -65,6 +66,8 @@ zio_compress_info_t zio_compress_table[ZIO_COMPRESS_FUNCTIONS] = {
 	{"gzip-9",	9,	gzip_compress,	gzip_decompress, NULL},
 	{"zle",		64,	zle_compress,	zle_decompress, NULL},
 	{"lz4",		0,	lz4_compress_zfs, lz4_decompress_zfs, NULL},
+	{"zstd",	ZIO_ZSTD_LEVEL_DEFAULT,	zstd_compress, zstd_decompress,
+	    zstd_decompress_level},
 };
 
 uint8_t
@@ -142,6 +145,19 @@ zio_compress_data(enum zio_compress c, abd_t *src, void *dst, size_t s_len,
 
 	complevel = ci->ci_level;
 
+	if (c == ZIO_COMPRESS_ZSTD) {
+		/* If we don't know the level, we can't compress it */
+		if (level == ZIO_COMPLEVEL_INHERIT)
+			return (s_len);
+
+		if (level == ZIO_COMPLEVEL_DEFAULT)
+			complevel = ZIO_ZSTD_LEVEL_DEFAULT;
+		else
+			complevel = level;
+
+		ASSERT3U(complevel, !=, ZIO_COMPLEVEL_INHERIT);
+	}
+
 	/* No compression algorithms can read from ABDs directly */
 	void *tmp = abd_borrow_buf_copy(src, s_len);
 	c_len = ci->ci_compress(tmp, dst, s_len, d_len, complevel);
@@ -192,6 +208,8 @@ int
 zio_compress_to_feature(enum zio_compress comp)
 {
 	switch (comp) {
+	case ZIO_COMPRESS_ZSTD:
+		return (SPA_FEATURE_ZSTD_COMPRESS);
 	default:
 		/* fallthru */;
 	}
