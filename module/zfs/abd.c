@@ -142,6 +142,7 @@ abd_verify(abd_t *abd)
 		for (abd_t *cabd = list_head(&ABD_GANG(abd).abd_gang_chain);
 		    cabd != NULL;
 		    cabd = list_next(&ABD_GANG(abd).abd_gang_chain, cabd)) {
+			ASSERT(list_link_active(&cabd->abd_gang_link));
 			abd_verify(cabd);
 		}
 	} else {
@@ -290,10 +291,19 @@ static void
 abd_free_gang_abd(abd_t *abd)
 {
 	ASSERT(abd_is_gang(abd));
-	abd_t *cabd;
+	abd_t *cabd = list_head(&ABD_GANG(abd).abd_gang_chain);
 
-	while ((cabd = list_remove_head(&ABD_GANG(abd).abd_gang_chain))
-	    != NULL) {
+	while (cabd != NULL) {
+		/*
+		 * We must acquire the child ABDs mutex to ensure that if it
+		 * is being added to another gang ABD we will set the link
+		 * as inactive when removing it from this gang ABD and before
+		 * adding it to the other gang ABD.
+		 */
+		mutex_enter(&cabd->abd_mtx);
+		ASSERT(list_link_active(&cabd->abd_gang_link));
+		list_remove(&ABD_GANG(abd).abd_gang_chain, cabd);
+		mutex_exit(&cabd->abd_mtx);
 		abd->abd_size -= cabd->abd_size;
 		if (cabd->abd_flags & ABD_FLAG_GANG_FREE) {
 			if (cabd->abd_flags & ABD_FLAG_OWNER)
@@ -301,6 +311,7 @@ abd_free_gang_abd(abd_t *abd)
 			else
 				abd_put(cabd);
 		}
+		cabd = list_head(&ABD_GANG(abd).abd_gang_chain);
 	}
 	ASSERT0(abd->abd_size);
 	list_destroy(&ABD_GANG(abd).abd_gang_chain);
@@ -373,6 +384,7 @@ void
 abd_gang_add(abd_t *pabd, abd_t *cabd, boolean_t free_on_free)
 {
 	ASSERT(abd_is_gang(pabd));
+	ASSERT(!abd_is_gang(cabd));
 	abd_t *child_abd = NULL;
 
 	/*
