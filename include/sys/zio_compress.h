@@ -21,6 +21,8 @@
 
 /*
  * Copyright 2009 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright (c) 2019, Allan Jude
+ * Copyright (c) 2019, Klara Inc.
  * Use is subject to license terms.
  * Copyright (c) 2015, 2016 by Delphix. All rights reserved.
  */
@@ -63,7 +65,6 @@ typedef size_t zio_compress_func_t(void *src, void *dst,
 /* Common signature for all zio decompress functions. */
 typedef int zio_decompress_func_t(void *src, void *dst,
     size_t s_len, size_t d_len, int);
-
 /* Common signature for all zio decompress and get level functions. */
 typedef int zio_decompresslevel_func_t(void *src, void *dst,
     size_t s_len, size_t d_len, uint8_t *level);
@@ -86,7 +87,6 @@ typedef const struct zio_compress_info {
 	zio_compress_func_t		*ci_compress;
 	zio_decompress_func_t		*ci_decompress;
 	zio_decompresslevel_func_t	*ci_decompress_level;
-	zio_getlevel_func_t		*ci_get_level;
 } zio_compress_info_t;
 
 extern zio_compress_info_t zio_compress_table[ZIO_COMPRESS_FUNCTIONS];
@@ -126,8 +126,6 @@ extern int zio_decompress_data(enum zio_compress c, abd_t *src, void *dst,
     size_t s_len, size_t d_len, uint8_t *level);
 extern int zio_decompress_data_buf(enum zio_compress c, void *src, void *dst,
     size_t s_len, size_t d_len, uint8_t *level);
-extern int zio_decompress_getcomplevel(enum zio_compress c, void *src,
-    size_t s_len, uint8_t *level);
 extern int zio_compress_to_feature(enum zio_compress comp);
 
 #ifdef	__cplusplus

@@ -29,7 +29,8 @@
 
 /*
  * Copyright (c) 2013, 2018 by Delphix. All rights reserved.
- * Portions Copyright (c) 2019 by Klara Inc.
+ * Copyright (c) 2019, Klara Inc.
+ * Copyright (c) 2019, Allan Jude
  */
 
 #include <sys/zfs_context.h>
@@ -48,23 +49,22 @@ unsigned long zio_decompress_fail_fraction = 0;
  * Compression vectors.
  */
 zio_compress_info_t zio_compress_table[ZIO_COMPRESS_FUNCTIONS] = {
-	{"inherit",	0,	NULL,		NULL,		NULL,	NULL},
-	{"on",		0,	NULL,		NULL,		NULL,	NULL},
-	{"uncompressed", 0,	NULL,		NULL,		NULL,	NULL},
-	{"lzjb",	0,	lzjb_compress,	lzjb_decompress, NULL,	NULL},
-	{"empty",	0,	NULL,		NULL, 		NULL,	NULL},
-	{"gzip-1",	1,	gzip_compress,	gzip_decompress, NULL,	NULL},
-	{"gzip-2",	2,	gzip_compress,	gzip_decompress, NULL,	NULL},
-	{"gzip-3",	3,	gzip_compress,	gzip_decompress, NULL,	NULL},
-	{"gzip-4",	4,	gzip_compress,	gzip_decompress, NULL,	NULL},
-	{"gzip-5",	5,	gzip_compress,	gzip_decompress, NULL,	NULL},
-	{"gzip-6",	6,	gzip_compress,	gzip_decompress, NULL,	NULL},
-	{"gzip-7",	7,	gzip_compress,	gzip_decompress, NULL,	NULL},
-	{"gzip-8",	8,	gzip_compress,	gzip_decompress, NULL,	NULL},
-	{"gzip-9",	9,	gzip_compress,	gzip_decompress, NULL,	NULL},
-	{"zle",		64,	zle_compress,	zle_decompress,	NULL,	NULL},
-	{"lz4",		0,	lz4_compress_zfs,	lz4_decompress_zfs,
-	    NULL, NULL},
+	{"inherit",	0,	NULL,		NULL, NULL},
+	{"on",		0,	NULL,		NULL, NULL},
+	{"uncompressed", 0,	NULL,		NULL, NULL},
+	{"lzjb",	0,	lzjb_compress,	lzjb_decompress, NULL},
+	{"empty",	0,	NULL,		NULL, NULL},
+	{"gzip-1",	1,	gzip_compress,	gzip_decompress, NULL},
+	{"gzip-2",	2,	gzip_compress,	gzip_decompress, NULL},
+	{"gzip-3",	3,	gzip_compress,	gzip_decompress, NULL},
+	{"gzip-4",	4,	gzip_compress,	gzip_decompress, NULL},
+	{"gzip-5",	5,	gzip_compress,	gzip_decompress, NULL},
+	{"gzip-6",	6,	gzip_compress,	gzip_decompress, NULL},
+	{"gzip-7",	7,	gzip_compress,	gzip_decompress, NULL},
+	{"gzip-8",	8,	gzip_compress,	gzip_decompress, NULL},
+	{"gzip-9",	9,	gzip_compress,	gzip_decompress, NULL},
+	{"zle",		64,	zle_compress,	zle_decompress, NULL},
+	{"lz4",		0,	lz4_compress_zfs, lz4_decompress_zfs, NULL},
 };
 
 uint8_t
@@ -196,35 +196,9 @@ zio_decompress_data(enum zio_compress c, abd_t *src, void *dst,
 }
 
 int
-zio_decompress_getcomplevel(enum zio_compress c, void *src, size_t s_len,
-    uint8_t *level)
-{
-	int ret;
-	zio_compress_info_t *ci = &zio_compress_table[c];
-
-	if ((uint_t)c >= ZIO_COMPRESS_FUNCTIONS || level == NULL)
-		return (SET_ERROR(EINVAL));
-
-	/* Not having this function is non-fatal */
-	if (ci->ci_get_level == NULL)
-		ret = SET_ERROR(EOPNOTSUPP);
-	else
-		ret = ci->ci_get_level(src, s_len, level);
-
-	return (ret);
-}
-
-int
 zio_compress_to_feature(enum zio_compress comp)
 {
-	/* XXX: Allan */
-#if 0
-	VERIFY((comp & ~SPA_COMPRESSMASK) == 0);
-#endif
-
 	switch (comp) {
-	case ZIO_COMPRESS_ZSTD:
-		return (SPA_FEATURE_ZSTD_COMPRESS);
 	default:
 		/* fallthru */;
 	}

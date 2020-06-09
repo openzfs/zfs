@@ -15,6 +15,8 @@
 
 /*
  * Copyright (c) 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2019, Klara Inc.
+ * Copyright (c) 2019, Allan Jude
  */
 
 #include <sys/lua/lua.h>
@@ -231,6 +233,7 @@ get_special_prop(lua_State *state, dsl_dataset_t *ds, const char *dsname,
 	char setpoint[ZFS_MAX_DATASET_NAME_LEN] =
 	    "Internal error - setpoint not determined";
 	zfs_type_t ds_type;
+	const char *prop_name = zfs_prop_to_name(zfs_prop);
 	zprop_type_t prop_type = zfs_prop_get_type(zfs_prop);
 	(void) get_objset_type(ds, &ds_type);
 

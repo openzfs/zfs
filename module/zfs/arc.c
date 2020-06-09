@@ -27,6 +27,7 @@
  * Copyright (c) 2019, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
  * Copyright (c) 2020, George Amanakis. All rights reserved.
  * Copyright (c) 2019, Klara Inc.
+ * Copyright (c) 2019, Allan Jude
  */
 
 /*
@@ -1701,7 +1702,8 @@ arc_buf_try_copy_decompressed_data(arc_buf_t *buf)
 static arc_buf_hdr_t *
 arc_buf_alloc_l2only(size_t size, arc_buf_contents_t type, l2arc_dev_t *dev,
     dva_t dva, uint64_t daddr, int32_t psize, uint64_t birth,
-    enum zio_compress compress, boolean_t protected, boolean_t prefetch)
+    enum zio_compress compress, uint8_t complevel, boolean_t protected,
+    boolean_t prefetch)
 {
 	arc_buf_hdr_t	*hdr;
 
@@ -1714,6 +1716,7 @@ arc_buf_alloc_l2only(size_t size, arc_buf_contents_t type, l2arc_dev_t *dev,
 	HDR_SET_LSIZE(hdr, size);
 	HDR_SET_PSIZE(hdr, psize);
 	arc_hdr_set_compress(hdr, compress);
+	hdr->b_complevel = complevel;
 	if (protected)
 		arc_hdr_set_flags(hdr, ARC_FLAG_PROTECTED);
 	if (prefetch)
@@ -1773,7 +1776,6 @@ arc_hdr_authenticate(arc_buf_hdr_t *hdr, spa_t *spa, uint64_t dsobj)
 		tmpbuf = zio_buf_alloc(lsize);
 		abd = abd_get_from_buf(tmpbuf, lsize);
 		abd_take_ownership_of_buf(abd, B_TRUE);
-
 		csize = zio_compress_data(HDR_GET_COMPRESS(hdr),
 		    hdr->b_l1hdr.b_pabd, tmpbuf, lsize, hdr->b_complevel);
 		ASSERT3U(csize, <=, psize);
@@ -8721,6 +8723,17 @@ l2arc_apply_transforms(spa_t *spa, arc_buf_hdr_t *hdr, uint64_t asize,
 
 		psize = zio_compress_data(compress, to_write, tmp, size,
 		    hdr->b_complevel);
+
+		if (psize >= size) {
+			HDR_SET_COMPRESS(hdr, ZIO_COMPRESS_OFF);
+			to_write = abd_alloc_for_io(asize, ismd);
+			abd_copy(to_write, hdr->b_l1hdr.b_pabd, size);
+			if (size != asize)
+				abd_zero_off(to_write, size, asize - size);
+			if (cabd != NULL)
+				abd_free(cabd);
+			goto out;
+		}
 		ASSERT3U(psize, <=, HDR_GET_PSIZE(hdr));
 		if (psize < asize)
 			bzero((char *)tmp + psize, asize - psize);
@@ -9886,7 +9899,7 @@ l2arc_log_blk_read(l2arc_dev_t *dev,
 		abd_copy_from_buf_off(abd, this_lb, 0, asize);
 		if ((err = zio_decompress_data(
 		    L2BLK_GET_COMPRESS((this_lbp)->lbp_prop),
-		    abd, this_lb, asize, sizeof (*this_lb))) != 0) {
+		    abd, this_lb, asize, sizeof (*this_lb), NULL)) != 0) {
 			err = SET_ERROR(EINVAL);
 			goto cleanup;
 		}
@@ -9985,7 +9998,7 @@ l2arc_hdr_restore(const l2arc_log_ent_phys_t *le, l2arc_dev_t *dev)
 	hdr = arc_buf_alloc_l2only(L2BLK_GET_LSIZE((le)->le_prop), type,
 	    dev, le->le_dva, le->le_daddr,
 	    L2BLK_GET_PSIZE((le)->le_prop), le->le_birth,
-	    L2BLK_GET_COMPRESS((le)->le_prop),
+	    L2BLK_GET_COMPRESS((le)->le_prop), le->le_complevel,
 	    L2BLK_GET_PROTECTED((le)->le_prop),
 	    L2BLK_GET_PREFETCH((le)->le_prop));
 	asize = vdev_psize_to_asize(dev->l2ad_vdev,
@@ -10161,7 +10174,7 @@ l2arc_log_blk_commit(l2arc_dev_t *dev, zio_t *pio, l2arc_write_callback_t *cb)
 
 	/* try to compress the buffer */
 	psize = zio_compress_data(ZIO_COMPRESS_LZ4,
-	    abd_buf->abd, tmpbuf, sizeof (*lb));
+	    abd_buf->abd, tmpbuf, sizeof (*lb), 0);
 
 	/* a log block is never entirely zero */
 	ASSERT(psize != 0);
@@ -10318,6 +10331,7 @@ l2arc_log_blk_insert(l2arc_dev_t *dev, const arc_buf_hdr_t *hdr)
 	L2BLK_SET_LSIZE((le)->le_prop, HDR_GET_LSIZE(hdr));
 	L2BLK_SET_PSIZE((le)->le_prop, HDR_GET_PSIZE(hdr));
 	L2BLK_SET_COMPRESS((le)->le_prop, HDR_GET_COMPRESS(hdr));
+	le->le_complevel = hdr->b_complevel;
 	L2BLK_SET_TYPE((le)->le_prop, hdr->b_type);
 	L2BLK_SET_PROTECTED((le)->le_prop, !!(HDR_PROTECTED(hdr)));
 	L2BLK_SET_PREFETCH((le)->le_prop, !!(HDR_PREFETCH(hdr)));

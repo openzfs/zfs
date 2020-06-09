@@ -28,6 +28,8 @@
  * Copyright 2017 Joyent, Inc.
  * Copyright (c) 2017, 2019, Datto Inc. All rights reserved.
  * Copyright (c) 2017, Intel Corporation.
+ * Copyright (c) 2019, Allan Jude
+ * Copyright (c) 2019, Klara Inc.
  */
 
 #ifndef _SYS_SPA_H
