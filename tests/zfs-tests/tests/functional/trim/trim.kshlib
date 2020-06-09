@@ -33,17 +33,18 @@ function get_trim_io
 {
 	typeset pool="${1-:$TESTPOOL}"
 	typeset type="${2-:ind}"
+	typeset vdev="${3}"
 	typeset rval
 
 	# Sum the ind or agg columns of the trim request size histogram.
 	case "$type" in
 	"ind")
-		rval=$(zpool iostat -pr $pool | awk \
+		rval=$(zpool iostat -pr $pool $vdev | awk \
 		    '$1 ~ /[0-9].*/ { sum += $12 } END { print sum }')
 		echo -n "$rval"
 		;;
 	"agg")
-		rval=$(zpool iostat -pr $pool | awk \
+		rval=$(zpool iostat -pr $pool $vdev | awk \
 		    '$1 ~ /[0-9].*/ { sum += $13 } END { print sum }')
 		echo -n "$rval"
 		;;
@@ -61,9 +62,10 @@ function verify_trim_io
 	typeset pool="${1:-$TESTPOOL}"
 	typeset type="${2:-ind}"
 	typeset min_trim_ios=${3:-100}
+	typeset vdev="${4}"
 	typeset ios
 
-	ios=$(get_trim_io $pool $type)
+	ios=$(get_trim_io $pool $type $vdev)
 	if [[ $ios -ge $min_trim_ios ]]; then
 		log_note "Issued $ios $type trim IOs for pool $pool"
 	else

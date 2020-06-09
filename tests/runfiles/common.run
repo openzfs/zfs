@@ -832,7 +832,7 @@ tags = ['functional', 'threadsappend']
 
 [tests/functional/trim]
 tests = ['autotrim_integrity', 'autotrim_config', 'autotrim_trim_integrity',
-    'trim_integrity', 'trim_config']
+    'trim_integrity', 'trim_config', 'trim_l2arc']
 tags = ['functional', 'trim']
 
 [tests/functional/truncate]

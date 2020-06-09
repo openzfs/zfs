@@ -3707,8 +3707,12 @@ dump_l2arc_header(int fd)
 		    (u_longlong_t)l2dhdr.dh_evict);
 		(void) printf("    lb_asize_refcount: %llu\n",
 		    (u_longlong_t)l2dhdr.dh_lb_asize);
-		(void) printf("    lb_count_refcount: %llu\n\n",
+		(void) printf("    lb_count_refcount: %llu\n",
 		    (u_longlong_t)l2dhdr.dh_lb_count);
+		(void) printf("    trim_action_time: %llu\n",
+		    (u_longlong_t)l2dhdr.dh_trim_action_time);
+		(void) printf("    trim_state: %llu\n\n",
+		    (u_longlong_t)l2dhdr.dh_trim_state);
 	}
 
 	dump_l2arc_log_blocks(fd, l2dhdr, &rebuild);

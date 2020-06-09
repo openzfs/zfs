@@ -194,9 +194,29 @@ Default value: \fB2\fR.
 .ad
 .RS 12n
 Scales \fBl2arc_headroom\fR by this percentage when L2ARC contents are being
-successfully compressed before writing. A value of 100 disables this feature.
+successfully compressed before writing. A value of \fB100\fR disables this
+feature.
 .sp
 Default value: \fB200\fR%.
+.RE
+
+.sp
+.ne 2
+.na
+\fBl2arc_trim_ahead\fR (ulong)
+.ad
+.RS 12n
+Trims ahead of the current write size (\fBl2arc_write_max\fR) on L2ARC devices
+by this percentage of write size if we have filled the device. If set to
+\fB100\fR we TRIM twice the space required to accommodate upcoming writes. A
+minimum of 64MB will be trimmed. It also enables TRIM of the whole L2ARC device
+upon creation or addition to an existing pool or if the header of the device is
+invalid upon importing a pool or onlining a cache device. A value of \fB0\fR
+disables TRIM on L2ARC altogether and is the default as it can put significant
+stress on the underlying storage devices. This will vary depending of how well
+the specific device handles these commands.
+.sp
+Default value: \fB0\fR%.
 .RE
 
 .sp
