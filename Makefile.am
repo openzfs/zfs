@@ -115,9 +115,11 @@ commitcheck:
 
 PHONY += cstyle
 cstyle:
-	@find ${top_srcdir} -name build -prune -o -type f -name '*.[hc]' \
+	@find ${top_srcdir} -name build -prune \
+		-o -type f -name '*.[hc]' \
 		! -name 'zfs_config.*' ! -name '*.mod.c' \
 		! -name 'opt_global.h' ! -name '*_if*.h' \
+		! -path './module/zstd/lib/*' \
 		-exec ${top_srcdir}/scripts/cstyle.pl -cpP {} \+
 
 filter_executable = -exec test -x '{}' \; -print
