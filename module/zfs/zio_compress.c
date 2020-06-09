@@ -154,7 +154,7 @@ zio_compress_data(enum zio_compress c, abd_t *src, void *dst, size_t s_len,
 
 	if (c == ZIO_COMPRESS_ZSTD) {
 		/* If we don't know the level, we can't compress it */
-		if (level == ZIO_ZSTDLVL_INHERIT)
+		if (level == ZIO_COMPLEVEL_INHERIT)
 			return (s_len);
 
 		if (level == ZIO_COMPLEVEL_DEFAULT)

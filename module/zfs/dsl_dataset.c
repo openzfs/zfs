@@ -28,6 +28,8 @@
  * Copyright (c) 2016 Actifio, Inc. All rights reserved.
  * Copyright 2016, OmniTI Computer Consulting, Inc. All rights reserved.
  * Copyright 2017 Nexenta Systems, Inc.
+ * Copyright (c) 2019, Klara Inc.
+ * Copyright (c) 2019, Allan Jude
  * Copyright (c) 2020 The FreeBSD Foundation [1]
  *
  * [1] Portions of this software were developed by Allan Jude

@@ -1,28 +1,33 @@
-#
-# ZStandard specific sources included from module/zfs/Makefile.in
-#
+ifneq ($(KBUILD_EXTMOD),)
+src = @abs_srcdir@
+obj = @abs_builddir@
+zstd_include = $(src)/include
+else
+zstd_include = $(srctree)/$(src)/include
+endif
 
-ccflags-y += -I@abs_top_srcdir@/module/zstd/include
-ccflags-y += -Wframe-larger-than=20480 -Wno-uninitialized
+MODULE := zzstd
 
-$(MODULE)-objs += ../../contrib/zstd/zstd-1.4.4/lib/common/zstd_common.o
-$(MODULE)-objs += ../../contrib/zstd/zstd-1.4.4/lib/common/fse_decompress.o
-$(MODULE)-objs += ../../contrib/zstd/zstd-1.4.4/lib/common/entropy_common.o
-$(MODULE)-objs += ../../contrib/zstd/zstd-1.4.4/lib/common/error_private.o
-$(MODULE)-objs += ../../contrib/zstd/zstd-1.4.4/lib/common/xxhash.o
-$(MODULE)-objs += ../../contrib/zstd/zstd-1.4.4/lib/compress/zstd_compress.o
-$(MODULE)-objs += ../../contrib/zstd/zstd-1.4.4/lib/compress/zstd_compress_literals.o
-$(MODULE)-objs += ../../contrib/zstd/zstd-1.4.4/lib/compress/zstd_compress_sequences.o
-$(MODULE)-objs += ../../contrib/zstd/zstd-1.4.4/lib/compress/fse_compress.o
-$(MODULE)-objs += ../../contrib/zstd/zstd-1.4.4/lib/compress/hist.o
-$(MODULE)-objs += ../../contrib/zstd/zstd-1.4.4/lib/compress/huf_compress.o
-$(MODULE)-objs += ../../contrib/zstd/zstd-1.4.4/lib/compress/zstd_double_fast.o
-$(MODULE)-objs += ../../contrib/zstd/zstd-1.4.4/lib/compress/zstd_fast.o
-$(MODULE)-objs += ../../contrib/zstd/zstd-1.4.4/lib/compress/zstd_lazy.o
-$(MODULE)-objs += ../../contrib/zstd/zstd-1.4.4/lib/compress/zstd_ldm.o
-$(MODULE)-objs += ../../contrib/zstd/zstd-1.4.4/lib/compress/zstd_opt.o
-$(MODULE)-objs += ../../contrib/zstd/zstd-1.4.4/lib/decompress/zstd_ddict.o
-$(MODULE)-objs += ../../contrib/zstd/zstd-1.4.4/lib/decompress/zstd_decompress.o
-$(MODULE)-objs += ../../contrib/zstd/zstd-1.4.4/lib/decompress/zstd_decompress_block.o
-$(MODULE)-objs += ../../contrib/zstd/zstd-1.4.4/lib/decompress/huf_decompress.o
-$(MODULE)-objs += ../zstd/zstd.o
+obj-$(CONFIG_ZFS) := $(MODULE).o
+
+asflags-y := -I$(zstd_include)
+ccflags-y := -I$(zstd_include)
+
+# Zstd uses -O3 by default, so we should follow
+ccflags-y += -O3
+
+# -fno-tree-vectorize gets set for gcc in zstd/common/compiler.h
+# Set it for other compilers, too.
+$(obj)/lib/zstd.o: c_flags += -fno-tree-vectorize
+
+# Quiet warnings about frame size due to unused code in unmodified zstd lib
+$(obj)/lib/zstd.o: c_flags += -Wframe-larger-than=20480
+
+# Disable aarch64 neon SIMD instructions for kernel mode
+$(obj)/lib/zstd.o: c_flags += -include $(zstd_include)/aarch64_compat.h
+
+$(MODULE)-objs += zfs_zstd.o
+$(MODULE)-objs += lib/zstd.o
+
+all:
+	mkdir -p lib
