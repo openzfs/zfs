@@ -34,6 +34,7 @@
 #include <sys/dsl_synctask.h>
 #include <sys/zap.h>
 #include <sys/dmu_tx.h>
+#include <sys/arc_impl.h>
 
 /*
  * TRIM is a feature which is used to notify a SSD that some previously
@@ -423,6 +424,35 @@ vdev_autotrim_cb(zio_t *zio)
 }
 
 /*
+ * The zio_done_func_t done callback for each TRIM issued via
+ * vdev_trim_simple(). It is responsible for updating the TRIM stats and
+ * limiting the number of in flight TRIM I/Os.  Simple TRIM I/Os are best
+ * effort and are never reissued on failure.
+ */
+static void
+vdev_trim_simple_cb(zio_t *zio)
+{
+	vdev_t *vd = zio->io_vd;
+
+	mutex_enter(&vd->vdev_trim_io_lock);
+
+	if (zio->io_error != 0) {
+		vd->vdev_stat.vs_trim_errors++;
+		spa_iostats_trim_add(vd->vdev_spa, TRIM_TYPE_SIMPLE,
+		    0, 0, 0, 0, 1, zio->io_orig_size);
+	} else {
+		spa_iostats_trim_add(vd->vdev_spa, TRIM_TYPE_SIMPLE,
+		    1, zio->io_orig_size, 0, 0, 0, 0);
+	}
+
+	ASSERT3U(vd->vdev_trim_inflight[TRIM_TYPE_SIMPLE], >, 0);
+	vd->vdev_trim_inflight[TRIM_TYPE_SIMPLE]--;
+	cv_broadcast(&vd->vdev_trim_io_cv);
+	mutex_exit(&vd->vdev_trim_io_lock);
+
+	spa_config_exit(vd->vdev_spa, SCL_STATE_ALL, vd);
+}
+/*
  * Returns the average trim rate in bytes/sec for the ta->trim_vdev.
  */
 static uint64_t
@@ -441,6 +471,7 @@ vdev_trim_range(trim_args_t *ta, uint64_t start, uint64_t size)
 {
 	vdev_t *vd = ta->trim_vdev;
 	spa_t *spa = vd->vdev_spa;
+	void *cb;
 
 	mutex_enter(&vd->vdev_trim_io_lock);
 
@@ -459,8 +490,8 @@ vdev_trim_range(trim_args_t *ta, uint64_t start, uint64_t size)
 	ta->trim_bytes_done += size;
 
 	/* Limit in flight trimming I/Os */
-	while (vd->vdev_trim_inflight[0] + vd->vdev_trim_inflight[1] >=
-	    zfs_trim_queue_limit) {
+	while (vd->vdev_trim_inflight[0] + vd->vdev_trim_inflight[1] +
+	    vd->vdev_trim_inflight[2] >= zfs_trim_queue_limit) {
 		cv_wait(&vd->vdev_trim_io_cv, &vd->vdev_trim_io_lock);
 	}
 	vd->vdev_trim_inflight[ta->trim_type]++;
@@ -505,10 +536,17 @@ vdev_trim_range(trim_args_t *ta, uint64_t start, uint64_t size)
 	if (ta->trim_type == TRIM_TYPE_MANUAL)
 		vd->vdev_trim_offset[txg & TXG_MASK] = start + size;
 
+	if (ta->trim_type == TRIM_TYPE_MANUAL) {
+		cb = vdev_trim_cb;
+	} else if (ta->trim_type == TRIM_TYPE_AUTO) {
+		cb = vdev_autotrim_cb;
+	} else {
+		cb = vdev_trim_simple_cb;
+	}
+
 	zio_nowait(zio_trim(spa->spa_txg_zio[txg & TXG_MASK], vd,
-	    start, size, ta->trim_type == TRIM_TYPE_MANUAL ?
-	    vdev_trim_cb : vdev_autotrim_cb, NULL,
-	    ZIO_PRIORITY_TRIM, ZIO_FLAG_CANFAIL, ta->trim_flags));
+	    start, size, cb, NULL, ZIO_PRIORITY_TRIM, ZIO_FLAG_CANFAIL,
+	    ta->trim_flags));
 	/* vdev_trim_cb and vdev_autotrim_cb release SCL_STATE_ALL */
 
 	dmu_tx_commit(tx);
@@ -1016,6 +1054,7 @@ vdev_trim_stop_all(vdev_t *vd, vdev_trim_state_t tgt_state)
 {
 	spa_t *spa = vd->vdev_spa;
 	list_t vd_list;
+	vdev_t *vd_l2cache;
 
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
 
@@ -1023,6 +1062,17 @@ vdev_trim_stop_all(vdev_t *vd, vdev_trim_state_t tgt_state)
 	    offsetof(vdev_t, vdev_trim_node));
 
 	vdev_trim_stop_all_impl(vd, tgt_state, &vd_list);
+
+	/*
+	 * Iterate over cache devices and request stop trimming the
+	 * whole device in case we export the pool or remove the cache
+	 * device prematurely.
+	 */
+	for (int i = 0; i < spa->spa_l2cache.sav_count; i++) {
+		vd_l2cache = spa->spa_l2cache.sav_vdevs[i];
+		vdev_trim_stop_all_impl(vd_l2cache, tgt_state, &vd_list);
+	}
+
 	vdev_trim_stop_wait(spa, &vd_list);
 
 	if (vd->vdev_spa->spa_sync_on) {
@@ -1437,6 +1487,189 @@ vdev_autotrim_restart(spa_t *spa)
 		vdev_autotrim(spa);
 }
 
+static void
+vdev_trim_l2arc_thread(void *arg)
+{
+	vdev_t		*vd = arg;
+	spa_t		*spa = vd->vdev_spa;
+	l2arc_dev_t	*dev = l2arc_vdev_get(vd);
+	trim_args_t	ta;
+	range_seg64_t 	physical_rs;
+
+	ASSERT(vdev_is_concrete(vd));
+	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+
+	vd->vdev_trim_last_offset = 0;
+	vd->vdev_trim_rate = 0;
+	vd->vdev_trim_partial = 0;
+	vd->vdev_trim_secure = 0;
+
+	bzero(&ta, sizeof (ta));
+	ta.trim_vdev = vd;
+	ta.trim_tree = range_tree_create(NULL, RANGE_SEG64, NULL, 0, 0);
+	ta.trim_type = TRIM_TYPE_MANUAL;
+	ta.trim_extent_bytes_max = zfs_trim_extent_bytes_max;
+	ta.trim_extent_bytes_min = SPA_MINBLOCKSIZE;
+	ta.trim_flags = 0;
+
+	physical_rs.rs_start = vd->vdev_trim_bytes_done = 0;
+	physical_rs.rs_end = vd->vdev_trim_bytes_est =
+	    vdev_get_min_asize(vd);
+
+	range_tree_add(ta.trim_tree, physical_rs.rs_start,
+	    physical_rs.rs_end - physical_rs.rs_start);
+
+	mutex_enter(&vd->vdev_trim_lock);
+	vdev_trim_change_state(vd, VDEV_TRIM_ACTIVE, 0, 0, 0);
+	mutex_exit(&vd->vdev_trim_lock);
+
+	(void) vdev_trim_ranges(&ta);
+
+	spa_config_exit(spa, SCL_CONFIG, FTAG);
+	mutex_enter(&vd->vdev_trim_io_lock);
+	while (vd->vdev_trim_inflight[TRIM_TYPE_MANUAL] > 0) {
+		cv_wait(&vd->vdev_trim_io_cv, &vd->vdev_trim_io_lock);
+	}
+	mutex_exit(&vd->vdev_trim_io_lock);
+
+	range_tree_vacate(ta.trim_tree, NULL, NULL);
+	range_tree_destroy(ta.trim_tree);
+
+	mutex_enter(&vd->vdev_trim_lock);
+	if (!vd->vdev_trim_exit_wanted && vdev_writeable(vd)) {
+		vdev_trim_change_state(vd, VDEV_TRIM_COMPLETE,
+		    vd->vdev_trim_rate, vd->vdev_trim_partial,
+		    vd->vdev_trim_secure);
+	}
+	ASSERT(vd->vdev_trim_thread != NULL ||
+	    vd->vdev_trim_inflight[TRIM_TYPE_MANUAL] == 0);
+
+	/*
+	 * Drop the vdev_trim_lock while we sync out the txg since it's
+	 * possible that a device might be trying to come online and
+	 * must check to see if it needs to restart a trim. That thread
+	 * will be holding the spa_config_lock which would prevent the
+	 * txg_wait_synced from completing. Same strategy as in
+	 * vdev_trim_thread().
+	 */
+	mutex_exit(&vd->vdev_trim_lock);
+	txg_wait_synced(spa_get_dsl(vd->vdev_spa), 0);
+	mutex_enter(&vd->vdev_trim_lock);
+
+	/*
+	 * Update the header of the cache device here, before
+	 * broadcasting vdev_trim_cv which may lead to the removal
+	 * of the device. The same applies for setting l2ad_trim_all to
+	 * false.
+	 */
+	spa_config_enter(vd->vdev_spa, SCL_L2ARC, vd,
+	    RW_READER);
+	bzero(dev->l2ad_dev_hdr, dev->l2ad_dev_hdr_asize);
+	l2arc_dev_hdr_update(dev);
+	spa_config_exit(vd->vdev_spa, SCL_L2ARC, vd);
+
+	vd->vdev_trim_thread = NULL;
+	if (vd->vdev_trim_state == VDEV_TRIM_COMPLETE)
+		dev->l2ad_trim_all = B_FALSE;
+
+	cv_broadcast(&vd->vdev_trim_cv);
+	mutex_exit(&vd->vdev_trim_lock);
+
+	thread_exit();
+}
+
+/*
+ * Punches out TRIM threads for the L2ARC devices in a spa and assigns them
+ * to vd->vdev_trim_thread variable. This facilitates the management of
+ * trimming the whole cache device using TRIM_TYPE_MANUAL upon addition
+ * to a pool or pool creation or when the header of the device is invalid.
+ */
+void
+vdev_trim_l2arc(spa_t *spa)
+{
+	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+
+	/*
+	 * Locate the spa's l2arc devices and kick off TRIM threads.
+	 */
+	for (int i = 0; i < spa->spa_l2cache.sav_count; i++) {
+		vdev_t *vd = spa->spa_l2cache.sav_vdevs[i];
+		l2arc_dev_t *dev = l2arc_vdev_get(vd);
+
+		if (dev == NULL || !dev->l2ad_trim_all) {
+			/*
+			 * Don't attempt TRIM if the vdev is UNAVAIL or if the
+			 * cache device was not marked for whole device TRIM
+			 * (ie l2arc_trim_ahead = 0, or the L2ARC device header
+			 * is valid with trim_state = VDEV_TRIM_COMPLETE and
+			 * l2ad_log_entries > 0).
+			 */
+			continue;
+		}
+
+		mutex_enter(&vd->vdev_trim_lock);
+		ASSERT(vd->vdev_ops->vdev_op_leaf);
+		ASSERT(vdev_is_concrete(vd));
+		ASSERT3P(vd->vdev_trim_thread, ==, NULL);
+		ASSERT(!vd->vdev_detached);
+		ASSERT(!vd->vdev_trim_exit_wanted);
+		ASSERT(!vd->vdev_top->vdev_removing);
+		vdev_trim_change_state(vd, VDEV_TRIM_ACTIVE, 0, 0, 0);
+		vd->vdev_trim_thread = thread_create(NULL, 0,
+		    vdev_trim_l2arc_thread, vd, 0, &p0, TS_RUN, maxclsyspri);
+		mutex_exit(&vd->vdev_trim_lock);
+	}
+}
+
+/*
+ * A wrapper which calls vdev_trim_ranges(). It is intended to be called
+ * on leaf vdevs.
+ */
+int
+vdev_trim_simple(vdev_t *vd, uint64_t start, uint64_t size)
+{
+	trim_args_t		ta;
+	range_seg64_t 		physical_rs;
+	int			error;
+	physical_rs.rs_start = start;
+	physical_rs.rs_end = start + size;
+
+	ASSERT(vdev_is_concrete(vd));
+	ASSERT(vd->vdev_ops->vdev_op_leaf);
+	ASSERT(!vd->vdev_detached);
+	ASSERT(!vd->vdev_top->vdev_removing);
+
+	bzero(&ta, sizeof (ta));
+	ta.trim_vdev = vd;
+	ta.trim_tree = range_tree_create(NULL, RANGE_SEG64, NULL, 0, 0);
+	ta.trim_type = TRIM_TYPE_SIMPLE;
+	ta.trim_extent_bytes_max = zfs_trim_extent_bytes_max;
+	ta.trim_extent_bytes_min = SPA_MINBLOCKSIZE;
+	ta.trim_flags = 0;
+
+	ASSERT3U(physical_rs.rs_end, >=, physical_rs.rs_start);
+
+	if (physical_rs.rs_end > physical_rs.rs_start) {
+		range_tree_add(ta.trim_tree, physical_rs.rs_start,
+		    physical_rs.rs_end - physical_rs.rs_start);
+	} else {
+		ASSERT3U(physical_rs.rs_end, ==, physical_rs.rs_start);
+	}
+
+	error = vdev_trim_ranges(&ta);
+
+	mutex_enter(&vd->vdev_trim_io_lock);
+	while (vd->vdev_trim_inflight[TRIM_TYPE_SIMPLE] > 0) {
+		cv_wait(&vd->vdev_trim_io_cv, &vd->vdev_trim_io_lock);
+	}
+	mutex_exit(&vd->vdev_trim_io_lock);
+
+	range_tree_vacate(ta.trim_tree, NULL, NULL);
+	range_tree_destroy(ta.trim_tree);
+
+	return (error);
+}
+
 EXPORT_SYMBOL(vdev_trim);
 EXPORT_SYMBOL(vdev_trim_stop);
 EXPORT_SYMBOL(vdev_trim_stop_all);
@@ -1446,6 +1679,8 @@ EXPORT_SYMBOL(vdev_autotrim);
 EXPORT_SYMBOL(vdev_autotrim_stop_all);
 EXPORT_SYMBOL(vdev_autotrim_stop_wait);
 EXPORT_SYMBOL(vdev_autotrim_restart);
+EXPORT_SYMBOL(vdev_trim_l2arc);
+EXPORT_SYMBOL(vdev_trim_simple);
 
 /* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs_trim, zfs_trim_, extent_bytes_max, UINT, ZMOD_RW,

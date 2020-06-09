@@ -240,7 +240,14 @@ typedef struct l2arc_dev_hdr_phys {
 	 */
 	uint64_t	dh_lb_asize;		/* mirror of l2ad_lb_asize */
 	uint64_t	dh_lb_count;		/* mirror of l2ad_lb_count */
-	const uint64_t		dh_pad[32];	/* pad to 512 bytes */
+	/*
+	 * Mirrors of vdev_trim_action_time and vdev_trim_state, used to
+	 * display when the cache device was fully trimmed for the last
+	 * time.
+	 */
+	uint64_t		dh_trim_action_time;
+	uint64_t		dh_trim_state;
+	const uint64_t		dh_pad[30];	/* pad to 512 bytes */
 	zio_eck_t		dh_tail;
 } l2arc_dev_hdr_phys_t;
 CTASSERT_GLOBAL(sizeof (l2arc_dev_hdr_phys_t) == SPA_MINBLOCKSIZE);
@@ -399,6 +406,7 @@ typedef struct l2arc_dev {
 	 * Number of log blocks present on the device.
 	 */
 	zfs_refcount_t		l2ad_lb_count;
+	boolean_t		l2ad_trim_all; /* TRIM whole device */
 } l2arc_dev_t;
 
 /*
@@ -901,6 +909,10 @@ extern int param_set_arc_int(ZFS_MODULE_PARAM_ARGS);
 /* used in zdb.c */
 boolean_t l2arc_log_blkptr_valid(l2arc_dev_t *dev,
     const l2arc_log_blkptr_t *lbp);
+
+/* used in vdev_trim.c */
+void l2arc_dev_hdr_update(l2arc_dev_t *dev);
+l2arc_dev_t *l2arc_vdev_get(vdev_t *vd);
 
 #ifdef __cplusplus
 }

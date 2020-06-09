@@ -2281,9 +2281,6 @@ vdev_reopen(vdev_t *vd)
 		if (vdev_readable(vd) && vdev_writeable(vd) &&
 		    vd->vdev_aux == &spa->spa_l2cache) {
 			/*
-			 * When reopening we can assume the device label has
-			 * already the attribute l2cache_persistent, since we've
-			 * opened the device in the past and updated the label.
 			 * In case the vdev is present we should evict all ARC
 			 * buffers and pointers to log blocks and reclaim their
 			 * space before restoring its contents to L2ARC.
@@ -2294,6 +2291,7 @@ vdev_reopen(vdev_t *vd)
 				l2arc_add_vdev(spa, vd);
 			}
 			spa_async_request(spa, SPA_ASYNC_L2CACHE_REBUILD);
+			spa_async_request(spa, SPA_ASYNC_L2CACHE_TRIM);
 		}
 	} else {
 		(void) vdev_validate(vd);
@@ -3542,9 +3540,14 @@ vdev_online(spa_t *spa, uint64_t guid, uint64_t flags, vdev_state_t *newstate)
 	}
 	mutex_exit(&vd->vdev_initialize_lock);
 
-	/* Restart trimming if necessary */
+	/*
+	 * Restart trimming if necessary. We do not restart trimming for cache
+	 * devices here. This is triggered by l2arc_rebuild_vdev()
+	 * asynchronously for the whole device or in l2arc_evict() as it evicts
+	 * space for upcoming writes.
+	 */
 	mutex_enter(&vd->vdev_trim_lock);
-	if (vdev_writeable(vd) &&
+	if (vdev_writeable(vd) && !vd->vdev_isl2cache &&
 	    vd->vdev_trim_thread == NULL &&
 	    vd->vdev_trim_state == VDEV_TRIM_ACTIVE) {
 		(void) vdev_trim(vd, vd->vdev_trim_rate, vd->vdev_trim_partial,

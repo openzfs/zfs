@@ -1896,6 +1896,15 @@ spa_load_l2cache(spa_t *spa)
 
 			if (!vdev_is_dead(vd))
 				l2arc_add_vdev(spa, vd);
+
+			/*
+			 * Upon cache device addition to a pool or pool
+			 * creation with a cache device or if the header
+			 * of the device is invalid we issue an async
+			 * TRIM command for the whole device which will
+			 * execute if l2arc_trim_ahead > 0.
+			 */
+			spa_async_request(spa, SPA_ASYNC_L2CACHE_TRIM);
 		}
 	}
 
@@ -7989,6 +7998,17 @@ spa_async_thread(void *arg)
 		mutex_enter(&spa_namespace_lock);
 		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 		vdev_autotrim_restart(spa);
+		spa_config_exit(spa, SCL_CONFIG, FTAG);
+		mutex_exit(&spa_namespace_lock);
+	}
+
+	/*
+	 * Kick off L2 cache whole device TRIM.
+	 */
+	if (tasks & SPA_ASYNC_L2CACHE_TRIM) {
+		mutex_enter(&spa_namespace_lock);
+		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+		vdev_trim_l2arc(spa);
 		spa_config_exit(spa, SCL_CONFIG, FTAG);
 		mutex_exit(&spa_namespace_lock);
 	}
