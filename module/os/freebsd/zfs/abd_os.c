@@ -198,8 +198,15 @@ abd_t *
 abd_alloc_struct(size_t size)
 {
 	size_t chunkcnt = abd_chunkcnt_for_bytes(size);
-	size_t abd_size = offsetof(abd_t,
-	    abd_u.abd_scatter.abd_chunks[chunkcnt]);
+	/*
+	 * In the event we are allocating a gang ABD, the size passed in
+	 * will be 0. We must make sure to set abd_size to the size of an
+	 * ABD struct as opposed to an ABD scatter with 0 chunks. The gang
+	 * ABD struct allocation accounts for an additional 24 bytes over
+	 * a scatter ABD with 0 chunks.
+	 */
+	size_t abd_size = MAX(sizeof (abd_t),
+	    offsetof(abd_t, abd_u.abd_scatter.abd_chunks[chunkcnt]));
 	abd_t *abd = kmem_alloc(abd_size, KM_PUSHPAGE);
 	ASSERT3P(abd, !=, NULL);
 	list_link_init(&abd->abd_gang_link);
@@ -212,8 +219,10 @@ abd_alloc_struct(size_t size)
 void
 abd_free_struct(abd_t *abd)
 {
-	size_t chunkcnt = abd_is_linear(abd) ? 0 : abd_scatter_chunkcnt(abd);
-	int size = offsetof(abd_t, abd_u.abd_scatter.abd_chunks[chunkcnt]);
+	size_t chunkcnt = abd_is_linear(abd) || abd_is_gang(abd) ? 0 :
+	    abd_scatter_chunkcnt(abd);
+	int size = MAX(sizeof (abd_t),
+	    offsetof(abd_t, abd_u.abd_scatter.abd_chunks[chunkcnt]));
 	mutex_destroy(&abd->abd_mtx);
 	ASSERT(!list_link_active(&abd->abd_gang_link));
 	kmem_free(abd, size);
