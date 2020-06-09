@@ -28,6 +28,8 @@
  * Copyright 2017 Joyent, Inc.
  * Copyright (c) 2017, 2019, Datto Inc. All rights reserved.
  * Copyright (c) 2017, Intel Corporation.
+ * Copyright (c) 2019, Allan Jude
+ * Copyright (c) 2019, Klara Inc.
  */
 
 #ifndef _SYS_SPA_H
@@ -120,6 +122,7 @@ struct dsl_crypto_params;
 
 #define	SPA_COMPRESSBITS	7
 #define	SPA_VDEVBITS		24
+#define	SPA_COMPRESSMASK	((1U << SPA_COMPRESSBITS) - 1)
 
 /*
  * All SPA data is represented by 128-bit data virtual addresses (DVAs).

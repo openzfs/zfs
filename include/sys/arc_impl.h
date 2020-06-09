@@ -269,12 +269,13 @@ typedef struct l2arc_log_ent_phys {
 	 */
 	uint64_t		le_prop;
 	uint64_t		le_daddr;	/* buf location on l2dev */
+	uint64_t		le_complevel;
 	/*
 	 * We pad the size of each entry to a power of 2 so that the size of
 	 * l2arc_log_blk_phys_t is power-of-2 aligned with SPA_MINBLOCKSHIFT,
 	 * because of the L2ARC_SET_*SIZE macros.
 	 */
-	const uint64_t		le_pad[3];	/* pad to 64 bytes	 */
+	const uint64_t		le_pad[2];	/* pad to 64 bytes	 */
 } l2arc_log_ent_phys_t;
 
 #define	L2ARC_LOG_BLK_MAX_ENTRIES	(1022)
@@ -460,6 +461,9 @@ struct arc_buf_hdr {
 	uint64_t		b_birth;
 
 	arc_buf_contents_t	b_type;
+	uint8_t			b_complevel;
+	uint8_t			b_reserved1; /* used for 4 byte alignment */
+	uint16_t		b_reserved2; /* used for 4 byte alignment */
 	arc_buf_hdr_t		*b_hash_next;
 	arc_flags_t		b_flags;
 

@@ -30,6 +30,8 @@
  * Copyright 2017 Nexenta Systems, Inc.
  * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
  * Copyright (c) 2018, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
+ * Copyright (c) 2019, Klara Inc.
+ * Copyright (c) 2019, Allan Jude
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -192,8 +194,17 @@ compression_changed_cb(void *arg, uint64_t newval)
 	 */
 	ASSERT(newval != ZIO_COMPRESS_INHERIT);
 
-	os->os_compress = zio_compress_select(os->os_spa, newval,
-	    ZIO_COMPRESS_ON);
+	os->os_compress = zio_compress_select(os->os_spa,
+	    newval & SPA_COMPRESSMASK, ZIO_COMPRESS_ON);
+}
+
+static void
+compress_level_changed_cb(void *arg, uint64_t newval)
+{
+	objset_t *os = arg;
+
+	os->os_complevel = zio_complevel_select(os->os_spa, os->os_compress,
+	    newval, ZIO_COMPLEVEL_DEFAULT);
 }
 
 static void
@@ -530,6 +541,11 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 			}
 			if (err == 0) {
 				err = dsl_prop_register(ds,
+				    zfs_prop_to_name(ZFS_PROP_COMPRESS_LEVEL),
+				    compress_level_changed_cb, os);
+			}
+			if (err == 0) {
+				err = dsl_prop_register(ds,
 				    zfs_prop_to_name(ZFS_PROP_COPIES),
 				    copies_changed_cb, os);
 			}
@@ -580,6 +596,7 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 		/* It's the meta-objset. */
 		os->os_checksum = ZIO_CHECKSUM_FLETCHER_4;
 		os->os_compress = ZIO_COMPRESS_ON;
+		os->os_complevel = ZIO_COMPLEVEL_DEFAULT;
 		os->os_encrypted = B_FALSE;
 		os->os_copies = spa_max_replication(spa);
 		os->os_dedup_checksum = ZIO_CHECKSUM_OFF;

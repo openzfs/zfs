@@ -23,6 +23,8 @@
  * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  * Copyright 2016, Joyent, Inc.
+ * Copyright (c) 2019, Klara Inc.
+ * Copyright (c) 2019, Allan Jude
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -625,6 +627,10 @@ zfs_prop_init(void)
 	zprop_register_hidden(ZFS_PROP_REMAPTXG, "remaptxg", PROP_TYPE_NUMBER,
 	    PROP_READONLY, ZFS_TYPE_DATASET, "REMAPTXG");
 
+	zprop_register_impl(ZFS_PROP_COMPRESS_LEVEL, "compress_level",
+	    PROP_TYPE_NUMBER, ZIO_COMPLEVEL_INHERIT, NULL, PROP_INHERIT,
+	    ZFS_TYPE_DATASET, "<level>", "COMPLEVEL", B_TRUE,
+	    B_FALSE, NULL);
 	/* oddball properties */
 	zprop_register_impl(ZFS_PROP_CREATION, "creation", PROP_TYPE_NUMBER, 0,
 	    NULL, PROP_READONLY, ZFS_TYPE_DATASET | ZFS_TYPE_BOOKMARK,
