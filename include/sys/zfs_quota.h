@@ -24,23 +24,22 @@
 
 #include <sys/dmu.h>
 #include <sys/fs/zfs.h>
-#include <sys/zfs_vfsops.h>
 
-extern int zfs_space_delta_cb(dmu_object_type_t bonustype, void *data,
-    uint64_t *userp, uint64_t *groupp, uint64_t *projectp);
+struct zfsvfs;
+struct zfs_file_info_t;
 
-extern int zfs_userspace_one(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
-    const char *domain, uint64_t rid, uint64_t *valuep);
-extern int zfs_userspace_many(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
-    uint64_t *cookiep, void *vbuf, uint64_t *bufsizep);
-extern int zfs_set_userquota(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
-    const char *domain, uint64_t rid, uint64_t quota);
+extern int zpl_get_file_info(dmu_object_type_t,
+    const void *, struct zfs_file_info *);
 
-extern boolean_t zfs_id_overobjquota(zfsvfs_t *zfsvfs, uint64_t usedobj,
-    uint64_t id);
-extern boolean_t zfs_id_overblockquota(zfsvfs_t *zfsvfs, uint64_t usedobj,
-    uint64_t id);
-extern boolean_t zfs_id_overquota(zfsvfs_t *zfsvfs, uint64_t usedobj,
-    uint64_t id);
+extern int zfs_userspace_one(struct zfsvfs *, zfs_userquota_prop_t,
+    const char *, uint64_t, uint64_t *);
+extern int zfs_userspace_many(struct zfsvfs *, zfs_userquota_prop_t,
+    uint64_t *, void *, uint64_t *);
+extern int zfs_set_userquota(struct zfsvfs *, zfs_userquota_prop_t,
+    const char *, uint64_t, uint64_t);
+
+extern boolean_t zfs_id_overobjquota(struct zfsvfs *, uint64_t, uint64_t);
+extern boolean_t zfs_id_overblockquota(struct zfsvfs *, uint64_t, uint64_t);
+extern boolean_t zfs_id_overquota(struct zfsvfs *, uint64_t, uint64_t);
 
 #endif
