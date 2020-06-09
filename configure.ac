@@ -164,6 +164,7 @@ AC_CONFIG_FILES([
 	lib/libzfs_core/Makefile
 	lib/libzfs_core/libzfs_core.pc
 	lib/libzpool/Makefile
+	lib/libzstd/Makefile
 	lib/libzutil/Makefile
 	man/Makefile
 	man/man1/Makefile
