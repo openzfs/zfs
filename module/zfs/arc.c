@@ -906,7 +906,7 @@ static void l2arc_dev_hdr_update(l2arc_dev_t *dev);
 static void l2arc_log_blk_commit(l2arc_dev_t *dev, zio_t *pio,
     l2arc_write_callback_t *cb);
 
-/* L2ARC persistence auxilliary routines. */
+/* L2ARC persistence auxiliary routines. */
 boolean_t l2arc_log_blkptr_valid(l2arc_dev_t *dev,
     const l2arc_log_blkptr_t *lbp);
 static boolean_t l2arc_log_blk_insert(l2arc_dev_t *dev,
@@ -8350,7 +8350,7 @@ top:
 	rerun = B_FALSE;
 	if (dev->l2ad_hand >= (dev->l2ad_end - distance)) {
 		/*
-		 * When there is no space to accomodate upcoming writes,
+		 * When there is no space to accommodate upcoming writes,
 		 * evict to the end. Then bump the write and evict hands
 		 * to the start and iterate. This iteration does not
 		 * happen indefinitely as we make sure in

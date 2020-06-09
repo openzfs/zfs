@@ -365,7 +365,7 @@ function verify_destroy
 	typeset cmd=$1
 	typeset flags=$3
 
-	# This function doesn't currently verifiy the zpool command.
+	# This function doesn't currently verify the zpool command.
 	[[ ${cmd%% *} == "zfs" ]] || return 1
 	[[ $flags =~ "i" ]] || return 1
 

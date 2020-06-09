@@ -107,7 +107,7 @@ typedef struct sfs_node {
 
 /*
  * Check the parent's ID as well as the node's to account for a chance
- * that IDs originating from different domains (snapshot IDs, artifical
+ * that IDs originating from different domains (snapshot IDs, artificial
  * IDs, znode IDs) may clash.
  */
 static int

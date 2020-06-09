@@ -34,7 +34,7 @@
 #	4. Export pool.
 #	5. Read amount of log blocks written.
 #	6. Import pool.
-#	7. Mount the encypted ZFS file system.
+#	7. Mount the encrypted ZFS file system.
 #	8. Read amount of log blocks built.
 #	9. Compare the two amounts
 #	10. Read the file written in (3) and check if l2_hits in

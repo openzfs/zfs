@@ -116,7 +116,7 @@ typedef struct callb_cpr {
  *
  *	cp    - ptr to the callb_cpr_t structure for this kernel thread
  *
- *	lockp - pointer to mutex protecting the callb_cpr_t stuct
+ *	lockp - pointer to mutex protecting the callb_cpr_t struct
  *
  *	func  - pointer to the callback function for this kernel thread.
  *		It has the prototype boolean_t <func>(void *arg, int code)

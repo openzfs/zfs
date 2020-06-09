@@ -982,7 +982,7 @@ vdev_raidz_reconstruct_pq(raidz_map_t *rm, int *tgts, int ntgts)
 /* BEGIN CSTYLED */
 /*
  * In the general case of reconstruction, we must solve the system of linear
- * equations defined by the coeffecients used to generate parity as well as
+ * equations defined by the coefficients used to generate parity as well as
  * the contents of the data and parity disks. This can be expressed with
  * vectors for the original data (D) and the actual data (d) and parity (p)
  * and a matrix composed of the identity matrix (I) and a dispersal matrix (V):
@@ -996,7 +996,7 @@ vdev_raidz_reconstruct_pq(raidz_map_t *rm, int *tgts, int ntgts)
  *            ~~   ~~                     ~~     ~~
  *
  * I is simply a square identity matrix of size n, and V is a vandermonde
- * matrix defined by the coeffecients we chose for the various parity columns
+ * matrix defined by the coefficients we chose for the various parity columns
  * (1, 2, 4). Note that these values were chosen both for simplicity, speedy
  * computation as well as linear separability.
  *

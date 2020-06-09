@@ -31,7 +31,7 @@
 # filesystem, and verify that zfs_ids_to_path behaves correctly with them.
 #
 # STRATEGY:
-# 1. Create a dateset
+# 1. Create a dataset
 # 2. Makes files in the dataset
 # 3. Verify that zfs_ids_to_path outputs the correct format for each one
 #

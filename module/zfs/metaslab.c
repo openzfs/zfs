@@ -3547,7 +3547,7 @@ metaslab_condense(metaslab_t *msp, dmu_tx_t *tx)
 	 * 4] At this point, we would ideally like to add all segments
 	 *    in the ms_allocatable tree from the condense tree. This way
 	 *    we would write all the entries of the condense tree as the
-	 *    condensed space map, which would only contain freeed
+	 *    condensed space map, which would only contain freed
 	 *    segments with everything else assumed to be allocated.
 	 *
 	 *    Doing so can be prohibitively expensive as ms_allocatable can
