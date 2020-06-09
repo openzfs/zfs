@@ -4802,6 +4802,12 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			    ioctl_err == ECKSUM);
 			(void) zfs_error(hdl, EZFS_BADSTREAM, errbuf);
 			break;
+		case ZFS_ERR_STREAM_LARGE_BLOCK_MISMATCH:
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "incremental send stream requires -L "
+			    "(--large-block), to match previous receive."));
+			(void) zfs_error(hdl, EZFS_BADSTREAM, errbuf);
+			break;
 		case ENOTSUP:
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "pool must be upgraded to receive this stream."));
