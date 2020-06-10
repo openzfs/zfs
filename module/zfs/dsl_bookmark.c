@@ -123,7 +123,7 @@ dsl_bookmark_lookup(dsl_pool_t *dp, const char *fullname,
 /*
  * Validates that
  * - bmark is a full dataset path of a bookmark (bookmark_namecheck)
- * - source is a full path of a snaphot or bookmark
+ * - source is a full path of a snapshot or bookmark
  *   ({bookmark,snapshot}_namecheck)
  *
  * Returns 0 if valid, -1 otherwise.

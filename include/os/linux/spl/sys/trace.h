@@ -38,7 +38,7 @@
  * module/zfs/vdev_removal.c including trace_vdev.h, DTRACE_PROBE calls
  * are mapped to stub functions calls and prototypes for those calls are
  * declared via DEFINE_DTRACE_PROBE*.  Only module/zfs/trace.c defines
- * CREATE_TRACE_POINTS.  That is follwed by includes of all the general
+ * CREATE_TRACE_POINTS.  That is followed by includes of all the general
  * tracing headers thereby defining all stub functions in one place via
  * the DEFINE_DTRACE_PROBE macros.
  *

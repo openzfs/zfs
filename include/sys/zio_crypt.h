@@ -102,7 +102,7 @@ typedef struct zio_crypt_key {
 	crypto_key_t zk_current_key;
 
 #if defined(__FreeBSD__) && defined(_KERNEL)
-	/* Session for current encrpytion key.  Must always be set */
+	/* Session for current encryption key.  Must always be set */
 	freebsd_crypt_session_t	zk_session;
 #else
 	/* template of current encryption key for illumos crypto api */

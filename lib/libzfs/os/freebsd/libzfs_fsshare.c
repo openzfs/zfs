@@ -201,7 +201,7 @@ restart_mountd(void)
 		/* Cannot open pidfile for some reason. */
 		return;
 	}
-	/* We have mountd(8) PID in mountdpid varible. */
+	/* We have mountd(8) PID in mountdpid variable. */
 	kill(mountdpid, SIGHUP);
 }
 
@@ -342,7 +342,7 @@ fsshare_main(const char *file, const char *mountpoint, const char *shareopts,
 		error = 0;
 	}
 
-	/* Place big, fat warning at the begining of the file. */
+	/* Place big, fat warning at the beginning of the file. */
 	fprintf(newfd, "%s", FILE_HEADER);
 	while (oldfd != NULL && (line = zgetline(oldfd, mountpoint)) != NULL)
 		fprintf(newfd, "%s\n", line);

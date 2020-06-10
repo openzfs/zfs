@@ -38,7 +38,7 @@ function cleanup
 	[[ -d "$TESTDIR" ]] && log_must rm -r "$TESTDIR"
 }
 
-# Check wether any vdevs in given pool are being trimmed
+# Check whether any vdevs in given pool are being trimmed
 function trim_in_progress
 {
 	typeset pool="$1"

@@ -64,7 +64,7 @@ neg_props["guid"] = { "12345" }
 set_fail = {}
 val_fail = {}
 
--- Test properies that should work
+-- Test properties that should work
 for prop, values in pairs(pos_props) do
     for i, val in ipairs(values) do
         old_val, src = zfs.get_prop(fs, prop)
@@ -94,7 +94,7 @@ for prop, values in pairs(pos_props) do
     end
 end
 
--- Test properies that should fail
+-- Test properties that should fail
 for prop, expected in pairs(neg_props) do
     exp_val = expected[1]
     exp_err = expected[2]

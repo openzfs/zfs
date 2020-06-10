@@ -1717,7 +1717,7 @@ zvol_fini_impl(void)
 
 	/*
 	 * The call to "zvol_remove_minors_impl" may dispatch entries to
-	 * the system_taskq, but it doesn't wait for those entires to
+	 * the system_taskq, but it doesn't wait for those entries to
 	 * complete before it returns. Thus, we must wait for all of the
 	 * removals to finish, before we can continue.
 	 */

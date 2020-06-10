@@ -385,7 +385,8 @@ page_busy(vnode_t *vp, int64_t start, int64_t off, int64_t nbytes)
 	 * aligned boundaries, if the range is not aligned.  As a result a
 	 * DEV_BSIZE subrange with partially dirty data may get marked as clean.
 	 * It may happen that all DEV_BSIZE subranges are marked clean and thus
-	 * the whole page would be considred clean despite have some dirty data.
+	 * the whole page would be considered clean despite have some
+	 * dirty data.
 	 * For this reason we should shrink the range to DEV_BSIZE aligned
 	 * boundaries before calling vm_page_clear_dirty.
 	 */
@@ -1139,7 +1140,7 @@ zfs_write(vnode_t *vp, uio_t *uio, int ioflag, cred_t *cr)
 
 		/*
 		 * Clear Set-UID/Set-GID bits on successful write if not
-		 * privileged and at least one of the excute bits is set.
+		 * privileged and at least one of the execute bits is set.
 		 *
 		 * It would be nice to to this after all writes have
 		 * been done, but that would still expose the ISUID/ISGID

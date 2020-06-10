@@ -326,7 +326,7 @@ libzfs_getpassphrase(zfs_keyformat_t keyformat, boolean_t is_reenter,
 	*reslen = bytes;
 
 out:
-	/* reset the teminal */
+	/* reset the terminal */
 	(void) tcsetattr(fileno(f), TCSAFLUSH, &old_term);
 	(void) sigaction(SIGINT, &osigint, NULL);
 	(void) sigaction(SIGTSTP, &osigtstp, NULL);

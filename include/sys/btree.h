@@ -47,7 +47,7 @@ extern "C" {
  * at its children. Leaf nodes only contain data elements, and form the bottom
  * layer of the tree. Unlike B+ Trees, in this B-Tree implementation the
  * elements in the core nodes are not copies of or references to leaf node
- * elements.  Each element occcurs only once in the tree, no matter what kind
+ * elements.  Each element occurs only once in the tree, no matter what kind
  * of node it is in.
  *
  * The tree's height is the same throughout, unlike many other forms of search
