@@ -733,6 +733,14 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t add)
 
 	ddt_enter(ddt);
 
+	/*
+	 * Because the ddt is unlocked during the above loop, there's
+	 * a chance that ddt_sync_table() could be called, which would
+	 * empty out the AVL tree. So let's see if it's still in the
+	 * tree, and if not, clean up after ourselves.  (Which we
+	 * also do if the entry wasn't found in the above loop, and
+	 * we're not supposed to add it.)
+	 */
 	dde_temp = avl_find(&ddt->ddt_tree, &dde_search, &where);
 	if ((dde_temp == NULL) || (error == ENOENT && add == B_FALSE)) {
 		if (dde_temp != NULL)
@@ -1246,13 +1254,27 @@ ddt_entry_size(spa_t *spa)
 
 /*
  * Check the DDT quota (if one exists)
+ *
+ * The ideal way to do this would be to check the disk size; that
+ * is certainly the intent.  But the DDT implementation may make
+ * that implausible; in particular, the ZAP implementation doesn't
+ * shrink the ZAP immediately, resulting in an amount of disk space
+ * being used, but there being as few as one entry.
+ *
+ * So instead, if there's no quota, or if the disk size is less than
+ * the quota, we're all set; after that, we look at the amount of
+ * pending entries, and the current count of entries, and multiply that
+ * by the result from ddt_entry_size(), giving us what we hope is an
+ * approximate size of the table.
+ *
  */
 boolean_t
 ddt_check_overquota(spa_t *spa)
 {
 	uint64_t estimated_size;
 
-	if (spa->spa_dedup_table_quota == 0)
+	if (spa->spa_dedup_table_quota == 0 ||
+	    spa->spa_dedup_table_quota >= spa->spa_dedup_table_size)
 		return (B_FALSE);
 	estimated_size = (spa->spa_ddt_pending + spa->spa_dedup_table_count);
 	estimated_size *= ddt_entry_size(spa);
