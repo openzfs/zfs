@@ -388,7 +388,7 @@ abd_gang_add(abd_t *pabd, abd_t *cabd, boolean_t free_on_free)
 		/*
 		 * If the child ABD is already part of another
 		 * gang ABD then we must allocate a new
-		 * ABD to use a seperate link. We mark the newly
+		 * ABD to use a separate link. We mark the newly
 		 * allocated ABD with ABD_FLAG_GANG_FREE, before
 		 * adding it to the gang ABD's list, to make the
 		 * gang ABD aware that it is responsible to call
@@ -397,7 +397,7 @@ abd_gang_add(abd_t *pabd, abd_t *cabd, boolean_t free_on_free)
 		 * data over into the newly allocated ABD.
 		 *
 		 * An ABD may become part of multiple gang ABD's. For
-		 * example, when writting ditto bocks, the same ABD
+		 * example, when writing ditto bocks, the same ABD
 		 * is used to write 2 or 3 locations with 2 or 3
 		 * zio_t's. Each of the zio's may be aggregated with
 		 * different adjacent zio's. zio aggregation uses gang
@@ -406,7 +406,7 @@ abd_gang_add(abd_t *pabd, abd_t *cabd, boolean_t free_on_free)
 		 *
 		 * The ASSERT below is to make sure that if
 		 * free_on_free is passed as B_TRUE, the ABD can
-		 * not be in mulitple gang ABD's. The gang ABD
+		 * not be in multiple gang ABD's. The gang ABD
 		 * can not be responsible for cleaning up the child
 		 * ABD memory allocation if the ABD can be in
 		 * multiple gang ABD's at one time.

@@ -389,7 +389,7 @@ int failed_decrypt_size;
  * plaintext / ciphertext alone.
  */
 /*
- * The implemenation for FreeBSD's OpenCrypto.
+ * The implementation for FreeBSD's OpenCrypto.
  *
  * The big difference between ICP and FOC is that FOC uses a single
  * buffer for input and output.  This means that (for AES-GCM, the
@@ -1229,9 +1229,9 @@ zio_crypt_do_indirect_mac_checksum_abd(boolean_t generate, abd_t *abd,
  * the zil_chain_t header. Everything that is not encrypted is authenticated.
  */
 /*
- * The OpenCrypto used in FreeBSD does not use seperate source and
+ * The OpenCrypto used in FreeBSD does not use separate source and
  * destination buffers; instead, the same buffer is used.  Further, to
- * accomodate some of the drivers, the authbuf needs to be logically before
+ * accommodate some of the drivers, the authbuf needs to be logically before
  * the data.  This means that we need to copy the source to the destination,
  * and set up an extra iovec_t at the beginning to handle the authbuf.
  * It also means we'll only return one uio_t, which we do via the clumsy

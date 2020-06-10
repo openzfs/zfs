@@ -158,4 +158,4 @@ for volsize in $VOLSIZES; do
 	destroy_pool $TESTPOOL2
 done
 
-log_pass "Dateset can be created, mounted & destroy in largest pool succeeded."
+log_pass "Dataset can be created, mounted & destroy in largest pool succeeded."

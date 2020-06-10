@@ -29,13 +29,13 @@
 # STRATEGY:
 #	1. Create pool with a cache device.
 #	2. Create a an encrypted ZFS file system.
-#	3. Create a random file in the encyrpted file system and random
+#	3. Create a random file in the encrypted file system and random
 #		read for 30 sec.
 #	4. Export pool.
 #	5. Read the amount of log blocks written from the header of the
 #		L2ARC device.
 #	5. Import pool.
-#	6. Mount the encypted ZFS file system.
+#	6. Mount the encrypted ZFS file system.
 #	7. Read the amount of log blocks rebuilt in arcstats and compare to
 #		(5).
 #	8. Check if the labels of the L2ARC device are intact.

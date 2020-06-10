@@ -25,7 +25,7 @@
 # for all fio runs. The ARC is not cleared to ensure that all data is cached.
 #
 # This is basically a copy of the sequential_reads_cached test case, but with
-# a smaller dateset so that we can fit everything into the decompressed, linear
+# a smaller dataset so that we can fit everything into the decompressed, linear
 # space in the dbuf cache.
 #
 

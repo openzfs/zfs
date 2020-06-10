@@ -1710,7 +1710,7 @@ TURN_STREAM_SAFE:
 }
 
 /*
- * The do_norm_compare() function does string comparion based on Unicode
+ * The do_norm_compare() function does string comparison based on Unicode
  * simple case mappings and Unicode Normalization definitions.
  *
  * It does so by collecting a sequence of character at a time and comparing

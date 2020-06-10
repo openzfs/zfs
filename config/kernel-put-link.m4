@@ -27,7 +27,7 @@ AC_DEFUN([ZFS_AC_KERNEL_PUT_LINK], [
 	dnl #
 	dnl # 4.5 API change
 	dnl # get_link() uses delayed done, there is no put_link() interface.
-	dnl # This check intially uses the inode_operations_get_link result
+	dnl # This check initially uses the inode_operations_get_link result
 	dnl #
 	ZFS_LINUX_TEST_RESULT([inode_operations_get_link], [
 		AC_DEFINE(HAVE_PUT_LINK_DELAYED, 1, [iops->put_link() delayed])

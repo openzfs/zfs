@@ -3520,7 +3520,7 @@ zfs_ioc_log_history(const char *unused, nvlist_t *innvl, nvlist_t *outnvl)
  * of the grubenv file.  The file is stored as raw ASCII, and is protected by
  * an embedded checksum.  By default, GRUB will check if the boot filesystem
  * supports storing the environment data in a special location, and if so,
- * will invoke filesystem specific logic to retrieve it. This can be overriden
+ * will invoke filesystem specific logic to retrieve it. This can be overridden
  * by a variable, should the user so desire.
  */
 /* ARGSUSED */
