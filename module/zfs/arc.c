@@ -4974,8 +4974,8 @@ arc_adapt(int bytes, arc_state_t *state)
 	 * cache size, increment the target cache size
 	 */
 	ASSERT3U(arc_c, >=, 2ULL << SPA_MAXBLOCKSHIFT);
-	if (aggsum_compare(&arc_size, arc_c - (2ULL << SPA_MAXBLOCKSHIFT)) >=
-	    0) {
+	if (aggsum_upper_bound(&arc_size) >=
+	    arc_c - (2ULL << SPA_MAXBLOCKSHIFT)) {
 		atomic_add_64(&arc_c, (int64_t)bytes);
 		if (arc_c > arc_c_max)
 			arc_c = arc_c_max;
@@ -7078,7 +7078,7 @@ arc_tuning_update(boolean_t verbose)
 	    (zfs_arc_max >= 64 << 20) && (zfs_arc_max < allmem) &&
 	    (zfs_arc_max > arc_c_min)) {
 		arc_c_max = zfs_arc_max;
-		arc_c = arc_c_max;
+		arc_c = MIN(arc_c, arc_c_max);
 		arc_p = (arc_c >> 1);
 		if (arc_meta_limit > arc_c_max)
 			arc_meta_limit = arc_c_max;
@@ -7325,7 +7325,7 @@ arc_init(void)
 	arc_c_min = MAX(arc_c_max / 2, 2ULL << SPA_MAXBLOCKSHIFT);
 #endif
 
-	arc_c = arc_c_max;
+	arc_c = arc_c_min;
 	arc_p = (arc_c >> 1);
 
 	/* Set min to 1/2 of arc_c_min */
