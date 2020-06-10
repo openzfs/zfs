@@ -1,6 +1,6 @@
 include $(top_srcdir)/config/Rules.am
 
-DEFAULT_INCLUDES += -I.
+DEFAULT_INCLUDES += -I$(srcdir)
 
 sbin_PROGRAMS = zpool
 

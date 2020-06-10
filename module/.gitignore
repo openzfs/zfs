@@ -9,6 +9,7 @@
 .*.d
 *.mod
 
+/Kbuild
 /.cache.mk
 /.tmp_versions
 /Module.markers

@@ -1,32 +1,8 @@
-obj-m += avl/
-obj-m += icp/
-obj-m += lua/
-obj-m += nvpair/
-obj-m += spl/
-obj-m += os/linux/spl/
-obj-m += unicode/
-obj-m += zcommon/
-obj-m += zfs/
-obj-m += os/linux/zfs/
+include Kbuild
 
 INSTALL_MOD_DIR ?= extra
 LINUX_MOD_DIR ?= /lib/modules/@LINUX_VERSION@
 LINUX_DEBUG_MOD_DIR ?= /usr/lib/debug/$(LINUX_MOD_DIR)
-
-ZFS_MODULE_CFLAGS += -std=gnu99 -Wno-declaration-after-statement
-ZFS_MODULE_CFLAGS += @KERNEL_DEBUG_CFLAGS@  @NO_FORMAT_ZERO_LENGTH@
-ZFS_MODULE_CFLAGS += -include @abs_top_builddir@/zfs_config.h
-ZFS_MODULE_CFLAGS += -I@abs_top_srcdir@/include/os/linux/kernel
-ZFS_MODULE_CFLAGS += -I@abs_top_srcdir@/include/os/linux/spl
-ZFS_MODULE_CFLAGS += -I@abs_top_srcdir@/include/os/linux/zfs
-ZFS_MODULE_CFLAGS += -I@abs_top_srcdir@/include
-ZFS_MODULE_CPPFLAGS += -D_KERNEL
-ZFS_MODULE_CPPFLAGS += @KERNEL_DEBUG_CPPFLAGS@
-
-@CONFIG_QAT_TRUE@ZFS_MODULE_CFLAGS += -I@QAT_SRC@/include
-@CONFIG_QAT_TRUE@KBUILD_EXTRA_SYMBOLS += @QAT_SYMBOLS@
-
-export ZFS_MODULE_CFLAGS ZFS_MODULE_CPPFLAGS
 
 SUBDIR_TARGETS = icp lua
 
@@ -131,7 +107,7 @@ modules_uninstall-Linux:
 	@# Uninstall the kernel modules
 	kmoddir=$(DESTDIR)$(INSTALL_MOD_PATH)$(LINUX_MOD_DIR); \
 	debugdir=$(DESTDIR)$(INSTALL_MOD_PATH)$(LINUX_DEBUG_MOD_DIR); \
-	list='$(obj-m)'; for objdir in $$list; do \
+	list='$(ZFS_MODULES)'; for objdir in $$list; do \
 		$(RM) -R $$kmoddir/$(INSTALL_MOD_DIR)/$$objdir; \
 		$(RM) -fR $$debugdir/$(INSTALL_MOD_DIR)/$$objdir; \
 	done
@@ -142,7 +118,7 @@ modules_uninstall-FreeBSD:
 modules_uninstall: modules_uninstall-@ac_system@
 
 distdir:
-	list='$(obj-m)'; for objdir in $$list; do \
+	list='$(ZFS_MODULES)'; for objdir in $$list os/linux/spl os/linux/zfs; do \
 		(cd @top_srcdir@/module && find $$objdir -name '*.[chS]' | \
 		while read path; do \
 			mkdir -p @abs_top_builddir@/module/$$distdir/$${path%/*}; \

@@ -3,7 +3,7 @@ include $(top_srcdir)/config/Rules.am
 # Suppress unused but set variable warnings often due to ASSERTs
 AM_CFLAGS += $(NO_UNUSED_BUT_SET_VARIABLE)
 
-DEFAULT_INCLUDES += -I.
+DEFAULT_INCLUDES += -I$(srcdir)
 
 noinst_LTLIBRARIES = libzutil.la
 
