@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2019 Allan Jude <allanjude@freebsd.org>
+ * BSD 2-Clause License (http://www.opensource.org/licenses/bsd-license.php)
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -21,18 +21,37 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
- *
  */
 
-#ifndef _ZSTD_FREEBSD_STDLIB_H_
-#define	_ZSTD_FREEBSD_STDLIB_H_
-#undef malloc
-#undef free
-#undef calloc
-#undef GCC_VERSION
+/*
+ * Copyright (c) 2014-2019, Allan Jude. All rights reserved.
+ * Copyright (c) 2020, Brian Behlendorf. All rights reserved.
+ * Copyright (c) 2020, Michael Niewöhner. All rights reserved.
+ */
 
-/* use dummy functions for zstd, since the implemented code is not used */
-#define	malloc(size) NULL
-#define	free(ptr)
-#define	calloc(n, size) NULL
-#endif /* _ZSTD_FREEBSD_STDLIB_H_ */
+#ifndef	_ZSTD_STDDEF_H
+#define	_ZSTD_STDDEF_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#ifdef _KERNEL
+
+#if defined(__FreeBSD__)
+#include <sys/types.h>
+#elif defined(__linux__)
+#include <linux/types.h>
+#else
+#error "Unsupported platform"
+#endif
+
+#else /* !_KERNEL */
+#include_next <stddef.h>
+#endif /* _KERNEL */
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* _ZSTD_STDDEF_H */

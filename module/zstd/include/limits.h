@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2019 Allan Jude <allanjude@freebsd.org>
+ * BSD 2-Clause License (http://www.opensource.org/licenses/bsd-license.php)
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -21,31 +21,38 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
- *
  */
 
-#ifndef	ZSTD_KFREEBSD_H
-#define	ZSTD_KFREEBSD_H
+/*
+ * Copyright (c) 2014-2019, Allan Jude. All rights reserved.
+ * Copyright (c) 2020, Brian Behlendorf. All rights reserved.
+ * Copyright (c) 2020, Michael Niewöhner. All rights reserved.
+ */
+
+#ifndef	_ZSTD_LIMITS_H
+#define	_ZSTD_LIMITS_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #ifdef _KERNEL
-#include <sys/param.h>	/* size_t */
+
 #if defined(__FreeBSD__)
-#include <sys/systm.h>	/* memcpy, memset */
+#include <sys/limits.h>
 #elif defined(__linux__)
-#include <linux/string.h> /* memcpy, memset */
-#endif /* __FreeBSD__ */
+#include <linux/limits.h>
+#include <linux/kernel.h>
+#else
+#error "Unsupported platform"
+#endif
+
 #else /* !_KERNEL */
-#include <stddef.h> /* size_t, ptrdiff_t */
-#include <stdlib.h>
-#include <string.h>
+#include_next <limits.h>
 #endif /* _KERNEL */
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* ZSTD_KFREEBSD_H */
+#endif /* _ZSTD_LIMITS_H */

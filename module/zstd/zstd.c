@@ -22,8 +22,8 @@
 /*
  * Copyright (c) 2016-2018, Klara Systems Inc. All rights reserved.
  * Copyright (c) 2016-2018, Allan Jude. All rights reserved.
- * Copyright (c) 2018-2019, Sebastian Gottschall. All rights reserved.
- * Copyright (c) 2019, Michael Niewöhner. All rights reserved.
+ * Copyright (c) 2018-2020, Sebastian Gottschall. All rights reserved.
+ * Copyright (c) 2019-2020, Michael Niewöhner. All rights reserved.
  */
 
 #include <sys/param.h>
@@ -36,282 +36,72 @@
 #define	ZSTD_STATIC_LINKING_ONLY
 #include "zstdlib.h"
 
-/* FreeBSD compatibility */
-#if defined(__FreeBSD__) && defined(_KERNEL)
-MALLOC_DEFINE(M_ZSTD, "zstd", "ZSTD Compressor");
-#endif
-
-/*
- * this specifies a incremental version of the zstd format
- * increase it on any new added zstd version.
- * this is made to ensure data integrity compatiblity since
- * new versions might enhance the compression algorithm
- * in a way the data itself will change.
- * the version will be stored as upper 16 bits, the level cookie
- * as lower 16 bits of the second 32 bit field of the data block
- */
-#define	ZSTD_VERSION		1
-#define	ZSTD_VERSION_SHIFT	16
-#define	ZSTD_VERSION_MASK	0xffff0000
-#define	ZSTD_LEVEL_SHIFT	0
-#define	ZSTD_LEVEL_MASK		0x0000ffff
-
-#define	SET_ZSTD_VERSION(bm, val) \
-	bm = (bm & ~ZSTD_VERSION_MASK) | (val << ZSTD_VERSION_SHIFT)
-#define	GET_ZSTD_VERSION(bm) (bm & ZSTD_VERSION_MASK) >> ZSTD_VERSION_SHIFT
-#define	SET_ZSTD_LEVEL(bm, val) \
-	bm = (bm & ~ZSTD_LEVEL_MASK) | (val << ZSTD_LEVEL_SHIFT)
-#define	GET_ZSTD_LEVEL(bm) (bm & ZSTD_LEVEL_MASK) >> ZSTD_LEVEL_SHIFT
-
-static void *zstd_alloc(void *opaque, size_t size);
-static void *zstd_dctx_alloc(void *opaque, size_t size);
-static void zstd_free(void *opaque, void *ptr);
-
-/*
- * zstd memory handlers
- * for decompression we use a different handler which has the possiblity
- * of a fallback memory allocation in case memory was running out
- * We split up the zstd handlers for most simplified implementation
- */
-
-/* compression memory handler */
-static const ZSTD_customMem zstd_malloc = {
-	zstd_alloc,
-	zstd_free,
-	NULL,
-};
-
-/* decompression memory handler */
-static const ZSTD_customMem zstd_dctx_malloc = {
-	zstd_dctx_alloc,
-	zstd_free,
-	NULL,
-};
-
-/*
- * these enums describe the allocator type specified by
- * kmem_type in struct zstd_kmem
- */
+/* Enums describing the allocator type specified by kmem_type in zstd_kmem */
 enum zstd_kmem_type {
 	ZSTD_KMEM_UNKNOWN = 0,
-	/* allocation type using kmem_vmalloc */
+	/* Allocation type using kmem_vmalloc */
 	ZSTD_KMEM_DEFAULT,
-	/* pool based allocation using mempool_alloc */
+	/* Pool based allocation using mempool_alloc */
 	ZSTD_KMEM_POOL,
-	/* reserved fallback memory for decompression only */
+	/* Reserved fallback memory for decompression only */
 	ZSTD_KMEM_DCTX,
 	ZSTD_KMEM_COUNT,
 };
-/*
- * this variable should represent the maximum count of the pool based on
- * the number of cpu's running in the system with some budged. by default
- * we use the cpu count * 4. see init_zstd
- */
-static int pool_count = 16;
 
-#define	ZSTD_POOL_MAX		pool_count
-#define	ZSTD_POOL_TIMEOUT	60 * 2
-
-struct zstd_kmem;
-
-/* special structure for pooled memory objects */
+/* Structure for pooled memory objects */
 struct zstd_pool {
 	void *mem;
 	size_t size;
-	kmutex_t 		barrier;
+	kmutex_t barrier;
 	hrtime_t timeout;
 };
 
-/* global structure for handling memory allocations */
+/* Global structure for handling memory allocations */
 struct zstd_kmem {
-	enum zstd_kmem_type	kmem_type;
-	size_t			kmem_size;
-	struct zstd_pool	*pool;
-};
-
-/*
- * special fallback memory structure used for decompression only
- * if memory is running out
- */
-struct zstd_fallback_mem {
-	size_t			mem_size;
-	void			*mem;
-	kmutex_t 		barrier;
-};
-
-static struct zstd_fallback_mem zstd_dctx_fallback;
-static struct zstd_pool *zstd_mempool_cctx;
-static struct zstd_pool *zstd_mempool_dctx;
-
-/* initializes memory pool barrier mutexes */
-static void
-zstd_mempool_init(void)
-{
-	int i;
-	zstd_mempool_cctx = (struct zstd_pool *)
-	    kmem_zalloc(ZSTD_POOL_MAX * sizeof (struct zstd_pool), KM_SLEEP);
-	zstd_mempool_dctx = (struct zstd_pool *)
-	    kmem_zalloc(ZSTD_POOL_MAX * sizeof (struct zstd_pool), KM_SLEEP);
-	for (i = 0; i < ZSTD_POOL_MAX; i++) {
-		mutex_init(&zstd_mempool_cctx[i].barrier, NULL,
-		    MUTEX_DEFAULT, NULL);
-		mutex_init(&zstd_mempool_dctx[i].barrier, NULL,
-		    MUTEX_DEFAULT, NULL);
-	}
-}
-
-/* release object from pool and free memory */
-static void
-release_pool(struct zstd_pool *pool)
-{
-	mutex_destroy(&pool->barrier);
-	kmem_free(pool->mem, pool->size);
-	pool->mem = NULL;
-	pool->size = 0;
-}
-
-/* releases memory pool objects */
-static void
-zstd_mempool_deinit(void)
-{
-	int i;
-	for (i = 0; i < ZSTD_POOL_MAX; i++) {
-		release_pool(&zstd_mempool_cctx[i]);
-		release_pool(&zstd_mempool_dctx[i]);
-	}
-	kmem_free(zstd_mempool_dctx, ZSTD_POOL_MAX * sizeof (struct zstd_pool));
-	kmem_free(zstd_mempool_cctx, ZSTD_POOL_MAX * sizeof (struct zstd_pool));
-	zstd_mempool_dctx = NULL;
-	zstd_mempool_cctx = NULL;
-}
-
-/*
- * tries to get cached allocated buffer from memory pool and allocate new one
- * if necessary. if a object is older than 2 minutes and does not fit to the
- * requested size, it will be released and a new cached entry will be allocated
- * if other pooled objects are detected without being used for 2 minutes,
- * they will be released too.
- * the concept is that high frequency memory allocations of bigger objects are
- * expensive.
- * so if alot of work is going on, allocations will be kept for a while and can
- * be reused in that timeframe. the scheduled release will be updated every time
- * a object is reused.
- */
-static void *
-zstd_mempool_alloc(struct zstd_pool *zstd_mempool, size_t size)
-{
-	int i;
+	enum zstd_kmem_type kmem_type;
+	size_t kmem_size;
 	struct zstd_pool *pool;
-	struct zstd_kmem *mem = NULL;
+};
 
-	if (!zstd_mempool)
-		return (NULL);
-	/*
-	 * seek for preallocated memory slot and free obsolete slots
-	 */
-	for (i = 0; i < ZSTD_POOL_MAX; i++) {
-		pool = &zstd_mempool[i];
-		/*
-		 * this lock is simply a marker for a pool object beeing in use.
-		 * if its already hold it will be skipped.
-		 * we need to create it before checking to avoid race conditions
-		 * since this is running in a threaded context.
-		 * the lock is later released by zstd_mempool_free.
-		 */
-		if (mutex_tryenter(&pool->barrier)) {
-			/*
-			 * check if objects fits to size, if yes we take it
-			 * and update timestamp
-			 */
-			if (!mem && pool->mem && size <= pool->size) {
-				pool->timeout = gethrestime_sec() +
-				    ZSTD_POOL_TIMEOUT;
-				mem = pool->mem;
-				continue;
-			}
-			/*
-			 * free memory if object is older than 2 minutes
-			 * and not in use.
-			 */
-			if (pool->mem && gethrestime_sec() > pool->timeout) {
-				kmem_free(pool->mem, pool->size);
-				pool->mem = NULL;
-				pool->size = 0;
-				pool->timeout = 0;
-			}
-			mutex_exit(&pool->barrier);
-		}
-	}
-
-	if (mem)
-		return (mem);
-	/*
-	 * if no preallocated slot was found, try to fill in a new one
-	 * you may have noticed that we run a similar algorithm twice here.
-	 * this is to avoid pool framentation. the first one may generate
-	 * holes in the list if objects are released.
-	 * we always make sure that these holes are filled instead of adding
-	 * new allocations constantly at the end.
-	 */
-	for (i = 0; i < ZSTD_POOL_MAX; i++) {
-		pool = &zstd_mempool[i];
-		if (mutex_tryenter(&pool->barrier)) {
-			/* object is free, try to allocate new one */
-			if (!pool->mem) {
-				mem = vmem_alloc(size, KM_SLEEP);
-				pool->mem = mem;
-				/* allocation successfull? */
-				if (pool->mem) {
-					/*
-					 * keep track for later release
-					 */
-					mem->pool = pool;
-					pool->size = size;
-					mem->kmem_type = ZSTD_KMEM_POOL;
-					mem->kmem_size = size;
-				}
-			}
-			if (size <= pool->size) {
-				/* update timestamp */
-				pool->timeout = gethrestime_sec() +
-				    ZSTD_POOL_TIMEOUT;
-				return (pool->mem);
-			}
-			mutex_exit(&pool->barrier);
-		}
-	}
-
-
-	/*
-	 * maybe pool is full or allocation failed, lets do lazy allocation
-	 * try in that case
-	 */
-	if (!mem) {
-		mem = vmem_alloc(size, KM_NOSLEEP);
-		if (mem) {
-			mem->pool = NULL;
-			mem->kmem_type = ZSTD_KMEM_DEFAULT;
-			mem->kmem_size = size;
-		}
-	}
-	return (mem);
-}
-
-/*
- * mark object as released by releasing the barrier mutex
- */
-static void
-zstd_mempool_free(struct zstd_kmem *z)
-{
-	mutex_exit(&z->pool->barrier);
-}
+/* Fallback memory structure used for decompression only if memory runs out */
+struct zstd_fallback_mem {
+	size_t mem_size;
+	void *mem;
+	kmutex_t barrier;
+};
 
 struct levelmap {
 	int16_t cookie;
 	enum zio_zstd_levels level;
 };
 
-/* level map for converting zfs internal levels to zstd levels and vice versa */
+/*
+ * ZSTD memory handlers
+ *
+ * For decompression we use a different handler which also provides fallback
+ * memory allocation in case memory runs out.
+ *
+ * The ZSTD handlers were split up for the most simplified implementation.
+ */
+static void *zstd_alloc(void *opaque, size_t size);
+static void *zstd_dctx_alloc(void *opaque, size_t size);
+static void zstd_free(void *opaque, void *ptr);
+
+/* Compression memory handler */
+static const ZSTD_customMem zstd_malloc = {
+	zstd_alloc,
+	zstd_free,
+	NULL,
+};
+
+/* Decompression memory handler */
+static const ZSTD_customMem zstd_dctx_malloc = {
+	zstd_dctx_alloc,
+	zstd_free,
+	NULL,
+};
+
+/* Level map for converting ZFS internal levels to ZSTD levels and vice versa */
 static struct levelmap zstd_levels[] = {
 	{ZIO_ZSTD_LEVEL_1, ZIO_ZSTD_LEVEL_1},
 	{ZIO_ZSTD_LEVEL_2, ZIO_ZSTD_LEVEL_2},
@@ -356,158 +146,307 @@ static struct levelmap zstd_levels[] = {
 };
 
 /*
- * convert internal stored zfs level enum to zstd level
+ * This variable represents the maximum count of the pool based on the number
+ * of CPUs plus some buffer. We default to cpu count * 4, see init_zstd.
  */
-static int
-zstd_cookie_to_enum(int16_t cookie, uint8_t *level)
-{
-	int i;
-	for (i = 0; i < ARRAY_SIZE(zstd_levels); i++) {
-		if (zstd_levels[i].cookie == cookie) {
-			*level = zstd_levels[i].level;
-			return (0);
-		}
-	}
-	/* This shouldn't happen. */
-	return (1);
-}
+static int pool_count = 16;
+
+#define	ZSTD_POOL_MAX		pool_count
+#define	ZSTD_POOL_TIMEOUT	60 * 2
+
+static struct zstd_fallback_mem zstd_dctx_fallback;
+static struct zstd_pool *zstd_mempool_cctx;
+static struct zstd_pool *zstd_mempool_dctx;
 
 /*
- * convert zstd_level to internal stored zfs level
+ * Try to get a cached allocated buffer from memory pool or allocate a new one
+ * if necessary. If a object is older than 2 minutes and does not fit the
+ * requested size, it will be released and a new cached entry will be allocated.
+ * If other pooled objects are detected without being used for 2 minutes, they
+ * will be released, too.
+ *
+ * The concept is that high frequency memory allocations of bigger objects are
+ * expensive. So if a lot of work is going on, allocations will be kept for a
+ * while and can be reused in that time frame.
+ *
+ * The scheduled release will be updated every time a object is reused.
  */
-static int
-zstd_enum_to_cookie(enum zio_zstd_levels elevel, int16_t *cookie)
+static void *
+zstd_mempool_alloc(struct zstd_pool *zstd_mempool, size_t size)
 {
-	int i;
-	for (i = 0; i < ARRAY_SIZE(zstd_levels); i++) {
-		if (zstd_levels[i].level == elevel) {
+	struct zstd_pool *pool;
+	struct zstd_kmem *mem = NULL;
+
+	if (!zstd_mempool) {
+		return (NULL);
+	}
+
+	/* Seek for preallocated memory slot and free obsolete slots */
+	for (int i = 0; i < ZSTD_POOL_MAX; i++) {
+		pool = &zstd_mempool[i];
+		/*
+		 * This lock is simply a marker for a pool object beeing in use.
+		 * If it's already hold, it will be skipped.
+		 *
+		 * We need to create it before checking it to avoid race
+		 * conditions caused by running in a threaded context.
+		 *
+		 * The lock is later released by zstd_mempool_free.
+		 */
+		if (mutex_tryenter(&pool->barrier)) {
+			/*
+			 * Check if objects fits the size, if so we take it and
+			 * update the timestamp.
+			 */
+			if (!mem && pool->mem && size <= pool->size) {
+				pool->timeout = gethrestime_sec() +
+				    ZSTD_POOL_TIMEOUT;
+				mem = pool->mem;
+				continue;
+			}
+
+			/* Free memory if unused object older than 2 minutes */
+			if (pool->mem && gethrestime_sec() > pool->timeout) {
+				vmem_free(pool->mem, pool->size);
+				pool->mem = NULL;
+				pool->size = 0;
+				pool->timeout = 0;
+			}
+
+			mutex_exit(&pool->barrier);
+		}
+	}
+
+	if (mem) {
+		return (mem);
+	}
+
+	/*
+	 * If no preallocated slot was found, try to fill in a new one.
+	 *
+	 * We run a similar algorithm twice here to avoid pool fragmentation.
+	 * The first one may generate holes in the list if objects get released.
+	 * We always make sure that these holes get filled instead of adding new
+	 * allocations constantly at the end.
+	 */
+	for (int i = 0; i < ZSTD_POOL_MAX; i++) {
+		pool = &zstd_mempool[i];
+		if (mutex_tryenter(&pool->barrier)) {
+			/* Object is free, try to allocate new one */
+			if (!pool->mem) {
+				mem = vmem_alloc(size, KM_SLEEP);
+				pool->mem = mem;
+
+				if (pool->mem) {
+					/* Keep track for later release */
+					mem->pool = pool;
+					pool->size = size;
+					mem->kmem_type = ZSTD_KMEM_POOL;
+					mem->kmem_size = size;
+				}
+			}
+
+			if (size <= pool->size) {
+				/* Update timestamp */
+				pool->timeout = gethrestime_sec() +
+				    ZSTD_POOL_TIMEOUT;
+
+				return (pool->mem);
+			}
+
+			mutex_exit(&pool->barrier);
+		}
+	}
+
+	/*
+	 * If the pool is full or the allocation failed, try lazy allocation
+	 * instead.
+	 */
+	if (!mem) {
+		mem = vmem_alloc(size, KM_NOSLEEP);
+		if (mem) {
+			mem->pool = NULL;
+			mem->kmem_type = ZSTD_KMEM_DEFAULT;
+			mem->kmem_size = size;
+		}
+	}
+
+	return (mem);
+}
+
+/* Mark object as released by releasing the barrier mutex */
+static void
+zstd_mempool_free(struct zstd_kmem *z)
+{
+	mutex_exit(&z->pool->barrier);
+}
+
+/* Convert ZSTD level to ZFS internal, stored level */
+static int
+zstd_enum_to_cookie(enum zio_zstd_levels level, int16_t *cookie)
+{
+	for (int i = 0; i < ARRAY_SIZE(zstd_levels); i++) {
+		if (zstd_levels[i].level == level) {
 			*cookie = zstd_levels[i].cookie;
 			return (0);
 		}
 	}
-	/* This shouldn't happen, data is broken */
+
+	/* Invalid/unknown ZSTD level - this should never happen. */
 	return (1);
 }
 
-/*
- * compress block using zstd
- */
+/* Compress block using zstd */
 size_t
-zstd_compress(void *s_start, void *d_start, size_t s_len, size_t d_len, int lvl)
+zstd_compress(void *s_start, void *d_start, size_t s_len, size_t d_len,
+    int level)
 {
 	size_t c_len;
-	uint32_t bufsiz;
+	uint32_t bufsize;
+	int16_t levelcookie;
 	char *dest = d_start;
 	ZSTD_CCtx *cctx;
-	uint32_t levelbm = 0;
-	int16_t levelcookie;
-	if (zstd_enum_to_cookie(lvl, &levelcookie)) {
-		/* level is invalid, ignore compression */
+
+	/* Skip compression if the specified level is invalid */
+	if (zstd_enum_to_cookie(level, &levelcookie)) {
 		return (s_len);
 	}
-	ASSERT3U(d_len, >=, sizeof (bufsiz));
+
+	ASSERT3U(d_len, >=, sizeof (bufsize));
 	ASSERT3U(d_len, <=, s_len);
 	ASSERT3U(levelcookie, !=, 0);
 
-
 	cctx = ZSTD_createCCtx_advanced(zstd_malloc);
+
 	/*
-	 * out of kernel memory, gently fall through - this will disable
+	 * Out of kernel memory, gently fall through - this will disable
 	 * compression in zio_compress_data
 	 */
-	if (cctx == NULL) {
+	if (!cctx) {
 		return (s_len);
 	}
 
-	/* set compression level */
-
+	/* Set the compression level */
 	ZSTD_CCtx_setParameter(cctx, ZSTD_c_compressionLevel, levelcookie);
 
 	/* Use the "magicless" zstd header which saves us 4 header bytes */
 	ZSTD_CCtx_setParameter(cctx, ZSTD_c_format, ZSTD_f_zstd1_magicless);
 
-	/* disable checksum calculation */
+	/*
+	 * Disable redundant checksum calculation and content size storage since
+	 * this is already done by ZFS itself.
+	 */
 	ZSTD_CCtx_setParameter(cctx, ZSTD_c_checksumFlag, 0);
-
-	/* disable store of content size since its redundant */
 	ZSTD_CCtx_setParameter(cctx, ZSTD_c_contentSizeFlag, 0);
 
 	c_len = ZSTD_compress2(cctx,
-	    &dest[sizeof (bufsiz) + sizeof (levelbm)],
-	    d_len - sizeof (bufsiz) - sizeof (levelbm),
+	    &dest[sizeof (bufsize) + sizeof (levelcookie)],
+	    d_len - sizeof (bufsize) - sizeof (levelcookie),
 	    s_start, s_len);
 
 	ZSTD_freeCCtx(cctx);
 
-	/* Error in the compression routine. disable compression. */
+	/* Error in the compression routine, disable compression. */
 	if (ZSTD_isError(c_len)) {
 		return (s_len);
 	}
 
 	/*
 	 * Encode the compressed buffer size at the start. We'll need this in
-	 * decompression to counter the effects of padding which might be
-	 * added to the compressed buffer and which, if unhandled, would
-	 * confuse the hell out of our decompression function.
+	 * decompression to counter the effects of padding which might be added
+	 * to the compressed buffer and which, if unhandled, would confuse the
+	 * hell out of our decompression function.
 	 */
-	bufsiz = c_len;
-	*(uint32_t *)dest = BE_32(bufsiz);
+	bufsize = c_len;
+	*(uint32_t *)dest = BE_32(bufsize);
+
+	/*
+	 * Check version for overflow.
+	 * The limit of 24 bits must not be exceeded. This allows a maximum
+	 * version 1677.72.15 which we don't expect to be ever reached.
+	 */
+	ASSERT3U(ZSTD_VERSION_NUMBER, <=, 0xFFFFFF);
 
 	/*
 	 * Encode the compression level as well. We may need to know the
 	 * original compression level if compressed_arc is disabled, to match
 	 * the compression settings to write this block to the L2ARC.
-	 * Encode the actual level, so if the enum changes in the future,
-	 * we will be compatible.
-	 * the upper 16 bits will be the zstd format version to ensure
-	 * compatibility with future zstd enhancemnts which may change
-	 * the compressed data.
+	 *
+	 * Encode the actual level, so if the enum changes in the future, we
+	 * will be compatible.
+	 *
+	 * The upper 24 bits store the ZSTD version to be able to provide
+	 * future compatibility, since new versions might enhance the
+	 * compression algorithm in a way, where the compressed data will
+	 * change.
+	 *
+	 * As soon as such incompatibility occurs, handling code needs to be
+	 * added, differentiating between the versions.
 	 */
-	SET_ZSTD_LEVEL(levelbm, levelcookie);
-	SET_ZSTD_VERSION(levelbm, ZSTD_VERSION);
-	*(uint32_t *)(&dest[sizeof (bufsiz)]) = BE_32(levelbm);
+	*(uint32_t *)(&dest[sizeof (bufsize)]) =
+	    BE_32(level | (ZSTD_VERSION_NUMBER << 8));
 
-	return (c_len + sizeof (bufsiz) + sizeof (levelbm));
+	return (c_len + sizeof (bufsize) + (sizeof (levelcookie) * 2));
 }
 
-/*
- * decompress block using zstd and return its stored level
- */
+/* Decompress block using zstd and return its stored level */
 int
 zstd_decompress_level(void *s_start, void *d_start, size_t s_len, size_t d_len,
     uint8_t *level)
 {
-	const char *src = s_start;
 	ZSTD_DCtx *dctx;
 	size_t result;
-	uint32_t bufsiz = BE_IN32(src);
-	uint32_t levelbm = BE_IN32(&src[sizeof (bufsiz)]);
-	uint8_t zstdlevel;
-	if (zstd_cookie_to_enum(GET_ZSTD_LEVEL(levelbm), &zstdlevel)) {
-		/* data is broken. return error */
+	enum zio_zstd_levels zstdlevel;
+	int16_t levelcookie;
+	uint32_t version;
+
+	const char *src = s_start;
+	uint32_t bufsize = BE_IN32(src);
+
+	/* Read the level */
+	zstdlevel = BE_IN8(&src[sizeof (bufsize)]);
+
+	/*
+	 * We ignore the ZSTD version for now. As soon as incompatibilities
+	 * occurr, it has to be read and handled accordingly.
+	 */
+	version = (BE_IN32(&src[sizeof (bufsize)]) >> 8);
+
+	/*
+	 * Convert and check the level
+	 * An invalid level is a strong indicator for data corruption! In such
+	 * case return an error so the upper layers can try to fix it.
+	 */
+	if (zstd_enum_to_cookie(zstdlevel, &levelcookie)) {
 		return (1);
 	}
 
 	ASSERT3U(d_len, >=, s_len);
-	ASSERT3U(zstdlevel, !=, ZIO_ZSTD_LEVEL_INHERIT);
+	ASSERT3U(zstdlevel, !=, ZIO_COMPLEVEL_INHERIT);
 
-	/* invalid compressed buffer size encoded at start */
-	if (bufsiz + sizeof (bufsiz) > s_len) {
+	/* Invalid compressed buffer size encoded at start */
+	if (bufsize + sizeof (bufsize) > s_len) {
 		return (1);
 	}
 
 	dctx = ZSTD_createDCtx_advanced(zstd_dctx_malloc);
-	if (dctx == NULL)
+	if (!dctx) {
 		return (1);
+	}
 
-	if (GET_ZSTD_VERSION(levelbm)) {
+	/*
+	 * special case for supporting older development versions
+	 * which did contain the magic
+	 */
+
+	if (version >= 10405) {
 		/* Set header type to "magicless" */
 		ZSTD_DCtx_setParameter(dctx, ZSTD_d_format,
 		    ZSTD_f_zstd1_magicless);
 	}
 
 	result = ZSTD_decompressDCtx(dctx, d_start, d_len,
-	    &src[sizeof (bufsiz) + sizeof (levelbm)], bufsiz);
+	    &src[sizeof (bufsize) + sizeof (levelcookie)], bufsize);
 
 	ZSTD_freeDCtx(dctx);
 
@@ -519,28 +458,24 @@ zstd_decompress_level(void *s_start, void *d_start, size_t s_len, size_t d_len,
 		return (1);
 	}
 
-	if (level != NULL) {
+	if (level) {
 		*level = zstdlevel;
 	}
 
 	return (0);
 }
 
-/*
- * decompress datablock using zstd
- */
+/* Decompress datablock using zstd */
 int
-zstd_decompress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
+zstd_decompress(void *s_start, void *d_start, size_t s_len, size_t d_len,
+    int level __maybe_unused)
 {
 
 	return (zstd_decompress_level(s_start, d_start, s_len, d_len, NULL));
 }
 
-
-/*
- * allocator for zstd compression context using mempool_allocator
- */
-extern void *
+/* Allocator for zstd compression context using mempool_allocator */
+static void *
 zstd_alloc(void *opaque __maybe_unused, size_t size)
 {
 	size_t nbytes = sizeof (struct zstd_kmem) + size;
@@ -548,7 +483,7 @@ zstd_alloc(void *opaque __maybe_unused, size_t size)
 
 	z = (struct zstd_kmem *)zstd_mempool_alloc(zstd_mempool_cctx, nbytes);
 
-	if (z == NULL) {
+	if (!z) {
 		return (NULL);
 	}
 
@@ -556,10 +491,10 @@ zstd_alloc(void *opaque __maybe_unused, size_t size)
 }
 
 /*
- * allocator for zstd decompression context, uses mempool_allocator but
+ * Allocator for zstd decompression context using mempool_allocator with
  * fallback to reserved memory if allocation fails
  */
-extern void *
+static void *
 zstd_dctx_alloc(void *opaque __maybe_unused, size_t size)
 {
 	size_t nbytes = sizeof (struct zstd_kmem) + size;
@@ -568,29 +503,30 @@ zstd_dctx_alloc(void *opaque __maybe_unused, size_t size)
 
 	z = (struct zstd_kmem *)zstd_mempool_alloc(zstd_mempool_dctx, nbytes);
 	if (!z) {
-		/* try harder, decompression shall not fail */
+		/* Try harder, decompression shall not fail */
 		z = vmem_alloc(nbytes, KM_SLEEP);
-		if (z)
+		if (z) {
 			z->pool = NULL;
+		}
 	} else {
 		return ((void*)z + (sizeof (struct zstd_kmem)));
 	}
 
-	/* fallback if everything fails */
-	if (z == NULL) {
+	/* Fallback if everything fails */
+	if (!z) {
 		/*
-		 * barrier since we only can handle it in a single thread
-		 * all other following threads need to wait here until
-		 * decompression is complete.
-		 * zstd_free will release this barrier later.
+		 * Barrier since we only can handle it in a single thread. All
+		 * other following threads need to wait here until decompression
+		 * is completed. zstd_free will release this barrier later.
 		 */
 		mutex_enter(&zstd_dctx_fallback.barrier);
+
 		z = zstd_dctx_fallback.mem;
 		type = ZSTD_KMEM_DCTX;
 	}
 
-	/* allocation should always be successful */
-	if (z == NULL) {
+	/* Allocation should always be successful */
+	if (!z) {
 		return (NULL);
 	}
 
@@ -600,93 +536,127 @@ zstd_dctx_alloc(void *opaque __maybe_unused, size_t size)
 	return ((void*)z + (sizeof (struct zstd_kmem)));
 }
 
-/*
- * free allocated memory by its specific type
- */
-extern void
+/* Free allocated memory by its specific type */
+static void
 zstd_free(void *opaque __maybe_unused, void *ptr)
 {
-	struct zstd_kmem *z = ptr - sizeof (struct zstd_kmem);
+	struct zstd_kmem *z = (ptr - sizeof (struct zstd_kmem));
 	enum zstd_kmem_type type;
 
 	ASSERT3U(z->kmem_type, <, ZSTD_KMEM_COUNT);
 	ASSERT3U(z->kmem_type, >, ZSTD_KMEM_UNKNOWN);
+
 	type = z->kmem_type;
 	switch (type) {
 	case ZSTD_KMEM_DEFAULT:
-		kmem_free(z, z->kmem_size);
-	break;
+		vmem_free(z, z->kmem_size);
+		break;
 	case ZSTD_KMEM_POOL:
 		zstd_mempool_free(z);
-	break;
+		break;
 	case ZSTD_KMEM_DCTX:
 		mutex_exit(&zstd_dctx_fallback.barrier);
-	break;
+		break;
 	default:
-	break;
+		break;
 	}
 }
-#ifndef _KERNEL
-#define	__init
-#define	__exit
-#endif
 
-/*
- * allocate fallback memory to ensure safe decompression
- */
-static void create_fallback_mem(struct zstd_fallback_mem *mem, size_t size)
+/* Allocate fallback memory to ensure safe decompression */
+static void __init
+create_fallback_mem(struct zstd_fallback_mem *mem, size_t size)
 {
 	mem->mem_size = size;
-	mem->mem = \
-	    vmem_zalloc(mem->mem_size, \
-	    KM_SLEEP);
-	mutex_init(&mem->barrier, \
-	    NULL, MUTEX_DEFAULT, NULL);
+	mem->mem = vmem_zalloc(mem->mem_size, KM_SLEEP);
+	mutex_init(&mem->barrier, NULL, MUTEX_DEFAULT, NULL);
 }
 
-/*
- * initializes zstd related memory handling
- */
-static int zstd_meminit(void)
+/* Initialize memory pool barrier mutexes */
+static void __init
+zstd_mempool_init(void)
+{
+	zstd_mempool_cctx = (struct zstd_pool *)
+	    kmem_zalloc(ZSTD_POOL_MAX * sizeof (struct zstd_pool), KM_SLEEP);
+	zstd_mempool_dctx = (struct zstd_pool *)
+	    kmem_zalloc(ZSTD_POOL_MAX * sizeof (struct zstd_pool), KM_SLEEP);
+
+	for (int i = 0; i < ZSTD_POOL_MAX; i++) {
+		mutex_init(&zstd_mempool_cctx[i].barrier, NULL,
+		    MUTEX_DEFAULT, NULL);
+		mutex_init(&zstd_mempool_dctx[i].barrier, NULL,
+		    MUTEX_DEFAULT, NULL);
+	}
+}
+
+/* Initialize zstd-related memory handling */
+static int __init
+zstd_meminit(void)
 {
 	zstd_mempool_init();
 
-	/* Estimate the size of the fallback decompression context */
+	/*
+	 * Estimate the size of the fallback decompression context.
+	 * The expected size on x64 with current ZSTD should be about 160 KB.
+	 */
 	create_fallback_mem(&zstd_dctx_fallback,
-	    P2ROUNDUP(ZSTD_estimateDCtxSize() +
-	    sizeof (struct zstd_kmem), PAGESIZE));
+	    P2ROUNDUP(ZSTD_estimateDCtxSize() + sizeof (struct zstd_kmem),
+	    PAGESIZE));
 
 	return (0);
+}
+
+/* Release object from pool and free memory */
+static void __exit
+release_pool(struct zstd_pool *pool)
+{
+	mutex_destroy(&pool->barrier);
+	vmem_free(pool->mem, pool->size);
+	pool->mem = NULL;
+	pool->size = 0;
+}
+
+/* Release memory pool objects */
+static void __exit
+zstd_mempool_deinit(void)
+{
+	for (int i = 0; i < ZSTD_POOL_MAX; i++) {
+		release_pool(&zstd_mempool_cctx[i]);
+		release_pool(&zstd_mempool_dctx[i]);
+	}
+
+	kmem_free(zstd_mempool_dctx, ZSTD_POOL_MAX * sizeof (struct zstd_pool));
+	kmem_free(zstd_mempool_cctx, ZSTD_POOL_MAX * sizeof (struct zstd_pool));
+	zstd_mempool_dctx = NULL;
+	zstd_mempool_cctx = NULL;
 }
 
 extern int __init
 zstd_init(void)
 {
-	/*
-	 * set pool size by using maximum sane thread count * 4
-	 */
-	pool_count = boot_ncpus * 4;
+	/* Set pool size by using maximum sane thread count * 4 */
+	pool_count = (boot_ncpus * 4);
 	zstd_meminit();
+
 	return (0);
 }
 
 extern void __exit
 zstd_fini(void)
 {
-	kmem_free(zstd_dctx_fallback.mem, zstd_dctx_fallback.mem_size);
+	vmem_free(zstd_dctx_fallback.mem, zstd_dctx_fallback.mem_size);
 	mutex_destroy(&zstd_dctx_fallback.barrier);
 	zstd_mempool_deinit();
 }
 
-
 #if defined(_KERNEL)
 module_init(zstd_init);
 module_exit(zstd_fini);
-EXPORT_SYMBOL(zstd_compress);
-EXPORT_SYMBOL(zstd_decompress_level);
-EXPORT_SYMBOL(zstd_decompress);
 
 ZFS_MODULE_DESCRIPTION("ZSTD Compression for ZFS");
 ZFS_MODULE_LICENSE("Dual BSD/GPL");
-ZFS_MODULE_VERSION("1.4.4");
+ZFS_MODULE_VERSION(ZSTD_VERSION_STRING);
+
+EXPORT_SYMBOL(zstd_compress);
+EXPORT_SYMBOL(zstd_decompress_level);
+EXPORT_SYMBOL(zstd_decompress);
 #endif

@@ -1,34 +1,30 @@
-src = @abs_top_srcdir@/module/zstd
+ifneq ($(KBUILD_EXTMOD),)
+src = @abs_srcdir@
 obj = @abs_builddir@
+zstd_include = $(src)/include
+else
+zstd_include = $(srctree)/$(src)/include
+endif
 
 MODULE := zzstd
 
 obj-$(CONFIG_ZFS) := $(MODULE).o
 
-ZFS_MODULE_CFLAGS += -I@abs_top_srcdir@/include/sys/zstd
-
-asflags-y += $(ZFS_MODULE_CFLAGS)
-ccflags-y += $(ZFS_MODULE_CFLAGS) $(ZFS_MODULE_CPPFLAGS)
-
-# Suppress unused but set variable warnings often due to ASSERTs
-$(obj)/zstdlib.o: ccflags-y += $(NO_UNUSED_BUT_SET_VARIABLE)
+asflags-y := -I$(zstd_include)
+ccflags-y := -I$(zstd_include)
 
 # Zstd uses -O3 by default, so we should follow
 ccflags-y += -O3
 
-#TODO: test, then clean up + add for freebsd
 # -fno-tree-vectorize gets set for gcc in zstd/common/compiler.h
 # Set it for other compilers, too.
-#CFLAGS_zstd_decompress_block.o := -fno-tree-vectorize
-$(obj)/zstdlib.o: c_flags += -fno-tree-vectorize 
-
-# disable aarch64 neon assembly instructions for kernel mode
-$(obj)/zstdlib.o: c_flags += -include @abs_top_srcdir@/include/sys/zstd/aarch64_compat.h
+$(obj)/zstdlib.o: c_flags += -fno-tree-vectorize
 
 # Quiet warnings about frame size due to unused code in unmodified zstd lib
-#ccflags-y += -Wframe-larger-than=20480
-#TODO: test, then clean up
 $(obj)/zstdlib.o: c_flags += -Wframe-larger-than=20480
+
+# Disable aarch64 neon SIMD instructions for kernel mode
+$(obj)/zstdlib.o: c_flags += -include $(zstd_include)/aarch64_compat.h
 
 $(MODULE)-objs += zstd.o
 $(MODULE)-objs += zstdlib.o

@@ -1,13 +1,5 @@
 COMMON_H = \
-	$(top_srcdir)/include/sys/zstd/aarch64_compat.h \
-	$(top_srcdir)/include/sys/zstd/limits.h \
-	$(top_srcdir)/include/sys/zstd/stddef.h \
-	$(top_srcdir)/include/sys/zstd/stdint.h \
-	$(top_srcdir)/include/sys/zstd/stdio.h \
-	$(top_srcdir)/include/sys/zstd/stdlib.h \
-	$(top_srcdir)/include/sys/zstd/string.h \
-	$(top_srcdir)/include/sys/zstd/zstd.h \
-	$(top_srcdir)/include/sys/zstd/zstd_kfreebsd.h
+	$(top_srcdir)/include/sys/zstd/zstd.h
 
 KERNEL_H =
 
