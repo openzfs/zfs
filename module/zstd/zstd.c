@@ -295,6 +295,27 @@ zstd_enum_to_cookie(enum zio_zstd_levels level, int16_t *cookie)
 	/* Invalid/unknown ZSTD level - this should never happen. */
 	return (1);
 }
+typedef struct {
+	uint32_t version:24;
+	uint8_t level;
+} version_level_t;
+
+/* NOTE: all fields in this header are in big endian order */
+struct zstd_header {
+	/* contains compressed size */
+	uint32_t size;
+	/*
+	 * contains the version and level
+	 * we have to choose a union here to handle
+	 * endian conversation since the version and level
+	 * is bitmask encoded.
+	 */
+	union {
+		uint32_t version_data;
+		version_level_t version_level;
+	};
+	char data[];
+};
 
 /* Compress block using zstd */
 size_t
@@ -302,17 +323,15 @@ zstd_compress(void *s_start, void *d_start, size_t s_len, size_t d_len,
     int level)
 {
 	size_t c_len;
-	uint32_t bufsize;
 	int16_t levelcookie;
-	char *dest = d_start;
 	ZSTD_CCtx *cctx;
-
+	struct zstd_header *hdr = (struct zstd_header *)d_start;
 	/* Skip compression if the specified level is invalid */
 	if (zstd_enum_to_cookie(level, &levelcookie)) {
 		return (s_len);
 	}
 
-	ASSERT3U(d_len, >=, sizeof (bufsize));
+	ASSERT3U(d_len, >=, sizeof (*hdr));
 	ASSERT3U(d_len, <=, s_len);
 	ASSERT3U(levelcookie, !=, 0);
 
@@ -340,8 +359,8 @@ zstd_compress(void *s_start, void *d_start, size_t s_len, size_t d_len,
 	ZSTD_CCtx_setParameter(cctx, ZSTD_c_contentSizeFlag, 0);
 
 	c_len = ZSTD_compress2(cctx,
-	    &dest[sizeof (bufsize) + sizeof (uint32_t)],
-	    d_len - sizeof (bufsize) - sizeof (uint32_t),
+	    hdr->data,
+	    d_len - sizeof (*hdr),
 	    s_start, s_len);
 
 	ZSTD_freeCCtx(cctx);
@@ -357,8 +376,7 @@ zstd_compress(void *s_start, void *d_start, size_t s_len, size_t d_len,
 	 * to the compressed buffer and which, if unhandled, would confuse the
 	 * hell out of our decompression function.
 	 */
-	bufsize = c_len;
-	*(uint32_t *)dest = BE_32(bufsize);
+	hdr->size = BE_32(c_len);
 
 	/*
 	 * Check version for overflow.
@@ -383,10 +401,11 @@ zstd_compress(void *s_start, void *d_start, size_t s_len, size_t d_len,
 	 * As soon as such incompatibility occurs, handling code needs to be
 	 * added, differentiating between the versions.
 	 */
-	*(uint32_t *)(&dest[sizeof (bufsize)]) =
-	    BE_32(level | (ZSTD_VERSION_NUMBER << 8));
+	hdr->version_level.level = level;
+	hdr->version_level.version = ZSTD_VERSION_NUMBER;
+	hdr->version_data = BE_32(hdr->version_data);
 
-	return (c_len + sizeof (bufsize) + sizeof (uint32_t));
+	return (c_len + sizeof (*hdr));
 }
 
 /* Decompress block using zstd and return its stored level */
@@ -399,18 +418,21 @@ zstd_decompress_level(void *s_start, void *d_start, size_t s_len, size_t d_len,
 	enum zio_zstd_levels zstdlevel;
 	int16_t levelcookie;
 	uint32_t version;
-
-	const char *src = s_start;
-	uint32_t bufsize = BE_IN32(src);
+	uint32_t bufsize;
+	const struct zstd_header *hdr = (const struct zstd_header *)s_start;
+	struct zstd_header hdr_copy;
+	hdr_copy.version_data = BE_32(hdr->version_data);
+	/* Read buffer size */
+	bufsize = BE_32(hdr->size);
 
 	/* Read the level */
-	zstdlevel = BE_IN32(&src[sizeof (bufsize)]) & 0xff;
+	zstdlevel = hdr_copy.version_level.level;
 
 	/*
 	 * We ignore the ZSTD version for now. As soon as incompatibilities
 	 * occurr, it has to be read and handled accordingly.
 	 */
-	version = BE_IN32(&src[sizeof (bufsize)]) >> 8;
+	version = hdr_copy.version_level.version;
 
 	/*
 	 * Convert and check the level
@@ -425,7 +447,7 @@ zstd_decompress_level(void *s_start, void *d_start, size_t s_len, size_t d_len,
 	ASSERT3U(zstdlevel, !=, ZIO_COMPLEVEL_INHERIT);
 
 	/* Invalid compressed buffer size encoded at start */
-	if (bufsize + sizeof (bufsize) > s_len) {
+	if (bufsize + sizeof (*hdr) > s_len) {
 		return (1);
 	}
 
@@ -446,7 +468,7 @@ zstd_decompress_level(void *s_start, void *d_start, size_t s_len, size_t d_len,
 	}
 
 	result = ZSTD_decompressDCtx(dctx, d_start, d_len,
-	    &src[sizeof (bufsize) + sizeof (uint32_t)], bufsize);
+	    hdr->data, bufsize);
 
 	ZSTD_freeDCtx(dctx);
 
