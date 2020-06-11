@@ -28,6 +28,7 @@
 #include "zed.h"
 #include "zed_conf.h"
 #include "zed_disk_event.h"
+#include "zed_event.h"
 #include "zed_exec.h"
 #include "zed_file.h"
 #include "zed_log.h"

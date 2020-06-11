@@ -39,6 +39,7 @@
 #include <sys/proc.h>
 #include <sys/kstat.h>
 #include <sys/file.h>
+#include <sys/sunddi.h>
 #include <linux/ctype.h>
 #include <sys/disp.h>
 #include <sys/random.h>
