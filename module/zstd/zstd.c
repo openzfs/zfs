@@ -340,8 +340,8 @@ zstd_compress(void *s_start, void *d_start, size_t s_len, size_t d_len,
 	ZSTD_CCtx_setParameter(cctx, ZSTD_c_contentSizeFlag, 0);
 
 	c_len = ZSTD_compress2(cctx,
-	    &dest[sizeof (bufsize) + sizeof (levelcookie)],
-	    d_len - sizeof (bufsize) - sizeof (levelcookie),
+	    &dest[sizeof (bufsize) + sizeof (uint32_t)],
+	    d_len - sizeof (bufsize) - sizeof (uint32_t),
 	    s_start, s_len);
 
 	ZSTD_freeCCtx(cctx);
@@ -386,7 +386,7 @@ zstd_compress(void *s_start, void *d_start, size_t s_len, size_t d_len,
 	*(uint32_t *)(&dest[sizeof (bufsize)]) =
 	    BE_32(level | (ZSTD_VERSION_NUMBER << 8));
 
-	return (c_len + sizeof (bufsize) + (sizeof (levelcookie) * 2));
+	return (c_len + sizeof (bufsize) + sizeof (uint32_t));
 }
 
 /* Decompress block using zstd and return its stored level */
@@ -404,13 +404,13 @@ zstd_decompress_level(void *s_start, void *d_start, size_t s_len, size_t d_len,
 	uint32_t bufsize = BE_IN32(src);
 
 	/* Read the level */
-	zstdlevel = BE_IN8(&src[sizeof (bufsize)]);
+	zstdlevel = BE_IN32(&src[sizeof (bufsize)]) & 0xff;
 
 	/*
 	 * We ignore the ZSTD version for now. As soon as incompatibilities
 	 * occurr, it has to be read and handled accordingly.
 	 */
-	version = (BE_IN32(&src[sizeof (bufsize)]) >> 8);
+	version = BE_IN32(&src[sizeof (bufsize)]) >> 8;
 
 	/*
 	 * Convert and check the level
@@ -446,7 +446,7 @@ zstd_decompress_level(void *s_start, void *d_start, size_t s_len, size_t d_len,
 	}
 
 	result = ZSTD_decompressDCtx(dctx, d_start, d_len,
-	    &src[sizeof (bufsize) + sizeof (levelcookie)], bufsize);
+	    &src[sizeof (bufsize) + sizeof (uint32_t)], bufsize);
 
 	ZSTD_freeDCtx(dctx);
 
