@@ -804,7 +804,7 @@ vdev_geom_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 {
 	struct g_provider *pp;
 	struct g_consumer *cp;
-	int error, has_trim, locked;
+	int error, has_trim;
 	uint16_t rate;
 
 	/*
@@ -831,9 +831,7 @@ vdev_geom_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 	}
 
 	DROP_GIANT();
-	locked = g_topology_locked();
-	if (!locked)
-		g_topology_lock();
+	g_topology_lock();
 	error = 0;
 
 	if (vd->vdev_spa->spa_is_splitting ||
@@ -928,8 +926,7 @@ vdev_geom_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 		vdev_geom_set_physpath(vd, cp, /* do_null_update */B_FALSE);
 	}
 
-	if (!locked)
-		g_topology_unlock();
+	g_topology_unlock();
 	PICKUP_GIANT();
 	if (cp == NULL) {
 		vd->vdev_stat.vs_aux = VDEV_AUX_OPEN_FAILED;
@@ -983,18 +980,22 @@ static void
 vdev_geom_close(vdev_t *vd)
 {
 	struct g_consumer *cp;
+	boolean_t locked;
 
 	cp = vd->vdev_tsd;
 
 	DROP_GIANT();
-	g_topology_lock();
+	locked = g_topology_locked();
+	if (!locked)
+		g_topology_lock();
 
 	if (!vd->vdev_reopening ||
 	    (cp != NULL && ((cp->flags & G_CF_ORPHAN) != 0 ||
 	    (cp->provider != NULL && cp->provider->error != 0))))
 		vdev_geom_close_locked(vd);
 
-	g_topology_unlock();
+	if (!locked)
+		g_topology_unlock();
 	PICKUP_GIANT();
 }
 
