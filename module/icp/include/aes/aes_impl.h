@@ -195,6 +195,16 @@ struct aes_impl_ops {
 extern const aes_impl_ops_t aes_generic_impl;
 #if defined(__x86_64)
 extern const aes_impl_ops_t aes_x86_64_impl;
+
+/* These functions are used to execute amd64 instructions for AMD or Intel: */
+extern int rijndael_key_setup_enc_amd64(uint32_t rk[],
+	const uint32_t cipherKey[], int keyBits);
+extern int rijndael_key_setup_dec_amd64(uint32_t rk[],
+	const uint32_t cipherKey[], int keyBits);
+extern void aes_encrypt_amd64(const uint32_t rk[], int Nr,
+	const uint32_t pt[4], uint32_t ct[4]);
+extern void aes_decrypt_amd64(const uint32_t rk[], int Nr,
+	const uint32_t ct[4], uint32_t pt[4]);
 #endif
 #if defined(__x86_64) && defined(HAVE_AES)
 extern const aes_impl_ops_t aes_aesni_impl;

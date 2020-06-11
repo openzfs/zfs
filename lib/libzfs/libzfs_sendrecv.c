@@ -69,9 +69,6 @@
 #include <sys/socket.h>
 #include <sys/sha2.h>
 
-/* in libzfs_dataset.c */
-extern void zfs_setprop_error(libzfs_handle_t *, zfs_prop_t, int, char *);
-
 static int zfs_receive_impl(libzfs_handle_t *, const char *, const char *,
     recvflags_t *, int, const char *, nvlist_t *, avl_tree_t *, char **,
     const char *, nvlist_t *);

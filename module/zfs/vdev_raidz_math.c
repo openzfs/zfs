@@ -31,8 +31,6 @@
 #include <sys/vdev_raidz_impl.h>
 #include <sys/simd.h>
 
-extern boolean_t raidz_will_scalar_work(void);
-
 /* Opaque implementation with NULL methods to represent original methods */
 static const raidz_impl_ops_t vdev_raidz_original_impl = {
 	.name = "original",
