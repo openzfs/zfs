@@ -148,6 +148,7 @@ int no_memory(libzfs_handle_t *);
 
 int zfs_standard_error(libzfs_handle_t *, int, const char *);
 int zfs_standard_error_fmt(libzfs_handle_t *, int, const char *, ...);
+void zfs_setprop_error(libzfs_handle_t *, zfs_prop_t, int, char *);
 int zpool_standard_error(libzfs_handle_t *, int, const char *);
 int zpool_standard_error_fmt(libzfs_handle_t *, int, const char *, ...);
 

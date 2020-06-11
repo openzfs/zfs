@@ -136,6 +136,7 @@ extern void zfs_nicenum(uint64_t, char *, size_t);
 extern void zfs_nicenum_format(uint64_t, char *, size_t,
     enum zfs_nicenum_format);
 extern void zfs_nicetime(uint64_t, char *, size_t);
+extern void zfs_niceraw(uint64_t, char *, size_t);
 
 #define	nicenum(num, buf, size)	zfs_nicenum(num, buf, size)
 

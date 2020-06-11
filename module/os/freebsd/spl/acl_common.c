@@ -159,7 +159,7 @@ typedef struct ace_list {
  *	returns (-1 = less than, 0 = equal, 1 = greater than
  */
 void
-ksort(caddr_t v, int n, int s, int (*f)())
+ksort(caddr_t v, int n, int s, int (*f)(void *, void *))
 {
 	int g, i, j, ii;
 	unsigned int *p1, *p2;

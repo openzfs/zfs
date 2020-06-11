@@ -52,7 +52,8 @@ typedef struct callb {
 	char		c_flag;		/* info about the callb state */
 	uchar_t		c_class;	/* this callb's class */
 	kcondvar_t	c_done_cv;	/* signal callb completion */
-	boolean_t	(*c_func)();	/* cb function: returns true if ok */
+	boolean_t	(*c_func)(void *, int);
+					/* cb function: returns true if ok */
 	void		*c_arg;		/* arg to c_func */
 	char		c_name[CB_MAXNAME+1]; /* debug:max func name length */
 } callb_t;

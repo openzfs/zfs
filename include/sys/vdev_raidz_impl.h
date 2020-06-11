@@ -133,6 +133,8 @@ typedef struct raidz_map {
 #define	RAIDZ_ORIGINAL_IMPL	(INT_MAX)
 
 extern const raidz_impl_ops_t vdev_raidz_scalar_impl;
+extern boolean_t raidz_will_scalar_work(void);
+
 #if defined(__x86_64) && defined(HAVE_SSE2)	/* only x86_64 for now */
 extern const raidz_impl_ops_t vdev_raidz_sse2_impl;
 #endif

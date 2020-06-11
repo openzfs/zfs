@@ -32,6 +32,7 @@
 #include <sys/spa.h>
 #include <sys/spa_impl.h>
 #include <sys/vdev_impl.h>
+#include <sys/vdev_os.h>
 #include <sys/fs/zfs.h>
 #include <sys/zio.h>
 #include <geom/geom.h>

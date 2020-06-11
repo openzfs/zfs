@@ -281,4 +281,12 @@ extern const uint64_t SKEIN1024_IV_384[];
 extern const uint64_t SKEIN1024_IV_512[];
 extern const uint64_t SKEIN1024_IV_1024[];
 
+/* Functions to process blkCnt (nonzero) full block(s) of data. */
+void Skein_256_Process_Block(Skein_256_Ctxt_t *ctx, const uint8_t *blkPtr,
+    size_t blkCnt, size_t byteCntAdd);
+void Skein_512_Process_Block(Skein_512_Ctxt_t *ctx, const uint8_t *blkPtr,
+    size_t blkCnt, size_t byteCntAdd);
+void Skein1024_Process_Block(Skein1024_Ctxt_t *ctx, const uint8_t *blkPtr,
+    size_t blkCnt, size_t byteCntAdd);
+
 #endif	/* _SKEIN_IMPL_H_ */

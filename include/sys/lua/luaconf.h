@@ -15,6 +15,7 @@
 extern ssize_t lcompat_sprintf(char *, size_t size, const char *, ...);
 extern int64_t lcompat_strtoll(const char *, char **);
 extern int64_t lcompat_pow(int64_t, int64_t);
+extern int lcompat_hashnum(int64_t);
 
 /*
 ** ==================================================================

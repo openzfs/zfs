@@ -281,8 +281,6 @@ union luai_Cast { double l_d; LUA_INT32 l_p[2]; };
 
 #if defined(ltable_c) && !defined(luai_hashnum)
 
-extern int lcompat_hashnum(int64_t);
-
 #define luai_hashnum(i,n) (i = lcompat_hashnum(n))
 
 #endif
