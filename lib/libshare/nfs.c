@@ -35,6 +35,7 @@
 #include <libzfs.h>
 #include <libshare.h>
 #include "libshare_impl.h"
+#include "nfs.h"
 
 static boolean_t nfs_available(void);
 

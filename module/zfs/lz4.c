@@ -33,6 +33,7 @@
  */
 
 #include <sys/zfs_context.h>
+#include <sys/zio_compress.h>
 
 static int real_LZ4_compress(const char *source, char *dest, int isize,
     int osize);
