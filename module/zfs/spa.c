@@ -3089,6 +3089,7 @@ spa_activity_check(spa_t *spa, uberblock_t *ub, nvlist_t *config)
 	int error = 0;
 
 	cv_init(&cv, NULL, CV_DEFAULT, NULL);
+	bzero(&mtx, sizeof (mtx));
 	mutex_init(&mtx, NULL, MUTEX_DEFAULT, NULL);
 	mutex_enter(&mtx);
 

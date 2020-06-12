@@ -2679,6 +2679,7 @@ dmu_objset_find_dp(dsl_pool_t *dp, uint64_t ddobj,
 	dmu_objset_find_ctx_t *dcp;
 	kmutex_t err_lock;
 
+	bzero(&err_lock, sizeof (err_lock));
 	mutex_init(&err_lock, NULL, MUTEX_DEFAULT, NULL);
 	dcp = kmem_alloc(sizeof (*dcp), KM_SLEEP);
 	dcp->dc_tq = NULL;
