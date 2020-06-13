@@ -285,11 +285,15 @@ zstd_mempool_free(struct zstd_kmem *z)
 static int
 zstd_enum_to_cookie(enum zio_zstd_levels level, int16_t *cookie)
 {
-	for (int i = 0; i < ARRAY_SIZE(zstd_levels); i++) {
-		if (zstd_levels[i].level == level) {
-			*cookie = zstd_levels[i].cookie;
-			return (0);
-		}
+	if (level > 0 && level <= ZIO_ZSTD_LEVEL_19) {
+		*cookie = zstd_levels[level - 1].cookie;
+		return (0);
+	}
+	if (level >= ZIO_ZSTD_LEVEL_FAST_1 &&
+	    level <= ZIO_ZSTD_LEVEL_FAST_1000) {
+		*cookie = zstd_levels[level - ZIO_ZSTD_LEVEL_FAST_1
+		    + ZIO_ZSTD_LEVEL_19].cookie;
+		return (0);
 	}
 
 	/* Invalid/unknown ZSTD level - this should never happen. */
