@@ -327,6 +327,7 @@ zstd_compress(void *s_start, void *d_start, size_t s_len, size_t d_len,
 	ZSTD_CCtx *cctx;
 	struct zstd_header *hdr = (struct zstd_header *)d_start;
 	/* Skip compression if the specified level is invalid */
+
 	if (zstd_enum_to_cookie(level, &levelcookie)) {
 		return (s_len);
 	}
@@ -439,8 +440,11 @@ zstd_decompress_level(void *s_start, void *d_start, size_t s_len, size_t d_len,
 	 * An invalid level is a strong indicator for data corruption! In such
 	 * case return an error so the upper layers can try to fix it.
 	 */
-	if (zstd_enum_to_cookie(zstdlevel, &levelcookie)) {
+	if (version >= 10405 && zstd_enum_to_cookie(zstdlevel, &levelcookie)) {
 		return (1);
+	}
+	if (version < 10405) {
+		zstdlevel = version;
 	}
 
 	ASSERT3U(d_len, >=, s_len);
@@ -460,7 +464,6 @@ zstd_decompress_level(void *s_start, void *d_start, size_t s_len, size_t d_len,
 	 * special case for supporting older development versions
 	 * which did contain the magic
 	 */
-
 	if (version >= 10405) {
 		/* Set header type to "magicless" */
 		ZSTD_DCtx_setParameter(dctx, ZSTD_d_format,
