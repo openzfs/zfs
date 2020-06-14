@@ -43,9 +43,14 @@
 #include <sys/types.h>
 #include_next <sys/uio.h>
 
+#ifdef __APPLE__
+#include <sys/_types/_iovec_t.h>
+#endif
+
 #include <stdint.h>
 typedef struct iovec iovec_t;
 
+#if defined(__linux__) || defined(__APPLE__)
 typedef enum uio_rw {
 	UIO_READ =	0,
 	UIO_WRITE =	1,
@@ -57,14 +62,18 @@ typedef enum uio_seg {
 	UIO_USERISPACE = 2,
 } uio_seg_t;
 
+#elif defined(__FreeBSD__)
+typedef enum uio_seg  uio_seg_t;
+#endif
+
 typedef struct uio {
 	struct iovec	*uio_iov;	/* pointer to array of iovecs */
 	int		uio_iovcnt;	/* number of iovecs */
-	loff_t		uio_loffset;	/* file offset */
+	offset_t	uio_loffset;	/* file offset */
 	uio_seg_t	uio_segflg;	/* address space (kernel or user) */
 	uint16_t	uio_fmode;	/* file mode flags */
 	uint16_t	uio_extflg;	/* extended flags */
-	loff_t		uio_limit;	/* u-limit (maximum byte offset) */
+	offset_t	uio_limit;	/* u-limit (maximum byte offset) */
 	ssize_t		uio_resid;	/* residual count */
 } uio_t;
 
@@ -106,5 +115,38 @@ typedef struct xuio {
 
 #define	XUIO_XUZC_PRIV(xuio)	xuio->xu_ext.xu_zc.xu_zc_priv
 #define	XUIO_XUZC_RW(xuio)	xuio->xu_ext.xu_zc.xu_zc_rw
+
+#define	uio_segflg(uio)			(uio)->uio_segflg
+#define	uio_offset(uio)			(uio)->uio_loffset
+#define	uio_resid(uio)			(uio)->uio_resid
+#define	uio_iovcnt(uio)			(uio)->uio_iovcnt
+#define	uio_iovlen(uio, idx)		(uio)->uio_iov[(idx)].iov_len
+#define	uio_iovbase(uio, idx)		(uio)->uio_iov[(idx)].iov_base
+
+static inline void
+uio_iov_at_index(uio_t *uio, uint_t idx, void **base, uint64_t *len)
+{
+	*base = uio_iovbase(uio, idx);
+	*len = uio_iovlen(uio, idx);
+}
+
+static inline void
+uio_advance(uio_t *uio, size_t size)
+{
+	uio->uio_resid -= size;
+	uio->uio_loffset += size;
+}
+
+static inline offset_t
+uio_index_at_offset(uio_t *uio, offset_t off, uint_t *vec_idx)
+{
+	*vec_idx = 0;
+	while (*vec_idx < uio_iovcnt(uio) && off >= uio_iovlen(uio, *vec_idx)) {
+		off -= uio_iovlen(uio, *vec_idx);
+		(*vec_idx)++;
+	}
+
+	return (off);
+}
 
 #endif	/* _SYS_UIO_H */
