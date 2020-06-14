@@ -2691,7 +2691,7 @@ zil_commit_waiter(zilog_t *zilog, zil_commit_waiter_t *zcw)
 			    &zcw->zcw_lock, wakeup, USEC2NSEC(1),
 			    CALLOUT_FLAG_ABSOLUTE);
 
-			if (timeleft >= 0 || zcw->zcw_done)
+			if (timeleft != -1 || zcw->zcw_done)
 				continue;
 
 			timedout = B_TRUE;
