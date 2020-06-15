@@ -88,13 +88,13 @@ update_vdev_config_dev_strs(nvlist_t *nv)
 /*
  * Do not even look at these devices.
  */
-static const char * const blacklist_devs[] = {
+static const char * const blocklist_devs[] = {
 	"nfslock",
 	"sequencer",
 	"zfs",
 };
-#define	BLACKLIST_DIR		"/dev/"
-#define	BLACKLIST_DIR_LEN	5
+#define	BLOCKLIST_DIR		"/dev/"
+#define	BLOCKLIST_DIR_LEN	5
 
 void
 zpool_open_func(void *arg)
@@ -108,12 +108,12 @@ zpool_open_func(void *arg)
 	off_t mediasize = 0;
 
 	/*
-	 * Do not even look at blacklisted devices.
+	 * Do not even look at blocklisted devices.
 	 */
-	if (strncmp(rn->rn_name, BLACKLIST_DIR, BLACKLIST_DIR_LEN) == 0) {
-		char *name = rn->rn_name + BLACKLIST_DIR_LEN;
-		for (i = 0; i < nitems(blacklist_devs); ++i) {
-			const char *badname = blacklist_devs[i];
+	if (strncmp(rn->rn_name, BLOCKLIST_DIR, BLOCKLIST_DIR_LEN) == 0) {
+		char *name = rn->rn_name + BLOCKLIST_DIR_LEN;
+		for (i = 0; i < nitems(blocklist_devs); ++i) {
+			const char *badname = blocklist_devs[i];
 			size_t len = strlen(badname);
 			if (strncmp(name, badname, len) == 0) {
 				return;
