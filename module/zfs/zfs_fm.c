@@ -1458,7 +1458,8 @@ zfs_ereport_snapshot_post(const char *subclass, spa_t *spa, const char *name)
 	    subclass,
 	    spa, NULL, NULL, NULL, 0, 0);
 
-	if (ereport == NULL) return;
+	if (ereport == NULL)
+		return;
 
 	VERIFY0(nvlist_add_string(ereport, "snapshot_name", name));
 

@@ -53,8 +53,6 @@
 #include <sys/sysmacros.h>
 #include <unistd.h>
 
-int osx_device_isvirtual(char *pathbuf);
-
 static struct uuid_to_ptag {
 	struct uuid	uuid;
 } conversion_array[] = {
@@ -190,6 +188,125 @@ int efi_debug = 0;
 #endif
 
 static int efi_read(int, struct dk_gpt *);
+/* Additional macOS support functions */
+
+#include <DiskArbitration/DiskArbitration.h>
+#include <IOKit/storage/IOStorageProtocolCharacteristics.h>
+
+static const CFStringRef CoreStorageLogicalVolumeMediaPathSubstring =
+    CFSTR("/CoreStoragePhysical/");
+static const CFStringRef VirtualInterfaceDeviceProtocolSubstring =
+    CFSTR(kIOPropertyPhysicalInterconnectTypeVirtual);
+
+typedef struct {
+	DASessionRef session;
+	DADiskRef disk;
+} DADiskSession;
+
+static Boolean
+CFDictionaryValueIfPresentMatchesSubstring(CFDictionaryRef dict,
+    CFStringRef key, CFStringRef substr)
+{
+	Boolean ret = false;
+	CFStringRef existing;
+	if (dict &&
+	    CFDictionaryGetValueIfPresent(dict, key,
+	    (const void **)&existing)) {
+		CFRange range = CFStringFind(existing, substr,
+		    kCFCompareCaseInsensitive);
+		if (range.location != kCFNotFound)
+			ret = true;
+	}
+	return (ret);
+}
+
+static int
+setupDADiskSession(DADiskSession *ds, const char *bsdName)
+{
+	int err = 0;
+
+	ds->session = DASessionCreate(NULL);
+	if (ds->session == NULL) {
+		err = EINVAL;
+	}
+
+	if (err == 0) {
+		ds->disk = DADiskCreateFromBSDName(NULL, ds->session, bsdName);
+		if (ds->disk == NULL)
+			err = EINVAL;
+	}
+	return (err);
+}
+
+static void
+teardownDADiskSession(DADiskSession *ds)
+{
+	if (ds->session != NULL)
+		CFRelease(ds->session);
+	if (ds->disk != NULL)
+		CFRelease(ds->disk);
+}
+
+static int
+isDeviceMatchForKeyAndSubstr(char *device, CFStringRef key, CFStringRef substr,
+    Boolean *isMatch)
+{
+	int error;
+	DADiskSession ds = { 0 };
+
+	if (!isMatch)
+		return (-1);
+
+	if ((error = setupDADiskSession(&ds, device)) == 0) {
+		CFDictionaryRef descDict = NULL;
+		if ((descDict = DADiskCopyDescription(ds.disk)) != NULL) {
+			*isMatch =
+			    CFDictionaryValueIfPresentMatchesSubstring(descDict,
+			    key, substr);
+		} else {
+			error = -1;
+			(void) fprintf(stderr,
+			    "no DADiskCopyDescription for device %s\n",
+			    device);
+			*isMatch = false;
+		}
+	}
+
+	teardownDADiskSession(&ds);
+	return (error);
+}
+
+/*
+ * Caller is responsible for supplying a /dev/disk* block device path
+ * or the BSD name (disk*).
+ */
+static int
+osx_device_isvirtual(char *device)
+{
+	Boolean isCoreStorageLV = false;
+	Boolean isVirtualInterface = false;
+
+	if (efi_debug)
+		(void) fprintf(stderr, "Checking if '%s' is virtual\n", device);
+
+	isDeviceMatchForKeyAndSubstr(device,
+	    kDADiskDescriptionMediaPathKey,
+	    CoreStorageLogicalVolumeMediaPathSubstring,
+	    &isCoreStorageLV);
+
+	isDeviceMatchForKeyAndSubstr(device,
+	    kDADiskDescriptionDeviceProtocolKey,
+	    VirtualInterfaceDeviceProtocolSubstring,
+	    &isVirtualInterface);
+
+	if (efi_debug)
+		(void) fprintf(stderr,
+		    "Is CoreStorage LV %d : is virtual interface %d\n",
+		    isCoreStorageLV,
+		    isVirtualInterface);
+
+	return (isCoreStorageLV /* || isVirtualInterface*/);
+}
 
 /*
  * Return a 32-bit CRC of the contents of the buffer.  Pre-and-post
@@ -248,8 +365,8 @@ efi_get_info(int fd, struct dk_cinfo *dki_info)
 					dki_info->dki_partition = 0;
 			}
 			strlcpy(dki_info->dki_dname,
-				&pathbuf[5],
-				sizeof(dki_info->dki_dname));
+			    &pathbuf[5],
+			    sizeof (dki_info->dki_dname));
 		}
 
 		/*
@@ -1590,124 +1707,4 @@ efi_auto_sense(int fd, struct dk_gpt **vtoc)
 	(*vtoc)->efi_parts[8].p_size = (1024 * 16);
 	(*vtoc)->efi_parts[8].p_tag = V_RESERVED;
 	return (0);
-}
-
-/* Additional macOS support functions */
-
-#include <DiskArbitration/DiskArbitration.h>
-#include <IOKit/storage/IOStorageProtocolCharacteristics.h>
-
-static const CFStringRef CoreStorageLogicalVolumeMediaPathSubstring =
-    CFSTR("/CoreStoragePhysical/");
-static const CFStringRef VirtualInterfaceDeviceProtocolSubstring =
-    CFSTR(kIOPropertyPhysicalInterconnectTypeVirtual);
-
-typedef struct {
-	DASessionRef session;
-	DADiskRef disk;
-} DADiskSession;
-
-Boolean
-CFDictionaryValueIfPresentMatchesSubstring(CFDictionaryRef dict,
-    CFStringRef key, CFStringRef substr)
-{
-	Boolean ret = false;
-	CFStringRef existing;
-	if (dict &&
-	    CFDictionaryGetValueIfPresent(dict, key,
-	    (const void **)&existing)) {
-		CFRange range = CFStringFind(existing, substr,
-		    kCFCompareCaseInsensitive);
-		if (range.location != kCFNotFound)
-			ret = true;
-	}
-	return (ret);
-}
-
-int
-setupDADiskSession(DADiskSession *ds, const char *bsdName)
-{
-	int err = 0;
-
-	ds->session = DASessionCreate(NULL);
-	if (ds->session == NULL) {
-		err = EINVAL;
-	}
-
-	if (err == 0) {
-		ds->disk = DADiskCreateFromBSDName(NULL, ds->session, bsdName);
-		if (ds->disk == NULL)
-			err = EINVAL;
-	}
-	return (err);
-}
-
-void
-teardownDADiskSession(DADiskSession *ds)
-{
-	if (ds->session != NULL)
-		CFRelease(ds->session);
-	if (ds->disk != NULL)
-		CFRelease(ds->disk);
-}
-
-int
-isDeviceMatchForKeyAndSubstr(char *device, CFStringRef key, CFStringRef substr,
-    Boolean *isMatch)
-{
-	int error;
-	DADiskSession ds = { 0 };
-
-	if (!isMatch)
-		return (-1);
-
-	if ((error = setupDADiskSession(&ds, device)) == 0) {
-		CFDictionaryRef descDict = NULL;
-		if((descDict = DADiskCopyDescription(ds.disk)) != NULL) {
-			*isMatch =
-			    CFDictionaryValueIfPresentMatchesSubstring(descDict,
-			    key, substr);
-		} else {
-			error = -1;
-			(void) fprintf(stderr,
-			    "no DADiskCopyDescription for device %s\n",
-			    device);
-			*isMatch = false;
-		}
-	}
-
-	teardownDADiskSession(&ds);
-	return (error);
-}
-
-/*
- * Caller is responsible for supplying a /dev/disk* block device path
- * or the BSD name (disk*).
- */
-int
-osx_device_isvirtual(char *device)
-{
-	Boolean isCoreStorageLV = false;
-	Boolean isVirtualInterface = false;
-
-	if (efi_debug)
-		(void) fprintf(stderr, "Checking if '%s' is virtual\n", device);
-
-	isDeviceMatchForKeyAndSubstr(device,
-	    kDADiskDescriptionMediaPathKey,
-	    CoreStorageLogicalVolumeMediaPathSubstring,
-	    &isCoreStorageLV);
-
-	isDeviceMatchForKeyAndSubstr(device,
-	    kDADiskDescriptionDeviceProtocolKey,
-	    VirtualInterfaceDeviceProtocolSubstring,
-	    &isVirtualInterface);
-
-	if (efi_debug)
-		(void) fprintf(stderr,
-		    "Is CoreStorage LV %d : is virtual interface %d\n",
-		    isCoreStorageLV,
-		    isVirtualInterface);
-
-	return (isCoreStorageLV || isVirtualInterface);
 }

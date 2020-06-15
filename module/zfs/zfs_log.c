@@ -256,15 +256,17 @@ zfs_xattr_owner_unlinked(znode_t *zp)
 	}
 	if (tzp != zp)
 		zrele(tzp);
-#elif __APPLE__
+#elif defined(__APPLE__)
+	VERIFY(ZTOV(zp) != NULL);
 	if (VN_HOLD(ZTOV(zp)) == 0) {
 		/*
-		 * if zp is XATTR node, keep walking up via z_xattr_parent until we
-		 * get the owner
+		 * if zp is XATTR node, keep walking up via z_xattr_parent
+		 * until we get the owner
 		 */
 		while (zp->z_pflags & ZFS_XATTR) {
 			ASSERT3U(zp->z_xattr_parent, !=, 0);
-			if (zfs_zget(ZTOZSB(zp), zp->z_xattr_parent, &dzp) != 0) {
+			if (zfs_zget(ZTOZSB(zp), zp->z_xattr_parent,
+			    &dzp) != 0) {
 				unlinked = 1;
 				break;
 			}

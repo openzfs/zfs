@@ -767,11 +767,11 @@ zfs_mount_and_share(libzfs_handle_t *hdl, const char *dataset, zfs_type_t type)
 		} else if (zfs_mount(zhp, NULL, 0) != 0) {
 			(void) fprintf(stderr, gettext("filesystem "
 			    "successfully created, but not mounted\n"));
-			ret = 1;
+			ret = 0;
 		} else if (zfs_share(zhp) != 0) {
 			(void) fprintf(stderr, gettext("filesystem "
 			    "successfully created, but not shared\n"));
-			ret = 1;
+			ret = 0;
 		}
 		zfs_commit_all_shares();
 	}
@@ -7122,7 +7122,7 @@ share_mount(int op, int argc, char **argv)
 		}
 
 	} else {
-#if defined (__APPLE__)
+#if defined(__APPLE__)
 		/*
 		 * OsX can not mount from kernel, users are expected to mount
 		 * by hand using "zfs mount dataset@snapshot".
@@ -7146,8 +7146,8 @@ share_mount(int op, int argc, char **argv)
 
 			} else {
 
-				ret = share_mount_one(zhp, op, flags, NULL, B_TRUE,
-					options);
+				ret = share_mount_one(zhp, op, flags, NULL,
+				    B_TRUE, options);
 			}
 
 			zfs_close(zhp);
@@ -7549,7 +7549,7 @@ unshare_unmount(int op, int argc, char **argv)
 			return (unshare_unmount_path(op, argv[0],
 			    flags, B_FALSE));
 
-#if defined (__APPLE__)
+#if defined(__APPLE__)
 		/* Temporarily, allow mounting snapshots on OS X */
 
 		if ((zhp = zfs_open(g_zfs, argv[0],

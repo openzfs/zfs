@@ -2718,15 +2718,19 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 
 #ifdef __APPLE__
 			/*
-			 * On OSX by default we mount pools under /Volumes unless
-			 * the dataset property mountpoint specifies otherwise.
-			 * In addition to this, there is an undocumented environment
-			 * variable __ZFS_MAIN_MOUNTPOINT_DIR, used mainly by the
-			 * testing environment, as it expects "/" by default.
+			 * On OSX by default we mount pools under /Volumes
+			 * unless the dataset property mountpoint specifies
+			 * otherwise.
+			 * In addition to this, there is an undocumented
+			 * environment variable __ZFS_MAIN_MOUNTPOINT_DIR,
+			 * used mainly by the testing environment, as it
+			 * expects "/" by default.
 			 */
 			char *default_mountpoint;
-			default_mountpoint = getenv("__ZFS_MAIN_MOUNTPOINT_DIR");
-			if (!default_mountpoint) default_mountpoint = "/Volumes/";
+			default_mountpoint =
+			    getenv("__ZFS_MAIN_MOUNTPOINT_DIR");
+			if (!default_mountpoint)
+				default_mountpoint = "/Volumes/";
 
 			if (relpath[0] == '\0')
 				(void) snprintf(propbuf, proplen, "%s%s",
@@ -2734,8 +2738,8 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 			else
 				(void) snprintf(propbuf, proplen, "%s%s%s%s",
 				    root, str, source == NULL ||
-				    source[0] == '\0' ? default_mountpoint : "/",
-				    relpath);
+				    source[0] == '\0' ? default_mountpoint :
+				    "/", relpath);
 
 #else
 
