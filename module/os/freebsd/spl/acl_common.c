@@ -1707,25 +1707,3 @@ ace_trivial_common(void *acep, int aclcnt,
 	}
 	return (0);
 }
-
-uint64_t
-ace_walk(void *datap, uint64_t cookie, int aclcnt, uint16_t *flags,
-    uint16_t *type, uint32_t *mask)
-{
-	ace_t *acep = datap;
-
-	if (cookie >= aclcnt)
-		return (0);
-
-	*flags = acep[cookie].a_flags;
-	*type = acep[cookie].a_type;
-	*mask = acep[cookie++].a_access_mask;
-
-	return (cookie);
-}
-
-int
-ace_trivial(ace_t *acep, int aclcnt)
-{
-	return (ace_trivial_common(acep, aclcnt, ace_walk));
-}

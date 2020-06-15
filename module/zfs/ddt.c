@@ -595,12 +595,6 @@ ddt_decompress(uchar_t *src, void *dst, size_t s_len, size_t d_len)
 }
 
 ddt_t *
-ddt_select_by_checksum(spa_t *spa, enum zio_checksum c)
-{
-	return (spa->spa_ddt[c]);
-}
-
-ddt_t *
 ddt_select(spa_t *spa, const blkptr_t *bp)
 {
 	return (spa->spa_ddt[BP_GET_CHECKSUM(bp)]);

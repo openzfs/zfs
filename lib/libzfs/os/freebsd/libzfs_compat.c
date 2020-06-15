@@ -33,9 +33,6 @@
 #include <sys/stat.h>
 #include <sys/param.h>
 
-int zfs_ioctl_version = ZFS_IOCVER_UNDEF;
-// static int zfs_spa_version = -1;
-
 void
 libzfs_set_pipe_max(int infd)
 {
@@ -171,38 +168,6 @@ execvpe(const char *name, char * const argv[], char * const envp[])
 		path = _PATH_DEFPATH;
 
 	return (execvPe(name, path, argv, envp));
-}
-
-#if 0
-/*
- * Get the SPA version
- */
-static int
-get_zfs_spa_version(void)
-{
-	size_t ver_size;
-	int ver = 0;
-
-	ver_size = sizeof (ver);
-	sysctlbyname("vfs.zfs.version.spa", &ver, &ver_size, NULL, 0);
-
-	return (ver);
-}
-#endif
-
-/*
- * Get zfs_ioctl_version
- */
-int
-get_zfs_ioctl_version(void)
-{
-	size_t ver_size;
-	int ver = ZFS_IOCVER_NONE;
-
-	ver_size = sizeof (ver);
-	sysctlbyname("vfs.zfs.version.ioctl", &ver, &ver_size, NULL, 0);
-
-	return (ver);
 }
 
 const char *

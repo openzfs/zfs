@@ -288,22 +288,6 @@ kstat_delete(kstat_t *ksp)
 }
 
 void
-kstat_set_string(char *dst, const char *src)
-{
-
-	bzero(dst, KSTAT_STRLEN);
-	(void) strncpy(dst, src, KSTAT_STRLEN - 1);
-}
-
-void
-kstat_named_init(kstat_named_t *knp, const char *name, uchar_t data_type)
-{
-
-	kstat_set_string(knp->name, name);
-	knp->data_type = data_type;
-}
-
-void
 kstat_waitq_enter(kstat_io_t *kiop)
 {
 	hrtime_t new, delta;

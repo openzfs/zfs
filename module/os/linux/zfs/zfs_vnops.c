@@ -4563,25 +4563,6 @@ zfs_inactive(struct inode *ip)
 }
 
 /*
- * Bounds-check the seek operation.
- *
- *	IN:	ip	- inode seeking within
- *		ooff	- old file offset
- *		noffp	- pointer to new file offset
- *
- *	RETURN:	0 if success
- *		EINVAL if new offset invalid
- */
-/* ARGSUSED */
-int
-zfs_seek(struct inode *ip, offset_t ooff, offset_t *noffp)
-{
-	if (S_ISDIR(ip->i_mode))
-		return (0);
-	return ((*noffp < 0 || *noffp > MAXOFFSET_T) ? EINVAL : 0);
-}
-
-/*
  * Fill pages with data from the disk.
  */
 static int
