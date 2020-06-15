@@ -341,7 +341,6 @@ extern void cv_broadcast(kcondvar_t *cv);
  */
 extern kstat_t *kstat_create(const char *, int,
     const char *, const char *, uchar_t, ulong_t, uchar_t);
-extern void kstat_named_init(kstat_named_t *, const char *, uchar_t);
 extern void kstat_install(kstat_t *);
 extern void kstat_delete(kstat_t *);
 extern void kstat_waitq_enter(kstat_io_t *);

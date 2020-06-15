@@ -135,14 +135,3 @@ zfs_mount_delegation_check(void)
 {
 	return (0);
 }
-
-/*
- * Check if we are doing an overlay mount.
- * Returns B_TRUE if the mount would overlay, otherwise B_FALSE.
- */
-boolean_t
-zfs_mount_overlay_check(const char *mountpoint)
-{
-	/* FreeBSD always allows overlay mounts. */
-	return (B_FALSE);
-}
