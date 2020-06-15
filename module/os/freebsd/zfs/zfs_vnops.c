@@ -1251,7 +1251,7 @@ zfs_write_simple(znode_t *zp, const void *data, size_t len,
 	return (error);
 }
 
-void
+static void
 zfs_get_done(zgd_t *zgd, int error)
 {
 	znode_t *zp = zgd->zgd_private;
@@ -2052,7 +2052,7 @@ out:
 }
 
 
-int
+static int
 zfs_lookup_internal(znode_t *dzp, char *name, vnode_t **vpp,
     struct componentname *cnp, int nameiop)
 {
@@ -4605,7 +4605,7 @@ zfs_space(znode_t *zp, int cmd, flock64_t *bfp, int flag,
 }
 
 /*ARGSUSED*/
-void
+static void
 zfs_inactive(vnode_t *vp, cred_t *cr, caller_context_t *ct)
 {
 	znode_t	*zp = VTOZ(vp);
@@ -5043,7 +5043,7 @@ struct vop_putpages_args {
 };
 #endif
 
-int
+static int
 zfs_freebsd_putpages(struct vop_putpages_args *ap)
 {
 
@@ -5994,7 +5994,7 @@ struct vop_deleteextattr {
 /*
  * Vnode operation to remove a named attribute.
  */
-int
+static int
 zfs_deleteextattr(struct vop_deleteextattr_args *ap)
 {
 	zfsvfs_t *zfsvfs = VTOZ(ap->a_vp)->z_zfsvfs;
@@ -6271,7 +6271,7 @@ struct vop_getacl_args {
 };
 #endif
 
-int
+static int
 zfs_freebsd_getacl(struct vop_getacl_args *ap)
 {
 	int		error;
@@ -6302,7 +6302,7 @@ struct vop_setacl_args {
 };
 #endif
 
-int
+static int
 zfs_freebsd_setacl(struct vop_setacl_args *ap)
 {
 	int		error;
@@ -6355,7 +6355,7 @@ struct vop_aclcheck_args {
 };
 #endif
 
-int
+static int
 zfs_freebsd_aclcheck(struct vop_aclcheck_args *ap)
 {
 

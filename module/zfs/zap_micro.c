@@ -230,7 +230,7 @@ zap_name_alloc(zap_t *zap, const char *key, matchtype_t mt)
 	return (zn);
 }
 
-zap_name_t *
+static zap_name_t *
 zap_name_alloc_uint64(zap_t *zap, const uint64_t *key, int numints)
 {
 	zap_name_t *zn = kmem_alloc(sizeof (zap_name_t), KM_SLEEP);

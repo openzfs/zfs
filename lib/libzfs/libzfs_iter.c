@@ -38,7 +38,7 @@
 
 #include "libzfs_impl.h"
 
-int
+static int
 zfs_iter_clones(zfs_handle_t *zhp, zfs_iter_f func, void *data)
 {
 	nvlist_t *nvl = zfs_get_clones_nvl(zhp);

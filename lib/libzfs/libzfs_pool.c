@@ -445,7 +445,7 @@ bootfs_name_valid(const char *pool, const char *bootfs)
 	return (B_FALSE);
 }
 
-boolean_t
+static boolean_t
 zpool_is_bootable(zpool_handle_t *zhp)
 {
 	char bootfs[ZFS_MAX_DATASET_NAME_LEN];
@@ -2141,7 +2141,7 @@ xlate_init_err(int err)
  * Begin, suspend, or cancel the initialization (initializing of all free
  * blocks) for the given vdevs in the given pool.
  */
-int
+static int
 zpool_initialize_impl(zpool_handle_t *zhp, pool_initialize_func_t cmd_type,
     nvlist_t *vds, boolean_t wait)
 {

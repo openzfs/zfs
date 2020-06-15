@@ -543,7 +543,7 @@ spl_kernel_read(struct file *file, void *buf, size_t count, loff_t *pos)
 #endif
 }
 
-int
+static int
 spl_getattr(struct file *filp, struct kstat *stat)
 {
 	int rc;

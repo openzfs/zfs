@@ -971,7 +971,7 @@ zfs_set_fuid_feature(zfsvfs_t *zfsvfs)
 	zfsvfs->z_use_sa = USE_SA(zfsvfs->z_version, zfsvfs->z_os);
 }
 
-void
+static void
 zfs_unregister_callbacks(zfsvfs_t *zfsvfs)
 {
 	objset_t *os = zfsvfs->z_os;
@@ -1159,7 +1159,7 @@ zfs_statvfs(struct dentry *dentry, struct kstatfs *statp)
 	return (err);
 }
 
-int
+static int
 zfs_root(zfsvfs_t *zfsvfs, struct inode **ipp)
 {
 	znode_t *rootzp;

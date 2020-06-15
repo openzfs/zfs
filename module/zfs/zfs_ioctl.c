@@ -735,13 +735,13 @@ zfs_secpolicy_send_new(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 	    ZFS_DELEG_PERM_SEND, cr));
 }
 
-int
+static int
 zfs_secpolicy_share(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 {
 	return (SET_ERROR(ENOTSUP));
 }
 
-int
+static int
 zfs_secpolicy_smb_acl(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 {
 	return (SET_ERROR(ENOTSUP));
@@ -6421,7 +6421,7 @@ zfs_ioc_send_new(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 }
 
 /* ARGSUSED */
-int
+static int
 send_space_sum(objset_t *os, void *buf, int len, void *arg)
 {
 	uint64_t *size = arg;
@@ -6876,7 +6876,7 @@ zfs_ioctl_register_dataset_modify(zfs_ioc_t ioc, zfs_ioc_legacy_func_t *func,
 	    DATASET_NAME, B_TRUE, POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY);
 }
 
-void
+static void
 zfs_ioctl_init(void)
 {
 	zfs_ioctl_register("snapshot", ZFS_IOC_SNAPSHOT,
@@ -7259,7 +7259,7 @@ zfs_check_input_nvpairs(nvlist_t *innvl, const zfs_ioc_vec_t *vec)
 	return (0);
 }
 
-int
+static int
 pool_status_check(const char *name, zfs_ioc_namecheck_t type,
     zfs_ioc_poolcheck_t check)
 {

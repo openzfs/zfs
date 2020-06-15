@@ -268,7 +268,7 @@ layout_hash_compare(const void *arg1, const void *arg2)
 	return (TREE_CMP(node1->lot_instance, node2->lot_instance));
 }
 
-boolean_t
+static boolean_t
 sa_layout_equal(sa_lot_t *tbf, sa_attr_type_t *attrs, int count)
 {
 	int i;
@@ -318,7 +318,7 @@ sa_get_spill(sa_handle_t *hdl)
  *
  * Operates on bulk array, first failure will abort further processing
  */
-int
+static int
 sa_attr_op(sa_handle_t *hdl, sa_bulk_attr_t *bulk, int count,
     sa_data_op_t data_op, dmu_tx_t *tx)
 {
@@ -1156,7 +1156,7 @@ sa_tear_down(objset_t *os)
 	os->os_sa = NULL;
 }
 
-void
+static void
 sa_build_idx_tab(void *hdr, void *attr_addr, sa_attr_type_t attr,
     uint16_t length, int length_idx, boolean_t var_length, void *userp)
 {
@@ -1220,7 +1220,7 @@ sa_attr_iter(objset_t *os, sa_hdr_phys_t *hdr, dmu_object_type_t type,
 }
 
 /*ARGSUSED*/
-void
+static void
 sa_byteswap_cb(void *hdr, void *attr_addr, sa_attr_type_t attr,
     uint16_t length, int length_idx, boolean_t variable_length, void *userp)
 {
@@ -1230,7 +1230,7 @@ sa_byteswap_cb(void *hdr, void *attr_addr, sa_attr_type_t attr,
 	sa_bswap_table[sa->sa_attr_table[attr].sa_byteswap](attr_addr, length);
 }
 
-void
+static void
 sa_byteswap(sa_handle_t *hdl, sa_buf_type_t buftype)
 {
 	sa_hdr_phys_t *sa_hdr_phys = SA_GET_HDR(hdl, buftype);
@@ -1462,7 +1462,7 @@ sa_buf_rele(dmu_buf_t *db, void *tag)
 	dmu_buf_rele(db, tag);
 }
 
-int
+static int
 sa_lookup_impl(sa_handle_t *hdl, sa_bulk_attr_t *bulk, int count)
 {
 	ASSERT(hdl);

@@ -1041,7 +1041,7 @@ zfs_zrele_async(znode_t *zp)
 }
 
 /* ARGSUSED */
-void
+static void
 zfs_get_done(zgd_t *zgd, int error)
 {
 	znode_t *zp = zgd->zgd_private;
