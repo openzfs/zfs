@@ -648,7 +648,7 @@ zfs_ace_walk(void *datap, uint64_t cookie, int aclcnt,
  * While processing the ACL each ACE will be validated for correctness.
  * ACE FUIDs will be created later.
  */
-int
+static int
 zfs_copy_ace_2_fuid(zfsvfs_t *zfsvfs, vtype_t obj_type, zfs_acl_t *aclp,
     void *datap, zfs_ace_t *z_acl, uint64_t aclcnt, size_t *size,
     zfs_fuid_info_t **fuidp, cred_t *cr)

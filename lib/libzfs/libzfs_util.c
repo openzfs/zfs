@@ -1773,7 +1773,7 @@ typedef struct expand_data {
 	zfs_type_t type;
 } expand_data_t;
 
-int
+static int
 zprop_expand_list_cb(int prop, void *cb)
 {
 	zprop_list_t *entry;

@@ -148,7 +148,7 @@ zpl_xattr_filldir(xattr_filldir_t *xf, const char *name, int name_len)
  * Read as many directory entry names as will fit in to the provided buffer,
  * or when no buffer is provided calculate the required buffer size.
  */
-int
+static int
 zpl_xattr_readdir(struct inode *dxip, xattr_filldir_t *xf)
 {
 	zap_cursor_t zc;
@@ -920,6 +920,9 @@ xattr_handler_t zpl_xattr_security_handler = {
  * attribute implemented by filesystems in the kernel." - xattr(7)
  */
 #ifdef CONFIG_FS_POSIX_ACL
+#ifndef HAVE_SET_ACL
+static
+#endif
 int
 zpl_set_acl(struct inode *ip, struct posix_acl *acl, int type)
 {

@@ -640,7 +640,7 @@ zvol_revalidate_disk(struct gendisk *disk)
 	return (0);
 }
 
-int
+static int
 zvol_update_volsize(zvol_state_t *zv, uint64_t volsize)
 {
 

@@ -443,7 +443,7 @@ safe_malloc(size_t size)
 	return (data);
 }
 
-void *
+static void *
 safe_realloc(void *data, size_t size)
 {
 	void *newp;

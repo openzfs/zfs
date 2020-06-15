@@ -1588,7 +1588,7 @@ vdev_uberblock_sync(zio_t *zio, uint64_t *good_writes,
 }
 
 /* Sync the uberblocks to all vdevs in svd[] */
-int
+static int
 vdev_uberblock_sync_list(vdev_t **svd, int svdcount, uberblock_t *ub, int flags)
 {
 	spa_t *spa = svd[0]->vdev_spa;
@@ -1705,7 +1705,7 @@ vdev_label_sync(zio_t *zio, uint64_t *good_writes,
 	nvlist_free(label);
 }
 
-int
+static int
 vdev_label_sync_list(spa_t *spa, int l, uint64_t txg, int flags)
 {
 	list_t *dl = &spa->spa_config_dirty_list;

@@ -872,7 +872,7 @@ kcf_free_req(kcf_areq_node_t *areq)
  * Utility routine to remove a request from the chain of requests
  * hanging off a context.
  */
-void
+static void
 kcf_removereq_in_ctxchain(kcf_context_t *ictx, kcf_areq_node_t *areq)
 {
 	kcf_areq_node_t *cur, *prev;
@@ -909,7 +909,7 @@ kcf_removereq_in_ctxchain(kcf_context_t *ictx, kcf_areq_node_t *areq)
  *
  * The caller must hold the queue lock and request lock (an_lock).
  */
-void
+static void
 kcf_remove_node(kcf_areq_node_t *node)
 {
 	kcf_areq_node_t *nextp = node->an_next;

@@ -648,7 +648,7 @@ zfs_ace_walk(void *datap, uint64_t cookie, int aclcnt,
  * While processing the ACL each ACE will be validated for correctness.
  * ACE FUIDs will be created later.
  */
-int
+static int
 zfs_copy_ace_2_fuid(zfsvfs_t *zfsvfs, umode_t obj_mode, zfs_acl_t *aclp,
     void *datap, zfs_ace_t *z_acl, uint64_t aclcnt, size_t *size,
     zfs_fuid_info_t **fuidp, cred_t *cr)
@@ -1189,7 +1189,7 @@ typedef struct trivial_acl {
 	uint32_t	everyone;	/* allow mask matching mode */
 } trivial_acl_t;
 
-void
+static void
 acl_trivial_access_masks(mode_t mode, boolean_t isdir, trivial_acl_t *masks)
 {
 	uint32_t read_mask = ACE_READ_DATA;
@@ -1262,7 +1262,7 @@ acl_trivial_access_masks(mode_t mode, boolean_t isdir, trivial_acl_t *masks)
  * have read_acl denied, and write_owner/write_acl/write_attributes
  * can only be owner@ entry.
  */
-int
+static int
 ace_trivial_common(void *acep, int aclcnt,
     uint64_t (*walk)(void *, uint64_t, int aclcnt,
     uint16_t *, uint16_t *, uint32_t *))

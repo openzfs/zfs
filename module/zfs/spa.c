@@ -2264,7 +2264,7 @@ spa_load_verify_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 }
 
 /* ARGSUSED */
-int
+static int
 verify_dataset_name_len(dsl_pool_t *dp, dsl_dataset_t *ds, void *arg)
 {
 	if (dsl_dataset_namelen(ds) >= ZFS_MAX_DATASET_NAME_LEN)
@@ -2492,7 +2492,7 @@ livelist_delete_sync(void *arg, dmu_tx_t *tx)
  * the pool-wide livelist data.
  */
 /* ARGSUSED */
-void
+static void
 spa_livelist_delete_cb(void *arg, zthr_t *z)
 {
 	spa_t *spa = arg;
@@ -2546,7 +2546,7 @@ spa_livelist_delete_cb(void *arg, zthr_t *z)
 	}
 }
 
-void
+static void
 spa_start_livelist_destroy_thread(spa_t *spa)
 {
 	ASSERT3P(spa->spa_livelist_delete_zthr, ==, NULL);
@@ -2652,7 +2652,7 @@ out:
 	spa->spa_to_condense.syncing = B_FALSE;
 }
 
-void
+static void
 spa_livelist_condense_cb(void *arg, zthr_t *t)
 {
 	while (zfs_livelist_condense_zthr_pause &&
@@ -2747,7 +2747,7 @@ spa_livelist_condense_cb_check(void *arg, zthr_t *z)
 	return (B_FALSE);
 }
 
-void
+static void
 spa_start_livelist_condensing_thread(spa_t *spa)
 {
 	spa->spa_to_condense.ds = NULL;
@@ -7733,7 +7733,7 @@ spa_vdev_resilver_done(spa_t *spa)
 /*
  * Update the stored path or FRU for this vdev.
  */
-int
+static int
 spa_vdev_set_common(spa_t *spa, uint64_t guid, const char *value,
     boolean_t ispath)
 {

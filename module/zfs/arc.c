@@ -1696,7 +1696,7 @@ arc_buf_try_copy_decompressed_data(arc_buf_t *buf)
  * which circumvent the regular disk->arc->l2arc path and instead come
  * into being in the reverse order, i.e. l2arc->arc.
  */
-arc_buf_hdr_t *
+static arc_buf_hdr_t *
 arc_buf_alloc_l2only(size_t size, arc_buf_contents_t type, l2arc_dev_t *dev,
     dva_t dva, uint64_t daddr, int32_t psize, uint64_t birth,
     enum zio_compress compress, boolean_t protected, boolean_t prefetch)
@@ -7016,7 +7016,7 @@ arc_kstat_update(kstat_t *ksp, int rw)
  * distributed between all sublists and uses this assumption when
  * deciding which sublist to evict from and how much to evict from it.
  */
-unsigned int
+static unsigned int
 arc_state_multilist_index_func(multilist_t *ml, void *obj)
 {
 	arc_buf_hdr_t *hdr = obj;

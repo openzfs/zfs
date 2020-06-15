@@ -2857,7 +2857,7 @@ vdev_construct_zaps(vdev_t *vd, dmu_tx_t *tx)
 	}
 }
 
-void
+static void
 vdev_dtl_sync(vdev_t *vd, uint64_t txg)
 {
 	spa_t *spa = vd->vdev_spa;
