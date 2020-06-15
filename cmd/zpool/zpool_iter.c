@@ -616,7 +616,7 @@ for_each_vdev_run_cb(zpool_handle_t *zhp, nvlist_t *nv, void *cb_vcdl)
 		}
 	}
 
-	/* Check for whitelisted vdevs here, if any */
+	/* Check for selected vdevs here, if any */
 	for (i = 0; i < vcdl->vdev_names_count; i++) {
 		vname = zpool_vdev_name(g_zfs, zhp, nv, vcdl->cb_name_flags);
 		if (strcmp(vcdl->vdev_names[i], vname) == 0) {
@@ -627,7 +627,7 @@ for_each_vdev_run_cb(zpool_handle_t *zhp, nvlist_t *nv, void *cb_vcdl)
 		free(vname);
 	}
 
-	/* If we whitelisted vdevs, and this isn't one of them, then bail out */
+	/* If we selected vdevs, and this isn't one of them, then bail out */
 	if (!match && vcdl->vdev_names_count)
 		return (0);
 
