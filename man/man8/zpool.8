@@ -431,13 +431,18 @@ option.
    U13      ONLINE 0    0     0     SEAGATE ST8000NM0075 7.3T
    U14      ONLINE 0    0     0     SEAGATE ST8000NM0075 7.3T
 
-# zpool iostat -vc size
-              capacity     operations     bandwidth
-pool        alloc   free   read  write   read  write  size
-----------  -----  -----  -----  -----  -----  -----  ----
-rpool       14.6G  54.9G      4     55   250K  2.69M
-  sda1      14.6G  54.9G      4     55   250K  2.69M   70G
-----------  -----  -----  -----  -----  -----  -----  ----
+# zpool iostat -vc slaves
+   capacity operations bandwidth
+   pool       alloc free  read  write read  write slaves
+   ---------- ----- ----- ----- ----- ----- ----- ---------
+   tank       20.4G 7.23T 26    152   20.7M 21.6M
+   mirror     20.4G 7.23T 26    152   20.7M 21.6M
+   U1         -     -     0     31    1.46K 20.6M sdb sdff
+   U10        -     -     0     1     3.77K 13.3K sdas sdgw
+   U11        -     -     0     1     288K  13.3K sdat sdgx
+   U12        -     -     0     1     78.4K 13.3K sdau sdgy
+   U13        -     -     0     1     128K  13.3K sdav sdgz
+   U14        -     -     0     1     63.2K 13.3K sdfk sdg
 .Ed
 .El
 .Sh ENVIRONMENT VARIABLES

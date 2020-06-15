@@ -203,11 +203,7 @@ dm_get_underlying_path(const char *dm_name)
 	if (dp == NULL)
 		goto end;
 
-	/*
-	 * Return first entry (that isn't itself a directory) in the
-	 * directory containing device-mapper dependent (underlying)
-	 * devices.
-	 */
+	/* Return first sd* entry in /sys/block/dm-N/slaves/ */
 	while ((ep = readdir(dp))) {
 		if (ep->d_type != DT_DIR) {	/* skip "." and ".." dirs */
 			size = asprintf(&path, "/dev/%s", ep->d_name);

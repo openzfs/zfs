@@ -336,25 +336,25 @@ function on_off_disk # disk state{online,offline} host
 		if [[ $state == "offline" ]] && ( is_mpath_device $disk ); then
 			dm_name="$(readlink $DEV_DSKDIR/$disk \
 			    | nawk -F / '{print $2}')"
-			dep="$(ls /sys/block/${dm_name}/slaves \
+			slave="$(ls /sys/block/${dm_name}/slaves \
 			    | nawk '{print $1}')"
-			while [[ -n $dep ]]; do
+			while [[ -n $slave ]]; do
 				#check if disk is online
-				lsscsi | egrep $dep > /dev/null
+				lsscsi | egrep $slave > /dev/null
 				if (($? == 0)); then
-					dep_dir="/sys/block/${dm_name}"
-					dep_dir+="/slaves/${dep}/device"
-					ss="${dep_dir}/state"
-					sd="${dep_dir}/delete"
+					slave_dir="/sys/block/${dm_name}"
+					slave_dir+="/slaves/${slave}/device"
+					ss="${slave_dir}/state"
+					sd="${slave_dir}/delete"
 					log_must eval "echo 'offline' > ${ss}"
 					log_must eval "echo '1' > ${sd}"
-					lsscsi | egrep $dep > /dev/null
+					lsscsi | egrep $slave > /dev/null
 						if (($? == 0)); then
 							log_fail "Offlining" \
 							    "$disk failed"
 						fi
 				fi
-				dep="$(ls /sys/block/$dm_name/slaves \
+				slave="$(ls /sys/block/$dm_name/slaves \
 				    2>/dev/null | nawk '{print $1}')"
 			done
 		elif [[ $state == "offline" ]] && ( is_real_device $disk ); then
@@ -380,9 +380,9 @@ function on_off_disk # disk state{online,offline} host
 			if is_mpath_device $disk; then
 				dm_name="$(readlink $DEV_DSKDIR/$disk \
 				    | nawk -F / '{print $2}')"
-				dep="$(ls /sys/block/$dm_name/slaves \
+				slave="$(ls /sys/block/$dm_name/slaves \
 				    | nawk '{print $1}')"
-				lsscsi | egrep $dep > /dev/null
+				lsscsi | egrep $slave > /dev/null
 				if (($? != 0)); then
 					log_fail "Onlining $disk failed"
 				fi
