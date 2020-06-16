@@ -16,6 +16,7 @@ ifneq ($(KERNELRELEASE),)
 obj-$(CONFIG_ZFS) := $(ZFS_MODULES)
 
 ZFS_MODULE_CFLAGS += -std=gnu99 -Wno-declaration-after-statement
+ZFS_MODULE_CFLAGS += -Wmissing-prototypes
 ZFS_MODULE_CFLAGS += @KERNEL_DEBUG_CFLAGS@  @NO_FORMAT_ZERO_LENGTH@
 
 ifneq ($(KBUILD_EXTMOD),)
