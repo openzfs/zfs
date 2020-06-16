@@ -92,6 +92,8 @@ $(MODULE)-objs += vdev_mirror.o
 $(MODULE)-objs += vdev_missing.o
 $(MODULE)-objs += vdev_queue.o
 $(MODULE)-objs += vdev_raidz.o
+$(MODULE)-objs += vdev_raidz_math.o
+$(MODULE)-objs += vdev_raidz_math_scalar.o
 $(MODULE)-objs += vdev_removal.o
 $(MODULE)-objs += vdev_root.o
 $(MODULE)-objs += vdev_trim.o
@@ -128,25 +130,23 @@ $(MODULE)-objs += zvol.o
 
 # Suppress incorrect warnings from versions of objtool which are not
 # aware of x86 EVEX prefix instructions used for AVX512.
-# BUGBUG raidz expansion not building raidz math just yet
-#OBJECT_FILES_NON_STANDARD_vdev_raidz_math_avx512bw.o := y
-#OBJECT_FILES_NON_STANDARD_vdev_raidz_math_avx512f.o := y
+OBJECT_FILES_NON_STANDARD_vdev_raidz_math_avx512bw.o := y
+OBJECT_FILES_NON_STANDARD_vdev_raidz_math_avx512f.o := y
 
-#$(MODULE)-$(CONFIG_X86) += vdev_raidz_math_sse2.o
-#$(MODULE)-$(CONFIG_X86) += vdev_raidz_math_ssse3.o
-#$(MODULE)-$(CONFIG_X86) += vdev_raidz_math_avx2.o
-#$(MODULE)-$(CONFIG_X86) += vdev_raidz_math_avx512f.o
-#$(MODULE)-$(CONFIG_X86) += vdev_raidz_math_avx512bw.o
+$(MODULE)-$(CONFIG_X86) += vdev_raidz_math_sse2.o
+$(MODULE)-$(CONFIG_X86) += vdev_raidz_math_ssse3.o
+$(MODULE)-$(CONFIG_X86) += vdev_raidz_math_avx2.o
+$(MODULE)-$(CONFIG_X86) += vdev_raidz_math_avx512f.o
+$(MODULE)-$(CONFIG_X86) += vdev_raidz_math_avx512bw.o
 
-#$(MODULE)-$(CONFIG_ARM64) += vdev_raidz_math_aarch64_neon.o
-#$(MODULE)-$(CONFIG_ARM64) += vdev_raidz_math_aarch64_neonx2.o
+$(MODULE)-$(CONFIG_ARM64) += vdev_raidz_math_aarch64_neon.o
+$(MODULE)-$(CONFIG_ARM64) += vdev_raidz_math_aarch64_neonx2.o
 
-#$(MODULE)-$(CONFIG_PPC) += vdev_raidz_math_powerpc_altivec.o
-#$(MODULE)-$(CONFIG_PPC64) += vdev_raidz_math_powerpc_altivec.o
+$(MODULE)-$(CONFIG_PPC) += vdev_raidz_math_powerpc_altivec.o
+$(MODULE)-$(CONFIG_PPC64) += vdev_raidz_math_powerpc_altivec.o
 
-#ifeq ($(CONFIG_ALTIVEC),y)
-#$(obj)/vdev_raidz_math_powerpc_altivec.o: c_flags += -maltivec
-#endif
-# BUGBUG raidz expansion end
+ifeq ($(CONFIG_ALTIVEC),y)
+$(obj)/vdev_raidz_math_powerpc_altivec.o: c_flags += -maltivec
+endif
 
 include $(mfdir)/../os/linux/zfs/Makefile

@@ -152,7 +152,7 @@ typedef struct raidz_map {
 	int rm_nrows;
 	int rm_nskip;			/* Sectors skipped for padding */
 	zfs_locked_range_t *rm_lr;
-	raidz_impl_ops_t *rm_ops;	/* RAIDZ math operations */
+	const raidz_impl_ops_t *rm_ops;	/* RAIDZ math operations */
 	raidz_row_t *rm_row[0];		/* flexible array of rows */
 } raidz_map_t;
 
@@ -195,7 +195,7 @@ extern const raidz_impl_ops_t vdev_raidz_powerpc_altivec_impl;
  * raidz_big_size	Returns size of big columns
  * raidz_short_size	Returns size of short columns
  */
-#define	raidz_parity(rm)	((rm)->rm_firstdatacol)
+#define	raidz_parity(rm)	((rm)->rm_row[0]->rr_firstdatacol)
 #define	raidz_ncols(rm)		((rm)->rm_row[0]->rr_cols)
 #define	raidz_nbigcols(rm)	((rm)->rm_bigcols)
 #define	raidz_col_p(rm, c)	((rm)->rm_col + (c))
@@ -211,10 +211,10 @@ extern const raidz_impl_ops_t vdev_raidz_powerpc_altivec_impl;
  */
 #define	_RAIDZ_GEN_WRAP(code, impl)					\
 static void								\
-impl ## _gen_ ## code(void *rmp)					\
+impl ## _gen_ ## code(void *rrp)					\
 {									\
-	raidz_map_t *rm = (raidz_map_t *)rmp;				\
-	raidz_generate_## code ## _impl(rm);				\
+	raidz_row_t *rr = (raidz_row_t *)rrp;				\
+	raidz_generate_## code ## _impl(rr);				\
 }
 
 /*
@@ -225,10 +225,10 @@ impl ## _gen_ ## code(void *rmp)					\
  */
 #define	_RAIDZ_REC_WRAP(code, impl)					\
 static int								\
-impl ## _rec_ ## code(void *rmp, const int *tgtidx)			\
+impl ## _rec_ ## code(void *rrp, const int *tgtidx)			\
 {									\
-	raidz_map_t *rm = (raidz_map_t *)rmp;				\
-	return (raidz_reconstruct_## code ## _impl(rm, tgtidx));	\
+	raidz_row_t *rr = (raidz_row_t *)rrp;				\
+	return (raidz_reconstruct_## code ## _impl(rr, tgtidx));	\
 }
 
 /*
