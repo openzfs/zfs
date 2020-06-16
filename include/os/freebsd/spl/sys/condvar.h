@@ -134,12 +134,17 @@ cv_timedwait_hires(kcondvar_t *cvp, kmutex_t *mp, hrtime_t tim, hrtime_t res,
 		tim += hrtime;
 
 	if (hrtime >= tim)
-		return (tim - hrtime);
+		return (-1);
+
 	rc = cv_timedwait_sbt(cvp, mp, zfs_nstosbt(tim),
 	    zfs_nstosbt(res), C_ABSOLUTE);
 
-	KASSERT(rc == EWOULDBLOCK || rc == 0, ("unexpected rc value %d", rc));
-	return (tim - gethrtime());
+	if (rc == EWOULDBLOCK)
+		return (-1);
+
+	KASSERT(rc == 0, ("unexpected rc value %d", rc));
+	hrtime = tim - gethrtime();
+	return ((hrtime > 0) ? hrtime : -1);
 }
 
 static inline clock_t
@@ -157,14 +162,22 @@ cv_timedwait_sig_hires(kcondvar_t *cvp, kmutex_t *mp, hrtime_t tim,
 		tim += hrtime;
 
 	if (hrtime >= tim)
-		return (tim - hrtime);
+		return (-1);
 
 	sbt = zfs_nstosbt(tim);
 	rc = cv_timedwait_sig_sbt(cvp, mp, sbt, zfs_nstosbt(res), C_ABSOLUTE);
 
-	KASSERT(rc == EWOULDBLOCK || rc == EINTR || rc == ERESTART ||
-	    rc == 0, ("unexpected rc value %d", rc));
-	return (tim - gethrtime());
+	switch (rc) {
+	case EWOULDBLOCK:
+		return (-1);
+	case EINTR:
+	case ERESTART:
+		return (0);
+	default:
+		KASSERT(rc == 0, ("unexpected rc value %d", rc));
+		hrtime = tim - gethrtime();
+		return ((hrtime > 0) ? hrtime : -1);
+	}
 }
 
 #endif	/* _OPENSOLARIS_SYS_CONDVAR_H_ */
