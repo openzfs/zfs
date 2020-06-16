@@ -1238,18 +1238,25 @@ ddt_entry_size(spa_t *spa)
 	 * for a default value.  But checking the spa for the
 	 * average size (with some bounds checks) may not be all
 	 * that beneficial over just the plain size.
+	 * (For DDT-ZAP, it's ~390 bytes, plus overhead for the zap,
+	 * which depends on the size and distribution of the entries.
+	 * 480 might be a better estimate than 512, but the quota check
+	 * is done with enough asynchronicity that it will never be
+	 * exact.  So this is aiming for an approximation that will
+	 * be good enough in most cases.)
 	 */
+	static const size_t default_size = 512;
 
 	uint64_t avg;
 	if (spa->spa_dedup_table_count == 0 ||
 	    spa->spa_dedup_table_size == 0 ||
 	    spa->spa_dedup_table_count == ~0ULL ||
 	    spa->spa_dedup_table_size == ~0ULL)
-		return (512);
+		return (default_size);
 	avg = spa->spa_dedup_table_size / spa->spa_dedup_table_count;
 	if (avg == 0)
-		return (512);
-	return (MIN(512, avg));
+		return (default_size);
+	return (MIN(default_size, avg));
 }
 
 /*
