@@ -651,17 +651,28 @@ you must first remove all
 .Tn ACL
 entries which do not represent the current mode.
 .El
-.It Sy acltype Ns = Ns Sy off Ns | Ns Sy posix
+.It Sy acltype Ns = Ns Sy off Ns | Ns Sy nfsv4 Ns | Ns Sy posix
 Controls whether ACLs are enabled and if so what type of ACL to use.
-This property is not visible on FreeBSD yet.
+When this property is set to a type of ACL not supported by the current
+platform, the behavior is the same as if it were set to
+.Sy off .
 .Bl -tag -width "posixacl"
 .It Sy off
-default, when a file system has the
+default on Linux, when a file system has the
 .Sy acltype
 property set to off then ACLs are disabled.
 .It Sy noacl
 an alias for
 .Sy off
+.It Sy nfsv4
+default on FreeBSD, indicates that NFSv4-style ZFS ACLs should be used.
+These ACLs can be managed with the
+.Xr getfacl 1
+and
+.Xr setfacl 1
+commands on FreeBSD. The
+.Sy nfsv4
+ZFS ACL type is not yet supported on Linux.
 .It Sy posix
 indicates POSIX ACLs should be used. POSIX ACLs are specific to Linux and are
 not functional on other platforms. POSIX ACLs are stored as an extended

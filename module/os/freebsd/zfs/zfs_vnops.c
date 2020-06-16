@@ -4734,6 +4734,8 @@ static int
 zfs_pathconf(vnode_t *vp, int cmd, ulong_t *valp, cred_t *cr,
     caller_context_t *ct)
 {
+	znode_t *zp;
+	zfsvfs_t *zfsvfs;
 
 	switch (cmd) {
 	case _PC_LINK_MAX:
@@ -4747,11 +4749,25 @@ zfs_pathconf(vnode_t *vp, int cmd, ulong_t *valp, cred_t *cr,
 		*valp = (int)SPA_MINBLOCKSIZE;
 		return (0);
 	case _PC_ACL_EXTENDED:
+#if 0		/* POSIX ACLs are not implemented for ZFS on FreeBSD yet. */
+		zp = VTOZ(vp);
+		zfsvfs = zp->z_zfsvfs;
+		ZFS_ENTER(zfsvfs);
+		ZFS_VERIFY_ZP(zp);
+		*valp = zfsvfs->z_acl_type == ZFSACLTYPE_POSIX ? 1 : 0;
+		ZFS_EXIT(zfsvfs);
+#else
 		*valp = 0;
+#endif
 		return (0);
 
 	case _PC_ACL_NFS4:
-		*valp = 1;
+		zp = VTOZ(vp);
+		zfsvfs = zp->z_zfsvfs;
+		ZFS_ENTER(zfsvfs);
+		ZFS_VERIFY_ZP(zp);
+		*valp = zfsvfs->z_acl_type == ZFS_ACLTYPE_NFSV4 ? 1 : 0;
+		ZFS_EXIT(zfsvfs);
 		return (0);
 
 	case _PC_ACL_PATH_MAX:
