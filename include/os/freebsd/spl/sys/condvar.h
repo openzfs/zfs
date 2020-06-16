@@ -144,7 +144,11 @@ cv_timedwait_hires(kcondvar_t *cvp, kmutex_t *mp, hrtime_t tim, hrtime_t res,
 
 	KASSERT(rc == 0, ("unexpected rc value %d", rc));
 	hrtime = tim - gethrtime();
-	return ((hrtime > 0) ? hrtime : -1);
+	if (unlikely(hrtime <= 0)) {
+		cv_signal(cvp);
+		return (-1);
+	}
+	return (hrtime);
 }
 
 static inline clock_t
@@ -176,7 +180,11 @@ cv_timedwait_sig_hires(kcondvar_t *cvp, kmutex_t *mp, hrtime_t tim,
 	default:
 		KASSERT(rc == 0, ("unexpected rc value %d", rc));
 		hrtime = tim - gethrtime();
-		return ((hrtime > 0) ? hrtime : -1);
+		if (unlikely(hrtime <= 0)) {
+			cv_signal(cvp);
+			return (-1);
+		}
+		return (hrtime);
 	}
 }
 
