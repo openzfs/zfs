@@ -5,8 +5,6 @@
  */
 /* Copyright 2013 Doug Whiting. This code is released to the public domain. */
 
-#define	SKEIN_PORT_CODE		/* instantiate any code in skein_port.h */
-
 #include <sys/sysmacros.h>
 #include <sys/types.h>
 #include <sys/skein.h>		/* get the Skein API definitions   */
