@@ -344,7 +344,7 @@ cv_wait_sig(kcondvar_t *cv, kmutex_t *mp)
 	return (1);
 }
 
-clock_t
+int
 cv_timedwait(kcondvar_t *cv, kmutex_t *mp, clock_t abstime)
 {
 	int error;
@@ -378,7 +378,7 @@ cv_timedwait(kcondvar_t *cv, kmutex_t *mp, clock_t abstime)
 }
 
 /*ARGSUSED*/
-clock_t
+int
 cv_timedwait_hires(kcondvar_t *cv, kmutex_t *mp, hrtime_t tim, hrtime_t res,
     int flag)
 {

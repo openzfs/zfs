@@ -33,6 +33,32 @@
 #include <sys/time.h>
 
 /*
+ * cv_timedwait() is similar to cv_wait() except that it additionally expects
+ * a timeout value specified in ticks.  When woken by cv_signal() or
+ * cv_broadcast() it returns 1, otherwise when the timeout is reached -1 is
+ * returned.
+ *
+ * cv_timedwait_sig() behaves the same as cv_timedwait() but blocks
+ * interruptibly and can be woken by a signal (EINTR, ERESTART).  When
+ * this occurs 0 is returned.
+ *
+ * cv_timedwait_io() and cv_timedwait_sig_io() are variants of cv_timedwait()
+ * and cv_timedwait_sig() which should be used when waiting for outstanding
+ * IO to complete.  They are responsible for updating the iowait accounting
+ * when this is supported by the platform.
+ *
+ * cv_timedwait_hires() and cv_timedwait_sig_hires() are high resolution
+ * versions of cv_timedwait() and cv_timedwait_sig().  They expect the timeout
+ * to be specified as a hrtime_t allowing for timeouts of less than a tick.
+ *
+ * N.B. The return values differ slightly from the illumos implementation
+ * which returns the time remaining, instead of 1, when woken.  They both
+ * return -1 on timeout. Consumers which need to know the time remaining
+ * are responsible for tracking it themselves.
+ */
+
+
+/*
  * The kcondvar_t struct is protected by mutex taken externally before
  * calling any of the wait/signal funs, and passed into the wait funs.
  */
@@ -56,12 +82,12 @@ extern void __cv_wait(kcondvar_t *, kmutex_t *);
 extern void __cv_wait_io(kcondvar_t *, kmutex_t *);
 extern int __cv_wait_io_sig(kcondvar_t *, kmutex_t *);
 extern int __cv_wait_sig(kcondvar_t *, kmutex_t *);
-extern clock_t __cv_timedwait(kcondvar_t *, kmutex_t *, clock_t);
-extern clock_t __cv_timedwait_io(kcondvar_t *, kmutex_t *, clock_t);
-extern clock_t __cv_timedwait_sig(kcondvar_t *, kmutex_t *, clock_t);
-extern clock_t cv_timedwait_hires(kcondvar_t *, kmutex_t *, hrtime_t,
+extern int __cv_timedwait(kcondvar_t *, kmutex_t *, clock_t);
+extern int __cv_timedwait_io(kcondvar_t *, kmutex_t *, clock_t);
+extern int __cv_timedwait_sig(kcondvar_t *, kmutex_t *, clock_t);
+extern int cv_timedwait_hires(kcondvar_t *, kmutex_t *, hrtime_t,
     hrtime_t res, int flag);
-extern clock_t cv_timedwait_sig_hires(kcondvar_t *, kmutex_t *, hrtime_t,
+extern int cv_timedwait_sig_hires(kcondvar_t *, kmutex_t *, hrtime_t,
     hrtime_t res, int flag);
 extern void __cv_signal(kcondvar_t *);
 extern void __cv_broadcast(kcondvar_t *c);
@@ -72,12 +98,16 @@ extern void __cv_broadcast(kcondvar_t *c);
 #define	cv_wait_io(cvp, mp)			__cv_wait_io(cvp, mp)
 #define	cv_wait_io_sig(cvp, mp)			__cv_wait_io_sig(cvp, mp)
 #define	cv_wait_sig(cvp, mp)			__cv_wait_sig(cvp, mp)
-#define	cv_wait_interruptible(cvp, mp)		cv_wait_sig(cvp, mp)
+#define	cv_signal(cvp)				__cv_signal(cvp)
+#define	cv_broadcast(cvp)			__cv_broadcast(cvp)
+
+/*
+ * NB: There is no way to reliably distinguish between having been signalled
+ * and having timed out on Linux. If the client code needs to reliably
+ * distinguish between the two it should use the hires variant.
+ */
 #define	cv_timedwait(cvp, mp, t)		__cv_timedwait(cvp, mp, t)
 #define	cv_timedwait_io(cvp, mp, t)		__cv_timedwait_io(cvp, mp, t)
 #define	cv_timedwait_sig(cvp, mp, t)		__cv_timedwait_sig(cvp, mp, t)
-#define	cv_timedwait_interruptible(cvp, mp, t)	cv_timedwait_sig(cvp, mp, t)
-#define	cv_signal(cvp)				__cv_signal(cvp)
-#define	cv_broadcast(cvp)			__cv_broadcast(cvp)
 
 #endif /* _SPL_CONDVAR_H */
