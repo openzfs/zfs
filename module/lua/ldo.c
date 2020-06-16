@@ -46,7 +46,7 @@
 
 #ifdef _KERNEL
 
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
 #if defined(__i386__)
 #define	JMP_BUF_CNT	6
 #elif defined(__x86_64__)

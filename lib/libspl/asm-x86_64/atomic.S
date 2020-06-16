@@ -33,6 +33,8 @@
 #elif __FreeBSD__
 #include <machine/asmacros.h>
 #define SET_SIZE(x)
+#elif __APPLE__
+#include <osx/asm_linkage.h>
 #endif
 	ENTRY(atomic_inc_8)
 	ALTENTRY(atomic_inc_uchar)
