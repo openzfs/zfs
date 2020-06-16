@@ -44,7 +44,6 @@
 #include <libuutil.h>
 #include <locale.h>
 #include <pthread.h>
-#include <semaphore.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9576,10 +9575,12 @@ typedef struct wait_data {
 	boolean_t wd_scripted;
 	boolean_t wd_exact;
 	boolean_t wd_headers_once;
+	boolean_t wd_should_exit;
 	/* Which activities to wait for */
 	boolean_t wd_enabled[ZPOOL_WAIT_NUM_ACTIVITIES];
 	float wd_interval;
-	sem_t wd_sem;
+	pthread_cond_t wd_cv;
+	pthread_mutex_t wd_mutex;
 } wait_data_t;
 
 /*
@@ -9709,6 +9710,7 @@ wait_status_thread(void *arg)
 	for (int row = 0; ; row++) {
 		boolean_t missing;
 		struct timespec timeout;
+		int ret = 0;
 		(void) clock_gettime(CLOCK_REALTIME, &timeout);
 
 		if (zpool_refresh_stats(zhp, &missing) != 0 || missing ||
@@ -9728,12 +9730,16 @@ wait_status_thread(void *arg)
 		} else {
 			timeout.tv_nsec = nanos;
 		}
-
-		if (sem_timedwait(&wd->wd_sem, &timeout) == 0) {
+		pthread_mutex_lock(&wd->wd_mutex);
+		if (!wd->wd_should_exit)
+			ret = pthread_cond_timedwait(&wd->wd_cv, &wd->wd_mutex,
+			    &timeout);
+		pthread_mutex_unlock(&wd->wd_mutex);
+		if (ret == 0) {
 			break; /* signaled by main thread */
-		} else if (errno != ETIMEDOUT) {
-			(void) fprintf(stderr, gettext("sem_timedwait failed: "
-			    "%s\n"), strerror(errno));
+		} else if (ret != ETIMEDOUT) {
+			(void) fprintf(stderr, gettext("pthread_cond_timedwait "
+			    "failed: %s\n"), strerror(ret));
 			zpool_close(zhp);
 			return (void *)(uintptr_t)(1);
 		}
@@ -9759,8 +9765,10 @@ zpool_do_wait(int argc, char **argv)
 	wd.wd_scripted = B_FALSE;
 	wd.wd_exact = B_FALSE;
 	wd.wd_headers_once = B_FALSE;
+	wd.wd_should_exit = B_FALSE;
 
-	(void) sem_init(&wd.wd_sem, 0, 0);
+	pthread_mutex_init(&wd.wd_mutex, NULL);
+	pthread_cond_init(&wd.wd_cv, NULL);
 
 	/* By default, wait for all types of activity. */
 	for (i = 0; i < ZPOOL_WAIT_NUM_ACTIVITIES; i++)
@@ -9885,14 +9893,17 @@ zpool_do_wait(int argc, char **argv)
 
 	if (verbose) {
 		uintptr_t status;
-		(void) sem_post(&wd.wd_sem);
+		pthread_mutex_lock(&wd.wd_mutex);
+		wd.wd_should_exit = B_TRUE;
+		pthread_cond_signal(&wd.wd_cv);
+		pthread_mutex_unlock(&wd.wd_mutex);
 		(void) pthread_join(status_thr, (void *)&status);
 		if (status != 0)
 			error = status;
 	}
 
-	(void) sem_destroy(&wd.wd_sem);
-
+	pthread_mutex_destroy(&wd.wd_mutex);
+	pthread_cond_destroy(&wd.wd_cv);
 	return (error);
 }
 
