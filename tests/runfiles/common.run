@@ -706,7 +706,8 @@ tests = ['redacted_compressed', 'redacted_contents', 'redacted_deleted',
 tags = ['functional', 'redacted_send']
 
 [tests/functional/raidz]
-tests = ['raidz_001_neg', 'raidz_002_pos', 'raidz_003_pos', 'raidz_004_pos']
+tests = ['raidz_001_neg', 'raidz_002_pos', 'raidz_003_pos', 'raidz_004_pos',
+    'raidz_expand.ksh']
 tags = ['functional', 'raidz']
 
 [tests/functional/redundancy]
