@@ -51,6 +51,8 @@ typedef struct raidz_test_opts {
 	size_t rto_sweep;
 	size_t rto_sweep_timeout;
 	size_t rto_benchmark;
+	size_t rto_expand;
+	size_t rto_expand_offset;
 	size_t rto_sanity;
 	size_t rto_gdb;
 
@@ -69,6 +71,8 @@ static const raidz_test_opts_t rto_opts_defaults = {
 	.rto_v = 0,
 	.rto_sweep = 0,
 	.rto_benchmark = 0,
+	.rto_expand = 0,
+	.rto_expand_offset = -1ULL,
 	.rto_sanity = 0,
 	.rto_gdb = 0,
 	.rto_should_stop = B_FALSE
