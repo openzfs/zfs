@@ -75,6 +75,37 @@ struct levelmap {
 	enum zio_zstd_levels level;
 };
 
+typedef struct zstd_stats {
+	kstat_named_t mempool_overlimit;
+	kstat_named_t mempool_fails;
+	kstat_named_t dctx_fallback;
+	kstat_named_t compress_bad_enum;
+	kstat_named_t compress_out_of_memory;
+	kstat_named_t compress_error;
+	kstat_named_t decompress_bad_enum;
+	kstat_named_t decompress_out_of_memory;
+	kstat_named_t decompress_error;
+	kstat_named_t decompress_invalid_size;
+} zstd_stats_t;
+
+static zstd_stats_t zstd_stats = {
+	{ "mempool_overlimit", KSTAT_DATA_UINT32 },
+	{ "mempool_fails", KSTAT_DATA_UINT32 },
+	{ "dctx_fallback", KSTAT_DATA_UINT32 },
+	{ "compress_bad_enum", KSTAT_DATA_UINT32 },
+	{ "compress_out_of_memory", KSTAT_DATA_UINT32 },
+	{ "compress_error", KSTAT_DATA_UINT32 },
+	{ "decompress_bad_enum", KSTAT_DATA_UINT32 },
+	{ "decompress_out_of_memory", KSTAT_DATA_UINT32 },
+	{ "decompress_error", KSTAT_DATA_UINT32 },
+	{ "decompress_invalid_size", KSTAT_DATA_UINT32 }
+};
+
+kstat_t		*zstd_ksp;
+
+#define	ZSTD_BUMP(stat) \
+	atomic_inc_32(&zstd_stats.stat.value.ui32);
+
 /*
  * ZSTD memory handlers
  *
@@ -263,11 +294,14 @@ zstd_mempool_alloc(struct zstd_pool *zstd_mempool, size_t size)
 	 * instead.
 	 */
 	if (!mem) {
+		ZSTD_BUMP(mempool_overlimit);
 		mem = vmem_alloc(size, KM_NOSLEEP);
 		if (mem) {
 			mem->pool = NULL;
 			mem->kmem_type = ZSTD_KMEM_DEFAULT;
 			mem->kmem_size = size;
+		} else {
+			ZSTD_BUMP(mempool_fails);
 		}
 	}
 
@@ -333,6 +367,7 @@ zstd_compress(void *s_start, void *d_start, size_t s_len, size_t d_len,
 	/* Skip compression if the specified level is invalid */
 
 	if (zstd_enum_to_cookie(level, &levelcookie)) {
+		ZSTD_BUMP(compress_bad_enum);
 		return (s_len);
 	}
 
@@ -347,6 +382,7 @@ zstd_compress(void *s_start, void *d_start, size_t s_len, size_t d_len,
 	 * compression in zio_compress_data
 	 */
 	if (!cctx) {
+		ZSTD_BUMP(compress_out_of_memory);
 		return (s_len);
 	}
 
@@ -372,6 +408,7 @@ zstd_compress(void *s_start, void *d_start, size_t s_len, size_t d_len,
 
 	/* Error in the compression routine, disable compression. */
 	if (ZSTD_isError(c_len)) {
+		ZSTD_BUMP(compress_error);
 		return (s_len);
 	}
 
@@ -445,6 +482,7 @@ zstd_decompress_level(void *s_start, void *d_start, size_t s_len, size_t d_len,
 	 * case return an error so the upper layers can try to fix it.
 	 */
 	if (version >= 10405 && zstd_enum_to_cookie(zstdlevel, &levelcookie)) {
+		ZSTD_BUMP(decompress_bad_enum);
 		return (1);
 	}
 	if (version < 10405) {
@@ -456,11 +494,13 @@ zstd_decompress_level(void *s_start, void *d_start, size_t s_len, size_t d_len,
 
 	/* Invalid compressed buffer size encoded at start */
 	if (bufsize + sizeof (*hdr) > s_len) {
+		ZSTD_BUMP(decompress_invalid_size);
 		return (1);
 	}
 
 	dctx = ZSTD_createDCtx_advanced(zstd_dctx_malloc);
 	if (!dctx) {
+		ZSTD_BUMP(decompress_out_of_memory);
 		return (1);
 	}
 
@@ -484,6 +524,7 @@ zstd_decompress_level(void *s_start, void *d_start, size_t s_len, size_t d_len,
 	 * and non-zero on failure (decompression function returned negative.
 	 */
 	if (ZSTD_isError(result)) {
+		ZSTD_BUMP(decompress_error);
 		return (1);
 	}
 
@@ -543,6 +584,7 @@ zstd_dctx_alloc(void *opaque __maybe_unused, size_t size)
 
 	/* Fallback if everything fails */
 	if (!z) {
+		ZSTD_BUMP(dctx_fallback);
 		/*
 		 * Barrier since we only can handle it in a single thread. All
 		 * other following threads need to wait here until decompression
@@ -666,12 +708,26 @@ zstd_init(void)
 	pool_count = (boot_ncpus * 4);
 	zstd_meminit();
 
+	zstd_ksp = kstat_create("zfs", 0, "zstd", "misc",
+	    KSTAT_TYPE_NAMED, sizeof (zstd_stats) / sizeof (kstat_named_t),
+	    KSTAT_FLAG_VIRTUAL);
+
+	if (zstd_ksp != NULL) {
+		zstd_ksp->ks_data = &zstd_stats;
+		kstat_install(zstd_ksp);
+	}
+
 	return (0);
 }
 
 extern void __exit
 zstd_fini(void)
 {
+	if (zstd_ksp != NULL) {
+		kstat_delete(zstd_ksp);
+		zstd_ksp = NULL;
+	}
+
 	vmem_free(zstd_dctx_fallback.mem, zstd_dctx_fallback.mem_size);
 	mutex_destroy(&zstd_dctx_fallback.barrier);
 	zstd_mempool_deinit();
