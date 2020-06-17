@@ -454,7 +454,7 @@ zstd_decompress_level(void *s_start, void *d_start, size_t s_len, size_t d_len,
 	 * incompatibility occurrs, it has to be handled accordingly.
 	 * The version can be accessed via `hdr_copy.version`.
 	 */
-	version = hdr_copy.version_level.version;
+	version = hdr_copy.version;
 
 	/*
 	 * Convert and check the level
