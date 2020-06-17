@@ -7507,36 +7507,46 @@ check_rebuilding(nvlist_t *nvroot, uint64_t *rebuild_end_time)
 }
 
 /*
- * Print the scan status.  The active scrub, resilver, or rebuild will
- * be printed, when there is no active scan then the last operation which
- * completed will be printed.
+ * Print the scan status.
  */
 static void
 print_scan_status(zpool_handle_t *zhp, nvlist_t *nvroot)
 {
-	uint64_t rebuild_end_time, resilver_end_time;
-	pool_scan_stat_t *ps = NULL;
+	uint64_t rebuild_end_time = 0, resilver_end_time = 0;
+	boolean_t have_resilver = B_FALSE, have_scrub = B_FALSE;
+	boolean_t active_resilver = B_FALSE;
 	pool_checkpoint_stat_t *pcs = NULL;
-	uint64_t resilver_state;
+	pool_scan_stat_t *ps = NULL;
 	uint_t c;
 
 	if (nvlist_lookup_uint64_array(nvroot, ZPOOL_CONFIG_SCAN_STATS,
 	    (uint64_t **)&ps, &c) == 0) {
-		resilver_state = ps->pss_state;
-		resilver_end_time = ps->pss_end_time;
-	} else {
-		resilver_state = DSS_NONE;
-		resilver_end_time = 0;
+		if (ps->pss_func == POOL_SCAN_RESILVER) {
+			resilver_end_time = ps->pss_end_time;
+			active_resilver = (ps->pss_state == DSS_SCANNING);
+		}
+
+		have_resilver = (ps->pss_func == POOL_SCAN_RESILVER);
+		have_scrub = (ps->pss_func == POOL_SCAN_SCRUB);
 	}
 
-	if (check_rebuilding(nvroot, &rebuild_end_time)) {
-		print_rebuild_status(zhp, nvroot);
-	} else if (resilver_state == DSS_SCANNING) {
+	boolean_t active_rebuild = check_rebuilding(nvroot, &rebuild_end_time);
+	boolean_t have_rebuild = (active_rebuild || (rebuild_end_time > 0));
+
+	/* Always print the scrub status when available. */
+	if (have_scrub)
 		print_scan_scrub_resilver_status(ps);
-	} else if (rebuild_end_time > resilver_end_time) {
-		print_rebuild_status(zhp, nvroot);
-	} else {
+
+	/*
+	 * When there is an active resilver or rebuild print its status.
+	 * Otherwise print the status of the last resilver or rebuild.
+	 */
+	if (active_resilver || (!active_rebuild && have_resilver &&
+	    resilver_end_time && resilver_end_time > rebuild_end_time)) {
 		print_scan_scrub_resilver_status(ps);
+	} else if (active_rebuild || (!active_resilver && have_rebuild &&
+	    rebuild_end_time && rebuild_end_time > resilver_end_time)) {
+		print_rebuild_status(zhp, nvroot);
 	}
 
 	(void) nvlist_lookup_uint64_array(nvroot,

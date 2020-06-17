@@ -762,6 +762,21 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 		if (scn->scn_phys.scn_min_txg > TXG_INITIAL)
 			scn->scn_phys.scn_ddt_class_max = DDT_CLASS_DITTO;
 
+		/*
+		 * When starting a resilver clear any existing rebuild state.
+		 * This is required to prevent stale rebuild status from
+		 * being reported when a rebuild is run, then a resilver and
+		 * finally a scrub.  In which case only the scrub status
+		 * should be reported by 'zpool status'.
+		 */
+		if (scn->scn_phys.scn_func == POOL_SCAN_RESILVER) {
+			vdev_t *rvd = spa->spa_root_vdev;
+			for (uint64_t i = 0; i < rvd->vdev_children; i++) {
+				vdev_t *vd = rvd->vdev_child[i];
+				vdev_rebuild_clear_sync(
+				    (void *)(uintptr_t)vd->vdev_id, tx);
+			}
+		}
 	}
 
 	/* back to the generic stuff */

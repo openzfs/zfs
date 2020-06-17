@@ -8017,8 +8017,19 @@ spa_async_thread(void *arg)
 	/*
 	 * If any devices are done replacing, detach them.
 	 */
-	if (tasks & SPA_ASYNC_RESILVER_DONE || tasks & SPA_ASYNC_REBUILD_DONE)
+	if (tasks & SPA_ASYNC_RESILVER_DONE)
 		spa_vdev_resilver_done(spa);
+
+	/*
+	 * If any devices are done replacing, detach them.  Then if no
+	 * top-level vdevs are rebuilding attempt to kick off a scrub.
+	 */
+	if (tasks & SPA_ASYNC_REBUILD_DONE) {
+		spa_vdev_resilver_done(spa);
+
+		if (!vdev_rebuild_active(spa->spa_root_vdev))
+			(void) dsl_scan(spa->spa_dsl_pool, POOL_SCAN_SCRUB);
+	}
 
 	/*
 	 * Kick off a resilver.

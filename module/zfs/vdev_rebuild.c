@@ -55,8 +55,8 @@
  *
  *   - Block checksums are not verified as part of the rebuild.  Similar to
  *     traditional RAID the parity/mirror data is reconstructed but cannot
- *     be immediately double checked.  For this reason it's recommend that
- *     the pool be scrubbed after a rebuild.
+ *     be immediately double checked.  For this reason when the last active
+ *     rebuild completes the pool is automatically scrubbed.
  *
  *   - Deferred rebuilds are not currently supported.  When adding another
  *     vdev to an active top-level rebuild it must be restarted.
@@ -360,6 +360,40 @@ vdev_rebuild_reset_sync(void *arg, dmu_tx_t *tx)
 
 	vd->vdev_rebuild_thread = thread_create(NULL, 0,
 	    vdev_rebuild_thread, vd, 0, &p0, TS_RUN, maxclsyspri);
+
+	mutex_exit(&vd->vdev_rebuild_lock);
+}
+
+/*
+ * Clear the last rebuild status.
+ */
+void
+vdev_rebuild_clear_sync(void *arg, dmu_tx_t *tx)
+{
+	int vdev_id = (uintptr_t)arg;
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+	vdev_t *vd = vdev_lookup_top(spa, vdev_id);
+	vdev_rebuild_t *vr = &vd->vdev_rebuild_config;
+	vdev_rebuild_phys_t *vrp = &vr->vr_rebuild_phys;
+	objset_t *mos = spa_meta_objset(spa);
+
+	mutex_enter(&vd->vdev_rebuild_lock);
+
+	if (!spa_feature_is_enabled(spa, SPA_FEATURE_DEVICE_REBUILD) ||
+	    vrp->vrp_rebuild_state == VDEV_REBUILD_ACTIVE) {
+		mutex_exit(&vd->vdev_rebuild_lock);
+		return;
+	}
+
+	clear_rebuild_bytes(vd);
+	bzero(vrp, sizeof (uint64_t) * REBUILD_PHYS_ENTRIES);
+
+	if (vd->vdev_top_zap != 0 && zap_contains(mos, vd->vdev_top_zap,
+	    VDEV_TOP_ZAP_VDEV_REBUILD_PHYS) == 0) {
+		VERIFY0(zap_update(mos, vd->vdev_top_zap,
+		    VDEV_TOP_ZAP_VDEV_REBUILD_PHYS, sizeof (uint64_t),
+		    REBUILD_PHYS_ENTRIES, vrp, tx));
+	}
 
 	mutex_exit(&vd->vdev_rebuild_lock);
 }

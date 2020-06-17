@@ -88,7 +88,10 @@ for replace_mode in "resilver" "rebuild"; do
 	log_must zpool replace $flags $TESTPOOL1 ${VDEV_FILES[1]} \
 	    $SPARE_VDEV_FILE
 
-	# Verify the scrub was canceled.
+	# Verify the scrub was canceled, it may take a few seconds to exit.
+	while is_pool_scrubbing $TESTPOOL1; do
+		sleep 1
+	done
 	log_mustnot is_pool_scrubbing $TESTPOOL1
 
 	# Verify a scrub cannot be started while resilvering or rebuilding.

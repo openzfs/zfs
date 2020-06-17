@@ -84,10 +84,10 @@ boolean_t vdev_rebuild_active(vdev_t *);
 
 int vdev_rebuild_load(vdev_t *);
 void vdev_rebuild(vdev_t *);
-void vdev_rebuild_cancel(vdev_t *);
 void vdev_rebuild_stop_wait(vdev_t *);
 void vdev_rebuild_stop_all(spa_t *);
 void vdev_rebuild_restart(spa_t *);
+void vdev_rebuild_clear_sync(void *, dmu_tx_t *);
 int vdev_rebuild_get_stats(vdev_t *, vdev_rebuild_stat_t *);
 
 #ifdef	__cplusplus

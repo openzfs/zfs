@@ -92,8 +92,8 @@ Perform a rebuild instead of a resilver.
 When rebuilding the
 .Ar new_device
 is written sequentially which may allow the replace to complete more quickly.
-Unlike a resilver checksums are not verified and scrubbing the pool after the
-replace completes is recommended.
+Unlike a resilver checksums are not verified during reconstruction, instead
+a scrub is started automatically when the last active rebuild completes.
 Rebuilds are not supported for devices in a raidz configuration.
 .It Fl w
 Waits until the replacement has completed before returning.
