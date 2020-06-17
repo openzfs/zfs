@@ -36,7 +36,6 @@ zpoolexecdir = $(zfsexecdir)/zpool.d
 EXTRA_DIST = zpool.d/README
 
 dist_zpoolexec_SCRIPTS = \
-	zpool.d/dm-deps \
 	zpool.d/enc \
 	zpool.d/encdev \
 	zpool.d/fault_led \
@@ -51,6 +50,7 @@ dist_zpoolexec_SCRIPTS = \
 	zpool.d/serial \
 	zpool.d/ses \
 	zpool.d/size \
+	zpool.d/slaves \
 	zpool.d/slot \
 	zpool.d/smart \
 	zpool.d/smartx \
@@ -80,7 +80,6 @@ dist_zpoolexec_SCRIPTS = \
 	zpool.d/test_ended
 
 zpoolconfdefaults = \
-	dm-deps \
 	enc \
 	encdev \
 	fault_led \
@@ -95,6 +94,7 @@ zpoolconfdefaults = \
 	serial \
 	ses \
 	size \
+	slaves \
 	slot \
 	smart \
 	smartx \
