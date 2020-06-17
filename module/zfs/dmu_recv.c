@@ -18,13 +18,17 @@
  *
  * CDDL HEADER END
  */
+
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
- * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
- * Copyright (c) 2014, Joyent, Inc. All rights reserved.
- * Copyright 2014 HybridCluster. All rights reserved.
- * Copyright (c) 2018, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
+ * Copyright (c) 2011, Nexenta Systems Inc. All rights reserved.
+ * Copyright (c) 2011, 2020, Delphix. All rights reserved.
+ * Copyright (c) 2014, Joyent Inc. All rights reserved.
+ * Copyright (c) 2014, HybridCluster. All rights reserved.
+ * Copyright (c) 2018, loli10K. All rights reserved.
+ * Copyright (c) 2019, Klara Inc.
+ * Copyright (c) 2019, Allan Jude.
+ * Use is subject to license terms.
  */
 
 #include <sys/dmu.h>
@@ -529,13 +533,17 @@ recv_begin_check_feature_flags_impl(uint64_t featureflags, spa_t *spa)
 		return (SET_ERROR(ENOTSUP));
 
 	/*
-	 * LZ4 compressed, embedded, mooched, large blocks, and large_dnodes
-	 * in the stream can only be used if those pool features are enabled
-	 * because we don't attempt to decompress / un-embed / un-mooch /
-	 * split up the blocks / dnodes during the receive process.
+	 * LZ4 compressed, ZSTD compressed, embedded, mooched, large blocks,
+	 * and large_dnodes in the stream can only be used if those pool
+	 * features are enabled because we don't attempt to decompress /
+	 * un-embed / un-mooch / split up the blocks / dnodes during the
+	 * receive process.
 	 */
 	if ((featureflags & DMU_BACKUP_FEATURE_LZ4) &&
 	    !spa_feature_is_enabled(spa, SPA_FEATURE_LZ4_COMPRESS))
+		return (SET_ERROR(ENOTSUP));
+	if ((featureflags & DMU_BACKUP_FEATURE_ZSTD) &&
+	    !spa_feature_is_enabled(spa, SPA_FEATURE_ZSTD_COMPRESS))
 		return (SET_ERROR(ENOTSUP));
 	if ((featureflags & DMU_BACKUP_FEATURE_EMBED_DATA) &&
 	    !spa_feature_is_enabled(spa, SPA_FEATURE_EMBEDDED_DATA))
@@ -545,9 +553,6 @@ recv_begin_check_feature_flags_impl(uint64_t featureflags, spa_t *spa)
 		return (SET_ERROR(ENOTSUP));
 	if ((featureflags & DMU_BACKUP_FEATURE_LARGE_DNODE) &&
 	    !spa_feature_is_enabled(spa, SPA_FEATURE_LARGE_DNODE))
-		return (SET_ERROR(ENOTSUP));
-	if ((featureflags & DMU_BACKUP_FEATURE_ZSTD) &&
-	    !spa_feature_is_enabled(spa, SPA_FEATURE_ZSTD_COMPRESS))
 		return (SET_ERROR(ENOTSUP));
 
 	/*

@@ -842,8 +842,8 @@ is equivalent to
 .Pp
 The
 .Sy zstd
-compression using the zstd algorithm ,
-You can specify the
+compression algorithm provides both high compression ratios and good
+performance. You can specify the
 .Sy zstd
 level by using the value
 .Sy zstd- Ns Em N ,
@@ -854,20 +854,21 @@ is an integer from 1
 to 19
 .Pq best compression ratio .
 .Sy zstd
+is equivalent to
+.Sy zstd-3 .
 You can also specify a negative
 .Sy zstd
 level by using the value
-.Sy zstd- Ns Em N ,
+.Sy zstd-fast- Ns Em N ,
 where
 .Em N
 is an integer from 100
 .Pq fastest
 to 1
 .Pq best compression ratio .
-.Sy zstd
+.Sy zstd-fast
 is equivalent to
-.Sy zstd-3
-.Pc .
+.Sy zstd-fast-1 .
 .Pp
 The
 .Sy zle

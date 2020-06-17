@@ -840,19 +840,15 @@ kernel_init(int mode)
 
 	spa_init((spa_mode_t)mode);
 
-
 	fletcher_4_init();
 
 	tsd_create(&rrw_tsd_key, rrw_tsd_destroy);
-
 }
 
 void
 kernel_fini(void)
 {
 	fletcher_4_fini();
-
-
 	spa_fini();
 
 	zstd_fini();

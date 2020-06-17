@@ -21,23 +21,25 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Portions Copyright 2011 Martin Matuska
- * Copyright 2015, OmniTI Computer Consulting, Inc. All rights reserved.
- * Portions Copyright 2012 Pawel Jakub Dawidek <pawel@dawidek.net>
- * Copyright (c) 2014, 2016 Joyent, Inc. All rights reserved.
- * Copyright 2016 Nexenta Systems, Inc.  All rights reserved.
- * Copyright (c) 2014, Joyent, Inc. All rights reserved.
- * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
- * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
- * Copyright (c) 2013 Steven Hartland. All rights reserved.
- * Copyright (c) 2014 Integros [integros.com]
- * Copyright 2016 Toomas Soome <tsoome@me.com>
- * Copyright (c) 2016 Actifio, Inc. All rights reserved.
+ * Copyright (c) 2011, Martin Matuska. All rights reserved.
+ * Copyright (c) 2015, OmniTI Computer Consulting Inc. All rights reserved.
+ * Copyright (c) 2012, Pawel Jakub Dawidek. All rights reserved.
+ * Copyright (c) 2014, 2016, Joyent Inc. All rights reserved.
+ * Copyright (c) 2016, Nexenta Systems Inc. All rights reserved.
+ * Copyright (c) 2011, 2020, Delphix. All rights reserved.
+ * Copyright (c) 2013, Saso Kiselkov. All rights reserved.
+ * Copyright (c) 2013, Steven Hartland. All rights reserved.
+ * Copyright (c) 2014, Integros. All rights reserved.
+ * Copyright (c) 2016, Toomas Soome. All rights reserved.
+ * Copyright (c) 2016, Actifio Inc. All rights reserved.
  * Copyright (c) 2018, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
- * Copyright 2017 RackTop Systems.
- * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
- * Copyright (c) 2019 Datto Inc.
- * Copyright (c) 2019, 2020 by Christian Schwarz. All rights reserved.
+ * Copyright (c) 2017, RackTop Systems. All rights reserved.
+ * Copyright (c) 2017, Open-E Inc. All Rights Reserved.
+ * Copyright (c) 2019, Datto Inc. All rights reserved.
+ * Copyright (c) 2019, 2020, Christian Schwarz. All rights reserved.
+ * Copyright (c) 2019, Klara Inc.
+ * Copyright (c) 2019, Allan Jude.
+ * Use is subject to license terms.
  */
 
 /*

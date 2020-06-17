@@ -30,7 +30,7 @@
 #include <linux/module.h>
 
 /*
- * Public vmem_alloc(), vmem_zalloc(),kvmem_alloc() and vmem_free() interfaces.
+ * Public vmem_alloc(), vmem_zalloc() and vmem_free() interfaces.
  */
 void *
 spl_vmem_alloc(size_t size, int flags, const char *func, int line)

@@ -24,8 +24,8 @@
  * Copyright (c) 2011, 2019, Delphix. All rights reserved.
  * Copyright (c) 2011, Nexenta Systems Inc. All rights reserved.
  * Copyright (c) 2017, Intel Corporation. All rights reserved.
- * Copyright (c) 2019, Klara Inc. All rights reserved.
- * Copyright (c) 2019, Allan Jude. All rights reserved.
+ * Copyright (c) 2019, Klara Inc.
+ * Copyright (c) 2019, Allan Jude.
  * Use is subject to license terms.
  */
 

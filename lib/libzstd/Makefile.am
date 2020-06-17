@@ -2,7 +2,8 @@ include $(top_srcdir)/config/Rules.am
 
 VPATH = $(top_srcdir)/module/zstd
 
-DEFAULT_INCLUDES += -I$(top_srcdir)/module/zstd
+# Includes kernel code, generate warnings for large stack frames
+AM_CFLAGS += $(FRAME_LARGER_THAN)
 
 noinst_LTLIBRARIES = libzstd.la
 
@@ -14,5 +15,9 @@ nodist_libzstd_la_SOURCES = $(KERNEL_C)
 
 # -fno-tree-vectorize is set for gcc in zstd/common/compiler.h
 # Set it for other compilers, too.
-zstdlib.$(OBJEXT): CFLAGS += -fno-tree-vectorize
+zstdlib.$(OBJEXT):  CFLAGS += -fno-tree-vectorize
 zstdlib.l$(OBJEXT): CFLAGS += -fno-tree-vectorize
+
+# Quiet warnings about frame size due to unused code in unmodified zstd lib
+zstdlib.$(OBJEXT):  CFLAGS += -Wframe-larger-than=20480
+zstdlib.l$(OBJEXT): CFLAGS += -Wframe-larger-than=20480

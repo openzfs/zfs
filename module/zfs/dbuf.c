@@ -25,8 +25,8 @@
  * Copyright (c) 2012, 2019, Delphix. All rights reserved.
  * Copyright (c) 2013, Saso Kiselkov. All rights reserved.
  * Copyright (c) 2014, Spectra Logic Corporation. All rights reserved.
- * Copyright (c) 2019, Klara Inc. All rights reserved.
- * Copyright (c) 2019, Allan Jude. All rights reserved.
+ * Copyright (c) 2019, Klara Inc.
+ * Copyright (c) 2019, Allan Jude.
  * Use is subject to license terms.
  */
 

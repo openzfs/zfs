@@ -26,8 +26,8 @@
  * Copyright (c) 2013, Saso Kiselkov. All rights reserved.
  * Copyright (c) 2013, Joyent, Inc. All rights reserved.
  * Copyright (c) 2016, Toomas Soome. All rights reserved.
- * Copyright (c) 2019, Allan Jude. All rights reserved.
- * Copyright (c) 2019, Klara Inc. All rights reserved.
+ * Copyright (c) 2019, Allan Jude.
+ * Copyright (c) 2019, Klara Inc.
  * Use is subject to license terms.
  */
 
@@ -162,6 +162,9 @@ enum zio_encrypt {
 	(compress) == ZIO_COMPRESS_ZSTD ||		\
 	(compress) == ZIO_COMPRESS_ON ||		\
 	(compress) == ZIO_COMPRESS_OFF)
+
+#define	ZIO_COMPLEVEL_ZSTD(level) \
+	(ZIO_COMPRESS_ZSTD | ((level) << SPA_COMPRESSBITS))
 
 #define	ZIO_FAILURE_MODE_WAIT		0
 #define	ZIO_FAILURE_MODE_CONTINUE	1

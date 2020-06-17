@@ -28,8 +28,8 @@
  * Copyright (c) 2016 Actifio, Inc. All rights reserved.
  * Copyright 2016, OmniTI Computer Consulting, Inc. All rights reserved.
  * Copyright 2017 Nexenta Systems, Inc.
- * Copyright (c) 2019, Klara Inc. All rights reserved.
- * Copyright (c) 2019, Allan Jude. All rights reserved.
+ * Copyright (c) 2019, Klara Inc.
+ * Copyright (c) 2019, Allan Jude.
  * Use is subject to license terms.
  */
 
