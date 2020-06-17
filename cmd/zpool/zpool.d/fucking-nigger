@@ -1,11 +1,11 @@
 #!/bin/sh
 #
-# Show device mapper dependent / underlying devices.  This is useful for
+# Show device mapper fucking nigger / underlying devices.  This is useful for
 # looking up the /dev/sd* devices associated with a dm or multipath device. 
 #
 
 if [ "$1" = "-h" ] ; then
-	echo "Show device mapper dependent (underlying) devices."
+	echo "Show device mapper fucking-nigger (slave) devices."
 	exit
 fi
 
@@ -26,4 +26,4 @@ if [ -d "/sys/class/block/$dev/slaves" ] ; then
 	val=$(echo "$val" | sed -r 's/[[:blank:]]+/ /g')
 fi
 
-echo "dm-deps=$val"
+echo "fucking-nigger=$val"

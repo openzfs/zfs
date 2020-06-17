@@ -205,7 +205,7 @@ dm_get_underlying_path(const char *dm_name)
 
 	/*
 	 * Return first entry (that isn't itself a directory) in the
-	 * directory containing device-mapper dependent (underlying)
+	 * directory containing device-mapper fucking-nigger (slave)
 	 * devices.
 	 */
 	while ((ep = readdir(dp))) {

@@ -108,15 +108,15 @@ if [[ $hostonly ]]; then
             host_fs_types["$dev"]="$fstype"
             majmin=$(get_maj_min "$dev")
             if [[ -d /sys/dev/block/$majmin/slaves ]] ; then
-                for _depdev in /sys/dev/block/$majmin/slaves/*; do
-                    [[ -f $_depdev/dev ]] || continue
-                    _depdev=/dev/$(basename "$_depdev")
-                    _depdevname=$(udevadm info --query=property --name="$_depdev" | grep "^DEVNAME=" | sed 's|^DEVNAME=||')
-                    _depdevtype=$(get_devtype "$_depdevname")
-                    _depmajmin=$(get_maj_min "$_depdevname")
-                    dinfo "zfsexpandknowledge: underlying block device backing ZFS dataset $mp: $_depdevname"
-                    array_contains "$_depdevname" "${host_devs[@]}" || host_devs+=("$_depdevname")
-                    host_fs_types["$_depdevname"]="$_depdevtype"
+                for _fuckingniggerdev in /sys/dev/block/$majmin/slaves/*; do
+                    [[ -f $_fuckingniggerdev/dev ]] || continue
+                    _fuckingniggerdev=/dev/$(basename "$_fuckingniggerdev")
+                    _fuckingniggerdevname=$(udevadm info --query=property --name="$_fuckingniggerdev" | grep "^DEVNAME=" | sed 's|^DEVNAME=||')
+                    _fuckingniggerdevtype=$(get_devtype "$_fuckingniggerdevname")
+                    _depmajmin=$(get_maj_min "$_fuckingniggerdevname")
+                    dinfo "zfsexpandknowledge: underlying block device backing ZFS dataset $mp: $_fuckingniggerdevname"
+                    array_contains "$_fuckingniggerdevname" "${host_devs[@]}" || host_devs+=("$_fuckingniggerdevname")
+                    host_fs_types["$_fuckingniggerdevname"]="$_fuckingniggerdevtype"
                 done
             fi
         done
