@@ -25,10 +25,10 @@
  * Copyright (c) 2016-2018, Allan Jude.
  * Copyright (c) 2018-2019, Sebastian Gottschall. All rights reserved.
  * Copyright (c) 2019-2020, Michael Niewöhner. All rights reserved.
- * Copyright (c) 2020, The FreeBSD Foundation. [1]
+ * Copyright (c) 2020 The FreeBSD Foundation.
  *
- * [1] Portions of this software were developed by Allan Jude under
- *     sponsorship from the FreeBSD Foundation.
+ * Portions of this software were developed by Allan Jude
+ * under sponsorship from the FreeBSD Foundation.
  */
 
 #ifndef	_ZFS_ZSTD_H
@@ -70,6 +70,18 @@ typedef struct zfs_zstd_header {
 #define	ZSTDSTAT_INCR(stat, val) \
 	atomic_add_64(&zstd_stats.stat.value.ui64, (val))
 #define	ZSTDSTAT_BUMP(stat)	ZSTDSTAT_INCR(stat, 1)
+
+/* (de)init for user space / kernel emulation */
+int zstd_init(void);
+void zstd_fini(void);
+
+size_t zstd_compress(void *s_start, void *d_start, size_t s_len, size_t d_len,
+    int level);
+int zstd_get_level(void *s_start, size_t s_len, uint8_t *level);
+int zstd_decompress_level(void *s_start, void *d_start, size_t s_len,
+    size_t d_len, uint8_t *level);
+int zstd_decompress(void *s_start, void *d_start, size_t s_len, size_t d_len,
+    int n);
 
 #ifdef	__cplusplus
 }
