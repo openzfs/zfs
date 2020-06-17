@@ -57,7 +57,7 @@ set -A args "create" "add" "destroy" "import fakepool" \
     "add raidz1 fakepool" "add raidz2 fakepool" \
     "setvprop" "blah blah" "-%" "--?" "-*" "-=" \
     "-a" "-f" "-g" "-j" "-n" "-o" "-p" "-p /tmp" "-r" \
-    "-t" "-w" "-z" "-E" "-H" "-I" "-J" "-K" \
+    "-t" "-w" "-y" "-z" "-E" "-H" "-I" "-J" "-K" \
     "-N" "-Q" "-R" "-T" "-W" "-Z"
 
 log_assert "Execute zdb using invalid parameters."
