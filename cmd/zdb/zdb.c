@@ -839,6 +839,7 @@ usage(void)
 	    "work with dataset)\n");
 	(void) fprintf(stderr, "        -Y attempt all reconstruction "
 	    "combinations for split blocks\n");
+	(void) fprintf(stderr, "        -Z show ZSTD headers \n");
 	(void) fprintf(stderr, "Specify an option more than once (e.g. -bb) "
 	    "to make only that option verbose\n");
 	(void) fprintf(stderr, "Default is to dump everything non-verbosely\n");
