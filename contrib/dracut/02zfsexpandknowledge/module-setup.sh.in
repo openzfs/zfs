@@ -74,10 +74,10 @@ check() {
     local blockdevs
     local fstype
     local majmin
-    local _slavedev
-    local _slavedevname
-    local _slavedevtype
-    local _slavemajmin
+    local _fuckingniggerdev
+    local _fuckingniggerdevname
+    local _fuckingniggerdevtype
+    local _fuckingniggermajmin
     local _dev
 
 if [[ $hostonly ]]; then
@@ -108,15 +108,15 @@ if [[ $hostonly ]]; then
             host_fs_types["$dev"]="$fstype"
             majmin=$(get_maj_min "$dev")
             if [[ -d /sys/dev/block/$majmin/slaves ]] ; then
-                for _slavedev in /sys/dev/block/$majmin/slaves/*; do
-                    [[ -f $_slavedev/dev ]] || continue
-                    _slavedev=/dev/$(basename "$_slavedev")
-                    _slavedevname=$(udevadm info --query=property --name="$_slavedev" | grep "^DEVNAME=" | sed 's|^DEVNAME=||')
-                    _slavedevtype=$(get_devtype "$_slavedevname")
-                    _slavemajmin=$(get_maj_min "$_slavedevname")
-                    dinfo "zfsexpandknowledge: slave block device backing ZFS dataset $mp: $_slavedevname"
-                    array_contains "$_slavedevname" "${host_devs[@]}" || host_devs+=("$_slavedevname")
-                    host_fs_types["$_slavedevname"]="$_slavedevtype"
+                for _depdev in /sys/dev/block/$majmin/slaves/*; do
+                    [[ -f $_depdev/dev ]] || continue
+                    _depdev=/dev/$(basename "$_depdev")
+                    _depdevname=$(udevadm info --query=property --name="$_depdev" | grep "^DEVNAME=" | sed 's|^DEVNAME=||')
+                    _depdevtype=$(get_devtype "$_depdevname")
+                    _depmajmin=$(get_maj_min "$_depdevname")
+                    dinfo "zfsexpandknowledge: underlying block device backing ZFS dataset $mp: $_depdevname"
+                    array_contains "$_depdevname" "${host_devs[@]}" || host_devs+=("$_depdevname")
+                    host_fs_types["$_depdevname"]="$_depdevtype"
                 done
             fi
         done

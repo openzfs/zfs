@@ -69,7 +69,6 @@ struct dk_cinfo {
 	uint_t	dki_vec;		/* interrupt vector */
 	char	dki_dname[DK_DEVLEN];	/* drive name (no unit #) */
 	uint_t	dki_unit;		/* unit number */
-	uint_t	dki_slave;		/* slave number */
 	ushort_t dki_partition;		/* partition number */
 	ushort_t dki_maxtransfer;	/* max. transfer size in DEV_BSIZE */
 };

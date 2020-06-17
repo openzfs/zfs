@@ -1,14 +1,11 @@
 #!/bin/sh
 #
-# Show device mapper slave devices.  This is useful for looking up the
-# /dev/sd* devices associated with a dm or multipath device.  For example:
-#
-# $ ls /sys/block/dm-113/slaves/
-# sddt  sdjw
+# Show device mapper dependent / underlying devices.  This is useful for
+# looking up the /dev/sd* devices associated with a dm or multipath device. 
 #
 
 if [ "$1" = "-h" ] ; then
-	echo "Show device mapper slave devices."
+	echo "Show device mapper dependent (underlying) devices."
 	exit
 fi
 
@@ -29,4 +26,4 @@ if [ -d "/sys/class/block/$dev/slaves" ] ; then
 	val=$(echo "$val" | sed -r 's/[[:blank:]]+/ /g')
 fi
 
-echo "slaves=$val"
+echo "dm-deps=$val"
