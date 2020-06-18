@@ -153,6 +153,8 @@ _zed_conf_display_help(const char *prog, int got_err)
 	    "Force daemon to run.");
 	fprintf(fp, "%*c%*s %s\n", w1, 0x20, -w2, "-F",
 	    "Run daemon in the foreground.");
+	fprintf(fp, "%*c%*s %s\n", w1, 0x20, -w2, "-I",
+	    "Idle daemon until kernel module is (re)loaded.");
 	fprintf(fp, "%*c%*s %s\n", w1, 0x20, -w2, "-M",
 	    "Lock all pages in memory.");
 	fprintf(fp, "%*c%*s %s\n", w1, 0x20, -w2, "-P",
@@ -249,7 +251,7 @@ _zed_conf_parse_path(char **resultp, const char *path)
 void
 zed_conf_parse_opts(struct zed_conf *zcp, int argc, char **argv)
 {
-	const char * const opts = ":hLVc:d:p:P:s:vfFMZ";
+	const char * const opts = ":hLVc:d:p:P:s:vfFMZI";
 	int opt;
 
 	if (!zcp || !argv || !argv[0])
@@ -273,6 +275,9 @@ zed_conf_parse_opts(struct zed_conf *zcp, int argc, char **argv)
 			break;
 		case 'd':
 			_zed_conf_parse_path(&zcp->zedlet_dir, optarg);
+			break;
+		case 'I':
+			zcp->do_idle = 1;
 			break;
 		case 'p':
 			_zed_conf_parse_path(&zcp->pid_file, optarg);
