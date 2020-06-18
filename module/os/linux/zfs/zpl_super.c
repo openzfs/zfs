@@ -138,7 +138,7 @@ zpl_statfs(struct dentry *dentry, struct kstatfs *statp)
 	int error;
 
 	cookie = spl_fstrans_mark();
-	error = -zfs_statvfs(dentry, statp);
+	error = -zfs_statvfs(dentry->d_inode, statp);
 	spl_fstrans_unmark(cookie);
 	ASSERT3S(error, <=, 0);
 

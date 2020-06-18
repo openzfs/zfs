@@ -94,6 +94,10 @@ tags = ['functional', 'devices']
 tests = ['events_001_pos', 'events_002_pos', 'zed_rc_filter']
 tags = ['functional', 'events']
 
+[tests/functional/fallocate:Linux]
+tests = ['fallocate_prealloc', 'fallocate_punch-hole']
+tags = ['functional', 'fallocate']
+
 [tests/functional/fault:Linux]
 tests = ['auto_offline_001_pos', 'auto_online_001_pos', 'auto_replace_001_pos',
     'auto_spare_001_pos', 'auto_spare_002_pos', 'auto_spare_multiple',

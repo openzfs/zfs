@@ -210,7 +210,7 @@ extern int zfs_domount(struct super_block *sb, zfs_mnt_t *zm, int silent);
 extern void zfs_preumount(struct super_block *sb);
 extern int zfs_umount(struct super_block *sb);
 extern int zfs_remount(struct super_block *sb, int *flags, zfs_mnt_t *zm);
-extern int zfs_statvfs(struct dentry *dentry, struct kstatfs *statp);
+extern int zfs_statvfs(struct inode *ip, struct kstatfs *statp);
 extern int zfs_vget(struct super_block *sb, struct inode **ipp, fid_t *fidp);
 extern int zfs_prune(struct super_block *sb, unsigned long nr_to_scan,
     int *objects);

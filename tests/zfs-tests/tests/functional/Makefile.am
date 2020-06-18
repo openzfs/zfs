@@ -22,6 +22,7 @@ SUBDIRS = \
 	devices \
 	events \
 	exec \
+	fallocate \
 	fault \
 	features \
 	grow \
