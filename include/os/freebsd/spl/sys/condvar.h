@@ -37,6 +37,31 @@
 #include <sys/time.h>
 #include <sys/kmem.h>
 
+/*
+ * cv_timedwait() is similar to cv_wait() except that it additionally expects
+ * a timeout value specified in ticks.  When woken by cv_signal() or
+ * cv_broadcast() it returns 1, otherwise when the timeout is reached -1 is
+ * returned.
+ *
+ * cv_timedwait_sig() behaves the same as cv_timedwait() but blocks
+ * interruptibly and can be woken by a signal (EINTR, ERESTART).  When
+ * this occurs 0 is returned.
+ *
+ * cv_timedwait_io() and cv_timedwait_sig_io() are variants of cv_timedwait()
+ * and cv_timedwait_sig() which should be used when waiting for outstanding
+ * IO to complete.  They are responsible for updating the iowait accounting
+ * when this is supported by the platform.
+ *
+ * cv_timedwait_hires() and cv_timedwait_sig_hires() are high resolution
+ * versions of cv_timedwait() and cv_timedwait_sig().  They expect the timeout
+ * to be specified as a hrtime_t allowing for timeouts of less than a tick.
+ *
+ * N.B. The return values differ slightly from the illumos implementation
+ * which returns the time remaining, instead of 1, when woken.  They both
+ * return -1 on timeout. Consumers which need to know the time remaining
+ * are responsible for tracking it themselves.
+ */
+
 static __inline sbintime_t
 zfs_nstosbt(int64_t _ns)
 {
@@ -120,7 +145,7 @@ cv_timedwait_sig(kcondvar_t *cvp, kmutex_t *mp, clock_t timo)
 #define	cv_timedwait_io cv_timedwait
 #define	cv_timedwait_sig_io cv_timedwait_sig
 
-static inline clock_t
+static inline int
 cv_timedwait_hires(kcondvar_t *cvp, kmutex_t *mp, hrtime_t tim, hrtime_t res,
     int flag)
 {
@@ -135,7 +160,6 @@ cv_timedwait_hires(kcondvar_t *cvp, kmutex_t *mp, hrtime_t tim, hrtime_t res,
 
 	if (hrtime >= tim)
 		return (-1);
-
 	rc = cv_timedwait_sbt(cvp, mp, zfs_nstosbt(tim),
 	    zfs_nstosbt(res), C_ABSOLUTE);
 
@@ -143,11 +167,10 @@ cv_timedwait_hires(kcondvar_t *cvp, kmutex_t *mp, hrtime_t tim, hrtime_t res,
 		return (-1);
 
 	KASSERT(rc == 0, ("unexpected rc value %d", rc));
-	hrtime = tim - gethrtime();
-	return ((hrtime > 0) ? hrtime : -1);
+	return (1);
 }
 
-static inline clock_t
+static inline int
 cv_timedwait_sig_hires(kcondvar_t *cvp, kmutex_t *mp, hrtime_t tim,
     hrtime_t res, int flag)
 {
@@ -175,8 +198,7 @@ cv_timedwait_sig_hires(kcondvar_t *cvp, kmutex_t *mp, hrtime_t tim,
 		return (0);
 	default:
 		KASSERT(rc == 0, ("unexpected rc value %d", rc));
-		hrtime = tim - gethrtime();
-		return ((hrtime > 0) ? hrtime : -1);
+		return (1);
 	}
 }
 
