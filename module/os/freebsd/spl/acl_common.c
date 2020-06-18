@@ -159,7 +159,7 @@ typedef struct ace_list {
  *	returns (-1 = less than, 0 = equal, 1 = greater than
  */
 void
-ksort(caddr_t v, int n, int s, int (*f)())
+ksort(caddr_t v, int n, int s, int (*f)(void *, void *))
 {
 	int g, i, j, ii;
 	unsigned int *p1, *p2;
@@ -1706,26 +1706,4 @@ ace_trivial_common(void *acep, int aclcnt,
 
 	}
 	return (0);
-}
-
-uint64_t
-ace_walk(void *datap, uint64_t cookie, int aclcnt, uint16_t *flags,
-    uint16_t *type, uint32_t *mask)
-{
-	ace_t *acep = datap;
-
-	if (cookie >= aclcnt)
-		return (0);
-
-	*flags = acep[cookie].a_flags;
-	*type = acep[cookie].a_type;
-	*mask = acep[cookie++].a_access_mask;
-
-	return (cookie);
-}
-
-int
-ace_trivial(ace_t *acep, int aclcnt)
-{
-	return (ace_trivial_common(acep, aclcnt, ace_walk));
 }

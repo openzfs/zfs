@@ -34,6 +34,7 @@
 #include <sys/zcp.h>
 #include <sys/zcp_iter.h>
 #include <sys/zcp_global.h>
+#include <sys/zcp_prop.h>
 #include <sys/zfs_ioctl.h>
 #include <sys/zfs_znode.h>
 #include <sys/zvol.h>

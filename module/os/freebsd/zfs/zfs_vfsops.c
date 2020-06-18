@@ -1250,7 +1250,7 @@ out:
 	return (error);
 }
 
-void
+static void
 zfs_unregister_callbacks(zfsvfs_t *zfsvfs)
 {
 	objset_t *os = zfsvfs->z_os;

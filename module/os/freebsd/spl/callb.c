@@ -52,7 +52,8 @@ typedef struct callb {
 	char		c_flag;		/* info about the callb state */
 	uchar_t		c_class;	/* this callb's class */
 	kcondvar_t	c_done_cv;	/* signal callb completion */
-	boolean_t	(*c_func)();	/* cb function: returns true if ok */
+	boolean_t	(*c_func)(void *, int);
+					/* cb function: returns true if ok */
 	void		*c_arg;		/* arg to c_func */
 	char		c_name[CB_MAXNAME+1]; /* debug:max func name length */
 } callb_t;
@@ -94,7 +95,7 @@ callb_cpr_t	callb_cprinfo_safe = {
 /*
  * Init all callb tables in the system.
  */
-void
+static void
 callb_init(void *dummy __unused)
 {
 	callb_table.ct_busy = 0;	/* mark table open for additions */
@@ -102,7 +103,7 @@ callb_init(void *dummy __unused)
 	mutex_init(&callb_table.ct_lock, NULL, MUTEX_DEFAULT, NULL);
 }
 
-void
+static void
 callb_fini(void *dummy __unused)
 {
 	callb_t *cp;

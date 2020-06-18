@@ -69,9 +69,6 @@
 #include <sys/socket.h>
 #include <sys/sha2.h>
 
-/* in libzfs_dataset.c */
-extern void zfs_setprop_error(libzfs_handle_t *, zfs_prop_t, int, char *);
-
 static int zfs_receive_impl(libzfs_handle_t *, const char *, const char *,
     recvflags_t *, int, const char *, nvlist_t *, avl_tree_t *, char **,
     const char *, nvlist_t *);
@@ -2296,7 +2293,7 @@ err_out:
 	return (err);
 }
 
-zfs_handle_t *
+static zfs_handle_t *
 name_to_dir_handle(libzfs_handle_t *hdl, const char *snapname)
 {
 	char dirname[ZFS_MAX_DATASET_NAME_LEN];
@@ -2877,7 +2874,7 @@ typedef struct guid_to_name_data {
 	uint64_t num_redact_snaps;
 } guid_to_name_data_t;
 
-boolean_t
+static boolean_t
 redact_snaps_match(zfs_handle_t *zhp, guid_to_name_data_t *gtnd)
 {
 	uint64_t *bmark_snaps;

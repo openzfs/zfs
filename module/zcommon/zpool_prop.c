@@ -235,6 +235,7 @@ zpool_prop_random_value(zpool_prop_t prop, uint64_t seed)
 }
 
 #ifndef _KERNEL
+#include <libzfs.h>
 
 const char *
 zpool_prop_values(zpool_prop_t prop)

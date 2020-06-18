@@ -837,7 +837,7 @@ zfs_unshare_smb(zfs_handle_t *zhp, const char *mountpoint)
 /*
  * Same as zfs_unmountall(), but for NFS and SMB unshares.
  */
-int
+static int
 zfs_unshareall_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto)
 {
 	prop_changelist_t *clp;

@@ -966,7 +966,7 @@ typedef struct remap_segment {
 	list_node_t rs_node;
 } remap_segment_t;
 
-remap_segment_t *
+static remap_segment_t *
 rs_alloc(vdev_t *vd, uint64_t offset, uint64_t asize, uint64_t split_offset)
 {
 	remap_segment_t *rs = kmem_alloc(sizeof (remap_segment_t), KM_SLEEP);
@@ -990,7 +990,7 @@ rs_alloc(vdev_t *vd, uint64_t offset, uint64_t asize, uint64_t split_offset)
  * Finally, since we are doing an allocation, it is up to the caller to
  * free the array allocated in this function.
  */
-vdev_indirect_mapping_entry_phys_t *
+static vdev_indirect_mapping_entry_phys_t *
 vdev_indirect_mapping_duplicate_adjacent_entries(vdev_t *vd, uint64_t offset,
     uint64_t asize, uint64_t *copied_entries)
 {
@@ -1858,7 +1858,6 @@ vdev_ops_t vdev_indirect_ops = {
 	.vdev_op_leaf = B_FALSE			/* leaf vdev */
 };
 
-EXPORT_SYMBOL(rs_alloc);
 EXPORT_SYMBOL(spa_condense_fini);
 EXPORT_SYMBOL(spa_start_indirect_condensing_thread);
 EXPORT_SYMBOL(spa_condense_indirect_start_sync);

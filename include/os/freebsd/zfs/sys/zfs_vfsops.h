@@ -153,6 +153,9 @@ typedef struct zfid_long {
 extern uint_t zfs_fsyncer_key;
 extern int zfs_super_owner;
 
+extern void zfs_init(void);
+extern void zfs_fini(void);
+
 extern int zfs_suspend_fs(zfsvfs_t *zfsvfs);
 extern int zfs_resume_fs(zfsvfs_t *zfsvfs, struct dsl_dataset *ds);
 extern int zfs_end_fs(zfsvfs_t *zfsvfs, struct dsl_dataset *ds);

@@ -486,7 +486,7 @@ print_prop_cb(int prop, void *cb)
  * that command.  Otherwise, iterate over the entire command table and display
  * a complete usage message.
  */
-void
+static void
 usage(boolean_t requested)
 {
 	FILE *fp = requested ? stdout : stderr;
@@ -1693,7 +1693,7 @@ typedef struct export_cbdata {
 /*
  * Export one pool
  */
-int
+static int
 zpool_export_one(zpool_handle_t *zhp, void *data)
 {
 	export_cbdata_t *cb = data;
@@ -3721,7 +3721,7 @@ default_column_width(iostat_cbdata_t *cb, enum iostat_type type)
  * If force_column_width is set, use it for the column width.  If not set, use
  * the default column width.
  */
-void
+static void
 print_iostat_labels(iostat_cbdata_t *cb, unsigned int force_column_width,
     const name_and_columns_t labels[][IOSTAT_MAX_LABELS])
 {
@@ -3793,7 +3793,7 @@ print_iostat_labels(iostat_cbdata_t *cb, unsigned int force_column_width,
  *     sdc         -      -      0      0      5    473  val1  val2
  * ----------  -----  -----  -----  -----  -----  -----  ----  ----
  */
-void
+static void
 print_cmd_columns(vdev_cmd_data_list_t *vcdl, int use_dashes)
 {
 	int i, j;
@@ -4643,7 +4643,7 @@ refresh_iostat(zpool_handle_t *zhp, void *data)
 /*
  * Callback to print out the iostats for the given pool.
  */
-int
+static int
 print_iostat(zpool_handle_t *zhp, void *data)
 {
 	iostat_cbdata_t *cb = data;
@@ -5797,7 +5797,7 @@ print_one_column(zpool_prop_t prop, uint64_t value, const char *str,
  * print static default line per vdev
  * not compatible with '-o' <proplist> option
  */
-void
+static void
 print_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
     list_cbdata_t *cb, int depth, boolean_t isspare)
 {
@@ -5964,7 +5964,7 @@ print_list_stats(zpool_handle_t *zhp, const char *name, nvlist_t *nv,
 /*
  * Generic callback function to list a pool.
  */
-int
+static int
 list_callback(zpool_handle_t *zhp, void *data)
 {
 	list_cbdata_t *cbp = data;
@@ -6868,7 +6868,7 @@ zpool_has_checkpoint(zpool_handle_t *zhp)
 	return (B_FALSE);
 }
 
-int
+static int
 scrub_callback(zpool_handle_t *zhp, void *data)
 {
 	scrub_cbdata_t *cb = data;
@@ -7593,7 +7593,7 @@ print_dedup_stats(nvlist_t *config)
  * When given the '-v' option, we print out the complete config.  If the '-e'
  * option is specified, then we print out error rate information as well.
  */
-int
+static int
 status_callback(zpool_handle_t *zhp, void *data)
 {
 	status_cbdata_t *cbp = data;
@@ -9458,7 +9458,7 @@ typedef struct set_cbdata {
 	boolean_t cb_any_successful;
 } set_cbdata_t;
 
-int
+static int
 set_callback(zpool_handle_t *zhp, void *data)
 {
 	int error;
@@ -9708,7 +9708,7 @@ print_wait_status_row(wait_data_t *wd, zpool_handle_t *zhp, int row)
 	(void) fflush(stdout);
 }
 
-void *
+static void *
 wait_status_thread(void *arg)
 {
 	wait_data_t *wd = (wait_data_t *)arg;

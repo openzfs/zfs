@@ -212,7 +212,7 @@ int zfs_vdev_def_queue_depth = 32;
  */
 int zfs_vdev_aggregate_trim = 0;
 
-int
+static int
 vdev_queue_offset_compare(const void *x1, const void *x2)
 {
 	const zio_t *z1 = (const zio_t *)x1;
@@ -244,7 +244,7 @@ vdev_queue_type_tree(vdev_queue_t *vq, zio_type_t t)
 		return (&vq->vq_trim_offset_tree);
 }
 
-int
+static int
 vdev_queue_timestamp_compare(const void *x1, const void *x2)
 {
 	const zio_t *z1 = (const zio_t *)x1;

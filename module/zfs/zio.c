@@ -2083,7 +2083,7 @@ zio_execute(zio_t *zio)
  * enough to allow zio_execute() to be called recursively.  A minimum
  * stack size of 16K is required to avoid needing to re-dispatch the zio.
  */
-boolean_t
+static boolean_t
 zio_execute_stack_check(zio_t *zio)
 {
 #if !defined(HAVE_LARGE_STACKS)

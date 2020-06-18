@@ -172,20 +172,6 @@ const uint8_t	sha512_256_test_digests[][32] = {
 	}
 };
 
-/*
- * Local reimplementation of cmn_err, since it's used in sha2.c.
- */
-/*ARGSUSED*/
-void
-cmn_err(int level, char *format, ...)
-{
-	va_list ap;
-	va_start(ap, format);
-	/* LINTED: E_SEC_PRINTF_VAR_FMT */
-	(void) vfprintf(stderr, format, ap);
-	va_end(ap);
-}
-
 int
 main(int argc, char *argv[])
 {

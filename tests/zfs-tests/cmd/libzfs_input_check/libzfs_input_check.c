@@ -918,7 +918,7 @@ enum zfs_ioc_ref {
  * Canonical reference check of /dev/zfs ioctl numbers.
  * These cannot change and new ioctl numbers must be appended.
  */
-boolean_t
+static boolean_t
 validate_ioc_values(void)
 {
 	boolean_t result = B_TRUE;

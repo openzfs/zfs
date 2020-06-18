@@ -602,7 +602,7 @@ zil_free_lwb(zilog_t *zilog, lwb_t *lwb)
  * Called when we create in-memory log transactions so that we know
  * to cleanup the itxs at the end of spa_sync().
  */
-void
+static void
 zilog_dirty(zilog_t *zilog, uint64_t txg)
 {
 	dsl_pool_t *dp = zilog->zl_dmu_pool;
@@ -628,7 +628,7 @@ zilog_dirty(zilog_t *zilog, uint64_t txg)
  * dirtied (zil_itx_assign) or cleaned (zil_clean) while we check its current
  * state.
  */
-boolean_t
+static boolean_t __maybe_unused
 zilog_is_dirty_in_txg(zilog_t *zilog, uint64_t txg)
 {
 	dsl_pool_t *dp = zilog->zl_dmu_pool;
@@ -642,7 +642,7 @@ zilog_is_dirty_in_txg(zilog_t *zilog, uint64_t txg)
  * Determine if the zil is dirty. The zil is considered dirty if it has
  * any pending itx records that have not been cleaned by zil_clean().
  */
-boolean_t
+static boolean_t
 zilog_is_dirty(zilog_t *zilog)
 {
 	dsl_pool_t *dp = zilog->zl_dmu_pool;

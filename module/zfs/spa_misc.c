@@ -615,7 +615,7 @@ spa_deadman(void *arg)
 	    MSEC_TO_TICK(zfs_deadman_checktime_ms));
 }
 
-int
+static int
 spa_log_sm_sort_by_txg(const void *va, const void *vb)
 {
 	const spa_log_sm_t *a = va;
@@ -944,7 +944,7 @@ spa_aux_compare(const void *a, const void *b)
 	return (TREE_CMP(sa->aux_guid, sb->aux_guid));
 }
 
-void
+static void
 spa_aux_add(vdev_t *vd, avl_tree_t *avl)
 {
 	avl_index_t where;
@@ -962,7 +962,7 @@ spa_aux_add(vdev_t *vd, avl_tree_t *avl)
 	}
 }
 
-void
+static void
 spa_aux_remove(vdev_t *vd, avl_tree_t *avl)
 {
 	spa_aux_t search;
@@ -982,7 +982,7 @@ spa_aux_remove(vdev_t *vd, avl_tree_t *avl)
 	}
 }
 
-boolean_t
+static boolean_t
 spa_aux_exists(uint64_t guid, uint64_t *pool, int *refcnt, avl_tree_t *avl)
 {
 	spa_aux_t search, *found;
@@ -1007,7 +1007,7 @@ spa_aux_exists(uint64_t guid, uint64_t *pool, int *refcnt, avl_tree_t *avl)
 	return (found != NULL);
 }
 
-void
+static void
 spa_aux_activate(vdev_t *vd, avl_tree_t *avl)
 {
 	spa_aux_t search, *found;

@@ -1684,7 +1684,7 @@ dsl_dir_set_quota(const char *ddname, zprop_source_t source, uint64_t quota)
 	    ZFS_SPACE_CHECK_EXTRA_RESERVED));
 }
 
-int
+static int
 dsl_dir_set_reservation_check(void *arg, dmu_tx_t *tx)
 {
 	dsl_dir_set_qr_arg_t *ddsqra = arg;

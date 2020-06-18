@@ -518,11 +518,7 @@ gcm_format_initial_blocks(uchar_t *iv, ulong_t iv_len,
 	}
 }
 
-/*
- * The following function is called at encrypt or decrypt init time
- * for AES GCM mode.
- */
-int
+static int
 gcm_init(gcm_ctx_t *ctx, unsigned char *iv, size_t iv_len,
     unsigned char *auth_data, size_t auth_data_len, size_t block_size,
     int (*encrypt_block)(const void *, const uint8_t *, uint8_t *),
@@ -574,6 +570,9 @@ gcm_init(gcm_ctx_t *ctx, unsigned char *iv, size_t iv_len,
 }
 
 /*
+ * The following function is called at encrypt or decrypt init time
+ * for AES GCM mode.
+ *
  * Init the GCM context struct. Handle the cycle and avx implementations here.
  */
 int

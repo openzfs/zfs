@@ -27,8 +27,8 @@
  */
 #include <sys/zfs_context.h>
 #include <sys/zio.h>
+#include <sys/zio_checksum.h>
 #include <sys/edonr.h>
-#include <sys/zfs_context.h>	/* For CTASSERT() */
 #include <sys/abd.h>
 
 #define	EDONR_MODE		512

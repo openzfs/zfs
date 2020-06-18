@@ -39,6 +39,7 @@
 #include <libzfs.h>
 #include <libshare.h>
 #include "libshare_impl.h"
+#include "nfs.h"
 
 #define	ZFS_EXPORTS			"/etc/exports.d/zfs.exports"
 #define	ZFS_EXPORTS_LOCK	"/etc/exports.d/zfs.exports.lck"

@@ -1584,7 +1584,7 @@ ztest_bt_bonus(dmu_buf_t *db)
  * helps ensure that all dnode traversal code properly skips the
  * interior regions of large dnodes.
  */
-void
+static void
 ztest_fill_unused_bonus(dmu_buf_t *db, void *end, uint64_t obj,
     objset_t *os, uint64_t gen)
 {
@@ -1603,7 +1603,7 @@ ztest_fill_unused_bonus(dmu_buf_t *db, void *end, uint64_t obj,
  * Verify that the unused area of a bonus buffer is filled with the
  * expected tokens.
  */
-void
+static void
 ztest_verify_unused_bonus(dmu_buf_t *db, void *end, uint64_t obj,
     objset_t *os, uint64_t gen)
 {
@@ -2259,7 +2259,7 @@ ztest_lr_alloc(size_t lrsize, char *name)
 	return (lr);
 }
 
-void
+static void
 ztest_lr_free(void *lr, size_t lrsize, char *name)
 {
 	size_t namesize = name ? strlen(name) + 1 : 0;
@@ -3635,7 +3635,7 @@ ztest_device_removal(ztest_ds_t *zd, uint64_t id)
 /*
  * Callback function which expands the physical size of the vdev.
  */
-vdev_t *
+static vdev_t *
 grow_vdev(vdev_t *vd, void *arg)
 {
 	spa_t *spa __maybe_unused = vd->vdev_spa;
@@ -3664,7 +3664,7 @@ grow_vdev(vdev_t *vd, void *arg)
  * Callback function which expands a given vdev by calling vdev_online().
  */
 /* ARGSUSED */
-vdev_t *
+static vdev_t *
 online_vdev(vdev_t *vd, void *arg)
 {
 	spa_t *spa = vd->vdev_spa;
@@ -3724,7 +3724,7 @@ online_vdev(vdev_t *vd, void *arg)
  * If a NULL callback is passed, then we just return back the first
  * leaf vdev we encounter.
  */
-vdev_t *
+static vdev_t *
 vdev_walk_tree(vdev_t *vd, vdev_t *(*func)(vdev_t *, void *), void *arg)
 {
 	uint_t c;
@@ -4177,7 +4177,7 @@ ztest_dmu_snapshot_create_destroy(ztest_ds_t *zd, uint64_t id)
 /*
  * Cleanup non-standard snapshots and clones.
  */
-void
+static void
 ztest_dsl_dataset_cleanup(char *osname, uint64_t id)
 {
 	char *snap1name;
@@ -4631,7 +4631,7 @@ ztest_dmu_read_write(ztest_ds_t *zd, uint64_t id)
 	umem_free(od, size);
 }
 
-void
+static void
 compare_and_update_pbbufs(uint64_t s, bufwad_t *packbuf, bufwad_t *bigbuf,
     uint64_t bigsize, uint64_t n, uint64_t chunksize, uint64_t txg)
 {
@@ -7295,7 +7295,7 @@ ztest_run(ztest_shared_t *zs)
 	mutex_destroy(&ztest_checkpoint_lock);
 }
 
-void
+static void
 print_time(hrtime_t t, char *timebuf)
 {
 	hrtime_t s = t / NANOSEC;

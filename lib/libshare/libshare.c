@@ -873,11 +873,3 @@ sa_zfs_process_share(sa_handle_t handle, sa_group_t group, sa_share_t share,
 	return (process_share(impl_handle, impl_share, mountpoint, NULL,
 	    proto, shareopts, NULL, dataset, B_FALSE));
 }
-
-void
-sa_update_sharetab_ts(sa_handle_t handle)
-{
-	sa_handle_impl_t impl_handle = (sa_handle_impl_t)handle;
-
-	update_sharetab(impl_handle);
-}

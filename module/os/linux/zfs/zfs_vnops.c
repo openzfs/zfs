@@ -1041,7 +1041,7 @@ zfs_zrele_async(znode_t *zp)
 }
 
 /* ARGSUSED */
-void
+static void
 zfs_get_done(zgd_t *zgd, int error)
 {
 	znode_t *zp = zgd->zgd_private;
@@ -4560,25 +4560,6 @@ zfs_inactive(struct inode *ip)
 	zfs_zinactive(zp);
 	if (need_unlock)
 		rw_exit(&zfsvfs->z_teardown_inactive_lock);
-}
-
-/*
- * Bounds-check the seek operation.
- *
- *	IN:	ip	- inode seeking within
- *		ooff	- old file offset
- *		noffp	- pointer to new file offset
- *
- *	RETURN:	0 if success
- *		EINVAL if new offset invalid
- */
-/* ARGSUSED */
-int
-zfs_seek(struct inode *ip, offset_t ooff, offset_t *noffp)
-{
-	if (S_ISDIR(ip->i_mode))
-		return (0);
-	return ((*noffp < 0 || *noffp > MAXOFFSET_T) ? EINVAL : 0);
 }
 
 /*

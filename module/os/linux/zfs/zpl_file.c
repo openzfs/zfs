@@ -651,7 +651,7 @@ zpl_readpages(struct file *filp, struct address_space *mapping,
 	    (filler_t *)zpl_readpage, filp));
 }
 
-int
+static int
 zpl_putpage(struct page *pp, struct writeback_control *wbc, void *data)
 {
 	struct address_space *mapping = data;

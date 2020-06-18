@@ -80,6 +80,11 @@ typedef struct umem_cache {
 	int			cache_cflags;
 } umem_cache_t;
 
+/* Prototypes for functions to provide defaults for umem envvars */
+const char *_umem_debug_init(void);
+const char *_umem_options_init(void);
+const char *_umem_logging_init(void);
+
 static inline void *
 umem_alloc(size_t size, int flags)
 {

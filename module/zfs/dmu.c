@@ -151,7 +151,7 @@ const dmu_object_byteswap_info_t dmu_ot_byteswap[DMU_BSWAP_NUMFUNCS] = {
 	{	zfs_acl_byteswap,	"acl"		}
 };
 
-int
+static int
 dmu_buf_hold_noread_by_dnode(dnode_t *dn, uint64_t offset,
     void *tag, dmu_buf_t **dbp)
 {

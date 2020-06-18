@@ -588,7 +588,7 @@ dbuf_is_metadata(dmu_buf_impl_t *db)
  * distributed between all sublists and uses this assumption when
  * deciding which sublist to evict from and how much to evict from it.
  */
-unsigned int
+static unsigned int
 dbuf_cache_multilist_index_func(multilist_t *ml, void *obj)
 {
 	dmu_buf_impl_t *db = obj;

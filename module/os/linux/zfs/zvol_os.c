@@ -646,7 +646,7 @@ zvol_revalidate_disk(struct gendisk *disk)
 	return (0);
 }
 
-int
+static int
 zvol_update_volsize(zvol_state_t *zv, uint64_t volsize)
 {
 
@@ -717,12 +717,6 @@ zvol_find_by_dev(dev_t dev)
 	rw_exit(&zvol_state_lock);
 
 	return (NULL);
-}
-
-void
-zvol_validate_dev(zvol_state_t *zv)
-{
-	ASSERT3U(MINOR(zv->zv_zso->zvo_dev) & ZVOL_MINOR_MASK, ==, 0);
 }
 
 static struct kobject *

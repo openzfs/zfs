@@ -533,7 +533,7 @@ zfs_iter_vdev(zpool_handle_t *zhp, nvlist_t *nvl, void *data)
 	(dp->dd_func)(zhp, nvl, dp->dd_islabeled);
 }
 
-void
+static void
 zfs_enable_ds(void *arg)
 {
 	unavailpool_t *pool = (unavailpool_t *)arg;

@@ -43,6 +43,8 @@ __FBSDID("$FreeBSD$");
 #include <sys/errno.h>
 #include <libzfs.h>
 
+#include "libzfs_impl.h"
+
 static void
 build_iovec(struct iovec **iov, int *iovlen, const char *name, void *val,
     size_t len)
@@ -134,15 +136,4 @@ int
 zfs_mount_delegation_check(void)
 {
 	return (0);
-}
-
-/*
- * Check if we are doing an overlay mount.
- * Returns B_TRUE if the mount would overlay, otherwise B_FALSE.
- */
-boolean_t
-zfs_mount_overlay_check(const char *mountpoint)
-{
-	/* FreeBSD always allows overlay mounts. */
-	return (B_FALSE);
 }
