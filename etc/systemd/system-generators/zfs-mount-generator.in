@@ -173,6 +173,12 @@ set -eu;\
 keystatus=\"\$\$(@sbindir@/zfs get -H -o value keystatus \"${dataset}\")\";\
 [ \"\$\$keystatus\" = \"unavailable\" ] || exit 0;\
 ${keyloadscript}'"
+      keyunloadcmd="\
+/bin/sh -c '\
+set -eu;\
+keystatus=\"\$\$(@sbindir@/zfs get -H -o value keystatus \"${dataset}\")\";\
+[ \"\$\$keystatus\" = \"available\" ] || exit 0;\
+@sbindir@/zfs unload-key \"${dataset}\"'"
 
 
 
@@ -199,7 +205,7 @@ ${keymountdep}
 Type=oneshot
 RemainAfterExit=yes
 ExecStart=${keyloadcmd}
-ExecStop=@sbindir@/zfs unload-key '${dataset}'"   > "${dest_norm}/${keyloadunit}"
+ExecStop=${keyunloadcmd}"   > "${dest_norm}/${keyloadunit}"
     fi
     # Update the dependencies for the mount file to want the
     # key-loading unit.
