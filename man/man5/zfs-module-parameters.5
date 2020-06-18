@@ -1675,6 +1675,25 @@ Default value: \fB20\fR% of \fBzfs_dirty_data_max\fR.
 .sp
 .ne 2
 .na
+\fBzfs_fallocate_reserve_percent\fR (uint)
+.ad
+.RS 12n
+Since ZFS is a copy-on-write filesystem with snapshots, blocks cannot be
+preallocated for a file in order to guarantee that later writes will not
+run out of space.  Instead, fallocate() space preallocation only checks
+that sufficient space is currently available in the pool or the user's
+project quota allocation, and then creates a sparse file of the requested
+size. The requested space is multiplied by \fBzfs_fallocate_reserve_percent\fR
+to allow additional space for indirect blocks and other internal metadata.
+Setting this value to 0 disables support for fallocate(2) and returns
+EOPNOTSUPP for fallocate() space preallocation again.
+.sp
+Default value: \fB110\fR%
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_fletcher_4_impl\fR (string)
 .ad
 .RS 12n
