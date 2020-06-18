@@ -115,6 +115,7 @@ process_line() {
   wants="zfs-import.target"
   requires=""
   requiredmounts=""
+  bindsto=""
   wantedby=""
   requiredby=""
   noauto="off"
@@ -202,7 +203,8 @@ ExecStop=@sbindir@/zfs unload-key '${dataset}'"   > "${dest_norm}/${keyloadunit}
     fi
     # Update the dependencies for the mount file to want the
     # key-loading unit.
-    wants="${wants} ${keyloadunit}"
+    wants="${wants}"
+    bindsto="BindsTo=${keyloadunit}"
     after="${after} ${keyloadunit}"
   fi
 
@@ -413,6 +415,7 @@ Documentation=man:zfs-mount-generator(8)
 Before=${before}
 After=${after}
 Wants=${wants}
+${bindsto}
 ${requires}
 ${requiredmounts}
 
