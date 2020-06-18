@@ -59,6 +59,7 @@ abd_t *abd_get_offset(abd_t *, size_t);
 abd_t *abd_get_offset_size(abd_t *, size_t, size_t);
 abd_t *abd_get_zeros(size_t);
 abd_t *abd_get_from_buf(void *, size_t);
+void abd_cache_reap_now(void);
 
 /*
  * Conversion to and from a normal buffer
