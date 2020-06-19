@@ -1,1 +1,1 @@
-noinst_HEADERS = atomic.S
+EXTRA_DIST = atomic.S
