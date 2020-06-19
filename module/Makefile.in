@@ -10,16 +10,41 @@ install: modules_install
 uninstall: modules_uninstall
 check:
 
+# Filter out options that FreeBSD make doesn't understand
+getflags = ( \
+set -- \
+  $(filter-out --%,$(firstword $(MFLAGS))) \
+  $(filter -I%,$(MFLAGS)) \
+  $(filter -j%,$(MFLAGS)); \
+fmakeflags=""; \
+while getopts :deiI:j:knqrstw flag; do \
+  case $$flag in \
+    \?) :;; \
+    :) if [ $$OPTARG = "j" ]; then \
+	 ncpus=$$(sysctl -n kern.smp.cpus 2>/dev/null || :); \
+	 if [ -n "$$ncpus" ]; then fmakeflags="$$fmakeflags -j$$ncpus"; fi; \
+       fi;; \
+    d) fmakeflags="$$fmakeflags -dA";; \
+    *) fmakeflags="$$fmakeflags -$$flag$$OPTARG";; \
+  esac; \
+done; \
+echo $$fmakeflags \
+)
+FMAKEFLAGS = -C @abs_srcdir@ -f Makefile.bsd $(shell $(getflags))
+
+ifneq (@abs_srcdir@,@abs_builddir@)
+FMAKEFLAGS += MAKEOBJDIR=@abs_builddir@
+endif
+FMAKE = env -u MAKEFLAGS make $(FMAKEFLAGS)
+
 modules-Linux:
 	list='$(SUBDIR_TARGETS)'; for targetdir in $$list; do \
 		$(MAKE) -C $$targetdir; \
 	done
 	$(MAKE) -C @LINUX_OBJ@ M=`pwd` @KERNEL_MAKE@ CONFIG_ZFS=m modules
 
-# Only pass down gmake -j flag, if used.
 modules-FreeBSD:
-	flags="$$(echo $$MAKEFLAGS | awk -v RS=' ' /^-j/)"; \
-	env MAKEFLAGS="" make $${flags} -f Makefile.bsd
+	+$(FMAKE)
 
 modules-unknown:
 	@true
@@ -37,8 +62,7 @@ clean-Linux:
 	find . -name '*.ur-safe' -type f -print | xargs $(RM)
 
 clean-FreeBSD:
-	flags="$$(echo $$MAKEFLAGS | awk -v RS=' ' /^-j/)"; \
-	env MAKEFLAGS="" make $${flags} -f Makefile.bsd clean
+	+$(FMAKE) clean
 
 clean: clean-@ac_system@
 
@@ -87,8 +111,7 @@ cscopelist-am: $(am__tagged_files)
 
 modules_install-FreeBSD:
 	@# Install the kernel modules
-	flags="$$(echo $$MAKEFLAGS | awk -v RS=' ' /^-j/)"; \
-	env MAKEFLAGS="" make $${flags} -f Makefile.bsd install
+	+$(FMAKE) install
 
 modules_install: modules_install-@ac_system@
 
