@@ -1967,15 +1967,16 @@ zfs_version_print(void)
 	char zver_userland[128];
 	char zver_kernel[128];
 
+	zfs_version_userland(zver_userland, sizeof (zver_userland));
+
+	(void) printf("%s\n", zver_userland);
+
 	if (zfs_version_kernel(zver_kernel, sizeof (zver_kernel)) == -1) {
 		fprintf(stderr, "zfs_version_kernel() failed: %s\n",
 		    strerror(errno));
 		return (-1);
 	}
 
-	zfs_version_userland(zver_userland, sizeof (zver_userland));
-
-	(void) printf("%s\n", zver_userland);
 	(void) printf("zfs-kmod-%s\n", zver_kernel);
 
 	return (0);
