@@ -1914,11 +1914,11 @@ zfs_vget(vfs_t *vfsp, ino_t ino, int flags, vnode_t **vpp)
 	return (err);
 }
 
-#if __FreeBSD_version >= 1300098
-static int zfs_checkexp(vfs_t *vfsp, struct sockaddr *nam, uint64_t *extflagsp,
-    struct ucred **credanonp, int *numsecflavors, int *secflavors);
-#else
 static int
+#if __FreeBSD_version >= 1300098
+zfs_checkexp(vfs_t *vfsp, struct sockaddr *nam, uint64_t *extflagsp,
+    struct ucred **credanonp, int *numsecflavors, int *secflavors)
+#else
 zfs_checkexp(vfs_t *vfsp, struct sockaddr *nam, int *extflagsp,
     struct ucred **credanonp, int *numsecflavors, int **secflavors)
 #endif
