@@ -4,7 +4,7 @@ WITH_CTF=1
 
 .include <bsd.sys.mk>
 
-SRCDIR= ${.CURDIR}
+SRCDIR=${.CURDIR}
 INCDIR=${.CURDIR:H}/include
 
 KMOD=	openzfs
@@ -19,6 +19,7 @@ KMOD=	openzfs
 	${SRCDIR}/zfs
 
 
+CFLAGS+= -I${.OBJDIR:H}/include
 CFLAGS+= -I${INCDIR}
 CFLAGS+= -I${INCDIR}/spl
 CFLAGS+= -I${INCDIR}/os/freebsd

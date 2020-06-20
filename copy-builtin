@@ -21,7 +21,7 @@ then
 fi
 
 make clean || true
-scripts/make_gitrev.sh || true
+make gitrev
 
 rm -rf "$KERNEL_DIR/include/zfs" "$KERNEL_DIR/fs/zfs"
 cp --recursive include "$KERNEL_DIR/include/zfs"
