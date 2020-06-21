@@ -308,7 +308,7 @@ void arc_fini(void);
  */
 
 void l2arc_add_vdev(spa_t *spa, vdev_t *vd);
-void l2arc_remove_vdev(vdev_t *vd);
+void l2arc_remove_vdev(vdev_t *vd, boolean_t export);
 boolean_t l2arc_vdev_present(vdev_t *vd);
 void l2arc_rebuild_vdev(vdev_t *vd, boolean_t reopen);
 boolean_t l2arc_range_check_overlap(uint64_t bottom, uint64_t top,

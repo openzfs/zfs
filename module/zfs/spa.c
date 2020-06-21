@@ -1588,6 +1588,13 @@ spa_unload(spa_t *spa)
 		mmp_thread_stop(spa);
 
 	/*
+	 * Drop and purge level 2 cache
+	 */
+	mutex_exit(&spa_namespace_lock);
+	spa_l2cache_drop(spa);
+	mutex_enter(&spa_namespace_lock);
+
+	/*
 	 * Wait for any outstanding async I/O to complete.
 	 */
 	if (spa->spa_async_zio_root != NULL) {
@@ -1628,11 +1635,6 @@ spa_unload(spa_t *spa)
 
 	ddt_unload(spa);
 	spa_unload_log_sm_metadata(spa);
-
-	/*
-	 * Drop and purge level 2 cache
-	 */
-	spa_l2cache_drop(spa);
 
 	for (int i = 0; i < spa->spa_spares.sav_count; i++)
 		vdev_free(spa->spa_spares.sav_vdevs[i]);
@@ -1940,7 +1942,7 @@ out:
 
 			if (spa_l2cache_exists(vd->vdev_guid, &pool) &&
 			    pool != 0ULL && l2arc_vdev_present(vd))
-				l2arc_remove_vdev(vd);
+				l2arc_remove_vdev(vd, B_FALSE);
 			vdev_clear_stats(vd);
 			vdev_free(vd);
 		}
@@ -5592,7 +5594,7 @@ spa_l2cache_drop(spa_t *spa)
 
 		if (spa_l2cache_exists(vd->vdev_guid, &pool) &&
 		    pool != 0ULL && l2arc_vdev_present(vd))
-			l2arc_remove_vdev(vd);
+			l2arc_remove_vdev(vd, B_TRUE);
 	}
 }
 

@@ -844,6 +844,9 @@ static uint8_t l2arc_thread_exit;
 static kmutex_t l2arc_rebuild_thr_lock;
 static kcondvar_t l2arc_rebuild_thr_cv;
 
+static kmutex_t l2arc_dump_arc_lock;
+static kcondvar_t l2arc_dump_arc_cv;
+
 static abd_t *arc_get_data_abd(arc_buf_hdr_t *, uint64_t, void *);
 static void *arc_get_data_buf(arc_buf_hdr_t *, uint64_t, void *);
 static void arc_get_data_impl(arc_buf_hdr_t *, uint64_t, void *);
@@ -7728,16 +7731,23 @@ l2arc_write_size(l2arc_dev_t *dev)
 {
 	uint64_t size, dev_size, tsize;
 
+	if (dev->l2ad_dump_arc)
+		size = dev->l2ad_write_max;
+	else
+		size = l2arc_write_max;
+
 	/*
 	 * Make sure our globals have meaningful values in case the user
 	 * altered them.
 	 */
-	size = l2arc_write_max;
 	if (size == 0) {
 		cmn_err(CE_NOTE, "Bad value for l2arc_write_max, value must "
 		    "be greater than zero, resetting it to the default (%d)",
 		    L2ARC_WRITE_SIZE);
-		size = l2arc_write_max = L2ARC_WRITE_SIZE;
+		if (dev->l2ad_dump_arc)
+			size = dev->l2ad_write_max = L2ARC_WRITE_SIZE;
+		else
+			size = l2arc_write_max = L2ARC_WRITE_SIZE;
 	}
 
 	if (arc_warm == B_FALSE)
@@ -7762,13 +7772,18 @@ l2arc_write_size(l2arc_dev_t *dev)
 		    l2arc_log_blk_overhead(size, dev),
 		    dev->l2ad_vdev->vdev_guid, L2ARC_WRITE_SIZE);
 		size = l2arc_write_max = l2arc_write_boost = L2ARC_WRITE_SIZE;
+		if (dev->l2ad_dump_arc)
+			size = dev->l2ad_write_max = l2arc_write_boost =
+			    L2ARC_WRITE_SIZE;
+		else
+			size = l2arc_write_max = l2arc_write_boost =
+			    L2ARC_WRITE_SIZE;
 
 		if (arc_warm == B_FALSE)
 			size += l2arc_write_boost;
 	}
 
 	return (size);
-
 }
 
 static clock_t
@@ -8721,6 +8736,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 	l2arc_write_callback_t	*cb = NULL;
 	zio_t 			*pio, *wzio;
 	uint64_t 		guid = spa_load_guid(spa);
+	int			try = 0;
 
 	ASSERT3P(dev->l2ad_vdev, !=, NULL);
 
@@ -8733,7 +8749,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 	/*
 	 * Copy buffers for L2ARC writing.
 	 */
-	for (int try = 0; try < L2ARC_FEED_TYPES; try++) {
+	for (try = 0; try < L2ARC_FEED_TYPES; try++) {
 		multilist_sublist_t *mls = l2arc_sublist_lock(try);
 		uint64_t passed_sz = 0;
 
@@ -8772,7 +8788,8 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 			}
 
 			passed_sz += HDR_GET_LSIZE(hdr);
-			if (l2arc_headroom != 0 && passed_sz > headroom) {
+			if (dev->l2ad_dump_arc != 1 && l2arc_headroom != 0 &&
+			    passed_sz > headroom) {
 				/*
 				 * Searched too far.
 				 */
@@ -8942,6 +8959,13 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 		 */
 		l2arc_dev_hdr_update(dev);
 
+		if (try == L2ARC_FEED_TYPES) {
+			mutex_enter(&l2arc_dump_arc_lock);
+			dev->l2ad_dump_arc = 0;
+			cv_broadcast(&l2arc_dump_arc_cv);
+			mutex_exit(&l2arc_dump_arc_lock);
+		}
+
 		return (0);
 	}
 
@@ -8959,6 +8983,13 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 	dev->l2ad_writing = B_TRUE;
 	(void) zio_wait(pio);
 	dev->l2ad_writing = B_FALSE;
+
+	if (try == L2ARC_FEED_TYPES) {
+		mutex_enter(&l2arc_dump_arc_lock);
+		dev->l2ad_dump_arc = 0;
+		cv_broadcast(&l2arc_dump_arc_cv);
+		mutex_exit(&l2arc_dump_arc_lock);
+	}
 
 	return (write_asize);
 }
@@ -9121,6 +9152,8 @@ l2arc_add_vdev(spa_t *spa, vdev_t *vd)
 	adddev->l2ad_trim_all = B_FALSE;
 	list_link_init(&adddev->l2ad_node);
 	adddev->l2ad_dev_hdr = kmem_zalloc(l2dhdr_asize, KM_SLEEP);
+	adddev->l2ad_dump_arc = 0;
+	adddev->l2ad_write_max = 64 * 1024 * 1024;
 
 	mutex_init(&adddev->l2ad_mtx, NULL, MUTEX_DEFAULT, NULL);
 	/*
@@ -9246,7 +9279,7 @@ l2arc_rebuild_vdev(vdev_t *vd, boolean_t reopen)
  * Remove a vdev from the L2ARC.
  */
 void
-l2arc_remove_vdev(vdev_t *vd)
+l2arc_remove_vdev(vdev_t *vd, boolean_t export)
 {
 	l2arc_dev_t *remdev = NULL;
 
@@ -9266,6 +9299,14 @@ l2arc_remove_vdev(vdev_t *vd)
 			cv_wait(&l2arc_rebuild_thr_cv, &l2arc_rebuild_thr_lock);
 	}
 	mutex_exit(&l2arc_rebuild_thr_lock);
+
+	mutex_enter(&l2arc_dump_arc_lock);
+	if (export && spa_writeable(vd->vdev_spa)) {
+		remdev->l2ad_dump_arc = 1;
+		while (remdev->l2ad_dump_arc != 0)
+			cv_wait(&l2arc_dump_arc_cv, &l2arc_dump_arc_lock);
+	}
+	mutex_exit(&l2arc_dump_arc_lock);
 
 	/*
 	 * Remove device from global list
@@ -9303,6 +9344,8 @@ l2arc_init(void)
 	cv_init(&l2arc_feed_thr_cv, NULL, CV_DEFAULT, NULL);
 	mutex_init(&l2arc_rebuild_thr_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&l2arc_rebuild_thr_cv, NULL, CV_DEFAULT, NULL);
+	mutex_init(&l2arc_dump_arc_lock, NULL, MUTEX_DEFAULT, NULL);
+	cv_init(&l2arc_dump_arc_cv, NULL, CV_DEFAULT, NULL);
 	mutex_init(&l2arc_dev_mtx, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&l2arc_free_on_write_mtx, NULL, MUTEX_DEFAULT, NULL);
 
@@ -9329,6 +9372,8 @@ l2arc_fini(void)
 	cv_destroy(&l2arc_feed_thr_cv);
 	mutex_destroy(&l2arc_rebuild_thr_lock);
 	cv_destroy(&l2arc_rebuild_thr_cv);
+	mutex_destroy(&l2arc_dump_arc_lock);
+	cv_destroy(&l2arc_dump_arc_cv);
 	mutex_destroy(&l2arc_dev_mtx);
 	mutex_destroy(&l2arc_free_on_write_mtx);
 

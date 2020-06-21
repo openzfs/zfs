@@ -407,6 +407,9 @@ typedef struct l2arc_dev {
 	 */
 	zfs_refcount_t		l2ad_lb_count;
 	boolean_t		l2ad_trim_all; /* TRIM whole device */
+	boolean_t		l2ad_dump_arc; /* ARC dumping */
+	/* Write size for ARC dumping */
+	uint64_t		l2ad_write_max;
 } l2arc_dev_t;
 
 /*
