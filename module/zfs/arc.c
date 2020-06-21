@@ -853,7 +853,6 @@ static void arc_free_data_impl(arc_buf_hdr_t *hdr, uint64_t size, void *tag);
 static void arc_hdr_free_abd(arc_buf_hdr_t *, boolean_t);
 static void arc_hdr_alloc_abd(arc_buf_hdr_t *, boolean_t);
 static void arc_access(arc_buf_hdr_t *, kmutex_t *);
-static boolean_t arc_is_overflowing(void);
 static void arc_buf_watch(arc_buf_t *);
 
 static arc_buf_contents_t arc_buf_type(arc_buf_hdr_t *);
@@ -3995,6 +3994,15 @@ arc_evict_state_impl(multilist_t *ml, int idx, arc_buf_hdr_t *marker,
 
 	multilist_sublist_unlock(mls);
 
+	/*
+	 * If the ARC size is reduced from arc_c_max to arc_c_min (especially
+	 * if the average cached block is small), eviction can be on-CPU for
+	 * many seconds.  To ensure that other threads that may be bound to
+	 * this CPU are able to make progress, make a voluntary preemption
+	 * call here.
+	 */
+	cond_resched();
+
 	return (bytes_evicted);
 }
 
@@ -4992,7 +5000,7 @@ arc_adapt(int bytes, arc_state_t *state)
  * Check if arc_size has grown past our upper threshold, determined by
  * zfs_arc_overflow_shift.
  */
-static boolean_t
+boolean_t
 arc_is_overflowing(void)
 {
 	/* Always allow at least one block of overflow */
