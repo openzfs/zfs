@@ -6143,6 +6143,11 @@ spa_tryimport(nvlist_t *tryconfig)
 		spa->spa_config_source = SPA_CONFIG_SRC_SCAN;
 	}
 
+	/*
+	 * Skip the spa activity check since we aren't actually importing.
+	 */
+	spa->spa_import_flags |= ZFS_IMPORT_SKIP_MMP;
+
 	error = spa_load(spa, SPA_LOAD_TRYIMPORT, SPA_IMPORT_EXISTING);
 
 	/*
