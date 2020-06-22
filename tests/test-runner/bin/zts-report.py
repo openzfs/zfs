@@ -251,6 +251,20 @@ if sys.platform.startswith('freebsd'):
         'removal/removal_with_export': ['FAIL', known_reason],
         'resilver/resilver_restart_001': ['FAIL', known_reason],
     })
+elif sys.platform.startswith('linux'):
+    maybe.update({
+        'alloc_class/alloc_class_009_pos': ['FAIL', known_reason],
+        'alloc_class/alloc_class_010_pos': ['FAIL', known_reason],
+        'cli_root/zfs_rename/zfs_rename_002_pos': ['FAIL', known_reason],
+        'cli_root/zpool_expand/zpool_expand_001_pos': ['FAIL', known_reason],
+        'cli_root/zpool_expand/zpool_expand_005_pos': ['FAIL', known_reason],
+        'cli_root/zpool_reopen/zpool_reopen_003_pos': ['FAIL', known_reason],
+        'refreserv/refreserv_raidz': ['FAIL', known_reason],
+        'rsend/rsend_007_pos': ['FAIL', known_reason],
+        'rsend/rsend_010_pos': ['FAIL', known_reason],
+        'rsend/rsend_011_pos': ['FAIL', known_reason],
+        'snapshot/rollback_003_pos': ['FAIL', known_reason],
+    })
 
 
 def usage(s):

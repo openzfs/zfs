@@ -5950,24 +5950,26 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 		 * on two different leaf devices, because ZFS can not
 		 * tolerate that (if maxfaults==1).
 		 *
-		 * We divide each leaf into chunks of size
-		 * (# leaves * SPA_MAXBLOCKSIZE * 4).  Within each chunk
-		 * there is a series of ranges to which we can inject errors.
-		 * Each range can accept errors on only a single leaf vdev.
-		 * The error injection ranges are separated by ranges
-		 * which we will not inject errors on any device (DMZs).
-		 * Each DMZ must be large enough such that a single block
-		 * can not straddle it, so that a single block can not be
-		 * a target in two different injection ranges (on different
-		 * leaf vdevs).
+		 * To achieve this we divide each leaf device into
+		 * chunks of size (# leaves * SPA_MAXBLOCKSIZE * 4).
+		 * Each chunk is further divided into error-injection
+		 * ranges (can accept errors) and clear ranges (we do
+		 * not inject errors in those). Each error-injection
+		 * range can accept errors only for a single leaf vdev.
+		 * Error-injection ranges are separated by clear ranges.
 		 *
 		 * For example, with 3 leaves, each chunk looks like:
 		 *    0 to  32M: injection range for leaf 0
-		 *  32M to  64M: DMZ - no injection allowed
+		 *  32M to  64M: clear range - no injection allowed
 		 *  64M to  96M: injection range for leaf 1
-		 *  96M to 128M: DMZ - no injection allowed
+		 *  96M to 128M: clear range - no injection allowed
 		 * 128M to 160M: injection range for leaf 2
-		 * 160M to 192M: DMZ - no injection allowed
+		 * 160M to 192M: clear range - no injection allowed
+		 *
+		 * Each clear range must be large enough such that a
+		 * single block cannot straddle it. This way a block
+		 * can't be a target in two different injection ranges
+		 * (on different leaf vdevs).
 		 */
 		offset = ztest_random(fsize / (leaves << bshift)) *
 		    (leaves << bshift) + (leaf << bshift) +

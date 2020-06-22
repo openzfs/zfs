@@ -263,18 +263,43 @@ main(int argc, char *argv[])
 	if (zed_conf_read_state(zcp, &saved_eid, saved_etime) < 0)
 		exit(EXIT_FAILURE);
 
-	zed_event_init(zcp);
+idle:
+	/*
+	 * If -I is specified, attempt to open /dev/zfs repeatedly until
+	 * successful.
+	 */
+	do {
+		if (!zed_event_init(zcp))
+			break;
+		/* Wait for some time and try again. tunable? */
+		sleep(30);
+	} while (!_got_exit && zcp->do_idle);
+
+	if (_got_exit)
+		goto out;
+
 	zed_event_seek(zcp, saved_eid, saved_etime);
 
 	while (!_got_exit) {
+		int rv;
 		if (_got_hup) {
 			_got_hup = 0;
 			(void) zed_conf_scan_dir(zcp);
 		}
-		zed_event_service(zcp);
+		rv = zed_event_service(zcp);
+
+		/* ENODEV: When kernel module is unloaded (osx) */
+		if (rv == ENODEV)
+			break;
 	}
+
 	zed_log_msg(LOG_NOTICE, "Exiting");
 	zed_event_fini(zcp);
+
+	if (zcp->do_idle && !_got_exit)
+		goto idle;
+
+out:
 	zed_conf_destroy(zcp);
 	zed_log_fini();
 	exit(EXIT_SUCCESS);

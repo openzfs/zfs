@@ -844,7 +844,7 @@ vdev_geom_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 		 * opened (since boot), and we are not loading an
 		 * existing pool configuration.  This looks like a
 		 * vdev add operation to a new or existing pool.
-		 * Assume the user knows what he/she is doing and find
+		 * Assume the user really wants to do this, and find
 		 * GEOM provider by its name, ignoring GUID mismatches.
 		 *
 		 * XXPOLICY: It would be safer to only allow a device
