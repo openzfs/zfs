@@ -274,8 +274,19 @@ maybe = {
     'vdev_zaps/vdev_zaps_004_pos': ['FAIL', '6935'],
     'write_dirs/setup': ['SKIP', disk_reason],
     'zvol/zvol_ENOSPC/zvol_ENOSPC_001_pos': ['FAIL', '5848'],
-}
+    'alloc_class/alloc_class_009_pos': ['FAIL', known_reason],
+    'alloc_class/alloc_class_010_pos': ['FAIL', known_reason],
+    'cli_root/zfs_rename/zfs_rename_002_pos': ['FAIL', known_reason],
+    'cli_root/zpool_expand/zpool_expand_001_pos': ['FAIL', known_reason],
+    'cli_root/zpool_expand/zpool_expand_005_pos': ['FAIL', known_reason],
+    'cli_root/zpool_reopen/zpool_reopen_003_pos': ['FAIL', known_reason],
+    'refreserv/refreserv_raidz': ['FAIL', known_reason],
+    'rsend/rsend_007_pos': ['FAIL', known_reason],
+    'rsend/rsend_010_pos': ['FAIL', known_reason],
+    'rsend/rsend_011_pos': ['FAIL', known_reason],
+    'snapshot/rollback_003_pos': ['FAIL', known_reason],
 
+}
 
 def usage(s):
     print(s)
