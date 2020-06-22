@@ -5,8 +5,8 @@ hooks_SCRIPTS = \
 	zfsunlock
 
 EXTRA_DIST = \
-	$(top_srcdir)/contrib/initramfs/hooks/zfs.in \
-	$(top_srcdir)/contrib/initramfs/hooks/zfsunlock.in
+	zfs.in \
+	zfsunlock.in
 
 $(hooks_SCRIPTS):%:%.in Makefile
 	-$(SED) -e 's,@sbindir\@,$(sbindir),g' \

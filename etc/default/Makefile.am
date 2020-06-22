@@ -2,7 +2,7 @@ initconfdir = $(DEFAULT_INITCONF_DIR)
 initconf_SCRIPTS = zfs
 
 EXTRA_DIST = \
-	$(top_srcdir)/etc/default/zfs.in
+	zfs.in
 
 $(initconf_SCRIPTS):%:%.in Makefile
 	  $(SED) \

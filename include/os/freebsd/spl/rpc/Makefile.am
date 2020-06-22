@@ -1,7 +1,7 @@
 COMMON_H =
 
 KERNEL_H = \
-	$(top_srcdir)/include/os/freebsd/spl/rpc/xdr.h
+	xdr.h
 
 USER_H =
 

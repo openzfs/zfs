@@ -2,21 +2,21 @@ SUBDIRS = ia32 rpc sys util os
 
 libspldir = $(includedir)/libspl
 libspl_HEADERS = \
-	$(top_srcdir)/lib/libspl/include/assert.h \
-	$(top_srcdir)/lib/libspl/include/atomic.h \
-	$(top_srcdir)/lib/libspl/include/libdevinfo.h \
-	$(top_srcdir)/lib/libspl/include/libgen.h \
-	$(top_srcdir)/lib/libspl/include/libshare.h \
-	$(top_srcdir)/lib/libspl/include/limits.h \
-	$(top_srcdir)/lib/libspl/include/locale.h \
-	$(top_srcdir)/lib/libspl/include/statcommon.h \
-	$(top_srcdir)/lib/libspl/include/stdio.h \
-	$(top_srcdir)/lib/libspl/include/stdlib.h \
-	$(top_srcdir)/lib/libspl/include/string.h \
-	$(top_srcdir)/lib/libspl/include/stropts.h \
-	$(top_srcdir)/lib/libspl/include/thread.h \
-	$(top_srcdir)/lib/libspl/include/tzfile.h \
-	$(top_srcdir)/lib/libspl/include/ucred.h \
-	$(top_srcdir)/lib/libspl/include/umem.h \
-	$(top_srcdir)/lib/libspl/include/unistd.h \
-	$(top_srcdir)/lib/libspl/include/zone.h
+	assert.h \
+	atomic.h \
+	libdevinfo.h \
+	libgen.h \
+	libshare.h \
+	limits.h \
+	locale.h \
+	statcommon.h \
+	stdio.h \
+	stdlib.h \
+	string.h \
+	stropts.h \
+	thread.h \
+	tzfile.h \
+	ucred.h \
+	umem.h \
+	unistd.h \
+	zone.h

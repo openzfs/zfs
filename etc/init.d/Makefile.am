@@ -4,10 +4,10 @@ init_SCRIPTS = zfs-import zfs-mount zfs-share zfs-zed
 initconfdir = $(DEFAULT_INITCONF_DIR)
 
 EXTRA_DIST = \
-	$(top_srcdir)/etc/init.d/zfs-share.in \
-	$(top_srcdir)/etc/init.d/zfs-import.in \
-	$(top_srcdir)/etc/init.d/zfs-mount.in \
-	$(top_srcdir)/etc/init.d/zfs-zed.in
+	zfs-share.in \
+	zfs-import.in \
+	zfs-mount.in \
+	zfs-zed.in
 
 $(init_SCRIPTS):%:%.in Makefile
 	-(if [ -e /etc/debian_version ]; then \

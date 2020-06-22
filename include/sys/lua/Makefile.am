@@ -1,8 +1,8 @@
 COMMON_H = \
-	$(top_srcdir)/include/sys/lua/lua.h \
-	$(top_srcdir)/include/sys/lua/luaconf.h \
-	$(top_srcdir)/include/sys/lua/lualib.h \
-	$(top_srcdir)/include/sys/lua/lauxlib.h
+	lua.h \
+	luaconf.h \
+	lualib.h \
+	lauxlib.h
 
 KERNEL_H =
 
