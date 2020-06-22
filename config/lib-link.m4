@@ -67,8 +67,8 @@ AC_DEFUN([AC_LIB_HAVE_LINKFLAGS],
   AC_LIB_LINKFLAGS_BODY([$1], [$2])
 
   dnl Add $INC[]NAME to CPPFLAGS before performing the following checks,
-  dnl because if the user has installed lib[]Name and not disabled its use
-  dnl via --without-lib[]Name-prefix, he wants to use it.
+  dnl so that if lib[]Name is installed, it will be used (unless
+  dnl disabled via --without-lib[]Name-prefix).
   ac_save_CPPFLAGS="$CPPFLAGS"
   AC_LIB_APPENDTOVAR([CPPFLAGS], [$INC]NAME)
 
