@@ -24,7 +24,8 @@ dist_zedexec_SCRIPTS = \
 	vdev_clear-led.sh \
 	vdev_attach-led.sh \
 	pool_import-led.sh \
-	resilver_finish-start-scrub.sh
+	resilver_finish-start-scrub.sh \
+	trim_finish-notify.sh
 
 nodist_zedexec_SCRIPTS = history_event-zfs-list-cacher.sh
 
