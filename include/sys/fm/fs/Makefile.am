@@ -1,5 +1,5 @@
 COMMON_H = \
-	$(top_srcdir)/include/sys/fm/fs/zfs.h
+	zfs.h
 
 KERNEL_H =
 

@@ -3,7 +3,7 @@ pkgdracut_SCRIPTS = \
 	module-setup.sh
 
 EXTRA_DIST = \
-	$(top_srcdir)/contrib/dracut/02zfsexpandknowledge/module-setup.sh.in
+	module-setup.sh.in
 
 $(pkgdracut_SCRIPTS):%:%.in
 	-$(SED) -e 's,@bindir\@,$(bindir),g' \

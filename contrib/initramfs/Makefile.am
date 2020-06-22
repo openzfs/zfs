@@ -6,4 +6,4 @@ dist_initrd_SCRIPTS = \
 SUBDIRS = conf.d conf-hooks.d hooks scripts
 
 EXTRA_DIST = \
-	$(top_srcdir)/contrib/initramfs/README.initramfs.markdown
+	README.initramfs.markdown

@@ -1,8 +1,8 @@
 SUBDIRS = fs
 
 COMMON_H = \
-	$(top_srcdir)/include/sys/fm/protocol.h \
-	$(top_srcdir)/include/sys/fm/util.h
+	protocol.h \
+	util.h
 
 KERNEL_H =
 
