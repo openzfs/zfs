@@ -8,6 +8,6 @@ dist_bin_SCRIPTS = arcstat
 #
 if USING_PYTHON_2
 install-exec-hook:
-	sed ${ac_inplace} -e 's|^#!/usr/bin/env python3|#!/usr/bin/env python2|' \
+	$(SED) ${ac_inplace} -e 's|^#!/usr/bin/env python3|#!/usr/bin/env python2|' \
 	    $(DESTDIR)$(bindir)/arcstat
 endif
