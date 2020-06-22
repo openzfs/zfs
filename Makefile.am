@@ -89,7 +89,7 @@ all-local:
 	    ${top_builddir}/scripts/zfs-tests.sh -c
 
 dist-hook:
-	sed ${ac_inplace} -e 's/Release:[[:print:]]*/Release:      $(RELEASE)/' \
+	$(SED) ${ac_inplace} -e 's/Release:[[:print:]]*/Release:      $(RELEASE)/' \
 		$(distdir)/META
 
 if BUILD_LINUX
