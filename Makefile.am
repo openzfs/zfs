@@ -194,11 +194,17 @@ flake8:
 
 ctags:
 	$(RM) tags
-	find $(top_srcdir) -name .git -prune -o -name '*.[hc]' | xargs ctags
+	find $(top_srcdir) -name '.?*' -prune \
+		-o -type f -name '*.[hcS]' -print | xargs ctags -a
 
 etags:
 	$(RM) TAGS
-	find $(top_srcdir) -name .pc -prune -o -name '*.[hc]' | xargs etags -a
+	find $(top_srcdir) -name '.?*' -prune \
+		-o -type f -name '*.[hcS]' -print | xargs etags -a
+
+cscopelist:
+	find $(top_srcdir) -name '.?*' -prune \
+		-o -type f -name '*.[hc]' -print >cscope.files
 
 tags: ctags etags
 
