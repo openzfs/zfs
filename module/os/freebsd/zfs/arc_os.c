@@ -223,18 +223,18 @@ arc_lowmem(void *arg __unused, int howto __unused)
 	DTRACE_PROBE2(arc__needfree, int64_t, free_memory, int64_t, to_free);
 	arc_reduce_target_size(to_free);
 
-	mutex_enter(&arc_evict_lock);
-	arc_evict_needed = B_TRUE;
-	zthr_wakeup(arc_evict_zthr);
-
+	mutex_enter(&arc_adjust_lock);
+	arc_adjust_needed = B_TRUE;
+	zthr_wakeup(arc_adjust_zthr);
 	/*
 	 * It is unsafe to block here in arbitrary threads, because we can come
 	 * here from ARC itself and may hold ARC locks and thus risk a deadlock
 	 * with ARC reclaim thread.
 	 */
 	if (curproc == pageproc)
-		(void) cv_wait(&arc_evict_waiters_cv, &arc_evict_lock);
-	mutex_exit(&arc_evict_lock);
+		arc_wait_for_eviction(to_free);
+	else
+		arc_wait_for_eviction(0);
 }
 
 void

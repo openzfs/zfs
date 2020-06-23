@@ -57,8 +57,21 @@
 #include <sys/trace_zfs.h>
 #include <sys/aggsum.h>
 
-int64_t last_free_memory;
-free_memory_reason_t last_free_reason;
+/*
+ * This is a limit on how many pages the ARC shrinker makes available for
+ * eviction in response to one page allocation attempt.  Note that in
+ * practice, the kernel's shrinker can ask us to evict up to about 4x this
+ * for one allocation attempt.
+ *
+ * The default limit of 10,000 (in practice, 160MB per allocation attempt)
+ * limits the amount of time spent attempting to reclaim ARC memory to around
+ * 100ms second per allocation attempt, even with a small average compressed
+ * block size of ~8KB.
+ *
+ * See also the comment in arc_shrinker_count().
+ */
+int zfs_arc_shrinker_limit = 10000;
+
 
 /*
  * Return a default max arc size based on the amount of physical memory.
@@ -105,16 +118,6 @@ arc_free_memory(void)
 }
 
 /*
- * Additional reserve of pages for pp_reserve.
- */
-int64_t arc_pages_pp_reserve = 64;
-
-/*
- * Additional reserve of pages for swapfs.
- */
-int64_t arc_swapfs_reserve = 64;
-
-/*
  * Return the amount of memory that can be consumed before reclaim will be
  * needed.  Positive if there is sufficient free memory, negative indicates
  * the amount of memory that needs to be freed up.
@@ -122,25 +125,7 @@ int64_t arc_swapfs_reserve = 64;
 int64_t
 arc_available_memory(void)
 {
-	int64_t lowest = INT64_MAX;
-	free_memory_reason_t r = FMR_UNKNOWN;
-	int64_t n;
-
-	if (arc_need_free > 0) {
-		lowest = -arc_need_free;
-		r = FMR_NEEDFREE;
-	}
-
-	n = arc_free_memory() - arc_sys_free - arc_need_free;
-	if (n < lowest) {
-		lowest = n;
-		r = FMR_LOTSFREE;
-	}
-
-	last_free_memory = lowest;
-	last_free_reason = r;
-
-	return (lowest);
+	return (arc_free_memory() - arc_sys_free);
 }
 
 static uint64_t
@@ -174,84 +159,84 @@ arc_evictable_memory(void)
 static unsigned long
 arc_shrinker_count(struct shrinker *shrink, struct shrink_control *sc)
 {
-	return (btop((int64_t)arc_evictable_memory()));
+	/*
+	 * kswapd doesn't know how much we evict, because it's only looking
+	 * for pages to be added to the inactive lists.  This causes it to
+	 * ask us to evict the entire ARC.  Instead, we ignore its requests
+	 * and manage the free memory in arc_reap_cb[_check]().
+	 */
+	if (current_is_kswapd()) {
+		/*
+		 * Wake up the arc_evict_zthr so it can start responding to
+		 * this memory pressure right away, if it isn't already.
+		 */
+		arc_wait_for_eviction(0);
+		return (0);
+	}
+
+	/*
+	 * __GFP_FS won't be set if we are called from ZFS code.  To avoid a
+	 * deadlock, we don't allow evicting in this case.  We return 0
+	 * rather than SHRINK_STOP so that the shrinker logic doesn't
+	 * accumulate a deficit against us.
+	 */
+	if (!(sc->gfp_mask & __GFP_FS)) {
+		return (0);
+	}
+
+	/*
+	 * This code is reached in the "direct reclaim" case, were the kernel
+	 * (outside ZFS) is trying to allocate a page, and the system is low
+	 * on memory.
+	 *
+	 * The kernel's shrinker code doesn't understand how many pages the
+	 * ARC's callback actually frees, so it may ask the ARC to shrink a
+	 * lot for one page allocation. This is problematic because it may
+	 * take a long time, thus delaying the page allocation, and because
+	 * it may force the ARC to unnecessarily shrink very small.
+	 *
+	 * Therefore, we limit the amount of data that we say is evictable,
+	 * which limits the amount that the shrinker will ask us to evict for
+	 * one page allocation attempt.
+	 *
+	 * In practice, we may be asked to shrink 4x the limit to satisfy one
+	 * page allocation, before the kernel's shrinker code gives up on us.
+	 * When that happens, we rely on the kernel code to find the pages
+	 * that we freed before invoking the OOM killer.  This happens in
+	 * __alloc_pages_slowpath(), which retries and finds the pages we
+	 * freed when it calls get_page_from_freelist().
+	 *
+	 * See also the comment above zfs_arc_shrinker_limit.
+	 */
+	return (MIN(zfs_arc_shrinker_limit,
+	    btop((int64_t)arc_evictable_memory())));
 }
 
 static unsigned long
 arc_shrinker_scan(struct shrinker *shrink, struct shrink_control *sc)
 {
-	int64_t pages;
+	ASSERT((sc->gfp_mask & __GFP_FS) != 0);
 
 	/* The arc is considered warm once reclaim has occurred */
 	if (unlikely(arc_warm == B_FALSE))
 		arc_warm = B_TRUE;
 
-	/* Return the potential number of reclaimable pages */
-	pages = btop((int64_t)arc_evictable_memory());
-
-	/* Not allowed to perform filesystem reclaim */
-	if (!(sc->gfp_mask & __GFP_FS))
-		return (SHRINK_STOP);
-
-	/* Reclaim in progress */
-	if (mutex_tryenter(&arc_evict_lock) == 0) {
-		ARCSTAT_INCR(arcstat_need_free, ptob(sc->nr_to_scan));
-		return (0);
-	}
-
-	mutex_exit(&arc_evict_lock);
-
 	/*
-	 * Evict the requested number of pages by shrinking arc_c the
-	 * requested amount.
+	 * Evict the requested number of pages by reducing arc_c and waiting
+	 * for the requested amount of data to be evicted.
 	 */
-	if (pages > 0) {
-		arc_reduce_target_size(ptob(sc->nr_to_scan));
-
-		/*
-		 * Repeated calls to the arc shrinker can reduce arc_c
-		 * drastically, potentially all the way to arc_c_min.  While
-		 * arc_c is below arc_size, ZFS can't process read/write
-		 * requests, because arc_get_data_impl() will block.  To
-		 * ensure that arc_c doesn't shrink faster than the evict
-		 * thread can keep up, we wait for eviction here.
-		 */
-		mutex_enter(&arc_evict_lock);
-		if (arc_is_overflowing()) {
-			arc_evict_needed = B_TRUE;
-			zthr_wakeup(arc_evict_zthr);
-			(void) cv_wait(&arc_evict_waiters_cv,
-			    &arc_evict_lock);
-		}
-		mutex_exit(&arc_evict_lock);
-
-		if (current_is_kswapd())
-			arc_kmem_reap_soon();
-		pages = MAX((int64_t)pages -
-		    (int64_t)btop(arc_evictable_memory()), 0);
-		/*
-		 * We've shrunk what we can, wake up threads.
-		 */
-		cv_broadcast(&arc_evict_waiters_cv);
-	} else
-		pages = SHRINK_STOP;
+	arc_reduce_target_size(ptob(sc->nr_to_scan));
+	arc_wait_for_eviction(ptob(sc->nr_to_scan));
 
 	/*
-	 * When direct reclaim is observed it usually indicates a rapid
-	 * increase in memory pressure.  This occurs because the kswapd
-	 * threads were unable to asynchronously keep enough free memory
-	 * available.  In this case set arc_no_grow to briefly pause arc
+	 * We are experiencing memory pressure which the arc_evict_zthr was
+	 * unable to keep up with. Set arc_no_grow to briefly pause arc
 	 * growth to avoid compounding the memory pressure.
 	 */
-	if (current_is_kswapd()) {
-		ARCSTAT_BUMP(arcstat_memory_indirect_count);
-	} else {
-		arc_no_grow = B_TRUE;
-		arc_kmem_reap_soon();
-		ARCSTAT_BUMP(arcstat_memory_direct_count);
-	}
+	arc_no_grow = B_TRUE;
+	ARCSTAT_BUMP(arcstat_memory_direct_count);
 
-	return (pages);
+	return (sc->nr_to_scan);
 }
 
 SPL_SHRINKER_DECLARE(arc_shrinker,
@@ -305,9 +290,12 @@ arc_lowmem_init(void)
 	 */
 	spl_register_shrinker(&arc_shrinker);
 
-	/* Set to 1/64 of all memory or a minimum of 512K */
-	arc_sys_free = MAX(allmem / 64, (512 * 1024));
-	arc_need_free = 0;
+	/*
+	 * The ARC tries to keep at least this much memory available for
+	 * the system.  This gives the ARC time to shrink in response to
+	 * memory pressure, before running completely out of memory.
+	 */
+	arc_sys_free = allmem / 32;
 }
 
 void
@@ -348,14 +336,10 @@ int64_t
 arc_available_memory(void)
 {
 	int64_t lowest = INT64_MAX;
-	free_memory_reason_t r = FMR_UNKNOWN;
 
 	/* Every 100 calls, free a small amount */
 	if (spa_get_random(100) == 0)
 		lowest = -1024;
-
-	last_free_memory = lowest;
-	last_free_reason = r;
 
 	return (lowest);
 }
@@ -429,3 +413,8 @@ arc_prune_async(int64_t adjust)
 	}
 	mutex_exit(&arc_prune_mtx);
 }
+
+/* BEGIN CSTYLED */
+ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, shrinker_limit, INT, ZMOD_RW,
+	"Limit on number of pages that ARC shrinker can reclaim at once");
+/* END CSTYLED */
