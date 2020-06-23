@@ -79,7 +79,7 @@ typedef enum zfs_error {
 	EZFS_NODEVICE,		/* no such device in pool */
 	EZFS_BADDEV,		/* invalid device to add */
 	EZFS_NOREPLICAS,	/* no valid replicas */
-	EZFS_RESILVERING,	/* currently resilvering */
+	EZFS_RESILVERING,	/* resilvering (healing reconstruction) */
 	EZFS_BADVERSION,	/* unsupported version */
 	EZFS_POOLUNAVAIL,	/* pool is currently unavailable */
 	EZFS_DEVOVERFLOW,	/* too many devices in one vdev */
@@ -148,7 +148,7 @@ typedef enum zfs_error {
 	EZFS_TRIM_NOTSUP,	/* device does not support trim */
 	EZFS_NO_RESILVER_DEFER,	/* pool doesn't support resilver_defer */
 	EZFS_EXPORT_IN_PROGRESS,	/* currently exporting the pool */
-	EZFS_REBUILDING,	/* currently rebuilding */
+	EZFS_REBUILDING,	/* resilvering (sequential reconstrution) */
 	EZFS_UNKNOWN
 } zfs_error_t;
 

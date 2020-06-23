@@ -21,18 +21,19 @@
 
 #
 # Description:
-# Verify that attach/detach work while resilvering or rebuilding and
-# attaching multiple vdevs.
+# Verify that attach/detach work while resilvering and attaching
+# multiple vdevs.
 #
 # Strategy:
 # 1. Create a single vdev pool
-# 2. While resilvering or rebuilding:
+# 2. While healing or sequential resilvering:
 #    a. Attach a vdev to convert the pool to a mirror.
 #    b. Attach a vdev to convert the pool to a 3-way mirror.
 #    c. Verify the original vdev cannot be removed (no redundant copies)
-#    d. Detach a vdev.  Resilver and rebuild remain running.
-#    e. Detach a vdev.  Resilver remains running, rebuild is canceled.
-#    f. Wait for resilver/rebuild to complete.
+#    d. Detach a vdev.  Healing and sequential resilver remain running.
+#    e. Detach a vdev.  Healing resilver remains running, sequential
+#       resilver is canceled.
+#    f. Wait for resilver to complete.
 #
 
 function cleanup
@@ -54,53 +55,52 @@ log_must truncate -s $VDEV_FILE_SIZE ${VDEV_FILES[@]}
 # Verify resilver resumes on import.
 log_must zpool create -f $TESTPOOL1 ${VDEV_FILES[0]}
 
-for replace_mode in "resilver" "rebuild"; do
+for replace_mode in "healing" "sequential"; do
         #
         # Resilvers abort the dsl_scan and reconfigure it for resilvering.
         # Rebuilds cancel the dsl_scan and start the vdev_rebuild thread.
         #
-        if [[ "$replace_mode" = "resilver" ]]; then
-		check="is_pool_resilvering"
+        if [[ "$replace_mode" = "healing" ]]; then
                 flags=""
         else
-		check="is_pool_rebuilding"
-                flags="-r"
+                flags="-s"
         fi
 
-	log_mustnot $check $TESTPOOL1
+	log_mustnot is_pool_resilvering $TESTPOOL1
 	log_must set_tunable32 SCAN_SUSPEND_PROGRESS 1
 
 	# Attach first vdev (stripe -> mirror)
 	log_must zpool attach $flags $TESTPOOL1 \
 	    ${VDEV_FILES[0]} ${VDEV_FILES[1]}
-	log_must $check $TESTPOOL1
+	log_must is_pool_resilvering $TESTPOOL1
 
 	# Attach second vdev (2-way -> 3-way mirror)
 	log_must zpool attach $flags $TESTPOOL1 \
 	    ${VDEV_FILES[1]} ${VDEV_FILES[2]}
-	log_must $check $TESTPOOL1
+	log_must is_pool_resilvering $TESTPOOL1
 
 	# Original vdev cannot be detached until there is sufficent redundancy.
 	log_mustnot zpool detach $TESTPOOL1 ${VDEV_FILES[0]}
 
-	# Detach first vdev (resilver/rebuild keeps running)
+	# Detach first vdev (resilver keeps running)
 	log_must zpool detach $TESTPOOL1 ${VDEV_FILES[1]}
-	log_must $check $TESTPOOL1
+	log_must is_pool_resilvering $TESTPOOL1
 
 	#
 	# Detach second vdev.  There's a difference in behavior between
-	# resilvers and rebuilds.  A resilver will not be cancelled even
-	# though there's nothing on the original vdev which needs to be
-	# rebuilt.  A rebuild on the otherhand is canceled when returning
-	# to a non-redundant striped layout.  At some point the resilver
-	# behavior should be updated to match the rebuild behavior.
+	# healing and sequential resilvers.  A healing resilver will not be
+	# cancelled even though there's nothing on the original vdev which
+	# needs to be rebuilt.  A sequential resilver on the otherhand is
+	# canceled when returning to a non-redundant striped layout.  At
+	# some point the healing resilver behavior should be updated to match
+	# the sequential resilver behavior.
 	#
 	log_must zpool detach $TESTPOOL1 ${VDEV_FILES[2]}
 
-        if [[ "$replace_mode" = "resilver" ]]; then
-		log_must $check $TESTPOOL1
+        if [[ "$replace_mode" = "healing" ]]; then
+		log_must is_pool_resilvering $TESTPOOL1
         else
-		log_mustnot $check $TESTPOOL1
+		log_mustnot is_pool_resilvering $TESTPOOL1
         fi
 
 	log_must set_tunable32 SCAN_SUSPEND_PROGRESS \

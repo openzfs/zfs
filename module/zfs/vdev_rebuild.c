@@ -35,53 +35,72 @@
 #include <sys/zap.h>
 
 /*
- * This file contains the device rebuild implementation.
+ * This file contains the sequential reconstruction implementation for
+ * resilvering.  This form of resilvering is internally referred to as device
+ * rebuild to avoid conflating it with the traditional healing reconstruction
+ * performed by the dsl scan code.
  *
- * Historically ZFS has used a process called resilvering to replace a
- * failed device.  This has numerous advantages including the ability to
- * verify the checksum on every block as it's repaired.  However, resilver
- * performance can be sub-optimal due to the random nature of the IO which
- * needs to be issued (even with the sequential rebuild feature).
+ * When replacing a device, or scrubbing the pool, ZFS has historically used
+ * a process called resilvering which is a form of healing reconstruction.
+ * This approach has the advantage that as blocks are read from disk their
+ * checksums can be immediately verified and the data repaired.  Unfortunately,
+ * it also results in a random IO pattern to the disk even when extra care
+ * is taken to sequentialize the IO as much as possible.  This substantially
+ * increases the time required to resilver the pool and restore redundancy.
  *
- * For these occasions, it's desirable to have the option of a traditional
- * (in LBA order) RAID rebuild which may be able to more quickly restore
- * redudnancy.  There are a few noteworthy limitations and advantages of
- * of device rebuilds compared to resilvers:
+ * For mirrored devices it's possible to implement an alternate sequential
+ * reconstruction strategy when resilvering.  Sequential reconstruction
+ * behaves like a traditional RAID rebuild and reconstructs a device in LBA
+ * order without verifying the checksum.  After this phase completes a second
+ * scrub phase is started to verify all of the checksums.  This two phase
+ * process will take longer than the healing reconstruction described above.
+ * However, it has that advantage that after the reconstruction first phase
+ * completes redundancy has been restored.  At this point the pool can incur
+ * another device failure without disking data loss.
+ *
+ * There are a few noteworthy limitations and other advantages of resilvering
+ * using sequential reconstruction vs healing reconstruction.
  *
  * Limitations:
  *
  *   - Only supported for mirror vdev types.  Due to the variable stripe
- *     width used by raidz it is not compatible with device rebuilds.
+ *     width used by raidz sequential reconstruction is not possible.
  *
- *   - Block checksums are not verified as part of the rebuild.  Similar to
- *     traditional RAID the parity/mirror data is reconstructed but cannot
- *     be immediately double checked.  For this reason when the last active
- *     rebuild completes the pool is automatically scrubbed.
+ *   - Block checksums are not verified during sequential reconstuction.
+ *     Similar to traditional RAID the parity/mirror data is reconstructed
+ *     but cannot be immediately double checked.  For this reason when the
+ *     last active resilver completes the pool is automatically scrubbed.
  *
- *   - Deferred rebuilds are not currently supported.  When adding another
- *     vdev to an active top-level rebuild it must be restarted.
+ *   - Deferred resilvers using sequential reconstruction are not currently
+ *     supported.  When adding another vdev to an active top-level resilver
+ *     it must be restarted.
  *
  * Advantages:
  *
- *   - The rebuild is performed in LBA order which may be faster than a
- *     resilver when using HDDs (or especially with SMR devices).  Like a
- *     resilver only allocated capacity is rebuilt.
+ *   - Sequential reconstuction is performed in LBA order which may be faster
+ *     than healing reconstuction particularly when using using HDDs (or
+ *     especially with SMR devices).  Only allocated capacity is resilvered.
  *
- *   - Unlike resilver or scrub, which are pool wide operations, a rebuild
- *     is handled by the top-level mirror vdevs.  This allows a rebuild to
- *     be started or canceled on one top-level vdev without impacting any
- *     other top-level vdevs in the pool.
+ *   - Sequential reconstruction has no awareness of ZFS block boundaries.
+ *     This allows it to issue larger IOs to disk which span multiple blocks
+ *     allowing all of these logical blocks to be repaired with a single IO.
+ *
+ *   - Unlike a healing resilver or scrub which are pool wide operations,
+ *     sequential reconstruction is handled by the top-level mirror vdevs.
+ *     This allows for it to be started or canceled on a top-level vdev
+ *     without impacting any other top-level vdevs in the pool.
  *
  *   - Data only referenced by a pool checkpoint will be repaired because
- *     that space is reflected in the space maps.  This differs for a resilver
- *     or scrub which will not repair the data.
+ *     that space is reflected in the space maps.  This differs for a
+ *     healing resilver or scrub which will not repair that data.
  */
 
 
 /*
  * Maximum number of queued rebuild I/Os top-level vdev.  The number of
  * concurrent rebuild I/Os issued to the device is controlled by the
- * zfs_vdev_scrub_min_active and zfs_vdev_scrub_max_active module options.
+ * zfs_vdev_rebuild_min_active and zfs_vdev_rebuild_max_active module
+ * options.
  */
 unsigned int zfs_rebuild_queue_limit = 20;
 
@@ -241,7 +260,7 @@ vdev_rebuild_initiate(vdev_t *vd)
 	    (void *)(uintptr_t)vd->vdev_id, 0, ZFS_SPACE_CHECK_NONE, tx);
 	dmu_tx_commit(tx);
 
-	spa_event_notify(spa, vd, NULL, ESC_ZFS_REBUILD_START);
+	spa_event_notify(spa, vd, NULL, ESC_ZFS_RESILVER_START);
 }
 
 /*
@@ -270,7 +289,7 @@ vdev_rebuild_complete_sync(void *arg, dmu_tx_t *tx)
 	spa_history_log_internal(spa, "rebuild",  tx,
 	    "vdev_id=%llu vdev_guid=%llu complete",
 	    (u_longlong_t)vd->vdev_id, (u_longlong_t)vd->vdev_guid);
-	spa_event_notify(spa, vd, NULL, ESC_ZFS_REBUILD_FINISH);
+	spa_event_notify(spa, vd, NULL, ESC_ZFS_RESILVER_FINISH);
 
 	/* Handles detaching of spares */
 	spa_async_request(spa, SPA_ASYNC_REBUILD_DONE);
@@ -306,7 +325,7 @@ vdev_rebuild_cancel_sync(void *arg, dmu_tx_t *tx)
 	spa_history_log_internal(spa, "rebuild",  tx,
 	    "vdev_id=%llu vdev_guid=%llu canceled",
 	    (u_longlong_t)vd->vdev_id, (u_longlong_t)vd->vdev_guid);
-	spa_event_notify(spa, vd, NULL, ESC_ZFS_REBUILD_FINISH);
+	spa_event_notify(spa, vd, NULL, ESC_ZFS_RESILVER_FINISH);
 
 	vd->vdev_rebuild_cancel_wanted = B_FALSE;
 	vd->vdev_rebuilding = B_FALSE;
@@ -1042,12 +1061,12 @@ vdev_rebuild_get_stats(vdev_t *tvd, vdev_rebuild_stat_t *vrs)
 
 	int error = zap_contains(spa_meta_objset(spa),
 	    tvd->vdev_top_zap, VDEV_TOP_ZAP_VDEV_REBUILD_PHYS);
-	ASSERT(error == 0 || error == ENOENT);
 
 	if (error == ENOENT) {
 		bzero(vrs, sizeof (vdev_rebuild_stat_t));
 		vrs->vrs_state = VDEV_REBUILD_NONE;
-	} else {
+		error = 0;
+	} else if (error == 0) {
 		vdev_rebuild_t *vr = &tvd->vdev_rebuild_config;
 		vdev_rebuild_phys_t *vrp = &vr->vr_rebuild_phys;
 
@@ -1068,7 +1087,7 @@ vdev_rebuild_get_stats(vdev_t *tvd, vdev_rebuild_stat_t *vrs)
 		mutex_exit(&tvd->vdev_rebuild_lock);
 	}
 
-	return (0);
+	return (error);
 }
 
 /* BEGIN CSTYLED */

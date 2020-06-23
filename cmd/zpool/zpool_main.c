@@ -337,7 +337,7 @@ get_usage(zpool_help_t idx)
 		return (gettext("\tadd [-fgLnP] [-o property=value] "
 		    "<pool> <vdev> ...\n"));
 	case HELP_ATTACH:
-		return (gettext("\tattach [-frw] [-o property=value] "
+		return (gettext("\tattach [-fsw] [-o property=value] "
 		    "<pool> <device> <new-device>\n"));
 	case HELP_CLEAR:
 		return (gettext("\tclear [-nF] <pool> [device]\n"));
@@ -380,7 +380,7 @@ get_usage(zpool_help_t idx)
 	case HELP_ONLINE:
 		return (gettext("\tonline [-e] <pool> <device> ...\n"));
 	case HELP_REPLACE:
-		return (gettext("\treplace [-frw] [-o property=value] "
+		return (gettext("\treplace [-fsw] [-o property=value] "
 		    "<pool> <device> [new-device]\n"));
 	case HELP_REMOVE:
 		return (gettext("\tremove [-npsw] <pool> <device> ...\n"));
@@ -2270,7 +2270,7 @@ print_status_config(zpool_handle_t *zhp, status_cbdata_t *cb, const char *name,
 	if (vrs != NULL && vrs->vrs_state == VDEV_REBUILD_ACTIVE &&
 	    children == 0) {
 		if (vs->vs_rebuild_processed != 0) {
-			(void) printf(gettext("  (rebuilding)"));
+			(void) printf(gettext("  (resilvering)"));
 		}
 	}
 
@@ -2636,15 +2636,10 @@ show_import(nvlist_t *config)
 		break;
 
 	case ZPOOL_STATUS_RESILVERING:
-		printf_color(ANSI_BOLD, gettext("status: "));
-		printf_color(ANSI_YELLOW, gettext("One or more devices were "
-		    "being resilvered.\n"));
-		break;
-
 	case ZPOOL_STATUS_REBUILDING:
 		printf_color(ANSI_BOLD, gettext("status: "));
 		printf_color(ANSI_YELLOW, gettext("One or more devices were "
-		    "being rebuilt.\n"));
+		    "being resilvered.\n"));
 		break;
 
 	case ZPOOL_STATUS_ERRATA:
@@ -6149,7 +6144,7 @@ zpool_do_attach_or_replace(int argc, char **argv, int replacing)
 	int ret;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "fo:rw")) != -1) {
+	while ((c = getopt(argc, argv, "fo:sw")) != -1) {
 		switch (c) {
 		case 'f':
 			force = B_TRUE;
@@ -6167,7 +6162,7 @@ zpool_do_attach_or_replace(int argc, char **argv, int replacing)
 			    (add_prop_list(optarg, propval, &props, B_TRUE)))
 				usage(B_FALSE);
 			break;
-		case 'r':
+		case 's':
 			rebuild = B_TRUE;
 			break;
 		case 'w':
@@ -6257,17 +6252,9 @@ zpool_do_attach_or_replace(int argc, char **argv, int replacing)
 	ret = zpool_vdev_attach(zhp, old_disk, new_disk, nvroot, replacing,
 	    rebuild);
 
-	if (ret == 0 && wait) {
-		zpool_wait_activity_t activity;
-		if (replacing)
-			activity = ZPOOL_WAIT_REPLACE;
-		else if (rebuild)
-			activity = ZPOOL_WAIT_REBUILD;
-		else
-			activity = ZPOOL_WAIT_RESILVER;
-
-		ret = zpool_wait(zhp, activity);
-	}
+	if (ret == 0 && wait)
+		ret = zpool_wait(zhp,
+		    replacing ? ZPOOL_WAIT_REPLACE : ZPOOL_WAIT_RESILVER);
 
 	nvlist_free(props);
 	nvlist_free(nvroot);
@@ -6277,10 +6264,10 @@ zpool_do_attach_or_replace(int argc, char **argv, int replacing)
 }
 
 /*
- * zpool replace [-frw] [-o property=value] <pool> <device> <new_device>
+ * zpool replace [-fsw] [-o property=value] <pool> <device> <new_device>
  *
  *	-f	Force attach, even if <new_device> appears to be in use.
- *	-r	Perform rebuild instead of default resilver operation.
+ *	-s	Use sequential instead of healing reconstruction for resilver.
  *	-o	Set property=value.
  *	-w	Wait for replacing to complete before returning
  *
@@ -6294,10 +6281,10 @@ zpool_do_replace(int argc, char **argv)
 }
 
 /*
- * zpool attach [-frw] [-o property=value] <pool> <device> <new_device>
+ * zpool attach [-fsw] [-o property=value] <pool> <device> <new_device>
  *
  *	-f	Force attach, even if <new_device> appears to be in use.
- *	-r	Perform rebuild instead of default resilver operation.
+ *	-s	Use sequential instead of healing reconstruction for resilver.
  *	-o	Set property=value.
  *	-w	Wait for resilvering to complete before returning
  *
@@ -7366,16 +7353,16 @@ print_rebuild_status_impl(vdev_rebuild_stat_t *vrs, char *vdev_name)
 	/* Rebuild is finished or canceled. */
 	if (vrs->vrs_state == VDEV_REBUILD_COMPLETE) {
 		secs_to_dhms(vrs->vrs_scan_time_ms / 1000, time_buf);
-		(void) printf(gettext("rebuilt (%s) %s in %s "
+		(void) printf(gettext("resilvered (%s) %s in %s "
 		    "with %llu errors on %s"), vdev_name, bytes_rebuilt_buf,
 		    time_buf, (u_longlong_t)vrs->vrs_errors, ctime(&end));
 		return;
 	} else if (vrs->vrs_state == VDEV_REBUILD_CANCELED) {
-		(void) printf(gettext("rebuild (%s) canceled on %s"),
+		(void) printf(gettext("resilver (%s) canceled on %s"),
 		    vdev_name, ctime(&end));
 		return;
 	} else if (vrs->vrs_state == VDEV_REBUILD_ACTIVE) {
-		(void) printf(gettext("rebuild (%s) in progress since %s"),
+		(void) printf(gettext("resilver (%s) in progress since %s"),
 		    vdev_name, ctime(&start));
 	}
 
@@ -7387,7 +7374,7 @@ print_rebuild_status_impl(vdev_rebuild_stat_t *vrs, char *vdev_name)
 	(void) printf(gettext("\t%s scanned at %s/s, %s issued %s/s, "
 	    "%s total\n"), bytes_scanned_buf, scan_rate_buf,
 	    bytes_issued_buf, issue_rate_buf, bytes_est_buf);
-	(void) printf(gettext("\t%s rebuilt, %.2f%% done"),
+	(void) printf(gettext("\t%s resilvered, %.2f%% done"),
 	    bytes_rebuilt_buf, scan_pct);
 
 	if (vrs->vrs_state == VDEV_REBUILD_ACTIVE) {
@@ -7432,9 +7419,9 @@ print_rebuild_status(zpool_handle_t *zhp, nvlist_t *nvroot)
 /*
  * As we don't scrub checkpointed blocks, we want to warn the user that we
  * skipped scanning some blocks if a checkpoint exists or existed at any
- * time during the scan.  If a rebuild operation was performed instead of
- * a resilver then the block were rebuilt.  However, their checksums were
- * not verified so we still print the warning.
+ * time during the scan.  If a sequential instead of healing reconstruction
+ * was performed then the blocks were reconstructed.  However, their checksums
+ * have not been verified so we still print the warning.
  */
 static void
 print_checkpoint_scan_warning(pool_scan_stat_t *ps, pool_checkpoint_stat_t *pcs)
@@ -7955,6 +7942,7 @@ status_callback(zpool_handle_t *zhp, void *data)
 		break;
 
 	case ZPOOL_STATUS_RESILVERING:
+	case ZPOOL_STATUS_REBUILDING:
 		printf_color(ANSI_BOLD, gettext("status: "));
 		printf_color(ANSI_YELLOW, gettext("One or more devices is "
 		    "currently being resilvered.  The pool will\n\tcontinue "
@@ -7964,20 +7952,11 @@ status_callback(zpool_handle_t *zhp, void *data)
 		    "complete.\n"));
 		break;
 
-	case ZPOOL_STATUS_REBUILDING:
-		printf_color(ANSI_BOLD, gettext("status: "));
-		printf_color(ANSI_YELLOW, gettext("One or more devices is "
-		    "currently being rebuilt.  The pool will\n\tcontinue "
-		    "to function, possibly in a degraded state.\n"));
-		printf_color(ANSI_BOLD, gettext("action: "));
-		printf_color(ANSI_YELLOW, gettext("Wait for the rebuild to "
-		    "complete.\n"));
-		break;
-
 	case ZPOOL_STATUS_REBUILD_SCRUB:
 		printf_color(ANSI_BOLD, gettext("status: "));
 		printf_color(ANSI_YELLOW, gettext("One or more devices have "
-		    "been rebuilt, scrubbing the pool is recommended.\n"));
+		    "been sequentially resilvered, scrubbing\n\tthe pool "
+		    "is recommended.\n"));
 		printf_color(ANSI_BOLD, gettext("action: "));
 		printf_color(ANSI_YELLOW, gettext("Use 'zpool scrub' to "
 		    "verify all data checksums.\n"));
@@ -9799,14 +9778,12 @@ vdev_activity_remaining(nvlist_t *nv, zpool_wait_activity_t activity)
 
 /* Add up the total number of bytes left to rebuild across top-level vdevs */
 static uint64_t
-vdev_activity_top_remaining(nvlist_t *nv, zpool_wait_activity_t activity)
+vdev_activity_top_remaining(nvlist_t *nv)
 {
 	uint64_t bytes_remaining = 0;
 	nvlist_t **child;
 	uint_t children;
 	int error;
-
-	assert(activity == ZPOOL_WAIT_REBUILD);
 
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
 	    &child, &children) != 0)
@@ -9884,7 +9861,7 @@ print_wait_status_row(wait_data_t *wd, zpool_handle_t *zhp, int row)
 	pool_scan_stat_t *pss = NULL;
 	pool_removal_stat_t *prs = NULL;
 	char *headers[] = {"DISCARD", "FREE", "INITIALIZE", "REPLACE",
-	    "REMOVE", "RESILVER", "SCRUB", "TRIM", "REBUILD"};
+	    "REMOVE", "RESILVER", "SCRUB", "TRIM"};
 	int col_widths[ZPOOL_WAIT_NUM_ACTIVITIES];
 
 	/* Calculate the width of each column */
@@ -9938,18 +9915,19 @@ print_wait_status_row(wait_data_t *wd, zpool_handle_t *zhp, int row)
 			bytes_rem[ZPOOL_WAIT_SCRUB] = rem;
 		else
 			bytes_rem[ZPOOL_WAIT_RESILVER] = rem;
+	} else if (check_rebuilding(nvroot, NULL)) {
+		bytes_rem[ZPOOL_WAIT_RESILVER] =
+		    vdev_activity_top_remaining(nvroot);
 	}
 
 	bytes_rem[ZPOOL_WAIT_INITIALIZE] =
 	    vdev_activity_remaining(nvroot, ZPOOL_WAIT_INITIALIZE);
 	bytes_rem[ZPOOL_WAIT_TRIM] =
 	    vdev_activity_remaining(nvroot, ZPOOL_WAIT_TRIM);
-	bytes_rem[ZPOOL_WAIT_REBUILD] =
-	    vdev_activity_top_remaining(nvroot, ZPOOL_WAIT_REBUILD);
 
 	/*
-	 * A replace finishes after resilver/rebuild finishes, so the amount
-	 * of work left for a replace is the same as for resilvering/rebuilding.
+	 * A replace finishes after resilvering finishes, so the amount of work
+	 * left for a replace is the same as for resilvering.
 	 *
 	 * It isn't quite correct to say that if we have any 'spare' or
 	 * 'replacing' vdevs and a resilver is happening, then a replace is in
@@ -9960,15 +9938,8 @@ print_wait_status_row(wait_data_t *wd, zpool_handle_t *zhp, int row)
 	 * because we don't have access to the DTLs, which could tell us whether
 	 * or not we have really finished resilvering a hot spare.
 	 */
-	if (vdev_any_spare_replacing(nvroot)) {
-		if (check_rebuilding(nvroot, NULL)) {
-			bytes_rem[ZPOOL_WAIT_REPLACE] =
-			    bytes_rem[ZPOOL_WAIT_REBUILD];
-		} else {
-			bytes_rem[ZPOOL_WAIT_REPLACE] =
-			    bytes_rem[ZPOOL_WAIT_RESILVER];
-		}
-	}
+	if (vdev_any_spare_replacing(nvroot))
+		bytes_rem[ZPOOL_WAIT_REPLACE] =  bytes_rem[ZPOOL_WAIT_RESILVER];
 
 	if (timestamp_fmt != NODATE)
 		print_timestamp(timestamp_fmt);
@@ -10087,7 +10058,7 @@ zpool_do_wait(int argc, char **argv)
 		{
 			static char *col_subopts[] = { "discard", "free",
 			    "initialize", "replace", "remove", "resilver",
-			    "scrub", "trim", "rebuild", NULL };
+			    "scrub", "trim", NULL };
 
 			/* Reset activities array */
 			bzero(&wd.wd_enabled, sizeof (wd.wd_enabled));

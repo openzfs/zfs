@@ -27,7 +27,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd May 15, 2020
+.Dd August 9, 2019
 .Dt ZPOOL-SCRUB 8
 .Os Linux
 .Sh NAME
@@ -69,8 +69,8 @@ device
 whereas scrubbing examines all data to discover silent errors due to hardware
 faults or disk failure.
 .Pp
-Because scrubbing, resilvering and rebuilding are I/O-intensive operations,
-ZFS only allows one at a time.
+Because scrubbing and resilvering are I/O-intensive operations, ZFS only allows
+one at a time.
 If a scrub is paused, the
 .Nm zpool Cm scrub
 resumes it.

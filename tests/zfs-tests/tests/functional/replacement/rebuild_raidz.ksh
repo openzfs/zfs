@@ -25,12 +25,12 @@
 
 #
 # DESCRIPTION:
-# Executing 'zpool replace -r' for raidz vdevs failed.  Rebuilds are
-# only allowed for stripe/mirror pools.
+# Executing 'zpool replace -s' for raidz vdevs failed.  Sequential
+# resilvers are only allowed for stripe/mirror pools.
 #
 # STRATEGY:
-# 1. Create a raidz pool, verify 'zpool replace -r' fails
-# 2. Create a stripe/mirror pool, verify 'zpool replace -r' passes
+# 1. Create a raidz pool, verify 'zpool replace -s' fails
+# 2. Create a stripe/mirror pool, verify 'zpool replace -s' passes
 #
 
 function cleanup
@@ -41,7 +41,7 @@ function cleanup
 	rm -f ${VDEV_FILES[@]} $SPARE_VDEV_FILE
 }
 
-log_assert "Rebuild is not allowed for raidz vdevs"
+log_assert "Sequential resilver is not allowed for raidz vdevs"
 
 ORIG_SCAN_SUSPEND_PROGRESS=$(get_tunable SCAN_SUSPEND_PROGRESS)
 
@@ -52,19 +52,19 @@ log_must truncate -s $VDEV_FILE_SIZE ${VDEV_FILES[@]} $SPARE_VDEV_FILE
 # raidz[1-3]
 for vdev_type in "raidz" "raidz2" "raidz3"; do
 	log_must zpool create -f $TESTPOOL1 $vdev_type ${VDEV_FILES[@]}
-	log_mustnot zpool replace -r $TESTPOOL1 ${VDEV_FILES[1]} \
+	log_mustnot zpool replace -s $TESTPOOL1 ${VDEV_FILES[1]} \
 	    $SPARE_VDEV_FILE
 	destroy_pool $TESTPOOL1
 done
 
 # stripe
 log_must zpool create $TESTPOOL1 ${VDEV_FILES[@]}
-log_must zpool replace -r $TESTPOOL1 ${VDEV_FILES[1]} $SPARE_VDEV_FILE
+log_must zpool replace -s $TESTPOOL1 ${VDEV_FILES[1]} $SPARE_VDEV_FILE
 destroy_pool $TESTPOOL1
 
 # mirror
 log_must zpool create $TESTPOOL1 mirror ${VDEV_FILES[0]} ${VDEV_FILES[1]}
-log_must zpool replace -r $TESTPOOL1 ${VDEV_FILES[1]}  $SPARE_VDEV_FILE
+log_must zpool replace -s $TESTPOOL1 ${VDEV_FILES[1]}  $SPARE_VDEV_FILE
 destroy_pool $TESTPOOL1
 
-log_pass "Rebuild is not allowed for raidz vdevs"
+log_pass "Sequential resilver is not allowed for raidz vdevs"

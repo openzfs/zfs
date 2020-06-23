@@ -12,7 +12,6 @@
 
 #
 # Copyright (c) 2018 by Delphix. All rights reserved.
-# Copyright (c) 2020 Lawrence Livermore National Security, LLC.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -20,10 +19,10 @@
 
 #
 # DESCRIPTION:
-# 'zpool wait' works when waiting for rebuilding to complete.
+# 'zpool wait' works when waiting for sequential resilvering to complete.
 #
 # STRATEGY:
-# 1. Attach a device to the pool so that rebuilding (-r) starts.
+# 1. Attach a device to the pool so that sequential resilvering starts.
 # 2. Start 'zpool wait'.
 # 3. Monitor the waiting process to make sure it returns neither too soon nor
 #    too late.
@@ -39,27 +38,27 @@ function cleanup
 	    log_must zpool detach $TESTPOOL $DISK2
 }
 
-typeset -r IN_PROGRESS_CHECK="is_pool_rebuilding $TESTPOOL"
+typeset -r IN_PROGRESS_CHECK="is_pool_resilvering $TESTPOOL"
 typeset pid
 
 log_onexit cleanup
 
 add_io_delay $TESTPOOL
 
-# Test 'zpool wait -t rebuild'
-log_must zpool attach -r $TESTPOOL $DISK1 $DISK2
-log_bkgrnd zpool wait -t rebuild $TESTPOOL
+# Test 'zpool wait -t resilver'
+log_must zpool attach -s $TESTPOOL $DISK1 $DISK2
+log_bkgrnd zpool wait -t resilver $TESTPOOL
 pid=$!
 check_while_waiting $pid "$IN_PROGRESS_CHECK"
 
 log_must zpool detach $TESTPOOL $DISK2
 
-# Test 'zpool attach -rw'
-log_bkgrnd zpool attach -rw $TESTPOOL $DISK1 $DISK2
+# Test 'zpool attach -w'
+log_bkgrnd zpool attach -sw $TESTPOOL $DISK1 $DISK2
 pid=$!
-while ! is_pool_rebuilding $TESTPOOL && proc_exists $pid; do
+while ! is_pool_resilvering $TESTPOOL && proc_exists $pid; do
 	log_must sleep .5
 done
 check_while_waiting $pid "$IN_PROGRESS_CHECK"
 
-log_pass "'zpool wait -t rebuild' and 'zpool attach -rw' work."
+log_pass "'zpool wait -t resilver' and 'zpool attach -w' work."

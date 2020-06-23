@@ -3238,8 +3238,8 @@ zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
 				    "cannot replace a log with a spare"));
 			} else if (rebuild) {
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-				    "only mirror vdevs can rebuild the "
-				    "device"));
+				    "only mirror vdevs support sequential "
+				    "reconstruction"));
 			} else if (version >= SPA_VERSION_MULTI_REPLACE) {
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 				    "already in replacing/spare config; wait "

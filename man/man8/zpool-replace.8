@@ -36,7 +36,7 @@
 .Sh SYNOPSIS
 .Nm
 .Cm replace
-.Op Fl frw
+.Op Fl fsw
 .Oo Fl o Ar property Ns = Ns Ar value Oc
 .Ar pool Ar device Op Ar new_device
 .Sh DESCRIPTION
@@ -44,7 +44,7 @@
 .It Xo
 .Nm
 .Cm replace
-.Op Fl frw
+.Op Fl fsw
 .Op Fl o Ar property Ns = Ns Ar value
 .Ar pool Ar device Op Ar new_device
 .Xc
@@ -87,14 +87,13 @@ Sets the given pool properties. See the
 manual page for a list of valid properties that can be set.
 The only property supported at the moment is
 .Sy ashift .
-.It Fl r
-Perform a rebuild instead of a resilver.
-When rebuilding the
+.It Fl s
+The
 .Ar new_device
-is written sequentially which may allow the replace to complete more quickly.
-Unlike a resilver checksums are not verified during reconstruction, instead
-a scrub is started automatically when the last active rebuild completes.
-Rebuilds are not supported for devices in a raidz configuration.
+is reconstructed sequentially to restore redundancy as quickly as possible.
+Checksums are not verfied during sequential reconstruction so a scrub is
+started when the resilver completes.
+Sequential reconstruction is not supported for raidz configurations.
 .It Fl w
 Waits until the replacement has completed before returning.
 .El

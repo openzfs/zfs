@@ -25,9 +25,10 @@
 
 #
 # DESCRIPTION:
-# Rebuilds (unlike resilvers) operate on the top-level vdev.  This means
-# that a rebuild operation can be started/stopped on a different top-level
-# vdev without impacting other rebuilds.
+# Sequential reconstruction (unlike healing reconstruction) operate on the
+# top-level vdev.  This means that a sequential resilver operation can be
+# started/stopped on a different top-level vdev without impacting other
+# sequential resilvers.
 #
 # STRATEGY:
 # 1. Create a mirrored pool.
@@ -41,7 +42,7 @@ function cleanup
 	rm -f ${VDEV_FILES[@]} $SPARE_VDEV_FILE $SPARE_VDEV_FILE2
 }
 
-function check_rebuild_history
+function check_history
 {
 	pool=$1
 	msg=$2
@@ -64,7 +65,7 @@ log_onexit cleanup
 log_must truncate -s $VDEV_FILE_SIZE ${VDEV_FILES[@]} \
     $SPARE_VDEV_FILE $SPARE_VDEV_FILE2
 
-# Verify two rebuilds can run concurrently.
+# Verify two sequential resilvers can run concurrently.
 log_must zpool create -f $TESTPOOL1 \
     mirror ${VDEV_FILES[0]} ${VDEV_FILES[1]} \
     mirror ${VDEV_FILES[2]} ${VDEV_FILES[3]}
@@ -76,21 +77,21 @@ log_must zpool sync $TESTPOOL1
 
 log_must set_tunable32 SCAN_SUSPEND_PROGRESS 1
 
-log_must zpool replace -r $TESTPOOL1 ${VDEV_FILES[1]} $SPARE_VDEV_FILE
-log_must zpool replace -r $TESTPOOL1 ${VDEV_FILES[3]} $SPARE_VDEV_FILE2
+log_must zpool replace -s $TESTPOOL1 ${VDEV_FILES[1]} $SPARE_VDEV_FILE
+log_must zpool replace -s $TESTPOOL1 ${VDEV_FILES[3]} $SPARE_VDEV_FILE2
 
-check_rebuild_history $TESTPOOL1 "started" 2
-check_rebuild_history $TESTPOOL1 "reset" 0
-check_rebuild_history $TESTPOOL1 "complete" 0
-check_rebuild_history $TESTPOOL1 "canceled" 0
+check_history $TESTPOOL1 "started" 2
+check_history $TESTPOOL1 "reset" 0
+check_history $TESTPOOL1 "complete" 0
+check_history $TESTPOOL1 "canceled" 0
 
 log_must set_tunable32 SCAN_SUSPEND_PROGRESS $ORIG_SCAN_SUSPEND_PROGRESS
-log_must zpool wait -t rebuild $TESTPOOL1
+log_must zpool wait -t resilver $TESTPOOL1
 
-check_rebuild_history $TESTPOOL1 "complete" 2
+check_history $TESTPOOL1 "complete" 2
 destroy_pool $TESTPOOL1
 
-# Verify canceling one rebuild (zpool detach) does not impact others.
+# Verify canceling one resilver (zpool detach) does not impact others.
 log_must zpool create -f $TESTPOOL1 \
     mirror ${VDEV_FILES[0]} ${VDEV_FILES[1]} \
     mirror ${VDEV_FILES[2]} ${VDEV_FILES[3]}
@@ -102,24 +103,24 @@ log_must zpool sync $TESTPOOL1
 
 log_must set_tunable32 SCAN_SUSPEND_PROGRESS 1
 
-log_must zpool replace -r $TESTPOOL1 ${VDEV_FILES[1]} $SPARE_VDEV_FILE
-log_must zpool replace -r $TESTPOOL1 ${VDEV_FILES[3]} $SPARE_VDEV_FILE2
+log_must zpool replace -s $TESTPOOL1 ${VDEV_FILES[1]} $SPARE_VDEV_FILE
+log_must zpool replace -s $TESTPOOL1 ${VDEV_FILES[3]} $SPARE_VDEV_FILE2
 
-check_rebuild_history $TESTPOOL1 "started" 2
-check_rebuild_history $TESTPOOL1 "reset" 0
-check_rebuild_history $TESTPOOL1 "complete" 0
-check_rebuild_history $TESTPOOL1 "canceled" 0
+check_history $TESTPOOL1 "started" 2
+check_history $TESTPOOL1 "reset" 0
+check_history $TESTPOOL1 "complete" 0
+check_history $TESTPOOL1 "canceled" 0
 
 log_must zpool detach $TESTPOOL1 $SPARE_VDEV_FILE2
 
-check_rebuild_history $TESTPOOL1 "complete" 0
-check_rebuild_history $TESTPOOL1 "canceled" 1
+check_history $TESTPOOL1 "complete" 0
+check_history $TESTPOOL1 "canceled" 1
 
 log_must set_tunable32 SCAN_SUSPEND_PROGRESS $ORIG_SCAN_SUSPEND_PROGRESS
-log_must zpool wait -t rebuild $TESTPOOL1
+log_must zpool wait -t resilver $TESTPOOL1
 
-check_rebuild_history $TESTPOOL1 "complete" 1
-check_rebuild_history $TESTPOOL1 "canceled" 1
+check_history $TESTPOOL1 "complete" 1
+check_history $TESTPOOL1 "canceled" 1
 destroy_pool $TESTPOOL1
 
 log_pass "Rebuilds operate on the top-level vdevs"

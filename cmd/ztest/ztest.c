@@ -3508,7 +3508,7 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	    ashift, NULL, 0, 0, 1);
 
 	/*
-	 * When supported select either a resilver or rebuild.
+	 * When supported select either a healing or sequential resilver.
 	 */
 	boolean_t rebuilding = B_FALSE;
 	if (pvd->vdev_ops == &vdev_mirror_ops ||

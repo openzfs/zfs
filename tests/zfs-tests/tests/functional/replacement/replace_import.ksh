@@ -24,12 +24,12 @@
 # Verify that on import an in progress replace operation is resumed.
 #
 # Strategy:
-# 1. For both resilvering and rebuilding replace:
+# 1. For both healing and sequential resilvering replace:
 #    a. Create a pool
-#    b. Repalce a vdev with 'zpool replace' to resilver/rebuild it.
+#    b. Repalce a vdev with 'zpool replace' to resilver (-s) it.
 #    c. Export the pool
 #    d. Import the pool
-#    e. Verify the 'zpool replace' resumed resilvering/rebuilding.
+#    e. Verify the 'zpool replace' resumed resilvering.
 #    f. Destroy the pool
 #
 
@@ -49,30 +49,19 @@ log_onexit cleanup
 
 log_must truncate -s $VDEV_FILE_SIZE ${VDEV_FILES[@]} $SPARE_VDEV_FILE
 
-# Verify resilver resumes on import.
-log_must zpool create -f $TESTPOOL1 ${VDEV_FILES[@]}
-log_must set_tunable32 SCAN_SUSPEND_PROGRESS 1
-log_must zpool replace $TESTPOOL1 ${VDEV_FILES[0]} $SPARE_VDEV_FILE
-log_must is_pool_resilvering $TESTPOOL1
-log_must zpool export $TESTPOOL1
-log_must zpool import -d $TEST_BASE_DIR $TESTPOOL1
-log_must is_pool_resilvering $TESTPOOL1
-log_must set_tunable32 SCAN_SUSPEND_PROGRESS $ORIG_SCAN_SUSPEND_PROGRESS
-log_must zpool wait -t resilver $TESTPOOL1
-log_must is_pool_resilvered $TESTPOOL1
-destroy_pool $TESTPOOL1
-
-# Verify rebuild resumes on import.
-log_must zpool create -f $TESTPOOL1 ${VDEV_FILES[@]}
-log_must set_tunable32 SCAN_SUSPEND_PROGRESS 1
-log_must zpool replace -r $TESTPOOL1 ${VDEV_FILES[0]} $SPARE_VDEV_FILE
-log_must is_pool_rebuilding $TESTPOOL1
-log_must zpool export $TESTPOOL1
-log_must zpool import -d $TEST_BASE_DIR $TESTPOOL1
-log_must is_pool_rebuilding $TESTPOOL1
-log_must set_tunable32 SCAN_SUSPEND_PROGRESS $ORIG_SCAN_SUSPEND_PROGRESS
-log_must zpool wait -t rebuild $TESTPOOL1
-log_must is_pool_rebuilt $TESTPOOL1
-destroy_pool $TESTPOOL1
+# Verify healing and sequential resilver resume on import.
+for arg in "" "-s"; do
+	log_must zpool create -f $TESTPOOL1 ${VDEV_FILES[@]}
+	log_must set_tunable32 SCAN_SUSPEND_PROGRESS 1
+	log_must zpool replace -s $TESTPOOL1 ${VDEV_FILES[0]} $SPARE_VDEV_FILE
+	log_must is_pool_resilvering $TESTPOOL1
+	log_must zpool export $TESTPOOL1
+	log_must zpool import -d $TEST_BASE_DIR $TESTPOOL1
+	log_must is_pool_resilvering $TESTPOOL1
+	log_must set_tunable32 SCAN_SUSPEND_PROGRESS $ORIG_SCAN_SUSPEND_PROGRESS
+	log_must zpool wait -t resilver $TESTPOOL1
+	log_must is_pool_resilvered $TESTPOOL1
+	destroy_pool $TESTPOOL1
+done
 
 log_pass "Verify replace is resumed on import"

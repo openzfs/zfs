@@ -6545,10 +6545,9 @@ spa_vdev_add(spa_t *spa, nvlist_t *nvroot)
  * completion of resilvering, the first disk (the one being replaced)
  * is automatically detached.
  *
- * If 'rebuild' is specified, then a device rebuild should be performed
- * instead of a traditional resilver.  While a different reconstruction
- * strategy is used to perform the replacement.  The goal is that it should
- * behave the same way as a resilver from the administrators perspective.
+ * If 'rebuild' is specified, then sequential reconstruction (a.ka. rebuild)
+ * should be performed instead of traditional healing reconstruction.  From
+ * an administrators perspective these are both resilver operations.
  */
 int
 spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
@@ -9532,6 +9531,9 @@ spa_activity_in_progress(spa_t *spa, zpool_wait_activity_t activity,
 		    DSS_SCANNING);
 		break;
 	case ZPOOL_WAIT_RESILVER:
+		if ((*in_progress = vdev_rebuild_active(spa->spa_root_vdev)))
+			break;
+		/* fall through */
 	case ZPOOL_WAIT_SCRUB:
 	{
 		boolean_t scanning, paused, is_scrub;
@@ -9544,9 +9546,6 @@ spa_activity_in_progress(spa_t *spa, zpool_wait_activity_t activity,
 		    is_scrub == (activity == ZPOOL_WAIT_SCRUB));
 		break;
 	}
-	case ZPOOL_WAIT_REBUILD:
-		*in_progress = vdev_rebuild_active(spa->spa_root_vdev);
-		break;
 	default:
 		panic("unrecognized value for activity %d", activity);
 	}

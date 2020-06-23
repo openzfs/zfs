@@ -43,7 +43,7 @@
 #	2. Attach a disk to the pool.
 #	3. Verify the integrity of the file system and the resilvering.
 #
-# NOTE: Raidz does not support the rebuild (-r) option.
+# NOTE: Raidz does not support the sequential resilver (-s) option.
 #
 
 verify_runnable "global"
@@ -106,7 +106,7 @@ function attach_test
 		((i = i + 1))
 	done
 
-	log_must zpool attach -rw $opt $TESTPOOL1 $disk1 $disk2
+	log_must zpool attach -sw $opt $TESTPOOL1 $disk1 $disk2
 
 	for wait_pid in $child_pids; do
 		kill $wait_pid
@@ -158,7 +158,7 @@ for type in "" "raidz" "raidz1"; do
 		log_must zfs create $TESTPOOL1/$TESTFS1
 		log_must zfs set mountpoint=$TESTDIR1 $TESTPOOL1/$TESTFS1
 
-		log_mustnot zpool attach -r "$opt" $TESTDIR/$TESTFILE1.1 \
+		log_mustnot zpool attach -s "$opt" $TESTDIR/$TESTFILE1.1 \
 		    $TESTDIR/$REPLACEFILE
 
 		zpool iostat -v $TESTPOOL1 | grep "$REPLACEFILE"

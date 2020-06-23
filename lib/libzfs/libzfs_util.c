@@ -287,7 +287,8 @@ libzfs_error_description(libzfs_handle_t *hdl)
 	case EZFS_EXPORT_IN_PROGRESS:
 		return (dgettext(TEXT_DOMAIN, "pool export in progress"));
 	case EZFS_REBUILDING:
-		return (dgettext(TEXT_DOMAIN, "currently rebuilding"));
+		return (dgettext(TEXT_DOMAIN, "currently sequentially "
+		    "resilvering"));
 	case EZFS_UNKNOWN:
 		return (dgettext(TEXT_DOMAIN, "unknown error"));
 	default:

@@ -43,7 +43,7 @@
 #	2. Replace a disk in the pool with another disk.
 #	3. Verify the integrity of the file system and the rebuilding.
 #
-# NOTE: Raidz does not support the rebuild (-r) option.
+# NOTE: Raidz does not support the sequential resilver (-s) option.
 #
 
 verify_runnable "global"
@@ -107,7 +107,7 @@ function replace_test
 		((i = i + 1))
 	done
 
-	log_must zpool replace -rw $opt $TESTPOOL1 $disk1 $disk2
+	log_must zpool replace -sw $opt $TESTPOOL1 $disk1 $disk2
 
 	for wait_pid in $child_pids
 	do

@@ -25,16 +25,16 @@
 
 #
 # DESCRIPTION:
-# Verify scrub behaves as intended when contending with a rebuild or
-# resilver.
+# Verify scrub behaves as intended when contending with a healing or
+# sequential resilver.
 #
 # STRATEGY:
 # 1. Create a pool
 # 2. Add a modest amount of data to the pool.
-# 3. For resilver and rebuild:
+# 3. For healing and sequential resilver:
 #    a. Start scrubbing.
-#    b. Verify a resilver/rebuild can be started and it cancels the scrub.
-#    c. Verify a scrub cannot be started when resilvering/rebuilding.
+#    b. Verify a resilver can be started and it cancels the scrub.
+#    c. Verify a scrub cannot be started when resilvering
 #
 
 function cleanup
@@ -46,7 +46,7 @@ function cleanup
 	rm -f ${VDEV_FILES[@]} $SPARE_VDEV_FILE
 }
 
-log_assert "Scrub was cancelled by resilver and rebuild"
+log_assert "Scrub was cancelled by resilver"
 
 ORIG_RESILVER_MIN_TIME=$(get_tunable RESILVER_MIN_TIME_MS)
 ORIG_SCAN_SUSPEND_PROGRESS=$(get_tunable SCAN_SUSPEND_PROGRESS)
@@ -62,19 +62,20 @@ mntpnt=$(get_prop mountpoint $TESTPOOL1/$TESTFS)
 log_must dd if=/dev/urandom of=$mntpnt/file bs=1M count=64
 log_must zpool sync $TESTPOOL1
 
-# Request a resilver or rebuild
-for replace_mode in "resilver" "rebuild"; do
+# Request a healing or sequential resilver
+for replace_mode in "healing" "sequential"; do
 
 	#
-	# Resilvers abort the dsl_scan and reconfigure it for resilvering.
-	# Rebuilds cancel the dsl_scan and start the vdev_rebuild thread.
+	# Healing resilvers abort the dsl_scan and reconfigure it for
+	# resilvering.  Sequential resilvers cancel the dsl_scan and start
+	# the vdev_rebuild thread.
 	#
-	if [[ "$replace_mode" = "resilver" ]]; then
+	if [[ "$replace_mode" = "healing" ]]; then
 		history_msg="scan aborted, restarting"
 		flags=""
 	else
 		history_msg="scan cancelled"
-		flags="-r"
+		flags="-s"
 	fi
 
 	# Limit scanning time and suspend the scan as soon as possible.
@@ -84,7 +85,7 @@ for replace_mode in "resilver" "rebuild"; do
 	# Initiate a scrub.
 	log_must zpool scrub $TESTPOOL1
 
-	# Initiate a resilver or rebuild to cancel the scrub.
+	# Initiate a resilver to cancel the scrub.
 	log_must zpool replace $flags $TESTPOOL1 ${VDEV_FILES[1]} \
 	    $SPARE_VDEV_FILE
 
@@ -94,22 +95,18 @@ for replace_mode in "resilver" "rebuild"; do
 	done
 	log_mustnot is_pool_scrubbing $TESTPOOL1
 
-	# Verify a scrub cannot be started while resilvering or rebuilding.
-	if [[ "$replace_mode" = "resilver" ]]; then
-		log_must is_pool_resilvering $TESTPOOL1
-	else
-		log_must is_pool_rebuilding $TESTPOOL1
-	fi
+	# Verify a scrub cannot be started while resilvering.
+	log_must is_pool_resilvering $TESTPOOL1
 	log_mustnot zpool scrub $TESTPOOL1
 
-	# Unsuspend resilver or rebuild
+	# Unsuspend resilver.
 	log_must set_tunable32 SCAN_SUSPEND_PROGRESS 0
 	log_must set_tunable32 RESILVER_MIN_TIME_MS 3000
 
-	# Wait for resilver or rebuild to finish then put the original back.
+	# Wait for resilver to finish then put the original back.
 	log_must zpool wait $TESTPOOL1
 	log_must zpool replace $flags -w $TESTPOOL1 $SPARE_VDEV_FILE \
 	    ${VDEV_FILES[1]}
 done
-log_pass "Scrub was cancelled by resilver and rebuild"
+log_pass "Scrub was cancelled by resilver"
 

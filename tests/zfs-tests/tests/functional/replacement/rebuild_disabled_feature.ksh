@@ -21,14 +21,14 @@
 
 #
 # Description:
-# Verify device rebuild functionality feature flags.
+# Verify device_rebuild feature flags.
 #
 # Strategy:
 # 1. Create a pool with all features disabled.
-# 2. Verify 'zpool replace -r' fails and the feature is disabled.
+# 2. Verify 'zpool replace -s' fails and the feature is disabled.
 # 3. Enable the device_rebuild feature.
-# 4. Verify 'zpool replace -r' works and the feature is active.
-# 5. Wait for rebuild wait for the feature to return to enabled.
+# 4. Verify 'zpool replace -s' works and the feature is active.
+# 5. Wait for the feature to return to enabled.
 #
 
 function cleanup
@@ -54,7 +54,7 @@ function check_feature_flag
 	fi
 }
 
-log_assert "Verify device rebuild functionality feature flags."
+log_assert "Verify device_rebuild feature flags."
 
 ORIG_SCAN_SUSPEND_PROGRESS=$(get_tunable SCAN_SUSPEND_PROGRESS)
 
@@ -63,16 +63,16 @@ log_onexit cleanup
 log_must truncate -s $VDEV_FILE_SIZE ${VDEV_FILES[@]} $SPARE_VDEV_FILE
 log_must zpool create -d $TESTPOOL1 ${VDEV_FILES[@]}
 
-log_mustnot zpool replace -r $TESTPOOL1 ${VDEV_FILES[1]} $SPARE_VDEV_FILE
+log_mustnot zpool replace -s $TESTPOOL1 ${VDEV_FILES[1]} $SPARE_VDEV_FILE
 check_feature_flag "feature@device_rebuild" "$TESTPOOL1" "disabled"
 
 log_must set_tunable32 SCAN_SUSPEND_PROGRESS 1
 log_must zpool set feature@device_rebuild=enabled $TESTPOOL1
-log_must zpool replace -r $TESTPOOL1 ${VDEV_FILES[1]} $SPARE_VDEV_FILE
+log_must zpool replace -s $TESTPOOL1 ${VDEV_FILES[1]} $SPARE_VDEV_FILE
 check_feature_flag "feature@device_rebuild" "$TESTPOOL1" "active"
 
 log_must set_tunable32 SCAN_SUSPEND_PROGRESS $ORIG_SCAN_SUSPEND_PROGRESS
-log_must zpool wait -t rebuild $TESTPOOL1
+log_must zpool wait -t resilver $TESTPOOL1
 check_feature_flag "feature@device_rebuild" "$TESTPOOL1" "enabled"
 
-log_pass "Verify device rebuild functionality feature flags."
+log_pass "Verify device_rebuild feature flags."
