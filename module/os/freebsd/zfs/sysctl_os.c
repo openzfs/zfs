@@ -691,3 +691,18 @@ param_set_slop_shift(SYSCTL_HANDLER_ARGS)
 
 	return (0);
 }
+
+int
+param_set_multihost_interval(SYSCTL_HANDLER_ARGS)
+{
+	int err;
+
+	err = sysctl_handle_long(oidp, arg1, 0, req);
+	if (err != 0 || req->newptr == NULL)
+		return (err);
+
+	if (spa_mode_global != SPA_MODE_UNINIT)
+		mmp_signal_all_threads();
+
+	return (0);
+}

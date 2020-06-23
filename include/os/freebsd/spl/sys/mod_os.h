@@ -72,6 +72,9 @@
 #define	param_set_deadman_ziotime_args(var) \
     CTLTYPE_ULONG, NULL, 0, param_set_deadman_ziotime, "LU"
 
+#define	param_set_multihost_interval_args(var) \
+    CTLTYPE_ULONG, &var, 0, param_set_multihost_interval, "LU"
+
 #define	param_set_slop_shift_args(var) \
     CTLTYPE_INT, &var, 0, param_set_slop_shift, "I"
 
