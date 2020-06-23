@@ -1517,7 +1517,7 @@ sa_lookup_uio(sa_handle_t *hdl, sa_attr_type_t attr, uio_t *uio)
 	mutex_enter(&hdl->sa_lock);
 	if ((error = sa_attr_op(hdl, &bulk, 1, SA_LOOKUP, NULL)) == 0) {
 		error = uiomove((void *)bulk.sa_addr, MIN(bulk.sa_size,
-		    uio->uio_resid), UIO_READ, uio);
+		    uio_resid(uio)), UIO_READ, uio);
 	}
 	mutex_exit(&hdl->sa_lock);
 	return (error);

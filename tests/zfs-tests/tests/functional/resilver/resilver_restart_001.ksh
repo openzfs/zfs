@@ -26,7 +26,7 @@
 # DESCRIPTION:
 # Testing resilver restart logic both with and without the deferred resilver
 # feature enabled, verifying that resilver is not restarted when it is
-# unecessary.
+# unnecessary.
 #
 # STRATEGY:
 # 1. Create a pool

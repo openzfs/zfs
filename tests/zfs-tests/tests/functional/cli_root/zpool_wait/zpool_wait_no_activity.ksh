@@ -23,7 +23,7 @@
 #
 # STRATEGY:
 # 1. Create an empty pool with no activity
-# 2. Run zpool wait with various acitivies, make sure it always returns
+# 2. Run zpool wait with various activities, make sure it always returns
 #    promptly
 #
 

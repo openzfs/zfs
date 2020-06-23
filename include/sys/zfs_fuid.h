@@ -117,7 +117,7 @@ extern int zfs_fuid_find_by_domain(zfsvfs_t *, const char *domain,
 extern const char *zfs_fuid_find_by_idx(zfsvfs_t *zfsvfs, uint32_t idx);
 extern void zfs_fuid_txhold(zfsvfs_t *zfsvfs, dmu_tx_t *tx);
 extern int zfs_id_to_fuidstr(zfsvfs_t *zfsvfs, const char *domain, uid_t rid,
-    char *buf, boolean_t addok);
+    char *buf, size_t len, boolean_t addok);
 #endif
 
 char *zfs_fuid_idx_domain(avl_tree_t *, uint32_t);

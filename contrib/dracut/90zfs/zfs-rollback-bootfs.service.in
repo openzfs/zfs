@@ -1,0 +1,14 @@
+[Unit]
+Description=Rollback bootfs just before it is mounted
+Requisite=zfs-import.target
+After=zfs-import.target zfs-snapshot-bootfs.service
+Before=dracut-mount.service
+DefaultDependencies=no
+ConditionKernelCommandLine=bootfs.rollback
+
+[Service]
+# ${BOOTFS} should have been set by zfs-env-bootfs.service
+Type=oneshot
+ExecStartPre=/bin/sh -c 'test -n "${BOOTFS}"'
+ExecStart=/bin/sh -c '. /lib/dracut-lib.sh; SNAPNAME="$(getarg bootfs.rollback)"; /sbin/zfs rollback -Rf "${BOOTFS}@${SNAPNAME:-%v}"'
+RemainAfterExit=yes

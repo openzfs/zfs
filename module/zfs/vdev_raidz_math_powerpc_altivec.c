@@ -4333,5 +4333,5 @@ __attribute__((aligned(256))) gf_clmul_mod_lt[4*256][16] = {
 		0xf8, 0x07, 0x06, 0xf9, 0x04, 0xfb, 0xfa, 0x05  }
 };
 /* END CSTYLED */
-#endif // ENDIANESS
+#endif // ENDIANNESS
 #endif /* defined(__powerpc__) */

@@ -906,7 +906,7 @@ void
 dsl_dataset_name(dsl_dataset_t *ds, char *name)
 {
 	if (ds == NULL) {
-		(void) strcpy(name, "mos");
+		(void) strlcpy(name, "mos", ZFS_MAX_DATASET_NAME_LEN);
 	} else {
 		dsl_dir_name(ds->ds_dir, name);
 		VERIFY0(dsl_dataset_get_snapname(ds));
@@ -2427,9 +2427,12 @@ get_receive_resume_stats_impl(dsl_dataset_t *ds)
 		zio_cksum_t cksum;
 		fletcher_4_native_varsize(compressed, compressed_size, &cksum);
 
-		str = kmem_alloc(compressed_size * 2 + 1, KM_SLEEP);
+		size_t alloc_size = compressed_size * 2 + 1;
+		str = kmem_alloc(alloc_size, KM_SLEEP);
 		for (int i = 0; i < compressed_size; i++) {
-			(void) sprintf(str + i * 2, "%02x", compressed[i]);
+			size_t offset = i * 2;
+			(void) snprintf(str + offset, alloc_size - offset,
+		    "%02x", compressed[i]);
 		}
 		str[compressed_size * 2] = '\0';
 		char *propval = kmem_asprintf("%u-%llx-%llx-%s",
@@ -2437,7 +2440,7 @@ get_receive_resume_stats_impl(dsl_dataset_t *ds)
 		    (longlong_t)cksum.zc_word[0],
 		    (longlong_t)packed_size, str);
 		kmem_free(packed, packed_size);
-		kmem_free(str, compressed_size * 2 + 1);
+		kmem_free(str, alloc_size);
 		kmem_free(compressed, packed_size);
 		return (propval);
 	}
@@ -3911,7 +3914,8 @@ dsl_dataset_promote(const char *name, char *conflsnap)
 	 */
 	snap_pair = nvlist_next_nvpair(ddpa.err_ds, NULL);
 	if (snap_pair != NULL && conflsnap != NULL)
-		(void) strcpy(conflsnap, nvpair_name(snap_pair));
+		(void) strlcpy(conflsnap, nvpair_name(snap_pair),
+		    ZFS_MAX_DATASET_NAME_LEN);
 
 	fnvlist_free(ddpa.err_ds);
 	return (error);

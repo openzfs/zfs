@@ -535,15 +535,6 @@ vdev_queue_pending_remove(vdev_queue_t *vq, zio_t *zio)
 static void
 vdev_queue_agg_io_done(zio_t *aio)
 {
-	if (aio->io_type == ZIO_TYPE_READ) {
-		zio_t *pio;
-		zio_link_t *zl = NULL;
-		while ((pio = zio_walk_parents(aio, &zl)) != NULL) {
-			abd_copy_off(pio->io_abd, aio->io_abd,
-			    0, pio->io_offset - aio->io_offset, pio->io_size);
-		}
-	}
-
 	abd_free(aio->io_abd);
 }
 
@@ -556,6 +547,14 @@ vdev_queue_agg_io_done(zio_t *aio)
 #define	IO_SPAN(fio, lio) ((lio)->io_offset + (lio)->io_size - (fio)->io_offset)
 #define	IO_GAP(fio, lio) (-IO_SPAN(lio, fio))
 
+/*
+ * Sufficiently adjacent io_offset's in ZIOs will be aggregated. We do this
+ * by creating a gang ABD from the adjacent ZIOs io_abd's. By using
+ * a gang ABD we avoid doing memory copies to and from the parent,
+ * child ZIOs. The gang ABD also accounts for gaps between adjacent
+ * io_offsets by simply getting the zero ABD for writes or allocating
+ * a new ABD for reads and placing them in the gang ABD as well.
+ */
 static zio_t *
 vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 {
@@ -568,6 +567,7 @@ vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 	boolean_t stretch = B_FALSE;
 	avl_tree_t *t = vdev_queue_type_tree(vq, zio->io_type);
 	enum zio_flag flags = zio->io_flags & ZIO_FLAG_AGG_INHERIT;
+	uint64_t next_offset;
 	abd_t *abd;
 
 	maxblocksize = spa_maxblocksize(vq->vq_vdev->vdev_spa);
@@ -695,7 +695,7 @@ vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 	size = IO_SPAN(first, last);
 	ASSERT3U(size, <=, maxblocksize);
 
-	abd = abd_alloc_for_io(size, B_TRUE);
+	abd = abd_alloc_gang_abd();
 	if (abd == NULL)
 		return (NULL);
 
@@ -706,31 +706,57 @@ vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 	aio->io_timestamp = first->io_timestamp;
 
 	nio = first;
+	next_offset = first->io_offset;
 	do {
 		dio = nio;
 		nio = AVL_NEXT(t, dio);
 		zio_add_child(dio, aio);
 		vdev_queue_io_remove(vq, dio);
+
+		if (dio->io_offset != next_offset) {
+			/* allocate a buffer for a read gap */
+			ASSERT3U(dio->io_type, ==, ZIO_TYPE_READ);
+			ASSERT3U(dio->io_offset, >, next_offset);
+			abd = abd_alloc_for_io(
+			    dio->io_offset - next_offset, B_TRUE);
+			abd_gang_add(aio->io_abd, abd, B_TRUE);
+		}
+		if (dio->io_abd &&
+		    (dio->io_size != abd_get_size(dio->io_abd))) {
+			/* abd size not the same as IO size */
+			ASSERT3U(abd_get_size(dio->io_abd), >, dio->io_size);
+			abd = abd_get_offset_size(dio->io_abd, 0, dio->io_size);
+			abd_gang_add(aio->io_abd, abd, B_TRUE);
+		} else {
+			if (dio->io_flags & ZIO_FLAG_NODATA) {
+				/* allocate a buffer for a write gap */
+				ASSERT3U(dio->io_type, ==, ZIO_TYPE_WRITE);
+				ASSERT3P(dio->io_abd, ==, NULL);
+				abd_gang_add(aio->io_abd,
+				    abd_get_zeros(dio->io_size), B_TRUE);
+			} else {
+				/*
+				 * We pass B_FALSE to abd_gang_add()
+				 * because we did not allocate a new
+				 * ABD, so it is assumed the caller
+				 * will free this ABD.
+				 */
+				abd_gang_add(aio->io_abd, dio->io_abd,
+				    B_FALSE);
+			}
+		}
+		next_offset = dio->io_offset + dio->io_size;
 	} while (dio != last);
+	ASSERT3U(abd_get_size(aio->io_abd), ==, aio->io_size);
 
 	/*
 	 * We need to drop the vdev queue's lock during zio_execute() to
 	 * avoid a deadlock that we could encounter due to lock order
 	 * reversal between vq_lock and io_lock in zio_change_priority().
-	 * Use the dropped lock to do memory copy without congestion.
 	 */
 	mutex_exit(&vq->vq_lock);
 	while ((dio = zio_walk_parents(aio, &zl)) != NULL) {
 		ASSERT3U(dio->io_type, ==, aio->io_type);
-
-		if (dio->io_flags & ZIO_FLAG_NODATA) {
-			ASSERT3U(dio->io_type, ==, ZIO_TYPE_WRITE);
-			abd_zero_off(aio->io_abd,
-			    dio->io_offset - aio->io_offset, dio->io_size);
-		} else if (dio->io_type == ZIO_TYPE_WRITE) {
-			abd_copy_off(aio->io_abd, dio->io_abd,
-			    dio->io_offset - aio->io_offset, 0, dio->io_size);
-		}
 
 		zio_vdev_io_bypass(dio);
 		zio_execute(dio);

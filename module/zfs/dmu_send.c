@@ -1153,23 +1153,30 @@ send_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	if (zb->zb_blkid == DMU_SPILL_BLKID)
 		ASSERT3U(BP_GET_TYPE(bp), ==, DMU_OT_SA);
 
-	record = range_alloc(DATA, zb->zb_object, start, (start + span < start ?
-	    0 : start + span), B_FALSE);
+	enum type record_type = DATA;
+	if (BP_IS_HOLE(bp))
+		record_type = HOLE;
+	else if (BP_IS_REDACTED(bp))
+		record_type = REDACT;
+	else
+		record_type = DATA;
+
+	record = range_alloc(record_type, zb->zb_object, start,
+	    (start + span < start ? 0 : start + span), B_FALSE);
 
 	uint64_t datablksz = (zb->zb_blkid == DMU_SPILL_BLKID ?
 	    BP_GET_LSIZE(bp) : dnp->dn_datablkszsec << SPA_MINBLOCKSHIFT);
+
 	if (BP_IS_HOLE(bp)) {
-		record->type = HOLE;
 		record->sru.hole.datablksz = datablksz;
 	} else if (BP_IS_REDACTED(bp)) {
-		record->type = REDACT;
 		record->sru.redact.datablksz = datablksz;
 	} else {
-		record->type = DATA;
 		record->sru.data.datablksz = datablksz;
 		record->sru.data.obj_type = dnp->dn_type;
 		record->sru.data.bp = *bp;
 	}
+
 	bqueue_enqueue(&sta->q, record, sizeof (*record));
 	return (0);
 }
@@ -1319,6 +1326,8 @@ redact_list_thread(void *arg)
 	record = range_alloc(DATA, 0, 0, 0, B_TRUE);
 	bqueue_enqueue_flush(&rlt_arg->q, record, sizeof (*record));
 	spl_fstrans_unmark(cookie);
+
+	thread_exit();
 }
 
 /*
@@ -1999,7 +2008,8 @@ create_begin_record(struct dmu_send_params *dspp, objset_t *os,
 
 	if (dspp->savedok) {
 		drrb->drr_toguid = dspp->saved_guid;
-		strcpy(drrb->drr_toname, dspp->saved_toname);
+		strlcpy(drrb->drr_toname, dspp->saved_toname,
+		    sizeof (drrb->drr_toname));
 	} else {
 		dsl_dataset_name(to_ds, drrb->drr_toname);
 		if (!to_ds->ds_is_snapshot) {

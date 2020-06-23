@@ -108,4 +108,37 @@ typedef struct xuio {
 #define	XUIO_XUZC_PRIV(xuio)	xuio->xu_ext.xu_zc.xu_zc_priv
 #define	XUIO_XUZC_RW(xuio)	xuio->xu_ext.xu_zc.xu_zc_rw
 
+#define	uio_segflg(uio)			(uio)->uio_segflg
+#define	uio_offset(uio)			(uio)->uio_loffset
+#define	uio_resid(uio)			(uio)->uio_resid
+#define	uio_iovcnt(uio)			(uio)->uio_iovcnt
+#define	uio_iovlen(uio, idx)		(uio)->uio_iov[(idx)].iov_len
+#define	uio_iovbase(uio, idx)		(uio)->uio_iov[(idx)].iov_base
+
+static inline void
+uio_iov_at_index(uio_t *uio, uint_t idx, void **base, uint64_t *len)
+{
+	*base = uio_iovbase(uio, idx);
+	*len = uio_iovlen(uio, idx);
+}
+
+static inline void
+uio_advance(uio_t *uio, size_t size)
+{
+	uio->uio_resid -= size;
+	uio->uio_loffset += size;
+}
+
+static inline offset_t
+uio_index_at_offset(uio_t *uio, offset_t off, uint_t *vec_idx)
+{
+	*vec_idx = 0;
+	while (*vec_idx < uio_iovcnt(uio) && off >= uio_iovlen(uio, *vec_idx)) {
+		off -= uio_iovlen(uio, *vec_idx);
+		(*vec_idx)++;
+	}
+
+	return (off);
+}
+
 #endif /* SPL_UIO_H */

@@ -191,7 +191,7 @@ zfsdev_ioctl(struct file *filp, unsigned cmd, unsigned long arg)
 		error = -SET_ERROR(EFAULT);
 		goto out;
 	}
-	error = -zfsdev_ioctl_common(vecnum, zc);
+	error = -zfsdev_ioctl_common(vecnum, zc, 0);
 	rc = ddi_copyout(zc, (void *)(uintptr_t)arg, sizeof (zfs_cmd_t), 0);
 	if (error == 0 && rc != 0)
 		error = -SET_ERROR(EFAULT);

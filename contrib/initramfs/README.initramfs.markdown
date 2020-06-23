@@ -1,94 +1,86 @@
-DESCRIPTION
-  These scripts are intended to be used with initramfs-tools, which is a similar
-  software product to "dracut" (which is used in RedHat based distributions),
-  and is mainly used by Debian GNU/Linux and derivatives to create an initramfs
-  so that the system can be booted off a ZFS filesystem. If you have no need or
-  interest in this, then it can safely be ignored.
+## Description
 
-  These script were written with the primary intention of being portable and
-  usable on as many systems as possible.
+These scripts are intended to be used with `initramfs-tools`, which is a
+similar software product to `dracut` (which is used in Red Hat based
+distributions), and is mainly used by Debian GNU/Linux and derivatives.
 
-  This is, in practice, usually not possible. But the intention is there.
-  And it is a good one.
+These scripts share some common functionality with the SysV init scripts,
+primarily the `/etc/zfs/zfs-functions` script.
 
-  They have been tested successfully on:
+## Configuration
 
-    * Debian GNU/Linux Wheezy
-    * Debian GNU/Linux Jessie
+### Root pool/filesystem
 
-  It uses some functionality common with the SYSV init scripts, primarily
-  the "/etc/zfs/zfs-functions" script.
+Different distributions have their own standard on what to specify on the
+kernel command line to boot off a ZFS filesystem.
 
-FUNCTIONALITY
-  * Supports booting of a ZFS snapshot.
-    Do this by cloning the snapshot into a dataset. If this, the resulting
-    dataset, already exists, destroy it. Then mount it as the root filesystem.
-    * If snapshot does not exist, use base dataset (the part before '@')
-      as boot filesystem instead.
-    * Clone with 'mountpoint=none' and 'canmount=noauto' - we mount manually
-      and explicitly.
-    * Allow rollback of snapshots instead of clone it and boot from the clone.
-    * If no snapshot is specified on the 'root=' kernel command line, but
-      there is an '@', then get a list of snapshots below that filesystem
-      and ask the user which to use.
+This script supports the following kernel command line argument combinations
+(in this order - first match wins):
 
-  * Support all currently used kernel command line arguments
-    * Core options:
-      All the different distributions have their own standard on what to specify
-      on the kernel command line to boot of a ZFS filesystem.
+* `rpool=<pool>`
+* `bootfs=<pool>/<dataset>`
+* `rpool=<pool> bootfs=<pool>/<dataset>`
+* `-B zfs-bootfs=<pool>/<fs>`
+* `root=<pool>/<dataset>`
+* `root=ZFS=<pool>/<dataset>`
+* `root=zfs:AUTO`
+* `root=zfs:<pool>/<dataset>`
+* `rpool=rpool`
 
-      Supports the following kernel command line argument combinations
-      (in this order - first match win):
-      * rpool=<pool>			(tries to finds bootfs automatically)
-      * bootfs=<pool>/<dataset>		(uses this for rpool - first part)
-      * rpool=<pool> bootfs=<pool>/<dataset>
-      * -B zfs-bootfs=<pool>/<fs>	(uses this for rpool - first part)
-      * rpool=rpool			(default if none of the above is used)
-      * root=<pool>/<dataset>		(uses this for rpool - first part)
-      * root=ZFS=<pool>/<dataset>	(uses this for rpool - first part, without 'ZFS=')
-      * root=zfs:AUTO			(tries to detect both pool and rootfs
-      * root=zfs:<pool>/<dataset>	(uses this for rpool - first part, without 'zfs:')
+If a pool is specified, it will be used.  Otherwise, in `AUTO` mode, all pools
+will be searched.  Pools may be excluded from the search by listing them in
+`ZFS_POOL_EXCEPTIONS` in `/etc/default/zfs`.
 
-      Option <dataset> could also be <snapshot>
-    * Extra (control) options:
-      * zfsdebug=(on,yes,1)   Show extra debugging information
-      * zfsforce=(on,yes,1)   Force import the pool
-      * rollback=(on,yes,1)   Rollback (instead of clone) the snapshot
+Pools will be imported as follows:
 
-  * 'Smarter' way to import pools. Don't just try cache file or /dev.
-    * Try to use /dev/disk/by-vdev (if /etc/zfs/vdev_id.conf exists),
-    * Try /dev/mapper (to be able to use LUKS backed pools as well as
-      multi-path devices).
-    * /dev/disk/by-id and any other /dev/disk/by-* directory that may exist.
-    * Use /dev as a last ditch attempt.
-    * Fallback to using the cache file if that exist if nothing else worked.
-    * Only try to import pool if it haven't already been imported
-      * This will negate the need to force import a pool that have not been
-        exported cleanly.
-      * Support exclusion of pools to import by setting ZFS_POOL_EXCEPTIONS
-         in /etc/default/zfs.
+* Try `/dev/disk/by-vdev` if it exists; see `/etc/zfs/vdev_id.conf`.
+* Try `/dev/disk/by-id` and any other `/dev/disk/by-*` directories.
+* Try `/dev`.
+* Use the cache file if nothing else worked.
 
-    Controlling in which order devices is searched for is controlled by
-    ZPOOL_IMPORT_PATH variable set in /etc/defaults/zfs.
+This order may be modified by setting `ZPOOL_IMPORT_PATH` in
+`/etc/default/zfs`.
 
-  * Support additional configuration variable ZFS_INITRD_ADDITIONAL_DATASETS
-    to mount additional filesystems not located under your root dataset.
+If a dataset is specified, it will be used as the root filesystem.  Otherwise,
+this script will attempt to find a root filesystem automatically (in the
+specified pool or all pools, as described above).
 
-    For example, if the root fs is specified as 'rpool/ROOT/rootfs', it will
-    automatically and without specific configuration mount any filesystems
-    below this on the mount point specified in the 'mountpoint' property.
-    Such as 'rpool/root/rootfs/var', 'rpool/root/rootfs/usr' etc)
+Filesystems below the root filesystem will be automatically mounted with no
+additional configuration necessary.  For example, if the root filesystem is
+`rpool/ROOT/rootfs`, `rpool/root/rootfs/var`, `rpool/root/rootfs/usr`, etc.
+will be mounted (if they exist).  Additional filesystems (that are not located
+under the root filesystem) can be mounted by listing them in
+`ZFS_INITRD_ADDITIONAL_DATASETS` in `/etc/default/zfs`.
 
-    However, if one prefer to have separate filesystems, not located below
-    the root fs (such as 'rpool/var', 'rpool/ROOT/opt' etc), special
-    configuration needs to be done. This is what the variable, set in
-    /etc/defaults/zfs file, needs to be configured. The 'mountpoint'
-    property needs to be correct for this to work though.
+### Snapshots
 
-  * Allows mounting a rootfs with mountpoint=legacy set.
+The `<dataset>` can be a snapshot.  In this case, the snapshot will be cloned
+and the clone used as the root filesystem.  Note:
 
-  * Include /etc/modprobe.d/{zfs,spl}.conf in the initrd if it/they exist.
+* If the snapshot does not exist, the base dataset (the part before `@`) is
+  used as the boot filesystem instead.
+* If the resulting clone dataset already exists, it is destroyed.
+* The clone is created with `mountpoint=none` and `canmount=noauto`.  The root
+  filesystem is mounted manually by the initramfs script.
+* If no snapshot is specified on the `root=` kernel command line, but
+  there is an `@`, the user will be prompted to choose a snapshot to use.
 
-  * Include the udev rule to use by-vdev for pool imports.
+### Extra options
 
-  * Include the /etc/default/zfs file to the initrd.
+The following kernel command line arguments are supported:
+
+* `zfsdebug=(on,yes,1)`: Show extra debugging information
+* `zfsforce=(on,yes,1)`: Force import the pool
+* `rollback=(on,yes,1)`: Rollback to (instead of clone) the snapshot
+
+### Unlocking a ZFS encrypted root over SSH
+
+To use this feature:
+
+1. Install the `dropbear-initramfs` package.  You may wish to uninstall the
+   `cryptsetup-initramfs` package to avoid warnings.
+2. Add your SSH key(s) to `/etc/dropbear-initramfs/authorized_keys`.  Note
+   that Dropbear does not support ed25519 keys; use RSA (2048-bit or more)
+   instead.
+3. Rebuild the initramfs with your keys: `update-initramfs -u`
+4. During the system boot, login via SSH and run: `zfsunlock`

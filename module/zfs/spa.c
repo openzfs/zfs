@@ -1905,6 +1905,15 @@ spa_load_l2cache(spa_t *spa)
 
 			if (!vdev_is_dead(vd))
 				l2arc_add_vdev(spa, vd);
+
+			/*
+			 * Upon cache device addition to a pool or pool
+			 * creation with a cache device or if the header
+			 * of the device is invalid we issue an async
+			 * TRIM command for the whole device which will
+			 * execute if l2arc_trim_ahead > 0.
+			 */
+			spa_async_request(spa, SPA_ASYNC_L2CACHE_TRIM);
 		}
 	}
 
@@ -4870,6 +4879,8 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, char **ereport)
 	}
 
 	spa_import_progress_remove(spa_guid(spa));
+	spa_async_request(spa, SPA_ASYNC_L2CACHE_REBUILD);
+
 	spa_load_note(spa, "LOADED");
 
 	return (0);
@@ -7346,7 +7357,8 @@ spa_vdev_split_mirror(spa_t *spa, char *newname, nvlist_t *config,
 		vdev_t *vd = rvd->vdev_child[c];
 
 		/* don't count the holes & logs as children */
-		if (vd->vdev_islog || !vdev_is_concrete(vd)) {
+		if (vd->vdev_islog || (vd->vdev_ops != &vdev_indirect_ops &&
+		    !vdev_is_concrete(vd))) {
 			if (lastlog == 0)
 				lastlog = c;
 			continue;
@@ -7381,6 +7393,11 @@ spa_vdev_split_mirror(spa_t *spa, char *newname, nvlist_t *config,
 				break;
 			}
 		}
+
+		/* deal with indirect vdevs */
+		if (spa->spa_root_vdev->vdev_child[c]->vdev_ops ==
+		    &vdev_indirect_ops)
+			continue;
 
 		/* which disk is going to be split? */
 		if (nvlist_lookup_uint64(child[c], ZPOOL_CONFIG_GUID,
@@ -7509,7 +7526,7 @@ spa_vdev_split_mirror(spa_t *spa, char *newname, nvlist_t *config,
 	    offsetof(vdev_t, vdev_trim_node));
 
 	for (c = 0; c < children; c++) {
-		if (vml[c] != NULL) {
+		if (vml[c] != NULL && vml[c]->vdev_ops != &vdev_indirect_ops) {
 			mutex_enter(&vml[c]->vdev_initialize_lock);
 			vdev_initialize_stop(vml[c],
 			    VDEV_INITIALIZE_ACTIVE, &vd_initialize_list);
@@ -7528,6 +7545,7 @@ spa_vdev_split_mirror(spa_t *spa, char *newname, nvlist_t *config,
 	list_destroy(&vd_trim_list);
 
 	newspa->spa_config_source = SPA_CONFIG_SRC_SPLIT;
+	newspa->spa_is_splitting = B_TRUE;
 
 	/* create the new pool from the disks of the original pool */
 	error = spa_load(newspa, SPA_LOAD_IMPORT, SPA_IMPORT_ASSEMBLE);
@@ -7569,7 +7587,7 @@ spa_vdev_split_mirror(spa_t *spa, char *newname, nvlist_t *config,
 	if (error != 0)
 		dmu_tx_abort(tx);
 	for (c = 0; c < children; c++) {
-		if (vml[c] != NULL) {
+		if (vml[c] != NULL && vml[c]->vdev_ops != &vdev_indirect_ops) {
 			vdev_t *tvd = vml[c]->vdev_top;
 
 			/*
@@ -7605,6 +7623,7 @@ spa_vdev_split_mirror(spa_t *spa, char *newname, nvlist_t *config,
 	spa_history_log_internal(newspa, "split", NULL,
 	    "from pool %s", spa_name(spa));
 
+	newspa->spa_is_splitting = B_FALSE;
 	kmem_free(vml, children * sizeof (vdev_t *));
 
 	/* if we're not going to mount the filesystems in userland, export */
@@ -8031,6 +8050,28 @@ spa_async_thread(void *arg)
 		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 		vdev_autotrim_restart(spa);
 		spa_config_exit(spa, SCL_CONFIG, FTAG);
+		mutex_exit(&spa_namespace_lock);
+	}
+
+	/*
+	 * Kick off L2 cache whole device TRIM.
+	 */
+	if (tasks & SPA_ASYNC_L2CACHE_TRIM) {
+		mutex_enter(&spa_namespace_lock);
+		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+		vdev_trim_l2arc(spa);
+		spa_config_exit(spa, SCL_CONFIG, FTAG);
+		mutex_exit(&spa_namespace_lock);
+	}
+
+	/*
+	 * Kick off L2 cache rebuilding.
+	 */
+	if (tasks & SPA_ASYNC_L2CACHE_REBUILD) {
+		mutex_enter(&spa_namespace_lock);
+		spa_config_enter(spa, SCL_L2ARC, FTAG, RW_READER);
+		l2arc_spa_rebuild_start(spa);
+		spa_config_exit(spa, SCL_L2ARC, FTAG);
 		mutex_exit(&spa_namespace_lock);
 	}
 
@@ -8764,13 +8805,14 @@ spa_sync_adjust_vdev_max_queue_depth(spa_t *spa)
 		 * allocations look at mg_max_alloc_queue_depth, and async
 		 * allocations all happen from spa_sync().
 		 */
-		for (int i = 0; i < spa->spa_alloc_count; i++)
+		for (int i = 0; i < mg->mg_allocators; i++) {
 			ASSERT0(zfs_refcount_count(
-			    &(mg->mg_alloc_queue_depth[i])));
+			    &(mg->mg_allocator[i].mga_alloc_queue_depth)));
+		}
 		mg->mg_max_alloc_queue_depth = max_queue_depth;
 
-		for (int i = 0; i < spa->spa_alloc_count; i++) {
-			mg->mg_cur_max_alloc_queue_depth[i] =
+		for (int i = 0; i < mg->mg_allocators; i++) {
+			mg->mg_allocator[i].mga_cur_max_alloc_queue_depth =
 			    zfs_vdev_def_queue_depth;
 		}
 		slots_per_allocator += zfs_vdev_def_queue_depth;

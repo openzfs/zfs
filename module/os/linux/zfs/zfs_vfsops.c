@@ -439,6 +439,14 @@ vscan_changed_cb(void *arg, uint64_t newval)
 }
 
 static void
+acl_mode_changed_cb(void *arg, uint64_t newval)
+{
+	zfsvfs_t *zfsvfs = arg;
+
+	zfsvfs->z_acl_mode = newval;
+}
+
+static void
 acl_inherit_changed_cb(void *arg, uint64_t newval)
 {
 	((zfsvfs_t *)arg)->z_acl_inherit = newval;
@@ -497,6 +505,8 @@ zfs_register_callbacks(vfs_t *vfsp)
 	    zfs_prop_to_name(ZFS_PROP_SNAPDIR), snapdir_changed_cb, zfsvfs);
 	error = error ? error : dsl_prop_register(ds,
 	    zfs_prop_to_name(ZFS_PROP_ACLTYPE), acltype_changed_cb, zfsvfs);
+	error = error ? error : dsl_prop_register(ds,
+	    zfs_prop_to_name(ZFS_PROP_ACLMODE), acl_mode_changed_cb, zfsvfs);
 	error = error ? error : dsl_prop_register(ds,
 	    zfs_prop_to_name(ZFS_PROP_ACLINHERIT), acl_inherit_changed_cb,
 	    zfsvfs);
@@ -868,10 +878,10 @@ zfsvfs_setup(zfsvfs_t *zfsvfs, boolean_t mounting)
 			    &zs) == 0) {
 				dataset_kstats_update_nunlinks_kstat(
 				    &zfsvfs->z_kstat, zs.zs_num_entries);
+				dprintf_ds(zfsvfs->z_os->os_dsl_dataset,
+				    "num_entries in unlinked set: %llu",
+				    zs.zs_num_entries);
 			}
-			dprintf_ds(zfsvfs->z_os->os_dsl_dataset,
-			    "num_entries in unlinked set: %llu",
-			    zs.zs_num_entries);
 			zfs_unlinked_drain(zfsvfs);
 			dsl_dir_t *dd = zfsvfs->z_os->os_dsl_dataset->ds_dir;
 			dd->dd_activity_cancelled = B_FALSE;
@@ -1011,7 +1021,7 @@ zfs_statfs_project(zfsvfs_t *zfsvfs, znode_t *zp, struct kstatfs *statp,
 
 	strlcpy(buf, DMU_OBJACCT_PREFIX, DMU_OBJACCT_PREFIX_LEN + 1);
 	err = zfs_id_to_fuidstr(zfsvfs, NULL, zp->z_projid, buf + offset,
-	    B_FALSE);
+	    sizeof (buf) - offset, B_FALSE);
 	if (err)
 		return (err);
 
@@ -2121,7 +2131,7 @@ zfs_init(void)
 {
 	zfsctl_init();
 	zfs_znode_init();
-	dmu_objset_register_type(DMU_OST_ZFS, zfs_space_delta_cb);
+	dmu_objset_register_type(DMU_OST_ZFS, zpl_get_file_info);
 	register_filesystem(&zpl_fs_type);
 }
 

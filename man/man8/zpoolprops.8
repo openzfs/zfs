@@ -238,6 +238,8 @@ this property is
 Automatic TRIM does not immediately reclaim blocks after a free. Instead,
 it will optimistically delay allowing smaller ranges to be aggregated in to
 a few larger ones.  These can then be issued more efficiently to the storage.
+TRIM on L2ARC devices is enabled by setting
+.Sy l2arc_trim_ahead > 0 .
 .Pp
 Be aware that automatic trimming of recently freed data blocks can put
 significant stress on the underlying storage devices.  This will vary

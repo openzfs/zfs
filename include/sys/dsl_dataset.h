@@ -273,7 +273,7 @@ typedef struct dsl_dataset {
 static inline dsl_dataset_phys_t *
 dsl_dataset_phys(dsl_dataset_t *ds)
 {
-	return (ds->ds_dbuf->db_data);
+	return ((dsl_dataset_phys_t *)ds->ds_dbuf->db_data);
 }
 
 typedef struct dsl_dataset_promote_arg {
@@ -417,10 +417,10 @@ void dsl_dataset_space(dsl_dataset_t *ds,
     uint64_t *refdbytesp, uint64_t *availbytesp,
     uint64_t *usedobjsp, uint64_t *availobjsp);
 uint64_t dsl_dataset_fsid_guid(dsl_dataset_t *ds);
-int dsl_dataset_space_written(dsl_dataset_t *oldsnap, dsl_dataset_t *new,
+int dsl_dataset_space_written(dsl_dataset_t *oldsnap, dsl_dataset_t *newds,
     uint64_t *usedp, uint64_t *compp, uint64_t *uncompp);
 int dsl_dataset_space_written_bookmark(struct zfs_bookmark_phys *bmp,
-    dsl_dataset_t *new, uint64_t *usedp, uint64_t *compp, uint64_t *uncompp);
+    dsl_dataset_t *newds, uint64_t *usedp, uint64_t *compp, uint64_t *uncompp);
 int dsl_dataset_space_wouldfree(dsl_dataset_t *firstsnap, dsl_dataset_t *last,
     uint64_t *usedp, uint64_t *compp, uint64_t *uncompp);
 

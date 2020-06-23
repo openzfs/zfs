@@ -37,7 +37,7 @@
 # is full. The zfs file system should be stable and works well.
 #
 # STRATEGY:
-# 1. Create a pool & dateset
+# 1. Create a pool & dataset
 # 2. Make directories in the zfs file system
 # 3. Create 50 big files in each directories
 # 4. Test case exit when the disk is full.

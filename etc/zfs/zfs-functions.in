@@ -96,8 +96,8 @@ ZPOOL_CACHE="@sysconfdir@/zfs/zpool.cache"
 # Sensible defaults
 ZFS_MOUNT='yes'
 ZFS_UNMOUNT='yes'
-
-export ZFS ZED ZPOOL ZPOOL_CACHE ZFS_MOUNT ZFS_UNMOUNT
+ZFS_SHARE='yes'
+ZFS_UNSHARE='yes'
 
 # Source zfs configuration, overriding the defaults
 if [ -f @initconfdir@/zfs ]; then
@@ -105,6 +105,8 @@ if [ -f @initconfdir@/zfs ]; then
 fi
 
 # ----------------------------------------------------
+
+export ZFS ZED ZPOOL ZPOOL_CACHE ZFS_MOUNT ZFS_UNMOUNT ZFS_SHARE ZFS_UNSHARE
 
 zfs_action()
 {

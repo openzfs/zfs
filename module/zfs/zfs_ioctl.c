@@ -27,7 +27,7 @@
  * Copyright (c) 2014, 2016 Joyent, Inc. All rights reserved.
  * Copyright 2016 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2014, Joyent, Inc. All rights reserved.
- * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
  * Copyright (c) 2014 Integros [integros.com]
@@ -2504,7 +2504,8 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 			zfs_cmd_t *zc;
 
 			zc = kmem_zalloc(sizeof (zfs_cmd_t), KM_SLEEP);
-			(void) strcpy(zc->zc_name, dsname);
+			(void) strlcpy(zc->zc_name, dsname,
+			    sizeof (zc->zc_name));
 			(void) zfs_ioc_userspace_upgrade(zc);
 			(void) zfs_ioc_id_quota_upgrade(zc);
 			kmem_free(zc, sizeof (zfs_cmd_t));
@@ -3508,6 +3509,58 @@ zfs_ioc_log_history(const char *unused, nvlist_t *innvl, nvlist_t *outnvl)
 	}
 
 	error = spa_history_log(spa, message);
+	spa_close(spa, FTAG);
+	return (error);
+}
+
+/*
+ * This ioctl is used to set the bootenv configuration on the current
+ * pool. This configuration is stored in the second padding area of the label,
+ * and it is used by the GRUB bootloader used on Linux to store the contents
+ * of the grubenv file.  The file is stored as raw ASCII, and is protected by
+ * an embedded checksum.  By default, GRUB will check if the boot filesystem
+ * supports storing the environment data in a special location, and if so,
+ * will invoke filesystem specific logic to retrieve it. This can be overridden
+ * by a variable, should the user so desire.
+ */
+/* ARGSUSED */
+static const zfs_ioc_key_t zfs_keys_set_bootenv[] = {
+	{"envmap",	DATA_TYPE_STRING,	0},
+};
+
+static int
+zfs_ioc_set_bootenv(const char *name, nvlist_t *innvl, nvlist_t *outnvl)
+{
+	char *envmap;
+	int error;
+	spa_t *spa;
+
+	envmap = fnvlist_lookup_string(innvl, "envmap");
+	if ((error = spa_open(name, &spa, FTAG)) != 0)
+		return (error);
+	spa_vdev_state_enter(spa, SCL_ALL);
+	error = vdev_label_write_bootenv(spa->spa_root_vdev, envmap);
+	(void) spa_vdev_state_exit(spa, NULL, 0);
+	spa_close(spa, FTAG);
+	return (error);
+}
+
+static const zfs_ioc_key_t zfs_keys_get_bootenv[] = {
+	/* no nvl keys */
+};
+
+/* ARGSUSED */
+static int
+zfs_ioc_get_bootenv(const char *name, nvlist_t *innvl, nvlist_t *outnvl)
+{
+	spa_t *spa;
+	int error;
+
+	if ((error = spa_open(name, &spa, FTAG)) != 0)
+		return (error);
+	spa_vdev_state_enter(spa, SCL_ALL);
+	error = vdev_label_read_bootenv(spa->spa_root_vdev, outnvl);
+	(void) spa_vdev_state_exit(spa, NULL, 0);
 	spa_close(spa, FTAG);
 	return (error);
 }
@@ -4765,9 +4818,9 @@ static boolean_t zfs_ioc_recv_inject_err;
 static int
 zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin, nvlist_t *recvprops,
     nvlist_t *localprops, nvlist_t *hidden_args, boolean_t force,
-    boolean_t resumable, int input_fd, dmu_replay_record_t *begin_record,
-    int cleanup_fd, uint64_t *read_bytes, uint64_t *errflags,
-    uint64_t *action_handle, nvlist_t **errors)
+    boolean_t resumable, int input_fd,
+    dmu_replay_record_t *begin_record, uint64_t *read_bytes,
+    uint64_t *errflags, nvlist_t **errors)
 {
 	dmu_recv_cookie_t drc;
 	int error = 0;
@@ -4896,7 +4949,7 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin, nvlist_t *recvprops,
 		nvlist_free(xprops);
 	}
 
-	error = dmu_recv_stream(&drc, cleanup_fd, action_handle, &off);
+	error = dmu_recv_stream(&drc, &off);
 
 	if (error == 0) {
 		zfsvfs_t *zfsvfs = NULL;
@@ -5088,13 +5141,10 @@ out:
  * zc_cookie		file descriptor to recv from
  * zc_begin_record	the BEGIN record of the stream (not byteswapped)
  * zc_guid		force flag
- * zc_cleanup_fd	cleanup-on-exit file descriptor
- * zc_action_handle	handle for this guid/ds mapping (or zero on first call)
  *
  * outputs:
  * zc_cookie		number of bytes read
  * zc_obj		zprop_errflags_t
- * zc_action_handle	handle for this guid/ds mapping
  * zc_nvlist_dst{_size} error for each unapplied received property
  */
 static int
@@ -5137,8 +5187,7 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 
 	error = zfs_ioc_recv_impl(tofs, tosnap, origin, recvdprops, localprops,
 	    NULL, zc->zc_guid, B_FALSE, zc->zc_cookie, &begin_record,
-	    zc->zc_cleanup_fd, &zc->zc_cookie, &zc->zc_obj,
-	    &zc->zc_action_handle, &errors);
+	    &zc->zc_cookie, &zc->zc_obj, &errors);
 	nvlist_free(recvdprops);
 	nvlist_free(localprops);
 
@@ -5171,15 +5220,14 @@ zfs_ioc_recv(zfs_cmd_t *zc)
  *     "input_fd" -> file descriptor to read stream from (int32)
  *     (optional) "force" -> force flag (value ignored)
  *     (optional) "resumable" -> resumable flag (value ignored)
- *     (optional) "cleanup_fd" -> cleanup-on-exit file descriptor
- *     (optional) "action_handle" -> handle for this guid/ds mapping
+ *     (optional) "cleanup_fd" -> unused
+ *     (optional) "action_handle" -> unused
  *     (optional) "hidden_args" -> { "wkeydata" -> value }
  * }
  *
  * outnvl: {
  *     "read_bytes" -> number of bytes read
  *     "error_flags" -> zprop_errflags_t
- *     "action_handle" -> handle for this guid/ds mapping
  *     "errors" -> error for each unapplied received property (nvlist)
  * }
  */
@@ -5212,11 +5260,9 @@ zfs_ioc_recv_new(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 	char tofs[ZFS_MAX_DATASET_NAME_LEN];
 	boolean_t force;
 	boolean_t resumable;
-	uint64_t action_handle = 0;
 	uint64_t read_bytes = 0;
 	uint64_t errflags = 0;
 	int input_fd = -1;
-	int cleanup_fd = -1;
 	int error;
 
 	snapname = fnvlist_lookup_string(innvl, "snapname");
@@ -5226,7 +5272,7 @@ zfs_ioc_recv_new(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 	    strchr(snapname, '%'))
 		return (SET_ERROR(EINVAL));
 
-	(void) strcpy(tofs, snapname);
+	(void) strlcpy(tofs, snapname, sizeof (tofs));
 	tosnap = strchr(tofs, '@');
 	*tosnap++ = '\0';
 
@@ -5244,14 +5290,6 @@ zfs_ioc_recv_new(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 	force = nvlist_exists(innvl, "force");
 	resumable = nvlist_exists(innvl, "resumable");
 
-	error = nvlist_lookup_int32(innvl, "cleanup_fd", &cleanup_fd);
-	if (error && error != ENOENT)
-		return (error);
-
-	error = nvlist_lookup_uint64(innvl, "action_handle", &action_handle);
-	if (error && error != ENOENT)
-		return (error);
-
 	/* we still use "props" here for backwards compatibility */
 	error = nvlist_lookup_nvlist(innvl, "props", &recvprops);
 	if (error && error != ENOENT)
@@ -5266,12 +5304,11 @@ zfs_ioc_recv_new(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 		return (error);
 
 	error = zfs_ioc_recv_impl(tofs, tosnap, origin, recvprops, localprops,
-	    hidden_args, force, resumable, input_fd, begin_record, cleanup_fd,
-	    &read_bytes, &errflags, &action_handle, &errors);
+	    hidden_args, force, resumable, input_fd, begin_record,
+	    &read_bytes, &errflags, &errors);
 
 	fnvlist_add_uint64(outnvl, "read_bytes", read_bytes);
 	fnvlist_add_uint64(outnvl, "error_flags", errflags);
-	fnvlist_add_uint64(outnvl, "action_handle", action_handle);
 	fnvlist_add_nvlist(outnvl, "errors", errors);
 
 	nvlist_free(errors);
@@ -5468,7 +5505,7 @@ zfs_ioc_send_progress(zfs_cmd_t *zc)
 	for (dsp = list_head(&ds->ds_sendstreams); dsp != NULL;
 	    dsp = list_next(&ds->ds_sendstreams, dsp)) {
 		if (dsp->dss_outfd == zc->zc_cookie &&
-		    dsp->dss_proc == curproc)
+		    zfs_proc_is_caller(dsp->dss_proc))
 			break;
 	}
 
@@ -6997,6 +7034,16 @@ zfs_ioctl_init(void)
 	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_FALSE, B_FALSE,
 	    zfs_keys_fs_wait, ARRAY_SIZE(zfs_keys_fs_wait));
 
+	zfs_ioctl_register("set_bootenv", ZFS_IOC_SET_BOOTENV,
+	    zfs_ioc_set_bootenv, zfs_secpolicy_config, POOL_NAME,
+	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_FALSE, B_TRUE,
+	    zfs_keys_set_bootenv, ARRAY_SIZE(zfs_keys_set_bootenv));
+
+	zfs_ioctl_register("get_bootenv", ZFS_IOC_GET_BOOTENV,
+	    zfs_ioc_get_bootenv, zfs_secpolicy_none, POOL_NAME,
+	    POOL_CHECK_SUSPENDED, B_FALSE, B_TRUE,
+	    zfs_keys_get_bootenv, ARRAY_SIZE(zfs_keys_get_bootenv));
+
 	/* IOCTLS that use the legacy function signature */
 
 	zfs_ioctl_register_legacy(ZFS_IOC_POOL_FREEZE, zfs_ioc_pool_freeze,
@@ -7328,11 +7375,12 @@ zfsdev_minor_alloc(void)
 }
 
 long
-zfsdev_ioctl_common(uint_t vecnum, zfs_cmd_t *zc)
+zfsdev_ioctl_common(uint_t vecnum, zfs_cmd_t *zc, int flag)
 {
-	int error, cmd, flag = 0;
+	int error, cmd;
 	const zfs_ioc_vec_t *vec;
 	char *saved_poolname = NULL;
+	size_t saved_poolname_len = 0;
 	nvlist_t *innvl = NULL;
 	fstrans_cookie_t cookie;
 
@@ -7432,13 +7480,15 @@ zfsdev_ioctl_common(uint_t vecnum, zfs_cmd_t *zc)
 		goto out;
 
 	/* legacy ioctls can modify zc_name */
-	saved_poolname = kmem_strdup(zc->zc_name);
-	if (saved_poolname == NULL) {
-		error = SET_ERROR(ENOMEM);
-		goto out;
-	} else {
-		saved_poolname[strcspn(saved_poolname, "/@#")] = '\0';
-	}
+	/*
+	 * Can't use kmem_strdup() as we might truncate the string and
+	 * kmem_strfree() would then free with incorrect size.
+	 */
+	saved_poolname_len = strlen(zc->zc_name) + 1;
+	saved_poolname = kmem_alloc(saved_poolname_len, KM_SLEEP);
+
+	strlcpy(saved_poolname, zc->zc_name, saved_poolname_len);
+	saved_poolname[strcspn(saved_poolname, "/@#")] = '\0';
 
 	if (vec->zvec_func != NULL) {
 		nvlist_t *outnvl;
@@ -7515,11 +7565,11 @@ out:
 		char *s = tsd_get(zfs_allow_log_key);
 		if (s != NULL)
 			kmem_strfree(s);
-		(void) tsd_set(zfs_allow_log_key, saved_poolname);
-	} else {
-		if (saved_poolname != NULL)
-			kmem_strfree(saved_poolname);
+		(void) tsd_set(zfs_allow_log_key, kmem_strdup(saved_poolname));
 	}
+	if (saved_poolname != NULL)
+		kmem_free(saved_poolname, saved_poolname_len);
+
 	return (error);
 }
 

@@ -778,7 +778,7 @@ zfs_fuid_txhold(zfsvfs_t *zfsvfs, dmu_tx_t *tx)
  */
 int
 zfs_id_to_fuidstr(zfsvfs_t *zfsvfs, const char *domain, uid_t rid,
-    char *buf, boolean_t addok)
+    char *buf, size_t len, boolean_t addok)
 {
 	uint64_t fuid;
 	int domainid = 0;
@@ -789,7 +789,7 @@ zfs_id_to_fuidstr(zfsvfs_t *zfsvfs, const char *domain, uid_t rid,
 			return (SET_ERROR(ENOENT));
 	}
 	fuid = FUID_ENCODE(domainid, rid);
-	(void) sprintf(buf, "%llx", (longlong_t)fuid);
+	(void) snprintf(buf, len, "%llx", (longlong_t)fuid);
 	return (0);
 }
 #endif

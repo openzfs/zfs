@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  * Copyright 2014 HybridCluster. All rights reserved.
@@ -864,8 +864,6 @@ int dmu_assign_arcbuf_by_dnode(dnode_t *dn, uint64_t offset,
 int dmu_assign_arcbuf_by_dbuf(dmu_buf_t *handle, uint64_t offset,
     struct arc_buf *buf, dmu_tx_t *tx);
 #define	dmu_assign_arcbuf	dmu_assign_arcbuf_by_dbuf
-void dmu_copy_from_buf(objset_t *os, uint64_t object, uint64_t offset,
-    dmu_buf_t *handle, dmu_tx_t *tx);
 #ifdef HAVE_UIO_ZEROCOPY
 int dmu_xuio_init(struct xuio *uio, int niov);
 void dmu_xuio_fini(struct xuio *uio);
@@ -1015,10 +1013,17 @@ extern int dmu_snapshot_realname(objset_t *os, char *name, char *real,
 extern int dmu_dir_list_next(objset_t *os, int namelen, char *name,
     uint64_t *idp, uint64_t *offp);
 
-typedef int objset_used_cb_t(dmu_object_type_t bonustype,
-    void *bonus, uint64_t *userp, uint64_t *groupp, uint64_t *projectp);
+typedef struct zfs_file_info {
+	uint64_t zfi_user;
+	uint64_t zfi_group;
+	uint64_t zfi_project;
+	uint64_t zfi_generation;
+} zfs_file_info_t;
+
+typedef int file_info_cb_t(dmu_object_type_t bonustype, const void *data,
+    struct zfs_file_info *zoi);
 extern void dmu_objset_register_type(dmu_objset_type_t ost,
-    objset_used_cb_t *cb);
+    file_info_cb_t *cb);
 extern void dmu_objset_set_user(objset_t *os, void *user_ptr);
 extern void *dmu_objset_get_user(objset_t *os);
 

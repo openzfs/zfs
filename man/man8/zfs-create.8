@@ -143,8 +143,7 @@ The size represents the logical size as exported by the device.
 By default, a reservation of equal size is created.
 .Pp
 .Ar size
-is automatically rounded up to the nearest 128 Kbytes to ensure that the volume
-has an integral number of blocks regardless of
+is automatically rounded up to the nearest multiple of the
 .Sy blocksize .
 .Bl -tag -width "-b"
 .It Fl b Ar blocksize

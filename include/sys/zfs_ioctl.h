@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2020 by Delphix. All rights reserved.
  * Copyright 2016 RackTop Systems.
  * Copyright (c) 2017, Intel Corporation.
  */
@@ -107,17 +107,32 @@ typedef enum drr_headertype {
 #define	DMU_BACKUP_FEATURE_RAW			(1 << 24)
 /* flag #25 is reserved for the ZSTD compression feature */
 #define	DMU_BACKUP_FEATURE_HOLDS		(1 << 26)
+/*
+ * The SWITCH_TO_LARGE_BLOCKS feature indicates that we can receive
+ * incremental LARGE_BLOCKS streams (those with WRITE records of >128KB) even
+ * if the previous send did not use LARGE_BLOCKS, and thus its large blocks
+ * were split into multiple 128KB WRITE records.  (See
+ * flush_write_batch_impl() and receive_object()).  Older software that does
+ * not support this flag may encounter a bug when switching to large blocks,
+ * which causes files to incorrectly be zeroed.
+ *
+ * This flag is currently not set on any send streams.  In the future, we
+ * intend for incremental send streams of snapshots that have large blocks to
+ * use LARGE_BLOCKS by default, and these streams will also have the
+ * SWITCH_TO_LARGE_BLOCKS feature set. This ensures that streams from the
+ * default use of "zfs send" won't encounter the bug mentioned above.
+ */
+#define	DMU_BACKUP_FEATURE_SWITCH_TO_LARGE_BLOCKS (1 << 27)
 
 /*
  * Mask of all supported backup features
  */
-#define	DMU_BACKUP_FEATURE_MASK	(DMU_BACKUP_FEATURE_DEDUP | \
-    DMU_BACKUP_FEATURE_DEDUPPROPS | DMU_BACKUP_FEATURE_SA_SPILL | \
+#define	DMU_BACKUP_FEATURE_MASK	(DMU_BACKUP_FEATURE_SA_SPILL | \
     DMU_BACKUP_FEATURE_EMBED_DATA | DMU_BACKUP_FEATURE_LZ4 | \
     DMU_BACKUP_FEATURE_RESUMING | DMU_BACKUP_FEATURE_LARGE_BLOCKS | \
     DMU_BACKUP_FEATURE_COMPRESSED | DMU_BACKUP_FEATURE_LARGE_DNODE | \
     DMU_BACKUP_FEATURE_RAW | DMU_BACKUP_FEATURE_HOLDS | \
-	DMU_BACKUP_FEATURE_REDACTED)
+    DMU_BACKUP_FEATURE_REDACTED | DMU_BACKUP_FEATURE_SWITCH_TO_LARGE_BLOCKS)
 
 /* Are all features in the given flag word currently supported? */
 #define	DMU_STREAM_SUPPORTED(x)	(!((x) & ~DMU_BACKUP_FEATURE_MASK))
@@ -209,6 +224,19 @@ typedef enum dmu_send_resume_token_version {
 /*
  * zfs ioctl command structure
  */
+
+/* Header is used in C++ so can't forward declare untagged struct */
+struct drr_begin {
+	uint64_t drr_magic;
+	uint64_t drr_versioninfo; /* was drr_version */
+	uint64_t drr_creation_time;
+	dmu_objset_type_t drr_type;
+	uint32_t drr_flags;
+	uint64_t drr_toguid;
+	uint64_t drr_fromguid;
+	char drr_toname[MAXNAMELEN];
+};
+
 typedef struct dmu_replay_record {
 	enum {
 		DRR_BEGIN, DRR_OBJECT, DRR_FREEOBJECTS,
@@ -218,16 +246,7 @@ typedef struct dmu_replay_record {
 	} drr_type;
 	uint32_t drr_payloadlen;
 	union {
-		struct drr_begin {
-			uint64_t drr_magic;
-			uint64_t drr_versioninfo; /* was drr_version */
-			uint64_t drr_creation_time;
-			dmu_objset_type_t drr_type;
-			uint32_t drr_flags;
-			uint64_t drr_toguid;
-			uint64_t drr_fromguid;
-			char drr_toname[MAXNAMELEN];
-		} drr_begin;
+		struct drr_begin drr_begin;
 		struct drr_end {
 			zio_cksum_t drr_checksum;
 			uint64_t drr_toguid;
@@ -346,7 +365,7 @@ typedef struct dmu_replay_record {
 		} drr_redact;
 
 		/*
-		 * Nore: drr_checksum is overlaid with all record types
+		 * Note: drr_checksum is overlaid with all record types
 		 * except DRR_BEGIN.  Therefore its (non-pad) members
 		 * must not overlap with members from the other structs.
 		 * We accomplish this by putting its members at the very

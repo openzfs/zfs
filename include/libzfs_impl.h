@@ -1,5 +1,5 @@
 /*
- * CDDL HEADER SART
+ * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
  * Common Development and Distribution License (the "License").
@@ -21,8 +21,9 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
  * Copyright (c) 2018 Datto Inc.
+ * Copyright 2020 Joyent, Inc.
  */
 
 #ifndef	_LIBZFS_IMPL_H
@@ -33,6 +34,7 @@
 #include <sys/nvpair.h>
 #include <sys/dmu.h>
 #include <sys/zfs_ioctl.h>
+#include <regex.h>
 
 #include <libuutil.h>
 #include <libzfs.h>
@@ -71,7 +73,7 @@ struct libzfs_handle {
 	int libzfs_pool_iter;
 	char libzfs_chassis_id[256];
 	boolean_t libzfs_prop_debug;
-	boolean_t libzfs_dedup_warning_printed;
+	regex_t libzfs_urire;
 };
 
 #define	ZFSSHARE_MISS	0x01	/* Didn't find entry in cache */
@@ -124,6 +126,14 @@ typedef enum {
 	SHARED_NFS = 0x2,
 	SHARED_SMB = 0x4
 } zfs_share_type_t;
+
+typedef int (*zfs_uri_handler_fn_t)(struct libzfs_handle *, const char *,
+    const char *, zfs_keyformat_t, boolean_t, uint8_t **, size_t *);
+
+typedef struct zfs_uri_handler {
+	const char *zuh_scheme;
+	zfs_uri_handler_fn_t zuh_handler;
+} zfs_uri_handler_t;
 
 #define	CONFIG_BUF_MINSIZE	262144
 
@@ -236,7 +246,8 @@ typedef struct differ_info {
 
 extern proto_table_t proto_table[PROTO_END];
 
-extern int do_mount(const char *src, const char *mntpt, char *opts, int flags);
+extern int do_mount(zfs_handle_t *zhp, const char *mntpt, char *opts,
+    int flags);
 extern int do_unmount(const char *mntpt, int flags);
 extern int zfs_mount_delegation_check(void);
 extern int zfs_share_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto);

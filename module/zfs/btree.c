@@ -342,7 +342,7 @@ zfs_btree_find(zfs_btree_t *tree, const void *value, zfs_btree_index_t *where)
  *     *  / *  *   *   *\  *   *   *   ...   *   *   *
  *        ---------------
  *
- * Note that a parellelogram shift is always shaped like a "left-leaning"
+ * Note that a parallelogram shift is always shaped like a "left-leaning"
  * parallelogram, where the starting index of the children being moved is
  * always one higher than the starting index of the elements being moved. No
  * "right-leaning" parallelogram shifts are needed (shifts where the starting
@@ -578,7 +578,7 @@ zfs_btree_insert_into_parent(zfs_btree_t *tree, zfs_btree_hdr_t *old_node,
 	ASSERT3P(parent->btc_children[offset], ==, old_node);
 
 	/*
-	 * If the parent isn't full, shift things to accomodate our insertions
+	 * If the parent isn't full, shift things to accommodate our insertions
 	 * and return.
 	 */
 	if (par_hdr->bth_count != BTREE_CORE_ELEMS) {
@@ -651,7 +651,7 @@ zfs_btree_insert_into_parent(zfs_btree_t *tree, zfs_btree_hdr_t *old_node,
 		/*
 		 * Move the new separator into the right half, and replace it
 		 * with buf. We also need to shift back the elements in the
-		 * right half to accomodate new_node.
+		 * right half to accommodate new_node.
 		 */
 		bt_shift_core_right(tree, new_parent, 0, move_count,
 		    BSS_TRAPEZOID);
@@ -1366,7 +1366,7 @@ zfs_btree_remove_from_node(zfs_btree_t *tree, zfs_btree_core_t *node,
 	/*
 	 * Now we try to take a node from a neighbor. We check left, then
 	 * right. If the neighbor exists and has more than the minimum number
-	 * of elements, we move the separator betweeen us and them to our
+	 * of elements, we move the separator between us and them to our
 	 * node, move their closest element (last for left, first for right)
 	 * to the separator, and move their closest child to our node. Along
 	 * the way we need to collapse the gap made by idx, and (for our right
@@ -1625,7 +1625,7 @@ zfs_btree_remove_idx(zfs_btree_t *tree, zfs_btree_index_t *where)
 	/*
 	 * Now we try to take a node from a sibling. We check left, then
 	 * right. If they exist and have more than the minimum number of
-	 * elements, we move the separator betweeen us and them to our node
+	 * elements, we move the separator between us and them to our node
 	 * and move their closest element (last for left, first for right) to
 	 * the separator. Along the way we need to collapse the gap made by
 	 * idx, and (for our right neighbor) the gap made by removing their

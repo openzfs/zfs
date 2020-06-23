@@ -82,13 +82,13 @@ get_objset_type_name(dsl_dataset_t *ds, char *str)
 		return (error);
 	switch (type) {
 	case ZFS_TYPE_SNAPSHOT:
-		(void) strcpy(str, "snapshot");
+		(void) strlcpy(str, "snapshot", ZAP_MAXVALUELEN);
 		break;
 	case ZFS_TYPE_FILESYSTEM:
-		(void) strcpy(str, "filesystem");
+		(void) strlcpy(str, "filesystem", ZAP_MAXVALUELEN);
 		break;
 	case ZFS_TYPE_VOLUME:
-		(void) strcpy(str, "volume");
+		(void) strlcpy(str, "volume", ZAP_MAXVALUELEN);
 		break;
 	default:
 		return (EINVAL);
@@ -321,11 +321,11 @@ get_special_prop(lua_State *state, dsl_dataset_t *ds, const char *dsname,
 		break;
 	case ZFS_PROP_FILESYSTEM_COUNT:
 		error = dsl_dir_get_filesystem_count(ds->ds_dir, &numval);
-		(void) strcpy(setpoint, "");
+		(void) strlcpy(setpoint, "", ZFS_MAX_DATASET_NAME_LEN);
 		break;
 	case ZFS_PROP_SNAPSHOT_COUNT:
 		error = dsl_dir_get_snapshot_count(ds->ds_dir, &numval);
-		(void) strcpy(setpoint, "");
+		(void) strlcpy(setpoint, "", ZFS_MAX_DATASET_NAME_LEN);
 		break;
 	case ZFS_PROP_NUMCLONES:
 		numval = dsl_get_numclones(ds);
@@ -367,7 +367,8 @@ get_special_prop(lua_State *state, dsl_dataset_t *ds, const char *dsname,
 			    sizeof (numval), 1, &numval);
 		}
 		if (error == 0)
-			(void) strcpy(setpoint, dsname);
+			(void) strlcpy(setpoint, dsname,
+			    ZFS_MAX_DATASET_NAME_LEN);
 
 		break;
 	case ZFS_PROP_VOLBLOCKSIZE: {
@@ -693,9 +694,10 @@ parse_written_prop(const char *dataset_name, const char *prop_name,
 	ASSERT(zfs_prop_written(prop_name));
 	const char *name = prop_name + ZFS_WRITTEN_PROP_PREFIX_LEN;
 	if (strchr(name, '@') == NULL) {
-		(void) sprintf(snap_name, "%s@%s", dataset_name, name);
+		(void) snprintf(snap_name, ZFS_MAX_DATASET_NAME_LEN, "%s@%s",
+		    dataset_name, name);
 	} else {
-		(void) strcpy(snap_name, name);
+		(void) strlcpy(snap_name, name, ZFS_MAX_DATASET_NAME_LEN);
 	}
 }
 

@@ -35,28 +35,28 @@
 
 #define	list_d2l(a, obj) ((list_node_t *)(((char *)obj) + (a)->list_offset))
 #define	list_object(a, node) ((void *)(((char *)node) - (a)->list_offset))
-#define	list_empty(a) ((a)->list_head.list_next == &(a)->list_head)
+#define	list_empty(a) ((a)->list_head.next == &(a)->list_head)
 
 #define	list_insert_after_node(list, node, object) {	\
 	list_node_t *lnew = list_d2l(list, object);	\
-	lnew->list_prev = (node);			\
-	lnew->list_next = (node)->list_next;		\
-	(node)->list_next->list_prev = lnew;		\
-	(node)->list_next = lnew;			\
+	lnew->prev = (node);			\
+	lnew->next = (node)->next;		\
+	(node)->next->prev = lnew;		\
+	(node)->next = lnew;			\
 }
 
 #define	list_insert_before_node(list, node, object) {	\
 	list_node_t *lnew = list_d2l(list, object);	\
-	lnew->list_next = (node);			\
-	lnew->list_prev = (node)->list_prev;		\
-	(node)->list_prev->list_next = lnew;		\
-	(node)->list_prev = lnew;			\
+	lnew->next = (node);			\
+	lnew->prev = (node)->prev;		\
+	(node)->prev->next = lnew;		\
+	(node)->prev = lnew;			\
 }
 
 #define	list_remove_node(node)					\
-	(node)->list_prev->list_next = (node)->list_next;	\
-	(node)->list_next->list_prev = (node)->list_prev;	\
-	(node)->list_next = (node)->list_prev = NULL
+	(node)->prev->next = (node)->next;	\
+	(node)->next->prev = (node)->prev;	\
+	(node)->next = (node)->prev = NULL
 
 void
 list_create(list_t *list, size_t size, size_t offset)
@@ -67,8 +67,7 @@ list_create(list_t *list, size_t size, size_t offset)
 
 	list->list_size = size;
 	list->list_offset = offset;
-	list->list_head.list_next = list->list_head.list_prev =
-	    &list->list_head;
+	list->list_head.next = list->list_head.prev = &list->list_head;
 }
 
 void
@@ -77,10 +76,10 @@ list_destroy(list_t *list)
 	list_node_t *node = &list->list_head;
 
 	ASSERT(list);
-	ASSERT(list->list_head.list_next == node);
-	ASSERT(list->list_head.list_prev == node);
+	ASSERT(list->list_head.next == node);
+	ASSERT(list->list_head.prev == node);
 
-	node->list_next = node->list_prev = NULL;
+	node->next = node->prev = NULL;
 }
 
 void
@@ -124,14 +123,14 @@ list_remove(list_t *list, void *object)
 {
 	list_node_t *lold = list_d2l(list, object);
 	ASSERT(!list_empty(list));
-	ASSERT(lold->list_next != NULL);
+	ASSERT(lold->next != NULL);
 	list_remove_node(lold);
 }
 
 void *
 list_remove_head(list_t *list)
 {
-	list_node_t *head = list->list_head.list_next;
+	list_node_t *head = list->list_head.next;
 	if (head == &list->list_head)
 		return (NULL);
 	list_remove_node(head);
@@ -141,7 +140,7 @@ list_remove_head(list_t *list)
 void *
 list_remove_tail(list_t *list)
 {
-	list_node_t *tail = list->list_head.list_prev;
+	list_node_t *tail = list->list_head.prev;
 	if (tail == &list->list_head)
 		return (NULL);
 	list_remove_node(tail);
@@ -153,7 +152,7 @@ list_head(list_t *list)
 {
 	if (list_empty(list))
 		return (NULL);
-	return (list_object(list, list->list_head.list_next));
+	return (list_object(list, list->list_head.next));
 }
 
 void *
@@ -161,7 +160,7 @@ list_tail(list_t *list)
 {
 	if (list_empty(list))
 		return (NULL);
-	return (list_object(list, list->list_head.list_prev));
+	return (list_object(list, list->list_head.prev));
 }
 
 void *
@@ -169,8 +168,8 @@ list_next(list_t *list, void *object)
 {
 	list_node_t *node = list_d2l(list, object);
 
-	if (node->list_next != &list->list_head)
-		return (list_object(list, node->list_next));
+	if (node->next != &list->list_head)
+		return (list_object(list, node->next));
 
 	return (NULL);
 }
@@ -180,8 +179,8 @@ list_prev(list_t *list, void *object)
 {
 	list_node_t *node = list_d2l(list, object);
 
-	if (node->list_prev != &list->list_head)
-		return (list_object(list, node->list_prev));
+	if (node->prev != &list->list_head)
+		return (list_object(list, node->prev));
 
 	return (NULL);
 }
@@ -201,13 +200,13 @@ list_move_tail(list_t *dst, list_t *src)
 	if (list_empty(src))
 		return;
 
-	dstnode->list_prev->list_next = srcnode->list_next;
-	srcnode->list_next->list_prev = dstnode->list_prev;
-	dstnode->list_prev = srcnode->list_prev;
-	srcnode->list_prev->list_next = dstnode;
+	dstnode->prev->next = srcnode->next;
+	srcnode->next->prev = dstnode->prev;
+	dstnode->prev = srcnode->prev;
+	srcnode->prev->next = dstnode;
 
 	/* empty src list */
-	srcnode->list_next = srcnode->list_prev = srcnode;
+	srcnode->next = srcnode->prev = srcnode;
 }
 
 void
@@ -216,24 +215,24 @@ list_link_replace(list_node_t *lold, list_node_t *lnew)
 	ASSERT(list_link_active(lold));
 	ASSERT(!list_link_active(lnew));
 
-	lnew->list_next = lold->list_next;
-	lnew->list_prev = lold->list_prev;
-	lold->list_prev->list_next = lnew;
-	lold->list_next->list_prev = lnew;
-	lold->list_next = lold->list_prev = NULL;
+	lnew->next = lold->next;
+	lnew->prev = lold->prev;
+	lold->prev->next = lnew;
+	lold->next->prev = lnew;
+	lold->next = lold->prev = NULL;
 }
 
 void
 list_link_init(list_node_t *ln)
 {
-	ln->list_next = NULL;
-	ln->list_prev = NULL;
+	ln->next = NULL;
+	ln->prev = NULL;
 }
 
 int
 list_link_active(list_node_t *ln)
 {
-	return (ln->list_next != NULL);
+	return (ln->next != NULL);
 }
 
 int

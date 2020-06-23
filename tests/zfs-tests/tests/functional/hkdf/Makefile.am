@@ -1,6 +1,8 @@
 include $(top_srcdir)/config/Rules.am
 
-LDADD = $(top_builddir)/lib/libzpool/libzpool.la
+LDADD = \
+	$(top_builddir)/lib/libnvpair/libnvpair.la \
+	$(top_builddir)/lib/libzpool/libzpool.la
 
 AUTOMAKE_OPTIONS = subdir-objects
 

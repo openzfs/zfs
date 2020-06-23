@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2019 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
  * Copyright 2012 Milan Jurik. All rights reserved.
  * Copyright (c) 2012, Joyent, Inc. All rights reserved.
  * Copyright (c) 2013 Steven Hartland.  All rights reserved.
@@ -1037,6 +1037,31 @@ zfs_do_create(int argc, char **argv)
 			goto error;
 		}
 	}
+
+	/*
+	 * if volsize is not a multiple of volblocksize, round it up to the
+	 * nearest multiple of the volblocksize
+	 */
+	if (type == ZFS_TYPE_VOLUME) {
+		uint64_t volblocksize;
+
+		if (nvlist_lookup_uint64(props,
+		    zfs_prop_to_name(ZFS_PROP_VOLBLOCKSIZE),
+		    &volblocksize) != 0)
+			volblocksize = ZVOL_DEFAULT_BLOCKSIZE;
+
+		if (volsize % volblocksize) {
+			volsize = P2ROUNDUP_TYPED(volsize, volblocksize,
+			    uint64_t);
+
+			if (nvlist_add_uint64(props,
+			    zfs_prop_to_name(ZFS_PROP_VOLSIZE), volsize) != 0) {
+				nvlist_free(props);
+				nomem();
+			}
+		}
+	}
+
 
 	if (type == ZFS_TYPE_VOLUME && !noreserve) {
 		uint64_t spa_version;
@@ -4266,7 +4291,10 @@ zfs_do_send(int argc, char **argv)
 			flags.progress = B_TRUE;
 			break;
 		case 'D':
-			flags.dedup = B_TRUE;
+			(void) fprintf(stderr,
+			    gettext("WARNING: deduplicated send is no "
+			    "longer supported.  A regular,\n"
+			    "non-deduplicated stream will be generated.\n\n"));
 			break;
 		case 'n':
 			flags.dryrun = B_TRUE;
@@ -4333,16 +4361,6 @@ zfs_do_send(int argc, char **argv)
 		}
 	}
 
-	if (flags.dedup) {
-		(void) fprintf(stderr,
-		    gettext("WARNING: deduplicated send is "
-		    "deprecated, and will be removed in a\n"
-		    "future release. (In the future, the flag will be "
-		    "accepted, but a\n"
-		    "regular, non-deduplicated stream will be "
-		    "generated.)\n\n"));
-	}
-
 	if (flags.parsable && flags.verbosity == 0)
 		flags.verbosity = 1;
 
@@ -4351,7 +4369,7 @@ zfs_do_send(int argc, char **argv)
 
 	if (resume_token != NULL) {
 		if (fromname != NULL || flags.replicate || flags.props ||
-		    flags.backup || flags.dedup || flags.holds ||
+		    flags.backup || flags.holds ||
 		    flags.saved || redactbook != NULL) {
 			(void) fprintf(stderr,
 			    gettext("invalid flags combined with -t\n"));
@@ -4375,7 +4393,7 @@ zfs_do_send(int argc, char **argv)
 
 	if (flags.saved) {
 		if (fromname != NULL || flags.replicate || flags.props ||
-		    flags.doall || flags.backup || flags.dedup ||
+		    flags.doall || flags.backup ||
 		    flags.holds || flags.largeblock || flags.embed_data ||
 		    flags.compress || flags.raw || redactbook != NULL) {
 			(void) fprintf(stderr, gettext("incompatible flags "
@@ -6716,25 +6734,8 @@ share_mount_one(zfs_handle_t *zhp, int op, int flags, char *protocol,
 			return (1);
 		}
 
-		if (zfs_mount(zhp, options, flags) != 0) {
-			/*
-			 * Check if a mount sneaked in after we checked
-			 */
-			if (!explicit &&
-			    libzfs_errno(g_zfs) == EZFS_MOUNTFAILED) {
-				usleep(10 * MILLISEC);
-				libzfs_mnttab_cache(g_zfs, B_FALSE);
-
-				if (zfs_is_mounted(zhp, NULL)) {
-					(void) fprintf(stderr, gettext(
-					    "Ignoring previous 'already "
-					    "mounted' error for '%s'\n"),
-					    zfs_get_name(zhp));
-					return (0);
-				}
-			}
+		if (zfs_mount(zhp, options, flags) != 0)
 			return (1);
-		}
 		break;
 	}
 
@@ -7301,9 +7302,6 @@ unshare_unmount(int op, int argc, char **argv)
 			const char *mntarg = NULL;
 
 			uu_avl_remove(tree, node);
-#ifndef __FreeBSD__
-			mntarg = node->un_zhp->zfs_name;
-#endif
 			switch (op) {
 			case OP_SHARE:
 				if (zfs_unshareall_bytype(node->un_zhp,

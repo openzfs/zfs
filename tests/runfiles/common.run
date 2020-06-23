@@ -49,7 +49,7 @@ post =
 [tests/functional/cache]
 tests = ['cache_001_pos', 'cache_002_pos', 'cache_003_pos', 'cache_004_neg',
     'cache_005_neg', 'cache_006_pos', 'cache_007_neg', 'cache_008_neg',
-    'cache_009_pos', 'cache_010_neg', 'cache_011_pos', 'cache_012_pos']
+    'cache_009_pos', 'cache_010_pos', 'cache_011_pos', 'cache_012_pos']
 tags = ['functional', 'cache']
 
 [tests/functional/cachefile]
@@ -103,8 +103,8 @@ tests = [ 'clean_mirror_001_pos', 'clean_mirror_002_pos',
 tags = ['functional', 'clean_mirror']
 
 [tests/functional/cli_root/zdb]
-tests = ['zdb_001_neg', 'zdb_002_pos', 'zdb_003_pos', 'zdb_004_pos',
-    'zdb_005_pos', 'zdb_006_pos', 'zdb_checksum', 'zdb_decompress',
+tests = ['zdb_002_pos', 'zdb_003_pos', 'zdb_004_pos', 'zdb_005_pos',
+    'zdb_006_pos', 'zdb_args_neg', 'zdb_args_pos', 'zdb_checksum', 'zdb_decompress',
     'zdb_object_range_neg', 'zdb_object_range_pos', 'zdb_display_block',
     'zdb_objset_id']
 pre =
@@ -168,6 +168,10 @@ tests = ['zfs_get_001_pos', 'zfs_get_002_pos', 'zfs_get_003_pos',
     'zfs_get_004_pos', 'zfs_get_005_neg', 'zfs_get_006_neg', 'zfs_get_007_neg',
     'zfs_get_008_pos', 'zfs_get_009_pos', 'zfs_get_010_neg']
 tags = ['functional', 'cli_root', 'zfs_get']
+
+[tests/functional/cli_root/zfs_ids_to_path]
+tests = ['zfs_ids_to_path_001_pos']
+tags = ['functional', 'cli_root', 'zfs_ids_to_path']
 
 [tests/functional/cli_root/zfs_inherit]
 tests = ['zfs_inherit_001_neg', 'zfs_inherit_002_neg', 'zfs_inherit_003_pos',
@@ -442,7 +446,7 @@ tags = ['functional', 'cli_root', 'zpool_set']
 [tests/functional/cli_root/zpool_split]
 tests = ['zpool_split_cliargs', 'zpool_split_devices',
     'zpool_split_encryption', 'zpool_split_props', 'zpool_split_vdevs',
-    'zpool_split_resilver']
+    'zpool_split_resilver', 'zpool_split_indirect']
 tags = ['functional', 'cli_root', 'zpool_split']
 
 [tests/functional/cli_root/zpool_status]
@@ -654,6 +658,12 @@ tests = ['online_offline_001_pos', 'online_offline_002_neg',
     'online_offline_003_neg']
 tags = ['functional', 'online_offline']
 
+[tests/functional/persist_l2arc]
+tests = ['persist_l2arc_001_pos', 'persist_l2arc_002_pos',
+    'persist_l2arc_003_neg', 'persist_l2arc_004_pos', 'persist_l2arc_005_pos',
+    'persist_l2arc_006_pos', 'persist_l2arc_007_pos', 'persist_l2arc_008_pos']
+tags = ['functional', 'persist_l2arc']
+
 [tests/functional/pool_checkpoint]
 tests = ['checkpoint_after_rewind', 'checkpoint_big_rewind',
     'checkpoint_capacity', 'checkpoint_conf_change', 'checkpoint_discard',
@@ -752,7 +762,7 @@ tests = ['reservation_001_pos', 'reservation_002_pos', 'reservation_003_pos',
 tags = ['functional', 'reservation']
 
 [tests/functional/resilver]
-tests = ['resilver_restart_001']
+tests = ['resilver_restart_001', 'resilver_restart_002']
 tags = ['functional', 'resilver']
 
 [tests/functional/rootpool]
@@ -760,22 +770,22 @@ tests = ['rootpool_002_neg', 'rootpool_003_neg', 'rootpool_007_pos']
 tags = ['functional', 'rootpool']
 
 [tests/functional/rsend]
-tests = ['rsend_001_pos', 'rsend_002_pos', 'rsend_003_pos', 'rsend_004_pos',
-    'rsend_005_pos', 'rsend_006_pos', 'rsend_007_pos', 'rsend_008_pos',
-    'rsend_009_pos', 'rsend_010_pos', 'rsend_011_pos', 'rsend_012_pos',
-    'rsend_013_pos', 'rsend_014_pos', 'rsend_016_neg',
-    'rsend_019_pos', 'rsend_020_pos',
+tests = ['recv_dedup', 'recv_dedup_encrypted_zvol', 'rsend_001_pos',
+    'rsend_002_pos', 'rsend_003_pos', 'rsend_004_pos', 'rsend_005_pos',
+    'rsend_006_pos', 'rsend_007_pos', 'rsend_008_pos', 'rsend_009_pos',
+    'rsend_010_pos', 'rsend_011_pos', 'rsend_012_pos', 'rsend_013_pos',
+    'rsend_014_pos', 'rsend_016_neg', 'rsend_019_pos', 'rsend_020_pos',
     'rsend_021_pos', 'rsend_022_pos', 'rsend_024_pos',
     'send-c_verify_ratio', 'send-c_verify_contents', 'send-c_props',
     'send-c_incremental', 'send-c_volume', 'send-c_zstreamdump',
     'send-c_lz4_disabled', 'send-c_recv_lz4_disabled',
-    'send-c_mixed_compression', 'send-c_stream_size_estimate', 'send-cD',
+    'send-c_mixed_compression', 'send-c_stream_size_estimate',
     'send-c_embedded_blocks', 'send-c_resume', 'send-cpL_varied_recsize',
-    'send-c_recv_dedup', 'send_encrypted_hierarchy',
+    'send-c_recv_dedup', 'send-L_toggle', 'send_encrypted_hierarchy',
     'send_encrypted_props', 'send_encrypted_truncated_files',
     'send_freeobjects', 'send_realloc_files',
     'send_realloc_encrypted_files', 'send_spill_block', 'send_holds',
-    'send_hole_birth', 'send_mixed_raw', 'send-wDR_encrypted_zvol',
+    'send_hole_birth', 'send_mixed_raw', 'send-wR_encrypted_zvol',
     'send_partial_dataset']
 tags = ['functional', 'rsend']
 
@@ -822,7 +832,7 @@ tags = ['functional', 'threadsappend']
 
 [tests/functional/trim]
 tests = ['autotrim_integrity', 'autotrim_config', 'autotrim_trim_integrity',
-    'trim_integrity', 'trim_config']
+    'trim_integrity', 'trim_config', 'trim_l2arc']
 tags = ['functional', 'trim']
 
 [tests/functional/truncate]

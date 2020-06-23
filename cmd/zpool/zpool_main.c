@@ -445,7 +445,8 @@ zpool_collect_leaves(zpool_handle_t *zhp, nvlist_t *nvroot, nvlist_t *res)
 		char *path = zpool_vdev_name(g_zfs, zhp, nvroot,
 		    VDEV_NAME_PATH);
 
-		if (strcmp(path, VDEV_TYPE_INDIRECT) != 0)
+		if (strcmp(path, VDEV_TYPE_INDIRECT) != 0 &&
+		    strcmp(path, VDEV_TYPE_HOLE) != 0)
 			fnvlist_add_boolean(res, path);
 
 		free(path);
@@ -4395,10 +4396,10 @@ print_vdev_stats(zpool_handle_t *zhp, const char *name, nvlist_t *oldnv,
 	uint64_t tdelta;
 	double scale;
 
-	calcvs = safe_malloc(sizeof (*calcvs));
-
 	if (strcmp(name, VDEV_TYPE_INDIRECT) == 0)
 		return (ret);
+
+	calcvs = safe_malloc(sizeof (*calcvs));
 
 	if (oldnv != NULL) {
 		verify(nvlist_lookup_uint64_array(oldnv,
@@ -5147,22 +5148,48 @@ print_zpool_script_list(char *subcommand)
 /*
  * Set the minimum pool/vdev name column width.  The width must be at least 10,
  * but may be as large as the column width - 42 so it still fits on one line.
+ * NOTE: 42 is the width of the default capacity/operations/bandwidth output
  */
 static int
 get_namewidth_iostat(zpool_handle_t *zhp, void *data)
 {
 	iostat_cbdata_t *cb = data;
-	int width, columns;
+	int width, available_width;
 
+	/*
+	 * get_namewidth() returns the maximum width of any name in that column
+	 * for any pool/vdev/device line that will be output.
+	 */
 	width = get_namewidth(zhp, cb->cb_namewidth, cb->cb_name_flags,
 	    cb->cb_verbose);
-	columns = get_columns();
 
+	/*
+	 * The width we are calculating is the width of the header and also the
+	 * padding width for names that are less than maximum width.  The stats
+	 * take up 42 characters, so the width available for names is:
+	 */
+	available_width = get_columns() - 42;
+
+	/*
+	 * If the maximum width fits on a screen, then great!  Make everything
+	 * line up by justifying all lines to the same width.  If that max
+	 * width is larger than what's available, the name plus stats won't fit
+	 * on one line, and justifying to that width would cause every line to
+	 * wrap on the screen.  We only want lines with long names to wrap.
+	 * Limit the padding to what won't wrap.
+	 */
+	if (width > available_width)
+		width = available_width;
+
+	/*
+	 * And regardless of whatever the screen width is (get_columns can
+	 * return 0 if the width is not known or less than 42 for a narrow
+	 * terminal) have the width be a minimum of 10.
+	 */
 	if (width < 10)
 		width = 10;
-	if (width > columns - 42)
-		width = columns - 42;
 
+	/* Save the calculated width */
 	cb->cb_namewidth = width;
 
 	return (0);
@@ -7387,6 +7414,7 @@ print_removal_status(zpool_handle_t *zhp, pool_removal_stat_t *prs)
 			    ", (copy is slow, no estimated time)\n"));
 		}
 	}
+	free(vdev_name);
 
 	if (prs->prs_mapping_memory > 0) {
 		char mem_buf[7];
@@ -8968,9 +8996,9 @@ zpool_do_events_short(nvlist_t *nvl, ev_opts_t *opts)
 	verify(nvlist_lookup_int64_array(nvl, FM_EREPORT_TIME, &tv, &n) == 0);
 	memset(str, ' ', 32);
 	(void) ctime_r((const time_t *)&tv[0], ctime_str);
-	(void) strncpy(str, ctime_str+4,  6);		/* 'Jun 30' */
-	(void) strncpy(str+7, ctime_str+20, 4);		/* '1993' */
-	(void) strncpy(str+12, ctime_str+11, 8);	/* '21:49:08' */
+	(void) memcpy(str, ctime_str+4,  6);		/* 'Jun 30' */
+	(void) memcpy(str+7, ctime_str+20, 4);		/* '1993' */
+	(void) memcpy(str+12, ctime_str+11, 8);		/* '21:49:08' */
 	(void) sprintf(str+20, ".%09lld", (longlong_t)tv[1]); /* '.123456789' */
 	if (opts->scripted)
 		(void) printf(gettext("%s\t"), str);

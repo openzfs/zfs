@@ -1728,19 +1728,29 @@ dmu_objset_is_dirty(objset_t *os, uint64_t txg)
 	return (!multilist_is_empty(os->os_dirty_dnodes[txg & TXG_MASK]));
 }
 
-static objset_used_cb_t *used_cbs[DMU_OST_NUMTYPES];
+static file_info_cb_t *file_cbs[DMU_OST_NUMTYPES];
 
 void
-dmu_objset_register_type(dmu_objset_type_t ost, objset_used_cb_t *cb)
+dmu_objset_register_type(dmu_objset_type_t ost, file_info_cb_t *cb)
 {
-	used_cbs[ost] = cb;
+	file_cbs[ost] = cb;
+}
+
+int
+dmu_get_file_info(objset_t *os, dmu_object_type_t bonustype, const void *data,
+    zfs_file_info_t *zfi)
+{
+	file_info_cb_t *cb = file_cbs[os->os_phys->os_type];
+	if (cb == NULL)
+		return (EINVAL);
+	return (cb(bonustype, data, zfi));
 }
 
 boolean_t
 dmu_objset_userused_enabled(objset_t *os)
 {
 	return (spa_version(os->os_spa) >= SPA_VERSION_USERSPACE &&
-	    used_cbs[os->os_phys->os_type] != NULL &&
+	    file_cbs[os->os_phys->os_type] != NULL &&
 	    DMU_USERUSED_DNODE(os) != NULL);
 }
 
@@ -1754,7 +1764,7 @@ dmu_objset_userobjused_enabled(objset_t *os)
 boolean_t
 dmu_objset_projectquota_enabled(objset_t *os)
 {
-	return (used_cbs[os->os_phys->os_type] != NULL &&
+	return (file_cbs[os->os_phys->os_type] != NULL &&
 	    DMU_PROJECTUSED_DNODE(os) != NULL &&
 	    spa_feature_is_enabled(os->os_spa, SPA_FEATURE_PROJECT_QUOTA));
 }
@@ -1870,14 +1880,15 @@ do_userquota_update(objset_t *os, userquota_cache_t *cache, uint64_t used,
 		if (subtract)
 			delta = -delta;
 
-		(void) sprintf(name, "%llx", (longlong_t)user);
+		(void) snprintf(name, sizeof (name), "%llx", (longlong_t)user);
 		userquota_update_cache(&cache->uqc_user_deltas, name, delta);
 
-		(void) sprintf(name, "%llx", (longlong_t)group);
+		(void) snprintf(name, sizeof (name), "%llx", (longlong_t)group);
 		userquota_update_cache(&cache->uqc_group_deltas, name, delta);
 
 		if (dmu_objset_projectquota_enabled(os)) {
-			(void) sprintf(name, "%llx", (longlong_t)project);
+			(void) snprintf(name, sizeof (name), "%llx",
+			    (longlong_t)project);
 			userquota_update_cache(&cache->uqc_project_deltas,
 			    name, delta);
 		}
@@ -2088,9 +2099,6 @@ dmu_objset_userquota_get_ids(dnode_t *dn, boolean_t before, dmu_tx_t *tx)
 	objset_t *os = dn->dn_objset;
 	void *data = NULL;
 	dmu_buf_impl_t *db = NULL;
-	uint64_t *user = NULL;
-	uint64_t *group = NULL;
-	uint64_t *project = NULL;
 	int flags = dn->dn_id_flags;
 	int error;
 	boolean_t have_spill = B_FALSE;
@@ -2144,23 +2152,23 @@ dmu_objset_userquota_get_ids(dnode_t *dn, boolean_t before, dmu_tx_t *tx)
 		return;
 	}
 
-	if (before) {
-		ASSERT(data);
-		user = &dn->dn_olduid;
-		group = &dn->dn_oldgid;
-		project = &dn->dn_oldprojid;
-	} else if (data) {
-		user = &dn->dn_newuid;
-		group = &dn->dn_newgid;
-		project = &dn->dn_newprojid;
-	}
-
 	/*
 	 * Must always call the callback in case the object
 	 * type has changed and that type isn't an object type to track
 	 */
-	error = used_cbs[os->os_phys->os_type](dn->dn_bonustype, data,
-	    user, group, project);
+	zfs_file_info_t zfi;
+	error = file_cbs[os->os_phys->os_type](dn->dn_bonustype, data, &zfi);
+
+	if (before) {
+		ASSERT(data);
+		dn->dn_olduid = zfi.zfi_user;
+		dn->dn_oldgid = zfi.zfi_group;
+		dn->dn_oldprojid = zfi.zfi_project;
+	} else if (data) {
+		dn->dn_newuid = zfi.zfi_user;
+		dn->dn_newgid = zfi.zfi_group;
+		dn->dn_newprojid = zfi.zfi_project;
+	}
 
 	/*
 	 * Preserve existing uid/gid when the callback can't determine
@@ -2438,7 +2446,7 @@ dmu_snapshot_list_next(objset_t *os, int namelen, char *name,
 		return (SET_ERROR(ENAMETOOLONG));
 	}
 
-	(void) strcpy(name, attr.za_name);
+	(void) strlcpy(name, attr.za_name, namelen);
 	if (idp)
 		*idp = attr.za_first_integer;
 	if (case_conflict)
@@ -2483,7 +2491,7 @@ dmu_dir_list_next(objset_t *os, int namelen, char *name,
 		return (SET_ERROR(ENAMETOOLONG));
 	}
 
-	(void) strcpy(name, attr.za_name);
+	(void) strlcpy(name, attr.za_name, namelen);
 	if (idp)
 		*idp = attr.za_first_integer;
 	zap_cursor_advance(&cursor);

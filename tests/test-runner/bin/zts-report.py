@@ -191,7 +191,6 @@ elif sys.platform.startswith('linux'):
 maybe = {
     'alloc_class/alloc_class_012_pos': ['FAIL', '9142'],
     'alloc_class/alloc_class_013_pos': ['FAIL', '9142'],
-    'cache/cache_010_neg': ['FAIL', known_reason],
     'chattr/setup': ['SKIP', exec_reason],
     'cli_root/zdb/zdb_006_pos': ['FAIL', known_reason],
     'cli_root/zfs_get/zfs_get_004_pos': ['FAIL', known_reason],
@@ -245,9 +244,10 @@ maybe = {
 if sys.platform.startswith('freebsd'):
     maybe.update({
         'cli_root/zfs_copies/zfs_copies_002_pos': ['FAIL', known_reason],
-        'cli_root/zpool_import/zpool_import_missing_003_pos':
-            ['FAIL', known_reason],
+        'cli_root/zfs_inherit/zfs_inherit_001_neg': ['FAIL', known_reason],
         'delegate/zfs_allow_003_pos': ['FAIL', known_reason],
+        'removal/removal_condense_export': ['FAIL', known_reason],
+        'removal/removal_with_export': ['FAIL', known_reason],
         'resilver/resilver_restart_001': ['FAIL', known_reason],
     })
 
@@ -272,8 +272,8 @@ def process_results(pathname):
     pattern_log = r'^\s*Log directory:\s*(\S*)'
 
     d = {}
-    for l in f.readlines():
-        m = re.match(pattern, l)
+    for line in f.readlines():
+        m = re.match(pattern, line)
         if m and len(m.groups()) == 4:
             summary['total'] += 1
             if m.group(4) == "PASS":
@@ -281,7 +281,7 @@ def process_results(pathname):
             d[m.group(1)] = m.group(4)
             continue
 
-        m = re.match(pattern_log, l)
+        m = re.match(pattern_log, line)
         if m:
             summary['logfile'] = m.group(1)
 

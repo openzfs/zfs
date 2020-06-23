@@ -145,7 +145,7 @@ The fields
 .Ar start
 and
 .Ar end
-are integer object identfiers that denote the upper and lower bounds
+are integer object identifiers that denote the upper and lower bounds
 of the range. An
 .Ar end
 value of -1 specifies a range with no upper bound. The
@@ -212,18 +212,27 @@ If specified multiple times, display counts of each intent log transaction type.
 Examine the checkpointed state of the pool.
 Note, the on disk format of the pool is not reverted to the checkpointed state.
 .It Fl l Ar device
-Read the vdev labels from the specified device.
+Read the vdev labels and L2ARC header from the specified device.
 .Nm Fl l
 will return 0 if valid label was found, 1 if error occurred, and 2 if no valid
-labels were found. Each unique configuration is displayed only once.
+labels were found. The presence of L2ARC header is indicated by a specific
+sequence (L2ARC_DEV_HDR_MAGIC). If there is an accounting error in the size
+or the number of L2ARC log blocks
+.Nm Fl l
+will return 1. Each unique configuration is displayed only
+once.
 .It Fl ll Ar device
-In addition display label space usage stats.
+In addition display label space usage stats. If a valid L2ARC header was found
+also display the properties of log blocks used for restoring L2ARC contents
+(persistent L2ARC).
 .It Fl lll Ar device
-Display every configuration, unique or not.
+Display every configuration, unique or not. If a valid L2ARC header was found
+also display the properties of log entries in log blocks used for restoring
+L2ARC contents (persistent L2ARC).
 .Pp
 If the
 .Fl q
-option is also specified, don't print the labels.
+option is also specified, don't print the labels or the L2ARC header.
 .Pp
 If the
 .Fl u
