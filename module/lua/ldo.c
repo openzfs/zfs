@@ -78,7 +78,7 @@ extern void longjmp(label_t *) __attribute__((__noreturn__));
 #define LUAI_TRY(L,c,a)		if (setjmp(&(c)->b) == 0) { a }
 #define luai_jmpbuf		label_t
 
-/* unsupported archs will build but not be able to run lua programs */
+/* unsupported arches will build but not be able to run lua programs */
 #if JMP_BUF_CNT == 1
 int setjmp (label_t *buf) {
 	return 1;

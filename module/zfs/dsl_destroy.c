@@ -661,6 +661,8 @@ dsl_destroy_snapshots_nvl(nvlist_t *snaps, boolean_t defer,
 		if (errorstr != NULL) {
 			zfs_dbgmsg(errorstr);
 		}
+		fnvlist_free(wrapper);
+		fnvlist_free(result);
 		return (error);
 	}
 	fnvlist_free(wrapper);

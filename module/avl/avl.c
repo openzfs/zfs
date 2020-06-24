@@ -809,6 +809,64 @@ avl_remove(avl_tree_t *tree, void *data)
 	} while (parent != NULL);
 }
 
+#define	AVL_REINSERT(tree, obj)		\
+	avl_remove((tree), (obj));	\
+	avl_add((tree), (obj))
+
+boolean_t
+avl_update_lt(avl_tree_t *t, void *obj)
+{
+	void *neighbor;
+
+	ASSERT(((neighbor = AVL_NEXT(t, obj)) == NULL) ||
+	    (t->avl_compar(obj, neighbor) <= 0));
+
+	neighbor = AVL_PREV(t, obj);
+	if ((neighbor != NULL) && (t->avl_compar(obj, neighbor) < 0)) {
+		AVL_REINSERT(t, obj);
+		return (B_TRUE);
+	}
+
+	return (B_FALSE);
+}
+
+boolean_t
+avl_update_gt(avl_tree_t *t, void *obj)
+{
+	void *neighbor;
+
+	ASSERT(((neighbor = AVL_PREV(t, obj)) == NULL) ||
+	    (t->avl_compar(obj, neighbor) >= 0));
+
+	neighbor = AVL_NEXT(t, obj);
+	if ((neighbor != NULL) && (t->avl_compar(obj, neighbor) > 0)) {
+		AVL_REINSERT(t, obj);
+		return (B_TRUE);
+	}
+
+	return (B_FALSE);
+}
+
+boolean_t
+avl_update(avl_tree_t *t, void *obj)
+{
+	void *neighbor;
+
+	neighbor = AVL_PREV(t, obj);
+	if ((neighbor != NULL) && (t->avl_compar(obj, neighbor) < 0)) {
+		AVL_REINSERT(t, obj);
+		return (B_TRUE);
+	}
+
+	neighbor = AVL_NEXT(t, obj);
+	if ((neighbor != NULL) && (t->avl_compar(obj, neighbor) > 0)) {
+		AVL_REINSERT(t, obj);
+		return (B_TRUE);
+	}
+
+	return (B_FALSE);
+}
+
 void
 avl_swap(avl_tree_t *tree1, avl_tree_t *tree2)
 {
@@ -1030,3 +1088,6 @@ EXPORT_SYMBOL(avl_remove);
 EXPORT_SYMBOL(avl_numnodes);
 EXPORT_SYMBOL(avl_destroy_nodes);
 EXPORT_SYMBOL(avl_destroy);
+EXPORT_SYMBOL(avl_update_lt);
+EXPORT_SYMBOL(avl_update_gt);
+EXPORT_SYMBOL(avl_update);

@@ -1,23 +1,20 @@
 hooksdir = /usr/share/initramfs-tools/hooks
 
 hooks_SCRIPTS = \
-	zfs
+	zfs \
+	zfsunlock
 
 EXTRA_DIST = \
-	$(top_srcdir)/contrib/initramfs/hooks/zfs.in
+	$(top_srcdir)/contrib/initramfs/hooks/zfs.in \
+	$(top_srcdir)/contrib/initramfs/hooks/zfsunlock.in
 
-$(hooks_SCRIPTS):%:%.in
+$(hooks_SCRIPTS):%:%.in Makefile
 	-$(SED) -e 's,@sbindir\@,$(sbindir),g' \
 		-e 's,@sysconfdir\@,$(sysconfdir),g' \
 		-e 's,@udevdir\@,$(udevdir),g' \
 		-e 's,@udevruledir\@,$(udevruledir),g' \
 		-e 's,@mounthelperdir\@,$(mounthelperdir),g' \
+		-e 's,@DEFAULT_INITCONF_DIR\@,$(DEFAULT_INITCONF_DIR),g' \
 		$< >'$@'
 
-# Double-colon rules are allowed; there are multiple independent definitions.
-clean-local::
-	-$(RM) $(hooks_SCRIPTS)
-
-# Double-colon rules are allowed; there are multiple independent definitions.
-distclean-local::
-	-$(RM) $(hooks_SCRIPTS)
+CLEANFILES = $(hooks_SCRIPTS)

@@ -54,6 +54,7 @@ enum scope_prefix_types {
 	zfs_dbuf,
 	zfs_dbuf_cache,
 	zfs_deadman,
+	zfs_dedup,
 	zfs_l2arc,
 	zfs_livelist,
 	zfs_livelist_condense,
@@ -67,13 +68,13 @@ enum scope_prefix_types {
 	zfs_send,
 	zfs_spa,
 	zfs_trim,
+	zfs_txg,
 	zfs_vdev,
 	zfs_vdev_cache,
 	zfs_vdev_mirror,
 	zfs_zevent,
 	zfs_zio,
-	zfs_zil,
-	spa
+	zfs_zil
 };
 
 /*
@@ -134,11 +135,13 @@ enum scope_prefix_types {
  *   spa_slop_shift
  */
 /* BEGIN CSTYLED */
-#define ZFS_MODULE_PARAM_CALL(scope_prefix, name_prefix, name, setfunc, getfunc, perm, desc) \
+#define	ZFS_MODULE_PARAM_CALL(scope_prefix, name_prefix, name, setfunc, getfunc, perm, desc) \
 	CTASSERT_GLOBAL((sizeof (scope_prefix) == sizeof (enum scope_prefix_types))); \
 	module_param_call(name_prefix ## name, setfunc, getfunc, &name_prefix ## name, perm); \
 	MODULE_PARM_DESC(name_prefix ## name, desc)
 /* END CSTYLED */
+
+#define	ZFS_MODULE_PARAM_ARGS	const char *buf, zfs_kernel_param_t *kp
 
 #define	ZFS_MODULE_DESCRIPTION(s) MODULE_DESCRIPTION(s)
 #define	ZFS_MODULE_AUTHOR(s) MODULE_AUTHOR(s)

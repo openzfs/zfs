@@ -1,11 +1,11 @@
-src = @abs_top_srcdir@/module/nvpair
+ifneq ($(KBUILD_EXTMOD),)
+src = @abs_srcdir@
 obj = @abs_builddir@
+endif
 
 MODULE := znvpair
 
 obj-$(CONFIG_ZFS) := $(MODULE).o
-
-ccflags-y := $(ZFS_MODULE_CFLAGS) $(ZFS_MODULE_CPPFLAGS)
 
 $(MODULE)-objs += nvpair.o
 $(MODULE)-objs += fnvpair.o

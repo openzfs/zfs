@@ -20,7 +20,7 @@
  */
 
 /*
- * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2020 by Delphix. All rights reserved.
  * Copyright (c) 2017 Datto Inc.
  * Copyright 2017 RackTop Systems.
  * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
@@ -135,6 +135,8 @@ int lzc_wait(const char *, zpool_wait_activity_t, boolean_t *);
 int lzc_wait_tag(const char *, zpool_wait_activity_t, uint64_t, boolean_t *);
 int lzc_wait_fs(const char *, zfs_wait_activity_t, boolean_t *);
 
+int lzc_set_bootenv(const char *, const char *);
+int lzc_get_bootenv(const char *, nvlist_t **);
 #ifdef	__cplusplus
 }
 #endif

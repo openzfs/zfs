@@ -39,20 +39,16 @@
 #include <sys/zfs_znode.h>
 
 int
-zfs_space_delta_cb(dmu_object_type_t bonustype, void *data,
-    uint64_t *userp, uint64_t *groupp, uint64_t *projectp)
+zpl_get_file_info(dmu_object_type_t bonustype, const void *data,
+    zfs_file_info_t *zoi)
 {
-	sa_hdr_phys_t sa;
-	sa_hdr_phys_t *sap = data;
-	uint64_t flags;
-	int hdrsize;
-	boolean_t swap = B_FALSE;
-
 	/*
 	 * Is it a valid type of object to track?
 	 */
 	if (bonustype != DMU_OT_ZNODE && bonustype != DMU_OT_SA)
 		return (SET_ERROR(ENOENT));
+
+	zoi->zfi_project = ZFS_DEFAULT_PROJID;
 
 	/*
 	 * If we have a NULL data pointer
@@ -64,52 +60,55 @@ zfs_space_delta_cb(dmu_object_type_t bonustype, void *data,
 		return (SET_ERROR(EEXIST));
 
 	if (bonustype == DMU_OT_ZNODE) {
-		znode_phys_t *znp = data;
-		*userp = znp->zp_uid;
-		*groupp = znp->zp_gid;
-		*projectp = ZFS_DEFAULT_PROJID;
+		const znode_phys_t *znp = data;
+		zoi->zfi_user = znp->zp_uid;
+		zoi->zfi_group = znp->zp_gid;
+		zoi->zfi_generation = znp->zp_gen;
 		return (0);
 	}
 
+	const sa_hdr_phys_t *sap = data;
 	if (sap->sa_magic == 0) {
 		/*
 		 * This should only happen for newly created files
 		 * that haven't had the znode data filled in yet.
 		 */
-		*userp = 0;
-		*groupp = 0;
-		*projectp = ZFS_DEFAULT_PROJID;
+		zoi->zfi_user = 0;
+		zoi->zfi_group = 0;
+		zoi->zfi_generation = 0;
 		return (0);
 	}
 
-	sa = *sap;
+	sa_hdr_phys_t sa = *sap;
+	boolean_t swap = B_FALSE;
 	if (sa.sa_magic == BSWAP_32(SA_MAGIC)) {
 		sa.sa_magic = SA_MAGIC;
 		sa.sa_layout_info = BSWAP_16(sa.sa_layout_info);
 		swap = B_TRUE;
-	} else {
-		VERIFY3U(sa.sa_magic, ==, SA_MAGIC);
 	}
+	VERIFY3U(sa.sa_magic, ==, SA_MAGIC);
 
-	hdrsize = sa_hdrsize(&sa);
+	int hdrsize = sa_hdrsize(&sa);
 	VERIFY3U(hdrsize, >=, sizeof (sa_hdr_phys_t));
 
-	*userp = *((uint64_t *)((uintptr_t)data + hdrsize + SA_UID_OFFSET));
-	*groupp = *((uint64_t *)((uintptr_t)data + hdrsize + SA_GID_OFFSET));
-	flags = *((uint64_t *)((uintptr_t)data + hdrsize + SA_FLAGS_OFFSET));
+	uintptr_t data_after_hdr = (uintptr_t)data + hdrsize;
+	zoi->zfi_user = *((uint64_t *)(data_after_hdr + SA_UID_OFFSET));
+	zoi->zfi_group = *((uint64_t *)(data_after_hdr + SA_GID_OFFSET));
+	zoi->zfi_generation = *((uint64_t *)(data_after_hdr + SA_GEN_OFFSET));
+	uint64_t flags = *((uint64_t *)(data_after_hdr + SA_FLAGS_OFFSET));
 	if (swap)
 		flags = BSWAP_64(flags);
 
-	if (flags & ZFS_PROJID)
-		*projectp = *((uint64_t *)((uintptr_t)data + hdrsize +
-		    SA_PROJID_OFFSET));
-	else
-		*projectp = ZFS_DEFAULT_PROJID;
+	if (flags & ZFS_PROJID) {
+		zoi->zfi_project =
+		    *((uint64_t *)(data_after_hdr + SA_PROJID_OFFSET));
+	}
 
 	if (swap) {
-		*userp = BSWAP_64(*userp);
-		*groupp = BSWAP_64(*groupp);
-		*projectp = BSWAP_64(*projectp);
+		zoi->zfi_user = BSWAP_64(zoi->zfi_user);
+		zoi->zfi_group = BSWAP_64(zoi->zfi_group);
+		zoi->zfi_project = BSWAP_64(zoi->zfi_project);
+		zoi->zfi_generation = BSWAP_64(zoi->zfi_generation);
 	}
 	return (0);
 }
@@ -269,7 +268,8 @@ zfs_userspace_one(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
 		offset = DMU_OBJACCT_PREFIX_LEN;
 	}
 
-	err = zfs_id_to_fuidstr(zfsvfs, domain, rid, buf + offset, B_FALSE);
+	err = zfs_id_to_fuidstr(zfsvfs, domain, rid, buf + offset,
+	    sizeof (buf) - offset, B_FALSE);
 	if (err)
 		return (err);
 
@@ -325,7 +325,7 @@ zfs_set_userquota(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
 		return (SET_ERROR(EINVAL));
 	}
 
-	err = zfs_id_to_fuidstr(zfsvfs, domain, rid, buf, B_TRUE);
+	err = zfs_id_to_fuidstr(zfsvfs, domain, rid, buf, sizeof (buf), B_TRUE);
 	if (err)
 		return (err);
 	fuid_dirtied = zfsvfs->z_fuid_dirty;
@@ -407,12 +407,13 @@ zfs_id_overobjquota(zfsvfs_t *zfsvfs, uint64_t usedobj, uint64_t id)
 	if (quotaobj == 0 || zfsvfs->z_replay)
 		return (B_FALSE);
 
-	(void) sprintf(buf, "%llx", (longlong_t)id);
+	(void) snprintf(buf, sizeof (buf), "%llx", (longlong_t)id);
 	err = zap_lookup(zfsvfs->z_os, quotaobj, buf, 8, 1, &quota);
 	if (err != 0)
 		return (B_FALSE);
 
-	(void) sprintf(buf, DMU_OBJACCT_PREFIX "%llx", (longlong_t)id);
+	(void) snprintf(buf, sizeof (buf), DMU_OBJACCT_PREFIX "%llx",
+	    (longlong_t)id);
 	err = zap_lookup(zfsvfs->z_os, usedobj, buf, 8, 1, &used);
 	if (err != 0)
 		return (B_FALSE);
@@ -448,7 +449,7 @@ zfs_id_overblockquota(zfsvfs_t *zfsvfs, uint64_t usedobj, uint64_t id)
 	if (quotaobj == 0 || zfsvfs->z_replay)
 		return (B_FALSE);
 
-	(void) sprintf(buf, "%llx", (longlong_t)id);
+	(void) snprintf(buf, sizeof (buf), "%llx", (longlong_t)id);
 	err = zap_lookup(zfsvfs->z_os, quotaobj, buf, 8, 1, &quota);
 	if (err != 0)
 		return (B_FALSE);
@@ -466,7 +467,7 @@ zfs_id_overquota(zfsvfs_t *zfsvfs, uint64_t usedobj, uint64_t id)
 	    zfs_id_overobjquota(zfsvfs, usedobj, id));
 }
 
-EXPORT_SYMBOL(zfs_space_delta_cb);
+EXPORT_SYMBOL(zpl_get_file_info);
 EXPORT_SYMBOL(zfs_userspace_one);
 EXPORT_SYMBOL(zfs_userspace_many);
 EXPORT_SYMBOL(zfs_set_userquota);

@@ -75,7 +75,7 @@ if [ -b "$VDEV_UPATH" ] && [ -x "$smartctl_path" ] || [ -n "$samples" ] ; then
 	if [ -n "$samples" ] ; then
 		# cat a smartctl output text file instead of running smartctl
 		# on a vdev (only used for developer testing).
-		file=$(get_filename_from_dir $samples)
+		file=$(get_filename_from_dir "$samples")
 		echo "file=$file"
 		raw_out=$(cat "$samples/$file")
 	else

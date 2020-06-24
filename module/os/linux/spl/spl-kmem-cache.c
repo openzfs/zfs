@@ -203,7 +203,7 @@ kv_alloc(spl_kmem_cache_t *skc, int size, int flags)
 		ASSERT(ISP2(size));
 		ptr = (void *)__get_free_pages(lflags, get_order(size));
 	} else {
-		ptr = __vmalloc(size, lflags | __GFP_HIGHMEM, PAGE_KERNEL);
+		ptr = spl_vmalloc(size, lflags | __GFP_HIGHMEM);
 	}
 
 	/* Resulting allocated memory will be page aligned */
@@ -1251,7 +1251,7 @@ spl_cache_grow(spl_kmem_cache_t *skc, int flags, void **obj)
 	 * allocation.
 	 *
 	 * However, this can't be applied to KVM_VMEM due to a bug that
-	 * __vmalloc() doesn't honor gfp flags in page table allocation.
+	 * spl_vmalloc() doesn't honor gfp flags in page table allocation.
 	 */
 	if (!(skc->skc_flags & KMC_VMEM) && !(skc->skc_flags & KMC_KVMEM)) {
 		rc = __spl_cache_grow(skc, flags | KM_NOSLEEP);

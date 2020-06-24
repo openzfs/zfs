@@ -254,6 +254,8 @@ boolean_t dmu_objset_projectquota_enabled(objset_t *os);
 boolean_t dmu_objset_projectquota_present(objset_t *os);
 boolean_t dmu_objset_projectquota_upgradable(objset_t *os);
 void dmu_objset_id_quota_upgrade(objset_t *os);
+int dmu_get_file_info(objset_t *os, dmu_object_type_t bonustype,
+    const void *data, zfs_file_info_t *zfi);
 
 int dmu_fsname(const char *snapname, char *buf);
 

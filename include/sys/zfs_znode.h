@@ -212,7 +212,7 @@ typedef struct znode {
 
 	/*
 	 * Platform specific field, defined by each platform and only
-	 * accessable from platform specific code.
+	 * accessible from platform specific code.
 	 */
 	ZNODE_OS_FIELDS;
 } znode_t;

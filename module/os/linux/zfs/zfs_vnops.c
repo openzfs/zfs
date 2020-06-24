@@ -3077,6 +3077,12 @@ top:
 		uint64_t acl_obj;
 		new_mode = (pmode & S_IFMT) | (vap->va_mode & ~S_IFMT);
 
+		if (ZTOZSB(zp)->z_acl_mode == ZFS_ACL_RESTRICTED &&
+		    !(zp->z_pflags & ZFS_ACL_TRIVIAL)) {
+			err = EPERM;
+			goto out;
+		}
+
 		if ((err = zfs_acl_chmod_setattr(zp, &aclp, new_mode)))
 			goto out;
 

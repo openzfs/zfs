@@ -19,7 +19,7 @@
 
 #
 # DESCRIPTION:
-# 'zpool wait' works when waiting for mulitple activities.
+# 'zpool wait' works when waiting for multiple activities.
 #
 # STRATEGY:
 # 1. Create a pool with some data.
@@ -80,4 +80,4 @@ proc_must_exist $pid
 log_must zpool initialize -s $TESTPOOL $DISK1
 bkgrnd_proc_succeeded $pid
 
-log_pass "'zpool wait' works when waiting for mutliple activities."
+log_pass "'zpool wait' works when waiting for multiple activities."

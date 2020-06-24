@@ -282,8 +282,9 @@ has been set somewhere in the tree under which the dataset resides.
 The type of dataset:
 .Sy filesystem ,
 .Sy volume ,
+.Sy snapshot ,
 or
-.Sy snapshot .
+.Sy bookmark .
 .It Sy used
 The amount of space consumed by this dataset and all its descendents.
 This is the value that is checked against this dataset's quota and reservation.
@@ -599,23 +600,24 @@ accordance to the requested mode from the application.
 The
 .Sy aclinherit
 property does not apply to POSIX ACLs.
-.It Sy aclmode Ns = Ns Sy discard Ns | Ns Sy groupmask Ns | Ns Sy passthrough
-.Ns Sy restricted
-Controls how an
-.Tn ACL
-is modified during
-.Xr chmod 2 .
-This property is not visible on Linux yet.
+.It Xo
+.Sy aclmode Ns = Ns Sy discard Ns | Ns Sy groupmask Ns | Ns
+.Sy passthrough Ns | Ns Sy restricted Ns
+.Xc
+Controls how an ACL is modified during chmod(2) and how inherited ACEs
+are modified by the file creation mode.
 .Bl -tag -width "passthrough"
 .It Sy discard
 default, deletes all
-.Tn ACL
-entries that do not represent the mode of the file.
+.Sy ACEs
+except for those representing
+the mode of the file or directory requested by
+.Xr chmod 2 .
 .It Sy groupmask
 reduces permissions granted in all
-.Em ALLOW
-entried found in the
-.Tn ACL
+.Sy ALLOW
+entries found in the
+.Sy ACL
 such that they are no greater than the group permissions specified by
 .Xr chmod 2 .
 .It Sy passthrough

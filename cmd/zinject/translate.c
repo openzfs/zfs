@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2006, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2020 by Delphix. All rights reserved.
  */
 
 #include <libzfs.h>
@@ -388,7 +388,7 @@ translate_device(const char *pool, const char *device, err_type_t label_type,
 		record->zi_end = record->zi_start + VDEV_PAD_SIZE - 1;
 		break;
 	case TYPE_LABEL_PAD2:
-		record->zi_start = offsetof(vdev_label_t, vl_pad2);
+		record->zi_start = offsetof(vdev_label_t, vl_be);
 		record->zi_end = record->zi_start + VDEV_PAD_SIZE - 1;
 		break;
 	}

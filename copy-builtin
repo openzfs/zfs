@@ -11,21 +11,6 @@ usage()
 [ "$#" -eq 1 ] || usage
 KERNEL_DIR="$(readlink --canonicalize-existing "$1")"
 
-MODULES=()
-
-# When integrated in to a monolithic kernel the spl module must appear
-# first.  This ensures its module initialization function is run before
-# any of the other module initialization functions which depend on it.
-MODULES+="spl"
-
-for MODULE_DIR in module/* module/os/linux/*
-do
-	[ -d "$MODULE_DIR" ] || continue
-	[ "spl" = "${MODULE_DIR##*/}" ] && continue
-	[ "os" = "${MODULE_DIR#*/}" ] && continue
-	MODULES+=("${MODULE_DIR#*/}")
-done
-
 if ! [ -e 'zfs_config.h' ]
 then
 	echo >&2
@@ -43,12 +28,6 @@ cp --recursive include "$KERNEL_DIR/include/zfs"
 cp --recursive module "$KERNEL_DIR/fs/zfs"
 cp zfs_config.h "$KERNEL_DIR/include/zfs/"
 
-for MODULE in "${MODULES[@]}"
-do
-	sed -i.bak '/obj =/d' "$KERNEL_DIR/fs/zfs/$MODULE/Makefile"
-	sed -i.bak '/src =/d' "$KERNEL_DIR/fs/zfs/$MODULE/Makefile"
-done
-
 cat > "$KERNEL_DIR/fs/zfs/Kconfig" <<"EOF"
 config ZFS
 	tristate "ZFS filesystem support"
@@ -64,27 +43,6 @@ config ZFS
 
 	  If unsure, say N.
 EOF
-
-{
-	cat <<-"EOF"
-	ZFS_MODULE_CFLAGS  = -I$(srctree)/include/zfs
-	ZFS_MODULE_CFLAGS += -I$(srctree)/include/zfs/os/linux/spl
-	ZFS_MODULE_CFLAGS += -I$(srctree)/include/zfs/os/linux/zfs
-	ZFS_MODULE_CFLAGS += -I$(srctree)/include/zfs/os/linux/kernel
-	ZFS_MODULE_CFLAGS += -include $(srctree)/include/zfs/zfs_config.h
-	ZFS_MODULE_CFLAGS += -std=gnu99 -Wno-declaration-after-statement
-	ZFS_MODULE_CPPFLAGS  = -D_KERNEL
-	ZFS_MODULE_CPPFLAGS += -UDEBUG -DNDEBUG
-	export ZFS_MODULE_CFLAGS ZFS_MODULE_CPPFLAGS
-
-	obj-$(CONFIG_ZFS) :=
-	EOF
-
-	for MODULE in "${MODULES[@]}"
-	do
-		echo 'obj-$(CONFIG_ZFS) += ' "$MODULE/"
-	done
-} > "$KERNEL_DIR/fs/zfs/Kbuild"
 
 add_after()
 {

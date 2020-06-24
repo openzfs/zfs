@@ -453,7 +453,7 @@ txg_dispatch_callbacks(dsl_pool_t *dp, uint64_t txg)
 			 * Commit callback taskq hasn't been created yet.
 			 */
 			tx->tx_commit_cb_taskq = taskq_create("tx_commit_cb",
-			    max_ncpus, defclsyspri, max_ncpus, max_ncpus * 2,
+			    boot_ncpus, defclsyspri, boot_ncpus, boot_ncpus * 2,
 			    TASKQ_PREPOPULATE | TASKQ_DYNAMIC);
 		}
 
@@ -1054,6 +1054,6 @@ EXPORT_SYMBOL(txg_stalled);
 EXPORT_SYMBOL(txg_sync_waiting);
 
 /* BEGIN CSTYLED */
-ZFS_MODULE_PARAM(zfs, zfs_, txg_timeout, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_txg, zfs_txg_, timeout, INT, ZMOD_RW,
 	"Max seconds worth of delta per txg");
 /* END CSTYLED */

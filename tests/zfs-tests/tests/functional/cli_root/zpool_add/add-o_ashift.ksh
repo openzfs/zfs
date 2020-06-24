@@ -75,7 +75,7 @@ typeset badvals=("off" "on" "1" "8" "17" "1b" "ff" "-")
 for badval in ${badvals[@]}
 do
 	log_must zpool create $TESTPOOL $disk1
-	log_mustnot zpool add $TESTPOOL -o ashift="$badval" $disk2
+	log_mustnot zpool add -o ashift="$badval" $TESTPOOL $disk2
 	# clean things for the next run
 	log_must zpool destroy $TESTPOOL
 	log_must zpool labelclear $disk1

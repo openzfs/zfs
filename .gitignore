@@ -62,4 +62,9 @@ cscope.*
 *.patch
 *.orig
 *.log
+*.tmp
 venv
+
+*.so
+*.so.debug
+*.so.full

@@ -245,7 +245,8 @@ dsl_dir_hold_obj(dsl_pool_t *dp, uint64_t ddobj,
 			if (err != 0)
 				goto errout;
 		} else {
-			(void) strcpy(dd->dd_myname, spa_name(dp->dp_spa));
+			(void) strlcpy(dd->dd_myname, spa_name(dp->dp_spa),
+			    sizeof (dd->dd_myname));
 		}
 
 		if (dsl_dir_is_clone(dd)) {
@@ -423,7 +424,7 @@ getcomponent(const char *path, char *component, const char **nextp)
 			return (SET_ERROR(EINVAL));
 		if (strlen(path) >= ZFS_MAX_DATASET_NAME_LEN)
 			return (SET_ERROR(ENAMETOOLONG));
-		(void) strcpy(component, path);
+		(void) strlcpy(component, path, ZFS_MAX_DATASET_NAME_LEN);
 		p = NULL;
 	} else if (p[0] == '/') {
 		if (p - path >= ZFS_MAX_DATASET_NAME_LEN)

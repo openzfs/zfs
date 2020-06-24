@@ -40,6 +40,7 @@ KERNEL_C = \
 	zpool_prop.c \
 	zprop_common.c \
 	abd.c \
+	abd_os.c \
 	aggsum.c \
 	arc.c \
 	arc_os.c \
@@ -190,8 +191,13 @@ libzpool_la_LIBADD = \
 	$(top_builddir)/lib/libunicode/libunicode.la \
 	$(top_builddir)/lib/libzutil/libzutil.la
 
+if BUILD_FREEBSD
+libzpool_la_LIBADD += $(ZLIB) -ldl -lgeom
+libzpool_la_LDFLAGS = -pthread -version-info 4:0:0
+else
 libzpool_la_LIBADD += $(ZLIB) -ldl
 libzpool_la_LDFLAGS = -pthread -version-info 2:0:0
+endif
 
 EXTRA_DIST = $(USER_C)
 
