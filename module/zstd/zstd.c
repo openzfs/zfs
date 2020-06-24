@@ -461,7 +461,8 @@ zstd_decompress_level(void *s_start, void *d_start, size_t s_len, size_t d_len,
 	 * An invalid level is a strong indicator for data corruption! In such
 	 * case return an error so the upper layers can try to fix it.
 	 */
-	if (version >= 10405 && zstd_enum_to_level(hdr_copy.level, &zstd_level)) {
+	if (version >= 10405 &&
+	    zstd_enum_to_level(hdr_copy.level, &zstd_level)) {
 		ZSTDSTAT_BUMP(zstd_stat_dec_inval);
 		return (1);
 	}
