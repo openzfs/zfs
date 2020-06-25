@@ -7,7 +7,8 @@ EXTRA_DIST = \
 	zfs-share.in \
 	zfs-import.in \
 	zfs-mount.in \
-	zfs-zed.in
+	zfs-zed.in \
+	README.md
 
 $(init_SCRIPTS):%:%.in Makefile
 	-(if [ -e /etc/debian_version ]; then \

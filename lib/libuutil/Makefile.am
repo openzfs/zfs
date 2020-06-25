@@ -13,7 +13,7 @@ USER_C = \
 	uu_pname.c \
 	uu_string.c
 
-nodist_libuutil_la_SOURCES = $(USER_C)
+libuutil_la_SOURCES = $(USER_C)
 
 libuutil_la_LIBADD = \
 	$(top_builddir)/lib/libavl/libavl.la \
@@ -24,5 +24,3 @@ libuutil_la_LDFLAGS = -pthread -version-info 3:0:0
 else
 libuutil_la_LDFLAGS = -pthread -version-info 1:1:0
 endif
-
-EXTRA_DIST = $(USER_C)

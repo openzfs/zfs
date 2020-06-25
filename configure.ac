@@ -143,9 +143,6 @@ AC_CONFIG_FILES([
 	lib/libnvpair/Makefile
 	lib/libshare/Makefile
 	lib/libspl/Makefile
-	lib/libspl/asm-generic/Makefile
-	lib/libspl/asm-i386/Makefile
-	lib/libspl/asm-x86_64/Makefile
 	lib/libspl/include/Makefile
 	lib/libspl/include/ia32/Makefile
 	lib/libspl/include/ia32/sys/Makefile

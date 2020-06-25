@@ -18,6 +18,7 @@ dist_pkgdata_SCRIPTS = \
 	rsend_012_pos.ksh \
 	rsend_013_pos.ksh \
 	rsend_014_pos.ksh \
+	rsend_016_neg.ksh \
 	rsend_019_pos.ksh \
 	rsend_020_pos.ksh \
 	rsend_021_pos.ksh \

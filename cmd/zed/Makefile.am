@@ -43,3 +43,5 @@ zed_LDADD = \
 
 zed_LDADD += -lrt
 zed_LDFLAGS = -pthread
+
+EXTRA_DIST = agents/README.md

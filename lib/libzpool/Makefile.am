@@ -189,8 +189,10 @@ LUA_C = \
 	lvm.c \
 	lzio.c
 
+dist_libzpool_la_SOURCES = \
+	$(USER_C)
+
 nodist_libzpool_la_SOURCES = \
-	$(USER_C) \
 	$(KERNEL_C) \
 	$(LUA_C)
 
@@ -207,8 +209,6 @@ else
 libzpool_la_LIBADD += $(ZLIB) -ldl
 libzpool_la_LDFLAGS = -pthread -version-info 2:0:0
 endif
-
-EXTRA_DIST = $(USER_C)
 
 if TARGET_CPU_POWERPC
 vdev_raidz_math_powerpc_altivec.$(OBJEXT): CFLAGS += -maltivec

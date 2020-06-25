@@ -63,8 +63,10 @@ KERNEL_C = \
 	zpool_prop.c \
 	zprop_common.c
 
+dist_libzfs_la_SOURCES = \
+	$(USER_C)
+
 nodist_libzfs_la_SOURCES = \
-	$(USER_C) \
 	$(KERNEL_C)
 
 libzfs_la_LIBADD = \
@@ -87,7 +89,5 @@ endif
 
 libzfs_la_LIBADD += -lm $(LIBSSL)
 
-EXTRA_DIST = $(libzfs_pc_DATA) $(USER_C)
-
 # Licensing data
-EXTRA_DIST += THIRDPARTYLICENSE.openssl THIRDPARTYLICENSE.openssl.descrip
+EXTRA_DIST = THIRDPARTYLICENSE.openssl THIRDPARTYLICENSE.openssl.descrip
