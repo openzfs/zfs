@@ -126,72 +126,16 @@ arc_available_memory(void)
 	int64_t lowest = INT64_MAX;
 	free_memory_reason_t r = FMR_UNKNOWN;
 	int64_t n;
-#ifdef freemem
-#undef freemem
-#endif
-	pgcnt_t needfree = btop(arc_need_free);
-	pgcnt_t lotsfree = btop(arc_sys_free);
-	pgcnt_t desfree = 0;
-	pgcnt_t freemem = btop(arc_free_memory());
 
-	if (needfree > 0) {
-		n = PAGESIZE * (-needfree);
-		if (n < lowest) {
-			lowest = n;
-			r = FMR_NEEDFREE;
-		}
+	if (arc_need_free > 0) {
+		lowest = -arc_need_free;
+		r = FMR_NEEDFREE;
 	}
 
-	/*
-	 * check that we're out of range of the pageout scanner.  It starts to
-	 * schedule paging if freemem is less than lotsfree and needfree.
-	 * lotsfree is the high-water mark for pageout, and needfree is the
-	 * number of needed free pages.  We add extra pages here to make sure
-	 * the scanner doesn't start up while we're freeing memory.
-	 */
-	n = PAGESIZE * (freemem - lotsfree - needfree - desfree);
+	n = arc_free_memory() - arc_sys_free - arc_need_free;
 	if (n < lowest) {
 		lowest = n;
 		r = FMR_LOTSFREE;
-	}
-
-#if defined(_ILP32)
-	/*
-	 * If we're on a 32-bit platform, it's possible that we'll exhaust the
-	 * kernel heap space before we ever run out of available physical
-	 * memory.  Most checks of the size of the heap_area compare against
-	 * tune.t_minarmem, which is the minimum available real memory that we
-	 * can have in the system.  However, this is generally fixed at 25 pages
-	 * which is so low that it's useless.  In this comparison, we seek to
-	 * calculate the total heap-size, and reclaim if more than 3/4ths of the
-	 * heap is allocated.  (Or, in the calculation, if less than 1/4th is
-	 * free)
-	 */
-	n = vmem_size(heap_arena, VMEM_FREE) -
-	    (vmem_size(heap_arena, VMEM_FREE | VMEM_ALLOC) >> 2);
-	if (n < lowest) {
-		lowest = n;
-		r = FMR_HEAP_ARENA;
-	}
-#endif
-
-	/*
-	 * If zio data pages are being allocated out of a separate heap segment,
-	 * then enforce that the size of available vmem for this arena remains
-	 * above about 1/4th (1/(2^arc_zio_arena_free_shift)) free.
-	 *
-	 * Note that reducing the arc_zio_arena_free_shift keeps more virtual
-	 * memory (in the zio_arena) free, which can avoid memory
-	 * fragmentation issues.
-	 */
-	if (zio_arena != NULL) {
-		n = (int64_t)vmem_size(zio_arena, VMEM_FREE) -
-		    (vmem_size(zio_arena, VMEM_ALLOC) >>
-		    arc_zio_arena_free_shift);
-		if (n < lowest) {
-			lowest = n;
-			r = FMR_ZIO_ARENA;
-		}
 	}
 
 	last_free_memory = lowest;
@@ -317,14 +261,9 @@ SPL_SHRINKER_DECLARE(arc_shrinker,
 int
 arc_memory_throttle(spa_t *spa, uint64_t reserve, uint64_t txg)
 {
-	uint64_t available_memory = arc_free_memory();
+	uint64_t free_memory = arc_free_memory();
 
-#if defined(_ILP32)
-	available_memory =
-	    MIN(available_memory, vmem_size(heap_arena, VMEM_FREE));
-#endif
-
-	if (available_memory > arc_all_memory() * arc_lotsfree_percent / 100)
+	if (free_memory > arc_all_memory() * arc_lotsfree_percent / 100)
 		return (0);
 
 	if (txg > spa->spa_lowmem_last_txg) {
@@ -338,7 +277,7 @@ arc_memory_throttle(spa_t *spa, uint64_t reserve, uint64_t txg)
 	 */
 	if (current_is_kswapd()) {
 		if (spa->spa_lowmem_page_load >
-		    MAX(arc_sys_free / 4, available_memory) / 4) {
+		    MAX(arc_sys_free / 4, free_memory) / 4) {
 			DMU_TX_STAT_BUMP(dmu_tx_memory_reclaim);
 			return (SET_ERROR(ERESTART));
 		}

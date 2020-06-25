@@ -52,7 +52,6 @@
 uint64_t physmem;
 char hw_serial[HW_HOSTID_LEN];
 struct utsname hw_utsname;
-vmem_t *zio_arena = NULL;
 
 /* If set, all blocks read will be copied to the specified directory. */
 char *vn_dumpdir = NULL;

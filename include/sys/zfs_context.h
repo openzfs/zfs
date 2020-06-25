@@ -413,11 +413,8 @@ void procfs_list_add(procfs_list_t *procfs_list, void *p);
 #define	kmem_debugging()	0
 #define	kmem_cache_reap_now(_c)	umem_cache_reap_now(_c);
 #define	kmem_cache_set_move(_c, _cb)	/* nothing */
-#define	vmem_qcache_reap(_v)		/* nothing */
 #define	POINTER_INVALIDATE(_pp)		/* nothing */
 #define	POINTER_IS_VALID(_p)	0
-
-extern vmem_t *zio_arena;
 
 typedef umem_cache_t kmem_cache_t;
 

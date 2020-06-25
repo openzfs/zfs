@@ -48,13 +48,6 @@
 
 extern struct vfsops zfs_vfsops;
 
-/* vmem_size typemask */
-#define	VMEM_ALLOC	0x01
-#define	VMEM_FREE	0x02
-#define	VMEM_MAXFREE	0x10
-typedef size_t		vmem_size_t;
-extern vmem_size_t vmem_size(vmem_t *vm, int typemask);
-
 uint_t zfs_arc_free_target = 0;
 
 int64_t last_free_memory;
@@ -134,25 +127,6 @@ arc_available_memory(void)
 		r = FMR_HEAP_ARENA;
 	}
 #endif
-
-	/*
-	 * If zio data pages are being allocated out of a separate heap segment,
-	 * then enforce that the size of available vmem for this arena remains
-	 * above about 1/4th (1/(2^arc_zio_arena_free_shift)) free.
-	 *
-	 * Note that reducing the arc_zio_arena_free_shift keeps more virtual
-	 * memory (in the zio_arena) free, which can avoid memory
-	 * fragmentation issues.
-	 */
-	if (zio_arena != NULL) {
-		n = (int64_t)vmem_size(zio_arena, VMEM_FREE) -
-		    (vmem_size(zio_arena, VMEM_ALLOC) >>
-		    arc_zio_arena_free_shift);
-		if (n < lowest) {
-			lowest = n;
-			r = FMR_ZIO_ARENA;
-		}
-	}
 
 	last_free_memory = lowest;
 	last_free_reason = r;
