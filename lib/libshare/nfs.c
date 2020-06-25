@@ -37,6 +37,7 @@
 #include <unistd.h>
 #include <libgen.h>
 #include <libzfs.h>
+#include <libzfs_impl.h>
 #include <libshare.h>
 #include "libshare_impl.h"
 #include "nfs.h"
