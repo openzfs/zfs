@@ -20,8 +20,6 @@ USER_H = \
 	libzutil.h \
 	thread_pool.h
 
-EXTRA_DIST = $(COMMON_H) $(USER_H)
-
 if CONFIG_USER
 libzfsdir = $(includedir)/libzfs
 libzfs_HEADERS = $(COMMON_H) $(USER_H)

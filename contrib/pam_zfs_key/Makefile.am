@@ -14,5 +14,4 @@ pam_zfs_key_la_LDFLAGS = -version-info 1:0:0 -avoid-version -module -shared
 
 pam_zfs_key_la_LIBADD += -lpam $(LIBSSL)
 
-pamconfigs_DATA = zfs_key
-EXTRA_DIST = $(pamconfigs_DATA)
+dist_pamconfigs_DATA = zfs_key

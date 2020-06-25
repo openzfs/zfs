@@ -133,13 +133,9 @@ KERNEL_H = \
 	zvol.h \
 	zvol_impl.h
 
-USER_H =
-
-EXTRA_DIST = $(COMMON_H) $(KERNEL_H) $(USER_H)
-
 if CONFIG_USER
 libzfsdir = $(includedir)/libzfs/sys
-libzfs_HEADERS = $(COMMON_H) $(USER_H)
+libzfs_HEADERS = $(COMMON_H)
 endif
 
 if CONFIG_KERNEL

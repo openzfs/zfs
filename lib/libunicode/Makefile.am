@@ -7,14 +7,9 @@ AM_CFLAGS += $(FRAME_LARGER_THAN)
 
 noinst_LTLIBRARIES = libunicode.la
 
-USER_C =
-
 KERNEL_C = \
 	u8_textprep.c \
 	uconv.c
 
 nodist_libunicode_la_SOURCES = \
-	$(USER_C) \
 	$(KERNEL_C)
-
-EXTRA_DIST = $(USER_C)

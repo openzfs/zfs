@@ -20,8 +20,10 @@ KERNEL_C = \
 	nvpair.c \
 	fnvpair.c
 
+dist_libnvpair_la_SOURCES = \
+	$(USER_C)
+
 nodist_libnvpair_la_SOURCES = \
-	$(USER_C) \
 	$(KERNEL_C)
 
 if BUILD_FREEBSD
@@ -31,7 +33,3 @@ else
 libnvpair_la_LIBADD = $(LIBTIRPC_LIBS)
 libnvpair_la_LDFLAGS = -version-info 1:1:0
 endif
-
-
-
-EXTRA_DIST = $(USER_C)
