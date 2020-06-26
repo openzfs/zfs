@@ -29,6 +29,7 @@ endif
 
 AUTOMAKE_OPTIONS = foreign
 EXTRA_DIST  = autogen.sh copy-builtin
+EXTRA_DIST += cppcheck-suppressions.txt
 EXTRA_DIST += config/config.awk config/rpm.am config/deb.am config/tgz.am
 EXTRA_DIST += META AUTHORS COPYRIGHT LICENSE NEWS NOTICE README.md
 EXTRA_DIST += CODE_OF_CONDUCT.md
@@ -176,7 +177,7 @@ lint: cppcheck paxcheck
 cppcheck:
 	@if type cppcheck > /dev/null 2>&1; then \
 		cppcheck --quiet --force --error-exitcode=2 --inline-suppr \
-			--suppressions-list=.github/suppressions.txt \
+			--suppressions-list=${top_srcdir}/cppcheck-suppressions.txt \
 			-UHAVE_SSE2 -UHAVE_AVX512F -UHAVE_UIO_ZEROCOPY \
 			${top_srcdir}; \
 	else \
