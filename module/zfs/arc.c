@@ -4148,6 +4148,15 @@ arc_evict_state_impl(multilist_t *ml, int idx, arc_buf_hdr_t *marker,
 
 	multilist_sublist_unlock(mls);
 
+	/*
+	 * If the ARC size is reduced from arc_c_max to arc_c_min (especially
+	 * if the average cached block is small), eviction can be on-CPU for
+	 * many seconds.  To ensure that other threads that may be bound to
+	 * this CPU are able to make progress, make a voluntary preemption
+	 * call here.
+	 */
+	cond_resched();
+
 	return (bytes_evicted);
 }
 
@@ -5372,6 +5381,24 @@ __arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
 	 */
 	if (pages > 0) {
 		arc_reduce_target_size(ptob(sc->nr_to_scan));
+
+		/*
+		 * Repeated calls to the arc shrinker can reduce arc_c
+		 * drastically, potentially all the way to arc_c_min.  While
+		 * arc_c is below arc_size, ZFS can't process read/write
+		 * requests, because arc_get_data_impl() will block.  To
+		 * ensure that arc_c doesn't shrink faster than the adjust
+		 * thread can keep up, we wait for eviction here.
+		 */
+		mutex_enter(&arc_adjust_lock);
+		if (arc_is_overflowing()) {
+			arc_adjust_needed = B_TRUE;
+			zthr_wakeup(arc_adjust_zthr);
+			(void) cv_wait(&arc_adjust_waiters_cv,
+			    &arc_adjust_lock);
+		}
+		mutex_exit(&arc_adjust_lock);
+
 		if (current_is_kswapd())
 			arc_kmem_reap_soon();
 #ifdef HAVE_SPLIT_SHRINKER_CALLBACK
