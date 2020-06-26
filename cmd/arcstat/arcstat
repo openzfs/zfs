@@ -81,6 +81,7 @@ cols = {
     "mh%":        [3, 100, "Metadata hit percentage"],
     "mm%":        [3, 100, "Metadata miss percentage"],
     "arcsz":      [5, 1024, "ARC size"],
+    "size":       [4, 1024, "ARC size"],
     "c":          [4, 1024, "ARC target size"],
     "mfu":        [4, 1000, "MFU list hits per second"],
     "mru":        [4, 1000, "MRU list hits per second"],
@@ -106,7 +107,7 @@ cols = {
 
 v = {}
 hdr = ["time", "read", "miss", "miss%", "dmis", "dm%", "pmis", "pm%", "mmis",
-       "mm%", "arcsz", "c"]
+       "mm%", "size", "c", "avail"]
 xhdr = ["time", "mfu", "mru", "mfug", "mrug", "eskip", "mtxmis", "dread",
         "pread", "read"]
 sint = 1               # Default interval is 1 second
@@ -429,6 +430,7 @@ def calculate():
     v["mm%"] = 100 - v["mh%"] if v["mread"] > 0 else 0
 
     v["arcsz"] = cur["size"]
+    v["size"] = cur["size"]
     v["c"] = cur["c"]
     v["mfu"] = d["mfu_hits"] / sint
     v["mru"] = d["mru_hits"] / sint
