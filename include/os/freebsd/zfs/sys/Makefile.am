@@ -11,7 +11,4 @@ KERNEL_H = \
 	zfs_znode_impl.h \
 	zpl.h
 
-if CONFIG_KERNEL
-kerneldir = @prefix@/src/zfs-$(VERSION)/include/sys
-kernel_HEADERS = $(KERNEL_H)
-endif
+noinst_HEADERS = $(KERNEL_H)
