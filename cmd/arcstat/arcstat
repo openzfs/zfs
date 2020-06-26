@@ -246,11 +246,9 @@ def print_values():
     global sep
     global v
 
-    for col in hdr:
-        sys.stdout.write("%s%s" % (
-            prettynum(cols[col][0], cols[col][1], v[col]),
-            sep
-        ))
+    sys.stdout.write(sep.join(
+      (prettynum(cols[col][0], cols[col][1], v[col]) for col in hdr)))
+
     sys.stdout.write("\n")
     sys.stdout.flush()
 
