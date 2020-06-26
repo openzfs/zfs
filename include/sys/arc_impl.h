@@ -894,6 +894,7 @@ extern int arc_lotsfree_percent;
 extern void arc_reduce_target_size(int64_t to_free);
 extern boolean_t arc_reclaim_needed(void);
 extern void arc_kmem_reap_soon(void);
+extern boolean_t arc_is_overflowing(void);
 
 extern void arc_lowmem_init(void);
 extern void arc_lowmem_fini(void);
