@@ -15,6 +15,8 @@ KERNEL_H = \
 	compiler_compat.h
 
 if CONFIG_KERNEL
+if BUILD_LINUX
 kerneldir = @prefix@/src/zfs-$(VERSION)/include/linux
 kernel_HEADERS = $(KERNEL_H)
+endif
 endif
