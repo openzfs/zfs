@@ -12,6 +12,12 @@ install: modules_install
 uninstall: modules_uninstall
 check:
 
+.PHONY: all distclean maintainer-clean install uninstall check distdir \
+	modules modules-Linux modules-FreeBSD modules-unknown \
+	clean clean-Linux clean-FreeBSD \
+	modules_install modules_install-Linux modules_install-FreeBSD \
+	modules_uninstall modules_uninstall-Linux modules_uninstall-FreeBSD
+
 # Filter out options that FreeBSD make doesn't understand
 getflags = ( \
 set -- \
@@ -93,33 +99,6 @@ modules_install-Linux:
 		depmod -ae -F $$sysmap @LINUX_VERSION@; \
 	fi
 
-CTAGS: ctags
-ctags-am: $(TAGS_DEPENDENCIES) $(am__tagged_files)
-	$(am__define_uniq_tagged_files); \
-	test -z "$(CTAGS_ARGS)$$unique" \
-	  || $(CTAGS) $(CTAGSFLAGS) $(AM_CTAGSFLAGS) $(CTAGS_ARGS) \
-	     $$unique
-
-GTAGS:
-	here=`$(am__cd) $(top_builddir) && pwd` \
-	  && $(am__cd) $(top_srcdir) \
-	  && gtags -i $(GTAGS_ARGS) "$$here"
-cscopelist: cscopelist-recursive
-
-cscopelist-am: $(am__tagged_files)
-	list='$(am__tagged_files)'; \
-	case "$(srcdir)" in \
-	  [\\/]* | ?:[\\/]*) sdir="$(srcdir)" ;; \
-	  *) sdir=$(subdir)/$(srcdir) ;; \
-	esac; \
-	for i in $$list; do \
-	  if test -f "$$i"; then \
-	    echo "$(subdir)/$$i"; \
-	  else \
-	    echo "$$sdir/$$i"; \
-	  fi; \
-	done >> $(top_builddir)/cscope.files
-
 modules_install-FreeBSD:
 	@# Install the kernel modules
 	+$(FMAKE) install
@@ -128,7 +107,7 @@ modules_install: modules_install-@ac_system@
 
 modules_uninstall-Linux:
 	@# Uninstall the kernel modules
-	kmoddir=$(DESTDIR)$(INSTALL_MOD_PATH)$(LINUX_MOD_DIR); \
+	kmoddir=$(DESTDIR)$(INSTALL_MOD_PATH)/lib/modules/@LINUX_VERSION@; \
 	debugdir=$(DESTDIR)$(INSTALL_MOD_PATH)$(LINUX_DEBUG_MOD_DIR); \
 	list='$(ZFS_MODULES)'; for objdir in $$list; do \
 		$(RM) -R $$kmoddir/$(INSTALL_MOD_DIR)/$$objdir; \
