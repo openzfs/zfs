@@ -55,7 +55,7 @@ EXTRA_DIST += module/zfs/THIRDPARTYLICENSE.cityhash.descrip
 
 GITREV = include/zfs_gitrev.h
 
-.PHONY: gitrev
+PHONY = gitrev
 gitrev:
 	ZFS_GITREV=$$(cd $(top_srcdir) && \
 		git describe --always --long --dirty 2>/dev/null); \
@@ -113,15 +113,19 @@ install-data-hook:
 endif
 endif
 
+PHONY += codecheck
 codecheck: cstyle shellcheck flake8 mancheck testscheck vcscheck
 
+PHONY += checkstyle
 checkstyle: codecheck commitcheck
 
+PHONY += commitcheck
 commitcheck:
 	@if git rev-parse --git-dir > /dev/null 2>&1; then \
 		${top_srcdir}/scripts/commitcheck.sh; \
 	fi
 
+PHONY += cstyle
 cstyle:
 	@find ${top_srcdir} -name build -prune -o -type f -name '*.[hc]' \
 		! -name 'zfs_config.*' ! -name '*.mod.c' \
@@ -130,6 +134,7 @@ cstyle:
 
 filter_executable = -exec test -x '{}' \; -print
 
+PHONY += shellcheck
 shellcheck:
 	@if type shellcheck > /dev/null 2>&1; then \
 		shellcheck --exclude=SC1090 --exclude=SC1117 --format=gcc \
@@ -141,6 +146,7 @@ shellcheck:
 		echo "skipping shellcheck because shellcheck is not installed"; \
 	fi
 
+PHONY += mancheck
 mancheck:
 	@if type mandoc > /dev/null 2>&1; then \
 		find ${top_srcdir}/man/man8 -type f -name 'zfs.8' \
@@ -157,6 +163,7 @@ else
 stat_fmt = -f '%Sp %N'
 endif
 
+PHONY += testscheck
 testscheck:
 	@find ${top_srcdir}/tests/zfs-tests -type f \
 		\( -name '*.ksh' -not ${filter_executable} \) -o \
@@ -166,14 +173,17 @@ testscheck:
 		xargs -r stat ${stat_fmt} | \
 		awk '{c++; print} END {if(c>0) exit 1}'
 
+PHONY += vcscheck
 vcscheck:
 	@if git rev-parse --git-dir > /dev/null 2>&1; then \
 		git ls-files . --exclude-standard --others | \
 		awk '{c++; print} END {if(c>0) exit 1}' ; \
 	fi
 
+PHONY += lint
 lint: cppcheck paxcheck
 
+PHONY += cppcheck
 cppcheck:
 	@if type cppcheck > /dev/null 2>&1; then \
 		cppcheck --quiet --force --error-exitcode=2 --inline-suppr \
@@ -184,6 +194,7 @@ cppcheck:
 		echo "skipping cppcheck because cppcheck is not installed"; \
 	fi
 
+PHONY += paxcheck
 paxcheck:
 	@if type scanelf > /dev/null 2>&1; then \
 		${top_srcdir}/scripts/paxcheck.sh ${top_builddir}; \
@@ -191,6 +202,7 @@ paxcheck:
 		echo "skipping paxcheck because scanelf is not installed"; \
 	fi
 
+PHONY += flake8
 flake8:
 	@if type flake8 > /dev/null 2>&1; then \
 		flake8 ${top_srcdir}; \
@@ -198,23 +210,30 @@ flake8:
 		echo "skipping flake8 because flake8 is not installed"; \
 	fi
 
+PHONY += ctags
 ctags:
 	$(RM) tags
 	find $(top_srcdir) -name '.?*' -prune \
 		-o -type f -name '*.[hcS]' -print | xargs ctags -a
 
+PHONY += etags
 etags:
 	$(RM) TAGS
 	find $(top_srcdir) -name '.?*' -prune \
 		-o -type f -name '*.[hcS]' -print | xargs etags -a
 
+PHONY += cscopelist
 cscopelist:
 	find $(top_srcdir) -name '.?*' -prune \
 		-o -type f -name '*.[hc]' -print >cscope.files
 
+PHONY += tags
 tags: ctags etags
 
+PHONY += pkg pkg-dkms pkg-kmod pkg-utils
 pkg: @DEFAULT_PACKAGE@
 pkg-dkms: @DEFAULT_PACKAGE@-dkms
 pkg-kmod: @DEFAULT_PACKAGE@-kmod
 pkg-utils: @DEFAULT_PACKAGE@-utils
+
+.PHONY: $(PHONY)
