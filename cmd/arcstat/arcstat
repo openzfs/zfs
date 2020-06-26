@@ -102,7 +102,7 @@ cols = {
     "grow":       [4, 1000, "ARC grow disabled"],
     "need":       [4, 1024, "ARC reclaim need"],
     "free":       [4, 1024, "ARC free memory"],
-    "avail":      [4, 1024, "ARC available memory"],
+    "avail":      [5, 1024, "ARC available memory"],
 }
 
 v = {}
