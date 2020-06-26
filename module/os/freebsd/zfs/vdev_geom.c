@@ -29,6 +29,7 @@
 #include <sys/param.h>
 #include <sys/kernel.h>
 #include <sys/bio.h>
+#include <sys/file.h>
 #include <sys/spa.h>
 #include <sys/spa_impl.h>
 #include <sys/vdev_impl.h>
