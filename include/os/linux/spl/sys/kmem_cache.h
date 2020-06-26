@@ -124,7 +124,6 @@ extern struct rw_semaphore spl_kmem_cache_sem;
 
 typedef int (*spl_kmem_ctor_t)(void *, void *, int);
 typedef void (*spl_kmem_dtor_t)(void *, void *);
-typedef void (*spl_kmem_reclaim_t)(void *);
 
 typedef struct spl_kmem_magazine {
 	uint32_t		skm_magic;	/* Sanity magic */
@@ -174,7 +173,6 @@ typedef struct spl_kmem_cache {
 	uint32_t		skc_mag_refill;	/* Magazine refill count */
 	spl_kmem_ctor_t		skc_ctor;	/* Constructor */
 	spl_kmem_dtor_t		skc_dtor;	/* Destructor */
-	spl_kmem_reclaim_t	skc_reclaim;	/* Reclaimator */
 	void			*skc_private;	/* Private data */
 	void			*skc_vmp;	/* Unused */
 	struct kmem_cache	*skc_linux_cache; /* Linux slab cache if used */
@@ -210,7 +208,7 @@ typedef struct spl_kmem_cache {
 
 extern spl_kmem_cache_t *spl_kmem_cache_create(char *name, size_t size,
     size_t align, spl_kmem_ctor_t ctor, spl_kmem_dtor_t dtor,
-    spl_kmem_reclaim_t reclaim, void *priv, void *vmp, int flags);
+    void *reclaim, void *priv, void *vmp, int flags);
 extern void spl_kmem_cache_set_move(spl_kmem_cache_t *,
     kmem_cbrc_t (*)(void *, void *, size_t, void *));
 extern void spl_kmem_cache_destroy(spl_kmem_cache_t *skc);
