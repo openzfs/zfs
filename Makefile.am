@@ -186,7 +186,7 @@ cppcheck:
 
 paxcheck:
 	@if type scanelf > /dev/null 2>&1; then \
-		${top_srcdir}/scripts/paxcheck.sh ${top_srcdir}; \
+		${top_srcdir}/scripts/paxcheck.sh ${top_builddir}; \
 	else \
 		echo "skipping paxcheck because scanelf is not installed"; \
 	fi
