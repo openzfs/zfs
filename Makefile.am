@@ -47,11 +47,25 @@ EXTRA_DIST += module/zfs/THIRDPARTYLICENSE.cityhash.descrip
 
 @CODE_COVERAGE_RULES@
 
+GITREV = include/zfs_gitrev.h
+
 .PHONY: gitrev
 gitrev:
-	-${top_srcdir}/scripts/make_gitrev.sh
+	ZFS_GITREV=$$(cd $(top_srcdir) && \
+		git describe --always --long --dirty 2>/dev/null); \
+	ZFS_GITREV=$${ZFS_GITREV:-unknown}; \
+	printf '#define\tZFS_META_GITREV "%s"\n' \
+			"$${ZFS_GITREV}" >$(GITREV)~; \
+	if cmp -s $(GITREV) $(GITREV)~; then \
+		$(RM) $(GITREV)~; \
+	else \
+		mv -f $(GITREV)~ $(GITREV); \
+	fi
 
-BUILT_SOURCES = gitrev
+$(GITREV): gitrev
+
+BUILT_SOURCES = $(GITREV)
+CLEANFILES = $(GITREV)
 
 # Double-colon rules are allowed; there are multiple independent definitions.
 distclean-local::
@@ -70,8 +84,7 @@ all-local:
 	-[ -x ${top_builddir}/scripts/zfs-tests.sh ] && \
 	    ${top_builddir}/scripts/zfs-tests.sh -c
 
-dist-hook: gitrev
-	cp ${top_srcdir}/include/zfs_gitrev.h $(distdir)/include; \
+dist-hook:
 	sed ${ac_inplace} -e 's/Release:[[:print:]]*/Release:      $(RELEASE)/' \
 		$(distdir)/META
 
