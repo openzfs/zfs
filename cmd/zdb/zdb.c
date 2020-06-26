@@ -4161,6 +4161,7 @@ static const char *zdb_ot_extname[] = {
 };
 
 #define	ZB_TOTAL	DN_MAX_LEVELS
+#define	SPA_MAX_FOR_16M	(SPA_MAXBLOCKSHIFT+1)
 
 typedef struct zdb_cb {
 	zdb_blkstats_t	zcb_type[ZB_TOTAL + 1][ZDB_OT_TOTAL + 1];
@@ -4168,6 +4169,15 @@ typedef struct zdb_cb {
 	uint64_t	zcb_checkpoint_size;
 	uint64_t	zcb_dedup_asize;
 	uint64_t	zcb_dedup_blocks;
+	uint64_t	zcb_psize_count[SPA_MAX_FOR_16M];
+	uint64_t	zcb_lsize_count[SPA_MAX_FOR_16M];
+	uint64_t	zcb_asize_count[SPA_MAX_FOR_16M];
+	uint64_t	zcb_psize_len[SPA_MAX_FOR_16M];
+	uint64_t	zcb_lsize_len[SPA_MAX_FOR_16M];
+	uint64_t	zcb_asize_len[SPA_MAX_FOR_16M];
+	uint64_t	zcb_psize_total;
+	uint64_t	zcb_lsize_total;
+	uint64_t	zcb_asize_total;
 	uint64_t	zcb_embedded_blocks[NUM_BP_EMBEDDED_TYPES];
 	uint64_t	zcb_embedded_histogram[NUM_BP_EMBEDDED_TYPES]
 	    [BPE_PAYLOAD_SIZE + 1];
@@ -4189,6 +4199,172 @@ same_metaslab(spa_t *spa, uint64_t vdev, uint64_t off1, uint64_t off2)
 	uint64_t ms_shift = vd->vdev_ms_shift;
 
 	return ((off1 >> ms_shift) == (off2 >> ms_shift));
+}
+
+/*
+ * Used to simplify reporting of the histogram data.
+ */
+typedef struct one_histo {
+	char *name;
+	uint64_t *count;
+	uint64_t *len;
+	uint64_t cumulative;
+} one_histo_t;
+
+/*
+ * The number of separate histograms processed for psize, lsize and asize.
+ */
+#define	NUM_HISTO 3
+
+/*
+ * This routine will create a fixed column size output of three different
+ * histograms showing by blocksize of 512 - 2^ SPA_MAX_FOR_16M
+ * the count, length and cumulative length of the psize, lsize and
+ * asize blocks.
+ *
+ * All three types of blocks are listed on a single line
+ *
+ * By default the table is printed in nicenumber format (e.g. 123K) but
+ * if the '-P' parameter is specified then the full raw number (parseable)
+ * is printed out.
+ */
+static void
+dump_size_histograms(zdb_cb_t *zcb)
+{
+	/*
+	 * A temporary buffer that allows us to convert a number into
+	 * a string using zdb_nicenumber to allow either raw or human
+	 * readable numbers to be output.
+	 */
+	char numbuf[32];
+
+	/*
+	 * Define titles which are used in the headers of the tables
+	 * printed by this routine.
+	 */
+	const char blocksize_title1[] = "block";
+	const char blocksize_title2[] = "size";
+	const char count_title[] = "Count";
+	const char length_title[] = "Size";
+	const char cumulative_title[] = "Cum.";
+
+	/*
+	 * Setup the histogram arrays (psize, lsize, and asize).
+	 */
+	one_histo_t parm_histo[NUM_HISTO];
+
+	parm_histo[0].name = "psize";
+	parm_histo[0].count = zcb->zcb_psize_count;
+	parm_histo[0].len = zcb->zcb_psize_len;
+	parm_histo[0].cumulative = 0;
+
+	parm_histo[1].name = "lsize";
+	parm_histo[1].count = zcb->zcb_lsize_count;
+	parm_histo[1].len = zcb->zcb_lsize_len;
+	parm_histo[1].cumulative = 0;
+
+	parm_histo[2].name = "asize";
+	parm_histo[2].count = zcb->zcb_asize_count;
+	parm_histo[2].len = zcb->zcb_asize_len;
+	parm_histo[2].cumulative = 0;
+
+
+	(void) printf("\nBlock Size Histogram\n");
+	/*
+	 * Print the first line titles
+	 */
+	if (dump_opt['P'])
+		(void) printf("\n%s\t", blocksize_title1);
+	else
+		(void) printf("\n%7s   ", blocksize_title1);
+
+	for (int j = 0; j < NUM_HISTO; j++) {
+		if (dump_opt['P']) {
+			if (j < NUM_HISTO - 1) {
+				(void) printf("%s\t\t\t", parm_histo[j].name);
+			} else {
+				/* Don't print trailing spaces */
+				(void) printf("  %s", parm_histo[j].name);
+			}
+		} else {
+			if (j < NUM_HISTO - 1) {
+				/* Left aligned strings in the output */
+				(void) printf("%-7s              ",
+				    parm_histo[j].name);
+			} else {
+				/* Don't print trailing spaces */
+				(void) printf("%s", parm_histo[j].name);
+			}
+		}
+	}
+	(void) printf("\n");
+
+	/*
+	 * Print the second line titles
+	 */
+	if (dump_opt['P']) {
+		(void) printf("%s\t", blocksize_title2);
+	} else {
+		(void) printf("%7s ", blocksize_title2);
+	}
+
+	for (int i = 0; i < NUM_HISTO; i++) {
+		if (dump_opt['P']) {
+			(void) printf("%s\t%s\t%s\t",
+			    count_title, length_title, cumulative_title);
+		} else {
+			(void) printf("%7s%7s%7s",
+			    count_title, length_title, cumulative_title);
+		}
+	}
+	(void) printf("\n");
+
+	/*
+	 * Print the rows
+	 */
+	for (int i = SPA_MINBLOCKSHIFT; i < SPA_MAX_FOR_16M; i++) {
+
+		/*
+		 * Print the first column showing the blocksize
+		 */
+		zdb_nicenum((1ULL << i), numbuf, sizeof (numbuf));
+
+		if (dump_opt['P']) {
+			printf("%s", numbuf);
+		} else {
+			printf("%7s:", numbuf);
+		}
+
+		/*
+		 * Print the remaining set of 3 columns per size:
+		 * for psize, lsize and asize
+		 */
+		for (int j = 0; j < NUM_HISTO; j++) {
+			parm_histo[j].cumulative += parm_histo[j].len[i];
+
+			zdb_nicenum(parm_histo[j].count[i],
+			    numbuf, sizeof (numbuf));
+			if (dump_opt['P'])
+				(void) printf("\t%s", numbuf);
+			else
+				(void) printf("%7s", numbuf);
+
+			zdb_nicenum(parm_histo[j].len[i],
+			    numbuf, sizeof (numbuf));
+			if (dump_opt['P'])
+				(void) printf("\t%s", numbuf);
+			else
+				(void) printf("%7s", numbuf);
+
+			zdb_nicenum(parm_histo[j].cumulative,
+			    numbuf, sizeof (numbuf));
+			if (dump_opt['P'])
+				(void) printf("\t%s", numbuf);
+			else
+				(void) printf("%7s", numbuf);
+		}
+		(void) printf("\n");
+	}
 }
 
 static void
@@ -4284,6 +4460,28 @@ zdb_count_block(zdb_cb_t *zcb, zilog_t *zilog, const blkptr_t *bp,
 		    [BPE_GET_PSIZE(bp)]++;
 		return;
 	}
+	/*
+	 * The binning histogram bins by powers of two up to
+	 * SPA_MAXBLOCKSIZE rather than creating bins for
+	 * every possible blocksize found in the pool.
+	 */
+	int bin = highbit64(BP_GET_PSIZE(bp)) - 1;
+
+	zcb->zcb_psize_count[bin]++;
+	zcb->zcb_psize_len[bin] += BP_GET_PSIZE(bp);
+	zcb->zcb_psize_total += BP_GET_PSIZE(bp);
+
+	bin = highbit64(BP_GET_LSIZE(bp)) - 1;
+
+	zcb->zcb_lsize_count[bin]++;
+	zcb->zcb_lsize_len[bin] += BP_GET_LSIZE(bp);
+	zcb->zcb_lsize_total += BP_GET_LSIZE(bp);
+
+	bin = highbit64(BP_GET_ASIZE(bp)) - 1;
+
+	zcb->zcb_asize_count[bin]++;
+	zcb->zcb_asize_len[bin] += BP_GET_ASIZE(bp);
+	zcb->zcb_asize_total += BP_GET_ASIZE(bp);
 
 	if (dump_opt['L'])
 		return;
@@ -5644,6 +5842,11 @@ dump_block_stats(spa_t *spa)
 					    PSIZE_HISTO_SIZE, 0);
 				}
 			}
+		}
+
+		/* Output a table summarizing block sizes in the pool */
+		if (dump_opt['b'] >= 2) {
+			dump_size_histograms(&zcb);
 		}
 	}
 
