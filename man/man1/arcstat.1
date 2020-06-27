@@ -236,10 +236,19 @@ Time
 .sp
 .ne 2
 .na
-\fBarcsz \fR
+\fBsize \fR
 .ad
 .RS 14n
 ARC size
+.RE
+
+.sp
+.ne 2
+.na
+\fBarcsz \fR
+.ad
+.RS 14n
+Alias for \fBsize\fR
 .RE
 
 .sp
@@ -392,7 +401,18 @@ ARC reclaim needed
 \fBfree \fR
 .ad
 .RS 14n
-ARC free memory
+The ARC's idea of how much free memory there is, which includes evictable memory in the page cache.
+Since the ARC tries to keep \fBavail\fR above zero, \fBavail\fR is usually more instructive to observe than \fBfree\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBavail \fR
+.ad
+.RS 14n
+The ARC's idea of how much free memory is available to it, which is a bit less than \fBfree\fR.
+May temporarily be negative, in which case the ARC will reduce the target size \fBc\fR.
 .RE
 .\"
 

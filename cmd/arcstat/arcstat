@@ -81,6 +81,7 @@ cols = {
     "mh%":        [3, 100, "Metadata hit percentage"],
     "mm%":        [3, 100, "Metadata miss percentage"],
     "arcsz":      [5, 1024, "ARC size"],
+    "size":       [4, 1024, "ARC size"],
     "c":          [4, 1024, "ARC target size"],
     "mfu":        [4, 1000, "MFU list hits per second"],
     "mru":        [4, 1000, "MRU list hits per second"],
@@ -101,11 +102,12 @@ cols = {
     "grow":       [4, 1000, "ARC grow disabled"],
     "need":       [4, 1024, "ARC reclaim need"],
     "free":       [4, 1024, "ARC free memory"],
+    "avail":      [5, 1024, "ARC available memory"],
 }
 
 v = {}
 hdr = ["time", "read", "miss", "miss%", "dmis", "dm%", "pmis", "pm%", "mmis",
-       "mm%", "arcsz", "c"]
+       "mm%", "size", "c", "avail"]
 xhdr = ["time", "mfu", "mru", "mfug", "mrug", "eskip", "mtxmis", "dread",
         "pread", "read"]
 sint = 1               # Default interval is 1 second
@@ -225,7 +227,7 @@ def prettynum(sz, scale, num=0):
     elif 0 < num < 1:
         num = 0
 
-    while num > scale and index < 5:
+    while abs(num) > scale and index < 5:
         save = num
         num = num / scale
         index += 1
@@ -233,7 +235,7 @@ def prettynum(sz, scale, num=0):
     if index == 0:
         return "%*d" % (sz, num)
 
-    if (save / scale) < 10:
+    if abs(save / scale) < 10:
         return "%*.1f%s" % (sz - 1, num, suffix[index])
     else:
         return "%*d%s" % (sz - 1, num, suffix[index])
@@ -244,11 +246,9 @@ def print_values():
     global sep
     global v
 
-    for col in hdr:
-        sys.stdout.write("%s%s" % (
-            prettynum(cols[col][0], cols[col][1], v[col]),
-            sep
-        ))
+    sys.stdout.write(sep.join(
+      prettynum(cols[col][0], cols[col][1], v[col]) for col in hdr))
+
     sys.stdout.write("\n")
     sys.stdout.flush()
 
@@ -257,8 +257,8 @@ def print_header():
     global hdr
     global sep
 
-    for col in hdr:
-        sys.stdout.write("%*s%s" % (cols[col][0], col, sep))
+    sys.stdout.write(sep.join("%*s" % (cols[col][0], col) for col in hdr))
+
     sys.stdout.write("\n")
 
 
@@ -428,6 +428,7 @@ def calculate():
     v["mm%"] = 100 - v["mh%"] if v["mread"] > 0 else 0
 
     v["arcsz"] = cur["size"]
+    v["size"] = cur["size"]
     v["c"] = cur["c"]
     v["mfu"] = d["mfu_hits"] / sint
     v["mru"] = d["mru_hits"] / sint
@@ -449,7 +450,8 @@ def calculate():
 
     v["grow"] = 0 if cur["arc_no_grow"] else 1
     v["need"] = cur["arc_need_free"]
-    v["free"] = cur["arc_sys_free"]
+    v["free"] = cur["memory_free_bytes"]
+    v["avail"] = cur["memory_available_bytes"]
 
 
 def main():
