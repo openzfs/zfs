@@ -225,19 +225,17 @@ arc_evictable_memory(void)
 }
 
 /*
- * If sc->nr_to_scan is zero, the caller is requesting a query of the
- * number of objects which can potentially be freed.  If it is nonzero,
- * the request is to free that many objects.
- *
- * Linux kernels >= 3.12 have the count_objects and scan_objects callbacks
- * in struct shrinker and also require the shrinker to return the number
- * of objects freed.
- *
- * Older kernels require the shrinker to return the number of freeable
- * objects following the freeing of nr_to_free.
+ * The _count() function returns the number of free-able objects.
+ * The _scan() function returns the number of objects that were freed.
  */
-static spl_shrinker_t
-__arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
+static unsigned long
+arc_shrinker_count(struct shrinker *shrink, struct shrink_control *sc)
+{
+	return (btop((int64_t)arc_evictable_memory()));
+}
+
+static unsigned long
+arc_shrinker_scan(struct shrinker *shrink, struct shrink_control *sc)
 {
 	int64_t pages;
 
@@ -247,8 +245,6 @@ __arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
 
 	/* Return the potential number of reclaimable pages */
 	pages = btop((int64_t)arc_evictable_memory());
-	if (sc->nr_to_scan == 0)
-		return (pages);
 
 	/* Not allowed to perform filesystem reclaim */
 	if (!(sc->gfp_mask & __GFP_FS))
@@ -288,12 +284,8 @@ __arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
 
 		if (current_is_kswapd())
 			arc_kmem_reap_soon();
-#ifdef HAVE_SPLIT_SHRINKER_CALLBACK
 		pages = MAX((int64_t)pages -
 		    (int64_t)btop(arc_evictable_memory()), 0);
-#else
-		pages = btop(arc_evictable_memory());
-#endif
 		/*
 		 * We've shrunk what we can, wake up threads.
 		 */
@@ -318,9 +310,9 @@ __arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
 
 	return (pages);
 }
-SPL_SHRINKER_CALLBACK_WRAPPER(arc_shrinker_func);
 
-SPL_SHRINKER_DECLARE(arc_shrinker, arc_shrinker_func, DEFAULT_SEEKS);
+SPL_SHRINKER_DECLARE(arc_shrinker,
+    arc_shrinker_count, arc_shrinker_scan, DEFAULT_SEEKS);
 
 int
 arc_memory_throttle(spa_t *spa, uint64_t reserve, uint64_t txg)
