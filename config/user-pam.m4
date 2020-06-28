@@ -19,7 +19,7 @@ AC_DEFUN([ZFS_AC_CONFIG_USER_PAM], [
 		AC_CHECK_HEADERS([security/pam_modules.h], [
 			enable_pam=yes
 		], [
-			AS_IF([test "x$enable_pam" == "xyes"], [
+			AS_IF([test "x$enable_pam" = "xyes"], [
 				AC_MSG_FAILURE([
 	*** security/pam_modules.h missing, libpam0g-dev package required
 				])
@@ -28,7 +28,7 @@ AC_DEFUN([ZFS_AC_CONFIG_USER_PAM], [
 			])
 		])
 	])
-	AS_IF([test "x$enable_pam" == "xyes"], [
+	AS_IF([test "x$enable_pam" = "xyes"], [
 		DEFINE_PAM='--with "pam" --define "_pamconfigsdir $(pamconfigsdir)"'
 	])
 	AC_SUBST(DEFINE_PAM)
