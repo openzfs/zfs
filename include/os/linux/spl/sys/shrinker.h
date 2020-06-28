@@ -97,7 +97,7 @@ static struct shrinker varname = {					\
 static struct shrinker varname = {					\
 	.count_objects = countfunc,					\
 	.scan_objects = scanfunc,					\
-	.seeks = seek_cost							\
+	.seeks = seek_cost						\
 }
 
 #else
