@@ -923,7 +923,6 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 	skc->skc_obj_size = size;
 	skc->skc_obj_align = SPL_KMEM_CACHE_ALIGN;
 	skc->skc_delay = SPL_KMEM_CACHE_DELAY;
-	skc->skc_reap = SPL_KMEM_CACHE_REAP;
 	atomic_set(&skc->skc_ref, 0);
 
 	INIT_LIST_HEAD(&skc->skc_list);
@@ -1650,8 +1649,7 @@ spl_kmem_cache_shrinker_scan(struct shrinker *shrink,
 	down_read(&spl_kmem_cache_sem);
 	list_for_each_entry(skc, &spl_kmem_cache_list, skc_list) {
 		uint64_t oldalloc = skc->skc_obj_alloc;
-		spl_kmem_cache_reap_now(skc,
-		    MAX(sc->nr_to_scan>>fls64(skc->skc_slab_objs), 1));
+		spl_kmem_cache_reap_now(skc);
 		if (oldalloc > skc->skc_obj_alloc)
 			alloc += oldalloc - skc->skc_obj_alloc;
 	}
@@ -1682,7 +1680,7 @@ SPL_SHRINKER_DECLARE(spl_kmem_cache_shrinker,
  * effort and we do not want to thrash creating and destroying slabs.
  */
 void
-spl_kmem_cache_reap_now(spl_kmem_cache_t *skc, int count)
+spl_kmem_cache_reap_now(spl_kmem_cache_t *skc)
 {
 	ASSERT(skc->skc_magic == SKC_MAGIC);
 	ASSERT(!test_bit(KMC_BIT_DESTROY, &skc->skc_flags));

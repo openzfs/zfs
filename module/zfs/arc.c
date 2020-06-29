@@ -391,11 +391,6 @@ static boolean_t arc_initialized;
 boolean_t arc_warm;
 
 /*
- * log2 fraction of the zio arena to keep free.
- */
-int arc_zio_arena_free_shift = 2;
-
-/*
  * These tunables are for performance analysis.
  */
 unsigned long zfs_arc_max = 0;
@@ -4687,14 +4682,6 @@ arc_kmem_reap_soon(void)
 	kmem_cache_reap_now(hdr_l2only_cache);
 	kmem_cache_reap_now(zfs_btree_leaf_cache);
 	abd_cache_reap_now();
-
-	if (zio_arena != NULL) {
-		/*
-		 * Ask the vmem arena to reclaim unused memory from its
-		 * quantum caches.
-		 */
-		vmem_qcache_reap(zio_arena);
-	}
 }
 
 /* ARGSUSED */

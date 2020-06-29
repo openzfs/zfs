@@ -872,7 +872,6 @@ typedef enum free_memory_reason_t {
 #define	arc_sys_free	ARCSTAT(arcstat_sys_free) /* target system free bytes */
 #define	arc_need_free	ARCSTAT(arcstat_need_free) /* bytes to be freed */
 
-extern int arc_zio_arena_free_shift;
 extern taskq_t *arc_prune_taskq;
 extern arc_stats_t arc_stats;
 extern hrtime_t arc_growtime;
