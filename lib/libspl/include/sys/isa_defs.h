@@ -208,7 +208,7 @@ extern "C" {
 #error MIPS no endian specified
 #endif
 
-#ifndef _LP64
+#if !defined(_LP64) && !defined(_ILP32)
 #define	_ILP32
 #endif
 

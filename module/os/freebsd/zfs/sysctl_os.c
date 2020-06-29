@@ -123,11 +123,10 @@ SYSCTL_NODE(_vfs_zfs_vdev, OID_AUTO, cache, CTLFLAG_RW, 0, "ZFS VDEV Cache");
 SYSCTL_NODE(_vfs_zfs_vdev, OID_AUTO, mirror, CTLFLAG_RD, 0,
     "ZFS VDEV mirror");
 
-#ifdef ZFS_META_VERSION
 SYSCTL_DECL(_vfs_zfs_version);
 SYSCTL_CONST_STRING(_vfs_zfs_version, OID_AUTO, module, CTLFLAG_RD,
     (ZFS_META_VERSION "-" ZFS_META_RELEASE), "OpenZFS module version");
-#endif
+
 extern arc_state_t ARC_anon;
 extern arc_state_t ARC_mru;
 extern arc_state_t ARC_mru_ghost;
@@ -143,12 +142,12 @@ extern arc_state_t ARC_l2c_only;
 /* arc.c */
 
 /* legacy compat */
-extern unsigned long l2arc_write_max;	/* def max write size */
-extern unsigned long l2arc_write_boost;	/* extra warmup write */
-extern unsigned long l2arc_headroom;		/* # of dev writes */
-extern unsigned long l2arc_headroom_boost;
-extern unsigned long l2arc_feed_secs;	/* interval seconds */
-extern unsigned long l2arc_feed_min_ms;	/* min interval msecs */
+extern uint64_t l2arc_write_max;	/* def max write size */
+extern uint64_t l2arc_write_boost;	/* extra warmup write */
+extern uint64_t l2arc_headroom;		/* # of dev writes */
+extern uint64_t l2arc_headroom_boost;
+extern uint64_t l2arc_feed_secs;	/* interval seconds */
+extern uint64_t l2arc_feed_min_ms;	/* min interval msecs */
 extern int l2arc_noprefetch;			/* don't cache prefetch bufs */
 extern int l2arc_feed_again;			/* turbo warmup */
 extern int l2arc_norw;			/* no reads during writes */

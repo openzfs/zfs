@@ -73,7 +73,7 @@ typedef off_t		off64_t;
 typedef id_t		taskid_t;
 typedef id_t		projid_t;
 typedef id_t		poolid_t;
-typedef id_t		zoneid_t;
+typedef uint_t		zoneid_t;
 typedef id_t		ctid_t;
 typedef	mode_t		o_mode_t;
 typedef	uint64_t	pgcnt_t;
