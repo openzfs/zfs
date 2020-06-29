@@ -138,10 +138,14 @@ PHONY += shellcheck
 shellcheck:
 	@if type shellcheck > /dev/null 2>&1; then \
 		shellcheck --exclude=SC1090 --exclude=SC1117 --format=gcc \
-			$$(find ${top_srcdir}/scripts/*.sh -type f) \
-			$$(find ${top_srcdir}/cmd/zed/zed.d/*.sh -type f) \
-			$$(find ${top_srcdir}/cmd/zpool/zpool.d/* \
-			-type f ${filter_executable}); \
+			$$(find ${top_srcdir} \
+				-name '.git' -prune \
+				-o -name 'build' -prune \
+				-o -name 'tests' -prune \
+				-o -name 'config' -prune \
+				-o -type f ! -name 'config*' \
+				! -name 'libtool' \
+				-exec bash -c 'awk "NR==1 && /\#\!.*sh.*/ {print FILENAME;}" "{}"' \;); \
 	else \
 		echo "skipping shellcheck because shellcheck is not installed"; \
 	fi
