@@ -13,6 +13,8 @@ AM_CFLAGS += $(NO_UNUSED_BUT_SET_VARIABLE)
 # Includes kernel code generate warnings for large stack frames
 AM_CFLAGS += $(FRAME_LARGER_THAN)
 
+AM_CFLAGS += $(ZLIB_CFLAGS)
+
 AM_CFLAGS += -DLIB_ZPOOL_BUILD
 
 lib_LTLIBRARIES = libzpool.la
@@ -199,16 +201,19 @@ nodist_libzpool_la_SOURCES = \
 
 libzpool_la_LIBADD = \
 	$(top_builddir)/lib/libicp/libicp.la \
-	$(top_builddir)/lib/libnvpair/libnvpair.la \
 	$(top_builddir)/lib/libunicode/libunicode.la \
-	$(top_builddir)/lib/libzutil/libzutil.la
+	$(top_builddir)/lib/libzfs_core/libzfs_core.la \
+	$(top_builddir)/lib/libnvpair/libnvpair.la
+
+libzpool_la_LIBADD += $(LIBCLOCK_GETTIME) $(ZLIB_LIBS) -ldl
+
+libzpool_la_LDFLAGS = -pthread
 
 if BUILD_FREEBSD
-libzpool_la_LIBADD += $(ZLIB) -ldl -lgeom
-libzpool_la_LDFLAGS = -pthread -version-info 4:0:0
+libzpool_la_LIBADD += -lgeom
+libzpool_la_LDFLAGS += -version-info 4:0:0
 else
-libzpool_la_LIBADD += $(ZLIB) -ldl
-libzpool_la_LDFLAGS = -pthread -version-info 2:0:0
+libzpool_la_LDFLAGS += -version-info 2:0:0
 endif
 
 if TARGET_CPU_POWERPC

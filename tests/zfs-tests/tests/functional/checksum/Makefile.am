@@ -1,11 +1,8 @@
 include $(top_srcdir)/config/Rules.am
 
-AM_CPPFLAGS += -I$(top_srcdir)/include
 LDADD = \
 	$(top_builddir)/lib/libicp/libicp.la \
 	$(top_builddir)/lib/libspl/libspl_assert.la
-
-AUTOMAKE_OPTIONS = subdir-objects
 
 pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/checksum
 

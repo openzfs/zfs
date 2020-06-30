@@ -48,6 +48,10 @@
 %global _systemdgeneratordir %{_prefix}/lib/systemd/system-generators
 %endif
 
+%if %{undefined _pkgconfigdir}
+%global _pkgconfigdir %{_prefix}/%{_lib}/pkgconfig
+%endif
+
 %bcond_with    debug
 %bcond_with    debuginfo
 %bcond_with    asan
@@ -345,6 +349,7 @@ image which is ZFS aware.
     --with-udevruledir=%{_udevruledir} \
     --with-dracutdir=%{_dracutdir} \
     --with-python=%{__python} \
+    --with-pkgconfigdir=%{_pkgconfigdir} \
     --disable-static \
     %{debug} \
     %{debuginfo} \
@@ -483,8 +488,8 @@ systemctl --system daemon-reload >/dev/null || true
 %{_libdir}/libzfs*.so.*
 
 %files -n libzfs2-devel
-%{_datarootdir}/pkgconfig/libzfs.pc
-%{_datarootdir}/pkgconfig/libzfs_core.pc
+%{_pkgconfigdir}/libzfs.pc
+%{_pkgconfigdir}/libzfs_core.pc
 %{_libdir}/*.so
 %{_includedir}/*
 %doc AUTHORS COPYRIGHT LICENSE NOTICE README.md
