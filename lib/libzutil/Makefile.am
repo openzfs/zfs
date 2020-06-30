@@ -2,6 +2,7 @@ include $(top_srcdir)/config/Rules.am
 
 # Suppress unused but set variable warnings often due to ASSERTs
 AM_CFLAGS += $(NO_UNUSED_BUT_SET_VARIABLE)
+AM_CFLAGS += $(LIBBLKID_CFLAGS) $(LIBUDEV_CFLAGS)
 
 DEFAULT_INCLUDES += -I$(srcdir)
 
@@ -32,11 +33,12 @@ libzutil_la_SOURCES = $(USER_C)
 
 libzutil_la_LIBADD = \
 	$(top_builddir)/lib/libavl/libavl.la \
-	$(top_builddir)/lib/libtpool/libtpool.la
+	$(top_builddir)/lib/libtpool/libtpool.la \
+	$(top_builddir)/lib/libspl/libspl.la
 
 if BUILD_LINUX
 libzutil_la_LIBADD += \
         $(top_builddir)/lib/libefi/libefi.la
 endif
 
-libzutil_la_LIBADD += -lm $(LIBBLKID) $(LIBUDEV)
+libzutil_la_LIBADD += -lm $(LIBBLKID_LIBS) $(LIBUDEV_LIBS)

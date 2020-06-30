@@ -1,5 +1,7 @@
 include $(top_srcdir)/config/Rules.am
 
+AM_CFLAGS += $(LIBBLKID_CFLAGS) $(LIBUUID_CFLAGS)
+
 DEFAULT_INCLUDES += -I$(srcdir)
 
 sbin_PROGRAMS = zpool
@@ -20,15 +22,15 @@ zpool_SOURCES += os/linux/zpool_vdev_os.c
 endif
 
 zpool_LDADD = \
-	$(top_builddir)/lib/libnvpair/libnvpair.la \
-	$(top_builddir)/lib/libuutil/libuutil.la \
+	$(top_builddir)/lib/libzfs/libzfs.la \
 	$(top_builddir)/lib/libzfs_core/libzfs_core.la \
-	$(top_builddir)/lib/libzfs/libzfs.la
+	$(top_builddir)/lib/libnvpair/libnvpair.la \
+	$(top_builddir)/lib/libuutil/libuutil.la
 
 if BUILD_FREEBSD
 zpool_LDADD += -L/usr/local/lib -lintl -lgeom
 endif
-zpool_LDADD += -lm $(LIBBLKID)
+zpool_LDADD += -lm $(LIBBLKID_LIBS) $(LIBUUID_LIBS)
 
 zpoolconfdir = $(sysconfdir)/zfs/zpool.d
 zpoolexecdir = $(zfsexecdir)/zpool.d

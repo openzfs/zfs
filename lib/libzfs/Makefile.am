@@ -7,9 +7,9 @@ VPATH = \
 
 # Suppress unused but set variable warnings often due to ASSERTs
 AM_CFLAGS += $(NO_UNUSED_BUT_SET_VARIABLE)
+AM_CFLAGS += $(LIBCRYPTO_CFLAGS) $(ZLIB_CFLAGS)
 
-libzfs_pcdir = $(datarootdir)/pkgconfig
-libzfs_pc_DATA = libzfs.pc libzfs_core.pc
+pkgconfig_DATA = libzfs.pc
 
 lib_LTLIBRARIES = libzfs.la
 
@@ -69,25 +69,28 @@ dist_libzfs_la_SOURCES = \
 nodist_libzfs_la_SOURCES = \
 	$(KERNEL_C)
 
-libzfs_la_LIBADD = \
-	$(top_builddir)/lib/libnvpair/libnvpair.la \
-	$(top_builddir)/lib/libuutil/libuutil.la \
-	$(top_builddir)/lib/libzfs_core/libzfs_core.la \
-	$(top_builddir)/lib/libzutil/libzutil.la
+libzfs_la_LIBADD =
 
 if BUILD_LINUX
 libzfs_la_LIBADD += \
 	$(top_builddir)/lib/libshare/libshare.la
 endif
 
+libzfs_la_LIBADD += \
+	$(top_builddir)/lib/libzfs_core/libzfs_core.la \
+	$(top_builddir)/lib/libnvpair/libnvpair.la \
+	$(top_builddir)/lib/libuutil/libuutil.la
+
+libzfs_la_LIBADD += -lm $(LIBCRYPTO_LIBS) $(ZLIB_LIBS)
+
+libzfs_la_LDFLAGS = -pthread
+
 if BUILD_FREEBSD
 libzfs_la_LIBADD += -lutil -lgeom
-libzfs_la_LDFLAGS = -version-info 4:0:0
+libzfs_la_LDFLAGS += -version-info 4:0:0
 else
-libzfs_la_LDFLAGS = -version-info 2:0:0
+libzfs_la_LDFLAGS += -version-info 2:0:0
 endif
-
-libzfs_la_LIBADD += -lm $(LIBSSL)
 
 # Licensing data
 EXTRA_DIST = THIRDPARTYLICENSE.openssl THIRDPARTYLICENSE.openssl.descrip

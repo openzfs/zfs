@@ -12,8 +12,6 @@ endif
 
 SUBDIRS = include
 
-AM_CFLAGS += $(LIBTIRPC_CFLAGS)
-
 AM_CCASFLAGS = \
 	$(CFLAGS)
 
@@ -55,4 +53,4 @@ libspl_la_SOURCES = \
 libspl_la_LIBADD = \
 	libspl_assert.la
 
-libspl_la_LIBADD += -lrt $(LIBTIRPC_LIBS)
+libspl_la_LIBADD += $(LIBCLOCK_GETTIME)

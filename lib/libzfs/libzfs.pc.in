@@ -8,5 +8,7 @@ Description: LibZFS library
 Version: @VERSION@
 URL: https://zfsonlinux.org
 Requires: libzfs_core
+Requires.private: libcrypto zlib
 Cflags: -I${includedir}/libzfs -I${includedir}/libspl
 Libs: -L${libdir} -lzfs -lnvpair
+Libs.private: -luutil -lm -pthread
