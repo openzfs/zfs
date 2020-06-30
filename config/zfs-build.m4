@@ -110,7 +110,7 @@ AC_DEFUN([ZFS_AC_DEBUG_KMEM], [
 		[enable_debug_kmem=no])
 
 	AS_IF([test "x$enable_debug_kmem" = xyes], [
-		KERNEL_DEBUG_CPPFLAGS+=" -DDEBUG_KMEM"
+		KERNEL_DEBUG_CPPFLAGS="${KERNEL_DEBUG_CPPFLAGS} -DDEBUG_KMEM"
 		DEBUG_KMEM_ZFS="_with_debug_kmem"
 	], [
 		DEBUG_KMEM_ZFS="_without_debug_kmem"
@@ -140,7 +140,7 @@ AC_DEFUN([ZFS_AC_DEBUG_KMEM_TRACKING], [
 		[enable_debug_kmem_tracking=no])
 
 	AS_IF([test "x$enable_debug_kmem_tracking" = xyes], [
-		KERNEL_DEBUG_CPPFLAGS+=" -DDEBUG_KMEM_TRACKING"
+		KERNEL_DEBUG_CPPFLAGS="${KERNEL_DEBUG_CPPFLAGS} -DDEBUG_KMEM_TRACKING"
 		DEBUG_KMEM_TRACKING_ZFS="_with_debug_kmem_tracking"
 	], [
 		DEBUG_KMEM_TRACKING_ZFS="_without_debug_kmem_tracking"
@@ -261,10 +261,10 @@ AC_DEFUN([ZFS_AC_RPM], [
 	])
 
 	RPM_DEFINE_COMMON='--define "$(DEBUG_ZFS) 1"'
-	RPM_DEFINE_COMMON+=' --define "$(DEBUG_KMEM_ZFS) 1"'
-	RPM_DEFINE_COMMON+=' --define "$(DEBUG_KMEM_TRACKING_ZFS) 1"'
-	RPM_DEFINE_COMMON+=' --define "$(DEBUGINFO_ZFS) 1"'
-	RPM_DEFINE_COMMON+=' --define "$(ASAN_ZFS) 1"'
+	RPM_DEFINE_COMMON=${RPM_DEFINE_COMMON}' --define "$(DEBUG_KMEM_ZFS) 1"'
+	RPM_DEFINE_COMMON=${RPM_DEFINE_COMMON}' --define "$(DEBUG_KMEM_TRACKING_ZFS) 1"'
+	RPM_DEFINE_COMMON=${RPM_DEFINE_COMMON}' --define "$(DEBUGINFO_ZFS) 1"'
+	RPM_DEFINE_COMMON=${RPM_DEFINE_COMMON}' --define "$(ASAN_ZFS) 1"'
 
 	RPM_DEFINE_UTIL=' --define "_initconfdir $(DEFAULT_INITCONF_DIR)"'
 
@@ -274,20 +274,20 @@ AC_DEFUN([ZFS_AC_RPM], [
 	dnl #	./configure --with-config=srpm
 	dnl #
 	AS_IF([test -n "$dracutdir" ], [
-		RPM_DEFINE_UTIL='--define "_dracutdir $(dracutdir)"'
+		RPM_DEFINE_UTIL=${RPM_DEFINE_UTIL}' --define "_dracutdir $(dracutdir)"'
 	])
 	AS_IF([test -n "$udevdir" ], [
-		RPM_DEFINE_UTIL+=' --define "_udevdir $(udevdir)"'
+		RPM_DEFINE_UTIL=${RPM_DEFINE_UTIL}' --define "_udevdir $(udevdir)"'
 	])
 	AS_IF([test -n "$udevruledir" ], [
-		RPM_DEFINE_UTIL+=' --define "_udevdir $(udevruledir)"'
+		RPM_DEFINE_UTIL=${RPM_DEFINE_UTIL}' --define "_udevruledir $(udevruledir)"'
 	])
-	RPM_DEFINE_UTIL+=' $(DEFINE_INITRAMFS)'
-	RPM_DEFINE_UTIL+=' $(DEFINE_SYSTEMD)'
-	RPM_DEFINE_UTIL+=' $(DEFINE_PYZFS)'
-	RPM_DEFINE_UTIL+=' $(DEFINE_PAM)'
-	RPM_DEFINE_UTIL+=' $(DEFINE_PYTHON_VERSION)'
-	RPM_DEFINE_UTIL+=' $(DEFINE_PYTHON_PKG_VERSION)'
+	RPM_DEFINE_UTIL=${RPM_DEFINE_UTIL}' $(DEFINE_INITRAMFS)'
+	RPM_DEFINE_UTIL=${RPM_DEFINE_UTIL}' $(DEFINE_SYSTEMD)'
+	RPM_DEFINE_UTIL=${RPM_DEFINE_UTIL}' $(DEFINE_PYZFS)'
+	RPM_DEFINE_UTIL=${RPM_DEFINE_UTIL}' $(DEFINE_PAM)'
+	RPM_DEFINE_UTIL=${RPM_DEFINE_UTIL}' $(DEFINE_PYTHON_VERSION)'
+	RPM_DEFINE_UTIL=${RPM_DEFINE_UTIL}' $(DEFINE_PYTHON_PKG_VERSION)'
 
 	dnl # Override default lib directory on Debian/Ubuntu systems.  The
 	dnl # provided /usr/lib/rpm/platform/<arch>/macros files do not
@@ -299,14 +299,14 @@ AC_DEFUN([ZFS_AC_RPM], [
 	dnl #
 	AS_IF([test "$DEFAULT_PACKAGE" = "deb"], [
 		MULTIARCH_LIBDIR="lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH)"
-		RPM_DEFINE_UTIL+=' --define "_lib $(MULTIARCH_LIBDIR)"'
+		RPM_DEFINE_UTIL=${RPM_DEFINE_UTIL}' --define "_lib $(MULTIARCH_LIBDIR)"'
 		AC_SUBST(MULTIARCH_LIBDIR)
 	])
 
 	RPM_DEFINE_KMOD='--define "kernels $(LINUX_VERSION)"'
-	RPM_DEFINE_KMOD+=' --define "ksrc $(LINUX)"'
-	RPM_DEFINE_KMOD+=' --define "kobj $(LINUX_OBJ)"'
-	RPM_DEFINE_KMOD+=' --define "_wrong_version_format_terminate_build 0"'
+	RPM_DEFINE_KMOD=${RPM_DEFINE_KMOD}' --define "ksrc $(LINUX)"'
+	RPM_DEFINE_KMOD=${RPM_DEFINE_KMOD}' --define "kobj $(LINUX_OBJ)"'
+	RPM_DEFINE_KMOD=${RPM_DEFINE_KMOD}' --define "_wrong_version_format_terminate_build 0"'
 
 	RPM_DEFINE_DKMS=''
 
