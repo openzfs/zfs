@@ -292,6 +292,15 @@ abd_free_gang_abd(abd_t *abd)
 	ASSERT(abd_is_gang(abd));
 	abd_t *cabd;
 
+	/*
+	 * When adding a child to a gang ABD we grab the mutex. The mutex
+	 * should never be held when we go to free the gang ABD, because
+	 * we should not be adding children to a gang ABD we are about to
+	 * free.
+	 */
+	ASSERT(MUTEX_NOT_HELD(&abd->abd_mtx));
+	mutex_enter(&abd->abd_mtx);
+
 	while ((cabd = list_remove_head(&ABD_GANG(abd).abd_gang_chain))
 	    != NULL) {
 		abd->abd_size -= cabd->abd_size;
@@ -305,6 +314,7 @@ abd_free_gang_abd(abd_t *abd)
 	ASSERT0(abd->abd_size);
 	list_destroy(&ABD_GANG(abd).abd_gang_chain);
 	zfs_refcount_destroy(&abd->abd_children);
+	mutex_exit(&abd->abd_mtx);
 	abd_free_struct(abd);
 }
 
@@ -376,6 +386,14 @@ abd_gang_add(abd_t *pabd, abd_t *cabd, boolean_t free_on_free)
 	abd_t *child_abd = NULL;
 
 	/*
+	 * Only a single thread should be adding children to a gang
+	 * ABD so all logical offsets in the gang ABD remain
+	 * consistent.
+	 */
+	ASSERT(MUTEX_NOT_HELD(&pabd->abd_mtx));
+	mutex_enter(&pabd->abd_mtx);
+
+	/*
 	 * In order to verify that an ABD is not already part of
 	 * another gang ABD, we must lock the child ABD's abd_mtx
 	 * to check its abd_gang_link status. We unlock the abd_mtx
@@ -424,6 +442,7 @@ abd_gang_add(abd_t *pabd, abd_t *cabd, boolean_t free_on_free)
 	list_insert_tail(&ABD_GANG(pabd).abd_gang_chain, child_abd);
 	mutex_exit(&cabd->abd_mtx);
 	pabd->abd_size += child_abd->abd_size;
+	mutex_exit(&pabd->abd_mtx);
 }
 
 /*
