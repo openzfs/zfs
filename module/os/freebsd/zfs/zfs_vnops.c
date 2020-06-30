@@ -4809,9 +4809,20 @@ zfs_getpages(struct vnode *vp, vm_page_t *ma, int count, int *rbehind,
 	 */
 	for (;;) {
 		blksz = zp->z_blksz;
-		lr = zfs_rangelock_enter(&zp->z_rangelock,
+		lr = zfs_rangelock_tryenter(&zp->z_rangelock,
 		    rounddown(start, blksz),
 		    roundup(end, blksz) - rounddown(start, blksz), RL_READER);
+		if (lr == NULL) {
+			if (rahead != NULL) {
+				*rahead = 0;
+				rahead = NULL;
+			}
+			if (rbehind != NULL) {
+				*rbehind = 0;
+				rbehind = NULL;
+			}
+			break;
+		}
 		if (blksz == zp->z_blksz)
 			break;
 		zfs_rangelock_exit(lr);
