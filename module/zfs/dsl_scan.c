@@ -747,8 +747,12 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 
 		if (vdev_resilver_needed(spa->spa_root_vdev,
 		    &scn->scn_phys.scn_min_txg, &scn->scn_phys.scn_max_txg)) {
-			spa_event_notify(spa, NULL, NULL,
+			nvlist_t *aux = fnvlist_alloc();
+			fnvlist_add_string(aux, ZFS_EV_RESILVER_TYPE,
+			    "healing");
+			spa_event_notify(spa, NULL, aux,
 			    ESC_ZFS_RESILVER_START);
+			nvlist_free(aux);
 		} else {
 			spa_event_notify(spa, NULL, NULL, ESC_ZFS_SCRUB_START);
 		}
@@ -936,9 +940,17 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 			vdev_dtl_reassess(spa->spa_root_vdev, tx->tx_txg,
 			    scn->scn_phys.scn_max_txg, B_TRUE, B_FALSE);
 
-			spa_event_notify(spa, NULL, NULL,
-			    scn->scn_phys.scn_min_txg ?
-			    ESC_ZFS_RESILVER_FINISH : ESC_ZFS_SCRUB_FINISH);
+			if (scn->scn_phys.scn_min_txg) {
+				nvlist_t *aux = fnvlist_alloc();
+				fnvlist_add_string(aux, ZFS_EV_RESILVER_TYPE,
+				    "healing");
+				spa_event_notify(spa, NULL, aux,
+				    ESC_ZFS_RESILVER_FINISH);
+				nvlist_free(aux);
+			} else {
+				spa_event_notify(spa, NULL, NULL,
+				    ESC_ZFS_SCRUB_FINISH);
+			}
 		} else {
 			vdev_dtl_reassess(spa->spa_root_vdev, tx->tx_txg,
 			    0, B_TRUE, B_FALSE);

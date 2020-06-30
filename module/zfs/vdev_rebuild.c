@@ -238,6 +238,16 @@ vdev_rebuild_initiate_sync(void *arg, dmu_tx_t *tx)
 	mutex_exit(&vd->vdev_rebuild_lock);
 }
 
+static void
+vdev_rebuild_log_notify(spa_t *spa, vdev_t *vd, char *name)
+{
+	nvlist_t *aux = fnvlist_alloc();
+
+	fnvlist_add_string(aux, ZFS_EV_RESILVER_TYPE, "sequential");
+	spa_event_notify(spa, vd, aux, name);
+	nvlist_free(aux);
+}
+
 /*
  * Called to request that a new rebuild be started.  The feature will remain
  * active for the duration of the rebuild, then revert to the enabled state.
@@ -260,7 +270,7 @@ vdev_rebuild_initiate(vdev_t *vd)
 	    (void *)(uintptr_t)vd->vdev_id, 0, ZFS_SPACE_CHECK_NONE, tx);
 	dmu_tx_commit(tx);
 
-	spa_event_notify(spa, vd, NULL, ESC_ZFS_RESILVER_START);
+	vdev_rebuild_log_notify(spa, vd, ESC_ZFS_RESILVER_START);
 }
 
 /*
@@ -289,7 +299,7 @@ vdev_rebuild_complete_sync(void *arg, dmu_tx_t *tx)
 	spa_history_log_internal(spa, "rebuild",  tx,
 	    "vdev_id=%llu vdev_guid=%llu complete",
 	    (u_longlong_t)vd->vdev_id, (u_longlong_t)vd->vdev_guid);
-	spa_event_notify(spa, vd, NULL, ESC_ZFS_RESILVER_FINISH);
+	vdev_rebuild_log_notify(spa, vd, ESC_ZFS_RESILVER_FINISH);
 
 	/* Handles detaching of spares */
 	spa_async_request(spa, SPA_ASYNC_REBUILD_DONE);
@@ -325,7 +335,7 @@ vdev_rebuild_cancel_sync(void *arg, dmu_tx_t *tx)
 	spa_history_log_internal(spa, "rebuild",  tx,
 	    "vdev_id=%llu vdev_guid=%llu canceled",
 	    (u_longlong_t)vd->vdev_id, (u_longlong_t)vd->vdev_guid);
-	spa_event_notify(spa, vd, NULL, ESC_ZFS_RESILVER_FINISH);
+	vdev_rebuild_log_notify(spa, vd, ESC_ZFS_RESILVER_FINISH);
 
 	vd->vdev_rebuild_cancel_wanted = B_FALSE;
 	vd->vdev_rebuilding = B_FALSE;

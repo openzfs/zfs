@@ -1509,6 +1509,11 @@ typedef enum {
  *
  *	ESC_ZFS_RESILVER_START
  *	ESC_ZFS_RESILVER_FINISH
+ *
+ *		ZFS_EV_POOL_NAME	DATA_TYPE_STRING
+ *		ZFS_EV_POOL_GUID	DATA_TYPE_UINT64
+ *		ZFS_EV_RESILVER_TYPE	DATA_TYPE_STRING
+ *
  *	ESC_ZFS_POOL_DESTROY
  *	ESC_ZFS_POOL_REGUID
  *
@@ -1562,6 +1567,7 @@ typedef enum {
 #define	ZFS_EV_HIST_IOCTL	"history_ioctl"
 #define	ZFS_EV_HIST_DSNAME	"history_dsname"
 #define	ZFS_EV_HIST_DSID	"history_dsid"
+#define	ZFS_EV_RESILVER_TYPE	"resilver_type"
 
 #ifdef	__cplusplus
 }
