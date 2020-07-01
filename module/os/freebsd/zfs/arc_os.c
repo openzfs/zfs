@@ -44,6 +44,7 @@
 #include <sys/arc_impl.h>
 #include <sys/sdt.h>
 #include <sys/aggsum.h>
+#include <sys/vnode.h>
 #include <cityhash.h>
 
 extern struct vfsops zfs_vfsops;

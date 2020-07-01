@@ -331,6 +331,7 @@ CFLAGS.fm.c= -Wno-cast-qual
 CFLAGS.lz4.c= -Wno-cast-qual
 CFLAGS.spa.c= -Wno-cast-qual
 CFLAGS.spa_misc.c= -Wno-cast-qual
+CFLAGS.sysctl_os.c= -include ../zfs_config.h
 CFLAGS.vdev_raidz.c= -Wno-cast-qual
 CFLAGS.vdev_raidz_math.c= -Wno-cast-qual
 CFLAGS.vdev_raidz_math_scalar.c= -Wno-cast-qual

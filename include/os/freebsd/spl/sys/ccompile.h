@@ -160,11 +160,13 @@ extern "C" {
 #define	KMALLOC_MAX_SIZE MAXPHYS
 
 #ifdef _KERNEL
+#if !defined(LOCORE) && !defined(_ASM)
 typedef unsigned long long	u_longlong_t;
 typedef long long		longlong_t;
 
-#include <linux/types.h>
+
 typedef	void zfs_kernel_param_t;
+#endif
 #define	param_set_charp(a, b) (0)
 #define	ATTR_UID AT_UID
 #define	ATTR_GID AT_GID
@@ -179,6 +181,9 @@ typedef	void zfs_kernel_param_t;
 #define	MUTEX_NOLOCKDEP 0
 #define	RW_NOLOCKDEP 0
 
+#if !defined(LOCORE) && !defined(_ASM)
+#include <sys/param.h>
+#include <linux/types.h>
 
 #if  __FreeBSD_version < 1300051
 #define	vm_page_valid(m) (m)->valid = VM_PAGE_BITS_ALL
@@ -207,7 +212,6 @@ typedef	void zfs_kernel_param_t;
 #else
 #define	getnewvnode_reserve_()	getnewvnode_reserve(1)
 #endif
-
 struct hlist_node {
 	struct hlist_node *next, **pprev;
 };
@@ -288,7 +292,7 @@ atomic_dec(atomic_t *v)
 {
 	return (atomic_fetchadd_int(&v->counter, -1) - 1);
 }
-
+#endif
 #else
 typedef long loff_t;
 typedef long rlim64_t;
