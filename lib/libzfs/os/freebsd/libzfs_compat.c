@@ -275,6 +275,29 @@ zfs_jail(zfs_handle_t *zhp, int jailid, int attach)
 }
 
 /*
+ * Set loader options for next boot.
+ */
+int
+zpool_nextboot(libzfs_handle_t *hdl, uint64_t pool_guid, uint64_t dev_guid,
+    const char *command)
+{
+	zfs_cmd_t zc = { 0 };
+	nvlist_t *args;
+	int error;
+
+	args = fnvlist_alloc();
+	fnvlist_add_uint64(args, ZPOOL_CONFIG_POOL_GUID, pool_guid);
+	fnvlist_add_uint64(args, ZPOOL_CONFIG_GUID, dev_guid);
+	fnvlist_add_string(args, "command", command);
+	error = zcmd_write_src_nvlist(hdl, &zc, args);
+	if (error == 0)
+		error = ioctl(hdl->libzfs_fd, ZFS_IOC_NEXTBOOT, &zc);
+	zcmd_free_nvlists(&zc);
+	nvlist_free(args);
+	return (error);
+}
+
+/*
  * Fill given version buffer with zfs kernel version.
  * Returns 0 on success, and -1 on error (with errno set)
  */

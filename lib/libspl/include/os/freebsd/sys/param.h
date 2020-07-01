@@ -61,10 +61,4 @@ extern size_t spl_pagesize(void);
 
 extern int execvpe(const char *name, char * const argv[], char * const envp[]);
 
-struct zfs_handle;
-/*
- * Attach/detach the given filesystem to/from the given jail.
- */
-extern int zfs_jail(struct zfs_handle *zhp, int jailid, int attach);
-
 #endif

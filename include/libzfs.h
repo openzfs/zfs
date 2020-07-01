@@ -890,6 +890,20 @@ int zfs_smb_acl_rename(libzfs_handle_t *, char *, char *, char *, char *);
 extern int zpool_enable_datasets(zpool_handle_t *, const char *, int);
 extern int zpool_disable_datasets(zpool_handle_t *, boolean_t);
 
+#ifdef __FreeBSD__
+
+/*
+ * Attach/detach the given filesystem to/from the given jail.
+ */
+extern int zfs_jail(zfs_handle_t *zhp, int jailid, int attach);
+
+/*
+ * Set loader options for next boot.
+ */
+extern int zpool_nextboot(libzfs_handle_t *, uint64_t, uint64_t, const char *);
+
+#endif /* __FreeBSD__ */
+
 #ifdef	__cplusplus
 }
 #endif
