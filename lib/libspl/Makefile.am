@@ -11,7 +11,6 @@ endif
 endif
 
 SUBDIRS = include
-DIST_SUBDIRS = include asm-generic asm-i386 asm-x86_64
 
 AM_CFLAGS += $(LIBTIRPC_CFLAGS)
 
@@ -46,10 +45,8 @@ USER_C += \
 	os/freebsd/mnttab.c
 endif
 
-nodist_libspl_la_SOURCES = \
+libspl_la_SOURCES = \
 	$(USER_C) \
 	$(TARGET_CPU_ATOMIC_SOURCE)
 
 libspl_la_LIBADD = -lrt $(LIBTIRPC_LIBS)
-
-EXTRA_DIST = $(USER_C)

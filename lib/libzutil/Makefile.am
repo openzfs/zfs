@@ -28,7 +28,7 @@ USER_C += \
 	os/freebsd/zutil_compat.c
 endif
 
-nodist_libzutil_la_SOURCES = $(USER_C)
+libzutil_la_SOURCES = $(USER_C)
 
 libzutil_la_LIBADD = \
 	$(top_builddir)/lib/libavl/libavl.la \
@@ -40,5 +40,3 @@ libzutil_la_LIBADD += \
 endif
 
 libzutil_la_LIBADD += -lm $(LIBBLKID) $(LIBUDEV)
-
-EXTRA_DIST = $(USER_C)

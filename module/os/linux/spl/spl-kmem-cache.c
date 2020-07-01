@@ -31,6 +31,7 @@
 #include <sys/wait.h>
 #include <linux/slab.h>
 #include <linux/swap.h>
+#include <linux/percpu_compat.h>
 #include <linux/prefetch.h>
 
 /*
@@ -188,10 +189,6 @@ struct rw_semaphore spl_kmem_cache_sem; /* Cache list lock */
 taskq_t *spl_kmem_cache_taskq;		/* Task queue for aging / reclaim */
 
 static void spl_cache_shrink(spl_kmem_cache_t *skc, void *obj);
-
-SPL_SHRINKER_CALLBACK_FWD_DECLARE(spl_kmem_cache_generic_shrinker);
-SPL_SHRINKER_DECLARE(spl_kmem_cache_shrinker,
-	spl_kmem_cache_generic_shrinker, KMC_DEFAULT_SEEKS);
 
 static void *
 kv_alloc(spl_kmem_cache_t *skc, int size, int flags)
@@ -926,7 +923,6 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 	skc->skc_obj_size = size;
 	skc->skc_obj_align = SPL_KMEM_CACHE_ALIGN;
 	skc->skc_delay = SPL_KMEM_CACHE_DELAY;
-	skc->skc_reap = SPL_KMEM_CACHE_REAP;
 	atomic_set(&skc->skc_ref, 0);
 
 	INIT_LIST_HEAD(&skc->skc_list);
@@ -947,6 +943,13 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 	skc->skc_obj_deadlock = 0;
 	skc->skc_obj_emergency = 0;
 	skc->skc_obj_emergency_max = 0;
+
+	rc = percpu_counter_init_common(&skc->skc_linux_alloc, 0,
+	    GFP_KERNEL);
+	if (rc != 0) {
+		kfree(skc);
+		return (NULL);
+	}
 
 	/*
 	 * Verify the requested alignment restriction is sane.
@@ -1047,6 +1050,7 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 	return (skc);
 out:
 	kfree(skc->skc_name);
+	percpu_counter_destroy(&skc->skc_linux_alloc);
 	kfree(skc);
 	return (NULL);
 }
@@ -1116,6 +1120,9 @@ spl_kmem_cache_destroy(spl_kmem_cache_t *skc)
 	ASSERT3U(skc->skc_obj_total, ==, 0);
 	ASSERT3U(skc->skc_obj_emergency, ==, 0);
 	ASSERT(list_empty(&skc->skc_complete_list));
+
+	ASSERT3U(percpu_counter_sum(&skc->skc_linux_alloc), ==, 0);
+	percpu_counter_destroy(&skc->skc_linux_alloc);
 
 	spin_unlock(&skc->skc_lock);
 
@@ -1473,9 +1480,7 @@ spl_kmem_cache_alloc(spl_kmem_cache_t *skc, int flags)
 			 * how many objects we've allocated in it for
 			 * better debuggability.
 			 */
-			spin_lock(&skc->skc_lock);
-			skc->skc_obj_alloc++;
-			spin_unlock(&skc->skc_lock);
+			percpu_counter_inc(&skc->skc_linux_alloc);
 		}
 		goto ret;
 	}
@@ -1550,9 +1555,7 @@ spl_kmem_cache_free(spl_kmem_cache_t *skc, void *obj)
 	 */
 	if (skc->skc_flags & KMC_SLAB) {
 		kmem_cache_free(skc->skc_linux_cache, obj);
-		spin_lock(&skc->skc_lock);
-		skc->skc_obj_alloc--;
-		spin_unlock(&skc->skc_lock);
+		percpu_counter_dec(&skc->skc_linux_alloc);
 		return;
 	}
 
@@ -1611,23 +1614,27 @@ EXPORT_SYMBOL(spl_kmem_cache_free);
  * We always attempt to shrink all caches when this generic shrinker
  * is called.
  *
- * If sc->nr_to_scan is zero, the caller is requesting a query of the
- * number of objects which can potentially be freed.  If it is nonzero,
- * the request is to free that many objects.
- *
- * Linux kernels >= 3.12 have the count_objects and scan_objects callbacks
- * in struct shrinker and also require the shrinker to return the number
- * of objects freed.
- *
- * Older kernels require the shrinker to return the number of freeable
- * objects following the freeing of nr_to_free.
- *
- * Linux semantics differ from those under Solaris, which are to
- * free all available objects which may (and probably will) be more
- * objects than the requested nr_to_scan.
+ * The _count() function returns the number of free-able objects.
+ * The _scan() function returns the number of objects that were freed.
  */
-static spl_shrinker_t
-__spl_kmem_cache_generic_shrinker(struct shrinker *shrink,
+static unsigned long
+spl_kmem_cache_shrinker_count(struct shrinker *shrink,
+    struct shrink_control *sc)
+{
+	spl_kmem_cache_t *skc = NULL;
+	int alloc = 0;
+
+	down_read(&spl_kmem_cache_sem);
+	list_for_each_entry(skc, &spl_kmem_cache_list, skc_list) {
+		alloc += skc->skc_obj_alloc;
+	}
+	up_read(&spl_kmem_cache_sem);
+
+	return (MAX(alloc, 0));
+}
+
+static unsigned long
+spl_kmem_cache_shrinker_scan(struct shrinker *shrink,
     struct shrink_control *sc)
 {
 	spl_kmem_cache_t *skc = NULL;
@@ -1636,27 +1643,15 @@ __spl_kmem_cache_generic_shrinker(struct shrinker *shrink,
 	/*
 	 * No shrinking in a transaction context.  Can cause deadlocks.
 	 */
-	if (sc->nr_to_scan && spl_fstrans_check())
+	if (spl_fstrans_check())
 		return (SHRINK_STOP);
 
 	down_read(&spl_kmem_cache_sem);
 	list_for_each_entry(skc, &spl_kmem_cache_list, skc_list) {
-		if (sc->nr_to_scan) {
-#ifdef HAVE_SPLIT_SHRINKER_CALLBACK
-			uint64_t oldalloc = skc->skc_obj_alloc;
-			spl_kmem_cache_reap_now(skc,
-			    MAX(sc->nr_to_scan>>fls64(skc->skc_slab_objs), 1));
-			if (oldalloc > skc->skc_obj_alloc)
-				alloc += oldalloc - skc->skc_obj_alloc;
-#else
-			spl_kmem_cache_reap_now(skc,
-			    MAX(sc->nr_to_scan>>fls64(skc->skc_slab_objs), 1));
-			alloc += skc->skc_obj_alloc;
-#endif /* HAVE_SPLIT_SHRINKER_CALLBACK */
-		} else {
-			/* Request to query number of freeable objects */
-			alloc += skc->skc_obj_alloc;
-		}
+		uint64_t oldalloc = skc->skc_obj_alloc;
+		spl_kmem_cache_reap_now(skc);
+		if (oldalloc > skc->skc_obj_alloc)
+			alloc += oldalloc - skc->skc_obj_alloc;
 	}
 	up_read(&spl_kmem_cache_sem);
 
@@ -1666,13 +1661,15 @@ __spl_kmem_cache_generic_shrinker(struct shrinker *shrink,
 	 * shrink_slabs() is repeatedly invoked by many cores causing the
 	 * system to thrash.
 	 */
-	if ((spl_kmem_cache_reclaim & KMC_RECLAIM_ONCE) && sc->nr_to_scan)
+	if (spl_kmem_cache_reclaim & KMC_RECLAIM_ONCE)
 		return (SHRINK_STOP);
 
 	return (MAX(alloc, 0));
 }
 
-SPL_SHRINKER_CALLBACK_WRAPPER(spl_kmem_cache_generic_shrinker);
+SPL_SHRINKER_DECLARE(spl_kmem_cache_shrinker,
+    spl_kmem_cache_shrinker_count, spl_kmem_cache_shrinker_scan,
+    KMC_DEFAULT_SEEKS);
 
 /*
  * Call the registered reclaim function for a cache.  Depending on how
@@ -1683,7 +1680,7 @@ SPL_SHRINKER_CALLBACK_WRAPPER(spl_kmem_cache_generic_shrinker);
  * effort and we do not want to thrash creating and destroying slabs.
  */
 void
-spl_kmem_cache_reap_now(spl_kmem_cache_t *skc, int count)
+spl_kmem_cache_reap_now(spl_kmem_cache_t *skc)
 {
 	ASSERT(skc->skc_magic == SKC_MAGIC);
 	ASSERT(!test_bit(KMC_BIT_DESTROY, &skc->skc_flags));
@@ -1781,7 +1778,7 @@ spl_kmem_reap(void)
 	sc.nr_to_scan = KMC_REAP_CHUNK;
 	sc.gfp_mask = GFP_KERNEL;
 
-	(void) __spl_kmem_cache_generic_shrinker(NULL, &sc);
+	(void) spl_kmem_cache_shrinker_scan(NULL, &sc);
 }
 EXPORT_SYMBOL(spl_kmem_reap);
 

@@ -20,28 +20,25 @@
  */
 
 /*
- * Copyright (c) 2013 by Martin Matuska <mm@FreeBSD.org>. All rights reserved.
+ * Copyright (c) 2020 by Delphix. All rights reserved.
  */
 
-#ifndef	_LIBZFS_CORE_COMPAT_H
-#define	_LIBZFS_CORE_COMPAT_H
+#ifndef _ZFS_PERCPU_H
+#define	_ZFS_PERCPU_H
 
-#include <libnvpair.h>
-#include <sys/param.h>
-#include <sys/types.h>
-#include <sys/fs/zfs.h>
-#include <sys/zfs_ioctl.h>
+#include <linux/percpu_counter.h>
 
-#ifdef	__cplusplus
-extern "C" {
+/*
+ * 3.18 API change,
+ * percpu_counter_init() now must be passed a gfp mask which will be
+ * used for the dynamic allocation of the actual counter.
+ */
+#ifdef HAVE_PERCPU_COUNTER_INIT_WITH_GFP
+#define	percpu_counter_init_common(counter, n, gfp) \
+	percpu_counter_init(counter, n, gfp)
+#else
+#define	percpu_counter_init_common(counter, n, gfp) \
+	percpu_counter_init(counter, n)
 #endif
 
-int lzc_compat_pre(zfs_cmd_t *, zfs_ioc_t *, nvlist_t **);
-void lzc_compat_post(zfs_cmd_t *, const zfs_ioc_t);
-int lzc_compat_outnvl(zfs_cmd_t *, const zfs_ioc_t, nvlist_t **);
-
-#ifdef	__cplusplus
-}
-#endif
-
-#endif	/* _LIBZFS_CORE_COMPAT_H */
+#endif /* _ZFS_PERCPU_H */

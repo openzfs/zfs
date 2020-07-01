@@ -15,17 +15,17 @@ pkgdracut_DATA = \
 	zfs-rollback-bootfs.service
 
 EXTRA_DIST = \
-	$(top_srcdir)/contrib/dracut/90zfs/export-zfs.sh.in \
-	$(top_srcdir)/contrib/dracut/90zfs/module-setup.sh.in \
-	$(top_srcdir)/contrib/dracut/90zfs/mount-zfs.sh.in \
-	$(top_srcdir)/contrib/dracut/90zfs/parse-zfs.sh.in \
-	$(top_srcdir)/contrib/dracut/90zfs/zfs-generator.sh.in \
-	$(top_srcdir)/contrib/dracut/90zfs/zfs-load-key.sh.in \
-	$(top_srcdir)/contrib/dracut/90zfs/zfs-needshutdown.sh.in \
-	$(top_srcdir)/contrib/dracut/90zfs/zfs-lib.sh.in \
-	$(top_srcdir)/contrib/dracut/90zfs/zfs-env-bootfs.service.in \
-	$(top_srcdir)/contrib/dracut/90zfs/zfs-snapshot-bootfs.service.in \
-	$(top_srcdir)/contrib/dracut/90zfs/zfs-rollback-bootfs.service.in
+	export-zfs.sh.in \
+	module-setup.sh.in \
+	mount-zfs.sh.in \
+	parse-zfs.sh.in \
+	zfs-generator.sh.in \
+	zfs-load-key.sh.in \
+	zfs-needshutdown.sh.in \
+	zfs-lib.sh.in \
+	zfs-env-bootfs.service.in \
+	zfs-snapshot-bootfs.service.in \
+	zfs-rollback-bootfs.service.in
 
 $(pkgdracut_SCRIPTS) $(pkgdracut_DATA) :%:%.in
 	-$(SED) -e 's,@bindir\@,$(bindir),g' \
@@ -37,6 +37,4 @@ $(pkgdracut_SCRIPTS) $(pkgdracut_DATA) :%:%.in
 		-e 's,@mounthelperdir\@,$(mounthelperdir),g' \
 		$< >'$@'
 
-# Double-colon rules are allowed; there are multiple independent definitions.
-distclean-local::
-	-$(RM) $(pkgdracut_SCRIPTS) $(pkgdracut_DATA)
+CLEANFILES = $(pkgdracut_SCRIPTS) $(pkgdracut_DATA)

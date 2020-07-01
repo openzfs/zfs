@@ -5,7 +5,7 @@ lib_LTLIBRARIES = libzfs_core.la
 USER_C = \
 	libzfs_core.c
 
-nodist_libzfs_core_la_SOURCES = $(USER_C)
+libzfs_core_la_SOURCES = $(USER_C)
 
 libzfs_core_la_LIBADD = \
 	$(top_builddir)/lib/libnvpair/libnvpair.la \
@@ -18,4 +18,3 @@ libzfs_core_la_LIBADD += -lutil -lgeom
 else
 libzfs_core_la_LDFLAGS = -version-info 1:0:0
 endif
-EXTRA_DIST = $(USER_C)

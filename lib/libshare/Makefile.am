@@ -10,6 +10,4 @@ USER_C = \
 	smb.c \
 	smb.h
 
-nodist_libshare_la_SOURCES = $(USER_C)
-
-EXTRA_DIST = $(USER_C)
+libshare_la_SOURCES = $(USER_C)

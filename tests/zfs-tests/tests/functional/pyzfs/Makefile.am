@@ -14,6 +14,4 @@ $(pkgpyzfs_SCRIPTS):%:%.in
 		$< >'$@'
 	-chmod 775 $@
 
-# Double-colon rules are allowed; there are multiple independent definitions.
-distclean-local::
-	-$(RM) $(pkgpyzfs_SCRIPTS)
+CLEANFILES = $(pkgpyzfs_SCRIPTS)

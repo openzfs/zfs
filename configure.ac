@@ -98,6 +98,7 @@ AC_CONFIG_FILES([
 	contrib/initramfs/hooks/Makefile
 	contrib/initramfs/scripts/Makefile
 	contrib/initramfs/scripts/local-top/Makefile
+	contrib/pam_zfs_key/Makefile
 	contrib/pyzfs/Makefile
 	contrib/pyzfs/setup.py
 	contrib/zcp/Makefile
@@ -142,9 +143,6 @@ AC_CONFIG_FILES([
 	lib/libnvpair/Makefile
 	lib/libshare/Makefile
 	lib/libspl/Makefile
-	lib/libspl/asm-generic/Makefile
-	lib/libspl/asm-i386/Makefile
-	lib/libspl/asm-x86_64/Makefile
 	lib/libspl/include/Makefile
 	lib/libspl/include/ia32/Makefile
 	lib/libspl/include/ia32/sys/Makefile
@@ -353,6 +351,7 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/functional/no_space/Makefile
 	tests/zfs-tests/tests/functional/nopwrite/Makefile
 	tests/zfs-tests/tests/functional/online_offline/Makefile
+	tests/zfs-tests/tests/functional/pam/Makefile
 	tests/zfs-tests/tests/functional/persist_l2arc/Makefile
 	tests/zfs-tests/tests/functional/pool_checkpoint/Makefile
 	tests/zfs-tests/tests/functional/pool_names/Makefile

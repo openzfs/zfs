@@ -2,7 +2,7 @@ systemdgenerator_SCRIPTS = \
 	zfs-mount-generator
 
 EXTRA_DIST = \
-	$(top_srcdir)/etc/systemd/system-generators/zfs-mount-generator.in
+	zfs-mount-generator.in
 
 $(systemdgenerator_SCRIPTS): %: %.in
 	-$(SED) -e 's,@bindir\@,$(bindir),g' \
@@ -11,6 +11,4 @@ $(systemdgenerator_SCRIPTS): %: %.in
 		-e 's,@sysconfdir\@,$(sysconfdir),g' \
 		$< >'$@'
 
-# Double-colon rules are allowed; there are multiple independent definitions.
-distclean-local::
-	-$(RM) $(systemdgenerator_SCRIPTS)
+CLEANFILES = $(systemdgenerator_SCRIPTS)

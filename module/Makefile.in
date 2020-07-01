@@ -109,7 +109,7 @@ modules_uninstall-Linux:
 	@# Uninstall the kernel modules
 	kmoddir=$(DESTDIR)$(INSTALL_MOD_PATH)/lib/modules/@LINUX_VERSION@; \
 	debugdir=$(DESTDIR)$(INSTALL_MOD_PATH)$(LINUX_DEBUG_MOD_DIR); \
-	list='$(ZFS_MODULES)'; for objdir in $$list; do \
+	for objdir in $(ZFS_MODULES); do \
 		$(RM) -R $$kmoddir/$(INSTALL_MOD_DIR)/$$objdir; \
 		$(RM) -fR $$debugdir/$(INSTALL_MOD_DIR)/$$objdir; \
 	done
@@ -120,10 +120,9 @@ modules_uninstall-FreeBSD:
 modules_uninstall: modules_uninstall-@ac_system@
 
 distdir:
-	list='$(ZFS_MODULES)'; for objdir in $$list os/linux/spl os/linux/zfs; do \
-		(cd @top_srcdir@/module && find $$objdir -name '*.[chS]' | \
-		while read path; do \
-			mkdir -p @abs_top_builddir@/module/$$distdir/$${path%/*}; \
-			cp $$path @abs_top_builddir@/module/$$distdir/$$path; \
-		done); \
-	done
+	(cd @srcdir@ && find $(ZFS_MODULES) os -name '*.[chS]') | \
+	while read path; do \
+		mkdir -p $$distdir/$${path%/*}; \
+		cp @srcdir@/$$path $$distdir/$$path; \
+	done; \
+	cp @srcdir@/Makefile.bsd $$distdir/Makefile.bsd

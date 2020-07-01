@@ -100,7 +100,6 @@ extern struct rw_semaphore spl_kmem_cache_sem;
 #define	SKC_MAGIC			0x2c2c2c2c
 
 #define	SPL_KMEM_CACHE_DELAY		15	/* Minimum slab release age */
-#define	SPL_KMEM_CACHE_REAP		0	/* Default reap everything */
 #define	SPL_KMEM_CACHE_OBJ_PER_SLAB	8	/* Target objects per slab */
 #define	SPL_KMEM_CACHE_OBJ_PER_SLAB_MIN	1	/* Minimum objects per slab */
 #define	SPL_KMEM_CACHE_ALIGN		8	/* Default object alignment */
@@ -185,7 +184,6 @@ typedef struct spl_kmem_cache {
 	uint32_t		skc_slab_objs;	/* Objects per slab */
 	uint32_t		skc_slab_size;	/* Slab size */
 	uint32_t		skc_delay;	/* Slab reclaim interval */
-	uint32_t		skc_reap;	/* Slab reclaim count */
 	atomic_t		skc_ref;	/* Ref count callers */
 	taskqid_t		skc_taskqid;	/* Slab reclaim task */
 	struct list_head	skc_list;	/* List of caches linkage */
@@ -202,6 +200,7 @@ typedef struct spl_kmem_cache {
 	uint64_t		skc_slab_max;	/* Slab max historic  */
 	uint64_t		skc_obj_total;	/* Obj total current */
 	uint64_t		skc_obj_alloc;	/* Obj alloc current */
+	struct percpu_counter	skc_linux_alloc;   /* Linux-backed Obj alloc  */
 	uint64_t		skc_obj_max;	/* Obj max historic */
 	uint64_t		skc_obj_deadlock;  /* Obj emergency deadlocks */
 	uint64_t		skc_obj_emergency; /* Obj emergency current */
@@ -218,7 +217,7 @@ extern void spl_kmem_cache_destroy(spl_kmem_cache_t *skc);
 extern void *spl_kmem_cache_alloc(spl_kmem_cache_t *skc, int flags);
 extern void spl_kmem_cache_free(spl_kmem_cache_t *skc, void *obj);
 extern void spl_kmem_cache_set_allocflags(spl_kmem_cache_t *skc, gfp_t flags);
-extern void spl_kmem_cache_reap_now(spl_kmem_cache_t *skc, int count);
+extern void spl_kmem_cache_reap_now(spl_kmem_cache_t *skc);
 extern void spl_kmem_reap(void);
 extern uint64_t spl_kmem_cache_inuse(kmem_cache_t *cache);
 extern uint64_t spl_kmem_cache_entry_size(kmem_cache_t *cache);
@@ -229,8 +228,7 @@ extern uint64_t spl_kmem_cache_entry_size(kmem_cache_t *cache);
 #define	kmem_cache_destroy(skc)		spl_kmem_cache_destroy(skc)
 #define	kmem_cache_alloc(skc, flags)	spl_kmem_cache_alloc(skc, flags)
 #define	kmem_cache_free(skc, obj)	spl_kmem_cache_free(skc, obj)
-#define	kmem_cache_reap_now(skc)	\
-    spl_kmem_cache_reap_now(skc, skc->skc_reap)
+#define	kmem_cache_reap_now(skc)	spl_kmem_cache_reap_now(skc)
 #define	kmem_reap()			spl_kmem_reap()
 
 /*

@@ -240,6 +240,7 @@ maybe = {
     'userquota/setup': ['SKIP', exec_reason],
     'vdev_zaps/vdev_zaps_004_pos': ['FAIL', '6935'],
     'zvol/zvol_ENOSPC/zvol_ENOSPC_001_pos': ['FAIL', '5848'],
+    'pam/setup': ['SKIP', "pamtester might be not available"],
 }
 
 if sys.platform.startswith('freebsd'):

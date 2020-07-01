@@ -97,8 +97,5 @@ $(nodist_man_MANS): %: %.in
 		-e 's,@sysconfdir\@,$(sysconfdir),g' \
 		$< >'$@'
 
-install-data-local:
-	$(INSTALL) -d -m 0755 "$(DESTDIR)$(mandir)/man8"
-
 CLEANFILES = \
 	$(nodist_man_MANS)

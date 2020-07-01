@@ -4,9 +4,9 @@ udevrule_DATA = \
 	90-zfs.rules
 
 EXTRA_DIST = \
-	$(top_srcdir)/udev/rules.d/69-vdev.rules.in \
-	$(top_srcdir)/udev/rules.d/60-zvol.rules.in \
-	$(top_srcdir)/udev/rules.d/90-zfs.rules.in
+	69-vdev.rules.in \
+	60-zvol.rules.in \
+	90-zfs.rules.in
 
 $(udevrule_DATA):%:%.in
 	-$(SED) -e 's,@bindir\@,$(bindir),g' \
@@ -16,6 +16,4 @@ $(udevrule_DATA):%:%.in
 		-e 's,@sysconfdir\@,$(sysconfdir),g' \
 		$< > '$@'
 
-# Double-colon rules are allowed; there are multiple independent definitions.
-distclean-local::
-	-$(RM) $(udevrule_DATA)
+CLEANFILES = $(udevrule_DATA)
