@@ -4186,12 +4186,10 @@ vdev_stat_update(zio_t *zio, uint64_t psize)
 				vdev_t *tvd = vd->vdev_top;
 				vdev_rebuild_t *vr = &tvd->vdev_rebuild_config;
 				vdev_rebuild_phys_t *vrp = &vr->vr_rebuild_phys;
+				uint64_t *rebuilt = &vrp->vrp_bytes_rebuilt;
 
-				if (vd->vdev_ops->vdev_op_leaf) {
-					mutex_enter(&tvd->vdev_rebuild_lock);
-					vrp->vrp_bytes_rebuilt += psize;
-					mutex_exit(&tvd->vdev_rebuild_lock);
-				}
+				if (vd->vdev_ops->vdev_op_leaf)
+					atomic_add_64(rebuilt, psize);
 				vs->vs_rebuild_processed += psize;
 			}
 

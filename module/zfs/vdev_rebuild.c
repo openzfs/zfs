@@ -56,7 +56,7 @@
  * process will take longer than the healing reconstruction described above.
  * However, it has that advantage that after the reconstruction first phase
  * completes redundancy has been restored.  At this point the pool can incur
- * another device failure without disking data loss.
+ * another device failure without risking data loss.
  *
  * There are a few noteworthy limitations and other advantages of resilvering
  * using sequential reconstruction vs healing reconstruction.
@@ -81,7 +81,7 @@
  *     than healing reconstuction particularly when using using HDDs (or
  *     especially with SMR devices).  Only allocated capacity is resilvered.
  *
- *   - Sequential reconstruction has no awareness of ZFS block boundaries.
+ *   - Sequential reconstruction is not constrained by ZFS block boundaries.
  *     This allows it to issue larger IOs to disk which span multiple blocks
  *     allowing all of these logical blocks to be repaired with a single IO.
  *
