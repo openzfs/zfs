@@ -6621,8 +6621,9 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 
 	if (rebuild) {
 		/*
-		 * For rebuilds, the only allowable parents are a mirror,
-		 * the root vdev, or a dRAID with fixed width stripes.
+		 * For rebuilds, the parent vdev must support reconstruction
+		 * using only space maps.  This means the only allowable
+		 * parents are the root vdev or a mirror vdev.
 		 */
 		if (pvd->vdev_ops != &vdev_mirror_ops &&
 		    pvd->vdev_ops != &vdev_root_ops) {
