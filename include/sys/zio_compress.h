@@ -57,6 +57,11 @@ enum zio_compress {
 	ZIO_COMPRESS_FUNCTIONS
 };
 
+/* Compression algorithms that have levels */
+#define	ZIO_COMPRESS_HASLEVEL(compress)	((compress == ZIO_COMPRESS_ZSTD || \
+					(compress >= ZIO_COMPRESS_GZIP_1 && \
+					compress <= ZIO_COMPRESS_GZIP_9)))
+
 #define	ZIO_COMPLEVEL_INHERIT	0
 #define	ZIO_COMPLEVEL_DEFAULT	255
 

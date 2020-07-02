@@ -76,6 +76,9 @@ zio_complevel_select(spa_t *spa, enum zio_compress compress, uint8_t child,
 {
 	uint8_t result;
 
+	if (!ZIO_COMPRESS_HASLEVEL(compress))
+		return (0);
+
 	result = child;
 	if (result == ZIO_COMPLEVEL_INHERIT)
 		result = parent;

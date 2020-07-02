@@ -2044,34 +2044,6 @@ zfs_ioc_vdev_setfru(zfs_cmd_t *zc)
 }
 
 static int
-get_prop_uint64(nvlist_t *nv, const char *prop, nvlist_t **nvp,
-    uint64_t *val)
-{
-	int err = 0;
-	nvlist_t *subnv;
-	nvpair_t *pair;
-	nvpair_t *propval;
-
-	if (nvlist_lookup_nvpair(nv, prop, &pair) != 0)
-		return (EINVAL);
-
-	/* decode the property value */
-	propval = pair;
-	if (nvpair_type(pair) == DATA_TYPE_NVLIST) {
-		subnv = fnvpair_value_nvlist(pair);
-		if (nvp != NULL)
-			*nvp = subnv;
-		if (nvlist_lookup_nvpair(subnv, ZPROP_VALUE, &propval) != 0)
-			err = EINVAL;
-	}
-	if (nvpair_type(propval) == DATA_TYPE_UINT64) {
-		*val = fnvpair_value_uint64(propval);
-	}
-
-	return (err);
-}
-
-static int
 zfs_ioc_objset_stats_impl(zfs_cmd_t *zc, objset_t *os)
 {
 	int error = 0;
@@ -2098,28 +2070,6 @@ zfs_ioc_objset_stats_impl(zfs_cmd_t *zc, objset_t *os)
 			}
 			VERIFY0(error);
 		}
-		/*
-		 * ZSTD stores the compression level in a separate hidden
-		 * property to avoid using up a large number of bits in the
-		 * on-disk compression algorithm enum. We need to swap things
-		 * back around when the property is read.
-		 */
-		nvlist_t *cnv;
-		uint64_t compval, levelval;
-
-		if (get_prop_uint64(nv, "compression", &cnv, &compval) != 0)
-			compval = ZIO_COMPRESS_INHERIT;
-
-		if (error == 0 && compval == ZIO_COMPRESS_ZSTD &&
-		    get_prop_uint64(nv, "compress_level", NULL,
-		    &levelval) == 0) {
-			if (levelval == ZIO_COMPLEVEL_DEFAULT)
-				levelval = 0;
-			fnvlist_remove(cnv, ZPROP_VALUE);
-			fnvlist_add_uint64(cnv, ZPROP_VALUE,
-			    compval | (levelval << SPA_COMPRESSBITS));
-		}
-
 		if (error == 0)
 			error = put_nvlist(zc, nv);
 		nvlist_free(nv);
@@ -2566,32 +2516,6 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 		}
 		break;
 	}
-	case ZFS_PROP_COMPRESSION:
-		/* Special handling is only required for ZSTD */
-		if ((intval & SPA_COMPRESSMASK) != ZIO_COMPRESS_ZSTD) {
-			err = -1;
-			break;
-		}
-		/*
-		 * Store the ZSTD compression level separate from the compress
-		 * property in its own hidden property.
-		 */
-		uint64_t levelval;
-
-		if (intval == ZIO_COMPRESS_ZSTD) {
-			levelval = ZIO_COMPLEVEL_DEFAULT;
-		} else {
-			levelval = (intval & ~SPA_COMPRESSMASK)
-			    >> SPA_COMPRESSBITS;
-		}
-		err = dsl_prop_set_int(dsname, "compress_level", source,
-		    levelval);
-		if (err == 0) {
-			/* Store the compression algorithm normally */
-			err = dsl_prop_set_int(dsname, propname, source,
-			    intval & SPA_COMPRESSMASK);
-		}
-		break;
 	default:
 		err = -1;
 	}
@@ -4452,7 +4376,7 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 	const char *propname = nvpair_name(pair);
 	boolean_t issnap = (strchr(dsname, '@') != NULL);
 	zfs_prop_t prop = zfs_name_to_prop(propname);
-	uint64_t intval;
+	uint64_t intval, compval;
 	int err;
 
 	if (prop == ZPROP_INVAL) {
@@ -4534,19 +4458,20 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 		 * we'll catch them later.
 		 */
 		if (nvpair_value_uint64(pair, &intval) == 0) {
-			if (intval >= ZIO_COMPRESS_GZIP_1 &&
-			    intval <= ZIO_COMPRESS_GZIP_9 &&
+			compval = ZIO_COMPRESS_ALGO(intval);
+			if (compval >= ZIO_COMPRESS_GZIP_1 &&
+			    compval <= ZIO_COMPRESS_GZIP_9 &&
 			    zfs_earlier_version(dsname,
 			    SPA_VERSION_GZIP_COMPRESSION)) {
 				return (SET_ERROR(ENOTSUP));
 			}
 
-			if (intval == ZIO_COMPRESS_ZLE &&
+			if (compval == ZIO_COMPRESS_ZLE &&
 			    zfs_earlier_version(dsname,
 			    SPA_VERSION_ZLE_COMPRESSION))
 				return (SET_ERROR(ENOTSUP));
 
-			if (intval == ZIO_COMPRESS_LZ4) {
+			if (compval == ZIO_COMPRESS_LZ4) {
 				spa_t *spa;
 
 				if ((err = spa_open(dsname, &spa, FTAG)) != 0)
@@ -4560,7 +4485,7 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 				spa_close(spa, FTAG);
 			}
 
-			if (intval == ZIO_COMPRESS_ZSTD) {
+			if (compval == ZIO_COMPRESS_ZSTD) {
 				spa_t *spa;
 
 				if ((err = spa_open(dsname, &spa, FTAG)) != 0)
@@ -4582,7 +4507,7 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 			 * implies a downrev pool version.
 			 */
 			if (zfs_is_bootfs(dsname) &&
-			    !BOOTFS_COMPRESS_VALID(intval)) {
+			    !BOOTFS_COMPRESS_VALID(compval)) {
 				return (SET_ERROR(ERANGE));
 			}
 		}
