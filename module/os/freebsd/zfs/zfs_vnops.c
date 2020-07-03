@@ -5749,10 +5749,13 @@ zfs_freebsd_need_inactive(struct vop_need_inactive_args *ap)
 	vnode_t *vp = ap->a_vp;
 	znode_t	*zp = VTOZ(vp);
 	zfsvfs_t *zfsvfs = zp->z_zfsvfs;
-	bool need;
+	int need;
+
+	if (vn_need_pageq_flush(vp))
+		return (1);
 
 	if (!rw_tryenter(&zfsvfs->z_teardown_inactive_lock, RW_READER))
-		return (true);
+		return (1);
 	need = (zp->z_sa_hdl == NULL || zp->z_unlinked || zp->z_atime_dirty);
 	rw_exit(&zfsvfs->z_teardown_inactive_lock);
 
