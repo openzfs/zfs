@@ -415,7 +415,7 @@ atomic_clear_long_excl(volatile ulong_t *target, uint_t value)
 
 	VERIFY3S(pthread_mutex_lock(&atomic_lock), ==, 0);
 	bit = (1UL << value);
-	if ((*target & bit) != 1) {
+	if ((*target & bit) == 0) {
 		VERIFY3S(pthread_mutex_unlock(&atomic_lock), ==, 0);
 		return (-1);
 	}
