@@ -258,6 +258,35 @@ returned to the \fBenabled\fR state when all bookmarks with these fields are des
 .sp
 .ne 2
 .na
+\fBdevice_rebuild\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	org.openzfs:device_rebuild
+READ\-ONLY COMPATIBLE	yes
+DEPENDENCIES	none
+.TE
+
+This feature enables the ability for the \fBzpool attach\fR and \fBzpool
+replace\fR subcommands to perform sequential reconstruction (instead of
+healing reconstruction) when resilvering.
+
+Sequential reconstruction resilvers a device in LBA order without immediately
+verifying the checksums.  Once complete a scrub is started which then verifies
+the checksums.  This approach allows full redundancy to be restored to the pool
+in the minimum amount of time.  This two phase approach will take longer than a
+healing resilver when the time to verify the checksums is included.  However,
+unless there is additional pool damage no checksum errors should be reported
+by the scrub.  This feature is incompatible with raidz configurations.
+
+This feature becomes \fBactive\fR while a sequential resilver is in progress,
+and returns to \fBenabled\fR when the resilver completes.
+.RE
+
+.sp
+.ne 2
+.na
 \fBdevice_removal\fR
 .ad
 .RS 4n

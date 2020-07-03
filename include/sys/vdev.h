@@ -74,7 +74,7 @@ extern boolean_t vdev_dtl_contains(vdev_t *vd, vdev_dtl_type_t d,
 extern boolean_t vdev_dtl_empty(vdev_t *vd, vdev_dtl_type_t d);
 extern boolean_t vdev_dtl_need_resilver(vdev_t *vd, uint64_t off, size_t size);
 extern void vdev_dtl_reassess(vdev_t *vd, uint64_t txg, uint64_t scrub_txg,
-    int scrub_done);
+    boolean_t scrub_done, boolean_t rebuild_done);
 extern boolean_t vdev_dtl_required(vdev_t *vd);
 extern boolean_t vdev_resilver_needed(vdev_t *vd,
     uint64_t *minp, uint64_t *maxp);

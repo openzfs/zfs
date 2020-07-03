@@ -27,7 +27,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd August 9, 2019
+.Dd May 15, 2020
 .Dt ZPOOL-ATTACH 8
 .Os Linux
 .Sh NAME
@@ -36,7 +36,7 @@
 .Sh SYNOPSIS
 .Nm
 .Cm attach
-.Op Fl fw
+.Op Fl fsw
 .Oo Fl o Ar property Ns = Ns Ar value Oc
 .Ar pool device new_device
 .Sh DESCRIPTION
@@ -44,7 +44,7 @@
 .It Xo
 .Nm
 .Cm attach
-.Op Fl fw
+.Op Fl fsw
 .Oo Fl o Ar property Ns = Ns Ar value Oc
 .Ar pool device new_device
 .Xc
@@ -68,22 +68,29 @@ is part of a two-way mirror, attaching
 creates a three-way mirror, and so on.
 In either case,
 .Ar new_device
-begins to resilver immediately.
+begins to resilver immediately and any running scrub is cancelled.
 .Bl -tag -width Ds
 .It Fl f
 Forces use of
 .Ar new_device ,
 even if it appears to be in use.
 Not all devices can be overridden in this manner.
-.It Fl w
-Waits until
-.Ar new_device
-has finished resilvering before returning.
 .It Fl o Ar property Ns = Ns Ar value
 Sets the given pool properties. See the
 .Xr zpoolprops 8
 manual page for a list of valid properties that can be set. The only property
 supported at the moment is ashift.
+.It Fl s
+The
+.Ar new_device
+is reconstructed sequentially to restore redundancy as quickly as possible.
+Checksums are not verfied during sequential reconstruction so a scrub is
+started when the resilver completes.
+Sequential reconstruction is not supported for raidz configurations.
+.It Fl w
+Waits until
+.Ar new_device
+has finished resilvering before returning.
 .El
 .El
 .Sh SEE ALSO

@@ -36,6 +36,7 @@
 #include <sys/spa_checkpoint.h>
 #include <sys/spa_log_spacemap.h>
 #include <sys/vdev.h>
+#include <sys/vdev_rebuild.h>
 #include <sys/vdev_removal.h>
 #include <sys/metaslab.h>
 #include <sys/dmu.h>

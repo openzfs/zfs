@@ -34,12 +34,12 @@
 
 #
 # DESCRIPTION:
-# 	Detaching disks during I/O should pass for supported pools.
+# 	Attaching disks during I/O should pass for supported pools.
 #
 # STRATEGY:
 #	1. Create multidisk pools (stripe/mirror/raidz) and
 #	   start some random I/O
-#	2. Detach a disk from the pool.
+#	2. Attach a disk to the pool.
 #	3. Verify the integrity of the file system and the resilvering.
 #
 
@@ -78,17 +78,19 @@ log_onexit cleanup
 
 [[ -n "$HOLES_FILEOFFSET" ]] && options="$options -o $HOLES_FILEOFFSET "
 
-ptions="$options -r "
+options="$options -r "
 
 [[ -n "$options" ]] && options_display=$options
 
 child_pids=""
 
-function detach_test
+function attach_test
 {
 	typeset -i iters=2
 	typeset -i index=0
-	typeset disk1=$1
+	typeset opt=$1
+	typeset disk1=$2
+	typeset disk2=$3
 
 	typeset i=0
 	while [[ $i -lt $iters ]]; do
@@ -102,9 +104,7 @@ function detach_test
 		((i = i + 1))
 	done
 
-	log_must zpool detach $TESTPOOL1 $disk1
-
-	sleep 10
+	log_must zpool attach -w $opt $TESTPOOL1 $disk1 $disk2
 
 	for wait_pid in $child_pids
 	do
@@ -117,45 +117,56 @@ function detach_test
         log_must zfs umount $TESTPOOL1/$TESTFS1
         log_must zdb -cdui $TESTPOOL1/$TESTFS1
         log_must zfs mount $TESTPOOL1/$TESTFS1
+	verify_pool $TESTPOOL1
 }
 
 specials_list=""
 i=0
-while [[ $i != 2 ]]; do
-	mkfile $MINVDEVSIZE $TESTDIR/$TESTFILE1.$i
+while [[ $i != 3 ]]; do
+	truncate -s $MINVDEVSIZE $TESTDIR/$TESTFILE1.$i
 	specials_list="$specials_list $TESTDIR/$TESTFILE1.$i"
 
 	((i = i + 1))
 done
 
-create_pool $TESTPOOL1 mirror $specials_list
-log_must zfs create $TESTPOOL1/$TESTFS1
-log_must zfs set mountpoint=$TESTDIR1 $TESTPOOL1/$TESTFS1
+#
+# Create a replacement disk special file.
+#
+truncate -s $MINVDEVSIZE $TESTDIR/$REPLACEFILE
 
-detach_test $TESTDIR/$TESTFILE1.1
-
-zpool iostat -v $TESTPOOL1 | grep "$TESTDIR/$TESTFILE1.1"
-if [[ $? -eq 0 ]]; then
-	log_fail "$TESTFILE1.1 should no longer be present."
-fi
-
-destroy_pool $TESTPOOL1
-
-log_note "Verify 'zpool detach' fails with non-mirrors."
-
-for type in "" "raidz" "raidz1" ; do
-	create_pool $TESTPOOL1 $type $specials_list
+for op in "" "-f"; do
+	create_pool $TESTPOOL1 mirror $specials_list
 	log_must zfs create $TESTPOOL1/$TESTFS1
 	log_must zfs set mountpoint=$TESTDIR1 $TESTPOOL1/$TESTFS1
 
-	log_mustnot zpool detach $TESTDIR/$TESTFILE1.1
+	attach_test "$opt" $TESTDIR/$TESTFILE1.1 $TESTDIR/$REPLACEFILE
 
-	zpool iostat -v $TESTPOOL1 | grep "$TESTDIR/$TESTFILE1.1"
+	zpool iostat -v $TESTPOOL1 | grep "$REPLACEFILE"
 	if [[ $? -ne 0 ]]; then
-	        log_fail "$TESTFILE1.1 is not present."
+		log_fail "$REPLACEFILE is not present."
 	fi
 
 	destroy_pool $TESTPOOL1
+done
+
+log_note "Verify 'zpool attach' fails with non-mirrors."
+
+for type in "" "raidz" "raidz1"; do
+	for op in "" "-f"; do
+		create_pool $TESTPOOL1 $type $specials_list
+		log_must zfs create $TESTPOOL1/$TESTFS1
+		log_must zfs set mountpoint=$TESTDIR1 $TESTPOOL1/$TESTFS1
+
+		log_mustnot zpool attach "$opt" $TESTDIR/$TESTFILE1.1 \
+		    $TESTDIR/$REPLACEFILE
+
+		zpool iostat -v $TESTPOOL1 | grep "$REPLACEFILE"
+		if [[ $? -eq 0 ]]; then
+		        log_fail "$REPLACEFILE should not be present."
+		fi
+
+		destroy_pool $TESTPOOL1
+	done
 done
 
 log_pass

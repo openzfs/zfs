@@ -487,7 +487,8 @@ tests = ['zpool_wait_discard', 'zpool_wait_freeing',
 tags = ['functional', 'cli_root', 'zpool_wait']
 
 [tests/functional/cli_root/zpool_wait/scan]
-tests = ['zpool_wait_replace_cancel', 'zpool_wait_resilver', 'zpool_wait_scrub_cancel',
+tests = ['zpool_wait_replace_cancel', 'zpool_wait_rebuild',
+    'zpool_wait_resilver', 'zpool_wait_scrub_cancel',
     'zpool_wait_replace', 'zpool_wait_scrub_basic', 'zpool_wait_scrub_flag']
 tags = ['functional', 'cli_root', 'zpool_wait']
 
@@ -748,7 +749,11 @@ tests = ['rename_dirs_001_pos']
 tags = ['functional', 'rename_dirs']
 
 [tests/functional/replacement]
-tests = ['replacement_001_pos', 'replacement_002_pos', 'replacement_003_pos']
+tests = ['attach_import', 'attach_multiple', 'attach_rebuild',
+    'attach_resilver', 'detach', 'rebuild_disabled_feature',
+    'rebuild_multiple', 'rebuild_raidz', 'replace_import', 'replace_rebuild',
+    'replace_resilver', 'resilver_restart_001', 'resilver_restart_002',
+    'scrub_cancel']
 tags = ['functional', 'replacement']
 
 [tests/functional/reservation]
@@ -761,10 +766,6 @@ tests = ['reservation_001_pos', 'reservation_002_pos', 'reservation_003_pos',
     'reservation_019_pos', 'reservation_020_pos', 'reservation_021_neg',
     'reservation_022_pos']
 tags = ['functional', 'reservation']
-
-[tests/functional/resilver]
-tests = ['resilver_restart_001', 'resilver_restart_002']
-tags = ['functional', 'resilver']
 
 [tests/functional/rootpool]
 tests = ['rootpool_002_neg', 'rootpool_003_neg', 'rootpool_007_pos']

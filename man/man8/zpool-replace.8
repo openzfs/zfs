@@ -27,7 +27,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd August 9, 2019
+.Dd May 15, 2020
 .Dt ZPOOL-REPLACE 8
 .Os Linux
 .Sh NAME
@@ -36,7 +36,7 @@
 .Sh SYNOPSIS
 .Nm
 .Cm replace
-.Op Fl fw
+.Op Fl fsw
 .Oo Fl o Ar property Ns = Ns Ar value Oc
 .Ar pool Ar device Op Ar new_device
 .Sh DESCRIPTION
@@ -44,7 +44,7 @@
 .It Xo
 .Nm
 .Cm replace
-.Op Fl fw
+.Op Fl fsw
 .Op Fl o Ar property Ns = Ns Ar value
 .Ar pool Ar device Op Ar new_device
 .Xc
@@ -56,6 +56,7 @@ This is equivalent to attaching
 .Ar new_device ,
 waiting for it to resilver, and then detaching
 .Ar old_device .
+Any in progress scrub will be cancelled.
 .Pp
 The size of
 .Ar new_device
@@ -86,6 +87,13 @@ Sets the given pool properties. See the
 manual page for a list of valid properties that can be set.
 The only property supported at the moment is
 .Sy ashift .
+.It Fl s
+The
+.Ar new_device
+is reconstructed sequentially to restore redundancy as quickly as possible.
+Checksums are not verfied during sequential reconstruction so a scrub is
+started when the resilver completes.
+Sequential reconstruction is not supported for raidz configurations.
 .It Fl w
 Waits until the replacement has completed before returning.
 .El

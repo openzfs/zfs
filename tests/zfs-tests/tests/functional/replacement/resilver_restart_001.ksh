@@ -20,7 +20,7 @@
 #
 
 . $STF_SUITE/include/libtest.shlib
-. $STF_SUITE/tests/functional/resilver/resilver.cfg
+. $STF_SUITE/tests/functional/replacement/replacement.cfg
 
 #
 # DESCRIPTION:
@@ -50,7 +50,7 @@ function cleanup
 	    $ORIG_SCAN_SUSPEND_PROGRESS
 	log_must set_tunable32 ZEVENT_LEN_MAX $ORIG_ZFS_ZEVENT_LEN_MAX
 	log_must zinject -c all
-	destroy_pool $TESTPOOL
+	destroy_pool $TESTPOOL1
 	rm -f ${VDEV_FILES[@]} $SPARE_VDEV_FILE
 }
 
@@ -70,7 +70,7 @@ function verify_restarts # <msg> <cnt> <defer>
 	[[ -z "$defer" ]] && return
 
 	# use zdb to find which vdevs have the resilver defer flag
-	VDEV_DEFERS=$(zdb -C $TESTPOOL | awk '
+	VDEV_DEFERS=$(zdb -C $TESTPOOL1 | awk '
 	    /children/ { gsub(/[^0-9]/, ""); child = $0 }
 	    /com\.datto:resilver_defer$/ { print child }
 	')
@@ -106,17 +106,17 @@ log_must set_tunable32 ZEVENT_LEN_MAX 512
 
 log_must truncate -s $VDEV_FILE_SIZE ${VDEV_FILES[@]} $SPARE_VDEV_FILE
 
-log_must zpool create -f -o feature@resilver_defer=disabled $TESTPOOL \
+log_must zpool create -f -o feature@resilver_defer=disabled $TESTPOOL1 \
     raidz ${VDEV_FILES[@]}
 
 # create 4 filesystems
 for fs in fs{0..3}
 do
-	log_must zfs create -o primarycache=none -o recordsize=1k $TESTPOOL/$fs
+	log_must zfs create -o primarycache=none -o recordsize=1k $TESTPOOL1/$fs
 done
 
 # simultaneously write 16M to each of them
-set -A DATAPATHS /$TESTPOOL/fs{0..3}/dat.0
+set -A DATAPATHS /$TESTPOOL1/fs{0..3}/dat.0
 log_note "Writing data files"
 for path in ${DATAPATHS[@]}
 do
@@ -131,7 +131,7 @@ do
 
 	if [[ $test == "with" ]]
 	then
-		log_must zpool set feature@resilver_defer=enabled $TESTPOOL
+		log_must zpool set feature@resilver_defer=enabled $TESTPOOL1
 		RESTARTS=( "${DEFER_RESTARTS[@]}" )
 		VDEVS=( "${DEFER_VDEVS[@]}" )
 		VDEV_REPLACE="$SPARE_VDEV_FILE ${VDEV_FILES[1]}"
@@ -144,7 +144,7 @@ do
 	log_must set_tunable32 RESILVER_MIN_TIME_MS 50
 
 	# initiate a resilver and suspend the scan as soon as possible
-	log_must zpool replace $TESTPOOL $VDEV_REPLACE
+	log_must zpool replace $TESTPOOL1 $VDEV_REPLACE
 	log_must set_tunable32 SCAN_SUSPEND_PROGRESS 1
 
 	# there should only be 1 resilver start
@@ -152,16 +152,16 @@ do
 
 	# offline then online a vdev to introduce a new DTL range after current
 	# scan, which should restart (or defer) the resilver
-	log_must zpool offline $TESTPOOL ${VDEV_FILES[2]}
-	log_must zpool sync $TESTPOOL
-	log_must zpool online $TESTPOOL ${VDEV_FILES[2]}
-	log_must zpool sync $TESTPOOL
+	log_must zpool offline $TESTPOOL1 ${VDEV_FILES[2]}
+	log_must zpool sync $TESTPOOL1
+	log_must zpool online $TESTPOOL1 ${VDEV_FILES[2]}
+	log_must zpool sync $TESTPOOL1
 
 	# there should now be 2 resilver starts w/o defer, 1 with defer
 	verify_restarts ' after offline/online' "${RESTARTS[1]}" "${VDEVS[1]}"
 
 	# inject read io errors on vdev and verify resilver does not restart
-	log_must zinject -a -d ${VDEV_FILES[2]} -e io -T read -f 0.25 $TESTPOOL
+	log_must zinject -a -d ${VDEV_FILES[2]} -e io -T read -f 0.25 $TESTPOOL1
 	log_must cat ${DATAPATHS[1]} > /dev/null
 	log_must zinject -c all
 
@@ -173,17 +173,12 @@ do
 	log_must set_tunable32 RESILVER_MIN_TIME_MS 3000
 
 	# wait for resilver to finish
-	for iter in {0..59}
-	do
-		is_pool_resilvered $TESTPOOL && break
-		sleep 1
-	done
-	is_pool_resilvered $TESTPOOL ||
-	    log_fail "resilver timed out"
+	log_must zpool wait -t resilver $TESTPOOL1
+	log_must is_pool_resilvered $TESTPOOL1
 
 	# wait for a few txg's to see if a resilver happens
-	log_must zpool sync $TESTPOOL
-	log_must zpool sync $TESTPOOL
+	log_must zpool sync $TESTPOOL1
+	log_must zpool sync $TESTPOOL1
 
 	# there should now be 2 resilver starts
 	verify_restarts ' after resilver' "${RESTARTS[3]}" "${VDEVS[3]}"

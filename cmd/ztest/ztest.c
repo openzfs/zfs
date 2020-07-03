@@ -3533,7 +3533,16 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	root = make_vdev_root(newpath, NULL, NULL, newvd == NULL ? newsize : 0,
 	    ashift, NULL, 0, 0, 1);
 
-	error = spa_vdev_attach(spa, oldguid, root, replacing);
+	/*
+	 * When supported select either a healing or sequential resilver.
+	 */
+	boolean_t rebuilding = B_FALSE;
+	if (pvd->vdev_ops == &vdev_mirror_ops ||
+	    pvd->vdev_ops ==  &vdev_root_ops) {
+		rebuilding = !!ztest_random(2);
+	}
+
+	error = spa_vdev_attach(spa, oldguid, root, replacing, rebuilding);
 
 	nvlist_free(root);
 
@@ -3553,10 +3562,11 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 		expected_error = error;
 
 	if (error == ZFS_ERR_CHECKPOINT_EXISTS ||
-	    error == ZFS_ERR_DISCARDING_CHECKPOINT)
+	    error == ZFS_ERR_DISCARDING_CHECKPOINT ||
+	    error == ZFS_ERR_RESILVER_IN_PROGRESS ||
+	    error == ZFS_ERR_REBUILD_IN_PROGRESS)
 		expected_error = error;
 
-	/* XXX workaround 6690467 */
 	if (error != expected_error && expected_error != EBUSY) {
 		fatal(0, "attach (%s %llu, %s %llu, %d) "
 		    "returned %d, expected %d",
