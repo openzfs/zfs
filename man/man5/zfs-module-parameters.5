@@ -1865,6 +1865,30 @@ Default value: \fB1,000\fR.
 .sp
 .ne 2
 .na
+\fBzfs_vdev_rebuild_max_active\fR (int)
+.ad
+.RS 12n
+Maximum sequential resilver I/Os active to each device.
+See the section "ZFS I/O SCHEDULER".
+.sp
+Default value: \fB3\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_rebuild_min_active\fR (int)
+.ad
+.RS 12n
+Minimum sequential resilver I/Os active to each device.
+See the section "ZFS I/O SCHEDULER".
+.sp
+Default value: \fB1\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_vdev_removal_max_active\fR (int)
 .ad
 .RS 12n
@@ -2705,6 +2729,18 @@ Default value: \fB0\fR (no data is kept).
 Include cache hits in read history
 .sp
 Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_rebuild_max_segment\fR (ulong)
+.ad
+.RS 12n
+Maximum read segment size to issue when sequentially resilvering a
+top-level vdev.
+.sp
+Default value: \fB1,048,576\fR.
 .RE
 
 .sp

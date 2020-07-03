@@ -79,7 +79,7 @@ typedef enum zfs_error {
 	EZFS_NODEVICE,		/* no such device in pool */
 	EZFS_BADDEV,		/* invalid device to add */
 	EZFS_NOREPLICAS,	/* no valid replicas */
-	EZFS_RESILVERING,	/* currently resilvering */
+	EZFS_RESILVERING,	/* resilvering (healing reconstruction) */
 	EZFS_BADVERSION,	/* unsupported version */
 	EZFS_POOLUNAVAIL,	/* pool is currently unavailable */
 	EZFS_DEVOVERFLOW,	/* too many devices in one vdev */
@@ -148,6 +148,7 @@ typedef enum zfs_error {
 	EZFS_TRIM_NOTSUP,	/* device does not support trim */
 	EZFS_NO_RESILVER_DEFER,	/* pool doesn't support resilver_defer */
 	EZFS_EXPORT_IN_PROGRESS,	/* currently exporting the pool */
+	EZFS_REBUILDING,	/* resilvering (sequential reconstrution) */
 	EZFS_UNKNOWN
 } zfs_error_t;
 
@@ -297,7 +298,7 @@ extern int zpool_vdev_online(zpool_handle_t *, const char *, int,
     vdev_state_t *);
 extern int zpool_vdev_offline(zpool_handle_t *, const char *, boolean_t);
 extern int zpool_vdev_attach(zpool_handle_t *, const char *,
-    const char *, nvlist_t *, int);
+    const char *, nvlist_t *, int, boolean_t);
 extern int zpool_vdev_detach(zpool_handle_t *, const char *);
 extern int zpool_vdev_remove(zpool_handle_t *, const char *);
 extern int zpool_vdev_remove_cancel(zpool_handle_t *);
@@ -387,6 +388,8 @@ typedef enum {
 	ZPOOL_STATUS_RESILVERING,	/* device being resilvered */
 	ZPOOL_STATUS_OFFLINE_DEV,	/* device offline */
 	ZPOOL_STATUS_REMOVED_DEV,	/* removed device */
+	ZPOOL_STATUS_REBUILDING,	/* device being rebuilt */
+	ZPOOL_STATUS_REBUILD_SCRUB,	/* recommend scrubbing the pool */
 
 	/*
 	 * Finally, the following indicates a healthy pool.

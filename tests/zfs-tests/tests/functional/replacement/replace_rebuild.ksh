@@ -27,6 +27,7 @@
 
 #
 # Copyright (c) 2013, 2016 by Delphix. All rights reserved.
+# Copyright (c) 2020 by Lawrence Livermore National Security, LLC.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -37,10 +38,12 @@
 # 	Replacing disks during I/O should pass for supported pools.
 #
 # STRATEGY:
-#	1. Create multidisk pools (stripe/mirror/raidz) and
+#	1. Create multidisk pools (stripe/mirror) and
 #	   start some random I/O
 #	2. Replace a disk in the pool with another disk.
-#	3. Verify the integrity of the file system and the resilvering.
+#	3. Verify the integrity of the file system and the rebuilding.
+#
+# NOTE: Raidz does not support the sequential resilver (-s) option.
 #
 
 verify_runnable "global"
@@ -61,7 +64,7 @@ function cleanup
 	[[ -e $TESTDIR ]] && log_must rm -rf $TESTDIR/*
 }
 
-log_assert "Replacing a disk during I/O completes."
+log_assert "Replacing a disk with -r during I/O completes."
 
 options=""
 options_display="default options"
@@ -104,9 +107,7 @@ function replace_test
 		((i = i + 1))
 	done
 
-	log_must zpool replace $opt $TESTPOOL1 $disk1 $disk2
-
-	sleep 10
+	log_must zpool replace -sw $opt $TESTPOOL1 $disk1 $disk2
 
 	for wait_pid in $child_pids
 	do
@@ -119,11 +120,12 @@ function replace_test
 	log_must zfs umount $TESTPOOL1/$TESTFS1
 	log_must zdb -cdui $TESTPOOL1/$TESTFS1
 	log_must zfs mount $TESTPOOL1/$TESTFS1
+	verify_pool $TESTPOOL1
 }
 
 specials_list=""
 i=0
-while [[ $i != 2 ]]; do
+while [[ $i != 3 ]]; do
 	log_must truncate -s $MINVDEVSIZE $TESTDIR/$TESTFILE1.$i
 	specials_list="$specials_list $TESTDIR/$TESTFILE1.$i"
 
@@ -135,7 +137,7 @@ done
 #
 log_must truncate -s $MINVDEVSIZE $TESTDIR/$REPLACEFILE
 
-for type in "" "raidz" "mirror"; do
+for type in "" "mirror"; do
 	for op in "" "-f"; do
 		create_pool $TESTPOOL1 $type $specials_list
 		log_must zfs create $TESTPOOL1/$TESTFS1
@@ -143,7 +145,7 @@ for type in "" "raidz" "mirror"; do
 
 		replace_test "$opt" $TESTDIR/$TESTFILE1.1 $TESTDIR/$REPLACEFILE
 
-		zpool iostat -v $TESTPOOL1 | grep "$TESTDIR/$REPLACEFILE"
+		zpool iostat -v $TESTPOOL1 | grep "$REPLACEFILE"
 		if [[ $? -ne 0 ]]; then
 			log_fail "$REPLACEFILE is not present."
 		fi
