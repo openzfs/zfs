@@ -29,7 +29,9 @@
 #include <sys/uio.h>
 #include <sys/mutex.h>
 #include <sys/u8_textprep.h>
+#ifdef BUILDING_ZFS
 #include <sys/vnode.h>
+#endif
 
 typedef int ddi_devid_t;
 
