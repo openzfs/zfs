@@ -2527,7 +2527,7 @@ spa_livelist_delete_cb(void *arg, zthr_t *z)
 			    sublist_delete_sync, &sync_arg, 0,
 			    ZFS_SPACE_CHECK_DESTROY));
 		} else {
-			ASSERT(err == EINTR);
+			VERIFY3U(err, ==, EINTR);
 		}
 		bplist_clear(&to_free);
 		bplist_destroy(&to_free);
