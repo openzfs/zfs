@@ -19,45 +19,28 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2006 Ricardo Correia.  All rights reserved.
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
  */
 
-#include <zone.h>
-#include <string.h>
-#include <errno.h>
+#include <assert.h>
 
-zoneid_t
-getzoneid()
+int aok = 0;
+
+/* printf version of libspl_assert */
+void
+libspl_assertf(const char *file, const char *func, int line,
+    const char *format, ...)
 {
-	return (GLOBAL_ZONEID);
-}
+	va_list args;
 
-zoneid_t
-getzoneidbyname(const char *name)
-{
-	if (name == NULL)
-		return (GLOBAL_ZONEID);
-
-	if (strcmp(name, GLOBAL_ZONEID_NAME) == 0)
-		return (GLOBAL_ZONEID);
-
-	return (EINVAL);
-}
-
-ssize_t
-getzonenamebyid(zoneid_t id, char *buf, size_t buflen)
-{
-	if (id != GLOBAL_ZONEID)
-		return (EINVAL);
-
-	ssize_t ret = strlen(GLOBAL_ZONEID_NAME) + 1;
-
-	if (buf == NULL || buflen == 0)
-		return (ret);
-
-	strncpy(buf, GLOBAL_ZONEID_NAME, buflen);
-	buf[buflen - 1] = '\0';
-
-	return (ret);
+	va_start(args, format);
+	vfprintf(stderr, format, args);
+	fprintf(stderr, "\n");
+	fprintf(stderr, "ASSERT at %s:%d:%s()", file, line, func);
+	va_end(args);
+	if (aok) {
+		return;
+	}
+	abort();
 }
