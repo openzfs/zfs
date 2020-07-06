@@ -28,5 +28,5 @@ pkgexec_PROGRAMS = btree_test
 btree_test_SOURCES = btree_test.c
 
 btree_test_LDADD = \
-	$(top_builddir)/lib/libzpool/libzpool.la \
-	$(top_builddir)/lib/libzfs_core/libzfs_core.la
+	$(abs_top_builddir)/lib/libzpool/libzpool.la \
+	$(abs_top_builddir)/lib/libzfs_core/libzfs_core.la

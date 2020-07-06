@@ -14,4 +14,4 @@ pkgexec_PROGRAMS = \
 
 hkdf_test_SOURCES = hkdf_test.c
 hkdf_test_LDADD = \
-	$(top_builddir)/lib/libzpool/libzpool.la
+	$(abs_top_builddir)/lib/libzpool/libzpool.la

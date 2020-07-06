@@ -10,8 +10,8 @@ USER_C = \
 libzfs_core_la_SOURCES = $(USER_C)
 
 libzfs_core_la_LIBADD = \
-	$(top_builddir)/lib/libzutil/libzutil.la \
-	$(top_builddir)/lib/libnvpair/libnvpair.la
+	$(abs_top_builddir)/lib/libzutil/libzutil.la \
+	$(abs_top_builddir)/lib/libnvpair/libnvpair.la
 
 libzfs_core_la_LIBADD += $(LTLIBINTL)
 

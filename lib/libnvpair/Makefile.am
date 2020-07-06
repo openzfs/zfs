@@ -27,7 +27,7 @@ nodist_libnvpair_la_SOURCES = \
 	$(KERNEL_C)
 
 libnvpair_la_LIBADD = \
-	$(top_builddir)/lib/libspl/libspl_assert.la
+	$(abs_top_builddir)/lib/libspl/libspl_assert.la
 
 libnvpair_la_LIBADD += $(LIBTIRPC_LIBS) $(LTLIBINTL)
 

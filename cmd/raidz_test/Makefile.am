@@ -14,7 +14,7 @@ raidz_test_SOURCES = \
 	raidz_bench.c
 
 raidz_test_LDADD = \
-	$(top_builddir)/lib/libzpool/libzpool.la \
-	$(top_builddir)/lib/libzfs_core/libzfs_core.la
+	$(abs_top_builddir)/lib/libzpool/libzpool.la \
+	$(abs_top_builddir)/lib/libzfs_core/libzfs_core.la
 
 raidz_test_LDADD += -lm

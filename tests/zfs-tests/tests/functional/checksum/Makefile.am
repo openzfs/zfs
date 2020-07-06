@@ -1,8 +1,8 @@
 include $(top_srcdir)/config/Rules.am
 
 LDADD = \
-	$(top_builddir)/lib/libicp/libicp.la \
-	$(top_builddir)/lib/libspl/libspl_assert.la
+	$(abs_top_builddir)/lib/libicp/libicp.la \
+	$(abs_top_builddir)/lib/libspl/libspl_assert.la
 
 pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/checksum
 

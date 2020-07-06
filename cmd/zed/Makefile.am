@@ -38,10 +38,10 @@ FMA_SRC = \
 zed_SOURCES = $(ZED_SRC) $(FMA_SRC)
 
 zed_LDADD = \
-	$(top_builddir)/lib/libzfs/libzfs.la \
-	$(top_builddir)/lib/libzfs_core/libzfs_core.la \
-	$(top_builddir)/lib/libnvpair/libnvpair.la \
-	$(top_builddir)/lib/libuutil/libuutil.la
+	$(abs_top_builddir)/lib/libzfs/libzfs.la \
+	$(abs_top_builddir)/lib/libzfs_core/libzfs_core.la \
+	$(abs_top_builddir)/lib/libnvpair/libnvpair.la \
+	$(abs_top_builddir)/lib/libuutil/libuutil.la
 
 zed_LDADD += -lrt $(LIBUDEV_LIBS) $(LIBUUID_LIBS)
 zed_LDFLAGS = -pthread
