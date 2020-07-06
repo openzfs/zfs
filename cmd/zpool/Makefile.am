@@ -27,8 +27,10 @@ zpool_LDADD = \
 	$(top_builddir)/lib/libnvpair/libnvpair.la \
 	$(top_builddir)/lib/libuutil/libuutil.la
 
+zpool_LDADD += $(LTLIBINTL)
+
 if BUILD_FREEBSD
-zpool_LDADD += -L/usr/local/lib -lintl -lgeom
+zpool_LDADD += -lgeom
 endif
 zpool_LDADD += -lm $(LIBBLKID_LIBS) $(LIBUUID_LIBS)
 

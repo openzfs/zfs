@@ -19,6 +19,8 @@ libuutil_la_LIBADD = \
 	$(top_builddir)/lib/libavl/libavl.la \
 	$(top_builddir)/lib/libspl/libspl.la
 
+libuutil_la_LIBADD += $(LTLIBINTL)
+
 libuutil_la_LDFLAGS = -pthread
 
 if BUILD_FREEBSD
