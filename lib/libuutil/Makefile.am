@@ -21,7 +21,7 @@ libuutil_la_LIBADD = \
 
 libuutil_la_LIBADD += $(LTLIBINTL)
 
-libuutil_la_LDFLAGS = -pthread
+libuutil_la_LDFLAGS = -pthread -Wl,-z,defs
 
 if BUILD_FREEBSD
 libuutil_la_LDFLAGS += -version-info 3:0:0
