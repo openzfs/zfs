@@ -73,13 +73,13 @@ libzfs_la_LIBADD =
 
 if BUILD_LINUX
 libzfs_la_LIBADD += \
-	$(top_builddir)/lib/libshare/libshare.la
+	$(abs_top_builddir)/lib/libshare/libshare.la
 endif
 
 libzfs_la_LIBADD += \
-	$(top_builddir)/lib/libzfs_core/libzfs_core.la \
-	$(top_builddir)/lib/libnvpair/libnvpair.la \
-	$(top_builddir)/lib/libuutil/libuutil.la
+	$(abs_top_builddir)/lib/libzfs_core/libzfs_core.la \
+	$(abs_top_builddir)/lib/libnvpair/libnvpair.la \
+	$(abs_top_builddir)/lib/libuutil/libuutil.la
 
 libzfs_la_LIBADD += -lm $(LIBCRYPTO_LIBS) $(ZLIB_LIBS) $(LTLIBINTL)
 

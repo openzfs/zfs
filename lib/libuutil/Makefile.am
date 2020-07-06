@@ -16,8 +16,8 @@ USER_C = \
 libuutil_la_SOURCES = $(USER_C)
 
 libuutil_la_LIBADD = \
-	$(top_builddir)/lib/libavl/libavl.la \
-	$(top_builddir)/lib/libspl/libspl.la
+	$(abs_top_builddir)/lib/libavl/libavl.la \
+	$(abs_top_builddir)/lib/libspl/libspl.la
 
 libuutil_la_LIBADD += $(LTLIBINTL)
 

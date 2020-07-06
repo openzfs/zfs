@@ -200,10 +200,10 @@ nodist_libzpool_la_SOURCES = \
 	$(LUA_C)
 
 libzpool_la_LIBADD = \
-	$(top_builddir)/lib/libicp/libicp.la \
-	$(top_builddir)/lib/libunicode/libunicode.la \
-	$(top_builddir)/lib/libzfs_core/libzfs_core.la \
-	$(top_builddir)/lib/libnvpair/libnvpair.la
+	$(abs_top_builddir)/lib/libicp/libicp.la \
+	$(abs_top_builddir)/lib/libunicode/libunicode.la \
+	$(abs_top_builddir)/lib/libzfs_core/libzfs_core.la \
+	$(abs_top_builddir)/lib/libnvpair/libnvpair.la
 
 libzpool_la_LIBADD += $(LIBCLOCK_GETTIME) $(ZLIB_LIBS) -ldl
 

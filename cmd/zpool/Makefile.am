@@ -22,10 +22,10 @@ zpool_SOURCES += os/linux/zpool_vdev_os.c
 endif
 
 zpool_LDADD = \
-	$(top_builddir)/lib/libzfs/libzfs.la \
-	$(top_builddir)/lib/libzfs_core/libzfs_core.la \
-	$(top_builddir)/lib/libnvpair/libnvpair.la \
-	$(top_builddir)/lib/libuutil/libuutil.la
+	$(abs_top_builddir)/lib/libzfs/libzfs.la \
+	$(abs_top_builddir)/lib/libzfs_core/libzfs_core.la \
+	$(abs_top_builddir)/lib/libnvpair/libnvpair.la \
+	$(abs_top_builddir)/lib/libuutil/libuutil.la
 
 zpool_LDADD += $(LTLIBINTL)
 
