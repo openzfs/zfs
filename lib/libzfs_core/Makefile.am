@@ -13,6 +13,8 @@ libzfs_core_la_LIBADD = \
 	$(top_builddir)/lib/libzutil/libzutil.la \
 	$(top_builddir)/lib/libnvpair/libnvpair.la
 
+libzfs_core_la_LIBADD += $(LTLIBINTL)
+
 libzfs_core_la_LDFLAGS = -pthread
 
 if BUILD_FREEBSD

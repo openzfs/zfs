@@ -29,11 +29,9 @@ nodist_libnvpair_la_SOURCES = \
 libnvpair_la_LIBADD = \
 	$(top_builddir)/lib/libspl/libspl_assert.la
 
-libnvpair_la_LIBADD += \
-	$(LIBTIRPC_LIBS)
+libnvpair_la_LIBADD += $(LIBTIRPC_LIBS) $(LTLIBINTL)
 
 if BUILD_FREEBSD
-libnvpair_la_LIBADD += -L/usr/local/lib -lintl
 libnvpair_la_LDFLAGS = -version-info 3:0:0
 else
 libnvpair_la_LDFLAGS = -version-info 1:1:0
