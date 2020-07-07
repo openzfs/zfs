@@ -860,7 +860,8 @@ int
 zfs_send_progress(zfs_handle_t *zhp, int fd, uint64_t *bytes_written,
     uint64_t *blocks_visited)
 {
-	zfs_cmd_t zc = { {0} };
+	zfs_cmd_t zc = {"\0"};
+
 	(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
 	zc.zc_cookie = fd;
 	if (zfs_ioctl(zhp->zfs_hdl, ZFS_IOC_SEND_PROGRESS, &zc) != 0)
