@@ -22,7 +22,7 @@ DEFAULT_INCLUDES += \
 	-I$(top_srcdir)/lib/libspl/include
 
 # Unconditionally enable ASSERTs
-AM_CPPFLAGS += -DDEBUG -UNDEBUG
+AM_CPPFLAGS += -DDEBUG -UNDEBUG -DZFS_DEBUG
 
 pkgexec_PROGRAMS = btree_test
 btree_test_SOURCES = btree_test.c

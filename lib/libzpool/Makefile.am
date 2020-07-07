@@ -7,6 +7,9 @@ VPATH = \
 	$(top_srcdir)/module/os/linux/zfs \
 	$(top_srcdir)/lib/libzpool
 
+# Unconditionally enable debugging for libzpool
+AM_CPPFLAGS += -DDEBUG -UNDEBUG -DZFS_DEBUG
+
 # Suppress unused but set variable warnings often due to ASSERTs
 AM_CFLAGS += $(NO_UNUSED_BUT_SET_VARIABLE)
 
