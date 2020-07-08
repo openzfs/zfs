@@ -245,6 +245,19 @@ secpolicy_zfs(const cred_t *cr)
 	return (priv_policy(cr, CAP_SYS_ADMIN, EACCES));
 }
 
+/*
+ * Equivalent to secpolicy_zfs(), but works even if the cred_t is not that of
+ * the current process.  Takes both cred_t and proc_t so that this can work
+ * easily on all platforms.
+ */
+int
+secpolicy_zfs_proc(const cred_t *cr, proc_t *proc)
+{
+	if (!has_capability(proc, CAP_SYS_ADMIN))
+		return (EACCES);
+	return (0);
+}
+
 void
 secpolicy_setid_clear(vattr_t *vap, cred_t *cr)
 {

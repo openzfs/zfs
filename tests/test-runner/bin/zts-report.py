@@ -171,8 +171,6 @@ elif sys.platform.startswith('linux'):
         'casenorm/mixed_formd_delete': ['FAIL', '7633'],
         'casenorm/sensitive_formd_lookup': ['FAIL', '7633'],
         'casenorm/sensitive_formd_delete': ['FAIL', '7633'],
-        'limits/filesystem_limit': ['FAIL', '8226'],
-        'limits/snapshot_limit': ['FAIL', '8226'],
         'removal/removal_with_zdb': ['SKIP', known_reason],
     })
 
