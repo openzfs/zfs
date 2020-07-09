@@ -466,7 +466,8 @@ zfs_mount_at(zfs_handle_t *zhp, const char *options, int flags,
 	if (lstat(mountpoint, &buf) != 0) {
 		if (mkdirp(mountpoint, 0755) != 0) {
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "failed to create mountpoint"));
+			    "failed to create mountpoint: %s"),
+			    strerror(errno));
 			return (zfs_error_fmt(hdl, EZFS_MOUNTFAILED,
 			    dgettext(TEXT_DOMAIN, "cannot mount '%s'"),
 			    mountpoint));
