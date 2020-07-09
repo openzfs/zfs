@@ -32,7 +32,7 @@ CFLAGS+= -DHAVE_UIO_ZEROCOPY -DWITHOUT_NETDUMP -D__KERNEL -D_SYS_CONDVAR_H_
 CFLAGS+= -D_SYS_VMEM_H_ -D_MACHINE_ENDIAN_H_ -DKDTRACE_HOOKS -DSMP
 
 .if ${MACHINE_ARCH} == "amd64"
-CFLAGS+= -DHAVE_AVX2 -DHAVE_AVX -D__x86_64 -DHAVE_SSE2 -DHAVE_AVX512F
+CFLAGS+= -DHAVE_AVX2 -DHAVE_AVX -D__x86_64 -DHAVE_SSE2 -DHAVE_AVX512F -DHAVE_SSSE3
 .endif
 
 .if defined(WITH_DEBUG) && ${WITH_DEBUG} == "true"
@@ -310,7 +310,7 @@ CFLAGS.lcompat.c= -Wno-cast-qual
 CFLAGS.lobject.c= -Wno-cast-qual
 CFLAGS.ltable.c= -Wno-cast-qual
 CFLAGS.lvm.c= -Wno-cast-qual
-CFLAGS.nvpair.c= -Wno-cast-qual
+CFLAGS.nvpair.c= -DHAVE_RPC_TYPES -Wno-cast-qual
 CFLAGS.spl_string.c= -Wno-cast-qual
 CFLAGS.spl_vm.c= -Wno-cast-qual
 CFLAGS.spl_zlib.c= -Wno-cast-qual

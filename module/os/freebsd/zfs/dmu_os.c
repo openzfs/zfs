@@ -28,6 +28,8 @@
 #include <sys/cdefs.h>
 __FBSDID("$FreeBSD$");
 
+#include <sys/types.h>
+#include <sys/param.h>
 #include <sys/dmu.h>
 #include <sys/dmu_impl.h>
 #include <sys/dmu_tx.h>
@@ -55,6 +57,7 @@ __FBSDID("$FreeBSD$");
 #include <sys/zfs_znode.h>
 #include <sys/zfs_vnops.h>
 
+#include <sys/ccompat.h>
 
 #ifndef IDX_TO_OFF
 #define	IDX_TO_OFF(idx) (((vm_ooffset_t)(idx)) << PAGE_SHIFT)

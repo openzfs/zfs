@@ -23,8 +23,8 @@
  * Use is subject to license terms.
  */
 
-#include <sys/param.h>
 #include <sys/types.h>
+#include <sys/param.h>
 #include <sys/time.h>
 #include <sys/sysmacros.h>
 #include <sys/systm.h>

@@ -60,6 +60,8 @@
 #include <sys/dmu_objset.h>
 #include <sys/dsl_dir.h>
 
+#include <sys/ccompat.h>
+
 /*
  * zfs_match_find() is used by zfs_dirent_lookup() to perform zap lookups
  * of names after deciding which is the appropriate lookup interface.

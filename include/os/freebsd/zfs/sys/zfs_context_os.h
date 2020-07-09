@@ -37,6 +37,9 @@
 #include <sys/kdb.h>
 #include <sys/pathname.h>
 #include <sys/conf.h>
+#include <sys/types.h>
+#include <sys/ccompat.h>
+#include <linux/types.h>
 
 #define	cv_wait_io(cv, mp)			cv_wait(cv, mp)
 #define	cv_wait_io_sig(cv, mp)			cv_wait_sig(cv, mp)

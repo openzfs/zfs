@@ -36,6 +36,7 @@
 #include <sys/fs/zfs.h>
 #include <sys/inttypes.h>
 #include <sys/types.h>
+#include <sys/param.h>
 #include <sys/zfs_sysfs.h>
 #include "zfeature_common.h"
 
