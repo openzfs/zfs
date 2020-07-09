@@ -265,7 +265,7 @@ zfsdev_detach(void)
 	misc_deregister(&zfs_misc);
 }
 
-#ifdef DEBUG
+#ifdef ZFS_DEBUG
 #define	ZFS_DEBUG_STR	" (DEBUG mode)"
 #else
 #define	ZFS_DEBUG_STR	""

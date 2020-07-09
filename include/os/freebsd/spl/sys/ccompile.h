@@ -119,9 +119,11 @@ extern "C" {
 #define	__CONST			__sun_attr__((__const__))
 #define	__PURE			__sun_attr__((__pure__))
 
-#if (defined(ZFS_DEBUG) || !defined(NDEBUG))&& !defined(DEBUG)
-#define	DEBUG
+#ifdef INVARIANTS
+#define	ZFS_DEBUG
+#undef 	NDEBUG
 #endif
+
 #define	EXPORT_SYMBOL(x)
 #define	MODULE_AUTHOR(s)
 #define	MODULE_DESCRIPTION(s)
@@ -133,6 +135,9 @@ extern "C" {
 #define	asm __asm
 #ifdef ZFS_DEBUG
 #undef NDEBUG
+#endif
+#if !defined(ZFS_DEBUG) && !defined(NDEBUG)
+#define	NDEBUG
 #endif
 
 #ifndef EINTEGRITY

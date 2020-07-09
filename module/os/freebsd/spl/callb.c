@@ -154,7 +154,7 @@ callb_add_common(boolean_t (*func)(void *arg, int code),
 	cp->c_arg = arg;
 	cp->c_class = (uchar_t)class;
 	cp->c_flag |= CALLB_TAKEN;
-#ifdef DEBUG
+#ifdef ZFS_DEBUG
 	if (strlen(name) > CB_MAXNAME)
 		cmn_err(CE_WARN, "callb_add: name of callback function '%s' "
 		    "too long -- truncated to %d chars",
@@ -217,7 +217,7 @@ callb_delete(callb_id_t id)
 		while (*pp != NULL && *pp != me)
 			pp = &(*pp)->c_next;
 
-#ifdef DEBUG
+#ifdef ZFS_DEBUG
 		if (*pp != me) {
 			cmn_err(CE_WARN, "callb delete bogus entry 0x%p",
 			    (void *)me);

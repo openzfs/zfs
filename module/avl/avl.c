@@ -269,7 +269,7 @@ avl_find(avl_tree_t *tree, const void *value, avl_index_t *where)
 		diff = tree->avl_compar(value, AVL_NODE2DATA(node, off));
 		ASSERT(-1 <= diff && diff <= 1);
 		if (diff == 0) {
-#ifdef DEBUG
+#ifdef ZFS_DEBUG
 			if (where != NULL)
 				*where = 0;
 #endif
@@ -578,7 +578,7 @@ avl_insert_here(
 {
 	avl_node_t *node;
 	int child = direction;	/* rely on AVL_BEFORE == 0, AVL_AFTER == 1 */
-#ifdef DEBUG
+#ifdef ZFS_DEBUG
 	int diff;
 #endif
 
@@ -593,7 +593,7 @@ avl_insert_here(
 	 */
 	node = AVL_DATA2NODE(here, tree->avl_offset);
 
-#ifdef DEBUG
+#ifdef ZFS_DEBUG
 	diff = tree->avl_compar(new_data, here);
 	ASSERT(-1 <= diff && diff <= 1);
 	ASSERT(diff != 0);
@@ -604,7 +604,7 @@ avl_insert_here(
 		node = node->avl_child[child];
 		child = 1 - child;
 		while (node->avl_child[child] != NULL) {
-#ifdef DEBUG
+#ifdef ZFS_DEBUG
 			diff = tree->avl_compar(new_data,
 			    AVL_NODE2DATA(node, tree->avl_offset));
 			ASSERT(-1 <= diff && diff <= 1);
@@ -613,7 +613,7 @@ avl_insert_here(
 #endif
 			node = node->avl_child[child];
 		}
-#ifdef DEBUG
+#ifdef ZFS_DEBUG
 		diff = tree->avl_compar(new_data,
 		    AVL_NODE2DATA(node, tree->avl_offset));
 		ASSERT(-1 <= diff && diff <= 1);

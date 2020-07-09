@@ -1553,7 +1553,7 @@ dsl_dir_diduse_space(dsl_dir_t *dd, dd_used_t type,
 		ASSERT(used > 0 ||
 		    dsl_dir_phys(dd)->dd_used_breakdown[type] >= -used);
 		dsl_dir_phys(dd)->dd_used_breakdown[type] += used;
-#ifdef DEBUG
+#ifdef ZFS_DEBUG
 		{
 			dd_used_t t;
 			uint64_t u = 0;
