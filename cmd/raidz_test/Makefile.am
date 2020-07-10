@@ -4,7 +4,7 @@ include $(top_srcdir)/config/Rules.am
 AM_CFLAGS += $(FRAME_LARGER_THAN)
 
 # Unconditionally enable ASSERTs
-AM_CPPFLAGS += -DDEBUG -UNDEBUG
+AM_CPPFLAGS += -DDEBUG -UNDEBUG -DZFS_DEBUG
 
 bin_PROGRAMS = raidz_test
 

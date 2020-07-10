@@ -1,7 +1,7 @@
 include $(top_srcdir)/config/Rules.am
 
 # Unconditionally enable debugging for zdb
-AM_CPPFLAGS += -DDEBUG -UNDEBUG
+AM_CPPFLAGS += -DDEBUG -UNDEBUG -DZFS_DEBUG
 
 sbin_PROGRAMS = zdb
 

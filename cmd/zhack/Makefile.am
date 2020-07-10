@@ -1,5 +1,8 @@
 include $(top_srcdir)/config/Rules.am
 
+# Unconditionally enable debugging for zhack
+AM_CPPFLAGS += -DDEBUG -UNDEBUG -DZFS_DEBUG
+
 sbin_PROGRAMS = zhack
 
 zhack_SOURCES = \
