@@ -114,7 +114,7 @@ endif
 endif
 
 PHONY += codecheck
-codecheck: cstyle shellcheck flake8 mancheck testscheck vcscheck
+codecheck: cstyle shellcheck checkbashisms flake8 mancheck testscheck vcscheck
 
 PHONY += checkstyle
 checkstyle: codecheck commitcheck
@@ -144,6 +144,22 @@ shellcheck:
 			-type f ${filter_executable}); \
 	else \
 		echo "skipping shellcheck because shellcheck is not installed"; \
+	fi
+
+PHONY += checkbashisms
+checkbashisms:
+	@if type checkbashisms > /dev/null 2>&1; then \
+		checkbashisms -n -p -x \
+			$$(find ${top_srcdir} \
+				-name '.git' -prune \
+				-o -name 'build' -prune \
+				-o -name 'tests' -prune \
+				-o -name 'config' -prune \
+				-o -type f ! -name 'config*' \
+				! -name 'libtool' \
+			-exec bash -c 'awk "NR==1 && /\#\!.*bin\/sh.*/ {print FILENAME;}" "{}"' \;); \
+	else \
+		echo "skipping checkbashisms because checkbashisms is not installed"; \
 	fi
 
 PHONY += mancheck
