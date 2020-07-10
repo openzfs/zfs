@@ -542,6 +542,21 @@ extern "C" {
 #define	_BIT_FIELDS_LTOH
 #endif
 
+#if !defined(__powerpc)
+#define	__powerpc
+#endif
+
+#if defined(__powerpc64__)
+#define	_LONG_LONG_ALIGNMENT		8
+#define	_MULTI_DATAMODEL
+#else
+#define	_LONG_LONG_ALIGNMENT		4
+#endif
+#define	_LONG_LONG_ALIGNMENT_32		4
+#define	_ALIGNMENT_REQUIRED		1
+
+#define	_SUNOS_VTOC_16	1
+
 /*
  * The following set of definitions characterize the Solaris on SPARC systems.
  *
