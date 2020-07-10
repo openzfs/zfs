@@ -8018,9 +8018,27 @@ top:
 	list_destroy(&cb->l2wcb_abd_list);
 
 	if (zio->io_error != 0) {
-		/* restore the lbps array in the header to its previous state */
+		/*
+		 * Restore the lbps array in the header to its previous state.
+		 * If the list of log block pointers is empty, zero out the
+		 * log block pointers in the device header.
+		 */
 		lb_ptr_buf = list_head(&dev->l2ad_lbptr_list);
 		for (int i = 0; i < 2; i++) {
+			if (lb_ptr_buf == NULL) {
+				/*
+				 * If the list is empty zero out the device
+				 * header. Otherwise zero out the second log
+				 * block pointer in the header.
+				 */
+				if (i == 0) {
+					bzero(l2dhdr, dev->l2ad_dev_hdr_asize);
+				} else {
+					bzero(&l2dhdr->dh_start_lbps[i],
+					    sizeof (l2arc_log_blkptr_t));
+				}
+				break;
+			}
 			bcopy(lb_ptr_buf->lb_ptr, &l2dhdr->dh_start_lbps[i],
 			    sizeof (l2arc_log_blkptr_t));
 			lb_ptr_buf = list_next(&dev->l2ad_lbptr_list,
@@ -8949,11 +8967,16 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 	ARCSTAT_INCR(arcstat_l2_lsize, write_lsize);
 	ARCSTAT_INCR(arcstat_l2_psize, write_psize);
 
-	l2arc_dev_hdr_update(dev);
-
 	dev->l2ad_writing = B_TRUE;
 	(void) zio_wait(pio);
 	dev->l2ad_writing = B_FALSE;
+
+	/*
+	 * Update the device header after the zio completes as
+	 * l2arc_write_done() may have updated the memory holding the log block
+	 * pointers in the device header.
+	 */
+	l2arc_dev_hdr_update(dev);
 
 	return (write_asize);
 }
@@ -9970,8 +9993,7 @@ l2arc_log_blk_fetch_abort(zio_t *zio)
 }
 
 /*
- * Creates a zio to update the device header on an l2arc device. The zio is
- * initiated as a child of `pio'.
+ * Creates a zio to update the device header on an l2arc device.
  */
 void
 l2arc_dev_hdr_update(l2arc_dev_t *dev)
