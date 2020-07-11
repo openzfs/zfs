@@ -1,3 +1,5 @@
+include $(top_srcdir)/config/Substfiles.am
+
 dist_man_MANS = \
 	fsck.zfs.8 \
 	mount.zfs.8 \
@@ -86,16 +88,4 @@ nodist_man_MANS = \
 	zed.8 \
 	zfs-mount-generator.8
 
-EXTRA_DIST = \
-	zed.8.in \
-	zfs-mount-generator.8.in
-
-$(nodist_man_MANS): %: %.in
-	-$(SED) -e 's,@zfsexecdir\@,$(zfsexecdir),g' \
-		-e 's,@systemdgeneratordir\@,$(systemdgeneratordir),g' \
-		-e 's,@runstatedir\@,$(runstatedir),g' \
-		-e 's,@sysconfdir\@,$(sysconfdir),g' \
-		$< >'$@'
-
-CLEANFILES = \
-	$(nodist_man_MANS)
+SUBSTFILES += $(nodist_man_MANS)

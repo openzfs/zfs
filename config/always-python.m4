@@ -49,6 +49,10 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_PYTHON], [
 	AM_CONDITIONAL([USING_PYTHON_2], [test "x${PYTHON_VERSION%%\.*}" = x2])
 	AM_CONDITIONAL([USING_PYTHON_3], [test "x${PYTHON_VERSION%%\.*}" = x3])
 
+	AM_COND_IF([USING_PYTHON_2],
+		[AC_SUBST([PYTHON_SHEBANG], [python2])],
+		[AC_SUBST([PYTHON_SHEBANG], [python3])])
+
 	dnl #
 	dnl # Request that packages be built for a specific Python version.
 	dnl #

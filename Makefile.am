@@ -57,7 +57,7 @@ GITREV = include/zfs_gitrev.h
 
 PHONY = gitrev
 gitrev:
-	ZFS_GITREV=$$(cd $(top_srcdir) && \
+	$(AM_V_GEN)ZFS_GITREV=$$(cd $(top_srcdir) && \
 		git describe --always --long --dirty 2>/dev/null); \
 	ZFS_GITREV=$${ZFS_GITREV:-unknown}; \
 	printf '#define\tZFS_META_GITREV "%s"\n' \

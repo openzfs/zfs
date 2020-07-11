@@ -1,12 +1,5 @@
-initconfdir = $(DEFAULT_INITCONF_DIR)
+include $(top_srcdir)/config/Substfiles.am
+
 initconf_SCRIPTS = zfs
 
-EXTRA_DIST = \
-	zfs.in
-
-$(initconf_SCRIPTS):%:%.in Makefile
-	  $(SED) \
-		 -e 's,@sysconfdir\@,$(sysconfdir),g' \
-		 $< >'$@'
-
-CLEANFILES = $(initconf_SCRIPTS)
+SUBSTFILES += $(initconf_SCRIPTS)
