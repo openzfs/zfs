@@ -266,7 +266,7 @@ AC_DEFUN([ZFS_AC_RPM], [
 	RPM_DEFINE_COMMON=${RPM_DEFINE_COMMON}' --define "$(DEBUG_KMEM_TRACKING_ZFS) 1"'
 	RPM_DEFINE_COMMON=${RPM_DEFINE_COMMON}' --define "$(ASAN_ZFS) 1"'
 
-	RPM_DEFINE_UTIL=' --define "_initconfdir $(DEFAULT_INITCONF_DIR)"'
+	RPM_DEFINE_UTIL=' --define "_initconfdir $(initconfdir)"'
 
 	dnl # Make the next three RPM_DEFINE_UTIL additions conditional, since
 	dnl # their values may not be set when running:
@@ -469,13 +469,13 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 
 	AC_MSG_CHECKING([default init directory])
 	case "$VENDOR" in
-		freebsd)    DEFAULT_INIT_DIR=$sysconfdir/rc.d  ;;
-		*)          DEFAULT_INIT_DIR=$sysconfdir/init.d;;
+		freebsd)    initdir=$sysconfdir/rc.d  ;;
+		*)          initdir=$sysconfdir/init.d;;
 	esac
-	AC_MSG_RESULT([$DEFAULT_INIT_DIR])
-	AC_SUBST(DEFAULT_INIT_DIR)
+	AC_MSG_RESULT([$initdir])
+	AC_SUBST(initdir)
 
-	AC_MSG_CHECKING([default init script type])
+	AC_MSG_CHECKING([default init script type and shell])
 	case "$VENDOR" in
 		toss)       DEFAULT_INIT_SCRIPT=redhat ;;
 		redhat)     DEFAULT_INIT_SCRIPT=redhat ;;
@@ -491,24 +491,44 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 		freebsd)    DEFAULT_INIT_SCRIPT=freebsd;;
 		*)          DEFAULT_INIT_SCRIPT=lsb    ;;
 	esac
-	AC_MSG_RESULT([$DEFAULT_INIT_SCRIPT])
+
+	# On gentoo, it's possible that OpenRC isn't installed.  Check if
+	# /sbin/openrc-run exists, and if not, fall back to generic defaults.
+
+	DEFAULT_INIT_SHELL="/bin/sh"
+	AS_IF([test "$DEFAULT_INIT_SCRIPT" = "openrc"], [
+		AS_IF([test -x "/sbin/openrc-run"],
+			[DEFAULT_INIT_SHELL="/sbin/openrc-run"],
+			[DEFAULT_INIT_SCRIPT=lsb])
+	])
+
+	AC_MSG_RESULT([$DEFAULT_INIT_SCRIPT:$DEFAULT_INIT_SHELL])
 	AC_SUBST(DEFAULT_INIT_SCRIPT)
+	AC_SUBST(DEFAULT_INIT_SHELL)
+
+	AC_MSG_CHECKING([default nfs server init script])
+	AS_IF([test "$VENDOR" = "debian"],
+		[DEFAULT_INIT_NFS_SERVER="nfs-kernel-server"],
+		[DEFAULT_INIT_NFS_SERVER="nfs"]
+	)
+	AC_MSG_RESULT([$DEFAULT_INIT_NFS_SERVER])
+	AC_SUBST(DEFAULT_INIT_NFS_SERVER)
 
 	AC_MSG_CHECKING([default init config directory])
 	case "$VENDOR" in
-		alpine)     DEFAULT_INITCONF_DIR=/etc/conf.d    ;;
-		gentoo)     DEFAULT_INITCONF_DIR=/etc/conf.d    ;;
-		toss)       DEFAULT_INITCONF_DIR=/etc/sysconfig ;;
-		redhat)     DEFAULT_INITCONF_DIR=/etc/sysconfig ;;
-		fedora)     DEFAULT_INITCONF_DIR=/etc/sysconfig ;;
-		sles)       DEFAULT_INITCONF_DIR=/etc/sysconfig ;;
-		ubuntu)     DEFAULT_INITCONF_DIR=/etc/default   ;;
-		debian)     DEFAULT_INITCONF_DIR=/etc/default   ;;
-		freebsd)    DEFAULT_INITCONF_DIR=$sysconfdir/rc.conf.d;;
-		*)          DEFAULT_INITCONF_DIR=/etc/default   ;;
+		alpine)     initconfdir=/etc/conf.d    ;;
+		gentoo)     initconfdir=/etc/conf.d    ;;
+		toss)       initconfdir=/etc/sysconfig ;;
+		redhat)     initconfdir=/etc/sysconfig ;;
+		fedora)     initconfdir=/etc/sysconfig ;;
+		sles)       initconfdir=/etc/sysconfig ;;
+		ubuntu)     initconfdir=/etc/default   ;;
+		debian)     initconfdir=/etc/default   ;;
+		freebsd)    initconfdir=$sysconfdir/rc.conf.d;;
+		*)          initconfdir=/etc/default   ;;
 	esac
-	AC_MSG_RESULT([$DEFAULT_INITCONF_DIR])
-	AC_SUBST(DEFAULT_INITCONF_DIR)
+	AC_MSG_RESULT([$initconfdir])
+	AC_SUBST(initconfdir)
 
 	AC_MSG_CHECKING([whether initramfs-tools is available])
 	if test -d /usr/share/initramfs-tools ; then
