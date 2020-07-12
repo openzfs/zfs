@@ -569,7 +569,9 @@ do_mount(zfs_handle_t *zhp, const char *mntpt, char *opts, int flags)
 		}
 		strlcat(myopts, opts, MNT_LINE_MAX);
 		zfs_adjust_mount_options(zhp, mntpt, myopts, NULL);
-		error = mount(src, mntpt, MNTTYPE_ZFS, mntflags, myopts);
+		if (mount(src, mntpt, MNTTYPE_ZFS, mntflags, myopts)) {
+			return (errno);
+		}
 	} else {
 		char *argv[9] = {
 		    "/bin/mount",
