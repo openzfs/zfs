@@ -21,7 +21,7 @@
 
 #
 # Copyright (c) 2009, Sun Microsystems Inc. All rights reserved.
-# Copyright (c) 2012, 2018, Delphix. All rights reserved.
+# Copyright (c) 2012, 2020, Delphix. All rights reserved.
 # Copyright (c) 2017, Tim Chase. All rights reserved.
 # Copyright (c) 2017, Nexenta Systems Inc. All rights reserved.
 # Copyright (c) 2017, Lawrence Livermore National Security LLC.
@@ -1373,6 +1373,80 @@ function is_shared
 	esac
 }
 
+function is_exported_illumos
+{
+	typeset fs=$1
+	typeset mtpt
+
+	for mtpt in `awk '{print $1}' /etc/dfs/sharetab` ; do
+		if [[ $mtpt == $fs ]] ; then
+			return 0
+		fi
+	done
+
+	return 1
+}
+
+function is_exported_freebsd
+{
+	typeset fs=$1
+	typeset mtpt
+
+	for mtpt in `awk '{print $1}' /etc/zfs/exports` ; do
+		if [[ $mtpt == $fs ]] ; then
+			return 0
+		fi
+	done
+
+	return 1
+}
+
+function is_exported_linux
+{
+	typeset fs=$1
+	typeset mtpt
+
+	for mtpt in `awk '{print $1}' /etc/exports.d/zfs.exports` ; do
+		if [[ $mtpt == $fs ]] ; then
+			return 0
+		fi
+	done
+
+	return 1
+}
+
+#
+# Given a mountpoint, or a dataset name, determine if it is exported via
+# the os-specific NFS exports file.
+#
+# Returns 0 if exported, 1 otherwise.
+#
+function is_exported
+{
+	typeset fs=$1
+	typeset mtpt
+
+	if [[ $fs != "/"* ]] ; then
+		if datasetnonexists "$fs" ; then
+			return 1
+		else
+			mtpt=$(get_prop mountpoint "$fs")
+			case $mtpt in
+				none|legacy|-) return 1
+					;;
+				*)	fs=$mtpt
+					;;
+			esac
+		fi
+	fi
+
+	case $(uname) in
+	FreeBSD)	is_exported_freebsd "$fs"	;;
+	Linux)		is_exported_linux "$fs"	;;
+	*)		is_exported_illumos "$fs"	;;
+	esac
+}
+
 #
 # Given a dataset name determine if it is shared via SMB.
 #
@@ -1397,7 +1471,7 @@ function is_shared_smb
 		done
 		return 1
 	else
-		log_unsupported "Currently unsupported by the test framework"
+		log_note "Currently unsupported by the test framework"
 		return 1
 	fi
 }
@@ -1445,7 +1519,7 @@ function unshare_fs #fs
 
 	is_shared $fs || is_shared_smb $fs
 	if (($? == 0)); then
-		log_must zfs unshare $fs
+		zfs unshare $fs || log_fail "zfs unshare $fs failed"
 	fi
 
 	return 0
@@ -1523,6 +1597,21 @@ function showshares_smb
 	return 0
 }
 
+function check_nfs
+{
+	if is_linux; then
+		share -s
+	elif is_freebsd; then
+		showmount -e
+	else
+		log_unsupported "Unknown platform"
+	fi
+
+	if [[ $? -ne 0 ]]; then
+		log_unsupported "The NFS utilities are not installed"
+	fi
+}
+
 #
 # Check NFS server status and trigger it online.
 #
@@ -1535,12 +1624,17 @@ function setup_nfs_server
 		return
 	fi
 
-	if is_linux || is_freebsd; then
+	if is_linux; then
 		#
 		# Re-synchronize /var/lib/nfs/etab with /etc/exports and
 		# /etc/exports.d./* to provide a clean test environment.
 		#
 		log_must share -r
+
+		log_note "NFS server must be started prior to running ZTS."
+		return
+	elif is_freebsd; then
+		kill -s HUP $(cat /var/run/mountd.pid)
 
 		log_note "NFS server must be started prior to running ZTS."
 		return
@@ -4077,4 +4171,24 @@ function get_arcstat # stat
 		false
 		;;
 	esac
+}
+
+#
+# Given an array of pids, wait until all processes
+# have completed and check their return status.
+#
+function wait_for_children #children
+{
+	rv=0
+	children=("$@")
+	for child in "${children[@]}"
+	do
+		child_exit=0
+		wait ${child} || child_exit=$?
+		if [ $child_exit -ne 0 ]; then
+			echo "child ${child} failed with ${child_exit}"
+			rv=1
+		fi
+	done
+	return $rv
 }

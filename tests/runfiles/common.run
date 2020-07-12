@@ -258,9 +258,8 @@ tags = ['functional', 'cli_root', 'zfs_set']
 
 [tests/functional/cli_root/zfs_share]
 tests = ['zfs_share_001_pos', 'zfs_share_002_pos', 'zfs_share_003_pos',
-    'zfs_share_004_pos', 'zfs_share_005_pos', 'zfs_share_006_pos',
-    'zfs_share_007_neg', 'zfs_share_008_neg', 'zfs_share_009_neg',
-    'zfs_share_010_neg', 'zfs_share_011_pos']
+    'zfs_share_004_pos', 'zfs_share_006_pos', 'zfs_share_008_neg',
+    'zfs_share_010_neg', 'zfs_share_011_pos', 'zfs_share_concurrent_shares']
 tags = ['functional', 'cli_root', 'zfs_share']
 
 [tests/functional/cli_root/zfs_snapshot]

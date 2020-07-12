@@ -30,7 +30,6 @@ USER_C = \
 
 if BUILD_FREEBSD
 USER_C += \
-	os/freebsd/libzfs_fsshare.c \
 	os/freebsd/libzfs_compat.c \
 	os/freebsd/libzfs_ioctl_compat.c \
 	os/freebsd/libzfs_zmount.c
@@ -69,14 +68,8 @@ dist_libzfs_la_SOURCES = \
 nodist_libzfs_la_SOURCES = \
 	$(KERNEL_C)
 
-libzfs_la_LIBADD =
-
-if BUILD_LINUX
-libzfs_la_LIBADD += \
-	$(abs_top_builddir)/lib/libshare/libshare.la
-endif
-
-libzfs_la_LIBADD += \
+libzfs_la_LIBADD = \
+	$(abs_top_builddir)/lib/libshare/libshare.la \
 	$(abs_top_builddir)/lib/libzfs_core/libzfs_core.la \
 	$(abs_top_builddir)/lib/libnvpair/libnvpair.la \
 	$(abs_top_builddir)/lib/libuutil/libuutil.la

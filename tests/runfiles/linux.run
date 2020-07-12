@@ -51,6 +51,10 @@ tags = ['functional', 'cli_root', 'zfs']
 tests = ['zfs_mount_006_pos', 'zfs_mount_008_pos', 'zfs_multi_mount']
 tags = ['functional', 'cli_root', 'zfs_mount']
 
+[tests/functional/cli_root/zfs_share:Linux]
+tests = ['zfs_share_005_pos', 'zfs_share_007_neg', 'zfs_share_009_neg']
+tags = ['functional', 'cli_root', 'zfs_share']
+
 [tests/functional/cli_root/zfs_sysfs:Linux]
 tests = ['zfeature_set_unsupported', 'zfs_get_unsupported',
     'zfs_set_unsupported', 'zfs_sysfs_live', 'zpool_get_unsupported',
