@@ -261,9 +261,9 @@ AC_DEFUN([ZFS_AC_RPM], [
 	])
 
 	RPM_DEFINE_COMMON='--define "$(DEBUG_ZFS) 1"'
+	RPM_DEFINE_COMMON=${RPM_DEFINE_COMMON}' --define "$(DEBUGINFO_ZFS) 1"'
 	RPM_DEFINE_COMMON=${RPM_DEFINE_COMMON}' --define "$(DEBUG_KMEM_ZFS) 1"'
 	RPM_DEFINE_COMMON=${RPM_DEFINE_COMMON}' --define "$(DEBUG_KMEM_TRACKING_ZFS) 1"'
-	RPM_DEFINE_COMMON=${RPM_DEFINE_COMMON}' --define "$(DEBUGINFO_ZFS) 1"'
 	RPM_DEFINE_COMMON=${RPM_DEFINE_COMMON}' --define "$(ASAN_ZFS) 1"'
 
 	RPM_DEFINE_UTIL=' --define "_initconfdir $(DEFAULT_INITCONF_DIR)"'
@@ -303,10 +303,16 @@ AC_DEFUN([ZFS_AC_RPM], [
 		AC_SUBST(MULTIARCH_LIBDIR)
 	])
 
-	RPM_DEFINE_KMOD='--define "kernels $(LINUX_VERSION)"'
-	RPM_DEFINE_KMOD=${RPM_DEFINE_KMOD}' --define "ksrc $(LINUX)"'
-	RPM_DEFINE_KMOD=${RPM_DEFINE_KMOD}' --define "kobj $(LINUX_OBJ)"'
-	RPM_DEFINE_KMOD=${RPM_DEFINE_KMOD}' --define "_wrong_version_format_terminate_build 0"'
+	dnl # Make RPM_DEFINE_KMOD additions conditional on CONFIG_KERNEL,
+	dnl # since the values will not be set otherwise. The spec files
+	dnl # provide defaults for them.
+	dnl #
+	RPM_DEFINE_KMOD='--define "_wrong_version_format_terminate_build 0"'
+	AM_COND_IF([CONFIG_KERNEL], [
+		RPM_DEFINE_KMOD=${RPM_DEFINE_KMOD}' --define "kernels $(LINUX_VERSION)"'
+		RPM_DEFINE_KMOD=${RPM_DEFINE_KMOD}' --define "ksrc $(LINUX)"'
+		RPM_DEFINE_KMOD=${RPM_DEFINE_KMOD}' --define "kobj $(LINUX_OBJ)"'
+	])
 
 	RPM_DEFINE_DKMS=''
 
