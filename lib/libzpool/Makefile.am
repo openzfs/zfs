@@ -7,11 +7,16 @@ VPATH = \
 	$(top_srcdir)/module/os/linux/zfs \
 	$(top_srcdir)/lib/libzpool
 
+# Unconditionally enable debugging for libzpool
+AM_CPPFLAGS += -DDEBUG -UNDEBUG -DZFS_DEBUG
+
 # Suppress unused but set variable warnings often due to ASSERTs
 AM_CFLAGS += $(NO_UNUSED_BUT_SET_VARIABLE)
 
 # Includes kernel code generate warnings for large stack frames
 AM_CFLAGS += $(FRAME_LARGER_THAN)
+
+AM_CFLAGS += $(ZLIB_CFLAGS)
 
 AM_CFLAGS += -DLIB_ZPOOL_BUILD
 
@@ -198,17 +203,20 @@ nodist_libzpool_la_SOURCES = \
 	$(LUA_C)
 
 libzpool_la_LIBADD = \
-	$(top_builddir)/lib/libicp/libicp.la \
-	$(top_builddir)/lib/libnvpair/libnvpair.la \
-	$(top_builddir)/lib/libunicode/libunicode.la \
-	$(top_builddir)/lib/libzutil/libzutil.la
+	$(abs_top_builddir)/lib/libicp/libicp.la \
+	$(abs_top_builddir)/lib/libunicode/libunicode.la \
+	$(abs_top_builddir)/lib/libzfs_core/libzfs_core.la \
+	$(abs_top_builddir)/lib/libnvpair/libnvpair.la
+
+libzpool_la_LIBADD += $(LIBCLOCK_GETTIME) $(ZLIB_LIBS) -ldl
+
+libzpool_la_LDFLAGS = -pthread -Wl,-z,defs
 
 if BUILD_FREEBSD
-libzpool_la_LIBADD += $(ZLIB) -ldl -lgeom
-libzpool_la_LDFLAGS = -pthread -version-info 4:0:0
+libzpool_la_LIBADD += -lgeom
+libzpool_la_LDFLAGS += -version-info 4:0:0
 else
-libzpool_la_LIBADD += $(ZLIB) -ldl
-libzpool_la_LDFLAGS = -pthread -version-info 2:0:0
+libzpool_la_LDFLAGS += -version-info 2:0:0
 endif
 
 if TARGET_CPU_POWERPC

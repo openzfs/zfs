@@ -160,8 +160,8 @@ AC_CONFIG_FILES([
 	lib/libuutil/Makefile
 	lib/libzfs/Makefile
 	lib/libzfs/libzfs.pc
-	lib/libzfs/libzfs_core.pc
 	lib/libzfs_core/Makefile
+	lib/libzfs_core/libzfs_core.pc
 	lib/libzpool/Makefile
 	lib/libzutil/Makefile
 	man/Makefile

@@ -12,12 +12,13 @@ endif
 
 SUBDIRS = include
 
-AM_CFLAGS += $(LIBTIRPC_CFLAGS)
-
 AM_CCASFLAGS = \
 	$(CFLAGS)
 
-noinst_LTLIBRARIES = libspl.la
+noinst_LTLIBRARIES = libspl_assert.la libspl.la
+
+libspl_assert_la_SOURCES = \
+	assert.c
 
 USER_C = \
 	list.c \
@@ -49,4 +50,7 @@ libspl_la_SOURCES = \
 	$(USER_C) \
 	$(TARGET_CPU_ATOMIC_SOURCE)
 
-libspl_la_LIBADD = -lrt $(LIBTIRPC_LIBS)
+libspl_la_LIBADD = \
+	libspl_assert.la
+
+libspl_la_LIBADD += $(LIBCLOCK_GETTIME)

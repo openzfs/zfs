@@ -16,11 +16,15 @@ USER_C = \
 libuutil_la_SOURCES = $(USER_C)
 
 libuutil_la_LIBADD = \
-	$(top_builddir)/lib/libavl/libavl.la \
-	$(top_builddir)/lib/libspl/libspl.la
+	$(abs_top_builddir)/lib/libavl/libavl.la \
+	$(abs_top_builddir)/lib/libspl/libspl.la
+
+libuutil_la_LIBADD += $(LTLIBINTL)
+
+libuutil_la_LDFLAGS = -pthread -Wl,-z,defs
 
 if BUILD_FREEBSD
-libuutil_la_LDFLAGS = -pthread -version-info 3:0:0
+libuutil_la_LDFLAGS += -version-info 3:0:0
 else
-libuutil_la_LDFLAGS = -pthread -version-info 1:1:0
+libuutil_la_LDFLAGS += -version-info 1:1:0
 endif

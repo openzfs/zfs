@@ -12,7 +12,7 @@ PartOf=smb.service
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=@sbindir@/zfs share -g
+ExecStart=@sbindir@/zfs share -a
 
 [Install]
 WantedBy=zfs.target
