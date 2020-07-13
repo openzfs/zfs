@@ -1,3 +1,5 @@
+PHONY += deb-kmod deb-dkms deb-utils deb deb-local
+
 deb-local:
 	@(if test "${HAVE_DPKGBUILD}" = "no"; then \
 		echo -e "\n" \

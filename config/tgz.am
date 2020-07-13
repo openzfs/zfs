@@ -1,3 +1,5 @@
+PHONY += tgz tgz-kmod tgz-utils tgz-local
+
 tgz-local:
 	@(if test "${HAVE_ALIEN}" = "no"; then \
 		echo -e "\n" \
