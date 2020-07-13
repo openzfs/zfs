@@ -837,6 +837,10 @@ extern int zfs_unshareall_bytype(zfs_handle_t *, const char *, const char *);
 extern int zfs_unshareall(zfs_handle_t *);
 extern int zfs_deleg_share_nfs(libzfs_handle_t *, char *, char *, char *,
     void *, void *, int, zfs_share_op_t);
+extern void zfs_commit_nfs_shares(void);
+extern void zfs_commit_smb_shares(void);
+extern void zfs_commit_all_shares(void);
+extern void zfs_commit_shares(const char *);
 
 extern int zfs_nicestrtonum(libzfs_handle_t *, const char *, uint64_t *);
 

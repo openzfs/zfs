@@ -22,7 +22,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2020 Joyent, Inc. All rights reserved.
- * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
  * Copyright 2016 Igor Kozhukhov <ikozhukhov@gmail.com>
  * Copyright (c) 2017 Datto Inc.
  */
@@ -1024,13 +1024,9 @@ libzfs_init(void)
 		return (NULL);
 	}
 
-	hdl->libzfs_sharetab = fopen(ZFS_SHARETAB, "r");
-
 	if (libzfs_core_init() != 0) {
 		(void) close(hdl->libzfs_fd);
 		(void) fclose(hdl->libzfs_mnttab);
-		if (hdl->libzfs_sharetab)
-			(void) fclose(hdl->libzfs_sharetab);
 		free(hdl);
 		return (NULL);
 	}
@@ -1074,9 +1070,6 @@ libzfs_fini(libzfs_handle_t *hdl)
 #else
 		(void) fclose(hdl->libzfs_mnttab);
 #endif
-	if (hdl->libzfs_sharetab)
-		(void) fclose(hdl->libzfs_sharetab);
-	zfs_uninit_libshare(hdl);
 	zpool_free_handles(hdl);
 	namespace_clear(hdl);
 	libzfs_mnttab_fini(hdl);

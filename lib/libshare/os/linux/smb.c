@@ -23,6 +23,7 @@
  * Copyright (c) 2002, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011,2012 Turbo Fredriksson <turbo@bayour.com>, based on nfs.c
  *                         by Gunnar Beutner
+ * Copyright (c) 2019, 2020 by Delphix. All rights reserved.
  *
  * This is an addition to the zfs device driver to add, modify and remove SMB
  * shares using the 'net share' command that comes with Samba.
@@ -66,6 +67,8 @@ static boolean_t smb_available(void);
 static sa_fstype_t *smb_fstype;
 
 smb_share_t *smb_shares;
+static int smb_disable_share(sa_share_impl_t impl_share);
+static boolean_t smb_is_share_active(sa_share_impl_t impl_share);
 
 /*
  * Retrieve the list of SMB shares.
@@ -275,6 +278,9 @@ smb_enable_share(sa_share_impl_t impl_share)
 	if (!smb_available())
 		return (SA_SYSTEM_ERR);
 
+	if (smb_is_share_active(impl_share))
+		smb_disable_share(impl_share);
+
 	shareopts = FSINFO(impl_share, smb_fstype)->shareopts;
 	if (shareopts == NULL) /* on/off */
 		return (SA_SYSTEM_ERR);
@@ -283,8 +289,8 @@ smb_enable_share(sa_share_impl_t impl_share)
 		return (SA_OK);
 
 	/* Magic: Enable (i.e., 'create new') share */
-	return (smb_enable_share_one(impl_share->dataset,
-	    impl_share->sharepath));
+	return (smb_enable_share_one(impl_share->sa_zfsname,
+	    impl_share->sa_mountpoint));
 }
 
 /*
@@ -329,7 +335,7 @@ smb_disable_share(sa_share_impl_t impl_share)
 	}
 
 	while (shares != NULL) {
-		if (strcmp(impl_share->sharepath, shares->path) == 0)
+		if (strcmp(impl_share->sa_mountpoint, shares->path) == 0)
 			return (smb_disable_share_one(shares->name));
 
 		shares = shares->next;
@@ -366,7 +372,7 @@ smb_is_share_active(sa_share_impl_t impl_share)
 	smb_retrieve_shares();
 
 	while (iter != NULL) {
-		if (strcmp(impl_share->sharepath, iter->path) == 0)
+		if (strcmp(impl_share->sa_mountpoint, iter->path) == 0)
 			return (B_TRUE);
 
 		iter = iter->next;
@@ -382,41 +388,20 @@ smb_is_share_active(sa_share_impl_t impl_share)
  * of re-enabling the share if necessary.
  */
 static int
-smb_update_shareopts(sa_share_impl_t impl_share, const char *resource,
-    const char *shareopts)
+smb_update_shareopts(sa_share_impl_t impl_share, const char *shareopts)
 {
-	char *shareopts_dup;
-	boolean_t needs_reshare = B_FALSE;
-	char *old_shareopts;
-
 	if (!impl_share)
 		return (SA_SYSTEM_ERR);
 
-	FSINFO(impl_share, smb_fstype)->active =
-	    smb_is_share_active(impl_share);
-
-	old_shareopts = FSINFO(impl_share, smb_fstype)->shareopts;
-
-	if (FSINFO(impl_share, smb_fstype)->active && old_shareopts != NULL &&
-	    strcmp(old_shareopts, shareopts) != 0) {
-		needs_reshare = B_TRUE;
-		smb_disable_share(impl_share);
-	}
-
-	shareopts_dup = strdup(shareopts);
-
-	if (shareopts_dup == NULL)
-		return (SA_NO_MEMORY);
-
-	if (old_shareopts != NULL)
-		free(old_shareopts);
-
-	FSINFO(impl_share, smb_fstype)->shareopts = shareopts_dup;
-
-	if (needs_reshare)
-		smb_enable_share(impl_share);
-
+	FSINFO(impl_share, smb_fstype)->shareopts = (char *)shareopts;
 	return (SA_OK);
+}
+
+static int
+smb_update_shares(void)
+{
+	/* Not implemented */
+	return (0);
 }
 
 /*
@@ -426,17 +411,18 @@ smb_update_shareopts(sa_share_impl_t impl_share, const char *resource,
 static void
 smb_clear_shareopts(sa_share_impl_t impl_share)
 {
-	free(FSINFO(impl_share, smb_fstype)->shareopts);
 	FSINFO(impl_share, smb_fstype)->shareopts = NULL;
 }
 
 static const sa_share_ops_t smb_shareops = {
 	.enable_share = smb_enable_share,
 	.disable_share = smb_disable_share,
+	.is_shared = smb_is_share_active,
 
 	.validate_shareopts = smb_validate_shareopts,
 	.update_shareopts = smb_update_shareopts,
 	.clear_shareopts = smb_clear_shareopts,
+	.commit_shares = smb_update_shares,
 };
 
 /*
