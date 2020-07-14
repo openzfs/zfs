@@ -203,6 +203,7 @@ typedef enum arc_space_type {
 	ARC_SPACE_DBUF,
 	ARC_SPACE_DNODE,
 	ARC_SPACE_BONUS,
+	ARC_SPACE_ABD_CHUNK_WASTE,
 	ARC_SPACE_NUMTYPES
 } arc_space_type_t;
 
