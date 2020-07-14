@@ -232,6 +232,7 @@ list_link_init(list_node_t *ln)
 int
 list_link_active(list_node_t *ln)
 {
+	EQUIV(ln->next == NULL, ln->prev == NULL);
 	return (ln->next != NULL);
 }
 
