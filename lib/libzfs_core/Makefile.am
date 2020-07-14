@@ -15,7 +15,11 @@ libzfs_core_la_LIBADD = \
 
 libzfs_core_la_LIBADD += $(LTLIBINTL)
 
-libzfs_core_la_LDFLAGS = -pthread -Wl,-z,defs
+libzfs_core_la_LDFLAGS = -pthread
+
+if !ASAN_ENABLED
+libzfs_core_la_LDFLAGS += -Wl,-z,defs
+endif
 
 if BUILD_FREEBSD
 libzfs_core_la_LIBADD += -lutil -lgeom
