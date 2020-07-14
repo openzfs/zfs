@@ -22,6 +22,7 @@
  *  with the SPL.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <linux/percpu_compat.h>
 #include <sys/kmem.h>
 #include <sys/kmem_cache.h>
 #include <sys/shrinker.h>
@@ -31,7 +32,6 @@
 #include <sys/wait.h>
 #include <linux/slab.h>
 #include <linux/swap.h>
-#include <linux/percpu_compat.h>
 #include <linux/prefetch.h>
 
 /*
