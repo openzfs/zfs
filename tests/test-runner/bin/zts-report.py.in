@@ -213,6 +213,7 @@ maybe = {
     'history/history_010_pos': ['SKIP', exec_reason],
     'io/mmap': ['SKIP', fio_reason],
     'largest_pool/largest_pool_001_pos': ['FAIL', known_reason],
+    'mmp/mmp_on_uberblocks': ['FAIL', known_reason],
     'pyzfs/pyzfs_unittest': ['SKIP', python_deps_reason],
     'no_space/enospc_002_pos': ['FAIL', enospc_reason],
     'projectquota/setup': ['SKIP', exec_reason],
@@ -224,6 +225,7 @@ maybe = {
     'rsend/rsend_021_pos': ['FAIL', '6446'],
     'rsend/rsend_024_pos': ['FAIL', '5665'],
     'rsend/send-c_volume': ['FAIL', '6087'],
+    'rsend/send_partial_dataset': ['FAIL', known_reason],
     'snapshot/clone_001_pos': ['FAIL', known_reason],
     'snapshot/snapshot_009_pos': ['FAIL', '7961'],
     'snapshot/snapshot_010_pos': ['FAIL', '7961'],
@@ -246,6 +248,7 @@ if sys.platform.startswith('freebsd'):
         'cli_root/zfs_share/zfs_share_011_pos': ['FAIL', known_reason],
         'cli_root/zfs_share/zfs_share_concurrent_shares':
             ['FAIL', known_reason],
+        'cli_root/zpool_import/zpool_import_012_pos': ['FAIL', known_reason],
         'delegate/zfs_allow_003_pos': ['FAIL', known_reason],
         'removal/removal_condense_export': ['FAIL', known_reason],
         'removal/removal_with_export': ['FAIL', known_reason],
@@ -255,6 +258,7 @@ elif sys.platform.startswith('linux'):
     maybe.update({
         'alloc_class/alloc_class_009_pos': ['FAIL', known_reason],
         'alloc_class/alloc_class_010_pos': ['FAIL', known_reason],
+        'alloc_class/alloc_class_011_neg': ['FAIL', known_reason],
         'cli_root/zfs_rename/zfs_rename_002_pos': ['FAIL', known_reason],
         'cli_root/zpool_expand/zpool_expand_001_pos': ['FAIL', known_reason],
         'cli_root/zpool_expand/zpool_expand_005_pos': ['FAIL', known_reason],
