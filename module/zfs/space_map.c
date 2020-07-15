@@ -96,6 +96,7 @@ space_map_iterate(space_map_t *sm, uint64_t end, sm_cb_t callback, void *arg)
 	    ZIO_PRIORITY_SYNC_READ);
 
 	int error = 0;
+	uint64_t txg = 0, sync_pass = 0;
 	for (uint64_t block_base = 0; block_base < end && error == 0;
 	    block_base += blksz) {
 		dmu_buf_t *db;
@@ -117,8 +118,29 @@ space_map_iterate(space_map_t *sm, uint64_t end, sm_cb_t callback, void *arg)
 		    block_cursor < block_end && error == 0; block_cursor++) {
 			uint64_t e = *block_cursor;
 
-			if (sm_entry_is_debug(e)) /* Skip debug entries */
+			if (sm_entry_is_debug(e)) {
+				/*
+				 * Debug entries are only needed to record the
+				 * current TXG and sync pass if available.
+				 *
+				 * Note though that sometimes there can be
+				 * debug entries that are used as padding
+				 * at the end of space map blocks in-order
+				 * to not split a double-word entry in the
+				 * middle between two blocks. These entries
+				 * have their TXG field set to 0 and we
+				 * skip them without recording the TXG.
+				 * [see comment in space_map_write_seg()]
+				 */
+				uint64_t e_txg = SM_DEBUG_TXG_DECODE(e);
+				if (e_txg != 0) {
+					txg = e_txg;
+					sync_pass = SM_DEBUG_SYNCPASS_DECODE(e);
+				} else {
+					ASSERT0(SM_DEBUG_SYNCPASS_DECODE(e));
+				}
 				continue;
+			}
 
 			uint64_t raw_offset, raw_run, vdev_id;
 			maptype_t type;
@@ -158,7 +180,9 @@ space_map_iterate(space_map_t *sm, uint64_t end, sm_cb_t callback, void *arg)
 			    .sme_type = type,
 			    .sme_vdev = vdev_id,
 			    .sme_offset = entry_offset,
-			    .sme_run = entry_run
+			    .sme_run = entry_run,
+			    .sme_txg = txg,
+			    .sme_sync_pass = sync_pass
 			};
 			error = callback(&sme, arg);
 		}
