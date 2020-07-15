@@ -69,6 +69,7 @@
 #include <sys/blkptr.h>
 #include <sys/dsl_crypt.h>
 #include <sys/dsl_scan.h>
+#include <sys/btree.h>
 #include <zfs_comutil.h>
 
 #include <libnvpair.h>
@@ -151,6 +152,571 @@ static void snprintf_blkptr_compact(char *, size_t, const blkptr_t *,
     boolean_t);
 static void mos_obj_refd(uint64_t);
 static void mos_obj_refd_multiple(uint64_t);
+static int dump_bpobj_cb(void *arg, const blkptr_t *bp, boolean_t free,
+    dmu_tx_t *tx);
+
+typedef struct sublivelist_verify {
+	/* all ALLOC'd blkptr_t in one sub-livelist */
+	zfs_btree_t sv_all_allocs;
+
+	/* all FREE'd blkptr_t in one sub-livelist */
+	zfs_btree_t sv_all_frees;
+
+	/* FREE's that haven't yet matched to an ALLOC, in one sub-livelist */
+	zfs_btree_t sv_pair;
+
+	/* ALLOC's without a matching FREE, accumulates across sub-livelists */
+	zfs_btree_t sv_leftover;
+} sublivelist_verify_t;
+
+static int
+livelist_compare(const void *larg, const void *rarg)
+{
+	const blkptr_t *l = larg;
+	const blkptr_t *r = rarg;
+
+	/* Sort them according to dva[0] */
+	uint64_t l_dva0_vdev, r_dva0_vdev;
+	l_dva0_vdev = DVA_GET_VDEV(&l->blk_dva[0]);
+	r_dva0_vdev = DVA_GET_VDEV(&r->blk_dva[0]);
+	if (l_dva0_vdev < r_dva0_vdev)
+		return (-1);
+	else if (l_dva0_vdev > r_dva0_vdev)
+		return (+1);
+
+	/* if vdevs are equal, sort by offsets. */
+	uint64_t l_dva0_offset;
+	uint64_t r_dva0_offset;
+	l_dva0_offset = DVA_GET_OFFSET(&l->blk_dva[0]);
+	r_dva0_offset = DVA_GET_OFFSET(&r->blk_dva[0]);
+	if (l_dva0_offset < r_dva0_offset) {
+		return (-1);
+	} else if (l_dva0_offset > r_dva0_offset) {
+		return (+1);
+	}
+
+	/*
+	 * Since we're storing blkptrs without cancelling FREE/ALLOC pairs,
+	 * it's possible the offsets are equal. In that case, sort by txg
+	 */
+	if (l->blk_birth < r->blk_birth) {
+		return (-1);
+	} else if (l->blk_birth > r->blk_birth) {
+		return (+1);
+	}
+	return (0);
+}
+
+typedef struct sublivelist_verify_block {
+	dva_t svb_dva;
+
+	/*
+	 * We need this to check if the block marked as allocated
+	 * in the livelist was freed (and potentially reallocated)
+	 * in the metaslab spacemaps at a later TXG.
+	 */
+	uint64_t svb_allocated_txg;
+} sublivelist_verify_block_t;
+
+static void zdb_print_blkptr(const blkptr_t *bp, int flags);
+
+static int
+sublivelist_verify_blkptr(void *arg, const blkptr_t *bp, boolean_t free,
+    dmu_tx_t *tx)
+{
+	ASSERT3P(tx, ==, NULL);
+	struct sublivelist_verify *sv = arg;
+	char blkbuf[BP_SPRINTF_LEN];
+	zfs_btree_index_t where;
+	if (free) {
+		zfs_btree_add(&sv->sv_pair, bp);
+		/* Check if the FREE is a duplicate */
+		if (zfs_btree_find(&sv->sv_all_frees, bp, &where) != NULL) {
+			snprintf_blkptr_compact(blkbuf, sizeof (blkbuf), bp,
+			    free);
+			(void) printf("\tERROR: Duplicate FREE: %s\n", blkbuf);
+		} else {
+			zfs_btree_add_idx(&sv->sv_all_frees, bp, &where);
+		}
+	} else {
+		/* Check if the ALLOC has been freed */
+		if (zfs_btree_find(&sv->sv_pair, bp, &where) != NULL) {
+			zfs_btree_remove_idx(&sv->sv_pair, &where);
+		} else {
+			for (int i = 0; i < SPA_DVAS_PER_BP; i++) {
+				if (DVA_IS_EMPTY(&bp->blk_dva[i]))
+					break;
+				sublivelist_verify_block_t svb = {
+				    .svb_dva = bp->blk_dva[i],
+				    .svb_allocated_txg = bp->blk_birth
+				};
+
+				if (zfs_btree_find(&sv->sv_leftover, &svb,
+				    &where) == NULL) {
+					zfs_btree_add_idx(&sv->sv_leftover,
+					    &svb, &where);
+				}
+			}
+		}
+		/* Check if the ALLOC is a duplicate */
+		if (zfs_btree_find(&sv->sv_all_allocs, bp, &where) != NULL) {
+			snprintf_blkptr_compact(blkbuf, sizeof (blkbuf), bp,
+			    free);
+			(void) printf("\tERROR: Duplicate ALLOC: %s\n", blkbuf);
+		} else {
+			zfs_btree_add_idx(&sv->sv_all_allocs, bp, &where);
+		}
+	}
+	return (0);
+}
+
+static int
+sublivelist_verify_func(void *args, dsl_deadlist_entry_t *dle)
+{
+	int err;
+	char blkbuf[BP_SPRINTF_LEN];
+	struct sublivelist_verify *sv = args;
+
+	zfs_btree_create(&sv->sv_all_allocs, livelist_compare,
+	    sizeof (blkptr_t));
+
+	zfs_btree_create(&sv->sv_all_frees, livelist_compare,
+	    sizeof (blkptr_t));
+
+	zfs_btree_create(&sv->sv_pair, livelist_compare,
+	    sizeof (blkptr_t));
+
+	err = bpobj_iterate_nofree(&dle->dle_bpobj, sublivelist_verify_blkptr,
+	    sv, NULL);
+
+	zfs_btree_clear(&sv->sv_all_allocs);
+	zfs_btree_destroy(&sv->sv_all_allocs);
+
+	zfs_btree_clear(&sv->sv_all_frees);
+	zfs_btree_destroy(&sv->sv_all_frees);
+
+	blkptr_t *e;
+	zfs_btree_index_t *cookie = NULL;
+	while ((e = zfs_btree_destroy_nodes(&sv->sv_pair, &cookie)) != NULL) {
+		snprintf_blkptr_compact(blkbuf, sizeof (blkbuf), e, B_TRUE);
+		(void) printf("\tERROR: Unmatched FREE: %s\n", blkbuf);
+	}
+	zfs_btree_destroy(&sv->sv_pair);
+
+	return (err);
+}
+
+static int
+livelist_block_compare(const void *larg, const void *rarg)
+{
+	const sublivelist_verify_block_t *l = larg;
+	const sublivelist_verify_block_t *r = rarg;
+
+	if (DVA_GET_VDEV(&l->svb_dva) < DVA_GET_VDEV(&r->svb_dva))
+		return (-1);
+	else if (DVA_GET_VDEV(&l->svb_dva) > DVA_GET_VDEV(&r->svb_dva))
+		return (+1);
+
+	if (DVA_GET_OFFSET(&l->svb_dva) < DVA_GET_OFFSET(&r->svb_dva))
+		return (-1);
+	else if (DVA_GET_OFFSET(&l->svb_dva) > DVA_GET_OFFSET(&r->svb_dva))
+		return (+1);
+
+	if (DVA_GET_ASIZE(&l->svb_dva) < DVA_GET_ASIZE(&r->svb_dva))
+		return (-1);
+	else if (DVA_GET_ASIZE(&l->svb_dva) > DVA_GET_ASIZE(&r->svb_dva))
+		return (+1);
+
+	return (0);
+}
+
+/*
+ * Check for errors in a livelist while tracking all unfreed ALLOCs in the
+ * sublivelist_verify_t: sv->sv_leftover
+ */
+static void
+livelist_verify(dsl_deadlist_t *dl, void *arg)
+{
+	sublivelist_verify_t *sv = arg;
+	dsl_deadlist_iterate(dl, sublivelist_verify_func, sv);
+}
+
+/*
+ * Check for errors in the livelist entry and discard the intermediary
+ * data structures
+ */
+/* ARGSUSED */
+static int
+sublivelist_verify_lightweight(void *args, dsl_deadlist_entry_t *dle)
+{
+	sublivelist_verify_t sv;
+	zfs_btree_create(&sv.sv_leftover, livelist_block_compare,
+	    sizeof (sublivelist_verify_block_t));
+	int err = sublivelist_verify_func(&sv, dle);
+	zfs_btree_clear(&sv.sv_leftover);
+	zfs_btree_destroy(&sv.sv_leftover);
+	return (err);
+}
+
+typedef struct metaslab_verify {
+	/*
+	 * Tree containing all the leftover ALLOCs from the livelists
+	 * that are part of this metaslab.
+	 */
+	zfs_btree_t mv_livelist_allocs;
+
+	/*
+	 * Metaslab information.
+	 */
+	uint64_t mv_vdid;
+	uint64_t mv_msid;
+	uint64_t mv_start;
+	uint64_t mv_end;
+
+	/*
+	 * What's currently allocated for this metaslab.
+	 */
+	range_tree_t *mv_allocated;
+} metaslab_verify_t;
+
+typedef void ll_iter_t(dsl_deadlist_t *ll, void *arg);
+
+typedef int (*zdb_log_sm_cb_t)(spa_t *spa, space_map_entry_t *sme, uint64_t txg,
+    void *arg);
+
+typedef struct unflushed_iter_cb_arg {
+	spa_t *uic_spa;
+	uint64_t uic_txg;
+	void *uic_arg;
+	zdb_log_sm_cb_t uic_cb;
+} unflushed_iter_cb_arg_t;
+
+static int
+iterate_through_spacemap_logs_cb(space_map_entry_t *sme, void *arg)
+{
+	unflushed_iter_cb_arg_t *uic = arg;
+	return (uic->uic_cb(uic->uic_spa, sme, uic->uic_txg, uic->uic_arg));
+}
+
+static void
+iterate_through_spacemap_logs(spa_t *spa, zdb_log_sm_cb_t cb, void *arg)
+{
+	if (!spa_feature_is_active(spa, SPA_FEATURE_LOG_SPACEMAP))
+		return;
+
+	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+	for (spa_log_sm_t *sls = avl_first(&spa->spa_sm_logs_by_txg);
+	    sls; sls = AVL_NEXT(&spa->spa_sm_logs_by_txg, sls)) {
+		space_map_t *sm = NULL;
+		VERIFY0(space_map_open(&sm, spa_meta_objset(spa),
+		    sls->sls_sm_obj, 0, UINT64_MAX, SPA_MINBLOCKSHIFT));
+
+		unflushed_iter_cb_arg_t uic = {
+			.uic_spa = spa,
+			.uic_txg = sls->sls_txg,
+			.uic_arg = arg,
+			.uic_cb = cb
+		};
+		VERIFY0(space_map_iterate(sm, space_map_length(sm),
+		    iterate_through_spacemap_logs_cb, &uic));
+		space_map_close(sm);
+	}
+	spa_config_exit(spa, SCL_CONFIG, FTAG);
+}
+
+static void
+verify_livelist_allocs(metaslab_verify_t *mv, uint64_t txg,
+    uint64_t offset, uint64_t size)
+{
+	sublivelist_verify_block_t svb;
+	DVA_SET_VDEV(&svb.svb_dva, mv->mv_vdid);
+	DVA_SET_OFFSET(&svb.svb_dva, offset);
+	DVA_SET_ASIZE(&svb.svb_dva, size);
+	zfs_btree_index_t where;
+	uint64_t end_offset = offset + size;
+
+	/*
+	 *  Look for an exact match for spacemap entry in the livelist entries.
+	 *  Then, look for other livelist entries that fall within the range
+	 *  of the spacemap entry as it may have been condensed
+	 */
+	sublivelist_verify_block_t *found =
+	    zfs_btree_find(&mv->mv_livelist_allocs, &svb, &where);
+	if (found == NULL) {
+		found = zfs_btree_next(&mv->mv_livelist_allocs, &where, &where);
+	}
+	for (; found != NULL && DVA_GET_VDEV(&found->svb_dva) == mv->mv_vdid &&
+	    DVA_GET_OFFSET(&found->svb_dva) < end_offset;
+	    found = zfs_btree_next(&mv->mv_livelist_allocs, &where, &where)) {
+		if (found->svb_allocated_txg <= txg) {
+			(void) printf("ERROR: Livelist ALLOC [%llx:%llx] "
+			    "from TXG %llx FREED at TXG %llx\n",
+			    (u_longlong_t)DVA_GET_OFFSET(&found->svb_dva),
+			    (u_longlong_t)DVA_GET_ASIZE(&found->svb_dva),
+			    (u_longlong_t)found->svb_allocated_txg,
+			    (u_longlong_t)txg);
+		}
+	}
+}
+
+static int
+metaslab_spacemap_validation_cb(space_map_entry_t *sme, void *arg)
+{
+	metaslab_verify_t *mv = arg;
+	uint64_t offset = sme->sme_offset;
+	uint64_t size = sme->sme_run;
+	uint64_t txg = sme->sme_txg;
+
+	if (sme->sme_type == SM_ALLOC) {
+		if (range_tree_contains(mv->mv_allocated,
+		    offset, size)) {
+			(void) printf("ERROR: DOUBLE ALLOC: "
+			    "%llu [%llx:%llx] "
+			    "%llu:%llu LOG_SM\n",
+			    (u_longlong_t)txg, (u_longlong_t)offset,
+			    (u_longlong_t)size, (u_longlong_t)mv->mv_vdid,
+			    (u_longlong_t)mv->mv_msid);
+		} else {
+			range_tree_add(mv->mv_allocated,
+			    offset, size);
+		}
+	} else {
+		if (!range_tree_contains(mv->mv_allocated,
+		    offset, size)) {
+			(void) printf("ERROR: DOUBLE FREE: "
+			    "%llu [%llx:%llx] "
+			    "%llu:%llu LOG_SM\n",
+			    (u_longlong_t)txg, (u_longlong_t)offset,
+			    (u_longlong_t)size, (u_longlong_t)mv->mv_vdid,
+			    (u_longlong_t)mv->mv_msid);
+		} else {
+			range_tree_remove(mv->mv_allocated,
+			    offset, size);
+		}
+	}
+
+	if (sme->sme_type != SM_ALLOC) {
+		/*
+		 * If something is freed in the spacemap, verify that
+		 * it is not listed as allocated in the livelist.
+		 */
+		verify_livelist_allocs(mv, txg, offset, size);
+	}
+	return (0);
+}
+
+static int
+spacemap_check_sm_log_cb(spa_t *spa, space_map_entry_t *sme,
+    uint64_t txg, void *arg)
+{
+	metaslab_verify_t *mv = arg;
+	uint64_t offset = sme->sme_offset;
+	uint64_t vdev_id = sme->sme_vdev;
+
+	vdev_t *vd = vdev_lookup_top(spa, vdev_id);
+
+	/* skip indirect vdevs */
+	if (!vdev_is_concrete(vd))
+		return (0);
+
+	if (vdev_id != mv->mv_vdid)
+		return (0);
+
+	metaslab_t *ms = vd->vdev_ms[offset >> vd->vdev_ms_shift];
+	if (ms->ms_id != mv->mv_msid)
+		return (0);
+
+	if (txg < metaslab_unflushed_txg(ms))
+		return (0);
+
+
+	ASSERT3U(txg, ==, sme->sme_txg);
+	return (metaslab_spacemap_validation_cb(sme, mv));
+}
+
+static void
+spacemap_check_sm_log(spa_t *spa, metaslab_verify_t *mv)
+{
+	iterate_through_spacemap_logs(spa, spacemap_check_sm_log_cb, mv);
+}
+
+static void
+spacemap_check_ms_sm(space_map_t  *sm, metaslab_verify_t *mv)
+{
+	if (sm == NULL)
+		return;
+
+	VERIFY0(space_map_iterate(sm, space_map_length(sm),
+	    metaslab_spacemap_validation_cb, mv));
+}
+
+static void iterate_deleted_livelists(spa_t *spa, ll_iter_t func, void *arg);
+
+/*
+ * Transfer blocks from sv_leftover tree to the mv_livelist_allocs if
+ * they are part of that metaslab (mv_msid).
+ */
+static void
+mv_populate_livelist_allocs(metaslab_verify_t *mv, sublivelist_verify_t *sv)
+{
+	zfs_btree_index_t where;
+	sublivelist_verify_block_t *svb;
+	ASSERT3U(zfs_btree_numnodes(&mv->mv_livelist_allocs), ==, 0);
+	for (svb = zfs_btree_first(&sv->sv_leftover, &where);
+	    svb != NULL;
+	    svb = zfs_btree_next(&sv->sv_leftover, &where, &where)) {
+		if (DVA_GET_VDEV(&svb->svb_dva) != mv->mv_vdid)
+			continue;
+
+		if (DVA_GET_OFFSET(&svb->svb_dva) < mv->mv_start &&
+		    (DVA_GET_OFFSET(&svb->svb_dva) +
+		    DVA_GET_ASIZE(&svb->svb_dva)) > mv->mv_start) {
+			(void) printf("ERROR: Found block that crosses "
+			    "metaslab boundary: <%llu:%llx:%llx>\n",
+			    (u_longlong_t)DVA_GET_VDEV(&svb->svb_dva),
+			    (u_longlong_t)DVA_GET_OFFSET(&svb->svb_dva),
+			    (u_longlong_t)DVA_GET_ASIZE(&svb->svb_dva));
+			continue;
+		}
+
+		if (DVA_GET_OFFSET(&svb->svb_dva) < mv->mv_start)
+			continue;
+
+		if (DVA_GET_OFFSET(&svb->svb_dva) >= mv->mv_end)
+			continue;
+
+		if ((DVA_GET_OFFSET(&svb->svb_dva) +
+		    DVA_GET_ASIZE(&svb->svb_dva)) > mv->mv_end) {
+			(void) printf("ERROR: Found block that crosses "
+			    "metaslab boundary: <%llu:%llx:%llx>\n",
+			    (u_longlong_t)DVA_GET_VDEV(&svb->svb_dva),
+			    (u_longlong_t)DVA_GET_OFFSET(&svb->svb_dva),
+			    (u_longlong_t)DVA_GET_ASIZE(&svb->svb_dva));
+			continue;
+		}
+
+		zfs_btree_add(&mv->mv_livelist_allocs, svb);
+	}
+
+	for (svb = zfs_btree_first(&mv->mv_livelist_allocs, &where);
+	    svb != NULL;
+	    svb = zfs_btree_next(&mv->mv_livelist_allocs, &where, &where)) {
+		zfs_btree_remove(&sv->sv_leftover, svb);
+	}
+}
+
+/*
+ * [Livelist Check]
+ * Iterate through all the sublivelists and:
+ * - report leftover frees
+ * - report double ALLOCs/FREEs
+ * - record leftover ALLOCs together with their TXG [see Cross Check]
+ *
+ * [Spacemap Check]
+ * for each metaslab:
+ * - iterate over spacemap and then the metaslab's entries in the
+ *   spacemap log, then report any double FREEs and ALLOCs (do not
+ *   blow up).
+ *
+ * [Cross Check]
+ * After finishing the Livelist Check phase and while being in the
+ * Spacemap Check phase, we find all the recorded leftover ALLOCs
+ * of the livelist check that are part of the metaslab that we are
+ * currently looking at in the Spacemap Check. We report any entries
+ * that are marked as ALLOCs in the livelists but have been actually
+ * freed (and potentially allocated again) after their TXG stamp in
+ * the spacemaps. Also report any ALLOCs from the livelists that
+ * belong to indirect vdevs (e.g. their vdev completed removal).
+ *
+ * Note that this will miss Log Spacemap entries that cancelled each other
+ * out before being flushed to the metaslab, so we are not guaranteed
+ * to match all erroneous ALLOCs.
+ */
+static void
+livelist_metaslab_validate(spa_t *spa)
+{
+	(void) printf("Verifying deleted livelist entries\n");
+
+	sublivelist_verify_t sv;
+	zfs_btree_create(&sv.sv_leftover, livelist_block_compare,
+	    sizeof (sublivelist_verify_block_t));
+	iterate_deleted_livelists(spa, livelist_verify, &sv);
+
+	(void) printf("Verifying metaslab entries\n");
+	vdev_t *rvd = spa->spa_root_vdev;
+	for (uint64_t c = 0; c < rvd->vdev_children; c++) {
+		vdev_t *vd = rvd->vdev_child[c];
+
+		if (!vdev_is_concrete(vd))
+			continue;
+
+		for (uint64_t mid = 0; mid < vd->vdev_ms_count; mid++) {
+			metaslab_t *m = vd->vdev_ms[mid];
+
+			(void) fprintf(stderr,
+			    "\rverifying concrete vdev %llu, "
+			    "metaslab %llu of %llu ...",
+			    (longlong_t)vd->vdev_id,
+			    (longlong_t)mid,
+			    (longlong_t)vd->vdev_ms_count);
+
+			uint64_t shift, start;
+			range_seg_type_t type =
+			    metaslab_calculate_range_tree_type(vd, m,
+			    &start, &shift);
+			metaslab_verify_t mv;
+			mv.mv_allocated = range_tree_create(NULL,
+			    type, NULL, start, shift);
+			mv.mv_vdid = vd->vdev_id;
+			mv.mv_msid = m->ms_id;
+			mv.mv_start = m->ms_start;
+			mv.mv_end = m->ms_start + m->ms_size;
+			zfs_btree_create(&mv.mv_livelist_allocs,
+			    livelist_block_compare,
+			    sizeof (sublivelist_verify_block_t));
+
+			mv_populate_livelist_allocs(&mv, &sv);
+
+			spacemap_check_ms_sm(m->ms_sm, &mv);
+			spacemap_check_sm_log(spa, &mv);
+
+			range_tree_vacate(mv.mv_allocated, NULL, NULL);
+			range_tree_destroy(mv.mv_allocated);
+			zfs_btree_clear(&mv.mv_livelist_allocs);
+			zfs_btree_destroy(&mv.mv_livelist_allocs);
+		}
+	}
+	(void) fprintf(stderr, "\n");
+
+	/*
+	 * If there are any segments in the leftover tree after we walked
+	 * through all the metaslabs in the concrete vdevs then this means
+	 * that we have segments in the livelists that belong to indirect
+	 * vdevs and are marked as allocated.
+	 */
+	if (zfs_btree_numnodes(&sv.sv_leftover) == 0) {
+		zfs_btree_destroy(&sv.sv_leftover);
+		return;
+	}
+	(void) printf("ERROR: Found livelist blocks marked as allocated "
+	    "for indirect vdevs:\n");
+
+	zfs_btree_index_t *where = NULL;
+	sublivelist_verify_block_t *svb;
+	while ((svb = zfs_btree_destroy_nodes(&sv.sv_leftover, &where)) !=
+	    NULL) {
+		int vdev_id = DVA_GET_VDEV(&svb->svb_dva);
+		ASSERT3U(vdev_id, <, rvd->vdev_children);
+		vdev_t *vd = rvd->vdev_child[vdev_id];
+		ASSERT(!vdev_is_concrete(vd));
+		(void) printf("<%d:%llx:%llx> TXG %llx\n",
+		    vdev_id, (u_longlong_t)DVA_GET_OFFSET(&svb->svb_dva),
+		    (u_longlong_t)DVA_GET_ASIZE(&svb->svb_dva),
+		    (u_longlong_t)svb->svb_allocated_txg);
+	}
+	(void) printf("\n");
+	zfs_btree_destroy(&sv.sv_leftover);
+}
 
 /*
  * These libumem hooks provide a reasonable set of defaults for the allocator's
@@ -172,7 +738,7 @@ static void
 usage(void)
 {
 	(void) fprintf(stderr,
-	    "Usage:\t%s [-AbcdDFGhikLMPsvX] [-e [-V] [-p <path> ...]] "
+	    "Usage:\t%s [-AbcdDFGhikLMPsvXy] [-e [-V] [-p <path> ...]] "
 	    "[-I <inflight I/Os>]\n"
 	    "\t\t[-o <var>=<value>]... [-t <txg>] [-U <cache>] [-x <dumpdir>]\n"
 	    "\t\t[<poolname>[/<dataset | objset id>] [<object | range> ...]]\n"
@@ -234,7 +800,9 @@ usage(void)
 	(void) fprintf(stderr, "        -s report stats on zdb's I/O\n");
 	(void) fprintf(stderr, "        -S simulate dedup to measure effect\n");
 	(void) fprintf(stderr, "        -v verbose (applies to all "
-	    "others)\n\n");
+	    "others)\n");
+	(void) fprintf(stderr, "        -y perform livelist and metaslab "
+	    "validation on any livelists being deleted\n\n");
 	(void) fprintf(stderr, "    Below options are intended for use "
 	    "with other options:\n");
 	(void) fprintf(stderr, "        -A ignore assertions (-A), enable "
@@ -926,11 +1494,20 @@ dump_spacemap(objset_t *os, space_map_t *sm)
 		    sizeof (word), &word, DMU_READ_PREFETCH));
 
 		if (sm_entry_is_debug(word)) {
-			(void) printf("\t    [%6llu] %s: txg %llu pass %llu\n",
-			    (u_longlong_t)entry_id,
-			    ddata[SM_DEBUG_ACTION_DECODE(word)],
-			    (u_longlong_t)SM_DEBUG_TXG_DECODE(word),
-			    (u_longlong_t)SM_DEBUG_SYNCPASS_DECODE(word));
+			uint64_t de_txg = SM_DEBUG_TXG_DECODE(word);
+			uint64_t de_sync_pass = SM_DEBUG_SYNCPASS_DECODE(word);
+			if (de_txg == 0) {
+				(void) printf(
+				    "\t    [%6llu] PADDING\n",
+				    (u_longlong_t)entry_id);
+			} else {
+				(void) printf(
+				    "\t    [%6llu] %s: txg %llu pass %llu\n",
+				    (u_longlong_t)entry_id,
+				    ddata[SM_DEBUG_ACTION_DECODE(word)],
+				    (u_longlong_t)de_txg,
+				    (u_longlong_t)de_sync_pass);
+			}
 			entry_id++;
 			continue;
 		}
@@ -2214,6 +2791,11 @@ verify_dd_livelist(objset_t *os)
 	ASSERT(!dmu_objset_is_snapshot(os));
 	if (!dsl_deadlist_is_open(&dd->dd_livelist))
 		return (0);
+
+	/* Iterate through the livelist to check for duplicates */
+	dsl_deadlist_iterate(&dd->dd_livelist, sublivelist_verify_lightweight,
+	    NULL);
+
 	dsl_pool_config_enter(dp, FTAG);
 	dsl_deadlist_space(&dd->dd_livelist, &ll_used,
 	    &ll_comp, &ll_uncomp);
@@ -4652,50 +5234,6 @@ static metaslab_ops_t zdb_metaslab_ops = {
 	NULL	/* alloc */
 };
 
-typedef int (*zdb_log_sm_cb_t)(spa_t *spa, space_map_entry_t *sme,
-    uint64_t txg, void *arg);
-
-typedef struct unflushed_iter_cb_arg {
-	spa_t *uic_spa;
-	uint64_t uic_txg;
-	void *uic_arg;
-	zdb_log_sm_cb_t uic_cb;
-} unflushed_iter_cb_arg_t;
-
-static int
-iterate_through_spacemap_logs_cb(space_map_entry_t *sme, void *arg)
-{
-	unflushed_iter_cb_arg_t *uic = arg;
-	return (uic->uic_cb(uic->uic_spa, sme, uic->uic_txg, uic->uic_arg));
-}
-
-static void
-iterate_through_spacemap_logs(spa_t *spa, zdb_log_sm_cb_t cb, void *arg)
-{
-	if (!spa_feature_is_active(spa, SPA_FEATURE_LOG_SPACEMAP))
-		return;
-
-	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
-	for (spa_log_sm_t *sls = avl_first(&spa->spa_sm_logs_by_txg);
-	    sls; sls = AVL_NEXT(&spa->spa_sm_logs_by_txg, sls)) {
-		space_map_t *sm = NULL;
-		VERIFY0(space_map_open(&sm, spa_meta_objset(spa),
-		    sls->sls_sm_obj, 0, UINT64_MAX, SPA_MINBLOCKSHIFT));
-
-		unflushed_iter_cb_arg_t uic = {
-			.uic_spa = spa,
-			.uic_txg = sls->sls_txg,
-			.uic_arg = arg,
-			.uic_cb = cb
-		};
-
-		VERIFY0(space_map_iterate(sm, space_map_length(sm),
-		    iterate_through_spacemap_logs_cb, &uic));
-		space_map_close(sm);
-	}
-	spa_config_exit(spa, SCL_CONFIG, FTAG);
-}
-
 /* ARGSUSED */
 static int
 load_unflushed_svr_segs_cb(spa_t *spa, space_map_entry_t *sme,
@@ -5448,8 +5986,6 @@ count_block_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx)
  * Iterate over livelists which have been destroyed by the user but
  * are still present in the MOS, waiting to be freed
  */
-typedef void ll_iter_t(dsl_deadlist_t *ll, void *arg);
-
 static void
 iterate_deleted_livelists(spa_t *spa, ll_iter_t func, void *arg)
 {
@@ -5520,6 +6056,7 @@ dump_livelist_cb(dsl_deadlist_t *ll, void *arg)
 	ASSERT3P(arg, ==, NULL);
 	global_feature_count[SPA_FEATURE_LIVELIST]++;
 	dump_blkptr_list(ll, "Deleted Livelist");
+	dsl_deadlist_iterate(ll, sublivelist_verify_lightweight, NULL);
 }
 
 /*
@@ -6785,6 +7322,10 @@ dump_zpool(spa_t *spa)
 	dsl_pool_t *dp = spa_get_dsl(spa);
 	int rc = 0;
 
+	if (dump_opt['y']) {
+		livelist_metaslab_validate(spa);
+	}
+
 	if (dump_opt['S']) {
 		dump_simulated_ddt(spa);
 		return;
@@ -6930,7 +7471,7 @@ static int flagbits[256];
 static char flagbitstr[16];
 
 static void
-zdb_print_blkptr(blkptr_t *bp, int flags)
+zdb_print_blkptr(const blkptr_t *bp, int flags)
 {
 	char blkbuf[BP_SPRINTF_LEN];
 
@@ -7542,7 +8083,7 @@ main(int argc, char **argv)
 	zfs_btree_verify_intensity = 3;
 
 	while ((c = getopt(argc, argv,
-	    "AbcCdDeEFGhiI:klLmMo:Op:PqRsSt:uU:vVx:XY")) != -1) {
+	    "AbcCdDeEFGhiI:klLmMo:Op:PqRsSt:uU:vVx:XYy")) != -1) {
 		switch (c) {
 		case 'b':
 		case 'c':
@@ -7561,6 +8102,7 @@ main(int argc, char **argv)
 		case 's':
 		case 'S':
 		case 'u':
+		case 'y':
 			dump_opt[c]++;
 			dump_all = 0;
 			break;
@@ -7703,7 +8245,7 @@ main(int argc, char **argv)
 		verbose = MAX(verbose, 1);
 
 	for (c = 0; c < 256; c++) {
-		if (dump_all && strchr("AeEFklLOPRSX", c) == NULL)
+		if (dump_all && strchr("AeEFklLOPRSXy", c) == NULL)
 			dump_opt[c] = 1;
 		if (dump_opt[c])
 			dump_opt[c] += verbose;

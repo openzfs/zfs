@@ -6,6 +6,12 @@
 # Build targets for RPM packages.
 ###############################################################################
 
+PHONY += srpm srpms srpm-kmod srpm-dkms srpm-utils
+PHONY += rpm rpms rpm-kmod rpm-dkms rpm-utils
+PHONY += srpm-common rpm-common rpm-local
+
+srpm-kmod srpm-dkms srpm-utils: dist
+
 srpm-kmod:
 	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-kmod" \
 		def='${SRPM_DEFINE_COMMON} ${SRPM_DEFINE_KMOD}' srpm-common
@@ -54,7 +60,7 @@ rpm-local:
 	cp $(top_srcdir)/scripts/kmodtool $(rpmbuild)/SOURCES && \
 	cp $(distdir).tar.gz $(rpmbuild)/SOURCES)
 
-srpm-common: dist
+srpm-common:
 	@(dist=`$(RPM) --eval %{?dist}`; \
 	rpmpkg=$(pkg)-$(VERSION)-$(RELEASE)$$dist*src.rpm; \
 	rpmspec=$(pkg).spec; \

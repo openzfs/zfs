@@ -1,9 +1,5 @@
 ACLOCAL_AMFLAGS = -I config
 
-include config/rpm.am
-include config/deb.am
-include config/tgz.am
-
 SUBDIRS = include
 if BUILD_LINUX
 SUBDIRS += rpm
@@ -54,10 +50,11 @@ EXTRA_DIST += module/zfs/THIRDPARTYLICENSE.cityhash.descrip
 @CODE_COVERAGE_RULES@
 
 GITREV = include/zfs_gitrev.h
+CLEANFILES = $(GITREV)
 
 PHONY = gitrev
 gitrev:
-	ZFS_GITREV=$$(cd $(top_srcdir) && \
+	$(AM_V_GEN)ZFS_GITREV=$$(cd $(top_srcdir) && \
 		git describe --always --long --dirty 2>/dev/null); \
 	ZFS_GITREV=$${ZFS_GITREV:-unknown}; \
 	printf '#define\tZFS_META_GITREV "%s"\n' \
@@ -68,10 +65,7 @@ gitrev:
 		mv -f $(GITREV)~ $(GITREV); \
 	fi
 
-$(GITREV): gitrev
-
-BUILT_SOURCES = $(GITREV)
-CLEANFILES = $(GITREV)
+all: gitrev
 
 # Double-colon rules are allowed; there are multiple independent definitions.
 distclean-local::
@@ -251,5 +245,9 @@ pkg: @DEFAULT_PACKAGE@
 pkg-dkms: @DEFAULT_PACKAGE@-dkms
 pkg-kmod: @DEFAULT_PACKAGE@-kmod
 pkg-utils: @DEFAULT_PACKAGE@-utils
+
+include config/rpm.am
+include config/deb.am
+include config/tgz.am
 
 .PHONY: $(PHONY)

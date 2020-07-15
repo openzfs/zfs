@@ -54,6 +54,7 @@
  */
 
 
+#include <linux/percpu_compat.h>
 #include <sys/kmem.h>
 #include <sys/kmem_cache.h>
 #include <sys/zmod.h>

@@ -58,7 +58,7 @@ function cleanup
 function test_imported_pool
 {
 	typeset -a args=("-A" "-b" "-C" "-c" "-d" "-D" "-G" "-h" "-i" "-L" \
-            "-M" "-P" "-s" "-v" "-Y")
+            "-M" "-P" "-s" "-v" "-Y" "-y")
         for i in ${args[@]}; do
 		log_must eval "zdb $i $TESTPOOL >/dev/null"
 	done
@@ -68,7 +68,7 @@ function test_exported_pool
 {
 	log_must zpool export $TESTPOOL
 	typeset -a args=("-A" "-b" "-C" "-c" "-d" "-D" "-F" "-G" "-h" "-i" "-L" "-M" \
-            "-P" "-s" "-v" "-X" "-Y")
+            "-P" "-s" "-v" "-X" "-Y" "-y")
         for i in ${args[@]}; do
 		log_must eval "zdb -e $i $TESTPOOL >/dev/null"
 	done

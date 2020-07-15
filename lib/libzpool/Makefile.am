@@ -210,7 +210,11 @@ libzpool_la_LIBADD = \
 
 libzpool_la_LIBADD += $(LIBCLOCK_GETTIME) $(ZLIB_LIBS) -ldl
 
-libzpool_la_LDFLAGS = -pthread -Wl,-z,defs
+libzpool_la_LDFLAGS = -pthread
+
+if !ASAN_ENABLED
+libzpool_la_LDFLAGS += -Wl,-z,defs
+endif
 
 if BUILD_FREEBSD
 libzpool_la_LIBADD += -lgeom
