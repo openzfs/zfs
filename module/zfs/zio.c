@@ -3365,29 +3365,6 @@ zio_ddt_free(zio_t *zio)
 		zio->io_pipeline = ZIO_FREE_PIPELINE;
 		if (zio->io_child_type > ZIO_CHILD_GANG && BP_IS_GANG(bp))
 			zio->io_pipeline |= ZIO_GANG_STAGES;
-		if (ddt_phys_total_refcnt(dde) == 0) {
-			/*
-			 * Our call to ddt_lookup() added the in-memory
-			 * dde.  We need to undo this, because we are not
-			 * actually modifying the on-disk DDT.  This is
-			 * true whether the in-memory dde is "fresh", or it
-			 * corresponds to an on-disk entry in the DDT
-			 * (caused by the evict and re-add case).
-			 */
-			ddt_stat_update(ddt, dde, 0);
-
-			/*
-			 * If another thread called ddt_lookup()
-			 * on a bp with the same checksum, they could be
-			 * referencing this dde (in ddt_lookup(), waiting
-			 * for us to drop the ddt_lock).  When we
-			 * free the dde, they will dereference freed
-			 * memory. We can call ddt_remove(ddt,dde), but we
-			 * risk racing. If we do not call it, then the dde
-			 * will live until the end of the txg, which is
-			 * minimal risk.
-			 */
-		}
 	}
 	ddt_exit(ddt);
 
