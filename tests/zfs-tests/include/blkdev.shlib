@@ -542,7 +542,7 @@ function list_file_blocks # input_file
 
 	typeset ds="$(zfs list -H -o name $input_file)"
 	typeset pool="${ds%%/*}"
-	typeset inum="$(stat -c '%i' $input_file)"
+	typeset objnum="$(get_objnum $input_file)"
 
 	#
 	# Establish a mapping between vdev ids as shown in a DVA and the
@@ -573,7 +573,7 @@ function list_file_blocks # input_file
 	#
 	log_must zpool sync -f
 	typeset level path offset length
-	zdb -ddddd $ds $inum | awk -F: '
+	zdb -ddddd $ds $objnum | awk -F: '
 		BEGIN { looking = 0 }
 		/^Indirect blocks:/ { looking = 1}
 		/^\t\tsegment / { looking = 0}
@@ -602,13 +602,13 @@ function corrupt_blocks_at_level # input_file corrupt_level
 		sysctl kern.geom.debugflags=16
 	fi
 
-	log_must list_file_blocks $input_file | \
-	    while read level path offset length; do
+	list_file_blocks $input_file | \
+	while read level path offset length; do
 		if [[ $level = $corrupt_level ]]; then
 			log_must dd if=/dev/urandom of=$path bs=512 \
 			    count=$length seek=$offset conv=notrunc
 		fi
-	    done
+	done
 
 	if is_freebsd; then
 		sysctl kern.geom.debugflags=$debugflags
