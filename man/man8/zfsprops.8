@@ -660,13 +660,13 @@ property set to off then ACLs are disabled.
 .It Sy noacl
 an alias for
 .Sy off
-.It Sy native
-indicates that native ZFS ACLs should be used. These ACLs can be managed with
+.It Sy nfsv4
+indicates that NFSv4 ACLs should be used. These ACLs can be managed with
 the
 .Xr zgetfacl 1
 and
 .Xr zsetfacl 1
-commands pending Linux kernel support and tools for NFSv4 style local
+commands pending Linux kernel support and tools for NFSv4 local
 filesystem ACLs. They are also accessible via the standard Linux
 system.nfs4_acl extended attribute if the kernel request-key mechanism is
 configured and the NFSv4 nfsidmap program is installed along with the

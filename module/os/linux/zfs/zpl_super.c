@@ -192,7 +192,7 @@ __zpl_show_options(struct seq_file *seq, zfsvfs_t *zfsvfs)
 	case ZFS_ACLTYPE_POSIXACL:
 		seq_puts(seq, ",posixacl");
 		break;
-	case ZFS_ACLTYPE_NATIVE:
+	case ZFS_ACLTYPE_NFSV4:
 		seq_puts(seq, ",acl");
 		break;
 	default:

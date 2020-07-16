@@ -173,7 +173,7 @@ zfs_prop_init(void)
 		{ "disabled",	ZFS_ACLTYPE_OFF },
 		{ "noacl",	ZFS_ACLTYPE_OFF },
 		{ "posixacl",	ZFS_ACLTYPE_POSIXACL },
-		{ "native",	ZFS_ACLTYPE_NATIVE },
+		{ "nfsv4",	ZFS_ACLTYPE_NFSV4 },
 		{ NULL }
 	};
 
@@ -346,7 +346,7 @@ zfs_prop_init(void)
 #ifndef __FreeBSD__
 	zprop_register_index(ZFS_PROP_ACLTYPE, "acltype", ZFS_ACLTYPE_OFF,
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT,
-	    "noacl | native | posixacl", "ACLTYPE", acltype_table);
+	    "noacl | nfsv4 | posixacl", "ACLTYPE", acltype_table);
 #endif
 	zprop_register_index(ZFS_PROP_ACLINHERIT, "aclinherit",
 	    ZFS_ACL_RESTRICTED, PROP_INHERIT, ZFS_TYPE_FILESYSTEM,

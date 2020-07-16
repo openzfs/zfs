@@ -1341,7 +1341,7 @@ xattr_handler_t zpl_xattr_acl_default_handler =
 int
 zpl_permission(struct inode *ip, int mask)
 {
-	if (ITOZSB(ip)->z_acl_type == ZFS_ACLTYPE_NATIVE) {
+	if (ITOZSB(ip)->z_acl_type == ZFS_ACLTYPE_NFSV4) {
 		/*
 		 * XXX - mask could also include
 		 * MAY_APPEND|MAY_ACCESS|MAY_OPEN|MAY_CHDIR, do we care?
@@ -1590,7 +1590,7 @@ __zpl_xattr_nfs4acl_list(struct inode *ip, char *list, size_t list_size,
 	char *xattr_name = NFS4ACL_XATTR;
 	size_t xattr_size = sizeof (NFS4ACL_XATTR);
 
-	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_NATIVE)
+	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_NFSV4)
 		return (0);
 
 	if (list && xattr_size <= list_size)
@@ -1686,7 +1686,7 @@ __zpl_xattr_nfs4acl_get(struct inode *ip, const char *name,
 	if (strcmp(name, "") != 0)
 		return (-EINVAL);
 #endif
-	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_NATIVE)
+	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_NFSV4)
 		return (-EOPNOTSUPP);
 
 	vsecp.vsa_mask = VSA_ACE_ALLTYPES | VSA_ACECNT | VSA_ACE |
@@ -1829,7 +1829,7 @@ __zpl_xattr_nfs4acl_set(struct inode *ip, const char *name,
 	if (strcmp(name, "") != 0)
 		return (-EINVAL);
 #endif
-	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_NATIVE)
+	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_NFSV4)
 		return (-EOPNOTSUPP);
 
 	bufp = (char *)value;
