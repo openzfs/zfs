@@ -690,7 +690,7 @@ ddt_remove(ddt_t *ddt, ddt_entry_t *dde)
 ddt_entry_t *
 ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t add)
 {
-	ddt_entry_t *dde, dde_search;
+	ddt_entry_t *dde, dde_search, *dde_temp;
 	enum ddt_type type;
 	enum ddt_class class;
 	avl_index_t where;
@@ -701,16 +701,17 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t add)
 	ddt_key_fill(&dde_search.dde_key, bp);
 
 	dde = avl_find(&ddt->ddt_tree, &dde_search, &where);
-	if (dde == NULL) {
+	if (dde) {
+		while (dde->dde_loading)
+			cv_wait(&dde->dde_cv, &ddt->ddt_lock);
+	} else {
 		dde = ddt_alloc(&dde_search.dde_key);
 		avl_insert(&ddt->ddt_tree, dde, where);
 	}
 
-	while (dde->dde_loading)
-		cv_wait(&dde->dde_cv, &ddt->ddt_lock);
-
-	if (dde->dde_loaded)
+	if (dde->dde_loaded) {
 		return (dde);
+	}
 
 	dde->dde_loading = B_TRUE;
 
@@ -732,8 +733,18 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t add)
 
 	ddt_enter(ddt);
 
-	if (error == ENOENT && add == B_FALSE) {
-		avl_remove(&ddt->ddt_tree, dde);
+	/*
+	 * Because the ddt is unlocked during the above loop, there's
+	 * a chance that ddt_sync_table() could be called, which would
+	 * empty out the AVL tree. So let's see if it's still in the
+	 * tree, and if not, clean up after ourselves.  (Which we
+	 * also do if the entry wasn't found in the above loop, and
+	 * we're not supposed to add it at this point.)
+	 */
+	dde_temp = avl_find(&ddt->ddt_tree, &dde_search, &where);
+	if ((dde_temp == NULL) || (error == ENOENT && add == B_FALSE)) {
+		if (dde_temp != NULL)
+			avl_remove(&ddt->ddt_tree, dde);
 		dde->dde_loading = B_FALSE;
 		ddt_free(dde);
 		return (NULL);
@@ -1227,29 +1238,53 @@ ddt_entry_size(spa_t *spa)
 	 * for a default value.  But checking the spa for the
 	 * average size (with some bounds checks) may not be all
 	 * that beneficial over just the plain size.
+	 * (For DDT-ZAP, it's ~390 bytes, plus overhead for the zap,
+	 * which depends on the size and distribution of the entries.
+	 * 480 might be a better estimate than 512, but the quota check
+	 * is done with enough asynchronicity that it will never be
+	 * exact.  So this is aiming for an approximation that will
+	 * be good enough in most cases.)
 	 */
+	static const size_t default_size = 512;
 
 	uint64_t avg;
 	if (spa->spa_dedup_table_count == 0 ||
 	    spa->spa_dedup_table_size == 0 ||
 	    spa->spa_dedup_table_count == ~0ULL ||
 	    spa->spa_dedup_table_size == ~0ULL)
-		return (512);
+		return (default_size);
 	avg = spa->spa_dedup_table_size / spa->spa_dedup_table_count;
 	if (avg == 0)
-		return (512);
-	return (MIN(512, avg));
+		return (default_size);
+	return (MIN(default_size, avg));
 }
 
 /*
  * Check the DDT quota (if one exists)
+ *
+ * The ideal way to do this would be to check the disk size; that
+ * is certainly the intent.  But the DDT implementation may make
+ * that implausible; in particular, the ZAP implementation doesn't
+ * shrink the ZAP immediately, resulting in the disk space for the
+ * larger number of entries still being used depite having very few
+ * entries left.
+ *
+ * So instead, if there's no quota, or if the disk size is less than
+ * the quota, we can grow the DDT; failing that, we look at the amount of
+ * pending additions, and the current count of entries, and multiply that
+ * by the result from ddt_entry_size(), a size bounded estimate of the
+ * average entry size, giving us an approximate size of the table after the
+ * next ddt_sync(); if this will not exceed the quota, continue to allow the
+ * DDT to grow.
+ *
  */
 boolean_t
 ddt_check_overquota(spa_t *spa)
 {
 	uint64_t estimated_size;
 
-	if (spa->spa_dedup_table_quota == 0)
+	if (spa->spa_dedup_table_quota == 0 ||
+	    spa->spa_dedup_table_quota >= spa->spa_dedup_table_size)
 		return (B_FALSE);
 	estimated_size = (spa->spa_ddt_pending + spa->spa_dedup_table_count);
 	estimated_size *= ddt_entry_size(spa);
