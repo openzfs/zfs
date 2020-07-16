@@ -23,10 +23,16 @@ USER_C += \
 endif
 
 if BUILD_FREEBSD
+DEFAULT_INCLUDES += -I$(top_srcdir)/include/os/freebsd/zfs
+
 USER_C += \
 	os/freebsd/zutil_device_path_os.c \
 	os/freebsd/zutil_import_os.c \
 	os/freebsd/zutil_compat.c
+
+VPATH += $(top_srcdir)/module/os/freebsd/zfs
+
+nodist_libzutil_la_SOURCES = zfs_ioctl_compat.c
 endif
 
 libzutil_la_SOURCES = $(USER_C)
