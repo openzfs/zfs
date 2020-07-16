@@ -106,7 +106,6 @@ arc_free_memory(void)
 #else
 	return (ptob(nr_free_pages() +
 	    nr_inactive_file_pages() +
-	    nr_inactive_anon_pages() +
 	    nr_slab_reclaimable_pages()));
 #endif /* CONFIG_HIGHMEM */
 }
