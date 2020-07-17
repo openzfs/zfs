@@ -54,16 +54,7 @@ CLEANFILES = $(GITREV)
 
 PHONY = gitrev
 gitrev:
-	$(AM_V_GEN)ZFS_GITREV=$$(cd $(top_srcdir) && \
-		git describe --always --long --dirty 2>/dev/null); \
-	ZFS_GITREV=$${ZFS_GITREV:-unknown}; \
-	printf '#define\tZFS_META_GITREV "%s"\n' \
-			"$${ZFS_GITREV}" >$(GITREV)~; \
-	if cmp -s $(GITREV) $(GITREV)~; then \
-		$(RM) $(GITREV)~; \
-	else \
-		mv -f $(GITREV)~ $(GITREV); \
-	fi
+	$(AM_V_GEN)$(top_srcdir)/scripts/make_gitrev.sh $(GITREV)
 
 all: gitrev
 
