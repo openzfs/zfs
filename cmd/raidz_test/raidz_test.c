@@ -32,6 +32,9 @@
 #include <sys/vdev_raidz_impl.h>
 #include <assert.h>
 #include <stdio.h>
+/*BUGBUG*/
+#if 0 /* disabled currently for raidz expansion */
+
 #include "raidz_test.h"
 
 static int *rand_data;
@@ -732,9 +735,18 @@ exit:
 	return (sweep_state == SWEEP_ERROR ? SWEEP_ERROR : 0);
 }
 
+/*BUGBUG*/
+#endif /*0 - raidz expansion, currently disabled */
+
 int
 main(int argc, char **argv)
 {
+/*BUGBUG*/
+/* currently disabled for raidz expansion*/
+	int err = 0;
+	fprintf(stdout, "\nraidz_test temporarily disabled - raidz expansion\n");
+	exit(EXIT_FAILURE);
+#if 0
 	size_t i;
 	struct sigaction action;
 	int err = 0;
@@ -777,6 +789,8 @@ main(int argc, char **argv)
 
 	umem_free(rand_data, SPA_MAXBLOCKSIZE);
 	kernel_fini();
+/*BUGBUG*/
+#endif /*0 - raidz expansion, currently disabled */
 
 	return (err);
 }

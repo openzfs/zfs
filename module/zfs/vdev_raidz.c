@@ -3562,7 +3562,7 @@ vdev_raidz_load(vdev_t *vd)
 	if (vdrz->vn_vre.vre_offset != UINT64_MAX) {
 		ASSERT3U(vdrz->vn_vre.vre_vdev_id, ==, vd->vdev_id);
 		/* There can only be one expansion at a time. */
-		ASSERT0(vd->vdev_spa->spa_raidz_expand);
+		ASSERT3P(vd->vdev_spa->spa_raidz_expand, ==, NULL);
 
 		vd->vdev_spa->spa_raidz_expand = &vdrz->vn_vre;
 	}
