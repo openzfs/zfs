@@ -865,6 +865,14 @@ send_do_embed(const blkptr_t *bp, uint64_t featureflags)
 		return (B_FALSE);
 
 	/*
+	 * If we have not set the ZSTD feature flag, we can't send ZSTD
+	 * compressed embedded blocks, as the receiver may not support them.
+	 */
+	if ((BP_GET_COMPRESS(bp) == ZIO_COMPRESS_ZSTD &&
+	    !(featureflags & DMU_BACKUP_FEATURE_ZSTD)))
+		return (B_FALSE);
+
+	/*
 	 * Embed type must be explicitly enabled.
 	 */
 	switch (BPE_GET_ETYPE(bp)) {
@@ -1967,9 +1975,13 @@ setup_featureflags(struct dmu_send_params *dspp, objset_t *os,
 		*featureflags |= DMU_BACKUP_FEATURE_LZ4;
 	}
 
+	/*
+	 * We specifically do not include DMU_BACKUP_FEATURE_EMBED_DATA here to
+	 * allow sending ZSTD compressed datasets to a receiver that does not
+	 * support ZSTD
+	 */
 	if ((*featureflags &
-	    (DMU_BACKUP_FEATURE_EMBED_DATA | DMU_BACKUP_FEATURE_COMPRESSED |
-	    DMU_BACKUP_FEATURE_RAW)) != 0 &&
+	    (DMU_BACKUP_FEATURE_COMPRESSED | DMU_BACKUP_FEATURE_RAW)) != 0 &&
 	    dsl_dataset_feature_is_active(to_ds, SPA_FEATURE_ZSTD_COMPRESS)) {
 		*featureflags |= DMU_BACKUP_FEATURE_ZSTD;
 	}
