@@ -381,11 +381,6 @@ static int		arc_min_prescient_prefetch_ms;
 int arc_lotsfree_percent = 10;
 
 /*
- * hdr_recl() uses this to determine if the arc is up and running.
- */
-static boolean_t arc_initialized;
-
-/*
  * The arc has filled available memory and has now warmed up.
  */
 boolean_t arc_warm;
@@ -1198,22 +1193,6 @@ buf_dest(void *vbuf, void *unused)
 	arc_space_return(sizeof (arc_buf_t), ARC_SPACE_HDRS);
 }
 
-/*
- * Reclaim callback -- invoked when memory is low.
- */
-/* ARGSUSED */
-static void
-hdr_recl(void *unused)
-{
-	dprintf("hdr_recl called\n");
-	/*
-	 * umem calls the reclaim func when we destroy the buf cache,
-	 * which is after we do arc_fini().
-	 */
-	if (arc_initialized)
-		zthr_wakeup(arc_reap_zthr);
-}
-
 static void
 buf_init(void)
 {
@@ -1249,12 +1228,12 @@ retry:
 	}
 
 	hdr_full_cache = kmem_cache_create("arc_buf_hdr_t_full", HDR_FULL_SIZE,
-	    0, hdr_full_cons, hdr_full_dest, hdr_recl, NULL, NULL, 0);
+	    0, hdr_full_cons, hdr_full_dest, NULL, NULL, NULL, 0);
 	hdr_full_crypt_cache = kmem_cache_create("arc_buf_hdr_t_full_crypt",
 	    HDR_FULL_CRYPT_SIZE, 0, hdr_full_crypt_cons, hdr_full_crypt_dest,
-	    hdr_recl, NULL, NULL, 0);
+	    NULL, NULL, NULL, 0);
 	hdr_l2only_cache = kmem_cache_create("arc_buf_hdr_t_l2only",
-	    HDR_L2ONLY_SIZE, 0, hdr_l2only_cons, hdr_l2only_dest, hdr_recl,
+	    HDR_L2ONLY_SIZE, 0, hdr_l2only_cons, hdr_l2only_dest, NULL,
 	    NULL, NULL, 0);
 	buf_cache = kmem_cache_create("arc_buf_t", sizeof (arc_buf_t),
 	    0, buf_cons, buf_dest, NULL, NULL, NULL, 0);
@@ -4688,9 +4667,6 @@ arc_kmem_reap_soon(void)
 static boolean_t
 arc_adjust_cb_check(void *arg, zthr_t *zthr)
 {
-	if (!arc_initialized)
-		return (B_FALSE);
-
 	/*
 	 * This is necessary so that any changes which may have been made to
 	 * many of the zfs_arc_* module parameters will be propagated to
@@ -4778,9 +4754,6 @@ arc_adjust_cb(void *arg, zthr_t *zthr)
 static boolean_t
 arc_reap_cb_check(void *arg, zthr_t *zthr)
 {
-	if (!arc_initialized)
-		return (B_FALSE);
-
 	int64_t free_memory = arc_available_memory();
 
 	/*
@@ -7348,12 +7321,6 @@ arc_init(void)
 
 	arc_state_init();
 
-	/*
-	 * The arc must be "uninitialized", so that hdr_recl() (which is
-	 * registered by buf_init()) will not access arc_reap_zthr before
-	 * it is created.
-	 */
-	ASSERT(!arc_initialized);
 	buf_init();
 
 	list_create(&arc_prune_list, sizeof (arc_prune_t),
@@ -7377,7 +7344,6 @@ arc_init(void)
 	arc_reap_zthr = zthr_create_timer(arc_reap_cb_check,
 	    arc_reap_cb, NULL, SEC2NSEC(1));
 
-	arc_initialized = B_TRUE;
 	arc_warm = B_FALSE;
 
 	/*
@@ -7411,8 +7377,6 @@ arc_fini(void)
 
 	/* Use B_TRUE to ensure *all* buffers are evicted */
 	arc_flush(NULL, B_TRUE);
-
-	arc_initialized = B_FALSE;
 
 	if (arc_ksp != NULL) {
 		kstat_delete(arc_ksp);
