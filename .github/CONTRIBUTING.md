@@ -111,8 +111,8 @@ active development. The team's primary focus is on fixing known issues,
 improving performance, and adding compelling new features.
 
 You can view the list of proposed features
-by filtering the issue tracker by the ["Feature"
-label](https://github.com/zfsonlinux/zfs/issues?q=is%3Aopen+is%3Aissue+label%3AFeature).
+by filtering the issue tracker by the ["Type: Feature"
+label](https://github.com/zfsonlinux/zfs/issues?q=is%3Aopen+is%3Aissue+label%3A%22Type%3A+Feature%22).
 If you have an idea for a feature first check this list. If your idea already
 appears then add a +1 to the top most comment, this helps us gauge interest
 in that feature.
@@ -156,7 +156,7 @@ This includes making sure new features have adequate code coverage.
 Buildbot](http://build.zfsonlinux.org/) builders before
 being accepted. If you are experiencing intermittent TEST
 builder failures, you may be experiencing a [test suite
-issue](https://github.com/zfsonlinux/zfs/issues?q=is%3Aissue+is%3Aopen+label%3A%22Test+Suite%22).
+issue](https://github.com/zfsonlinux/zfs/issues?q=is%3Aissue+is%3Aopen+label%3A%22Type%3A+Test+Suite%22).
 There are also various [buildbot options](https://openzfs.github.io/openzfs-docs/Developer%20Resources/Buildbot%20Options.html)
 to control how changes are tested.
 
