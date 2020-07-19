@@ -31,6 +31,18 @@
 
 verify_runnable "both"
 
+#
+# The has_capability() function was first exported in the 4.10 Linux kernel
+# then backported to some LTS kernels.  Prior to this change there was no
+# mechanism to perform the needed permission check.  Therefore, this test
+# is expected to fail on older kernels and is skipped.
+#
+if is_linux; then
+	if [[ $(linux_version) -lt $(linux_version "4.10") ]]; then
+		log_unsupported "Requires has_capability() kernel function"
+	fi
+fi
+
 function setup
 {
 	# We can't delegate 'mount' privs under Linux: to avoid issues with
