@@ -264,6 +264,42 @@ sysctl_vfs_zfs_arc_no_grow_shift(SYSCTL_HANDLER_ARGS)
 SYSCTL_PROC(_vfs_zfs, OID_AUTO, arc_no_grow_shift, CTLTYPE_U32 | CTLFLAG_RWTUN,
     0, sizeof (uint32_t), sysctl_vfs_zfs_arc_no_grow_shift, "U",
     "log2(fraction of ARC which must be free to allow growing)");
+
+int
+param_set_arc_long(SYSCTL_HANDLER_ARGS)
+{
+	int err;
+
+	err = sysctl_handle_long(oidp, arg1, 0, req);
+	if (err != 0 || req->newptr == NULL)
+		return (err);
+
+	arc_tuning_update(B_TRUE);
+
+	return (0);
+}
+
+int
+param_set_arc_int(SYSCTL_HANDLER_ARGS)
+{
+	int err;
+
+	err = sysctl_handle_int(oidp, arg1, 0, req);
+	if (err != 0 || req->newptr == NULL)
+		return (err);
+
+	arc_tuning_update(B_TRUE);
+
+	return (0);
+}
+
+SYSCTL_PROC(_vfs_zfs, OID_AUTO, arc_min, CTLTYPE_ULONG | CTLFLAG_RWTUN,
+    &zfs_arc_min, sizeof (zfs_arc_min), param_set_arc_long, "LU",
+    "min arc size (LEGACY)");
+SYSCTL_PROC(_vfs_zfs, OID_AUTO, arc_max, CTLTYPE_ULONG | CTLFLAG_RWTUN,
+    &zfs_arc_max, sizeof (zfs_arc_max), param_set_arc_long, "LU",
+    "max arc size (LEGACY)");
+
 /* dbuf.c */
 
 
@@ -642,35 +678,6 @@ SYSCTL_INT(_vfs_zfs_zio, OID_AUTO, use_uma, CTLFLAG_RDTUN, &zio_use_uma, 0,
     "Use uma(9) for ZIO allocations");
 SYSCTL_INT(_vfs_zfs_zio, OID_AUTO, exclude_metadata, CTLFLAG_RDTUN, &zio_exclude_metadata, 0,
     "Exclude metadata buffers from dumps as well");
-
-
-int
-param_set_arc_long(SYSCTL_HANDLER_ARGS)
-{
-	int err;
-
-	err = sysctl_handle_long(oidp, arg1, 0, req);
-	if (err != 0 || req->newptr == NULL)
-		return (err);
-
-	arc_tuning_update(B_TRUE);
-
-	return (0);
-}
-
-int
-param_set_arc_int(SYSCTL_HANDLER_ARGS)
-{
-	int err;
-
-	err = sysctl_handle_int(oidp, arg1, 0, req);
-	if (err != 0 || req->newptr == NULL)
-		return (err);
-
-	arc_tuning_update(B_TRUE);
-
-	return (0);
-}
 
 int
 param_set_slop_shift(SYSCTL_HANDLER_ARGS)
