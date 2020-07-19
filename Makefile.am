@@ -50,7 +50,6 @@ EXTRA_DIST += module/zfs/THIRDPARTYLICENSE.cityhash.descrip
 @CODE_COVERAGE_RULES@
 
 GITREV = include/zfs_gitrev.h
-CLEANFILES = $(GITREV)
 
 PHONY = gitrev
 gitrev:
@@ -59,6 +58,9 @@ gitrev:
 all: gitrev
 
 # Double-colon rules are allowed; there are multiple independent definitions.
+maintainer-clean-local::
+	-$(RM) $(GITREV)
+
 distclean-local::
 	-$(RM) -R autom4te*.cache build
 	-find . \( -name SCCS -o -name BitKeeper -o -name .svn -o -name CVS \
@@ -76,6 +78,7 @@ all-local:
 	    ${top_builddir}/scripts/zfs-tests.sh -c
 
 dist-hook:
+	$(AM_V_GEN)$(top_srcdir)/scripts/make_gitrev.sh -D $(distdir) $(GITREV)
 	$(SED) ${ac_inplace} -e 's/Release:[[:print:]]*/Release:      $(RELEASE)/' \
 		$(distdir)/META
 
