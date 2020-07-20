@@ -6668,8 +6668,10 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing)
 		return (spa_vdev_exit(spa, newrootvd, txg, EDOM));
 
 	if (raidz) {
-		oldvdpath = kmem_asprintf("raidz%u-%u",
+		char *tmp = kmem_asprintf("raidz%u-%u",
 		    oldvd->vdev_nparity, oldvd->vdev_id);
+		oldvdpath = spa_strdup(tmp);
+		kmem_strfree(tmp);
 	} else {
 		oldvdpath = spa_strdup(oldvd->vdev_path);
 	}
