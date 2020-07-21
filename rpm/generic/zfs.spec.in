@@ -348,6 +348,8 @@ image which is ZFS aware.
     --with-udevdir=%{_udevdir} \
     --with-udevruledir=%{_udevruledir} \
     --with-dracutdir=%{_dracutdir} \
+    --with-pamconfigsdir=%{_datadir}/pam-configs \
+    --with-pammoduledir=%{_libdir}/security \
     --with-python=%{__python} \
     --with-pkgconfigdir=%{_pkgconfigdir} \
     --disable-static \
@@ -355,7 +357,7 @@ image which is ZFS aware.
     %{debuginfo} \
     %{asan} \
     %{systemd} \
-    --with-pammoduledir=%{_libdir}/security %{pam} \
+    %{pam} \
     %{pyzfs}
 make %{?_smp_mflags}
 
@@ -472,7 +474,7 @@ systemctl --system daemon-reload >/dev/null || true
 %attr(440, root, root) %config(noreplace) %{_sysconfdir}/sudoers.d/*
 %if %{with pam}
 %{_libdir}/security/*
-%{_pamconfigsdir}/*
+%{_datadir}/pam-configs/*
 %endif
 
 %files -n libzpool2
