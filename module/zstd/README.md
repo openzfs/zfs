@@ -25,7 +25,9 @@ To update ZSTD the following steps need to be taken:
 2. Update `module/zstd/zstd-in.c` if required. (see
    `zstd/contrib/single_file_libs/zstd-in.c` in the zstd repository)
 3. Generate the "single-file-library" and put it to `module/zstd/lib/`.
-4. Copy the header `zstd/lib/zstd.h` to `module/zstd/lib/`.
+4. Copy the following files to `module/zstd/lib/`:
+   - `zstd/lib/zstd.h`
+   - `zstd/lib/common/zstd_errors.h`
 
 This can be done using a few shell commands from inside the zfs repo:
 
@@ -41,6 +43,7 @@ wget -O /tmp/zstd.tar.gz \
 tar -C /tmp -xzf /tmp/zstd.tar.gz
 
 cp ${zstd}/lib/zstd.h module/zstd/lib/
+cp ${zstd}/lib/zstd_errors.h module/zstd/lib/
 ${zstd}/contrib/single_file_libs/combine.sh \
     -r ${zstd}/lib -o module/zstd/lib/zstd.c module/zstd/zstd-in.c
 ~~~
