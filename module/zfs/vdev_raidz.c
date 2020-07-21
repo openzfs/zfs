@@ -2614,7 +2614,7 @@ vdev_raidz_io_done_write_impl(zio_t *zio, raidz_row_t *rr)
  * vdev_raidz_reconstruct().
  */
 static int
-vdev_raidz_io_done_reconstruct_known_missing(zio_t *zio, raidz_map_t *rm ,
+vdev_raidz_io_done_reconstruct_known_missing(zio_t *zio, raidz_map_t *rm,
     raidz_row_t *rr)
 {
 	int parity_errors = 0;
