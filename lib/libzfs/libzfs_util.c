@@ -1104,7 +1104,7 @@ zfs_get_pool_handle(const zfs_handle_t *zhp)
  * fs/vol/snap/bkmark name.
  */
 zfs_handle_t *
-zfs_path_to_zhandle(libzfs_handle_t *hdl, char *path, zfs_type_t argtype)
+zfs_path_to_zhandle(libzfs_handle_t *hdl, const char *path, zfs_type_t argtype)
 {
 	struct stat64 statbuf;
 	struct extmnttab entry;
