@@ -351,8 +351,8 @@ zfs_retire_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl,
 			zpool_vdev_offline(zhp, devname, B_TRUE);
 		} else if (!fmd_prop_get_int32(hdl, "spare_on_remove") ||
 		    replace_with_spare(hdl, zhp, vdev) == B_FALSE) {
-			/* Could not handle with spare: do not offline the device */
-			fmd_hdl_debug(hdl, "no spare can be used for '%s'", devname);
+			/* Could not handle with spare: do not offline */
+			fmd_hdl_debug(hdl, "no spare for '%s'", devname);
 		}
 
 		free(devname);
