@@ -200,12 +200,12 @@ arc_shrinker_scan(struct shrinker *shrink, struct shrink_control *sc)
 		return (SHRINK_STOP);
 
 	/* Reclaim in progress */
-	if (mutex_tryenter(&arc_adjust_lock) == 0) {
+	if (mutex_tryenter(&arc_evict_lock) == 0) {
 		ARCSTAT_INCR(arcstat_need_free, ptob(sc->nr_to_scan));
 		return (0);
 	}
 
-	mutex_exit(&arc_adjust_lock);
+	mutex_exit(&arc_evict_lock);
 
 	/*
 	 * Evict the requested number of pages by shrinking arc_c the
@@ -219,17 +219,17 @@ arc_shrinker_scan(struct shrinker *shrink, struct shrink_control *sc)
 		 * drastically, potentially all the way to arc_c_min.  While
 		 * arc_c is below arc_size, ZFS can't process read/write
 		 * requests, because arc_get_data_impl() will block.  To
-		 * ensure that arc_c doesn't shrink faster than the adjust
+		 * ensure that arc_c doesn't shrink faster than the evict
 		 * thread can keep up, we wait for eviction here.
 		 */
-		mutex_enter(&arc_adjust_lock);
+		mutex_enter(&arc_evict_lock);
 		if (arc_is_overflowing()) {
-			arc_adjust_needed = B_TRUE;
-			zthr_wakeup(arc_adjust_zthr);
-			(void) cv_wait(&arc_adjust_waiters_cv,
-			    &arc_adjust_lock);
+			arc_evict_needed = B_TRUE;
+			zthr_wakeup(arc_evict_zthr);
+			(void) cv_wait(&arc_evict_waiters_cv,
+			    &arc_evict_lock);
 		}
-		mutex_exit(&arc_adjust_lock);
+		mutex_exit(&arc_evict_lock);
 
 		if (current_is_kswapd())
 			arc_kmem_reap_soon();
@@ -238,7 +238,7 @@ arc_shrinker_scan(struct shrinker *shrink, struct shrink_control *sc)
 		/*
 		 * We've shrunk what we can, wake up threads.
 		 */
-		cv_broadcast(&arc_adjust_waiters_cv);
+		cv_broadcast(&arc_evict_waiters_cv);
 	} else
 		pages = SHRINK_STOP;
 
