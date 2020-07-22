@@ -85,12 +85,8 @@ typedef enum kmem_cbrc {
 #define	KMC_REAP_CHUNK		INT_MAX
 #define	KMC_DEFAULT_SEEKS	1
 
-#define	KMC_EXPIRE_AGE		0x1	/* Due to age */
-#define	KMC_EXPIRE_MEM		0x2	/* Due to low memory */
-
 #define	KMC_RECLAIM_ONCE	0x1	/* Force a single shrinker pass */
 
-extern unsigned int spl_kmem_cache_expire;
 extern struct list_head spl_kmem_cache_list;
 extern struct rw_semaphore spl_kmem_cache_sem;
 
@@ -99,9 +95,7 @@ extern struct rw_semaphore spl_kmem_cache_sem;
 #define	SKS_MAGIC			0x22222222
 #define	SKC_MAGIC			0x2c2c2c2c
 
-#define	SPL_KMEM_CACHE_DELAY		15	/* Minimum slab release age */
 #define	SPL_KMEM_CACHE_OBJ_PER_SLAB	8	/* Target objects per slab */
-#define	SPL_KMEM_CACHE_OBJ_PER_SLAB_MIN	1	/* Minimum objects per slab */
 #define	SPL_KMEM_CACHE_ALIGN		8	/* Default object alignment */
 #ifdef _LP64
 #define	SPL_KMEM_CACHE_MAX_SIZE		32	/* Max slab size in MB */
@@ -131,7 +125,6 @@ typedef struct spl_kmem_magazine {
 	uint32_t		skm_size;	/* Magazine size */
 	uint32_t		skm_refill;	/* Batch refill size */
 	struct spl_kmem_cache	*skm_cache;	/* Owned by cache */
-	unsigned long		skm_age;	/* Last cache access */
 	unsigned int		skm_cpu;	/* Owned by cpu */
 	void			*skm_objs[0];	/* Object pointers */
 } spl_kmem_magazine_t;
@@ -181,7 +174,6 @@ typedef struct spl_kmem_cache {
 	uint32_t		skc_obj_align;	/* Object alignment */
 	uint32_t		skc_slab_objs;	/* Objects per slab */
 	uint32_t		skc_slab_size;	/* Slab size */
-	uint32_t		skc_delay;	/* Slab reclaim interval */
 	atomic_t		skc_ref;	/* Ref count callers */
 	taskqid_t		skc_taskqid;	/* Slab reclaim task */
 	struct list_head	skc_list;	/* List of caches linkage */
