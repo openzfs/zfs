@@ -36,6 +36,12 @@ static intptr_t stack_remaining(void) {
   char local;
   return (intptr_t)(&local - (char *)current->stack);
 }
+#elif defined (_KERNEL) && defined(__FreeBSD__)
+#include <sys/pcpu.h>
+static intptr_t stack_remaining(void) {
+  char local;
+  return (intptr_t)(&local - (char *)curthread->td_kstack);
+}
 #else
 static intptr_t stack_remaining(void) {
   return INTPTR_MAX;
