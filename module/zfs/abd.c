@@ -139,12 +139,15 @@ abd_verify(abd_t *abd)
 	if (abd_is_linear(abd)) {
 		ASSERT3P(ABD_LINEAR_BUF(abd), !=, NULL);
 	} else if (abd_is_gang(abd)) {
+		uint_t child_sizes = 0;
 		for (abd_t *cabd = list_head(&ABD_GANG(abd).abd_gang_chain);
 		    cabd != NULL;
 		    cabd = list_next(&ABD_GANG(abd).abd_gang_chain, cabd)) {
 			ASSERT(list_link_active(&cabd->abd_gang_link));
+			child_sizes += cabd->abd_size;
 			abd_verify(cabd);
 		}
+		ASSERT3U(abd->abd_size, ==, child_sizes);
 	} else {
 		abd_verify_scatter(abd);
 	}
@@ -378,28 +381,42 @@ abd_alloc_gang_abd(void)
 }
 
 /*
- * If we are adding a gang ABD to another gang ABD we will iterate
- * though the child gang's individual ABD and add them individually
- * to the parent.
+ * Add a child gang ABD to a parent gang ABDs chained list.
  */
 static void
-abd_gang_add_gang(abd_t *pabd, abd_t *cabd)
+abd_gang_add_gang(abd_t *pabd, abd_t *cabd, boolean_t free_on_free)
 {
-	abd_t *child = NULL;
-
 	ASSERT(abd_is_gang(pabd));
 	ASSERT(abd_is_gang(cabd));
 
-	for (child = list_head(&ABD_GANG(cabd).abd_gang_chain);
-	    child != NULL;
-	    child = list_next(&ABD_GANG(cabd).abd_gang_chain, child)) {
+	if (free_on_free) {
 		/*
-		 * We always pass B_FALSE for free_on_free as it is the
-		 * original child gang ABDs responsibilty to determine
-		 * if any of its child ABDs should be free'd on the call
-		 * to abd_free().
+		 * If the parent is responsible for freeing the child gang
+		 * ABD we will just splice the childs children ABD list to
+		 * the parents list and immediately free the child gang ABD
+		 * struct. The parent gang ABDs children from the child gang
+		 * will retain all the free_on_free settings after being
+		 * added to the parents list.
 		 */
-		abd_gang_add(pabd, child, B_FALSE);
+		pabd->abd_size += cabd->abd_size;
+		list_move_tail(&ABD_GANG(pabd).abd_gang_chain,
+		    &ABD_GANG(cabd).abd_gang_chain);
+		ASSERT(list_is_empty(&ABD_GANG(cabd).abd_gang_chain));
+		abd_verify(pabd);
+		abd_free_struct(cabd);
+	} else {
+		for (abd_t *child = list_head(&ABD_GANG(cabd).abd_gang_chain);
+		    child != NULL;
+		    child = list_next(&ABD_GANG(cabd).abd_gang_chain, child)) {
+			/*
+			 * We always pass B_FALSE for free_on_free as it is the
+			 * original child gang ABDs responsibilty to determine
+			 * if any of its child ABDs should be free'd on the call
+			 * to abd_free().
+			 */
+			abd_gang_add(pabd, child, B_FALSE);
+		}
+		abd_verify(pabd);
 	}
 }
 
@@ -410,24 +427,17 @@ void
 abd_gang_add(abd_t *pabd, abd_t *cabd, boolean_t free_on_free)
 {
 	ASSERT(abd_is_gang(pabd));
-	ASSERT(!abd_is_gang(cabd));
 	abd_t *child_abd = NULL;
 
 	/*
-	 * If the child being added is a gang ABD, we will add each
-	 * of its child ABDs separately to the parent gang ABD. This
-	 * allows us to account for the offset correctly in the parent
-	 * gang ABD. We do allow gang ABDs to have gang ABD children.
+	 * If the child being added is a gang ABD, we will add the
+	 * childs ABDs to the parent gang ABD. This alllows us to account
+	 * for the offset correctly in the parent gang ABD.
 	 */
 	if (abd_is_gang(cabd)) {
-		/*
-		 * The parent ABD can not be responsible for freeing the
-		 * child gang ABD because we will just be adding the
-		 * child's ABDs to the parent individually.
-		 */
 		ASSERT(!list_link_active(&cabd->abd_gang_link));
-		ASSERT3B(free_on_free, ==, B_FALSE);
-		return (abd_gang_add_gang(pabd, cabd));
+		ASSERT(!list_is_empty(&ABD_GANG(cabd).abd_gang_chain));
+		return (abd_gang_add_gang(pabd, cabd, free_on_free));
 	}
 	ASSERT(!abd_is_gang(cabd));
 
