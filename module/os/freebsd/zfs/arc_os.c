@@ -46,6 +46,7 @@
 #include <sys/aggsum.h>
 #include <sys/vnode.h>
 #include <cityhash.h>
+#include <machine/vmparam.h>
 
 extern struct vfsops zfs_vfsops;
 
