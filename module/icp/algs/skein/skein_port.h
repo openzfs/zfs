@@ -44,7 +44,7 @@
 
 #include <sys/isa_defs.h>	/* get endianness selection */
 
-#if	defined(_BIG_ENDIAN)
+#if	defined(_ZFS_BIG_ENDIAN)
 /* here for big-endian CPUs */
 #define	SKEIN_NEED_SWAP   (1)
 #else

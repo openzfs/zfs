@@ -107,13 +107,13 @@ ccm_mode_encrypt_contiguous_blocks(ccm_ctx_t *ctx, char *data, size_t length,
 		 * Increment counter. Counter bits are confined
 		 * to the bottom 64 bits of the counter block.
 		 */
-#ifdef _LITTLE_ENDIAN
+#ifdef _ZFS_LITTLE_ENDIAN
 		counter = ntohll(ctx->ccm_cb[1] & ctx->ccm_counter_mask);
 		counter = htonll(counter + 1);
 #else
 		counter = ctx->ccm_cb[1] & ctx->ccm_counter_mask;
 		counter++;
-#endif	/* _LITTLE_ENDIAN */
+#endif	/* _ZFS_LITTLE_ENDIAN */
 		counter &= ctx->ccm_counter_mask;
 		ctx->ccm_cb[1] =
 		    (ctx->ccm_cb[1] & ~(ctx->ccm_counter_mask)) | counter;
@@ -458,13 +458,13 @@ ccm_mode_decrypt_contiguous_blocks(ccm_ctx_t *ctx, char *data, size_t length,
 		 * Increment counter.
 		 * Counter bits are confined to the bottom 64 bits
 		 */
-#ifdef _LITTLE_ENDIAN
+#ifdef _ZFS_LITTLE_ENDIAN
 		counter = ntohll(ctx->ccm_cb[1] & ctx->ccm_counter_mask);
 		counter = htonll(counter + 1);
 #else
 		counter = ctx->ccm_cb[1] & ctx->ccm_counter_mask;
 		counter++;
-#endif	/* _LITTLE_ENDIAN */
+#endif	/* _ZFS_LITTLE_ENDIAN */
 		counter &= ctx->ccm_counter_mask;
 		ctx->ccm_cb[1] =
 		    (ctx->ccm_cb[1] & ~(ctx->ccm_counter_mask)) | counter;
@@ -684,7 +684,7 @@ ccm_format_initial_blocks(uchar_t *nonce, ulong_t nonceSize,
 		mask |= (1ULL << q);
 	}
 
-#ifdef _LITTLE_ENDIAN
+#ifdef _ZFS_LITTLE_ENDIAN
 	mask = htonll(mask);
 #endif
 	aes_ctx->ccm_counter_mask = mask;

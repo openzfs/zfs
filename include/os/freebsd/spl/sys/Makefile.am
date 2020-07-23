@@ -14,7 +14,6 @@ KERNEL_H = \
 	dirent.h \
 	disp.h \
 	dkio.h \
-	endian.h \
 	extdirent.h \
 	file.h \
 	freebsd_rwlock.h \

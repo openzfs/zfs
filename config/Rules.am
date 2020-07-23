@@ -32,7 +32,6 @@ if BUILD_FREEBSD
 AM_CFLAGS += -fPIC -Werror -Wno-unknown-pragmas -Wno-enum-conversion
 AM_CFLAGS += -include $(top_srcdir)/include/os/freebsd/spl/sys/ccompile.h
 AM_CFLAGS += -I/usr/include -I/usr/local/include
-AM_CFLAGS += -D_MACHINE_ENDIAN_H_
 endif
 
 AM_CPPFLAGS  = -D_GNU_SOURCE
