@@ -3959,36 +3959,37 @@ arc_evict_state_impl(multilist_t *ml, int idx, arc_buf_hdr_t *marker,
 			if (evicted != 0)
 				evict_count++;
 
-			/*
-			 * Increment the count of evicted bytes, and wake up
-			 * any threads that are waiting for the count to
-			 * reach this value.  Since the list is ordered by
-			 * ascending aew_count, we pop off the beginning of
-			 * the list until we reach the end, or a waiter
-			 * that's past the current "count".
-			 */
-			mutex_enter(&arc_evict_lock);
-			arc_evict_count += evicted;
-			arc_evict_waiter_t *aw;
-			while ((aw = list_head(&arc_evict_waiters)) != NULL &&
-			    aw->aew_count <= arc_evict_count) {
-				list_remove(&arc_evict_waiters, aw);
-				cv_broadcast(&aw->aew_cv);
-			}
-
-			aw = list_tail(&arc_evict_waiters);
-			if (aw == NULL) {
-				arc_need_free = 0;
-			} else {
-				arc_need_free = aw->aew_count - arc_evict_count;
-			}
-			mutex_exit(&arc_evict_lock);
 		} else {
 			ARCSTAT_BUMP(arcstat_mutex_miss);
 		}
 	}
 
 	multilist_sublist_unlock(mls);
+
+	/*
+	 * Increment the count of evicted bytes, and wake up any threads that
+	 * are waiting for the count to reach this value.  Since the list is
+	 * ordered by ascending aew_count, we pop off the beginning of the
+	 * list until we reach the end, or a waiter that's past the current
+	 * "count".  Doing this outside the loop reduces the number of times
+	 * we need to acquire the global arc_evict_lock.
+	 */
+	mutex_enter(&arc_evict_lock);
+	arc_evict_count += bytes_evicted;
+	arc_evict_waiter_t *aw;
+	while ((aw = list_head(&arc_evict_waiters)) != NULL &&
+	    aw->aew_count <= arc_evict_count) {
+		list_remove(&arc_evict_waiters, aw);
+		cv_broadcast(&aw->aew_cv);
+	}
+
+	aw = list_tail(&arc_evict_waiters);
+	if (aw == NULL) {
+		arc_need_free = 0;
+	} else {
+		arc_need_free = aw->aew_count - arc_evict_count;
+	}
+	mutex_exit(&arc_evict_lock);
 
 	/*
 	 * If the ARC size is reduced from arc_c_max to arc_c_min (especially
