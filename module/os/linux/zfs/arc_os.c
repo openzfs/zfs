@@ -63,10 +63,10 @@
  * practice, the kernel's shrinker can ask us to evict up to about 4x this
  * for one allocation attempt.
  *
- * The default limit of 10,000 (in practice, 160MB per allocation attempt)
- * limits the amount of time spent attempting to reclaim ARC memory to around
- * 100ms second per allocation attempt, even with a small average compressed
- * block size of ~8KB.
+ * The default limit of 10,000 (in practice, 160MB per allocation attempt
+ * with 4K pages) limits the amount of time spent attempting to reclaim ARC
+ * memory to less than 100ms per allocation attempt, even with a small
+ * average compressed block size of ~8KB.
  *
  * See also the comment in arc_shrinker_count().
  */
@@ -175,10 +175,11 @@ arc_shrinker_count(struct shrinker *shrink, struct shrink_control *sc)
 	}
 
 	/*
-	 * __GFP_FS won't be set if we are called from ZFS code.  To avoid a
-	 * deadlock, we don't allow evicting in this case.  We return 0
-	 * rather than SHRINK_STOP so that the shrinker logic doesn't
-	 * accumulate a deficit against us.
+	 * __GFP_FS won't be set if we are called from ZFS code (see
+	 * kmem_flags_convert(), which removes it).  To avoid a deadlock, we
+	 * don't allow evicting in this case.  We return 0 rather than
+	 * SHRINK_STOP so that the shrinker logic doesn't accumulate a
+	 * deficit against us.
 	 */
 	if (!(sc->gfp_mask & __GFP_FS)) {
 		return (0);

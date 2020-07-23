@@ -344,7 +344,7 @@ static list_t arc_evict_waiters;
  * can still happen, even during the potentially long time that arc_size is
  * more than arc_c.
  */
-int zfs_arc_get_data_eviction_pct = 200;
+int zfs_arc_eviction_pct = 200;
 
 /*
  * The number of headers to evict in arc_evict_state_impl() before
@@ -5104,10 +5104,10 @@ arc_get_data_impl(arc_buf_hdr_t *hdr, uint64_t size, void *tag)
 	 * further past it's target size, we wait for the eviction thread to
 	 * make some progress.
 	 *
-	 * Specifically, we wait for zfs_arc_get_data_eviction_pct percent of
-	 * the requested size to be evicted.  This should be more than 100%,
-	 * to ensure that that progress is also made towards getting arc_size
-	 * under arc_c.  See the comment above zfs_arc_get_data_eviction_pct.
+	 * Specifically, we wait for zfs_arc_eviction_pct percent of the
+	 * requested size to be evicted.  This should be more than 100%, to
+	 * ensure that that progress is also made towards getting arc_size
+	 * under arc_c.  See the comment above zfs_arc_eviction_pct.
 	 *
 	 * We do the overflowing check without holding the arc_evict_lock to
 	 * reduce lock contention in this hot path.  Note that
@@ -5116,7 +5116,7 @@ arc_get_data_impl(arc_buf_hdr_t *hdr, uint64_t size, void *tag)
 	 */
 	if (arc_is_overflowing()) {
 		arc_wait_for_eviction(size *
-		    zfs_arc_get_data_eviction_pct / 100);
+		    zfs_arc_eviction_pct / 100);
 	}
 
 	VERIFY3U(hdr->b_type, ==, type);
@@ -10420,6 +10420,6 @@ ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, dnode_limit_percent,
 ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, dnode_reduce_percent, ULONG, ZMOD_RW,
 	"Percentage of excess dnodes to try to unpin");
 
-ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, get_data_eviction_pct, INT, ZMOD_RW,
+ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, eviction_pct, INT, ZMOD_RW,
        "When full, ARC allocation waits for eviction of this % of alloc size");
 /* END CSTYLED */
