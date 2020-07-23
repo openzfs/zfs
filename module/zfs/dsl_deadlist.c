@@ -25,7 +25,6 @@
  */
 
 #include <sys/dmu.h>
-#include <sys/refcount.h>
 #include <sys/zap.h>
 #include <sys/zfs_context.h>
 #include <sys/dsl_pool.h>

@@ -40,6 +40,7 @@ __FBSDID("$FreeBSD$");
 
 #include <sys/mutex.h>
 #include <sys/vnode.h>
+#include <sys/taskq.h>
 
 #include <sys/ccompat.h>
 

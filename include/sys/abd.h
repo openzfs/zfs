@@ -28,7 +28,7 @@
 
 #include <sys/isa_defs.h>
 #include <sys/debug.h>
-#include <sys/refcount.h>
+#include <sys/zfs_refcount.h>
 #include <sys/uio.h>
 
 #ifdef __cplusplus

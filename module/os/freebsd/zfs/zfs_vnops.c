@@ -36,6 +36,7 @@
 #include <sys/sysmacros.h>
 #include <sys/resource.h>
 #include <sys/vfs.h>
+#include <sys/endian.h>
 #include <sys/vm.h>
 #include <sys/vnode.h>
 #include <sys/dirent.h>

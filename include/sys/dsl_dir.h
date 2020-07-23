@@ -32,7 +32,7 @@
 #include <sys/dsl_deadlist.h>
 #include <sys/dsl_pool.h>
 #include <sys/dsl_synctask.h>
-#include <sys/refcount.h>
+#include <sys/zfs_refcount.h>
 #include <sys/zfs_context.h>
 #include <sys/dsl_crypt.h>
 #include <sys/bplist.h>

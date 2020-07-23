@@ -54,7 +54,7 @@
 #include <sys/dmu.h>
 #include <sys/dmu_objset.h>
 #include <sys/dmu_tx.h>
-#include <sys/refcount.h>
+#include <sys/zfs_refcount.h>
 #include <sys/stat.h>
 #include <sys/zap.h>
 #include <sys/zfs_znode.h>
