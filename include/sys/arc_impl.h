@@ -877,6 +877,7 @@ extern arc_stats_t arc_stats;
 extern hrtime_t arc_growtime;
 extern boolean_t arc_warm;
 extern int arc_grow_retry;
+extern int arc_no_grow_shift;
 extern int arc_shrink_shift;
 extern zthr_t		*arc_evict_zthr;
 extern kmutex_t		arc_evict_lock;
