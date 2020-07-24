@@ -3973,14 +3973,19 @@ arc_evict_state_impl(multilist_t *ml, int idx, arc_buf_hdr_t *marker,
 	 * list until we reach the end, or a waiter that's past the current
 	 * "count".  Doing this outside the loop reduces the number of times
 	 * we need to acquire the global arc_evict_lock.
+	 *
+	 * Only wake when there's sufficient free memory in the system.
 	 */
 	mutex_enter(&arc_evict_lock);
 	arc_evict_count += bytes_evicted;
 	arc_evict_waiter_t *aw;
-	while ((aw = list_head(&arc_evict_waiters)) != NULL &&
-	    aw->aew_count <= arc_evict_count) {
-		list_remove(&arc_evict_waiters, aw);
-		cv_broadcast(&aw->aew_cv);
+
+	if ((int64_t)(arc_free_memory() - arc_sys_free / 2) > 0) {
+		while ((aw = list_head(&arc_evict_waiters)) != NULL &&
+		    aw->aew_count <= arc_evict_count) {
+			list_remove(&arc_evict_waiters, aw);
+			cv_broadcast(&aw->aew_cv);
+		}
 	}
 
 	aw = list_tail(&arc_evict_waiters);
