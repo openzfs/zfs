@@ -669,7 +669,8 @@ typedef struct dmu_buf_user {
 /*ARGSUSED*/
 static inline void
 dmu_buf_init_user(dmu_buf_user_t *dbu, dmu_buf_evict_func_t *evict_func_sync,
-    dmu_buf_evict_func_t *evict_func_async, dmu_buf_t **clear_on_evict_dbufp)
+    dmu_buf_evict_func_t *evict_func_async,
+    dmu_buf_t **clear_on_evict_dbufp __maybe_unused)
 {
 	ASSERT(dbu->dbu_evict_func_sync == NULL);
 	ASSERT(dbu->dbu_evict_func_async == NULL);
