@@ -192,7 +192,7 @@ arc_prune_async(int64_t adjust)
 uint64_t
 arc_all_memory(void)
 {
-	return ((uint64_t)ptob(physmem));
+	return (ptob(physmem));
 }
 
 int
@@ -204,8 +204,7 @@ arc_memory_throttle(spa_t *spa, uint64_t reserve, uint64_t txg)
 uint64_t
 arc_free_memory(void)
 {
-	/* XXX */
-	return (0);
+	return (ptob(freemem));
 }
 
 static eventhandler_tag arc_event_lowmem = NULL;
