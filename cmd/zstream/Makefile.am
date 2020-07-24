@@ -6,7 +6,8 @@ zstream_SOURCES = \
 	zstream.c \
 	zstream.h \
 	zstream_dump.c \
-	zstream_redup.c
+	zstream_redup.c \
+	zstream_token.c
 
 zstream_LDADD = \
 	$(abs_top_builddir)/lib/libzfs/libzfs.la \
