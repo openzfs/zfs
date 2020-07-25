@@ -5036,7 +5036,9 @@ arc_get_data_buf(arc_buf_hdr_t *hdr, uint64_t size, void *tag)
 
 /*
  * Wait for the specified amount of data (in bytes) to be evicted from the
- * ARC, or for the ARC to no longer be full.
+ * ARC, or for the ARC to no longer be full.  If the ARC is full, we must
+ * also wait for there to be sufficient free memory (based on
+ * arc_free_memory()).
  */
 void
 arc_wait_for_eviction(uint64_t amount)
@@ -5108,7 +5110,8 @@ arc_get_data_impl(arc_buf_hdr_t *hdr, uint64_t size, void *tag)
 	 * faster than we are evicting.  To ensure we don't compound the
 	 * problem by adding more data and forcing arc_size to grow even
 	 * further past it's target size, we wait for the eviction thread to
-	 * make some progress.
+	 * make some progress.  We also wait for there to be sufficient free
+	 * memory in the system, as measured by arc_free_memory().
 	 *
 	 * Specifically, we wait for zfs_arc_eviction_pct percent of the
 	 * requested size to be evicted.  This should be more than 100%, to
