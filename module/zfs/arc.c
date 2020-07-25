@@ -3880,6 +3880,20 @@ arc_evict_hdr(arc_buf_hdr_t *hdr, kmutex_t *hash_lock)
 	return (bytes_evicted);
 }
 
+static void
+arc_set_need_free(void)
+{
+	ASSERT(MUTEX_HELD(&arc_evict_lock));
+	int64_t remaining = arc_free_memory() - arc_sys_free / 2;
+	arc_evict_waiter_t *aw = list_tail(&arc_evict_waiters);
+	if (aw == NULL) {
+		arc_need_free = MAX(-remaining, 0);
+	} else {
+		arc_need_free =
+		    MAX(-remaining, (int64_t)(aw->aew_count - arc_evict_count));
+	}
+}
+
 static uint64_t
 arc_evict_state_impl(multilist_t *ml, int idx, arc_buf_hdr_t *marker,
     uint64_t spa, int64_t bytes)
@@ -3978,22 +3992,16 @@ arc_evict_state_impl(multilist_t *ml, int idx, arc_buf_hdr_t *marker,
 	 */
 	mutex_enter(&arc_evict_lock);
 	arc_evict_count += bytes_evicted;
-	arc_evict_waiter_t *aw;
 
 	if ((int64_t)(arc_free_memory() - arc_sys_free / 2) > 0) {
+		arc_evict_waiter_t *aw;
 		while ((aw = list_head(&arc_evict_waiters)) != NULL &&
 		    aw->aew_count <= arc_evict_count) {
 			list_remove(&arc_evict_waiters, aw);
 			cv_broadcast(&aw->aew_cv);
 		}
 	}
-
-	aw = list_tail(&arc_evict_waiters);
-	if (aw == NULL) {
-		arc_need_free = 0;
-	} else {
-		arc_need_free = aw->aew_count - arc_evict_count;
-	}
+	arc_set_need_free();
 	mutex_exit(&arc_evict_lock);
 
 	/*
@@ -4775,6 +4783,7 @@ arc_evict_cb(void *arg, zthr_t *zthr)
 		while ((aw = list_remove_head(&arc_evict_waiters)) != NULL) {
 			cv_broadcast(&aw->aew_cv);
 		}
+		arc_set_need_free();
 	}
 	mutex_exit(&arc_evict_lock);
 	spl_fstrans_unmark(cookie);
@@ -5064,7 +5073,7 @@ arc_wait_for_eviction(uint64_t amount)
 
 			list_insert_tail(&arc_evict_waiters, &aw);
 
-			arc_need_free = aw.aew_count - arc_evict_count;
+			arc_set_need_free();
 
 			DTRACE_PROBE3(arc__wait__for__eviction,
 			    uint64_t, amount,
