@@ -32,13 +32,12 @@ Description of the different parameters to the ZFS module.
 \fBdbuf_cache_max_bytes\fR (ulong)
 .ad
 .RS 12n
-Maximum size in bytes of the dbuf cache.  When \fB0\fR this value will default
-to \fB1/2^dbuf_cache_shift\fR (1/32) of the target ARC size, otherwise the
-provided value in bytes will be used.  The behavior of the dbuf cache and its
-associated settings can be observed via the \fB/proc/spl/kstat/zfs/dbufstats\fR
-kstat.
+Maximum size in bytes of the dbuf cache.  The target size is determined by the
+MIN versus \fB1/2^dbuf_cache_shift\fR (1/32) of the target ARC size.  The
+behavior of the dbuf cache and its associated settings can be observed via the
+\fB/proc/spl/kstat/zfs/dbufstats\fR kstat.
 .sp
-Default value: \fB0\fR.
+Default value: \fBULONG_MAX\fR.
 .RE
 
 .sp
@@ -47,13 +46,12 @@ Default value: \fB0\fR.
 \fBdbuf_metadata_cache_max_bytes\fR (ulong)
 .ad
 .RS 12n
-Maximum size in bytes of the metadata dbuf cache.  When \fB0\fR this value will
-default to \fB1/2^dbuf_cache_shift\fR (1/16) of the target ARC size, otherwise
-the provided value in bytes will be used.  The behavior of the metadata dbuf
-cache and its associated settings can be observed via the
-\fB/proc/spl/kstat/zfs/dbufstats\fR kstat.
+Maximum size in bytes of the metadata dbuf cache.  The target size is
+determined by the MIN versus \fB1/2^dbuf_metadata_cache_shift\fR (1/64) of the
+target ARC size.  The behavior of the metadata dbuf cache and its associated
+settings can be observed via the \fB/proc/spl/kstat/zfs/dbufstats\fR kstat.
 .sp
-Default value: \fB0\fR.
+Default value: \fBULONG_MAX\fR.
 .RE
 
 .sp
