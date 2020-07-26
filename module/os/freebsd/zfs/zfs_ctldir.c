@@ -65,6 +65,9 @@
  * so that it cannot be freed until all snapshots have been unmounted.
  */
 
+#include <sys/types.h>
+#include <sys/param.h>
+#include <sys/libkern.h>
 #include <sys/dirent.h>
 #include <sys/zfs_context.h>
 #include <sys/zfs_ctldir.h>
@@ -83,6 +86,7 @@
 #include "zfs_namecheck.h"
 
 #include <sys/kernel.h>
+#include <sys/ccompat.h>
 
 /* Common access mode for all virtual directories under the ctldir */
 const uint16_t zfsctl_ctldir_mode = S_IRUSR | S_IXUSR | S_IRGRP | S_IXGRP |

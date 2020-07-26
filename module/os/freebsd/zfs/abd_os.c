@@ -28,6 +28,7 @@
 
 #include <sys/abd_impl.h>
 #include <sys/param.h>
+#include <sys/types.h>
 #include <sys/zio.h>
 #include <sys/zfs_context.h>
 #include <sys/zfs_znode.h>

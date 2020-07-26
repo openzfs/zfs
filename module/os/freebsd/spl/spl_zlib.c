@@ -28,6 +28,7 @@
 #include <sys/cdefs.h>
 __FBSDID("$FreeBSD$");
 
+#include <sys/types.h>
 #include <sys/kmem.h>
 #include <sys/kmem_cache.h>
 #include <sys/zmod.h>
