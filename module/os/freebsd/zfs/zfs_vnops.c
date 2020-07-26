@@ -1271,7 +1271,7 @@ zfs_get_done(zgd_t *zgd, int error)
 	kmem_free(zgd, sizeof (zgd_t));
 }
 
-#ifdef DEBUG
+#ifdef ZFS_DEBUG
 static int zil_fault_io = 0;
 #endif
 
@@ -1354,7 +1354,7 @@ zfs_get_data(void *arg, lr_write_t *lr, char *buf, struct lwb *lwb, zio_t *zio)
 		/* test for truncation needs to be done while range locked */
 		if (lr->lr_offset >= zp->z_size)
 			error = SET_ERROR(ENOENT);
-#ifdef DEBUG
+#ifdef ZFS_DEBUG
 		if (zil_fault_io) {
 			error = SET_ERROR(EIO);
 			zil_fault_io = 0;

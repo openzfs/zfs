@@ -76,7 +76,7 @@ SYSCTL_INT(_debug_sizeof, OID_AUTO, znode, CTLFLAG_RD,
  * Define ZNODE_STATS to turn on statistic gathering. By default, it is only
  * turned on when DEBUG is also defined.
  */
-#ifdef	DEBUG
+#ifdef	ZFS_DEBUG
 #define	ZNODE_STATS
 #endif	/* DEBUG */
 

@@ -4421,7 +4421,7 @@ metaslab_trace_add(zio_alloc_list_t *zal, metaslab_group_t *mg,
 	 */
 	if (zal->zal_size == metaslab_trace_max_entries) {
 		metaslab_alloc_trace_t *mat_next;
-#ifdef DEBUG
+#ifdef ZFS_DEBUG
 		panic("too many entries in allocation list");
 #endif
 		METASLABSTAT_BUMP(metaslabstat_trace_over_limit);

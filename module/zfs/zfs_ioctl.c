@@ -4805,7 +4805,7 @@ zfs_allow_log_destroy(void *arg)
 		kmem_strfree(poolname);
 }
 
-#ifdef	DEBUG
+#ifdef	ZFS_DEBUG
 static boolean_t zfs_ioc_recv_inject_err;
 #endif
 
@@ -5018,7 +5018,7 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin, nvlist_t *recvprops,
 	}
 	*read_bytes = off - noff;
 
-#ifdef	DEBUG
+#ifdef	ZFS_DEBUG
 	if (zfs_ioc_recv_inject_err) {
 		zfs_ioc_recv_inject_err = B_FALSE;
 		error = 1;
