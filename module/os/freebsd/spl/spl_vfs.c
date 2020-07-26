@@ -27,6 +27,7 @@
 #include <sys/cdefs.h>
 __FBSDID("$FreeBSD$");
 
+#include <sys/types.h>
 #include <sys/param.h>
 #include <sys/kernel.h>
 #include <sys/systm.h>
@@ -39,6 +40,8 @@ __FBSDID("$FreeBSD$");
 
 #include <sys/mutex.h>
 #include <sys/vnode.h>
+
+#include <sys/ccompat.h>
 
 MALLOC_DECLARE(M_MOUNT);
 

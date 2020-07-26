@@ -29,7 +29,7 @@
 #ifndef _OPENSOLARIS_SYS_SYSTM_H_
 #define	_OPENSOLARIS_SYS_SYSTM_H_
 
-#include <sys/param.h>
+#include <sys/endian.h>
 #include_next <sys/systm.h>
 
 #include <sys/string.h>

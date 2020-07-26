@@ -31,6 +31,7 @@
 #define	_OPENSOLARIS_SYS_CONDVAR_H_
 
 #include <sys/param.h>
+#include <sys/systm.h>
 
 #include <sys/spl_condvar.h>
 #include <sys/mutex.h>
