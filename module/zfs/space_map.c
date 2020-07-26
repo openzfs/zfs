@@ -675,7 +675,7 @@ space_map_write_impl(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
 
 	space_map_write_intro_debug(sm, maptype, tx);
 
-#ifdef DEBUG
+#ifdef ZFS_DEBUG
 	/*
 	 * We do this right after we write the intro debug entry
 	 * because the estimate does not take it into account.
@@ -736,7 +736,7 @@ space_map_write_impl(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
 
 	dmu_buf_rele(db, FTAG);
 
-#ifdef DEBUG
+#ifdef ZFS_DEBUG
 	/*
 	 * We expect our estimation to be based on the worst case
 	 * scenario [see comment in space_map_estimate_optimal_size()].

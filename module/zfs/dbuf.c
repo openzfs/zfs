@@ -1989,7 +1989,7 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 	 * objects may be dirtied in syncing context, but only if they
 	 * were already pre-dirtied in open context.
 	 */
-#ifdef DEBUG
+#ifdef ZFS_DEBUG
 	if (dn->dn_objset->os_dsl_dataset != NULL) {
 		rrw_enter(&dn->dn_objset->os_dsl_dataset->ds_bp_rwlock,
 		    RW_READER, FTAG);
@@ -2062,7 +2062,7 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 	 */
 	os = dn->dn_objset;
 	VERIFY3U(tx->tx_txg, <=, spa_final_dirty_txg(os->os_spa));
-#ifdef DEBUG
+#ifdef ZFS_DEBUG
 	if (dn->dn_objset->os_dsl_dataset != NULL)
 		rrw_enter(&os->os_dsl_dataset->ds_bp_rwlock, RW_READER, FTAG);
 	ASSERT(!dmu_tx_is_syncing(tx) || DMU_OBJECT_IS_SPECIAL(dn->dn_object) ||

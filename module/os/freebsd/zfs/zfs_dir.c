@@ -839,7 +839,7 @@ zfs_make_xattrdir(znode_t *zp, vattr_t *vap, znode_t **xvpp, cred_t *cr)
 	if (fuid_dirtied)
 		zfs_fuid_sync(zfsvfs, tx);
 
-#ifdef DEBUG
+#ifdef ZFS_DEBUG
 	error = sa_lookup(xzp->z_sa_hdl, SA_ZPL_PARENT(zfsvfs),
 	    &parent, sizeof (parent));
 	ASSERT(error == 0 && parent == zp->z_id);

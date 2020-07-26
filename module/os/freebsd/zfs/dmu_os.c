@@ -174,7 +174,7 @@ dmu_read_pages(objset_t *os, uint64_t object, vm_page_t *ma, int count,
 	if (err != 0)
 		return (err);
 
-#ifdef DEBUG
+#ifdef ZFS_DEBUG
 	IMPLY(last_size < PAGE_SIZE, *rahead == 0);
 	if (dbp[0]->db_offset != 0 || numbufs > 1) {
 		for (i = 0; i < numbufs; i++) {
@@ -269,7 +269,7 @@ dmu_read_pages(objset_t *os, uint64_t object, vm_page_t *ma, int count,
 		}
 	}
 
-#ifdef DEBUG
+#ifdef ZFS_DEBUG
 	/*
 	 * Three possibilities:
 	 * - last requested page ends at a buffer boundary and , thus,
