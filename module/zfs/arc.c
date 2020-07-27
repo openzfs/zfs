@@ -4623,11 +4623,11 @@ arc_reduce_target_size(int64_t to_free)
 
 	/*
 	 * All callers want the ARC to actually evict (at least) this much
-	 * memory.  Therefore we reduce from the lower of the current size
-	 * and the target size.  This way, even if arc_c is much higher than
-	 * arc_size (as is the case the first time this is called after
-	 * booting), we will immediately have arc_c < arc_size and therefore
-	 * the arc_evict_zthr will evict.
+	 * memory.  Therefore we reduce from the lower of the current size and
+	 * the target size.  This way, even if arc_c is much higher than
+	 * arc_size (as can be the case after many calls to arc_freed(), we will
+	 * immediately have arc_c < arc_size and therefore the arc_evict_zthr
+	 * will evict.
 	 */
 	uint64_t c = MIN(arc_c, asize);
 
