@@ -317,7 +317,24 @@ arc_lowmem_init(void)
 	 * with less than 16GB of RAM, but we always add it as an extra
 	 * cushion.
 	 */
-	arc_sys_free = 512 * 1024 * 1024 + allmem / 32;
+
+	/*
+	 * Base wmark_low is 4 * the square root of Kbytes of RAM.
+	 */
+	long wmark = 4 * int_sqrt(allmem/1024) * 1024;
+
+	/*
+	 * Clamp to between 128K and 64MB.
+	 */
+	wmark = MAX(wmark, 128 * 1024);
+	wmark = MIN(wmark, 64 * 1024 * 1024);
+
+	/*
+	 * watermark_boost can increase the wmark by up to 150%.
+	 */
+	wmark += wmark * 150 / 100;
+
+	arc_sys_free = wmark * 3 + allmem / 32;
 }
 
 void

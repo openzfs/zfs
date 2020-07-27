@@ -3988,7 +3988,9 @@ arc_evict_state_impl(multilist_t *ml, int idx, arc_buf_hdr_t *marker,
 	 * "count".  Doing this outside the loop reduces the number of times
 	 * we need to acquire the global arc_evict_lock.
 	 *
-	 * Only wake when there's sufficient free memory in the system.
+	 * Only wake when there's sufficient free memory in the system
+	 * (specifically, arc_sys_free/2, which by default is a bit more than
+	 * 1/64th of RAM).
 	 */
 	mutex_enter(&arc_evict_lock);
 	arc_evict_count += bytes_evicted;
