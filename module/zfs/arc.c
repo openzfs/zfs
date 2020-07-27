@@ -3990,7 +3990,7 @@ arc_evict_state_impl(multilist_t *ml, int idx, arc_buf_hdr_t *marker,
 	 *
 	 * Only wake when there's sufficient free memory in the system
 	 * (specifically, arc_sys_free/2, which by default is a bit more than
-	 * 1/64th of RAM).
+	 * 1/64th of RAM).  See the comments in arc_wait_for_eviction().
 	 */
 	mutex_enter(&arc_evict_lock);
 	arc_evict_count += bytes_evicted;
@@ -5056,9 +5056,10 @@ arc_get_data_buf(arc_buf_hdr_t *hdr, uint64_t size, void *tag)
 
 /*
  * Wait for the specified amount of data (in bytes) to be evicted from the
- * ARC, or for the ARC to no longer be full.  If the ARC is full, we must
- * also wait for there to be sufficient free memory (based on
- * arc_free_memory()).
+ * ARC, and for there to be sufficient free memory in the system.  Waiting for
+ * eviction ensures that the memory used by the ARC decreases.  Waiting for
+ * free memory ensures that the system won't run out of free pages, regardless
+ * of ARC behavior and settings.  See arc_lowmem_init().
  */
 void
 arc_wait_for_eviction(uint64_t amount)
