@@ -76,7 +76,7 @@ tests = ['tst.args_to_lua', 'tst.divide_by_zero', 'tst.exists',
     'tst.memory_limit', 'tst.nested_neg', 'tst.nested_pos', 'tst.nvlist_to_lua',
     'tst.recursive_neg', 'tst.recursive_pos', 'tst.return_large',
     'tst.return_nvlist_neg', 'tst.return_nvlist_pos',
-    'tst.return_recursive_table', 'tst.timeout']
+    'tst.return_recursive_table', 'tst.stack_gsub', 'tst.timeout']
 tags = ['functional', 'channel_program', 'lua_core']
 
 [tests/functional/channel_program/synctask_core]
