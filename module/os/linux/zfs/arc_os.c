@@ -294,11 +294,30 @@ arc_lowmem_init(void)
 	spl_register_shrinker(&arc_shrinker);
 
 	/*
-	 * The ARC tries to keep at least this much memory available for
-	 * the system.  This gives the ARC time to shrink in response to
-	 * memory pressure, before running completely out of memory.
+	 * The ARC tries to keep at least this much memory available for the
+	 * system.  This gives the ARC time to shrink in response to memory
+	 * pressure, before running completely out of memory and invoking the
+	 * direct-reclaim ARC shrinker.
+	 *
+	 * This should be more than twice high_wmark_pages(), so that
+	 * arc_wait_for_eviction() will wait until at least the
+	 * high_wmark_pages() are free (see arc_evict_state_impl()).
+	 *
+	 * It's hard to iterate the zones from a linux kernel module, which
+	 * makes it difficult to determine the watermark dynamically. Instead
+	 * we consider the maximum high watermark for any system, assuming
+	 * default parameters on Linux kernel 5.3.  The maximum low watermark
+	 * is 64MB, the max high watermark is 64MB + 0.2% of RAM, and the
+	 * maximum boost is 150% of the high watermark.  So the maximum
+	 * boosted high watermark is 160MB + 0.5% of RAM.
+	 *
+	 * The default arc_sys_free is 512MB + 1/32nd (3%) of RAM, which is
+	 * more than double the highest high_wmark (160MB + 0.5% of RAM).
+	 * Note that the extra 512MB is only strictly necessary on systems
+	 * with less than 16GB of RAM, but we always add it as an extra
+	 * cushion.
 	 */
-	arc_sys_free = allmem / 32;
+	arc_sys_free = 512 * 1024 * 1024 + allmem / 32;
 }
 
 void
