@@ -166,6 +166,7 @@ struct lua_State {
   unsigned short nCcalls;  /* number of nested C calls */
   lu_byte hookmask;
   lu_byte allowhook;
+  lu_byte runerror; /* handling a runtime error */
   int basehookcount;
   int hookcount;
   lua_Hook hook;
