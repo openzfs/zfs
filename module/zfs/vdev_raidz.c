@@ -562,9 +562,11 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 	rm->rm_nskip = roundup(tot, nparity + 1) - tot;
 	asize = 0;
 
+#if 0
 	zfs_dbgmsg("rm=%p s=%d q=%d r=%d bc=%d nrows=%d cols=%d rfo=%llx",
 	    rm, (int)s, (int)q, (int)r, (int)bc, (int)rows, (int)cols,
 	    (long long)reflow_offset);
+#endif
 
 	for (uint64_t row = 0; row < rows; row++) {
 		raidz_row_t *rr = kmem_alloc(offsetof(raidz_row_t,
@@ -645,10 +647,12 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 					off = r * rows +
 					    (dc - r) * (rows - 1) + row;
 				}
+#if 0
 				zfs_dbgmsg("rm=%p row=%d c=%d dc=%d off=%u "
 				    "devidx=%u rpc=%u",
 				    rm, (int)row, (int)c, (int)dc, (int)off,
 				    (int)child_id, (int)row_phys_cols);
+#endif
 				rr->rr_col[c].rc_size = 1ULL << ashift;
 				rr->rr_col[c].rc_abd =
 				    abd_get_offset(abd, off << ashift);
@@ -2230,11 +2234,13 @@ vdev_raidz_io_done_verified(zio_t *zio, raidz_row_t *rr)
 	 * Note that we also regenerate parity when resilvering so we
 	 * can write it out to failed devices later.
 	 */
+#if 0
 	zfs_dbgmsg("parity_errors=%u parity_untried=%u data_errors=%u "
 	    "verifying=%s",
 	    parity_errors, parity_untried, data_errors,
 	    (parity_errors + parity_untried <
 	    rr->rr_firstdatacol - data_errors) ? "yes" : "no");
+#endif
 	if (parity_errors + parity_untried <
 	    rr->rr_firstdatacol - data_errors ||
 	    (zio->io_flags & ZIO_FLAG_RESILVER)) {
