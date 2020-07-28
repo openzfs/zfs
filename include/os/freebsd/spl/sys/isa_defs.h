@@ -27,6 +27,7 @@
 
 #ifndef	_SYS_ISA_DEFS_H
 #define	_SYS_ISA_DEFS_H
+#include <sys/endian.h>
 
 /*
  * This header file serves to group a set of well known defines and to
@@ -694,6 +695,14 @@ extern "C" {
 
 #if defined(_ILP32) && defined(_LP64)
 #error "Both _ILP32 and _LP64 are defined"
+#endif
+
+#if BYTE_ORDER == _BIG_ENDIAN
+#define	_ZFS_BIG_ENDIAN
+#elif BYTE_ORDER == _LITTLE_ENDIAN
+#define	_ZFS_LITTLE_ENDIAN
+#else
+#error "unknown byte order"
 #endif
 
 #ifdef	__cplusplus

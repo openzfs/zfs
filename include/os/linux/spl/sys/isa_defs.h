@@ -117,9 +117,9 @@
 #endif
 
 #if defined(__ARMEL__) || defined(__AARCH64EL__)
-#define	_LITTLE_ENDIAN
+#define	_ZFS_LITTLE_ENDIAN
 #else
-#define	_BIG_ENDIAN
+#define	_ZFS_BIG_ENDIAN
 #endif
 
 /*
@@ -149,7 +149,7 @@
 #endif
 #endif
 
-#define	_BIG_ENDIAN
+#define	_ZFS_BIG_ENDIAN
 #define	_SUNOS_VTOC_16
 #define	_ALIGNMENT_REQUIRED	1
 
@@ -165,7 +165,7 @@
 #endif
 #endif
 
-#define	_BIG_ENDIAN
+#define	_ZFS_BIG_ENDIAN
 
 /*
  * Illumos doesn't define _ALIGNMENT_REQUIRED for s390, so default to 1
@@ -177,9 +177,9 @@
 #elif defined(__mips__)
 
 #if defined(__MIPSEB__)
-#define	_BIG_ENDIAN
+#define	_ZFS_BIG_ENDIAN
 #elif defined(__MIPSEL__)
-#define	_LITTLE_ENDIAN
+#define	_ZFS_LITTLE_ENDIAN
 #else
 #error MIPS no endian specified
 #endif
@@ -211,7 +211,7 @@
 #define	__rv64g__
 #endif
 
-#define	_LITTLE_ENDIAN
+#define	_ZFS_LITTLE_ENDIAN
 
 #define	_SUNOS_VTOC_16
 
@@ -243,20 +243,12 @@
 #define	HAVE_EFFICIENT_UNALIGNED_ACCESS
 #endif
 
-#if defined(__LITTLE_ENDIAN) && !defined(_LITTLE_ENDIAN)
-#define	_LITTLE_ENDIAN __LITTLE_ENDIAN
+#if defined(_ZFS_LITTLE_ENDIAN) && defined(_ZFS_BIG_ENDIAN)
+#error "Both _ZFS_LITTLE_ENDIAN and _ZFS_BIG_ENDIAN are defined"
 #endif
 
-#if defined(__BIG_ENDIAN) && !defined(_BIG_ENDIAN)
-#define	_BIG_ENDIAN __BIG_ENDIAN
-#endif
-
-#if defined(_LITTLE_ENDIAN) && defined(_BIG_ENDIAN)
-#error "Both _LITTLE_ENDIAN and _BIG_ENDIAN are defined"
-#endif
-
-#if !defined(_LITTLE_ENDIAN) && !defined(_BIG_ENDIAN)
-#error "Neither _LITTLE_ENDIAN or _BIG_ENDIAN are defined"
+#if !defined(_ZFS_LITTLE_ENDIAN) && !defined(_ZFS_BIG_ENDIAN)
+#error "Neither _ZFS_LITTLE_ENDIAN or _ZFS_BIG_ENDIAN are defined"
 #endif
 
 #endif	/* _SPL_ISA_DEFS_H */
