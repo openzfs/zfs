@@ -3127,11 +3127,18 @@ vdev_load(vdev_t *vd)
 		spa_t *spa = vd->vdev_spa;
 		char bias_str[64];
 
-		if (zap_lookup(spa->spa_meta_objset, vd->vdev_top_zap,
+		error = zap_lookup(spa->spa_meta_objset, vd->vdev_top_zap,
 		    VDEV_TOP_ZAP_ALLOCATION_BIAS, 1, sizeof (bias_str),
-		    bias_str) == 0) {
+		    bias_str);
+		if (error == 0) {
 			ASSERT(vd->vdev_alloc_bias == VDEV_BIAS_NONE);
 			vd->vdev_alloc_bias = vdev_derive_alloc_bias(bias_str);
+		} else if (error != ENOENT) {
+			vdev_set_state(vd, B_FALSE, VDEV_STATE_CANT_OPEN,
+			    VDEV_AUX_CORRUPT_DATA);
+			vdev_dbgmsg(vd, "vdev_load: zap_lookup(top_zap=%llu) "
+			    "failed [error=%d]", vd->vdev_top_zap, error);
+			return (error);
 		}
 	}
 
@@ -3301,6 +3308,7 @@ vdev_destroy_ms_flush_data(vdev_t *vd, dmu_tx_t *tx)
 	    VDEV_TOP_ZAP_MS_UNFLUSHED_PHYS_TXGS, sizeof (uint64_t), 1, &object);
 	if (err == ENOENT)
 		return;
+	VERIFY0(err);
 
 	VERIFY0(dmu_object_free(mos, object, tx));
 	VERIFY0(zap_remove(mos, vd->vdev_top_zap,
