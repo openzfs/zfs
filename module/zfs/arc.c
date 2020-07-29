@@ -7339,10 +7339,10 @@ arc_init(void)
 		kstat_install(arc_ksp);
 	}
 
-	arc_evict_zthr = zthr_create_timer(arc_evict_cb_check,
-	    arc_evict_cb, NULL, SEC2NSEC(1));
-	arc_reap_zthr = zthr_create_timer(arc_reap_cb_check,
-	    arc_reap_cb, NULL, SEC2NSEC(1));
+	arc_evict_zthr = zthr_create_timer("arc_evict",
+	    arc_evict_cb_check, arc_evict_cb, NULL, SEC2NSEC(1));
+	arc_reap_zthr = zthr_create_timer("arc_reap",
+	    arc_reap_cb_check, arc_reap_cb, NULL, SEC2NSEC(1));
 
 	arc_warm = B_FALSE;
 
