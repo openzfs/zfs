@@ -884,7 +884,8 @@ void
 spa_start_indirect_condensing_thread(spa_t *spa)
 {
 	ASSERT3P(spa->spa_condense_zthr, ==, NULL);
-	spa->spa_condense_zthr = zthr_create(spa_condense_indirect_thread_check,
+	spa->spa_condense_zthr = zthr_create("z_indirect_condense",
+	    spa_condense_indirect_thread_check,
 	    spa_condense_indirect_thread, spa);
 }
 

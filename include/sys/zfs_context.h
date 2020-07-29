@@ -218,6 +218,9 @@ typedef pthread_t	kthread_t;
 #define	kpreempt(x)	yield()
 #define	getcomm()	"unknown"
 
+#define	thread_create_named(name, stk, stksize, func, arg, len, \
+    pp, state, pri)	\
+	zk_thread_create(func, arg, stksize, state)
 #define	thread_create(stk, stksize, func, arg, len, pp, state, pri)	\
 	zk_thread_create(func, arg, stksize, state)
 #define	thread_exit()	pthread_exit(NULL)
