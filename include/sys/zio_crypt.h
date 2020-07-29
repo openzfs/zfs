@@ -21,7 +21,7 @@
 #define	_SYS_ZIO_CRYPT_H
 
 #include <sys/dmu.h>
-#include <sys/refcount.h>
+#include <sys/zfs_refcount.h>
 #if defined(__FreeBSD__) && defined(_KERNEL)
 #include <sys/freebsd_crypto.h>
 #else

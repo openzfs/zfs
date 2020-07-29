@@ -26,7 +26,6 @@
  * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
-#include <sys/refcount.h>
 #include <sys/rrwlock.h>
 #include <sys/trace_zfs.h>
 

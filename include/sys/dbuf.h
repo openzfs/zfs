@@ -34,7 +34,7 @@
 #include <sys/zio.h>
 #include <sys/arc.h>
 #include <sys/zfs_context.h>
-#include <sys/refcount.h>
+#include <sys/zfs_refcount.h>
 #include <sys/zrlock.h>
 #include <sys/multilist.h>
 

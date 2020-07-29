@@ -23,8 +23,8 @@
  * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
  */
 
-#ifndef	_SYS_REFCOUNT_H
-#define	_SYS_REFCOUNT_H
+#ifndef	_SYS_ZFS_REFCOUNT_H
+#define	_SYS_ZFS_REFCOUNT_H
 
 #include <sys/inttypes.h>
 #include <sys/list.h>
