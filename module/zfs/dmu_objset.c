@@ -34,7 +34,6 @@
 
 /* Portions Copyright 2010 Robert Milkowski */
 
-#include <sys/zfeature.h>
 #include <sys/cred.h>
 #include <sys/zfs_context.h>
 #include <sys/dmu_objset.h>
