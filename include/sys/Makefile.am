@@ -57,7 +57,6 @@ COMMON_H = \
 	pathname.h \
 	qat.h \
 	range_tree.h \
-	refcount.h \
 	rrwlock.h \
 	sa.h \
 	sa_impl.h \
@@ -111,6 +110,7 @@ COMMON_H = \
 	zfs_project.h \
 	zfs_quota.h \
 	zfs_ratelimit.h \
+	zfs_refcount.h \
 	zfs_rlock.h \
 	zfs_sa.h \
 	zfs_stat.h \

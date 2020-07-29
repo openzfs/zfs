@@ -45,7 +45,6 @@
 #include <sys/zfs_znode.h>
 #include <sys/fs/zfs.h>
 #include <sys/zap.h>
-#include <sys/refcount.h>
 #include <sys/zap_impl.h>
 #include <sys/zap_leaf.h>
 
