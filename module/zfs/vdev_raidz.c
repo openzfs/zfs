@@ -142,6 +142,18 @@
 uint64_t zfs_raidz_expand_max_offset_pause = UINT64_MAX;
 uint64_t zfs_raidz_expand_max_copy_bytes = 10 * SPA_MAXBLOCKSIZE;
 
+/*
+ * Apply raidz map abds aggregation if the number of rows in the map is equal
+ * or greater than the value below.
+ */
+unsigned long raidz_io_aggregate_rows = 8;
+
+/*
+ * Aggregated IO statistics.
+ */
+unsigned long raidz_io_count_total = 0;
+unsigned long raidz_io_count_aggregated = 0;
+
 static void
 vdev_raidz_row_free(raidz_row_t *rr)
 {
@@ -179,6 +191,16 @@ vdev_raidz_map_free(raidz_map_t *rm)
 	for (int i = 0; i < rm->rm_nrows; i++) {
 		vdev_raidz_row_free(rm->rm_row[i]);
 	}
+
+	if (rm->rm_nphys_cols) {
+		for (int i = 0; i < rm->rm_nphys_cols; i++)
+			if (rm->rm_phys_col[i].rc_abd)
+				abd_free(rm->rm_phys_col[i].rc_abd);
+
+		kmem_free(rm->rm_phys_col, sizeof (raidz_col_t) *
+		    rm->rm_nphys_cols);
+	}
+
 	ASSERT3P(rm->rm_lr, ==, NULL);
 	kmem_free(rm, offsetof(raidz_map_t, rm_row[rm->rm_nrows]));
 }
@@ -561,6 +583,20 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 	rm->rm_nrows = rows;
 	rm->rm_nskip = roundup(tot, nparity + 1) - tot;
 	asize = 0;
+
+	if (rows >= raidz_io_aggregate_rows) {
+		rm->rm_io_aggregation = B_TRUE;
+		rm->rm_nphys_cols = physical_cols;
+		rm->rm_phys_col =
+		    kmem_zalloc(sizeof (raidz_col_t) * rm->rm_nphys_cols,
+		    KM_SLEEP);
+		for (int i = 0; i < rm->rm_nphys_cols; i++)
+			rm->rm_phys_col[i].rc_offset = UINT64_MAX;
+
+		raidz_io_count_aggregated++;
+	}
+
+	raidz_io_count_total++;
 
 #if 0
 	zfs_dbgmsg("rm=%p s=%d q=%d r=%d bc=%d nrows=%d cols=%d rfo=%llx",
@@ -1971,7 +2007,22 @@ vdev_raidz_io_start_write(zio_t *zio, raidz_row_t *rr)
 }
 
 static void
-vdev_raidz_io_start_read(zio_t *zio, raidz_row_t *rr, boolean_t forceparity)
+vdev_raidz_get_phys_col_offset(raidz_map_t *rm, raidz_row_t *rr)
+{
+	for (int c = 0; c < rr->rr_cols; c++) {
+		raidz_col_t *rc = &rr->rr_col[c];
+		raidz_col_t *prc = &rm->rm_phys_col[rc->rc_devidx];
+
+		if (rc->rc_size == 0)
+			continue;
+
+		prc->rc_offset = MIN(prc->rc_offset, rc->rc_offset);
+		prc->rc_size += rc->rc_size;
+	}
+}
+
+static void
+vdev_raidz_io_start_read_row(zio_t *zio, raidz_row_t *rr, boolean_t forceparity)
 {
 	vdev_t *vd = zio->io_vd;
 
@@ -2012,6 +2063,66 @@ vdev_raidz_io_start_read(zio_t *zio, raidz_row_t *rr, boolean_t forceparity)
 			    vdev_raidz_child_done, rc));
 		}
 	}
+}
+
+static void
+vdev_raidz_io_start_read_phys_col(zio_t *zio, raidz_map_t *rm)
+{
+	vdev_t *vd = zio->io_vd;
+
+	for (int i = 0; i < rm->rm_nphys_cols; i++) {
+		raidz_col_t *prc = &rm->rm_phys_col[i];
+		if (prc->rc_size == 0)
+			continue;
+
+		prc->rc_abd = abd_alloc_linear(rm->rm_phys_col[i].rc_size,
+		    B_FALSE);
+
+		vdev_t *cvd = vd->vdev_child[i];
+		/*
+		 * XXX The physcical column errors are ignored by *_io_done().
+		 * If raidz_checksum_verify() will fail, the data will be
+		 * re-read by vdev_raidz_read_all() without IO aggregation.
+		 */
+		if (!vdev_readable(cvd)) {
+			prc->rc_error = SET_ERROR(ENXIO);
+			prc->rc_tried = 1;	/* don't even try */
+			prc->rc_skipped = 1;
+			continue;
+		}
+		if (vdev_dtl_contains(cvd, DTL_MISSING, zio->io_txg, 1)) {
+			prc->rc_error = SET_ERROR(ESTALE);
+			prc->rc_skipped = 1;
+			continue;
+		}
+		zio_nowait(zio_vdev_child_io(zio, NULL, cvd,
+		    prc->rc_offset, prc->rc_abd, prc->rc_size,
+		    zio->io_type, zio->io_priority, 0,
+		    vdev_raidz_child_done, prc));
+	}
+}
+
+static void
+vdev_raidz_io_start_read(zio_t *zio, raidz_map_t *rm)
+{
+	/*
+	 * If there are multiple rows, we will be hitting
+	 * all disks, so go ahead and read the parity so
+	 * that we are reading in decent size chunks.
+	 * XXX maybe doesn't really matter?
+	 */
+	boolean_t forceparity = rm->rm_nrows > 1;
+
+	for (int i = 0; i < rm->rm_nrows; i++) {
+		raidz_row_t *rr = rm->rm_row[i];
+		if (rm->rm_io_aggregation)
+			vdev_raidz_get_phys_col_offset(rm, rr);
+		else
+			vdev_raidz_io_start_read_row(zio, rr, forceparity);
+	}
+
+	if (rm->rm_io_aggregation)
+		vdev_raidz_io_start_read_phys_col(zio, rm);
 }
 
 /*
@@ -2071,17 +2182,7 @@ vdev_raidz_io_start(zio_t *zio)
 		}
 	} else {
 		ASSERT(zio->io_type == ZIO_TYPE_READ);
-		/*
-		 * If there are multiple rows, we will be hitting
-		 * all disks, so go ahead and read the parity so
-		 * that we are reading in decent size chunks.
-		 * XXX maybe doesn't really matter?
-		 */
-		boolean_t forceparity = rm->rm_nrows > 1;
-		for (int i = 0; i < rm->rm_nrows; i++) {
-			vdev_raidz_io_start_read(zio,
-			    rm->rm_row[i], forceparity);
-		}
+		vdev_raidz_io_start_read(zio, rm);
 	}
 
 	zio_execute(zio);
@@ -2730,6 +2831,25 @@ vdev_raidz_io_done(zio_t *zio)
 			vdev_raidz_io_done_write_impl(zio, rm->rm_row[i]);
 		}
 	} else {
+		if (rm->rm_io_aggregation) {
+			for (int i = 0; i < rm->rm_nrows; i++) {
+				raidz_row_t *rr = rm->rm_row[i];
+				for (int c = 0; c < rr->rr_cols; c++) {
+					raidz_col_t *rc = &rr->rr_col[c];
+					if (rc->rc_size == 0)
+						continue;
+
+					int idx = rc->rc_devidx;
+					raidz_col_t *prc = &rm->rm_phys_col[idx];
+
+					abd_copy_off(rc->rc_abd, prc->rc_abd,
+					    0,
+					    rc->rc_offset - prc->rc_offset,
+					    rc->rc_size);
+				}
+			}
+		}
+
 		for (int i = 0; i < rm->rm_nrows; i++) {
 			raidz_row_t *rr = rm->rm_row[i];
 			rr->rr_code =
@@ -2753,6 +2873,7 @@ vdev_raidz_io_done(zio_t *zio)
 			 * be marked as tried so we'll proceed to combinatorial
 			 * reconstruction.
 			 */
+			rm->rm_io_aggregation = B_FALSE;
 			int nread = 0;
 			for (int i = 0; i < rm->rm_nrows; i++) {
 				nread += vdev_raidz_read_all(zio,
@@ -3602,3 +3723,11 @@ vdev_ops_t vdev_raidz_ops = {
 	.vdev_op_type = VDEV_TYPE_RAIDZ,	/* name of this vdev type */
 	.vdev_op_leaf = B_FALSE			/* not a leaf vdev */
 };
+
+ZFS_MODULE_PARAM(zfs_vdev, raidz_, io_aggregate_rows, ULONG, ZMOD_RW,
+    "Apply raidz map abds aggregation if the map contain more rows than value");
+
+ZFS_MODULE_PARAM(zfs_vdev, raidz_, io_count_total, ULONG, ZMOD_RD,
+    "Expanded reads total");
+ZFS_MODULE_PARAM(zfs_vdev, raidz_, io_count_aggregated, ULONG, ZMOD_RD,
+    "Expanded reads aggregated");

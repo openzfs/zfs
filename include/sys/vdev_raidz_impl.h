@@ -149,10 +149,13 @@ typedef struct raidz_map {
 	uintptr_t rm_reports;		/* # of referencing checksum reports */
 	boolean_t rm_freed;		/* map no longer has referencing ZIO */
 	boolean_t rm_ecksuminjected;	/* checksum error was injected */
+	boolean_t rm_io_aggregation;
 	int rm_nrows;
 	int rm_nskip;			/* Sectors skipped for padding */
+	int rm_nphys_cols;		/* Number of leaf devices */
 	zfs_locked_range_t *rm_lr;
 	const raidz_impl_ops_t *rm_ops;	/* RAIDZ math operations */
+	raidz_col_t *rm_phys_col;	/* leaf devices array */
 	raidz_row_t *rm_row[0];		/* flexible array of rows */
 } raidz_map_t;
 
