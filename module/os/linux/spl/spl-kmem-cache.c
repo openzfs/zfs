@@ -662,8 +662,7 @@ spl_magazine_create(spl_kmem_cache_t *skc)
 {
 	int i = 0;
 
-	if (skc->skc_flags & KMC_NOMAGAZINE)
-		return (0);
+	ASSERT((skc->skc_flags & KMC_SLAB) == 0);
 
 	skc->skc_mag = kzalloc(sizeof (spl_kmem_magazine_t *) *
 	    num_possible_cpus(), kmem_flags_convert(KM_SLEEP));
@@ -693,8 +692,7 @@ spl_magazine_destroy(spl_kmem_cache_t *skc)
 	spl_kmem_magazine_t *skm;
 	int i = 0;
 
-	if (skc->skc_flags & KMC_NOMAGAZINE)
-		return;
+	ASSERT((skc->skc_flags & KMC_SLAB) == 0);
 
 	for_each_possible_cpu(i) {
 		skm = skc->skc_mag[i];
@@ -721,7 +719,6 @@ spl_magazine_destroy(spl_kmem_cache_t *skc)
  *	KMC_KVMEM       Force kvmem backed SPL cache
  *	KMC_SLAB        Force Linux slab backed cache
  *	KMC_NODEBUG	Disable debugging (unsupported)
- *	KMC_NOMAGAZINE	Enabled for kmem/vmem, Disabled for Linux slab
  */
 spl_kmem_cache_t *
 spl_kmem_cache_create(char *name, size_t size, size_t align,
@@ -735,7 +732,6 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 	/*
 	 * Unsupported flags
 	 */
-	ASSERT0(flags & KMC_NOMAGAZINE);
 	ASSERT(vmp == NULL);
 	ASSERT(reclaim == NULL);
 
@@ -872,8 +868,6 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 			rc = ENOMEM;
 			goto out;
 		}
-
-		skc->skc_flags |= KMC_NOMAGAZINE;
 	}
 
 	down_write(&spl_kmem_cache_sem);

@@ -58,7 +58,6 @@ typedef void vmem_t;
  * Flags for umem_cache_create()
  */
 #define	UMC_NODEBUG		0x00020000
-#define	UMC_NOMAGAZINE		0x00040000
 
 #define	UMEM_CACHE_NAMELEN	31
 
