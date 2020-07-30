@@ -69,6 +69,7 @@
  * average compressed block size of ~8KB.
  *
  * See also the comment in arc_shrinker_count().
+ * Set to 0 to disable limit.
  */
 int zfs_arc_shrinker_limit = 10000;
 
@@ -186,9 +187,9 @@ arc_shrinker_count(struct shrinker *shrink, struct shrink_control *sc)
 	}
 
 	/*
-	 * This code is reached in the "direct reclaim" case, were the kernel
-	 * (outside ZFS) is trying to allocate a page, and the system is low
-	 * on memory.
+	 * This code is reached in the "direct reclaim" case, where the
+	 * kernel (outside ZFS) is trying to allocate a page, and the system
+	 * is low on memory.
 	 *
 	 * The kernel's shrinker code doesn't understand how many pages the
 	 * ARC's callback actually frees, so it may ask the ARC to shrink a
@@ -209,8 +210,9 @@ arc_shrinker_count(struct shrinker *shrink, struct shrink_control *sc)
 	 *
 	 * See also the comment above zfs_arc_shrinker_limit.
 	 */
-	return (MIN(zfs_arc_shrinker_limit,
-	    btop((int64_t)arc_evictable_memory())));
+	int64_t limit = zfs_arc_shrinker_limit != 0 ?
+	    zfs_arc_shrinker_limit : INT64_MAX;
+	return (MIN(limit, btop((int64_t)arc_evictable_memory())));
 }
 
 static unsigned long
