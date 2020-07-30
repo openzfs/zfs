@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
  * Copyright (c) 2014, Joyent, Inc. All rights reserved.
  * Copyright (c) 2014 RackTop Systems.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
@@ -3735,7 +3735,7 @@ dsl_dataset_promote_sync(void *arg, dmu_tx_t *tx)
 	 * as well.
 	 */
 	dsl_dir_remove_livelist(dd, tx, B_TRUE);
-	dsl_dir_remove_livelist(origin_ds->ds_dir, tx, B_TRUE);
+	dsl_dir_remove_livelist(odd, tx, B_TRUE);
 
 	/* log history record */
 	spa_history_log_internal_ds(hds, "promote", tx, " ");
