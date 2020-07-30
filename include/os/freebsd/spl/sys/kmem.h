@@ -49,7 +49,6 @@ MALLOC_DECLARE(M_SOLARIS);
 #define	KM_NODEBUG		M_NODUMP
 #define	KM_NORMALPRI		0
 #define	KMC_NODEBUG		UMA_ZONE_NODUMP
-#define	KMC_NOTOUCH		0
 
 typedef struct vmem vmem_t;
 
