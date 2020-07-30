@@ -134,37 +134,6 @@ Default value: \fB16,384\fR
 .sp
 .ne 2
 .na
-\fBspl_kmem_cache_kmem_limit\fR (uint)
-.ad
-.RS 12n
-Depending on the size of a cache object it may be backed by kmalloc()'d
-or vmalloc()'d memory.  This is because the size of the required allocation
-greatly impacts the best way to allocate the memory.
-.sp
-When objects are small and only a small number of memory pages need to be
-allocated, ideally just one, then kmalloc() is very efficient.  However,
-when allocating multiple pages with kmalloc() it gets increasingly expensive
-because the pages must be physically contiguous.
-.sp
-For this reason we shift to vmalloc() for slabs of large objects which
-which removes the need for contiguous pages.  We cannot use vmalloc() in
-all cases because there is significant locking overhead involved.  This
-function takes a single global lock over the entire virtual address range
-which serializes all allocations.  Using slightly different allocation
-functions for small and large objects allows us to handle a wide range of
-object sizes.
-.sp
-The \fBspl_kmem_cache_kmem_limit\fR value is used to determine this cutoff
-size.  One quarter the PAGE_SIZE is used as the default value because
-\fBspl_kmem_cache_obj_per_slab\fR defaults to 16.  This means that at
-most we will need to allocate four contiguous pages.
-.sp
-Default value: \fBPAGE_SIZE/4\fR
-.RE
-
-.sp
-.ne 2
-.na
 \fBspl_kmem_alloc_warn\fR (uint)
 .ad
 .RS 12n

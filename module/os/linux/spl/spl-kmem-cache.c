@@ -113,17 +113,6 @@ MODULE_PARM_DESC(spl_kmem_cache_slab_limit,
 	"Objects less than N bytes use the Linux slab");
 
 /*
- * This value defaults to a threshold designed to avoid allocations which
- * have been deemed costly by the kernel.
- */
-unsigned int spl_kmem_cache_kmem_limit =
-	((1 << (PAGE_ALLOC_COSTLY_ORDER - 1)) * PAGE_SIZE) /
-	SPL_KMEM_CACHE_OBJ_PER_SLAB;
-module_param(spl_kmem_cache_kmem_limit, uint, 0644);
-MODULE_PARM_DESC(spl_kmem_cache_kmem_limit,
-	"Objects less than N bytes use the kmalloc");
-
-/*
  * The number of threads available to allocate new slabs for caches.  This
  * should not need to be tuned but it is available for performance analysis.
  */
@@ -177,12 +166,7 @@ kv_alloc(spl_kmem_cache_t *skc, int size, int flags)
 	gfp_t lflags = kmem_flags_convert(flags);
 	void *ptr;
 
-	if (skc->skc_flags & KMC_KMEM) {
-		ASSERT(ISP2(size));
-		ptr = (void *)__get_free_pages(lflags, get_order(size));
-	} else {
-		ptr = spl_vmalloc(size, lflags | __GFP_HIGHMEM);
-	}
+	ptr = spl_vmalloc(size, lflags | __GFP_HIGHMEM);
 
 	/* Resulting allocated memory will be page aligned */
 	ASSERT(IS_P2ALIGNED(ptr, PAGE_SIZE));
@@ -205,12 +189,7 @@ kv_free(spl_kmem_cache_t *skc, void *ptr, int size)
 	if (current->reclaim_state)
 		current->reclaim_state->reclaimed_slab += size >> PAGE_SHIFT;
 
-	if (skc->skc_flags & KMC_KMEM) {
-		ASSERT(ISP2(size));
-		free_pages((unsigned long)ptr, get_order(size));
-	} else {
-		vfree(ptr);
-	}
+	vfree(ptr);
 }
 
 /*
@@ -563,18 +542,6 @@ spl_slab_size(spl_kmem_cache_t *skc, uint32_t *objs, uint32_t *size)
 	max_size = (spl_kmem_cache_max_size * 1024 * 1024);
 	tgt_size = (spl_kmem_cache_obj_per_slab * obj_size + sks_size);
 
-	/*
-	 * KMC_KMEM slabs are allocated by __get_free_pages() which
-	 * rounds up to the nearest order.  Knowing this the size
-	 * should be rounded up to the next power of two with a hard
-	 * maximum defined by the maximum allowed allocation order.
-	 */
-	if (skc->skc_flags & KMC_KMEM) {
-		max_size = SPL_MAX_ORDER_NR_PAGES * PAGE_SIZE;
-		tgt_size = MIN(max_size,
-		    PAGE_SIZE * (1 << MAX(get_order(tgt_size) - 1, 1)));
-	}
-
 	if (tgt_size <= max_size) {
 		tgt_objs = (tgt_size - sks_size) / obj_size;
 	} else {
@@ -714,8 +681,6 @@ spl_magazine_destroy(spl_kmem_cache_t *skc)
  * priv		cache private data for ctor/dtor/reclaim
  * vmp		unused must be NULL
  * flags
- *	KMC_KMEM	Force SPL kmem backed cache
- *	KMC_VMEM        Force SPL vmem backed cache
  *	KMC_KVMEM       Force kvmem backed SPL cache
  *	KMC_SLAB        Force Linux slab backed cache
  *	KMC_NODEBUG	Disable debugging (unsupported)
@@ -801,7 +766,7 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 	 * linuxslab) then select a cache type based on the object size
 	 * and default tunables.
 	 */
-	if (!(skc->skc_flags & (KMC_KMEM | KMC_VMEM | KMC_SLAB | KMC_KVMEM))) {
+	if (!(skc->skc_flags & (KMC_SLAB | KMC_KVMEM))) {
 		if (spl_kmem_cache_slab_limit &&
 		    size <= (size_t)spl_kmem_cache_slab_limit) {
 			/*
@@ -809,13 +774,6 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 			 * use the Linux slab for better space-efficiency.
 			 */
 			skc->skc_flags |= KMC_SLAB;
-		} else if (spl_obj_size(skc) <= spl_kmem_cache_kmem_limit) {
-			/*
-			 * Small objects, less than spl_kmem_cache_kmem_limit
-			 * per object should use kmem because their slabs are
-			 * small.
-			 */
-			skc->skc_flags |= KMC_KMEM;
 		} else {
 			/*
 			 * All other objects are considered large and are
@@ -828,7 +786,7 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 	/*
 	 * Given the type of slab allocate the required resources.
 	 */
-	if (skc->skc_flags & (KMC_KMEM | KMC_VMEM | KMC_KVMEM)) {
+	if (skc->skc_flags & KMC_KVMEM) {
 		rc = spl_slab_size(skc,
 		    &skc->skc_slab_objs, &skc->skc_slab_size);
 		if (rc)
@@ -905,7 +863,7 @@ spl_kmem_cache_destroy(spl_kmem_cache_t *skc)
 	taskqid_t id;
 
 	ASSERT(skc->skc_magic == SKC_MAGIC);
-	ASSERT(skc->skc_flags & (KMC_KMEM | KMC_VMEM | KMC_KVMEM | KMC_SLAB));
+	ASSERT(skc->skc_flags & (KMC_KVMEM | KMC_SLAB));
 
 	down_write(&spl_kmem_cache_sem);
 	list_del_init(&skc->skc_list);
@@ -927,7 +885,7 @@ spl_kmem_cache_destroy(spl_kmem_cache_t *skc)
 	 */
 	wait_event(wq, atomic_read(&skc->skc_ref) == 0);
 
-	if (skc->skc_flags & (KMC_KMEM | KMC_VMEM | KMC_KVMEM)) {
+	if (skc->skc_flags & KMC_KVMEM) {
 		spl_magazine_destroy(skc);
 		spl_slab_reclaim(skc);
 	} else {
@@ -1079,21 +1037,13 @@ spl_cache_grow(spl_kmem_cache_t *skc, int flags, void **obj)
 	}
 
 	/*
-	 * To reduce the overhead of context switch and improve NUMA locality,
-	 * it tries to allocate a new slab in the current process context with
-	 * KM_NOSLEEP flag. If it fails, it will launch a new taskq to do the
-	 * allocation.
+	 * Note: It would be nice to reduce the overhead of context switch
+	 * and improve NUMA locality, by trying to allocate a new slab in the
+	 * current process context with KM_NOSLEEP flag.
 	 *
-	 * However, this can't be applied to KVM_VMEM due to a bug that
+	 * However, this can't be applied to vmem/kvmem due to a bug that
 	 * spl_vmalloc() doesn't honor gfp flags in page table allocation.
 	 */
-	if (!(skc->skc_flags & KMC_VMEM) && !(skc->skc_flags & KMC_KVMEM)) {
-		rc = __spl_cache_grow(skc, flags | KM_NOSLEEP);
-		if (rc == 0) {
-			wake_up_all(&skc->skc_waitq);
-			return (0);
-		}
-	}
 
 	/*
 	 * This is handled by dispatching a work request to the global work
