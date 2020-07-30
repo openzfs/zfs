@@ -721,7 +721,6 @@ spl_magazine_destroy(spl_kmem_cache_t *skc)
  *	KMC_KVMEM       Force kvmem backed SPL cache
  *	KMC_SLAB        Force Linux slab backed cache
  *	KMC_NODEBUG	Disable debugging (unsupported)
- *	KMC_QCACHE	Disable qcache (unsupported)
  *	KMC_NOMAGAZINE	Enabled for kmem/vmem, Disabled for Linux slab
  */
 spl_kmem_cache_t *
@@ -737,7 +736,6 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 	 * Unsupported flags
 	 */
 	ASSERT0(flags & KMC_NOMAGAZINE);
-	ASSERT0(flags & KMC_QCACHE);
 	ASSERT(vmp == NULL);
 	ASSERT(reclaim == NULL);
 

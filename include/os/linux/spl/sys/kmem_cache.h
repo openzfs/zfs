@@ -38,7 +38,6 @@
 typedef enum kmc_bit {
 	KMC_BIT_NODEBUG		= 1,	/* Default behavior */
 	KMC_BIT_NOMAGAZINE	= 2,	/* XXX: Unsupported */
-	KMC_BIT_QCACHE		= 4,	/* XXX: Unsupported */
 	KMC_BIT_KMEM		= 5,	/* Use kmem cache */
 	KMC_BIT_VMEM		= 6,	/* Use vmem cache */
 	KMC_BIT_KVMEM		= 7,	/* Use kvmalloc linux allocator  */
@@ -63,7 +62,6 @@ typedef enum kmem_cbrc {
 
 #define	KMC_NODEBUG		(1 << KMC_BIT_NODEBUG)
 #define	KMC_NOMAGAZINE		(1 << KMC_BIT_NOMAGAZINE)
-#define	KMC_QCACHE		(1 << KMC_BIT_QCACHE)
 #define	KMC_KMEM		(1 << KMC_BIT_KMEM)
 #define	KMC_VMEM		(1 << KMC_BIT_VMEM)
 #define	KMC_KVMEM		(1 << KMC_BIT_KVMEM)
