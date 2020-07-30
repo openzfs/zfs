@@ -12,8 +12,9 @@ AC_DEFUN([ZFS_AC_CONFIG_USER_PAM], [
 
 	AC_ARG_WITH(pamconfigsdir,
 		AS_HELP_STRING([--with-pamconfigsdir=DIR],
-		[install pam-config files in dir [[/usr/share/pamconfigs]]]),
-		[pamconfigsdir="$withval"],[pamconfigsdir=/usr/share/pam-configs])
+		[install pam-config files in dir [DATADIR/pam-configs]]),
+		[pamconfigsdir="$withval"],
+		[pamconfigsdir='${datadir}/pam-configs'])
 
 	AS_IF([test "x$enable_pam" != "xno"], [
 		AC_CHECK_HEADERS([security/pam_modules.h], [
@@ -29,7 +30,7 @@ AC_DEFUN([ZFS_AC_CONFIG_USER_PAM], [
 		])
 	])
 	AS_IF([test "x$enable_pam" = "xyes"], [
-		DEFINE_PAM='--with "pam" --define "_pamconfigsdir $(pamconfigsdir)"'
+		DEFINE_PAM='--with pam'
 	])
 	AC_SUBST(DEFINE_PAM)
 	AC_SUBST(pammoduledir)
