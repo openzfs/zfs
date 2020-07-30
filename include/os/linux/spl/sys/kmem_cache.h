@@ -36,7 +36,6 @@
  * destructors which the Linux slab does not.
  */
 typedef enum kmc_bit {
-	KMC_BIT_NOTOUCH		= 0,	/* Don't update ages */
 	KMC_BIT_NODEBUG		= 1,	/* Default behavior */
 	KMC_BIT_NOMAGAZINE	= 2,	/* XXX: Unsupported */
 	KMC_BIT_NOHASH		= 3,	/* XXX: Unsupported */
@@ -63,7 +62,6 @@ typedef enum kmem_cbrc {
 	KMEM_CBRC_DONT_KNOW	= 4,	/* Object unknown */
 } kmem_cbrc_t;
 
-#define	KMC_NOTOUCH		(1 << KMC_BIT_NOTOUCH)
 #define	KMC_NODEBUG		(1 << KMC_BIT_NODEBUG)
 #define	KMC_NOMAGAZINE		(1 << KMC_BIT_NOMAGAZINE)
 #define	KMC_NOHASH		(1 << KMC_BIT_NOHASH)

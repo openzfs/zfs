@@ -720,7 +720,6 @@ spl_magazine_destroy(spl_kmem_cache_t *skc)
  *	KMC_VMEM        Force SPL vmem backed cache
  *	KMC_KVMEM       Force kvmem backed SPL cache
  *	KMC_SLAB        Force Linux slab backed cache
- *	KMC_NOTOUCH	Disable cache object aging (unsupported)
  *	KMC_NODEBUG	Disable debugging (unsupported)
  *	KMC_NOHASH      Disable hashing (unsupported)
  *	KMC_QCACHE	Disable qcache (unsupported)
