@@ -106,12 +106,6 @@
 int zfs_abd_scatter_enabled = B_TRUE;
 
 boolean_t
-abd_is_linear(abd_t *abd)
-{
-	return ((abd->abd_flags & ABD_FLAG_LINEAR) != 0 ? B_TRUE : B_FALSE);
-}
-
-boolean_t
 abd_is_linear_page(abd_t *abd)
 {
 	return ((abd->abd_flags & ABD_FLAG_LINEAR_PAGE) != 0 ?

@@ -38,6 +38,51 @@ extern "C" {
 struct abd; /* forward declaration */
 typedef struct abd abd_t;
 
+typedef enum abd_flags {
+	ABD_FLAG_LINEAR		= 1 << 0, /* is buffer linear (or scattered)? */
+	ABD_FLAG_OWNER		= 1 << 1, /* does it own its data buffers? */
+	ABD_FLAG_META		= 1 << 2, /* does this represent FS metadata? */
+	ABD_FLAG_MULTI_ZONE  	= 1 << 3, /* pages split over memory zones */
+	ABD_FLAG_MULTI_CHUNK 	= 1 << 4, /* pages split over multiple chunks */
+	ABD_FLAG_LINEAR_PAGE 	= 1 << 5, /* linear but allocd from page */
+	ABD_FLAG_GANG		= 1 << 6, /* mult ABDs chained together */
+	ABD_FLAG_GANG_FREE	= 1 << 7, /* gang ABD is responsible for mem */
+	ABD_FLAG_ZEROS		= 1 << 8, /* ABD for zero-filled buffer */
+} abd_flags_t;
+
+typedef enum abd_stats_op {
+	ABDSTAT_INCR, /* Increase abdstat values */
+	ABDSTAT_DECR  /* Decrease abdstat values */
+} abd_stats_op_t;
+
+struct abd {
+	abd_flags_t	abd_flags;
+	uint_t		abd_size;	/* excludes scattered abd_offset */
+	list_node_t	abd_gang_link;
+	struct abd	*abd_parent;
+	zfs_refcount_t	abd_children;
+	kmutex_t	abd_mtx;
+	union {
+		struct abd_scatter {
+			uint_t		abd_offset;
+#if defined(__FreeBSD__) && defined(_KERNEL)
+			uint_t  abd_chunk_size;
+			void    *abd_chunks[];
+#else
+			uint_t		abd_nents;
+			struct scatterlist *abd_sgl;
+#endif
+		} abd_scatter;
+		struct abd_linear {
+			void		*abd_buf;
+			struct scatterlist *abd_sgl; /* for LINEAR_PAGE */
+		} abd_linear;
+		struct abd_gang {
+			list_t abd_gang_chain;
+		} abd_gang;
+	} abd_u;
+};
+
 typedef int abd_iter_func_t(void *buf, size_t len, void *priv);
 typedef int abd_iter_func2_t(void *bufa, void *bufb, size_t len, void *priv);
 
@@ -136,7 +181,12 @@ abd_zero(abd_t *abd, size_t size)
 /*
  * ABD type check functions
  */
-boolean_t abd_is_linear(abd_t *);
+static inline boolean_t
+abd_is_linear(abd_t *abd)
+{
+	return ((abd->abd_flags & ABD_FLAG_LINEAR) != 0 ? B_TRUE : B_FALSE);
+}
+
 boolean_t abd_is_gang(abd_t *);
 boolean_t abd_is_linear_page(abd_t *);
 
