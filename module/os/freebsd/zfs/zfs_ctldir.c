@@ -1088,11 +1088,12 @@ zfsctl_snapdir_getattr(struct vop_getattr_args *ap)
 	vnode_t *vp = ap->a_vp;
 	vattr_t *vap = ap->a_vap;
 	zfsvfs_t *zfsvfs = vp->v_vfsp->vfs_data;
-	dsl_dataset_t *ds = dmu_objset_ds(zfsvfs->z_os);
+	dsl_dataset_t *ds;
 	uint64_t snap_count;
 	int err;
 
 	ZFS_ENTER(zfsvfs);
+	ds = dmu_objset_ds(zfsvfs->z_os);
 	zfsctl_common_getattr(vp, vap);
 	vap->va_ctime = dmu_objset_snap_cmtime(zfsvfs->z_os);
 	vap->va_mtime = vap->va_ctime;
