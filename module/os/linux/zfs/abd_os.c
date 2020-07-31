@@ -768,10 +768,9 @@ abd_alloc_for_io(size_t size, boolean_t is_metadata)
 	return (abd_alloc(size, is_metadata));
 }
 
-abd_t *
-abd_get_offset_scatter(abd_t *sabd, size_t off)
+void
+abd_get_offset_scatter(abd_t *abd, abd_t *sabd, size_t off)
 {
-	abd_t *abd = NULL;
 	int i = 0;
 	struct scatterlist *sg = NULL;
 
@@ -779,8 +778,6 @@ abd_get_offset_scatter(abd_t *sabd, size_t off)
 	ASSERT3U(off, <=, sabd->abd_size);
 
 	size_t new_offset = ABD_SCATTER(sabd).abd_offset + off;
-
-	abd = abd_alloc_struct(0);
 
 	/*
 	 * Even if this buf is filesystem metadata, we only track that
@@ -798,8 +795,6 @@ abd_get_offset_scatter(abd_t *sabd, size_t off)
 	ABD_SCATTER(abd).abd_sgl = sg;
 	ABD_SCATTER(abd).abd_offset = new_offset;
 	ABD_SCATTER(abd).abd_nents = ABD_SCATTER(sabd).abd_nents - i;
-
-	return (abd);
 }
 
 /*

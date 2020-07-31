@@ -57,6 +57,7 @@ void abd_free(abd_t *);
 void abd_put(abd_t *);
 abd_t *abd_get_offset(abd_t *, size_t);
 abd_t *abd_get_offset_size(abd_t *, size_t, size_t);
+abd_t *abd_get_offset_impl(abd_t *, abd_t *, size_t, size_t);
 abd_t *abd_get_zeros(size_t);
 abd_t *abd_get_from_buf(void *, size_t);
 

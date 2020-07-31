@@ -345,6 +345,16 @@ abd_alloc_sametype(abd_t *sabd, size_t size)
 	}
 }
 
+static void abd_setup_gang_abd(abd_t *abd)
+{
+	abd->abd_flags = ABD_FLAG_GANG | ABD_FLAG_OWNER;
+	abd->abd_size = 0;
+	abd->abd_parent = NULL;
+	list_create(&ABD_GANG(abd).abd_gang_chain,
+	    sizeof (abd_t), offsetof(abd_t, abd_gang_link));
+	zfs_refcount_create(&abd->abd_children);
+
+}
 
 /*
  * Create gang ABD that will be the head of a list of ABD's. This is used
@@ -354,15 +364,8 @@ abd_alloc_sametype(abd_t *sabd, size_t size)
 abd_t *
 abd_alloc_gang_abd(void)
 {
-	abd_t *abd;
-
-	abd = abd_alloc_struct(0);
-	abd->abd_flags = ABD_FLAG_GANG | ABD_FLAG_OWNER;
-	abd->abd_size = 0;
-	abd->abd_parent = NULL;
-	list_create(&ABD_GANG(abd).abd_gang_chain,
-	    sizeof (abd_t), offsetof(abd_t, abd_gang_link));
-	zfs_refcount_create(&abd->abd_children);
+	abd_t *abd = abd_alloc_struct(0);
+	abd_setup_gang_abd(abd);
 	return (abd);
 }
 
@@ -449,21 +452,17 @@ abd_gang_get_offset(abd_t *abd, size_t *off)
 }
 
 /*
- * Allocate a new ABD to point to offset off of sabd. It shares the underlying
- * buffer data with sabd. Use abd_put() to free. sabd must not be freed while
- * any derived ABDs exist.
+ * Fill in the provided abd to point to offset off of sabd. It shares the
+ * underlying buffer data with sabd. Use abd_put() to free. sabd must not be
+ * freed while any derived ABDs exist.
  */
-static abd_t *
-abd_get_offset_impl(abd_t *sabd, size_t off, size_t size)
+abd_t *
+abd_get_offset_impl(abd_t *abd, abd_t *sabd, size_t off, size_t size)
 {
-	abd_t *abd = NULL;
-
 	abd_verify(sabd);
 	ASSERT3U(off, <=, sabd->abd_size);
 
 	if (abd_is_linear(sabd)) {
-		abd = abd_alloc_struct(0);
-
 		/*
 		 * Even if this buf is filesystem metadata, we only track that
 		 * if we own the underlying data buffer, which is not true in
@@ -474,21 +473,24 @@ abd_get_offset_impl(abd_t *sabd, size_t off, size_t size)
 		ABD_LINEAR_BUF(abd) = (char *)ABD_LINEAR_BUF(sabd) + off;
 	} else if (abd_is_gang(sabd)) {
 		size_t left = size;
-		abd = abd_alloc_gang_abd();
+
+		abd_setup_gang_abd(abd);
+
 		abd->abd_flags &= ~ABD_FLAG_OWNER;
 		for (abd_t *cabd = abd_gang_get_offset(sabd, &off);
 		    cabd != NULL && left > 0;
 		    cabd = list_next(&ABD_GANG(sabd).abd_gang_chain, cabd)) {
 			int csize = MIN(left, cabd->abd_size - off);
 
-			abd_t *nabd = abd_get_offset_impl(cabd, off, csize);
+			abd_t *nabd = abd_get_offset_impl(abd_alloc_struct(0),
+			    cabd, off, csize);
 			abd_gang_add(abd, nabd, B_FALSE);
 			left -= csize;
 			off = 0;
 		}
 		ASSERT3U(left, ==, 0);
 	} else {
-		abd = abd_get_offset_scatter(sabd, off);
+		abd_get_offset_scatter(abd, sabd, off);
 	}
 
 	abd->abd_size = size;
@@ -503,14 +505,14 @@ abd_get_offset(abd_t *sabd, size_t off)
 {
 	size_t size = sabd->abd_size > off ? sabd->abd_size - off : 0;
 	VERIFY3U(size, >, 0);
-	return (abd_get_offset_impl(sabd, off, size));
+	return (abd_get_offset_impl(abd_alloc_struct(0), sabd, off, size));
 }
 
 abd_t *
 abd_get_offset_size(abd_t *sabd, size_t off, size_t size)
 {
 	ASSERT3U(off + size, <=, sabd->abd_size);
-	return (abd_get_offset_impl(sabd, off, size));
+	return (abd_get_offset_impl(abd_alloc_struct(0), sabd, off, size));
 }
 
 /*

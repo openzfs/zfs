@@ -345,10 +345,9 @@ abd_alloc_scatter_offset_chunkcnt(size_t chunkcnt)
 	return (abd);
 }
 
-abd_t *
-abd_get_offset_scatter(abd_t *sabd, size_t off)
+void
+abd_get_offset_scatter(abd_t *abd, abd_t *sabd, size_t off)
 {
-	abd_t *abd = NULL;
 
 	abd_verify(sabd);
 	ASSERT3U(off, <=, sabd->abd_size);
@@ -357,6 +356,7 @@ abd_get_offset_scatter(abd_t *sabd, size_t off)
 	size_t chunkcnt = abd_scatter_chunkcnt(sabd) -
 	    (new_offset / zfs_abd_chunk_size);
 
+	VERIFY(!"does not work, provided abd struct must be correct size");
 	abd = abd_alloc_scatter_offset_chunkcnt(chunkcnt);
 
 	/*
