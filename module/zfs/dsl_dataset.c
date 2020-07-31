@@ -28,6 +28,10 @@
  * Copyright (c) 2016 Actifio, Inc. All rights reserved.
  * Copyright 2016, OmniTI Computer Consulting, Inc. All rights reserved.
  * Copyright 2017 Nexenta Systems, Inc.
+ * Copyright (c) 2020 The FreeBSD Foundation [1]
+ *
+ * [1] Portions of this software were developed by Allan Jude
+ *     under sponsorship from the FreeBSD Foundation.
  */
 
 #include <sys/dmu_objset.h>
@@ -4504,6 +4508,73 @@ dsl_dataset_set_refreservation(const char *dsname, zprop_source_t source,
 
 	return (dsl_sync_task(dsname, dsl_dataset_set_refreservation_check,
 	    dsl_dataset_set_refreservation_sync, &ddsqra, 0,
+	    ZFS_SPACE_CHECK_EXTRA_RESERVED));
+}
+
+typedef struct dsl_dataset_set_compression_arg {
+	const char *ddsca_name;
+	zprop_source_t ddsca_source;
+	uint64_t ddsca_value;
+} dsl_dataset_set_compression_arg_t;
+
+/* ARGSUSED */
+static int
+dsl_dataset_set_compression_check(void *arg, dmu_tx_t *tx)
+{
+	dsl_dataset_set_compression_arg_t *ddsca = arg;
+	dsl_pool_t *dp = dmu_tx_pool(tx);
+
+	uint64_t compval = ZIO_COMPRESS_ALGO(ddsca->ddsca_value);
+	spa_feature_t f = zio_compress_to_feature(compval);
+
+	if (f == SPA_FEATURE_NONE)
+		return (SET_ERROR(EINVAL));
+
+	if (!spa_feature_is_enabled(dp->dp_spa, f))
+		return (SET_ERROR(ENOTSUP));
+
+	return (0);
+}
+
+static void
+dsl_dataset_set_compression_sync(void *arg, dmu_tx_t *tx)
+{
+	dsl_dataset_set_compression_arg_t *ddsca = arg;
+	dsl_pool_t *dp = dmu_tx_pool(tx);
+	dsl_dataset_t *ds = NULL;
+
+	uint64_t compval = ZIO_COMPRESS_ALGO(ddsca->ddsca_value);
+	spa_feature_t f = zio_compress_to_feature(compval);
+	ASSERT3S(spa_feature_table[f].fi_type, ==, ZFEATURE_TYPE_BOOLEAN);
+
+	VERIFY0(dsl_dataset_hold(dp, ddsca->ddsca_name, FTAG, &ds));
+	if (zfeature_active(f, ds->ds_feature[f]) != B_TRUE) {
+		dsl_dataset_activate_feature(ds->ds_object, f,
+		    ds->ds_feature_activation[f], tx);
+		ds->ds_feature[f] = ds->ds_feature_activation[f];
+	}
+	dsl_dataset_rele(ds, FTAG);
+}
+
+int
+dsl_dataset_set_compression(const char *dsname, zprop_source_t source,
+    uint64_t compression)
+{
+	dsl_dataset_set_compression_arg_t ddsca;
+
+	/*
+	 * The sync task is only required for zstd in order to activate
+	 * the feature flag when the property is first set.
+	 */
+	if (ZIO_COMPRESS_ALGO(compression) != ZIO_COMPRESS_ZSTD)
+		return (0);
+
+	ddsca.ddsca_name = dsname;
+	ddsca.ddsca_source = source;
+	ddsca.ddsca_value = compression;
+
+	return (dsl_sync_task(dsname, dsl_dataset_set_compression_check,
+	    dsl_dataset_set_compression_sync, &ddsca, 0,
 	    ZFS_SPACE_CHECK_EXTRA_RESERVED));
 }
 

@@ -2510,6 +2510,9 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 	case ZFS_PROP_REFRESERVATION:
 		err = dsl_dataset_set_refreservation(dsname, source, intval);
 		break;
+	case ZFS_PROP_COMPRESSION:
+		err = dsl_dataset_set_compression(dsname, source, intval);
+		break;
 	case ZFS_PROP_VOLSIZE:
 		err = zvol_set_volsize(dsname, intval);
 		break;
