@@ -1192,6 +1192,9 @@ zfs_domount(vfs_t *vfsp, char *osname)
 	vfsp->mnt_kern_flag |= MNTK_NOMSYNC;
 	vfsp->mnt_kern_flag |= MNTK_VMSETSIZE_BUG;
 
+#if defined(_KERNEL) && !defined(KMEM_DEBUG)
+	vfsp->mnt_kern_flag |= MNTK_FPLOOKUP;
+#endif
 	/*
 	 * The fsid is 64 bits, composed of an 8-bit fs type, which
 	 * separates our fsid from any other filesystem types, and a
