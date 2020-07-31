@@ -92,7 +92,8 @@ for arg in ${badargs[@]}; do
 done
 
 # Testing invalid datasets
-for ds in $snap $vol "blah"; do
+# Windows / macOS allow snapshot now; removing $snap
+for ds in $vol "blah"; do
 	for opt in "" "-f"; do
 		log_mustnot eval "zfs unmount $opt $ds >/dev/null 2>&1"
 	done

@@ -41,7 +41,10 @@
 #define	_LIBSPL_SYS_UIO_H
 
 #include <sys/types.h>
+
+#ifndef _WIN32
 #include_next <sys/uio.h>
+#endif
 
 #ifdef __APPLE__
 #include <sys/_types/_iovec_t.h>
@@ -50,7 +53,7 @@
 #include <stdint.h>
 typedef struct iovec iovec_t;
 
-#if defined(__linux__) || defined(__APPLE__)
+#if defined(__linux__) || defined(__APPLE__) || defined(_WIN32)
 typedef enum zfs_uio_rw {
 	UIO_READ =	0,
 	UIO_WRITE =	1,

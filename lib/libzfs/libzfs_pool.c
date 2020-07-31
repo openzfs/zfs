@@ -36,7 +36,6 @@
 #include <libintl.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <strings.h>
 #include <unistd.h>
 #include <libgen.h>
 #include <zone.h>
@@ -4962,9 +4961,9 @@ zpool_load_compat(const char *compat, boolean_t *features, char *report,
 		/* replace final newline with NULL to ensure string ends */
 		fc[fs.st_size - 1] = '\0';
 
-		for (line = strtok_r(fc, "\n", &ls);
+		for (line = strtok_r(fc, "\r\n", &ls);
 		    line != NULL;
-		    line = strtok_r(NULL, "\n", &ls)) {
+		    line = strtok_r(NULL, "\r\n", &ls)) {
 			/* discard comments */
 			char *r = strchr(line, '#');
 			if (r != NULL)

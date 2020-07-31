@@ -84,6 +84,7 @@ extern void __dprintf(boolean_t dprint, const char *file, const char *func,
 		__dprintf(B_FALSE, __FILE__, __func__, __LINE__, __VA_ARGS__)
 
 #ifdef ZFS_DEBUG
+#undef dprintf
 /*
  * To enable this:
  *

@@ -17,6 +17,9 @@
  * information: Portions Copyright [yyyy] [name of copyright owner]
  *
  * CDDL HEADER END
+ *
+ * Portions Copyright 2022 Andrew Innes <andrew.c12@gmail.com>
+ *
  */
 
 #ifndef	_SYS_ZVOL_IMPL_H
@@ -75,6 +78,7 @@ extern unsigned int zvol_inhibit_dev;
  */
 zvol_state_t *zvol_find_by_name_hash(const char *name,
     uint64_t hash, int mode);
+zvol_state_t *zvol_find_by_name(const char *name, int mode);
 int zvol_first_open(zvol_state_t *zv, boolean_t readonly);
 uint64_t zvol_name_hash(const char *name);
 void zvol_remove_minors_impl(const char *name);

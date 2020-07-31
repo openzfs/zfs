@@ -48,6 +48,8 @@ extern "C" {
 #elif defined(__linux__)
 #include <linux/limits.h>
 #include <linux/kernel.h>
+#elif defined(_WIN32)
+#include_next <limits.h>
 #else
 #error "Unsupported platform"
 #endif

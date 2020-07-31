@@ -43,6 +43,11 @@ static intptr_t stack_remaining(void) {
   local = (intptr_t)&local - (intptr_t)curthread->td_kstack;
   return local;
 }
+#elif defined (_KERNEL) && defined(_WIN32)
+#pragma warning "stack_remaining not implemented"
+static intptr_t stack_remaining(void) {
+  return INT_MAX;
+}
 #else
 static intptr_t stack_remaining(void) {
   return INTPTR_MAX;
@@ -65,11 +70,15 @@ static intptr_t stack_remaining(void) {
 
 #ifdef _KERNEL
 
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__) || defined(_WIN32)
 #if defined(__i386__)
 #define	JMP_BUF_CNT	6
 #elif defined(__x86_64__)
+#ifdef _WIN32
+#define	JMP_BUF_CNT	10 // +rsi +rdi
+#else
 #define	JMP_BUF_CNT	8
+#endif
 #elif defined(__sparc__) && defined(__arch64__)
 #define	JMP_BUF_CNT	6
 #elif defined(__powerpc__)

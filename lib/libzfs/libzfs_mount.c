@@ -462,6 +462,7 @@ zfs_mount_at(zfs_handle_t *zhp, const char *options, int flags,
 	strlcat(mntopts, "," MNTOPT_ZFSUTIL, sizeof (mntopts));
 
 	/* Create the directory if it doesn't already exist */
+#ifndef _WIN32
 	if (lstat(mountpoint, &buf) != 0) {
 		if (mkdirp(mountpoint, 0755) != 0) {
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
@@ -472,7 +473,7 @@ zfs_mount_at(zfs_handle_t *zhp, const char *options, int flags,
 			    mountpoint));
 		}
 	}
-
+#endif
 	/*
 	 * Overlay mounts are enabled by default but may be disabled
 	 * via the 'overlay' property. The -O flag remains for compatibility.

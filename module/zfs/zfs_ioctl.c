@@ -4037,6 +4037,11 @@ zfs_ioc_destroy(zfs_cmd_t *zc)
 	if (ost == DMU_OST_ZFS)
 		zfs_unmount_snap(zc->zc_name);
 
+#if defined(_WIN32) && defined(_KERNEL)
+	if (ost == DMU_OST_ZVOL)
+		zvol_os_detach(zc->zc_name);
+#endif
+
 	if (strchr(zc->zc_name, '@')) {
 		err = dsl_destroy_snapshot(zc->zc_name, zc->zc_defer_destroy);
 	} else {
@@ -4070,6 +4075,11 @@ zfs_ioc_destroy(zfs_cmd_t *zc)
 				err = SET_ERROR(EEXIST);
 		}
 	}
+
+#if defined(_WIN32) && defined(_KERNEL)
+	if (ost == DMU_OST_ZVOL && err != 0)
+		zvol_os_attach(zc->zc_name);
+#endif
 
 	return (err);
 }
@@ -6976,7 +6986,7 @@ error:
 
 static zfs_ioc_vec_t zfs_ioc_vec[ZFS_IOC_LAST - ZFS_IOC_FIRST];
 
-static void
+void
 zfs_ioctl_register_legacy(zfs_ioc_t ioc, zfs_ioc_legacy_func_t *func,
     zfs_secpolicy_func_t *secpolicy, zfs_ioc_namecheck_t namecheck,
     boolean_t log_history, zfs_ioc_poolcheck_t pool_check)
@@ -7588,7 +7598,12 @@ zfsdev_state_init(void *priv)
 
 	ASSERT(MUTEX_HELD(&zfsdev_state_lock));
 
+#if defined(_WIN32) && defined(_KERNEL)
+	minor = minor((dev_t)priv);
+#else
 	minor = zfsdev_minor_alloc();
+#endif
+
 	if (minor == 0)
 		return (SET_ERROR(ENXIO));
 

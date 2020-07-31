@@ -985,7 +985,8 @@ gcm_impl_set(const char *val)
 	return (err);
 }
 
-#if defined(_KERNEL) && defined(__linux__)
+#if defined(_KERNEL)
+#if defined(__linux__) || defined(_WIN32)
 
 static int
 icp_gcm_impl_set(const char *val, zfs_kernel_param_t *kp)
@@ -1024,6 +1025,32 @@ icp_gcm_impl_get(char *buffer, zfs_kernel_param_t *kp)
 
 	return (cnt);
 }
+#endif /* linux || windows */
+
+#ifdef _WIN32
+int
+win32_icp_gcm_impl_set(ZFS_MODULE_PARAM_ARGS)
+{
+	uint32_t val;
+	static unsigned char str[1024] = "";
+
+	*type = ZT_TYPE_STRING;
+
+	if (set == B_FALSE) {
+		if (gcm_impl_initialized)
+			icp_gcm_impl_get(str, NULL);
+		*ptr = str;
+		*len = strlen(str);
+		return (0);
+	}
+
+	ASSERT3P(ptr, !=, NULL);
+
+	gcm_impl_set(*ptr);
+
+	return (0);
+}
+#endif
 
 module_param_call(icp_gcm_impl, icp_gcm_impl_set, icp_gcm_impl_get,
     NULL, 0644);
@@ -1563,6 +1590,36 @@ icp_gcm_avx_set_chunk_size(const char *buf, zfs_kernel_param_t *kp)
 	error = param_set_uint(val_rounded, kp);
 	return (error);
 }
+
+#ifdef _WIN32
+/* Lives in here to have access to GCM macros */
+int
+win32_icp_gcm_avx_set_chunk_size(ZFS_MODULE_PARAM_ARGS)
+{
+	uint32_t val;
+
+	*type = ZT_TYPE_UINT;
+
+	if (set == B_FALSE) {
+		*ptr = &gcm_avx_chunk_size;
+		*len = sizeof (gcm_avx_chunk_size);
+		return (0);
+	}
+
+	ASSERT3U(*len, >=, sizeof (gcm_avx_chunk_size));
+
+	val = *(uint32_t *)(*ptr);
+
+	val = (val / GCM_AVX_MIN_DECRYPT_BYTES) * GCM_AVX_MIN_DECRYPT_BYTES;
+
+	if (val < GCM_AVX_MIN_ENCRYPT_BYTES || val > GCM_AVX_MAX_CHUNK_SIZE)
+		return (-EINVAL);
+
+	gcm_avx_chunk_size = val;
+
+	return (0);
+}
+#endif
 
 module_param_call(icp_gcm_avx_chunk_size, icp_gcm_avx_set_chunk_size,
     param_get_uint, &gcm_avx_chunk_size, 0644);

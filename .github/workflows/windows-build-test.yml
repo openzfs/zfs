@@ -1,0 +1,1937 @@
+######################################################################################
+#                                                                                    #
+#    If you're looking for instructions on how to build this under windows go to     #
+#https://github.com/openzfsonwindows/openzfs/blob/windows/module/os/windows/README.md#
+#                                                                                    #
+######################################################################################
+
+name: windows-build-test
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      run-failing:
+        type: boolean
+        default: true
+        description: Run tests that fail
+
+
+
+env:
+  # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
+  BUILD_TYPE: Debug
+
+jobs:
+  build_windows:
+    timeout-minutes: 30
+    # The CMake configure and build commands are platform agnostic and should work equally well on Windows or Mac.
+    # You can convert this to a matrix build if you need cross-platform coverage.
+    # See: https://docs.github.com/en/free-pro-team@latest/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
+    runs-on: windows-latest
+
+    steps:
+    - uses: ilammy/msvc-dev-cmd@v1
+
+    - uses: actions/checkout@v3
+      with:
+        #repository: openzfsonwindows/openzfs
+        fetch-depth: 0
+
+    - name: debug - git status
+      run: git status
+
+    #https://stackoverflow.com/a/60883893
+    #  "C:\Program Files\Git\bin\git.exe" -c protocol.version=2 fetch --no-tags --prune --progress --no-recurse-submodules --depth=1 origin +90acd8f20e6d0c14b83241cc7dcd17df27d5a95b:refs/remotes/origin/andrew_workflows-7
+    #- name: checkout again
+    #  run: git fetch --prune --unshallow
+
+
+    - name: Import signing certificate
+      run: |
+        $plaintextpwd = 'password1234'
+        $pwd = ConvertTo-SecureString -String $plaintextpwd -Force -AsPlainText
+        Import-PfxCertificate -FilePath ${{github.workspace}}/contrib/windows/TestCert/test_sign_cert_pass.pfx -CertStoreLocation Cert:\CurrentUser\My -Password $pwd -Exportable
+
+    #- name: Remove provided ssl
+    #  run:  Remove-Item -Path "C:\Strawberry\" -Recurse -Force
+
+    #- name: Install openssl
+    #  run: git clone https://github.com/andrewc12/openssl.git
+
+    - name: Checkout openssl
+      uses: actions/checkout@v3
+      with:
+        repository: andrewc12/openssl # optional, default is ${{ github.repository }}
+        path: openssl # optional
+
+    - name: Configure CMake
+      # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
+      # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
+      run: cmake -G "Ninja" -B ${{github.workspace}}/out/build/x64-Debug ${{github.workspace}}  -DOPENSSL_ROOT_DIR=${{github.workspace}}/openssl/ -DCRYPTO_STATIC_TEST=${{github.workspace}}/openssl/lib/VC/static/libcrypto64MTd.lib -DLIB_EAY_DEBUG=${{github.workspace}}/openssl/lib/VC/static/libcrypto64MTd.lib -DLIB_EAY_RELEASE=${{github.workspace}}/openssl/lib/VC/static/libcrypto64MT.lib -DOPENSSL_INCLUDE_DIR=${{github.workspace}}/openssl/include -DSSL_EAY_DEBUG=${{github.workspace}}/openssl/lib/VC/static/libssl64MTd.lib -DSSL_EAY_RELEASE=${{github.workspace}}/openssl/lib/VC/static/libssl64MT.lib
+
+    - name: Build
+      working-directory: ${{github.workspace}}/out/build/x64-Debug
+      # Build your program with the given configuration
+      run: cmake --build ${{github.workspace}}/out/build/x64-Debug
+
+    - name: debug - get git rev
+      run: git describe --always --long --dirty
+
+    - name: Download Inno Setup istaller
+      uses: suisei-cn/actions-download-file@v1.3.0
+      id: innoinstaller
+      with:
+        url: 'https://jrsoftware.org/download.php/is.exe'
+        target: ${{github.workspace}}/
+
+    - name: debug - echo filename
+      run: echo ${{ steps.innoinstaller.outputs.filename }}
+
+    - name: debug - list
+      run: ls ${{github.workspace}}\
+
+    - name: debug - list
+      run: ls ${{github.workspace}}\${{ steps.innoinstaller.outputs.filename }}
+
+    - name: install inno
+      run: 'Start-Process -FilePath "${{github.workspace}}\${{ steps.innoinstaller.outputs.filename }}" -Wait -ArgumentList "/NORESTART /ALLUSERS /VERYSILENT /LOG=`"${{github.workspace}}\InnoSetup-Install.log`""'
+
+    #- name: Wait for install to finish
+    #  run: Start-Sleep -Seconds 30
+    #  uses: iFaxity/wait-on-action@v1
+    #  with:
+    #    resource: 'C:\Program Files\OpenZFS On Windows\zpool.exe'
+
+    - name: debug - print log
+      run: cat "${{github.workspace}}\InnoSetup-Install.log"
+
+    - name: run ISCC.exe to construct OpenZFS installer
+      run: '&"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" .\ZFSInstall-debug.iss "/Ssigntoolc=C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64\signtool.exe sign /v /fd sha256 /n `$qOpenZFS Test Signing Certificate`$q /t http://timestamp.digicert.com `$f" | Tee-Object -FilePath "${{github.workspace}}\iscc.log"'
+      working-directory: ${{github.workspace}}\contrib\windows\Inno.Setup
+
+    #- name: debug - get exe name
+    # https://stackoverflow.com/questions/4426442/unix-tail-equivalent-command-in-windows-powershell
+    #  run: Get-Content "${{github.workspace}}\iscc.log" -Tail 1
+
+    - name: get installer exe name
+      id: innoout
+    # https://stackoverflow.com/questions/4426442/unix-tail-equivalent-command-in-windows-powershell
+    #https://www.jamescroft.co.uk/setting-github-actions-environment-variables-in-powershell/
+      run: |
+        $p = Get-Content "${{github.workspace}}\iscc.log" -Tail 1
+        echo $p
+        $f = (Get-Item $p ).Name
+        echo $f
+        echo installername=$f
+        #echo "installername=$f" >> $GITHUB_ENV
+        #echo "installername=$f" >> $GITHUB_OUTPUT
+        echo "installername=$f" | Out-File -FilePath $Env:GITHUB_OUTPUT -Encoding utf8 -Append
+      #shell: pwsh
+
+
+    - name: debug - echo
+      run: echo "${{ steps.innoout.outputs.installername }}"
+
+    - name: Upload a Build Artifact
+      if: ${{ failure() }}
+      uses: actions/upload-artifact@v3.1.0
+      with:
+        name: build_output
+        path: ${{github.workspace}}/out
+
+    - name: Collect dev build
+      if: ${{ failure() }}
+      run: |
+        mkdir ${{github.workspace}}/zfs_collect
+        copy ${{github.workspace}}/out/build/x64-Debug/module/os/windows/driver/* ${{github.workspace}}/zfs_collect
+        copy ${{github.workspace}}/out/build/x64-Debug/cmd/os/windows/kstat/kstat.exe ${{github.workspace}}/zfs_collect/kstat.exe
+        copy ${{github.workspace}}/out/build/x64-Debug/cmd/os/windows/zfsinstaller/zfsinstaller.exe ${{github.workspace}}/zfs_collect/zfsinstaller.exe
+        copy ${{github.workspace}}/out/build/x64-Debug/cmd/zdb/zdb.exe ${{github.workspace}}/zfs_collect/zdb.exe
+        copy ${{github.workspace}}/out/build/x64-Debug/cmd/zfs/zfs.exe ${{github.workspace}}/zfs_collect/zfs.exe
+        copy ${{github.workspace}}/out/build/x64-Debug/cmd/zpool/zpool.exe ${{github.workspace}}/zfs_collect/zpool.exe
+        copy ${{github.workspace}}/out/build/x64-Debug/cmd/zstream/zstreamdump.exe ${{github.workspace}}/zfs_collect/zstreamdump.exe
+
+    - name: Upload dev build
+      if: ${{ failure() }}
+      uses: actions/upload-artifact@v3.1.0
+      with:
+        name: dev_build
+        path: ${{github.workspace}}/zfs_collect/*
+
+    - name: Upload dev build with Inno Setup
+      uses: actions/upload-artifact@v3.1.0
+      with:
+        name: dev_build_inno
+        path: ${{github.workspace}}\contrib\windows\${{ steps.innoout.outputs.name }}
+
+
+
+
+
+    # https://github.com/MicrosoftDocs/windows-powershell-docs/issues/266
+    - name: Import root certificate
+      run: |
+        $plaintextpwd = 'password1234'
+        $pwd = ConvertTo-SecureString -String $plaintextpwd -Force -AsPlainText
+        Import-PfxCertificate -FilePath ${{github.workspace}}/contrib/windows/TestCert/test_sign_cert_pass.pfx -CertStoreLocation Cert:\LocalMachine\Root -Password $pwd
+        Import-PfxCertificate -FilePath ${{github.workspace}}/contrib/windows/TestCert/test_sign_cert_pass.pfx -CertStoreLocation Cert:\LocalMachine\TrustedPublisher -Password $pwd
+
+    - name: install zfs
+      run: 'Start-Process -FilePath "${{github.workspace}}\contrib\windows\${{ steps.innoout.outputs.installername }}" -Wait -ArgumentList "/NORESTART /ALLUSERS /VERYSILENT /LOG=`"${{github.workspace}}\InnoSetup-Install.log`""'
+
+    #- name: Wait for install to finish
+    #  run: Start-Sleep -Seconds 30
+    #  uses: iFaxity/wait-on-action@v1
+    #  with:
+    #    resource: 'C:\Program Files\OpenZFS On Windows\zpool.exe'
+
+    - name: debug - print log
+      run: cat "${{github.workspace}}\InnoSetup-Install.log"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# This is a basic workflow to help you get started with Actions
+# https://github.blog/changelog/2020-07-06-github-actions-manual-triggers-with-workflow_dispatch/
+
+  test1_tests:
+    needs: [build_windows] #, build_wsl]
+    timeout-minutes: 30
+    runs-on: windows-latest
+    steps:
+
+    - uses: actions/checkout@v3
+
+
+    - uses: actions/download-artifact@v3
+      with:
+        name: dev_build_inno
+
+#    - uses: actions/download-artifact@v3
+#      with:
+#        name: build result
+
+#    - name: get files
+#      run: Get-ChildItem -Recurse
+
+    - name: get diskdrive
+      run: wmic diskdrive list
+
+#    - name: Download
+#      uses: suisei-cn/actions-download-file@v1.3.0
+#      #id: innoinstaller
+#      with:
+#        url: 'https://github.com/andrewc12/zfsfiledump/raw/main/testdrives.zip'
+#        target: ${{github.workspace}}/
+#
+#
+#    - name: make disk
+#      run: |
+#        Expand-Archive -LiteralPath ${{github.workspace}}/testdrives.zip -DestinationPath D:\
+#
+#    - name: Download
+#      uses: suisei-cn/actions-download-file@v1.3.0
+#      #id: innoinstaller
+#      with:
+#        url: 'https://github.com/andrewc12/zfsfiledump/raw/main/scriptname.txt'
+#        target: ${{github.workspace}}/
+#
+#    - name: make disk
+#      run: |
+#        diskpart /s scriptname.txt
+#
+#
+#
+#    - name: get diskdrive
+#      run: wmic diskdrive list
+#
+#
+#    - name: get files
+#      run: Get-ChildItem -Recurse
+
+
+    - name: get zfsexename
+      id: zfsinstaller
+      run: |
+        $p = Get-ChildItem | Where-Object {$_.Name -like 'OpenZFSOnWindows-*.exe'} | Select-Object -first 1
+        echo $p
+        $f = (Get-Item $p ).Name
+        echo $f
+        echo zfsinstallerfilename=$f
+        echo "zfsinstallerfilename=$f" | Out-File -FilePath $Env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+    # https://github.com/MicrosoftDocs/windows-powershell-docs/issues/266
+    - name: Import root certificate
+      run: |
+        $plaintextpwd = 'password1234'
+        $pwd = ConvertTo-SecureString -String $plaintextpwd -Force -AsPlainText
+        Import-PfxCertificate -FilePath ${{github.workspace}}/contrib/windows/TestCert/test_sign_cert_pass.pfx -CertStoreLocation Cert:\LocalMachine\Root -Password $pwd
+        Import-PfxCertificate -FilePath ${{github.workspace}}/contrib/windows/TestCert/test_sign_cert_pass.pfx -CertStoreLocation Cert:\LocalMachine\TrustedPublisher -Password $pwd
+
+    - name: debug - echo filename
+      run: echo "${{ steps.zfsinstaller.outputs.zfsinstallerfilename }}"
+
+#    - name: debug - list
+#      run: ls ${{github.workspace}}\
+
+    - name: debug - list
+      run: ls ${{github.workspace}}\${{ steps.zfsinstaller.outputs.filename }}
+
+    #- name: install zfs
+    #  run: ${{github.workspace}}\${{ steps.zfsinstaller.outputs.filename }} /NORESTART /ALLUSERS /VERYSILENT /LOG="${{github.workspace}}\InnoSetup-Install.log"
+
+    - name: install zfs
+      run: 'Start-Process -FilePath "${{github.workspace}}\${{ steps.zfsinstaller.outputs.zfsinstallerfilename }}" -Wait -ArgumentList "/NORESTART /ALLUSERS /VERYSILENT /LOG=`"${{github.workspace}}\InnoSetup-Install.log`""'
+
+    #- name: Wait for install to finish
+    #  run: Start-Sleep -Seconds 30
+    #  uses: iFaxity/wait-on-action@v1
+    #  with:
+    #    resource: 'C:\Program Files\OpenZFS On Windows\zpool.exe'
+
+#    - name: debug - print log
+#      run: cat "${{github.workspace}}\InnoSetup-Install.log"
+#
+#    - name: debug - list
+#      run: ls "C:\Program Files"
+#
+#    - name: debug - list
+#      run: ls "C:\Program Files\OpenZFS On Windows"
+
+    - name: debug - get status
+      run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" status'
+
+
+
+
+
+
+
+    - name: Create backing files
+      run: |
+          $f = new-object System.IO.FileStream ${{github.workspace}}\test01.dat, Create, ReadWrite
+          $f.SetLength(1GB)
+          $f.Close()
+          $f = new-object System.IO.FileStream ${{github.workspace}}\test02.dat, Create, ReadWrite
+          $f.SetLength(1GB)
+          $f.Close()
+          $f = new-object System.IO.FileStream ${{github.workspace}}\test03.dat, Create, ReadWrite
+          $f.SetLength(1GB)
+          $f.Close()
+
+#    - run: choco install gsudo
+
+    - name: tests/functional/cli_root/zpool_create/zpool_create_001_pos
+      timeout-minutes: 1
+      run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" create -f test01 \\?\${{github.workspace}}\test01.dat'
+    - run: Start-Sleep -Seconds 10
+      timeout-minutes: 1
+
+    - run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" status'
+      timeout-minutes: 1
+    - run: Start-Sleep -Seconds 10
+      timeout-minutes: 1
+
+    - run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" destroy -f test01'
+      timeout-minutes: 1
+    - run: Start-Sleep -Seconds 10
+      timeout-minutes: 1
+
+    - run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" create -f test02 \\?\${{github.workspace}}\test01.dat \\?\${{github.workspace}}\test02.dat'
+      timeout-minutes: 1
+    - run: Start-Sleep -Seconds 10
+      timeout-minutes: 1
+
+    - run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" destroy -f test02'
+      timeout-minutes: 1
+    - run: Start-Sleep -Seconds 10
+      timeout-minutes: 1
+
+    - run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" create -f test03 \\?\${{github.workspace}}\test01.dat \\?\${{github.workspace}}\test02.dat \\?\${{github.workspace}}\test03.dat'
+      timeout-minutes: 1
+    - run: Start-Sleep -Seconds 10
+      timeout-minutes: 1
+
+    - run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" destroy -f test03'
+      timeout-minutes: 1
+    - run: Start-Sleep -Seconds 10
+      timeout-minutes: 1
+
+    - run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" create -f test04 mirror \\?\${{github.workspace}}\test01.dat \\?\${{github.workspace}}\test02.dat'
+      timeout-minutes: 1
+    - run: Start-Sleep -Seconds 10
+      timeout-minutes: 1
+
+    - run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" destroy -f test04'
+      timeout-minutes: 1
+    - run: Start-Sleep -Seconds 10
+      timeout-minutes: 1
+
+    - run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" create -f test05 mirror \\?\${{github.workspace}}\test01.dat \\?\${{github.workspace}}\test02.dat \\?\${{github.workspace}}\test03.dat'
+      timeout-minutes: 1
+    - run: Start-Sleep -Seconds 10
+      timeout-minutes: 1
+
+    - run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" destroy -f test05'
+      timeout-minutes: 1
+    - run: Start-Sleep -Seconds 10
+      timeout-minutes: 1
+
+    - run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" create -f test06 raidz \\?\${{github.workspace}}\test01.dat \\?\${{github.workspace}}\test02.dat \\?\${{github.workspace}}\test03.dat'
+      timeout-minutes: 1
+    - run: Start-Sleep -Seconds 10
+      timeout-minutes: 1
+
+    - run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" destroy -f test06'
+      timeout-minutes: 1
+    - run: Start-Sleep -Seconds 10
+      timeout-minutes: 1
+
+    - run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" create -f test07 raidz1 \\?\${{github.workspace}}\test01.dat \\?\${{github.workspace}}\test02.dat \\?\${{github.workspace}}\test03.dat'
+      timeout-minutes: 1
+    - run: Start-Sleep -Seconds 10
+      timeout-minutes: 1
+
+    - run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" destroy -f test07'
+      timeout-minutes: 1
+    - run: Start-Sleep -Seconds 10
+      timeout-minutes: 1
+
+
+
+
+    - name: uninstall zfs
+      run: 'Start-Process -FilePath "C:\Program Files\OpenZFS On Windows\unins000.exe" -Wait -ArgumentList "/NORESTART /VERYSILENT /LOG=`"${{github.workspace}}\InnoSetup-Uninstall.log`""'
+
+    - name: debug - print log
+      run: cat "${{github.workspace}}\InnoSetup-Uninstall.log"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# This is a basic workflow to help you get started with Actions
+# https://github.blog/changelog/2020-07-06-github-actions-manual-triggers-with-workflow_dispatch/
+
+  test2_winbtrfs:
+    needs: [build_windows] #, build_wsl]
+    timeout-minutes: 30
+    runs-on: windows-latest
+#    if:  ${{ inputs.run-failing }}
+    steps:
+
+    - uses: actions/checkout@v3
+
+
+    - uses: actions/download-artifact@v3
+      with:
+        name: dev_build_inno
+
+#    - uses: actions/download-artifact@v3
+#      with:
+#        name: build result
+
+#    - name: get files
+#      run: Get-ChildItem -Recurse
+
+    - name: get diskdrive
+      run: wmic diskdrive list
+
+#    - name: Download
+#      uses: suisei-cn/actions-download-file@v1.3.0
+#      #id: innoinstaller
+#      with:
+#        url: 'https://github.com/andrewc12/zfsfiledump/raw/main/testdrives.zip'
+#        target: ${{github.workspace}}/
+#
+#
+#    - name: make disk
+#      run: |
+#        Expand-Archive -LiteralPath ${{github.workspace}}/testdrives.zip -DestinationPath D:\
+#
+#    - name: Download
+#      uses: suisei-cn/actions-download-file@v1.3.0
+#      #id: innoinstaller
+#      with:
+#        url: 'https://github.com/andrewc12/zfsfiledump/raw/main/scriptname.txt'
+#        target: ${{github.workspace}}/
+#
+#    - name: make disk
+#      run: |
+#        diskpart /s scriptname.txt
+#
+#
+#
+#    - name: get diskdrive
+#      run: wmic diskdrive list
+#
+#
+#    - name: get files
+#      run: Get-ChildItem -Recurse
+
+
+    - name: get zfsexename
+      id: zfsinstaller
+      run: |
+        $p = Get-ChildItem | Where-Object {$_.Name -like 'OpenZFSOnWindows-*.exe'} | Select-Object -first 1
+        echo $p
+        $f = (Get-Item $p ).Name
+        echo $f
+        echo "filename=$f" | Out-File -FilePath $Env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+    # https://github.com/MicrosoftDocs/windows-powershell-docs/issues/266
+    - name: Import root certificate
+      run: |
+        $plaintextpwd = 'password1234'
+        $pwd = ConvertTo-SecureString -String $plaintextpwd -Force -AsPlainText
+        Import-PfxCertificate -FilePath ${{github.workspace}}/contrib/windows/TestCert/test_sign_cert_pass.pfx -CertStoreLocation Cert:\LocalMachine\Root -Password $pwd
+        Import-PfxCertificate -FilePath ${{github.workspace}}/contrib/windows/TestCert/test_sign_cert_pass.pfx -CertStoreLocation Cert:\LocalMachine\TrustedPublisher -Password $pwd
+
+    - name: debug - echo filename
+      run: echo ${{ steps.zfsinstaller.outputs.filename }}
+
+#    - name: debug - list
+#      run: ls ${{github.workspace}}\
+
+    - name: debug - list
+      run: ls ${{github.workspace}}\${{ steps.zfsinstaller.outputs.filename }}
+
+    #- name: install zfs
+    #  run: ${{github.workspace}}\${{ steps.zfsinstaller.outputs.filename }} /NORESTART /ALLUSERS /VERYSILENT /LOG="${{github.workspace}}\InnoSetup-Install.log"
+
+    - name: install zfs
+      run: 'Start-Process -FilePath "${{github.workspace}}\${{ steps.zfsinstaller.outputs.filename }}" -Wait -ArgumentList "/NORESTART /ALLUSERS /VERYSILENT /LOG=`"${{github.workspace}}\InnoSetup-Install.log`""'
+
+    #- name: Wait for install to finish
+    #  run: Start-Sleep -Seconds 30
+    #  uses: iFaxity/wait-on-action@v1
+    #  with:
+    #    resource: 'C:\Program Files\OpenZFS On Windows\zpool.exe'
+
+#    - name: debug - print log
+#      run: cat "${{github.workspace}}\InnoSetup-Install.log"
+#
+#    - name: debug - list
+#      run: ls "C:\Program Files"
+#
+#    - name: debug - list
+#      run: ls "C:\Program Files\OpenZFS On Windows"
+
+    - name: debug - get status
+      run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" status'
+
+
+
+
+
+
+
+    - name: Create backing files
+      run: |
+          $f = new-object System.IO.FileStream ${{github.workspace}}\test01.dat, Create, ReadWrite
+          $f.SetLength(1GB)
+          $f.Close()
+
+    - name: create pool
+      run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" create tank \\?\${{github.workspace}}\test01.dat'
+
+    - name: get pool status
+      run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" status'
+
+    - name: get pool mount
+      run: '& "C:\Program Files\OpenZFS On Windows\zfs.exe" mount'
+
+    - name: get pool mount
+      id: drive  # Remember to give an ID if you need the output filename
+      run: '& "C:\Program Files\OpenZFS On Windows\zfs.exe"  mount | Select-String -Pattern "^tank +([A-Za-z]):[/\\]"  | % {"drive=$($_.matches.groups[1].value):\"} | Out-File -FilePath $Env:GITHUB_OUTPUT -Encoding utf8 -Append'
+
+
+    - name: echo
+      run: echo ${{ steps.drive.outputs.drive }}
+
+
+    - name: Download winbtrfs
+      uses: suisei-cn/actions-download-file@v1.3.0
+      id: winbtrs  # Remember to give an ID if you need the output filename
+      with:
+        url: "https://github.com/andrewc12/btrfs/releases/download/v1.8/x64-Debug.zip"
+        target: ${{github.workspace}}/
+
+    - name: extract
+      run: Expand-Archive -LiteralPath '${{ steps.winbtrs.outputs.filename }}' -DestinationPath ${{github.workspace}}\winbtrfs
+
+    - name: debug - list
+      run: ls ${{github.workspace}}\
+
+    - name: debug - list
+      run: ls ${{github.workspace}}\winbtrfs
+
+
+    #- name: run winbtrfs tests
+    #  run: '& "${{github.workspace}}\winbtrfs\test.exe" ${{ steps.drive.outputs.drive }}'
+
+    - name: test dummy status step
+      id: dummy
+      run: exit 0
+
+    - name: debug - dummy status
+      run: echo ${{ steps.dummy.conclusion }}
+
+    - run: Start-Sleep -Seconds 10
+      timeout-minutes: 1
+
+    #https://github.com/maharmstone/btrfs/blob/master/src/tests/test.cpp#L453
+    - name: run winbtrfs create tests
+      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+      timeout-minutes: 1
+      run: '& "${{github.workspace}}\winbtrfs\test.exe" create ${{ steps.drive.outputs.drive }}'
+
+    - run: Start-Sleep -Seconds 10
+      timeout-minutes: 1
+
+    - name: run winbtrfs supersede tests
+      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+      timeout-minutes: 1
+      run: '& "${{github.workspace}}\winbtrfs\test.exe" supersede ${{ steps.drive.outputs.drive }}'
+
+    - run: Start-Sleep -Seconds 10
+      timeout-minutes: 1
+
+    - name: run winbtrfs overwrite tests
+      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+      timeout-minutes: 1
+      run: '& "${{github.workspace}}\winbtrfs\test.exe" overwrite ${{ steps.drive.outputs.drive }}'
+
+    - run: Start-Sleep -Seconds 10
+      timeout-minutes: 1
+
+    - name: run winbtrfs open_id tests
+      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+      timeout-minutes: 1
+      run: '& "${{github.workspace}}\winbtrfs\test.exe" open_id ${{ steps.drive.outputs.drive }}'
+
+    - run: Start-Sleep -Seconds 10
+      timeout-minutes: 1
+
+    - name: run winbtrfs io tests
+      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+      timeout-minutes: 1
+      run: '& "${{github.workspace}}\winbtrfs\test.exe" io ${{ steps.drive.outputs.drive }}'
+
+    - run: Start-Sleep -Seconds 10
+      timeout-minutes: 1
+
+    - name: run winbtrfs mmap tests
+      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+      timeout-minutes: 1
+      run: '& "${{github.workspace}}\winbtrfs\test.exe" mmap ${{ steps.drive.outputs.drive }}'
+
+    - run: Start-Sleep -Seconds 10
+      timeout-minutes: 1
+
+    - name: run winbtrfs rename tests
+      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+      timeout-minutes: 1
+      run: '& "${{github.workspace}}\winbtrfs\test.exe" rename ${{ steps.drive.outputs.drive }}'
+
+    - run: Start-Sleep -Seconds 10
+      timeout-minutes: 1
+
+    - name: run winbtrfs rename_ex tests
+      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+      timeout-minutes: 1
+      run: '& "${{github.workspace}}\winbtrfs\test.exe" rename_ex ${{ steps.drive.outputs.drive }}'
+
+    - run: Start-Sleep -Seconds 10
+      timeout-minutes: 1
+
+    - name: run winbtrfs delete tests
+      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+      timeout-minutes: 1
+      run: '& "${{github.workspace}}\winbtrfs\test.exe" delete ${{ steps.drive.outputs.drive }}'
+
+    - run: Start-Sleep -Seconds 10
+      timeout-minutes: 1
+
+    - name: run winbtrfs delete_ex tests
+      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+      timeout-minutes: 1
+      run: '& "${{github.workspace}}\winbtrfs\test.exe" delete_ex ${{ steps.drive.outputs.drive }}'
+
+    - run: Start-Sleep -Seconds 10
+      timeout-minutes: 1
+
+    - name: run winbtrfs links tests
+      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+      timeout-minutes: 1
+      run: '& "${{github.workspace}}\winbtrfs\test.exe" links ${{ steps.drive.outputs.drive }}'
+
+    - run: Start-Sleep -Seconds 10
+      timeout-minutes: 1
+
+    - name: run winbtrfs links_ex tests
+      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+      timeout-minutes: 1
+      run: '& "${{github.workspace}}\winbtrfs\test.exe" links_ex ${{ steps.drive.outputs.drive }}'
+
+    - run: Start-Sleep -Seconds 10
+      timeout-minutes: 1
+
+    - name: run winbtrfs oplock_i tests
+      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+      timeout-minutes: 1
+      run: '& "${{github.workspace}}\winbtrfs\test.exe" oplock_i ${{ steps.drive.outputs.drive }}'
+
+    - run: Start-Sleep -Seconds 10
+      timeout-minutes: 1
+
+    - name: run winbtrfs oplock_ii tests
+      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+      timeout-minutes: 1
+      run: '& "${{github.workspace}}\winbtrfs\test.exe" oplock_ii ${{ steps.drive.outputs.drive }}'
+
+    - run: Start-Sleep -Seconds 10
+      timeout-minutes: 1
+
+    - name: run winbtrfs oplock_batch tests
+      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+      timeout-minutes: 1
+      run: '& "${{github.workspace}}\winbtrfs\test.exe" oplock_batch ${{ steps.drive.outputs.drive }}'
+
+    - run: Start-Sleep -Seconds 10
+      timeout-minutes: 1
+
+    - name: run winbtrfs oplock_filter tests
+      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+      timeout-minutes: 1
+      run: '& "${{github.workspace}}\winbtrfs\test.exe" oplock_filter ${{ steps.drive.outputs.drive }}'
+
+    - run: Start-Sleep -Seconds 10
+      timeout-minutes: 1
+
+    - name: run winbtrfs oplock_r tests
+      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+      timeout-minutes: 1
+      run: '& "${{github.workspace}}\winbtrfs\test.exe" oplock_r ${{ steps.drive.outputs.drive }}'
+
+    - run: Start-Sleep -Seconds 10
+      timeout-minutes: 1
+
+    - name: run winbtrfs oplock_rw tests
+      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+      timeout-minutes: 1
+      run: '& "${{github.workspace}}\winbtrfs\test.exe" oplock_rw ${{ steps.drive.outputs.drive }}'
+
+    - run: Start-Sleep -Seconds 10
+      timeout-minutes: 1
+
+    - name: run winbtrfs oplock_rh tests
+      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+      timeout-minutes: 1
+      run: '& "${{github.workspace}}\winbtrfs\test.exe" oplock_rh ${{ steps.drive.outputs.drive }}'
+
+    - run: Start-Sleep -Seconds 10
+      timeout-minutes: 1
+
+    - name: run winbtrfs oplock_rwh tests
+      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+      timeout-minutes: 1
+      run: '& "${{github.workspace}}\winbtrfs\test.exe" oplock_rwh ${{ steps.drive.outputs.drive }}'
+
+    - run: Start-Sleep -Seconds 10
+      timeout-minutes: 1
+
+    - name: run winbtrfs cs tests
+      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+      timeout-minutes: 1
+      run: '& "${{github.workspace}}\winbtrfs\test.exe" cs ${{ steps.drive.outputs.drive }}'
+
+    - run: Start-Sleep -Seconds 10
+      timeout-minutes: 1
+
+    - name: run winbtrfs reparse tests
+      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+      timeout-minutes: 1
+      run: '& "${{github.workspace}}\winbtrfs\test.exe" reparse ${{ steps.drive.outputs.drive }}'
+
+    - run: Start-Sleep -Seconds 10
+      timeout-minutes: 1
+
+    - name: run winbtrfs streams tests
+      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+      timeout-minutes: 1
+      run: '& "${{github.workspace}}\winbtrfs\test.exe" streams ${{ steps.drive.outputs.drive }}'
+
+    - run: Start-Sleep -Seconds 10
+      timeout-minutes: 1
+
+    #- name: run winbtrfs ea tests
+    #  if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+    #  run: '& "${{github.workspace}}\winbtrfs\test.exe" ea ${{ steps.drive.outputs.drive }}'
+
+    - name: run winbtrfs fileinfo tests
+      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+      timeout-minutes: 1
+      run: '& "${{github.workspace}}\winbtrfs\test.exe" fileinfo ${{ steps.drive.outputs.drive }}'
+
+    - run: Start-Sleep -Seconds 10
+      timeout-minutes: 1
+
+    - name: run winbtrfs ea tests
+      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+      timeout-minutes: 1
+      run: '& "${{github.workspace}}\winbtrfs\test.exe" ea ${{ steps.drive.outputs.drive }}'
+
+    #- name: run export zpool
+    #  if: ${{ always() }}
+    #  timeout-minutes: 1
+    #  run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" export tank'
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# This is a basic workflow to help you get started with Actions
+# https://github.blog/changelog/2020-07-06-github-actions-manual-triggers-with-workflow_dispatch/
+
+#  test3:
+#    needs: [build_windows, build_wsl]
+#    runs-on: windows-latest
+#    steps:
+#
+#    - uses: actions/checkout@v3
+#
+#
+#    - uses: actions/download-artifact@v3
+#      with:
+#        name: dev_build_inno
+#
+##    - uses: actions/download-artifact@v3
+##      with:
+##        name: build result
+#
+##    - name: get files
+##      run: Get-ChildItem -Recurse
+#
+#    - name: get diskdrive
+#      run: wmic diskdrive list
+#
+##    - name: Download
+##      uses: suisei-cn/actions-download-file@v1.3.0
+##      #id: innoinstaller
+##      with:
+##        url: 'https://github.com/andrewc12/zfsfiledump/raw/main/testdrives.zip'
+##        target: ${{github.workspace}}/
+##
+##
+##    - name: make disk
+##      run: |
+##        Expand-Archive -LiteralPath ${{github.workspace}}/testdrives.zip -DestinationPath D:\
+##
+##    - name: Download
+##      uses: suisei-cn/actions-download-file@v1.3.0
+##      #id: innoinstaller
+##      with:
+##        url: 'https://github.com/andrewc12/zfsfiledump/raw/main/scriptname.txt'
+##        target: ${{github.workspace}}/
+##
+##    - name: make disk
+##      run: |
+##        diskpart /s scriptname.txt
+##
+##
+##
+##    - name: get diskdrive
+##      run: wmic diskdrive list
+##
+##
+##    - name: get files
+##      run: Get-ChildItem -Recurse
+#
+#
+#    - name: get zfsexename
+#      id: zfsinstaller
+#      run: |
+#        $p = Get-ChildItem | Where-Object {$_.Name -like 'OpenZFSOnWindows-*.exe'} | Select-Object -first 1
+#        echo $p
+#        $f = (Get-Item $p ).Name
+#        echo $f
+#        echo "::set-output name=filename::$($f)"
+#
+#    # https://github.com/MicrosoftDocs/windows-powershell-docs/issues/266
+#    - name: Import root certificate
+#      run: |
+#        $plaintextpwd = 'password1234'
+#        $pwd = ConvertTo-SecureString -String $plaintextpwd -Force -AsPlainText
+#        Import-PfxCertificate -FilePath ${{github.workspace}}/contrib/windows/TestCert/test_sign_cert_pass.pfx -CertStoreLocation Cert:\LocalMachine\Root -Password $pwd
+#        Import-PfxCertificate -FilePath ${{github.workspace}}/contrib/windows/TestCert/test_sign_cert_pass.pfx -CertStoreLocation Cert:\LocalMachine\TrustedPublisher -Password $pwd
+#
+#    - name: debug - echo filename
+#      run: echo ${{ steps.zfsinstaller.outputs.filename }}
+#
+##    - name: debug - list
+##      run: ls ${{github.workspace}}\
+#
+#    - name: debug - list
+#      run: ls ${{github.workspace}}\${{ steps.zfsinstaller.outputs.filename }}
+#
+#    #- name: install zfs
+#    #  run: ${{github.workspace}}\${{ steps.zfsinstaller.outputs.filename }} /NORESTART /ALLUSERS /VERYSILENT /LOG="${{github.workspace}}\InnoSetup-Install.log"
+#
+#    - name: install zfs
+#      run: 'Start-Process -FilePath "${{github.workspace}}\${{ steps.zfsinstaller.outputs.filename }}" -Wait -ArgumentList "/NORESTART /ALLUSERS /VERYSILENT /LOG=`"${{github.workspace}}\InnoSetup-Install.log`""'
+#
+#    #- name: Wait for install to finish
+#    #  run: Start-Sleep -Seconds 30
+#    #  uses: iFaxity/wait-on-action@v1
+#    #  with:
+#    #    resource: 'C:\Program Files\OpenZFS On Windows\zpool.exe'
+#
+##    - name: debug - print log
+##      run: cat "${{github.workspace}}\InnoSetup-Install.log"
+##
+##    - name: debug - list
+##      run: ls "C:\Program Files"
+##
+##    - name: debug - list
+##      run: ls "C:\Program Files\OpenZFS On Windows"
+#
+#    - name: debug - get status
+#      run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" status'
+#
+#
+#
+#
+#
+#
+#
+#    - name: Create backing files
+#      run: |
+#          $f = new-object System.IO.FileStream ${{github.workspace}}\test01.dat, Create, ReadWrite
+#          $f.SetLength(1GB)
+#          $f.Close()
+#          $f = new-object System.IO.FileStream ${{github.workspace}}\test02.dat, Create, ReadWrite
+#          $f.SetLength(1GB)
+#          $f.Close()
+#          $f = new-object System.IO.FileStream ${{github.workspace}}\test03.dat, Create, ReadWrite
+#          $f.SetLength(1GB)
+#          $f.Close()
+#
+##    - run: choco install gsudo
+#
+#    - name: tests/functional/cli_root/zpool_create/zpool_create_001_pos
+#      run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" create -f test01 \\?\${{github.workspace}}\test01.dat'
+#    - run: Start-Sleep -Seconds 10
+#
+#    - run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" status'
+#    - run: Start-Sleep -Seconds 10
+#
+#    - run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" destroy -f test01'
+#    - run: Start-Sleep -Seconds 10
+#
+#    - run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" create -f test02 \\?\${{github.workspace}}\test01.dat \\?\${{github.workspace}}\test02.dat'
+#    - run: Start-Sleep -Seconds 10
+#
+#    - run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" destroy -f test02'
+#    - run: Start-Sleep -Seconds 10
+#
+#    - run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" create -f test03 \\?\${{github.workspace}}\test01.dat \\?\${{github.workspace}}\test02.dat \\?\${{github.workspace}}\test03.dat'
+#    - run: Start-Sleep -Seconds 10
+#
+#    - run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" destroy -f test03'
+#    - run: Start-Sleep -Seconds 10
+#
+#    - run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" create -f test04 mirror \\?\${{github.workspace}}\test01.dat \\?\${{github.workspace}}\test02.dat'
+#    - run: Start-Sleep -Seconds 10
+#
+#    - run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" destroy -f test04'
+#    - run: Start-Sleep -Seconds 10
+#
+#    - run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" create -f test05 mirror \\?\${{github.workspace}}\test01.dat \\?\${{github.workspace}}\test02.dat \\?\${{github.workspace}}\test03.dat'
+#    - run: Start-Sleep -Seconds 10
+#
+#    - run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" destroy -f test05'
+#    - run: Start-Sleep -Seconds 10
+#
+#    - run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" create -f test06 raidz \\?\${{github.workspace}}\test01.dat \\?\${{github.workspace}}\test02.dat \\?\${{github.workspace}}\test03.dat'
+#    - run: Start-Sleep -Seconds 10
+#
+#    - run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" destroy -f test06'
+#    - run: Start-Sleep -Seconds 10
+#
+#    - run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" create -f test07 raidz1 \\?\${{github.workspace}}\test01.dat \\?\${{github.workspace}}\test02.dat \\?\${{github.workspace}}\test03.dat'
+#    - run: Start-Sleep -Seconds 10
+#
+#    - run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" destroy -f test07'
+#    - run: Start-Sleep -Seconds 10
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+##    - name: Setup WSL
+##      id: mywslid
+##      uses: Vampire/setup-wsl@v1.3.1
+##      with:
+##        wsl-shell-user: root
+##
+##    - shell: wsl-bash {0}
+##      run: |
+##        id
+##
+##    - shell: wsl-bash {0}
+##      run: |
+##        apt update -y
+##
+##    - shell: wsl-bash {0}
+##      run: |
+##        apt install libasan5 ksh wget sudo passwd adduser python3 rsync -y
+##
+##    - shell: wsl-bash {0}
+##      run: |
+##        #dpkg -i libzfs5_2.1.99-1_amd64.deb
+##        #dpkg -i libnvpair3_2.1.99-1_amd64.deb
+##        #dpkg -i libuutil3_2.1.99-1_amd64.deb
+##        #dpkg -i zfs_2.1.99-1_amd64.deb
+##        dpkg -i zfs-test_2.1.99-1_amd64.deb
+##        #dpkg -i python3-pyzfs_2.1.99-1_amd64.deb
+##
+##
+##    - shell: wsl-bash {0}
+##      run: |
+##        useradd -m -p 4qBD5NWD3IkbU test
+##
+##    - shell: wsl-bash {0}
+##      run: |
+##        adduser test sudo
+##
+##    - shell: wsl-bash {0}
+##      run: |
+##        ls -la /etc
+##
+##
+##    - shell: wsl-bash {0}
+##      run: |
+##        chmod ug+rw /etc/sudoers
+##    - shell: wsl-bash {0}
+##      run: |
+##        cat /etc/sudoers
+##        exit 0
+##
+##    - shell: wsl-bash {0}
+##      run: |
+##        echo "test ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+##        exit 0
+##
+##    - shell: wsl-bash {0}
+##      run: |
+##        chmod ug-w /etc/sudoers
+##
+##
+##    - shell: wsl-bash {0}
+##      run: |
+##        cat /usr/share/zfs/common.sh
+##
+##
+##    - shell: wsl-bash {0}
+##      run: |
+##        sed -i -e 's#BIN_DIR=/usr/bin#BIN_DIR="/mnt/c/zfs"#' /usr/share/zfs/common.sh
+##
+##
+##
+##    - shell: wsl-bash {0}
+##      run: |
+##        sed -i -e 's#SBIN_DIR=/sbin#SBIN_DIR="/mnt/c/zfs"#' /usr/share/zfs/common.sh
+##
+##
+##
+##    - shell: wsl-bash {0}
+##      run: |
+##        cat /usr/share/zfs/common.sh
+##
+##
+##    - shell: wsl-bash {0}
+##      run: |
+##        cp /mnt/c/Program\ Files/OpenZFS\ On\ Windows/zpool.exe /mnt/c/Program\ Files/OpenZFS\ On\ Windows/zpool
+##        cp /mnt/c/Program\ Files/OpenZFS\ On\ Windows/zfs.exe /mnt/c/Program\ Files/OpenZFS\ On\ Windows/zfs
+##        cp /mnt/c/Program\ Files/OpenZFS\ On\ Windows/zdb.exe /mnt/c/Program\ Files/OpenZFS\ On\ Windows/zdb
+##        cp /mnt/c/Program\ Files/OpenZFS\ On\ Windows/zstreamdump.exe /mnt/c/Program\ Files/OpenZFS\ On\ Windows/zstreamdump
+##        mkdir /mnt/c/zfs
+##        cp /mnt/c/Program\ Files/OpenZFS\ On\ Windows/zpool.exe /mnt/c/zfs/zpool
+##        cp /mnt/c/Program\ Files/OpenZFS\ On\ Windows/zfs.exe /mnt/c/zfs/zfs
+##        cp /mnt/c/Program\ Files/OpenZFS\ On\ Windows/zdb.exe /mnt/c/zfs/zdb
+##        cp /mnt/c/Program\ Files/OpenZFS\ On\ Windows/zstreamdump.exe /mnt/c/zfs/zstreamdump
+##
+##    - name: debug clean
+##      shell: cmd
+##      run: DEL /F "${{ steps.mywslid.outputs.wsl-shell-wrapper-path }}"
+##
+##    - uses: Vampire/setup-wsl@v1
+##      with:
+##        wsl-shell-user: test
+##
+##    - shell: wsl-bash {0}
+##      run: id
+##
+##
+##
+##
+##
+##    - shell: wsl-bash {0}
+##      run: id
+##
+##
+##
+##
+##
+##    - shell: wsl-bash {0}
+##      run: |
+##        export DISKS='physicaldrive2 physicaldrive3 physicaldrive4'
+##        export RAID_TEST_DISKS='physicaldrive5 physicaldrive6 physicaldrive7 physicaldrive8 physicaldrive9'
+##        #openzfs_folder + "scripts/zfs-tests.sh"+" -r "+ openzfs_folder +"tests/runfiles/windows-All.run"
+##        #bash -x /usr/share/zfs/zfs-tests.sh -v || exit 0
+##        cat /usr/share/zfs/common.sh
+##        bash -x /usr/share/zfs/zfs-tests.sh -v -r windows-All.run || exit 0
+##
+##
+##    - shell: wsl-bash {0}
+##      run: |
+##        sudo rsync -avx --no-links /var/tmp/test_results /mnt/d/test_results
+##        sudo chown -R test:test /mnt/d/test_results
+##        sudo chmod -R a+r /mnt/d/test_results
+##        exit 0
+##
+##
+##
+##    - name: Upload dev build with Inno Setup
+##      uses: actions/upload-artifact@v3.1.0
+##      with:
+##        name: testres
+##        path: d:\test_results\*
+##
+##    - name: create empty backing file
+##      run: |
+##        $f = new-object System.IO.FileStream ${{github.workspace}}\test.dat, Create, ReadWrite
+##        $f.SetLength(1GB)
+##        $f.Close()
+##
+##    - name: create pool
+##      run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" create tank \\?\${{github.workspace}}\test.dat'
+##
+##    - name: get pool status
+##      run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" status'
+##
+##    - name: get pool mount
+##      run: '& "C:\Program Files\OpenZFS On Windows\zfs.exe" mount'
+##
+##    - name: get pool mount
+##      id: drive  # Remember to give an ID if you need the output filename
+##      run: '& "C:\Program Files\OpenZFS On Windows\zfs.exe"  mount | Select-String -Pattern "^tank +([A-Za-z]:\\)"  | % {"::set-output name=drive::$($_.matches.groups[1].value)"}'
+##
+##    - name: echo
+##      run: echo ${{ steps.drive.outputs.drive }}
+##
+##    - name: get
+##      run: '& "C:\Program Files\OpenZFS On Windows\zfs.exe" get all'
+##
+##    - name: get bcd
+##      run: 'bcdedit'
+##
+##    - name: Download winbtrfs
+##      uses: suisei-cn/actions-download-file@v1.3.0
+##      id: winbtrs  # Remember to give an ID if you need the output filename
+##      with:
+##        url: "https://github.com/andrewc12/btrfs/releases/download/v1.8/x64-Debug.zip"
+##        target: ${{github.workspace}}/
+##
+##    - name: extract
+##      run: Expand-Archive -LiteralPath '${{ steps.winbtrs.outputs.filename }}' -DestinationPath ${{github.workspace}}\winbtrfs
+##
+##    - name: debug - list
+##      run: ls ${{github.workspace}}\
+##
+##    - name: debug - list
+##      run: ls ${{github.workspace}}\winbtrfs
+##
+##
+##    #- name: run winbtrfs tests
+##    #  run: '& "${{github.workspace}}\winbtrfs\test.exe" ${{ steps.drive.outputs.drive }}'
+##
+##    - name: test dummy status step
+##      id: dummy
+##      run: exit 0
+##
+##    - name: debug - dummy status
+##      run: echo ${{ steps.dummy.conclusion }}
+##
+##
+##    #https://github.com/maharmstone/btrfs/blob/master/src/tests/test.cpp#L453
+##    - name: run winbtrfs create tests
+##      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+##      run: '& "${{github.workspace}}\winbtrfs\test.exe" create ${{ steps.drive.outputs.drive }}'
+##
+##    - name: run winbtrfs supersede tests
+##      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+##      run: '& "${{github.workspace}}\winbtrfs\test.exe" supersede ${{ steps.drive.outputs.drive }}'
+##
+##    - name: run winbtrfs overwrite tests
+##      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+##      run: '& "${{github.workspace}}\winbtrfs\test.exe" overwrite ${{ steps.drive.outputs.drive }}'
+##
+##    - name: run winbtrfs open_id tests
+##      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+##      run: '& "${{github.workspace}}\winbtrfs\test.exe" open_id ${{ steps.drive.outputs.drive }}'
+##
+##    - name: run winbtrfs io tests
+##      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+##      run: '& "${{github.workspace}}\winbtrfs\test.exe" io ${{ steps.drive.outputs.drive }}'
+##
+##    - name: run winbtrfs mmap tests
+##      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+##      run: '& "${{github.workspace}}\winbtrfs\test.exe" mmap ${{ steps.drive.outputs.drive }}'
+##
+##    - name: run winbtrfs rename tests
+##      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+##      run: '& "${{github.workspace}}\winbtrfs\test.exe" rename ${{ steps.drive.outputs.drive }}'
+##
+##    - name: run winbtrfs rename_ex tests
+##      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+##      run: '& "${{github.workspace}}\winbtrfs\test.exe" rename_ex ${{ steps.drive.outputs.drive }}'
+##
+##    - name: run winbtrfs delete tests
+##      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+##      run: '& "${{github.workspace}}\winbtrfs\test.exe" delete ${{ steps.drive.outputs.drive }}'
+##
+##    - name: run winbtrfs delete_ex tests
+##      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+##      run: '& "${{github.workspace}}\winbtrfs\test.exe" delete_ex ${{ steps.drive.outputs.drive }}'
+##
+##    - name: run winbtrfs links tests
+##      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+##      run: '& "${{github.workspace}}\winbtrfs\test.exe" links ${{ steps.drive.outputs.drive }}'
+##
+##    - name: run winbtrfs links_ex tests
+##      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+##      run: '& "${{github.workspace}}\winbtrfs\test.exe" links_ex ${{ steps.drive.outputs.drive }}'
+##
+##    - name: run winbtrfs oplock_i tests
+##      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+##      run: '& "${{github.workspace}}\winbtrfs\test.exe" oplock_i ${{ steps.drive.outputs.drive }}'
+##
+##    - name: run winbtrfs oplock_ii tests
+##      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+##      run: '& "${{github.workspace}}\winbtrfs\test.exe" oplock_ii ${{ steps.drive.outputs.drive }}'
+##
+##    - name: run winbtrfs oplock_batch tests
+##      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+##      run: '& "${{github.workspace}}\winbtrfs\test.exe" oplock_batch ${{ steps.drive.outputs.drive }}'
+##
+##    - name: run winbtrfs oplock_filter tests
+##      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+##      run: '& "${{github.workspace}}\winbtrfs\test.exe" oplock_filter ${{ steps.drive.outputs.drive }}'
+##
+##    - name: run winbtrfs oplock_r tests
+##      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+##      run: '& "${{github.workspace}}\winbtrfs\test.exe" oplock_r ${{ steps.drive.outputs.drive }}'
+##
+##    - name: run winbtrfs oplock_rw tests
+##      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+##      run: '& "${{github.workspace}}\winbtrfs\test.exe" oplock_rw ${{ steps.drive.outputs.drive }}'
+##
+##    - name: run winbtrfs oplock_rh tests
+##      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+##      run: '& "${{github.workspace}}\winbtrfs\test.exe" oplock_rh ${{ steps.drive.outputs.drive }}'
+##
+##    - name: run winbtrfs oplock_rwh tests
+##      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+##      run: '& "${{github.workspace}}\winbtrfs\test.exe" oplock_rwh ${{ steps.drive.outputs.drive }}'
+##
+##    - name: run winbtrfs cs tests
+##      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+##      run: '& "${{github.workspace}}\winbtrfs\test.exe" cs ${{ steps.drive.outputs.drive }}'
+##
+##    - name: run winbtrfs reparse tests
+##      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+##      run: '& "${{github.workspace}}\winbtrfs\test.exe" reparse ${{ steps.drive.outputs.drive }}'
+##
+##    - name: run winbtrfs streams tests
+##      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+##      run: '& "${{github.workspace}}\winbtrfs\test.exe" streams ${{ steps.drive.outputs.drive }}'
+##
+##    - name: run winbtrfs ea tests
+##      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+##      run: |
+##        echo these crash
+##        exit 1
+##    #- name: run winbtrfs ea tests
+##    #  if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+##    #  run: '& "${{github.workspace}}\winbtrfs\test.exe" ea ${{ steps.drive.outputs.drive }}'
+##
+##    - name: run winbtrfs fileinfo tests
+##      if: ${{ ( success() || failure() ) && steps.dummy.conclusion == 'success' }}
+##      run: '& "${{github.workspace}}\winbtrfs\test.exe" fileinfo ${{ steps.drive.outputs.drive }}'
+##
+##
+##    #- name: run export zpool
+##    #  if: ${{ always() }}
+##    #  timeout-minutes: 1
+##    #  run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" export tank'
+##
+##
+##
+##
+##
+##
+##    #- name: small test
+##    #  run: winsat disk -drive e
+##
+##
+##
+
+
+
+
+
+
+
+
+
+
+
+
+#  rebase_info:
+#    runs-on: ubuntu-latest
+#
+#    steps:
+#
+#    - uses: actions/checkout@v3
+#      with:
+#        #repository: openzfsonwindows/openzfs
+#        fetch-depth: 0
+#
+#    - run: |
+#        git config --global user.email "you@example.com"
+#        git config --global user.name "Your Name"
+#
+#    - run: git remote add openzfs https://github.com/openzfs/zfs.git
+#
+#    - run: git fetch --all
+#
+#    - run: git rebase openzfs/master
+#
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# This is a basic workflow to help you get started with Actions
+# https://github.blog/changelog/2020-07-06-github-actions-manual-triggers-with-workflow_dispatch/
+
+  test3_winfstest:
+    needs: [build_windows] #, build_wsl]
+    timeout-minutes: 30
+    runs-on: windows-latest
+    if:  ${{ inputs.run-failing }}
+    steps:
+
+    - uses: actions/checkout@v3
+
+
+    - uses: actions/download-artifact@v3
+      with:
+        name: dev_build_inno
+
+#    - uses: actions/download-artifact@v3
+#      with:
+#        name: build result
+
+#    - name: get files
+#      run: Get-ChildItem -Recurse
+
+    - name: get diskdrive
+      run: wmic diskdrive list
+
+#    - name: Download
+#      uses: suisei-cn/actions-download-file@v1.3.0
+#      #id: innoinstaller
+#      with:
+#        url: 'https://github.com/andrewc12/zfsfiledump/raw/main/testdrives.zip'
+#        target: ${{github.workspace}}/
+#
+#
+#    - name: make disk
+#      run: |
+#        Expand-Archive -LiteralPath ${{github.workspace}}/testdrives.zip -DestinationPath D:\
+#
+#    - name: Download
+#      uses: suisei-cn/actions-download-file@v1.3.0
+#      #id: innoinstaller
+#      with:
+#        url: 'https://github.com/andrewc12/zfsfiledump/raw/main/scriptname.txt'
+#        target: ${{github.workspace}}/
+#
+#    - name: make disk
+#      run: |
+#        diskpart /s scriptname.txt
+#
+#
+#
+#    - name: get diskdrive
+#      run: wmic diskdrive list
+#
+#
+#    - name: get files
+#      run: Get-ChildItem -Recurse
+
+
+    - name: get zfsexename
+      id: zfsinstaller
+      run: |
+        $p = Get-ChildItem | Where-Object {$_.Name -like 'OpenZFSOnWindows-*.exe'} | Select-Object -first 1
+        echo $p
+        $f = (Get-Item $p ).Name
+        echo $f
+        echo "filename=$f" | Out-File -FilePath $Env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+    # https://github.com/MicrosoftDocs/windows-powershell-docs/issues/266
+    - name: Import root certificate
+      run: |
+        $plaintextpwd = 'password1234'
+        $pwd = ConvertTo-SecureString -String $plaintextpwd -Force -AsPlainText
+        Import-PfxCertificate -FilePath ${{github.workspace}}/contrib/windows/TestCert/test_sign_cert_pass.pfx -CertStoreLocation Cert:\LocalMachine\Root -Password $pwd
+        Import-PfxCertificate -FilePath ${{github.workspace}}/contrib/windows/TestCert/test_sign_cert_pass.pfx -CertStoreLocation Cert:\LocalMachine\TrustedPublisher -Password $pwd
+
+    - name: debug - echo filename
+      run: echo ${{ steps.zfsinstaller.outputs.filename }}
+
+#    - name: debug - list
+#      run: ls ${{github.workspace}}\
+
+    - name: debug - list
+      run: ls ${{github.workspace}}\${{ steps.zfsinstaller.outputs.filename }}
+
+    #- name: install zfs
+    #  run: ${{github.workspace}}\${{ steps.zfsinstaller.outputs.filename }} /NORESTART /ALLUSERS /VERYSILENT /LOG="${{github.workspace}}\InnoSetup-Install.log"
+
+    - name: install zfs
+      run: 'Start-Process -FilePath "${{github.workspace}}\${{ steps.zfsinstaller.outputs.filename }}" -Wait -ArgumentList "/NORESTART /ALLUSERS /VERYSILENT /LOG=`"${{github.workspace}}\InnoSetup-Install.log`""'
+
+    #- name: Wait for install to finish
+    #  run: Start-Sleep -Seconds 30
+    #  uses: iFaxity/wait-on-action@v1
+    #  with:
+    #    resource: 'C:\Program Files\OpenZFS On Windows\zpool.exe'
+
+#    - name: debug - print log
+#      run: cat "${{github.workspace}}\InnoSetup-Install.log"
+#
+#    - name: debug - list
+#      run: ls "C:\Program Files"
+#
+#    - name: debug - list
+#      run: ls "C:\Program Files\OpenZFS On Windows"
+
+    - name: debug - get status
+      run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" status'
+
+
+
+    - run: choco install gsudo
+
+
+
+    - name: Create backing files
+      run: |
+          $f = new-object System.IO.FileStream ${{github.workspace}}\test01.dat, Create, ReadWrite
+          $f.SetLength(1GB)
+          $f.Close()
+
+    - name: create pool
+      run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" create tank \\?\${{github.workspace}}\test01.dat'
+
+    - name: get pool status
+      run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" status'
+
+    - name: get pool mount
+      run: '& "C:\Program Files\OpenZFS On Windows\zfs.exe" mount'
+
+    - name: get pool mount
+      id: drive  # Remember to give an ID if you need the output filename
+      run: '& "C:\Program Files\OpenZFS On Windows\zfs.exe"  mount | Select-String -Pattern "^tank +([A-Za-z]):[/\\]"  | % {"drive=$($_.matches.groups[1].value):\"} | Out-File -FilePath $Env:GITHUB_OUTPUT -Encoding utf8 -Append'
+
+    - name: get pool mount
+      id: drivenoslash  # Remember to give an ID if you need the output filename
+      run: '& "C:\Program Files\OpenZFS On Windows\zfs.exe"  mount | Select-String -Pattern "^tank +([A-Za-z]):[/\\]"  | % {"drive=$($_.matches.groups[1].value):"} | Out-File -FilePath $Env:GITHUB_OUTPUT -Encoding utf8 -Append'
+
+    - name: echo
+      run: echo ${{ steps.drive.outputs.drive }}
+
+
+    - name: Download winbtrfs
+      uses: suisei-cn/actions-download-file@v1.3.0
+      id: winbtrs  # Remember to give an ID if you need the output filename
+      with:
+        url: "https://github.com/andrewc12/btrfs/releases/download/v1.8/x64-Debug.zip"
+        target: ${{github.workspace}}/
+
+    - name: extract
+      run: Expand-Archive -LiteralPath '${{ steps.winbtrs.outputs.filename }}' -DestinationPath ${{github.workspace}}\winbtrfs
+
+    - name: debug - list
+      run: ls ${{github.workspace}}\
+
+    - name: debug - list
+      run: ls ${{github.workspace}}\winbtrfs
+
+
+    #- name: run winbtrfs tests
+    #  run: '& "${{github.workspace}}\winbtrfs\test.exe" ${{ steps.drive.outputs.drive }}'
+
+    - name: test dummy status step
+      id: dummy
+      run: exit 0
+
+    - name: debug - dummy status
+      run: echo ${{ steps.dummy.conclusion }}
+
+
+
+
+#    - name: install winfstest
+#      run: |
+#          Copy-Item -Path "${{github.workspace}}\cmd\os\windows\winfstest" -Destination "${{ steps.drive.outputs.drive }}\winfstest" -Recurse
+#          Copy-Item "${{github.workspace}}\out\build\x64-Debug\cmd\os\windows\winfstest\winfstest.exe" -Destination "${{ steps.drive.outputs.drive }}\winfstest"
+
+    - name: Download
+      uses: suisei-cn/actions-download-file@v1.3.0
+      #id: innoinstaller
+      with:
+        url: 'https://github.com/andrewc12/zfsfiledump/raw/main/winfstest.zip'
+        target: ${{github.workspace}}/
+
+
+    - name: extract winfstest
+      run: |
+          new-item ${{ steps.drive.outputs.drive }}\winfstest -itemtype directory
+          Expand-Archive -LiteralPath ${{github.workspace}}/winfstest.zip -DestinationPath ${{ steps.drive.outputs.drive }}\winfstest
+
+
+    #- name: run winbtrfs tests
+    #  run: '& "${{github.workspace}}\winbtrfs\test.exe" ${{ steps.drive.outputs.drive }}'
+
+    #https://github.com/maharmstone/btrfs/blob/master/src/tests/test.cpp#L453
+    - name: run winfstests
+      timeout-minutes: 1
+      run: |
+          ${{ steps.drivenoslash.outputs.drive }}
+          cd ${{ steps.drive.outputs.drive }}\winfstest
+          set PYTHONPATH=${{ steps.drive.outputs.drive }}\winfstest
+          python ${{ steps.drive.outputs.drive }}\winfstest\simpletap.py --run
+      shell: cmd
+
+
+
+
+
+
+
+  test4_adstest:
+    needs: [build_windows] #, build_wsl]
+    timeout-minutes: 30
+    # The CMake configure and build commands are platform agnostic and should work equally well on Windows or Mac.
+    # You can convert this to a matrix build if you need cross-platform coverage.
+    # See: https://docs.github.com/en/free-pro-team@latest/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
+    runs-on: windows-latest
+    if:  ${{ inputs.run-failing }}
+
+    steps:
+
+    - uses: actions/checkout@v3
+
+
+    - uses: actions/download-artifact@v3
+      with:
+        name: dev_build_inno
+
+#    - uses: actions/download-artifact@v3
+#      with:
+#        name: build result
+
+#    - name: get files
+#      run: Get-ChildItem -Recurse
+
+    - name: get diskdrive
+      run: wmic diskdrive list
+
+
+    #- uses: suisei-cn/actions-download-file@v1.3.0
+    #  #id: innoinstaller
+    #  with:
+    #    url: 'https://github.com/andrewc12/zfsfiledump/raw/main/OpenZFSOnWindowsaa'
+    #    target: ${{github.workspace}}/
+
+
+
+    #- uses: suisei-cn/actions-download-file@v1.3.0
+    #  #id: innoinstaller
+    #  with:
+    #    url: 'https://github.com/andrewc12/zfsfiledump/raw/main/OpenZFSOnWindowsab'
+    #    target: ${{github.workspace}}/
+
+
+
+    #- uses: suisei-cn/actions-download-file@v1.3.0
+    #  #id: innoinstaller
+    #  with:
+    #    url: 'https://github.com/andrewc12/zfsfiledump/raw/main/OpenZFSOnWindowsac'
+    #    target: ${{github.workspace}}/
+
+
+
+    #- uses: suisei-cn/actions-download-file@v1.3.0
+    #  #id: innoinstaller
+    #  with:
+    #    url: 'https://github.com/andrewc12/zfsfiledump/raw/main/OpenZFSOnWindowsad'
+    #    target: ${{github.workspace}}/
+
+
+
+
+
+
+
+
+#    - name: Download
+#      uses: suisei-cn/actions-download-file@v1.3.0
+#      #id: innoinstaller
+#      with:
+#        url: 'https://github.com/andrewc12/zfsfiledump/raw/main/testdrives.zip'
+#        target: ${{github.workspace}}/
+#
+#
+#    - name: make disk
+#      run: |
+#        Expand-Archive -LiteralPath ${{github.workspace}}/testdrives.zip -DestinationPath D:\
+#
+#    - name: Download
+#      uses: suisei-cn/actions-download-file@v1.3.0
+#      #id: innoinstaller
+#      with:
+#        url: 'https://github.com/andrewc12/zfsfiledump/raw/main/scriptname.txt'
+#        target: ${{github.workspace}}/
+#
+#    - name: make disk
+#      run: |
+#        diskpart /s scriptname.txt
+#
+#
+#
+#    - name: get diskdrive
+#      run: wmic diskdrive list
+#
+#
+#    - name: get files
+#      run: Get-ChildItem -Recurse
+
+    #- run: copy /b OpenZFSOnWindowsaa+OpenZFSOnWindowsab+OpenZFSOnWindowsac+OpenZFSOnWindowsad OpenZFSOnWindows-a.exe
+    #  shell: cmd
+
+
+
+    - name: get zfsexename
+      id: zfsinstaller
+      run: |
+        $p = Get-ChildItem | Where-Object {$_.Name -like 'OpenZFSOnWindows-*.exe'} | Select-Object -first 1
+        echo $p
+        $f = (Get-Item $p ).Name
+        echo $f
+        echo "filename=$f" | Out-File -FilePath $Env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+
+
+
+    - uses: suisei-cn/actions-download-file@v1.3.0
+      #id: innoinstaller
+      with:
+        url: 'https://github.com/andrewc12/zfsfiledump/raw/main/ads_split.vhd.zst.001'
+        target: ${{github.workspace}}/
+
+
+
+    - uses: suisei-cn/actions-download-file@v1.3.0
+      #id: innoinstaller
+      with:
+        url: 'https://github.com/andrewc12/zfsfiledump/raw/main/ads_split.vhd.zst.002'
+        target: ${{github.workspace}}/
+
+
+
+    - uses: suisei-cn/actions-download-file@v1.3.0
+      #id: innoinstaller
+      with:
+        url: 'https://github.com/andrewc12/zfsfiledump/raw/main/ads_split.vhd.zst.003'
+        target: ${{github.workspace}}/
+
+
+
+    - uses: suisei-cn/actions-download-file@v1.3.0
+      #id: innoinstaller
+      with:
+        url: 'https://github.com/andrewc12/zfsfiledump/raw/main/ads_split.vhd.zst.004'
+        target: ${{github.workspace}}/
+
+
+
+    - uses: suisei-cn/actions-download-file@v1.3.0
+      #id: innoinstaller
+      with:
+        url: 'https://github.com/andrewc12/zfsfiledump/raw/main/ads_split.vhd.zst.005'
+        target: ${{github.workspace}}/
+
+
+
+
+    - uses: suisei-cn/actions-download-file@v1.3.0
+      #id: innoinstaller
+      with:
+        url: 'https://github.com/andrewc12/zfsfiledump/raw/main/ads_split.vhd.zst.006'
+        target: ${{github.workspace}}/
+
+
+
+    - uses: suisei-cn/actions-download-file@v1.3.0
+      #id: innoinstaller
+      with:
+        url: 'https://github.com/andrewc12/zfsfiledump/raw/main/ads_split.vhd.zst.007'
+        target: ${{github.workspace}}/
+
+
+
+
+    - uses: suisei-cn/actions-download-file@v1.3.0
+      #id: innoinstaller
+      with:
+        url: 'https://github.com/andrewc12/zfsfiledump/raw/main/ads_split.vhd.zst.008'
+        target: ${{github.workspace}}/
+
+
+
+
+    - run: copy /b ads_split.vhd.zst.001+ads_split.vhd.zst.002+ads_split.vhd.zst.003+ads_split.vhd.zst.004+ads_split.vhd.zst.005+ads_split.vhd.zst.006+ads_split.vhd.zst.007+ads_split.vhd.zst.008 ads_split.vhd.zst
+      shell: cmd
+
+
+
+
+    # https://github.com/MicrosoftDocs/windows-powershell-docs/issues/266
+    - name: Import root certificate
+      run: |
+        $plaintextpwd = 'password1234'
+        $pwd = ConvertTo-SecureString -String $plaintextpwd -Force -AsPlainText
+        Import-PfxCertificate -FilePath ${{github.workspace}}/contrib/windows/TestCert/test_sign_cert_pass.pfx -CertStoreLocation Cert:\LocalMachine\Root -Password $pwd
+        Import-PfxCertificate -FilePath ${{github.workspace}}/contrib/windows/TestCert/test_sign_cert_pass.pfx -CertStoreLocation Cert:\LocalMachine\TrustedPublisher -Password $pwd
+
+    - name: debug - echo filename
+      run: echo ${{ steps.zfsinstaller.outputs.filename }}
+
+#    - name: debug - list
+#      run: ls ${{github.workspace}}\
+
+    - name: debug - list
+      run: ls ${{github.workspace}}\${{ steps.zfsinstaller.outputs.filename }}
+
+    #- name: install zfs
+    #  run: ${{github.workspace}}\${{ steps.zfsinstaller.outputs.filename }} /NORESTART /ALLUSERS /VERYSILENT /LOG="${{github.workspace}}\InnoSetup-Install.log"
+
+    - name: install zfs
+      run: 'Start-Process -FilePath "${{github.workspace}}\${{ steps.zfsinstaller.outputs.filename }}" -Wait -ArgumentList "/NORESTART /ALLUSERS /VERYSILENT /LOG=`"${{github.workspace}}\InnoSetup-Install.log`""'
+
+    #- name: Wait for install to finish
+    #  run: Start-Sleep -Seconds 30
+    #  uses: iFaxity/wait-on-action@v1
+    #  with:
+    #    resource: 'C:\Program Files\OpenZFS On Windows\zpool.exe'
+
+#    - name: debug - print log
+#      run: cat "${{github.workspace}}\InnoSetup-Install.log"
+#
+#    - name: debug - list
+#      run: ls "C:\Program Files"
+#
+#    - name: debug - list
+#      run: ls "C:\Program Files\OpenZFS On Windows"
+
+    - name: debug - get status
+      run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" status'
+
+
+
+
+
+
+
+    - name: Create backing files
+      run: |
+          $f = new-object System.IO.FileStream ${{github.workspace}}\test01.dat, Create, ReadWrite
+          $f.SetLength(1GB)
+          $f.Close()
+
+    - name: create pool
+      run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" create tank \\?\${{github.workspace}}\test01.dat'
+
+    - name: get pool status
+      run: '& "C:\Program Files\OpenZFS On Windows\zpool.exe" status'
+
+    - name: get pool mount
+      run: '& "C:\Program Files\OpenZFS On Windows\zfs.exe" mount'
+
+    - name: get pool mount
+      id: drive  # Remember to give an ID if you need the output filename
+      run: '& "C:\Program Files\OpenZFS On Windows\zfs.exe"  mount | Select-String -Pattern "^tank +([A-Za-z]):[/\\]"  | % {"drive=$($_.matches.groups[1].value):\"} | Out-File -FilePath $Env:GITHUB_OUTPUT -Encoding utf8 -Append'
+
+    - name: echo
+      run: echo ${{ steps.drive.outputs.drive }}
+
+    - name: extract
+      run: zstd -d ${{github.workspace}}\ads_split.vhd.zst
+
+
+    - name: get diskdrive
+      run: wmic diskdrive list
+
+    - name: get diskdrive
+      run: (Get-PSDrive).Name -match '^[a-z]$'
+
+
+    - name: Create backing files
+      id: drive2  # Remember to give an ID if you need the output filename
+      run: |
+          $mountResult = Mount-DiskImage ${{github.workspace}}\ads_split.vhd -PassThru
+          $mountResult | Get-Volume
+          echo "drive=F:"| Out-File -FilePath $Env:GITHUB_OUTPUT -Encoding utf8 -Append
+          #$mountResult | Get-Volume | % {"drive=$($_.matches.groups[1].value)"} | Out-File -FilePath $Env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+
+    - name: get diskdrive
+      run: wmic diskdrive list
+
+
+    - name: get diskdrive
+      run: (Get-PSDrive).Name -match '^[a-z]$'
+
+    - name: echo
+      run: echo ${{ steps.drive2.outputs.drive }}
+
+
+    - name: run tests
+      run: robocopy ${{ steps.drive2.outputs.drive }}\curtin ${{ steps.drive.outputs.drive }}curtin /E /b /R:0 /W:0

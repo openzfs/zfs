@@ -633,7 +633,8 @@ vdev_raidz_impl_set(const char *val)
 	return (err);
 }
 
-#if defined(_KERNEL) && defined(__linux__)
+#if defined(_KERNEL)
+#if defined(__linux__) || defined(_WIN32)
 
 static int
 zfs_vdev_raidz_impl_set(const char *val, zfs_kernel_param_t *kp)
@@ -666,6 +667,32 @@ zfs_vdev_raidz_impl_get(char *buffer, zfs_kernel_param_t *kp)
 
 	return (cnt);
 }
+#endif /* Linux || Windows */
+
+#ifdef _WIN32
+int
+win32_zfs_vdev_raidz_impl_set(ZFS_MODULE_PARAM_ARGS)
+{
+	uint32_t val;
+	static unsigned char str[1024] = "";
+
+	*type = ZT_TYPE_STRING;
+
+	if (set == B_FALSE) {
+		if (raidz_math_initialized)
+			zfs_vdev_raidz_impl_get(str, NULL);
+		*ptr = str;
+		*len = strlen(str);
+		return (0);
+	}
+
+	ASSERT3P(ptr, !=, NULL);
+
+	vdev_raidz_impl_set(*ptr);
+
+	return (0);
+}
+#endif
 
 module_param_call(zfs_vdev_raidz_impl, zfs_vdev_raidz_impl_set,
     zfs_vdev_raidz_impl_get, NULL, 0644);

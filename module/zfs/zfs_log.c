@@ -253,6 +253,24 @@ zfs_xattr_owner_unlinked(znode_t *zp)
 	}
 	if (tzp != zp)
 		zrele(tzp);
+#elif defined(_WIN32)
+	zhold(zp);
+	/*
+	 * if zp is XATTR node, keep walking up via z_xattr_parent until we
+	 * get the owner
+	 */
+	while (zp->z_pflags & ZFS_XATTR && zp->z_xattr_parent != NULL) {
+		ASSERT3U(zp->z_xattr_parent, !=, 0);
+		if (zfs_zget(ZTOZSB(zp), zp->z_xattr_parent, &dzp) != 0) {
+			unlinked = 1;
+			break;
+		}
+
+		zrele(zp);
+		zp = dzp;
+		unlinked = zp->z_unlinked;
+	}
+	zrele(zp);
 #else
 	zhold(zp);
 	/*

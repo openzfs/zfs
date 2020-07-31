@@ -21,6 +21,7 @@
 
 /*
  * Copyright (c) 2021-2022 Tino Reichardt <milky-zfs@mcmilk.de>
+ * Copyright (c) 2017 Jorgen Lundman <lundman@lundman.net>
  */
 
 #include <sys/simd.h>
@@ -312,7 +313,7 @@ blake3_per_cpu_ctx_fini(void)
 
 #define	IMPL_FMT(impl, i)	(((impl) == (i)) ? "[%s] " : "%s ")
 
-#if defined(__linux__)
+#if defined(__linux__) || defined(_WIN32)
 
 static int
 blake3_param_get(char *buffer, zfs_kernel_param_t *unused)
@@ -345,6 +346,30 @@ blake3_param_set(const char *val, zfs_kernel_param_t *unused)
 {
 	(void) unused;
 	return (generic_impl_setname(val));
+}
+
+#endif /* Linux || Windows */
+
+#if defined(_WIN32)
+
+int
+win32_blake3_param_set(ZFS_MODULE_PARAM_ARGS)
+{
+	static char str[1024] = "";
+
+	*type = ZT_TYPE_STRING;
+
+	if (set == B_FALSE) {
+		char buffer[PAGE_SIZE]; /* Looks like they use page size */
+		blake3_param_get(buffer, NULL);
+		*ptr = buffer;
+		*len = strlen(buffer);
+		return (0);
+	}
+
+	ASSERT3P(ptr, !=, NULL);
+
+	return (-generic_impl_setname(*ptr));
 }
 
 #elif defined(__FreeBSD__)

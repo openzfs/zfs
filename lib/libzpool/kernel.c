@@ -48,6 +48,9 @@
 #include <sys/zvol.h>
 #include <zfs_fletcher.h>
 #include <zlib.h>
+#ifdef _WIN32
+#include <wosix.h>
+#endif
 
 /*
  * Emulation of kernel services in userland.
@@ -131,8 +134,10 @@ zk_thread_create(void (*func)(void *), void *arg, size_t stksize, int state)
 	 * If this ever fails, it may be because the stack size is not a
 	 * multiple of system page size.
 	 */
+#ifndef _WIN32
 	VERIFY0(pthread_attr_setstacksize(&attr, stksize));
 	VERIFY0(pthread_attr_setguardsize(&attr, PAGESIZE));
+#endif
 
 	VERIFY(ztw = malloc(sizeof (*ztw)));
 	ztw->func = func;
@@ -685,7 +690,11 @@ cmn_err(int ce, const char *fmt, ...)
 void
 delay(clock_t ticks)
 {
+#if HAVE_USLEEP
+	usleep(ticks * 1000 / hz);
+#else
 	(void) poll(0, 0, ticks * (1000 / hz));
+#endif
 }
 
 /*
@@ -719,6 +728,40 @@ lowbit64(uint64_t i)
 const char *random_path = "/dev/random";
 const char *urandom_path = "/dev/urandom";
 static int random_fd = -1, urandom_fd = -1;
+
+
+#ifdef _WIN32
+
+void
+random_init(void)
+{
+}
+
+void
+random_fini(void)
+{
+}
+
+static int
+random_get_bytes_common(uint8_t *ptr, size_t len, int fd)
+{
+	size_t resid = len;
+	ssize_t bytes;
+	unsigned int number;
+
+	while (resid != 0) {
+		rand_s(&number);
+		bytes = MIN(resid, sizeof (number));
+		memcpy(ptr, &number, bytes);
+		ASSERT3S(bytes, >=, 0);
+		ptr += bytes;
+		resid -= bytes;
+	}
+
+	return (0);
+}
+
+#else /* Windows */
 
 void
 random_init(void)
@@ -754,6 +797,7 @@ random_get_bytes_common(uint8_t *ptr, size_t len, int fd)
 
 	return (0);
 }
+#endif
 
 int
 random_get_bytes(uint8_t *ptr, size_t len)

@@ -108,7 +108,12 @@ _LIBZUTIL_H void update_vdev_config_dev_strs(nvlist_t *);
 /*
  * Default device paths
  */
+#ifdef _WIN32
+#define	DISK_ROOT	"\\\\?\\"
+#else
 #define	DISK_ROOT	"/dev"
+#endif
+
 #define	UDISK_ROOT	"/dev/disk"
 #define	ZVOL_ROOT	"/dev/zvol"
 
@@ -193,6 +198,9 @@ _LIBZUTIL_H ssize_t zfs_dirnamelen(const char *path);
 extern char **environ;
 _LIBZUTIL_H void zfs_setproctitle_init(int argc, char *argv[], char *envp[]);
 _LIBZUTIL_H void zfs_setproctitle(const char *fmt, ...);
+#elif _WIN32
+#define	zfs_setproctitle(fmt, ...)
+#define	zfs_setproctitle_init(x, y, z)	((void)0)
 #else
 #define	zfs_setproctitle(fmt, ...)	setproctitle(fmt, ##__VA_ARGS__)
 #define	zfs_setproctitle_init(x, y, z)	((void)0)

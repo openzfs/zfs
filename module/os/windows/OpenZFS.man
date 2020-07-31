@@ -1,0 +1,1120 @@
+<instrumentationManifest
+	xmlns="http://schemas.microsoft.com/win/2004/08/events"
+	xmlns:trace="http://schemas.microsoft.com/win/2004/08/events/trace"
+	xmlns:win="http://manifests.microsoft.com/win/2004/08/windows/events"
+	xmlns:xs="http://www.w3.org/2001/XMLSchema"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://schemas.microsoft.com/win/2004/08/events eventman.xsd"
+>
+	<instrumentation>
+		<counters
+			xmlns="http://schemas.microsoft.com/win/2005/12/counters"
+			xmlns:auto-ns1="http://schemas.microsoft.com/win/2004/08/events"
+			schemaVersion="1.1"
+		>
+			<provider
+				callback            = "custom"
+				applicationIdentity = "OpenZFS.sys"
+				providerType        = "kernelMode"
+				providerName        = "OpenZFS"
+				providerGuid        = "{F1EAE04E-8717-4578-A3C5-3FAE3BADDBCB}"
+			>
+				<counterSet
+					guid        = "{11B6CA09-A1C6-44B9-AAB6-73BE315FD799}"
+					uri         = "OpenZFS.IOPS.THROUGHPUT"
+					name        = "OpenZFS Zpool"
+					description = "Collect IOPS, read and written bytes of a zpool"
+					symbol      = "ZFSinPerf"
+					instances   = "multiple"
+				>
+					<structs>
+						<struct
+							name="ZFSinPerfValues"
+							type="zpool_perf_counters"
+						/>
+					</structs>
+          <counter
+						id           = "1"
+						uri          = "ZFSin.read_iops"
+						name         = "Reads/sec"
+						struct       = "read_iops"
+						field        = "read_iops"
+						description  = "Read IO/sec of zpool."
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "2"
+						uri          = "ZFSin.write_iops"
+						name         = "Writes/sec"
+						struct       = "write_iops"
+						field        = "write_iops"
+						description  = "Write IO/sec of zpool."
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "3"
+						uri          = "ZFSin.total_iops"
+						name         = "Transfers/sec"
+						struct       = "total_iops"
+						field        = "total_iops"
+						description  = "Total IO/sec of zpool."
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "4"
+						uri          = "ZFSin.read_bytes"
+						name         = "Read Bytes/sec"
+						struct       = "read_bytes"
+						field        = "read_bytes"
+						description  = "Amount of bytes read/sec."
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "5"
+						uri          = "ZFSin.write_bytes"
+						name         = "Write Bytes/sec"
+						struct       = "write_bytes"
+						field        = "write_bytes"
+						description  = "Amount of bytes written/sec."
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "6"
+						uri          = "ZFSin.total_bytes"
+						name         = "Total Bytes/sec"
+						struct       = "total_bytes"
+						field        = "total_bytes"
+						description  = "Amount of bytes written and read/sec."
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "7"
+						uri          = "ZFSin.DDT.ddt_entry_count"
+						name         = "DDT Entries"
+						struct       = "ddt_entry_count"
+						field        = "ddt_entry_count"
+						description  = "Number of entries in dedup table."
+						type         = "perf_counter_large_rawcount"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "8"
+						uri          = "ZFSin.DDT.ddt_dspace"
+						name         = "DDT On-disk Bytes"
+						struct       = "ddt_dspace"
+						field        = "ddt_dspace"
+						description  = "Size of ddt on disk."
+						type         = "perf_counter_large_rawcount"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "9"
+						uri          = "ZFSin.DDT.ddt_mspace"
+						name         = "DDT In-memory Bytes"
+						struct       = "ddt_mspace"
+						field        = "ddt_mspace"
+						description  = "Size of ddt in memory."
+						type         = "perf_counter_large_rawcount"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "10"
+						uri          = "ZFSin.vsx_active_queue_sync_read"
+						name         = "Active_Sync_Reads"
+						struct       = "vsx_active_queue_sync_read"
+						field        = "vsx_active_queue_sync_read"
+						description  = "vsx_active_queue_sync_read"
+						type         = "perf_counter_large_rawcount"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "11"
+						uri          = "ZFSin.vsx_active_queue_sync_write"
+						name         = "Active_Sync_Writes"
+						struct       = "vsx_active_queue_sync_write"
+						field        = "vsx_active_queue_sync_write"
+						description  = "vsx_active_queue_sync_write"
+						type         = "perf_counter_large_rawcount"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "12"
+						uri          = "ZFSin.vsx_active_queue_async_read"
+						name         = "Active_Async_Reads"
+						struct       = "vsx_active_queue_async_read"
+						field        = "vsx_active_queue_async_read"
+						description  = "vsx_active_queue_async_read"
+						type         = "perf_counter_large_rawcount"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "13"
+						uri          = "ZFSin.vsx_active_queue_async_write"
+						name         = "Active_Async_Writes"
+						struct       = "vsx_active_queue_async_write"
+						field        = "vsx_active_queue_async_write"
+						description  = "vsx_active_queue_async_write"
+						type         = "perf_counter_large_rawcount"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "14"
+						uri          = "ZFSin.vsx_pend_queue_sync_read "
+						name         = "Pending_Sync_Reads"
+						struct       = "vsx_pend_queue_sync_read"
+						field        = "vsx_pend_queue_sync_read"
+						description  = "vsx_pend_queue_sync_read"
+						type         = "perf_counter_large_rawcount"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "15"
+						uri          = "ZFSin.vsx_pend_queue_sync_write "
+						name         = "Pending_Sync_Writes"
+						struct       = "vsx_pend_queue_sync_write"
+						field        = "vsx_pend_queue_sync_write"
+						description  = "vsx_pend_queue_sync_write"
+						type         = "perf_counter_large_rawcount"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "16"
+						uri          = "ZFSin.vsx_pend_queue_async_read"
+						name         = "Pending_Async_Reads"
+						struct       = "vsx_pend_queue_async_read"
+						field        = "vsx_pend_queue_async_read"
+						description  = "vsx_pend_queue_async_read"
+						type         = "perf_counter_large_rawcount"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "17"
+						uri          = "ZFSin.vsx_pend_queue_async_write "
+						name         = "Pending_Async_Writes"
+						struct       = "vsx_pend_queue_async_write"
+						field        = "vsx_pend_queue_async_write"
+						description  = "vsx_pend_queue_async_write"
+						type         = "perf_counter_large_rawcount"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "18"
+						uri          = "ZFSin.vsx_queue_histo_sync_read_time"
+						name         = "Wait_Time_Sync_Read_ns"
+						struct       = "vsx_queue_histo_sync_read_time"
+						field        = "vsx_queue_histo_sync_read_time"
+						description  = "vsx_queue_histo_sync_read_time"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "19"
+						uri          = "ZFSin.vsx_queue_histo_sync_read_count"
+						name         = "Wait_Count_Sync_Read"
+						struct       = "vsx_queue_histo_sync_read_count"
+						field        = "vsx_queue_histo_sync_read_count"
+						description  = "vsx_queue_histo_sync_read_count"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "20"
+						uri          = "ZFSin.vsx_queue_histo_async_read_time"
+						name         = "Wait_Time_Async_Read_ns"
+						struct       = "vsx_queue_histo_async_read_time"
+						field        = "vsx_queue_histo_async_read_time"
+						description  = "vsx_queue_histo_async_read_time"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "21"
+						uri          = "ZFSin.vsx_queue_histo_async_read_count"
+						name         = "Wait_Count_Async_Read"
+						struct       = "vsx_queue_histo_async_read_count"
+						field        = "vsx_queue_histo_async_read_count"
+						description  = "vsx_queue_histo_async_read_count"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "22"
+						uri          = "ZFSin.vsx_queue_histo_sync_write_time"
+						name         = "Wait_Time_Sync_Write_ns"
+						struct       = "vsx_queue_histo_sync_write_time"
+						field        = "vsx_queue_histo_sync_write_time"
+						description  = "vsx_queue_histo_sync_write_time"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "23"
+						uri          = "ZFSin.vsx_queue_histo_sync_write_count"
+						name         = "Wait_Count_Sync_Write"
+						struct       = "vsx_queue_histo_sync_write_count"
+						field        = "vsx_queue_histo_sync_write_count"
+						description  = "vsx_queue_histo_sync_write_count"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "24"
+						uri          = "ZFSin.vsx_queue_histo_async_write_time"
+						name         = "Wait_Time_Async_Write_ns"
+						struct       = "vsx_queue_histo_async_write_time"
+						field        = "vsx_queue_histo_async_write_time"
+						description  = "vsx_queue_histo_async_write_time"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "25"
+						uri          = "ZFSin.vsx_queue_histo_async_write_count"
+						name         = "Wait_Count_Async_Write"
+						struct       = "vsx_queue_histo_async_write_count"
+						field        = "vsx_queue_histo_async_write_count"
+						description  = "vsx_queue_histo_async_write_count"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "26"
+						uri          = "ZFSin.vsx_total_histo_read_time"
+						name         = "Wait_Time_Total_Read_ns"
+						struct       = "vsx_total_histo_read_time"
+						field        = "vsx_total_histo_read_time"
+						description  = "vsx_total_histo_read_time"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "27"
+						uri          = "ZFSin.vsx_total_histo_read_count"
+						name         = "Wait_Count_Total_Read"
+						struct       = "vsx_total_histo_read_count"
+						field        = "vsx_total_histo_read_count"
+						description  = "vsx_total_histo_read_count"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "28"
+						uri          = "ZFSin.vsx_total_histo_write_time"
+						name         = "Wait_Time_Total_Write_ns"
+						struct       = "vsx_total_histo_write_time"
+						field        = "vsx_total_histo_write_time"
+						description  = "vsx_total_histo_write_time"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "29"
+						uri          = "ZFSin.vsx_total_histo_write_count"
+						name         = "Wait_Count_Total_Write"
+						struct       = "vsx_total_histo_write_count"
+						field        = "vsx_total_histo_write_count"
+						description  = "vsx_total_histo_write_count"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "30"
+						uri          = "ZFSin.vsx_disk_histo_read_time"
+						name         = "Wait_Time_Disk_Read_ns"
+						struct       = "vsx_disk_histo_read_time"
+						field        = "vsx_disk_histo_read_time"
+						description  = "vsx_disk_histo_read_time"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "31"
+						uri          = "ZFSin.vsx_disk_histo_read_count"
+						name         = "Wait_Count_Disk_Read"
+						struct       = "vsx_disk_histo_read_count"
+						field        = "vsx_disk_histo_read_count"
+						description  = "vsx_disk_histo_read_count"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "32"
+						uri          = "ZFSin.vsx_disk_histo_write_time"
+						name         = "Wait_Time_Disk_Write_ns"
+						struct       = "vsx_disk_histo_write_time"
+						field        = "vsx_disk_histo_write_time"
+						description  = "vsx_disk_histo_write_time"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "33"
+						uri          = "ZFSin.vsx_disk_histo_write_count"
+						name         = "Wait_Count_Disk_Write"
+						struct       = "vsx_disk_histo_write_count"
+						field        = "vsx_disk_histo_write_count"
+						description  = "vsx_disk_histo_write_count"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "34"
+						uri          = "ZFSin.dp_dirty_total_io"
+						name         = "Dirty_Data_Bytes"
+						struct       = "dp_dirty_total_io"
+						field        = "dp_dirty_total_io"
+						description  = "dp_dirty_total_io"
+						type         = "perf_counter_large_rawcount"
+						detailLevel  = "standard">
+          </counter>
+				</counterSet>
+        <counterSet
+					guid        = "{3E687EA1-7258-43BF-B832-F082EC02F1CA}"
+					uri         = "ZFSin.IOPS.THROUGHPUT.PER.VDEV"
+					name        = "OpenZFS Vdev"
+					description = "Collect per vdev stats in each zpool"
+					symbol      = "ZFSinPerfVdev"
+					instances   = "multiple"
+				>
+          <structs>
+            <struct
+							name="ZFSinVdevValues"
+							type="zpool_perf_counters"
+						/>
+          </structs>
+          <counter
+						id           = "1"
+						uri          = "ZFSin.read_iops"
+						name         = "Reads/sec"
+						struct       = "read_iops"
+						field        = "read_iops"
+						description  = "Read IO/sec."
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "2"
+						uri          = "ZFSin.write_iops"
+						name         = "Writes/sec"
+						struct       = "write_iops"
+						field        = "write_iops"
+						description  = "Write IO/sec."
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "3"
+						uri          = "ZFSin.read_bytes"
+						name         = "Read Bytes/sec"
+						struct       = "read_bytes"
+						field        = "read_bytes"
+						description  = "Read Throughput/sec."
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "4"
+						uri          = "ZFSin.write_bytes"
+						name         = "Write Bytes/sec"
+						struct       = "write_bytes"
+						field        = "write_bytes"
+						description  = "Write Throughput/sec."
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "5"
+						uri          = "ZFSin.vsx_active_queue_sync_read"
+						name         = "Active_Sync_Reads"
+						struct       = "vsx_active_queue_sync_read"
+						field        = "vsx_active_queue_sync_read"
+						description  = "vsx_active_queue_sync_read"
+						type         = "perf_counter_large_rawcount"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "6"
+						uri          = "ZFSin.vsx_active_queue_sync_write"
+						name         = "Active_Sync_Writes"
+						struct       = "vsx_active_queue_sync_write"
+						field        = "vsx_active_queue_sync_write"
+						description  = "vsx_active_queue_sync_write"
+						type         = "perf_counter_large_rawcount"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "7"
+						uri          = "ZFSin.vsx_active_queue_async_read"
+						name         = "Active_Async_Reads"
+						struct       = "vsx_active_queue_async_read"
+						field        = "vsx_active_queue_async_read"
+						description  = "vsx_active_queue_async_read"
+						type         = "perf_counter_large_rawcount"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "8"
+						uri          = "ZFSin.vsx_active_queue_async_write"
+						name         = "Active_Async_Writes"
+						struct       = "vsx_active_queue_async_write"
+						field        = "vsx_active_queue_async_write"
+						description  = "vsx_active_queue_async_write"
+						type         = "perf_counter_large_rawcount"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "9"
+						uri          = "ZFSin.vsx_pend_queue_sync_read "
+						name         = "Pending_Sync_Reads"
+						struct       = "vsx_pend_queue_sync_read"
+						field        = "vsx_pend_queue_sync_read"
+						description  = "vsx_pend_queue_sync_read"
+						type         = "perf_counter_large_rawcount"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "10"
+						uri          = "ZFSin.vsx_pend_queue_sync_write "
+						name         = "Pending_Sync_Writes"
+						struct       = "vsx_pend_queue_sync_write"
+						field        = "vsx_pend_queue_sync_write"
+						description  = "vsx_pend_queue_sync_write"
+						type         = "perf_counter_large_rawcount"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "11"
+						uri          = "ZFSin.vsx_pend_queue_async_read"
+						name         = "Pending_Async_Reads"
+						struct       = "vsx_pend_queue_async_read"
+						field        = "vsx_pend_queue_async_read"
+						description  = "vsx_pend_queue_async_read"
+						type         = "perf_counter_large_rawcount"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "12"
+						uri          = "ZFSin.vsx_pend_queue_async_write "
+						name         = "Pending_Async_Writes"
+						struct       = "vsx_pend_queue_async_write"
+						field        = "vsx_pend_queue_async_write"
+						description  = "vsx_pend_queue_async_write"
+						type         = "perf_counter_large_rawcount"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "13"
+						uri          = "ZFSin.vsx_queue_histo_sync_read_time"
+						name         = "Wait_Time_Sync_Read_ns"
+						struct       = "vsx_queue_histo_sync_read_time"
+						field        = "vsx_queue_histo_sync_read_time"
+						description  = "vsx_queue_histo_sync_read_time"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "14"
+						uri          = "ZFSin.vsx_queue_histo_sync_read_count"
+						name         = "Wait_Count_Sync_Read"
+						struct       = "vsx_queue_histo_sync_read_count"
+						field        = "vsx_queue_histo_sync_read_count"
+						description  = "vsx_queue_histo_sync_read_count"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "15"
+						uri          = "ZFSin.vsx_queue_histo_async_read_time"
+						name         = "Wait_Time_Async_Read_ns"
+						struct       = "vsx_queue_histo_async_read_time"
+						field        = "vsx_queue_histo_async_read_time"
+						description  = "vsx_queue_histo_async_read_time"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "16"
+						uri          = "ZFSin.vsx_queue_histo_async_read_count"
+						name         = "Wait_Count_Async_Read"
+						struct       = "vsx_queue_histo_async_read_count"
+						field        = "vsx_queue_histo_async_read_count"
+						description  = "vsx_queue_histo_async_read_count"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "17"
+						uri          = "ZFSin.vsx_queue_histo_sync_write_time"
+						name         = "Wait_Time_Sync_Write_ns"
+						struct       = "vsx_queue_histo_sync_write_time"
+						field        = "vsx_queue_histo_sync_write_time"
+						description  = "vsx_queue_histo_sync_write_time"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "18"
+						uri          = "ZFSin.vsx_queue_histo_sync_write_count"
+						name         = "Wait_Count_Sync_Write"
+						struct       = "vsx_queue_histo_sync_write_count"
+						field        = "vsx_queue_histo_sync_write_count"
+						description  = "vsx_queue_histo_sync_write_count"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "19"
+						uri          = "ZFSin.vsx_queue_histo_async_write_time"
+						name         = "Wait_Time_Async_Write_ns"
+						struct       = "vsx_queue_histo_async_write_time"
+						field        = "vsx_queue_histo_async_write_time"
+						description  = "vsx_queue_histo_async_write_time"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "20"
+						uri          = "ZFSin.vsx_queue_histo_async_write_count"
+						name         = "Wait_Count_Async_Write"
+						struct       = "vsx_queue_histo_async_write_count"
+						field        = "vsx_queue_histo_async_write_count"
+						description  = "vsx_queue_histo_async_write_count"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "21"
+						uri          = "ZFSin.vsx_total_histo_read_time"
+						name         = "Wait_Time_Total_Read_ns"
+						struct       = "vsx_total_histo_read_time"
+						field        = "vsx_total_histo_read_time"
+						description  = "vsx_total_histo_read_time"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "22"
+						uri          = "ZFSin.vsx_total_histo_read_count"
+						name         = "Wait_Count_Total_Read"
+						struct       = "vsx_total_histo_read_count"
+						field        = "vsx_total_histo_read_count"
+						description  = "vsx_total_histo_read_count"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "23"
+						uri          = "ZFSin.vsx_total_histo_write_time"
+						name         = "Wait_Time_Total_Write_ns"
+						struct       = "vsx_total_histo_write_time"
+						field        = "vsx_total_histo_write_time"
+						description  = "vsx_total_histo_write_time"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "24"
+						uri          = "ZFSin.vsx_total_histo_write_count"
+						name         = "Wait_Count_Total_Write"
+						struct       = "vsx_total_histo_write_count"
+						field        = "vsx_total_histo_write_count"
+						description  = "vsx_total_histo_write_count"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "25"
+						uri          = "ZFSin.vsx_disk_histo_read_time"
+						name         = "Wait_Time_Disk_Read_ns"
+						struct       = "vsx_disk_histo_read_time"
+						field        = "vsx_disk_histo_read_time"
+						description  = "vsx_disk_histo_read_time"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "26"
+						uri          = "ZFSin.vsx_disk_histo_read_count"
+						name         = "Wait_Count_Disk_Read"
+						struct       = "vsx_disk_histo_read_count"
+						field        = "vsx_disk_histo_read_count"
+						description  = "vsx_disk_histo_read_count"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "27"
+						uri          = "ZFSin.vsx_disk_histo_write_time"
+						name         = "Wait_Time_Disk_Write_ns"
+						struct       = "vsx_disk_histo_write_time"
+						field        = "vsx_disk_histo_write_time"
+						description  = "vsx_disk_histo_write_time"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "28"
+						uri          = "ZFSin.vsx_disk_histo_write_count"
+						name         = "Wait_Count_Disk_Write"
+						struct       = "vsx_disk_histo_write_count"
+						field        = "vsx_disk_histo_write_count"
+						description  = "vsx_disk_histo_write_count"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "29"
+						uri          = "ZFSin.total_iops"
+						name         = "Transfers/sec"
+						struct       = "total_iops"
+						field        = "total_iops"
+						description  = "Total IO/sec of vdevs"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "30"
+						uri          = "ZFSin.total_bytes"
+						name         = "Total Bytes/sec"
+						struct       = "total_bytes"
+						field        = "total_bytes"
+						description  = "Amount of bytes written and read/sec"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+        </counterSet>
+        <counterSet
+  guid        = "{2F8F7F86-5C0B-4865-972C-A788F04C61AA}"
+  uri         = "ZFSin.ARC.L2ARC.ZIL.SLOG"
+  name        = "OpenZFS Cache"
+  description = "Collect ARC L2ARC ZIL SLOG statistics"
+  symbol      = "ZFSinCachePerf"
+  instances   = "multiple"
+				>
+          <structs>
+            <struct
+							name="ZFSinCachePerfValues"
+							type="cache_counters"
+						/>
+          </structs>
+          <counter
+						id           = "1"
+						uri          = "ZFSin.arcstat_hits"
+						name         = "ARC Hits"
+						struct       = "arcstat_hits"
+						field        = "arcstat_hits"
+						description  = "ARC reads per second"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "2"
+						uri          = "ZFSin.arcstat_misses"
+						name         = "ARC Misses"
+						struct       = "arcstat_misses"
+						field        = "arcstat_misses"
+						description  = "ARC misses per second"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "3"
+						uri          = "ZFSin.arcstat_size"
+						name         = "ARC Size Bytes"
+						struct       = "arcstat_size"
+						field        = "arcstat_size"
+						description  = "ARC_size"
+						type         = "perf_counter_large_rawcount"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "4"
+						uri          = "ZFSin.arcstat_c"
+						name         = "ARC Target Size Bytes"
+						struct       = "arcstat_c"
+						field        = "arcstat_c"
+						description  = "ARC Target Size"
+						type         = "perf_counter_large_rawcount"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "5"
+						uri          = "ZFSin.arcstat_mfu_hits"
+						name         = "ARC MFU List Hits"
+						struct       = "arcstat_mfu_hits"
+						field        = "arcstat_mfu_hits"
+						description  = "MFU List hits per second"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "6"
+						uri          = "ZFSin.arcstat_mru_hits"
+						name         = "ARC MRU List Hits"
+						struct       = "arcstat_mru_hits"
+						field        = "arcstat_mru_hits"
+						description  = "MRU List hits per second"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "7"
+						uri          = "ZFSin.arcstat_mru_ghost_hits"
+						name         = "ARC MRU Ghost List Hits"
+						struct       = "arcstat_mru_ghost_hits"
+						field        = "arcstat_mru_ghost_hits"
+						description  = "MRU Ghost List hits per second"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "8"
+						uri          = "ZFSin.arcstat_mfu_ghost_hits"
+						name         = "ARC MFU Ghost List Hits"
+						struct       = "arcstat_mfu_ghost_hits"
+						field        = "arcstat_mfu_ghost_hits"
+						description  = "MFU Ghost List hits per second"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "9"
+						uri          = "ZFSin.arcstat_evict_skip"
+						name         = "ARC Evict Skip"
+						struct       = "arcstat_evict_skip"
+						field        = "arcstat_evict_skip"
+						description  = "evict_skip per second"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "10"
+						uri          = "ZFSin.arcstat_mutex_miss"
+						name         = "ARC Mutex Misses"
+						struct       = "arcstat_mutex_miss"
+						field        = "arcstat_mutex_miss"
+						description  = "mutex_miss per second"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "11"
+						uri          = "ZFSin.arcstat_compressed_size"
+						name         = "ARC Compressed Size Bytes"
+						struct       = "arcstat_compressed_size"
+						field        = "arcstat_compressed_size"
+						description  = "bytes of cache consumed by compressed blocks"
+						type         = "perf_counter_large_rawcount"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "12"
+						uri          = "ZFSin.arcstat_uncompressed_size"
+						name         = "ARC Uncompressed Size Bytes"
+						struct       = "arcstat_uncompressed_size"
+						field        = "arcstat_uncompressed_size"
+						description  = "bytes required to cache compress if the same data decompressed"
+						type         = "perf_counter_large_rawcount"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "13"
+						uri          = "ZFSin.arcstat_overhead_size"
+						name         = "ARC Overhead Size Bytes"
+						struct       = "arcstat_overhead_size"
+						field        = "arcstat_overhead_size"
+						description  = "amount of uncompressed data cache is currently using"
+						type         = "perf_counter_large_rawcount"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "14"
+						uri          = "ZFSin.arcstat_l2_hits"
+						name         = "L2ARC Hits"
+						struct       = "arcstat_l2_hits"
+						field        = "arcstat_l2_hits"
+						description  = "L2ARC hits per second"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "15"
+						uri          = "ZFSin.arcstat_l2_misses"
+						name         = "L2ARC Misses"
+						struct       = "arcstat_l2_misses"
+						field        = "arcstat_l2_misses"
+						description  = "L2ARC misses per second"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "16"
+						uri          = "ZFSin.arcstat_l2_read_bytes"
+						name         = "L2ARC Reads Bytes"
+						struct       = "arcstat_l2_read_bytes"
+						field        = "arcstat_l2_read_bytes"
+						description  = "L2ARC reads per second"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "17"
+						uri          = "ZFSin.arcstat_l2_write_bytes"
+						name         = "L2ARC Writes Bytes"
+						struct       = "arcstat_l2_write_bytes"
+						field        = "arcstat_l2_write_bytes"
+						description  = "L2ARC writes per second"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "18"
+						uri          = "ZFSin.arcstat_total_demand_hits"
+						name         = "ARC Demand Data Hits"
+						struct       = "arcstat_total_demand_hits"
+						field        = "arcstat_total_demand_hits"
+						description  = "Demand Data hits per second + metadata hits per second"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "19"
+						uri          = "ZFSin.arcstat_total_demand_miss"
+						name         = "ARC Demand Data Misses"
+						struct       = "arcstat_total_demand_miss"
+						field        = "arcstat_total_demand_miss"
+						description  = "Demand Data misses per second + metadata misses per second"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "20"
+						uri          = "ZFSin.arcstat_perfetch_hits"
+						name         = "ARC Prefetch Hits"
+						struct       = "arcstat_perfetch_hits"
+						field        = "arcstat_perfetch_hits"
+						description  = "Prefetch hits per second"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "21"
+						uri          = "ZFSin.arcstat_perfetch_miss"
+						name         = "ARC Prefetch Misses"
+						struct       = "arcstat_perfetch_miss"
+						field        = "arcstat_perfetch_miss"
+						description  = "Prefetch misses per second"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "22"
+						uri          = "ZFSin.arcstat_perfetch_ps"
+						name         = "ARC Total Prefetch Hits Misses"
+						struct       = "arcstat_perfetch_ps"
+						field        = "arcstat_perfetch_ps"
+						description  = "Prefetch accesses per second"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "23"
+						uri          = "ZFSin.arcstat_read_ps"
+						name         = "ARC Total Hits Misses"
+						struct       = "arcstat_read_ps"
+						field        = "arcstat_read_ps"
+						description  = "Total ARC accesses per second"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "24"
+						uri          = "ZFSin.arcstat_metadata_hit_ps"
+						name         = "ARC Metadata Hits"
+						struct       = "arcstat_metadata_hit_ps"
+						field        = "arcstat_metadata_hit_ps"
+						description  = "metadata hits per second"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "25"
+						uri          = "ZFSin.arcstat_metadata_miss_ps"
+						name         = "ARC Metadata Misses"
+						struct       = "arcstat_metadata_miss_ps"
+						field        = "arcstat_metadata_miss_ps"
+						description  = "metadata misses per second"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "26"
+						uri          = "ZFSin.arcstat_metadata_accesses_ps"
+						name         = "ARC Total Metadata Hits Misses"
+						struct       = "arcstat_metadata_accesses_ps"
+						field        = "arcstat_metadata_accesses_ps"
+						description  = "metadata accesses per second"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "27"
+						uri          = "ZFSin.arcstat_demand_ps"
+						name         = "ARC Total Demand Data Hits Misses"
+						struct       = "arcstat_demand_ps"
+						field        = "arcstat_demand_ps"
+						description  = "Demand data accesses per second"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "28"
+						uri          = "ZFSin.arcstat_l2_access_ps"
+						name         = "L2ARC Total Hits Misses"
+						struct       = "arcstat_l2_access_ps"
+						field        = "arcstat_l2_access_ps"
+						description  = "Total L2ARC Hits + Miss"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "29"
+						uri          = "ZFSin.zil_commit_count"
+						name         = "ZIL Commit Count"
+						struct       = "zil_commit_count"
+						field        = "zil_commit_count"
+						description  = "zil_commit_count"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "30"
+						uri          = "ZFSin.zil_commit_writer_count"
+						name         = "ZIL Commit Writer Count"
+						struct       = "zil_commit_writer_count"
+						field        = "zil_commit_writer_count"
+						description  = "zil_commit_writer_count"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "31"
+						uri          = "ZFSin.zil_itx_count"
+						name         = "ZIL Count"
+						struct       = "zil_itx_count"
+						field        = "zil_itx_count"
+						description  = "zil_itx_count"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "32"
+						uri          = "ZFSin.zil_itx_indirect_count"
+						name         = "ZIL Indirect Count"
+						struct       = "zil_itx_indirect_count"
+						field        = "zil_itx_indirect_count"
+						description  = "zil_itx_indirect_count"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "33"
+						uri          = "ZFSin.zil_itx_indirect_bytes"
+						name         = "ZIL Indirect Bytes"
+						struct       = "zil_itx_indirect_bytes"
+						field        = "zil_itx_indirect_bytes"
+						description  = "zil_itx_indirect_bytes"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "34"
+						uri          = "ZFSin.zil_itx_copied_count"
+						name         = "ZIL Copied Count"
+						struct       = "zil_itx_copied_count"
+						field        = "zil_itx_copied_count"
+						description  = "zil_itx_copied_count"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "35"
+						uri          = "ZFSin.zil_itx_copied_bytes"
+						name         = "ZIL Copied Bytes"
+						struct       = "zil_itx_copied_bytes"
+						field        = "zil_itx_copied_bytes"
+						description  = "zil_itx_copied_bytes"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "36"
+						uri          = "ZFSin.zil_itx_needcopy_count"
+						name         = "ZIL Needcopy Count"
+						struct       = "zil_itx_needcopy_count"
+						field        = "zil_itx_needcopy_count"
+						description  = "zil_itx_needcopy_count"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "37"
+						uri          = "ZFSin.zil_itx_needcopy_bytes"
+						name         = "ZIL Needcopy Bytes"
+						struct       = "zil_itx_needcopy_bytes"
+						field        = "zil_itx_needcopy_bytes"
+						description  = "zil_itx_needcopy_bytes"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "38"
+						uri          = "ZFSin.zil_itx_metaslab_normal_count"
+						name         = "ZIL Metaslab Normal Count"
+						struct       = "zil_itx_metaslab_normal_count"
+						field        = "zil_itx_metaslab_normal_count"
+						description  = "zil_itx_metaslab_normal_count"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "39"
+						uri          = "ZFSin.zil_itx_metaslab_normal_bytes"
+						name         = "ZIL Metaslab Normal Bytes"
+						struct       = "zil_itx_metaslab_normal_bytes"
+						field        = "zil_itx_metaslab_normal_bytes"
+						description  = "zil_itx_metaslab_normal_bytes"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "40"
+						uri          = "ZFSin.zil_itx_metaslab_slog_count"
+						name         = "SLOG Metaslab Count"
+						struct       = "zil_itx_metaslab_slog_count"
+						field        = "zil_itx_metaslab_slog_count"
+						description  = "zil_itx_metaslab_slog_count"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+          <counter
+						id           = "41"
+						uri          = "ZFSin.zil_itx_metaslab_slog_bytes"
+						name         = "SLOG Metaslab Bytes"
+						struct       = "zil_itx_metaslab_slog_bytes"
+						field        = "zil_itx_metaslab_slog_bytes"
+						description  = "zil_itx_metaslab_slog_bytes"
+						type         = "perf_counter_bulk_count"
+						detailLevel  = "standard">
+          </counter>
+        </counterSet>
+      </provider>
+		</counters>
+	</instrumentation>
+</instrumentationManifest>

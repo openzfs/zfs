@@ -27,6 +27,7 @@
 #include <sys/zfs_context.h>
 #include <sys/zfs_impl.h>
 #include <sys/sha2.h>
+#include <sys/simd.h>
 
 #include <sha2/sha2_impl.h>
 #include <sys/asm_linkage.h>
@@ -190,7 +191,7 @@ static const sha512_ops_t *const sha512_impls[] = {
 
 #define	IMPL_FMT(impl, i)	(((impl) == (i)) ? "[%s] " : "%s ")
 
-#if defined(__linux__)
+#if defined(__linux__) || defined(_WIN32)
 
 static int
 sha512_param_get(char *buffer, zfs_kernel_param_t *unused)
@@ -224,6 +225,31 @@ sha512_param_set(const char *val, zfs_kernel_param_t *unused)
 	(void) unused;
 	return (generic_impl_setname(val));
 }
+
+#ifdef _WIN32
+int
+win32_sha512_param_set(ZFS_MODULE_PARAM_ARGS)
+{
+	uint32_t val;
+	static unsigned char str[1024] = "";
+
+	*type = ZT_TYPE_STRING;
+
+	if (set == B_FALSE) {
+		sha512_param_get(str, NULL);
+		*ptr = str;
+		*len = strlen(str);
+		return (0);
+	}
+
+	ASSERT3P(ptr, !=, NULL);
+
+	generic_impl_setname(*ptr);
+
+	return (0);
+}
+#endif /* WIN32 */
+
 
 #elif defined(__FreeBSD__)
 

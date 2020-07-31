@@ -284,7 +284,11 @@ make_leaf_vdev(nvlist_t *props, const char *arg, boolean_t is_primary)
 	 * 'path'.  We detect whether this is a device of file afterwards by
 	 * checking the st_mode of the file.
 	 */
+#ifdef _WIN32
+	if (arg[0] == '/' || arg[0] == '\\') {
+#else
 	if (arg[0] == '/') {
+#endif
 		/*
 		 * Complete device or file path.  Exact type is determined by
 		 * examining the file descriptor afterwards.  Symbolic links
@@ -920,7 +924,10 @@ zero_label(const char *path)
 	err = write(fd, buf, size);
 	(void) fdatasync(fd);
 	(void) close(fd);
-
+#ifdef _WIN32
+	/* Not allowed to write to boot sector */
+	err = size;
+#endif
 	if (err == -1) {
 		(void) fprintf(stderr, gettext("cannot zero first %d bytes "
 		    "of '%s': %s\n"), size, path, strerror(errno));
@@ -983,9 +990,12 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 			/*
 			 * Update device id string for mpath nodes (Linux only)
 			 */
-			if (is_mpath_whole_disk(path))
+			if (is_mpath_whole_disk(path)) {
 				update_vdev_config_dev_strs(nv);
-
+				/* update might change path, so fetch again */
+				verify(!nvlist_lookup_string(nv,
+				    ZPOOL_CONFIG_PATH, &path));
+			}
 			if (!is_spare(NULL, path))
 				(void) zero_label(path);
 			return (0);
@@ -1031,7 +1041,13 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 		 * and then block until udev creates the new link.
 		 */
 		if (!is_exclusive && !is_spare(NULL, udevpath)) {
-			char *devnode = strrchr(devpath, '/') + 1;
+			char *devnode = strrchr(devpath, '/');
+#ifdef _WIN32
+			char *backslash = strrchr(devpath, '\\');
+			if (devnode == NULL || backslash > devnode)
+				devnode = backslash;
+#endif
+			devnode = &devnode[1];
 
 			ret = strncmp(udevpath, UDISK_ROOT, strlen(UDISK_ROOT));
 			if (ret == 0) {
@@ -1060,9 +1076,18 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 				return (ret);
 			}
 
+#ifndef _WIN32
 			ret = zero_label(udevpath);
 			if (ret)
 				return (ret);
+#else
+			/*
+			 * Append_partition will only work once label_disk has
+			 * been called (To find offset+length).
+			 * Call it again to get correct path.
+			 */
+			(void) zfs_append_partition(udevpath, MAXPATHLEN);
+#endif
 		}
 
 		/*

@@ -26,6 +26,7 @@
  * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
  * Copyright (c) 2019, 2020 by Christian Schwarz. All rights reserved.
  * Copyright (c) 2019 Datto Inc.
+ * Portions Copyright 2022 Andrew Innes <andrew.c12@gmail.com>
  */
 
 /*
@@ -91,8 +92,19 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/zfs_ioctl.h>
+
 #if __FreeBSD__
 #define	BIG_PIPE_SIZE (64 * 1024) /* From sys/pipe.h */
+#endif
+
+#ifdef _WIN32
+/*
+ * 64k aswell
+ * https://stackoverflow.com/q/33553837
+ * https://docs.microsoft.com/en-au/windows/win32/api/namedpipeapi/
+ * nf-namedpipeapi-transactnamedpipe
+ */
+#define	BIG_PIPE_SIZE (64 * 1024)
 #endif
 
 static int g_fd = -1;

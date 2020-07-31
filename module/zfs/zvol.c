@@ -37,6 +37,7 @@
  * Copyright 2014 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2016 Actifio, Inc. All rights reserved.
  * Copyright (c) 2012, 2019 by Delphix. All rights reserved.
+ * Portions Copyright 2022 Andrew Innes <andrew.c12@gmail.com>
  */
 
 /*
@@ -90,7 +91,7 @@ unsigned int zvol_inhibit_dev = 0;
 unsigned int zvol_volmode = ZFS_VOLMODE_GEOM;
 
 struct hlist_head *zvol_htable;
-static list_t zvol_state_list;
+list_t zvol_state_list;
 krwlock_t zvol_state_lock;
 
 typedef enum {
@@ -174,7 +175,7 @@ zvol_find_by_name_hash(const char *name, uint64_t hash, int mode)
  * before zv_state_lock. The mode argument indicates the mode (including none)
  * for zv_suspend_lock to be taken.
  */
-static zvol_state_t *
+zvol_state_t *
 zvol_find_by_name(const char *name, int mode)
 {
 	return (zvol_find_by_name_hash(name, zvol_name_hash(name), mode));
@@ -1279,6 +1280,9 @@ zvol_remove_minors_impl(const char *name)
 			 * By holding zv_state_lock here, we guarantee that no
 			 * one is currently using this zv
 			 */
+#ifdef _WIN32
+			zvol_os_detach_zv(zv);
+#endif
 
 			/* If in use, leave alone */
 			if (zv->zv_open_count > 0 ||

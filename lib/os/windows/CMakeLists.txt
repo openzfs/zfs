@@ -1,0 +1,5 @@
+add_subdirectory(zlib-1.2.13)
+add_subdirectory(libpthread)
+add_subdirectory(libkstat)
+add_subdirectory(libuuid)
+add_subdirectory(libregex)

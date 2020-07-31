@@ -404,7 +404,8 @@ aes_impl_set(const char *val)
 	return (err);
 }
 
-#if defined(_KERNEL) && defined(__linux__)
+#if defined(_KERNEL)
+#if defined(__linux__) || defined(_WIN32)
 
 static int
 icp_aes_impl_set(const char *val, zfs_kernel_param_t *kp)
@@ -437,8 +438,33 @@ icp_aes_impl_get(char *buffer, zfs_kernel_param_t *kp)
 
 	return (cnt);
 }
+#endif /* Linux || Windows */
+
+#ifdef _WIN32
+int
+win32_icp_aes_impl_set(ZFS_MODULE_PARAM_ARGS)
+{
+	static unsigned char str[1024] = "";
+
+	*type = ZT_TYPE_STRING;
+
+	if (set == B_FALSE) {
+		if (aes_impl_initialized)
+			icp_aes_impl_get((char *)str, NULL);
+		*ptr = str;
+		*len = strlen((const char *)str);
+		return (0);
+	}
+
+	ASSERT3P(ptr, !=, NULL);
+
+	aes_impl_set(*ptr);
+
+	return (0);
+}
+#endif /* WIN32 */
 
 module_param_call(icp_aes_impl, icp_aes_impl_set, icp_aes_impl_get,
     NULL, 0644);
 MODULE_PARM_DESC(icp_aes_impl, "Select aes implementation.");
-#endif
+#endif /* KERNEL */

@@ -1,0 +1,3 @@
+// This file is only used on Windows and CMake, other platforms
+// see scripts/make-gitrev.sh
+#define	ZFS_META_GITREV "@GIT_GITREV@"

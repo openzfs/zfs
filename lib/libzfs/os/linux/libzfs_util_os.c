@@ -278,3 +278,10 @@ zfs_userns(zfs_handle_t *zhp, const char *nspath, int attach)
 
 	return (ret);
 }
+
+/* Called from the tail end of zfs_rollback() */
+void
+zfs_rollback_os(zfs_handle_t *zhp)
+{
+	(void) zhp;
+}

@@ -3033,8 +3033,43 @@ dsl_scan_ds_maxtxg(dsl_dataset_t *ds)
 	return (smt);
 }
 
+#if defined(_WIN32) && defined(_KERNEL)
+/*
+ * Windows lets us callout to a function with a
+ * larger stack size, which is needed in scrub and resilver.
+ * but since it takes only one argument, we have to double
+ * wrap it here.
+ */
+struct _win32_larger_stack {
+	dsl_scan_t *scn;
+	dmu_tx_t *tx;
+};
+
+static void
+dsl_scan_visit_impl(dsl_scan_t *scn, dmu_tx_t *tx);
+
+void
+dsl_scan_visit_wrap(void *arg1)
+{
+	struct _win32_larger_stack *arg = (struct _win32_larger_stack *)arg1;
+	dsl_scan_visit_impl(arg->scn, arg->tx);
+}
+
 static void
 dsl_scan_visit(dsl_scan_t *scn, dmu_tx_t *tx)
+{
+	struct _win32_larger_stack wls = { scn, tx };
+	if (KeExpandKernelStackAndCallout(dsl_scan_visit_wrap, &wls,
+	    MAXIMUM_EXPANSION_SIZE) != 0)
+		dsl_scan_visit_impl(scn, tx);
+}
+
+static void
+dsl_scan_visit_impl(dsl_scan_t *scn, dmu_tx_t *tx)
+#else
+static void
+dsl_scan_visit(dsl_scan_t *scn, dmu_tx_t *tx)
+#endif
 {
 	scan_ds_t *sds;
 	dsl_pool_t *dp = scn->scn_dp;

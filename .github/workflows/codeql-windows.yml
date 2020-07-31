@@ -1,0 +1,69 @@
+######################################################################################
+#                                                                                    #
+#    If you're looking for instructions on how to build this under windows go to     #
+#https://github.com/openzfsonwindows/openzfs/blob/windows/module/os/windows/README.md#
+#                                                                                    #
+######################################################################################
+
+name: "CodeQL windows"
+
+on:
+  push:
+  pull_request:
+
+env:
+  # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
+  BUILD_TYPE: Debug
+
+jobs:
+  analyze:
+    name: Analyze
+    timeout-minutes: 120
+    # The CMake configure and build commands are platform agnostic and should work equally well on Windows or Mac.
+    # You can convert this to a matrix build if you need cross-platform coverage.
+    # See: https://docs.github.com/en/free-pro-team@latest/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
+    runs-on: windows-latest
+    permissions:
+        actions: read
+        contents: read
+        security-events: write
+
+    steps:
+    - uses: ilammy/msvc-dev-cmd@v1
+
+    - uses: actions/checkout@v3
+      with:
+        #repository: openzfsonwindows/openzfs
+        fetch-depth: 0
+
+    - name: Import signing certificate
+      run: |
+        $plaintextpwd = 'password1234'
+        $pwd = ConvertTo-SecureString -String $plaintextpwd -Force -AsPlainText
+        Import-PfxCertificate -FilePath ${{github.workspace}}/contrib/windows/TestCert/test_sign_cert_pass.pfx -CertStoreLocation Cert:\CurrentUser\My -Password $pwd -Exportable
+
+    - name: Checkout openssl
+      uses: actions/checkout@v3
+      with:
+        repository: andrewc12/openssl # optional, default is ${{ github.repository }}
+        path: openssl # optional
+
+    # Initializes the CodeQL tools for scanning.
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v2
+        # Override language selection by uncommenting this and choosing your languages
+      with:
+          languages: cpp
+
+    - name: Configure CMake
+      # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
+      # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
+      run: cmake -G "Ninja" -B ${{github.workspace}}/out/build/x64-Debug ${{github.workspace}}  -DOPENSSL_ROOT_DIR=${{github.workspace}}/openssl/ -DCRYPTO_STATIC_TEST=${{github.workspace}}/openssl/lib/VC/static/libcrypto64MTd.lib -DLIB_EAY_DEBUG=${{github.workspace}}/openssl/lib/VC/static/libcrypto64MTd.lib -DLIB_EAY_RELEASE=${{github.workspace}}/openssl/lib/VC/static/libcrypto64MT.lib -DOPENSSL_INCLUDE_DIR=${{github.workspace}}/openssl/include -DSSL_EAY_DEBUG=${{github.workspace}}/openssl/lib/VC/static/libssl64MTd.lib -DSSL_EAY_RELEASE=${{github.workspace}}/openssl/lib/VC/static/libssl64MT.lib
+
+    - name: Build
+      working-directory: ${{github.workspace}}/out/build/x64-Debug
+      # Build your program with the given configuration
+      run: cmake --build ${{github.workspace}}/out/build/x64-Debug
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v2

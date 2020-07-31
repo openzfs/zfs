@@ -901,6 +901,8 @@ _LIBZFS_H int zfs_mount_at(zfs_handle_t *, const char *, int, const char *);
 _LIBZFS_H int zfs_unmount(zfs_handle_t *, const char *, int);
 _LIBZFS_H int zfs_unmountall(zfs_handle_t *, int);
 _LIBZFS_H int zfs_mount_delegation_check(void);
+_LIBZFS_H int zfs_snapshot_mount(zfs_handle_t *, const char *options, int);
+_LIBZFS_H int zfs_snapshot_unmount(zfs_handle_t *, int);
 
 #if defined(__linux__) || defined(__APPLE__)
 _LIBZFS_H int zfs_parse_mount_options(const char *mntopts,
@@ -999,6 +1001,8 @@ typedef enum {
 
 _LIBZFS_H zpool_compat_status_t zpool_load_compat(const char *,
     boolean_t *, char *, size_t);
+
+_LIBZFS_H void zfs_rollback_os(struct zfs_handle *zhp);
 
 #ifdef __FreeBSD__
 

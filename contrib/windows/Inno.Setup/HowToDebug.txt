@@ -1,0 +1,140 @@
+
+Install / Uninstall Open ZFS on Windows
+
+zfsinstaller install ZFSin.inf
+zfsinstaller uninstall ZFSin.inf
+
+
+* Run DbgView.exe as Administrator
+* Untick Menu / Capture / Capture Win32  (it is noisy)
+* Tick Menu / Capture / Capture Kernel (available if run as Administrator)
+* Right click ZFSin.INF and click Install
+* View kernel messages:
+
+SPL: start
+SPL: Warning: High-overhead kmem debugging features enabled (kmem_flags = 0x6).  Performance degradation and large memory overhead possible. See the Solaris Tunable Parameters Reference Manual.
+SPL: Loaded module v1.6.0-7-gc1b4a00 (DEBUG mode), (ncpu 2, memsize 1073197056, pages 262011)
+SPL: Notice: failed to create fm/misc kstat
+ZFS: created kernel device node: FFFFB0080659D7E0: name DiskFileSystemDevice: 0x0  \ZFS created
+ZFS: Loaded module v1.6.0-1, ZFS pool version 5000, ZFS filesystem version 5
+ZFS filesystem version: 5
+
+Or something similar..
+
+
+
+Mount messages should look something like:
+
+zfs_windows_mount: 'tank' '\??\?:'
+zfs_vfs_uuid_gen UUIDgen: [tank](4) -> [413CEE64-9F5B-3F10-848F-B387FDEDFCC9]
+zfs_windows_mount: new devstring '\Device\Volume{413cee64-9f5b-3f10-848f-b387fdedfcc9}'
+New device FFFFE78C0641B780 has extension FFFFE78C0641B8D0
+zfs_windows_mount: new symlink '\DosDevices\Global\Volume{413cee64-9f5b-3f10-848f-b387fdedfcc9}'
+zfs_windows_mount: new fsname '\Device\ZFS{413cee64-9f5b-3f10-848f-b387fdedfcc9}'
+zfs_vfs_mount
+zfs_vfs_mount cmdflags 0 rdonly 0
+zfs_vfs_mount: fspec 'tank' : mflag 0000 : optptr 0000000000000000 : optlen 0 : options (null)
+zfs_domount
+zfs_windows_mount: zfs_vfs_mount() returns 0
+zfs_windows_mount: driveletter 1 '\??\?:'
+Verify Volume
+dispatcher: enter: major 13: minor 1: IRP_MJ_FILE_SYSTEM_CONTROL(IRP_MN_MOUNT_VOLUME): type 0x6
+  fsDispatcher: enter: major 13: minor 1: IRP_MJ_FILE_SYSTEM_CONTROL(IRP_MN_MOUNT_VOLUME) fsDeviceObject
+IRP_MN_MOUNT_VOLUME fs
+*** mount request for FFFFE78C0641B780 : minor
+zfs_vnop_mount: mounting 'tank'
+=> SendVolumeArrivalNotification
+dispatcher: enter: major 0: minor 0: IRP_MJ_CREATE: type 0x6
+  diskDispatcher: enter: major 0: minor 0: IRP_MJ_CREATE diskDeviceObject
+IRP_MJ_CREATE: FileObject FFFFE78C06003D60 related 0000000000000000 name '(null)' flags 0x0
+dispatcher: enter: major 18: minor 0: IRP_MJ_CLEANUP: type 0x6
+  diskDispatcher: enter: major 18: minor 0: IRP_MJ_CLEANUP diskDeviceObject
+dispatcher: enter: major 0: minor 0: IRP_MJ_CREATE: type 0x6
+  diskDispatcher: enter: major 0: minor 0: IRP_MJ_CREATE diskDeviceObject
+IRP_MJ_CREATE: FileObject FFFFE78C05C01AF0 related 0000000000000000 name '(null)' flags 0x0
+dispatcher: enter: major 18: minor 0: IRP_MJ_CLEANUP: type 0x6
+  diskDispatcher: enter: major 18: minor 0: IRP_MJ_CLEANUP diskDeviceObject
+dispatcher: enter: major 14: minor 0: IRP_MJ_DEVICE_CONTROL: type 0x6
+  diskDispatcher: enter: major 14: minor 0: IRP_MJ_DEVICE_CONTROL diskDeviceObject
+IOCTL_MOUNTDEV_QUERY_DEVICE_NAME
+replying with '\Device\Volume{413cee64-9f5b-3f10-848f-b387fdedfcc9}'
+dispatcher: enter: major 14: minor 0: IRP_MJ_DEVICE_CONTROL: type 0x6
+  diskDispatcher: enter: major 14: minor 0: IRP_MJ_DEVICE_CONTROL diskDeviceObject
+IOCTL_MOUNTDEV_QUERY_UNIQUE_ID
+ioctl_query_unique_id: 
+replying with 'tank'
+dispatcher: enter: major 14: minor 0: IRP_MJ_DEVICE_CONTROL: type 0x6
+  diskDispatcher: enter: major 14: minor 0: IRP_MJ_DEVICE_CONTROL diskDeviceObject
+IOCTL_MOUNTDEV_QUERY_STABLE_GUID
+dispatcher: exit: 0xc0000002 NotImplemented Information 0x0 : IRP_MJ_DEVICE_CONTROL
+dispatcher: enter: major 14: minor 0: IRP_MJ_DEVICE_CONTROL: type 0x6
+  diskDispatcher: enter: major 14: minor 0: IRP_MJ_DEVICE_CONTROL diskDeviceObject
+IOCTL_MOUNTDEV_QUERY_SUGGESTED_LINK_NAME
+ioctl_mountdev_query_suggested_link_name: 
+dispatcher: exit: 0xc0000225 <*****> Information 0x0 : IRP_MJ_DEVICE_CONTROL
+dispatcher: enter: major 14: minor 0: IRP_MJ_DEVICE_CONTROL: type 0x6
+  diskDispatcher: enter: major 14: minor 0: IRP_MJ_DEVICE_CONTROL diskDeviceObject
+dispatcher: enter: major 2: minor 0: IRP_MJ_CLOSE: type 0x6
+  diskDispatcher: enter: major 2: minor 0: IRP_MJ_CLOSE diskDeviceObject
+dispatcher: enter: major 0: minor 0: IRP_MJ_CREATE: type 0x6
+  diskDispatcher: enter: major 0: minor 0: IRP_MJ_CREATE diskDeviceObject
+IRP_MJ_CREATE: FileObject FFFFE78C05C01AF0 related 0000000000000000 name '(null)' flags 0x0
+dispatcher: enter: major 18: minor 0: IRP_MJ_CLEANUP: type 0x6
+  diskDispatcher: enter: major 18: minor 0: IRP_MJ_CLEANUP diskDeviceObject
+dispatcher: enter: major 14: minor 0: IRP_MJ_DEVICE_CONTROL: type 0x6
+  diskDispatcher: enter: major 14: minor 0: IRP_MJ_DEVICE_CONTROL diskDeviceObject
+IOCTL_MOUNTDEV_LINK_CREATED
+dispatcher: enter: major 14: minor 0: IRP_MJ_DEVICE_CONTROL: type 0x6
+  diskDispatcher: enter: major 14: minor 0: IRP_MJ_DEVICE_CONTROL diskDeviceObject
+IOCTL_MOUNTDEV_LINK_CREATED v2
+dispatcher: enter: major 2: minor 0: IRP_MJ_CLOSE: type 0x6
+  diskDispatcher: enter: major 2: minor 0: IRP_MJ_CLOSE diskDeviceObject
+dispatcher: enter: major 0: minor 0: IRP_MJ_CREATE: type 0x6
+  diskDispatcher: enter: major 0: minor 0: IRP_MJ_CREATE diskDeviceObject
+IRP_MJ_CREATE: FileObject FFFFE78C05C01AF0 related 0000000000000000 name '(null)' flags 0x0
+dispatcher: enter: major 18: minor 0: IRP_MJ_CLEANUP: type 0x6
+  diskDispatcher: enter: major 18: minor 0: IRP_MJ_CLEANUP diskDeviceObject
+dispatcher: enter: major 14: minor 0: IRP_MJ_DEVICE_CONTROL: type 0x6
+  diskDispatcher: enter: major 14: minor 0: IRP_MJ_DEVICE_CONTROL diskDeviceObject
+IOCTL_MOUNTDEV_LINK_CREATED
+dispatcher: enter: major 14: minor 0: IRP_MJ_DEVICE_CONTROL: type 0x6
+  diskDispatcher: enter: major 14: minor 0: IRP_MJ_DEVICE_CONTROL diskDeviceObject
+IOCTL_MOUNTDEV_LINK_CREATED v2
+dispatcher: enter: major 2: minor 0: IRP_MJ_CLOSE: type 0x6
+  diskDispatcher: enter: major 2: minor 0: IRP_MJ_CLOSE diskDeviceObject
+dispatcher: enter: major 0: minor 0: IRP_MJ_CREATE: type 0x6
+  diskDispatcher: enter: major 0: minor 0: IRP_MJ_CREATE diskDeviceObject
+IRP_MJ_CREATE: FileObject FFFFE78C05C01AF0 related 0000000000000000 name '(null)' flags 0x0
+dispatcher: enter: major 18: minor 0: IRP_MJ_CLEANUP: type 0x6
+  diskDispatcher: enter: major 18: minor 0: IRP_MJ_CLEANUP diskDeviceObject
+dispatcher: enter: major 14: minor 0: IRP_MJ_DEVICE_CONTROL: type 0x6
+  diskDispatcher: enter: major 14: minor 0: IRP_MJ_DEVICE_CONTROL diskDeviceObject
+IOCTL_VOLUME_ONLINE
+dispatcher: enter: major 14: minor 0: IRP_MJ_DEVICE_CONTROL: type 0x6
+  diskDispatcher: enter: major 14: minor 0: IRP_MJ_DEVICE_CONTROL diskDeviceObject
+IOCTL_VOLUME_POST_ONLINE
+dispatcher: enter: major 2: minor 0: IRP_MJ_CLOSE: type 0x6
+  diskDispatcher: enter: major 2: minor 0: IRP_MJ_CLOSE diskDeviceObject
+dispatcher: enter: major 2: minor 0: IRP_MJ_CLOSE: type 0x6
+  diskDispatcher: enter: major 2: minor 0: IRP_MJ_CLOSE diskDeviceObject
+  IoCallDriver success
+  IoCallDriver success
+<= SendVolumeArrivalNotification
+IOCTL_MOUNTMGR_QUERY_POINTS return 0 - looking for '\Device\Volume{413cee64-9f5b-3f10-848f-b387fdedfcc9}'
+   point 0: '\Device\HarddiskVolume1' '\??\Volume{8af23efd-0000-0000-0000-100000000000}'
+   point 1: '\Device\HarddiskVolume2' '\DosDevices\C:'
+   point 2: '\Device\HarddiskVolume2' '\??\Volume{8af23efd-0000-0000-0000-602200000000}'
+   point 3: '\Device\Volume{413cee64-9f5b-3f10-848f-b387fdedfcc9}' '\??\Volume{7e0eead9-7a66-11e8-b4bd-02150b128b95}'
+   point 4: '\Device\Volume{413cee64-9f5b-3f10-848f-b387fdedfcc9}' '\DosDevices\E:'
+   point 5: '\Device\CdRom0' '\DosDevices\D:'
+   point 6: '\Device\CdRom0' '\??\Volume{6f696e57-0aa2-11e8-b4b3-806e6f6e6963}'
+dispatcher: enter: major 14: minor 0: IRP_MJ_DEVICE_CONTROL: type 0x6
+  diskDispatcher: enter: major 14: minor 0: IRP_MJ_DEVICE_CONTROL diskDeviceObject
+IOCTL_VOLUME_GET_GPT_ATTRIBUTES
+dispatcher: enter: major 14: minor 0: IRP_MJ_DEVICE_CONTROL: type 0x6
+  diskDispatcher: enter: major 14: minor 0: IRP_MJ_DEVICE_CONTROL diskDeviceObject
+IOCTL_MOUNTDEV_QUERY_STABLE_GUID
+dispatcher: exit: 0xc0000002 NotImplemented Information 0x0 : IRP_MJ_DEVICE_CONTROL
+ZFS: ioctl out: 0 (0x0)
+ioctl out result 0
+

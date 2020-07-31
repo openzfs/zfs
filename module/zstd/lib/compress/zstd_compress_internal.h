@@ -497,7 +497,7 @@ static unsigned ZSTD_NbCommonBytes (size_t val)
 {
     if (MEM_isLittleEndian()) {
         if (MEM_64bits()) {
-#       if defined(_MSC_VER) && defined(_WIN64)
+#       if defined(_MSC_VER) && defined(_WIN64) && !defined(__clang__)
             unsigned long r = 0;
             return _BitScanForward64( &r, (U64)val ) ? (unsigned)(r >> 3) : 0;
 #       elif defined(__GNUC__) && (__GNUC__ >= 4)
@@ -514,7 +514,7 @@ static unsigned ZSTD_NbCommonBytes (size_t val)
             return DeBruijnBytePos[((U64)((val & -(long long)val) * 0x0218A392CDABBD3FULL)) >> 58];
 #       endif
         } else { /* 32 bits */
-#       if defined(_MSC_VER)
+#       if defined(_MSC_VER) && !defined(__clang__)
             unsigned long r=0;
             return _BitScanForward( &r, (U32)val ) ? (unsigned)(r >> 3) : 0;
 #       elif defined(__GNUC__) && (__GNUC__ >= 3)
@@ -529,7 +529,7 @@ static unsigned ZSTD_NbCommonBytes (size_t val)
         }
     } else {  /* Big Endian CPU */
         if (MEM_64bits()) {
-#       if defined(_MSC_VER) && defined(_WIN64)
+#       if defined(_MSC_VER) && defined(_WIN64) && !defined(__clang__)
             unsigned long r = 0;
             return _BitScanReverse64( &r, val ) ? (unsigned)(r >> 3) : 0;
 #       elif defined(__GNUC__) && (__GNUC__ >= 4)
@@ -543,7 +543,7 @@ static unsigned ZSTD_NbCommonBytes (size_t val)
             return r;
 #       endif
         } else { /* 32 bits */
-#       if defined(_MSC_VER)
+#       if defined(_MSC_VER) && !defined(__clang__)
             unsigned long r = 0;
             return _BitScanReverse( &r, (unsigned long)val ) ? (unsigned)(r >> 3) : 0;
 #       elif defined(__GNUC__) && (__GNUC__ >= 3)

@@ -69,8 +69,10 @@ for opt in "-o abc" "-O"; do
 done
 
 #verify that zfs mount fails with volume and snapshot
-log_must zfs snapshot $TESTPOOL/$TESTFS@$TESTSNAP
-log_mustnot eval "zfs mount $TESTPOOL/$TESTFS@$TESTSNAP >/dev/null 2>&1"
+# Update: Windows and macOS now require snapshots to be
+# mountable.
+# log_must zfs snapshot $TESTPOOL/$TESTFS@$TESTSNAP
+# log_mustnot eval "zfs mount $TESTPOOL/$TESTFS@$TESTSNAP >/dev/null 2>&1"
 
 if is_global_zone; then
 	log_must zfs create -V 10m $TESTPOOL/$TESTVOL

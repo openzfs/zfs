@@ -911,7 +911,7 @@ zio_abd_checksum_func_t fletcher_4_abd_ops = {
 
 #define	IMPL_FMT(impl, i)	(((impl) == (i)) ? "[%s] " : "%s ")
 
-#if defined(__linux__)
+#if defined(__linux__) || defined(_WIN32)
 
 static int
 fletcher_4_param_get(char *buffer, zfs_kernel_param_t *unused)
@@ -940,14 +940,43 @@ fletcher_4_param_set(const char *val, zfs_kernel_param_t *unused)
 	return (fletcher_4_impl_set(val));
 }
 
-#else
+#endif /* Linux || Windows */
+
+#ifdef _WIN32
+
+int
+win32_fletcher_4_param_set(ZFS_MODULE_PARAM_ARGS)
+{
+	uint32_t val;
+	static unsigned char str[1024] = "";
+
+	*type = ZT_TYPE_STRING;
+
+	if (set == B_FALSE) {
+		if (fletcher_4_initialized)
+			fletcher_4_param_get(str, NULL);
+		*ptr = str;
+		*len = strlen(str);
+		return (0);
+	}
+
+	ASSERT3P(ptr, !=, NULL);
+
+	fletcher_4_impl_set(*ptr);
+
+	return (0);
+}
+
+#endif /* WIN32 */
+
+#ifdef __FreeBSD__
 
 #include <sys/sbuf.h>
 
 static int
 fletcher_4_param(ZFS_MODULE_PARAM_ARGS)
 {
-	int err;
+	int err = 0;
 
 	if (req->newptr == NULL) {
 		const uint32_t impl = IMPL_READ(fletcher_4_impl_chosen);

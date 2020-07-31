@@ -1128,6 +1128,8 @@ spa_taskqs_init(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
 				pri++;
 #elif defined(__FreeBSD__)
 				pri += 4;
+#elif defined(_WIN32)
+				pri++;
 #else
 #error "unknown OS"
 #endif
@@ -9436,6 +9438,7 @@ spa_sync(spa_t *spa, uint64_t txg)
 
 	spa->spa_sync_starttime = gethrtime();
 	taskq_cancel_id(system_delay_taskq, spa->spa_deadman_tqid);
+
 	spa->spa_deadman_tqid = taskq_dispatch_delay(system_delay_taskq,
 	    spa_deadman, spa, TQ_SLEEP, ddi_get_lbolt() +
 	    NSEC_TO_TICK(spa->spa_deadman_synctime));

@@ -5,7 +5,7 @@
  *  You can contact the author at :
  *  - xxHash homepage: http://www.xxhash.com
  *  - xxHash source repository : https://github.com/Cyan4973/xxHash
- * 
+ *
  * This source code is licensed under both the BSD-style license (found in the
  * LICENSE file in the root directory of this source tree) and the GPLv2 (found
  * in the COPYING file in the root directory of this source tree).
@@ -196,7 +196,7 @@ static U64 XXH_read64(const void* memPtr)
 #  define XXH_rotl64(x,r) ((x << r) | (x >> (64 - r)))
 #endif
 
-#if defined(_MSC_VER)     /* Visual Studio */
+#if defined(_MSC_VER) && !defined(__clang__) /* Visual Studio */
 #  define XXH_swap32 _byteswap_ulong
 #  define XXH_swap64 _byteswap_uint64
 #elif GCC_VERSION >= 403
