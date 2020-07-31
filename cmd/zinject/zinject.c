@@ -613,7 +613,7 @@ register_handler(const char *pool, int flags, zinject_record_t *record,
 	return (0);
 }
 
-int
+static int
 perform_action(const char *pool, zinject_record_t *record, int cmd)
 {
 	zfs_cmd_t zc = {"\0"};

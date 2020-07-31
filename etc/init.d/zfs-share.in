@@ -1,4 +1,4 @@
-#!@SHELL@
+#!@DEFAULT_INIT_SHELL@
 #
 # zfs-share     This script will network share zfs filesystems and volumes.
 #
@@ -13,8 +13,8 @@
 # Required-Stop:     $local_fs $network $remote_fs zfs-mount
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
-# Should-Start:      iscsi iscsitarget istgt scst @NFS_SRV@ samba samba4 zfs-mount zfs-zed
-# Should-Stop:       iscsi iscsitarget istgt scst @NFS_SRV@ samba samba4 zfs-mount zfs-zed
+# Should-Start:      iscsi iscsitarget istgt scst @DEFAULT_INIT_NFS_SERVER@ samba samba4 zfs-mount zfs-zed
+# Should-Stop:       iscsi iscsitarget istgt scst @DEFAULT_INIT_NFS_SERVER@ samba samba4 zfs-mount zfs-zed
 # Short-Description: Network share ZFS datasets and volumes.
 # Description:       Run the `zfs share -a` or `zfs unshare -a` commands
 #                    for controlling iSCSI, NFS, or CIFS network shares.

@@ -22,13 +22,10 @@
 /*
  * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
+ * Copyright (c) 2019, 2020 by Delphix. All rights reserved.
  */
 #ifndef _LIBSPL_LIBSHARE_H
 #define	_LIBSPL_LIBSHARE_H
-
-typedef void *sa_handle_t;	/* opaque handle to access core functions */
-typedef void *sa_group_t;
-typedef void *sa_share_t;
 
 /* API Initialization */
 #define	SA_INIT_SHARE_API	0x0001	/* init share specific interface */
@@ -74,23 +71,16 @@ typedef void *sa_share_t;
 #define	SA_SHARE_EXISTS		33	/* path or file is already shared */
 
 /* initialization */
-extern sa_handle_t sa_init(int);
-extern void sa_fini(sa_handle_t);
 extern char *sa_errorstr(int);
 
 /* share control */
-extern sa_share_t sa_find_share(sa_handle_t, char *);
-extern int sa_enable_share(sa_group_t, char *);
-extern int sa_disable_share(sa_share_t, char *);
+extern int sa_enable_share(const char *, const char *, const char *,
+    char *);
+extern int sa_disable_share(const char *, char *);
+extern boolean_t sa_is_shared(const char *, char *);
+extern void sa_commit_shares(const char *);
 
 /* protocol specific interfaces */
-extern int sa_parse_legacy_options(sa_group_t, char *, char *);
-
-/* ZFS functions */
-extern boolean_t sa_needs_refresh(sa_handle_t handle);
-libzfs_handle_t *sa_get_zfs_handle(sa_handle_t handle);
-extern int sa_zfs_process_share(sa_handle_t handle, sa_group_t group,
-    sa_share_t share, char *mountpoint, char *proto, zprop_source_t source,
-    char *shareopts, char *sourcestr, char *dataset);
+extern int sa_validate_shareopts(char *, char *);
 
 #endif /* _LIBSPL_LIBSHARE_H */

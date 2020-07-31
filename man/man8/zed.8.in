@@ -24,6 +24,7 @@ ZED \- ZFS Event Daemon
 [\fB\-f\fR]
 [\fB\-F\fR]
 [\fB\-h\fR]
+[\fB\-I\fR]
 [\fB\-L\fR]
 [\fB\-M\fR]
 [\fB\-p\fR \fIpidfile\fR]
@@ -65,6 +66,12 @@ Run the daemon in the foreground.
 Lock all current and future pages in the virtual memory address space.
 This may help the daemon remain responsive when the system is under heavy
 memory pressure.
+.TP
+.BI \-I
+Request that the daemon idle rather than exit when the kernel modules are
+not loaded. Processing of events will start, or resume, when the kernel
+modules are (re)loaded. Under Linux the kernel modules cannot be unloaded
+while the daemon is running.
 .TP
 .BI \-Z
 Zero the daemon's state, thereby allowing zevents still within the kernel

@@ -42,11 +42,9 @@
  * all other cases this function must fail and return the passed err.
  */
 static int
-priv_policy_ns(const cred_t *cr, int capability, boolean_t all, int err,
+priv_policy_ns(const cred_t *cr, int capability, int err,
     struct user_namespace *ns)
 {
-	ASSERT3S(all, ==, B_FALSE);
-
 	if (cr != CRED() && (cr != kcred))
 		return (err);
 
@@ -61,13 +59,13 @@ priv_policy_ns(const cred_t *cr, int capability, boolean_t all, int err,
 }
 
 static int
-priv_policy(const cred_t *cr, int capability, boolean_t all, int err)
+priv_policy(const cred_t *cr, int capability, int err)
 {
-	return (priv_policy_ns(cr, capability, all, err, NULL));
+	return (priv_policy_ns(cr, capability, err, NULL));
 }
 
 static int
-priv_policy_user(const cred_t *cr, int capability, boolean_t all, int err)
+priv_policy_user(const cred_t *cr, int capability, int err)
 {
 	/*
 	 * All priv_policy_user checks are preceded by kuid/kgid_has_mapping()
@@ -76,9 +74,9 @@ priv_policy_user(const cred_t *cr, int capability, boolean_t all, int err)
 	 * namespace.
 	 */
 #if defined(CONFIG_USER_NS)
-	return (priv_policy_ns(cr, capability, all, err, cr->user_ns));
+	return (priv_policy_ns(cr, capability, err, cr->user_ns));
 #else
-	return (priv_policy_ns(cr, capability, all, err, NULL));
+	return (priv_policy_ns(cr, capability, err, NULL));
 #endif
 }
 
@@ -89,7 +87,7 @@ priv_policy_user(const cred_t *cr, int capability, boolean_t all, int err)
 int
 secpolicy_nfs(const cred_t *cr)
 {
-	return (priv_policy(cr, CAP_SYS_ADMIN, B_FALSE, EPERM));
+	return (priv_policy(cr, CAP_SYS_ADMIN, EPERM));
 }
 
 /*
@@ -98,7 +96,7 @@ secpolicy_nfs(const cred_t *cr)
 int
 secpolicy_sys_config(const cred_t *cr, boolean_t checkonly)
 {
-	return (priv_policy(cr, CAP_SYS_ADMIN, B_FALSE, EPERM));
+	return (priv_policy(cr, CAP_SYS_ADMIN, EPERM));
 }
 
 /*
@@ -134,10 +132,10 @@ secpolicy_vnode_any_access(const cred_t *cr, struct inode *ip, uid_t owner)
 		return (EPERM);
 #endif
 
-	if (priv_policy_user(cr, CAP_DAC_OVERRIDE, B_FALSE, EPERM) == 0)
+	if (priv_policy_user(cr, CAP_DAC_OVERRIDE, EPERM) == 0)
 		return (0);
 
-	if (priv_policy_user(cr, CAP_DAC_READ_SEARCH, B_FALSE, EPERM) == 0)
+	if (priv_policy_user(cr, CAP_DAC_READ_SEARCH, EPERM) == 0)
 		return (0);
 
 	return (EPERM);
@@ -157,7 +155,7 @@ secpolicy_vnode_chown(const cred_t *cr, uid_t owner)
 		return (EPERM);
 #endif
 
-	return (priv_policy_user(cr, CAP_FOWNER, B_FALSE, EPERM));
+	return (priv_policy_user(cr, CAP_FOWNER, EPERM));
 }
 
 /*
@@ -166,7 +164,7 @@ secpolicy_vnode_chown(const cred_t *cr, uid_t owner)
 int
 secpolicy_vnode_create_gid(const cred_t *cr)
 {
-	return (priv_policy(cr, CAP_SETGID, B_FALSE, EPERM));
+	return (priv_policy(cr, CAP_SETGID, EPERM));
 }
 
 /*
@@ -176,7 +174,7 @@ secpolicy_vnode_create_gid(const cred_t *cr)
 int
 secpolicy_vnode_remove(const cred_t *cr)
 {
-	return (priv_policy(cr, CAP_FOWNER, B_FALSE, EPERM));
+	return (priv_policy(cr, CAP_FOWNER, EPERM));
 }
 
 /*
@@ -194,7 +192,7 @@ secpolicy_vnode_setdac(const cred_t *cr, uid_t owner)
 		return (EPERM);
 #endif
 
-	return (priv_policy_user(cr, CAP_FOWNER, B_FALSE, EPERM));
+	return (priv_policy_user(cr, CAP_FOWNER, EPERM));
 }
 
 /*
@@ -208,7 +206,7 @@ secpolicy_vnode_setdac(const cred_t *cr, uid_t owner)
 int
 secpolicy_vnode_setid_retain(const cred_t *cr, boolean_t issuidroot)
 {
-	return (priv_policy_user(cr, CAP_FSETID, B_FALSE, EPERM));
+	return (priv_policy_user(cr, CAP_FSETID, EPERM));
 }
 
 /*
@@ -222,7 +220,7 @@ secpolicy_vnode_setids_setgids(const cred_t *cr, gid_t gid)
 		return (EPERM);
 #endif
 	if (crgetfsgid(cr) != gid && !groupmember(gid, cr))
-		return (priv_policy_user(cr, CAP_FSETID, B_FALSE, EPERM));
+		return (priv_policy_user(cr, CAP_FSETID, EPERM));
 
 	return (0);
 }
@@ -234,7 +232,7 @@ secpolicy_vnode_setids_setgids(const cred_t *cr, gid_t gid)
 int
 secpolicy_zinject(const cred_t *cr)
 {
-	return (priv_policy(cr, CAP_SYS_ADMIN, B_FALSE, EACCES));
+	return (priv_policy(cr, CAP_SYS_ADMIN, EACCES));
 }
 
 /*
@@ -244,7 +242,29 @@ secpolicy_zinject(const cred_t *cr)
 int
 secpolicy_zfs(const cred_t *cr)
 {
-	return (priv_policy(cr, CAP_SYS_ADMIN, B_FALSE, EACCES));
+	return (priv_policy(cr, CAP_SYS_ADMIN, EACCES));
+}
+
+/*
+ * Equivalent to secpolicy_zfs(), but works even if the cred_t is not that of
+ * the current process.  Takes both cred_t and proc_t so that this can work
+ * easily on all platforms.
+ *
+ * The has_capability() function was first exported in the 4.10 Linux kernel
+ * then backported to some LTS kernels.  Prior to this change there was no
+ * mechanism to perform this check therefore EACCES is returned when the
+ * functionality is not present in the kernel.
+ */
+int
+secpolicy_zfs_proc(const cred_t *cr, proc_t *proc)
+{
+#if defined(HAVE_HAS_CAPABILITY)
+	if (!has_capability(proc, CAP_SYS_ADMIN))
+		return (EACCES);
+	return (0);
+#else
+	return (EACCES);
+#endif
 }
 
 void
@@ -273,7 +293,7 @@ secpolicy_vnode_setid_modify(const cred_t *cr, uid_t owner)
 		return (EPERM);
 #endif
 
-	return (priv_policy_user(cr, CAP_FSETID, B_FALSE, EPERM));
+	return (priv_policy_user(cr, CAP_FSETID, EPERM));
 }
 
 /*

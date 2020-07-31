@@ -46,7 +46,7 @@ static void usage(char *);
 /*
  * psudo-randomize the buffer
  */
-void randomize_buffer(int block_size) {
+static void randomize_buffer(int block_size) {
 	int i;
 	char rnd = rand() & 0xff;
 	for (i = 0; i < block_size; i++)

@@ -24,7 +24,7 @@
  */
 
 #include <sys/zfs_context.h>
-#include <sys/refcount.h>
+#include <sys/zfs_refcount.h>
 
 /*
  * Reference count tracking is disabled by default.  It's memory requirements

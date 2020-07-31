@@ -4,7 +4,7 @@ WITH_CTF=1
 
 .include <bsd.sys.mk>
 
-SRCDIR= ${.CURDIR}
+SRCDIR=${.CURDIR}
 INCDIR=${.CURDIR:H}/include
 
 KMOD=	openzfs
@@ -19,6 +19,7 @@ KMOD=	openzfs
 	${SRCDIR}/zfs
 
 
+CFLAGS+= -I${.OBJDIR:H}/include
 CFLAGS+= -I${INCDIR}
 CFLAGS+= -I${INCDIR}/spl
 CFLAGS+= -I${INCDIR}/os/freebsd
@@ -28,10 +29,10 @@ CFLAGS+= -include ${INCDIR}/os/freebsd/spl/sys/ccompile.h
 
 CFLAGS+= -D__KERNEL__ -DFREEBSD_NAMECACHE -DBUILDING_ZFS  -D__BSD_VISIBLE=1
 CFLAGS+= -DHAVE_UIO_ZEROCOPY -DWITHOUT_NETDUMP -D__KERNEL -D_SYS_CONDVAR_H_
-CFLAGS+= -D_SYS_VMEM_H_ -D_MACHINE_ENDIAN_H_ -DKDTRACE_HOOKS -DSMP
+CFLAGS+= -D_SYS_VMEM_H_ -DKDTRACE_HOOKS -DSMP
 
 .if ${MACHINE_ARCH} == "amd64"
-CFLAGS+= -DHAVE_AVX2 -DHAVE_AVX -D__x86_64 -DHAVE_SSE2 -DHAVE_AVX512F
+CFLAGS+= -DHAVE_AVX2 -DHAVE_AVX -D__x86_64 -DHAVE_SSE2 -DHAVE_AVX512F -DHAVE_SSSE3
 .endif
 
 .if defined(WITH_DEBUG) && ${WITH_DEBUG} == "true"
@@ -140,6 +141,7 @@ SRCS+=	abd_os.c \
 	zfs_acl.c \
 	zfs_ctldir.c \
 	zfs_dir.c \
+	zfs_ioctl_compat.c \
 	zfs_ioctl_os.c \
 	zfs_log.c \
 	zfs_replay.c \
@@ -250,6 +252,7 @@ SRCS+=	abd.c \
 	vdev_raidz.c \
 	vdev_raidz_math.c \
 	vdev_raidz_math_scalar.c \
+	vdev_rebuild.c \
 	vdev_raidz_math_avx2.c \
 	vdev_raidz_math_avx512bw.c \
 	vdev_raidz_math_avx512f.c \
@@ -303,80 +306,45 @@ beforeinstall:
 CFLAGS.gcc+= -Wno-pointer-to-int-cast
 
 CFLAGS.lapi.c= -Wno-cast-qual
-CFLAGS.lcompat.c= -Wno-cast-qual -Wno-missing-prototypes
+CFLAGS.lcompat.c= -Wno-cast-qual
 CFLAGS.lobject.c= -Wno-cast-qual
 CFLAGS.ltable.c= -Wno-cast-qual
 CFLAGS.lvm.c= -Wno-cast-qual
-CFLAGS.nvpair.c= -Wno-cast-qual
-CFLAGS.acl_common.c= -Wno-strict-prototypes -Wno-missing-prototypes
-CFLAGS.callb.c= -Wno-strict-prototypes -Wno-missing-prototypes
-CFLAGS.spl_kstat.c= -Wno-missing-prototypes
+CFLAGS.nvpair.c= -DHAVE_RPC_TYPES -Wno-cast-qual
 CFLAGS.spl_string.c= -Wno-cast-qual
-CFLAGS.spl_vm.c= -Wno-cast-qual -Wno-missing-prototypes
+CFLAGS.spl_vm.c= -Wno-cast-qual
 CFLAGS.spl_zlib.c= -Wno-cast-qual
 CFLAGS.abd.c= -Wno-cast-qual
-CFLAGS.freebsd_dmu.c= -Wno-missing-prototypes
-CFLAGS.freebsd_kmod.c= -Wno-missing-prototypes
-CFLAGS.vdev_geom.c= -Wno-missing-prototypes
-CFLAGS.zfs_acl.c= -Wno-missing-prototypes
-CFLAGS.zfs_ctldir.c= -Wno-missing-prototypes -Wno-strict-prototypes
 CFLAGS.zfs_log.c= -Wno-cast-qual
-CFLAGS.zfs_vfsops.c= -Wno-missing-prototypes
-CFLAGS.zfs_vnops.c= -Wno-missing-prototypes  -Wno-strict-prototypes -Wno-pointer-arith
-CFLAGS.zfs_znode.c= -Wno-missing-prototypes
-CFLAGS.zvol.c= -Wno-missing-prototypes
+CFLAGS.zfs_vnops.c= -Wno-pointer-arith
 CFLAGS.u8_textprep.c= -Wno-cast-qual
 CFLAGS.zfs_fletcher.c= -Wno-cast-qual -Wno-pointer-arith
 CFLAGS.zfs_fletcher_intel.c= -Wno-cast-qual -Wno-pointer-arith
 CFLAGS.zfs_fletcher_sse.c= -Wno-cast-qual -Wno-pointer-arith
 CFLAGS.zfs_fletcher_avx512.c= -Wno-cast-qual -Wno-pointer-arith
 CFLAGS.zprop_common.c= -Wno-cast-qual
-CFLAGS.arc.c= -Wno-missing-prototypes
-CFLAGS.blkptr.c= -Wno-missing-prototypes
-CFLAGS.dbuf.c= -Wno-missing-prototypes
-CFLAGS.dbuf_stats.c= -Wno-missing-prototypes
-CFLAGS.ddt.c= -Wno-missing-prototypes -Wno-cast-qual
-CFLAGS.dmu.c= -Wno-missing-prototypes -Wno-cast-qual
-CFLAGS.dmu_object.c= -Wno-missing-prototypes
-CFLAGS.dmu_objset.c= -Wno-missing-prototypes
+CFLAGS.ddt.c= -Wno-cast-qual
+CFLAGS.dmu.c= -Wno-cast-qual
 CFLAGS.dmu_traverse.c= -Wno-cast-qual
-CFLAGS.dsl_dir.c= -Wno-missing-prototypes -Wno-cast-qual
-CFLAGS.dsl_crypt.c= -Wno-missing-prototypes
+CFLAGS.dsl_dir.c= -Wno-cast-qual
 CFLAGS.dsl_deadlist.c= -Wno-cast-qual
-CFLAGS.dsl_pool.c= -Wno-missing-prototypes
 CFLAGS.dsl_prop.c= -Wno-cast-qual
-CFLAGS.dsl_scan.c= -Wno-missing-prototypes
 CFLAGS.fm.c= -Wno-cast-qual
-CFLAGS.gzip.c= -Wno-missing-prototypes
-CFLAGS.lzjb.c= -Wno-missing-prototypes
-CFLAGS.lz4.c= -Wno-missing-prototypes -Wno-cast-qual
-CFLAGS.metaslab.c= -Wno-missing-prototypes
-CFLAGS.sa.c= -Wno-missing-prototypes
-CFLAGS.sha256.c= -Wno-missing-prototypes
-CFLAGS.skein_zfs.c= -Wno-missing-prototypes
-CFLAGS.spa.c= -Wno-missing-prototypes -Wno-cast-qual
-CFLAGS.spa_boot.c= -Wno-missing-prototypes
-CFLAGS.spa_misc.c= -Wno-missing-prototypes -Wno-cast-qual
-CFLAGS.space_map.c= -Wno-missing-prototypes
-CFLAGS.vdev.c= -Wno-missing-prototypes
-CFLAGS.vdev_indirect.c= -Wno-missing-prototypes
-CFLAGS.vdev_label.c= -Wno-missing-prototypes
-CFLAGS.vdev_queue.c= -Wno-missing-prototypes
+CFLAGS.lz4.c= -Wno-cast-qual
+CFLAGS.spa.c= -Wno-cast-qual
+CFLAGS.spa_misc.c= -Wno-cast-qual
+CFLAGS.sysctl_os.c= -include ../zfs_config.h
 CFLAGS.vdev_raidz.c= -Wno-cast-qual
 CFLAGS.vdev_raidz_math.c= -Wno-cast-qual
-CFLAGS.vdev_raidz_math_scalar.c= -Wno-cast-qual -Wno-missing-prototypes
+CFLAGS.vdev_raidz_math_scalar.c= -Wno-cast-qual
 CFLAGS.vdev_raidz_math_avx2.c= -Wno-cast-qual -Wno-duplicate-decl-specifier
 CFLAGS.vdev_raidz_math_avx512f.c= -Wno-cast-qual -Wno-duplicate-decl-specifier
 CFLAGS.vdev_raidz_math_sse2.c= -Wno-cast-qual -Wno-duplicate-decl-specifier
 CFLAGS.zap_leaf.c= -Wno-cast-qual
-CFLAGS.zap_micro.c= -Wno-missing-prototypes -Wno-cast-qual
+CFLAGS.zap_micro.c= -Wno-cast-qual
 CFLAGS.zcp.c= -Wno-cast-qual
-CFLAGS.zcp_get.c= -Wno-missing-prototypes
-CFLAGS.zfs_debug.c= -Wno-missing-prototypes
 CFLAGS.zfs_fm.c= -Wno-cast-qual
-CFLAGS.zfs_ioctl.c= -Wno-missing-prototypes -Wno-cast-qual
-CFLAGS.zil.c= -Wno-missing-prototypes -Wno-cast-qual
-CFLAGS.zio.c= -Wno-missing-prototypes -Wno-cast-qual
-CFLAGS.zio_checksum.c= -Wno-missing-prototypes
-CFLAGS.zle.c= -Wno-missing-prototypes
-CFLAGS.zrlock.c= -Wno-missing-prototypes -Wno-cast-qual
+CFLAGS.zfs_ioctl.c= -Wno-cast-qual
+CFLAGS.zil.c= -Wno-cast-qual
+CFLAGS.zio.c= -Wno-cast-qual
+CFLAGS.zrlock.c= -Wno-cast-qual

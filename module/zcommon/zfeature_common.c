@@ -36,6 +36,7 @@
 #include <sys/fs/zfs.h>
 #include <sys/inttypes.h>
 #include <sys/types.h>
+#include <sys/param.h>
 #include <sys/zfs_sysfs.h>
 #include "zfeature_common.h"
 
@@ -569,6 +570,11 @@ zpool_feature_init(void)
 	zfeature_register(SPA_FEATURE_RESILVER_DEFER,
 	    "com.datto:resilver_defer", "resilver_defer",
 	    "Support for deferring new resilvers when one is already running.",
+	    ZFEATURE_FLAG_READONLY_COMPAT, ZFEATURE_TYPE_BOOLEAN, NULL);
+
+	zfeature_register(SPA_FEATURE_DEVICE_REBUILD,
+	    "org.openzfs:device_rebuild", "device_rebuild",
+	    "Support for sequential device rebuilds",
 	    ZFEATURE_FLAG_READONLY_COMPAT, ZFEATURE_TYPE_BOOLEAN, NULL);
 }
 

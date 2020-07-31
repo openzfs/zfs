@@ -26,6 +26,7 @@
 
 #include <sys/dbuf.h>
 #include <sys/dmu.h>
+#include <sys/dmu_impl.h>
 #include <sys/dmu_objset.h>
 #include <sys/dmu_tx.h>
 #include <sys/dnode.h>

@@ -301,10 +301,10 @@ __cv_timedwait_common(kcondvar_t *cvp, kmutex_t *mp, clock_t expire_time,
 	 * with a thread holding the mutex and call cv_destroy.
 	 */
 	mutex_enter(mp);
-	return (time_left > 0 ? time_left : -1);
+	return (time_left > 0 ? 1 : -1);
 }
 
-clock_t
+int
 __cv_timedwait(kcondvar_t *cvp, kmutex_t *mp, clock_t exp_time)
 {
 	return (__cv_timedwait_common(cvp, mp, exp_time,
@@ -312,7 +312,7 @@ __cv_timedwait(kcondvar_t *cvp, kmutex_t *mp, clock_t exp_time)
 }
 EXPORT_SYMBOL(__cv_timedwait);
 
-clock_t
+int
 __cv_timedwait_io(kcondvar_t *cvp, kmutex_t *mp, clock_t exp_time)
 {
 	return (__cv_timedwait_common(cvp, mp, exp_time,
@@ -320,11 +320,13 @@ __cv_timedwait_io(kcondvar_t *cvp, kmutex_t *mp, clock_t exp_time)
 }
 EXPORT_SYMBOL(__cv_timedwait_io);
 
-clock_t
+int
 __cv_timedwait_sig(kcondvar_t *cvp, kmutex_t *mp, clock_t exp_time)
 {
-	return (__cv_timedwait_common(cvp, mp, exp_time,
-	    TASK_INTERRUPTIBLE, 0));
+	int rc;
+
+	rc = __cv_timedwait_common(cvp, mp, exp_time, TASK_INTERRUPTIBLE, 0);
+	return (signal_pending(current) ? 0 : rc);
 }
 EXPORT_SYMBOL(__cv_timedwait_sig);
 
@@ -341,6 +343,7 @@ __cv_timedwait_hires(kcondvar_t *cvp, kmutex_t *mp, hrtime_t expire_time,
 	hrtime_t time_left;
 	ktime_t ktime_left;
 	u64 slack = 0;
+	int rc;
 
 	ASSERT(cvp);
 	ASSERT(mp);
@@ -371,7 +374,7 @@ __cv_timedwait_hires(kcondvar_t *cvp, kmutex_t *mp, hrtime_t expire_time,
 	ktime_left = ktime_set(0, time_left);
 	slack = MIN(MAX(res, spl_schedule_hrtimeout_slack_us * NSEC_PER_USEC),
 	    MAX_HRTIMEOUT_SLACK_US * NSEC_PER_USEC);
-	schedule_hrtimeout_range(&ktime_left, slack, HRTIMER_MODE_REL);
+	rc = schedule_hrtimeout_range(&ktime_left, slack, HRTIMER_MODE_REL);
 
 	/* No more waiters a different mutex could be used */
 	if (atomic_dec_and_test(&cvp->cv_waiters)) {
@@ -387,14 +390,13 @@ __cv_timedwait_hires(kcondvar_t *cvp, kmutex_t *mp, hrtime_t expire_time,
 	atomic_dec(&cvp->cv_refs);
 
 	mutex_enter(mp);
-	time_left = expire_time - gethrtime();
-	return (time_left > 0 ? NSEC_TO_TICK(time_left) : -1);
+	return (rc == -EINTR ? 1 : -1);
 }
 
 /*
  * Compatibility wrapper for the cv_timedwait_hires() Illumos interface.
  */
-static clock_t
+static int
 cv_timedwait_hires_common(kcondvar_t *cvp, kmutex_t *mp, hrtime_t tim,
     hrtime_t res, int flag, int state)
 {
@@ -404,7 +406,7 @@ cv_timedwait_hires_common(kcondvar_t *cvp, kmutex_t *mp, hrtime_t tim,
 	return (__cv_timedwait_hires(cvp, mp, tim, res, state));
 }
 
-clock_t
+int
 cv_timedwait_hires(kcondvar_t *cvp, kmutex_t *mp, hrtime_t tim, hrtime_t res,
     int flag)
 {
@@ -413,12 +415,15 @@ cv_timedwait_hires(kcondvar_t *cvp, kmutex_t *mp, hrtime_t tim, hrtime_t res,
 }
 EXPORT_SYMBOL(cv_timedwait_hires);
 
-clock_t
+int
 cv_timedwait_sig_hires(kcondvar_t *cvp, kmutex_t *mp, hrtime_t tim,
     hrtime_t res, int flag)
 {
-	return (cv_timedwait_hires_common(cvp, mp, tim, res, flag,
-	    TASK_INTERRUPTIBLE));
+	int rc;
+
+	rc = cv_timedwait_hires_common(cvp, mp, tim, res, flag,
+	    TASK_INTERRUPTIBLE);
+	return (signal_pending(current) ? 0 : rc);
 }
 EXPORT_SYMBOL(cv_timedwait_sig_hires);
 

@@ -1752,7 +1752,7 @@ vdev_raidz_reconstruct_general(raidz_row_t *rr, int *tgts, int ntgts)
 	return (code);
 }
 
-int
+static int
 vdev_raidz_reconstruct_row(raidz_map_t *rm, raidz_row_t *rr,
     const int *t, int nt)
 {
@@ -3451,8 +3451,8 @@ void
 spa_start_raidz_expansion_thread(spa_t *spa)
 {
 	ASSERT3P(spa->spa_raidz_expand_zthr, ==, NULL);
-	spa->spa_raidz_expand_zthr = zthr_create(spa_raidz_expand_cb_check,
-	    spa_raidz_expand_cb, spa);
+	spa->spa_raidz_expand_zthr = zthr_create("raidz_expand",
+	    spa_raidz_expand_cb_check, spa_raidz_expand_cb, spa);
 }
 
 void

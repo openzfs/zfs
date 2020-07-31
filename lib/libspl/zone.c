@@ -27,8 +27,6 @@
 #include <string.h>
 #include <errno.h>
 
-int aok = 0;
-
 zoneid_t
 getzoneid()
 {

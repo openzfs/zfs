@@ -22,56 +22,12 @@
  *  with the SPL.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <linux/percpu_compat.h>
 #include <sys/debug.h>
 #include <sys/vmem.h>
 #include <sys/kmem_cache.h>
 #include <sys/shrinker.h>
 #include <linux/module.h>
-
-vmem_t *heap_arena = NULL;
-EXPORT_SYMBOL(heap_arena);
-
-vmem_t *zio_alloc_arena = NULL;
-EXPORT_SYMBOL(zio_alloc_arena);
-
-vmem_t *zio_arena = NULL;
-EXPORT_SYMBOL(zio_arena);
-
-#define	VMEM_FLOOR_SIZE		(4 * 1024 * 1024)	/* 4MB floor */
-
-/*
- * Return approximate virtual memory usage based on these assumptions:
- *
- * 1) The major SPL consumer of virtual memory is the kmem cache.
- * 2) Memory allocated with vmem_alloc() is short lived and can be ignored.
- * 3) Allow a 4MB floor as a generous pad given normal consumption.
- * 4) The spl_kmem_cache_sem only contends with cache create/destroy.
- */
-size_t
-vmem_size(vmem_t *vmp, int typemask)
-{
-	spl_kmem_cache_t *skc = NULL;
-	size_t alloc = VMEM_FLOOR_SIZE;
-
-	if ((typemask & VMEM_ALLOC) && (typemask & VMEM_FREE))
-		return (VMALLOC_TOTAL);
-
-
-	down_read(&spl_kmem_cache_sem);
-	list_for_each_entry(skc, &spl_kmem_cache_list, skc_list) {
-		if (skc->skc_flags & KMC_VMEM)
-			alloc += skc->skc_slab_size * skc->skc_slab_total;
-	}
-	up_read(&spl_kmem_cache_sem);
-
-	if (typemask & VMEM_ALLOC)
-		return (MIN(alloc, VMALLOC_TOTAL));
-	else if (typemask & VMEM_FREE)
-		return (MAX(VMALLOC_TOTAL - alloc, 0));
-	else
-		return (0);
-}
-EXPORT_SYMBOL(vmem_size);
 
 /*
  * Public vmem_alloc(), vmem_zalloc() and vmem_free() interfaces.

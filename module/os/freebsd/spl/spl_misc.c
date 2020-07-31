@@ -27,6 +27,7 @@
 #include <sys/cdefs.h>
 __FBSDID("$FreeBSD$");
 
+#include <sys/types.h>
 #include <sys/param.h>
 #include <sys/jail.h>
 #include <sys/kernel.h>
@@ -34,14 +35,23 @@ __FBSDID("$FreeBSD$");
 #include <sys/limits.h>
 #include <sys/misc.h>
 #include <sys/sysctl.h>
+#include <sys/vnode.h>
 
 #include <sys/zfs_context.h>
-
-char hw_serial[11] = "0";
 
 static struct opensolaris_utsname hw_utsname = {
 	.machine = MACHINE
 };
+
+#ifndef KERNEL_STATIC
+char hw_serial[11] = "0";
+
+utsname_t *
+utsname(void)
+{
+	return (&hw_utsname);
+}
+#endif
 
 static void
 opensolaris_utsname_init(void *arg)
@@ -98,10 +108,6 @@ spl_panic(const char *file, const char *func, int line, const char *fmt, ...)
 	va_end(ap);
 }
 
-utsname_t *
-utsname(void)
-{
-	return (&hw_utsname);
-}
+
 SYSINIT(opensolaris_utsname_init, SI_SUB_TUNABLES, SI_ORDER_ANY,
     opensolaris_utsname_init, NULL);

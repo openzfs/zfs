@@ -24,6 +24,7 @@
  */
 #include <sys/zfs_context.h>
 #include <sys/zio.h>
+#include <sys/zio_checksum.h>
 #include <sys/skein.h>
 
 #include <sys/abd.h>

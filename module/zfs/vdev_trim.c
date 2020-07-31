@@ -29,7 +29,6 @@
 #include <sys/txg.h>
 #include <sys/vdev_impl.h>
 #include <sys/vdev_trim.h>
-#include <sys/refcount.h>
 #include <sys/metaslab_impl.h>
 #include <sys/dsl_synctask.h>
 #include <sys/zap.h>

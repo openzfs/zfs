@@ -207,11 +207,15 @@ typedef struct dbuf_cache {
 dbuf_cache_t dbuf_caches[DB_CACHE_MAX];
 
 /* Size limits for the caches */
-unsigned long dbuf_cache_max_bytes = 0;
-unsigned long dbuf_metadata_cache_max_bytes = 0;
+unsigned long dbuf_cache_max_bytes = ULONG_MAX;
+unsigned long dbuf_metadata_cache_max_bytes = ULONG_MAX;
+
 /* Set the default sizes of the caches to log2 fraction of arc size */
 int dbuf_cache_shift = 5;
 int dbuf_metadata_cache_shift = 6;
+
+static unsigned long dbuf_cache_target_bytes(void);
+static unsigned long dbuf_metadata_cache_target_bytes(void);
 
 /*
  * The LRU dbuf cache uses a three-stage eviction policy:
@@ -432,7 +436,7 @@ dbuf_include_in_metadata_cache(dmu_buf_impl_t *db)
 		 */
 		if (zfs_refcount_count(
 		    &dbuf_caches[DB_DBUF_METADATA_CACHE].size) >
-		    dbuf_metadata_cache_max_bytes) {
+		    dbuf_metadata_cache_target_bytes()) {
 			DBUF_STAT_BUMP(metadata_cache_overflow);
 			return (B_FALSE);
 		}
@@ -588,7 +592,7 @@ dbuf_is_metadata(dmu_buf_impl_t *db)
  * distributed between all sublists and uses this assumption when
  * deciding which sublist to evict from and how much to evict from it.
  */
-unsigned int
+static unsigned int
 dbuf_cache_multilist_index_func(multilist_t *ml, void *obj)
 {
 	dmu_buf_impl_t *db = obj;
@@ -610,11 +614,26 @@ dbuf_cache_multilist_index_func(multilist_t *ml, void *obj)
 	    multilist_get_num_sublists(ml));
 }
 
+/*
+ * The target size of the dbuf cache can grow with the ARC target,
+ * unless limited by the tunable dbuf_cache_max_bytes.
+ */
 static inline unsigned long
 dbuf_cache_target_bytes(void)
 {
-	return MIN(dbuf_cache_max_bytes,
-	    arc_target_bytes() >> dbuf_cache_shift);
+	return (MIN(dbuf_cache_max_bytes,
+	    arc_target_bytes() >> dbuf_cache_shift));
+}
+
+/*
+ * The target size of the dbuf metadata cache can grow with the ARC target,
+ * unless limited by the tunable dbuf_metadata_cache_max_bytes.
+ */
+static inline unsigned long
+dbuf_metadata_cache_target_bytes(void)
+{
+	return (MIN(dbuf_metadata_cache_max_bytes,
+	    arc_target_bytes() >> dbuf_metadata_cache_shift));
 }
 
 static inline uint64_t
@@ -804,23 +823,6 @@ retry:
 		mutex_init(&h->hash_mutexes[i], NULL, MUTEX_DEFAULT, NULL);
 
 	dbuf_stats_init(h);
-
-	/*
-	 * Setup the parameters for the dbuf caches. We set the sizes of the
-	 * dbuf cache and the metadata cache to 1/32nd and 1/16th (default)
-	 * of the target size of the ARC. If the values has been specified as
-	 * a module option and they're not greater than the target size of the
-	 * ARC, then we honor that value.
-	 */
-	if (dbuf_cache_max_bytes == 0 ||
-	    dbuf_cache_max_bytes >= arc_target_bytes()) {
-		dbuf_cache_max_bytes = arc_target_bytes() >> dbuf_cache_shift;
-	}
-	if (dbuf_metadata_cache_max_bytes == 0 ||
-	    dbuf_metadata_cache_max_bytes >= arc_target_bytes()) {
-		dbuf_metadata_cache_max_bytes =
-		    arc_target_bytes() >> dbuf_metadata_cache_shift;
-	}
 
 	/*
 	 * All entries are queued via taskq_dispatch_ent(), so min/maxalloc
@@ -1987,7 +1989,7 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 	 * objects may be dirtied in syncing context, but only if they
 	 * were already pre-dirtied in open context.
 	 */
-#ifdef DEBUG
+#ifdef ZFS_DEBUG
 	if (dn->dn_objset->os_dsl_dataset != NULL) {
 		rrw_enter(&dn->dn_objset->os_dsl_dataset->ds_bp_rwlock,
 		    RW_READER, FTAG);
@@ -2060,7 +2062,7 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 	 */
 	os = dn->dn_objset;
 	VERIFY3U(tx->tx_txg, <=, spa_final_dirty_txg(os->os_spa));
-#ifdef DEBUG
+#ifdef ZFS_DEBUG
 	if (dn->dn_objset->os_dsl_dataset != NULL)
 		rrw_enter(&os->os_dsl_dataset->ds_bp_rwlock, RW_READER, FTAG);
 	ASSERT(!dmu_tx_is_syncing(tx) || DMU_OBJECT_IS_SPECIAL(dn->dn_object) ||

@@ -22,6 +22,7 @@ SUBDIRS = \
 	devices \
 	events \
 	exec \
+	fallocate \
 	fault \
 	features \
 	grow \
@@ -45,6 +46,7 @@ SUBDIRS = \
 	no_space \
 	nopwrite \
 	online_offline \
+	pam \
 	persist_l2arc \
 	pool_checkpoint \
 	pool_names \
@@ -63,7 +65,6 @@ SUBDIRS = \
 	rename_dirs \
 	replacement \
 	reservation \
-	resilver \
 	rootpool \
 	rsend \
 	scrub_mirror \

@@ -22,9 +22,9 @@
  *  with the SPL.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <linux/percpu_compat.h>
 #include <sys/kmem.h>
 #include <sys/kmem_cache.h>
-#include <sys/shrinker.h>
 #include <sys/taskq.h>
 #include <sys/timer.h>
 #include <sys/vmem.h>
@@ -57,20 +57,7 @@
 #define	smp_mb__after_atomic(x) smp_mb__after_clear_bit(x)
 #endif
 
-/*
- * Cache expiration was implemented because it was part of the default Solaris
- * kmem_cache behavior.  The idea is that per-cpu objects which haven't been
- * accessed in several seconds should be returned to the cache.  On the other
- * hand Linux slabs never move objects back to the slabs unless there is
- * memory pressure on the system.  By default the Linux method is enabled
- * because it has been shown to improve responsiveness on low memory systems.
- * This policy may be changed by setting KMC_EXPIRE_AGE or KMC_EXPIRE_MEM.
- */
 /* BEGIN CSTYLED */
-unsigned int spl_kmem_cache_expire = KMC_EXPIRE_MEM;
-EXPORT_SYMBOL(spl_kmem_cache_expire);
-module_param(spl_kmem_cache_expire, uint, 0644);
-MODULE_PARM_DESC(spl_kmem_cache_expire, "By age (0x1) or low memory (0x2)");
 
 /*
  * Cache magazines are an optimization designed to minimize the cost of
@@ -105,11 +92,6 @@ MODULE_PARM_DESC(spl_kmem_cache_reclaim, "Single reclaim pass (0x1)");
 unsigned int spl_kmem_cache_obj_per_slab = SPL_KMEM_CACHE_OBJ_PER_SLAB;
 module_param(spl_kmem_cache_obj_per_slab, uint, 0644);
 MODULE_PARM_DESC(spl_kmem_cache_obj_per_slab, "Number of objects per slab");
-
-unsigned int spl_kmem_cache_obj_per_slab_min = SPL_KMEM_CACHE_OBJ_PER_SLAB_MIN;
-module_param(spl_kmem_cache_obj_per_slab_min, uint, 0644);
-MODULE_PARM_DESC(spl_kmem_cache_obj_per_slab_min,
-	"Minimal number of objects per slab");
 
 unsigned int spl_kmem_cache_max_size = SPL_KMEM_CACHE_MAX_SIZE;
 module_param(spl_kmem_cache_max_size, uint, 0644);
@@ -188,10 +170,6 @@ struct rw_semaphore spl_kmem_cache_sem; /* Cache list lock */
 taskq_t *spl_kmem_cache_taskq;		/* Task queue for aging / reclaim */
 
 static void spl_cache_shrink(spl_kmem_cache_t *skc, void *obj);
-
-SPL_SHRINKER_CALLBACK_FWD_DECLARE(spl_kmem_cache_generic_shrinker);
-SPL_SHRINKER_DECLARE(spl_kmem_cache_shrinker,
-	spl_kmem_cache_generic_shrinker, KMC_DEFAULT_SEEKS);
 
 static void *
 kv_alloc(spl_kmem_cache_t *skc, int size, int flags)
@@ -594,102 +572,22 @@ spl_emergency_free(spl_kmem_cache_t *skc, void *obj)
  * argument contains the max number of entries to remove from the magazine.
  */
 static void
-__spl_cache_flush(spl_kmem_cache_t *skc, spl_kmem_magazine_t *skm, int flush)
+spl_cache_flush(spl_kmem_cache_t *skc, spl_kmem_magazine_t *skm, int flush)
 {
-	int i, count = MIN(flush, skm->skm_avail);
+	spin_lock(&skc->skc_lock);
 
 	ASSERT(skc->skc_magic == SKC_MAGIC);
 	ASSERT(skm->skm_magic == SKM_MAGIC);
 
-	for (i = 0; i < count; i++)
+	int count = MIN(flush, skm->skm_avail);
+	for (int i = 0; i < count; i++)
 		spl_cache_shrink(skc, skm->skm_objs[i]);
 
 	skm->skm_avail -= count;
 	memmove(skm->skm_objs, &(skm->skm_objs[count]),
 	    sizeof (void *) * skm->skm_avail);
-}
 
-static void
-spl_cache_flush(spl_kmem_cache_t *skc, spl_kmem_magazine_t *skm, int flush)
-{
-	spin_lock(&skc->skc_lock);
-	__spl_cache_flush(skc, skm, flush);
 	spin_unlock(&skc->skc_lock);
-}
-
-static void
-spl_magazine_age(void *data)
-{
-	spl_kmem_cache_t *skc = (spl_kmem_cache_t *)data;
-	spl_kmem_magazine_t *skm = skc->skc_mag[smp_processor_id()];
-
-	ASSERT(skm->skm_magic == SKM_MAGIC);
-	ASSERT(skm->skm_cpu == smp_processor_id());
-	ASSERT(irqs_disabled());
-
-	/* There are no available objects or they are too young to age out */
-	if ((skm->skm_avail == 0) ||
-	    time_before(jiffies, skm->skm_age + skc->skc_delay * HZ))
-		return;
-
-	/*
-	 * Because we're executing in interrupt context we may have
-	 * interrupted the holder of this lock.  To avoid a potential
-	 * deadlock return if the lock is contended.
-	 */
-	if (!spin_trylock(&skc->skc_lock))
-		return;
-
-	__spl_cache_flush(skc, skm, skm->skm_refill);
-	spin_unlock(&skc->skc_lock);
-}
-
-/*
- * Called regularly to keep a downward pressure on the cache.
- *
- * Objects older than skc->skc_delay seconds in the per-cpu magazines will
- * be returned to the caches.  This is done to prevent idle magazines from
- * holding memory which could be better used elsewhere.  The delay is
- * present to prevent thrashing the magazine.
- *
- * The newly released objects may result in empty partial slabs.  Those
- * slabs should be released to the system.  Otherwise moving the objects
- * out of the magazines is just wasted work.
- */
-static void
-spl_cache_age(void *data)
-{
-	spl_kmem_cache_t *skc = (spl_kmem_cache_t *)data;
-	taskqid_t id = 0;
-
-	ASSERT(skc->skc_magic == SKC_MAGIC);
-
-	/* Dynamically disabled at run time */
-	if (!(spl_kmem_cache_expire & KMC_EXPIRE_AGE))
-		return;
-
-	atomic_inc(&skc->skc_ref);
-
-	if (!(skc->skc_flags & KMC_NOMAGAZINE))
-		on_each_cpu(spl_magazine_age, skc, 1);
-
-	spl_slab_reclaim(skc);
-
-	while (!test_bit(KMC_BIT_DESTROY, &skc->skc_flags) && !id) {
-		id = taskq_dispatch_delay(
-		    spl_kmem_cache_taskq, spl_cache_age, skc, TQ_SLEEP,
-		    ddi_get_lbolt() + skc->skc_delay / 3 * HZ);
-
-		/* Destroy issued after dispatch immediately cancel it */
-		if (test_bit(KMC_BIT_DESTROY, &skc->skc_flags) && id)
-			taskq_cancel_id(spl_kmem_cache_taskq, id);
-	}
-
-	spin_lock(&skc->skc_lock);
-	skc->skc_taskqid = id;
-	spin_unlock(&skc->skc_lock);
-
-	atomic_dec(&skc->skc_ref);
 }
 
 /*
@@ -793,7 +691,6 @@ spl_magazine_alloc(spl_kmem_cache_t *skc, int cpu)
 		skm->skm_size = skc->skc_mag_size;
 		skm->skm_refill = skc->skc_mag_refill;
 		skm->skm_cache = skc;
-		skm->skm_age = jiffies;
 		skm->skm_cpu = cpu;
 	}
 
@@ -886,7 +783,7 @@ spl_magazine_destroy(spl_kmem_cache_t *skc)
  */
 spl_kmem_cache_t *
 spl_kmem_cache_create(char *name, size_t size, size_t align,
-    spl_kmem_ctor_t ctor, spl_kmem_dtor_t dtor, spl_kmem_reclaim_t reclaim,
+    spl_kmem_ctor_t ctor, spl_kmem_dtor_t dtor, void *reclaim,
     void *priv, void *vmp, int flags)
 {
 	gfp_t lflags = kmem_flags_convert(KM_SLEEP);
@@ -900,6 +797,7 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 	ASSERT0(flags & KMC_NOHASH);
 	ASSERT0(flags & KMC_QCACHE);
 	ASSERT(vmp == NULL);
+	ASSERT(reclaim == NULL);
 
 	might_sleep();
 
@@ -918,15 +816,12 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 
 	skc->skc_ctor = ctor;
 	skc->skc_dtor = dtor;
-	skc->skc_reclaim = reclaim;
 	skc->skc_private = priv;
 	skc->skc_vmp = vmp;
 	skc->skc_linux_cache = NULL;
 	skc->skc_flags = flags;
 	skc->skc_obj_size = size;
 	skc->skc_obj_align = SPL_KMEM_CACHE_ALIGN;
-	skc->skc_delay = SPL_KMEM_CACHE_DELAY;
-	skc->skc_reap = SPL_KMEM_CACHE_REAP;
 	atomic_set(&skc->skc_ref, 0);
 
 	INIT_LIST_HEAD(&skc->skc_list);
@@ -947,6 +842,13 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 	skc->skc_obj_deadlock = 0;
 	skc->skc_obj_emergency = 0;
 	skc->skc_obj_emergency_max = 0;
+
+	rc = percpu_counter_init_common(&skc->skc_linux_alloc, 0,
+	    GFP_KERNEL);
+	if (rc != 0) {
+		kfree(skc);
+		return (NULL);
+	}
 
 	/*
 	 * Verify the requested alignment restriction is sane.
@@ -1034,12 +936,6 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 		skc->skc_flags |= KMC_NOMAGAZINE;
 	}
 
-	if (spl_kmem_cache_expire & KMC_EXPIRE_AGE) {
-		skc->skc_taskqid = taskq_dispatch_delay(spl_kmem_cache_taskq,
-		    spl_cache_age, skc, TQ_SLEEP,
-		    ddi_get_lbolt() + skc->skc_delay / 3 * HZ);
-	}
-
 	down_write(&spl_kmem_cache_sem);
 	list_add_tail(&skc->skc_list, &spl_kmem_cache_list);
 	up_write(&spl_kmem_cache_sem);
@@ -1047,6 +943,7 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 	return (skc);
 out:
 	kfree(skc->skc_name);
+	percpu_counter_destroy(&skc->skc_linux_alloc);
 	kfree(skc);
 	return (NULL);
 }
@@ -1116,6 +1013,9 @@ spl_kmem_cache_destroy(spl_kmem_cache_t *skc)
 	ASSERT3U(skc->skc_obj_total, ==, 0);
 	ASSERT3U(skc->skc_obj_emergency, ==, 0);
 	ASSERT(list_empty(&skc->skc_complete_list));
+
+	ASSERT3U(percpu_counter_sum(&skc->skc_linux_alloc), ==, 0);
+	percpu_counter_destroy(&skc->skc_linux_alloc);
 
 	spin_unlock(&skc->skc_lock);
 
@@ -1473,9 +1373,7 @@ spl_kmem_cache_alloc(spl_kmem_cache_t *skc, int flags)
 			 * how many objects we've allocated in it for
 			 * better debuggability.
 			 */
-			spin_lock(&skc->skc_lock);
-			skc->skc_obj_alloc++;
-			spin_unlock(&skc->skc_lock);
+			percpu_counter_inc(&skc->skc_linux_alloc);
 		}
 		goto ret;
 	}
@@ -1495,7 +1393,6 @@ restart:
 	if (likely(skm->skm_avail)) {
 		/* Object available in CPU cache, use it */
 		obj = skm->skm_objs[--skm->skm_avail];
-		skm->skm_age = jiffies;
 	} else {
 		obj = spl_cache_refill(skc, skm, flags);
 		if ((obj == NULL) && !(flags & KM_NOSLEEP))
@@ -1550,9 +1447,7 @@ spl_kmem_cache_free(spl_kmem_cache_t *skc, void *obj)
 	 */
 	if (skc->skc_flags & KMC_SLAB) {
 		kmem_cache_free(skc->skc_linux_cache, obj);
-		spin_lock(&skc->skc_lock);
-		skc->skc_obj_alloc--;
-		spin_unlock(&skc->skc_lock);
+		percpu_counter_dec(&skc->skc_linux_alloc);
 		return;
 	}
 
@@ -1603,101 +1498,22 @@ spl_kmem_cache_free(spl_kmem_cache_t *skc, void *obj)
 EXPORT_SYMBOL(spl_kmem_cache_free);
 
 /*
- * The generic shrinker function for all caches.  Under Linux a shrinker
- * may not be tightly coupled with a slab cache.  In fact Linux always
- * systematically tries calling all registered shrinker callbacks which
- * report that they contain unused objects.  Because of this we only
- * register one shrinker function in the shim layer for all slab caches.
- * We always attempt to shrink all caches when this generic shrinker
- * is called.
- *
- * If sc->nr_to_scan is zero, the caller is requesting a query of the
- * number of objects which can potentially be freed.  If it is nonzero,
- * the request is to free that many objects.
- *
- * Linux kernels >= 3.12 have the count_objects and scan_objects callbacks
- * in struct shrinker and also require the shrinker to return the number
- * of objects freed.
- *
- * Older kernels require the shrinker to return the number of freeable
- * objects following the freeing of nr_to_free.
- *
- * Linux semantics differ from those under Solaris, which are to
- * free all available objects which may (and probably will) be more
- * objects than the requested nr_to_scan.
- */
-static spl_shrinker_t
-__spl_kmem_cache_generic_shrinker(struct shrinker *shrink,
-    struct shrink_control *sc)
-{
-	spl_kmem_cache_t *skc = NULL;
-	int alloc = 0;
-
-	/*
-	 * No shrinking in a transaction context.  Can cause deadlocks.
-	 */
-	if (sc->nr_to_scan && spl_fstrans_check())
-		return (SHRINK_STOP);
-
-	down_read(&spl_kmem_cache_sem);
-	list_for_each_entry(skc, &spl_kmem_cache_list, skc_list) {
-		if (sc->nr_to_scan) {
-#ifdef HAVE_SPLIT_SHRINKER_CALLBACK
-			uint64_t oldalloc = skc->skc_obj_alloc;
-			spl_kmem_cache_reap_now(skc,
-			    MAX(sc->nr_to_scan>>fls64(skc->skc_slab_objs), 1));
-			if (oldalloc > skc->skc_obj_alloc)
-				alloc += oldalloc - skc->skc_obj_alloc;
-#else
-			spl_kmem_cache_reap_now(skc,
-			    MAX(sc->nr_to_scan>>fls64(skc->skc_slab_objs), 1));
-			alloc += skc->skc_obj_alloc;
-#endif /* HAVE_SPLIT_SHRINKER_CALLBACK */
-		} else {
-			/* Request to query number of freeable objects */
-			alloc += skc->skc_obj_alloc;
-		}
-	}
-	up_read(&spl_kmem_cache_sem);
-
-	/*
-	 * When KMC_RECLAIM_ONCE is set allow only a single reclaim pass.
-	 * This functionality only exists to work around a rare issue where
-	 * shrink_slabs() is repeatedly invoked by many cores causing the
-	 * system to thrash.
-	 */
-	if ((spl_kmem_cache_reclaim & KMC_RECLAIM_ONCE) && sc->nr_to_scan)
-		return (SHRINK_STOP);
-
-	return (MAX(alloc, 0));
-}
-
-SPL_SHRINKER_CALLBACK_WRAPPER(spl_kmem_cache_generic_shrinker);
-
-/*
- * Call the registered reclaim function for a cache.  Depending on how
- * many and which objects are released it may simply repopulate the
- * local magazine which will then need to age-out.  Objects which cannot
- * fit in the magazine we will be released back to their slabs which will
- * also need to age out before being release.  This is all just best
- * effort and we do not want to thrash creating and destroying slabs.
+ * Depending on how many and which objects are released it may simply
+ * repopulate the local magazine which will then need to age-out.  Objects
+ * which cannot fit in the magazine will be released back to their slabs
+ * which will also need to age out before being released.  This is all just
+ * best effort and we do not want to thrash creating and destroying slabs.
  */
 void
-spl_kmem_cache_reap_now(spl_kmem_cache_t *skc, int count)
+spl_kmem_cache_reap_now(spl_kmem_cache_t *skc)
 {
 	ASSERT(skc->skc_magic == SKC_MAGIC);
 	ASSERT(!test_bit(KMC_BIT_DESTROY, &skc->skc_flags));
 
-	atomic_inc(&skc->skc_ref);
+	if (skc->skc_flags & KMC_SLAB)
+		return;
 
-	/*
-	 * Execute the registered reclaim callback if it exists.
-	 */
-	if (skc->skc_flags & KMC_SLAB) {
-		if (skc->skc_reclaim)
-			skc->skc_reclaim(skc->skc_private);
-		goto out;
-	}
+	atomic_inc(&skc->skc_ref);
 
 	/*
 	 * Prevent concurrent cache reaping when contended.
@@ -1705,49 +1521,12 @@ spl_kmem_cache_reap_now(spl_kmem_cache_t *skc, int count)
 	if (test_and_set_bit(KMC_BIT_REAPING, &skc->skc_flags))
 		goto out;
 
-	/*
-	 * When a reclaim function is available it may be invoked repeatedly
-	 * until at least a single slab can be freed.  This ensures that we
-	 * do free memory back to the system.  This helps minimize the chance
-	 * of an OOM event when the bulk of memory is used by the slab.
-	 *
-	 * When free slabs are already available the reclaim callback will be
-	 * skipped.  Additionally, if no forward progress is detected despite
-	 * a reclaim function the cache will be skipped to avoid deadlock.
-	 *
-	 * Longer term this would be the correct place to add the code which
-	 * repacks the slabs in order minimize fragmentation.
-	 */
-	if (skc->skc_reclaim) {
-		uint64_t objects = UINT64_MAX;
-		int do_reclaim;
-
-		do {
-			spin_lock(&skc->skc_lock);
-			do_reclaim =
-			    (skc->skc_slab_total > 0) &&
-			    ((skc->skc_slab_total-skc->skc_slab_alloc) == 0) &&
-			    (skc->skc_obj_alloc < objects);
-
-			objects = skc->skc_obj_alloc;
-			spin_unlock(&skc->skc_lock);
-
-			if (do_reclaim)
-				skc->skc_reclaim(skc->skc_private);
-
-		} while (do_reclaim);
-	}
-
 	/* Reclaim from the magazine and free all now empty slabs. */
-	if (spl_kmem_cache_expire & KMC_EXPIRE_MEM) {
-		spl_kmem_magazine_t *skm;
-		unsigned long irq_flags;
-
-		local_irq_save(irq_flags);
-		skm = skc->skc_mag[smp_processor_id()];
-		spl_cache_flush(skc, skm, skm->skm_avail);
-		local_irq_restore(irq_flags);
-	}
+	unsigned long irq_flags;
+	local_irq_save(irq_flags);
+	spl_kmem_magazine_t *skm = skc->skc_mag[smp_processor_id()];
+	spl_cache_flush(skc, skm, skm->skm_avail);
+	local_irq_restore(irq_flags);
 
 	spl_slab_reclaim(skc);
 	clear_bit_unlock(KMC_BIT_REAPING, &skc->skc_flags);
@@ -1776,12 +1555,13 @@ EXPORT_SYMBOL(spl_kmem_cache_reap_active);
 void
 spl_kmem_reap(void)
 {
-	struct shrink_control sc;
+	spl_kmem_cache_t *skc = NULL;
 
-	sc.nr_to_scan = KMC_REAP_CHUNK;
-	sc.gfp_mask = GFP_KERNEL;
-
-	(void) __spl_kmem_cache_generic_shrinker(NULL, &sc);
+	down_read(&spl_kmem_cache_sem);
+	list_for_each_entry(skc, &spl_kmem_cache_list, skc_list) {
+		spl_kmem_cache_reap_now(skc);
+	}
+	up_read(&spl_kmem_cache_sem);
 }
 EXPORT_SYMBOL(spl_kmem_reap);
 
@@ -1794,7 +1574,6 @@ spl_kmem_cache_init(void)
 	    spl_kmem_cache_kmem_threads, maxclsyspri,
 	    spl_kmem_cache_kmem_threads * 8, INT_MAX,
 	    TASKQ_PREPOPULATE | TASKQ_DYNAMIC);
-	spl_register_shrinker(&spl_kmem_cache_shrinker);
 
 	return (0);
 }
@@ -1802,6 +1581,5 @@ spl_kmem_cache_init(void)
 void
 spl_kmem_cache_fini(void)
 {
-	spl_unregister_shrinker(&spl_kmem_cache_shrinker);
 	taskq_destroy(spl_kmem_cache_taskq);
 }

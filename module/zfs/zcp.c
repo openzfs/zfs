@@ -1150,6 +1150,7 @@ zcp_eval(const char *poolname, const char *program, boolean_t sync,
 	runinfo.zri_outnvl = outnvl;
 	runinfo.zri_result = 0;
 	runinfo.zri_cred = CRED();
+	runinfo.zri_proc = curproc;
 	runinfo.zri_timed_out = B_FALSE;
 	runinfo.zri_canceled = B_FALSE;
 	runinfo.zri_sync = sync;

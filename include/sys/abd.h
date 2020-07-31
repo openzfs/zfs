@@ -28,7 +28,7 @@
 
 #include <sys/isa_defs.h>
 #include <sys/debug.h>
-#include <sys/refcount.h>
+#include <sys/zfs_refcount.h>
 #include <sys/uio.h>
 
 #ifdef __cplusplus
@@ -60,6 +60,7 @@ abd_t *abd_get_offset_size(abd_t *, size_t, size_t);
 abd_t *abd_get_offset_impl(abd_t *, abd_t *, size_t, size_t);
 abd_t *abd_get_zeros(size_t);
 abd_t *abd_get_from_buf(void *, size_t);
+void abd_cache_reap_now(void);
 
 /*
  * Conversion to and from a normal buffer

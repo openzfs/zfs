@@ -27,6 +27,7 @@
 #include <sys/cdefs.h>
 __FBSDID("$FreeBSD$");
 
+#include <sys/types.h>
 #include <sys/param.h>
 #include <sys/kernel.h>
 #include <sys/systm.h>
@@ -285,22 +286,6 @@ kstat_delete(kstat_t *ksp)
 
 	sysctl_ctx_free(&ksp->ks_sysctl_ctx);
 	free(ksp, M_KSTAT);
-}
-
-void
-kstat_set_string(char *dst, const char *src)
-{
-
-	bzero(dst, KSTAT_STRLEN);
-	(void) strncpy(dst, src, KSTAT_STRLEN - 1);
-}
-
-void
-kstat_named_init(kstat_named_t *knp, const char *name, uchar_t data_type)
-{
-
-	kstat_set_string(knp->name, name);
-	knp->data_type = data_type;
 }
 
 void

@@ -12,7 +12,6 @@ PartOf=smb.service
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStartPre=-/bin/rm -f /etc/dfs/sharetab
 ExecStart=@sbindir@/zfs share -a
 
 [Install]

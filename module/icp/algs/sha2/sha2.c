@@ -43,7 +43,7 @@
 
 #define	_RESTRICT_KYWD
 
-#ifdef _LITTLE_ENDIAN
+#ifdef _ZFS_LITTLE_ENDIAN
 #include <sys/byteorder.h>
 #define	HAVE_HTONL
 #endif
@@ -123,7 +123,7 @@ static uint8_t PADDING[128] = { 0x80, /* all zeros */ };
  * careful programming can guarantee this for us.
  */
 
-#if	defined(_BIG_ENDIAN)
+#if	defined(_ZFS_BIG_ENDIAN)
 #define	LOAD_BIG_32(addr)	(*(uint32_t *)(addr))
 #define	LOAD_BIG_64(addr)	(*(uint64_t *)(addr))
 

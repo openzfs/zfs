@@ -6,11 +6,4 @@ USER_C = \
 	thread_pool.c \
 	thread_pool_impl.h
 
-nodist_libtpool_la_SOURCES = $(USER_C)
-
-libtpool_la_LIBADD = \
-	$(top_builddir)/lib/libspl/libspl.la
-
-libtpool_la_LDFLAGS = -pthread
-
-EXTRA_DIST = $(USER_C)
+libtpool_la_SOURCES = $(USER_C)

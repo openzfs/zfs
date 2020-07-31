@@ -27,6 +27,7 @@
 #include <sys/cdefs.h>
 __FBSDID("$FreeBSD$");
 
+#include <sys/types.h>
 #include <sys/param.h>
 #include <sys/priv.h>
 #include <sys/vnode.h>
@@ -47,6 +48,13 @@ secpolicy_nfs(cred_t *cr)
 
 int
 secpolicy_zfs(cred_t *cr)
+{
+
+	return (spl_priv_check_cred(cr, PRIV_VFS_MOUNT));
+}
+
+int
+secpolicy_zfs_proc(cred_t *cr, proc_t *proc)
 {
 
 	return (spl_priv_check_cred(cr, PRIV_VFS_MOUNT));

@@ -33,37 +33,18 @@
 #include <stdlib.h>
 #include <stdarg.h>
 
-#ifndef _KERNEL
+/* Set to non-zero to avoid abort()ing on an assertion failure */
 extern int aok;
-#endif
+
+/* printf version of libspl_assert */
+extern void libspl_assertf(const char *file, const char *func, int line,
+    const char *format, ...);
 
 static inline int
 libspl_assert(const char *buf, const char *file, const char *func, int line)
 {
-	fprintf(stderr, "%s\n", buf);
-	fprintf(stderr, "ASSERT at %s:%d:%s()", file, line, func);
-	if (aok) {
-		return (0);
-	}
-	abort();
-}
-
-/* printf version of libspl_assert */
-static inline void
-libspl_assertf(const char *file, const char *func, int line,
-    const char *format, ...)
-{
-	va_list args;
-
-	va_start(args, format);
-	vfprintf(stderr, format, args);
-	fprintf(stderr, "\n");
-	fprintf(stderr, "ASSERT at %s:%d:%s()", file, line, func);
-	va_end(args);
-	if (aok) {
-		return;
-	}
-	abort();
+	libspl_assertf(file, func, line, "%s", buf);
+	return (0);
 }
 
 #ifdef verify

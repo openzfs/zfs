@@ -226,16 +226,14 @@ typedef uint32_t sha1word;
  * careful programming can guarantee this for us.
  */
 
-#if	defined(_BIG_ENDIAN)
+#if	defined(_ZFS_BIG_ENDIAN)
 #define	LOAD_BIG_32(addr)	(*(uint32_t *)(addr))
 
 #elif	defined(HAVE_HTONL)
 #define	LOAD_BIG_32(addr) htonl(*((uint32_t *)(addr)))
 
 #else
-/* little endian -- will work on big endian, but slowly */
-#define	LOAD_BIG_32(addr)	\
-	(((addr)[0] << 24) | ((addr)[1] << 16) | ((addr)[2] << 8) | (addr)[3])
+#define	LOAD_BIG_32(addr)	BE_32(*((uint32_t *)(addr)))
 #endif	/* _BIG_ENDIAN */
 
 /*

@@ -857,6 +857,7 @@ zfs_prop_valid_keylocation(const char *str, boolean_t encrypted)
 
 
 #ifndef _KERNEL
+#include <libzfs.h>
 
 /*
  * Returns a string describing the set of acceptable values for the given

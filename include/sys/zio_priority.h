@@ -31,6 +31,7 @@ typedef enum zio_priority {
 	ZIO_PRIORITY_REMOVAL,		/* reads/writes for vdev removal */
 	ZIO_PRIORITY_INITIALIZING,	/* initializing I/O */
 	ZIO_PRIORITY_TRIM,		/* trim I/O (discard) */
+	ZIO_PRIORITY_REBUILD,		/* reads/writes for vdev rebuild */
 	ZIO_PRIORITY_NUM_QUEUEABLE,
 	ZIO_PRIORITY_NOW,		/* non-queued i/os (e.g. free) */
 } zio_priority_t;

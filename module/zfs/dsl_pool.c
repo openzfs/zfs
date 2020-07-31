@@ -1158,7 +1158,7 @@ dsl_pool_clean_tmp_userrefs(dsl_pool_t *dp)
 /*
  * Create the pool-wide zap object for storing temporary snapshot holds.
  */
-void
+static void
 dsl_pool_user_hold_create_obj(dsl_pool_t *dp, dmu_tx_t *tx)
 {
 	objset_t *mos = dp->dp_meta_objset;

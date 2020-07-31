@@ -1,5 +1,7 @@
 include $(top_srcdir)/config/Rules.am
 
+AM_CFLAGS += $(LIBUDEV_CFLAGS) $(LIBUUID_CFLAGS)
+
 SUBDIRS = zed.d
 
 sbin_PROGRAMS = zed
@@ -36,10 +38,12 @@ FMA_SRC = \
 zed_SOURCES = $(ZED_SRC) $(FMA_SRC)
 
 zed_LDADD = \
-	$(top_builddir)/lib/libnvpair/libnvpair.la \
-	$(top_builddir)/lib/libuutil/libuutil.la \
-	$(top_builddir)/lib/libzfs_core/libzfs_core.la \
-	$(top_builddir)/lib/libzfs/libzfs.la
+	$(abs_top_builddir)/lib/libzfs/libzfs.la \
+	$(abs_top_builddir)/lib/libzfs_core/libzfs_core.la \
+	$(abs_top_builddir)/lib/libnvpair/libnvpair.la \
+	$(abs_top_builddir)/lib/libuutil/libuutil.la
 
-zed_LDADD += -lrt
+zed_LDADD += -lrt $(LIBUDEV_LIBS) $(LIBUUID_LIBS)
 zed_LDFLAGS = -pthread
+
+EXTRA_DIST = agents/README.md

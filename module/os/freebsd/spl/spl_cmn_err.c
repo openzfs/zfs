@@ -25,6 +25,9 @@
  * Copyright 2012 Martin Matuska <mm@FreeBSD.org>. All rights reserved.
  */
 
+#include <sys/cdefs.h>
+#include <sys/param.h>
+#include <sys/systm.h>
 #include <sys/cmn_err.h>
 
 void

@@ -28,6 +28,7 @@
 
 #include <sys/abd_impl.h>
 #include <sys/param.h>
+#include <sys/types.h>
 #include <sys/zio.h>
 #include <sys/zfs_context.h>
 #include <sys/zfs_znode.h>
@@ -487,4 +488,10 @@ abd_iter_unmap(struct abd_iter *aiter)
 
 	aiter->iter_mapaddr = NULL;
 	aiter->iter_mapsize = 0;
+}
+
+void
+abd_cache_reap_now(void)
+{
+	kmem_cache_reap_soon(abd_chunk_cache);
 }

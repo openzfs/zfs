@@ -1173,7 +1173,7 @@ is_grouping(const char *type, int *mindev, int *maxdev)
  * Note: we don't bother freeing anything in the error paths
  * because the program is just going to exit anyway.
  */
-nvlist_t *
+static nvlist_t *
 construct_spec(nvlist_t *props, int argc, char **argv)
 {
 	nvlist_t *nvroot, *nv, **top, **spares, **l2cache;

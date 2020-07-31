@@ -915,6 +915,11 @@ abd_iter_unmap(struct abd_iter *aiter)
 	aiter->iter_mapsize = 0;
 }
 
+void
+abd_cache_reap_now(void)
+{
+}
+
 #if defined(_KERNEL)
 /*
  * bio_nr_pages for ABD.

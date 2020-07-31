@@ -95,6 +95,8 @@ zfs_errno = enum_with_offset(1024, [
         'ZFS_ERR_EXPORT_IN_PROGRESS',
         'ZFS_ERR_BOOKMARK_SOURCE_NOT_ANCESTOR',
         'ZFS_ERR_STREAM_TRUNCATED',
+        'ZFS_ERR_RESILVER_IN_PROGRESS',
+        'ZFS_ERR_REBUILD_IN_PROGRESS',
     ],
     {}
 )

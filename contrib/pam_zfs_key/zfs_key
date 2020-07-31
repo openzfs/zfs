@@ -1,0 +1,13 @@
+Name: Unlock zfs datasets for user
+Default: yes
+Priority: 128
+Auth-Type: Additional
+Auth:
+	optional	pam_zfs_key.so
+Session-Interactive-Only: yes
+Session-Type: Additional
+Session:
+	optional	pam_zfs_key.so
+Password-Type: Additional
+Password:
+	optional	pam_zfs_key.so

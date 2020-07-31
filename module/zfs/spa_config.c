@@ -27,6 +27,7 @@
  */
 
 #include <sys/spa.h>
+#include <sys/file.h>
 #include <sys/fm/fs/zfs.h>
 #include <sys/spa_impl.h>
 #include <sys/nvpair.h>
