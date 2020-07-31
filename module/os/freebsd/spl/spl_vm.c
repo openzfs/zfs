@@ -27,10 +27,12 @@
 #include <sys/cdefs.h>
 __FBSDID("$FreeBSD$");
 
+#include <sys/types.h>
 #include <sys/param.h>
 #include <sys/byteorder.h>
 #include <sys/lock.h>
 #include <sys/freebsd_rwlock.h>
+#include <sys/vm.h>
 
 #include <vm/vm.h>
 #include <vm/vm_param.h>

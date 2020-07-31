@@ -36,6 +36,7 @@
 #include <sys/sysmacros.h>
 #include <sys/resource.h>
 #include <sys/vfs.h>
+#include <sys/endian.h>
 #include <sys/vm.h>
 #include <sys/vnode.h>
 #include <sys/dirent.h>
@@ -1251,7 +1252,7 @@ zfs_write_simple(znode_t *zp, const void *data, size_t len,
 	return (error);
 }
 
-void
+static void
 zfs_get_done(zgd_t *zgd, int error)
 {
 	znode_t *zp = zgd->zgd_private;
@@ -1271,7 +1272,7 @@ zfs_get_done(zgd_t *zgd, int error)
 	kmem_free(zgd, sizeof (zgd_t));
 }
 
-#ifdef DEBUG
+#ifdef ZFS_DEBUG
 static int zil_fault_io = 0;
 #endif
 
@@ -1354,7 +1355,7 @@ zfs_get_data(void *arg, lr_write_t *lr, char *buf, struct lwb *lwb, zio_t *zio)
 		/* test for truncation needs to be done while range locked */
 		if (lr->lr_offset >= zp->z_size)
 			error = SET_ERROR(ENOENT);
-#ifdef DEBUG
+#ifdef ZFS_DEBUG
 		if (zil_fault_io) {
 			error = SET_ERROR(EIO);
 			zil_fault_io = 0;
@@ -2052,7 +2053,7 @@ out:
 }
 
 
-int
+static int
 zfs_lookup_internal(znode_t *dzp, char *name, vnode_t **vpp,
     struct componentname *cnp, int nameiop)
 {
@@ -4605,7 +4606,7 @@ zfs_space(znode_t *zp, int cmd, flock64_t *bfp, int flag,
 }
 
 /*ARGSUSED*/
-void
+static void
 zfs_inactive(vnode_t *vp, cred_t *cr, caller_context_t *ct)
 {
 	znode_t	*zp = VTOZ(vp);
@@ -4809,9 +4810,20 @@ zfs_getpages(struct vnode *vp, vm_page_t *ma, int count, int *rbehind,
 	 */
 	for (;;) {
 		blksz = zp->z_blksz;
-		lr = zfs_rangelock_enter(&zp->z_rangelock,
+		lr = zfs_rangelock_tryenter(&zp->z_rangelock,
 		    rounddown(start, blksz),
 		    roundup(end, blksz) - rounddown(start, blksz), RL_READER);
+		if (lr == NULL) {
+			if (rahead != NULL) {
+				*rahead = 0;
+				rahead = NULL;
+			}
+			if (rbehind != NULL) {
+				*rbehind = 0;
+				rbehind = NULL;
+			}
+			break;
+		}
 		if (blksz == zp->z_blksz)
 			break;
 		zfs_rangelock_exit(lr);
@@ -5043,7 +5055,7 @@ struct vop_putpages_args {
 };
 #endif
 
-int
+static int
 zfs_freebsd_putpages(struct vop_putpages_args *ap)
 {
 
@@ -5749,10 +5761,13 @@ zfs_freebsd_need_inactive(struct vop_need_inactive_args *ap)
 	vnode_t *vp = ap->a_vp;
 	znode_t	*zp = VTOZ(vp);
 	zfsvfs_t *zfsvfs = zp->z_zfsvfs;
-	bool need;
+	int need;
+
+	if (vn_need_pageq_flush(vp))
+		return (1);
 
 	if (!rw_tryenter(&zfsvfs->z_teardown_inactive_lock, RW_READER))
-		return (true);
+		return (1);
 	need = (zp->z_sa_hdl == NULL || zp->z_unlinked || zp->z_atime_dirty);
 	rw_exit(&zfsvfs->z_teardown_inactive_lock);
 
@@ -5994,7 +6009,7 @@ struct vop_deleteextattr {
 /*
  * Vnode operation to remove a named attribute.
  */
-int
+static int
 zfs_deleteextattr(struct vop_deleteextattr_args *ap)
 {
 	zfsvfs_t *zfsvfs = VTOZ(ap->a_vp)->z_zfsvfs;
@@ -6271,7 +6286,7 @@ struct vop_getacl_args {
 };
 #endif
 
-int
+static int
 zfs_freebsd_getacl(struct vop_getacl_args *ap)
 {
 	int		error;
@@ -6302,7 +6317,7 @@ struct vop_setacl_args {
 };
 #endif
 
-int
+static int
 zfs_freebsd_setacl(struct vop_setacl_args *ap)
 {
 	int		error;
@@ -6355,7 +6370,7 @@ struct vop_aclcheck_args {
 };
 #endif
 
-int
+static int
 zfs_freebsd_aclcheck(struct vop_aclcheck_args *ap)
 {
 

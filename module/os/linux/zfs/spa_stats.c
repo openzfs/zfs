@@ -952,7 +952,7 @@ spa_iostats_trim_add(spa_t *spa, trim_type_t type,
 	}
 }
 
-int
+static int
 spa_iostats_update(kstat_t *ksp, int rw)
 {
 	if (rw == KSTAT_WRITE) {

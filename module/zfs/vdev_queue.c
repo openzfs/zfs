@@ -158,6 +158,8 @@ uint32_t zfs_vdev_initializing_min_active = 1;
 uint32_t zfs_vdev_initializing_max_active = 1;
 uint32_t zfs_vdev_trim_min_active = 1;
 uint32_t zfs_vdev_trim_max_active = 2;
+uint32_t zfs_vdev_rebuild_min_active = 1;
+uint32_t zfs_vdev_rebuild_max_active = 3;
 
 /*
  * When the pool has less than zfs_vdev_async_write_active_min_dirty_percent
@@ -212,7 +214,7 @@ int zfs_vdev_def_queue_depth = 32;
  */
 int zfs_vdev_aggregate_trim = 0;
 
-int
+static int
 vdev_queue_offset_compare(const void *x1, const void *x2)
 {
 	const zio_t *z1 = (const zio_t *)x1;
@@ -244,7 +246,7 @@ vdev_queue_type_tree(vdev_queue_t *vq, zio_type_t t)
 		return (&vq->vq_trim_offset_tree);
 }
 
-int
+static int
 vdev_queue_timestamp_compare(const void *x1, const void *x2)
 {
 	const zio_t *z1 = (const zio_t *)x1;
@@ -278,6 +280,8 @@ vdev_queue_class_min_active(zio_priority_t p)
 		return (zfs_vdev_initializing_min_active);
 	case ZIO_PRIORITY_TRIM:
 		return (zfs_vdev_trim_min_active);
+	case ZIO_PRIORITY_REBUILD:
+		return (zfs_vdev_rebuild_min_active);
 	default:
 		panic("invalid priority %u", p);
 		return (0);
@@ -352,6 +356,8 @@ vdev_queue_class_max_active(spa_t *spa, zio_priority_t p)
 		return (zfs_vdev_initializing_max_active);
 	case ZIO_PRIORITY_TRIM:
 		return (zfs_vdev_trim_max_active);
+	case ZIO_PRIORITY_REBUILD:
+		return (zfs_vdev_rebuild_max_active);
 	default:
 		panic("invalid priority %u", p);
 		return (0);
@@ -845,7 +851,8 @@ vdev_queue_io(zio_t *zio)
 		    zio->io_priority != ZIO_PRIORITY_ASYNC_READ &&
 		    zio->io_priority != ZIO_PRIORITY_SCRUB &&
 		    zio->io_priority != ZIO_PRIORITY_REMOVAL &&
-		    zio->io_priority != ZIO_PRIORITY_INITIALIZING) {
+		    zio->io_priority != ZIO_PRIORITY_INITIALIZING &&
+		    zio->io_priority != ZIO_PRIORITY_REBUILD) {
 			zio->io_priority = ZIO_PRIORITY_ASYNC_READ;
 		}
 	} else if (zio->io_type == ZIO_TYPE_WRITE) {
@@ -854,7 +861,8 @@ vdev_queue_io(zio_t *zio)
 		if (zio->io_priority != ZIO_PRIORITY_SYNC_WRITE &&
 		    zio->io_priority != ZIO_PRIORITY_ASYNC_WRITE &&
 		    zio->io_priority != ZIO_PRIORITY_REMOVAL &&
-		    zio->io_priority != ZIO_PRIORITY_INITIALIZING) {
+		    zio->io_priority != ZIO_PRIORITY_INITIALIZING &&
+		    zio->io_priority != ZIO_PRIORITY_REBUILD) {
 			zio->io_priority = ZIO_PRIORITY_ASYNC_WRITE;
 		}
 	} else {
@@ -1050,6 +1058,12 @@ ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, trim_max_active, INT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, trim_min_active, INT, ZMOD_RW,
 	"Min active trim/discard I/Os per vdev");
+
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, rebuild_max_active, INT, ZMOD_RW,
+	"Max active rebuild I/Os per vdev");
+
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, rebuild_min_active, INT, ZMOD_RW,
+	"Min active rebuild I/Os per vdev");
 
 ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, queue_depth_pct, INT, ZMOD_RW,
 	"Queue depth percentage for each top-level vdev");

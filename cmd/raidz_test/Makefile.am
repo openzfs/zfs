@@ -4,7 +4,7 @@ include $(top_srcdir)/config/Rules.am
 AM_CFLAGS += $(FRAME_LARGER_THAN)
 
 # Unconditionally enable ASSERTs
-AM_CPPFLAGS += -DDEBUG -UNDEBUG
+AM_CPPFLAGS += -DDEBUG -UNDEBUG -DZFS_DEBUG
 
 bin_PROGRAMS = raidz_test
 
@@ -14,7 +14,7 @@ raidz_test_SOURCES = \
 	raidz_bench.c
 
 raidz_test_LDADD = \
-	$(top_builddir)/lib/libnvpair/libnvpair.la \
-	$(top_builddir)/lib/libzpool/libzpool.la
+	$(abs_top_builddir)/lib/libzpool/libzpool.la \
+	$(abs_top_builddir)/lib/libzfs_core/libzfs_core.la
 
-raidz_test_LDADD += -lm -ldl
+raidz_test_LDADD += -lm

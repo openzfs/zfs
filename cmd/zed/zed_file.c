@@ -20,6 +20,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include "zed_file.h"
 #include "zed_log.h"
 
 /*

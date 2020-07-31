@@ -222,9 +222,6 @@
 kmutex_t zfsdev_state_lock;
 zfsdev_state_t *zfsdev_state_list;
 
-extern void zfs_init(void);
-extern void zfs_fini(void);
-
 /*
  * Limit maximum nvlist size.  We don't want users passing in insane values
  * for zc->zc_nvlist_src_size, since we will need to allocate that much memory.
@@ -735,13 +732,13 @@ zfs_secpolicy_send_new(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 	    ZFS_DELEG_PERM_SEND, cr));
 }
 
-int
+static int
 zfs_secpolicy_share(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 {
 	return (SET_ERROR(ENOTSUP));
 }
 
-int
+static int
 zfs_secpolicy_smb_acl(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 {
 	return (SET_ERROR(ENOTSUP));
@@ -1941,8 +1938,9 @@ static int
 zfs_ioc_vdev_attach(zfs_cmd_t *zc)
 {
 	spa_t *spa;
-	int replacing = zc->zc_cookie;
 	nvlist_t *config;
+	int replacing = zc->zc_cookie;
+	int rebuild = zc->zc_simple;
 	int error;
 
 	if ((error = spa_open(zc->zc_name, &spa, FTAG)) != 0)
@@ -1950,7 +1948,8 @@ zfs_ioc_vdev_attach(zfs_cmd_t *zc)
 
 	if ((error = get_nvlist(zc->zc_nvlist_conf, zc->zc_nvlist_conf_size,
 	    zc->zc_iflags, &config)) == 0) {
-		error = spa_vdev_attach(spa, zc->zc_guid, config, replacing);
+		error = spa_vdev_attach(spa, zc->zc_guid, config, replacing,
+		    rebuild);
 		nvlist_free(config);
 	}
 
@@ -4807,7 +4806,7 @@ zfs_allow_log_destroy(void *arg)
 		kmem_strfree(poolname);
 }
 
-#ifdef	DEBUG
+#ifdef	ZFS_DEBUG
 static boolean_t zfs_ioc_recv_inject_err;
 #endif
 
@@ -5020,7 +5019,7 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin, nvlist_t *recvprops,
 	}
 	*read_bytes = off - noff;
 
-#ifdef	DEBUG
+#ifdef	ZFS_DEBUG
 	if (zfs_ioc_recv_inject_err) {
 		zfs_ioc_recv_inject_err = B_FALSE;
 		error = 1;
@@ -6421,7 +6420,7 @@ zfs_ioc_send_new(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 }
 
 /* ARGSUSED */
-int
+static int
 send_space_sum(objset_t *os, void *buf, int len, void *arg)
 {
 	uint64_t *size = arg;
@@ -6876,7 +6875,7 @@ zfs_ioctl_register_dataset_modify(zfs_ioc_t ioc, zfs_ioc_legacy_func_t *func,
 	    DATASET_NAME, B_TRUE, POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY);
 }
 
-void
+static void
 zfs_ioctl_init(void)
 {
 	zfs_ioctl_register("snapshot", ZFS_IOC_SNAPSHOT,
@@ -7259,7 +7258,7 @@ zfs_check_input_nvpairs(nvlist_t *innvl, const zfs_ioc_vec_t *vec)
 	return (0);
 }
 
-int
+static int
 pool_status_check(const char *name, zfs_ioc_namecheck_t type,
     zfs_ioc_poolcheck_t check)
 {

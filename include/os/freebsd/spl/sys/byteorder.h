@@ -60,7 +60,7 @@
 /*
  * Macros to convert from a specific byte order to/from native byte order
  */
-#if BYTE_ORDER == BIG_ENDIAN
+#if BYTE_ORDER == _BIG_ENDIAN
 #define	BE_8(x)		BMASK_8(x)
 #define	BE_16(x)	BMASK_16(x)
 #define	BE_32(x)	BMASK_32(x)
@@ -80,7 +80,7 @@
 #define	BE_64(x)	BSWAP_64(x)
 #endif
 
-#if BYTE_ORDER == BIG_ENDIAN
+#if BYTE_ORDER == _BIG_ENDIAN
 #define	htonll(x)	BMASK_64(x)
 #define	ntohll(x)	BMASK_64(x)
 #else

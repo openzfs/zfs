@@ -41,6 +41,7 @@
  * SOFTWARE.
  */
 
+#include <sys/param.h>
 #include <sys/byteorder.h>
 #include <sys/spa_checksum.h>
 #include <sys/strings.h>

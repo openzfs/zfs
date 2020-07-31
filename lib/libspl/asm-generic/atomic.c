@@ -48,7 +48,6 @@ pthread_mutex_t atomic_lock = PTHREAD_MUTEX_INITIALIZER;
 		VERIFY3S(pthread_mutex_unlock(&atomic_lock), ==, 0);	\
 	}
 
-ATOMIC_INC(long, unsigned long)
 ATOMIC_INC(8, uint8_t)
 ATOMIC_INC(uchar, uchar_t)
 ATOMIC_INC(16, uint16_t)
@@ -67,7 +66,6 @@ ATOMIC_INC(64, uint64_t)
 		VERIFY3S(pthread_mutex_unlock(&atomic_lock), ==, 0);	\
 	}
 
-ATOMIC_DEC(long, unsigned long)
 ATOMIC_DEC(8, uint8_t)
 ATOMIC_DEC(uchar, uchar_t)
 ATOMIC_DEC(16, uint16_t)
@@ -180,7 +178,6 @@ ATOMIC_AND(64, uint64_t)
 		return (rc);						\
 	}
 
-ATOMIC_INC_NV(long, unsigned long)
 ATOMIC_INC_NV(8, uint8_t)
 ATOMIC_INC_NV(uchar, uchar_t)
 ATOMIC_INC_NV(16, uint16_t)
@@ -201,7 +198,6 @@ ATOMIC_INC_NV(64, uint64_t)
 		return (rc);						\
 	}
 
-ATOMIC_DEC_NV(long, unsigned long)
 ATOMIC_DEC_NV(8, uint8_t)
 ATOMIC_DEC_NV(uchar, uchar_t)
 ATOMIC_DEC_NV(16, uint16_t)
@@ -286,7 +282,6 @@ atomic_sub_ptr_nv(volatile void *target, ssize_t bits)
 		return (rc);						\
 	}
 
-ATOMIC_OR_NV(long, unsigned long)
 ATOMIC_OR_NV(8, uint8_t)
 ATOMIC_OR_NV(uchar, uchar_t)
 ATOMIC_OR_NV(16, uint16_t)
@@ -307,7 +302,6 @@ ATOMIC_OR_NV(64, uint64_t)
 		return (rc);						\
 	}
 
-ATOMIC_AND_NV(long, unsigned long)
 ATOMIC_AND_NV(8, uint8_t)
 ATOMIC_AND_NV(uchar, uchar_t)
 ATOMIC_AND_NV(16, uint16_t)
@@ -421,7 +415,7 @@ atomic_clear_long_excl(volatile ulong_t *target, uint_t value)
 
 	VERIFY3S(pthread_mutex_lock(&atomic_lock), ==, 0);
 	bit = (1UL << value);
-	if ((*target & bit) != 0) {
+	if ((*target & bit) == 0) {
 		VERIFY3S(pthread_mutex_unlock(&atomic_lock), ==, 0);
 		return (-1);
 	}
@@ -453,48 +447,4 @@ void
 membar_consumer(void)
 {
 	/* XXX - Implement me */
-}
-
-/* Legacy kernel interfaces; they will go away (eventually). */
-
-uint8_t
-cas8(uint8_t *target, uint8_t arg1, uint8_t arg2)
-{
-	return (atomic_cas_8(target, arg1, arg2));
-}
-
-uint32_t
-cas32(uint32_t *target, uint32_t arg1, uint32_t arg2)
-{
-	return (atomic_cas_32(target, arg1, arg2));
-}
-
-uint64_t
-cas64(uint64_t *target, uint64_t arg1, uint64_t arg2)
-{
-	return (atomic_cas_64(target, arg1, arg2));
-}
-
-ulong_t
-caslong(ulong_t *target, ulong_t arg1, ulong_t arg2)
-{
-	return (atomic_cas_ulong(target, arg1, arg2));
-}
-
-void *
-casptr(void *target, void *arg1, void *arg2)
-{
-	return (atomic_cas_ptr(target, arg1, arg2));
-}
-
-void
-atomic_and_long(ulong_t *target, ulong_t bits)
-{
-	return (atomic_and_ulong(target, bits));
-}
-
-void
-atomic_or_long(ulong_t *target, ulong_t bits)
-{
-	return (atomic_or_ulong(target, bits));
 }

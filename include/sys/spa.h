@@ -600,7 +600,7 @@ _NOTE(CONSTCOND) } while (0)
 	ZIO_SET_CHECKSUM(&(bp)->blk_cksum, 0, 0, 0, 0);	\
 }
 
-#ifdef _BIG_ENDIAN
+#ifdef _ZFS_BIG_ENDIAN
 #define	ZFS_HOST_BYTEORDER	(0ULL)
 #else
 #define	ZFS_HOST_BYTEORDER	(1ULL)
@@ -790,17 +790,12 @@ extern int bpobj_enqueue_free_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx);
 #define	SPA_ASYNC_AUTOTRIM_RESTART		0x400
 #define	SPA_ASYNC_L2CACHE_REBUILD		0x800
 #define	SPA_ASYNC_L2CACHE_TRIM			0x1000
-
-/*
- * Controls the behavior of spa_vdev_remove().
- */
-#define	SPA_REMOVE_UNSPARE	0x01
-#define	SPA_REMOVE_DONE		0x02
+#define	SPA_ASYNC_REBUILD_DONE			0x2000
 
 /* device manipulation */
 extern int spa_vdev_add(spa_t *spa, nvlist_t *nvroot);
 extern int spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot,
-    int replacing);
+    int replacing, int rebuild);
 extern int spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid,
     int replace_done);
 extern int spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare);
@@ -988,6 +983,7 @@ extern int spa_config_held(spa_t *spa, int locks, krw_t rw);
 
 /* Pool vdev add/remove lock */
 extern uint64_t spa_vdev_enter(spa_t *spa);
+extern uint64_t spa_vdev_detach_enter(spa_t *spa, uint64_t guid);
 extern uint64_t spa_vdev_config_enter(spa_t *spa);
 extern void spa_vdev_config_exit(spa_t *spa, vdev_t *vd, uint64_t txg,
     int error, char *tag);

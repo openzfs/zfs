@@ -91,7 +91,7 @@ dnode_increase_indirection(dnode_t *dn, dmu_tx_t *tx)
 
 		if (child == NULL)
 			continue;
-#ifdef	DEBUG
+#ifdef	ZFS_DEBUG
 		DB_DNODE_ENTER(child);
 		ASSERT3P(DB_DNODE(child), ==, dn);
 		DB_DNODE_EXIT(child);
@@ -462,7 +462,7 @@ dnode_evict_dbufs(dnode_t *dn)
 	mutex_enter(&dn->dn_dbufs_mtx);
 	for (db = avl_first(&dn->dn_dbufs); db != NULL; db = db_next) {
 
-#ifdef	DEBUG
+#ifdef	ZFS_DEBUG
 		DB_DNODE_ENTER(db);
 		ASSERT3P(DB_DNODE(db), ==, dn);
 		DB_DNODE_EXIT(db);

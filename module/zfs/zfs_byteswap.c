@@ -30,6 +30,9 @@
 #include <sys/zfs_sa.h>
 #include <sys/zfs_acl.h>
 
+#ifndef _KERNEL
+static
+#endif
 void
 zfs_oldace_byteswap(ace_t *ace, int ace_cnt)
 {
@@ -46,6 +49,9 @@ zfs_oldace_byteswap(ace_t *ace, int ace_cnt)
 /*
  * swap ace_t and ace_object_t
  */
+#ifndef _KERNEL
+static
+#endif
 void
 zfs_ace_byteswap(void *buf, size_t size, boolean_t zfs_layout)
 {

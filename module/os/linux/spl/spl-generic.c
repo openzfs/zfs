@@ -39,6 +39,7 @@
 #include <sys/proc.h>
 #include <sys/kstat.h>
 #include <sys/file.h>
+#include <sys/sunddi.h>
 #include <linux/ctype.h>
 #include <sys/disp.h>
 #include <sys/random.h>
@@ -172,6 +173,7 @@ random_get_pseudo_bytes(uint8_t *ptr, size_t len)
 EXPORT_SYMBOL(random_get_pseudo_bytes);
 
 #if BITS_PER_LONG == 32
+
 /*
  * Support 64/64 => 64 division on a 32-bit platform.  While the kernel
  * provides a div64_u64() function for this we do not use it because the
@@ -217,6 +219,14 @@ __div_u64(uint64_t u, uint32_t v)
 	(void) do_div(u, v);
 	return (u);
 }
+
+/*
+ * Turn off missing prototypes warning for these functions. They are
+ * replacements for libgcc-provided functions and will never be called
+ * directly.
+ */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-prototypes"
 
 /*
  * Implementation of 64-bit unsigned division for 32-bit machines.
@@ -292,6 +302,26 @@ __umoddi3(uint64_t dividend, uint64_t divisor)
 	return (dividend - (divisor * __udivdi3(dividend, divisor)));
 }
 EXPORT_SYMBOL(__umoddi3);
+
+/* 64-bit signed modulo for 32-bit machines. */
+int64_t
+__moddi3(int64_t n, int64_t d)
+{
+	int64_t q;
+	boolean_t nn = B_FALSE;
+
+	if (n < 0) {
+		nn = B_TRUE;
+		n = -n;
+	}
+	if (d < 0)
+		d = -d;
+
+	q = __umoddi3(n, d);
+
+	return (nn ? -q : q);
+}
+EXPORT_SYMBOL(__moddi3);
 
 /*
  * Implementation of 64-bit unsigned division/modulo for 32-bit machines.
@@ -396,6 +426,9 @@ __aeabi_ldivmod(int64_t u, int64_t v)
 }
 EXPORT_SYMBOL(__aeabi_ldivmod);
 #endif /* __arm || __arm__ */
+
+#pragma GCC diagnostic pop
+
 #endif /* BITS_PER_LONG */
 
 /*
@@ -543,7 +576,7 @@ spl_kernel_read(struct file *file, void *buf, size_t count, loff_t *pos)
 #endif
 }
 
-int
+static int
 spl_getattr(struct file *filp, struct kstat *stat)
 {
 	int rc;

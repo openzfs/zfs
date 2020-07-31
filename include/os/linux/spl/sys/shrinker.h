@@ -32,46 +32,37 @@
  * Due to frequent changes in the shrinker API the following
  * compatibility wrappers should be used.  They are as follows:
  *
- * SPL_SHRINKER_DECLARE is used to declare the shrinker which is
- * passed to spl_register_shrinker()/spl_unregister_shrinker().  Use
- * shrinker_name to set the shrinker variable name, shrinker_callback
- * to set the callback function, and seek_cost to define the cost of
- * reclaiming an object.
+ *   SPL_SHRINKER_DECLARE(varname, countfunc, scanfunc, seek_cost);
  *
- *   SPL_SHRINKER_DECLARE(shrinker_name, shrinker_callback, seek_cost);
- *
- * SPL_SHRINKER_CALLBACK_FWD_DECLARE is used when a forward declaration
- * of the shrinker callback function is required.  Only the callback
- * function needs to be passed.
- *
- *   SPL_SHRINKER_CALLBACK_FWD_DECLARE(shrinker_callback);
- *
- * SPL_SHRINKER_CALLBACK_WRAPPER is used to declare the callback function
- * which is registered with the shrinker.  This function will call your
- * custom shrinker which must use the following prototype.  Notice the
- * leading __'s, these must be appended to the callback_function name.
- *
- *   int  __shrinker_callback(struct shrinker *, struct shrink_control *)
- *   SPL_SHRINKER_CALLBACK_WRAPPER(shrinker_callback);a
- *
+ * SPL_SHRINKER_DECLARE is used to declare a shrinker with the name varname,
+ * which is passed to spl_register_shrinker()/spl_unregister_shrinker().
+ * The countfunc returns the number of free-able objects.
+ * The scanfunc returns the number of objects that were freed.
+ * The callbacks can return SHRINK_STOP if further calls can't make any more
+ * progress.  Note that a return value of SHRINK_EMPTY is currently not
+ * supported.
  *
  * Example:
  *
- * SPL_SHRINKER_CALLBACK_FWD_DECLARE(my_shrinker_fn);
- * SPL_SHRINKER_DECLARE(my_shrinker, my_shrinker_fn, 1);
- *
- * static int
- * __my_shrinker_fn(struct shrinker *shrink, struct shrink_control *sc)
+ * static unsigned long
+ * my_count(struct shrinker *shrink, struct shrink_control *sc)
  * {
- *	if (sc->nr_to_scan) {
- *		...scan objects in the cache and reclaim them...
- *	}
- *
  *	...calculate number of objects in the cache...
  *
  *	return (number of objects in the cache);
  * }
- * SPL_SHRINKER_CALLBACK_WRAPPER(my_shrinker_fn);
+ *
+ * static unsigned long
+ * my_scan(struct shrinker *shrink, struct shrink_control *sc)
+ * {
+ *	...scan objects in the cache and reclaim them...
+ * }
+ *
+ * SPL_SHRINKER_DECLARE(my_shrinker, my_count, my_scan, DEFAULT_SEEKS);
+ *
+ * void my_init_func(void) {
+ *	spl_register_shrinker(&my_shrinker);
+ * }
  */
 
 #define	spl_register_shrinker(x)	register_shrinker(x)
@@ -81,72 +72,39 @@
  * Linux 3.0 to 3.11 Shrinker API Compatibility.
  */
 #if defined(HAVE_SINGLE_SHRINKER_CALLBACK)
-#define	SPL_SHRINKER_DECLARE(s, x, y)					\
-static struct shrinker s = {						\
-	.shrink = x,							\
-	.seeks = y							\
-}
-
-#define	SPL_SHRINKER_CALLBACK_FWD_DECLARE(fn)				\
-static int fn(struct shrinker *, struct shrink_control *)
-
-#define	SPL_SHRINKER_CALLBACK_WRAPPER(fn)				\
+#define	SPL_SHRINKER_DECLARE(varname, countfunc, scanfunc, seek_cost)	\
 static int								\
-fn(struct shrinker *shrink, struct shrink_control *sc)			\
+__ ## varname ## _wrapper(struct shrinker *shrink, struct shrink_control *sc)\
 {									\
-	return (__ ## fn(shrink, sc));					\
+	if (sc->nr_to_scan != 0) {					\
+		(void) scanfunc(shrink, sc);				\
+	}								\
+	return (countfunc(shrink, sc));					\
+}									\
+									\
+static struct shrinker varname = {					\
+	.shrink = __ ## varname ## _wrapper,				\
+	.seeks = seek_cost						\
 }
+
+#define	SHRINK_STOP	(-1)
 
 /*
  * Linux 3.12 and later Shrinker API Compatibility.
  */
 #elif defined(HAVE_SPLIT_SHRINKER_CALLBACK)
-#define	SPL_SHRINKER_DECLARE(s, x, y)					\
-static struct shrinker s = {						\
-	.count_objects = x ## _count_objects,				\
-	.scan_objects = x ## _scan_objects,				\
-	.seeks = y							\
+#define	SPL_SHRINKER_DECLARE(varname, countfunc, scanfunc, seek_cost)	\
+static struct shrinker varname = {					\
+	.count_objects = countfunc,					\
+	.scan_objects = scanfunc,					\
+	.seeks = seek_cost						\
 }
 
-#define	SPL_SHRINKER_CALLBACK_FWD_DECLARE(fn)				\
-static unsigned long fn ## _count_objects(struct shrinker *,		\
-    struct shrink_control *);						\
-static unsigned long fn ## _scan_objects(struct shrinker *,		\
-    struct shrink_control *)
-
-#define	SPL_SHRINKER_CALLBACK_WRAPPER(fn)				\
-static unsigned long							\
-fn ## _count_objects(struct shrinker *shrink, struct shrink_control *sc)\
-{									\
-	int __ret__;							\
-									\
-	sc->nr_to_scan = 0;						\
-	__ret__ = __ ## fn(NULL, sc);					\
-									\
-	/* Errors may not be returned and must be converted to zeros */	\
-	return ((__ret__ < 0) ? 0 : __ret__);				\
-}									\
-									\
-static unsigned long							\
-fn ## _scan_objects(struct shrinker *shrink, struct shrink_control *sc)	\
-{									\
-	int __ret__;							\
-									\
-	__ret__ = __ ## fn(NULL, sc);					\
-	return ((__ret__ < 0) ? SHRINK_STOP : __ret__);			\
-}
 #else
 /*
  * Linux 2.x to 2.6.22, or a newer shrinker API has been introduced.
  */
 #error "Unknown shrinker callback"
-#endif
-
-#if defined(HAVE_SPLIT_SHRINKER_CALLBACK)
-typedef unsigned long	spl_shrinker_t;
-#else
-typedef int		spl_shrinker_t;
-#define	SHRINK_STOP	(-1)
 #endif
 
 #endif /* SPL_SHRINKER_H */

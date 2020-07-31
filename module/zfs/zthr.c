@@ -14,7 +14,7 @@
  */
 
 /*
- * Copyright (c) 2017, 2019 by Delphix. All rights reserved.
+ * Copyright (c) 2017, 2020 by Delphix. All rights reserved.
  */
 
 /*
@@ -269,9 +269,11 @@ zthr_procedure(void *arg)
 }
 
 zthr_t *
-zthr_create(zthr_checkfunc_t *checkfunc, zthr_func_t *func, void *arg)
+zthr_create(const char *zthr_name, zthr_checkfunc_t *checkfunc,
+    zthr_func_t *func, void *arg)
 {
-	return (zthr_create_timer(checkfunc, func, arg, (hrtime_t)0));
+	return (zthr_create_timer(zthr_name, checkfunc,
+	    func, arg, (hrtime_t)0));
 }
 
 /*
@@ -280,8 +282,8 @@ zthr_create(zthr_checkfunc_t *checkfunc, zthr_func_t *func, void *arg)
  * start working if required) will be triggered.
  */
 zthr_t *
-zthr_create_timer(zthr_checkfunc_t *checkfunc, zthr_func_t *func,
-    void *arg, hrtime_t max_sleep)
+zthr_create_timer(const char *zthr_name, zthr_checkfunc_t *checkfunc,
+    zthr_func_t *func, void *arg, hrtime_t max_sleep)
 {
 	zthr_t *t = kmem_zalloc(sizeof (*t), KM_SLEEP);
 	mutex_init(&t->zthr_state_lock, NULL, MUTEX_DEFAULT, NULL);
@@ -295,8 +297,9 @@ zthr_create_timer(zthr_checkfunc_t *checkfunc, zthr_func_t *func,
 	t->zthr_arg = arg;
 	t->zthr_sleep_timeout = max_sleep;
 
-	t->zthr_thread = thread_create(NULL, 0, zthr_procedure, t,
-	    0, &p0, TS_RUN, minclsyspri);
+	t->zthr_thread = thread_create_named(zthr_name, NULL, 0,
+	    zthr_procedure, t, 0, &p0, TS_RUN, minclsyspri);
+
 	mutex_exit(&t->zthr_state_lock);
 
 	return (t);

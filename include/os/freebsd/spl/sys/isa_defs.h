@@ -27,6 +27,7 @@
 
 #ifndef	_SYS_ISA_DEFS_H
 #define	_SYS_ISA_DEFS_H
+#include <sys/endian.h>
 
 /*
  * This header file serves to group a set of well known defines and to
@@ -542,6 +543,21 @@ extern "C" {
 #define	_BIT_FIELDS_LTOH
 #endif
 
+#if !defined(__powerpc)
+#define	__powerpc
+#endif
+
+#if defined(__powerpc64__)
+#define	_LONG_LONG_ALIGNMENT		8
+#define	_MULTI_DATAMODEL
+#else
+#define	_LONG_LONG_ALIGNMENT		4
+#endif
+#define	_LONG_LONG_ALIGNMENT_32		4
+#define	_ALIGNMENT_REQUIRED		1
+
+#define	_SUNOS_VTOC_16	1
+
 /*
  * The following set of definitions characterize the Solaris on SPARC systems.
  *
@@ -679,6 +695,14 @@ extern "C" {
 
 #if defined(_ILP32) && defined(_LP64)
 #error "Both _ILP32 and _LP64 are defined"
+#endif
+
+#if BYTE_ORDER == _BIG_ENDIAN
+#define	_ZFS_BIG_ENDIAN
+#elif BYTE_ORDER == _LITTLE_ENDIAN
+#define	_ZFS_LITTLE_ENDIAN
+#else
+#error "unknown byte order"
 #endif
 
 #ifdef	__cplusplus

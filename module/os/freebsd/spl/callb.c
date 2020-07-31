@@ -23,8 +23,8 @@
  * Use is subject to license terms.
  */
 
-#include <sys/param.h>
 #include <sys/types.h>
+#include <sys/param.h>
 #include <sys/time.h>
 #include <sys/sysmacros.h>
 #include <sys/systm.h>
@@ -52,7 +52,8 @@ typedef struct callb {
 	char		c_flag;		/* info about the callb state */
 	uchar_t		c_class;	/* this callb's class */
 	kcondvar_t	c_done_cv;	/* signal callb completion */
-	boolean_t	(*c_func)();	/* cb function: returns true if ok */
+	boolean_t	(*c_func)(void *, int);
+					/* cb function: returns true if ok */
 	void		*c_arg;		/* arg to c_func */
 	char		c_name[CB_MAXNAME+1]; /* debug:max func name length */
 } callb_t;
@@ -94,7 +95,7 @@ callb_cpr_t	callb_cprinfo_safe = {
 /*
  * Init all callb tables in the system.
  */
-void
+static void
 callb_init(void *dummy __unused)
 {
 	callb_table.ct_busy = 0;	/* mark table open for additions */
@@ -102,7 +103,7 @@ callb_init(void *dummy __unused)
 	mutex_init(&callb_table.ct_lock, NULL, MUTEX_DEFAULT, NULL);
 }
 
-void
+static void
 callb_fini(void *dummy __unused)
 {
 	callb_t *cp;
@@ -153,7 +154,7 @@ callb_add_common(boolean_t (*func)(void *arg, int code),
 	cp->c_arg = arg;
 	cp->c_class = (uchar_t)class;
 	cp->c_flag |= CALLB_TAKEN;
-#ifdef DEBUG
+#ifdef ZFS_DEBUG
 	if (strlen(name) > CB_MAXNAME)
 		cmn_err(CE_WARN, "callb_add: name of callback function '%s' "
 		    "too long -- truncated to %d chars",
@@ -216,7 +217,7 @@ callb_delete(callb_id_t id)
 		while (*pp != NULL && *pp != me)
 			pp = &(*pp)->c_next;
 
-#ifdef DEBUG
+#ifdef ZFS_DEBUG
 		if (*pp != me) {
 			cmn_err(CE_WARN, "callb delete bogus entry 0x%p",
 			    (void *)me);

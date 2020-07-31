@@ -100,7 +100,7 @@ abd_checksum_off(abd_t *abd, uint64_t size,
 }
 
 /*ARGSUSED*/
-void
+static void
 abd_fletcher_2_native(abd_t *abd, uint64_t size,
     const void *ctx_template, zio_cksum_t *zcp)
 {
@@ -110,7 +110,7 @@ abd_fletcher_2_native(abd_t *abd, uint64_t size,
 }
 
 /*ARGSUSED*/
-void
+static void
 abd_fletcher_2_byteswap(abd_t *abd, uint64_t size,
     const void *ctx_template, zio_cksum_t *zcp)
 {

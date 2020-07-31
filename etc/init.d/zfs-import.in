@@ -1,4 +1,4 @@
-#!@SHELL@
+#!@DEFAULT_INIT_SHELL@
 #
 # zfs-import    This script will import ZFS pools
 #

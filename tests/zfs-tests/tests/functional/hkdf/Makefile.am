@@ -1,11 +1,5 @@
 include $(top_srcdir)/config/Rules.am
 
-LDADD = \
-	$(top_builddir)/lib/libnvpair/libnvpair.la \
-	$(top_builddir)/lib/libzpool/libzpool.la
-
-AUTOMAKE_OPTIONS = subdir-objects
-
 pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/hkdf
 
 dist_pkgdata_SCRIPTS = \
@@ -19,3 +13,5 @@ pkgexec_PROGRAMS = \
 	hkdf_test
 
 hkdf_test_SOURCES = hkdf_test.c
+hkdf_test_LDADD = \
+	$(abs_top_builddir)/lib/libzpool/libzpool.la

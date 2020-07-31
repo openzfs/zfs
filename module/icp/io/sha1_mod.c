@@ -27,6 +27,7 @@
 #include <sys/zfs_context.h>
 #include <sys/modctl.h>
 #include <sys/crypto/common.h>
+#include <sys/crypto/icp.h>
 #include <sys/crypto/spi.h>
 
 #include <sha1/sha1.h>

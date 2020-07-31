@@ -445,7 +445,7 @@ bootfs_name_valid(const char *pool, const char *bootfs)
 	return (B_FALSE);
 }
 
-boolean_t
+static boolean_t
 zpool_is_bootable(zpool_handle_t *zhp)
 {
 	char bootfs[ZFS_MAX_DATASET_NAME_LEN];
@@ -2141,7 +2141,7 @@ xlate_init_err(int err)
  * Begin, suspend, or cancel the initialization (initializing of all free
  * blocks) for the given vdevs in the given pool.
  */
-int
+static int
 zpool_initialize_impl(zpool_handle_t *zhp, pool_initialize_func_t cmd_type,
     nvlist_t *vds, boolean_t wait)
 {
@@ -2446,7 +2446,8 @@ zpool_scan(zpool_handle_t *zhp, pool_scan_func_t func, pool_scrub_cmd_t cmd)
 		    ZPOOL_CONFIG_VDEV_TREE, &nvroot) == 0);
 		(void) nvlist_lookup_uint64_array(nvroot,
 		    ZPOOL_CONFIG_SCAN_STATS, (uint64_t **)&ps, &psc);
-		if (ps && ps->pss_func == POOL_SCAN_SCRUB) {
+		if (ps && ps->pss_func == POOL_SCAN_SCRUB &&
+		    ps->pss_state == DSS_SCANNING) {
 			if (cmd == POOL_SCRUB_PAUSE)
 				return (zfs_error(hdl, EZFS_SCRUB_PAUSED, msg));
 			else
@@ -3128,8 +3129,8 @@ is_replacing_spare(nvlist_t *search, nvlist_t *tgt, int which)
  * If 'replacing' is specified, the new disk will replace the old one.
  */
 int
-zpool_vdev_attach(zpool_handle_t *zhp,
-    const char *old_disk, const char *new_disk, nvlist_t *nvroot, int replacing)
+zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
+    const char *new_disk, nvlist_t *nvroot, int replacing, boolean_t rebuild)
 {
 	zfs_cmd_t zc = {"\0"};
 	char msg[1024];
@@ -3164,6 +3165,14 @@ zpool_vdev_attach(zpool_handle_t *zhp,
 
 	verify(nvlist_lookup_uint64(tgt, ZPOOL_CONFIG_GUID, &zc.zc_guid) == 0);
 	zc.zc_cookie = replacing;
+	zc.zc_simple = rebuild;
+
+	if (rebuild &&
+	    zfeature_lookup_guid("org.openzfs:device_rebuild", NULL) != 0) {
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "the loaded zfs module doesn't support device rebuilds"));
+		return (zfs_error(hdl, EZFS_POOL_NOTSUP, msg));
+	}
 
 	char *typestr;
 	if (nvlist_lookup_string(tgt, ZPOOL_CONFIG_TYPE, &typestr) == 0 &&
@@ -3246,16 +3255,21 @@ zpool_vdev_attach(zpool_handle_t *zhp,
 			uint64_t version = zpool_get_prop_int(zhp,
 			    ZPOOL_PROP_VERSION, NULL);
 
-			if (islog)
+			if (islog) {
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 				    "cannot replace a log with a spare"));
-			else if (version >= SPA_VERSION_MULTI_REPLACE)
+			} else if (rebuild) {
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "only mirror vdevs support sequential "
+				    "reconstruction"));
+			} else if (version >= SPA_VERSION_MULTI_REPLACE) {
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 				    "already in replacing/spare config; wait "
 				    "for completion or use 'zpool detach'"));
-			else
+			} else {
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 				    "cannot replace a replacing device"));
+			}
 		} else {
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "can only attach to mirrors and top-level "

@@ -31,7 +31,9 @@
 #include <sys/simd.h>
 #include <zfs_fletcher.h>
 
+#ifdef __linux__
 #define	__asm __asm__ __volatile__
+#endif
 
 static void
 fletcher_4_avx512f_init(fletcher_4_ctx_t *ctx)

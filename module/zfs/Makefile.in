@@ -94,6 +94,7 @@ $(MODULE)-objs += vdev_queue.o
 $(MODULE)-objs += vdev_raidz.o
 $(MODULE)-objs += vdev_raidz_math.o
 $(MODULE)-objs += vdev_raidz_math_scalar.o
+$(MODULE)-objs += vdev_rebuild.o
 $(MODULE)-objs += vdev_removal.o
 $(MODULE)-objs += vdev_root.o
 $(MODULE)-objs += vdev_trim.o

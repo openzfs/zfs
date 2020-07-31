@@ -7,13 +7,8 @@ AM_CFLAGS += $(FRAME_LARGER_THAN)
 
 noinst_LTLIBRARIES = libavl.la
 
-USER_C =
-
 KERNEL_C = \
 	avl.c
 
 nodist_libavl_la_SOURCES = \
-	$(USER_C) \
 	$(KERNEL_C)
-
-EXTRA_DIST = $(USER_C)

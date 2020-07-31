@@ -65,7 +65,7 @@ extern struct proc *zfsproc;
 
 static __inline kthread_t *
 do_thread_create(caddr_t stk, size_t stksize, void (*proc)(void *), void *arg,
-    size_t len, proc_t *pp, int state, pri_t pri)
+    size_t len, proc_t *pp, int state, pri_t pri, const char *name)
 {
 	kthread_t *td = NULL;
 	int error;
@@ -78,7 +78,7 @@ do_thread_create(caddr_t stk, size_t stksize, void (*proc)(void *), void *arg,
 	ASSERT(state == TS_RUN);
 
 	error = kproc_kthread_add(proc, arg, &zfsproc, &td,
-	    RFSTOPPED, stksize / PAGE_SIZE, "zfskern", "solthread %p", proc);
+	    RFSTOPPED, stksize / PAGE_SIZE, "zfskern", "%s", name);
 	if (error == 0) {
 		thread_lock(td);
 		sched_prio(td, pri);
@@ -90,8 +90,11 @@ do_thread_create(caddr_t stk, size_t stksize, void (*proc)(void *), void *arg,
 	return (td);
 }
 
+#define	thread_create_named(name, stk, stksize, proc, arg, len,	\
+    pp, state, pri) \
+	do_thread_create(stk, stksize, proc, arg, len, pp, state, pri, name)
 #define	thread_create(stk, stksize, proc, arg, len, pp, state, pri) \
-	do_thread_create(stk, stksize, proc, arg, len, pp, state, pri)
+	do_thread_create(stk, stksize, proc, arg, len, pp, state, pri, #proc)
 #define	thread_exit()	kthread_exit()
 
 int	uread(proc_t *, void *, size_t, uintptr_t);

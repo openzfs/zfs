@@ -61,7 +61,7 @@ dbuf_stats_hash_table_headers(char *buf, size_t size)
 	return (0);
 }
 
-int
+static int
 __dbuf_stats_hash_table_data(char *buf, size_t size, dmu_buf_impl_t *db)
 {
 	arc_buf_info_t abi = { 0 };

@@ -148,6 +148,15 @@ typedef struct space_map_entry {
 	uint32_t sme_vdev;	/* max is 2^24-1; SM_NO_VDEVID if not present */
 	uint64_t sme_offset;	/* max is 2^63-1; units of sm_shift */
 	uint64_t sme_run;	/* max is 2^36; units of sm_shift */
+
+	/*
+	 * The following fields are not part of the actual space map entry
+	 * on-disk and they are populated with the values from the debug
+	 * entry most recently visited starting from the beginning to the
+	 * end of the space map.
+	 */
+	uint64_t sme_txg;
+	uint64_t sme_sync_pass;
 } space_map_entry_t;
 
 #define	SM_NO_VDEVID	(1 << SPA_VDEVBITS)

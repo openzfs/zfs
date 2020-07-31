@@ -32,13 +32,12 @@ Description of the different parameters to the ZFS module.
 \fBdbuf_cache_max_bytes\fR (ulong)
 .ad
 .RS 12n
-Maximum size in bytes of the dbuf cache.  When \fB0\fR this value will default
-to \fB1/2^dbuf_cache_shift\fR (1/32) of the target ARC size, otherwise the
-provided value in bytes will be used.  The behavior of the dbuf cache and its
-associated settings can be observed via the \fB/proc/spl/kstat/zfs/dbufstats\fR
-kstat.
+Maximum size in bytes of the dbuf cache.  The target size is determined by the
+MIN versus \fB1/2^dbuf_cache_shift\fR (1/32) of the target ARC size.  The
+behavior of the dbuf cache and its associated settings can be observed via the
+\fB/proc/spl/kstat/zfs/dbufstats\fR kstat.
 .sp
-Default value: \fB0\fR.
+Default value: \fBULONG_MAX\fR.
 .RE
 
 .sp
@@ -47,13 +46,12 @@ Default value: \fB0\fR.
 \fBdbuf_metadata_cache_max_bytes\fR (ulong)
 .ad
 .RS 12n
-Maximum size in bytes of the metadata dbuf cache.  When \fB0\fR this value will
-default to \fB1/2^dbuf_cache_shift\fR (1/16) of the target ARC size, otherwise
-the provided value in bytes will be used.  The behavior of the metadata dbuf
-cache and its associated settings can be observed via the
-\fB/proc/spl/kstat/zfs/dbufstats\fR kstat.
+Maximum size in bytes of the metadata dbuf cache.  The target size is
+determined by the MIN versus \fB1/2^dbuf_metadata_cache_shift\fR (1/64) of the
+target ARC size.  The behavior of the metadata dbuf cache and its associated
+settings can be observed via the \fB/proc/spl/kstat/zfs/dbufstats\fR kstat.
 .sp
-Default value: \fB0\fR.
+Default value: \fBULONG_MAX\fR.
 .RE
 
 .sp
@@ -1661,6 +1659,25 @@ Default value: \fB20\fR% of \fBzfs_dirty_data_max\fR.
 .sp
 .ne 2
 .na
+\fBzfs_fallocate_reserve_percent\fR (uint)
+.ad
+.RS 12n
+Since ZFS is a copy-on-write filesystem with snapshots, blocks cannot be
+preallocated for a file in order to guarantee that later writes will not
+run out of space.  Instead, fallocate() space preallocation only checks
+that sufficient space is currently available in the pool or the user's
+project quota allocation, and then creates a sparse file of the requested
+size. The requested space is multiplied by \fBzfs_fallocate_reserve_percent\fR
+to allow additional space for indirect blocks and other internal metadata.
+Setting this value to 0 disables support for fallocate(2) and returns
+EOPNOTSUPP for fallocate() space preallocation again.
+.sp
+Default value: \fB110\fR%
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_fletcher_4_impl\fR (string)
 .ad
 .RS 12n
@@ -1841,6 +1858,30 @@ the sum of each queue's max_active.  It must be at least the sum of each
 queue's min_active.  See the section "ZFS I/O SCHEDULER".
 .sp
 Default value: \fB1,000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_rebuild_max_active\fR (int)
+.ad
+.RS 12n
+Maximum sequential resilver I/Os active to each device.
+See the section "ZFS I/O SCHEDULER".
+.sp
+Default value: \fB3\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_rebuild_min_active\fR (int)
+.ad
+.RS 12n
+Minimum sequential resilver I/Os active to each device.
+See the section "ZFS I/O SCHEDULER".
+.sp
+Default value: \fB1\fR.
 .RE
 
 .sp
@@ -2686,6 +2727,18 @@ Default value: \fB0\fR (no data is kept).
 Include cache hits in read history
 .sp
 Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_rebuild_max_segment\fR (ulong)
+.ad
+.RS 12n
+Maximum read segment size to issue when sequentially resilvering a
+top-level vdev.
+.sp
+Default value: \fB1,048,576\fR.
 .RE
 
 .sp

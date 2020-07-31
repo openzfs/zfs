@@ -32,7 +32,7 @@
 #include <sys/inttypes.h>
 #include <sys/dmu.h>
 #include <sys/txg.h>
-#include <sys/refcount.h>
+#include <sys/zfs_refcount.h>
 
 #ifdef	__cplusplus
 extern "C" {

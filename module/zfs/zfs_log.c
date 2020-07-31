@@ -408,8 +408,6 @@ zfs_log_create(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
 	zil_itx_assign(zilog, itx, tx);
 }
 
-void zil_remove_async(zilog_t *zilog, uint64_t oid);
-
 /*
  * Handles both TX_REMOVE and TX_RMDIR transactions.
  */

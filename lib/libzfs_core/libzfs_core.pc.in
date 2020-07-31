@@ -1,0 +1,13 @@
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+libdir=@libdir@
+includedir=@includedir@
+
+Name: libzfs_core
+Description: LibZFS core library
+Version: @VERSION@
+URL: https://zfsonlinux.org
+Requires.private: blkid uuid libtirpc zlib
+Cflags: -I${includedir}/libzfs -I${includedir}/libspl
+Libs: -L${libdir} -lzfs_core -lnvpair
+Libs.private: @LIBCLOCK_GETTIME@ @LIBUDEV_LIBS@ -lm -pthread

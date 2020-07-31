@@ -122,7 +122,7 @@ run_gen_bench_impl(const char *impl)
 	}
 }
 
-void
+static void
 run_gen_bench(void)
 {
 	char **impl_name;
@@ -214,7 +214,7 @@ run_rec_bench_impl(const char *impl)
 	}
 }
 
-void
+static void
 run_rec_bench(void)
 {
 	char **impl_name;

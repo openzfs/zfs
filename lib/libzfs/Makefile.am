@@ -7,9 +7,9 @@ VPATH = \
 
 # Suppress unused but set variable warnings often due to ASSERTs
 AM_CFLAGS += $(NO_UNUSED_BUT_SET_VARIABLE)
+AM_CFLAGS += $(LIBCRYPTO_CFLAGS) $(ZLIB_CFLAGS)
 
-libzfs_pcdir = $(datarootdir)/pkgconfig
-libzfs_pc_DATA = libzfs.pc libzfs_core.pc
+pkgconfig_DATA = libzfs.pc
 
 lib_LTLIBRARIES = libzfs.la
 
@@ -30,7 +30,6 @@ USER_C = \
 
 if BUILD_FREEBSD
 USER_C += \
-	os/freebsd/libzfs_fsshare.c \
 	os/freebsd/libzfs_compat.c \
 	os/freebsd/libzfs_ioctl_compat.c \
 	os/freebsd/libzfs_zmount.c
@@ -63,31 +62,32 @@ KERNEL_C = \
 	zpool_prop.c \
 	zprop_common.c
 
+dist_libzfs_la_SOURCES = \
+	$(USER_C)
+
 nodist_libzfs_la_SOURCES = \
-	$(USER_C) \
 	$(KERNEL_C)
 
 libzfs_la_LIBADD = \
-	$(top_builddir)/lib/libnvpair/libnvpair.la \
-	$(top_builddir)/lib/libuutil/libuutil.la \
-	$(top_builddir)/lib/libzfs_core/libzfs_core.la \
-	$(top_builddir)/lib/libzutil/libzutil.la
+	$(abs_top_builddir)/lib/libshare/libshare.la \
+	$(abs_top_builddir)/lib/libzfs_core/libzfs_core.la \
+	$(abs_top_builddir)/lib/libnvpair/libnvpair.la \
+	$(abs_top_builddir)/lib/libuutil/libuutil.la
 
-if BUILD_LINUX
-libzfs_la_LIBADD += \
-	$(top_builddir)/lib/libshare/libshare.la
+libzfs_la_LIBADD += -lm $(LIBCRYPTO_LIBS) $(ZLIB_LIBS) $(LTLIBINTL)
+
+libzfs_la_LDFLAGS = -pthread
+
+if !ASAN_ENABLED
+libzfs_la_LDFLAGS += -Wl,-z,defs
 endif
 
 if BUILD_FREEBSD
 libzfs_la_LIBADD += -lutil -lgeom
-libzfs_la_LDFLAGS = -version-info 4:0:0
+libzfs_la_LDFLAGS += -version-info 4:0:0
 else
-libzfs_la_LDFLAGS = -version-info 2:0:0
+libzfs_la_LDFLAGS += -version-info 2:0:0
 endif
 
-libzfs_la_LIBADD += -lm $(LIBSSL)
-
-EXTRA_DIST = $(libzfs_pc_DATA) $(USER_C)
-
 # Licensing data
-EXTRA_DIST += THIRDPARTYLICENSE.openssl THIRDPARTYLICENSE.openssl.descrip
+EXTRA_DIST = THIRDPARTYLICENSE.openssl THIRDPARTYLICENSE.openssl.descrip

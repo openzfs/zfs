@@ -464,7 +464,7 @@ zfs_avx512vbmi_available(void)
 #include <signal.h>
 #include <setjmp.h>
 
-#ifdef __ALTIVEC__
+#if defined(__ALTIVEC__) && !defined(__FreeBSD__)
 static jmp_buf env;
 static void sigillhandler(int x)
 {
@@ -476,7 +476,7 @@ static inline boolean_t
 zfs_altivec_available(void)
 {
 	boolean_t has_altivec = B_FALSE;
-#ifdef __ALTIVEC__
+#if defined(__ALTIVEC__) && !defined(__FreeBSD__)
 	sighandler_t savesig;
 	savesig = signal(SIGILL, sigillhandler);
 	if (setjmp(env)) {

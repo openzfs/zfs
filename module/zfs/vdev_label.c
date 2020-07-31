@@ -412,6 +412,19 @@ root_vdev_actions_getprogress(vdev_t *vd, nvlist_t *nvl)
 	}
 }
 
+static void
+top_vdev_actions_getprogress(vdev_t *vd, nvlist_t *nvl)
+{
+	if (vd == vd->vdev_top) {
+		vdev_rebuild_stat_t vrs;
+		if (vdev_rebuild_get_stats(vd, &vrs) == 0) {
+			fnvlist_add_uint64_array(nvl,
+			    ZPOOL_CONFIG_REBUILD_STATS, (uint64_t *)&vrs,
+			    sizeof (vrs) / sizeof (uint64_t));
+		}
+	}
+}
+
 /*
  * Generate the nvlist representing this vdev's config.
  */
@@ -549,6 +562,7 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 		vdev_config_generate_stats(vd, nv);
 
 		root_vdev_actions_getprogress(vd, nv);
+		top_vdev_actions_getprogress(vd, nv);
 
 		/*
 		 * Note: this can be called from open context
@@ -653,6 +667,9 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 		if (vd->vdev_resilver_txg != 0)
 			fnvlist_add_uint64(nv, ZPOOL_CONFIG_RESILVER_TXG,
 			    vd->vdev_resilver_txg);
+		if (vd->vdev_rebuild_txg != 0)
+			fnvlist_add_uint64(nv, ZPOOL_CONFIG_REBUILD_TXG,
+			    vd->vdev_rebuild_txg);
 		if (vd->vdev_faulted)
 			fnvlist_add_uint64(nv, ZPOOL_CONFIG_FAULTED, B_TRUE);
 		if (vd->vdev_degraded)
@@ -1578,7 +1595,7 @@ vdev_uberblock_sync(zio_t *zio, uint64_t *good_writes,
 }
 
 /* Sync the uberblocks to all vdevs in svd[] */
-int
+static int
 vdev_uberblock_sync_list(vdev_t **svd, int svdcount, uberblock_t *ub, int flags)
 {
 	spa_t *spa = svd[0]->vdev_spa;
@@ -1695,7 +1712,7 @@ vdev_label_sync(zio_t *zio, uint64_t *good_writes,
 	nvlist_free(label);
 }
 
-int
+static int
 vdev_label_sync_list(spa_t *spa, int l, uint64_t txg, int flags)
 {
 	list_t *dl = &spa->spa_config_dirty_list;

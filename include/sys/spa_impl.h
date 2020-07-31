@@ -36,6 +36,7 @@
 #include <sys/spa_checkpoint.h>
 #include <sys/spa_log_spacemap.h>
 #include <sys/vdev.h>
+#include <sys/vdev_rebuild.h>
 #include <sys/vdev_removal.h>
 #include <sys/vdev_raidz.h>
 #include <sys/metaslab.h>
@@ -44,7 +45,7 @@
 #include <sys/uberblock_impl.h>
 #include <sys/zfs_context.h>
 #include <sys/avl.h>
-#include <sys/refcount.h>
+#include <sys/zfs_refcount.h>
 #include <sys/bplist.h>
 #include <sys/bpobj.h>
 #include <sys/dsl_crypt.h>

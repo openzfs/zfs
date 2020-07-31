@@ -22,6 +22,7 @@
 /*
  * Copyright (c) 2002, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011 Gunnar Beutner
+ * Copyright (c) 2018, 2020 by Delphix. All rights reserved.
  */
 
 #include <stdio.h>
@@ -29,29 +30,19 @@
 #include <errno.h>
 #include <strings.h>
 #include <libintl.h>
+#include <sys/file.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <libzfs.h>
 #include <libshare.h>
+#include "libzfs_impl.h"
 #include "libshare_impl.h"
 #include "nfs.h"
 #include "smb.h"
 
-static sa_share_impl_t find_share(sa_handle_impl_t handle,
-    const char *sharepath);
-static sa_share_impl_t alloc_share(const char *sharepath);
+static sa_share_impl_t alloc_share(const char *zfsname, const char *path);
 static void free_share(sa_share_impl_t share);
-
-static void parse_sharetab(sa_handle_impl_t impl_handle);
-static int process_share(sa_handle_impl_t impl_handle,
-    sa_share_impl_t impl_share, char *pathname, char *resource,
-    char *fstype, char *options, char *description,
-    char *dataset, boolean_t from_sharetab);
-static void update_sharetab(sa_handle_impl_t impl_handle);
-
-static int update_zfs_share(sa_share_impl_t impl_handle, const char *proto);
-static int update_zfs_shares(sa_handle_impl_t impl_handle, const char *proto);
 
 static int fstypes_count;
 static sa_fstype_t *fstypes;
@@ -78,28 +69,6 @@ register_fstype(const char *name, const sa_share_ops_t *ops)
 	return (fstype);
 }
 
-sa_handle_t
-sa_init(int init_service)
-{
-	sa_handle_impl_t impl_handle;
-
-	impl_handle = calloc(1, sizeof (struct sa_handle_impl));
-
-	if (impl_handle == NULL)
-		return (NULL);
-
-	impl_handle->zfs_libhandle = libzfs_init();
-
-	if (impl_handle->zfs_libhandle != NULL) {
-		libzfs_print_on_error(impl_handle->zfs_libhandle, B_TRUE);
-	}
-
-	parse_sharetab(impl_handle);
-	update_zfs_shares(impl_handle, NULL);
-
-	return ((sa_handle_t)impl_handle);
-}
-
 __attribute__((constructor)) static void
 libshare_init(void)
 {
@@ -107,448 +76,101 @@ libshare_init(void)
 	libshare_smb_init();
 }
 
-static void
-parse_sharetab(sa_handle_impl_t impl_handle)
+int
+sa_enable_share(const char *zfsname, const char *mountpoint,
+    const char *shareopts, char *protocol)
 {
-	FILE *fp;
-	char line[512];
-	char *eol, *pathname, *resource, *fstype, *options, *description;
-
-	fp = fopen(ZFS_SHARETAB, "r");
-
-	if (fp == NULL)
-		return;
-
-	while (fgets(line, sizeof (line), fp) != NULL) {
-		eol = line + strlen(line) - 1;
-
-		while (eol >= line) {
-			if (*eol != '\r' && *eol != '\n')
-				break;
-
-			*eol = '\0';
-			eol--;
-		}
-
-		pathname = line;
-
-		if ((resource = strchr(pathname, '\t')) == NULL)
-			continue;
-
-		*resource = '\0';
-		resource++;
-
-		if ((fstype = strchr(resource, '\t')) == NULL)
-			continue;
-
-		*fstype = '\0';
-		fstype++;
-
-		if ((options = strchr(fstype, '\t')) == NULL)
-			continue;
-
-		*options = '\0';
-		options++;
-
-		if ((description = strchr(fstype, '\t')) != NULL) {
-			*description = '\0';
-			description++;
-		}
-
-		if (strcmp(resource, "-") == 0)
-			resource = NULL;
-
-		(void) process_share(impl_handle, NULL, pathname, resource,
-		    fstype, options, description, NULL, B_TRUE);
-	}
-
-	fclose(fp);
-}
-
-static void
-update_sharetab(sa_handle_impl_t impl_handle)
-{
-	sa_share_impl_t impl_share;
-	int temp_fd;
-	FILE *temp_fp;
-	char tempfile[] = ZFS_SHARETAB".XXXXXX";
-	sa_fstype_t *fstype;
-	const char *resource;
-
-	if (mkdir("/etc/dfs", 0755) < 0 && errno != EEXIST) {
-		return;
-	}
-
-	temp_fd = mkstemp(tempfile);
-
-	if (temp_fd < 0)
-		return;
-
-	temp_fp = fdopen(temp_fd, "w");
-
-	if (temp_fp == NULL)
-		return;
-
-	impl_share = impl_handle->shares;
-	while (impl_share != NULL) {
-		fstype = fstypes;
-		while (fstype != NULL) {
-			if (FSINFO(impl_share, fstype)->active &&
-			    FSINFO(impl_share, fstype)->shareopts != NULL) {
-				resource = FSINFO(impl_share, fstype)->resource;
-
-				if (resource == NULL)
-					resource = "-";
-
-				fprintf(temp_fp, "%s\t%s\t%s\t%s\n",
-				    impl_share->sharepath, resource,
-				    fstype->name,
-				    FSINFO(impl_share, fstype)->shareopts);
-			}
-
-			fstype = fstype->next;
-		}
-
-		impl_share = impl_share->next;
-	}
-
-	fflush(temp_fp);
-	fsync(temp_fd);
-	fclose(temp_fp);
-
-	(void) rename(tempfile, ZFS_SHARETAB);
-}
-
-typedef struct update_cookie_s {
-	sa_handle_impl_t handle;
-	const char *proto;
-} update_cookie_t;
-
-static int
-update_zfs_shares_cb(zfs_handle_t *zhp, void *pcookie)
-{
-	update_cookie_t *udata = (update_cookie_t *)pcookie;
-	char mountpoint[ZFS_MAXPROPLEN];
-	char shareopts[ZFS_MAXPROPLEN];
-	char *dataset;
-	zfs_type_t type = zfs_get_type(zhp);
-
-	if (type == ZFS_TYPE_FILESYSTEM &&
-	    zfs_iter_filesystems(zhp, update_zfs_shares_cb, pcookie) != 0) {
-		zfs_close(zhp);
-		return (1);
-	}
-
-	if (type != ZFS_TYPE_FILESYSTEM) {
-		zfs_close(zhp);
-		return (0);
-	}
-
-	if (zfs_prop_get(zhp, ZFS_PROP_MOUNTPOINT, mountpoint,
-	    sizeof (mountpoint), NULL, NULL, 0, B_FALSE) != 0) {
-		zfs_close(zhp);
-		return (0);
-	}
-
-	dataset = (char *)zfs_get_name(zhp);
-
-	if (dataset == NULL) {
-		zfs_close(zhp);
-		return (0);
-	}
-
-	if (!zfs_is_mounted(zhp, NULL)) {
-		zfs_close(zhp);
-		return (0);
-	}
-
-	if ((udata->proto == NULL || strcmp(udata->proto, "nfs") == 0) &&
-	    zfs_prop_get(zhp, ZFS_PROP_SHARENFS, shareopts,
-	    sizeof (shareopts), NULL, NULL, 0, B_FALSE) == 0 &&
-	    strcmp(shareopts, "off") != 0) {
-		(void) process_share(udata->handle, NULL, mountpoint, NULL,
-		    "nfs", shareopts, NULL, dataset, B_FALSE);
-	}
-
-	if ((udata->proto == NULL || strcmp(udata->proto, "smb") == 0) &&
-	    zfs_prop_get(zhp, ZFS_PROP_SHARESMB, shareopts,
-	    sizeof (shareopts), NULL, NULL, 0, B_FALSE) == 0 &&
-	    strcmp(shareopts, "off") != 0) {
-		(void) process_share(udata->handle, NULL, mountpoint, NULL,
-		    "smb", shareopts, NULL, dataset, B_FALSE);
-	}
-
-	zfs_close(zhp);
-
-	return (0);
-}
-
-static int
-update_zfs_share(sa_share_impl_t impl_share, const char *proto)
-{
-	sa_handle_impl_t impl_handle = impl_share->handle;
-	zfs_handle_t *zhp;
-	update_cookie_t udata;
-
-	if (impl_handle->zfs_libhandle == NULL)
-			return (SA_SYSTEM_ERR);
-
-	assert(impl_share->dataset != NULL);
-
-	zhp = zfs_open(impl_share->handle->zfs_libhandle, impl_share->dataset,
-	    ZFS_TYPE_FILESYSTEM);
-
-	if (zhp == NULL)
-		return (SA_SYSTEM_ERR);
-
-	udata.handle = impl_handle;
-	udata.proto = proto;
-	(void) update_zfs_shares_cb(zhp, &udata);
-
-	return (SA_OK);
-}
-
-static int
-update_zfs_shares(sa_handle_impl_t impl_handle, const char *proto)
-{
-	update_cookie_t udata;
-
-	if (impl_handle->zfs_libhandle == NULL)
-		return (SA_SYSTEM_ERR);
-
-	udata.handle = impl_handle;
-	udata.proto = proto;
-	(void) zfs_iter_root(impl_handle->zfs_libhandle, update_zfs_shares_cb,
-	    &udata);
-
-	return (SA_OK);
-}
-
-static int
-process_share(sa_handle_impl_t impl_handle, sa_share_impl_t impl_share,
-    char *pathname, char *resource, char *proto,
-    char *options, char *description, char *dataset,
-    boolean_t from_sharetab)
-{
-	struct stat statbuf;
-	int rc;
-	char *resource_dup = NULL, *dataset_dup = NULL;
-	boolean_t new_share;
+	int rc, ret = SA_OK;
+	boolean_t found_protocol = B_FALSE;
 	sa_fstype_t *fstype;
 
-	new_share = B_FALSE;
-
+	sa_share_impl_t impl_share = alloc_share(zfsname, mountpoint);
 	if (impl_share == NULL)
-		impl_share = find_share(impl_handle, pathname);
-
-	if (impl_share == NULL) {
-		if (lstat(pathname, &statbuf) != 0 ||
-		    !S_ISDIR(statbuf.st_mode))
-			return (SA_BAD_PATH);
-
-		impl_share = alloc_share(pathname);
-
-		if (impl_share == NULL) {
-			rc = SA_NO_MEMORY;
-			goto err;
-		}
-
-		new_share = B_TRUE;
-	}
-
-	if (dataset != NULL) {
-		dataset_dup = strdup(dataset);
-
-		if (dataset_dup == NULL) {
-			rc = SA_NO_MEMORY;
-			goto err;
-		}
-	}
-
-	free(impl_share->dataset);
-	impl_share->dataset = dataset_dup;
-
-	rc = SA_INVALID_PROTOCOL;
+		return (SA_NO_MEMORY);
 
 	fstype = fstypes;
 	while (fstype != NULL) {
-		if (strcmp(fstype->name, proto) == 0) {
-			if (resource != NULL) {
-				resource_dup = strdup(resource);
-
-				if (resource_dup == NULL) {
-					rc = SA_NO_MEMORY;
-					goto err;
-				}
-			}
-
-			free(FSINFO(impl_share, fstype)->resource);
-			FSINFO(impl_share, fstype)->resource = resource_dup;
+		if (strcmp(fstype->name, protocol) == 0) {
 
 			rc = fstype->ops->update_shareopts(impl_share,
-			    resource, options);
+			    shareopts);
+			if (rc != SA_OK)
+				break;
 
-			if (rc == SA_OK && from_sharetab)
-				FSINFO(impl_share, fstype)->active = B_TRUE;
+			rc = fstype->ops->enable_share(impl_share);
+			if (rc != SA_OK)
+				ret = rc;
 
-			break;
+			found_protocol = B_TRUE;
 		}
 
 		fstype = fstype->next;
 	}
+	free_share(impl_share);
 
-	if (rc != SA_OK)
-		goto err;
+	return (found_protocol ? ret : SA_INVALID_PROTOCOL);
+}
 
-	if (new_share) {
-		impl_share->handle = impl_handle;
+int
+sa_disable_share(const char *mountpoint, char *protocol)
+{
+	int rc, ret = SA_OK;
+	boolean_t found_protocol = B_FALSE;
+	sa_fstype_t *fstype;
 
-		impl_share->next = impl_handle->shares;
-		impl_handle->shares = impl_share;
+	sa_share_impl_t impl_share = alloc_share(NULL, mountpoint);
+	if (impl_share == NULL)
+		return (SA_NO_MEMORY);
 
+	fstype = fstypes;
+	while (fstype != NULL) {
+		if (strcmp(fstype->name, protocol) == 0) {
+
+			rc = fstype->ops->disable_share(impl_share);
+			if (rc != SA_OK)
+				ret = rc;
+
+			found_protocol = B_TRUE;
+		}
+
+		fstype = fstype->next;
 	}
+	free_share(impl_share);
 
-err:
-	if (rc != SA_OK) {
-		if (new_share)
-			free_share(impl_share);
+	return (found_protocol ? ret : SA_INVALID_PROTOCOL);
+}
+
+boolean_t
+sa_is_shared(const char *mountpoint, char *protocol)
+{
+	sa_fstype_t *fstype;
+	boolean_t ret = B_FALSE;
+
+	/* guid value is not used */
+	sa_share_impl_t impl_share = alloc_share(NULL, mountpoint);
+	if (impl_share == NULL)
+		return (B_FALSE);
+
+	fstype = fstypes;
+	while (fstype != NULL) {
+		if (strcmp(fstype->name, protocol) == 0) {
+			ret = fstype->ops->is_shared(impl_share);
+		}
+		fstype = fstype->next;
 	}
-
-	return (rc);
+	free_share(impl_share);
+	return (ret);
 }
 
 void
-sa_fini(sa_handle_t handle)
+sa_commit_shares(const char *protocol)
 {
-	sa_handle_impl_t impl_handle = (sa_handle_impl_t)handle;
-	sa_share_impl_t impl_share, next;
-	sa_share_impl_t *pcurr;
-
-	if (impl_handle == NULL)
-		return;
-
-	/*
-	 * clean up shares which don't have a non-NULL dataset property,
-	 * which means they're in sharetab but we couldn't find their
-	 * ZFS dataset.
-	 */
-	pcurr = &(impl_handle->shares);
-	impl_share = *pcurr;
-	while (impl_share != NULL) {
-		next = impl_share->next;
-
-		if (impl_share->dataset == NULL) {
-			/* remove item from the linked list */
-			*pcurr = next;
-
-			sa_disable_share(impl_share, NULL);
-
-			free_share(impl_share);
-		} else {
-			pcurr = &(impl_share->next);
-		}
-
-		impl_share = next;
-	}
-
-	update_sharetab(impl_handle);
-
-	if (impl_handle->zfs_libhandle != NULL)
-		libzfs_fini(impl_handle->zfs_libhandle);
-
-	impl_share = impl_handle->shares;
-	while (impl_share != NULL) {
-		next = impl_share->next;
-		free_share(impl_share);
-		impl_share = next;
-	}
-
-	free(impl_handle);
-}
-
-static sa_share_impl_t
-find_share(sa_handle_impl_t impl_handle, const char *sharepath)
-{
-	sa_share_impl_t impl_share;
-
-	impl_share = impl_handle->shares;
-	while (impl_share != NULL) {
-		if (strcmp(impl_share->sharepath, sharepath) == 0) {
-			break;
-		}
-
-		impl_share = impl_share->next;
-	}
-
-	return (impl_share);
-}
-
-sa_share_t
-sa_find_share(sa_handle_t handle, char *sharepath)
-{
-	return ((sa_share_t)find_share((sa_handle_impl_t)handle, sharepath));
-}
-
-int
-sa_enable_share(sa_share_t share, char *protocol)
-{
-	sa_share_impl_t impl_share = (sa_share_impl_t)share;
-	int rc, ret = SA_OK;
-	boolean_t found_protocol = B_FALSE;
-	sa_fstype_t *fstype;
-
-	fstype = fstypes;
+	sa_fstype_t *fstype = fstypes;
 	while (fstype != NULL) {
-		if (protocol == NULL || strcmp(fstype->name, protocol) == 0) {
-			update_zfs_share(impl_share, fstype->name);
-
-			rc = fstype->ops->enable_share(impl_share);
-
-			if (rc != SA_OK)
-				ret = rc;
-			else
-				FSINFO(impl_share, fstype)->active = B_TRUE;
-
-			found_protocol = B_TRUE;
-		}
-
+		if (strcmp(fstype->name, protocol) == 0)
+			fstype->ops->commit_shares();
 		fstype = fstype->next;
 	}
-
-	update_sharetab(impl_share->handle);
-
-	return (found_protocol ? ret : SA_INVALID_PROTOCOL);
-}
-
-int
-sa_disable_share(sa_share_t share, char *protocol)
-{
-	sa_share_impl_t impl_share = (sa_share_impl_t)share;
-	int rc, ret = SA_OK;
-	boolean_t found_protocol = B_FALSE;
-	sa_fstype_t *fstype;
-
-	fstype = fstypes;
-	while (fstype != NULL) {
-		if (protocol == NULL || strcmp(fstype->name, protocol) == 0) {
-			rc = fstype->ops->disable_share(impl_share);
-
-			if (rc == SA_OK) {
-				fstype->ops->clear_shareopts(impl_share);
-
-				FSINFO(impl_share, fstype)->active = B_FALSE;
-			} else
-				ret = rc;
-
-			found_protocol = B_TRUE;
-		}
-
-		fstype = fstype->next;
-	}
-
-	update_sharetab(impl_share->handle);
-
-	return (found_protocol ? ret : SA_INVALID_PROTOCOL);
 }
 
 /*
@@ -674,7 +296,7 @@ sa_errorstr(int err)
 }
 
 int
-sa_parse_legacy_options(sa_group_t group, char *options, char *proto)
+sa_validate_shareopts(char *options, char *proto)
 {
 	sa_fstype_t *fstype;
 
@@ -691,25 +313,8 @@ sa_parse_legacy_options(sa_group_t group, char *options, char *proto)
 	return (SA_INVALID_PROTOCOL);
 }
 
-boolean_t
-sa_needs_refresh(sa_handle_t handle)
-{
-	return (B_TRUE);
-}
-
-libzfs_handle_t *
-sa_get_zfs_handle(sa_handle_t handle)
-{
-	sa_handle_impl_t impl_handle = (sa_handle_impl_t)handle;
-
-	if (impl_handle == NULL)
-		return (NULL);
-
-	return (impl_handle->zfs_libhandle);
-}
-
 static sa_share_impl_t
-alloc_share(const char *sharepath)
+alloc_share(const char *zfsname, const char *mountpoint)
 {
 	sa_share_impl_t impl_share;
 
@@ -718,17 +323,24 @@ alloc_share(const char *sharepath)
 	if (impl_share == NULL)
 		return (NULL);
 
-	impl_share->sharepath = strdup(sharepath);
-
-	if (impl_share->sharepath == NULL) {
+	if (mountpoint != NULL &&
+	    ((impl_share->sa_mountpoint = strdup(mountpoint)) == NULL)) {
 		free(impl_share);
 		return (NULL);
 	}
 
-	impl_share->fsinfo = calloc(fstypes_count, sizeof (sa_share_fsinfo_t));
+	if (zfsname != NULL &&
+	    ((impl_share->sa_zfsname = strdup(zfsname)) == NULL)) {
+		free(impl_share->sa_mountpoint);
+		free(impl_share);
+		return (NULL);
+	}
 
-	if (impl_share->fsinfo == NULL) {
-		free(impl_share->sharepath);
+	impl_share->sa_fsinfo = calloc(fstypes_count,
+	    sizeof (sa_share_fsinfo_t));
+	if (impl_share->sa_fsinfo == NULL) {
+		free(impl_share->sa_mountpoint);
+		free(impl_share->sa_zfsname);
 		free(impl_share);
 		return (NULL);
 	}
@@ -744,34 +356,11 @@ free_share(sa_share_impl_t impl_share)
 	fstype = fstypes;
 	while (fstype != NULL) {
 		fstype->ops->clear_shareopts(impl_share);
-
-		free(FSINFO(impl_share, fstype)->resource);
-
 		fstype = fstype->next;
 	}
 
-	free(impl_share->sharepath);
-	free(impl_share->dataset);
-	free(impl_share->fsinfo);
+	free(impl_share->sa_mountpoint);
+	free(impl_share->sa_zfsname);
+	free(impl_share->sa_fsinfo);
 	free(impl_share);
-}
-
-int
-sa_zfs_process_share(sa_handle_t handle, sa_group_t group, sa_share_t share,
-    char *mountpoint, char *proto, zprop_source_t source, char *shareopts,
-    char *sourcestr, char *dataset)
-{
-	sa_handle_impl_t impl_handle = (sa_handle_impl_t)handle;
-	sa_share_impl_t impl_share = (sa_share_impl_t)share;
-
-	return (process_share(impl_handle, impl_share, mountpoint, NULL,
-	    proto, shareopts, NULL, dataset, B_FALSE));
-}
-
-void
-sa_update_sharetab_ts(sa_handle_t handle)
-{
-	sa_handle_impl_t impl_handle = (sa_handle_impl_t)handle;
-
-	update_sharetab(impl_handle);
 }

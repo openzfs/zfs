@@ -40,15 +40,13 @@
 #ifndef _SYS_BYTEORDER_H
 #define	_SYS_BYTEORDER_H
 
-
-
-#include <sys/isa_defs.h>
-#include <sys/int_types.h>
-
 #if defined(__GNUC__) && defined(_ASM_INLINES) && \
 	(defined(__i386) || defined(__amd64))
 #include <asm/byteorder.h>
 #endif
+
+#include <sys/isa_defs.h>
+#include <sys/int_types.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -58,7 +56,7 @@ extern "C" {
  * macros for conversion between host and (internet) network byte order
  */
 
-#if defined(_BIG_ENDIAN) && !defined(ntohl) && !defined(__lint)
+#if defined(_ZFS_BIG_ENDIAN) && !defined(ntohl) && !defined(__lint)
 /* big-endian */
 #define	ntohl(x)	(x)
 #define	ntohs(x)	(x)
@@ -108,7 +106,7 @@ extern	in_port_t ntohs(in_port_t);
 /*
  * Macros to convert from a specific byte order to/from native byte order
  */
-#ifdef _BIG_ENDIAN
+#ifdef _ZFS_BIG_ENDIAN
 #define	BE_8(x)		BMASK_8(x)
 #define	BE_16(x)	BMASK_16(x)
 #define	BE_32(x)	BMASK_32(x)
@@ -128,7 +126,7 @@ extern	in_port_t ntohs(in_port_t);
 #define	BE_64(x)	BSWAP_64(x)
 #endif
 
-#ifdef _BIG_ENDIAN
+#ifdef _ZFS_BIG_ENDIAN
 static __inline__ uint64_t
 htonll(uint64_t n)
 {

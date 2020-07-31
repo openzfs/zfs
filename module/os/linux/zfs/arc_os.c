@@ -33,7 +33,7 @@
 #include <sys/zio_checksum.h>
 #include <sys/zfs_context.h>
 #include <sys/arc.h>
-#include <sys/refcount.h>
+#include <sys/zfs_refcount.h>
 #include <sys/vdev.h>
 #include <sys/vdev_trim.h>
 #include <sys/vdev_impl.h>
@@ -100,7 +100,6 @@ arc_free_memory(void)
 #else
 	return (ptob(nr_free_pages() +
 	    nr_inactive_file_pages() +
-	    nr_inactive_anon_pages() +
 	    nr_slab_reclaimable_pages()));
 #endif /* CONFIG_HIGHMEM */
 }
@@ -126,72 +125,16 @@ arc_available_memory(void)
 	int64_t lowest = INT64_MAX;
 	free_memory_reason_t r = FMR_UNKNOWN;
 	int64_t n;
-#ifdef freemem
-#undef freemem
-#endif
-	pgcnt_t needfree = btop(arc_need_free);
-	pgcnt_t lotsfree = btop(arc_sys_free);
-	pgcnt_t desfree = 0;
-	pgcnt_t freemem = btop(arc_free_memory());
 
-	if (needfree > 0) {
-		n = PAGESIZE * (-needfree);
-		if (n < lowest) {
-			lowest = n;
-			r = FMR_NEEDFREE;
-		}
+	if (arc_need_free > 0) {
+		lowest = -arc_need_free;
+		r = FMR_NEEDFREE;
 	}
 
-	/*
-	 * check that we're out of range of the pageout scanner.  It starts to
-	 * schedule paging if freemem is less than lotsfree and needfree.
-	 * lotsfree is the high-water mark for pageout, and needfree is the
-	 * number of needed free pages.  We add extra pages here to make sure
-	 * the scanner doesn't start up while we're freeing memory.
-	 */
-	n = PAGESIZE * (freemem - lotsfree - needfree - desfree);
+	n = arc_free_memory() - arc_sys_free - arc_need_free;
 	if (n < lowest) {
 		lowest = n;
 		r = FMR_LOTSFREE;
-	}
-
-#if defined(_ILP32)
-	/*
-	 * If we're on a 32-bit platform, it's possible that we'll exhaust the
-	 * kernel heap space before we ever run out of available physical
-	 * memory.  Most checks of the size of the heap_area compare against
-	 * tune.t_minarmem, which is the minimum available real memory that we
-	 * can have in the system.  However, this is generally fixed at 25 pages
-	 * which is so low that it's useless.  In this comparison, we seek to
-	 * calculate the total heap-size, and reclaim if more than 3/4ths of the
-	 * heap is allocated.  (Or, in the calculation, if less than 1/4th is
-	 * free)
-	 */
-	n = vmem_size(heap_arena, VMEM_FREE) -
-	    (vmem_size(heap_arena, VMEM_FREE | VMEM_ALLOC) >> 2);
-	if (n < lowest) {
-		lowest = n;
-		r = FMR_HEAP_ARENA;
-	}
-#endif
-
-	/*
-	 * If zio data pages are being allocated out of a separate heap segment,
-	 * then enforce that the size of available vmem for this arena remains
-	 * above about 1/4th (1/(2^arc_zio_arena_free_shift)) free.
-	 *
-	 * Note that reducing the arc_zio_arena_free_shift keeps more virtual
-	 * memory (in the zio_arena) free, which can avoid memory
-	 * fragmentation issues.
-	 */
-	if (zio_arena != NULL) {
-		n = (int64_t)vmem_size(zio_arena, VMEM_FREE) -
-		    (vmem_size(zio_arena, VMEM_ALLOC) >>
-		    arc_zio_arena_free_shift);
-		if (n < lowest) {
-			lowest = n;
-			r = FMR_ZIO_ARENA;
-		}
 	}
 
 	last_free_memory = lowest;
@@ -225,19 +168,17 @@ arc_evictable_memory(void)
 }
 
 /*
- * If sc->nr_to_scan is zero, the caller is requesting a query of the
- * number of objects which can potentially be freed.  If it is nonzero,
- * the request is to free that many objects.
- *
- * Linux kernels >= 3.12 have the count_objects and scan_objects callbacks
- * in struct shrinker and also require the shrinker to return the number
- * of objects freed.
- *
- * Older kernels require the shrinker to return the number of freeable
- * objects following the freeing of nr_to_free.
+ * The _count() function returns the number of free-able objects.
+ * The _scan() function returns the number of objects that were freed.
  */
-static spl_shrinker_t
-__arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
+static unsigned long
+arc_shrinker_count(struct shrinker *shrink, struct shrink_control *sc)
+{
+	return (btop((int64_t)arc_evictable_memory()));
+}
+
+static unsigned long
+arc_shrinker_scan(struct shrinker *shrink, struct shrink_control *sc)
 {
 	int64_t pages;
 
@@ -247,20 +188,18 @@ __arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
 
 	/* Return the potential number of reclaimable pages */
 	pages = btop((int64_t)arc_evictable_memory());
-	if (sc->nr_to_scan == 0)
-		return (pages);
 
 	/* Not allowed to perform filesystem reclaim */
 	if (!(sc->gfp_mask & __GFP_FS))
 		return (SHRINK_STOP);
 
 	/* Reclaim in progress */
-	if (mutex_tryenter(&arc_adjust_lock) == 0) {
+	if (mutex_tryenter(&arc_evict_lock) == 0) {
 		ARCSTAT_INCR(arcstat_need_free, ptob(sc->nr_to_scan));
 		return (0);
 	}
 
-	mutex_exit(&arc_adjust_lock);
+	mutex_exit(&arc_evict_lock);
 
 	/*
 	 * Evict the requested number of pages by shrinking arc_c the
@@ -268,18 +207,32 @@ __arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
 	 */
 	if (pages > 0) {
 		arc_reduce_target_size(ptob(sc->nr_to_scan));
+
+		/*
+		 * Repeated calls to the arc shrinker can reduce arc_c
+		 * drastically, potentially all the way to arc_c_min.  While
+		 * arc_c is below arc_size, ZFS can't process read/write
+		 * requests, because arc_get_data_impl() will block.  To
+		 * ensure that arc_c doesn't shrink faster than the evict
+		 * thread can keep up, we wait for eviction here.
+		 */
+		mutex_enter(&arc_evict_lock);
+		if (arc_is_overflowing()) {
+			arc_evict_needed = B_TRUE;
+			zthr_wakeup(arc_evict_zthr);
+			(void) cv_wait(&arc_evict_waiters_cv,
+			    &arc_evict_lock);
+		}
+		mutex_exit(&arc_evict_lock);
+
 		if (current_is_kswapd())
 			arc_kmem_reap_soon();
-#ifdef HAVE_SPLIT_SHRINKER_CALLBACK
 		pages = MAX((int64_t)pages -
 		    (int64_t)btop(arc_evictable_memory()), 0);
-#else
-		pages = btop(arc_evictable_memory());
-#endif
 		/*
 		 * We've shrunk what we can, wake up threads.
 		 */
-		cv_broadcast(&arc_adjust_waiters_cv);
+		cv_broadcast(&arc_evict_waiters_cv);
 	} else
 		pages = SHRINK_STOP;
 
@@ -300,21 +253,16 @@ __arc_shrinker_func(struct shrinker *shrink, struct shrink_control *sc)
 
 	return (pages);
 }
-SPL_SHRINKER_CALLBACK_WRAPPER(arc_shrinker_func);
 
-SPL_SHRINKER_DECLARE(arc_shrinker, arc_shrinker_func, DEFAULT_SEEKS);
+SPL_SHRINKER_DECLARE(arc_shrinker,
+    arc_shrinker_count, arc_shrinker_scan, DEFAULT_SEEKS);
 
 int
 arc_memory_throttle(spa_t *spa, uint64_t reserve, uint64_t txg)
 {
-	uint64_t available_memory = arc_free_memory();
+	uint64_t free_memory = arc_free_memory();
 
-#if defined(_ILP32)
-	available_memory =
-	    MIN(available_memory, vmem_size(heap_arena, VMEM_FREE));
-#endif
-
-	if (available_memory > arc_all_memory() * arc_lotsfree_percent / 100)
+	if (free_memory > arc_all_memory() * arc_lotsfree_percent / 100)
 		return (0);
 
 	if (txg > spa->spa_lowmem_last_txg) {
@@ -328,7 +276,7 @@ arc_memory_throttle(spa_t *spa, uint64_t reserve, uint64_t txg)
 	 */
 	if (current_is_kswapd()) {
 		if (spa->spa_lowmem_page_load >
-		    MAX(arc_sys_free / 4, available_memory) / 4) {
+		    MAX(arc_sys_free / 4, free_memory) / 4) {
 			DMU_TX_STAT_BUMP(dmu_tx_memory_reclaim);
 			return (SET_ERROR(ERESTART));
 		}

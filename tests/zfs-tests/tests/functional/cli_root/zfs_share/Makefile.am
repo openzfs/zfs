@@ -12,7 +12,8 @@ dist_pkgdata_SCRIPTS = \
 	zfs_share_008_neg.ksh \
 	zfs_share_009_neg.ksh \
 	zfs_share_010_neg.ksh \
-	zfs_share_011_pos.ksh
+	zfs_share_011_pos.ksh \
+	zfs_share_concurrent_shares.ksh
 
 dist_pkgdata_DATA = \
 	zfs_share.cfg

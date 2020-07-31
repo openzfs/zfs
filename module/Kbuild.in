@@ -16,11 +16,13 @@ ifneq ($(KERNELRELEASE),)
 obj-$(CONFIG_ZFS) := $(ZFS_MODULES)
 
 ZFS_MODULE_CFLAGS += -std=gnu99 -Wno-declaration-after-statement
+ZFS_MODULE_CFLAGS += -Wmissing-prototypes
 ZFS_MODULE_CFLAGS += @KERNEL_DEBUG_CFLAGS@  @NO_FORMAT_ZERO_LENGTH@
 
 ifneq ($(KBUILD_EXTMOD),)
 zfs_include = @abs_top_srcdir@/include
 ZFS_MODULE_CFLAGS += -include @abs_top_builddir@/zfs_config.h
+ZFS_MODULE_CFLAGS += -I@abs_top_builddir@/include
 else
 zfs_include = $(srctree)/include/zfs
 ZFS_MODULE_CFLAGS += -include $(zfs_include)/zfs_config.h

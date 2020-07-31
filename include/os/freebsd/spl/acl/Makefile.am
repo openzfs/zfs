@@ -1,4 +1,4 @@
 KERNEL_H = \
-	$(top_srcdir)/include/os/freebsd/spl/acl/acl_common.h
+	acl_common.h
 
-EXTRA_DIST = $(KERNEL_H)
+noinst_HEADERS = $(KERNEL_H)

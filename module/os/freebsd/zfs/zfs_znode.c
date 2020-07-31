@@ -56,14 +56,13 @@
 #include <sys/dmu.h>
 #include <sys/dmu_objset.h>
 #include <sys/dmu_tx.h>
-#include <sys/refcount.h>
+#include <sys/zfs_refcount.h>
 #include <sys/stat.h>
 #include <sys/zap.h>
 #include <sys/zfs_znode.h>
 #include <sys/sa.h>
 #include <sys/zfs_sa.h>
 #include <sys/zfs_stat.h>
-#include <sys/refcount.h>
 
 #include "zfs_prop.h"
 #include "zfs_comutil.h"
@@ -76,7 +75,7 @@ SYSCTL_INT(_debug_sizeof, OID_AUTO, znode, CTLFLAG_RD,
  * Define ZNODE_STATS to turn on statistic gathering. By default, it is only
  * turned on when DEBUG is also defined.
  */
-#ifdef	DEBUG
+#ifdef	ZFS_DEBUG
 #define	ZNODE_STATS
 #endif	/* DEBUG */
 
@@ -1731,7 +1730,7 @@ zfs_grab_sa_handle(objset_t *osp, uint64_t obj, sa_handle_t **hdlp,
 	return (0);
 }
 
-void
+static void
 zfs_release_sa_handle(sa_handle_t *hdl, dmu_buf_t *db, void *tag)
 {
 	sa_handle_destroy(hdl);

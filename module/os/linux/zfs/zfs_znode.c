@@ -54,7 +54,7 @@
 #include <sys/dmu.h>
 #include <sys/dmu_objset.h>
 #include <sys/dmu_tx.h>
-#include <sys/refcount.h>
+#include <sys/zfs_refcount.h>
 #include <sys/stat.h>
 #include <sys/zap.h>
 #include <sys/zfs_znode.h>
@@ -249,7 +249,7 @@ zfs_znode_hold_compare(const void *a, const void *b)
 	return (TREE_CMP(zh_a->zh_obj, zh_b->zh_obj));
 }
 
-boolean_t
+static boolean_t __maybe_unused
 zfs_znode_held(zfsvfs_t *zfsvfs, uint64_t obj)
 {
 	znode_hold_t *zh, search;
@@ -451,7 +451,7 @@ zfs_inode_set_ops(zfsvfs_t *zfsvfs, struct inode *ip)
 	}
 }
 
-void
+static void
 zfs_set_inode_flags(znode_t *zp, struct inode *ip)
 {
 	/*
@@ -2013,7 +2013,7 @@ zfs_grab_sa_handle(objset_t *osp, uint64_t obj, sa_handle_t **hdlp,
 	return (0);
 }
 
-void
+static void
 zfs_release_sa_handle(sa_handle_t *hdl, dmu_buf_t *db, void *tag)
 {
 	sa_handle_destroy(hdl);

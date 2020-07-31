@@ -22,7 +22,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2019 Joyent, Inc.
- * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
  * Copyright (c) 2012 DEY Storage Systems, Inc.  All rights reserved.
  * Copyright (c) 2012 Pawel Jakub Dawidek <pawel@dawidek.net>.
  * Copyright (c) 2013 Martin Matuska. All rights reserved.
@@ -806,7 +806,7 @@ libzfs_mnttab_init(libzfs_handle_t *hdl)
 	    sizeof (mnttab_node_t), offsetof(mnttab_node_t, mtn_node));
 }
 
-int
+static int
 libzfs_mnttab_update(libzfs_handle_t *hdl)
 {
 	struct mnttab entry;
@@ -1432,49 +1432,14 @@ badlabel:
 				else
 					proto = PROTO_NFS;
 
-				/*
-				 * Must be an valid sharing protocol
-				 * option string so init the libshare
-				 * in order to enable the parser and
-				 * then parse the options. We use the
-				 * control API since we don't care about
-				 * the current configuration and don't
-				 * want the overhead of loading it
-				 * until we actually do something.
-				 */
-
-				if (zfs_init_libshare(hdl,
-				    SA_INIT_CONTROL_API) != SA_OK) {
-					/*
-					 * An error occurred so we can't do
-					 * anything
-					 */
-					zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-					    "'%s' cannot be set: problem "
-					    "in share initialization"),
-					    propname);
-					(void) zfs_error(hdl, EZFS_BADPROP,
-					    errbuf);
-					goto error;
-				}
-
 				if (zfs_parse_options(strval, proto) != SA_OK) {
-					/*
-					 * There was an error in parsing so
-					 * deal with it by issuing an error
-					 * message and leaving after
-					 * uninitializing the libshare
-					 * interface.
-					 */
 					zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 					    "'%s' cannot be set to invalid "
 					    "options"), propname);
 					(void) zfs_error(hdl, EZFS_BADPROP,
 					    errbuf);
-					zfs_uninit_libshare(hdl);
 					goto error;
 				}
-				zfs_uninit_libshare(hdl);
 			}
 
 			break;
@@ -1620,7 +1585,7 @@ error:
 	return (NULL);
 }
 
-int
+static int
 zfs_add_synthetic_resv(zfs_handle_t *zhp, nvlist_t *nvl)
 {
 	uint64_t old_volsize;
@@ -1720,114 +1685,6 @@ zfs_fix_auto_resv(zfs_handle_t *zhp, nvlist_t *nvl)
 		return (-1);
 	}
 	return (1);
-}
-
-void
-zfs_setprop_error(libzfs_handle_t *hdl, zfs_prop_t prop, int err,
-    char *errbuf)
-{
-	switch (err) {
-
-	case ENOSPC:
-		/*
-		 * For quotas and reservations, ENOSPC indicates
-		 * something different; setting a quota or reservation
-		 * doesn't use any disk space.
-		 */
-		switch (prop) {
-		case ZFS_PROP_QUOTA:
-		case ZFS_PROP_REFQUOTA:
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "size is less than current used or "
-			    "reserved space"));
-			(void) zfs_error(hdl, EZFS_PROPSPACE, errbuf);
-			break;
-
-		case ZFS_PROP_RESERVATION:
-		case ZFS_PROP_REFRESERVATION:
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "size is greater than available space"));
-			(void) zfs_error(hdl, EZFS_PROPSPACE, errbuf);
-			break;
-
-		default:
-			(void) zfs_standard_error(hdl, err, errbuf);
-			break;
-		}
-		break;
-
-	case EBUSY:
-		(void) zfs_standard_error(hdl, EBUSY, errbuf);
-		break;
-
-	case EROFS:
-		(void) zfs_error(hdl, EZFS_DSREADONLY, errbuf);
-		break;
-
-	case E2BIG:
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "property value too long"));
-		(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
-		break;
-
-	case ENOTSUP:
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "pool and or dataset must be upgraded to set this "
-		    "property or value"));
-		(void) zfs_error(hdl, EZFS_BADVERSION, errbuf);
-		break;
-
-	case ERANGE:
-		if (prop == ZFS_PROP_COMPRESSION ||
-		    prop == ZFS_PROP_DNODESIZE ||
-		    prop == ZFS_PROP_RECORDSIZE) {
-			(void) zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "property setting is not allowed on "
-			    "bootable datasets"));
-			(void) zfs_error(hdl, EZFS_NOTSUP, errbuf);
-		} else if (prop == ZFS_PROP_CHECKSUM ||
-		    prop == ZFS_PROP_DEDUP) {
-			(void) zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "property setting is not allowed on "
-			    "root pools"));
-			(void) zfs_error(hdl, EZFS_NOTSUP, errbuf);
-		} else {
-			(void) zfs_standard_error(hdl, err, errbuf);
-		}
-		break;
-
-	case EINVAL:
-		if (prop == ZPROP_INVAL) {
-			(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
-		} else {
-			(void) zfs_standard_error(hdl, err, errbuf);
-		}
-		break;
-
-	case EACCES:
-		if (prop == ZFS_PROP_KEYLOCATION) {
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "keylocation may only be set on encryption roots"));
-			(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
-		} else {
-			(void) zfs_standard_error(hdl, err, errbuf);
-		}
-		break;
-
-	case EOVERFLOW:
-		/*
-		 * This platform can't address a volume this big.
-		 */
-#ifdef _ILP32
-		if (prop == ZFS_PROP_VOLSIZE) {
-			(void) zfs_error(hdl, EZFS_VOLTOOBIG, errbuf);
-			break;
-		}
-#endif
-		/* FALLTHROUGH */
-	default:
-		(void) zfs_standard_error(hdl, err, errbuf);
-	}
 }
 
 static boolean_t
@@ -2551,7 +2408,7 @@ struct get_clones_arg {
 	char buf[ZFS_MAX_DATASET_NAME_LEN];
 };
 
-int
+static int
 get_clones_cb(zfs_handle_t *zhp, void *arg)
 {
 	struct get_clones_arg *gca = arg;
@@ -3129,7 +2986,7 @@ zfs_prop_get_int(zfs_handle_t *zhp, zfs_prop_t prop)
 	return (val);
 }
 
-int
+static int
 zfs_prop_set_int(zfs_handle_t *zhp, zfs_prop_t prop, uint64_t val)
 {
 	char buf[64];
@@ -3697,6 +3554,7 @@ create_parents(libzfs_handle_t *hdl, char *target, int prefixlen)
 
 		zfs_close(h);
 	}
+	zfs_commit_all_shares();
 
 	return (0);
 

@@ -2,6 +2,7 @@ include $(top_srcdir)/config/Rules.am
 
 # Suppress unused but set variable warnings often due to ASSERTs
 AM_CFLAGS += $(NO_UNUSED_BUT_SET_VARIABLE)
+AM_CFLAGS += $(LIBBLKID_CFLAGS) $(LIBUDEV_CFLAGS)
 
 DEFAULT_INCLUDES += -I$(srcdir)
 
@@ -22,23 +23,28 @@ USER_C += \
 endif
 
 if BUILD_FREEBSD
+DEFAULT_INCLUDES += -I$(top_srcdir)/include/os/freebsd/zfs
+
 USER_C += \
 	os/freebsd/zutil_device_path_os.c \
 	os/freebsd/zutil_import_os.c \
 	os/freebsd/zutil_compat.c
+
+VPATH += $(top_srcdir)/module/os/freebsd/zfs
+
+nodist_libzutil_la_SOURCES = zfs_ioctl_compat.c
 endif
 
-nodist_libzutil_la_SOURCES = $(USER_C)
+libzutil_la_SOURCES = $(USER_C)
 
 libzutil_la_LIBADD = \
-	$(top_builddir)/lib/libavl/libavl.la \
-	$(top_builddir)/lib/libtpool/libtpool.la
+	$(abs_top_builddir)/lib/libavl/libavl.la \
+	$(abs_top_builddir)/lib/libtpool/libtpool.la \
+	$(abs_top_builddir)/lib/libspl/libspl.la
 
 if BUILD_LINUX
 libzutil_la_LIBADD += \
-        $(top_builddir)/lib/libefi/libefi.la
+        $(abs_top_builddir)/lib/libefi/libefi.la
 endif
 
-libzutil_la_LIBADD += -lm $(LIBBLKID) $(LIBUDEV)
-
-EXTRA_DIST = $(USER_C)
+libzutil_la_LIBADD += -lm $(LIBBLKID_LIBS) $(LIBUDEV_LIBS)
