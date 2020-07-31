@@ -559,6 +559,7 @@ arc_stats_t arc_stats = {
 	{ "l2_rebuild_log_blks",	KSTAT_DATA_UINT64 },
 	{ "memory_throttle_count",	KSTAT_DATA_UINT64 },
 	{ "memory_direct_count",	KSTAT_DATA_UINT64 },
+	{ "memory_indirect_count",	KSTAT_DATA_UINT64 },
 	{ "memory_all_bytes",		KSTAT_DATA_UINT64 },
 	{ "memory_free_bytes",		KSTAT_DATA_UINT64 },
 	{ "memory_available_bytes",	KSTAT_DATA_INT64 },
