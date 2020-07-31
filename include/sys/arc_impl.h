@@ -823,6 +823,7 @@ typedef struct arc_stats {
 	kstat_named_t arcstat_l2_rebuild_log_blks;
 	kstat_named_t arcstat_memory_throttle_count;
 	kstat_named_t arcstat_memory_direct_count;
+	kstat_named_t arcstat_memory_indirect_count;
 	kstat_named_t arcstat_memory_all_bytes;
 	kstat_named_t arcstat_memory_free_bytes;
 	kstat_named_t arcstat_memory_available_bytes;
