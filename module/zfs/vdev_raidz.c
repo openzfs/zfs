@@ -2835,6 +2835,7 @@ vdev_raidz_io_done(zio_t *zio)
 		if (rm->rm_io_aggregation) {
 			for (int i = 0; i < rm->rm_nrows; i++) {
 				raidz_row_t *rr = rm->rm_row[i];
+
 				for (int c = 0; c < rr->rr_cols; c++) {
 					raidz_col_t *rc = &rr->rr_col[c];
 					if (rc->rc_size == 0)
@@ -2842,11 +2843,19 @@ vdev_raidz_io_done(zio_t *zio)
 
 					int idx = rc->rc_devidx;
 					raidz_col_t *prc = &rm->rm_phys_col[idx];
+#if 1
+					char *physbuf = abd_to_buf(prc->rc_abd);
+					void *physloc = physbuf +
+					    rc->rc_offset - prc->rc_offset;
 
+					abd_copy_from_buf(rc->rc_abd,
+					    physloc, rc->rc_size);
+#else
 					abd_copy_off(rc->rc_abd, prc->rc_abd,
 					    0,
 					    rc->rc_offset - prc->rc_offset,
 					    rc->rc_size);
+#endif
 				}
 			}
 		}
