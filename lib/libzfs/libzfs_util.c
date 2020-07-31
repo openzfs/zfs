@@ -327,7 +327,8 @@ zfs_verror(libzfs_handle_t *hdl, int error, const char *fmt, va_list ap)
 	if (hdl->libzfs_printerr) {
 		if (error == EZFS_UNKNOWN) {
 			(void) fprintf(stderr, dgettext(TEXT_DOMAIN, "internal "
-			    "error: %s\n"), libzfs_error_description(hdl));
+			    "error: %s: %s\n"), hdl->libzfs_action,
+			    libzfs_error_description(hdl));
 			abort();
 		}
 
