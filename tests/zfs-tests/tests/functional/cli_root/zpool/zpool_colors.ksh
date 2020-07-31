@@ -63,7 +63,7 @@ log_note "$(faketty TERM=xterm-256color ZFS_COLOR=1 zpool status)"
 # Replace the escape codes with "ESC" so they're easier to grep
 out="$(faketty TERM=xterm-256color ZFS_COLOR=1 zpool status | \
     grep -E 'pool:|DEGRADED' | \
-    sed -r 's/\s+//g;'$(echo -e 's/\033/ESC/g'))"
+    sed -r 's/[[:space:]]+//g;'$(echo -e 's/\033/ESC/g'))"
 
 log_note "$(echo $out)"
 
