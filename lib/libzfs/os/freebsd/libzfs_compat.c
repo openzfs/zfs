@@ -268,7 +268,7 @@ zfs_jail(zfs_handle_t *zhp, int jailid, int attach)
 	zc.zc_zoneid = jailid;
 
 	cmd = attach ? ZFS_IOC_JAIL : ZFS_IOC_UNJAIL;
-	if ((ret = ioctl(hdl->libzfs_fd, cmd, &zc)) != 0)
+	if ((ret = zfs_ioctl(hdl, cmd, &zc)) != 0)
 		zfs_standard_error(hdl, errno, errbuf);
 
 	return (ret);

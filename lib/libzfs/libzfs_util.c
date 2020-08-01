@@ -25,6 +25,10 @@
  * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
  * Copyright 2016 Igor Kozhukhov <ikozhukhov@gmail.com>
  * Copyright (c) 2017 Datto Inc.
+ * Copyright (c) 2020 The FreeBSD Foundation
+ *
+ * Portions of this software were developed by Allan Jude
+ * under sponsorship from the FreeBSD Foundation.
  */
 
 /*
@@ -475,6 +479,9 @@ zfs_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 	case ZFS_ERR_WRONG_PARENT:
 		zfs_verror(hdl, EZFS_WRONG_PARENT, fmt, ap);
 		break;
+	case ZFS_ERR_BADPROP:
+		zfs_verror(hdl, EZFS_BADPROP, fmt, ap);
+		break;
 	default:
 		zfs_error_aux(hdl, strerror(error));
 		zfs_verror(hdl, EZFS_UNKNOWN, fmt, ap);
@@ -565,6 +572,10 @@ zfs_setprop_error(libzfs_handle_t *hdl, zfs_prop_t prop, int err,
 		} else {
 			(void) zfs_standard_error(hdl, err, errbuf);
 		}
+		break;
+
+	case ZFS_ERR_BADPROP:
+		(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
 		break;
 
 	case EACCES:
@@ -702,6 +713,9 @@ zpool_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 		break;
 	case ZFS_ERR_REBUILD_IN_PROGRESS:
 		zfs_verror(hdl, EZFS_REBUILDING, fmt, ap);
+		break;
+	case ZFS_ERR_BADPROP:
+		zfs_verror(hdl, EZFS_BADPROP, fmt, ap);
 		break;
 	case ZFS_ERR_IOC_CMD_UNAVAIL:
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "the loaded zfs "

@@ -2590,7 +2590,8 @@ retry:
 				case PROP_TYPE_INDEX:
 					if (zfs_prop_index_to_string(prop,
 					    intval, &unused) != 0)
-						err = SET_ERROR(EINVAL);
+						err =
+						    SET_ERROR(ZFS_ERR_BADPROP);
 					break;
 				default:
 					cmn_err(CE_PANIC,
