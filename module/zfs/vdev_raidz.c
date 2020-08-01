@@ -2886,7 +2886,8 @@ vdev_raidz_io_done(zio_t *zio)
 			for (int i = 0; i < rm->rm_nrows; i++) {
 				raidz_row_t *rr = rm->rm_row[i];
 
-				for (int c = 0; c < rr->rr_cols; c++) {
+				for (int c = rr->rr_firstdatacol;
+				    c < rr->rr_cols; c++) {
 					raidz_col_t *rc = &rr->rr_col[c];
 					if (rc->rc_size == 0)
 						continue;
