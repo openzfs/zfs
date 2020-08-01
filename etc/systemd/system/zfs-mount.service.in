@@ -11,7 +11,7 @@ Before=systemd-random-seed.service
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecCondition=/usr/bin/grep -q "^zfs " /proc/modules
+ExecCondition=/usr/bin/test -d /sys/module/zfs
 ExecStart=@sbindir@/zfs mount -a
 
 [Install]
