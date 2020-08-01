@@ -209,16 +209,9 @@ abd_put_gang_abd(abd_t *abd)
 	list_destroy(&ABD_GANG(abd).abd_gang_chain);
 }
 
-/*
- * Free an ABD allocated from abd_get_offset() or abd_get_from_buf(). Will not
- * free the underlying scatterlist or buffer.
- */
 void
-abd_put(abd_t *abd)
+abd_put_impl(abd_t *abd)
 {
-	if (abd == NULL)
-		return;
-
 	abd_verify(abd);
 	ASSERT(!(abd->abd_flags & ABD_FLAG_OWNER));
 
@@ -231,6 +224,19 @@ abd_put(abd_t *abd)
 		abd_put_gang_abd(abd);
 
 	zfs_refcount_destroy(&abd->abd_children);
+}
+
+/*
+ * Free an ABD allocated from abd_get_offset() or abd_get_from_buf(). Will not
+ * free the underlying scatterlist or buffer.
+ */
+void
+abd_put(abd_t *abd)
+{
+	if (abd == NULL)
+		return;
+
+	abd_put_impl(abd);
 	abd_free_struct(abd);
 }
 

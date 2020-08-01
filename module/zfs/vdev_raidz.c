@@ -161,7 +161,7 @@ vdev_raidz_row_free(raidz_row_t *rr, boolean_t aggregate)
 
 	for (c = 0; c < rr->rr_firstdatacol && c < rr->rr_cols; c++) {
 		if (aggregate)
-			abd_put(rr->rr_col[c].rc_abd);
+			abd_put_impl(rr->rr_col[c].rc_abd);
 		else
 			abd_free(rr->rr_col[c].rc_abd);
 
@@ -175,7 +175,7 @@ vdev_raidz_row_free(raidz_row_t *rr, boolean_t aggregate)
 	}
 	for (c = rr->rr_firstdatacol; c < rr->rr_cols; c++) {
 		if (rr->rr_col[c].rc_size != 0)
-			abd_put(rr->rr_col[c].rc_abd);
+			abd_put_impl(rr->rr_col[c].rc_abd);
 		if (rr->rr_col[c].rc_orig_data != NULL) {
 			zio_buf_free(rr->rr_col[c].rc_orig_data,
 			    rr->rr_col[c].rc_size);
@@ -661,6 +661,9 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 			rr->rr_col[c].rc_skipped = 0;
 			rr->rr_col[c].rc_need_orig_restore = B_FALSE;
 
+			list_link_init(&rr->rr_col[c].rc_abdstruct.abd_gang_link);
+			mutex_init(&rr->rr_col[c].rc_abdstruct.abd_mtx, NULL, MUTEX_DEFAULT, NULL);
+
 			uint64_t dc = c - rr->rr_firstdatacol;
 			if (c < rr->rr_firstdatacol) {
 				rr->rr_col[c].rc_size = 1ULL << ashift;
@@ -785,7 +788,9 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 			for (int c = 0; c < rr->rr_firstdatacol; c++) {
 				raidz_col_t *rc = &rr->rr_col[c];
 				raidz_col_t *prc = &rm->rm_phys_col[rc->rc_devidx];
-				rc->rc_abd = abd_get_offset_size(prc->rc_abd,
+				rc->rc_abd =
+				    abd_get_offset_impl(&rc->rc_abdstruct,
+				    prc->rc_abd,
 				    rc->rc_offset - prc->rc_offset,
 				    rc->rc_size);
 			}
