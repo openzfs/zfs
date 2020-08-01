@@ -9692,6 +9692,13 @@ out:
 		    "no valid log blocks");
 		bzero(l2dhdr, dev->l2ad_dev_hdr_asize);
 		l2arc_dev_hdr_update(dev);
+	} else if (err == ECANCELED) {
+		/*
+		 * In case the rebuild was canceled do not log to spa history
+		 * log as the pool may be in the process of being removed.
+		 */
+		zfs_dbgmsg("L2ARC rebuild aborted, restored %llu blocks",
+		    zfs_refcount_count(&dev->l2ad_lb_count));
 	} else if (err != 0) {
 		spa_history_log_internal(spa, "L2ARC rebuild", NULL,
 		    "aborted, restored %llu blocks",
