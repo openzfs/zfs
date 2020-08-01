@@ -12,7 +12,6 @@ ConditionPathExists=!@sysconfdir@/zfs/zpool.cache
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecCondition=/usr/bin/grep -q "^zfs " /proc/modules
 ExecStart=@sbindir@/zpool import -aN -o cachefile=none
 
 [Install]
