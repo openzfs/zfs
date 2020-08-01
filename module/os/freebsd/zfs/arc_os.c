@@ -22,6 +22,7 @@
 #include <sys/spa.h>
 #include <sys/zio.h>
 #include <sys/spa_impl.h>
+#include <sys/counter.h>
 #include <sys/zio_compress.h>
 #include <sys/zio_checksum.h>
 #include <sys/zfs_context.h>
@@ -47,6 +48,8 @@
 #include <sys/vnode.h>
 #include <cityhash.h>
 #include <machine/vmparam.h>
+#include <sys/vm.h>
+#include <sys/vmmeter.h>
 
 extern struct vfsops zfs_vfsops;
 

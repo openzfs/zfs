@@ -141,7 +141,8 @@ static inline offset_t
 uio_index_at_offset(uio_t *uio, offset_t off, uint_t *vec_idx)
 {
 	*vec_idx = 0;
-	while (*vec_idx < uio_iovcnt(uio) && off >= uio_iovlen(uio, *vec_idx)) {
+	while (*vec_idx < (uint_t)uio_iovcnt(uio) &&
+	    off >= (offset_t)uio_iovlen(uio, *vec_idx)) {
 		off -= uio_iovlen(uio, *vec_idx);
 		(*vec_idx)++;
 	}

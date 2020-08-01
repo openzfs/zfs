@@ -2157,6 +2157,13 @@ zfs_freevfs(vfs_t *vfsp)
 
 #ifdef __i386__
 static int desiredvnodes_backup;
+#include <sys/vmmeter.h>
+
+
+#include <vm/vm_page.h>
+#include <vm/vm_object.h>
+#include <vm/vm_kern.h>
+#include <vm/vm_map.h>
 #endif
 
 static void
@@ -2321,8 +2328,8 @@ zfs_set_version(zfsvfs_t *zfsvfs, uint64_t newvers)
 	}
 
 	spa_history_log_internal_ds(dmu_objset_ds(os), "upgrade", tx,
-	    "from %lu to %lu", zfsvfs->z_version, newvers);
-
+	    "from %ju to %ju", (uintmax_t)zfsvfs->z_version,
+	    (uintmax_t)newvers);
 	dmu_tx_commit(tx);
 
 	zfsvfs->z_version = newvers;

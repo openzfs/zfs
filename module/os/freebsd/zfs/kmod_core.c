@@ -142,8 +142,8 @@ zfsdev_ioctl(struct cdev *dev, ulong_t zcmd, caddr_t arg, int flag,
 	zcl = NULL;
 
 	if (len != sizeof (zfs_iocparm_t)) {
-		printf("len %d vecnum: %d sizeof (zfs_cmd_t) %lu\n",
-		    len, vecnum, sizeof (zfs_cmd_t));
+		printf("len %d vecnum: %d sizeof (zfs_cmd_t) %ju\n",
+		    len, vecnum, (uintmax_t)sizeof (zfs_cmd_t));
 		return (EINVAL);
 	}
 

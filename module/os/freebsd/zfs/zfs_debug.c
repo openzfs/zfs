@@ -43,13 +43,10 @@ kstat_t *zfs_dbgmsg_kstat;
  * Internal ZFS debug messages are enabled by default.
  *
  * # Print debug messages
- * cat /proc/spl/kstat/zfs/dbgmsg
+ * dtrace -n 'zfs-dbgmsg { print(stringof(arg0)); }'
  *
  * # Disable the kernel debug message log.
- * echo 0 > /sys/module/zfs/parameters/zfs_dbgmsg_enable
- *
- * # Clear the kernel debug message log.
- * echo 0 >/proc/spl/kstat/zfs/dbgmsg
+ * sysctl vfs.zfs.dbgmsg_enable=0
  */
 int zfs_dbgmsg_enable = 1;
 
@@ -245,10 +242,10 @@ zfs_dbgmsg_print(const char *tag)
 }
 #endif /* _KERNEL */
 
-#ifdef _KERNEL
-module_param(zfs_dbgmsg_enable, int, 0644);
-MODULE_PARM_DESC(zfs_dbgmsg_enable, "Enable ZFS debug message log");
+/* BEGIN CSTYLED */
+ZFS_MODULE_PARAM(zfs, zfs_, dbgmsg_enable, INT, ZMOD_RW,
+    "Enable ZFS debug message log");
 
-module_param(zfs_dbgmsg_maxsize, int, 0644);
-MODULE_PARM_DESC(zfs_dbgmsg_maxsize, "Maximum ZFS debug log size");
-#endif
+ZFS_MODULE_PARAM(zfs, zfs_, dbgmsg_maxsize, INT, ZMOD_RW,
+    "Maximum ZFS debug log size");
+/* END CSTYLED */
