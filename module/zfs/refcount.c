@@ -122,7 +122,7 @@ zfs_refcount_count(zfs_refcount_t *rc)
 }
 
 int64_t
-zfs_refcount_add_many(zfs_refcount_t *rc, uint64_t number, const void *holder)
+zfs_refcount_add_many_nv(zfs_refcount_t *rc, uint64_t number, const void *holder)
 {
 	reference_t *ref = NULL;
 	int64_t count;
@@ -143,10 +143,16 @@ zfs_refcount_add_many(zfs_refcount_t *rc, uint64_t number, const void *holder)
 	return (count);
 }
 
+void
+zfs_refcount_add_many(zfs_refcount_t *rc, uint64_t number, const void *holder)
+{
+	(void)zfs_refcount_add_many_nv(rc, number, holder);
+}
+
 int64_t
 zfs_refcount_add(zfs_refcount_t *rc, const void *holder)
 {
-	return (zfs_refcount_add_many(rc, 1, holder));
+	return (zfs_refcount_add_many_nv(rc, 1, holder));
 }
 
 int64_t

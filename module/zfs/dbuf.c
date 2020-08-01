@@ -3608,7 +3608,7 @@ dbuf_rele_and_unlock(dmu_buf_impl_t *db, void *tag, boolean_t evicting)
 				db->db_caching_status = dcs;
 
 				multilist_insert(dbuf_caches[dcs].cache, db);
-				size = zfs_refcount_add_many(
+				size = zfs_refcount_add_many_nv(
 				    &dbuf_caches[dcs].size,
 				    db->db.db_size, db);
 
