@@ -84,8 +84,22 @@
 #define	htonll(x)	BMASK_64(x)
 #define	ntohll(x)	BMASK_64(x)
 #else
+#ifndef __LP64__
+static __inline__ uint64_t
+htonll(uint64_t n)
+{
+	return ((((uint64_t)htonl(n)) << 32) + htonl(n >> 32));
+}
+
+static __inline__ uint64_t
+ntohll(uint64_t n)
+{
+	return ((((uint64_t)ntohl(n)) << 32) + ntohl(n >> 32));
+}
+#else
 #define	htonll(x)	BSWAP_64(x)
 #define	ntohll(x)	BSWAP_64(x)
+#endif
 #endif
 
 #define	BE_IN32(xa)	htonl(*((uint32_t *)(void *)(xa)))

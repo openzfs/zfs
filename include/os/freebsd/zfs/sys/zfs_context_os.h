@@ -88,8 +88,4 @@ typedef int fstrans_cookie_t;
 typedef struct opensolaris_utsname	utsname_t;
 extern utsname_t *utsname(void);
 extern int spa_import_rootpool(const char *name);
-#else
-#if BYTE_ORDER != BIG_ENDIAN
-#undef _BIG_ENDIAN
-#endif
 #endif
