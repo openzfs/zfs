@@ -52,9 +52,6 @@ extern struct vfsops zfs_vfsops;
 
 uint_t zfs_arc_free_target = 0;
 
-int64_t last_free_memory;
-free_memory_reason_t last_free_reason;
-
 static void
 arc_free_target_init(void *unused __unused)
 {
@@ -100,7 +97,6 @@ arc_available_memory(void)
 {
 	int64_t lowest = INT64_MAX;
 	int64_t n __unused;
-	free_memory_reason_t r = FMR_UNKNOWN;
 
 	/*
 	 * Cooperate with pagedaemon when it's time for it to scan
@@ -109,7 +105,6 @@ arc_available_memory(void)
 	n = PAGESIZE * ((int64_t)freemem - zfs_arc_free_target);
 	if (n < lowest) {
 		lowest = n;
-		r = FMR_LOTSFREE;
 	}
 #if defined(__i386) || !defined(UMA_MD_SMALL_ALLOC)
 	/*
@@ -126,13 +121,10 @@ arc_available_memory(void)
 	n = uma_avail() - (long)(uma_limit() / 4);
 	if (n < lowest) {
 		lowest = n;
-		r = FMR_HEAP_ARENA;
 	}
 #endif
 
-	last_free_memory = lowest;
-	last_free_reason = r;
-	DTRACE_PROBE2(arc__available_memory, int64_t, lowest, int, r);
+	DTRACE_PROBE1(arc__available_memory, int64_t, lowest);
 	return (lowest);
 }
 
@@ -223,18 +215,15 @@ arc_lowmem(void *arg __unused, int howto __unused)
 	DTRACE_PROBE2(arc__needfree, int64_t, free_memory, int64_t, to_free);
 	arc_reduce_target_size(to_free);
 
-	mutex_enter(&arc_evict_lock);
-	arc_evict_needed = B_TRUE;
-	zthr_wakeup(arc_evict_zthr);
-
 	/*
 	 * It is unsafe to block here in arbitrary threads, because we can come
 	 * here from ARC itself and may hold ARC locks and thus risk a deadlock
 	 * with ARC reclaim thread.
 	 */
 	if (curproc == pageproc)
-		(void) cv_wait(&arc_evict_waiters_cv, &arc_evict_lock);
-	mutex_exit(&arc_evict_lock);
+		arc_wait_for_eviction(to_free);
+	else
+		arc_wait_for_eviction(0);
 }
 
 void

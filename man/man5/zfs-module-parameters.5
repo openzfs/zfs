@@ -864,6 +864,23 @@ Default value: \fB8192\fR.
 .sp
 .ne 2
 .na
+\fBzfs_arc_eviction_pct\fR (int)
+.ad
+.RS 12n
+When \fBarc_is_overflowing()\fR, \fBarc_get_data_impl()\fR waits for this
+percent of the requested amount of data to be evicted.  For example, by
+default for every 2KB that's evicted, 1KB of it may be "reused" by a new
+allocation. Since this is above 100%, it ensures that progress is made
+towards getting \fBarc_size\fR under \fBarc_c\fR.  Since this is finite, it
+ensures that allocations can still happen, even during the potentially long
+time that \fBarc_size\fR is more than \fBarc_c\fR.
+.sp
+Default value: \fB200\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_arc_evict_batch_limit\fR (int)
 .ad
 .RS 12n
@@ -1160,6 +1177,29 @@ size (as measured by NR_FILE_PAGES) where that percent may exceed 100. This
 only operates during memory pressure/reclaim.
 .sp
 Default value: \fB0\fR% (disabled).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_arc_shrinker_limit\fR (int)
+.ad
+.RS 12n
+This is a limit on how many pages the ARC shrinker makes available for
+eviction in response to one page allocation attempt.  Note that in
+practice, the kernel's shrinker can ask us to evict up to about 4x this
+for one allocation attempt.
+.sp
+The default limit of 10,000 (in practice, 160MB per allocation attempt with
+4K pages) limits the amount of time spent attempting to reclaim ARC memory to
+less than 100ms per allocation attempt, even with a small average compressed
+block size of ~8KB.
+.sp
+The parameter can be set to 0 (zero) to disable the limit.
+.sp
+This parameter only applies on Linux.
+.sp
+Default value: \fB10,000\fR.
 .RE
 
 .sp

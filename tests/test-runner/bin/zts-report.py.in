@@ -254,6 +254,7 @@ if sys.platform.startswith('freebsd'):
         'removal/removal_condense_export': ['FAIL', known_reason],
         'removal/removal_with_export': ['FAIL', known_reason],
         'resilver/resilver_restart_001': ['FAIL', known_reason],
+        'zvol/zvol_misc/zvol_misc_volmode': ['FAIL', known_reason],
     })
 elif sys.platform.startswith('linux'):
     maybe.update({

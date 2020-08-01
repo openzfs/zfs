@@ -846,15 +846,11 @@ typedef struct arc_stats {
 	kstat_named_t arcstat_cached_only_in_progress;
 } arc_stats_t;
 
-typedef enum free_memory_reason_t {
-	FMR_UNKNOWN,
-	FMR_NEEDFREE,
-	FMR_LOTSFREE,
-	FMR_SWAPFS_MINFREE,
-	FMR_PAGES_PP_MAXIMUM,
-	FMR_HEAP_ARENA,
-	FMR_ZIO_ARENA,
-} free_memory_reason_t;
+typedef struct arc_evict_waiter {
+	list_node_t aew_node;
+	kcondvar_t aew_cv;
+	uint64_t aew_count;
+} arc_evict_waiter_t;
 
 #define	ARCSTAT(stat)	(arc_stats.stat.value.ui64)
 
@@ -870,7 +866,6 @@ typedef enum free_memory_reason_t {
 #define	arc_c_min	ARCSTAT(arcstat_c_min)	/* min target cache size */
 #define	arc_c_max	ARCSTAT(arcstat_c_max)	/* max target cache size */
 #define	arc_sys_free	ARCSTAT(arcstat_sys_free) /* target system free bytes */
-#define	arc_need_free	ARCSTAT(arcstat_need_free) /* bytes to be freed */
 
 extern taskq_t *arc_prune_taskq;
 extern arc_stats_t arc_stats;
@@ -879,10 +874,6 @@ extern boolean_t arc_warm;
 extern int arc_grow_retry;
 extern int arc_no_grow_shift;
 extern int arc_shrink_shift;
-extern zthr_t		*arc_evict_zthr;
-extern kmutex_t		arc_evict_lock;
-extern kcondvar_t	arc_evict_waiters_cv;
-extern boolean_t	arc_evict_needed;
 extern kmutex_t arc_prune_mtx;
 extern list_t arc_prune_list;
 extern aggsum_t arc_size;
@@ -897,6 +888,7 @@ extern void arc_reduce_target_size(int64_t to_free);
 extern boolean_t arc_reclaim_needed(void);
 extern void arc_kmem_reap_soon(void);
 extern boolean_t arc_is_overflowing(void);
+extern void arc_wait_for_eviction(uint64_t);
 
 extern void arc_lowmem_init(void);
 extern void arc_lowmem_fini(void);
