@@ -155,12 +155,15 @@ unsigned long raidz_io_count_total = 0;
 unsigned long raidz_io_count_aggregated = 0;
 
 static void
-vdev_raidz_row_free(raidz_row_t *rr)
+vdev_raidz_row_free(raidz_row_t *rr, boolean_t aggregate)
 {
 	int c;
 
 	for (c = 0; c < rr->rr_firstdatacol && c < rr->rr_cols; c++) {
-		abd_free(rr->rr_col[c].rc_abd);
+		if (aggregate)
+			abd_put(rr->rr_col[c].rc_abd);
+		else
+			abd_free(rr->rr_col[c].rc_abd);
 
 		if (rr->rr_col[c].rc_gdata != NULL) {
 			abd_free(rr->rr_col[c].rc_gdata);
@@ -189,7 +192,7 @@ void
 vdev_raidz_map_free(raidz_map_t *rm)
 {
 	for (int i = 0; i < rm->rm_nrows; i++) {
-		vdev_raidz_row_free(rm->rm_row[i]);
+		vdev_raidz_row_free(rm->rm_row[i], rm->rm_io_aggregation);
 	}
 
 	if (rm->rm_nphys_cols) {
@@ -590,8 +593,6 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 		rm->rm_phys_col =
 		    kmem_zalloc(sizeof (raidz_col_t) * rm->rm_nphys_cols,
 		    KM_SLEEP);
-		for (int i = 0; i < rm->rm_nphys_cols; i++)
-			rm->rm_phys_col[i].rc_offset = UINT64_MAX;
 
 		raidz_io_count_aggregated++;
 	}
@@ -663,9 +664,16 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 			uint64_t dc = c - rr->rr_firstdatacol;
 			if (c < rr->rr_firstdatacol) {
 				rr->rr_col[c].rc_size = 1ULL << ashift;
-				rr->rr_col[c].rc_abd =
-				    abd_alloc_linear(rr->rr_col[c].rc_size,
-				    B_TRUE);
+
+				/*
+				 * Aggregations set their abd to point into the
+				 * aggregate abd, below.
+				 */
+				if (!rm->rm_io_aggregation) {
+					rr->rr_col[c].rc_abd =
+					    abd_alloc_linear(rr->rr_col[c].rc_size,
+					    B_TRUE);
+				}
 			} else if (row == rows - 1 && bc != 0 && c >= bc) {
 				/*
 				 * Past the end, this for parity generation.
@@ -732,6 +740,57 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 
 	}
 	ASSERT3U(asize, ==, tot << ashift);
+
+	if (rm->rm_io_aggregation) {
+		/*
+		 * Determine the aggregate ABD's offset and size.
+		 */
+		for (int i = 0; i < rm->rm_nphys_cols; i++) {
+			raidz_col_t *prc = &rm->rm_phys_col[i];
+			prc->rc_offset = UINT64_MAX;
+		}
+		for (int i = 0; i < rm->rm_nrows; i++) {
+			raidz_row_t *rr = rm->rm_row[i];
+			for (int c = 0; c < rr->rr_cols; c++) {
+				raidz_col_t *rc = &rr->rr_col[c];
+				raidz_col_t *prc = &rm->rm_phys_col[rc->rc_devidx];
+
+				if (rc->rc_size == 0)
+					continue;
+
+				prc->rc_offset = MIN(prc->rc_offset, rc->rc_offset);
+				prc->rc_size += rc->rc_size;
+			}
+		}
+
+		/*
+		 * Allocate aggregate ABD's.
+		 */
+		for (int i = 0; i < rm->rm_nphys_cols; i++) {
+			raidz_col_t *prc = &rm->rm_phys_col[i];
+
+			if (prc->rc_size == 0)
+				continue;
+
+			prc->rc_abd =
+			    abd_alloc_linear(rm->rm_phys_col[i].rc_size,
+			    B_FALSE);
+		}
+
+		/*
+		 * Point the parity abd's into the aggregate abd's.
+		 */
+		for (int i = 0; i < rm->rm_nrows; i++) {
+			raidz_row_t *rr = rm->rm_row[i];
+			for (int c = 0; c < rr->rr_firstdatacol; c++) {
+				raidz_col_t *rc = &rr->rr_col[c];
+				raidz_col_t *prc = &rm->rm_phys_col[rc->rc_devidx];
+				rc->rc_abd = abd_get_offset_size(prc->rc_abd,
+				    rc->rc_offset - prc->rc_offset,
+				    rc->rc_size);
+			}
+		}
+	}
 
 	/* init RAIDZ parity ops */
 	rm->rm_ops = vdev_raidz_math_get_ops();
@@ -2008,21 +2067,6 @@ vdev_raidz_io_start_write(zio_t *zio, raidz_row_t *rr)
 }
 
 static void
-vdev_raidz_get_phys_col_offset(raidz_map_t *rm, raidz_row_t *rr)
-{
-	for (int c = 0; c < rr->rr_cols; c++) {
-		raidz_col_t *rc = &rr->rr_col[c];
-		raidz_col_t *prc = &rm->rm_phys_col[rc->rc_devidx];
-
-		if (rc->rc_size == 0)
-			continue;
-
-		prc->rc_offset = MIN(prc->rc_offset, rc->rc_offset);
-		prc->rc_size += rc->rc_size;
-	}
-}
-
-static void
 vdev_raidz_io_start_read_row(zio_t *zio, raidz_row_t *rr, boolean_t forceparity)
 {
 	vdev_t *vd = zio->io_vd;
@@ -2058,6 +2102,11 @@ vdev_raidz_io_start_read_row(zio_t *zio, raidz_row_t *rr, boolean_t forceparity)
 		if (forceparity ||
 		    c >= rr->rr_firstdatacol || rr->rr_missingdata > 0 ||
 		    (zio->io_flags & (ZIO_FLAG_SCRUB | ZIO_FLAG_RESILVER))) {
+			if (rc->rc_abd == NULL) {
+				ASSERT3U(c, <, rr->rr_firstdatacol);
+				rc->rc_abd = abd_alloc_linear(rc->rc_size,
+				    B_TRUE);
+			}
 			zio_nowait(zio_vdev_child_io(zio, NULL, cvd,
 			    rc->rc_offset, rc->rc_abd, rc->rc_size,
 			    zio->io_type, zio->io_priority, 0,
@@ -2075,9 +2124,6 @@ vdev_raidz_io_start_read_phys_col(zio_t *zio, raidz_map_t *rm)
 		raidz_col_t *prc = &rm->rm_phys_col[i];
 		if (prc->rc_size == 0)
 			continue;
-
-		prc->rc_abd = abd_alloc_linear(rm->rm_phys_col[i].rc_size,
-		    B_FALSE);
 
 		vdev_t *cvd = vd->vdev_child[i];
 		/*
@@ -2114,16 +2160,15 @@ vdev_raidz_io_start_read(zio_t *zio, raidz_map_t *rm)
 	 */
 	boolean_t forceparity = rm->rm_nrows > 1;
 
-	for (int i = 0; i < rm->rm_nrows; i++) {
-		raidz_row_t *rr = rm->rm_row[i];
-		if (rm->rm_io_aggregation)
-			vdev_raidz_get_phys_col_offset(rm, rr);
-		else
+	if (rm->rm_io_aggregation) {
+		vdev_raidz_io_start_read_phys_col(zio, rm);
+	} else {
+		for (int i = 0; i < rm->rm_nrows; i++) {
+			raidz_row_t *rr = rm->rm_row[i];
 			vdev_raidz_io_start_read_row(zio, rr, forceparity);
+		}
 	}
 
-	if (rm->rm_io_aggregation)
-		vdev_raidz_io_start_read_phys_col(zio, rm);
 }
 
 /*
