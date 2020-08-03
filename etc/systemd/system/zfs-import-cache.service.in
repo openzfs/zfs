@@ -10,11 +10,11 @@ After=multipathd.target
 After=systemd-remount-fs.service
 Before=zfs-import.target
 ConditionPathExists=@sysconfdir@/zfs/zpool.cache
+ConditionPathIsDirectory=/sys/module/zfs
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecCondition=/usr/bin/grep -q "^zfs " /proc/modules
 ExecStart=@sbindir@/zpool import -c @sysconfdir@/zfs/zpool.cache -aN
 
 [Install]
