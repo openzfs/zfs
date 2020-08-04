@@ -240,30 +240,3 @@ z_uncompress(void *dest, size_t *destLen, const void *source, size_t sourceLen)
 
 	return (err);
 }
-
-#if 0
-int
-spl_zlib_init(void)
-{
-	int size;
-
-	size = MAX(spl_zlib_deflate_workspacesize(MAX_WBITS, MAX_MEM_LEVEL),
-	    zlib_inflate_workspacesize());
-
-	zlib_workspace_cache = kmem_cache_create(
-	    "spl_zlib_workspace_cache",
-	    size, 0, NULL, NULL, NULL, NULL, NULL,
-	    KMC_VMEM | KMC_NOEMERGENCY);
-	if (!zlib_workspace_cache)
-		return (1);
-
-	return (0);
-}
-
-void
-spl_zlib_fini(void)
-{
-	kmem_cache_destroy(zlib_workspace_cache);
-	zlib_workspace_cache = NULL;
-}
-#endif
