@@ -384,8 +384,8 @@ DECLARE_EVENT_CLASS(zfs_arc_wait_for_eviction_class,
 /* BEGIN CSTYLED */
 #define	DEFINE_ARC_WAIT_FOR_EVICTION_EVENT(name) \
 DEFINE_EVENT(zfs_arc_wait_for_eviction_class, name, \
-	TP_PROTO(uint64_t amount, uint64_t arc_evict_count, uint64_t aew_count),
-	TP_ARGS(amount, arc_evict_count, aew_count),
+	TP_PROTO(uint64_t amount, uint64_t arc_evict_count, uint64_t aew_count), \
+	TP_ARGS(amount, arc_evict_count, aew_count))
 /* END CSTYLED */
 DEFINE_ARC_WAIT_FOR_EVICTION_EVENT(zfs_arc__wait__for__eviction);
 
