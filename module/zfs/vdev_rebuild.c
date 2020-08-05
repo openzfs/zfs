@@ -911,6 +911,8 @@ vdev_rebuild_thread(void *arg)
 	spa_config_exit(spa, SCL_CONFIG, FTAG);
 
 	cv_broadcast(&vd->vdev_rebuild_cv);
+
+	thread_exit();
 }
 
 /*
