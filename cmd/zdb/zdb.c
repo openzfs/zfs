@@ -8246,8 +8246,8 @@ main(int argc, char **argv)
 			dump_opt[c] += verbose;
 	}
 
-	aok = (dump_opt['A'] == 1) || (dump_opt['A'] > 2);
-	zfs_recover = (dump_opt['A'] > 1);
+	aok = (dump_opt['A'] == 1) || (dump_opt['A'] + verbose > 2);
+	zfs_recover = (dump_opt['A'] - verbose > 1);
 
 	argc -= optind;
 	argv += optind;
