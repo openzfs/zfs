@@ -33,6 +33,12 @@
 #include <sys/stat.h>
 #include <sys/param.h>
 
+#ifdef IN_BASE
+#define	ZFS_KMOD	"zfs"
+#else
+#define	ZFS_KMOD	"openzfs"
+#endif
+
 void
 libzfs_set_pipe_max(int infd)
 {
@@ -195,10 +201,14 @@ zfs_ioctl(libzfs_handle_t *hdl, int request, zfs_cmd_t *zc)
 int
 libzfs_load_module(void)
 {
-	/* XXX: modname is "zfs" but file is named "openzfs". */
+	/*
+	 * XXX: kldfind(ZFS_KMOD) would be nice here, but we retain
+	 * modfind("zfs") so out-of-base openzfs userland works with the
+	 * in-base module.
+	 */
 	if (modfind("zfs") < 0) {
 		/* Not present in kernel, try loading it. */
-		if (kldload("openzfs") < 0 && errno != EEXIST) {
+		if (kldload(ZFS_KMOD) < 0 && errno != EEXIST) {
 			return (errno);
 		}
 	}
