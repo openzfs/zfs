@@ -55,6 +55,21 @@
 #else
 #define	getnewvnode_reserve_()	getnewvnode_reserve(1)
 #endif
+
+#if  __FreeBSD_version < 1300102
+#define	ASSERT_VOP_IN_SEQC(zp)
+#define	MNTK_FPLOOKUP 0
+#define	vn_seqc_write_begin(vp)
+#define	vn_seqc_write_end(vp)
+
+#ifndef VFS_SMR_DECLARE
+#define	VFS_SMR_DECLARE
+#endif
+#ifndef VFS_SMR_ZONE_SET
+#define	VFS_SMR_ZONE_SET(zone)
+#endif
+#endif
+
 struct hlist_node {
 	struct hlist_node *next, **pprev;
 };

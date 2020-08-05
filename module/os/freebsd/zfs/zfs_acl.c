@@ -1144,6 +1144,7 @@ zfs_acl_chown_setattr(znode_t *zp)
 	if (zp->z_zfsvfs->z_replay == B_FALSE)
 		ASSERT_VOP_ELOCKED(ZTOV(zp), __func__);
 	ASSERT(MUTEX_HELD(&zp->z_acl_lock));
+	ASSERT_VOP_IN_SEQC(ZTOV(zp));
 
 	if ((error = zfs_acl_node_read(zp, B_TRUE, &aclp, B_FALSE)) == 0)
 		zp->z_mode = zfs_mode_compute(zp->z_mode, aclp,
@@ -1170,6 +1171,8 @@ zfs_aclset_common(znode_t *zp, zfs_acl_t *aclp, cred_t *cr, dmu_tx_t *tx)
 	uint64_t		ctime[2];
 	int			count = 0;
 	zfs_acl_phys_t		acl_phys;
+
+	ASSERT_VOP_IN_SEQC(ZTOV(zp));
 
 	mode = zp->z_mode;
 
