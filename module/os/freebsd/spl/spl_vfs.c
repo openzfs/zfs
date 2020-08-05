@@ -161,6 +161,7 @@ mount_snapshot(kthread_t *td, vnode_t **vpp, const char *fstype, char *fspath,
 		vput(vp);
 		return (error);
 	}
+	vn_seqc_write_begin(vp);
 	VOP_UNLOCK1(vp);
 
 	/*
@@ -213,6 +214,7 @@ mount_snapshot(kthread_t *td, vnode_t **vpp, const char *fstype, char *fspath,
 		VI_LOCK(vp);
 		vp->v_iflag &= ~VI_MOUNT;
 		VI_UNLOCK(vp);
+		vn_seqc_write_end(vp);
 		vput(vp);
 		vfs_unbusy(mp);
 		vfs_freeopts(mp->mnt_optnew);
@@ -248,6 +250,7 @@ mount_snapshot(kthread_t *td, vnode_t **vpp, const char *fstype, char *fspath,
 	vfs_event_signal(NULL, VQ_MOUNT, 0);
 	if (VFS_ROOT(mp, LK_EXCLUSIVE, &mvp))
 		panic("mount: lost mount");
+	vn_seqc_write_end(vp);
 	VOP_UNLOCK1(vp);
 #if __FreeBSD_version >= 1300048
 	vfs_op_exit(mp);
