@@ -7647,6 +7647,8 @@ arc_init(void)
 	if (arc_c < arc_c_min)
 		arc_c = arc_c_min;
 
+	arc_register_hotplug();
+
 	arc_state_init();
 
 	buf_init();

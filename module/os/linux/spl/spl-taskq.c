@@ -28,6 +28,7 @@
 #include <sys/kmem.h>
 #include <sys/tsd.h>
 #include <sys/trace_spl.h>
+#include <linux/cpuhotplug.h>
 
 int spl_taskq_thread_bind = 0;
 module_param(spl_taskq_thread_bind, int, 0644);
@@ -58,6 +59,9 @@ EXPORT_SYMBOL(system_delay_taskq);
 /* Private dedicated taskq for creating new taskq threads on demand. */
 static taskq_t *dynamic_taskq;
 static taskq_thread_t *taskq_thread_create(taskq_t *);
+
+/* Multi-callback id for cpu hotplugging. */
+static int spl_taskq_cpuhp_state;
 
 /* List of all taskqs */
 LIST_HEAD(tq_list);
@@ -1031,6 +1035,7 @@ taskq_create(const char *name, int nthreads, pri_t pri,
 	taskq_thread_t *tqt;
 	int count = 0, rc = 0, i;
 	unsigned long irqflags;
+	int proper_nthreads = nthreads;
 
 	ASSERT(name != NULL);
 	ASSERT(minalloc >= 0);
@@ -1041,14 +1046,25 @@ taskq_create(const char *name, int nthreads, pri_t pri,
 	if (flags & TASKQ_THREADS_CPU_PCT) {
 		ASSERT(nthreads <= 100);
 		ASSERT(nthreads >= 0);
-		nthreads = MIN(nthreads, 100);
-		nthreads = MAX(nthreads, 0);
-		nthreads = MAX((num_online_cpus() * nthreads) / 100, 1);
+		proper_nthreads = MIN(nthreads, 100);
+		proper_nthreads = MAX(proper_nthreads, 0);
+		proper_nthreads = MAX((num_online_cpus() * proper_nthreads) /
+		    100, 1);
 	}
 
 	tq = kmem_alloc(sizeof (*tq), KM_PUSHPAGE);
 	if (tq == NULL)
 		return (NULL);
+	if (nthreads == boot_ncpus || flags & TASKQ_THREADS_CPU_PCT) {
+		tq->tq_hp_support = B_TRUE;
+		if (cpuhp_state_add_instance_nocalls(spl_taskq_cpuhp_state,
+		    &tq->tq_hp_cb_node) != 0) {
+			kmem_free(tq, sizeof (*tq));
+			return (NULL);
+		}
+	} else {
+		tq->tq_hp_support = B_FALSE;
+	}
 
 	spin_lock_init(&tq->tq_lock);
 	INIT_LIST_HEAD(&tq->tq_thread_list);
@@ -1057,7 +1073,8 @@ taskq_create(const char *name, int nthreads, pri_t pri,
 	tq->tq_nactive = 0;
 	tq->tq_nthreads = 0;
 	tq->tq_nspawn = 0;
-	tq->tq_maxthreads = nthreads;
+	tq->tq_maxthreads = proper_nthreads;
+	tq->tq_orig_maxthreads = nthreads;
 	tq->tq_pri = pri;
 	tq->tq_minalloc = minalloc;
 	tq->tq_maxalloc = maxalloc;
@@ -1088,7 +1105,7 @@ taskq_create(const char *name, int nthreads, pri_t pri,
 	if ((flags & TASKQ_DYNAMIC) && spl_taskq_thread_dynamic)
 		nthreads = 1;
 
-	for (i = 0; i < nthreads; i++) {
+	for (i = 0; i < proper_nthreads; i++) {
 		tqt = taskq_thread_create(tq);
 		if (tqt == NULL)
 			rc = 1;
@@ -1131,6 +1148,10 @@ taskq_destroy(taskq_t *tq)
 	tq->tq_flags &= ~TASKQ_ACTIVE;
 	spin_unlock_irqrestore(&tq->tq_lock, flags);
 
+	if (tq->tq_hp_support) {
+		VERIFY0(cpuhp_state_remove_instance_nocalls(
+		    spl_taskq_cpuhp_state, &tq->tq_hp_cb_node));
+	}
 	/*
 	 * When TASKQ_ACTIVE is clear new tasks may not be added nor may
 	 * new worker threads be spawned for dynamic taskq.
@@ -1198,7 +1219,6 @@ taskq_destroy(taskq_t *tq)
 }
 EXPORT_SYMBOL(taskq_destroy);
 
-
 static unsigned int spl_taskq_kick = 0;
 
 /*
@@ -1255,11 +1275,91 @@ module_param_call(spl_taskq_kick, param_set_taskq_kick, param_get_uint,
 MODULE_PARM_DESC(spl_taskq_kick,
 	"Write nonzero to kick stuck taskqs to spawn more threads");
 
+static int
+spl_taskq_expand(unsigned int cpu, struct hlist_node *node)
+{
+	taskq_t *tq = list_entry(node, taskq_t, tq_hp_cb_node);
+	unsigned long flags;
+	int err = 0;
+
+	ASSERT(tq);
+	spin_lock_irqsave_nested(&tq->tq_lock, flags, tq->tq_lock_class);
+
+	if (!(tq->tq_flags & TASKQ_ACTIVE))
+		goto out;
+
+	if (tq->tq_flags & TASKQ_THREADS_CPU_PCT) {
+		int nthreads = MIN(tq->tq_orig_maxthreads, 100);
+		nthreads = MAX(nthreads, 0);
+		nthreads = MAX(((num_online_cpus() + 1) * nthreads) / 100, 1);
+		tq->tq_maxthreads = nthreads;
+	} else {
+		tq->tq_maxthreads++;
+	}
+
+	if (!((tq->tq_flags & TASKQ_DYNAMIC) && spl_taskq_thread_dynamic)) {
+		taskq_thread_t *tqt = taskq_thread_create(tq);
+		if (tqt == NULL)
+			err = -1;
+	}
+
+out:
+	spin_unlock_irqrestore(&tq->tq_lock, flags);
+	return (err);
+}
+
+/*
+ * While we don't support offlining CPUs, it is possible that CPUs will fail
+ * to online successfully. We do need to be able to handle this case
+ * gracefully.
+ */
+static int
+spl_taskq_prepare_down(unsigned int cpu, struct hlist_node *node)
+{
+	taskq_t *tq = list_entry(node, taskq_t, tq_hp_cb_node);
+	unsigned long flags;
+	int err = 0;
+
+	ASSERT(tq);
+	spin_lock_irqsave_nested(&tq->tq_lock, flags, tq->tq_lock_class);
+
+	if (!(tq->tq_flags & TASKQ_ACTIVE))
+		goto out;
+
+	if (tq->tq_flags & TASKQ_THREADS_CPU_PCT) {
+		int nthreads = MIN(tq->tq_orig_maxthreads, 100);
+		nthreads = MAX(nthreads, 0);
+		nthreads = MAX(((num_online_cpus()) * nthreads) / 100, 1);
+		tq->tq_maxthreads = nthreads;
+	} else {
+		tq->tq_maxthreads--;
+	}
+
+	if (!(flags & TASKQ_DYNAMIC) || !spl_taskq_thread_dynamic) {
+		taskq_thread_t *tqt = list_entry(tq->tq_thread_list.next,
+		    taskq_thread_t, tqt_thread_list);
+		struct task_struct *thread = tqt->tqt_thread;
+		spin_unlock_irqrestore(&tq->tq_lock, flags);
+
+		kthread_stop(thread);
+
+		spin_lock_irqsave_nested(&tq->tq_lock, flags,
+		    tq->tq_lock_class);
+	}
+
+out:
+	spin_unlock_irqrestore(&tq->tq_lock, flags);
+	return (err);
+}
+
 int
 spl_taskq_init(void)
 {
 	init_rwsem(&tq_list_sem);
 	tsd_create(&taskq_tsd, NULL);
+
+	spl_taskq_cpuhp_state = cpuhp_setup_state_multi(CPUHP_AP_ONLINE_DYN,
+	    "fs/spl_taskq:online", spl_taskq_expand, spl_taskq_prepare_down);
 
 	system_taskq = taskq_create("spl_system_taskq", MAX(boot_ncpus, 64),
 	    maxclsyspri, boot_ncpus, INT_MAX, TASKQ_PREPOPULATE|TASKQ_DYNAMIC);
@@ -1304,4 +1404,7 @@ spl_taskq_fini(void)
 	system_taskq = NULL;
 
 	tsd_destroy(&taskq_tsd);
+
+	cpuhp_remove_multi_state(spl_taskq_cpuhp_state);
+	spl_taskq_cpuhp_state = 0;
 }

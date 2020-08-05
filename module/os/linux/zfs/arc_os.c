@@ -48,6 +48,8 @@
 #include <sys/vmsystm.h>
 #include <sys/zpl.h>
 #include <linux/page_compat.h>
+#include <linux/notifier.h>
+#include <linux/memory.h>
 #endif
 #include <sys/callb.h>
 #include <sys/kstat.h>
@@ -278,18 +280,9 @@ arc_memory_throttle(spa_t *spa, uint64_t reserve, uint64_t txg)
 	return (0);
 }
 
-void
-arc_lowmem_init(void)
+static void
+arc_set_sys_free(uint64_t allmem)
 {
-	uint64_t allmem = arc_all_memory();
-
-	/*
-	 * Register a shrinker to support synchronous (direct) memory
-	 * reclaim from the arc.  This is done to prevent kswapd from
-	 * swapping out pages when it is preferable to shrink the arc.
-	 */
-	spl_register_shrinker(&arc_shrinker);
-
 	/*
 	 * The ARC tries to keep at least this much memory available for the
 	 * system.  This gives the ARC time to shrink in response to memory
@@ -343,6 +336,20 @@ arc_lowmem_init(void)
 }
 
 void
+arc_lowmem_init(void)
+{
+	uint64_t allmem = arc_all_memory();
+
+	/*
+	 * Register a shrinker to support synchronous (direct) memory
+	 * reclaim from the arc.  This is done to prevent kswapd from
+	 * swapping out pages when it is preferable to shrink the arc.
+	 */
+	spl_register_shrinker(&arc_shrinker);
+	arc_set_sys_free(allmem);
+}
+
+void
 arc_lowmem_fini(void)
 {
 	spl_unregister_shrinker(&arc_shrinker);
@@ -375,6 +382,39 @@ param_set_arc_int(const char *buf, zfs_kernel_param_t *kp)
 
 	return (0);
 }
+
+/* ARGSUSED */
+static int
+arc_hotplug_callback(struct notifier_block *self, unsigned long action,
+    void *arg)
+{
+	uint64_t allmem = arc_all_memory();
+	if (action != MEM_ONLINE)
+		return (NOTIFY_OK);
+
+	arc_c_min = MAX(allmem / 32, 2ULL << SPA_MAXBLOCKSHIFT);
+	arc_c_max = arc_default_max(arc_c_min, allmem);
+
+#ifdef __LP64__
+	if (zfs_dirty_data_max_max == 0)
+		zfs_dirty_data_max_max = MIN(4ULL * 1024 * 1024 * 1024,
+		    allmem * zfs_dirty_data_max_max_percent / 100);
+#else
+	if (zfs_dirty_data_max_max == 0)
+		zfs_dirty_data_max_max = MIN(1ULL * 1024 * 1024 * 1024,
+		    allmem * zfs_dirty_data_max_max_percent / 100);
+#endif
+
+	arc_set_sys_free(allmem);
+	return (NOTIFY_OK);
+}
+
+void
+arc_register_hotplug(void)
+{
+	// There is no significance to the value 100
+	hotplug_memory_notifier(arc_hotplug_callback, 100);
+}
 #else /* _KERNEL */
 int64_t
 arc_available_memory(void)
@@ -404,6 +444,10 @@ uint64_t
 arc_free_memory(void)
 {
 	return (spa_get_random(arc_all_memory() * 20 / 100));
+}
+void
+arc_register_hotplug(void)
+{
 }
 #endif /* _KERNEL */
 
