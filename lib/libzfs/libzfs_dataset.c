@@ -3853,7 +3853,24 @@ zfs_destroy(zfs_handle_t *zhp, boolean_t defer)
 		error = lzc_destroy_snaps(nv, defer, NULL);
 		fnvlist_free(nv);
 	} else {
+
+#ifdef __APPLE__
+		/* DiskArbitrationd gets in the way a lot */
+		int retry = 0;
+		do {
+			if ((retry++) != 1) {
+				printf("retry\n");
+				sleep(1);
+			}
+#endif
+
 		error = lzc_destroy(zhp->zfs_name);
+
+#ifdef __APPLE__
+		} while ((error == EBUSY) && (retry <= 5));
+#endif
+
+
 	}
 
 	if (error != 0 && error != ENOENT) {
