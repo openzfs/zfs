@@ -163,22 +163,12 @@ static void spl_cache_shrink(spl_kmem_cache_t *skc, void *obj);
 static void *
 kv_alloc(spl_kmem_cache_t *skc, int size, int flags)
 {
-	gfp_t lflags = kmem_flags_convert(flags);
-	void *ptr;
-
-	ptr = spl_vmalloc(size, lflags | __GFP_HIGHMEM);
-
-	/* Resulting allocated memory will be page aligned */
-	ASSERT(IS_P2ALIGNED(ptr, PAGE_SIZE));
-
-	return (ptr);
+	return (spl_kvmalloc(size, kmem_flags_convert(flags)));
 }
 
 static void
 kv_free(spl_kmem_cache_t *skc, void *ptr, int size)
 {
-	ASSERT(IS_P2ALIGNED(ptr, PAGE_SIZE));
-
 	/*
 	 * The Linux direct reclaim path uses this out of band value to
 	 * determine if forward progress is being made.  Normally this is
@@ -189,17 +179,7 @@ kv_free(spl_kmem_cache_t *skc, void *ptr, int size)
 	if (current->reclaim_state)
 		current->reclaim_state->reclaimed_slab += size >> PAGE_SHIFT;
 
-	vfree(ptr);
-}
-
-/*
- * Required space for each aligned sks.
- */
-static inline uint32_t
-spl_sks_size(spl_kmem_cache_t *skc)
-{
-	return (P2ROUNDUP_TYPED(sizeof (spl_kmem_slab_t),
-	    skc->skc_obj_align, uint32_t));
+	spl_kmem_free_impl(ptr, size);
 }
 
 /*
@@ -260,6 +240,7 @@ spl_sko_from_obj(spl_kmem_cache_t *skc, void *obj)
  *
  * +------------------------+
  * | spl_kmem_slab_t --+-+  |
+ * | alignment padding | |  |
  * | skc_obj_size    <-+ |  |
  * | spl_kmem_obj_t      |  |
  * | skc_obj_size    <---+  |
@@ -288,8 +269,11 @@ spl_slab_alloc(spl_kmem_cache_t *skc, int flags)
 	sks->sks_ref = 0;
 	obj_size = spl_obj_size(skc);
 
+	void *objbase = (void *)P2ROUNDUP_TYPED(base + sizeof (spl_kmem_slab_t),
+	    skc->skc_obj_align, uintptr_t);
+
 	for (int i = 0; i < sks->sks_objs; i++) {
-		void *obj = base + spl_sks_size(skc) + (i * obj_size);
+		void *obj = objbase + (i * obj_size);
 
 		ASSERT(IS_P2ALIGNED(obj, skc->skc_obj_align));
 		spl_kmem_obj_t *sko = spl_sko_from_obj(skc, obj);
@@ -537,10 +521,16 @@ spl_slab_size(spl_kmem_cache_t *skc, uint32_t *objs, uint32_t *size)
 {
 	uint32_t sks_size, obj_size, max_size, tgt_size, tgt_objs;
 
-	sks_size = spl_sks_size(skc);
+	sks_size = sizeof (spl_kmem_slab_t);
 	obj_size = spl_obj_size(skc);
 	max_size = (spl_kmem_cache_max_size * 1024 * 1024);
 	tgt_size = (spl_kmem_cache_obj_per_slab * obj_size + sks_size);
+
+	/*
+	 * Extra space so that we can align the slab, since kvmalloc()
+	 * doesn't return pointers with any particular alignment.
+	 */
+	tgt_size += skc->skc_obj_align;
 
 	if (tgt_size <= max_size) {
 		tgt_objs = (tgt_size - sks_size) / obj_size;
@@ -787,6 +777,14 @@ spl_kmem_cache_create(char *name, size_t size, size_t align,
 	 * Given the type of slab allocate the required resources.
 	 */
 	if (skc->skc_flags & KMC_KVMEM) {
+		/*
+		 * The SPL's slab allocator doesn't support specific alignments,
+		 * because there isn't a way to request a specific alignment
+		 * from kvmalloc().  In practice it returns non-page-aligned
+		 * addresses when using KASAN (kernel address sanitizer).
+		 */
+		ASSERT3U(skc->skc_obj_align, <=, 64);
+
 		rc = spl_slab_size(skc,
 		    &skc->skc_slab_objs, &skc->skc_slab_size);
 		if (rc)

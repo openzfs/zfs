@@ -197,12 +197,11 @@ zio_init(void)
 		align = 8 * SPA_MINBLOCKSIZE;
 #else
 		if (size < PAGESIZE) {
-			align = SPA_MINBLOCKSIZE;
+			align = 64;
 		} else if (IS_P2ALIGNED(size, p2 >> 2)) {
-			align = PAGESIZE;
+			align = 64;
 		}
 #endif
-
 		if (align != 0) {
 			char name[36];
 			(void) snprintf(name, sizeof (name), "zio_buf_%lu",
