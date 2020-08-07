@@ -160,10 +160,12 @@ taskq_t *spl_kmem_cache_taskq;		/* Task queue for aging / reclaim */
 
 static void spl_cache_shrink(spl_kmem_cache_t *skc, void *obj);
 
+int alloc_offset = 1;
+
 static void *
 kv_alloc(spl_kmem_cache_t *skc, int size, int flags)
 {
-	return (spl_kvmalloc(size, kmem_flags_convert(flags)));
+	return (spl_kvmalloc(size + alloc_offset, kmem_flags_convert(flags)) + alloc_offset);
 }
 
 static void
@@ -179,7 +181,7 @@ kv_free(spl_kmem_cache_t *skc, void *ptr, int size)
 	if (current->reclaim_state)
 		current->reclaim_state->reclaimed_slab += size >> PAGE_SHIFT;
 
-	spl_kmem_free_impl(ptr, size);
+	spl_kmem_free_impl(ptr - alloc_offset, size + alloc_offset);
 }
 
 /*
