@@ -538,7 +538,8 @@ tags = ['functional', 'cli_user', 'zpool_status']
 
 [tests/functional/compression]
 tests = ['compress_001_pos', 'compress_002_pos', 'compress_003_pos',
-    'l2arc_encrypted', 'l2arc_encrypted_no_compressed_arc']
+    'l2arc_encrypted', 'l2arc_encrypted_no_compressed_arc',
+    'l2arc_compressed_arc', 'l2arc_compressed_arc_disabled']
 tags = ['functional', 'compression']
 
 [tests/functional/cp_files]
