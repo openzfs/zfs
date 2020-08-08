@@ -8725,14 +8725,14 @@ l2arc_apply_transforms(spa_t *spa, arc_buf_hdr_t *hdr, uint64_t asize,
 		    hdr->b_complevel);
 
 		if (psize >= size) {
+			abd_return_buf(cabd, tmp, asize);
+			abd_free(cabd);
 			HDR_SET_COMPRESS(hdr, ZIO_COMPRESS_OFF);
 			to_write = abd_alloc_for_io(asize, ismd);
 			abd_copy(to_write, hdr->b_l1hdr.b_pabd, size);
 			if (size != asize)
 				abd_zero_off(to_write, size, asize - size);
-			if (cabd != NULL)
-				abd_free(cabd);
-			goto out;
+			goto encrypt;
 		}
 		ASSERT3U(psize, <=, HDR_GET_PSIZE(hdr));
 		if (psize < asize)
@@ -8742,6 +8742,7 @@ l2arc_apply_transforms(spa_t *spa, arc_buf_hdr_t *hdr, uint64_t asize,
 		to_write = cabd;
 	}
 
+encrypt:
 	if (HDR_ENCRYPTED(hdr)) {
 		eabd = abd_alloc_for_io(asize, ismd);
 
