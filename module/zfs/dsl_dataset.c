@@ -4560,6 +4560,7 @@ dsl_dataset_set_compression_sync(void *arg, dmu_tx_t *tx)
 
 	VERIFY0(dsl_dataset_hold(dp, ddsca->ddsca_name, FTAG, &ds));
 	if (zfeature_active(f, ds->ds_feature[f]) != B_TRUE) {
+		ds->ds_feature_activation[f] = (void *)B_TRUE;
 		dsl_dataset_activate_feature(ds->ds_object, f,
 		    ds->ds_feature_activation[f], tx);
 		ds->ds_feature[f] = ds->ds_feature_activation[f];
