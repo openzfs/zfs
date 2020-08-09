@@ -35,10 +35,15 @@
 #else
 #define	nr_inactive_file_pages() global_zone_page_state(NR_INACTIVE_FILE)
 #endif
+#if	defined(ZFS_ENUM_NODE_STAT_ITEM_NR_SLAB_RECLAIMABLE_B)
+#define	nr_slab_reclaimable_pages() \
+	global_node_page_state(NR_SLAB_RECLAIMABLE_B)
+#else
 #if	defined(ZFS_ENUM_NODE_STAT_ITEM_NR_SLAB_RECLAIMABLE)
 #define	nr_slab_reclaimable_pages() global_node_page_state(NR_SLAB_RECLAIMABLE)
 #else
 #define	nr_slab_reclaimable_pages() global_zone_page_state(NR_SLAB_RECLAIMABLE)
+#endif
 #endif
 
 #elif	defined(ZFS_GLOBAL_NODE_PAGE_STATE)
@@ -59,10 +64,15 @@
 #else
 #define	nr_inactive_file_pages() global_page_state(NR_INACTIVE_FILE)
 #endif
+#if	defined(ZFS_ENUM_NODE_STAT_ITEM_NR_SLAB_RECLAIMABLE_B)
+#define	nr_slab_reclaimable_pages() \
+	global_node_page_state(NR_SLAB_RECLAIMABLE_B)
+#else
 #if	defined(ZFS_ENUM_NODE_STAT_ITEM_NR_SLAB_RECLAIMABLE)
 #define	nr_slab_reclaimable_pages() global_node_page_state(NR_SLAB_RECLAIMABLE)
 #else
 #define	nr_slab_reclaimable_pages() global_page_state(NR_SLAB_RECLAIMABLE)
+#endif
 #endif
 
 #else
@@ -71,7 +81,11 @@
 #define	nr_file_pages()			global_page_state(NR_FILE_PAGES)
 #define	nr_inactive_anon_pages()	global_page_state(NR_INACTIVE_ANON)
 #define	nr_inactive_file_pages()	global_page_state(NR_INACTIVE_FILE)
+#ifdef ZFS_ENUM_NODE_STAT_ITEM_NR_SLAB_RECLAIMABLE_B
+#define	nr_slab_reclaimable_pages()	global_page_state(NR_SLAB_RECLAIMABLE_B)
+#else
 #define	nr_slab_reclaimable_pages()	global_page_state(NR_SLAB_RECLAIMABLE)
+#endif /* ZFS_ENUM_NODE_STAT_ITEM_NR_SLAB_RECLAIMABLE_B */
 
 #endif /* ZFS_GLOBAL_ZONE_PAGE_STATE */
 
