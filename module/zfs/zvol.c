@@ -1017,9 +1017,17 @@ zvol_get_data(void *arg, lr_write_t *lr, char *buf, struct lwb *lwb, zio_t *zio)
 	return (SET_ERROR(error));
 }
 
+#ifdef HAVE_SUBMIT_BIO_IN_BLOCK_DEVICE_OPERATIONS
+static blk_qc_t
+zvol_submit_bio(struct bio *bio)
+#else
 static MAKE_REQUEST_FN_RET
 zvol_request(struct request_queue *q, struct bio *bio)
+#endif
 {
+#ifdef HAVE_SUBMIT_BIO_IN_BLOCK_DEVICE_OPERATIONS
+	struct request_queue *q = bio->bi_disk->queue;
+#endif
 	zvol_state_t *zv = q->queuedata;
 	fstrans_cookie_t cookie = spl_fstrans_mark();
 	uint64_t offset = BIO_BI_SECTOR(bio) << 9;
@@ -1139,7 +1147,8 @@ out:
 	spl_fstrans_unmark(cookie);
 #ifdef HAVE_MAKE_REQUEST_FN_RET_INT
 	return (0);
-#elif defined(HAVE_MAKE_REQUEST_FN_RET_QC)
+#elif defined(HAVE_MAKE_REQUEST_FN_RET_QC) || \
+	defined(HAVE_SUBMIT_BIO_IN_BLOCK_DEVICE_OPERATIONS)
 	return (BLK_QC_T_NONE);
 #endif
 }
@@ -1676,6 +1685,9 @@ static struct block_device_operations zvol_ops = {
 	.revalidate_disk	= zvol_revalidate_disk,
 	.getgeo			= zvol_getgeo,
 	.owner			= THIS_MODULE,
+#ifdef HAVE_SUBMIT_BIO_IN_BLOCK_DEVICE_OPERATIONS
+    .submit_bio		= zvol_submit_bio,
+#endif
 };
 
 /*
@@ -1703,7 +1715,11 @@ zvol_alloc(dev_t dev, const char *name)
 
 	mutex_init(&zv->zv_state_lock, NULL, MUTEX_DEFAULT, NULL);
 
+#ifdef HAVE_SUBMIT_BIO_IN_BLOCK_DEVICE_OPERATIONS
+	zv->zv_queue = blk_alloc_queue(NUMA_NO_NODE);
+#else
 	zv->zv_queue = blk_generic_alloc_queue(zvol_request, NUMA_NO_NODE);
+#endif
 	if (zv->zv_queue == NULL)
 		goto out_kmem;
 
