@@ -8900,7 +8900,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 			/*
 			 * If this header has b_rabd, we can use this since it
 			 * must always match the data exactly as it exists on
-			 * disk. Otherwise, the L2ARC can  normally use the
+			 * disk. Otherwise, the L2ARC can normally use the
 			 * hdr's data, but if we're sharing data between the
 			 * hdr and one of its bufs, L2ARC needs its own copy of
 			 * the data so that the ZIO below can't race with the
