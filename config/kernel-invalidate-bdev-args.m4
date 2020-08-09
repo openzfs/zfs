@@ -5,6 +5,7 @@ dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_INVALIDATE_BDEV], [
 	ZFS_LINUX_TEST_SRC([invalidate_bdev], [
 		#include <linux/buffer_head.h>
+		#include <linux/blkdev.h>
 	],[
 		struct block_device *bdev = NULL;
 		invalidate_bdev(bdev);

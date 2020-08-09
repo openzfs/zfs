@@ -6,6 +6,7 @@ dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV_GET_BY_PATH], [
 	ZFS_LINUX_TEST_SRC([blkdev_get_by_path], [
 		#include <linux/fs.h>
+		#include <linux/blkdev.h>
 	], [
 		blkdev_get_by_path(NULL, 0, NULL);
 	])

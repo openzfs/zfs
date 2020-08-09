@@ -5,6 +5,7 @@ dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV_REREAD_PART], [
 	ZFS_LINUX_TEST_SRC([blkdev_reread_part], [
 		#include <linux/fs.h>
+		#include <linux/blkdev.h>
 	], [
 		struct block_device *bdev = NULL;
 		int error;
