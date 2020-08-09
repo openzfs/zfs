@@ -5,6 +5,7 @@ dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_LOOKUP_BDEV], [
 	ZFS_LINUX_TEST_SRC([lookup_bdev_1arg], [
 		#include <linux/fs.h>
+		#include <linux/blkdev.h>
 	], [
 		lookup_bdev(NULL);
 	])
