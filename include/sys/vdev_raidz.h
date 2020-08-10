@@ -35,6 +35,7 @@ extern "C" {
 struct zio;
 struct raidz_row;
 struct raidz_map;
+struct vdev_raidz;
 #if !defined(_KERNEL)
 struct kernel_param {};
 #endif
@@ -47,6 +48,7 @@ struct raidz_map *vdev_raidz_map_alloc(struct zio *, uint64_t, uint64_t,
 struct raidz_map *vdev_raidz_map_alloc_expanded(abd_t *, uint64_t, uint64_t,
     uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
 void vdev_raidz_map_free(struct raidz_map *);
+void vdev_raidz_free(struct vdev_raidz *);
 void vdev_raidz_generate_parity(struct raidz_map *);
 void vdev_raidz_reconstruct(struct raidz_map *, const int *, int);
 
@@ -83,6 +85,11 @@ typedef struct vdev_raidz_expand {
 	uint64_t vre_offset_phys;
 
 	uint64_t vre_offset_pertxg[TXG_SIZE];
+
+	/*
+	 * Last reflow txg per attached device.
+	 */
+	avl_tree_t vre_txgs;
 
 	dsl_scan_state_t vre_state;
 	time_t vre_start_time;

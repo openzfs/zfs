@@ -55,6 +55,7 @@
 #include <sys/abd.h>
 #include <sys/vdev_initialize.h>
 #include <sys/vdev_trim.h>
+#include <sys/vdev_raidz.h>
 #include <sys/zvol.h>
 #include <sys/zfs_ratelimit.h>
 
@@ -909,10 +910,8 @@ vdev_free(vdev_t *vd)
 	ASSERT(vd->vdev_child == NULL);
 	ASSERT(vd->vdev_guid_sum == vd->vdev_guid);
 
-	if (vd->vdev_ops == &vdev_raidz_ops) {
-		vdev_raidz_t *rz = vd->vdev_tsd;
-		kmem_free(rz, sizeof (*rz));
-	}
+	if (vd->vdev_ops == &vdev_raidz_ops)
+		vdev_raidz_free(vd->vdev_tsd);
 
 	/*
 	 * Discard allocation state.
