@@ -5,6 +5,7 @@ dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV_GET_BY_PATH], [
 	ZFS_LINUX_TEST_SRC([blkdev_get_by_path], [
 		#include <linux/fs.h>
+		#include <linux/blkdev.h>
 	], [
 		struct block_device *bdev __attribute__ ((unused)) = NULL;
 		const char *path = "path";
@@ -31,6 +32,7 @@ dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV_PUT], [
 	ZFS_LINUX_TEST_SRC([blkdev_put], [
 		#include <linux/fs.h>
+		#include <linux/blkdev.h>
 	], [
 		struct block_device *bdev = NULL;
 		fmode_t mode = 0;
@@ -55,6 +57,7 @@ dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV_REREAD_PART], [
 	ZFS_LINUX_TEST_SRC([blkdev_reread_part], [
 		#include <linux/fs.h>
+		#include <linux/blkdev.h>
 	], [
 		struct block_device *bdev = NULL;
 		int error;
@@ -81,6 +84,7 @@ dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV_INVALIDATE_BDEV], [
 	ZFS_LINUX_TEST_SRC([invalidate_bdev], [
 		#include <linux/buffer_head.h>
+		#include <linux/blkdev.h>
 	],[
 		struct block_device *bdev = NULL;
 		invalidate_bdev(bdev);
@@ -103,6 +107,7 @@ dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV_LOOKUP_BDEV], [
 	ZFS_LINUX_TEST_SRC([lookup_bdev_1arg], [
 		#include <linux/fs.h>
+		#include <linux/blkdev.h>
 	], [
 		lookup_bdev(NULL);
 	])

@@ -47,10 +47,17 @@
 
 #define	membar_producer()		smp_wmb()
 #define	physmem				zfs_totalram_pages
+#ifdef ZFS_ENUM_NODE_STAT_ITEM_NR_SLAB_RECLAIMABLE_B
+#define	freemem			(nr_free_pages() + \
+				global_page_state(NR_INACTIVE_FILE) + \
+				global_page_state(NR_INACTIVE_ANON) + \
+				global_page_state(NR_SLAB_RECLAIMABLE_B))
+#else
 #define	freemem			(nr_free_pages() + \
 				global_page_state(NR_INACTIVE_FILE) + \
 				global_page_state(NR_INACTIVE_ANON) + \
 				global_page_state(NR_SLAB_RECLAIMABLE))
+#endif /* ZFS_ENUM_NODE_STAT_ITEM_NR_SLAB_RECLAIMABLE_B */
 
 #define	xcopyin(from, to, size)		copy_from_user(to, from, size)
 #define	xcopyout(from, to, size)	copy_to_user(to, from, size)

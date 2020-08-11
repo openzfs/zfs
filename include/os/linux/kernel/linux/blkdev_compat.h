@@ -487,6 +487,7 @@ blk_generic_end_io_acct(struct request_queue *q, int rw,
 #endif
 }
 
+#ifndef HAVE_SUBMIT_BIO_IN_BLOCK_DEVICE_OPERATIONS
 static inline struct request_queue *
 blk_generic_alloc_queue(make_request_fn make_request, int node_id)
 {
@@ -500,5 +501,6 @@ blk_generic_alloc_queue(make_request_fn make_request, int node_id)
 	return (q);
 #endif
 }
+#endif /* !HAVE_SUBMIT_BIO_IN_BLOCK_DEVICE_OPERATIONS */
 
 #endif /* _ZFS_BLKDEV_H */

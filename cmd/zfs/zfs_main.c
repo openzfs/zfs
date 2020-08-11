@@ -6627,7 +6627,15 @@ share_mount_one(zfs_handle_t *zhp, int op, int flags, char *protocol,
 		    zfs_get_name(zhp));
 		return (1);
 	} else if (canmount == ZFS_CANMOUNT_NOAUTO && !explicit) {
-		return (0);
+		/*
+		 * When performing a 'zfs mount -a', we skip any mounts for
+		 * datasets that have 'noauto' set. Sharing a dataset with
+		 * 'noauto' set is only allowed if it's mounted.
+		 */
+		if (op == OP_MOUNT)
+			return (0);
+		if (op == OP_SHARE && !zfs_is_mounted(zhp, NULL))
+			return (0);
 	}
 
 	/*
