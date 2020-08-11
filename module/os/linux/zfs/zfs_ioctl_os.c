@@ -148,6 +148,8 @@ zfsdev_state_destroy(struct file *filp)
 	zs->zs_minor = -1;
 	zfs_onexit_destroy(zs->zs_onexit);
 	zfs_zevent_destroy(zs->zs_zevent);
+	zs->zs_onexit = NULL;
+	zs->zs_zevent = NULL;
 
 	return (0);
 }
