@@ -2409,25 +2409,26 @@ metaslab_load_impl(metaslab_t *msp)
 	msp->ms_max_size = metaslab_largest_allocatable(msp);
 	ASSERT3U(max_size, <=, msp->ms_max_size);
 	hrtime_t load_end = gethrtime();
-		msp->ms_load_time = load_end;
-	if (zfs_flags & ZFS_DEBUG_LOG_SPACEMAP) {
-		zfs_dbgmsg("loading: txg %llu, spa %s, vdev_id %llu, "
-		    "ms_id %llu, smp_length %llu, "
-		    "unflushed_allocs %llu, unflushed_frees %llu, "
-		    "freed %llu, defer %llu + %llu, "
-		    "loading_time %lld ms, ms_max_size %llu, "
-		    "max size error %llu",
-		    spa_syncing_txg(spa), spa_name(spa),
-		    msp->ms_group->mg_vd->vdev_id, msp->ms_id,
-		    space_map_length(msp->ms_sm),
-		    range_tree_space(msp->ms_unflushed_allocs),
-		    range_tree_space(msp->ms_unflushed_frees),
-		    range_tree_space(msp->ms_freed),
-		    range_tree_space(msp->ms_defer[0]),
-		    range_tree_space(msp->ms_defer[1]),
-		    (longlong_t)((load_end - load_start) / 1000000),
-		    msp->ms_max_size, msp->ms_max_size - max_size);
-	}
+	msp->ms_load_time = load_end;
+	zfs_dbgmsg("metaslab_load: txg %llu, spa %s, vdev_id %llu, "
+	    "ms_id %llu, smp_length %llu, "
+	    "unflushed_allocs %llu, unflushed_frees %llu, "
+	    "freed %llu, defer %llu + %llu, unloaded time %llu ms, "
+	    "loading_time %lld ms, ms_max_size %llu, "
+	    "max size error %lld, "
+	    "old_weight %llx, new_weight %llx",
+	    spa_syncing_txg(spa), spa_name(spa),
+	    msp->ms_group->mg_vd->vdev_id, msp->ms_id,
+	    space_map_length(msp->ms_sm),
+	    range_tree_space(msp->ms_unflushed_allocs),
+	    range_tree_space(msp->ms_unflushed_frees),
+	    range_tree_space(msp->ms_freed),
+	    range_tree_space(msp->ms_defer[0]),
+	    range_tree_space(msp->ms_defer[1]),
+	    (longlong_t)((load_start - msp->ms_unload_time) / 1000000),
+	    (longlong_t)((load_end - load_start) / 1000000),
+	    msp->ms_max_size, msp->ms_max_size - max_size,
+	    weight, msp->ms_weight);
 
 	metaslab_verify_space(msp, spa_syncing_txg(spa));
 	mutex_exit(&msp->ms_sync_lock);
@@ -2518,6 +2519,20 @@ metaslab_unload(metaslab_t *msp)
 		if (multilist_link_active(&msp->ms_class_txg_node))
 			multilist_sublist_remove(mls, msp);
 		multilist_sublist_unlock(mls);
+
+		spa_t *spa = msp->ms_group->mg_vd->vdev_spa;
+		zfs_dbgmsg("metaslab_unload: txg %llu, spa %s, vdev_id %llu, "
+		    "ms_id %llu, weight %llx, "
+		    "selected txg %llu (%llu ms ago), alloc_txg %llu, "
+		    "loaded %llu ms ago, max_size %llu",
+		    spa_syncing_txg(spa), spa_name(spa),
+		    msp->ms_group->mg_vd->vdev_id, msp->ms_id,
+		    msp->ms_weight,
+		    msp->ms_selected_txg,
+		    (msp->ms_unload_time - msp->ms_selected_time) / 1000 / 1000,
+		    msp->ms_alloc_txg,
+		    (msp->ms_unload_time - msp->ms_load_time) / 1000 / 1000,
+		    msp->ms_max_size);
 	}
 
 	/*
