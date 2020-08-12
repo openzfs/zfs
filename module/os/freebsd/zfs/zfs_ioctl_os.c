@@ -35,8 +35,13 @@ __FBSDID("$FreeBSD$");
 #include <sys/vdev_os.h>
 #include <sys/zfs_vfsops.h>
 #include <sys/zone.h>
+#include <vm/vm_pageout.h>
 
 #include <sys/zfs_ioctl_impl.h>
+
+#if __FreeBSD_version < 1201517
+#define	vm_page_max_user_wired	vm_page_max_wired
+#endif
 
 int
 zfs_vfs_ref(zfsvfs_t **zfvp)
@@ -133,6 +138,14 @@ zfs_ioc_nextboot(const char *unused, nvlist_t *innvl, nvlist_t *outnvl)
 	return (error);
 }
 
+uint64_t
+zfs_max_nvlist_src_size_os(void)
+{
+	if (zfs_max_nvlist_src_size != 0)
+		return (zfs_max_nvlist_src_size);
+
+	return (ptob(vm_page_max_user_wired) / 4);
+}
 
 void
 zfs_ioctl_init_os(void)

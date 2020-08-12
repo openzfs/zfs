@@ -1077,6 +1077,23 @@ Default value: \fB0\fR
 .sp
 .ne 2
 .na
+\fBzfs_max_nvlist_src_size\fR (ulong)
+.ad
+.RS 12n
+Maximum size in bytes allowed to be passed as zc_nvlist_src_size for ioctls on
+/dev/zfs. This prevents a user from causing the kernel to allocate an excessive
+amount of memory. When the limit is exceeded, the ioctl fails with EINVAL and a
+description of the error is sent to the zfs-dbgmsg log. This parameter should
+not need to be touched under normal circumstances. On FreeBSD, the default is
+based on the system limit on user wired memory. On Linux, the default is
+\fBKMALLOC_MAX_SIZE\fR .
+.sp
+Default value: \fB0\fR (kernel decides)
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_multilist_num_sublists\fR (int)
 .ad
 .RS 12n
