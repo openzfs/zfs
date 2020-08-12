@@ -58,8 +58,9 @@ use Getopt::Std;
 use strict;
 
 my $usage =
-"usage: cstyle [-chpvCP] [-o constructs] file ...
+"usage: cstyle [-cghpvCP] [-o constructs] file ...
 	-c	check continuation indentation inside functions
+	-g	print github actions' workflow commands
 	-h	perform heuristic checks that are sometimes wrong
 	-p	perform some of the more picky checks
 	-v	verbose
@@ -73,12 +74,13 @@ my $usage =
 
 my %opts;
 
-if (!getopts("cho:pvCP", \%opts)) {
+if (!getopts("cgho:pvCP", \%opts)) {
 	print $usage;
 	exit 2;
 }
 
 my $check_continuation = $opts{'c'};
+my $github_workflow = $opts{'g'} || $ENV{'CI'};
 my $heuristic = $opts{'h'};
 my $picky = $opts{'p'};
 my $verbose = $opts{'v'};
@@ -197,7 +199,10 @@ sub err($) {
 			printf $fmt, $filename, $., $error, $line;
 		} else {
 			printf $fmt, $filename, $., $error;
-		}	
+		}
+		if ($github_workflow) {
+			printf "::error file=%s,line=%s::%s\n", $filename, $., $error;
+		}
 		$err_stat = 1;
 	}
 }
@@ -415,7 +420,7 @@ line: while (<$filehandle>) {
 			$prev = $line;
 			next line;
 		} elsif ($picky	&& ! (/^\t/ && $function_header_full_indent != 0)) {
-			
+
 			err("continuation line should be indented by 4 spaces");
 		}
 	}
