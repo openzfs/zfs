@@ -686,7 +686,6 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_SPARES		"spares"
 #define	ZPOOL_CONFIG_IS_SPARE		"is_spare"
 #define	ZPOOL_CONFIG_NPARITY		"nparity"
-#define	ZPOOL_CONFIG_RAIDZ_LOGICAL_WIDTH "raidz_logical_width"
 #define	ZPOOL_CONFIG_RAIDZ_EXPAND_OFFSET "raidz_expand_offset"
 #define	ZPOOL_CONFIG_RAIDZ_EXPAND_TXGS	"raidz_expand_txgs"
 #define	ZPOOL_CONFIG_HOSTID		"hostid"
