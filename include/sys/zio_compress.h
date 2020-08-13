@@ -179,16 +179,6 @@ extern size_t lz4_compress_zfs(void *src, void *dst, size_t s_len, size_t d_len,
 extern int lz4_decompress_zfs(void *src, void *dst, size_t s_len, size_t d_len,
     int level);
 
-extern void zstd_init(void);
-extern void zstd_fini(void);
-extern size_t zstd_compress(void *src, void *dst, size_t s_len, size_t d_len,
-    int level);
-extern int zstd_decompress(void *src, void *dst, size_t s_len, size_t d_len,
-    int level);
-extern int zstd_decompress_level(void *src, void *dst, size_t s_len,
-    size_t d_len, uint8_t *level);
-extern int zstd_get_level(void *src, size_t s_len, uint8_t *level);
-
 /*
  * Compress and decompress data if necessary.
  */
