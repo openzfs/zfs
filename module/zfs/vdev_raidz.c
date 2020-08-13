@@ -2141,8 +2141,7 @@ vdev_raidz_io_start(zio_t *zio)
 	if (vdrz->vd_logical_width != vdrz->vd_physical_width) {
 		uint64_t logical_width = vdev_raidz_get_logical_width(vdrz, zio);
 		if (vdrz->vn_vre.vre_offset != UINT64_MAX ||
-		    (zio->io_type == ZIO_TYPE_READ &&
-		    logical_width != vdrz->vd_physical_width)) {
+		    logical_width != vdrz->vd_physical_width) {
 			/* XXX rangelock not needed after expansion completes */
 			zfs_locked_range_t *lr =
 			    zfs_rangelock_enter(&vdrz->vn_vre.vre_rangelock,
