@@ -20,6 +20,7 @@ dist_pkgdata_SCRIPTS = \
 	zfs_receive_016_pos.ksh \
 	receive-o-x_props_override.ksh \
 	zfs_receive_from_encrypted.ksh \
+	zfs_receive_from_zstd.ksh \
 	zfs_receive_to_encrypted.ksh \
 	zfs_receive_raw.ksh \
 	zfs_receive_raw_incremental.ksh \
