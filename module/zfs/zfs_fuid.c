@@ -387,11 +387,34 @@ zfs_fuid_map_ids(znode_t *zp, cred_t *cr, uid_t *uidp, uid_t *gidp)
 	    cr, ZFS_GROUP);
 }
 
+#ifdef __FreeBSD__
 uid_t
 zfs_fuid_map_id(zfsvfs_t *zfsvfs, uint64_t fuid,
     cred_t *cr, zfs_fuid_type_t type)
 {
-#ifdef HAVE_KSID
+	uint32_t index = FUID_INDEX(fuid);
+
+	if (index == 0)
+		return (fuid);
+
+	return (UID_NOBODY);
+}
+#elif defined(__linux__)
+uid_t
+zfs_fuid_map_id(zfsvfs_t *zfsvfs, uint64_t fuid,
+    cred_t *cr, zfs_fuid_type_t type)
+{
+	/*
+	 * The Linux port only supports POSIX IDs, use the passed id.
+	 */
+	return (fuid);
+}
+
+#else
+uid_t
+zfs_fuid_map_id(zfsvfs_t *zfsvfs, uint64_t fuid,
+    cred_t *cr, zfs_fuid_type_t type)
+{
 	uint32_t index = FUID_INDEX(fuid);
 	const char *domain;
 	uid_t id;
@@ -410,13 +433,8 @@ zfs_fuid_map_id(zfsvfs_t *zfsvfs, uint64_t fuid,
 		    FUID_RID(fuid), &id);
 	}
 	return (id);
-#else
-	/*
-	 * The Linux port only supports POSIX IDs, use the passed id.
-	 */
-	return (fuid);
-#endif /* HAVE_KSID */
 }
+#endif
 
 /*
  * Add a FUID node to the list of fuid's being created for this
@@ -559,9 +577,9 @@ zfs_fuid_create(zfsvfs_t *zfsvfs, uint64_t id, cred_t *cr,
 	const char *domain;
 	char *kdomain;
 	uint32_t fuid_idx = FUID_INDEX(id);
-	uint32_t rid;
+	uint32_t rid = 0;
 	idmap_stat status;
-	uint64_t idx = 0;
+	uint64_t idx = UID_NOBODY;
 	zfs_fuid_t *zfuid = NULL;
 	zfs_fuid_info_t *fuidp = NULL;
 
@@ -711,9 +729,11 @@ boolean_t
 zfs_groupmember(zfsvfs_t *zfsvfs, uint64_t id, cred_t *cr)
 {
 #ifdef HAVE_KSID
+	uid_t		gid;
+
+#ifdef illumos
 	ksid_t		*ksid = crgetsid(cr, KSID_GROUP);
 	ksidlist_t	*ksidlist = crgetsidlist(cr);
-	uid_t		gid;
 
 	if (ksid && ksidlist) {
 		int		i;
@@ -746,6 +766,7 @@ zfs_groupmember(zfsvfs_t *zfsvfs, uint64_t id, cred_t *cr)
 			}
 		}
 	}
+#endif /* illumos */
 
 	/*
 	 * Not found in ksidlist, check posix groups

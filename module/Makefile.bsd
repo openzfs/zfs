@@ -27,9 +27,9 @@ CFLAGS+= -I${INCDIR}/os/freebsd/spl
 CFLAGS+= -I${INCDIR}/os/freebsd/zfs
 CFLAGS+= -include ${INCDIR}/os/freebsd/spl/sys/ccompile.h
 
-CFLAGS+= -D__KERNEL__ -DFREEBSD_NAMECACHE -DBUILDING_ZFS  -D__BSD_VISIBLE=1
-CFLAGS+= -DHAVE_UIO_ZEROCOPY -DWITHOUT_NETDUMP -D__KERNEL -D_SYS_CONDVAR_H_
-CFLAGS+= -D_SYS_VMEM_H_ -DKDTRACE_HOOKS -DSMP
+CFLAGS+= -D__KERNEL__ -DFREEBSD_NAMECACHE -DBUILDING_ZFS  -D__BSD_VISIBLE=1 \
+	 -DHAVE_UIO_ZEROCOPY -DWITHOUT_NETDUMP -D__KERNEL -D_SYS_CONDVAR_H_ \
+	 -D_SYS_VMEM_H_ -DKDTRACE_HOOKS -DSMP -DHAVE_KSID
 
 .if ${MACHINE_ARCH} == "amd64"
 CFLAGS+= -DHAVE_AVX2 -DHAVE_AVX -D__x86_64 -DHAVE_SSE2 -DHAVE_AVX512F -DHAVE_SSSE3
@@ -276,7 +276,6 @@ SRCS+=	abd.c \
 	zfs_file_os.c \
 	zfs_fm.c \
 	zfs_fuid.c \
-	zfs_fuid_os.c \
 	zfs_ioctl.c \
 	zfs_onexit.c \
 	zfs_quota.c \
