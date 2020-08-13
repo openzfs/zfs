@@ -208,12 +208,7 @@ vedv_raidz_reflow_compare(const void *x1, const void *x2)
 	const reflow_node_t *l = (reflow_node_t *)x1;
 	const reflow_node_t *r = (reflow_node_t *)x2;
 
-	if (l->re_txg < r->re_txg)
-		return (-1);
-	else if (l->re_txg == r->re_txg)
-		return (0);
-
-	return (1);
+	return (TREE_CMP(l->re_txg, r->re_txg));
 }
 
 void
