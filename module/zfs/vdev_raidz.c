@@ -2092,9 +2092,9 @@ vdev_raidz_io_start_read(zio_t *zio, raidz_row_t *rr, boolean_t forceparity)
 }
 
 static uint64_t
-vdev_raidz_get_width(vdev_raidz_t *vdrz, uint64_t blk_birth)
+vdev_raidz_get_logical_width(vdev_raidz_t *vdrz, zio_t *zio)
 {
-	reflow_node_t *re, lookup = { blk_birth, 0 };
+	reflow_node_t *re, lookup = { BP_PHYSICAL_BIRTH(zio->io_bp), 0 };
 	avl_index_t where;
 
 	re = avl_find(&vdrz->vre_txgs, &lookup, &where);
@@ -2139,9 +2139,10 @@ vdev_raidz_io_start(zio_t *zio)
 	    BP_PHYSICAL_BIRTH(zio->io_bp),
 	    vdrz->vd_logical_width);
 	if (vdrz->vd_logical_width != vdrz->vd_physical_width) {
-		uint64_t width = vdev_raidz_get_width(vdrz, zio->io_bp->blk_birth);
+		uint64_t logical_width = vdev_raidz_get_logical_width(vdrz, zio);
 		if (vdrz->vn_vre.vre_offset != UINT64_MAX ||
-		    (zio->io_type == ZIO_TYPE_READ && width != vdrz->vd_physical_width)) {
+		    (zio->io_type == ZIO_TYPE_READ &&
+		    logical_width != vdrz->vd_physical_width)) {
 			/* XXX rangelock not needed after expansion completes */
 			zfs_locked_range_t *lr =
 			    zfs_rangelock_enter(&vdrz->vn_vre.vre_rangelock,
