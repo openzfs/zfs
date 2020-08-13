@@ -7610,19 +7610,20 @@ out:
 void
 zfs_kmod_fini(void)
 {
-	zfsdev_state_t *zs, *zsprev = NULL;
+	zfsdev_state_t *zs, *zsnext = NULL;
 
 	zfsdev_detach();
 
 	mutex_destroy(&zfsdev_state_lock);
 
-	for (zs = zfsdev_state_list; zs != NULL; zs = zs->zs_next) {
-		if (zsprev)
-			kmem_free(zsprev, sizeof (zfsdev_state_t));
-		zsprev = zs;
+	for (zs = zfsdev_state_list; zs != NULL; zs = zsnext) {
+		zsnext = zs->zs_next;
+		if (zs->zs_onexit)
+			zfs_onexit_destroy(zs->zs_onexit);
+		if (zs->zs_zevent)
+			zfs_zevent_destroy(zs->zs_zevent);
+		kmem_free(zs, sizeof (zfsdev_state_t));
 	}
-	if (zsprev)
-		kmem_free(zsprev, sizeof (zfsdev_state_t));
 
 	zfs_fini();
 	spa_fini();
