@@ -86,11 +86,6 @@ typedef struct vdev_raidz_expand {
 
 	uint64_t vre_offset_pertxg[TXG_SIZE];
 
-	/*
-	 * Last reflow txg per attached device.
-	 */
-	avl_tree_t vre_txgs;
-
 	dsl_scan_state_t vre_state;
 	time_t vre_start_time;
 	time_t vre_end_time;
@@ -102,6 +97,12 @@ typedef struct vdev_raidz {
 	int vd_logical_width;
 	int vd_physical_width;
 	int vd_nparity;
+
+	/*
+	 * Last reflow txg per attached device.
+	 */
+	avl_tree_t vre_txgs;
+
 	/*
 	 * If this vdev is being expanded, spa_raidz_expand is set to this
 	 */
