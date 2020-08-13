@@ -201,6 +201,8 @@ zfsdev_close(void *data)
 	zfs_onexit_destroy(zs->zs_onexit);
 	zfs_zevent_destroy(zs->zs_zevent);
 	mutex_exit(&zfsdev_state_lock);
+	zs->zs_onexit = NULL;
+	zs->zs_zevent = NULL;
 }
 
 static int
