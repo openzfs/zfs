@@ -895,6 +895,12 @@ static void l2arc_read_done(zio_t *);
 static void l2arc_do_free_on_write(void);
 
 /*
+ * l2arc_mfuonly : A ZFS module parameter that controls whether only MFU
+ * 		metadata and data are cached from ARC into L2ARC.
+ */
+int l2arc_mfuonly = 0;
+
+/*
  * L2ARC TRIM
  * l2arc_trim_ahead : A ZFS module parameter that controls how much ahead of
  * 		the current write size (l2arc_write_max) we should TRIM if we
@@ -8909,6 +8915,15 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 	 * Copy buffers for L2ARC writing.
 	 */
 	for (int try = 0; try < L2ARC_FEED_TYPES; try++) {
+		/*
+		 * If try == 1 or 3, we cache MRU metadata and data
+		 * respectively.
+		 */
+		if (l2arc_mfuonly) {
+			if (try == 1 || try == 3)
+				continue;
+		}
+
 		multilist_sublist_t *mls = l2arc_sublist_lock(try);
 		uint64_t passed_sz = 0;
 
@@ -10561,6 +10576,9 @@ ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, rebuild_enabled, INT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, rebuild_blocks_min_l2size, ULONG, ZMOD_RW,
 	"Min size in bytes to write rebuild log blocks in L2ARC");
+
+ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, mfuonly, INT, ZMOD_RW,
+	"Cache only MFU data from ARC into L2ARC");
 
 ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, lotsfree_percent, param_set_arc_int,
 	param_get_int, ZMOD_RW, "System free memory I/O throttle in bytes");
