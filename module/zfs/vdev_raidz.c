@@ -196,6 +196,14 @@ vdev_raidz_map_free_vsd(zio_t *zio)
 	}
 }
 
+/*
+ * The node of avl tree below is main part of expanded raidz time dependent
+ * geometry logic. Allowing to mix BPs stored in reflowed and normal format
+ * depending of BP blk birth txg. The new reflow node is added on first
+ * expansion process start and every time on expansion reflow process completion.
+ * Where re_txg is last reflow process txg and the re_logical_width is actual
+ * logical width required to read BP in reflowed format.
+ */
 typedef struct reflow_node {
 	uint64_t re_txg;
 	uint64_t re_logical_width;
