@@ -1658,33 +1658,22 @@ zfs_acl_ids_create(znode_t *dzp, int flag, vattr_t *vap, cred_t *cr,
 				acl_ids->z_fgid = 0;
 		}
 		if (acl_ids->z_fgid == 0) {
-			if (dzp->z_mode & S_ISGID) {
-				char		*domain;
-				uint32_t	rid;
+			char		*domain;
+			uint32_t	rid;
 
-				acl_ids->z_fgid = dzp->z_gid;
-				gid = zfs_fuid_map_id(zfsvfs, acl_ids->z_fgid,
-				    cr, ZFS_GROUP);
+			acl_ids->z_fgid = dzp->z_gid;
+			gid = zfs_fuid_map_id(zfsvfs, acl_ids->z_fgid,
+			    cr, ZFS_GROUP);
 
-				if (zfsvfs->z_use_fuids &&
-				    IS_EPHEMERAL(acl_ids->z_fgid)) {
-					domain = zfs_fuid_idx_domain(
-					    &zfsvfs->z_fuid_idx,
-					    FUID_INDEX(acl_ids->z_fgid));
-					rid = FUID_RID(acl_ids->z_fgid);
-					zfs_fuid_node_add(&acl_ids->z_fuidp,
-					    domain, rid,
-					    FUID_INDEX(acl_ids->z_fgid),
-					    acl_ids->z_fgid, ZFS_GROUP);
-				}
-			} else {
-				acl_ids->z_fgid = zfs_fuid_create_cred(zfsvfs,
-				    ZFS_GROUP, cr, &acl_ids->z_fuidp);
-#ifdef __FreeBSD_kernel__
-				gid = acl_ids->z_fgid = dzp->z_gid;
-#else
-				gid = crgetgid(cr);
-#endif
+			if (zfsvfs->z_use_fuids &&
+			    IS_EPHEMERAL(acl_ids->z_fgid)) {
+				domain =
+				    zfs_fuid_idx_domain(&zfsvfs->z_fuid_idx,
+				    FUID_INDEX(acl_ids->z_fgid));
+				rid = FUID_RID(acl_ids->z_fgid);
+				zfs_fuid_node_add(&acl_ids->z_fuidp,
+				    domain, rid, FUID_INDEX(acl_ids->z_fgid),
+				    acl_ids->z_fgid, ZFS_GROUP);
 			}
 		}
 	}
