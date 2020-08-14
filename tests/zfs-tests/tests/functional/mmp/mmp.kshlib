@@ -206,18 +206,20 @@ function import_no_activity_check # pool opts
 {
 	typeset pool=$1
 	typeset opts=$2
-
-	typeset max_duration=$((MMP_TEST_DURATION_DEFAULT-1))
+	typeset tmpfile=$(mktemp)
 
 	SECONDS=0
-	zpool import $opts $pool
+	zpool import $opts -v $pool > $tmpfile 2>&1
 	typeset rc=$?
+	cat $tmpfile
 
-	if [[ $SECONDS -gt $max_duration ]]; then
-		log_fail "ERROR: import_no_activity_check unexpected activity \
-check (${SECONDS}s gt $max_duration)"
+	if grep "Multihost is checking" $tmpfile; then
+		log_note $(grep "Multihost is checking" $tmpfile)
+		log_fail "ERROR: import_no_activity_check unexpected \
+activity check reported"
 	fi
 
+	rm $tmpfile
 	return $rc
 }
 
@@ -225,17 +227,25 @@ function import_activity_check # pool opts act_test_duration
 {
 	typeset pool=$1
 	typeset opts=$2
-	typeset min_duration=${3:-$MMP_TEST_DURATION_DEFAULT}
+	typeset min_duration=${4:-$MMP_TEST_DURATION_DEFAULT}
+	typeset tmpfile=$(mktemp)
 
 	SECONDS=0
-	zpool import $opts $pool
+	zpool import -v $opts $pool > $tmpfile 2>&1
 	typeset rc=$?
+	cat $tmpfile
 
 	if [[ $SECONDS -le $min_duration ]]; then
 		log_fail "ERROR: import_activity_check expected activity check \
 (${SECONDS}s le min_duration $min_duration)"
 	fi
 
+	if ! grep "use .zpool import -f" $tmpfile && ! grep "Multihost is checking" $tmpfile; then
+		log_fail "ERROR: import_activity_check expected \
+Multihost status message"
+	fi
+
+	rm $tmpfile
 	return $rc
 }
 
