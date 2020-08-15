@@ -755,13 +755,13 @@ def section_l2arc(kstats_dict):
         prt_i2('Done ratio:',
                f_perc(arc_stats['l2_writes_done'],
                       arc_stats['l2_writes_sent']),
-               f_bytes(arc_stats['l2_writes_done']))
+               f_hits(arc_stats['l2_writes_done']))
         prt_i2('Error ratio:',
                f_perc(arc_stats['l2_writes_error'],
                       arc_stats['l2_writes_sent']),
-               f_bytes(arc_stats['l2_writes_error']))
+               f_hits(arc_stats['l2_writes_error']))
     else:
-        prt_i2('Writes sent:', '100 %', f_bytes(arc_stats['l2_writes_sent']))
+        prt_i2('Writes sent:', '100 %', f_hits(arc_stats['l2_writes_sent']))
 
     print()
     print('L2ARC evicts:')
