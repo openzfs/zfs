@@ -266,6 +266,8 @@ elif sys.platform.startswith('linux'):
         'cli_root/zpool_reopen/zpool_reopen_003_pos': ['FAIL', known_reason],
         'limits/filesystem_limit': ['SKIP', known_reason],
         'limits/snapshot_limit': ['SKIP', known_reason],
+        'mmp/mmp_exported_import': ['FAIL', known_reason],
+        'mmp/mmp_inactive_import': ['FAIL', known_reason],
         'refreserv/refreserv_raidz': ['FAIL', known_reason],
         'rsend/rsend_007_pos': ['FAIL', known_reason],
         'rsend/rsend_010_pos': ['FAIL', known_reason],
