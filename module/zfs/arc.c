@@ -920,7 +920,7 @@ unsigned long l2arc_rebuild_blocks_min_l2size = 1024 * 1024 * 1024;
 
 /* L2ARC persistence rebuild control routines. */
 void l2arc_rebuild_vdev(vdev_t *vd, boolean_t reopen);
-static void l2arc_dev_rebuild_start(l2arc_dev_t *dev);
+static void l2arc_dev_rebuild_thread(void *arg);
 static int l2arc_rebuild(l2arc_dev_t *dev);
 
 /* L2ARC persistence read I/O routines. */
@@ -9500,8 +9500,7 @@ l2arc_spa_rebuild_start(spa_t *spa)
 		mutex_enter(&l2arc_rebuild_thr_lock);
 		if (dev->l2ad_rebuild && !dev->l2ad_rebuild_cancel) {
 			dev->l2ad_rebuild_began = B_TRUE;
-			(void) thread_create(NULL, 0,
-			    (void (*)(void *))l2arc_dev_rebuild_start,
+			(void) thread_create(NULL, 0, l2arc_dev_rebuild_thread,
 			    dev, 0, &p0, TS_RUN, minclsyspri);
 		}
 		mutex_exit(&l2arc_rebuild_thr_lock);
@@ -9512,8 +9511,10 @@ l2arc_spa_rebuild_start(spa_t *spa)
  * Main entry point for L2ARC rebuilding.
  */
 static void
-l2arc_dev_rebuild_start(l2arc_dev_t *dev)
+l2arc_dev_rebuild_thread(void *arg)
 {
+	l2arc_dev_t *dev = arg;
+
 	VERIFY(!dev->l2ad_rebuild_cancel);
 	VERIFY(dev->l2ad_rebuild);
 	(void) l2arc_rebuild(dev);
