@@ -100,6 +100,10 @@ spa_config_load(void)
 
 	err = zfs_file_open(pathname, O_RDONLY, 0, &fp);
 
+#ifdef __FreeBSD__
+	if (err)
+		err = zfs_file_open(ZPOOL_CACHE_BOOT, O_RDONLY, 0, &fp);
+#endif
 	kmem_free(pathname, MAXPATHLEN);
 
 	if (err)
