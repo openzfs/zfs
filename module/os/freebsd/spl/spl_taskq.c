@@ -44,12 +44,19 @@ __FBSDID("$FreeBSD$");
 
 #include <vm/uma.h>
 
+#if __FreeBSD_version < 1201522
+#define	taskqueue_start_threads_in_proc(tqp, count, pri, proc, name, ...) \
+    taskqueue_start_threads(tqp, count, pri, name, __VA_ARGS__)
+#endif
+
 static uint_t taskq_tsd;
 static uma_zone_t taskq_zone;
 
 taskq_t *system_taskq = NULL;
 taskq_t *system_delay_taskq = NULL;
 taskq_t *dynamic_taskq = NULL;
+
+proc_t *system_proc;
 
 extern int uma_align_cache;
 
@@ -166,8 +173,8 @@ taskq_tsd_set(void *context)
 }
 
 static taskq_t *
-taskq_create_with_init(const char *name, int nthreads, pri_t pri,
-    int minalloc __unused, int maxalloc __unused, uint_t flags)
+taskq_create_impl(const char *name, int nthreads, pri_t pri,
+    proc_t *proc __maybe_unused, uint_t flags)
 {
 	taskq_t *tq;
 
@@ -181,8 +188,8 @@ taskq_create_with_init(const char *name, int nthreads, pri_t pri,
 	    taskq_tsd_set, tq);
 	taskqueue_set_callback(tq->tq_queue, TASKQUEUE_CALLBACK_TYPE_SHUTDOWN,
 	    taskq_tsd_set, NULL);
-	(void) taskqueue_start_threads(&tq->tq_queue, nthreads, pri,
-	    "%s", name);
+	(void) taskqueue_start_threads_in_proc(&tq->tq_queue, nthreads, pri,
+	    proc, "%s", name);
 
 	return ((taskq_t *)tq);
 }
@@ -191,18 +198,14 @@ taskq_t *
 taskq_create(const char *name, int nthreads, pri_t pri, int minalloc __unused,
     int maxalloc __unused, uint_t flags)
 {
-
-	return (taskq_create_with_init(name, nthreads, pri, minalloc, maxalloc,
-	    flags));
+	return (taskq_create_impl(name, nthreads, pri, system_proc, flags));
 }
 
 taskq_t *
-taskq_create_proc(const char *name, int nthreads, pri_t pri, int minalloc,
-    int maxalloc, proc_t *proc __unused, uint_t flags)
+taskq_create_proc(const char *name, int nthreads, pri_t pri,
+    int minalloc __unused, int maxalloc __unused, proc_t *proc, uint_t flags)
 {
-
-	return (taskq_create_with_init(name, nthreads, pri, minalloc, maxalloc,
-	    flags));
+	return (taskq_create_impl(name, nthreads, pri, proc, flags));
 }
 
 void

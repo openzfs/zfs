@@ -61,13 +61,14 @@ typedef	struct thread	kthread_t;
 typedef struct thread	*kthread_id_t;
 typedef struct proc	proc_t;
 
-extern struct proc *zfsproc;
+extern proc_t *system_proc;
 
 static __inline kthread_t *
 do_thread_create(caddr_t stk, size_t stksize, void (*proc)(void *), void *arg,
     size_t len, proc_t *pp, int state, pri_t pri, const char *name)
 {
 	kthread_t *td = NULL;
+	proc_t **ppp;
 	int error;
 
 	/*
@@ -77,8 +78,12 @@ do_thread_create(caddr_t stk, size_t stksize, void (*proc)(void *), void *arg,
 	ASSERT(len == 0);
 	ASSERT(state == TS_RUN);
 
-	error = kproc_kthread_add(proc, arg, &zfsproc, &td,
-	    RFSTOPPED, stksize / PAGE_SIZE, "zfskern", "%s", name);
+	if (pp == &p0)
+		ppp = &system_proc;
+	else
+		ppp = &pp;
+	error = kproc_kthread_add(proc, arg, ppp, &td, RFSTOPPED,
+	    stksize / PAGE_SIZE, "zfskern", "%s", name);
 	if (error == 0) {
 		thread_lock(td);
 		sched_prio(td, pri);
