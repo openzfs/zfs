@@ -1465,7 +1465,7 @@ zfs_btree_remove_from_node(zfs_btree_t *tree, zfs_btree_core_t *node,
 	/*
 	 * In this case, neither of our neighbors can spare an element, so we
 	 * need to merge with one of them. We prefer the left one,
-	 * arabitrarily. Move the separator into the leftmost merging node
+	 * arbitrarily. Move the separator into the leftmost merging node
 	 * (which may be us or the left neighbor), and then move the right
 	 * merging node's elements. Once that's done, we go back and delete
 	 * the element we're removing. Finally, go into the parent and delete
@@ -1707,7 +1707,7 @@ zfs_btree_remove_idx(zfs_btree_t *tree, zfs_btree_index_t *where)
 	/*
 	 * In this case, neither of our neighbors can spare an element, so we
 	 * need to merge with one of them. We prefer the left one,
-	 * arabitrarily. Move the separator into the leftmost merging node
+	 * arbitrarily. Move the separator into the leftmost merging node
 	 * (which may be us or the left neighbor), and then move the right
 	 * merging node's elements. Once that's done, we go back and delete
 	 * the element we're removing. Finally, go into the parent and delete
