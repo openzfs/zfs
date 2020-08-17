@@ -1020,7 +1020,7 @@ zfeature_active(spa_feature_t f, void *arg)
 {
 	switch (spa_feature_table[f].fi_type) {
 	case ZFEATURE_TYPE_BOOLEAN: {
-		boolean_t val = (boolean_t)arg;
+		boolean_t val = (boolean_t)(uintptr_t)arg;
 		ASSERT(val == B_FALSE || val == B_TRUE);
 		return (val);
 	}
@@ -1076,7 +1076,7 @@ dsl_dataset_activate_feature(uint64_t dsobj, spa_feature_t f, void *arg,
 
 	switch (spa_feature_table[f].fi_type) {
 	case ZFEATURE_TYPE_BOOLEAN:
-		ASSERT3S((boolean_t)arg, ==, B_TRUE);
+		ASSERT3S((boolean_t)(uintptr_t)arg, ==, B_TRUE);
 		VERIFY0(zap_add(mos, dsobj, spa_feature_table[f].fi_guid,
 		    sizeof (zero), 1, &zero, tx));
 		break;
