@@ -37,8 +37,6 @@
  */
 typedef enum kmc_bit {
 	KMC_BIT_NODEBUG		= 1,	/* Default behavior */
-	KMC_BIT_KMEM		= 5,	/* Use kmem cache */
-	KMC_BIT_VMEM		= 6,	/* Use vmem cache */
 	KMC_BIT_KVMEM		= 7,	/* Use kvmalloc linux allocator  */
 	KMC_BIT_SLAB		= 8,	/* Use Linux slab cache */
 	KMC_BIT_DEADLOCKED	= 14,	/* Deadlock detected */
@@ -60,8 +58,6 @@ typedef enum kmem_cbrc {
 } kmem_cbrc_t;
 
 #define	KMC_NODEBUG		(1 << KMC_BIT_NODEBUG)
-#define	KMC_KMEM		(1 << KMC_BIT_KMEM)
-#define	KMC_VMEM		(1 << KMC_BIT_VMEM)
 #define	KMC_KVMEM		(1 << KMC_BIT_KVMEM)
 #define	KMC_SLAB		(1 << KMC_BIT_SLAB)
 #define	KMC_DEADLOCKED		(1 << KMC_BIT_DEADLOCKED)
