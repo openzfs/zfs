@@ -48,6 +48,13 @@ unsigned long zvol_max_discard_blocks = 16384;
 unsigned int zvol_threads = 32;
 
 /*
+ * Delphix: Make all zvol writes and discards sync unless sync=disabled
+ * is set. This is meant to avoid data corruption when exposing the zvols
+ * over iSCSI and the system reboots unexpectedly.
+ */
+unsigned int zvol_sync_by_default = 1;
+
+/*
  * This flag is specific to the Delphix product.  It always exports a phys
  * block size of 512 bytes regardless of the volblocksize.
  */
@@ -133,8 +140,10 @@ zvol_write(void *arg)
 	blk_generic_start_io_acct(zv->zv_zso->zvo_queue, WRITE,
 	    bio_sectors(bio), &zv->zv_zso->zvo_disk->part0);
 
-	boolean_t sync =
-	    bio_is_fua(bio) || zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS;
+	boolean_t sync = bio_is_fua(bio) ||
+	    zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS ||
+	    (zvol_sync_by_default &&
+	    zv->zv_objset->os_sync == ZFS_SYNC_STANDARD);
 
 	zfs_locked_range_t *lr = zfs_rangelock_enter(&zv->zv_rangelock,
 	    uio.uio_loffset, uio.uio_resid, RL_WRITER);
@@ -202,7 +211,9 @@ zvol_discard(void *arg)
 	blk_generic_start_io_acct(zv->zv_zso->zvo_queue, WRITE,
 	    bio_sectors(bio), &zv->zv_zso->zvo_disk->part0);
 
-	sync = bio_is_fua(bio) || zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS;
+	sync = bio_is_fua(bio) || zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS ||
+	    (zvol_sync_by_default &&
+	    zv->zv_objset->os_sync == ZFS_SYNC_STANDARD);
 
 	if (end > zv->zv_volsize) {
 		error = SET_ERROR(EIO);
@@ -1119,6 +1130,10 @@ MODULE_PARM_DESC(zvol_threads, "Max number of threads to handle I/O requests");
 
 module_param(zvol_request_sync, uint, 0644);
 MODULE_PARM_DESC(zvol_request_sync, "Synchronously handle bio requests");
+
+module_param(zvol_sync_by_default, uint, 0644);
+MODULE_PARM_DESC(zvol_sync_by_default,
+    "For zvols treat sync=standard as sync=always");
 
 module_param(zvol_max_discard_blocks, ulong, 0444);
 MODULE_PARM_DESC(zvol_max_discard_blocks, "Max number of blocks to discard");
