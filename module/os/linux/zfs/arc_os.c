@@ -307,46 +307,18 @@ arc_lowmem_init(void)
 	 * arc_wait_for_eviction() will wait until at least the
 	 * high_wmark_pages() are free (see arc_evict_state_impl()).
 	 *
-	 * Note: Even when the system is very low on memory, the kernel's
-	 * shrinker code may only ask for one "batch" of pages (512KB) to be
-	 * evicted.  If concurrent allocations consume these pages, there may
-	 * still be insufficient free pages, and the OOM killer takes action.
-	 *
-	 * By setting arc_sys_free large enough, and having
-	 * arc_wait_for_eviction() wait until there is at least arc_sys_free/2
-	 * free memory, it is much less likely that concurrent allocations can
-	 * consume all the memory that was evicted before checking for
-	 * OOM.
-	 *
 	 * It's hard to iterate the zones from a linux kernel module, which
 	 * makes it difficult to determine the watermark dynamically. Instead
-	 * we compute the maximum high watermark for this system, based
-	 * on the amount of memory, assuming default parameters on Linux kernel
-	 * 5.3.
+	 * we consider the maximum high watermark for any system, assuming
+	 * default parameters on Linux kernel 5.3.  The maximum low watermark
+	 * is 64MB, the max high watermark is 64MB + 0.2% of RAM, and the
+	 * maximum boost is 150% of the high watermark.  So the maximum
+	 * boosted high watermark is 160MB + 0.5% of RAM.
+	 *
+	 * The default arc_sys_free is 1/8th (12.5%) of RAM, which is
+	 * more than the highest high_wmark (160MB + 0.5% of RAM).
 	 */
-
-	/*
-	 * Base wmark_low is 4 * the square root of Kbytes of RAM.
-	 */
-	long wmark = 4 * int_sqrt(allmem/1024) * 1024;
-
-	/*
-	 * Clamp to between 128K and 64MB.
-	 */
-	wmark = MAX(wmark, 128 * 1024);
-	wmark = MIN(wmark, 64 * 1024 * 1024);
-
-	/*
-	 * watermark_boost can increase the wmark by up to 150%.
-	 */
-	wmark += wmark * 150 / 100;
-
-	/*
-	 * arc_sys_free needs to be more than 2x the watermark, because
-	 * arc_wait_for_eviction() waits for half of arc_sys_free.  Bump this up
-	 * to 3x to ensure we're above it.
-	 */
-	arc_sys_free = wmark * 3 + allmem / 32;
+	arc_sys_free = allmem / 8;
 }
 
 void
