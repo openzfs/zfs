@@ -172,16 +172,15 @@ spl_kmem_alloc_impl(size_t size, int flags, int node)
 		 * kmem_zalloc() callers.
 		 *
 		 * For vmem_alloc() and vmem_zalloc() callers it is permissible
-		 * to use __vmalloc().  However, in general use of __vmalloc()
-		 * is strongly discouraged because a global lock must be
-		 * acquired.  Contention on this lock can significantly
+		 * to use spl_vmalloc().  However, in general use of
+		 * spl_vmalloc() is strongly discouraged because a global lock
+		 * must be acquired.  Contention on this lock can significantly
 		 * impact performance so frequently manipulating the virtual
 		 * address space is strongly discouraged.
 		 */
 		if ((size > spl_kmem_alloc_max) || use_vmem) {
 			if (flags & KM_VMEM) {
-				ptr = __vmalloc(size, lflags | __GFP_HIGHMEM,
-				    PAGE_KERNEL);
+				ptr = spl_vmalloc(size, lflags | __GFP_HIGHMEM);
 			} else {
 				return (NULL);
 			}
