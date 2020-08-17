@@ -59,16 +59,29 @@ typedef struct zfetch_stats {
 	kstat_named_t zfetchstat_hits;
 	kstat_named_t zfetchstat_misses;
 	kstat_named_t zfetchstat_max_streams;
+	kstat_named_t zfetchstat_max_completion_us;
+	kstat_named_t zfetchstat_last_completion_us;
+	kstat_named_t zfetchstat_io_issued;
 } zfetch_stats_t;
 
 static zfetch_stats_t zfetch_stats = {
 	{ "hits",			KSTAT_DATA_UINT64 },
 	{ "misses",			KSTAT_DATA_UINT64 },
 	{ "max_streams",		KSTAT_DATA_UINT64 },
+	{ "max_completion_us",		KSTAT_DATA_UINT64 },
+	{ "last_completion_us",		KSTAT_DATA_UINT64 },
+	{ "io_issued",		KSTAT_DATA_UINT64 },
 };
 
 #define	ZFETCHSTAT_BUMP(stat) \
-	atomic_inc_64(&zfetch_stats.stat.value.ui64);
+	atomic_inc_64(&zfetch_stats.stat.value.ui64)
+#define	ZFETCHSTAT_ADD(stat, val)				\
+	atomic_add_64(&zfetch_stats.stat.value.ui64, val)
+#define	ZFETCHSTAT_SET(stat, val)				\
+	zfetch_stats.stat.value.ui64 = val
+#define	ZFETCHSTAT_GET(stat)					\
+	zfetch_stats.stat.value.ui64
+
 
 kstat_t		*zfetch_ksp;
 
@@ -104,8 +117,8 @@ dmu_zfetch_init(zfetch_t *zf, dnode_t *dno)
 {
 	if (zf == NULL)
 		return;
-
 	zf->zf_dnode = dno;
+	zf->zf_numstreams = 0;
 
 	list_create(&zf->zf_stream, sizeof (zstream_t),
 	    offsetof(zstream_t, zs_node));
@@ -114,12 +127,28 @@ dmu_zfetch_init(zfetch_t *zf, dnode_t *dno)
 }
 
 static void
+dmu_zfetch_stream_fini(zstream_t *zs)
+{
+	mutex_destroy(&zs->zs_lock);
+	kmem_free(zs, sizeof (*zs));
+}
+
+static void
 dmu_zfetch_stream_remove(zfetch_t *zf, zstream_t *zs)
 {
 	ASSERT(MUTEX_HELD(&zf->zf_lock));
 	list_remove(&zf->zf_stream, zs);
-	mutex_destroy(&zs->zs_lock);
-	kmem_free(zs, sizeof (*zs));
+	dmu_zfetch_stream_fini(zs);
+	zf->zf_numstreams--;
+}
+
+static void
+dmu_zfetch_stream_orphan(zfetch_t *zf, zstream_t *zs)
+{
+	ASSERT(MUTEX_HELD(&zf->zf_lock));
+	list_remove(&zf->zf_stream, zs);
+	zs->zs_fetch = NULL;
+	zf->zf_numstreams--;
 }
 
 /*
@@ -133,7 +162,7 @@ dmu_zfetch_fini(zfetch_t *zf)
 
 	mutex_enter(&zf->zf_lock);
 	while ((zs = list_head(&zf->zf_stream)) != NULL)
-		dmu_zfetch_stream_remove(zf, zs);
+		dmu_zfetch_stream_orphan(zf, zs);
 	mutex_exit(&zf->zf_lock);
 	list_destroy(&zf->zf_stream);
 	mutex_destroy(&zf->zf_lock);
@@ -151,7 +180,7 @@ static void
 dmu_zfetch_stream_create(zfetch_t *zf, uint64_t blkid)
 {
 	zstream_t *zs_next;
-	int numstreams = 0;
+	hrtime_t now = gethrtime();
 
 	ASSERT(MUTEX_HELD(&zf->zf_lock));
 
@@ -161,11 +190,14 @@ dmu_zfetch_stream_create(zfetch_t *zf, uint64_t blkid)
 	for (zstream_t *zs = list_head(&zf->zf_stream);
 	    zs != NULL; zs = zs_next) {
 		zs_next = list_next(&zf->zf_stream, zs);
-		if (((gethrtime() - zs->zs_atime) / NANOSEC) >
+		/*
+		 * Skip gethrtime() call if there are still references
+		 */
+		if (zfs_refcount_count(&zs->zs_blocks) != 0)
+			continue;
+		if (((now - zs->zs_atime) / NANOSEC) >
 		    zfetch_min_sec_reap)
 			dmu_zfetch_stream_remove(zf, zs);
-		else
-			numstreams++;
 	}
 
 	/*
@@ -179,7 +211,7 @@ dmu_zfetch_stream_create(zfetch_t *zf, uint64_t blkid)
 	uint32_t max_streams = MAX(1, MIN(zfetch_max_streams,
 	    zf->zf_dnode->dn_maxblkid * zf->zf_dnode->dn_datablksz /
 	    zfetch_max_distance));
-	if (numstreams >= max_streams) {
+	if (zf->zf_numstreams >= max_streams) {
 		ZFETCHSTAT_BUMP(zfetchstat_max_streams);
 		return;
 	}
@@ -188,10 +220,37 @@ dmu_zfetch_stream_create(zfetch_t *zf, uint64_t blkid)
 	zs->zs_blkid = blkid;
 	zs->zs_pf_blkid = blkid;
 	zs->zs_ipf_blkid = blkid;
-	zs->zs_atime = gethrtime();
+	zs->zs_atime = now;
+	zs->zs_fetch = zf;
+	zfs_refcount_create(&zs->zs_blocks);
 	mutex_init(&zs->zs_lock, NULL, MUTEX_DEFAULT, NULL);
-
+	zf->zf_numstreams++;
 	list_insert_head(&zf->zf_stream, zs);
+}
+
+static void
+dmu_zfetch_stream_done(void *arg, boolean_t io_issued)
+{
+	zstream_t *zs = arg;
+
+	if (zs->zs_start_time && io_issued) {
+		hrtime_t now = gethrtime();
+		hrtime_t delta = NSEC2USEC(now - zs->zs_start_time);
+
+		zs->zs_start_time = 0;
+		ZFETCHSTAT_SET(zfetchstat_last_completion_us, delta);
+		if (delta > ZFETCHSTAT_GET(zfetchstat_max_completion_us))
+			ZFETCHSTAT_SET(zfetchstat_max_completion_us, delta);
+	}
+
+	if (zfs_refcount_remove(&zs->zs_blocks, NULL) != 0)
+		return;
+
+	/*
+	 * The parent fetch structure has gone away
+	 */
+	if (zs->zs_fetch == NULL)
+		dmu_zfetch_stream_fini(zs);
 }
 
 /*
@@ -209,7 +268,7 @@ dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data,
 	zstream_t *zs;
 	int64_t pf_start, ipf_start, ipf_istart, ipf_iend;
 	int64_t pf_ahead_blks, max_blks;
-	int epbs, max_dist_blks, pf_nblks, ipf_nblks;
+	int epbs, max_dist_blks, pf_nblks, ipf_nblks, issued;
 	uint64_t end_of_access_blkid;
 	end_of_access_blkid = blkid + nblks;
 	spa_t *spa = zf->zf_dnode->dn_objset->os_spa;
@@ -230,11 +289,21 @@ dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data,
 	 * As a fast path for small (single-block) files, ignore access
 	 * to the first block.
 	 */
-	if (blkid == 0)
+	if (!have_lock && blkid == 0)
 		return;
 
 	if (!have_lock)
 		rw_enter(&zf->zf_dnode->dn_struct_rwlock, RW_READER);
+
+	/*
+	 * A fast path for small files for which no prefetch will
+	 * happen.
+	 */
+	if (zf->zf_dnode->dn_maxblkid < 2) {
+		if (!have_lock)
+			rw_exit(&zf->zf_dnode->dn_struct_rwlock);
+		return;
+	}
 	mutex_enter(&zf->zf_lock);
 
 	/*
@@ -343,9 +412,15 @@ dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data,
 	ipf_iend = P2ROUNDUP(zs->zs_ipf_blkid, 1 << epbs) >> epbs;
 
 	zs->zs_atime = gethrtime();
+	/* no prior reads in progress */
+	if (zfs_refcount_count(&zs->zs_blocks) == 0)
+		zs->zs_start_time = zs->zs_atime;
 	zs->zs_blkid = end_of_access_blkid;
+	zfs_refcount_add_many(&zs->zs_blocks, pf_nblks + ipf_iend - ipf_istart,
+	    NULL);
 	mutex_exit(&zs->zs_lock);
 	mutex_exit(&zf->zf_lock);
+	issued = 0;
 
 	/*
 	 * dbuf_prefetch() is asynchronous (even when it needs to read
@@ -354,16 +429,21 @@ dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data,
 	 */
 
 	for (int i = 0; i < pf_nblks; i++) {
-		dbuf_prefetch(zf->zf_dnode, 0, pf_start + i,
-		    ZIO_PRIORITY_ASYNC_READ, ARC_FLAG_PREDICTIVE_PREFETCH);
+		issued += dbuf_prefetch_impl(zf->zf_dnode, 0, pf_start + i,
+		    ZIO_PRIORITY_ASYNC_READ, ARC_FLAG_PREDICTIVE_PREFETCH,
+		    dmu_zfetch_stream_done, zs);
 	}
 	for (int64_t iblk = ipf_istart; iblk < ipf_iend; iblk++) {
-		dbuf_prefetch(zf->zf_dnode, 1, iblk,
-		    ZIO_PRIORITY_ASYNC_READ, ARC_FLAG_PREDICTIVE_PREFETCH);
+		issued += dbuf_prefetch_impl(zf->zf_dnode, 1, iblk,
+		    ZIO_PRIORITY_ASYNC_READ, ARC_FLAG_PREDICTIVE_PREFETCH,
+		    dmu_zfetch_stream_done, zs);
 	}
 	if (!have_lock)
 		rw_exit(&zf->zf_dnode->dn_struct_rwlock);
 	ZFETCHSTAT_BUMP(zfetchstat_hits);
+
+	if (issued)
+		ZFETCHSTAT_ADD(zfetchstat_io_issued, issued);
 }
 
 /* BEGIN CSTYLED */
