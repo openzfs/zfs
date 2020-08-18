@@ -25,6 +25,8 @@
  * Copyright (c) 2013, Joyent, Inc. All rights reserved.
  * Copyright (c) 2014, Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2017, Intel Corporation.
+ * Copyright (c) 2019, Klara Inc.
+ * Copyright (c) 2019, Allan Jude
  */
 
 #ifndef _KERNEL
@@ -576,6 +578,17 @@ zpool_feature_init(void)
 	    "org.openzfs:device_rebuild", "device_rebuild",
 	    "Support for sequential device rebuilds",
 	    ZFEATURE_FLAG_READONLY_COMPAT, ZFEATURE_TYPE_BOOLEAN, NULL);
+
+	{
+	static const spa_feature_t zstd_deps[] = {
+		SPA_FEATURE_EXTENSIBLE_DATASET,
+		SPA_FEATURE_NONE
+	};
+	zfeature_register(SPA_FEATURE_ZSTD_COMPRESS,
+	    "org.freebsd:zstd_compress", "zstd_compress",
+	    "zstd compression algorithm support.",
+	    ZFEATURE_FLAG_PER_DATASET, ZFEATURE_TYPE_BOOLEAN, zstd_deps);
+	}
 }
 
 #if defined(_KERNEL)

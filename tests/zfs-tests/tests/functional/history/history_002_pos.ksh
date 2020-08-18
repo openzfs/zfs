@@ -86,7 +86,9 @@ props=(
 	canmount	off		canmount	on
 	xattr		on		xattr		off
 	compression	gzip		compression	gzip-$((RANDOM%9 + 1))
-	copies		$((RANDOM%3 + 1))
+	compression     zstd		compression	zstd-$((RANDOM%9 + 1))
+	compression	zstd-fast	copies          $((RANDOM%3 + 1))
+	compression	zstd-fast-$((RANDOM%9 + 1))
 )
 elif is_freebsd; then
 #	property	value		property	value
@@ -111,7 +113,9 @@ props=(
 	aclinherit	secure		aclinherit	passthrough
 	canmount	off		canmount	on
 	compression	gzip		compression	gzip-$((RANDOM%9 + 1))
-	copies		$((RANDOM%3 + 1))
+	compression     zstd		compression	zstd-$((RANDOM%9 + 1))
+	compression	zstd-fast	copies          $((RANDOM%3 + 1))
+	compression	zstd-fast-$((RANDOM%9 + 1))
 )
 else
 #	property	value		property	value
