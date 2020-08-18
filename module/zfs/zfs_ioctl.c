@@ -225,8 +225,9 @@ zfsdev_state_t *zfsdev_state_list;
 /*
  * Limit maximum nvlist size.  We don't want users passing in insane values
  * for zc->zc_nvlist_src_size, since we will need to allocate that much memory.
+ * Defaults to 0=auto which is handled by platform code.
  */
-#define	MAX_NVLIST_SRC_SIZE	KMALLOC_MAX_SIZE
+unsigned long zfs_max_nvlist_src_size = 0;
 
 uint_t zfs_fsyncer_key;
 uint_t zfs_allow_log_key;
@@ -7341,6 +7342,7 @@ zfsdev_ioctl_common(uint_t vecnum, zfs_cmd_t *zc, int flag)
 	int error, cmd;
 	const zfs_ioc_vec_t *vec;
 	char *saved_poolname = NULL;
+	uint64_t max_nvlist_src_size;
 	size_t saved_poolname_len = 0;
 	nvlist_t *innvl = NULL;
 	fstrans_cookie_t cookie;
@@ -7360,7 +7362,8 @@ zfsdev_ioctl_common(uint_t vecnum, zfs_cmd_t *zc, int flag)
 		return (SET_ERROR(ZFS_ERR_IOC_CMD_UNAVAIL));
 
 	zc->zc_iflags = flag & FKIOCTL;
-	if (zc->zc_nvlist_src_size > MAX_NVLIST_SRC_SIZE) {
+	max_nvlist_src_size = zfs_max_nvlist_src_size_os();
+	if (zc->zc_nvlist_src_size > max_nvlist_src_size) {
 		/*
 		 * Make sure the user doesn't pass in an insane value for
 		 * zc_nvlist_src_size.  We have to check, since we will end
@@ -7593,3 +7596,8 @@ zfs_kmod_fini(void)
 	tsd_destroy(&rrw_tsd_key);
 	tsd_destroy(&zfs_allow_log_key);
 }
+
+/* BEGIN CSTYLED */
+ZFS_MODULE_PARAM(zfs, zfs_, max_nvlist_src_size, ULONG, ZMOD_RW,
+    "Maximum size in bytes allowed for src nvlist passed with ZFS ioctls");
+/* END CSTYLED */

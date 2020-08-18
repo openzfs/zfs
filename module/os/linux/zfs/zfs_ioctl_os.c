@@ -203,6 +203,15 @@ out:
 
 }
 
+uint64_t
+zfs_max_nvlist_src_size_os(void)
+{
+	if (zfs_max_nvlist_src_size != 0)
+		return (zfs_max_nvlist_src_size);
+
+	return (KMALLOC_MAX_SIZE);
+}
+
 void
 zfs_ioctl_init_os(void)
 {
