@@ -445,17 +445,6 @@ bootfs_name_valid(const char *pool, const char *bootfs)
 	return (B_FALSE);
 }
 
-static boolean_t
-zpool_is_bootable(zpool_handle_t *zhp)
-{
-	char bootfs[ZFS_MAX_DATASET_NAME_LEN];
-
-	return (zpool_get_prop(zhp, ZPOOL_PROP_BOOTFS, bootfs,
-	    sizeof (bootfs), NULL, B_FALSE) == 0 && strncmp(bootfs, "-",
-	    sizeof (bootfs)) != 0);
-}
-
-
 /*
  * Given an nvlist of zpool properties to be set, validate that they are
  * correct, and parse any numeric properties (index, boolean, etc) if they are

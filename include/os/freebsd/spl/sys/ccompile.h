@@ -162,8 +162,6 @@ extern "C" {
 #define	O_RSYNC 0
 #define	O_DSYNC 0
 
-#define	KMALLOC_MAX_SIZE MAXPHYS
-
 #ifndef LOCORE
 #ifndef HAVE_RPC_TYPES
 typedef int bool_t;
