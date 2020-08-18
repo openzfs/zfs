@@ -301,23 +301,6 @@ history_str_get(zfs_cmd_t *zc)
 }
 
 /*
- * Check to see if the named dataset is currently defined as bootable
- */
-static boolean_t
-zfs_is_bootfs(const char *name)
-{
-	objset_t *os;
-
-	if (dmu_objset_hold(name, FTAG, &os) == 0) {
-		boolean_t ret;
-		ret = (dmu_objset_id(os) == spa_bootfs(dmu_objset_spa(os)));
-		dmu_objset_rele(os, FTAG);
-		return (ret);
-	}
-	return (B_FALSE);
-}
-
-/*
  * Return non-zero if the spa version is less than requested version.
  */
 static int
@@ -4478,18 +4461,6 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 				}
 				spa_close(spa, FTAG);
 			}
-
-			/*
-			 * If this is a bootable dataset then
-			 * verify that the compression algorithm
-			 * is supported for booting. We must return
-			 * something other than ENOTSUP since it
-			 * implies a downrev pool version.
-			 */
-			if (zfs_is_bootfs(dsname) &&
-			    !BOOTFS_COMPRESS_VALID(intval)) {
-				return (SET_ERROR(ERANGE));
-			}
 		}
 		break;
 
@@ -4530,16 +4501,6 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 		if (nvpair_value_uint64(pair, &intval) == 0 &&
 		    intval != ZFS_DNSIZE_LEGACY) {
 			spa_t *spa;
-
-			/*
-			 * If this is a bootable dataset then
-			 * we don't allow large (>512B) dnodes,
-			 * because GRUB doesn't support them.
-			 */
-			if (zfs_is_bootfs(dsname) &&
-			    intval != ZFS_DNSIZE_LEGACY) {
-				return (SET_ERROR(EDOM));
-			}
 
 			if ((err = spa_open(dsname, &spa, FTAG)) != 0)
 				return (err);
