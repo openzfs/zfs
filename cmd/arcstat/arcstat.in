@@ -103,6 +103,7 @@ cols = {
     "need":       [4, 1024, "ARC reclaim need"],
     "free":       [4, 1024, "ARC free memory"],
     "avail":      [5, 1024, "ARC available memory"],
+    "waste":      [5, 1024, "Wasted memory due to round up to pagesize"],
 }
 
 v = {}
@@ -452,6 +453,7 @@ def calculate():
     v["need"] = cur["arc_need_free"]
     v["free"] = cur["memory_free_bytes"]
     v["avail"] = cur["memory_available_bytes"]
+    v["waste"] = cur["abd_chunk_waste_size"]
 
 
 def main():

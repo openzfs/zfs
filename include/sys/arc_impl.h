@@ -844,6 +844,7 @@ typedef struct arc_stats {
 	kstat_named_t arcstat_sys_free;
 	kstat_named_t arcstat_raw_size;
 	kstat_named_t arcstat_cached_only_in_progress;
+	kstat_named_t arcstat_abd_chunk_waste_size;
 } arc_stats_t;
 
 typedef struct arc_evict_waiter {
