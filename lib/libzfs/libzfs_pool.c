@@ -3143,7 +3143,6 @@ zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
 	uint_t children;
 	nvlist_t *config_root;
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
-	boolean_t rootpool = zpool_is_bootable(zhp);
 
 	if (replacing)
 		(void) snprintf(msg, sizeof (msg), dgettext(TEXT_DOMAIN,
@@ -3211,18 +3210,8 @@ zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
 
 	zcmd_free_nvlists(&zc);
 
-	if (ret == 0) {
-		if (rootpool) {
-			/*
-			 * XXX need a better way to prevent user from
-			 * booting up a half-baked vdev.
-			 */
-			(void) fprintf(stderr, dgettext(TEXT_DOMAIN, "Make "
-			    "sure to wait until resilver is done "
-			    "before rebooting.\n"));
-		}
+	if (ret == 0)
 		return (0);
-	}
 
 	switch (errno) {
 	case ENOTSUP:
@@ -3650,13 +3639,6 @@ zpool_vdev_remove(zpool_handle_t *zhp, const char *path)
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 		    "pool must be upgraded to support log removal"));
 		return (zfs_error(hdl, EZFS_BADVERSION, msg));
-	}
-
-	if (!islog && !avail_spare && !l2cache && zpool_is_bootable(zhp)) {
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "root pool can not have removed devices, "
-		    "because GRUB does not understand them"));
-		return (zfs_error(hdl, EINVAL, msg));
 	}
 
 	zc.zc_guid = fnvlist_lookup_uint64(tgt, ZPOOL_CONFIG_GUID);
