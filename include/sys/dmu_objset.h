@@ -118,6 +118,7 @@ struct objset {
 	uint64_t os_dnodesize; /* default dnode size for new objects */
 	enum zio_checksum os_checksum;
 	enum zio_compress os_compress;
+	uint8_t os_complevel;
 	uint8_t os_copies;
 	enum zio_checksum os_dedup_checksum;
 	boolean_t os_dedup_verify;

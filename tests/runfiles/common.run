@@ -107,7 +107,7 @@ tests = ['zdb_002_pos', 'zdb_003_pos', 'zdb_004_pos', 'zdb_005_pos',
     'zdb_006_pos', 'zdb_args_neg', 'zdb_args_pos',
     'zdb_block_size_histogram', 'zdb_checksum', 'zdb_decompress',
     'zdb_display_block', 'zdb_object_range_neg', 'zdb_object_range_pos',
-    'zdb_objset_id']
+    'zdb_objset_id', 'zdb_decompress_zstd']
 pre =
 post =
 tags = ['functional', 'cli_root', 'zdb']
@@ -216,7 +216,7 @@ tests = ['zfs_receive_001_pos', 'zfs_receive_002_pos', 'zfs_receive_003_pos',
     'zfs_receive_016_pos', 'receive-o-x_props_override',
     'zfs_receive_from_encrypted', 'zfs_receive_to_encrypted',
     'zfs_receive_raw', 'zfs_receive_raw_incremental', 'zfs_receive_-e',
-    'zfs_receive_raw_-d']
+    'zfs_receive_raw_-d', 'zfs_receive_from_zstd']
 tags = ['functional', 'cli_root', 'zfs_receive']
 
 [tests/functional/cli_root/zfs_rename]
@@ -253,7 +253,8 @@ tests = ['cache_001_pos', 'cache_002_neg', 'canmount_001_pos',
     'user_property_001_pos', 'user_property_003_neg', 'readonly_001_pos',
     'user_property_004_pos', 'version_001_neg', 'zfs_set_001_neg',
     'zfs_set_002_neg', 'zfs_set_003_neg', 'property_alias_001_pos',
-    'mountpoint_003_pos', 'ro_props_001_pos', 'zfs_set_keylocation']
+    'mountpoint_003_pos', 'ro_props_001_pos', 'zfs_set_keylocation',
+    'zfs_set_feature_activation']
 tags = ['functional', 'cli_root', 'zfs_set']
 
 [tests/functional/cli_root/zfs_share]
@@ -537,7 +538,8 @@ tags = ['functional', 'cli_user', 'zpool_status']
 
 [tests/functional/compression]
 tests = ['compress_001_pos', 'compress_002_pos', 'compress_003_pos',
-    'l2arc_compressed_arc', 'l2arc_compressed_arc_disabled']
+    'l2arc_compressed_arc', 'l2arc_compressed_arc_disabled',
+    'l2arc_encrypted', 'l2arc_encrypted_no_compressed_arc']
 tags = ['functional', 'compression']
 
 [tests/functional/cp_files]

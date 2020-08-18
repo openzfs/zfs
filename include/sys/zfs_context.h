@@ -748,6 +748,12 @@ extern int kmem_cache_reap_active(void);
 
 #define	____cacheline_aligned
 
+/*
+ * Kernel modules
+ */
+#define	__init
+#define	__exit
+
 #endif /* _KERNEL */
 
 #ifdef __cplusplus
