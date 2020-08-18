@@ -79,6 +79,20 @@
 # channel 86:00.0 1         A
 # channel 86:00.0 0         B
 
+# #
+# # Example vdev_id.conf - multipath / multijbod-daisychaining
+# #
+#
+# multipath yes
+# multijbod yes
+#
+# #       PCI_ID  HBA PORT  CHANNEL NAME
+# channel 85:00.0 1         A
+# channel 85:00.0 0         B
+# channel 86:00.0 1         A
+# channel 86:00.0 0         B
+
+# #
 # # Example vdev_id.conf - multipath / mixed
 # #
 #
@@ -107,7 +121,6 @@ CONFIG=/etc/zfs/vdev_id.conf
 PHYS_PER_PORT=
 DEV=
 MULTIPATH=
-MULTIJBOD=
 TOPOLOGY=
 BAY=
 
@@ -161,25 +174,25 @@ map_channel() {
 	printf "%s" ${MAPPED_CHAN}
 }
 
-	# The bsg driver knows the difference between a SAS expander and fanout expander.
-	# The scsi H:B:T:L address of the primary enclosure expander is included in the 
-	# symlink target within sysfs for the block device being assessed. Comparing that
-	# H:B:T:L to a list of expanders produced by lsscsi provides a method to distinguish
-	# the JBOD enclosure the block device exist within. No custom fields are needed in
-	# vdev_id.conf as the enumeration of JBODs is dynamic and not dependent on hardware
-	# specific values such as WWN.
+	# map_jbod explainer: The bsg driver knows the difference between a SAS
+	# expander and fanout expander. Use hostX instance along with top-level
+	# (whole enclosure) expander instances in /sys/class/enclosure and
+	# matching a field in an array of expanders, using the index of the
+	# matched array field as the enclosure instance, thereby making jbod IDs
+	# dynamic. Avoids reliance on high overrhead userspace commands like
+	# multipath and lsscsi and instead uses existing sysfs data.  $HOSTCHAN
+	# variable derived from devpath gymnastics in sas_handler() function.
 
 map_jbod() {
 	if [ "$MULTIJBOD_MODE" = "yes" ] ; then
 	local DEV=$1
-	ENC_ORDER=0
-       	DEVEXP=`ls -l /sys/block/$DEV/device/ | grep enclos | awk -F/ '{print $(NF-1) }'`
-	HBA_CHAN=`echo $DEVEXP | awk -F: -vOFS=':' '{print $1, $2}'`
-	for EXPND in `lsscsi -t | grep -E "$HBA_CHAN.*enclos" | awk '{gsub(/\[|\]/, ""); print $1}'`
+     	DEVEXP=`ls -l /sys/block/$DEV/device/ | grep enclos | awk -F/ '{print $(NF-1) }'`
+	JBODS=$(ls -l /sys/class/enclosure | grep host${HOSTCHAN}/port-${HOSTCHAN}:${PORT} | awk '{print $9}')
+	JBOD=($JBODS)
+	for i in "${!JBOD[@]}"
 	do
-        	((ENC_ORDER++))
-		if [ "$EXPND" = "$DEVEXP" ] ; then
-			MAPPED_JBOD=$ENC_ORDER
+		if [ "${JBOD[$i]}" = "$DEVEXP" ] ; then
+			MAPPED_JBOD=$i
 			break
 		fi
 	done
@@ -232,10 +245,23 @@ sas_handler() {
 			return
 		fi
 
-		# Get the raw scsi device name from multipath -ll. Strip off
-		# leading pipe symbols to make field numbering consistent.
-		DEV=`multipath -ll $DM_NAME |
-			awk '/running/{gsub("^[|]"," "); print $3 ; exit}'`
+		# Utilize DM device name to gather subordinate block devices
+		# using sysfs to avoid userspace utilities 
+		DMDEV=`ls -l --full-time /dev/mapper |
+				awk "/$DM_NAME/{ gsub(\"../\",\"\",\\$NF); print \\$NF}"`	
+
+		# Use sysfs pointers in /sys/block/dm-X/slaves because using
+		# userspace tools creates lots of overhead and should be avoided
+		# whenever possible. Use awk to isolate lowest instance of sd device 
+		# member in dm device group regardless of string length.
+
+		DEV=`ls /sys/block/$DMDEV/slaves | awk '
+			{ len=sprintf ("%20s",length($0)); gsub(/ /,0,str); a[NR]=len "_" $0; }
+			END {
+				asort(a)
+				print substr(a[1],22)
+			    }'`
+
 		if [ -z "$DEV" ] ; then
 			return
 		fi
@@ -260,6 +286,9 @@ sas_handler() {
 		echo $d | grep -q -E '^host[0-9]+$' && break
 		i=$(($i + 1))
 	done
+
+	# Lets grab the SAS host channel number and save it for JBOD sorting later
+	HOSTCHAN=`echo $d | awk -F/ '{ gsub("host","",$NF); print $NF}'`
 
 	if [ $i = $num_dirs ] ; then
 		return
@@ -302,10 +331,11 @@ sas_handler() {
 		i=$(($i + 1))
 	done
 
-        # Add 'mix' slot type for environments where dm-multipath devices include end-devices connected via
-        # SAS expanders or direct connection to SAS HBA. A mixed connectivity environment such as
-        # pool disk contained in a SAS JBOD and spare drives or log devices directly connected in a
-        # server backplane without expanders in the I/O path.
+        # Add 'mix' slot type for environments where dm-multipath devices
+	# include end-devices connected via SAS expanders or direct connection
+	# to SAS HBA. A mixed connectivity environment such as # pool disk
+	# contained in a SAS JBOD and spare drives or log devices directly
+	# connected in a server backplane without expanders in the I/O path.
 
 	SLOT=
 	case $BAY in
@@ -318,7 +348,7 @@ sas_handler() {
                 else
                         SLOT=`cat $end_device_dir/phy_identifier 2>/dev/null`
                 fi
-                ;;
+                ;;		
 	"phy")
 		SLOT=`cat $end_device_dir/phy_identifier 2>/dev/null`
 		;;
