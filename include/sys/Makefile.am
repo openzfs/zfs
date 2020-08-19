@@ -120,6 +120,7 @@ COMMON_H = \
 	zfs_vfsops.h \
 	zfs_vnops.h \
 	zfs_znode.h \
+	zfs_zone.h \
 	zil.h \
 	zil_impl.h \
 	zio_checksum.h \
