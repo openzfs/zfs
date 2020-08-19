@@ -51,6 +51,12 @@ function cleanup
 	zfs set canmount=on $dataset
 	zfs set sharenfs=off $dataset
 	zfs mount -a
+
+	#
+	# unset __ZFS_POOL_EXCLUDE so that we include all file systems when
+	# rebuilding the exports file
+	#
+	unset __ZFS_POOL_EXCLUDE
 	rm /etc/exports.d/zfs.exports
 	zfs share -a
 }
