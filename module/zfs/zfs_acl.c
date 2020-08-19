@@ -1634,7 +1634,7 @@ zfs_acl_inherit(zfsvfs_t *zfsvfs, umode_t obj_mode, zfs_acl_t *paclp,
 	size_t		data1sz, data2sz;
 	boolean_t	vdir = S_ISDIR(obj_mode);
 	boolean_t	vreg = S_ISREG(obj_mode);
-	boolean_t	passthrough, passthrough_x, noallow;
+	boolean_t	passthrough, passthrough_x, noallow, has_inherited;
 
 	passthrough_x =
 	    zfsvfs->z_acl_inherit == ZFS_ACL_PASSTHROUGH_X;
@@ -1644,6 +1644,7 @@ zfs_acl_inherit(zfsvfs_t *zfsvfs, umode_t obj_mode, zfs_acl_t *paclp,
 	    zfsvfs->z_acl_inherit == ZFS_ACL_NOALLOW;
 
 	*need_chmod = B_TRUE;
+	has_inherited = B_FALSE;
 	pacep = NULL;
 	aclp = zfs_acl_alloc(paclp->z_version);
 	if (zfsvfs->z_acl_inherit == ZFS_ACL_DISCARD || S_ISLNK(obj_mode))
@@ -1706,6 +1707,8 @@ zfs_acl_inherit(zfsvfs_t *zfsvfs, umode_t obj_mode, zfs_acl_t *paclp,
 		if (vdir)
 			aclp->z_hints |= ZFS_INHERIT_ACE;
 
+		has_inherited = B_TRUE;
+
 		if ((iflags & ACE_NO_PROPAGATE_INHERIT_ACE) || !vdir) {
 			newflags &= ~ALL_INHERIT;
 			aclp->z_ops->ace_flags_set(acep,
@@ -1730,6 +1733,10 @@ zfs_acl_inherit(zfsvfs_t *zfsvfs, umode_t obj_mode, zfs_acl_t *paclp,
 			aclp->z_ops->ace_flags_set(acep,
 			    newflags|ACE_INHERITED_ACE);
 		}
+	}
+
+	if ((zfsvfs->z_acl_mode == ZFS_ACL_RESTRICTED) && has_inherited) {
+		*need_chmod = B_FALSE;
 	}
 	return (aclp);
 }
