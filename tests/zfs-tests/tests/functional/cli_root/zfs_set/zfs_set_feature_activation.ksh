@@ -50,7 +50,22 @@ log_assert "Setting compression=zstd should activate the"\
 	"dataset using that property, should revert the feature flag to"\
 	"the enabled state."
 
-featureval="$(get_pool_prop feature@zstd_compress $TESTPOOL)"
+export VDEV_ZSTD="$TEST_BASE_DIR/vdev-zstd"
+
+function cleanup
+{
+	if poolexists $TESTPOOL-zstd ; then
+		destroy_pool $TESTPOOL-zstd
+	fi
+
+	rm $VDEV_ZSTD
+}
+log_onexit cleanup
+
+log_must truncate -s $SPA_MINDEVSIZE $VDEV_ZSTD
+log_must zpool create $TESTPOOL-zstd $VDEV_ZSTD
+
+featureval="$(get_pool_prop feature@zstd_compress $TESTPOOL-zstd)"
 
 [[ "$featureval" == "disabled" ]] && \
 	log_unsupported "ZSTD feature flag unsupposed"
@@ -61,18 +76,18 @@ featureval="$(get_pool_prop feature@zstd_compress $TESTPOOL)"
 random_level=$((RANDOM%19 + 1))
 log_note "Randomly selected ZSTD level: $random_level"
 
-log_must zfs create -o compress=zstd-$random_level $TESTPOOL/$TESTFS-zstd
+log_must zfs create -o compress=zstd-$random_level $TESTPOOL-zstd/$TESTFS-zstd
 
-featureval="$(get_pool_prop feature@zstd_compress $TESTPOOL)"
+featureval="$(get_pool_prop feature@zstd_compress $TESTPOOL-zstd)"
 
 log_note "After zfs set, feature flag value is: $featureval"
 
 [[ "$featureval" == "active" ]] ||
 	log_fail "ZSTD feature flag not activated"
 
-log_must zfs destroy $TESTPOOL/$TESTFS-zstd
+log_must zfs destroy $TESTPOOL-zstd/$TESTFS-zstd
 
-featureval="$(get_pool_prop feature@zstd_compress $TESTPOOL)"
+featureval="$(get_pool_prop feature@zstd_compress $TESTPOOL-zstd)"
 
 log_note "After zfs destroy, feature flag value is: $featureval"
 
