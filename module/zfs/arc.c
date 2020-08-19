@@ -886,6 +886,7 @@ static inline void arc_hdr_clear_flags(arc_buf_hdr_t *hdr, arc_flags_t flags);
 
 static boolean_t l2arc_write_eligible(uint64_t, arc_buf_hdr_t *);
 static void l2arc_read_done(zio_t *);
+static void l2arc_do_free_on_write(void);
 
 /*
  * L2ARC TRIM
@@ -7555,6 +7556,13 @@ arc_fini(void)
 	list_destroy(&arc_evict_waiters);
 
 	/*
+	 * Free any buffers that were tagged for destruction.  This needs
+	 * to occur before arc_state_fini() runs and destroys the aggsum
+	 * values which are updated when freeing scatter ABDs.
+	 */
+	l2arc_do_free_on_write();
+
+	/*
 	 * buf_fini() must proceed arc_state_fini() because buf_fin() may
 	 * trigger the release of kmem magazines, which can callback to
 	 * arc_space_return() which accesses aggsums freed in act_state_fini().
@@ -9451,14 +9459,6 @@ l2arc_init(void)
 void
 l2arc_fini(void)
 {
-	/*
-	 * This is called from dmu_fini(), which is called from spa_fini();
-	 * Because of this, we can assume that all l2arc devices have
-	 * already been removed when the pools themselves were removed.
-	 */
-
-	l2arc_do_free_on_write();
-
 	mutex_destroy(&l2arc_feed_thr_lock);
 	cv_destroy(&l2arc_feed_thr_cv);
 	mutex_destroy(&l2arc_rebuild_thr_lock);
