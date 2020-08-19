@@ -986,16 +986,24 @@ spa_taskqs_init(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
 		taskq_t *tq;
 		char name[32];
 
-		(void) snprintf(name, sizeof (name), "%s_%s",
-		    zio_type_name[t], zio_taskq_types[q]);
+		if (count > 1) {
+			(void) snprintf(name, sizeof (name), "%s_%s_%u",
+			    zio_type_name[t], zio_taskq_types[q], i);
+		} else {
+			(void) snprintf(name, sizeof (name), "%s_%s",
+			    zio_type_name[t], zio_taskq_types[q]);
+		}
 
+#ifdef illumos
 		if (zio_taskq_sysdc && spa->spa_proc != &p0) {
 			if (batch)
 				flags |= TASKQ_DC_BATCH;
 
 			tq = taskq_create_sysdc(name, value, 50, INT_MAX,
 			    spa->spa_proc, zio_taskq_basedc, flags);
-		} else {
+		} else
+#endif
+		{
 			pri_t pri = maxclsyspri;
 			/*
 			 * The write issue taskq can be extremely CPU
@@ -1004,9 +1012,13 @@ spa_taskqs_init(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
 			 * means incrementing the priority value on platforms
 			 * like illumos it should be decremented.
 			 */
-			if (t == ZIO_TYPE_WRITE && q == ZIO_TASKQ_ISSUE)
+			if (t == ZIO_TYPE_WRITE && q == ZIO_TASKQ_ISSUE) {
+#ifdef __FreeBSD__
+				pri += 4;
+#else
 				pri++;
-
+#endif
+			}
 			tq = taskq_create_proc(name, value, pri, 50,
 			    INT_MAX, spa->spa_proc, flags);
 		}
@@ -1095,56 +1107,22 @@ spa_create_zio_taskqs(spa_t *spa)
 }
 
 /*
- * Disabled until spa_thread() can be adapted for Linux.
+ * Disabled on Linux
  */
-#undef HAVE_SPA_THREAD
 
 #if defined(_KERNEL) && defined(HAVE_SPA_THREAD)
 static void
 spa_thread(void *arg)
 {
-	psetid_t zio_taskq_psrset_bind = PS_NONE;
 	callb_cpr_t cprinfo;
-
 	spa_t *spa = arg;
-	user_t *pu = PTOU(curproc);
 
 	CALLB_CPR_INIT(&cprinfo, &spa->spa_proc_lock, callb_generic_cpr,
 	    spa->spa_name);
 
 	ASSERT(curproc != &p0);
-	(void) snprintf(pu->u_psargs, sizeof (pu->u_psargs),
-	    "zpool-%s", spa->spa_name);
-	(void) strlcpy(pu->u_comm, pu->u_psargs, sizeof (pu->u_comm));
-
-	/* bind this thread to the requested psrset */
-	if (zio_taskq_psrset_bind != PS_NONE) {
-		pool_lock();
-		mutex_enter(&cpu_lock);
-		mutex_enter(&pidlock);
-		mutex_enter(&curproc->p_lock);
-
-		if (cpupart_bind_thread(curthread, zio_taskq_psrset_bind,
-		    0, NULL, NULL) == 0)  {
-			curthread->t_bind_pset = zio_taskq_psrset_bind;
-		} else {
-			cmn_err(CE_WARN,
-			    "Couldn't bind process for zfs pool \"%s\" to "
-			    "pset %d\n", spa->spa_name, zio_taskq_psrset_bind);
-		}
-
-		mutex_exit(&curproc->p_lock);
-		mutex_exit(&pidlock);
-		mutex_exit(&cpu_lock);
-		pool_unlock();
-	}
-
-	if (zio_taskq_sysdc) {
-		sysdc_thread_enter(curthread, 100, 0);
-	}
 
 	spa->spa_proc = curproc;
-	spa->spa_did = curthread->t_did;
 
 	spa_create_zio_taskqs(spa);
 
@@ -1165,8 +1143,7 @@ spa_thread(void *arg)
 	cv_broadcast(&spa->spa_proc_cv);
 	CALLB_CPR_EXIT(&cprinfo);	/* drops spa_proc_lock */
 
-	mutex_enter(&curproc->p_lock);
-	lwp_exit();
+	thread_exit();
 }
 #endif
 
@@ -1204,7 +1181,6 @@ spa_activate(spa_t *spa, spa_mode_t mode)
 			}
 			ASSERT(spa->spa_proc_state == SPA_PROC_ACTIVE);
 			ASSERT(spa->spa_proc != &p0);
-			ASSERT(spa->spa_did != 0);
 		} else {
 #ifdef _KERNEL
 			cmn_err(CE_WARN,
@@ -8160,7 +8136,8 @@ spa_async_dispatch(spa_t *spa)
 	    !spa->spa_async_suspended &&
 	    spa->spa_async_thread == NULL)
 		spa->spa_async_thread = thread_create(NULL, 0,
-		    spa_async_thread, spa, 0, &p0, TS_RUN, maxclsyspri);
+		    spa_async_thread, spa, 0, spa_proc(spa),
+		    TS_RUN, maxclsyspri);
 	mutex_exit(&spa->spa_async_lock);
 }
 

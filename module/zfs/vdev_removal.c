@@ -362,7 +362,7 @@ vdev_remove_initiate_sync(void *arg, dmu_tx_t *tx)
 	ASSERT3P(spa->spa_vdev_removal, ==, NULL);
 	spa->spa_vdev_removal = svr;
 	svr->svr_thread = thread_create(NULL, 0,
-	    spa_vdev_remove_thread, spa, 0, &p0, TS_RUN, minclsyspri);
+	    spa_vdev_remove_thread, spa, 0, spa_proc(spa), TS_RUN, minclsyspri);
 }
 
 /*
@@ -476,7 +476,7 @@ spa_restart_removal(spa_t *spa)
 
 	zfs_dbgmsg("restarting removal of %llu", svr->svr_vdev_id);
 	svr->svr_thread = thread_create(NULL, 0, spa_vdev_remove_thread, spa,
-	    0, &p0, TS_RUN, minclsyspri);
+	    0, spa_proc(spa), TS_RUN, minclsyspri);
 }
 
 /*

@@ -73,6 +73,30 @@
 #include "zfs_prop.h"
 #include "zfs_comutil.h"
 
+
+int
+newproc(void (*pc)(void *), void *arg, id_t cid, int pri,
+    void **ct, pid_t pid)
+{
+	spa_t *spa = (spa_t *)arg;	/* XXX */
+	struct proc *newp;
+	struct thread *td;
+	int error;
+
+	ASSERT(ct == NULL);
+	ASSERT(pid == 0);
+	ASSERT(cid == syscid);
+
+	error = kproc_create(pc, arg, &newp, 0, 0, "zpool-%s", spa->spa_name);
+	if (error != 0)
+		return (error);
+	td = FIRST_THREAD_IN_PROC(newp);
+	thread_lock(td);
+	sched_prio(td, pri);
+	thread_unlock(td);
+	return (0);
+}
+
 static nvlist_t *
 spa_generate_rootconf(const char *name)
 {

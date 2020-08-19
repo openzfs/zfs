@@ -233,7 +233,7 @@ vdev_rebuild_initiate_sync(void *arg, dmu_tx_t *tx)
 
 	ASSERT3P(vd->vdev_rebuild_thread, ==, NULL);
 	vd->vdev_rebuild_thread = thread_create(NULL, 0,
-	    vdev_rebuild_thread, vd, 0, &p0, TS_RUN, maxclsyspri);
+	    vdev_rebuild_thread, vd, 0, spa_proc(spa), TS_RUN, maxclsyspri);
 
 	mutex_exit(&vd->vdev_rebuild_lock);
 }
@@ -388,7 +388,7 @@ vdev_rebuild_reset_sync(void *arg, dmu_tx_t *tx)
 	ASSERT(vd->vdev_rebuilding);
 
 	vd->vdev_rebuild_thread = thread_create(NULL, 0,
-	    vdev_rebuild_thread, vd, 0, &p0, TS_RUN, maxclsyspri);
+	    vdev_rebuild_thread, vd, 0, spa_proc(spa), TS_RUN, maxclsyspri);
 
 	mutex_exit(&vd->vdev_rebuild_lock);
 }
@@ -996,7 +996,7 @@ vdev_rebuild_restart_impl(vdev_t *vd)
 			    SPA_FEATURE_DEVICE_REBUILD));
 			vd->vdev_rebuilding = B_TRUE;
 			vd->vdev_rebuild_thread = thread_create(NULL, 0,
-			    vdev_rebuild_thread, vd, 0, &p0, TS_RUN,
+			    vdev_rebuild_thread, vd, 0, spa_proc(spa), TS_RUN,
 			    maxclsyspri);
 		}
 		mutex_exit(&vd->vdev_rebuild_lock);

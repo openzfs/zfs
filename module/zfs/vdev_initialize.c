@@ -568,6 +568,8 @@ vdev_initialize_thread(void *arg)
 void
 vdev_initialize(vdev_t *vd)
 {
+	proc_t *p;
+
 	ASSERT(MUTEX_HELD(&vd->vdev_initialize_lock));
 	ASSERT(vd->vdev_ops->vdev_op_leaf);
 	ASSERT(vdev_is_concrete(vd));
@@ -576,9 +578,10 @@ vdev_initialize(vdev_t *vd)
 	ASSERT(!vd->vdev_initialize_exit_wanted);
 	ASSERT(!vd->vdev_top->vdev_removing);
 
+	p = vd->vdev_spa ? spa_proc(vd->vdev_spa) : &p0;
 	vdev_initialize_change_state(vd, VDEV_INITIALIZE_ACTIVE);
 	vd->vdev_initialize_thread = thread_create(NULL, 0,
-	    vdev_initialize_thread, vd, 0, &p0, TS_RUN, maxclsyspri);
+	    vdev_initialize_thread, vd, 0, p, TS_RUN, maxclsyspri);
 }
 
 /*

@@ -2000,6 +2000,12 @@ spa_get_autotrim(spa_t *spa)
 	return (spa->spa_autotrim);
 }
 
+proc_t *
+spa_proc(spa_t *spa)
+{
+	return (spa->spa_proc);
+}
+
 uint64_t
 spa_deadman_ziotime(spa_t *spa)
 {

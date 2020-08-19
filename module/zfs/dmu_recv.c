@@ -2957,8 +2957,8 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, offset_t *voffp)
 	list_create(&rwa->write_batch, sizeof (struct receive_record_arg),
 	    offsetof(struct receive_record_arg, node.bqn_node));
 
-	(void) thread_create(NULL, 0, receive_writer_thread, rwa, 0, curproc,
-	    TS_RUN, minclsyspri);
+	(void) thread_create(NULL, 0, receive_writer_thread, rwa, 0,
+	    spa_proc(drc->drc_os->os_spa), TS_RUN, minclsyspri);
 	/*
 	 * We're reading rwa->err without locks, which is safe since we are the
 	 * only reader, and the worker thread is the only writer.  It's ok if we

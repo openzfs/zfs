@@ -244,7 +244,7 @@ mmp_thread_start(spa_t *spa)
 		mutex_enter(&mmp->mmp_thread_lock);
 		if (!mmp->mmp_thread) {
 			mmp->mmp_thread = thread_create(NULL, 0, mmp_thread,
-			    spa, 0, &p0, TS_RUN, defclsyspri);
+			    spa, 0, spa_proc(spa), TS_RUN, defclsyspri);
 			zfs_dbgmsg("MMP thread started pool '%s' "
 			    "gethrtime %llu", spa_name(spa), gethrtime());
 		}

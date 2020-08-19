@@ -1069,6 +1069,7 @@ extern uint64_t spa_deadman_synctime(spa_t *spa);
 extern uint64_t spa_deadman_ziotime(spa_t *spa);
 extern uint64_t spa_dirty_data(spa_t *spa);
 extern spa_autotrim_t spa_get_autotrim(spa_t *spa);
+extern proc_t *spa_proc(spa_t *spa);
 
 /* Miscellaneous support routines */
 extern void spa_load_failed(spa_t *spa, const char *fmt, ...);

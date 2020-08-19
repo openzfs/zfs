@@ -88,4 +88,6 @@ typedef int fstrans_cookie_t;
 typedef struct opensolaris_utsname	utsname_t;
 extern utsname_t *utsname(void);
 extern int spa_import_rootpool(const char *name, bool checkpointrewind);
+extern int newproc(void (*pc)(void *), void *arg, id_t cid, int pri,
+    void **ct, pid_t pid);
 #endif
