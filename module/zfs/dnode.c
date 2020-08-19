@@ -2243,13 +2243,13 @@ done:
 	 */
 	mutex_enter(&dn->dn_mtx);
 	{
-	int txgoff = tx->tx_txg & TXG_MASK;
-	if (dn->dn_free_ranges[txgoff] == NULL) {
-		dn->dn_free_ranges[txgoff] = range_tree_create(NULL,
-		    RANGE_SEG64, NULL, 0, 0);
-	}
-	range_tree_clear(dn->dn_free_ranges[txgoff], blkid, nblks);
-	range_tree_add(dn->dn_free_ranges[txgoff], blkid, nblks);
+		int txgoff = tx->tx_txg & TXG_MASK;
+		if (dn->dn_free_ranges[txgoff] == NULL) {
+			dn->dn_free_ranges[txgoff] = range_tree_create(NULL,
+			    RANGE_SEG64, NULL, 0, 0);
+		}
+		range_tree_clear(dn->dn_free_ranges[txgoff], blkid, nblks);
+		range_tree_add(dn->dn_free_ranges[txgoff], blkid, nblks);
 	}
 	dprintf_dnode(dn, "blkid=%llu nblks=%llu txg=%llu\n",
 	    blkid, nblks, tx->tx_txg);
