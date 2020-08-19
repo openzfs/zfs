@@ -6634,8 +6634,11 @@ share_mount_one(zfs_handle_t *zhp, int op, int flags, char *protocol,
 		 */
 		if (op == OP_MOUNT)
 			return (0);
-		if (op == OP_SHARE && !zfs_is_mounted(zhp, NULL))
+		if (op == OP_SHARE && !zfs_is_mounted(zhp, NULL)) {
+			/* also purge it from existing exports */
+			zfs_unshareall_bypath(zhp, mountpoint);
 			return (0);
+		}
 	}
 
 	/*
