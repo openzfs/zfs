@@ -219,12 +219,30 @@ def get_arc_summary(Kstat):
     deleted = Kstat["kstat.zfs.misc.arcstats.deleted"]
     mutex_miss = Kstat["kstat.zfs.misc.arcstats.mutex_miss"]
     evict_skip = Kstat["kstat.zfs.misc.arcstats.evict_skip"]
+    evict_l2_cached = Kstat["kstat.zfs.misc.arcstats.evict_l2_cached"]
+    evict_l2_eligible = Kstat["kstat.zfs.misc.arcstats.evict_l2_eligible"]
+    evict_l2_eligible_mfu = Kstat["kstat.zfs.misc.arcstats.evict_l2_eligible_mfu"]
+    evict_l2_eligible_mru = Kstat["kstat.zfs.misc.arcstats.evict_l2_eligible_mru"]
+    evict_l2_ineligible = Kstat["kstat.zfs.misc.arcstats.evict_l2_ineligible"]
+    evict_l2_skip = Kstat["kstat.zfs.misc.arcstats.evict_l2_skip"]
 
     # ARC Misc.
     output["arc_misc"] = {}
     output["arc_misc"]["deleted"] = fHits(deleted)
-    output["arc_misc"]['mutex_miss'] = fHits(mutex_miss)
-    output["arc_misc"]['evict_skips'] = fHits(evict_skip)
+    output["arc_misc"]["mutex_miss"] = fHits(mutex_miss)
+    output["arc_misc"]["evict_skips"] = fHits(evict_skip)
+    output["arc_misc"]["evict_l2_skip"] = fHits(evict_l2_skip)
+    output["arc_misc"]["evict_l2_cached"] = fBytes(evict_l2_cached)
+    output["arc_misc"]["evict_l2_eligible"] = fBytes(evict_l2_eligible)
+    output["arc_misc"]["evict_l2_eligible_mfu"] = {
+            'per': fPerc(evict_l2_eligible_mfu, evict_l2_eligible),
+            'num': fBytes(evict_l2_eligible_mfu),
+    }
+    output["arc_misc"]["evict_l2_eligible_mru"] = {
+            'per': fPerc(evict_l2_eligible_mru, evict_l2_eligible),
+            'num': fBytes(evict_l2_eligible_mru),
+    }
+    output["arc_misc"]["evict_l2_ineligible"] = fBytes(evict_l2_ineligible)
 
     # ARC Sizing
     arc_size = Kstat["kstat.zfs.misc.arcstats.size"]
@@ -340,8 +358,26 @@ def _arc_summary(Kstat):
     sys.stdout.write("\tDeleted:\t\t\t\t%s\n" % arc['arc_misc']['deleted'])
     sys.stdout.write("\tMutex Misses:\t\t\t\t%s\n" %
                      arc['arc_misc']['mutex_miss'])
-    sys.stdout.write("\tEvict Skips:\t\t\t\t%s\n" %
+    sys.stdout.write("\tEviction Skips:\t\t\t\t%s\n" %
                      arc['arc_misc']['evict_skips'])
+    sys.stdout.write("\tEviction Skips Due to L2 Writes:\t%s\n" %
+                     arc['arc_misc']['evict_l2_skip'])
+    sys.stdout.write("\tL2 Cached Evictions:\t\t\t%s\n" %
+                     arc['arc_misc']['evict_l2_cached'])
+    sys.stdout.write("\tL2 Eligible Evictions:\t\t\t%s\n" %
+                     arc['arc_misc']['evict_l2_eligible'])
+    sys.stdout.write("\tL2 Eligible MFU Evictions:\t%s\t%s\n" % (
+                     arc['arc_misc']['evict_l2_eligible_mfu']['per'],
+                     arc['arc_misc']['evict_l2_eligible_mfu']['num'],
+                     )
+    )
+    sys.stdout.write("\tL2 Eligible MRU Evictions:\t%s\t%s\n" % (
+                     arc['arc_misc']['evict_l2_eligible_mru']['per'],
+                     arc['arc_misc']['evict_l2_eligible_mru']['num'],
+                     )
+    )
+    sys.stdout.write("\tL2 Ineligible Evictions:\t\t%s\n" %
+                     arc['arc_misc']['evict_l2_ineligible'])
     sys.stdout.write("\n")
 
     # ARC Sizing
@@ -677,6 +713,11 @@ def get_l2arc_summary(Kstat):
     l2_writes_done = Kstat["kstat.zfs.misc.arcstats.l2_writes_done"]
     l2_writes_error = Kstat["kstat.zfs.misc.arcstats.l2_writes_error"]
     l2_writes_sent = Kstat["kstat.zfs.misc.arcstats.l2_writes_sent"]
+    l2_mfu_asize = Kstat["kstat.zfs.misc.arcstats.l2_mfu_asize"]
+    l2_mru_asize = Kstat["kstat.zfs.misc.arcstats.l2_mru_asize"]
+    l2_prefetch_asize = Kstat["kstat.zfs.misc.arcstats.l2_prefetch_asize"]
+    l2_bufc_data_asize = Kstat["kstat.zfs.misc.arcstats.l2_bufc_data_asize"]
+    l2_bufc_metadata_asize = Kstat["kstat.zfs.misc.arcstats.l2_bufc_metadata_asize"]
 
     l2_access_total = (l2_hits + l2_misses)
     output['l2_health_count'] = (l2_writes_error + l2_cksum_bad + l2_io_error)
@@ -699,7 +740,7 @@ def get_l2arc_summary(Kstat):
         output["io_errors"] = fHits(l2_io_error)
 
         output["l2_arc_size"] = {}
-        output["l2_arc_size"]["adative"] = fBytes(l2_size)
+        output["l2_arc_size"]["adaptive"] = fBytes(l2_size)
         output["l2_arc_size"]["actual"] = {
             'per': fPerc(l2_asize, l2_size),
             'num': fBytes(l2_asize)
@@ -707,6 +748,26 @@ def get_l2arc_summary(Kstat):
         output["l2_arc_size"]["head_size"] = {
             'per': fPerc(l2_hdr_size, l2_size),
             'num': fBytes(l2_hdr_size),
+        }
+        output["l2_arc_size"]["mfu_asize"] = {
+            'per': fPerc(l2_mfu_asize, l2_asize),
+            'num': fBytes(l2_mfu_asize),
+        }
+        output["l2_arc_size"]["mru_asize"] = {
+            'per': fPerc(l2_mru_asize, l2_asize),
+            'num': fBytes(l2_mru_asize),
+        }
+        output["l2_arc_size"]["prefetch_asize"] = {
+            'per': fPerc(l2_prefetch_asize, l2_asize),
+            'num': fBytes(l2_prefetch_asize),
+        }
+        output["l2_arc_size"]["bufc_data_asize"] = {
+            'per': fPerc(l2_bufc_data_asize, l2_asize),
+            'num': fBytes(l2_bufc_data_asize),
+        }
+        output["l2_arc_size"]["bufc_metadata_asize"] = {
+            'per': fPerc(l2_bufc_metadata_asize, l2_asize),
+            'num': fBytes(l2_bufc_metadata_asize),
         }
 
         output["l2_arc_evicts"] = {}
@@ -772,7 +833,7 @@ def _l2arc_summary(Kstat):
         sys.stdout.write("\n")
 
         sys.stdout.write("L2 ARC Size: (Adaptive)\t\t\t\t%s\n" %
-                         arc["l2_arc_size"]["adative"])
+                         arc["l2_arc_size"]["adaptive"])
         sys.stdout.write("\tCompressed:\t\t\t%s\t%s\n" % (
             arc["l2_arc_size"]["actual"]["per"],
             arc["l2_arc_size"]["actual"]["num"],
@@ -783,11 +844,36 @@ def _l2arc_summary(Kstat):
             arc["l2_arc_size"]["head_size"]["num"],
             )
         )
+        sys.stdout.write("\tMFU Alloc. Size:\t\t%s\t%s\n" % (
+            arc["l2_arc_size"]["mfu_asize"]["per"],
+            arc["l2_arc_size"]["mfu_asize"]["num"],
+            )
+        )
+        sys.stdout.write("\tMRU Alloc. Size:\t\t%s\t%s\n" % (
+            arc["l2_arc_size"]["mru_asize"]["per"],
+            arc["l2_arc_size"]["mru_asize"]["num"],
+            )
+        )
+        sys.stdout.write("\tPrefetch Alloc. Size:\t\t%s\t%s\n" % (
+            arc["l2_arc_size"]["prefetch_asize"]["per"],
+            arc["l2_arc_size"]["prefetch_asize"]["num"],
+            )
+        )
+        sys.stdout.write("\tData (buf content) Alloc. Size:\t%s\t%s\n" % (
+            arc["l2_arc_size"]["bufc_data_asize"]["per"],
+            arc["l2_arc_size"]["bufc_data_asize"]["num"],
+            )
+        )
+        sys.stdout.write("\tMetadata (buf content) Size:\t%s\t%s\n" % (
+            arc["l2_arc_size"]["bufc_metadata_asize"]["per"],
+            arc["l2_arc_size"]["bufc_metadata_asize"]["num"],
+            )
+        )
         sys.stdout.write("\n")
 
         if arc["l2_arc_evicts"]['lock_retries'] != '0' or \
            arc["l2_arc_evicts"]["reading"] != '0':
-            sys.stdout.write("L2 ARC Evicts:\n")
+            sys.stdout.write("L2 ARC Evictions:\n")
             sys.stdout.write("\tLock Retries:\t\t\t\t%s\n" %
                              arc["l2_arc_evicts"]['lock_retries'])
             sys.stdout.write("\tUpon Reading:\t\t\t\t%s\n" %

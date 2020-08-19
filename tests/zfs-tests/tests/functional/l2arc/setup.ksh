@@ -18,20 +18,12 @@
 # Copyright (c) 2020, George Amanakis. All rights reserved.
 #
 
-. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/l2arc/l2arc.cfg
 
-export SIZE=1G
-export VDIR=$TESTDIR/disk.persist_l2arc
-export VDEV="$VDIR/a"
-export VDEV_CACHE="$VDIR/b"
+verify_runnable "global"
 
-# fio options
-export DIRECTORY=/$TESTPOOL
-export NUMJOBS=4
-export RUNTIME=30
-export PERF_RANDSEED=1234
-export PERF_COMPPERCENT=66
-export PERF_COMPCHUNK=0
-export BLOCKSIZE=128K
-export SYNC_TYPE=0
-export DIRECT=1
+log_must rm -rf $VDIR
+log_must mkdir -p $VDIR
+log_must mkfile $SIZE $VDEV
+
+log_pass
