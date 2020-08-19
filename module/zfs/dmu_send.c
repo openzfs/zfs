@@ -2056,7 +2056,7 @@ setup_to_thread(struct send_thread_arg *to_arg, objset_t *to_os,
 		to_arg->flags |= TRAVERSE_NO_DECRYPT;
 	to_arg->num_blocks_visited = &dssp->dss_blocks;
 	(void) thread_create(NULL, 0, send_traverse_thread, to_arg, 0,
-	    curproc, TS_RUN, minclsyspri);
+	    spa_proc(to_os->os_spa), TS_RUN, minclsyspri);
 }
 
 static void

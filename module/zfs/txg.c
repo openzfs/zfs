@@ -206,7 +206,7 @@ txg_sync_start(dsl_pool_t *dp)
 	tx->tx_threads = 2;
 
 	tx->tx_quiesce_thread = thread_create(NULL, 0, txg_quiesce_thread,
-	    dp, 0, &p0, TS_RUN, defclsyspri);
+	    dp, 0, spa_proc(dp->dp_spa), TS_RUN, defclsyspri);
 
 	/*
 	 * The sync thread can need a larger-than-default stack size on
@@ -214,7 +214,7 @@ txg_sync_start(dsl_pool_t *dp)
 	 * scrub_visitbp() recursion.
 	 */
 	tx->tx_sync_thread = thread_create(NULL, 0, txg_sync_thread,
-	    dp, 0, &p0, TS_RUN, defclsyspri);
+	    dp, 0, spa_proc(dp->dp_spa), TS_RUN, defclsyspri);
 
 	mutex_exit(&tx->tx_sync_lock);
 }
