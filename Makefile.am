@@ -145,6 +145,13 @@ checkbashisms:
 				-o -name 'build' -prune \
 				-o -name 'tests' -prune \
 				-o -name 'config' -prune \
+				-o -name 'zed-functions.sh*' -prune \
+				-o -name 'zfs-import*' -prune \
+				-o -name 'zfs-mount*' -prune \
+				-o -name 'zfs-zed*' -prune \
+				-o -name 'smart' -prune \
+				-o -name 'paxcheck.sh' -prune \
+				-o -name 'make_gitrev.sh' -prune \
 				-o -type f ! -name 'config*' \
 				! -name 'libtool' \
 			-exec bash -c 'awk "NR==1 && /\#\!.*bin\/sh.*/ {print FILENAME;}" "{}"' \;); \

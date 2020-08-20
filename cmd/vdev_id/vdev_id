@@ -114,9 +114,8 @@ EOF
 }
 
 map_slot() {
-	local LINUX_SLOT=$1
-	local CHANNEL=$2
-	local MAPPED_SLOT=
+	LINUX_SLOT=$1
+	CHANNEL=$2
 
 	MAPPED_SLOT=`awk "\\$1 == \"slot\" && \\$2 == ${LINUX_SLOT} && \
 			\\$4 ~ /^${CHANNEL}$|^$/ { print \\$3; exit }" $CONFIG`
@@ -127,9 +126,9 @@ map_slot() {
 }
 
 map_channel() {
-	local MAPPED_CHAN=
-	local PCI_ID=$1
-	local PORT=$2
+	MAPPED_CHAN=
+	PCI_ID=$1
+	PORT=$2
 
 	case $TOPOLOGY in
 		"sas_switch")
@@ -487,7 +486,7 @@ alias_handler () {
 	#          digits as partitions, causing alias creation to fail. This
 	#          ambiguity seems unavoidable, so devices using this facility
 	#          must not use such names.
-	local DM_PART=
+	DM_PART=
 	if echo $DM_NAME | grep -q -E 'p[0-9][0-9]*$' ; then
 		if [ "$DEVTYPE" != "partition" ] ; then
 			DM_PART=`echo $DM_NAME | awk -Fp '/p/{print "-part"$2}'`
@@ -549,7 +548,7 @@ if [ ! -r $CONFIG ] ; then
 	exit 0
 fi
 
-if [ -z "$DEV" -a -z "$ENCLOSURE_MODE" ] ; then
+if [ -z "$DEV" ] && [ -z "$ENCLOSURE_MODE" ] ; then
 	echo "Error: missing required option -d"
 	exit 1
 fi
@@ -565,7 +564,7 @@ fi
 TOPOLOGY=${TOPOLOGY:-sas_direct}
 
 # Should we create /dev/by-enclosure symlinks?
-if [ "$ENCLOSURE_MODE" = "yes" -a "$TOPOLOGY" = "sas_direct" ] ; then
+if [ "$ENCLOSURE_MODE" = "yes" ] && [ "$TOPOLOGY" = "sas_direct" ] ; then
 	ID_ENCLOSURE=$(enclosure_handler)
 	if [ -z "$ID_ENCLOSURE" ] ; then
 		exit 0
