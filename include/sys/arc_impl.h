@@ -619,6 +619,13 @@ typedef struct arc_stats {
 	 * Not updated directly; only synced in arc_kstat_update.
 	 */
 	kstat_named_t arcstat_bonus_size;
+#if defined(COMPAT_FREEBSD11)
+	/*
+	 * Sum of the previous three counters, provided for compatibility.
+	 */
+	kstat_named_t arcstat_other_size;
+#endif
+
 	/*
 	 * Total number of bytes consumed by ARC buffers residing in the
 	 * arc_anon state. This includes *all* buffers in the arc_anon
