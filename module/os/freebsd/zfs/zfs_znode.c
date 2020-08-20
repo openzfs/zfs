@@ -22,6 +22,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2014 by Delphix. All rights reserved.
  * Copyright (c) 2014 Integros [integros.com]
+ * Copyright (c) 2020, Datto Inc. All rights reserved.
  */
 
 /* Portions Copyright 2007 Jeremy Teo */
@@ -1879,22 +1880,38 @@ zfs_obj_to_pobj(objset_t *osp, sa_handle_t *hdl, sa_attr_type_t *sa_table,
  * Given an object number, return some zpl level statistics
  */
 static int
-zfs_obj_to_stats_impl(sa_handle_t *hdl, sa_attr_type_t *sa_table,
-    zfs_stat_t *sb)
+zfs_diff_stats_impl(sa_handle_t *hdl, sa_attr_type_t *sa_table,
+    zfs_diff_stat_t *zds)
 {
-	sa_bulk_attr_t bulk[4];
+	sa_bulk_attr_t bulk[6];
 	int count = 0;
 
 	SA_ADD_BULK_ATTR(bulk, count, sa_table[ZPL_MODE], NULL,
-	    &sb->zs_mode, sizeof (sb->zs_mode));
+	    &zds->zs.zs_mode, sizeof (zds->zs.zs_mode));
 	SA_ADD_BULK_ATTR(bulk, count, sa_table[ZPL_GEN], NULL,
-	    &sb->zs_gen, sizeof (sb->zs_gen));
+	    &zds->zs.zs_gen, sizeof (zds->zs.zs_gen));
 	SA_ADD_BULK_ATTR(bulk, count, sa_table[ZPL_LINKS], NULL,
-	    &sb->zs_links, sizeof (sb->zs_links));
+	    &zds->zs.zs_links, sizeof (zds->zs.zs_links));
 	SA_ADD_BULK_ATTR(bulk, count, sa_table[ZPL_CTIME], NULL,
-	    &sb->zs_ctime, sizeof (sb->zs_ctime));
+	    &zds->zs.zs_ctime, sizeof (zds->zs.zs_ctime));
+	SA_ADD_BULK_ATTR(bulk, count, sa_table[ZPL_PARENT], NULL,
+	    &zds->zds_parent, sizeof (zds->zds_parent));
+	SA_ADD_BULK_ATTR(bulk, count, sa_table[ZPL_FLAGS], NULL,
+	    &zds->zds_flags, sizeof (zds->zds_flags));
 
 	return (sa_bulk_lookup(hdl, bulk, count));
+}
+
+static int
+zfs_obj_check_deleteq(objset_t *osp, uint64_t obj)
+{
+	uint64_t deleteq_obj;
+	int err;
+
+	VERIFY0(zap_lookup(osp, MASTER_NODE_OBJ,
+	    ZFS_UNLINKED_SET, sizeof (uint64_t), 1, &deleteq_obj));
+	err = zap_lookup_int(osp, deleteq_obj, obj);
+	return (err == ENOENT ? 0 : err == 0 ? ESTALE : err);
 }
 
 static int
@@ -1911,19 +1928,12 @@ zfs_obj_to_path_impl(objset_t *osp, uint64_t obj, sa_handle_t *hdl,
 	*path = '\0';
 	sa_hdl = hdl;
 
-	uint64_t deleteq_obj;
-	VERIFY0(zap_lookup(osp, MASTER_NODE_OBJ,
-	    ZFS_UNLINKED_SET, sizeof (uint64_t), 1, &deleteq_obj));
-	error = zap_lookup_int(osp, deleteq_obj, obj);
-	if (error == 0) {
-		return (ESTALE);
-	} else if (error != ENOENT) {
+	error = zfs_obj_check_deleteq(osp, obj);
+	if (error != 0)
 		return (error);
-	}
-	error = 0;
 
 	for (;;) {
-		uint64_t pobj;
+		uint64_t pobj = 0;
 		char component[MAXNAMELEN + 2];
 		size_t complen;
 		int is_xattrdir;
@@ -2003,36 +2013,57 @@ zfs_obj_to_path(objset_t *osp, uint64_t obj, char *buf, int len)
 }
 
 int
-zfs_obj_to_stats(objset_t *osp, uint64_t obj, zfs_stat_t *sb,
+zfs_diff_stats(objset_t *os, uint64_t obj, zfs_diff_stat_t *zds,
     char *buf, int len)
 {
-	char *path = buf + len - 1;
 	sa_attr_type_t *sa_table;
 	sa_handle_t *hdl;
 	dmu_buf_t *db;
 	int error;
 
-	*path = '\0';
-
-	error = zfs_sa_setup(osp, &sa_table);
+	error = zfs_sa_setup(os, &sa_table);
 	if (error != 0)
 		return (error);
 
-	error = zfs_grab_sa_handle(osp, obj, &hdl, &db, FTAG);
+	error = zfs_grab_sa_handle(os, obj, &hdl, &db, FTAG);
 	if (error != 0)
 		return (error);
 
-	error = zfs_obj_to_stats_impl(hdl, sa_table, sb);
+	error = zfs_diff_stats_impl(hdl, sa_table, zds);
 	if (error != 0) {
 		zfs_release_sa_handle(hdl, db, FTAG);
 		return (error);
 	}
 
-	error = zfs_obj_to_path_impl(osp, obj, hdl, sa_table, buf, len);
+	if (buf)
+		error = zfs_obj_to_path_impl(os, obj, hdl, sa_table, buf, len);
+	else
+		error = zfs_obj_check_deleteq(os, obj);
 
 	zfs_release_sa_handle(hdl, db, FTAG);
+
 	return (error);
 }
+
+int
+zfs_obj_to_stats(objset_t *os, uint64_t obj, zfs_stat_t *zs, char *buf, int len)
+{
+	zfs_diff_stat_t zds;
+	int err;
+
+	err = zfs_diff_stats(os, obj, &zds, buf, len);
+	if (err == 0)
+		bcopy(&zds.zs, zs, sizeof (zfs_stat_t));
+	return (err);
+}
+
+#if defined(_KERNEL)
+boolean_t
+zfs_reserved_obj(uint64_t obj)
+{
+	return (B_FALSE);
+}
+#endif
 
 #ifdef _KERNEL
 int

@@ -22,7 +22,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
- * Copyright (c) 2018 Datto Inc.
+ * Copyright (c) 2018, 2020, Datto Inc. All rights reserved.
  * Copyright 2020 Joyent, Inc.
  */
 
@@ -38,7 +38,6 @@
 
 #include <libuutil.h>
 #include <libzfs.h>
-#include <libshare.h>
 #include <libzfs_core.h>
 
 #ifdef	__cplusplus
@@ -213,27 +212,6 @@ typedef struct {
 	int p_unshare_err;
 } proto_table_t;
 
-typedef struct differ_info {
-	zfs_handle_t *zhp;
-	char *fromsnap;
-	char *frommnt;
-	char *tosnap;
-	char *tomnt;
-	char *ds;
-	char *dsmnt;
-	char *tmpsnap;
-	char errbuf[1024];
-	boolean_t isclone;
-	boolean_t scripted;
-	boolean_t classify;
-	boolean_t timestamped;
-	uint64_t shares;
-	int zerr;
-	int cleanupfd;
-	int outputfd;
-	int datafd;
-} differ_info_t;
-
 extern proto_table_t proto_table[PROTO_END];
 
 extern int do_mount(zfs_handle_t *zhp, const char *mntpt, char *opts,
@@ -250,7 +228,6 @@ extern zfs_share_type_t is_shared(const char *mountpoint,
 extern int libzfs_load_module(void);
 extern int zpool_relabel_disk(libzfs_handle_t *hdl, const char *path,
     const char *msg);
-extern int find_shares_object(differ_info_t *di);
 extern void libzfs_set_pipe_max(int infd);
 extern void zfs_commit_proto(zfs_share_proto_t *);
 

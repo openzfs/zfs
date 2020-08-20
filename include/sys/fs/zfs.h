@@ -26,7 +26,7 @@
  * Copyright (c) 2013, 2017 Joyent, Inc. All rights reserved.
  * Copyright (c) 2014 Integros [integros.com]
  * Copyright (c) 2017, Intel Corporation.
- * Copyright (c) 2019 Datto Inc.
+ * Copyright (c) 2017, 2020, Datto Inc. All rights reserved.
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -1315,6 +1315,8 @@ typedef enum zfs_ioc {
 	ZFS_IOC_GET_BOOKMARK_PROPS,		/* 0x5a52 */
 	ZFS_IOC_WAIT,				/* 0x5a53 */
 	ZFS_IOC_WAIT_FS,			/* 0x5a54 */
+	ZFS_IOC_DUMP_ZAP,			/* 0x5a55 */
+	ZFS_IOC_DIFF_STATS,			/* 0x5a56 */
 
 	/*
 	 * Per-platform (Optional) - 8/128 numbers reserved.

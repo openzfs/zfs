@@ -1642,3 +1642,63 @@ lzc_get_bootenv(const char *pool, nvlist_t **outnvl)
 {
 	return (lzc_ioctl(ZFS_IOC_GET_BOOTENV, pool, NULL, outnvl));
 }
+
+/*
+ * snapname: The name of the snapshot containing the ZAP.
+ * fd: File descriptor to write the stream to.
+ * from: full snap name to diff against
+ */
+int
+lzc_diff(const char *snapname, const char *from, int fd)
+{
+	nvlist_t *args;
+	int err;
+
+	args = fnvlist_alloc();
+	fnvlist_add_int32(args, "fd", fd);
+	fnvlist_add_string(args, "fromsnap", from);
+
+	err = lzc_ioctl(ZFS_IOC_DIFF, snapname, args, NULL);
+	nvlist_free(args);
+	return (err);
+}
+
+/*
+ * snapname: The name of the snapshot containing the ZAP.
+ * fd: File descriptor to write the stream to.
+ * objid: Object ID of the ZAP
+ */
+int
+lzc_dump_zap(const char *snapname, uint64_t objid, int fd)
+{
+	nvlist_t *args;
+	int err;
+
+	args = fnvlist_alloc();
+	fnvlist_add_int32(args, "fd", fd);
+	fnvlist_add_uint64(args, "object", objid);
+
+	err = lzc_ioctl(ZFS_IOC_DUMP_ZAP, snapname, args, NULL);
+
+	nvlist_free(args);
+	return (err);
+}
+
+/*
+ * fsname: The name of the filesystem
+ * objid: Object ID to stat
+ */
+int
+lzc_diff_stats(const char *fsname, uint64_t objid, nvlist_t **outnvl)
+{
+	nvlist_t *args;
+	int err;
+
+	args = fnvlist_alloc();
+	fnvlist_add_uint64(args, "object", objid);
+
+	err = lzc_ioctl(ZFS_IOC_DIFF_STATS, fsname, args, outnvl);
+
+	nvlist_free(args);
+	return (err);
+}

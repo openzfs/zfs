@@ -62,6 +62,7 @@
 #include <sys/dsl_crypt.h>
 #include <libzfs.h>
 #include <libzutil.h>
+#include <libshare.h>
 
 #include "zfs_namecheck.h"
 #include "zfs_prop.h"

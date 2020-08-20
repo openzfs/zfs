@@ -23,6 +23,7 @@
  * Copyright (c) 2012, 2020 by Delphix. All rights reserved.
  * Copyright 2016 RackTop Systems.
  * Copyright (c) 2017, Intel Corporation.
+ * Copyright (c) 2017, 2020, Datto Inc. All rights reserved.
  */
 
 #ifndef	_SYS_ZFS_IOCTL_H
@@ -384,19 +385,26 @@ typedef struct dmu_replay_record {
 
 /* diff record range types */
 typedef enum diff_type {
-	DDR_NONE = 0x1,
-	DDR_INUSE = 0x2,
-	DDR_FREE = 0x4
+	DDR_NONE	= 0x0,
+	DDR_IN_TO	= 0x1,	/* dnode in to snap only */
+	DDR_IN_FROM	= 0x2,	/* dnode in from snap only */
+	DDR_IN_BOTH	= 0x3	/* dnode in both from and to snaps */
 } diff_type_t;
 
 /*
  * The diff reports back ranges of free or in-use objects.
  */
 typedef struct dmu_diff_record {
-	uint64_t ddr_type;
-	uint64_t ddr_first;
-	uint64_t ddr_last;
+	diff_type_t	ddr_type;
+	uint64_t	ddr_obj;
+	int		ddr_err[2];
+	zfs_diff_stat_t	ddr_zds[2];	/* space for 1 or two stats as needed */
 } dmu_diff_record_t;
+
+typedef struct zap_pair_record {
+	uint64_t zpr_value;
+	char	 zpr_key[ZAP_MAXNAMELEN];
+} zap_pair_record_t;
 
 typedef struct zinject_record {
 	uint64_t	zi_objset;

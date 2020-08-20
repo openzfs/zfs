@@ -15,6 +15,7 @@
 
 /*
  * Copyright (c) 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2020, Datto Inc. All rights reserved.
  */
 
 #include <stdio.h>
@@ -106,6 +107,8 @@ static unsigned ioc_skip[] = {
 	ZFS_IOC_NEXTBOOT,
 	ZFS_IOC_JAIL,
 	ZFS_IOC_UNJAIL,
+	ZFS_IOC_DUMP_ZAP,
+	ZFS_IOC_DIFF_STATS,
 };
 
 
@@ -1015,6 +1018,8 @@ validate_ioc_values(void)
 	CHECK(ZFS_IOC_BASE + 82 == ZFS_IOC_GET_BOOKMARK_PROPS);
 	CHECK(ZFS_IOC_BASE + 83 == ZFS_IOC_WAIT);
 	CHECK(ZFS_IOC_BASE + 84 == ZFS_IOC_WAIT_FS);
+	CHECK(ZFS_IOC_BASE + 85 == ZFS_IOC_DUMP_ZAP);
+	CHECK(ZFS_IOC_BASE + 86 == ZFS_IOC_DIFF_STATS);
 	CHECK(ZFS_IOC_PLATFORM_BASE + 1 == ZFS_IOC_EVENTS_NEXT);
 	CHECK(ZFS_IOC_PLATFORM_BASE + 2 == ZFS_IOC_EVENTS_CLEAR);
 	CHECK(ZFS_IOC_PLATFORM_BASE + 3 == ZFS_IOC_EVENTS_SEEK);
