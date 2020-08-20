@@ -12,8 +12,8 @@ while getopts "a:k:n:t:v:" opt; do
 	esac
 done
 
-if [ -z "${arch}" -o -z "${kver}" -o -z "${pkgname}" -o \
-     -z "${tree}" -o -z "${pkgver}" ]; then
+if [ -z "${arch}" ] || [ -z "${kver}" ] || [ -z "${pkgname}" ] || \
+    [ -z "${tree}" ] || [ -z "${pkgver}" ]; then
 	echo "Usage: $PROG -a <arch> -k <kver> -n <pkgname>" \
 	     "-t <tree> -v <pkgver>"
 	exit 1
