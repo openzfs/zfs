@@ -13,7 +13,7 @@ while getopts "n:v:c:f:" opt; do
 	esac
 done
 
-if [ -z "${pkgname}" -o -z "${pkgver}" -o -z "${filename}" ]; then
+if [ -z "${pkgname}" ] || [ -z "${pkgver}" ] || [ -z "${filename}" ]; then
 	echo "Usage: $PROG -n <pkgname> -v <pkgver> -c <pkgcfg> -f <filename>"
 	exit 1
 fi
