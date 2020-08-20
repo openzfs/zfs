@@ -9,6 +9,7 @@ ZFS_MODULES += nvpair/
 ZFS_MODULES += unicode/
 ZFS_MODULES += zcommon/
 ZFS_MODULES += zfs/
+ZFS_MODULES += zstd/
 
 # The rest is only relevant when run by kbuild
 ifneq ($(KERNELRELEASE),)

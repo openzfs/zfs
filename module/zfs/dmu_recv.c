@@ -25,6 +25,8 @@
  * Copyright (c) 2014, Joyent, Inc. All rights reserved.
  * Copyright 2014 HybridCluster. All rights reserved.
  * Copyright (c) 2018, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
+ * Copyright (c) 2019, Klara Inc.
+ * Copyright (c) 2019, Allan Jude
  */
 
 #include <sys/dmu.h>
@@ -529,13 +531,17 @@ recv_begin_check_feature_flags_impl(uint64_t featureflags, spa_t *spa)
 		return (SET_ERROR(ENOTSUP));
 
 	/*
-	 * LZ4 compressed, embedded, mooched, large blocks, and large_dnodes
-	 * in the stream can only be used if those pool features are enabled
-	 * because we don't attempt to decompress / un-embed / un-mooch /
-	 * split up the blocks / dnodes during the receive process.
+	 * LZ4 compressed, ZSTD compressed, embedded, mooched, large blocks,
+	 * and large_dnodes in the stream can only be used if those pool
+	 * features are enabled because we don't attempt to decompress /
+	 * un-embed / un-mooch / split up the blocks / dnodes during the
+	 * receive process.
 	 */
 	if ((featureflags & DMU_BACKUP_FEATURE_LZ4) &&
 	    !spa_feature_is_enabled(spa, SPA_FEATURE_LZ4_COMPRESS))
+		return (SET_ERROR(ENOTSUP));
+	if ((featureflags & DMU_BACKUP_FEATURE_ZSTD) &&
+	    !spa_feature_is_enabled(spa, SPA_FEATURE_ZSTD_COMPRESS))
 		return (SET_ERROR(ENOTSUP));
 	if ((featureflags & DMU_BACKUP_FEATURE_EMBED_DATA) &&
 	    !spa_feature_is_enabled(spa, SPA_FEATURE_EMBEDDED_DATA))
@@ -2467,7 +2473,7 @@ receive_read_record(dmu_recv_cookie_t *drc)
 			    drrw->drr_object, byteorder, drrw->drr_salt,
 			    drrw->drr_iv, drrw->drr_mac, drrw->drr_type,
 			    drrw->drr_compressed_size, drrw->drr_logical_size,
-			    drrw->drr_compressiontype);
+			    drrw->drr_compressiontype, 0);
 		} else if (DRR_WRITE_COMPRESSED(drrw)) {
 			ASSERT3U(drrw->drr_compressed_size, >, 0);
 			ASSERT3U(drrw->drr_logical_size, >=,
@@ -2476,7 +2482,7 @@ receive_read_record(dmu_recv_cookie_t *drc)
 			abuf = arc_loan_compressed_buf(
 			    dmu_objset_spa(drc->drc_os),
 			    drrw->drr_compressed_size, drrw->drr_logical_size,
-			    drrw->drr_compressiontype);
+			    drrw->drr_compressiontype, 0);
 		} else {
 			abuf = arc_loan_buf(dmu_objset_spa(drc->drc_os),
 			    is_meta, drrw->drr_logical_size);
@@ -2551,7 +2557,7 @@ receive_read_record(dmu_recv_cookie_t *drc)
 			    drrs->drr_object, byteorder, drrs->drr_salt,
 			    drrs->drr_iv, drrs->drr_mac, drrs->drr_type,
 			    drrs->drr_compressed_size, drrs->drr_length,
-			    drrs->drr_compressiontype);
+			    drrs->drr_compressiontype, 0);
 		} else {
 			abuf = arc_loan_buf(dmu_objset_spa(drc->drc_os),
 			    DMU_OT_IS_METADATA(drrs->drr_type),

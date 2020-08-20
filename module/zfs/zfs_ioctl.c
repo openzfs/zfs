@@ -38,6 +38,8 @@
  * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
  * Copyright (c) 2019 Datto Inc.
  * Copyright (c) 2019, 2020 by Christian Schwarz. All rights reserved.
+ * Copyright (c) 2019, Klara Inc.
+ * Copyright (c) 2019, Allan Jude
  */
 
 /*
@@ -2463,6 +2465,15 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 	case ZFS_PROP_REFRESERVATION:
 		err = dsl_dataset_set_refreservation(dsname, source, intval);
 		break;
+	case ZFS_PROP_COMPRESSION:
+		err = dsl_dataset_set_compression(dsname, source, intval);
+		/*
+		 * Set err to -1 to force the zfs_set_prop_nvlist code down the
+		 * default path to set the value in the nvlist.
+		 */
+		if (err == 0)
+			err = -1;
+		break;
 	case ZFS_PROP_VOLSIZE:
 		err = zvol_set_volsize(dsname, intval);
 		break;
@@ -4354,7 +4365,7 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 	const char *propname = nvpair_name(pair);
 	boolean_t issnap = (strchr(dsname, '@') != NULL);
 	zfs_prop_t prop = zfs_name_to_prop(propname);
-	uint64_t intval;
+	uint64_t intval, compval;
 	int err;
 
 	if (prop == ZPROP_INVAL) {
@@ -4436,19 +4447,20 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 		 * we'll catch them later.
 		 */
 		if (nvpair_value_uint64(pair, &intval) == 0) {
-			if (intval >= ZIO_COMPRESS_GZIP_1 &&
-			    intval <= ZIO_COMPRESS_GZIP_9 &&
+			compval = ZIO_COMPRESS_ALGO(intval);
+			if (compval >= ZIO_COMPRESS_GZIP_1 &&
+			    compval <= ZIO_COMPRESS_GZIP_9 &&
 			    zfs_earlier_version(dsname,
 			    SPA_VERSION_GZIP_COMPRESSION)) {
 				return (SET_ERROR(ENOTSUP));
 			}
 
-			if (intval == ZIO_COMPRESS_ZLE &&
+			if (compval == ZIO_COMPRESS_ZLE &&
 			    zfs_earlier_version(dsname,
 			    SPA_VERSION_ZLE_COMPRESSION))
 				return (SET_ERROR(ENOTSUP));
 
-			if (intval == ZIO_COMPRESS_LZ4) {
+			if (compval == ZIO_COMPRESS_LZ4) {
 				spa_t *spa;
 
 				if ((err = spa_open(dsname, &spa, FTAG)) != 0)
@@ -4456,6 +4468,20 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 
 				if (!spa_feature_is_enabled(spa,
 				    SPA_FEATURE_LZ4_COMPRESS)) {
+					spa_close(spa, FTAG);
+					return (SET_ERROR(ENOTSUP));
+				}
+				spa_close(spa, FTAG);
+			}
+
+			if (compval == ZIO_COMPRESS_ZSTD) {
+				spa_t *spa;
+
+				if ((err = spa_open(dsname, &spa, FTAG)) != 0)
+					return (err);
+
+				if (!spa_feature_is_enabled(spa,
+				    SPA_FEATURE_ZSTD_COMPRESS)) {
 					spa_close(spa, FTAG);
 					return (SET_ERROR(ENOTSUP));
 				}

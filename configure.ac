@@ -136,6 +136,7 @@ AC_CONFIG_FILES([
 	include/sys/fs/Makefile
 	include/sys/lua/Makefile
 	include/sys/sysevent/Makefile
+	include/sys/zstd/Makefile
 	lib/Makefile
 	lib/libavl/Makefile
 	lib/libefi/Makefile
@@ -163,6 +164,7 @@ AC_CONFIG_FILES([
 	lib/libzfs_core/Makefile
 	lib/libzfs_core/libzfs_core.pc
 	lib/libzpool/Makefile
+	lib/libzstd/Makefile
 	lib/libzutil/Makefile
 	man/Makefile
 	man/man1/Makefile
@@ -180,6 +182,7 @@ AC_CONFIG_FILES([
 	module/unicode/Makefile
 	module/zcommon/Makefile
 	module/zfs/Makefile
+	module/zstd/Makefile
 	rpm/Makefile
 	rpm/generic/Makefile
 	rpm/generic/zfs-dkms.spec

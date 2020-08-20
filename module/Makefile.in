@@ -4,7 +4,7 @@ INSTALL_MOD_DIR ?= extra
 LINUX_MOD_DIR ?= /lib/modules/@LINUX_VERSION@
 LINUX_DEBUG_MOD_DIR ?= /usr/lib/debug/$(LINUX_MOD_DIR)
 
-SUBDIR_TARGETS = icp lua
+SUBDIR_TARGETS = icp lua zstd
 
 all: modules
 distclean maintainer-clean: clean

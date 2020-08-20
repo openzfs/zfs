@@ -36,6 +36,7 @@
 .\" Copyright 2019 Richard Laager. All rights reserved.
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
+.\" Copyright (c) 2019, Kjeld Schouten-Lebbing
 .\"
 .Dd January 30, 2020
 .Dt ZFSPROPS 8
@@ -773,7 +774,8 @@ for more information on these algorithms.
 Changing this property affects only newly-written data.
 .It Xo
 .Sy compression Ns = Ns Sy on Ns | Ns Sy off Ns | Ns Sy gzip Ns | Ns
-.Sy gzip- Ns Em N Ns | Ns Sy lz4 Ns | Ns Sy lzjb Ns | Ns Sy zle
+.Sy gzip- Ns Em N Ns | Ns Sy lz4 Ns | Ns Sy lzjb Ns | Ns Sy zle Ns | Ns Sy zstd Ns | Ns
+.Sy zstd- Ns Em N Ns | Ns Sy zstd-fast Ns | Ns Sy zstd-fast- Ns Em N
 .Xc
 Controls the compression algorithm used for this dataset.
 .Pp
@@ -839,6 +841,38 @@ is equivalent to
 .Po which is also the default for
 .Xr gzip 1
 .Pc .
+.Pp
+The
+.Sy zstd
+compression algorithm provides both high compression ratios and good
+performance. You can specify the
+.Sy zstd
+level by using the value
+.Sy zstd- Ns Em N ,
+where
+.Em N
+is an integer from 1
+.Pq fastest
+to 19
+.Pq best compression ratio .
+.Sy zstd
+is equivalent to
+.Sy zstd-3 .
+.Pp
+Faster speeds at the cost of the compression ratio can be requested by
+setting a negative
+.Sy zstd
+level.  This is done using
+.Sy zstd-fast- Ns Em N ,
+where
+.Em N
+is an integer in [1-9,10,20,30,...,100,500,1000] which maps to a negative
+.Sy zstd
+level. The lower the level the faster the compression - 1000 provides
+the fastest compression and lowest compression ratio.
+.Sy zstd-fast
+is equivalent to
+.Sy zstd-fast-1 .
 .Pp
 The
 .Sy zle

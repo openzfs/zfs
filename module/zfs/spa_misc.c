@@ -62,6 +62,7 @@
 #include <sys/btree.h>
 #include <sys/zfeature.h>
 #include <sys/qat.h>
+#include <sys/zstd/zstd.h>
 
 /*
  * SPA locking
