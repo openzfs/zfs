@@ -52,7 +52,8 @@ tests = ['zfs_mount_006_pos', 'zfs_mount_008_pos', 'zfs_multi_mount']
 tags = ['functional', 'cli_root', 'zfs_mount']
 
 [tests/functional/cli_root/zfs_share:Linux]
-tests = ['zfs_share_005_pos', 'zfs_share_007_neg', 'zfs_share_009_neg']
+tests = ['zfs_share_005_pos', 'zfs_share_007_neg', 'zfs_share_009_neg',
+    'zfs_share_012_pos']
 tags = ['functional', 'cli_root', 'zfs_share']
 
 [tests/functional/cli_root/zfs_sysfs:Linux]
