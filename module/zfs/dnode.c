@@ -1624,7 +1624,9 @@ dnode_rele_and_unlock(dnode_t *dn, void *tag, boolean_t evicting)
 	 * other direct or indirect hold on the dnode must first drop the dnode
 	 * handle.
 	 */
-	ASSERT(refs > 0 || dnh->dnh_zrlock.zr_owner != curthread);
+	#ifdef	ZFS_DEBUG
+		ASSERT(refs > 0 || dnh->dnh_zrlock.zr_owner != curthread);
+	#endif
 
 	/* NOTE: the DNODE_DNODE does not have a dn_dbuf */
 	if (refs == 0 && db != NULL) {
