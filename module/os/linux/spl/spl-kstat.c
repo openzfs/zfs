@@ -452,6 +452,8 @@ kstat_create_module(char *name)
 		return (NULL);
 
 	module = kmem_alloc(sizeof (kstat_module_t), KM_SLEEP);
+	if(module == NULL)
+		return (NULL);
 	module->ksm_proc = pde;
 	strlcpy(module->ksm_name, name, KSTAT_STRLEN+1);
 	INIT_LIST_HEAD(&module->ksm_kstat_list);
