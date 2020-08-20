@@ -999,7 +999,7 @@ taskq_thread_create(taskq_t *tq)
 	taskq_thread_t *tqt;
 
 	tqt = kmem_alloc(sizeof (*tqt), KM_PUSHPAGE);
-	if(tqt == NULL)
+	if (tqt == NULL)
 		return (NULL);
 	INIT_LIST_HEAD(&tqt->tqt_thread_list);
 	INIT_LIST_HEAD(&tqt->tqt_active_list);
