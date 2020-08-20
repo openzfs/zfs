@@ -1580,7 +1580,7 @@ zfs_mount(vfs_t *vfsp)
 
 		error = getpoolname(osname, pname);
 		if (error == 0)
-			error = spa_import_rootpool(pname);
+			error = spa_import_rootpool(pname, false);
 		if (error)
 			goto out;
 	}
