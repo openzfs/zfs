@@ -70,9 +70,10 @@
 .Xc
 Lists pools available to import.
 If the
-.Fl d
-option is not specified, this command searches for devices in
-.Pa /dev .
+.Fl d or
+.Fl c
+options are not specified, this command searches for devices using libblkid
+on Linux and geom on FreeBSD.
 The
 .Fl d
 option can be specified multiple times, and all directories are searched.
