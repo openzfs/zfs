@@ -142,15 +142,12 @@ trap cleanup EXIT
 # be dangerous and should only be used in a dedicated test environment.
 #
 cleanup_all() {
-	TEST_POOLS
 	TEST_POOLS=$(sudo "$ZPOOL" list -H -o name | grep testpool)
-	TEST_LOOPBACKS
 	if [ "$UNAME" = "FreeBSD" ] ; then
 		TEST_LOOPBACKS=$(sudo "${LOSETUP}" -l)
 	else
 		TEST_LOOPBACKS=$(sudo "${LOSETUP}" -a|grep file-vdev|cut -f1 -d:)
 	fi
-	TEST_FILES
 	TEST_FILES=$(ls /var/tmp/file-vdev* 2>/dev/null)
 
 	msg
