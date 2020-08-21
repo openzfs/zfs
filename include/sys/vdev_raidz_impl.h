@@ -160,6 +160,17 @@ typedef struct raidz_map {
 	raidz_row_t *rm_row[0];		/* flexible array of rows */
 } raidz_map_t;
 
+/*
+ * Nodes in vdev_raidz_t:vd_expand_txgs.
+ * Blocks with physical birth time of re_txg or later have the specified
+ * logical width (until the next node).
+ */
+typedef struct reflow_node {
+	uint64_t re_txg;
+	uint64_t re_logical_width;
+	avl_node_t re_link;
+} reflow_node_t;
+
 
 #define	RAIDZ_ORIGINAL_IMPL	(INT_MAX)
 

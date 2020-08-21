@@ -94,14 +94,14 @@ typedef struct vdev_raidz_expand {
 } vdev_raidz_expand_t;
 
 typedef struct vdev_raidz {
-	int vd_logical_width;
+	int vd_original_width;
 	int vd_physical_width;
 	int vd_nparity;
 
 	/*
-	 * Last reflow txg per attached device.
+	 * tree of reflow_node_t's.
 	 */
-	avl_tree_t vre_txgs;
+	avl_tree_t vd_expand_txgs;
 
 	/*
 	 * If this vdev is being expanded, spa_raidz_expand is set to this

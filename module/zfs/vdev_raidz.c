@@ -196,20 +196,6 @@ vdev_raidz_map_free_vsd(zio_t *zio)
 	}
 }
 
-/*
- * The node of avl tree below is main part of expanded raidz time dependent
- * geometry logic. Allowing to mix BPs stored in reflowed and normal format
- * depending of BP blk birth txg. The new reflow node is added on first
- * expansion process start and every time on expansion reflow process completion.
- * Where re_txg is last reflow process txg and the re_logical_width is actual
- * logical width required to read BP in reflowed format.
- */
-typedef struct reflow_node {
-	uint64_t re_txg;
-	uint64_t re_logical_width;
-	avl_node_t re_link;
-} reflow_node_t;
-
 static int
 vedv_raidz_reflow_compare(const void *x1, const void *x2)
 {
@@ -224,10 +210,10 @@ vdev_raidz_free(vdev_raidz_t *vdrz)
 {
 	reflow_node_t *re;
 	void *cookie = NULL;
-	avl_tree_t *tree = &vdrz->vre_txgs;
+	avl_tree_t *tree = &vdrz->vd_expand_txgs;
 	while ((re = avl_destroy_nodes(tree, &cookie)) != NULL)
 		kmem_free(re, sizeof (*re));
-	avl_destroy(&vdrz->vre_txgs);
+	avl_destroy(&vdrz->vd_expand_txgs);
 	kmem_free(vdrz, sizeof (*vdrz));
 }
 
@@ -1940,12 +1926,19 @@ vdev_raidz_asize(vdev_t *vd, uint64_t psize)
 	vdev_raidz_t *vdrz = vd->vdev_tsd;
 	uint64_t asize;
 	uint64_t ashift = vd->vdev_top->vdev_ashift;
-	uint64_t cols = vdrz->vd_logical_width;
+	/* XXX if this is a new write, need to use new logical width */
+	uint64_t cols = vdrz->vd_original_width;
 	uint64_t nparity = vdrz->vd_nparity;
 
 	asize = ((psize - 1) >> ashift) + 1;
 	asize += nparity * ((asize + cols - nparity - 1) / (cols - nparity));
 	asize = roundup(asize, nparity + 1) << ashift;
+
+	uint64_t asize_new = ((psize - 1) >> ashift) + 1;
+	uint64_t ncols_new = vdrz->vd_physical_width;
+	asize_new += nparity * ((asize_new + ncols_new - nparity - 1) / (ncols_new - nparity));
+	asize_new = roundup(asize_new, nparity + 1) << ashift;
+	VERIFY3U(asize_new, <=, asize);
 
 	return (asize);
 }
@@ -2102,15 +2095,24 @@ vdev_raidz_io_start_read(zio_t *zio, raidz_row_t *rr, boolean_t forceparity)
 static uint64_t
 vdev_raidz_get_logical_width(vdev_raidz_t *vdrz, zio_t *zio)
 {
-	reflow_node_t *re, lookup = { BP_PHYSICAL_BIRTH(zio->io_bp), 0 };
+#if 1
+	reflow_node_t lookup = {
+		.re_txg = BP_PHYSICAL_BIRTH(zio->io_bp)
+	};
 	avl_index_t where;
 
-	re = avl_find(&vdrz->vre_txgs, &lookup, &where);
+	reflow_node_t *re = avl_find(&vdrz->vd_expand_txgs, &lookup, &where);
 	if (re != NULL)
 		return (re->re_logical_width);
 
-	re = avl_nearest(&vdrz->vre_txgs, where, AVL_BEFORE);
+	re = avl_nearest(&vdrz->vd_expand_txgs, where, AVL_BEFORE);
+	if (re == NULL)
+		return (vdrz->vd_original_width);
+
 	return (re->re_logical_width);
+#else
+	return (vdrz->vd_original_width);
+#endif
 }
 
 /*
@@ -2138,6 +2140,7 @@ vdev_raidz_io_start(zio_t *zio)
 	vdev_raidz_t *vdrz = vd->vdev_tsd;
 	raidz_map_t *rm;
 
+	uint64_t logical_width = vdev_raidz_get_logical_width(vdrz, zio);
 	zfs_dbgmsg("zio=%llx bm=%llu/%llu/%llu/%llu phys_birth=%llu logical_width=%llu",
 	    zio,
 	    zio->io_bookmark.zb_objset,
@@ -2145,15 +2148,12 @@ vdev_raidz_io_start(zio_t *zio)
 	    zio->io_bookmark.zb_level,
 	    zio->io_bookmark.zb_blkid,
 	    BP_PHYSICAL_BIRTH(zio->io_bp),
-	    vdrz->vd_logical_width);
-	if (vdrz->vd_logical_width != vdrz->vd_physical_width) {
-		uint64_t logical_width = vdev_raidz_get_logical_width(vdrz, zio);
-		if (vdrz->vn_vre.vre_offset != UINT64_MAX ||
-		    logical_width != vdrz->vd_physical_width) {
-			/* XXX rangelock not needed after expansion completes */
-			zfs_locked_range_t *lr =
-			    zfs_rangelock_enter(&vdrz->vn_vre.vre_rangelock,
-			    zio->io_offset, zio->io_size, RL_READER);
+	    logical_width);
+	if (logical_width != vdrz->vd_physical_width) {
+		/* XXX rangelock not needed after expansion completes */
+		zfs_locked_range_t *lr =
+		    zfs_rangelock_enter(&vdrz->vn_vre.vre_rangelock,
+		    zio->io_offset, zio->io_size, RL_READER);
 		zfs_dbgmsg("zio=%llx %s io_offset=%llu vre_offset_phys=%llu vre_offset=%llu",
 		    zio,
 		    zio->io_type == ZIO_TYPE_WRITE ? "WRITE" : "READ",
@@ -2164,19 +2164,13 @@ vdev_raidz_io_start(zio_t *zio)
 		rm = vdev_raidz_map_alloc_expanded(zio->io_abd,
 		    zio->io_size, zio->io_offset,
 		    tvd->vdev_ashift, vdrz->vd_physical_width,
-		    vdrz->vd_logical_width, vdrz->vd_nparity,
+		    logical_width, vdrz->vd_nparity,
 		    vdrz->vn_vre.vre_offset_phys,
 		    vdrz->vn_vre.vre_offset);
-			rm->rm_lr = lr;
-		} else {
-			rm = vdev_raidz_map_alloc(zio,
-			    tvd->vdev_ashift, vdrz->vd_physical_width,
-			    vdrz->vd_nparity);
-		}
+		rm->rm_lr = lr;
 	} else {
 		rm = vdev_raidz_map_alloc(zio,
-		    tvd->vdev_ashift, vdrz->vd_logical_width,
-		    vdrz->vd_nparity);
+		    tvd->vdev_ashift, logical_width, vdrz->vd_nparity);
 	}
 
 	zio->io_vsd = rm;
@@ -2443,7 +2437,7 @@ raidz_simulate_failure(vdev_raidz_t *vdrz, int ashift, int i, raidz_col_t *rc)
 	zfs_dbgmsg("raidz_simulate_failure(pw=%u lw=%u ashift=%u i=%u "
 	    "rc_offset=%llx rc_devidx=%u sector_id=%u",
 	    vdrz->vd_physical_width,
-	    vdrz->vd_logical_width,
+	    vdrz->vd_original_width,
 	    ashift,
 	    i,
 	    (long long)rc->rc_offset,
@@ -2452,7 +2446,7 @@ raidz_simulate_failure(vdev_raidz_t *vdrz, int ashift, int i, raidz_col_t *rc)
 #endif
 
 	for (int w = vdrz->vd_physical_width;
-	    w >= vdrz->vd_logical_width; w--) {
+	    w >= vdrz->vd_original_width; w--) {
 		if (i < w) {
 			return (sector_id % w == i);
 		} else {
@@ -2616,7 +2610,7 @@ vdev_raidz_combrec(zio_t *zio)
 		/* Determine number of logical children, n */
 		int n = 0;
 		for (int w = vdrz->vd_physical_width;
-		    w >= vdrz->vd_logical_width; w--) {
+		    w >= vdrz->vd_original_width; w--) {
 			n += w;
 		}
 
@@ -3109,9 +3103,9 @@ raidz_reflow_complete_sync(void *arg, dmu_tx_t *tx)
 	vre->vre_offset_phys = UINT64_MAX;
 
 	reflow_node_t *re = kmem_zalloc(sizeof (*re), KM_SLEEP);
-	re->re_txg = tx->tx_txg;
+	re->re_txg = tx->tx_txg + 1;
 	re->re_logical_width = vdrz->vd_physical_width;
-	avl_add(&vdrz->vre_txgs, re);
+	avl_add(&vdrz->vd_expand_txgs, re);
 
 	/*
 	 * vre_offset_phys will be removed from the on-disk config by
@@ -3488,17 +3482,10 @@ vdev_raidz_attach_sync(void *arg, dmu_tx_t *tx)
 	vdev_raidz_t *vdrz = raidvd->vdev_tsd;
 	ASSERT3P(raidvd->vdev_ops, ==, &vdev_raidz_ops);
 	ASSERT3P(raidvd->vdev_top, ==, raidvd);
-	ASSERT3U(raidvd->vdev_children, >, vdrz->vd_logical_width);
+	ASSERT3U(raidvd->vdev_children, >, vdrz->vd_original_width);
 	ASSERT3U(raidvd->vdev_children, ==, vdrz->vd_physical_width + 1);
 	ASSERT3P(raidvd->vdev_child[raidvd->vdev_children - 1], ==,
 	    new_child);
-
-	if (vdrz->vd_logical_width == vdrz->vd_physical_width) {
-		reflow_node_t *re = kmem_zalloc(sizeof (*re), KM_SLEEP);
-		re->re_txg = 0;
-		re->re_logical_width = vdrz->vd_logical_width;
-		avl_add(&vdrz->vre_txgs, re);
-	}
 
 	vdrz->vd_physical_width++;
 
@@ -3564,14 +3551,14 @@ vdev_raidz_config_generate(vdev_t *vd, nvlist_t *nv)
 		    vdrz->vn_vre.vre_offset_phys);
 	}
 
-	if (!avl_is_empty(&vdrz->vre_txgs)) {
-		uint64_t i = 0, count = avl_numnodes(&vdrz->vre_txgs);
+	if (!avl_is_empty(&vdrz->vd_expand_txgs)) {
+		uint64_t count = avl_numnodes(&vdrz->vd_expand_txgs);
 		uint64_t *txgs = kmem_alloc(sizeof (uint64_t) * count,
 		    KM_SLEEP);
+		uint64_t i = 0;
 
-		for (reflow_node_t *re =
-		    avl_first(&vdrz->vre_txgs); re;
-		    re = AVL_NEXT(&vdrz->vre_txgs, re)) {
+		for (reflow_node_t *re = avl_first(&vdrz->vd_expand_txgs);
+		    re != NULL; re = AVL_NEXT(&vdrz->vd_expand_txgs, re)) {
 			txgs[i++] = re->re_txg;
 		}
 
@@ -3608,7 +3595,7 @@ vdev_raidz_get_tsd(spa_t *spa, nvlist_t *nv)
 	if (error != 0)
 		goto out;
 
-	vdrz->vd_logical_width = children;
+	vdrz->vd_original_width = children;
 	vdrz->vd_physical_width = children;
 
 	/* note, the ID does not exist when creating a pool */
@@ -3624,7 +3611,7 @@ vdev_raidz_get_tsd(spa_t *spa, nvlist_t *nv)
 		 */
 	}
 
-	avl_create(&vdrz->vre_txgs, vedv_raidz_reflow_compare,
+	avl_create(&vdrz->vd_expand_txgs, vedv_raidz_reflow_compare,
 	    sizeof (reflow_node_t), offsetof(reflow_node_t, re_link));
 
 	error = nvlist_lookup_uint64_array(nv, ZPOOL_CONFIG_RAIDZ_EXPAND_TXGS,
@@ -3634,11 +3621,10 @@ vdev_raidz_get_tsd(spa_t *spa, nvlist_t *nv)
 			reflow_node_t *re = kmem_zalloc(sizeof (*re), KM_SLEEP);
 			re->re_txg = txgs[txgs_size - i - 1];
 			re->re_logical_width = vdrz->vd_physical_width - i;
-			avl_add(&vdrz->vre_txgs, re);
+			avl_add(&vdrz->vd_expand_txgs, re);
 		}
 
-		reflow_node_t *re = avl_first(&vdrz->vre_txgs);
-		vdrz->vd_logical_width = re->re_logical_width;
+		vdrz->vd_original_width = vdrz->vd_physical_width - txgs_size;
 	}
 
 	if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_NPARITY,
