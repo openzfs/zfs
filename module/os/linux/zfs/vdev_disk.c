@@ -159,7 +159,7 @@ vdev_disk_error(zio_t *zio)
 
 static int
 vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
-    uint64_t *ashift)
+    uint64_t *logical_ashift, uint64_t *physical_ashift)
 {
 	struct block_device *bdev;
 	fmode_t mode = vdev_bdev_mode(spa_mode(v->vdev_spa));
@@ -270,7 +270,10 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 	struct request_queue *q = bdev_get_queue(vd->vd_bdev);
 
 	/*  Determine the physical block size */
-	int block_size = bdev_physical_block_size(vd->vd_bdev);
+	int physical_block_size = bdev_physical_block_size(vd->vd_bdev);
+
+	/*  Determine the logical block size */
+	int logical_block_size = bdev_logical_block_size(vd->vd_bdev);
 
 	/* Clear the nowritecache bit, causes vdev_reopen() to try again. */
 	v->vdev_nowritecache = B_FALSE;
@@ -291,7 +294,11 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 	*max_psize = bdev_max_capacity(vd->vd_bdev, v->vdev_wholedisk);
 
 	/* Based on the minimum sector size set the block size */
-	*ashift = highbit64(MAX(block_size, SPA_MINBLOCKSIZE)) - 1;
+	*physical_ashift = highbit64(MAX(physical_block_size,
+	    SPA_MINBLOCKSIZE)) - 1;
+
+	*logical_ashift = highbit64(MAX(logical_block_size,
+	    SPA_MINBLOCKSIZE)) - 1;
 
 	return (0);
 }
@@ -824,3 +831,43 @@ char *zfs_vdev_scheduler = "unused";
 module_param_call(zfs_vdev_scheduler, param_set_vdev_scheduler,
     param_get_charp, &zfs_vdev_scheduler, 0644);
 MODULE_PARM_DESC(zfs_vdev_scheduler, "I/O scheduler");
+
+int
+param_set_min_auto_ashift(const char *buf, zfs_kernel_param_t *kp)
+{
+	uint64_t val;
+	int error;
+
+	error = kstrtoull(buf, 0, &val);
+	if (error < 0)
+		return (SET_ERROR(error));
+
+	if (val < ASHIFT_MIN || val > zfs_vdev_max_auto_ashift)
+		return (SET_ERROR(-EINVAL));
+
+	error = param_set_ulong(buf, kp);
+	if (error < 0)
+		return (SET_ERROR(error));
+
+	return (0);
+}
+
+int
+param_set_max_auto_ashift(const char *buf, zfs_kernel_param_t *kp)
+{
+	uint64_t val;
+	int error;
+
+	error = kstrtoull(buf, 0, &val);
+	if (error < 0)
+		return (SET_ERROR(error));
+
+	if (val > ASHIFT_MAX || val < zfs_vdev_min_auto_ashift)
+		return (SET_ERROR(-EINVAL));
+
+	error = param_set_ulong(buf, kp);
+	if (error < 0)
+		return (SET_ERROR(error));
+
+	return (0);
+}

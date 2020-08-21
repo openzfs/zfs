@@ -873,6 +873,7 @@ typedef enum vdev_aux {
 	VDEV_AUX_EXTERNAL_PERSIST,	/* persistent forced fault	*/
 	VDEV_AUX_ACTIVE,	/* vdev active on a different host	*/
 	VDEV_AUX_CHILDREN_OFFLINE, /* all children are offline		*/
+	VDEV_AUX_ASHIFT_TOO_BIG, /* vdev's min block size is too large   */
 } vdev_aux_t;
 
 /*
@@ -1068,7 +1069,16 @@ typedef struct vdev_stat {
 	uint64_t	vs_trim_state;		/* vdev_trim_state_t */
 	uint64_t	vs_trim_action_time;	/* time_t */
 	uint64_t	vs_rebuild_processed;	/* bytes rebuilt */
+	uint64_t	vs_configured_ashift;   /* TLV vdev_ashift */
+	uint64_t	vs_logical_ashift;	/* vdev_logical_ashift  */
+	uint64_t	vs_physical_ashift;	/* vdev_physical_ashift */
 } vdev_stat_t;
+
+/* BEGIN CSTYLED */
+#define	VDEV_STAT_VALID(field, uint64_t_field_count) \
+    ((uint64_t_field_count * sizeof (uint64_t)) >=	 \
+     (offsetof(vdev_stat_t, field) + sizeof (((vdev_stat_t *)NULL)->field)))
+/* END CSTYLED */
 
 /*
  * Extended stats

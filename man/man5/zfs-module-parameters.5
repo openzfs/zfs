@@ -489,6 +489,29 @@ Default value: \fB29\fR [meaning (1 << 29) = 512MB].
 .sp
 .ne 2
 .na
+\fBzfs_vdev_max_auto_ashift\fR (ulong)
+.ad
+.RS 12n
+Maximum ashift used when optimizing for logical -> physical sector size on new
+top-level vdevs.
+.sp
+Default value: \fBASHIFT_MAX\fR (16).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_min_auto_ashift\fR (ulong)
+.ad
+.RS 12n
+Minimum ashift used when creating new top-level vdevs.
+.sp
+Default value: \fBASHIFT_MIN\fR (9).
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_vdev_min_ms_count\fR (int)
 .ad
 .RS 12n
