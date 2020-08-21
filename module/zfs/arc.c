@@ -823,6 +823,7 @@ unsigned long l2arc_feed_min_ms = L2ARC_FEED_MIN_MS;	/* min interval msecs */
 int l2arc_noprefetch = B_TRUE;			/* don't cache prefetch bufs */
 int l2arc_feed_again = B_TRUE;			/* turbo warmup */
 int l2arc_norw = B_FALSE;			/* no reads during writes */
+int l2arc_meta_percent = 33;			/* limit on headers size */
 
 /*
  * L2ARC Internals
@@ -4988,9 +4989,6 @@ arc_adapt(int bytes, arc_state_t *state)
 	int64_t mrug_size = zfs_refcount_count(&arc_mru_ghost->arcs_size);
 	int64_t mfug_size = zfs_refcount_count(&arc_mfu_ghost->arcs_size);
 
-	if (state == arc_l2c_only)
-		return;
-
 	ASSERT(bytes > 0);
 	/*
 	 * Adapt the target size of the MRU list:
@@ -9144,6 +9142,15 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 	return (write_asize);
 }
 
+static boolean_t
+l2arc_hdr_limit_reached(void)
+{
+	int64_t s = aggsum_upper_bound(&astat_l2_hdr_size);
+
+	return (arc_reclaim_needed() || (s > arc_meta_limit * 3 / 4) ||
+	    (s > (arc_warm ? arc_c : arc_c_max) * l2arc_meta_percent / 100));
+}
+
 /*
  * This thread feeds the L2ARC at regular intervals.  This is the beating
  * heart of the L2ARC.
@@ -9211,7 +9218,7 @@ l2arc_feed_thread(void *unused)
 		/*
 		 * Avoid contributing to memory pressure.
 		 */
-		if (arc_reclaim_needed()) {
+		if (l2arc_hdr_limit_reached()) {
 			ARCSTAT_BUMP(arcstat_l2_abort_lowmem);
 			spa_config_exit(spa, SCL_L2ARC, dev);
 			continue;
@@ -9660,7 +9667,7 @@ l2arc_rebuild(l2arc_dev_t *dev)
 		 * online the L2ARC dev at a later time (or re-import the pool)
 		 * to reconstruct it (when there's less memory pressure).
 		 */
-		if (arc_reclaim_needed()) {
+		if (l2arc_hdr_limit_reached()) {
 			ARCSTAT_BUMP(arcstat_l2_rebuild_abort_lowmem);
 			cmn_err(CE_NOTE, "System running low on memory, "
 			    "aborting L2ARC rebuild.");
@@ -9999,6 +10006,13 @@ l2arc_log_blk_restore(l2arc_dev_t *dev, const l2arc_log_blk_phys_t *lb,
 {
 	uint64_t	size = 0, asize = 0;
 	uint64_t	log_entries = dev->l2ad_log_entries;
+
+	/*
+	 * Usually arc_adapt() is called only for data, not headers, but
+	 * since we may allocate significant amount of memory here, let ARC
+	 * grow its arc_c.
+	 */
+	arc_adapt(log_entries * HDR_L2ONLY_SIZE, arc_l2c_only);
 
 	for (int i = log_entries - 1; i >= 0; i--) {
 		/*
@@ -10535,6 +10549,9 @@ ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, feed_again, INT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, norw, INT, ZMOD_RW,
 	"No reads during writes");
+
+ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, meta_percent, INT, ZMOD_RW,
+	"Percent of ARC size allowed for L2ARC-only headers");
 
 ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, rebuild_enabled, INT, ZMOD_RW,
 	"Rebuild the L2ARC when importing a pool");
