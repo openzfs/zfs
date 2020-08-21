@@ -43,6 +43,7 @@
 
 #include <libzfs.h>
 #include <libzutil.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <sys/systeminfo.h>
@@ -94,57 +95,69 @@ static char *zfs_msgid_table[] = {
 
 /* ARGSUSED */
 static int
-vdev_missing(uint64_t state, uint64_t aux, uint64_t errs)
+vdev_missing(vdev_stat_t *vs, uint_t vsc)
 {
-	return (state == VDEV_STATE_CANT_OPEN &&
-	    aux == VDEV_AUX_OPEN_FAILED);
+	return (vs->vs_state == VDEV_STATE_CANT_OPEN &&
+	    vs->vs_aux == VDEV_AUX_OPEN_FAILED);
 }
 
 /* ARGSUSED */
 static int
-vdev_faulted(uint64_t state, uint64_t aux, uint64_t errs)
+vdev_faulted(vdev_stat_t *vs, uint_t vsc)
 {
-	return (state == VDEV_STATE_FAULTED);
+	return (vs->vs_state == VDEV_STATE_FAULTED);
 }
 
 /* ARGSUSED */
 static int
-vdev_errors(uint64_t state, uint64_t aux, uint64_t errs)
+vdev_errors(vdev_stat_t *vs, uint_t vsc)
 {
-	return (state == VDEV_STATE_DEGRADED || errs != 0);
+	return (vs->vs_state == VDEV_STATE_DEGRADED ||
+	    vs->vs_read_errors != 0 || vs->vs_write_errors != 0 ||
+	    vs->vs_checksum_errors != 0);
 }
 
 /* ARGSUSED */
 static int
-vdev_broken(uint64_t state, uint64_t aux, uint64_t errs)
+vdev_broken(vdev_stat_t *vs, uint_t vsc)
 {
-	return (state == VDEV_STATE_CANT_OPEN);
+	return (vs->vs_state == VDEV_STATE_CANT_OPEN);
 }
 
 /* ARGSUSED */
 static int
-vdev_offlined(uint64_t state, uint64_t aux, uint64_t errs)
+vdev_offlined(vdev_stat_t *vs, uint_t vsc)
 {
-	return (state == VDEV_STATE_OFFLINE);
+	return (vs->vs_state == VDEV_STATE_OFFLINE);
 }
 
 /* ARGSUSED */
 static int
-vdev_removed(uint64_t state, uint64_t aux, uint64_t errs)
+vdev_removed(vdev_stat_t *vs, uint_t vsc)
 {
-	return (state == VDEV_STATE_REMOVED);
+	return (vs->vs_state == VDEV_STATE_REMOVED);
+}
+
+static int
+vdev_non_native_ashift(vdev_stat_t *vs, uint_t vsc)
+{
+	if (getenv("ZPOOL_STATUS_NON_NATIVE_ASHIFT_IGNORE") != NULL)
+		return (0);
+
+	return (VDEV_STAT_VALID(vs_physical_ashift, vsc) &&
+	    vs->vs_configured_ashift < vs->vs_physical_ashift);
 }
 
 /*
  * Detect if any leaf devices that have seen errors or could not be opened.
  */
 static boolean_t
-find_vdev_problem(nvlist_t *vdev, int (*func)(uint64_t, uint64_t, uint64_t))
+find_vdev_problem(nvlist_t *vdev, int (*func)(vdev_stat_t *, uint_t),
+    boolean_t ignore_replacing)
 {
 	nvlist_t **child;
 	vdev_stat_t *vs;
-	uint_t c, children;
-	char *type;
+	uint_t c, vsc, children;
 
 	/*
 	 * Ignore problems within a 'replacing' vdev, since we're presumably in
@@ -152,23 +165,25 @@ find_vdev_problem(nvlist_t *vdev, int (*func)(uint64_t, uint64_t, uint64_t))
 	 * out again.  We'll pick up the fact that a resilver is happening
 	 * later.
 	 */
-	verify(nvlist_lookup_string(vdev, ZPOOL_CONFIG_TYPE, &type) == 0);
-	if (strcmp(type, VDEV_TYPE_REPLACING) == 0)
-		return (B_FALSE);
+	if (ignore_replacing == B_TRUE) {
+		char *type;
+
+		verify(nvlist_lookup_string(vdev, ZPOOL_CONFIG_TYPE,
+		    &type) == 0);
+		if (strcmp(type, VDEV_TYPE_REPLACING) == 0)
+			return (B_FALSE);
+	}
 
 	if (nvlist_lookup_nvlist_array(vdev, ZPOOL_CONFIG_CHILDREN, &child,
 	    &children) == 0) {
 		for (c = 0; c < children; c++)
-			if (find_vdev_problem(child[c], func))
+			if (find_vdev_problem(child[c], func, ignore_replacing))
 				return (B_TRUE);
 	} else {
 		verify(nvlist_lookup_uint64_array(vdev, ZPOOL_CONFIG_VDEV_STATS,
-		    (uint64_t **)&vs, &c) == 0);
+		    (uint64_t **)&vs, &vsc) == 0);
 
-		if (func(vs->vs_state, vs->vs_aux,
-		    vs->vs_read_errors +
-		    vs->vs_write_errors +
-		    vs->vs_checksum_errors))
+		if (func(vs, vsc) != 0)
 			return (B_TRUE);
 	}
 
@@ -178,7 +193,7 @@ find_vdev_problem(nvlist_t *vdev, int (*func)(uint64_t, uint64_t, uint64_t))
 	if (nvlist_lookup_nvlist_array(vdev, ZPOOL_CONFIG_L2CACHE, &child,
 	    &children) == 0) {
 		for (c = 0; c < children; c++)
-			if (find_vdev_problem(child[c], func))
+			if (find_vdev_problem(child[c], func, ignore_replacing))
 				return (B_TRUE);
 	}
 
@@ -362,15 +377,15 @@ check_status(nvlist_t *config, boolean_t isimport, zpool_errata_t *erratap)
 	 * Bad devices in non-replicated config.
 	 */
 	if (vs->vs_state == VDEV_STATE_CANT_OPEN &&
-	    find_vdev_problem(nvroot, vdev_faulted))
+	    find_vdev_problem(nvroot, vdev_faulted, B_TRUE))
 		return (ZPOOL_STATUS_FAULTED_DEV_NR);
 
 	if (vs->vs_state == VDEV_STATE_CANT_OPEN &&
-	    find_vdev_problem(nvroot, vdev_missing))
+	    find_vdev_problem(nvroot, vdev_missing, B_TRUE))
 		return (ZPOOL_STATUS_MISSING_DEV_NR);
 
 	if (vs->vs_state == VDEV_STATE_CANT_OPEN &&
-	    find_vdev_problem(nvroot, vdev_broken))
+	    find_vdev_problem(nvroot, vdev_broken, B_TRUE))
 		return (ZPOOL_STATUS_CORRUPT_LABEL_NR);
 
 	/*
@@ -392,30 +407,36 @@ check_status(nvlist_t *config, boolean_t isimport, zpool_errata_t *erratap)
 	/*
 	 * Missing devices in a replicated config.
 	 */
-	if (find_vdev_problem(nvroot, vdev_faulted))
+	if (find_vdev_problem(nvroot, vdev_faulted, B_TRUE))
 		return (ZPOOL_STATUS_FAULTED_DEV_R);
-	if (find_vdev_problem(nvroot, vdev_missing))
+	if (find_vdev_problem(nvroot, vdev_missing, B_TRUE))
 		return (ZPOOL_STATUS_MISSING_DEV_R);
-	if (find_vdev_problem(nvroot, vdev_broken))
+	if (find_vdev_problem(nvroot, vdev_broken, B_TRUE))
 		return (ZPOOL_STATUS_CORRUPT_LABEL_R);
 
 	/*
 	 * Devices with errors
 	 */
-	if (!isimport && find_vdev_problem(nvroot, vdev_errors))
+	if (!isimport && find_vdev_problem(nvroot, vdev_errors, B_TRUE))
 		return (ZPOOL_STATUS_FAILING_DEV);
 
 	/*
 	 * Offlined devices
 	 */
-	if (find_vdev_problem(nvroot, vdev_offlined))
+	if (find_vdev_problem(nvroot, vdev_offlined, B_TRUE))
 		return (ZPOOL_STATUS_OFFLINE_DEV);
 
 	/*
 	 * Removed device
 	 */
-	if (find_vdev_problem(nvroot, vdev_removed))
+	if (find_vdev_problem(nvroot, vdev_removed, B_TRUE))
 		return (ZPOOL_STATUS_REMOVED_DEV);
+
+	/*
+	 * Suboptimal, but usable, ashift configuration.
+	 */
+	if (find_vdev_problem(nvroot, vdev_non_native_ashift, B_FALSE))
+		return (ZPOOL_STATUS_NON_NATIVE_ASHIFT);
 
 	/*
 	 * Informational errata available.
