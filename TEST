@@ -109,3 +109,6 @@ if [ $(getconf LONG_BIT) = "32" ]; then
     TEST_XFSTESTS_SKIP="yes"
     TEST_ZFSSTRESS_SKIP="yes"
 fi
+
+# Disable zimport on staging branch
+TEST_ZIMPORT_SKIP="yes"
