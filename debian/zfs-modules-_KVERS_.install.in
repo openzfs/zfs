@@ -1,6 +1,7 @@
 debian/tree/zfs-modules/etc/depmod.d/zfs-modules-_KVERS_.conf	etc/depmod.d/
 module/zcommon/zcommon.ko	lib/modules/_KVERS_/extra/zcommon/
 module/zfs/zfs.ko		lib/modules/_KVERS_/extra/zfs/
+module/zstd/zzstd.ko		lib/modules/_KVERS_/extra/zstd/
 module/avl/zavl.ko		lib/modules/_KVERS_/extra/avl/
 module/unicode/zunicode.ko	lib/modules/_KVERS_/extra/unicode/
 module/nvpair/znvpair.ko	lib/modules/_KVERS_/extra/nvpair/
