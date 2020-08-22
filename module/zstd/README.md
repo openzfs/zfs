@@ -48,6 +48,11 @@ ${zstd}/contrib/single_file_libs/combine.sh \
     -r ${zstd}/lib -o module/zstd/lib/zstd.c module/zstd/zstd-in.c
 ~~~
 
+Note: if the zstd library for zfs is updated to a newer version,
+the macro list in include/zstd_compat_wrapper.h usually needs to be updated.
+this can be done with some hand crafting of the output of the following
+script: nm zstd.o | awk '{print "#define "$3 " zfs_" $3}' > macrotable
+
 
 ## Altering ZSTD and breaking changes
 
