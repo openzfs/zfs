@@ -403,9 +403,9 @@ zfs_prop_init(void)
 	    "CHECKSUM", checksum_table);
 	zprop_register_index(ZFS_PROP_DEDUP, "dedup", ZIO_CHECKSUM_OFF,
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
-	    "on | off | verify | sha256[,verify], sha512[,verify], "
+	    "on | off | verify | sha256[,verify] | sha512[,verify] | "
 #if !defined(__FreeBSD__)
-	    "skein[,verify], edonr,verify",
+	    "skein[,verify] | edonr,verify",
 #else
 	    "skein[,verify]",
 #endif
