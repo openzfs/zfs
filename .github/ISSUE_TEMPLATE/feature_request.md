@@ -10,7 +10,7 @@ assignees: ''
 <!--
 Thank you for suggesting a feature.
 
-Please check the our issue tracker before opening a new feature request.
+Please check our issue tracker before opening a new feature request.
 Filling out the following template will help other contributors better understand your proposed feature.
 -->
 
