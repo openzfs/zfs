@@ -977,12 +977,13 @@ out:
 	return (error);
 }
 
-void exportfs_flush(void)
+void
+exportfs_flush(void)
 {
 	char *argv[] = { "/usr/sbin/exportfs", "-f", NULL };
 	char *envp[] = { NULL };
 
-	(void)call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
+	(void) call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
 }
 
 /*
