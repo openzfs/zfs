@@ -82,7 +82,8 @@ dist_man_MANS = \
 	zpool-upgrade.8 \
 	zpool-wait.8 \
 	zstream.8 \
-	zstreamdump.8
+	zstreamdump.8 \
+	zpool_influxdb.8
 
 nodist_man_MANS = \
 	zed.8 \
