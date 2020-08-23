@@ -977,6 +977,14 @@ out:
 	return (error);
 }
 
+void exportfs_flush(void)
+{
+	char *argv[] = { "/usr/sbin/exportfs", "-f", NULL };
+	char *envp[] = { NULL };
+
+	(void)call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
+}
+
 /*
  * Attempt to unmount a snapshot by making a call to user space.
  * There is no assurance that this can or will succeed, is just a
@@ -998,6 +1006,8 @@ zfsctl_snapshot_unmount(char *snapname, int flags)
 		return (SET_ERROR(ENOENT));
 	}
 	rw_exit(&zfs_snapshot_lock);
+
+	exportfs_flush();
 
 	if (flags & MNT_FORCE)
 		argv[4] = "-fn";
