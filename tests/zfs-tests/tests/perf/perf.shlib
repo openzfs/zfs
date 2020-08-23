@@ -146,6 +146,7 @@ function do_fio_run_impl
 			    --output /tmp/fio.out /tmp/test.fio
 		"
 		log_must scp $NFS_USER@$NFS_CLIENT:/tmp/fio.out $outfile
+		log_must ssh -t $NFS_USER@$NFS_CLIENT "sudo -S umount $NFS_MOUNT"
 	else
 		log_must fio --output-format=${PERF_FIO_FORMAT} \
 		    --output $outfile $FIO_SCRIPTS/$script
@@ -197,7 +198,7 @@ function do_fio_run
 function do_setup_nfs
 {
 	typeset script=$1
-	zfs  set sharenfs=on $TESTFS
+	zfs set sharenfs=on $TESTFS
 	log_must chmod  -R 777 /$TESTFS
 
 	ssh -t $NFS_USER@$NFS_CLIENT "mkdir -m 777 -p $NFS_MOUNT"
