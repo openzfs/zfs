@@ -978,7 +978,7 @@ out:
 	return (error);
 }
 
-void
+static void
 exportfs_flush(void)
 {
 	char *argv[] = { "/usr/sbin/exportfs", "-f", NULL };
