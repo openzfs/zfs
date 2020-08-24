@@ -52,6 +52,7 @@ __FBSDID("$FreeBSD$");
 #include <sys/spa.h>
 #include <sys/spa_impl.h>
 #include <sys/vdev.h>
+#include <sys/vdev_impl.h>
 #include <sys/dmu.h>
 #include <sys/dsl_dir.h>
 #include <sys/dsl_dataset.h>
@@ -518,56 +519,53 @@ SYSCTL_INT(_vfs_zfs, OID_AUTO, space_map_ibs, CTLFLAG_RWTUN,
 
 
 /* vdev.c */
-#ifdef notyet
-extern uint64_t zfs_max_auto_ashift;
-extern uint64_t zfs_min_auto_ashift;
-
-static int
-sysctl_vfs_zfs_max_auto_ashift(SYSCTL_HANDLER_ARGS)
+int
+param_set_min_auto_ashift(SYSCTL_HANDLER_ARGS)
 {
 	uint64_t val;
 	int err;
 
-	val = zfs_max_auto_ashift;
+	val = zfs_vdev_min_auto_ashift;
 	err = sysctl_handle_64(oidp, &val, 0, req);
 	if (err != 0 || req->newptr == NULL)
-		return (err);
+		return (SET_ERROR(err));
 
-	if (val > ASHIFT_MAX || val < zfs_min_auto_ashift)
-		return (EINVAL);
+	if (val < ASHIFT_MIN || val > zfs_vdev_max_auto_ashift)
+		return (SET_ERROR(EINVAL));
 
-	zfs_max_auto_ashift = val;
+	zfs_vdev_min_auto_ashift = val;
 
 	return (0);
 }
-SYSCTL_PROC(_vfs_zfs, OID_AUTO, max_auto_ashift,
-    CTLTYPE_U64 | CTLFLAG_MPSAFE | CTLFLAG_RW, 0, sizeof (uint64_t),
-    sysctl_vfs_zfs_max_auto_ashift, "QU",
-    "Max ashift used when optimising for logical -> physical sectors size on "
-    "new top-level vdevs.");
-static int
-sysctl_vfs_zfs_min_auto_ashift(SYSCTL_HANDLER_ARGS)
+
+int
+param_set_max_auto_ashift(SYSCTL_HANDLER_ARGS)
 {
 	uint64_t val;
 	int err;
 
-	val = zfs_min_auto_ashift;
+	val = zfs_vdev_max_auto_ashift;
 	err = sysctl_handle_64(oidp, &val, 0, req);
 	if (err != 0 || req->newptr == NULL)
-		return (err);
+		return (SET_ERROR(err));
 
-	if (val < ASHIFT_MIN || val > zfs_max_auto_ashift)
-		return (EINVAL);
+	if (val > ASHIFT_MAX || val < zfs_vdev_min_auto_ashift)
+		return (SET_ERROR(EINVAL));
 
-	zfs_min_auto_ashift = val;
+	zfs_vdev_max_auto_ashift = val;
 
 	return (0);
 }
-SYSCTL_PROC(_vfs_zfs, OID_AUTO, min_auto_ashift,
-    CTLTYPE_U64 | CTLFLAG_MPSAFE | CTLFLAG_RW, 0, sizeof (uint64_t),
-    sysctl_vfs_zfs_min_auto_ashift, "QU",
-    "Min ashift used when creating new top-level vdevs.");
-#endif
+
+SYSCTL_PROC(_vfs_zfs, OID_AUTO, min_auto_ashift, CTLTYPE_U64 | CTLFLAG_RWTUN,
+    &zfs_vdev_min_auto_ashift, sizeof (zfs_vdev_min_auto_ashift),
+    param_set_min_auto_ashift, "QU",
+    "Min ashift used when creating new top-level vdev. (LEGACY)");
+SYSCTL_PROC(_vfs_zfs, OID_AUTO, max_auto_ashift, CTLTYPE_U64 | CTLFLAG_RWTUN,
+    &zfs_vdev_max_auto_ashift, sizeof (zfs_vdev_max_auto_ashift),
+    param_set_max_auto_ashift, "QU",
+    "Max ashift used when optimizing for logical -> physical sector size on "
+    "new top-level vdevs. (LEGACY)");
 
 /*
  * Since the DTL space map of a vdev is not expected to have a lot of

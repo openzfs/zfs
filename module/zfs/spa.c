@@ -5765,6 +5765,7 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 		for (int c = 0; error == 0 && c < rvd->vdev_children; c++) {
 			vdev_t *vd = rvd->vdev_child[c];
 
+			vdev_ashift_optimize(vd);
 			vdev_metaslab_set_size(vd);
 			vdev_expand(vd, txg);
 		}

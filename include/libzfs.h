@@ -390,6 +390,7 @@ typedef enum {
 	ZPOOL_STATUS_REMOVED_DEV,	/* removed device */
 	ZPOOL_STATUS_REBUILDING,	/* device being rebuilt */
 	ZPOOL_STATUS_REBUILD_SCRUB,	/* recommend scrubbing the pool */
+	ZPOOL_STATUS_NON_NATIVE_ASHIFT,	/* (e.g. 512e dev with ashift of 9) */
 
 	/*
 	 * Finally, the following indicates a healthy pool.
