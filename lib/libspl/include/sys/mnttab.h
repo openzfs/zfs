@@ -39,7 +39,7 @@
 #endif /* MNTTAB */
 
 #define	MNTTAB		"/proc/self/mounts"
-#define	MNT_LINE_MAX	4096
+#define	MNT_LINE_MAX	4108
 
 #define	MNT_TOOLONG	1	/* entry exceeds MNT_LINE_MAX */
 #define	MNT_TOOMANY	2	/* too many fields in line */
