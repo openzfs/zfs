@@ -21,6 +21,7 @@ dist_pkgdata_SCRIPTS = \
 	receive-o-x_props_override.ksh \
 	zfs_receive_from_encrypted.ksh \
 	zfs_receive_from_zstd.ksh \
+	zfs_receive_new_props.ksh \
 	zfs_receive_to_encrypted.ksh \
 	zfs_receive_raw.ksh \
 	zfs_receive_raw_incremental.ksh \
