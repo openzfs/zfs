@@ -980,7 +980,7 @@ out:
 
 /*
  * Flush everything out of the kernel's export table and such.
- * This is needed as once the snapshot is used over NFS, its 
+ * This is needed as once the snapshot is used over NFS, its
  * entries in svc_export and svc_expkey caches hold reference
  * to the snapshot mount point. There is no known way of flushing
  * only the entries related to the snapshot.
