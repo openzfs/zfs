@@ -23,6 +23,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
+ * Copyright 2020 Oxide Computer Company
  */
 
 #include <sys/zfs_context.h>
@@ -762,13 +763,22 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 		dsfra.dsfra_dnode = dn;
 		dsfra.dsfra_tx = tx;
 		dsfra.dsfra_free_indirects = freeing_dnode;
+		mutex_enter(&dn->dn_mtx);
 		if (freeing_dnode) {
 			ASSERT(range_tree_contains(dn->dn_free_ranges[txgoff],
 			    0, dn->dn_maxblkid + 1));
 		}
-		mutex_enter(&dn->dn_mtx);
-		range_tree_vacate(dn->dn_free_ranges[txgoff],
+		/*
+		 * Because dnode_sync_free_range() must drop dn_mtx during its
+		 * processing, using it as a callback to range_tree_vacate() is
+		 * not safe.  No other operations (besides destroy) are allowed
+		 * once range_tree_vacate() has begun, and dropping dn_mtx
+		 * would leave a window open for another thread to observe that
+		 * invalid (and unsafe) state.
+		 */
+		range_tree_walk(dn->dn_free_ranges[txgoff],
 		    dnode_sync_free_range, &dsfra);
+		range_tree_vacate(dn->dn_free_ranges[txgoff], NULL, NULL);
 		range_tree_destroy(dn->dn_free_ranges[txgoff]);
 		dn->dn_free_ranges[txgoff] = NULL;
 		mutex_exit(&dn->dn_mtx);
