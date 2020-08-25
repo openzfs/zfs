@@ -610,6 +610,18 @@ send_iterate_fs(zfs_handle_t *zhp, void *arg)
 	fnvlist_free(sd->snapprops);
 	fnvlist_free(sd->snapholds);
 
+	/* Do not allow the size of the properties list to exceed the limit */
+	if ((fnvlist_size(nvfs) + fnvlist_size(sd->fss)) >
+	    zhp->zfs_hdl->libzfs_max_nvlist) {
+		(void) fprintf(stderr, dgettext(TEXT_DOMAIN,
+		    "warning: cannot send %s@%s: the size of the list of "
+		    "snapshots and properties is too large to be received "
+		    "successfully.\n"
+		    "Select a smaller number of snapshots to send.\n"),
+		    zhp->zfs_name, sd->tosnap);
+		rv = EZFS_NOSPC;
+		goto out;
+	}
 	/* add this fs to nvlist */
 	(void) snprintf(guidstring, sizeof (guidstring),
 	    "0x%llx", (longlong_t)guid);
@@ -2015,6 +2027,21 @@ send_prelim_records(zfs_handle_t *zhp, const char *from, int fd,
 			return (zfs_error(zhp->zfs_hdl, EZFS_BADBACKUP,
 			    errbuf));
 		}
+		/*
+		 * Do not allow the size of the properties list to exceed
+		 * the limit
+		 */
+		if ((fnvlist_size(fss) + fnvlist_size(hdrnv)) >
+		    zhp->zfs_hdl->libzfs_max_nvlist) {
+			(void) snprintf(errbuf, sizeof (errbuf),
+			    dgettext(TEXT_DOMAIN, "warning: cannot send '%s': "
+			    "the size of the list of snapshots and properties "
+			    "is too large to be received successfully.\n"
+			    "Select a smaller number of snapshots to send.\n"),
+			    zhp->zfs_name);
+			return (zfs_error(zhp->zfs_hdl, EZFS_NOSPC,
+			    errbuf));
+		}
 		fnvlist_add_nvlist(hdrnv, "fss", fss);
 		VERIFY0(nvlist_pack(hdrnv, &packbuf, &buflen, NV_ENCODE_XDR,
 		    0));
@@ -2578,8 +2605,6 @@ recv_read(libzfs_handle_t *hdl, int fd, void *buf, int ilen,
 	int rv;
 	int len = ilen;
 
-	assert(ilen <= SPA_MAXBLOCKSIZE);
-
 	do {
 		rv = read(fd, cp, len);
 		cp += rv;
@@ -2612,6 +2637,11 @@ recv_read_nvlist(libzfs_handle_t *hdl, int fd, int len, nvlist_t **nvp,
 	buf = zfs_alloc(hdl, len);
 	if (buf == NULL)
 		return (ENOMEM);
+
+	if (len > hdl->libzfs_max_nvlist) {
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "nvlist too large"));
+		return (ENOMEM);
+	}
 
 	err = recv_read(hdl, fd, buf, len, byteswap, zc);
 	if (err != 0) {
@@ -3783,6 +3813,7 @@ recv_skip(libzfs_handle_t *hdl, int fd, boolean_t byteswap)
 			}
 			payload_size =
 			    DRR_WRITE_PAYLOAD_SIZE(&drr->drr_u.drr_write);
+			assert(payload_size <= SPA_MAXBLOCKSIZE);
 			(void) recv_read(hdl, fd, buf,
 			    payload_size, B_FALSE, NULL);
 			break;
