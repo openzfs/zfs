@@ -1,3 +1,12 @@
+---
+name: Bug report
+about: Create a report to help us improve OpenZFS
+title: ''
+labels: 'Type: Defect'
+assignees: ''
+
+---
+
 <!-- Please fill out the following template, which will help other contributors address your issue. -->
 
 <!--
@@ -41,3 +50,4 @@ Example:
 this is an example how log text should be marked (wrap it with ```)
 ```
 -->
+

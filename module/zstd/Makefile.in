@@ -24,7 +24,9 @@ $(obj)/lib/zstd.o: c_flags += -fno-tree-vectorize
 $(obj)/lib/zstd.o: c_flags += -Wframe-larger-than=20480
 
 # Disable aarch64 neon SIMD instructions for kernel mode
-$(obj)/lib/zstd.o: c_flags += -include $(zstd_include)/aarch64_compat.h
+$(obj)/lib/zstd.o: c_flags += -include $(zstd_include)/aarch64_compat.h -include $(zstd_include)/zstd_compat_wrapper.h -Wp,-w
+
+$(obj)/zfs_zstd.o: c_flags += -include $(zstd_include)/zstd_compat_wrapper.h
 
 $(MODULE)-objs += zfs_zstd.o
 $(MODULE)-objs += lib/zstd.o

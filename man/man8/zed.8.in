@@ -11,7 +11,7 @@
 .\" "OPENSOLARIS.LICENSE" or at <http://opensource.org/licenses/CDDL-1.0>.
 .\" You may not use this file except in compliance with the license.
 .\"
-.TH ZED 8 "Octember 1, 2013" "ZFS on Linux" "System Administration Commands"
+.TH ZED 8 "Aug 24, 2020" OpenZFS
 
 .SH NAME
 ZED \- ZFS Event Daemon

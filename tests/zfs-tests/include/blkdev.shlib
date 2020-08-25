@@ -81,7 +81,9 @@ function block_device_wait
 		    log_note udevadm settle time too long: $elapsed
 	elif is_freebsd; then
 		if [[ ${#@} -eq 0 ]]; then
-			sleep 3
+			# Do something that has to go through the geom event
+			# queue to complete.
+			sysctl kern.geom.conftxt >/dev/null
 			return
 		fi
 	fi

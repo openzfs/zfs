@@ -2489,6 +2489,7 @@ EXPORT_SYMBOL(dmu_object_set_blocksize);
 EXPORT_SYMBOL(dmu_object_set_maxblkid);
 EXPORT_SYMBOL(dmu_object_set_checksum);
 EXPORT_SYMBOL(dmu_object_set_compress);
+EXPORT_SYMBOL(dmu_offset_next);
 EXPORT_SYMBOL(dmu_write_policy);
 EXPORT_SYMBOL(dmu_sync);
 EXPORT_SYMBOL(dmu_request_arcbuf);

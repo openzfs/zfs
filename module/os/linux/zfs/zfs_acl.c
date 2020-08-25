@@ -1766,6 +1766,10 @@ zfs_acl_inherit(zfsvfs_t *zfsvfs, umode_t va_mode, zfs_acl_t *paclp,
 			    newflags|ACE_INHERITED_ACE);
 		}
 	}
+	if (zfsvfs->z_acl_mode == ZFS_ACL_RESTRICTED &&
+	    aclp->z_acl_count != 0) {
+		*need_chmod = B_FALSE;
+	}
 
 	return (aclp);
 }

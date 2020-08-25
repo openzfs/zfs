@@ -342,7 +342,7 @@ zstd_enum_to_level(enum zio_zstd_levels level, int16_t *zstd_level)
 
 /* Compress block using zstd */
 size_t
-zstd_compress(void *s_start, void *d_start, size_t s_len, size_t d_len,
+zfs_zstd_compress(void *s_start, void *d_start, size_t s_len, size_t d_len,
     int level)
 {
 	size_t c_len;
@@ -446,8 +446,8 @@ zstd_compress(void *s_start, void *d_start, size_t s_len, size_t d_len,
 
 /* Decompress block using zstd and return its stored level */
 int
-zstd_decompress_level(void *s_start, void *d_start, size_t s_len, size_t d_len,
-    uint8_t *level)
+zfs_zstd_decompress_level(void *s_start, void *d_start, size_t s_len,
+    size_t d_len, uint8_t *level)
 {
 	ZSTD_DCtx *dctx;
 	size_t result;
@@ -521,11 +521,12 @@ zstd_decompress_level(void *s_start, void *d_start, size_t s_len, size_t d_len,
 
 /* Decompress datablock using zstd */
 int
-zstd_decompress(void *s_start, void *d_start, size_t s_len, size_t d_len,
+zfs_zstd_decompress(void *s_start, void *d_start, size_t s_len, size_t d_len,
     int level __maybe_unused)
 {
 
-	return (zstd_decompress_level(s_start, d_start, s_len, d_len, NULL));
+	return (zfs_zstd_decompress_level(s_start, d_start, s_len, d_len,
+	    NULL));
 }
 
 /* Allocator for zstd compression context using mempool_allocator */
@@ -731,7 +732,7 @@ ZFS_MODULE_DESCRIPTION("ZSTD Compression for ZFS");
 ZFS_MODULE_LICENSE("BSD");
 ZFS_MODULE_VERSION(ZSTD_VERSION_STRING);
 
-EXPORT_SYMBOL(zstd_compress);
-EXPORT_SYMBOL(zstd_decompress_level);
-EXPORT_SYMBOL(zstd_decompress);
+EXPORT_SYMBOL(zfs_zstd_compress);
+EXPORT_SYMBOL(zfs_zstd_decompress_level);
+EXPORT_SYMBOL(zfs_zstd_decompress);
 #endif

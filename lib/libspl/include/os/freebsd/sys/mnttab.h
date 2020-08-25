@@ -43,7 +43,7 @@
 #define	MS_NOMNTTAB		0x0
 #define	MS_RDONLY		0x1
 #define	umount2(p, f)	unmount(p, f)
-#define	MNT_LINE_MAX	4096
+#define	MNT_LINE_MAX	4108
 
 #define	MNT_TOOLONG	1	/* entry exceeds MNT_LINE_MAX */
 #define	MNT_TOOMANY	2	/* too many fields in line */
