@@ -22,7 +22,7 @@
 .\" OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 .\" WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-.TH "ZFS\-MOUNT\-GENERATOR" "8" "2020-01-19" "ZFS" "zfs-mount-generator" "\""
+.TH ZFS-MOUNT-GENERATOR 8 "Aug 24, 2020" OpenZFS
 
 .SH "NAME"
 zfs\-mount\-generator \- generates systemd mount units for ZFS

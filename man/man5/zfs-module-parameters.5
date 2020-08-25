@@ -14,7 +14,7 @@
 .\" CDDL HEADER, with the fields enclosed by brackets "[]" replaced with your
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
-.TH ZFS-MODULE-PARAMETERS 5 "Feb 15, 2019"
+.TH ZFS-MODULE-PARAMETERS 5 "Aug 24, 2020" OpenZFS
 .SH NAME
 zfs\-module\-parameters \- ZFS module parameters
 .SH DESCRIPTION
@@ -426,7 +426,7 @@ Default value: \fB16,777,216\fR (16MB)
 .RS 12n
 If we are not searching forward (due to metaslab_df_max_search,
 metaslab_df_free_pct, or metaslab_df_alloc_threshold), this tunable controls
-what segment is used.  If it is set, we will use the largest free segment. 
+what segment is used.  If it is set, we will use the largest free segment.
 If it is not set, we will use a segment of exactly the requested size (or
 larger).
 .sp
@@ -3256,7 +3256,7 @@ Default value: \fB25\fR.
 \fBzfs_sync_pass_dont_compress\fR (int)
 .ad
 .RS 12n
-Starting in this sync pass, we disable compression (including of metadata). 
+Starting in this sync pass, we disable compression (including of metadata).
 With the default setting, in practice, we don't have this many sync passes,
 so this has no effect.
 .sp
