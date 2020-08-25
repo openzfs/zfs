@@ -201,6 +201,20 @@ Default value: \fB200\fR%.
 .sp
 .ne 2
 .na
+\fBl2arc_meta_percent\fR (int)
+.ad
+.RS 12n
+Percent of ARC size allowed for L2ARC-only headers.
+Since L2ARC buffers are not evicted on memory pressure, too large amount of
+headers on system with irrationaly large L2ARC can render it slow or unusable.
+This parameter limits L2ARC writes and rebuild to achieve it.
+.sp
+Default value: \fB33\fR%.
+.RE
+
+.sp
+.ne 2
+.na
 \fBl2arc_trim_ahead\fR (ulong)
 .ad
 .RS 12n
