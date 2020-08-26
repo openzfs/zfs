@@ -74,7 +74,7 @@ tests = ['tst.args_to_lua', 'tst.divide_by_zero', 'tst.exists',
     'tst.memory_limit', 'tst.nested_neg', 'tst.nested_pos', 'tst.nvlist_to_lua',
     'tst.recursive_neg', 'tst.recursive_pos', 'tst.return_large',
     'tst.return_nvlist_neg', 'tst.return_nvlist_pos',
-    'tst.return_recursive_table', 'tst.timeout']
+    'tst.return_recursive_table', 'tst.stack_gsub', 'tst.timeout']
 tags = ['functional', 'channel_program', 'lua_core']
 
 [tests/functional/channel_program/synctask_core]
@@ -104,8 +104,9 @@ tags = ['functional', 'clean_mirror']
 
 [tests/functional/cli_root/zdb]
 tests = ['zdb_002_pos', 'zdb_003_pos', 'zdb_004_pos', 'zdb_005_pos',
-    'zdb_006_pos', 'zdb_args_neg', 'zdb_args_pos', 'zdb_checksum', 'zdb_decompress',
-    'zdb_object_range_neg', 'zdb_object_range_pos', 'zdb_display_block',
+    'zdb_006_pos', 'zdb_args_neg', 'zdb_args_pos',
+    'zdb_block_size_histogram', 'zdb_checksum', 'zdb_decompress',
+    'zdb_display_block', 'zdb_object_range_neg', 'zdb_object_range_pos',
     'zdb_objset_id']
 pre =
 post =
@@ -257,9 +258,8 @@ tags = ['functional', 'cli_root', 'zfs_set']
 
 [tests/functional/cli_root/zfs_share]
 tests = ['zfs_share_001_pos', 'zfs_share_002_pos', 'zfs_share_003_pos',
-    'zfs_share_004_pos', 'zfs_share_005_pos', 'zfs_share_006_pos',
-    'zfs_share_007_neg', 'zfs_share_008_neg', 'zfs_share_009_neg',
-    'zfs_share_010_neg', 'zfs_share_011_pos']
+    'zfs_share_004_pos', 'zfs_share_006_pos', 'zfs_share_008_neg',
+    'zfs_share_010_neg', 'zfs_share_011_pos', 'zfs_share_concurrent_shares']
 tags = ['functional', 'cli_root', 'zfs_share']
 
 [tests/functional/cli_root/zfs_snapshot]
@@ -486,7 +486,8 @@ tests = ['zpool_wait_discard', 'zpool_wait_freeing',
 tags = ['functional', 'cli_root', 'zpool_wait']
 
 [tests/functional/cli_root/zpool_wait/scan]
-tests = ['zpool_wait_replace_cancel', 'zpool_wait_resilver', 'zpool_wait_scrub_cancel',
+tests = ['zpool_wait_replace_cancel', 'zpool_wait_rebuild',
+    'zpool_wait_resilver', 'zpool_wait_scrub_cancel',
     'zpool_wait_replace', 'zpool_wait_scrub_basic', 'zpool_wait_scrub_flag']
 tags = ['functional', 'cli_root', 'zpool_wait']
 
@@ -706,7 +707,8 @@ tests = ['redacted_compressed', 'redacted_contents', 'redacted_deleted',
 tags = ['functional', 'redacted_send']
 
 [tests/functional/raidz]
-tests = ['raidz_001_neg', 'raidz_002_pos']
+tests = ['raidz_001_neg', 'raidz_002_pos', 'raidz_003_pos', 'raidz_004_pos',
+    'raidz_expand.ksh']
 tags = ['functional', 'raidz']
 
 [tests/functional/redundancy]
@@ -747,7 +749,11 @@ tests = ['rename_dirs_001_pos']
 tags = ['functional', 'rename_dirs']
 
 [tests/functional/replacement]
-tests = ['replacement_001_pos', 'replacement_002_pos', 'replacement_003_pos']
+tests = ['attach_import', 'attach_multiple', 'attach_rebuild',
+    'attach_resilver', 'detach', 'rebuild_disabled_feature',
+    'rebuild_multiple', 'rebuild_raidz', 'replace_import', 'replace_rebuild',
+    'replace_resilver', 'resilver_restart_001', 'resilver_restart_002',
+    'scrub_cancel']
 tags = ['functional', 'replacement']
 
 [tests/functional/reservation]
@@ -760,10 +766,6 @@ tests = ['reservation_001_pos', 'reservation_002_pos', 'reservation_003_pos',
     'reservation_019_pos', 'reservation_020_pos', 'reservation_021_neg',
     'reservation_022_pos']
 tags = ['functional', 'reservation']
-
-[tests/functional/resilver]
-tests = ['resilver_restart_001', 'resilver_restart_002']
-tags = ['functional', 'resilver']
 
 [tests/functional/rootpool]
 tests = ['rootpool_002_neg', 'rootpool_003_neg', 'rootpool_007_pos']

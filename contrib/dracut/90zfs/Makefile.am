@@ -1,3 +1,5 @@
+include $(top_srcdir)/config/Substfiles.am
+
 pkgdracutdir = $(dracutdir)/modules.d/90zfs
 pkgdracut_SCRIPTS = \
 	export-zfs.sh \
@@ -14,29 +16,4 @@ pkgdracut_DATA = \
 	zfs-snapshot-bootfs.service \
 	zfs-rollback-bootfs.service
 
-EXTRA_DIST = \
-	$(top_srcdir)/contrib/dracut/90zfs/export-zfs.sh.in \
-	$(top_srcdir)/contrib/dracut/90zfs/module-setup.sh.in \
-	$(top_srcdir)/contrib/dracut/90zfs/mount-zfs.sh.in \
-	$(top_srcdir)/contrib/dracut/90zfs/parse-zfs.sh.in \
-	$(top_srcdir)/contrib/dracut/90zfs/zfs-generator.sh.in \
-	$(top_srcdir)/contrib/dracut/90zfs/zfs-load-key.sh.in \
-	$(top_srcdir)/contrib/dracut/90zfs/zfs-needshutdown.sh.in \
-	$(top_srcdir)/contrib/dracut/90zfs/zfs-lib.sh.in \
-	$(top_srcdir)/contrib/dracut/90zfs/zfs-env-bootfs.service.in \
-	$(top_srcdir)/contrib/dracut/90zfs/zfs-snapshot-bootfs.service.in \
-	$(top_srcdir)/contrib/dracut/90zfs/zfs-rollback-bootfs.service.in
-
-$(pkgdracut_SCRIPTS) $(pkgdracut_DATA) :%:%.in
-	-$(SED) -e 's,@bindir\@,$(bindir),g' \
-		-e 's,@sbindir\@,$(sbindir),g' \
-		-e 's,@udevdir\@,$(udevdir),g' \
-		-e 's,@udevruledir\@,$(udevruledir),g' \
-		-e 's,@sysconfdir\@,$(sysconfdir),g' \
-		-e 's,@systemdunitdir\@,$(systemdunitdir),g' \
-		-e 's,@mounthelperdir\@,$(mounthelperdir),g' \
-		$< >'$@'
-
-# Double-colon rules are allowed; there are multiple independent definitions.
-distclean-local::
-	-$(RM) $(pkgdracut_SCRIPTS) $(pkgdracut_DATA)
+SUBSTFILES += $(pkgdracut_SCRIPTS) $(pkgdracut_DATA)

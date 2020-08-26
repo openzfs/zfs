@@ -37,6 +37,7 @@
 #include <sys/zil.h>
 #include <sys/ddt.h>
 #include <sys/vdev_impl.h>
+#include <sys/vdev_os.h>
 #include <sys/vdev_removal.h>
 #include <sys/vdev_indirect_mapping.h>
 #include <sys/vdev_indirect_births.h>
@@ -71,9 +72,6 @@
 
 #include "zfs_prop.h"
 #include "zfs_comutil.h"
-
-extern int vdev_geom_read_pool_label(const char *name, nvlist_t ***configs,
-    uint64_t *count);
 
 static nvlist_t *
 spa_generate_rootconf(const char *name)

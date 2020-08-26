@@ -518,7 +518,7 @@ zpl_get_link_common(struct dentry *dentry, struct inode *ip, char **link)
 }
 
 #if defined(HAVE_GET_LINK_DELAYED)
-const char *
+static const char *
 zpl_get_link(struct dentry *dentry, struct inode *inode,
     struct delayed_call *done)
 {
@@ -537,7 +537,7 @@ zpl_get_link(struct dentry *dentry, struct inode *inode,
 	return (link);
 }
 #elif defined(HAVE_GET_LINK_COOKIE)
-const char *
+static const char *
 zpl_get_link(struct dentry *dentry, struct inode *inode, void **cookie)
 {
 	char *link = NULL;
@@ -553,7 +553,7 @@ zpl_get_link(struct dentry *dentry, struct inode *inode, void **cookie)
 	return (*cookie = link);
 }
 #elif defined(HAVE_FOLLOW_LINK_COOKIE)
-const char *
+static const char *
 zpl_follow_link(struct dentry *dentry, void **cookie)
 {
 	char *link = NULL;

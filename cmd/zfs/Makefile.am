@@ -11,11 +11,13 @@ zfs_SOURCES = \
 	zfs_projectutil.h
 
 zfs_LDADD = \
-	$(top_builddir)/lib/libnvpair/libnvpair.la \
-	$(top_builddir)/lib/libuutil/libuutil.la \
-	$(top_builddir)/lib/libzfs/libzfs.la \
-	$(top_builddir)/lib/libzfs_core/libzfs_core.la
+	$(abs_top_builddir)/lib/libzfs/libzfs.la \
+	$(abs_top_builddir)/lib/libzfs_core/libzfs_core.la \
+	$(abs_top_builddir)/lib/libnvpair/libnvpair.la \
+	$(abs_top_builddir)/lib/libuutil/libuutil.la
+
+zfs_LDADD += $(LTLIBINTL)
 
 if BUILD_FREEBSD
-zfs_LDADD += -L/usr/local/lib -lintl -lgeom -ljail
+zfs_LDADD += -lgeom -ljail
 endif

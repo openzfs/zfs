@@ -27,7 +27,6 @@
 #include <sys/spa_impl.h>
 #include <sys/txg.h>
 #include <sys/vdev_impl.h>
-#include <sys/refcount.h>
 #include <sys/metaslab_impl.h>
 #include <sys/dsl_synctask.h>
 #include <sys/zap.h>

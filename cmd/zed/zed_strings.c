@@ -108,7 +108,7 @@ _zed_strings_node_destroy(zed_strings_node_t *np)
  * If [key] is specified, it will be used to index the node; otherwise,
  * the string [val] will be used.
  */
-zed_strings_node_t *
+static zed_strings_node_t *
 _zed_strings_node_create(const char *key, const char *val)
 {
 	zed_strings_node_t *np;

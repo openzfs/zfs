@@ -33,9 +33,6 @@
 #include <sys/stat.h>
 #include <sys/param.h>
 
-int zfs_ioctl_version = ZFS_IOCVER_UNDEF;
-// static int zfs_spa_version = -1;
-
 void
 libzfs_set_pipe_max(int infd)
 {
@@ -173,38 +170,6 @@ execvpe(const char *name, char * const argv[], char * const envp[])
 	return (execvPe(name, path, argv, envp));
 }
 
-#if 0
-/*
- * Get the SPA version
- */
-static int
-get_zfs_spa_version(void)
-{
-	size_t ver_size;
-	int ver = 0;
-
-	ver_size = sizeof (ver);
-	sysctlbyname("vfs.zfs.version.spa", &ver, &ver_size, NULL, 0);
-
-	return (ver);
-}
-#endif
-
-/*
- * Get zfs_ioctl_version
- */
-int
-get_zfs_ioctl_version(void)
-{
-	size_t ver_size;
-	int ver = ZFS_IOCVER_NONE;
-
-	ver_size = sizeof (ver);
-	sysctlbyname("vfs.zfs.version.ioctl", &ver, &ver_size, NULL, 0);
-
-	return (ver);
-}
-
 const char *
 libzfs_error_init(int error)
 {
@@ -265,7 +230,7 @@ int
 zfs_jail(zfs_handle_t *zhp, int jailid, int attach)
 {
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
-	zfs_cmd_t zc = { { 0 } };
+	zfs_cmd_t zc = {"\0"};
 	char errbuf[1024];
 	unsigned long cmd;
 	int ret;
@@ -307,6 +272,29 @@ zfs_jail(zfs_handle_t *zhp, int jailid, int attach)
 		zfs_standard_error(hdl, errno, errbuf);
 
 	return (ret);
+}
+
+/*
+ * Set loader options for next boot.
+ */
+int
+zpool_nextboot(libzfs_handle_t *hdl, uint64_t pool_guid, uint64_t dev_guid,
+    const char *command)
+{
+	zfs_cmd_t zc = {"\0"};
+	nvlist_t *args;
+	int error;
+
+	args = fnvlist_alloc();
+	fnvlist_add_uint64(args, ZPOOL_CONFIG_POOL_GUID, pool_guid);
+	fnvlist_add_uint64(args, ZPOOL_CONFIG_GUID, dev_guid);
+	fnvlist_add_string(args, "command", command);
+	error = zcmd_write_src_nvlist(hdl, &zc, args);
+	if (error == 0)
+		error = zfs_ioctl(hdl, ZFS_IOC_NEXTBOOT, &zc);
+	zcmd_free_nvlists(&zc);
+	nvlist_free(args);
+	return (error);
 }
 
 /*

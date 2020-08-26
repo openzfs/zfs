@@ -1,8 +1,7 @@
 include $(top_srcdir)/config/Rules.am
+include $(top_srcdir)/config/Substfiles.am
 
-EXTRA_DIST = \
-	README \
-	history_event-zfs-list-cacher.sh.in
+EXTRA_DIST += README
 
 zedconfdir = $(sysconfdir)/zfs/zed.d
 
@@ -24,16 +23,12 @@ dist_zedexec_SCRIPTS = \
 	vdev_clear-led.sh \
 	vdev_attach-led.sh \
 	pool_import-led.sh \
-	resilver_finish-start-scrub.sh
+	resilver_finish-start-scrub.sh \
+	trim_finish-notify.sh
 
 nodist_zedexec_SCRIPTS = history_event-zfs-list-cacher.sh
 
-$(nodist_zedexec_SCRIPTS): %: %.in
-	-$(SED) -e 's,@bindir\@,$(bindir),g' \
-		-e 's,@runstatedir\@,$(runstatedir),g' \
-		-e 's,@sbindir\@,$(sbindir),g' \
-		-e 's,@sysconfdir\@,$(sysconfdir),g' \
-		$< >'$@'
+SUBSTFILES += $(nodist_zedexec_SCRIPTS)
 
 zedconfdefaults = \
 	all-syslog.sh \

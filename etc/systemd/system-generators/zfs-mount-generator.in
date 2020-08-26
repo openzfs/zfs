@@ -115,6 +115,7 @@ process_line() {
   wants="zfs-import.target"
   requires=""
   requiredmounts=""
+  bindsto=""
   wantedby=""
   requiredby=""
   noauto="off"
@@ -172,6 +173,12 @@ set -eu;\
 keystatus=\"\$\$(@sbindir@/zfs get -H -o value keystatus \"${dataset}\")\";\
 [ \"\$\$keystatus\" = \"unavailable\" ] || exit 0;\
 ${keyloadscript}'"
+      keyunloadcmd="\
+/bin/sh -c '\
+set -eu;\
+keystatus=\"\$\$(@sbindir@/zfs get -H -o value keystatus \"${dataset}\")\";\
+[ \"\$\$keystatus\" = \"available\" ] || exit 0;\
+@sbindir@/zfs unload-key \"${dataset}\"'"
 
 
 
@@ -191,7 +198,6 @@ Documentation=man:zfs-mount-generator(8)
 DefaultDependencies=no
 Wants=${wants}
 After=${after}
-Before=${before}
 ${requires}
 ${keymountdep}
 
@@ -199,11 +205,12 @@ ${keymountdep}
 Type=oneshot
 RemainAfterExit=yes
 ExecStart=${keyloadcmd}
-ExecStop=@sbindir@/zfs unload-key '${dataset}'"   > "${dest_norm}/${keyloadunit}"
+ExecStop=${keyunloadcmd}"   > "${dest_norm}/${keyloadunit}"
     fi
     # Update the dependencies for the mount file to want the
     # key-loading unit.
-    wants="${wants} ${keyloadunit}"
+    wants="${wants}"
+    bindsto="BindsTo=${keyloadunit}"
     after="${after} ${keyloadunit}"
   fi
 
@@ -414,6 +421,7 @@ Documentation=man:zfs-mount-generator(8)
 Before=${before}
 After=${after}
 Wants=${wants}
+${bindsto}
 ${requires}
 ${requiredmounts}
 

@@ -971,7 +971,7 @@ zfs_set_fuid_feature(zfsvfs_t *zfsvfs)
 	zfsvfs->z_use_sa = USE_SA(zfsvfs->z_version, zfsvfs->z_os);
 }
 
-void
+static void
 zfs_unregister_callbacks(zfsvfs_t *zfsvfs)
 {
 	objset_t *os = zfsvfs->z_os;
@@ -1088,9 +1088,9 @@ objs:
 }
 
 int
-zfs_statvfs(struct dentry *dentry, struct kstatfs *statp)
+zfs_statvfs(struct inode *ip, struct kstatfs *statp)
 {
-	zfsvfs_t *zfsvfs = dentry->d_sb->s_fs_info;
+	zfsvfs_t *zfsvfs = ITOZSB(ip);
 	uint64_t refdbytes, availbytes, usedobjs, availobjs;
 	int err = 0;
 
@@ -1148,7 +1148,7 @@ zfs_statvfs(struct dentry *dentry, struct kstatfs *statp)
 
 	if (dmu_objset_projectquota_enabled(zfsvfs->z_os) &&
 	    dmu_objset_projectquota_present(zfsvfs->z_os)) {
-		znode_t *zp = ITOZ(dentry->d_inode);
+		znode_t *zp = ITOZ(ip);
 
 		if (zp->z_pflags & ZFS_PROJINHERIT && zp->z_projid &&
 		    zpl_is_valid_projid(zp->z_projid))
@@ -1159,7 +1159,7 @@ zfs_statvfs(struct dentry *dentry, struct kstatfs *statp)
 	return (err);
 }
 
-int
+static int
 zfs_root(zfsvfs_t *zfsvfs, struct inode **ipp)
 {
 	znode_t *rootzp;

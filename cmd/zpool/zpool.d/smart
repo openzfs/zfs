@@ -71,6 +71,7 @@ fi
 
 smartctl_path=$(command -v smartctl)
 
+# shellcheck disable=SC2015
 if [ -b "$VDEV_UPATH" ] && [ -x "$smartctl_path" ] || [ -n "$samples" ] ; then
 	if [ -n "$samples" ] ; then
 		# cat a smartctl output text file instead of running smartctl

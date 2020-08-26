@@ -51,6 +51,10 @@ tags = ['functional', 'cli_root', 'zfs']
 tests = ['zfs_mount_006_pos', 'zfs_mount_008_pos', 'zfs_multi_mount']
 tags = ['functional', 'cli_root', 'zfs_mount']
 
+[tests/functional/cli_root/zfs_share:Linux]
+tests = ['zfs_share_005_pos', 'zfs_share_007_neg', 'zfs_share_009_neg']
+tags = ['functional', 'cli_root', 'zfs_share']
+
 [tests/functional/cli_root/zfs_sysfs:Linux]
 tests = ['zfeature_set_unsupported', 'zfs_get_unsupported',
     'zfs_set_unsupported', 'zfs_sysfs_live', 'zpool_get_unsupported',
@@ -94,6 +98,10 @@ tags = ['functional', 'devices']
 tests = ['events_001_pos', 'events_002_pos', 'zed_rc_filter']
 tags = ['functional', 'events']
 
+[tests/functional/fallocate:Linux]
+tests = ['fallocate_prealloc', 'fallocate_punch-hole']
+tags = ['functional', 'fallocate']
+
 [tests/functional/fault:Linux]
 tests = ['auto_offline_001_pos', 'auto_online_001_pos', 'auto_replace_001_pos',
     'auto_spare_001_pos', 'auto_spare_002_pos', 'auto_spare_multiple',
@@ -123,6 +131,10 @@ tags = ['functional', 'mmp']
 [tests/functional/mount:Linux]
 tests = ['umount_unlinked_drain']
 tags = ['functional', 'mount']
+
+[tests/functional/pam:Linux]
+tests = ['pam_basic', 'pam_nounmount']
+tags = ['functional', 'pam']
 
 [tests/functional/procfs:Linux]
 tests = ['procfs_list_basic', 'procfs_list_concurrent_readers',

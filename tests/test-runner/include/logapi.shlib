@@ -23,7 +23,7 @@
 # Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.
 #
-# Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+# Copyright (c) 2012, 2020 by Delphix. All rights reserved.
 #
 
 . ${STF_TOOLS}/include/stf.shlib
@@ -420,6 +420,11 @@ function log_other
 	_endlog $STF_OTHER "$@"
 }
 
+function set_main_pid
+{
+	_MAINPID=$1
+}
+
 #
 # Internal functions
 #
@@ -453,6 +458,15 @@ function _endlog
 	typeset exitcode=$1
 	shift
 	(( ${#@} > 0 )) && _printline "$@"
+
+	#
+	# If we're running in a subshell then just exit and let
+	# the parent handle the failures
+	#
+	if [[ -n "$_MAINPID" && $$ != "$_MAINPID" ]]; then
+		log_note "subshell exited: "$_MAINPID
+		exit $exitcode
+	fi
 
 	if [[ $exitcode == $STF_FAIL ]] ; then
 		_execute_testfail_callbacks

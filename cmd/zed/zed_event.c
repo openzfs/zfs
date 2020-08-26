@@ -28,6 +28,7 @@
 #include "zed.h"
 #include "zed_conf.h"
 #include "zed_disk_event.h"
+#include "zed_event.h"
 #include "zed_exec.h"
 #include "zed_file.h"
 #include "zed_log.h"
@@ -40,25 +41,36 @@
 /*
  * Open the libzfs interface.
  */
-void
+int
 zed_event_init(struct zed_conf *zcp)
 {
 	if (!zcp)
 		zed_log_die("Failed zed_event_init: %s", strerror(EINVAL));
 
 	zcp->zfs_hdl = libzfs_init();
-	if (!zcp->zfs_hdl)
+	if (!zcp->zfs_hdl) {
+		if (zcp->do_idle)
+			return (-1);
 		zed_log_die("Failed to initialize libzfs");
+	}
 
 	zcp->zevent_fd = open(ZFS_DEV, O_RDWR);
-	if (zcp->zevent_fd < 0)
+	if (zcp->zevent_fd < 0) {
+		if (zcp->do_idle)
+			return (-1);
 		zed_log_die("Failed to open \"%s\": %s",
 		    ZFS_DEV, strerror(errno));
+	}
 
 	zfs_agent_init(zcp->zfs_hdl);
 
-	if (zed_disk_event_init() != 0)
+	if (zed_disk_event_init() != 0) {
+		if (zcp->do_idle)
+			return (-1);
 		zed_log_die("Failed to initialize disk events");
+	}
+
+	return (0);
 }
 
 /*
@@ -872,7 +884,7 @@ _zed_event_add_time_strings(uint64_t eid, zed_strings_t *zsp, int64_t etime[])
 /*
  * Service the next zevent, blocking until one is available.
  */
-void
+int
 zed_event_service(struct zed_conf *zcp)
 {
 	nvlist_t *nvl;
@@ -890,13 +902,13 @@ zed_event_service(struct zed_conf *zcp)
 		errno = EINVAL;
 		zed_log_msg(LOG_ERR, "Failed to service zevent: %s",
 		    strerror(errno));
-		return;
+		return (EINVAL);
 	}
 	rv = zpool_events_next(zcp->zfs_hdl, &nvl, &n_dropped, ZEVENT_NONE,
 	    zcp->zevent_fd);
 
 	if ((rv != 0) || !nvl)
-		return;
+		return (errno);
 
 	if (n_dropped > 0) {
 		zed_log_msg(LOG_WARNING, "Missed %d events", n_dropped);
@@ -949,4 +961,5 @@ zed_event_service(struct zed_conf *zcp)
 		zed_strings_destroy(zsp);
 	}
 	nvlist_free(nvl);
+	return (0);
 }

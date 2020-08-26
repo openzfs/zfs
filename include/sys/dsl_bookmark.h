@@ -20,7 +20,7 @@
 #define	_SYS_DSL_BOOKMARK_H
 
 #include <sys/zfs_context.h>
-#include <sys/refcount.h>
+#include <sys/zfs_refcount.h>
 #include <sys/dsl_dataset.h>
 #include <sys/dsl_pool.h>
 

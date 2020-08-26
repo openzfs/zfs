@@ -10,7 +10,7 @@
 .\"
 .\"
 .\" Copyright 2012, Richard Lowe.
-.\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+.\" Copyright (c) 2012, 2019 by Delphix. All rights reserved.
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Lawrence Livermore National Security, LLC.
 .\" Copyright (c) 2017 Intel Corporation.
@@ -23,7 +23,7 @@
 .Nd display zpool debugging and consistency information
 .Sh SYNOPSIS
 .Nm
-.Op Fl AbcdDFGhikLMPsvXY
+.Op Fl AbcdDFGhikLMPsvXYy
 .Op Fl e Oo Fl V Oc Op Fl p Ar path ...
 .Op Fl I Ar inflight I/Os
 .Oo Fl o Ar var Ns = Ns Ar value Oc Ns ...
@@ -403,6 +403,12 @@ but read transactions otherwise deemed too old.
 Attempt all possible combinations when reconstructing indirect split blocks.
 This flag disables the individual I/O deadman timer in order to allow as
 much time as required for the attempted reconstruction.
+.It Fl y
+Perform validation for livelists that are being deleted.
+Scans through the livelist and metaslabs, checking for duplicate entries
+and compares the two, checking for potential double frees.
+If it encounters issues, warnings will be printed, but the command will not
+necessarily fail.
 .El
 .Pp
 Specifying a display option more than once enables verbosity for only that

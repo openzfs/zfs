@@ -1059,7 +1059,7 @@ zfs_make_xattrdir(znode_t *zp, vattr_t *vap, znode_t **xzpp, cred_t *cr)
 	int error;
 	zfs_acl_ids_t acl_ids;
 	boolean_t fuid_dirtied;
-#ifdef DEBUG
+#ifdef ZFS_DEBUG
 	uint64_t parent;
 #endif
 
@@ -1095,7 +1095,7 @@ zfs_make_xattrdir(znode_t *zp, vattr_t *vap, znode_t **xzpp, cred_t *cr)
 	if (fuid_dirtied)
 		zfs_fuid_sync(zfsvfs, tx);
 
-#ifdef DEBUG
+#ifdef ZFS_DEBUG
 	error = sa_lookup(xzp->z_sa_hdl, SA_ZPL_PARENT(zfsvfs),
 	    &parent, sizeof (parent));
 	ASSERT(error == 0 && parent == zp->z_id);

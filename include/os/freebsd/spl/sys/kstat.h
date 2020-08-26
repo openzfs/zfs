@@ -24,6 +24,7 @@
 
 #ifndef _SPL_KSTAT_H
 #define	_SPL_KSTAT_H
+#include <sys/types.h>
 #include <sys/sysctl.h>
 struct list_head {};
 #include <sys/mutex.h>

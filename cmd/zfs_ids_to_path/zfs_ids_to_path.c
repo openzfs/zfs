@@ -32,7 +32,7 @@
 
 libzfs_handle_t *g_zfs;
 
-void
+static void
 usage(int err)
 {
 	fprintf(stderr, "Usage: [-v] zfs_ids_to_path <pool> <objset id> "

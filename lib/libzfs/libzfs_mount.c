@@ -22,7 +22,7 @@
 /*
  * Copyright 2015 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2014, 2019 by Delphix. All rights reserved.
+ * Copyright (c) 2014, 2020 by Delphix. All rights reserved.
  * Copyright 2016 Igor Kozhukhov <ikozhukhov@gmail.com>
  * Copyright 2017 RackTop Systems.
  * Copyright (c) 2018 Datto Inc.
@@ -466,7 +466,8 @@ zfs_mount_at(zfs_handle_t *zhp, const char *options, int flags,
 	if (lstat(mountpoint, &buf) != 0) {
 		if (mkdirp(mountpoint, 0755) != 0) {
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "failed to create mountpoint"));
+			    "failed to create mountpoint: %s"),
+			    strerror(errno));
 			return (zfs_error_fmt(hdl, EZFS_MOUNTFAILED,
 			    dgettext(TEXT_DOMAIN, "cannot mount '%s'"),
 			    mountpoint));
@@ -592,10 +593,12 @@ zfs_unmount(zfs_handle_t *zhp, const char *mountpoint, int flags)
 			free(mntpt);
 			return (-1);
 		}
+		zfs_commit_all_shares();
 
 		if (unmount_one(hdl, mntpt, flags) != 0) {
 			free(mntpt);
 			(void) zfs_shareall(zhp);
+			zfs_commit_all_shares();
 			return (-1);
 		}
 
@@ -668,6 +671,94 @@ zfs_is_shared(zfs_handle_t *zhp)
 	return (rc ? B_TRUE : B_FALSE);
 }
 
+/*
+ * Unshare a filesystem by mountpoint.
+ */
+int
+unshare_one(libzfs_handle_t *hdl, const char *name, const char *mountpoint,
+    zfs_share_proto_t proto)
+{
+	int err;
+
+	err = sa_disable_share(mountpoint, proto_table[proto].p_name);
+	if (err != SA_OK) {
+		return (zfs_error_fmt(hdl, proto_table[proto].p_unshare_err,
+		    dgettext(TEXT_DOMAIN, "cannot unshare '%s': %s"),
+		    name, sa_errorstr(err)));
+	}
+	return (0);
+}
+
+/*
+ * Query libshare for the given mountpoint and protocol, returning
+ * a zfs_share_type_t value.
+ */
+zfs_share_type_t
+is_shared(const char *mountpoint, zfs_share_proto_t proto)
+{
+	if (sa_is_shared(mountpoint, proto_table[proto].p_name)) {
+		switch (proto) {
+		case PROTO_NFS:
+			return (SHARED_NFS);
+		case PROTO_SMB:
+			return (SHARED_SMB);
+		default:
+			return (SHARED_NOT_SHARED);
+		}
+	}
+	return (SHARED_NOT_SHARED);
+}
+
+/*
+ * Share the given filesystem according to the options in the specified
+ * protocol specific properties (sharenfs, sharesmb).  We rely
+ * on "libshare" to do the dirty work for us.
+ */
+int
+zfs_share_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto)
+{
+	char mountpoint[ZFS_MAXPROPLEN];
+	char shareopts[ZFS_MAXPROPLEN];
+	char sourcestr[ZFS_MAXPROPLEN];
+	zfs_share_proto_t *curr_proto;
+	zprop_source_t sourcetype;
+	int err = 0;
+
+	if (!zfs_is_mountable(zhp, mountpoint, sizeof (mountpoint), NULL, 0))
+		return (0);
+
+	for (curr_proto = proto; *curr_proto != PROTO_END; curr_proto++) {
+		/*
+		 * Return success if there are no share options.
+		 */
+		if (zfs_prop_get(zhp, proto_table[*curr_proto].p_prop,
+		    shareopts, sizeof (shareopts), &sourcetype, sourcestr,
+		    ZFS_MAXPROPLEN, B_FALSE) != 0 ||
+		    strcmp(shareopts, "off") == 0)
+			continue;
+
+		/*
+		 * If the 'zoned' property is set, then zfs_is_mountable()
+		 * will have already bailed out if we are in the global zone.
+		 * But local zones cannot be NFS servers, so we ignore it for
+		 * local zones as well.
+		 */
+		if (zfs_prop_get_int(zhp, ZFS_PROP_ZONED))
+			continue;
+
+		err = sa_enable_share(zfs_get_name(zhp), mountpoint, shareopts,
+		    proto_table[*curr_proto].p_name);
+		if (err != SA_OK) {
+			return (zfs_error_fmt(zhp->zfs_hdl,
+			    proto_table[*curr_proto].p_share_err,
+			    dgettext(TEXT_DOMAIN, "cannot share '%s: %s'"),
+			    zfs_get_name(zhp), sa_errorstr(err)));
+		}
+
+	}
+	return (0);
+}
+
 int
 zfs_share(zfs_handle_t *zhp)
 {
@@ -694,7 +785,7 @@ zfs_is_shared_proto(zfs_handle_t *zhp, char **where, zfs_share_proto_t proto)
 	if (!zfs_is_mounted(zhp, &mountpoint))
 		return (SHARED_NOT_SHARED);
 
-	if ((rc = is_shared_impl(zhp->zfs_hdl, mountpoint, proto))
+	if ((rc = is_shared(mountpoint, proto))
 	    != SHARED_NOT_SHARED) {
 		if (where != NULL)
 			*where = mountpoint;
@@ -722,21 +813,6 @@ zfs_is_shared_smb(zfs_handle_t *zhp, char **where)
 }
 
 /*
- * zfs_uninit_libshare(zhandle)
- *
- * Uninitialize the libshare API if it hasn't already been
- * uninitialized. It is OK to call multiple times.
- */
-void
-zfs_uninit_libshare(libzfs_handle_t *zhandle)
-{
-	if (zhandle != NULL && zhandle->libzfs_sharehdl != NULL) {
-		sa_fini(zhandle->libzfs_sharehdl);
-		zhandle->libzfs_sharehdl = NULL;
-	}
-}
-
-/*
  * zfs_parse_options(options, proto)
  *
  * Call the legacy parse interface to get the protocol specific
@@ -745,8 +821,45 @@ zfs_uninit_libshare(libzfs_handle_t *zhandle)
 int
 zfs_parse_options(char *options, zfs_share_proto_t proto)
 {
-	return (sa_parse_legacy_options(NULL, options,
-	    proto_table[proto].p_name));
+	return (sa_validate_shareopts(options, proto_table[proto].p_name));
+}
+
+void
+zfs_commit_proto(zfs_share_proto_t *proto)
+{
+	zfs_share_proto_t *curr_proto;
+	for (curr_proto = proto; *curr_proto != PROTO_END; curr_proto++) {
+		sa_commit_shares(proto_table[*curr_proto].p_name);
+	}
+}
+
+void
+zfs_commit_nfs_shares(void)
+{
+	zfs_commit_proto(nfs_only);
+}
+
+void
+zfs_commit_smb_shares(void)
+{
+	zfs_commit_proto(smb_only);
+}
+
+void
+zfs_commit_all_shares(void)
+{
+	zfs_commit_proto(share_all_proto);
+}
+
+void
+zfs_commit_shares(const char *proto)
+{
+	if (proto == NULL)
+		zfs_commit_proto(share_all_proto);
+	else if (strcmp(proto, "nfs") == 0)
+		zfs_commit_proto(nfs_only);
+	else if (strcmp(proto, "smb") == 0)
+		zfs_commit_proto(smb_only);
 }
 
 int
@@ -792,12 +905,13 @@ zfs_unshare_proto(zfs_handle_t *zhp, const char *mountpoint,
 		for (curr_proto = proto; *curr_proto != PROTO_END;
 		    curr_proto++) {
 
-			if (is_shared_impl(hdl, mntpt, *curr_proto) &&
-			    unshare_one(hdl, zhp->zfs_name,
-			    mntpt, *curr_proto) != 0) {
-				if (mntpt != NULL)
-					free(mntpt);
-				return (-1);
+			if (is_shared(mntpt, *curr_proto)) {
+				if (unshare_one(hdl, zhp->zfs_name,
+				    mntpt, *curr_proto) != 0) {
+					if (mntpt != NULL)
+						free(mntpt);
+					return (-1);
+				}
 			}
 		}
 	}
@@ -822,7 +936,7 @@ zfs_unshare_smb(zfs_handle_t *zhp, const char *mountpoint)
 /*
  * Same as zfs_unmountall(), but for NFS and SMB unshares.
  */
-int
+static int
 zfs_unshareall_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto)
 {
 	prop_changelist_t *clp;
@@ -1337,6 +1451,8 @@ zpool_enable_datasets(zpool_handle_t *zhp, const char *mntopts, int flags)
 	    zfs_share_one, &ms, B_FALSE);
 	if (ms.ms_mntstatus != 0)
 		ret = ms.ms_mntstatus;
+	else
+		zfs_commit_all_shares();
 
 out:
 	for (int i = 0; i < cb.cb_used; i++)
@@ -1462,12 +1578,13 @@ zpool_disable_datasets(zpool_handle_t *zhp, boolean_t force)
 		zfs_share_proto_t *curr_proto;
 		for (curr_proto = share_all_proto; *curr_proto != PROTO_END;
 		    curr_proto++) {
-			if (is_shared_impl(hdl, mountpoints[i], *curr_proto) &&
+			if (is_shared(mountpoints[i], *curr_proto) &&
 			    unshare_one(hdl, mountpoints[i],
 			    mountpoints[i], *curr_proto) != 0)
 				goto out;
 		}
 	}
+	zfs_commit_all_shares();
 
 	/*
 	 * Now unmount everything, removing the underlying directories as

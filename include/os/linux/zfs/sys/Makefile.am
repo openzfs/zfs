@@ -1,28 +1,28 @@
 KERNEL_H = \
-	$(top_srcdir)/include/os/linux/zfs/sys/policy.h \
-	$(top_srcdir)/include/os/linux/zfs/sys/sha2.h \
-	$(top_srcdir)/include/os/linux/zfs/sys/trace_acl.h \
-	$(top_srcdir)/include/os/linux/zfs/sys/trace_arc.h \
-	$(top_srcdir)/include/os/linux/zfs/sys/trace_common.h \
-	$(top_srcdir)/include/os/linux/zfs/sys/trace_zfs.h \
-	$(top_srcdir)/include/os/linux/zfs/sys/trace_dbgmsg.h \
-	$(top_srcdir)/include/os/linux/zfs/sys/trace_dbuf.h \
-	$(top_srcdir)/include/os/linux/zfs/sys/trace_dmu.h \
-	$(top_srcdir)/include/os/linux/zfs/sys/trace_dnode.h \
-	$(top_srcdir)/include/os/linux/zfs/sys/trace_multilist.h \
-	$(top_srcdir)/include/os/linux/zfs/sys/trace_rrwlock.h \
-	$(top_srcdir)/include/os/linux/zfs/sys/trace_txg.h \
-	$(top_srcdir)/include/os/linux/zfs/sys/trace_vdev.h \
-	$(top_srcdir)/include/os/linux/zfs/sys/trace_zil.h \
-	$(top_srcdir)/include/os/linux/zfs/sys/trace_zio.h \
-	$(top_srcdir)/include/os/linux/zfs/sys/trace_zrlock.h \
-	$(top_srcdir)/include/os/linux/zfs/sys/zfs_context_os.h \
-	$(top_srcdir)/include/os/linux/zfs/sys/zfs_ctldir.h \
-	$(top_srcdir)/include/os/linux/zfs/sys/zfs_dir.h \
-	$(top_srcdir)/include/os/linux/zfs/sys/zfs_vfsops.h \
-	$(top_srcdir)/include/os/linux/zfs/sys/zfs_vnops.h \
-	$(top_srcdir)/include/os/linux/zfs/sys/zfs_znode_impl.h \
-	$(top_srcdir)/include/os/linux/zfs/sys/zpl.h
+	policy.h \
+	sha2.h \
+	trace_acl.h \
+	trace_arc.h \
+	trace_common.h \
+	trace_zfs.h \
+	trace_dbgmsg.h \
+	trace_dbuf.h \
+	trace_dmu.h \
+	trace_dnode.h \
+	trace_multilist.h \
+	trace_rrwlock.h \
+	trace_txg.h \
+	trace_vdev.h \
+	trace_zil.h \
+	trace_zio.h \
+	trace_zrlock.h \
+	zfs_context_os.h \
+	zfs_ctldir.h \
+	zfs_dir.h \
+	zfs_vfsops.h \
+	zfs_vnops.h \
+	zfs_znode_impl.h \
+	zpl.h
 
 if CONFIG_KERNEL
 kerneldir = @prefix@/src/zfs-$(VERSION)/include/sys

@@ -107,13 +107,13 @@ ccm_mode_encrypt_contiguous_blocks(ccm_ctx_t *ctx, char *data, size_t length,
 		 * Increment counter. Counter bits are confined
 		 * to the bottom 64 bits of the counter block.
 		 */
-#ifdef _LITTLE_ENDIAN
+#ifdef _ZFS_LITTLE_ENDIAN
 		counter = ntohll(ctx->ccm_cb[1] & ctx->ccm_counter_mask);
 		counter = htonll(counter + 1);
 #else
 		counter = ctx->ccm_cb[1] & ctx->ccm_counter_mask;
 		counter++;
-#endif	/* _LITTLE_ENDIAN */
+#endif	/* _ZFS_LITTLE_ENDIAN */
 		counter &= ctx->ccm_counter_mask;
 		ctx->ccm_cb[1] =
 		    (ctx->ccm_cb[1] & ~(ctx->ccm_counter_mask)) | counter;
@@ -318,7 +318,7 @@ ccm_encrypt_final(ccm_ctx_t *ctx, crypto_data_t *out, size_t block_size,
  * This will only deal with decrypting the last block of the input that
  * might not be a multiple of block length.
  */
-void
+static void
 ccm_decrypt_incomplete_block(ccm_ctx_t *ctx,
     int (*encrypt_block)(const void *, const uint8_t *, uint8_t *))
 {
@@ -458,13 +458,13 @@ ccm_mode_decrypt_contiguous_blocks(ccm_ctx_t *ctx, char *data, size_t length,
 		 * Increment counter.
 		 * Counter bits are confined to the bottom 64 bits
 		 */
-#ifdef _LITTLE_ENDIAN
+#ifdef _ZFS_LITTLE_ENDIAN
 		counter = ntohll(ctx->ccm_cb[1] & ctx->ccm_counter_mask);
 		counter = htonll(counter + 1);
 #else
 		counter = ctx->ccm_cb[1] & ctx->ccm_counter_mask;
 		counter++;
-#endif	/* _LITTLE_ENDIAN */
+#endif	/* _ZFS_LITTLE_ENDIAN */
 		counter &= ctx->ccm_counter_mask;
 		ctx->ccm_cb[1] =
 		    (ctx->ccm_cb[1] & ~(ctx->ccm_counter_mask)) | counter;
@@ -573,7 +573,7 @@ ccm_decrypt_final(ccm_ctx_t *ctx, crypto_data_t *out, size_t block_size,
 	return (CRYPTO_SUCCESS);
 }
 
-int
+static int
 ccm_validate_args(CK_AES_CCM_PARAMS *ccm_param, boolean_t is_encrypt_init)
 {
 	size_t macSize, nonceSize;
@@ -684,7 +684,7 @@ ccm_format_initial_blocks(uchar_t *nonce, ulong_t nonceSize,
 		mask |= (1ULL << q);
 	}
 
-#ifdef _LITTLE_ENDIAN
+#ifdef _ZFS_LITTLE_ENDIAN
 	mask = htonll(mask);
 #endif
 	aes_ctx->ccm_counter_mask = mask;
@@ -758,11 +758,7 @@ encode_adata_len(ulong_t auth_data_len, uint8_t *encoded, size_t *encoded_len)
 	}
 }
 
-/*
- * The following function should be call at encrypt or decrypt init time
- * for AES CCM mode.
- */
-int
+static int
 ccm_init(ccm_ctx_t *ctx, unsigned char *nonce, size_t nonce_len,
     unsigned char *auth_data, size_t auth_data_len, size_t block_size,
     int (*encrypt_block)(const void *, const uint8_t *, uint8_t *),
@@ -846,6 +842,10 @@ ccm_init(ccm_ctx_t *ctx, unsigned char *nonce, size_t nonce_len,
 	return (CRYPTO_SUCCESS);
 }
 
+/*
+ * The following function should be call at encrypt or decrypt init time
+ * for AES CCM mode.
+ */
 int
 ccm_init_ctx(ccm_ctx_t *ccm_ctx, char *param, int kmflag,
     boolean_t is_encrypt_init, size_t block_size,

@@ -26,7 +26,6 @@
  * Copyright (c) 2012 by Delphix. All rights reserved.
  */
 
-#include <sys/refcount.h>
 #include <sys/rrwlock.h>
 #include <sys/trace_zfs.h>
 
@@ -164,7 +163,7 @@ static void
 rrw_enter_read_impl(rrwlock_t *rrl, boolean_t prio, void *tag)
 {
 	mutex_enter(&rrl->rr_lock);
-#if !defined(DEBUG) && defined(_KERNEL)
+#if !defined(ZFS_DEBUG) && defined(_KERNEL)
 	if (rrl->rr_writer == NULL && !rrl->rr_writer_wanted &&
 	    !rrl->rr_track_all) {
 		rrl->rr_anon_rcount.rc_count++;
@@ -241,7 +240,7 @@ void
 rrw_exit(rrwlock_t *rrl, void *tag)
 {
 	mutex_enter(&rrl->rr_lock);
-#if !defined(DEBUG) && defined(_KERNEL)
+#if !defined(ZFS_DEBUG) && defined(_KERNEL)
 	if (!rrl->rr_writer && rrl->rr_linked_rcount.rc_count == 0) {
 		rrl->rr_anon_rcount.rc_count--;
 		if (rrl->rr_anon_rcount.rc_count == 0)

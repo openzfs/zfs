@@ -872,17 +872,17 @@ typedef enum free_memory_reason_t {
 #define	arc_sys_free	ARCSTAT(arcstat_sys_free) /* target system free bytes */
 #define	arc_need_free	ARCSTAT(arcstat_need_free) /* bytes to be freed */
 
-extern int arc_zio_arena_free_shift;
 extern taskq_t *arc_prune_taskq;
 extern arc_stats_t arc_stats;
 extern hrtime_t arc_growtime;
 extern boolean_t arc_warm;
 extern int arc_grow_retry;
+extern int arc_no_grow_shift;
 extern int arc_shrink_shift;
-extern zthr_t		*arc_adjust_zthr;
-extern kmutex_t		arc_adjust_lock;
-extern kcondvar_t	arc_adjust_waiters_cv;
-extern boolean_t	arc_adjust_needed;
+extern zthr_t		*arc_evict_zthr;
+extern kmutex_t		arc_evict_lock;
+extern kcondvar_t	arc_evict_waiters_cv;
+extern boolean_t	arc_evict_needed;
 extern kmutex_t arc_prune_mtx;
 extern list_t arc_prune_list;
 extern aggsum_t arc_size;
@@ -890,10 +890,13 @@ extern arc_state_t	*arc_mfu;
 extern arc_state_t	*arc_mru;
 extern uint_t zfs_arc_pc_percent;
 extern int arc_lotsfree_percent;
+extern unsigned long zfs_arc_min;
+extern unsigned long zfs_arc_max;
 
 extern void arc_reduce_target_size(int64_t to_free);
 extern boolean_t arc_reclaim_needed(void);
 extern void arc_kmem_reap_soon(void);
+extern boolean_t arc_is_overflowing(void);
 
 extern void arc_lowmem_init(void);
 extern void arc_lowmem_fini(void);

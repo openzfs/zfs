@@ -446,16 +446,18 @@ slab_seq_show(struct seq_file *f, void *p)
 		 * the underlying Linux cache please refer to /proc/slabinfo.
 		 */
 		spin_lock(&skc->skc_lock);
+		uint64_t objs_allocated =
+		    percpu_counter_sum(&skc->skc_linux_alloc);
 		seq_printf(f, "%-36s  ", skc->skc_name);
 		seq_printf(f, "0x%05lx %9s %9lu %8s %8u  "
 		    "%5s %5s %5s  %5s %5lu %5s  %5s %5s %5s\n",
 		    (long unsigned)skc->skc_flags,
 		    "-",
-		    (long unsigned)(skc->skc_obj_size * skc->skc_obj_alloc),
+		    (long unsigned)(skc->skc_obj_size * objs_allocated),
 		    "-",
 		    (unsigned)skc->skc_obj_size,
 		    "-", "-", "-", "-",
-		    (long unsigned)skc->skc_obj_alloc,
+		    (long unsigned)objs_allocated,
 		    "-", "-", "-", "-");
 		spin_unlock(&skc->skc_lock);
 		return (0);

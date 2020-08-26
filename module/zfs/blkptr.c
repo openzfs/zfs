@@ -17,6 +17,7 @@
  * Copyright (c) 2013, 2016 by Delphix. All rights reserved.
  */
 
+#include <sys/blkptr.h>
 #include <sys/zfs_context.h>
 #include <sys/zio.h>
 #include <sys/zio_compress.h>

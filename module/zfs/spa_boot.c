@@ -27,7 +27,7 @@
 #ifdef _KERNEL
 
 #include <sys/zio.h>
-#include <sys/spa.h>
+#include <sys/spa_boot.h>
 #include <sys/sunddi.h>
 
 char *

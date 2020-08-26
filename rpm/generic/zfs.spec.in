@@ -48,10 +48,15 @@
 %global _systemdgeneratordir %{_prefix}/lib/systemd/system-generators
 %endif
 
+%if %{undefined _pkgconfigdir}
+%global _pkgconfigdir %{_prefix}/%{_lib}/pkgconfig
+%endif
+
 %bcond_with    debug
 %bcond_with    debuginfo
 %bcond_with    asan
 %bcond_with    systemd
+%bcond_with    pam
 
 # Generic enable switch for systemd
 %if %{with systemd}
@@ -329,6 +334,12 @@ image which is ZFS aware.
     %define pyzfs --disable-pyzfs
 %endif
 
+%if %{with pam}
+    %define pam --enable-pam
+%else
+    %define pam --disable-pam
+%endif
+
 %setup -q
 
 %build
@@ -337,12 +348,16 @@ image which is ZFS aware.
     --with-udevdir=%{_udevdir} \
     --with-udevruledir=%{_udevruledir} \
     --with-dracutdir=%{_dracutdir} \
+    --with-pamconfigsdir=%{_datadir}/pam-configs \
+    --with-pammoduledir=%{_libdir}/security \
     --with-python=%{__python} \
+    --with-pkgconfigdir=%{_pkgconfigdir} \
     --disable-static \
     %{debug} \
     %{debuginfo} \
     %{asan} \
-    %{systemd}\
+    %{systemd} \
+    %{pam} \
     %{pyzfs}
 make %{?_smp_mflags}
 
@@ -457,6 +472,10 @@ systemctl --system daemon-reload >/dev/null || true
 %config(noreplace) %{_sysconfdir}/%{name}/zpool.d/*
 %config(noreplace) %{_sysconfdir}/%{name}/vdev_id.conf.*.example
 %attr(440, root, root) %config(noreplace) %{_sysconfdir}/sudoers.d/*
+%if %{with pam}
+%{_libdir}/security/*
+%{_datadir}/pam-configs/*
+%endif
 
 %files -n libzpool2
 %{_libdir}/libzpool.so.*
@@ -471,8 +490,8 @@ systemctl --system daemon-reload >/dev/null || true
 %{_libdir}/libzfs*.so.*
 
 %files -n libzfs2-devel
-%{_datarootdir}/pkgconfig/libzfs.pc
-%{_datarootdir}/pkgconfig/libzfs_core.pc
+%{_pkgconfigdir}/libzfs.pc
+%{_pkgconfigdir}/libzfs_core.pc
 %{_libdir}/*.so
 %{_includedir}/*
 %doc AUTHORS COPYRIGHT LICENSE NOTICE README.md

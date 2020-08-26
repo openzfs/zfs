@@ -33,17 +33,28 @@
 /*
  * This is a bag of dirty hacks to keep things compiling.
  */
+#include_next <sys/types.h>
 
+#ifdef __ILP32__
+typedef __uint64_t u_longlong_t;
+typedef __int64_t longlong_t;
+#else
+typedef unsigned long long	u_longlong_t;
+typedef long long		longlong_t;
+#endif
 #include <sys/stdint.h>
 
-typedef	int64_t		clock_t;
 #define	_CLOCK_T_DECLARED
 
-#include_next <sys/types.h>
 #include <sys/types32.h>
 #include <sys/_stdarg.h>
+#include <linux/types.h>
 
 #define	MAXNAMELEN	256
+
+
+
+typedef	void zfs_kernel_param_t;
 
 typedef	struct timespec	timestruc_t;
 typedef	struct timespec	timespec_t;
@@ -93,5 +104,5 @@ typedef	u_longlong_t	len_t;
 
 typedef	longlong_t	diskaddr_t;
 
-
+#include <sys/debug.h>
 #endif	/* !_OPENSOLARIS_SYS_TYPES_H_ */

@@ -116,7 +116,7 @@
 #include <sys/dsl_destroy.h>
 #include <sys/dsl_scan.h>
 #include <sys/zio_checksum.h>
-#include <sys/refcount.h>
+#include <sys/zfs_refcount.h>
 #include <sys/zfeature.h>
 #include <sys/dsl_userhold.h>
 #include <sys/abd.h>
@@ -1619,7 +1619,7 @@ ztest_bt_bonus(dmu_buf_t *db)
  * helps ensure that all dnode traversal code properly skips the
  * interior regions of large dnodes.
  */
-void
+static void
 ztest_fill_unused_bonus(dmu_buf_t *db, void *end, uint64_t obj,
     objset_t *os, uint64_t gen)
 {
@@ -1638,7 +1638,7 @@ ztest_fill_unused_bonus(dmu_buf_t *db, void *end, uint64_t obj,
  * Verify that the unused area of a bonus buffer is filled with the
  * expected tokens.
  */
-void
+static void
 ztest_verify_unused_bonus(dmu_buf_t *db, void *end, uint64_t obj,
     objset_t *os, uint64_t gen)
 {
@@ -2294,7 +2294,7 @@ ztest_lr_alloc(size_t lrsize, char *name)
 	return (lr);
 }
 
-void
+static void
 ztest_lr_free(void *lr, size_t lrsize, char *name)
 {
 	size_t namesize = name ? strlen(name) + 1 : 0;
@@ -3542,7 +3542,16 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	root = make_vdev_root(newpath, NULL, NULL, newvd == NULL ? newsize : 0,
 	    ashift, NULL, 0, 0, 1);
 
-	error = spa_vdev_attach(spa, oldguid, root, replacing);
+	/*
+	 * When supported select either a healing or sequential resilver.
+	 */
+	boolean_t rebuilding = B_FALSE;
+	if (pvd->vdev_ops == &vdev_mirror_ops ||
+	    pvd->vdev_ops ==  &vdev_root_ops) {
+		rebuilding = !!ztest_random(2);
+	}
+
+	error = spa_vdev_attach(spa, oldguid, root, replacing, rebuilding);
 
 	nvlist_free(root);
 
@@ -3562,10 +3571,11 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 		expected_error = error;
 
 	if (error == ZFS_ERR_CHECKPOINT_EXISTS ||
-	    error == ZFS_ERR_DISCARDING_CHECKPOINT)
+	    error == ZFS_ERR_DISCARDING_CHECKPOINT ||
+	    error == ZFS_ERR_RESILVER_IN_PROGRESS ||
+	    error == ZFS_ERR_REBUILD_IN_PROGRESS)
 		expected_error = error;
 
-	/* XXX workaround 6690467 */
 	if (error != expected_error && expected_error != EBUSY) {
 		fatal(0, "attach (%s %llu, %s %llu, %d) "
 		    "returned %d, expected %d",
@@ -3644,7 +3654,7 @@ ztest_device_removal(ztest_ds_t *zd, uint64_t id)
 /*
  * Callback function which expands the physical size of the vdev.
  */
-vdev_t *
+static vdev_t *
 grow_vdev(vdev_t *vd, void *arg)
 {
 	spa_t *spa __maybe_unused = vd->vdev_spa;
@@ -3673,7 +3683,7 @@ grow_vdev(vdev_t *vd, void *arg)
  * Callback function which expands a given vdev by calling vdev_online().
  */
 /* ARGSUSED */
-vdev_t *
+static vdev_t *
 online_vdev(vdev_t *vd, void *arg)
 {
 	spa_t *spa = vd->vdev_spa;
@@ -3733,7 +3743,7 @@ online_vdev(vdev_t *vd, void *arg)
  * If a NULL callback is passed, then we just return back the first
  * leaf vdev we encounter.
  */
-vdev_t *
+static vdev_t *
 vdev_walk_tree(vdev_t *vd, vdev_t *(*func)(vdev_t *, void *), void *arg)
 {
 	uint_t c;
@@ -4186,7 +4196,7 @@ ztest_dmu_snapshot_create_destroy(ztest_ds_t *zd, uint64_t id)
 /*
  * Cleanup non-standard snapshots and clones.
  */
-void
+static void
 ztest_dsl_dataset_cleanup(char *osname, uint64_t id)
 {
 	char *snap1name;
@@ -4640,7 +4650,7 @@ ztest_dmu_read_write(ztest_ds_t *zd, uint64_t id)
 	umem_free(od, size);
 }
 
-void
+static void
 compare_and_update_pbbufs(uint64_t s, bufwad_t *packbuf, bufwad_t *bigbuf,
     uint64_t bigsize, uint64_t n, uint64_t chunksize, uint64_t txg)
 {
@@ -5959,24 +5969,26 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 		 * on two different leaf devices, because ZFS can not
 		 * tolerate that (if maxfaults==1).
 		 *
-		 * We divide each leaf into chunks of size
-		 * (# leaves * SPA_MAXBLOCKSIZE * 4).  Within each chunk
-		 * there is a series of ranges to which we can inject errors.
-		 * Each range can accept errors on only a single leaf vdev.
-		 * The error injection ranges are separated by ranges
-		 * which we will not inject errors on any device (DMZs).
-		 * Each DMZ must be large enough such that a single block
-		 * can not straddle it, so that a single block can not be
-		 * a target in two different injection ranges (on different
-		 * leaf vdevs).
+		 * To achieve this we divide each leaf device into
+		 * chunks of size (# leaves * SPA_MAXBLOCKSIZE * 4).
+		 * Each chunk is further divided into error-injection
+		 * ranges (can accept errors) and clear ranges (we do
+		 * not inject errors in those). Each error-injection
+		 * range can accept errors only for a single leaf vdev.
+		 * Error-injection ranges are separated by clear ranges.
 		 *
 		 * For example, with 3 leaves, each chunk looks like:
 		 *    0 to  32M: injection range for leaf 0
-		 *  32M to  64M: DMZ - no injection allowed
+		 *  32M to  64M: clear range - no injection allowed
 		 *  64M to  96M: injection range for leaf 1
-		 *  96M to 128M: DMZ - no injection allowed
+		 *  96M to 128M: clear range - no injection allowed
 		 * 128M to 160M: injection range for leaf 2
-		 * 160M to 192M: DMZ - no injection allowed
+		 * 160M to 192M: clear range - no injection allowed
+		 *
+		 * Each clear range must be large enough such that a
+		 * single block cannot straddle it. This way a block
+		 * can't be a target in two different injection ranges
+		 * (on different leaf vdevs).
 		 */
 		offset = ztest_random(fsize / (leaves << bshift)) *
 		    (leaves << bshift) + (leaf << bshift) +
@@ -6492,7 +6504,7 @@ ztest_run_zdb(char *pool)
 	ztest_get_zdb_bin(bin, len);
 
 	(void) sprintf(zdb,
-	    "%s -bcc%s%s -G -d -Y -e -p %s %s",
+	    "%s -bcc%s%s -G -d -Y -e -y -p %s %s",
 	    bin,
 	    ztest_opts.zo_verbose >= 3 ? "s" : "",
 	    ztest_opts.zo_verbose >= 4 ? "v" : "",
@@ -7711,7 +7723,7 @@ ztest_run(ztest_shared_t *zs)
 	mutex_destroy(&ztest_checkpoint_lock);
 }
 
-void
+static void
 print_time(hrtime_t t, char *timebuf)
 {
 	hrtime_t s = t / NANOSEC;

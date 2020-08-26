@@ -4,7 +4,8 @@
 #
 
 DEFAULT_INCLUDES = \
-	-include ${top_builddir}/zfs_config.h \
+	-include $(top_builddir)/zfs_config.h \
+	-I$(top_builddir)/include \
 	-I$(top_srcdir)/include \
 	-I$(top_srcdir)/module/icp/include \
 	-I$(top_srcdir)/lib/libspl/include
@@ -21,7 +22,8 @@ endif
 
 AM_LIBTOOLFLAGS = --silent
 
-AM_CFLAGS  = -std=gnu99 -Wall -Wstrict-prototypes -fno-strict-aliasing
+AM_CFLAGS  = -std=gnu99 -Wall -Wstrict-prototypes -Wmissing-prototypes
+AM_CFLAGS += -fno-strict-aliasing
 AM_CFLAGS += $(NO_OMIT_FRAME_POINTER)
 AM_CFLAGS += $(DEBUG_CFLAGS)
 AM_CFLAGS += $(ASAN_CFLAGS)
@@ -30,7 +32,6 @@ if BUILD_FREEBSD
 AM_CFLAGS += -fPIC -Werror -Wno-unknown-pragmas -Wno-enum-conversion
 AM_CFLAGS += -include $(top_srcdir)/include/os/freebsd/spl/sys/ccompile.h
 AM_CFLAGS += -I/usr/include -I/usr/local/include
-AM_CFLAGS += -D_MACHINE_ENDIAN_H_
 endif
 
 AM_CPPFLAGS  = -D_GNU_SOURCE

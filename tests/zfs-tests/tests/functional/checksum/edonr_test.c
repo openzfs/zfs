@@ -40,8 +40,6 @@
 #include <sys/time.h>
 #include <sys/stdtypes.h>
 
-int aok = 0;
-
 /*
  * Test messages from:
  * http://csrc.nist.gov/groups/ST/toolkit/documents/Examples/SHA_All.pdf

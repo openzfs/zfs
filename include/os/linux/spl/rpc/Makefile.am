@@ -1,5 +1,5 @@
 KERNEL_H = \
-	$(top_srcdir)/include/os/linux/spl/rpc/xdr.h
+	xdr.h
 
 if CONFIG_KERNEL
 kerneldir = @prefix@/src/zfs-$(VERSION)/include/spl/rpc

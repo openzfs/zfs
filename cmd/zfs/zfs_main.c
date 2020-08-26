@@ -443,7 +443,7 @@ safe_malloc(size_t size)
 	return (data);
 }
 
-void *
+static void *
 safe_realloc(void *data, size_t size)
 {
 	void *newp;
@@ -772,6 +772,7 @@ zfs_mount_and_share(libzfs_handle_t *hdl, const char *dataset, zfs_type_t type)
 			    "successfully created, but not shared\n"));
 			ret = 1;
 		}
+		zfs_commit_all_shares();
 	}
 
 	zfs_close(zhp);
@@ -5238,10 +5239,17 @@ parse_fs_perm(fs_perm_t *fsperm, nvlist_t *nvl)
 					break;
 				}
 
-				if (nice_name != NULL)
+				if (nice_name != NULL) {
 					(void) strlcpy(
 					    node->who_perm.who_ug_name,
 					    nice_name, 256);
+				} else {
+					/* User or group unknown */
+					(void) snprintf(
+					    node->who_perm.who_ug_name,
+					    sizeof (node->who_perm.who_ug_name),
+					    "(unknown: %d)", rid);
+				}
 			}
 
 			uu_avl_insert(avl, node, idx);
@@ -5773,9 +5781,9 @@ construct_fsacl_list(boolean_t un, struct allow_opts *opts, nvlist_t **nvlp)
 
 				if (p != NULL)
 					rid = p->pw_uid;
-				else {
+				else if (*endch != '\0') {
 					(void) snprintf(errbuf, 256, gettext(
-					    "invalid user %s"), curr);
+					    "invalid user %s\n"), curr);
 					allow_usage(un, B_TRUE, errbuf);
 				}
 			} else if (opts->group) {
@@ -5787,9 +5795,9 @@ construct_fsacl_list(boolean_t un, struct allow_opts *opts, nvlist_t **nvlp)
 
 				if (g != NULL)
 					rid = g->gr_gid;
-				else {
+				else if (*endch != '\0') {
 					(void) snprintf(errbuf, 256, gettext(
-					    "invalid group %s"),  curr);
+					    "invalid group %s\n"),  curr);
 					allow_usage(un, B_TRUE, errbuf);
 				}
 			} else {
@@ -5815,7 +5823,7 @@ construct_fsacl_list(boolean_t un, struct allow_opts *opts, nvlist_t **nvlp)
 					rid = g->gr_gid;
 				} else {
 					(void) snprintf(errbuf, 256, gettext(
-					    "invalid user/group %s"), curr);
+					    "invalid user/group %s\n"), curr);
 					allow_usage(un, B_TRUE, errbuf);
 				}
 			}
@@ -6920,6 +6928,8 @@ share_mount(int op, int argc, char **argv)
 		zfs_foreach_mountpoint(g_zfs, cb.cb_handles, cb.cb_used,
 		    share_mount_one_cb, &share_mount_state,
 		    op == OP_MOUNT && !(flags & MS_CRYPT));
+		zfs_commit_all_shares();
+
 		ret = share_mount_state.sm_status;
 
 		for (int i = 0; i < cb.cb_used; i++)
@@ -6972,6 +6982,7 @@ share_mount(int op, int argc, char **argv)
 		} else {
 			ret = share_mount_one(zhp, op, flags, NULL, B_TRUE,
 			    options);
+			zfs_commit_all_shares();
 			zfs_close(zhp);
 		}
 	}
@@ -7101,6 +7112,7 @@ unshare_unmount_path(int op, char *path, int flags, boolean_t is_manual)
 			    "not currently shared\n"), path);
 		} else {
 			ret = zfs_unshareall_bypath(zhp, path);
+			zfs_commit_all_shares();
 		}
 	} else {
 		char mtpt_prop[ZFS_MAXPROPLEN];
@@ -7320,6 +7332,9 @@ unshare_unmount(int op, int argc, char **argv)
 			free(node->un_mountp);
 			free(node);
 		}
+
+		if (op == OP_SHARE)
+			zfs_commit_shares(protocol);
 
 		uu_avl_walk_end(walk);
 		uu_avl_destroy(tree);

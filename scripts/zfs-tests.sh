@@ -301,10 +301,6 @@ constrain_path() {
 	elif [ "$UNAME" = "FreeBSD" ] ; then
 		ln -fs /usr/local/bin/ksh93 "$STF_PATH/ksh"
 	fi
-
-	if [ -L "$STF_PATH/arc_summary3" ]; then
-		ln -fs "$STF_PATH/arc_summary3" "$STF_PATH/arc_summary"
-	fi
 }
 
 #

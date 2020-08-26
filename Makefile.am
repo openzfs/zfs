@@ -1,9 +1,5 @@
 ACLOCAL_AMFLAGS = -I config
 
-include config/rpm.am
-include config/deb.am
-include config/tgz.am
-
 SUBDIRS = include
 if BUILD_LINUX
 SUBDIRS += rpm
@@ -29,9 +25,11 @@ endif
 
 AUTOMAKE_OPTIONS = foreign
 EXTRA_DIST  = autogen.sh copy-builtin
+EXTRA_DIST += cppcheck-suppressions.txt
 EXTRA_DIST += config/config.awk config/rpm.am config/deb.am config/tgz.am
 EXTRA_DIST += META AUTHORS COPYRIGHT LICENSE NEWS NOTICE README.md
 EXTRA_DIST += CODE_OF_CONDUCT.md
+EXTRA_DIST += module/lua/README.zfs module/os/linux/spl/README.md
 
 # Include all the extra licensing information for modules
 EXTRA_DIST += module/icp/algs/skein/THIRDPARTYLICENSE
@@ -40,6 +38,10 @@ EXTRA_DIST += module/icp/asm-x86_64/aes/THIRDPARTYLICENSE.gladman
 EXTRA_DIST += module/icp/asm-x86_64/aes/THIRDPARTYLICENSE.gladman.descrip
 EXTRA_DIST += module/icp/asm-x86_64/aes/THIRDPARTYLICENSE.openssl
 EXTRA_DIST += module/icp/asm-x86_64/aes/THIRDPARTYLICENSE.openssl.descrip
+EXTRA_DIST += module/icp/asm-x86_64/modes/THIRDPARTYLICENSE.cryptogams
+EXTRA_DIST += module/icp/asm-x86_64/modes/THIRDPARTYLICENSE.cryptogams.descrip
+EXTRA_DIST += module/icp/asm-x86_64/modes/THIRDPARTYLICENSE.openssl
+EXTRA_DIST += module/icp/asm-x86_64/modes/THIRDPARTYLICENSE.openssl.descrip
 EXTRA_DIST += module/os/linux/spl/THIRDPARTYLICENSE.gplv2
 EXTRA_DIST += module/os/linux/spl/THIRDPARTYLICENSE.gplv2.descrip
 EXTRA_DIST += module/zfs/THIRDPARTYLICENSE.cityhash
@@ -47,13 +49,18 @@ EXTRA_DIST += module/zfs/THIRDPARTYLICENSE.cityhash.descrip
 
 @CODE_COVERAGE_RULES@
 
-.PHONY: gitrev
-gitrev:
-	-${top_srcdir}/scripts/make_gitrev.sh
+GITREV = include/zfs_gitrev.h
 
-BUILT_SOURCES = gitrev
+PHONY = gitrev
+gitrev:
+	$(AM_V_GEN)$(top_srcdir)/scripts/make_gitrev.sh $(GITREV)
+
+all: gitrev
 
 # Double-colon rules are allowed; there are multiple independent definitions.
+maintainer-clean-local::
+	-$(RM) $(GITREV)
+
 distclean-local::
 	-$(RM) -R autom4te*.cache build
 	-find . \( -name SCCS -o -name BitKeeper -o -name .svn -o -name CVS \
@@ -70,9 +77,9 @@ all-local:
 	-[ -x ${top_builddir}/scripts/zfs-tests.sh ] && \
 	    ${top_builddir}/scripts/zfs-tests.sh -c
 
-dist-hook: gitrev
-	cp ${top_srcdir}/include/zfs_gitrev.h $(distdir)/include; \
-	sed ${ac_inplace} -e 's/Release:[[:print:]]*/Release:      $(RELEASE)/' \
+dist-hook:
+	$(AM_V_GEN)$(top_srcdir)/scripts/make_gitrev.sh -D $(distdir) $(GITREV)
+	$(SED) ${ac_inplace} -e 's/Release:[[:print:]]*/Release:      $(RELEASE)/' \
 		$(distdir)/META
 
 if BUILD_LINUX
@@ -94,15 +101,19 @@ install-data-hook:
 endif
 endif
 
-codecheck: cstyle shellcheck flake8 mancheck testscheck vcscheck
+PHONY += codecheck
+codecheck: cstyle shellcheck checkbashisms flake8 mancheck testscheck vcscheck
 
+PHONY += checkstyle
 checkstyle: codecheck commitcheck
 
+PHONY += commitcheck
 commitcheck:
 	@if git rev-parse --git-dir > /dev/null 2>&1; then \
 		${top_srcdir}/scripts/commitcheck.sh; \
 	fi
 
+PHONY += cstyle
 cstyle:
 	@find ${top_srcdir} -name build -prune -o -type f -name '*.[hc]' \
 		! -name 'zfs_config.*' ! -name '*.mod.c' \
@@ -111,6 +122,7 @@ cstyle:
 
 filter_executable = -exec test -x '{}' \; -print
 
+PHONY += shellcheck
 shellcheck:
 	@if type shellcheck > /dev/null 2>&1; then \
 		shellcheck --exclude=SC1090 --exclude=SC1117 --format=gcc \
@@ -122,6 +134,23 @@ shellcheck:
 		echo "skipping shellcheck because shellcheck is not installed"; \
 	fi
 
+PHONY += checkbashisms
+checkbashisms:
+	@if type checkbashisms > /dev/null 2>&1; then \
+		checkbashisms -n -p -x \
+			$$(find ${top_srcdir} \
+				-name '.git' -prune \
+				-o -name 'build' -prune \
+				-o -name 'tests' -prune \
+				-o -name 'config' -prune \
+				-o -type f ! -name 'config*' \
+				! -name 'libtool' \
+			-exec bash -c 'awk "NR==1 && /\#\!.*bin\/sh.*/ {print FILENAME;}" "{}"' \;); \
+	else \
+		echo "skipping checkbashisms because checkbashisms is not installed"; \
+	fi
+
+PHONY += mancheck
 mancheck:
 	@if type mandoc > /dev/null 2>&1; then \
 		find ${top_srcdir}/man/man8 -type f -name 'zfs.8' \
@@ -138,6 +167,7 @@ else
 stat_fmt = -f '%Sp %N'
 endif
 
+PHONY += testscheck
 testscheck:
 	@find ${top_srcdir}/tests/zfs-tests -type f \
 		\( -name '*.ksh' -not ${filter_executable} \) -o \
@@ -147,31 +177,36 @@ testscheck:
 		xargs -r stat ${stat_fmt} | \
 		awk '{c++; print} END {if(c>0) exit 1}'
 
+PHONY += vcscheck
 vcscheck:
 	@if git rev-parse --git-dir > /dev/null 2>&1; then \
 		git ls-files . --exclude-standard --others | \
 		awk '{c++; print} END {if(c>0) exit 1}' ; \
 	fi
 
+PHONY += lint
 lint: cppcheck paxcheck
 
+PHONY += cppcheck
 cppcheck:
 	@if type cppcheck > /dev/null 2>&1; then \
 		cppcheck --quiet --force --error-exitcode=2 --inline-suppr \
-			--suppressions-list=.github/suppressions.txt \
+			--suppressions-list=${top_srcdir}/cppcheck-suppressions.txt \
 			-UHAVE_SSE2 -UHAVE_AVX512F -UHAVE_UIO_ZEROCOPY \
 			${top_srcdir}; \
 	else \
 		echo "skipping cppcheck because cppcheck is not installed"; \
 	fi
 
+PHONY += paxcheck
 paxcheck:
 	@if type scanelf > /dev/null 2>&1; then \
-		${top_srcdir}/scripts/paxcheck.sh ${top_srcdir}; \
+		${top_srcdir}/scripts/paxcheck.sh ${top_builddir}; \
 	else \
 		echo "skipping paxcheck because scanelf is not installed"; \
 	fi
 
+PHONY += flake8
 flake8:
 	@if type flake8 > /dev/null 2>&1; then \
 		flake8 ${top_srcdir}; \
@@ -179,17 +214,34 @@ flake8:
 		echo "skipping flake8 because flake8 is not installed"; \
 	fi
 
+PHONY += ctags
 ctags:
 	$(RM) tags
-	find $(top_srcdir) -name .git -prune -o -name '*.[hc]' | xargs ctags
+	find $(top_srcdir) -name '.?*' -prune \
+		-o -type f -name '*.[hcS]' -print | xargs ctags -a
 
+PHONY += etags
 etags:
 	$(RM) TAGS
-	find $(top_srcdir) -name .pc -prune -o -name '*.[hc]' | xargs etags -a
+	find $(top_srcdir) -name '.?*' -prune \
+		-o -type f -name '*.[hcS]' -print | xargs etags -a
 
+PHONY += cscopelist
+cscopelist:
+	find $(top_srcdir) -name '.?*' -prune \
+		-o -type f -name '*.[hc]' -print >cscope.files
+
+PHONY += tags
 tags: ctags etags
 
+PHONY += pkg pkg-dkms pkg-kmod pkg-utils
 pkg: @DEFAULT_PACKAGE@
 pkg-dkms: @DEFAULT_PACKAGE@-dkms
 pkg-kmod: @DEFAULT_PACKAGE@-kmod
 pkg-utils: @DEFAULT_PACKAGE@-utils
+
+include config/rpm.am
+include config/deb.am
+include config/tgz.am
+
+.PHONY: $(PHONY)

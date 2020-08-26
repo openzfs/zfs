@@ -79,7 +79,7 @@ typedef enum zfs_error {
 	EZFS_NODEVICE,		/* no such device in pool */
 	EZFS_BADDEV,		/* invalid device to add */
 	EZFS_NOREPLICAS,	/* no valid replicas */
-	EZFS_RESILVERING,	/* currently resilvering */
+	EZFS_RESILVERING,	/* resilvering (healing reconstruction) */
 	EZFS_BADVERSION,	/* unsupported version */
 	EZFS_POOLUNAVAIL,	/* pool is currently unavailable */
 	EZFS_DEVOVERFLOW,	/* too many devices in one vdev */
@@ -148,6 +148,7 @@ typedef enum zfs_error {
 	EZFS_TRIM_NOTSUP,	/* device does not support trim */
 	EZFS_NO_RESILVER_DEFER,	/* pool doesn't support resilver_defer */
 	EZFS_EXPORT_IN_PROGRESS,	/* currently exporting the pool */
+	EZFS_REBUILDING,	/* resilvering (sequential reconstrution) */
 	EZFS_UNKNOWN
 } zfs_error_t;
 
@@ -297,7 +298,7 @@ extern int zpool_vdev_online(zpool_handle_t *, const char *, int,
     vdev_state_t *);
 extern int zpool_vdev_offline(zpool_handle_t *, const char *, boolean_t);
 extern int zpool_vdev_attach(zpool_handle_t *, const char *,
-    const char *, nvlist_t *, int);
+    const char *, nvlist_t *, int, boolean_t);
 extern int zpool_vdev_detach(zpool_handle_t *, const char *);
 extern int zpool_vdev_remove(zpool_handle_t *, const char *);
 extern int zpool_vdev_remove_cancel(zpool_handle_t *);
@@ -387,6 +388,8 @@ typedef enum {
 	ZPOOL_STATUS_RESILVERING,	/* device being resilvered */
 	ZPOOL_STATUS_OFFLINE_DEV,	/* device offline */
 	ZPOOL_STATUS_REMOVED_DEV,	/* removed device */
+	ZPOOL_STATUS_REBUILDING,	/* device being rebuilt */
+	ZPOOL_STATUS_REBUILD_SCRUB,	/* recommend scrubbing the pool */
 
 	/*
 	 * Finally, the following indicates a healthy pool.
@@ -786,7 +789,8 @@ extern int zfs_show_diffs(zfs_handle_t *, int, const char *, const char *,
 extern const char *zfs_type_to_name(zfs_type_t);
 extern void zfs_refresh_properties(zfs_handle_t *);
 extern int zfs_name_valid(const char *, zfs_type_t);
-extern zfs_handle_t *zfs_path_to_zhandle(libzfs_handle_t *, char *, zfs_type_t);
+extern zfs_handle_t *zfs_path_to_zhandle(libzfs_handle_t *, const char *,
+    zfs_type_t);
 extern int zfs_parent_name(zfs_handle_t *, char *, size_t);
 extern boolean_t zfs_dataset_exists(libzfs_handle_t *, const char *,
     zfs_type_t);
@@ -834,6 +838,10 @@ extern int zfs_unshareall_bytype(zfs_handle_t *, const char *, const char *);
 extern int zfs_unshareall(zfs_handle_t *);
 extern int zfs_deleg_share_nfs(libzfs_handle_t *, char *, char *, char *,
     void *, void *, int, zfs_share_op_t);
+extern void zfs_commit_nfs_shares(void);
+extern void zfs_commit_smb_shares(void);
+extern void zfs_commit_all_shares(void);
+extern void zfs_commit_shares(const char *);
 
 extern int zfs_nicestrtonum(libzfs_handle_t *, const char *, uint64_t *);
 
@@ -889,6 +897,20 @@ int zfs_smb_acl_rename(libzfs_handle_t *, char *, char *, char *, char *);
  */
 extern int zpool_enable_datasets(zpool_handle_t *, const char *, int);
 extern int zpool_disable_datasets(zpool_handle_t *, boolean_t);
+
+#ifdef __FreeBSD__
+
+/*
+ * Attach/detach the given filesystem to/from the given jail.
+ */
+extern int zfs_jail(zfs_handle_t *zhp, int jailid, int attach);
+
+/*
+ * Set loader options for next boot.
+ */
+extern int zpool_nextboot(libzfs_handle_t *, uint64_t, uint64_t, const char *);
+
+#endif /* __FreeBSD__ */
 
 #ifdef	__cplusplus
 }

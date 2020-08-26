@@ -26,7 +26,7 @@
 #include <sys/zio_checksum.h>
 #include <sys/zfs_context.h>
 #include <sys/arc.h>
-#include <sys/refcount.h>
+#include <sys/zfs_refcount.h>
 #include <sys/vdev.h>
 #include <sys/vdev_trim.h>
 #include <sys/vdev_impl.h>
@@ -44,16 +44,11 @@
 #include <sys/arc_impl.h>
 #include <sys/sdt.h>
 #include <sys/aggsum.h>
+#include <sys/vnode.h>
 #include <cityhash.h>
+#include <machine/vmparam.h>
 
 extern struct vfsops zfs_vfsops;
-
-/* vmem_size typemask */
-#define	VMEM_ALLOC	0x01
-#define	VMEM_FREE	0x02
-#define	VMEM_MAXFREE	0x10
-typedef size_t		vmem_size_t;
-extern vmem_size_t vmem_size(vmem_t *vm, int typemask);
 
 uint_t zfs_arc_free_target = 0;
 
@@ -135,25 +130,6 @@ arc_available_memory(void)
 	}
 #endif
 
-	/*
-	 * If zio data pages are being allocated out of a separate heap segment,
-	 * then enforce that the size of available vmem for this arena remains
-	 * above about 1/4th (1/(2^arc_zio_arena_free_shift)) free.
-	 *
-	 * Note that reducing the arc_zio_arena_free_shift keeps more virtual
-	 * memory (in the zio_arena) free, which can avoid memory
-	 * fragmentation issues.
-	 */
-	if (zio_arena != NULL) {
-		n = (int64_t)vmem_size(zio_arena, VMEM_FREE) -
-		    (vmem_size(zio_arena, VMEM_ALLOC) >>
-		    arc_zio_arena_free_shift);
-		if (n < lowest) {
-			lowest = n;
-			r = FMR_ZIO_ARENA;
-		}
-	}
-
 	last_free_memory = lowest;
 	last_free_reason = r;
 	DTRACE_PROBE2(arc__available_memory, int64_t, lowest, int, r);
@@ -217,7 +193,7 @@ arc_prune_async(int64_t adjust)
 uint64_t
 arc_all_memory(void)
 {
-	return ((uint64_t)ptob(physmem));
+	return (ptob(physmem));
 }
 
 int
@@ -229,8 +205,7 @@ arc_memory_throttle(spa_t *spa, uint64_t reserve, uint64_t txg)
 uint64_t
 arc_free_memory(void)
 {
-	/* XXX */
-	return (0);
+	return (ptob(freemem));
 }
 
 static eventhandler_tag arc_event_lowmem = NULL;
@@ -248,9 +223,9 @@ arc_lowmem(void *arg __unused, int howto __unused)
 	DTRACE_PROBE2(arc__needfree, int64_t, free_memory, int64_t, to_free);
 	arc_reduce_target_size(to_free);
 
-	mutex_enter(&arc_adjust_lock);
-	arc_adjust_needed = B_TRUE;
-	zthr_wakeup(arc_adjust_zthr);
+	mutex_enter(&arc_evict_lock);
+	arc_evict_needed = B_TRUE;
+	zthr_wakeup(arc_evict_zthr);
 
 	/*
 	 * It is unsafe to block here in arbitrary threads, because we can come
@@ -258,8 +233,8 @@ arc_lowmem(void *arg __unused, int howto __unused)
 	 * with ARC reclaim thread.
 	 */
 	if (curproc == pageproc)
-		(void) cv_wait(&arc_adjust_waiters_cv, &arc_adjust_lock);
-	mutex_exit(&arc_adjust_lock);
+		(void) cv_wait(&arc_evict_waiters_cv, &arc_evict_lock);
+	mutex_exit(&arc_evict_lock);
 }
 
 void

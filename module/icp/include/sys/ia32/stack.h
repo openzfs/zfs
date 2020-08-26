@@ -126,7 +126,7 @@ extern "C" {
 
 #if defined(_KERNEL) && !defined(_ASM)
 
-#if defined(DEBUG)
+#if defined(ZFS_DEBUG)
 #if STACK_ALIGN == 4
 #define	ASSERT_STACK_ALIGNED()						\
 	{								\

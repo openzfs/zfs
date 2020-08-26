@@ -53,7 +53,7 @@ enum symfollow { NO_FOLLOW = NOFOLLOW };
 #include <sys/mount.h>
 #include <sys/cred.h>
 #include <sys/fcntl.h>
-#include_next <sys/refcount.h>
+#include <sys/refcount.h>
 #include <sys/file.h>
 #include <sys/filedesc.h>
 #include <sys/syscallsubr.h>

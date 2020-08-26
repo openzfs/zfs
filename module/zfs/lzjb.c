@@ -37,6 +37,7 @@
  */
 
 #include <sys/zfs_context.h>
+#include <sys/zio_compress.h>
 
 #define	MATCH_BITS	6
 #define	MATCH_MIN	3

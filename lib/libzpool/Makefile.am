@@ -7,11 +7,16 @@ VPATH = \
 	$(top_srcdir)/module/os/linux/zfs \
 	$(top_srcdir)/lib/libzpool
 
+# Unconditionally enable debugging for libzpool
+AM_CPPFLAGS += -DDEBUG -UNDEBUG -DZFS_DEBUG
+
 # Suppress unused but set variable warnings often due to ASSERTs
 AM_CFLAGS += $(NO_UNUSED_BUT_SET_VARIABLE)
 
 # Includes kernel code generate warnings for large stack frames
 AM_CFLAGS += $(FRAME_LARGER_THAN)
+
+AM_CFLAGS += $(ZLIB_CFLAGS)
 
 AM_CFLAGS += -DLIB_ZPOOL_BUILD
 
@@ -123,6 +128,16 @@ KERNEL_C = \
 	vdev_missing.c \
 	vdev_queue.c \
 	vdev_raidz.c \
+	vdev_raidz_math_aarch64_neon.c \
+	vdev_raidz_math_aarch64_neonx2.c \
+	vdev_raidz_math_avx2.c \
+	vdev_raidz_math_avx512bw.c \
+	vdev_raidz_math_avx512f.c \
+	vdev_raidz_math.c \
+	vdev_raidz_math_scalar.c \
+	vdev_raidz_math_sse2.c \
+	vdev_raidz_math_ssse3.c \
+	vdev_rebuild.c \
 	vdev_removal.c \
 	vdev_root.c \
 	vdev_trim.c \
@@ -180,26 +195,33 @@ LUA_C = \
 	lvm.c \
 	lzio.c
 
+dist_libzpool_la_SOURCES = \
+	$(USER_C)
+
 nodist_libzpool_la_SOURCES = \
-	$(USER_C) \
 	$(KERNEL_C) \
 	$(LUA_C)
 
 libzpool_la_LIBADD = \
-	$(top_builddir)/lib/libicp/libicp.la \
-	$(top_builddir)/lib/libnvpair/libnvpair.la \
-	$(top_builddir)/lib/libunicode/libunicode.la \
-	$(top_builddir)/lib/libzutil/libzutil.la
+	$(abs_top_builddir)/lib/libicp/libicp.la \
+	$(abs_top_builddir)/lib/libunicode/libunicode.la \
+	$(abs_top_builddir)/lib/libzfs_core/libzfs_core.la \
+	$(abs_top_builddir)/lib/libnvpair/libnvpair.la
 
-if BUILD_FREEBSD
-libzpool_la_LIBADD += $(ZLIB) -ldl -lgeom
-libzpool_la_LDFLAGS = -pthread -version-info 4:0:0
-else
-libzpool_la_LIBADD += $(ZLIB) -ldl
-libzpool_la_LDFLAGS = -pthread -version-info 2:0:0
+libzpool_la_LIBADD += $(LIBCLOCK_GETTIME) $(ZLIB_LIBS) -ldl
+
+libzpool_la_LDFLAGS = -pthread
+
+if !ASAN_ENABLED
+libzpool_la_LDFLAGS += -Wl,-z,defs
 endif
 
-EXTRA_DIST = $(USER_C)
+if BUILD_FREEBSD
+libzpool_la_LIBADD += -lgeom
+libzpool_la_LDFLAGS += -version-info 4:0:0
+else
+libzpool_la_LDFLAGS += -version-info 2:0:0
+endif
 
 if TARGET_CPU_POWERPC
 vdev_raidz_math_powerpc_altivec.$(OBJEXT): CFLAGS += -maltivec

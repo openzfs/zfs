@@ -378,6 +378,8 @@ zstream_do_dump(int argc, char *argv[])
 			(void) printf("\tfromguid = %llx\n",
 			    (u_longlong_t)drrb->drr_fromguid);
 			(void) printf("\ttoname = %s\n", drrb->drr_toname);
+			(void) printf("\tpayloadlen = %u\n",
+			    drr->drr_payloadlen);
 			if (verbose)
 				(void) printf("\n");
 

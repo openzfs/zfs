@@ -45,6 +45,11 @@
 
 typedef void (*thread_func_t)(void *);
 
+#define	thread_create_named(name, stk, stksize, func, arg, len,	\
+    pp, state, pri)	\
+	__thread_create(stk, stksize, (thread_func_t)func,		\
+	name, arg, len, pp, state, pri)
+
 /* BEGIN CSTYLED */
 #define	thread_create(stk, stksize, func, arg, len, pp, state, pri)	\
 	__thread_create(stk, stksize, (thread_func_t)func,		\
