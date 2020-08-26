@@ -31,8 +31,6 @@
 #ifndef _SYS_CMN_ERR_H
 #define	_SYS_CMN_ERR_H
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
-
 #if !defined(_ASM)
 #include <sys/_stdarg.h>
 #endif
