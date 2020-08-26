@@ -133,6 +133,10 @@ typedef struct raidz_col {
 	uint8_t rc_tried;		/* Did we attempt this I/O column? */
 	uint8_t rc_skipped;		/* Did we skip this I/O column? */
 	uint8_t rc_need_orig_restore;	/* need to restore from orig_data? */
+
+	uint64_t rc_shadow_devidx;	/* for double write */
+	uint64_t rc_shadow_offset;	/* for double write */
+	int rc_shadow_error;	/* for double write */
 } raidz_col_t;
 
 typedef struct raidz_row {

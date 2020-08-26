@@ -450,6 +450,9 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t ashift, uint64_t dcols,
 		rc->rc_tried = 0;
 		rc->rc_skipped = 0;
 		rc->rc_need_orig_restore = B_FALSE;
+		rc->rc_shadow_devidx = UINT64_MAX;
+		rc->rc_shadow_offset = UINT64_MAX;
+		rc->rc_shadow_error = 0;
 
 		if (c < bc)
 			rc->rc_size = (q + 1) << ashift;
@@ -515,16 +518,21 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t ashift, uint64_t dcols,
 }
 
 /*
- * If reflow is not in progress, reflow_offset should be UINT64_MAX.
- * For each row, if the row is entirely before reflow_offset, it will
+ * If reflow is not in progress, reflow_offset_phys should be UINT64_MAX.
+ * For each row, if the row is entirely before reflow_offset_phys, it will
  * come from the new location.  Otherwise this row will come from the
- * old location.  Therefore, rows that straddle the reflow_offset will
+ * old location.  Therefore, rows that straddle the reflow_offset_phys will
  * come from the old location.
+ *
+ * For writes, reflow_offset_next is the next offset to copy.  If a sector has
+ * been copied, but not yet reflected in the on-disk progress
+ * (reflow_offset_phys), it will also be written to the new (already copied)
+ * offset.
  */
 noinline raidz_map_t *
 vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
     uint64_t ashift, uint64_t physical_cols, uint64_t logical_cols,
-    uint64_t nparity, uint64_t reflow_offset)
+    uint64_t nparity, uint64_t reflow_offset_phys, uint64_t reflow_offset_next)
 {
 	/* The zio's size in units of the vdev's minimum sector size. */
 	uint64_t s = size >> ashift;
@@ -565,7 +573,7 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 
 	zfs_dbgmsg("rm=%p s=%d q=%d r=%d bc=%d nrows=%d cols=%d rfo=%llx",
 	    rm, (int)s, (int)q, (int)r, (int)bc, (int)rows, (int)cols,
-	    (long long)reflow_offset);
+	    (long long)reflow_offset_phys);
 
 	for (uint64_t row = 0; row < rows; row++) {
 		raidz_row_t *rr = kmem_alloc(offsetof(raidz_row_t,
@@ -579,9 +587,10 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 		 * If we are in the middle of a reflow, and any part of this
 		 * row has not been copied, then use the old location of
 		 * this row.
+		 * XXX why "- nparity"?  the row includes the parity as well
 		 */
 		int row_phys_cols = physical_cols;
-		if (b + (logical_cols - nparity) > reflow_offset >> ashift)
+		if (b + (logical_cols - nparity) >= reflow_offset_phys >> ashift)
 			row_phys_cols--;
 
 		/* starting child of this row */
@@ -623,6 +632,9 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 			rc->rc_tried = 0;
 			rc->rc_skipped = 0;
 			rc->rc_need_orig_restore = B_FALSE;
+			rc->rc_shadow_devidx = UINT64_MAX;
+			rc->rc_shadow_offset = UINT64_MAX;
+			rc->rc_shadow_error = 0;
 
 			uint64_t dc = c - rr->rr_firstdatacol;
 			if (c < rr->rr_firstdatacol) {
@@ -652,6 +664,26 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 				    (int)child_id, (int)row_phys_cols);
 				rc->rc_size = 1ULL << ashift;
 				rc->rc_abd = abd_get_offset(abd, off << ashift);
+			}
+
+			/* bc: byte offset in raidz (parent) vdev of this col */
+			uint64_t bc = b + c;
+			if (bc >= reflow_offset_phys >> ashift &&
+			    bc < reflow_offset_next >> ashift) {
+				/*
+				 * This sector was already copied (or wasn't
+				 * allocated at the time it would have been
+				 * copied) (<offset_next), but that progress
+				 * hasn't yet been reflected on disk
+				 * (>=offset_phys), so the primary write is to
+				 * the old location.  We need to also write to
+				 * the already copied (new) location, which is
+				 * represented as the "shadow" location.
+				 */
+				ASSERT3U(row_phys_cols, ==, physical_cols - 1);
+				rc->rc_shadow_devidx = bc % physical_cols;
+				rc->rc_shadow_offset =
+				    (bc / physical_cols) << ashift;
 			}
 
 			asize += rc->rc_size;
@@ -1887,6 +1919,14 @@ vdev_raidz_child_done(zio_t *zio)
 	rc->rc_skipped = 0;
 }
 
+static void
+vdev_raidz_shadow_child_done(zio_t *zio)
+{
+	raidz_col_t *rc = zio->io_private;
+
+	rc->rc_shadow_error = zio->io_error;
+}
+
 #if 0
 static void
 vdev_raidz_io_verify(zio_t *zio, raidz_row_t *rr, int col)
@@ -1940,6 +1980,14 @@ vdev_raidz_io_start_write(zio_t *zio, raidz_row_t *rr)
 		    rc->rc_offset, rc->rc_abd, rc->rc_size,
 		    zio->io_type, zio->io_priority, 0,
 		    vdev_raidz_child_done, rc));
+
+		if (rc->rc_shadow_devidx != UINT64_MAX) {
+			vdev_t *cvd2 = vd->vdev_child[rc->rc_shadow_devidx];
+			zio_nowait(zio_vdev_child_io(zio, NULL, cvd2,
+			    rc->rc_shadow_offset, rc->rc_abd, rc->rc_size,
+			    zio->io_type, zio->io_priority, 0,
+			    vdev_raidz_shadow_child_done, rc));
+		}
 	}
 
 	/*
@@ -2045,13 +2093,9 @@ vdev_raidz_io_start(zio_t *zio)
 		    zio->io_size, zio->io_offset,
 		    tvd->vdev_ashift, vdrz->vd_physical_width,
 		    vdrz->vd_logical_width, vdrz->vd_nparity,
-		    vdrz->vn_vre.vre_offset_phys);
+		    vdrz->vn_vre.vre_offset_phys,
+		    vdrz->vn_vre.vre_offset);
 		rm->rm_lr = lr;
-		/*
-		 * XXX If this is a write, will need to do additional
-		 * writes to locations that are already copied, but
-		 * not yet reflected in the on-disk format.
-		 */
 	} else {
 		rm = vdev_raidz_map_alloc(zio,
 		    tvd->vdev_ashift, vdrz->vd_logical_width,
@@ -2190,8 +2234,10 @@ vdev_raidz_worst_error(raidz_row_t *rr)
 {
 	int error = 0;
 
-	for (int c = 0; c < rr->rr_cols; c++)
+	for (int c = 0; c < rr->rr_cols; c++) {
 		error = zio_worst_error(error, rr->rr_col[c].rc_error);
+		error = zio_worst_error(error, rr->rr_col[c].rc_shadow_error);
+	}
 
 	return (error);
 }
@@ -2585,7 +2631,7 @@ vdev_raidz_io_done_write_impl(zio_t *zio, raidz_row_t *rr)
 	for (int c = 0; c < rr->rr_cols; c++) {
 		raidz_col_t *rc = &rr->rr_col[c];
 
-		if (rc->rc_error) {
+		if (rc->rc_error || rc->rc_shadow_error) {
 			ASSERT(rc->rc_error != ECKSUM);	/* child has no bp */
 
 			total_errors++;
