@@ -440,22 +440,23 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t ashift, uint64_t dcols,
 			col -= dcols;
 			coff += 1ULL << ashift;
 		}
-		rr->rr_col[c].rc_devidx = col;
-		rr->rr_col[c].rc_offset = coff;
-		rr->rr_col[c].rc_abd = NULL;
-		rr->rr_col[c].rc_gdata = NULL;
-		rr->rr_col[c].rc_orig_data = NULL;
-		rr->rr_col[c].rc_error = 0;
-		rr->rr_col[c].rc_tried = 0;
-		rr->rr_col[c].rc_skipped = 0;
-		rr->rr_col[c].rc_need_orig_restore = B_FALSE;
+		raidz_col_t *rc = &rr->rr_col[c];
+		rc->rc_devidx = col;
+		rc->rc_offset = coff;
+		rc->rc_abd = NULL;
+		rc->rc_gdata = NULL;
+		rc->rc_orig_data = NULL;
+		rc->rc_error = 0;
+		rc->rc_tried = 0;
+		rc->rc_skipped = 0;
+		rc->rc_need_orig_restore = B_FALSE;
 
 		if (c < bc)
-			rr->rr_col[c].rc_size = (q + 1) << ashift;
+			rc->rc_size = (q + 1) << ashift;
 		else
-			rr->rr_col[c].rc_size = q << ashift;
+			rc->rc_size = q << ashift;
 
-		asize += rr->rr_col[c].rc_size;
+		asize += rc->rc_size;
 	}
 
 	ASSERT3U(asize, ==, tot << ashift);
@@ -470,9 +471,9 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t ashift, uint64_t dcols,
 	off = rr->rr_col[c].rc_size;
 
 	for (c = c + 1; c < acols; c++) {
-		rr->rr_col[c].rc_abd = abd_get_offset_size(zio->io_abd, off,
-		    rr->rr_col[c].rc_size);
-		off += rr->rr_col[c].rc_size;
+		raidz_col_t *rc = &rr->rr_col[c];
+		rc->rc_abd = abd_get_offset_size(zio->io_abd, off, rc->rc_size);
+		off += rc->rc_size;
 	}
 
 	/*
