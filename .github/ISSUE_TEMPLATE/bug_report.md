@@ -2,7 +2,7 @@
 name: Bug report
 about: Create a report to help us improve OpenZFS
 title: ''
-labels: 'Type: Defect', 'Status: Triage Needed'
+labels: 'Type: Defect, Status: Triage Needed'
 assignees: ''
 
 ---
