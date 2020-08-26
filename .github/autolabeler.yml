@@ -1,0 +1,7 @@
+"Component: Test Suite": ["tests"]
+"Component: Systemd": ["etc/systemd"]
+"Component: Dracut": ["contrib/dracut"]
+"Component: Packaging": ["rpm"]
+"Component: ZED": ["cmd/zed"]
+"Component: Share": ["lib/libshare"]
+"Component: Initramfs": ["contrib/initramfs"]
