@@ -7328,7 +7328,8 @@ ztest_raidz_expand_run(ztest_shared_t *zs)
 		if (ztest_opts.zo_verbose >= 1) {
 			(void) printf("expanding raidz\n");
 		}
-		error = spa_vdev_attach(spa, rzvd->vdev_guid, root, B_FALSE);
+		error = spa_vdev_attach(spa, rzvd->vdev_guid, root, B_FALSE,
+		    B_FALSE);
 		nvlist_free(root);
 		if (error != 0) {
 			fatal(0, "raidz expand: attach (%s %llu) returned %d",
