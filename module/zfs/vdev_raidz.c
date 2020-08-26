@@ -613,27 +613,27 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 				child_id -= row_phys_cols;
 				child_offset += 1ULL << ashift;
 			}
-			rr->rr_col[c].rc_devidx = child_id;
-			rr->rr_col[c].rc_offset = child_offset;
-			rr->rr_col[c].rc_gdata = NULL;
-			rr->rr_col[c].rc_orig_data = NULL;
-			rr->rr_col[c].rc_error = 0;
-			rr->rr_col[c].rc_tried = 0;
-			rr->rr_col[c].rc_skipped = 0;
-			rr->rr_col[c].rc_need_orig_restore = B_FALSE;
+			raidz_col_t *rc = &rr->rr_col[c];
+			rc->rc_devidx = child_id;
+			rc->rc_offset = child_offset;
+			rc->rc_gdata = NULL;
+			rc->rc_orig_data = NULL;
+			rc->rc_error = 0;
+			rc->rc_tried = 0;
+			rc->rc_skipped = 0;
+			rc->rc_need_orig_restore = B_FALSE;
 
 			uint64_t dc = c - rr->rr_firstdatacol;
 			if (c < rr->rr_firstdatacol) {
-				rr->rr_col[c].rc_size = 1ULL << ashift;
-				rr->rr_col[c].rc_abd =
-				    abd_alloc_linear(rr->rr_col[c].rc_size,
-				    B_TRUE);
+				rc->rc_size = 1ULL << ashift;
+				rc->rc_abd =
+				    abd_alloc_linear(rc->rc_size, B_TRUE);
 			} else if (row == rows - 1 && bc != 0 && c >= bc) {
 				/*
 				 * Past the end, this for parity generation.
 				 */
-				rr->rr_col[c].rc_size = 0;
-				rr->rr_col[c].rc_abd = NULL;
+				rc->rc_size = 0;
+				rc->rc_abd = NULL;
 			} else {
 				/* XXX ASCII art diagram here */
 				/* "data column" (col excluding parity) */
@@ -649,12 +649,11 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 				    "devidx=%u rpc=%u",
 				    rm, (int)row, (int)c, (int)dc, (int)off,
 				    (int)child_id, (int)row_phys_cols);
-				rr->rr_col[c].rc_size = 1ULL << ashift;
-				rr->rr_col[c].rc_abd =
-				    abd_get_offset(abd, off << ashift);
+				rc->rc_size = 1ULL << ashift;
+				rc->rc_abd = abd_get_offset(abd, off << ashift);
 			}
 
-			asize += rr->rr_col[c].rc_size;
+			asize += rc->rc_size;
 		}
 
 		/*
