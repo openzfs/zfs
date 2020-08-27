@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: OpenZFS Linux Support
+    url: https://zfsonlinux.topicbox.com/groups/zfs-discuss
+    about: Get community support for OpenZFS on Linux
+  - name: FreeBSD Support
+    url: https://lists.freebsd.org/mailman/listinfo/freebsd-fs
+    about: Get community support for OpenZFS on FreeBSD
+  - name: OpenZFS on IRQ
+    url: https://webchat.freenode.net/#openzfs
+    about: Use IRQ to get community support for OpenZFS
