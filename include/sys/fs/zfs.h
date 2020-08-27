@@ -1013,10 +1013,10 @@ typedef struct vdev_rebuild_stat {
 } vdev_rebuild_stat_t;
 
 /*
- * Errata described by https://zfsonlinux.org/msg/ZFS-8000-ER.  The ordering
- * of this enum must be maintained to ensure the errata identifiers map to
- * the correct documentation.  New errata may only be appended to the list
- * and must contain corresponding documentation at the above link.
+ * Errata described by https://openzfs.github.io/openzfs-docs/msg/ZFS-8000-ER.
+ * The ordering of this enum must be maintained to ensure the errata identifiers
+ * map to the correct documentation.  New errata may only be appended to the
+ * list and must contain corresponding documentation at the above link.
  */
 typedef enum zpool_errata {
 	ZPOOL_ERRATA_NONE,
