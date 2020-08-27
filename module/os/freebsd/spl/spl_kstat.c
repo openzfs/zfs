@@ -34,6 +34,7 @@ __FBSDID("$FreeBSD$");
 #include <sys/malloc.h>
 #include <sys/sysctl.h>
 #include <sys/kstat.h>
+#include <sys/sbuf.h>
 
 static MALLOC_DEFINE(M_KSTAT, "kstat_data", "Kernel statistics");
 
@@ -59,6 +60,91 @@ kstat_default_update(kstat_t *ksp, int rw)
 		return (EACCES);
 
 	return (0);
+}
+
+static int
+kstat_resize_raw(kstat_t *ksp)
+{
+	if (ksp->ks_raw_bufsize == KSTAT_RAW_MAX)
+		return (ENOMEM);
+
+	free(ksp->ks_raw_buf, M_TEMP);
+	ksp->ks_raw_bufsize = MIN(ksp->ks_raw_bufsize * 2, KSTAT_RAW_MAX);
+	ksp->ks_raw_buf = malloc(ksp->ks_raw_bufsize, M_TEMP, M_WAITOK);
+
+	return (0);
+}
+
+static void *
+kstat_raw_default_addr(kstat_t *ksp, loff_t n)
+{
+	if (n == 0)
+		return (ksp->ks_data);
+	return (NULL);
+}
+
+
+static int
+kstat_sysctl_raw(SYSCTL_HANDLER_ARGS)
+{
+	struct sbuf *sb;
+	void *data;
+	kstat_t *ksp = arg1;
+	void *(*addr_op)(kstat_t *ksp, loff_t index);
+	int n, rc = 0;
+
+	sb = sbuf_new_auto();
+	if (sb == NULL)
+		return (ENOMEM);
+
+	if (ksp->ks_raw_ops.addr)
+		addr_op = ksp->ks_raw_ops.addr;
+	else
+		addr_op = kstat_raw_default_addr;
+
+	mutex_enter(ksp->ks_lock);
+
+	/* Update the aggsums before reading */
+	(void) ksp->ks_update(ksp, KSTAT_READ);
+
+	ksp->ks_raw_bufsize = PAGE_SIZE;
+	ksp->ks_raw_buf = malloc(PAGE_SIZE, M_TEMP, M_WAITOK);
+
+	n = 0;
+restart_headers:
+	if (ksp->ks_raw_ops.headers) {
+		rc = ksp->ks_raw_ops.headers(
+		    ksp->ks_raw_buf, ksp->ks_raw_bufsize);
+		if (rc == ENOMEM && !kstat_resize_raw(ksp))
+			goto restart_headers;
+		if (rc == 0)
+			sbuf_printf(sb, "%s", ksp->ks_raw_buf);
+	}
+
+	while ((data = addr_op(ksp, n)) != NULL) {
+restart:
+		if (ksp->ks_raw_ops.data) {
+			rc = ksp->ks_raw_ops.data(ksp->ks_raw_buf,
+			    ksp->ks_raw_bufsize, data);
+			if (rc == ENOMEM && !kstat_resize_raw(ksp))
+				goto restart;
+			if (rc == 0)
+				sbuf_printf(sb, "%s", ksp->ks_raw_buf);
+
+		} else {
+			ASSERT(ksp->ks_ndata == 1);
+			sbuf_hexdump(sb, ksp->ks_data,
+			    ksp->ks_data_size, NULL, 0);
+		}
+		n++;
+	}
+	free(ksp->ks_raw_buf, M_TEMP);
+	mutex_exit(ksp->ks_lock);
+	rc = sbuf_finish(sb);
+	if (rc == 0)
+		rc = SYSCTL_OUT(req, sbuf_data(sb), sbuf_len(sb));
+	sbuf_delete(sb);
+	return (rc);
 }
 
 kstat_t *
@@ -87,6 +173,9 @@ __kstat_create(const char *module, int instance, const char *name,
 	ksp->ks_type = ks_type;
 	ksp->ks_flags = flags;
 	ksp->ks_update = kstat_default_update;
+
+	mutex_init(&ksp->ks_private_lock, NULL, MUTEX_DEFAULT, NULL);
+	ksp->ks_lock = &ksp->ks_private_lock;
 
 	switch (ksp->ks_type) {
 		case KSTAT_TYPE_RAW:
@@ -146,14 +235,18 @@ __kstat_create(const char *module, int instance, const char *name,
 		free(ksp, M_KSTAT);
 		return (NULL);
 	}
-	root = SYSCTL_ADD_NODE(&ksp->ks_sysctl_ctx, SYSCTL_CHILDREN(root),
-	    OID_AUTO, name, CTLFLAG_RW, 0, "");
-	if (root == NULL) {
-		printf("%s: Cannot create kstat.%s.%s.%s tree!\n", __func__,
-		    module, class, name);
-		sysctl_ctx_free(&ksp->ks_sysctl_ctx);
-		free(ksp, M_KSTAT);
-		return (NULL);
+	if (ksp->ks_type != KSTAT_TYPE_RAW) {
+		root = SYSCTL_ADD_NODE(&ksp->ks_sysctl_ctx,
+		    SYSCTL_CHILDREN(root),
+		    OID_AUTO, name, CTLFLAG_RW, 0, "");
+		if (root == NULL) {
+			printf("%s: Cannot create kstat.%s.%s.%s tree!\n",
+			    __func__, module, class, name);
+			sysctl_ctx_free(&ksp->ks_sysctl_ctx);
+			free(ksp, M_KSTAT);
+			return (NULL);
+		}
+
 	}
 	ksp->ks_sysctl_root = root;
 
@@ -164,9 +257,10 @@ static int
 kstat_sysctl(SYSCTL_HANDLER_ARGS)
 {
 	kstat_t *ksp = arg1;
-	kstat_named_t *ksent = ksp->ks_data;
+	kstat_named_t *ksent;
 	uint64_t val;
 
+	ksent = ksp->ks_data;
 	/* Select the correct element */
 	ksent += arg2;
 	/* Update the aggsums before reading */
@@ -198,23 +292,38 @@ kstat_sysctl_string(SYSCTL_HANDLER_ARGS)
 void
 kstat_install(kstat_t *ksp)
 {
+	struct sysctl_oid *root;
 	kstat_named_t *ksent;
 	char *namelast;
 	int typelast;
 
 	ksent = ksp->ks_data;
-	if (ksp->ks_ndata == UINT32_MAX) {
-#ifdef INVARIANTS
-		printf("can't handle raw ops yet!!!\n");
-#endif
+	if (ksp->ks_ndata == UINT32_MAX)
+		VERIFY(ksp->ks_type == KSTAT_TYPE_RAW);
+	if (ksp->ks_type == KSTAT_TYPE_RAW) {
+		if (ksp->ks_raw_ops.data) {
+			root = SYSCTL_ADD_PROC(&ksp->ks_sysctl_ctx,
+			    SYSCTL_CHILDREN(ksp->ks_sysctl_root),
+			    OID_AUTO, ksp->ks_name,
+			    CTLTYPE_STRING | CTLFLAG_RD, ksp, 0,
+			    kstat_sysctl_raw, "A", ksp->ks_name);
+		} else {
+			root = SYSCTL_ADD_PROC(&ksp->ks_sysctl_ctx,
+			    SYSCTL_CHILDREN(ksp->ks_sysctl_root),
+			    OID_AUTO, ksp->ks_name,
+			    CTLTYPE_OPAQUE | CTLFLAG_RD, ksp, 0,
+			    kstat_sysctl_raw, "", ksp->ks_name);
+		}
+		VERIFY(root != NULL);
+		ksp->ks_sysctl_root = root;
 		return;
 	}
-	if (ksent == NULL) {
-		printf("%s ksp->ks_data == NULL!!!!\n", __func__);
-		return;
-	}
+
+	VERIFY((ksp->ks_flags & KSTAT_FLAG_VIRTUAL) || ksent != NULL);
+
 	typelast = 0;
 	namelast = NULL;
+
 	for (int i = 0; i < ksp->ks_ndata; i++, ksent++) {
 		if (ksent->data_type != 0) {
 			typelast = ksent->data_type;
@@ -285,6 +394,8 @@ kstat_delete(kstat_t *ksp)
 {
 
 	sysctl_ctx_free(&ksp->ks_sysctl_ctx);
+	ksp->ks_lock = NULL;
+	mutex_destroy(&ksp->ks_private_lock);
 	free(ksp, M_KSTAT);
 }
 
