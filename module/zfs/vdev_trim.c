@@ -481,7 +481,7 @@ vdev_trim_range(trim_args_t *ta, uint64_t start, uint64_t size)
 	if (ta->trim_type == TRIM_TYPE_MANUAL) {
 		while (vd->vdev_trim_rate != 0 && !vdev_trim_should_stop(vd) &&
 		    vdev_trim_calculate_rate(ta) > vd->vdev_trim_rate) {
-			cv_timedwait_sig(&vd->vdev_trim_io_cv,
+			cv_timedwait_idle(&vd->vdev_trim_io_cv,
 			    &vd->vdev_trim_io_lock, ddi_get_lbolt() +
 			    MSEC_TO_TICK(10));
 		}

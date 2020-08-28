@@ -671,7 +671,7 @@ mmp_thread(void *arg)
 		}
 
 		CALLB_CPR_SAFE_BEGIN(&cpr);
-		(void) cv_timedwait_sig_hires(&mmp->mmp_thread_cv,
+		(void) cv_timedwait_idle_hires(&mmp->mmp_thread_cv,
 		    &mmp->mmp_thread_lock, next_time, USEC2NSEC(100),
 		    CALLOUT_FLAG_ABSOLUTE);
 		CALLB_CPR_SAFE_END(&cpr, &mmp->mmp_thread_lock);
