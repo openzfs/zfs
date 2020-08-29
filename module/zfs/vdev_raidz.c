@@ -659,7 +659,7 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 					    (dc - r) * (rows - 1) + row;
 				}
 				zfs_dbgmsg("rm=%llx row=%d c=%d dc=%d off=%u "
-				    "devidx=%u offset=^%llu rpc=%u",
+				    "devidx=%u offset=%llu rpc=%u",
 				    rm, (int)row, (int)c, (int)dc, (int)off,
 				    (int)child_id, child_offset,
 				    (int)row_phys_cols);
@@ -3141,6 +3141,39 @@ raidz_reflow_impl(vdev_t *vd, vdev_raidz_expand_t *vre, range_tree_t *rt,
 	int old_children = vd->vdev_children - 1;
 
 	/*
+	 * If this would cause us to pass a block whose progress has not
+	 * yet been committed to disk, return TRUE indicating that we need
+	 * to try again in the next txg, and advance only to the point we
+	 * are able.  Otherwise a subsequent write into the unallocated region
+	 * we are skipping could cause an overlap.
+	 */
+	uint64_t vre_offset_phys_blkid =
+	    MAX(old_children, vre->vre_offset_phys >> ashift);
+	/*
+	 * We can't overwrite this block.
+	 */
+	uint64_t next_overwrite_blkid = vre_offset_phys_blkid +
+	    vre_offset_phys_blkid / old_children;
+	if (blkid >= next_overwrite_blkid) {
+		mutex_enter(&vre->vre_lock);
+		vre->vre_offset = next_overwrite_blkid << ashift;
+		mutex_exit(&vre->vre_lock);
+		if (vre->vre_offset > 0 && vre->vre_offset_pertxg[txgoff] == 0) {
+			dsl_sync_task_nowait(dmu_tx_pool(tx), raidz_reflow_sync,
+			    spa, 0, ZFS_SPACE_CHECK_NONE, tx);
+		}
+		vre->vre_offset_pertxg[txgoff] = vre->vre_offset;
+
+		zfs_dbgmsg("copying offset %llu, vre_offset_phys %llu, "
+		    "max_overwrite = %llu wait for txg %llu",
+		    (long long)offset,
+		    (long long)vre->vre_offset_phys,
+		    (long long)next_overwrite_blkid << ashift,
+		    (long long)dmu_tx_get_txg(tx));
+		return (B_TRUE);
+	}
+
+	/*
 	 * Record the fact that we've completed up to the beginning
 	 * of this segment.  This is important since there could be
 	 * an unallocated segment preceding this, and the overwrite-check
@@ -3276,6 +3309,20 @@ spa_raidz_expand_cb(void *arg, zthr_t *zthr)
 		range_tree_add(rt, msp->ms_start, msp->ms_size);
 		range_tree_walk(msp->ms_allocatable, range_tree_remove, rt);
 		mutex_exit(&msp->ms_lock);
+
+		/*
+		 * Force the last sector of each metaslab to be copied.  This
+		 * ensures that we advance the on-disk progress to the end of
+		 * this metaslab while the metaslab is disabled.  Otherwise, we
+		 * could move past this metaslab without advancing the on-disk
+		 * progress, and then an allocation to this metaslab would not
+		 * be copied.
+		 */
+		int sectorsz = 1 << raidvd->vdev_ashift;
+		uint64_t ms_last_offset = msp->ms_start + msp->ms_size - sectorsz;
+		if (!range_tree_contains(rt, ms_last_offset, sectorsz)) {
+			range_tree_add(rt, ms_last_offset, sectorsz);
+		}
 
 		/*
 		 * When we are resuming from a paused expansion (i.e.
