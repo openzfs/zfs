@@ -76,6 +76,7 @@ $(MODULE)-objs += spa_errlog.o
 $(MODULE)-objs += spa_history.o
 $(MODULE)-objs += spa_log_spacemap.o
 $(MODULE)-objs += spa_misc.o
+$(MODULE)-objs += spa_stats.o
 $(MODULE)-objs += space_map.o
 $(MODULE)-objs += space_reftree.o
 $(MODULE)-objs += txg.o
