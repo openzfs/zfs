@@ -568,8 +568,7 @@ commit_rl_updates(objset_t *os, struct merge_data *md, uint64_t object,
 	uint64_t txg = dmu_tx_get_txg(tx);
 	if (!md->md_synctask_txg[txg & TXG_MASK]) {
 		dsl_sync_task_nowait(dmu_tx_pool(tx),
-		    redaction_list_update_sync, md, 5, ZFS_SPACE_CHECK_NONE,
-		    tx);
+		    redaction_list_update_sync, md, tx);
 		md->md_synctask_txg[txg & TXG_MASK] = B_TRUE;
 		md->md_latest_synctask_txg = txg;
 	}

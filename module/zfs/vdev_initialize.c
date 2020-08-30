@@ -126,7 +126,7 @@ vdev_initialize_change_state(vdev_t *vd, vdev_initializing_state_t new_state)
 	dmu_tx_t *tx = dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
 	VERIFY0(dmu_tx_assign(tx, TXG_WAIT));
 	dsl_sync_task_nowait(spa_get_dsl(spa), vdev_initialize_zap_update_sync,
-	    guid, 2, ZFS_SPACE_CHECK_NONE, tx);
+	    guid, tx);
 
 	switch (new_state) {
 	case VDEV_INITIALIZE_ACTIVE:
@@ -216,8 +216,7 @@ vdev_initialize_write(vdev_t *vd, uint64_t start, uint64_t size, abd_t *data)
 
 		/* This is the first write of this txg. */
 		dsl_sync_task_nowait(spa_get_dsl(spa),
-		    vdev_initialize_zap_update_sync, guid, 2,
-		    ZFS_SPACE_CHECK_RESERVED, tx);
+		    vdev_initialize_zap_update_sync, guid, tx);
 	}
 
 	/*
