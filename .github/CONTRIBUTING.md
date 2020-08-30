@@ -126,7 +126,7 @@ feature needed?  What problem does it solve?
 
 #### General
 
-* All pull requests, except backports and releases, must be based on the current master branch 
+* All pull requests, except backports and releases, must be based on the current dev branch 
 and should apply without conflicts.
 * Please attempt to limit pull requests to a single commit which resolves
 one specific issue.
