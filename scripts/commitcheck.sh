@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 REF="HEAD"
+types=(build ci docs feat fix perf refactor revert style coverity test)
 
 # test a url
 function test_url()
@@ -68,6 +69,12 @@ function check_tagged_line_with_url()
 function new_change_commit()
 {
     error=0
+    type_subject=$(git log -n 1 --pretty=%s "$REF" | cut -d: -f1)
+	# shellcheck disable=SC2076
+	[[ " ${types[*]} " =~ " ${type_subject} " ]] && error=0 || error=1; \
+	echo "error: the commit subject line must start with a valid type, ${type_subject}
+	is not a recognized type. Valid types are: ${types[*}"
+
 
     # subject is not longer than 72 characters
     long_subject=$(git log -n 1 --pretty=%s "$REF" | grep -E -m 1 '.{73}')
@@ -106,7 +113,7 @@ function coverity_fix_commit()
 
     # subject starts with Fix coverity defects: CID dddd, dddd...
     subject=$(git log -n 1 --pretty=%s "$REF" |
-        grep -E -m 1 'Fix coverity defects: CID [[:digit:]]+(, [[:digit:]]+)*')
+        grep -E -m 1 'coverity: CID [[:digit:]]+(, [[:digit:]]+)*')
     if [ -z "$subject" ]; then
         echo "error: Coverity defect fixes must have a subject line that starts with \"Fix coverity defects: CID dddd\""
         error=1

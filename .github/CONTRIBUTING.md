@@ -192,9 +192,10 @@ git config --local core.whitespace trailing-space,space-before-tab,indent-with-n
 
 ### Commit Message Formats
 #### New Changes
-Commit messages for new changes must meet the following guidelines:
-* In 72 characters or less, provide a summary of the change as the
+Commit messages for new changes must meet the [Conventional Commits](https://www.conventionalcommits.org/) guidelines:
+* In 72 characters or less, excluding the `type:` prefix, provide a summary of the change as the
 first line in the commit message.
+* Every header should contain a `type:` prefix. See the [Commit Types](#commit-types) section for more information
 * A body which provides a description of the change. If necessary,
 please summarize important information such as why the proposed
 approach was chosen or a brief description of the bug you are resolving.
@@ -205,7 +206,7 @@ Each line of the body must be 72 characters or less.
 An example commit message for new changes is provided below.
 
 ```
-This line is a brief summary of your change
+docs: This line is a brief summary of your change
 
 Please provide at least a couple sentences describing the
 change. If necessary, please summarize decisions such as
@@ -220,7 +221,7 @@ If you are submitting a fix to a
 [Coverity defect](https://scan.coverity.com/projects/zfsonlinux-zfs),
 the commit message should meet the following guidelines:
 * Provides a subject line in the format of
-`Fix coverity defects: CID dddd, dddd...` where `dddd` represents
+`coverity: CID dddd, dddd...` where `dddd` represents
 each CID fixed by the commit.
 * Provides a body which lists each Coverity defect and how it was corrected.
 * The last line must be a `Signed-off-by:` tag. See the
@@ -228,7 +229,7 @@ each CID fixed by the commit.
 
 An example Coverity defect fix commit message is provided below.
 ```
-Fix coverity defects: CID 12345, 67890
+coverity: CID 12345, 67890
 
 CID 12345: Logically dead code (DEADCODE)
 
@@ -241,6 +242,21 @@ Ensure free is called after allocating memory in function().
 
 Signed-off-by: Contributor <contributor@email.com>
 ```
+
+#### Commit Types
+OpenZFS commit types to differentiate between different types of commits.
+Every commit should include a type prefix in its header. Possible types:
+
+- **build**: Changes that affect the build system or external dependencies (example scopes: gulp, broccoli, npm)
+- **ci**: Changes to our CI configuration files and scripts (example scopes: Travis, Circle, BrowserStack, SauceLabs)
+- **docs**: Documentation only changes
+- **feat**: A new feature
+- **fix**: A bug fix
+- **perf**: A code change that improves performance
+- **refactor**: A code change that neither fixes a bug nor adds a feature
+- **style**: Changes that do not affect the meaning of the code (white-space, formatting, missing semi-colons, etc)
+- **test**: Adding missing tests or correcting existing tests
+- **coverity**: Fixing a coverity defect. See: [Coverity Defect Fixes](#coverity-defect-fixes)
 
 #### Signed Off By
 A line tagged as `Signed-off-by:` must contain the developer's
