@@ -24,40 +24,9 @@
  */
 
 #include <zone.h>
-#include <string.h>
-#include <errno.h>
 
 zoneid_t
 getzoneid()
 {
 	return (GLOBAL_ZONEID);
-}
-
-zoneid_t
-getzoneidbyname(const char *name)
-{
-	if (name == NULL)
-		return (GLOBAL_ZONEID);
-
-	if (strcmp(name, GLOBAL_ZONEID_NAME) == 0)
-		return (GLOBAL_ZONEID);
-
-	return (EINVAL);
-}
-
-ssize_t
-getzonenamebyid(zoneid_t id, char *buf, size_t buflen)
-{
-	if (id != GLOBAL_ZONEID)
-		return (EINVAL);
-
-	ssize_t ret = strlen(GLOBAL_ZONEID_NAME) + 1;
-
-	if (buf == NULL || buflen == 0)
-		return (ret);
-
-	strncpy(buf, GLOBAL_ZONEID_NAME, buflen);
-	buf[buflen - 1] = '\0';
-
-	return (ret);
 }
