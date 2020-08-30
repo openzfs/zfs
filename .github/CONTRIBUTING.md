@@ -260,18 +260,46 @@ Signed-off-by: Contributor <contributor@email.com>
 
 #### Commit Types
 OpenZFS commit types to differentiate between different types of commits.
-Every commit should include a type prefix in its header. Possible types:
+Every commit should include a type prefix in its header. Each type also refers to a specific versioning change, see [Versioning](#versioning) for more information
 
+Possible types, grouped by version change:
+
+**Major:**
+- None.
+
+**Minor:**
+- **feat**: A new feature
+- **refactor**: A code change that neither fixes a bug nor adds a feature
+
+**Patch:**
 - **build**: Changes that affect the build system or external dependencies (example scopes: gulp, broccoli, npm)
 - **ci**: Changes to our CI configuration files and scripts (example scopes: Travis, Circle, BrowserStack, SauceLabs)
 - **docs**: Documentation only changes
-- **feat**: A new feature
 - **fix**: A bug fix
 - **perf**: A code change that improves performance
-- **refactor**: A code change that neither fixes a bug nor adds a feature
 - **style**: Changes that do not affect the meaning of the code (white-space, formatting, missing semi-colons, etc)
 - **test**: Adding missing tests or correcting existing tests
 - **coverity**: Fixing a coverity defect. See: [Coverity Defect Fixes](#coverity-defect-fixes)
+
+#### Versioning
+OpenZFS uses semantic versioning where possible. This means versioning follows the following format:
+`Major.Mionor.Patch`
+
+**Major:**
+A breaking or very big change. Considering OpenZFS has strict backwards compatibility, these are almost never used.
+
+**Minor:**
+A change that introduces new features or significant code changes. Mostly user-facing changes or changes that could significantly change how the user experiences the software
+
+**Patch:**
+A small change that would not be actively noticed by most users. Often a bugfix, an addition to the test suite, removing typo's, update to documentation etc.
+
+##### Versioning and Commits
+As stated under [Commit Types](#commit-types), every commit type is linked to a specific versioning change. However: the commit with the highest versioning "level" in a release, dictates what next version is going to be.
+For example: if the previous release is 1.2.3 and a new release adds 6 fixes and 1 feature, next release level would be 1.3.0
+
+##### Versioning and backporting
+Only *patch* commits qualify to be backported. However: Backporting *patch* commits is decided on a case-by-case basis. Something being a patch, does not guarantee approval to be backported.
 
 #### Signed Off By
 A line tagged as `Signed-off-by:` must contain the developer's
