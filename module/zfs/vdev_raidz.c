@@ -3119,6 +3119,28 @@ raidz_reflow_read_done(zio_t *zio)
 	zio_nowait(zio_unique_parent(zio));
 }
 
+static void
+raidz_reflow_record_progress(vdev_raidz_expand_t *vre, uint64_t offset,
+    dmu_tx_t *tx)
+{
+	int txgoff = dmu_tx_get_txg(tx) & TXG_MASK;
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+
+	if (offset == 0)
+		return;
+
+	mutex_enter(&vre->vre_lock);
+	ASSERT3U(vre->vre_offset, <=, offset);
+	vre->vre_offset = offset;
+	mutex_exit(&vre->vre_lock);
+
+	if (vre->vre_offset_pertxg[txgoff] == 0) {
+		dsl_sync_task_nowait(dmu_tx_pool(tx), raidz_reflow_sync,
+		    spa, 0, ZFS_SPACE_CHECK_NONE, tx);
+	}
+	vre->vre_offset_pertxg[txgoff] = offset;
+}
+
 static boolean_t
 raidz_reflow_impl(vdev_t *vd, vdev_raidz_expand_t *vre, range_tree_t *rt,
     dmu_tx_t *tx)
@@ -3141,68 +3163,26 @@ raidz_reflow_impl(vdev_t *vd, vdev_raidz_expand_t *vre, range_tree_t *rt,
 	int old_children = vd->vdev_children - 1;
 
 	/*
-	 * If this would cause us to pass a block whose progress has not
-	 * yet been committed to disk, return TRUE indicating that we need
-	 * to try again in the next txg, and advance only to the point we
-	 * are able.  Otherwise a subsequent write into the unallocated region
-	 * we are skipping could cause an overlap.
+	 * We can only progress to the point that writes will not overlap with
+	 * blocks whose progress has not yet been recorded on disk
+	 * (vre_offset_phys).  Note that even if we are skipping over a large
+	 * unallocated region, we can't move the on-disk progress to `offset`,
+	 * because concurrent writes/allocations could still use the
+	 * currently-unallocated region.
 	 */
 	uint64_t vre_offset_phys_blkid =
 	    MAX(old_children, vre->vre_offset_phys >> ashift);
-	/*
-	 * We can't overwrite this block.
-	 */
 	uint64_t next_overwrite_blkid = vre_offset_phys_blkid +
 	    vre_offset_phys_blkid / old_children;
 	if (blkid >= next_overwrite_blkid) {
-		mutex_enter(&vre->vre_lock);
-		vre->vre_offset = next_overwrite_blkid << ashift;
-		mutex_exit(&vre->vre_lock);
-		if (vre->vre_offset > 0 && vre->vre_offset_pertxg[txgoff] == 0) {
-			dsl_sync_task_nowait(dmu_tx_pool(tx), raidz_reflow_sync,
-			    spa, 0, ZFS_SPACE_CHECK_NONE, tx);
-		}
-		vre->vre_offset_pertxg[txgoff] = vre->vre_offset;
+		raidz_reflow_record_progress(vre,
+		    next_overwrite_blkid << ashift, tx);
 
 		zfs_dbgmsg("copying offset %llu, vre_offset_phys %llu, "
 		    "max_overwrite = %llu wait for txg %llu",
 		    (long long)offset,
 		    (long long)vre->vre_offset_phys,
 		    (long long)next_overwrite_blkid << ashift,
-		    (long long)dmu_tx_get_txg(tx));
-		return (B_TRUE);
-	}
-
-	/*
-	 * Record the fact that we've completed up to the beginning
-	 * of this segment.  This is important since there could be
-	 * an unallocated segment preceding this, and the overwrite-check
-	 * code needs to know that we have processed up to this point.
-	 */
-	mutex_enter(&vre->vre_lock);
-	vre->vre_offset = offset;
-	mutex_exit(&vre->vre_lock);
-	if (vre->vre_offset > 0 && vre->vre_offset_pertxg[txgoff] == 0) {
-		dsl_sync_task_nowait(dmu_tx_pool(tx), raidz_reflow_sync,
-		    spa, 0, ZFS_SPACE_CHECK_NONE, tx);
-	}
-	vre->vre_offset_pertxg[txgoff] = vre->vre_offset;
-
-	/*
-	 * If this would cause us to overwrite a block whose progress has not
-	 * yet been committed to disk, return TRUE indicating that we need
-	 * to try again in the next txg.
-	 */
-	uint64_t overwrite_blkid =
-	    (blkid / vd->vdev_children) * old_children +
-	    (blkid % vd->vdev_children);
-	/* XXX allow overwrite of first row for now */
-	if (blkid > vd->vdev_children &&
-	    overwrite_blkid << ashift >= vre->vre_offset_phys) {
-		zfs_dbgmsg("copying offset %llu, vre_offset_phys %llu, "
-		    "wait for txg %llu",
-		    (long long)offset,
-		    (long long)vre->vre_offset_phys,
 		    (long long)dmu_tx_get_txg(tx));
 		return (B_TRUE);
 	}
@@ -3217,19 +3197,11 @@ raidz_reflow_impl(vdev_t *vd, vdev_raidz_expand_t *vre, range_tree_t *rt,
 	zfs_dbgmsg("initiating reflow write offset=%llu length=%llu",
 	    offset, length);
 
+	raidz_reflow_record_progress(vre, offset + length, tx);
+
 	mutex_enter(&vre->vre_lock);
-	ASSERT3U(vre->vre_offset, <=, offset);
-	vre->vre_offset = offset + length;
 	vre->vre_outstanding_bytes += length;
 	mutex_exit(&vre->vre_lock);
-
-#if 0 /* XXX already done above */
-	if (vre->vre_offset_pertxg[txgoff] == 0) {
-		dsl_sync_task_nowait(dmu_tx_pool(tx), raidz_reflow_sync,
-		    spa, 0, ZFS_SPACE_CHECK_NONE, tx);
-	}
-	vre->vre_offset_pertxg[txgoff] = vre->vre_offset;
-#endif
 
 	/*
 	 * SCL_STATE will be released when the read and write are done,
