@@ -590,7 +590,8 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 		 * XXX why "- nparity"?  the row includes the parity as well
 		 */
 		int row_phys_cols = physical_cols;
-		if (b + (logical_cols - nparity) >= reflow_offset_phys >> ashift)
+		if (b + (logical_cols - nparity) >=
+		    reflow_offset_phys >> ashift)
 			row_phys_cols--;
 
 		/* starting child of this row */
@@ -2091,7 +2092,8 @@ vdev_raidz_io_start(zio_t *zio)
 	vdev_raidz_t *vdrz = vd->vdev_tsd;
 	raidz_map_t *rm;
 
-	zfs_dbgmsg("zio=%llx bm=%llu/%llu/%llu/%llu phys_birth=%llu logical_width=%llu",
+	zfs_dbgmsg("zio=%llx bm=%llu/%llu/%llu/%llu phys_birth=%llu "
+	    "logical_width=%llu",
 	    zio,
 	    zio->io_bookmark.zb_objset,
 	    zio->io_bookmark.zb_object,
@@ -2104,7 +2106,8 @@ vdev_raidz_io_start(zio_t *zio)
 		zfs_locked_range_t *lr =
 		    zfs_rangelock_enter(&vdrz->vn_vre.vre_rangelock,
 		    zio->io_offset, zio->io_size, RL_READER);
-		zfs_dbgmsg("zio=%llx %s io_offset=%llu vre_offset_phys=%llu vre_offset=%llu",
+		zfs_dbgmsg("zio=%llx %s io_offset=%llu vre_offset_phys=%llu "
+		    "vre_offset=%llu",
 		    zio,
 		    zio->io_type == ZIO_TYPE_WRITE ? "WRITE" : "READ",
 		    zio->io_offset,
@@ -2435,7 +2438,8 @@ raidz_reconstruct(zio_t *zio, int *ltgts, int ntgts)
 	raidz_map_t *rm = zio->io_vsd;
 	vdev_raidz_t *vdrz = zio->io_vd->vdev_tsd;
 
-	zfs_dbgmsg("raidz_reconstruct_expanded(zio=%llx ltgts=%u,%u,%u ntgts=%u",
+	zfs_dbgmsg(
+	    "raidz_reconstruct_expanded(zio=%llx ltgts=%u,%u,%u ntgts=%u",
 	    zio, ltgts[0], ltgts[1], ltgts[2], ntgts);
 
 	/* Reconstruct each row */
@@ -3304,7 +3308,8 @@ spa_raidz_expand_cb(void *arg, zthr_t *zthr)
 		 * be copied.
 		 */
 		int sectorsz = 1 << raidvd->vdev_ashift;
-		uint64_t ms_last_offset = msp->ms_start + msp->ms_size - sectorsz;
+		uint64_t ms_last_offset = msp->ms_start +
+		    msp->ms_size - sectorsz;
 		if (!range_tree_contains(rt, ms_last_offset, sectorsz)) {
 			range_tree_add(rt, ms_last_offset, sectorsz);
 		}
