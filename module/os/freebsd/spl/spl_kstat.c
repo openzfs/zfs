@@ -22,6 +22,10 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
+ *
+ * Links to Illumos.org for more information on kstat function:
+ * [1] https://illumos.org/man/1M/kstat
+ * [2] https://illumos.org/man/9f/kstat_create
  */
 
 #include <sys/cdefs.h>
