@@ -1403,7 +1403,7 @@ vdev_indirect_checksum_error(zio_t *zio,
 	zio_bad_cksum_t zbc = {{{ 0 }}};
 	abd_t *bad_abd = ic->ic_data;
 	abd_t *good_abd = is->is_good_child->ic_data;
-	zfs_ereport_post_checksum(zio->io_spa, vd, NULL, zio,
+	(void) zfs_ereport_post_checksum(zio->io_spa, vd, NULL, zio,
 	    is->is_target_offset, is->is_size, good_abd, bad_abd, &zbc);
 }
 
@@ -1478,8 +1478,8 @@ vdev_indirect_all_checksum_errors(zio_t *zio)
 			vd->vdev_stat.vs_checksum_errors++;
 			mutex_exit(&vd->vdev_stat_lock);
 
-			zfs_ereport_post_checksum(zio->io_spa, vd, NULL, zio,
-			    is->is_target_offset, is->is_size,
+			(void) zfs_ereport_post_checksum(zio->io_spa, vd,
+			    NULL, zio, is->is_target_offset, is->is_size,
 			    NULL, NULL, NULL);
 		}
 	}
