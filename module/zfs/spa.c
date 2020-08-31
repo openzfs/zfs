@@ -6775,7 +6775,7 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 	if (raidz) {
 		dmu_tx_t *tx = dmu_tx_create_assigned(spa->spa_dsl_pool, txg);
 		dsl_sync_task_nowait(spa->spa_dsl_pool, vdev_raidz_attach_sync,
-		    newvd, 0, ZFS_SPACE_CHECK_EXTRA_RESERVED, tx);
+		    newvd, 0, ZFS_SPACE_CHECK_NONE, tx);
 		dmu_tx_commit(tx);
 	} else {
 		vdev_dtl_dirty(newvd, DTL_MISSING, TXG_INITIAL,

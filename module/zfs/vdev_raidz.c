@@ -212,7 +212,7 @@ static void
 vdev_raidz_cksum_finish(zio_cksum_report_t *zcr, const abd_t *good_data)
 {
 	raidz_map_t *rm = zcr->zcr_cbdata;
-	zfs_dbgmsg("checksum error on rm=%p", rm);
+	zfs_dbgmsg("checksum error on rm=%llx", rm);
 
 	if (good_data == NULL) {
 		zfs_ereport_finish_checksum(zcr, NULL, NULL, B_FALSE);
@@ -450,6 +450,9 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t ashift, uint64_t dcols,
 		rc->rc_tried = 0;
 		rc->rc_skipped = 0;
 		rc->rc_need_orig_restore = B_FALSE;
+		rc->rc_shadow_devidx = UINT64_MAX;
+		rc->rc_shadow_offset = UINT64_MAX;
+		rc->rc_shadow_error = 0;
 
 		if (c < bc)
 			rc->rc_size = (q + 1) << ashift;
@@ -515,16 +518,21 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t ashift, uint64_t dcols,
 }
 
 /*
- * If reflow is not in progress, reflow_offset should be UINT64_MAX.
- * For each row, if the row is entirely before reflow_offset, it will
+ * If reflow is not in progress, reflow_offset_phys should be UINT64_MAX.
+ * For each row, if the row is entirely before reflow_offset_phys, it will
  * come from the new location.  Otherwise this row will come from the
- * old location.  Therefore, rows that straddle the reflow_offset will
+ * old location.  Therefore, rows that straddle the reflow_offset_phys will
  * come from the old location.
+ *
+ * For writes, reflow_offset_next is the next offset to copy.  If a sector has
+ * been copied, but not yet reflected in the on-disk progress
+ * (reflow_offset_phys), it will also be written to the new (already copied)
+ * offset.
  */
 noinline raidz_map_t *
 vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
     uint64_t ashift, uint64_t physical_cols, uint64_t logical_cols,
-    uint64_t nparity, uint64_t reflow_offset)
+    uint64_t nparity, uint64_t reflow_offset_phys, uint64_t reflow_offset_next)
 {
 	/* The zio's size in units of the vdev's minimum sector size. */
 	uint64_t s = size >> ashift;
@@ -563,9 +571,9 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 	rm->rm_nskip = roundup(tot, nparity + 1) - tot;
 	asize = 0;
 
-	zfs_dbgmsg("rm=%p s=%d q=%d r=%d bc=%d nrows=%d cols=%d rfo=%llx",
+	zfs_dbgmsg("rm=%llx s=%d q=%d r=%d bc=%d nrows=%d cols=%d rfo=%llx",
 	    rm, (int)s, (int)q, (int)r, (int)bc, (int)rows, (int)cols,
-	    (long long)reflow_offset);
+	    (long long)reflow_offset_phys);
 
 	for (uint64_t row = 0; row < rows; row++) {
 		raidz_row_t *rr = kmem_alloc(offsetof(raidz_row_t,
@@ -579,9 +587,10 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 		 * If we are in the middle of a reflow, and any part of this
 		 * row has not been copied, then use the old location of
 		 * this row.
+		 * XXX why "- nparity"?  the row includes the parity as well
 		 */
 		int row_phys_cols = physical_cols;
-		if (b + (logical_cols - nparity) > reflow_offset >> ashift)
+		if (b + (logical_cols - nparity) >= reflow_offset_phys >> ashift)
 			row_phys_cols--;
 
 		/* starting child of this row */
@@ -623,6 +632,9 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 			rc->rc_tried = 0;
 			rc->rc_skipped = 0;
 			rc->rc_need_orig_restore = B_FALSE;
+			rc->rc_shadow_devidx = UINT64_MAX;
+			rc->rc_shadow_offset = UINT64_MAX;
+			rc->rc_shadow_error = 0;
 
 			uint64_t dc = c - rr->rr_firstdatacol;
 			if (c < rr->rr_firstdatacol) {
@@ -646,12 +658,38 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 					off = r * rows +
 					    (dc - r) * (rows - 1) + row;
 				}
-				zfs_dbgmsg("rm=%p row=%d c=%d dc=%d off=%u "
-				    "devidx=%u rpc=%u",
+				zfs_dbgmsg("rm=%llx row=%d c=%d dc=%d off=%u "
+				    "devidx=%u offset=%llu rpc=%u",
 				    rm, (int)row, (int)c, (int)dc, (int)off,
-				    (int)child_id, (int)row_phys_cols);
+				    (int)child_id, child_offset,
+				    (int)row_phys_cols);
 				rc->rc_size = 1ULL << ashift;
 				rc->rc_abd = abd_get_offset(abd, off << ashift);
+			}
+
+			/* bc: byte offset in raidz (parent) vdev of this col */
+			uint64_t bc = b + c;
+			if (bc >= reflow_offset_phys >> ashift &&
+			    bc < reflow_offset_next >> ashift) {
+				/*
+				 * This sector was already copied (or wasn't
+				 * allocated at the time it would have been
+				 * copied) (<offset_next), but that progress
+				 * hasn't yet been reflected on disk
+				 * (>=offset_phys), so the primary write is to
+				 * the old location.  We need to also write to
+				 * the already copied (new) location, which is
+				 * represented as the "shadow" location.
+				 */
+				ASSERT3U(row_phys_cols, ==, physical_cols - 1);
+				rc->rc_shadow_devidx = bc % physical_cols;
+				rc->rc_shadow_offset =
+				    (bc / physical_cols) << ashift;
+				zfs_dbgmsg("rm=%llx row=%d bc=%llu "
+				    "shadow_devidx=%u shadow_offset=%llu",
+				    rm, (int)row, bc,
+				    (int)rc->rc_shadow_devidx,
+				    rc->rc_shadow_offset);
 			}
 
 			asize += rc->rc_size;
@@ -1041,7 +1079,7 @@ vdev_raidz_reconstruct_p(raidz_row_t *rr, int *tgts, int ntgts)
 	int x = tgts[0];
 	abd_t *dst, *src;
 
-	zfs_dbgmsg("reconstruct_p(rm=%p x=%u)",
+	zfs_dbgmsg("reconstruct_p(rm=%llx x=%u)",
 	    rr, x);
 
 	ASSERT3U(ntgts, ==, 1);
@@ -1079,7 +1117,7 @@ vdev_raidz_reconstruct_q(raidz_row_t *rr, int *tgts, int ntgts)
 	int c, exp;
 	abd_t *dst, *src;
 
-	zfs_dbgmsg("reconstruct_q(rm=%p x=%u)",
+	zfs_dbgmsg("reconstruct_q(rm=%llx x=%u)",
 	    rr, x);
 
 	ASSERT(ntgts == 1);
@@ -1130,7 +1168,7 @@ vdev_raidz_reconstruct_pq(raidz_row_t *rr, int *tgts, int ntgts)
 	int y = tgts[1];
 	abd_t *xd, *yd;
 
-	zfs_dbgmsg("reconstruct_pq(rm=%p x=%u y=%u)",
+	zfs_dbgmsg("reconstruct_pq(rm=%llx x=%u y=%u)",
 	    rr, x, y);
 
 	ASSERT(ntgts == 2);
@@ -1577,7 +1615,7 @@ vdev_raidz_reconstruct_general(raidz_row_t *rr, int *tgts, int ntgts)
 	int missing_rows[VDEV_RAIDZ_MAXPARITY];
 	int parity_map[VDEV_RAIDZ_MAXPARITY];
 
-	zfs_dbgmsg("reconstruct_general(rm=%p ntgts=%u)",
+	zfs_dbgmsg("reconstruct_general(rm=%llx ntgts=%u)",
 	    rr, ntgts);
 	uint8_t *p, *pp;
 	size_t psize;
@@ -1724,16 +1762,16 @@ vdev_raidz_reconstruct_row(raidz_map_t *rm, raidz_row_t *rr,
 	int nbadparity, nbaddata;
 	int parity_valid[VDEV_RAIDZ_MAXPARITY];
 
-	zfs_dbgmsg("reconstruct(rm=%p nt=%u cols=%u md=%u mp=%u)",
+	zfs_dbgmsg("reconstruct(rm=%llx nt=%u cols=%u md=%u mp=%u)",
 	    rr, nt, (int)rr->rr_cols, (int)rr->rr_missingdata,
 	    (int)rr->rr_missingparity);
 
 	/*
 	 * The tgts list must already be sorted.
 	 */
-	zfs_dbgmsg("reconstruct(rm=%p t[%u]=%u)", rr, 0, t[0]);
+	zfs_dbgmsg("reconstruct(rm=%llx t[%u]=%u)", rr, 0, t[0]);
 	for (i = 1; i < nt; i++) {
-		zfs_dbgmsg("reconstruct(rm=%p t[%u]=%u)",
+		zfs_dbgmsg("reconstruct(rm=%llx t[%u]=%u)",
 		    rr, i, t[i]);
 		ASSERT(t[i] > t[i - 1]);
 	}
@@ -1742,7 +1780,7 @@ vdev_raidz_reconstruct_row(raidz_map_t *rm, raidz_row_t *rr,
 	nbaddata = rr->rr_cols - nbadparity;
 	ntgts = 0;
 	for (i = 0, c = 0; c < rr->rr_cols; c++) {
-		zfs_dbgmsg("reconstruct(rm=%p col=%u devid=%u "
+		zfs_dbgmsg("reconstruct(rm=%llx col=%u devid=%u "
 		    "offset=%llx error=%u)",
 		    rr, c,
 		    (int)rr->rr_col[c].rc_devidx,
@@ -1889,6 +1927,14 @@ vdev_raidz_child_done(zio_t *zio)
 	rc->rc_skipped = 0;
 }
 
+static void
+vdev_raidz_shadow_child_done(zio_t *zio)
+{
+	raidz_col_t *rc = zio->io_private;
+
+	rc->rc_shadow_error = zio->io_error;
+}
+
 #if 0
 static void
 vdev_raidz_io_verify(zio_t *zio, raidz_row_t *rr, int col)
@@ -1942,6 +1988,14 @@ vdev_raidz_io_start_write(zio_t *zio, raidz_row_t *rr)
 		    rc->rc_offset, rc->rc_abd, rc->rc_size,
 		    zio->io_type, zio->io_priority, 0,
 		    vdev_raidz_child_done, rc));
+
+		if (rc->rc_shadow_devidx != UINT64_MAX) {
+			vdev_t *cvd2 = vd->vdev_child[rc->rc_shadow_devidx];
+			zio_nowait(zio_vdev_child_io(zio, NULL, cvd2,
+			    rc->rc_shadow_offset, rc->rc_abd, rc->rc_size,
+			    zio->io_type, zio->io_priority, 0,
+			    vdev_raidz_shadow_child_done, rc));
+		}
 	}
 
 	/*
@@ -2037,23 +2091,33 @@ vdev_raidz_io_start(zio_t *zio)
 	vdev_raidz_t *vdrz = vd->vdev_tsd;
 	raidz_map_t *rm;
 
+	zfs_dbgmsg("zio=%llx bm=%llu/%llu/%llu/%llu phys_birth=%llu logical_width=%llu",
+	    zio,
+	    zio->io_bookmark.zb_objset,
+	    zio->io_bookmark.zb_object,
+	    zio->io_bookmark.zb_level,
+	    zio->io_bookmark.zb_blkid,
+	    BP_PHYSICAL_BIRTH(zio->io_bp),
+	    vdrz->vd_logical_width);
 	if (vdrz->vd_logical_width != vdrz->vd_physical_width) {
 		/* XXX rangelock not needed after expansion completes */
 		zfs_locked_range_t *lr =
 		    zfs_rangelock_enter(&vdrz->vn_vre.vre_rangelock,
 		    zio->io_offset, zio->io_size, RL_READER);
+		zfs_dbgmsg("zio=%llx %s io_offset=%llu vre_offset_phys=%llu vre_offset=%llu",
+		    zio,
+		    zio->io_type == ZIO_TYPE_WRITE ? "WRITE" : "READ",
+		    zio->io_offset,
+		    vdrz->vn_vre.vre_offset_phys,
+		    vdrz->vn_vre.vre_offset);
 
 		rm = vdev_raidz_map_alloc_expanded(zio->io_abd,
 		    zio->io_size, zio->io_offset,
 		    tvd->vdev_ashift, vdrz->vd_physical_width,
 		    vdrz->vd_logical_width, vdrz->vd_nparity,
-		    vdrz->vn_vre.vre_offset_phys);
+		    vdrz->vn_vre.vre_offset_phys,
+		    vdrz->vn_vre.vre_offset);
 		rm->rm_lr = lr;
-		/*
-		 * XXX If this is a write, will need to do additional
-		 * writes to locations that are already copied, but
-		 * not yet reflected in the on-disk format.
-		 */
 	} else {
 		rm = vdev_raidz_map_alloc(zio,
 		    tvd->vdev_ashift, vdrz->vd_logical_width,
@@ -2192,8 +2256,10 @@ vdev_raidz_worst_error(raidz_row_t *rr)
 {
 	int error = 0;
 
-	for (int c = 0; c < rr->rr_cols; c++)
+	for (int c = 0; c < rr->rr_cols; c++) {
 		error = zio_worst_error(error, rr->rr_col[c].rc_error);
+		error = zio_worst_error(error, rr->rr_col[c].rc_shadow_error);
+	}
 
 	return (error);
 }
@@ -2369,7 +2435,7 @@ raidz_reconstruct(zio_t *zio, int *ltgts, int ntgts)
 	raidz_map_t *rm = zio->io_vsd;
 	vdev_raidz_t *vdrz = zio->io_vd->vdev_tsd;
 
-	zfs_dbgmsg("raidz_reconstruct_expanded(zio=%p ltgts=%u,%u,%u ntgts=%u",
+	zfs_dbgmsg("raidz_reconstruct_expanded(zio=%llx ltgts=%u,%u,%u ntgts=%u",
 	    zio, ltgts[0], ltgts[1], ltgts[2], ntgts);
 
 	/* Reconstruct each row */
@@ -2474,7 +2540,7 @@ raidz_reconstruct(zio_t *zio, int *ltgts, int ntgts)
 
 	/* Reconstruction failed - restore original data */
 	raidz_restore_orig_data(rm);
-	zfs_dbgmsg("raidz_reconstruct_expanded(zio=%p) checksum failed",
+	zfs_dbgmsg("raidz_reconstruct_expanded(zio=%llx) checksum failed",
 	    zio);
 	return (ECKSUM);
 }
@@ -2587,7 +2653,7 @@ vdev_raidz_io_done_write_impl(zio_t *zio, raidz_row_t *rr)
 	for (int c = 0; c < rr->rr_cols; c++) {
 		raidz_col_t *rc = &rr->rr_col[c];
 
-		if (rc->rc_error) {
+		if (rc->rc_error || rc->rc_shadow_error) {
 			ASSERT(rc->rc_error != ECKSUM);	/* child has no bp */
 
 			total_errors++;
@@ -3039,6 +3105,10 @@ raidz_reflow_write_done(zio_t *zio)
 
 	abd_free(zio->io_abd);
 
+	zfs_dbgmsg("completed reflow offset=%llu size=%llu",
+	    rra->rra_lr->lr_offset,
+	    rra->rra_lr->lr_length);
+
 	mutex_enter(&vre->vre_lock);
 	ASSERT3U(vre->vre_outstanding_bytes, >=, zio->io_size);
 	vre->vre_outstanding_bytes -= zio->io_size;
@@ -3059,6 +3129,28 @@ static void
 raidz_reflow_read_done(zio_t *zio)
 {
 	zio_nowait(zio_unique_parent(zio));
+}
+
+static void
+raidz_reflow_record_progress(vdev_raidz_expand_t *vre, uint64_t offset,
+    dmu_tx_t *tx)
+{
+	int txgoff = dmu_tx_get_txg(tx) & TXG_MASK;
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+
+	if (offset == 0)
+		return;
+
+	mutex_enter(&vre->vre_lock);
+	ASSERT3U(vre->vre_offset, <=, offset);
+	vre->vre_offset = offset;
+	mutex_exit(&vre->vre_lock);
+
+	if (vre->vre_offset_pertxg[txgoff] == 0) {
+		dsl_sync_task_nowait(dmu_tx_pool(tx), raidz_reflow_sync,
+		    spa, 0, ZFS_SPACE_CHECK_NONE, tx);
+	}
+	vre->vre_offset_pertxg[txgoff] = offset;
 }
 
 static boolean_t
@@ -3083,35 +3175,26 @@ raidz_reflow_impl(vdev_t *vd, vdev_raidz_expand_t *vre, range_tree_t *rt,
 	int old_children = vd->vdev_children - 1;
 
 	/*
-	 * Record the fact that we've completed up to the beginning
-	 * of this segment.  This is important since there could be
-	 * an unallocated segment preceding this, and the overwrite-check
-	 * code needs to know that we have processed up to this point.
+	 * We can only progress to the point that writes will not overlap with
+	 * blocks whose progress has not yet been recorded on disk
+	 * (vre_offset_phys).  Note that even if we are skipping over a large
+	 * unallocated region, we can't move the on-disk progress to `offset`,
+	 * because concurrent writes/allocations could still use the
+	 * currently-unallocated region.
 	 */
-	mutex_enter(&vre->vre_lock);
-	vre->vre_offset = offset;
-	mutex_exit(&vre->vre_lock);
-	if (vre->vre_offset > 0 && vre->vre_offset_pertxg[txgoff] == 0) {
-		dsl_sync_task_nowait(dmu_tx_pool(tx), raidz_reflow_sync,
-		    spa, 0, ZFS_SPACE_CHECK_NONE, tx);
-	}
-	vre->vre_offset_pertxg[txgoff] = vre->vre_offset;
+	uint64_t vre_offset_phys_blkid =
+	    MAX(old_children, vre->vre_offset_phys >> ashift);
+	uint64_t next_overwrite_blkid = vre_offset_phys_blkid +
+	    vre_offset_phys_blkid / old_children;
+	if (blkid >= next_overwrite_blkid) {
+		raidz_reflow_record_progress(vre,
+		    next_overwrite_blkid << ashift, tx);
 
-	/*
-	 * If this would cause us to overwrite a block whose progress has not
-	 * yet been committed to disk, return TRUE indicating that we need
-	 * to try again in the next txg.
-	 */
-	uint64_t overwrite_blkid =
-	    (blkid / vd->vdev_children) * old_children +
-	    (blkid % vd->vdev_children);
-	/* XXX allow overwrite of first row for now */
-	if (blkid > vd->vdev_children &&
-	    overwrite_blkid << ashift >= vre->vre_offset_phys) {
 		zfs_dbgmsg("copying offset %llu, vre_offset_phys %llu, "
-		    "wait for txg %llu",
+		    "max_overwrite = %llu wait for txg %llu",
 		    (long long)offset,
 		    (long long)vre->vre_offset_phys,
+		    (long long)next_overwrite_blkid << ashift,
 		    (long long)dmu_tx_get_txg(tx));
 		return (B_TRUE);
 	}
@@ -3123,19 +3206,14 @@ raidz_reflow_impl(vdev_t *vd, vdev_raidz_expand_t *vre, range_tree_t *rt,
 	rra->rra_lr = zfs_rangelock_enter(&vre->vre_rangelock,
 	    offset, length, RL_WRITER);
 
+	zfs_dbgmsg("initiating reflow write offset=%llu length=%llu",
+	    offset, length);
+
+	raidz_reflow_record_progress(vre, offset + length, tx);
+
 	mutex_enter(&vre->vre_lock);
-	ASSERT3U(vre->vre_offset, <=, offset);
-	vre->vre_offset = offset + length;
 	vre->vre_outstanding_bytes += length;
 	mutex_exit(&vre->vre_lock);
-
-#if 0 /* XXX already done above */
-	if (vre->vre_offset_pertxg[txgoff] == 0) {
-		dsl_sync_task_nowait(dmu_tx_pool(tx), raidz_reflow_sync,
-		    spa, 0, ZFS_SPACE_CHECK_NONE, tx);
-	}
-	vre->vre_offset_pertxg[txgoff] = vre->vre_offset;
-#endif
 
 	/*
 	 * SCL_STATE will be released when the read and write are done,
@@ -3216,6 +3294,20 @@ spa_raidz_expand_cb(void *arg, zthr_t *zthr)
 		range_tree_add(rt, msp->ms_start, msp->ms_size);
 		range_tree_walk(msp->ms_allocatable, range_tree_remove, rt);
 		mutex_exit(&msp->ms_lock);
+
+		/*
+		 * Force the last sector of each metaslab to be copied.  This
+		 * ensures that we advance the on-disk progress to the end of
+		 * this metaslab while the metaslab is disabled.  Otherwise, we
+		 * could move past this metaslab without advancing the on-disk
+		 * progress, and then an allocation to this metaslab would not
+		 * be copied.
+		 */
+		int sectorsz = 1 << raidvd->vdev_ashift;
+		uint64_t ms_last_offset = msp->ms_start + msp->ms_size - sectorsz;
+		if (!range_tree_contains(rt, ms_last_offset, sectorsz)) {
+			range_tree_add(rt, ms_last_offset, sectorsz);
+		}
 
 		/*
 		 * When we are resuming from a paused expansion (i.e.
