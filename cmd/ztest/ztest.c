@@ -738,8 +738,8 @@ usage(boolean_t requested)
 	    "\t[-C vdev class state (default: random)] special=on|off|random\n"
 	    "\t[-o variable=value] ... set global variable to an unsigned\n"
 	    "\t    32-bit integer value\n"
-	    "\t[-G dump zfs_dbgmsg buffer before exiting due to an error\n"
-	    "\t[-X off raidz_expand test, killing at off bytes into reflow\n"
+	    "\t[-G] dump zfs_dbgmsg buffer before exiting due to an error\n"
+	    "\t[-X off] raidz_expand test, killing at off bytes into reflow\n"
 	    "\t[-h] (print help)\n"
 	    "",
 	    zo->zo_pool,
@@ -7119,6 +7119,9 @@ ztest_import(ztest_shared_t *zs)
 	mutex_destroy(&ztest_checkpoint_lock);
 }
 
+#define	RAIDZ_EXPAND_KILLED	UINT64_MAX
+#define	RAIDZ_EXPAND_CHECKED	(UINT64_MAX - 1)
+
 /*
  * Start a raidz expansion test.  We run some I/O on the pool for a while
  * to get some data in the pool.  Then we grow the raidz and
@@ -7186,10 +7189,7 @@ ztest_raidz_expand_run(ztest_shared_t *zs)
 	metaslab_preload_limit = ztest_random(20) + 1;
 	ztest_spa = spa;
 
-	/*
-	 * BUGBUG raidz expansion do not run this for now
-	 * VERIFY0(vdev_raidz_impl_set("cycle"));
-	 */
+	VERIFY0(vdev_raidz_impl_set("cycle"));
 
 	dmu_objset_stats_t dds;
 	VERIFY0(ztest_dmu_objset_own(ztest_opts.zo_pool,
@@ -7252,7 +7252,7 @@ ztest_raidz_expand_run(ztest_shared_t *zs)
 	    NULL, DS_FIND_CHILDREN);
 
 	if (ztest_opts.zo_raidz_expand_test != 0 &&
-	    ztest_opts.zo_raidz_expand_test < UINT64_MAX) {
+	    ztest_opts.zo_raidz_expand_test < RAIDZ_EXPAND_KILLED) {
 		desreflow = ztest_opts.zo_raidz_expand_test;
 		/*
 		 * Set the reflow to pause at the desired offset
@@ -7336,12 +7336,70 @@ ztest_raidz_expand_run(ztest_shared_t *zs)
 			    newpath, csize, error);
 		}
 
+		/*
+		 * Wait for desired reflow offset to be reached and kill the
+		 * test
+		 */
+		/*
+		 * Wait for reflow to begin
+		 */
+		while (spa->spa_raidz_expand == NULL) {
+			txg_wait_synced(spa_get_dsl(spa), 0);
+			(void) poll(NULL, 0, 100); /* wait 1/10 second */
+		}
+		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+		(void) spa_raidz_expand_get_stats(spa, pres);
+		spa_config_exit(spa, SCL_CONFIG, FTAG);
+		while (pres->pres_state != DSS_SCANNING) {
+			txg_wait_synced(spa_get_dsl(spa), 0);
+			(void) poll(NULL, 0, 100); /* wait 1/10 second */
+			spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+			(void) spa_raidz_expand_get_stats(spa, pres);
+			spa_config_exit(spa, SCL_CONFIG, FTAG);
+		}
+
+		ASSERT3U(pres->pres_state, ==, DSS_SCANNING);
+		ASSERT3U(pres->pres_to_reflow, !=, 0);
+		/*
+		 * Set so when we are killed we go to raidz checking rather than
+		 * restarting test.
+		 */
+		ztest_shared_opts->zo_raidz_expand_test = RAIDZ_EXPAND_KILLED;
+		if (ztest_opts.zo_verbose >= 1) {
+			(void) printf("raidz expandsion reflow started,"
+			    " waiting for offset %llu to be reched\n",
+			    (u_longlong_t)desreflow);
+		}
+
+		while (pres->pres_reflowed < desreflow) {
+			txg_wait_synced(spa_get_dsl(spa), 0);
+			(void) poll(NULL, 0, 100); /* wait 1/10 second */
+			spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+			(void) spa_raidz_expand_get_stats(spa, pres);
+			spa_config_exit(spa, SCL_CONFIG, FTAG);
+		}
+
+		/*
+		 * XXX - should we clear the reflow pause here?
+		 */
+		if (ztest_opts.zo_verbose >= 1) {
+			(void) printf(
+			    "killing raidz expandsion test offset at %llu\n",
+			    (u_longlong_t)pres->pres_reflowed);
+		}
+		/*
+		 * Kill ourself, this simulates a panic during a reflow.  Our
+		 * parent will restart the test and the changed flag value
+		 * will drive the test through the scrub/check code to
+		 * verify the pool is not corrupted.
+		 */
+		ztest_kill(zs);
 	} else { /* check the pool is healthy */
 		/*
-		 * Set pool check done flag, main program will run azdb check of
-		 * the pool when we exit.
+		 * Set pool check done flag, main program will run a zdb check
+		 * of the pool when we exit.
 		 */
-		ztest_shared_opts->zo_raidz_expand_test = (UINT64_MAX - 1);
+		ztest_shared_opts->zo_raidz_expand_test = RAIDZ_EXPAND_CHECKED;
 		/* XXX - wait for reflow done? */
 		if (ztest_opts.zo_verbose >= 1) {
 			(void) printf("\nverifying raidz expansion\n");
@@ -7357,82 +7415,8 @@ ztest_raidz_expand_run(ztest_shared_t *zs)
 		if (ztest_opts.zo_verbose >= 1) {
 			(void) printf("raidz expansion scrub check complete\n");
 		}
-		goto done;
 	}
 
-	/*
-	 * Wait for desired reflow offset to be reached and kill the test
-	 */
-	/*
-	 * Wait for reflow to begin
-	 */
-	while (spa->spa_raidz_expand == NULL) {
-		txg_wait_synced(spa_get_dsl(spa), 0);
-		(void) poll(NULL, 0, 100); /* wait 1/10 second */
-	}
-	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
-	(void) spa_raidz_expand_get_stats(spa, pres);
-	spa_config_exit(spa, SCL_CONFIG, FTAG);
-	while (pres->pres_state != DSS_SCANNING) {
-		txg_wait_synced(spa_get_dsl(spa), 0);
-		(void) poll(NULL, 0, 100); /* wait 1/10 second */
-		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
-		(void) spa_raidz_expand_get_stats(spa, pres);
-		spa_config_exit(spa, SCL_CONFIG, FTAG);
-	}
-
-	ASSERT3U(pres->pres_state, ==, DSS_SCANNING);
-	ASSERT3U(pres->pres_to_reflow, !=, 0);
-	/*
-	 * Set so when we are killed we go to raidz checking rather than
-	 * restarting test.
-	 */
-	ztest_shared_opts->zo_raidz_expand_test = UINT64_MAX; /* pass 1 done */
-	if (ztest_opts.zo_verbose >= 1) {
-		(void) printf("raidz expandsion reflow started,"
-		    " waiting for offset %llu to be reched\n",
-		    (u_longlong_t)desreflow);
-	}
-
-	while (pres->pres_reflowed < desreflow) {
-		txg_wait_synced(spa_get_dsl(spa), 0);
-		(void) poll(NULL, 0, 100); /* wait 1/10 second */
-		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
-		(void) spa_raidz_expand_get_stats(spa, pres);
-		spa_config_exit(spa, SCL_CONFIG, FTAG);
-	}
-
-	/*
-	 * XXX - should we clear the reflow pause here?
-	 */
-	if (ztest_opts.zo_verbose >= 1) {
-		(void) printf("killing raidz expandsion test offset at %llu\n",
-		    (u_longlong_t)pres->pres_reflowed);
-	}
-	ztest_kill(zs);
-
-done:
-#if 0
-	/*
-	 * XXX - we don't have any threads here because we killed the test and
-	 * then ran a scrub in this thread rather than starting sub threads.
-	 */
-	/*
-	 * Wait for all of the tests to complete.
-	 */
-	for (t = 0; t < ztest_opts.zo_threads; t++)
-		VERIFY0(thread_join(run_threads[t]));
-
-	/*
-	 * Close all datasets. This must be done after all the threads
-	 * are joined so we can be sure none of the datasets are in-use
-	 * by any of the threads.
-	 */
-	for (t = 0; t < ztest_opts.zo_threads; t++) {
-		if (t < ztest_opts.zo_datasets)
-			ztest_dataset_close(t);
-	}
-#endif
 
 	txg_wait_synced(spa_get_dsl(spa), 0);
 
@@ -8244,10 +8228,11 @@ main(int argc, char **argv)
 			(void) printf("\n");
 		}
 
-		if (ztest_shared_opts->zo_raidz_expand_test == (UINT64_MAX - 1))
-			break; /* raidz expand test complete */
 		if (!ztest_opts.zo_mmp_test)
 			ztest_run_zdb(ztest_opts.zo_pool);
+		if (ztest_shared_opts->zo_raidz_expand_test ==
+		    RAIDZ_EXPAND_CHECKED)
+			break; /* raidz expand test complete */
 	}
 
 	if (ztest_opts.zo_verbose >= 1) {
