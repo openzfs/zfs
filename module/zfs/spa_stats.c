@@ -835,7 +835,9 @@ spa_mmp_history_add(spa_t *spa, uint64_t txg, uint64_t timestamp,
 static void *
 spa_state_addr(kstat_t *ksp, loff_t n)
 {
-	return (ksp->ks_private);	/* return the spa_t */
+	if (n == 0)
+		return (ksp->ks_private);	/* return the spa_t */
+	return (NULL);
 }
 
 static int

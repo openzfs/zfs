@@ -83,6 +83,71 @@ kstat_raw_default_addr(kstat_t *ksp, loff_t n)
 	return (NULL);
 }
 
+static int
+kstat_sysctl(SYSCTL_HANDLER_ARGS)
+{
+	kstat_t *ksp = arg1;
+	kstat_named_t *ksent;
+	uint64_t val;
+
+	ksent = ksp->ks_data;
+	/* Select the correct element */
+	ksent += arg2;
+	/* Update the aggsums before reading */
+	(void) ksp->ks_update(ksp, KSTAT_READ);
+	val = ksent->value.ui64;
+
+	return (sysctl_handle_64(oidp, &val, 0, req));
+}
+
+static int
+kstat_sysctl_string(SYSCTL_HANDLER_ARGS)
+{
+	kstat_t *ksp = arg1;
+	kstat_named_t *ksent = ksp->ks_data;
+	char *val;
+	uint32_t len = 0;
+
+	/* Select the correct element */
+	ksent += arg2;
+	/* Update the aggsums before reading */
+	(void) ksp->ks_update(ksp, KSTAT_READ);
+	val = KSTAT_NAMED_STR_PTR(ksent);
+	len = KSTAT_NAMED_STR_BUFLEN(ksent);
+	val[len-1] = '\0';
+
+	return (sysctl_handle_string(oidp, val, len, req));
+}
+
+static int
+kstat_sysctl_io(SYSCTL_HANDLER_ARGS)
+{
+	struct sbuf *sb;
+	kstat_t *ksp = arg1;
+	kstat_io_t *kip = ksp->ks_data;
+	int rc;
+
+	sb = sbuf_new_auto();
+	if (sb == NULL)
+		return (ENOMEM);
+	/* Update the aggsums before reading */
+	(void) ksp->ks_update(ksp, KSTAT_READ);
+
+	/* though wlentime & friends are signed, they will never be negative */
+	sbuf_printf(sb,
+	    "%-8llu %-8llu %-8u %-8u %-8llu %-8llu "
+	    "%-8llu %-8llu %-8llu %-8llu %-8u %-8u\n",
+	    kip->nread, kip->nwritten,
+	    kip->reads, kip->writes,
+	    kip->wtime, kip->wlentime, kip->wlastupdate,
+	    kip->rtime, kip->rlentime, kip->rlastupdate,
+	    kip->wcnt,  kip->rcnt);
+	rc = sbuf_finish(sb);
+	if (rc == 0)
+		rc = SYSCTL_OUT(req, sbuf_data(sb), sbuf_len(sb));
+	sbuf_delete(sb);
+	return (rc);
+}
 
 static int
 kstat_sysctl_raw(SYSCTL_HANDLER_ARGS)
@@ -235,7 +300,7 @@ __kstat_create(const char *module, int instance, const char *name,
 		free(ksp, M_KSTAT);
 		return (NULL);
 	}
-	if (ksp->ks_type != KSTAT_TYPE_RAW) {
+	if (ksp->ks_type == KSTAT_TYPE_NAMED) {
 		root = SYSCTL_ADD_NODE(&ksp->ks_sysctl_ctx,
 		    SYSCTL_CHILDREN(root),
 		    OID_AUTO, name, CTLFLAG_RW, 0, "");
@@ -253,71 +318,14 @@ __kstat_create(const char *module, int instance, const char *name,
 	return (ksp);
 }
 
-static int
-kstat_sysctl(SYSCTL_HANDLER_ARGS)
+static void
+kstat_install_named(kstat_t *ksp)
 {
-	kstat_t *ksp = arg1;
-	kstat_named_t *ksent;
-	uint64_t val;
-
-	ksent = ksp->ks_data;
-	/* Select the correct element */
-	ksent += arg2;
-	/* Update the aggsums before reading */
-	(void) ksp->ks_update(ksp, KSTAT_READ);
-	val = ksent->value.ui64;
-
-	return (sysctl_handle_64(oidp, &val, 0, req));
-}
-
-static int
-kstat_sysctl_string(SYSCTL_HANDLER_ARGS)
-{
-	kstat_t *ksp = arg1;
-	kstat_named_t *ksent = ksp->ks_data;
-	char *val;
-	uint32_t len = 0;
-
-	/* Select the correct element */
-	ksent += arg2;
-	/* Update the aggsums before reading */
-	(void) ksp->ks_update(ksp, KSTAT_READ);
-	val = KSTAT_NAMED_STR_PTR(ksent);
-	len = KSTAT_NAMED_STR_BUFLEN(ksent);
-	val[len-1] = '\0';
-
-	return (sysctl_handle_string(oidp, val, len, req));
-}
-
-void
-kstat_install(kstat_t *ksp)
-{
-	struct sysctl_oid *root;
 	kstat_named_t *ksent;
 	char *namelast;
 	int typelast;
 
 	ksent = ksp->ks_data;
-	if (ksp->ks_ndata == UINT32_MAX)
-		VERIFY(ksp->ks_type == KSTAT_TYPE_RAW);
-	if (ksp->ks_type == KSTAT_TYPE_RAW) {
-		if (ksp->ks_raw_ops.data) {
-			root = SYSCTL_ADD_PROC(&ksp->ks_sysctl_ctx,
-			    SYSCTL_CHILDREN(ksp->ks_sysctl_root),
-			    OID_AUTO, ksp->ks_name,
-			    CTLTYPE_STRING | CTLFLAG_RD, ksp, 0,
-			    kstat_sysctl_raw, "A", ksp->ks_name);
-		} else {
-			root = SYSCTL_ADD_PROC(&ksp->ks_sysctl_ctx,
-			    SYSCTL_CHILDREN(ksp->ks_sysctl_root),
-			    OID_AUTO, ksp->ks_name,
-			    CTLTYPE_OPAQUE | CTLFLAG_RD, ksp, 0,
-			    kstat_sysctl_raw, "", ksp->ks_name);
-		}
-		VERIFY(root != NULL);
-		ksp->ks_sysctl_root = root;
-		return;
-	}
 
 	VERIFY((ksp->ks_flags & KSTAT_FLAG_VIRTUAL) || ksent != NULL);
 
@@ -387,6 +395,51 @@ kstat_install(kstat_t *ksp)
 		}
 
 	}
+
+}
+
+void
+kstat_install(kstat_t *ksp)
+{
+	struct sysctl_oid *root;
+
+	if (ksp->ks_ndata == UINT32_MAX)
+		VERIFY(ksp->ks_type == KSTAT_TYPE_RAW);
+
+	switch (ksp->ks_type) {
+		case KSTAT_TYPE_NAMED:
+			return (kstat_install_named(ksp));
+			break;
+		case KSTAT_TYPE_RAW:
+			if (ksp->ks_raw_ops.data) {
+				root = SYSCTL_ADD_PROC(&ksp->ks_sysctl_ctx,
+				    SYSCTL_CHILDREN(ksp->ks_sysctl_root),
+				    OID_AUTO, ksp->ks_name,
+				    CTLTYPE_STRING | CTLFLAG_RD, ksp, 0,
+				    kstat_sysctl_raw, "A", ksp->ks_name);
+			} else {
+				root = SYSCTL_ADD_PROC(&ksp->ks_sysctl_ctx,
+				    SYSCTL_CHILDREN(ksp->ks_sysctl_root),
+				    OID_AUTO, ksp->ks_name,
+				    CTLTYPE_OPAQUE | CTLFLAG_RD, ksp, 0,
+				    kstat_sysctl_raw, "", ksp->ks_name);
+			}
+			VERIFY(root != NULL);
+			break;
+		case KSTAT_TYPE_IO:
+			root = SYSCTL_ADD_PROC(&ksp->ks_sysctl_ctx,
+			    SYSCTL_CHILDREN(ksp->ks_sysctl_root),
+			    OID_AUTO, ksp->ks_name,
+			    CTLTYPE_STRING | CTLFLAG_RD, ksp, 0,
+			    kstat_sysctl_io, "A", ksp->ks_name);
+			break;
+		case KSTAT_TYPE_TIMER:
+		case KSTAT_TYPE_INTR:
+		default:
+			panic("unsupported kstat type %d\n", ksp->ks_type);
+	}
+	ksp->ks_sysctl_root = root;
+
 }
 
 void
