@@ -38,7 +38,7 @@
 .\" Copyright 2019 Joyent, Inc.
 .\" Copyright (c) 2019, Kjeld Schouten-Lebbing
 .\"
-.Dd January 30, 2020
+.Dd September 1, 2020
 .Dt ZFSPROPS 8
 .Os
 .Sh NAME
@@ -1049,8 +1049,9 @@ In order to provide consistent data protection, encryption must be specified at
 dataset creation time and it cannot be changed afterwards.
 .Pp
 For more details and caveats about encryption see the
-.Sy Encryption
-section.
+.Em Encryption
+section of
+.Xr zfs-load-key 8 .
 .It Sy keyformat Ns = Ns Sy raw Ns | Ns Sy hex Ns | Ns Sy passphrase
 Controls what format the user's encryption key will be provided as. This
 property is only set when the dataset is encrypted.
