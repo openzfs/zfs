@@ -30,7 +30,7 @@
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
 .\"
-.Dd June 30, 2019
+.Dd September 1, 2020
 .Dt ZFS-RENAME 8
 .Os
 .Sh NAME
@@ -52,8 +52,11 @@
 .Cm rename
 .Fl u
 .Op Fl f
-.Ar filesystem
-.Ar filesystem
+.Ar filesystem Ar filesystem
+.Nm
+.Cm rename
+.Fl r
+.Ar snapshot Ar snapshot
 .Sh DESCRIPTION
 .Bl -tag -width ""
 .It Xo
