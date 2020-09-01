@@ -314,7 +314,8 @@ spa_write_cachefile(spa_t *target, boolean_t removing, boolean_t postsysevent)
 		 * resource issues are resolved.
 		 */
 		if (target->spa_ccw_fail_time == 0) {
-			zfs_ereport_post(FM_EREPORT_ZFS_CONFIG_CACHE_WRITE,
+			(void) zfs_ereport_post(
+			    FM_EREPORT_ZFS_CONFIG_CACHE_WRITE,
 			    target, NULL, NULL, NULL, 0, 0);
 		}
 		target->spa_ccw_fail_time = gethrtime();
