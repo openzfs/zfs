@@ -76,6 +76,7 @@ AC_CONFIG_FILES([
 	cmd/zed/Makefile
 	cmd/zed/zed.d/Makefile
 	cmd/zfs/Makefile
+	cmd/zfs_file/Makefile
 	cmd/zfs_ids_to_path/Makefile
 	cmd/zgenhostid/Makefile
 	cmd/zhack/Makefile

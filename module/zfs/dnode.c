@@ -168,6 +168,8 @@ dnode_cons(void *arg, void *unused, int kmflag)
 	dn->dn_dbufs_count = 0;
 	avl_create(&dn->dn_dbufs, dbuf_compare, sizeof (dmu_buf_impl_t),
 	    offsetof(dmu_buf_impl_t, db_link));
+	dn->dn_accessed_blocks =
+	    range_tree_create(NULL, RANGE_SEG64, NULL, 0, 0);
 
 	dn->dn_moved = 0;
 	return (0);
@@ -224,6 +226,7 @@ dnode_dest(void *arg, void *unused)
 
 	ASSERT0(dn->dn_dbufs_count);
 	avl_destroy(&dn->dn_dbufs);
+	range_tree_destroy(dn->dn_accessed_blocks);
 }
 
 void
@@ -478,6 +481,8 @@ dnode_create(objset_t *os, dnode_phys_t *dnp, dmu_buf_impl_t *db,
 	dn->dn_maxblkid = dnp->dn_maxblkid;
 	dn->dn_have_spill = ((dnp->dn_flags & DNODE_FLAG_SPILL_BLKPTR) != 0);
 	dn->dn_id_flags = 0;
+	dn->dn_accessed_since = gethrestime_sec();
+	ASSERT(range_tree_is_empty(dn->dn_accessed_blocks));
 
 	dmu_zfetch_init(&dn->dn_zfetch, dn);
 
@@ -563,6 +568,7 @@ dnode_destroy(dnode_t *dn)
 	dn->dn_id_flags = 0;
 
 	dmu_zfetch_fini(&dn->dn_zfetch);
+	range_tree_vacate(dn->dn_accessed_blocks, NULL, NULL);
 	kmem_cache_free(dnode_cache, dn);
 	arc_space_return(sizeof (dnode_t), ARC_SPACE_DNODE);
 
@@ -613,6 +619,7 @@ dnode_allocate(dnode_t *dn, dmu_object_type_t ot, int blocksize, int ibs,
 	ASSERT(zfs_refcount_is_zero(&dn->dn_tx_holds));
 	ASSERT3U(zfs_refcount_count(&dn->dn_holds), <=, 1);
 	ASSERT(avl_is_empty(&dn->dn_dbufs));
+	ASSERT(range_tree_is_empty(dn->dn_accessed_blocks));
 
 	for (i = 0; i < TXG_SIZE; i++) {
 		ASSERT0(dn->dn_next_nblkptr[i]);
@@ -809,6 +816,8 @@ dnode_move_impl(dnode_t *odn, dnode_t *ndn)
 	zfs_refcount_transfer(&ndn->dn_holds, &odn->dn_holds);
 	ASSERT(avl_is_empty(&ndn->dn_dbufs));
 	avl_swap(&ndn->dn_dbufs, &odn->dn_dbufs);
+	range_tree_swap(&odn->dn_accessed_blocks, &ndn->dn_accessed_blocks);
+	ndn->dn_accessed_since = odn->dn_accessed_since;
 	ndn->dn_dbufs_count = odn->dn_dbufs_count;
 	ndn->dn_bonus = odn->dn_bonus;
 	ndn->dn_have_spill = odn->dn_have_spill;

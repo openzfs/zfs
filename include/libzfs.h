@@ -912,6 +912,7 @@ extern int zpool_enable_datasets(zpool_handle_t *, const char *, int);
 extern int zpool_disable_datasets(zpool_handle_t *, boolean_t);
 
 extern int zfs_get_hole_count(const char *, uint64_t *, uint64_t *);
+extern int zfs_get_access_info(const char *, zfs_access_info_t *);
 
 #ifdef __FreeBSD__
 

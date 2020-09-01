@@ -2150,3 +2150,22 @@ zfs_get_hole_count(const char *path, uint64_t *count, uint64_t *bs)
 	}
 	return (0);
 }
+
+int
+zfs_get_access_info(const char *path, zfs_access_info_t *zai)
+{
+	int fd = open(path, O_RDONLY);
+	if (fd == -1)
+		return (errno);
+
+	if (ioctl(fd, ZFS_IOC_ACCESS_INFO, zai) == -1) {
+		int err = errno;
+		(void) close(fd);
+		return (err);
+	}
+
+	if (close(fd) == -1) {
+		return (errno);
+	}
+	return (0);
+}

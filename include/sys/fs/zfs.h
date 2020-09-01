@@ -1388,6 +1388,18 @@ typedef enum {
 #define	ZFS_IOC_COUNT_FILLED	_IOR('f', 100, uint64_t)
 
 /*
+ * zpl ioctl to get file access info.  Since zai_start, zai_bytes_accessed of
+ * the file have been accessed, out of zai_bytes_total.  The time and counts
+ * are reset when the file is evicted from the cache.
+ */
+typedef struct zfs_access_info {
+	uint64_t zai_accessed_bytes;
+	uint64_t zai_total_bytes;
+	uint64_t zai_start;
+} zfs_access_info_t;
+#define	ZFS_IOC_ACCESS_INFO	_IOR('f', 101, zfs_access_info_t)
+
+/*
  * Internal SPA load state.  Used by FMA diagnosis engine.
  */
 typedef enum {

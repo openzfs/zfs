@@ -2279,6 +2279,8 @@ __dmu_object_info_from_dnode(dnode_t *dn, dmu_object_info_t *doi)
 	doi->doi_fill_count = 0;
 	for (int i = 0; i < dnp->dn_nblkptr; i++)
 		doi->doi_fill_count += BP_GET_FILL(&dnp->dn_blkptr[i]);
+	doi->doi_accessed_since = dn->dn_accessed_since;
+	doi->doi_accessed_bytes = range_tree_space(dn->dn_accessed_blocks);
 }
 
 /*

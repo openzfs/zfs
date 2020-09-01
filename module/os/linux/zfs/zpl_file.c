@@ -1015,6 +1015,29 @@ zpl_ioctl_count_filled(struct file *filep, void __user *arg)
 }
 
 static long
+zpl_ioctl_access_info(struct file *filep, void __user *arg)
+{
+	struct inode *ip = file_inode(filep);
+	znode_t *zp = ITOZ(ip);
+	zfsvfs_t *zfsvfs = ITOZSB(ip);
+
+	ZFS_ENTER(zfsvfs);
+	ZFS_VERIFY_ZP(zp);
+
+	dmu_object_info_t doi;
+	dmu_object_info_from_db(sa_get_db(zp->z_sa_hdl), &doi);
+
+	zfs_access_info_t zai;
+	zai.zai_start = doi.doi_accessed_since;
+	zai.zai_accessed_bytes = doi.doi_accessed_bytes;
+	zai.zai_total_bytes = doi.doi_fill_count * doi.doi_data_block_size;
+	int error = copy_to_user(arg, &zai, sizeof (zai));
+
+	ZFS_EXIT(zfsvfs);
+	return (error);
+}
+
+static long
 zpl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	switch (cmd) {
@@ -1028,6 +1051,8 @@ zpl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		return (zpl_ioctl_setxattr(filp, (void *)arg));
 	case ZFS_IOC_COUNT_FILLED:
 		return (zpl_ioctl_count_filled(filp, (void *)arg));
+	case ZFS_IOC_ACCESS_INFO:
+		return (zpl_ioctl_access_info(filp, (void *)arg));
 	default:
 		return (-ENOTTY);
 	}

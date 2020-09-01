@@ -353,6 +353,8 @@ struct dnode {
 	 * db_state = DB_SEARCH (see dbuf_free_range for an example).
 	 */
 	avl_tree_t dn_dbufs;
+	time_t dn_accessed_since;
+	range_tree_t *dn_accessed_blocks;
 
 	/* protected by dn_struct_rwlock */
 	struct dmu_buf_impl *dn_bonus;	/* bonus buffer dbuf */

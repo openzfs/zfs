@@ -2946,6 +2946,15 @@ dbuf_create(dnode_t *dn, uint8_t level, uint64_t blkid,
 	}
 	avl_add(&dn->dn_dbufs, db);
 
+	/*
+	 * Note: can't use range_tree_contains(), because that only
+	 * returns TRUE if the entire range is in the tree.
+	 */
+	range_tree_clear(dn->dn_accessed_blocks,
+	    db->db.db_offset, db->db.db_size);
+	range_tree_add(dn->dn_accessed_blocks,
+	    db->db.db_offset, db->db.db_size);
+
 	db->db_state = DB_UNCACHED;
 	DTRACE_SET_STATE(db, "regular buffer created");
 	db->db_caching_status = DB_NO_CACHE;

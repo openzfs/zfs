@@ -902,6 +902,8 @@ typedef struct dmu_object_info {
 	uint64_t doi_physical_blocks_512;	/* data + metadata, 512b blks */
 	uint64_t doi_max_offset;
 	uint64_t doi_fill_count;		/* number of non-empty blocks */
+	time_t doi_accessed_since;
+	uint64_t doi_accessed_bytes;
 } dmu_object_info_t;
 
 typedef void (*const arc_byteswap_func_t)(void *buf, size_t size);

@@ -572,6 +572,7 @@ dnode_sync_free(dnode_t *dn, dmu_tx_t *tx)
 
 	dnode_undirty_dbufs(&dn->dn_dirty_records[txgoff]);
 	dnode_evict_dbufs(dn);
+	range_tree_vacate(dn->dn_accessed_blocks, NULL, NULL);
 
 	/*
 	 * XXX - It would be nice to assert this, but we may still
