@@ -46,14 +46,12 @@
 #include <sys/sunddi.h>
 #include <sys/zfeature.h>
 #include <sys/policy.h>
+#include <sys/zfs_vfsops.h>
 #include <sys/zfs_znode.h>
 #include <sys/zvol.h>
 #include <sys/zthr.h>
 #include "zfs_namecheck.h"
 #include "zfs_prop.h"
-#ifdef _KERNEL
-#include <sys/zfs_vfsops.h>
-#endif
 
 /*
  * Filesystem and Snapshot Limits
@@ -2124,6 +2122,8 @@ dsl_dir_rename_sync(void *arg, dmu_tx_t *tx)
 	VERIFY0(zap_add(mos, dsl_dir_phys(newparent)->dd_child_dir_zapobj,
 	    dd->dd_myname, 8, 1, &dd->dd_object, tx));
 
+	/* TODO: A rename callback to avoid these layering violations. */
+	zfsvfs_update_fromname(ddra->ddra_oldname, ddra->ddra_newname);
 	zvol_rename_minors(dp->dp_spa, ddra->ddra_oldname,
 	    ddra->ddra_newname, B_TRUE);
 

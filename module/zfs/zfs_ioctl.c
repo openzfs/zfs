@@ -4316,6 +4316,7 @@ zfs_ioc_rename(zfs_cmd_t *zc)
 	objset_t *os;
 	dmu_objset_type_t ost;
 	boolean_t recursive = zc->zc_cookie & 1;
+	boolean_t nounmount = !!(zc->zc_cookie & 2);
 	char *at;
 	int err;
 
@@ -4341,7 +4342,7 @@ zfs_ioc_rename(zfs_cmd_t *zc)
 		if (strncmp(zc->zc_name, zc->zc_value, at - zc->zc_name + 1))
 			return (SET_ERROR(EXDEV));
 		*at = '\0';
-		if (ost == DMU_OST_ZFS) {
+		if (ost == DMU_OST_ZFS && !nounmount) {
 			error = dmu_objset_find(zc->zc_name,
 			    recursive_unmount, at + 1,
 			    recursive ? DS_FIND_CHILDREN : 0);
