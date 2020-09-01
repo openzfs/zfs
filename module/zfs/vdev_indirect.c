@@ -16,7 +16,7 @@
 /*
  * Copyright (c) 2014, 2017 by Delphix. All rights reserved.
  * Copyright (c) 2019, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
- * Copyright (c) 2014, 2019 by Delphix. All rights reserved.
+ * Copyright (c) 2014, 2020 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -1474,13 +1474,14 @@ vdev_indirect_all_checksum_errors(zio_t *zio)
 
 			vdev_t *vd = ic->ic_vdev;
 
-			mutex_enter(&vd->vdev_stat_lock);
-			vd->vdev_stat.vs_checksum_errors++;
-			mutex_exit(&vd->vdev_stat_lock);
-
-			(void) zfs_ereport_post_checksum(zio->io_spa, vd,
+			int ret = zfs_ereport_post_checksum(zio->io_spa, vd,
 			    NULL, zio, is->is_target_offset, is->is_size,
 			    NULL, NULL, NULL);
+			if (ret != EALREADY) {
+				mutex_enter(&vd->vdev_stat_lock);
+				vd->vdev_stat.vs_checksum_errors++;
+				mutex_exit(&vd->vdev_stat_lock);
+			}
 		}
 	}
 }

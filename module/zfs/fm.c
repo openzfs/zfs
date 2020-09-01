@@ -1633,12 +1633,16 @@ fm_init(void)
 	list_create(&zevent_list, sizeof (zevent_t),
 	    offsetof(zevent_t, ev_node));
 	cv_init(&zevent_cv, NULL, CV_DEFAULT, NULL);
+
+	zfs_ereport_init();
 }
 
 void
 fm_fini(void)
 {
 	int count;
+
+	zfs_ereport_fini();
 
 	zfs_zevent_drain_all(&count);
 

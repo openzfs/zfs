@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2019 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
  * Copyright (c) 2011 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2017, Intel Corporation.
  * Copyright (c) 2019, Klara Inc.
@@ -547,7 +547,7 @@ error:
 		if ((zio->io_flags & ZIO_FLAG_SPECULATIVE) == 0) {
 			spa_log_error(spa, &zio->io_bookmark);
 			(void) zfs_ereport_post(FM_EREPORT_ZFS_AUTHENTICATION,
-			    spa, NULL, &zio->io_bookmark, zio, 0, 0);
+			    spa, NULL, &zio->io_bookmark, zio, 0);
 		}
 	} else {
 		zio->io_error = ret;
@@ -2004,7 +2004,7 @@ zio_deadman_impl(zio_t *pio, int ziodepth)
 		    zb->zb_objset, zb->zb_object, zb->zb_level, zb->zb_blkid,
 		    pio->io_offset, pio->io_size, pio->io_error);
 		(void) zfs_ereport_post(FM_EREPORT_ZFS_DEADMAN,
-		    pio->io_spa, vd, zb, pio, 0, 0);
+		    pio->io_spa, vd, zb, pio, 0);
 
 		if (failmode == ZIO_FAILURE_MODE_CONTINUE &&
 		    taskq_empty_ent(&pio->io_tqent)) {
@@ -2331,7 +2331,7 @@ zio_suspend(spa_t *spa, zio_t *zio, zio_suspend_reason_t reason)
 	    "failure and has been suspended.\n", spa_name(spa));
 
 	(void) zfs_ereport_post(FM_EREPORT_ZFS_IO_FAILURE, spa, NULL,
-	    NULL, NULL, 0, 0);
+	    NULL, NULL, 0);
 
 	mutex_enter(&spa->spa_suspend_lock);
 
@@ -4217,13 +4217,15 @@ zio_checksum_verify(zio_t *zio)
 		zio->io_error = error;
 		if (error == ECKSUM &&
 		    !(zio->io_flags & ZIO_FLAG_SPECULATIVE)) {
-			mutex_enter(&zio->io_vd->vdev_stat_lock);
-			zio->io_vd->vdev_stat.vs_checksum_errors++;
-			mutex_exit(&zio->io_vd->vdev_stat_lock);
-
-			zfs_ereport_start_checksum(zio->io_spa,
+			int ret = zfs_ereport_start_checksum(zio->io_spa,
 			    zio->io_vd, &zio->io_bookmark, zio,
 			    zio->io_offset, zio->io_size, NULL, &info);
+
+			if (ret != EALREADY) {
+				mutex_enter(&zio->io_vd->vdev_stat_lock);
+				zio->io_vd->vdev_stat.vs_checksum_errors++;
+				mutex_exit(&zio->io_vd->vdev_stat_lock);
+			}
 		}
 	}
 
@@ -4543,7 +4545,7 @@ zio_done(zio_t *zio)
 
 				(void) zfs_ereport_post(FM_EREPORT_ZFS_DELAY,
 				    zio->io_spa, zio->io_vd, &zio->io_bookmark,
-				    zio, 0, 0);
+				    zio, 0);
 			}
 		}
 	}
@@ -4557,16 +4559,16 @@ zio_done(zio_t *zio)
 		 */
 		if (zio->io_error != ECKSUM && zio->io_vd != NULL &&
 		    !vdev_is_dead(zio->io_vd)) {
-			mutex_enter(&zio->io_vd->vdev_stat_lock);
-			if (zio->io_type == ZIO_TYPE_READ) {
-				zio->io_vd->vdev_stat.vs_read_errors++;
-			} else if (zio->io_type == ZIO_TYPE_WRITE) {
-				zio->io_vd->vdev_stat.vs_write_errors++;
+			int ret = zfs_ereport_post(FM_EREPORT_ZFS_IO,
+			    zio->io_spa, zio->io_vd, &zio->io_bookmark, zio, 0);
+			if (ret != EALREADY) {
+				mutex_enter(&zio->io_vd->vdev_stat_lock);
+				if (zio->io_type == ZIO_TYPE_READ)
+					zio->io_vd->vdev_stat.vs_read_errors++;
+				else if (zio->io_type == ZIO_TYPE_WRITE)
+					zio->io_vd->vdev_stat.vs_write_errors++;
+				mutex_exit(&zio->io_vd->vdev_stat_lock);
 			}
-			mutex_exit(&zio->io_vd->vdev_stat_lock);
-
-			(void) zfs_ereport_post(FM_EREPORT_ZFS_IO, zio->io_spa,
-			    zio->io_vd, &zio->io_bookmark, zio, 0, 0);
 		}
 
 		if ((zio->io_error == EIO || !(zio->io_flags &
@@ -4578,7 +4580,7 @@ zio_done(zio_t *zio)
 			 */
 			spa_log_error(zio->io_spa, &zio->io_bookmark);
 			(void) zfs_ereport_post(FM_EREPORT_ZFS_DATA,
-			    zio->io_spa, NULL, &zio->io_bookmark, zio, 0, 0);
+			    zio->io_spa, NULL, &zio->io_bookmark, zio, 0);
 		}
 	}
 
