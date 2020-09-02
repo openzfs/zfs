@@ -3602,15 +3602,6 @@ vdev_raidz_get_tsd(spa_t *spa, nvlist_t *nv)
 	(void) nvlist_lookup_uint64(nv, ZPOOL_CONFIG_ID,
 	    &vdrz->vn_vre.vre_vdev_id);
 
-	if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_RAIDZ_EXPAND_OFFSET,
-	    &vdrz->vn_vre.vre_offset_phys) == 0) {
-		vdrz->vn_vre.vre_offset = vdrz->vn_vre.vre_offset_phys;
-
-		/*
-		 * vdev_load() will set spa_raidz_expand.
-		 */
-	}
-
 	avl_create(&vdrz->vd_expand_txgs, vedv_raidz_reflow_compare,
 	    sizeof (reflow_node_t), offsetof(reflow_node_t, re_link));
 
@@ -3626,6 +3617,16 @@ vdev_raidz_get_tsd(spa_t *spa, nvlist_t *nv)
 
 		vdrz->vd_original_width = vdrz->vd_physical_width - txgs_size;
 	}
+	if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_RAIDZ_EXPAND_OFFSET,
+	    &vdrz->vn_vre.vre_offset_phys) == 0) {
+		vdrz->vn_vre.vre_offset = vdrz->vn_vre.vre_offset_phys;
+		vdrz->vd_original_width--;
+
+		/*
+		 * vdev_load() will set spa_raidz_expand.
+		 */
+	}
+
 
 	if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_NPARITY,
 	    &nparity) == 0) {
