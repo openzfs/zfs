@@ -54,13 +54,13 @@ do
 	copy_exec "$ii"
 done
 
-if [ -f '/etc/default/zfs' -a -r '/etc/default/zfs' ]
+if [ -f '/etc/default/zfs' ] && [ -r '/etc/default/zfs' ]
 then
 	mkdir -p "$DESTDIR/etc/default"
 	cp -a '/etc/default/zfs' "$DESTDIR/etc/default/"
 fi
 
-if [ -d '/etc/zfs' -a -r '/etc/zfs' ]
+if [ -d '/etc/zfs' ] && [ -r '/etc/zfs' ]
 then
 	mkdir -p "$DESTDIR/etc"
 	cp -a '/etc/zfs' "$DESTDIR/etc/"
