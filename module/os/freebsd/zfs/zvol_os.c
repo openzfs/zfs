@@ -626,7 +626,7 @@ zvol_geom_bio_strategy(struct bio *bp)
 	addr = bp->bio_data;
 	resid = bp->bio_length;
 
-	if (resid > 0 && (off < 0 || off >= volsize)) {
+	if (resid > 0 && off >= volsize) {
 		error = SET_ERROR(EIO);
 		goto resume;
 	}
