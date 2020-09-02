@@ -55,9 +55,8 @@ function cleanup
 	log_must set_tunable64 ZEVENT_LEN_MAX $OLD_LEN_MAX
 
 	log_must zinject -c all
-	# log_must zpool events -c
 	if poolexists $POOL ; then
-		log_must destroy_pool $POOL
+		destroy_pool $POOL
 	fi
 	log_must rm -f $VDEV1 $VDEV2
 }
@@ -89,7 +88,7 @@ function do_dup_test
 	if [ "$RW" == "read" ] ; then
 		log_must mkfile $FILESIZE $FILEPATH
 
-		# unmount and mount fxiilesystems to purge file from ARC
+		# unmount and mount filesystems to purge file from ARC
 		# to force reads to go through error inject handler
 		log_must zfs unmount $POOL
 		log_must zfs mount $POOL
@@ -127,10 +126,8 @@ function do_dup_test
 
 	# Wait for the pool to settle down and finish resilvering (if
 	# necessary).  We want the errors to stop incrementing before we
-	# check the error and event counts.
-	while is_pool_resilvering $POOL ; do
-		sleep 1
-	done
+	# check for duplicates.
+	zpool wait -t resilver $POOL
 
 	ereports="$($EREPORTS | sort)"
 	actual=$(echo "$ereports" | wc -l)

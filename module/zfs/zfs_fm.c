@@ -117,7 +117,6 @@ static list_t recent_events_list;
 static avl_tree_t recent_events_tree;
 static kmutex_t recent_events_lock;
 static taskqid_t recent_events_cleaner_tqid;
-static int duplicate_detected_count;
 
 /*
  * Each node is about 128 bytes so 2,000 would consume 1/4 MiB.
@@ -315,7 +314,7 @@ zfs_ereport_is_duplicate(const char *subclass, spa_t *spa, vdev_t *vd,
 		list_insert_head(&recent_events_list, entry);
 		entry->re_timestamp = now;
 
-		duplicate_detected_count++;
+		zfs_zevent_track_duplicate();
 		mutex_exit(&recent_events_lock);
 
 		return (age <= zfs_zevent_retain_expire_secs);
@@ -1386,10 +1385,6 @@ void
 zfs_ereport_fini(void)
 {
 	recent_events_node_t *entry;
-
-	if (duplicate_detected_count > 0)
-		cmn_err(CE_NOTE, "zfs_ereport_fini, %d duplicates detected\n",
-		    duplicate_detected_count);
 
 	while ((entry = list_head(&recent_events_list)) != NULL) {
 		avl_remove(&recent_events_tree, entry);
