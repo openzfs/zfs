@@ -998,11 +998,8 @@ zil_commit_waiter_skip(zil_commit_waiter_t *zcw)
 static void
 zil_commit_waiter_link_lwb(zil_commit_waiter_t *zcw, lwb_t *lwb)
 {
-	/*
-	 * The lwb_waiters field of the lwb is protected by the zilog's
-	 * zl_lock, thus it must be held when calling this function.
-	 */
-	ASSERT(MUTEX_HELD(&lwb->lwb_zilog->zl_lock));
+	ASSERT(MUTEX_HELD(&lwb->lwb_zilog->zl_issuer_lock));
+	ASSERT(!MUTEX_HELD(&lwb->lwb_zilog->zl_lock));
 
 	mutex_enter(&zcw->zcw_lock);
 	ASSERT(!list_link_active(&zcw->zcw_node));
@@ -1012,8 +1009,10 @@ zil_commit_waiter_link_lwb(zil_commit_waiter_t *zcw, lwb_t *lwb)
 	    lwb->lwb_state == LWB_STATE_ISSUED ||
 	    lwb->lwb_state == LWB_STATE_WRITE_DONE);
 
+	mutex_enter(&lwb->lwb_zilog->zl_lock);
 	list_insert_tail(&lwb->lwb_waiters, zcw);
 	zcw->zcw_lwb = lwb;
+	mutex_exit(&lwb->lwb_zilog->zl_lock);
 	mutex_exit(&zcw->zcw_lock);
 }
 
@@ -1635,10 +1634,8 @@ zil_lwb_commit(zilog_t *zilog, itx_t *itx, lwb_t *lwb)
 	 * For more details, see the comment above zil_commit().
 	 */
 	if (lrc->lrc_txtype == TX_COMMIT) {
-		mutex_enter(&zilog->zl_lock);
 		zil_commit_waiter_link_lwb(itx->itx_private, lwb);
 		itx->itx_private = NULL;
-		mutex_exit(&zilog->zl_lock);
 		return (lwb);
 	}
 
@@ -2168,8 +2165,8 @@ zil_prune_commit_list(zilog_t *zilog)
 			break;
 
 		mutex_enter(&zilog->zl_lock);
-
 		lwb_t *last_lwb = zilog->zl_last_lwb_opened;
+
 		if (last_lwb == NULL ||
 		    last_lwb->lwb_state == LWB_STATE_FLUSH_DONE) {
 			/*
@@ -2178,13 +2175,14 @@ zil_prune_commit_list(zilog_t *zilog)
 			 * never any itx's for it to wait on), so it's
 			 * safe to skip this waiter and mark it done.
 			 */
+			mutex_exit(&zilog->zl_lock);
 			zil_commit_waiter_skip(itx->itx_private);
 		} else {
+			mutex_exit(&zilog->zl_lock);
 			zil_commit_waiter_link_lwb(itx->itx_private, last_lwb);
 			itx->itx_private = NULL;
 		}
 
-		mutex_exit(&zilog->zl_lock);
 
 		list_remove(&zilog->zl_itx_commit_list, itx);
 		zil_itx_destroy(itx);
