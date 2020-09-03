@@ -29,6 +29,11 @@
 /*
  * Command to output io and checksum ereport values, one per line.
  * Used by zpool_events_duplicates.ksh to check for duplicate events.
+ *
+ * example output line:
+ *
+ * checksum "error_pool" 0x856dd01ce52e336 0x000034 0x000400 0x000a402c00
+ *  0x000004	0x000000	0x000000	0x000000	0x000001
  */
 
 /*

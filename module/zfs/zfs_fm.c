@@ -240,13 +240,11 @@ zfs_ereport_schedule_cleaner(void)
 {
 	ASSERT(MUTEX_HELD(&recent_events_lock));
 
-	if (recent_events_cleaner_tqid == 0) {
-		uint64_t timeout = SEC2NSEC(zfs_zevent_retain_expire_secs + 1);
+	uint64_t timeout = SEC2NSEC(zfs_zevent_retain_expire_secs + 1);
 
-		recent_events_cleaner_tqid = taskq_dispatch_delay(
-		    system_delay_taskq, zfs_ereport_cleaner, NULL, TQ_SLEEP,
-		    ddi_get_lbolt() + NSEC_TO_TICK(timeout));
-	}
+	recent_events_cleaner_tqid = taskq_dispatch_delay(
+	    system_delay_taskq, zfs_ereport_cleaner, NULL, TQ_SLEEP,
+	    ddi_get_lbolt() + NSEC_TO_TICK(timeout));
 }
 
 /*
@@ -309,7 +307,11 @@ zfs_ereport_is_duplicate(const char *subclass, spa_t *spa, vdev_t *vd,
 	if (entry != NULL) {
 		uint64_t age = NSEC2SEC(now - entry->re_timestamp);
 
-		/* Reset the last seen time for this duplicate entry */
+		/*
+		 * There is still an active cleaner (since we're here).
+		 * Reset the last seen time for this duplicate entry
+		 * so that its lifespand gets extended.
+		 */
 		list_remove(&recent_events_list, entry);
 		list_insert_head(&recent_events_list, entry);
 		entry->re_timestamp = now;
@@ -336,7 +338,9 @@ zfs_ereport_is_duplicate(const char *subclass, spa_t *spa, vdev_t *vd,
 	list_insert_head(&recent_events_list, entry);
 	entry->re_timestamp = now;
 
-	zfs_ereport_schedule_cleaner();
+	/* Start a cleaner if not already scheduled */
+	if (recent_events_cleaner_tqid == 0)
+		zfs_ereport_schedule_cleaner();
 
 	mutex_exit(&recent_events_lock);
 	return (B_FALSE);
