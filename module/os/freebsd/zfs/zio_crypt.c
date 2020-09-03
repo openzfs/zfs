@@ -1234,8 +1234,7 @@ zio_crypt_do_indirect_mac_checksum_abd(boolean_t generate, abd_t *abd,
  * accommodate some of the drivers, the authbuf needs to be logically before
  * the data.  This means that we need to copy the source to the destination,
  * and set up an extra iovec_t at the beginning to handle the authbuf.
- * It also means we'll only return one uio_t, which we do via the clumsy
- * ifdef in the function declaration.
+ * It also means we'll only return one uio_t.
  */
 
 /* ARGSUSED */
@@ -1245,52 +1244,46 @@ zio_crypt_init_uios_zil(boolean_t encrypt, uint8_t *plainbuf,
     uio_t *out_uio, uint_t *enc_len, uint8_t **authbuf, uint_t *auth_len,
     boolean_t *no_crypt)
 {
-	int ret;
-	uint64_t txtype, lr_len;
-	uint_t nr_src, nr_dst, crypt_len;
-	uint_t aad_len = 0, nr_iovecs = 0, total_len = 0;
-	iovec_t *src_iovecs = NULL, *dst_iovecs = NULL;
+	uint8_t *aadbuf = zio_buf_alloc(datalen);
 	uint8_t *src, *dst, *slrp, *dlrp, *blkend, *aadp;
+	iovec_t *dst_iovecs;
 	zil_chain_t *zilc;
 	lr_t *lr;
-	uint8_t *aadbuf = zio_buf_alloc(datalen);
+	uint64_t txtype, lr_len;
+	uint_t crypt_len, nr_iovecs, vec;
+	uint_t aad_len = 0, total_len = 0;
 
-	/* cipherbuf always needs an extra iovec for the MAC */
 	if (encrypt) {
 		src = plainbuf;
 		dst = cipherbuf;
-		nr_src = 0;
-		nr_dst = 1;
 	} else {
 		src = cipherbuf;
 		dst = plainbuf;
-		nr_src = 1;
-		nr_dst = 0;
 	}
-
-	/*
-	 * We need at least two iovecs -- one for the AAD,
-	 * one for the MAC.
-	 */
 	bcopy(src, dst, datalen);
-	nr_dst = 2;
 
-	/* find the start and end record of the log block */
+	/* Find the start and end record of the log block. */
 	zilc = (zil_chain_t *)src;
 	slrp = src + sizeof (zil_chain_t);
 	aadp = aadbuf;
 	blkend = src + ((byteswap) ? BSWAP_64(zilc->zc_nused) : zilc->zc_nused);
 
-	/* calculate the number of encrypted iovecs we will need */
+	/*
+	 * Calculate the number of encrypted iovecs we will need.
+	 */
+
+	/* We need at least two iovecs -- one for the AAD, one for the MAC. */
+	nr_iovecs = 2;
+
 	for (; slrp < blkend; slrp += lr_len) {
 		lr = (lr_t *)slrp;
 
-		if (!byteswap) {
-			txtype = lr->lrc_txtype;
-			lr_len = lr->lrc_reclen;
-		} else {
+		if (byteswap) {
 			txtype = BSWAP_64(lr->lrc_txtype);
 			lr_len = BSWAP_64(lr->lrc_reclen);
+		} else {
+			txtype = lr->lrc_txtype;
+			lr_len = lr->lrc_reclen;
 		}
 
 		nr_iovecs++;
@@ -1298,27 +1291,7 @@ zio_crypt_init_uios_zil(boolean_t encrypt, uint8_t *plainbuf,
 			nr_iovecs++;
 	}
 
-	nr_src = 0;
-	nr_dst += nr_iovecs;
-
-	/* allocate the iovec arrays */
-	if (nr_src != 0) {
-		src_iovecs = kmem_alloc(nr_src * sizeof (iovec_t), KM_SLEEP);
-		if (src_iovecs == NULL) {
-			ret = SET_ERROR(ENOMEM);
-			goto error;
-		}
-		bzero(src_iovecs, nr_src * sizeof (iovec_t));
-	}
-
-	if (nr_dst != 0) {
-		dst_iovecs = kmem_alloc(nr_dst * sizeof (iovec_t), KM_SLEEP);
-		if (dst_iovecs == NULL) {
-			ret = SET_ERROR(ENOMEM);
-			goto error;
-		}
-		bzero(dst_iovecs, nr_dst * sizeof (iovec_t));
-	}
+	dst_iovecs = kmem_alloc(nr_iovecs * sizeof (iovec_t), KM_SLEEP);
 
 	/*
 	 * Copy the plain zil header over and authenticate everything except
@@ -1326,17 +1299,19 @@ zio_crypt_init_uios_zil(boolean_t encrypt, uint8_t *plainbuf,
 	 * the embedded checksum will not have been calculated yet, so we don't
 	 * authenticate that.
 	 */
-	bcopy(src, dst, sizeof (zil_chain_t));
 	bcopy(src, aadp, sizeof (zil_chain_t) - sizeof (zio_eck_t));
 	aadp += sizeof (zil_chain_t) - sizeof (zio_eck_t);
 	aad_len += sizeof (zil_chain_t) - sizeof (zio_eck_t);
 
-	/* loop over records again, filling in iovecs */
-	/* The first one will contain the authbuf */
-	nr_iovecs = 1;
-
 	slrp = src + sizeof (zil_chain_t);
 	dlrp = dst + sizeof (zil_chain_t);
+
+	/*
+	 * Loop over records again, filling in iovecs.
+	 */
+
+	/* The first iovec will contain the authbuf. */
+	vec = 1;
 
 	for (; slrp < blkend; slrp += lr_len, dlrp += lr_len) {
 		lr = (lr_t *)slrp;
@@ -1355,8 +1330,6 @@ zio_crypt_init_uios_zil(boolean_t encrypt, uint8_t *plainbuf,
 		aadp += sizeof (lr_t);
 		aad_len += sizeof (lr_t);
 
-		ASSERT3P(dst_iovecs, !=, NULL);
-
 		/*
 		 * If this is a TX_WRITE record we want to encrypt everything
 		 * except the bp if exists. If the bp does exist we want to
@@ -1365,9 +1338,9 @@ zio_crypt_init_uios_zil(boolean_t encrypt, uint8_t *plainbuf,
 		if (txtype == TX_WRITE) {
 			crypt_len = sizeof (lr_write_t) -
 			    sizeof (lr_t) - sizeof (blkptr_t);
-			dst_iovecs[nr_iovecs].iov_base = (char *)dlrp +
+			dst_iovecs[vec].iov_base = (char *)dlrp +
 			    sizeof (lr_t);
-			dst_iovecs[nr_iovecs].iov_len = crypt_len;
+			dst_iovecs[vec].iov_len = crypt_len;
 
 			/* copy the bp now since it will not be encrypted */
 			bcopy(slrp + sizeof (lr_write_t) - sizeof (blkptr_t),
@@ -1377,56 +1350,45 @@ zio_crypt_init_uios_zil(boolean_t encrypt, uint8_t *plainbuf,
 			    aadp, sizeof (blkptr_t));
 			aadp += sizeof (blkptr_t);
 			aad_len += sizeof (blkptr_t);
-			nr_iovecs++;
+			vec++;
 			total_len += crypt_len;
 
 			if (lr_len != sizeof (lr_write_t)) {
 				crypt_len = lr_len - sizeof (lr_write_t);
-				dst_iovecs[nr_iovecs].iov_base = (char *)
+				dst_iovecs[vec].iov_base = (char *)
 				    dlrp + sizeof (lr_write_t);
-				dst_iovecs[nr_iovecs].iov_len = crypt_len;
-				nr_iovecs++;
+				dst_iovecs[vec].iov_len = crypt_len;
+				vec++;
 				total_len += crypt_len;
 			}
 		} else {
 			crypt_len = lr_len - sizeof (lr_t);
-			dst_iovecs[nr_iovecs].iov_base = (char *)dlrp +
+			dst_iovecs[vec].iov_base = (char *)dlrp +
 			    sizeof (lr_t);
-			dst_iovecs[nr_iovecs].iov_len = crypt_len;
-			nr_iovecs++;
+			dst_iovecs[vec].iov_len = crypt_len;
+			vec++;
 			total_len += crypt_len;
 		}
 	}
 
-	*no_crypt = (nr_iovecs == 0);
+	/* The last iovec will contain the MAC. */
+	ASSERT3U(vec, ==, nr_iovecs - 1);
+
+	/* AAD */
+	dst_iovecs[0].iov_base = aadbuf;
+	dst_iovecs[0].iov_len = aad_len;
+	/* MAC */
+	dst_iovecs[vec].iov_base = 0;
+	dst_iovecs[vec].iov_len = 0;
+
+	*no_crypt = (vec == 1);
 	*enc_len = total_len;
 	*authbuf = aadbuf;
 	*auth_len = aad_len;
-	dst_iovecs[0].iov_base = aadbuf;
-	dst_iovecs[0].iov_len = aad_len;
-
 	out_uio->uio_iov = dst_iovecs;
-	out_uio->uio_iovcnt = nr_dst;
+	out_uio->uio_iovcnt = nr_iovecs;
 
 	return (0);
-
-error:
-	zio_buf_free(aadbuf, datalen);
-	if (src_iovecs != NULL)
-		kmem_free(src_iovecs, nr_src * sizeof (iovec_t));
-	if (dst_iovecs != NULL)
-		kmem_free(dst_iovecs, nr_dst * sizeof (iovec_t));
-
-	*enc_len = 0;
-	*authbuf = NULL;
-	*auth_len = 0;
-	*no_crypt = B_FALSE;
-	puio->uio_iov = NULL;
-	puio->uio_iovcnt = 0;
-	out_uio->uio_iov = NULL;
-	out_uio->uio_iovcnt = 0;
-
-	return (ret);
 }
 
 /*
@@ -1438,29 +1400,22 @@ zio_crypt_init_uios_dnode(boolean_t encrypt, uint64_t version,
     uio_t *puio, uio_t *out_uio, uint_t *enc_len, uint8_t **authbuf,
     uint_t *auth_len, boolean_t *no_crypt)
 {
-	int ret;
-	uint_t nr_src, nr_dst, crypt_len;
-	uint_t aad_len = 0, nr_iovecs = 0, total_len = 0;
-	uint_t i, j, max_dnp = datalen >> DNODE_SHIFT;
-	iovec_t *src_iovecs = NULL, *dst_iovecs = NULL;
+	uint8_t *aadbuf = zio_buf_alloc(datalen);
 	uint8_t *src, *dst, *aadp;
 	dnode_phys_t *dnp, *adnp, *sdnp, *ddnp;
-	uint8_t *aadbuf = zio_buf_alloc(datalen);
+	iovec_t *dst_iovecs;
+	uint_t nr_iovecs, crypt_len, vec;
+	uint_t aad_len = 0, total_len = 0;
+	uint_t i, j, max_dnp = datalen >> DNODE_SHIFT;
 
 	if (encrypt) {
 		src = plainbuf;
 		dst = cipherbuf;
-		nr_src = 0;
-		nr_dst = 1;
 	} else {
 		src = cipherbuf;
 		dst = plainbuf;
-		nr_src = 1;
-		nr_dst = 0;
 	}
-
 	bcopy(src, dst, datalen);
-	nr_dst = 2;
 
 	sdnp = (dnode_phys_t *)src;
 	ddnp = (dnode_phys_t *)dst;
@@ -1470,6 +1425,10 @@ zio_crypt_init_uios_dnode(boolean_t encrypt, uint64_t version,
 	 * Count the number of iovecs we will need to do the encryption by
 	 * counting the number of bonus buffers that need to be encrypted.
 	 */
+
+	/* We need at least two iovecs -- one for the AAD, one for the MAC. */
+	nr_iovecs = 2;
+
 	for (i = 0; i < max_dnp; i += sdnp[i].dn_extra_slots + 1) {
 		/*
 		 * This block may still be byteswapped. However, all of the
@@ -1484,34 +1443,17 @@ zio_crypt_init_uios_dnode(boolean_t encrypt, uint64_t version,
 		}
 	}
 
-	nr_src = 0;
-	nr_dst += nr_iovecs;
-
-	if (nr_src != 0) {
-		src_iovecs = kmem_alloc(nr_src * sizeof (iovec_t), KM_SLEEP);
-		if (src_iovecs == NULL) {
-			ret = SET_ERROR(ENOMEM);
-			goto error;
-		}
-		bzero(src_iovecs, nr_src * sizeof (iovec_t));
-	}
-
-	if (nr_dst != 0) {
-		dst_iovecs = kmem_alloc(nr_dst * sizeof (iovec_t), KM_SLEEP);
-		if (dst_iovecs == NULL) {
-			ret = SET_ERROR(ENOMEM);
-			goto error;
-		}
-		bzero(dst_iovecs, nr_dst * sizeof (iovec_t));
-	}
-
-	nr_iovecs = 1;
+	dst_iovecs = kmem_alloc(nr_iovecs * sizeof (iovec_t), KM_SLEEP);
 
 	/*
 	 * Iterate through the dnodes again, this time filling in the uios
 	 * we allocated earlier. We also concatenate any data we want to
 	 * authenticate onto aadbuf.
 	 */
+
+	/* The first iovec will contain the authbuf. */
+	vec = 1;
+
 	for (i = 0; i < max_dnp; i += sdnp[i].dn_extra_slots + 1) {
 		dnp = &sdnp[i];
 
@@ -1565,12 +1507,10 @@ zio_crypt_init_uios_dnode(boolean_t encrypt, uint64_t version,
 		if (dnp->dn_type != DMU_OT_NONE &&
 		    DMU_OT_IS_ENCRYPTED(dnp->dn_bonustype) &&
 		    dnp->dn_bonuslen != 0) {
-			ASSERT3U(nr_iovecs, <, nr_dst);
-			ASSERT3P(dst_iovecs, !=, NULL);
-			dst_iovecs[nr_iovecs].iov_base = DN_BONUS(&ddnp[i]);
-			dst_iovecs[nr_iovecs].iov_len = crypt_len;
+			dst_iovecs[vec].iov_base = DN_BONUS(&ddnp[i]);
+			dst_iovecs[vec].iov_len = crypt_len;
 
-			nr_iovecs++;
+			vec++;
 			total_len += crypt_len;
 		} else {
 			bcopy(DN_BONUS(dnp), DN_BONUS(&ddnp[i]), crypt_len);
@@ -1580,33 +1520,24 @@ zio_crypt_init_uios_dnode(boolean_t encrypt, uint64_t version,
 		}
 	}
 
-	*no_crypt = (nr_iovecs == 0);
+	/* The last iovec will contain the MAC. */
+	ASSERT3U(vec, ==, nr_iovecs - 1);
+
+	/* AAD */
+	dst_iovecs[0].iov_base = aadbuf;
+	dst_iovecs[0].iov_len = aad_len;
+	/* MAC */
+	dst_iovecs[vec].iov_base = 0;
+	dst_iovecs[vec].iov_len = 0;
+
+	*no_crypt = (vec == 1);
 	*enc_len = total_len;
 	*authbuf = aadbuf;
 	*auth_len = aad_len;
-
-	dst_iovecs[0].iov_base = aadbuf;
-	dst_iovecs[0].iov_len = aad_len;
 	out_uio->uio_iov = dst_iovecs;
-	out_uio->uio_iovcnt = nr_dst;
+	out_uio->uio_iovcnt = nr_iovecs;
 
 	return (0);
-
-error:
-	zio_buf_free(aadbuf, datalen);
-	if (src_iovecs != NULL)
-		kmem_free(src_iovecs, nr_src * sizeof (iovec_t));
-	if (dst_iovecs != NULL)
-		kmem_free(dst_iovecs, nr_dst * sizeof (iovec_t));
-
-	*enc_len = 0;
-	*authbuf = NULL;
-	*auth_len = 0;
-	*no_crypt = B_FALSE;
-	out_uio->uio_iov = NULL;
-	out_uio->uio_iovcnt = 0;
-
-	return (ret);
 }
 
 /* ARGSUSED */
