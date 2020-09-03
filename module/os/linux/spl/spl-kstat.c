@@ -22,6 +22,10 @@
  *  with the SPL.  If not, see <http://www.gnu.org/licenses/>.
  *
  *  Solaris Porting Layer (SPL) Kstat Implementation.
+ *
+ *  Links to Illumos.org for more information on kstat function:
+ *  [1] https://illumos.org/man/1M/kstat
+ *  [2] https://illumos.org/man/9f/kstat_create
  */
 
 #include <linux/seq_file.h>

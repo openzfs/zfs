@@ -2126,6 +2126,16 @@ zfs_get_vfs_flag_unmounted(objset_t *os)
 	return (unmounted);
 }
 
+/*ARGSUSED*/
+void
+zfsvfs_update_fromname(const char *oldname, const char *newname)
+{
+	/*
+	 * We don't need to do anything here, the devname is always current by
+	 * virtue of zfsvfs->z_sb->s_op->show_devname.
+	 */
+}
+
 void
 zfs_init(void)
 {

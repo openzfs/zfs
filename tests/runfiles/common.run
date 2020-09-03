@@ -225,7 +225,7 @@ tests = ['zfs_rename_001_pos', 'zfs_rename_002_pos', 'zfs_rename_003_pos',
     'zfs_rename_007_pos', 'zfs_rename_008_pos', 'zfs_rename_009_neg',
     'zfs_rename_010_neg', 'zfs_rename_011_pos', 'zfs_rename_012_neg',
     'zfs_rename_013_pos', 'zfs_rename_014_neg', 'zfs_rename_encrypted_child',
-    'zfs_rename_to_encrypted', 'zfs_rename_mountpoint']
+    'zfs_rename_to_encrypted', 'zfs_rename_mountpoint', 'zfs_rename_nounmount']
 tags = ['functional', 'cli_root', 'zfs_rename']
 
 [tests/functional/cli_root/zfs_reservation]

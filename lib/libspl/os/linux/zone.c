@@ -2,9 +2,8 @@
  * CDDL HEADER START
  *
  * The contents of this file are subject to the terms of the
- * Common Development and Distribution License, Version 1.0 only
- * (the "License").  You may not use this file except in compliance
- * with the License.
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
  *
  * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
  * or http://www.opensolaris.org/os/licensing.
@@ -20,26 +19,14 @@
  * CDDL HEADER END
  */
 /*
- * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright 2006 Ricardo Correia.  All rights reserved.
  * Use is subject to license terms.
  */
 
-#include_next <limits.h>
-#include <float.h>
+#include <zone.h>
 
-#ifndef _LIBSPL_LIMITS_H
-#define	_LIBSPL_LIMITS_H
-
-#ifndef DBL_DIG
-#define	DBL_DIG		15
-#define	DBL_MAX		1.7976931348623157081452E+308
-#define	DBL_MIN		2.2250738585072013830903E-308
-#endif
-
-#ifndef FLT_DIG
-#define	FLT_DIG		6
-#define	FLT_MAX		3.4028234663852885981170E+38F
-#define	FLT_MIN		1.1754943508222875079688E-38F
-#endif
-
-#endif /* _LIBSPL_LIMITS_H */
+zoneid_t
+getzoneid()
+{
+	return (GLOBAL_ZONEID);
+}

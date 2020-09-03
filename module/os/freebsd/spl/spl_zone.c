@@ -242,12 +242,6 @@ zone_get_hostid(void *ptr)
 	return ((uint32_t)curthread->td_ucred->cr_prison->pr_hostid);
 }
 
-boolean_t
-in_globalzone(struct proc *p)
-{
-	return (!jailed(FIRST_THREAD_IN_PROC((p))->td_ucred));
-}
-
 static void
 zone_sysinit(void *arg __unused)
 {

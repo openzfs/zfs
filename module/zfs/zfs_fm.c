@@ -846,7 +846,7 @@ zfs_ereport_start_checksum(spa_t *spa, vdev_t *vd, const zbookmark_phys_t *zb,
 	report->zcr_length = length;
 
 #ifdef _KERNEL
-	zfs_ereport_start(&report->zcr_ereport, &report->zcr_detector,
+	(void) zfs_ereport_start(&report->zcr_ereport, &report->zcr_detector,
 	    FM_EREPORT_ZFS_CHECKSUM, spa, vd, zb, zio, offset, length);
 
 	if (report->zcr_ereport == NULL) {

@@ -41,6 +41,7 @@
 #include <sys/utsname.h>
 #include <sys/zfs_context.h>
 #include <sys/zfs_onexit.h>
+#include <sys/zfs_vfsops.h>
 #include <sys/zstd/zstd.h>
 #include <sys/zvol.h>
 #include <zfs_fletcher.h>
@@ -1407,4 +1408,9 @@ void
 zfs_file_put(int fd)
 {
 	abort();
+}
+
+void
+zfsvfs_update_fromname(const char *oldname, const char *newname)
+{
 }

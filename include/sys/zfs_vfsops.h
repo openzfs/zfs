@@ -18,46 +18,18 @@
  *
  * CDDL HEADER END
  */
+
 /*
- * Copyright 2006 Ricardo Correia.  All rights reserved.
- * Use is subject to license terms.
+ * Portions Copyright 2020 iXsystems, Inc.
  */
 
-#include <zone.h>
-#include <string.h>
-#include <errno.h>
+#ifndef _SYS_ZFS_VFSOPS_H
+#define	_SYS_ZFS_VFSOPS_H
 
-zoneid_t
-getzoneid()
-{
-	return (GLOBAL_ZONEID);
-}
+#ifdef _KERNEL
+#include <sys/zfs_vfsops_os.h>
+#endif
 
-zoneid_t
-getzoneidbyname(const char *name)
-{
-	if (name == NULL)
-		return (GLOBAL_ZONEID);
+extern void zfsvfs_update_fromname(const char *, const char *);
 
-	if (strcmp(name, GLOBAL_ZONEID_NAME) == 0)
-		return (GLOBAL_ZONEID);
-
-	return (EINVAL);
-}
-
-ssize_t
-getzonenamebyid(zoneid_t id, char *buf, size_t buflen)
-{
-	if (id != GLOBAL_ZONEID)
-		return (EINVAL);
-
-	ssize_t ret = strlen(GLOBAL_ZONEID_NAME) + 1;
-
-	if (buf == NULL || buflen == 0)
-		return (ret);
-
-	strncpy(buf, GLOBAL_ZONEID_NAME, buflen);
-	buf[buflen - 1] = '\0';
-
-	return (ret);
-}
+#endif /* _SYS_ZFS_VFSOPS_H */

@@ -546,7 +546,7 @@ error:
 		zio->io_error = SET_ERROR(EIO);
 		if ((zio->io_flags & ZIO_FLAG_SPECULATIVE) == 0) {
 			spa_log_error(spa, &zio->io_bookmark);
-			zfs_ereport_post(FM_EREPORT_ZFS_AUTHENTICATION,
+			(void) zfs_ereport_post(FM_EREPORT_ZFS_AUTHENTICATION,
 			    spa, NULL, &zio->io_bookmark, zio, 0, 0);
 		}
 	} else {
@@ -2003,7 +2003,7 @@ zio_deadman_impl(zio_t *pio, int ziodepth)
 		    pio->io_stage, pio->io_pipeline, pio->io_pipeline_trace,
 		    zb->zb_objset, zb->zb_object, zb->zb_level, zb->zb_blkid,
 		    pio->io_offset, pio->io_size, pio->io_error);
-		zfs_ereport_post(FM_EREPORT_ZFS_DEADMAN,
+		(void) zfs_ereport_post(FM_EREPORT_ZFS_DEADMAN,
 		    pio->io_spa, vd, zb, pio, 0, 0);
 
 		if (failmode == ZIO_FAILURE_MODE_CONTINUE &&
@@ -2330,7 +2330,7 @@ zio_suspend(spa_t *spa, zio_t *zio, zio_suspend_reason_t reason)
 	cmn_err(CE_WARN, "Pool '%s' has encountered an uncorrectable I/O "
 	    "failure and has been suspended.\n", spa_name(spa));
 
-	zfs_ereport_post(FM_EREPORT_ZFS_IO_FAILURE, spa, NULL,
+	(void) zfs_ereport_post(FM_EREPORT_ZFS_IO_FAILURE, spa, NULL,
 	    NULL, NULL, 0, 0);
 
 	mutex_enter(&spa->spa_suspend_lock);
@@ -4572,7 +4572,7 @@ zio_done(zio_t *zio)
 				zio->io_vd->vdev_stat.vs_slow_ios++;
 				mutex_exit(&zio->io_vd->vdev_stat_lock);
 
-				zfs_ereport_post(FM_EREPORT_ZFS_DELAY,
+				(void) zfs_ereport_post(FM_EREPORT_ZFS_DELAY,
 				    zio->io_spa, zio->io_vd, &zio->io_bookmark,
 				    zio, 0, 0);
 			}
@@ -4596,7 +4596,7 @@ zio_done(zio_t *zio)
 			}
 			mutex_exit(&zio->io_vd->vdev_stat_lock);
 
-			zfs_ereport_post(FM_EREPORT_ZFS_IO, zio->io_spa,
+			(void) zfs_ereport_post(FM_EREPORT_ZFS_IO, zio->io_spa,
 			    zio->io_vd, &zio->io_bookmark, zio, 0, 0);
 		}
 
@@ -4608,8 +4608,8 @@ zio_done(zio_t *zio)
 			 * error and generate a logical data ereport.
 			 */
 			spa_log_error(zio->io_spa, &zio->io_bookmark);
-			zfs_ereport_post(FM_EREPORT_ZFS_DATA, zio->io_spa,
-			    NULL, &zio->io_bookmark, zio, 0, 0);
+			(void) zfs_ereport_post(FM_EREPORT_ZFS_DATA,
+			    zio->io_spa, NULL, &zio->io_bookmark, zio, 0, 0);
 		}
 	}
 

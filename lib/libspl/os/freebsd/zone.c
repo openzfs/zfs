@@ -26,42 +26,21 @@
  * $FreeBSD$
  */
 
-#ifndef _OPENSOLARIS_SYS_ZONE_H_
-#define	_OPENSOLARIS_SYS_ZONE_H_
+#include <stdlib.h>
+#include <assert.h>
+#include <sys/types.h>
+#include <sys/sysctl.h>
+#include <zone.h>
 
-#include <sys/jail.h>
+zoneid_t
+getzoneid(void)
+{
+	size_t size;
+	int jailid;
 
-/*
- * Macros to help with zone visibility restrictions.
- */
-
-#define	GLOBAL_ZONEID	0
-
-/*
- * Is proc in the global zone?
- */
-#define	INGLOBALZONE(proc)	(!jailed((proc)->p_ucred))
-
-/*
- * Attach the given dataset to the given jail.
- */
-extern int zone_dataset_attach(struct ucred *, const char *, int);
-
-/*
- * Detach the given dataset to the given jail.
- */
-extern int zone_dataset_detach(struct ucred *, const char *, int);
-
-/*
- * Returns true if the named pool/dataset is visible in the current zone.
- */
-extern int zone_dataset_visible(const char *, int *);
-
-/*
- * Safely get the hostid of the specified zone (defaults to machine's hostid
- * if the specified zone doesn't emulate a hostid).  Passing NULL retrieves
- * the global zone's (i.e., physical system's) hostid.
- */
-extern uint32_t zone_get_hostid(void *);
-
-#endif	/* !_OPENSOLARIS_SYS_ZONE_H_ */
+	/* Information that we are in jail or not is enough for our needs. */
+	size = sizeof (jailid);
+	if (sysctlbyname("security.jail.jailed", &jailid, &size, NULL, 0) == -1)
+		assert(!"No security.jail.jailed sysctl!");
+	return ((zoneid_t)jailid);
+}

@@ -2187,7 +2187,7 @@ arc_untransform(arc_buf_t *buf, spa_t *spa, const zbookmark_phys_t *zb,
 		 */
 		ret = SET_ERROR(EIO);
 		spa_log_error(spa, zb);
-		zfs_ereport_post(FM_EREPORT_ZFS_AUTHENTICATION,
+		(void) zfs_ereport_post(FM_EREPORT_ZFS_AUTHENTICATION,
 		    spa, NULL, zb, NULL, 0, 0);
 	}
 
@@ -5652,7 +5652,8 @@ arc_read_done(zio_t *zio)
 			error = SET_ERROR(EIO);
 			if ((zio->io_flags & ZIO_FLAG_SPECULATIVE) == 0) {
 				spa_log_error(zio->io_spa, &acb->acb_zb);
-				zfs_ereport_post(FM_EREPORT_ZFS_AUTHENTICATION,
+				(void) zfs_ereport_post(
+				    FM_EREPORT_ZFS_AUTHENTICATION,
 				    zio->io_spa, NULL, &acb->acb_zb, zio, 0, 0);
 			}
 		}
@@ -5928,7 +5929,7 @@ top:
 				rc = SET_ERROR(EIO);
 				if ((zio_flags & ZIO_FLAG_SPECULATIVE) == 0) {
 					spa_log_error(spa, zb);
-					zfs_ereport_post(
+					(void) zfs_ereport_post(
 					    FM_EREPORT_ZFS_AUTHENTICATION,
 					    spa, NULL, zb, NULL, 0, 0);
 				}
