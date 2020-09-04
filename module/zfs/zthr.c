@@ -56,7 +56,7 @@
  *
  * == ZTHR creation
  *
- * Every zthr needs three inputs to start running:
+ * Every zthr needs four inputs to start running:
  *
  * 1] A user-defined checker function (checkfunc) that decides whether
  *    the zthr should start working or go to sleep. The function should
@@ -71,6 +71,9 @@
  *
  * 3] A void args pointer that will be passed to checkfunc and func
  *    implicitly by the infrastructure.
+ *
+ * 4] A name for the thread. This string must be valid for the lifetime
+ *    of the zthr.
  *
  * The reason why the above API needs two different functions,
  * instead of one that both checks and does the work, has to do with
@@ -221,6 +224,7 @@ struct zthr {
 	zthr_checkfunc_t	*zthr_checkfunc;
 	zthr_func_t	*zthr_func;
 	void		*zthr_arg;
+	const char	*zthr_name;
 };
 
 static void
@@ -291,6 +295,7 @@ zthr_create_timer(const char *zthr_name, zthr_checkfunc_t *checkfunc,
 	t->zthr_func = func;
 	t->zthr_arg = arg;
 	t->zthr_sleep_timeout = max_sleep;
+	t->zthr_name = zthr_name;
 
 	t->zthr_thread = thread_create_named(zthr_name, NULL, 0,
 	    zthr_procedure, t, 0, &p0, TS_RUN, minclsyspri);
@@ -417,8 +422,8 @@ zthr_resume(zthr_t *t)
 	 *     no-op.
 	 */
 	if (t->zthr_thread == NULL) {
-		t->zthr_thread = thread_create(NULL, 0, zthr_procedure, t,
-		    0, &p0, TS_RUN, minclsyspri);
+		t->zthr_thread = thread_create_named(t->zthr_name, NULL, 0,
+		    zthr_procedure, t, 0, &p0, TS_RUN, minclsyspri);
 	}
 
 	mutex_exit(&t->zthr_state_lock);
