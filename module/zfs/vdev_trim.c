@@ -317,7 +317,7 @@ vdev_trim_change_state(vdev_t *vd, vdev_trim_state_t new_state,
 	dmu_tx_t *tx = dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
 	VERIFY0(dmu_tx_assign(tx, TXG_WAIT));
 	dsl_sync_task_nowait(spa_get_dsl(spa), vdev_trim_zap_update_sync,
-	    guid, 2, ZFS_SPACE_CHECK_NONE, tx);
+	    guid, tx);
 
 	switch (new_state) {
 	case VDEV_TRIM_ACTIVE:
@@ -510,8 +510,7 @@ vdev_trim_range(trim_args_t *ta, uint64_t start, uint64_t size)
 
 		/* This is the first write of this txg. */
 		dsl_sync_task_nowait(spa_get_dsl(spa),
-		    vdev_trim_zap_update_sync, guid, 2,
-		    ZFS_SPACE_CHECK_RESERVED, tx);
+		    vdev_trim_zap_update_sync, guid, tx);
 	}
 
 	/*

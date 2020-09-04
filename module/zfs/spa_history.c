@@ -397,8 +397,7 @@ spa_history_log_nvl(spa_t *spa, nvlist_t *nvl)
 	fnvlist_add_uint64(nvarg, ZPOOL_HIST_WHO, crgetruid(CRED()));
 
 	/* Kick this off asynchronously; errors are ignored. */
-	dsl_sync_task_nowait(spa_get_dsl(spa), spa_history_log_sync,
-	    nvarg, 0, ZFS_SPACE_CHECK_NONE, tx);
+	dsl_sync_task_nowait(spa_get_dsl(spa), spa_history_log_sync, nvarg, tx);
 	dmu_tx_commit(tx);
 
 	/* spa_history_log_sync will free nvl */
@@ -532,7 +531,7 @@ log_internal(nvlist_t *nvl, const char *operation, spa_t *spa,
 		spa_history_log_sync(nvl, tx);
 	} else {
 		dsl_sync_task_nowait(spa_get_dsl(spa),
-		    spa_history_log_sync, nvl, 0, ZFS_SPACE_CHECK_NONE, tx);
+		    spa_history_log_sync, nvl, tx);
 	}
 	/* spa_history_log_sync() will free nvl */
 }
