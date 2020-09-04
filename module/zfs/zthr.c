@@ -237,15 +237,10 @@ zthr_procedure(void *arg)
 			t->zthr_func(t->zthr_arg, t);
 			mutex_enter(&t->zthr_state_lock);
 		} else {
-			/*
-			 * cv_wait_sig() is used instead of cv_wait() in
-			 * order to prevent this process from incorrectly
-			 * contributing to the system load average when idle.
-			 */
 			if (t->zthr_sleep_timeout == 0) {
-				cv_wait_sig(&t->zthr_cv, &t->zthr_state_lock);
+				cv_wait_idle(&t->zthr_cv, &t->zthr_state_lock);
 			} else {
-				(void) cv_timedwait_sig_hires(&t->zthr_cv,
+				(void) cv_timedwait_idle_hires(&t->zthr_cv,
 				    &t->zthr_state_lock, t->zthr_sleep_timeout,
 				    MSEC2NSEC(1), 0);
 			}
