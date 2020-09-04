@@ -23,6 +23,10 @@
  * Use is subject to license terms.
  */
 
+/*
+ *  Copyright (c) 2020 by Delphix. All rights reserved.
+ */
+
 #ifndef	_SYS_FM_FS_ZFS_H
 #define	_SYS_FM_FS_ZFS_H
 
@@ -88,6 +92,7 @@ extern "C" {
 #define	FM_EREPORT_PAYLOAD_ZFS_ZIO_SIZE		"zio_size"
 #define	FM_EREPORT_PAYLOAD_ZFS_ZIO_FLAGS	"zio_flags"
 #define	FM_EREPORT_PAYLOAD_ZFS_ZIO_STAGE	"zio_stage"
+#define	FM_EREPORT_PAYLOAD_ZFS_ZIO_PRIORITY	"zio_priority"
 #define	FM_EREPORT_PAYLOAD_ZFS_ZIO_PIPELINE	"zio_pipeline"
 #define	FM_EREPORT_PAYLOAD_ZFS_ZIO_DELAY	"zio_delay"
 #define	FM_EREPORT_PAYLOAD_ZFS_ZIO_TIMESTAMP	"zio_timestamp"

@@ -21,7 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2018, Joyent, Inc.
- * Copyright (c) 2011, 2019, Delphix. All rights reserved.
+ * Copyright (c) 2011, 2020, Delphix. All rights reserved.
  * Copyright (c) 2014, Saso Kiselkov. All rights reserved.
  * Copyright (c) 2017, Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2019, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
@@ -2188,7 +2188,7 @@ arc_untransform(arc_buf_t *buf, spa_t *spa, const zbookmark_phys_t *zb,
 		ret = SET_ERROR(EIO);
 		spa_log_error(spa, zb);
 		(void) zfs_ereport_post(FM_EREPORT_ZFS_AUTHENTICATION,
-		    spa, NULL, zb, NULL, 0, 0);
+		    spa, NULL, zb, NULL, 0);
 	}
 
 	return (ret);
@@ -5654,7 +5654,7 @@ arc_read_done(zio_t *zio)
 				spa_log_error(zio->io_spa, &acb->acb_zb);
 				(void) zfs_ereport_post(
 				    FM_EREPORT_ZFS_AUTHENTICATION,
-				    zio->io_spa, NULL, &acb->acb_zb, zio, 0, 0);
+				    zio->io_spa, NULL, &acb->acb_zb, zio, 0);
 			}
 		}
 
@@ -5931,7 +5931,7 @@ top:
 					spa_log_error(spa, zb);
 					(void) zfs_ereport_post(
 					    FM_EREPORT_ZFS_AUTHENTICATION,
-					    spa, NULL, zb, NULL, 0, 0);
+					    spa, NULL, zb, NULL, 0);
 				}
 			}
 			if (rc != 0) {

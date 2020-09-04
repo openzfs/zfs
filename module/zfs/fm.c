@@ -104,13 +104,15 @@ struct erpt_kstat {
 	kstat_named_t	erpt_set_failed;	/* num erpt set failures */
 	kstat_named_t	fmri_set_failed;	/* num fmri set failures */
 	kstat_named_t	payload_set_failed;	/* num payload set failures */
+	kstat_named_t	erpt_duplicates;	/* num duplicate erpts */
 };
 
 static struct erpt_kstat erpt_kstat_data = {
 	{ "erpt-dropped", KSTAT_DATA_UINT64 },
 	{ "erpt-set-failed", KSTAT_DATA_UINT64 },
 	{ "fmri-set-failed", KSTAT_DATA_UINT64 },
-	{ "payload-set-failed", KSTAT_DATA_UINT64 }
+	{ "payload-set-failed", KSTAT_DATA_UINT64 },
+	{ "erpt-duplicates", KSTAT_DATA_UINT64 }
 };
 
 kstat_t *fm_ksp;
@@ -566,6 +568,12 @@ out:
 		cb(nvl, detector);
 
 	return (error);
+}
+
+void
+zfs_zevent_track_duplicate(void)
+{
+	atomic_inc_64(&erpt_kstat_data.erpt_duplicates.value.ui64);
 }
 
 static int
@@ -1633,12 +1641,16 @@ fm_init(void)
 	list_create(&zevent_list, sizeof (zevent_t),
 	    offsetof(zevent_t, ev_node));
 	cv_init(&zevent_cv, NULL, CV_DEFAULT, NULL);
+
+	zfs_ereport_init();
 }
 
 void
 fm_fini(void)
 {
 	int count;
+
+	zfs_ereport_fini();
 
 	zfs_zevent_drain_all(&count);
 
