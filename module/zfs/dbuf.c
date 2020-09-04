@@ -718,7 +718,7 @@ dbuf_evict_thread(void *unused)
 	while (!dbuf_evict_thread_exit) {
 		while (!dbuf_cache_above_lowater() && !dbuf_evict_thread_exit) {
 			CALLB_CPR_SAFE_BEGIN(&cpr);
-			(void) cv_timedwait_sig_hires(&dbuf_evict_cv,
+			(void) cv_timedwait_idle_hires(&dbuf_evict_cv,
 			    &dbuf_evict_lock, SEC2NSEC(1), MSEC2NSEC(1), 0);
 			CALLB_CPR_SAFE_END(&cpr, &dbuf_evict_lock);
 		}

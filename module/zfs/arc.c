@@ -9174,7 +9174,7 @@ l2arc_feed_thread(void *unused)
 	cookie = spl_fstrans_mark();
 	while (l2arc_thread_exit == 0) {
 		CALLB_CPR_SAFE_BEGIN(&cpr);
-		(void) cv_timedwait_sig(&l2arc_feed_thr_cv,
+		(void) cv_timedwait_idle(&l2arc_feed_thr_cv,
 		    &l2arc_feed_thr_lock, next);
 		CALLB_CPR_SAFE_END(&cpr, &l2arc_feed_thr_lock);
 		next = ddi_get_lbolt() + hz;

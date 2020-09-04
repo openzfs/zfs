@@ -198,6 +198,18 @@ __cv_wait_sig(kcondvar_t *cvp, kmutex_t *mp)
 }
 EXPORT_SYMBOL(__cv_wait_sig);
 
+void
+__cv_wait_idle(kcondvar_t *cvp, kmutex_t *mp)
+{
+	sigset_t blocked, saved;
+
+	sigfillset(&blocked);
+	(void) sigprocmask(SIG_BLOCK, &blocked, &saved);
+	cv_wait_common(cvp, mp, TASK_INTERRUPTIBLE, 0);
+	(void) sigprocmask(SIG_SETMASK, &saved, NULL);
+}
+EXPORT_SYMBOL(__cv_wait_idle);
+
 #if defined(HAVE_IO_SCHEDULE_TIMEOUT)
 #define	spl_io_schedule_timeout(t)	io_schedule_timeout(t)
 #else
@@ -330,6 +342,21 @@ __cv_timedwait_sig(kcondvar_t *cvp, kmutex_t *mp, clock_t exp_time)
 }
 EXPORT_SYMBOL(__cv_timedwait_sig);
 
+int
+__cv_timedwait_idle(kcondvar_t *cvp, kmutex_t *mp, clock_t exp_time)
+{
+	sigset_t blocked, saved;
+	int rc;
+
+	sigfillset(&blocked);
+	(void) sigprocmask(SIG_BLOCK, &blocked, &saved);
+	rc = __cv_timedwait_common(cvp, mp, exp_time,
+	    TASK_INTERRUPTIBLE, 0);
+	(void) sigprocmask(SIG_SETMASK, &saved, NULL);
+
+	return (rc);
+}
+EXPORT_SYMBOL(__cv_timedwait_idle);
 /*
  * 'expire_time' argument is an absolute clock time in nanoseconds.
  * Return value is time left (expire_time - now) or -1 if timeout occurred.
@@ -426,6 +453,23 @@ cv_timedwait_sig_hires(kcondvar_t *cvp, kmutex_t *mp, hrtime_t tim,
 	return (signal_pending(current) ? 0 : rc);
 }
 EXPORT_SYMBOL(cv_timedwait_sig_hires);
+
+int
+cv_timedwait_idle_hires(kcondvar_t *cvp, kmutex_t *mp, hrtime_t tim,
+    hrtime_t res, int flag)
+{
+	sigset_t blocked, saved;
+	int rc;
+
+	sigfillset(&blocked);
+	(void) sigprocmask(SIG_BLOCK, &blocked, &saved);
+	rc = cv_timedwait_hires_common(cvp, mp, tim, res, flag,
+	    TASK_INTERRUPTIBLE);
+	(void) sigprocmask(SIG_SETMASK, &saved, NULL);
+
+	return (rc);
+}
+EXPORT_SYMBOL(cv_timedwait_idle_hires);
 
 void
 __cv_signal(kcondvar_t *cvp)
