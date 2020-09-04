@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2019 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  * Copyright 2013 Saso Kiselkov. All rights reserved.
@@ -1145,10 +1145,10 @@ extern const char *spa_state_to_name(spa_t *spa);
 struct zbookmark_phys;
 extern void spa_log_error(spa_t *spa, const zbookmark_phys_t *zb);
 extern int zfs_ereport_post(const char *clazz, spa_t *spa, vdev_t *vd,
-    const zbookmark_phys_t *zb, zio_t *zio, uint64_t stateoroffset,
-    uint64_t length);
+    const zbookmark_phys_t *zb, zio_t *zio, uint64_t state);
 extern boolean_t zfs_ereport_is_valid(const char *clazz, spa_t *spa, vdev_t *vd,
     zio_t *zio);
+extern void zfs_ereport_taskq_fini(void);
 extern nvlist_t *zfs_event_create(spa_t *spa, vdev_t *vd, const char *type,
     const char *name, nvlist_t *aux);
 extern void zfs_post_remove(spa_t *spa, vdev_t *vd);

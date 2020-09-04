@@ -7615,6 +7615,7 @@ zfs_kmod_fini(void)
 		kmem_free(zs, sizeof (zfsdev_state_t));
 	}
 
+	zfs_ereport_taskq_fini();	/* run before zfs_fini() on Linux */
 	zfs_fini();
 	spa_fini();
 	zvol_fini();

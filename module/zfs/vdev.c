@@ -1481,7 +1481,7 @@ vdev_probe_done(zio_t *zio)
 			ASSERT(zio->io_error != 0);
 			vdev_dbgmsg(vd, "failed probe");
 			(void) zfs_ereport_post(FM_EREPORT_ZFS_PROBE_FAILURE,
-			    spa, vd, NULL, NULL, 0, 0);
+			    spa, vd, NULL, NULL, 0);
 			zio->io_error = SET_ERROR(ENXIO);
 		}
 
@@ -1862,11 +1862,10 @@ vdev_open(vdev_t *vd)
 		    vd->vdev_ops->vdev_op_leaf) {
 			(void) zfs_ereport_post(
 			    FM_EREPORT_ZFS_DEVICE_BAD_ASHIFT,
-			    spa, vd, NULL, NULL, 0, 0);
+			    spa, vd, NULL, NULL, 0);
 			vdev_set_state(vd, B_TRUE, VDEV_STATE_CANT_OPEN,
 			    VDEV_AUX_BAD_LABEL);
 			return (SET_ERROR(EDOM));
-
 		}
 		vd->vdev_max_asize = max_asize;
 	}
@@ -4759,7 +4758,7 @@ vdev_set_state(vdev_t *vd, boolean_t isopen, vdev_state_t state, vdev_aux_t aux)
 			}
 
 			(void) zfs_ereport_post(class, spa, vd, NULL, NULL,
-			    save_state, 0);
+			    save_state);
 		}
 
 		/* Erase any notion of persistent removed state */
