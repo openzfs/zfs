@@ -11,10 +11,12 @@ AC_DEFUN([ZFS_AC_FIND_SYSTEM_LIBRARY], [
 
     _header_found=
     _library_found=
+    _pc_found=
 
     AS_IF([test -n "$2"], [PKG_CHECK_MODULES([$1], [$2], [
 	_header_found=1
 	_library_found=1
+	_pc_found=1
     ], [:])])
 
     # set _header_found/_library_found if the user passed in CFLAGS/LIBS
@@ -82,6 +84,9 @@ AC_DEFUN([ZFS_AC_FIND_SYSTEM_LIBRARY], [
     AS_IF([test "x$_header_found" = "x1" && test "x$_library_found" = "x1"], [
 	AC_SUBST([$1]_CFLAGS)
 	AC_SUBST([$1]_LIBS)
+	AS_IF([test "x$_pc_found" = "x1"], [
+	    AC_SUBST([$1]_PC, [$2])
+	])
 	AC_DEFINE([HAVE_][$1], [1], [Define if you have [$5]])
 	$7
     ],[dnl ELSE
