@@ -206,8 +206,10 @@ typedef int enum_t;
 #define	__XSI_VISIBLE 1000
 #endif
 #define	ARRAY_SIZE(a) (sizeof (a) / sizeof (a[0]))
-#define	open64 open
 #define	mmap64 mmap
+/* Note: this file can be used on linux/macOS when bootstrapping tools. */
+#if defined(__FreeBSD__)
+#define	open64 open
 #define	pwrite64 pwrite
 #define	ftruncate64 ftruncate
 #define	lseek64 lseek
@@ -217,6 +219,7 @@ typedef int enum_t;
 #define	statfs64 statfs
 #define	readdir64 readdir
 #define	dirent64 dirent
+#endif
 #define	P2ALIGN(x, align)		((x) & -(align))
 #define	P2CROSS(x, y, align)	(((x) ^ (y)) > (align) - 1)
 #define	P2ROUNDUP(x, align)		((((x) - 1) | ((align) - 1)) + 1)
