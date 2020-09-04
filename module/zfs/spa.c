@@ -2688,8 +2688,7 @@ spa_livelist_condense_cb(void *arg, zthr_t *t)
 			lca->first_size = first_size;
 			lca->next_size = next_size;
 			dsl_sync_task_nowait(spa_get_dsl(spa),
-			    spa_livelist_condense_sync, lca, 0,
-			    ZFS_SPACE_CHECK_NONE, tx);
+			    spa_livelist_condense_sync, lca, tx);
 			dmu_tx_commit(tx);
 			return;
 		}

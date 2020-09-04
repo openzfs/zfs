@@ -170,15 +170,13 @@ dsl_sync_task_sig(const char *pool, dsl_checkfunc_t *checkfunc,
 
 static void
 dsl_sync_task_nowait_common(dsl_pool_t *dp, dsl_syncfunc_t *syncfunc, void *arg,
-    int blocks_modified, zfs_space_check_t space_check, dmu_tx_t *tx,
-    boolean_t early)
+    dmu_tx_t *tx, boolean_t early)
 {
 	dsl_sync_task_t *dst = kmem_zalloc(sizeof (*dst), KM_SLEEP);
 
 	dst->dst_pool = dp;
 	dst->dst_txg = dmu_tx_get_txg(tx);
-	dst->dst_space = blocks_modified << DST_AVG_BLKSHIFT;
-	dst->dst_space_check = space_check;
+	dst->dst_space_check = ZFS_SPACE_CHECK_NONE;
 	dst->dst_checkfunc = dsl_null_checkfunc;
 	dst->dst_syncfunc = syncfunc;
 	dst->dst_arg = arg;
@@ -192,18 +190,16 @@ dsl_sync_task_nowait_common(dsl_pool_t *dp, dsl_syncfunc_t *syncfunc, void *arg,
 
 void
 dsl_sync_task_nowait(dsl_pool_t *dp, dsl_syncfunc_t *syncfunc, void *arg,
-    int blocks_modified, zfs_space_check_t space_check, dmu_tx_t *tx)
+    dmu_tx_t *tx)
 {
-	dsl_sync_task_nowait_common(dp, syncfunc, arg,
-	    blocks_modified, space_check, tx, B_FALSE);
+	dsl_sync_task_nowait_common(dp, syncfunc, arg, tx, B_FALSE);
 }
 
 void
 dsl_early_sync_task_nowait(dsl_pool_t *dp, dsl_syncfunc_t *syncfunc, void *arg,
-    int blocks_modified, zfs_space_check_t space_check, dmu_tx_t *tx)
+    dmu_tx_t *tx)
 {
-	dsl_sync_task_nowait_common(dp, syncfunc, arg,
-	    blocks_modified, space_check, tx, B_TRUE);
+	dsl_sync_task_nowait_common(dp, syncfunc, arg, tx, B_TRUE);
 }
 
 /*
