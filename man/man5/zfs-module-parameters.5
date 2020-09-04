@@ -1,6 +1,6 @@
 '\" te
 .\" Copyright (c) 2013 by Turbo Fredriksson <turbo@bayour.com>. All rights reserved.
-.\" Copyright (c) 2019 by Delphix. All rights reserved.
+.\" Copyright (c) 2019, 2020 by Delphix. All rights reserved.
 .\" Copyright (c) 2019 Datto Inc.
 .\" The contents of this file are subject to the terms of the Common Development
 .\" and Distribution License (the "License").  You may not use this file except
@@ -3670,6 +3670,27 @@ Default value: \fB0\fR.
 
 .sp
 .ne 2
+.na
+\fBzfs_zevent_retain_max\fR (int)
+.ad
+.RS 12n
+Maximum recent zevent records to retain for duplicate checking.  Setting
+this value to zero disables duplicate detection.
+.sp
+Default value: \fB2000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_zevent_retain_expire_secs\fR (int)
+.ad
+.RS 12n
+Lifespan for a recent ereport that was retained for duplicate checking.
+.sp
+Default value: \fB900\fR.
+.RE
+
 .na
 \fBzfs_zil_clean_taskq_maxalloc\fR (int)
 .ad

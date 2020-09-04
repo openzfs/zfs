@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2019 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
  * Copyright (c) 2018, Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  * Copyright 2013 Saso Kiselkov. All rights reserved.
@@ -2706,8 +2706,7 @@ spa_livelist_condense_cb(void *arg, zthr_t *t)
 			lca->first_size = first_size;
 			lca->next_size = next_size;
 			dsl_sync_task_nowait(spa_get_dsl(spa),
-			    spa_livelist_condense_sync, lca, 0,
-			    ZFS_SPACE_CHECK_NONE, tx);
+			    spa_livelist_condense_sync, lca, tx);
 			dmu_tx_commit(tx);
 			return;
 		}
@@ -2887,7 +2886,7 @@ spa_load(spa_t *spa, spa_load_state_t state, spa_import_type_t type)
 		}
 		if (error != EBADF) {
 			(void) zfs_ereport_post(ereport, spa,
-			    NULL, NULL, NULL, 0, 0);
+			    NULL, NULL, NULL, 0);
 		}
 	}
 	spa->spa_load_state = error ? SPA_LOAD_ERROR : SPA_LOAD_NONE;

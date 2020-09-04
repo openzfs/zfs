@@ -1167,8 +1167,8 @@ vdev_remove_replace_with_indirect(vdev_t *vd, uint64_t txg)
 
 	/* After this, we can not use svr. */
 	tx = dmu_tx_create_assigned(spa->spa_dsl_pool, txg);
-	dsl_sync_task_nowait(spa->spa_dsl_pool, vdev_remove_complete_sync, svr,
-	    0, ZFS_SPACE_CHECK_NONE, tx);
+	dsl_sync_task_nowait(spa->spa_dsl_pool,
+	    vdev_remove_complete_sync, svr, tx);
 	dmu_tx_commit(tx);
 }
 
@@ -1322,7 +1322,7 @@ spa_vdev_copy_impl(vdev_t *vd, spa_vdev_removal_t *svr, vdev_copy_arg_t *vca,
 
 	if (svr->svr_max_offset_to_sync[txg & TXG_MASK] == 0) {
 		dsl_sync_task_nowait(dmu_tx_pool(tx), vdev_mapping_sync,
-		    svr, 0, ZFS_SPACE_CHECK_NONE, tx);
+		    svr, tx);
 	}
 
 	svr->svr_max_offset_to_sync[txg & TXG_MASK] = range_tree_max(segs);
@@ -2159,8 +2159,7 @@ spa_vdev_remove_top(vdev_t *vd, uint64_t *txg)
 	vdev_config_dirty(vd);
 	dmu_tx_t *tx = dmu_tx_create_assigned(spa->spa_dsl_pool, *txg);
 	dsl_sync_task_nowait(spa->spa_dsl_pool,
-	    vdev_remove_initiate_sync,
-	    (void *)(uintptr_t)vd->vdev_id, 0, ZFS_SPACE_CHECK_NONE, tx);
+	    vdev_remove_initiate_sync, (void *)(uintptr_t)vd->vdev_id, tx);
 	dmu_tx_commit(tx);
 
 	return (0);
