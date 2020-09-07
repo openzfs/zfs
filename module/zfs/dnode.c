@@ -1949,18 +1949,20 @@ static void
 dnode_dirty_l1range(dnode_t *dn, uint64_t start_blkid, uint64_t end_blkid,
     dmu_tx_t *tx)
 {
-	dmu_buf_impl_t db_search;
+	dmu_buf_impl_t *db_search;
 	dmu_buf_impl_t *db;
 	avl_index_t where;
 
+	db_search = kmem_zalloc(sizeof (dmu_buf_impl_t), KM_SLEEP);
+
 	mutex_enter(&dn->dn_dbufs_mtx);
 
-	db_search.db_level = 1;
-	db_search.db_blkid = start_blkid + 1;
-	db_search.db_state = DB_SEARCH;
+	db_search->db_level = 1;
+	db_search->db_blkid = start_blkid + 1;
+	db_search->db_state = DB_SEARCH;
 	for (;;) {
 
-		db = avl_find(&dn->dn_dbufs, &db_search, &where);
+		db = avl_find(&dn->dn_dbufs, db_search, &where);
 		if (db == NULL)
 			db = avl_nearest(&dn->dn_dbufs, where, AVL_AFTER);
 
@@ -1972,7 +1974,7 @@ dnode_dirty_l1range(dnode_t *dn, uint64_t start_blkid, uint64_t end_blkid,
 		/*
 		 * Setup the next blkid we want to search for.
 		 */
-		db_search.db_blkid = db->db_blkid + 1;
+		db_search->db_blkid = db->db_blkid + 1;
 		ASSERT3U(db->db_blkid, >=, start_blkid);
 
 		/*
@@ -1992,10 +1994,10 @@ dnode_dirty_l1range(dnode_t *dn, uint64_t start_blkid, uint64_t end_blkid,
 	/*
 	 * Walk all the in-core level-1 dbufs and verify they have been dirtied.
 	 */
-	db_search.db_level = 1;
-	db_search.db_blkid = start_blkid + 1;
-	db_search.db_state = DB_SEARCH;
-	db = avl_find(&dn->dn_dbufs, &db_search, &where);
+	db_search->db_level = 1;
+	db_search->db_blkid = start_blkid + 1;
+	db_search->db_state = DB_SEARCH;
+	db = avl_find(&dn->dn_dbufs, db_search, &where);
 	if (db == NULL)
 		db = avl_nearest(&dn->dn_dbufs, where, AVL_AFTER);
 	for (; db != NULL; db = AVL_NEXT(&dn->dn_dbufs, db)) {
@@ -2005,6 +2007,7 @@ dnode_dirty_l1range(dnode_t *dn, uint64_t start_blkid, uint64_t end_blkid,
 			ASSERT(db->db_dirtycnt > 0);
 	}
 #endif
+	kmem_free(db_search, sizeof (dmu_buf_impl_t));
 	mutex_exit(&dn->dn_dbufs_mtx);
 }
 
