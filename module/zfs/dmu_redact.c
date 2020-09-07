@@ -1078,6 +1078,8 @@ dmu_redact_snap(const char *snapname, nvlist_t *redactnvl,
 		dsl_pool_rele(dp, FTAG);
 		kmem_free(newredactbook,
 		    sizeof (char) * ZFS_MAX_DATASET_NAME_LEN);
+		if (args != NULL)
+			kmem_free(args, numsnaps * sizeof (*args));
 		return (SET_ERROR(ENAMETOOLONG));
 	}
 	err = dsl_bookmark_lookup(dp, newredactbook, NULL, &bookmark);
