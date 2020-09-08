@@ -1197,7 +1197,7 @@ dnode_special_open(objset_t *os, dnode_phys_t *dnp, uint64_t object,
 	dnode_t *dn;
 
 	zrl_init(&dnh->dnh_zrlock);
-	zrl_tryenter(&dnh->dnh_zrlock);
+	VERIFY3U(1, ==, zrl_tryenter(&dnh->dnh_zrlock));
 
 	dn = dnode_create(os, dnp, NULL, object, dnh);
 	DNODE_VERIFY(dn);
