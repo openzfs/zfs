@@ -72,9 +72,6 @@ zpool_relabel_disk(libzfs_handle_t *hdl, const char *path, const char *msg)
 	 * It's possible that we might encounter an error if the device
 	 * does not have any unallocated space left. If so, we simply
 	 * ignore that error and continue on.
-	 *
-	 * Also, we don't call efi_rescan() - that would just return EBUSY.
-	 * The module will do it for us in vdev_disk_open().
 	 */
 	error = efi_use_whole_disk(fd);
 
