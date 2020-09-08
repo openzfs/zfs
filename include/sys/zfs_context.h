@@ -602,9 +602,9 @@ typedef struct vsecattr {
 extern void delay(clock_t ticks);
 
 #define	SEC_TO_TICK(sec)	((sec) * hz)
-#define	MSEC_TO_TICK(msec)	((msec) / (MILLISEC / hz))
-#define	USEC_TO_TICK(usec)	((usec) / (MICROSEC / hz))
-#define	NSEC_TO_TICK(usec)	((usec) / (NANOSEC / hz))
+#define	MSEC_TO_TICK(msec)	(howmany((hrtime_t)(msec) * hz, MILLISEC))
+#define	USEC_TO_TICK(usec)	(howmany((hrtime_t)(usec) * hz, MICROSEC))
+#define	NSEC_TO_TICK(nsec)	(howmany((hrtime_t)(nsec) * hz, NANOSEC))
 
 #define	max_ncpus	64
 #define	boot_ncpus	(sysconf(_SC_NPROCESSORS_ONLN))

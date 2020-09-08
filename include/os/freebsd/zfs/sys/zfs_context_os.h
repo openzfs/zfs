@@ -72,7 +72,7 @@ extern struct mtx zfs_debug_mtx;
 	}	   \
 } while (0)
 
-#define	MSEC_TO_TICK(msec)	((msec) / (MILLISEC / hz))
+#define	MSEC_TO_TICK(msec)	(howmany((hrtime_t)(msec) * hz, MILLISEC))
 extern int hz;
 extern int tick;
 typedef int fstrans_cookie_t;
