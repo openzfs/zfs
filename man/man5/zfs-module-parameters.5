@@ -201,6 +201,22 @@ Default value: \fB200\fR%.
 .sp
 .ne 2
 .na
+\fBl2arc_mfuonly\fR (int)
+.ad
+.RS 12n
+Controls whether only MFU metadata and data are cached from ARC into L2ARC.
+This may be desired to avoid wasting space on L2ARC when reading/writing large
+amounts of data that are not expected to be accessed more than once. The
+default is \fB0\fR, meaning both MRU and MFU data and metadata are cached.
+When turning off (\fB0\fR) this feature some MRU buffers will still be present
+in ARC and eventually cached on L2ARC.
+.sp
+Use \fB0\fR for no (default) and \fB1\fR for yes.
+.RE
+
+.sp
+.ne 2
+.na
 \fBl2arc_meta_percent\fR (int)
 .ad
 .RS 12n
