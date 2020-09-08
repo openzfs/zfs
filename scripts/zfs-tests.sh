@@ -308,7 +308,7 @@ constrain_path() {
 usage() {
 cat << EOF
 USAGE:
-$0 [hvqxkfS] [-s SIZE] [-r RUNFILES] [-t PATH] [-u USER]
+$0 [-hvqxkfS] [-s SIZE] [-r RUNFILES] [-t PATH] [-u USER]
 
 DESCRIPTION:
 	ZFS Test Suite launch script
