@@ -4638,13 +4638,13 @@ zfs_inactive(vnode_t *vp, cred_t *cr, caller_context_t *ct)
 	zfsvfs_t *zfsvfs = zp->z_zfsvfs;
 	int error;
 
-	rw_enter(&zfsvfs->z_teardown_inactive_lock, RW_READER);
+	ZFS_RLOCK_TEARDOWN_INACTIVE(zfsvfs);
 	if (zp->z_sa_hdl == NULL) {
 		/*
 		 * The fs has been unmounted, or we did a
 		 * suspend/resume and this file no longer exists.
 		 */
-		rw_exit(&zfsvfs->z_teardown_inactive_lock);
+		ZFS_RUNLOCK_TEARDOWN_INACTIVE(zfsvfs);
 		vrecycle(vp);
 		return;
 	}
@@ -4653,7 +4653,7 @@ zfs_inactive(vnode_t *vp, cred_t *cr, caller_context_t *ct)
 		/*
 		 * Fast path to recycle a vnode of a removed file.
 		 */
-		rw_exit(&zfsvfs->z_teardown_inactive_lock);
+		ZFS_RUNLOCK_TEARDOWN_INACTIVE(zfsvfs);
 		vrecycle(vp);
 		return;
 	}
@@ -4673,7 +4673,7 @@ zfs_inactive(vnode_t *vp, cred_t *cr, caller_context_t *ct)
 			dmu_tx_commit(tx);
 		}
 	}
-	rw_exit(&zfsvfs->z_teardown_inactive_lock);
+	ZFS_RUNLOCK_TEARDOWN_INACTIVE(zfsvfs);
 }
 
 
@@ -5823,10 +5823,10 @@ zfs_freebsd_need_inactive(struct vop_need_inactive_args *ap)
 	if (vn_need_pageq_flush(vp))
 		return (1);
 
-	if (!rw_tryenter(&zfsvfs->z_teardown_inactive_lock, RW_READER))
+	if (!ZFS_TRYRLOCK_TEARDOWN_INACTIVE(zfsvfs))
 		return (1);
 	need = (zp->z_sa_hdl == NULL || zp->z_unlinked || zp->z_atime_dirty);
-	rw_exit(&zfsvfs->z_teardown_inactive_lock);
+	ZFS_RUNLOCK_TEARDOWN_INACTIVE(zfsvfs);
 
 	return (need);
 }
@@ -5857,12 +5857,12 @@ zfs_freebsd_reclaim(struct vop_reclaim_args *ap)
 	 * zfs_znode_dmu_fini in zfsvfs_teardown during
 	 * force unmount.
 	 */
-	rw_enter(&zfsvfs->z_teardown_inactive_lock, RW_READER);
+	ZFS_RLOCK_TEARDOWN_INACTIVE(zfsvfs);
 	if (zp->z_sa_hdl == NULL)
 		zfs_znode_free(zp);
 	else
 		zfs_zinactive(zp);
-	rw_exit(&zfsvfs->z_teardown_inactive_lock);
+	ZFS_RUNLOCK_TEARDOWN_INACTIVE(zfsvfs);
 
 	vp->v_data = NULL;
 	return (0);
