@@ -97,12 +97,15 @@ for nparity in 1 2 3; do
 	typeset pool_size=$(get_pool_prop size $pool)
 
 	for disk in ${disks[$(($nparity+1))+1..$devs]}; do
+		log_must dd if=/dev/urandom of=/${pool}/FILE-$RANDOM bs=1M \
+		    count=128
+
 		log_must zpool attach $pool ${raid}-0 $disk
 
 		wait_expand_completion
 
-		log_must zpool export $pool
-		log_must zpool import $opts -d $dir $pool
+		# Wait some time for pool size increase
+		sleep 5
 
 		typeset disk_attached=$(get_disklist $pool | grep $disk)
 		if [[ -z $disk_attached ]]; then
@@ -113,6 +116,8 @@ for nparity in 1 2 3; do
 		if [[ "$expand_size" -le "$pool_size" ]]; then
 			log_fail "pool $pool not expanded"
 		fi
+
+		verify_pool $pool
 
 		pool_size=$expand_size
 	done
