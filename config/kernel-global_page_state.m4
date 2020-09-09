@@ -94,9 +94,6 @@ AC_DEFUN([ZFS_AC_KERNEL_GLOBAL_ZONE_PAGE_STATE_SANITY], [
 	ZFS_AC_KERNEL_GLOBAL_PAGE_STATE_ENUM_CHECK([NR_FILE_PAGES])
 	ZFS_AC_KERNEL_GLOBAL_PAGE_STATE_ENUM_CHECK([NR_INACTIVE_ANON])
 	ZFS_AC_KERNEL_GLOBAL_PAGE_STATE_ENUM_CHECK([NR_INACTIVE_FILE])
-    AS_IF([test -z "$ZFS_ENUM_NODE_STAT_ITEM_NR_SLAB_RECLAIMABLE_B"],[
-	    ZFS_AC_KERNEL_GLOBAL_PAGE_STATE_ENUM_CHECK([NR_SLAB_RECLAIMABLE])
-    ])
 
 	AC_MSG_RESULT(yes)
 ])
@@ -119,18 +116,12 @@ AC_DEFUN([ZFS_AC_KERNEL_GLOBAL_PAGE_STATE], [
 	    [node_stat_item], [$LINUX/include/linux/mmzone.h])
 	ZFS_AC_KERNEL_ENUM_MEMBER([NR_INACTIVE_FILE],
 	    [node_stat_item], [$LINUX/include/linux/mmzone.h])
-	ZFS_AC_KERNEL_ENUM_MEMBER([NR_SLAB_RECLAIMABLE],
-	    [node_stat_item], [$LINUX/include/linux/mmzone.h])
-	ZFS_AC_KERNEL_ENUM_MEMBER([NR_SLAB_RECLAIMABLE_B],
-	    [node_stat_item], [$LINUX/include/linux/mmzone.h])
 
 	ZFS_AC_KERNEL_ENUM_MEMBER([NR_FILE_PAGES],
 	    [zone_stat_item], [$LINUX/include/linux/mmzone.h])
 	ZFS_AC_KERNEL_ENUM_MEMBER([NR_INACTIVE_ANON],
 	    [zone_stat_item], [$LINUX/include/linux/mmzone.h])
 	ZFS_AC_KERNEL_ENUM_MEMBER([NR_INACTIVE_FILE],
-	    [zone_stat_item], [$LINUX/include/linux/mmzone.h])
-	ZFS_AC_KERNEL_ENUM_MEMBER([NR_SLAB_RECLAIMABLE],
 	    [zone_stat_item], [$LINUX/include/linux/mmzone.h])
 
 	ZFS_AC_KERNEL_GLOBAL_ZONE_PAGE_STATE_SANITY
