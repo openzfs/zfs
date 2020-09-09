@@ -384,7 +384,7 @@ zfs_znode_dmu_fini(znode_t *zp)
 {
 	ASSERT(MUTEX_HELD(ZFS_OBJ_MUTEX(zp->z_zfsvfs, zp->z_id)) ||
 	    zp->z_unlinked ||
-	    RW_WRITE_HELD(&zp->z_zfsvfs->z_teardown_inactive_lock));
+	    ZFS_TEARDOWN_INACTIVE_WLOCKED(zp->z_zfsvfs));
 
 	sa_handle_destroy(zp->z_sa_hdl);
 	zp->z_sa_hdl = NULL;

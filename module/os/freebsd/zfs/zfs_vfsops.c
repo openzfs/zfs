@@ -975,7 +975,7 @@ zfsvfs_create_impl(zfsvfs_t **zfvp, zfsvfs_t *zfsvfs, objset_t *os)
 #else
 	rrm_init(&zfsvfs->z_teardown_lock, B_FALSE);
 #endif
-	rw_init(&zfsvfs->z_teardown_inactive_lock, NULL, RW_DEFAULT, NULL);
+	ZFS_INIT_TEARDOWN_INACTIVE(zfsvfs);
 	rw_init(&zfsvfs->z_fuid_lock, NULL, RW_DEFAULT, NULL);
 	for (int i = 0; i != ZFS_OBJ_MTX_SZ; i++)
 		mutex_init(&zfsvfs->z_hold_mtx[i], NULL, MUTEX_DEFAULT, NULL);
@@ -1126,7 +1126,7 @@ zfsvfs_free(zfsvfs_t *zfsvfs)
 	ASSERT(zfsvfs->z_nr_znodes == 0);
 	list_destroy(&zfsvfs->z_all_znodes);
 	rrm_destroy(&zfsvfs->z_teardown_lock);
-	rw_destroy(&zfsvfs->z_teardown_inactive_lock);
+	ZFS_DESTROY_TEARDOWN_INACTIVE(zfsvfs);
 	rw_destroy(&zfsvfs->z_fuid_lock);
 	for (i = 0; i != ZFS_OBJ_MTX_SZ; i++)
 		mutex_destroy(&zfsvfs->z_hold_mtx[i]);
@@ -1545,7 +1545,7 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 		zfsvfs->z_log = NULL;
 	}
 
-	rw_enter(&zfsvfs->z_teardown_inactive_lock, RW_WRITER);
+	ZFS_WLOCK_TEARDOWN_INACTIVE(zfsvfs);
 
 	/*
 	 * If we are not unmounting (ie: online recv) and someone already
@@ -1553,7 +1553,7 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 	 * or a reopen of z_os failed then just bail out now.
 	 */
 	if (!unmounting && (zfsvfs->z_unmounted || zfsvfs->z_os == NULL)) {
-		rw_exit(&zfsvfs->z_teardown_inactive_lock);
+		ZFS_WUNLOCK_TEARDOWN_INACTIVE(zfsvfs);
 		rrm_exit(&zfsvfs->z_teardown_lock, FTAG);
 		return (SET_ERROR(EIO));
 	}
@@ -1581,7 +1581,7 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 	 */
 	if (unmounting) {
 		zfsvfs->z_unmounted = B_TRUE;
-		rw_exit(&zfsvfs->z_teardown_inactive_lock);
+		ZFS_WUNLOCK_TEARDOWN_INACTIVE(zfsvfs);
 		rrm_exit(&zfsvfs->z_teardown_lock, FTAG);
 	}
 
@@ -1901,7 +1901,7 @@ zfs_resume_fs(zfsvfs_t *zfsvfs, dsl_dataset_t *ds)
 	znode_t *zp;
 
 	ASSERT(RRM_WRITE_HELD(&zfsvfs->z_teardown_lock));
-	ASSERT(RW_WRITE_HELD(&zfsvfs->z_teardown_inactive_lock));
+	ASSERT(ZFS_TEARDOWN_INACTIVE_WLOCKED(zfsvfs));
 
 	/*
 	 * We already own this, so just update the objset_t, as the one we
@@ -1939,7 +1939,7 @@ zfs_resume_fs(zfsvfs_t *zfsvfs, dsl_dataset_t *ds)
 
 bail:
 	/* release the VOPs */
-	rw_exit(&zfsvfs->z_teardown_inactive_lock);
+	ZFS_WUNLOCK_TEARDOWN_INACTIVE(zfsvfs);
 	rrm_exit(&zfsvfs->z_teardown_lock, FTAG);
 
 	if (err) {
@@ -2056,7 +2056,7 @@ int
 zfs_end_fs(zfsvfs_t *zfsvfs, dsl_dataset_t *ds)
 {
 	ASSERT(RRM_WRITE_HELD(&zfsvfs->z_teardown_lock));
-	ASSERT(RW_WRITE_HELD(&zfsvfs->z_teardown_inactive_lock));
+	ASSERT(ZFS_TEARDOWN_INACTIVE_WLOCKED(zfsvfs));
 
 	/*
 	 * We already own this, so just hold and rele it to update the
@@ -2072,7 +2072,7 @@ zfs_end_fs(zfsvfs_t *zfsvfs, dsl_dataset_t *ds)
 	zfsvfs->z_os = os;
 
 	/* release the VOPs */
-	rw_exit(&zfsvfs->z_teardown_inactive_lock);
+	ZFS_WUNLOCK_TEARDOWN_INACTIVE(zfsvfs);
 	rrm_exit(&zfsvfs->z_teardown_lock, FTAG);
 
 	/*

@@ -27,16 +27,29 @@
 #ifndef	_SYS_FS_ZFS_VFSOPS_H
 #define	_SYS_FS_ZFS_VFSOPS_H
 
+#if __FreeBSD_version >= 1300109
+#define	TEARDOWN_INACTIVE_RMS
+#endif
+
 #include <sys/dataset_kstats.h>
 #include <sys/list.h>
 #include <sys/vfs.h>
 #include <sys/zil.h>
 #include <sys/sa.h>
 #include <sys/rrwlock.h>
+#ifdef TEARDOWN_INACTIVE_RMS
+#include <sys/rmlock.h>
+#endif
 #include <sys/zfs_ioctl.h>
 
 #ifdef	__cplusplus
 extern "C" {
+#endif
+
+#ifdef TEARDOWN_INACTIVE_RMS
+typedef struct rmslock zfs_teardown_lock_t;
+#else
+#define	zfs_teardown_lock_t krwlock_t
 #endif
 
 typedef struct zfsvfs zfsvfs_t;
@@ -67,7 +80,7 @@ struct zfsvfs {
 	boolean_t	z_atime;	/* enable atimes mount option */
 	boolean_t	z_unmounted;	/* unmounted */
 	rrmlock_t	z_teardown_lock;
-	krwlock_t	z_teardown_inactive_lock;
+	zfs_teardown_lock_t z_teardown_inactive_lock;
 	list_t		z_all_znodes;	/* all vnodes in the fs */
 	uint64_t	z_nr_znodes;	/* number of znodes in the fs */
 	kmutex_t	z_znodes_lock;	/* lock for z_all_znodes */
@@ -97,6 +110,56 @@ struct zfsvfs {
 	kmutex_t	z_hold_mtx[ZFS_OBJ_MTX_SZ];	/* znode hold locks */
 	struct task	z_unlinked_drain_task;
 };
+
+#ifdef TEARDOWN_INACTIVE_RMS
+#define	ZFS_INIT_TEARDOWN_INACTIVE(zfsvfs)	\
+	rms_init(&(zfsvfs)->z_teardown_inactive_lock, "zfs teardown inactive")
+
+#define	ZFS_DESTROY_TEARDOWN_INACTIVE(zfsvfs)	\
+	rms_destroy(&(zfsvfs)->z_teardown_inactive_lock)
+
+#define	ZFS_TRYRLOCK_TEARDOWN_INACTIVE(zfsvfs)	\
+	rms_try_rlock(&(zfsvfs)->z_teardown_inactive_lock)
+
+#define	ZFS_RLOCK_TEARDOWN_INACTIVE(zfsvfs)	\
+	rms_rlock(&(zfsvfs)->z_teardown_inactive_lock)
+
+#define	ZFS_RUNLOCK_TEARDOWN_INACTIVE(zfsvfs)	\
+	rms_runlock(&(zfsvfs)->z_teardown_inactive_lock)
+
+#define	ZFS_WLOCK_TEARDOWN_INACTIVE(zfsvfs)	\
+	rms_wlock(&(zfsvfs)->z_teardown_inactive_lock)
+
+#define	ZFS_WUNLOCK_TEARDOWN_INACTIVE(zfsvfs)	\
+	rms_wunlock(&(zfsvfs)->z_teardown_inactive_lock)
+
+#define	ZFS_TEARDOWN_INACTIVE_WLOCKED(zfsvfs)	\
+	rms_wowned(&(zfsvfs)->z_teardown_inactive_lock)
+#else
+#define	ZFS_INIT_TEARDOWN_INACTIVE(zfsvfs)	\
+	rw_init(&(zfsvfs)->z_teardown_inactive_lock, NULL, RW_DEFAULT, NULL)
+
+#define	ZFS_DESTROY_TEARDOWN_INACTIVE(zfsvfs)	\
+	rw_destroy(&(zfsvfs)->z_teardown_inactive_lock)
+
+#define	ZFS_TRYRLOCK_TEARDOWN_INACTIVE(zfsvfs)	\
+	rw_tryenter(&(zfsvfs)->z_teardown_inactive_lock, RW_READER)
+
+#define	ZFS_RLOCK_TEARDOWN_INACTIVE(zfsvfs)	\
+	rw_enter(&(zfsvfs)->z_teardown_inactive_lock, RW_READER)
+
+#define	ZFS_RUNLOCK_TEARDOWN_INACTIVE(zfsvfs)	\
+	rw_exit(&(zfsvfs)->z_teardown_inactive_lock)
+
+#define	ZFS_WLOCK_TEARDOWN_INACTIVE(zfsvfs)	\
+	rw_enter(&(zfsvfs)->z_teardown_inactive_lock, RW_WRITER)
+
+#define	ZFS_WUNLOCK_TEARDOWN_INACTIVE(zfsvfs)	\
+	rw_exit(&(zfsvfs)->z_teardown_inactive_lock)
+
+#define	ZFS_TEARDOWN_INACTIVE_WLOCKED(zfsvfs)	\
+	RW_WRITE_HELD(&(zfsvfs)->z_teardown_inactive_lock)
+#endif
 
 #define	ZSB_XATTR	0x0001		/* Enable user xattrs */
 /*
