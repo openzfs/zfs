@@ -6281,8 +6281,8 @@ top:
 				 */
 				if (!embedded_bp) {
 					DTRACE_PROBE1(l2arc__miss,
-    							  arc_buf_hdr_t *,
-    							  hdr);
+								    arc_buf_hdr_t *,
+								    hdr);
 					ARCSTAT_BUMP(arcstat_l2_misses);
 				}
 			}
