@@ -253,9 +253,10 @@ zfs_prop_init(void)
 
 	static zprop_index_t acltype_table[] = {
 		{ "off",	ZFS_ACLTYPE_OFF },
-		{ "disabled",	ZFS_ACLTYPE_OFF },
-		{ "noacl",	ZFS_ACLTYPE_OFF },
-		{ "posixacl",	ZFS_ACLTYPE_POSIXACL },
+		{ "posix",	ZFS_ACLTYPE_POSIX },
+		{ "disabled",	ZFS_ACLTYPE_OFF }, /* bkwrd compatibility */
+		{ "noacl",	ZFS_ACLTYPE_OFF }, /* bkwrd compatibility */
+		{ "posixacl",	ZFS_ACLTYPE_POSIX }, /* bkwrd compatibility */
 		{ NULL }
 	};
 
@@ -430,7 +431,7 @@ zfs_prop_init(void)
 #ifndef __FreeBSD__
 	zprop_register_index(ZFS_PROP_ACLTYPE, "acltype", ZFS_ACLTYPE_OFF,
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT,
-	    "noacl | posixacl", "ACLTYPE", acltype_table);
+	    "off | posix", "ACLTYPE", acltype_table);
 #endif
 	zprop_register_index(ZFS_PROP_ACLINHERIT, "aclinherit",
 	    ZFS_ACL_RESTRICTED, PROP_INHERIT, ZFS_TYPE_FILESYSTEM,
@@ -705,7 +706,7 @@ zfs_prop_init(void)
 	zprop_register_impl(ZFS_PROP_ACLTYPE, "acltype", PROP_TYPE_INDEX,
 	    ZFS_ACLTYPE_OFF, NULL, PROP_INHERIT,
 	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT,
-	    "noacl | posixacl", "ACLTYPE", B_FALSE, B_FALSE, acltype_table);
+	    "off | posix", "ACLTYPE", B_FALSE, B_FALSE, acltype_table);
 #endif
 	zprop_register_hidden(ZFS_PROP_REMAPTXG, "remaptxg", PROP_TYPE_NUMBER,
 	    PROP_READONLY, ZFS_TYPE_DATASET, "REMAPTXG");

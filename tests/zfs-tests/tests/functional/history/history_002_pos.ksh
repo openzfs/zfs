@@ -72,8 +72,8 @@ props=(
 	mountpoint	/history.$$	mountpoint	legacy
 	mountpoint	none		compression	lz4
 	compression	on		compression	off
-	compression	lzjb		acltype		noacl
-	acltype		posixacl	xattr		sa
+	compression	lzjb		acltype		off
+	acltype		posix		xattr		sa
 	atime		on		atime		off
 	devices		on		devices		off
 	exec		on		exec		off
