@@ -6166,7 +6166,8 @@ top:
 			    metadata, misses);
 		}
 
-		if (vd != NULL && l2arc_ndev != 0 && !(l2arc_norw && devw)) {
+		if (vd != NULL && l2arc_ndev != 0 &&
+			HDR_L2CACHE(hdr) && !(l2arc_norw && devw)) {
 			/*
 			 * Read from the L2ARC if the following are true:
 			 * 1. The L2ARC vdev was previously cached.
@@ -6267,15 +6268,18 @@ top:
 		} else {
 			if (vd != NULL)
 				spa_config_exit(spa, SCL_L2ARC, vd);
-			/*
-			 * Skip ARC stat bump for block pointers with
-			 * embedded data. The data are read from the blkptr
-			 * itself via decode_embedded_bp_compressed().
-			 */
-			if (l2arc_ndev != 0 && !embedded_bp) {
-				DTRACE_PROBE1(l2arc__miss,
-				    arc_buf_hdr_t *, hdr);
-				ARCSTAT_BUMP(arcstat_l2_misses);
+			/* If it wasn't even supposed to be in L2, that's not a miss */
+			if (l2arc_ndev != 0 && HDR_L2CACHE(hdr)) {
+				/*
+				 * Skip ARC stat bump for block pointers with
+				 * embedded data. The data are read from the blkptr
+				 * itself via decode_embedded_bp_compressed().
+				 */
+				if (!embedded_bp) {
+					DTRACE_PROBE1(l2arc__miss,
+								  arc_buf_hdr_t *, hdr);
+					ARCSTAT_BUMP(arcstat_l2_misses);
+				}
 			}
 		}
 
