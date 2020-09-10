@@ -6268,8 +6268,10 @@ top:
 		} else {
 			if (vd != NULL)
 				spa_config_exit(spa, SCL_L2ARC, vd);
-			/* If it wasn't even supposed to be in L2, that's
-			 * not a miss */
+			/*
+			 * If it wasn't even supposed to be in L2, that's
+			 * not a miss
+			 */
 			if (l2arc_ndev != 0 && HDR_L2CACHE(hdr)) {
 				/*
 				 * Skip ARC stat bump for block pointers
@@ -6279,7 +6281,8 @@ top:
 				 */
 				if (!embedded_bp) {
 					DTRACE_PROBE1(l2arc__miss,
-								  arc_buf_hdr_t *, hdr);
+    							  arc_buf_hdr_t *,
+    							  hdr);
 					ARCSTAT_BUMP(arcstat_l2_misses);
 				}
 			}
