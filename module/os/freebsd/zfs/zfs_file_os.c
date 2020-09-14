@@ -234,13 +234,10 @@ drop:
 int
 zfs_file_fsync(zfs_file_t *fp, int flags)
 {
-	struct vnode *v;
-
 	if (fp->f_type != DTYPE_VNODE)
 		return (EINVAL);
 
-	v = fp->f_data;
-	return (zfs_vop_fsync(v));
+	return (zfs_vop_fsync(fp->f_vnode));
 }
 
 int
