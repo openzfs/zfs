@@ -1,0 +1,32 @@
+#!/usr/bin/make -f
+export DH_VERBOSE = 1
+
+%:
+	dh $@
+
+src!= dpkg --get-selections | awk '/^linux-headers-.*-common/ { print $$1 }'
+obj!= dpkg --get-selections | awk '/^linux-headers-.*-amd64/ { print $$1 }'
+krn!= dpkg --get-selections | awk '/^linux-image-.*-amd64/ { print $$1 }'
+kmod= kmod-zfs-$(subst linux-image-,,$(krn))
+
+override_dh_auto_configure:
+	dh_auto_configure -- \
+		--enable-debug --enable-debuginfo \
+		--with-linux=/usr/src/${src} \
+		--with-linux-obj=/usr/src/${obj}
+
+override_dh_auto_test:
+
+override_dh_shlibdeps:
+
+override_dh_auto_install:
+
+override_dh_gencontrol:
+	echo kmod=$(kmod) >> debian/openzfs.substvars
+	dh_gencontrol
+
+override_dh_builddeb:
+	$(MAKE) deb-kmod deb-utils
+	mv *.deb ../
+	mv ../openzfs-build-deps-depends_*.deb ./
+	dh_builddeb

@@ -1,0 +1,35 @@
+openzfs (2.1.0-0) unstable; urgency=medium
+
+  * Rebased to OpenZFS 2.1.0
+
+ -- Ryan Moeller <ryan@ixsystems.com>  Thu, 01 Apr 2021 13:00:00 -500
+
+openzfs (2.0.4-0) unstable; urgency=medium
+
+  * Rebased to OpenZFS 2.0.4
+
+ -- Ryan Moeller <ryan@ixsystems.com>  Tue, 09 Mar 2021 14:00:00 -0500
+
+openzfs (2.0.3-0) unstable; urgency=medium
+
+  * Rebased to OpenZFS 2.0.3
+
+ -- Ryan Moeller <ryan@ixsystems.com>  Wed, 24 Feb 2021 15:00:00 -0500
+
+openzfs (2.0.2-0) unstable; urgency=medium
+
+  * Rebased to OpenZFS 2.0.2
+
+ -- Ryan Moeller <ryan@ixsystems.com>  Mon, 01 Feb 2021 15:00:00 -0500
+
+openzfs (2.0.1-0) unstable; urgency=medium
+
+  * Rebased to OpenZFS 2.0.1
+
+ -- Ryan Moeller <ryan@ixsystems.com>  Thu, 07 Jan 2021 17:34:28 -0500
+
+openzfs (2.0.0-0) unstable; urgency=medium
+
+  * Initial package for TrueNAS SCALE based on OpenZFS 2.0.0
+
+ -- Ryan Moeller <ryan@ixsystems.com>  Mon, 14 Sep 2020 22:01:55 -0400

@@ -1,0 +1,10 @@
+Source: openzfs
+Maintainer: Ryan Moeller <ryan@iXsystems.com>
+Section: truenas
+Priority: extra
+Build-Depends: build-essential, autoconf, automake, libtool, gawk, alien, fakeroot, libblkid-dev, uuid-dev, libudev-dev, libssl-dev, zlib1g-dev, libaio-dev, libattr1-dev, libelf-dev, linux-image-amd64, linux-headers-amd64, python3, python3-dev, python3-setuptools, python3-cffi, libffi-dev
+
+Package: openzfs
+Architecture: amd64
+Depends: zfs, ${kmod}, linux-image-amd64, libnvpair3, libuutil3, libzfs5, libzpool5
+Description: OpenZFS 2.1 for TrueNAS SCALE
