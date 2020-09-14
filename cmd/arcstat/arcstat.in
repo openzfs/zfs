@@ -88,6 +88,12 @@ cols = {
     "mfug":       [4, 1000, "MFU ghost list hits per second"],
     "mrug":       [4, 1000, "MRU ghost list hits per second"],
     "eskip":      [5, 1000, "evict_skip per second"],
+    "el2skip":    [7, 1000, "evict skip, due to l2 writes, per second"],
+    "el2cach":    [7, 1024, "Size of L2 cached evictions per second"],
+    "el2el":      [5, 1024, "Size of L2 eligible evictions per second"],
+    "el2mfu":     [6, 1024, "Size of L2 eligible MFU evictions per second"],
+    "el2mru":     [6, 1024, "Size of L2 eligible MRU evictions per second"],
+    "el2inel":    [7, 1024, "Size of L2 ineligible evictions per second"],
     "mtxmis":     [6, 1000, "mutex_miss per second"],
     "dread":      [5, 1000, "Demand accesses per second"],
     "pread":      [5, 1000, "Prefetch accesses per second"],
@@ -96,6 +102,16 @@ cols = {
     "l2read":     [6, 1000, "Total L2ARC accesses per second"],
     "l2hit%":     [6, 100, "L2ARC access hit percentage"],
     "l2miss%":    [7, 100, "L2ARC access miss percentage"],
+    "l2pref":     [6, 1024, "L2ARC prefetch allocated size"],
+    "l2mfu":      [5, 1024, "L2ARC MFU allocated size"],
+    "l2mru":      [5, 1024, "L2ARC MRU allocated size"],
+    "l2data":     [6, 1024, "L2ARC data allocated size"],
+    "l2meta":     [6, 1024, "L2ARC metadata allocated size"],
+    "l2pref%":    [7, 100, "L2ARC prefetch percentage"],
+    "l2mfu%":     [6, 100, "L2ARC MFU percentage"],
+    "l2mru%":     [6, 100, "L2ARC MRU percentage"],
+    "l2data%":    [7, 100, "L2ARC data percentage"],
+    "l2meta%":    [7, 100, "L2ARC metadata percentage"],
     "l2asize":    [7, 1024, "Actual (compressed) size of the L2ARC"],
     "l2size":     [6, 1024, "Size of the L2ARC"],
     "l2bytes":    [7, 1024, "Bytes read per second from the L2ARC"],
@@ -436,6 +452,12 @@ def calculate():
     v["mrug"] = d["mru_ghost_hits"] / sint
     v["mfug"] = d["mfu_ghost_hits"] / sint
     v["eskip"] = d["evict_skip"] / sint
+    v["el2skip"] = d["evict_l2_skip"] / sint
+    v["el2cach"] = d["evict_l2_cached"] / sint
+    v["el2el"] = d["evict_l2_eligible"] / sint
+    v["el2mfu"] = d["evict_l2_eligible_mfu"] / sint
+    v["el2mru"] = d["evict_l2_eligible_mru"] / sint
+    v["el2inel"] = d["evict_l2_ineligible"] / sint
     v["mtxmis"] = d["mutex_miss"] / sint
 
     if l2exist:
@@ -448,6 +470,17 @@ def calculate():
         v["l2asize"] = cur["l2_asize"]
         v["l2size"] = cur["l2_size"]
         v["l2bytes"] = d["l2_read_bytes"] / sint
+
+        v["l2pref"] = cur["l2_prefetch_asize"]
+        v["l2mfu"] = cur["l2_mfu_asize"]
+        v["l2mru"] = cur["l2_mru_asize"]
+        v["l2data"] = cur["l2_bufc_data_asize"]
+        v["l2meta"] = cur["l2_bufc_metadata_asize"]
+        v["l2pref%"] = 100 * v["l2pref"] / v["l2asize"]
+        v["l2mfu%"] = 100 * v["l2mfu"] / v["l2asize"]
+        v["l2mru%"] = 100 * v["l2mru"] / v["l2asize"]
+        v["l2data%"] = 100 * v["l2data"] / v["l2asize"]
+        v["l2meta%"] = 100 * v["l2meta"] / v["l2asize"]
 
     v["grow"] = 0 if cur["arc_no_grow"] else 1
     v["need"] = cur["arc_need_free"]

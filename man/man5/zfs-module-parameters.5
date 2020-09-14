@@ -209,7 +209,16 @@ This may be desired to avoid wasting space on L2ARC when reading/writing large
 amounts of data that are not expected to be accessed more than once. The
 default is \fB0\fR, meaning both MRU and MFU data and metadata are cached.
 When turning off (\fB0\fR) this feature some MRU buffers will still be present
-in ARC and eventually cached on L2ARC.
+in ARC and eventually cached on L2ARC. If \fBl2arc_noprefetch\fR is set to 0,
+some prefetched buffers will be cached to L2ARC, and those might later
+transition to MRU, in which case the \fBl2arc_mru_asize\fR arcstat will not
+be 0. Regardless of \fBl2arc_noprefetch\fR, some MFU buffers might be evicted
+from ARC, accessed later on as prefetches and transition to MRU as prefetches.
+If accessed again they are counted as MRU and the \fBl2arc_mru_asize\fR arcstat
+will not be 0. The ARC status of L2ARC buffers when they were first cached in
+L2ARC can be seen in the \fBl2arc_mru_asize\fR, \fBl2arc_mfu_asize\fR and
+\fBl2arc_prefetch_asize\fR arcstats when importing the pool or onlining a cache
+device if persistent L2ARC is enabled.
 .sp
 Use \fB0\fR for no (default) and \fB1\fR for yes.
 .RE
@@ -254,9 +263,15 @@ Default value: \fB0\fR%.
 .ad
 .RS 12n
 Do not write buffers to L2ARC if they were prefetched but not used by
-applications.
+applications. In case there are prefetched buffers in L2ARC and this option
+is later set to \fB1\fR, we do not read the prefetched buffers from L2ARC.
+Setting this option to \fB0\fR is useful for caching sequential reads from the
+disks to L2ARC and serve those reads from L2ARC later on. This may be beneficial
+in case the L2ARC device is significantly faster in sequential reads than the
+disks of the pool.
 .sp
-Use \fB1\fR for yes (default) and \fB0\fR to disable.
+Use \fB1\fR to disable (default) and \fB0\fR to enable caching/reading
+prefetches to/from L2ARC..
 .RE
 
 .sp

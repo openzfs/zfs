@@ -19,7 +19,7 @@
 #
 
 . $STF_SUITE/include/libtest.shlib
-. $STF_SUITE/tests/functional/persist_l2arc/persist_l2arc.cfg
+. $STF_SUITE/tests/functional/l2arc/l2arc.cfg
 . $STF_SUITE/tests/functional/cli_root/zfs_load-key/zfs_load-key_common.kshlib
 
 #
@@ -30,7 +30,7 @@
 #	1. Create pool with a cache device.
 #	2. Create a an encrypted ZFS file system.
 #	3. Create a random file in the entrypted file system,
-#		smaller than the cache device, and random read for 30 sec.
+#		smaller than the cache device, and random read for 10 sec.
 #	4. Export pool.
 #	5. Read amount of log blocks written.
 #	6. Import pool.
@@ -89,7 +89,6 @@ log_must eval "echo $PASSPHRASE | zfs mount -l $TESTPOOL/$TESTFS1"
 
 typeset l2_hits_start=$(get_arcstat l2_hits)
 
-export RUNTIME=10
 log_must fio $FIO_SCRIPTS/random_reads.fio
 
 typeset l2_hits_end=$(get_arcstat l2_hits)

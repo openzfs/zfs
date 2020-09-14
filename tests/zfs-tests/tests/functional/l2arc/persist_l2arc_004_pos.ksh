@@ -19,26 +19,29 @@
 #
 
 . $STF_SUITE/include/libtest.shlib
-. $STF_SUITE/tests/functional/persist_l2arc/persist_l2arc.cfg
+. $STF_SUITE/tests/functional/l2arc/l2arc.cfg
 
 #
 # DESCRIPTION:
-#	Persistent L2ARC fails as expected when L2ARC_REBUILD_ENABLED = 0
+#	Persistent L2ARC restores all written log blocks
 #
 # STRATEGY:
-#	1. Set L2ARC_REBUILD_ENABLED = 0
-#	2. Create pool with a cache device.
-#	3. Create a random file in that pool and random read for 30 sec.
-#	4. Export pool.
+#	1. Create pool with a cache device.
+#	2. Create a random file in that pool, smaller than the cache device
+#		and random read for 10 sec.
+#	3. Export pool.
+#	4. Read amount of log blocks written.
 #	5. Import pool.
-#	6. Check in zpool iostat if the cache device has space allocated.
-#	7. Read the file written in (2) and check if l2_hits in
+#	6. Read amount of log blocks built.
+#	7. Compare the two amounts
+#	8. Read the file written in (2) and check if l2_hits in
 #		/proc/spl/kstat/zfs/arcstats increased.
+#	9. Check if the labels of the L2ARC device are intact.
 #
 
 verify_runnable "global"
 
-log_assert "Persistent L2ARC fails as expected when L2ARC_REBUILD_ENABLED = 0."
+log_assert "Persistent L2ARC restores all written log blocks."
 
 function cleanup
 {
@@ -46,7 +49,6 @@ function cleanup
 		destroy_pool $TESTPOOL
 	fi
 
-	log_must set_tunable32 L2ARC_REBUILD_ENABLED $rebuild_enabled
 	log_must set_tunable32 L2ARC_NOPREFETCH $noprefetch
 }
 log_onexit cleanup
@@ -55,15 +57,13 @@ log_onexit cleanup
 typeset noprefetch=$(get_tunable L2ARC_NOPREFETCH)
 log_must set_tunable32 L2ARC_NOPREFETCH 0
 
-# disable L2ARC rebuild
-typeset rebuild_enabled=$(get_tunable L2ARC_REBUILD_ENABLED)
-log_must set_tunable32 L2ARC_REBUILD_ENABLED 0
-
 typeset fill_mb=800
 typeset cache_sz=$(( 2 * $fill_mb ))
 export FILE_SIZE=$(( floor($fill_mb / $NUMJOBS) ))M
 
 log_must truncate -s ${cache_sz}M $VDEV_CACHE
+
+typeset log_blk_start=$(get_arcstat l2_log_blk_writes)
 
 log_must zpool create -f $TESTPOOL $VDEV cache $VDEV_CACHE
 
@@ -72,16 +72,29 @@ log_must fio $FIO_SCRIPTS/random_reads.fio
 
 log_must zpool export $TESTPOOL
 
-typeset l2_success_start=$(get_arcstat l2_rebuild_success)
+sleep 2
+
+typeset log_blk_end=$(get_arcstat l2_log_blk_writes)
+
+typeset log_blk_rebuild_start=$(get_arcstat l2_rebuild_log_blks)
 
 log_must zpool import -d $VDIR $TESTPOOL
-log_mustnot test "$(zpool iostat -Hpv $TESTPOOL $VDEV_CACHE | awk '{print $2}')" -gt 80000000
 
-typeset l2_success_end=$(get_arcstat l2_rebuild_success)
+typeset l2_hits_start=$(get_arcstat l2_hits)
 
-log_mustnot test $l2_success_end -gt $l2_success_start
+log_must fio $FIO_SCRIPTS/random_reads.fio
+
+typeset l2_hits_end=$(get_arcstat l2_hits)
+
+typeset log_blk_rebuild_end=$(get_arcstat l2_rebuild_log_blks)
+
+log_must test $(( $log_blk_rebuild_end - $log_blk_rebuild_start )) -eq \
+	$(( $log_blk_end - $log_blk_start ))
+
+log_must test $l2_hits_end -gt $l2_hits_start
+
+log_must zdb -lq $VDEV_CACHE
 
 log_must zpool destroy -f $TESTPOOL
-log_must set_tunable32 L2ARC_REBUILD_ENABLED $rebuild_enabled
 
-log_pass "Persistent L2ARC fails as expected when L2ARC_REBUILD_ENABLED = 0."
+log_pass "Persistent L2ARC restores all written log blocks."

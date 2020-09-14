@@ -598,6 +598,20 @@ def section_arc(kstats_dict):
     prt_i1('Deleted:', f_hits(arc_stats['deleted']))
     prt_i1('Mutex misses:', f_hits(arc_stats['mutex_miss']))
     prt_i1('Eviction skips:', f_hits(arc_stats['evict_skip']))
+    prt_i1('Eviction skips due to L2 writes:',
+           f_hits(arc_stats['evict_l2_skip']))
+    prt_i1('L2 cached evictions:', f_bytes(arc_stats['evict_l2_cached']))
+    prt_i1('L2 eligible evictions:', f_bytes(arc_stats['evict_l2_eligible']))
+    prt_i2('L2 eligible MFU evictions:',
+           f_perc(arc_stats['evict_l2_eligible_mfu'],
+           arc_stats['evict_l2_eligible']),
+           f_bytes(arc_stats['evict_l2_eligible_mfu']))
+    prt_i2('L2 eligible MRU evictions:',
+           f_perc(arc_stats['evict_l2_eligible_mru'],
+           arc_stats['evict_l2_eligible']),
+           f_bytes(arc_stats['evict_l2_eligible_mru']))
+    prt_i1('L2 ineligible evictions:',
+           f_bytes(arc_stats['evict_l2_ineligible']))
     print()
 
 
@@ -736,6 +750,21 @@ def section_l2arc(kstats_dict):
     prt_i2('Header size:',
            f_perc(arc_stats['l2_hdr_size'], arc_stats['l2_size']),
            f_bytes(arc_stats['l2_hdr_size']))
+    prt_i2('MFU allocated size:',
+           f_perc(arc_stats['l2_mfu_asize'], arc_stats['l2_asize']),
+           f_bytes(arc_stats['l2_mfu_asize']))
+    prt_i2('MRU allocated size:',
+           f_perc(arc_stats['l2_mru_asize'], arc_stats['l2_asize']),
+           f_bytes(arc_stats['l2_mru_asize']))
+    prt_i2('Prefetch allocated size:',
+           f_perc(arc_stats['l2_prefetch_asize'], arc_stats['l2_asize']),
+           f_bytes(arc_stats['l2_prefetch_asize']))
+    prt_i2('Data (buffer content) allocated size:',
+           f_perc(arc_stats['l2_bufc_data_asize'], arc_stats['l2_asize']),
+           f_bytes(arc_stats['l2_bufc_data_asize']))
+    prt_i2('Metadata (buffer content) allocated size:',
+           f_perc(arc_stats['l2_bufc_metadata_asize'], arc_stats['l2_asize']),
+           f_bytes(arc_stats['l2_bufc_metadata_asize']))
 
     print()
     prt_1('L2ARC breakdown:', f_hits(l2_access_total))
