@@ -19,7 +19,7 @@
 #
 
 . $STF_SUITE/include/libtest.shlib
-. $STF_SUITE/tests/functional/persist_l2arc/persist_l2arc.cfg
+. $STF_SUITE/tests/functional/l2arc/l2arc.cfg
 
 #
 # DESCRIPTION:
@@ -27,14 +27,14 @@
 #
 # STRATEGY:
 #	1. Create pool with a cache device.
-#	2. Create a random file in that pool and random read for 30 sec.
+#	2. Create a random file in that pool and random read for 10 sec.
 #	3. Read the amount of log blocks written from the header of the
 #		L2ARC device.
 #	4. Offline the L2ARC device.
 #	5. Online the L2ARC device.
 #	6. Read the amount of log blocks rebuilt in arcstats and compare to
 #		(3).
-#	7. Create another random file in that pool and random read for 30 sec.
+#	7. Create another random file in that pool and random read for 10 sec.
 #	8. Read the amount of log blocks written from the header of the
 #		L2ARC device.
 #	9. Offline the L2ARC device.
