@@ -21,6 +21,7 @@
 
 /*
  * Copyright (C) 2016 Gvozden Neskovic <neskovic@gmail.com>.
+ * Copyright (c) 2020 by Delphix. All rights reserved.
  */
 
 #ifndef _MOD_COMPAT_H
@@ -71,6 +72,7 @@ enum scope_prefix_types {
 	zfs_txg,
 	zfs_vdev,
 	zfs_vdev_cache,
+	zfs_vdev_file,
 	zfs_vdev_mirror,
 	zfs_zevent,
 	zfs_zio,

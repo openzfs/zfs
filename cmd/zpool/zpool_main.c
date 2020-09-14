@@ -2654,6 +2654,13 @@ show_import(nvlist_t *config)
 		    errata);
 		break;
 
+	case ZPOOL_STATUS_NON_NATIVE_ASHIFT:
+		printf_color(ANSI_BOLD, gettext("status: "));
+		printf_color(ANSI_YELLOW, gettext("One or more devices are "
+		    "configured to use a non-native block size.\n"
+		    "\tExpect reduced performance.\n"));
+		break;
+
 	default:
 		/*
 		 * No other status can be seen when importing pools.
