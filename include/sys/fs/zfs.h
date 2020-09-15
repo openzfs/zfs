@@ -1336,8 +1336,8 @@ typedef enum zfs_ioc {
 	ZFS_IOC_NEXTBOOT,			/* 0x84 (FreeBSD) */
 	ZFS_IOC_JAIL,				/* 0x85 (FreeBSD) */
 	ZFS_IOC_UNJAIL,				/* 0x86 (FreeBSD) */
-	ZFS_IOC_SET_BOOTENV,			/* 0x87 (Linux) */
-	ZFS_IOC_GET_BOOTENV,			/* 0x88 (Linux) */
+	ZFS_IOC_SET_BOOTENV,			/* 0x87 */
+	ZFS_IOC_GET_BOOTENV,			/* 0x88 */
 	ZFS_IOC_LAST
 } zfs_ioc_t;
 
