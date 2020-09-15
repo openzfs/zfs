@@ -187,10 +187,12 @@ __zpl_show_devname(struct seq_file *seq, zfsvfs_t *zfsvfs)
 {
 	char *fsname;
 
+	ZFS_ENTER(zfsvfs);
 	fsname = kmem_alloc(ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP);
 	dmu_objset_name(zfsvfs->z_os, fsname);
 	seq_puts(seq, fsname);
 	kmem_free(fsname, ZFS_MAX_DATASET_NAME_LEN);
+	ZFS_EXIT(zfsvfs);
 
 	return (0);
 }
