@@ -1058,7 +1058,7 @@ zpl_init_acl(struct inode *ip, struct inode *dir)
 	struct posix_acl *acl = NULL;
 	int error = 0;
 
-	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_POSIXACL)
+	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_POSIX)
 		return (0);
 
 	if (!S_ISLNK(ip->i_mode)) {
@@ -1103,7 +1103,7 @@ zpl_chmod_acl(struct inode *ip)
 	struct posix_acl *acl;
 	int error;
 
-	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_POSIXACL)
+	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_POSIX)
 		return (0);
 
 	if (S_ISLNK(ip->i_mode))
@@ -1129,7 +1129,7 @@ __zpl_xattr_acl_list_access(struct inode *ip, char *list, size_t list_size,
 	char *xattr_name = XATTR_NAME_POSIX_ACL_ACCESS;
 	size_t xattr_size = sizeof (XATTR_NAME_POSIX_ACL_ACCESS);
 
-	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_POSIXACL)
+	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_POSIX)
 		return (0);
 
 	if (list && xattr_size <= list_size)
@@ -1146,7 +1146,7 @@ __zpl_xattr_acl_list_default(struct inode *ip, char *list, size_t list_size,
 	char *xattr_name = XATTR_NAME_POSIX_ACL_DEFAULT;
 	size_t xattr_size = sizeof (XATTR_NAME_POSIX_ACL_DEFAULT);
 
-	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_POSIXACL)
+	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_POSIX)
 		return (0);
 
 	if (list && xattr_size <= list_size)
@@ -1168,7 +1168,7 @@ __zpl_xattr_acl_get_access(struct inode *ip, const char *name,
 	if (strcmp(name, "") != 0)
 		return (-EINVAL);
 #endif
-	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_POSIXACL)
+	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_POSIX)
 		return (-EOPNOTSUPP);
 
 	acl = zpl_get_acl(ip, type);
@@ -1196,7 +1196,7 @@ __zpl_xattr_acl_get_default(struct inode *ip, const char *name,
 	if (strcmp(name, "") != 0)
 		return (-EINVAL);
 #endif
-	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_POSIXACL)
+	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_POSIX)
 		return (-EOPNOTSUPP);
 
 	acl = zpl_get_acl(ip, type);
@@ -1224,7 +1224,7 @@ __zpl_xattr_acl_set_access(struct inode *ip, const char *name,
 	if (strcmp(name, "") != 0)
 		return (-EINVAL);
 #endif
-	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_POSIXACL)
+	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_POSIX)
 		return (-EOPNOTSUPP);
 
 	if (!inode_owner_or_capable(ip))
@@ -1264,7 +1264,7 @@ __zpl_xattr_acl_set_default(struct inode *ip, const char *name,
 	if (strcmp(name, "") != 0)
 		return (-EINVAL);
 #endif
-	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_POSIXACL)
+	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_POSIX)
 		return (-EOPNOTSUPP);
 
 	if (!inode_owner_or_capable(ip))

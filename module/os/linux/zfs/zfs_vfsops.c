@@ -356,9 +356,9 @@ acltype_changed_cb(void *arg, uint64_t newval)
 		zfsvfs->z_acl_type = ZFS_ACLTYPE_OFF;
 		zfsvfs->z_sb->s_flags &= ~SB_POSIXACL;
 		break;
-	case ZFS_ACLTYPE_POSIXACL:
+	case ZFS_ACLTYPE_POSIX:
 #ifdef CONFIG_FS_POSIX_ACL
-		zfsvfs->z_acl_type = ZFS_ACLTYPE_POSIXACL;
+		zfsvfs->z_acl_type = ZFS_ACLTYPE_POSIX;
 		zfsvfs->z_sb->s_flags |= SB_POSIXACL;
 #else
 		zfsvfs->z_acl_type = ZFS_ACLTYPE_OFF;
