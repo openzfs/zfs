@@ -211,7 +211,7 @@ __zpl_show_options(struct seq_file *seq, zfsvfs_t *zfsvfs)
 
 #ifdef CONFIG_FS_POSIX_ACL
 	switch (zfsvfs->z_acl_type) {
-	case ZFS_ACLTYPE_POSIXACL:
+	case ZFS_ACLTYPE_POSIX:
 		seq_puts(seq, ",posixacl");
 		break;
 	default:
