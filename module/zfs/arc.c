@@ -1705,6 +1705,7 @@ arc_buf_try_copy_decompressed_data(arc_buf_t *buf)
 {
 	arc_buf_hdr_t *hdr = buf->b_hdr;
 	boolean_t copied = B_FALSE;
+	int nbufs = 0;
 
 	ASSERT(HDR_HAS_L1HDR(hdr));
 	ASSERT3P(buf->b_data, !=, NULL);
@@ -1716,7 +1717,7 @@ arc_buf_try_copy_decompressed_data(arc_buf_t *buf)
 		if (from == buf) {
 			continue;
 		}
-
+		nbufs++;
 		if (!ARC_BUF_COMPRESSED(from)) {
 			bcopy(from->b_data, buf->b_data, arc_buf_size(buf));
 			copied = B_TRUE;
@@ -1728,9 +1729,18 @@ arc_buf_try_copy_decompressed_data(arc_buf_t *buf)
 	 * There were no decompressed bufs, so there should not be a
 	 * checksum on the hdr either.
 	 */
-	if (zfs_flags & ZFS_DEBUG_MODIFY)
-		EQUIV(!copied, hdr->b_l1hdr.b_freeze_cksum == NULL);
-
+	if (zfs_flags & ZFS_DEBUG_MODIFY) {
+		if (nbufs)
+			EQUIV(!copied, hdr->b_l1hdr.b_freeze_cksum == NULL);
+		else if (!ARC_BUF_COMPRESSED(buf) &&
+		    hdr->b_l1hdr.b_freeze_cksum != NULL) {
+			zio_cksum_t cksum;
+			fletcher_2_native(buf->b_data, arc_buf_size(buf), NULL,
+			    &cksum);
+			ASSERT0(memcmp(&cksum, hdr->b_l1hdr.b_freeze_cksum,
+			    sizeof (zio_cksum_t)));
+		}
+	}
 	return (copied);
 }
 
