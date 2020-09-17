@@ -274,8 +274,12 @@ zpl_mount_impl(struct file_system_type *fs_type, int flags, zfs_mnt_t *zm)
 	 * a txg sync.  If the dsl_pool lock is held over sget()
 	 * this can prevent the pool sync and cause a deadlock.
 	 */
+	dsl_dataset_long_hold(dmu_objset_ds(os), FTAG);
 	dsl_pool_rele(dmu_objset_pool(os), FTAG);
+
 	s = sget(fs_type, zpl_test_super, set_anon_super, flags, os);
+
+	dsl_dataset_long_rele(dmu_objset_ds(os), FTAG);
 	dsl_dataset_rele(dmu_objset_ds(os), FTAG);
 
 	if (IS_ERR(s))
