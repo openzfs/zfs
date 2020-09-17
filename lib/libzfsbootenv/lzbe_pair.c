@@ -16,6 +16,8 @@
 #include <string.h>
 #include <libzfs.h>
 #include <libzfsbootenv.h>
+#include <sys/zfs_bootenv.h>
+#include <sys/vdev_impl.h>
 
 /*
  * Get or create nvlist. If key is not NULL, get nvlist from bootenv,
@@ -74,6 +76,7 @@ lzbe_nvlist_set(const char *pool, const char *key, void *ptr)
 	libzfs_handle_t *hdl;
 	zpool_handle_t *zphdl;
 	nvlist_t *nv;
+	uint64_t version;
 	int rv = -1;
 
 	if (pool == NULL || *pool == '\0')
@@ -92,6 +95,21 @@ lzbe_nvlist_set(const char *pool, const char *key, void *ptr)
 	if (key != NULL) {
 		rv = zpool_get_bootenv(zphdl, &nv);
 		if (rv == 0) {
+			/*
+			 * We got the nvlist, check for version.
+			 * if version is missing or is not VB_NVLIST,
+			 * create new list.
+			 */
+			rv = nvlist_lookup_uint64(nv, BOOTENV_VERSION,
+			    &version);
+			if (rv != 0 || version != VB_NVLIST) {
+				/* Drop this nvlist */
+				fnvlist_free(nv);
+				/* Create and prepare new nvlist */
+				nv = fnvlist_alloc();
+				fnvlist_add_uint64(nv, BOOTENV_VERSION,
+				    VB_NVLIST);
+			}
 			rv = nvlist_add_nvlist(nv, key, ptr);
 			if (rv == 0)
 				rv = zpool_set_bootenv(zphdl, nv);
