@@ -276,6 +276,10 @@ User: %s
         except OSError as e:
             fail('%s' % e)
 
+        # On Linux, write the test name to dmesg for bug post-mortem
+        mycmd="sudo ksh -c \"if [[ -e /dev/kmsg ]] ; then echo ZTS running: %s > /dev/kmsg; fi\"" % self.pathname
+        os.system(mycmd)
+
         self.result.starttime = monotonic_time()
         proc = Popen(privcmd, stdout=PIPE, stderr=PIPE)
         # Allow a special timeout value of 0 to mean infinity
