@@ -13,6 +13,6 @@ SUBDIRS += libnvpair
 # libzutil depends on libefi if present
 SUBDIRS += libzutil libunicode
 
-# These four libraries, which are installed as the final build product,
+# These five libraries, which are installed as the final build product,
 # incorporate the eight convenience libraries given above.
-SUBDIRS += libuutil libzfs_core libzfs libzpool
+SUBDIRS += libuutil libzfs_core libzfs libzpool libzfsbootenv

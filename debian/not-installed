@@ -6,3 +6,5 @@ etc/zfs/vdev_id.conf.multipath.example
 etc/zfs/vdev_id.conf.sas_direct.example
 etc/zfs/vdev_id.conf.sas_switch.example
 etc/zfs/vdev_id.conf.scsi.example
+lib/libzfsbootenv.so.1
+lib/libzfsbootenv.so.1.0.0
