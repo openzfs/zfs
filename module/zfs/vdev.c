@@ -1790,6 +1790,38 @@ vdev_set_deflate_ratio(vdev_t *vd)
 }
 
 /*
+ * Maximize performance by inflating the configured ashift for top level
+ * vdevs to be as close to the physical ashift as possible while maintaining
+ * administrator defined limits and ensuring it doesn't go below the
+ * logical ashift.
+ */
+static void
+vdev_ashift_optimize(vdev_t *vd)
+{
+	ASSERT(vd == vd->vdev_top);
+
+	if (vd->vdev_ashift < vd->vdev_physical_ashift) {
+		vd->vdev_ashift = MIN(
+		    MAX(zfs_vdev_max_auto_ashift, vd->vdev_ashift),
+		    MAX(zfs_vdev_min_auto_ashift,
+		    vd->vdev_physical_ashift));
+	} else {
+		/*
+		 * If the logical and physical ashifts are the same, then
+		 * we ensure that the top-level vdev's ashift is not smaller
+		 * than our minimum ashift value. For the unusual case
+		 * where logical ashift > physical ashift, we can't cap
+		 * the calculated ashift based on max ashift as that
+		 * would cause failures.
+		 * We still check if we need to increase it to match
+		 * the min ashift.
+		 */
+		vd->vdev_ashift = MAX(zfs_vdev_min_auto_ashift,
+		    vd->vdev_ashift);
+	}
+}
+
+/*
  * Prepare a virtual device for access.
  */
 int
@@ -1947,16 +1979,17 @@ vdev_open(vdev_t *vd)
 		return (SET_ERROR(EINVAL));
 	}
 
+	/*
+	 * We can always set the logical/physical ashift members since
+	 * their values are only used to calculate the vdev_ashift when
+	 * the device is first added to the config. These values should
+	 * not be used for anything else since they may change whenever
+	 * the device is reopened and we don't store them in the label.
+	 */
 	vd->vdev_physical_ashift =
 	    MAX(physical_ashift, vd->vdev_physical_ashift);
-	vd->vdev_logical_ashift = MAX(logical_ashift, vd->vdev_logical_ashift);
-	vd->vdev_ashift = MAX(vd->vdev_logical_ashift, vd->vdev_ashift);
-
-	if (vd->vdev_logical_ashift > ASHIFT_MAX) {
-		vdev_set_state(vd, B_TRUE, VDEV_STATE_CANT_OPEN,
-		    VDEV_AUX_ASHIFT_TOO_BIG);
-		return (SET_ERROR(EDOM));
-	}
+	vd->vdev_logical_ashift = MAX(logical_ashift,
+	    vd->vdev_logical_ashift);
 
 	if (vd->vdev_asize == 0) {
 		/*
@@ -1965,6 +1998,24 @@ vdev_open(vdev_t *vd)
 		 */
 		vd->vdev_asize = asize;
 		vd->vdev_max_asize = max_asize;
+
+		/*
+		 * If the vdev_ashift was not overriden at creation time,
+		 * then set it the logical ashift and optimize the ashift.
+		 */
+		if (vd->vdev_ashift == 0) {
+			vd->vdev_ashift = vd->vdev_logical_ashift;
+
+			if (vd->vdev_logical_ashift > ASHIFT_MAX) {
+				vdev_set_state(vd, B_TRUE, VDEV_STATE_CANT_OPEN,
+				    VDEV_AUX_ASHIFT_TOO_BIG);
+				return (SET_ERROR(EDOM));
+			}
+
+			if (vd->vdev_top == vd) {
+				vdev_ashift_optimize(vd);
+			}
+		}
 		if (vd->vdev_ashift != 0 && (vd->vdev_ashift < ASHIFT_MIN ||
 		    vd->vdev_ashift > ASHIFT_MAX)) {
 			vdev_set_state(vd, B_TRUE, VDEV_STATE_CANT_OPEN,
@@ -2559,35 +2610,6 @@ vdev_metaslab_set_size(vdev_t *vd)
 
 	vd->vdev_ms_shift = ms_shift;
 	ASSERT3U(vd->vdev_ms_shift, >=, SPA_MAXBLOCKSHIFT);
-}
-
-/*
- * Maximize performance by inflating the configured ashift for top level
- * vdevs to be as close to the physical ashift as possible while maintaining
- * administrator defined limits and ensuring it doesn't go below the
- * logical ashift.
- */
-void
-vdev_ashift_optimize(vdev_t *vd)
-{
-	if (vd == vd->vdev_top) {
-		if (vd->vdev_ashift < vd->vdev_physical_ashift) {
-			vd->vdev_ashift = MIN(
-			    MAX(zfs_vdev_max_auto_ashift, vd->vdev_ashift),
-			    MAX(zfs_vdev_min_auto_ashift,
-			    vd->vdev_physical_ashift));
-		} else {
-			/*
-			 * Unusual case where logical ashift > physical ashift
-			 * so we can't cap the calculated ashift based on max
-			 * ashift as that would cause failures.
-			 * We still check if we need to increase it to match
-			 * the min ashift.
-			 */
-			vd->vdev_ashift = MAX(zfs_vdev_min_auto_ashift,
-			    vd->vdev_ashift);
-		}
-	}
 }
 
 void

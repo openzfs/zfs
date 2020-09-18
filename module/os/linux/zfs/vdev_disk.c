@@ -34,6 +34,7 @@
 #include <sys/abd.h>
 #include <sys/fs/zfs.h>
 #include <sys/zio.h>
+#include <linux/blkpg.h>
 #include <linux/msdos_fs.h>
 #include <linux/vfs_compat.h>
 
@@ -175,7 +176,8 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 
 	/*
 	 * Reopen the device if it is currently open.  When expanding a
-	 * partition force re-scanning the partition table while closed
+	 * partition force re-scanning the partition table if userland
+	 * did not take care of this already. We need to do this while closed
 	 * in order to get an accurate updated block device size.  Then
 	 * since udev may need to recreate the device links increase the
 	 * open retry timeout before reporting the device as unavailable.
@@ -192,7 +194,23 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 		if (bdev) {
 			if (v->vdev_expanding && bdev != bdev->bd_contains) {
 				bdevname(bdev->bd_contains, disk_name + 5);
-				reread_part = B_TRUE;
+				/*
+				 * If userland has BLKPG_RESIZE_PARTITION,
+				 * then it should have updated the partition
+				 * table already. We can detect this by
+				 * comparing our current physical size
+				 * with that of the device. If they are
+				 * the same, then we must not have
+				 * BLKPG_RESIZE_PARTITION or it failed to
+				 * update the partition table online. We
+				 * fallback to rescanning the partition
+				 * table from the kernel below. However,
+				 * if the capacity already reflects the
+				 * updated partition, then we skip
+				 * rescanning the partition table here.
+				 */
+				if (v->vdev_psize == bdev_capacity(bdev))
+					reread_part = B_TRUE;
 			}
 
 			blkdev_put(bdev, mode | FMODE_EXCL);

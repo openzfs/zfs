@@ -9434,8 +9434,6 @@ l2arc_add_vdev(spa_t *spa, vdev_t *vd)
 
 	ASSERT(!l2arc_vdev_present(vd));
 
-	vdev_ashift_optimize(vd);
-
 	/*
 	 * Create a new l2arc device entry.
 	 */

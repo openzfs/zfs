@@ -2515,11 +2515,12 @@ spa_livelist_delete_cb(void *arg, zthr_t *z)
 	VERIFY0(dsl_get_next_livelist_obj(mos, zap_obj, &ll_obj));
 	VERIFY0(zap_count(mos, ll_obj, &count));
 	if (count > 0) {
-		dsl_deadlist_t ll = { 0 };
+		dsl_deadlist_t *ll;
 		dsl_deadlist_entry_t *dle;
 		bplist_t to_free;
-		dsl_deadlist_open(&ll, mos, ll_obj);
-		dle = dsl_deadlist_first(&ll);
+		ll = kmem_zalloc(sizeof (dsl_deadlist_t), KM_SLEEP);
+		dsl_deadlist_open(ll, mos, ll_obj);
+		dle = dsl_deadlist_first(ll);
 		ASSERT3P(dle, !=, NULL);
 		bplist_create(&to_free);
 		int err = dsl_process_sub_livelist(&dle->dle_bpobj, &to_free,
@@ -2527,7 +2528,7 @@ spa_livelist_delete_cb(void *arg, zthr_t *z)
 		if (err == 0) {
 			sublist_delete_arg_t sync_arg = {
 			    .spa = spa,
-			    .ll = &ll,
+			    .ll = ll,
 			    .key = dle->dle_mintxg,
 			    .to_free = &to_free
 			};
@@ -2542,7 +2543,8 @@ spa_livelist_delete_cb(void *arg, zthr_t *z)
 		}
 		bplist_clear(&to_free);
 		bplist_destroy(&to_free);
-		dsl_deadlist_close(&ll);
+		dsl_deadlist_close(ll);
+		kmem_free(ll, sizeof (dsl_deadlist_t));
 	} else {
 		livelist_delete_arg_t sync_arg = {
 		    .spa = spa,
@@ -5778,7 +5780,6 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 		for (int c = 0; error == 0 && c < rvd->vdev_children; c++) {
 			vdev_t *vd = rvd->vdev_child[c];
 
-			vdev_ashift_optimize(vd);
 			vdev_metaslab_set_size(vd);
 			vdev_expand(vd, txg);
 		}

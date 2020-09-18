@@ -651,7 +651,7 @@ you must first remove all
 .Tn ACL
 entries which do not represent the current mode.
 .El
-.It Sy acltype Ns = Ns Sy off Ns | Ns Sy noacl Ns | Ns Sy posixacl
+.It Sy acltype Ns = Ns Sy off Ns | Ns Sy posix
 Controls whether ACLs are enabled and if so what type of ACL to use.
 This property is not visible on FreeBSD yet.
 .Bl -tag -width "posixacl"
@@ -662,15 +662,18 @@ property set to off then ACLs are disabled.
 .It Sy noacl
 an alias for
 .Sy off
-.It Sy posixacl
+.It Sy posix
 indicates POSIX ACLs should be used. POSIX ACLs are specific to Linux and are
 not functional on other platforms. POSIX ACLs are stored as an extended
 attribute and therefore will not overwrite any existing NFSv4 ACLs which
 may be set.
+.It Sy posixacl
+an alias for
+.Sy posix
 .El
 .Pp
 To obtain the best performance when setting
-.Sy posixacl
+.Sy posix
 users are strongly encouraged to set the
 .Sy xattr=sa
 property. This will result in the POSIX ACL being stored more efficiently on
