@@ -391,7 +391,7 @@ vdev_mirror_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 		*max_asize = MIN(*max_asize - 1, cvd->vdev_max_asize - 1) + 1;
 		*logical_ashift = MAX(*logical_ashift, cvd->vdev_ashift);
 		*physical_ashift = MAX(*physical_ashift,
-		    vd->vdev_physical_ashift);
+		    cvd->vdev_physical_ashift);
 	}
 
 	if (numerrors == vd->vdev_children) {
