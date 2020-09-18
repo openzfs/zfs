@@ -55,6 +55,8 @@ This command supports removing hot spare, cache, log, and both mirrored and
 non-redundant primary top-level vdevs, including dedup and special vdevs.
 When the primary pool storage includes a top-level raidz vdev only hot spare,
 cache, and log devices can be removed.
+Note that keys for all encrypted datasets must be loaded for top-level vdevs
+to be removed.
 .sp
 Removing a top-level vdev reduces the total amount of space in the storage pool.
 The specified device will be evacuated by copying all allocated space from it to
