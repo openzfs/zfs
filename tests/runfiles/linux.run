@@ -119,7 +119,7 @@ tests = ['libaio']
 tags = ['functional', 'io']
 
 [tests/functional/mmap:Linux]
-tests = ['mmap_libaio_001_pos']
+tests = ['mmap_libaio_001_pos','mmap_read_002_pos']
 tags = ['functional', 'mmap']
 
 [tests/functional/mmp:Linux]
