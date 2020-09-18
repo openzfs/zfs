@@ -1060,6 +1060,9 @@ libzfs_init(void)
 		if ((error = zfs_nicestrtonum(hdl, env,
 		    &hdl->libzfs_max_nvlist))) {
 			errno = error;
+			(void) close(hdl->libzfs_fd);
+			(void) fclose(hdl->libzfs_mnttab);
+			free(hdl);
 			return (NULL);
 		}
 	} else {
