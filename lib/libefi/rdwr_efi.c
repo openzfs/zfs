@@ -44,6 +44,7 @@
 #include <sys/byteorder.h>
 #include <sys/vdev_disk.h>
 #include <linux/fs.h>
+#include <linux/blkpg.h>
 
 static struct uuid_to_ptag {
 	struct uuid	uuid;
@@ -209,18 +210,39 @@ read_disk_info(int fd, diskaddr_t *capacity, uint_t *lbsize)
 	return (0);
 }
 
+/*
+ * Return back the device name associated with the file descriptor. The
+ * caller is responsible for freeing the memory associated with the
+ * returned string.
+ */
+static char *
+efi_get_devname(int fd)
+{
+	char *path;
+	char *dev_name;
+
+	path = calloc(1, PATH_MAX);
+	if (path == NULL)
+		return (NULL);
+
+	/*
+	 * The libefi API only provides the open fd and not the file path.
+	 * To handle this realpath(3) is used to resolve the block device
+	 * name from /proc/self/fd/<fd>.
+	 */
+	(void) sprintf(path, "/proc/self/fd/%d", fd);
+	dev_name = realpath(path, NULL);
+	free(path);
+	return (dev_name);
+}
+
 static int
 efi_get_info(int fd, struct dk_cinfo *dki_info)
 {
-	char *path;
 	char *dev_path;
 	int rval = 0;
 
 	memset(dki_info, 0, sizeof (*dki_info));
-
-	path = calloc(1, PATH_MAX);
-	if (path == NULL)
-		goto error;
 
 	/*
 	 * The simplest way to get the partition number under linux is
@@ -229,16 +251,10 @@ efi_get_info(int fd, struct dk_cinfo *dki_info)
 	 * populates /dev/ so it may be trusted.  The tricky bit here is
 	 * that the naming convention is based on the block device type.
 	 * So we need to take this in to account when parsing out the
-	 * partition information.  Another issue is that the libefi API
-	 * API only provides the open fd and not the file path.  To handle
-	 * this realpath(3) is used to resolve the block device name from
-	 * /proc/self/fd/<fd>.  Aside from the partition number we collect
+	 * partition information.  Aside from the partition number we collect
 	 * some additional device info.
 	 */
-	(void) sprintf(path, "/proc/self/fd/%d", fd);
-	dev_path = realpath(path, NULL);
-	free(path);
-
+	dev_path = efi_get_devname(fd);
 	if (dev_path == NULL)
 		goto error;
 
@@ -1108,20 +1124,49 @@ check_input(struct dk_gpt *vtoc)
 	return (0);
 }
 
+static int
+call_blkpg_ioctl(int fd, int command, diskaddr_t start,
+    diskaddr_t size, uint_t pno)
+{
+	struct blkpg_ioctl_arg ioctl_arg;
+	struct blkpg_partition  linux_part;
+	memset(&linux_part, 0, sizeof (linux_part));
+
+	char *path = efi_get_devname(fd);
+	if (path == NULL) {
+		(void) fprintf(stderr, "failed to retrieve device name\n");
+		return (VT_EINVAL);
+	}
+
+	linux_part.start = start;
+	linux_part.length = size;
+	linux_part.pno = pno;
+	snprintf(linux_part.devname, BLKPG_DEVNAMELTH - 1, "%s%u", path, pno);
+	linux_part.devname[BLKPG_DEVNAMELTH - 1] = '\0';
+	free(path);
+
+	ioctl_arg.op = command;
+	ioctl_arg.flags = 0;
+	ioctl_arg.datalen = sizeof (struct blkpg_partition);
+	ioctl_arg.data = &linux_part;
+
+	return (ioctl(fd, BLKPG, &ioctl_arg));
+}
+
 /*
  * add all the unallocated space to the current label
  */
 int
 efi_use_whole_disk(int fd)
 {
-	struct dk_gpt		*efi_label = NULL;
-	int			rval;
-	int			i;
-	uint_t			resv_index = 0, data_index = 0;
-	diskaddr_t		resv_start = 0, data_start = 0;
-	diskaddr_t		data_size, limit, difference;
-	boolean_t		sync_needed = B_FALSE;
-	uint_t			nblocks;
+	struct dk_gpt *efi_label = NULL;
+	int rval;
+	int i;
+	uint_t resv_index = 0, data_index = 0;
+	diskaddr_t resv_start = 0, data_start = 0;
+	diskaddr_t data_size, limit, difference;
+	boolean_t sync_needed = B_FALSE;
+	uint_t nblocks;
 
 	rval = efi_alloc_and_read(fd, &efi_label);
 	if (rval < 0) {
@@ -1255,19 +1300,73 @@ efi_use_whole_disk(int fd)
 	efi_label->efi_parts[resv_index].p_start += difference;
 	efi_label->efi_last_u_lba = efi_label->efi_last_lba - nblocks;
 
-	rval = efi_write(fd, efi_label);
-	if (rval < 0) {
-		if (efi_debug) {
-			(void) fprintf(stderr,
-			    "efi_use_whole_disk:fail to write label, rval=%d\n",
-			    rval);
-		}
-		efi_free(efi_label);
-		return (rval);
+	/*
+	 * Rescanning the partition table in the kernel can result
+	 * in the device links to be removed (see comment in vdev_disk_open).
+	 * If BLKPG_RESIZE_PARTITION is available, then we can resize
+	 * the partition table online and avoid having to remove the device
+	 * links used by the pool. This provides a very deterministic
+	 * approach to resizing devices and does not require any
+	 * loops waiting for devices to reappear.
+	 */
+#ifdef BLKPG_RESIZE_PARTITION
+	/*
+	 * Delete the reserved partition since we're about to expand
+	 * the data partition and it would overlap with the reserved
+	 * partition.
+	 * NOTE: The starting index for the ioctl is 1 while for the
+	 * EFI partitions it's 0. For that reason we have to add one
+	 * whenever we make an ioctl call.
+	 */
+	rval = call_blkpg_ioctl(fd, BLKPG_DEL_PARTITION, 0, 0, resv_index + 1);
+	if (rval != 0)
+		goto out;
+
+	/*
+	 * Expand the data partition
+	 */
+	rval = call_blkpg_ioctl(fd, BLKPG_RESIZE_PARTITION,
+	    efi_label->efi_parts[data_index].p_start * efi_label->efi_lbasize,
+	    efi_label->efi_parts[data_index].p_size * efi_label->efi_lbasize,
+	    data_index + 1);
+	if (rval != 0) {
+		(void) fprintf(stderr, "Unable to resize data "
+		    "partition:  %d\n", rval);
+		/*
+		 * Since we failed to resize, we need to reset the start
+		 * of the reserve partition and re-create it.
+		 */
+		efi_label->efi_parts[resv_index].p_start -= difference;
 	}
 
+	/*
+	 * Re-add the reserved partition. If we've expanded the data partition
+	 * then we'll move the reserve partition to the end of the data
+	 * partition. Otherwise, we'll recreate the partition in its original
+	 * location. Note that we do this as best-effort and ignore any
+	 * errors that may arise here. This will ensure that we finish writing
+	 * the EFI label.
+	 */
+	(void) call_blkpg_ioctl(fd, BLKPG_ADD_PARTITION,
+	    efi_label->efi_parts[resv_index].p_start * efi_label->efi_lbasize,
+	    efi_label->efi_parts[resv_index].p_size * efi_label->efi_lbasize,
+	    resv_index + 1);
+#endif
+
+	/*
+	 * We're now ready to write the EFI label.
+	 */
+	if (rval == 0) {
+		rval = efi_write(fd, efi_label);
+		if (rval < 0 && efi_debug) {
+			(void) fprintf(stderr, "efi_use_whole_disk:fail "
+			    "to write label, rval=%d\n", rval);
+		}
+	}
+
+out:
 	efi_free(efi_label);
-	return (0);
+	return (rval);
 }
 
 /*
