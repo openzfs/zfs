@@ -63,7 +63,7 @@ log_onexit cleanup
 
 log_assert "zpool can expand after zpool online -e zvol vdevs on vdev expansion"
 
-for type in " " mirror raidz raidz2; do
+for type in " " mirror raidz draid:1s; do
 	# Initialize the file devices and the pool
 	for i in 1 2 3; do
 		log_must truncate -s $org_size ${TEMPFILE}.$i
@@ -92,6 +92,8 @@ for type in " " mirror raidz raidz2; do
 
 	if [[ $type == "mirror" ]]; then
 		typeset expected_zpool_expandsize=$(($exp_size-$org_size))
+	elif [[ $type == "draid:1s" ]]; then
+		typeset expected_zpool_expandsize=$((2*($exp_size-$org_size)))
 	else
 		typeset expected_zpool_expandsize=$((3*($exp_size-$org_size)))
 	fi
@@ -147,6 +149,17 @@ for type in " " mirror raidz raidz2; do
 				log_fail "pool $TESTPOOL1 has not expanded " \
 				    "after zpool online -e"
 			fi
+		elif [[ $type == "draid:1s" ]]; then
+			typeset expansion_size=$((2*($exp_size-$org_size)))
+			zpool history -il $TESTPOOL1 | \
+			    grep "pool '$TESTPOOL1' size:" | \
+			    grep "vdev online" | \
+			    grep "(+${expansion_size})" >/dev/null 2>&1
+
+			if [[ $? -ne 0 ]] ; then
+				log_fail "pool $TESTPOOL1 has not expanded " \
+				    "after zpool online -e"
+			fi
 		else
 			typeset expansion_size=$((3*($exp_size-$org_size)))
 			zpool history -il $TESTPOOL1 | \
@@ -160,9 +173,17 @@ for type in " " mirror raidz raidz2; do
 			fi
 		fi
 	else
-		log_fail "pool $TESTPOOL1 did not expand after vdev expansion " \
-		    "and zpool online -e"
+		log_fail "pool $TESTPOOL1 did not expand after vdev " \
+		    "expansion and zpool online -e"
 	fi
+
+	# For dRAID pools verify the distributed spare was resized after
+	# expansion and it is large enough to be used to replace a pool vdev.
+	if [[ $type == "draid:1s" ]]; then
+		log_must zpool replace -w $TESTPOOL1 $TEMPFILE.3 draid1-0-0
+		verify_pool $TESTPOOL1
+	fi
+
 	log_must zpool destroy $TESTPOOL1
 done
 log_pass "zpool can expand after zpool online -e"

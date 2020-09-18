@@ -27,6 +27,10 @@ dist_pkgdata_SCRIPTS = \
 	zpool_create_024_pos.ksh \
 	zpool_create_encrypted.ksh \
 	zpool_create_crypt_combos.ksh \
+	zpool_create_draid_001_pos.ksh \
+	zpool_create_draid_002_pos.ksh \
+	zpool_create_draid_003_pos.ksh \
+	zpool_create_draid_004_pos.ksh \
 	zpool_create_features_001_pos.ksh \
 	zpool_create_features_002_pos.ksh \
 	zpool_create_features_003_pos.ksh \
@@ -36,5 +40,6 @@ dist_pkgdata_SCRIPTS = \
 	zpool_create_tempname.ksh
 
 dist_pkgdata_DATA = \
+	draidcfg.gz \
 	zpool_create.cfg \
 	zpool_create.shlib

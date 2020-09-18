@@ -2905,6 +2905,31 @@ Default value: \fB1,048,576\fR.
 .sp
 .ne 2
 .na
+\fBzfs_rebuild_scrub_enabled\fR (int)
+.ad
+.RS 12n
+Automatically start a pool scrub when the last active sequential resilver
+completes. This option is enabled by default and is strongly recommended
+in order to verify the checksums of all blocks which have been resilvered.
+.sp
+Default value: \fB1\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_rebuild_vdev_limit\fR (ulong)
+.ad
+.RS 12n
+Maximum amount of i/o that can be concurrently issued for a sequential
+resilver per leaf device, given in bytes.
+.sp
+Default value: \fB33,554,432\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_reconstruct_indirect_combinations_max\fR (int)
 .ad
 .RS 12na

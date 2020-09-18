@@ -44,13 +44,15 @@ static const char *raidz_impl_names[] = {
 
 typedef struct raidz_test_opts {
 	size_t rto_ashift;
-	size_t rto_offset;
+	uint64_t rto_offset;
 	size_t rto_dcols;
 	size_t rto_dsize;
 	size_t rto_v;
 	size_t rto_sweep;
 	size_t rto_sweep_timeout;
 	size_t rto_benchmark;
+	size_t rto_expand;
+	uint64_t rto_expand_offset;
 	size_t rto_sanity;
 	size_t rto_gdb;
 
@@ -69,6 +71,8 @@ static const raidz_test_opts_t rto_opts_defaults = {
 	.rto_v = 0,
 	.rto_sweep = 0,
 	.rto_benchmark = 0,
+	.rto_expand = 0,
+	.rto_expand_offset = -1ULL,
 	.rto_sanity = 0,
 	.rto_gdb = 0,
 	.rto_should_stop = B_FALSE
@@ -112,5 +116,8 @@ static inline size_t ilog2(size_t a)
 void init_zio_abd(zio_t *zio);
 
 void run_raidz_benchmark(void);
+
+struct raidz_map *vdev_raidz_map_alloc_expanded(abd_t *, uint64_t, uint64_t,
+    uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
 
 #endif /* RAIDZ_TEST_H */

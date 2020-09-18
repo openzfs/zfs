@@ -82,6 +82,7 @@ COMMON_H = \
 	vdev_disk.h \
 	vdev_file.h \
 	vdev.h \
+	vdev_draid.h \
 	vdev_impl.h \
 	vdev_indirect_births.h \
 	vdev_indirect_mapping.h \

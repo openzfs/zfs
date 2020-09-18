@@ -455,6 +455,7 @@ extern void zpool_explain_recover(libzfs_handle_t *, const char *, int,
     nvlist_t *);
 extern int zpool_checkpoint(zpool_handle_t *);
 extern int zpool_discard_checkpoint(zpool_handle_t *);
+extern boolean_t zpool_is_draid_spare(const char *);
 
 /*
  * Basic handle manipulations.  These functions do not create or destroy the

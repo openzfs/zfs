@@ -54,13 +54,16 @@ set -A args  "" "-?" "-n" "-f" "-nf" "-fn" "-f -n" "--f" "-e" "-s" \
 	"$TESTPOOL c0txd0" "$TESTPOOL c0t0dx" "$TESTPOOL cxtxdx" \
 	"$TESTPOOL mirror" "$TESTPOOL raidz" "$TESTPOOL mirror raidz" \
 	"$TESTPOOL raidz1" "$TESTPOOL mirror raidz1" \
+	"$TESTPOOL draid1" "$TESTPOOL mirror draid1" \
 	"$TESTPOOL mirror c?t?d?" "$TESTPOOL mirror $DISK0 c0t1d?" \
 	"$TESTPOOL RAIDZ $DISK0 $DISK1" \
 	"$TESTPOOL $DISK0 log $DISK1 log $DISK2" \
 	"$TESTPOOL $DISK0 spare $DISK1 spare $DISK2" \
-	"$TESTPOOL RAIDZ1 $DISK0 $DISK1" \
-	"$TESTPOOL MIRROR $DISK0" "$TESTPOOL raidz $DISK0" \
-	"$TESTPOOL raidz1 $DISK0" \
+	"$TESTPOOL RAIDZ1 $DISK0 $DISK1" "$TESTPOOL MIRROR $DISK0" \
+	"$TESTPOOL DRAID $DISK1 $DISK2 $DISK3" "$TESTPOOL raidz $DISK0" \
+	"$TESTPOOL raidz1 $DISK0" "$TESTPOOL draid $DISK0" \
+	"$TESTPOOL draid2 $DISK0 $DISK1" \
+	"$TESTPOOL draid $DISK0 $DISK1 $DISK2 spare s0-draid1-0" \
 	"1tank $DISK0" "1234 $DISK0" "?tank $DISK0" \
 	"tan%k $DISK0" "ta@# $DISK0" "tan+k $DISK0" \
 	"$BYND_MAX_NAME $DISK0"

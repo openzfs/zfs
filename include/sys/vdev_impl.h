@@ -68,14 +68,19 @@ extern uint32_t zfs_vdev_async_write_max_active;
 /*
  * Virtual device operations
  */
+typedef int	vdev_init_func_t(spa_t *spa, nvlist_t *nv, void **tsd);
+typedef void	vdev_fini_func_t(vdev_t *vd);
 typedef int	vdev_open_func_t(vdev_t *vd, uint64_t *size, uint64_t *max_size,
     uint64_t *ashift, uint64_t *pshift);
 typedef void	vdev_close_func_t(vdev_t *vd);
 typedef uint64_t vdev_asize_func_t(vdev_t *vd, uint64_t psize);
+typedef uint64_t vdev_min_asize_func_t(vdev_t *vd);
+typedef uint64_t vdev_min_alloc_func_t(vdev_t *vd);
 typedef void	vdev_io_start_func_t(zio_t *zio);
 typedef void	vdev_io_done_func_t(zio_t *zio);
 typedef void	vdev_state_change_func_t(vdev_t *vd, int, int);
-typedef boolean_t vdev_need_resilver_func_t(vdev_t *vd, uint64_t, size_t);
+typedef boolean_t vdev_need_resilver_func_t(vdev_t *vd, const dva_t *dva,
+    size_t psize, uint64_t phys_birth);
 typedef void	vdev_hold_func_t(vdev_t *vd);
 typedef void	vdev_rele_func_t(vdev_t *vd);
 
@@ -87,13 +92,24 @@ typedef void	vdev_remap_func_t(vdev_t *vd, uint64_t offset, uint64_t size,
  * Given a target vdev, translates the logical range "in" to the physical
  * range "res"
  */
-typedef void vdev_xlation_func_t(vdev_t *cvd, const range_seg64_t *in,
-    range_seg64_t *res);
+typedef void vdev_xlation_func_t(vdev_t *cvd, const range_seg64_t *logical,
+    range_seg64_t *physical, range_seg64_t *remain);
+typedef uint64_t vdev_rebuild_asize_func_t(vdev_t *vd, uint64_t start,
+    uint64_t size, uint64_t max_segment);
+typedef void vdev_metaslab_init_func_t(vdev_t *vd, uint64_t *startp,
+    uint64_t *sizep);
+typedef void vdev_config_generate_func_t(vdev_t *vd, nvlist_t *nv);
+typedef uint64_t vdev_nparity_func_t(vdev_t *vd);
+typedef uint64_t vdev_ndisks_func_t(vdev_t *vd);
 
 typedef const struct vdev_ops {
+	vdev_init_func_t		*vdev_op_init;
+	vdev_fini_func_t		*vdev_op_fini;
 	vdev_open_func_t		*vdev_op_open;
 	vdev_close_func_t		*vdev_op_close;
 	vdev_asize_func_t		*vdev_op_asize;
+	vdev_min_asize_func_t		*vdev_op_min_asize;
+	vdev_min_alloc_func_t		*vdev_op_min_alloc;
 	vdev_io_start_func_t		*vdev_op_io_start;
 	vdev_io_done_func_t		*vdev_op_io_done;
 	vdev_state_change_func_t	*vdev_op_state_change;
@@ -101,11 +117,12 @@ typedef const struct vdev_ops {
 	vdev_hold_func_t		*vdev_op_hold;
 	vdev_rele_func_t		*vdev_op_rele;
 	vdev_remap_func_t		*vdev_op_remap;
-	/*
-	 * For translating ranges from non-leaf vdevs (e.g. raidz) to leaves.
-	 * Used when initializing vdevs. Isn't used by leaf ops.
-	 */
 	vdev_xlation_func_t		*vdev_op_xlate;
+	vdev_rebuild_asize_func_t	*vdev_op_rebuild_asize;
+	vdev_metaslab_init_func_t	*vdev_op_metaslab_init;
+	vdev_config_generate_func_t	*vdev_op_config_generate;
+	vdev_nparity_func_t		*vdev_op_nparity;
+	vdev_ndisks_func_t		*vdev_op_ndisks;
 	char				vdev_op_type[16];
 	boolean_t			vdev_op_leaf;
 } vdev_ops_t;
@@ -325,16 +342,13 @@ struct vdev {
 	kthread_t	*vdev_rebuild_thread;
 	vdev_rebuild_t	vdev_rebuild_config;
 
-	/* For limiting outstanding I/Os (initialize, TRIM, rebuild) */
+	/* For limiting outstanding I/Os (initialize, TRIM) */
 	kmutex_t	vdev_initialize_io_lock;
 	kcondvar_t	vdev_initialize_io_cv;
 	uint64_t	vdev_initialize_inflight;
 	kmutex_t	vdev_trim_io_lock;
 	kcondvar_t	vdev_trim_io_cv;
 	uint64_t	vdev_trim_inflight[3];
-	kmutex_t	vdev_rebuild_io_lock;
-	kcondvar_t	vdev_rebuild_io_cv;
-	uint64_t	vdev_rebuild_inflight;
 
 	/*
 	 * Values stored in the config for an indirect or removing vdev.
@@ -392,7 +406,6 @@ struct vdev {
 	uint64_t	vdev_removed;	/* persistent removed state	*/
 	uint64_t	vdev_resilver_txg; /* persistent resilvering state */
 	uint64_t	vdev_rebuild_txg; /* persistent rebuilding state */
-	uint64_t	vdev_nparity;	/* number of parity devices for raidz */
 	char		*vdev_path;	/* vdev path (if any)		*/
 	char		*vdev_devid;	/* vdev devid (if any)		*/
 	char		*vdev_physpath;	/* vdev device path (if any)	*/
@@ -444,8 +457,6 @@ struct vdev {
 	zfs_ratelimit_t vdev_delay_rl;
 	zfs_ratelimit_t vdev_checksum_rl;
 };
-
-#define	VDEV_RAIDZ_MAXPARITY	3
 
 #define	VDEV_PAD_SIZE		(8 << 10)
 /* 2 padding areas (vl_pad1 and vl_be) to skip */
@@ -532,6 +543,9 @@ typedef struct vdev_label {
 #define	VDEV_LABEL_END_SIZE	(2 * sizeof (vdev_label_t))
 #define	VDEV_LABELS		4
 #define	VDEV_BEST_LABEL		VDEV_LABELS
+#define	VDEV_OFFSET_IS_LABEL(vd, off)                           \
+	(((off) < VDEV_LABEL_START_SIZE) ||                     \
+	((off) >= ((vd)->vdev_psize - VDEV_LABEL_END_SIZE)))
 
 #define	VDEV_ALLOC_LOAD		0
 #define	VDEV_ALLOC_ADD		1
@@ -577,6 +591,8 @@ extern vdev_ops_t vdev_root_ops;
 extern vdev_ops_t vdev_mirror_ops;
 extern vdev_ops_t vdev_replacing_ops;
 extern vdev_ops_t vdev_raidz_ops;
+extern vdev_ops_t vdev_draid_ops;
+extern vdev_ops_t vdev_draid_spare_ops;
 extern vdev_ops_t vdev_disk_ops;
 extern vdev_ops_t vdev_file_ops;
 extern vdev_ops_t vdev_missing_ops;
@@ -587,11 +603,15 @@ extern vdev_ops_t vdev_indirect_ops;
 /*
  * Common size functions
  */
-extern void vdev_default_xlate(vdev_t *vd, const range_seg64_t *in,
-    range_seg64_t *out);
+extern void vdev_default_xlate(vdev_t *vd, const range_seg64_t *logical_rs,
+    range_seg64_t *physical_rs, range_seg64_t *remain_rs);
 extern uint64_t vdev_default_asize(vdev_t *vd, uint64_t psize);
+extern uint64_t vdev_default_min_asize(vdev_t *vd);
 extern uint64_t vdev_get_min_asize(vdev_t *vd);
 extern void vdev_set_min_asize(vdev_t *vd);
+extern uint64_t vdev_get_min_alloc(vdev_t *vd);
+extern uint64_t vdev_get_nparity(vdev_t *vd);
+extern uint64_t vdev_get_ndisks(vdev_t *vd);
 
 /*
  * Global variables

@@ -27,6 +27,7 @@
 
 #
 # Copyright (c) 2013 by Delphix. All rights reserved.
+# Copyright (c) 2020 by Lawrence Livermore National Security, LLC.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -34,28 +35,28 @@
 
 #
 # DESCRIPTION:
-#	A raidz2 pool can withstand 2 devices are failing or missing.
+#	A draid2 pool can withstand 2 devices are failing or missing.
 #
 # STRATEGY:
-#	1. Create N(>3,<5) virtual disk files.
-#	2. Create raidz2 pool based on the virtual disk files.
+#	1. Create N(>4,<6) virtual disk files.
+#	2. Create draid2 pool based on the virtual disk files.
 #	3. Fill the filesystem with directories and files.
 #	4. Record all the files and directories checksum information.
 #	5. Damaged at most two of the virtual disk files.
-#	6. Verify the data is correct to prove raidz2 can withstand 2 devices
+#	6. Verify the data is correct to prove draid2 can withstand 2 devices
 #	   are failing.
 #
 
 verify_runnable "global"
 
-log_assert "Verify raidz2 pool can withstand two devices are failing."
+log_assert "Verify draid2 pool can withstand two devices failing."
 log_onexit cleanup
 
-typeset -i cnt=$(random_int_between 3 5)
-setup_test_env $TESTPOOL raidz2 $cnt
+typeset -i cnt=$(random_int_between 4 6)
+setup_test_env $TESTPOOL draid2 $cnt
 
 #
-# Inject data corruption errors for raidz2 pool
+# Inject data corruption errors for draid2 pool
 #
 for i in 1 2; do
 	damage_devs $TESTPOOL $i "label"
@@ -64,7 +65,7 @@ for i in 1 2; do
 done
 
 #
-# Inject bad devices errors for raidz2 pool
+# Inject bad devices errors for draid2 pool
 #
 for i in 1 2; do
 	damage_devs $TESTPOOL $i
@@ -73,7 +74,7 @@ for i in 1 2; do
 done
 
 #
-# Inject missing device errors for raidz2 pool
+# Inject missing device errors for draid2 pool
 #
 for i in 1 2; do
 	remove_devs $TESTPOOL $i
@@ -81,4 +82,4 @@ for i in 1 2; do
 	log_must recover_bad_missing_devs $TESTPOOL $i
 done
 
-log_pass "Raidz2 pool can withstand two devices are failing passed."
+log_pass "draid2 pool can withstand two devices failing passed."

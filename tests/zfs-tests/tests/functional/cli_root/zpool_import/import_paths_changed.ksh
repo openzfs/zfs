@@ -89,9 +89,11 @@ test_new_paths "$VDEV0 $VDEV1" "$VDEV0 $VDEV1"
 test_new_paths "mirror $VDEV0 $VDEV1" "$VDEV0 $VDEV1"
 test_new_paths "$VDEV0 log $VDEV1" "$VDEV1"
 test_new_paths "raidz $VDEV0 $VDEV1 $VDEV2" "$VDEV1"
+test_new_paths "draid $VDEV0 $VDEV1 $VDEV2" "$VDEV1"
 
 test_swap_paths "$VDEV0 $VDEV1" "$VDEV0" "$VDEV1"
 test_swap_paths "raidz $VDEV0 $VDEV1 $VDEV2" "$VDEV0" "$VDEV1"
+test_swap_paths "draid $VDEV0 $VDEV1 $VDEV2" "$VDEV0" "$VDEV1"
 test_swap_paths "mirror $VDEV0 $VDEV1 mirror $VDEV2 $VDEV3" \
     "$VDEV0" "$VDEV2"
 
