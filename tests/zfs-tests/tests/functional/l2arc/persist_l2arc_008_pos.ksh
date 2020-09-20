@@ -32,21 +32,21 @@
 #		L2ARC device.
 #	4. Offline the L2ARC device.
 #	5. Online the L2ARC device.
-#	6. Read the amount of log blocks rebuilt in arcstats and compare to
+#	6. Read the amount of log blocks rebuilt in pool iostats and compare to
 #		(3).
 #	7. Create another random file in that pool and random read for 10 sec.
 #	8. Read the amount of log blocks written from the header of the
 #		L2ARC device.
 #	9. Offline the L2ARC device.
 #	10. Online the L2ARC device.
-#	11. Read the amount of log blocks rebuilt in arcstats and compare to
+#	11. Read the amount of log blocks rebuilt in pool iostats and compare to
 #		(7).
 #	12. Check if the amount of log blocks on the cache device has
 #		increased.
 #	13. Export the pool.
 #	14. Read the amount of log blocks on the cache device.
 #	15. Import the pool.
-#	16. Read the amount of log blocks rebuilt in arcstats and compare to
+#	16. Read the amount of log blocks rebuilt in pool iostats and compare to
 #		(14).
 #	17. Check if the labels of the L2ARC device are intact.
 #
@@ -82,18 +82,16 @@ log_must fio $FIO_SCRIPTS/random_reads.fio
 
 log_must zpool offline $TESTPOOL $VDEV_CACHE
 
-sleep 2
-
 typeset l2_dh_log_blk1=$(zdb -l $VDEV_CACHE | grep log_blk_count | \
 	awk '{print $2}')
 
-typeset l2_rebuild_log_blk_start=$(get_arcstat l2_rebuild_log_blks)
+typeset l2_rebuild_log_blk_start=$(get_iostat $TESTPOOL l2_rebuild_log_blks)
 
 log_must zpool online $TESTPOOL $VDEV_CACHE
 
 sleep 5
 
-typeset l2_rebuild_log_blk_end=$(get_arcstat l2_rebuild_log_blks)
+typeset l2_rebuild_log_blk_end=$(get_iostat $TESTPOOL l2_rebuild_log_blks)
 
 log_must test $l2_dh_log_blk1 -eq $(( $l2_rebuild_log_blk_end - $l2_rebuild_log_blk_start ))
 log_must test $l2_dh_log_blk1 -gt 0
@@ -108,13 +106,13 @@ sleep 2
 typeset l2_dh_log_blk2=$(zdb -l $VDEV_CACHE | grep log_blk_count | \
 	awk '{print $2}')
 
-typeset l2_rebuild_log_blk_start=$(get_arcstat l2_rebuild_log_blks)
+typeset l2_rebuild_log_blk_start=$(get_iostat $TESTPOOL l2_rebuild_log_blks)
 
 log_must zpool online $TESTPOOL $VDEV_CACHE
 
 sleep 5
 
-typeset l2_rebuild_log_blk_end=$(get_arcstat l2_rebuild_log_blks)
+typeset l2_rebuild_log_blk_end=$(get_iostat $TESTPOOL l2_rebuild_log_blks)
 
 log_must test $l2_dh_log_blk2 -eq $(( $l2_rebuild_log_blk_end - $l2_rebuild_log_blk_start ))
 
@@ -125,15 +123,13 @@ log_must zpool export $TESTPOOL
 typeset l2_dh_log_blk3=$(zdb -l $VDEV_CACHE | grep log_blk_count | \
 	awk '{print $2}')
 
-typeset l2_rebuild_log_blk_start=$(get_arcstat l2_rebuild_log_blks)
-
 log_must zpool import -d $VDIR $TESTPOOL
 
 sleep 5
 
-typeset l2_rebuild_log_blk_end=$(get_arcstat l2_rebuild_log_blks)
+typeset l2_rebuild_log_blk=$(get_iostat $TESTPOOL l2_rebuild_log_blks)
 
-log_must test $l2_dh_log_blk3 -eq $(( $l2_rebuild_log_blk_end - $l2_rebuild_log_blk_start ))
+log_must test $l2_dh_log_blk3 -eq $l2_rebuild_log_blk
 log_must test $l2_dh_log_blk3 -gt 0
 
 log_must zdb -lq $VDEV_CACHE

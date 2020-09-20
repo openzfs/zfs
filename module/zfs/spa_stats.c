@@ -897,10 +897,127 @@ static spa_iostats_t spa_iostats_template = {
 	{ "simple_trim_bytes_skipped",		KSTAT_DATA_UINT64 },
 	{ "simple_trim_extents_failed",		KSTAT_DATA_UINT64 },
 	{ "simple_trim_bytes_failed",		KSTAT_DATA_UINT64 },
+	{ "l2_hits",				KSTAT_DATA_UINT64 },
+	{ "l2_misses",				KSTAT_DATA_UINT64 },
+	{ "l2_prefetch_asize",			KSTAT_DATA_UINT64 },
+	{ "l2_mfu_asize",			KSTAT_DATA_UINT64 },
+	{ "l2_mru_asize",			KSTAT_DATA_UINT64 },
+	{ "l2_bufc_data_asize",			KSTAT_DATA_UINT64 },
+	{ "l2_bufc_metadata_asize",		KSTAT_DATA_UINT64 },
+	{ "l2_feeds",				KSTAT_DATA_UINT64 },
+	{ "l2_rw_clash",			KSTAT_DATA_UINT64 },
+	{ "l2_read_bytes",			KSTAT_DATA_UINT64 },
+	{ "l2_write_bytes",			KSTAT_DATA_UINT64 },
+	{ "l2_writes_sent",			KSTAT_DATA_UINT64 },
+	{ "l2_writes_done",			KSTAT_DATA_UINT64 },
+	{ "l2_writes_error",			KSTAT_DATA_UINT64 },
+	{ "l2_writes_lock_retry",		KSTAT_DATA_UINT64 },
+	{ "l2_evict_lock_retry",		KSTAT_DATA_UINT64 },
+	{ "l2_evict_reading",			KSTAT_DATA_UINT64 },
+	{ "l2_evict_l1cached",			KSTAT_DATA_UINT64 },
+	{ "l2_free_on_write",			KSTAT_DATA_UINT64 },
+	{ "l2_abort_lowmem",			KSTAT_DATA_UINT64 },
+	{ "l2_cksum_bad",			KSTAT_DATA_UINT64 },
+	{ "l2_io_error",			KSTAT_DATA_UINT64 },
+	{ "l2_size",				KSTAT_DATA_UINT64 },
+	{ "l2_asize",				KSTAT_DATA_UINT64 },
+	{ "l2_log_blk_writes",			KSTAT_DATA_UINT64 },
+	{ "l2_log_blk_asize",			KSTAT_DATA_UINT64 },
+	{ "l2_log_blk_count",			KSTAT_DATA_UINT64 },
+	{ "l2_rebuild_success",			KSTAT_DATA_UINT64 },
+	{ "l2_rebuild_unsupported",		KSTAT_DATA_UINT64 },
+	{ "l2_rebuild_io_errors",		KSTAT_DATA_UINT64 },
+	{ "l2_rebuild_dh_errors",		KSTAT_DATA_UINT64 },
+	{ "l2_rebuild_cksum_lb_errors",		KSTAT_DATA_UINT64 },
+	{ "l2_rebuild_lowmem",			KSTAT_DATA_UINT64 },
+	{ "l2_rebuild_size",			KSTAT_DATA_UINT64 },
+	{ "l2_rebuild_asize",			KSTAT_DATA_UINT64 },
+	{ "l2_rebuild_bufs",			KSTAT_DATA_UINT64 },
+	{ "l2_rebuild_bufs_precached",		KSTAT_DATA_UINT64 },
+	{ "l2_rebuild_log_blks",		KSTAT_DATA_UINT64 },
 };
 
 #define	SPA_IOSTATS_ADD(stat, val) \
     atomic_add_64(&iostats->stat.value.ui64, (val));
+
+void
+spa_iostats_l2(spa_t *spa, uint64_t hits, uint64_t misses,
+    uint64_t prefetch, uint64_t mfu, uint64_t mru, uint64_t data,
+    uint64_t metadata, uint64_t feeds, uint64_t rw_clash, uint64_t read_bytes,
+    uint64_t write_bytes, uint64_t writes_sent, uint64_t writes_done,
+    uint64_t writes_error, uint64_t writes_lock_retry,
+    uint64_t evict_lock_retry, uint64_t evict_reading, uint64_t evict_l1cached,
+    uint64_t free_on_write, uint64_t abort_lowmem, uint64_t cksum_bad,
+    uint64_t io_error, uint64_t l2_size, uint64_t l2_asize,
+    uint64_t log_blk_writes, uint64_t log_blk_asize, uint64_t log_blk_count)
+{
+	spa_history_kstat_t *shk = &spa->spa_stats.iostats;
+	kstat_t *ksp = shk->kstat;
+	spa_iostats_t *iostats;
+
+	if (ksp == NULL)
+		return;
+
+	iostats = ksp->ks_data;
+
+	SPA_IOSTATS_ADD(l2_hits, hits);
+	SPA_IOSTATS_ADD(l2_misses, misses);
+	SPA_IOSTATS_ADD(l2_prefetch_asize, prefetch);
+	SPA_IOSTATS_ADD(l2_mfu_asize, mfu);
+	SPA_IOSTATS_ADD(l2_mru_asize, mru);
+	SPA_IOSTATS_ADD(l2_bufc_data_asize, data);
+	SPA_IOSTATS_ADD(l2_bufc_metadata_asize, metadata);
+	SPA_IOSTATS_ADD(l2_feeds, feeds);
+	SPA_IOSTATS_ADD(l2_rw_clash, rw_clash);
+	SPA_IOSTATS_ADD(l2_read_bytes, read_bytes);
+	SPA_IOSTATS_ADD(l2_write_bytes, write_bytes);
+	SPA_IOSTATS_ADD(l2_writes_sent, writes_sent);
+	SPA_IOSTATS_ADD(l2_writes_done, writes_done);
+	SPA_IOSTATS_ADD(l2_writes_error, writes_error);
+	SPA_IOSTATS_ADD(l2_writes_lock_retry, writes_lock_retry);
+	SPA_IOSTATS_ADD(l2_evict_lock_retry, evict_lock_retry);
+	SPA_IOSTATS_ADD(l2_evict_reading, evict_reading);
+	SPA_IOSTATS_ADD(l2_evict_l1cached, evict_l1cached);
+	SPA_IOSTATS_ADD(l2_free_on_write, free_on_write);
+	SPA_IOSTATS_ADD(l2_abort_lowmem, abort_lowmem);
+	SPA_IOSTATS_ADD(l2_cksum_bad, cksum_bad);
+	SPA_IOSTATS_ADD(l2_io_error, io_error);
+	SPA_IOSTATS_ADD(l2_size, l2_size);
+	SPA_IOSTATS_ADD(l2_asize, l2_asize);
+	SPA_IOSTATS_ADD(l2_log_blk_writes, log_blk_writes);
+	SPA_IOSTATS_ADD(l2_log_blk_asize, log_blk_asize);
+	SPA_IOSTATS_ADD(l2_log_blk_count, log_blk_count);
+}
+
+void
+spa_iostats_l2_rebuild(spa_t *spa, uint64_t rebuild_success,
+    uint64_t rebuild_unsupported, uint64_t rebuild_io_errors,
+    uint64_t rebuild_dh_errors, uint64_t cksum_lb_errors,
+    uint64_t rebuild_lowmem, uint64_t rebuild_size, uint64_t rebuild_asize,
+    uint64_t rebuild_bufs, uint64_t rebuild_bufs_precached,
+    uint64_t rebuild_log_blks)
+{
+	spa_history_kstat_t *shk = &spa->spa_stats.iostats;
+	kstat_t *ksp = shk->kstat;
+	spa_iostats_t *iostats;
+
+	if (ksp == NULL)
+		return;
+
+	iostats = ksp->ks_data;
+
+	SPA_IOSTATS_ADD(l2_rebuild_success, rebuild_success);
+	SPA_IOSTATS_ADD(l2_rebuild_unsupported, rebuild_unsupported);
+	SPA_IOSTATS_ADD(l2_rebuild_io_errors, rebuild_io_errors);
+	SPA_IOSTATS_ADD(l2_rebuild_dh_errors, rebuild_dh_errors);
+	SPA_IOSTATS_ADD(l2_rebuild_cksum_lb_errors, cksum_lb_errors);
+	SPA_IOSTATS_ADD(l2_rebuild_lowmem, rebuild_lowmem);
+	SPA_IOSTATS_ADD(l2_rebuild_size, rebuild_size);
+	SPA_IOSTATS_ADD(l2_rebuild_asize, rebuild_asize);
+	SPA_IOSTATS_ADD(l2_rebuild_bufs, rebuild_bufs);
+	SPA_IOSTATS_ADD(l2_rebuild_bufs_precached, rebuild_bufs_precached);
+	SPA_IOSTATS_ADD(l2_rebuild_log_blks, rebuild_log_blks);
+}
 
 void
 spa_iostats_trim_add(spa_t *spa, trim_type_t type,

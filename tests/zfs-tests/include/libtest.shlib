@@ -4173,6 +4173,26 @@ function get_arcstat # stat
 	esac
 }
 
+function get_iostat # pool stat
+{
+	typeset pool=$1
+	typeset stat=$2
+
+	case $(uname) in
+	FreeBSD)
+		sysctl -n kstat.zfs.misc.$pool.iostats.$stat
+		;;
+	Linux)
+		typeset zfs_iostats="/proc/spl/kstat/zfs/$pool/iostats"
+		[[ -f "$zfs_iostats" ]] || return 1
+		grep $stat $zfs_iostats | awk '{print $3}'
+		;;
+	*)
+		false
+		;;
+	esac
+}
+
 #
 # Given an array of pids, wait until all processes
 # have completed and check their return status.

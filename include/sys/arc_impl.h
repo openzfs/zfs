@@ -785,22 +785,10 @@ typedef struct arc_stats {
 	 * L2ARC. Updated during writing of L2ARC log blocks.
 	 */
 	kstat_named_t arcstat_l2_log_blk_writes;
-	/*
-	 * Moving average of the aligned size of the L2ARC log blocks, in
-	 * bytes. Updated during L2ARC rebuild and during writing of L2ARC
-	 * log blocks.
-	 */
-	kstat_named_t arcstat_l2_log_blk_avg_asize;
 	/* Aligned size of L2ARC log blocks on L2ARC devices. */
 	kstat_named_t arcstat_l2_log_blk_asize;
 	/* Number of L2ARC log blocks present on L2ARC devices. */
 	kstat_named_t arcstat_l2_log_blk_count;
-	/*
-	 * Moving average of the aligned size of L2ARC restored data, in bytes,
-	 * to the aligned size of their metadata in L2ARC, in bytes.
-	 * Updated during L2ARC rebuild and during writing of L2ARC log blocks.
-	 */
-	kstat_named_t arcstat_l2_data_to_meta_ratio;
 	/*
 	 * Number of times the L2ARC rebuild was successful for an L2ARC device.
 	 */

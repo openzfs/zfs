@@ -32,7 +32,7 @@
 #		L2ARC device.
 #	4. Offline the L2ARC device.
 #	5. Online the L2ARC device.
-#	6. Read the amount of log blocks rebuilt in arcstats and compare to
+#	6. Read the amount of log blocks rebuilt in pool iostats and compare to
 #		(3).
 #	7. Check if the labels of the L2ARC device are intact.
 #
@@ -72,10 +72,6 @@ log_must fio $FIO_SCRIPTS/random_reads.fio
 
 log_must zpool offline $TESTPOOL $VDEV_CACHE
 
-sleep 10
-
-typeset l2_rebuild_log_blk_start=$(get_arcstat l2_rebuild_log_blks)
-
 typeset l2_dh_log_blk=$(zdb -l $VDEV_CACHE | grep log_blk_count | \
 	awk '{print $2}')
 
@@ -83,9 +79,9 @@ log_must zpool online $TESTPOOL $VDEV_CACHE
 
 sleep 10
 
-typeset l2_rebuild_log_blk_end=$(get_arcstat l2_rebuild_log_blks)
+typeset l2_rebuild_log_blk=$(get_iostat $TESTPOOL l2_rebuild_log_blks)
 
-log_must test $l2_dh_log_blk -eq $(( $l2_rebuild_log_blk_end - $l2_rebuild_log_blk_start ))
+log_must test $l2_dh_log_blk -eq $l2_rebuild_log_blk
 log_must test $l2_dh_log_blk -gt 0
 
 log_must zdb -lq $VDEV_CACHE

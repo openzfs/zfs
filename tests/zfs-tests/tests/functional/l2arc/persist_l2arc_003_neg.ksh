@@ -33,7 +33,7 @@
 #	5. Import pool.
 #	6. Check in zpool iostat if the cache device has space allocated.
 #	7. Read the file written in (2) and check if l2_hits in
-#		/proc/spl/kstat/zfs/arcstats increased.
+#		pool iostats increased.
 #
 
 verify_runnable "global"
@@ -72,12 +72,12 @@ log_must fio $FIO_SCRIPTS/random_reads.fio
 
 log_must zpool export $TESTPOOL
 
-typeset l2_success_start=$(get_arcstat l2_rebuild_success)
+typeset l2_success_start=$(get_iostat $TESTPOOL l2_rebuild_success)
 
 log_must zpool import -d $VDIR $TESTPOOL
 log_mustnot test "$(zpool iostat -Hpv $TESTPOOL $VDEV_CACHE | awk '{print $2}')" -gt 80000000
 
-typeset l2_success_end=$(get_arcstat l2_rebuild_success)
+typeset l2_success_end=$(get_iostat $TESTPOOL l2_rebuild_success)
 
 log_mustnot test $l2_success_end -gt $l2_success_start
 

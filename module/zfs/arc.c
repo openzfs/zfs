@@ -558,10 +558,8 @@ arc_stats_t arc_stats = {
 	{ "l2_asize",			KSTAT_DATA_UINT64 },
 	{ "l2_hdr_size",		KSTAT_DATA_UINT64 },
 	{ "l2_log_blk_writes",		KSTAT_DATA_UINT64 },
-	{ "l2_log_blk_avg_asize",	KSTAT_DATA_UINT64 },
 	{ "l2_log_blk_asize",		KSTAT_DATA_UINT64 },
 	{ "l2_log_blk_count",		KSTAT_DATA_UINT64 },
-	{ "l2_data_to_meta_ratio",	KSTAT_DATA_UINT64 },
 	{ "l2_rebuild_success",		KSTAT_DATA_UINT64 },
 	{ "l2_rebuild_unsupported",	KSTAT_DATA_UINT64 },
 	{ "l2_rebuild_io_errors",	KSTAT_DATA_UINT64 },
@@ -627,24 +625,6 @@ arc_stats_t arc_stats = {
 			ARCSTAT_BUMP(arcstat_##notstat1##_##notstat2##_##stat);\
 		}							\
 	}
-
-/*
- * This macro allows us to use kstats as floating averages. Each time we
- * update this kstat, we first factor it and the update value by
- * ARCSTAT_AVG_FACTOR to shrink the new value's contribution to the overall
- * average. This macro assumes that integer loads and stores are atomic, but
- * is not safe for multiple writers updating the kstat in parallel (only the
- * last writer's update will remain).
- */
-#define	ARCSTAT_F_AVG_FACTOR	3
-#define	ARCSTAT_F_AVG(stat, value) \
-	do { \
-		uint64_t x = ARCSTAT(stat); \
-		x = x - x / ARCSTAT_F_AVG_FACTOR + \
-		    (value) / ARCSTAT_F_AVG_FACTOR; \
-		ARCSTAT(stat) = x; \
-		_NOTE(CONSTCOND) \
-	} while (0)
 
 kstat_t			*arc_ksp;
 static arc_state_t	*arc_anon;
@@ -911,6 +891,184 @@ static void l2arc_hdr_arcstats_update(arc_buf_hdr_t *hdr, boolean_t incr,
 	l2arc_hdr_arcstats_update((hdr), B_TRUE, B_TRUE)
 #define	l2arc_hdr_arcstats_decrement_state(hdr) \
 	l2arc_hdr_arcstats_update((hdr), B_FALSE, B_TRUE)
+
+#define	spa_iostats_l2_hits(spa)	\
+	spa_iostats_l2(			\
+	spa, 1, 0, 0, 0, 0, 0, 0, 0, 0,	\
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0,	\
+	0, 0, 0, 0, 0, 0, 0, 0)
+#define	spa_iostats_l2_misses(spa)	\
+	spa_iostats_l2(			\
+	spa, 0, 1, 0, 0, 0, 0, 0, 0, 0,	\
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0,	\
+	0, 0, 0, 0, 0, 0, 0, 0)
+#define	spa_iostats_l2_prefetch(spa, asize)	\
+	spa_iostats_l2(				\
+	spa, 0, 0, asize, 0, 0, 0, 0, 0, 0,	\
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0,		\
+	0, 0, 0, 0, 0, 0, 0, 0)
+#define	spa_iostats_l2_mfu(spa, asize)		\
+	spa_iostats_l2(				\
+	spa, 0, 0, 0, asize, 0, 0, 0, 0, 0,	\
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0,		\
+	0, 0, 0, 0, 0, 0, 0, 0)
+#define	spa_iostats_l2_mru(spa, asize)		\
+	spa_iostats_l2(				\
+	spa, 0, 0, 0, 0, asize, 0, 0, 0, 0,	\
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0,		\
+	0, 0, 0, 0, 0, 0, 0, 0)
+#define	spa_iostats_l2_bufc_data_asize(spa, asize) \
+	spa_iostats_l2(				\
+	spa, 0, 0, 0, 0, 0, asize, 0, 0, 0,	\
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0,		\
+	0, 0, 0, 0, 0, 0, 0, 0)
+#define	spa_iostats_l2_bufc_metadata_asize(spa, asize) \
+	spa_iostats_l2(				\
+	spa, 0, 0, 0, 0, 0, 0, asize, 0, 0,	\
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0,		\
+	0, 0, 0, 0, 0, 0, 0, 0)
+#define	spa_iostats_l2_feeds(spa)	\
+	spa_iostats_l2(			\
+	spa, 0, 0, 0, 0, 0, 0, 0, 1, 0,	\
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0,	\
+	0, 0, 0, 0, 0, 0, 0, 0)
+#define	spa_iostats_l2_rw_clash(spa)	\
+	spa_iostats_l2(			\
+	spa, 0, 0, 0, 0, 0, 0, 0, 0, 1,	\
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0,	\
+	0, 0, 0, 0, 0, 0, 0, 0)
+#define	spa_iostats_l2_read_bytes(spa, bytes)	\
+	spa_iostats_l2(				\
+	spa, 0, 0, 0, 0, 0, 0, 0, 0, 0,		\
+	bytes, 0, 0, 0, 0, 0, 0, 0, 0, 0,	\
+	0, 0, 0, 0, 0, 0, 0, 0)
+#define	spa_iostats_l2_write_bytes(spa, bytes)	\
+	spa_iostats_l2(				\
+	spa, 0, 0, 0, 0, 0, 0, 0, 0, 0,		\
+	0, bytes, 0, 0, 0, 0, 0, 0, 0, 0,	\
+	0, 0, 0, 0, 0, 0, 0, 0)
+#define	spa_iostats_l2_writes_sent(spa) \
+	spa_iostats_l2(			\
+	spa, 0, 0, 0, 0, 0, 0, 0, 0, 0,	\
+	0, 0, 1, 0, 0, 0, 0, 0, 0, 0,	\
+	0, 0, 0, 0, 0, 0, 0, 0)
+#define	spa_iostats_l2_writes_done(spa) \
+	spa_iostats_l2(			\
+	spa, 0, 0, 0, 0, 0, 0, 0, 0, 0,	\
+	0, 0, 0, 1, 0, 0, 0, 0, 0, 0,	\
+	0, 0, 0, 0, 0, 0, 0, 0)
+#define	spa_iostats_l2_writes_error(spa) \
+	spa_iostats_l2(			\
+	spa, 0, 0, 0, 0, 0, 0, 0, 0, 0,	\
+	0, 0, 0, 0, 1, 0, 0, 0, 0, 0,	\
+	0, 0, 0, 0, 0, 0, 0, 0)
+#define	spa_iostats_l2_writes_lock_retry(spa) \
+	spa_iostats_l2(			\
+	spa, 0, 0, 0, 0, 0, 0, 0, 0, 0,	\
+	0, 0, 0, 0, 0, 1, 0, 0, 0, 0,	\
+	0, 0, 0, 0, 0, 0, 0, 0)
+#define	spa_iostats_l2_evict_lock_retry(spa) \
+	spa_iostats_l2(			\
+	spa, 0, 0, 0, 0, 0, 0, 0, 0, 0,	\
+	0, 0, 0, 0, 0, 0, 1, 0, 0, 0,	\
+	0, 0, 0, 0, 0, 0, 0, 0)
+#define	spa_iostats_l2_evict_reading(spa) \
+	spa_iostats_l2(			\
+	spa, 0, 0, 0, 0, 0, 0, 0, 0, 0,	\
+	0, 0, 0, 0, 0, 0, 0, 1, 0, 0,	\
+	0, 0, 0, 0, 0, 0, 0, 0)
+#define	spa_iostats_l2_evict_l1cached(spa) \
+	spa_iostats_l2(			\
+	spa, 0, 0, 0, 0, 0, 0, 0, 0, 0,	\
+	0, 0, 0, 0, 0, 0, 0, 0, 1, 0,	\
+	0, 0, 0, 0, 0, 0, 0, 0)
+#define	spa_iostats_l2_free_on_write(spa) \
+	spa_iostats_l2(			\
+	spa, 0, 0, 0, 0, 0, 0, 0, 0, 0,	\
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 1,	\
+	0, 0, 0, 0, 0, 0, 0, 0)
+#define	spa_iostats_l2_abort_lowmem(spa) \
+	spa_iostats_l2(			\
+	spa, 0, 0, 0, 0, 0, 0, 0, 0, 0,	\
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0,	\
+	1, 0, 0, 0, 0, 0, 0, 0)
+#define	spa_iostats_l2_cksum_bad(spa) \
+	spa_iostats_l2(			\
+	spa, 0, 0, 0, 0, 0, 0, 0, 0, 0,	\
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0,	\
+	0, 1, 0, 0, 0, 0, 0, 0)
+#define	spa_iostats_l2_io_error(spa) \
+	spa_iostats_l2(			\
+	spa, 0, 0, 0, 0, 0, 0, 0, 0, 0,	\
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0,	\
+	0, 0, 1, 0, 0, 0, 0, 0)
+#define	spa_iostats_l2_size(spa, asize) \
+	spa_iostats_l2(			\
+	spa, 0, 0, 0, 0, 0, 0, 0, 0, 0,	\
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0,	\
+	0, 0, 0, asize, 0, 0, 0, 0)
+#define	spa_iostats_l2_asize(spa, asize) \
+	spa_iostats_l2(			\
+	spa, 0, 0, 0, 0, 0, 0, 0, 0, 0,	\
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0,	\
+	0, 0, 0, 0, asize, 0, 0, 0)
+
+#define	spa_iostats_l2_log_blk_writes(spa)	\
+	spa_iostats_l2(			\
+	spa, 0, 0, 0, 0, 0, 0, 0, 0, 0,		\
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0,		\
+	0, 0, 0, 0, 0, 1, 0, 0)
+
+#define	spa_iostats_l2_log_blk_asize(spa, asize)	\
+	spa_iostats_l2(			\
+	spa, 0, 0, 0, 0, 0, 0, 0, 0, 0,		\
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0,		\
+	0, 0, 0, 0, 0, 0, asize, 0)
+#define	spa_iostats_l2_log_blk_count_inc(spa)	\
+	spa_iostats_l2(			\
+	spa, 0, 0, 0, 0, 0, 0, 0, 0, 0,		\
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0,		\
+	0, 0, 0, 0, 0, 0, 0, 1)
+#define	spa_iostats_l2_log_blk_count_dec(spa)	\
+	spa_iostats_l2(			\
+	spa, 0, 0, 0, 0, 0, 0, 0, 0, 0,		\
+	0, 0, 0, 0, 0, 0, 0, 0, 0, 0,		\
+	0, 0, 0, 0, 0, 0, 0, -1)
+
+#define	spa_iostats_l2_rebuild_success(spa)	\
+	spa_iostats_l2_rebuild(			\
+	spa, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+#define	spa_iostats_l2_rebuild_unsupported(spa)	\
+	spa_iostats_l2_rebuild(			\
+	spa, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+#define	spa_iostats_l2_rebuild_io_errors(spa)	\
+	spa_iostats_l2_rebuild(			\
+	spa, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0)
+#define	spa_iostats_l2_rebuild_dh_errors(spa)	\
+	spa_iostats_l2_rebuild(			\
+	spa, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0)
+#define	spa_iostats_l2_rebuild_cksum_lb_errors(spa)	\
+	spa_iostats_l2_rebuild(			\
+	spa, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0)
+
+#define	spa_iostats_l2_rebuild_lowmem(spa)	\
+	spa_iostats_l2_rebuild(			\
+	spa, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0)
+#define	spa_iostats_l2_rebuild_size(spa, size)	\
+	spa_iostats_l2_rebuild(			\
+	spa, 0, 0, 0, 0, 0, 0, size, 0, 0, 0, 0)
+#define	spa_iostats_l2_rebuild_asize(spa, asize)	\
+	spa_iostats_l2_rebuild(			\
+	spa, 0, 0, 0, 0, 0, 0, 0, asize, 0, 0, 0)
+#define	spa_iostats_l2_rebuild_bufs(spa, entries)	\
+	spa_iostats_l2_rebuild(			\
+	spa, 0, 0, 0, 0, 0, 0, 0, 0, entries, 0, 0)
+#define	spa_iostats_l2_rebuild_bufs_precached(spa)	\
+	spa_iostats_l2_rebuild(			\
+	spa, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0)
+#define	spa_iostats_l2_rebuild_log_blks(spa)	\
+	spa_iostats_l2_rebuild(			\
+	spa, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1)
 
 /*
  * l2arc_mfuonly : A ZFS module parameter that controls whether only MFU
@@ -3278,6 +3436,7 @@ arc_hdr_free_abd(arc_buf_hdr_t *hdr, boolean_t free_rdata)
 	if (HDR_L2_WRITING(hdr)) {
 		arc_hdr_free_on_write(hdr, free_rdata);
 		ARCSTAT_BUMP(arcstat_l2_free_on_write);
+		spa_iostats_l2_free_on_write(hdr->b_l2hdr.b_dev->l2ad_spa);
 	} else if (free_rdata) {
 		arc_free_data_abd(hdr, hdr->b_crypt_hdr.b_rabd, size, hdr);
 	} else {
@@ -3719,6 +3878,7 @@ l2arc_hdr_arcstats_update(arc_buf_hdr_t *hdr, boolean_t incr,
 {
 	l2arc_buf_hdr_t *l2hdr = &hdr->b_l2hdr;
 	l2arc_dev_t *dev = l2hdr->b_dev;
+	spa_t *spa = dev->l2ad_spa;
 	uint64_t lsize = HDR_GET_LSIZE(hdr);
 	uint64_t psize = HDR_GET_PSIZE(hdr);
 	uint64_t asize = vdev_psize_to_asize(dev->l2ad_vdev, psize);
@@ -3740,6 +3900,7 @@ l2arc_hdr_arcstats_update(arc_buf_hdr_t *hdr, boolean_t incr,
 	/* If the buffer is a prefetch, count it as such. */
 	if (HDR_PREFETCH(hdr)) {
 		ARCSTAT_INCR(arcstat_l2_prefetch_asize, asize_s);
+		spa_iostats_l2_prefetch(spa, asize_s);
 	} else {
 		/*
 		 * We use the value stored in the L2 header upon initial
@@ -3754,10 +3915,12 @@ l2arc_hdr_arcstats_update(arc_buf_hdr_t *hdr, boolean_t incr,
 			case ARC_STATE_MRU_GHOST:
 			case ARC_STATE_MRU:
 				ARCSTAT_INCR(arcstat_l2_mru_asize, asize_s);
+				spa_iostats_l2_mru(spa, asize_s);
 				break;
 			case ARC_STATE_MFU_GHOST:
 			case ARC_STATE_MFU:
 				ARCSTAT_INCR(arcstat_l2_mfu_asize, asize_s);
+				spa_iostats_l2_mfu(spa, asize_s);
 				break;
 			default:
 				break;
@@ -3768,14 +3931,18 @@ l2arc_hdr_arcstats_update(arc_buf_hdr_t *hdr, boolean_t incr,
 		return;
 
 	ARCSTAT_INCR(arcstat_l2_psize, psize_s);
+	spa_iostats_l2_asize(spa, psize_s);
 	ARCSTAT_INCR(arcstat_l2_lsize, lsize_s);
+	spa_iostats_l2_size(spa, lsize_s);
 
 	switch (type) {
 		case ARC_BUFC_DATA:
 			ARCSTAT_INCR(arcstat_l2_bufc_data_asize, asize_s);
+			spa_iostats_l2_bufc_data_asize(spa, asize_s);
 			break;
 		case ARC_BUFC_METADATA:
 			ARCSTAT_INCR(arcstat_l2_bufc_metadata_asize, asize_s);
+			spa_iostats_l2_bufc_metadata_asize(spa, asize_s);
 			break;
 		default:
 			break;
@@ -6314,6 +6481,7 @@ top:
 
 				DTRACE_PROBE1(l2arc__hit, arc_buf_hdr_t *, hdr);
 				ARCSTAT_BUMP(arcstat_l2_hits);
+				spa_iostats_l2_hits(spa);
 				atomic_inc_32(&hdr->b_l2hdr.b_hits);
 
 				cb = kmem_zalloc(sizeof (l2arc_read_callback_t),
@@ -6372,6 +6540,8 @@ top:
 				    zio_t *, rzio);
 				ARCSTAT_INCR(arcstat_l2_read_bytes,
 				    HDR_GET_PSIZE(hdr));
+				spa_iostats_l2_read_bytes(spa,
+				    HDR_GET_PSIZE(hdr));
 
 				if (*arc_flags & ARC_FLAG_NOWAIT) {
 					zio_nowait(rzio);
@@ -6389,6 +6559,7 @@ top:
 				DTRACE_PROBE1(l2arc__miss,
 				    arc_buf_hdr_t *, hdr);
 				ARCSTAT_BUMP(arcstat_l2_misses);
+				spa_iostats_l2_misses(spa);
 				if (HDR_L2_WRITING(hdr))
 					ARCSTAT_BUMP(arcstat_l2_rw_clash);
 				spa_config_exit(spa, SCL_L2ARC, vd);
@@ -6405,6 +6576,7 @@ top:
 				DTRACE_PROBE1(l2arc__miss,
 				    arc_buf_hdr_t *, hdr);
 				ARCSTAT_BUMP(arcstat_l2_misses);
+				spa_iostats_l2_misses(spa);
 			}
 		}
 
@@ -8172,10 +8344,12 @@ l2arc_write_done(zio_t *zio)
 	arc_buf_hdr_t		*head, *hdr, *hdr_prev;
 	kmutex_t		*hash_lock;
 	int64_t			bytes_dropped = 0;
+	spa_t			*spa;
 
 	cb = zio->io_private;
 	ASSERT3P(cb, !=, NULL);
 	dev = cb->l2wcb_dev;
+	spa = dev->l2ad_spa;
 	l2dhdr = dev->l2ad_dev_hdr;
 	ASSERT3P(dev, !=, NULL);
 	head = cb->l2wcb_head;
@@ -8206,6 +8380,7 @@ top:
 			 * don't leave the ARC_FLAG_L2_WRITING bit set.
 			 */
 			ARCSTAT_BUMP(arcstat_l2_writes_lock_retry);
+			spa_iostats_l2_writes_lock_retry(spa);
 
 			/*
 			 * We don't want to rescan the headers we've
@@ -8284,7 +8459,9 @@ top:
 			    L2BLK_GET_PSIZE((lb_ptr_buf->lb_ptr)->lbp_prop);
 			bytes_dropped += asize;
 			ARCSTAT_INCR(arcstat_l2_log_blk_asize, -asize);
+			spa_iostats_l2_log_blk_asize(spa, -asize);
 			ARCSTAT_BUMPDOWN(arcstat_l2_log_blk_count);
+			spa_iostats_l2_log_blk_count_dec(spa);
 			zfs_refcount_remove_many(&dev->l2ad_lb_asize, asize,
 			    lb_ptr_buf);
 			zfs_refcount_remove(&dev->l2ad_lb_count, lb_ptr_buf);
@@ -8297,6 +8474,7 @@ top:
 
 	if (zio->io_error != 0) {
 		ARCSTAT_BUMP(arcstat_l2_writes_error);
+		spa_iostats_l2_writes_error(spa);
 
 		/*
 		 * Restore the lbps array in the header to its previous state.
@@ -8327,6 +8505,7 @@ top:
 	}
 
 	atomic_inc_64(&l2arc_writes_done);
+	spa_iostats_l2_writes_done(spa);
 	list_remove(buflist, head);
 	ASSERT(!HDR_HAS_L1HDR(head));
 	kmem_cache_free(hdr_l2only_cache, head);
@@ -8533,11 +8712,13 @@ l2arc_read_done(zio_t *zio)
 		 */
 		if (zio->io_error != 0) {
 			ARCSTAT_BUMP(arcstat_l2_io_error);
+			spa_iostats_l2_io_error(hdr->b_l2hdr.b_dev->l2ad_spa);
 		} else {
 			zio->io_error = SET_ERROR(EIO);
 		}
 		if (!valid_cksum || tfm_error != 0)
 			ARCSTAT_BUMP(arcstat_l2_cksum_bad);
+			spa_iostats_l2_cksum_bad(hdr->b_l2hdr.b_dev->l2ad_spa);
 
 		/*
 		 * If there's no waiter, issue an async i/o to the primary
@@ -8659,6 +8840,7 @@ l2arc_evict(l2arc_dev_t *dev, uint64_t distance, boolean_t all)
 	l2arc_lb_ptr_buf_t *lb_ptr_buf, *lb_ptr_buf_prev;
 	vdev_t *vd = dev->l2ad_vdev;
 	boolean_t rerun;
+	spa_t *spa = dev->l2ad_spa;
 
 	buflist = &dev->l2ad_buflist;
 
@@ -8767,7 +8949,9 @@ retry:
 		} else {
 			vdev_space_update(vd, -asize, 0, 0);
 			ARCSTAT_INCR(arcstat_l2_log_blk_asize, -asize);
+			spa_iostats_l2_log_blk_asize(spa, -asize);
 			ARCSTAT_BUMPDOWN(arcstat_l2_log_blk_count);
+			spa_iostats_l2_log_blk_count_dec(spa);
 			zfs_refcount_remove_many(&dev->l2ad_lb_asize, asize,
 			    lb_ptr_buf);
 			zfs_refcount_remove(&dev->l2ad_lb_count, lb_ptr_buf);
@@ -8794,6 +8978,7 @@ retry:
 			 * Missed the hash lock.  Retry.
 			 */
 			ARCSTAT_BUMP(arcstat_l2_evict_lock_retry);
+			spa_iostats_l2_evict_lock_retry(spa);
 			mutex_exit(&dev->l2ad_mtx);
 			mutex_enter(hash_lock);
 			mutex_exit(hash_lock);
@@ -8831,6 +9016,7 @@ retry:
 		} else {
 			ASSERT(hdr->b_l1hdr.b_state != arc_l2c_only);
 			ARCSTAT_BUMP(arcstat_l2_evict_l1cached);
+			spa_iostats_l2_evict_l1cached(spa);
 			/*
 			 * Invalidate issued or about to be issued
 			 * reads, since we may be about to write
@@ -8838,6 +9024,7 @@ retry:
 			 */
 			if (HDR_L2_READING(hdr)) {
 				ARCSTAT_BUMP(arcstat_l2_evict_reading);
+				spa_iostats_l2_evict_reading(spa);
 				arc_hdr_set_flags(hdr, ARC_FLAG_L2_EVICTED);
 			}
 
@@ -9270,7 +9457,9 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 
 	ASSERT3U(write_asize, <=, target_sz);
 	ARCSTAT_BUMP(arcstat_l2_writes_sent);
+	spa_iostats_l2_writes_sent(spa);
 	ARCSTAT_INCR(arcstat_l2_write_bytes, write_psize);
+	spa_iostats_l2_write_bytes(spa, write_psize);
 
 	dev->l2ad_writing = B_TRUE;
 	(void) zio_wait(pio);
@@ -9364,11 +9553,13 @@ l2arc_feed_thread(void *unused)
 		 */
 		if (l2arc_hdr_limit_reached()) {
 			ARCSTAT_BUMP(arcstat_l2_abort_lowmem);
+			spa_iostats_l2_abort_lowmem(spa);
 			spa_config_exit(spa, SCL_L2ARC, dev);
 			continue;
 		}
 
 		ARCSTAT_BUMP(arcstat_l2_feeds);
+		spa_iostats_l2_feeds(spa);
 
 		size = l2arc_write_size(dev);
 
@@ -9813,6 +10004,7 @@ l2arc_rebuild(l2arc_dev_t *dev)
 		 */
 		if (l2arc_hdr_limit_reached()) {
 			ARCSTAT_BUMP(arcstat_l2_rebuild_abort_lowmem);
+			spa_iostats_l2_rebuild_lowmem(spa);
 			cmn_err(CE_NOTE, "System running low on memory, "
 			    "aborting L2ARC rebuild.");
 			err = SET_ERROR(ENOMEM);
@@ -9842,7 +10034,9 @@ l2arc_rebuild(l2arc_dev_t *dev)
 		mutex_enter(&dev->l2ad_mtx);
 		list_insert_tail(&dev->l2ad_lbptr_list, lb_ptr_buf);
 		ARCSTAT_INCR(arcstat_l2_log_blk_asize, asize);
+		spa_iostats_l2_log_blk_asize(spa, asize);
 		ARCSTAT_BUMP(arcstat_l2_log_blk_count);
+		spa_iostats_l2_log_blk_count_inc(spa);
 		zfs_refcount_add_many(&dev->l2ad_lb_asize, asize, lb_ptr_buf);
 		zfs_refcount_add(&dev->l2ad_lb_count, lb_ptr_buf);
 		mutex_exit(&dev->l2ad_mtx);
@@ -9923,6 +10117,7 @@ out:
 		    "disabled");
 	} else if (err == 0 && zfs_refcount_count(&dev->l2ad_lb_count) > 0) {
 		ARCSTAT_BUMP(arcstat_l2_rebuild_success);
+		spa_iostats_l2_rebuild_success(spa);
 		spa_history_log_internal(spa, "L2ARC rebuild", NULL,
 		    "successful, restored %llu blocks",
 		    (u_longlong_t)zfs_refcount_count(&dev->l2ad_lb_count));
@@ -9968,6 +10163,7 @@ l2arc_dev_hdr_read(l2arc_dev_t *dev)
 	l2arc_dev_hdr_phys_t	*l2dhdr = dev->l2ad_dev_hdr;
 	const uint64_t		l2dhdr_asize = dev->l2ad_dev_hdr_asize;
 	abd_t 			*abd;
+	spa_t			*spa = dev->l2ad_spa;
 
 	guid = spa_guid(dev->l2ad_vdev->vdev_spa);
 
@@ -9984,6 +10180,7 @@ l2arc_dev_hdr_read(l2arc_dev_t *dev)
 
 	if (err != 0) {
 		ARCSTAT_BUMP(arcstat_l2_rebuild_abort_dh_errors);
+		spa_iostats_l2_rebuild_dh_errors(spa);
 		zfs_dbgmsg("L2ARC IO error (%d) while reading device header, "
 		    "vdev guid: %llu", err, dev->l2ad_vdev->vdev_guid);
 		return (err);
@@ -10008,6 +10205,7 @@ l2arc_dev_hdr_read(l2arc_dev_t *dev)
 		 * version of persistent L2ARC.
 		 */
 		ARCSTAT_BUMP(arcstat_l2_rebuild_abort_unsupported);
+		spa_iostats_l2_rebuild_unsupported(spa);
 		return (SET_ERROR(ENOTSUP));
 	}
 
@@ -10050,6 +10248,7 @@ l2arc_log_blk_read(l2arc_dev_t *dev,
 	zio_cksum_t	cksum;
 	abd_t		*abd = NULL;
 	uint64_t	asize;
+	spa_t		*spa = dev->l2ad_spa;
 
 	ASSERT(this_lbp != NULL && next_lbp != NULL);
 	ASSERT(this_lb != NULL && next_lb != NULL);
@@ -10081,6 +10280,7 @@ l2arc_log_blk_read(l2arc_dev_t *dev,
 	/* Wait for the IO to read this log block to complete */
 	if ((err = zio_wait(this_io)) != 0) {
 		ARCSTAT_BUMP(arcstat_l2_rebuild_abort_io_errors);
+		spa_iostats_l2_rebuild_io_errors(spa);
 		zfs_dbgmsg("L2ARC IO error (%d) while reading log block, "
 		    "offset: %llu, vdev guid: %llu", err, this_lbp->lbp_daddr,
 		    dev->l2ad_vdev->vdev_guid);
@@ -10095,6 +10295,7 @@ l2arc_log_blk_read(l2arc_dev_t *dev,
 	fletcher_4_native(this_lb, asize, NULL, &cksum);
 	if (!ZIO_CHECKSUM_EQUAL(cksum, this_lbp->lbp_cksum)) {
 		ARCSTAT_BUMP(arcstat_l2_rebuild_abort_cksum_lb_errors);
+		spa_iostats_l2_rebuild_cksum_lb_errors(spa);
 		zfs_dbgmsg("L2ARC log block cksum failed, offset: %llu, "
 		    "vdev guid: %llu, l2ad_hand: %llu, l2ad_evict: %llu",
 		    this_lbp->lbp_daddr, dev->l2ad_vdev->vdev_guid,
@@ -10150,6 +10351,7 @@ l2arc_log_blk_restore(l2arc_dev_t *dev, const l2arc_log_blk_phys_t *lb,
 {
 	uint64_t	size = 0, asize = 0;
 	uint64_t	log_entries = dev->l2ad_log_entries;
+	spa_t		*spa = dev->l2ad_spa;
 
 	/*
 	 * Usually arc_adapt() is called only for data, not headers, but
@@ -10191,11 +10393,13 @@ l2arc_log_blk_restore(l2arc_dev_t *dev, const l2arc_log_blk_phys_t *lb,
 	 *	asize		Aligned size of restored buffers in the L2ARC
 	 */
 	ARCSTAT_INCR(arcstat_l2_rebuild_size, size);
+	spa_iostats_l2_rebuild_size(spa, size);
 	ARCSTAT_INCR(arcstat_l2_rebuild_asize, asize);
+	spa_iostats_l2_rebuild_asize(spa, asize);
 	ARCSTAT_INCR(arcstat_l2_rebuild_bufs, log_entries);
-	ARCSTAT_F_AVG(arcstat_l2_log_blk_avg_asize, lb_asize);
-	ARCSTAT_F_AVG(arcstat_l2_data_to_meta_ratio, asize / lb_asize);
+	spa_iostats_l2_rebuild_bufs(spa, log_entries);
 	ARCSTAT_BUMP(arcstat_l2_rebuild_log_blks);
+	spa_iostats_l2_rebuild_log_blks(spa);
 }
 
 /*
@@ -10209,6 +10413,7 @@ l2arc_hdr_restore(const l2arc_log_ent_phys_t *le, l2arc_dev_t *dev)
 	kmutex_t		*hash_lock;
 	arc_buf_contents_t	type = L2BLK_GET_TYPE((le)->le_prop);
 	uint64_t		asize;
+	spa_t			*spa = dev->l2ad_spa;
 
 	/*
 	 * Do all the allocation before grabbing any locks, this lets us
@@ -10262,6 +10467,7 @@ l2arc_hdr_restore(const l2arc_log_ent_phys_t *le, l2arc_dev_t *dev)
 			vdev_space_update(dev->l2ad_vdev, asize, 0, 0);
 		}
 		ARCSTAT_BUMP(arcstat_l2_rebuild_bufs_precached);
+		spa_iostats_l2_rebuild_bufs_precached(spa);
 	}
 
 	mutex_exit(hash_lock);
@@ -10372,6 +10578,7 @@ l2arc_log_blk_commit(l2arc_dev_t *dev, zio_t *pio, l2arc_write_callback_t *cb)
 	l2arc_lb_abd_buf_t	*abd_buf;
 	uint8_t			*tmpbuf;
 	l2arc_lb_ptr_buf_t	*lb_ptr_buf;
+	spa_t			*spa = dev->l2ad_spa;
 
 	VERIFY3S(dev->l2ad_log_ent_idx, ==, dev->l2ad_log_entries);
 
@@ -10458,7 +10665,9 @@ l2arc_log_blk_commit(l2arc_dev_t *dev, zio_t *pio, l2arc_write_callback_t *cb)
 	mutex_enter(&dev->l2ad_mtx);
 	list_insert_head(&dev->l2ad_lbptr_list, lb_ptr_buf);
 	ARCSTAT_INCR(arcstat_l2_log_blk_asize, asize);
+	spa_iostats_l2_log_blk_asize(spa, asize);
 	ARCSTAT_BUMP(arcstat_l2_log_blk_count);
+	spa_iostats_l2_log_blk_count_inc(spa);
 	zfs_refcount_add_many(&dev->l2ad_lb_asize, asize, lb_ptr_buf);
 	zfs_refcount_add(&dev->l2ad_lb_count, lb_ptr_buf);
 	mutex_exit(&dev->l2ad_mtx);
@@ -10467,9 +10676,7 @@ l2arc_log_blk_commit(l2arc_dev_t *dev, zio_t *pio, l2arc_write_callback_t *cb)
 	/* bump the kstats */
 	ARCSTAT_INCR(arcstat_l2_write_bytes, asize);
 	ARCSTAT_BUMP(arcstat_l2_log_blk_writes);
-	ARCSTAT_F_AVG(arcstat_l2_log_blk_avg_asize, asize);
-	ARCSTAT_F_AVG(arcstat_l2_data_to_meta_ratio,
-	    dev->l2ad_log_blk_payload_asize / asize);
+	spa_iostats_l2_log_blk_writes(spa);
 
 	/* start a new log block */
 	dev->l2ad_log_ent_idx = 0;
