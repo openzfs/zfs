@@ -368,11 +368,7 @@ extern int lcompat_hashnum(int64_t);
 @@ LUAL_BUFFERSIZE is the buffer size used by the lauxlib buffer system.
 ** CHANGE it if it uses too much C-stack space.
 */
-#ifdef __linux__
 #define LUAL_BUFFERSIZE		512
-#else
-#define LUAL_BUFFERSIZE		1024
-#endif
 
 
 /*
