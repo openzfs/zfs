@@ -643,7 +643,7 @@ dump_freeobjects(dmu_send_cookie_t *dscp, uint64_t firstobj, uint64_t numobjs)
 	 * receiving side.
 	 */
 	if (maxobj > 0) {
-		if (maxobj < firstobj)
+		if (maxobj <= firstobj)
 			return (0);
 
 		if (maxobj < firstobj + numobjs)
@@ -663,8 +663,6 @@ dump_freeobjects(dmu_send_cookie_t *dscp, uint64_t firstobj, uint64_t numobjs)
 			return (SET_ERROR(EINTR));
 		dscp->dsc_pending_op = PENDING_NONE;
 	}
-	if (numobjs == 0)
-		numobjs = UINT64_MAX - firstobj;
 
 	if (dscp->dsc_pending_op == PENDING_FREEOBJECTS) {
 		/*
