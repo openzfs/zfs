@@ -238,7 +238,7 @@ zstd_mempool_alloc(struct zstd_pool *zstd_mempool, size_t size)
 			 * Check if objects fits the size, if so we take it and
 			 * update the timestamp.
 			 */
-			if (!mem && pool->mem && size <= pool->size) {
+			if (size && !mem && pool->mem && size <= pool->size) {
 				pool->timeout = gethrestime_sec() +
 				    ZSTD_POOL_TIMEOUT;
 				mem = pool->mem;
@@ -257,7 +257,7 @@ zstd_mempool_alloc(struct zstd_pool *zstd_mempool, size_t size)
 		}
 	}
 
-	if (mem) {
+	if (!size || mem) {
 		return (mem);
 	}
 
@@ -688,6 +688,19 @@ zstd_mempool_deinit(void)
 	zstd_mempool_cctx = NULL;
 }
 
+/* release unused memory from pool */
+
+void
+zfs_zstd_cache_reap_now(void)
+{
+	/*
+	 * calling alloc with zero size seeks
+	 * and releases old unused objects
+	 */
+	zstd_mempool_alloc(zstd_mempool_cctx, 0);
+	zstd_mempool_alloc(zstd_mempool_dctx, 0);
+}
+
 extern int __init
 zstd_init(void)
 {
@@ -735,4 +748,5 @@ ZFS_MODULE_VERSION(ZSTD_VERSION_STRING);
 EXPORT_SYMBOL(zfs_zstd_compress);
 EXPORT_SYMBOL(zfs_zstd_decompress_level);
 EXPORT_SYMBOL(zfs_zstd_decompress);
+EXPORT_SYMBOL(zfs_zstd_cache_reap_now);
 #endif
