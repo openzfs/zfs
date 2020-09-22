@@ -218,7 +218,10 @@ If accessed again they are counted as MRU and the \fBl2arc_mru_asize\fR arcstat
 will not be 0. The ARC status of L2ARC buffers when they were first cached in
 L2ARC can be seen in the \fBl2arc_mru_asize\fR, \fBl2arc_mfu_asize\fR and
 \fBl2arc_prefetch_asize\fR arcstats when importing the pool or onlining a cache
-device if persistent L2ARC is enabled.
+device if persistent L2ARC is enabled. The \fBevicted_l2_eligible_mru\fR
+arcstat does not take into account if this option is enabled as the information
+provided by the evicted_l2_eligible_* arcstats can be used to decide if
+toggling this option is appropriate for the current workload.
 .sp
 Use \fB0\fR for no (default) and \fB1\fR for yes.
 .RE
