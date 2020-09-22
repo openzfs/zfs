@@ -72,7 +72,7 @@ run_and_verify -p "$TESTPOOL"  -e "sysevent.fs.zfs.history_event" \
 log_note "Include multiple events"
 zed_rc_set ZED_SYSLOG_SUBCLASS_INCLUDE 'scrub_start|scrub_finish'
 run_and_verify -p "$TESTPOOL"  -e "sysevent.fs.zfs.scrub_start" \
-    -e "sysevent.fs.zfs.scrub_finish" \
+    -e "sysevent.fs.zfs.scrub_finish" -d 8 \
     "zpool scrub $TESTPOOL && wait_scrubbed $TESTPOOL"
 
 # We can't use run_and_verify() for exclusions, so run the rest of the tests
