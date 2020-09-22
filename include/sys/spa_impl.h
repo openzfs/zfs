@@ -425,6 +425,7 @@ struct spa {
 	kcondvar_t	spa_waiters_cv;
 	int		spa_waiters;		/* number of waiting threads */
 	boolean_t	spa_waiters_cancel;	/* waiters should return */
+	boolean_t	spa_raidz_expanding;	/* expansion in progress */
 
 	/*
 	 * spa_refcount & spa_config_lock must be the last elements

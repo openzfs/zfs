@@ -6606,6 +6606,11 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 
 	if (oldvd->vdev_ops == &vdev_raidz_ops) {
 		raidz = B_TRUE;
+		/*
+		 * Can't expand a raidz while prior expand is in progress.
+		 */
+		if (spa->spa_raidz_expanding)
+			return (spa_vdev_exit(spa, NULL, txg, EBUSY));
 	} else if (!oldvd->vdev_ops->vdev_op_leaf) {
 		return (spa_vdev_exit(spa, NULL, txg, ENOTSUP));
 	}
@@ -6773,6 +6778,7 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 	dtl_max_txg = txg + TXG_CONCURRENT_STATES;
 
 	if (raidz) {
+		spa->spa_raidz_expanding = B_TRUE;
 		dmu_tx_t *tx = dmu_tx_create_assigned(spa->spa_dsl_pool, txg);
 		dsl_sync_task_nowait(spa->spa_dsl_pool, vdev_raidz_attach_sync,
 		    newvd, 0, ZFS_SPACE_CHECK_NONE, tx);
@@ -6794,10 +6800,10 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 		vdev_dirty(tvd, VDD_DTL, newvd, txg);
 
 		/*
-		 * Schedule the resilver or rebuild to restart in the future. We do
-		 * this to ensure that dmu_sync-ed blocks have been stitched into the
-		 * respective datasets.
-		*/
+		 * Schedule the resilver or rebuild to restart in the future.
+		 * We do this to ensure that dmu_sync-ed blocks have been
+		 * stitched into the respective datasets.
+		 */
 		if (rebuild) {
 			newvd->vdev_rebuild_txg = txg;
 
@@ -6806,7 +6812,8 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 			newvd->vdev_resilver_txg = txg;
 
 			if (dsl_scan_resilvering(spa_get_dsl(spa)) &&
-			    spa_feature_is_enabled(spa, SPA_FEATURE_RESILVER_DEFER)) {
+			    spa_feature_is_enabled(spa,
+			    SPA_FEATURE_RESILVER_DEFER)) {
 				vdev_defer_resilver(newvd);
 			} else {
 				dsl_scan_restart_resilver(spa->spa_dsl_pool,
