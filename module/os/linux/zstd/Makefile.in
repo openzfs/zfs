@@ -2,6 +2,6 @@
 # Linux specific sources included from module/zstd/Makefile.in
 #
 
-ccflags-y += -I$(zstd_include)/..
+ccflags-y += -I$(zstd_include)/.. -include $(zstd_include)/zstd_compat_wrapper.h
 
 $(MODULE)-objs += ../os/linux/zstd/zfs_zstd_os.o

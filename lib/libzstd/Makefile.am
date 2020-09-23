@@ -1,6 +1,9 @@
 include $(top_srcdir)/config/Rules.am
 
 VPATH = $(top_srcdir)/module/zstd
+VPATH +=	$(top_srcdir)/module/os/linux/zstd
+
+DEFAULT_INCLUDES += -I$(top_srcdir)/module/zstd
 
 # -fno-tree-vectorize is set for gcc in zstd/common/compiler.h
 # Set it for other compilers, too.
@@ -10,7 +13,8 @@ noinst_LTLIBRARIES = libzstd.la
 
 KERNEL_C = \
 	lib/zstd.c \
-	zfs_zstd.c
+	zfs_zstd.c \
+	zfs_zstd_os.c
 
 nodist_libzstd_la_SOURCES = $(KERNEL_C)
 
@@ -19,3 +23,5 @@ lib/zstd.l$(OBJEXT): CFLAGS += -fno-tree-vectorize -include $(top_srcdir)/module
 
 zfs_zstd.$(OBJEXT):  CFLAGS += -include $(top_srcdir)/module/zstd/include/zstd_compat_wrapper.h
 zfs_zstd.l$(OBJEXT): CFLAGS += -include $(top_srcdir)/module/zstd/include/zstd_compat_wrapper.h
+zfs_zstd_os.$(OBJEXT):  CFLAGS += -include $(top_srcdir)/module/zstd/include/zstd_compat_wrapper.h
+zfs_zstd_os.l$(OBJEXT): CFLAGS += -include $(top_srcdir)/module/zstd/include/zstd_compat_wrapper.h

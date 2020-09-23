@@ -2,7 +2,7 @@ include Kbuild
 
 INSTALL_MOD_DIR ?= extra
 
-SUBDIR_TARGETS = icp lua zstd
+SUBDIR_TARGETS = icp lua
 
 all: modules
 distclean maintainer-clean: clean

@@ -1,5 +1,6 @@
 COMMON_H = \
-	$(top_srcdir)/include/sys/zstd/zstd.h
+	$(top_srcdir)/include/sys/zstd/zstd.h \
+	$(top_srcdir)/include/sys/zstd/zstd_impl.h
 
 KERNEL_H =
 
