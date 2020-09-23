@@ -207,6 +207,7 @@ static const kstat_proc_op_t procfs_list_operations = {
  */
 void
 procfs_list_install(const char *module,
+    const char *submodule,
     const char *name,
     mode_t mode,
     procfs_list_t *procfs_list,
@@ -215,6 +216,12 @@ procfs_list_install(const char *module,
     int (*clear)(procfs_list_t *procfs_list),
     size_t procfs_list_node_off)
 {
+	char *modulestr;
+
+	if (submodule != NULL)
+		modulestr = kmem_asprintf("%s/%s", module, submodule);
+	else
+		modulestr = kmem_asprintf("%s", module);
 	mutex_init(&procfs_list->pl_lock, NULL, MUTEX_DEFAULT, NULL);
 	list_create(&procfs_list->pl_list,
 	    procfs_list_node_off + sizeof (procfs_list_node_t),
@@ -225,9 +232,10 @@ procfs_list_install(const char *module,
 	procfs_list->pl_clear = clear;
 	procfs_list->pl_node_offset = procfs_list_node_off;
 
-	kstat_proc_entry_init(&procfs_list->pl_kstat_entry, module, name);
+	kstat_proc_entry_init(&procfs_list->pl_kstat_entry, modulestr, name);
 	kstat_proc_entry_install(&procfs_list->pl_kstat_entry, mode,
 	    &procfs_list_operations, procfs_list);
+	kmem_strfree(modulestr);
 }
 EXPORT_SYMBOL(procfs_list_install);
 
