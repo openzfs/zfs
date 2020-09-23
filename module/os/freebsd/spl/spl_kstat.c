@@ -55,6 +55,17 @@ __kstat_set_raw_ops(kstat_t *ksp,
 	ksp->ks_raw_ops.addr    = addr;
 }
 
+void
+__kstat_set_seq_raw_ops(kstat_t *ksp,
+    int (*headers)(struct seq_file *f),
+    int (*data)(char *buf, size_t size, void *data),
+    void *(*addr)(kstat_t *ksp, loff_t index))
+{
+	ksp->ks_raw_ops.seq_headers = headers;
+	ksp->ks_raw_ops.data    = data;
+	ksp->ks_raw_ops.addr    = addr;
+}
+
 static int
 kstat_default_update(kstat_t *ksp, int rw)
 {
@@ -160,7 +171,7 @@ kstat_sysctl_raw(SYSCTL_HANDLER_ARGS)
 	void *data;
 	kstat_t *ksp = arg1;
 	void *(*addr_op)(kstat_t *ksp, loff_t index);
-	int n, rc = 0;
+	int n, has_header, rc = 0;
 
 	sb = sbuf_new_auto();
 	if (sb == NULL)
@@ -180,14 +191,25 @@ kstat_sysctl_raw(SYSCTL_HANDLER_ARGS)
 	ksp->ks_raw_buf = malloc(PAGE_SIZE, M_TEMP, M_WAITOK);
 
 	n = 0;
+	has_header = (ksp->ks_raw_ops.headers ||
+	    ksp->ks_raw_ops.seq_headers);
+
 restart_headers:
 	if (ksp->ks_raw_ops.headers) {
 		rc = ksp->ks_raw_ops.headers(
 		    ksp->ks_raw_buf, ksp->ks_raw_bufsize);
+	} else if (ksp->ks_raw_ops.seq_headers) {
+		struct seq_file f;
+
+		f.sf_buf = ksp->ks_raw_buf;
+		f.sf_size = ksp->ks_raw_bufsize;
+		rc = ksp->ks_raw_ops.seq_headers(&f);
+	}
+	if (has_header) {
 		if (rc == ENOMEM && !kstat_resize_raw(ksp))
 			goto restart_headers;
 		if (rc == 0)
-			sbuf_printf(sb, "%s", ksp->ks_raw_buf);
+			sbuf_printf(sb, "\n%s", ksp->ks_raw_buf);
 	}
 
 	while ((data = addr_op(ksp, n)) != NULL) {
@@ -220,16 +242,21 @@ kstat_t *
 __kstat_create(const char *module, int instance, const char *name,
     const char *class, uchar_t ks_type, uint_t ks_ndata, uchar_t flags)
 {
+	char buf[KSTAT_STRLEN];
 	struct sysctl_oid *root;
 	kstat_t *ksp;
+	char *pool;
 
 	KASSERT(instance == 0, ("instance=%d", instance));
 	if ((ks_type == KSTAT_TYPE_INTR) || (ks_type == KSTAT_TYPE_IO))
 		ASSERT(ks_ndata == 1);
 
+	if (class == NULL)
+		class = "misc";
+
 	/*
-	 * Allocate the main structure. We don't need to copy module/class/name
-	 * stuff in here, because it is only used for sysctl node creation
+	 * Allocate the main structure. We don't need to keep a copy of
+	 * module in here, because it is only used for sysctl node creation
 	 * done in this function.
 	 */
 	ksp = malloc(sizeof (*ksp), M_KSTAT, M_WAITOK|M_ZERO);
@@ -237,8 +264,8 @@ __kstat_create(const char *module, int instance, const char *name,
 	ksp->ks_crtime = gethrtime();
 	ksp->ks_snaptime = ksp->ks_crtime;
 	ksp->ks_instance = instance;
-	strncpy(ksp->ks_name, name, KSTAT_STRLEN);
-	strncpy(ksp->ks_class, class, KSTAT_STRLEN);
+	(void) strlcpy(ksp->ks_name, name, KSTAT_STRLEN);
+	(void) strlcpy(ksp->ks_class, class, KSTAT_STRLEN);
 	ksp->ks_type = ks_type;
 	ksp->ks_flags = flags;
 	ksp->ks_update = kstat_default_update;
@@ -280,10 +307,22 @@ __kstat_create(const char *module, int instance, const char *name,
 			ksp = NULL;
 		}
 	}
+
+	/*
+	 * Some kstats use a module name like "zfs/poolname" to distinguish a
+	 * set of kstats belonging to a specific pool.  Split on '/' to add an
+	 * extra node for the pool name if needed.
+	 */
+	(void) strlcpy(buf, module, KSTAT_STRLEN);
+	module = buf;
+	pool = strchr(module, '/');
+	if (pool != NULL)
+		*pool++ = '\0';
+
 	/*
 	 * Create sysctl tree for those statistics:
 	 *
-	 *	kstat.<module>.<class>.<name>.
+	 *	kstat.<module>[.<pool>].<class>.<name>
 	 */
 	sysctl_ctx_init(&ksp->ks_sysctl_ctx);
 	root = SYSCTL_ADD_NODE(&ksp->ks_sysctl_ctx,
@@ -295,11 +334,26 @@ __kstat_create(const char *module, int instance, const char *name,
 		free(ksp, M_KSTAT);
 		return (NULL);
 	}
+	if (pool != NULL) {
+		root = SYSCTL_ADD_NODE(&ksp->ks_sysctl_ctx,
+		    SYSCTL_CHILDREN(root), OID_AUTO, pool, CTLFLAG_RW, 0, "");
+		if (root == NULL) {
+			printf("%s: Cannot create kstat.%s.%s tree!\n",
+			    __func__, module, pool);
+			sysctl_ctx_free(&ksp->ks_sysctl_ctx);
+			free(ksp, M_KSTAT);
+			return (NULL);
+		}
+	}
 	root = SYSCTL_ADD_NODE(&ksp->ks_sysctl_ctx, SYSCTL_CHILDREN(root),
 	    OID_AUTO, class, CTLFLAG_RW, 0, "");
 	if (root == NULL) {
-		printf("%s: Cannot create kstat.%s.%s tree!\n", __func__,
-		    module, class);
+		if (pool != NULL)
+			printf("%s: Cannot create kstat.%s.%s.%s tree!\n",
+			    __func__, module, pool, class);
+		else
+			printf("%s: Cannot create kstat.%s.%s tree!\n",
+			    __func__, module, class);
 		sysctl_ctx_free(&ksp->ks_sysctl_ctx);
 		free(ksp, M_KSTAT);
 		return (NULL);
@@ -309,8 +363,13 @@ __kstat_create(const char *module, int instance, const char *name,
 		    SYSCTL_CHILDREN(root),
 		    OID_AUTO, name, CTLFLAG_RW, 0, "");
 		if (root == NULL) {
-			printf("%s: Cannot create kstat.%s.%s.%s tree!\n",
-			    __func__, module, class, name);
+			if (pool != NULL)
+				printf("%s: Cannot create kstat.%s.%s.%s.%s "
+				    "tree!\n", __func__, module, pool, class,
+				    name);
+			else
+				printf("%s: Cannot create kstat.%s.%s.%s "
+				    "tree!\n", __func__, module, class, name);
 			sysctl_ctx_free(&ksp->ks_sysctl_ctx);
 			free(ksp, M_KSTAT);
 			return (NULL);
@@ -411,7 +470,6 @@ kstat_install(kstat_t *ksp)
 	switch (ksp->ks_type) {
 	case KSTAT_TYPE_NAMED:
 		return (kstat_install_named(ksp));
-		break;
 	case KSTAT_TYPE_RAW:
 		if (ksp->ks_raw_ops.data) {
 			root = SYSCTL_ADD_PROC(&ksp->ks_sysctl_ctx,
@@ -426,7 +484,6 @@ kstat_install(kstat_t *ksp)
 			    CTLTYPE_OPAQUE | CTLFLAG_RD | CTLFLAG_MPSAFE,
 			    ksp, 0, kstat_sysctl_raw, "", ksp->ks_name);
 		}
-		VERIFY(root != NULL);
 		break;
 	case KSTAT_TYPE_IO:
 		root = SYSCTL_ADD_PROC(&ksp->ks_sysctl_ctx,
@@ -440,6 +497,7 @@ kstat_install(kstat_t *ksp)
 	default:
 		panic("unsupported kstat type %d\n", ksp->ks_type);
 	}
+	VERIFY(root != NULL);
 	ksp->ks_sysctl_root = root;
 }
 

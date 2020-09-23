@@ -444,6 +444,7 @@ seq_printf(struct seq_file *m, const char *fmt, ...)
 
 void
 procfs_list_install(const char *module,
+    const char *submodule,
     const char *name,
     mode_t mode,
     procfs_list_t *procfs_list,
