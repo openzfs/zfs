@@ -1,0 +1,7 @@
+#
+# Linux specific sources included from module/zstd/Makefile.in
+#
+
+ccflags-y += -I$(zstd_include)/..
+
+$(MODULE)-objs += ../os/linux/zstd/zfs_zstd_os.o
