@@ -29,6 +29,7 @@
 #include <sys/cdefs.h>
 #include <sys/types.h>
 #include <sys/systm.h>
+#include <sys/proc.h>
 #ifdef __i386__
 #include <x86/fpu.h>
 #else
@@ -42,16 +43,15 @@
 #define	kfpu_allowed()		1
 #define	kfpu_initialize(tsk)	do {} while (0)
 
-#define	kfpu_begin() {							\
-	critical_enter();					\
-	fpu_kern_enter(curthread, NULL, FPU_KERN_NOCTX); \
+#define	kfpu_begin() {					\
+	if (__predict_false(!is_fpu_kern_thread(0)))		\
+		fpu_kern_enter(curthread, NULL, FPU_KERN_NOCTX);\
 }
 
-#define	kfpu_end()						\
-	{						 \
-		fpu_kern_leave(curthread, NULL); \
-		critical_exit();			     \
-	}
+#define	kfpu_end()	{			\
+	if (__predict_false(curpcb->pcb_flags & PCB_FPUNOSAVE))	\
+		fpu_kern_leave(curthread, NULL);	\
+}
 
 /*
  * Check if OS supports AVX and AVX2 by checking XCR0
