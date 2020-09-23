@@ -491,7 +491,6 @@ systemctl --system daemon-reload >/dev/null || true
 
 %files -n libzfs2-devel
 %{_pkgconfigdir}/libzfs.pc
-%{_pkgconfigdir}/libzfsbootenv.pc
 %{_pkgconfigdir}/libzfs_core.pc
 %{_libdir}/*.so
 %{_includedir}/*

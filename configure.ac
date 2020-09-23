@@ -161,8 +161,6 @@ AC_CONFIG_FILES([
 	lib/libuutil/Makefile
 	lib/libzfs/Makefile
 	lib/libzfs/libzfs.pc
-	lib/libzfsbootenv/Makefile
-	lib/libzfsbootenv/libzfsbootenv.pc
 	lib/libzfs_core/Makefile
 	lib/libzfs_core/libzfs_core.pc
 	lib/libzpool/Makefile

@@ -25,9 +25,7 @@
 #include <libzutil.h>
 
 #include <sys/nvpair.h>
-#include <sys/vdev_impl.h>
 #include <sys/zfs_ioctl.h>
-#include <sys/zfs_bootenv.h>
 
 /*
  * Test the nvpair inputs for the non-legacy zfs ioctl commands.
@@ -764,10 +762,9 @@ test_set_bootenv(const char *pool)
 {
 	nvlist_t *required = fnvlist_alloc();
 
-	fnvlist_add_uint64(required, "version", VB_RAW);
-	fnvlist_add_string(required, GRUB_ENVMAP, "test");
+	fnvlist_add_string(required, "envmap", "test");
 
-	IOC_INPUT_TEST_WILD(ZFS_IOC_SET_BOOTENV, pool, required, NULL, 0);
+	IOC_INPUT_TEST(ZFS_IOC_SET_BOOTENV, pool, required, NULL, 0);
 
 	nvlist_free(required);
 }

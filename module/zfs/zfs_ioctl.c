@@ -3510,29 +3510,30 @@ zfs_ioc_log_history(const char *unused, nvlist_t *innvl, nvlist_t *outnvl)
 /*
  * This ioctl is used to set the bootenv configuration on the current
  * pool. This configuration is stored in the second padding area of the label,
- * and it is used by the bootloader(s) to store the bootloader and/or system
- * specific data.
- * The data is stored as nvlist data stream, and is protected by
- * an embedded checksum.
- * The version can have two possible values:
- * VB_RAW: nvlist should have key GRUB_ENVMAP, value DATA_TYPE_STRING.
- * VB_NVLIST: nvlist with arbitrary <key, value> pairs.
+ * and it is used by the GRUB bootloader used on Linux to store the contents
+ * of the grubenv file.  The file is stored as raw ASCII, and is protected by
+ * an embedded checksum.  By default, GRUB will check if the boot filesystem
+ * supports storing the environment data in a special location, and if so,
+ * will invoke filesystem specific logic to retrieve it. This can be overridden
+ * by a variable, should the user so desire.
  */
+/* ARGSUSED */
 static const zfs_ioc_key_t zfs_keys_set_bootenv[] = {
-	{"version",	DATA_TYPE_UINT64,	0},
-	{"<keys>",	DATA_TYPE_ANY, ZK_OPTIONAL | ZK_WILDCARDLIST},
+	{"envmap",	DATA_TYPE_STRING,	0},
 };
 
 static int
 zfs_ioc_set_bootenv(const char *name, nvlist_t *innvl, nvlist_t *outnvl)
 {
+	char *envmap;
 	int error;
 	spa_t *spa;
 
+	envmap = fnvlist_lookup_string(innvl, "envmap");
 	if ((error = spa_open(name, &spa, FTAG)) != 0)
 		return (error);
 	spa_vdev_state_enter(spa, SCL_ALL);
-	error = vdev_label_write_bootenv(spa->spa_root_vdev, innvl);
+	error = vdev_label_write_bootenv(spa->spa_root_vdev, envmap);
 	(void) spa_vdev_state_exit(spa, NULL, 0);
 	spa_close(spa, FTAG);
 	return (error);
@@ -3542,6 +3543,7 @@ static const zfs_ioc_key_t zfs_keys_get_bootenv[] = {
 	/* no nvl keys */
 };
 
+/* ARGSUSED */
 static int
 zfs_ioc_get_bootenv(const char *name, nvlist_t *innvl, nvlist_t *outnvl)
 {

@@ -2,7 +2,6 @@ KERNEL_H = \
 	freebsd_crypto.h \
 	sha2.h \
 	vdev_os.h \
-	zfs_bootenv_os.h \
 	zfs_context_os.h \
 	zfs_ctldir.h \
 	zfs_dir.h \
