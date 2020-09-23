@@ -89,56 +89,6 @@ function new_change_commit()
     return $error
 }
 
-function is_openzfs_port()
-{
-    # subject starts with OpenZFS means it's an openzfs port
-    subject=$(git log -n 1 --pretty=%s "$REF" | grep -E -m 1 '^OpenZFS')
-    if [ -n "$subject" ]; then
-        return 0
-    fi
-
-    return 1
-}
-
-function openzfs_port_commit()
-{
-    error=0
-
-    # subject starts with OpenZFS dddd
-    subject=$(git log -n 1 --pretty=%s "$REF" | grep -E -m 1 '^OpenZFS [[:digit:]]+(, [[:digit:]]+)* - ')
-    if [ -z "$subject" ]; then
-        echo "error: OpenZFS patch ports must have a subject line that starts with \"OpenZFS dddd - \""
-        error=1
-    fi
-
-    # need an authored by line
-    if ! check_tagged_line "Authored by" ; then
-        error=1
-    fi
-
-    # need a reviewed by line
-    if ! check_tagged_line "Reviewed by" ; then
-        error=1
-    fi
-
-    # need ported by line
-    if ! check_tagged_line "Ported-by" ; then
-        error=1
-    fi
-
-    # need a url to openzfs commit and it should be valid
-    if ! check_tagged_line_with_url "OpenZFS-commit" ; then
-        error=1
-    fi
-
-    # need a url to illumos issue and it should be valid
-    if ! check_tagged_line_with_url "OpenZFS-issue" ; then
-        error=1
-    fi
-
-    return $error
-}
-
 function is_coverity_fix()
 {
     # subject starts with Fix coverity defects means it's a coverity fix
@@ -190,15 +140,6 @@ function coverity_fix_commit()
 
 if [ -n "$1" ]; then
     REF="$1"
-fi
-
-# if openzfs port, test against that
-if is_openzfs_port; then
-    if ! openzfs_port_commit ; then
-        exit 1
-    else
-        exit 0
-    fi
 fi
 
 # if coverity fix, test against that
