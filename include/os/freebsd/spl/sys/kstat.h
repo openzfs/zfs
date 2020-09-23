@@ -83,6 +83,14 @@ typedef struct kstat_s kstat_t;
 typedef int kid_t;				/* unique kstat id */
 typedef int kstat_update_t(struct kstat_s *, int); /* dynamic update cb */
 
+struct seq_file {
+	char *sf_buf;
+	size_t sf_size;
+};
+
+void seq_printf(struct seq_file *m, const char *fmt, ...);
+
+
 typedef struct kstat_module {
 	char ksm_name[KSTAT_STRLEN+1];		/* module name */
 	struct list_head ksm_module_list;	/* module linkage */
@@ -92,6 +100,7 @@ typedef struct kstat_module {
 
 typedef struct kstat_raw_ops {
 	int (*headers)(char *buf, size_t size);
+	int (*seq_headers)(struct seq_file *);
 	int (*data)(char *buf, size_t size, void *data);
 	void *(*addr)(kstat_t *ksp, loff_t index);
 } kstat_raw_ops_t;
@@ -112,6 +121,7 @@ struct kstat_s {
 	size_t		ks_data_size;		/* size of kstat data section */
 	kstat_update_t	*ks_update;		/* dynamic updates */
 	void		*ks_private;		/* private data */
+	void		*ks_private1;		/* private data */
 	kmutex_t	ks_private_lock;	/* kstat private data lock */
 	kmutex_t	*ks_lock;		/* kstat data lock */
 	struct list_head ks_list;		/* kstat linkage */
@@ -185,6 +195,12 @@ extern void __kstat_set_raw_ops(kstat_t *ksp,
     int (*data)(char *buf, size_t size, void *data),
     void* (*addr)(kstat_t *ksp, loff_t index));
 
+extern void __kstat_set_seq_raw_ops(kstat_t *ksp,
+    int (*headers)(struct seq_file *),
+    int (*data)(char *buf, size_t size, void *data),
+    void* (*addr)(kstat_t *ksp, loff_t index));
+
+
 extern kstat_t *__kstat_create(const char *ks_module, int ks_instance,
     const char *ks_name, const char *ks_class, uchar_t ks_type,
     uint_t ks_ndata, uchar_t ks_flags);
@@ -196,6 +212,8 @@ extern void kstat_waitq_exit(kstat_io_t *);
 extern void kstat_runq_enter(kstat_io_t *);
 extern void kstat_runq_exit(kstat_io_t *);
 
+#define	kstat_set_seq_raw_ops(k, h, d, a) \
+    __kstat_set_seq_raw_ops(k, h, d, a)
 #define	kstat_set_raw_ops(k, h, d, a) \
     __kstat_set_raw_ops(k, h, d, a)
 #define	kstat_create(m, i, n, c, t, s, f) \

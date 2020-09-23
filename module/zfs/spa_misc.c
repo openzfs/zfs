@@ -2180,6 +2180,7 @@ spa_import_progress_init(void)
 	    spa_import_progress_list;
 
 	procfs_list_install("zfs",
+	    NULL,
 	    "import_progress",
 	    0644,
 	    &spa_import_progress_list->procfs_list,

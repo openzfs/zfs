@@ -122,14 +122,11 @@ static void
 spa_read_history_init(spa_t *spa)
 {
 	spa_history_list_t *shl = &spa->spa_stats.read_history;
-	char *module;
 
 	shl->size = 0;
-
-	module = kmem_asprintf("zfs/%s", spa_name(spa));
-
 	shl->procfs_list.pl_private = shl;
-	procfs_list_install(module,
+	procfs_list_install("zfs",
+	    spa_name(spa),
 	    "reads",
 	    0600,
 	    &shl->procfs_list,
@@ -137,8 +134,6 @@ spa_read_history_init(spa_t *spa)
 	    spa_read_history_show_header,
 	    spa_read_history_clear,
 	    offsetof(spa_read_history_t, srh_node));
-
-	kmem_strfree(module);
 }
 
 static void
@@ -293,14 +288,11 @@ static void
 spa_txg_history_init(spa_t *spa)
 {
 	spa_history_list_t *shl = &spa->spa_stats.txg_history;
-	char *module;
 
 	shl->size = 0;
-
-	module = kmem_asprintf("zfs/%s", spa_name(spa));
-
 	shl->procfs_list.pl_private = shl;
-	procfs_list_install(module,
+	procfs_list_install("zfs",
+	    spa_name(spa),
 	    "txgs",
 	    0644,
 	    &shl->procfs_list,
@@ -308,8 +300,6 @@ spa_txg_history_init(spa_t *spa)
 	    spa_txg_history_show_header,
 	    spa_txg_history_clear,
 	    offsetof(spa_txg_history_t, sth_node));
-
-	kmem_strfree(module);
 }
 
 static void
@@ -699,14 +689,12 @@ static void
 spa_mmp_history_init(spa_t *spa)
 {
 	spa_history_list_t *shl = &spa->spa_stats.mmp_history;
-	char *module;
 
 	shl->size = 0;
 
-	module = kmem_asprintf("zfs/%s", spa_name(spa));
-
 	shl->procfs_list.pl_private = shl;
-	procfs_list_install(module,
+	procfs_list_install("zfs",
+	    spa_name(spa),
 	    "multihost",
 	    0644,
 	    &shl->procfs_list,
@@ -714,8 +702,6 @@ spa_mmp_history_init(spa_t *spa)
 	    spa_mmp_history_show_header,
 	    spa_mmp_history_clear,
 	    offsetof(spa_mmp_history_t, smh_node));
-
-	kmem_strfree(module);
 }
 
 static void
