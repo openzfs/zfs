@@ -24,9 +24,9 @@ jobs:
       run: |
         sh ./autogen.sh
         ./configure
-    - name: Checkstyle
+    - name: Codecheck
       run: |
-        make checkstyle
+        make codecheck
     - name: Lint
       run: |
         make lint
