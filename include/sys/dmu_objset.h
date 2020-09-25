@@ -152,6 +152,20 @@ struct objset {
 
 	/* no lock needed: */
 	struct dmu_tx *os_synctx; /* XXX sketchy */
+	/*
+	 * Potentially dirty copy of objset_phys_t::os_zil_header.
+	 *
+	 * Initialized by dmu_objset_open_impl as copy from
+	 * os_phys->os_zil_header.
+	 *
+	 * Referenced by zilog_t::zl_header, which is set in zil_alloc().
+	 * The ZIL functions operation on zilog_t::zl_header.
+	 * Most ZIL functions only need read access.
+	 * If they need write access, they use zil_header_in_syncing_context.
+	 *
+	 * Modifications are written back to objset_phys_t after the
+	 * dmu_objset_sync -> zil_sync call.
+	 */
 	zil_header_t os_zil_header;
 	multilist_t os_synced_dnodes;
 	uint64_t os_flags;
