@@ -42,6 +42,7 @@
 #include <sys/mount.h>
 #include <sys/cmn_err.h>
 #include <sys/zfs_znode.h>
+#include <sys/zfs_vnops.h>
 #include <sys/zfs_dir.h>
 #include <sys/zil.h>
 #include <sys/fs/zfs.h>
