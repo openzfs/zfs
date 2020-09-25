@@ -393,6 +393,14 @@ static char *
 nfs_init_tmpfile(void)
 {
 	char *tmpfile = NULL;
+	struct stat sb;
+
+	if (stat(ZFS_EXPORTS_DIR, &sb) < 0 &&
+	    mkdir(ZFS_EXPORTS_DIR, 0755) < 0) {
+		fprintf(stderr, "failed to create %s: %s\n",
+		    ZFS_EXPORTS_DIR, strerror(errno));
+		return (NULL);
+	}
 
 	if (asprintf(&tmpfile, "%s%s", ZFS_EXPORTS_FILE, ".XXXXXXXX") == -1) {
 		fprintf(stderr, "Unable to allocate temporary file\n");
@@ -481,36 +489,49 @@ nfs_copy_entries(char *filename, const char *mountpoint)
 	size_t buflen = 0;
 	int error = SA_OK;
 
-	/*
-	 * If the file doesn't exist then there is nothing more
-	 * we need to do.
-	 */
 	FILE *oldfp = fopen(ZFS_EXPORTS_FILE, "r");
-	if (oldfp == NULL)
-		return (SA_OK);
-
 	FILE *newfp = fopen(filename, "w+");
+	if (newfp == NULL) {
+		fprintf(stderr, "failed to open %s file: %s", filename,
+		    strerror(errno));
+		fclose(oldfp);
+		return (SA_SYSTEM_ERR);
+	}
 	fputs(FILE_HEADER, newfp);
-	while ((getline(&buf, &buflen, oldfp)) != -1) {
-		char *space = NULL;
 
-		if (buf[0] == '\n' || buf[0] == '#')
-			continue;
+	/*
+	 * The ZFS_EXPORTS_FILE may not exist yet. If that's the
+	 * case then just write out the new file.
+	 */
+	if (oldfp != NULL) {
+		while (getline(&buf, &buflen, oldfp) != -1) {
+			char *space = NULL;
 
-		if ((space = strchr(buf, ' ')) != NULL) {
-			int mountpoint_len = strlen(mountpoint);
-
-			if (space - buf == mountpoint_len &&
-			    strncmp(mountpoint, buf, mountpoint_len) == 0) {
+			if (buf[0] == '\n' || buf[0] == '#')
 				continue;
+
+			if ((space = strchr(buf, ' ')) != NULL) {
+				int mountpoint_len = strlen(mountpoint);
+
+				if (space - buf == mountpoint_len &&
+				    strncmp(mountpoint, buf,
+				    mountpoint_len) == 0) {
+					continue;
+				}
 			}
+			fputs(buf, newfp);
 		}
-		fputs(buf, newfp);
+
+		if (ferror(oldfp) != 0) {
+			error = ferror(oldfp);
+		}
+		if (fclose(oldfp) != 0) {
+			fprintf(stderr, "Unable to close file %s: %s\n",
+			    filename, strerror(errno));
+			error = error != 0 ? error : SA_SYSTEM_ERR;
+		}
 	}
 
-	if (oldfp != NULL && ferror(oldfp) != 0) {
-		error = ferror(oldfp);
-	}
 	if (error == 0 && ferror(newfp) != 0) {
 		error = ferror(newfp);
 	}
@@ -521,8 +542,6 @@ nfs_copy_entries(char *filename, const char *mountpoint)
 		    filename, strerror(errno));
 		error = error != 0 ? error : SA_SYSTEM_ERR;
 	}
-	fclose(oldfp);
-
 	return (error);
 }
 
@@ -701,13 +720,5 @@ static const sa_share_ops_t nfs_shareops = {
 void
 libshare_nfs_init(void)
 {
-	struct stat sb;
-
 	nfs_fstype = register_fstype("nfs", &nfs_shareops);
-
-	if (stat(ZFS_EXPORTS_DIR, &sb) < 0 &&
-	    mkdir(ZFS_EXPORTS_DIR, 0755) < 0) {
-		fprintf(stderr, "failed to create %s: %s\n",
-		    ZFS_EXPORTS_DIR, strerror(errno));
-	}
 }
