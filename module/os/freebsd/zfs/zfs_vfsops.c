@@ -1532,7 +1532,11 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 		 * 'z_parent' is self referential for non-snapshots.
 		 */
 #ifdef FREEBSD_NAMECACHE
+#if __FreeBSD_version >= 1300117
+		cache_purgevfs(zfsvfs->z_parent->z_vfs);
+#else
 		cache_purgevfs(zfsvfs->z_parent->z_vfs, true);
+#endif
 #endif
 	}
 
