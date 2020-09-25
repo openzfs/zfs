@@ -436,6 +436,16 @@ vdev_submit_bio_impl(struct bio *bio)
 #endif
 }
 
+/*
+ * preempt_schedule_notrace is GPL-only which breaks the ZFS build, so
+ * replace it with preempt_schedule under the following condition:
+ */
+#if defined(CONFIG_ARM64) && \
+    defined(CONFIG_PREEMPTION) && \
+    defined(CONFIG_BLK_CGROUP)
+#define	preempt_schedule_notrace(x) preempt_schedule(x)
+#endif
+
 #ifdef HAVE_BIO_SET_DEV
 #if defined(CONFIG_BLK_CGROUP) && defined(HAVE_BIO_SET_DEV_GPL_ONLY)
 /*
