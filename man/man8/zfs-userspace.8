@@ -44,7 +44,7 @@
 .Oo Fl s Ar field Oc Ns ...
 .Oo Fl S Ar field Oc Ns ...
 .Oo Fl t Ar type Ns Oo , Ns Ar type Oc Ns ... Oc
-.Ar filesystem Ns | Ns Ar snapshot
+.Ar filesystem Ns | Ns Ar snapshot Ns | Ns Ar path
 .Nm
 .Cm groupspace
 .Op Fl Hinp
@@ -52,14 +52,14 @@
 .Oo Fl s Ar field Oc Ns ...
 .Oo Fl S Ar field Oc Ns ...
 .Oo Fl t Ar type Ns Oo , Ns Ar type Oc Ns ... Oc
-.Ar filesystem Ns | Ns Ar snapshot
+.Ar filesystem Ns | Ns Ar snapshot Ns | Ns Ar path
 .Nm
 .Cm projectspace
 .Op Fl Hp
 .Oo Fl o Ar field Ns Oo , Ns Ar field Oc Ns ... Oc
 .Oo Fl s Ar field Oc Ns ...
 .Oo Fl S Ar field Oc Ns ...
-.Ar filesystem Ns | Ns Ar snapshot
+.Ar filesystem Ns | Ns Ar snapshot Ns | Ns Ar path
 .Sh DESCRIPTION
 .Bl -tag -width ""
 .It Xo
@@ -70,10 +70,11 @@
 .Oo Fl s Ar field Oc Ns ...
 .Oo Fl S Ar field Oc Ns ...
 .Oo Fl t Ar type Ns Oo , Ns Ar type Oc Ns ... Oc
-.Ar filesystem Ns | Ns Ar snapshot
+.Ar filesystem Ns | Ns Ar snapshot Ns | Ns Ar path
 .Xc
-Displays space consumed by, and quotas on, each user in the specified filesystem
-or snapshot.
+Displays space consumed by, and quotas on, each user in the specified filesystem,
+snapshot, or path.
+If a path is given, the filesystem that contains that path will be used.
 This corresponds to the
 .Sy userused@ Ns Em user ,
 .Sy userobjused@ Ns Em user ,
@@ -167,7 +168,7 @@ except that the default types to display are
 .Oo Fl o Ar field Ns Oo , Ns Ar field Oc Ns ... Oc
 .Oo Fl s Ar field Oc Ns ...
 .Oo Fl S Ar field Oc Ns ...
-.Ar filesystem Ns | Ns Ar snapshot
+.Ar filesystem Ns | Ns Ar snapshot Ns | Ns Ar path
 .Xc
 Displays space consumed by, and quotas on, each project in the specified
 filesystem or snapshot. This subcommand is identical to
