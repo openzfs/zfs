@@ -4174,6 +4174,45 @@ function get_arcstat # stat
 }
 
 #
+# Wait for the specified arcstat to reach non-zero quiescence.
+# If echo is 1 echo the value after reaching quiescence, otherwise
+# if echo is 0 print the arcstat we are waiting on.
+#
+function arcstat_quiescence # stat echo
+{
+	typeset stat=$1
+	typeset echo=$2
+	typeset do_once=true
+
+	if [[ $echo -eq 0 ]]; then
+		echo "Waiting for arcstat $1 quiescence."
+	fi
+
+	while $do_once || [ $stat1 -ne $stat2 ] || [ $stat2 -eq 0 ]; do
+		typeset stat1=$(get_arcstat $stat)
+		sleep 2
+		typeset stat2=$(get_arcstat $stat)
+		do_once=false
+	done
+
+	if [[ $echo -eq 1 ]]; then
+		echo $stat2
+	fi
+}
+
+function arcstat_quiescence_noecho # stat
+{
+	typeset stat=$1
+	arcstat_quiescence $stat 0
+}
+
+function arcstat_quiescence_echo # stat
+{
+	typeset stat=$1
+	arcstat_quiescence $stat 1
+}
+
+#
 # Given an array of pids, wait until all processes
 # have completed and check their return status.
 #

@@ -40,7 +40,7 @@
 #	9. Offline the L2ARC device.
 #	10. Online the L2ARC device.
 #	11. Read the amount of log blocks rebuilt in arcstats and compare to
-#		(7).
+#		(8).
 #	12. Check if the amount of log blocks on the cache device has
 #		increased.
 #	13. Export the pool.
@@ -80,61 +80,61 @@ log_must zpool create -f $TESTPOOL $VDEV cache $VDEV_CACHE
 log_must fio $FIO_SCRIPTS/mkfiles.fio
 log_must fio $FIO_SCRIPTS/random_reads.fio
 
+arcstat_quiescence_noecho l2_size
 log_must zpool offline $TESTPOOL $VDEV_CACHE
-
-sleep 2
+arcstat_quiescence_noecho l2_size
 
 typeset l2_dh_log_blk1=$(zdb -l $VDEV_CACHE | grep log_blk_count | \
 	awk '{print $2}')
-
 typeset l2_rebuild_log_blk_start=$(get_arcstat l2_rebuild_log_blks)
 
 log_must zpool online $TESTPOOL $VDEV_CACHE
+arcstat_quiescence_noecho l2_size
 
-sleep 5
+typeset l2_rebuild_log_blk_end=$(arcstat_quiescence_echo l2_rebuild_log_blks)
 
-typeset l2_rebuild_log_blk_end=$(get_arcstat l2_rebuild_log_blks)
-
-log_must test $l2_dh_log_blk1 -eq $(( $l2_rebuild_log_blk_end - $l2_rebuild_log_blk_start ))
+log_must test $l2_dh_log_blk1 -eq $(( $l2_rebuild_log_blk_end - \
+	$l2_rebuild_log_blk_start ))
 log_must test $l2_dh_log_blk1 -gt 0
 
 log_must fio $FIO_SCRIPTS/mkfiles.fio
 log_must fio $FIO_SCRIPTS/random_reads.fio
 
+arcstat_quiescence_noecho l2_size
 log_must zpool offline $TESTPOOL $VDEV_CACHE
-
-sleep 2
+arcstat_quiescence_noecho l2_size
 
 typeset l2_dh_log_blk2=$(zdb -l $VDEV_CACHE | grep log_blk_count | \
 	awk '{print $2}')
-
 typeset l2_rebuild_log_blk_start=$(get_arcstat l2_rebuild_log_blks)
 
 log_must zpool online $TESTPOOL $VDEV_CACHE
+arcstat_quiescence_noecho l2_size
 
-sleep 5
+typeset l2_rebuild_log_blk_end=$(arcstat_quiescence_echo l2_rebuild_log_blks)
 
-typeset l2_rebuild_log_blk_end=$(get_arcstat l2_rebuild_log_blks)
-
-log_must test $l2_dh_log_blk2 -eq $(( $l2_rebuild_log_blk_end - $l2_rebuild_log_blk_start ))
-
+log_must test $l2_dh_log_blk2 -eq $(( $l2_rebuild_log_blk_end - \
+	$l2_rebuild_log_blk_start ))
 log_must test $l2_dh_log_blk2 -gt $l2_dh_log_blk1
 
 log_must zpool export $TESTPOOL
+arcstat_quiescence_noecho l2_feeds
 
 typeset l2_dh_log_blk3=$(zdb -l $VDEV_CACHE | grep log_blk_count | \
 	awk '{print $2}')
-
 typeset l2_rebuild_log_blk_start=$(get_arcstat l2_rebuild_log_blks)
 
 log_must zpool import -d $VDIR $TESTPOOL
+arcstat_quiescence_noecho l2_size
 
-sleep 5
+typeset l2_rebuild_log_blk_end=$(arcstat_quiescence_echo l2_rebuild_log_blks)
 
-typeset l2_rebuild_log_blk_end=$(get_arcstat l2_rebuild_log_blks)
-
-log_must test $l2_dh_log_blk3 -eq $(( $l2_rebuild_log_blk_end - $l2_rebuild_log_blk_start ))
+log_must test $l2_dh_log_blk3 -eq $(( $l2_rebuild_log_blk_end - \
+	$l2_rebuild_log_blk_start ))
 log_must test $l2_dh_log_blk3 -gt 0
+
+log must zpool offline $TESTPOOL $VDEV_CACHE
+arcstat_quiescence_noecho l2_size
 
 log_must zdb -lq $VDEV_CACHE
 
