@@ -6,10 +6,11 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_OBJTOOL], [
 	dnl # 4.6 API for compile-time stack validation
 	ZFS_LINUX_TEST_SRC([objtool], [
 		#undef __ASSEMBLY__
+		#include <asm/ptrace.h>
 		#include <asm/frame.h>
 	],[
 		#if !defined(FRAME_BEGIN)
-		CTASSERT(1);
+		#error "FRAME_BEGIN is not defined"
 		#endif
 	])
 
@@ -18,7 +19,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_OBJTOOL], [
 		#include <linux/frame.h>
 	],[
 		#if !defined(STACK_FRAME_NON_STANDARD)
-		CTASSERT(1);
+		#error "STACK_FRAME_NON_STANDARD is not defined."
 		#endif
 	])
 ])
