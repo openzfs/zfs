@@ -3012,7 +3012,28 @@ typedef struct dbuf_prefetch_arg {
 	zio_priority_t dpa_prio; /* The priority I/Os should be issued at. */
 	zio_t *dpa_zio; /* The parent zio_t for all prefetches. */
 	arc_flags_t dpa_aflags; /* Flags to pass to the final prefetch. */
+	dbuf_prefetch_fn dpa_cb; /* prefetch completion callback */
+	void *dpa_arg; /* prefetch completion arg */
 } dbuf_prefetch_arg_t;
+
+static void
+dbuf_prefetch_fini(dbuf_prefetch_arg_t *dpa, boolean_t io_done)
+{
+	if (dpa->dpa_cb != NULL)
+		dpa->dpa_cb(dpa->dpa_arg, io_done);
+	kmem_free(dpa, sizeof (*dpa));
+}
+
+static void
+dbuf_issue_final_prefetch_done(zio_t *zio, const zbookmark_phys_t *zb,
+    const blkptr_t *iobp, arc_buf_t *abuf, void *private)
+{
+	dbuf_prefetch_arg_t *dpa = private;
+
+	dbuf_prefetch_fini(dpa, B_TRUE);
+	if (abuf != NULL)
+		arc_buf_destroy(abuf, private);
+}
 
 /*
  * Actually issue the prefetch read for the block given.
@@ -3026,7 +3047,7 @@ dbuf_issue_final_prefetch(dbuf_prefetch_arg_t *dpa, blkptr_t *bp)
 	    SPA_FEATURE_REDACTED_DATASETS));
 
 	if (BP_IS_HOLE(bp) || BP_IS_EMBEDDED(bp) || BP_IS_REDACTED(bp))
-		return;
+		return (dbuf_prefetch_fini(dpa, B_FALSE));
 
 	int zio_flags = ZIO_FLAG_CANFAIL | ZIO_FLAG_SPECULATIVE;
 	arc_flags_t aflags =
@@ -3040,7 +3061,8 @@ dbuf_issue_final_prefetch(dbuf_prefetch_arg_t *dpa, blkptr_t *bp)
 	ASSERT3U(dpa->dpa_curlevel, ==, BP_GET_LEVEL(bp));
 	ASSERT3U(dpa->dpa_curlevel, ==, dpa->dpa_zb.zb_level);
 	ASSERT(dpa->dpa_zio != NULL);
-	(void) arc_read(dpa->dpa_zio, dpa->dpa_spa, bp, NULL, NULL,
+	(void) arc_read(dpa->dpa_zio, dpa->dpa_spa, bp,
+	    dbuf_issue_final_prefetch_done, dpa,
 	    dpa->dpa_prio, zio_flags, &aflags, &dpa->dpa_zb);
 }
 
@@ -3060,8 +3082,7 @@ dbuf_prefetch_indirect_done(zio_t *zio, const zbookmark_phys_t *zb,
 
 	if (abuf == NULL) {
 		ASSERT(zio == NULL || zio->io_error != 0);
-		kmem_free(dpa, sizeof (*dpa));
-		return;
+		return (dbuf_prefetch_fini(dpa, B_TRUE));
 	}
 	ASSERT(zio == NULL || zio->io_error == 0);
 
@@ -3093,11 +3114,9 @@ dbuf_prefetch_indirect_done(zio_t *zio, const zbookmark_phys_t *zb,
 		dmu_buf_impl_t *db = dbuf_hold_level(dpa->dpa_dnode,
 		    dpa->dpa_curlevel, curblkid, FTAG);
 		if (db == NULL) {
-			kmem_free(dpa, sizeof (*dpa));
 			arc_buf_destroy(abuf, private);
-			return;
+			return (dbuf_prefetch_fini(dpa, B_TRUE));
 		}
-
 		(void) dbuf_read(db, NULL,
 		    DB_RF_MUST_SUCCEED | DB_RF_NOPREFETCH | DB_RF_HAVESTRUCT);
 		dbuf_rele(db, FTAG);
@@ -3114,11 +3133,10 @@ dbuf_prefetch_indirect_done(zio_t *zio, const zbookmark_phys_t *zb,
 	    dpa->dpa_dnode->dn_objset->os_dsl_dataset,
 	    SPA_FEATURE_REDACTED_DATASETS));
 	if (BP_IS_HOLE(bp) || BP_IS_REDACTED(bp)) {
-		kmem_free(dpa, sizeof (*dpa));
+		dbuf_prefetch_fini(dpa, B_TRUE);
 	} else if (dpa->dpa_curlevel == dpa->dpa_zb.zb_level) {
 		ASSERT3U(nextblkid, ==, dpa->dpa_zb.zb_blkid);
 		dbuf_issue_final_prefetch(dpa, bp);
-		kmem_free(dpa, sizeof (*dpa));
 	} else {
 		arc_flags_t iter_aflags = ARC_FLAG_NOWAIT;
 		zbookmark_phys_t zb;
@@ -3148,9 +3166,10 @@ dbuf_prefetch_indirect_done(zio_t *zio, const zbookmark_phys_t *zb,
  * complete. Note that the prefetch might fail if the dataset is encrypted and
  * the encryption key is unmapped before the IO completes.
  */
-void
-dbuf_prefetch(dnode_t *dn, int64_t level, uint64_t blkid, zio_priority_t prio,
-    arc_flags_t aflags)
+int
+dbuf_prefetch_impl(dnode_t *dn, int64_t level, uint64_t blkid,
+    zio_priority_t prio, arc_flags_t aflags, dbuf_prefetch_fn cb,
+    void *arg)
 {
 	blkptr_t bp;
 	int epbs, nlevels, curlevel;
@@ -3160,10 +3179,10 @@ dbuf_prefetch(dnode_t *dn, int64_t level, uint64_t blkid, zio_priority_t prio,
 	ASSERT(RW_LOCK_HELD(&dn->dn_struct_rwlock));
 
 	if (blkid > dn->dn_maxblkid)
-		return;
+		goto no_issue;
 
 	if (level == 0 && dnode_block_freed(dn, blkid))
-		return;
+		goto no_issue;
 
 	/*
 	 * This dnode hasn't been written to disk yet, so there's nothing to
@@ -3171,11 +3190,11 @@ dbuf_prefetch(dnode_t *dn, int64_t level, uint64_t blkid, zio_priority_t prio,
 	 */
 	nlevels = dn->dn_phys->dn_nlevels;
 	if (level >= nlevels || dn->dn_phys->dn_nblkptr == 0)
-		return;
+		goto no_issue;
 
 	epbs = dn->dn_phys->dn_indblkshift - SPA_BLKPTRSHIFT;
 	if (dn->dn_phys->dn_maxblkid < blkid << (epbs * level))
-		return;
+		goto no_issue;
 
 	dmu_buf_impl_t *db = dbuf_find(dn->dn_objset, dn->dn_object,
 	    level, blkid);
@@ -3185,7 +3204,7 @@ dbuf_prefetch(dnode_t *dn, int64_t level, uint64_t blkid, zio_priority_t prio,
 		 * This dbuf already exists.  It is either CACHED, or
 		 * (we assume) about to be read or filled.
 		 */
-		return;
+		goto no_issue;
 	}
 
 	/*
@@ -3221,7 +3240,7 @@ dbuf_prefetch(dnode_t *dn, int64_t level, uint64_t blkid, zio_priority_t prio,
 	    dsl_dataset_feature_is_active(dn->dn_objset->os_dsl_dataset,
 	    SPA_FEATURE_REDACTED_DATASETS));
 	if (BP_IS_HOLE(&bp) || BP_IS_REDACTED(&bp))
-		return;
+		goto no_issue;
 
 	ASSERT3U(curlevel, ==, BP_GET_LEVEL(&bp));
 
@@ -3239,6 +3258,8 @@ dbuf_prefetch(dnode_t *dn, int64_t level, uint64_t blkid, zio_priority_t prio,
 	dpa->dpa_dnode = dn;
 	dpa->dpa_epbs = epbs;
 	dpa->dpa_zio = pio;
+	dpa->dpa_cb = cb;
+	dpa->dpa_arg = arg;
 
 	/* flag if L2ARC eligible, l2arc_noprefetch then decides */
 	if (DNODE_LEVEL_IS_L2CACHEABLE(dn, level))
@@ -3254,7 +3275,6 @@ dbuf_prefetch(dnode_t *dn, int64_t level, uint64_t blkid, zio_priority_t prio,
 	if (curlevel == level) {
 		ASSERT3U(curblkid, ==, blkid);
 		dbuf_issue_final_prefetch(dpa, &bp);
-		kmem_free(dpa, sizeof (*dpa));
 	} else {
 		arc_flags_t iter_aflags = ARC_FLAG_NOWAIT;
 		zbookmark_phys_t zb;
@@ -3275,6 +3295,19 @@ dbuf_prefetch(dnode_t *dn, int64_t level, uint64_t blkid, zio_priority_t prio,
 	 * dpa may have already been freed.
 	 */
 	zio_nowait(pio);
+	return (1);
+no_issue:
+	if (cb != NULL)
+		cb(arg, B_FALSE);
+	return (0);
+}
+
+int
+dbuf_prefetch(dnode_t *dn, int64_t level, uint64_t blkid, zio_priority_t prio,
+    arc_flags_t aflags)
+{
+
+	return (dbuf_prefetch_impl(dn, level, blkid, prio, aflags, NULL, NULL));
 }
 
 /*
