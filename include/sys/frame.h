@@ -23,7 +23,8 @@
 extern "C" {
 #endif
 
-#if defined(__KERNEL__) && defined(HAVE_STACK_FRAME_NON_STANDARD)
+#if defined(__KERNEL__) && defined(HAVE_KERNEL_OBJTOOL) && \
+    defined(HAVE_STACK_FRAME_NON_STANDARD)
 #include <linux/frame.h>
 #else
 #define	STACK_FRAME_NON_STANDARD(func)
