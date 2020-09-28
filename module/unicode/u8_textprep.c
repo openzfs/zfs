@@ -330,7 +330,7 @@ const uint8_t u8_valid_max_2nd_byte[0x100] = {
  * specific to UTF-8 and Unicode.
  */
 int
-u8_validate(char *u8str, size_t n, char **list, int flag, int *errnum)
+u8_validate(const char *u8str, size_t n, char **list, int flag, int *errnum)
 {
 	uchar_t *ib;
 	uchar_t *ibtail;

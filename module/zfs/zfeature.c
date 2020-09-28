@@ -203,7 +203,7 @@ spa_features_check(spa_t *spa, boolean_t for_write,
 			supported = B_FALSE;
 
 			if (NULL != unsup_feat) {
-				char *desc = "";
+				const char *desc = "";
 
 				if (zap_lookup(os, spa->spa_feat_desc_obj,
 				    za->za_name, 1, MAXPATHLEN, buf) == 0)
