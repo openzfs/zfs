@@ -12,6 +12,7 @@
 
 #
 # Copyright (c) 2012, 2016 by Delphix. All rights reserved.
+# Copyright (c) 2020 by Datto Inc. All rights reserved.
 #
 
 #
@@ -23,6 +24,8 @@
 # 2. Create multiple snapshots with a list of valid and invalid
 #    snapshot names
 # 3. Verify the valid snapshot creation
+# 4. Verify creation of snapshots report the correct numbers by
+#    performing a snapshot directory listing
 
 . $STF_SUITE/include/libtest.shlib
 
@@ -34,6 +37,7 @@ function cleanup
 		datasetexists $ds && log_must zfs destroy -r $ds
 	done
 	zfs destroy -r $TESTPOOL/TESTFS4
+	zfs destroy -r $TESTPOOL/TESTFS5
 }
 datasets="$TESTPOOL/$TESTFS1 $TESTPOOL/$TESTFS2
     $TESTPOOL/$TESTFS3"
@@ -111,5 +115,18 @@ log_must zfs rename $TESTPOOL/$TESTFS3/TESTFSA$DATASET_XXX \
     $TESTPOOL/$TESTFS3/TESTFSA
 log_must zfs snapshot -r $TESTPOOL/$TESTFS1@snap1 $TESTPOOL/$TESTFS2@snap1 \
         $TESTPOOL/$TESTFS3@snap1 $TESTPOOL/TESTFS4@snap1
+
+MYTEST="TESTFS5"
+ITERATIONS=10
+NUM_SNAPS=5
+for x in {1..$ITERATIONS}; do
+	log_must zfs create $TESTPOOL/$MYTEST
+	for y in {1..$NUM_SNAPS}; do
+		log_must zfs snapshot $TESTPOOL/$MYTEST@$y
+	done;
+	n=$(ls -1 /$TESTPOOL/$MYTEST/.zfs/snapshot | wc -l)
+	verify_eq $n $NUM_SNAPS "count"
+	zfs destroy -r $TESTPOOL/$MYTEST;
+done;
 
 log_pass "zfs multiple snapshot verified correctly"
