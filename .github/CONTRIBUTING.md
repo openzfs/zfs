@@ -175,6 +175,21 @@ to verify ZFS is behaving as intended.
 
 ## Style Guides
 
+### Repository Structure
+
+OpenZFS uses a standardised branching structure.
+- The "development and main branch", is the branch all development should be based on.
+- "Release branches" contain the latest released code for said version.
+- "Staging branches" contain selected commits prior to being released.
+
+**Branch Names:**
+- Development and Main branch: `master`
+- Release branches: `zfs-$VERSION-release`
+- Staging branches: `zfs-$VERSION-staging`
+
+`$VERSION` should be replaced with the `major.minor` version number.  
+_(This is the version number without the `.patch` version at the end)_
+
 ### Coding Conventions
 We currently use [C  Style  and  Coding  Standards  for
 SunOS](http://www.cis.upenn.edu/%7Elee/06cse480/data/cstyle.ms.pdf) as our
