@@ -89,7 +89,17 @@ procfs_list_next_node(procfs_list_cursor_t *cursor, loff_t *pos)
 		cursor->cached_node = next_node;
 		cursor->cached_pos = NODE_ID(procfs_list, cursor->cached_node);
 		*pos = cursor->cached_pos;
+	} else {
+		/*
+		 * seq_read() expects ->next() to update the position even
+		 * when there are no more entries. Advance the position to
+		 * prevent a warning from being logged.
+		 */
+		cursor->cached_node = NULL;
+		cursor->cached_pos++;
+		*pos = cursor->cached_pos;
 	}
+
 	return (next_node);
 }
 
@@ -105,6 +115,8 @@ procfs_list_seq_start(struct seq_file *f, loff_t *pos)
 		cursor->cached_node = SEQ_START_TOKEN;
 		cursor->cached_pos = 0;
 		return (SEQ_START_TOKEN);
+	} else if (cursor->cached_node == NULL) {
+		return (NULL);
 	}
 
 	/*
