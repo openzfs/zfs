@@ -91,7 +91,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_CONFIG_DEBUG_LOCK_ALLOC], [
 
 AC_DEFUN([ZFS_AC_KERNEL_CONFIG_DEBUG_LOCK_ALLOC], [
 	AC_MSG_CHECKING([whether mutex_lock() is GPL-only])
-	ZFS_LINUX_TEST_RESULT([config_debug_lock_alloc], [
+	ZFS_LINUX_TEST_RESULT([config_debug_lock_alloc_license], [
 		AC_MSG_RESULT(no)
 	],[
 		AC_MSG_RESULT(yes)
