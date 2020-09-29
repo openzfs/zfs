@@ -19,6 +19,7 @@ $(MODULE)-objs += arc.o
 $(MODULE)-objs += blkptr.o
 $(MODULE)-objs += bplist.o
 $(MODULE)-objs += bpobj.o
+$(MODULE)-objs += compress_adaptive.o
 $(MODULE)-objs += bptree.o
 $(MODULE)-objs += btree.o
 $(MODULE)-objs += bqueue.o

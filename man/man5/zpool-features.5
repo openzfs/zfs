@@ -417,7 +417,34 @@ in which new features are enabled. This has no user-visible impact,
 but other features may depend on this feature.
 
 This feature becomes \fBactive\fR as soon as it is enabled and will
-never return to being \fBenabled\fB.
+never return to being \fBenabled\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fBcompress_adaptive\fR\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	org.zfsonlinux:compress_adaptive
+READ\-ONLY COMPATIBLE	yes
+DEPENDENCIES	lz4_compress,extensible_dataset
+.TE
+
+\fBcompress_adaptive\fR chooses the compression algorithm out of lz4 and gzip[1-9] 
+to perform with optimal write throughput.
+
+When the \fBcompress_adaptive\fR feature is set to \fBenabled\fR, the
+administrator can turn on \fBcompress_adaptive\fR on any dataset on the
+pool using the \fBzfs\fR(8) command. Please note that doing so will
+immediately activate the \fBcompress_adaptive\fR feature on the underlying
+pool.
+
+This feature becomes \fBactive\fR as soon as it is used on one dataset and will 
+return to being \fBenabled\fR once all filesystems that have ever had their compression set to
++\fBcompress_adaptive\fR are destroyed.
 .RE
 
 .sp

@@ -208,6 +208,9 @@ zfs_prop_init(void)
 		    ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_FAST_500) },
 		{ "zstd-fast-1000",
 		    ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_FAST_1000) },
+
+		{ "adaptive",	ZIO_COMPRESS_ADAPTIVE },
+
 		{ NULL }
 	};
 
@@ -414,7 +417,7 @@ zfs_prop_init(void)
 	zprop_register_index(ZFS_PROP_COMPRESSION, "compression",
 	    ZIO_COMPRESS_DEFAULT, PROP_INHERIT,
 	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
-	    "on | off | lzjb | gzip | gzip-[1-9] | zle | lz4 | "
+	    "on | off | adaptive  | lzjb | gzip | gzip-[1-9] | zle | lz4 | "
 	    "zstd | zstd-[1-19] | "
 	    "zstd-fast-[1-10,20,30,40,50,60,70,80,90,100,500,1000]",
 	    "COMPRESS", compress_table);

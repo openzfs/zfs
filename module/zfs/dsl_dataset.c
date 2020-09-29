@@ -4975,6 +4975,58 @@ dsl_dataset_activate_redaction(dsl_dataset_t *ds, uint64_t *redact_snaps,
 	ds->ds_feature[SPA_FEATURE_REDACTED_DATASETS] = ftuaa;
 }
 
+static int
+dsl_dataset_actv_compress_adaptive_check(void *arg, dmu_tx_t *tx)
+{
+	char *ddname = (char *)arg;
+	dsl_pool_t *dp = dmu_tx_pool(tx);
+	dsl_dataset_t *ds;
+	int error;
+
+	error = dsl_dataset_hold(dp, ddname, FTAG, &ds);
+	if (error != 0)
+		return (error);
+
+	if (!spa_feature_is_enabled(dp->dp_spa,
+	    SPA_FEATURE_COMPRESS_ADAPTIVE)) {
+		dsl_dataset_rele(ds, FTAG);
+		return (SET_ERROR(ENOTSUP));
+	}
+
+	dsl_dataset_rele(ds, FTAG);
+	return (0);
+}
+
+static void
+dsl_dataset_actv_compress_adaptive_sync(void *arg, dmu_tx_t *tx)
+{
+	char *ddname = (char *)arg;
+	dsl_pool_t *dp = dmu_tx_pool(tx);
+	dsl_dataset_t *ds;
+
+	VERIFY0(dsl_dataset_hold(dp, ddname, FTAG, &ds));
+
+	if (!dsl_dataset_feature_is_active(ds, SPA_FEATURE_COMPRESS_ADAPTIVE)) {
+		dsl_dataset_activate_feature(ds->ds_object,
+		    SPA_FEATURE_COMPRESS_ADAPTIVE, (void *)B_TRUE, tx);
+		ds->ds_feature[SPA_FEATURE_COMPRESS_ADAPTIVE] = (void *)B_TRUE;
+	}
+	dsl_dataset_rele(ds, FTAG);
+}
+
+
+int
+dsl_dataset_activate_compress_adaptive(const char *ddname)
+{
+	int error;
+
+	error = dsl_sync_task(ddname, dsl_dataset_actv_compress_adaptive_check,
+	    dsl_dataset_actv_compress_adaptive_sync, (void *)ddname, 0,
+	    ZFS_SPACE_CHECK_RESERVED);
+
+	return (error);
+}
+
 /* BEGIN CSTYLED */
 #if defined(_LP64)
 #define	RECORDSIZE_PERM ZMOD_RW

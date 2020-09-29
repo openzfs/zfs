@@ -62,6 +62,7 @@ KERNEL_C = \
 	btree.c \
 	bqueue.c \
 	cityhash.c \
+	compress_adaptive.c \
 	dbuf.c \
 	dbuf_stats.c \
 	ddt.c \
