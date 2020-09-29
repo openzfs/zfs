@@ -28,73 +28,68 @@
 #include <sys/cdefs.h>
 __FBSDID("$FreeBSD$");
 
-#include <sys/types.h>
 #include <sys/param.h>
-#include <sys/systm.h>
-#include <sys/conf.h>
-#include <sys/eventhandler.h>
-#include <sys/kernel.h>
-#include <sys/lock.h>
-#include <sys/malloc.h>
-#include <sys/mutex.h>
-#include <sys/proc.h>
-#include <sys/errno.h>
-#include <sys/uio.h>
 #include <sys/buf.h>
-#include <sys/file.h>
-#include <sys/kmem.h>
-#include <sys/conf.h>
-#include <sys/eventhandler.h>
 #include <sys/cmn_err.h>
-#include <sys/stat.h>
-#include <sys/zfs_ioctl.h>
-#include <sys/zfs_vfsops.h>
-#include <sys/zfs_znode.h>
-#include <sys/zap.h>
-#include <sys/spa.h>
-#include <sys/spa_impl.h>
-#include <sys/vdev.h>
+#include <sys/conf.h>
 #include <sys/dmu.h>
-#include <sys/dsl_dir.h>
-#include <sys/dsl_dataset.h>
-#include <sys/dsl_prop.h>
-#include <sys/dsl_deleg.h>
-#include <sys/dmu_objset.h>
 #include <sys/dmu_impl.h>
-#include <sys/dmu_tx.h>
-#include <sys/fm/util.h>
-#include <sys/sunddi.h>
-#include <sys/policy.h>
-#include <sys/zone.h>
-#include <sys/nvpair.h>
-#include <sys/mount.h>
-#include <sys/taskqueue.h>
-#include <sys/sdt.h>
-#include <sys/fs/zfs.h>
-#include <sys/zfs_ctldir.h>
-#include <sys/zfs_dir.h>
-#include <sys/zfs_onexit.h>
-#include <sys/zvol.h>
-#include <sys/dsl_scan.h>
 #include <sys/dmu_objset.h>
 #include <sys/dmu_send.h>
-#include <sys/dsl_destroy.h>
+#include <sys/dmu_tx.h>
 #include <sys/dsl_bookmark.h>
-#include <sys/dsl_userhold.h>
-#include <sys/zfeature.h>
-#include <sys/zcp.h>
-#include <sys/zio_checksum.h>
-#include <sys/vdev_removal.h>
 #include <sys/dsl_crypt.h>
+#include <sys/dsl_dataset.h>
+#include <sys/dsl_deleg.h>
+#include <sys/dsl_destroy.h>
+#include <sys/dsl_dir.h>
+#include <sys/dsl_prop.h>
+#include <sys/dsl_scan.h>
+#include <sys/dsl_userhold.h>
+#include <sys/errno.h>
+#include <sys/eventhandler.h>
+#include <sys/file.h>
+#include <sys/fm/util.h>
+#include <sys/fs/zfs.h>
+#include <sys/kernel.h>
+#include <sys/kmem.h>
+#include <sys/lock.h>
+#include <sys/malloc.h>
+#include <sys/mount.h>
+#include <sys/mutex.h>
+#include <sys/nvpair.h>
+#include <sys/policy.h>
+#include <sys/proc.h>
+#include <sys/sdt.h>
+#include <sys/spa.h>
+#include <sys/spa_impl.h>
+#include <sys/stat.h>
+#include <sys/sunddi.h>
+#include <sys/systm.h>
+#include <sys/taskqueue.h>
+#include <sys/uio.h>
+#include <sys/vdev.h>
+#include <sys/vdev_removal.h>
+#include <sys/zap.h>
+#include <sys/zcp.h>
+#include <sys/zfeature.h>
 #include <sys/zfs_context.h>
-
+#include <sys/zfs_ctldir.h>
+#include <sys/zfs_dir.h>
+#include <sys/zfs_ioctl.h>
 #include <sys/zfs_ioctl_compat.h>
 #include <sys/zfs_ioctl_impl.h>
+#include <sys/zfs_onexit.h>
+#include <sys/zfs_vfsops.h>
+#include <sys/zfs_znode.h>
+#include <sys/zio_checksum.h>
+#include <sys/zone.h>
+#include <sys/zvol.h>
 
+#include "zfs_comutil.h"
+#include "zfs_deleg.h"
 #include "zfs_namecheck.h"
 #include "zfs_prop.h"
-#include "zfs_deleg.h"
-#include "zfs_comutil.h"
 
 SYSCTL_DECL(_vfs_zfs);
 SYSCTL_DECL(_vfs_zfs_vdev);
@@ -121,7 +116,6 @@ static eventhandler_tag zfs_shutdown_event_tag;
 extern zfsdev_state_t *zfsdev_state_list;
 
 #define	ZFS_MIN_KSTACK_PAGES 4
-
 
 static int
 zfsdev_ioctl(struct cdev *dev, ulong_t zcmd, caddr_t arg, int flag,
@@ -332,7 +326,6 @@ zfs_shutdown(void *arg __unused, int howto __unused)
 	if (panicstr == NULL)
 		zfs__fini();
 }
-
 
 static int
 zfs_modevent(module_t mod, int type, void *unused __unused)
