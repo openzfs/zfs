@@ -6609,7 +6609,7 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 		/*
 		 * Can't expand a raidz while prior expand is in progress.
 		 */
-		if (spa->spa_raidz_expanding)
+		if (spa->spa_raidz_expand != NULL)
 			return (spa_vdev_exit(spa, NULL, txg, EBUSY));
 	} else if (!oldvd->vdev_ops->vdev_op_leaf) {
 		return (spa_vdev_exit(spa, NULL, txg, ENOTSUP));
@@ -6778,7 +6778,6 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 	dtl_max_txg = txg + TXG_CONCURRENT_STATES;
 
 	if (raidz) {
-		spa->spa_raidz_expanding = B_TRUE;
 		dmu_tx_t *tx = dmu_tx_create_assigned(spa->spa_dsl_pool, txg);
 		dsl_sync_task_nowait(spa->spa_dsl_pool, vdev_raidz_attach_sync,
 		    newvd, 0, ZFS_SPACE_CHECK_NONE, tx);

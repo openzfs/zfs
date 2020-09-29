@@ -3262,7 +3262,6 @@ spa_raidz_expand_cb(void *arg, zthr_t *zthr)
 	spa_t *spa = arg;
 	vdev_raidz_expand_t *vre = spa->spa_raidz_expand;
 
-	ASSERT3B(spa->spa_raidz_expanding, ==, B_TRUE);
 	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 	vdev_t *raidvd = vdev_lookup_top(spa, vre->vre_vdev_id);
 
@@ -3424,7 +3423,6 @@ spa_raidz_expand_cb(void *arg, zthr_t *zthr)
 	}
 
 	spa->spa_raidz_expand = NULL;
-	spa->spa_raidz_expanding = B_FALSE;
 }
 
 void
@@ -3615,7 +3613,6 @@ vdev_raidz_load(vdev_t *vd)
 		ASSERT3P(vd->vdev_spa->spa_raidz_expand, ==, NULL);
 
 		vd->vdev_spa->spa_raidz_expand = &vdrz->vn_vre;
-		vd->vdev_spa->spa_raidz_expanding = B_TRUE;
 	}
 
 	uint64_t state = DSS_NONE;
