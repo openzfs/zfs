@@ -322,8 +322,10 @@ zfs_ioctl_ozfs_to_legacy(int request)
 	if (request > ZFS_IOC_LAST)
 		return (-1);
 
-	if (request > ZFS_IOC_PLATFORM)
+	if (request > ZFS_IOC_PLATFORM) {
+		request -= ZFS_IOC_PLATFORM + 1;
 		return (zfs_ioctl_ozfs_to_legacy_platform_[request]);
+	}
 	if (request >= sizeof (zfs_ioctl_ozfs_to_legacy_common_)/sizeof (long))
 		return (-1);
 	return (zfs_ioctl_ozfs_to_legacy_common_[request]);
