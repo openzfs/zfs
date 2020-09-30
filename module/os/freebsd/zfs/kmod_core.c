@@ -86,6 +86,7 @@ __FBSDID("$FreeBSD$");
 #include <sys/zio_checksum.h>
 #include <sys/vdev_removal.h>
 #include <sys/dsl_crypt.h>
+#include <sys/zfs_context.h>
 
 #include <sys/zfs_ioctl_compat.h>
 #include <sys/zfs_ioctl_impl.h>
@@ -98,7 +99,7 @@ __FBSDID("$FreeBSD$");
 SYSCTL_DECL(_vfs_zfs);
 SYSCTL_DECL(_vfs_zfs_vdev);
 
-
+extern uint_t rrw_tsd_key;
 static int zfs_version_ioctl = ZFS_IOCVER_OZFS;
 SYSCTL_DECL(_vfs_zfs_version);
 SYSCTL_INT(_vfs_zfs_version, OID_AUTO, ioctl, CTLFLAG_RD, &zfs_version_ioctl,
@@ -180,6 +181,7 @@ out:
 	if (zcl)
 		kmem_free(zcl, sizeof (zfs_cmd_legacy_t));
 	kmem_free(zc, sizeof (zfs_cmd_t));
+	MPASS(tsd_get(rrw_tsd_key) == NULL);
 	return (error);
 }
 
