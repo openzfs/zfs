@@ -2684,12 +2684,15 @@ dmu_send_obj(const char *pool, uint64_t tosnap, uint64_t fromsnap,
 			bcopy(fromredact, dspp.fromredactsnaps, size);
 		}
 
-		if (!dsl_dataset_is_before(dspp.to_ds, fromds, 0)) {
+		boolean_t is_before =
+		    dsl_dataset_is_before(dspp.to_ds, fromds, 0);
+		dspp.is_clone = (dspp.to_ds->ds_dir !=
+		    fromds->ds_dir);
+		dsl_dataset_rele(fromds, FTAG);
+		if (!is_before) {
+			dsl_pool_rele(dspp.dp, FTAG);
 			err = SET_ERROR(EXDEV);
 		} else {
-			dspp.is_clone = (dspp.to_ds->ds_dir !=
-			    fromds->ds_dir);
-			dsl_dataset_rele(fromds, FTAG);
 			err = dmu_send_impl(&dspp);
 		}
 	} else {

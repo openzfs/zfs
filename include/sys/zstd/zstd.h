@@ -90,6 +90,7 @@ int zfs_zstd_decompress_level(void *s_start, void *d_start, size_t s_len,
     size_t d_len, uint8_t *level);
 int zfs_zstd_decompress(void *s_start, void *d_start, size_t s_len,
     size_t d_len, int n);
+void zfs_zstd_cache_reap_now(void);
 
 #ifdef	__cplusplus
 }
