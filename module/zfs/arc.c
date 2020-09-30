@@ -308,6 +308,7 @@
 #include <sys/aggsum.h>
 #include <cityhash.h>
 #include <sys/vdev_trim.h>
+#include <sys/zstd/zstd.h>
 
 #ifndef _KERNEL
 /* set with ZFS_DEBUG=watch, to enable watchpoints on frozen buffers */
@@ -4859,6 +4860,7 @@ static boolean_t
 arc_reap_cb_check(void *arg, zthr_t *zthr)
 {
 	int64_t free_memory = arc_available_memory();
+	static int reap_cb_check_counter = 0;
 
 	/*
 	 * If a kmem reap is already active, don't schedule more.  We must
@@ -4882,6 +4884,14 @@ arc_reap_cb_check(void *arg, zthr_t *zthr)
 	} else if (gethrtime() >= arc_growtime) {
 		arc_no_grow = B_FALSE;
 	}
+
+	/*
+	 * Called unconditionally every 60 seconds to reclaim unused
+	 * zstd compression and decompression context. This is done
+	 * here to avoid the need for an independent thread.
+	 */
+	if (!((reap_cb_check_counter++) % 60))
+		zfs_zstd_cache_reap_now();
 
 	return (B_FALSE);
 }
