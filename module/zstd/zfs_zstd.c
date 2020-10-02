@@ -34,6 +34,7 @@
  * Copyright (c) 2018-2020, Sebastian Gottschall
  * Copyright (c) 2019-2020, Michael Niewöhner
  * Copyright (c) 2020, The FreeBSD Foundation [1]
+ * Copyright (c) 2020, Mateusz Guzik
  *
  * [1] Portions of this software were developed by Allan Jude
  *     under sponsorship from the FreeBSD Foundation.

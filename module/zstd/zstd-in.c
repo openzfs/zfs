@@ -31,6 +31,7 @@
 /*
  * Copyright (c) 2016-2020, Yann Collet, Facebook, Inc.
  * Copyright (c) 2019-2020, Michael Niewöhner
+ * Copyright (c) 2020, Kjeld Schouten-Lebbing
  */
 
 #define	MEM_MODULE
@@ -41,6 +42,16 @@
 #define	ZSTD_LIB_DICTBUILDER 0
 #define	ZSTD_LIB_DEPRECATED 0
 #define	ZSTD_NOBENCH
+#define	ZSTD_NODICT
+#define	ZSTD_NO_INTRINSICS
+#define	ZSTD_NO_UNUSED_FUNCTIONS
+#define	ZSTD_ADDRESS_SANITIZER 0
+#define	ZSTD_MEMORY_SANITIZER 0
+
+/* Include zstd_deps.h first with all the options we need enabled. */
+#define	ZSTD_DEPS_NEED_MALLOC
+#define	ZSTD_DEPS_NEED_MATH64
+#include "common/zstd_deps.h"
 
 #include "common/debug.c"
 #include "common/entropy_common.c"

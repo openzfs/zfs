@@ -30,19 +30,7 @@
 
 /*
  * Copyright (c) 2020, Sebastian Gottschall
- */
-
-/*
- * This wrapper fixes a problem, in case the ZFS filesystem driver, is compiled
- * staticly into the kernel.
- * This will cause a symbol collision with the older in-kernel zstd library.
- * The following macros will simply rename all local zstd symbols and references
- *
- * Note: if the zstd library for zfs is updated to a newer version, this macro
- * list usually needs to be updated.
- * this can be done with some hand crafting of the output of the following
- * script
- * nm zstd.o | awk '{print "#define "$3 " zfs_" $3}' > macrotable
+ * Copyright (c) 2020, Kjeld Schouten-Lebbing
  */
 
 #define	BIT_initDStream zfs_BIT_initDStream
@@ -458,3 +446,39 @@
 #define	repStartValue zfs_repStartValue
 #define	FSE_isError zfs_FSE_isError
 #define	HUF_isError zfs_HUF_isError
+#define	ERR_isError zfs_ERR_isError
+#define	FSE_decompress_wksp_bmi2 zfs_FSE_decompress_wksp_bmi2
+#define	FSE_decompress_wksp_body_default zfs_FSE_decompress_wksp_body_default
+#define	FSE_readNCount_bmi2 zfs_FSE_readNCount_bmi2
+#define	FSE_readNCount_body_default zfs_FSE_readNCount_body_default
+#define	HIST_isError zfs_HIST_isError
+#define	HUF_readDTableX1_wksp_bmi2 zfs_HUF_readDTableX1_wksp_bmi2
+#define	HUF_readStats_body_default zfs_HUF_readStats_body_default
+#define	HUF_readStats_wksp zfs_HUF_readStats_wksp
+#define	ZSTD_CCtx_init_compressStream2 zfs_ZSTD_CCtx_init_compressStream2
+#define	ZSTD_CCtx_refThreadPool zfs_ZSTD_CCtx_refThreadPool
+#define	ZSTD_DCtx_getParameter zfs_ZSTD_DCtx_getParameter
+#define	ZSTD_compressBlock_greedy_dedicatedDictSearch \
+	zfs_ZSTD_compressBlock_greedy_dedicatedDictSearch
+#define	ZSTD_compressBlock_lazy2_dedicatedDictSearch \
+	zfs_ZSTD_compressBlock_lazy2_dedicatedDictSearch
+#define	ZSTD_compressBlock_lazy_dedicatedDictSearch \
+	zfs_ZSTD_compressBlock_lazy_dedicatedDictSearch
+#define	ZSTD_compressSequences zfs_ZSTD_compressSequences
+#define	ZSTD_compressStream_generic zfs_ZSTD_compressStream_generic
+#define	ZSTD_copyBlockSequences zfs_ZSTD_copyBlockSequences
+#define	ZSTD_copySequencesToSeqStoreExplicitBlockDelim \
+	zfs_ZSTD_copySequencesToSeqStoreExplicitBlockDelim
+#define	ZSTD_copySequencesToSeqStoreNoBlockDelim \
+	zfs_ZSTD_copySequencesToSeqStoreNoBlockDelim
+#define	ZSTD_createCDict_advanced2 zfs_ZSTD_createCDict_advanced2
+#define	ZSTD_generateSequences zfs_ZSTD_generateSequences
+#define	ZSTD_customCalloc zfs_ZSTD_customCalloc
+#define	ZSTD_customFree zfs_ZSTD_customFree
+#define	ZSTD_customMalloc zfs_ZSTD_customMalloc
+#define	ZSTD_dedicatedDictSearch_lazy_loadDictionary \
+	zfs_ZSTD_dedicatedDictSearch_lazy_loadDictionary
+#define	ZSTD_getDictID_fromCDict zfs_ZSTD_getDictID_fromCDict
+#define	ZSTD_ldm_skipRawSeqStoreBytes zfs_ZSTD_ldm_skipRawSeqStoreBytes
+#define	FSE_buildDTable_wksp zfs_FSE_buildDTable_wksp
+#define	ZSTD_mergeBlockDelimiters zfs_ZSTD_mergeBlockDelimiters

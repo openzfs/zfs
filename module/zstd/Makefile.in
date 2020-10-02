@@ -23,9 +23,6 @@ $(obj)/lib/zstd.o: c_flags += -fno-tree-vectorize
 # SSE register return with SSE disabled if -march=znverX is passed
 $(obj)/lib/zstd.o: c_flags += -U__BMI__
 
-# Quiet warnings about frame size due to unused code in unmodified zstd lib
-$(obj)/lib/zstd.o: c_flags += -Wframe-larger-than=20480
-
 # Disable aarch64 neon SIMD instructions for kernel mode
 $(obj)/lib/zstd.o: c_flags += -include $(zstd_include)/aarch64_compat.h -include $(zstd_include)/zstd_compat_wrapper.h -Wp,-w
 

@@ -29,36 +29,47 @@ To update ZSTD the following steps need to be taken:
    - `zstd/lib/zstd.h`
    - `zstd/lib/common/zstd_errors.h`
 
-This can be done using a few shell commands from inside the zfs repo:
+This can be done using a few shell commands from inside the zfs repo.
+"update_zstd.sh" is included as a scripted example of how to update the ZSTD library.
+It should be run for from the ZFS root directory like this:
+`sh module/zstd/update_zstd.sh`
 
-~~~sh
-cd PATH/TO/ZFS
+### Compatibility Wraper
+ZSTD-on-ZFS contains a so-called "Compatibility Wraper".
+This wrapper fixes a problem, in case the ZFS filesystem driver, is compiled
+staticly into the kernel.
+This will cause a symbol collision with the in-kernel zstd library.
+The macros contained in 'include/zstd_compat_wrapper.h' will simply
+rename all local zstd symbols and references.
 
-url="https://github.com/facebook/zstd"
-release="$(curl -s "${url}"/releases/latest | grep -oP '(?<=v)[\d\.]+')"
-zstd="/tmp/zstd-${release}/"
-
-wget -O /tmp/zstd.tar.gz \
-    "${url}/releases/download/v${release}/zstd-${release}.tar.gz"
-tar -C /tmp -xzf /tmp/zstd.tar.gz
-
-cp ${zstd}/lib/zstd.h module/zstd/lib/
-cp ${zstd}/lib/zstd_errors.h module/zstd/lib/
-${zstd}/contrib/single_file_libs/combine.sh \
-    -r ${zstd}/lib -o module/zstd/lib/zstd.c module/zstd/zstd-in.c
-~~~
-
-Note: if the zstd library for zfs is updated to a newer version,
-the macro list in include/zstd_compat_wrapper.h usually needs to be updated.
+If the zstd library for zfs is updated to a newer version, this macro
+list usually needs to be updated.
 this can be done with some hand crafting of the output of the following
-script: nm zstd.o | awk '{print "#define "$3 " zfs_" $3}' > macrotable
+script:
+```
+nm -fposix zstd.o | awk '{print "#define "$1 " zfs_" $1}' | sort -u > macrotable
+```
 
+The output, contained in a file called 'macrotable', still needs a lot of manual editing:
+- Removal of .part.number and similair endings
+- Removal of non-zstd-library lines
+- Wrapping line-ends
+
+_TODO: Add a script to automate some repeatitive bits of this a little more_
 
 ## Altering ZSTD and breaking changes
 
 If ZSTD made changes that break compatibility or you need to make breaking
 changes to the way we handle ZSTD, it is required to maintain backwards
 compatibility.
+
+It's also important to prevent any customisations directly in the library 
+file `lib/zstd.c` and instead try other solutions, as this file is generated
+from stock zstd.
+
+If you do need to modify the library in 'lib/zstd.c', please be sure to carefully
+document it, here or on the wiki. Be aware that new code comments in the library 
+might be missed and are not persistant.
 
 We already save the ZSTD version number within the block header to be used
 to add future compatibility checks and/or fixes. However, currently it is
