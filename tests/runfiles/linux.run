@@ -26,11 +26,6 @@ tags = ['functional']
 tests = ['posix_001_pos', 'posix_002_pos', 'posix_003_pos']
 tags = ['functional', 'acl', 'posix']
 
-[tests/functional/arc:Linux]
-tests = ['dbufstats_001_pos', 'dbufstats_002_pos', 'dbufstats_003_pos',
-    'arcstats_runtime_tuning']
-tags = ['functional', 'arc']
-
 [tests/functional/atime:Linux]
 tests = ['atime_003_pos', 'root_relatime_on']
 tags = ['functional', 'atime']

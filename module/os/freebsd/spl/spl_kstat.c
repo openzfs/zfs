@@ -231,6 +231,7 @@ restart:
 	}
 	free(ksp->ks_raw_buf, M_TEMP);
 	mutex_exit(ksp->ks_lock);
+	sbuf_trim(sb);
 	rc = sbuf_finish(sb);
 	if (rc == 0)
 		rc = SYSCTL_OUT(req, sbuf_data(sb), sbuf_len(sb));
