@@ -25,7 +25,6 @@
 #
 # DESCRIPTION:
 #	Verify that ACLs survive remount.
-#	Regression test for https://github.com/zfsonlinux/zfs/issues/4520
 #
 # STRATEGY:
 #	1. Test presence of default and regular ACLs after remount

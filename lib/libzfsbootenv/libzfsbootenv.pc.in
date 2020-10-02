@@ -6,7 +6,7 @@ includedir=@includedir@
 Name: libzfsbootenv
 Description: LibZFSBootENV library
 Version: @VERSION@
-URL: https://zfsonlinux.org
+URL: https://github.com/openzfs/zfs
 Requires: libzfs libnvpair
 Cflags: -I${includedir}
 Libs: -L${libdir} -lzfsbootenv

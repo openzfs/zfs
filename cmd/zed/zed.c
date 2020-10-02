@@ -1,6 +1,6 @@
 /*
  * This file is part of the ZFS Event Daemon (ZED)
- * for ZFS on Linux (ZoL) <http://zfsonlinux.org/>.
+ *
  * Developed at Lawrence Livermore National Laboratory (LLNL-CODE-403049).
  * Copyright (C) 2013-2014 Lawrence Livermore National Security, LLC.
  * Refer to the ZoL git commit log for authoritative copyright attribution.
