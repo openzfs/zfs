@@ -159,24 +159,60 @@ taskq_t *spl_kmem_cache_taskq;		/* Task queue for aging / reclaim */
 
 static void spl_cache_shrink(spl_kmem_cache_t *skc, void *obj);
 
-static void *
-kv_alloc(spl_kmem_cache_t *skc, int size, int flags)
+typedef struct {
+	uint32_t magic;
+	int ptr_offset_bytes;
+} kvalloc_endmarker_t;
+const uint32_t kvmagic_alive = 0x11111111U;
+const uint32_t kvmagic_poison = 0xDEADDEADU;
+
+/*
+ * Helper to figure out minimal padding needed by an allocation
+ * to ensure that alignment goal is met, plus allocation
+ * metadata overhead
+ */
+static uint32_t
+kv_alloc_num_pad_bytes(const spl_kmem_cache_t *skc)
 {
-	gfp_t lflags = kmem_flags_convert(flags);
-	void *ptr;
+	return (sizeof (kvalloc_endmarker_t) + (skc->skc_obj_align - 1));
+}
 
-	ptr = spl_vmalloc(size, lflags | __GFP_HIGHMEM);
+static void *
+kv_alloc(const spl_kmem_cache_t *skc, int size, int flags)
+{
+	const uint32_t alignp2 = skc->skc_obj_align;
+	ASSERT(ISP2(alignp2));
 
-	/* Resulting allocated memory will be page aligned */
-	ASSERT(IS_P2ALIGNED(ptr, PAGE_SIZE));
+	const gfp_t lflags = kmem_flags_convert(flags);
+	void *ptr = NULL;
+
+	const char *unaligned_ptr = spl_kvmalloc(size +
+	    kv_alloc_num_pad_bytes(skc), lflags);
+	if (likely(unaligned_ptr != NULL)) {
+		/* round up from original pointer to satisfy alignment */
+		ptr = (void *)P2ROUNDUP_TYPED(unaligned_ptr,
+		    alignp2, uintptr_t);
+		kvalloc_endmarker_t *mkr = (kvalloc_endmarker_t *)
+		    ((char *)ptr + size);
+		mkr->magic = kvmagic_alive;
+		/*
+		 * Remember how much we needed to round up by, so we
+		 * can reconstruct the original pointer returned by
+		 * spl_kvmalloc() when it's time to free it
+		 */
+		mkr->ptr_offset_bytes = ((char *)ptr - unaligned_ptr);
+
+		/* Callers expect returned pointer to be aligned */
+		ASSERT(IS_P2ALIGNED(ptr, alignp2));
+	}
 
 	return (ptr);
 }
 
 static void
-kv_free(spl_kmem_cache_t *skc, void *ptr, int size)
+kv_free(const spl_kmem_cache_t *skc, void *ptr, int size)
 {
-	ASSERT(IS_P2ALIGNED(ptr, PAGE_SIZE));
+	ASSERT(IS_P2ALIGNED(ptr, skc->skc_obj_align));
 
 	/*
 	 * The Linux direct reclaim path uses this out of band value to
@@ -188,7 +224,31 @@ kv_free(spl_kmem_cache_t *skc, void *ptr, int size)
 	if (current->reclaim_state)
 		current->reclaim_state->reclaimed_slab += size >> PAGE_SHIFT;
 
-	vfree(ptr);
+	kvalloc_endmarker_t *mkr = (kvalloc_endmarker_t *)
+	    ((char *)ptr + size);
+	if (likely(mkr->magic == kvmagic_alive)) {
+		mkr->magic = kvmagic_poison;
+		/* Reconstruct original pointer from before alignment */
+		char *unaligned_ptr = (char *)ptr - mkr->ptr_offset_bytes;
+		spl_kmem_free_impl(unaligned_ptr, size +
+		    kv_alloc_num_pad_bytes(skc));
+	} else {
+		if (mkr->magic == kvmagic_poison) {
+			printk(KERN_WARNING
+			    "Double kv_free (size=%lu), please "
+			    "file an issue at:\n"
+			    "https://github.com/zfsonlinux/zfs/issues/new\n",
+			    (unsigned long)size);
+		} else {
+			printk(KERN_WARNING
+			    "kv_free (size=%lu) bad magic(0x%x), please "
+			    "file an issue at:\n"
+			    "https://github.com/zfsonlinux/zfs/issues/new\n",
+			    (unsigned long)size, mkr->magic);
+		}
+		dump_stack();
+		ASSERT3U(mkr->magic, ==, kvmagic_alive);
+	}
 }
 
 /*
