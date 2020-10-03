@@ -635,12 +635,14 @@ function file_check
 # $1 The ZFS send command
 # $2 The filesystem where the streams are sent
 # $3 The receive filesystem
+# $4 Test dry-run (optional)
 #
 function resume_test
 {
-	sendcmd=$1
-	streamfs=$2
-	recvfs=$3
+	typeset sendcmd=$1
+	typeset streamfs=$2
+	typeset recvfs=$3
+	typeset dryrun=${4:-1}
 
 	stream_num=1
 	log_must eval "$sendcmd >/$streamfs/$stream_num"
@@ -651,6 +653,11 @@ function resume_test
 		stream_num=$((stream_num+1))
 
 		token=$(zfs get -Hp -o value receive_resume_token $recvfs)
+
+		# Do a dry-run
+		[ $dryrun -ne 0 ] && \
+			log_must eval "zfs send -nvt $token > /dev/null"
+
 		log_must eval "zfs send -t $token  >/$streamfs/$stream_num"
 		[[ -f /$streamfs/$stream_num ]] || \
 		    log_fail "NO FILE /$streamfs/$stream_num"
