@@ -26,15 +26,12 @@
  * $FreeBSD$
  */
 
-#include <sys/cdefs.h>
 #include <sys/types.h>
-#include <sys/systm.h>
+#include <sys/cdefs.h>
 #include <sys/proc.h>
-#ifdef __i386__
-#include <x86/fpu.h>
-#else
-#include <machine/fpu.h>
-#endif
+#include <sys/systm.h>
+
+#include <machine/pcb.h>
 #include <x86/x86_var.h>
 #include <x86/specialreg.h>
 
