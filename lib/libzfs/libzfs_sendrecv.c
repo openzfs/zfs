@@ -4108,7 +4108,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	char errbuf[1024];
 	const char *chopprefix;
 	boolean_t newfs = B_FALSE;
-	boolean_t stream_wantsnewfs;
+	boolean_t stream_wantsnewfs, stream_resumingnewfs;
 	boolean_t newprops = B_FALSE;
 	uint64_t read_bytes = 0;
 	uint64_t errflags = 0;
@@ -4329,6 +4329,8 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	    DMU_BACKUP_FEATURE_EMBED_DATA;
 	stream_wantsnewfs = (drrb->drr_fromguid == 0 ||
 	    (drrb->drr_flags & DRR_FLAG_CLONE) || originsnap) && !resuming;
+	stream_resumingnewfs = (drrb->drr_fromguid == 0 ||
+	    (drrb->drr_flags & DRR_FLAG_CLONE) || originsnap) && resuming;
 
 	if (stream_wantsnewfs) {
 		/*
@@ -4496,7 +4498,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		}
 
 		if (!flags->dryrun && zhp->zfs_type == ZFS_TYPE_FILESYSTEM &&
-		    stream_wantsnewfs) {
+		    (stream_wantsnewfs || stream_resumingnewfs)) {
 			/* We can't do online recv in this case */
 			clp = changelist_gather(zhp, ZFS_PROP_NAME, 0,
 			    flags->forceunmount ? MS_FORCE : 0);
