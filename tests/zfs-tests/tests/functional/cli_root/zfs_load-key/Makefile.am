@@ -7,7 +7,8 @@ dist_pkgdata_SCRIPTS = \
 	zfs_load-key_file.ksh \
 	zfs_load-key_location.ksh \
 	zfs_load-key_noop.ksh \
-	zfs_load-key_recursive.ksh
+	zfs_load-key_recursive.ksh \
+	zfs_load-key_tty.ksh
 
 dist_pkgdata_DATA = \
 	zfs_load-key.cfg \
