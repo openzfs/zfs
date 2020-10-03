@@ -6225,7 +6225,7 @@ spa_tryimport(nvlist_t *tryconfig)
  * we don't sync the labels or remove the configuration cache.
  */
 static int
-spa_export_common(char *pool, int new_state, nvlist_t **oldconfig,
+spa_export_common(const char *pool, int new_state, nvlist_t **oldconfig,
     boolean_t force, boolean_t hardforce)
 {
 	spa_t *spa;
@@ -6369,7 +6369,7 @@ export_spa:
  * Destroy a storage pool.
  */
 int
-spa_destroy(char *pool)
+spa_destroy(const char *pool)
 {
 	return (spa_export_common(pool, POOL_STATE_DESTROYED, NULL,
 	    B_FALSE, B_FALSE));
@@ -6379,7 +6379,7 @@ spa_destroy(char *pool)
  * Export a storage pool.
  */
 int
-spa_export(char *pool, nvlist_t **oldconfig, boolean_t force,
+spa_export(const char *pool, nvlist_t **oldconfig, boolean_t force,
     boolean_t hardforce)
 {
 	return (spa_export_common(pool, POOL_STATE_EXPORTED, oldconfig,
@@ -6391,7 +6391,7 @@ spa_export(char *pool, nvlist_t **oldconfig, boolean_t force,
  * from the namespace in any way.
  */
 int
-spa_reset(char *pool)
+spa_reset(const char *pool)
 {
 	return (spa_export_common(pool, POOL_STATE_UNINITIALIZED, NULL,
 	    B_FALSE, B_FALSE));
