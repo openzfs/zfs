@@ -262,19 +262,20 @@ extern boolean_t zfs_get_vfs_flag_unmounted(objset_t *os);
 extern void	zfs_znode_dmu_fini(znode_t *);
 
 extern void zfs_log_create(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
-    znode_t *dzp, znode_t *zp, char *name, vsecattr_t *, zfs_fuid_info_t *,
-    vattr_t *vap);
+    znode_t *dzp, znode_t *zp, const char *name, vsecattr_t *,
+    zfs_fuid_info_t *, vattr_t *vap);
 extern int zfs_log_create_txtype(zil_create_t, vsecattr_t *vsecp,
     vattr_t *vap);
 extern void zfs_log_remove(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
-    znode_t *dzp, char *name, uint64_t foid, boolean_t unlinked);
+    znode_t *dzp, const char *name, uint64_t foid, boolean_t unlinked);
 #define	ZFS_NO_OBJECT	0	/* no object id */
 extern void zfs_log_link(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
-    znode_t *dzp, znode_t *zp, char *name);
+    znode_t *dzp, znode_t *zp, const char *name);
 extern void zfs_log_symlink(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
-    znode_t *dzp, znode_t *zp, char *name, char *link);
+    znode_t *dzp, znode_t *zp, const char *name, const char *link);
 extern void zfs_log_rename(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
-    znode_t *sdzp, char *sname, znode_t *tdzp, char *dname, znode_t *szp);
+    znode_t *sdzp, const char *sname, znode_t *tdzp, const char *dname,
+    znode_t *szp);
 extern void zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
     znode_t *zp, offset_t off, ssize_t len, int ioflag,
     zil_callback_t callback, void *callback_data);

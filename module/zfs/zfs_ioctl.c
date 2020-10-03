@@ -269,7 +269,7 @@ static int zfs_ioc_userspace_upgrade(zfs_cmd_t *zc);
 static int zfs_ioc_id_quota_upgrade(zfs_cmd_t *zc);
 static int zfs_check_settable(const char *name, nvpair_t *property,
     cred_t *cr);
-static int zfs_check_clearable(char *dataset, nvlist_t *props,
+static int zfs_check_clearable(const char *dataset, nvlist_t *props,
     nvlist_t **errors);
 static int zfs_fill_zplprops_root(uint64_t, nvlist_t *, nvlist_t *,
     boolean_t *);
@@ -497,7 +497,7 @@ zfs_secpolicy_write_perms(const char *name, const char *perm, cred_t *cr)
  * Returns 0 for success, non-zero for access and other errors.
  */
 static int
-zfs_set_slabel_policy(const char *name, char *strval, cred_t *cr)
+zfs_set_slabel_policy(const char *name, const char *strval, cred_t *cr)
 {
 #ifdef HAVE_MLSLABEL
 	char		ds_hexsl[MAXNAMELEN];
@@ -552,7 +552,7 @@ zfs_set_slabel_policy(const char *name, char *strval, cred_t *cr)
 	 */
 	if (strcasecmp(ds_hexsl, ZFS_MLSLABEL_DEFAULT) != 0) {
 		objset_t *os;
-		static char *setsl_tag = "setsl_tag";
+		static const char *setsl_tag = "setsl_tag";
 
 		/*
 		 * Try to own the dataset; abort if there is any error,
@@ -679,7 +679,7 @@ zfs_secpolicy_send(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 {
 	dsl_pool_t *dp;
 	dsl_dataset_t *ds;
-	char *cp;
+	const char *cp;
 	int error;
 
 	/*
@@ -1442,7 +1442,7 @@ zfs_ioc_pool_create(zfs_cmd_t *zc)
 	nvlist_t *rootprops = NULL;
 	nvlist_t *zplprops = NULL;
 	dsl_crypto_params_t *dcp = NULL;
-	char *spa_name = zc->zc_name;
+	const char *spa_name = zc->zc_name;
 	boolean_t unload_wkey = B_TRUE;
 
 	if ((error = get_nvlist(zc->zc_nvlist_conf, zc->zc_nvlist_conf_size,
@@ -1996,7 +1996,7 @@ static int
 zfs_ioc_vdev_setpath(zfs_cmd_t *zc)
 {
 	spa_t *spa;
-	char *path = zc->zc_value;
+	const char *path = zc->zc_value;
 	uint64_t guid = zc->zc_guid;
 	int error;
 
@@ -2013,7 +2013,7 @@ static int
 zfs_ioc_vdev_setfru(zfs_cmd_t *zc)
 {
 	spa_t *spa;
-	char *fru = zc->zc_value;
+	const char *fru = zc->zc_value;
 	uint64_t guid = zc->zc_guid;
 	int error;
 
@@ -2350,8 +2350,7 @@ zfs_prop_set_userquota(const char *dsname, nvpair_t *pair)
 	const char *propname = nvpair_name(pair);
 	uint64_t *valary;
 	unsigned int vallen;
-	const char *domain;
-	char *dash;
+	const char *dash, *domain;
 	zfs_userquota_prop_t type;
 	uint64_t rid;
 	uint64_t quota;
@@ -2404,7 +2403,7 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 	const char *propname = nvpair_name(pair);
 	zfs_prop_t prop = zfs_name_to_prop(propname);
 	uint64_t intval = 0;
-	char *strval = NULL;
+	const char *strval = NULL;
 	int err = -1;
 
 	if (prop == ZPROP_INVAL) {
@@ -2530,7 +2529,7 @@ zfs_set_prop_nvlist(const char *dsname, zprop_source_t source, nvlist_t *nvl,
 	nvpair_t *propval;
 	int rv = 0;
 	uint64_t intval;
-	char *strval;
+	const char *strval;
 
 	nvlist_t *genericnvl = fnvlist_alloc();
 	nvlist_t *retrynvl = fnvlist_alloc();
@@ -3348,7 +3347,7 @@ zfs_ioc_clone(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 {
 	int error = 0;
 	nvlist_t *nvprops = NULL;
-	char *origin_name;
+	const char *origin_name;
 
 	origin_name = fnvlist_lookup_string(innvl, "origin");
 	(void) nvlist_lookup_nvlist(innvl, "props", &nvprops);
@@ -3474,10 +3473,10 @@ static const zfs_ioc_key_t zfs_keys_log_history[] = {
 static int
 zfs_ioc_log_history(const char *unused, nvlist_t *innvl, nvlist_t *outnvl)
 {
-	char *message;
+	const char *message;
+	char *poolname;
 	spa_t *spa;
 	int error;
-	char *poolname;
 
 	/*
 	 * The poolname in the ioctl is not set, we get it from the TSD,
@@ -3575,7 +3574,7 @@ zfs_unmount_snap(const char *snapname)
 	if (strchr(snapname, '@') == NULL)
 		return;
 
-	(void) zfsctl_snapshot_unmount((char *)snapname, MNT_FORCE);
+	(void) zfsctl_snapshot_unmount(snapname, MNT_FORCE);
 }
 
 /* ARGSUSED */
@@ -4618,7 +4617,7 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
  * pointed at by errlist is NULL.
  */
 static int
-zfs_check_clearable(char *dataset, nvlist_t *props, nvlist_t **errlist)
+zfs_check_clearable(const char *dataset, nvlist_t *props, nvlist_t **errlist)
 {
 	zfs_cmd_t *zc;
 	nvpair_t *pair, *next_pair;
@@ -6432,8 +6431,10 @@ send_space_sum(objset_t *os, void *buf, int len, void *arg)
  *         presence indicates DRR_WRITE_EMBEDDED records are permitted
  *     (optional) "compressok" -> (value ignored)
  *         presence indicates compressed DRR_WRITE records are permitted
- *	(optional) "rawok" -> (value ignored)
+ *     (optional) "rawok" -> (value ignored)
  *         presence indicates raw encrypted records should be used.
+ *     (optional) "resume_object" and "resume_offset" -> (uint64)
+ *         if present, resume send stream from specified object and offset.
  *     (optional) "fd" -> file descriptor to use as a cookie for progress
  *         tracking (int32)
  * }
@@ -6451,9 +6452,9 @@ static const zfs_ioc_key_t zfs_keys_send_space[] = {
 	{"rawok",		DATA_TYPE_BOOLEAN,	ZK_OPTIONAL},
 	{"fd",			DATA_TYPE_INT32,	ZK_OPTIONAL},
 	{"redactbook",		DATA_TYPE_STRING,	ZK_OPTIONAL},
-	{"resumeobj",			DATA_TYPE_UINT64,	ZK_OPTIONAL},
-	{"resumeoff",			DATA_TYPE_UINT64,	ZK_OPTIONAL},
-	{"bytes",			DATA_TYPE_UINT64,	ZK_OPTIONAL},
+	{"resume_object",	DATA_TYPE_UINT64,	ZK_OPTIONAL},
+	{"resume_offset",	DATA_TYPE_UINT64,	ZK_OPTIONAL},
+	{"bytes",		DATA_TYPE_UINT64,	ZK_OPTIONAL},
 };
 
 static int

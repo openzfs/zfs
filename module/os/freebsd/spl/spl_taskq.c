@@ -29,18 +29,21 @@
 #include <sys/cdefs.h>
 __FBSDID("$FreeBSD$");
 
-#include <sys/types.h>
 #include <sys/param.h>
+#include <sys/ck.h>
+#include <sys/epoch.h>
 #include <sys/kernel.h>
 #include <sys/kmem.h>
 #include <sys/lock.h>
 #include <sys/mutex.h>
 #include <sys/queue.h>
-#include <sys/taskqueue.h>
 #include <sys/taskq.h>
+#include <sys/taskqueue.h>
 #include <sys/zfs_context.h>
-#include <sys/ck.h>
-#include <sys/epoch.h>
+
+#if defined(__i386__) || defined(__amd64__) || defined(__aarch64__)
+#include <machine/pcb.h>
+#endif
 
 #include <vm/uma.h>
 

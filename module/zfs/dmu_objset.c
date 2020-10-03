@@ -2413,7 +2413,7 @@ dmu_objset_is_snapshot(objset_t *os)
 }
 
 int
-dmu_snapshot_realname(objset_t *os, char *name, char *real, int maxlen,
+dmu_snapshot_realname(objset_t *os, const char *name, char *real, int maxlen,
     boolean_t *conflict)
 {
 	dsl_dataset_t *ds = os->os_dsl_dataset;
