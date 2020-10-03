@@ -1327,7 +1327,7 @@ zfsctl_umount_snapshots(vfs_t *vfsp, int fflags, cred_t *cr)
 }
 
 int
-zfsctl_snapshot_unmount(char *snapname, int flags __unused)
+zfsctl_snapshot_unmount(const char *snapname, int flags __unused)
 {
 	vfs_t *vfsp = NULL;
 	zfsvfs_t *zfsvfs = NULL;
