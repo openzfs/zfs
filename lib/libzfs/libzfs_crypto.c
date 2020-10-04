@@ -520,7 +520,7 @@ get_key_material(libzfs_handle_t *hdl, boolean_t do_verify, boolean_t newkey,
 		if (isatty(fileno(stdin))) {
 			can_retry = B_TRUE;
 			ret = get_key_interactive(hdl, fsname, keyformat,
-			    do_verify, newkey, &km, &kmlen);
+			    do_verify, newkey, km_out, kmlen_out);
 		} else {
 			/* fetch the key material into the buffer */
 			ret = get_key_material_raw(stdin, keyformat, &km,
