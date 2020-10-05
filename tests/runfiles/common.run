@@ -619,6 +619,10 @@ pre =
 post =
 tags = ['functional', 'largest_pool']
 
+[tests/functional/libtest]
+tests = ['libtest_faketty']
+tags = ['functional', 'libtest']
+
 [tests/functional/limits]
 tests = ['filesystem_count', 'filesystem_limit', 'snapshot_count',
     'snapshot_limit']
