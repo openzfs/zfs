@@ -181,7 +181,8 @@ tags = ['functional', 'cli_root', 'zfs_inherit']
 
 [tests/functional/cli_root/zfs_load-key]
 tests = ['zfs_load-key', 'zfs_load-key_all', 'zfs_load-key_file',
-    'zfs_load-key_location', 'zfs_load-key_noop', 'zfs_load-key_recursive']
+    'zfs_load-key_location', 'zfs_load-key_noop', 'zfs_load-key_recursive',
+    'zfs_load-key_tty']
 tags = ['functional', 'cli_root', 'zfs_load-key']
 
 [tests/functional/cli_root/zfs_mount]
