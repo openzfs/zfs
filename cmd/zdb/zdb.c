@@ -1120,7 +1120,21 @@ dump_zap(objset_t *os, uint64_t object, void *data, size_t size)
 		(void) zap_lookup(os, object, attr.za_name,
 		    attr.za_integer_length, attr.za_num_integers, prop);
 		if (attr.za_integer_length == 1) {
-			(void) printf("%s", (char *)prop);
+			if (strcmp(attr.za_name,
+			    DSL_CRYPTO_KEY_MASTER_KEY) == 0 ||
+			    strcmp(attr.za_name,
+			    DSL_CRYPTO_KEY_HMAC_KEY) == 0 ||
+			    strcmp(attr.za_name, DSL_CRYPTO_KEY_IV) == 0 ||
+			    strcmp(attr.za_name, DSL_CRYPTO_KEY_MAC) == 0 ||
+			    strcmp(attr.za_name, DMU_POOL_CHECKSUM_SALT) == 0) {
+				uint8_t *u8 = prop;
+
+				for (i = 0; i < attr.za_num_integers; i++) {
+					(void) printf("%02x", u8[i]);
+				}
+			} else {
+				(void) printf("%s", (char *)prop);
+			}
 		} else {
 			for (i = 0; i < attr.za_num_integers; i++) {
 				switch (attr.za_integer_length) {
