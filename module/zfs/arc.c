@@ -969,7 +969,7 @@ static void l2arc_log_blk_fetch_abort(zio_t *zio);
 
 /* L2ARC persistence block restoration routines. */
 static void l2arc_log_blk_restore(l2arc_dev_t *dev,
-    const l2arc_log_blk_phys_t *lb, uint64_t lb_asize, uint64_t lb_daddr);
+    const l2arc_log_blk_phys_t *lb, uint64_t lb_asize);
 static void l2arc_hdr_restore(const l2arc_log_ent_phys_t *le,
     l2arc_dev_t *dev);
 
@@ -9505,8 +9505,6 @@ l2arc_rebuild_vdev(vdev_t *vd, boolean_t reopen)
 	l2arc_dev_hdr_phys_t	*l2dhdr;
 	uint64_t		l2dhdr_asize;
 	spa_t			*spa;
-	int			err;
-	boolean_t		l2dhdr_valid = B_TRUE;
 
 	dev = l2arc_vdev_get(vd);
 	ASSERT3P(dev, !=, NULL);
@@ -9535,10 +9533,7 @@ l2arc_rebuild_vdev(vdev_t *vd, boolean_t reopen)
 	/*
 	 * Read the device header, if an error is returned do not rebuild L2ARC.
 	 */
-	if ((err = l2arc_dev_hdr_read(dev)) != 0)
-		l2dhdr_valid = B_FALSE;
-
-	if (l2dhdr_valid && dev->l2ad_log_entries > 0) {
+	if (l2arc_dev_hdr_read(dev) == 0 && dev->l2ad_log_entries > 0) {
 		/*
 		 * If we are onlining a cache device (vdev_reopen) that was
 		 * still present (l2arc_vdev_present()) and rebuild is enabled,
@@ -9838,7 +9833,7 @@ l2arc_rebuild(l2arc_dev_t *dev)
 		 * L2BLK_GET_PSIZE returns aligned size for log blocks.
 		 */
 		uint64_t asize = L2BLK_GET_PSIZE((&lbps[0])->lbp_prop);
-		l2arc_log_blk_restore(dev, this_lb, asize, lbps[0].lbp_daddr);
+		l2arc_log_blk_restore(dev, this_lb, asize);
 
 		/*
 		 * log block restored, include its pointer in the list of
@@ -9918,7 +9913,7 @@ l2arc_rebuild(l2arc_dev_t *dev)
 		PTR_SWAP(this_lb, next_lb);
 		this_io = next_io;
 		next_io = NULL;
-		}
+	}
 
 	if (this_io != NULL)
 		l2arc_log_blk_fetch_abort(this_io);
@@ -9985,7 +9980,7 @@ l2arc_dev_hdr_read(l2arc_dev_t *dev)
 
 	err = zio_wait(zio_read_phys(NULL, dev->l2ad_vdev,
 	    VDEV_LABEL_START_SIZE, l2dhdr_asize, abd,
-	    ZIO_CHECKSUM_LABEL, NULL, NULL, ZIO_PRIORITY_ASYNC_READ,
+	    ZIO_CHECKSUM_LABEL, NULL, NULL, ZIO_PRIORITY_SYNC_READ,
 	    ZIO_FLAG_DONT_CACHE | ZIO_FLAG_CANFAIL |
 	    ZIO_FLAG_DONT_PROPAGATE | ZIO_FLAG_DONT_RETRY |
 	    ZIO_FLAG_SPECULATIVE, B_FALSE));
@@ -10156,7 +10151,7 @@ cleanup:
  */
 static void
 l2arc_log_blk_restore(l2arc_dev_t *dev, const l2arc_log_blk_phys_t *lb,
-    uint64_t lb_asize, uint64_t lb_daddr)
+    uint64_t lb_asize)
 {
 	uint64_t	size = 0, asize = 0;
 	uint64_t	log_entries = dev->l2ad_log_entries;
