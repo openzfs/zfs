@@ -49,6 +49,7 @@ function cleanup
 
 	log_must set_tunable32 L2ARC_NOPREFETCH $noprefetch
 	log_must set_tunable32 L2ARC_MFUONLY $mfuonly
+	log_must set_tunable32 PREFETCH_DISABLE $zfsprefetch
 }
 log_onexit cleanup
 
@@ -59,6 +60,9 @@ log_must set_tunable32 L2ARC_NOPREFETCH 1
 
 typeset mfuonly=$(get_tunable L2ARC_MFUONLY)
 log_must set_tunable32 L2ARC_MFUONLY 1
+
+typeset zfsprefetch=$(get_tunable PREFETCH_DISABLE)
+log_must set_tunable32 PREFETCH_DISABLE 1
 
 typeset fill_mb=800
 typeset cache_sz=$(( 1.4 * $fill_mb ))
@@ -75,6 +79,14 @@ log_must fio $FIO_SCRIPTS/random_reads.fio
 
 log_must zpool export $TESTPOOL
 log_must zpool import -d $VDIR $TESTPOOL
+
+# Regardless of l2arc_noprefetch, some MFU buffers might be evicted
+# from ARC, accessed later on as prefetches and transition to MRU as
+# prefetches.
+# If accessed again they are counted as MRU and the l2arc_mru_asize arcstat
+# will not be 0 (mentioned also in zfs-module-parameters.5)
+# For the purposes of this test we mitigate this by disabling (predictive)
+# ZFS prefetches with zfs_prefetch_disable=1.
 log_must test $(get_arcstat l2_mru_asize) -eq 0
 
 log_must zpool destroy -f $TESTPOOL

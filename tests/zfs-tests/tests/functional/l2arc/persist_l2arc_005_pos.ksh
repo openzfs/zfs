@@ -36,7 +36,7 @@
 #	6. Import pool.
 #	7. Mount the encrypted ZFS file system.
 #	8. Read amount of log blocks built.
-#	9. Compare the two amounts
+#	9. Compare the two amounts.
 #	10. Read the file written in (3) and check if l2_hits in
 #		/proc/spl/kstat/zfs/arcstats increased.
 #	11. Check if the labels of the L2ARC device are intact.
@@ -76,12 +76,11 @@ log_must eval "echo $PASSPHRASE | zfs create -o encryption=on" \
 log_must fio $FIO_SCRIPTS/mkfiles.fio
 log_must fio $FIO_SCRIPTS/random_reads.fio
 
+arcstat_quiescence_noecho l2_size
 log_must zpool export $TESTPOOL
-
-sleep 2
+arcstat_quiescence_noecho l2_feeds
 
 typeset log_blk_end=$(get_arcstat l2_log_blk_writes)
-
 typeset log_blk_rebuild_start=$(get_arcstat l2_rebuild_log_blks)
 
 log_must zpool import -d $VDIR $TESTPOOL
@@ -90,15 +89,18 @@ log_must eval "echo $PASSPHRASE | zfs mount -l $TESTPOOL/$TESTFS1"
 typeset l2_hits_start=$(get_arcstat l2_hits)
 
 log_must fio $FIO_SCRIPTS/random_reads.fio
+arcstat_quiescence_noecho l2_size
 
+typeset log_blk_rebuild_end=$(arcstat_quiescence_echo l2_rebuild_log_blks)
 typeset l2_hits_end=$(get_arcstat l2_hits)
-
-typeset log_blk_rebuild_end=$(get_arcstat l2_rebuild_log_blks)
 
 log_must test $(( $log_blk_rebuild_end - $log_blk_rebuild_start )) -eq \
 	$(( $log_blk_end - $log_blk_start ))
 
 log_must test $l2_hits_end -gt $l2_hits_start
+
+log_must zpool offline $TESTPOOL $VDEV_CACHE
+arcstat_quiescence_noecho l2_size
 
 log_must zdb -lq $VDEV_CACHE
 

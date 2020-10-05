@@ -32,7 +32,7 @@
 #	4. Export pool.
 #	5. Import pool.
 #	6. Check in zpool iostat if the cache device has space allocated.
-#	7. Read the file written in (2) and check if l2_hits in
+#	7. Read the file written in (3) and check if l2_hits in
 #		/proc/spl/kstat/zfs/arcstats increased.
 #
 
