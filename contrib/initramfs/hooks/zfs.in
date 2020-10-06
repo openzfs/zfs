@@ -106,4 +106,15 @@ if [ ! -x "$DESTDIR/usr/bin/net" ]; then
     chmod +x "$DESTDIR/usr/bin/net"
 fi
 
+#These are optional files to support tpm2-autounlock
+if [ -x /usr/bin/tpm2_startauthsession ]; then
+    copy_exec /usr/bin/tpm2_nvread
+    copy_exec /usr/bin/tpm2_nvreadlock
+    copy_exec /usr/bin/tpm2_startauthsession
+    copy_exec /usr/bin/tpm2_policypassword
+    copy_exec /usr/bin/tpm2_policypcr
+    copy_modules_dir kernel/drivers/char/tpm
+    copy_exec /usr/lib/x86_64-linux-gnu/libtss2-tcti-device.so.0
+fi
+
 exit 0
