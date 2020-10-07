@@ -36,6 +36,7 @@ verify_runnable "both"
 function cleanup
 {
 	# nothing special to do
+	true
 }
 log_onexit cleanup
 
