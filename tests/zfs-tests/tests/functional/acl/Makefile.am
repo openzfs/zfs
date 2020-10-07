@@ -3,4 +3,4 @@ dist_pkgdata_DATA = \
 	acl.cfg \
 	acl_common.kshlib
 
-SUBDIRS = posix
+SUBDIRS = posix posix-sa
