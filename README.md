@@ -16,8 +16,8 @@ This repository contains the code for running OpenZFS on Linux and FreeBSD.
 
 # Installation
 
-Full documentation for installing OpenZFS on your favorite Linux distribution can
-be found at the [ZoL Site](https://zfsonlinux.org/).
+Full documentation for installing OpenZFS on your favorite operating system can
+be found at the [Getting Started Page](https://openzfs.github.io/openzfs-docs/Getting%20Started/index.html).
 
 # Contribute & Develop
 
