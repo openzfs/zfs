@@ -2119,8 +2119,6 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 	avl_tree_t *fsavl = NULL;
 	static uint64_t holdseq;
 	int spa_version;
-	pthread_t tid = 0;
-	int pipefd[2];
 	int featureflags = 0;
 	FILE *fout;
 
@@ -2172,10 +2170,7 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 	/* dump each stream */
 	sdd.fromsnap = fromsnap;
 	sdd.tosnap = tosnap;
-	if (tid != 0)
-		sdd.outfd = pipefd[0];
-	else
-		sdd.outfd = outfd;
+	sdd.outfd = outfd;
 	sdd.replicate = flags->replicate;
 	sdd.doall = flags->doall;
 	sdd.fromorigin = flags->fromorigin;
@@ -2278,13 +2273,6 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 	if (err == 0 && !sdd.seento)
 		err = ENOENT;
 
-	if (tid != 0) {
-		if (err != 0)
-			(void) pthread_cancel(tid);
-		(void) close(pipefd[0]);
-		(void) pthread_join(tid, NULL);
-	}
-
 	if (sdd.cleanup_fd != -1) {
 		VERIFY(0 == close(sdd.cleanup_fd));
 		sdd.cleanup_fd = -1;
@@ -2313,11 +2301,6 @@ err_out:
 
 	if (sdd.cleanup_fd != -1)
 		VERIFY(0 == close(sdd.cleanup_fd));
-	if (tid != 0) {
-		(void) pthread_cancel(tid);
-		(void) close(pipefd[0]);
-		(void) pthread_join(tid, NULL);
-	}
 	return (err);
 }
 
