@@ -1414,7 +1414,7 @@ dsl_scan_zil_record(zilog_t *zilog, const lr_t *lrc, void *arg,
 		dsl_pool_t *dp = zsa->zsa_dp;
 		dsl_scan_t *scn = dp->dp_scan;
 		zil_header_t *zh = zsa->zsa_zh;
-		const lr_write_t *lr = (lr_write_t *)lrc;
+		const lr_write_t *lr = (const lr_write_t *)lrc;
 		const blkptr_t *bp = &lr->lr_blkptr;
 		zbookmark_phys_t zb;
 
