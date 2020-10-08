@@ -4154,18 +4154,36 @@ function ls_xattr # path
 	esac
 }
 
+function kstat # stat flags?
+{
+	typeset stat=$1
+	typeset flags=${2-"-n"}
+
+	case $(uname) in
+	FreeBSD)
+		sysctl $flags kstat.zfs.misc.$stat
+		;;
+	Linux)
+		typeset zfs_kstat="/proc/spl/kstat/zfs/$stat"
+		[[ -f "$zfs_kstat" ]] || return 1
+		cat $zfs_kstat
+		;;
+	*)
+		false
+		;;
+	esac
+}
+
 function get_arcstat # stat
 {
 	typeset stat=$1
 
 	case $(uname) in
 	FreeBSD)
-		sysctl -n kstat.zfs.misc.arcstats.$stat
+		kstat arcstats.$stat
 		;;
 	Linux)
-		typeset zfs_arcstats="/proc/spl/kstat/zfs/arcstats"
-		[[ -f "$zfs_arcstats" ]] || return 1
-		grep $stat $zfs_arcstats | awk '{print $3}'
+		kstat arcstats | awk "/$stat/ { print \$3 }"
 		;;
 	*)
 		false
