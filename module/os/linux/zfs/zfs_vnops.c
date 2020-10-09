@@ -2543,7 +2543,7 @@ zfs_setattr_dir(znode_t *dzp)
 	zap_cursor_t	zc;
 	zap_attribute_t	zap;
 	zfs_dirlock_t	*dl;
-	znode_t		*zp;
+	znode_t		*zp = NULL;
 	dmu_tx_t	*tx = NULL;
 	uint64_t	uid, gid;
 	sa_bulk_attr_t	bulk[4];

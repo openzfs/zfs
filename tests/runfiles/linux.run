@@ -23,8 +23,12 @@ outputdir = /var/tmp/test_results
 tags = ['functional']
 
 [tests/functional/acl/posix:Linux]
-tests = ['posix_001_pos', 'posix_002_pos', 'posix_003_pos']
+tests = ['posix_001_pos', 'posix_002_pos', 'posix_003_pos', 'posix_004_pos']
 tags = ['functional', 'acl', 'posix']
+
+[tests/functional/acl/posix-sa:Linux]
+tests = ['posix_001_pos', 'posix_002_pos', 'posix_003_pos', 'posix_004_pos']
+tags = ['functional', 'acl', 'posix-sa']
 
 [tests/functional/atime:Linux]
 tests = ['atime_003_pos', 'root_relatime_on']

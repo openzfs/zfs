@@ -21,31 +21,29 @@
 #
 
 #
-# Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
-# Use is subject to license terms.
-#
-
-#
-# Copyright (c) 2016 by Delphix. All rights reserved.
+# Portions Copyright 2020 iXsystems, Inc.
 #
 
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/acl/acl_common.kshlib
 
-log_must getfacl --version
-log_must setfacl --version
+#
+# DESCRIPTION:
+#	Verify chown works with POSIX ACLs.
+#	Regression test for https://github.com/openzfs/zfs/issues/10043
+#
+# STRATEGY:
+#	1. Prepare an appropriate ACL on the test directory
+#	2. Change the owner of the directory
+#
 
-cleanup_user_group
+verify_runnable "both"
+log_assert "Verify chown works with POSIX ACLs"
 
-# Create staff group and add user to it
-log_must add_group $ZFS_ACL_STAFF_GROUP
-log_must add_user $ZFS_ACL_STAFF_GROUP $ZFS_ACL_STAFF1
+log_must setfacl -d -m u:$ZFS_ACL_STAFF1:rwx $TESTDIR
+log_must setfacl -b $TESTDIR
 
-DISK=${DISKS%% *}
-default_setup_noexit $DISK
-log_must chmod 777 $TESTDIR
+log_must chown $ZFS_ACL_STAFF1 $TESTDIR
+log_must chown 0 $TESTDIR
 
-# Use POSIX ACLs on filesystem
-log_must zfs set acltype=posix $TESTPOOL/$TESTFS
-
-log_pass
+log_pass "chown works with POSIX ACLs"
