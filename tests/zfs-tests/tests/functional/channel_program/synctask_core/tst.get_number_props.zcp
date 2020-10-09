@@ -41,7 +41,7 @@ props['logicalused']          = {{true,       nil}, {nil,  nil}, {true,       ni
 props['logicalreferenced']    = {{true,       nil}, {true, nil}, {true,       nil}}
 props['quota']                = {{true, 'default'}, {nil,  nil}, {nil,        nil}}
 props['reservation']          = {{true, 'default'}, {nil,  nil}, {true, 'default'}}
--- Note that zfsonlinux allows volsize for snapshot which differs from openzfs
+-- Note that OpenZFS allows volsize for snapshot
 -- props['volsize']           = {{nil,        nil}, {nil,  nil}, {true,       vol}}
 props['refquota']             = {{true, 'default'}, {nil,  nil}, {nil,        nil}}
 props['refreservation']       = {{true, 'default'}, {nil,  nil}, {true,       vol}}

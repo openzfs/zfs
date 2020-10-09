@@ -4,7 +4,6 @@
  *  Written by Richard Yao <richard.yao@clusterhq.com>.
  *
  *  This file is part of the SPL, Solaris Porting Layer.
- *  For details, see <http://zfsonlinux.org/>.
  *
  *  The SPL is free software; you can redistribute it and/or modify it
  *  under the terms of the GNU General Public License as published by the

@@ -63,9 +63,7 @@
  * If the device could not be replaced, then the second online attempt will
  * trigger the FMA fault that we skipped earlier.
  *
- * ZFS on Linux porting notes:
- *	Linux udev provides a disk insert for both the disk and the partition
- *
+ * On Linux udev provides a disk insert for both the disk and the partition.
  */
 
 #include <ctype.h>

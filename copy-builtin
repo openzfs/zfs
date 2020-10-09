@@ -35,9 +35,9 @@ config ZFS
 	select ZLIB_INFLATE
 	select ZLIB_DEFLATE
 	help
-	  This is the ZFS filesystem from the ZFS On Linux project.
+	  This is the ZFS filesystem from the OpenZFS project.
 
-	  See https://zfsonlinux.org/
+	  See https://github.com/openzfs/zfs
 
 	  To compile this file system support as a module, choose M here.
 
