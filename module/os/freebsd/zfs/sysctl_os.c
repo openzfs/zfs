@@ -300,8 +300,9 @@ SYSCTL_UINT(_vfs_zfs_zfetch, OID_AUTO, max_distance, CTLFLAG_RWTUN,
 
 /* max bytes to prefetch indirects for per stream (default 64MB) */
 extern uint32_t	zfetch_max_idistance;
-SYSCTL_UINT(_vfs_zfs_prefetch, OID_AUTO, max_idistance, CTLFLAG_RWTUN,
-    &zfetch_max_idistance, 0, "Max bytes to prefetch indirects for per stream");
+SYSCTL_UINT(_vfs_zfs_zfetch, OID_AUTO, max_idistance, CTLFLAG_RWTUN,
+    &zfetch_max_idistance, 0,
+    "Max bytes to prefetch indirects for per stream (LEGACY)");
 
 /* dsl_pool.c */
 
