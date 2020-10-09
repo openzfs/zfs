@@ -462,9 +462,9 @@ extern zil_stats_t zil_stats;
 #define	ZIL_STAT_BUMP(stat) \
     ZIL_STAT_INCR(stat, 1);
 
-typedef int zil_parse_blk_func_t(zilog_t *zilog, blkptr_t *bp, void *arg,
+typedef int zil_parse_blk_func_t(zilog_t *zilog, const blkptr_t *bp, void *arg,
     uint64_t txg);
-typedef int zil_parse_lr_func_t(zilog_t *zilog, lr_t *lr, void *arg,
+typedef int zil_parse_lr_func_t(zilog_t *zilog, const lr_t *lr, void *arg,
     uint64_t txg);
 typedef int zil_replay_func_t(void *arg1, void *arg2, boolean_t byteswap);
 typedef int zil_get_data_t(void *arg, lr_write_t *lr, char *dbuf,
