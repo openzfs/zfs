@@ -54,10 +54,6 @@ extern "C" {
  */
 typedef struct pathname {
 	char	*pn_buf;		/* underlying storage */
-#if 0 /* unused in ZoL */
-	char	*pn_path;		/* remaining pathname */
-	size_t	pn_pathlen;		/* remaining length */
-#endif
 	size_t	pn_bufsize;		/* total size of pn_buf */
 } pathname_t;
 

@@ -42,7 +42,7 @@
 Provides basic information on the ARC, its efficiency, the L2ARC (if present),
 the Data Management Unit (DMU), Virtual Devices (VDEVs), and tunables. See the
 in-source documentation and code at
-https://github.com/zfsonlinux/zfs/blob/master/module/zfs/arc.c for details.
+https://github.com/openzfs/zfs/blob/master/module/zfs/arc.c for details.
 """
 
 import getopt
