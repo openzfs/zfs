@@ -1375,7 +1375,8 @@ typedef struct zil_scan_arg {
 
 /* ARGSUSED */
 static int
-dsl_scan_zil_block(zilog_t *zilog, blkptr_t *bp, void *arg, uint64_t claim_txg)
+dsl_scan_zil_block(zilog_t *zilog, const blkptr_t *bp, void *arg,
+    uint64_t claim_txg)
 {
 	zil_scan_arg_t *zsa = arg;
 	dsl_pool_t *dp = zsa->zsa_dp;
@@ -1405,15 +1406,16 @@ dsl_scan_zil_block(zilog_t *zilog, blkptr_t *bp, void *arg, uint64_t claim_txg)
 
 /* ARGSUSED */
 static int
-dsl_scan_zil_record(zilog_t *zilog, lr_t *lrc, void *arg, uint64_t claim_txg)
+dsl_scan_zil_record(zilog_t *zilog, const lr_t *lrc, void *arg,
+    uint64_t claim_txg)
 {
 	if (lrc->lrc_txtype == TX_WRITE) {
 		zil_scan_arg_t *zsa = arg;
 		dsl_pool_t *dp = zsa->zsa_dp;
 		dsl_scan_t *scn = dp->dp_scan;
 		zil_header_t *zh = zsa->zsa_zh;
-		lr_write_t *lr = (lr_write_t *)lrc;
-		blkptr_t *bp = &lr->lr_blkptr;
+		const lr_write_t *lr = (const lr_write_t *)lrc;
+		const blkptr_t *bp = &lr->lr_blkptr;
 		zbookmark_phys_t zb;
 
 		ASSERT(!BP_IS_REDACTED(bp));
