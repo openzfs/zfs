@@ -813,9 +813,9 @@ update_vdev_config_dev_strs(nvlist_t *nv)
 	 *	env ZFS_VDEV_DEVID_OPT_OUT=YES zpool import dozer
 	 *
 	 * explanation:
-	 * Older ZFS on Linux implementations had issues when attempting to
-	 * display pool config VDEV names if a "devid" NVP value is present
-	 * in the pool's config.
+	 * Older OpenZFS implementations had issues when attempting to
+	 * display pool config VDEV names if a "devid" NVP value is
+	 * present in the pool's config.
 	 *
 	 * For example, a pool that originated on illumos platform would
 	 * have a devid value in the config and "zpool status" would fail

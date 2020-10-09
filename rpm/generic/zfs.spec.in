@@ -117,7 +117,7 @@ Summary:        Commands to control the kernel modules and libraries
 
 Group:          System Environment/Kernel
 License:        @ZFS_META_LICENSE@
-URL:            https://zfsonlinux.org/
+URL:            https://github.com/openzfs/zfs
 Source0:        %{name}-%{version}.tar.gz
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 Requires:       libzpool2 = %{version}
@@ -191,7 +191,7 @@ Summary:        Solaris userland utility library for Linux
 Group:          System Environment/Kernel
 
 %description -n libuutil1
-This library provides a variety of compatibility functions for ZFS on Linux:
+This library provides a variety of compatibility functions for OpenZFS:
  * libspl: The Solaris Porting Layer userland library, which provides APIs
    that make it possible to run Solaris user code in a Linux environment
    with relatively minimal modification.

@@ -18,7 +18,7 @@ Summary:        Kernel module(s) (dkms)
 
 Group:          System Environment/Kernel
 License:        @ZFS_META_LICENSE@
-URL:            https://zfsonlinux.org/
+URL:            https://github.com/openzfs/zfs
 Source0:        %{module}-%{version}.tar.gz
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 BuildArch:      noarch

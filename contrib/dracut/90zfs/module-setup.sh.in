@@ -41,7 +41,8 @@ install() {
 	dracut_install @bindir@/zgenhostid
 	dracut_install @sbindir@/zfs
 	dracut_install @sbindir@/zpool
-	# Workaround for zfsonlinux/zfs#4749 by ensuring libgcc_s.so(.1) is included
+	# Workaround for https://github.com/openzfs/zfs/issues/4749 by
+	# ensuring libgcc_s.so(.1) is included
 	if [[ -n "$(ldd @sbindir@/zpool | grep -F 'libgcc_s.so')" ]]; then
 		# Dracut will have already tracked and included it
 		:;

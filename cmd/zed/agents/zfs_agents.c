@@ -177,9 +177,9 @@ zfs_agent_post_event(const char *class, const char *subclass, nvlist_t *nvl)
 	}
 
 	/*
-	 * On ZFS on Linux, we don't get the expected FM_RESOURCE_REMOVED
-	 * ereport from vdev_disk layer after a hot unplug. Fortunately we
-	 * get a EC_DEV_REMOVE from our disk monitor and it is a suitable
+	 * On Linux, we don't get the expected FM_RESOURCE_REMOVED ereport
+	 * from the vdev_disk layer after a hot unplug. Fortunately we do
+	 * get an EC_DEV_REMOVE from our disk monitor and it is a suitable
 	 * proxy so we remap it here for the benefit of the diagnosis engine.
 	 */
 	if ((strcmp(class, EC_DEV_REMOVE) == 0) &&

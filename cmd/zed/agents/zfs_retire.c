@@ -364,7 +364,7 @@ zfs_retire_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl,
 		return;
 
 	/*
-	 * Note: on zfsonlinux statechange events are more than just
+	 * Note: on Linux statechange events are more than just
 	 * healthy ones so we need to confirm the actual state value.
 	 */
 	if (strcmp(class, "resource.fs.zfs.statechange") == 0 &&

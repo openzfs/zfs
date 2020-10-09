@@ -6,7 +6,6 @@
  *  UCRL-CODE-235197
  *
  *  This file is part of the SPL, Solaris Porting Layer.
- *  For details, see <http://zfsonlinux.org/>.
  *
  *  The SPL is free software; you can redistribute it and/or modify it
  *  under the terms of the GNU General Public License as published by the
@@ -217,7 +216,7 @@ spl_kmem_alloc_impl(size_t size, int flags, int node)
 	    !(flags & KM_VMEM)) {
 		printk(KERN_WARNING
 		    "Large kmem_alloc(%lu, 0x%x), please file an issue at:\n"
-		    "https://github.com/zfsonlinux/zfs/issues/new\n",
+		    "https://github.com/openzfs/zfs/issues/new\n",
 		    (unsigned long)size, flags);
 		dump_stack();
 	}

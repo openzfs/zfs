@@ -1368,7 +1368,7 @@ vdev_uberblock_compare(const uberblock_t *ub1, const uberblock_t *ub2)
 
 	/*
 	 * If MMP_VALID(ub) && MMP_SEQ_VALID(ub) then the host has an MMP-aware
-	 * ZFS, e.g. zfsonlinux >= 0.7.
+	 * ZFS, e.g. OpenZFS >= 0.7.
 	 *
 	 * If one ub has MMP and the other does not, they were written by
 	 * different hosts, which matters for MMP.  So we treat no MMP/no SEQ as

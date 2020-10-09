@@ -1274,7 +1274,7 @@ spa_activate(spa_t *spa, spa_mode_t mode)
 	/*
 	 * This taskq is used to perform zvol-minor-related tasks
 	 * asynchronously. This has several advantages, including easy
-	 * resolution of various deadlocks (zfsonlinux bug #3681).
+	 * resolution of various deadlocks.
 	 *
 	 * The taskq must be single threaded to ensure tasks are always
 	 * processed in the order in which they were dispatched.

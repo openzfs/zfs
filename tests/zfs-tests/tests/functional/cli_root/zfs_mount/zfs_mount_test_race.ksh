@@ -26,7 +26,7 @@
 # under race condition which resulted in undefined mount order.  The purpose
 # of this test is to verify `zfs unmount -a` succeeds (not `zfs mount -a`
 # succeeds, it always does) after `zfs mount -a`, which could fail if threads
-# race.  See github.com/zfsonlinux/zfs/issues/{8450,8833,8878} for details.
+# race.  See github.com/openzfs/zfs/issues/{8450,8833,8878} for details.
 #
 # STRATEGY:
 # 1. Create pools and filesystems.
