@@ -29,6 +29,7 @@ sbin/zfs_ids_to_path
 sbin/zpool
 sbin/zfs
 usr/bin/zgenhostid
+usr/bin/zpool_influxdb
 usr/bin/zvol_wait
 usr/sbin/arc_summary
 usr/sbin/arcstat
@@ -110,6 +111,7 @@ usr/share/man/man8/zpool-sync.8
 usr/share/man/man8/zpool-trim.8
 usr/share/man/man8/zpool-upgrade.8
 usr/share/man/man8/zpool-wait.8
+usr/share/man/man8/zpool_influxdb.8
 usr/share/man/man8/zpoolconcepts.8
 usr/share/man/man8/zpoolprops.8
 usr/share/man/man8/vdev_id.8
