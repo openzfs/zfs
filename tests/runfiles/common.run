@@ -868,7 +868,7 @@ tags = ['functional', 'write_dirs']
 [tests/functional/xattr]
 tests = ['xattr_001_pos', 'xattr_002_neg', 'xattr_003_neg', 'xattr_004_pos',
     'xattr_005_pos', 'xattr_006_pos', 'xattr_007_neg',
-    'xattr_011_pos', 'xattr_012_pos', 'xattr_013_pos']
+    'xattr_011_pos', 'xattr_012_pos', 'xattr_013_pos', 'xattr_zfs_zreget']
 tags = ['functional', 'xattr']
 
 [tests/functional/zvol/zvol_ENOSPC]

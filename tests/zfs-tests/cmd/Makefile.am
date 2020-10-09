@@ -20,6 +20,7 @@ SUBDIRS = \
 	mmap_libaio \
 	mmapwrite \
 	nvlist_to_lua \
+	online_recv \
 	randwritecomp \
 	readmmap \
 	rename_dir \
