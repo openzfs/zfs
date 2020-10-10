@@ -140,18 +140,20 @@ dmu_zfetch_stream_remove(zfetch_t *zf, zstream_t *zs)
 	uint64_t zs_refcount = zfs_refcount_count(&zs->zs_blocks);
 
 	list_remove(&zf->zf_stream, zs);
-	if (likely(zs_refcount == 0 &&
-	    zs->zs_fetch == NULL)) {
+	if (likely(zs_refcount == 0)) {
 		dmu_zfetch_stream_fini(zs);
-	} else {
-		/*
-		 * Stream is unexpectedly still in use at removal;
-		 * can't free it, but can orphan it.
-		 */
-		ASSERT(zs_refcount == 0);
-		ASSERT(zs->zs_fetch == NULL);
-		zs->zs_fetch = NULL;
 	}
+	else
+	{
+		/* Going to leak the zstream_t. */
+		/*
+		 * Asserting for testing purposes but I suspect
+		 * it's irrelevant whether there are outstanding
+		 * zs->zs_blocks refs at stream removal time, and
+		 * we should free the stream anyway. */
+		ASSERT(0 && "refs outstanding at stream removal");
+	}
+
 	zf->zf_numstreams--;
 }
 
@@ -194,9 +196,7 @@ dmu_zfetch_stream_create(zfetch_t *zf, uint64_t blkid)
 	for (zstream_t *zs = list_head(&zf->zf_stream);
 	    zs != NULL; zs = zs_next) {
 		zs_next = list_next(&zf->zf_stream, zs);
-		/*
-		 * Skip gethrtime() call if there are still references
-		 */
+
 		if (zfs_refcount_count(&zs->zs_blocks) != 0)
 			continue;
 		if (((now - zs->zs_atime) / NANOSEC) >
@@ -225,7 +225,6 @@ dmu_zfetch_stream_create(zfetch_t *zf, uint64_t blkid)
 	zs->zs_pf_blkid = blkid;
 	zs->zs_ipf_blkid = blkid;
 	zs->zs_atime = now;
-	zs->zs_fetch = zf;
 	zfs_refcount_create(&zs->zs_blocks);
 	mutex_init(&zs->zs_lock, NULL, MUTEX_DEFAULT, NULL);
 	zf->zf_numstreams++;
@@ -249,12 +248,6 @@ dmu_zfetch_stream_done(void *arg, boolean_t io_issued)
 
 	if (zfs_refcount_remove(&zs->zs_blocks, NULL) != 0)
 		return;
-
-	/*
-	 * The parent fetch structure has gone away
-	 */
-	if (zs->zs_fetch == NULL)
-		dmu_zfetch_stream_fini(zs);
 }
 
 /*
