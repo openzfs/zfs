@@ -137,17 +137,21 @@ static void
 dmu_zfetch_stream_remove(zfetch_t *zf, zstream_t *zs)
 {
 	ASSERT(MUTEX_HELD(&zf->zf_lock));
-	list_remove(&zf->zf_stream, zs);
-	dmu_zfetch_stream_fini(zs);
-	zf->zf_numstreams--;
-}
+	uint64_t zs_refcount = zfs_refcount_count(&zs->zs_blocks);
 
-static void
-dmu_zfetch_stream_orphan(zfetch_t *zf, zstream_t *zs)
-{
-	ASSERT(MUTEX_HELD(&zf->zf_lock));
 	list_remove(&zf->zf_stream, zs);
-	zs->zs_fetch = NULL;
+	if (likely(zs_refcount == 0 &&
+	    zs->zs_fetch == NULL)) {
+		dmu_zfetch_stream_fini(zs);
+	} else {
+		/*
+		 * Stream is unexpectedly still in use at removal;
+		 * can't free it, but can orphan it.
+		 */
+		ASSERT(zs_refcount == 0);
+		ASSERT(zs->zs_fetch == NULL);
+		zs->zs_fetch = NULL;
+	}
 	zf->zf_numstreams--;
 }
 
@@ -162,7 +166,7 @@ dmu_zfetch_fini(zfetch_t *zf)
 
 	mutex_enter(&zf->zf_lock);
 	while ((zs = list_head(&zf->zf_stream)) != NULL)
-		dmu_zfetch_stream_orphan(zf, zs);
+		dmu_zfetch_stream_remove(zf, zs);
 	mutex_exit(&zf->zf_lock);
 	list_destroy(&zf->zf_stream);
 	mutex_destroy(&zf->zf_lock);
