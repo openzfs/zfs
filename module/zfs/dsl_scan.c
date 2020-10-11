@@ -834,8 +834,7 @@ dsl_scan(dsl_pool_t *dp, pool_scan_func_t func)
 	(void) spa_vdev_state_exit(spa, NULL, 0);
 
 	if (func == POOL_SCAN_RESILVER) {
-		dsl_scan_restart_resilver(spa->spa_dsl_pool, 0);
-		return (0);
+		return (dsl_scan_restart_resilver(spa->spa_dsl_pool, 0));
 	}
 
 	if (func == POOL_SCAN_SCRUB && dsl_scan_is_paused_scrub(scn)) {
@@ -1099,13 +1098,20 @@ dsl_scrub_set_pause_resume(const dsl_pool_t *dp, pool_scrub_cmd_t cmd)
 
 
 /* start a new scan, or restart an existing one. */
-void
+int
 dsl_scan_restart_resilver(dsl_pool_t *dp, uint64_t txg)
 {
+	int error;
+
 	if (txg == 0) {
 		dmu_tx_t *tx;
 		tx = dmu_tx_create_dd(dp->dp_mos_dir);
-		VERIFY(0 == dmu_tx_assign(tx, TXG_WAIT));
+		error = dmu_tx_assign(tx, TXG_WAIT);
+		if (error != 0) {
+			ASSERT(spa_exiting_any(dp->dp_spa));
+			dmu_tx_abort(tx);
+			return (error);
+		}
 
 		txg = dmu_tx_get_txg(tx);
 		dp->dp_scan->scn_restart_txg = txg;
@@ -1114,6 +1120,7 @@ dsl_scan_restart_resilver(dsl_pool_t *dp, uint64_t txg)
 		dp->dp_scan->scn_restart_txg = txg;
 	}
 	zfs_dbgmsg("restarting resilver txg=%llu", (longlong_t)txg);
+	return (0);
 }
 
 void

@@ -241,6 +241,7 @@ typedef struct dmu_sendstatus {
 	list_node_t dss_link;
 	int dss_outfd;
 	proc_t *dss_proc;
+	kthread_t *dss_thread;
 	offset_t *dss_off;
 	uint64_t dss_blocks; /* blocks visited during the sending process */
 } dmu_sendstatus_t;

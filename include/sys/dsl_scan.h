@@ -172,7 +172,7 @@ int dsl_scan(struct dsl_pool *, pool_scan_func_t);
 void dsl_scan_assess_vdev(struct dsl_pool *dp, vdev_t *vd);
 boolean_t dsl_scan_scrubbing(const struct dsl_pool *dp);
 int dsl_scrub_set_pause_resume(const struct dsl_pool *dp, pool_scrub_cmd_t cmd);
-void dsl_scan_restart_resilver(struct dsl_pool *, uint64_t txg);
+int dsl_scan_restart_resilver(struct dsl_pool *, uint64_t txg);
 boolean_t dsl_scan_resilvering(struct dsl_pool *dp);
 boolean_t dsl_scan_resilver_scheduled(struct dsl_pool *dp);
 boolean_t dsl_dataset_unstable(struct dsl_dataset *ds);

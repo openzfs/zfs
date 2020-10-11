@@ -125,6 +125,14 @@ vdev_initialize_change_state(vdev_t *vd, vdev_initializing_state_t new_state)
 	vdev_initializing_state_t old_state = vd->vdev_initialize_state;
 	vd->vdev_initialize_state = new_state;
 
+	/*
+	 * In this context, a pool vdev is initializing.  Usually, we would
+	 * want to handle txg failure, but this can only happen if the pool
+	 * becomes suspended and then forcibly exported when this occurs.  In
+	 * which case, the caller here hung while holding the namespace lock,
+	 * so there's little that can be done (including attempt a force
+	 * export, which requires the namespace lock) to recover.
+	 */
 	dmu_tx_t *tx = dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
 	VERIFY0(dmu_tx_assign(tx, TXG_WAIT));
 	dsl_sync_task_nowait(spa_get_dsl(spa), vdev_initialize_zap_update_sync,

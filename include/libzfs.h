@@ -397,6 +397,7 @@ typedef enum {
 	ZPOOL_STATUS_NON_NATIVE_ASHIFT,	/* (e.g. 512e dev with ashift of 9) */
 	ZPOOL_STATUS_COMPATIBILITY_ERR,	/* bad 'compatibility' property */
 	ZPOOL_STATUS_INCOMPATIBLE_FEAT,	/* feature set outside compatibility */
+	ZPOOL_STATUS_FORCE_EXPORTING,	/* pool is being force exported */
 
 	/*
 	 * Finally, the following indicates a healthy pool.

@@ -84,6 +84,7 @@ typeset log_blk_end=$(get_arcstat l2_log_blk_writes)
 typeset log_blk_rebuild_start=$(get_arcstat l2_rebuild_log_blks)
 
 log_must zpool import -d $VDIR $TESTPOOL
+log_must zpool sync $TESTPOOL
 log_must eval "echo $PASSPHRASE | zfs mount -l $TESTPOOL/$TESTFS1"
 
 typeset l2_hits_start=$(get_arcstat l2_hits)

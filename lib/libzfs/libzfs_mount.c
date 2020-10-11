@@ -1537,6 +1537,7 @@ zpool_disable_datasets(zpool_handle_t *zhp, boolean_t force)
 	int ret = -1;
 	int flags = (force ? MS_FORCE : 0);
 
+	hdl->libzfs_force_export = force;
 	namelen = strlen(zhp->zpool_name);
 
 	if ((mnttab = fopen(MNTTAB, "re")) == NULL)
@@ -1632,9 +1633,15 @@ zpool_disable_datasets(zpool_handle_t *zhp, boolean_t force)
 			goto out;
 	}
 
-	for (i = 0; i < used; i++) {
-		if (sets[i].dataset)
-			remove_mountpoint(sets[i].dataset);
+	/*
+	 * Remove mountpoints, unless the pool is being forcibly exported.
+	 * In the latter case, avoid potentially initiating I/O on the pool.
+	 */
+	if (!hdl->libzfs_force_export) {
+		for (i = 0; i < used; i++) {
+			if (sets[i].dataset)
+				remove_mountpoint(sets[i].dataset);
+		}
 	}
 
 	ret = 0;

@@ -101,7 +101,8 @@ struct zfsvfs {
 	boolean_t	z_utf8;		/* utf8-only */
 	int		z_norm;		/* normalization flags */
 	boolean_t	z_relatime;	/* enable relatime mount option */
-	boolean_t	z_unmounted;	/* unmounted */
+	boolean_t	z_unmounted;	/* mount status */
+	boolean_t	z_force_unmounted; /* force-unmounted status */
 	rrmlock_t	z_teardown_lock;
 	krwlock_t	z_teardown_inactive_lock;
 	list_t		z_all_znodes;	/* all znodes in the fs */

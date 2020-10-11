@@ -869,6 +869,19 @@ dmu_tx_try_assign(dmu_tx_t *tx, uint64_t txg_how)
 	if (spa_suspended(spa)) {
 		DMU_TX_STAT_BUMP(dmu_tx_suspended);
 
+		if (txg_how & TXG_NOSUSPEND)
+			return (SET_ERROR(EAGAIN));
+
+		/*
+		 * If the user is forcibly exporting the pool or the objset,
+		 * indicate to the caller that they need to give up.
+		 */
+		if (spa_exiting_any(spa))
+			return (SET_ERROR(EIO));
+
+		if (tx->tx_objset != NULL && dmu_objset_exiting(tx->tx_objset))
+			return (SET_ERROR(EIO));
+
 		/*
 		 * If the user has indicated a blocking failure mode
 		 * then return ERESTART which will block in dmu_tx_wait().
@@ -1001,6 +1014,8 @@ dmu_tx_unassign(dmu_tx_t *tx)
 	tx->tx_txg = 0;
 }
 
+static void dmu_tx_wait_flags(dmu_tx_t *, txg_wait_flag_t);
+
 /*
  * Assign tx to a transaction group; txg_how is a bitmask:
  *
@@ -1020,6 +1035,11 @@ dmu_tx_unassign(dmu_tx_t *tx)
  * details on the throttle). This is used by the VFS operations, after
  * they have already called dmu_tx_wait() (though most likely on a
  * different tx).
+ *
+ * If TXG_NOSUSPEND is set, this indicates that this request must return
+ * EAGAIN if the pool becomes suspended while it is in progress.  This
+ * ensures that the request does not inadvertently cause conditions that
+ * cannot be unwound.
  *
  * It is guaranteed that subsequent successful calls to dmu_tx_assign()
  * will assign the tx to monotonically increasing txgs. Of course this is
@@ -1043,7 +1063,7 @@ dmu_tx_assign(dmu_tx_t *tx, uint64_t txg_how)
 	int err;
 
 	ASSERT(tx->tx_txg == 0);
-	ASSERT0(txg_how & ~(TXG_WAIT | TXG_NOTHROTTLE));
+	ASSERT0(txg_how & ~(TXG_NOSUSPEND | TXG_WAIT | TXG_NOTHROTTLE));
 	ASSERT(!dsl_pool_sync_context(tx->tx_pool));
 
 	/* If we might wait, we must not hold the config lock. */
@@ -1058,7 +1078,7 @@ dmu_tx_assign(dmu_tx_t *tx, uint64_t txg_how)
 		if (err != ERESTART || !(txg_how & TXG_WAIT))
 			return (err);
 
-		dmu_tx_wait(tx);
+		dmu_tx_wait_flags(tx, txg_how);
 	}
 
 	txg_rele_to_quiesce(&tx->tx_txgh);
@@ -1066,8 +1086,8 @@ dmu_tx_assign(dmu_tx_t *tx, uint64_t txg_how)
 	return (0);
 }
 
-void
-dmu_tx_wait(dmu_tx_t *tx)
+static void
+dmu_tx_wait_flags(dmu_tx_t *tx, txg_wait_flag_t how)
 {
 	spa_t *spa = tx->tx_pool->dp_spa;
 	dsl_pool_t *dp = tx->tx_pool;
@@ -1112,8 +1132,11 @@ dmu_tx_wait(dmu_tx_t *tx)
 		 * has become active after this thread has tried to
 		 * obtain a tx.  If that's the case then tx_lasttried_txg
 		 * would not have been set.
+		 *
+		 * It's also possible the pool will be force exported, in
+		 * which case we'll try again and notice this fact, and exit.
 		 */
-		txg_wait_synced(dp, spa_last_synced_txg(spa) + 1);
+		txg_wait_synced_tx(dp, spa_last_synced_txg(spa) + 1, tx, how);
 	} else if (tx->tx_needassign_txh) {
 		dnode_t *dn = tx->tx_needassign_txh->txh_dnode;
 
@@ -1127,11 +1150,21 @@ dmu_tx_wait(dmu_tx_t *tx)
 		 * If we have a lot of dirty data just wait until we sync
 		 * out a TXG at which point we'll hopefully have synced
 		 * a portion of the changes.
+		 *
+		 * It's also possible the pool will be force exported, in
+		 * which case we'll try again and notice this fact, and exit.
 		 */
-		txg_wait_synced(dp, spa_last_synced_txg(spa) + 1);
+		txg_wait_synced_tx(dp, spa_last_synced_txg(spa) + 1, tx, how);
 	}
 
 	spa_tx_assign_add_nsecs(spa, gethrtime() - before);
+}
+
+void
+dmu_tx_wait(dmu_tx_t *tx)
+{
+
+	return (dmu_tx_wait_flags(tx, TXG_WAIT_F_NONE));
 }
 
 static void

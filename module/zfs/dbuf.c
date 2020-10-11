@@ -986,11 +986,12 @@ dbuf_verify(dmu_buf_impl_t *db)
 	uint32_t txg_prev;
 
 	ASSERT(MUTEX_HELD(&db->db_mtx));
+	ASSERT(db->db_objset != NULL);
 
-	if (!(zfs_flags & ZFS_DEBUG_DBUF_VERIFY))
+	if (!(zfs_flags & ZFS_DEBUG_DBUF_VERIFY) ||
+	    dmu_objset_exiting(db->db_objset))
 		return;
 
-	ASSERT(db->db_objset != NULL);
 	DB_DNODE_ENTER(db);
 	dn = DB_DNODE(db);
 	if (dn == NULL) {
@@ -1074,7 +1075,8 @@ dbuf_verify(dmu_buf_impl_t *db)
 	if ((db->db_blkptr == NULL || BP_IS_HOLE(db->db_blkptr)) &&
 	    (db->db_buf == NULL || db->db_buf->b_data) &&
 	    db->db.db_data && db->db_blkid != DMU_BONUS_BLKID &&
-	    db->db_state != DB_FILL && !dn->dn_free_txg) {
+	    db->db_state != DB_FILL && !dn->dn_free_txg &&
+	    !dmu_objset_exiting(db->db_objset)) {
 		/*
 		 * If the blkptr isn't set but they have nonzero data,
 		 * it had better be dirty, otherwise we'll lose that
@@ -2186,7 +2188,7 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 	 * this assertion only if we're not already dirty.
 	 */
 	os = dn->dn_objset;
-	VERIFY3U(tx->tx_txg, <=, spa_final_dirty_txg(os->os_spa));
+	spa_verify_dirty_txg(os->os_spa, dmu_tx_get_txg(tx));
 #ifdef ZFS_DEBUG
 	if (dn->dn_objset->os_dsl_dataset != NULL)
 		rrw_enter(&os->os_dsl_dataset->ds_bp_rwlock, RW_READER, FTAG);
@@ -4626,8 +4628,13 @@ dbuf_write_done(zio_t *zio, arc_buf_t *buf, void *vdb)
 	objset_t *os = db->db_objset;
 	dmu_tx_t *tx = os->os_synctx;
 
-	ASSERT0(zio->io_error);
 	ASSERT(db->db_blkptr == bp);
+
+	if (zio->io_error != 0) {
+		/* If the pool is exiting, only cleanup in-core state. */
+		ASSERT(spa_exiting_any(zio->io_spa));
+		goto cleanup;
+	}
 
 	/*
 	 * For nopwrites and rewrites we ensure that the bp matches our
@@ -4641,6 +4648,7 @@ dbuf_write_done(zio_t *zio, arc_buf_t *buf, void *vdb)
 		dsl_dataset_block_born(ds, bp, tx);
 	}
 
+cleanup:
 	mutex_enter(&db->db_mtx);
 
 	DBUF_VERIFY(db);

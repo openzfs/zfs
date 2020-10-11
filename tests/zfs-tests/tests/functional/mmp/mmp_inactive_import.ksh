@@ -57,19 +57,19 @@ default_setup_noexit $DISK
 log_must zpool set multihost=off $TESTPOOL
 
 for opt in "" "-f"; do
-	log_must zpool export -F $TESTPOOL
+	log_must zpool export -f $TESTPOOL
 	log_must import_no_activity_check $TESTPOOL $opt
 done
 
 # 3. Verify multihost=off and hostids differ (no activity check)
-log_must zpool export -F $TESTPOOL
+log_must zpool export -f $TESTPOOL
 log_must mmp_clear_hostid
 log_must mmp_set_hostid $HOSTID2
 log_mustnot import_no_activity_check $TESTPOOL ""
 log_must import_no_activity_check $TESTPOOL "-f"
 
 # 4. Verify multihost=off and hostid zero allowed (no activity check)
-log_must zpool export -F $TESTPOOL
+log_must zpool export -f $TESTPOOL
 log_must mmp_clear_hostid
 log_mustnot import_no_activity_check $TESTPOOL ""
 log_must import_no_activity_check $TESTPOOL "-f"
@@ -79,19 +79,19 @@ log_must mmp_pool_set_hostid $TESTPOOL $HOSTID1
 log_must zpool set multihost=on $TESTPOOL
 
 for opt in "" "-f"; do
-	log_must zpool export -F $TESTPOOL
+	log_must zpool export -f $TESTPOOL
 	log_must import_no_activity_check $TESTPOOL $opt
 done
 
 # 6. Verify multihost=on and hostids differ (activity check)
-log_must zpool export -F $TESTPOOL
+log_must zpool export -f $TESTPOOL
 log_must mmp_clear_hostid
 log_must mmp_set_hostid $HOSTID2
 log_mustnot import_activity_check $TESTPOOL ""
 log_must import_activity_check $TESTPOOL "-f"
 
 # 7. Verify mmp_write and mmp_fail are set correctly
-log_must zpool export -F $TESTPOOL
+log_must zpool export -f $TESTPOOL
 log_must verify_mmp_write_fail_present ${DISK[0]}
 
 # 8. Verify multihost=on and hostid zero fails (no activity check)

@@ -31,4 +31,7 @@
 
 #define	getcomm() curthread->td_name
 #define	getpid() curthread->td_tid
+#define	thread_signal spl_kthread_signal
+extern int spl_kthread_signal(kthread_t *tsk, int sig);
+
 #endif
