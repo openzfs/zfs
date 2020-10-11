@@ -15,6 +15,7 @@ COMMON_H = \
 	bptree.h \
 	btree.h \
 	bqueue.h \
+	compress_adaptive.h \
 	dataset_kstats.h \
 	dbuf.h \
 	ddt.h \

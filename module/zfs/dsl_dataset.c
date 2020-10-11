@@ -30,6 +30,7 @@
  * Copyright 2017 Nexenta Systems, Inc.
  * Copyright (c) 2019, Klara Inc.
  * Copyright (c) 2019, Allan Jude
+ * Copyright (c) 2019, n1kl (bunge)
  * Copyright (c) 2020 The FreeBSD Foundation [1]
  *
  * [1] Portions of this software were developed by Allan Jude
@@ -4973,6 +4974,58 @@ dsl_dataset_activate_redaction(dsl_dataset_t *ds, uint64_t *redact_snaps,
 	dsl_dataset_activate_feature(dsobj, SPA_FEATURE_REDACTED_DATASETS,
 	    ftuaa, tx);
 	ds->ds_feature[SPA_FEATURE_REDACTED_DATASETS] = ftuaa;
+}
+
+static int
+dsl_dataset_actv_compress_adaptive_check(void *arg, dmu_tx_t *tx)
+{
+	char *ddname = (char *)arg;
+	dsl_pool_t *dp = dmu_tx_pool(tx);
+	dsl_dataset_t *ds;
+	int error;
+
+	error = dsl_dataset_hold(dp, ddname, FTAG, &ds);
+	if (error != 0)
+		return (error);
+
+	if (!spa_feature_is_enabled(dp->dp_spa,
+	    SPA_FEATURE_COMPRESS_ADAPTIVE)) {
+		dsl_dataset_rele(ds, FTAG);
+		return (SET_ERROR(ENOTSUP));
+	}
+
+	dsl_dataset_rele(ds, FTAG);
+	return (0);
+}
+
+static void
+dsl_dataset_actv_compress_adaptive_sync(void *arg, dmu_tx_t *tx)
+{
+	char *ddname = (char *)arg;
+	dsl_pool_t *dp = dmu_tx_pool(tx);
+	dsl_dataset_t *ds;
+
+	VERIFY0(dsl_dataset_hold(dp, ddname, FTAG, &ds));
+
+	if (!dsl_dataset_feature_is_active(ds, SPA_FEATURE_COMPRESS_ADAPTIVE)) {
+		dsl_dataset_activate_feature(ds->ds_object,
+		    SPA_FEATURE_COMPRESS_ADAPTIVE, (void *)B_TRUE, tx);
+		ds->ds_feature[SPA_FEATURE_COMPRESS_ADAPTIVE] = (void *)B_TRUE;
+	}
+	dsl_dataset_rele(ds, FTAG);
+}
+
+
+int
+dsl_dataset_activate_compress_adaptive(const char *ddname)
+{
+	int error;
+
+	error = dsl_sync_task(ddname, dsl_dataset_actv_compress_adaptive_check,
+	    dsl_dataset_actv_compress_adaptive_sync, (void *)ddname, 0,
+	    ZFS_SPACE_CHECK_RESERVED);
+
+	return (error);
 }
 
 /* BEGIN CSTYLED */

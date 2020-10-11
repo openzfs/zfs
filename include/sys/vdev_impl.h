@@ -132,6 +132,7 @@ struct vdev_cache {
 
 typedef struct vdev_queue_class {
 	uint32_t	vqc_active;
+	uint64_t	vqc_queued_size;
 
 	/*
 	 * Sorted by offset or timestamp, depending on if the queue is

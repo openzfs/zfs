@@ -27,6 +27,7 @@
  * Copyright (c) 2017, Intel Corporation.
  * Copyright (c) 2019, Klara Inc.
  * Copyright (c) 2019, Allan Jude
+ * Copyright (c) 2019, n1kl (bunge)
  */
 
 #ifndef _KERNEL
@@ -292,6 +293,19 @@ zpool_feature_init(void)
 	    "org.illumos:lz4_compress", "lz4_compress",
 	    "LZ4 compression algorithm support.",
 	    ZFEATURE_FLAG_ACTIVATE_ON_ENABLE, ZFEATURE_TYPE_BOOLEAN, NULL);
+
+	{
+	static const spa_feature_t compress_adaptive_deps[] = {
+			SPA_FEATURE_LZ4_COMPRESS,
+			SPA_FEATURE_EXTENSIBLE_DATASET,
+			SPA_FEATURE_NONE
+	};
+	zfeature_register(SPA_FEATURE_COMPRESS_ADAPTIVE,
+	    "org.zfsonlinux:compress_adaptive", "compress_adaptive",
+	    "adaptive compression algorithm selection support.",
+	    ZFEATURE_FLAG_PER_DATASET | ZFEATURE_FLAG_READONLY_COMPAT,
+	    ZFEATURE_TYPE_BOOLEAN, compress_adaptive_deps);
+	}
 
 	zfeature_register(SPA_FEATURE_MULTI_VDEV_CRASH_DUMP,
 	    "com.joyent:multi_vdev_crash_dump", "multi_vdev_crash_dump",
