@@ -55,6 +55,7 @@ typedef void (*thread_func_t)(void *);
 	#func, arg, len, pp, state, pri)
 /* END CSTYLED */
 
+#define	thread_signal(t, s)		spl_kthread_signal(t, s)
 #define	thread_exit()			__thread_exit()
 #define	thread_join(t)			VERIFY(0)
 #define	curthread			current
@@ -67,6 +68,7 @@ extern kthread_t *__thread_create(caddr_t stk, size_t  stksize,
 extern void __thread_exit(void);
 extern struct task_struct *spl_kthread_create(int (*func)(void *),
     void *data, const char namefmt[], ...);
+extern int spl_kthread_signal(kthread_t *tsk, int sig);
 
 extern proc_t p0;
 

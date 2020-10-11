@@ -134,6 +134,8 @@ extern minor_t zfsdev_minor_alloc(void);
 /* Called on entry to each ZFS vnode and vfs operation  */
 #define	ZFS_ENTER(zfsvfs)	ZFS_ENTER_ERROR(zfsvfs, EIO)
 
+#define	zfs_enter_unmountok	zfs_enter
+
 /* Must be called before exiting the vop */
 #define	ZFS_EXIT(zfsvfs)	ZFS_TEARDOWN_EXIT_READ(zfsvfs, FTAG)
 

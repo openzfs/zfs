@@ -83,11 +83,14 @@ extern "C" {
 #define	zhold(zp)	VERIFY3P(igrab(ZTOI((zp))), !=, NULL)
 #define	zrele(zp)	iput(ZTOI((zp)))
 
+#define	zfsvfs_is_unmounted(zfsvfs)				\
+	((zfsvfs)->z_unmounted || (zfsvfs)->z_force_unmounted)
+
 /* Called on entry to each ZFS inode and vfs operation. */
 #define	ZFS_ENTER_ERROR(zfsvfs, error)				\
 do {								\
 	ZFS_TEARDOWN_ENTER_READ(zfsvfs, FTAG);			\
-	if (unlikely((zfsvfs)->z_unmounted)) {			\
+	if (zfsvfs_is_unmounted(zfsvfs)) {			\
 		ZFS_TEARDOWN_EXIT_READ(zfsvfs, FTAG);		\
 		return (error);					\
 	}							\
@@ -101,11 +104,24 @@ do {								\
 	zfs_exit_fs(zfsvfs);					\
 	ZFS_TEARDOWN_EXIT_READ(zfsvfs, FTAG);			\
 } while (0)
-
 #define	ZPL_EXIT(zfsvfs)					\
 do {								\
 	rrm_exit(&(zfsvfs)->z_teardown_lock, FTAG);		\
 } while (0)
+
+
+/* ZFS_ENTER but ok with forced unmount having begun */
+/* ZFS_ENTER but ok with forced unmount having begun */
+#define	_ZFS_ENTER_UNMOUNTOK(zfsvfs, error)			\
+do {								\
+	rrm_enter_read(&(zfsvfs)->z_teardown_lock, FTAG);	\
+	if ((zfsvfs)->z_unmounted == B_TRUE) {			\
+		ZFS_EXIT(zfsvfs);				\
+		return (error);					\
+	}							\
+} while (0)
+#define	ZFS_ENTER_UNMOUNTOK(zfsvfs)	_ZFS_ENTER_UNMOUNTOK(zfsvfs, EIO)
+#define	ZPL_ENTER_UNMOUNTOK(zfsvfs)	_ZFS_ENTER_UNMOUNTOK(zfsvfs, -EIO)
 
 /* Verifies the znode is valid. */
 #define	ZFS_VERIFY_ZP_ERROR(zp, error)				\

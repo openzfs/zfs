@@ -1095,7 +1095,7 @@ zfs_statvfs(struct inode *ip, struct kstatfs *statp)
 	uint64_t refdbytes, availbytes, usedobjs, availobjs;
 	int err = 0;
 
-	ZFS_ENTER(zfsvfs);
+	ZFS_ENTER_UNMOUNTOK(zfsvfs);
 
 	dmu_objset_space(zfsvfs->z_os,
 	    &refdbytes, &availbytes, &usedobjs, &availobjs);
@@ -1166,7 +1166,7 @@ zfs_root(zfsvfs_t *zfsvfs, struct inode **ipp)
 	znode_t *rootzp;
 	int error;
 
-	ZFS_ENTER(zfsvfs);
+	ZFS_ENTER_UNMOUNTOK(zfsvfs);
 
 	error = zfs_zget(zfsvfs, zfsvfs->z_root, &rootzp);
 	if (error == 0)
@@ -1310,6 +1310,8 @@ static int
 zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 {
 	znode_t	*zp;
+	kthread_t *initiator = NULL;
+	uint64_t wait_flags = 0;
 
 	zfs_unlinked_drain_stop_wait(zfsvfs);
 
@@ -1339,6 +1341,15 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 			if (++round > 1 && !unmounting)
 				break;
 		}
+		initiator = zfsvfs->z_os->os_shutdown_initiator;
+		/*
+		 * Although it could be argued that a force unmount in
+		 * another thread shouldn't have this apply, once a force
+		 * unmount is in effect, it's pointless for the non-forced
+		 * unmount to not use this flag.
+		 */
+		if (initiator != NULL)
+			wait_flags |= TXG_WAIT_F_NOSUSPEND;
 	}
 
 	ZFS_TEARDOWN_ENTER_WRITE(zfsvfs, FTAG);
@@ -1371,6 +1382,10 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 	 * or a reopen of z_os failed then just bail out now.
 	 */
 	if (!unmounting && (zfsvfs->z_unmounted || zfsvfs->z_os == NULL)) {
+		if (initiator == curthread) {
+			zfsvfs->z_unmounted = B_FALSE;
+			dmu_objset_shutdown_unregister(zfsvfs->z_os);
+		}
 		rw_exit(&zfsvfs->z_teardown_inactive_lock);
 		ZFS_TEARDOWN_EXIT(zfsvfs, FTAG);
 		return (SET_ERROR(EIO));
@@ -1439,11 +1454,15 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 		}
 	}
 	if (!zfs_is_readonly(zfsvfs) && os_dirty) {
-		txg_wait_synced(dmu_objset_pool(zfsvfs->z_os), 0);
+		(void) txg_wait_synced_tx(dmu_objset_pool(zfsvfs->z_os), 0,
+		    NULL, wait_flags);
 	}
 	dmu_objset_evict_dbufs(zfsvfs->z_os);
 	dsl_dir_t *dd = os->os_dsl_dataset->ds_dir;
 	dsl_dir_cancel_waiters(dd);
+
+	if (initiator == curthread)
+		dmu_objset_shutdown_unregister(zfsvfs->z_os);
 
 	return (0);
 }

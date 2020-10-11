@@ -1525,7 +1525,8 @@ mountpoint_compare(const void *a, const void *b)
  * and gather all the filesystems that are currently mounted.
  */
 int
-zpool_disable_datasets(zpool_handle_t *zhp, boolean_t force)
+zpool_disable_datasets(zpool_handle_t *zhp, boolean_t force,
+    boolean_t hardforce)
 {
 	int used, alloc;
 	struct mnttab entry;
@@ -1535,8 +1536,9 @@ zpool_disable_datasets(zpool_handle_t *zhp, boolean_t force)
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
 	int i;
 	int ret = -1;
-	int flags = (force ? MS_FORCE : 0);
+	int flags = ((hardforce || force) ? MS_FORCE : 0);
 
+	hdl->libzfs_force_export = flags & MS_FORCE;
 	namelen = strlen(zhp->zpool_name);
 
 	/* Reopen MNTTAB to prevent reading stale data from open file */
@@ -1615,6 +1617,10 @@ zpool_disable_datasets(zpool_handle_t *zhp, boolean_t force)
 	 */
 	qsort(mountpoints, used, sizeof (char *), mountpoint_compare);
 
+	if (hardforce) {
+		zpool_unmount_mark_hard_force_begin(zhp);
+	}
+
 	/*
 	 * Walk through and first unshare everything.
 	 */
@@ -1639,9 +1645,15 @@ zpool_disable_datasets(zpool_handle_t *zhp, boolean_t force)
 			goto out;
 	}
 
-	for (i = 0; i < used; i++) {
-		if (datasets[i])
-			remove_mountpoint(datasets[i]);
+	/*
+	 * Remove mountpoints, unless the pool is being forcibly exported.
+	 * In the latter case, avoid potentially initiating I/O on the pool.
+	 */
+	if (!hdl->libzfs_force_export) {
+		for (i = 0; i < used; i++) {
+			if (datasets[i])
+				remove_mountpoint(datasets[i]);
+		}
 	}
 
 	ret = 0;
@@ -1653,6 +1665,10 @@ out:
 	}
 	free(datasets);
 	free(mountpoints);
+
+	if (hardforce) {
+		zpool_unmount_mark_hard_force_end(zhp);
+	}
 
 	return (ret);
 }

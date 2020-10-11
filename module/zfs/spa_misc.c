@@ -463,46 +463,32 @@ spa_config_lock_destroy(spa_t *spa)
 	}
 }
 
-int
-spa_config_tryenter(spa_t *spa, int locks, void *tag, krw_t rw)
+static int
+spa_config_eval_flags(spa_t *spa, spa_config_flag_t flags)
 {
-	for (int i = 0; i < SCL_LOCKS; i++) {
-		spa_config_lock_t *scl = &spa->spa_config_lock[i];
-		if (!(locks & (1 << i)))
-			continue;
-		mutex_enter(&scl->scl_lock);
-		if (rw == RW_READER) {
-			if (scl->scl_writer || scl->scl_write_wanted) {
-				mutex_exit(&scl->scl_lock);
-				spa_config_exit(spa, locks & ((1 << i) - 1),
-				    tag);
-				return (0);
-			}
-		} else {
-			ASSERT(scl->scl_writer != curthread);
-			if (!zfs_refcount_is_zero(&scl->scl_count)) {
-				mutex_exit(&scl->scl_lock);
-				spa_config_exit(spa, locks & ((1 << i) - 1),
-				    tag);
-				return (0);
-			}
-			scl->scl_writer = curthread;
-		}
-		(void) zfs_refcount_add(&scl->scl_count, tag);
-		mutex_exit(&scl->scl_lock);
+	int error = 0;
+
+	if ((flags & SCL_FLAG_TRYENTER) != 0)
+		error = SET_ERROR(EAGAIN);
+	if (error == 0 && ((flags & SCL_FLAG_NOSUSPEND) != 0)) {
+		/* Notification given by zio_suspend(). */
+		mutex_enter(&spa->spa_suspend_lock);
+		error = spa_suspended(spa) ? SET_ERROR(EAGAIN) : 0;
+		mutex_exit(&spa->spa_suspend_lock);
 	}
-	return (1);
+	return (error);
 }
 
-void
-spa_config_enter(spa_t *spa, int locks, const void *tag, krw_t rw)
+int
+spa_config_enter_flags(spa_t *spa, int locks, const void *tag, krw_t rw,
+    spa_config_flag_t flags)
 {
-	(void) tag;
+	int error = 0;
 	int wlocks_held = 0;
 
 	ASSERT3U(SCL_LOCKS, <, sizeof (wlocks_held) * NBBY);
 
-	for (int i = 0; i < SCL_LOCKS; i++) {
+	for (int i = 0; error == 0 && i < SCL_LOCKS; i++) {
 		spa_config_lock_t *scl = &spa->spa_config_lock[i];
 		if (scl->scl_writer == curthread)
 			wlocks_held |= (1 << i);
@@ -511,21 +497,53 @@ spa_config_enter(spa_t *spa, int locks, const void *tag, krw_t rw)
 		mutex_enter(&scl->scl_lock);
 		if (rw == RW_READER) {
 			while (scl->scl_writer || scl->scl_write_wanted) {
+				error = spa_config_eval_flags(spa, flags);
+				if (error != 0)
+					break;
 				cv_wait(&scl->scl_cv, &scl->scl_lock);
 			}
 		} else {
 			ASSERT(scl->scl_writer != curthread);
 			while (!zfs_refcount_is_zero(&scl->scl_count)) {
+				error = spa_config_eval_flags(spa, flags);
+				if (error != 0)
+					break;
 				scl->scl_write_wanted++;
 				cv_wait(&scl->scl_cv, &scl->scl_lock);
 				scl->scl_write_wanted--;
 			}
-			scl->scl_writer = curthread;
+			if (error == 0)
+				scl->scl_writer = curthread;
 		}
-		(void) zfs_refcount_add(&scl->scl_count, tag);
+		if (error == 0)
+			(void) zfs_refcount_add(&scl->scl_count, tag);
 		mutex_exit(&scl->scl_lock);
+
+		if (error != 0 && i > 0) {
+			/* Should never happen for classic spa_config_enter. */
+			ASSERT3U(flags, !=, 0);
+			spa_config_exit(spa, locks & ((1 << i) - 1), tag);
+		}
 	}
+
 	ASSERT3U(wlocks_held, <=, locks);
+	return (error);
+}
+
+void
+spa_config_enter(spa_t *spa, int locks, const void *tag, krw_t rw)
+{
+	spa_config_flag_t flags = 0;
+
+	spa_config_enter_flags(spa, locks, tag, rw, flags);
+}
+
+int
+spa_config_tryenter(spa_t *spa, int locks, const void *tag, krw_t rw)
+{
+
+	return (spa_config_enter_flags(spa, locks, tag, rw,
+	    SCL_FLAG_TRYENTER) == 0);
 }
 
 void
@@ -888,6 +906,20 @@ spa_open_ref(spa_t *spa, void *tag)
 }
 
 /*
+ * Remove a reference to a given spa_t.  Common routine that also includes
+ * notifying the exporter if one is registered, when minref has been reached.
+ */
+static void
+spa_close_common(spa_t *spa, const void *tag)
+{
+	if (zfs_refcount_remove(&spa->spa_refcount, tag) == spa->spa_minref) {
+		mutex_enter(&spa->spa_evicting_os_lock);
+		cv_broadcast(&spa->spa_evicting_os_cv);
+		mutex_exit(&spa->spa_evicting_os_lock);
+	}
+}
+
+/*
  * Remove a reference to the given spa_t.  Must have at least one reference, or
  * have the namespace lock held.
  */
@@ -896,7 +928,7 @@ spa_close(spa_t *spa, void *tag)
 {
 	ASSERT(zfs_refcount_count(&spa->spa_refcount) > spa->spa_minref ||
 	    MUTEX_HELD(&spa_namespace_lock));
-	(void) zfs_refcount_remove(&spa->spa_refcount, tag);
+	spa_close_common(spa, tag);
 }
 
 /*
@@ -910,7 +942,7 @@ spa_close(spa_t *spa, void *tag)
 void
 spa_async_close(spa_t *spa, void *tag)
 {
-	(void) zfs_refcount_remove(&spa->spa_refcount, tag);
+	spa_close_common(spa, tag);
 }
 
 /*
@@ -1730,6 +1762,19 @@ spa_syncing_txg(spa_t *spa)
 }
 
 /*
+ * Verify that the requesting thread isn't dirtying a txg it's not supposed
+ * to be.  Normally, this must be spa_final_dirty_txg(), but if the pool is
+ * being force exported, no data will be written to stable storage anyway.
+ */
+void
+spa_verify_dirty_txg(spa_t *spa, uint64_t txg)
+{
+
+	if (spa->spa_export_initiator == NULL)
+		VERIFY3U(txg, <=, spa_final_dirty_txg(spa));
+}
+
+/*
  * Return the last txg where data can be dirtied. The final txgs
  * will be used to just clear out any deferred frees that remain.
  */
@@ -1986,6 +2031,18 @@ spa_preferred_class(spa_t *spa, uint64_t size, dmu_object_type_t objtype,
 	}
 
 	return (spa_normal_class(spa));
+}
+
+void
+spa_evicting_os_lock(spa_t *spa)
+{
+	mutex_enter(&spa->spa_evicting_os_lock);
+}
+
+void
+spa_evicting_os_unlock(spa_t *spa)
+{
+	mutex_exit(&spa->spa_evicting_os_lock);
 }
 
 void
@@ -2612,6 +2669,31 @@ spa_maxblocksize(spa_t *spa)
 		return (SPA_OLD_MAXBLOCKSIZE);
 }
 
+boolean_t
+spa_exiting_any(spa_t *spa)
+{
+	return (spa->spa_export_initiator != NULL || spa->spa_pre_exporting);
+}
+
+/*
+ * NB: must hold spa_namespace_lock or spa_evicting_os_lock if the result of
+ *     this is critical.
+ */
+boolean_t
+spa_exiting(spa_t *spa)
+{
+	return (spa_exiting_any(spa) && spa->spa_export_initiator != curthread);
+}
+
+int
+spa_operation_interrupted(spa_t *spa)
+{
+	if (issig(JUSTLOOKING) && issig(FORREAL))
+		return (SET_ERROR(EINTR));
+	if (spa_exiting(spa))
+		return (SET_ERROR(ENXIO));
+	return (0);
+}
 
 /*
  * Returns the txg that the last device removal completed. No indirect mappings
@@ -2892,6 +2974,8 @@ EXPORT_SYMBOL(spa_delegation);
 EXPORT_SYMBOL(spa_meta_objset);
 EXPORT_SYMBOL(spa_maxblocksize);
 EXPORT_SYMBOL(spa_maxdnodesize);
+EXPORT_SYMBOL(spa_exiting);
+EXPORT_SYMBOL(spa_operation_interrupted);
 
 /* Miscellaneous support routines */
 EXPORT_SYMBOL(spa_guid_exists);

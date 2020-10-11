@@ -1,16 +1,7 @@
 <abi-corpus version='2.0' architecture='elf-amd-x86_64' soname='libzfsbootenv.so.1'>
   <elf-needed>
     <dependency name='libzfs.so.4'/>
-    <dependency name='libzfs_core.so.3'/>
-    <dependency name='libuuid.so.1'/>
-    <dependency name='libblkid.so.1'/>
-    <dependency name='libudev.so.1'/>
-    <dependency name='libuutil.so.3'/>
-    <dependency name='libm.so.6'/>
-    <dependency name='libcrypto.so.1.1'/>
-    <dependency name='libz.so.1'/>
     <dependency name='libnvpair.so.3'/>
-    <dependency name='libtirpc.so.3'/>
     <dependency name='libc.so.6'/>
   </elf-needed>
   <elf-function-symbols>
@@ -289,18 +280,6 @@
       <parameter type-id='9b23c9ad' name='device'/>
       <return type-id='95e97e5e'/>
     </function-decl>
-    <function-decl name='fprintf' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='e75a27e9'/>
-      <parameter type-id='9d26089a'/>
-      <parameter is-variadic='yes'/>
-      <return type-id='95e97e5e'/>
-    </function-decl>
-    <function-decl name='asprintf' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='8c85230f'/>
-      <parameter type-id='9d26089a'/>
-      <parameter is-variadic='yes'/>
-      <return type-id='95e97e5e'/>
-    </function-decl>
     <function-decl name='free' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='eaa32e2f'/>
       <return type-id='48b5725f'/>
@@ -318,6 +297,20 @@
     <function-decl name='strlen' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='80f4b756'/>
       <return type-id='b59d7dce'/>
+    </function-decl>
+    <function-decl name='__fprintf_chk' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='e75a27e9'/>
+      <parameter type-id='95e97e5e'/>
+      <parameter type-id='9d26089a'/>
+      <parameter is-variadic='yes'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='__asprintf_chk' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='8c85230f'/>
+      <parameter type-id='95e97e5e'/>
+      <parameter type-id='9d26089a'/>
+      <parameter is-variadic='yes'/>
+      <return type-id='95e97e5e'/>
     </function-decl>
   </abi-instr>
   <abi-instr address-size='64' path='lzbe_pair.c' language='LANG_C99'>

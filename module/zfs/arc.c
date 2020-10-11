@@ -9997,6 +9997,18 @@ l2arc_rebuild_vdev(vdev_t *vd, boolean_t reopen)
 	l2arc_rebuild_dev(dev, reopen);
 }
 
+static void
+l2arc_dev_rebuild_stop(l2arc_dev_t *l2ad)
+{
+	mutex_enter(&l2arc_rebuild_thr_lock);
+	if (l2ad->l2ad_rebuild_began == B_TRUE) {
+		l2ad->l2ad_rebuild_cancel = B_TRUE;
+		while (l2ad->l2ad_rebuild == B_TRUE)
+			cv_wait(&l2arc_rebuild_thr_cv, &l2arc_rebuild_thr_lock);
+	}
+	mutex_exit(&l2arc_rebuild_thr_lock);
+}
+
 /*
  * Remove a vdev from the L2ARC.
  */
@@ -10014,13 +10026,7 @@ l2arc_remove_vdev(vdev_t *vd)
 	/*
 	 * Cancel any ongoing or scheduled rebuild.
 	 */
-	mutex_enter(&l2arc_rebuild_thr_lock);
-	if (remdev->l2ad_rebuild_began == B_TRUE) {
-		remdev->l2ad_rebuild_cancel = B_TRUE;
-		while (remdev->l2ad_rebuild == B_TRUE)
-			cv_wait(&l2arc_rebuild_thr_cv, &l2arc_rebuild_thr_lock);
-	}
-	mutex_exit(&l2arc_rebuild_thr_lock);
+	l2arc_dev_rebuild_stop(remdev);
 
 	/*
 	 * Remove device from global list
@@ -10133,6 +10139,25 @@ l2arc_spa_rebuild_start(spa_t *spa)
 			    dev, 0, &p0, TS_RUN, minclsyspri);
 		}
 		mutex_exit(&l2arc_rebuild_thr_lock);
+	}
+}
+
+void
+l2arc_spa_rebuild_stop(spa_t *spa)
+{
+	ASSERT(MUTEX_HELD(&spa_namespace_lock));
+
+	/*
+	 * Locate the spa's l2arc devices and kick off rebuild threads.
+	 */
+	for (int i = 0; i < spa->spa_l2cache.sav_count; i++) {
+		l2arc_dev_t *dev =
+		    l2arc_vdev_get(spa->spa_l2cache.sav_vdevs[i]);
+		if (dev == NULL) {
+			/* Don't attempt a rebuild if the vdev is UNAVAIL */
+			continue;
+		}
+		l2arc_dev_rebuild_stop(dev);
 	}
 }
 

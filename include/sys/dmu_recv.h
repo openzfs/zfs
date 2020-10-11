@@ -39,6 +39,7 @@ extern const char *recv_clone_name;
 
 typedef struct dmu_recv_cookie {
 	struct dsl_dataset *drc_ds;
+	kthread_t *drc_initiator;
 	struct dmu_replay_record *drc_drr_begin;
 	struct drr_begin *drc_drrb;
 	const char *drc_tofs;
@@ -55,6 +56,8 @@ typedef struct dmu_recv_cookie {
 	nvlist_t *drc_keynvl;
 	uint64_t drc_fromsnapobj;
 	uint64_t drc_ivset_guid;
+	unsigned int drc_flags;
+	void *drc_rwa;
 	void *drc_owner;
 	cred_t *drc_cred;
 	proc_t *drc_proc;
@@ -81,6 +84,7 @@ int dmu_recv_begin(char *, char *, dmu_replay_record_t *,
     boolean_t, boolean_t, nvlist_t *, nvlist_t *, char *,
     dmu_recv_cookie_t *, zfs_file_t *, offset_t *);
 int dmu_recv_stream(dmu_recv_cookie_t *, offset_t *);
+int dmu_recv_close(dsl_dataset_t *ds);
 int dmu_recv_end(dmu_recv_cookie_t *, void *);
 boolean_t dmu_objset_is_receiving(objset_t *);
 

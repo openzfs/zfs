@@ -60,6 +60,7 @@ int dmu_send_obj(const char *pool, uint64_t tosnap, uint64_t fromsnap,
     boolean_t embedok, boolean_t large_block_ok, boolean_t compressok,
     boolean_t rawok, boolean_t savedok, int outfd, offset_t *off,
     struct dmu_send_outparams *dso);
+int dmu_send_close(struct dsl_dataset *ds);
 
 typedef int (*dmu_send_outfunc_t)(objset_t *os, void *buf, int len, void *arg);
 typedef struct dmu_send_outparams {

@@ -545,6 +545,13 @@ zap_get_leaf_byblk(zap_t *zap, uint64_t blkid, dmu_tx_t *tx, krw_t lt,
 	ASSERT3U(db->db_size, ==, 1 << bs);
 	ASSERT(blkid != 0);
 
+	zap_leaf_phys_t *zap_phys = db->db_data;
+	if (zap_phys->l_hdr.lh_block_type != ZBT_LEAF ||
+	    zap_phys->l_hdr.lh_magic != ZAP_LEAF_MAGIC) {
+		dmu_buf_rele(db, NULL);
+		return (SET_ERROR(EIO));
+	}
+
 	zap_leaf_t *l = dmu_buf_get_user(db);
 
 	if (l == NULL)
@@ -559,8 +566,6 @@ zap_get_leaf_byblk(zap_t *zap, uint64_t blkid, dmu_tx_t *tx, krw_t lt,
 		dmu_buf_will_dirty(db, tx);
 	ASSERT3U(l->l_blkid, ==, blkid);
 	ASSERT3P(l->l_dbuf, ==, db);
-	ASSERT3U(zap_leaf_phys(l)->l_hdr.lh_block_type, ==, ZBT_LEAF);
-	ASSERT3U(zap_leaf_phys(l)->l_hdr.lh_magic, ==, ZAP_LEAF_MAGIC);
 
 	*lp = l;
 	return (0);

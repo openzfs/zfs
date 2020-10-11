@@ -133,3 +133,15 @@ zfs_mount_delegation_check(void)
 {
 	return (0);
 }
+
+void
+zpool_unmount_mark_hard_force_begin(zpool_handle_t *zhp)
+{
+	(void) zhp;
+}
+
+void
+zpool_unmount_mark_hard_force_end(zpool_handle_t *zhp)
+{
+	(void) zhp;
+}

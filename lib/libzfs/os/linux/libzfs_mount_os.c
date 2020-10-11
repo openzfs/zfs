@@ -411,3 +411,23 @@ zfs_mount_delegation_check(void)
 {
 	return ((geteuid() != 0) ? EACCES : 0);
 }
+
+void
+zpool_unmount_mark_hard_force_begin(zpool_handle_t *zhp)
+{
+	zfs_cmd_t zc = {"\0"};
+	libzfs_handle_t *hdl = zhp->zpool_hdl;
+
+	(void) strlcpy(zc.zc_name, zhp->zpool_name, sizeof (zc.zc_name));
+	(void) zfs_ioctl(hdl, ZFS_IOC_HARD_FORCE_UNMOUNT_BEGIN, &zc);
+}
+
+void
+zpool_unmount_mark_hard_force_end(zpool_handle_t *zhp)
+{
+	zfs_cmd_t zc = {"\0"};
+	libzfs_handle_t *hdl = zhp->zpool_hdl;
+
+	(void) strlcpy(zc.zc_name, zhp->zpool_name, sizeof (zc.zc_name));
+	(void) zfs_ioctl(hdl, ZFS_IOC_HARD_FORCE_UNMOUNT_END, &zc);
+}

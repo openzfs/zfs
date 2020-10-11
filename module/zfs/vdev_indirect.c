@@ -563,13 +563,19 @@ spa_condense_indirect_commit_entry(spa_t *spa,
     vdev_indirect_mapping_entry_phys_t *vimep, uint32_t count)
 {
 	spa_condensing_indirect_t *sci = spa->spa_condensing_indirect;
+	dmu_tx_t *tx;
+	int txgoff;
 
 	ASSERT3U(count, <, DVA_GET_ASIZE(&vimep->vimep_dst));
 
-	dmu_tx_t *tx = dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
+	tx = dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
 	dmu_tx_hold_space(tx, sizeof (*vimep) + sizeof (count));
-	VERIFY0(dmu_tx_assign(tx, TXG_WAIT));
-	int txgoff = dmu_tx_get_txg(tx) & TXG_MASK;
+	if (dmu_tx_assign(tx, TXG_WAIT) != 0) {
+		ASSERT(spa_exiting_any(spa));
+		dmu_tx_abort(tx);
+		return;
+	}
+	txgoff = dmu_tx_get_txg(tx) & TXG_MASK;
 
 	/*
 	 * If we are the first entry committed this txg, kick off the sync
@@ -651,6 +657,7 @@ spa_condense_indirect_thread(void *arg, zthr_t *zthr)
 {
 	spa_t *spa = arg;
 	vdev_t *vd;
+	int err = 0;
 
 	ASSERT3P(spa->spa_condensing_indirect, !=, NULL);
 	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
@@ -744,9 +751,10 @@ spa_condense_indirect_thread(void *arg, zthr_t *zthr)
 	if (zthr_iscancelled(zthr))
 		return;
 
-	VERIFY0(dsl_sync_task(spa_name(spa), NULL,
+	err = dsl_sync_task(spa_name(spa), NULL,
 	    spa_condense_indirect_complete_sync, sci, 0,
-	    ZFS_SPACE_CHECK_EXTRA_RESERVED));
+	    ZFS_SPACE_CHECK_EXTRA_RESERVED);
+	VERIFY(err == 0 || spa_exiting_any(spa));
 }
 
 /*

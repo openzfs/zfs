@@ -216,6 +216,43 @@ typedef struct znode {
 	ZNODE_OS_FIELDS;
 } znode_t;
 
+/* Verifies the znode is valid. */
+static inline int
+zfs_verify_zp(znode_t *zp)
+{
+	if (unlikely(zp->z_sa_hdl == NULL))
+		return (SET_ERROR(EIO));
+	return (0);
+}
+
+/* zfs_enter and zfs_verify_zp together */
+static inline int
+zfs_enter_verify_zp(zfsvfs_t *zfsvfs, znode_t *zp, const char *tag)
+{
+	int error;
+
+	ZFS_ENTER(zfsvfs);
+	if ((error = zfs_verify_zp(zp)) != 0) {
+		ZFS_EXIT(zfsvfs);
+		return (error);
+	}
+	return (0);
+}
+
+/* zfs_enter_unmountok and zfs_verify_zp together */
+static inline int
+zfs_enter_unmountok_verify_zp(zfsvfs_t *zfsvfs, znode_t *zp, const char *tag)
+{
+	int error;
+
+	ZFS_ENTER_UNMOUNTOK(zfsvfs);
+	if ((error = zfs_verify_zp(zp)) != 0) {
+		ZFS_EXIT(zfsvfs);
+		return (error);
+	}
+	return (0);
+}
+
 typedef struct znode_hold {
 	uint64_t	zh_obj;		/* object id */
 	kmutex_t	zh_lock;	/* lock serializing object access */

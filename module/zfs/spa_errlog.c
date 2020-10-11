@@ -99,9 +99,9 @@ spa_log_error(spa_t *spa, const zbookmark_phys_t *zb)
 
 	/*
 	 * If we are trying to import a pool, ignore any errors, as we won't be
-	 * writing to the pool any time soon.
+	 * writing to the pool any time soon.  Same for force exports.
 	 */
-	if (spa_load_state(spa) == SPA_LOAD_TRYIMPORT)
+	if (spa_exiting_any(spa) || spa_load_state(spa) == SPA_LOAD_TRYIMPORT)
 		return;
 
 	mutex_enter(&spa->spa_errlist_lock);
@@ -307,13 +307,15 @@ sync_error_list(spa_t *spa, avl_tree_t *t, uint64_t *obj, dmu_tx_t *tx)
 	void *cookie;
 
 	if (avl_numnodes(t) != 0) {
+		if (spa_exiting_any(spa))
+			goto done;
+
 		/* create log if necessary */
 		if (*obj == 0)
 			*obj = zap_create(spa->spa_meta_objset,
 			    DMU_OT_ERROR_LOG, DMU_OT_NONE,
 			    0, tx);
 
-		/* add errors to the current log */
 		for (se = avl_first(t); se != NULL; se = AVL_NEXT(t, se)) {
 			char *name = se->se_name ? se->se_name : "";
 
@@ -323,6 +325,7 @@ sync_error_list(spa_t *spa, avl_tree_t *t, uint64_t *obj, dmu_tx_t *tx)
 			    *obj, buf, 1, strlen(name) + 1, name, tx);
 		}
 
+done:
 		/* purge the error list */
 		cookie = NULL;
 		while ((se = avl_destroy_nodes(t, &cookie)) != NULL)

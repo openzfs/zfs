@@ -48,6 +48,7 @@ log_must zpool checkpoint $NESTEDPOOL
 log_must truncate -s $EXPSZ $FILEDISK1
 log_must zpool online -e $NESTEDPOOL $FILEDISK1
 NEWSZ=$(zpool list -v | grep "$FILEDISK1" | awk '{print $2}')
+log_must zpool sync $NESTEDPOOL
 nested_change_state_after_checkpoint
 log_mustnot [ "$INITSZ" = "$NEWSZ" ]
 
