@@ -287,12 +287,14 @@ function check_prop_source
         typeset chk_value=$(get_prop "$prop" "$dataset")
         typeset chk_source=$(get_source "$prop" "$dataset")
 
-        if [[ "$chk_value" != "$value" || "$chk_source" != "$4" ]]
-        then
-                return 1
-        else
-                return 0
-        fi
+	if [[ "$chk_value" != "$value" || "$chk_source" != "$source" ]]
+	then
+		log_note "expected (value '$value', source '$source'), got \
+			(value '$chk_value', source '$chk_source')"
+		return 1
+	else
+		return 0
+	fi
 }
 
 #
