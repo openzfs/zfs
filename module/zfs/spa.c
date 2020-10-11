@@ -6236,6 +6236,7 @@ static int
 spa_export_common(const char *pool, int new_state, nvlist_t **oldconfig,
     boolean_t force, boolean_t hardforce)
 {
+	int error;
 	spa_t *spa;
 
 	if (oldconfig)
@@ -6288,13 +6289,9 @@ spa_export_common(const char *pool, int new_state, nvlist_t **oldconfig,
 	 * references.  If we are resetting a pool, allow references by
 	 * fault injection handlers.
 	 */
-	if (!spa_refcount_zero(spa) ||
-	    (spa->spa_inject_ref != 0 &&
-	    new_state != POOL_STATE_UNINITIALIZED)) {
-		spa_async_resume(spa);
-		spa->spa_is_exporting = B_FALSE;
-		mutex_exit(&spa_namespace_lock);
-		return (SET_ERROR(EBUSY));
+	if (!spa_refcount_zero(spa) || (spa->spa_inject_ref != 0)) {
+		error = SET_ERROR(EBUSY);
+		goto fail;
 	}
 
 	if (spa->spa_sync_on) {
@@ -6306,10 +6303,8 @@ spa_export_common(const char *pool, int new_state, nvlist_t **oldconfig,
 		 */
 		if (!force && new_state == POOL_STATE_EXPORTED &&
 		    spa_has_active_shared_spare(spa)) {
-			spa_async_resume(spa);
-			spa->spa_is_exporting = B_FALSE;
-			mutex_exit(&spa_namespace_lock);
-			return (SET_ERROR(EXDEV));
+			error = SET_ERROR(EXDEV);
+			goto fail;
 		}
 
 		/*
@@ -6371,6 +6366,12 @@ export_spa:
 
 	mutex_exit(&spa_namespace_lock);
 	return (0);
+
+fail:
+	spa->spa_is_exporting = B_FALSE;
+	spa_async_resume(spa);
+	mutex_exit(&spa_namespace_lock);
+	return (error);
 }
 
 /*
