@@ -22,7 +22,7 @@
 /*
  * Copyright (c) 2019, n1kl (bunge)
  * Copyright (c) 2020, Sebastian Gottschall
- * Copyright (c) 2020, Kjeld Schouten-Lebbing 
+ * Copyright (c) 2020, Kjeld Schouten-Lebbing
  */
 
 /*
