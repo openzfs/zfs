@@ -36,6 +36,7 @@
 #include <sys/spl_condvar.h>
 #include <sys/mutex.h>
 #include <sys/time.h>
+#include <sys/errno.h>
 
 /*
  * cv_timedwait() is similar to cv_wait() except that it additionally expects

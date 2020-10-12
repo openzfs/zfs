@@ -23,8 +23,11 @@
 
 #ifndef _SPL_KSTAT_H
 #define	_SPL_KSTAT_H
+
 #include <sys/types.h>
+#ifndef _STANDALONE
 #include <sys/sysctl.h>
+#endif
 struct list_head {};
 #include <sys/mutex.h>
 #include <sys/proc.h>
@@ -128,9 +131,10 @@ struct kstat_s {
 	kstat_raw_ops_t	ks_raw_ops;		/* ops table for raw type */
 	char		*ks_raw_buf;		/* buf used for raw ops */
 	size_t		ks_raw_bufsize;		/* size of raw ops buffer */
+#ifndef _STANDALONE
 	struct sysctl_ctx_list ks_sysctl_ctx;
 	struct sysctl_oid *ks_sysctl_root;
-
+#endif /* _STANDALONE */
 };
 
 typedef struct kstat_named_s {
@@ -215,10 +219,16 @@ extern void kstat_runq_exit(kstat_io_t *);
     __kstat_set_seq_raw_ops(k, h, d, a)
 #define	kstat_set_raw_ops(k, h, d, a) \
     __kstat_set_raw_ops(k, h, d, a)
+#ifndef _STANDALONE
 #define	kstat_create(m, i, n, c, t, s, f) \
     __kstat_create(m, i, n, c, t, s, f)
 
 #define	kstat_install(k)		__kstat_install(k)
 #define	kstat_delete(k)			__kstat_delete(k)
+#else
+#define	kstat_create(m, i, n, c, t, s, f)	((kstat_t *)0)
+#define	kstat_install(k)
+#define	kstat_delete(k)
+#endif
 
 #endif  /* _SPL_KSTAT_H */

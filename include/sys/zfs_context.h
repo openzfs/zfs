@@ -32,7 +32,15 @@
 extern "C" {
 #endif
 
-#ifdef __KERNEL__
+/*
+ * This code compiles in three different contexts. When __KERNEL__ is defined,
+ * the code uses "unix-like" kernel interfaces. When _STANDALONE is defined, the
+ * code is running in a reduced capacity environment of the boot loader which is
+ * generally a subset of both POSIX and kernel interfaces (with a few unique
+ * interfaces too). When neither are defined, it's in a userland POSIX or
+ * similar environment.
+ */
+#if defined(__KERNEL__) || defined(_STANDALONE)
 #include <sys/note.h>
 #include <sys/types.h>
 #include <sys/atomic.h>
@@ -65,7 +73,7 @@ extern "C" {
 #include <sys/procfs_list.h>
 #include <sys/mod.h>
 #include <sys/zfs_context_os.h>
-#else /* _KERNEL */
+#else /* _KERNEL || _STANDALONE */
 
 #define	_SYS_MUTEX_H
 #define	_SYS_RWLOCK_H
@@ -759,7 +767,7 @@ extern int kmem_cache_reap_active(void);
 #define	__init
 #define	__exit
 
-#endif /* _KERNEL */
+#endif  /* _KERNEL || _STANDALONE */
 
 #ifdef __cplusplus
 };

@@ -52,42 +52,33 @@ extern "C" {
 /*PRINTFLIKE2*/
 extern void cmn_err(int, const char *, ...)
     __KPRINTFLIKE(2);
-#pragma rarely_called(cmn_err)
 
 extern void vzcmn_err(zoneid_t, int, const char *, __va_list)
     __KVPRINTFLIKE(3);
-#pragma rarely_called(vzcmn_err)
 
 extern void vcmn_err(int, const char *, __va_list)
     __KVPRINTFLIKE(2);
-#pragma rarely_called(vcmn_err)
 
 /*PRINTFLIKE3*/
 extern void zcmn_err(zoneid_t, int, const char *, ...)
     __KPRINTFLIKE(3);
-#pragma rarely_called(zcmn_err)
 
 extern void vzprintf(zoneid_t, const char *, __va_list)
     __KVPRINTFLIKE(2);
-#pragma rarely_called(vzprintf)
 
 /*PRINTFLIKE2*/
 extern void zprintf(zoneid_t, const char *, ...)
     __KPRINTFLIKE(2);
-#pragma rarely_called(zprintf)
 
 extern void vuprintf(const char *, __va_list)
     __KVPRINTFLIKE(1);
-#pragma rarely_called(vuprintf)
 
 /*PRINTFLIKE1*/
 extern void panic(const char *, ...)
     __KPRINTFLIKE(1) __NORETURN;
-#pragma rarely_called(panic)
 
 extern void vpanic(const char *, __va_list)
     __KVPRINTFLIKE(1) __NORETURN;
-#pragma rarely_called(vpanic)
 
 #endif /* !_ASM */
 

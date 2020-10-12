@@ -25,6 +25,8 @@
 #ifndef	_SPL_PROCFS_LIST_H
 #define	_SPL_PROCFS_LIST_H
 
+#ifndef _STANDALONE
+
 #include <sys/kstat.h>
 #include <sys/mutex.h>
 
@@ -63,5 +65,9 @@ void procfs_list_install(const char *module,
 void procfs_list_uninstall(procfs_list_t *procfs_list);
 void procfs_list_destroy(procfs_list_t *procfs_list);
 void procfs_list_add(procfs_list_t *procfs_list, void *p);
+
+#else
+typedef int procfs_list_t;
+#endif /* !_STANDALONE */
 
 #endif	/* _SPL_PROCFS_LIST_H */
