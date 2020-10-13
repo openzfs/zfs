@@ -545,7 +545,7 @@ zil_lwb_vdev_compare(const void *x1, const void *x2)
 }
 
 static lwb_t *
-zil_alloc_lwb(zilog_t *zilog, blkptr_t *bp, boolean_t slog, uint64_t txg,
+zil_alloc_lwb(zilog_t *zilog, const blkptr_t *bp, boolean_t slog, uint64_t txg,
     boolean_t fastwrite)
 {
 	lwb_t *lwb;
