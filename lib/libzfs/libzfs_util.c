@@ -1010,8 +1010,7 @@ libzfs_init(void)
 	int error;
 	char *env;
 
-	error = libzfs_load_module();
-	if (error) {
+	if ((error = libzfs_load_module()) != 0) {
 		errno = error;
 		return (NULL);
 	}

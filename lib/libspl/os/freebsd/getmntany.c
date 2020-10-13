@@ -37,10 +37,6 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#define	BUFSIZE	(MNT_LINE_MAX + 2)
-
-__thread char buf[BUFSIZE];
-
 int
 getextmntent(const char *path, struct extmnttab *entry, struct stat64 *statbuf)
 {
