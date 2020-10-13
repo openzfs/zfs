@@ -809,9 +809,20 @@ Default value: \fB1,048,576\fR.
 \fBzfetch_max_distance\fR (uint)
 .ad
 .RS 12n
-Max bytes to prefetch per stream (default 8MB).
+Max bytes to prefetch per stream.
 .sp
-Default value: \fB8,388,608\fR.
+Default value: \fB8,388,608\fR (8MB).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfetch_max_idistance\fR (uint)
+.ad
+.RS 12n
+Max bytes to prefetch indirects for per stream.
+.sp
+Default vaule: \fB67,108,864\fR (64MB).
 .RE
 
 .sp

@@ -377,7 +377,10 @@ ZFS_MODULE_PARAM(zfs_prefetch, zfetch_, min_sec_reap, UINT, ZMOD_RW,
 	"Min time before stream reclaim");
 
 ZFS_MODULE_PARAM(zfs_prefetch, zfetch_, max_distance, UINT, ZMOD_RW,
-	"Max bytes to prefetch per stream (default 8MB)");
+	"Max bytes to prefetch per stream");
+
+ZFS_MODULE_PARAM(zfs_prefetch, zfetch_, max_idistance, UINT, ZMOD_RW,
+	"Max bytes to prefetch indirects for per stream");
 
 ZFS_MODULE_PARAM(zfs_prefetch, zfetch_, array_rd_sz, ULONG, ZMOD_RW,
 	"Number of bytes in a array_read");
