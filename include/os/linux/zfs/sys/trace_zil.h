@@ -67,11 +67,16 @@
 		__entry->zl_stop_sync	= zilog->zl_stop_sync;		    \
 		__entry->zl_logbias		= zilog->zl_logbias;	    \
 		__entry->zl_sync		= zilog->zl_sync;	    \
-		__entry->zl_parse_error	= zilog->zl_parse_error;	    \
-		__entry->zl_parse_blk_seq	= zilog->zl_parse_blk_seq;  \
-		__entry->zl_parse_lr_seq	= zilog->zl_parse_lr_seq;   \
-		__entry->zl_parse_blk_count	= zilog->zl_parse_blk_count;\
-		__entry->zl_parse_lr_count	= zilog->zl_parse_lr_count; \
+		__entry->zl_parse_error		= \
+			zilog->zl_last_parse_result.zlpr_error; \
+		__entry->zl_parse_blk_seq	= \
+			zilog->zl_last_parse_result.zlpr_blk_seq; \
+		__entry->zl_parse_lr_seq	= \
+			zilog->zl_last_parse_result.zlpr_lr_seq;  \
+		__entry->zl_parse_blk_count	= \
+			zilog->zl_last_parse_result.zlpr_blk_count;\
+		__entry->zl_parse_lr_count	= \
+			zilog->zl_last_parse_result.zlpr_lr_count; \
 		__entry->zl_cur_used	= zilog->zl_cur_used;		    \
 		__entry->zl_replay_time	= zilog->zl_replay_time;	    \
 		__entry->zl_replay_blks	= zilog->zl_replay_blks;

@@ -192,11 +192,7 @@ struct zilog {
 	kmutex_t	zl_issuer_lock;	/* single writer, per ZIL, at a time */
 	uint8_t		zl_logbias;	/* latency or throughput */
 	uint8_t		zl_sync;	/* synchronous or asynchronous */
-	int		zl_parse_error;	/* last zil_parse() error */
-	uint64_t	zl_parse_blk_seq; /* highest blk seq on last parse */
-	uint64_t	zl_parse_lr_seq; /* highest lr seq on last parse */
-	uint64_t	zl_parse_blk_count; /* number of blocks parsed */
-	uint64_t	zl_parse_lr_count; /* number of log records parsed */
+	zil_parse_result_t zl_last_parse_result; /* last zil_parse() result */
 	itxg_t		zl_itxg[TXG_SIZE]; /* intent log txg chains */
 	list_t		zl_itx_commit_list; /* itx list to be committed */
 	uint64_t	zl_cur_used;	/* current commit log size used */

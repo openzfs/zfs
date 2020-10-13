@@ -217,8 +217,9 @@ zil_init_log_chain(zilog_t *zilog, blkptr_t *bp)
  * Read a log block and make sure it's valid.
  */
 static int
-zil_read_log_block(zilog_t *zilog, boolean_t decrypt, const blkptr_t *bp,
-    blkptr_t *nbp, void *dst, char **end)
+zil_read_log_block(spa_t *spa, const zil_header_t *zh, boolean_t decrypt,
+    zio_priority_t prio, const blkptr_t *bp, blkptr_t *nbp, void *dst,
+    char **end)
 {
 	enum zio_flag zio_flags = ZIO_FLAG_CANFAIL;
 	arc_flags_t aflags = ARC_FLAG_WAIT;
@@ -226,10 +227,10 @@ zil_read_log_block(zilog_t *zilog, boolean_t decrypt, const blkptr_t *bp,
 	zbookmark_phys_t zb;
 	int error;
 
-	if (zilog->zl_header->zh_claim_txg == 0)
+	if (zh->zh_claim_txg == 0)
 		zio_flags |= ZIO_FLAG_SPECULATIVE | ZIO_FLAG_SCRUB;
 
-	if (!(zilog->zl_header->zh_flags & ZIL_CLAIM_LR_SEQ_VALID))
+	if (!(zh->zh_flags & ZIL_CLAIM_LR_SEQ_VALID))
 		zio_flags |= ZIO_FLAG_SPECULATIVE;
 
 	if (!decrypt)
@@ -238,8 +239,8 @@ zil_read_log_block(zilog_t *zilog, boolean_t decrypt, const blkptr_t *bp,
 	SET_BOOKMARK(&zb, bp->blk_cksum.zc_word[ZIL_ZC_OBJSET],
 	    ZB_ZIL_OBJECT, ZB_ZIL_LEVEL, bp->blk_cksum.zc_word[ZIL_ZC_SEQ]);
 
-	error = arc_read(NULL, zilog->zl_spa, bp, arc_getbuf_func,
-	    &abuf, ZIO_PRIORITY_SYNC_READ, zio_flags, &aflags, &zb);
+	error = arc_read(NULL, spa, bp, arc_getbuf_func, &abuf, prio, zio_flags,
+	    &aflags, &zb);
 
 	if (error == 0) {
 		zio_cksum_t cksum = bp->blk_cksum;
@@ -337,15 +338,13 @@ zil_read_log_data(zilog_t *zilog, const lr_write_t *lr, void *wbuf)
 	return (error);
 }
 
-/*
- * Parse the intent log, and call parse_func for each valid record within.
- */
+
 int
-zil_parse(zilog_t *zilog, zil_parse_blk_func_t *parse_blk_func,
-    zil_parse_lr_func_t *parse_lr_func, void *arg, uint64_t txg,
-    boolean_t decrypt)
+zil_parse_phys(spa_t *spa, const zil_header_t *zh,
+    zil_parse_phys_blk_func_t *parse_blk_func,
+    zil_parse_phys_lr_func_t *parse_lr_func, void *arg, boolean_t decrypt,
+    zio_priority_t prio, zil_parse_result_t *result)
 {
-	const zil_header_t *zh = zilog->zl_header;
 	boolean_t claimed = !!zh->zh_claim_txg;
 	uint64_t claim_blk_seq = claimed ? zh->zh_claim_blk_seq : UINT64_MAX;
 	uint64_t claim_lr_seq = claimed ? zh->zh_claim_lr_seq : UINT64_MAX;
@@ -375,7 +374,6 @@ zil_parse(zilog_t *zilog, zil_parse_blk_func_t *parse_blk_func,
 	 * number greater than the highest claimed sequence number.
 	 */
 	lrbuf = zio_buf_alloc(SPA_OLD_MAXBLOCKSIZE);
-	zil_bp_tree_init(zilog);
 
 	for (blk = zh->zh_log; !BP_IS_HOLE(&blk); blk = next_blk) {
 		uint64_t blk_seq = blk.blk_cksum.zc_word[ZIL_ZC_SEQ];
@@ -385,7 +383,7 @@ zil_parse(zilog_t *zilog, zil_parse_blk_func_t *parse_blk_func,
 		if (blk_seq > claim_blk_seq)
 			break;
 
-		error = parse_blk_func(zilog, &blk, arg, txg);
+		error = parse_blk_func(&blk, arg);
 		if (error != 0)
 			break;
 		ASSERT3U(max_blk_seq, <, blk_seq);
@@ -395,8 +393,8 @@ zil_parse(zilog_t *zilog, zil_parse_blk_func_t *parse_blk_func,
 		if (max_lr_seq == claim_lr_seq && max_blk_seq == claim_blk_seq)
 			break;
 
-		error = zil_read_log_block(zilog, decrypt, &blk, &next_blk,
-		    lrbuf, &end);
+		error = zil_read_log_block(spa, zh, decrypt, prio, &blk,
+		    &next_blk, lrbuf, &end);
 		if (error != 0)
 			break;
 
@@ -407,7 +405,7 @@ zil_parse(zilog_t *zilog, zil_parse_blk_func_t *parse_blk_func,
 			if (lr->lrc_seq > claim_lr_seq)
 				goto done;
 
-			error = parse_lr_func(zilog, lr, arg, txg);
+			error = parse_lr_func(lr, arg);
 			if (error != 0)
 				goto done;
 			ASSERT3U(max_lr_seq, <, lr->lrc_seq);
@@ -416,20 +414,73 @@ zil_parse(zilog_t *zilog, zil_parse_blk_func_t *parse_blk_func,
 		}
 	}
 done:
-	zilog->zl_parse_error = error;
-	zilog->zl_parse_blk_seq = max_blk_seq;
-	zilog->zl_parse_lr_seq = max_lr_seq;
-	zilog->zl_parse_blk_count = blk_count;
-	zilog->zl_parse_lr_count = lr_count;
+	if (result != NULL) {
+		result->zlpr_error = error;
+		result->zlpr_blk_seq = max_blk_seq;
+		result->zlpr_lr_seq = max_lr_seq;
+		result->zlpr_blk_count = blk_count;
+		result->zlpr_lr_count = lr_count;
+	}
 
 	ASSERT(!claimed || !(zh->zh_flags & ZIL_CLAIM_LR_SEQ_VALID) ||
 	    (max_blk_seq == claim_blk_seq && max_lr_seq == claim_lr_seq) ||
 	    (decrypt && error == EIO));
 
-	zil_bp_tree_fini(zilog);
 	zio_buf_free(lrbuf, SPA_OLD_MAXBLOCKSIZE);
 
 	return (error);
+}
+
+typedef struct {
+	zilog_t *zpwa_zl;
+	uint64_t zpwa_txg;
+	zil_parse_blk_func_t *zpwa_parse_blk_func;
+	zil_parse_lr_func_t *zpwa_parse_lr_func;
+	void *zpwa_arg;
+} zil_parse_wrapper_arg_t;
+
+static int
+zil_parse_blk_wrapper(const blkptr_t *bp, void *arg)
+{
+	zil_parse_wrapper_arg_t *a = arg;
+	int ret;
+	ret = a->zpwa_parse_blk_func(a->zpwa_zl, bp, a->zpwa_arg,
+	    a->zpwa_txg);
+	return (ret);
+}
+
+static int
+zil_parse_lr_wrapper(const lr_t *lr, void *arg)
+{
+	zil_parse_wrapper_arg_t *a = arg;
+	int ret;
+	ret = a->zpwa_parse_lr_func(a->zpwa_zl, lr, a->zpwa_arg, a->zpwa_txg);
+	return (ret);
+}
+
+int
+zil_parse(zilog_t *zilog, zil_parse_blk_func_t *parse_blk_func,
+    zil_parse_lr_func_t *parse_lr_func, void *arg, uint64_t txg,
+    boolean_t decrypt)
+{
+	int err;
+	zil_parse_wrapper_arg_t warg = {
+		.zpwa_zl = zilog,
+		.zpwa_txg = txg,
+		.zpwa_parse_blk_func = parse_blk_func,
+		.zpwa_parse_lr_func = parse_lr_func,
+		.zpwa_arg = arg
+	};
+
+	zil_bp_tree_init(zilog);
+
+	err = zil_parse_phys(zilog->zl_spa, zilog->zl_header,
+	    zil_parse_blk_wrapper, zil_parse_lr_wrapper, &warg, decrypt,
+	    ZIO_PRIORITY_SYNC_READ, &zilog->zl_last_parse_result);
+
+	zil_bp_tree_fini(zilog);
+
+	return (err);
 }
 
 /* ARGSUSED */
@@ -891,9 +942,10 @@ zil_claim(dsl_pool_t *dp, dsl_dataset_t *ds, void *txarg)
 		(void) zil_parse(zilog, zil_claim_log_block,
 		    zil_claim_log_record, tx, first_txg, B_FALSE);
 		zh->zh_claim_txg = first_txg;
-		zh->zh_claim_blk_seq = zilog->zl_parse_blk_seq;
-		zh->zh_claim_lr_seq = zilog->zl_parse_lr_seq;
-		if (zilog->zl_parse_lr_count || zilog->zl_parse_blk_count > 1)
+		const zil_parse_result_t *lpr = &zilog->zl_last_parse_result;
+		zh->zh_claim_blk_seq = lpr->zlpr_blk_seq;
+		zh->zh_claim_lr_seq = lpr->zlpr_lr_seq;
+		if (lpr->zlpr_lr_count || lpr->zlpr_blk_count > 1)
 			zh->zh_flags |= ZIL_REPLAY_NEEDED;
 		zh->zh_flags |= ZIL_CLAIM_LR_SEQ_VALID;
 		if (os->os_encrypted)

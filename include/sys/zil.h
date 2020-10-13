@@ -475,6 +475,21 @@ extern int zil_parse(zilog_t *zilog, zil_parse_blk_func_t *parse_blk_func,
     zil_parse_lr_func_t *parse_lr_func, void *arg, uint64_t txg,
     boolean_t decrypt);
 
+
+typedef int zil_parse_phys_blk_func_t(const blkptr_t *bp, void *arg);
+typedef int zil_parse_phys_lr_func_t(const lr_t *lr, void *arg);
+typedef struct {
+	int		    zlpr_error;	/* last zil_parse() error */
+	uint64_t	zlpr_blk_seq; /* highest blk seq we got to */
+	uint64_t	zlpr_lr_seq; /* highest lr seq we got to */
+	uint64_t	zlpr_blk_count; /* number of blocks parsed */
+	uint64_t	zlpr_lr_count; /* number of log records parsed */
+} zil_parse_result_t;
+int zil_parse_phys(spa_t *spa, const zil_header_t *zh,
+    zil_parse_phys_blk_func_t *parse_blk_func,
+	zil_parse_phys_lr_func_t *parse_lr_func, void *arg, boolean_t decrypt,
+	zio_priority_t zio_priority, zil_parse_result_t *result);
+
 extern void	zil_init(void);
 extern void	zil_fini(void);
 

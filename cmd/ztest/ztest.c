@@ -7216,13 +7216,15 @@ ztest_dataset_open(int d)
 
 	ztest_dataset_dirobj_verify(zd);
 
-	if (ztest_opts.zo_verbose >= 6)
+	if (ztest_opts.zo_verbose >= 6) {
+		zil_parse_result_t *lpr = &zilog->zl_last_parse_result;
 		(void) printf("%s replay %"PRIu64" blocks, "
 		    "%"PRIu64" records, seq %"PRIu64"\n",
 		    zd->zd_name,
-		    zilog->zl_parse_blk_count,
-		    zilog->zl_parse_lr_count,
+		    lpr->zlpr_blk_count,
+		    lpr->zlpr_lr_count,
 		    zilog->zl_replaying_seq);
+	}
 
 	zilog = zil_open(os, ztest_get_data);
 
@@ -7262,15 +7264,15 @@ ztest_replay_zil_cb(const char *name, void *arg)
 	zil_replay(os, zdtmp, ztest_replay_vector);
 	ztest_zd_fini(zdtmp);
 
-	if (dmu_objset_zil(os)->zl_parse_lr_count != 0 &&
-	    ztest_opts.zo_verbose >= 6) {
+	zilog_t *zilog = dmu_objset_zil(os);
+	zil_parse_result_t *lpr = &zilog->zl_last_parse_result;
+	if (lpr->zlpr_lr_count != 0 && ztest_opts.zo_verbose >= 6) {
 		zilog_t *zilog = dmu_objset_zil(os);
-
 		(void) printf("%s replay %"PRIu64" blocks, "
 		    "%"PRIu64" records, seq %"PRIu64"\n",
 		    name,
-		    zilog->zl_parse_blk_count,
-		    zilog->zl_parse_lr_count,
+		    lpr->zlpr_blk_count,
+		    lpr->zlpr_lr_count,
 		    zilog->zl_replaying_seq);
 	}
 
