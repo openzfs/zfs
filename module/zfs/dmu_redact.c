@@ -251,7 +251,7 @@ zfs_get_deleteq(objset_t *os)
  */
 /*ARGSUSED*/
 static int
-redact_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
+redact_cb(spa_t *spa, const blkptr_t *bp,
     const zbookmark_phys_t *zb, const struct dnode_phys *dnp, void *arg)
 {
 	struct redact_thread_arg *rta = arg;
@@ -259,6 +259,8 @@ redact_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 
 	ASSERT(zb->zb_object == DMU_META_DNODE_OBJECT ||
 	    zb->zb_object >= rta->resume.zb_object);
+
+	ASSERT3S(zb->zb_level, !=, ZB_ZIL_LEVEL);
 
 	if (rta->cancel)
 		return (SET_ERROR(EINTR));
@@ -365,7 +367,7 @@ redact_traverse_thread(void *arg)
 	rt_arg->deleted_objs = objlist_create();
 #endif
 
-	err = traverse_dataset_resume(rt_arg->ds, rt_arg->txg,
+	err = traverse_dataset_resume_no_zil(rt_arg->ds, rt_arg->txg,
 	    &rt_arg->resume, TRAVERSE_PRE | TRAVERSE_PREFETCH_METADATA,
 	    redact_cb, rt_arg);
 

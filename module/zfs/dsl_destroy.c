@@ -701,29 +701,20 @@ struct killarg {
 
 /* ARGSUSED */
 static int
-kill_blkptr(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
+kill_blkptr(spa_t *spa, const blkptr_t *bp,
     const zbookmark_phys_t *zb, const dnode_phys_t *dnp, void *arg)
 {
 	struct killarg *ka = arg;
 	dmu_tx_t *tx = ka->tx;
 
+	ASSERT3S(zb->zb_level, !=, ZB_ZIL_LEVEL);
+
 	if (zb->zb_level == ZB_DNODE_LEVEL || BP_IS_HOLE(bp) ||
 	    BP_IS_EMBEDDED(bp))
 		return (0);
 
-	if (zb->zb_level == ZB_ZIL_LEVEL) {
-		ASSERT(zilog != NULL);
-		/*
-		 * It's a block in the intent log.  It has no
-		 * accounting, so just free it.
-		 */
-		dsl_free(ka->tx->tx_pool, ka->tx->tx_txg, bp);
-	} else {
-		ASSERT(zilog == NULL);
-		ASSERT3U(bp->blk_birth, >,
-		    dsl_dataset_phys(ka->ds)->ds_prev_snap_txg);
-		(void) dsl_dataset_block_kill(ka->ds, bp, tx, B_FALSE);
-	}
+	ASSERT3U(bp->blk_birth, >, dsl_dataset_phys(ka->ds)->ds_prev_snap_txg);
+	(void) dsl_dataset_block_kill(ka->ds, bp, tx, B_FALSE);
 
 	return (0);
 }
@@ -738,6 +729,15 @@ old_synchronous_dataset_destroy(dsl_dataset_t *ds, dmu_tx_t *tx)
 	    (long long)dsl_dataset_phys(ds)->ds_prev_snap_txg);
 
 	/*
+	 * TODO REVIEW: can we call this here?
+	 * prior to this change, kill_blkptr had special handling for ZIL
+	 * blocks.
+	 */
+	objset_t *os;
+	VERIFY0(dmu_objset_from_ds(ds, &os));
+	zil_destroy_sync(dmu_objset_zil(os), tx);
+
+	/*
 	 * Free everything that we point to (that's born after
 	 * the previous snapshot, if we are a clone)
 	 *
@@ -746,7 +746,7 @@ old_synchronous_dataset_destroy(dsl_dataset_t *ds, dmu_tx_t *tx)
 	 */
 	ka.ds = ds;
 	ka.tx = tx;
-	VERIFY0(traverse_dataset(ds,
+	VERIFY0(traverse_dataset_no_zil(ds,
 	    dsl_dataset_phys(ds)->ds_prev_snap_txg, TRAVERSE_POST |
 	    TRAVERSE_NO_DECRYPT, kill_blkptr, &ka));
 	ASSERT(!DS_UNIQUE_IS_ACCURATE(ds) ||

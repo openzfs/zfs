@@ -73,71 +73,6 @@ static int traverse_dnode(traverse_data_t *td, const blkptr_t *bp,
 static void prefetch_dnode_metadata(traverse_data_t *td, const dnode_phys_t *,
     uint64_t objset, uint64_t object);
 
-static int
-traverse_zil_block(zilog_t *zilog, const blkptr_t *bp, void *arg,
-    uint64_t claim_txg)
-{
-	traverse_data_t *td = arg;
-	zbookmark_phys_t zb;
-
-	if (BP_IS_HOLE(bp))
-		return (0);
-
-	if (claim_txg == 0 && bp->blk_birth >= spa_min_claim_txg(td->td_spa))
-		return (-1);
-
-	SET_BOOKMARK(&zb, td->td_objset, ZB_ZIL_OBJECT, ZB_ZIL_LEVEL,
-	    bp->blk_cksum.zc_word[ZIL_ZC_SEQ]);
-
-	(void) td->td_func(td->td_spa, zilog, bp, &zb, NULL, td->td_arg);
-
-	return (0);
-}
-
-static int
-traverse_zil_record(zilog_t *zilog, const lr_t *lrc, void *arg,
-    uint64_t claim_txg)
-{
-	traverse_data_t *td = arg;
-
-	if (lrc->lrc_txtype == TX_WRITE) {
-		lr_write_t *lr = (lr_write_t *)lrc;
-		blkptr_t *bp = &lr->lr_blkptr;
-		zbookmark_phys_t zb;
-
-		if (BP_IS_HOLE(bp))
-			return (0);
-
-		if (claim_txg == 0 || bp->blk_birth < claim_txg)
-			return (0);
-
-		SET_BOOKMARK(&zb, td->td_objset, lr->lr_foid,
-		    ZB_ZIL_LEVEL, lr->lr_offset / BP_GET_LSIZE(bp));
-
-		(void) td->td_func(td->td_spa, zilog, bp, &zb, NULL,
-		    td->td_arg);
-	}
-	return (0);
-}
-
-static void
-traverse_zil(traverse_data_t *td, zil_header_t *zh)
-{
-	uint64_t claim_txg = zh->zh_claim_txg;
-
-	/*
-	 * We only want to visit blocks that have been claimed but not yet
-	 * replayed; plus blocks that are already stable in read-only mode.
-	 */
-	if (claim_txg == 0 && spa_writeable(td->td_spa))
-		return;
-
-	zilog_t *zilog = zil_alloc(spa_get_dsl(td->td_spa)->dp_meta_objset, zh);
-	(void) zil_parse(zilog, traverse_zil_block, traverse_zil_record, td,
-	    claim_txg, !(td->td_flags & TRAVERSE_NO_DECRYPT));
-	zil_free(zilog);
-}
-
 typedef enum resume_skip {
 	RESUME_SKIP_ALL,
 	RESUME_SKIP_NONE,
@@ -283,15 +218,14 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 	}
 
 	if (BP_IS_HOLE(bp) || BP_IS_REDACTED(bp)) {
-		err = td->td_func(td->td_spa, NULL, bp, zb, dnp, td->td_arg);
+		err = td->td_func(td->td_spa, bp, zb, dnp, td->td_arg);
 		if (err != 0)
 			goto post;
 		return (0);
 	}
 
 	if (td->td_flags & TRAVERSE_PRE) {
-		err = td->td_func(td->td_spa, NULL, bp, zb, dnp,
-		    td->td_arg);
+		err = td->td_func(td->td_spa, bp, zb, dnp, td->td_arg);
 		if (err == TRAVERSE_VISIT_NO_CHILDREN)
 			return (0);
 		if (err != 0)
@@ -457,7 +391,7 @@ traverse_visitbp(traverse_data_t *td, const dnode_phys_t *dnp,
 
 post:
 	if (err == 0 && (td->td_flags & TRAVERSE_POST))
-		err = td->td_func(td->td_spa, NULL, bp, zb, dnp, td->td_arg);
+		err = td->td_func(td->td_spa, bp, zb, dnp, td->td_arg);
 
 	if ((td->td_flags & TRAVERSE_HARD) && (err == EIO || err == ECKSUM)) {
 		/*
@@ -527,8 +461,7 @@ traverse_dnode(traverse_data_t *td, const blkptr_t *bp, const dnode_phys_t *dnp,
 	if (td->td_flags & TRAVERSE_PRE) {
 		SET_BOOKMARK(&czb, objset, object, ZB_DNODE_LEVEL,
 		    ZB_DNODE_BLKID);
-		err = td->td_func(td->td_spa, NULL, bp, &czb, dnp,
-		    td->td_arg);
+		err = td->td_func(td->td_spa, bp, &czb, dnp, td->td_arg);
 		if (err == TRAVERSE_VISIT_NO_CHILDREN)
 			return (0);
 		if (err != 0)
@@ -550,8 +483,7 @@ traverse_dnode(traverse_data_t *td, const blkptr_t *bp, const dnode_phys_t *dnp,
 	if (err == 0 && (td->td_flags & TRAVERSE_POST)) {
 		SET_BOOKMARK(&czb, objset, object, ZB_DNODE_LEVEL,
 		    ZB_DNODE_BLKID);
-		err = td->td_func(td->td_spa, NULL, bp, &czb, dnp,
-		    td->td_arg);
+		err = td->td_func(td->td_spa, bp, &czb, dnp, td->td_arg);
 		if (err == TRAVERSE_VISIT_NO_CHILDREN)
 			return (0);
 		if (err != 0)
@@ -562,8 +494,8 @@ traverse_dnode(traverse_data_t *td, const blkptr_t *bp, const dnode_phys_t *dnp,
 
 /* ARGSUSED */
 static int
-traverse_prefetcher(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
-    const zbookmark_phys_t *zb, const dnode_phys_t *dnp, void *arg)
+traverse_prefetcher(spa_t *spa, const blkptr_t *bp, const zbookmark_phys_t *zb,
+    const dnode_phys_t *dnp, void *arg)
 {
 	prefetch_data_t *pfd = arg;
 	int zio_flags = ZIO_FLAG_CANFAIL | ZIO_FLAG_SPECULATIVE;
@@ -624,7 +556,8 @@ traverse_prefetch_thread(void *arg)
  * in syncing context).
  */
 static int
-traverse_impl(spa_t *spa, dsl_dataset_t *ds, uint64_t objset, blkptr_t *rootbp,
+traverse_no_zil_impl(spa_t *spa, dsl_dataset_t *ds, uint64_t objset,
+    blkptr_t *rootbp,
     uint64_t txg_start, zbookmark_phys_t *resume, int flags,
     blkptr_cb_t func, void *arg)
 {
@@ -668,36 +601,6 @@ traverse_impl(spa_t *spa, dsl_dataset_t *ds, uint64_t objset, blkptr_t *rootbp,
 	SET_BOOKMARK(czb, td->td_objset,
 	    ZB_ROOT_OBJECT, ZB_ROOT_LEVEL, ZB_ROOT_BLKID);
 
-	/* See comment on ZIL traversal in dsl_scan_visitds. */
-	if (ds != NULL && !ds->ds_is_snapshot && !BP_IS_HOLE(rootbp)) {
-		enum zio_flag zio_flags = ZIO_FLAG_CANFAIL;
-		uint32_t flags = ARC_FLAG_WAIT;
-		objset_phys_t *osp;
-		arc_buf_t *buf;
-		ASSERT(!BP_IS_REDACTED(rootbp));
-
-		if ((td->td_flags & TRAVERSE_NO_DECRYPT) &&
-		    BP_IS_PROTECTED(rootbp))
-			zio_flags |= ZIO_FLAG_RAW;
-
-		err = arc_read(NULL, td->td_spa, rootbp, arc_getbuf_func,
-		    &buf, ZIO_PRIORITY_ASYNC_READ, zio_flags, &flags, czb);
-		if (err != 0) {
-			/*
-			 * If both TRAVERSE_HARD and TRAVERSE_PRE are set,
-			 * continue to visitbp so that td_func can be called
-			 * in pre stage, and err will reset to zero.
-			 */
-			if (!(td->td_flags & TRAVERSE_HARD) ||
-			    !(td->td_flags & TRAVERSE_PRE))
-				goto out;
-		} else {
-			osp = buf->b_data;
-			traverse_zil(td, &osp->os_zil_header);
-			arc_buf_destroy(buf, &buf);
-		}
-	}
-
 	if (!(flags & TRAVERSE_PREFETCH_DATA) ||
 	    taskq_dispatch(spa->spa_prefetch_taskq, traverse_prefetch_thread,
 	    td, TQ_NOQUEUE) == TASKQID_INVALID)
@@ -711,7 +614,7 @@ traverse_impl(spa_t *spa, dsl_dataset_t *ds, uint64_t objset, blkptr_t *rootbp,
 	while (!pd->pd_exited)
 		cv_wait_sig(&pd->pd_cv, &pd->pd_mtx);
 	mutex_exit(&pd->pd_mtx);
-out:
+
 	mutex_destroy(&pd->pd_mtx);
 	cv_destroy(&pd->pd_cv);
 
@@ -727,36 +630,41 @@ out:
  * in syncing context).
  */
 int
-traverse_dataset_resume(dsl_dataset_t *ds, uint64_t txg_start,
+traverse_dataset_resume_no_zil(dsl_dataset_t *ds, uint64_t txg_start,
     zbookmark_phys_t *resume,
     int flags, blkptr_cb_t func, void *arg)
 {
-	return (traverse_impl(ds->ds_dir->dd_pool->dp_spa, ds, ds->ds_object,
-	    &dsl_dataset_phys(ds)->ds_bp, txg_start, resume, flags, func, arg));
+	return (traverse_no_zil_impl(ds->ds_dir->dd_pool->dp_spa, ds,
+	    ds->ds_object, &dsl_dataset_phys(ds)->ds_bp, txg_start, resume,
+	    flags, func, arg));
 }
 
 int
-traverse_dataset(dsl_dataset_t *ds, uint64_t txg_start,
+traverse_dataset_no_zil(dsl_dataset_t *ds, uint64_t txg_start,
     int flags, blkptr_cb_t func, void *arg)
 {
-	return (traverse_dataset_resume(ds, txg_start, NULL, flags, func, arg));
+	return (traverse_dataset_resume_no_zil(ds, txg_start, NULL, flags, func,
+	    arg));
 }
 
 int
-traverse_dataset_destroyed(spa_t *spa, blkptr_t *blkptr,
+traverse_dataset_destroyed_no_zil(spa_t *spa, blkptr_t *blkptr,
     uint64_t txg_start, zbookmark_phys_t *resume, int flags,
     blkptr_cb_t func, void *arg)
 {
-	return (traverse_impl(spa, NULL, ZB_DESTROYED_OBJSET,
+	return (traverse_no_zil_impl(spa, NULL, ZB_DESTROYED_OBJSET,
 	    blkptr, txg_start, resume, flags, func, arg));
 }
 
-/*
- * NB: pool must not be changing on-disk (eg, from zdb or sync context).
- */
+typedef int (traverse_pool_cb_mos_t)(spa_t *spa, uint64_t txg_start, int flags,
+    void *arg);
+typedef int (traverse_pool_cb_ds_t)(spa_t *spa, dsl_dataset_t *ds, uint64_t txg,
+    int flags, void *arg);
+
+inline __attribute__((__always_inline__)) static
 int
-traverse_pool(spa_t *spa, uint64_t txg_start, int flags,
-    blkptr_cb_t func, void *arg)
+traverse_pool_impl(spa_t *spa, uint64_t txg_start, int flags,
+    traverse_pool_cb_mos_t *mos_cb, traverse_pool_cb_ds_t *ds_cb, void *arg)
 {
 	int err;
 	dsl_pool_t *dp = spa_get_dsl(spa);
@@ -764,8 +672,7 @@ traverse_pool(spa_t *spa, uint64_t txg_start, int flags,
 	boolean_t hard = (flags & TRAVERSE_HARD);
 
 	/* visit the MOS */
-	err = traverse_impl(spa, NULL, 0, spa_get_rootblkptr(spa),
-	    txg_start, NULL, flags, func, arg);
+	err = mos_cb != NULL ? mos_cb(spa, txg_start, flags, arg) : 0;
 	if (err != 0)
 		return (err);
 
@@ -795,7 +702,8 @@ traverse_pool(spa_t *spa, uint64_t txg_start, int flags,
 			}
 			if (dsl_dataset_phys(ds)->ds_prev_snap_txg > txg)
 				txg = dsl_dataset_phys(ds)->ds_prev_snap_txg;
-			err = traverse_dataset(ds, txg, flags, func, arg);
+			err = ds_cb != NULL ?
+			    ds_cb(spa, ds, txg, flags, arg) : 0;
 			dsl_dataset_rele(ds, FTAG);
 			if (err != 0)
 				break;
@@ -806,8 +714,141 @@ traverse_pool(spa_t *spa, uint64_t txg_start, int flags,
 	return (err);
 }
 
-EXPORT_SYMBOL(traverse_dataset);
-EXPORT_SYMBOL(traverse_pool);
+
+typedef struct {
+	blkptr_cb_t *tpa_func;
+	void *tpa_arg;
+} traverse_pool_no_zil_arg_t;
+
+static int
+traverse_pool_no_zil_cb_mos(spa_t *spa, uint64_t txg_start, int flags,
+    void *arg)
+{
+	traverse_pool_no_zil_arg_t *targ = arg;
+	int err;
+	err = traverse_no_zil_impl(spa, NULL, 0, spa_get_rootblkptr(spa),
+	    txg_start, NULL, flags, targ->tpa_func, targ->tpa_arg);
+	return (err);
+}
+
+static int
+traverse_pool_no_zil_cb_ds(spa_t *spa, dsl_dataset_t *ds, uint64_t txg,
+    int flags, void *arg)
+{
+	traverse_pool_no_zil_arg_t *targ = arg;
+	int err;
+	err = traverse_dataset_no_zil(ds, txg, flags, targ->tpa_func,
+	    targ->tpa_arg);
+	return (err);
+}
+
+/*
+ * Does not traverse blocks in the ZIL!
+ *
+ * NB: pool must not be changing on-disk (eg, from zdb or sync context).
+ */
+int
+traverse_pool_no_zil(spa_t *spa, uint64_t txg_start, int flags,
+    blkptr_cb_t func, void *arg)
+{
+	traverse_pool_no_zil_arg_t *tpa =
+	    kmem_zalloc(sizeof (traverse_pool_no_zil_arg_t), KM_SLEEP);
+	tpa->tpa_func = func;
+	tpa->tpa_arg = arg;
+	int ret;
+	ret = traverse_pool_impl(spa, txg_start, flags,
+	    traverse_pool_no_zil_cb_mos, traverse_pool_no_zil_cb_ds, tpa);
+	kmem_free(tpa, sizeof (*tpa));
+	return (ret);
+}
+
+typedef struct {
+	traverse_zil_headers_cb_t *tza_func;
+	void *tza_arg;
+} traverse_zil_headers_arg_t;
+
+static int
+traverse_zil_headers_cb_ds(spa_t *spa, dsl_dataset_t *ds, uint64_t txg,
+    int flags, void *arg)
+{
+	traverse_zil_headers_arg_t *tza = arg;
+	const blkptr_t *rootbp = &dsl_dataset_phys(ds)->ds_bp;
+
+	ASSERT3P(ds, !=, NULL);
+
+	/*
+	 * We must only traverse the ZIL of head datasets of a dsl dir due to
+	 * how SPA_VERSION_FAST_SNAP are implemented. See also dsl_scan_visitds.
+	 */
+	if (ds->ds_is_snapshot)
+		return (0);
+	if (BP_IS_HOLE(rootbp))
+		return (0); /* TODO why? ported without understanding */
+
+	/*
+	 * OK, this is a head dataset. Read it's objset_phys_t to get to the
+	 * zil_header_t, then invoke the callback;
+	 */
+
+	enum zio_flag zio_flags = ZIO_FLAG_CANFAIL;
+	uint32_t arc_flags = ARC_FLAG_WAIT;
+
+	ASSERT(!BP_IS_REDACTED(rootbp));
+
+	if ((flags & TRAVERSE_NO_DECRYPT) && BP_IS_PROTECTED(rootbp))
+		zio_flags |= ZIO_FLAG_RAW;
+
+	zbookmark_phys_t *czb;
+	/* TODO why heap-alloced? ported without understanding */
+	czb = kmem_alloc(sizeof (zbookmark_phys_t), KM_SLEEP);
+	SET_BOOKMARK(czb, ds->ds_object,
+	    ZB_ROOT_OBJECT, ZB_ROOT_LEVEL, ZB_ROOT_BLKID);
+
+	arc_buf_t *buf;
+	int err;
+	err = arc_read(NULL, spa, rootbp, arc_getbuf_func,
+	    &buf, ZIO_PRIORITY_ASYNC_READ, zio_flags, &arc_flags, czb);
+	if (err == 0) {
+		objset_phys_t *osp = buf->b_data;
+
+		err = tza->tza_func(spa, ds->ds_object, &osp->os_zil_header,
+		    tza->tza_arg);
+
+		arc_buf_destroy(buf, &buf);
+	}
+
+	kmem_free(czb, sizeof (*czb));
+
+	return (err);
+}
+
+int
+traverse_pool_zil_headers(spa_t *spa, uint64_t txg_start, int flags,
+    traverse_zil_headers_cb_t *func, void *arg)
+{
+	traverse_zil_headers_arg_t *tza =
+	    kmem_zalloc(sizeof (traverse_zil_headers_arg_t), KM_SLEEP);
+	tza->tza_func = func;
+	tza->tza_arg = arg;
+
+	int ret;
+	/*
+	 * MOS doesn't have a ZIL => doesn't need to be traversed.
+	 * TODO verify that this is try! We didn't traverse it prior to this
+	 * refactoring because `ds` was always NULL for the MOS.
+	 */
+	ret = traverse_pool_impl(spa, txg_start, flags, NULL,
+	    traverse_zil_headers_cb_ds, tza);
+
+	kmem_free(tza, sizeof (*tza));
+
+	return (ret);
+}
+
+
+EXPORT_SYMBOL(traverse_dataset_no_zil);
+EXPORT_SYMBOL(traverse_pool_no_zil);
+EXPORT_SYMBOL(traverse_pool_zil_headers);
 
 /* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs, zfs_, pd_bytes_max, INT, ZMOD_RW,

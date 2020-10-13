@@ -1091,14 +1091,16 @@ range_alloc(enum type type, uint64_t object, uint64_t start_blkid,
  */
 /*ARGSUSED*/
 static int
-send_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
-    const zbookmark_phys_t *zb, const struct dnode_phys *dnp, void *arg)
+send_cb(spa_t *spa, const blkptr_t *bp, const zbookmark_phys_t *zb,
+    const struct dnode_phys *dnp, void *arg)
 {
 	struct send_thread_arg *sta = arg;
 	struct send_range *record;
 
 	ASSERT(zb->zb_object == DMU_META_DNODE_OBJECT ||
 	    zb->zb_object >= sta->resume.zb_object);
+
+	ASSERT3S(zb->zb_level, !=, ZB_ZIL_LEVEL);
 
 	/*
 	 * All bps of an encrypted os should have the encryption bit set.
@@ -1232,7 +1234,7 @@ send_traverse_thread(void *arg)
 	struct send_range *data;
 	fstrans_cookie_t cookie = spl_fstrans_mark();
 
-	err = traverse_dataset_resume(st_arg->os->os_dsl_dataset,
+	err = traverse_dataset_resume_no_zil(st_arg->os->os_dsl_dataset,
 	    st_arg->fromtxg, &st_arg->resume,
 	    st_arg->flags, send_cb, st_arg);
 

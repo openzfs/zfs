@@ -5221,16 +5221,13 @@ dump_size_histograms(zdb_cb_t *zcb)
 }
 
 static void
-zdb_count_block(zdb_cb_t *zcb, zilog_t *zilog, const blkptr_t *bp,
+zdb_count_block(zdb_cb_t *zcb, const blkptr_t *bp,
     dmu_object_type_t type)
 {
 	uint64_t refcnt = 0;
 	int i;
 
 	ASSERT(type < ZDB_OT_TOTAL);
-
-	if (zilog && zil_bp_tree_add(zilog, bp) != 0)
-		return;
 
 	spa_config_enter(zcb->zcb_spa, SCL_CONFIG, FTAG, RW_READER);
 
@@ -5404,8 +5401,8 @@ zdb_blkptr_done(zio_t *zio)
 }
 
 static int
-zdb_blkptr_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
-    const zbookmark_phys_t *zb, const dnode_phys_t *dnp, void *arg)
+zdb_blkptr_cb(spa_t *spa, const blkptr_t *bp, const zbookmark_phys_t *zb,
+    const dnode_phys_t *dnp, void *arg)
 {
 	zdb_cb_t *zcb = arg;
 	dmu_object_type_t type;
@@ -5431,8 +5428,7 @@ zdb_blkptr_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 
 	type = BP_GET_TYPE(bp);
 
-	zdb_count_block(zcb, zilog, bp,
-	    (type & DMU_OT_NEWTYPE) ? ZDB_OT_OTHER : type);
+	zdb_count_block(zcb, bp, (type & DMU_OT_NEWTYPE) ? ZDB_OT_OTHER : type);
 
 	is_metadata = (BP_GET_LEVEL(bp) != 0 || DMU_OT_IS_METADATA(type));
 
@@ -5698,7 +5694,7 @@ zdb_ddt_leak_init(spa_t *spa, zdb_cb_t *zcb)
 			ddt_bp_create(ddb.ddb_checksum,
 			    &dde.dde_key, ddp, &blk);
 			if (p == DDT_PHYS_DITTO) {
-				zdb_count_block(zcb, NULL, &blk, ZDB_OT_DITTO);
+				zdb_count_block(zcb, &blk, ZDB_OT_DITTO);
 			} else {
 				zcb->zcb_dedup_asize +=
 				    BP_GET_ASIZE(&blk) * (ddp->ddp_refcnt - 1);
@@ -6241,7 +6237,7 @@ count_block_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx)
 		(void) printf("[%s] %s\n",
 		    "deferred free", blkbuf);
 	}
-	zdb_count_block(zcb, NULL, bp, ZDB_OT_DEFERRED);
+	zdb_count_block(zcb, bp, ZDB_OT_DEFERRED);
 	return (0);
 }
 
@@ -6339,6 +6335,88 @@ deleted_livelists_dump_mos(spa_t *spa)
 	iterate_deleted_livelists(spa, dump_livelist_cb, NULL);
 }
 
+typedef struct {
+	zdb_cb_t *zcb;
+	uint64_t claim_txg;
+	uint64_t objset;
+	spa_t *spa;
+} dump_block_stats_arg_t;
+
+static int
+dump_block_stats_zil_header_cb_block(const blkptr_t *bp, void *arg)
+{
+	dump_block_stats_arg_t *dbsa = arg;
+	zbookmark_phys_t zb;
+	uint64_t claim_txg = dbsa->claim_txg;
+
+	if (BP_IS_HOLE(bp))
+		return (0);
+
+	if (claim_txg == 0 && bp->blk_birth >= spa_min_claim_txg(dbsa->spa))
+		return (-1);
+
+	SET_BOOKMARK(&zb, dbsa->objset, ZB_ZIL_OBJECT, ZB_ZIL_LEVEL,
+	    bp->blk_cksum.zc_word[ZIL_ZC_SEQ]);
+
+	(void) zdb_blkptr_cb(dbsa->spa, bp, &zb, NULL, dbsa->zcb);
+
+	return (0);
+}
+
+static int
+dump_block_stats_zil_header_cb_record(const lr_t *lrc, void *arg)
+{
+	dump_block_stats_arg_t *dbsa = arg;
+	uint64_t claim_txg = dbsa->claim_txg;
+
+	if (lrc->lrc_txtype == TX_WRITE) {
+		lr_write_t *lr = (lr_write_t *)lrc;
+		blkptr_t *bp = &lr->lr_blkptr;
+		zbookmark_phys_t zb;
+
+		if (BP_IS_HOLE(bp))
+			return (0);
+
+		if (claim_txg == 0 || bp->blk_birth < claim_txg)
+			return (0);
+
+		SET_BOOKMARK(&zb, dbsa->objset, lr->lr_foid,
+		    ZB_ZIL_LEVEL, lr->lr_offset / BP_GET_LSIZE(bp));
+
+		(void) zdb_blkptr_cb(dbsa->spa, bp, &zb, NULL, dbsa->zcb);
+	}
+
+	return (0);
+}
+
+static int
+dump_block_stats_zil_header_cb(spa_t *spa, uint64_t objset,
+    const zil_header_t *zh, void *arg)
+{
+	zdb_cb_t *zcb = arg;
+	uint64_t claim_txg = zh->zh_claim_txg;
+
+	/*
+	 * We only want to visit blocks that have been claimed but not yet
+	 * replayed; plus blocks that are already stable in read-only mode.
+	 */
+	if (claim_txg == 0 && spa_writeable(spa))
+		return (0);
+
+	dump_block_stats_arg_t dbsa = {
+		.zcb = zcb,
+		.claim_txg = claim_txg,
+		.objset = objset,
+		.spa = spa,
+	};
+
+	zil_parse_phys(spa, zh, dump_block_stats_zil_header_cb_block,
+	    dump_block_stats_zil_header_cb_record, &dbsa, B_FALSE,
+	    ZIO_PRIORITY_SCRUB, NULL);
+
+	return (0);
+}
+
 static int
 dump_block_stats(spa_t *spa)
 {
@@ -6404,7 +6482,15 @@ dump_block_stats(spa_t *spa)
 	zcb.zcb_totalasize +=
 	    metaslab_class_get_alloc(spa_embedded_log_class(spa));
 	zcb.zcb_start = zcb.zcb_lastprint = gethrtime();
-	err = traverse_pool(spa, 0, flags, zdb_blkptr_cb, &zcb);
+
+	err = traverse_pool_no_zil(spa, 0, flags, zdb_blkptr_cb, &zcb);
+	/*
+	 * TODO
+	 * traversal errors have been ignored before we split traverse_pool
+	 * into traverse_pool_{no_zil,zil_headers}. Maintain that behavior.
+	 */
+	(void) traverse_pool_zil_headers(spa, 0, flags,
+	    dump_block_stats_zil_header_cb, &zcb);
 
 	/*
 	 * If we've traversed the data blocks then we need to wait for those
@@ -6691,8 +6777,8 @@ typedef struct zdb_ddt_entry {
 
 /* ARGSUSED */
 static int
-zdb_ddt_add_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
-    const zbookmark_phys_t *zb, const dnode_phys_t *dnp, void *arg)
+zdb_ddt_add_cb(spa_t *spa, const blkptr_t *bp, const zbookmark_phys_t *zb,
+    const dnode_phys_t *dnp, void *arg)
 {
 	avl_tree_t *t = arg;
 	avl_index_t where;
@@ -6748,8 +6834,9 @@ dump_simulated_ddt(spa_t *spa)
 
 	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 
-	(void) traverse_pool(spa, 0, TRAVERSE_PRE | TRAVERSE_PREFETCH_METADATA |
-	    TRAVERSE_NO_DECRYPT, zdb_ddt_add_cb, &t);
+	(void) traverse_pool_no_zil(spa, 0,
+	    TRAVERSE_PRE | TRAVERSE_PREFETCH_METADATA | TRAVERSE_NO_DECRYPT,
+	    zdb_ddt_add_cb, &t);
 
 	spa_config_exit(spa, SCL_CONFIG, FTAG);
 

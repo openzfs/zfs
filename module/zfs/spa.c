@@ -2247,7 +2247,7 @@ typedef struct spa_load_error {
 } spa_load_error_t;
 
 static void
-spa_load_verify_done(zio_t *zio)
+spa_load_verify_blk_cb_done(zio_t *zio)
 {
 	blkptr_t *bp = zio->io_bp;
 	spa_load_error_t *sle = zio->io_private;
@@ -2280,7 +2280,7 @@ int spa_load_verify_data = B_TRUE;
 
 /*ARGSUSED*/
 static int
-spa_load_verify_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
+spa_load_verify_blk_cb(spa_t *spa, const blkptr_t *bp,
     const zbookmark_phys_t *zb, const dnode_phys_t *dnp, void *arg)
 {
 	if (zb->zb_level == ZB_DNODE_LEVEL || BP_IS_HOLE(bp) ||
@@ -2308,11 +2308,98 @@ spa_load_verify_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	mutex_exit(&spa->spa_scrub_lock);
 
 	zio_nowait(zio_read(rio, spa, bp, abd_alloc_for_io(size, B_FALSE), size,
-	    spa_load_verify_done, rio->io_private, ZIO_PRIORITY_SCRUB,
+	    spa_load_verify_blk_cb_done, rio->io_private, ZIO_PRIORITY_SCRUB,
 	    ZIO_FLAG_SPECULATIVE | ZIO_FLAG_CANFAIL |
 	    ZIO_FLAG_SCRUB | ZIO_FLAG_RAW, zb));
 	return (0);
 }
+
+typedef struct {
+	void *slvza_spa;
+	uint64_t slvza_objset;
+	uint64_t slvza_claim_txg;
+	zio_t *slvza_rio;
+} spa_load_verify_zil_cb_arg_t;
+
+static int
+spa_load_verify_zil_cb_block(const blkptr_t *bp, void *arg)
+{
+	spa_load_verify_zil_cb_arg_t *slvza = arg;
+	uint64_t claim_txg = slvza->slvza_claim_txg;
+	zbookmark_phys_t zb;
+	spa_t *spa = slvza->slvza_spa;
+
+	if (BP_IS_HOLE(bp))
+		return (0);
+
+	if (claim_txg == 0 && bp->blk_birth >= spa_min_claim_txg(spa))
+		return (-1);
+
+	SET_BOOKMARK(&zb, slvza->slvza_objset, ZB_ZIL_OBJECT, ZB_ZIL_LEVEL,
+	    bp->blk_cksum.zc_word[ZIL_ZC_SEQ]);
+
+	(void) spa_load_verify_blk_cb(spa, bp, &zb, NULL, slvza->slvza_rio);
+
+	return (0);
+}
+
+static int
+spa_load_verify_zil_cb_record(const lr_t *lrc, void *arg)
+{
+	spa_load_verify_zil_cb_arg_t *slvza = arg;
+	uint64_t claim_txg = slvza->slvza_claim_txg;
+	spa_t *spa = slvza->slvza_spa;
+
+	if (lrc->lrc_txtype == TX_WRITE) {
+		lr_write_t *lr = (lr_write_t *)lrc;
+		blkptr_t *bp = &lr->lr_blkptr;
+		zbookmark_phys_t zb;
+
+		if (BP_IS_HOLE(bp))
+			return (0);
+
+		if (claim_txg == 0 || bp->blk_birth < claim_txg)
+			return (0);
+
+		SET_BOOKMARK(&zb, slvza->slvza_objset, lr->lr_foid,
+		    ZB_ZIL_LEVEL, lr->lr_offset / BP_GET_LSIZE(bp));
+
+		(void) spa_load_verify_blk_cb(spa, bp, &zb, NULL,
+		    slvza->slvza_rio);
+	}
+	return (0);
+}
+
+static int
+spa_load_verify_zil_cb(spa_t *spa, uint64_t objset, const zil_header_t *zh,
+    void *arg)
+{
+	zio_t *rio = arg;
+	uint64_t claim_txg = zh->zh_claim_txg;
+
+	/*
+	 * We only want to visit blocks that have been claimed but not yet
+	 * replayed; plus blocks that are already stable in read-only mode.
+	 */
+	if (claim_txg == 0 && spa_writeable(spa))
+		return (0);
+
+	spa_load_verify_zil_cb_arg_t *slvza =
+	    kmem_zalloc(sizeof (spa_load_verify_zil_cb_arg_t), KM_SLEEP);
+	slvza->slvza_spa = spa;
+	slvza->slvza_objset = objset;
+	slvza->slvza_claim_txg = claim_txg;
+	slvza->slvza_rio = rio;
+
+	zil_parse_phys(spa, zh, spa_load_verify_zil_cb_block,
+	    spa_load_verify_zil_cb_record, slvza, B_FALSE, ZIO_PRIORITY_SCRUB,
+	    NULL);
+
+	kmem_free(slvza, sizeof (*slvza));
+
+	return (0);
+}
+
 
 /* ARGSUSED */
 static int
@@ -2358,9 +2445,24 @@ spa_load_verify(spa_t *spa)
 			    spa_load_verify_data, spa_load_verify_metadata);
 		}
 
-		error = traverse_pool(spa, spa->spa_verify_min_txg,
+		error = traverse_pool_no_zil(spa, spa->spa_verify_min_txg,
 		    TRAVERSE_PRE | TRAVERSE_PREFETCH_METADATA |
-		    TRAVERSE_NO_DECRYPT, spa_load_verify_cb, rio);
+		    TRAVERSE_NO_DECRYPT, spa_load_verify_blk_cb, rio);
+
+		/*
+		 * TODO REVIEW: Before we moved ZIL traversal out of
+		 * traverse_pool into traverse_zil_headers, errors from ZIL
+		 * traversal were ignored. We maintain that behavior for now.
+		 *
+		 * TODO review: which flags do even make sense here?
+		 * TRAVERSE_{PRE,POST} sure don't (there is only one invocation)
+		 * TRAVERSE_PREFETCH_METADATA doesn't because we don't start
+		 * a prefetcher in the code (should we?).
+		 */
+		traverse_pool_zil_headers(spa, spa->spa_verify_min_txg,
+		    TRAVERSE_NO_DECRYPT,
+		    spa_load_verify_zil_cb, rio);
+
 	}
 
 	(void) zio_wait(rio);

@@ -110,8 +110,8 @@ report_dnode(dmu_diffarg_t *da, uint64_t object, dnode_phys_t *dnp)
 
 /* ARGSUSED */
 static int
-diff_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
-    const zbookmark_phys_t *zb, const dnode_phys_t *dnp, void *arg)
+diff_cb(spa_t *spa, const blkptr_t *bp, const zbookmark_phys_t *zb,
+    const dnode_phys_t *dnp, void *arg)
 {
 	dmu_diffarg_t *da = arg;
 	int err = 0;
@@ -122,6 +122,8 @@ diff_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	if (zb->zb_level == ZB_DNODE_LEVEL ||
 	    zb->zb_object != DMU_META_DNODE_OBJECT)
 		return (0);
+
+	ASSERT3S(zb->zb_level, !=, ZB_ZIL_LEVEL);
 
 	if (BP_IS_HOLE(bp)) {
 		uint64_t span = DBP_SPAN(dnp, zb->zb_level);
@@ -222,7 +224,7 @@ dmu_diff(const char *tosnap_name, const char *fromsnap_name,
 	 * dataset isn't mounted and because it will fail when it attempts to
 	 * call the ZFS_IOC_OBJ_TO_STATS ioctl.
 	 */
-	error = traverse_dataset(tosnap, fromtxg,
+	error = traverse_dataset_no_zil(tosnap, fromtxg,
 	    TRAVERSE_PRE | TRAVERSE_PREFETCH_METADATA | TRAVERSE_NO_DECRYPT,
 	    diff_cb, &da);
 

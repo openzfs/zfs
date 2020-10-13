@@ -149,11 +149,13 @@ bptree_add(objset_t *os, uint64_t obj, blkptr_t *bp, uint64_t birth_txg,
 
 /* ARGSUSED */
 static int
-bptree_visit_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
-    const zbookmark_phys_t *zb, const dnode_phys_t *dnp, void *arg)
+bptree_visit_cb(spa_t *spa, const blkptr_t *bp, const zbookmark_phys_t *zb,
+    const dnode_phys_t *dnp, void *arg)
 {
 	int err;
 	struct bptree_args *ba = arg;
+
+	ASSERT3S(zb->zb_level, !=, ZB_ZIL_LEVEL);
 
 	if (zb->zb_level == ZB_DNODE_LEVEL || BP_IS_HOLE(bp) ||
 	    BP_IS_REDACTED(bp))
@@ -230,7 +232,7 @@ bptree_iterate(objset_t *os, uint64_t obj, boolean_t free, bptree_itor_t func,
 		    (longlong_t)bte.be_zb.zb_object,
 		    (longlong_t)bte.be_zb.zb_level,
 		    (longlong_t)bte.be_zb.zb_blkid);
-		err = traverse_dataset_destroyed(os->os_spa, &bte.be_bp,
+		err = traverse_dataset_destroyed_no_zil(os->os_spa, &bte.be_bp,
 		    bte.be_birth_txg, &bte.be_zb, flags,
 		    bptree_visit_cb, &ba);
 		if (free) {
