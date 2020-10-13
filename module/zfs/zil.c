@@ -1563,6 +1563,13 @@ zil_lwb_write_issue(zilog_t *zilog, lwb_t *lwb)
 	}
 	if (error == 0) {
 		ASSERT3U(bp->blk_birth, ==, txg);
+		/*
+		 * Our lwb's zil_chain's zc_next_blk now points to the next
+		 * lwb that we just allocated using zio_alloc_zil.
+		 * But we still need to set up the (ZIL-specific) checksum.
+		 * All components of the checksum remain the same except for
+		 * the bumped lwb sequence number (ZIL_ZC_SEQ).
+		 */
 		bp->blk_cksum = lwb->lwb_blk.blk_cksum;
 		bp->blk_cksum.zc_word[ZIL_ZC_SEQ]++;
 
