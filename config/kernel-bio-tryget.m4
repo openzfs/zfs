@@ -11,7 +11,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKG_TRYGET], [
 		#include <linux/bio.h>
 		#include <linux/fs.h>
 	],[
-		struct blkcg_gq blkg __attribute__ ((unused));
+		struct blkcg_gq blkg __attribute__ ((unused)) = {};
 		bool rc __attribute__ ((unused));
 		rc = blkg_tryget(&blkg);
 	], [], [$ZFS_META_LICENSE])
