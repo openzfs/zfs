@@ -24,6 +24,8 @@ endif
 AM_LIBTOOLFLAGS = --silent
 
 AM_CFLAGS  = -std=gnu99 -Wall -Wstrict-prototypes -Wmissing-prototypes
+AM_CFLAGS += -Werror=incompatible-pointer-types
+AM_CFLAGS += -Werror=implicit-function-declaration
 AM_CFLAGS += -fno-strict-aliasing
 AM_CFLAGS += $(NO_OMIT_FRAME_POINTER)
 AM_CFLAGS += $(IMPLICIT_FALLTHROUGH)
