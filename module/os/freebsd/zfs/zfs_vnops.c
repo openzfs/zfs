@@ -3901,6 +3901,19 @@ zfs_rename_check(znode_t *szp, znode_t *sdzp, znode_t *tdzp)
 	return (error);
 }
 
+#if	__FreeBSD_version < 1300110
+static void
+cache_rename(struct vnode *fdvp, struct vnode *fvp, struct vnode *tdvp,
+    struct vnode *tvp, struct componentname *fcnp, struct componentname *tcnp)
+{
+
+	cache_purge(fvp);
+	if (tvp != NULL)
+		cache_purge(tvp);
+	cache_purge_negative(tdvp);
+}
+#endif
+
 /*
  * Move an entry from the provided source directory to the target
  * directory.  Change the entry name as indicated.
@@ -4159,10 +4172,7 @@ zfs_rename_(vnode_t *sdvp, vnode_t **svpp, struct componentname *scnp,
 			}
 		}
 		if (error == 0) {
-			cache_purge(*svpp);
-			if (*tvpp != NULL)
-				cache_purge(*tvpp);
-			cache_purge_negative(tdvp);
+			cache_rename(sdvp, *svpp, tdvp, *tvpp, scnp, tcnp);
 		}
 	}
 
