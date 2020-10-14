@@ -88,7 +88,7 @@ props=(
 	compression	gzip		compression	gzip-$((RANDOM%9 + 1))
 	compression     zstd		compression	zstd-$((RANDOM%9 + 1))
 	compression	zstd-fast	copies          $((RANDOM%3 + 1))
-	compression	zstd-fast-$((RANDOM%9 + 1))
+	compression	adaptive	compression	zstd-fast-$((RANDOM%9 + 1))
 )
 elif is_freebsd; then
 #	property	value		property	value

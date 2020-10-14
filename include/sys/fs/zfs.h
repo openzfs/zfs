@@ -1130,6 +1130,9 @@ typedef struct vdev_stat_ex {
 	uint64_t vsx_agg_histo[ZIO_PRIORITY_NUM_QUEUEABLE]
 	    [VDEV_RQ_HISTO_BUCKETS];
 
+
+	uint64_t vsx_diskBps[ZIO_TYPES];
+
 } vdev_stat_ex_t;
 
 /*

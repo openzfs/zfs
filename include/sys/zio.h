@@ -41,6 +41,7 @@
 #include <sys/avl.h>
 #include <sys/fs/zfs.h>
 #include <sys/zio_impl.h>
+#include <sys/compress_adaptive.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -527,6 +528,12 @@ struct zio {
 
 	/* Taskq dispatching state */
 	taskq_ent_t	io_tqent;
+
+	/* stored in pio */
+	uint8_t		io_compress_level;
+	boolean_t	io_compress_adaptive_exploring;
+
+	uint64_t	io_compress_adaptive_Bps[COMPRESS_ADAPTIVE_LEVELS];
 };
 
 enum blk_verify_flag {
