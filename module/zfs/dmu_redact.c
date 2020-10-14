@@ -1062,9 +1062,9 @@ dmu_redact_snap(const char *snapname, nvlist_t *redactnvl,
 
 		}
 	}
-	VERIFY3P(nvlist_next_nvpair(redactnvl, pair), ==, NULL);
 	if (err != 0)
 		goto out;
+	VERIFY3P(nvlist_next_nvpair(redactnvl, pair), ==, NULL);
 
 	boolean_t resuming = B_FALSE;
 	zfs_bookmark_phys_t bookmark;
