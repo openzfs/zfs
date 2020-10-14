@@ -204,10 +204,6 @@ arc_shrinker_scan(struct shrinker *shrink, struct shrink_control *sc)
 {
 	ASSERT((sc->gfp_mask & __GFP_FS) != 0);
 
-	/* The arc is considered warm once reclaim has occurred */
-	if (unlikely(arc_warm == B_FALSE))
-		arc_warm = B_TRUE;
-
 	/*
 	 * Evict the requested number of pages by reducing arc_c and waiting
 	 * for the requested amount of data to be evicted.
@@ -216,13 +212,6 @@ arc_shrinker_scan(struct shrinker *shrink, struct shrink_control *sc)
 	arc_wait_for_eviction(ptob(sc->nr_to_scan));
 	if (current->reclaim_state != NULL)
 		current->reclaim_state->reclaimed_slab += sc->nr_to_scan;
-
-	/*
-	 * We are experiencing memory pressure which the arc_evict_zthr was
-	 * unable to keep up with. Set arc_no_grow to briefly pause arc
-	 * growth to avoid compounding the memory pressure.
-	 */
-	arc_no_grow = B_TRUE;
 
 	/*
 	 * When direct reclaim is observed it usually indicates a rapid
@@ -234,6 +223,16 @@ arc_shrinker_scan(struct shrinker *shrink, struct shrink_control *sc)
 		ARCSTAT_BUMP(arcstat_memory_indirect_count);
 	} else {
 		ARCSTAT_BUMP(arcstat_memory_direct_count);
+		/*
+		 * We are experiencing memory pressure which the arc_evict_zthr
+		 * was unable to keep up with. Set arc_no_grow to briefly pause
+		 * arc growth to avoid compounding the memory pressure.
+		 */
+		arc_no_grow = B_TRUE;
+		arc_growtime = gethrtime() + SEC2NSEC(arc_grow_retry);
+
+		/* The arc is considered warm once reclaim has occurred */
+		arc_warm = B_TRUE;
 	}
 
 	return (sc->nr_to_scan);

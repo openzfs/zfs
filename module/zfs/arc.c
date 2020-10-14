@@ -4975,15 +4975,7 @@ arc_reap_cb_check(void *arg, zthr_t *zthr)
 	int64_t free_memory = arc_available_memory();
 	static int reap_cb_check_counter = 0;
 
-	/*
-	 * If a kmem reap is already active, don't schedule more.  We must
-	 * check for this because kmem_cache_reap_soon() won't actually
-	 * block on the cache being reaped (this is to prevent callers from
-	 * becoming implicitly blocked by a system-wide kmem reap -- which,
-	 * on a system with many, many full magazines, can take minutes).
-	 */
-	if (!kmem_cache_reap_active() && free_memory < 0) {
-
+	if (free_memory < 0) {
 		arc_no_grow = B_TRUE;
 		arc_warm = B_TRUE;
 		/*
@@ -4991,7 +4983,15 @@ arc_reap_cb_check(void *arg, zthr_t *zthr)
 		 * before considering growing.
 		 */
 		arc_growtime = gethrtime() + SEC2NSEC(arc_grow_retry);
-		return (B_TRUE);
+		/*
+		 * If a kmem reap is already active, don't schedule more.
+		 * We must check for this because kmem_cache_reap_soon()
+		 * won't actually block on the cache being reaped (this is
+		 * to prevent callers from becoming implicitly blocked by
+		 * a system-wide kmem reap -- which, on a system with many,
+		 * many full magazines, can take minutes).
+		 */
+		return (!kmem_cache_reap_active());
 	} else if (free_memory < arc_c >> arc_no_grow_shift) {
 		arc_no_grow = B_TRUE;
 	} else if (gethrtime() >= arc_growtime) {
