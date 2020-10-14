@@ -41,7 +41,7 @@
 #include <sys/kmem.h>
 #include <sys/malloc.h>
 
-
+#ifdef _KERNEL
 #define	CPU		curcpu
 #define	minclsyspri	PRIBIO
 #define	defclsyspri minclsyspri
@@ -111,4 +111,5 @@ zfs_proc_is_caller(proc_t *p)
 	return (p == curproc);
 }
 
+#endif	/* _KERNEL */
 #endif	/* _OPENSOLARIS_SYS_PROC_H_ */
