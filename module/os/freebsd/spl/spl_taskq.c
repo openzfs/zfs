@@ -70,7 +70,7 @@ static unsigned long tqenthash;
 static unsigned long tqenthashlock;
 static struct sx *tqenthashtbl_lock;
 
-static uint32_t tqidnext = 1;
+static taskqid_t tqidnext;
 
 #define	TQIDHASH(tqid) (&tqenthashtbl[(tqid) & tqenthash])
 #define	TQIDHASHLOCK(tqid) (&tqenthashtbl_lock[((tqid) & tqenthashlock)])
@@ -93,7 +93,6 @@ system_taskq_init(void *arg)
 	    M_TASKQ, M_WAITOK | M_ZERO);
 	for (i = 0; i < tqenthashlock + 1; i++)
 		sx_init_flags(&tqenthashtbl_lock[i], "tqenthash", SX_DUPOK);
-	tqidnext = 1;
 	taskq_zone = uma_zcreate("taskq_zone", sizeof (taskq_ent_t),
 	    NULL, NULL, NULL, NULL,
 	    UMA_ALIGN_CACHE, 0);
@@ -124,6 +123,35 @@ system_taskq_fini(void *arg)
 SYSUNINIT(system_taskq_fini, SI_SUB_CONFIGURE, SI_ORDER_ANY, system_taskq_fini,
     NULL);
 
+#ifdef __LP64__
+static taskqid_t
+__taskq_genid(void)
+{
+	taskqid_t tqid;
+
+	/*
+	 * Assume a 64-bit counter will not wrap in practice.
+	 */
+	tqid = atomic_add_64_nv(&tqidnext, 1);
+	VERIFY(tqid);
+	return (tqid);
+}
+#else
+static taskqid_t
+__taskq_genid(void)
+{
+	taskqid_t tqid;
+
+	for (;;) {
+		tqid = atomic_add_32_nv(&tqidnext, 1);
+		if (__predict_true(tqid != 0))
+			break;
+	}
+	VERIFY(tqid);
+	return (tqid);
+}
+#endif
+
 static taskq_ent_t *
 taskq_lookup(taskqid_t tqid)
 {
@@ -143,8 +171,9 @@ taskq_lookup(taskqid_t tqid)
 static taskqid_t
 taskq_insert(taskq_ent_t *ent)
 {
-	taskqid_t tqid = atomic_fetchadd_int(&tqidnext, 1);
+	taskqid_t tqid;
 
+	tqid = __taskq_genid();
 	ent->tqent_id = tqid;
 	ent->tqent_registered = B_TRUE;
 	sx_xlock(TQIDHASHLOCK(tqid));
@@ -292,7 +321,7 @@ taskq_dispatch_delay(taskq_t *tq, task_func_t func, void *arg,
     uint_t flags, clock_t expire_time)
 {
 	taskq_ent_t *task;
-	taskqid_t tid;
+	taskqid_t tqid;
 	clock_t timo;
 	int mflag;
 
@@ -313,13 +342,13 @@ taskq_dispatch_delay(taskq_t *tq, task_func_t func, void *arg,
 	task->tqent_type = TIMEOUT_TASK;
 	task->tqent_cancelled = B_FALSE;
 	refcount_init(&task->tqent_rc, 1);
-	tid = taskq_insert(task);
+	tqid = taskq_insert(task);
 	TIMEOUT_TASK_INIT(tq->tq_queue, &task->tqent_timeout_task, 0,
 	    taskq_run, task);
 
 	taskqueue_enqueue_timeout(tq->tq_queue, &task->tqent_timeout_task,
 	    timo);
-	return (tid);
+	return (tqid);
 }
 
 taskqid_t
@@ -327,7 +356,7 @@ taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t flags)
 {
 	taskq_ent_t *task;
 	int mflag, prio;
-	taskqid_t tid;
+	taskqid_t tqid;
 
 	if ((flags & (TQ_SLEEP | TQ_NOQUEUE)) == TQ_SLEEP)
 		mflag = M_WAITOK;
@@ -347,11 +376,10 @@ taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t flags)
 	task->tqent_arg = arg;
 	task->tqent_cancelled = B_FALSE;
 	task->tqent_type = NORMAL_TASK;
-	tid = taskq_insert(task);
+	tqid = taskq_insert(task);
 	TASK_INIT(&task->tqent_task, prio, taskq_run, task);
 	taskqueue_enqueue(tq->tq_queue, &task->tqent_task);
-	VERIFY(tid);
-	return (tid);
+	return (tqid);
 }
 
 static void
