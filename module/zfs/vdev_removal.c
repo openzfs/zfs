@@ -2033,7 +2033,8 @@ spa_vdev_remove_top_check(vdev_t *vd)
 	/*
 	 * A removed special/dedup vdev must have same ashift as normal class.
 	 */
-	if (vd->vdev_alloc_bias != VDEV_BIAS_NONE && !vd->vdev_islog &&
+	ASSERT(!vd->vdev_islog);
+	if (vd->vdev_alloc_bias != VDEV_BIAS_NONE &&
 	    vd->vdev_ashift != spa->spa_max_ashift) {
 		return (SET_ERROR(EINVAL));
 	}
@@ -2051,12 +2052,10 @@ spa_vdev_remove_top_check(vdev_t *vd)
 		 * A removed special/dedup vdev must have the same ashift
 		 * across all vdevs in its class.
 		 */
-		if (cvd->vdev_alloc_bias != VDEV_BIAS_NONE &&
-		    !cvd->vdev_islog) {
-			if (cvd->vdev_alloc_bias == vd->vdev_alloc_bias &&
-			    cvd->vdev_ashift != vd->vdev_ashift) {
-				return (SET_ERROR(EINVAL));
-			}
+		if (vd->vdev_alloc_bias != VDEV_BIAS_NONE &&
+		    cvd->vdev_alloc_bias == vd->vdev_alloc_bias &&
+		    cvd->vdev_ashift != vd->vdev_ashift) {
+			return (SET_ERROR(EINVAL));
 		}
 		if (cvd->vdev_ashift != 0 &&
 		    cvd->vdev_alloc_bias == VDEV_BIAS_NONE)
