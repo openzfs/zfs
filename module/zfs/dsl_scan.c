@@ -1381,14 +1381,15 @@ dsl_scan_check_suspend(dsl_scan_t *scn, const zbookmark_phys_t *zb)
 typedef struct zil_scan_arg {
 	dsl_pool_t	*zsa_dp;
 	const zil_header_t	*zsa_zh;
+	uint64_t zsa_claim_txg;
 } zil_scan_arg_t;
 
 /* ARGSUSED */
 static int
-dsl_scan_zil_block(zilog_t *zilog, const blkptr_t *bp, void *arg,
-    uint64_t claim_txg)
+dsl_scan_zil_block(const blkptr_t *bp, void *arg)
 {
 	zil_scan_arg_t *zsa = arg;
+	uint64_t claim_txg = zsa->zsa_claim_txg;
 	dsl_pool_t *dp = zsa->zsa_dp;
 	dsl_scan_t *scn = dp->dp_scan;
 	const zil_header_t *zh = zsa->zsa_zh;
@@ -1416,11 +1417,11 @@ dsl_scan_zil_block(zilog_t *zilog, const blkptr_t *bp, void *arg,
 
 /* ARGSUSED */
 static int
-dsl_scan_zil_record(zilog_t *zilog, const lr_t *lrc, void *arg,
-    uint64_t claim_txg)
+dsl_scan_zil_record(const lr_t *lrc, void *arg)
 {
 	if (lrc->lrc_txtype == TX_WRITE) {
 		zil_scan_arg_t *zsa = arg;
+		uint64_t claim_txg = zsa->zsa_claim_txg;
 		dsl_pool_t *dp = zsa->zsa_dp;
 		dsl_scan_t *scn = dp->dp_scan;
 		const zil_header_t *zh = zsa->zsa_zh;
@@ -1454,8 +1455,7 @@ static void
 dsl_scan_zil(dsl_pool_t *dp, zil_header_t *zh)
 {
 	uint64_t claim_txg = zh->zh_claim_txg;
-	zil_scan_arg_t zsa = { dp, zh };
-	zilog_t *zilog;
+	zil_scan_arg_t zsa = { dp, zh, claim_txg };
 
 	ASSERT(spa_writeable(dp->dp_spa));
 
@@ -1466,12 +1466,10 @@ dsl_scan_zil(dsl_pool_t *dp, zil_header_t *zh)
 	if (claim_txg == 0)
 		return;
 
-	zilog = zil_alloc(dp->dp_meta_objset, zh);
+	/* TODO we could change the priority to ZIO_PRIORITY_SCRUB */
+	(void) zil_parse_phys(dp->dp_spa, zh, dsl_scan_zil_block,
+	    dsl_scan_zil_record, &zsa, B_FALSE, ZIO_PRIORITY_SYNC_READ, NULL);
 
-	(void) zil_parse(zilog, dsl_scan_zil_block, dsl_scan_zil_record, &zsa,
-	    claim_txg, B_FALSE);
-
-	zil_free(zilog);
 }
 
 /*
