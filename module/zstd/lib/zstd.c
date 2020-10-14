@@ -3074,7 +3074,7 @@ size_t FSE_decompress(void* dst, size_t dstCapacity, const void* cSrc, size_t cS
 /*-*************************************
 *  Dependencies
 ***************************************/
-#ifdef __aarch64__
+#if !defined(ZSTD_NO_INTRINSICS) && defined(__ARM_NEON)
 #include <arm_neon.h>
 #endif
 /**** skipping file: compiler.h ****/
@@ -6525,7 +6525,7 @@ static const U32 OF_defaultNormLog = OF_DEFAULTNORMLOG;
 *  Shared functions to include for inlining
 *********************************************/
 static void ZSTD_copy8(void* dst, const void* src) {
-#ifdef __aarch64__
+#if !defined(ZSTD_NO_INTRINSICS) && defined(__ARM_NEON)
     vst1_u8((uint8_t*)dst, vld1_u8((const uint8_t*)src));
 #else
     memcpy(dst, src, 8);
@@ -6534,7 +6534,7 @@ static void ZSTD_copy8(void* dst, const void* src) {
 
 #define COPY8(d,s) { ZSTD_copy8(d,s); d+=8; s+=8; }
 static void ZSTD_copy16(void* dst, const void* src) {
-#ifdef __aarch64__
+#if !defined(ZSTD_NO_INTRINSICS) && defined(__ARM_NEON)
     vst1q_u8((uint8_t*)dst, vld1q_u8((const uint8_t*)src));
 #else
     memcpy(dst, src, 16);
