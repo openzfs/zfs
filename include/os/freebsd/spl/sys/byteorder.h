@@ -80,10 +80,11 @@
 #define	BE_64(x)	BSWAP_64(x)
 #endif
 
+#if !defined(_STANDALONE)
 #if BYTE_ORDER == _BIG_ENDIAN
 #define	htonll(x)	BMASK_64(x)
 #define	ntohll(x)	BMASK_64(x)
-#else
+#else /* BYTE_ORDER == _LITTLE_ENDIAN */
 #ifndef __LP64__
 static __inline__ uint64_t
 htonll(uint64_t n)
@@ -96,11 +97,12 @@ ntohll(uint64_t n)
 {
 	return ((((uint64_t)ntohl(n)) << 32) + ntohl(n >> 32));
 }
-#else
+#else	/* !__LP64__ */
 #define	htonll(x)	BSWAP_64(x)
 #define	ntohll(x)	BSWAP_64(x)
-#endif
-#endif
+#endif	/* __LP64__ */
+#endif	/* BYTE_ORDER */
+#endif	/* _STANDALONE */
 
 #define	BE_IN32(xa)	htonl(*((uint32_t *)(void *)(xa)))
 
