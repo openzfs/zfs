@@ -72,6 +72,7 @@ struct zfsvfs {
 	boolean_t	z_fuid_dirty;   /* need to sync fuid table ? */
 	struct zfs_fuid_info	*z_fuid_replay; /* fuid info for replay */
 	zilog_t		*z_log;		/* intent log pointer */
+	uint_t		z_acl_type;	/* type of acl usable on this fs */
 	uint_t		z_acl_mode;	/* acl chmod/mode behavior */
 	uint_t		z_acl_inherit;	/* acl inheritance behavior */
 	zfs_case_t	z_case;		/* case-sense */
