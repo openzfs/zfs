@@ -592,6 +592,14 @@ acl_inherit_changed_cb(void *arg, uint64_t newval)
 	zfsvfs->z_acl_inherit = newval;
 }
 
+static void
+acl_type_changed_cb(void *arg, uint64_t newval)
+{
+	zfsvfs_t *zfsvfs = arg;
+
+	zfsvfs->z_acl_type = newval;
+}
+
 static int
 zfs_register_callbacks(vfs_t *vfsp)
 {
@@ -723,6 +731,8 @@ zfs_register_callbacks(vfs_t *vfsp)
 	error = error ? error : dsl_prop_register(ds,
 	    zfs_prop_to_name(ZFS_PROP_SNAPDIR), snapdir_changed_cb, zfsvfs);
 	error = error ? error : dsl_prop_register(ds,
+	    zfs_prop_to_name(ZFS_PROP_ACLTYPE), acl_type_changed_cb, zfsvfs);
+	error = error ? error : dsl_prop_register(ds,
 	    zfs_prop_to_name(ZFS_PROP_ACLMODE), acl_mode_changed_cb, zfsvfs);
 	error = error ? error : dsl_prop_register(ds,
 	    zfs_prop_to_name(ZFS_PROP_ACLINHERIT), acl_inherit_changed_cb,
@@ -796,6 +806,11 @@ zfsvfs_init(zfsvfs_t *zfsvfs, objset_t *os)
 	if (error != 0)
 		return (error);
 	zfsvfs->z_case = (uint_t)val;
+
+	error = zfs_get_zplprop(os, ZFS_PROP_ACLTYPE, &val);
+	if (error != 0)
+		return (error);
+	zfsvfs->z_acl_type = (uint_t)val;
 
 	/*
 	 * Fold case on file systems that are always or sometimes case
@@ -1232,6 +1247,10 @@ zfs_domount(vfs_t *vfsp, char *osname)
 		    "xattr", &pval, NULL)))
 			goto out;
 		xattr_changed_cb(zfsvfs, pval);
+		if ((error = dsl_prop_get_integer(osname,
+		    "acltype", &pval, NULL)))
+			goto out;
+		acl_type_changed_cb(zfsvfs, pval);
 		zfsvfs->z_issnap = B_TRUE;
 		zfsvfs->z_os->os_sync = ZFS_SYNC_DISABLED;
 
@@ -2219,6 +2238,9 @@ zfs_get_zplprop(objset_t *os, zfs_prop_t prop, uint64_t *value)
 			break;
 		case ZFS_PROP_CASE:
 			*value = ZFS_CASE_SENSITIVE;
+			break;
+		case ZFS_PROP_ACLTYPE:
+			*value = ZFS_ACLTYPE_NFSV4;
 			break;
 		default:
 			return (error);
