@@ -29,6 +29,8 @@
 #ifndef _OPENSOLARIS_SYS_UIO_H_
 #define	_OPENSOLARIS_SYS_UIO_H_
 
+#ifndef _STANDALONE
+
 #include_next <sys/uio.h>
 #include <sys/_uio.h>
 #include <sys/debug.h>
@@ -106,5 +108,7 @@ uio_index_at_offset(uio_t *uio, offset_t off, uint_t *vec_idx)
 
 	return (off);
 }
+
+#endif /* !_STANDALONE */
 
 #endif	/* !_OPENSOLARIS_SYS_UIO_H_ */

@@ -31,6 +31,7 @@
 #define	_SYS_SYSMACROS_H
 
 #include <sys/param.h>
+#include <sys/systm.h>
 #include <sys/isa_defs.h>
 #include <sys/libkern.h>
 #include <sys/zone.h>
@@ -71,7 +72,11 @@ extern "C" {
 #define	DIV_ROUND_UP(n, d)	(((n) + (d) - 1) / (d))
 #endif
 
+#ifdef _STANDALONE
+#define	boot_ncpus 1
+#else /* _STANDALONE */
 #define	boot_ncpus mp_ncpus
+#endif /* _STANDALONE */
 #define	kpreempt_disable() critical_enter()
 #define	kpreempt_enable() critical_exit()
 #define	CPU_SEQID curcpu
@@ -319,7 +324,7 @@ extern unsigned char bcd_to_byte[256];
 
 /* avoid any possibility of clashing with <stddef.h> version */
 
-#define	offsetof(s, m)	((size_t)(&(((s *)0)->m)))
+#define	offsetof(type, field)	__offsetof(type, field)
 #endif
 
 /*

@@ -161,8 +161,12 @@ dmu_zfetch_fini(zfetch_t *zf)
 	zstream_t *zs;
 
 	mutex_enter(&zf->zf_lock);
-	while ((zs = list_head(&zf->zf_stream)) != NULL)
-		dmu_zfetch_stream_orphan(zf, zs);
+	while ((zs = list_head(&zf->zf_stream)) != NULL) {
+		if (zfs_refcount_count(&zs->zs_blocks) != 0)
+			dmu_zfetch_stream_orphan(zf, zs);
+		else
+			dmu_zfetch_stream_remove(zf, zs);
+	}
 	mutex_exit(&zf->zf_lock);
 	list_destroy(&zf->zf_stream);
 	mutex_destroy(&zf->zf_lock);
