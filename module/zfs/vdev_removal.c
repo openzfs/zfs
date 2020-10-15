@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2019 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
  * Copyright (c) 2019, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
  */
 
@@ -2031,6 +2031,15 @@ spa_vdev_remove_top_check(vdev_t *vd)
 	}
 
 	/*
+	 * A removed special/dedup vdev must have same ashift as normal class.
+	 */
+	ASSERT(!vd->vdev_islog);
+	if (vd->vdev_alloc_bias != VDEV_BIAS_NONE &&
+	    vd->vdev_ashift != spa->spa_max_ashift) {
+		return (SET_ERROR(EINVAL));
+	}
+
+	/*
 	 * All vdevs in normal class must have the same ashift
 	 * and not be raidz.
 	 */
@@ -2038,7 +2047,18 @@ spa_vdev_remove_top_check(vdev_t *vd)
 	int num_indirect = 0;
 	for (uint64_t id = 0; id < rvd->vdev_children; id++) {
 		vdev_t *cvd = rvd->vdev_child[id];
-		if (cvd->vdev_ashift != 0 && !cvd->vdev_islog)
+
+		/*
+		 * A removed special/dedup vdev must have the same ashift
+		 * across all vdevs in its class.
+		 */
+		if (vd->vdev_alloc_bias != VDEV_BIAS_NONE &&
+		    cvd->vdev_alloc_bias == vd->vdev_alloc_bias &&
+		    cvd->vdev_ashift != vd->vdev_ashift) {
+			return (SET_ERROR(EINVAL));
+		}
+		if (cvd->vdev_ashift != 0 &&
+		    cvd->vdev_alloc_bias == VDEV_BIAS_NONE)
 			ASSERT3U(cvd->vdev_ashift, ==, spa->spa_max_ashift);
 		if (cvd->vdev_ops == &vdev_indirect_ops)
 			num_indirect++;
