@@ -505,6 +505,7 @@ zfs_inode_update(znode_t *zp)
 	dmu_object_size_from_db(sa_get_db(zp->z_sa_hdl), &blksize, &i_blocks);
 
 	spin_lock(&ip->i_lock);
+	ip->i_mode = zp->z_mode;
 	ip->i_blocks = i_blocks;
 	i_size_write(ip, zp->z_size);
 	spin_unlock(&ip->i_lock);

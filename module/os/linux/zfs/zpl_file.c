@@ -226,12 +226,11 @@ zpl_read_common_iovec(struct inode *ip, const struct iovec *iovp, size_t count,
 	uio.uio_iovcnt = nr_segs;
 	uio.uio_loffset = *ppos;
 	uio.uio_segflg = segment;
-	uio.uio_limit = MAXOFFSET_T;
 	uio.uio_resid = count;
 	uio.uio_skip = skip;
 
 	cookie = spl_fstrans_mark();
-	error = -zfs_read(ip, &uio, flags, cr);
+	error = -zfs_read(ITOZ(ip), &uio, flags, cr);
 	spl_fstrans_unmark(cookie);
 	if (error < 0)
 		return (error);
@@ -339,12 +338,11 @@ zpl_write_common_iovec(struct inode *ip, const struct iovec *iovp, size_t count,
 	uio.uio_iovcnt = nr_segs;
 	uio.uio_loffset = *ppos;
 	uio.uio_segflg = segment;
-	uio.uio_limit = MAXOFFSET_T;
 	uio.uio_resid = count;
 	uio.uio_skip = skip;
 
 	cookie = spl_fstrans_mark();
-	error = -zfs_write(ip, &uio, flags, cr);
+	error = -zfs_write(ITOZ(ip), &uio, flags, cr);
 	spl_fstrans_unmark(cookie);
 	if (error < 0)
 		return (error);
