@@ -125,7 +125,7 @@ extern minor_t zfsdev_minor_alloc(void);
 #define	ZFS_ENTER(zfsvfs) \
 	{ \
 		rrm_enter_read(&(zfsvfs)->z_teardown_lock, FTAG); \
-		if ((zfsvfs)->z_unmounted) { \
+		if (__predict_false((zfsvfs)->z_unmounted)) { \
 			ZFS_EXIT(zfsvfs); \
 			return (EIO); \
 		} \
@@ -136,7 +136,7 @@ extern minor_t zfsdev_minor_alloc(void);
 
 /* Verifies the znode is valid */
 #define	ZFS_VERIFY_ZP(zp) \
-	if ((zp)->z_sa_hdl == NULL) { \
+	if (__predict_false((zp)->z_sa_hdl == NULL)) { \
 		ZFS_EXIT((zp)->z_zfsvfs); \
 		return (EIO); \
 	} \
