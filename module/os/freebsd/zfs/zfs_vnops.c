@@ -6641,6 +6641,9 @@ VFS_VOP_VECTOR_REGISTER(zfs_fifoops);
  */
 struct vop_vector zfs_shareops = {
 	.vop_default =		&default_vnodeops,
+#if __FreeBSD_version >= 1300121
+	.vop_fplookup_vexec =	VOP_EAGAIN,
+#endif
 	.vop_access =		zfs_freebsd_access,
 	.vop_inactive =		zfs_freebsd_inactive,
 	.vop_reclaim =		zfs_freebsd_reclaim,
