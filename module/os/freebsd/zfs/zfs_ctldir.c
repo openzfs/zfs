@@ -314,7 +314,6 @@ sfs_readdir_common(uint64_t parent_id, uint64_t id, struct vop_readdir_args *ap,
 static struct vop_vector zfsctl_ops_root;
 static struct vop_vector zfsctl_ops_snapdir;
 static struct vop_vector zfsctl_ops_snapshot;
-static struct vop_vector zfsctl_ops_shares_dir;
 
 void
 zfsctl_init(void)
@@ -331,8 +330,7 @@ zfsctl_is_node(vnode_t *vp)
 {
 	return (vn_matchops(vp, zfsctl_ops_root) ||
 	    vn_matchops(vp, zfsctl_ops_snapdir) ||
-	    vn_matchops(vp, zfsctl_ops_snapshot) ||
-	    vn_matchops(vp, zfsctl_ops_shares_dir));
+	    vn_matchops(vp, zfsctl_ops_snapshot));
 
 }
 
