@@ -48,6 +48,7 @@ extern "C" {
 
 #if defined(__ATTRIBUTE_IMPLEMENTED) || defined(__GNUC__)
 
+#if 0
 /*
  * analogous to lint's PRINTFLIKEn
  */
@@ -56,27 +57,34 @@ extern "C" {
 #define	__sun_attr___VPRINTFLIKE__(__n)	\
 		__attribute__((__format__(printf, __n, 0)))
 
-/*
- * Handle the kernel printf routines that can take '%b' too
- */
-#if __GNUC_VERSION < 30402
-/*
- * XX64 at least this doesn't work correctly yet with 3.4.1 anyway!
- */
 #define	__sun_attr___KPRINTFLIKE__	__sun_attr___PRINTFLIKE__
 #define	__sun_attr___KVPRINTFLIKE__	__sun_attr___VPRINTFLIKE__
 #else
-#define	__sun_attr___KPRINTFLIKE__(__n)	\
-		__attribute__((__format__(cmn_err, __n, (__n)+1)))
-#define	__sun_attr___KVPRINTFLIKE__(__n) \
-		__attribute__((__format__(cmn_err, __n, 0)))
+/*
+ * Currently the openzfs codebase has a lot of formatting errors
+ * which are not picked up in the linux build because they're not
+ * doing formatting checks. LLVM's kprintf implementation doesn't
+ * actually do format checks!
+ *
+ * For FreeBSD these break under gcc! LLVM shim'ed cmn_err as a
+ * format attribute but also didn't check anything.  If one
+ * replaces it with the above, all of the format issues
+ * in the codebase show up.
+ *
+ * Once those format string issues are addressed, the above
+ * should be flipped on once again.
+ */
+#define	__sun_attr___PRINTFLIKE__(__n)
+#define	__sun_attr___VPRINTFLIKE__(__n)
+#define	__sun_attr___KPRINTFLIKE__(__n)
+#define	__sun_attr___KVPRINTFLIKE__(__n)
+
 #endif
 
 /*
  * This one's pretty obvious -- the function never returns
  */
 #define	__sun_attr___noreturn__ __attribute__((__noreturn__))
-
 
 /*
  * This is an appropriate label for functions that do not
