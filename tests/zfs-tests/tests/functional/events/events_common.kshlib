@@ -46,7 +46,6 @@ function file_wait_event # file event timeout
 		fi
 
 		sleep 1
-		((SECONDS=SECONDS+1))
 	done
 
 	return 0;
@@ -71,7 +70,6 @@ function file_wait # file delay timeout
 		fi
 
 		sleep 1
-		((SECONDS=SECONDS+1))
 	done
 
 	return 0;
@@ -82,7 +80,7 @@ function run_and_verify
 	typeset event pool
 	set -A events
 
-	while getopts "d:e:p:z:" opt; do
+	while getopts "e:p:" opt; do
 		case $opt in
 		e)
 			events+=("$OPTARG")
@@ -143,7 +141,7 @@ function run_and_verify
 		    $TMP_EVENTS_FULL >$TMP_EVENT_FULL
 		log_must grep -q "pool = \"$pool\"" $TMP_EVENT_FULL
 
-		# history events are filtered from all-debug.sh
+		# all-debug.sh filters history events (seen in ZED_DEBUG_LOG)
 		if [[ "$event" == "sysevent.fs.zfs.history_event" ]]; then
 			continue
 		fi
