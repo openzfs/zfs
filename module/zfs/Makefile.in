@@ -132,6 +132,7 @@ $(MODULE)-objs += zle.o
 $(MODULE)-objs += zrlock.o
 $(MODULE)-objs += zthr.o
 $(MODULE)-objs += zvol.o
+$(MODULE)-objs += zvol_log.o
 
 # Suppress incorrect warnings from versions of objtool which are not
 # aware of x86 EVEX prefix instructions used for AVX512.

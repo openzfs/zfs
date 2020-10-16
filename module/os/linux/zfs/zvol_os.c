@@ -26,17 +26,18 @@
 #include <sys/dbuf.h>
 #include <sys/dmu_traverse.h>
 #include <sys/dsl_dataset.h>
+#include <sys/dmu_objset.h>
 #include <sys/dsl_prop.h>
 #include <sys/dsl_dir.h>
 #include <sys/zap.h>
 #include <sys/zfeature.h>
-#include <sys/zil_impl.h>
 #include <sys/dmu_tx.h>
 #include <sys/zio.h>
 #include <sys/zfs_rlock.h>
 #include <sys/spa_impl.h>
 #include <sys/zvol.h>
 #include <sys/zvol_impl.h>
+#include <sys/zil_impl.h>
 
 #include <linux/blkdev_compat.h>
 #include <linux/task_io_accounting_ops.h>

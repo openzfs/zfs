@@ -23,6 +23,10 @@
 #define	_SYS_ZVOL_IMPL_H
 
 #include <sys/zfs_context.h>
+#include <sys/zfs_rlock.h>
+#include <sys/dataset_kstats.h>
+
+typedef struct zilog zilog_t;
 
 #define	ZVOL_RDONLY	0x1
 /*
