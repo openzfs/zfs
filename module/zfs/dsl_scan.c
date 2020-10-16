@@ -44,7 +44,7 @@
 #include <sys/zfs_znode.h>
 #include <sys/spa_impl.h>
 #include <sys/vdev_impl.h>
-#include <sys/zil_impl.h>
+#include <sys/zil.h>
 #include <sys/zio_checksum.h>
 #include <sys/ddt.h>
 #include <sys/sa.h>

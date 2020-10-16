@@ -3755,6 +3755,18 @@ zil_reset(const char *osname, void *arg)
 	return (0);
 }
 
+void
+zil_init_dirty_zilogs(txg_list_t *dp_dirty_zilogs, spa_t *spa)
+{
+	txg_list_create(dp_dirty_zilogs, spa, offsetof(zilog_t, zl_dirty_link));
+}
+
+objset_t *
+zil_objset(zilog_t *zl)
+{
+	return (zl->zl_os);
+}
+
 EXPORT_SYMBOL(zil_alloc);
 EXPORT_SYMBOL(zil_free);
 EXPORT_SYMBOL(zil_open);

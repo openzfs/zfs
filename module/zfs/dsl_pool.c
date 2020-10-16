@@ -46,7 +46,7 @@
 #include <sys/metaslab_impl.h>
 #include <sys/bptree.h>
 #include <sys/zfeature.h>
-#include <sys/zil_impl.h>
+#include <sys/zil.h>
 #include <sys/dsl_userhold.h>
 #include <sys/trace_zfs.h>
 #include <sys/mmp.h>
@@ -206,8 +206,7 @@ dsl_pool_open_impl(spa_t *spa, uint64_t txg)
 
 	txg_list_create(&dp->dp_dirty_datasets, spa,
 	    offsetof(dsl_dataset_t, ds_dirty_link));
-	txg_list_create(&dp->dp_dirty_zilogs, spa,
-	    offsetof(zilog_t, zl_dirty_link));
+	zil_init_dirty_zilogs(&dp->dp_dirty_zilogs, spa);
 	txg_list_create(&dp->dp_dirty_dirs, spa,
 	    offsetof(dsl_dir_t, dd_dirty_link));
 	txg_list_create(&dp->dp_sync_tasks, spa,
@@ -855,7 +854,7 @@ dsl_pool_sync_done(dsl_pool_t *dp, uint64_t txg)
 	zilog_t *zilog;
 
 	while ((zilog = txg_list_head(&dp->dp_dirty_zilogs, txg))) {
-		dsl_dataset_t *ds = dmu_objset_ds(zilog->zl_os);
+		dsl_dataset_t *ds = dmu_objset_ds(zil_objset(zilog));
 		/*
 		 * We don't remove the zilog from the dp_dirty_zilogs
 		 * list until after we've cleaned it. This ensures that
@@ -864,7 +863,7 @@ dsl_pool_sync_done(dsl_pool_t *dp, uint64_t txg)
 		 */
 		zil_clean(zilog, txg);
 		(void) txg_list_remove_this(&dp->dp_dirty_zilogs, zilog, txg);
-		ASSERT(!dmu_objset_is_dirty(zilog->zl_os, txg));
+		ASSERT(!dmu_objset_is_dirty(zil_objset(zilog), txg));
 		dmu_buf_rele(ds->ds_dbuf, zilog);
 	}
 

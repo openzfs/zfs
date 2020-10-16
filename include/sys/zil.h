@@ -527,6 +527,10 @@ extern void	zil_set_logbias(zilog_t *zilog, uint64_t slogval);
 extern uint64_t	zil_max_copied_data(zilog_t *zilog);
 extern uint64_t	zil_max_log_data(zilog_t *zilog);
 
+/* dsl_pool.c */
+extern objset_t *zil_objset(zilog_t *zillog);
+extern void zil_init_dirty_zilogs(txg_list_t *list, spa_t *spa);
+
 extern int zil_replay_disable;
 
 #ifdef	__cplusplus
