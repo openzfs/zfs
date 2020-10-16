@@ -143,19 +143,20 @@ zfs_callback(zfs_handle_t *zhp, void *data)
 		    (cb->cb_types &
 		    (ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME))) &&
 		    zfs_get_type(zhp) == ZFS_TYPE_FILESYSTEM) {
-			(void) zfs_iter_filesystems(zhp, zfs_callback, data);
+			(void) zfs_iter_filesystems(zhp, cb->cb_flags,
+			    zfs_callback, data);
 		}
 
 		if (((zfs_get_type(zhp) & (ZFS_TYPE_SNAPSHOT |
 		    ZFS_TYPE_BOOKMARK)) == 0) && include_snaps) {
-			(void) zfs_iter_snapshots(zhp,
-			    (cb->cb_flags & ZFS_ITER_SIMPLE) != 0,
+			(void) zfs_iter_snapshots(zhp, cb->cb_flags,
 			    zfs_callback, data, 0, 0);
 		}
 
 		if (((zfs_get_type(zhp) & (ZFS_TYPE_SNAPSHOT |
 		    ZFS_TYPE_BOOKMARK)) == 0) && include_bmarks) {
-			(void) zfs_iter_bookmarks(zhp, zfs_callback, data);
+			(void) zfs_iter_bookmarks(zhp, cb->cb_flags,
+			    zfs_callback, data);
 		}
 
 		cb->cb_depth--;
@@ -211,18 +212,58 @@ zfs_free_sort_columns(zfs_sort_column_t *sc)
 	}
 }
 
-int
-zfs_sort_only_by_name(const zfs_sort_column_t *sc)
+/*
+ * Return true if all of the properties to be sorted are populated by
+ * dsl_dataset_fast_stat(). Note that sc == NULL (no sort) means we
+ * don't need any extra properties, so returns true.
+ */
+boolean_t
+zfs_sort_only_by_fast(const zfs_sort_column_t *sc)
 {
-	return (sc != NULL && sc->sc_next == NULL &&
-	    sc->sc_prop == ZFS_PROP_NAME);
+	while (sc != NULL) {
+		switch (sc->sc_prop) {
+		case ZFS_PROP_NAME:
+		case ZFS_PROP_GUID:
+		case ZFS_PROP_CREATETXG:
+		case ZFS_PROP_NUMCLONES:
+		case ZFS_PROP_INCONSISTENT:
+		case ZFS_PROP_REDACTED:
+		case ZFS_PROP_ORIGIN:
+			break;
+		default:
+			return (B_FALSE);
+		}
+		sc = sc->sc_next;
+	}
+
+	return (B_TRUE);
 }
 
-int
-zfs_sort_only_by_createtxg(const zfs_sort_column_t *sc)
+boolean_t
+zfs_list_only_by_fast(const zprop_list_t *p)
 {
-	return (sc != NULL && sc->sc_next == NULL &&
-	    sc->sc_prop == ZFS_PROP_CREATETXG);
+	if (p == NULL) {
+		/* NULL means 'all' so we can't use simple mode */
+		return (B_FALSE);
+	}
+
+	while (p != NULL) {
+		switch (p->pl_prop) {
+		case ZFS_PROP_NAME:
+		case ZFS_PROP_GUID:
+		case ZFS_PROP_CREATETXG:
+		case ZFS_PROP_NUMCLONES:
+		case ZFS_PROP_INCONSISTENT:
+		case ZFS_PROP_REDACTED:
+		case ZFS_PROP_ORIGIN:
+			break;
+		default:
+			return (B_FALSE);
+		}
+		p = p->pl_next;
+	}
+
+	return (B_TRUE);
 }
 
 static int

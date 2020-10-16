@@ -535,7 +535,7 @@ zfs_key_config_get_dataset(zfs_key_config_t *config)
 			return (NULL);
 		}
 
-		(void) zfs_iter_filesystems(zhp, find_dsname_by_prop_value,
+		(void) zfs_iter_filesystems(zhp, 0, find_dsname_by_prop_value,
 		    config);
 		zfs_close(zhp);
 		char *dsname = config->dsname;

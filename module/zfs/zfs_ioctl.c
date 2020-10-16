@@ -2039,7 +2039,7 @@ zfs_ioc_objset_stats_impl(zfs_cmd_t *zc, objset_t *os)
 
 	dmu_objset_fast_stat(os, &zc->zc_objset_stats);
 
-	if (zc->zc_nvlist_dst != 0 &&
+	if (!zc->zc_simple && zc->zc_nvlist_dst != 0 &&
 	    (error = dsl_prop_get_all(os, &nv)) == 0) {
 		dmu_objset_stats(os, nv);
 		/*
@@ -2326,8 +2326,7 @@ zfs_ioc_snapshot_list_next(zfs_cmd_t *zc)
 		}
 
 		if (zc->zc_simple) {
-			zc->zc_objset_stats.dds_creation_txg =
-			    dsl_get_creationtxg(ds);
+			dsl_dataset_fast_stat(ds, &zc->zc_objset_stats);
 			dsl_dataset_rele(ds, FTAG);
 			break;
 		}

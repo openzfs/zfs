@@ -8808,7 +8808,7 @@ check_unsupp_fs(zfs_handle_t *zhp, void *unsupp_fs)
 		(*count)++;
 	}
 
-	zfs_iter_filesystems(zhp, check_unsupp_fs, unsupp_fs);
+	zfs_iter_filesystems(zhp, 0, check_unsupp_fs, unsupp_fs);
 
 	zfs_close(zhp);
 

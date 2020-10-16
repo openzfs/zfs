@@ -616,10 +616,10 @@ send_iterate_fs(zfs_handle_t *zhp, void *arg)
 			min_txg = fromsnap_txg;
 		if (!sd->replicate && tosnap_txg != 0)
 			max_txg = tosnap_txg;
-		(void) zfs_iter_snapshots_sorted(zhp, send_iterate_snap, sd,
+		(void) zfs_iter_snapshots_sorted(zhp, 0, send_iterate_snap, sd,
 		    min_txg, max_txg);
 	} else {
-		char snapname[MAXPATHLEN];
+		char snapname[MAXPATHLEN] = { 0 };
 		zfs_handle_t *snap;
 
 		(void) snprintf(snapname, sizeof (snapname), "%s@%s",
@@ -659,7 +659,7 @@ send_iterate_fs(zfs_handle_t *zhp, void *arg)
 
 	/* Iterate over children. */
 	if (sd->recursive)
-		rv = zfs_iter_filesystems(zhp, send_iterate_fs, sd);
+		rv = zfs_iter_filesystems(zhp, 0, send_iterate_fs, sd);
 
 out:
 	/* Restore saved fields. */
@@ -1274,7 +1274,7 @@ dump_filesystem(zfs_handle_t *zhp, send_dump_data_t *sdd)
 				    zhp->zfs_name, sdd->tosnap);
 			}
 		}
-		rv = zfs_iter_snapshots_sorted(zhp, dump_snapshot, sdd,
+		rv = zfs_iter_snapshots_sorted(zhp, 0, dump_snapshot, sdd,
 		    min_txg, max_txg);
 	} else {
 		char snapname[MAXPATHLEN] = { 0 };
@@ -3125,9 +3125,9 @@ guid_to_name_cb(zfs_handle_t *zhp, void *arg)
 		return (EEXIST);
 	}
 
-	err = zfs_iter_children(zhp, guid_to_name_cb, gtnd);
+	err = zfs_iter_children(zhp, 0, guid_to_name_cb, gtnd);
 	if (err != EEXIST && gtnd->bookmark_ok)
-		err = zfs_iter_bookmarks(zhp, guid_to_name_cb, gtnd);
+		err = zfs_iter_bookmarks(zhp, 0, guid_to_name_cb, gtnd);
 	zfs_close(zhp);
 	return (err);
 }
@@ -3181,9 +3181,10 @@ guid_to_name_redact_snaps(libzfs_handle_t *hdl, const char *parent,
 			continue;
 		int err = guid_to_name_cb(zfs_handle_dup(zhp), &gtnd);
 		if (err != EEXIST)
-			err = zfs_iter_children(zhp, guid_to_name_cb, &gtnd);
+			err = zfs_iter_children(zhp, 0, guid_to_name_cb, &gtnd);
 		if (err != EEXIST && bookmark_ok)
-			err = zfs_iter_bookmarks(zhp, guid_to_name_cb, &gtnd);
+			err = zfs_iter_bookmarks(zhp, 0, guid_to_name_cb,
+			    &gtnd);
 		zfs_close(zhp);
 		if (err == EEXIST)
 			return (0);

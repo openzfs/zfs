@@ -552,7 +552,7 @@ change_one(zfs_handle_t *zhp, void *data)
 		}
 
 		if (!clp->cl_alldependents)
-			ret = zfs_iter_children(zhp, change_one, data);
+			ret = zfs_iter_children(zhp, 0, change_one, data);
 
 		/*
 		 * If we added the handle to the changelist, we will re-use it
@@ -721,11 +721,11 @@ changelist_gather(zfs_handle_t *zhp, zfs_prop_t prop, int gather_flags,
 			return (NULL);
 		}
 	} else if (clp->cl_alldependents) {
-		if (zfs_iter_dependents(zhp, B_TRUE, change_one, clp) != 0) {
+		if (zfs_iter_dependents(zhp, 0, B_TRUE, change_one, clp) != 0) {
 			changelist_free(clp);
 			return (NULL);
 		}
-	} else if (zfs_iter_children(zhp, change_one, clp) != 0) {
+	} else if (zfs_iter_children(zhp, 0, change_one, clp) != 0) {
 		changelist_free(clp);
 		return (NULL);
 	}
