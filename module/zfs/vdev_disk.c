@@ -503,7 +503,11 @@ vdev_blkg_tryget(struct blkcg_gq *blkg)
 		this_cpu_inc(*count);
 		rc = true;
 	} else {
+#ifdef ZFS_PERCPU_REF_COUNT_IN_DATA
+		rc = atomic_long_inc_not_zero(&ref->data->count);
+#else
 		rc = atomic_long_inc_not_zero(&ref->count);
+#endif
 	}
 
 	rcu_read_unlock_sched();
