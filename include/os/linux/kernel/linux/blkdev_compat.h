@@ -291,8 +291,10 @@ zfs_check_media_change(struct block_device *bdev)
 	if (!bdev_check_media_change(bdev))
 		return (0);
 
-	/* Force revalidation, to mimic the old behavior of
-	 * check_disk_change() */
+	/*
+	 * Force revalidation, to mimic the old behavior of
+	 * check_disk_change()
+	 */
 	if (bdo->revalidate_disk)
 		bdo->revalidate_disk(gd);
 
@@ -300,7 +302,8 @@ zfs_check_media_change(struct block_device *bdev)
 }
 #define	vdev_bdev_reread_part(bdev)	zfs_check_media_change(bdev)
 #else
-/* This is encountered if check_disk_change() and bdev_check_media_change()
+/*
+ * This is encountered if check_disk_change() and bdev_check_media_change()
  * are not available in the kernel - likely due to an API change that needs
  * to be chased down.
  */
