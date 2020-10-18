@@ -33,10 +33,9 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_PERCPU_REF_COUNT_IN_DATA], [
 	ZFS_LINUX_TEST_SRC([percpu_ref_count_in_data], [
 		#include <linux/percpu-refcount.h>
 	],[
-		struct percpu_ref *r = NULL;
-		atomic_long_t count;
+		struct percpu_ref_data d;
 
-		count = r->data->count;
+		atomic_long_set(&d.count, 1L);
 	])
 ])
 
