@@ -418,7 +418,6 @@ zvol_set_volsize(const char *name, uint64_t volsize)
 	uint64_t readonly;
 	int error;
 	boolean_t owned = B_FALSE;
-	int ret = 0;
 
 	error = dsl_prop_get_integer(name,
 	    zfs_prop_to_name(ZFS_PROP_READONLY), &readonly, NULL);
@@ -475,8 +474,13 @@ out:
 		mutex_exit(&zv->zv_state_lock);
 
 	if (disk != NULL) {
+#ifdef HAVE_REVALIDATE_DISK_SIZE
+		int ret = 0;
 		ret = zvol_revalidate_disk(disk);
 		revalidate_disk_size(disk, ret == 0);
+#else
+		revalidate_disk(disk);
+#endif
 	}
 
 	return (SET_ERROR(error));
