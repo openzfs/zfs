@@ -652,7 +652,11 @@ static int
 zvol_update_volsize(zvol_state_t *zv, uint64_t volsize)
 {
 
+#ifdef HAVE_REVALIDATE_DISK_SIZE
+	revalidate_disk_size(zv->zv_zso->zvo_disk, false);
+#else
 	revalidate_disk(zv->zv_zso->zvo_disk);
+#endif
 	return (0);
 }
 
