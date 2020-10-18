@@ -500,7 +500,7 @@ zvol_open(struct block_device *bdev, fmode_t flag)
 	if (drop_suspend)
 		rw_exit(&zv->zv_suspend_lock);
 
-	check_disk_change(bdev);
+	zfs_check_media_change(bdev);
 
 	return (0);
 
