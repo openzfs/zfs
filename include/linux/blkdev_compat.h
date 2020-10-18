@@ -371,12 +371,48 @@ bio_set_bi_error(struct bio *bio, int error)
  *
  * For older kernels trigger a re-reading of the partition table by calling
  * check_disk_change() which calls flush_disk() to invalidate the device.
+ *
+ * For newer kernels (as of 5.10), bdev_check_media_chage is used, in favor of
+ * check_disk_change(), with the modification that invalidation is no longer
+ * forced.
  */
+#ifdef HAVE_CHECK_DISK_CHANGE
+#define	zfs_check_media_change(bdev)	check_disk_change(bdev)
 #ifdef HAVE_BLKDEV_REREAD_PART
 #define	vdev_bdev_reread_part(bdev)	blkdev_reread_part(bdev)
 #else
 #define	vdev_bdev_reread_part(bdev)	check_disk_change(bdev)
 #endif /* HAVE_BLKDEV_REREAD_PART */
+#else
+#ifdef HAVE_BDEV_CHECK_MEDIA_CHANGE
+static inline int
+zfs_check_media_change(struct block_device *bdev)
+{
+	struct gendisk *gd = bdev->bd_disk;
+	const struct block_device_operations *bdo = gd->fops;
+
+	if (!bdev_check_media_change(bdev))
+		return (0);
+
+	/*
+	 * Force revalidation, to mimic the old behavior of
+	 * check_disk_change()
+	 */
+	if (bdo->revalidate_disk)
+		bdo->revalidate_disk(gd);
+
+	return (0);
+}
+#define	vdev_bdev_reread_part(bdev)	zfs_check_media_change(bdev)
+#else
+/*
+ * This is encountered if check_disk_change() and bdev_check_media_change()
+ * are not available in the kernel - likely due to an API change that needs
+ * to be chased down.
+ */
+#error "Unsupported kernel: no usable disk change check"
+#endif /* HAVE_BDEV_CHECK_MEDIA_CHANGE */
+#endif /* HAVE_CHECK_DISK_CHANGE */
 
 /*
  * 2.6.22 API change
