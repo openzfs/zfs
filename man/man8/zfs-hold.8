@@ -43,8 +43,10 @@
 .Ar tag Ar snapshot Ns ...
 .Nm
 .Cm holds
-.Op Fl rH
-.Ar snapshot Ns ...
+.Op Fl Hp
+.Op Fl r Ns | Ns Fl d Ar depth
+.Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot Ns
+.Ns ...
 .Nm
 .Cm release
 .Op Fl r
@@ -75,16 +77,24 @@ of all descendent file systems.
 .It Xo
 .Nm
 .Cm holds
-.Op Fl rH
-.Ar snapshot Ns ...
+.Op Fl Hp
+.Op Fl r Ns | Ns Fl d Ar depth
+.Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot Ns
+.Ns ...
 .Xc
-Lists all existing user references for the given snapshot or snapshots.
+Lists all existing user references for the given dataset or datasets.
 .Bl -tag -width "-r"
-.It Fl r
-Lists the holds that are set on the named descendent snapshots, in addition to
-listing the holds on the named snapshot.
 .It Fl H
 Do not print headers, use tab-delimited output.
+.It Fl p
+Display numbers in parsable (exact) values.
+.It Fl r
+Lists the holds that are set on the descendent snapshots of the named datasets
+or snapshots, in addition to listing the holds on the named snapshots, if any.
+.It Fl d Ar depth
+Recursively display any holds on the named snapshots, or descendent snapshots of
+the named datasets or snapshots, limiting the recursion to
+.Ar depth .
 .El
 .It Xo
 .Nm
