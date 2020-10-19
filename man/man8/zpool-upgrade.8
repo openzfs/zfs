@@ -31,22 +31,22 @@
 .Dt ZPOOL-UPGRADE 8
 .Os
 .Sh NAME
-.Nm zpool Ns Pf - Cm upgrade
+.Nm zpool-upgrade
 .Nd Manage version and feature flags of ZFS storage pools
 .Sh SYNOPSIS
-.Nm
+.Nm zpool
 .Cm upgrade
-.Nm
+.Nm zpool
 .Cm upgrade
 .Fl v
-.Nm
+.Nm zpool
 .Cm upgrade
 .Op Fl V Ar version
 .Fl a Ns | Ns Ar pool Ns ...
 .Sh DESCRIPTION
 .Bl -tag -width Ds
 .It Xo
-.Nm
+.Nm zpool
 .Cm upgrade
 .Xc
 Displays pools which do not have all supported features enabled and pools
@@ -56,7 +56,7 @@ Use
 .Nm zpool Cm upgrade Fl a
 to enable all features on all pools.
 .It Xo
-.Nm
+.Nm zpool
 .Cm upgrade
 .Fl v
 .Xc
@@ -65,7 +65,7 @@ See
 .Xr zpool-features 5
 for a description of feature flags features supported by the current software.
 .It Xo
-.Nm
+.Nm zpool
 .Cm upgrade
 .Op Fl V Ar version
 .Fl a Ns | Ns Ar pool Ns ...

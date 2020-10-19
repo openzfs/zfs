@@ -34,40 +34,40 @@
 .Dt ZFS-RENAME 8
 .Os
 .Sh NAME
-.Nm zfs Ns Pf - Cm rename
+.Nm zfs-rename
 .Nd Renames the given dataset (filesystem or snapshot).
 .Sh SYNOPSIS
-.Nm
+.Nm zfs
 .Cm rename
 .Op Fl f
 .Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot
 .Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot
-.Nm
+.Nm zfs
 .Cm rename
 .Fl p
 .Op Fl f
 .Ar filesystem Ns | Ns Ar volume
 .Ar filesystem Ns | Ns Ar volume
-.Nm
+.Nm zfs
 .Cm rename
 .Fl u
 .Op Fl f
 .Ar filesystem Ar filesystem
-.Nm
+.Nm zfs
 .Cm rename
 .Fl r
 .Ar snapshot Ar snapshot
 .Sh DESCRIPTION
 .Bl -tag -width ""
 .It Xo
-.Nm
+.Nm zfs
 .Cm rename
 .Op Fl f
 .Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot
 .Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot
 .Xc
 .It Xo
-.Nm
+.Nm zfs
 .Cm rename
 .Fl p
 .Op Fl f
@@ -75,7 +75,7 @@
 .Ar filesystem Ns | Ns Ar volume
 .Xc
 .It Xo
-.Nm
+.Nm zfs
 .Cm rename
 .Fl u
 .Op Fl f
@@ -112,7 +112,7 @@ or
 the file system is not unmounted even if this option is not given.
 .El
 .It Xo
-.Nm
+.Nm zfs
 .Cm rename
 .Fl r
 .Ar snapshot Ar snapshot

@@ -34,57 +34,57 @@
 .Dt ZFS-ALLOW 8
 .Os
 .Sh NAME
-.Nm zfs Ns Pf - Cm allow
+.Nm zfs-allow
 .Nd Delegates ZFS administration permission for the file systems to non-privileged users.
 .Sh SYNOPSIS
-.Nm
+.Nm zfs
 .Cm allow
 .Op Fl dglu
 .Ar user Ns | Ns Ar group Ns Oo , Ns Ar user Ns | Ns Ar group Oc Ns ...
 .Ar perm Ns | Ns @ Ns Ar setname Ns Oo , Ns Ar perm Ns | Ns @ Ns
 .Ar setname Oc Ns ...
 .Ar filesystem Ns | Ns Ar volume
-.Nm
+.Nm zfs
 .Cm allow
 .Op Fl dl
 .Fl e Ns | Ns Sy everyone
 .Ar perm Ns | Ns @ Ns Ar setname Ns Oo , Ns Ar perm Ns | Ns @ Ns
 .Ar setname Oc Ns ...
 .Ar filesystem Ns | Ns Ar volume
-.Nm
+.Nm zfs
 .Cm allow
 .Fl c
 .Ar perm Ns | Ns @ Ns Ar setname Ns Oo , Ns Ar perm Ns | Ns @ Ns
 .Ar setname Oc Ns ...
 .Ar filesystem Ns | Ns Ar volume
-.Nm
+.Nm zfs
 .Cm allow
 .Fl s No @ Ns Ar setname
 .Ar perm Ns | Ns @ Ns Ar setname Ns Oo , Ns Ar perm Ns | Ns @ Ns
 .Ar setname Oc Ns ...
 .Ar filesystem Ns | Ns Ar volume
-.Nm
+.Nm zfs
 .Cm unallow
 .Op Fl dglru
 .Ar user Ns | Ns Ar group Ns Oo , Ns Ar user Ns | Ns Ar group Oc Ns ...
 .Oo Ar perm Ns | Ns @ Ns Ar setname Ns Oo , Ns Ar perm Ns | Ns @ Ns
 .Ar setname Oc Ns ... Oc
 .Ar filesystem Ns | Ns Ar volume
-.Nm
+.Nm zfs
 .Cm unallow
 .Op Fl dlr
 .Fl e Ns | Ns Sy everyone
 .Oo Ar perm Ns | Ns @ Ns Ar setname Ns Oo , Ns Ar perm Ns | Ns @ Ns
 .Ar setname Oc Ns ... Oc
 .Ar filesystem Ns | Ns Ar volume
-.Nm
+.Nm zfs
 .Cm unallow
 .Op Fl r
 .Fl c
 .Oo Ar perm Ns | Ns @ Ns Ar setname Ns Oo , Ns Ar perm Ns | Ns @ Ns
 .Ar setname Oc Ns ... Oc
 .Ar filesystem Ns | Ns Ar volume
-.Nm
+.Nm zfs
 .Cm unallow
 .Op Fl r
 .Fl s No @ Ns Ar setname
@@ -94,7 +94,7 @@
 .Sh DESCRIPTION
 .Bl -tag -width ""
 .It Xo
-.Nm
+.Nm zfs
 .Cm allow
 .Ar filesystem Ns | Ns Ar volume
 .Xc
@@ -116,7 +116,7 @@ These permissions cannot be delegated because the Linux
 .Xr mount 8
 command restricts modifications of the global namespace to the root user.
 .It Xo
-.Nm
+.Nm zfs
 .Cm allow
 .Op Fl dglu
 .Ar user Ns | Ns Ar group Ns Oo , Ns Ar user Ns | Ns Ar group Oc Ns ...
@@ -125,7 +125,7 @@ command restricts modifications of the global namespace to the root user.
 .Ar filesystem Ns | Ns Ar volume
 .Xc
 .It Xo
-.Nm
+.Nm zfs
 .Cm allow
 .Op Fl dl
 .Fl e Ns | Ns Sy everyone
@@ -271,7 +271,7 @@ xattr            property
 zoned            property
 .Ed
 .It Xo
-.Nm
+.Nm zfs
 .Cm allow
 .Fl c
 .Ar perm Ns | Ns @ Ns Ar setname Ns Oo , Ns Ar perm Ns | Ns @ Ns
@@ -285,7 +285,7 @@ These permissions are granted
 .Pq locally
 to the creator of any newly-created descendent file system.
 .It Xo
-.Nm
+.Nm zfs
 .Cm allow
 .Fl s No @ Ns Ar setname
 .Ar perm Ns | Ns @ Ns Ar setname Ns Oo , Ns Ar perm Ns | Ns @ Ns
@@ -302,7 +302,7 @@ name must begin with
 .Sy @ ,
 and can be no more than 64 characters long.
 .It Xo
-.Nm
+.Nm zfs
 .Cm unallow
 .Op Fl dglru
 .Ar user Ns | Ns Ar group Ns Oo , Ns Ar user Ns | Ns Ar group Oc Ns ...
@@ -311,7 +311,7 @@ and can be no more than 64 characters long.
 .Ar filesystem Ns | Ns Ar volume
 .Xc
 .It Xo
-.Nm
+.Nm zfs
 .Cm unallow
 .Op Fl dlr
 .Fl e Ns | Ns Sy everyone
@@ -320,7 +320,7 @@ and can be no more than 64 characters long.
 .Ar filesystem Ns | Ns Ar volume
 .Xc
 .It Xo
-.Nm
+.Nm zfs
 .Cm unallow
 .Op Fl r
 .Fl c
@@ -358,7 +358,7 @@ options.
 Recursively remove the permissions from this file system and all descendents.
 .El
 .It Xo
-.Nm
+.Nm zfs
 .Cm unallow
 .Op Fl r
 .Fl s No @ Ns Ar setname
