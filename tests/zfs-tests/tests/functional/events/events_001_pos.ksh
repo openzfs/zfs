@@ -106,8 +106,8 @@ run_and_verify -p "$MPOOL" \
 # Attach then detach a device from the mirror.
 run_and_verify -p "$MPOOL" \
     -e "sysevent.fs.zfs.vdev_attach" \
-    -e "sysevent.fs.zfs.config_sync" \
     -e "sysevent.fs.zfs.resilver_start" \
+    -e "sysevent.fs.zfs.config_sync" \
     -e "sysevent.fs.zfs.history_event" \
     -e "sysevent.fs.zfs.resilver_finish" \
     "zpool attach $MPOOL $VDEV1 $VDEV4"
@@ -119,8 +119,8 @@ run_and_verify -p "$MPOOL" \
 # Replace a device
 run_and_verify -p "$MPOOL" \
     -e "sysevent.fs.zfs.vdev_attach" \
-    -e "sysevent.fs.zfs.config_sync" \
     -e "sysevent.fs.zfs.resilver_start" \
+    -e "sysevent.fs.zfs.config_sync" \
     -e "sysevent.fs.zfs.history_event" \
     -e "sysevent.fs.zfs.resilver_finish" \
     -e "sysevent.fs.zfs.vdev_remove" \
@@ -139,9 +139,9 @@ run_and_verify -p "$MPOOL" \
     -e "sysevent.fs.zfs.config_sync" \
     "zpool export $MPOOL"
 run_and_verify -p "$MPOOL" \
-    -e "sysevent.fs.zfs.pool_import" \
-    -e "sysevent.fs.zfs.history_event" \
     -e "sysevent.fs.zfs.config_sync" \
+    -e "sysevent.fs.zfs.history_event" \
+    -e "sysevent.fs.zfs.pool_import" \
     "zpool import -d $TEST_BASE_DIR $MPOOL"
 
 # Destroy the pool

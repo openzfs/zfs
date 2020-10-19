@@ -124,6 +124,9 @@ function run_and_verify
 
 		log_must cp $ZED_DEBUG_LOG $TMP_EVENTS_ZED
 		log_must test -s $TMP_EVENTS_ZED
+
+		log_note "Events logged:"
+		grep "^ZEVENT_CLASS" $TMP_EVENTS_ZED
 	fi
 
 	log_note "Events generated:"
