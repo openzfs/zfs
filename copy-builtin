@@ -42,6 +42,7 @@ for MODULE in "${MODULES[@]}"
 do
 	sed -i '/obj =/d' "$KERNEL_DIR/fs/zfs/$MODULE/Makefile"
 	sed -i '/src =/d' "$KERNEL_DIR/fs/zfs/$MODULE/Makefile"
+	sed -i "s|-I$PWD/module/|-I\$(srctree)/fs/zfs/|" "$KERNEL_DIR/fs/zfs/$MODULE/Makefile"
 done
 
 cat > "$KERNEL_DIR/fs/zfs/Kconfig" <<"EOF"
