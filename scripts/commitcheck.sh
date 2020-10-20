@@ -1,23 +1,10 @@
-#!/usr/bin/env bash
+#!/bin/sh
 
 REF="HEAD"
 
-# test a url
-function test_url()
-{
-    url="$1"
-    if ! curl --output /dev/null --max-time 60 \
-		--silent --head --fail "$url" ; then
-        echo "\"$url\" is unreachable"
-        return 1
-    fi
-
-    return 0
-}
-
 # test commit body for length
 # lines containing urls are exempt for the length limit.
-function test_commit_bodylength()
+test_commit_bodylength()
 {
     length="72"
     body=$(git log -n 1 --pretty=%b "$REF" | grep -Ev "http(s)*://" | grep -E -m 1 ".{$((length + 1))}")
@@ -30,9 +17,9 @@ function test_commit_bodylength()
 }
 
 # check for a tagged line
-function check_tagged_line()
+check_tagged_line()
 {
-    regex='^\s*'"$1"':\s[[:print:]]+\s<[[:graph:]]+>$'
+    regex='^[[:space:]]*'"$1"':[[:space:]][[:print:]]+[[:space:]]<[[:graph:]]+>$'
     foundline=$(git log -n 1 "$REF" | grep -E -m 1 "$regex")
     if [ -z "$foundline" ]; then
         echo "error: missing \"$1\""
@@ -42,30 +29,8 @@ function check_tagged_line()
     return 0
 }
 
-# check for a tagged line and check that the link is valid
-function check_tagged_line_with_url()
-{
-    regex='^\s*'"$1"':\s\K([[:graph:]]+)$'
-    foundline=$(git log -n 1 "$REF" | grep -Po "$regex")
-    if [ -z "$foundline" ]; then
-        echo "error: missing \"$1\""
-        return 1
-    fi
-
-    OLDIFS=$IFS
-    IFS=$'\n'
-    for url in $(echo -e "$foundline"); do
-        if ! test_url "$url"; then
-            return 1
-        fi
-    done
-    IFS=$OLDIFS
-
-    return 0
-}
-
 # check commit message for a normal commit
-function new_change_commit()
+new_change_commit()
 {
     error=0
 
@@ -89,7 +54,7 @@ function new_change_commit()
     return $error
 }
 
-function is_coverity_fix()
+is_coverity_fix()
 {
     # subject starts with Fix coverity defects means it's a coverity fix
     subject=$(git log -n 1 --pretty=%s "$REF" | grep -E -m 1 '^Fix coverity defects')
@@ -100,7 +65,7 @@ function is_coverity_fix()
     return 1
 }
 
-function coverity_fix_commit()
+coverity_fix_commit()
 {
     error=0
 
@@ -119,11 +84,12 @@ function coverity_fix_commit()
 
     # test each summary line for the proper format
     OLDIFS=$IFS
-    IFS=$'\n'
+    IFS='
+'
     for line in $(git log -n 1 --pretty=%b "$REF" | grep -E '^CID'); do
         echo "$line" | grep -E '^CID [[:digit:]]+: ([[:graph:]]+|[[:space:]])+ \(([[:upper:]]|\_)+\)' > /dev/null
         # shellcheck disable=SC2181
-        if [[ $? -ne 0 ]]; then
+        if [ $? -ne 0 ]; then
             echo "error: commit message has an improperly formatted CID defect line"
             error=1
         fi
