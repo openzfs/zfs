@@ -6305,7 +6305,11 @@ top:
 			    metadata, misses);
 		}
 
-		if (vd != NULL && l2arc_ndev != 0 && !(l2arc_norw && devw)) {
+		/* Check if the spa even has l2 configured */
+		const boolean_t spa_has_l2 = l2arc_ndev != 0 &&
+		    spa->spa_l2cache.sav_count > 0;
+
+		if (vd != NULL && spa_has_l2 && !(l2arc_norw && devw)) {
 			/*
 			 * Read from the L2ARC if the following are true:
 			 * 1. The L2ARC vdev was previously cached.
@@ -6406,15 +6410,24 @@ top:
 		} else {
 			if (vd != NULL)
 				spa_config_exit(spa, SCL_L2ARC, vd);
+
 			/*
-			 * Skip ARC stat bump for block pointers with
-			 * embedded data. The data are read from the blkptr
-			 * itself via decode_embedded_bp_compressed().
+			 * Only a spa with l2 should contribute to l2
+			 * miss stats.  (Including the case of having a
+			 * faulted cache device - that's also a miss.)
 			 */
-			if (l2arc_ndev != 0 && !embedded_bp) {
-				DTRACE_PROBE1(l2arc__miss,
-				    arc_buf_hdr_t *, hdr);
-				ARCSTAT_BUMP(arcstat_l2_misses);
+			if (spa_has_l2) {
+				/*
+				 * Skip ARC stat bump for block pointers with
+				 * embedded data. The data are read from the
+				 * blkptr itself via
+				 * decode_embedded_bp_compressed().
+				 */
+				if (!embedded_bp) {
+					DTRACE_PROBE1(l2arc__miss,
+					    arc_buf_hdr_t *, hdr);
+					ARCSTAT_BUMP(arcstat_l2_misses);
+				}
 			}
 		}
 

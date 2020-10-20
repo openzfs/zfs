@@ -3,6 +3,7 @@ dist_pkgdata_SCRIPTS = \
 	cleanup.ksh \
 	setup.ksh \
 	l2arc_arcstats_pos.ksh \
+	l2arc_l2miss_pos.ksh \
 	l2arc_mfuonly_pos.ksh \
 	persist_l2arc_001_pos.ksh \
 	persist_l2arc_002_pos.ksh \
