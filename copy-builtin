@@ -40,8 +40,8 @@ rm "$KERNEL_DIR/include/zfs/.gitignore"
 
 for MODULE in "${MODULES[@]}"
 do
-	sed -i.bak '/obj =/d' "$KERNEL_DIR/fs/zfs/$MODULE/Makefile"
-	sed -i.bak '/src =/d' "$KERNEL_DIR/fs/zfs/$MODULE/Makefile"
+	sed -i '/obj =/d' "$KERNEL_DIR/fs/zfs/$MODULE/Makefile"
+	sed -i '/src =/d' "$KERNEL_DIR/fs/zfs/$MODULE/Makefile"
 done
 
 cat > "$KERNEL_DIR/fs/zfs/Kconfig" <<"EOF"
