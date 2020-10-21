@@ -13,13 +13,13 @@
 .\" Copyright (c) 2015 by Delphix. All rights reserved.
 .\" Copyright (c) 2020 by AJ Jordan. All rights reserved.
 .\"
-.TH ARCSTAT 1 "Aug 24, 2020" OpenZFS
+.TH ARCSTAT 1 "Oct 20, 2020" OpenZFS
 .SH NAME
 arcstat \- report ZFS ARC and L2ARC statistics
 .SH SYNOPSIS
 .LP
 .nf
-\fBarcstat\fR [\fB-hvx\fR] [\fB-f field[,field]...\fR] [\fB-o file\fR] [\fB-s string\fR] [\fBinterval\fR [\fBcount\fR]]
+\fBarcstat\fR [\fB-havxp\fR] [\fB-f field[,field]...\fR] [\fB-o file\fR] [\fB-s string\fR] [\fBinterval\fR [\fBcount\fR]]
 .fi
 
 .SH DESCRIPTION
@@ -423,6 +423,15 @@ The following options are supported:
 .sp
 .ne 2
 .na
+\fB\fB-a\fR\fR
+.ad
+.RS 12n
+Print all possible stats.
+.RE
+
+.sp
+.ne 2
+.na
 \fB\fB-f\fR\fR
 .ad
 .RS 12n
@@ -445,6 +454,15 @@ Display help message.
 .ad
 .RS 12n
 Report statistics to a file instead of the standard output.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fB-p\fR\fR
+.ad
+.RS 12n
+Disable auto-scaling of numerical fields (for raw, machine-parsable values).
 .RE
 
 .sp
