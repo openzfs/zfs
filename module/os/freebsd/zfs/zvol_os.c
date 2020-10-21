@@ -1259,10 +1259,11 @@ zvol_create_minor_impl(const char *name)
 	}
 
 	DROP_GIANT();
-	/* lie and say we're read-only */
-	error = dmu_objset_own(name, DMU_OST_ZVOL, B_TRUE, B_TRUE, FTAG, &os);
+
 	doi = kmem_alloc(sizeof (dmu_object_info_t), KM_SLEEP);
 
+	/* lie and say we're read-only */
+	error = dmu_objset_own(name, DMU_OST_ZVOL, B_TRUE, B_TRUE, FTAG, &os);
 	if (error)
 		goto out_doi;
 
@@ -1276,7 +1277,7 @@ zvol_create_minor_impl(const char *name)
 
 	error = dsl_prop_get_integer(name,
 	    zfs_prop_to_name(ZFS_PROP_VOLMODE), &volmode, NULL);
-	if (error != 0 || volmode == ZFS_VOLMODE_DEFAULT)
+	if (error || volmode == ZFS_VOLMODE_DEFAULT)
 		volmode = zvol_volmode;
 	/*
 	 * zvol_alloc equivalent ...
@@ -1299,7 +1300,6 @@ zvol_create_minor_impl(const char *name)
 		gp->start = zvol_geom_bio_start;
 		gp->access = zvol_geom_access;
 		pp = g_new_providerf(gp, "%s/%s", ZVOL_DRIVER, name);
-		/* TODO: NULL check? */
 		pp->flags |= G_PF_DIRECT_RECEIVE | G_PF_DIRECT_SEND;
 		pp->sectorsize = DEV_BSIZE;
 		pp->mediasize = 0;
@@ -1321,9 +1321,9 @@ zvol_create_minor_impl(const char *name)
 		args.mda_mode = 0640;
 		args.mda_si_drv2 = zv;
 		error = make_dev_s(&args, &dev, "%s/%s", ZVOL_DRIVER, name);
-		if (error != 0) {
-			mutex_destroy(&zv->zv_state_lock);
+		if (error) {
 			kmem_free(zv->zv_zso, sizeof (struct zvol_state_os));
+			mutex_destroy(&zv->zv_state_lock);
 			kmem_free(zv, sizeof (*zv));
 			dmu_objset_disown(os, B_TRUE, FTAG);
 			goto out_giant;
@@ -1351,7 +1351,7 @@ zvol_create_minor_impl(const char *name)
 	ASSERT3P(zv->zv_kstat.dk_kstats, ==, NULL);
 	dataset_kstats_create(&zv->zv_kstat, zv->zv_objset);
 
-	/* XXX do prefetch */
+	/* TODO: prefetch for geom tasting */
 
 	zv->zv_objset = NULL;
 out_dmu_objset_disown:
