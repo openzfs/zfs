@@ -332,6 +332,7 @@ zvol_geom_close(struct g_provider *pp, int flag, int count)
 {
 	zvol_state_t *zv;
 	boolean_t drop_suspend = B_TRUE;
+	int new_open_count;
 
 	rw_enter(&zvol_state_lock, ZVOL_RW_READER);
 	zv = pp->private;
@@ -359,13 +360,15 @@ zvol_geom_close(struct g_provider *pp, int flag, int count)
 	 * (hold zv_suspend_lock) and respect proper lock acquisition
 	 * ordering - zv_suspend_lock before zv_state_lock
 	 */
-	if ((zv->zv_open_count - count) == 0) {
+	new_open_count = zv->zv_open_count - count;
+	if (new_open_count == 0) {
 		if (!rw_tryenter(&zv->zv_suspend_lock, ZVOL_RW_READER)) {
 			mutex_exit(&zv->zv_state_lock);
 			rw_enter(&zv->zv_suspend_lock, ZVOL_RW_READER);
 			mutex_enter(&zv->zv_state_lock);
 			/* check to see if zv_suspend_lock is needed */
-			if (zv->zv_open_count != 1) {
+			new_open_count = zv->zv_open_count - count;
+			if (new_open_count != 0) {
 				rw_exit(&zv->zv_suspend_lock);
 				drop_suspend = B_FALSE;
 			}
@@ -380,8 +383,7 @@ zvol_geom_close(struct g_provider *pp, int flag, int count)
 	/*
 	 * You may get multiple opens, but only one close.
 	 */
-	zv->zv_open_count -= count;
-
+	zv->zv_open_count = new_open_count;
 	if (zv->zv_open_count == 0) {
 		ASSERT(ZVOL_RW_READ_HELD(&zv->zv_suspend_lock));
 		zvol_last_close(zv);
