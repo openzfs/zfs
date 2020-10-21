@@ -2034,6 +2034,20 @@ zfs_obj_to_stats(objset_t *osp, uint64_t obj, zfs_stat_t *sb,
 	return (error);
 }
 
+
+void
+zfs_inode_update(znode_t *zp)
+{
+	vm_object_t object;
+
+	if ((object = ZTOV(zp)->v_object) == NULL ||
+	    zp->z_size == object->un_pager.vnp.vnp_size)
+		return;
+
+	vnode_pager_setsize(ZTOV(zp), zp->z_size);
+}
+
+
 #ifdef _KERNEL
 int
 zfs_znode_parent_and_name(znode_t *zp, znode_t **dzpp, char *buf)
