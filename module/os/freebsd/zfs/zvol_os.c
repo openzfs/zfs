@@ -248,7 +248,7 @@ retry:
 	}
 	mutex_enter(&zv->zv_state_lock);
 
-	ASSERT(zv->zv_zso->zso_volmode == ZFS_VOLMODE_GEOM);
+	ASSERT3S(zv->zv_zso->zso_volmode, ==, ZFS_VOLMODE_GEOM);
 
 	/*
 	 * make sure zvol is not suspended during first open
@@ -342,17 +342,17 @@ zvol_geom_close(struct g_provider *pp, int flag, int count)
 
 	mutex_enter(&zv->zv_state_lock);
 	if (zv->zv_flags & ZVOL_EXCL) {
-		ASSERT(zv->zv_open_count == 1);
+		ASSERT3U(zv->zv_open_count, ==, 1);
 		zv->zv_flags &= ~ZVOL_EXCL;
 	}
 
-	ASSERT(zv->zv_zso->zso_volmode == ZFS_VOLMODE_GEOM);
+	ASSERT3S(zv->zv_zso->zso_volmode, ==, ZFS_VOLMODE_GEOM);
 
 	/*
 	 * If the open count is zero, this is a spurious close.
 	 * That indicates a bug in the kernel / DDI framework.
 	 */
-	ASSERT(zv->zv_open_count > 0);
+	ASSERT3U(zv->zv_open_count, >, 0);
 
 	/*
 	 * make sure zvol is not suspended during last close
@@ -400,7 +400,7 @@ zvol_geom_run(zvol_state_t *zv)
 	struct zvol_state_geom *zsg = &zv->zv_zso->zso_geom;
 	struct g_provider *pp = zsg->zsg_provider;
 
-	ASSERT(zv->zv_zso->zso_volmode == ZFS_VOLMODE_GEOM);
+	ASSERT3S(zv->zv_zso->zso_volmode, ==, ZFS_VOLMODE_GEOM);
 
 	g_error_provider(pp, 0);
 
@@ -414,7 +414,7 @@ zvol_geom_destroy(zvol_state_t *zv)
 	struct zvol_state_geom *zsg = &zv->zv_zso->zso_geom;
 	struct g_provider *pp = zsg->zsg_provider;
 
-	ASSERT(zv->zv_zso->zso_volmode == ZFS_VOLMODE_GEOM);
+	ASSERT3S(zv->zv_zso->zso_volmode, ==, ZFS_VOLMODE_GEOM);
 
 	g_topology_assert();
 
@@ -483,7 +483,7 @@ zvol_geom_worker(void *arg)
 	struct zvol_state_geom *zsg = &zv->zv_zso->zso_geom;
 	struct bio *bp;
 
-	ASSERT(zv->zv_zso->zso_volmode == ZFS_VOLMODE_GEOM);
+	ASSERT3S(zv->zv_zso->zso_volmode, ==, ZFS_VOLMODE_GEOM);
 
 	thread_lock(curthread);
 	sched_prio(curthread, PRIBIO);
@@ -540,7 +540,7 @@ zvol_geom_bio_getattr(struct bio *bp)
 	zvol_state_t *zv;
 
 	zv = bp->bio_to->private;
-	ASSERT(zv != NULL);
+	ASSERT3P(zv, !=, NULL);
 
 	spa_t *spa = dmu_objset_spa(zv->zv_objset);
 	uint64_t refd, avail, usedobjs, availobjs;
@@ -621,7 +621,7 @@ zvol_geom_bio_strategy(struct bio *bp)
 	volsize = zv->zv_volsize;
 
 	os = zv->zv_objset;
-	ASSERT(os != NULL);
+	ASSERT3P(os, !=, NULL);
 
 	addr = bp->bio_data;
 	resid = bp->bio_length;
@@ -836,7 +836,7 @@ zvol_cdev_open(struct cdev *dev, int flags, int fmt, struct thread *td)
 
 	mutex_enter(&zv->zv_state_lock);
 
-	ASSERT(zv->zv_zso->zso_volmode == ZFS_VOLMODE_DEV);
+	ASSERT3S(zv->zv_zso->zso_volmode, ==, ZFS_VOLMODE_DEV);
 
 	/*
 	 * make sure zvol is not suspended during first open
@@ -925,17 +925,17 @@ zvol_cdev_close(struct cdev *dev, int flags, int fmt, struct thread *td)
 
 	mutex_enter(&zv->zv_state_lock);
 	if (zv->zv_flags & ZVOL_EXCL) {
-		ASSERT(zv->zv_open_count == 1);
+		ASSERT3U(zv->zv_open_count, ==, 1);
 		zv->zv_flags &= ~ZVOL_EXCL;
 	}
 
-	ASSERT(zv->zv_zso->zso_volmode == ZFS_VOLMODE_DEV);
+	ASSERT3S(zv->zv_zso->zso_volmode, ==, ZFS_VOLMODE_DEV);
 
 	/*
 	 * If the open count is zero, this is a spurious close.
 	 * That indicates a bug in the kernel / DDI framework.
 	 */
-	ASSERT(zv->zv_open_count > 0);
+	ASSERT3U(zv->zv_open_count, >, 0);
 	/*
 	 * make sure zvol is not suspended during last close
 	 * (hold zv_suspend_lock) and respect proper lock acquisition
@@ -1150,7 +1150,7 @@ zvol_rename_minor(zvol_state_t *zv, const char *newname)
 
 		g_topology_lock();
 		gp = pp->geom;
-		ASSERT(gp != NULL);
+		ASSERT3P(gp, !=, NULL);
 
 		zsg->zsg_provider = NULL;
 		g_wither_provider(pp, ENXIO);
@@ -1205,7 +1205,7 @@ zvol_free(zvol_state_t *zv)
 {
 	ASSERT(!RW_LOCK_HELD(&zv->zv_suspend_lock));
 	ASSERT(!MUTEX_HELD(&zv->zv_state_lock));
-	ASSERT(zv->zv_open_count == 0);
+	ASSERT0(zv->zv_open_count);
 
 	ZFS_LOG(1, "ZVOL %s destroyed.", zv->zv_name);
 
