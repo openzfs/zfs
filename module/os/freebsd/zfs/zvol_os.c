@@ -1279,6 +1279,8 @@ zvol_create_minor_impl(const char *name)
 	    zfs_prop_to_name(ZFS_PROP_VOLMODE), &volmode, NULL);
 	if (error || volmode == ZFS_VOLMODE_DEFAULT)
 		volmode = zvol_volmode;
+	error = 0;
+
 	/*
 	 * zvol_alloc equivalent ...
 	 */
@@ -1357,9 +1359,8 @@ zvol_create_minor_impl(const char *name)
 out_dmu_objset_disown:
 	dmu_objset_disown(os, B_TRUE, FTAG);
 
-	if (zv->zv_zso->zso_volmode == ZFS_VOLMODE_GEOM) {
-		if (error == 0)
-			zvol_geom_run(zv);
+	if (error == 0 && volmode == ZFS_VOLMODE_GEOM) {
+		zvol_geom_run(zv);
 		g_topology_unlock();
 	}
 out_doi:
@@ -1369,8 +1370,8 @@ out_doi:
 		zvol_insert(zv);
 		zvol_minors++;
 		rw_exit(&zvol_state_lock);
+		ZFS_LOG(1, "ZVOL %s created.", name);
 	}
-	ZFS_LOG(1, "ZVOL %s created.", name);
 out_giant:
 	PICKUP_GIANT();
 	return (error);
