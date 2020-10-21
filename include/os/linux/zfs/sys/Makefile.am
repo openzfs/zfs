@@ -21,7 +21,7 @@ KERNEL_H = \
 	zfs_ctldir.h \
 	zfs_dir.h \
 	zfs_vfsops_os.h \
-	zfs_vnops.h \
+	zfs_vnops_os.h \
 	zfs_znode_impl.h \
 	zpl.h
 

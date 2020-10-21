@@ -117,6 +117,7 @@ COMMON_H = \
 	zfs_stat.h \
 	zfs_sysfs.h \
 	zfs_vfsops.h \
+	zfs_vnops.h \
 	zfs_znode.h \
 	zil.h \
 	zil_impl.h \

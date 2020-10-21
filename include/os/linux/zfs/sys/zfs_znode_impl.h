@@ -68,6 +68,10 @@ extern "C" {
 #define	Z_ISCHR(type) S_ISCHR(type)
 #define	Z_ISLNK(type) S_ISLNK(type)
 #define	Z_ISDEV(type)	(S_ISCHR(type) || S_ISBLK(type) || S_ISFIFO(type))
+#define	Z_ISDIR(type)	S_ISDIR(type)
+
+#define	zn_has_cached_data(zp)	((zp)->z_is_mapped)
+#define	zn_rlimit_fsize(zp, uio, td)	(0)
 
 #define	zhold(zp)	igrab(ZTOI((zp)))
 #define	zrele(zp)	iput(ZTOI((zp)))
@@ -146,6 +150,8 @@ do {						\
 	(tp)->tv_nsec = (long)(stmp)[1];	\
 } while (0)
 #endif /* HAVE_INODE_TIMESPEC64_TIMES */
+
+#define	ZFS_ACCESSTIME_STAMP(zfsvfs, zp)
 
 struct znode;
 
