@@ -118,12 +118,13 @@ opfile = None
 sep = "  "              # Default separator is 2 spaces
 version = "0.4"
 l2exist = False
-cmd = ("Usage: arcstat [-hvx] [-f fields] [-o file] [-s string] [interval "
+cmd = ("Usage: arcstat [-havxp] [-f fields] [-o file] [-s string] [interval "
        "[count]]\n")
 cur = {}
 d = {}
 out = None
 kstat = None
+pretty_print = True
 
 
 if sys.platform.startswith('freebsd'):
@@ -181,6 +182,7 @@ def detailed_usage():
 def usage():
     sys.stderr.write("%s\n" % cmd)
     sys.stderr.write("\t -h : Print this help message\n")
+    sys.stderr.write("\t -a : Print all possible stats\n")
     sys.stderr.write("\t -v : List all possible field headers and definitions"
                      "\n")
     sys.stderr.write("\t -x : Print extended stats\n")
@@ -188,6 +190,7 @@ def usage():
     sys.stderr.write("\t -o : Redirect output to the specified file\n")
     sys.stderr.write("\t -s : Override default field separator with custom "
                      "character or string\n")
+    sys.stderr.write("\t -p : Disable auto-scaling of numerical fields\n")
     sys.stderr.write("\nExamples:\n")
     sys.stderr.write("\tarcstat -o /tmp/a.log 2 10\n")
     sys.stderr.write("\tarcstat -s \",\" -o /tmp/a.log 2 10\n")
@@ -246,10 +249,14 @@ def print_values():
     global hdr
     global sep
     global v
+    global pretty_print
 
-    sys.stdout.write(sep.join(
-      prettynum(cols[col][0], cols[col][1], v[col]) for col in hdr))
+    if pretty_print:
+        fmt = lambda col: prettynum(cols[col][0], cols[col][1], v[col])
+    else:
+        fmt = lambda col: v[col]
 
+    sys.stdout.write(sep.join(fmt(col) for col in hdr))
     sys.stdout.write("\n")
     sys.stdout.flush()
 
@@ -257,9 +264,14 @@ def print_values():
 def print_header():
     global hdr
     global sep
+    global pretty_print
 
-    sys.stdout.write(sep.join("%*s" % (cols[col][0], col) for col in hdr))
+    if pretty_print:
+        fmt = lambda col: "%*s" % (cols[col][0], col)
+    else:
+        fmt = lambda col: col
 
+    sys.stdout.write(sep.join(fmt(col) for col in hdr))
     sys.stdout.write("\n")
 
 
@@ -296,8 +308,10 @@ def init():
     global sep
     global out
     global l2exist
+    global pretty_print
 
     desired_cols = None
+    aflag = False
     xflag = False
     hflag = False
     vflag = False
@@ -306,14 +320,16 @@ def init():
     try:
         opts, args = getopt.getopt(
             sys.argv[1:],
-            "xo:hvs:f:",
+            "axo:hvs:f:p",
             [
+                "all",
                 "extended",
                 "outfile",
                 "help",
                 "verbose",
                 "separator",
-                "columns"
+                "columns",
+                "parsable"
             ]
         )
     except getopt.error as msg:
@@ -322,6 +338,8 @@ def init():
         opts = None
 
     for opt, arg in opts:
+        if opt in ('-a', '--all'):
+            aflag = True
         if opt in ('-x', '--extended'):
             xflag = True
         if opt in ('-o', '--outfile'):
@@ -337,6 +355,8 @@ def init():
         if opt in ('-f', '--columns'):
             desired_cols = arg
             i += 1
+        if opt in ('-p', '--parsable'):
+            pretty_print = False
         i += 1
 
     argv = sys.argv[i:]
@@ -380,6 +400,12 @@ def init():
             sys.stderr.write("Incompatible field specified! -- %s\n" %
                              incompat)
             usage()
+
+    if aflag:
+        if l2exist:
+            hdr = cols.keys()
+        else:
+            hdr = [col for col in cols.keys() if not col.startswith("l2")]
 
     if opfile:
         try:
