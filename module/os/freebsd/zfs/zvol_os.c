@@ -424,7 +424,6 @@ zvol_geom_destroy(zvol_state_t *zv)
 	VERIFY(zsg->zsg_state == ZVOL_GEOM_RUNNING);
 	mutex_exit(&zv->zv_state_lock);
 	zsg->zsg_provider = NULL;
-	pp->private = NULL;
 	g_wither_geom(pp->geom, ENXIO);
 }
 
@@ -1216,6 +1215,9 @@ zvol_free(zvol_state_t *zv)
 
 	if (zv->zv_zso->zso_volmode == ZFS_VOLMODE_GEOM) {
 		struct zvol_state_geom *zsg = &zv->zv_zso->zso_geom;
+		struct g_provider *pp __maybe_unused = zsg->zsg_provider;
+
+		ASSERT3P(pp->private, ==, NULL);
 
 		g_topology_lock();
 		zvol_geom_destroy(zv);
@@ -1225,8 +1227,9 @@ zvol_free(zvol_state_t *zv)
 		struct zvol_state_dev *zsd = &zv->zv_zso->zso_dev;
 		struct cdev *dev = zsd->zsd_cdev;
 
-		if (dev != NULL)
-			destroy_dev(dev);
+		ASSERT3P(dev->si_drv2, ==, NULL);
+
+		destroy_dev(dev);
 	}
 
 	mutex_destroy(&zv->zv_state_lock);
@@ -1384,7 +1387,7 @@ zvol_clear_private(zvol_state_t *zv)
 		struct zvol_state_geom *zsg = &zv->zv_zso->zso_geom;
 		struct g_provider *pp = zsg->zsg_provider;
 
-		if (pp == NULL) /* XXX when? */
+		if (pp->private == NULL) /* already cleared */
 			return;
 
 		mtx_lock(&zsg->zsg_queue_mtx);
@@ -1392,11 +1395,15 @@ zvol_clear_private(zvol_state_t *zv)
 		pp->private = NULL;
 		wakeup_one(&zsg->zsg_queue);
 		while (zsg->zsg_state != ZVOL_GEOM_RUNNING)
-			msleep(&zsg->zsg_state,
-			    &zsg->zsg_queue_mtx,
+			msleep(&zsg->zsg_state, &zsg->zsg_queue_mtx,
 			    0, "zvol:w", 0);
 		mtx_unlock(&zsg->zsg_queue_mtx);
 		ASSERT(!RW_LOCK_HELD(&zv->zv_suspend_lock));
+	} else if (zv->zv_zso->zso_volmode == ZFS_VOLMODE_DEV) {
+		struct zvol_state_dev *zsd = &zv->zv_zso->zso_dev;
+		struct cdev *dev = zsd->zsd_cdev;
+
+		dev->si_drv2 = NULL;
 	}
 }
 
@@ -1408,10 +1415,12 @@ zvol_update_volsize(zvol_state_t *zv, uint64_t volsize)
 		struct zvol_state_geom *zsg = &zv->zv_zso->zso_geom;
 		struct g_provider *pp = zsg->zsg_provider;
 
-		if (pp == NULL) /* XXX when? */
-			return (0);
-
 		g_topology_lock();
+
+		if (pp->private == NULL) {
+			g_topology_unlock();
+			return (SET_ERROR(ENXIO));
+		}
 
 		/*
 		 * Do not invoke resize event when initial size was zero.
