@@ -8,7 +8,7 @@ KERNEL_H = \
 	zfs_dir.h \
 	zfs_ioctl_compat.h \
 	zfs_vfsops_os.h \
-	zfs_vnops.h \
+	zfs_vnops_os.h \
 	zfs_znode_impl.h \
 	zpl.h
 
