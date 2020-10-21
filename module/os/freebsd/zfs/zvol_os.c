@@ -1328,7 +1328,7 @@ zvol_create_minor_impl(const char *name)
 			mutex_destroy(&zv->zv_state_lock);
 			kmem_free(zv, sizeof (*zv));
 			dmu_objset_disown(os, B_TRUE, FTAG);
-			goto out_giant;
+			goto out_doi;
 		}
 		dev->si_iosize_max = MAXPHYS;
 		zsd->zsd_cdev = dev;
@@ -1372,7 +1372,6 @@ out_doi:
 		rw_exit(&zvol_state_lock);
 		ZFS_LOG(1, "ZVOL %s created.", name);
 	}
-out_giant:
 	PICKUP_GIANT();
 	return (error);
 }
