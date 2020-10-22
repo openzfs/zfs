@@ -475,14 +475,14 @@ kstat_install(kstat_t *ksp)
 		if (ksp->ks_raw_ops.data) {
 			root = SYSCTL_ADD_PROC(&ksp->ks_sysctl_ctx,
 			    SYSCTL_CHILDREN(ksp->ks_sysctl_root),
-			    OID_AUTO, ksp->ks_name,
-			    CTLTYPE_STRING | CTLFLAG_RD | CTLFLAG_MPSAFE,
+			    OID_AUTO, ksp->ks_name, CTLTYPE_STRING | CTLFLAG_RD
+			    | CTLFLAG_MPSAFE | CTLFLAG_SKIP,
 			    ksp, 0, kstat_sysctl_raw, "A", ksp->ks_name);
 		} else {
 			root = SYSCTL_ADD_PROC(&ksp->ks_sysctl_ctx,
 			    SYSCTL_CHILDREN(ksp->ks_sysctl_root),
-			    OID_AUTO, ksp->ks_name,
-			    CTLTYPE_OPAQUE | CTLFLAG_RD | CTLFLAG_MPSAFE,
+			    OID_AUTO, ksp->ks_name, CTLTYPE_OPAQUE | CTLFLAG_RD
+			    | CTLFLAG_MPSAFE | CTLFLAG_SKIP,
 			    ksp, 0, kstat_sysctl_raw, "", ksp->ks_name);
 		}
 		break;
