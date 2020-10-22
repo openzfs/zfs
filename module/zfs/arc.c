@@ -10605,5 +10605,8 @@ ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, dnode_reduce_percent, ULONG, ZMOD_RW,
 	"Percentage of excess dnodes to try to unpin");
 
 ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, eviction_pct, INT, ZMOD_RW,
-       "When full, ARC allocation waits for eviction of this % of alloc size");
+	"When full, ARC allocation waits for eviction of this % of alloc size");
+
+ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, evict_batch_limit, INT, ZMOD_RW,
+	"The number of headers to evict per sublist before moving to the next");
 /* END CSTYLED */
