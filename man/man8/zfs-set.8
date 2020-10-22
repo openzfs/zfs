@@ -34,14 +34,14 @@
 .Dt ZFS-SET 8
 .Os
 .Sh NAME
-.Nm zfs Ns Pf - Cm set
+.Nm zfs-set
 .Nd Sets the property or list of properties to the given value(s) for each dataset.
 .Sh SYNOPSIS
-.Nm
+.Nm zfs
 .Cm set
 .Ar property Ns = Ns Ar value Oo Ar property Ns = Ns Ar value Oc Ns ...
 .Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot Ns ...
-.Nm
+.Nm zfs
 .Cm get
 .Op Fl r Ns | Ns Fl d Ar depth
 .Op Fl Hp
@@ -50,14 +50,14 @@
 .Oo Fl t Ar type Ns Oo , Ns Ar type Oc Ns ... Oc
 .Cm all | Ar property Ns Oo , Ns Ar property Oc Ns ...
 .Oo Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot Ns | Ns Ar bookmark Oc Ns ...
-.Nm
+.Nm zfs
 .Cm inherit
 .Op Fl rS
 .Ar property Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot Ns ...
 .Sh DESCRIPTION
 .Bl -tag -width ""
 .It Xo
-.Nm
+.Nm zfs
 .Cm set
 .Ar property Ns = Ns Ar value Oo Ar property Ns = Ns Ar value Oc Ns ...
 .Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot Ns ...
@@ -79,7 +79,7 @@ For more information, see the
 section of
 .Xr zfsprops 8 .
 .It Xo
-.Nm
+.Nm zfs
 .Cm get
 .Op Fl r Ns | Ns Fl d Ar depth
 .Op Fl Hp
@@ -160,7 +160,7 @@ or
 .Sy all .
 .El
 .It Xo
-.Nm
+.Nm zfs
 .Cm inherit
 .Op Fl rS
 .Ar property Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot Ns ...

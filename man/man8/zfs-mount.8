@@ -34,29 +34,29 @@
 .Dt ZFS-MOUNT 8
 .Os
 .Sh NAME
-.Nm zfs Ns Pf - Cm mount
+.Nm zfs-mount
 .Nd Manage mount state of ZFS file systems.
 .Sh SYNOPSIS
-.Nm
+.Nm zfs
 .Cm mount
-.Nm
+.Nm zfs
 .Cm mount
 .Op Fl Oflv
 .Op Fl o Ar options
 .Fl a | Ar filesystem
-.Nm
+.Nm zfs
 .Cm unmount
 .Op Fl fu
 .Fl a | Ar filesystem Ns | Ns Ar mountpoint
 .Sh DESCRIPTION
 .Bl -tag -width ""
 .It Xo
-.Nm
+.Nm zfs
 .Cm mount
 .Xc
 Displays all ZFS file systems currently mounted.
 .It Xo
-.Nm
+.Nm zfs
 .Cm mount
 .Op Fl Oflv
 .Op Fl o Ar options
@@ -105,7 +105,7 @@ Report mount progress.
 Attempt to force mounting of all filesystems, even those that couldn't normally be mounted (e.g. redacted datasets).
 .El
 .It Xo
-.Nm
+.Nm zfs
 .Cm unmount
 .Op Fl fu
 .Fl a | Ar filesystem Ns | Ns Ar mountpoint

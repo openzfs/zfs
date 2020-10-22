@@ -31,21 +31,21 @@
 .Dt ZPOOL-REMOVE 8
 .Os
 .Sh NAME
-.Nm zpool Ns Pf - Cm remove
+.Nm zpool-remove
 .Nd Remove a device from a ZFS storage pool
 .Sh SYNOPSIS
-.Nm
+.Nm zpool
 .Cm remove
 .Op Fl npw
 .Ar pool Ar device Ns ...
-.Nm
+.Nm zpool
 .Cm remove
 .Fl s
 .Ar pool
 .Sh DESCRIPTION
 .Bl -tag -width Ds
 .It Xo
-.Nm
+.Nm zpool
 .Cm remove
 .Op Fl npw
 .Ar pool Ar device Ns ...
@@ -95,7 +95,7 @@ flag, displays numbers as parsable (exact) values.
 Waits until the removal has completed before returning.
 .El
 .It Xo
-.Nm
+.Nm zpool
 .Cm remove
 .Fl s
 .Ar pool

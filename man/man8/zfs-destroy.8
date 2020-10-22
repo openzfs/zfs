@@ -34,25 +34,25 @@
 .Dt ZFS-DESTROY 8
 .Os
 .Sh NAME
-.Nm zfs Ns Pf - Cm destroy
+.Nm zfs-destroy
 .Nd Destroys the given dataset(s), snapshot(s), or bookmark.
 .Sh SYNOPSIS
-.Nm
+.Nm zfs
 .Cm destroy
 .Op Fl Rfnprv
 .Ar filesystem Ns | Ns Ar volume
-.Nm
+.Nm zfs
 .Cm destroy
 .Op Fl Rdnprv
 .Ar filesystem Ns | Ns Ar volume Ns @ Ns Ar snap Ns
 .Oo % Ns Ar snap Ns Oo , Ns Ar snap Ns Oo % Ns Ar snap Oc Oc Oc Ns ...
-.Nm
+.Nm zfs
 .Cm destroy
 .Ar filesystem Ns | Ns Ar volume Ns # Ns Ar bookmark
 .Sh DESCRIPTION
 .Bl -tag -width ""
 .It Xo
-.Nm
+.Nm zfs
 .Cm destroy
 .Op Fl Rfnprv
 .Ar filesystem Ns | Ns Ar volume
@@ -96,7 +96,7 @@ or the
 options, as they can destroy large portions of a pool and cause unexpected
 behavior for mounted file systems in use.
 .It Xo
-.Nm
+.Nm zfs
 .Cm destroy
 .Op Fl Rdnprv
 .Ar filesystem Ns | Ns Ar volume Ns @ Ns Ar snap Ns
@@ -167,7 +167,7 @@ options, as they can destroy large portions of a pool and cause unexpected
 behavior for mounted file systems in use.
 .El
 .It Xo
-.Nm
+.Nm zfs
 .Cm destroy
 .Ar filesystem Ns | Ns Ar volume Ns # Ns Ar bookmark
 .Xc
