@@ -41,7 +41,7 @@
 .Dt ZFS-JAIL 8
 .Os FreeBSD
 .Sh NAME
-.Nm zfs Ns Pf - Cm jail
+.Nm zfs-jail
 .Nd Attaches and detaches ZFS filesystems from FreeBSD jails.
 .No A Tn ZFS
 dataset can be attached to a jail by using the
@@ -72,16 +72,16 @@ After a dataset is attached to a jail and the jailed property is set, a jailed
 file system cannot be mounted outside the jail, since the jail administrator
 might have set the mount point to an unacceptable value.
 .Sh SYNOPSIS
-.Nm
+.Nm zfs
 .Cm jail
 .Ar jailid Ns | Ns Ar jailname filesystem
-.Nm
+.Nm zfs
 .Cm unjail
 .Ar jailid Ns | Ns Ar jailname filesystem
 .Sh DESCRIPTION
 .Bl -tag -width ""
 .It Xo
-.Nm
+.Nm zfs
 .Cm jail
 .Ar jailid filesystem
 .Xc
@@ -104,7 +104,7 @@ See
 .Xr jail 8
 for more information on managing jails and configuring the parameters above.
 .It Xo
-.Nm
+.Nm zfs
 .Cm unjail
 .Ar jailid filesystem
 .Xc

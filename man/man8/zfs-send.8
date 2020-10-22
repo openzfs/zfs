@@ -34,43 +34,43 @@
 .Dt ZFS-SEND 8
 .Os
 .Sh NAME
-.Nm zfs Ns Pf - Cm send
+.Nm zfs-send
 .Nd Generate a send stream, which may be of a filesystem, and may be incremental from a bookmark.
 .Sh SYNOPSIS
-.Nm
+.Nm zfs
 .Cm send
 .Op Fl DLPRbcehnpvw
 .Op Oo Fl I Ns | Ns Fl i Oc Ar snapshot
 .Ar snapshot
-.Nm
+.Nm zfs
 .Cm send
 .Op Fl DLPRcenpvw
 .Op Fl i Ar snapshot Ns | Ns Ar bookmark
 .Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot
-.Nm
+.Nm zfs
 .Cm send
 .Fl -redact Ar redaction_bookmark
 .Op Fl DLPcenpv
 .br
 .Op Fl i Ar snapshot Ns | Ns Ar bookmark
 .Ar snapshot
-.Nm
+.Nm zfs
 .Cm send
 .Op Fl Penv
 .Fl t
 .Ar receive_resume_token
-.Nm
+.Nm zfs
 .Cm send
 .Op Fl Pnv
 .Fl S Ar filesystem
-.Nm
+.Nm zfs
 .Cm redact
 .Ar snapshot redaction_bookmark
 .Ar redaction_snapshot Ns ...
 .Sh DESCRIPTION
 .Bl -tag -width ""
 .It Xo
-.Nm
+.Nm zfs
 .Cm send
 .Op Fl DLPRbcehnpvw
 .Op Oo Fl I Ns | Ns Fl i Oc Ar snapshot
@@ -266,7 +266,7 @@ The format of the stream is committed.
 You will be able to receive your streams on future versions of ZFS.
 .El
 .It Xo
-.Nm
+.Nm zfs
 .Cm send
 .Op Fl DLPRcenpvw
 .Op Fl i Ar snapshot Ns | Ns Ar bookmark
@@ -391,7 +391,7 @@ Print verbose information about the stream package generated.
 This information includes a per-second report of how much data has been sent.
 .El
 .It Xo
-.Nm
+.Nm zfs
 .Cm send
 .Fl -redact Ar redaction_bookmark
 .Op Fl DLPcenpv
@@ -482,7 +482,7 @@ These are stored with the redacted snapshot, and are used to detect and
 correctly handle the cases above.  Note that for technical reasons, raw sends
 and redacted sends cannot be combined at this time.
 .It Xo
-.Nm
+.Nm zfs
 .Cm send
 .Op Fl Penv
 .Fl t
@@ -497,7 +497,7 @@ See the documentation for
 .Sy zfs receive -s
 for more details.
 .It Xo
-.Nm
+.Nm zfs
 .Cm send
 .Op Fl Pnv
 .Op Fl i Ar snapshot Ns | Ns Ar bookmark
@@ -514,7 +514,7 @@ always use the last fully received snapshot as the incremental source if it
 exists.
 .El
 .It Xo
-.Nm
+.Nm zfs
 .Cm redact
 .Ar snapshot redaction_bookmark
 .Ar redaction_snapshot Ns ...

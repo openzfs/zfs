@@ -34,19 +34,19 @@
 .Dt ZFS-SHARE 8
 .Os
 .Sh NAME
-.Nm zfs Ns Pf - Cm share
+.Nm zfs-share
 .Nd Shares and unshares available ZFS filesystems.
 .Sh SYNOPSIS
-.Nm
+.Nm zfs
 .Cm share
 .Fl a | Ar filesystem
-.Nm
+.Nm zfs
 .Cm unshare
 .Fl a | Ar filesystem Ns | Ns Ar mountpoint
 .Sh DESCRIPTION
 .Bl -tag -width ""
 .It Xo
-.Nm
+.Nm zfs
 .Cm share
 .Fl a | Ar filesystem
 .Xc
@@ -68,7 +68,7 @@ or
 property is set.
 .El
 .It Xo
-.Nm
+.Nm zfs
 .Cm unshare
 .Fl a | Ar filesystem Ns | Ns Ar mountpoint
 .Xc

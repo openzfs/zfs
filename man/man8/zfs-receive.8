@@ -34,17 +34,17 @@
 .Dt ZFS-RECEIVE 8
 .Os
 .Sh NAME
-.Nm zfs Ns Pf - Cm receive
+.Nm zfs-receive
 .Nd Creates a snapshot whose contents are as specified in the stream provided on standard input.
 .Sh SYNOPSIS
-.Nm
+.Nm zfs
 .Cm receive
 .Op Fl FhMnsuv
 .Op Fl o Sy origin Ns = Ns Ar snapshot
 .Op Fl o Ar property Ns = Ns Ar value
 .Op Fl x Ar property
 .Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot
-.Nm
+.Nm zfs
 .Cm receive
 .Op Fl FhMnsuv
 .Op Fl d Ns | Ns Fl e
@@ -52,14 +52,14 @@
 .Op Fl o Ar property Ns = Ns Ar value
 .Op Fl x Ar property
 .Ar filesystem
-.Nm
+.Nm zfs
 .Cm receive
 .Fl A
 .Ar filesystem Ns | Ns Ar volume
 .Sh DESCRIPTION
 .Bl -tag -width ""
 .It Xo
-.Nm
+.Nm zfs
 .Cm receive
 .Op Fl FhMnsuv
 .Op Fl o Sy origin Ns = Ns Ar snapshot
@@ -68,7 +68,7 @@
 .Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot
 .Xc
 .It Xo
-.Nm
+.Nm zfs
 .Cm receive
 .Op Fl FhMnsuv
 .Op Fl d Ns | Ns Fl e
@@ -290,7 +290,7 @@ receive. This allows unencrypted streams to be received as encrypted datasets.
 To cause the received dataset (or root dataset of a recursive stream) to be
 received as an encryption root, specify encryption properties in the same
 manner as is required for
-.Nm
+.Nm zfs
 .Cm create .
 For instance:
 .Bd -literal
@@ -301,7 +301,7 @@ Note that
 .Op Fl o Ar keylocation Ns = Ns Ar prompt
 may not be specified here, since stdin is already being utilized for the send
 stream. Once the receive has completed, you can use
-.Nm
+.Nm zfs
 .Cm set
 to change this setting after the fact. Similarly, you can receive a dataset as
 an encrypted child by specifying
@@ -361,7 +361,7 @@ restrictions (e.g. set-once) apply equally to
 .Fl x .
 .El
 .It Xo
-.Nm
+.Nm zfs
 .Cm receive
 .Fl A
 .Ar filesystem Ns | Ns Ar volume
