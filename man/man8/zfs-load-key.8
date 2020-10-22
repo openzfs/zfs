@@ -34,26 +34,26 @@
 .Dt ZFS-LOAD-KEY 8
 .Os
 .Sh NAME
-.Nm zfs Ns Pf - Cm load-key
+.Nm zfs-load-key
 .Nd Load, unload, or change the encryption key used to access a dataset.
 .Sh SYNOPSIS
-.Nm
+.Nm zfs
 .Cm load-key
 .Op Fl nr
 .Op Fl L Ar keylocation
 .Fl a | Ar filesystem
-.Nm
+.Nm zfs
 .Cm unload-key
 .Op Fl r
 .Fl a | Ar filesystem
-.Nm
+.Nm zfs
 .Cm change-key
 .Op Fl l
 .Op Fl o Ar keylocation Ns = Ns Ar value
 .Op Fl o Ar keyformat Ns = Ns Ar value
 .Op Fl o Ar pbkdf2iters Ns = Ns Ar value
 .Ar filesystem
-.Nm
+.Nm zfs
 .Cm change-key
 .Fl i
 .Op Fl l
@@ -61,7 +61,7 @@
 .Sh DESCRIPTION
 .Bl -tag -width ""
 .It Xo
-.Nm
+.Nm zfs
 .Cm load-key
 .Op Fl nr
 .Op Fl L Ar keylocation
@@ -118,7 +118,7 @@ may only be given as
 .Sy prompt .
 .El
 .It Xo
-.Nm
+.Nm zfs
 .Cm unload-key
 .Op Fl r
 .Fl a | Ar filesystem
@@ -139,7 +139,7 @@ encryption roots.
 Unloads the keys for all encryption roots in all imported pools.
 .El
 .It Xo
-.Nm
+.Nm zfs
 .Cm change-key
 .Op Fl l
 .Op Fl o Ar keylocation Ns = Ns Ar value
@@ -148,7 +148,7 @@ Unloads the keys for all encryption roots in all imported pools.
 .Ar filesystem
 .Xc
 .It Xo
-.Nm
+.Nm zfs
 .Cm change-key
 .Fl i
 .Op Fl l
