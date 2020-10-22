@@ -34,25 +34,25 @@
 .Dt ZFS-HOLD 8
 .Os
 .Sh NAME
-.Nm zfs Ns Pf - Cm hold
+.Nm zfs-hold
 .Nd Hold a snapshot to prevent it being removed with the zfs destroy command.
 .Sh SYNOPSIS
-.Nm
+.Nm zfs
 .Cm hold
 .Op Fl r
 .Ar tag Ar snapshot Ns ...
-.Nm
+.Nm zfs
 .Cm holds
 .Op Fl rH
 .Ar snapshot Ns ...
-.Nm
+.Nm zfs
 .Cm release
 .Op Fl r
 .Ar tag Ar snapshot Ns ...
 .Sh DESCRIPTION
 .Bl -tag -width ""
 .It Xo
-.Nm
+.Nm zfs
 .Cm hold
 .Op Fl r
 .Ar tag Ar snapshot Ns ...
@@ -73,7 +73,7 @@ Specifies that a hold with the given tag is applied recursively to the snapshots
 of all descendent file systems.
 .El
 .It Xo
-.Nm
+.Nm zfs
 .Cm holds
 .Op Fl rH
 .Ar snapshot Ns ...
@@ -87,7 +87,7 @@ listing the holds on the named snapshot.
 Do not print headers, use tab-delimited output.
 .El
 .It Xo
-.Nm
+.Nm zfs
 .Cm release
 .Op Fl r
 .Ar tag Ar snapshot Ns ...

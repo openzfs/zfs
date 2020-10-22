@@ -31,22 +31,22 @@
 .Dt ZPOOL-OFFLINE 8
 .Os
 .Sh NAME
-.Nm zpool Ns Pf - Cm offline
+.Nm zpool-offline
 .Nd Take a physical device in a ZFS storage pool offline
 .Sh SYNOPSIS
-.Nm
+.Nm zpool
 .Cm offline
 .Op Fl f
 .Op Fl t
 .Ar pool Ar device Ns ...
-.Nm
+.Nm zpool
 .Cm online
 .Op Fl e
 .Ar pool Ar device Ns ...
 .Sh DESCRIPTION
 .Bl -tag -width Ds
 .It Xo
-.Nm
+.Nm zpool
 .Cm offline
 .Op Fl f
 .Op Fl t
@@ -68,7 +68,7 @@ Temporary.
 Upon reboot, the specified physical device reverts to its previous state.
 .El
 .It Xo
-.Nm
+.Nm zpool
 .Cm online
 .Op Fl e
 .Ar pool Ar device Ns ...

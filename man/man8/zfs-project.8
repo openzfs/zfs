@@ -34,26 +34,26 @@
 .Dt ZFS-PROJECT 8
 .Os
 .Sh NAME
-.Nm zfs Ns Pf - Cm project
+.Nm zfs-project
 .Nd List, set, or clear project ID and/or inherit flag on the file(s) or directories.
 .Sh SYNOPSIS
-.Nm
+.Nm zfs
 .Cm project
 .Oo Fl d Ns | Ns Fl r Ns Oc
 .Ar file Ns | Ns Ar directory Ns ...
-.Nm
+.Nm zfs
 .Cm project
 .Fl C
 .Oo Fl kr Ns Oc
 .Ar file Ns | Ns Ar directory Ns ...
-.Nm
+.Nm zfs
 .Cm project
 .Fl c
 .Oo Fl 0 Ns Oc
 .Oo Fl d Ns | Ns Fl r Ns Oc
 .Op Fl p Ar id
 .Ar file Ns | Ns Ar directory Ns ...
-.Nm
+.Nm zfs
 .Cm project
 .Op Fl p Ar id
 .Oo Fl rs Ns Oc
@@ -61,7 +61,7 @@
 .Sh DESCRIPTION
 .Bl -tag -width ""
 .It Xo
-.Nm
+.Nm zfs
 .Cm project
 .Oo Fl d Ns | Ns Fl r Ns Oc
 .Ar file Ns | Ns Ar directory Ns ...
@@ -79,7 +79,7 @@ Show on subdirectories recursively. It will overwrite the former specified
 option.
 .El
 .It Xo
-.Nm
+.Nm zfs
 .Cm project
 .Fl C
 .Oo Fl kr Ns Oc
@@ -94,7 +94,7 @@ as zero.
 Clear on subdirectories recursively.
 .El
 .It Xo
-.Nm
+.Nm zfs
 .Cm project
 .Fl c
 .Oo Fl 0 Ns Oc
@@ -126,7 +126,7 @@ Check on subdirectories recursively. It will overwrite the former specified
 option.
 .El
 .It Xo
-.Nm
+.Nm zfs
 .Cm project
 .Op Fl p Ar id
 .Oo Fl rs Ns Oc

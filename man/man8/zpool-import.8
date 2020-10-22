@@ -31,14 +31,14 @@
 .Dt ZPOOL-IMPORT 8
 .Os
 .Sh NAME
-.Nm zpool Ns Pf - Cm import
+.Nm zpool-import
 .Nd Lists ZFS storage pools available to import or import the specified pools
 .Sh SYNOPSIS
-.Nm
+.Nm zpool
 .Cm import
 .Op Fl D
 .Op Fl d Ar dir Ns | Ns device
-.Nm
+.Nm zpool
 .Cm import
 .Fl a
 .Op Fl DflmN
@@ -48,7 +48,7 @@
 .Op Fl o Ar mntopts
 .Oo Fl o Ar property Ns = Ns Ar value Oc Ns ...
 .Op Fl R Ar root
-.Nm
+.Nm zpool
 .Cm import
 .Op Fl Dflm
 .Op Fl F Oo Fl n Oc Oo Fl T Oc Oo Fl X Oc
@@ -63,7 +63,7 @@
 .Sh DESCRIPTION
 .Bl -tag -width Ds
 .It Xo
-.Nm
+.Nm zpool
 .Cm import
 .Op Fl D
 .Op Fl d Ar dir Ns | Ns device
@@ -110,7 +110,7 @@ option can be specified multiple times.
 Lists destroyed pools only.
 .El
 .It Xo
-.Nm
+.Nm zpool
 .Cm import
 .Fl a
 .Op Fl DflmN
@@ -244,7 +244,7 @@ option, above. WARNING: This option can be extremely hazardous to the
 health of your pool and should only be used as a last resort.
 .El
 .It Xo
-.Nm
+.Nm zpool
 .Cm import
 .Op Fl Dflm
 .Op Fl F Oo Fl n Oc Oo Fl t Oc Oo Fl T Oc Oo Fl X Oc

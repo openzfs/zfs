@@ -31,23 +31,23 @@
 .Dt ZPOOL-GET 8
 .Os
 .Sh NAME
-.Nm zpool Ns Pf - Cm get
+.Nm zpool-get
 .Nd Retrieves properties for the specified ZFS storage pool(s)
 .Sh SYNOPSIS
-.Nm
+.Nm zpool
 .Cm get
 .Op Fl Hp
 .Op Fl o Ar field Ns Oo , Ns Ar field Oc Ns ...
 .Sy all Ns | Ns Ar property Ns Oo , Ns Ar property Oc Ns ...
 .Oo Ar pool Oc Ns ...
-.Nm
+.Nm zpool
 .Cm set
 .Ar property Ns = Ns Ar value
 .Ar pool
 .Sh DESCRIPTION
 .Bl -tag -width Ds
 .It Xo
-.Nm
+.Nm zpool
 .Cm get
 .Op Fl Hp
 .Op Fl o Ar field Ns Oo , Ns Ar field Oc Ns ...
@@ -85,7 +85,7 @@ is the default value.
 Display numbers in parsable (exact) values.
 .El
 .It Xo
-.Nm
+.Nm zpool
 .Cm set
 .Ar property Ns = Ns Ar value
 .Ar pool

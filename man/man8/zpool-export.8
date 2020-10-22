@@ -31,10 +31,10 @@
 .Dt ZPOOL-EXPORT 8
 .Os
 .Sh NAME
-.Nm zpool Ns Pf - Cm export
+.Nm zpool-export
 .Nd Exports the given ZFS storage pools from the system
 .Sh SYNOPSIS
-.Nm
+.Nm zpool
 .Cm export
 .Op Fl a
 .Op Fl f
@@ -42,7 +42,7 @@
 .Sh DESCRIPTION
 .Bl -tag -width Ds
 .It Xo
-.Nm
+.Nm zpool
 .Cm export
 .Op Fl a
 .Op Fl f
@@ -60,7 +60,7 @@ A pool can not be exported if it has a shared spare that is currently being
 used.
 .Pp
 For pools to be portable, you must give the
-.Nm
+.Nm zpool
 command whole disks, not just partitions, so that ZFS can label the disks with
 portable EFI labels.
 Otherwise, disk drivers on platforms of different endianness will not recognize
