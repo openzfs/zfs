@@ -714,6 +714,8 @@ aesni_gcm_decrypt:
 .cfi_offset	%r14,-48
 	pushq	%r15
 .cfi_offset	%r15,-56
+	pushq	%r9
+.cfi_offset	%r9,-64
 	vzeroupper
 
 	vmovdqu	(%r8),%xmm1
@@ -726,7 +728,8 @@ aesni_gcm_decrypt:
 	andq	$-128,%rsp
 	vmovdqu	(%r11),%xmm0
 	leaq	128(%rcx),%rcx
-	leaq	32+32(%r9),%r9
+	movq	32(%r9),%r9
+	leaq	32(%r9),%r9
 	movl	504-128(%rcx),%ebp	// ICP has a larger offset for rounds.
 	vpshufb	%xmm0,%xmm8,%xmm8
 
@@ -782,7 +785,9 @@ aesni_gcm_decrypt:
 	vmovups	%xmm14,-16(%rsi)
 
 	vpshufb	(%r11),%xmm8,%xmm8
-	vmovdqu	%xmm8,-64(%r9)
+	movq	-56(%rax),%r9
+.cfi_restore	%r9
+	vmovdqu	%xmm8,(%r9)
 
 	vzeroupper
 	movq	-48(%rax),%r15
@@ -918,6 +923,8 @@ aesni_gcm_encrypt:
 .cfi_offset	%r14,-48
 	pushq	%r15
 .cfi_offset	%r15,-56
+	pushq	%r9
+.cfi_offset	%r9,-64
 	vzeroupper
 
 	vmovdqu	(%r8),%xmm1
@@ -960,7 +967,8 @@ aesni_gcm_encrypt:
 	call	_aesni_ctr32_6x
 
 	vmovdqu	(%r9),%xmm8
-	leaq	32+32(%r9),%r9
+	movq	32(%r9),%r9
+	leaq	32(%r9),%r9
 	subq	$12,%rdx
 	movq	$192,%r10
 	vpshufb	%xmm0,%xmm8,%xmm8
@@ -1151,7 +1159,9 @@ aesni_gcm_encrypt:
 	vpxor	%xmm7,%xmm2,%xmm2
 	vpxor	%xmm2,%xmm8,%xmm8
 	vpshufb	(%r11),%xmm8,%xmm8
-	vmovdqu	%xmm8,-64(%r9)
+	movq	-56(%rax),%r9
+.cfi_restore	%r9
+	vmovdqu	%xmm8,(%r9)
 
 	vzeroupper
 	movq	-48(%rax),%r15
