@@ -334,7 +334,8 @@ tests = ['zpool_create_001_pos', 'zpool_create_002_pos',
     'zpool_create_encrypted', 'zpool_create_crypt_combos',
     'zpool_create_features_001_pos', 'zpool_create_features_002_pos',
     'zpool_create_features_003_pos', 'zpool_create_features_004_neg',
-    'zpool_create_features_005_pos',
+    'zpool_create_features_005_pos', 'zpool_create_features_006_neg',
+    'zpool_create_features_007_pos',
     'create-o_ashift', 'zpool_create_tempname']
 tags = ['functional', 'cli_root', 'zpool_create']
 

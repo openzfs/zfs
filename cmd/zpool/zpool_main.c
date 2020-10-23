@@ -31,6 +31,7 @@
  * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
  * Copyright (c) 2017, Intel Corporation.
  * Copyright (c) 2019, loli10K <ezomori.nozomu@gmail.com>
+ * Copyright (c) 2020, Google LLC.
  */
 
 #include <assert.h>

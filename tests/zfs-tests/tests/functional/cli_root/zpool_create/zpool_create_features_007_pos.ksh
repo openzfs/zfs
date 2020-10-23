@@ -30,48 +30,48 @@
 
 ################################################################################
 #
-#  When using the '-d' option or specifying '-o version=X' new pools should
-#  have all features disabled.
+#  When using featuresets, only features present in all featuresets are
+#  enabled.
 #
-#  1. Create a new pool with '-d'.
-#  2. Verify that every feature@ property is in the 'disabled' state
-#  3. Destroy pool and re-create with -o version=28
-#  4. Verify again.
-#  5. Destroy pool and re-create with -o features=none
-#  6. Verify again.
+#  1. Create two featuresets with async_destroy being the only feature present
+#     in both. Create a pool with these two featuresets requested.
+#  2. Verify that every feature@ property except feature@async_destroy is in
+#     the 'disabled' state
 #
 ################################################################################
 
 verify_runnable "global"
 
+TMP1=$(mktemp)
+TMP2=$(mktemp)
+
+echo "async_destroy empty_bpobj extensible_dataset" > $TMP1
+echo "resilver_defer bookmarks async_destroy encryption # empty_bpobj commented out" > $TMP2
+
 function cleanup
 {
 	datasetexists $TESTPOOL && log_must zpool destroy $TESTPOOL
-}
-
-function check_features
-{
-	for prop in $(zpool get all $TESTPOOL | awk '$2 ~ /feature@/ { print $2 }'); do
-		state=$(zpool list -Ho "$prop" $TESTPOOL)
-                if [[ "$state" != "disabled" ]]; then
-			log_fail "$prop is enabled on new pool"
-	        fi
-	done
+	rm -f $TMP1 $TMP2
 }
 
 log_onexit cleanup
 
-log_assert "'zpool create -d' creates pools with all features disabled"
+log_assert "'zpool create -o features=$TMP1,$TMP2' only " \
+    "enables async_destroy"
 
-log_must zpool create -f -d $TESTPOOL $DISKS
-check_features
-log_must zpool destroy -f $TESTPOOL
+log_must zpool create -f -o features=$TMP1,$TMP2 $TESTPOOL $DISKS
 
-log_must zpool create -f -o version=28 $TESTPOOL $DISKS
-check_features
+state=$(zpool list -Ho feature@async_destroy $TESTPOOL)
+if [[ "$state" != "enabled" ]]; then
+	log_fail "async_destroy has state $state"
+fi
 
-log_must zpool destroy -f $TESTPOOL
-log_must zpool create -f -o features=none $TESTPOOL $DISKS
-check_features
+for prop in $(zpool get all $TESTPOOL | awk '$2 ~ /feature@/ { print $2 }'); do
+	state=$(zpool list -Ho "$prop" $TESTPOOL)
+	if [[ "$prop" != "feature@async_destroy" \
+	    && "$state" != "disabled" ]]; then
+		log_fail "$prop is enabled on new pool"
+        fi
+done
 
 log_pass

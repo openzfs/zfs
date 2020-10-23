@@ -30,48 +30,42 @@
 
 ################################################################################
 #
-#  When using the '-d' option or specifying '-o version=X' new pools should
-#  have all features disabled.
+#  Specifying invalid featuresets should cause the create to fail.
 #
-#  1. Create a new pool with '-d'.
-#  2. Verify that every feature@ property is in the 'disabled' state
-#  3. Destroy pool and re-create with -o version=28
-#  4. Verify again.
-#  5. Destroy pool and re-create with -o features=none
-#  6. Verify again.
+#  1. Try to create the pool with a variety of invalid featuresets
+#  2. Verify no pool was created.
 #
 ################################################################################
 
 verify_runnable "global"
 
+TMP1=$(mktemp)
+TMP2=$(mktemp)
+
+# TMP1 invalid, TMP2 valid
+echo "invalidfeature" > $TMP1
+echo "async_destroy" > $TMP2
+
+properties="\
+features=hopefullynotarealfile \
+features=/dev/null \
+features=, \
+features=$TMP1 \
+features=$TMP1,$TMP2 \
+"
+
 function cleanup
 {
 	datasetexists $TESTPOOL && log_must zpool destroy $TESTPOOL
+	rm -f $TMP1 $TMP2
 }
 
-function check_features
-{
-	for prop in $(zpool get all $TESTPOOL | awk '$2 ~ /feature@/ { print $2 }'); do
-		state=$(zpool list -Ho "$prop" $TESTPOOL)
-                if [[ "$state" != "disabled" ]]; then
-			log_fail "$prop is enabled on new pool"
-	        fi
-	done
-}
-
+log_assert "'zpool create' with invalid featuresets fails"
 log_onexit cleanup
 
-log_assert "'zpool create -d' creates pools with all features disabled"
-
-log_must zpool create -f -d $TESTPOOL $DISKS
-check_features
-log_must zpool destroy -f $TESTPOOL
-
-log_must zpool create -f -o version=28 $TESTPOOL $DISKS
-check_features
-
-log_must zpool destroy -f $TESTPOOL
-log_must zpool create -f -o features=none $TESTPOOL $DISKS
-check_features
+for prop in $properties; do
+	log_mustnot zpool create -f -o "$prop" $TESTPOOL $DISKS
+	log_mustnot datasetexists $TESTPOOL
+done
 
 log_pass
