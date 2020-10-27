@@ -274,7 +274,7 @@ bio_set_bi_error(struct bio *bio, int error)
  * forced.
  */
 #ifdef HAVE_CHECK_DISK_CHANGE
-#define	zfs_check_media_change(bdev) check_disk_change(bdev)
+#define	zfs_check_media_change(bdev)	check_disk_change(bdev)
 #ifdef HAVE_BLKDEV_REREAD_PART
 #define	vdev_bdev_reread_part(bdev)	blkdev_reread_part(bdev)
 #else
