@@ -237,13 +237,6 @@ extern "C" {
 struct objset;
 struct dmu_pool;
 
-typedef struct dmu_xuio {
-	int next;
-	int cnt;
-	struct arc_buf **bufs;
-	iovec_t *iovp;
-} dmu_xuio_t;
-
 typedef struct dmu_sendstatus {
 	list_node_t dss_link;
 	int dss_outfd;
