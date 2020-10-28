@@ -548,22 +548,37 @@ function list_file_blocks # input_file
 
 	#
 	# Establish a mapping between vdev ids as shown in a DVA and the
-	# pathnames they correspond to in ${VDEV_MAP[]}.
+	# pathnames they correspond to in ${VDEV_MAP[][]}.
+	#
+	# The vdev bits in a DVA refer to the top level vdev id.
+	# ${VDEV_MAP[$id]} is an array of the vdev paths within that vdev.
 	#
 	eval $(zdb -C $pool | awk '
-		BEGIN {
-			printf("typeset VDEV_MAP\n");
-			looking = 0;
-		}
-		/^            children/ {
-			id = $1;
-			looking = 1;
-		}
-		/path: / && looking == 1 {
-			print id" "$2;
-			looking = 0;
-		}
-	' | sed -n 's/^children\[\([0-9]\)\]: \(.*\)$/VDEV_MAP[\1]=\2/p')
+	    BEGIN { printf "typeset -a VDEV_MAP;" }
+	    function subscript(s) {
+	        # "[#]" is more convenient than the bare "#"
+	        match(s, /\[[0-9]*\]/)
+		return substr(s, RSTART, RLENGTH)
+	    }
+	    id && !/^                / {
+	        # left a top level vdev
+	        id = 0
+	    }
+	    id && $1 ~ /^path:$/ {
+	        # found a vdev path; save it in the map
+	        printf "VDEV_MAP%s%s=%s;", id, child, $2
+	    }
+	    /^            children/ {
+	        # entering a top level vdev
+	        id = subscript($0)
+		child = "[0]" # default in case there is no nested vdev
+		printf "typeset -a VDEV_MAP%s;", id
+	    }
+	    /^                children/ {
+	        # entering a nested vdev (e.g. child of a top level mirror)
+	        child = subscript($0)
+	    }
+	')
 
 	#
 	# The awk below parses the output of zdb, printing out the level
@@ -576,17 +591,18 @@ function list_file_blocks # input_file
 	log_must zpool sync -f
 	typeset level path offset length
 	zdb -ddddd $ds $objnum | awk -F: '
-		BEGIN { looking = 0 }
-		/^Indirect blocks:/ { looking = 1}
-		/^\t\tsegment / { looking = 0}
-		/L[0-8]/ && looking == 1 { print $0}
-	' | sed -n 's/^.*\(L[0-9]\) \([0-9]*\):\([0-9a-f]*\):\([0-9a-f]*\) .*$/\1 \2 \3 \4/p' | \
-	while read level path offset length; do
+	    /^Indirect blocks:/ { looking = 1 }
+	    /^\t\tsegment / { looking = 0 }
+	    /L[0-8]/ && looking { print }
+	' | sed -n 's/^.*\(L[0-9]\) *\([0-9]*\):\([0-9a-f]*\):\([0-9a-f]*\) .*$/\1 \2 \3 \4/p' | \
+	while read level vdev offset length; do
 		offset=$((16#$offset))  # Conversion from hex
 		length=$((16#$length))
 		offset="$(((offset + 4 * 1024 * 1024) / 512))"
 		length="$((length / 512))"
-		echo "$level ${VDEV_MAP[$path]} $offset $length"
+		for path in ${VDEV_MAP[$vdev][@]}; do
+			echo "$level $path $offset $length"
+		done
 	done 2>/dev/null
 }
 
