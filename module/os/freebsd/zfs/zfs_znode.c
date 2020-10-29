@@ -91,14 +91,7 @@ SYSCTL_INT(_debug_sizeof, OID_AUTO, znode, CTLFLAG_RD,
  * (such as VFS logic) that will not compile easily in userland.
  */
 #ifdef _KERNEL
-/*
- * Needed to close a small window in zfs_znode_move() that allows the zfsvfs to
- * be freed before it can be safely accessed.
- */
-krwlock_t zfsvfs_lock;
-
-#if defined(_KERNEL) && !defined(KMEM_DEBUG) && \
-    __FreeBSD_version >= 1300102
+#if !defined(KMEM_DEBUG) && __FreeBSD_version >= 1300102
 #define	_ZFS_USE_SMR
 static uma_zone_t znode_uma_zone;
 #else
@@ -200,7 +193,6 @@ zfs_znode_init(void)
 	/*
 	 * Initialize zcache
 	 */
-	rw_init(&zfsvfs_lock, NULL, RW_DEFAULT, NULL);
 	ASSERT(znode_uma_zone == NULL);
 	znode_uma_zone = uma_zcreate("zfs_znode_cache",
 	    sizeof (znode_t), zfs_znode_cache_constructor_smr,
@@ -228,7 +220,6 @@ zfs_znode_init(void)
 	/*
 	 * Initialize zcache
 	 */
-	rw_init(&zfsvfs_lock, NULL, RW_DEFAULT, NULL);
 	ASSERT(znode_cache == NULL);
 	znode_cache = kmem_cache_create("zfs_znode_cache",
 	    sizeof (znode_t), 0, zfs_znode_cache_constructor,
@@ -267,7 +258,6 @@ zfs_znode_fini(void)
 		znode_cache = NULL;
 	}
 #endif
-	rw_destroy(&zfsvfs_lock);
 }
 
 
@@ -449,10 +439,6 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	ASSERT(!POINTER_IS_VALID(zp->z_zfsvfs));
 	zp->z_moved = 0;
 
-	/*
-	 * Defer setting z_zfsvfs until the znode is ready to be a candidate for
-	 * the zfs_znode_move() callback.
-	 */
 	zp->z_sa_hdl = NULL;
 	zp->z_unlinked = 0;
 	zp->z_atime_dirty = 0;
@@ -529,11 +515,6 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	mutex_enter(&zfsvfs->z_znodes_lock);
 	list_insert_tail(&zfsvfs->z_all_znodes, zp);
 	zfsvfs->z_nr_znodes++;
-	membar_producer();
-	/*
-	 * Everything else must be valid before assigning z_zfsvfs makes the
-	 * znode eligible for zfs_znode_move().
-	 */
 	zp->z_zfsvfs = zfsvfs;
 	mutex_exit(&zfsvfs->z_znodes_lock);
 
