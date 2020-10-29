@@ -321,7 +321,7 @@ spa_history_log_sync(void *arg, dmu_tx_t *tx)
 		 * posted as a result of the ZPOOL_HIST_CMD key being present
 		 * it would result in only one sysevent being posted with the
 		 * full command line arguments, requiring the consumer to know
-		 * how to parse and understand zfs(1M) command invocations.
+		 * how to parse and understand zfs(8) command invocations.
 		 */
 		spa_history_log_notify(spa, nvl);
 	} else if (nvlist_exists(nvl, ZPOOL_HIST_IOCTL)) {

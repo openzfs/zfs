@@ -88,8 +88,8 @@ typedef enum zfs_error {
 	EZFS_ZONED,		/* used improperly in local zone */
 	EZFS_MOUNTFAILED,	/* failed to mount dataset */
 	EZFS_UMOUNTFAILED,	/* failed to unmount dataset */
-	EZFS_UNSHARENFSFAILED,	/* unshare(1M) failed */
-	EZFS_SHARENFSFAILED,	/* share(1M) failed */
+	EZFS_UNSHARENFSFAILED,	/* failed to unshare over nfs */
+	EZFS_SHARENFSFAILED,	/* failed to share over nfs */
 	EZFS_PERM,		/* permission denied */
 	EZFS_NOSPC,		/* out of space */
 	EZFS_FAULT,		/* bad address */
