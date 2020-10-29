@@ -75,9 +75,11 @@ typedef struct zfs_zstd_header {
  * kstat helper macros
  */
 #define	ZSTDSTAT(stat)		(zstd_stats.stat.value.ui64)
-#define	ZSTDSTAT_INCR(stat, val) \
+#define	ZSTDSTAT_ADD(stat, val) \
 	atomic_add_64(&zstd_stats.stat.value.ui64, (val))
-#define	ZSTDSTAT_BUMP(stat)	ZSTDSTAT_INCR(stat, 1)
+#define	ZSTDSTAT_SUB(stat, val) \
+	atomic_sub_64(&zstd_stats.stat.value.ui64, (val))
+#define	ZSTDSTAT_BUMP(stat)	ZSTDSTAT_ADD(stat, 1)
 
 /* (de)init for user space / kernel emulation */
 int zstd_init(void);
