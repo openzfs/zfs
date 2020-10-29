@@ -1118,21 +1118,10 @@ zfsvfs_setup(zfsvfs_t *zfsvfs, boolean_t mounting)
 	return (0);
 }
 
-extern krwlock_t zfsvfs_lock; /* in zfs_znode.c */
-
 void
 zfsvfs_free(zfsvfs_t *zfsvfs)
 {
 	int i;
-
-	/*
-	 * This is a barrier to prevent the filesystem from going away in
-	 * zfs_znode_move() until we can safely ensure that the filesystem is
-	 * not unmounted. We consider the filesystem valid before the barrier
-	 * and invalid after the barrier.
-	 */
-	rw_enter(&zfsvfs_lock, RW_READER);
-	rw_exit(&zfsvfs_lock);
 
 	zfs_fuid_destroy(zfsvfs);
 
