@@ -586,20 +586,37 @@ function list_file_blocks # input_file
 	# two are converted to decimal in the while loop. 4M is added to
 	# the offset to compensate for the first two labels and boot
 	# block. Lastly, the offset and length are printed in units of
-	# 512b blocks for ease of use with dd.
+	# 512B blocks for ease of use with dd.
 	#
+	typeset level vdev path offset length
+	if awk -n '' 2>/dev/null; then
+		# gawk needs -n to decode hex
+		AWK='awk -n'
+	else
+		AWK='awk'
+	fi
 	log_must zpool sync -f
-	typeset level path offset length
-	zdb -ddddd $ds $objnum | awk -F: '
+	zdb -dddddd $ds $objnum | $AWK -v pad=$((4<<20)) -v bs=512 '
+	    /^$/ { looking = 0 }
+	    looking {
+	        level = $2
+	        field = 3
+	        while (split($field, dva, ":") == 3) {
+	            # top level vdev id
+	            vdev = int(dva[1])
+	            # offset + 4M label/boot pad in 512B blocks
+	            offset = (int("0x"dva[2]) + pad) / bs
+		    # length in 512B blocks
+		    len = int("0x"dva[3]) / bs
+
+	            print level, vdev, offset, len
+
+	            ++field
+	        }
+	    }
 	    /^Indirect blocks:/ { looking = 1 }
-	    /^\t\tsegment / { looking = 0 }
-	    /L[0-8]/ && looking { print }
-	' | sed -n 's/^.*\(L[0-9]\) *\([0-9]*\):\([0-9a-f]*\):\([0-9a-f]*\) .*$/\1 \2 \3 \4/p' | \
+	' | \
 	while read level vdev offset length; do
-		offset=$((16#$offset))  # Conversion from hex
-		length=$((16#$length))
-		offset="$(((offset + 4 * 1024 * 1024) / 512))"
-		length="$((length / 512))"
 		for path in ${VDEV_MAP[$vdev][@]}; do
 			echo "$level $path $offset $length"
 		done
