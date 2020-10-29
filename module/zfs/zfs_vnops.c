@@ -74,6 +74,96 @@ zfs_fsync(znode_t *zp, int syncflag, cred_t *cr)
 	return (0);
 }
 
+
+#if defined(SEEK_HOLE) && defined(SEEK_DATA)
+/*
+ * Lseek support for finding holes (cmd == SEEK_HOLE) and
+ * data (cmd == SEEK_DATA). "off" is an in/out parameter.
+ */
+static int
+zfs_holey_common(znode_t *zp, ulong_t cmd, loff_t *off)
+{
+	uint64_t noff = (uint64_t)*off; /* new offset */
+	uint64_t file_sz;
+	int error;
+	boolean_t hole;
+
+	file_sz = zp->z_size;
+	if (noff >= file_sz)  {
+		return (SET_ERROR(ENXIO));
+	}
+
+	if (cmd == F_SEEK_HOLE)
+		hole = B_TRUE;
+	else
+		hole = B_FALSE;
+
+	error = dmu_offset_next(ZTOZSB(zp)->z_os, zp->z_id, hole, &noff);
+
+	if (error == ESRCH)
+		return (SET_ERROR(ENXIO));
+
+	/* file was dirty, so fall back to using generic logic */
+	if (error == EBUSY) {
+		if (hole)
+			*off = file_sz;
+
+		return (0);
+	}
+
+	/*
+	 * We could find a hole that begins after the logical end-of-file,
+	 * because dmu_offset_next() only works on whole blocks.  If the
+	 * EOF falls mid-block, then indicate that the "virtual hole"
+	 * at the end of the file begins at the logical EOF, rather than
+	 * at the end of the last block.
+	 */
+	if (noff > file_sz) {
+		ASSERT(hole);
+		noff = file_sz;
+	}
+
+	if (noff < *off)
+		return (error);
+	*off = noff;
+	return (error);
+}
+
+int
+zfs_holey(znode_t *zp, ulong_t cmd, loff_t *off)
+{
+	zfsvfs_t *zfsvfs = ZTOZSB(zp);
+	int error;
+
+	ZFS_ENTER(zfsvfs);
+	ZFS_VERIFY_ZP(zp);
+
+	error = zfs_holey_common(zp, cmd, off);
+
+	ZFS_EXIT(zfsvfs);
+	return (error);
+}
+#endif /* SEEK_HOLE && SEEK_DATA */
+
+/*ARGSUSED*/
+int
+zfs_access(znode_t *zp, int mode, int flag, cred_t *cr)
+{
+	zfsvfs_t *zfsvfs = ZTOZSB(zp);
+	int error;
+
+	ZFS_ENTER(zfsvfs);
+	ZFS_VERIFY_ZP(zp);
+
+	if (flag & V_ACE_MASK)
+		error = zfs_zaccess(zp, mode, flag, B_FALSE, cr);
+	else
+		error = zfs_zaccess_rwx(zp, mode, flag, cr);
+
+	ZFS_EXIT(zfsvfs);
+	return (error);
+}
+
 static unsigned long zfs_vnops_read_chunk_size = 1024 * 1024; /* Tunable */
 
 /*
@@ -627,7 +717,9 @@ zfs_setsecattr(znode_t *zp, vsecattr_t *vsecp, int flag, cred_t *cr)
 	return (error);
 }
 
+EXPORT_SYMBOL(zfs_access);
 EXPORT_SYMBOL(zfs_fsync);
+EXPORT_SYMBOL(zfs_holey);
 EXPORT_SYMBOL(zfs_read);
 EXPORT_SYMBOL(zfs_write);
 EXPORT_SYMBOL(zfs_getsecattr);

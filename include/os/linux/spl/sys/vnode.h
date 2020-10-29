@@ -52,6 +52,12 @@
 
 #define	F_FREESP	11 	/* Free file space */
 
+
+#if defined(SEEK_HOLE) && defined(SEEK_DATA)
+#define	F_SEEK_DATA	SEEK_DATA
+#define	F_SEEK_HOLE	SEEK_HOLE
+#endif
+
 /*
  * The vnode AT_ flags are mapped to the Linux ATTR_* flags.
  * This allows them to be used safely with an iattr structure.
