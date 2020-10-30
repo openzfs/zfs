@@ -119,8 +119,9 @@ zvol_write(void *arg)
 	uio_from_bio(&uio, bio);
 
 	zvol_state_t *zv = zvr->zv;
-	ASSERT(zv && zv->zv_open_count > 0);
-	ASSERT(zv->zv_zilog != NULL);
+	ASSERT3P(zv, !=, NULL);
+	ASSERT3U(zv->zv_open_count, >, 0);
+	ASSERT3P(zv->zv_zilog, !=, NULL);
 
 	/* bio marked as FLUSH need to flush before write */
 	if (bio_is_flush(bio))
@@ -203,8 +204,9 @@ zvol_discard(void *arg)
 	dmu_tx_t *tx;
 	unsigned long start_jif;
 
-	ASSERT(zv && zv->zv_open_count > 0);
-	ASSERT(zv->zv_zilog != NULL);
+	ASSERT3P(zv, !=, NULL);
+	ASSERT3U(zv->zv_open_count, >, 0);
+	ASSERT3P(zv->zv_zilog, !=, NULL);
 
 	start_jif = jiffies;
 	blk_generic_start_io_acct(zv->zv_zso->zvo_queue, WRITE,
@@ -272,7 +274,8 @@ zvol_read(void *arg)
 	uio_from_bio(&uio, bio);
 
 	zvol_state_t *zv = zvr->zv;
-	ASSERT(zv && zv->zv_open_count > 0);
+	ASSERT3P(zv, !=, NULL);
+	ASSERT3U(zv->zv_open_count, >, 0);
 
 	ssize_t start_resid = uio.uio_resid;
 	unsigned long start_jif = jiffies;
@@ -498,9 +501,9 @@ zvol_open(struct block_device *bdev, fmode_t flag)
 	rw_exit(&zvol_state_lock);
 
 	ASSERT(MUTEX_HELD(&zv->zv_state_lock));
-	ASSERT(zv->zv_open_count != 0 || RW_READ_HELD(&zv->zv_suspend_lock));
 
 	if (zv->zv_open_count == 0) {
+		ASSERT(RW_READ_HELD(&zv->zv_suspend_lock));
 		error = -zvol_first_open(zv, !(flag & FMODE_WRITE));
 		if (error)
 			goto out_mutex;
@@ -546,7 +549,7 @@ zvol_release(struct gendisk *disk, fmode_t mode)
 	zv = disk->private_data;
 
 	mutex_enter(&zv->zv_state_lock);
-	ASSERT(zv->zv_open_count > 0);
+	ASSERT3U(zv->zv_open_count, >, 0);
 	/*
 	 * make sure zvol is not suspended during last close
 	 * (hold zv_suspend_lock) and respect proper lock acquisition
@@ -569,11 +572,12 @@ zvol_release(struct gendisk *disk, fmode_t mode)
 	rw_exit(&zvol_state_lock);
 
 	ASSERT(MUTEX_HELD(&zv->zv_state_lock));
-	ASSERT(zv->zv_open_count != 1 || RW_READ_HELD(&zv->zv_suspend_lock));
 
 	zv->zv_open_count--;
-	if (zv->zv_open_count == 0)
+	if (zv->zv_open_count == 0) {
+		ASSERT(RW_READ_HELD(&zv->zv_suspend_lock));
 		zvol_last_close(zv);
+	}
 
 	mutex_exit(&zv->zv_state_lock);
 
@@ -875,8 +879,8 @@ zvol_free(zvol_state_t *zv)
 
 	ASSERT(!RW_LOCK_HELD(&zv->zv_suspend_lock));
 	ASSERT(!MUTEX_HELD(&zv->zv_state_lock));
-	ASSERT(zv->zv_open_count == 0);
-	ASSERT(zv->zv_zso->zvo_disk->private_data == NULL);
+	ASSERT0(zv->zv_open_count);
+	ASSERT3P(zv->zv_zso->zvo_disk->private_data, ==, NULL);
 
 	rw_destroy(&zv->zv_suspend_lock);
 	zfs_rangelock_fini(&zv->zv_rangelock);
