@@ -1272,7 +1272,7 @@ zio_claim(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 	ASSERT3U(spa->spa_uberblock.ub_rootbp.blk_birth, <,
 	    spa_min_claim_txg(spa));
 	ASSERT(txg == spa_min_claim_txg(spa) || txg == 0);
-	ASSERT(!BP_GET_DEDUP(bp) || !spa_writeable(spa));	/* zdb(1M) */
+	ASSERT(!BP_GET_DEDUP(bp) || !spa_writeable(spa));	/* zdb(8) */
 
 	zio = zio_create(pio, spa, txg, bp, NULL, BP_GET_PSIZE(bp),
 	    BP_GET_PSIZE(bp), done, private, ZIO_TYPE_CLAIM, ZIO_PRIORITY_NOW,

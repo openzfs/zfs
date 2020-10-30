@@ -433,7 +433,7 @@ zfs_sync(vfs_t *vfsp, int waitfor)
 	} else {
 		/*
 		 * Sync all ZFS filesystems.  This is what happens when you
-		 * run sync(1M).  Unlike other filesystems, ZFS honors the
+		 * run sync(8).  Unlike other filesystems, ZFS honors the
 		 * request by waiting for all pools to commit all dirty data.
 		 */
 		spa_sync_allpools();
