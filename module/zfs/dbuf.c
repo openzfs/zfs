@@ -2627,11 +2627,9 @@ dbuf_assign_arcbuf(dmu_buf_impl_t *db, arc_buf_t *buf, dmu_tx_t *tx)
 		(void) dbuf_dirty(db, tx);
 		bcopy(buf->b_data, db->db.db_data, db->db.db_size);
 		arc_buf_destroy(buf, db);
-		xuio_stat_wbuf_copied();
 		return;
 	}
 
-	xuio_stat_wbuf_nocopy();
 	if (db->db_state == DB_CACHED) {
 		dbuf_dirty_record_t *dr = list_head(&db->db_dirty_records);
 

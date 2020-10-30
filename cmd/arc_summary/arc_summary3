@@ -58,7 +58,6 @@ SECTION_PATHS = {'arc': 'arcstats',
                  'dmu': 'dmu_tx',
                  'l2arc': 'arcstats',  # L2ARC stuff lives in arcstats
                  'vdev': 'vdev_cache_stats',
-                 'xuio': 'xuio_stats',
                  'zfetch': 'zfetchstats',
                  'zil': 'zil'}
 
