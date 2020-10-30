@@ -2,9 +2,18 @@
 #define _SPL_FCNTL_H
 
 #include <sys/types.h>
+
+// #if (defined _CRT_DECLARE_NONSTDC_NAMES && _CRT_DECLARE_NONSTDC_NAMES) || (!defined _CRT_DECLARE_NONSTDC_NAMES && !__STDC__)
+#define _CRT_DECLARE_NONSTDC_NAMES 1
 #include <fcntl.h>
 
 #define F_FREESP 11
+
+#define O_LARGEFILE             0
+#define O_RSYNC                 0
+#define O_DIRECT                0
+#define O_SYNC                0
+#define	O_DSYNC 0
 
 #define F_RDLCK         1               /* shared or read lock */
 #define F_UNLCK         2               /* unlock */

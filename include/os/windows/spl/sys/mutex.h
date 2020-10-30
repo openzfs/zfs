@@ -28,14 +28,14 @@
 #ifndef OSX_MUTEX_H
 #define OSX_MUTEX_H
 
-#include <../spl_config.h> // For SPL_DEBUG_MUTEX
+#include <spl_config.h> // For SPL_DEBUG_MUTEX
 
 #ifdef _KERNEL
 //#include <libkern/locks.h>
 //#include <wdm.h>
 //#include <ntddk.h>
 #include <intsafe.h>
-#include <Ntifs.h>
+#include <ntifs.h>
 
 //#include <libkern/OSAtomic.h>
 //#include <kern/locks.h>
@@ -66,7 +66,7 @@ typedef struct kmutex {
 	mutex_t m_lock;
 	void           *m_owner;
 	unsigned int initialised;
-    unsigned int set_event_guard;
+	unsigned int set_event_guard;
 } kmutex_t;
 
 
@@ -78,6 +78,9 @@ void spl_mutex_init(kmutex_t *mp, char *name, kmutex_type_t type, void *ibc);
 
 #define mutex_enter spl_mutex_enter
 void spl_mutex_enter(kmutex_t *mp);
+
+#define mutex_enter_nested(A, B)        mutex_enter(A)
+#define	MUTEX_NOLOCKDEP	0
 
 #define	mutex_destroy spl_mutex_destroy
 #define	mutex_exit spl_mutex_exit

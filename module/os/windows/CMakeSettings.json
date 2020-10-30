@@ -1,0 +1,27 @@
+﻿{
+	"configurations": [
+		{
+			"name": "x64-Debug",
+			"generator": "Ninja",
+			"configurationType": "Debug",
+			"inheritEnvironments": [ "clang_cl_x64" ],
+			"buildRoot": "${projectDir}\\out\\build\\${name}",
+			"installRoot": "${projectDir}\\out\\install\\${name}",
+			"cmakeCommandArgs": "",
+			"buildCommandArgs": "",
+			"ctestCommandArgs": "",
+			"variables": [
+				{
+					"name": "INF2CAT_PROGRAM",
+					"value": "C:/Program Files (x86)/Windows Kits/10/bin/10.0.18362.0/x86/Inf2Cat.exe",
+					"type": "FILEPATH"
+				},
+				{
+					"name": "SIGNTOOL_PROGRAM",
+					"value": "C:/Program Files (x86)/Windows Kits/10/bin/10.0.18362.0/x64/signtool.exe",
+					"type": "FILEPATH"
+				}
+			]
+		}
+	]
+}

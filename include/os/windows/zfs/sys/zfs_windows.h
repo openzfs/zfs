@@ -52,6 +52,8 @@ struct zfs_dirlist {
 
 typedef struct zfs_dirlist zfs_dirlist_t;
 
+extern uint64_t zfs_module_busy;
+
 extern CACHE_MANAGER_CALLBACKS CacheManagerCallbacks;
 
 extern NTSTATUS dev_ioctl(PDEVICE_OBJECT DeviceObject, ULONG ControlCode, PVOID InputBuffer, ULONG InputBufferSize,
@@ -68,6 +70,11 @@ extern uint64_t zfs_sid2uid(SID *sid);
 
 BOOLEAN vattr_apply_lx_ea(vattr_t *vap, PFILE_FULL_EA_INFORMATION ea);
 NTSTATUS vnode_apply_eas(struct vnode *vp, PFILE_FULL_EA_INFORMATION eas, ULONG eaLength, PULONG pEaErrorOffset);
+
+/* Main function to handle all VFS "vnops" */
+ extern _Function_class_(DRIVER_DISPATCH) NTSTATUS
+    dispatcher(_In_ PDEVICE_OBJECT DeviceObject,
+    _Inout_ PIRP Irp);
 
 extern NTSTATUS zfsdev_open(dev_t dev, PIRP Irp);
 extern NTSTATUS zfsdev_release(dev_t dev, PIRP Irp);
@@ -92,8 +99,6 @@ extern int	AsciiStringToUnicodeString(char *in, PUNICODE_STRING out);
 extern void	FreeUnicodeString(PUNICODE_STRING s);
 extern int	zfs_vfs_uuid_gen(const char *osname, uuid_t uuid);
 extern int	zfs_vfs_uuid_unparse(uuid_t uuid, char *dst);
-extern int	pn_alloc(pathname_t *p);
-extern int	pn_free(pathname_t *p);
 extern int	zfs_vnop_ioctl_fullfsync(struct vnode *, vfs_context_t *, zfsvfs_t *);
 extern int	zfs_setwinflags(znode_t *zp, uint32_t winflags);
 extern uint32_t zfs_getwinflags(znode_t *zp);

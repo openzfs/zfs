@@ -27,10 +27,6 @@
 #ifndef _SPL_TYPES_H
 #define	_SPL_TYPES_H
 
-
-// Linux kernel optimization, ignore them for now on OSX.
-#define unlikely
-#define likely
 // use ntintsafe.h ?
 typedef enum { B_FALSE = 0, B_TRUE = 1 }	boolean_t;
 typedef short				pri_t;
@@ -87,7 +83,7 @@ typedef unsigned long u_long;
 typedef unsigned char   uuid_t[16];
 
 
-// Yeah nothing is going to work until we fix this atomic stuff
+// clang spits out "atomics are disabled" - change code to use atomic() calls.
 #define _Atomic
 
 #define PATH_MAX                 1024 
@@ -182,18 +178,22 @@ extern proc_t p0;
 #define bcmp(b1, b2, len) (memcmp((b2), (b1), (len)))
 //int snprintf(char *s, int l, char *fmt, ...);
 
-extern uint32_t strlcpy(register char* s, register const char* t, register uint32_t n);
-extern uint32_t strlcat(register char* s, register const char* t, register uint32_t n);
+// extern uint32_t strlcpy(register char* s, register const char* t, register uint32_t n);
+// extern uint32_t strlcat(register char* s, register const char* t, register uint32_t n);
 #define strtok_r strtok_s
 #define strcasecmp _stricmp
-
-#define htonl _byteswap_ulong
 
 struct mount;
 typedef struct mount mount_t;
 
+#ifdef __clang__
+#define	try __try
+#define	except __except
+#else // MSVC++
 #define always_inline __forceinline
 #define __attribute__
+#endif
+
 
 struct kauth_cred;
 typedef struct kauth_cred kauth_cred_t;
@@ -220,5 +220,7 @@ typedef struct {
 #define FNV1_32A_INIT ((uint32_t)0x811c9dc5)
 uint32_t fnv_32a_str(const char *str, uint32_t hval);
 uint32_t fnv_32a_buf(void *buf, size_t len, uint32_t hval);
+
+typedef struct timespec inode_timespec_t;
 
 #endif	/* _SPL_TYPES_H */

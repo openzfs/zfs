@@ -38,6 +38,7 @@
 //#include <sys/ioctl.h>
 #include <sys/taskq.h>
 #include <sys/systeminfo.h>
+#include <sys/sunddi.h>
 
 //#define MACH_KERNEL_PRIVATE
 
@@ -45,7 +46,7 @@
 
 #define DEBUG 1  // for backtrace debugging info
 
-struct utsname utsname = { { 0 } };
+static utsname_t utsname_static = { { 0 } };
 
 //extern struct machine_info      machine_info;
 
@@ -77,6 +78,29 @@ extern uint64_t		segkmem_total_mem_allocated;
 extern char hostname[MAXHOSTNAMELEN];
 
 uint32_t spl_hostid = 0;
+
+#if defined(__clang__)
+/*
+ *  Try to figure out why we fail linking with these two missing
+ * Appears to come from including intrin.h - except we don't.
+ */
+uint64_t __readcr8(void)
+{
+	return 0ULL;
+}
+
+unsigned long _byteswap_ulong(unsigned long b)
+{
+	return __builtin_bswap32(b);
+}
+#endif
+
+
+utsname_t *
+utsname(void)
+{
+        return (&utsname_static);
+}
 
 /*
  * Solaris delay is in ticks (hz) and Windows in 100 nanosecs
@@ -454,8 +478,8 @@ int ddi_copyinstr(const void *uaddr, void *kaddr, size_t len, size_t *done)
 int spl_start (void)
 {
     //max_ncpus = processor_avail_count;
-    int ncpus;
-    size_t len = sizeof(ncpus);
+    // int ncpus;
+    // size_t len = sizeof(ncpus);
 
 	dprintf("SPL: start\n");
     max_ncpus = KeQueryActiveProcessorCountEx(ALL_PROCESSOR_GROUPS);
@@ -502,7 +526,7 @@ int spl_start (void)
     //sysctlbyname("kern.version", &utsname.version, &len, NULL, 0);
 
     //strlcpy(utsname.nodename, hostname, sizeof(utsname.nodename));
-    strlcpy(utsname.nodename, "Windows", sizeof(utsname.nodename));
+    strlcpy(utsname_static.nodename, "Windows", sizeof(utsname_static.nodename));
     spl_mutex_subsystem_init();
 	//DbgBreakPoint();
 	spl_kmem_init(total_memory);

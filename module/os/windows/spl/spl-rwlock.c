@@ -202,6 +202,11 @@ rw_exit(krwlock_t *rwlp)
     }
 }
 
+int
+rw_read_held(krwlock_t *rwlp)
+{
+	return (rw_lock_held(rwlp) && rwlp->rw_owner == NULL);
+}
 
 int
 rw_lock_held(krwlock_t *rwlp)

@@ -30,13 +30,18 @@ DRIVER_UNLOAD ZFSin_Fini;
 void ZFSin_Fini(PDRIVER_OBJECT  DriverObject)
 {
 	KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_INFO_LEVEL, "ZFSin_Fini\n"));
-	zfs_stop();
+	system_taskq_fini();
+
+	zfs_vfsops_fini();
+
+	zfs_kmod_fini();
+
 	if (STOR_DriverUnload != NULL) {
 		STOR_DriverUnload(DriverObject);
 		STOR_DriverUnload = NULL;
 	}
 
-	kstat_osx_fini();
+	kstat_windows_fini();
 	spl_stop();
 	finiDbgCircularBuffer();
 
@@ -65,7 +70,7 @@ NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT  DriverObject, _In_ PUNICODE_STRING pRe
 	
 	spl_start();
 
-	kstat_osx_init(pRegistryPath);
+	kstat_windows_init(pRegistryPath);
 
 	/*
 	 * Initialise storport for the ZVOL virtual disks. This also
@@ -88,7 +93,13 @@ NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT  DriverObject, _In_ PUNICODE_STRING pRe
 	/* Now set the Driver Callbacks to dispatcher and start ZFS */
 	WIN_DriverObject->DriverUnload = ZFSin_Fini;
 
-	zfs_start();
+        /* Start ZFS itself */
+        zfs_kmod_init();
+
+        /* Register fs with Win */
+        zfs_vfsops_init();
+
+        system_taskq_init();
 
 	KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "ZFSin: Started\n"));
 	return STATUS_SUCCESS;
@@ -124,7 +135,7 @@ void spl_create_hostid(HANDLE h, PUNICODE_STRING pRegistryPath)
 }
 
 // Whenever we start up, write the version string to registry.
-#include <../zfs_config.h>
+#include <zfs_config.h>
 
 void spl_update_version(HANDLE h, PUNICODE_STRING pRegistryPath)
 {
@@ -210,11 +221,12 @@ int spl_check_assign_types(kstat_named_t *kold, PKEY_VALUE_FULL_INFORMATION regB
 // write kstat values (if OK)
 //
 extern wchar_t zfs_vdev_protection_filter[64];
-int spl_kstat_registry(PUNICODE_STRING pRegistryPath, kstat_t *ksp)
+int spl_kstat_registry(void *arg, kstat_t *ksp)
 {
 	OBJECT_ATTRIBUTES             ObjectAttributes;
 	HANDLE                        h;
 	NTSTATUS                      Status;
+	PUNICODE_STRING pRegistryPath = arg;
 
 	InitializeObjectAttributes(&ObjectAttributes,
 		pRegistryPath,
@@ -298,7 +310,7 @@ int spl_kstat_registry(PUNICODE_STRING pRegistryPath, kstat_t *ksp)
 			for (unsigned int i = 0; i < ksp->ks_ndata; i++, kold++) {
 
 				// Find name?
-				if (kold->name != NULL &&
+				if (kold != NULL &&
 					!strcasecmp(kold->name, keyname)) {
 
 					// Check types match and are supported

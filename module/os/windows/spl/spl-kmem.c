@@ -78,7 +78,7 @@ static volatile _Atomic int64_t spl_free;
 int64_t spl_free_delta_ema;
 
 static boolean_t spl_event_thread_exit = FALSE;
-static PKEVENT low_mem_event = NULL;
+PKEVENT low_mem_event = NULL;
 
 static volatile _Atomic int64_t spl_free_manual_pressure = 0;
 static volatile _Atomic boolean_t spl_free_fast_pressure = FALSE;
@@ -129,7 +129,7 @@ extern uint64_t		real_total_memory;
 static const char *KMEM_VA_PREFIX = "kmem_va";
 static const char *KMEM_MAGAZINE_PREFIX = "kmem_magazine_";
 
-static char kext_version[64] = SPL_META_VERSION "-" SPL_META_RELEASE SPL_DEBUG_STR;
+// static char kext_version[64] = SPL_META_VERSION "-" SPL_META_RELEASE SPL_DEBUG_STR;
 
 //struct sysctl_oid_list sysctl__spl_children;
 //SYSCTL_DECL(_spl);
@@ -706,44 +706,16 @@ caller()
 	return ((caddr_t)(0));
 }
 
-//void *
-//calloc(uint32_t n, uint32_t s)
-//{
-//	return (zfs_kmem_zalloc(n * s, KM_NOSLEEP));
-//}
+void *
+calloc(size_t n, size_t s)
+{
+	return (zfs_kmem_zalloc(n * s, KM_NOSLEEP));
+}
 
 #define	IS_DIGIT(c)	((c) >= '0' && (c) <= '9')
 
 #define	IS_ALPHA(c)	\
 (((c) >= 'a' && (c) <= 'z') || ((c) >= 'A' && (c) <= 'Z'))
-
-/*
- * Get bytes from the /dev/random generator. Returns 0
- * on success. Returns EAGAIN if there is insufficient entropy.
- */
-int
-random_get_bytes(uint8_t *ptr, uint32_t len)
-{
-	//read_random(ptr, len);
-	LARGE_INTEGER TickCount;
-	ULONG r;
-	PULONG b;
-	int i;
-
-	KeQueryTickCount(&TickCount);
-
-	b = (PULONG) ptr;
-
-	for (i = 0; i < len / sizeof(ULONG); i++)
-        b[i] = RtlRandomEx(&TickCount.LowPart);
-
-	len &= (sizeof(ULONG) - 1);
-    if (len > 0) {
-        r = RtlRandomEx(&TickCount.LowPart);
-		RtlCopyMemory(&b[i], &r, len);
-	}
-	return (0);
-}
 
 /*
  * BGH - Missing from OSX?
@@ -2661,7 +2633,7 @@ kmem_slab_prefill(kmem_cache_t *cp, kmem_slab_t *sp)
 }
 
 void *
-zfs_kmem_zalloc(uint32_t size, int kmflag)
+zfs_kmem_zalloc(size_t size, int kmflag)
 {
 	uint32_t index;
 	void *buf;
@@ -2691,7 +2663,7 @@ zfs_kmem_zalloc(uint32_t size, int kmflag)
 }
 
 void *
-zfs_kmem_alloc(uint32_t size, int kmflag)
+zfs_kmem_alloc(size_t size, int kmflag)
 {
 	uint32_t index;
 	kmem_cache_t *cp;
@@ -2738,7 +2710,7 @@ zfs_kmem_alloc(uint32_t size, int kmflag)
 }
 
 void
-zfs_kmem_free(void *buf, uint32_t size)
+zfs_kmem_free(void *buf, size_t size)
 {
 	uint32_t index;
 	kmem_cache_t *cp;
@@ -3012,6 +2984,19 @@ kmem_cache_magazine_disable(kmem_cache_t *cp)
 		mutex_exit(&ccp->cc_lock);
 	}
 
+}
+
+/*
+ * Allow our caller to determine if there are running reaps.
+ *
+ * This call is very conservative and may return B_TRUE even when
+ * reaping activity isn't active. If it returns B_FALSE, then reaping
+ * activity is definitely inactive.
+ */
+boolean_t
+kmem_cache_reap_active(void)
+{
+	return (!taskq_empty(kmem_taskq));
 }
 
 /*
@@ -3869,6 +3854,18 @@ kmem_adjust_reclaim_threshold(kmem_defrag_t *kmd, int direction)
 	}
 }
 
+uint64_t
+spl_kmem_cache_inuse(kmem_cache_t *cache)
+{
+	return (cache->cache_buftotal);
+}
+
+uint64_t
+spl_kmem_cache_entry_size(kmem_cache_t *cache)
+{
+	return (cache->cache_bufsize);
+}
+
 void
 kmem_cache_set_move(kmem_cache_t *cp,
 					kmem_cbrc_t (*move)(void *, void *, uint32_t, void *))
@@ -4495,6 +4492,11 @@ spl_free_thread(void *notused)
 	uint64_t ema_old = 0;
 	uint64_t alpha;
 
+	uint64_t last_reap = 0;
+	uint64_t now;
+	uint64_t elapsed = 60*hz;
+	boolean_t reap_now = FALSE;
+
 	CALLB_CPR_INIT(&cpr, &spl_free_thread_lock, callb_generic_cpr, FTAG);
 
 	spl_free = (int64_t)PAGESIZE *
@@ -4707,29 +4709,43 @@ spl_free_thread(void *notused)
 		// If we reap, stop processing spl_free on this pass, to
 		// let the reaps (and arc, if pressure has been set above)
 		// do their job for a few milliseconds.
-		if (emergency_lowmem || lowmem) {
-			static uint64_t last_reap = 0;
-			uint64_t now = time_now;
-			uint64_t elapsed = 60*hz;
-			if (emergency_lowmem)
-				elapsed = 15*hz; // minimum frequency from kmem_reap_interval
-			if (now - last_reap > elapsed) {
-				last_reap = now;
-				// spl_free_reap_caches() calls functions that will
-				// acquire locks and can take a while
-				// so set spl_free to a small positive value
-				// to stop arc shrinking too much during this period
-				// when we expect to be freeing up arc-usable memory,
-				// but low enough that arc_no_grow likely will be set.
-				const int64_t two_spamax = 32LL * 1024LL * 1024LL;
-				if (spl_free < two_spamax)
-					spl_free = two_spamax; // atomic!
-				spl_free_reap_caches();
-				// we do not have any lock now, so we can jump
-				// to just before the thread-suspending code
-				goto justwait;
-			}
+
+		now = time_now;
+		elapsed = 60*hz;
+		reap_now = FALSE;
+		if (emergency_lowmem)
+			elapsed = 15*hz; // minimum frequency from kmem_reap_interval
+
+		/*
+		 * Trigger a reap periodically
+		 */
+		if ((now - last_reap) > elapsed)
+			reap_now = TRUE;
+		if (emergency_lowmem || lowmem || reap_now) {
+
+			/*
+			 * skip reap if lowmem or emergency_lowmem and minimum reap interval is
+			 * not expired.
+			 */
+			if ((emergency_lowmem || lowmem) && reap_now == FALSE)
+				goto skip_reap;
+
+			last_reap = now;
+			// spl_free_reap_caches() calls functions that will
+			// acquire locks and can take a while
+			// so set spl_free to a small positive value
+			// to stop arc shrinking too much during this period
+			// when we expect to be freeing up arc-usable memory,
+			// but low enough that arc_no_grow likely will be set.
+			const int64_t two_spamax = 32LL * 1024LL * 1024LL;
+			if (spl_free < two_spamax)
+				spl_free = two_spamax; // atomic!
+			spl_free_reap_caches();
+			// we do not have any lock now, so we can jump
+			// to just before the thread-suspending code
+			goto justwait;
 		}
+skip_reap:
 
 		// a number or exceptions to reverse the lowmem / emergency_lowmem states
 		// if we have recently reaped.  we also take the strong reaction sting
@@ -4960,7 +4976,7 @@ spl_free_thread(void *notused)
 static void
 spl_event_thread(void *notused)
 {
-	callb_cpr_t cpr;
+	// callb_cpr_t cpr;
 	NTSTATUS Status;
 
 	DECLARE_CONST_UNICODE_STRING(low_mem_name, L"\\KernelObjects\\LowMemoryCondition");
@@ -6516,8 +6532,19 @@ spl_vm_pool_low(void)
 // String handling
 // ===============================================================
 
+char *
+kmem_strdup(const char *str)
+{
+	char *buf;
+	int len;
+	len = strlen(str) + 1;
+	buf = kmem_alloc(len, KM_SLEEP);
+	strlcpy(buf, str, len);
+	return (buf);
+}
+
 void
-strfree(char *str)
+kmem_strfree(char *str)
 {
 	zfs_kmem_free(str, strlen(str) + 1);
 }
@@ -6525,9 +6552,9 @@ strfree(char *str)
 char *
 kvasdprintf(const char *fmt, va_list ap)
 {
-	unsigned int len;
+	// unsigned int len;
 	char *p = NULL;
-	va_list aq;
+	// va_list aq;
 
 //	va_copy(aq, ap);
 //	len = _vsndprintf(NULL, 0, fmt, aq);
@@ -6544,7 +6571,7 @@ kvasdprintf(const char *fmt, va_list ap)
 char *
 kmem_vasdprintf(const char *fmt, va_list ap)
 {
-	va_list aq;
+	// va_list aq;
 	char *ptr = NULL;
 
 //	do {
@@ -6709,7 +6736,7 @@ ks_set_cp(ksupp_t *ks, kmem_cache_t *cp, const uint32_t cachenum)
 			kmem_cache_t *expected = NULL;
 			//if (__c11_atomic_compare_exchange_strong(&ks->cp_metadata, &expected, cp,
 			//	__ATOMIC_SEQ_CST, __ATOMIC_RELAXED)) {
-			if (InterlockedCompareExchangePointer(&ks->cp_metadata, cp, expected) == expected) {
+			if (InterlockedCompareExchangePointer((void *volatile *)&ks->cp_metadata, cp, expected) == expected) {
 				dprintf("SPL: %s: set iskvec[%llu].ks->cp_metadata (%s) OK\n",
 				    __func__, b, cp->cache_name);
 				return;
@@ -6731,7 +6758,7 @@ ks_set_cp(ksupp_t *ks, kmem_cache_t *cp, const uint32_t cachenum)
 			kmem_cache_t *expected = NULL;
 			//if (__c11_atomic_compare_exchange_strong(&ks->cp_filedata, &expected, cp,
 			//	__ATOMIC_SEQ_CST, __ATOMIC_RELAXED)) {
-			if (InterlockedCompareExchangePointer(&ks->cp_filedata, cp, expected) == expected) {
+			if (InterlockedCompareExchangePointer((void *volatile *)&ks->cp_filedata, cp, expected) == expected) {
 				dprintf("SPL: %s: set iskvec[%llu].ks->cp_filedata (%s) OK\n",
 				    __func__, b, cp->cache_name);
 				return;

@@ -1179,7 +1179,7 @@ zfs_acl_chown_setattr(znode_t *zp)
 	int error;
 	zfs_acl_t *aclp;
 
-	if (zp->z_zfsvfs->z_acl_mode == ZFS_ACLTYPE_POSIXACL)
+	if (zp->z_zfsvfs->z_acl_mode == ZFS_ACLTYPE_POSIX)
 		return (0);
 
 	ASSERT(MUTEX_HELD(&zp->z_lock));
@@ -1693,7 +1693,7 @@ zfs_acl_ids_create(znode_t *dzp, int flag, vattr_t *vap, cred_t *cr,
 		acl_ids->z_fuid = zfs_fuid_create_cred(zfsvfs, ZFS_OWNER,
 		    cr, &acl_ids->z_fuidp);
 		acl_ids->z_fgid = 0;
-		if (vap->va_mask & AT_GID)  {
+		if (vap->va_mask & ATTR_GID)  {
 			acl_ids->z_fgid = zfs_fuid_create(zfsvfs,
 			    (uint64_t)vap->va_gid,
 			    cr, ZFS_GROUP, &acl_ids->z_fuidp);
@@ -1810,18 +1810,20 @@ zfs_acl_ids_free(zfs_acl_ids_t *acl_ids)
 }
 
 boolean_t
-zfs_acl_ids_overquota(zfsvfs_t *zfsvfs, zfs_acl_ids_t *acl_ids)
+zfs_acl_ids_overquota(zfsvfs_t *zv, zfs_acl_ids_t *acl_ids, uint64_t projid)
 {
-	return (zfs_fuid_overquota(zfsvfs, B_FALSE, acl_ids->z_fuid) ||
-	    zfs_fuid_overquota(zfsvfs, B_TRUE, acl_ids->z_fgid));
+	return (zfs_id_overquota(zv, DMU_USERUSED_OBJECT, acl_ids->z_fuid) ||
+	    zfs_id_overquota(zv, DMU_GROUPUSED_OBJECT, acl_ids->z_fgid) ||
+	    (projid != ZFS_DEFAULT_PROJID && projid != ZFS_INVALID_PROJID &&
+	    zfs_id_overquota(zv, DMU_PROJECTUSED_OBJECT, projid)));
 }
 
 /*
  * Retrieve a file's ACL
  */
 int
-zfs_getacl(znode_t *zp, struct kauth_acl **aclpp, boolean_t skipaclcheck,
-           cred_t *cr)
+zfs_getacl(znode_t *zp, vsecattr_t *aclpp, boolean_t skipaclcheck,
+       cred_t *cr)
 {
     zfs_acl_t       *aclp;
     kauth_acl_t  *k_acl;

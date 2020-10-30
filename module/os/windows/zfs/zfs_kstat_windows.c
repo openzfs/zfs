@@ -27,13 +27,12 @@
 #include <sys/zio_compress.h>
 #include <sys/zfs_context.h>
 #include <sys/arc.h>
-#include <sys/refcount.h>
+#include <sys/zfs_refcount.h>
 #include <sys/vdev.h>
 #include <sys/vdev_impl.h>
 #include <sys/dsl_pool.h>
 #ifdef _KERNEL
 #include <sys/vmsystm.h>
-#include <vm/anon.h>
 #include <sys/fs/swapnode.h>
 #include <sys/dnlc.h>
 #endif
@@ -56,7 +55,7 @@
 
 
 
-osx_kstat_t osx_kstat = {
+windows_kstat_t windows_kstat = {
 	{ "spa_version",				KSTAT_DATA_UINT64 },
 	{ "zpl_version",				KSTAT_DATA_UINT64 },
 
@@ -66,7 +65,6 @@ osx_kstat_t osx_kstat = {
 	{ "ignore_negatives",			KSTAT_DATA_UINT64 },
 	{ "ignore_positives",			KSTAT_DATA_UINT64 },
 	{ "create_negatives",			KSTAT_DATA_UINT64 },
-	{ "force_formd_normalized",		KSTAT_DATA_UINT64 },
 	{ "skip_unlinked_drain",		KSTAT_DATA_UINT64 },
 	{ "use_system_sync",			KSTAT_DATA_UINT64 },
 
@@ -83,7 +81,6 @@ osx_kstat_t osx_kstat = {
 	{ "l2arc_write_boost",			KSTAT_DATA_UINT64 },
 	{ "l2arc_headroom",				KSTAT_DATA_UINT64 },
 	{ "l2arc_headroom_boost",		KSTAT_DATA_UINT64 },
-	{ "l2arc_max_block_size",		KSTAT_DATA_UINT64 },
 	{ "l2arc_feed_secs",			KSTAT_DATA_UINT64 },
 	{ "l2arc_feed_min_ms",			KSTAT_DATA_UINT64 },
 
@@ -104,15 +101,12 @@ osx_kstat_t osx_kstat = {
 	{ "read_gap_limit",				KSTAT_DATA_INT64  },
 	{ "write_gap_limit",			KSTAT_DATA_INT64  },
 
-	{"arc_reduce_dnlc_percent",		KSTAT_DATA_INT64  },
 	{"arc_lotsfree_percent",		KSTAT_DATA_INT64  },
 	{"zfs_dirty_data_max",			KSTAT_DATA_INT64  },
-	{"zfs_dirty_data_sync",			KSTAT_DATA_INT64  },
 	{"zfs_delay_max_ns",			KSTAT_DATA_INT64  },
 	{"zfs_delay_min_dirty_percent",	KSTAT_DATA_INT64  },
 	{"zfs_delay_scale",				KSTAT_DATA_INT64  },
 	{"spa_asize_inflation",			KSTAT_DATA_INT64  },
-	{"zfs_mdcomp_disable",			KSTAT_DATA_INT64  },
 	{"zfs_prefetch_disable",		KSTAT_DATA_INT64  },
 	{"zfetch_max_streams",			KSTAT_DATA_INT64  },
 	{"zfetch_min_sec_reap",			KSTAT_DATA_INT64  },
@@ -164,8 +158,6 @@ osx_kstat_t osx_kstat = {
 	{"zfs_vdev_queue_depth_pct",	KSTAT_DATA_UINT64  },
 	{"zio_dva_throttle_enabled",	KSTAT_DATA_UINT64  },
 
-	{"zfs_vdev_file_size_mismatch_cnt",KSTAT_DATA_UINT64  },
-
 	{"zfs_lua_max_instrlimit",		KSTAT_DATA_UINT64  },
 	{"zfs_lua_max_memlimit",		KSTAT_DATA_UINT64  },
 
@@ -182,26 +174,27 @@ osx_kstat_t osx_kstat = {
 	{ "zfs_disable_wincache",		KSTAT_DATA_UINT64 },
 	{ "zfs_disable_removablemedia",		KSTAT_DATA_UINT64 },
 	{ "zfs_vdev_initialize_value",		KSTAT_DATA_UINT64 },
+	{ "zfs_autoimport_disable",		KSTAT_DATA_UINT64 },
+		
 };
 
 
 
 
-static kstat_t		*osx_kstat_ksp;
+static kstat_t		*windows_kstat_ksp;
 
 #if !defined (__OPTIMIZE__)
 #pragma GCC diagnostic ignored "-Wframe-larger-than="
 #endif
 
-static int osx_kstat_update(kstat_t *ksp, int rw)
+static int windows_kstat_update(kstat_t *ksp, int rw)
 {
-	osx_kstat_t *ks = ksp->ks_data;
+	windows_kstat_t *ks = ksp->ks_data;
 
 	if (rw == KSTAT_WRITE) {
 
 		/* win32 */
 
-		debug_vnop_osx_printf = ks->win32_debug.value.ui64;
 		extern void saveBuffer(void);
 		if (ks->win32_debug.value.ui64 == 1337)
 			saveBuffer();
@@ -210,20 +203,14 @@ static int osx_kstat_update(kstat_t *ksp, int rw)
 		zfs_vnop_ignore_negatives = ks->win32_ignore_negatives.value.ui64;
 		zfs_vnop_ignore_positives = ks->win32_ignore_positives.value.ui64;
 		zfs_vnop_create_negatives = ks->win32_create_negatives.value.ui64;
-		zfs_vnop_force_formd_normalized_output = ks->win32_force_formd_normalized.value.ui64;
 		zfs_vnop_skip_unlinked_drain = ks->win32_skip_unlinked_drain.value.ui64;
 		zfs_vfs_sync_paranoia = ks->win32_use_system_sync.value.ui64;
-
-		/* ARC */
-		arc_kstat_update(ksp, rw);
-		arc_kstat_update_osx(ksp, rw);
 
 		/* L2ARC */
 		l2arc_write_max = ks->l2arc_write_max.value.ui64;
 		l2arc_write_boost = ks->l2arc_write_boost.value.ui64;
 		l2arc_headroom = ks->l2arc_headroom.value.ui64;
 		l2arc_headroom_boost = ks->l2arc_headroom_boost.value.ui64;
-		l2arc_max_block_size = ks->l2arc_max_block_size.value.ui64;
 		l2arc_feed_secs = ks->l2arc_feed_secs.value.ui64;
 		l2arc_feed_min_ms = ks->l2arc_feed_min_ms.value.ui64;
 
@@ -266,14 +253,10 @@ static int osx_kstat_update(kstat_t *ksp, int rw)
 		zfs_vdev_write_gap_limit =
 			ks->zfs_vdev_write_gap_limit.value.i64;
 
-		arc_reduce_dnlc_percent =
-			ks->arc_reduce_dnlc_percent.value.i64;
 		arc_lotsfree_percent =
 			ks->arc_lotsfree_percent.value.i64;
 		zfs_dirty_data_max =
 			ks->zfs_dirty_data_max.value.i64;
-		zfs_dirty_data_sync =
-			ks->zfs_dirty_data_sync.value.i64;
 		zfs_delay_max_ns =
 			ks->zfs_delay_max_ns.value.i64;
 		zfs_delay_min_dirty_percent =
@@ -282,8 +265,6 @@ static int osx_kstat_update(kstat_t *ksp, int rw)
 			ks->zfs_delay_scale.value.i64;
 		spa_asize_inflation =
 			ks->spa_asize_inflation.value.i64;
-		zfs_mdcomp_disable =
-			ks->zfs_mdcomp_disable.value.i64;
 		zfs_prefetch_disable =
 			ks->zfs_prefetch_disable.value.i64;
 		zfetch_max_streams =
@@ -393,6 +374,9 @@ static int osx_kstat_update(kstat_t *ksp, int rw)
 			ks->zfs_disable_removablemedia.value.ui64;
 		zfs_initialize_value =
 			ks->zfs_vdev_initialize_value.value.ui64;
+		zfs_autoimport_disable =
+			ks->zfs_autoimport_disable.value.ui64;
+
 	} else {
 
 		/* kstat READ */
@@ -402,24 +386,17 @@ static int osx_kstat_update(kstat_t *ksp, int rw)
 		/* win32 */
 		ks->win32_active_vnodes.value.ui64          = vnop_num_vnodes;
 		ks->win32_reclaim_nodes.value.ui64          = vnop_num_reclaims;
-		ks->win32_debug.value.ui64                  = debug_vnop_osx_printf;
 		ks->win32_ignore_negatives.value.ui64       = zfs_vnop_ignore_negatives;
 		ks->win32_ignore_positives.value.ui64       = zfs_vnop_ignore_positives;
 		ks->win32_create_negatives.value.ui64       = zfs_vnop_create_negatives;
-		ks->win32_force_formd_normalized.value.ui64 = zfs_vnop_force_formd_normalized_output;
 		ks->win32_skip_unlinked_drain.value.ui64    = zfs_vnop_skip_unlinked_drain;
 		ks->win32_use_system_sync.value.ui64 = zfs_vfs_sync_paranoia;
-
-		/* ARC */
-		arc_kstat_update(ksp, rw);
-		arc_kstat_update_osx(ksp, rw);
 
 		/* L2ARC */
 		ks->l2arc_write_max.value.ui64               = l2arc_write_max;
 		ks->l2arc_write_boost.value.ui64             = l2arc_write_boost;
 		ks->l2arc_headroom.value.ui64                = l2arc_headroom;
 		ks->l2arc_headroom_boost.value.ui64          = l2arc_headroom_boost;
-		ks->l2arc_max_block_size.value.ui64          = l2arc_max_block_size;
 		ks->l2arc_feed_secs.value.ui64               = l2arc_feed_secs;
 		ks->l2arc_feed_min_ms.value.ui64             = l2arc_feed_min_ms;
 
@@ -461,14 +438,10 @@ static int osx_kstat_update(kstat_t *ksp, int rw)
 		ks->zfs_vdev_write_gap_limit.value.i64 =
 			zfs_vdev_write_gap_limit;
 
-		ks->arc_reduce_dnlc_percent.value.i64 =
-			arc_reduce_dnlc_percent;
 		ks->arc_lotsfree_percent.value.i64 =
 			arc_lotsfree_percent;
 		ks->zfs_dirty_data_max.value.i64 =
 			zfs_dirty_data_max;
-		ks->zfs_dirty_data_sync.value.i64 =
-			zfs_dirty_data_sync;
 		ks->zfs_delay_max_ns.value.i64 =
 			zfs_delay_max_ns;
 		ks->zfs_delay_min_dirty_percent.value.i64 =
@@ -477,8 +450,6 @@ static int osx_kstat_update(kstat_t *ksp, int rw)
 			zfs_delay_scale;
 		ks->spa_asize_inflation.value.i64 =
 			spa_asize_inflation;
-		ks->zfs_mdcomp_disable.value.i64 =
-			zfs_mdcomp_disable;
 		ks->zfs_prefetch_disable.value.i64 =
 			zfs_prefetch_disable;
 		ks->zfetch_max_streams.value.i64 =
@@ -556,8 +527,6 @@ static int osx_kstat_update(kstat_t *ksp, int rw)
 		ks->zfs_vdev_queue_depth_pct.value.ui64 = zfs_vdev_queue_depth_pct;
 		ks->zio_dva_throttle_enabled.value.ui64 = (uint64_t) zio_dva_throttle_enabled;
 
-		ks->zfs_vdev_file_size_mismatch_cnt.value.ui64 = zfs_vdev_file_size_mismatch_cnt;
-
 		ks->zfs_lua_max_instrlimit.value.ui64 = zfs_lua_max_instrlimit;
 		ks->zfs_lua_max_memlimit.value.ui64 = zfs_lua_max_memlimit;
 
@@ -584,47 +553,50 @@ static int osx_kstat_update(kstat_t *ksp, int rw)
 			zfs_disable_removablemedia;
 		ks->zfs_vdev_initialize_value.value.ui64 =
 			zfs_initialize_value;
+		ks->zfs_autoimport_disable.value.ui64 =
+			zfs_autoimport_disable;
 	}
 
 	return 0;
 }
 
-int kstat_osx_init(PUNICODE_STRING RegistryPath)
+int kstat_windows_init(void *arg)
 {
 	int error = 0;
+	PUNICODE_STRING RegistryPath = arg;
 
-	osx_kstat_ksp = kstat_create("zfs", 0, "tunable", "win32",
-	    KSTAT_TYPE_NAMED, sizeof (osx_kstat) / sizeof (kstat_named_t),
+	windows_kstat_ksp = kstat_create("zfs", 0, "tunable", "win32",
+	    KSTAT_TYPE_NAMED, sizeof (windows_kstat) / sizeof (kstat_named_t),
 	    KSTAT_FLAG_VIRTUAL|KSTAT_FLAG_WRITABLE);
 
-	if (osx_kstat_ksp != NULL) {
-		osx_kstat_ksp->ks_data = &osx_kstat;
-        osx_kstat_ksp->ks_update = osx_kstat_update;
-		kstat_install(osx_kstat_ksp);
+	if (windows_kstat_ksp != NULL) {
+		windows_kstat_ksp->ks_data = &windows_kstat;
+		windows_kstat_ksp->ks_update = windows_kstat_update;
+		kstat_install(windows_kstat_ksp);
 
 		// We don't hold the ksp here, only call at init, so there are
 		// no other threads.
-		KSTAT_ENTER(osx_kstat_ksp);
-		error = KSTAT_UPDATE(osx_kstat_ksp, KSTAT_READ);
+		KSTAT_ENTER(windows_kstat_ksp);
+		error = KSTAT_UPDATE(windows_kstat_ksp, KSTAT_READ);
 		if (error != 0) goto out;
 
 		// Returns number of changed, zero means nothing to do.
-		error = spl_kstat_registry(RegistryPath, osx_kstat_ksp);
+		error = spl_kstat_registry(RegistryPath, windows_kstat_ksp);
 		if (error == 0) goto out;
 
-		error = KSTAT_UPDATE(osx_kstat_ksp, KSTAT_WRITE);
+		error = KSTAT_UPDATE(windows_kstat_ksp, KSTAT_WRITE);
 
 	out:
-		KSTAT_EXIT(osx_kstat_ksp);
+		KSTAT_EXIT(windows_kstat_ksp);
 	}
 
 	return 0;
 }
 
-void kstat_osx_fini(void)
+void kstat_windows_fini(void)
 {
-    if (osx_kstat_ksp != NULL) {
-        kstat_delete(osx_kstat_ksp);
-        osx_kstat_ksp = NULL;
+    if (windows_kstat_ksp != NULL) {
+        kstat_delete(windows_kstat_ksp);
+        windows_kstat_ksp = NULL;
     }
 }

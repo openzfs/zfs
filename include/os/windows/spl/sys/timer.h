@@ -29,27 +29,18 @@
 #ifndef _SPL_TIMER_H
 #define _SPL_TIMER_H
 
-#include <osx/sched.h>
+#include <sys/sched.h>
+
+
 // Typical timespec is smaller, but we need to retain the precision
 // to copy time between Unix and Windows.
 struct timespec {
 	uint64_t tv_sec;
-    uint64_t tv_nsec;
+	uint64_t tv_nsec;
 };
 
 //#define USEC_PER_SEC    1000000         /* microseconds per second */
 
-/* Open Solaris lbolt is in hz */
-static inline uint64_t
-zfs_lbolt(void)
-{
-    uint64_t lbolt_hz;
-	LARGE_INTEGER ticks;
-    KeQueryTickCount(&ticks);
-	lbolt_hz = ticks.QuadPart * KeQueryTimeIncrement();
-	lbolt_hz /= (10000000 / 119); // Solaris hz ?
-    return (lbolt_hz);
-}
 
 
 #define lbolt zfs_lbolt()
@@ -73,6 +64,18 @@ zfs_lbolt(void)
 #define ddi_time_before64(a, b)         ((a) - (b) < 0)
 #define ddi_time_after64(a, b)          ddi_time_before64(b, a)
 #pragma error( default: 4296 )
+
+extern uint64_t zfs_lbolt(void);
+
+#define	usleep_range(wakeup, whocares)                  \
+	do {                                            \
+	hrtime_t delta = wakeup - gethrtime();  \
+	if (delta > 0) {                        \
+	    LARGE_INTEGER ft; \
+	ft.QuadPart = -((__int64)NSEC2NSEC100(delta)); \
+	(void) KeWaitForMultipleObjects(0, NULL, WaitAny, Executive, KernelMode, FALSE, &ft, NULL);\
+	}                                       \
+	} while (0)
 
 
 #endif  /* _SPL_TIMER_H */

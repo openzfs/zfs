@@ -24,12 +24,16 @@
  * Copyright (C) 2017 Jorgen Lundman <lundman@lundman.net>
  *
 */
+#define	_KERNEL_MODE
+#include <ntifs.h>
+#include <wdm.h>
 
 #include <sys/sysmacros.h>
 #include <sys/time.h>
-#include <wdm.h>
-//#include <kern/clock.h>
+#include <sys/timer.h>
 
+
+//#include <kern/clock.h>
 
 
 /*
@@ -44,6 +48,17 @@ zfs_abs_to_nano(uint64_t elapsed)
 	return elapsed * KeQueryTimeIncrement() * 100;
 }
 
+/* Open Solaris lbolt is in hz */
+uint64_t
+zfs_lbolt(void)
+{
+	uint64_t lbolt_hz;
+	LARGE_INTEGER ticks;
+	KeQueryTickCount(&ticks);
+	lbolt_hz = ticks.QuadPart * KeQueryTimeIncrement();
+	lbolt_hz /= (10000000 / 119); // Solaris hz ?
+	return (lbolt_hz);
+}
 
 hrtime_t gethrtime(void)
 {
@@ -57,6 +72,34 @@ hrtime_t gethrtime(void)
 	KeQueryTickCount(&now);
 	ASSERT((now.QuadPart != start.QuadPart));
     return zfs_abs_to_nano(now.QuadPart - start.QuadPart);
+}
+
+/*
+ * Get bytes from the /dev/random generator. Returns 0
+ * on success. Returns EAGAIN if there is insufficient entropy.
+ */
+int
+random_get_bytes(uint8_t *ptr, uint32_t len)
+{
+	//read_random(ptr, len);
+	LARGE_INTEGER TickCount;
+	ULONG r;
+	PULONG b;
+	int i;
+
+	KeQueryTickCount(&TickCount);
+
+	b = (PULONG) ptr;
+
+	for (i = 0; i < len / sizeof(ULONG); i++)
+        b[i] = RtlRandomEx(&TickCount.LowPart);
+
+	len &= (sizeof(ULONG) - 1);
+    if (len > 0) {
+        r = RtlRandomEx(&TickCount.LowPart);
+		RtlCopyMemory(&b[i], &r, len);
+	}
+	return (0);
 }
 
 

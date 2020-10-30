@@ -32,6 +32,7 @@
 extern "C" {
 #endif
 
+#include <sys/kidmap.h>
 
 typedef struct ksiddomain {
 	char		*kd_name;

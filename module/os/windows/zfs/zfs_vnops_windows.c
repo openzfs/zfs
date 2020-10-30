@@ -369,7 +369,7 @@ int zfs_find_dvp_vp(zfsvfs_t *zfsvfs, char *filename, int finalpartmaynotexist, 
 		if (S_ISDIR(zp->z_mode)) {
 
 			// Quick check to see if we are reparsepoint directory
-			if (zp->z_pflags & ZFS_REPARSEPOINT) {
+			if (zp->z_pflags & ZFS_REPARSE) {
 				/* How reparse points work from the point of view of the filesystem appears to
 				* undocumented. When returning STATUS_REPARSE, MSDN encourages us to return
 				* IO_REPARSE in Irp->IoStatus.Information, but that means we have to do our own
@@ -383,7 +383,7 @@ int zfs_find_dvp_vp(zfsvfs_t *zfsvfs, char *filename, int finalpartmaynotexist, 
 				uio_t *uio;
 				uio = uio_create(1, 0, UIO_SYSSPACE, UIO_READ);
 				uio_addiov(uio, (user_addr_t)rpb, zp->z_size);
-				zfs_readlink(vp, uio, NULL, NULL);
+				zfs_readlink(vp, uio, NULL);
 				uio_free(uio);
 				VN_RELE(vp);
 
@@ -878,15 +878,15 @@ int zfs_vnop_lookup_impl(PIRP Irp, PIO_STACK_LOCATION IrpSp, mount_t *zmo, char 
 
 		vap->va_type = VDIR;
 		// Set default 777 if something else wasn't passed in
-		if (!(vap->va_mask & AT_MODE))
+		if (!(vap->va_mask & ATTR_MODE))
 			vap->va_mode = 0777;
-		vap->va_mask |= (AT_MODE | AT_TYPE);
+		vap->va_mask |= (ATTR_MODE | ATTR_TYPE);
 
 		ASSERT(strchr(finalname, '\\') == NULL);
-		error = zfs_mkdir(dvp, finalname, vap, &vp, NULL,
-			NULL, 0, NULL);
+		error = zfs_mkdir(VTOZ(dvp), finalname, vap, &zp, NULL, 
+			NULL, 0);
 		if (error == 0) {
-
+			vp = ZTOV(zp);
 			zfs_couplefileobject(vp, FileObject, 0ULL);
 			vnode_ref(vp); // Hold open reference, until CLOSE
 			if (DeleteOnClose)
@@ -894,7 +894,7 @@ int zfs_vnop_lookup_impl(PIRP Irp, PIO_STACK_LOCATION IrpSp, mount_t *zmo, char 
 
 			if (Status == STATUS_SUCCESS) {
 				Irp->IoStatus.Information = FILE_CREATED;
-				zp = VTOZ(vp);
+
 				// Update pflags, if needed
 				zfs_setwinflags(zp, IrpSp->Parameters.Create.FileAttributes);
 
@@ -1085,25 +1085,25 @@ int zfs_vnop_lookup_impl(PIRP Irp, PIO_STACK_LOCATION IrpSp, mount_t *zmo, char 
 		}
 
 		vap->va_type = VREG;
-		if (!(vap->va_mask & AT_MODE))
+		if (!(vap->va_mask & ATTR_MODE))
 			vap->va_mode = 0777;
-		vap->va_mask = (AT_MODE | AT_TYPE);
+		vap->va_mask = (ATTR_MODE | ATTR_TYPE);
 
 		// If O_TRUNC:
 		switch (CreateDisposition) {
 		case FILE_SUPERSEDE:
 		case FILE_OVERWRITE_IF:
 		case FILE_OVERWRITE:
-			vap->va_mask |= AT_SIZE;
+			vap->va_mask |= ATTR_SIZE;
 			vap->va_size = 0;
 			break;
 		}
 
 		// O_EXCL only if FILE_CREATE
-		error = zfs_create(dvp, finalname, vap, CreateDisposition == FILE_CREATE, vap->va_mode, &vp, NULL);
+		error = zfs_create(VTOZ(dvp), finalname, vap, CreateDisposition == FILE_CREATE, vap->va_mode, &zp, NULL, 0, NULL);
 		if (error == 0) {
 
-			zp = VTOZ(vp);
+			vp = VTOZ(zp);
 
 			zfs_couplefileobject(vp, FileObject, zp?zp->z_size:0ULL);
 			vnode_ref(vp); // Hold open reference, until CLOSE
@@ -1285,8 +1285,8 @@ int zfs_vnop_lookup(PIRP Irp, PIO_STACK_LOCATION IrpSp, mount_t *zmo)
 	// We handle the regular EAs afterward.
 	if (Irp->AssociatedIrp.SystemBuffer != NULL &&
 		IrpSp->Parameters.Create.EaLength > 0) {
-
-		for (PFILE_FULL_EA_INFORMATION ea = (PFILE_FULL_EA_INFORMATION)Irp->AssociatedIrp.SystemBuffer; 
+		PFILE_FULL_EA_INFORMATION ea;
+		for (ea = (PFILE_FULL_EA_INFORMATION)Irp->AssociatedIrp.SystemBuffer; 
 			; 
 			ea = (PFILE_FULL_EA_INFORMATION)((uint8_t*)ea + ea->NextEntryOffset)) {
 			// only parse $LX attrs right now -- things we can store before the file
@@ -2076,7 +2076,7 @@ int zfswin_insert_xattrname(struct vnode *vp, char *xattrname, uint8_t *outbuffe
 				// Read in as much as we can
 				uio_t *uio = uio_create(1, 0, UIO_SYSSPACE, UIO_READ);
 				uio_addiov(uio, (user_addr_t)&outbuffer[*spaceused], roomforvalue);
-				zfs_read(vp, uio, 0, NULL, NULL);
+				zfs_read(vp, uio, 0, NULL);
 				// Consume as many bytes as we read
 				*spaceused += roomforvalue - uio_resid(uio);
 				// Set the valuelen, should this be the full value or what we would need?
@@ -2289,13 +2289,13 @@ NTSTATUS get_reparse_point(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCA
 		VN_HOLD(vp);
 		znode_t *zp = VTOZ(vp);
 
-		if (zp->z_pflags & ZFS_REPARSEPOINT) {
+		if (zp->z_pflags & ZFS_REPARSE) {
 			int err;
 			int size = MIN(zp->z_size, outlen);
 			uio_t *uio;
 			uio = uio_create(1, 0, UIO_SYSSPACE, UIO_READ);
 			uio_addiov(uio, (user_addr_t)buffer, size);
-			err = zfs_readlink(vp, uio, NULL, NULL);
+			err = zfs_readlink(vp, uio, NULL);
 			uio_free(uio);
 
 			if (outlen < zp->z_size)
@@ -2352,7 +2352,7 @@ NTSTATUS set_reparse_point(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCA
 	dmu_tx_t	*tx;
 
 	// Set flags to indicate we are reparse point
-	zp->z_pflags |= ZFS_REPARSEPOINT;
+	zp->z_pflags |= ZFS_REPARSE;
 
 	// Start TX and save FLAGS, SIZE and SYMLINK to disk.
 top:		
@@ -2800,26 +2800,26 @@ NTSTATUS set_information(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATI
 			if (fbi->ChangeTime.QuadPart > 0) {
 				TIME_WINDOWS_TO_UNIX(fbi->ChangeTime.QuadPart, unixtime);
 				va.va_change_time.tv_sec = unixtime[0]; va.va_change_time.tv_nsec = unixtime[1];
-				va.va_active |= AT_CTIME;
+				va.va_active |= ATTR_CTIME;
 			}
 			if (fbi->LastWriteTime.QuadPart > 0) {
 				TIME_WINDOWS_TO_UNIX(fbi->LastWriteTime.QuadPart, unixtime);
 				va.va_modify_time.tv_sec = unixtime[0]; va.va_modify_time.tv_nsec = unixtime[1];
-				va.va_active |= AT_MTIME;
+				va.va_active |= ATTR_MTIME;
 			}
 			if (fbi->CreationTime.QuadPart > 0) {
 				TIME_WINDOWS_TO_UNIX(fbi->CreationTime.QuadPart, unixtime);
 				va.va_create_time.tv_sec = unixtime[0]; va.va_create_time.tv_nsec = unixtime[1];
-				va.va_active |= AT_CRTIME;  // AT_CRTIME
+				va.va_active |= ATTR_CRTIME;  // ATTR_CRTIME
 			}
 			if (fbi->LastAccessTime.QuadPart > 0) 
 				TIME_WINDOWS_TO_UNIX(fbi->LastAccessTime.QuadPart, zp->z_atime);
 
 			if (fbi->FileAttributes)
 				if (zfs_setwinflags(VTOZ(vp), fbi->FileAttributes))
-					va.va_active |= AT_MODE;
+					va.va_active |= ATTR_MODE;
 
-			Status = zfs_setattr(vp, &va, 0, NULL, NULL);
+			Status = zfs_setattr(vp, &va, 0, NULL);
 
 			// zfs_setattr will turn ARCHIVE back on, when perhaps it is set off by this call
 			if (fbi->FileAttributes)
@@ -3021,7 +3021,7 @@ NTSTATUS fs_read(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp
 
 	dprintf("%s: offset %llx size %lx\n", __func__, byteOffset.QuadPart, bufferLength);
 
-	error = zfs_read(vp, uio, 0, NULL, NULL);
+	error = zfs_read(vp, uio, 0, NULL);
 
 	// Update bytes read
 	Irp->IoStatus.Information = bufferLength - uio_resid(uio);
@@ -3150,7 +3150,9 @@ NTSTATUS fs_write(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpS
 
 	void *SystemBuffer = MapUserBuffer(Irp);
 
-	if (!nocache) {
+	if (nocache) {
+
+	} else {
 
 		if (fileObject->PrivateCacheMap == NULL) {
 			vnode_pager_setsize(vp, zp->z_size);
@@ -3198,7 +3200,9 @@ NTSTATUS fs_write(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpS
 		if (!FlagOn(IrpSp->MinorFunction, IRP_MN_MDL)) {
 
 			// Since we may have grown the filesize, we need to give CcMgr a head's up.
+			vnode_pager_setsize(vp, zp->z_size);
 			CcSetFileSizes(fileObject, (PCC_FILE_SIZES)&vp->FileHeader.AllocationSize);
+			vnode_setsizechange(vp, 0);
 
 			dprintf("CcWrite:  offset [ 0x%llx - 0x%llx ] len 0x%lx\n", 
 				byteOffset.QuadPart, byteOffset.QuadPart + bufferLength, bufferLength);
@@ -3207,7 +3211,7 @@ NTSTATUS fs_write(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpS
 				&byteOffset,
 				bufferLength,
 				TRUE,
-				SystemBuffer,
+				SystemBuffer, 
 				Irp->Tail.Overlay.Thread)) {
 #else
 			if (!CcCopyWrite(fileObject,
@@ -3247,9 +3251,9 @@ NTSTATUS fs_write(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpS
 		byteOffset.QuadPart, byteOffset.QuadPart + bufferLength, bufferLength);
 
 	if (FlagOn(Irp->Flags, IRP_PAGING_IO))
-		error = zfs_write(vp, uio, 0, NULL, NULL);  // Should we call vnop_pageout instead?
+		error = zfs_write(vp, uio, 0, NULL);  // Should we call vnop_pageout instead?
 	else
-		error = zfs_write(vp, uio, 0, NULL, NULL);
+		error = zfs_write(vp, uio, 0, NULL);
 
 	//if (error == 0)
 	//	zp->z_pflags |= ZFS_ARCHIVE;
@@ -3361,11 +3365,11 @@ NTSTATUS delete_entry(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION 
 
 	if (isdir) {
 		
-		error = zfs_rmdir(dvp, finalname, NULL, NULL, NULL, 0);
+		error = zfs_rmdir(VTOZ(dvp), finalname, NULL, NULL, 0);
 
 	} else {
 
-		error = zfs_remove(dvp, finalname, NULL, NULL, 0);
+		error = zfs_remove(VTOZ(dvp), finalname, NULL, 0);
 
 	}
 
@@ -3482,7 +3486,7 @@ NTSTATUS set_security(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION 
 		Status = RtlGetOwnerSecurityDescriptor(vnode_security(vp), &owner, &defaulted);
 		if (Status == STATUS_SUCCESS) {
 			vattr.va_uid = zfs_sid2uid(owner);
-			vattr.va_mask |= AT_UID;
+			vattr.va_mask |= ATTR_UID;
 		}
 /*		else
 			zp->z_uid = UID_NOBODY;
@@ -3493,13 +3497,13 @@ NTSTATUS set_security(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION 
 		Status = RtlGetGroupSecurityDescriptor(vnode_security(vp), &group, &defaulted);
 		if (Status == STATUS_SUCCESS) {
 			vattr.va_gid = zfs_sid2uid(group); // uid/gid reverse is identical
-			vattr.va_mask |= AT_GID;
+			vattr.va_mask |= ATTR_GID;
 		}
 	}
 
 	// Do we need to update ZFS?
 	if (vattr.va_mask != 0) {
-		zfs_setattr(vp, &vattr, 0, NULL, NULL);
+		zfs_setattr(vp, &vattr, 0, NULL);
 		Status = STATUS_SUCCESS;
 	}
 
@@ -4890,7 +4894,6 @@ void zfs_windows_vnops_callback(PDEVICE_OBJECT deviceObject)
 {
 
 }
-
 
 int
 zfs_vfsops_init(void)

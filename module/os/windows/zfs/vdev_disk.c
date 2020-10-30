@@ -25,8 +25,11 @@
 #include <sys/zfs_context.h>
 #include <sys/spa.h>
 #include <sys/vdev_disk.h>
+#include <sys/vdev_disk_os.h>
 #include <sys/vdev_impl.h>
 #include <sys/vdev_trim.h>
+#include <sys/abd.h>
+#include <sys/abd_impl.h>
 #include <sys/fs/zfs.h>
 #include <sys/zio.h>
 
@@ -38,9 +41,6 @@
  * Virtual device vector for disks.
  */
 
-
-#undef dprintf
-#define dprintf
 
 wchar_t zfs_vdev_protection_filter[64] = { L"\0" };
 
@@ -106,7 +106,7 @@ static void disk_exclusive(DEVICE_OBJECT *device, boolean_t excl)
 
 static int
 vdev_disk_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
-	uint64_t *ashift)
+	uint64_t *ashift, uint64_t *physical_ashif)
 {
 	spa_t *spa = vd->vdev_spa;
 	vdev_disk_t *dvd = vd->vdev_tsd;
@@ -162,27 +162,25 @@ vdev_disk_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 
 	// Use vd->vdev_physpath first, if set, otherwise
 	// usual vd->vdev_path
-	vdev_path = vd->vdev_path;
 	if (vd->vdev_physpath)
-		vdev_path = vd->vdev_physpath;
+		vdev_path = spa_strdup(vd->vdev_physpath);
+	else
+		vdev_path = spa_strdup(vd->vdev_path);
 
 	/* Check for partition encoded paths */
 	if (vdev_path[0] == '#') {
 		uint8_t *end;
 		end = &vdev_path[0];
 		while (end && end[0] == '#') end++;
-		ddi_strtoull(end, &end, 10, &vd->vdev_win_offset);
+		ddi_strtoull(end, &end, 10, &dvd->vdev_win_offset);
 		while (end && end[0] == '#') end++;
-		ddi_strtoull(end, &end, 10, &vd->vdev_win_length);
+		ddi_strtoull(end, &end, 10, &dvd->vdev_win_length);
 		while (end && end[0] == '#') end++;
 
 		FileName = end;
-
 	}
 	else {
-
-		FileName = vd->vdev_path;
-
+		FileName = vdev_path;
 	}
 
 	// Apparently in Userland it is "\\?\" but in
@@ -227,14 +225,14 @@ vdev_disk_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 	IO_STATUS_BLOCK iostatus;
 
 	ntstatus = ZwCreateFile(&dvd->vd_lh,
-		spa_mode(spa) == FREAD ? GENERIC_READ | SYNCHRONIZE : GENERIC_READ | GENERIC_WRITE | SYNCHRONIZE,
+		spa_mode(spa) == SPA_MODE_READ ? GENERIC_READ | SYNCHRONIZE : GENERIC_READ | GENERIC_WRITE | SYNCHRONIZE,
 		&ObjectAttributes,
 		&iostatus,
 		0,
 		FILE_ATTRIBUTE_NORMAL,
 		/* FILE_SHARE_WRITE | */ FILE_SHARE_READ,
 		FILE_OPEN,
-		FILE_SYNCHRONOUS_IO_NONALERT | (spa_mode(spa) == FREAD ? 0 : FILE_NO_INTERMEDIATE_BUFFERING),
+		FILE_SYNCHRONOUS_IO_NONALERT | (spa_mode(spa) == SPA_MODE_READ ? 0 : FILE_NO_INTERMEDIATE_BUFFERING),
 		NULL,
 		0);
 
@@ -254,6 +252,7 @@ vdev_disk_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 
 	if (error) {
 		vd->vdev_stat.vs_aux = VDEV_AUX_OPEN_FAILED;
+		spa_strfree(vdev_path);
 		return (error);
 	}
 
@@ -277,6 +276,7 @@ vdev_disk_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 		ZwClose(dvd->vd_lh);
 		dvd->vd_lh = NULL;
 		vd->vdev_stat.vs_aux = VDEV_AUX_OPEN_FAILED;
+		spa_strfree(vdev_path);
 		return EIO;
 	}
 
@@ -320,14 +320,15 @@ vdev_disk_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 
 	// Make disk readonly and offline, so that users can't partition/format it.
 	disk_exclusive(pTopDevice, TRUE);
+	spa_strfree(vdev_path);
 
 skip_open:
 
 	/*
 	* Determine the actual size of the device.
 	*/
-	if (vd->vdev_win_length != 0) {
-		*psize = vd->vdev_win_length;
+	if (dvd->vdev_win_length != 0) {
+		*psize = dvd->vdev_win_length;
 	} else {
 		DISK_GEOMETRY_EX geometry_ex;
 		DWORD len;
@@ -366,8 +367,8 @@ skip_open:
 
 	// Set psize to the size of the partition. For now, assume virtual
 	// since ioctls do not seem to work.
-	if (vd->vdev_win_length != 0) 
-		*psize = vd->vdev_win_length;
+	if (dvd->vdev_win_length != 0) 
+		*psize = dvd->vdev_win_length;
 
 	// Set max_psize to the biggest it can be, expanding..
 	*max_psize = *psize;
@@ -502,12 +503,12 @@ vdev_disk_io_start_done(void *param)
 	// Return abd buf
 	if (zio->io_type == ZIO_TYPE_READ) {
 		VERIFY3S(zio->io_abd->abd_size, >= , zio->io_size);
-		abd_return_buf_copy_off(zio->io_abd, vb->b_addr,
-			0, zio->io_size, zio->io_abd->abd_size);
+		abd_return_buf_copy(zio->io_abd, vb->b_addr,
+			zio->io_size);
 	} else {
 		VERIFY3S(zio->io_abd->abd_size, >= , zio->io_size);
-		abd_return_buf_off(zio->io_abd, vb->b_addr,
-			0, zio->io_size, zio->io_abd->abd_size);
+		abd_return_buf(zio->io_abd, vb->b_addr,
+			zio->io_size);
 	}
 
 	UnlockAndFreeMdl(vb->irp->MdlAddress);
@@ -676,7 +677,7 @@ vdev_disk_io_start(zio_t *zio)
 	IO_STATUS_BLOCK IoStatusBlock = { 0 };
 	LARGE_INTEGER offset;
 
-	offset.QuadPart = zio->io_offset + vd->vdev_win_offset;
+	offset.QuadPart = zio->io_offset + dvd->vdev_win_offset;
 
 	/* Preallocate space for IoWorkItem, required for vdev_disk_io_start_done callback */
 	vd_callback_t *vb = (vd_callback_t *)kmem_alloc(sizeof(vd_callback_t) + IoSizeofWorkItem(), KM_SLEEP);
@@ -770,9 +771,6 @@ vdev_disk_hold(vdev_t *vd)
 	if (vd->vdev_tsd != NULL)
 		return;
 
-	/* XXX: Implement me as a vnode lookup for the device */
-	vd->vdev_name_vp = NULL;
-	vd->vdev_devid_vp = NULL;
 }
 
 static void

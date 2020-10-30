@@ -31,6 +31,7 @@
 #define _SPL_TSD_H
 
 #include <sys/types.h>
+#include <sys/thread.h>
 
 #define TSD_HASH_TABLE_BITS_DEFAULT	9
 #define TSD_KEYS_MAX			32768
@@ -41,6 +42,9 @@ typedef void (*dtor_func_t)(void *);
 
 extern int tsd_set(uint_t, void *);
 extern void *tsd_get(uint_t);
+typedef struct _KTHREAD thread_t;
+
+extern void *tsd_get_by_thread(uint_t, thread_t *);
 extern void tsd_create(uint_t *, dtor_func_t);
 extern void tsd_destroy(uint_t *);
 extern void tsd_exit(void);

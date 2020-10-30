@@ -160,6 +160,9 @@ extern uint32_t zone_get_hostid(void *zone);
 extern void spl_setup(void);
 extern void spl_cleanup(void);
 
+#define	boot_ncpus max_ncpus
+#define	SET_ERROR(X) (X)
+
 #define NBITSMINOR 20
 #define MINORMASK ((1UL<<NBITSMINOR) - 1)
 #define major(x) (((x) & ~MINORMASK) >> NBITSMINOR)
@@ -261,6 +264,10 @@ extern void spl_cleanup(void);
 #include <stddef.h>
 #endif
 
-#define SET_ERROR(X) (X)
+#define IS_INDEXABLE(arg) (sizeof(arg[0]))
+#define IS_ARRAY(arg) (IS_INDEXABLE(arg) && (((void *) &arg) == ((void *) arg)))
+#define ARRAY_SIZE(arr) (IS_ARRAY(arr) ? (sizeof(arr) / sizeof(arr[0])) : 0)
+
+// #define SET_ERROR(X) (X)
 
 #endif  /* _SPL_SYSMACROS_H */

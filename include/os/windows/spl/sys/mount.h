@@ -110,6 +110,7 @@ struct mount
 	LIST_ENTRY DirNotifyList;
 };
 typedef struct mount mount_t;
+typedef struct mount vfsp_t;
 #define LK_NOWAIT 1
 
 int     vfs_busy(mount_t *mp, int flags);
@@ -119,10 +120,14 @@ void *	vfs_fsprivate(mount_t *mp);
 void    vfs_setfsprivate(mount_t *mp, void *mntdata);
 void    vfs_clearflags(mount_t *mp, uint64_t flags);
 void    vfs_setflags(mount_t *mp, uint64_t flags);
-struct vfsstatfs *      vfs_statfs(mount_t *mp);
+struct vfsstatfs *vfs_statfs(mount_t *mp);
 uint64_t vfs_flags(mount_t *mp);
 void    vfs_setlocklocal(mount_t *mp);
 int     vfs_typenum(mount_t *mp);
 void    vfs_getnewfsid(struct mount *mp);
 int     vfs_isunmount(mount_t *mp);
+int	vfs_iswriteupgrade(mount_t *mp);
+void	vfs_setextendedsecurity(mount_t *mp);
+
+
 #endif /* SPL_MOUNT_H */

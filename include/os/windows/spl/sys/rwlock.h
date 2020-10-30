@@ -47,8 +47,12 @@ struct krwlock {
 };
 typedef struct krwlock  krwlock_t;
 
-#define RW_WRITE_HELD(x)        (rw_write_held((x)))
-#define RW_LOCK_HELD(x)         (rw_lock_held((x)))
+#define	RW_NOLOCKDEP	0
+
+#define	RW_READ_HELD(x)		(rw_read_held((x)))
+#define	RW_WRITE_HELD(x)	(rw_write_held((x)))
+#define	RW_LOCK_HELD(x)		(rw_lock_held((x)))
+#define	RW_ISWRITER(x)		(rw_iswriter(x))
 
 extern  void  rw_init(krwlock_t *, char *, krw_type_t, void *);
 extern  void  rw_destroy(krwlock_t *);

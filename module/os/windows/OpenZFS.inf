@@ -1,0 +1,118 @@
+;;;
+;;; OpenZFS
+;;;
+;;;
+;;; Copyright (c) Jorgen Lundman
+;;;
+
+[Version]
+Signature   = "$Windows NT$"
+Class       = Volume
+ClassGuid   = {71a27cdd-812a-11d0-bec7-08002be2092f}
+Provider    = %Me%
+DriverVer   = 05/19/2018,1.0.2.0
+CatalogFile = OpenZFS.cat
+
+[DestinationDirs]
+DefaultDestDir          = 12
+OpenZFS.DriverFiles       = 12            ;%windir%\system32\drivers
+OpenZFS.DllFiles          = 11            ;%windir%\system32
+
+;;
+;; Default install sections
+;;
+
+;[DefaultInstall]
+;OptionDesc  = %ServiceDescription%
+;CopyFiles   = OpenZFS.DriverFiles
+;;;,OpenZFS.DllFiles
+;RegisterDlls = shellzfsin
+;CopyINF     = OpenZFS.inf
+;
+;[DefaultInstall.Services]
+;AddService  = %ServiceName%,0x802,OpenZFS.Service
+
+[Manufacturer]
+%Me%=Standard,NTamd64,NTx86
+
+[Standard.NTamd64]
+%VolumeName% = OpenZFS_Install, ZFSinVolume
+%ControllerName% = OpenZFS_Install, ROOT\OpenZFS
+
+[Standard.NTx86]
+%VolumeName% = OpenZFS_Install, ZFSinVolume
+%ControllerName% = OpenZFS_Install, ROOT\OpenZFS
+
+[OpenZFS_Install]
+OptionDesc   = %ServiceDescription%
+CopyFiles    = OpenZFS.DriverFiles
+;;,OpenZFS.DllFiles
+;;RegisterDlls = shellzfsin
+
+[OpenZFS_Install.Services]
+AddService  = %ServiceName%,2,OpenZFS.Service
+
+;;
+;; Default uninstall sections
+;;
+
+[DefaultUninstall]
+UnregisterDlls = shellzfsin
+DelFiles   = OpenZFS.DriverFiles
+;;,OpenZFS.DllFiles
+
+[DefaultUninstall.Services]
+DelService = %ServiceName%,0x200      ;Ensure service is stopped before deleting
+
+;
+; Services Section
+;
+
+[OpenZFS.Service]
+DisplayName      = %ServiceName%
+Description      = %ServiceDescription%
+ServiceBinary    = %12%\%DriverName%.sys    ;%windir%\system32\drivers\
+ServiceType      = 1
+StartType        = 1                        ;SERVICE_SYSTEM_START
+ErrorControl     = 1
+LoadOrderGroup   = "File System"
+
+;;[shellzfsin]
+;;11,,shellzfsin.dll,1
+
+;
+; Copy Files
+;
+
+[OpenZFS.DriverFiles]
+%DriverName%.sys
+
+[OpenZFS.DllFiles]
+;;zpool.exe
+;;zfs.exe
+
+[SourceDisksFiles]
+OpenZFS.sys = 1,,
+;;zpool.exe = 1,,
+;;zfs.exe = 1,,
+
+[SourceDisksNames.x86]
+1 = %DiskId1%,,
+;;,\x86
+
+[SourceDisksNames.amd64]
+1 = %DiskId1%,,
+;;,\x64
+
+;;
+;; String Section
+;;
+
+[Strings]
+Me                      = "Jorgen Lundman"
+ServiceDescription      = "OpenZFS driver"
+ServiceName             = "OpenZFS"
+DriverName              = "OpenZFS"
+DiskId1                 = "OpenZFS Device Installation Disk"
+VolumeName              = "OpenZFS volume"
+ControllerName = "OpenZFS controller" 

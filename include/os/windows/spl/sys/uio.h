@@ -113,7 +113,7 @@ void uio_setrw(uio_t *a_uio, int a_value);
 
 int	uiomove(void *, uint32_t, enum uio_rw, struct uio *);
 int	spl_uiomove(const uint8_t *, uint32_t, struct uio *);
-int	uiocopy(void *, uint32_t, enum uio_rw, struct uio *, uint64_t *);
+// int	uiocopy(void *, uint32_t, enum uio_rw, struct uio *, uint64_t *);
 void uioskip(struct uio *, uint32_t);
 int	uiodup(struct uio *, struct uio *, iovec_t *, int);
 
@@ -158,22 +158,61 @@ typedef struct xuio {
 #define XUIO_XUZC_PRIV(xuio)    xuio->xu_ext.xu_zc.xu_zc_priv
 #define XUIO_XUZC_RW(xuio)      xuio->xu_ext.xu_zc.xu_zc_rw
 
+#define	uio_segflg(U) \
+	(uio_isuserspace((struct uio *)(U))?UIO_USERSPACE:UIO_SYSSPACE)
+#define	uio_advance(U, N)       uio_update((struct uio *)(U), (N))
+
+static inline uint64_t
+uio_iovlen(const struct uio *u, unsigned int i)
+{
+	user_size_t iov_len;
+	uio_getiov((struct uio *)u, i, NULL, &iov_len);
+	return (iov_len);
+}
+
+static inline void *
+uio_iovbase(const struct uio *u, unsigned int i)
+{
+	user_addr_t iov_base;
+	uio_getiov((struct uio *)u, i, &iov_base, NULL);
+	return ((void *)iov_base);
+}
+
+static inline void
+uio_iov_at_index(uio_t *uio, unsigned int idx, void **base, uint64_t *len)
+{
+	(void) uio_getiov(uio, idx, (user_addr_t *)base, len);
+}
+
+static inline long long
+uio_index_at_offset(struct uio *uio, long long off, unsigned int *vec_idx)
+{
+	uint64_t len;
+	*vec_idx = 0;
+	while (*vec_idx < uio_iovcnt(uio) && off >=
+	    (len = uio_iovlen(uio, *vec_idx))) {
+	off -= len;
+	(*vec_idx)++;
+	}
+	return (off);
+}
+
 /*
 * same as uiomove() but doesn't modify uio structure.
 * return in cbytes how many bytes were copied.
 */
-static inline int uiocopy(const char *p, uint32_t n, enum uio_rw rw, struct uio *uio, uint64_t *cbytes) \
+static inline int uiocopy(const uint8_t *p, uint32_t n, enum uio_rw rw, struct uio *uio, uint64_t *cbytes) \
 {                                                                       \
-int result;                                                         \
-struct uio *nuio = uio_duplicate(uio);                              \
+	int result;                                                         \
+	struct uio *nuio = uio_duplicate(uio);                              \
 	unsigned long long x = uio_resid(uio);                              \
-	if (!nuio) return ENOMEM;                                           \
-		uio_setrw(nuio, rw);
-\
-result = spl_uiomove(p, n, nuio);                                         \
-*cbytes = (x - uio_resid(nuio));                                        \
-uio_free(nuio);                                                     \
-return result;                                                      \
+	if (!nuio) \
+		return (ENOMEM);                                           \
+	uio_setrw(nuio, rw);	\
+	result = spl_uiomove(p, n, nuio);                                         \
+	*cbytes = (x - uio_resid(nuio));                                        \
+	uio_free(nuio);                                                     \
+	return result;                                                      \
 }
 
 // Apple's uiomove puts the uio_rw in uio_create

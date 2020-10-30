@@ -42,8 +42,11 @@ extern "C" {
 typedef struct taskq taskq_t;
 typedef uintptr_t taskqid_t;
 typedef void (task_func_t)(void *);
-
+struct taskq_ent;
 struct proc;
+
+/* New ZFS expects to find taskq_ent_t as well */
+#include <sys/taskq_impl.h>
 
 /*
  * Public flags for taskq_create(): bit range 0-15
@@ -64,9 +67,13 @@ struct proc;
 #define	TQ_NOALLOC	0x04	/* cannot allocate memory; may fail */
 #define	TQ_FRONT	0x08	/* Put task at the front of the queue */
 
+#define TASKQID_INVALID ((taskqid_t)0)
+
 #ifdef _KERNEL
 
 extern taskq_t *system_taskq;
+/* Global dynamic task queue for long delay */
+extern taskq_t *system_delay_taskq;
 
 extern int 	spl_taskq_init(void);
 extern void	spl_taskq_fini(void);
@@ -83,10 +90,16 @@ extern taskqid_t taskq_dispatch(taskq_t *, task_func_t, void *, uint_t);
 extern void	nulltask(void *);
 extern void	taskq_destroy(taskq_t *);
 extern void	taskq_wait(taskq_t *);
+#define HAVE_TASKQ_WAIT_ID
+extern void taskq_wait_id(taskq_t *, taskqid_t);
 extern void	taskq_suspend(taskq_t *);
 extern int	taskq_suspended(taskq_t *);
 extern void	taskq_resume(taskq_t *);
 extern int	taskq_member(taskq_t *, struct kthread *);
+extern boolean_t taskq_empty(taskq_t *tq);
+extern int taskq_cancel_id(taskq_t *, taskqid_t);
+extern taskq_t *taskq_of_curthread(void);
+extern int taskq_empty_ent(struct taskq_ent *);
 
 #define taskq_wait_outstanding(T, D) taskq_wait((T))
 
@@ -94,6 +107,8 @@ extern void system_taskq_init(void);
 extern void system_taskq_fini(void);
 
 #endif	/* _KERNEL */
+
+extern int EMPTY_TASKQ(taskq_t *tq);
 
 #ifdef	__cplusplus
 }

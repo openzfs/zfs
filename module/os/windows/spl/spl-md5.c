@@ -247,7 +247,7 @@ MD5Update(MD5_CTX *ctx, const void *inpp, unsigned int input_len)
 	uint32_t		old_asi;
 #endif	/* sun4v */
 #if defined(__amd64)
-	uint32_t		block_count;
+	// uint32_t		block_count;
 #endif /* !defined(__amd64) */
 	const unsigned char 	*input = (const unsigned char *)inpp;
 

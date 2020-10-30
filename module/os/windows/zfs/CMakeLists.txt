@@ -1,129 +1,33 @@
-wdk_add_library(zfskern
+wdk_add_library(zfskern_os
   KMDF 1.9
-  abd.c
-  aggsum.c
-  arc.c
-  blkptr.c
-  bplist.c
-  bpobj.c
-  bptree.c
-  bqueue.c
-  cityhash.c
-  dbuf.c
-  dbuf_stats.c
-  ddt.c
-  ddt_zap.c
-  dmu.c
-  dmu_diff.c
-  dmu_object.c
-  dmu_objset.c
-  dmu_recv.c
-  dmu_send.c
-  dmu_traverse.c
-  dmu_tx.c
-  dmu_zfetch.c
-  dnode.c
-  dnode_sync.c
-  dsl_bookmark.c
-  dsl_crypt.c
-  dsl_dataset.c
-  dsl_deadlist.c
-  dsl_deleg.c
-  dsl_destroy.c
-  dsl_dir.c
-  dsl_pool.c
-  dsl_proc.c
-  dsl_prop.c
-  dsl_scan.c
-  dsl_synctask.c
-  dsl_userhold.c
-  edonr_zfs.c
-  fm.c
-  gzip.c
-  hkdf.c
-  lz4.c
-  lzjb.c
-  metaslab.c
-  mmp.c
-  multilist.c
-  range_tree.c
-  refcount.c
-  rrwlock.c
-  sa.c
-  sha256.c
-  skein_zfs.c
-  spa.c
-  space_map.c
-  space_reftree.c
-  spa_boot.c
-  spa_checkpoint.c
-  spa_config.c
-  spa_errlog.c
-  spa_history.c
-  spa_misc.c
-  spa_stats.c
-  txg.c
-  uberblock.c
-  unique.c
-  vdev.c
-  vdev_cache.c
-  vdev_disk.c
-  vdev_file.c
-  vdev_indirect.c
-  vdev_indirect_births.c
-  vdev_indirect_mapping.c
-  vdev_initialize.c
-  vdev_label.c
-  vdev_mirror.c
-  vdev_missing.c
-  vdev_queue.c
-  vdev_raidz.c
-  vdev_removal.c
-  vdev_root.c
-  vdev_trim.c
-  zap.c
-  zap_leaf.c
-  zap_micro.c
-  zcp.c
-  zcp_get.c
-  zcp_global.c
-  zcp_iter.c
-  zcp_synctask.c
-  zfeature.c
-  zfeature_common.c
-  zfs_acl.c
-  zfs_byteswap.c
-  zfs_debug.c
-  zfs_dir.c
-  zfs_fm.c
-  zfs_fuid.c
-  zfs_ioctl.c
-  zfs_kstat_windows.c
-  zfs_log.c
-  zfs_onexit.c
-  zfs_replay.c
-  zfs_rlock.c
-  zfs_sa.c
-  zfs_vfsops.c
-  zfs_vnops.c
-  zfs_vnops_windows.c
-  zfs_vnops_windows_lib.c
-  zfs_vnops_windows_mount.c
-  zfs_windows.c
-  zfs_windows_zvol.c
-  zfs_windows_zvol_scsi.c
-  zfs_windows_zvol_wmi.c
-  zfs_znode.c
-  zil.c
-  zio.c
-  zio_checksum.c
-  zio_compress.c
-  zio_crypt.c
-  zio_inject.c
-  zle.c
-  zrlock.c
-  zthr.c
-  zvol.c
+abd_os.c
+arc_os.c
+qat.c
+qat_compress.c
+qat_crypt.c
+spa_misc_os.c
+vdev_disk.c
+vdev_file.c
+zfs_acl.c
+zfs_ctldir.c
+zfs_debug.c
+zfs_dir.c
+zfs_file_os.c
+zfs_fuid_os.c
+zfs_ioctl_os.c
+zfs_kstat_windows.c
+zfs_vfsops.c
+zfs_vnops.c
+zfs_vnops_windows.c
+zfs_vnops_windows_lib.c
+zfs_vnops_windows_mount.c
+zfs_windows_zvol.c
+zfs_windows_zvol_scsi.c
+zfs_windows_zvol_wmi.c
+zfs_znode.c
+zio_crypt.c
+zvol_os.c
 )
 
-target_link_libraries(zfskern PRIVATE splkern icpkern)
+
+target_link_libraries(zfskern_os PRIVATE splkern icpkern)

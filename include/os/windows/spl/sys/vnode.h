@@ -113,7 +113,7 @@ typedef struct vnode vnode_t;
 #pragma pack()
 
 struct vfs_context;
-typedef struct vfs_context vfs_context_t;
+typedef struct vfs_context *vfs_context_t;
 
 struct caller_context;
 typedef struct caller_context caller_context_t;
@@ -149,7 +149,7 @@ extern int              vttoif_tab[];
 
 
 /*
- * OSX uses separate vnop getxattr and setxattr to deal with XATTRs, so
+ * Windows uses separate vnop getfileinformation to deal with XATTRs, so
  * we never get vop&XVATTR set from VFS. All internal checks for it in
  * ZFS is not required.
  */
@@ -158,6 +158,9 @@ extern int              vttoif_tab[];
 
 #define B_INVAL		0x01
 #define B_TRUNC		0x02
+
+#define	CREATE_XATTR_DIR	0x04    /* Create extended attr dir */
+
 
 #define   DNLC_NO_VNODE (struct vnode *)(-1)
 
@@ -210,17 +213,17 @@ enum create     { CRCREAT, CRMKNOD, CRMKDIR };  /* reason for create */
 /*
  * vnode attr translations
  */
-#define AT_TYPE         VNODE_ATTR_va_type
-#define AT_MODE         VNODE_ATTR_va_mode
-#define AT_ACL          VNODE_ATTR_va_acl
-#define AT_UID          VNODE_ATTR_va_uid
-#define AT_GID          VNODE_ATTR_va_gid
-#define AT_ATIME        VNODE_ATTR_va_access_time
-#define AT_MTIME        VNODE_ATTR_va_modify_time
-#define AT_CTIME        VNODE_ATTR_va_change_time
-#define AT_CRTIME       VNODE_ATTR_va_create_time
-#define AT_SIZE         VNODE_ATTR_va_data_size
-#define	AT_NOSET        0
+#define ATTR_TYPE               VNODE_ATTR_va_type
+#define ATTR_MODE               VNODE_ATTR_va_mode
+#define ATTR_ACL                VNODE_ATTR_va_acl
+#define ATTR_UID                VNODE_ATTR_va_uid
+#define ATTR_GID                VNODE_ATTR_va_gid
+#define ATTR_ATIME              VNODE_ATTR_va_access_time
+#define ATTR_MTIME              VNODE_ATTR_va_modify_time
+#define ATTR_CTIME              VNODE_ATTR_va_change_time
+#define ATTR_CRTIME             VNODE_ATTR_va_create_time
+#define ATTR_SIZE               VNODE_ATTR_va_data_size
+#define ATTR_NOSET              0
 
 #define va_size         va_data_size
 #define va_atime        va_access_time
@@ -481,7 +484,7 @@ int  spl_vnode_init(void);
 extern int spl_vfs_root(mount_t *mount, struct vnode **vp);
 #define VFS_ROOT(V, L, VP) spl_vfs_root((V), (VP))
 
-extern void cache_purgevfs(mount_t mp);
+extern void cache_purgevfs(mount_t *mp);
 
 int spl_vn_rdwr(
             enum uio_rw rw,
@@ -547,6 +550,11 @@ void vnode_decouplefileobject(vnode_t *vp, FILE_OBJECT *fileobject);
 void vnode_setsizechange(vnode_t *vp, int set);
 int vnode_sizechange(vnode_t *vp);
 int vnode_isrecycled(vnode_t *vp);
+dev_t vnode_specrdev(vnode_t *vp);
+void cache_purge(vnode_t *vp);
+void cache_purge_negatives(vnode_t *vp);
+int vnode_removefsref(vnode_t *vp);
+int vnode_iocount(vnode_t *vp);
 
 #define VNODE_READDIR_EXTENDED 1
 

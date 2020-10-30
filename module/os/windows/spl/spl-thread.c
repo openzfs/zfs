@@ -63,7 +63,7 @@ spl_thread_create(
 			   filename, line);
 #endif
 		result = PsCreateSystemThread(
-			&thread,
+			(void **)&thread,
 			0,    // DesiredAccess,
 			NULL, // ObjectAttributes,
 			NULL, // ProcessHandle,
@@ -98,11 +98,11 @@ spl_thread_create(
         //thread_deallocate(thread);
 
         atomic_inc_64(&zfs_threads);
-		int threadid;
+		void *threadid;
 		PETHREAD eThread;
-		ObReferenceObjectByHandle(thread, 0, 0, KernelMode, &eThread, 0);
+		ObReferenceObjectByHandle(thread, 0, 0, KernelMode, (void **)&eThread, 0);
 		// Perhaps threadid should move to 64bit.
-		threadid = (int)(uintptr_t) PsGetThreadId(eThread);
+		threadid = (void *)(uintptr_t) PsGetThreadId(eThread);
 		ObDereferenceObject(eThread);
 		ZwClose(thread);
         return ((kthread_t *)threadid);

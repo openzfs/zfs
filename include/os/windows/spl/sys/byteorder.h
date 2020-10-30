@@ -30,14 +30,22 @@
 
 //#include <libkern/OSByteOrder.h>
 //#include <machine/byte_order.h>
-#include <intrin.h>
+#include <stdlib.h>
 
 #define LE_16(x) (x)
 #define LE_32(x) (x)
 #define LE_64(x) (x)
+
+#if defined(_MSC_VER) && !defined(__clang__)
+#include <intrin.h>
 #define BE_16(x) _byteswap_ushort(x)
-#define BE_32(x) _byteswap_ulong(x)
+#define BE_32(x) _byteswap_ulong(x) fff=
 #define BE_64(x) _byteswap_uint64(x)
+#else
+#define BE_16(x) __builtin_bswap16(x)
+#define BE_32(x) __builtin_bswap32(x)
+#define BE_64(x) __builtin_bswap64(x)
+#endif
 
 #define BE_IN8(xa)                              \
     *((uint8_t *)(xa))
@@ -50,15 +58,17 @@
 
 
 #if !defined(htonll)
-#define htonll(x)       _byteswap_uint64(x)
+#define htonll(x)       BE_64(x)
 #endif
 #if !defined(ntohll)
-#define ntohll(x)       _byteswap_uint64(x)
+#define ntohll(x)       BE_64(x)
+#endif
+#if !defined(htonl)
+#define htonl(x) BE_32(x)
 #endif
 
-
 // I'm going to assume windows in LE for now
-#define _LITTLE_ENDIAN
+#define _ZFS_LITTLE_ENDIAN
 
 
 #endif /* SPL_BYTEORDER_H */
