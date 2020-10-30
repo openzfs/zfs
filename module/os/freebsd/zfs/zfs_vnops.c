@@ -2273,6 +2273,16 @@ zfs_mkdir(znode_t *dzp, const char *dirname, vattr_t *vap, znode_t **zpp,
 	return (0);
 }
 
+#if	__FreeBSD_version < 1300124
+static void
+cache_vop_rmdir(struct vnode *dvp, struct vnode *vp)
+{
+
+	cache_purge(dvp);
+	cache_purge(vp);
+}
+#endif
+
 /*
  * Remove a directory subdir entry.  If the current working
  * directory is the same as the subdir to be removed, the
@@ -2332,8 +2342,6 @@ zfs_rmdir_(vnode_t *dvp, vnode_t *vp, const char *name, cred_t *cr)
 		return (error);
 	}
 
-	cache_purge(dvp);
-
 	error = zfs_link_destroy(dzp, name, zp, tx, ZEXISTS, NULL);
 
 	if (error == 0) {
@@ -2344,7 +2352,7 @@ zfs_rmdir_(vnode_t *dvp, vnode_t *vp, const char *name, cred_t *cr)
 
 	dmu_tx_commit(tx);
 
-	cache_purge(vp);
+	cache_vop_rmdir(dvp, vp);
 out:
 	if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		zil_commit(zilog, 0);
@@ -3901,9 +3909,9 @@ zfs_rename_check(znode_t *szp, znode_t *sdzp, znode_t *tdzp)
 	return (error);
 }
 
-#if	__FreeBSD_version < 1300110
+#if	__FreeBSD_version < 1300124
 static void
-cache_rename(struct vnode *fdvp, struct vnode *fvp, struct vnode *tdvp,
+cache_vop_rename(struct vnode *fdvp, struct vnode *fvp, struct vnode *tdvp,
     struct vnode *tvp, struct componentname *fcnp, struct componentname *tcnp)
 {
 
@@ -4172,7 +4180,7 @@ zfs_rename_(vnode_t *sdvp, vnode_t **svpp, struct componentname *scnp,
 			}
 		}
 		if (error == 0) {
-			cache_rename(sdvp, *svpp, tdvp, *tvpp, scnp, tcnp);
+			cache_vop_rename(sdvp, *svpp, tdvp, *tvpp, scnp, tcnp);
 		}
 	}
 
