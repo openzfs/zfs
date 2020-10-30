@@ -47,6 +47,8 @@ extern "C" {
 #include <sys/types.h>
 #elif defined(__linux__)
 #include <linux/types.h>
+#elif defined(_WIN32)
+#include_next <stddef.h>
 #else
 #error "Unsupported platform"
 #endif

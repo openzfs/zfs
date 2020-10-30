@@ -24,9 +24,6 @@
  */
 
 #ifdef _KERNEL
-#include <linux/module.h>
-#include <linux/kernel.h>
-#include <linux/init.h>
 #else
 #define	__exit
 #define	__init

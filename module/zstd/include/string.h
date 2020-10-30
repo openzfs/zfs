@@ -47,6 +47,8 @@ extern "C" {
 #include <sys/systm.h>    /* memcpy, memset */
 #elif defined(__linux__)
 #include <linux/string.h> /* memcpy, memset */
+#elif defined(_WIN32)
+#include_next <string.h>
 #else
 #error "Unsupported platform"
 #endif

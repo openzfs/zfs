@@ -52,6 +52,10 @@
 static void Encode(uint8_t *, uint32_t *, size_t);
 static void Encode64(uint8_t *, uint64_t *, size_t);
 
+#ifdef _WIN32 // No assembler until linking is figured out
+#undef __amd64
+#endif
+
 /* userspace only supports the generic version */
 #if	defined(__amd64) && defined(_KERNEL)
 #define	SHA512Transform(ctx, in) SHA512TransformBlocks((ctx), (in), 1)

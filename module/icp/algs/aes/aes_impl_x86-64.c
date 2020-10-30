@@ -51,6 +51,7 @@ aes_x86_64_will_work(void)
 	return (B_TRUE);
 }
 
+#ifndef _WIN32 // No assembler until linking is figured out
 const aes_impl_ops_t aes_x86_64_impl = {
 	.generate = &aes_x86_64_generate,
 	.encrypt = &aes_encrypt_amd64,
@@ -59,5 +60,6 @@ const aes_impl_ops_t aes_x86_64_impl = {
 	.needs_byteswap = B_FALSE,
 	.name = "x86_64"
 };
+#endif
 
 #endif /* defined(__x86_64) */
