@@ -42,6 +42,11 @@ static intptr_t stack_remaining(void) {
   char local;
   return (intptr_t)(&local - (char *)curthread->td_kstack);
 }
+#elif defined (_KERNEL) && defined(_WIN32)
+#pragma warning "stack_remaining not implemented"
+static intptr_t stack_remaining(void) {
+  return INT_MAX;
+}
 #else
 static intptr_t stack_remaining(void) {
   return INTPTR_MAX;
@@ -64,7 +69,7 @@ static intptr_t stack_remaining(void) {
 
 #ifdef _KERNEL
 
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__) || defined(_WIN32)
 #if defined(__i386__)
 #define	JMP_BUF_CNT	6
 #elif defined(__x86_64__)
@@ -85,6 +90,11 @@ static intptr_t stack_remaining(void) {
 #define JMP_BUF_CNT     64
 #else
 #define	JMP_BUF_CNT	1
+#endif
+
+#if defined(_WIN32)
+#undef JMP_BUF_CNT
+#define	JMP_BUF_CNT	1 // Until linking is figured out
 #endif
 
 typedef	struct _label_t { long long unsigned val[JMP_BUF_CNT]; } label_t;
@@ -187,7 +197,6 @@ l_noret luaD_throw (lua_State *L, int errcode) {
     }
   }
 }
-
 
 int luaD_rawrunprotected (lua_State *L, Pfunc f, void *ud) {
   unsigned short oldnCcalls = L->nCcalls;

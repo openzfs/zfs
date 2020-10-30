@@ -186,6 +186,7 @@ typedef enum {
 	ZFS_PROP_IVSET_GUID,		/* not exposed to the user */
 	ZFS_PROP_REDACTED,
 	ZFS_PROP_REDACT_SNAPS,
+        ZFS_PROP_MIMIC,                 /* Windows: mimic=ntfs */
 	ZFS_NUM_PROPS
 } zfs_prop_t;
 
@@ -1179,7 +1180,15 @@ typedef struct ddt_histogram {
 
 #define	ZVOL_DRIVER	"zvol"
 #define	ZFS_DRIVER	"zfs"
+
+#if defined(_WIN32)
+#define	ZFS_DEV		"\\\\.\\ZFS"
+#define	ZFS_DEV_DOS	L"\\DosDevices\\Global\\ZFS"
+#define	ZFS_DEV_KERNEL	L"\\Device\\ZFSCTL"
+#define	ZFS_GLOBAL_FS_DISK_DEVICE_NAME	L"\\ZFS"
+#else
 #define	ZFS_DEV		"/dev/zfs"
+#endif
 
 #define	ZFS_SUPER_MAGIC	0x2fc12fc1
 
@@ -1234,7 +1243,7 @@ typedef enum zfs_ioc {
 	/*
 	 * Core features - 81/128 numbers reserved.
 	 */
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__) || defined(_WIN32)
 	ZFS_IOC_FIRST =	0,
 #else
 	ZFS_IOC_FIRST =	('Z' << 8),
@@ -1338,6 +1347,9 @@ typedef enum zfs_ioc {
 	ZFS_IOC_UNJAIL,				/* 0x86 (FreeBSD) */
 	ZFS_IOC_SET_BOOTENV,			/* 0x87 */
 	ZFS_IOC_GET_BOOTENV,			/* 0x88 */
+	ZFS_IOC_UNREGISTER_FS,			/* 0x89 (Windows) */
+	ZFS_IOC_MOUNT,				/* 0x8a (Windows) */
+	ZFS_IOC_UNMOUNT,			/* 0x8b (Windows) */
 	ZFS_IOC_LAST
 } zfs_ioc_t;
 

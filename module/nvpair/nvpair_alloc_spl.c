@@ -27,6 +27,7 @@
 #include <sys/nvpair.h>
 #include <sys/kmem.h>
 #include <sys/vmem.h>
+#include <sys/zfs_context_os.h>
 
 static void *
 nv_alloc_sleep_spl(nv_alloc_t *nva, size_t size)

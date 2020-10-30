@@ -229,7 +229,7 @@ extern "C" {
 /*-****************************************
 *  Compiler specifics
 ******************************************/
-#if defined(_MSC_VER)   /* Visual Studio */
+#if defined(_MSC_VER)  && !defined(__clang__)  /* Visual Studio */
 #   include <stdlib.h>  /* _byteswap_ulong */
 #   include <intrin.h>  /* _byteswap_* */
 #endif
@@ -477,8 +477,8 @@ MEM_STATIC void MEM_write64(void* memPtr, U64 value)
 
 MEM_STATIC U32 MEM_swap32(U32 in)
 {
-#if defined(_MSC_VER)     /* Visual Studio */
-    return _byteswap_ulong(in);
+#if defined(_MSC_VER) && !defined(__clang__)    /* Visual Studio */
+    return _byteswap_ulong(in); asd=;
 #elif (defined (__GNUC__) && (__GNUC__ * 100 + __GNUC_MINOR__ >= 403)) \
   || (defined(__clang__) && __has_builtin(__builtin_bswap32))
     return __builtin_bswap32(in);
@@ -492,7 +492,7 @@ MEM_STATIC U32 MEM_swap32(U32 in)
 
 MEM_STATIC U64 MEM_swap64(U64 in)
 {
-#if defined(_MSC_VER)     /* Visual Studio */
+#if defined(_MSC_VER) && !defined(__clang__)    /* Visual Studio */
     return _byteswap_uint64(in);
 #elif (defined (__GNUC__) && (__GNUC__ * 100 + __GNUC_MINOR__ >= 403)) \
   || (defined(__clang__) && __has_builtin(__builtin_bswap64))
@@ -1261,7 +1261,7 @@ extern "C" {
 #  define PREFETCH_L1(ptr)  (void)(ptr)  /* disabled */
 #  define PREFETCH_L2(ptr)  (void)(ptr)  /* disabled */
 #else
-#  if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_I86))  /* _mm_prefetch() is not defined outside of x86/x64 */
+#  if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_I86)) && !defined(__clang__) /* _mm_prefetch() is not defined outside of x86/x64 */
 #    include <mmintrin.h>   /* https://msdn.microsoft.com/fr-fr/library/84szxsww(v=vs.90).aspx */
 #    define PREFETCH_L1(ptr)  _mm_prefetch((const char*)(ptr), _MM_HINT_T0)
 #    define PREFETCH_L2(ptr)  _mm_prefetch((const char*)(ptr), _MM_HINT_T1)
@@ -1314,7 +1314,7 @@ extern "C" {
 #endif
 
 /* disable warnings */
-#ifdef _MSC_VER    /* Visual Studio */
+#if defined(_MSC_VER) && !defined(__clang__)    /* Visual Studio */
 #  include <intrin.h>                    /* For Visual 2005 */
 #  pragma warning(disable : 4100)        /* disable: C4100: unreferenced formal parameter */
 #  pragma warning(disable : 4127)        /* disable: C4127: conditional expression is constant */
@@ -1436,7 +1436,7 @@ MEM_STATIC unsigned BIT_highbit32 (U32 val)
 {
     assert(val != 0);
     {
-#   if defined(_MSC_VER)   /* Visual */
+#   if defined(_MSC_VER) && !defined(__clang__)  /* Visual */
         unsigned long r=0;
         return _BitScanReverse ( &r, val ) ? (unsigned)r : 0;
 #   elif defined(__GNUC__) && (__GNUC__ >= 3)   /* Use GCC Intrinsic */
@@ -5657,8 +5657,8 @@ static U64 XXH_read64(const void* memPtr)
 #  define XXH_rotl64(x,r) ((x << r) | (x >> (64 - r)))
 #endif
 
-#if defined(_MSC_VER)     /* Visual Studio */
-#  define XXH_swap32 _byteswap_ulong
+#if defined(_MSC_VER)   && !defined(__clang__)  /* Visual Studio */
+#  define XXH_swap32 _byteswap_ulong qwe;
 #  define XXH_swap64 _byteswap_uint64
 #elif GCC_VERSION >= 403
 #  define XXH_swap32 __builtin_bswap32
@@ -6690,7 +6690,7 @@ MEM_STATIC U32 ZSTD_highbit32(U32 val)   /* compress, dictBuilder, decodeCorpus 
 {
     assert(val != 0);
     {
-#   if defined(_MSC_VER)   /* Visual */
+#   if defined(_MSC_VER)  && !defined(__clang__) /* Visual */
         unsigned long r=0;
         return _BitScanReverse(&r, val) ? (unsigned)r : 0;
 #   elif defined(__GNUC__) && (__GNUC__ >= 3)   /* GCC Intrinsic */
@@ -10408,7 +10408,7 @@ static unsigned ZSTD_NbCommonBytes (size_t val)
 {
     if (MEM_isLittleEndian()) {
         if (MEM_64bits()) {
-#       if defined(_MSC_VER) && defined(_WIN64)
+#       if defined(_MSC_VER) && defined(_WIN64) && !defined(__clang__)
             unsigned long r = 0;
             return _BitScanForward64( &r, (U64)val ) ? (unsigned)(r >> 3) : 0;
 #       elif defined(__GNUC__) && (__GNUC__ >= 4)
@@ -10425,7 +10425,7 @@ static unsigned ZSTD_NbCommonBytes (size_t val)
             return DeBruijnBytePos[((U64)((val & -(long long)val) * 0x0218A392CDABBD3FULL)) >> 58];
 #       endif
         } else { /* 32 bits */
-#       if defined(_MSC_VER)
+#       if defined(_MSC_VER) && !defined(__clang__)
             unsigned long r=0;
             return _BitScanForward( &r, (U32)val ) ? (unsigned)(r >> 3) : 0;
 #       elif defined(__GNUC__) && (__GNUC__ >= 3)
@@ -10440,7 +10440,7 @@ static unsigned ZSTD_NbCommonBytes (size_t val)
         }
     } else {  /* Big Endian CPU */
         if (MEM_64bits()) {
-#       if defined(_MSC_VER) && defined(_WIN64)
+#       if defined(_MSC_VER) && defined(_WIN64) && !defined(__clang__)
             unsigned long r = 0;
             return _BitScanReverse64( &r, val ) ? (unsigned)(r >> 3) : 0;
 #       elif defined(__GNUC__) && (__GNUC__ >= 4)
@@ -10454,7 +10454,7 @@ static unsigned ZSTD_NbCommonBytes (size_t val)
             return r;
 #       endif
         } else { /* 32 bits */
-#       if defined(_MSC_VER)
+#       if defined(_MSC_VER) && !defined(__clang__)
             unsigned long r = 0;
             return _BitScanReverse( &r, (unsigned long)val ) ? (unsigned)(r >> 3) : 0;
 #       elif defined(__GNUC__) && (__GNUC__ >= 3)
@@ -12591,7 +12591,7 @@ size_t ZSTD_compressSuperBlock(ZSTD_CCtx* zc,
 
 /**** skipping file: mem.h ****/
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(__clang__)
 #include <intrin.h>
 #endif
 
@@ -12607,7 +12607,7 @@ MEM_STATIC ZSTD_cpuid_t ZSTD_cpuid(void) {
     U32 f1d = 0;
     U32 f7b = 0;
     U32 f7c = 0;
-#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
+#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86)) && !defined(__clang__)
     int reg[4];
     __cpuid((int*)reg, 0);
     {

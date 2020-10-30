@@ -1400,6 +1400,27 @@ zfs_ereport_fini(void)
 	mutex_destroy(&recent_events_lock);
 }
 
+void
+zfs_ereport_snapshot_post(const char *subclass, spa_t *spa, const char *name)
+{
+#ifdef _KERNEL
+	nvlist_t *ereport = NULL;
+	nvlist_t *detector = NULL;
+
+	zfs_ereport_start(&ereport, &detector,
+	    subclass,
+	    spa, NULL, NULL, NULL, 0, 0);
+
+	if (ereport == NULL)
+		return;
+
+	VERIFY0(nvlist_add_string(ereport, "snapshot_name", name));
+
+	/* Cleanup is handled by the callback function */
+	zfs_zevent_post(ereport, detector, zfs_zevent_post_cb);
+#endif
+}
+
 EXPORT_SYMBOL(zfs_ereport_post);
 EXPORT_SYMBOL(zfs_ereport_is_valid);
 EXPORT_SYMBOL(zfs_ereport_post_checksum);

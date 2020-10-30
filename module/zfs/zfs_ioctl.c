@@ -6759,7 +6759,7 @@ error:
 
 static zfs_ioc_vec_t zfs_ioc_vec[ZFS_IOC_LAST - ZFS_IOC_FIRST];
 
-static void
+void
 zfs_ioctl_register_legacy(zfs_ioc_t ioc, zfs_ioc_legacy_func_t *func,
     zfs_secpolicy_func_t *secpolicy, zfs_ioc_namecheck_t namecheck,
     boolean_t log_history, zfs_ioc_poolcheck_t pool_check)

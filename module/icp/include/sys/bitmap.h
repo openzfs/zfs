@@ -40,6 +40,10 @@ extern "C" {
 #include <asm/bitmap.h>
 #endif
 
+#ifdef _WIN32
+typedef short index_t;
+#endif
+
 /*
  * Operations on bitmaps of arbitrary size
  * A bitmap is a vector of 1 or more ulong_t's.

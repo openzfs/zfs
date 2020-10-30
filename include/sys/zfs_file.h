@@ -29,6 +29,8 @@ typedef struct zfs_file {
 } zfs_file_t;
 #elif defined(__linux__) || defined(__FreeBSD__)
 typedef struct file zfs_file_t;
+#elif defined(_WIN32)
+typedef struct spl_fileproc zfs_file_t;
 #else
 #error "unknown OS"
 #endif

@@ -229,7 +229,9 @@ static aes_impl_ops_t aes_fastest_impl = {
 const aes_impl_ops_t *aes_all_impl[] = {
 	&aes_generic_impl,
 #if defined(__x86_64)
+#ifndef _WIN32 // No assembler until linking is figured out
 	&aes_x86_64_impl,
+#endif
 #endif
 #if defined(__x86_64) && defined(HAVE_AES)
 	&aes_aesni_impl,
@@ -314,7 +316,7 @@ aes_impl_init(void)
 	 * Set the fastest implementation given the assumption that the
 	 * hardware accelerated version is the fastest.
 	 */
-#if defined(__x86_64)
+#if defined(__x86_64) && !defined(_WIN32) // Until linking can be figured out
 #if defined(HAVE_AES)
 	if (aes_aesni_impl.is_supported()) {
 		memcpy(&aes_fastest_impl, &aes_aesni_impl,

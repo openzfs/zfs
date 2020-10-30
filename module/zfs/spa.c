@@ -1015,6 +1015,8 @@ spa_taskqs_init(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
 				pri++;
 #elif defined(__FreeBSD__)
 				pri += 4;
+#elif defined(_WIN32)
+				pri++;
 #else
 #error "unknown OS"
 #endif
@@ -1255,6 +1257,10 @@ spa_activate(spa_t *spa, spa_mode_t mode)
 	    spa_error_entry_compare, sizeof (spa_error_entry_t),
 	    offsetof(spa_error_entry_t, se_avl));
 
+#if defined(_KERNEL) && defined(_WIN32)
+        spa_activate_os(spa);
+#endif
+
 	spa_keystore_init(&spa->spa_keystore);
 
 	/*
@@ -1388,6 +1394,9 @@ spa_deactivate(spa_t *spa)
 		thread_join(spa->spa_did);
 		spa->spa_did = 0;
 	}
+#if defined(_KERNEL) && defined(_WIN32)
+	spa_deactivate_os(spa);
+#endif
 }
 
 /*

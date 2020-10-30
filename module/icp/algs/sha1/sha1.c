@@ -41,6 +41,10 @@
 #define	HAVE_HTONL
 #endif
 
+#ifdef _WIN32 // No assembler until linking is figured out
+#undef __amd64
+#endif
+
 #define	_RESTRICT_KYWD
 
 static void Encode(uint8_t *, const uint32_t *, size_t);
