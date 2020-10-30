@@ -67,15 +67,14 @@
 #include <sys/dnlc.h>
 //#include <sys/var.h>
 #include <sys/debug.h>
-#include <sys/kobj.h>
 #include <sys/avl.h>
 //#include <sys/pool_pset.h>
 #include <sys/cpupart.h>
 #include <sys/zone.h>
 //#include <sys/loadavg.h>
 //#include <vm/page.h>
-#include <vm/anon.h>
-#include <vm/seg_kmem.h>
+//#include <vm/anon.h>
+#include <sys/seg_kmem.h>
 
 #include <Trace.h>
 
@@ -145,6 +144,288 @@ typedef struct ekstat {
 	kstat_zone_t	e_zone;		/* zone to export stats to */
 } ekstat_t;
 
+struct sbuf {
+        char            *s_buf;         /* storage buffer */
+        void            *s_unused;      /* binary compatibility. */
+        int              s_size;        /* size of storage buffer */
+        int              s_len;         /* current length of string */
+#define SBUF_FIXEDLEN   0x00000000      /* fixed length buffer (default) */
+#define SBUF_AUTOEXTEND 0x00000001      /* automatically extend buffer */
+#define SBUF_USRFLAGMSK 0x0000ffff      /* mask of flags the user may specify */
+#define SBUF_DYNAMIC    0x00010000      /* s_buf must be freed */
+#define SBUF_FINISHED   0x00020000      /* set by sbuf_finish() */
+#define SBUF_OVERFLOWED 0x00040000      /* sbuf overflowed */
+#define SBUF_DYNSTRUCT  0x00080000      /* sbuf must be freed */
+        int              s_flags;       /* flags */
+};
+
+/* sbuf_new() and family does exist in XNU, but Apple wont let us call them */
+#define M_SBUF          105 /* string buffers */
+#define SBMALLOC(size)  (struct sbuf *)ExAllocatePoolWithTag(NonPagedPoolNx, (size), '!SFZ')
+#define SBFREE(buf)     ExFreePoolWithTag((buf), '!SFZ')
+
+#define SBUF_SETFLAG(s, f)      do { (s)->s_flags |= (f); } while (0)
+#define SBUF_CLEARFLAG(s, f)    do { (s)->s_flags &= ~(f); } while (0)
+#define SBUF_ISDYNAMIC(s)       ((s)->s_flags & SBUF_DYNAMIC)
+#define SBUF_ISDYNSTRUCT(s)     ((s)->s_flags & SBUF_DYNSTRUCT)
+#define SBUF_HASOVERFLOWED(s)   ((s)->s_flags & SBUF_OVERFLOWED)
+#define SBUF_HASROOM(s)         ((s)->s_len < (s)->s_size - 1)
+#define SBUF_FREESPACE(s)       ((s)->s_size - (s)->s_len - 1)
+#define SBUF_CANEXTEND(s)       ((s)->s_flags & SBUF_AUTOEXTEND)
+
+#define SBUF_MINEXTENDSIZE      16      /* Should be power of 2. */
+#define SBUF_MAXEXTENDSIZE      PAGE_SIZE
+#define SBUF_MAXEXTENDINCR      PAGE_SIZE
+
+void
+sbuf_finish(struct sbuf *s)
+{
+        s->s_buf[s->s_len] = '\0';
+        SBUF_CLEARFLAG(s, SBUF_OVERFLOWED);
+        SBUF_SETFLAG(s, SBUF_FINISHED);
+}
+
+char *
+sbuf_data(struct sbuf *s)
+{
+        return (s->s_buf);
+}
+
+int
+sbuf_len(struct sbuf *s)
+{
+        if (SBUF_HASOVERFLOWED(s)) {
+                return (-1);
+        }
+        return (s->s_len);
+}
+
+void
+sbuf_delete(struct sbuf *s)
+{
+        int isdyn;
+        if (SBUF_ISDYNAMIC(s)) {
+                SBFREE(s->s_buf);
+        }
+        isdyn = SBUF_ISDYNSTRUCT(s);
+        bzero(s, sizeof (*s));
+        if (isdyn) {
+                SBFREE(s);
+        }
+}
+
+static int
+sbuf_extendsize(int size)
+{
+        int newsize;
+
+        newsize = SBUF_MINEXTENDSIZE;
+        while (newsize < size) {
+                if (newsize < (int)SBUF_MAXEXTENDSIZE) {
+                        newsize *= 2;
+                } else {
+                        newsize += SBUF_MAXEXTENDINCR;
+                }
+        }
+
+        return (newsize);
+}
+
+static int
+sbuf_extend(struct sbuf *s, int addlen)
+{
+        char *newbuf;
+        int newsize;
+
+        if (!SBUF_CANEXTEND(s)) {
+                return (-1);
+        }
+
+        newsize = sbuf_extendsize(s->s_size + addlen);
+        newbuf = (char *)SBMALLOC(newsize);
+        if (newbuf == NULL) {
+                return (-1);
+        }
+        bcopy(s->s_buf, newbuf, s->s_size);
+        if (SBUF_ISDYNAMIC(s)) {
+                SBFREE(s->s_buf);
+        } else {
+                SBUF_SETFLAG(s, SBUF_DYNAMIC);
+        }
+        s->s_buf = newbuf;
+        s->s_size = newsize;
+        return (0);
+}
+
+struct sbuf *
+sbuf_new(struct sbuf *s, char *buf, int length, int flags)
+{
+        flags &= SBUF_USRFLAGMSK;
+        if (s == NULL) {
+                s = (struct sbuf *)SBMALLOC(sizeof (*s));
+                if (s == NULL) {
+                        return (NULL);
+                }
+                bzero(s, sizeof (*s));
+                s->s_flags = flags;
+                SBUF_SETFLAG(s, SBUF_DYNSTRUCT);
+        } else {
+                bzero(s, sizeof (*s));
+                s->s_flags = flags;
+        }
+        s->s_size = length;
+        if (buf) {
+                s->s_buf = buf;
+                return (s);
+        }
+        if (flags & SBUF_AUTOEXTEND) {
+                s->s_size = sbuf_extendsize(s->s_size);
+        }
+        s->s_buf = (char *)SBMALLOC(s->s_size);
+        if (s->s_buf == NULL) {
+                if (SBUF_ISDYNSTRUCT(s)) {
+                        SBFREE(s);
+                }
+                return (NULL);
+        }
+        SBUF_SETFLAG(s, SBUF_DYNAMIC);
+        return (s);
+}
+
+#define va_copy(A,B)	A = B
+
+int
+sbuf_vprintf(struct sbuf *s, const char *fmt, va_list ap)
+{
+        __builtin_va_list ap_copy; 
+        int len;
+
+        if (SBUF_HASOVERFLOWED(s)) {
+                return (-1);
+        }
+
+        do {
+                va_copy(ap_copy, ap);
+                len = vsnprintf(&s->s_buf[s->s_len], SBUF_FREESPACE(s) + 1,
+                    fmt, ap_copy);
+                // va_end(ap_copy); // left-side must be assignable. Win tries to set to 0.
+        } while (len > SBUF_FREESPACE(s) &&
+            sbuf_extend(s, len - SBUF_FREESPACE(s)) == 0);
+        s->s_len += min(len, SBUF_FREESPACE(s));
+        if (!SBUF_HASROOM(s) && !SBUF_CANEXTEND(s)) {
+                SBUF_SETFLAG(s, SBUF_OVERFLOWED);
+        }
+
+        if (SBUF_HASOVERFLOWED(s)) {
+                return (-1);
+        }
+        return (0);
+}
+
+int
+sbuf_printf(struct sbuf *s, const char *fmt, ...)
+{
+        va_list ap;
+        int result;
+
+        va_start(ap, fmt);
+        result = sbuf_vprintf(s, fmt, ap);
+        va_end(ap);
+        return (result);
+}
+
+static int
+kstat_default_update(kstat_t *ksp, int rw)
+{
+        ASSERT(ksp != NULL);
+
+        if (rw == KSTAT_WRITE)
+                return (EACCES);
+
+        return (0);
+}
+
+static int
+kstat_resize_raw(kstat_t *ksp)
+{
+        if (ksp->ks_raw_bufsize == KSTAT_RAW_MAX)
+                return (ENOMEM);
+
+        SBMFREE(ksp->ks_raw_buf, ksp->ks_raw_bufsize);
+        ksp->ks_raw_bufsize = MIN(ksp->ks_raw_bufsize * 2, KSTAT_RAW_MAX);
+        ksp->ks_raw_buf = SBMALLOC(ksp->ks_raw_bufsize);
+
+        return (0);
+}
+
+static void *
+kstat_raw_default_addr(kstat_t *ksp, loff_t n)
+{
+        if (n == 0)
+                return (ksp->ks_data);
+        return (NULL);
+}
+
+#define HD_COLUMN_MASK  0xff
+#define HD_DELIM_MASK   0xff00
+#define HD_OMIT_COUNT   (1 << 16)
+#define HD_OMIT_HEX     (1 << 17)
+#define HD_OMIT_CHARS   (1 << 18)
+
+void
+sbuf_hexdump(struct sbuf *sb, const void *ptr, int length, const char *hdr,
+    int flags)
+{
+        int i, j, k;
+        int cols;
+        const unsigned char *cp;
+        char delim;
+
+        if ((flags & HD_DELIM_MASK) != 0)
+                delim = (flags & HD_DELIM_MASK) >> 8;
+        else
+                delim = ' ';
+
+        if ((flags & HD_COLUMN_MASK) != 0)
+                cols = flags & HD_COLUMN_MASK;
+        else
+                cols = 16;
+
+        cp = ptr;
+        for (i = 0; i < length; i += cols) {
+                if (hdr != NULL)
+                        sbuf_printf(sb, "%s", hdr);
+
+                if ((flags & HD_OMIT_COUNT) == 0)
+                        sbuf_printf(sb, "%04x  ", i);
+
+                if ((flags & HD_OMIT_HEX) == 0) {
+                        for (j = 0; j < cols; j++) {
+                                k = i + j;
+                                if (k < length)
+                                        sbuf_printf(sb, "%c%02x", delim, cp[k]);
+                                else
+                                        sbuf_printf(sb, "   ");
+                        }
+                }
+
+                if ((flags & HD_OMIT_CHARS) == 0) {
+                        sbuf_printf(sb, "  |");
+                        for (j = 0; j < cols; j++) {
+                                k = i + j;
+                                if (k >= length)
+                                        sbuf_printf(sb, " ");
+                                else if (cp[k] >= ' ' && cp[k] <= '~')
+                                        sbuf_printf(sb, "%c", cp[k]);
+                                else
+                                        sbuf_printf(sb, ".");
+                        }
+                        sbuf_printf(sb, "|");
+                }
+                sbuf_printf(sb, "\n");
+        }
+}
+
 static uint64_t kstat_initial[8192];
 static void *kstat_initial_ptr = kstat_initial;
 static size_t kstat_initial_avail = sizeof(kstat_initial);
@@ -185,6 +466,9 @@ static struct {
 
 static int header_kstat_update(kstat_t *, int);
 static int header_kstat_snapshot(kstat_t *, void *, int);
+
+
+
 
 int
 kstat_zone_find(kstat_t *k, zoneid_t zoneid)
@@ -547,7 +831,7 @@ default_kstat_update(kstat_t *ksp, int rw)
 static int
 default_kstat_snapshot(kstat_t *ksp, void *buf, int rw)
 {
-	kstat_io_t *kiop;
+	// kstat_io_t *kiop;
 	hrtime_t cur_time;
 	size_t	namedsz;
 
@@ -652,7 +936,7 @@ header_kstat_update(kstat_t *header_ksp, int rw)
 
 	ASSERT(MUTEX_HELD(&kstat_chain_lock));
 
-	zoneid = getzoneid();
+	zoneid = crgetzoneid();
 	for (e = avl_first(t); e != NULL; e = avl_walk(t, e, AVL_AFTER)) {
 		if (kstat_zone_find((kstat_t *)e, zoneid) &&
 			(e->e_ks.ks_flags & KSTAT_FLAG_INVALID) == 0) {
@@ -683,7 +967,7 @@ header_kstat_snapshot(kstat_t *header_ksp, void *buf, int rw)
 
 	ASSERT(MUTEX_HELD(&kstat_chain_lock));
 
-	zoneid = getzoneid();
+	zoneid = crgetzoneid();
 	for (e = avl_first(t); e != NULL; e = avl_walk(t, e, AVL_AFTER)) {
 		if (kstat_zone_find((kstat_t *)e, zoneid) &&
 			(e->e_ks.ks_flags & KSTAT_FLAG_INVALID) == 0) {
@@ -1244,13 +1528,12 @@ kstat_timer_stop(kstat_timer_t *ktp)
 #include <sys/ddi.h>
 #include <sys/sunddi.h>
 //#include <sys/modctl.h>
-#include <sys/kobj.h>
 #include <sys/kstat.h>
 #include <sys/atomic.h>
 #include <sys/policy.h>
 #include <sys/zone.h>
 
-static dev_info_t *kstat_devi;
+// static dev_info_t *kstat_devi;
 
 static int
 read_kstat_data(int *rvalp, void *user_ksp, int flag)
@@ -1282,7 +1565,7 @@ read_kstat_data(int *rvalp, void *user_ksp, int flag)
 			return (EFAULT);
 	}
 
-	ksp = kstat_hold_bykid(user_kstat.ks_kid, getzoneid());
+	ksp = kstat_hold_bykid(user_kstat.ks_kid, crgetzoneid());
 	if (ksp == NULL) {
 		/*
 		* There is no kstat with the specified KID
@@ -1655,7 +1938,7 @@ write_kstat_data(int *rvalp, void *user_ksp, int flag, cred_t *cred)
 		return (EFAULT);
 	}
 
-	ksp = kstat_hold_bykid(user_kstat.ks_kid, getzoneid());
+	ksp = kstat_hold_bykid(user_kstat.ks_kid, crgetzoneid());
 	if (ksp == NULL) {
 		kmem_free(buf, bufsize + 1);
 		return (ENXIO);
@@ -1905,12 +2188,26 @@ spl_kstat_fini()
 	mutex_destroy(&kstat_chain_lock);
 }
 
-
-void kstat_set_raw_ops(kstat_t *ksp,
-	int(*headers)(char *buf, size_t size),
-	int(*data)(char *buf, size_t size, void *data),
-	void *(*addr)(kstat_t *ksp, off_t index))
+void
+__kstat_set_raw_ops(kstat_t *ksp,
+    int (*headers)(char *buf, size_t size),
+    int (*data)(char *buf, size_t size, void *data),
+    void *(*addr)(kstat_t *ksp, loff_t index))
 {
+	ksp->ks_raw_ops.headers = headers;
+	ksp->ks_raw_ops.data    = data;
+	ksp->ks_raw_ops.addr    = addr;
+}
+
+void
+__kstat_set_seq_raw_ops(kstat_t *ksp,
+    int (*headers)(struct seq_file *f),
+    int (*data)(char *buf, size_t size, void *data),
+    void *(*addr)(kstat_t *ksp, loff_t index))
+{
+	ksp->ks_raw_ops.seq_headers = headers;
+	ksp->ks_raw_ops.data = data;
+	ksp->ks_raw_ops.addr = addr;
 }
 
 int spl_kstat_chain_id(PDEVICE_OBJECT DiskDevice, PIRP Irp, PIO_STACK_LOCATION IrpSp)
@@ -1926,7 +2223,7 @@ int spl_kstat_chain_id(PDEVICE_OBJECT DiskDevice, PIRP Irp, PIO_STACK_LOCATION I
 
 int spl_kstat_read(PDEVICE_OBJECT DiskDevice, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
-	int rval, rc;
+	int rc;
 	kstat_t *ksp;
 	ksp = (kstat_t *)IrpSp->Parameters.DeviceIoControl.Type3InputBuffer;
 	rc = read_kstat_data(&ksp->ks_returnvalue, (void *)ksp, 0);
@@ -1935,7 +2232,7 @@ int spl_kstat_read(PDEVICE_OBJECT DiskDevice, PIRP Irp, PIO_STACK_LOCATION IrpSp
 
 int spl_kstat_write(PDEVICE_OBJECT DiskDevice, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
-	int rval, rc;
+	int rc;
 	kstat_t *ksp;
 	ksp = (kstat_t *)IrpSp->Parameters.DeviceIoControl.Type3InputBuffer;
 	rc = write_kstat_data(&ksp->ks_returnvalue, (void *)ksp, 0, NULL);

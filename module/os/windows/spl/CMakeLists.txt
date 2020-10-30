@@ -1,13 +1,11 @@
 wdk_add_library(splkern
   spl-atomic.c
-  spl-avl.c
   spl-condvar.c
   spl-cred.c
   spl-ddi.c
   spl-debug.c
   spl-err.c
   spl-kmem.c
-  spl-kobj.c
   spl-kstat.c
   spl-list.c
   spl-md5.c
@@ -16,6 +14,7 @@ wdk_add_library(splkern
   spl-policy.c
   spl-proc.c
   spl-processor.c
+  spl-proc_list.c
   spl-rwlock.c
   spl-seg_kmem.c
   spl-taskq.c
@@ -28,5 +27,4 @@ wdk_add_library(splkern
   spl-windows.c
   spl-xdr.c
 )
-
-target_include_directories(splkern BEFORE PUBLIC ../../include)
+target_include_directories(splkern BEFORE PUBLIC "${CMAKE_SOURCE_DIR}/include/os/windows/" PUBLIC "${CMAKE_SOURCE_DIR}/include/os/windows/spl")

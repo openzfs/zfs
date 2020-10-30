@@ -604,8 +604,9 @@ ddi_strcspn(const char * __restrict s, const char * __restrict charset)
 	return (uint32_t)(s1 - s);
 }
 
-extern uint32_t
-strlcpy(register char* s, register const char* t, register uint32_t n)
+#ifndef __clong__
+extern size_t
+strlcpy(char *s, const char *t, size_t n)
 {
 	const char*     o = t;
 
@@ -623,8 +624,8 @@ strlcpy(register char* s, register const char* t, register uint32_t n)
 		return (uint32_t)(t - o - 1);
 }
 
-extern uint32_t
-strlcat(register char* s, register const char* t, register uint32_t n)
+extern size_t
+strlcat(char *s, const char *t, size_t n)
 {
 	register size_t m;
 	const char*     o = t;
@@ -653,3 +654,4 @@ strlcat(register char* s, register const char* t, register uint32_t n)
 		while (*t++);
 	return (t - o) + m - 1;
 }
+#endif

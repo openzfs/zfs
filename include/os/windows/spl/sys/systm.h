@@ -37,7 +37,7 @@ static inline void bsd_untimeout(void(*func)(void *), void *ID)
 	* change the timeout to be now, so that the threads can exit.
 	*/
 	struct bsd_timeout_wrapper *btw = (struct bsd_timeout_wrapper *)ID;
-	LARGE_INTEGER p = { -1 };
+	LARGE_INTEGER p = { .QuadPart = -1 };
 	btw->init = 0;
 	// Investigate why this assert triggers on Unload
 	//ASSERT(btw->init == BSD_TIMEOUT_MAGIC); // timer was not initialized 
@@ -63,7 +63,7 @@ static inline void bsd_timeout(void *FUNC, void *ID, struct timespec *TIM)
 		func((ID));
 	} else {
 		/* Another option would have been to use taskq, as it can cancel */
-		thread_create(NULL, 0, bsd_timeout_handler, ID, 0, &p0,
+		thread_create(NULL, 0, bsd_timeout_handler, ID, 0, NULL,
 			TS_RUN, minclsyspri);
 	}
 }

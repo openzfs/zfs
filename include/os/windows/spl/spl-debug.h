@@ -45,7 +45,7 @@
 //#include <linux/limits.h>
 //#include <machine/limits.h>
 //#include <linux/sched.h>
-#include <osx/sched.h>
+#include <sys/sched.h>
 #ifdef  __cplusplus
 // To make C++ happier about strnlen in kcdata.h
 extern "C" {

@@ -86,7 +86,7 @@ int
 vn_open(char *pnamep, enum uio_seg seg, int filemode, int createmode,
         struct vnode **vpp, enum create crwhy, mode_t umask)
 {
-    vfs_context_t *vctx;
+    // vfs_context_t *vctx;
     int fmode;
     int error=0;
 
@@ -107,7 +107,7 @@ vn_openat(char *pnamep, enum uio_seg seg, int filemode, int createmode,
           mode_t umask, struct vnode *startvp)
 {
     char *path;
-    int pathlen = MAXPATHLEN;
+    // int pathlen = MAXPATHLEN;
     int error=0;
 
     path = (char *)kmem_zalloc(MAXPATHLEN, KM_SLEEP);
@@ -138,7 +138,7 @@ vnode_rename(const char *from, const char *to, int flags, vfs_context_t *vctx)
 int
 vn_rename(char *from, char *to, enum uio_seg seg)
 {
-    vfs_context_t *vctx;
+    // vfs_context_t *vctx;
     int error=0;
 
     //vctx = vfs_context_create((vfs_context_t)0);
@@ -170,8 +170,8 @@ vnode_remove(const char *name, int flag, enum vtype type, vfs_context_t *vctx)
 int
 vn_remove(char *fnamep, enum uio_seg seg, enum rm dirflag)
 {
-    vfs_context_t *vctx;
-    enum vtype type;
+    // vfs_context_t *vctx;
+    // enum vtype type;
     int error=0;
 
     //type = dirflag == RMDIRECTORY ? VDIR : VREG;
@@ -189,10 +189,10 @@ int zfs_vn_rdwr(enum uio_rw rw, struct vnode *vp, caddr_t base, ssize_t len,
                 offset_t offset, enum uio_seg seg, int ioflag, rlim64_t ulimit,
                 cred_t *cr, ssize_t *residp)
 {
-    uio_t *auio;
-    int spacetype;
+    // uio_t *auio;
+    // int spacetype;
     int error=0;
-    vfs_context_t *vctx;
+    // vfs_context_t *vctx;
 
     //spacetype = UIO_SEG_IS_USER_SPACE(seg) ? UIO_USERSPACE32 : UIO_SYSSPACE;
 
@@ -223,8 +223,8 @@ int zfs_vn_rdwr(enum uio_rw rw, struct vnode *vp, caddr_t base, ssize_t len,
 int kernel_ioctl(PDEVICE_OBJECT DeviceObject, long cmd, void *inbuf, uint32_t inlen,
 	void *outbuf, uint32_t outlen)
 {
-	NTSTATUS status;
-	PFILE_OBJECT        FileObject;
+	// NTSTATUS status;
+	// PFILE_OBJECT        FileObject;
 
 	dprintf("%s: trying to send kernel ioctl %x\n", __func__, cmd);
 
@@ -232,7 +232,7 @@ int kernel_ioctl(PDEVICE_OBJECT DeviceObject, long cmd, void *inbuf, uint32_t in
 	KEVENT Event;
 	PIRP Irp;
 	NTSTATUS Status;
-	ULONG Remainder;
+	// ULONG Remainder;
 	PAGED_CODE();
 
 	/* Build the information IRP */
@@ -273,7 +273,7 @@ int blk_queue_discard(PDEVICE_OBJECT dev)
 	spqTrim.PropertyId = (STORAGE_PROPERTY_ID)StorageDeviceTrimProperty;
 	spqTrim.QueryType = PropertyStandardQuery;
 
-	DWORD bytesReturned = 0;
+	// DWORD bytesReturned = 0;
 	DEVICE_TRIM_DESCRIPTOR dtd = { 0 };
 
 	if (kernel_ioctl(dev, IOCTL_STORAGE_QUERY_PROPERTY,
@@ -293,7 +293,7 @@ int blk_queue_nonrot(PDEVICE_OBJECT dev)
 	STORAGE_PROPERTY_QUERY spqSeekP;
 	spqSeekP.PropertyId = (STORAGE_PROPERTY_ID)StorageDeviceSeekPenaltyProperty;
 	spqSeekP.QueryType = PropertyStandardQuery;
-	DWORD bytesReturned = 0;
+	// DWORD bytesReturned = 0;
 	DEVICE_SEEK_PENALTY_DESCRIPTOR dspd = { 0 };
 	if (kernel_ioctl(dev, IOCTL_STORAGE_QUERY_PROPERTY,
 		&spqSeekP, sizeof(spqSeekP), &dspd, sizeof(dspd)) == 0) {
@@ -339,7 +339,7 @@ VOP_SPACE(HANDLE h, int cmd, struct flock *fl, int flags, offset_t off,
 {
 	if (cmd == F_FREESP) {
 		NTSTATUS Status;
-		DWORD ret;
+		// DWORD ret;
 		FILE_ZERO_DATA_INFORMATION fzdi;
 		fzdi.FileOffset.QuadPart = fl->l_start;
 		fzdi.BeyondFinalZero.QuadPart = fl->l_start + fl->l_len;
@@ -617,10 +617,35 @@ extern int fo_write(struct fileproc *fp, struct uio *uio, int flags,
 extern int file_vnode_withvid(int, struct vnode **, uint64_t *);
 extern int file_drop(int);
 
-#if ZFS_LEOPARD_ONLY
-#define file_vnode_withvid(a, b, c) file_vnode(a, b)
-#endif
 
+void cache_purgevfs(mount_t *mp)
+{
+}
+
+dev_t
+vnode_specrdev(vnode_t *vp)
+{
+//	return vp->v_rdev;
+	return (0);
+}
+
+void
+cache_purge(vnode_t *vp)
+{
+
+}
+
+void
+cache_purge_negatives(vnode_t *vp)
+{
+
+}
+
+int
+vnode_removefsref(vnode_t *vp)
+{
+	return (0);
+}
 
 /*
  * getf(int fd) - hold a lock on a file descriptor, to be released by calling
@@ -630,12 +655,12 @@ extern int file_drop(int);
 void *getf(uint64_t fd)
 {
 	struct spl_fileproc *sfp = NULL;
-	HANDLE h;
+	// HANDLE h;
 
 #if 1
 	struct fileproc     *fp  = NULL;
-	struct vnode *vp;
-	uint64_t vid;
+	// struct vnode *vp;
+	// uint64_t vid;
 
 	/*
 	 * We keep the "fp" pointer as well, both for unlocking in releasef() and
@@ -654,7 +679,7 @@ void *getf(uint64_t fd)
      * The f_vnode ptr is used to point back to the "sfp" node itself, as it is
      * the only information passed to vn_rdwr.
      */
-	if (ObReferenceObjectByHandle((HANDLE)fd, 0, 0, KernelMode, &fp, 0) != STATUS_SUCCESS) {
+	if (ObReferenceObjectByHandle((HANDLE)fd, 0, 0, KernelMode, (void **)&fp, 0) != STATUS_SUCCESS) {
 		dprintf("%s: failed to get fd %d fp 0x\n", __func__, fd);
 	}
 
@@ -748,10 +773,10 @@ int spl_vn_rdwr(enum uio_rw rw,
                 ssize_t *residp)
 {
     struct spl_fileproc *sfp = (struct spl_fileproc*)vp;
-    uio_t *auio;
-    int spacetype;
+    // uio_t *auio;
+    // int spacetype;
     int error=0;
-    vfs_context_t *vctx;
+    // vfs_context_t *vctx;
 
     //spacetype = UIO_SEG_IS_USER_SPACE(seg) ? UIO_USERSPACE32 : UIO_SYSSPACE;
 
@@ -964,13 +989,18 @@ int vnode_isidle(vnode_t *vp)
 	return 0;
 }
 
+int vnode_iocount(vnode_t *vp)
+{
+	return (vp->v_iocount);
+}
+
 #ifdef DEBUG_IOCOUNT
 int vnode_getwithref(vnode_t *vp, char *file, int line)
 #else
 int vnode_getwithref(vnode_t *vp)
 #endif
 {
-	KIRQL OldIrql;
+	// KIRQL OldIrql;
 	int error = 0;
 #ifdef FIND_MAF
 	ASSERT(!(vp->v_flags & 0x8000));
@@ -1005,7 +1035,7 @@ int vnode_debug_getwithvid(vnode_t *vp, uint64_t id, char *file, int line)
 int vnode_getwithvid(vnode_t *vp, uint64_t id)
 #endif
 {
-	KIRQL OldIrql;
+	// KIRQL OldIrql;
 	int error = 0;
 
 #ifdef FIND_MAF
@@ -1044,7 +1074,7 @@ int vnode_put(vnode_t *vp, char *file, int line)
 int vnode_put(vnode_t *vp)
 #endif
 {
-	KIRQL OldIrql;
+	// KIRQL OldIrql;
 	int calldrain = 0;
 	ASSERT(!(vp->v_flags & VNODE_DEAD));
 	ASSERT(vp->v_iocount > 0);
@@ -1099,7 +1129,7 @@ int vnode_put(vnode_t *vp)
 
 int vnode_recycle_int(vnode_t *vp, int flags)
 {
-	KIRQL OldIrql;
+	// KIRQL OldIrql;
 	ASSERT((vp->v_flags & VNODE_DEAD) == 0);
 
 	// Mark it for recycle, if we are not ROOT.
@@ -1161,7 +1191,7 @@ int vnode_recycle_int(vnode_t *vp, int flags)
 		if (zfs_vnop_reclaim(vp))
 			panic("vnode_recycle: cannot reclaim\n"); // My fav panic from OSX
 
-		KIRQL OldIrql;
+		// KIRQL OldIrql;
 		mutex_enter(&vp->v_mutex);
 		ASSERT(avl_is_empty(&vp->v_fileobjects));
 		// We are all done with it.
@@ -1270,7 +1300,7 @@ vnode_ref(vnode_t *vp)
 void
 vnode_rele(vnode_t *vp)
 {
-	KIRQL OldIrql;
+	// KIRQL OldIrql;
 
 	ASSERT(!(vp->v_flags & VNODE_DEAD));
 	ASSERT(vp->v_iocount > 0);
@@ -1457,7 +1487,7 @@ repeat:
 			mutex_exit(&vnode_all_list_lock);
 
 			// Release the AVL tree
-			KIRQL OldIrql;
+			// KIRQL OldIrql;
 
 			// Attempt to flush out any caches; 
 			mutex_enter(&rvp->v_mutex);
@@ -1598,8 +1628,8 @@ void vnode_couplefileobject(vnode_t *vp, FILE_OBJECT *fileobject, uint64_t size)
 int vnode_flushcache(vnode_t *vp, FILE_OBJECT *fileobject, boolean_t hard)
 {
 	CACHE_UNINITIALIZE_EVENT UninitializeCompleteEvent;
-	NTSTATUS WaitStatus;
-	LARGE_INTEGER Zero = { 0,0 };
+	// NTSTATUS WaitStatus;
+	LARGE_INTEGER Zero = { .QuadPart = 0 };
 	int ret = 0;
 
 	if (vp == NULL)
@@ -1640,7 +1670,7 @@ int vnode_flushcache(vnode_t *vp, FILE_OBJECT *fileobject, boolean_t hard)
 
 	// Try to release cache
 	dprintf("calling CcUninit: fo %p\n", fileobject);
-	int temp = CcUninitializeCacheMap(fileobject,
+	CcUninitializeCacheMap(fileobject,
 		hard ? &Zero : NULL,
 		NULL);
 	dprintf("complete CcUninit\n");
@@ -1709,7 +1739,7 @@ int vnode_fileobject_add(vnode_t *vp, void *fo)
 {
 	vnode_fileobjects_t *node;
 	avl_index_t idx;
-	KIRQL OldIrql;
+	// KIRQL OldIrql;
 	mutex_enter(&vp->v_mutex);
 	// Early out to avoid memory alloc
 	vnode_fileobjects_t search;
@@ -1746,7 +1776,7 @@ int vnode_fileobject_add(vnode_t *vp, void *fo)
 int vnode_fileobject_remove(vnode_t *vp, void *fo)
 {
 	vnode_fileobjects_t search, *node;
-	KIRQL OldIrql;
+	// KIRQL OldIrql;
 	mutex_enter(&vp->v_mutex);
 	search.fileobject = fo;
 	node = avl_find(&vp->v_fileobjects, &search, NULL);
@@ -1767,7 +1797,7 @@ int vnode_fileobject_remove(vnode_t *vp, void *fo)
  */
 int vnode_fileobject_empty(vnode_t *vp, int locked)
 {
-	KIRQL OldIrql;
+	// KIRQL OldIrql;
 
 	if (!locked)
 		mutex_enter(&vp->v_mutex);

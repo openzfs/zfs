@@ -24,6 +24,7 @@
  */
 
 #include <sys/zfs_context.h>
+#include <sys/types.h>
 #include <sys/spa.h>
 #include <sys/spa_impl.h>
 #include <sys/vdev_file.h>
@@ -33,6 +34,7 @@
 #include <sys/fs/zfs.h>
 #include <sys/fm/fs/zfs.h>
 #include <sys/vnode.h>
+#include <fcntl.h>
 
 /*
  * Virtual device vector for files.
@@ -58,17 +60,32 @@ vdev_file_rele(vdev_t *vd)
 extern int VOP_GETATTR(struct vnode *vp, vattr_t *vap, int flags, void *x3, void *x4);
 #endif
 
+static mode_t vdev_file_open_mode(spa_mode_t spa_mode)
+{
+	mode_t mode = 0;
+	// TODO :- Add flags
+	if ((spa_mode & SPA_MODE_READ) && (spa_mode & SPA_MODE_WRITE)) {
+		mode = O_RDWR;
+	}
+	else if (spa_mode & SPA_MODE_READ) {
+		mode = O_RDONLY;
+	}
+	else if (spa_mode & SPA_MODE_WRITE) {
+		mode = O_WRONLY;
+	}
+	return mode;
+}
+
 static int
 vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
-    uint64_t *ashift)
+    uint64_t *ashift, uint64_t *physical_ashift)
 {
-#if _KERNEL
-	static vattr_t vattr;
 	vdev_file_t *vf;
-#endif
+	zfs_file_t *fp;
+	zfs_file_attr_t zfa;
 	int error = 0;
 
-    dprintf("vdev_file_open %p\n", vd->vdev_tsd);
+	dprintf("vdev_file_open %p\n", vd->vdev_tsd);
 	/* Rotational optimizations only make sense on block devices */
 	vd->vdev_nonrot = B_TRUE;
 
@@ -104,151 +121,31 @@ vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 		vf = vd->vdev_tsd;
 		goto skip_open;
 	}
-
-	vf = vd->vdev_tsd = kmem_zalloc(sizeof (vdev_file_t), KM_SLEEP);
 #endif
 
+	vf = vd->vdev_tsd = kmem_zalloc(sizeof(vdev_file_t), KM_SLEEP);
+
+
+	error = zfs_file_open(vd->vdev_path,
+	    vdev_file_open_mode(spa_mode(vd->vdev_spa)), 0, &fp);
+
+	if (error) {
+		vd->vdev_stat.vs_aux = VDEV_AUX_OPEN_FAILED;
+		return (error);
+	}
+
+	vf->vf_file = fp;
+
 	/*
-	 * We always open the files from the root of the global zone, even if
-	 * we're in a local zone.  If the user has gotten to this point, the
-	 * administrator has already decided that the pool should be available
-	 * to local zone users, so the underlying devices should be as well.
+	 * Make sure it's a regular file.
 	 */
-	ASSERT(vd->vdev_path != NULL && (
-		vd->vdev_path[0] == '/' || vd->vdev_path[0] == '\\'));
-
-    /*
-      vn_openat(char *pnamep,
-      enum uio_seg seg,
-      int filemode,
-      int createmode,
-      struct vnode **vpp,
-      enum create crwhy,
-      mode_t umask,
-      struct vnode *startvp)
-      extern int vn_openat(char *pnamep, enum uio_seg seg, int filemode,
-      int createmode, struct vnode **vpp, enum create crwhy,
-      mode_t umask, struct vnode *startvp);
-    */
-	uint8_t *FileName = NULL;
-	FileName = vd->vdev_path;
-
-	if (!strncmp("\\\\?\\", FileName, 4)) {
-		FileName[1] = '?';
+	if (zfs_file_getattr(fp, &zfa)) {
+		return (SET_ERROR(ENODEV));
 	}
-
-	dprintf("%s: opening '%s'\n", __func__, FileName);
-
-#ifdef _KERNEL
-
-	ANSI_STRING         AnsiFilespec;
-	UNICODE_STRING      UnicodeFilespec;
-	OBJECT_ATTRIBUTES   ObjectAttributes;
-
-	SHORT                   UnicodeName[PATH_MAX];
-	CHAR                    AnsiName[PATH_MAX];
-	USHORT                  NameLength = 0;
-	NTSTATUS ntstatus;
-
-	memset(UnicodeName, 0, sizeof(SHORT) * PATH_MAX);
-	memset(AnsiName, 0, sizeof(UCHAR) * PATH_MAX);
-
-	NameLength = strlen(FileName);
-	ASSERT(NameLength < PATH_MAX);
-
-	memmove(AnsiName, FileName, NameLength);
-
-	AnsiFilespec.MaximumLength = AnsiFilespec.Length = NameLength;
-	AnsiFilespec.Buffer = AnsiName;
-
-	UnicodeFilespec.MaximumLength = PATH_MAX * 2;
-	UnicodeFilespec.Length = 0;
-	UnicodeFilespec.Buffer = (PWSTR)UnicodeName;
-
-	RtlAnsiStringToUnicodeString(&UnicodeFilespec, &AnsiFilespec, FALSE);
-
-	ObjectAttributes.Length = sizeof(OBJECT_ATTRIBUTES);
-	ObjectAttributes.RootDirectory = NULL;
-	ObjectAttributes.Attributes = /*OBJ_CASE_INSENSITIVE |*/ OBJ_KERNEL_HANDLE;
-	ObjectAttributes.ObjectName = &UnicodeFilespec;
-	ObjectAttributes.SecurityDescriptor = NULL;
-	ObjectAttributes.SecurityQualityOfService = NULL;
-	IO_STATUS_BLOCK iostatus;
-
-	ntstatus = ZwCreateFile(&vf->vf_handle,
-		spa_mode(vd->vdev_spa) == FREAD ? GENERIC_READ | SYNCHRONIZE : GENERIC_READ | GENERIC_WRITE | SYNCHRONIZE,
-		&ObjectAttributes,
-		&iostatus,
-		0,
-		FILE_ATTRIBUTE_NORMAL,
-		/* FILE_SHARE_WRITE | */ FILE_SHARE_READ,
-		FILE_OPEN,
-		FILE_SYNCHRONOUS_IO_NONALERT | (spa_mode(vd->vdev_spa) == FREAD ? 0 : FILE_NO_INTERMEDIATE_BUFFERING),
-		NULL,
-		0);
-
-	if (ntstatus == STATUS_SUCCESS) {
-		error = 0;
-	} else {
-		vd->vdev_stat.vs_aux = VDEV_AUX_OPEN_FAILED;
-		goto failed;
-	}
-
-
-	/*
-	* Make sure it's a regular file.
-	*/
-	FILE_STANDARD_INFORMATION info;
-	IO_STATUS_BLOCK iob;
-
-	if ((ZwQueryInformationFile(
-		vf->vf_handle,
-		&iob,
-		&info,
-		sizeof(info),
-		FileStandardInformation) != STATUS_SUCCESS) ||
-		(info.Directory != FALSE)) {
-		vd->vdev_stat.vs_aux = VDEV_AUX_OPEN_FAILED;
-		ZwClose(vf->vf_handle);
-		error = ENOENT;
-		goto failed;
-	}
-
-	// Since we will use DeviceObject and FileObject to do ioctl and IO
-	// we grab them now and lock them in place.
-	// Convert HANDLE to FileObject
-	PFILE_OBJECT        FileObject;
-	PDEVICE_OBJECT      DeviceObject;
-	NTSTATUS status;
-
-	// This adds a reference to FileObject
-	status = ObReferenceObjectByHandle(
-		vf->vf_handle, 
-		0,
-		*IoFileObjectType,
-		KernelMode,
-		&FileObject,
-		NULL
-	);
-	if (status != STATUS_SUCCESS) {
-		ZwClose(vf->vf_handle);
-		vd->vdev_stat.vs_aux = VDEV_AUX_OPEN_FAILED;
-		error = EIO;
-		goto failed;
-	}
-
-	// Convert FileObject to DeviceObject
-	DeviceObject = IoGetRelatedDeviceObject(FileObject);
-
-	// Grab a reference to DeviceObject
-	ObReferenceObject(DeviceObject);
-
-	vf->vf_FileObject = FileObject;
-	vf->vf_DeviceObject = DeviceObject;
 
 	// Change it to SPARSE, so TRIM might work
-	status = ZwFsControlFile(
-		vf->vf_handle,
+	error = ZwFsControlFile(
+		fp->f_handle,
 		NULL,
 		NULL,
 		NULL,
@@ -259,72 +156,44 @@ vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 		NULL,
 		0
 	);
-	dprintf("%s: set Sparse 0x%x.\n", __func__, status);
+	dprintf("%s: set Sparse 0x%x.\n", __func__, error);
 
-#endif
 
-#if _KERNEL
 skip_open:
 	/*
 	 * Determine the physical size of the file.
 	 */
-	//vattr.va_mask = AT_SIZE;
-    //vn_lock(vf->vf_vnode, LK_SHARED | LK_RETRY);
-	//error = VOP_GETATTR(vf->vf_vnode, &vattr, 0, kcred, NULL);
-    //VN_UNLOCK(vf->vf_vnode);
-#endif
+	error = zfs_file_getattr(vf->vf_file, &zfa);
 
-#ifdef _KERNEL
-	*max_psize = *psize = info.EndOfFile.QuadPart;
-#else
-    /* userland's vn_open() will get the device size for us, so we can
-     * just look it up - there is argument for a userland VOP_GETATTR to make
-     * this function cleaner. */
-//	*max_psize = *psize = vp->v_size;
-#endif
-    *ashift = SPA_MINBLOCKSHIFT;
+	if (error) {
+		vd->vdev_stat.vs_aux = VDEV_AUX_OPEN_FAILED;
+		return (error);
+	}
+
+	*max_psize = *psize = zfa.zfa_size;
+	*ashift = SPA_MINBLOCKSHIFT;
+	*physical_ashift = SPA_MINBLOCKSHIFT;
 
 	return (0);
-
-failed:
-#ifdef _KERNEL
-	if (vf) {
-		if (vf->vf_handle != NULL) {
-			vf->vf_handle = NULL;
-		}
-
-		kmem_free(vf, sizeof(vdev_file_t));
-		vd->vdev_tsd = NULL;
-	}
-#endif
-	return error;
 }
 
 static void
 vdev_file_close(vdev_t *vd)
 {
-#ifdef _KERNEL
 	vdev_file_t *vf = vd->vdev_tsd;
 
 	if (vd->vdev_reopening || vf == NULL)
 		return;
 
-	if (vf->vf_handle != NULL) {
 
-		// Release our holds
-		ObDereferenceObject(vf->vf_FileObject);
-		ObDereferenceObject(vf->vf_DeviceObject);
-
-		ZwClose(vf->vf_handle);
+	// Release our holds
+	if (vf->vf_file != NULL) {
+		zfs_file_close(vf->vf_file);
 	}
 
-	vf->vf_FileObject = NULL;
-	vf->vf_DeviceObject = NULL;
-	vf->vf_handle = NULL;
 	vd->vdev_delayed_close = B_FALSE;
 	kmem_free(vf, sizeof (vdev_file_t));
 	vd->vdev_tsd = NULL;
-#endif
 }
 
 #ifdef _KERNEL
@@ -349,13 +218,11 @@ vdev_file_io_start_done(void *param)
 
 	// Return abd buf
 	if (zio->io_type == ZIO_TYPE_READ) {
-		VERIFY3S(zio->io_abd->abd_size, >= , zio->io_size);
-		abd_return_buf_copy_off(zio->io_abd, vb->b_data,
-			0, zio->io_size, zio->io_abd->abd_size);
+		abd_return_buf_copy(zio->io_abd, vb->b_data,
+			zio->io_size);
 	} else {
-		VERIFY3S(zio->io_abd->abd_size, >= , zio->io_size);
-		abd_return_buf_off(zio->io_abd, vb->b_data,
-			0, zio->io_size, zio->io_abd->abd_size);
+		abd_return_buf(zio->io_abd, vb->b_data,
+			zio->io_size);
 	}
 
 	UnlockAndFreeMdl(vb->irp->MdlAddress);
@@ -392,7 +259,8 @@ vdev_file_io_intrxxx(PDEVICE_OBJECT DeviceObject, PIRP irp, PVOID Context)
 		vdev_file_io_start_done(vb);
 	else {
 		vdev_file_t *vf = vb->zio->io_vd->vdev_tsd;
-		IoInitializeWorkItem(vf->vf_DeviceObject, (PIO_WORKITEM)vb->work_item);
+		zfs_file_t *fp = vf->vf_file;
+		IoInitializeWorkItem(fp->f_deviceobject, (PIO_WORKITEM)vb->work_item);
 		IoQueueWorkItem((PIO_WORKITEM)vb->work_item, FileIoWkRtn, DelayedWorkQueue, vb);
 	}
 
@@ -400,61 +268,76 @@ vdev_file_io_intrxxx(PDEVICE_OBJECT DeviceObject, PIRP irp, PVOID Context)
 }
 #endif
 
-/*
- * count the number of mismatches of zio->io_size and zio->io_abd->abd_size below
- */
-_Atomic uint64_t zfs_vdev_file_size_mismatch_cnt = 0;
+static void
+vdev_file_io_strategy(void *arg)
+{
+	zio_t *zio = (zio_t *)arg;
+	vdev_t *vd = zio->io_vd;
+	vdev_file_t *vf = vd->vdev_tsd;
+	zfs_file_t *fp = vf->vf_file;
+	ssize_t resid;
+	loff_t off;
+	void *data;
+	ssize_t size;
+	int err;
+
+	off = zio->io_offset;
+	size = zio->io_size;
+	resid = 0;
+
+	if (zio->io_type == ZIO_TYPE_READ) {
+		data =
+		    abd_borrow_buf(zio->io_abd, size);
+		err = zfs_file_pread(vf->vf_file, data, size, off, &resid);
+		abd_return_buf_copy(zio->io_abd, data, size);
+	} else {
+		data =
+		    abd_borrow_buf_copy(zio->io_abd, size);
+		err = zfs_file_pwrite(vf->vf_file, data, size, off, &resid);
+		abd_return_buf(zio->io_abd, data, size);
+	}
+
+	zio->io_error = (err != 0 ? EIO : 0);
+
+	if (zio->io_error == 0 && resid != 0)
+		zio->io_error = SET_ERROR(ENOSPC);
+
+	zio_delay_interrupt(zio);
+}
 
 static void
 vdev_file_io_start(zio_t *zio)
 {
-    vdev_t *vd = zio->io_vd;
-    ssize_t resid = 0;
+	vdev_t *vd = zio->io_vd;
+	ssize_t resid = 0;
+	vdev_file_t* vf = vd->vdev_tsd;
+	zfs_file_t *fp = vf->vf_file;
 
+	if (zio->io_type == ZIO_TYPE_IOCTL) {
 
-    if (zio->io_type == ZIO_TYPE_IOCTL) {
-
-        if (!vdev_readable(vd)) {
-            zio->io_error = SET_ERROR(ENXIO);
+		if (!vdev_readable(vd)) {
+			zio->io_error = SET_ERROR(ENXIO);
 			zio_interrupt(zio);
-            return;
-        }
+			return;
+	        }
 
-        switch (zio->io_cmd) {
-        case DKIOCFLUSHWRITECACHE:
-#if 0
-			if (!vnode_getwithvid(vf->vf_vnode, vf->vf_vid)) {
-                zio->io_error = VOP_FSYNC(vf->vf_vnode, FSYNC | FDSYNC,
-                                          kcred, NULL);
-                vnode_put(vf->vf_vnode);
-            }
-#endif
+	        switch (zio->io_cmd) {
+	        case DKIOCFLUSHWRITECACHE:
+			zio->io_error = zfs_file_fsync(fp, 0); 
 			break;
-        default:
-            zio->io_error = SET_ERROR(ENOTSUP);
-        }
+	        default:
+			zio->io_error = SET_ERROR(ENOTSUP);
+		}
 
-		zio_interrupt(zio);
-        return;
+		zio_execute(zio);
+	        return;
 
 	} else if (zio->io_type == ZIO_TYPE_TRIM) {
-#ifdef _KERNEL
-			struct flock flck;
-			vdev_file_t *vf = vd->vdev_tsd;
-
-			ASSERT3U(zio->io_size, != , 0);
-			bzero(&flck, sizeof(flck));
-			flck.l_type = F_FREESP;
-			flck.l_start = zio->io_offset;
-			flck.l_len = zio->io_size;
-			flck.l_whence = 0;
-
-			zio->io_error = VOP_SPACE(vf->vf_handle, F_FREESP, &flck,
-				0, 0, kcred, NULL);
-
-#endif
-			zio_execute(zio);
-			return;
+		int mode = 0;
+		zio->io_error = zfs_file_fallocate(vf->vf_file,
+		    mode, zio->io_offset, zio->io_size);
+		zio_execute(zio);
+		return;
 	}
 
 	ASSERT(zio->io_type == ZIO_TYPE_READ || zio->io_type == ZIO_TYPE_WRITE);
@@ -462,83 +345,12 @@ vdev_file_io_start(zio_t *zio)
 
 
 	ASSERT(zio->io_size != 0);
-
-#ifdef _KERNEL
-	vdev_file_t *vf = vd->vdev_tsd;
-
-	PIRP irp = NULL;
-	PIO_STACK_LOCATION irpStack = NULL;
-	IO_STATUS_BLOCK IoStatusBlock = { 0 };
 	LARGE_INTEGER offset;
+	offset.QuadPart = zio->io_offset /*+ vd->vdev_win_offset */;
 
-	offset.QuadPart = zio->io_offset + vd->vdev_win_offset;
-
-	/* Preallocate space for IoWorkItem, required for vdev_file_io_start_done callback */
-	vf_callback_t *vb = (vf_callback_t *)kmem_alloc(sizeof(vf_callback_t) + IoSizeofWorkItem(), KM_SLEEP);
-
-	vb->zio = zio;
-
-#ifdef DEBUG
-	if (zio->io_abd->abd_size != zio->io_size) {
-		zfs_vdev_file_size_mismatch_cnt++;
-		// this dprintf can be very noisy
-		dprintf("ZFS: %s: trimming zio->io_abd from 0x%x to 0x%llx\n", 
-			__func__, zio->io_abd->abd_size, zio->io_size);
-	}
-#endif
-
-	if (zio->io_type == ZIO_TYPE_READ) {
-		ASSERT3S(zio->io_abd->abd_size, >= , zio->io_size);
-		vb->b_data =
-			abd_borrow_buf(zio->io_abd, zio->io_abd->abd_size);
-	} else {
-		ASSERT3S(zio->io_abd->abd_size, >= , zio->io_size);
-		vb->b_data =
-			abd_borrow_buf_copy(zio->io_abd, zio->io_abd->abd_size);
-	}
-
-	if (zio->io_type == ZIO_TYPE_READ) {
-		irp = IoBuildAsynchronousFsdRequest(IRP_MJ_READ,
-			vf->vf_DeviceObject,
-			vb->b_data,
-			(ULONG)zio->io_size,
-			&offset,
-			&IoStatusBlock);
-	} else {
-		irp = IoBuildAsynchronousFsdRequest(IRP_MJ_WRITE,
-			vf->vf_DeviceObject,
-			vb->b_data,
-			(ULONG)zio->io_size,
-			&offset,
-			&IoStatusBlock);
-	}
-
-	if (!irp) {
-		kmem_free(vb, sizeof(vf_callback_t) + IoSizeofWorkItem());
-		zio->io_error = EIO;
-		zio_interrupt(zio);
-		return;
-	}
-
-	irpStack = IoGetNextIrpStackLocation(irp);
-
-	irpStack->Flags |= SL_OVERRIDE_VERIFY_VOLUME; // SetFlag(IoStackLocation->Flags, SL_OVERRIDE_VERIFY_VOLUME);
-												  //SetFlag(ReadIrp->Flags, IRP_NOCACHE);
-	irpStack->FileObject = vf->vf_FileObject;
-
-	IoSetCompletionRoutine(irp,
-		vdev_file_io_intrxxx,
-		vb, // "Context" in vdev_file_io_intr()
-		TRUE, // On Success
-		TRUE, // On Error
-		TRUE);// On Cancel
-
-	IoCallDriver(vf->vf_DeviceObject, irp);
-#endif
-
-    return;
+	VERIFY3U(taskq_dispatch(system_taskq, vdev_file_io_strategy, zio,
+	    TQ_SLEEP), !=, 0);
 }
-
 
 /* ARGSUSED */
 static void

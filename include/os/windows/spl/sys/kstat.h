@@ -36,13 +36,14 @@
 * Kernel statistics driver (/dev/zfs) ioctls
 * Defined outside the ZFS ioctls, and handled separately in zfs_vnops_windows.c
 */
+#define	SPLIOCTL_TYPE 40000
+#define	KSTAT_IOC_CHAIN_ID	CTL_CODE(SPLIOCTL_TYPE, 0x7FD, METHOD_NEITHER, FILE_ANY_ACCESS)
+#define KSTAT_IOC_READ		CTL_CODE(SPLIOCTL_TYPE, 0x7FE, METHOD_NEITHER, FILE_ANY_ACCESS)
+#define	KSTAT_IOC_WRITE		CTL_CODE(SPLIOCTL_TYPE, 0x7FF, METHOD_NEITHER, FILE_ANY_ACCESS)
 
-#define	KSTAT_IOC_CHAIN_ID	CTL_CODE(ZFSIOCTL_TYPE, 0x7FD, METHOD_NEITHER, FILE_ANY_ACCESS)
-#define KSTAT_IOC_READ		CTL_CODE(ZFSIOCTL_TYPE, 0x7FE, METHOD_NEITHER, FILE_ANY_ACCESS)
-#define	KSTAT_IOC_WRITE		CTL_CODE(ZFSIOCTL_TYPE, 0x7FF, METHOD_NEITHER, FILE_ANY_ACCESS)
 
-
-#define KSTAT_STRLEN            31
+#define KSTAT_STRLEN            255
+#define KSTAT_RAW_MAX           (128*1024)
 
 #if     defined(_KERNEL)
 
@@ -87,15 +88,16 @@
 #define KSTAT_INTR_MULTSVC      4
 #define KSTAT_NUM_INTRS         5
 
-#define KSTAT_FLAG_VIRTUAL      0x01
-#define KSTAT_FLAG_VAR_SIZE     0x02
-#define KSTAT_FLAG_WRITABLE     0x04
-#define KSTAT_FLAG_PERSISTENT   0x08
-#define KSTAT_FLAG_DORMANT      0x10
-#define KSTAT_FLAG_UNSUPPORTED  (KSTAT_FLAG_VAR_SIZE | KSTAT_FLAG_WRITABLE | \
+#define	KSTAT_FLAG_VIRTUAL      0x01
+#define	KSTAT_FLAG_VAR_SIZE     0x02
+#define	KSTAT_FLAG_WRITABLE     0x04
+#define	KSTAT_FLAG_PERSISTENT   0x08
+#define	KSTAT_FLAG_DORMANT      0x10
+#define	KSTAT_FLAG_UNSUPPORTED  (KSTAT_FLAG_VAR_SIZE | KSTAT_FLAG_WRITABLE | \
 KSTAT_FLAG_PERSISTENT | KSTAT_FLAG_DORMANT)
-#define KSTAT_FLAG_INVALID      0x20
-#define KSTAT_FLAG_LONGSTRINGS	0x40
+#define	KSTAT_FLAG_INVALID      0x20
+#define	KSTAT_FLAG_LONGSTRINGS	0x40
+#define	KSTAT_FLAG_NO_HEADERS   0x80
 
 #define KS_MAGIC                0x9d9d9d9d
 
@@ -110,6 +112,20 @@ struct kstat;
 
 typedef int kid_t;                                  /* unique kstat id */
 typedef int kstat_update_t(struct kstat *, int);  /* dynamic update cb */
+
+struct seq_file {
+	char *sf_buf;
+	size_t sf_size;
+};
+
+void seq_printf(struct seq_file *m, const char *fmt, ...);
+
+typedef struct kstat_raw_ops {
+	int (*headers)(char *buf, size_t size);
+	int (*seq_headers)(struct seq_file *);
+	int (*data)(char *buf, size_t size, void *data);
+	void *(*addr)(struct kstat_s *ksp, loff_t index);
+} kstat_raw_ops_t;
 
 #pragma pack(4)
 typedef struct kstat {
@@ -128,18 +144,22 @@ typedef struct kstat {
 	uchar_t         ks_flags;       /* kstat flags */
 	void            *ks_data;       /* kstat type-specific data */
 	uint_t          ks_ndata;       /* # of type-specific data records */
-	size_t        ks_data_size;   /* total size of kstat data section */
+	size_t          ks_data_size;   /* total size of kstat data section */
 	hrtime_t        ks_snaptime;    /* time of last data shapshot */
 									/*
 									* Fields relevant to kernel only
 									*/
 	int(*ks_update)(struct kstat *, int); /* dynamic update */
-	void            *ks_private;    /* arbitrary provider-private data */
+	void	    *ks_private;    /* arbitrary provider-private data */
 	int(*ks_snapshot)(struct kstat *, void *, int);
-	void            *ks_lock;       /* protects this kstat's data */
-
-	int				ks_returnvalue;
-	int			ks_errnovalue;
+	void	    *ks_private1;	/* private data */
+	kmutex_t ks_private_lock;	/* kstat private data lock */
+	kmutex_t *ks_lock;	/* kstat data lock */
+	kstat_raw_ops_t ks_raw_ops;	/* ops table for raw type */
+	char	    *ks_raw_buf;	/* buf used for raw ops */
+	size_t  ks_raw_bufsize; /* size of raw ops buffer */
+	int	ks_returnvalue;
+	int	ks_errnovalue;
 } kstat_t;
 #pragma pack()
 
@@ -260,15 +280,22 @@ extern void kstat_timer_stop(kstat_timer_t *);
 extern void kstat_zone_add(kstat_t *, zoneid_t);
 extern void kstat_zone_remove(kstat_t *, zoneid_t);
 extern int kstat_zone_find(kstat_t *, zoneid_t);
+extern void __kstat_set_raw_ops(kstat_t *ksp,
+    int (*headers)(char *buf, size_t size),
+    int (*data)(char *buf, size_t size, void *data),
+    void* (*addr)(kstat_t *ksp, loff_t index));
+
+extern void __kstat_set_seq_raw_ops(kstat_t *ksp,
+    int (*headers)(struct seq_file *),
+    int (*data)(char *buf, size_t size, void *data),
+    void* (*addr)(kstat_t *ksp, loff_t index));
 
 extern kstat_t *kstat_hold_bykid(kid_t kid, zoneid_t);
 extern kstat_t *kstat_hold_byname(const char *, int, const char *, zoneid_t);
 extern void kstat_rele(kstat_t *);
 
-extern void kstat_set_raw_ops(kstat_t *ksp,
-	int(*headers)(char *buf, size_t size),
-	int(*data)(char *buf, size_t size, void *data),
-	void *(*addr)(kstat_t *ksp, off_t index));
+#define kstat_set_seq_raw_ops(k, h, d, a) __kstat_set_seq_raw_ops(k, h, d, a)
+#define kstat_set_raw_ops(k, h, d, a) __kstat_set_raw_ops(k, h, d, a)
 
 int spl_kstat_chain_id(PDEVICE_OBJECT DiskDevice, PIRP Irp, PIO_STACK_LOCATION IrpSp);
 int spl_kstat_read(PDEVICE_OBJECT DiskDevice, PIRP Irp, PIO_STACK_LOCATION IrpSp);

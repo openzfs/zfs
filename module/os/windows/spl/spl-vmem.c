@@ -210,6 +210,7 @@
  * that even non-DEBUG systems get quite a bit of sanity checking already.
  */
 
+#include <sys/atomic.h>
 #include <sys/vmem_impl.h>
 #include <sys/kmem.h>
 #include <sys/kstat.h>
@@ -1258,7 +1259,7 @@ vmem_canalloc_atomic(vmem_t *vmp, uint32_t size)
 	int flist = 0;
 
 	//ulong_t freemap = __c11_atomic_load((_Atomic ulong_t *)&vmp->vm_freemap, __ATOMIC_SEQ_CST);
-	ulong_t freemap = InterlockedOr(&vmp->vm_freemap, 0);
+	ulong_t freemap = InterlockedOr((volatile long *)&vmp->vm_freemap, 0);
 
 	if (ISP2(size))
 		flist = lowbit(P2ALIGN(freemap, size));
@@ -1905,8 +1906,8 @@ vmem_size_semi_atomic(vmem_t *vmp, int typemask)
 
 	//__sync_swap(&total, vmp->vm_kstat.vk_mem_total.value.ui64);
 	//__sync_swap(&inuse, vmp->vm_kstat.vk_mem_inuse.value.ui64);
-	InterlockedExchange64(&total, vmp->vm_kstat.vk_mem_total.value.ui64);
-	InterlockedExchange64(&inuse, vmp->vm_kstat.vk_mem_inuse.value.ui64);
+	InterlockedExchange64((volatile long long *)&total, vmp->vm_kstat.vk_mem_total.value.ui64);
+	InterlockedExchange64((volatile long long *)&inuse, vmp->vm_kstat.vk_mem_inuse.value.ui64);
 
 	int64_t inuse_signed = (int64_t)inuse;
 	int64_t total_signed = (int64_t)total;
@@ -2395,7 +2396,7 @@ xnu_alloc_throttled_bail(uint64_t now_ticks, vmem_t *calling_vmp, uint32_t size,
 			// otherwise result is FALSE and f = TRUE
 			//if ( ! __c11_atomic_compare_exchange_strong(&alloc_lock, &f, TRUE,
 			//	__ATOMIC_SEQ_CST, __ATOMIC_RELAXED)) {
-			if (InterlockedCompareExchange64(&alloc_lock, TRUE, FALSE) != FALSE) {
+			if (InterlockedCompareExchange64((volatile long long *)&alloc_lock, TRUE, FALSE) != FALSE) {
 				// avoid (highly unlikely) data race on alloc_lock.
 				// if alloc_lock has become TRUE while we were in the
 				// else if expression then we effectively optimize away
@@ -2425,7 +2426,7 @@ xnu_alloc_throttled_bail(uint64_t now_ticks, vmem_t *calling_vmp, uint32_t size,
 		} else if (zfs_lbolt() > timeout_time) {
 			//if ( ! __c11_atomic_compare_exchange_strong(&alloc_lock, &f, TRUE,
 			//	__ATOMIC_SEQ_CST, __ATOMIC_RELAXED)) {
-			if (InterlockedCompareExchange64(&alloc_lock, TRUE, FALSE) != FALSE) {
+			if (InterlockedCompareExchange64((volatile long long *)&alloc_lock, TRUE, FALSE) != FALSE) {
 				// avoid (highly unlikely) data race on alloc_lock as above
 				continue;
 			}
@@ -2656,7 +2657,7 @@ xnu_free_throttled(vmem_t *vmp, void *vaddr, uint32_t size)
 			//uint64_t f = FALSE;
 			//if (__c11_atomic_compare_exchange_weak(&is_freeing, &f, TRUE,
 			//	__ATOMIC_RELEASE, __ATOMIC_RELAXED)) {
-			if (InterlockedCompareExchange64(&is_freeing, TRUE, FALSE) != FALSE) {
+			if (InterlockedCompareExchange64((volatile long long *)&is_freeing, TRUE, FALSE) != FALSE) {
 				break;
 			}
 		}
@@ -2689,7 +2690,7 @@ vba_atomic_lock_bucket(volatile _Atomic uint16_t *bbap, uint16_t bucket_bit)
 	// previous value of buckets_busy_allocating.
 
 	//uint16_t prev = __c11_atomic_fetch_or(bbap, bucket_bit, __ATOMIC_SEQ_CST);
-	uint16_t prev = InterlockedOr16(bbap, bucket_bit);
+	uint16_t prev = InterlockedOr16((volatile short *)bbap, bucket_bit);
 	if (prev & bucket_bit)
 		return (FALSE); // we did not acquire the bit lock here
 	else
@@ -2957,7 +2958,7 @@ vmem_bucket_alloc(vmem_t *null_vmp, uint32_t size, const int vmflags)
 	// vmem_canalloc(bvmp, that_thread's_size) is TRUE.
 
 	//buckets_busy_allocating |= bucket_bit;
-	InterlockedOr16(&buckets_busy_allocating, bucket_bit);
+	InterlockedOr16((volatile short *)&buckets_busy_allocating, bucket_bit);
 	// update counters
 	if (local_sleep > 0)
 		atomic_add_64(&spl_vba_sleep, local_sleep);
@@ -3003,7 +3004,7 @@ vmem_bucket_alloc(vmem_t *null_vmp, uint32_t size, const int vmflags)
 	 */
 
 	//buckets_busy_allocating &= ~bucket_bit;
-	InterlockedAnd16(&buckets_busy_allocating, ~bucket_bit);
+	InterlockedAnd16((volatile short *)&buckets_busy_allocating, ~bucket_bit);
 
 	if (local_hipriority_allocator)
 		atomic_dec_32(&hipriority_allocators);
@@ -3126,6 +3127,7 @@ spl_dprintf_bucket_span_sizes(void)
 	for (int i = VMEM_BUCKET_LOWBIT; i < VMEM_BUCKET_HIBIT; i++) {
 		int bnum = i - VMEM_BUCKET_LOWBIT;
 		vmem_t *bvmp = vmem_bucket_arena[bnum];
+		(void) bvmp;
 	}
 }
 
@@ -3470,21 +3472,27 @@ void vmem_free_span_list()
 	int  total = 0;
 	int total_count = 0;
 	struct free_slab* fs;
-	int release = 1;
+//	int release = 1;
 
 	while ((fs = list_head(&freelist))) {
 		total_count++;
 		total += fs->slabsize;
 		list_remove(&freelist, fs);
+		/*
+		Commenting out due to BSOD during uninstallation, will revisit later.
+
 		for (int id = 0; id < VMEM_INITIAL; id++) {
 			if (&vmem0[id] == fs->slab) {
 				release = 0;
 				break;
 			}
 		}
+
 		if (release)
 			fs->vmp->vm_source_free(fs->vmp, fs->slab, fs->slabsize);
 		release = 1;
+
+		*/
 		FREE(fs, M_TEMP);
 	}
 }
@@ -3764,7 +3772,7 @@ spl_arc_no_grow_impl(const uint16_t b, const uint32_t size, const boolean_t buf_
 		}
 		const uint32_t b_bit = (uint32_t)1 << (uint32_t)b;
 		//spl_arc_no_grow_bits |= b_bit;
-		InterlockedOr64(&spl_arc_no_grow_bits, b_bit);
+		InterlockedOr64((volatile long long *)&spl_arc_no_grow_bits, b_bit);
 
 		const uint32_t sup_at_least_every = MIN(b_bit, 255);
 		const uint32_t sup_at_most_every = MAX(b_bit, 16);
@@ -3779,7 +3787,7 @@ spl_arc_no_grow_impl(const uint16_t b, const uint32_t size, const boolean_t buf_
 	} else {
 		const uint32_t b_bit = (uint32_t)1 << (uint32_t)b;
 		//spl_arc_no_grow_bits &= ~b_bit;
-		InterlockedAnd64(&spl_arc_no_grow_bits, ~b_bit);
+		InterlockedAnd64((volatile long long *)&spl_arc_no_grow_bits, ~b_bit);
 	}
 
 	extern boolean_t spl_zio_is_suppressed(const uint32_t, const uint64_t, const boolean_t,

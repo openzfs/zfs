@@ -61,7 +61,7 @@
 #include <Trace.h>
 
 /* Initial size of array, and realloc growth size */
-#define TSD_ALLOC_SIZE 5
+#define TSD_ALLOC_SIZE 10
 
 /* array of dtors, allocated in init */
 static dtor_func_t *tsd_dtor_array = NULL;
@@ -160,7 +160,7 @@ tsd_set(uint_t key, void *value)
 }
 
 /*
- * tsd_get - get thread specific data
+ * tsd_get - get thread specific data for specified thread
  * @key: lookup key
  *
  * Caller must prevent racing tsd_create() or tsd_destroy().  This
@@ -168,7 +168,7 @@ tsd_set(uint_t key, void *value)
  * lock the entire table only a single hash bin.
  */
 void *
-tsd_get(uint_t key)
+tsd_get_by_thread(uint_t key, thread_t *thread)
 {
 	spl_tsd_node_t *entry = NULL;
 	spl_tsd_node_t search;
@@ -177,22 +177,27 @@ tsd_get(uint_t key)
 
 	/* Invalid key values? */
 	if ((key < 1) ||
-		(key >= tsd_dtor_size)) {
-		return NULL;
+	    (key >= tsd_dtor_size)) {
+		return (NULL);
 	}
 
 	i = key - 1;
 
 	search.tsd_key = i;
-	search.tsd_thread = current_thread();
+	search.tsd_thread = thread;
 
 	mutex_enter(&spl_tsd_mutex);
 	entry = avl_find(&tsd_tree, &search, &loc);
 	mutex_exit(&spl_tsd_mutex);
 
-	return entry ? entry->tsd_value : NULL;
+	return (entry ? entry->tsd_value : NULL);
 }
 
+void *
+tsd_get(uint_t key)
+{
+	return (tsd_get_by_thread(key, current_thread()));
+}
 
 static void
 tsd_internal_dtor(void *value)

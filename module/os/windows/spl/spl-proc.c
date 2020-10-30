@@ -23,4 +23,14 @@
 #include <sys/kstat.h>
 #include <spl-debug.h>
 
-proc_t p0 = {NULL};              /* process 0 */
+/*
+ * "p0" is the first process/kernel in illumos/solaris - it is only used as
+ * an address to know if we are first process or not. It needs no allocated
+ * space, just "an address". It should be a "proc_t *".
+ */
+
+struct _KPROCESS{
+    void *something;
+};
+
+proc_t p0 = {0};

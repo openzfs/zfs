@@ -41,7 +41,7 @@
 #ifndef _SPL_SIGNAL_H
 #define _SPL_SIGNAL_H
 
-#include <osx/sched.h>
+#include <sys/sched.h>
 //#include <sys/vm.h>
 #include <sys/proc.h>
 #include <sys/thread.h>
@@ -54,6 +54,10 @@ struct proc;
 
 //extern int
 //thread_issignal(struct proc *, thread_t, sigset_t);
+
+typedef struct __siginfo {
+    /* Windows version goes here */
+} siginfo_t;
 
 /* The "why" argument indicates the allowable side-effects of the call:
  *
@@ -76,5 +80,7 @@ issig(int why)
 {
 	return 0;
 }
+
+#define signal_pending(p) issig(0)
 
 #endif /* SPL_SIGNAL_H */

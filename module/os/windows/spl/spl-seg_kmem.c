@@ -30,11 +30,11 @@
 #ifdef kmem_free
 #undef kmem_free
 #endif
-#include <vm/seg_kmem.h>
+//#include <vm/seg_kmem.h>
 
 #include <sys/time.h>
 #include <sys/timer.h>
-#include <osx/condvar.h>
+#include <sys/condvar.h>
 
 //#include <stdbool.h>
 

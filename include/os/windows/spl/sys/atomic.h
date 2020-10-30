@@ -31,7 +31,6 @@
 #define _SPL_ATOMIC_H
 
 #include <sys/types.h>
-#include <osx/atomic.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -159,6 +158,12 @@ static inline uint64_t
 atomic_cas_64(volatile uint64_t *_target, uint64_t _cmp, uint64_t _new)
 {
 	return InterlockedCompareExchange64((volatile LONG64 *)_target, _new, _cmp);
+}
+
+static inline uint32_t
+atomic_swap_32(volatile uint32_t *_target, uint32_t _new)
+{
+    return InterlockedExchange((volatile LONG *)_target, _new);
 }
 
 static inline uint64_t

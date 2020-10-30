@@ -72,9 +72,9 @@ extern uint64_t physmem;
 #define kmem_zalloc(size, kmflags)  zfs_kmem_zalloc((size), (kmflags))
 #define kmem_free(buf, size)        zfs_kmem_free((buf), (size))
 
-    void* zfs_kmem_alloc(uint32_t size, int kmflags);
-    void* zfs_kmem_zalloc(uint32_t size, int kmflags);
-    void zfs_kmem_free(void *buf, uint32_t size);
+    void* zfs_kmem_alloc(size_t size, int kmflags);
+    void* zfs_kmem_zalloc(size_t size, int kmflags);
+    void zfs_kmem_free(void *buf, size_t size);
 
     void spl_kmem_init(uint64_t);
     void spl_kmem_thread_init();
@@ -141,14 +141,15 @@ extern uint64_t physmem;
     void kmem_cache_set_move(kmem_cache_t *,
                              kmem_cbrc_t (*)(void *, void *, uint32_t, void *));
 
-  //  void *calloc(uint32_t n, uint32_t s);
-    char *kmem_asprintf(const char *fmt, ...);
-    void strfree(char *str);
-    char *kmem_vasprintf(const char *fmt, va_list ap);
-	char *kmem_strstr(const char *in, const char *str);
-	void strident_canon(char *s, uint32_t n);
-
-	boolean_t spl_arc_no_grow(uint32_t, boolean_t, kmem_cache_t **);
+extern char *kmem_asprintf(const char *fmt, ...);
+extern char *kmem_strdup(const char *str);
+extern void kmem_strfree(char *str);
+extern char *kmem_vasprintf(const char *fmt, va_list ap);
+extern char *kmem_strstr(const char *in, const char *str);
+extern void strident_canon(char *s, uint32_t n);
+extern uint64_t spl_kmem_cache_inuse(kmem_cache_t *cache);
+extern uint64_t spl_kmem_cache_entry_size(kmem_cache_t *cache);
+extern boolean_t spl_arc_no_grow(uint32_t, boolean_t, kmem_cache_t **);
 
 #ifdef	__cplusplus
 }

@@ -91,4 +91,15 @@ int     vfs_isunmount(mount_t *mp)
 	return 0;
 }
 
+int
+vfs_iswriteupgrade(mount_t *mp) /* ronly &&  MNTK_WANTRDWR */
+{
+//	return (mp->mnt_flag & MNT_RDONLY) && (mp->mnt_kern_flag & MNTK_WANTRDWR);
+	return (FALSE);
+}
+
+void
+vfs_setextendedsecurity(mount_t *mp)
+{
+}
 

@@ -443,22 +443,12 @@ void FreeUnicodeString(PUNICODE_STRING s)
 	s->Buffer = NULL;
 }
 
-int pn_alloc(pathname_t *p)
-{
-    return ENOTSUP;
-}
-
-int pn_free(pathname_t *p)
-{
-    return ENOTSUP;
-}
-
 int
 zfs_vnop_ioctl_fullfsync(struct vnode *vp, vfs_context_t *ct, zfsvfs_t *zfsvfs)
 {
 	int error;
 
-    error = zfs_fsync(vp, /*syncflag*/0, NULL, (caller_context_t *)ct);
+	error = zfs_fsync(VTOZ(vp), /*syncflag*/0, NULL);
 	if (error)
 		return (error);
 
@@ -483,7 +473,7 @@ zfs_getwinflags(znode_t *zp)
 		winflags |= FILE_ATTRIBUTE_ARCHIVE;
 	if (zflags & ZFS_READONLY)
 		winflags |= FILE_ATTRIBUTE_READONLY;
-	if (zflags & ZFS_REPARSEPOINT)
+	if (zflags & ZFS_REPARSE)
 		winflags |= FILE_ATTRIBUTE_REPARSE_POINT;
 
 	if (S_ISDIR(zp->z_mode)) {
@@ -548,15 +538,15 @@ BOOLEAN vattr_apply_lx_ea(vattr_t *vap, PFILE_FULL_EA_INFORMATION ea)
 	void *eaValue = &ea->EaName[0] + ea->EaNameLength + 1;
 	if (strncmp(ea->EaName, LX_FILE_METADATA_UID_EA_NAME, ea->EaNameLength) == 0) {
 		vap->va_uid = *(PUINT32)eaValue;
-		vap->va_active |= AT_UID;
+		vap->va_active |= ATTR_UID;
 		setVap = TRUE;
 	} else if (strncmp(ea->EaName, LX_FILE_METADATA_GID_EA_NAME, ea->EaNameLength) == 0) {
 		vap->va_gid = *(PUINT32)eaValue;
-		vap->va_active |= AT_GID;
+		vap->va_active |= ATTR_GID;
 		setVap = TRUE;
 	} else if (strncmp(ea->EaName, LX_FILE_METADATA_MODE_EA_NAME, ea->EaNameLength) == 0) {
 		vap->va_mode = *(PUINT32)eaValue;
-		vap->va_active |= AT_MODE;
+		vap->va_active |= ATTR_MODE;
 		setVap = TRUE;
 	} else if (strncmp(ea->EaName, LX_FILE_METADATA_DEVICE_ID_EA_NAME, ea->EaNameLength) == 0) {
 		UINT32 *vu32 = (UINT32*)eaValue;
@@ -578,7 +568,7 @@ static int vnode_apply_single_ea(struct vnode *vp, struct vnode *xdvp, FILE_FULL
 	if (ea->EaValueLength == 0) {
 
 		// Remove EA
-		error = zfs_remove(xdvp, ea->EaName, NULL, NULL, /* flags */0);
+		error = zfs_remove(VTOZ(xdvp), ea->EaName, NULL, /* flags */0);
 
 	} else {
 		// Add replace EA
@@ -595,7 +585,7 @@ static int vnode_apply_single_ea(struct vnode *vp, struct vnode *xdvp, FILE_FULL
 		uio_t *uio;
 		uio = uio_create(1, 0, UIO_SYSSPACE, UIO_WRITE);
 		uio_addiov(uio, ea->EaName + ea->EaNameLength + 1, ea->EaValueLength);
-		error = zfs_write(xvp, uio, 0, NULL, NULL);
+		error = zfs_write(xvp, uio, 0, NULL);
 		uio_free(uio);
 	}
 
@@ -628,7 +618,8 @@ NTSTATUS vnode_apply_eas(struct vnode *vp, PFILE_FULL_EA_INFORMATION eas, ULONG 
 	struct vnode *xdvp = NULL;
 	vattr_t vap = { 0 };
 	int error;
-	for (PFILE_FULL_EA_INFORMATION ea = eas; ; ea = (PFILE_FULL_EA_INFORMATION)((uint8_t*)ea + ea->NextEntryOffset)) {
+	PFILE_FULL_EA_INFORMATION ea;
+	for (ea = eas; ; ea = (PFILE_FULL_EA_INFORMATION)((uint8_t*)ea + ea->NextEntryOffset)) {
 		if (vattr_apply_lx_ea(&vap, ea)) {
 			dprintf("  encountered special attrs EA '%.*s'\n", ea->EaNameLength, ea->EaName);
 		} else {
@@ -654,7 +645,7 @@ NTSTATUS vnode_apply_eas(struct vnode *vp, PFILE_FULL_EA_INFORMATION eas, ULONG 
 
 	// Update zp based on LX eas.
 	if (vap.va_active != 0)
-		zfs_setattr(vp, &vap, 0, NULL, NULL);
+		zfs_setattr(VTOZ(vp), &vap, 0, NULL);
 
 out:
 	if (xdvp != NULL) {
@@ -700,7 +691,7 @@ zfs_obtain_xattr(znode_t *dzp, const char *name, mode_t mode, cred_t *cr,
 
 	vattr.va_type = VREG;
 	vattr.va_mode = mode & ~S_IFMT;
-	vattr.va_mask = AT_TYPE | AT_MODE;
+	vattr.va_mask = ATTR_TYPE | ATTR_MODE;
 
 	if ((error = zfs_acl_ids_create(dzp, 0,
                                     &vattr, cr, NULL, &acl_ids)) != 0) {
@@ -933,7 +924,7 @@ acl_trivial_access_masks(mode_t mode, boolean_t isdir, trivial_acl_t *masks)
 /*
  * Compute the same user access value as getattrlist(2)
  */
-uint32_t getuseraccess(znode_t *zp, vfs_context_t *ctx)
+uint32_t getuseraccess(znode_t *zp, vfs_context_t ctx)
 {
 	uint32_t	user_access = 0;
 #if 0
@@ -1236,7 +1227,7 @@ zpl_xattr_set_sa(struct vnode *vp, const char *name, const void *value,
 }
 
 int
-zpl_xattr_get_sa(struct vnode *vp, const char *name, void *value, uint32_t size)
+zpl_xattr_get_sa(struct vnode *vp, const char *name, void *value, size_t size)
 {
 	znode_t *zp = VTOZ(vp);
 	uchar_t *nv_value;
@@ -1694,11 +1685,8 @@ void zfs_set_security(struct vnode *vp, struct vnode *dvp)
 		return;
 	}
 
-	ZFS_ENTER_NOERROR(zfsvfs);
-	if ((zfsvfs)->z_unmounted) {
-		ZFS_EXIT(zfsvfs);
+	ZFS_ENTER_IFERROR(zfsvfs)
 		return;
-	}
 
 	// If no parent, find it. This will take one hold on
 	// dvp, either directly or from zget().
@@ -1945,6 +1933,12 @@ err:
 	return Status;
 }
 
+int
+uio_prefaultpages(ssize_t n, struct uio *uio)
+{
+	return (0);
+}
+
 
 /* IRP_MJ_SET_INFORMATION helpers */
 
@@ -2040,6 +2034,8 @@ NTSTATUS file_endoffile_information(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_S
 
 	dprintf("* File_EndOfFile_Information:\n");
 
+	ZFS_ENTER(zfsvfs);
+
 	// From FASTFAT
 	//  This is kinda gross, but if the file is not cached, but there is
 	//  a data section, we have to cache the file to avoid a bunch of
@@ -2059,7 +2055,6 @@ NTSTATUS file_endoffile_information(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_S
 	}
 
 	VN_HOLD(vp);
-	ZFS_ENTER_NOERROR(zfsvfs);
 	if (!zfsvfs->z_unmounted) {
 
 		// Can't be done on DeleteOnClose
@@ -2228,7 +2223,7 @@ NTSTATUS file_link_information(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_
 
 	// What about link->ReplaceIfExist ?
 
-	error = zfs_link(tdvp, fvp, remainder ? remainder : filename, NULL, NULL, 0);
+	error = zfs_link(VTOZ(tdvp), VTOZ(fvp), remainder ? remainder : filename, NULL, 0);
 
 	if (error == 0) {
 
@@ -2433,9 +2428,9 @@ NTSTATUS file_rename_information(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STAC
 	}
 
 
-	error = zfs_rename(fdvp, &zp->z_name_cache[zp->z_name_offset],
+	error = zfs_rename(VTOZ(fdvp), &zp->z_name_cache[zp->z_name_offset],
 		tdvp, remainder ? remainder : filename,
-		NULL, NULL, 0);
+		NULL, 0);
 
 	if (error == 0) {
 		// TODO: rename file in same directory, send OLD_NAME, NEW_NAME
@@ -2496,13 +2491,13 @@ NTSTATUS file_attribute_tag_information(PDEVICE_OBJECT DeviceObject, PIRP Irp, P
 		zfsvfs_t *zfsvfs = zp->z_zfsvfs;
 
 		tag->FileAttributes = zfs_getwinflags(zp);
-		if (zp->z_pflags & ZFS_REPARSEPOINT) {
+		if (zp->z_pflags & ZFS_REPARSE) {
 			int err;
 			uio_t *uio;
 			REPARSE_DATA_BUFFER tagdata;
 			uio = uio_create(1, 0, UIO_SYSSPACE, UIO_READ);
 			uio_addiov(uio, (user_addr_t)&tagdata, sizeof(tagdata));
-			err = zfs_readlink(vp, uio, NULL, NULL);
+			err = zfs_readlink(vp, uio, NULL);
 			tag->ReparseTag = tagdata.ReparseTag;
 			dprintf("Returning tag 0x%x\n", tag->ReparseTag);
 			uio_free(uio);

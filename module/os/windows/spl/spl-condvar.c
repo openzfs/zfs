@@ -29,6 +29,7 @@
  * by using the Wait argument to Mutex, and call WaitForObject.
  */
 
+#include <sys/atomic.h>
 #include <sys/condvar.h>
 #include <spl-debug.h>
 //#include <sys/errno.h>
@@ -70,7 +71,7 @@ spl_cv_signal(kcondvar_t *cvp)
 {
 	if (cvp->initialised != CONDVAR_INIT)
 		panic("%s: not initialised", __func__);
-	KIRQL oldIrq;
+//	KIRQL oldIrq;
 
 //	KeAcquireSpinLock(&cvp->waiters_count_lock, &oldIrq);
 	uint32_t have_waiters = cvp->waiters_count > 0;
@@ -87,7 +88,7 @@ spl_cv_broadcast(kcondvar_t *cvp)
 {
 	if (cvp->initialised != CONDVAR_INIT)
 		panic("%s: not initialised", __func__);
-	KIRQL oldIrq;
+//	KIRQL oldIrq;
 
 //	KeAcquireSpinLock(&cvp->waiters_count_lock, &oldIrq);
 	int have_waiters = cvp->waiters_count > 0;
@@ -101,7 +102,7 @@ spl_cv_broadcast(kcondvar_t *cvp)
  * Block on the indicated condition variable and
  * release the associated mutex while blocked.
  */
-void
+int
 spl_cv_wait(kcondvar_t *cvp, kmutex_t *mp, int flags, const char *msg)
 {
 	int result;
@@ -113,7 +114,7 @@ spl_cv_wait(kcondvar_t *cvp, kmutex_t *mp, int flags, const char *msg)
 #ifdef SPL_DEBUG_MUTEX
 	spl_wdlist_settime(mp->leak, 0);
 #endif
-	KIRQL oldIrq;
+//	KIRQL oldIrq;
 //	KeAcquireSpinLock(&cvp->waiters_count_lock, &oldIrq);
 	atomic_inc_32(&cvp->waiters_count);
 //	KeReleaseSpinLock(&cvp->waiters_count_lock, oldIrq);
@@ -142,6 +143,11 @@ spl_cv_wait(kcondvar_t *cvp, kmutex_t *mp, int flags, const char *msg)
 #ifdef SPL_DEBUG_MUTEX
 	spl_wdlist_settime(mp->leak, gethrestime_sec());
 #endif
+        /*
+         * 1 - condvar got cv_signal()/cv_broadcast()
+         * 0 - received signal (kill -signal)
+         */
+        return (result == STATUS_ALERTED ? 0 : 1);
 }
 
 /*
@@ -184,7 +190,7 @@ spl_cv_timedwait(kcondvar_t *cvp, kmutex_t *mp, clock_t tim, int flags,
 #ifdef SPL_DEBUG_MUTEX
 	spl_wdlist_settime(mp->leak, 0);
 #endif
-	KIRQL oldIrq;
+//	KIRQL oldIrq;
 //	KeAcquireSpinLock(&cvp->waiters_count_lock, &oldIrq);
 	atomic_inc_32(&cvp->waiters_count);
 //	KeReleaseSpinLock(&cvp->waiters_count_lock, oldIrq);
@@ -210,15 +216,25 @@ spl_cv_timedwait(kcondvar_t *cvp, kmutex_t *mp, clock_t tim, int flags,
 #ifdef SPL_DEBUG_MUTEX
 	spl_wdlist_settime(mp->leak, gethrestime_sec());
 #endif
-	return (result == STATUS_TIMEOUT ? -1 : 0);
 
+        switch (result) {
+
+                case STATUS_ALERTED:       /* Signal */
+                case ERESTART:
+                        return (0);
+
+                case STATUS_TIMEOUT:       /* Timeout */
+                        return (-1);
+        }
+
+        return (1);
 }
 
 
 /*
 * Compatibility wrapper for the cv_timedwait_hires() Illumos interface.
 */
-clock_t
+int
 cv_timedwait_hires(kcondvar_t *cvp, kmutex_t *mp, hrtime_t tim,
                  hrtime_t res, int flag)
 {
@@ -250,7 +266,7 @@ cv_timedwait_hires(kcondvar_t *cvp, kmutex_t *mp, hrtime_t tim,
 #ifdef SPL_DEBUG_MUTEX
 	spl_wdlist_settime(mp->leak, 0);
 #endif
-	KIRQL oldIrq;
+//	KIRQL oldIrq;
 //	KeAcquireSpinLock(&cvp->waiters_count_lock, &oldIrq);
 	atomic_inc_32(&cvp->waiters_count);
 //	KeReleaseSpinLock(&cvp->waiters_count_lock, oldIrq);
@@ -277,5 +293,15 @@ cv_timedwait_hires(kcondvar_t *cvp, kmutex_t *mp, hrtime_t tim,
 	spl_wdlist_settime(mp->leak, gethrestime_sec());
 #endif
 
-	return (result == STATUS_TIMEOUT ? -1 : 0);
+        switch (result) {
+
+                case STATUS_ALERTED:       /* Signal */
+                case ERESTART:
+                        return (0);
+
+                case STATUS_TIMEOUT:       /* Timeout */
+                        return (-1);
+        }
+
+        return (1);
 }

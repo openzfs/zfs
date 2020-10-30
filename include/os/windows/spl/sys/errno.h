@@ -98,6 +98,8 @@ extern "C" {
 
 #define EDQUOT	49      /* Disc quota exceeded                  */
 #define EBADE	50      /* invalid exchange                     */
+#define	ECKSUM  EBADE
+
 #define ESHUTDOWN	58              /* Can't send after socket shutdown */
 #define ESTALE	70              /* Stale NFS file handle */
 

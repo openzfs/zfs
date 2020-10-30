@@ -2,13 +2,25 @@
 #ifndef _SPL_PROC_H
 #define _SPL_PROC_H
 
-//#include <sys/ucred.h>
-//#include_next <sys/proc.h>
-//#include <sys/kernel_types.h>
-typedef struct proc { void *something; } proc_t;
-extern proc_t p0;              /* process 0 */
-#define current_proc PsGetCurrentProcess
+#include <sys/types.h>
 
-#define current_proc PsGetCurrentProcess
+typedef struct _KPROCESS proc_t;
+
+extern proc_t p0;
+
+#define	current_proc PsGetCurrentProcess
+#define getpid() PsGetProcessId(PsGetCurrentProcess())
+
+static inline boolean_t
+zfs_proc_is_caller(proc_t *p)
+{
+	return (p == PsGetCurrentProcess());
+}
+
+static inline char *
+getcomm(void)
+{
+	return "procname"; // WIN32 me
+}
 
 #endif /* SPL_PROC_H */

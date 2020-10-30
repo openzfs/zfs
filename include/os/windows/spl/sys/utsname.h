@@ -33,7 +33,7 @@
 #define _SPL_UTSNAME_H
 
 #define      _SYS_NMLN       257
-struct utsname {
+struct opensolaris_utsname {
         char    sysname[_SYS_NMLN];
         char    nodename[_SYS_NMLN];
         char    release[_SYS_NMLN];
@@ -41,6 +41,7 @@ struct utsname {
         char    machine[_SYS_NMLN];
 };
 
-extern struct utsname utsname;
+typedef struct opensolaris_utsname utsname_t;
+extern utsname_t *utsname(void);
 
 #endif /* SPL_UTSNAME_H */

@@ -33,11 +33,12 @@
 */
 
 #include <sys/uio.h>
+#include <sys/kmem.h>
 
 
 uio_t *uio_create(int iovcount, off_t offset, int spacetype, int iodirection)
 {
-	void *                          my_buf_p;
+	// void *                          my_buf_p;
 	uint64_t                        my_size;
 	uio_t                          *my_uio;
 
@@ -159,11 +160,11 @@ void uio_update(uio_t *uio, user_size_t count)
 
 	if (count) {
 		if (count > uio->uio_iov->iov_len) {
-			(uintptr_t)uio->uio_iov[ind].iov_base += uio->uio_iov[ind].iov_len;
+			uio->uio_iov[ind].iov_base += uio->uio_iov[ind].iov_len;
 			uio->uio_iov[ind].iov_len = 0;
 		}
 		else {
-			(uintptr_t)uio->uio_iov[ind].iov_base += count;
+			uio->uio_iov[ind].iov_base += count;
 			uio->uio_iov[ind].iov_len -= count;
 		}
 		if (count > (user_size_t)uio->uio_resid) {
@@ -253,7 +254,7 @@ int uio_spacetype(uio_t *a_uio)
 uio_t *uio_duplicate(uio_t *a_uio)
 {
 	uio_t           *my_uio;
-	int                     i;
+	// int                     i;
 
 	if (a_uio == NULL) {
 		return(NULL);

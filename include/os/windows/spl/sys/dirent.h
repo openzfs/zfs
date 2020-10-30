@@ -2,7 +2,7 @@
 #ifndef _SPL_DIRENT_H
 #define _SPL_DIRENT_H
 
-//#include_next <sys/dirent.h>
+#include <sys/extdirent.h>
 
 #define MAXNAMLEN      255
 

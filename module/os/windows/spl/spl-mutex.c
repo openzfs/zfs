@@ -37,6 +37,7 @@
   * using atomic CAS on m_owner, in the simple cases.
   */
 
+#include <sys/atomic.h>
 #include <sys/mutex.h>
 #include <string.h>
 #include <sys/debug.h>
@@ -157,8 +158,8 @@ void spl_mutex_exit(kmutex_t *mp)
 
 int spl_mutex_tryenter(kmutex_t *mp)
 {
-	LARGE_INTEGER timeout;
-	NTSTATUS Status;
+	// LARGE_INTEGER timeout;
+	// NTSTATUS Status;
 	kthread_t *thisthread = current_thread();
 
 	if (mp->initialised != MUTEX_INITIALISED)

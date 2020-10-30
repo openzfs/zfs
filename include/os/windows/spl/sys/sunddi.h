@@ -90,8 +90,11 @@ typedef int ddi_devid_t;
 //extern int ddi_strtoll(const char *, char **, int, long long *);
 
 // Define proper Solaris API calls, and clean ZFS up to use
+#define copyin(from, to, len) ddi_copyin((from), (to), (len), 0)
 int ddi_copyin(const void *from, void *to, size_t len, int flags);
+#define copyout(from, to, len) ddi_copyout((from), (to), (len), 0)
 int ddi_copyout(const void *from, void *to, size_t len, int flags);
+#define copyinstr(from, to, len, done) ddi_copyinstr((from), (to), (len), (done))
 int ddi_copyinstr(const void *uaddr, void *kaddr, size_t len, size_t *done);
 
 int ddi_copysetup(void *to, size_t len, void **out_buffer, PMDL *out_mdl);
@@ -189,6 +192,7 @@ struct i_ddi_soft_state {
 
 #define	MIN_N_ITEMS	8	/* 8 void *'s == 32 bytes */
 
+extern unsigned long long strlcpy(char *, const char *, unsigned long long);
 
 uint32_t
 ddi_strcspn(const char * __restrict s, const char * __restrict charset);

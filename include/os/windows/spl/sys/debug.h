@@ -58,7 +58,23 @@
 #include <spl-debug.h>
 #include <stdio.h>
 
-#define panic(...) do { KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, __VA_ARGS__)); DbgBreakPoint(); windows_delay(hz); } while (1)
+#ifndef expect
+#define expect(expr, value) (__builtin_expect((expr), (value)))
+#endif
+#define likely(x)               __builtin_expect(!!(x), 1)
+#define unlikely(x)             __builtin_expect(!!(x), 0)
+
+// For some reason these two dont work, so make them empty
+#ifndef __maybe_unused
+#define __maybe_unused  __attribute__((unused))
+// #define	__maybe_unused
+#endif
+#define	__printflike(a, b) __attribute__((__format__ (__printf__, a, b)))
+//#define __printflike(a,b)
+
+#define __unused  __attribute__((unused))
+
+extern void panic(const char *fmt, ...) __attribute__((__noreturn__));
 
 extern void printBuffer(const char *fmt, ...);
 
@@ -131,6 +147,8 @@ do {									\
 #define ASSERT0(x)	VERIFY0(x)
 
 #define ASSERTV(x)	x
+
+#define ZFS_DEBUG
 
 #else /* Debugging Enabled */
 
