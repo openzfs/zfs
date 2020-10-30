@@ -864,18 +864,6 @@ int dmu_assign_arcbuf_by_dnode(dnode_t *dn, uint64_t offset,
 int dmu_assign_arcbuf_by_dbuf(dmu_buf_t *handle, uint64_t offset,
     struct arc_buf *buf, dmu_tx_t *tx);
 #define	dmu_assign_arcbuf	dmu_assign_arcbuf_by_dbuf
-#ifdef HAVE_UIO_ZEROCOPY
-int dmu_xuio_init(struct xuio *uio, int niov);
-void dmu_xuio_fini(struct xuio *uio);
-int dmu_xuio_add(struct xuio *uio, struct arc_buf *abuf, offset_t off,
-    size_t n);
-int dmu_xuio_cnt(struct xuio *uio);
-struct arc_buf *dmu_xuio_arcbuf(struct xuio *uio, int i);
-void dmu_xuio_clear(struct xuio *uio, int i);
-#endif /* HAVE_UIO_ZEROCOPY */
-void xuio_stat_wbuf_copied(void);
-void xuio_stat_wbuf_nocopy(void);
-
 extern int zfs_prefetch_disable;
 extern int zfs_max_recordsize;
 
