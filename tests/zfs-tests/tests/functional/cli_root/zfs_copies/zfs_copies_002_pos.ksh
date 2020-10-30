@@ -92,7 +92,7 @@ for val in 1 2 3; do
 	check_used $used $val
 done
 
-log_note "Verify df(1M) can correctly display the space charged."
+log_note "Verify df(1) can correctly display the space charged."
 for val in 1 2 3; do
 	if is_freebsd; then
 		used=`df -m /$TESTPOOL/fs_$val | grep $TESTPOOL/fs_$val \

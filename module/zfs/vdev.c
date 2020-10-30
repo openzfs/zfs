@@ -254,7 +254,7 @@ vdev_default_xlate(vdev_t *vd, const range_seg64_t *in, range_seg64_t *res)
 
 /*
  * Derive the enumerated allocation bias from string input.
- * String origin is either the per-vdev zap or zpool(1M).
+ * String origin is either the per-vdev zap or zpool(8).
  */
 static vdev_alloc_bias_t
 vdev_derive_alloc_bias(const char *bias)

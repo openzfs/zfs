@@ -5694,7 +5694,7 @@ metaslab_claim_concrete(vdev_t *vd, uint64_t offset, uint64_t size,
 	range_tree_remove(msp->ms_allocatable, offset, size);
 	range_tree_clear(msp->ms_trim, offset, size);
 
-	if (spa_writeable(spa)) {	/* don't dirty if we're zdb(1M) */
+	if (spa_writeable(spa)) {	/* don't dirty if we're zdb(8) */
 		metaslab_class_t *mc = msp->ms_group->mg_class;
 		multilist_sublist_t *mls =
 		    multilist_sublist_lock_obj(mc->mc_metaslab_txg_list, msp);
@@ -5741,7 +5741,7 @@ metaslab_claim_impl(vdev_t *vd, uint64_t offset, uint64_t size, uint64_t txg)
 		metaslab_claim_cb_arg_t arg;
 
 		/*
-		 * Only zdb(1M) can claim on indirect vdevs.  This is used
+		 * Only zdb(8) can claim on indirect vdevs.  This is used
 		 * to detect leaks of mapped space (that are not accounted
 		 * for in the obsolete counts, spacemap, or bpobj).
 		 */

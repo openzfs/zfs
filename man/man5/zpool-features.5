@@ -676,11 +676,11 @@ When the \fBmulti_vdev_crash_dump\fR feature is set to \fBenabled\fR,
 the administrator can use the \fBdumpadm\fR(1M) command to configure a
 dump device on a pool comprised of multiple vdevs.
 
-Under Linux this feature is registered for compatibility but not used.
-New pools created under Linux will have the feature \fBenabled\fR but
-will never transition to \fB\fBactive\fR.  This functionality is not
-required in order to support crash dumps under Linux.  Existing pools
-where this feature is \fB\fBactive\fR can be imported.
+Under FreeBSD and Linux this feature is registered for compatibility but not
+used.  New pools created under FreeBSD and Linux will have the feature
+\fBenabled\fR but will never transition to \fB\fBactive\fR.  This functionality
+is not required in order to support crash dumps under FreeBSD and Linux.
+Existing pools where this feature is \fB\fBactive\fR can be imported.
 .RE
 
 .sp
