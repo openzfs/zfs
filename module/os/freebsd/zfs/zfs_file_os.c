@@ -296,7 +296,8 @@ zfs_file_unlink(const char *fnamep)
 	rc = kern_funlinkat(curthread, AT_FDCWD, fnamep, FD_NONE, seg, 0, 0);
 #else
 #ifdef AT_BENEATH
-	rc = kern_unlinkat(curthread, AT_FDCWD, fnamep, seg, 0, 0);
+	rc = kern_unlinkat(curthread, AT_FDCWD, __DECONST(char *, fnamep),
+	    seg, 0, 0);
 #else
 	rc = kern_unlinkat(curthread, AT_FDCWD, __DECONST(char *, fnamep),
 	    seg, 0);
