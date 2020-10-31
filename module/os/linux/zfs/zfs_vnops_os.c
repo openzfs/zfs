@@ -240,78 +240,6 @@ zfs_close(struct inode *ip, int flag, cred_t *cr)
 	return (0);
 }
 
-#if defined(SEEK_HOLE) && defined(SEEK_DATA)
-/*
- * Lseek support for finding holes (cmd == SEEK_HOLE) and
- * data (cmd == SEEK_DATA). "off" is an in/out parameter.
- */
-static int
-zfs_holey_common(struct inode *ip, int cmd, loff_t *off)
-{
-	znode_t	*zp = ITOZ(ip);
-	uint64_t noff = (uint64_t)*off; /* new offset */
-	uint64_t file_sz;
-	int error;
-	boolean_t hole;
-
-	file_sz = zp->z_size;
-	if (noff >= file_sz)  {
-		return (SET_ERROR(ENXIO));
-	}
-
-	if (cmd == SEEK_HOLE)
-		hole = B_TRUE;
-	else
-		hole = B_FALSE;
-
-	error = dmu_offset_next(ZTOZSB(zp)->z_os, zp->z_id, hole, &noff);
-
-	if (error == ESRCH)
-		return (SET_ERROR(ENXIO));
-
-	/* file was dirty, so fall back to using generic logic */
-	if (error == EBUSY) {
-		if (hole)
-			*off = file_sz;
-
-		return (0);
-	}
-
-	/*
-	 * We could find a hole that begins after the logical end-of-file,
-	 * because dmu_offset_next() only works on whole blocks.  If the
-	 * EOF falls mid-block, then indicate that the "virtual hole"
-	 * at the end of the file begins at the logical EOF, rather than
-	 * at the end of the last block.
-	 */
-	if (noff > file_sz) {
-		ASSERT(hole);
-		noff = file_sz;
-	}
-
-	if (noff < *off)
-		return (error);
-	*off = noff;
-	return (error);
-}
-
-int
-zfs_holey(struct inode *ip, int cmd, loff_t *off)
-{
-	znode_t	*zp = ITOZ(ip);
-	zfsvfs_t *zfsvfs = ITOZSB(ip);
-	int error;
-
-	ZFS_ENTER(zfsvfs);
-	ZFS_VERIFY_ZP(zp);
-
-	error = zfs_holey_common(ip, cmd, off);
-
-	ZFS_EXIT(zfsvfs);
-	return (error);
-}
-#endif /* SEEK_HOLE && SEEK_DATA */
-
 #if defined(_KERNEL)
 /*
  * When a file is memory mapped, we must keep the IO data synchronized
@@ -626,26 +554,6 @@ zfs_get_data(void *arg, lr_write_t *lr, char *buf, struct lwb *lwb, zio_t *zio)
 
 	zfs_get_done(zgd, error);
 
-	return (error);
-}
-
-/*ARGSUSED*/
-int
-zfs_access(struct inode *ip, int mode, int flag, cred_t *cr)
-{
-	znode_t *zp = ITOZ(ip);
-	zfsvfs_t *zfsvfs = ITOZSB(ip);
-	int error;
-
-	ZFS_ENTER(zfsvfs);
-	ZFS_VERIFY_ZP(zp);
-
-	if (flag & V_ACE_MASK)
-		error = zfs_zaccess(zp, mode, flag, B_FALSE, cr);
-	else
-		error = zfs_zaccess_rwx(zp, mode, flag, cr);
-
-	ZFS_EXIT(zfsvfs);
 	return (error);
 }
 
@@ -4214,7 +4122,6 @@ zfs_fid(struct inode *ip, fid_t *fidp)
 #if defined(_KERNEL)
 EXPORT_SYMBOL(zfs_open);
 EXPORT_SYMBOL(zfs_close);
-EXPORT_SYMBOL(zfs_access);
 EXPORT_SYMBOL(zfs_lookup);
 EXPORT_SYMBOL(zfs_create);
 EXPORT_SYMBOL(zfs_tmpfile);

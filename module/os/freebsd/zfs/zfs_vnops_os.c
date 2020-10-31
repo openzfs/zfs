@@ -270,69 +270,13 @@ zfs_close(vnode_t *vp, int flag, int count, offset_t offset, cred_t *cr)
 	return (0);
 }
 
-/*
- * Lseek support for finding holes (cmd == _FIO_SEEK_HOLE) and
- * data (cmd == _FIO_SEEK_DATA). "off" is an in/out parameter.
- */
-static int
-zfs_holey(vnode_t *vp, ulong_t cmd, offset_t *off)
-{
-	znode_t	*zp = VTOZ(vp);
-	uint64_t noff = (uint64_t)*off; /* new offset */
-	uint64_t file_sz;
-	int error;
-	boolean_t hole;
-
-	file_sz = zp->z_size;
-	if (noff >= file_sz)  {
-		return (SET_ERROR(ENXIO));
-	}
-
-	if (cmd == _FIO_SEEK_HOLE)
-		hole = B_TRUE;
-	else
-		hole = B_FALSE;
-
-	error = dmu_offset_next(zp->z_zfsvfs->z_os, zp->z_id, hole, &noff);
-
-	if (error == ESRCH)
-		return (SET_ERROR(ENXIO));
-
-	/* file was dirty, so fall back to using generic logic */
-	if (error == EBUSY) {
-		if (hole)
-			*off = file_sz;
-
-		return (0);
-	}
-
-	/*
-	 * We could find a hole that begins after the logical end-of-file,
-	 * because dmu_offset_next() only works on whole blocks.  If the
-	 * EOF falls mid-block, then indicate that the "virtual hole"
-	 * at the end of the file begins at the logical EOF, rather than
-	 * at the end of the last block.
-	 */
-	if (noff > file_sz) {
-		ASSERT(hole);
-		noff = file_sz;
-	}
-
-	if (noff < *off)
-		return (error);
-	*off = noff;
-	return (error);
-}
-
 /* ARGSUSED */
 static int
 zfs_ioctl(vnode_t *vp, ulong_t com, intptr_t data, int flag, cred_t *cred,
     int *rvalp)
 {
-	offset_t off;
+	loff_t off;
 	int error;
-	zfsvfs_t *zfsvfs;
-	znode_t *zp;
 
 	switch (com) {
 	case _FIOFFS:
@@ -350,18 +294,12 @@ zfs_ioctl(vnode_t *vp, ulong_t com, intptr_t data, int flag, cred_t *cred,
 		return (0);
 	}
 
-	case _FIO_SEEK_DATA:
-	case _FIO_SEEK_HOLE:
+	case F_SEEK_DATA:
+	case F_SEEK_HOLE:
 	{
 		off = *(offset_t *)data;
-		zp = VTOZ(vp);
-		zfsvfs = zp->z_zfsvfs;
-		ZFS_ENTER(zfsvfs);
-		ZFS_VERIFY_ZP(zp);
-
 		/* offset parameter is in/out */
-		error = zfs_holey(vp, com, &off);
-		ZFS_EXIT(zfsvfs);
+		error = zfs_holey(VTOZ(vp), com, &off);
 		if (error)
 			return (error);
 		*(offset_t *)data = off;
@@ -887,27 +825,6 @@ zfs_get_data(void *arg, lr_write_t *lr, char *buf, struct lwb *lwb, zio_t *zio)
 
 	zfs_get_done(zgd, error);
 
-	return (error);
-}
-
-/*ARGSUSED*/
-static int
-zfs_access(vnode_t *vp, int mode, int flag, cred_t *cr,
-    caller_context_t *ct)
-{
-	znode_t *zp = VTOZ(vp);
-	zfsvfs_t *zfsvfs = zp->z_zfsvfs;
-	int error;
-
-	ZFS_ENTER(zfsvfs);
-	ZFS_VERIFY_ZP(zp);
-
-	if (flag & V_ACE_MASK)
-		error = zfs_zaccess(zp, mode, flag, B_FALSE, cr);
-	else
-		error = zfs_zaccess_rwx(zp, mode, flag, cr);
-
-	ZFS_EXIT(zfsvfs);
 	return (error);
 }
 
@@ -4727,7 +4644,7 @@ zfs_freebsd_access(struct vop_access_args *ap)
 	 */
 	accmode = ap->a_accmode & (VREAD|VWRITE|VEXEC|VAPPEND);
 	if (accmode != 0)
-		error = zfs_access(ap->a_vp, accmode, 0, ap->a_cred, NULL);
+		error = zfs_access(zp, accmode, 0, ap->a_cred);
 
 	/*
 	 * VADMIN has to be handled by vaccess().
