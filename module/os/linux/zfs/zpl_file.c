@@ -515,7 +515,7 @@ zpl_llseek(struct file *filp, loff_t offset, int whence)
 
 		spl_inode_lock_shared(ip);
 		cookie = spl_fstrans_mark();
-		error = -zfs_holey(ip, whence, &offset);
+		error = -zfs_holey(ITOZ(ip), whence, &offset);
 		spl_fstrans_unmark(cookie);
 		if (error == 0)
 			error = lseek_execute(filp, ip, offset, maxbytes);
