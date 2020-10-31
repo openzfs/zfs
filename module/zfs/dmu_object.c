@@ -58,10 +58,8 @@ dmu_object_alloc_impl(objset_t *os, dmu_object_type_t ot, int blocksize,
 	int dnodes_per_chunk = 1 << dmu_object_alloc_chunk_shift;
 	int error;
 
-	kpreempt_disable();
-	cpuobj = &os->os_obj_next_percpu[CPU_SEQID %
+	cpuobj = &os->os_obj_next_percpu[CPU_SEQID_UNSTABLE %
 	    os->os_obj_next_percpu_len];
-	kpreempt_enable();
 
 	if (dn_slots == 0) {
 		dn_slots = DNODE_MIN_SLOTS;

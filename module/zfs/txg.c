@@ -305,9 +305,7 @@ txg_hold_open(dsl_pool_t *dp, txg_handle_t *th)
 	 * significance to the chosen tx_cpu. Because.. Why not use
 	 * the current cpu to index into the array?
 	 */
-	kpreempt_disable();
-	tc = &tx->tx_cpu[CPU_SEQID];
-	kpreempt_enable();
+	tc = &tx->tx_cpu[CPU_SEQID_UNSTABLE];
 
 	mutex_enter(&tc->tc_open_lock);
 	txg = tx->tx_open_txg;
