@@ -56,7 +56,6 @@
 #define	tsd_set(key, value)	osd_thread_set(curthread, (key), (value))
 #define	fm_panic	panic
 
-#define	cond_resched()		kern_yield(PRI_USER)
 extern int zfs_debug_level;
 extern struct mtx zfs_debug_mtx;
 #define	ZFS_LOG(lvl, ...) do {   \
