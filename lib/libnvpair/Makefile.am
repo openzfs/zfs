@@ -37,8 +37,4 @@ if !ASAN_ENABLED
 libnvpair_la_LDFLAGS += -Wl,-z,defs
 endif
 
-if BUILD_FREEBSD
 libnvpair_la_LDFLAGS += -version-info 3:0:0
-else
-libnvpair_la_LDFLAGS += -version-info 1:1:0
-endif
