@@ -40,10 +40,8 @@ extern "C" {
 
 extern int zfs_open(struct inode *ip, int mode, int flag, cred_t *cr);
 extern int zfs_close(struct inode *ip, int flag, cred_t *cr);
-extern int zfs_holey(struct inode *ip, int cmd, loff_t *off);
 extern int zfs_write_simple(znode_t *zp, const void *data, size_t len,
     loff_t pos, size_t *resid);
-extern int zfs_access(struct inode *ip, int mode, int flag, cred_t *cr);
 extern int zfs_lookup(znode_t *dzp, char *nm, znode_t **zpp, int flags,
     cred_t *cr, int *direntflags, pathname_t *realpnp);
 extern int zfs_create(znode_t *dzp, char *name, vattr_t *vap, int excl,
