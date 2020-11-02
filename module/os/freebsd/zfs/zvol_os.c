@@ -289,17 +289,17 @@ retry:
 	 */
 	if ((flag & FWRITE) && ((zv->zv_flags & ZVOL_RDONLY) ||
 	    dmu_objset_incompatible_encryption_version(zv->zv_objset))) {
-		err = EROFS;
+		err = SET_ERROR(EROFS);
 		goto out_open_count;
 	}
 	if (zv->zv_flags & ZVOL_EXCL) {
-		err = EBUSY;
+		err = SET_ERROR(EBUSY);
 		goto out_open_count;
 	}
 #ifdef FEXCL
 	if (flag & FEXCL) {
 		if (zv->zv_open_count != 0) {
-			err = EBUSY;
+			err = SET_ERROR(EBUSY);
 			goto out_open_count;
 		}
 		zv->zv_flags |= ZVOL_EXCL;
@@ -323,7 +323,7 @@ out_mutex:
 	mutex_exit(&zv->zv_state_lock);
 	if (drop_suspend)
 		rw_exit(&zv->zv_suspend_lock);
-	return (SET_ERROR(err));
+	return (err);
 }
 
 /*ARGSUSED*/
@@ -614,7 +614,7 @@ zvol_geom_bio_strategy(struct bio *bp)
 			goto sync;
 		break;
 	default:
-		error = EOPNOTSUPP;
+		error = SET_ERROR(EOPNOTSUPP);
 		goto resume;
 	}
 
@@ -689,7 +689,7 @@ unlock:
 
 	bp->bio_completed = bp->bio_length - resid;
 	if (bp->bio_completed < bp->bio_length && off > volsize)
-		error = EINVAL;
+		error = SET_ERROR(EINVAL);
 
 	switch (bp->bio_cmd) {
 	case BIO_FLUSH:
@@ -870,17 +870,17 @@ zvol_cdev_open(struct cdev *dev, int flags, int fmt, struct thread *td)
 	}
 
 	if ((flags & FWRITE) && (zv->zv_flags & ZVOL_RDONLY)) {
-		err = EROFS;
+		err = SET_ERROR(EROFS);
 		goto out_opened;
 	}
 	if (zv->zv_flags & ZVOL_EXCL) {
-		err = EBUSY;
+		err = SET_ERROR(EBUSY);
 		goto out_opened;
 	}
 #ifdef FEXCL
 	if (flags & FEXCL) {
 		if (zv->zv_open_count != 0) {
-			err = EBUSY;
+			err = SET_ERROR(EBUSY);
 			goto out_opened;
 		}
 		zv->zv_flags |= ZVOL_EXCL;
@@ -907,7 +907,7 @@ out_locked:
 	mutex_exit(&zv->zv_state_lock);
 	if (drop_suspend)
 		rw_exit(&zv->zv_suspend_lock);
-	return (SET_ERROR(err));
+	return (err);
 }
 
 static int
@@ -1022,7 +1022,7 @@ zvol_cdev_ioctl(struct cdev *dev, ulong_t cmd, caddr_t data,
 		    length <= 0) {
 			printf("%s: offset=%jd length=%jd\n", __func__, offset,
 			    length);
-			error = EINVAL;
+			error = SET_ERROR(EINVAL);
 			break;
 		}
 		rw_enter(&zv->zv_suspend_lock, ZVOL_RW_READER);
@@ -1076,7 +1076,7 @@ zvol_cdev_ioctl(struct cdev *dev, ulong_t cmd, caddr_t data,
 			refd = metaslab_class_get_alloc(spa_normal_class(spa));
 			arg->value.off = refd / DEV_BSIZE;
 		} else
-			error = ENOIOCTL;
+			error = SET_ERROR(ENOIOCTL);
 		break;
 	}
 	case FIOSEEKHOLE:
@@ -1092,7 +1092,7 @@ zvol_cdev_ioctl(struct cdev *dev, ulong_t cmd, caddr_t data,
 		break;
 	}
 	default:
-		error = ENOIOCTL;
+		error = SET_ERROR(ENOIOCTL);
 	}
 
 	return (error);
