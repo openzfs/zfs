@@ -2246,9 +2246,7 @@ zio_nowait(zio_t *zio)
 		 * will ensure they complete prior to unloading the pool.
 		 */
 		spa_t *spa = zio->io_spa;
-		kpreempt_disable();
-		pio = spa->spa_async_zio_root[CPU_SEQID];
-		kpreempt_enable();
+		pio = spa->spa_async_zio_root[CPU_SEQID_UNSTABLE];
 
 		zio_add_child(pio, zio);
 	}
