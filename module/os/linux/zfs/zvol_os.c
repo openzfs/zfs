@@ -520,7 +520,7 @@ zvol_open(struct block_device *bdev, fmode_t flag)
 	if (drop_suspend)
 		rw_exit(&zv->zv_suspend_lock);
 
-	check_disk_change(bdev);
+	zfs_check_media_change(bdev);
 
 	return (0);
 
@@ -673,7 +673,11 @@ static int
 zvol_update_volsize(zvol_state_t *zv, uint64_t volsize)
 {
 
+#ifdef HAVE_REVALIDATE_DISK_SIZE
+	revalidate_disk_size(zv->zv_zso->zvo_disk, false);
+#else
 	revalidate_disk(zv->zv_zso->zvo_disk);
+#endif
 	return (0);
 }
 
