@@ -214,6 +214,10 @@ vdev_raidz_free(vdev_raidz_t *vdrz)
 	while ((re = avl_destroy_nodes(tree, &cookie)) != NULL)
 		kmem_free(re, sizeof (*re));
 	avl_destroy(&vdrz->vd_expand_txgs);
+	mutex_destroy(&vdrz->vd_expand_lock);
+	mutex_destroy(&vdrz->vn_vre.vre_lock);
+	cv_destroy(&vdrz->vn_vre.vre_cv);
+	zfs_rangelock_fini(&vdrz->vn_vre.vre_rangelock);
 	kmem_free(vdrz, sizeof (*vdrz));
 }
 
@@ -1923,59 +1927,76 @@ vdev_raidz_close(vdev_t *vd)
 		vdev_close(vd->vdev_child[c]);
 }
 
+/*
+ * Return the logical width to use, given the txg in which the allocation
+ * happened.  Note that BP_PHYSICAL_BIRTH() is usually the txg in which the
+ * BP was allocated.  Remapped BP's (that were relocated due to device
+ * removal, see remap_blkptr_cb()), will have a more recent
+ * BP_PHYSICAL_BIRTH() which reflects when the BP was relocated, but we can
+ * ignore these because they can't be on RAIDZ (device removal doesn't
+ * support RAIDZ).
+ */
 static uint64_t
-vdev_raidz_get_logical_width(vdev_raidz_t *vdrz, zio_t *zio)
+vdev_raidz_get_logical_width(vdev_raidz_t *vdrz, uint64_t txg)
 {
 #if 1
 	reflow_node_t lookup = {
-		.re_txg = BP_PHYSICAL_BIRTH(zio->io_bp)
+		.re_txg = txg,
 	};
 	avl_index_t where;
 
+	uint64_t width;
+	mutex_enter(&vdrz->vd_expand_lock);
 	reflow_node_t *re = avl_find(&vdrz->vd_expand_txgs, &lookup, &where);
-	if (re != NULL)
-		return (re->re_logical_width);
+	if (re != NULL) {
+		width = re->re_logical_width;
+	} else {
+		re = avl_nearest(&vdrz->vd_expand_txgs, where, AVL_BEFORE);
+		if (re != NULL)
+			width = re->re_logical_width;
+		else
+			width = vdrz->vd_original_width;
+	}
+	mutex_exit(&vdrz->vd_expand_lock);
+	return (width);
 
-	re = avl_nearest(&vdrz->vd_expand_txgs, where, AVL_BEFORE);
-	if (re == NULL)
-		return (vdrz->vd_original_width);
-
-	return (re->re_logical_width);
 #else
 	return (vdrz->vd_original_width);
 #endif
 }
 
+/*
+ * Note: If the RAIDZ vdev has been expanded, older BP's may have allocated
+ * more space due to the lower data-to-parity ratio.  In this case it's
+ * important to pass in the correct txg.  Note that vdev_gang_header_asize()
+ * relies on a constant asize for psize=SPA_GANGBLOCKSIZE=SPA_MINBLOCKSIZE,
+ * regardless of txg.  This is assured because for a single data sector, we
+ * allocate P+1 sectors regardless of width ("cols", which is at least P+1).
+ */
 static uint64_t
-vdev_raidz_asize_impl(zio_t *zio, vdev_t *vd, uint64_t psize)
+vdev_raidz_asize(vdev_t *vd, uint64_t psize, uint64_t txg)
 {
 	vdev_raidz_t *vdrz = vd->vdev_tsd;
 	uint64_t asize;
 	uint64_t ashift = vd->vdev_top->vdev_ashift;
-	/* XXX if this is a new write, need to use new logical width */
 	uint64_t cols = vdrz->vd_original_width;
 	uint64_t nparity = vdrz->vd_nparity;
 
-	if (zio != NULL)
-		cols = vdev_raidz_get_logical_width(vdrz, zio);
+	cols = vdev_raidz_get_logical_width(vdrz, txg);
 
 	asize = ((psize - 1) >> ashift) + 1;
 	asize += nparity * ((asize + cols - nparity - 1) / (cols - nparity));
 	asize = roundup(asize, nparity + 1) << ashift;
 
+#ifdef ZFS_DEBUG
 	uint64_t asize_new = ((psize - 1) >> ashift) + 1;
 	uint64_t ncols_new = vdrz->vd_physical_width;
 	asize_new += nparity * ((asize_new + ncols_new - nparity - 1) / (ncols_new - nparity));
 	asize_new = roundup(asize_new, nparity + 1) << ashift;
 	VERIFY3U(asize_new, <=, asize);
+#endif
 
 	return (asize);
-}
-
-static uint64_t
-vdev_raidz_asize(vdev_t *vd, uint64_t psize)
-{
-	return (vdev_raidz_asize_impl(NULL, vd, psize));
 }
 
 static void
@@ -2006,7 +2027,8 @@ vdev_raidz_io_verify(zio_t *zio, raidz_map_t *rm, raidz_row_t *rr, int col)
 	range_seg64_t logical_rs, physical_rs;
 	logical_rs.rs_start = zio->io_offset;
 	logical_rs.rs_end = logical_rs.rs_start +
-	    vdev_raidz_asize_impl(zio, zio->io_vd, zio->io_size);
+	    vdev_raidz_asize(zio->io_vd, zio->io_size,
+	    BP_PHYSICAL_BIRTH(zio->io_bp));
 
 	raidz_col_t *rc = &rr->rr_col[col];
 	vdev_t *cvd = vd->vdev_child[rc->rc_devidx];
@@ -2161,7 +2183,8 @@ vdev_raidz_io_start(zio_t *zio)
 	vdev_raidz_t *vdrz = vd->vdev_tsd;
 	raidz_map_t *rm;
 
-	uint64_t logical_width = vdev_raidz_get_logical_width(vdrz, zio);
+	uint64_t logical_width = vdev_raidz_get_logical_width(vdrz,
+	    BP_PHYSICAL_BIRTH(zio->io_bp));
 	zfs_dbgmsg("zio=%llx bm=%llu/%llu/%llu/%llu phys_birth=%llu "
 	    "logical_width=%llu",
 	    zio,
@@ -3142,7 +3165,9 @@ raidz_reflow_complete_sync(void *arg, dmu_tx_t *tx)
 	reflow_node_t *re = kmem_zalloc(sizeof (*re), KM_SLEEP);
 	re->re_txg = tx->tx_txg + 1;
 	re->re_logical_width = vdrz->vd_physical_width;
+	mutex_enter(&vdrz->vd_expand_lock);
 	avl_add(&vdrz->vd_expand_txgs, re);
+	mutex_exit(&vdrz->vd_expand_lock);
 
 	/*
 	 * vre_offset_phys will be removed from the on-disk config by
@@ -3592,6 +3617,7 @@ vdev_raidz_config_generate(vdev_t *vd, nvlist_t *nv)
 		    vdrz->vn_vre.vre_offset_phys);
 	}
 
+	mutex_enter(&vdrz->vd_expand_lock);
 	if (!avl_is_empty(&vdrz->vd_expand_txgs)) {
 		uint64_t count = avl_numnodes(&vdrz->vd_expand_txgs);
 		uint64_t *txgs = kmem_alloc(sizeof (uint64_t) * count,
@@ -3608,6 +3634,7 @@ vdev_raidz_config_generate(vdev_t *vd, nvlist_t *nv)
 
 		kmem_free(txgs, sizeof (uint64_t) * count);
 	}
+	mutex_exit(&vdrz->vd_expand_lock);
 }
 
 /*
@@ -3629,6 +3656,9 @@ vdev_raidz_get_tsd(spa_t *spa, nvlist_t *nv)
 	mutex_init(&vdrz->vn_vre.vre_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&vdrz->vn_vre.vre_cv, NULL, CV_DEFAULT, NULL);
 	zfs_rangelock_init(&vdrz->vn_vre.vre_rangelock, NULL, NULL);
+	mutex_init(&vdrz->vd_expand_lock, NULL, MUTEX_DEFAULT, NULL);
+	avl_create(&vdrz->vd_expand_txgs, vedv_raidz_reflow_compare,
+	    sizeof (reflow_node_t), offsetof(reflow_node_t, re_link));
 
 	uint_t children;
 	nvlist_t **child;
@@ -3654,10 +3684,6 @@ vdev_raidz_get_tsd(spa_t *spa, nvlist_t *nv)
 		 * vdev_load() will set spa_raidz_expand.
 		 */
 	}
-
-
-	avl_create(&vdrz->vd_expand_txgs, vedv_raidz_reflow_compare,
-	    sizeof (reflow_node_t), offsetof(reflow_node_t, re_link));
 
 	error = nvlist_lookup_uint64_array(nv, ZPOOL_CONFIG_RAIDZ_EXPAND_TXGS,
 	    &txgs, &txgs_size);
@@ -3807,7 +3833,6 @@ spa_raidz_expand_get_stats(spa_t *spa, pool_raidz_expand_stat_t *pres)
 
 	return (0);
 }
-
 
 vdev_ops_t vdev_raidz_ops = {
 	.vdev_op_open = vdev_raidz_open,

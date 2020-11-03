@@ -71,7 +71,7 @@ extern uint32_t zfs_vdev_async_write_max_active;
 typedef int	vdev_open_func_t(vdev_t *vd, uint64_t *size, uint64_t *max_size,
     uint64_t *ashift);
 typedef void	vdev_close_func_t(vdev_t *vd);
-typedef uint64_t vdev_asize_func_t(vdev_t *vd, uint64_t psize);
+typedef uint64_t vdev_asize_func_t(vdev_t *vd, uint64_t psize, uint64_t txg);
 typedef void	vdev_io_start_func_t(zio_t *zio);
 typedef void	vdev_io_done_func_t(zio_t *zio);
 typedef void	vdev_state_change_func_t(vdev_t *vd, int, int);
@@ -561,7 +561,7 @@ extern vdev_ops_t vdev_indirect_ops;
  */
 extern void vdev_default_xlate(vdev_t *vd, const range_seg64_t *in,
     range_seg64_t *out);
-extern uint64_t vdev_default_asize(vdev_t *vd, uint64_t psize);
+extern uint64_t vdev_default_asize(vdev_t *vd, uint64_t psize, uint64_t txg);
 extern uint64_t vdev_get_min_asize(vdev_t *vd);
 extern void vdev_set_min_asize(vdev_t *vd);
 

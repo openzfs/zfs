@@ -115,7 +115,20 @@ extern void vdev_space_update(vdev_t *vd,
 
 extern int64_t vdev_deflated_space(vdev_t *vd, int64_t space);
 
+extern uint64_t vdev_psize_to_asize_txg(vdev_t *vd, uint64_t psize,
+    uint64_t txg);
 extern uint64_t vdev_psize_to_asize(vdev_t *vd, uint64_t psize);
+
+/*
+ * Return the amount of space allocated for a gang block header.  Note that
+ * since the physical birth txg is not provided, this must be constant for
+ * a given vdev.  (e.g. raidz expansion can't change this)
+ */
+static inline uint64_t
+vdev_gang_header_asize(vdev_t *vd)
+{
+	return (vdev_psize_to_asize_txg(vd, SPA_GANGBLOCKSIZE, 0));
+}
 
 extern int vdev_fault(spa_t *spa, uint64_t guid, vdev_aux_t aux);
 extern int vdev_degrade(spa_t *spa, uint64_t guid, vdev_aux_t aux);

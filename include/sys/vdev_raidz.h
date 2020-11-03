@@ -99,8 +99,9 @@ typedef struct vdev_raidz {
 	int vd_nparity;
 
 	/*
-	 * tree of reflow_node_t's.
+	 * tree of reflow_node_t's.  The lock protects the avl tree only.
 	 */
+	kmutex_t vd_expand_lock;
 	avl_tree_t vd_expand_txgs;
 
 	/*
