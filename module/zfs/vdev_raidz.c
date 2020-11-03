@@ -1921,7 +1921,30 @@ vdev_raidz_close(vdev_t *vd)
 }
 
 static uint64_t
-vdev_raidz_asize(vdev_t *vd, uint64_t psize)
+vdev_raidz_get_logical_width(vdev_raidz_t *vdrz, zio_t *zio)
+{
+#if 1
+	reflow_node_t lookup = {
+		.re_txg = BP_PHYSICAL_BIRTH(zio->io_bp)
+	};
+	avl_index_t where;
+
+	reflow_node_t *re = avl_find(&vdrz->vd_expand_txgs, &lookup, &where);
+	if (re != NULL)
+		return (re->re_logical_width);
+
+	re = avl_nearest(&vdrz->vd_expand_txgs, where, AVL_BEFORE);
+	if (re == NULL)
+		return (vdrz->vd_original_width);
+
+	return (re->re_logical_width);
+#else
+	return (vdrz->vd_original_width);
+#endif
+}
+
+static uint64_t
+vdev_raidz_asize_impl(zio_t *zio, vdev_t *vd, uint64_t psize)
 {
 	vdev_raidz_t *vdrz = vd->vdev_tsd;
 	uint64_t asize;
@@ -1929,6 +1952,9 @@ vdev_raidz_asize(vdev_t *vd, uint64_t psize)
 	/* XXX if this is a new write, need to use new logical width */
 	uint64_t cols = vdrz->vd_original_width;
 	uint64_t nparity = vdrz->vd_nparity;
+
+	if (zio != NULL)
+		cols = vdev_raidz_get_logical_width(vdrz, zio);
 
 	asize = ((psize - 1) >> ashift) + 1;
 	asize += nparity * ((asize + cols - nparity - 1) / (cols - nparity));
@@ -1941,6 +1967,12 @@ vdev_raidz_asize(vdev_t *vd, uint64_t psize)
 	VERIFY3U(asize_new, <=, asize);
 
 	return (asize);
+}
+
+static uint64_t
+vdev_raidz_asize(vdev_t *vd, uint64_t psize)
+{
+	return (vdev_raidz_asize_impl(NULL, vd, psize));
 }
 
 static void
@@ -1961,9 +1993,8 @@ vdev_raidz_shadow_child_done(zio_t *zio)
 	rc->rc_shadow_error = zio->io_error;
 }
 
-#if 0
 static void
-vdev_raidz_io_verify(zio_t *zio, raidz_row_t *rr, int col)
+vdev_raidz_io_verify(zio_t *zio, raidz_map_t *rm, raidz_row_t *rr, int col)
 {
 #ifdef ZFS_DEBUG
 	vdev_t *vd = zio->io_vd;
@@ -1972,14 +2003,19 @@ vdev_raidz_io_verify(zio_t *zio, raidz_row_t *rr, int col)
 	range_seg64_t logical_rs, physical_rs;
 	logical_rs.rs_start = zio->io_offset;
 	logical_rs.rs_end = logical_rs.rs_start +
-	    vdev_raidz_asize(zio->io_vd, zio->io_size);
+	    vdev_raidz_asize_impl(zio, zio->io_vd, zio->io_size);
 
 	raidz_col_t *rc = &rr->rr_col[col];
 	vdev_t *cvd = vd->vdev_child[rc->rc_devidx];
 
 	vdev_xlate(cvd, &logical_rs, &physical_rs);
-	ASSERT3U(rc->rc_offset, ==, physical_rs.rs_start);
+	if (rm->rm_nrows == 1)
+		ASSERT3U(rc->rc_offset, ==, physical_rs.rs_start);
+	else
+		ASSERT3U(rc->rc_offset, >=, physical_rs.rs_start);
+
 	ASSERT3U(rc->rc_offset, <, physical_rs.rs_end);
+
 	/*
 	 * It would be nice to assert that rs_end is equal
 	 * to rc_offset + rc_size but there might be an
@@ -1987,14 +2023,14 @@ vdev_raidz_io_verify(zio_t *zio, raidz_row_t *rr, int col)
 	 * rc_size.
 	 */
 	if (physical_rs.rs_end > rc->rc_offset + rc->rc_size) {
-		ASSERT3U(physical_rs.rs_end, ==, rc->rc_offset +
-		    rc->rc_size + (1 << tvd->vdev_ashift));
+		if (rm->rm_nrows == 1)
+			ASSERT3U(physical_rs.rs_end, ==, rc->rc_offset +
+			    rc->rc_size + (1 << tvd->vdev_ashift));
 	} else {
 		ASSERT3U(physical_rs.rs_end, ==, rc->rc_offset + rc->rc_size);
 	}
 #endif
 }
-#endif
 
 static void
 vdev_raidz_io_start_write(zio_t *zio, raidz_row_t *rr)
@@ -2009,6 +2045,11 @@ vdev_raidz_io_start_write(zio_t *zio, raidz_row_t *rr)
 		if (rc->rc_size == 0)
 			continue;
 		vdev_t *cvd = vd->vdev_child[rc->rc_devidx];
+
+		/*
+		 * Verify physical to logical translation.
+		 */
+		vdev_raidz_io_verify(zio, rm, rr, c);
 
 		zio_nowait(zio_vdev_child_io(zio, NULL, cvd,
 		    rc->rc_offset, rc->rc_abd, rc->rc_size,
@@ -2090,29 +2131,6 @@ vdev_raidz_io_start_read(zio_t *zio, raidz_row_t *rr, boolean_t forceparity)
 			    vdev_raidz_child_done, rc));
 		}
 	}
-}
-
-static uint64_t
-vdev_raidz_get_logical_width(vdev_raidz_t *vdrz, zio_t *zio)
-{
-#if 1
-	reflow_node_t lookup = {
-		.re_txg = BP_PHYSICAL_BIRTH(zio->io_bp)
-	};
-	avl_index_t where;
-
-	reflow_node_t *re = avl_find(&vdrz->vd_expand_txgs, &lookup, &where);
-	if (re != NULL)
-		return (re->re_logical_width);
-
-	re = avl_nearest(&vdrz->vd_expand_txgs, where, AVL_BEFORE);
-	if (re == NULL)
-		return (vdrz->vd_original_width);
-
-	return (re->re_logical_width);
-#else
-	return (vdrz->vd_original_width);
-#endif
 }
 
 /*
@@ -3027,8 +3045,12 @@ vdev_raidz_xlate(vdev_t *cvd, const range_seg64_t *in, range_seg64_t *res)
 	vdev_t *raidvd = cvd->vdev_parent;
 	ASSERT(raidvd->vdev_ops == &vdev_raidz_ops);
 
-	/* XXX deal with different logical and physical widths */
-	uint64_t width = raidvd->vdev_children;
+	vdev_raidz_t *vdrz = raidvd->vdev_tsd;
+	uint64_t children = vdrz->vd_physical_width;
+	if (in->rs_start > vdrz->vn_vre.vre_offset_phys)
+		children--;
+
+	uint64_t width = children;
 	uint64_t tgt_col = cvd->vdev_id;
 	uint64_t ashift = raidvd->vdev_top->vdev_ashift;
 
@@ -3580,6 +3602,7 @@ vdev_raidz_get_tsd(spa_t *spa, nvlist_t *nv)
 	uint64_t nparity, *txgs;
 	uint_t txgs_size;
 	vdev_raidz_t *vdrz = kmem_zalloc(sizeof (*vdrz), KM_SLEEP);
+	boolean_t reflow_in_progress = B_FALSE;
 
 	vdrz->vn_vre.vre_vdev_id = -1;
 	vdrz->vn_vre.vre_offset = UINT64_MAX;
@@ -3602,6 +3625,18 @@ vdev_raidz_get_tsd(spa_t *spa, nvlist_t *nv)
 	(void) nvlist_lookup_uint64(nv, ZPOOL_CONFIG_ID,
 	    &vdrz->vn_vre.vre_vdev_id);
 
+	if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_RAIDZ_EXPAND_OFFSET,
+	    &vdrz->vn_vre.vre_offset_phys) == 0) {
+		vdrz->vn_vre.vre_offset = vdrz->vn_vre.vre_offset_phys;
+		if (vdrz->vn_vre.vre_offset != UINT64_MAX)
+			reflow_in_progress = B_TRUE;
+
+		/*
+		 * vdev_load() will set spa_raidz_expand.
+		 */
+	}
+
+
 	avl_create(&vdrz->vd_expand_txgs, vedv_raidz_reflow_compare,
 	    sizeof (reflow_node_t), offsetof(reflow_node_t, re_link));
 
@@ -3612,21 +3647,17 @@ vdev_raidz_get_tsd(spa_t *spa, nvlist_t *nv)
 			reflow_node_t *re = kmem_zalloc(sizeof (*re), KM_SLEEP);
 			re->re_txg = txgs[txgs_size - i - 1];
 			re->re_logical_width = vdrz->vd_physical_width - i;
+
+			if (reflow_in_progress)
+				re->re_logical_width--;
+
 			avl_add(&vdrz->vd_expand_txgs, re);
 		}
 
 		vdrz->vd_original_width = vdrz->vd_physical_width - txgs_size;
 	}
-	if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_RAIDZ_EXPAND_OFFSET,
-	    &vdrz->vn_vre.vre_offset_phys) == 0) {
-		vdrz->vn_vre.vre_offset = vdrz->vn_vre.vre_offset_phys;
+	if (reflow_in_progress)
 		vdrz->vd_original_width--;
-
-		/*
-		 * vdev_load() will set spa_raidz_expand.
-		 */
-	}
-
 
 	if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_NPARITY,
 	    &nparity) == 0) {
