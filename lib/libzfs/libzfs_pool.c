@@ -2562,6 +2562,34 @@ vdev_to_nvlist_iter(nvlist_t *nv, nvlist_t *search, boolean_t *avail_spare,
 			errno = 0;
 			vdev_id = strtoull(idx, &end, 10);
 
+			/*
+			 * If we are looking for a raidz and a parity is
+			 * specified, make sure it matches.
+			 */
+			int rzlen = strlen(VDEV_TYPE_RAIDZ);
+			int typlen = strlen(type);
+			if (strncmp(type, VDEV_TYPE_RAIDZ, rzlen) == 0 &&
+			    typlen != rzlen) {
+				uint64_t vdev_parity;
+				int parity = *(type + rzlen) - '0';
+
+				if (parity < 0 || parity > 3 ||
+				    (typlen - rzlen) != 1) {
+					/*
+					 * Nonsense parity specified, can
+					 * never match
+					 */
+					free(type);
+					return (NULL);
+				}
+				verify(nvlist_lookup_uint64(nv,
+				    ZPOOL_CONFIG_NPARITY, &vdev_parity) == 0);
+				if ((int)vdev_parity != parity) {
+					free(type);
+					break;
+				}
+			}
+
 			free(type);
 			if (errno != 0)
 				return (NULL);
@@ -3144,6 +3172,7 @@ zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
 	nvlist_t *config_root;
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
 	boolean_t rootpool = zpool_is_bootable(zhp);
+	boolean_t raidz = B_FALSE;
 
 	if (replacing)
 		(void) snprintf(msg, sizeof (msg), dgettext(TEXT_DOMAIN,
@@ -3177,6 +3206,7 @@ zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
 	char *typestr;
 	if (nvlist_lookup_string(tgt, ZPOOL_CONFIG_TYPE, &typestr) == 0 &&
 	    strcmp(typestr, "raidz") == 0) {
+		raidz = B_TRUE;
 		printf(
 		    " *****************************************************\n"
 		    " * Thank you for testing this alpha-quality release  *\n"
@@ -3287,13 +3317,17 @@ zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
 		(void) zfs_error(hdl, EZFS_INVALCONFIG, msg);
 		break;
 
-	case EBUSY:
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "%s is busy, "
-		    "or device removal is in progress"),
-		    new_disk);
+	case EBUSY: {
+		char *reason = "%s is busy. or device removal is in progress";
+
+		if (raidz)
+			reason = "%s is busy, or a previous raidz expand"
+			" is in progress";
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, reason), new_disk);
 		(void) zfs_error(hdl, EZFS_BADDEV, msg);
 		break;
 
+	}
 	case EOVERFLOW:
 		/*
 		 * The new device is too small.

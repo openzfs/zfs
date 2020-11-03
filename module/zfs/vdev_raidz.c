@@ -611,7 +611,8 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 		 * XXX why "- nparity"?  the row includes the parity as well
 		 */
 		int row_phys_cols = physical_cols;
-		if (b + (logical_cols - nparity) >= reflow_offset_phys >> ashift)
+		if (b + (logical_cols - nparity) >=
+		    reflow_offset_phys >> ashift)
 			row_phys_cols--;
 
 		/* starting child of this row */
@@ -717,24 +718,26 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 		}
 
 		/*
-		 * If all data stored spans all columns, there's a danger that parity
-		 * will always be on the same device and, since parity isn't read
-		 * during normal operation, that that device's I/O bandwidth won't be
-		 * used effectively. We therefore switch the parity every 1MB.
+		 * If all data stored spans all columns, there's a danger that
+		 * parity will always be on the same device and, since parity
+		 * isn't read during normal operation, that that device's I/O
+		 * bandwidth won't be used effectively. We therefore switch the
+		 * parity every 1MB.
 		 *
-		 * ... at least that was, ostensibly, the theory. As a practical
-		 * matter unless we juggle the parity between all devices evenly, we
-		 * won't see any benefit. Further, occasional writes that aren't a
-		 * multiple of the LCM of the number of children and the minimum
-		 * stripe width are sufficient to avoid pessimal behavior.
-		 * Unfortunately, this decision created an implicit on-disk format
-		 * requirement that we need to support for all eternity, but only
-		 * for single-parity RAID-Z.
+		 * ... at least that was, ostensibly, the theory. As a
+		 * practical matter unless we juggle the parity between all
+		 * devices evenly, we won't see any benefit. Further,
+		 * occasional writes that aren't a multiple of the LCM of the
+		 * number of children and the minimum stripe width are
+		 * sufficient to avoid pessimal behavior.
+		 * Unfortunately, this decision created an implicit on-disk
+		 * format requirement that we need to support for all eternity,
+		 * but only for single-parity RAID-Z.
 		 *
-		 * If we intend to skip a sector in the zeroth column for padding
-		 * we must make sure to note this swap. We will never intend to
-		 * skip the first column since at least one data and one parity
-		 * column must appear in each row.
+		 * If we intend to skip a sector in the zeroth column for
+		 * padding we must make sure to note this swap. We will never
+		 * intend to skip the first column since at least one data and
+		 * one parity column must appear in each row.
 		 */
 		if (rr->rr_firstdatacol == 1 && rr->rr_cols > 1 &&
 		    (offset & (1ULL << 20))) {
@@ -2159,7 +2162,8 @@ vdev_raidz_io_start(zio_t *zio)
 	raidz_map_t *rm;
 
 	uint64_t logical_width = vdev_raidz_get_logical_width(vdrz, zio);
-	zfs_dbgmsg("zio=%llx bm=%llu/%llu/%llu/%llu phys_birth=%llu logical_width=%llu",
+	zfs_dbgmsg("zio=%llx bm=%llu/%llu/%llu/%llu phys_birth=%llu "
+	    "logical_width=%llu",
 	    zio,
 	    zio->io_bookmark.zb_objset,
 	    zio->io_bookmark.zb_object,
@@ -2172,7 +2176,8 @@ vdev_raidz_io_start(zio_t *zio)
 		zfs_locked_range_t *lr =
 		    zfs_rangelock_enter(&vdrz->vn_vre.vre_rangelock,
 		    zio->io_offset, zio->io_size, RL_READER);
-		zfs_dbgmsg("zio=%llx %s io_offset=%llu vre_offset_phys=%llu vre_offset=%llu",
+		zfs_dbgmsg("zio=%llx %s io_offset=%llu vre_offset_phys=%llu "
+		    "vre_offset=%llu",
 		    zio,
 		    zio->io_type == ZIO_TYPE_WRITE ? "WRITE" : "READ",
 		    zio->io_offset,
@@ -2502,7 +2507,8 @@ raidz_reconstruct(zio_t *zio, int *ltgts, int ntgts)
 	raidz_map_t *rm = zio->io_vsd;
 	vdev_raidz_t *vdrz = zio->io_vd->vdev_tsd;
 
-	zfs_dbgmsg("raidz_reconstruct_expanded(zio=%llx ltgts=%u,%u,%u ntgts=%u",
+	zfs_dbgmsg(
+	    "raidz_reconstruct_expanded(zio=%llx ltgts=%u,%u,%u ntgts=%u",
 	    zio, ltgts[0], ltgts[1], ltgts[2], ntgts);
 
 	/* Reconstruct each row */
@@ -2845,6 +2851,34 @@ vdev_raidz_read_all(zio_t *zio, raidz_row_t *rr)
 }
 
 static void
+vdev_raidz_start_ereports(zio_t *zio, raidz_map_t *rm)
+{
+	/*
+	 * Start checksum ereports for all children
+	 * which haven't failed
+	 */
+
+	for (int i = 0; i < rm->rm_nrows; i++) {
+		raidz_row_t *rr = rm->rm_row[i];
+		for (int c = 0; c < rr->rr_cols; c++) {
+			raidz_col_t *rc = &rr->rr_col[c];
+			if (rc->rc_error == 0) {
+				zio_bad_cksum_t zbc;
+				zbc.zbc_has_cksum = 0;
+				zbc.zbc_injected = rm->rm_ecksuminjected;
+
+				zfs_ereport_start_checksum(
+				    zio->io_spa,
+				    zio->io_vd->vdev_child[rc->rc_devidx],
+				    &zio->io_bookmark,
+				    zio, rc->rc_offset, rc->rc_size,
+				    (void *)(uintptr_t)c, &zbc);
+			}
+		}
+	}
+}
+
+static void
 vdev_raidz_io_done(zio_t *zio)
 {
 	raidz_map_t *rm = zio->io_vsd;
@@ -2958,27 +2992,8 @@ vdev_raidz_io_done(zio_t *zio)
 				 */
 				zio->io_error = SET_ERROR(ECKSUM);
 
-				if (!(zio->io_flags & ZIO_FLAG_SPECULATIVE)) {
-					for (int i = 0; i < rm->rm_nrows; i++) {
-						raidz_row_t *rr = rm->rm_row[i];
-						for (int c = 0; c < rr->rr_cols; c++) {
-							raidz_col_t *rc = &rr->rr_col[c];
-							if (rc->rc_error == 0) {
-								zio_bad_cksum_t zbc;
-								zbc.zbc_has_cksum = 0;
-								zbc.zbc_injected =
-								    rm->rm_ecksuminjected;
-
-								zfs_ereport_start_checksum(
-								    zio->io_spa,
-								    zio->io_vd->vdev_child[rc->rc_devidx],
-								    &zio->io_bookmark,
-								    zio, rc->rc_offset, rc->rc_size,
-								    (void *)(uintptr_t)c, &zbc);
-							}
-						}
-					}
-				}
+				if (!(zio->io_flags & ZIO_FLAG_SPECULATIVE))
+					vdev_raidz_start_ereports(zio, rm);
 			}
 		}
 	}
@@ -3151,7 +3166,8 @@ raidz_reflow_complete_sync(void *arg, dmu_tx_t *tx)
 
 	spa_history_log_internal(spa, "raidz vdev expansion completed",  tx,
 	    "%s vdev %llu new width %llu", spa_name(spa),
-	    (unsigned long long)vd->vdev_id, (unsigned long long)vd->vdev_children);
+	    (unsigned long long)vd->vdev_id,
+	    (unsigned long long)vd->vdev_children);
 }
 
 /*
@@ -3357,7 +3373,8 @@ spa_raidz_expand_cb(void *arg, zthr_t *zthr)
 		 * space.  Note that there may be a little bit more free
 		 * space (e.g. in ms_defer), and it's fine to copy that too.
 		 */
-		range_tree_t *rt = range_tree_create(NULL, RANGE_SEG64, NULL, 0, 0);
+		range_tree_t *rt = range_tree_create(NULL, RANGE_SEG64,
+		    NULL, 0, 0);
 		range_tree_add(rt, msp->ms_start, msp->ms_size);
 		range_tree_walk(msp->ms_allocatable, range_tree_remove, rt);
 		mutex_exit(&msp->ms_lock);
@@ -3371,7 +3388,8 @@ spa_raidz_expand_cb(void *arg, zthr_t *zthr)
 		 * be copied.
 		 */
 		int sectorsz = 1 << raidvd->vdev_ashift;
-		uint64_t ms_last_offset = msp->ms_start + msp->ms_size - sectorsz;
+		uint64_t ms_last_offset = msp->ms_start +
+		    msp->ms_size - sectorsz;
 		if (!range_tree_contains(rt, ms_last_offset, sectorsz)) {
 			range_tree_add(rt, ms_last_offset, sectorsz);
 		}
@@ -3539,7 +3557,8 @@ vdev_raidz_attach_sync(void *arg, dmu_tx_t *tx)
 
 	spa_history_log_internal(spa, "raidz vdev expansion started",  tx,
 	    "%s vdev %llu new width %llu", spa_name(spa),
-	    (unsigned long long)raidvd->vdev_id, (unsigned long long)raidvd->vdev_children);
+	    (unsigned long long)raidvd->vdev_id,
+	    (unsigned long long)raidvd->vdev_children);
 }
 
 /*
@@ -3713,28 +3732,32 @@ vdev_raidz_load(vdev_t *vd)
 		vd->vdev_spa->spa_raidz_expand = &vdrz->vn_vre;
 	}
 
-	uint64_t state = DSS_SCANNING;
-	err = zap_lookup(vd->vdev_spa->spa_meta_objset,
-	    vd->vdev_top_zap, VDEV_TOP_ZAP_RAIDZ_EXPAND_STATE,
-	    sizeof (state), 1, &state);
-	if (err != 0 && err != ENOENT)
-		return (err);
-	vdrz->vn_vre.vre_state = (dsl_scan_state_t)state;
-
+	uint64_t state = DSS_NONE;
 	uint64_t start_time = 0;
-	err = zap_lookup(vd->vdev_spa->spa_meta_objset,
-	    vd->vdev_top_zap, VDEV_TOP_ZAP_RAIDZ_EXPAND_START_TIME,
-	    sizeof (start_time), 1, &start_time);
-	if (err != 0 && err != ENOENT)
-		return (err);
-	vdrz->vn_vre.vre_start_time = (time_t)start_time;
-
 	uint64_t end_time = 0;
-	err = zap_lookup(vd->vdev_spa->spa_meta_objset,
-	    vd->vdev_top_zap, VDEV_TOP_ZAP_RAIDZ_EXPAND_END_TIME,
-	    sizeof (end_time), 1, &end_time);
-	if (err != 0 && err != ENOENT)
-		return (err);
+
+	if (vd->vdev_top_zap != 0) {
+		err = zap_lookup(vd->vdev_spa->spa_meta_objset,
+		    vd->vdev_top_zap, VDEV_TOP_ZAP_RAIDZ_EXPAND_STATE,
+		    sizeof (state), 1, &state);
+		if (err != 0 && err != ENOENT)
+			return (err);
+
+		err = zap_lookup(vd->vdev_spa->spa_meta_objset,
+		    vd->vdev_top_zap, VDEV_TOP_ZAP_RAIDZ_EXPAND_START_TIME,
+		    sizeof (start_time), 1, &start_time);
+		if (err != 0 && err != ENOENT)
+			return (err);
+
+		err = zap_lookup(vd->vdev_spa->spa_meta_objset,
+		    vd->vdev_top_zap, VDEV_TOP_ZAP_RAIDZ_EXPAND_END_TIME,
+		    sizeof (end_time), 1, &end_time);
+		if (err != 0 && err != ENOENT)
+			return (err);
+	}
+
+	vdrz->vn_vre.vre_state = (dsl_scan_state_t)state;
+	vdrz->vn_vre.vre_start_time = (time_t)start_time;
 	vdrz->vn_vre.vre_end_time = (time_t)end_time;
 
 	return (0);
