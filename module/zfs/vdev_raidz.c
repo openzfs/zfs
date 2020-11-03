@@ -3647,8 +3647,8 @@ vdev_raidz_get_tsd(spa_t *spa, nvlist_t *nv)
 	if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_RAIDZ_EXPAND_OFFSET,
 	    &vdrz->vn_vre.vre_offset_phys) == 0) {
 		vdrz->vn_vre.vre_offset = vdrz->vn_vre.vre_offset_phys;
-		if (vdrz->vn_vre.vre_offset != UINT64_MAX)
-			reflow_in_progress = B_TRUE;
+		ASSERT3U(vdrz->vn_vre.vre_offset, !=, UINT64_MAX);
+		reflow_in_progress = B_TRUE;
 
 		/*
 		 * vdev_load() will set spa_raidz_expand.
