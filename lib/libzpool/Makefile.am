@@ -219,10 +219,9 @@ endif
 
 if BUILD_FREEBSD
 libzpool_la_LIBADD += -lgeom
-libzpool_la_LDFLAGS += -version-info 4:0:0
-else
-libzpool_la_LDFLAGS += -version-info 2:0:0
 endif
+
+libzpool_la_LDFLAGS += -version-info 4:0:0
 
 if TARGET_CPU_POWERPC
 vdev_raidz_math_powerpc_altivec.$(OBJEXT): CFLAGS += -maltivec

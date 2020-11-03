@@ -119,8 +119,16 @@ function run_and_verify
 
 	# If the only event is history then we don't observe zed debug log
 	if [[ "${events[0]}" != "sysevent.fs.zfs.history_event" ]]; then
-		# wait for the last event to show up in the debug log
-		log_must file_wait_event $ZED_DEBUG_LOG ${events[-1]}
+		# wait for all the non-history events to show up in the
+		# debug log, all-debug.sh filters history events.
+		for event in ${events[*]}; do
+			if [[ "$event" == \
+			    "sysevent.fs.zfs.history_event" ]]; then
+				continue
+			fi
+
+			log_must file_wait_event $ZED_DEBUG_LOG "$event"
+		done
 
 		log_must cp $ZED_DEBUG_LOG $TMP_EVENTS_ZED
 		log_must test -s $TMP_EVENTS_ZED
