@@ -523,7 +523,8 @@ zfs_write(znode_t *zp, uio_t *uio, int ioflag, cred_t *cr)
 		 * XXX - should we really limit each write to z_max_blksz?
 		 * Perhaps we should use SPA_MAXBLOCKSIZE chunks?
 		 */
-		ssize_t nbytes = MIN(n, max_blksz - P2PHASE(woff, max_blksz));
+		const ssize_t nbytes =
+		    MIN(n, max_blksz - P2PHASE(woff, max_blksz));
 
 		ssize_t tx_bytes;
 		if (abuf == NULL) {
@@ -556,28 +557,33 @@ zfs_write(znode_t *zp, uio_t *uio, int ioflag, cred_t *cr)
 			}
 			tx_bytes -= uio->uio_resid;
 		} else {
+			/* Implied by abuf != NULL: */
+			ASSERT3S(n, >=, max_blksz);
+			ASSERT3S(woff, >=, zp->z_size);
+			ASSERT0(P2PHASE(woff, max_blksz));
 			/*
-			 * Is this block ever reached?
+			 * We can simplify nbytes to MIN(n, max_blksz) since
+			 * P2PHASE(woff, max_blksz) is 0, and knowing
+			 * n >= max_blksz lets us simplify further:
 			 */
-			tx_bytes = nbytes;
+			ASSERT3S(nbytes, ==, max_blksz);
 			/*
-			 * If this is not a full block write, but we are
-			 * extending the file past EOF and this data starts
-			 * block-aligned, use assign_arcbuf().  Otherwise,
-			 * write via dmu_write().
+			 * Thus, we're writing a full block at a block-aligned
+			 * offset and extending the file past EOF.
+			 *
+			 * dmu_assign_arcbuf_by_dbuf() will directly assign the
+			 * arc buffer to a dbuf.
 			 */
-
-			if (tx_bytes == max_blksz) {
-				error = dmu_assign_arcbuf_by_dbuf(
-				    sa_get_db(zp->z_sa_hdl), woff, abuf, tx);
-				if (error != 0) {
-					dmu_return_arcbuf(abuf);
-					dmu_tx_commit(tx);
-					break;
-				}
+			error = dmu_assign_arcbuf_by_dbuf(
+			    sa_get_db(zp->z_sa_hdl), woff, abuf, tx);
+			if (error != 0) {
+				dmu_return_arcbuf(abuf);
+				dmu_tx_commit(tx);
+				break;
 			}
-			ASSERT(tx_bytes <= uio->uio_resid);
-			uioskip(uio, tx_bytes);
+			ASSERT3S(nbytes, <=, uio->uio_resid);
+			uioskip(uio, nbytes);
+			tx_bytes = nbytes;
 		}
 		if (tx_bytes && zn_has_cached_data(zp) &&
 		    !(ioflag & O_DIRECT)) {
