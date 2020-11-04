@@ -863,7 +863,6 @@ int dmu_assign_arcbuf_by_dnode(dnode_t *dn, uint64_t offset,
     struct arc_buf *buf, dmu_tx_t *tx);
 int dmu_assign_arcbuf_by_dbuf(dmu_buf_t *handle, uint64_t offset,
     struct arc_buf *buf, dmu_tx_t *tx);
-#define	dmu_assign_arcbuf	dmu_assign_arcbuf_by_dbuf
 extern int zfs_prefetch_disable;
 extern int zfs_max_recordsize;
 
