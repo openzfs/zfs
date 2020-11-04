@@ -337,6 +337,10 @@ zfs_write(znode_t *zp, uio_t *uio, int ioflag, cred_t *cr)
 	uint64_t end_size = MAX(zp->z_size, woff + n);
 	zilog_t *zilog = zfsvfs->z_log;
 
+	const uint64_t uid = KUID_TO_SUID(ZTOUID(zp));
+	const uint64_t gid = KGID_TO_SGID(ZTOGID(zp));
+	const uint64_t projid = zp->z_projid;
+
 	/*
 	 * Write the file in reasonable size chunks.  Each chunk is written
 	 * in a separate transaction; this keeps the intent log records small
@@ -345,13 +349,11 @@ zfs_write(znode_t *zp, uio_t *uio, int ioflag, cred_t *cr)
 	while (n > 0) {
 		woff = uio->uio_loffset;
 
-		if (zfs_id_overblockquota(zfsvfs, DMU_USERUSED_OBJECT,
-		    KUID_TO_SUID(ZTOUID(zp))) ||
-		    zfs_id_overblockquota(zfsvfs, DMU_GROUPUSED_OBJECT,
-		    KGID_TO_SGID(ZTOGID(zp))) ||
-		    (zp->z_projid != ZFS_DEFAULT_PROJID &&
+		if (zfs_id_overblockquota(zfsvfs, DMU_USERUSED_OBJECT, uid) ||
+		    zfs_id_overblockquota(zfsvfs, DMU_GROUPUSED_OBJECT, gid) ||
+		    (projid != ZFS_DEFAULT_PROJID &&
 		    zfs_id_overblockquota(zfsvfs, DMU_PROJECTUSED_OBJECT,
-		    zp->z_projid))) {
+		    projid))) {
 			error = SET_ERROR(EDQUOT);
 			break;
 		}
@@ -515,7 +517,6 @@ zfs_write(znode_t *zp, uio_t *uio, int ioflag, cred_t *cr)
 		 * user 0 is not an ephemeral uid.
 		 */
 		mutex_enter(&zp->z_acl_lock);
-		uint32_t uid = KUID_TO_SUID(ZTOUID(zp));
 		if ((zp->z_mode & (S_IXUSR | (S_IXUSR >> 3) |
 		    (S_IXUSR >> 6))) != 0 &&
 		    (zp->z_mode & (S_ISUID | S_ISGID)) != 0 &&
