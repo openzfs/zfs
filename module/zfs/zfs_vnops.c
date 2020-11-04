@@ -326,7 +326,7 @@ zfs_write(znode_t *zp, uio_t *uio, int ioflag, cred_t *cr)
 	if (n == 0)
 		return (0);
 
-	rlim64_t limit = MAXOFFSET_T;
+	const rlim64_t limit = MAXOFFSET_T;
 
 	zfsvfs_t *zfsvfs = ZTOZSB(zp);
 	ZFS_ENTER(zfsvfs);
@@ -370,7 +370,7 @@ zfs_write(znode_t *zp, uio_t *uio, int ioflag, cred_t *cr)
 		return (SET_ERROR(EINVAL));
 	}
 
-	int max_blksz = zfsvfs->z_max_blksz;
+	const uint64_t max_blksz = zfsvfs->z_max_blksz;
 
 	/*
 	 * Pre-fault the pages to ensure slow (eg NFS) pages
@@ -674,7 +674,7 @@ zfs_write(znode_t *zp, uio_t *uio, int ioflag, cred_t *cr)
 	    zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		zil_commit(zilog, zp->z_id);
 
-	int64_t nwritten = start_resid - uio->uio_resid;
+	const int64_t nwritten = start_resid - uio->uio_resid;
 	dataset_kstats_update_write_kstats(&zfsvfs->z_kstat, nwritten);
 	task_io_account_write(nwritten);
 
