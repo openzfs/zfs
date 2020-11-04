@@ -1414,15 +1414,17 @@ zfsvfs_hold(const char *name, void *tag, zfsvfs_t **zfvp, boolean_t writer)
 	if (getzfsvfs(name, zfvp) != 0)
 		error = zfsvfs_create(name, B_FALSE, zfvp);
 	if (error == 0) {
-		rrm_enter(&(*zfvp)->z_teardown_lock, (writer) ? RW_WRITER :
-		    RW_READER, tag);
+		if (writer)
+			ZFS_TEARDOWN_ENTER_WRITE(*zfvp, tag);
+		else
+			ZFS_TEARDOWN_ENTER_READ(*zfvp, tag);
 		if ((*zfvp)->z_unmounted) {
 			/*
 			 * XXX we could probably try again, since the unmounting
 			 * thread should be just about to disassociate the
 			 * objset from the zfsvfs.
 			 */
-			rrm_exit(&(*zfvp)->z_teardown_lock, tag);
+			ZFS_TEARDOWN_EXIT(*zfvp, tag);
 			return (SET_ERROR(EBUSY));
 		}
 	}
@@ -1432,7 +1434,7 @@ zfsvfs_hold(const char *name, void *tag, zfsvfs_t **zfvp, boolean_t writer)
 static void
 zfsvfs_rele(zfsvfs_t *zfsvfs, void *tag)
 {
-	rrm_exit(&zfsvfs->z_teardown_lock, tag);
+	ZFS_TEARDOWN_EXIT(zfsvfs, tag);
 
 	if (zfs_vfs_held(zfsvfs)) {
 		zfs_vfs_rele(zfsvfs);

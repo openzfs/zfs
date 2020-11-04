@@ -985,11 +985,7 @@ zfsvfs_create_impl(zfsvfs_t **zfvp, zfsvfs_t *zfsvfs, objset_t *os)
 	    offsetof(znode_t, z_link_node));
 	TASK_INIT(&zfsvfs->z_unlinked_drain_task, 0,
 	    zfsvfs_task_unlinked_drain, zfsvfs);
-#ifdef DIAGNOSTIC
-	rrm_init(&zfsvfs->z_teardown_lock, B_TRUE);
-#else
-	rrm_init(&zfsvfs->z_teardown_lock, B_FALSE);
-#endif
+	ZFS_TEARDOWN_INIT(zfsvfs);
 	ZFS_TEARDOWN_INACTIVE_INIT(zfsvfs);
 	rw_init(&zfsvfs->z_fuid_lock, NULL, RW_DEFAULT, NULL);
 	for (int i = 0; i != ZFS_OBJ_MTX_SZ; i++)
@@ -1129,7 +1125,7 @@ zfsvfs_free(zfsvfs_t *zfsvfs)
 	mutex_destroy(&zfsvfs->z_lock);
 	ASSERT(zfsvfs->z_nr_znodes == 0);
 	list_destroy(&zfsvfs->z_all_znodes);
-	rrm_destroy(&zfsvfs->z_teardown_lock);
+	ZFS_TEARDOWN_DESTROY(zfsvfs);
 	ZFS_TEARDOWN_INACTIVE_DESTROY(zfsvfs);
 	rw_destroy(&zfsvfs->z_fuid_lock);
 	for (i = 0; i != ZFS_OBJ_MTX_SZ; i++)
@@ -1381,10 +1377,10 @@ zfs_mount(vfs_t *vfsp)
 		 * manipulations between entry to zfs_suspend_fs() and return
 		 * from zfs_resume_fs().
 		 */
-		rrm_enter(&zfsvfs->z_teardown_lock, RW_WRITER, FTAG);
+		ZFS_TEARDOWN_ENTER_WRITE(zfsvfs, FTAG);
 		zfs_unregister_callbacks(zfsvfs);
 		error = zfs_register_callbacks(vfsp);
-		rrm_exit(&zfsvfs->z_teardown_lock, FTAG);
+		ZFS_TEARDOWN_EXIT(zfsvfs, FTAG);
 		goto out;
 	}
 
@@ -1530,7 +1526,7 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 				break;
 		}
 	}
-	rrm_enter(&zfsvfs->z_teardown_lock, RW_WRITER, FTAG);
+	ZFS_TEARDOWN_ENTER_WRITE(zfsvfs, FTAG);
 
 	if (!unmounting) {
 		/*
@@ -1566,7 +1562,7 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 	 */
 	if (!unmounting && (zfsvfs->z_unmounted || zfsvfs->z_os == NULL)) {
 		ZFS_TEARDOWN_INACTIVE_EXIT_WRITE(zfsvfs);
-		rrm_exit(&zfsvfs->z_teardown_lock, FTAG);
+		ZFS_TEARDOWN_EXIT(zfsvfs, FTAG);
 		return (SET_ERROR(EIO));
 	}
 
@@ -1594,7 +1590,7 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 	if (unmounting) {
 		zfsvfs->z_unmounted = B_TRUE;
 		ZFS_TEARDOWN_INACTIVE_EXIT_WRITE(zfsvfs);
-		rrm_exit(&zfsvfs->z_teardown_lock, FTAG);
+		ZFS_TEARDOWN_EXIT(zfsvfs, FTAG);
 	}
 
 	/*
@@ -1654,9 +1650,9 @@ zfs_umount(vfs_t *vfsp, int fflag)
 		 * vflush(FORCECLOSE). This way we ensure no future vnops
 		 * will be called and risk operating on DOOMED vnodes.
 		 */
-		rrm_enter(&zfsvfs->z_teardown_lock, RW_WRITER, FTAG);
+		ZFS_TEARDOWN_ENTER_WRITE(zfsvfs, FTAG);
 		zfsvfs->z_unmounted = B_TRUE;
-		rrm_exit(&zfsvfs->z_teardown_lock, FTAG);
+		ZFS_TEARDOWN_EXIT(zfsvfs, FTAG);
 	}
 
 	/*
@@ -1912,7 +1908,7 @@ zfs_resume_fs(zfsvfs_t *zfsvfs, dsl_dataset_t *ds)
 	int err;
 	znode_t *zp;
 
-	ASSERT(RRM_WRITE_HELD(&zfsvfs->z_teardown_lock));
+	ASSERT(ZFS_TEARDOWN_WRITE_HELD(zfsvfs));
 	ASSERT(ZFS_TEARDOWN_INACTIVE_WRITE_HELD(zfsvfs));
 
 	/*
@@ -1952,7 +1948,7 @@ zfs_resume_fs(zfsvfs_t *zfsvfs, dsl_dataset_t *ds)
 bail:
 	/* release the VOPs */
 	ZFS_TEARDOWN_INACTIVE_EXIT_WRITE(zfsvfs);
-	rrm_exit(&zfsvfs->z_teardown_lock, FTAG);
+	ZFS_TEARDOWN_EXIT(zfsvfs, FTAG);
 
 	if (err) {
 		/*
@@ -2067,7 +2063,7 @@ zfs_busy(void)
 int
 zfs_end_fs(zfsvfs_t *zfsvfs, dsl_dataset_t *ds)
 {
-	ASSERT(RRM_WRITE_HELD(&zfsvfs->z_teardown_lock));
+	ASSERT(ZFS_TEARDOWN_WRITE_HELD(zfsvfs));
 	ASSERT(ZFS_TEARDOWN_INACTIVE_WRITE_HELD(zfsvfs));
 
 	/*
@@ -2085,7 +2081,7 @@ zfs_end_fs(zfsvfs_t *zfsvfs, dsl_dataset_t *ds)
 
 	/* release the VOPs */
 	ZFS_TEARDOWN_INACTIVE_EXIT_WRITE(zfsvfs);
-	rrm_exit(&zfsvfs->z_teardown_lock, FTAG);
+	ZFS_TEARDOWN_EXIT(zfsvfs, FTAG);
 
 	/*
 	 * Try to force unmount this file system.

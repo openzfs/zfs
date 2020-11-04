@@ -46,10 +46,12 @@
 extern "C" {
 #endif
 
+#define	zfs_teardown_lock_t		rrmlock_t
+
 #ifdef TEARDOWN_INACTIVE_RMS
-typedef struct rmslock zfs_teardown_lock_t;
+typedef struct rmslock zfs_teardown_inactive_lock_t;
 #else
-#define	zfs_teardown_lock_t krwlock_t
+#define	zfs_teardown_inactive_lock_t krwlock_t
 #endif
 
 typedef struct zfsvfs zfsvfs_t;
@@ -80,8 +82,8 @@ struct zfsvfs {
 	int		z_norm;		/* normalization flags */
 	boolean_t	z_atime;	/* enable atimes mount option */
 	boolean_t	z_unmounted;	/* unmounted */
-	rrmlock_t	z_teardown_lock;
-	zfs_teardown_lock_t z_teardown_inactive_lock;
+	zfs_teardown_lock_t z_teardown_lock;
+	zfs_teardown_inactive_lock_t z_teardown_inactive_lock;
 	list_t		z_all_znodes;	/* all vnodes in the fs */
 	uint64_t	z_nr_znodes;	/* number of znodes in the fs */
 	kmutex_t	z_znodes_lock;	/* lock for z_all_znodes */
@@ -111,6 +113,39 @@ struct zfsvfs {
 	kmutex_t	z_hold_mtx[ZFS_OBJ_MTX_SZ];	/* znode hold locks */
 	struct task	z_unlinked_drain_task;
 };
+
+#define	ZFS_TEARDOWN_INIT(zfsvfs)		\
+	rrm_init(&(zfsvfs)->z_teardown_lock, B_FALSE)
+
+#define	ZFS_TEARDOWN_DESTROY(zfsvfs)		\
+	rrm_destroy(&(zfsvfs)->z_teardown_lock)
+
+#define	ZFS_TEARDOWN_TRY_ENTER_READ(zfsvfs)	\
+	rw_tryenter(&(zfsvfs)->z_teardown_lock, RW_READER)
+
+#define	ZFS_TEARDOWN_ENTER_READ(zfsvfs, tag)	\
+	rrm_enter_read(&(zfsvfs)->z_teardown_lock, tag);
+
+#define	ZFS_TEARDOWN_EXIT_READ(zfsvfs, tag)	\
+	rrm_exit(&(zfsvfs)->z_teardown_lock, tag)
+
+#define	ZFS_TEARDOWN_ENTER_WRITE(zfsvfs, tag)	\
+	rrm_enter(&(zfsvfs)->z_teardown_lock, RW_WRITER, tag)
+
+#define	ZFS_TEARDOWN_EXIT_WRITE(zfsvfs)		\
+	rrm_exit(&(zfsvfs)->z_teardown_lock, tag)
+
+#define	ZFS_TEARDOWN_EXIT(zfsvfs, tag)		\
+	rrm_exit(&(zfsvfs)->z_teardown_lock, tag)
+
+#define	ZFS_TEARDOWN_READ_HELD(zfsvfs)		\
+	RRM_READ_HELD(&(zfsvfs)->z_teardown_lock)
+
+#define	ZFS_TEARDOWN_WRITE_HELD(zfsvfs)		\
+	RRM_WRITE_HELD(&(zfsvfs)->z_teardown_lock)
+
+#define	ZFS_TEARDOWN_HELD(zfsvfs)		\
+	RRM_LOCK_HELD(&(zfsvfs)->z_teardown_lock)
 
 #ifdef TEARDOWN_INACTIVE_RMS
 #define	ZFS_TEARDOWN_INACTIVE_INIT(zfsvfs)		\
