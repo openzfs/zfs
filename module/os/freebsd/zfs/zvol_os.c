@@ -891,7 +891,8 @@ zvol_cdev_open(struct cdev *dev, int flags, int fmt, struct thread *td)
 	if (flags & (FSYNC | FDSYNC)) {
 		zsd = &zv->zv_zso->zso_dev;
 		zsd->zsd_sync_cnt++;
-		if (zsd->zsd_sync_cnt == 1)
+		if (zsd->zsd_sync_cnt == 1 &&
+		    (zv->zv_flags & ZVOL_WRITTEN_TO) != 0)
 			zil_async_to_sync(zv->zv_zilog, ZVOL_OBJ);
 	}
 
