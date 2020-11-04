@@ -321,8 +321,7 @@ zfs_holey(struct inode *ip, int cmd, loff_t *off)
  *		the page and the dmu buffer.
  */
 void
-update_pages(znode_t *zp, int64_t start, int len,
-    objset_t *os, uint64_t oid)
+update_pages(znode_t *zp, int64_t start, int len, objset_t *os)
 {
 	struct inode *ip = ZTOI(zp);
 	struct address_space *mp = ip->i_mapping;
@@ -341,8 +340,8 @@ update_pages(znode_t *zp, int64_t start, int len,
 				flush_dcache_page(pp);
 
 			pb = kmap(pp);
-			(void) dmu_read(os, oid, start+off, nbytes, pb+off,
-			    DMU_READ_PREFETCH);
+			(void) dmu_read(os, zp->z_id, start + off, nbytes,
+			    pb + off, DMU_READ_PREFETCH);
 			kunmap(pp);
 
 			if (mapping_writably_mapped(mp))

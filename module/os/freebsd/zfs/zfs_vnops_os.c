@@ -526,7 +526,7 @@ page_unhold(vm_page_t pp)
  *		the page and the dmu buffer.
  */
 void
-update_pages(znode_t *zp, int64_t start, int len, objset_t *os, uint64_t oid)
+update_pages(znode_t *zp, int64_t start, int len, objset_t *os)
 {
 	vm_object_t obj;
 	struct sf_buf *sf;
@@ -551,8 +551,8 @@ update_pages(znode_t *zp, int64_t start, int len, objset_t *os, uint64_t oid)
 			zfs_vmobject_wunlock_12(obj);
 
 			va = zfs_map_page(pp, &sf);
-			(void) dmu_read(os, oid, start+off, nbytes,
-			    va+off, DMU_READ_PREFETCH);
+			(void) dmu_read(os, zp->z_id, start + off, nbytes,
+			    va + off, DMU_READ_PREFETCH);
 			zfs_unmap_page(sf);
 
 			zfs_vmobject_wlock_12(obj);
