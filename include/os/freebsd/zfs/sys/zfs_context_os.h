@@ -42,7 +42,6 @@
 #include <linux/types.h>
 
 #define	cond_resched()		kern_yield(PRI_USER)
-#define	uio_prefaultpages(size, uio) (0)
 
 #define	taskq_create_sysdc(a, b, d, e, p, dc, f) \
 	    (taskq_create(a, b, maxclsyspri, d, e, f))
