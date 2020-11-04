@@ -124,15 +124,15 @@ extern minor_t zfsdev_minor_alloc(void);
 /* Called on entry to each ZFS vnode and vfs operation  */
 #define	ZFS_ENTER(zfsvfs) \
 	{ \
-		rrm_enter_read(&(zfsvfs)->z_teardown_lock, FTAG); \
+		ZFS_TEARDOWN_ENTER_READ((zfsvfs), FTAG); \
 		if (__predict_false((zfsvfs)->z_unmounted)) { \
-			ZFS_EXIT(zfsvfs); \
+			ZFS_TEARDOWN_EXIT_READ(zfsvfs, FTAG); \
 			return (EIO); \
 		} \
 	}
 
 /* Must be called before exiting the vop */
-#define	ZFS_EXIT(zfsvfs) rrm_exit(&(zfsvfs)->z_teardown_lock, FTAG)
+#define	ZFS_EXIT(zfsvfs) ZFS_TEARDOWN_EXIT_READ(zfsvfs, FTAG)
 
 /* Verifies the znode is valid */
 #define	ZFS_VERIFY_ZP(zp) \
