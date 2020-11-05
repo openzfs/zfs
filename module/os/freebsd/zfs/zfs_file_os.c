@@ -158,7 +158,8 @@ zfs_file_read_impl(zfs_file_t *fp, void *buf, size_t count, loff_t *offp,
 	rc = fo_read(fp, &auio, td->td_ucred, FOF_OFFSET, td);
 	if (rc)
 		return (SET_ERROR(rc));
-	*resid = auio.uio_resid;
+	if (resid)
+		*resid = auio.uio_resid;
 	*offp += count - auio.uio_resid;
 	return (SET_ERROR(0));
 }
