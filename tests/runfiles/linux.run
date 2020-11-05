@@ -47,7 +47,8 @@ tests = ['zfs_003_neg']
 tags = ['functional', 'cli_root', 'zfs']
 
 [tests/functional/cli_root/zfs_mount:Linux]
-tests = ['zfs_mount_006_pos', 'zfs_mount_008_pos', 'zfs_multi_mount']
+tests = ['zfs_mount_006_pos', 'zfs_mount_008_pos', 'zfs_mount_013_pos',
+    'zfs_mount_014_neg', 'zfs_multi_mount']
 tags = ['functional', 'cli_root', 'zfs_mount']
 
 [tests/functional/cli_root/zfs_share:Linux]
