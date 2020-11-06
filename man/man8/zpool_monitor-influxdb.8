@@ -20,42 +20,45 @@
 .\"
 .\"
 .\" Copyright 2020 Richard Elling
-.\" .Dd June 14, 2020
-.TH zpool_influxdb 8
-.SH NAME
-zpool_influxdb \- collect zpool statistics in influxdb line protocol format
+.Dd October, 5, 2020
+.Dt ZPOOL-MONITOR-INFLUXDB 8
+.Os
+.Sh NAME
+.Nm zpool-monitor-influxdb
+.Nd Collect zpool statistics in influxdb line protocol format
 .SH SYNOPSIS
 .LP
 .nf
-\fBzpool_influxdb\fR [--execd] [--no-histogram] [--sum-histogram-buckets]
+\fBzpool monitor-influxdb\fR [--execd] [--no-histogram] [--sum-histogram-buckets]
 [--tags key=value] [pool]
-\fBzpool_influxdb\fR --help
+\fBzpool monitor-influxdb\fR --help
 .fi
 .SH DESCRIPTION
-The \fBzpool_influxdb\fR command produces influxdb line protocol compatible
-metrics from zpools. Like the \fBzpool\fR command, \fBzpool_influxdb\fR
-reads the current pool status and statistics. Unlike the \fBzpool\fR
-command which is intended for humans, \fBzpool_influxdb\fR formats the
-output in influxdb line protocol. The expected use is as a plugin to a
-metrics collector or aggregator, such as telegraf.
+The \fBzpool monitor-influxdb\fR command produces influxdb line protocol
+compatible metrics from zpools. Like the \fBzpool\fR command,
+\fBzpool monitor-influxdb\fR reads the current pool status and statistics.
+Unlike the \fBzpool\fR command which is intended for humans,
+\fBzpool monitor-influxdb\fR formats the output in influxdb line protocol.
+The expected use is as a plugin to a metrics collector or aggregator, such
+as telegraf.
 
-By default, \fBzpool_influxdb\fR prints pool metrics and status in the
+By default, \fBzpool monitor-influxdb\fR prints pool metrics and status in the
 influxdb line protocol format. All pools are printed, similar to
 the \fBzpool status\fR command. Providing a pool name restricts the
 output to the named pool.
 
-Like the \fBzpool\fR command, \fBzpool_influxdb\fR uses internal data
+Like the \fBzpool\fR command, \fBzpool monitor-influxdb\fR uses internal data
 structures that can change over time as new ZFS releases are made.
-Therefore, the \fBzpool_influxdb\fR command must be compiled against the
+Therefore, the \fBzpool monitor-influxdb\fR command must be compiled against the
 ZFS source. It is expected that later releases of ZFS includes compatible
-\fBzpool_influxdb\fR and \fBzpool\fR commands.
+\fBzpool monitor-influxdb\fR and \fBzpool\fR commands.
 
 .SH OPTIONS
 .TP
 \fB\--execd\fR, \fB-e\fR
 Run in daemon mode compatible with telegraf`s \fBexecd\fR plugin.
 In this mode, the pools are sampled every time there is a [return] on stdin.
-Once a sample printed, \fBzpool_influxdb\fR waits for another [return].
+Once a sample printed, \fBzpool monitor-influxdb\fR waits for another [return].
 When run on a terminal, use [ctrl+C] to exit.
 .TP
 \fB\--no-histogram\fR, \fB-n\fR

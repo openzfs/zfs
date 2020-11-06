@@ -26,7 +26,7 @@
 
 . $STF_SUITE/include/libtest.shlib
 
-typeset tmpfile=$TEST_BASE_DIR/zpool_influxdb.out.$$
+typeset tmpfile=$TEST_BASE_DIR/zpool_monitor-influxdb.out.$$
 function cleanup
 {
 	if [[ -f $tmpfile ]]; then
@@ -35,7 +35,7 @@ function cleanup
 }
 log_onexit cleanup
 
-log_assert "zpool_influxdb gathers statistics"
+log_assert "zpool monitor-influxdb gathers statistics"
 
 if ! is_global_zone ; then
 	TESTPOOL=${TESTPOOL%%/*}
@@ -50,7 +50,7 @@ function check_for
 }
 
 # by default, all stats and histograms for all pools
-log_must zpool_influxdb > $tmpfile
+log_must zpool monitor-influxdb > $tmpfile
 
 STATS="
 zpool_io_size
@@ -65,7 +65,7 @@ done
 
 # scan stats aren't expected to be there until after a scan has started
 zpool scrub $TESTPOOL
-zpool_influxdb > $tmpfile
+zpool monitor-influxdb > $tmpfile
 check_for zpool_scan_stats
 
-log_pass "zpool_influxdb gathers statistics"
+log_pass "zpool monitor-influxdb gathers statistics"

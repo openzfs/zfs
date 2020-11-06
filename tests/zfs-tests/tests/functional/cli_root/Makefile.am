@@ -50,6 +50,7 @@ SUBDIRS = \
 	zpool_import \
 	zpool_initialize \
 	zpool_labelclear \
+	zpool_monitor-influxdb \
 	zpool_offline \
 	zpool_online \
 	zpool_remove \

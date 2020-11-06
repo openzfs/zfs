@@ -124,6 +124,8 @@ static int zpool_do_version(int, char **);
 
 static int zpool_do_wait(int, char **);
 
+extern int zpool_do_monitor_influxdb(int, char **);
+extern int zpool_help_monitor_influxdb(char *);
 /*
  * These libumem hooks provide a reasonable set of defaults for the allocator's
  * debugging facilities.
@@ -175,7 +177,8 @@ typedef enum {
 	HELP_REGUID,
 	HELP_REOPEN,
 	HELP_VERSION,
-	HELP_WAIT
+	HELP_WAIT,
+	HELP_MONITOR_INFLUXDB,
 } zpool_help_t;
 
 
@@ -312,6 +315,7 @@ static zpool_command_t command_table[] = {
 	{ NULL },
 	{ "history",	zpool_do_history,	HELP_HISTORY		},
 	{ "events",	zpool_do_events,	HELP_EVENTS		},
+	{ "monitor-influxdb", zpool_do_monitor_influxdb, HELP_MONITOR_INFLUXDB},
 	{ NULL },
 	{ "get",	zpool_do_get,		HELP_GET		},
 	{ "set",	zpool_do_set,		HELP_SET		},
@@ -424,6 +428,10 @@ get_usage(zpool_help_t idx)
 	case HELP_WAIT:
 		return (gettext("\twait [-Hp] [-T d|u] [-t <activity>[,...]] "
 		    "<pool> [interval]\n"));
+	case HELP_MONITOR_INFLUXDB:
+		return (gettext("\tmonitor-influxdb [-e|--execd]\n"
+		    "\t    [-n|--no-histograms] [-s|--sum-histogram-buckets]\n"
+		    "\t    [-i|--signed-int] [pool] ...\n"));
 	}
 
 	abort();
@@ -480,12 +488,13 @@ print_prop_cb(int prop, void *cb)
 	return (ZPROP_CONT);
 }
 
+void usage(boolean_t);
 /*
  * Display usage message.  If we're inside a command, display only the usage for
  * that command.  Otherwise, iterate over the entire command table and display
  * a complete usage message.
  */
-static void
+void
 usage(boolean_t requested)
 {
 	FILE *fp = requested ? stdout : stderr;

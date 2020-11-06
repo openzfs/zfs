@@ -23,7 +23,8 @@
  *   collection -- info is printed, KISS
  * + broken pools or kernel bugs can cause this process to hang in an
  *   unkillable state. For this reason, it is best to keep the damage limited
- *   to a small process like zpool_influxdb rather than a larger collector.
+ *   to a small process like zpool monitor-influxdb rather than a larger
+ *   collector.
  *
  * Copyright 2018-2020 Richard Elling
  *
@@ -72,6 +73,8 @@
 #include <stdint.h>
 #include <inttypes.h>
 #include <libzfs_impl.h>
+
+extern void usage(boolean_t);
 
 #define	POOL_MEASUREMENT	"zpool_stats"
 #define	SCAN_MEASUREMENT	"zpool_scan_stats"
@@ -171,7 +174,7 @@ print_scan_status(nvlist_t *nvroot, const char *pool_name)
 	    ps->pss_func >= POOL_SCAN_FUNCS) {
 		if (complained_about_sync % 1000 == 0) {
 			fprintf(stderr, "error: cannot decode scan stats: "
-			    "ZFS is out of sync with compiled zpool_influxdb");
+			    "ZFS is out of sync with compiled zpool command");
 			complained_about_sync++;
 		}
 		return (1);
@@ -695,13 +698,14 @@ print_recursive_stats(stat_printer_f func, nvlist_t *nvroot,
 	return (0);
 }
 
+int print_stats(zpool_handle_t *, void *);
 /*
  * call-back to print the stats from the pool config
  *
  * Note: if the pool is broken, this can hang indefinitely and perhaps in an
  * unkillable state.
  */
-static int
+int
 print_stats(zpool_handle_t *zhp, void *data)
 {
 	uint_t c;
@@ -768,16 +772,10 @@ print_stats(zpool_handle_t *zhp, void *data)
 	return (err);
 }
 
-static void
-usage(char *name)
-{
-	fprintf(stderr, "usage: %s [--execd][--no-histograms]"
-	    "[--sum-histogram-buckets] [--signed-int] [poolname]\n", name);
-	exit(EXIT_FAILURE);
-}
+int zpool_do_monitor_influxdb(int, char **);
 
 int
-main(int argc, char *argv[])
+zpool_do_monitor_influxdb(int argc, char *argv[])
 {
 	int opt;
 	int ret = 8;
@@ -820,7 +818,7 @@ main(int argc, char *argv[])
 			(void) snprintf(tags, tagslen, ",%s", optarg);
 			break;
 		default:
-			usage(argv[0]);
+			usage(B_FALSE);
 		}
 	}
 

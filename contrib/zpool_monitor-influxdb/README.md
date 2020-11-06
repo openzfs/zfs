@@ -1,16 +1,16 @@
 # Influxdb Metrics for ZFS Pools
-The _zpool_influxdb_ program produces
+The _zpool monitor-influxdb_ program produces
 [influxdb](https://github.com/influxdata/influxdb) line protocol
-compatible metrics from zpools. In the UNIX tradition, _zpool_influxdb_
+compatible metrics from zpools. In the UNIX tradition, _zpool monitor-influxdb_
 does one thing: read statistics from a pool and print them to
 stdout. In many ways, this is a metrics-friendly output of
 statistics normally observed via the `zpool` command.
 
 ## Usage
-When run without arguments, _zpool_influxdb_ runs once, reading data
+When run without arguments, _zpool monitor-influxdb_ runs once, reading data
 from all imported pools, and prints to stdout.
 ```shell
-zpool_influxdb [options] [poolname]
+zpool monitor-influxdb [options] [poolname]
 ```
 If no poolname is specified, then all pools are sampled.
 
@@ -36,7 +36,7 @@ Another method for storing histogram data sums the values for lower-value
 buckets. For example, a latency bucket tagged "le=10" includes the values
 in the bucket "le=1".
 This method is often used for prometheus histograms.
-The `zpool_influxdb --sum-histogram-buckets` option presents the data from ZFS
+The `zpool monitor-influxdb --sum-histogram-buckets` option presents the data from ZFS
 as summed values.
 
 ## Measurements
@@ -219,12 +219,12 @@ accounted in the 16MiB bucket.
 
 #### About unsigned integers
 Telegraf v1.6.2 and later support unsigned 64-bit integers which more
-closely matches the uint64_t values used by ZFS. By default, zpool_influxdb
+closely matches the uint64_t values used by ZFS. By default, zpool monitor-influxdb
 uses ZFS' uint64_t values and influxdb line protocol unsigned integer type.
 If you are using old telegraf or influxdb where unsigned integers are not
 available, use the `--signed-int` option.
 
-## Using _zpool_influxdb_
+## Using _zpool monitor-influxdb_
 
 The simplest method is to use the execd input agent in telegraf. For older
 versions of telegraf which lack execd, the exec input agent can be used.
@@ -234,10 +234,10 @@ be restarted to read the config-directory files.
 
 ### Example telegraf execd configuration
 ```toml
-# # Read metrics from zpool_influxdb
+# # Read metrics from zpool monitor-influxdb
 [[inputs.execd]]
-#   ## default installation location for zpool_influxdb command
-  command = ["/usr/bin/zpool_influxdb", "--execd"]
+#   ## default installation location for zpool monitor-influxdb command
+  command = ["/usr/sbin/zpool", "monitor-influxdb", "--execd"]
 
     ## Define how the process is signaled on each collection interval.
     ## Valid values are:
@@ -261,25 +261,23 @@ be restarted to read the config-directory files.
 
 ### Example telegraf exec configuration
 ```toml
-# # Read metrics from zpool_influxdb
+# # Read metrics from zpool monitor-influxdb
 [[inputs.exec]]
-#   ## default installation location for zpool_influxdb command
-  commands = ["/usr/bin/zpool_influxdb"]
+#   ## default installation location for zpool monitor-influxdb command
+  commands = ["/usr/sbin/zpool", "monitor-influxdb"]
   data_format = "influx"
 ```
 
 ## Caveat Emptor
-* Like the _zpool_ command, _zpool_influxdb_ takes a reader
-  lock on spa_config for each imported pool. If this lock blocks,
-  then the command will also block indefinitely and might be
-  unkillable. This is not a normal condition, but can occur if
-  there are bugs in the kernel modules.
-  For this reason, care should be taken:
+* The _zpool_ command takes a reader lock on spa_config for each imported pool.
+  If this lock blocks, then the command will also block indefinitely and might
+  be unkillable. This is not a normal condition, but can occur if there are bugs
+  in the kernel modules. For this reason, care should be taken:
   * avoid spawning many of these commands hoping that one might
     finish
   * avoid frequent updates or short sample time
     intervals, because the locks can interfere with the performance
-    of other instances of _zpool_ or _zpool_influxdb_
+    of other instances of _zpool_ or _zpool monitor-influxdb_
 
 ## Other collectors
 There are a few other collectors for zpool statistics roaming around

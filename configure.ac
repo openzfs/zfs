@@ -86,7 +86,6 @@ AC_CONFIG_FILES([
 	cmd/ztest/Makefile
 	cmd/zvol_id/Makefile
 	cmd/zvol_wait/Makefile
-	cmd/zpool_influxdb/Makefile
 	contrib/Makefile
 	contrib/bash_completion.d/Makefile
 	contrib/bpftrace/Makefile
@@ -302,6 +301,7 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/functional/cli_root/zpool_import/blockfiles/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zpool_initialize/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zpool_labelclear/Makefile
+	tests/zfs-tests/tests/functional/cli_root/zpool_monitor-influxdb/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zpool_offline/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zpool_online/Makefile
 	tests/zfs-tests/tests/functional/cli_root/zpool_remove/Makefile
@@ -395,7 +395,6 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/functional/vdev_zaps/Makefile
 	tests/zfs-tests/tests/functional/write_dirs/Makefile
 	tests/zfs-tests/tests/functional/xattr/Makefile
-	tests/zfs-tests/tests/functional/zpool_influxdb/Makefile
 	tests/zfs-tests/tests/functional/zvol/Makefile
 	tests/zfs-tests/tests/functional/zvol/zvol_ENOSPC/Makefile
 	tests/zfs-tests/tests/functional/zvol/zvol_cli/Makefile

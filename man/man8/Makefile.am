@@ -66,6 +66,7 @@ dist_man_MANS = \
 	zpool-iostat.8 \
 	zpool-labelclear.8 \
 	zpool-list.8 \
+	zpool_monitor-influxdb.8 \
 	zpool-offline.8 \
 	zpool-online.8 \
 	zpool-reguid.8 \
@@ -82,8 +83,7 @@ dist_man_MANS = \
 	zpool-upgrade.8 \
 	zpool-wait.8 \
 	zstream.8 \
-	zstreamdump.8 \
-	zpool_influxdb.8
+	zstreamdump.8
 
 nodist_man_MANS = \
 	zed.8 \

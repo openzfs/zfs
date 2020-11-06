@@ -439,7 +439,6 @@ systemctl --system daemon-reload >/dev/null || true
 %{_bindir}/raidz_test
 %{_bindir}/zgenhostid
 %{_bindir}/zvol_wait
-%{_bindir}/zpool_influxdb
 # Optional Python 2/3 scripts
 %{_bindir}/arc_summary
 %{_bindir}/arcstat

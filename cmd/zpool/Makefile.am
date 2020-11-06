@@ -9,6 +9,7 @@ sbin_PROGRAMS = zpool
 zpool_SOURCES = \
 	zpool_iter.c \
 	zpool_main.c \
+	zpool_monitor_influxdb.c \
 	zpool_util.c \
 	zpool_util.h \
 	zpool_vdev.c
