@@ -37,18 +37,11 @@
 #
 # STRATEGY:
 # Test 1
-# 1. Create a mirrored pool
-# 2. Create a file using each checksum
-# 3. Export/import/scrub the pool
-# 4. Verify there's no checksum errors.
-# 5. Clear the pool
-#
-# Test 2
-# 6. For each checksum:
-# 7.	Create a file using the checksum
-# 8.	Corrupt all level 0 blocks in the file
-# 9.	Scrub the pool
-# 10.	Verify that there are checksum errors
+# 1. For each checksum:
+# 2.	Create a file using the checksum
+# 3.	Corrupt all level 1 blocks in the file
+# 4.	Export and import the pool
+# 5.	Verify that there are checksum errors
 
 verify_runnable "both"
 
@@ -57,7 +50,7 @@ function cleanup
 	rm -fr $TESTDIR/*
 }
 
-log_assert "Create and read back files with using different checksum algorithms"
+log_assert "Test corrupting files at L1 and seeing checksum errors"
 
 log_onexit cleanup
 
@@ -70,28 +63,6 @@ set -A array $(get_disklist_fullpath)
 # Get the first vdev, since we will corrupt it later
 firstvdev=${array[0]}
 
-# Test each checksum by writing a file using it, confirm there are no errors.
-typeset -i i=1
-while [[ $i -lt ${#CHECKSUM_TYPES[*]} ]]; do
-	type=${CHECKSUM_TYPES[i]}
-	log_must zfs set checksum=$type $TESTPOOL
-	log_must file_write -o overwrite -f $TESTDIR/test_$type \
-	    -b $WRITESZ -c $NWRITES -d R
-	(( i = i + 1 ))
-done
-
-log_must zpool export $TESTPOOL
-log_must zpool import $TESTPOOL
-log_must zpool scrub $TESTPOOL
-log_must wait_scrubbed $TESTPOOL
-
-cksum=$(zpool status -P -v $TESTPOOL | grep "$firstvdev" | awk '{print $5}')
-log_assert "Normal file write test saw $cksum checksum errors"
-log_must [ $cksum -eq 0 ]
-
-rm -fr $TESTDIR/*
-
-log_assert "Test corrupting the files and seeing checksum errors"
 typeset -i j=1
 while [[ $j -lt ${#CHECKSUM_TYPES[*]} ]]; do
 	type=${CHECKSUM_TYPES[$j]}
@@ -99,11 +70,13 @@ while [[ $j -lt ${#CHECKSUM_TYPES[*]} ]]; do
 	log_must file_write -o overwrite -f $TESTDIR/test_$type \
 	    -b $WRITESZ -c $NWRITES -d R
 
-	# Corrupt the level 0 blocks of this file
-	corrupt_blocks_at_level $TESTDIR/test_$type
+	# Corrupt the level 1 blocks of this file
+	corrupt_blocks_at_level $TESTDIR/test_$type 1
 
-	log_must zpool scrub $TESTPOOL
-	log_must wait_scrubbed $TESTPOOL
+	log_must zpool export $TESTPOOL
+	log_must zpool import $TESTPOOL
+
+	log_mustnot eval "cat $TESTDIR/test_$type >/dev/null"
 
 	cksum=$(zpool status -P -v $TESTPOOL | grep "$firstvdev" | \
 	    awk '{print $5}')
