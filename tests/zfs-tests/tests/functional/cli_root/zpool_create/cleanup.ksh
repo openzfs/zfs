@@ -32,6 +32,12 @@
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zpool_create/zpool_create.shlib
 
-cleanup_devices $DISKS
+log_pass $DISKS
+
+for d in $DISKS; do
+	if [[ -f $d ]] || [[ -b $d ]]; then
+		cleanup_devices $d
+	fi
+done
 
 log_pass
