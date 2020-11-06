@@ -827,14 +827,30 @@ zvol_cdev_open(struct cdev *dev, int flags, int fmt, struct thread *td)
 	struct zvol_state_dev *zsd;
 	int err = 0;
 	boolean_t drop_suspend = B_TRUE;
+	boolean_t drop_namespace = B_FALSE;
 
+retry:
 	rw_enter(&zvol_state_lock, ZVOL_RW_READER);
 	zv = dev->si_drv2;
 	if (zv == NULL) {
+		if (drop_namespace)
+			mutex_exit(&spa_namespace_lock);
 		rw_exit(&zvol_state_lock);
 		return (SET_ERROR(ENXIO));
 	}
 
+	if (zv->zv_open_count == 0 && !mutex_owned(&spa_namespace_lock)) {
+		/*
+		 * We need to guarantee that the namespace lock is held
+		 * to avoid spurious failures in zvol_first_open
+		 */
+		drop_namespace = B_TRUE;
+		if (!mutex_tryenter(&spa_namespace_lock)) {
+			rw_exit(&zvol_state_lock);
+			mutex_enter(&spa_namespace_lock);
+			goto retry;
+		}
+	}
 	mutex_enter(&zv->zv_state_lock);
 
 	ASSERT3S(zv->zv_zso->zso_volmode, ==, ZFS_VOLMODE_DEV);
@@ -895,7 +911,8 @@ zvol_cdev_open(struct cdev *dev, int flags, int fmt, struct thread *td)
 		    (zv->zv_flags & ZVOL_WRITTEN_TO) != 0)
 			zil_async_to_sync(zv->zv_zilog, ZVOL_OBJ);
 	}
-
+	if (drop_namespace)
+		mutex_exit(&spa_namespace_lock);
 	mutex_exit(&zv->zv_state_lock);
 	if (drop_suspend)
 		rw_exit(&zv->zv_suspend_lock);
@@ -905,6 +922,8 @@ out_opened:
 	if (zv->zv_open_count == 0)
 		zvol_last_close(zv);
 out_locked:
+	if (drop_namespace)
+		mutex_exit(&spa_namespace_lock);
 	mutex_exit(&zv->zv_state_lock);
 	if (drop_suspend)
 		rw_exit(&zv->zv_suspend_lock);
