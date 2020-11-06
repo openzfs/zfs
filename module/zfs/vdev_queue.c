@@ -121,16 +121,17 @@
 
 /*
  * The maximum number of i/os active to each device.  Ideally, this will be >=
- * the sum of each queue's max_active.  It must be at least the sum of each
- * queue's min_active.
+ * the sum of each queue's max_active.
  */
 uint32_t zfs_vdev_max_active = 1000;
 
 /*
  * Per-queue limits on the number of i/os active to each device.  If the
  * number of active i/os is < zfs_vdev_max_active, then the min_active comes
- * into play. We will send min_active from each queue, and then select from
- * queues in the order defined by zio_priority_t.
+ * into play.  We will send min_active from each queue round-robin, and then
+ * send from queues in the order defined by zio_priority_t up to max_active.
+ * Some queues have additional mechanisms to limit number of active I/Os in
+ * addition to min_active and max_active, see below.
  *
  * In general, smaller max_active's will lead to lower latency of synchronous
  * operations.  Larger max_active's may lead to higher overall throughput,
@@ -151,7 +152,7 @@ uint32_t zfs_vdev_async_read_max_active = 3;
 uint32_t zfs_vdev_async_write_min_active = 2;
 uint32_t zfs_vdev_async_write_max_active = 10;
 uint32_t zfs_vdev_scrub_min_active = 1;
-uint32_t zfs_vdev_scrub_max_active = 2;
+uint32_t zfs_vdev_scrub_max_active = 3;
 uint32_t zfs_vdev_removal_min_active = 1;
 uint32_t zfs_vdev_removal_max_active = 2;
 uint32_t zfs_vdev_initializing_min_active = 1;
@@ -170,6 +171,28 @@ uint32_t zfs_vdev_rebuild_max_active = 3;
  */
 int zfs_vdev_async_write_active_min_dirty_percent = 30;
 int zfs_vdev_async_write_active_max_dirty_percent = 60;
+
+/*
+ * For non-interactive I/O (scrub, resilver, removal, initialize and rebuild),
+ * the number of concurrently-active I/O's is limited to *_min_active, unless
+ * the vdev is "idle".  When there are no interactive I/Os active (sync or
+ * async), and zfs_vdev_nia_delay I/Os have completed since the last
+ * interactive I/O, then the vdev is considered to be "idle", and the number
+ * of concurrently-active non-interactive I/O's is increased to *_max_active.
+ */
+uint_t zfs_vdev_nia_delay = 5;
+
+/*
+ * Some HDDs tend to prioritize sequential I/O so high that concurrent
+ * random I/O latency reaches several seconds.  On some HDDs it happens
+ * even if sequential I/Os are submitted one at a time, and so setting
+ * *_max_active to 1 does not help.  To prevent non-interactive I/Os, like
+ * scrub, from monopolizing the device no more than zfs_vdev_nia_credit
+ * I/Os can be sent while there are outstanding incomplete interactive
+ * I/Os.  This enforced wait ensures the HDD services the interactive I/O
+ * within a reasonable amount of time.
+ */
+uint_t zfs_vdev_nia_credit = 5;
 
 /*
  * To reduce IOPs, we aggregate small adjacent I/Os into one large I/O.
@@ -261,7 +284,7 @@ vdev_queue_timestamp_compare(const void *x1, const void *x2)
 }
 
 static int
-vdev_queue_class_min_active(zio_priority_t p)
+vdev_queue_class_min_active(vdev_queue_t *vq, zio_priority_t p)
 {
 	switch (p) {
 	case ZIO_PRIORITY_SYNC_READ:
@@ -273,15 +296,19 @@ vdev_queue_class_min_active(zio_priority_t p)
 	case ZIO_PRIORITY_ASYNC_WRITE:
 		return (zfs_vdev_async_write_min_active);
 	case ZIO_PRIORITY_SCRUB:
-		return (zfs_vdev_scrub_min_active);
+		return (vq->vq_ia_active == 0 ? zfs_vdev_scrub_min_active :
+		    MIN(vq->vq_nia_credit, zfs_vdev_scrub_min_active));
 	case ZIO_PRIORITY_REMOVAL:
-		return (zfs_vdev_removal_min_active);
+		return (vq->vq_ia_active == 0 ? zfs_vdev_removal_min_active :
+		    MIN(vq->vq_nia_credit, zfs_vdev_removal_min_active));
 	case ZIO_PRIORITY_INITIALIZING:
-		return (zfs_vdev_initializing_min_active);
+		return (vq->vq_ia_active == 0 ?zfs_vdev_initializing_min_active:
+		    MIN(vq->vq_nia_credit, zfs_vdev_initializing_min_active));
 	case ZIO_PRIORITY_TRIM:
 		return (zfs_vdev_trim_min_active);
 	case ZIO_PRIORITY_REBUILD:
-		return (zfs_vdev_rebuild_min_active);
+		return (vq->vq_ia_active == 0 ? zfs_vdev_rebuild_min_active :
+		    MIN(vq->vq_nia_credit, zfs_vdev_rebuild_min_active));
 	default:
 		panic("invalid priority %u", p);
 		return (0);
@@ -337,7 +364,7 @@ vdev_queue_max_async_writes(spa_t *spa)
 }
 
 static int
-vdev_queue_class_max_active(spa_t *spa, zio_priority_t p)
+vdev_queue_class_max_active(spa_t *spa, vdev_queue_t *vq, zio_priority_t p)
 {
 	switch (p) {
 	case ZIO_PRIORITY_SYNC_READ:
@@ -349,14 +376,34 @@ vdev_queue_class_max_active(spa_t *spa, zio_priority_t p)
 	case ZIO_PRIORITY_ASYNC_WRITE:
 		return (vdev_queue_max_async_writes(spa));
 	case ZIO_PRIORITY_SCRUB:
+		if (vq->vq_ia_active > 0) {
+			return (MIN(vq->vq_nia_credit,
+			    zfs_vdev_scrub_min_active));
+		} else if (vq->vq_nia_credit < zfs_vdev_nia_delay)
+			return (zfs_vdev_scrub_min_active);
 		return (zfs_vdev_scrub_max_active);
 	case ZIO_PRIORITY_REMOVAL:
+		if (vq->vq_ia_active > 0) {
+			return (MIN(vq->vq_nia_credit,
+			    zfs_vdev_removal_min_active));
+		} else if (vq->vq_nia_credit < zfs_vdev_nia_delay)
+			return (zfs_vdev_removal_min_active);
 		return (zfs_vdev_removal_max_active);
 	case ZIO_PRIORITY_INITIALIZING:
+		if (vq->vq_ia_active > 0) {
+			return (MIN(vq->vq_nia_credit,
+			    zfs_vdev_initializing_min_active));
+		} else if (vq->vq_nia_credit < zfs_vdev_nia_delay)
+			return (zfs_vdev_initializing_min_active);
 		return (zfs_vdev_initializing_max_active);
 	case ZIO_PRIORITY_TRIM:
 		return (zfs_vdev_trim_max_active);
 	case ZIO_PRIORITY_REBUILD:
+		if (vq->vq_ia_active > 0) {
+			return (MIN(vq->vq_nia_credit,
+			    zfs_vdev_rebuild_min_active));
+		} else if (vq->vq_nia_credit < zfs_vdev_nia_delay)
+			return (zfs_vdev_rebuild_min_active);
 		return (zfs_vdev_rebuild_max_active);
 	default:
 		panic("invalid priority %u", p);
@@ -372,17 +419,24 @@ static zio_priority_t
 vdev_queue_class_to_issue(vdev_queue_t *vq)
 {
 	spa_t *spa = vq->vq_vdev->vdev_spa;
-	zio_priority_t p;
+	zio_priority_t p, n;
 
 	if (avl_numnodes(&vq->vq_active_tree) >= zfs_vdev_max_active)
 		return (ZIO_PRIORITY_NUM_QUEUEABLE);
 
-	/* find a queue that has not reached its minimum # outstanding i/os */
-	for (p = 0; p < ZIO_PRIORITY_NUM_QUEUEABLE; p++) {
+	/*
+	 * Find a queue that has not reached its minimum # outstanding i/os.
+	 * Do round-robin to reduce starvation due to zfs_vdev_max_active
+	 * and vq_nia_credit limits.
+	 */
+	for (n = 0; n < ZIO_PRIORITY_NUM_QUEUEABLE; n++) {
+		p = (vq->vq_last_prio + n + 1) % ZIO_PRIORITY_NUM_QUEUEABLE;
 		if (avl_numnodes(vdev_queue_class_tree(vq, p)) > 0 &&
 		    vq->vq_class[p].vqc_active <
-		    vdev_queue_class_min_active(p))
+		    vdev_queue_class_min_active(vq, p)) {
+			vq->vq_last_prio = p;
 			return (p);
+		}
 	}
 
 	/*
@@ -392,8 +446,10 @@ vdev_queue_class_to_issue(vdev_queue_t *vq)
 	for (p = 0; p < ZIO_PRIORITY_NUM_QUEUEABLE; p++) {
 		if (avl_numnodes(vdev_queue_class_tree(vq, p)) > 0 &&
 		    vq->vq_class[p].vqc_active <
-		    vdev_queue_class_max_active(spa, p))
+		    vdev_queue_class_max_active(spa, vq, p)) {
+			vq->vq_last_prio = p;
 			return (p);
+		}
 	}
 
 	/* No eligible queued i/os */
@@ -493,6 +549,20 @@ vdev_queue_io_remove(vdev_queue_t *vq, zio_t *zio)
 	}
 }
 
+static boolean_t
+vdev_queue_is_interactive(zio_priority_t p)
+{
+	switch (p) {
+	case ZIO_PRIORITY_SCRUB:
+	case ZIO_PRIORITY_REMOVAL:
+	case ZIO_PRIORITY_INITIALIZING:
+	case ZIO_PRIORITY_REBUILD:
+		return (B_FALSE);
+	default:
+		return (B_TRUE);
+	}
+}
+
 static void
 vdev_queue_pending_add(vdev_queue_t *vq, zio_t *zio)
 {
@@ -502,6 +572,12 @@ vdev_queue_pending_add(vdev_queue_t *vq, zio_t *zio)
 	ASSERT(MUTEX_HELD(&vq->vq_lock));
 	ASSERT3U(zio->io_priority, <, ZIO_PRIORITY_NUM_QUEUEABLE);
 	vq->vq_class[zio->io_priority].vqc_active++;
+	if (vdev_queue_is_interactive(zio->io_priority)) {
+		if (++vq->vq_ia_active == 1)
+			vq->vq_nia_credit = 1;
+	} else if (vq->vq_ia_active > 0) {
+		vq->vq_nia_credit--;
+	}
 	avl_add(&vq->vq_active_tree, zio);
 
 	if (shk->kstat != NULL) {
@@ -520,6 +596,13 @@ vdev_queue_pending_remove(vdev_queue_t *vq, zio_t *zio)
 	ASSERT(MUTEX_HELD(&vq->vq_lock));
 	ASSERT3U(zio->io_priority, <, ZIO_PRIORITY_NUM_QUEUEABLE);
 	vq->vq_class[zio->io_priority].vqc_active--;
+	if (vdev_queue_is_interactive(zio->io_priority)) {
+		if (--vq->vq_ia_active == 0)
+			vq->vq_nia_credit = 0;
+		else
+			vq->vq_nia_credit = zfs_vdev_nia_credit;
+	} else if (vq->vq_ia_active == 0)
+		vq->vq_nia_credit++;
 	avl_remove(&vq->vq_active_tree, zio);
 
 	if (shk->kstat != NULL) {
@@ -1064,6 +1147,12 @@ ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, rebuild_max_active, INT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, rebuild_min_active, INT, ZMOD_RW,
 	"Min active rebuild I/Os per vdev");
+
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, nia_credit, INT, ZMOD_RW,
+	"Number of non-interactive I/Os to allow in sequence");
+
+ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, nia_delay, INT, ZMOD_RW,
+	"Number of non-interactive I/Os before _max_active");
 
 ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, queue_depth_pct, INT, ZMOD_RW,
 	"Queue depth percentage for each top-level vdev");
