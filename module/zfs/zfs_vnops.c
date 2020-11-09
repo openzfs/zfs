@@ -234,8 +234,6 @@ zfs_write(znode_t *zp, uio_t *uio, int ioflag, cred_t *cr)
 	if (n == 0)
 		return (0);
 
-	const rlim64_t limit = MAXOFFSET_T;
-
 	zfsvfs_t *zfsvfs = ZTOZSB(zp);
 	ZFS_ENTER(zfsvfs);
 	ZFS_VERIFY_ZP(zp);
@@ -325,13 +323,15 @@ zfs_write(znode_t *zp, uio_t *uio, int ioflag, cred_t *cr)
 		return (EFBIG);
 	}
 
+	const rlim64_t limit = MAXOFFSET_T;
+
 	if (woff >= limit) {
 		zfs_rangelock_exit(lr);
 		ZFS_EXIT(zfsvfs);
 		return (SET_ERROR(EFBIG));
 	}
 
-	if ((woff + n) > limit || woff > (limit - n))
+	if (n > limit - woff)
 		n = limit - woff;
 
 	uint64_t end_size = MAX(zp->z_size, woff + n);
