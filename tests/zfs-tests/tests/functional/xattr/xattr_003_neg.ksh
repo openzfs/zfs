@@ -43,34 +43,40 @@
 #	4. Check that we're unable to write an xattr as a non-root user
 #
 
-function cleanup {
-
-	log_must rm $TESTDIR/myfile.$$
-
+function cleanup
+{
+	rm -f $testfile $tempfile
 }
 
 log_assert "read/write xattr on a file with no permissions fails"
 log_onexit cleanup
 
-log_must touch $TESTDIR/myfile.$$
-create_xattr $TESTDIR/myfile.$$ passwd /etc/passwd
+typeset testfile=$TESTDIR/testfile.$$
+typeset tempfile=/tmp/tempfile.$$
 
-log_must chmod 000 $TESTDIR/myfile.$$
+log_must touch $testfile
+create_xattr $testfile passwd /etc/passwd
+
+log_must chmod 000 $testfile
 if is_illumos; then
-	log_mustnot su $ZFS_USER -c "runat $TESTDIR/myfile.$$ cat passwd"
-	log_mustnot su $ZFS_USER -c "runat $TESTDIR/myfile.$$ cp /etc/passwd ."
+	log_mustnot su $ZFS_USER -c "runat $testfile cat passwd"
+	log_mustnot su $ZFS_USER -c "runat $testfile cp /etc/passwd ."
 else
-	user_run $ZFS_USER eval \
-	    "get_xattr passwd $TESTDIR/myfile.$$ >/tmp/passwd.$$"
-	log_mustnot diff /etc/passwd /tmp/passwd.$$
-	log_must rm /tmp/passwd.$$
+	log_mustnot user_run $ZFS_USER "
+. $STF_SUITE/include/libtest.shlib
+get_xattr passwd $testfile >$tempfile
+"
+	log_mustnot diff -q /etc/passwd $tempfile
+	log_must rm $tempfile
 
-	user_run $ZFS_USER eval \
-	    "set_xattr_stdin passwd $TESTDIR/myfile.$$ </etc/group"
-	log_must chmod 644 $TESTDIR/myfile.$$
-	get_xattr passwd $TESTDIR/myfile.$$ >/tmp/passwd.$$
-	log_must diff /etc/passwd /tmp/passwd.$$
-	log_must rm /tmp/passwd.$$
+	log_mustnot user_run $ZFS_USER "
+. $STF_SUITE/include/libtest.shlib
+set_xattr_stdin passwd $testfile </etc/group
+"
+	log_must chmod 644 $testfile
+	get_xattr passwd $testfile >$tempfile
+	log_must diff -q /etc/passwd $tempfile
+	log_must rm $tempfile
 fi
 
 log_pass "read/write xattr on a file with no permissions fails"
