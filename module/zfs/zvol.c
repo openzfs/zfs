@@ -772,7 +772,7 @@ zvol_setup_zv(zvol_state_t *zv)
 	if (error)
 		return (SET_ERROR(error));
 
-	error = dnode_hold(os, ZVOL_OBJ, FTAG, &zv->zv_dn);
+	error = dnode_hold(os, ZVOL_OBJ, zv, &zv->zv_dn);
 	if (error)
 		return (SET_ERROR(error));
 
@@ -807,7 +807,7 @@ zvol_shutdown_zv(zvol_state_t *zv)
 
 	zv->zv_zilog = NULL;
 
-	dnode_rele(zv->zv_dn, FTAG);
+	dnode_rele(zv->zv_dn, zv);
 	zv->zv_dn = NULL;
 
 	/*
