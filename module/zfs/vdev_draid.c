@@ -988,10 +988,12 @@ vdev_draid_map_alloc_scrub(zio_t *zio, uint64_t abd_offset, raidz_row_t *rr)
 }
 
 /*
- * Normal reads.  This is the common case, it is sufficient to map the
- * zio's ABD in to the raid map columns.  If the checksum cannot be
- * verified the raid map is expanded by vdev_draid_map_alloc_empty()
- * to allow reconstruction from parity data.
+ * Normal reads.  In this common case only the columns containing data
+ * are read in to the zio ABDs.  Neither the parity columns or empty skip
+ * sectors are read unless the checksum fails verification.  In which case
+ * vdev_raidz_read_all() will call vdev_draid_map_alloc_empty() to expand
+ * the raid map in order to allow reconstruction using the parity data and
+ * skip sectors.
  */
 static void
 vdev_draid_map_alloc_read(zio_t *zio, uint64_t abd_offset, raidz_row_t *rr)
@@ -1293,8 +1295,8 @@ vdev_draid_map_alloc_row(zio_t *zio, raidz_row_t **rrp, uint64_t io_offset,
  *   the parity calculation. This property enables sequential resilvering.
  *
  * - When the block at the logical offset spans redundancy groups then two
- *   rows are allocated in the raidz_map_t. One row resides at end of the
- *   first group and the other at the start of the following group.
+ *   rows are allocated in the raidz_map_t. One row resides at the end of
+ *   the first group and the other at the start of the following group.
  */
 static raidz_map_t *
 vdev_draid_map_alloc(zio_t *zio)
@@ -1341,7 +1343,8 @@ vdev_draid_map_alloc(zio_t *zio)
 }
 
 /*
- * Given a offset into a dRAID, compute a group aligned offset.
+ * Given an offset into a dRAID return the next group width aligned offset
+ * which can be used to start an allocation.
  */
 static uint64_t
 vdev_draid_get_astart(vdev_t *vd, const uint64_t start)
@@ -1379,7 +1382,7 @@ vdev_draid_min_alloc(vdev_t *vd)
 
 	ASSERT3P(vd->vdev_ops, ==, &vdev_draid_ops);
 
-	return (vdc->vdc_ndata * (1ULL << vd->vdev_ashift));
+	return (vdc->vdc_ndata << vd->vdev_ashift);
 }
 
 /*

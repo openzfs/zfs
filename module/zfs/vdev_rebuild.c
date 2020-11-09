@@ -328,7 +328,7 @@ vdev_rebuild_complete_sync(void *arg, dmu_tx_t *tx)
 	mutex_exit(&vd->vdev_rebuild_lock);
 
 	/*
-	 * While we're in sync'ing context take the opportunity to
+	 * While we're in syncing context take the opportunity to
 	 * setup the scrub when there are no more active rebuilds.
 	 */
 	if (!vdev_rebuild_active(spa->spa_root_vdev) &&
