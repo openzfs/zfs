@@ -54,12 +54,15 @@ This property can also be referred to by its shortened column name,
 .It Sy expandsize
 Amount of uninitialized space within the pool or device that can be used to
 increase the total capacity of the pool.
-Uninitialized space consists of any space on an EFI labeled vdev which has not
-been brought online
-.Po e.g, using
-.Nm zpool Cm online Fl e
-.Pc .
-This space occurs when a LUN is dynamically expanded.
+On whole-disk vdevs, this is the space beyond the end of the GPT –
+typically occurring when a LUN is dynamically expanded
+or a disk replaced with a larger one.
+On partition vdevs, this is the space appended to the partition after it was
+added to the pool – most likely by resizing it in-place.
+The space can be claimed for the pool by bringing it online with
+.Sy autoexpand=on
+or using
+.Nm zpool Cm online Fl e .
 .It Sy fragmentation
 The amount of fragmentation in the pool. As the amount of space
 .Sy allocated
