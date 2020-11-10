@@ -858,7 +858,7 @@ hold_next_object(objset_t *os, struct redact_record *rec, void *tag,
 {
 	int err = 0;
 	if (*dn != NULL)
-		dnode_rele(*dn, FTAG);
+		dnode_rele(*dn, tag);
 	*dn = NULL;
 	if (*object < rec->start_object) {
 		*object = rec->start_object - 1;
