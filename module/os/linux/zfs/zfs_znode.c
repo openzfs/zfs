@@ -134,7 +134,6 @@ zfs_znode_cache_constructor(void *buf, void *arg, int kmflags)
 	zp->z_acl_cached = NULL;
 	zp->z_xattr_cached = NULL;
 	zp->z_xattr_parent = 0;
-	zp->z_moved = B_FALSE;
 	return (0);
 }
 
@@ -546,7 +545,6 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	ASSERT3P(zp->z_xattr_cached, ==, NULL);
 	zp->z_unlinked = B_FALSE;
 	zp->z_atime_dirty = B_FALSE;
-	zp->z_moved = B_FALSE;
 	zp->z_is_mapped = B_FALSE;
 	zp->z_is_ctldir = B_FALSE;
 	zp->z_is_stale = B_FALSE;
@@ -1900,7 +1898,6 @@ zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 	rootzp = kmem_cache_alloc(znode_cache, KM_SLEEP);
 	rootzp->z_unlinked = B_FALSE;
 	rootzp->z_atime_dirty = B_FALSE;
-	rootzp->z_moved = B_FALSE;
 	rootzp->z_is_sa = USE_SA(version, os);
 	rootzp->z_pflags = 0;
 

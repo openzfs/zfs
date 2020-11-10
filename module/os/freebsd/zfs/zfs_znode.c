@@ -149,7 +149,6 @@ zfs_znode_cache_constructor(void *buf, void *arg, int kmflags)
 
 	zp->z_acl_cached = NULL;
 	zp->z_vnode = NULL;
-	zp->z_moved = 0;
 	return (0);
 }
 
@@ -278,7 +277,6 @@ zfs_create_share_dir(zfsvfs_t *zfsvfs, dmu_tx_t *tx)
 
 	sharezp = zfs_znode_alloc_kmem(KM_SLEEP);
 	ASSERT(!POINTER_IS_VALID(sharezp->z_zfsvfs));
-	sharezp->z_moved = 0;
 	sharezp->z_unlinked = 0;
 	sharezp->z_atime_dirty = 0;
 	sharezp->z_zfsvfs = zfsvfs;
@@ -437,7 +435,6 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	vp->v_data = zp;
 
 	ASSERT(!POINTER_IS_VALID(zp->z_zfsvfs));
-	zp->z_moved = 0;
 
 	zp->z_sa_hdl = NULL;
 	zp->z_unlinked = 0;
@@ -1692,7 +1689,6 @@ zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 
 	rootzp = zfs_znode_alloc_kmem(KM_SLEEP);
 	ASSERT(!POINTER_IS_VALID(rootzp->z_zfsvfs));
-	rootzp->z_moved = 0;
 	rootzp->z_unlinked = 0;
 	rootzp->z_atime_dirty = 0;
 	rootzp->z_is_sa = USE_SA(version, os);
