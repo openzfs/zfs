@@ -7212,9 +7212,9 @@ arc_tempreserve_space(spa_t *spa, uint64_t reserve, uint64_t txg)
 	 */
 	uint64_t total_dirty = reserve + arc_tempreserve + anon_size;
 	uint64_t spa_dirty_anon = spa_dirty_data(spa);
-
-	if (total_dirty > arc_c * zfs_arc_dirty_limit_percent / 100 &&
-	    anon_size > arc_c * zfs_arc_anon_limit_percent / 100 &&
+	uint64_t rarc_c = arc_warm ? arc_c : arc_c_max;
+	if (total_dirty > rarc_c * zfs_arc_dirty_limit_percent / 100 &&
+	    anon_size > rarc_c * zfs_arc_anon_limit_percent / 100 &&
 	    spa_dirty_anon > anon_size * zfs_arc_pool_dirty_percent / 100) {
 #ifdef ZFS_DEBUG
 		uint64_t meta_esize = zfs_refcount_count(
@@ -7222,9 +7222,9 @@ arc_tempreserve_space(spa_t *spa, uint64_t reserve, uint64_t txg)
 		uint64_t data_esize =
 		    zfs_refcount_count(&arc_anon->arcs_esize[ARC_BUFC_DATA]);
 		dprintf("failing, arc_tempreserve=%lluK anon_meta=%lluK "
-		    "anon_data=%lluK tempreserve=%lluK arc_c=%lluK\n",
+		    "anon_data=%lluK tempreserve=%lluK rarc_c=%lluK\n",
 		    arc_tempreserve >> 10, meta_esize >> 10,
-		    data_esize >> 10, reserve >> 10, arc_c >> 10);
+		    data_esize >> 10, reserve >> 10, rarc_c >> 10);
 #endif
 		DMU_TX_STAT_BUMP(dmu_tx_dirty_throttle);
 		return (SET_ERROR(ERESTART));
