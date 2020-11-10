@@ -326,8 +326,6 @@ zfs_write(znode_t *zp, uio_t *uio, int ioflag, cred_t *cr)
 	if (n == 0)
 		return (0);
 
-	rlim64_t limit = MAXOFFSET_T;
-
 	zfsvfs_t *zfsvfs = ZTOZSB(zp);
 	ZFS_ENTER(zfsvfs);
 	ZFS_VERIFY_ZP(zp);
@@ -370,7 +368,7 @@ zfs_write(znode_t *zp, uio_t *uio, int ioflag, cred_t *cr)
 		return (SET_ERROR(EINVAL));
 	}
 
-	int max_blksz = zfsvfs->z_max_blksz;
+	const uint64_t max_blksz = zfsvfs->z_max_blksz;
 
 	/*
 	 * Pre-fault the pages to ensure slow (eg NFS) pages
@@ -417,17 +415,23 @@ zfs_write(znode_t *zp, uio_t *uio, int ioflag, cred_t *cr)
 		return (EFBIG);
 	}
 
+	const rlim64_t limit = MAXOFFSET_T;
+
 	if (woff >= limit) {
 		zfs_rangelock_exit(lr);
 		ZFS_EXIT(zfsvfs);
 		return (SET_ERROR(EFBIG));
 	}
 
-	if ((woff + n) > limit || woff > (limit - n))
+	if (n > limit - woff)
 		n = limit - woff;
 
 	uint64_t end_size = MAX(zp->z_size, woff + n);
 	zilog_t *zilog = zfsvfs->z_log;
+
+	const uint64_t uid = KUID_TO_SUID(ZTOUID(zp));
+	const uint64_t gid = KGID_TO_SGID(ZTOGID(zp));
+	const uint64_t projid = zp->z_projid;
 
 	/*
 	 * Write the file in reasonable size chunks.  Each chunk is written
@@ -437,13 +441,11 @@ zfs_write(znode_t *zp, uio_t *uio, int ioflag, cred_t *cr)
 	while (n > 0) {
 		woff = uio->uio_loffset;
 
-		if (zfs_id_overblockquota(zfsvfs, DMU_USERUSED_OBJECT,
-		    KUID_TO_SUID(ZTOUID(zp))) ||
-		    zfs_id_overblockquota(zfsvfs, DMU_GROUPUSED_OBJECT,
-		    KGID_TO_SGID(ZTOGID(zp))) ||
-		    (zp->z_projid != ZFS_DEFAULT_PROJID &&
+		if (zfs_id_overblockquota(zfsvfs, DMU_USERUSED_OBJECT, uid) ||
+		    zfs_id_overblockquota(zfsvfs, DMU_GROUPUSED_OBJECT, gid) ||
+		    (projid != ZFS_DEFAULT_PROJID &&
 		    zfs_id_overblockquota(zfsvfs, DMU_PROJECTUSED_OBJECT,
-		    zp->z_projid))) {
+		    projid))) {
 			error = SET_ERROR(EDQUOT);
 			break;
 		}
@@ -579,8 +581,7 @@ zfs_write(znode_t *zp, uio_t *uio, int ioflag, cred_t *cr)
 		}
 		if (tx_bytes && zn_has_cached_data(zp) &&
 		    !(ioflag & O_DIRECT)) {
-			update_pages(zp, woff,
-			    tx_bytes, zfsvfs->z_os, zp->z_id);
+			update_pages(zp, woff, tx_bytes, zfsvfs->z_os);
 		}
 
 		/*
@@ -607,7 +608,6 @@ zfs_write(znode_t *zp, uio_t *uio, int ioflag, cred_t *cr)
 		 * user 0 is not an ephemeral uid.
 		 */
 		mutex_enter(&zp->z_acl_lock);
-		uint32_t uid = KUID_TO_SUID(ZTOUID(zp));
 		if ((zp->z_mode & (S_IXUSR | (S_IXUSR >> 3) |
 		    (S_IXUSR >> 6))) != 0 &&
 		    (zp->z_mode & (S_ISUID | S_ISGID)) != 0 &&
@@ -674,7 +674,7 @@ zfs_write(znode_t *zp, uio_t *uio, int ioflag, cred_t *cr)
 	    zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		zil_commit(zilog, zp->z_id);
 
-	int64_t nwritten = start_resid - uio->uio_resid;
+	const int64_t nwritten = start_resid - uio->uio_resid;
 	dataset_kstats_update_write_kstats(&zfsvfs->z_kstat, nwritten);
 	task_io_account_write(nwritten);
 
