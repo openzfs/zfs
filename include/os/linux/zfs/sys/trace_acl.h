@@ -52,7 +52,6 @@ DECLARE_EVENT_CLASS(zfs_ace_class,
 	    __field(uint8_t,		z_unlinked)
 	    __field(uint8_t,		z_atime_dirty)
 	    __field(uint8_t,		z_zn_prefetch)
-	    __field(uint8_t,		z_moved)
 	    __field(uint_t,		z_blksz)
 	    __field(uint_t,		z_seq)
 	    __field(uint64_t,		z_mapcnt)
@@ -86,7 +85,6 @@ DECLARE_EVENT_CLASS(zfs_ace_class,
 	    __entry->z_unlinked		= zn->z_unlinked;
 	    __entry->z_atime_dirty	= zn->z_atime_dirty;
 	    __entry->z_zn_prefetch	= zn->z_zn_prefetch;
-	    __entry->z_moved		= zn->z_moved;
 	    __entry->z_blksz		= zn->z_blksz;
 	    __entry->z_seq		= zn->z_seq;
 	    __entry->z_mapcnt		= zn->z_mapcnt;
@@ -116,7 +114,7 @@ DECLARE_EVENT_CLASS(zfs_ace_class,
 	    __entry->mask_matched	= mask_matched;
 	),
 	TP_printk("zn { id %llu unlinked %u atime_dirty %u "
-	    "zn_prefetch %u moved %u blksz %u seq %u "
+	    "zn_prefetch %u blksz %u seq %u "
 	    "mapcnt %llu size %llu pflags %llu "
 	    "sync_cnt %u mode 0x%x is_sa %d "
 	    "is_mapped %d is_ctldir %d is_stale %d inode { "
@@ -124,7 +122,7 @@ DECLARE_EVENT_CLASS(zfs_ace_class,
 	    "blkbits %u bytes %u mode 0x%x generation %x } } "
 	    "ace { type %u flags %u access_mask %u } mask_matched %u",
 	    __entry->z_id, __entry->z_unlinked, __entry->z_atime_dirty,
-	    __entry->z_zn_prefetch, __entry->z_moved, __entry->z_blksz,
+	    __entry->z_zn_prefetch, __entry->z_blksz,
 	    __entry->z_seq, __entry->z_mapcnt, __entry->z_size,
 	    __entry->z_pflags, __entry->z_sync_cnt, __entry->z_mode,
 	    __entry->z_is_sa, __entry->z_is_mapped,
