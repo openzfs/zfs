@@ -412,7 +412,7 @@ zfs_write(znode_t *zp, uio_t *uio, int ioflag, cred_t *cr)
 	if (zn_rlimit_fsize(zp, uio, uio->uio_td)) {
 		zfs_rangelock_exit(lr);
 		ZFS_EXIT(zfsvfs);
-		return (EFBIG);
+		return (SET_ERROR(EFBIG));
 	}
 
 	const rlim64_t limit = MAXOFFSET_T;
@@ -652,7 +652,7 @@ zfs_write(znode_t *zp, uio_t *uio, int ioflag, cred_t *cr)
 
 		if (n > 0) {
 			if (uio_prefaultpages(MIN(n, max_blksz), uio)) {
-				error = EFAULT;
+				error = SET_ERROR(EFAULT);
 				break;
 			}
 		}
