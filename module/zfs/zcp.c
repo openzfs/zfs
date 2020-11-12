@@ -722,8 +722,6 @@ static void *
 zcp_lua_alloc(void *ud, void *ptr, size_t osize, size_t nsize)
 {
 	zcp_alloc_arg_t *allocargs = ud;
-	int flags = (allocargs->aa_must_succeed) ?
-	    KM_SLEEP : (KM_NOSLEEP | KM_NORMALPRI);
 
 	if (nsize == 0) {
 		if (ptr != NULL) {
@@ -746,10 +744,7 @@ zcp_lua_alloc(void *ud, void *ptr, size_t osize, size_t nsize)
 			return (NULL);
 		}
 
-		allocbuf = vmem_alloc(allocsize, flags);
-		if (allocbuf == NULL) {
-			return (NULL);
-		}
+		allocbuf = vmem_alloc(allocsize, KM_SLEEP);
 		allocargs->aa_alloc_remaining -= allocsize;
 
 		*allocbuf = allocsize;
