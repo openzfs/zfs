@@ -144,7 +144,6 @@ void
 zio_init(void)
 {
 	size_t c;
-	vmem_t *data_alloc_arena = NULL;
 
 	zio_cache = kmem_cache_create("zio_cache",
 	    sizeof (zio_t), 0, NULL, NULL, NULL, NULL, NULL, 0);
@@ -213,8 +212,7 @@ zio_init(void)
 			(void) snprintf(name, sizeof (name), "zio_data_buf_%lu",
 			    (ulong_t)size);
 			zio_data_buf_cache[c] = kmem_cache_create(name, size,
-			    align, NULL, NULL, NULL, NULL,
-			    data_alloc_arena, data_cflags);
+			    align, NULL, NULL, NULL, NULL, NULL, data_cflags);
 		}
 	}
 
