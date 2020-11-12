@@ -612,11 +612,9 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 		 * If we are in the middle of a reflow, and any part of this
 		 * row has not been copied, then use the old location of
 		 * this row.
-		 * XXX why "- nparity"?  the row includes the parity as well
 		 */
 		int row_phys_cols = physical_cols;
-		if (b + (logical_cols - nparity) >=
-		    reflow_offset_phys >> ashift)
+		if (b + cols > reflow_offset_phys >> ashift)
 			row_phys_cols--;
 
 		/* starting child of this row */
@@ -669,7 +667,10 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 				    abd_alloc_linear(rc->rc_size, B_TRUE);
 			} else if (row == rows - 1 && bc != 0 && c >= bc) {
 				/*
-				 * Past the end, this for parity generation.
+				 * Past the end of the block (even including
+				 * skip sectors).  This sector is part of the
+				 * map so that we have full rows for p/q parity
+				 * generation.
 				 */
 				rc->rc_size = 0;
 				rc->rc_abd = NULL;
@@ -693,10 +694,16 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 				rc->rc_abd = abd_get_offset(abd, off << ashift);
 			}
 
-			/* bc: byte offset in raidz (parent) vdev of this col */
-			uint64_t bc = b + c;
-			if (bc >= reflow_offset_phys >> ashift &&
-			    bc < reflow_offset_next >> ashift) {
+			/*
+			 * If any part of this row is in both old and new
+			 * locations, the primary location is the old location.
+			 * If we're in this situation (indicated by
+			 * row_phys_cols != physical_cols) and this sector is in
+			 * the new location, then we have to also write to the
+			 * new "shadow" location.
+			 */
+			if (row_phys_cols != physical_cols &&
+			    b + c < reflow_offset_next >> ashift) {
 				/*
 				 * This sector was already copied (or wasn't
 				 * allocated at the time it would have been
@@ -708,12 +715,12 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 				 * represented as the "shadow" location.
 				 */
 				ASSERT3U(row_phys_cols, ==, physical_cols - 1);
-				rc->rc_shadow_devidx = bc % physical_cols;
+				rc->rc_shadow_devidx = (b + c) % physical_cols;
 				rc->rc_shadow_offset =
-				    (bc / physical_cols) << ashift;
-				zfs_dbgmsg("rm=%llx row=%d bc=%llu "
+				    ((b + c) / physical_cols) << ashift;
+				zfs_dbgmsg("rm=%llx row=%d b+c=%llu "
 				    "shadow_devidx=%u shadow_offset=%llu",
-				    rm, (int)row, bc,
+				    rm, (int)row, b + c,
 				    (int)rc->rc_shadow_devidx,
 				    rc->rc_shadow_offset);
 			}
@@ -2020,7 +2027,8 @@ vdev_raidz_shadow_child_done(zio_t *zio)
 static void
 vdev_raidz_io_verify(zio_t *zio, raidz_map_t *rm, raidz_row_t *rr, int col)
 {
-#ifdef ZFS_DEBUG
+#if 0 // XXX vdev_xlate doesn't work right when block straddles the expansion progress
+//#ifdef ZFS_DEBUG
 	vdev_t *vd = zio->io_vd;
 	vdev_t *tvd = vd->vdev_top;
 
@@ -3085,6 +3093,14 @@ vdev_raidz_xlate(vdev_t *cvd, const range_seg64_t *in, range_seg64_t *res)
 
 	vdev_raidz_t *vdrz = raidvd->vdev_tsd;
 	uint64_t children = vdrz->vd_physical_width;
+	/*
+	 * XXX this seems wrong. we need to look at each row individually to see
+	 * if it's before or after the expansion progress.  However, we can't
+	 * really know where each row begins.  We could look at each sector
+	 * individually, but then the mapped range will be disjoint.  But the
+	 * reality is we probably shouldn't be using this function while
+	 * expansion is in progress.
+	 */
 	if (in->rs_start > vdrz->vn_vre.vre_offset_phys)
 		children--;
 
