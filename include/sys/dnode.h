@@ -600,7 +600,7 @@ extern dnode_stats_t dnode_stats;
 	char __db_buf[32]; \
 	uint64_t __db_obj = (dn)->dn_object; \
 	if (__db_obj == DMU_META_DNODE_OBJECT) \
-		(void) strcpy(__db_buf, "mdn"); \
+		(void) strlcpy(__db_buf, "mdn", sizeof (__db_buf));	\
 	else \
 		(void) snprintf(__db_buf, sizeof (__db_buf), "%lld", \
 		    (u_longlong_t)__db_obj);\
