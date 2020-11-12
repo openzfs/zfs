@@ -185,13 +185,26 @@ zpl_remount_fs(struct super_block *sb, int *flags, char *data)
 static int
 __zpl_show_devname(struct seq_file *seq, zfsvfs_t *zfsvfs)
 {
-	char *fsname;
-
 	ZFS_ENTER(zfsvfs);
-	fsname = kmem_alloc(ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP);
+
+	char *fsname = kmem_alloc(ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP);
 	dmu_objset_name(zfsvfs->z_os, fsname);
-	seq_puts(seq, fsname);
+
+	for (int i = 0; fsname[i] != 0; i++) {
+		/*
+		 * Spaces in the dataset name must be converted to their
+		 * octal escape sequence for getmntent(3) to correctly
+		 * parse then fsname portion of /proc/self/mounts.
+		 */
+		if (fsname[i] == ' ') {
+			seq_puts(seq, "\\040");
+		} else {
+			seq_putc(seq, fsname[i]);
+		}
+	}
+
 	kmem_free(fsname, ZFS_MAX_DATASET_NAME_LEN);
+
 	ZFS_EXIT(zfsvfs);
 
 	return (0);
