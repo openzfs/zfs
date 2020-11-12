@@ -701,10 +701,6 @@ zfs_lookup_lock(vnode_t *dvp, vnode_t *vp, const char *name, int lkflags)
 
 	if (zfsvfs->z_replay == B_FALSE)
 		ASSERT_VOP_LOCKED(dvp, __func__);
-#ifdef DIAGNOSTIC
-	if ((zdp->z_pflags & ZFS_XATTR) == 0)
-		VERIFY(!RRM_LOCK_HELD(&zfsvfs->z_teardown_lock));
-#endif
 
 	if (name[0] == 0 || (name[0] == '.' && name[1] == 0)) {
 		ASSERT3P(dvp, ==, vp);
@@ -5734,39 +5730,6 @@ zfs_vptocnp(struct vop_vptocnp_args *ap)
 	return (error);
 }
 
-#ifdef DIAGNOSTIC
-#ifndef _SYS_SYSPROTO_H_
-struct vop_lock1_args {
-	struct vnode *a_vp;
-	int a_flags;
-	char *file;
-	int line;
-};
-#endif
-
-static int
-zfs_lock(struct vop_lock1_args *ap)
-{
-	vnode_t *vp;
-	znode_t *zp;
-	int err;
-
-#if __FreeBSD_version >= 1300064
-	err = vop_lock(ap);
-#else
-	err = vop_stdlock(ap);
-#endif
-	if (err == 0 && (ap->a_flags & LK_NOWAIT) == 0) {
-		vp = ap->a_vp;
-		zp = vp->v_data;
-		if (vp->v_mount != NULL && !VN_IS_DOOMED(vp) &&
-		    zp != NULL && (zp->z_pflags & ZFS_XATTR) == 0)
-			VERIFY(!RRM_LOCK_HELD(&zp->z_zfsvfs->z_teardown_lock));
-	}
-	return (err);
-}
-#endif
-
 struct vop_vector zfs_vnodeops;
 struct vop_vector zfs_fifoops;
 struct vop_vector zfs_shareops;
@@ -5817,17 +5780,9 @@ struct vop_vector zfs_vnodeops = {
 	.vop_putpages =		zfs_freebsd_putpages,
 	.vop_vptocnp =		zfs_vptocnp,
 #if __FreeBSD_version >= 1300064
-#ifdef DIAGNOSTIC
-	.vop_lock1 =		zfs_lock,
-#else
 	.vop_lock1 =		vop_lock,
-#endif
 	.vop_unlock =		vop_unlock,
 	.vop_islocked =		vop_islocked,
-#else
-#ifdef DIAGNOSTIC
-	.vop_lock1 =		zfs_lock,
-#endif
 #endif
 };
 VFS_VOP_VECTOR_REGISTER(zfs_vnodeops);
