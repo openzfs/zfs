@@ -116,7 +116,6 @@ enum zvol_geom_state {
 };
 
 struct zvol_state_os {
-	int zso_volmode;
 #define	zso_dev		_zso_state._zso_dev
 #define	zso_geom	_zso_state._zso_geom
 	union {
@@ -134,6 +133,7 @@ struct zvol_state_os {
 			enum zvol_geom_state zsg_state;
 		} _zso_geom;
 	} _zso_state;
+	int zso_dying;
 };
 
 static uint32_t zvol_minors;
@@ -228,6 +228,7 @@ retry:
 	rw_enter(&zvol_state_lock, ZVOL_RW_READER);
 	zv = pp->private;
 	if (zv == NULL) {
+		rw_exit(&zvol_state_lock);
 		err = SET_ERROR(ENXIO);
 		goto out_locked;
 	}
@@ -245,8 +246,12 @@ retry:
 		}
 	}
 	mutex_enter(&zv->zv_state_lock);
-
-	ASSERT3S(zv->zv_zso->zso_volmode, ==, ZFS_VOLMODE_GEOM);
+	if (zv->zv_zso->zso_dying) {
+		rw_exit(&zvol_state_lock);
+		err = SET_ERROR(ENXIO);
+		goto out_zv_locked;
+	}
+	ASSERT3S(zv->zv_volmode, ==, ZFS_VOLMODE_GEOM);
 
 	/*
 	 * make sure zvol is not suspended during first open
@@ -274,7 +279,7 @@ retry:
 		ASSERT(ZVOL_RW_READ_HELD(&zv->zv_suspend_lock));
 		err = zvol_first_open(zv, !(flag & FWRITE));
 		if (err)
-			goto out_locked;
+			goto out_zv_locked;
 		pp->mediasize = zv->zv_volsize;
 		pp->stripeoffset = 0;
 		pp->stripesize = zv->zv_volblocksize;
@@ -305,12 +310,15 @@ retry:
 
 	zv->zv_open_count += count;
 out_opened:
-	if (zv->zv_open_count == 0)
+	if (zv->zv_open_count == 0) {
 		zvol_last_close(zv);
+		wakeup(zv);
+	}
+out_zv_locked:
+	mutex_exit(&zv->zv_state_lock);
 out_locked:
 	if (drop_namespace)
 		mutex_exit(&spa_namespace_lock);
-	mutex_exit(&zv->zv_state_lock);
 	if (drop_suspend)
 		rw_exit(&zv->zv_suspend_lock);
 	return (err);
@@ -337,7 +345,7 @@ zvol_geom_close(struct g_provider *pp, int flag, int count)
 		zv->zv_flags &= ~ZVOL_EXCL;
 	}
 
-	ASSERT3S(zv->zv_zso->zso_volmode, ==, ZFS_VOLMODE_GEOM);
+	ASSERT3S(zv->zv_volmode, ==, ZFS_VOLMODE_GEOM);
 
 	/*
 	 * If the open count is zero, this is a spurious close.
@@ -377,6 +385,7 @@ zvol_geom_close(struct g_provider *pp, int flag, int count)
 	if (zv->zv_open_count == 0) {
 		ASSERT(ZVOL_RW_READ_HELD(&zv->zv_suspend_lock));
 		zvol_last_close(zv);
+		wakeup(zv);
 	}
 
 	mutex_exit(&zv->zv_state_lock);
@@ -392,7 +401,7 @@ zvol_geom_run(zvol_state_t *zv)
 	struct zvol_state_geom *zsg = &zv->zv_zso->zso_geom;
 	struct g_provider *pp = zsg->zsg_provider;
 
-	ASSERT3S(zv->zv_zso->zso_volmode, ==, ZFS_VOLMODE_GEOM);
+	ASSERT3S(zv->zv_volmode, ==, ZFS_VOLMODE_GEOM);
 
 	g_error_provider(pp, 0);
 
@@ -406,7 +415,7 @@ zvol_geom_destroy(zvol_state_t *zv)
 	struct zvol_state_geom *zsg = &zv->zv_zso->zso_geom;
 	struct g_provider *pp = zsg->zsg_provider;
 
-	ASSERT3S(zv->zv_zso->zso_volmode, ==, ZFS_VOLMODE_GEOM);
+	ASSERT3S(zv->zv_volmode, ==, ZFS_VOLMODE_GEOM);
 
 	g_topology_assert();
 
@@ -416,6 +425,22 @@ zvol_geom_destroy(zvol_state_t *zv)
 	zsg->zsg_provider = NULL;
 	g_wither_geom(pp->geom, ENXIO);
 }
+
+void
+zvol_wait_close(zvol_state_t *zv)
+{
+
+	if (zv->zv_volmode != ZFS_VOLMODE_GEOM)
+		return;
+	mutex_enter(&zv->zv_state_lock);
+	zv->zv_zso->zso_dying = B_TRUE;
+
+	if (zv->zv_open_count)
+		msleep(zv, &zv->zv_state_lock,
+		    PRIBIO, "zvol:dying", 10*hz);
+	mutex_exit(&zv->zv_state_lock);
+}
+
 
 static int
 zvol_geom_access(struct g_provider *pp, int acr, int acw, int ace)
@@ -474,7 +499,7 @@ zvol_geom_worker(void *arg)
 	struct zvol_state_geom *zsg = &zv->zv_zso->zso_geom;
 	struct bio *bp;
 
-	ASSERT3S(zv->zv_zso->zso_volmode, ==, ZFS_VOLMODE_GEOM);
+	ASSERT3S(zv->zv_volmode, ==, ZFS_VOLMODE_GEOM);
 
 	thread_lock(curthread);
 	sched_prio(curthread, PRIBIO);
@@ -503,9 +528,13 @@ static void
 zvol_geom_bio_start(struct bio *bp)
 {
 	zvol_state_t *zv = bp->bio_to->private;
-	struct zvol_state_geom *zsg = &zv->zv_zso->zso_geom;
+	struct zvol_state_geom *zsg;
 	boolean_t first;
 
+	if (zv == NULL) {
+		g_io_deliver(bp, ENXIO);
+		return;
+	}
 	if (bp->bio_cmd == BIO_GETATTR) {
 		if (zvol_geom_bio_getattr(bp))
 			g_io_deliver(bp, EOPNOTSUPP);
@@ -513,6 +542,7 @@ zvol_geom_bio_start(struct bio *bp)
 	}
 
 	if (!THREAD_CAN_SLEEP()) {
+		zsg = &zv->zv_zso->zso_geom;
 		mtx_lock(&zsg->zsg_queue_mtx);
 		first = (bioq_first(&zsg->zsg_queue) == NULL);
 		bioq_insert_tail(&zsg->zsg_queue, bp);
@@ -823,6 +853,7 @@ retry:
 	rw_enter(&zvol_state_lock, ZVOL_RW_READER);
 	zv = dev->si_drv2;
 	if (zv == NULL) {
+		rw_exit(&zvol_state_lock);
 		err = SET_ERROR(ENXIO);
 		goto out_locked;
 	}
@@ -841,7 +872,7 @@ retry:
 	}
 	mutex_enter(&zv->zv_state_lock);
 
-	ASSERT3S(zv->zv_zso->zso_volmode, ==, ZFS_VOLMODE_DEV);
+	ASSERT3S(zv->zv_volmode, ==, ZFS_VOLMODE_DEV);
 
 	/*
 	 * make sure zvol is not suspended during first open
@@ -869,7 +900,7 @@ retry:
 		ASSERT(ZVOL_RW_READ_HELD(&zv->zv_suspend_lock));
 		err = zvol_first_open(zv, !(flags & FWRITE));
 		if (err)
-			goto out_locked;
+			goto out_zv_locked;
 	}
 
 	if ((flags & FWRITE) && (zv->zv_flags & ZVOL_RDONLY)) {
@@ -899,12 +930,15 @@ retry:
 			zil_async_to_sync(zv->zv_zilog, ZVOL_OBJ);
 	}
 out_opened:
-	if (zv->zv_open_count == 0)
+	if (zv->zv_open_count == 0) {
 		zvol_last_close(zv);
+		wakeup(zv);
+	}
+out_zv_locked:
+	mutex_exit(&zv->zv_state_lock);
 out_locked:
 	if (drop_namespace)
 		mutex_exit(&spa_namespace_lock);
-	mutex_exit(&zv->zv_state_lock);
 	if (drop_suspend)
 		rw_exit(&zv->zv_suspend_lock);
 	return (err);
@@ -930,7 +964,7 @@ zvol_cdev_close(struct cdev *dev, int flags, int fmt, struct thread *td)
 		zv->zv_flags &= ~ZVOL_EXCL;
 	}
 
-	ASSERT3S(zv->zv_zso->zso_volmode, ==, ZFS_VOLMODE_DEV);
+	ASSERT3S(zv->zv_volmode, ==, ZFS_VOLMODE_DEV);
 
 	/*
 	 * If the open count is zero, this is a spurious close.
@@ -972,6 +1006,7 @@ zvol_cdev_close(struct cdev *dev, int flags, int fmt, struct thread *td)
 	if (zv->zv_open_count == 0) {
 		ASSERT(ZVOL_RW_READ_HELD(&zv->zv_suspend_lock));
 		zvol_last_close(zv);
+		wakeup(zv);
 	}
 
 	mutex_exit(&zv->zv_state_lock);
@@ -1144,7 +1179,7 @@ zvol_rename_minor(zvol_state_t *zv, const char *newname)
 	hlist_del(&zv->zv_hlink);
 	hlist_add_head(&zv->zv_hlink, ZVOL_HT_HEAD(zv->zv_hash));
 
-	if (zv->zv_zso->zso_volmode == ZFS_VOLMODE_GEOM) {
+	if (zv->zv_volmode == ZFS_VOLMODE_GEOM) {
 		struct zvol_state_geom *zsg = &zv->zv_zso->zso_geom;
 		struct g_provider *pp = zsg->zsg_provider;
 		struct g_geom *gp;
@@ -1164,7 +1199,7 @@ zvol_rename_minor(zvol_state_t *zv, const char *newname)
 		zsg->zsg_provider = pp;
 		g_error_provider(pp, 0);
 		g_topology_unlock();
-	} else if (zv->zv_zso->zso_volmode == ZFS_VOLMODE_DEV) {
+	} else if (zv->zv_volmode == ZFS_VOLMODE_DEV) {
 		struct zvol_state_dev *zsd = &zv->zv_zso->zso_dev;
 		struct cdev *dev;
 		struct make_dev_args args;
@@ -1213,7 +1248,7 @@ zvol_free(zvol_state_t *zv)
 	rw_destroy(&zv->zv_suspend_lock);
 	zfs_rangelock_fini(&zv->zv_rangelock);
 
-	if (zv->zv_zso->zso_volmode == ZFS_VOLMODE_GEOM) {
+	if (zv->zv_volmode == ZFS_VOLMODE_GEOM) {
 		struct zvol_state_geom *zsg = &zv->zv_zso->zso_geom;
 		struct g_provider *pp __maybe_unused = zsg->zsg_provider;
 
@@ -1223,7 +1258,7 @@ zvol_free(zvol_state_t *zv)
 		zvol_geom_destroy(zv);
 		g_topology_unlock();
 		mtx_destroy(&zsg->zsg_queue_mtx);
-	} else if (zv->zv_zso->zso_volmode == ZFS_VOLMODE_DEV) {
+	} else if (zv->zv_volmode == ZFS_VOLMODE_DEV) {
 		struct zvol_state_dev *zsd = &zv->zv_zso->zso_dev;
 		struct cdev *dev = zsd->zsd_cdev;
 
@@ -1253,7 +1288,6 @@ zvol_create_minor_impl(const char *name)
 	int error;
 
 	ZFS_LOG(1, "Creating ZVOL %s...", name);
-
 	hash = zvol_name_hash(name);
 	if ((zv = zvol_find_by_name_hash(name, hash, RW_NONE)) != NULL) {
 		ASSERT(MUTEX_HELD(&zv->zv_state_lock));
@@ -1291,8 +1325,8 @@ zvol_create_minor_impl(const char *name)
 	zv->zv_hash = hash;
 	mutex_init(&zv->zv_state_lock, NULL, MUTEX_DEFAULT, NULL);
 	zv->zv_zso = kmem_zalloc(sizeof (struct zvol_state_os), KM_SLEEP);
-	zv->zv_zso->zso_volmode = volmode;
-	if (zv->zv_zso->zso_volmode == ZFS_VOLMODE_GEOM) {
+	zv->zv_volmode = volmode;
+	if (zv->zv_volmode == ZFS_VOLMODE_GEOM) {
 		struct zvol_state_geom *zsg = &zv->zv_zso->zso_geom;
 		struct g_provider *pp;
 		struct g_geom *gp;
@@ -1312,7 +1346,7 @@ zvol_create_minor_impl(const char *name)
 
 		zsg->zsg_provider = pp;
 		bioq_init(&zsg->zsg_queue);
-	} else if (zv->zv_zso->zso_volmode == ZFS_VOLMODE_DEV) {
+	} else if (zv->zv_volmode == ZFS_VOLMODE_DEV) {
 		struct zvol_state_dev *zsd = &zv->zv_zso->zso_dev;
 		struct cdev *dev;
 		struct make_dev_args args;
@@ -1383,7 +1417,7 @@ static void
 zvol_clear_private(zvol_state_t *zv)
 {
 	ASSERT(RW_LOCK_HELD(&zvol_state_lock));
-	if (zv->zv_zso->zso_volmode == ZFS_VOLMODE_GEOM) {
+	if (zv->zv_volmode == ZFS_VOLMODE_GEOM) {
 		struct zvol_state_geom *zsg = &zv->zv_zso->zso_geom;
 		struct g_provider *pp = zsg->zsg_provider;
 
@@ -1399,7 +1433,7 @@ zvol_clear_private(zvol_state_t *zv)
 			    0, "zvol:w", 0);
 		mtx_unlock(&zsg->zsg_queue_mtx);
 		ASSERT(!RW_LOCK_HELD(&zv->zv_suspend_lock));
-	} else if (zv->zv_zso->zso_volmode == ZFS_VOLMODE_DEV) {
+	} else if (zv->zv_volmode == ZFS_VOLMODE_DEV) {
 		struct zvol_state_dev *zsd = &zv->zv_zso->zso_dev;
 		struct cdev *dev = zsd->zsd_cdev;
 
@@ -1411,7 +1445,7 @@ static int
 zvol_update_volsize(zvol_state_t *zv, uint64_t volsize)
 {
 	zv->zv_volsize = volsize;
-	if (zv->zv_zso->zso_volmode == ZFS_VOLMODE_GEOM) {
+	if (zv->zv_volmode == ZFS_VOLMODE_GEOM) {
 		struct zvol_state_geom *zsg = &zv->zv_zso->zso_geom;
 		struct g_provider *pp = zsg->zsg_provider;
 

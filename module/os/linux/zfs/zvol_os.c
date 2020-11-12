@@ -781,6 +781,7 @@ zvol_alloc(dev_t dev, const char *name)
 	zv = kmem_zalloc(sizeof (zvol_state_t), KM_SLEEP);
 	zso = kmem_zalloc(sizeof (struct zvol_state_os), KM_SLEEP);
 	zv->zv_zso = zso;
+	zv->zv_volmode = volmode;
 
 	list_link_init(&zv->zv_next);
 	mutex_init(&zv->zv_state_lock, NULL, MUTEX_DEFAULT, NULL);
@@ -884,6 +885,11 @@ zvol_free(zvol_state_t *zv)
 
 	kmem_free(zv->zv_zso, sizeof (struct zvol_state_os));
 	kmem_free(zv, sizeof (zvol_state_t));
+}
+
+void
+zvol_wait_close(zvol_state_t *zv)
+{
 }
 
 /*
