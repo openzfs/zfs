@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/uio.h>
 #include <unistd.h>
@@ -30,6 +31,12 @@
 #include "zed_file.h"
 #include "zed_log.h"
 #include "zed_strings.h"
+
+#ifdef __APPLE__
+ssize_t readv(int, const struct iovec *, int);
+ssize_t writev(int, const struct iovec *, int);
+#endif
+
 
 /*
  * Return a new configuration with default values.

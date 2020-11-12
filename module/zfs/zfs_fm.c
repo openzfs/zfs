@@ -1445,12 +1445,10 @@ zfs_ereport_fini(void)
 	list_destroy(&recent_events_list);
 	mutex_destroy(&recent_events_lock);
 }
-#endif
 
 void
 zfs_ereport_snapshot_post(const char *subclass, spa_t *spa, const char *name)
 {
-#ifdef _KERNEL
 	nvlist_t *ereport = NULL;
 	nvlist_t *detector = NULL;
 
@@ -1465,8 +1463,8 @@ zfs_ereport_snapshot_post(const char *subclass, spa_t *spa, const char *name)
 
 	/* Cleanup is handled by the callback function */
 	zfs_zevent_post(ereport, detector, zfs_zevent_post_cb);
-#endif
 }
+#endif
 
 #if defined(_KERNEL)
 EXPORT_SYMBOL(zfs_ereport_post);

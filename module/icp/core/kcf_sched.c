@@ -35,6 +35,8 @@
 #include <sys/crypto/sched_impl.h>
 #include <sys/crypto/api.h>
 
+extern int EMPTY_TASKQ(taskq_t *tq);
+
 kcf_global_swq_t *gswq;	/* Global software queue */
 
 /* Thread pool related variables */

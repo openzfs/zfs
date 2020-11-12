@@ -40,6 +40,9 @@
 #include <sys/fm/fs/zfs.h>
 #include <libzfs.h>
 #include <string.h>
+#ifdef __APPLE__
+#include <libgen.h>
+#endif
 
 #include "zfs_agents.h"
 #include "fmd_api.h"
