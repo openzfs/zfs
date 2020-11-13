@@ -1762,7 +1762,7 @@ zpool_do_export(int argc, char **argv)
 		}
 
 		return (for_each_pool(argc, argv, B_TRUE, NULL,
-		    zpool_export_one, &cb));
+		    B_FALSE, zpool_export_one, &cb));
 	}
 
 	/* check arguments */
@@ -1771,7 +1771,8 @@ zpool_do_export(int argc, char **argv)
 		usage(B_FALSE);
 	}
 
-	ret = for_each_pool(argc, argv, B_TRUE, NULL, zpool_export_one, &cb);
+	ret = for_each_pool(argc, argv, B_TRUE, NULL, B_FALSE, zpool_export_one,
+	    &cb);
 
 	return (ret);
 }
@@ -3613,7 +3614,8 @@ zpool_do_sync(int argc, char **argv)
 	argv += optind;
 
 	/* if argc == 0 we will execute zpool_sync_one on all pools */
-	ret = for_each_pool(argc, argv, B_FALSE, NULL, zpool_sync_one, &force);
+	ret = for_each_pool(argc, argv, B_FALSE, NULL, B_FALSE, zpool_sync_one,
+	    &force);
 
 	return (ret);
 }
@@ -4958,7 +4960,7 @@ are_vdevs_in_pool(int argc, char **argv, char *pool_name,
 
 		/* Is this name a vdev in our pools? */
 		ret = for_each_pool(pool_count, &pool_name, B_TRUE, NULL,
-		    is_vdev, cb);
+		    B_FALSE, is_vdev, cb);
 		if (!ret) {
 			/* No match */
 			break;
@@ -4986,7 +4988,8 @@ is_pool_cb(zpool_handle_t *zhp, void *data)
 static int
 is_pool(char *name)
 {
-	return (for_each_pool(0, NULL, B_TRUE, NULL,  is_pool_cb, name));
+	return (for_each_pool(0, NULL, B_TRUE, NULL, B_FALSE, is_pool_cb,
+	    name));
 }
 
 /* Are all our argv[] strings pool names?  If so return 1, 0 otherwise. */
@@ -5438,7 +5441,7 @@ zpool_do_iostat(int argc, char **argv)
 	 * Construct the list of all interesting pools.
 	 */
 	ret = 0;
-	if ((list = pool_list_get(argc, argv, NULL, &ret)) == NULL)
+	if ((list = pool_list_get(argc, argv, NULL, parsable, &ret)) == NULL)
 		return (1);
 
 	if (pool_list_count(list) == 0 && argc != 0) {
@@ -6112,7 +6115,7 @@ zpool_do_list(int argc, char **argv)
 
 	for (;;) {
 		if ((list = pool_list_get(argc, argv, &cb.cb_proplist,
-		    &ret)) == NULL)
+		    cb.cb_literal, &ret)) == NULL)
 			return (1);
 
 		if (pool_list_count(list) == 0)
@@ -6864,7 +6867,7 @@ zpool_do_reopen(int argc, char **argv)
 	argv += optind;
 
 	/* if argc == 0 we will execute zpool_reopen_one on all pools */
-	ret = for_each_pool(argc, argv, B_TRUE, NULL, zpool_reopen_one,
+	ret = for_each_pool(argc, argv, B_TRUE, NULL, B_FALSE, zpool_reopen_one,
 	    &scrub_restart);
 
 	return (ret);
@@ -6994,12 +6997,13 @@ zpool_do_scrub(int argc, char **argv)
 		usage(B_FALSE);
 	}
 
-	error = for_each_pool(argc, argv, B_TRUE, NULL, scrub_callback, &cb);
+	error = for_each_pool(argc, argv, B_TRUE, NULL, B_FALSE,
+	    scrub_callback, &cb);
 
 	if (wait && !error) {
 		zpool_wait_activity_t act = ZPOOL_WAIT_SCRUB;
-		error = for_each_pool(argc, argv, B_TRUE, NULL, wait_callback,
-		    &act);
+		error = for_each_pool(argc, argv, B_TRUE, NULL, B_FALSE,
+		    wait_callback, &act);
 	}
 
 	return (error);
@@ -7037,7 +7041,8 @@ zpool_do_resilver(int argc, char **argv)
 		usage(B_FALSE);
 	}
 
-	return (for_each_pool(argc, argv, B_TRUE, NULL, scrub_callback, &cb));
+	return (for_each_pool(argc, argv, B_TRUE, NULL, B_FALSE,
+	    scrub_callback, &cb));
 }
 
 /*
@@ -8431,7 +8436,7 @@ zpool_do_status(int argc, char **argv)
 			cb.vcdl = all_pools_for_each_vdev_run(argc, argv, cmd,
 			    NULL, NULL, 0, 0);
 
-		ret = for_each_pool(argc, argv, B_TRUE, NULL,
+		ret = for_each_pool(argc, argv, B_TRUE, NULL, cb.cb_literal,
 		    status_callback, &cb);
 
 		if (cb.vcdl != NULL)
@@ -8950,7 +8955,7 @@ zpool_do_upgrade(int argc, char **argv)
 			(void) printf(gettext("\n"));
 		}
 	} else {
-		ret = for_each_pool(argc, argv, B_FALSE, NULL,
+		ret = for_each_pool(argc, argv, B_FALSE, NULL, B_FALSE,
 		    upgrade_one, &cb);
 	}
 
@@ -9133,7 +9138,7 @@ zpool_do_history(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
-	ret = for_each_pool(argc, argv, B_FALSE,  NULL, get_history_one,
+	ret = for_each_pool(argc, argv, B_FALSE, NULL, B_FALSE, get_history_one,
 	    &cbdata);
 
 	if (argc == 0 && cbdata.first == B_TRUE) {
@@ -9696,7 +9701,7 @@ zpool_do_get(int argc, char **argv)
 		cb.cb_proplist = &fake_name;
 	}
 
-	ret = for_each_pool(argc, argv, B_TRUE, &cb.cb_proplist,
+	ret = for_each_pool(argc, argv, B_TRUE, &cb.cb_proplist, cb.cb_literal,
 	    get_callback, &cb);
 
 	if (cb.cb_proplist == &fake_name)
@@ -9766,7 +9771,7 @@ zpool_do_set(int argc, char **argv)
 	*(cb.cb_value) = '\0';
 	cb.cb_value++;
 
-	error = for_each_pool(argc - 2, argv + 2, B_TRUE, NULL,
+	error = for_each_pool(argc - 2, argv + 2, B_TRUE, NULL, B_FALSE,
 	    set_callback, &cb);
 
 	return (error);
