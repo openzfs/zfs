@@ -265,6 +265,12 @@ zio_handle_fault_injection(zio_t *zio, int error)
 	if (zio->io_type != ZIO_TYPE_READ)
 		return (0);
 
+	/*
+	 * A rebuild I/O has no checksum to verify.
+	 */
+	if (zio->io_priority == ZIO_PRIORITY_REBUILD && error == ECKSUM)
+		return (0);
+
 	rw_enter(&inject_lock, RW_READER);
 
 	for (handler = list_head(&inject_handlers); handler != NULL;

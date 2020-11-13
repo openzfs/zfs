@@ -1642,7 +1642,11 @@ dump_metaslab(metaslab_t *msp)
 		    SPACE_MAP_HISTOGRAM_SIZE, sm->sm_shift);
 	}
 
-	ASSERT(msp->ms_size == (1ULL << vd->vdev_ms_shift));
+	if (vd->vdev_ops == &vdev_draid_ops)
+		ASSERT3U(msp->ms_size, <=, 1ULL << vd->vdev_ms_shift);
+	else
+		ASSERT3U(msp->ms_size, ==, 1ULL << vd->vdev_ms_shift);
+
 	dump_spacemap(spa->spa_meta_objset, msp->ms_sm);
 
 	if (spa_feature_is_active(spa, SPA_FEATURE_LOG_SPACEMAP)) {
@@ -5203,8 +5207,6 @@ zdb_blkptr_done(zio_t *zio)
 	zdb_cb_t *zcb = zio->io_private;
 	zbookmark_phys_t *zb = &zio->io_bookmark;
 
-	abd_free(zio->io_abd);
-
 	mutex_enter(&spa->spa_scrub_lock);
 	spa->spa_load_verify_bytes -= BP_GET_PSIZE(bp);
 	cv_broadcast(&spa->spa_scrub_io_cv);
@@ -5231,6 +5233,8 @@ zdb_blkptr_done(zio_t *zio)
 		    blkbuf);
 	}
 	mutex_exit(&spa->spa_scrub_lock);
+
+	abd_free(zio->io_abd);
 }
 
 static int

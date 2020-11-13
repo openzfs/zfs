@@ -34,44 +34,51 @@
 
 #
 # DESCRIPTION:
-#	A raidz pool can withstand at most 1 device failing or missing.
+#	A raidz3 pool can withstand 3 devices are failing or missing.
 #
 # STRATEGY:
-#	1. Create N(>2,<5) virtual disk files.
-#	2. Create raidz pool based on the virtual disk files.
+#	1. Create N(>4,<5) virtual disk files.
+#	2. Create raidz3 pool based on the virtual disk files.
 #	3. Fill the filesystem with directories and files.
 #	4. Record all the files and directories checksum information.
-#	5. Damaged one of the virtual disk file.
-#	6. Verify the data is correct to prove raidz can withstand 1 device is
-#	   failing.
+#	5. Damaged at most two of the virtual disk files.
+#	6. Verify the data is correct to prove raidz3 can withstand 3 devices
+#	   are failing.
 #
 
 verify_runnable "global"
 
-log_assert "Verify raidz pool can withstand one device is failing."
+log_assert "Verify raidz3 pool can withstand three devices failing."
 log_onexit cleanup
 
-typeset -i cnt=$(random_int_between 2 5)
-setup_test_env $TESTPOOL raidz $cnt
+typeset -i cnt=$(random_int_between 4 5)
+setup_test_env $TESTPOOL raidz3 $cnt
 
 #
-# Inject data corruption error for raidz pool
+# Inject data corruption errors for raidz3 pool
 #
-damage_devs $TESTPOOL 1 "label"
-log_must is_data_valid $TESTPOOL
-log_must clear_errors $TESTPOOL
+for i in 1 2 3; do
+	damage_devs $TESTPOOL $i "label"
+	log_must is_data_valid $TESTPOOL
+	log_must clear_errors $TESTPOOL
+done
 
 #
-# Inject bad device error for raidz pool
+# Inject bad devices errors for raidz3 pool
 #
-damage_devs $TESTPOOL 1
-log_must is_data_valid $TESTPOOL
-log_must recover_bad_missing_devs $TESTPOOL 1
+for i in 1 2 3; do
+	damage_devs $TESTPOOL $i
+	log_must is_data_valid $TESTPOOL
+	log_must recover_bad_missing_devs $TESTPOOL $i
+done
 
 #
-# Inject missing device error for raidz pool
+# Inject missing device errors for raidz3 pool
 #
-remove_devs $TESTPOOL 1
-log_must is_data_valid $TESTPOOL
+for i in 1 2 3; do
+	remove_devs $TESTPOOL $i
+	log_must is_data_valid $TESTPOOL
+	log_must recover_bad_missing_devs $TESTPOOL $i
+done
 
-log_pass "Raidz pool can withstand one devices is failing passed."
+log_pass "raidz3 pool can withstand three devices failing passed."

@@ -894,6 +894,107 @@ usage:
 }
 
 /*
+ * Return a default volblocksize for the pool which always uses more than
+ * half of the data sectors.  This primarily applies to dRAID which always
+ * writes full stripe widths.
+ */
+static uint64_t
+default_volblocksize(zpool_handle_t *zhp, nvlist_t *props)
+{
+	uint64_t volblocksize, asize = SPA_MINBLOCKSIZE;
+	nvlist_t *tree, **vdevs;
+	uint_t nvdevs;
+
+	nvlist_t *config = zpool_get_config(zhp, NULL);
+
+	if (nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE, &tree) != 0 ||
+	    nvlist_lookup_nvlist_array(tree, ZPOOL_CONFIG_CHILDREN,
+	    &vdevs, &nvdevs) != 0) {
+		return (ZVOL_DEFAULT_BLOCKSIZE);
+	}
+
+	for (int i = 0; i < nvdevs; i++) {
+		nvlist_t *nv = vdevs[i];
+		uint64_t ashift, ndata, nparity;
+
+		if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_ASHIFT, &ashift) != 0)
+			continue;
+
+		if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_DRAID_NDATA,
+		    &ndata) == 0) {
+			/* dRAID minimum allocation width */
+			asize = MAX(asize, ndata * (1ULL << ashift));
+		} else if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_NPARITY,
+		    &nparity) == 0) {
+			/* raidz minimum allocation width */
+			if (nparity == 1)
+				asize = MAX(asize, 2 * (1ULL << ashift));
+			else
+				asize = MAX(asize, 4 * (1ULL << ashift));
+		} else {
+			/* mirror or (non-redundant) leaf vdev */
+			asize = MAX(asize, 1ULL << ashift);
+		}
+	}
+
+	/*
+	 * Calculate the target volblocksize such that more than half
+	 * of the asize is used. The following table is for 4k sectors.
+	 *
+	 * n   asize   blksz  used  |   n   asize   blksz  used
+	 * -------------------------+---------------------------------
+	 * 1   4,096   8,192  100%  |   9  36,864  32,768   88%
+	 * 2   8,192   8,192  100%  |  10  40,960  32,768   80%
+	 * 3  12,288   8,192   66%  |  11  45,056  32,768   72%
+	 * 4  16,384  16,384  100%  |  12  49,152  32,768   66%
+	 * 5  20,480  16,384   80%  |  13  53,248  32,768   61%
+	 * 6  24,576  16,384   66%  |  14  57,344  32,768   57%
+	 * 7  28,672  16,384   57%  |  15  61,440  32,768   53%
+	 * 8  32,768  32,768  100%  |  16  65,536  65,636  100%
+	 *
+	 * This is primarily a concern for dRAID which always allocates
+	 * a full stripe width.  For dRAID the default stripe width is
+	 * n=8 in which case the volblocksize is set to 32k. Ignoring
+	 * compression there are no unused sectors.  This same reasoning
+	 * applies to raidz[2,3] so target 4 sectors to minimize waste.
+	 */
+	uint64_t tgt_volblocksize = ZVOL_DEFAULT_BLOCKSIZE;
+	while (tgt_volblocksize * 2 <= asize)
+		tgt_volblocksize *= 2;
+
+	const char *prop = zfs_prop_to_name(ZFS_PROP_VOLBLOCKSIZE);
+	if (nvlist_lookup_uint64(props, prop, &volblocksize) == 0) {
+
+		/* Issue a warning when a non-optimal size is requested. */
+		if (volblocksize < ZVOL_DEFAULT_BLOCKSIZE) {
+			(void) fprintf(stderr, gettext("Warning: "
+			    "volblocksize (%llu) is less than the default "
+			    "minimum block size (%llu).\nTo reduce wasted "
+			    "space a volblocksize of %llu is recommended.\n"),
+			    (u_longlong_t)volblocksize,
+			    (u_longlong_t)ZVOL_DEFAULT_BLOCKSIZE,
+			    (u_longlong_t)tgt_volblocksize);
+		} else if (volblocksize < tgt_volblocksize) {
+			(void) fprintf(stderr, gettext("Warning: "
+			    "volblocksize (%llu) is much less than the "
+			    "minimum allocation\nunit (%llu), which wastes "
+			    "at least %llu%% of space. To reduce wasted "
+			    "space,\nuse a larger volblocksize (%llu is "
+			    "recommended), fewer dRAID data disks\n"
+			    "per group, or smaller sector size (ashift).\n"),
+			    (u_longlong_t)volblocksize, (u_longlong_t)asize,
+			    (u_longlong_t)((100 * (asize - volblocksize)) /
+			    asize), (u_longlong_t)tgt_volblocksize);
+		}
+	} else {
+		volblocksize = tgt_volblocksize;
+		fnvlist_add_uint64(props, prop, volblocksize);
+	}
+
+	return (volblocksize);
+}
+
+/*
  * zfs create [-Pnpv] [-o prop=value] ... fs
  * zfs create [-Pnpsv] [-b blocksize] [-o prop=value] ... -V vol size
  *
@@ -933,6 +1034,7 @@ zfs_do_create(int argc, char **argv)
 	int ret = 1;
 	nvlist_t *props;
 	uint64_t intval;
+	char *strval;
 
 	if (nvlist_alloc(&props, NV_UNIQUE_NAME, 0) != 0)
 		nomem();
@@ -1019,7 +1121,7 @@ zfs_do_create(int argc, char **argv)
 		goto badusage;
 	}
 
-	if (dryrun || (type == ZFS_TYPE_VOLUME && !noreserve)) {
+	if (dryrun || type == ZFS_TYPE_VOLUME) {
 		char msg[ZFS_MAX_DATASET_NAME_LEN * 2];
 		char *p;
 
@@ -1041,18 +1143,24 @@ zfs_do_create(int argc, char **argv)
 		}
 	}
 
-	/*
-	 * if volsize is not a multiple of volblocksize, round it up to the
-	 * nearest multiple of the volblocksize
-	 */
 	if (type == ZFS_TYPE_VOLUME) {
-		uint64_t volblocksize;
+		const char *prop = zfs_prop_to_name(ZFS_PROP_VOLBLOCKSIZE);
+		uint64_t volblocksize = default_volblocksize(zpool_handle,
+		    real_props);
 
-		if (nvlist_lookup_uint64(props,
-		    zfs_prop_to_name(ZFS_PROP_VOLBLOCKSIZE),
-		    &volblocksize) != 0)
-			volblocksize = ZVOL_DEFAULT_BLOCKSIZE;
+		if (volblocksize != ZVOL_DEFAULT_BLOCKSIZE &&
+		    nvlist_lookup_string(props, prop, &strval) != 0) {
+			if (asprintf(&strval, "%llu",
+			    (u_longlong_t)volblocksize) == -1)
+				nomem();
+			nvlist_add_string(props, prop, strval);
+			free(strval);
+		}
 
+		/*
+		 * If volsize is not a multiple of volblocksize, round it
+		 * up to the nearest multiple of the volblocksize.
+		 */
 		if (volsize % volblocksize) {
 			volsize = P2ROUNDUP_TYPED(volsize, volblocksize,
 			    uint64_t);
@@ -1065,11 +1173,9 @@ zfs_do_create(int argc, char **argv)
 		}
 	}
 
-
 	if (type == ZFS_TYPE_VOLUME && !noreserve) {
 		uint64_t spa_version;
 		zfs_prop_t resv_prop;
-		char *strval;
 
 		spa_version = zpool_get_prop_int(zpool_handle,
 		    ZPOOL_PROP_VERSION, NULL);

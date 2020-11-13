@@ -64,14 +64,16 @@ pooldevs="${DISK0} \
 	\"${DISK0} ${DISK1}\" \
 	\"${DISK0} ${DISK1} ${DISK2}\" \
 	\"$disk1 $disk2\""
-raidzdevs="\"${DISK0} ${DISK1} ${DISK2}\""
 mirrordevs="\"${DISK0} ${DISK1}\" \
 	$raidzdevs \
 	\"$disk1 $disk2\""
+raidzdevs="\"${DISK0} ${DISK1} ${DISK2}\""
+draiddevs="\"${DISK0} ${DISK1} ${DISK2}\""
 
 create_pool_test "$TESTPOOL" "" "$pooldevs"
 create_pool_test "$TESTPOOL" "mirror" "$mirrordevs"
 create_pool_test "$TESTPOOL" "raidz" "$raidzdevs"
 create_pool_test "$TESTPOOL" "raidz1" "$raidzdevs"
+create_pool_test "$TESTPOOL" "draid" "$draiddevs"
 
 log_pass "'zpool create <pool> <vspec> ...' success."

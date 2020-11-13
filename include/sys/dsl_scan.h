@@ -163,6 +163,7 @@ typedef struct dsl_scan_io_queue dsl_scan_io_queue_t;
 void scan_init(void);
 void scan_fini(void);
 int dsl_scan_init(struct dsl_pool *dp, uint64_t txg);
+void dsl_scan_setup_sync(void *, dmu_tx_t *);
 void dsl_scan_fini(struct dsl_pool *dp);
 void dsl_scan_sync(struct dsl_pool *, dmu_tx_t *);
 int dsl_scan_cancel(struct dsl_pool *);

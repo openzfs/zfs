@@ -1111,7 +1111,9 @@ zfs_ereport_start_checksum(spa_t *spa, vdev_t *vd, const zbookmark_phys_t *zb,
 		bcopy(info, report->zcr_ckinfo, sizeof (*info));
 	}
 
-	report->zcr_align = 1ULL << vd->vdev_top->vdev_ashift;
+	report->zcr_sector = 1ULL << vd->vdev_top->vdev_ashift;
+	report->zcr_align =
+	    vdev_psize_to_asize(vd->vdev_top, report->zcr_sector);
 	report->zcr_length = length;
 
 #ifdef _KERNEL

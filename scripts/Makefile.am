@@ -36,6 +36,7 @@ export ZPOOL_SCRIPT_DIR=$$CMD_DIR/zpool/zpool.d
 export ZPOOL_SCRIPTS_PATH=$$CMD_DIR/zpool/zpool.d
 export CONTRIB_DIR=@abs_top_builddir@/contrib
 export LIB_DIR=@abs_top_builddir@/lib
+export SYSCONF_DIR=@abs_top_builddir@/etc
 
 export INSTALL_UDEV_DIR=@udevdir@
 export INSTALL_UDEV_RULE_DIR=@udevruledir@

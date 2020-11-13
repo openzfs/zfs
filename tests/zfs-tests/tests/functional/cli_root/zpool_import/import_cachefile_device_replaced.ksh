@@ -155,6 +155,12 @@ test_replacing_vdevs "raidz $VDEV0 $VDEV1 $VDEV2" \
 	"$VDEV0 $VDEV1 $VDEV2" \
 	true 20
 
+test_replacing_vdevs "draid:1s $VDEV0 $VDEV1 $VDEV2 $VDEV3 $VDEV4" \
+	"$VDEV1" "$VDEV5" \
+	"draid $VDEV0 $VDEV5 $VDEV2 $VDEV3 $VDEV4 spares draid1-0-0" \
+	"$VDEV0 $VDEV1 $VDEV2 $VDEV3 $VDEV4" \
+	true 30
+
 set_zfs_txg_timeout $ZFS_TXG_TIMEOUT
 
 log_pass "zpool import -c cachefile_unaware_of_replace passed."
