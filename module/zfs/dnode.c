@@ -2375,9 +2375,25 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 	ASSERT(txg == 0 || !hole);
 
 	if (lvl == dn->dn_phys->dn_nlevels) {
-		error = 0;
 		epb = dn->dn_phys->dn_nblkptr;
 		data = dn->dn_phys->dn_blkptr;
+
+		/*
+		 * Handle offsets beyond the end of data.  This needs to be
+		 * checked here because BF64_GET(*offset >> span, 0, epbs) may
+		 * happen to be in [0 .. ebp) range, thus masking the fact that
+		 * the offset is invalid.
+		 * In the other case (lvl < dn_nlevels) that cannot happen
+		 * because dbuf_hold_impl() can succeed only for valid blocks.
+		 */
+		span = (lvl - 1) * epbs + dn->dn_datablkshift;
+		ASSERT3U(span, <, 8 * sizeof (*offset));
+		if ((*offset >> span) >= epb) {
+			if (hole)
+				return (0);
+			return (SET_ERROR(ESRCH));
+		}
+		error = 0;
 	} else {
 		uint64_t blkid = dbuf_whichblock(dn, lvl, *offset);
 		error = dbuf_hold_impl(dn, lvl, blkid, TRUE, FALSE, FTAG, &db);
@@ -2443,13 +2459,8 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 		else
 			minfill++;
 
-		if (span >= 8 * sizeof (*offset)) {
-			/* This only happens on the highest indirection level */
-			ASSERT3U((lvl - 1), ==, dn->dn_phys->dn_nlevels - 1);
-			*offset = 0;
-		} else {
-			*offset = *offset >> span;
-		}
+		ASSERT3U(span, <, 8 * sizeof (*offset));
+		*offset = *offset >> span;
 
 		for (i = BF64_GET(*offset, 0, epbs);
 		    i >= 0 && i < epb; i += inc) {
@@ -2461,11 +2472,7 @@ dnode_next_offset_level(dnode_t *dn, int flags, uint64_t *offset,
 				*offset += inc;
 		}
 
-		if (span >= 8 * sizeof (*offset)) {
-			*offset = start;
-		} else {
-			*offset = *offset << span;
-		}
+		*offset = *offset << span;
 
 		if (inc < 0) {
 			/* traversing backwards; position offset at the end */
@@ -2514,6 +2521,7 @@ dnode_next_offset(dnode_t *dn, int flags, uint64_t *offset,
     int minlvl, uint64_t blkfill, uint64_t txg)
 {
 	uint64_t initial_offset = *offset;
+	uint64_t epbs = dn->dn_phys->dn_indblkshift - SPA_BLKPTRSHIFT;
 	int lvl, maxlvl;
 	int error = 0;
 
@@ -2535,18 +2543,86 @@ dnode_next_offset(dnode_t *dn, int flags, uint64_t *offset,
 		goto out;
 	}
 
-	maxlvl = dn->dn_phys->dn_nlevels;
+	/*
+	 * Limit the maximum level to the level that covers the largest possible
+	 * offset range (all 64 bits).  For 16KB data block size and 128KB
+	 * indirect block size that would be level 5.
+	 */
+	maxlvl = howmany(8 * sizeof (*offset) - dn->dn_datablkshift, epbs);
+	maxlvl = MIN(maxlvl, dn->dn_phys->dn_nlevels);
+	lvl = minlvl;
+	for (;;) {
+		for (; lvl <= maxlvl; lvl++) {
+			error = dnode_next_offset_level(dn,
+			    flags, offset, lvl, blkfill, txg);
+			if (error != ESRCH)
+				break;
+		}
 
-	for (lvl = minlvl; lvl <= maxlvl; lvl++) {
-		error = dnode_next_offset_level(dn,
-		    flags, offset, lvl, blkfill, txg);
+		/*
+		 * Either there was some fatal error or we could not
+		 * find a matching block even at the topmost level.
+		 */
+		if (error != 0)
+			break;
+
+		while (error == 0 && --lvl >= minlvl) {
+			error = dnode_next_offset_level(dn,
+			    flags, offset, lvl, blkfill, txg);
+		}
+
+		/*
+		 * We are done if a matching block is found at minlvl or
+		 * there is a fatal error.
+		 */
 		if (error != ESRCH)
 			break;
-	}
 
-	while (error == 0 && --lvl >= minlvl) {
-		error = dnode_next_offset_level(dn,
-		    flags, offset, lvl, blkfill, txg);
+		/*
+		 * If we are searching backwards and reached the beginning,
+		 * then there is nowhere else to search.
+		 * We have this special case because dnode_next_offset_level
+		 * does not decrement offset below zero.
+		 * Perhaps a simpler check would be that the last
+		 * dnode_next_offset_level call (that returned ESRCH)
+		 * did not change the offset.
+		 */
+		if ((flags & DNODE_FIND_BACKWARDS) != 0) {
+			int epbs, span;
+
+			epbs = dn->dn_phys->dn_indblkshift - SPA_BLKPTRSHIFT;
+			span = (lvl - 1) * epbs + dn->dn_datablkshift;
+			if (*offset >> span == 0)
+				break;
+		}
+
+		/*
+		 * Another special case.  If the search is for a hole
+		 * (unallocated dnode) in a meta-dnode and large dnodes are
+		 * used, then we can fail here because searches with level > 0
+		 * are done based on the fill which reflects the number of
+		 * allocated dnodes, not the number of used dnode slots.
+		 * It's possible that all slots in an L0 block are used by a
+		 * handful dnodes and, thus, the level zero search fails.
+		 *
+		 * This early termination of the search is expected to be
+		 * handled in callers.
+		 */
+		if ((flags & DNODE_FIND_HOLE) != 0 && lvl == 0)
+			break;
+
+		/*
+		 * We can get here only if we found a higher level block that
+		 * matched the search conditions, but no minlvl block under it
+		 * did.  That can happen, for example, if txg is specified and
+		 * some blocks were created after txg, but then all of them were
+		 * deleted.  Another possibility is a concurrent modification
+		 * which is not prohibited by dn_struct_rwlock.
+		 * So, we need to search up from the current offset.
+		 */
+		ASSERT3S(lvl, >=, minlvl);
+		ASSERT3S(lvl, <, maxlvl);
+		lvl++;
 	}
 
 	/*
