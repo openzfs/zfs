@@ -93,13 +93,15 @@ The minimum number of devices in a raidz group is one more than the number of
 parity disks.
 The recommended number is between 3 and 9 to help increase performance.
 .It Sy draid , draid1 , draid2 , draid3
-A variant of raidz which provides integrated distributed hot spares that allow
-faster resilvering while retaining the benefits of raidz.
+A variant of raidz that provides integrated distributed hot spares which
+allows for faster resilvering while retaining the benefits of raidz.
 A dRAID vdev is constructed from multiple internal raidz groups, each with D
-data devices and P parity devices which are distributed over the children.
-This allows all of the children to participate and for fully sequential
-resilvering.
+data devices and P parity devices.
+These groups are distributed over all of the children in order to fully
+utilize the available disk performance.
 .Pp
+Unlike raidz, dRAID uses a fixed stripe width (padding as necessary with
+zeros) to allow fully sequential resilvering.
 This fixed stripe width significantly effects both usable capacity and IOPS.
 For example, with the default D=8 and 4k disk sectors the minimum allocation
 size is 32k.
@@ -143,7 +145,7 @@ keyword.
 .Em data
 - The number of data devices per redundancy group.
 In general a smaller value of D will increase IOPS, improve the compression ratio, and speed up resilvering at the expense of total usable capacity.
-Defaults to 8, or fewer if there are not enough total devices.
+Defaults to 8, unless N-P-S is less than 8.
 .Pp
 .Em children
 - The expected number of children.

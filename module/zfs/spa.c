@@ -6439,7 +6439,6 @@ spa_vdev_add(spa_t *spa, nvlist_t *nvroot)
 	vdev_t *vd, *tvd;
 	nvlist_t **spares, **l2cache;
 	uint_t nspares, nl2cache;
-	int c;
 
 	ASSERT(spa_writeable(spa));
 
@@ -6496,13 +6495,13 @@ spa_vdev_add(spa_t *spa, nvlist_t *nvroot)
 	 */
 	if (spa->spa_vdev_removal != NULL ||
 	    spa->spa_removing_phys.sr_prev_indirect_vdev != -1) {
-		for (c = 0; c < vd->vdev_children; c++) {
+		for (int c = 0; c < vd->vdev_children; c++) {
 			tvd = vd->vdev_child[c];
 			if (spa->spa_vdev_removal != NULL &&
 			    tvd->vdev_ashift != spa->spa_max_ashift) {
 				return (spa_vdev_exit(spa, vd, txg, EINVAL));
 			}
-			/* Fail if top level vdev is raidz or dRAID */
+			/* Fail if top level vdev is raidz or a dRAID */
 			if (vdev_get_nparity(tvd) != 0)
 				return (spa_vdev_exit(spa, vd, txg, EINVAL));
 
@@ -6983,8 +6982,9 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 	/*
 	 * If we are detaching the original disk from a normal spare, then it
 	 * implies that the spare should become a real disk, and be removed
-	 * from the active spare list for the pool.  dRAID spares are coupled
-	 * to the pool and thus should never be removed from the spares list.
+	 * from the active spare list for the pool.  dRAID spares on the
+	 * other hand are coupled to the pool and thus should never be removed
+	 * from the spares list.
 	 */
 	if (pvd->vdev_ops == &vdev_spare_ops && vd->vdev_id == 0) {
 		vdev_t *last_cvd = pvd->vdev_child[pvd->vdev_children - 1];

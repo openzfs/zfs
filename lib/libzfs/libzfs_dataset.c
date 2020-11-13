@@ -5336,9 +5336,9 @@ zfs_get_holds(zfs_handle_t *zhp, nvlist_t **nvl)
  * 160k.  Again, 128k is from SPA_OLD_MAXBLOCKSIZE and 160k is as calculated in
  * the 128k block example above.
  *
- * The situtation is slightly different when using dRAID instead of raidz.
- * All blocks are inflated to the full stripe width and padded out as needed
- * with zero-filled skip sectors.  Otherwise it behaves the same.
+ * The situtation is slightly different for dRAID since the minimum allocation
+ * size is the full group width.  The same 8K block above would be written as
+ * follows in a dRAID group:
  *
  * +-------+-------+-------+-------+-------+
  * | disk1 | disk2 | disk3 | disk4 | disk5 |

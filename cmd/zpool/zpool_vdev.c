@@ -1377,7 +1377,7 @@ draid_config_by_type(nvlist_t *nv, const char *type, uint64_t children)
 		}
 	}
 
-	/* Verify the maximum allow group size is never exceeded. */
+	/* Verify the maximum allowed group size is never exceeded. */
 	if (ndata == 0 || (ndata + nparity > children - nspares)) {
 		fprintf(stderr, gettext("requested number of dRAID data "
 		    "disks per group %llu is too high,\nat most %llu disks "

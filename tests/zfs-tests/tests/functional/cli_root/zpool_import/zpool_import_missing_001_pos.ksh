@@ -57,7 +57,7 @@
 #	   Using the various combinations.
 #		- Regular import
 #		- Alternate Root Specified
-#	   It should be succeed with single d/m device upon 'raidz', 'mirror',
+#	   It should succeed with single d/m device upon 'raidz', 'mirror',
 #	   'draid' but failed against 'regular' or more d/m devices.
 #	6. If import succeed, verify following is true:
 #		- The pool shows up under 'zpool list'.

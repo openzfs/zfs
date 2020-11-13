@@ -4004,7 +4004,7 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 		}
 
 		/*
-		 * Remove the partition from the path it this is a whole disk.
+		 * Remove the partition from the path if this is a whole disk.
 		 */
 		if (strcmp(type, VDEV_TYPE_DRAID_SPARE) != 0 &&
 		    nvlist_lookup_uint64(nv, ZPOOL_CONFIG_WHOLE_DISK, &value)

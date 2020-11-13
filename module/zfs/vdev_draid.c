@@ -607,7 +607,7 @@ vdev_draid_asize_to_psize(vdev_t *vd, uint64_t asize)
 }
 
 /*
- * Converts a logical offset to the corresponding group number.
+ * Convert a logical offset to the corresponding group number.
  */
 static uint64_t
 vdev_draid_offset_to_group(vdev_t *vd, uint64_t offset)
@@ -620,7 +620,7 @@ vdev_draid_offset_to_group(vdev_t *vd, uint64_t offset)
 }
 
 /*
- * Converts a group number to the logical starting offset for that group.
+ * Convert a group number to the logical starting offset for that group.
  */
 static uint64_t
 vdev_draid_group_to_offset(vdev_t *vd, uint64_t group)

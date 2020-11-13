@@ -785,13 +785,10 @@ abd_iterate_func(abd_t *abd, size_t off, size_t size,
 	int ret = 0;
 
 	if (size == 0)
-		return (ret);
+		return (0);
 
 	abd_verify(abd);
 	ASSERT3U(off + size, <=, abd->abd_size);
-
-	if (size == 0)
-		return (0);
 
 	boolean_t abd_multi = abd_is_gang(abd);
 	abd_t *c_abd = abd_init_abd_iter(abd, &aiter, off);
@@ -925,7 +922,7 @@ abd_iterate_func2(abd_t *dabd, abd_t *sabd, size_t doff, size_t soff,
 	abd_t *c_dabd, *c_sabd;
 
 	if (size == 0)
-		return (ret);
+		return (0);
 
 	abd_verify(dabd);
 	abd_verify(sabd);

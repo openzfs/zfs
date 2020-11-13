@@ -125,8 +125,8 @@ unsigned long zfs_rebuild_vdev_limit = 32 << 20;
 
 /*
  * Automatically start a pool scrub when the last active sequential resilver
- * completes. This option is enabled by default and is strongly recommended
- * in order to verify the checksums of all blocks which have been resilvered.
+ * completes in order to verify the checksums of all blocks which have been
+ * resilvered. This option is enabled by default and is strongly recommended.
  */
 int zfs_rebuild_scrub_enabled = 1;
 
