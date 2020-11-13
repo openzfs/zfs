@@ -33,6 +33,7 @@
 #include <sys/dsl_pool.h>
 #include <sys/dsl_scan.h>
 #include <sys/vdev_impl.h>
+#include <sys/vdev_draid.h>
 #include <sys/zio.h>
 #include <sys/abd.h>
 #include <sys/fs/zfs.h>
@@ -99,7 +100,6 @@ vdev_mirror_stat_fini(void)
 /*
  * Virtual device vector for mirroring.
  */
-
 typedef struct mirror_child {
 	vdev_t		*mc_vd;
 	uint64_t	mc_offset;
@@ -108,6 +108,7 @@ typedef struct mirror_child {
 	uint8_t		mc_tried;
 	uint8_t		mc_skipped;
 	uint8_t		mc_speculative;
+	uint8_t		mc_rebuilding;
 } mirror_child_t;
 
 typedef struct mirror_map {
@@ -115,6 +116,7 @@ typedef struct mirror_map {
 	int		mm_preferred_cnt;
 	int		mm_children;
 	boolean_t	mm_resilvering;
+	boolean_t	mm_rebuilding;
 	boolean_t	mm_root;
 	mirror_child_t	mm_child[];
 } mirror_map_t;
@@ -239,6 +241,21 @@ vdev_mirror_load(mirror_map_t *mm, vdev_t *vd, uint64_t zio_offset)
 	return (load + zfs_vdev_mirror_rotating_seek_inc);
 }
 
+static boolean_t
+vdev_mirror_rebuilding(vdev_t *vd)
+{
+	if (vd->vdev_ops->vdev_op_leaf && vd->vdev_rebuild_txg)
+		return (B_TRUE);
+
+	for (int i = 0; i < vd->vdev_children; i++) {
+		if (vdev_mirror_rebuilding(vd->vdev_child[i])) {
+			return (B_TRUE);
+		}
+	}
+
+	return (B_FALSE);
+}
+
 /*
  * Avoid inlining the function to keep vdev_mirror_io_start(), which
  * is this functions only caller, as small as possible on the stack.
@@ -356,6 +373,9 @@ vdev_mirror_map_init(zio_t *zio)
 			mc = &mm->mm_child[c];
 			mc->mc_vd = vd->vdev_child[c];
 			mc->mc_offset = zio->io_offset;
+
+			if (vdev_mirror_rebuilding(mc->mc_vd))
+				mm->mm_rebuilding = mc->mc_rebuilding = B_TRUE;
 		}
 	}
 
@@ -493,12 +513,37 @@ vdev_mirror_preferred_child_randomize(zio_t *zio)
 	return (mm->mm_preferred[p]);
 }
 
+static boolean_t
+vdev_mirror_child_readable(mirror_child_t *mc)
+{
+	vdev_t *vd = mc->mc_vd;
+
+	if (vd->vdev_top != NULL && vd->vdev_top->vdev_ops == &vdev_draid_ops)
+		return (vdev_draid_readable(vd, mc->mc_offset));
+	else
+		return (vdev_readable(vd));
+}
+
+static boolean_t
+vdev_mirror_child_missing(mirror_child_t *mc, uint64_t txg, uint64_t size)
+{
+	vdev_t *vd = mc->mc_vd;
+
+	if (vd->vdev_top != NULL && vd->vdev_top->vdev_ops == &vdev_draid_ops)
+		return (vdev_draid_missing(vd, mc->mc_offset, txg, size));
+	else
+		return (vdev_dtl_contains(vd, DTL_MISSING, txg, size));
+}
+
 /*
  * Try to find a vdev whose DTL doesn't contain the block we want to read
- * preferring vdevs based on determined load.
+ * preferring vdevs based on determined load. If we can't, try the read on
+ * any vdev we haven't already tried.
  *
- * Try to find a child whose DTL doesn't contain the block we want to read.
- * If we can't, try the read on any vdev we haven't already tried.
+ * Distributed spares are an exception to the above load rule. They are
+ * always preferred in order to detect gaps in the distributed spare which
+ * are created when another disk in the dRAID fails. In order to restore
+ * redundancy those gaps must be read to trigger the required repair IO.
  */
 static int
 vdev_mirror_child_select(zio_t *zio)
@@ -518,18 +563,25 @@ vdev_mirror_child_select(zio_t *zio)
 		if (mc->mc_tried || mc->mc_skipped)
 			continue;
 
-		if (mc->mc_vd == NULL || !vdev_readable(mc->mc_vd)) {
+		if (mc->mc_vd == NULL ||
+		    !vdev_mirror_child_readable(mc)) {
 			mc->mc_error = SET_ERROR(ENXIO);
 			mc->mc_tried = 1;	/* don't even try */
 			mc->mc_skipped = 1;
 			continue;
 		}
 
-		if (vdev_dtl_contains(mc->mc_vd, DTL_MISSING, txg, 1)) {
+		if (vdev_mirror_child_missing(mc, txg, 1)) {
 			mc->mc_error = SET_ERROR(ESTALE);
 			mc->mc_skipped = 1;
 			mc->mc_speculative = 1;
 			continue;
+		}
+
+		if (mc->mc_vd->vdev_ops == &vdev_draid_spare_ops) {
+			mm->mm_preferred[0] = c;
+			mm->mm_preferred_cnt = 1;
+			break;
 		}
 
 		mc->mc_load = vdev_mirror_load(mm, mc->mc_vd, mc->mc_offset);
@@ -625,11 +677,25 @@ vdev_mirror_io_start(zio_t *zio)
 
 	while (children--) {
 		mc = &mm->mm_child[c];
+		c++;
+
+		/*
+		 * When sequentially resilvering only issue write repair
+		 * IOs to the vdev which is being rebuilt since performance
+		 * is limited by the slowest child.  This is an issue for
+		 * faster replacement devices such as distributed spares.
+		 */
+		if ((zio->io_priority == ZIO_PRIORITY_REBUILD) &&
+		    (zio->io_flags & ZIO_FLAG_IO_REPAIR) &&
+		    !(zio->io_flags & ZIO_FLAG_SCRUB) &&
+		    mm->mm_rebuilding && !mc->mc_rebuilding) {
+			continue;
+		}
+
 		zio_nowait(zio_vdev_child_io(zio, zio->io_bp,
 		    mc->mc_vd, mc->mc_offset, zio->io_abd, zio->io_size,
 		    zio->io_type, zio->io_priority, 0,
 		    vdev_mirror_child_done, mc));
-		c++;
 	}
 
 	zio_execute(zio);
@@ -744,6 +810,8 @@ vdev_mirror_io_done(zio_t *zio)
 			mc = &mm->mm_child[c];
 
 			if (mc->mc_error == 0) {
+				vdev_ops_t *ops = mc->mc_vd->vdev_ops;
+
 				if (mc->mc_tried)
 					continue;
 				/*
@@ -752,15 +820,16 @@ vdev_mirror_io_done(zio_t *zio)
 				 * 1. it's a scrub (in which case we have
 				 * tried everything that was healthy)
 				 *  - or -
-				 * 2. it's an indirect vdev (in which case
-				 * it could point to any other vdev, which
-				 * might have a bad DTL)
+				 * 2. it's an indirect or distributed spare
+				 * vdev (in which case it could point to any
+				 * other vdev, which might have a bad DTL)
 				 *  - or -
 				 * 3. the DTL indicates that this data is
 				 * missing from this vdev
 				 */
 				if (!(zio->io_flags & ZIO_FLAG_SCRUB) &&
-				    mc->mc_vd->vdev_ops != &vdev_indirect_ops &&
+				    ops != &vdev_indirect_ops &&
+				    ops != &vdev_draid_spare_ops &&
 				    !vdev_dtl_contains(mc->mc_vd, DTL_PARTIAL,
 				    zio->io_txg, 1))
 					continue;
@@ -796,50 +865,90 @@ vdev_mirror_state_change(vdev_t *vd, int faulted, int degraded)
 	}
 }
 
+/*
+ * Return the maximum asize for a rebuild zio in the provided range.
+ */
+static uint64_t
+vdev_mirror_rebuild_asize(vdev_t *vd, uint64_t start, uint64_t asize,
+    uint64_t max_segment)
+{
+	uint64_t psize = MIN(P2ROUNDUP(max_segment, 1 << vd->vdev_ashift),
+	    SPA_MAXBLOCKSIZE);
+
+	return (MIN(asize, vdev_psize_to_asize(vd, psize)));
+}
+
 vdev_ops_t vdev_mirror_ops = {
+	.vdev_op_init = NULL,
+	.vdev_op_fini = NULL,
 	.vdev_op_open = vdev_mirror_open,
 	.vdev_op_close = vdev_mirror_close,
 	.vdev_op_asize = vdev_default_asize,
+	.vdev_op_min_asize = vdev_default_min_asize,
+	.vdev_op_min_alloc = NULL,
 	.vdev_op_io_start = vdev_mirror_io_start,
 	.vdev_op_io_done = vdev_mirror_io_done,
 	.vdev_op_state_change = vdev_mirror_state_change,
-	.vdev_op_need_resilver = NULL,
+	.vdev_op_need_resilver = vdev_default_need_resilver,
 	.vdev_op_hold = NULL,
 	.vdev_op_rele = NULL,
 	.vdev_op_remap = NULL,
 	.vdev_op_xlate = vdev_default_xlate,
+	.vdev_op_rebuild_asize = vdev_mirror_rebuild_asize,
+	.vdev_op_metaslab_init = NULL,
+	.vdev_op_config_generate = NULL,
+	.vdev_op_nparity = NULL,
+	.vdev_op_ndisks = NULL,
 	.vdev_op_type = VDEV_TYPE_MIRROR,	/* name of this vdev type */
 	.vdev_op_leaf = B_FALSE			/* not a leaf vdev */
 };
 
 vdev_ops_t vdev_replacing_ops = {
+	.vdev_op_init = NULL,
+	.vdev_op_fini = NULL,
 	.vdev_op_open = vdev_mirror_open,
 	.vdev_op_close = vdev_mirror_close,
 	.vdev_op_asize = vdev_default_asize,
+	.vdev_op_min_asize = vdev_default_min_asize,
+	.vdev_op_min_alloc = NULL,
 	.vdev_op_io_start = vdev_mirror_io_start,
 	.vdev_op_io_done = vdev_mirror_io_done,
 	.vdev_op_state_change = vdev_mirror_state_change,
-	.vdev_op_need_resilver = NULL,
+	.vdev_op_need_resilver = vdev_default_need_resilver,
 	.vdev_op_hold = NULL,
 	.vdev_op_rele = NULL,
 	.vdev_op_remap = NULL,
 	.vdev_op_xlate = vdev_default_xlate,
+	.vdev_op_rebuild_asize = vdev_mirror_rebuild_asize,
+	.vdev_op_metaslab_init = NULL,
+	.vdev_op_config_generate = NULL,
+	.vdev_op_nparity = NULL,
+	.vdev_op_ndisks = NULL,
 	.vdev_op_type = VDEV_TYPE_REPLACING,	/* name of this vdev type */
 	.vdev_op_leaf = B_FALSE			/* not a leaf vdev */
 };
 
 vdev_ops_t vdev_spare_ops = {
+	.vdev_op_init = NULL,
+	.vdev_op_fini = NULL,
 	.vdev_op_open = vdev_mirror_open,
 	.vdev_op_close = vdev_mirror_close,
 	.vdev_op_asize = vdev_default_asize,
+	.vdev_op_min_asize = vdev_default_min_asize,
+	.vdev_op_min_alloc = NULL,
 	.vdev_op_io_start = vdev_mirror_io_start,
 	.vdev_op_io_done = vdev_mirror_io_done,
 	.vdev_op_state_change = vdev_mirror_state_change,
-	.vdev_op_need_resilver = NULL,
+	.vdev_op_need_resilver = vdev_default_need_resilver,
 	.vdev_op_hold = NULL,
 	.vdev_op_rele = NULL,
 	.vdev_op_remap = NULL,
 	.vdev_op_xlate = vdev_default_xlate,
+	.vdev_op_rebuild_asize = vdev_mirror_rebuild_asize,
+	.vdev_op_metaslab_init = NULL,
+	.vdev_op_config_generate = NULL,
+	.vdev_op_nparity = NULL,
+	.vdev_op_ndisks = NULL,
 	.vdev_op_type = VDEV_TYPE_SPARE,	/* name of this vdev type */
 	.vdev_op_leaf = B_FALSE			/* not a leaf vdev */
 };

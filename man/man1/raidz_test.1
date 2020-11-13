@@ -61,6 +61,11 @@ during testing.
 .IP
 Size of data for raidz block. Size is 1 << (zio_size_shift).
 .HP
+.BI "\-r" " reflow_offset" " (default: uint max)"
+.IP
+Set raidz expansion offset. The expanded raidz map allocation function will
+produce different map configurations depending on this value.
+.HP
 .BI "\-S(weep)"
 .IP
 Sweep parameter space while verifying the raidz implementations. This option
@@ -76,6 +81,10 @@ Wall time for sweep test in seconds. The actual runtime could be longer.
 This options starts the benchmark mode. All implementations are benchmarked
 using increasing per disk data size. Results are given as throughput per disk,
 measured in MiB/s.
+.HP
+.BI "\-e(xpansion)"
+.IP
+Use expanded raidz map allocation function.
 .HP
 .BI "\-v(erbose)"
 .IP

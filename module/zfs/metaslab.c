@@ -32,6 +32,7 @@
 #include <sys/space_map.h>
 #include <sys/metaslab_impl.h>
 #include <sys/vdev_impl.h>
+#include <sys/vdev_draid.h>
 #include <sys/zio.h>
 #include <sys/spa_impl.h>
 #include <sys/zfeature.h>
@@ -1563,6 +1564,7 @@ metaslab_block_find(zfs_btree_t *t, range_tree_t *rt, uint64_t start,
 
 #if defined(WITH_DF_BLOCK_ALLOCATOR) || \
     defined(WITH_CF_BLOCK_ALLOCATOR)
+
 /*
  * This is a helper function that can be used by the allocator to find a
  * suitable block to allocate. This will search the specified B-tree looking
@@ -1654,6 +1656,7 @@ metaslab_df_alloc(metaslab_t *msp, uint64_t size)
 		range_seg_t *rs;
 		if (zfs_btree_numnodes(&msp->ms_allocatable_by_size) == 0)
 			metaslab_size_tree_full_load(msp->ms_allocatable);
+
 		if (metaslab_df_use_largest_segment) {
 			/* use largest free segment */
 			rs = zfs_btree_last(&msp->ms_allocatable_by_size, NULL);
@@ -2615,6 +2618,10 @@ metaslab_init(metaslab_group_t *mg, uint64_t id, uint64_t object,
 	ms->ms_size = 1ULL << vd->vdev_ms_shift;
 	ms->ms_allocator = -1;
 	ms->ms_new = B_TRUE;
+
+	vdev_ops_t *ops = vd->vdev_ops;
+	if (ops->vdev_op_metaslab_init != NULL)
+		ops->vdev_op_metaslab_init(vd, &ms->ms_start, &ms->ms_size);
 
 	/*
 	 * We only open space map objects that already exist. All others
@@ -5813,7 +5820,6 @@ metaslab_alloc(spa_t *spa, metaslab_class_t *mc, uint64_t psize, blkptr_t *bp,
 			metaslab_group_alloc_increment(spa,
 			    DVA_GET_VDEV(&dva[d]), zio, flags, allocator);
 		}
-
 	}
 	ASSERT(error == 0);
 	ASSERT(BP_GET_NDVAS(bp) == ndvas);

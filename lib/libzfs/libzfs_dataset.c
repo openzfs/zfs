@@ -5336,6 +5336,16 @@ zfs_get_holds(zfs_handle_t *zhp, nvlist_t **nvl)
  * 160k.  Again, 128k is from SPA_OLD_MAXBLOCKSIZE and 160k is as calculated in
  * the 128k block example above.
  *
+ * The situtation is slightly different for dRAID since the minimum allocation
+ * size is the full group width.  The same 8K block above would be written as
+ * follows in a dRAID group:
+ *
+ * +-------+-------+-------+-------+-------+
+ * | disk1 | disk2 | disk3 | disk4 | disk5 |
+ * +-------+-------+-------+-------+-------+
+ * |  P0   |  D0   |  D1   |  S0   |  S1   |
+ * +-------+-------+-------+-------+-------+
+ *
  * Compression may lead to a variety of block sizes being written for the same
  * volume or file.  There is no clear way to reserve just the amount of space
  * that will be required, so the worst case (no compression) is assumed.
@@ -5366,6 +5376,23 @@ vdev_raidz_asize(uint64_t ndisks, uint64_t nparity, uint64_t ashift,
 }
 
 /*
+ * Derived from function of same name in module/zfs/vdev_draid.c.  Returns the
+ * amount of space (in bytes) that will be allocated for the specified block
+ * size.
+ */
+static uint64_t
+vdev_draid_asize(uint64_t ndisks, uint64_t nparity, uint64_t ashift,
+    uint64_t blksize)
+{
+	ASSERT3U(ndisks, >, nparity);
+	uint64_t ndata = ndisks - nparity;
+	uint64_t rows = ((blksize - 1) / (ndata << ashift)) + 1;
+	uint64_t asize = (rows * ndisks) << ashift;
+
+	return (asize);
+}
+
+/*
  * Determine how much space will be allocated if it lands on the most space-
  * inefficient top-level vdev.  Returns the size in bytes required to store one
  * copy of the volume data.  See theory comment above.
@@ -5374,7 +5401,7 @@ static uint64_t
 volsize_from_vdevs(zpool_handle_t *zhp, uint64_t nblocks, uint64_t blksize)
 {
 	nvlist_t *config, *tree, **vdevs;
-	uint_t nvdevs, v;
+	uint_t nvdevs;
 	uint64_t ret = 0;
 
 	config = zpool_get_config(zhp, NULL);
@@ -5384,33 +5411,61 @@ volsize_from_vdevs(zpool_handle_t *zhp, uint64_t nblocks, uint64_t blksize)
 		return (nblocks * blksize);
 	}
 
-	for (v = 0; v < nvdevs; v++) {
+	for (int v = 0; v < nvdevs; v++) {
 		char *type;
 		uint64_t nparity, ashift, asize, tsize;
-		nvlist_t **disks;
-		uint_t ndisks;
 		uint64_t volsize;
 
 		if (nvlist_lookup_string(vdevs[v], ZPOOL_CONFIG_TYPE,
-		    &type) != 0 || strcmp(type, VDEV_TYPE_RAIDZ) != 0 ||
-		    nvlist_lookup_uint64(vdevs[v], ZPOOL_CONFIG_NPARITY,
-		    &nparity) != 0 ||
-		    nvlist_lookup_uint64(vdevs[v], ZPOOL_CONFIG_ASHIFT,
-		    &ashift) != 0 ||
-		    nvlist_lookup_nvlist_array(vdevs[v], ZPOOL_CONFIG_CHILDREN,
-		    &disks, &ndisks) != 0) {
+		    &type) != 0)
 			continue;
+
+		if (strcmp(type, VDEV_TYPE_RAIDZ) != 0 &&
+		    strcmp(type, VDEV_TYPE_DRAID) != 0)
+			continue;
+
+		if (nvlist_lookup_uint64(vdevs[v],
+		    ZPOOL_CONFIG_NPARITY, &nparity) != 0)
+			continue;
+
+		if (nvlist_lookup_uint64(vdevs[v],
+		    ZPOOL_CONFIG_ASHIFT, &ashift) != 0)
+			continue;
+
+		if (strcmp(type, VDEV_TYPE_RAIDZ) == 0) {
+			nvlist_t **disks;
+			uint_t ndisks;
+
+			if (nvlist_lookup_nvlist_array(vdevs[v],
+			    ZPOOL_CONFIG_CHILDREN, &disks, &ndisks) != 0)
+				continue;
+
+			/* allocation size for the "typical" 128k block */
+			tsize = vdev_raidz_asize(ndisks, nparity, ashift,
+			    SPA_OLD_MAXBLOCKSIZE);
+
+			/* allocation size for the blksize block */
+			asize = vdev_raidz_asize(ndisks, nparity, ashift,
+			    blksize);
+		} else {
+			uint64_t ndata;
+
+			if (nvlist_lookup_uint64(vdevs[v],
+			    ZPOOL_CONFIG_DRAID_NDATA, &ndata) != 0)
+				continue;
+
+			/* allocation size for the "typical" 128k block */
+			tsize = vdev_draid_asize(ndata + nparity, nparity,
+			    ashift, SPA_OLD_MAXBLOCKSIZE);
+
+			/* allocation size for the blksize block */
+			asize = vdev_draid_asize(ndata + nparity, nparity,
+			    ashift, blksize);
 		}
 
-		/* allocation size for the "typical" 128k block */
-		tsize = vdev_raidz_asize(ndisks, nparity, ashift,
-		    SPA_OLD_MAXBLOCKSIZE);
-		/* allocation size for the blksize block */
-		asize = vdev_raidz_asize(ndisks, nparity, ashift, blksize);
-
 		/*
-		 * Scale this size down as a ratio of 128k / tsize.  See theory
-		 * statement above.
+		 * Scale this size down as a ratio of 128k / tsize.
+		 * See theory statement above.
 		 */
 		volsize = nblocks * asize * SPA_OLD_MAXBLOCKSIZE / tsize;
 		if (volsize > ret) {

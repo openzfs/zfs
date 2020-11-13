@@ -781,16 +781,17 @@ int
 abd_iterate_func(abd_t *abd, size_t off, size_t size,
     abd_iter_func_t *func, void *private)
 {
-	int ret = 0;
 	struct abd_iter aiter;
-	boolean_t abd_multi;
-	abd_t *c_abd;
+	int ret = 0;
+
+	if (size == 0)
+		return (0);
 
 	abd_verify(abd);
 	ASSERT3U(off + size, <=, abd->abd_size);
 
-	abd_multi = abd_is_gang(abd);
-	c_abd = abd_init_abd_iter(abd, &aiter, off);
+	boolean_t abd_multi = abd_is_gang(abd);
+	abd_t *c_abd = abd_init_abd_iter(abd, &aiter, off);
 
 	while (size > 0) {
 		/* If we are at the end of the gang ABD we are done */
@@ -919,6 +920,9 @@ abd_iterate_func2(abd_t *dabd, abd_t *sabd, size_t doff, size_t soff,
 	struct abd_iter daiter, saiter;
 	boolean_t dabd_is_gang_abd, sabd_is_gang_abd;
 	abd_t *c_dabd, *c_sabd;
+
+	if (size == 0)
+		return (0);
 
 	abd_verify(dabd);
 	abd_verify(sabd);

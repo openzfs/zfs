@@ -1702,16 +1702,16 @@ zio_write_compress(zio_t *zio)
 			return (zio);
 		} else {
 			/*
-			 * Round up compressed size up to the ashift
-			 * of the smallest-ashift device, and zero the tail.
-			 * This ensures that the compressed size of the BP
-			 * (and thus compressratio property) are correct,
+			 * Round compressed size up to the minimum allocation
+			 * size of the smallest-ashift device, and zero the
+			 * tail. This ensures that the compressed size of the
+			 * BP (and thus compressratio property) are correct,
 			 * in that we charge for the padding used to fill out
 			 * the last sector.
 			 */
-			ASSERT3U(spa->spa_min_ashift, >=, SPA_MINBLOCKSHIFT);
-			size_t rounded = (size_t)P2ROUNDUP(psize,
-			    1ULL << spa->spa_min_ashift);
+			ASSERT3U(spa->spa_min_alloc, >=, SPA_MINBLOCKSHIFT);
+			size_t rounded = (size_t)roundup(psize,
+			    spa->spa_min_alloc);
 			if (rounded >= lsize) {
 				compress = ZIO_COMPRESS_OFF;
 				zio_buf_free(cbuf, lsize);
@@ -3754,19 +3754,37 @@ zio_vdev_io_start(zio_t *zio)
 	 * However, indirect vdevs point off to other vdevs which may have
 	 * DTL's, so we never bypass them.  The child i/os on concrete vdevs
 	 * will be properly bypassed instead.
+	 *
+	 * Leaf DTL_PARTIAL can be empty when a legitimate write comes from
+	 * a dRAID spare vdev. For example, when a dRAID spare is first
+	 * used, its spare blocks need to be written to but the leaf vdev's
+	 * of such blocks can have empty DTL_PARTIAL.
+	 *
+	 * There seemed no clean way to allow such writes while bypassing
+	 * spurious ones. At this point, just avoid all bypassing for dRAID
+	 * for correctness.
 	 */
 	if ((zio->io_flags & ZIO_FLAG_IO_REPAIR) &&
 	    !(zio->io_flags & ZIO_FLAG_SELF_HEAL) &&
 	    zio->io_txg != 0 &&	/* not a delegated i/o */
 	    vd->vdev_ops != &vdev_indirect_ops &&
+	    vd->vdev_top->vdev_ops != &vdev_draid_ops &&
 	    !vdev_dtl_contains(vd, DTL_PARTIAL, zio->io_txg, 1)) {
 		ASSERT(zio->io_type == ZIO_TYPE_WRITE);
 		zio_vdev_io_bypass(zio);
 		return (zio);
 	}
 
-	if (vd->vdev_ops->vdev_op_leaf && (zio->io_type == ZIO_TYPE_READ ||
-	    zio->io_type == ZIO_TYPE_WRITE || zio->io_type == ZIO_TYPE_TRIM)) {
+	/*
+	 * Select the next best leaf I/O to process.  Distributed spares are
+	 * excluded since they dispatch the I/O directly to a leaf vdev after
+	 * applying the dRAID mapping.
+	 */
+	if (vd->vdev_ops->vdev_op_leaf &&
+	    vd->vdev_ops != &vdev_draid_spare_ops &&
+	    (zio->io_type == ZIO_TYPE_READ ||
+	    zio->io_type == ZIO_TYPE_WRITE ||
+	    zio->io_type == ZIO_TYPE_TRIM)) {
 
 		if (zio->io_type == ZIO_TYPE_READ && vdev_cache_read(zio))
 			return (zio);
@@ -3803,8 +3821,8 @@ zio_vdev_io_done(zio_t *zio)
 	if (zio->io_delay)
 		zio->io_delay = gethrtime() - zio->io_delay;
 
-	if (vd != NULL && vd->vdev_ops->vdev_op_leaf) {
-
+	if (vd != NULL && vd->vdev_ops->vdev_op_leaf &&
+	    vd->vdev_ops != &vdev_draid_spare_ops) {
 		vdev_queue_io_done(zio);
 
 		if (zio->io_type == ZIO_TYPE_WRITE)
@@ -4206,7 +4224,7 @@ zio_checksum_verify(zio_t *zio)
 		if (zio->io_prop.zp_checksum == ZIO_CHECKSUM_OFF)
 			return (zio);
 
-		ASSERT(zio->io_prop.zp_checksum == ZIO_CHECKSUM_LABEL);
+		ASSERT3U(zio->io_prop.zp_checksum, ==, ZIO_CHECKSUM_LABEL);
 	}
 
 	if ((error = zio_checksum_error(zio, &info)) != 0) {

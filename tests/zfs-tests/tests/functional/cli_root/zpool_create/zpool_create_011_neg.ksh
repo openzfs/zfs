@@ -54,7 +54,7 @@ function cleanup
 		destroy_pool $pool
 	done
 
-	rm -rf $disk1 $disk2 $disk3
+	rm -rf $disk1 $disk2 $disk3 $disk4
 
 	if [[ -n $saved_dump_dev ]]; then
 		log_must dumpadm -u -d $saved_dump_dev
@@ -66,12 +66,16 @@ log_onexit cleanup
 
 disk1=$(create_blockfile $FILESIZE)
 disk2=$(create_blockfile $FILESIZE)
-disk3=$(create_blockfile $FILESIZE1)
+disk3=$(create_blockfile $FILESIZE)
+disk4=$(create_blockfile $FILESIZE1)
 mirror1="$DISK0 $DISK1"
 mirror2="$disk1 $disk2"
 raidz1=$mirror1
 raidz2=$mirror2
-diff_size_dev="$disk2 $disk3"
+draid1="$DISK0 $DISK1 $DISK2"
+draid2="$disk1 $disk2 $disk3"
+diff_size_dev="$disk2 $disk4"
+draid_diff_size_dev="$disk1 $disk2 $disk4"
 vfstab_dev=$(find_vfstab_dev)
 
 if is_illumos; then
@@ -91,13 +95,17 @@ set -A arg \
 	"$TESTPOOL1 mirror mirror $mirror1 mirror $mirror2" \
 	"$TESTPOOL1 raidz raidz $raidz1 raidz $raidz2" \
 	"$TESTPOOL1 raidz1 raidz1 $raidz1 raidz1 $raidz2" \
+	"$TESTPOOL1 draid draid $draid draid $draid2" \
 	"$TESTPOOL1 mirror raidz $raidz1 raidz $raidz2" \
 	"$TESTPOOL1 mirror raidz1 $raidz1 raidz1 $raidz2" \
+	"$TESTPOOL1 mirror draid $draid1 draid $draid2" \
 	"$TESTPOOL1 raidz mirror $mirror1 mirror $mirror2" \
 	"$TESTPOOL1 raidz1 mirror $mirror1 mirror $mirror2" \
+	"$TESTPOOL1 draid1 mirror $mirror1 mirror $mirror2" \
 	"$TESTPOOL1 mirror $diff_size_dev" \
 	"$TESTPOOL1 raidz $diff_size_dev" \
 	"$TESTPOOL1 raidz1 $diff_size_dev" \
+	"$TESTPOOL1 draid1 $draid_diff_size_dev" \
 	"$TESTPOOL1 mirror $mirror1 spare $mirror2 spare $diff_size_dev" \
 	"$TESTPOOL1 $vfstab_dev" \
 	"$TESTPOOL1 ${DISK0}s10" \

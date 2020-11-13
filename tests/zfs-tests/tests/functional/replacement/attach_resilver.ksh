@@ -37,7 +37,7 @@
 # 	Attaching disks during I/O should pass for supported pools.
 #
 # STRATEGY:
-#	1. Create multidisk pools (stripe/mirror/raidz) and
+#	1. Create multidisk pools (stripe/mirror/raidz/draid) and
 #	   start some random I/O
 #	2. Attach a disk to the pool.
 #	3. Verify the integrity of the file system and the resilvering.
@@ -151,7 +151,7 @@ done
 
 log_note "Verify 'zpool attach' fails with non-mirrors."
 
-for type in "" "raidz" "raidz1"; do
+for type in "" "raidz" "raidz1" "draid"; do
 	for op in "" "-f"; do
 		create_pool $TESTPOOL1 $type $specials_list
 		log_must zfs create $TESTPOOL1/$TESTFS1

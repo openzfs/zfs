@@ -64,7 +64,7 @@ A file must be specified by a full path.
 A mirror of two or more devices.
 Data is replicated in an identical fashion across all components of a mirror.
 A mirror with N disks of size X can hold X bytes and can withstand (N-1) devices
-failing before data integrity is compromised.
+failing without losing data.
 .It Sy raidz , raidz1 , raidz2 , raidz3
 A variation on RAID-5 that allows for better distribution of parity and
 eliminates the RAID-5
@@ -88,11 +88,75 @@ vdev type is an alias for
 .Sy raidz1 .
 .Pp
 A raidz group with N disks of size X with P parity disks can hold approximately
-(N-P)*X bytes and can withstand P device(s) failing before data integrity is
-compromised.
+(N-P)*X bytes and can withstand P device(s) failing without losing data.
 The minimum number of devices in a raidz group is one more than the number of
 parity disks.
 The recommended number is between 3 and 9 to help increase performance.
+.It Sy draid , draid1 , draid2 , draid3
+A variant of raidz that provides integrated distributed hot spares which
+allows for faster resilvering while retaining the benefits of raidz.
+A dRAID vdev is constructed from multiple internal raidz groups, each with D
+data devices and P parity devices.
+These groups are distributed over all of the children in order to fully
+utilize the available disk performance.
+.Pp
+Unlike raidz, dRAID uses a fixed stripe width (padding as necessary with
+zeros) to allow fully sequential resilvering.
+This fixed stripe width significantly effects both usable capacity and IOPS.
+For example, with the default D=8 and 4k disk sectors the minimum allocation
+size is 32k.
+If using compression, this relatively large allocation size can reduce the
+effective compression ratio.
+When using ZFS volumes and dRAID the default volblocksize property is increased
+to account for the allocation size.
+If a dRAID pool will hold a significant amount of small blocks, it is
+recommended to also add a mirrored
+.Sy special
+vdev to store those blocks.
+.Pp
+In regards to IO/s, performance is similar to raidz since for any read all D
+data disks must be accessed.
+Delivered random IOPS can be reasonably approximated as
+floor((N-S)/(D+P))*<single-drive-IOPS>.
+.Pp
+Like raidz a dRAID can have single-, double-, or triple-parity.  The
+.Sy draid1 ,
+.Sy draid2 ,
+and
+.Sy draid3
+types can be used to specify the parity level.
+The
+.Sy draid
+vdev type is an alias for
+.Sy draid1 .
+.Pp
+A dRAID with N disks of size X, D data disks per redundancy group, P parity
+level, and S distributed hot spares can hold approximately (N-S)*(D/(D+P))*X
+bytes and can withstand P device(s) failing without losing data.
+.It Sy draid[<parity>][:<data>d][:<children>c][:<spares>s]
+A non-default dRAID configuration can be specified by appending one or more
+of the following optional arguments to the
+.Sy draid
+keyword.
+.Pp
+.Em parity
+- The parity level (1-3).
+.Pp
+.Em data
+- The number of data devices per redundancy group.
+In general a smaller value of D will increase IOPS, improve the compression ratio, and speed up resilvering at the expense of total usable capacity.
+Defaults to 8, unless N-P-S is less than 8.
+.Pp
+.Em children
+- The expected number of children.
+Useful as a cross-check when listing a large number of devices.
+An error is returned when the provided number of children differs.
+.Pp
+.Em spares
+- The number of distributed hot spares.
+Defaults to zero.
+.Pp
+.Pp
 .It Sy spare
 A pseudo-vdev which keeps track of available hot spares for a pool.
 For more information, see the
@@ -272,6 +336,14 @@ An in-progress spare replacement can be cancelled by detaching the hot spare.
 If the original faulted device is detached, then the hot spare assumes its
 place in the configuration, and is removed from the spare list of all active
 pools.
+.Pp
+The
+.Sy draid
+vdev type provides distributed hot spares.
+These hot spares are named after the dRAID vdev they're a part of (
+.Qq draid1-2-3 specifies spare 3 of vdev 2, which is a single parity dRAID
+) and may only be used by that dRAID vdev.
+Otherwise, they behave the same as normal hot spares.
 .Pp
 Spares cannot replace log devices.
 .Ss Intent Log
