@@ -94,7 +94,11 @@ do {								\
 	zfs_exit_fs(zfsvfs);					\
 	rrm_exit(&(zfsvfs)->z_teardown_lock, FTAG);		\
 } while (0)
-#define	ZPL_EXIT(zfsvfs)	ZFS_EXIT(zfsvfs)
+
+#define	ZPL_EXIT(zfsvfs)					\
+do {								\
+	rrm_exit(&(zfsvfs)->z_teardown_lock, FTAG);		\
+} while (0)
 
 /* Verifies the znode is valid. */
 #define	ZFS_VERIFY_ZP_ERROR(zp, error)				\

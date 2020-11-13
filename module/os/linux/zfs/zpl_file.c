@@ -673,10 +673,10 @@ zpl_writepages(struct address_space *mapping, struct writeback_control *wbc)
 	enum writeback_sync_modes sync_mode;
 	int result;
 
-	ZFS_ENTER(zfsvfs);
+	ZPL_ENTER(zfsvfs);
 	if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		wbc->sync_mode = WB_SYNC_ALL;
-	ZFS_EXIT(zfsvfs);
+	ZPL_EXIT(zfsvfs);
 	sync_mode = wbc->sync_mode;
 
 	/*
@@ -689,11 +689,11 @@ zpl_writepages(struct address_space *mapping, struct writeback_control *wbc)
 	wbc->sync_mode = WB_SYNC_NONE;
 	result = write_cache_pages(mapping, wbc, zpl_putpage, mapping);
 	if (sync_mode != wbc->sync_mode) {
-		ZFS_ENTER(zfsvfs);
-		ZFS_VERIFY_ZP(zp);
+		ZPL_ENTER(zfsvfs);
+		ZPL_VERIFY_ZP(zp);
 		if (zfsvfs->z_log != NULL)
 			zil_commit(zfsvfs->z_log, zp->z_id);
-		ZFS_EXIT(zfsvfs);
+		ZPL_EXIT(zfsvfs);
 
 		/*
 		 * We need to call write_cache_pages() again (we can't just

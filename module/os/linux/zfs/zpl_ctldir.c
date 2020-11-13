@@ -55,7 +55,7 @@ zpl_root_iterate(struct file *filp, zpl_dir_context_t *ctx)
 	zfsvfs_t *zfsvfs = ITOZSB(file_inode(filp));
 	int error = 0;
 
-	ZFS_ENTER(zfsvfs);
+	ZPL_ENTER(zfsvfs);
 
 	if (!zpl_dir_emit_dots(filp, ctx))
 		goto out;
@@ -76,7 +76,7 @@ zpl_root_iterate(struct file *filp, zpl_dir_context_t *ctx)
 		ctx->pos++;
 	}
 out:
-	ZFS_EXIT(zfsvfs);
+	ZPL_EXIT(zfsvfs);
 
 	return (error);
 }
@@ -242,7 +242,7 @@ zpl_snapdir_iterate(struct file *filp, zpl_dir_context_t *ctx)
 	uint64_t id, pos;
 	int error = 0;
 
-	ZFS_ENTER(zfsvfs);
+	ZPL_ENTER(zfsvfs);
 	cookie = spl_fstrans_mark();
 
 	if (!zpl_dir_emit_dots(filp, ctx))
@@ -266,7 +266,7 @@ zpl_snapdir_iterate(struct file *filp, zpl_dir_context_t *ctx)
 	}
 out:
 	spl_fstrans_unmark(cookie);
-	ZFS_EXIT(zfsvfs);
+	ZPL_EXIT(zfsvfs);
 
 	if (error == -ENOENT)
 		return (0);
@@ -369,13 +369,13 @@ zpl_snapdir_getattr_impl(const struct path *path, struct kstat *stat,
 	struct inode *ip = path->dentry->d_inode;
 	zfsvfs_t *zfsvfs = ITOZSB(ip);
 
-	ZFS_ENTER(zfsvfs);
+	ZPL_ENTER(zfsvfs);
 	generic_fillattr(ip, stat);
 
 	stat->nlink = stat->size = 2;
 	stat->ctime = stat->mtime = dmu_objset_snap_cmtime(zfsvfs->z_os);
 	stat->atime = current_time(ip);
-	ZFS_EXIT(zfsvfs);
+	ZPL_EXIT(zfsvfs);
 
 	return (0);
 }
@@ -453,7 +453,7 @@ zpl_shares_iterate(struct file *filp, zpl_dir_context_t *ctx)
 	znode_t *dzp;
 	int error = 0;
 
-	ZFS_ENTER(zfsvfs);
+	ZPL_ENTER(zfsvfs);
 	cookie = spl_fstrans_mark();
 
 	if (zfsvfs->z_shares_dir == 0) {
@@ -472,7 +472,7 @@ zpl_shares_iterate(struct file *filp, zpl_dir_context_t *ctx)
 	iput(ZTOI(dzp));
 out:
 	spl_fstrans_unmark(cookie);
-	ZFS_EXIT(zfsvfs);
+	ZPL_EXIT(zfsvfs);
 	ASSERT3S(error, <=, 0);
 
 	return (error);
@@ -503,13 +503,13 @@ zpl_shares_getattr_impl(const struct path *path, struct kstat *stat,
 	znode_t *dzp;
 	int error;
 
-	ZFS_ENTER(zfsvfs);
+	ZPL_ENTER(zfsvfs);
 
 	if (zfsvfs->z_shares_dir == 0) {
 		generic_fillattr(path->dentry->d_inode, stat);
 		stat->nlink = stat->size = 2;
 		stat->atime = current_time(ip);
-		ZFS_EXIT(zfsvfs);
+		ZPL_EXIT(zfsvfs);
 		return (0);
 	}
 
@@ -519,7 +519,7 @@ zpl_shares_getattr_impl(const struct path *path, struct kstat *stat,
 		iput(ZTOI(dzp));
 	}
 
-	ZFS_EXIT(zfsvfs);
+	ZPL_EXIT(zfsvfs);
 	ASSERT3S(error, <=, 0);
 
 	return (error);
