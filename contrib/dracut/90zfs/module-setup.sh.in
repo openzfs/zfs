@@ -85,7 +85,13 @@ install() {
 	fi
 
 	# Synchronize initramfs and system hostid
-	zgenhostid -o "${initdir}/etc/hostid" "$(hostid)"
+	if [ -f @sysconfdir@/hostid ]; then
+		inst @sysconfdir@/hostid
+		type mark_hostonly >/dev/null 2>&1 && mark_hostonly @sysconfdir@/hostid
+	elif HOSTID="$(hostid 2>/dev/null)" && [ "${HOSTID}" != "00000000" ]; then
+		zgenhostid -o "${initdir}@sysconfdir@/hostid" "${HOSTID}"
+		type mark_hostonly >/dev/null 2>&1 && mark_hostonly @sysconfdir@/hostid
+	fi
 
 	if dracut_module_included "systemd"; then
 		mkdir -p "${initdir}/$systemdsystemunitdir/zfs-import.target.wants"
