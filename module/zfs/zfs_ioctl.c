@@ -231,6 +231,13 @@ zfsdev_state_t *zfsdev_state_list;
  */
 unsigned long zfs_max_nvlist_src_size = 0;
 
+/*
+ * When logging the output nvlist of an ioctl in the on-disk history, limit
+ * the logged size to this many bytes.  This must be less then DMU_MAX_ACCESS.
+ * This applies primarily to zfs_ioc_channel_program().
+ */
+unsigned long zfs_history_output_max = 1024 * 1024;
+
 uint_t zfs_fsyncer_key;
 uint_t zfs_allow_log_key;
 
@@ -7517,8 +7524,14 @@ zfsdev_ioctl_common(uint_t vecnum, zfs_cmd_t *zc, int flag)
 		    vec->zvec_allow_log &&
 		    spa_open(zc->zc_name, &spa, FTAG) == 0) {
 			if (!nvlist_empty(outnvl)) {
-				fnvlist_add_nvlist(lognv, ZPOOL_HIST_OUTPUT_NVL,
-				    outnvl);
+				size_t out_size = fnvlist_size(outnvl);
+				if (out_size > zfs_history_output_max) {
+					fnvlist_add_int64(lognv,
+					    ZPOOL_HIST_OUTPUT_SIZE, out_size);
+				} else {
+					fnvlist_add_nvlist(lognv,
+					    ZPOOL_HIST_OUTPUT_NVL, outnvl);
+				}
 			}
 			if (error != 0) {
 				fnvlist_add_int64(lognv, ZPOOL_HIST_ERRNO,
@@ -7627,4 +7640,7 @@ zfs_kmod_fini(void)
 /* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs, zfs_, max_nvlist_src_size, ULONG, ZMOD_RW,
     "Maximum size in bytes allowed for src nvlist passed with ZFS ioctls");
+
+ZFS_MODULE_PARAM(zfs, zfs_, history_output_max, ULONG, ZMOD_RW,
+    "Maximum size in bytes of ZFS ioctl output that will be logged");
 /* END CSTYLED */

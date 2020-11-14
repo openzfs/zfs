@@ -1452,6 +1452,7 @@ typedef enum {
 #define	ZPOOL_HIST_IOCTL	"ioctl"
 #define	ZPOOL_HIST_INPUT_NVL	"in_nvl"
 #define	ZPOOL_HIST_OUTPUT_NVL	"out_nvl"
+#define	ZPOOL_HIST_OUTPUT_SIZE	"out_size"
 #define	ZPOOL_HIST_DSNAME	"dsname"
 #define	ZPOOL_HIST_DSID		"dsid"
 #define	ZPOOL_HIST_ERRNO	"errno"
