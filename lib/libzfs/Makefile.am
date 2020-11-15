@@ -1,4 +1,5 @@
 include $(top_srcdir)/config/Rules.am
+PHONY =
 
 VPATH = \
 	$(top_srcdir)/module/icp \
@@ -12,6 +13,8 @@ AM_CFLAGS += $(LIBCRYPTO_CFLAGS) $(ZLIB_CFLAGS)
 pkgconfig_DATA = libzfs.pc
 
 lib_LTLIBRARIES = libzfs.la
+
+include $(top_srcdir)/config/Abigail.am
 
 USER_C = \
 	libzfs_changelist.c \

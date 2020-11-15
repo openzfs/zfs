@@ -15,4 +15,17 @@ SUBDIRS += libzutil libunicode
 
 # These five libraries, which are installed as the final build product,
 # incorporate the eight convenience libraries given above.
-SUBDIRS += libuutil libzfs_core libzfs libzpool libzfsbootenv
+DISTLIBS = libuutil libzfs_core libzfs libzpool libzfsbootenv
+SUBDIRS += $(DISTLIBS)
+DISTLIBS += libnvpair
+
+PHONY = checkabi storeabi
+checkabi: $(DISTLIBS)
+	set -e ; for dir in $(DISTLIBS) ; do \
+		$(MAKE) -C $$dir checkabi ; \
+	done
+
+storeabi: $(DISTLIBS)
+	set -e ; for dir in $(DISTLIBS) ; do \
+		$(MAKE) -C $$dir storeabi ; \
+	done

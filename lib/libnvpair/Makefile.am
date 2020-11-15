@@ -1,4 +1,5 @@
 include $(top_srcdir)/config/Rules.am
+PHONY =
 
 VPATH = \
 	$(top_srcdir)/module/nvpair \
@@ -9,6 +10,8 @@ VPATH = \
 AM_CFLAGS += $(FRAME_LARGER_THAN) $(LIBTIRPC_CFLAGS)
 
 lib_LTLIBRARIES = libnvpair.la
+
+include $(top_srcdir)/config/Abigail.am
 
 USER_C = \
 	libnvpair.c \
