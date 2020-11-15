@@ -1,8 +1,11 @@
 include $(top_srcdir)/config/Rules.am
+PHONY =
 
 pkgconfig_DATA = libzfsbootenv.pc
 
 lib_LTLIBRARIES = libzfsbootenv.la
+
+include $(top_srcdir)/config/Abigail.am
 
 if BUILD_FREEBSD
 DEFAULT_INCLUDES += -I$(top_srcdir)/include/os/freebsd/zfs

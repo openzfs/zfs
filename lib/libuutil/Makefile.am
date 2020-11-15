@@ -1,6 +1,9 @@
 include $(top_srcdir)/config/Rules.am
+PHONY =
 
 lib_LTLIBRARIES = libuutil.la
+
+include $(top_srcdir)/config/Abigail.am
 
 USER_C = \
 	uu_alloc.c \
