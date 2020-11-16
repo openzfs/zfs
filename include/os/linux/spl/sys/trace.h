@@ -77,6 +77,13 @@
 #define	DTRACE_PROBE4(name, t1, arg1, t2, arg2, t3, arg3, t4, arg4) \
 	trace_zfs_##name((arg1), (arg2), (arg3), (arg4))
 
+#define	DTRACE_PROBE5(name, t1, arg1, t2, arg2, t3, arg3, t4, arg4, t5, arg5) \
+	trace_zfs_##name((arg1), (arg2), (arg3), (arg4), (arg5))
+
+#define	DTRACE_PROBE6(name, t1, arg1, t2, arg2, t3, arg3, t4, arg4, t5, arg5, \
+	    t6, arg6) \
+	trace_zfs_##name((arg1), (arg2), (arg3), (arg4), (arg5), (arg6))
+
 #endif /* _TRACE_ZFS_H */
 
 #undef TRACE_INCLUDE_PATH
@@ -116,6 +123,12 @@
 #define	PROTO_DTRACE_PROBE4(name)				\
 	noinline void trace_zfs_##name(uintptr_t, uintptr_t,	\
 	uintptr_t, uintptr_t)
+#define	PROTO_DTRACE_PROBE5(name)				\
+	noinline void trace_zfs_##name(uintptr_t, uintptr_t,	\
+	uintptr_t, uintptr_t, uintptr_t)
+#define	PROTO_DTRACE_PROBE6(name)				\
+	noinline void trace_zfs_##name(uintptr_t, uintptr_t,	\
+	uintptr_t, uintptr_t, uintptr_t, uintptr_t)
 
 #if defined(CREATE_TRACE_POINTS)
 
@@ -147,6 +160,18 @@ noinline void trace_zfs_##name(uintptr_t arg1,			\
     uintptr_t arg2, uintptr_t arg3, uintptr_t arg4) { }		\
 EXPORT_SYMBOL(trace_zfs_##name)
 
+#define	FUNC_DTRACE_PROBE5(name)				\
+noinline void trace_zfs_##name(uintptr_t arg1,			\
+    uintptr_t arg2, uintptr_t arg3, uintptr_t arg4,		\
+    uintptr_t arg5) { }						\
+EXPORT_SYMBOL(trace_zfs_##name)
+
+#define	FUNC_DTRACE_PROBE6(name)				\
+noinline void trace_zfs_##name(uintptr_t arg1,			\
+    uintptr_t arg2, uintptr_t arg3, uintptr_t arg4,		\
+    uintptr_t arg5, uintptr_t arg6) { }				\
+EXPORT_SYMBOL(trace_zfs_##name)
+
 #undef	DEFINE_DTRACE_PROBE
 #define	DEFINE_DTRACE_PROBE(name)	FUNC_DTRACE_PROBE(name)
 
@@ -162,6 +187,12 @@ EXPORT_SYMBOL(trace_zfs_##name)
 #undef	DEFINE_DTRACE_PROBE4
 #define	DEFINE_DTRACE_PROBE4(name)	FUNC_DTRACE_PROBE4(name)
 
+#undef	DEFINE_DTRACE_PROBE5
+#define	DEFINE_DTRACE_PROBE5(name)	FUNC_DTRACE_PROBE5(name)
+
+#undef	DEFINE_DTRACE_PROBE6
+#define	DEFINE_DTRACE_PROBE6(name)	FUNC_DTRACE_PROBE6(name)
+
 #else /* CREATE_TRACE_POINTS */
 
 #define	DEFINE_DTRACE_PROBE(name)	PROTO_DTRACE_PROBE(name)
@@ -169,6 +200,8 @@ EXPORT_SYMBOL(trace_zfs_##name)
 #define	DEFINE_DTRACE_PROBE2(name)	PROTO_DTRACE_PROBE2(name)
 #define	DEFINE_DTRACE_PROBE3(name)	PROTO_DTRACE_PROBE3(name)
 #define	DEFINE_DTRACE_PROBE4(name)	PROTO_DTRACE_PROBE4(name)
+#define	DEFINE_DTRACE_PROBE5(name)	PROTO_DTRACE_PROBE5(name)
+#define	DEFINE_DTRACE_PROBE6(name)	PROTO_DTRACE_PROBE6(name)
 
 #endif /* CREATE_TRACE_POINTS */
 #endif /* HAVE_DECLARE_EVENT_CLASS */

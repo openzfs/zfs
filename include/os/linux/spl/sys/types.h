@@ -54,4 +54,6 @@ typedef ulong_t			pgcnt_t;
 typedef int			major_t;
 typedef int			minor_t;
 
+typedef int		zoneid_t;
+typedef u_longlong_t 	rctl_qty_t; /* resource control numerical values */
 #endif	/* _SPL_TYPES_H */

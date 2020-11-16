@@ -309,6 +309,7 @@
 #include <cityhash.h>
 #include <sys/vdev_trim.h>
 #include <sys/zstd/zstd.h>
+#include <sys/zfs_zone.h>
 
 #ifndef _KERNEL
 /* set with ZFS_DEBUG=watch, to enable watchpoints on frozen buffers */
@@ -6437,6 +6438,15 @@ top:
 
 		if (hash_lock != NULL)
 			mutex_exit(hash_lock);
+
+		/*
+		 * At this point, this read I/O has already missed in the ARC
+		 * and will be going through to the disk.  The I/O throttle
+		 * should delay this I/O if this zone is using more than its I/O
+		 * priority allows.
+		 */
+		zfs_zone_io_throttle(ZFS_ZONE_IOP_READ);
+
 
 		if (*arc_flags & ARC_FLAG_WAIT) {
 			rc = zio_wait(rzio);

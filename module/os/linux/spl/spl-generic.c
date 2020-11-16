@@ -48,6 +48,7 @@
 #include <linux/mod_compat.h>
 #include <sys/cred.h>
 #include <sys/vnode.h>
+#include <sys/zone.h>
 
 char spl_gitrev[64] = ZFS_META_GITREV;
 
@@ -803,8 +804,13 @@ spl_init(void)
 	if ((rc = spl_zlib_init()))
 		goto out7;
 
+	if ((rc = spl_zone_init()))
+		goto out8;
+
 	return (rc);
 
+out8:
+	spl_zlib_fini();
 out7:
 	spl_kstat_fini();
 out6:
@@ -824,6 +830,7 @@ out1:
 static void __exit
 spl_fini(void)
 {
+	spl_zone_fini();
 	spl_zlib_fini();
 	spl_kstat_fini();
 	spl_proc_fini();

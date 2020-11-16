@@ -38,6 +38,7 @@
 #include <sys/spa_impl.h>
 #include <sys/kstat.h>
 #include <sys/abd.h>
+#include <sys/zfs_zone.h>
 
 /*
  * ZFS I/O Scheduler
@@ -422,6 +423,8 @@ vdev_queue_init(vdev_t *vd)
 	    vdev_queue_offset_compare, sizeof (zio_t),
 	    offsetof(struct zio, io_offset_node));
 
+	vq->vq_last_zone_id = 0;
+
 	for (p = 0; p < ZIO_PRIORITY_NUM_QUEUEABLE; p++) {
 		int (*compfn) (const void *, const void *);
 
@@ -466,6 +469,7 @@ vdev_queue_io_add(vdev_queue_t *vq, zio_t *zio)
 	spa_history_kstat_t *shk = &spa->spa_stats.io_history;
 
 	ASSERT3U(zio->io_priority, <, ZIO_PRIORITY_NUM_QUEUEABLE);
+	zfs_zone_zio_enqueue(zio);
 	avl_add(vdev_queue_class_tree(vq, zio->io_priority), zio);
 	avl_add(vdev_queue_type_tree(vq, zio->io_type), zio);
 
@@ -483,6 +487,7 @@ vdev_queue_io_remove(vdev_queue_t *vq, zio_t *zio)
 	spa_history_kstat_t *shk = &spa->spa_stats.io_history;
 
 	ASSERT3U(zio->io_priority, <, ZIO_PRIORITY_NUM_QUEUEABLE);
+	zfs_zone_zio_dequeue(zio);
 	avl_remove(vdev_queue_class_tree(vq, zio->io_priority), zio);
 	avl_remove(vdev_queue_type_tree(vq, zio->io_type), zio);
 
@@ -807,7 +812,11 @@ again:
 	vq->vq_io_search.io_timestamp = 0;
 	vq->vq_io_search.io_offset = vq->vq_last_offset - 1;
 	VERIFY3P(avl_find(tree, &vq->vq_io_search, &idx), ==, NULL);
+#ifdef _KERNEL
+	zio = zfs_zone_schedule(vq, p, idx, tree);
+#else
 	zio = avl_nearest(tree, idx, AVL_AFTER);
+#endif
 	if (zio == NULL)
 		zio = avl_first(tree);
 	ASSERT3U(zio->io_priority, ==, p);
@@ -965,9 +974,11 @@ vdev_queue_change_io_priority(zio_t *zio, zio_priority_t priority)
 	 */
 	tree = vdev_queue_class_tree(vq, zio->io_priority);
 	if (avl_find(tree, zio, NULL) == zio) {
+		zfs_zone_zio_dequeue(zio);
 		avl_remove(vdev_queue_class_tree(vq, zio->io_priority), zio);
 		zio->io_priority = priority;
 		avl_add(vdev_queue_class_tree(vq, zio->io_priority), zio);
+		zfs_zone_zio_enqueue(zio);
 	} else if (avl_find(&vq->vq_active_tree, zio, NULL) != zio) {
 		zio->io_priority = priority;
 	}

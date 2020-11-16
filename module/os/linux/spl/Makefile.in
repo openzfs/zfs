@@ -15,3 +15,4 @@ $(MODULE)-objs += ../os/linux/spl/spl-tsd.o
 $(MODULE)-objs += ../os/linux/spl/spl-vmem.o
 $(MODULE)-objs += ../os/linux/spl/spl-xdr.o
 $(MODULE)-objs += ../os/linux/spl/spl-zlib.o
+$(MODULE)-objs += ../os/linux/spl/spl-zone.o

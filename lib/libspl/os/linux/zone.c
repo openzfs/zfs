@@ -23,10 +23,24 @@
  * Use is subject to license terms.
  */
 
+#include <stdio.h>
+#include <stdlib.h>
 #include <zone.h>
 
 zoneid_t
 getzoneid()
 {
-	return (GLOBAL_ZONEID);
+	FILE *fptr;
+	int len;
+	zoneid_t zone_id;
+	if ((fptr = fopen("/proc/spl/curzone", "r")) == NULL) {
+		return GLOBAL_ZONEID;
+	}
+
+	len = fscanf(fptr, "%d\n", &zone_id);
+	fclose(fptr);
+
+	if (!len || (len < 0))
+		return GLOBAL_ZONEID;
+	return zone_id;
 }

@@ -172,6 +172,11 @@
  *	return (error);			// done, report error
  */
 
+#define	VOP_LATENCY_10MS	10000000
+#define	VOP_LATENCY_100MS	100000000
+#define	VOP_LATENCY_1S		1000000000
+#define	VOP_LATENCY_10S		10000000000
+
 /*
  * Virus scanning is unsupported.  It would be possible to add a hook
  * here to performance the required virus scan.  This could be done

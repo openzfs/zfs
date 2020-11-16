@@ -24,9 +24,11 @@
 #ifndef _SPL_PROC_H
 #define	_SPL_PROC_H
 
+#include <sys/types.h>
 #include <linux/proc_fs.h>
 #include <linux/sched.h>
 
+extern struct proc_dir_entry *proc_spl;
 extern struct proc_dir_entry *proc_spl_kstat;
 
 int spl_proc_init(void);

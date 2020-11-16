@@ -46,7 +46,7 @@ static unsigned long table_min = 0;
 static unsigned long table_max = ~0;
 
 static struct ctl_table_header *spl_header = NULL;
-static struct proc_dir_entry *proc_spl = NULL;
+struct proc_dir_entry *proc_spl = NULL;
 static struct proc_dir_entry *proc_spl_kmem = NULL;
 static struct proc_dir_entry *proc_spl_kmem_slab = NULL;
 static struct proc_dir_entry *proc_spl_taskq_all = NULL;

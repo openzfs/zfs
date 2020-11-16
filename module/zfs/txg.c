@@ -34,6 +34,7 @@
 #include <sys/zil.h>
 #include <sys/callb.h>
 #include <sys/trace_zfs.h>
+#include <sys/zfs_zone.h>
 
 /*
  * ZFS Transaction Groups
@@ -566,6 +567,8 @@ txg_sync_thread(void *arg)
 		dprintf("txg=%llu quiesce_txg=%llu sync_txg=%llu\n",
 		    txg, tx->tx_quiesce_txg_waiting, tx->tx_sync_txg_waiting);
 		mutex_exit(&tx->tx_sync_lock);
+
+		zfs_zone_report_txg_sync(dp);
 
 		txg_stat_t *ts = spa_txg_history_init_io(spa, txg, dp);
 		start = ddi_get_lbolt();

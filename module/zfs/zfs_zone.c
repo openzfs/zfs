@@ -88,6 +88,9 @@
  * other zones.
  */
 
+#include <sys/zfs_context.h>
+#include <sys/types.h>
+#include <sys/param.h>
 #include <sys/spa.h>
 #include <sys/vdev_impl.h>
 #include <sys/zfs_zone.h>
@@ -135,29 +138,32 @@ zfs_zone_report_txg_sync(void *dp)
 }
 
 hrtime_t
-zfs_zone_txg_delay()
+zfs_zone_txg_delay(void)
 {
 	return (MSEC2NSEC(10));
 }
 
+void zfs_zone_init(void)
+{
+}
+
+void zfs_zone_fini(void)
+{
+}
 #else
 
 /*
  * The real code.
  */
 
-#include <sys/systm.h>
 #include <sys/thread.h>
 #include <sys/proc.h>
-#include <sys/types.h>
 #include <sys/param.h>
 #include <sys/time.h>
 #include <sys/atomic.h>
 #include <sys/zio.h>
 #include <sys/zone.h>
 #include <sys/avl.h>
-#include <sys/sdt.h>
-#include <sys/ddi.h>
 
 /*
  * The zone throttle delays read and write operations from certain zones based
@@ -513,12 +519,12 @@ add_sys_iop(hrtime_t unow, int op, int lat)
 	switch (op) {
 	case ZFS_ZONE_IOP_READ:
 		(void) compute_new_sys_avg(unow, &rd_lat);
-		atomic_inc_uint(&rd_lat.cycle_cnt);
+		atomic_inc_32(&rd_lat.cycle_cnt);
 		atomic_add_64((uint64_t *)&rd_lat.cycle_lat, (int64_t)lat);
 		break;
 	case ZFS_ZONE_IOP_WRITE:
 		(void) compute_new_sys_avg(unow, &wr_lat);
-		atomic_inc_uint(&wr_lat.cycle_cnt);
+		atomic_inc_32(&wr_lat.cycle_cnt);
 		atomic_add_64((uint64_t *)&wr_lat.cycle_lat, (int64_t)lat);
 		break;
 	}
@@ -571,10 +577,10 @@ calc_avg_lat(hrtime_t unow, sys_lat_cycle_t *cp)
 		 * We're within a cycle; weight the current activity higher
 		 * compared to the historical data and use that.
 		 */
-		DTRACE_PROBE3(zfs__zone__calc__wt__avg,
-		    uintptr_t, cp->sys_avg_lat,
-		    uintptr_t, cp->cycle_lat,
-		    uintptr_t, cp->cycle_cnt);
+		//DTRACE_PROBE3(zfs__zone__calc__wt__avg,
+		//    uintptr_t, cp->sys_avg_lat,
+		//    uintptr_t, cp->cycle_lat,
+		//    uintptr_t, cp->cycle_cnt);
 
 		return ((cp->sys_avg_lat + (cp->cycle_lat * 8)) /
 		    (1 + (cp->cycle_cnt * 8)));
@@ -612,8 +618,8 @@ get_zone_io_cnt(hrtime_t unow, zone_zfs_io_t *zpd, uint_t *rops, uint_t *wops,
 	*wops = calc_zone_cnt(unow, &zpd->zpers_wr_ops);
 	*lwops = calc_zone_cnt(unow, &zpd->zpers_lwr_ops);
 
-	DTRACE_PROBE4(zfs__zone__io__cnt, uintptr_t, zpd,
-	    uintptr_t, *rops, uintptr_t, *wops, uintptr_t, *lwops);
+	//DTRACE_PROBE4(zfs__zone__io__cnt, uintptr_t, zpd,
+	//    uintptr_t, *rops, uintptr_t, *wops, uintptr_t, *lwops);
 
 	return (*rops | *wops | *lwops);
 }
@@ -638,8 +644,8 @@ get_sys_avg_lat(hrtime_t unow, uint_t *rlat, uint_t *wlat)
 	if (*wlat == 0)
 		*wlat = 1000;
 
-	DTRACE_PROBE2(zfs__zone__sys__avg__lat, uintptr_t, *rlat,
-	    uintptr_t, *wlat);
+	//DTRACE_PROBE2(zfs__zone__sys__avg__lat, uintptr_t, *rlat,
+	//    uintptr_t, *wlat);
 }
 
 /*
@@ -682,9 +688,9 @@ zfs_zone_wait_adjust_calculate_cb(zone_t *zonep, void *arg)
 	 *	arg4: calculated utilization given read and write ops
 	 *	arg5: I/O priority assigned to this zone
 	 */
-	DTRACE_PROBE6(zfs__zone__utilization, uint_t, zonep->zone_id,
-	    uint_t, rops, uint_t, wops, uint_t, lwops,
-	    uint64_t, iop->zpers_io_util, uint16_t, iop->zpers_zfs_io_pri);
+	//DTRACE_PROBE6(zfs__zone__utilization, uint_t, zonep->zone_id,
+	//    uint_t, rops, uint_t, wops, uint_t, lwops,
+	//    uint64_t, iop->zpers_io_util, uint16_t, iop->zpers_zfs_io_pri);
 
 	mutex_exit(&zpd->zpers_zfs_lock);
 
@@ -762,9 +768,9 @@ zfs_zone_wait_adjust_delay_cb(zone_t *zonep, void *arg)
 	 *	arg3: calculated fair I/O utilization
 	 *	arg4: actual I/O utilization
 	 */
-	DTRACE_PROBE5(zfs__zone__throttle, uintptr_t, zonep->zone_id,
-	    uintptr_t, delay, uintptr_t, iop->zpers_io_delay,
-	    uintptr_t, fairutil, uintptr_t, iop->zpers_io_util);
+	//DTRACE_PROBE5(zfs__zone__throttle, uintptr_t, zonep->zone_id,
+	//    uintptr_t, delay, uintptr_t, iop->zpers_io_delay,
+	//    uintptr_t, fairutil, uintptr_t, iop->zpers_io_util);
 
 	mutex_exit(&zpd->zpers_zfs_lock);
 
@@ -835,10 +841,10 @@ zfs_zone_wait_adjust(hrtime_t unow, hrtime_t last_checked)
 	 *	arg4: total I/O priority of all active zones
 	 *	arg5: calculated disk utilization
 	 */
-	DTRACE_PROBE6(zfs__zone__stats, uintptr_t, stats.zi_avgrlat,
-	    uintptr_t, stats.zi_avgwlat, uintptr_t, stats.zi_active,
-	    uintptr_t, stats.zi_totutil, uintptr_t, stats.zi_totpri,
-	    uintptr_t, stats.zi_diskutil);
+	//DTRACE_PROBE6(zfs__zone__stats, uintptr_t, stats.zi_avgrlat,
+	//    uintptr_t, stats.zi_avgwlat, uintptr_t, stats.zi_active,
+	//    uintptr_t, stats.zi_totutil, uintptr_t, stats.zi_totpri,
+	//    uintptr_t, stats.zi_diskutil);
 
 	(void) zone_walk(zfs_zone_wait_adjust_delay_cb, &stats);
 }
@@ -975,8 +981,8 @@ get_next_zio(vdev_queue_class_t *vqc, int qdepth, zio_priority_t p,
 		 * Only fire the probe if we actually picked a different zio
 		 * than the one already at the head of the queue.
 		 */
-		DTRACE_PROBE4(zfs__zone__sched__bump, uint_t, zp->io_zoneid,
-		    uint_t, cnt, int, qbump.zq_priority, int, qbump.zq_wt);
+		//DTRACE_PROBE4(zfs__zone__sched__bump, uint_t, zp->io_zoneid,
+		//    uint_t, cnt, int, qbump.zq_priority, int, qbump.zq_wt);
 	}
 
 	return (zp);
@@ -1122,8 +1128,8 @@ zfs_zone_io_throttle(zfs_zone_iop_type_t type)
 		 *	arg1: type of IO operation
 		 *	arg2: time to delay (in us)
 		 */
-		DTRACE_PROBE3(zfs__zone__wait, uintptr_t, zid,
-		    uintptr_t, type, uintptr_t, wait);
+		//DTRACE_PROBE3(zfs__zone__wait, uintptr_t, zid,
+		//    uintptr_t, type, uintptr_t, wait);
 
 		drv_usecwait(wait);
 
@@ -1170,7 +1176,7 @@ zfs_zone_report_txg_sync(void *dp)
 }
 
 hrtime_t
-zfs_zone_txg_delay()
+zfs_zone_txg_delay(void)
 {
 	zone_persist_t *zpd = &zone_pdata[curzone->zone_id];
 	zone_zfs_io_t *iop;
@@ -1298,8 +1304,8 @@ zfs_zone_zio_done(zio_t *zp)
 	 *	arg1: type of I/O operation
 	 *	arg2: I/O latency (in us)
 	 */
-	DTRACE_PROBE3(zfs__zone__latency, uintptr_t, zp->io_zoneid,
-	    uintptr_t, zp->io_type, uintptr_t, udelta);
+	//DTRACE_PROBE3(zfs__zone__latency, uintptr_t, zp->io_zoneid,
+	//    uintptr_t, zp->io_type, uintptr_t, udelta);
 }
 
 void
@@ -1410,10 +1416,21 @@ zfs_zone_schedule(vdev_queue_t *vq, zio_priority_t p, avl_index_t idx,
 	 * was last scheduled off this queue, the zone that was associated
 	 * with the next IO that is scheduled, and which queue (priority).
 	 */
-	DTRACE_PROBE4(zfs__zone__sched, uint_t, cnt, uint_t, last_zone,
-	    uint_t, zio->io_zoneid, uint_t, p);
+	//DTRACE_PROBE4(zfs__zone__sched, uint_t, cnt, uint_t, last_zone,
+	//    uint_t, zio->io_zoneid, uint_t, p);
 
 	return (zio);
 }
 
+void zfs_zone_init(void)
+{
+	mutex_init(&zfs_disk_lock, NULL, MUTEX_DEFAULT, NULL);
+	mutex_init(&zfs_last_check_lock, NULL, MUTEX_DEFAULT, NULL);
+}
+
+void zfs_zone_fini(void)
+{
+	mutex_destroy(&zfs_disk_lock);
+	mutex_destroy(&zfs_last_check_lock);
+}
 #endif

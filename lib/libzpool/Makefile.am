@@ -166,6 +166,7 @@ KERNEL_C = \
 	zfs_fuid.c \
 	zfs_sa.c \
 	zfs_znode.c \
+	zfs_zone.c \
 	zfs_ratelimit.c \
 	zfs_rlock.c \
 	zil.c \

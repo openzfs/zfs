@@ -362,4 +362,5 @@ struct file_system_type zpl_fs_type = {
 	.name			= ZFS_DRIVER,
 	.mount			= zpl_mount,
 	.kill_sb		= zpl_kill_sb,
+	.fs_flags		= FS_USERNS_MOUNT,
 };

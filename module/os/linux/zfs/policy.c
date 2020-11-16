@@ -243,7 +243,7 @@ secpolicy_zinject(const cred_t *cr)
 int
 secpolicy_zfs(const cred_t *cr)
 {
-	return (priv_policy(cr, CAP_SYS_ADMIN, EACCES));
+	return (priv_policy_user(cr, CAP_SYS_ADMIN, EACCES));
 }
 
 /*

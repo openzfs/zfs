@@ -770,6 +770,14 @@ extern int kmem_cache_reap_active(void);
 
 #endif  /* _KERNEL || _STANDALONE */
 
+static inline void
+drv_usecwait(clock_t usecs)
+{
+	delay((unsigned long)usecs);
+}
+#define		_SYS_NMLN		257		/* system name length */
+#define		HW_INVALID_HOSTID	0xFFFFFFFF	/* an invalid hostid */
+
 #ifdef __cplusplus
 };
 #endif

@@ -34,6 +34,8 @@
 #include <sys/abd.h>
 #include <sys/fs/zfs.h>
 #include <sys/zio.h>
+#include <sys/zfs_zone.h>
+#include <sys/zfs_zone.h>
 #include <linux/blkpg.h>
 #include <linux/msdos_fs.h>
 #include <linux/vfs_compat.h>
@@ -772,6 +774,8 @@ vdev_disk_io_start(zio_t *zio)
 	    zio->io_size, zio->io_offset, rw, 0);
 	rw_exit(&vd->vd_lock);
 
+	zfs_zone_zio_start(zio);
+
 	if (error) {
 		zio->io_error = error;
 		zio_interrupt(zio);
@@ -782,6 +786,8 @@ vdev_disk_io_start(zio_t *zio)
 static void
 vdev_disk_io_done(zio_t *zio)
 {
+	zfs_zone_zio_done(zio);
+
 	/*
 	 * If the device returned EIO, we revalidate the media.  If it is
 	 * determined the media has changed this triggers the asynchronous

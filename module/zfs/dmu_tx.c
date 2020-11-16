@@ -38,6 +38,7 @@
 #include <sys/sa_impl.h>
 #include <sys/zfs_context.h>
 #include <sys/trace_zfs.h>
+#include <sys/zfs_zone.h>
 
 typedef void (*dmu_tx_hold_func_t)(dmu_tx_t *tx, struct dnode *dn,
     uint64_t arg1, uint64_t arg2);
@@ -227,6 +228,8 @@ dmu_tx_count_write(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 
 	if (len == 0)
 		return;
+
+	zfs_zone_io_throttle(ZFS_ZONE_IOP_LOGICAL_WRITE);
 
 	(void) zfs_refcount_add_many(&txh->txh_space_towrite, len, FTAG);
 

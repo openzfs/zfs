@@ -50,6 +50,7 @@
 #include <sys/zfs_znode.h>
 #include <sys/zvol.h>
 #include <sys/zthr.h>
+#include <sys/zfs_zone.h>
 #include "zfs_namecheck.h"
 #include "zfs_prop.h"
 
@@ -1424,7 +1425,7 @@ dsl_dir_tempreserve_space(dsl_dir_t *dd, uint64_t lsize, uint64_t asize,
 			 * locks are held.
 			 */
 			txg_delay(dd->dd_pool, tx->tx_txg,
-			    MSEC2NSEC(10), MSEC2NSEC(10));
+			    zfs_zone_txg_delay(), MSEC2NSEC(10));
 			err = SET_ERROR(ERESTART);
 		}
 	}

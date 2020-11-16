@@ -27,7 +27,7 @@
 
 #ifdef _KERNEL
 #include <sys/isa_defs.h>
-#include <sys/types32.h>
+#include <sys/types.h>
 #include <sys/vdev_impl.h>
 #include <sys/zio.h>
 #endif
@@ -42,6 +42,9 @@ typedef enum {
 	ZFS_ZONE_IOP_LOGICAL_WRITE,
 } zfs_zone_iop_type_t;
 
+extern void zfs_zone_init(void);
+extern void zfs_zone_fini(void);
+
 extern void zfs_zone_io_throttle(zfs_zone_iop_type_t);
 
 extern void zfs_zone_zio_init(zio_t *);
@@ -50,7 +53,7 @@ extern void zfs_zone_zio_done(zio_t *);
 extern void zfs_zone_zio_dequeue(zio_t *);
 extern void zfs_zone_zio_enqueue(zio_t *);
 extern void zfs_zone_report_txg_sync(void *);
-extern hrtime_t zfs_zone_txg_delay();
+extern hrtime_t zfs_zone_txg_delay(void);
 #ifdef _KERNEL
 extern zio_t *zfs_zone_schedule(vdev_queue_t *, zio_priority_t, avl_index_t,
     avl_tree_t *);
