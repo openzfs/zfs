@@ -32,7 +32,7 @@ of the error codes to the exceptions by interpreting a context
 in which the error code is produced.
 
 To submit an issue or contribute to development of this package
-please visit its `GitHub repository <https://github.com/zfsonlinux/zfs>`_.
+please visit its `GitHub repository <https://github.com/openzfs/zfs>`_.
 
 .. data:: MAXNAMELEN
 

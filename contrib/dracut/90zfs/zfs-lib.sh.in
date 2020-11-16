@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 command -v getarg >/dev/null || . /lib/dracut-lib.sh
 command -v getargbool >/dev/null || {

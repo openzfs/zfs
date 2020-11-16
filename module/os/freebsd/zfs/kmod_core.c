@@ -28,77 +28,73 @@
 #include <sys/cdefs.h>
 __FBSDID("$FreeBSD$");
 
-#include <sys/types.h>
 #include <sys/param.h>
-#include <sys/systm.h>
-#include <sys/conf.h>
-#include <sys/eventhandler.h>
-#include <sys/kernel.h>
-#include <sys/lock.h>
-#include <sys/malloc.h>
-#include <sys/mutex.h>
-#include <sys/proc.h>
-#include <sys/errno.h>
-#include <sys/uio.h>
 #include <sys/buf.h>
-#include <sys/file.h>
-#include <sys/kmem.h>
-#include <sys/conf.h>
-#include <sys/eventhandler.h>
 #include <sys/cmn_err.h>
-#include <sys/stat.h>
-#include <sys/zfs_ioctl.h>
-#include <sys/zfs_vfsops.h>
-#include <sys/zfs_znode.h>
-#include <sys/zap.h>
-#include <sys/spa.h>
-#include <sys/spa_impl.h>
-#include <sys/vdev.h>
+#include <sys/conf.h>
 #include <sys/dmu.h>
-#include <sys/dsl_dir.h>
-#include <sys/dsl_dataset.h>
-#include <sys/dsl_prop.h>
-#include <sys/dsl_deleg.h>
-#include <sys/dmu_objset.h>
 #include <sys/dmu_impl.h>
-#include <sys/dmu_tx.h>
-#include <sys/fm/util.h>
-#include <sys/sunddi.h>
-#include <sys/policy.h>
-#include <sys/zone.h>
-#include <sys/nvpair.h>
-#include <sys/mount.h>
-#include <sys/taskqueue.h>
-#include <sys/sdt.h>
-#include <sys/fs/zfs.h>
-#include <sys/zfs_ctldir.h>
-#include <sys/zfs_dir.h>
-#include <sys/zfs_onexit.h>
-#include <sys/zvol.h>
-#include <sys/dsl_scan.h>
 #include <sys/dmu_objset.h>
 #include <sys/dmu_send.h>
-#include <sys/dsl_destroy.h>
+#include <sys/dmu_tx.h>
 #include <sys/dsl_bookmark.h>
-#include <sys/dsl_userhold.h>
-#include <sys/zfeature.h>
-#include <sys/zcp.h>
-#include <sys/zio_checksum.h>
-#include <sys/vdev_removal.h>
 #include <sys/dsl_crypt.h>
-
+#include <sys/dsl_dataset.h>
+#include <sys/dsl_deleg.h>
+#include <sys/dsl_destroy.h>
+#include <sys/dsl_dir.h>
+#include <sys/dsl_prop.h>
+#include <sys/dsl_scan.h>
+#include <sys/dsl_userhold.h>
+#include <sys/errno.h>
+#include <sys/eventhandler.h>
+#include <sys/file.h>
+#include <sys/fm/util.h>
+#include <sys/fs/zfs.h>
+#include <sys/kernel.h>
+#include <sys/kmem.h>
+#include <sys/lock.h>
+#include <sys/malloc.h>
+#include <sys/mount.h>
+#include <sys/mutex.h>
+#include <sys/nvpair.h>
+#include <sys/policy.h>
+#include <sys/proc.h>
+#include <sys/sdt.h>
+#include <sys/spa.h>
+#include <sys/spa_impl.h>
+#include <sys/stat.h>
+#include <sys/sunddi.h>
+#include <sys/systm.h>
+#include <sys/taskqueue.h>
+#include <sys/uio.h>
+#include <sys/vdev.h>
+#include <sys/vdev_removal.h>
+#include <sys/zap.h>
+#include <sys/zcp.h>
+#include <sys/zfeature.h>
+#include <sys/zfs_context.h>
+#include <sys/zfs_ctldir.h>
+#include <sys/zfs_dir.h>
+#include <sys/zfs_ioctl.h>
 #include <sys/zfs_ioctl_compat.h>
 #include <sys/zfs_ioctl_impl.h>
+#include <sys/zfs_onexit.h>
+#include <sys/zfs_vfsops.h>
+#include <sys/zfs_znode.h>
+#include <sys/zio_checksum.h>
+#include <sys/zone.h>
+#include <sys/zvol.h>
 
+#include "zfs_comutil.h"
+#include "zfs_deleg.h"
 #include "zfs_namecheck.h"
 #include "zfs_prop.h"
-#include "zfs_deleg.h"
-#include "zfs_comutil.h"
 
 SYSCTL_DECL(_vfs_zfs);
 SYSCTL_DECL(_vfs_zfs_vdev);
 
-
+extern uint_t rrw_tsd_key;
 static int zfs_version_ioctl = ZFS_IOCVER_OZFS;
 SYSCTL_DECL(_vfs_zfs_version);
 SYSCTL_INT(_vfs_zfs_version, OID_AUTO, ioctl, CTLFLAG_RD, &zfs_version_ioctl,
@@ -121,7 +117,6 @@ extern zfsdev_state_t *zfsdev_state_list;
 
 #define	ZFS_MIN_KSTACK_PAGES 4
 
-
 static int
 zfsdev_ioctl(struct cdev *dev, ulong_t zcmd, caddr_t arg, int flag,
     struct thread *td)
@@ -142,8 +137,8 @@ zfsdev_ioctl(struct cdev *dev, ulong_t zcmd, caddr_t arg, int flag,
 	zcl = NULL;
 
 	if (len != sizeof (zfs_iocparm_t)) {
-		printf("len %d vecnum: %d sizeof (zfs_cmd_t) %lu\n",
-		    len, vecnum, sizeof (zfs_cmd_t));
+		printf("len %d vecnum: %d sizeof (zfs_cmd_t) %ju\n",
+		    len, vecnum, (uintmax_t)sizeof (zfs_cmd_t));
 		return (EINVAL);
 	}
 
@@ -180,6 +175,7 @@ out:
 	if (zcl)
 		kmem_free(zcl, sizeof (zfs_cmd_legacy_t));
 	kmem_free(zc, sizeof (zfs_cmd_t));
+	MPASS(tsd_get(rrw_tsd_key) == NULL);
 	return (error);
 }
 
@@ -201,6 +197,8 @@ zfsdev_close(void *data)
 	zfs_onexit_destroy(zs->zs_onexit);
 	zfs_zevent_destroy(zs->zs_zevent);
 	mutex_exit(&zfsdev_state_lock);
+	zs->zs_onexit = NULL;
+	zs->zs_zevent = NULL;
 }
 
 static int
@@ -329,7 +327,6 @@ zfs_shutdown(void *arg __unused, int howto __unused)
 		zfs__fini();
 }
 
-
 static int
 zfs_modevent(module_t mod, int type, void *unused __unused)
 {
@@ -376,4 +373,3 @@ MODULE_DEPEND(zfsctrl, krpc, 1, 1, 1);
 #endif
 MODULE_DEPEND(zfsctrl, acl_nfs4, 1, 1, 1);
 MODULE_DEPEND(zfsctrl, crypto, 1, 1, 1);
-MODULE_DEPEND(zfsctrl, cryptodev, 1, 1, 1);

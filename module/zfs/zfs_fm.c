@@ -24,7 +24,7 @@
  */
 
 /*
- * Copyright (c) 2012 by Delphix. All rights reserved.
+ * Copyright (c) 2012,2020 by Delphix. All rights reserved.
  */
 
 #include <sys/spa.h>
@@ -101,7 +101,251 @@
  * good and bad versions of the buffer (if available), and we annotate the
  * ereport with information about the differences.
  */
+
 #ifdef _KERNEL
+/*
+ * Duplicate ereport Detection
+ *
+ * Some ereports are retained momentarily for detecting duplicates.  These
+ * are kept in a recent_events_node_t in both a time-ordered list and an AVL
+ * tree of recent unique ereports.
+ *
+ * The lifespan of these recent ereports is bounded (15 mins) and a cleaner
+ * task is used to purge stale entries.
+ */
+static list_t recent_events_list;
+static avl_tree_t recent_events_tree;
+static kmutex_t recent_events_lock;
+static taskqid_t recent_events_cleaner_tqid;
+
+/*
+ * Each node is about 128 bytes so 2,000 would consume 1/4 MiB.
+ *
+ * This setting can be changed dynamically and setting it to zero
+ * disables duplicate detection.
+ */
+unsigned int zfs_zevent_retain_max = 2000;
+
+/*
+ * The lifespan for a recent ereport entry. The default of 15 minutes is
+ * intended to outlive the zfs diagnosis engine's threshold of 10 errors
+ * over a period of 10 minutes.
+ */
+unsigned int zfs_zevent_retain_expire_secs = 900;
+
+typedef enum zfs_subclass {
+	ZSC_IO,
+	ZSC_DATA,
+	ZSC_CHECKSUM
+} zfs_subclass_t;
+
+typedef struct {
+	/* common criteria */
+	uint64_t	re_pool_guid;
+	uint64_t	re_vdev_guid;
+	int		re_io_error;
+	uint64_t	re_io_size;
+	uint64_t	re_io_offset;
+	zfs_subclass_t	re_subclass;
+	zio_priority_t	re_io_priority;
+
+	/* logical zio criteria (optional) */
+	zbookmark_phys_t re_io_bookmark;
+
+	/* internal state */
+	avl_node_t	re_tree_link;
+	list_node_t	re_list_link;
+	uint64_t	re_timestamp;
+} recent_events_node_t;
+
+static int
+recent_events_compare(const void *a, const void *b)
+{
+	const recent_events_node_t *node1 = a;
+	const recent_events_node_t *node2 = b;
+	int cmp;
+
+	/*
+	 * The comparison order here is somewhat arbitrary.
+	 * What's important is that if every criteria matches, then it
+	 * is a duplicate (i.e. compare returns 0)
+	 */
+	if ((cmp = TREE_CMP(node1->re_subclass, node2->re_subclass)) != 0)
+		return (cmp);
+	if ((cmp = TREE_CMP(node1->re_pool_guid, node2->re_pool_guid)) != 0)
+		return (cmp);
+	if ((cmp = TREE_CMP(node1->re_vdev_guid, node2->re_vdev_guid)) != 0)
+		return (cmp);
+	if ((cmp = TREE_CMP(node1->re_io_error, node2->re_io_error)) != 0)
+		return (cmp);
+	if ((cmp = TREE_CMP(node1->re_io_priority, node2->re_io_priority)) != 0)
+		return (cmp);
+	if ((cmp = TREE_CMP(node1->re_io_size, node2->re_io_size)) != 0)
+		return (cmp);
+	if ((cmp = TREE_CMP(node1->re_io_offset, node2->re_io_offset)) != 0)
+		return (cmp);
+
+	const zbookmark_phys_t *zb1 = &node1->re_io_bookmark;
+	const zbookmark_phys_t *zb2 = &node2->re_io_bookmark;
+
+	if ((cmp = TREE_CMP(zb1->zb_objset, zb2->zb_objset)) != 0)
+		return (cmp);
+	if ((cmp = TREE_CMP(zb1->zb_object, zb2->zb_object)) != 0)
+		return (cmp);
+	if ((cmp = TREE_CMP(zb1->zb_level, zb2->zb_level)) != 0)
+		return (cmp);
+	if ((cmp = TREE_CMP(zb1->zb_blkid, zb2->zb_blkid)) != 0)
+		return (cmp);
+
+	return (0);
+}
+
+static void zfs_ereport_schedule_cleaner(void);
+
+/*
+ * background task to clean stale recent event nodes.
+ */
+/*ARGSUSED*/
+static void
+zfs_ereport_cleaner(void *arg)
+{
+	recent_events_node_t *entry;
+	uint64_t now = gethrtime();
+
+	/*
+	 * purge expired entries
+	 */
+	mutex_enter(&recent_events_lock);
+	while ((entry = list_tail(&recent_events_list)) != NULL) {
+		uint64_t age = NSEC2SEC(now - entry->re_timestamp);
+		if (age <= zfs_zevent_retain_expire_secs)
+			break;
+
+		/* remove expired node */
+		avl_remove(&recent_events_tree, entry);
+		list_remove(&recent_events_list, entry);
+		kmem_free(entry, sizeof (*entry));
+	}
+
+	/* Restart the cleaner if more entries remain */
+	recent_events_cleaner_tqid = 0;
+	if (!list_is_empty(&recent_events_list))
+		zfs_ereport_schedule_cleaner();
+
+	mutex_exit(&recent_events_lock);
+}
+
+static void
+zfs_ereport_schedule_cleaner(void)
+{
+	ASSERT(MUTEX_HELD(&recent_events_lock));
+
+	uint64_t timeout = SEC2NSEC(zfs_zevent_retain_expire_secs + 1);
+
+	recent_events_cleaner_tqid = taskq_dispatch_delay(
+	    system_delay_taskq, zfs_ereport_cleaner, NULL, TQ_SLEEP,
+	    ddi_get_lbolt() + NSEC_TO_TICK(timeout));
+}
+
+/*
+ * Check if an ereport would be a duplicate of one recently posted.
+ *
+ * An ereport is considered a duplicate if the set of criteria in
+ * recent_events_node_t all match.
+ *
+ * Only FM_EREPORT_ZFS_IO, FM_EREPORT_ZFS_DATA, and FM_EREPORT_ZFS_CHECKSUM
+ * are candidates for duplicate checking.
+ */
+static boolean_t
+zfs_ereport_is_duplicate(const char *subclass, spa_t *spa, vdev_t *vd,
+    const zbookmark_phys_t *zb, zio_t *zio, uint64_t offset, uint64_t size)
+{
+	recent_events_node_t search = {0}, *entry;
+
+	if (vd == NULL || zio == NULL)
+		return (B_FALSE);
+
+	if (zfs_zevent_retain_max == 0)
+		return (B_FALSE);
+
+	if (strcmp(subclass, FM_EREPORT_ZFS_IO) == 0)
+		search.re_subclass = ZSC_IO;
+	else if (strcmp(subclass, FM_EREPORT_ZFS_DATA) == 0)
+		search.re_subclass = ZSC_DATA;
+	else if (strcmp(subclass, FM_EREPORT_ZFS_CHECKSUM) == 0)
+		search.re_subclass = ZSC_CHECKSUM;
+	else
+		return (B_FALSE);
+
+	search.re_pool_guid = spa_guid(spa);
+	search.re_vdev_guid = vd->vdev_guid;
+	search.re_io_error = zio->io_error;
+	search.re_io_priority = zio->io_priority;
+	/* if size is supplied use it over what's in zio */
+	if (size) {
+		search.re_io_size = size;
+		search.re_io_offset = offset;
+	} else {
+		search.re_io_size = zio->io_size;
+		search.re_io_offset = zio->io_offset;
+	}
+
+	/* grab optional logical zio criteria */
+	if (zb != NULL) {
+		search.re_io_bookmark.zb_objset = zb->zb_objset;
+		search.re_io_bookmark.zb_object = zb->zb_object;
+		search.re_io_bookmark.zb_level = zb->zb_level;
+		search.re_io_bookmark.zb_blkid = zb->zb_blkid;
+	}
+
+	uint64_t now = gethrtime();
+
+	mutex_enter(&recent_events_lock);
+
+	/* check if we have seen this one recently */
+	entry = avl_find(&recent_events_tree, &search, NULL);
+	if (entry != NULL) {
+		uint64_t age = NSEC2SEC(now - entry->re_timestamp);
+
+		/*
+		 * There is still an active cleaner (since we're here).
+		 * Reset the last seen time for this duplicate entry
+		 * so that its lifespand gets extended.
+		 */
+		list_remove(&recent_events_list, entry);
+		list_insert_head(&recent_events_list, entry);
+		entry->re_timestamp = now;
+
+		zfs_zevent_track_duplicate();
+		mutex_exit(&recent_events_lock);
+
+		return (age <= zfs_zevent_retain_expire_secs);
+	}
+
+	if (avl_numnodes(&recent_events_tree) >= zfs_zevent_retain_max) {
+		/* recycle oldest node */
+		entry = list_tail(&recent_events_list);
+		ASSERT(entry != NULL);
+		list_remove(&recent_events_list, entry);
+		avl_remove(&recent_events_tree, entry);
+	} else {
+		entry = kmem_alloc(sizeof (recent_events_node_t), KM_SLEEP);
+	}
+
+	/* record this as a recent ereport */
+	*entry = search;
+	avl_add(&recent_events_tree, entry);
+	list_insert_head(&recent_events_list, entry);
+	entry->re_timestamp = now;
+
+	/* Start a cleaner if not already scheduled */
+	if (recent_events_cleaner_tqid == 0)
+		zfs_ereport_schedule_cleaner();
+
+	mutex_exit(&recent_events_lock);
+	return (B_FALSE);
+}
+
 void
 zfs_zevent_post_cb(nvlist_t *nvl, nvlist_t *detector)
 {
@@ -152,9 +396,6 @@ zfs_ereport_start(nvlist_t **ereport_out, nvlist_t **detector_out,
 
 	uint64_t ena;
 	char class[64];
-
-	if (!zfs_ereport_is_valid(subclass, spa, vd, zio))
-		return (B_FALSE);
 
 	if ((ereport = fm_nvlist_create(NULL)) == NULL)
 		return (B_FALSE);
@@ -336,6 +577,8 @@ zfs_ereport_start(nvlist_t **ereport_out, nvlist_t **detector_out,
 		    DATA_TYPE_UINT64, zio->io_timestamp, NULL);
 		fm_payload_set(ereport, FM_EREPORT_PAYLOAD_ZFS_ZIO_DELTA,
 		    DATA_TYPE_UINT64, zio->io_delta, NULL);
+		fm_payload_set(ereport, FM_EREPORT_PAYLOAD_ZFS_ZIO_PRIORITY,
+		    DATA_TYPE_UINT32, zio->io_priority, NULL);
 
 		/*
 		 * If the 'size' parameter is non-zero, it indicates this is a
@@ -788,24 +1031,34 @@ zfs_ereport_is_valid(const char *subclass, spa_t *spa, vdev_t *vd, zio_t *zio)
 }
 
 /*
- * Return 0 if event was posted, EINVAL if there was a problem posting it or
- * EBUSY if the event was rate limited.
+ * Post an ereport for the given subclass
+ *
+ * Returns
+ * - 0 if an event was posted
+ * - EINVAL if there was a problem posting event
+ * - EBUSY if the event was rate limited
+ * - EALREADY if the event was already posted (duplicate)
  */
 int
 zfs_ereport_post(const char *subclass, spa_t *spa, vdev_t *vd,
-    const zbookmark_phys_t *zb, zio_t *zio, uint64_t stateoroffset,
-    uint64_t size)
+    const zbookmark_phys_t *zb, zio_t *zio, uint64_t state)
 {
 	int rc = 0;
 #ifdef _KERNEL
 	nvlist_t *ereport = NULL;
 	nvlist_t *detector = NULL;
 
+	if (!zfs_ereport_is_valid(subclass, spa, vd, zio))
+		return (EINVAL);
+
+	if (zfs_ereport_is_duplicate(subclass, spa, vd, zb, zio, 0, 0))
+		return (SET_ERROR(EALREADY));
+
 	if (zfs_is_ratelimiting_event(subclass, vd))
 		return (SET_ERROR(EBUSY));
 
 	if (!zfs_ereport_start(&ereport, &detector, subclass, spa, vd,
-	    zb, zio, stateoroffset, size))
+	    zb, zio, state, 0))
 		return (SET_ERROR(EINVAL));	/* couldn't post event */
 
 	if (ereport == NULL)
@@ -817,7 +1070,16 @@ zfs_ereport_post(const char *subclass, spa_t *spa, vdev_t *vd,
 	return (rc);
 }
 
-void
+/*
+ * Prepare a checksum ereport
+ *
+ * Returns
+ * - 0 if an event was posted
+ * - EINVAL if there was a problem posting event
+ * - EBUSY if the event was rate limited
+ * - EALREADY if the event was already posted (duplicate)
+ */
+int
 zfs_ereport_start_checksum(spa_t *spa, vdev_t *vd, const zbookmark_phys_t *zb,
     struct zio *zio, uint64_t offset, uint64_t length, void *arg,
     zio_bad_cksum_t *info)
@@ -825,8 +1087,15 @@ zfs_ereport_start_checksum(spa_t *spa, vdev_t *vd, const zbookmark_phys_t *zb,
 	zio_cksum_report_t *report;
 
 #ifdef _KERNEL
+	if (!zfs_ereport_is_valid(FM_EREPORT_ZFS_CHECKSUM, spa, vd, zio))
+		return (SET_ERROR(EINVAL));
+
+	if (zfs_ereport_is_duplicate(FM_EREPORT_ZFS_CHECKSUM, spa, vd, zb, zio,
+	    offset, length))
+		return (SET_ERROR(EALREADY));
+
 	if (zfs_is_ratelimiting_event(FM_EREPORT_ZFS_CHECKSUM, vd))
-		return;
+		return (SET_ERROR(EBUSY));
 #endif
 
 	report = kmem_zalloc(sizeof (*report), KM_SLEEP);
@@ -846,12 +1115,12 @@ zfs_ereport_start_checksum(spa_t *spa, vdev_t *vd, const zbookmark_phys_t *zb,
 	report->zcr_length = length;
 
 #ifdef _KERNEL
-	zfs_ereport_start(&report->zcr_ereport, &report->zcr_detector,
+	(void) zfs_ereport_start(&report->zcr_ereport, &report->zcr_detector,
 	    FM_EREPORT_ZFS_CHECKSUM, spa, vd, zb, zio, offset, length);
 
 	if (report->zcr_ereport == NULL) {
 		zfs_ereport_free_checksum(report);
-		return;
+		return (0);
 	}
 #endif
 
@@ -859,6 +1128,7 @@ zfs_ereport_start_checksum(spa_t *spa, vdev_t *vd, const zbookmark_phys_t *zb,
 	report->zcr_next = zio->io_logical->io_cksum_report;
 	zio->io_logical->io_cksum_report = report;
 	mutex_exit(&spa->spa_errlist_lock);
+	return (0);
 }
 
 void
@@ -901,7 +1171,15 @@ zfs_ereport_free_checksum(zio_cksum_report_t *rpt)
 	kmem_free(rpt, sizeof (*rpt));
 }
 
-
+/*
+ * Post a checksum ereport
+ *
+ * Returns
+ * - 0 if an event was posted
+ * - EINVAL if there was a problem posting event
+ * - EBUSY if the event was rate limited
+ * - EALREADY if the event was already posted (duplicate)
+ */
 int
 zfs_ereport_post_checksum(spa_t *spa, vdev_t *vd, const zbookmark_phys_t *zb,
     struct zio *zio, uint64_t offset, uint64_t length,
@@ -913,8 +1191,15 @@ zfs_ereport_post_checksum(spa_t *spa, vdev_t *vd, const zbookmark_phys_t *zb,
 	nvlist_t *detector = NULL;
 	zfs_ecksum_info_t *info;
 
+	if (!zfs_ereport_is_valid(FM_EREPORT_ZFS_CHECKSUM, spa, vd, zio))
+		return (SET_ERROR(EINVAL));
+
+	if (zfs_ereport_is_duplicate(FM_EREPORT_ZFS_CHECKSUM, spa, vd, zb, zio,
+	    offset, length))
+		return (SET_ERROR(EALREADY));
+
 	if (zfs_is_ratelimiting_event(FM_EREPORT_ZFS_CHECKSUM, vd))
-		return (EBUSY);
+		return (SET_ERROR(EBUSY));
 
 	if (!zfs_ereport_start(&ereport, &detector, FM_EREPORT_ZFS_CHECKSUM,
 	    spa, vd, zb, zio, offset, length) || (ereport == NULL)) {
@@ -1073,11 +1358,57 @@ zfs_post_state_change(spa_t *spa, vdev_t *vd, uint64_t laststate)
 #endif
 }
 
-#if defined(_KERNEL)
+#ifdef _KERNEL
+void
+zfs_ereport_init(void)
+{
+	mutex_init(&recent_events_lock, NULL, MUTEX_DEFAULT, NULL);
+	list_create(&recent_events_list, sizeof (recent_events_node_t),
+	    offsetof(recent_events_node_t, re_list_link));
+	avl_create(&recent_events_tree,  recent_events_compare,
+	    sizeof (recent_events_node_t), offsetof(recent_events_node_t,
+	    re_tree_link));
+}
+
+/*
+ * This 'early' fini needs to run before zfs_fini() which on Linux waits
+ * for the system_delay_taskq to drain.
+ */
+void
+zfs_ereport_taskq_fini(void)
+{
+	mutex_enter(&recent_events_lock);
+	if (recent_events_cleaner_tqid != 0) {
+		taskq_cancel_id(system_delay_taskq, recent_events_cleaner_tqid);
+		recent_events_cleaner_tqid = 0;
+	}
+	mutex_exit(&recent_events_lock);
+}
+
+void
+zfs_ereport_fini(void)
+{
+	recent_events_node_t *entry;
+
+	while ((entry = list_head(&recent_events_list)) != NULL) {
+		avl_remove(&recent_events_tree, entry);
+		list_remove(&recent_events_list, entry);
+		kmem_free(entry, sizeof (*entry));
+	}
+	avl_destroy(&recent_events_tree);
+	list_destroy(&recent_events_list);
+	mutex_destroy(&recent_events_lock);
+}
+
 EXPORT_SYMBOL(zfs_ereport_post);
 EXPORT_SYMBOL(zfs_ereport_is_valid);
 EXPORT_SYMBOL(zfs_ereport_post_checksum);
 EXPORT_SYMBOL(zfs_post_remove);
 EXPORT_SYMBOL(zfs_post_autoreplace);
 EXPORT_SYMBOL(zfs_post_state_change);
+
+ZFS_MODULE_PARAM(zfs_zevent, zfs_zevent_, retain_max, UINT, ZMOD_RW,
+	"Maximum recent zevents records to retain for duplicate checking");
+ZFS_MODULE_PARAM(zfs_zevent, zfs_zevent_, retain_expire_secs, UINT, ZMOD_RW,
+	"Expiration time for recent zevents records");
 #endif /* _KERNEL */

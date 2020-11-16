@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2019 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2020 by Delphix. All rights reserved.
  * Copyright (c) 2016 Gvozden Nešković. All rights reserved.
  */
 
@@ -1882,7 +1882,7 @@ vdev_raidz_reconstruct_row(raidz_map_t *rm, raidz_row_t *rr,
 
 static int
 vdev_raidz_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
-    uint64_t *ashift)
+    uint64_t *logical_ashift, uint64_t *physical_ashift)
 {
 	vdev_raidz_t *vdrz = vd->vdev_tsd;
 	uint64_t nparity = vdrz->vd_nparity;
@@ -1911,7 +1911,9 @@ vdev_raidz_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 
 		*asize = MIN(*asize - 1, cvd->vdev_asize - 1) + 1;
 		*max_asize = MIN(*max_asize - 1, cvd->vdev_max_asize - 1) + 1;
-		*ashift = MAX(*ashift, cvd->vdev_ashift);
+		*logical_ashift = MAX(*logical_ashift, cvd->vdev_ashift);
+		*physical_ashift = MAX(*physical_ashift,
+		    cvd->vdev_physical_ashift);
 	}
 
 	*asize *= vd->vdev_children;
@@ -2265,16 +2267,17 @@ raidz_checksum_error(zio_t *zio, raidz_col_t *rc, abd_t *bad_data)
 		zio_bad_cksum_t zbc;
 		raidz_map_t *rm = zio->io_vsd;
 
-		mutex_enter(&vd->vdev_stat_lock);
-		vd->vdev_stat.vs_checksum_errors++;
-		mutex_exit(&vd->vdev_stat_lock);
-
 		zbc.zbc_has_cksum = 0;
 		zbc.zbc_injected = rm->rm_ecksuminjected;
 
-		zfs_ereport_post_checksum(zio->io_spa, vd,
+		int ret = zfs_ereport_post_checksum(zio->io_spa, vd,
 		    &zio->io_bookmark, zio, rc->rc_offset, rc->rc_size,
 		    rc->rc_abd, bad_data, &zbc);
+		if (ret != EALREADY) {
+			mutex_enter(&vd->vdev_stat_lock);
+			vd->vdev_stat.vs_checksum_errors++;
+			mutex_exit(&vd->vdev_stat_lock);
+		}
 	}
 }
 
@@ -2893,18 +2896,17 @@ vdev_raidz_start_ereports(zio_t *zio, raidz_map_t *rm)
 		raidz_row_t *rr = rm->rm_row[i];
 		for (int c = 0; c < rr->rr_cols; c++) {
 			raidz_col_t *rc = &rr->rr_col[c];
-			if (rc->rc_error == 0) {
-				zio_bad_cksum_t zbc;
-				zbc.zbc_has_cksum = 0;
-				zbc.zbc_injected = rm->rm_ecksuminjected;
+			if (rc->rc_error != 0)
+				continue;
+			zio_bad_cksum_t zbc;
+			zbc.zbc_has_cksum = 0;
+			zbc.zbc_injected = rm->rm_ecksuminjected;
 
-				zfs_ereport_start_checksum(
-				    zio->io_spa,
-				    zio->io_vd->vdev_child[rc->rc_devidx],
-				    &zio->io_bookmark,
-				    zio, rc->rc_offset, rc->rc_size,
-				    (void *)(uintptr_t)c, &zbc);
-			}
+			zfs_ereport_start_checksum(zio->io_spa,
+			    zio->io_vd->vdev_child[rc->rc_devidx],
+			    &zio->io_bookmark,
+			    zio, rc->rc_offset, rc->rc_size,
+			    (void *)(uintptr_t)c, &zbc);
 		}
 	}
 }
@@ -3273,7 +3275,7 @@ raidz_reflow_record_progress(vdev_raidz_expand_t *vre, uint64_t offset,
 
 	if (vre->vre_offset_pertxg[txgoff] == 0) {
 		dsl_sync_task_nowait(dmu_tx_pool(tx), raidz_reflow_sync,
-		    spa, 0, ZFS_SPACE_CHECK_NONE, tx);
+		    spa, tx);
 	}
 	vre->vre_offset_pertxg[txgoff] = offset;
 }

@@ -321,7 +321,7 @@ spa_history_log_sync(void *arg, dmu_tx_t *tx)
 		 * posted as a result of the ZPOOL_HIST_CMD key being present
 		 * it would result in only one sysevent being posted with the
 		 * full command line arguments, requiring the consumer to know
-		 * how to parse and understand zfs(1M) command invocations.
+		 * how to parse and understand zfs(8) command invocations.
 		 */
 		spa_history_log_notify(spa, nvl);
 	} else if (nvlist_exists(nvl, ZPOOL_HIST_IOCTL)) {
@@ -397,8 +397,7 @@ spa_history_log_nvl(spa_t *spa, nvlist_t *nvl)
 	fnvlist_add_uint64(nvarg, ZPOOL_HIST_WHO, crgetruid(CRED()));
 
 	/* Kick this off asynchronously; errors are ignored. */
-	dsl_sync_task_nowait(spa_get_dsl(spa), spa_history_log_sync,
-	    nvarg, 0, ZFS_SPACE_CHECK_NONE, tx);
+	dsl_sync_task_nowait(spa_get_dsl(spa), spa_history_log_sync, nvarg, tx);
 	dmu_tx_commit(tx);
 
 	/* spa_history_log_sync will free nvl */
@@ -532,7 +531,7 @@ log_internal(nvlist_t *nvl, const char *operation, spa_t *spa,
 		spa_history_log_sync(nvl, tx);
 	} else {
 		dsl_sync_task_nowait(spa_get_dsl(spa),
-		    spa_history_log_sync, nvl, 0, ZFS_SPACE_CHECK_NONE, tx);
+		    spa_history_log_sync, nvl, tx);
 	}
 	/* spa_history_log_sync() will free nvl */
 }

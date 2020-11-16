@@ -34,7 +34,7 @@
 
 #
 # DESCRIPTION:
-#	Verify that user can access file/directory if acltype=posixacl.
+#	Verify that user can access file/directory if acltype=posix.
 #
 # STRATEGY:
 #	1. Test access to directory (mode=-wx)
@@ -43,7 +43,7 @@
 #
 
 verify_runnable "both"
-log_assert "Verify acltype=posixacl works on directory"
+log_assert "Verify acltype=posix works on directory"
 
 # Test access to DIRECTORY
 log_note "Testing access to DIRECTORY"

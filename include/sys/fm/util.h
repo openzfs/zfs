@@ -104,6 +104,9 @@ extern int zfs_zevent_seek(zfs_zevent_t *, uint64_t);
 extern void zfs_zevent_init(zfs_zevent_t **);
 extern void zfs_zevent_destroy(zfs_zevent_t *);
 
+extern void zfs_zevent_track_duplicate(void);
+extern void zfs_ereport_init(void);
+extern void zfs_ereport_fini(void);
 #else
 
 static inline void fm_init(void) { }

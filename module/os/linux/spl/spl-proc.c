@@ -6,7 +6,6 @@
  *  UCRL-CODE-235197
  *
  *  This file is part of the SPL, Solaris Porting Layer.
- *  For details, see <http://zfsonlinux.org/>.
  *
  *  The SPL is free software; you can redistribute it and/or modify it
  *  under the terms of the GNU General Public License as published by the
@@ -631,60 +630,6 @@ static struct ctl_table spl_kmem_table[] = {
 		.proc_handler	= &proc_doulongvec_minmax,
 	},
 #endif /* DEBUG_KMEM */
-	{
-		.procname	= "slab_kmem_total",
-		.data		= (void *)(KMC_KMEM | KMC_TOTAL),
-		.maxlen		= sizeof (unsigned long),
-		.extra1		= &table_min,
-		.extra2		= &table_max,
-		.mode		= 0444,
-		.proc_handler = &proc_doslab,
-	},
-	{
-		.procname	= "slab_kmem_alloc",
-		.data		= (void *)(KMC_KMEM | KMC_ALLOC),
-		.maxlen		= sizeof (unsigned long),
-		.extra1		= &table_min,
-		.extra2		= &table_max,
-		.mode		= 0444,
-		.proc_handler	= &proc_doslab,
-	},
-	{
-		.procname	= "slab_kmem_max",
-		.data		= (void *)(KMC_KMEM | KMC_MAX),
-		.maxlen		= sizeof (unsigned long),
-		.extra1		= &table_min,
-		.extra2		= &table_max,
-		.mode		= 0444,
-		.proc_handler	= &proc_doslab,
-	},
-	{
-		.procname	= "slab_vmem_total",
-		.data		= (void *)(KMC_VMEM | KMC_TOTAL),
-		.maxlen		= sizeof (unsigned long),
-		.extra1		= &table_min,
-		.extra2		= &table_max,
-		.mode		= 0444,
-		.proc_handler	= &proc_doslab,
-	},
-	{
-		.procname	= "slab_vmem_alloc",
-		.data		= (void *)(KMC_VMEM | KMC_ALLOC),
-		.maxlen		= sizeof (unsigned long),
-		.extra1		= &table_min,
-		.extra2		= &table_max,
-		.mode		= 0444,
-		.proc_handler	= &proc_doslab,
-	},
-	{
-		.procname	= "slab_vmem_max",
-		.data		= (void *)(KMC_VMEM | KMC_MAX),
-		.maxlen		= sizeof (unsigned long),
-		.extra1		= &table_min,
-		.extra2		= &table_max,
-		.mode		= 0444,
-		.proc_handler	= &proc_doslab,
-	},
 	{
 		.procname	= "slab_kvmem_total",
 		.data		= (void *)(KMC_KVMEM | KMC_TOTAL),

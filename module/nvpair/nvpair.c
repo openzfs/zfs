@@ -25,6 +25,15 @@
  * Copyright 2018 RackTop Systems.
  */
 
+/*
+ * Links to Illumos.org for more information on Interface Libraries:
+ * [1] https://illumos.org/man/3lib/libnvpair
+ * [2] https://illumos.org/man/3nvpair/nvlist_alloc
+ * [3] https://illumos.org/man/9f/nvlist_alloc
+ * [4] https://illumos.org/man/9f/nvlist_next_nvpair
+ * [5] https://illumos.org/man/9f/nvpair_value_byte
+ */
+
 #include <sys/debug.h>
 #include <sys/isa_defs.h>
 #include <sys/nvpair.h>

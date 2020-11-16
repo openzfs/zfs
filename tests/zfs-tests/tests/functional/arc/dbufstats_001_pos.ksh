@@ -55,7 +55,13 @@ function testdbufstat # stat_name dbufstat_filter
 
         [[ -n "$2" ]] && filter="-F $2"
 
-	from_dbufstat=$(grep -w "$name" "$DBUFSTATS_FILE" | awk '{ print $3 }')
+	if is_linux; then
+		from_dbufstat=$(grep -w "$name" "$DBUFSTATS_FILE" |
+		    awk '{ print $3 }')
+	else
+		from_dbufstat=$(awk "/dbufstats\.$name:/ { print \$2 }" \
+		    "$DBUFSTATS_FILE")
+	fi
 	from_dbufs=$(dbufstat -bxn -i "$DBUFS_FILE" "$filter" | wc -l)
 
 	within_tolerance $from_dbufstat $from_dbufs 15 \
@@ -71,8 +77,8 @@ log_onexit cleanup
 log_must file_write -o create -f "$TESTDIR/file" -b 1048576 -c 20 -d R
 log_must zpool sync
 
-log_must eval "cat /proc/spl/kstat/zfs/dbufs > $DBUFS_FILE"
-log_must eval "cat /proc/spl/kstat/zfs/dbufstats > $DBUFSTATS_FILE"
+log_must eval "kstat dbufs > $DBUFS_FILE"
+log_must eval "kstat dbufstats '' > $DBUFSTATS_FILE"
 
 for level in {0..11}; do
 	testdbufstat "cache_level_$level" "dbc=1,level=$level"

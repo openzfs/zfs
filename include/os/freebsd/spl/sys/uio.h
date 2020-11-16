@@ -29,6 +29,8 @@
 #ifndef _OPENSOLARIS_SYS_UIO_H_
 #define	_OPENSOLARIS_SYS_UIO_H_
 
+#ifndef _STANDALONE
+
 #include_next <sys/uio.h>
 #include <sys/_uio.h>
 #include <sys/debug.h>
@@ -40,27 +42,6 @@
 typedef	struct uio	uio_t;
 typedef	struct iovec	iovec_t;
 typedef	enum uio_seg	uio_seg_t;
-
-typedef enum xuio_type {
-	UIOTYPE_ASYNCIO,
-	UIOTYPE_ZEROCOPY
-} xuio_type_t;
-
-typedef struct xuio {
-	uio_t	xu_uio;
-
-	/* Extended uio fields */
-	enum xuio_type xu_type; /* What kind of uio structure? */
-	union {
-		struct {
-			int xu_zc_rw;
-			void *xu_zc_priv;
-		} xu_zc;
-	} xu_ext;
-} xuio_t;
-
-#define	XUIO_XUZC_PRIV(xuio)	xuio->xu_ext.xu_zc.xu_zc_priv
-#define	XUIO_XUZC_RW(xuio)	xuio->xu_ext.xu_zc.xu_zc_rw
 
 static __inline int
 zfs_uiomove(void *cp, size_t n, enum uio_rw dir, uio_t *uio)
@@ -80,6 +61,8 @@ void uioskip(uio_t *uiop, size_t n);
 #define	uio_iovcnt(uio)			(uio)->uio_iovcnt
 #define	uio_iovlen(uio, idx)		(uio)->uio_iov[(idx)].iov_len
 #define	uio_iovbase(uio, idx)		(uio)->uio_iov[(idx)].iov_base
+#define	uio_fault_disable(uio, set)
+#define	uio_prefaultpages(size, uio)	(0)
 
 static inline void
 uio_iov_at_index(uio_t *uio, uint_t idx, void **base, uint64_t *len)
@@ -106,5 +89,7 @@ uio_index_at_offset(uio_t *uio, offset_t off, uint_t *vec_idx)
 
 	return (off);
 }
+
+#endif /* !_STANDALONE */
 
 #endif	/* !_OPENSOLARIS_SYS_UIO_H_ */

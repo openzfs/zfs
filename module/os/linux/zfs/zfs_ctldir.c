@@ -31,6 +31,7 @@
  * Copyright 2015, OmniTI Computer Consulting, Inc. All rights reserved.
  * Copyright (c) 2018 George Melikov. All Rights Reserved.
  * Copyright (c) 2019 Datto, Inc. All rights reserved.
+ * Copyright (c) 2020 The MathWorks, Inc. All rights reserved.
  */
 
 /*
@@ -130,7 +131,7 @@ static void zfsctl_snapshot_unmount_delay_impl(zfs_snapentry_t *se, int delay);
  * the snapshot name and provided mount point.  No reference is taken.
  */
 static zfs_snapentry_t *
-zfsctl_snapshot_alloc(char *full_name, char *full_path, spa_t *spa,
+zfsctl_snapshot_alloc(const char *full_name, const char *full_path, spa_t *spa,
     uint64_t objsetid, struct dentry *root_dentry)
 {
 	zfs_snapentry_t *se;
@@ -260,13 +261,13 @@ snapentry_compare_by_objsetid(const void *a, const void *b)
  * NULL will be returned.
  */
 static zfs_snapentry_t *
-zfsctl_snapshot_find_by_name(char *snapname)
+zfsctl_snapshot_find_by_name(const char *snapname)
 {
 	zfs_snapentry_t *se, search;
 
 	ASSERT(RW_LOCK_HELD(&zfs_snapshot_lock));
 
-	search.se_name = snapname;
+	search.se_name = (char *)snapname;
 	se = avl_find(&zfs_snapshots_by_name, &search, NULL);
 	if (se)
 		zfsctl_snapshot_hold(se);
@@ -300,7 +301,7 @@ zfsctl_snapshot_find_by_objsetid(spa_t *spa, uint64_t objsetid)
  * removed, renamed, and added back to the new correct location in the tree.
  */
 static int
-zfsctl_snapshot_rename(char *old_snapname, char *new_snapname)
+zfsctl_snapshot_rename(const char *old_snapname, const char *new_snapname)
 {
 	zfs_snapentry_t *se;
 
@@ -409,7 +410,7 @@ zfsctl_snapshot_unmount_delay(spa_t *spa, uint64_t objsetid, int delay)
  * and zero when unmounted.
  */
 static boolean_t
-zfsctl_snapshot_ismounted(char *snapname)
+zfsctl_snapshot_ismounted(const char *snapname)
 {
 	zfs_snapentry_t *se;
 	boolean_t ismounted = B_FALSE;
@@ -466,7 +467,6 @@ zfsctl_inode_alloc(zfsvfs_t *zfsvfs, uint64_t id,
 	zp->z_unlinked = B_FALSE;
 	zp->z_atime_dirty = B_FALSE;
 	zp->z_zn_prefetch = B_FALSE;
-	zp->z_moved = B_FALSE;
 	zp->z_is_sa = B_FALSE;
 	zp->z_is_mapped = B_FALSE;
 	zp->z_is_ctldir = B_TRUE;
@@ -750,7 +750,7 @@ out:
  * Special case the handling of "..".
  */
 int
-zfsctl_root_lookup(struct inode *dip, char *name, struct inode **ipp,
+zfsctl_root_lookup(struct inode *dip, const char *name, struct inode **ipp,
     int flags, cred_t *cr, int *direntflags, pathname_t *realpnp)
 {
 	zfsvfs_t *zfsvfs = ITOZSB(dip);
@@ -783,7 +783,7 @@ zfsctl_root_lookup(struct inode *dip, char *name, struct inode **ipp,
  * snapshot if it exist, creating the pseudo filesystem inode as necessary.
  */
 int
-zfsctl_snapdir_lookup(struct inode *dip, char *name, struct inode **ipp,
+zfsctl_snapdir_lookup(struct inode *dip, const char *name, struct inode **ipp,
     int flags, cred_t *cr, int *direntflags, pathname_t *realpnp)
 {
 	zfsvfs_t *zfsvfs = ITOZSB(dip);
@@ -814,8 +814,8 @@ zfsctl_snapdir_lookup(struct inode *dip, char *name, struct inode **ipp,
  * to the '.zfs/snapshot' directory snapshots cannot be moved elsewhere.
  */
 int
-zfsctl_snapdir_rename(struct inode *sdip, char *snm,
-    struct inode *tdip, char *tnm, cred_t *cr, int flags)
+zfsctl_snapdir_rename(struct inode *sdip, const char *snm,
+    struct inode *tdip, const char *tnm, cred_t *cr, int flags)
 {
 	zfsvfs_t *zfsvfs = ITOZSB(sdip);
 	char *to, *from, *real, *fsname;
@@ -892,7 +892,8 @@ out:
  * the removal of the snapshot with the given name.
  */
 int
-zfsctl_snapdir_remove(struct inode *dip, char *name, cred_t *cr, int flags)
+zfsctl_snapdir_remove(struct inode *dip, const char *name, cred_t *cr,
+    int flags)
 {
 	zfsvfs_t *zfsvfs = ITOZSB(dip);
 	char *snapname, *real;
@@ -940,7 +941,7 @@ out:
  * the creation of a new snapshot with the given name.
  */
 int
-zfsctl_snapdir_mkdir(struct inode *dip, char *dirname, vattr_t *vap,
+zfsctl_snapdir_mkdir(struct inode *dip, const char *dirname, vattr_t *vap,
     struct inode **ipp, cred_t *cr, int flags)
 {
 	zfsvfs_t *zfsvfs = ITOZSB(dip);
@@ -978,13 +979,29 @@ out:
 }
 
 /*
+ * Flush everything out of the kernel's export table and such.
+ * This is needed as once the snapshot is used over NFS, its
+ * entries in svc_export and svc_expkey caches hold reference
+ * to the snapshot mount point. There is no known way of flushing
+ * only the entries related to the snapshot.
+ */
+static void
+exportfs_flush(void)
+{
+	char *argv[] = { "/usr/sbin/exportfs", "-f", NULL };
+	char *envp[] = { NULL };
+
+	(void) call_usermodehelper(argv[0], argv, envp, UMH_WAIT_PROC);
+}
+
+/*
  * Attempt to unmount a snapshot by making a call to user space.
  * There is no assurance that this can or will succeed, is just a
  * best effort.  In the case where it does fail, perhaps because
  * it's in use, the unmount will fail harmlessly.
  */
 int
-zfsctl_snapshot_unmount(char *snapname, int flags)
+zfsctl_snapshot_unmount(const char *snapname, int flags)
 {
 	char *argv[] = { "/usr/bin/env", "umount", "-t", "zfs", "-n", NULL,
 	    NULL };
@@ -998,6 +1015,8 @@ zfsctl_snapshot_unmount(char *snapname, int flags)
 		return (SET_ERROR(ENOENT));
 	}
 	rw_exit(&zfs_snapshot_lock);
+
+	exportfs_flush();
 
 	if (flags & MNT_FORCE)
 		argv[4] = "-fn";

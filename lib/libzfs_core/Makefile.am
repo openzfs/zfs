@@ -23,7 +23,6 @@ endif
 
 if BUILD_FREEBSD
 libzfs_core_la_LIBADD += -lutil -lgeom
-libzfs_core_la_LDFLAGS += -version-info 3:0:0
-else
-libzfs_core_la_LDFLAGS += -version-info 1:0:0
 endif
+
+libzfs_core_la_LDFLAGS += -version-info 3:0:0

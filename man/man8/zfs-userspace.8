@@ -32,48 +32,49 @@
 .\"
 .Dd June 30, 2019
 .Dt ZFS-USERSPACE 8
-.Os Linux
+.Os
 .Sh NAME
-.Nm zfs Ns Pf - Cm userspace
+.Nm zfs-userspace
 .Nd Displays space consumed by, and quotas on, each user or group in the specified filesystem or snapshot.
 .Sh SYNOPSIS
-.Nm
+.Nm zfs
 .Cm userspace
 .Op Fl Hinp
 .Oo Fl o Ar field Ns Oo , Ns Ar field Oc Ns ... Oc
 .Oo Fl s Ar field Oc Ns ...
 .Oo Fl S Ar field Oc Ns ...
 .Oo Fl t Ar type Ns Oo , Ns Ar type Oc Ns ... Oc
-.Ar filesystem Ns | Ns Ar snapshot
-.Nm
+.Ar filesystem Ns | Ns Ar snapshot Ns | Ns Ar path
+.Nm zfs
 .Cm groupspace
 .Op Fl Hinp
 .Oo Fl o Ar field Ns Oo , Ns Ar field Oc Ns ... Oc
 .Oo Fl s Ar field Oc Ns ...
 .Oo Fl S Ar field Oc Ns ...
 .Oo Fl t Ar type Ns Oo , Ns Ar type Oc Ns ... Oc
-.Ar filesystem Ns | Ns Ar snapshot
-.Nm
+.Ar filesystem Ns | Ns Ar snapshot Ns | Ns Ar path
+.Nm zfs
 .Cm projectspace
 .Op Fl Hp
 .Oo Fl o Ar field Ns Oo , Ns Ar field Oc Ns ... Oc
 .Oo Fl s Ar field Oc Ns ...
 .Oo Fl S Ar field Oc Ns ...
-.Ar filesystem Ns | Ns Ar snapshot
+.Ar filesystem Ns | Ns Ar snapshot Ns | Ns Ar path
 .Sh DESCRIPTION
 .Bl -tag -width ""
 .It Xo
-.Nm
+.Nm zfs
 .Cm userspace
 .Op Fl Hinp
 .Oo Fl o Ar field Ns Oo , Ns Ar field Oc Ns ... Oc
 .Oo Fl s Ar field Oc Ns ...
 .Oo Fl S Ar field Oc Ns ...
 .Oo Fl t Ar type Ns Oo , Ns Ar type Oc Ns ... Oc
-.Ar filesystem Ns | Ns Ar snapshot
+.Ar filesystem Ns | Ns Ar snapshot Ns | Ns Ar path
 .Xc
-Displays space consumed by, and quotas on, each user in the specified filesystem
-or snapshot.
+Displays space consumed by, and quotas on, each user in the specified filesystem,
+snapshot, or path.
+If a path is given, the filesystem that contains that path will be used.
 This corresponds to the
 .Sy userused@ Ns Em user ,
 .Sy userobjused@ Ns Em user ,
@@ -145,7 +146,7 @@ The default is
 The default can be changed to include group types.
 .El
 .It Xo
-.Nm
+.Nm zfs
 .Cm groupspace
 .Op Fl Hinp
 .Oo Fl o Ar field Ns Oo , Ns Ar field Oc Ns ... Oc
@@ -161,13 +162,13 @@ This subcommand is identical to
 except that the default types to display are
 .Fl t Sy posixgroup Ns \&, Ns Sy smbgroup .
 .It Xo
-.Nm
+.Nm zfs
 .Cm projectspace
 .Op Fl Hp
 .Oo Fl o Ar field Ns Oo , Ns Ar field Oc Ns ... Oc
 .Oo Fl s Ar field Oc Ns ...
 .Oo Fl S Ar field Oc Ns ...
-.Ar filesystem Ns | Ns Ar snapshot
+.Ar filesystem Ns | Ns Ar snapshot Ns | Ns Ar path
 .Xc
 Displays space consumed by, and quotas on, each project in the specified
 filesystem or snapshot. This subcommand is identical to

@@ -24,6 +24,7 @@
  */
 /*
  * Copyright (c) 2013, 2019 by Delphix. All rights reserved.
+ * Copyright (c) 2015, Nexenta Systems, Inc. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -251,9 +252,19 @@ range_tree_destroy(range_tree_t *rt)
 void
 range_tree_adjust_fill(range_tree_t *rt, range_seg_t *rs, int64_t delta)
 {
-	ASSERT3U(rs_get_fill(rs, rt) + delta, !=, 0);
-	ASSERT3U(rs_get_fill(rs, rt) + delta, <=, rs_get_end(rs, rt) -
-	    rs_get_start(rs, rt));
+	if (delta < 0 && delta * -1 >= rs_get_fill(rs, rt)) {
+		zfs_panic_recover("zfs: attempting to decrease fill to or "
+		    "below 0; probable double remove in segment [%llx:%llx]",
+		    (longlong_t)rs_get_start(rs, rt),
+		    (longlong_t)rs_get_end(rs, rt));
+	}
+	if (rs_get_fill(rs, rt) + delta > rs_get_end(rs, rt) -
+	    rs_get_start(rs, rt)) {
+		zfs_panic_recover("zfs: attempting to increase fill beyond "
+		    "max; probable double add in segment [%llx:%llx]",
+		    (longlong_t)rs_get_start(rs, rt),
+		    (longlong_t)rs_get_end(rs, rt));
+	}
 
 	if (rt->rt_ops != NULL && rt->rt_ops->rtop_remove != NULL)
 		rt->rt_ops->rtop_remove(rt, rs, rt->rt_arg);
@@ -290,16 +301,19 @@ range_tree_add_impl(void *arg, uint64_t start, uint64_t size, uint64_t fill)
 	 * the normal code paths.
 	 */
 	if (rs != NULL) {
-		ASSERT3U(rt->rt_gap, !=, 0);
+		if (gap == 0) {
+			zfs_panic_recover("zfs: adding existent segment to "
+			    "range tree (offset=%llx size=%llx)",
+			    (longlong_t)start, (longlong_t)size);
+			return;
+		}
 		uint64_t rstart = rs_get_start(rs, rt);
 		uint64_t rend = rs_get_end(rs, rt);
-		ASSERT3U(gap, !=, 0);
 		if (rstart <= start && rend >= end) {
 			range_tree_adjust_fill(rt, rs, fill);
 			return;
 		}
 
-		zfs_btree_remove(&rt->rt_root, rs);
 		if (rt->rt_ops != NULL && rt->rt_ops->rtop_remove != NULL)
 			rt->rt_ops->rtop_remove(rt, rs, rt->rt_arg);
 
@@ -311,6 +325,7 @@ range_tree_add_impl(void *arg, uint64_t start, uint64_t size, uint64_t fill)
 		end = MAX(end, rend);
 		size = end - start;
 
+		zfs_btree_remove(&rt->rt_root, rs);
 		range_tree_add_impl(rt, start, size, fill);
 		return;
 	}
@@ -431,7 +446,7 @@ range_tree_remove_impl(range_tree_t *rt, uint64_t start, uint64_t size,
 	/* Make sure we completely overlap with someone */
 	if (rs == NULL) {
 		zfs_panic_recover("zfs: removing nonexistent segment from "
-		    "range tree (offset=%llu size=%llu)",
+		    "range tree (offset=%llx size=%llx)",
 		    (longlong_t)start, (longlong_t)size);
 		return;
 	}
@@ -455,8 +470,8 @@ range_tree_remove_impl(range_tree_t *rt, uint64_t start, uint64_t size,
 		} else if (rs_get_start(rs, rt) != start ||
 		    rs_get_end(rs, rt) != end) {
 			zfs_panic_recover("zfs: freeing partial segment of "
-			    "gap tree (offset=%llu size=%llu) of "
-			    "(offset=%llu size=%llu)",
+			    "gap tree (offset=%llx size=%llx) of "
+			    "(offset=%llx size=%llx)",
 			    (longlong_t)start, (longlong_t)size,
 			    (longlong_t)rs_get_start(rs, rt),
 			    (longlong_t)rs_get_end(rs, rt) - rs_get_start(rs,

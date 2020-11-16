@@ -29,10 +29,11 @@
 #ifndef _OPENSOLARIS_SYS_KMEM_H_
 #define	_OPENSOLARIS_SYS_KMEM_H_
 
+#ifdef _KERNEL
 #include <sys/param.h>
 #include <sys/malloc.h>
 #include <sys/vmem.h>
-#include <sys/vmmeter.h>
+#include <sys/counter.h>
 
 #include <vm/uma.h>
 #include <vm/vm.h>
@@ -46,10 +47,8 @@ MALLOC_DECLARE(M_SOLARIS);
 #define	KM_SLEEP		M_WAITOK
 #define	KM_PUSHPAGE		M_WAITOK
 #define	KM_NOSLEEP		M_NOWAIT
-#define	KM_NODEBUG		M_NODUMP
 #define	KM_NORMALPRI		0
 #define	KMC_NODEBUG		UMA_ZONE_NODUMP
-#define	KMC_NOTOUCH		0
 
 typedef struct vmem vmem_t;
 
@@ -95,5 +94,14 @@ void *calloc(size_t n, size_t s);
 	zfs_kmem_alloc((size), (kmflags) | M_ZERO)
 #define	kmem_free(buf, size)		zfs_kmem_free((buf), (size))
 
+#endif	/* _KERNEL */
+
+#ifdef _STANDALONE
+/*
+ * At the moment, we just need it for the type. We redirect the alloc/free
+ * routines to the usual Free and Malloc in that environment.
+ */
+typedef int kmem_cache_t;
+#endif /* _STANDALONE */
 
 #endif	/* _OPENSOLARIS_SYS_KMEM_H_ */

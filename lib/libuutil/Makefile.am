@@ -27,8 +27,4 @@ if !ASAN_ENABLED
 libuutil_la_LDFLAGS += -Wl,-z,defs
 endif
 
-if BUILD_FREEBSD
 libuutil_la_LDFLAGS += -version-info 3:0:0
-else
-libuutil_la_LDFLAGS += -version-info 1:1:0
-endif

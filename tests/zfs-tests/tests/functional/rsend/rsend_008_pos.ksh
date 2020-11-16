@@ -43,7 +43,7 @@
 
 verify_runnable "both"
 
-# See issue: https://github.com/zfsonlinux/zfs/issues/6066
+# See issue: https://github.com/openzfs/zfs/issues/6066
 log_unsupported "Occasionally hangs"
 
 #		Origin			Clone

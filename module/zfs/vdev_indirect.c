@@ -16,7 +16,7 @@
 /*
  * Copyright (c) 2014, 2017 by Delphix. All rights reserved.
  * Copyright (c) 2019, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
- * Copyright (c) 2014, 2019 by Delphix. All rights reserved.
+ * Copyright (c) 2014, 2020 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -576,8 +576,7 @@ spa_condense_indirect_commit_entry(spa_t *spa,
 	 */
 	if (list_is_empty(&sci->sci_new_mapping_entries[txgoff])) {
 		dsl_sync_task_nowait(dmu_tx_pool(tx),
-		    spa_condense_indirect_commit_sync, sci,
-		    0, ZFS_SPACE_CHECK_NONE, tx);
+		    spa_condense_indirect_commit_sync, sci, tx);
 	}
 
 	vdev_indirect_mapping_entry_t *vime =
@@ -950,11 +949,12 @@ vdev_indirect_close(vdev_t *vd)
 /* ARGSUSED */
 static int
 vdev_indirect_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
-    uint64_t *ashift)
+    uint64_t *logical_ashift, uint64_t *physical_ashift)
 {
 	*psize = *max_psize = vd->vdev_asize +
 	    VDEV_LABEL_START_SIZE + VDEV_LABEL_END_SIZE;
-	*ashift = vd->vdev_ashift;
+	*logical_ashift = vd->vdev_ashift;
+	*physical_ashift = vd->vdev_physical_ashift;
 	return (0);
 }
 
@@ -1402,7 +1402,7 @@ vdev_indirect_checksum_error(zio_t *zio,
 	zio_bad_cksum_t zbc = {{{ 0 }}};
 	abd_t *bad_abd = ic->ic_data;
 	abd_t *good_abd = is->is_good_child->ic_data;
-	zfs_ereport_post_checksum(zio->io_spa, vd, NULL, zio,
+	(void) zfs_ereport_post_checksum(zio->io_spa, vd, NULL, zio,
 	    is->is_target_offset, is->is_size, good_abd, bad_abd, &zbc);
 }
 
@@ -1473,13 +1473,14 @@ vdev_indirect_all_checksum_errors(zio_t *zio)
 
 			vdev_t *vd = ic->ic_vdev;
 
-			mutex_enter(&vd->vdev_stat_lock);
-			vd->vdev_stat.vs_checksum_errors++;
-			mutex_exit(&vd->vdev_stat_lock);
-
-			zfs_ereport_post_checksum(zio->io_spa, vd, NULL, zio,
-			    is->is_target_offset, is->is_size,
+			int ret = zfs_ereport_post_checksum(zio->io_spa, vd,
+			    NULL, zio, is->is_target_offset, is->is_size,
 			    NULL, NULL, NULL);
+			if (ret != EALREADY) {
+				mutex_enter(&vd->vdev_stat_lock);
+				vd->vdev_stat.vs_checksum_errors++;
+				mutex_exit(&vd->vdev_stat_lock);
+			}
 		}
 	}
 }

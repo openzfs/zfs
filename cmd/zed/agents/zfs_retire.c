@@ -351,9 +351,8 @@ zfs_retire_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl,
 			zpool_vdev_offline(zhp, devname, B_TRUE);
 		} else if (!fmd_prop_get_int32(hdl, "spare_on_remove") ||
 		    replace_with_spare(hdl, zhp, vdev) == B_FALSE) {
-			/* Could not handle with spare: offline the device */
-			fmd_hdl_debug(hdl, "zpool_vdev_offline '%s'", devname);
-			zpool_vdev_offline(zhp, devname, B_TRUE);
+			/* Could not handle with spare */
+			fmd_hdl_debug(hdl, "no spare for '%s'", devname);
 		}
 
 		free(devname);
@@ -365,7 +364,7 @@ zfs_retire_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl,
 		return;
 
 	/*
-	 * Note: on zfsonlinux statechange events are more than just
+	 * Note: on Linux statechange events are more than just
 	 * healthy ones so we need to confirm the actual state value.
 	 */
 	if (strcmp(class, "resource.fs.zfs.statechange") == 0 &&

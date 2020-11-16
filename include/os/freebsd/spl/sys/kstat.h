@@ -6,7 +6,6 @@
  *  UCRL-CODE-235197
  *
  *  This file is part of the SPL, Solaris Porting Layer.
- *  For details, see <http://zfsonlinux.org/>.
  *
  *  The SPL is free software; you can redistribute it and/or modify it
  *  under the terms of the GNU General Public License as published by the
@@ -24,8 +23,11 @@
 
 #ifndef _SPL_KSTAT_H
 #define	_SPL_KSTAT_H
+
 #include <sys/types.h>
+#ifndef _STANDALONE
 #include <sys/sysctl.h>
+#endif
 struct list_head {};
 #include <sys/mutex.h>
 #include <sys/proc.h>
@@ -83,6 +85,14 @@ typedef struct kstat_s kstat_t;
 typedef int kid_t;				/* unique kstat id */
 typedef int kstat_update_t(struct kstat_s *, int); /* dynamic update cb */
 
+struct seq_file {
+	char *sf_buf;
+	size_t sf_size;
+};
+
+void seq_printf(struct seq_file *m, const char *fmt, ...);
+
+
 typedef struct kstat_module {
 	char ksm_name[KSTAT_STRLEN+1];		/* module name */
 	struct list_head ksm_module_list;	/* module linkage */
@@ -92,6 +102,7 @@ typedef struct kstat_module {
 
 typedef struct kstat_raw_ops {
 	int (*headers)(char *buf, size_t size);
+	int (*seq_headers)(struct seq_file *);
 	int (*data)(char *buf, size_t size, void *data);
 	void *(*addr)(kstat_t *ksp, loff_t index);
 } kstat_raw_ops_t;
@@ -112,6 +123,7 @@ struct kstat_s {
 	size_t		ks_data_size;		/* size of kstat data section */
 	kstat_update_t	*ks_update;		/* dynamic updates */
 	void		*ks_private;		/* private data */
+	void		*ks_private1;		/* private data */
 	kmutex_t	ks_private_lock;	/* kstat private data lock */
 	kmutex_t	*ks_lock;		/* kstat data lock */
 	struct list_head ks_list;		/* kstat linkage */
@@ -119,9 +131,10 @@ struct kstat_s {
 	kstat_raw_ops_t	ks_raw_ops;		/* ops table for raw type */
 	char		*ks_raw_buf;		/* buf used for raw ops */
 	size_t		ks_raw_bufsize;		/* size of raw ops buffer */
+#ifndef _STANDALONE
 	struct sysctl_ctx_list ks_sysctl_ctx;
 	struct sysctl_oid *ks_sysctl_root;
-
+#endif /* _STANDALONE */
 };
 
 typedef struct kstat_named_s {
@@ -185,6 +198,12 @@ extern void __kstat_set_raw_ops(kstat_t *ksp,
     int (*data)(char *buf, size_t size, void *data),
     void* (*addr)(kstat_t *ksp, loff_t index));
 
+extern void __kstat_set_seq_raw_ops(kstat_t *ksp,
+    int (*headers)(struct seq_file *),
+    int (*data)(char *buf, size_t size, void *data),
+    void* (*addr)(kstat_t *ksp, loff_t index));
+
+
 extern kstat_t *__kstat_create(const char *ks_module, int ks_instance,
     const char *ks_name, const char *ks_class, uchar_t ks_type,
     uint_t ks_ndata, uchar_t ks_flags);
@@ -196,12 +215,20 @@ extern void kstat_waitq_exit(kstat_io_t *);
 extern void kstat_runq_enter(kstat_io_t *);
 extern void kstat_runq_exit(kstat_io_t *);
 
+#define	kstat_set_seq_raw_ops(k, h, d, a) \
+    __kstat_set_seq_raw_ops(k, h, d, a)
 #define	kstat_set_raw_ops(k, h, d, a) \
     __kstat_set_raw_ops(k, h, d, a)
+#ifndef _STANDALONE
 #define	kstat_create(m, i, n, c, t, s, f) \
     __kstat_create(m, i, n, c, t, s, f)
 
 #define	kstat_install(k)		__kstat_install(k)
 #define	kstat_delete(k)			__kstat_delete(k)
+#else
+#define	kstat_create(m, i, n, c, t, s, f)	((kstat_t *)0)
+#define	kstat_install(k)
+#define	kstat_delete(k)
+#endif
 
 #endif  /* _SPL_KSTAT_H */

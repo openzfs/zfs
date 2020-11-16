@@ -16,20 +16,23 @@ KMOD=	openzfs
 	${SRCDIR}/os/freebsd/zfs \
 	${SRCDIR}/unicode \
 	${SRCDIR}/zcommon \
-	${SRCDIR}/zfs
+	${SRCDIR}/zfs \
+	${SRCDIR}/zstd \
+	${SRCDIR}/zstd/lib
+
 
 
 CFLAGS+= -I${.OBJDIR:H}/include
 CFLAGS+= -I${INCDIR}
-CFLAGS+= -I${INCDIR}/spl
 CFLAGS+= -I${INCDIR}/os/freebsd
 CFLAGS+= -I${INCDIR}/os/freebsd/spl
 CFLAGS+= -I${INCDIR}/os/freebsd/zfs
+CFLAGS+= -I${SRCDIR}/zstd/include
 CFLAGS+= -include ${INCDIR}/os/freebsd/spl/sys/ccompile.h
 
-CFLAGS+= -D__KERNEL__ -DFREEBSD_NAMECACHE -DBUILDING_ZFS  -D__BSD_VISIBLE=1
-CFLAGS+= -DHAVE_UIO_ZEROCOPY -DWITHOUT_NETDUMP -D__KERNEL -D_SYS_CONDVAR_H_
-CFLAGS+= -D_SYS_VMEM_H_ -DKDTRACE_HOOKS -DSMP
+CFLAGS+= -D__KERNEL__ -DFREEBSD_NAMECACHE -DBUILDING_ZFS  -D__BSD_VISIBLE=1 \
+	 -DHAVE_UIO_ZEROCOPY -DWITHOUT_NETDUMP -D__KERNEL -D_SYS_CONDVAR_H_ \
+	 -D_SYS_VMEM_H_ -DKDTRACE_HOOKS -DSMP -DHAVE_KSID -DCOMPAT_FREEBSD11
 
 .if ${MACHINE_ARCH} == "amd64"
 CFLAGS+= -DHAVE_AVX2 -DHAVE_AVX -D__x86_64 -DHAVE_SSE2 -DHAVE_AVX512F -DHAVE_SSSE3
@@ -98,9 +101,10 @@ SRCS+=	nvpair.c \
 
 #os/freebsd/spl
 SRCS+=	acl_common.c \
-	btree.c \
 	callb.c \
 	list.c \
+	sha256c.c \
+	sha512c.c \
 	spl_acl.c \
 	spl_cmn_err.c \
 	spl_dtrace.c \
@@ -108,6 +112,7 @@ SRCS+=	acl_common.c \
 	spl_kstat.c \
 	spl_misc.c \
 	spl_policy.c \
+	spl_procfs_list.c \
 	spl_string.c \
 	spl_sunddi.c \
 	spl_sysevent.c \
@@ -115,11 +120,8 @@ SRCS+=	acl_common.c \
 	spl_uio.c \
 	spl_vfs.c \
 	spl_vm.c \
-	spl_zone.c \
-	sha256c.c \
-	sha512c.c \
-	spl_procfs_list.c \
-	spl_zlib.c
+	spl_zlib.c \
+	spl_zone.c
 
 
 .if ${MACHINE_ARCH} == "i386" || ${MACHINE_ARCH} == "powerpc" || \
@@ -129,6 +131,7 @@ SRCS+= spl_atomic.c
 
 #os/freebsd/zfs
 SRCS+=	abd_os.c \
+	arc_os.c \
 	crypto_os.c \
 	dmu_os.c \
 	hkdf.c \
@@ -136,17 +139,16 @@ SRCS+=	abd_os.c \
 	spa_os.c \
 	sysctl_os.c \
 	vdev_file.c \
-	vdev_label_os.c \
 	vdev_geom.c \
+	vdev_label_os.c \
 	zfs_acl.c \
 	zfs_ctldir.c \
+	zfs_debug.c \
 	zfs_dir.c \
 	zfs_ioctl_compat.c \
 	zfs_ioctl_os.c \
-	zfs_log.c \
-	zfs_replay.c \
 	zfs_vfsops.c \
-	zfs_vnops.c \
+	zfs_vnops_os.c \
 	zfs_znode.c \
 	zio_crypt.c \
 	zvol_os.c
@@ -174,10 +176,10 @@ SRCS+=	zfeature_common.c \
 SRCS+=	abd.c \
 	aggsum.c \
 	arc.c \
-	arc_os.c \
 	blkptr.c \
 	bplist.c \
 	bpobj.c \
+	btree.c \
 	cityhash.c \
 	dbuf.c \
 	dbuf_stats.c \
@@ -272,17 +274,18 @@ SRCS+=	abd.c \
 	zcp_synctask.c \
 	zfeature.c \
 	zfs_byteswap.c \
-	zfs_debug.c \
 	zfs_file_os.c \
 	zfs_fm.c \
 	zfs_fuid.c \
-	zfs_fuid_os.c \
 	zfs_ioctl.c \
+	zfs_log.c \
 	zfs_onexit.c \
 	zfs_quota.c \
 	zfs_ratelimit.c \
+	zfs_replay.c \
 	zfs_rlock.c \
 	zfs_sa.c \
+	zfs_vnops.c \
 	zil.c \
 	zio.c \
 	zio_checksum.c \
@@ -292,6 +295,10 @@ SRCS+=	abd.c \
 	zrlock.c \
 	zthr.c \
 	zvol.c
+
+#zstd
+SRCS+=	zfs_zstd.c \
+	zstd.c
 
 beforeinstall:
 .if ${MK_DEBUG_FILES} != "no"
@@ -316,7 +323,7 @@ CFLAGS.spl_vm.c= -Wno-cast-qual
 CFLAGS.spl_zlib.c= -Wno-cast-qual
 CFLAGS.abd.c= -Wno-cast-qual
 CFLAGS.zfs_log.c= -Wno-cast-qual
-CFLAGS.zfs_vnops.c= -Wno-pointer-arith
+CFLAGS.zfs_vnops_os.c= -Wno-pointer-arith
 CFLAGS.u8_textprep.c= -Wno-cast-qual
 CFLAGS.zfs_fletcher.c= -Wno-cast-qual -Wno-pointer-arith
 CFLAGS.zfs_fletcher_intel.c= -Wno-cast-qual -Wno-pointer-arith
@@ -348,3 +355,5 @@ CFLAGS.zfs_ioctl.c= -Wno-cast-qual
 CFLAGS.zil.c= -Wno-cast-qual
 CFLAGS.zio.c= -Wno-cast-qual
 CFLAGS.zrlock.c= -Wno-cast-qual
+CFLAGS.zfs_zstd.c= -Wno-cast-qual -Wno-pointer-arith
+CFLAGS.zstd.c= -fno-tree-vectorize -U__BMI__

@@ -1,0 +1,38 @@
+ifneq ($(KBUILD_EXTMOD),)
+src = @abs_srcdir@
+obj = @abs_builddir@
+zstd_include = $(src)/include
+else
+zstd_include = $(srctree)/$(src)/include
+endif
+
+MODULE := zzstd
+
+obj-$(CONFIG_ZFS) := $(MODULE).o
+
+asflags-y := -I$(zstd_include)
+ccflags-y := -I$(zstd_include)
+
+# Zstd uses -O3 by default, so we should follow
+ccflags-y += -O3
+
+# -fno-tree-vectorize gets set for gcc in zstd/common/compiler.h
+# Set it for other compilers, too.
+$(obj)/lib/zstd.o: c_flags += -fno-tree-vectorize
+
+# SSE register return with SSE disabled if -march=znverX is passed
+$(obj)/lib/zstd.o: c_flags += -U__BMI__
+
+# Quiet warnings about frame size due to unused code in unmodified zstd lib
+$(obj)/lib/zstd.o: c_flags += -Wframe-larger-than=20480
+
+# Disable aarch64 neon SIMD instructions for kernel mode
+$(obj)/lib/zstd.o: c_flags += -include $(zstd_include)/aarch64_compat.h -include $(zstd_include)/zstd_compat_wrapper.h -Wp,-w
+
+$(obj)/zfs_zstd.o: c_flags += -include $(zstd_include)/zstd_compat_wrapper.h
+
+$(MODULE)-objs += zfs_zstd.o
+$(MODULE)-objs += lib/zstd.o
+
+all:
+	mkdir -p lib

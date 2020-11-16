@@ -31,15 +31,12 @@ __FBSDID("$FreeBSD$");
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/conf.h>
-#include <sys/eventhandler.h>
 #include <sys/kernel.h>
 #include <sys/lock.h>
 #include <sys/malloc.h>
 #include <sys/mutex.h>
 #include <sys/errno.h>
-#include <sys/uio.h>
 #include <sys/cmn_err.h>
-#include <sys/stat.h>
 #include <sys/zfs_ioctl_compat.h>
 
 enum zfs_ioc_legacy {
@@ -325,8 +322,10 @@ zfs_ioctl_ozfs_to_legacy(int request)
 	if (request > ZFS_IOC_LAST)
 		return (-1);
 
-	if (request > ZFS_IOC_PLATFORM)
+	if (request > ZFS_IOC_PLATFORM) {
+		request -= ZFS_IOC_PLATFORM + 1;
 		return (zfs_ioctl_ozfs_to_legacy_platform_[request]);
+	}
 	if (request >= sizeof (zfs_ioctl_ozfs_to_legacy_common_)/sizeof (long))
 		return (-1);
 	return (zfs_ioctl_ozfs_to_legacy_common_[request]);

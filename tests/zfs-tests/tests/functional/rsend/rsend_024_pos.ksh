@@ -46,7 +46,7 @@ log_onexit resume_cleanup $sendfs $streamfs
 
 test_fs_setup $sendfs $recvfs $streamfs
 log_must zfs unmount -f $sendfs
-resume_test "zfs send $sendfs" $streamfs $recvfs
+resume_test "zfs send $sendfs" $streamfs $recvfs 0
 file_check $sendfs $recvfs
 
 log_pass "Verify resumability of a full ZFS send/receive with the source " \

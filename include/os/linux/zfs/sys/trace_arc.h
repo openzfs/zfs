@@ -354,6 +354,41 @@ DEFINE_EVENT(zfs_l2arc_evict_class, name, \
 /* END CSTYLED */
 DEFINE_L2ARC_EVICT_EVENT(zfs_l2arc__evict);
 
+/*
+ * Generic support for three argument tracepoints of the form:
+ *
+ * DTRACE_PROBE3(...,
+ *     uint64_t, ...,
+ *     uint64_t, ...,
+ *     uint64_t, ...);
+ */
+/* BEGIN CSTYLED */
+DECLARE_EVENT_CLASS(zfs_arc_wait_for_eviction_class,
+	TP_PROTO(uint64_t amount, uint64_t arc_evict_count, uint64_t aew_count),
+	TP_ARGS(amount, arc_evict_count, aew_count),
+	TP_STRUCT__entry(
+	    __field(uint64_t,		amount)
+	    __field(uint64_t,		arc_evict_count)
+	    __field(uint64_t,		aew_count)
+	),
+	TP_fast_assign(
+	    __entry->amount		= amount;
+	    __entry->arc_evict_count	= arc_evict_count;
+	    __entry->aew_count		= aew_count;
+	),
+	TP_printk("amount %llu arc_evict_count %llu aew_count %llu",
+	    __entry->amount, __entry->arc_evict_count, __entry->aew_count)
+);
+/* END CSTYLED */
+
+/* BEGIN CSTYLED */
+#define	DEFINE_ARC_WAIT_FOR_EVICTION_EVENT(name) \
+DEFINE_EVENT(zfs_arc_wait_for_eviction_class, name, \
+	TP_PROTO(uint64_t amount, uint64_t arc_evict_count, uint64_t aew_count), \
+	TP_ARGS(amount, arc_evict_count, aew_count))
+/* END CSTYLED */
+DEFINE_ARC_WAIT_FOR_EVICTION_EVENT(zfs_arc__wait__for__eviction);
+
 #endif /* _TRACE_ARC_H */
 
 #undef TRACE_INCLUDE_PATH
@@ -376,6 +411,7 @@ DEFINE_DTRACE_PROBE1(l2arc__miss);
 DEFINE_DTRACE_PROBE2(l2arc__read);
 DEFINE_DTRACE_PROBE2(l2arc__write);
 DEFINE_DTRACE_PROBE2(l2arc__iodone);
+DEFINE_DTRACE_PROBE3(arc__wait__for__eviction);
 DEFINE_DTRACE_PROBE4(arc__miss);
 DEFINE_DTRACE_PROBE4(l2arc__evict);
 

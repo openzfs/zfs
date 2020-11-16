@@ -71,6 +71,7 @@ struct libzfs_handle {
 	char libzfs_chassis_id[256];
 	boolean_t libzfs_prop_debug;
 	regex_t libzfs_urire;
+	uint64_t libzfs_max_nvlist;
 };
 
 struct zfs_handle {
@@ -165,6 +166,10 @@ int zprop_expand_list(libzfs_handle_t *hdl, zprop_list_t **plp,
  * changelist_gather() flag to force it to iterate on mounted datasets only
  */
 #define	CL_GATHER_ITER_MOUNTED	2
+/*
+ * Use this changelist_gather() flag to prevent unmounting of file systems.
+ */
+#define	CL_GATHER_DONT_UNMOUNT	4
 
 typedef struct prop_changelist prop_changelist_t;
 

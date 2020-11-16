@@ -21,51 +21,82 @@
 .\"
 .\" Copyright (c) 2017 by Lawrence Livermore National Security, LLC.
 .\"
-.Dd September 16, 2017
+.Dd September 13, 2020
 .Dt ZGENHOSTID 8 SMM
-.Os Linux
+.Os
 .Sh NAME
 .Nm zgenhostid
 .Nd generate and store a hostid in
 .Em /etc/hostid
 .Sh SYNOPSIS
 .Nm
+.Op Fl f
+.Op Fl o Ar filename
 .Op Ar hostid
 .Sh DESCRIPTION
-If
-.Em /etc/hostid
-does not exist, create it and store a hostid in it.  If the user provides
+Creates
+.Pa /etc/hostid
+file and stores hostid in it.
+If the user provides
 .Op Ar hostid
-on the command line, store that value.  Otherwise, randomly generate a
-value to store.
-.Pp
-This emulates the
-.Xr genhostid 1
-utility and is provided for use on systems which do not include the utility.
-.Sh OPTIONS
-.Op Ar hostid
+on the command line, validates and stores that value.
+Otherwise, randomly generates a value to store.
+.Bl -tag -width "hostid"
+.It Fl h
+Display a summary of the command-line options.
+.It Fl f
+Force file overwrite.
+.It Fl o Ar filename
+Write to
+.Pa filename
+instead of default
+.Pa /etc/hostd
+.It Ar hostid
 Specifies the value to be placed in
-.Em /etc/hostid .
-It must be a number with a value between 1 and 2^32-1.  This value
+.Pa /etc/hostid .
+It must be a number with a value between 1 and 2^32-1.
+This value
 .Sy must
-be unique among your systems.  It must be expressed in hexadecimal and be
-exactly 8 digits long.
+be unique among your systems.
+It
+.Sy must
+be expressed in hexadecimal and be exactly
+.Em 8
+digits long, optionally prefixed by
+.Em 0x .
+.El
+.Sh FILES
+.Pa /etc/hostid
 .Sh EXAMPLES
-.Bl -tag -width Ds
+.Bl -tag -width Bd
 .It Generate a random hostid and store it
 .Bd -literal
 # zgenhostid
 .Ed
-.It Record the libc-generated hostid in Em /etc/hostid
+.It Record the libc-generated hostid in Pa /etc/hostid
 .Bd -literal
-# zgenhostid $(hostid)
+# zgenhostid "$(hostid)"
 .Ed
-.It Record a custom hostid (0xdeadbeef) in Em etc/hostid
+.It Record a custom hostid (0xdeadbeef) in Pa /etc/hostid
 .Bd -literal
 # zgenhostid deadbeef
+.Ed
+.It Record a custom hostid (0x01234567) in Pa /tmp/hostid
+and ovewrite the file if it exists
+.Bd -literal
+# zgenhostid -f -o /tmp/hostid 0x01234567
 .Ed
 .El
 .Sh SEE ALSO
 .Xr genhostid 1 ,
 .Xr hostid 1 ,
+.Xr sethostid 3 ,
 .Xr spl-module-parameters 5
+.Sh HISTORY
+.Nm
+emulates the
+.Xr genhostid 1
+utility and is provided for use on systems which
+do not include the utility or do not provide
+.Xr sethostid 3
+call.

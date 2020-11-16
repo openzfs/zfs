@@ -23,16 +23,14 @@
  * Use is subject to license terms.
  */
 
-#pragma ident	"%Z%%M%	%I%	%E% SMI"
-
 /*
  * Generic doubly-linked list implementation
  */
 
+#include <sys/param.h>
 #include <sys/list.h>
 #include <sys/list_impl.h>
 #include <sys/types.h>
-#include <sys/sysmacros.h>
 #include <sys/debug.h>
 
 #define	list_d2l(a, obj) ((list_node_t *)(((char *)obj) + (a)->list_offset))

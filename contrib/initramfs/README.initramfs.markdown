@@ -48,9 +48,7 @@ specified pool or all pools, as described above).
 Filesystems below the root filesystem will be automatically mounted with no
 additional configuration necessary.  For example, if the root filesystem is
 `rpool/ROOT/rootfs`, `rpool/root/rootfs/var`, `rpool/root/rootfs/usr`, etc.
-will be mounted (if they exist).  Additional filesystems (that are not located
-under the root filesystem) can be mounted by listing them in
-`ZFS_INITRD_ADDITIONAL_DATASETS` in `/etc/default/zfs`.
+will be mounted (if they exist).
 
 ### Snapshots
 

@@ -39,6 +39,7 @@
 #include <sys/zfs_acl.h>
 #include <sys/zil.h>
 #include <sys/zfs_project.h>
+#include <vm/vm_object.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -99,6 +100,7 @@ extern minor_t zfsdev_minor_alloc(void);
 #define	ZTOV(ZP)	((ZP)->z_vnode)
 #define	ZTOI(ZP)	((ZP)->z_vnode)
 #define	VTOZ(VP)	((struct znode *)(VP)->v_data)
+#define	VTOZ_SMR(VP)	((znode_t *)vn_load_v_data_smr(VP))
 #define	ITOZ(VP)	((struct znode *)(VP)->v_data)
 #define	zhold(zp)	vhold(ZTOV((zp)))
 #define	zrele(zp)	vrele(ZTOV((zp)))
@@ -112,7 +114,10 @@ extern minor_t zfsdev_minor_alloc(void);
 #define	Z_ISBLK(type) ((type) == VBLK)
 #define	Z_ISCHR(type) ((type) == VCHR)
 #define	Z_ISLNK(type) ((type) == VLNK)
+#define	Z_ISDIR(type) ((type) == VDIR)
 
+#define	zn_has_cached_data(zp)	vn_has_cached_data(ZTOV(zp))
+#define	zn_rlimit_fsize(zp, uio, td)	vn_rlimit_fsize(ZTOV(zp), (uio), (td))
 
 /* Called on entry to each ZFS vnode and vfs operation  */
 #define	ZFS_ENTER(zfsvfs) \
@@ -168,13 +173,12 @@ extern void	zfs_tstamp_update_setup_ext(struct znode *,
     uint_t, uint64_t [2], uint64_t [2], boolean_t have_tx);
 extern void zfs_znode_free(struct znode *);
 
-extern zil_get_data_t zfs_get_data;
 extern zil_replay_func_t *zfs_replay_vector[TX_MAX_TYPE];
 extern int zfsfstype;
 
 extern int zfs_znode_parent_and_name(struct znode *zp, struct znode **dzpp,
     char *buf);
-
+extern void	zfs_inode_update(struct znode *);
 #ifdef	__cplusplus
 }
 #endif

@@ -51,6 +51,8 @@ function cleanup
 			log_must zfs destroy -f ${datasets[$i]}
 		((i = i + 1))
 	done
+
+	zfs destroy -f "$TESTPOOL/with a space"
 }
 
 log_onexit cleanup
@@ -67,5 +69,9 @@ while (( $i < ${#datasets[*]} )); do
 		log_fail "zfs create ${datasets[$i]} fail."
 	((i = i + 1))
 done
+
+log_must zfs create "$TESTPOOL/with a space"
+log_must zfs unmount "$TESTPOOL/with a space"
+log_must zfs mount "$TESTPOOL/with a space"
 
 log_pass "'zfs create <filesystem>' works as expected."

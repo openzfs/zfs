@@ -6,7 +6,6 @@
  *  UCRL-CODE-235197
  *
  *  This file is part of the SPL, Solaris Porting Layer.
- *  For details, see <http://zfsonlinux.org/>.
  *
  *  The SPL is free software; you can redistribute it and/or modify it
  *  under the terms of the GNU General Public License as published by the
@@ -47,10 +46,6 @@
 
 #define	membar_producer()		smp_wmb()
 #define	physmem				zfs_totalram_pages
-#define	freemem			(nr_free_pages() + \
-				global_page_state(NR_INACTIVE_FILE) + \
-				global_page_state(NR_INACTIVE_ANON) + \
-				global_page_state(NR_SLAB_RECLAIMABLE))
 
 #define	xcopyin(from, to, size)		copy_from_user(to, from, size)
 #define	xcopyout(from, to, size)	copy_to_user(to, from, size)

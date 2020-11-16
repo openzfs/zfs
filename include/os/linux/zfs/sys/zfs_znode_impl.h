@@ -68,6 +68,10 @@ extern "C" {
 #define	Z_ISCHR(type) S_ISCHR(type)
 #define	Z_ISLNK(type) S_ISLNK(type)
 #define	Z_ISDEV(type)	(S_ISCHR(type) || S_ISBLK(type) || S_ISFIFO(type))
+#define	Z_ISDIR(type)	S_ISDIR(type)
+
+#define	zn_has_cached_data(zp)	((zp)->z_is_mapped)
+#define	zn_rlimit_fsize(zp, uio, td)	(0)
 
 #define	zhold(zp)	igrab(ZTOI((zp)))
 #define	zrele(zp)	iput(ZTOI((zp)))
@@ -143,6 +147,8 @@ do {						\
 } while (0)
 #endif /* HAVE_INODE_TIMESPEC64_TIMES */
 
+#define	ZFS_ACCESSTIME_STAMP(zfsvfs, zp)
+
 struct znode;
 
 extern int	zfs_sync(struct super_block *, int, cred_t *);
@@ -157,7 +163,6 @@ extern caddr_t zfs_map_page(page_t *, enum seg_rw);
 extern void zfs_unmap_page(page_t *, caddr_t);
 #endif /* HAVE_UIO_RW */
 
-extern zil_get_data_t zfs_get_data;
 extern zil_replay_func_t *zfs_replay_vector[TX_MAX_TYPE];
 extern int zfsfstype;
 

@@ -55,7 +55,7 @@ zcmd_ioctl_compat(int fd, int request, zfs_cmd_t *zc, const int cflag)
 	switch (cflag) {
 	case ZFS_CMD_COMPAT_NONE:
 		ncmd = _IOWR('Z', request, zfs_iocparm_t);
-		zp.zfs_cmd = (uint64_t)zc;
+		zp.zfs_cmd = (uint64_t)(uintptr_t)zc;
 		zp.zfs_cmd_size = sizeof (zfs_cmd_t);
 		zp.zfs_ioctl_version = ZFS_IOCVER_OZFS;
 		break;
@@ -64,7 +64,7 @@ zcmd_ioctl_compat(int fd, int request, zfs_cmd_t *zc, const int cflag)
 		ncmd = _IOWR('Z', newrequest, zfs_iocparm_t);
 		zc_c = malloc(sizeof (zfs_cmd_legacy_t));
 		zfs_cmd_ozfs_to_legacy(zc, zc_c);
-		zp.zfs_cmd = (uint64_t)zc_c;
+		zp.zfs_cmd = (uint64_t)(uintptr_t)zc_c;
 		zp.zfs_cmd_size = sizeof (zfs_cmd_legacy_t);
 		zp.zfs_ioctl_version = ZFS_IOCVER_LEGACY;
 		break;

@@ -45,8 +45,6 @@
  */
 #define	MAXNAMELEN	256
 
-#define	UID_NOBODY	60001		/* user ID no body */
-#define	GID_NOBODY	UID_NOBODY
 #define	UID_NOACCESS	60002		/* user ID no access */
 
 #define	MAXUID		UINT32_MAX	/* max user id */

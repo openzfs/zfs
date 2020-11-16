@@ -1,6 +1,6 @@
 '\" te
 .\" Copyright (c) 2013 by Turbo Fredriksson <turbo@bayour.com>. All rights reserved.
-.\" Copyright (c) 2019 by Delphix. All rights reserved.
+.\" Copyright (c) 2019, 2020 by Delphix. All rights reserved.
 .\" Copyright (c) 2019 Datto Inc.
 .\" The contents of this file are subject to the terms of the Common Development
 .\" and Distribution License (the "License").  You may not use this file except
@@ -14,7 +14,7 @@
 .\" CDDL HEADER, with the fields enclosed by brackets "[]" replaced with your
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
-.TH ZFS-MODULE-PARAMETERS 5 "Feb 15, 2019"
+.TH ZFS-MODULE-PARAMETERS 5 "Aug 24, 2020" OpenZFS
 .SH NAME
 zfs\-module\-parameters \- ZFS module parameters
 .SH DESCRIPTION
@@ -201,6 +201,48 @@ Default value: \fB200\fR%.
 .sp
 .ne 2
 .na
+\fBl2arc_mfuonly\fR (int)
+.ad
+.RS 12n
+Controls whether only MFU metadata and data are cached from ARC into L2ARC.
+This may be desired to avoid wasting space on L2ARC when reading/writing large
+amounts of data that are not expected to be accessed more than once. The
+default is \fB0\fR, meaning both MRU and MFU data and metadata are cached.
+When turning off (\fB0\fR) this feature some MRU buffers will still be present
+in ARC and eventually cached on L2ARC. If \fBl2arc_noprefetch\fR is set to 0,
+some prefetched buffers will be cached to L2ARC, and those might later
+transition to MRU, in which case the \fBl2arc_mru_asize\fR arcstat will not
+be 0. Regardless of \fBl2arc_noprefetch\fR, some MFU buffers might be evicted
+from ARC, accessed later on as prefetches and transition to MRU as prefetches.
+If accessed again they are counted as MRU and the \fBl2arc_mru_asize\fR arcstat
+will not be 0. The ARC status of L2ARC buffers when they were first cached in
+L2ARC can be seen in the \fBl2arc_mru_asize\fR, \fBl2arc_mfu_asize\fR and
+\fBl2arc_prefetch_asize\fR arcstats when importing the pool or onlining a cache
+device if persistent L2ARC is enabled. The \fBevicted_l2_eligible_mru\fR
+arcstat does not take into account if this option is enabled as the information
+provided by the evicted_l2_eligible_* arcstats can be used to decide if
+toggling this option is appropriate for the current workload.
+.sp
+Use \fB0\fR for no (default) and \fB1\fR for yes.
+.RE
+
+.sp
+.ne 2
+.na
+\fBl2arc_meta_percent\fR (int)
+.ad
+.RS 12n
+Percent of ARC size allowed for L2ARC-only headers.
+Since L2ARC buffers are not evicted on memory pressure, too large amount of
+headers on system with irrationaly large L2ARC can render it slow or unusable.
+This parameter limits L2ARC writes and rebuild to achieve it.
+.sp
+Default value: \fB33\fR%.
+.RE
+
+.sp
+.ne 2
+.na
 \fBl2arc_trim_ahead\fR (ulong)
 .ad
 .RS 12n
@@ -224,9 +266,15 @@ Default value: \fB0\fR%.
 .ad
 .RS 12n
 Do not write buffers to L2ARC if they were prefetched but not used by
-applications.
+applications. In case there are prefetched buffers in L2ARC and this option
+is later set to \fB1\fR, we do not read the prefetched buffers from L2ARC.
+Setting this option to \fB0\fR is useful for caching sequential reads from the
+disks to L2ARC and serve those reads from L2ARC later on. This may be beneficial
+in case the L2ARC device is significantly faster in sequential reads than the
+disks of the pool.
 .sp
-Use \fB1\fR for yes (default) and \fB0\fR to disable.
+Use \fB1\fR to disable (default) and \fB0\fR to enable caching/reading
+prefetches to/from L2ARC..
 .RE
 
 .sp
@@ -426,7 +474,7 @@ Default value: \fB16,777,216\fR (16MB)
 .RS 12n
 If we are not searching forward (due to metaslab_df_max_search,
 metaslab_df_free_pct, or metaslab_df_alloc_threshold), this tunable controls
-what segment is used.  If it is set, we will use the largest free segment. 
+what segment is used.  If it is set, we will use the largest free segment.
 If it is not set, we will use a segment of exactly the requested size (or
 larger).
 .sp
@@ -484,6 +532,29 @@ Default value: \fB200\fR.
 Default limit for metaslab size.
 .sp
 Default value: \fB29\fR [meaning (1 << 29) = 512MB].
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_max_auto_ashift\fR (ulong)
+.ad
+.RS 12n
+Maximum ashift used when optimizing for logical -> physical sector size on new
+top-level vdevs.
+.sp
+Default value: \fBASHIFT_MAX\fR (16).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_min_auto_ashift\fR (ulong)
+.ad
+.RS 12n
+Minimum ashift used when creating new top-level vdevs.
+.sp
+Default value: \fBASHIFT_MIN\fR (9).
 .RE
 
 .sp
@@ -707,6 +778,28 @@ Default value: \fB32,768\fR.
 .sp
 .ne 2
 .na
+\fBvdev_file_logical_ashift\fR (ulong)
+.ad
+.RS 12n
+Logical ashift for file-based devices.
+.sp
+Default value: \fB9\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBvdev_file_physical_ashift\fR (ulong)
+.ad
+.RS 12n
+Physical ashift for file-based devices.
+.sp
+Default value: \fB9\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzap_iterate_prefetch\fR (int)
 .ad
 .RS 12n
@@ -734,9 +827,20 @@ Default value: \fB1,048,576\fR.
 \fBzfetch_max_distance\fR (uint)
 .ad
 .RS 12n
-Max bytes to prefetch per stream (default 8MB).
+Max bytes to prefetch per stream.
 .sp
-Default value: \fB8,388,608\fR.
+Default value: \fB8,388,608\fR (8MB).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfetch_max_idistance\fR (uint)
+.ad
+.RS 12n
+Max bytes to prefetch indirects for per stream.
+.sp
+Default vaule: \fB67,108,864\fR (64MB).
 .RE
 
 .sp
@@ -859,6 +963,23 @@ increased to reduce the memory footprint.
 
 .sp
 Default value: \fB8192\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_arc_eviction_pct\fR (int)
+.ad
+.RS 12n
+When \fBarc_is_overflowing()\fR, \fBarc_get_data_impl()\fR waits for this
+percent of the requested amount of data to be evicted.  For example, by
+default for every 2KB that's evicted, 1KB of it may be "reused" by a new
+allocation. Since this is above 100%, it ensures that progress is made
+towards getting \fBarc_size\fR under \fBarc_c\fR.  Since this is finite, it
+ensures that allocations can still happen, even during the potentially long
+time that \fBarc_size\fR is more than \fBarc_c\fR.
+.sp
+Default value: \fB200\fR.
 .RE
 
 .sp
@@ -1060,6 +1181,23 @@ Default value: \fB0\fR
 .sp
 .ne 2
 .na
+\fBzfs_max_nvlist_src_size\fR (ulong)
+.ad
+.RS 12n
+Maximum size in bytes allowed to be passed as zc_nvlist_src_size for ioctls on
+/dev/zfs. This prevents a user from causing the kernel to allocate an excessive
+amount of memory. When the limit is exceeded, the ioctl fails with EINVAL and a
+description of the error is sent to the zfs-dbgmsg log. This parameter should
+not need to be touched under normal circumstances. On FreeBSD, the default is
+based on the system limit on user wired memory. On Linux, the default is
+\fBKMALLOC_MAX_SIZE\fR .
+.sp
+Default value: \fB0\fR (kernel decides)
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_multilist_num_sublists\fR (int)
 .ad
 .RS 12n
@@ -1146,6 +1284,29 @@ size (as measured by NR_FILE_PAGES) where that percent may exceed 100. This
 only operates during memory pressure/reclaim.
 .sp
 Default value: \fB0\fR% (disabled).
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_arc_shrinker_limit\fR (int)
+.ad
+.RS 12n
+This is a limit on how many pages the ARC shrinker makes available for
+eviction in response to one page allocation attempt.  Note that in
+practice, the kernel's shrinker can ask us to evict up to about 4x this
+for one allocation attempt.
+.sp
+The default limit of 10,000 (in practice, 160MB per allocation attempt with
+4K pages) limits the amount of time spent attempting to reclaim ARC memory to
+less than 100ms per allocation attempt, even with a small average compressed
+block size of ~8KB.
+.sp
+The parameter can be set to 0 (zero) to disable the limit.
+.sp
+This parameter only applies on Linux.
+.sp
+Default value: \fB10,000\fR.
 .RE
 
 .sp
@@ -1423,7 +1584,7 @@ Default value: \fB500,000\fR.
 .RS 12n
 Disables requirement for IVset guids to be present and match when doing a raw
 receive of encrypted datasets. Intended for users whose pools were created with
-ZFS on Linux pre-release versions and now have compatibility issues.
+OpenZFS pre-release versions and now have compatibility issues.
 .sp
 Default value: \fB0\fR.
 .RE
@@ -3176,7 +3337,7 @@ Default value: \fB25\fR.
 \fBzfs_sync_pass_dont_compress\fR (int)
 .ad
 .RS 12n
-Starting in this sync pass, we disable compression (including of metadata). 
+Starting in this sync pass, we disable compression (including of metadata).
 With the default setting, in practice, we don't have this many sync passes,
 so this has no effect.
 .sp
@@ -3562,6 +3723,27 @@ Default value: \fB0\fR.
 
 .sp
 .ne 2
+.na
+\fBzfs_zevent_retain_max\fR (int)
+.ad
+.RS 12n
+Maximum recent zevent records to retain for duplicate checking.  Setting
+this value to zero disables duplicate detection.
+.sp
+Default value: \fB2000\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_zevent_retain_expire_secs\fR (int)
+.ad
+.RS 12n
+Lifespan for a recent ereport that was retained for duplicate checking.
+.sp
+Default value: \fB900\fR.
+.RE
+
 .na
 \fBzfs_zil_clean_taskq_maxalloc\fR (int)
 .ad

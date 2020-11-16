@@ -1,3 +1,5 @@
+#!/bin/sh
+
 #
 # CDDL HEADER START
 #
@@ -30,7 +32,6 @@
 #
 
 . $STF_SUITE/include/commands.cfg
-. $STF_SUITE/include/libtest.shlib
 
 # ZFS Directories
 export ZEDLET_ETC_DIR=${ZEDLET_ETC_DIR:-@sysconfdir@/zfs/zed.d}
@@ -143,17 +144,6 @@ export SPA_MINDEVSIZE=$((64 * 1024 * 1024))
 # For iscsi target support
 export ISCSITGTFILE=/tmp/iscsitgt_file
 export ISCSITGT_FMRI=svc:/system/iscsitgt:default
-if is_illumos; then
-export AUTO_SNAP=$(svcs -a | grep auto-snapshot | grep online | awk \
-    '{print $3}')
-fi
-
-#
-# finally, if we're running in a local zone
-# we take some additional actions
-if ! is_global_zone; then
-	reexport_pool
-fi
 
 export ZFS_VERSION=5
 export ZFS_ALL_VERSIONS="1 2 3 4 5"
@@ -164,7 +154,8 @@ done
 
 export MAX_PARTITIONS=8
 
-if is_linux; then
+case $(uname -o) in
+GNU/Linux)
 	unpack_opts="--sparse -xf"
 	pack_opts="--sparse -cf"
 	verbose=" -v"
@@ -185,7 +176,8 @@ if is_linux; then
 
 	NEWFS_DEFAULT_FS="ext2"
 	SLICE_PREFIX=""
-elif is_freebsd; then
+	;;
+FreeBSD)
 	unpack_opts="xv"
 	pack_opts="cf"
 	verbose="v"
@@ -200,7 +192,16 @@ elif is_freebsd; then
 
 	NEWFS_DEFAULT_FS="ufs"
 	SLICE_PREFIX="p"
-else
+	;;
+illumos)
+	export AUTO_SNAP=$(svcs -a | \
+	    awk '/auto-snapshot/ && /online/ { print $3 }')
+	# finally, if we're running in a local zone
+	# we take some additional actions
+	if [ "$(zonename 2>/dev/null)" != "global" ]; then
+		reexport_pool
+	fi
+
 	unpack_opts="xv"
 	pack_opts="cf"
 	verbose="v"
@@ -214,7 +215,8 @@ else
 
 	NEWFS_DEFAULT_FS="ufs"
 	SLICE_PREFIX="s"
-fi
+	;;
+esac
 export unpack_opts pack_opts verbose unpack_preserve pack_preserve \
        ZVOL_DEVDIR ZVOL_RDEVDIR DEV_DSKDIR DEV_RDSKDIR DEV_MPATHDIR \
        ZEDLET_DIR ZED_LOG ZED_DEBUG_LOG VDEVID_CONF VDEVID_CONF_ETC \

@@ -16,11 +16,12 @@ KERNEL_H = \
 	trace_zil.h \
 	trace_zio.h \
 	trace_zrlock.h \
+	zfs_bootenv_os.h \
 	zfs_context_os.h \
 	zfs_ctldir.h \
 	zfs_dir.h \
-	zfs_vfsops.h \
-	zfs_vnops.h \
+	zfs_vfsops_os.h \
+	zfs_vnops_os.h \
 	zfs_znode_impl.h \
 	zpl.h
 

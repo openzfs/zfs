@@ -21,7 +21,7 @@
 #
 # Description:
 # Verify FREEOBJECTS record frees sequential objects (See
-# https://github.com/zfsonlinux/zfs/issues/6694)
+# https://github.com/openzfs/zfs/issues/6694)
 #
 # Strategy:
 # 1. Create three files with sequential object numbers, f1 f2 and f3

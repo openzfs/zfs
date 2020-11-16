@@ -91,7 +91,6 @@ uio_from_bio(uio_t *uio, struct bio *bio)
 	uio->uio_iovcnt = bio->bi_vcnt - BIO_BI_IDX(bio);
 	uio->uio_loffset = BIO_BI_SECTOR(bio) << 9;
 	uio->uio_segflg = UIO_BVEC;
-	uio->uio_limit = MAXOFFSET_T;
 	uio->uio_resid = BIO_BI_SIZE(bio);
 	uio->uio_skip = BIO_BI_SKIP(bio);
 }
@@ -107,8 +106,9 @@ zvol_write(void *arg)
 	uio_from_bio(&uio, bio);
 
 	zvol_state_t *zv = zvr->zv;
-	ASSERT(zv && zv->zv_open_count > 0);
-	ASSERT(zv->zv_zilog != NULL);
+	ASSERT3P(zv, !=, NULL);
+	ASSERT3U(zv->zv_open_count, >, 0);
+	ASSERT3P(zv->zv_zilog, !=, NULL);
 
 	/* bio marked as FLUSH need to flush before write */
 	if (bio_is_flush(bio))
@@ -189,8 +189,9 @@ zvol_discard(void *arg)
 	dmu_tx_t *tx;
 	unsigned long start_jif;
 
-	ASSERT(zv && zv->zv_open_count > 0);
-	ASSERT(zv->zv_zilog != NULL);
+	ASSERT3P(zv, !=, NULL);
+	ASSERT3U(zv->zv_open_count, >, 0);
+	ASSERT3P(zv->zv_zilog, !=, NULL);
 
 	start_jif = jiffies;
 	blk_generic_start_io_acct(zv->zv_zso->zvo_queue, WRITE,
@@ -256,7 +257,8 @@ zvol_read(void *arg)
 	uio_from_bio(&uio, bio);
 
 	zvol_state_t *zv = zvr->zv;
-	ASSERT(zv && zv->zv_open_count > 0);
+	ASSERT3P(zv, !=, NULL);
+	ASSERT3U(zv->zv_open_count, >, 0);
 
 	ssize_t start_resid = uio.uio_resid;
 	unsigned long start_jif = jiffies;
@@ -295,9 +297,17 @@ zvol_read(void *arg)
 	kmem_free(zvr, sizeof (zv_request_t));
 }
 
+#ifdef HAVE_SUBMIT_BIO_IN_BLOCK_DEVICE_OPERATIONS
+static blk_qc_t
+zvol_submit_bio(struct bio *bio)
+#else
 static MAKE_REQUEST_FN_RET
 zvol_request(struct request_queue *q, struct bio *bio)
+#endif
 {
+#ifdef HAVE_SUBMIT_BIO_IN_BLOCK_DEVICE_OPERATIONS
+	struct request_queue *q = bio->bi_disk->queue;
+#endif
 	zvol_state_t *zv = q->queuedata;
 	fstrans_cookie_t cookie = spl_fstrans_mark();
 	uint64_t offset = BIO_BI_SECTOR(bio) << 9;
@@ -425,7 +435,8 @@ zvol_request(struct request_queue *q, struct bio *bio)
 
 out:
 	spl_fstrans_unmark(cookie);
-#if defined(HAVE_MAKE_REQUEST_FN_RET_QC)
+#if defined(HAVE_MAKE_REQUEST_FN_RET_QC) || \
+	defined(HAVE_SUBMIT_BIO_IN_BLOCK_DEVICE_OPERATIONS)
 	return (BLK_QC_T_NONE);
 #endif
 }
@@ -473,9 +484,9 @@ zvol_open(struct block_device *bdev, fmode_t flag)
 	rw_exit(&zvol_state_lock);
 
 	ASSERT(MUTEX_HELD(&zv->zv_state_lock));
-	ASSERT(zv->zv_open_count != 0 || RW_READ_HELD(&zv->zv_suspend_lock));
 
 	if (zv->zv_open_count == 0) {
+		ASSERT(RW_READ_HELD(&zv->zv_suspend_lock));
 		error = -zvol_first_open(zv, !(flag & FMODE_WRITE));
 		if (error)
 			goto out_mutex;
@@ -492,7 +503,7 @@ zvol_open(struct block_device *bdev, fmode_t flag)
 	if (drop_suspend)
 		rw_exit(&zv->zv_suspend_lock);
 
-	check_disk_change(bdev);
+	zfs_check_media_change(bdev);
 
 	return (0);
 
@@ -521,7 +532,7 @@ zvol_release(struct gendisk *disk, fmode_t mode)
 	zv = disk->private_data;
 
 	mutex_enter(&zv->zv_state_lock);
-	ASSERT(zv->zv_open_count > 0);
+	ASSERT3U(zv->zv_open_count, >, 0);
 	/*
 	 * make sure zvol is not suspended during last close
 	 * (hold zv_suspend_lock) and respect proper lock acquisition
@@ -544,11 +555,12 @@ zvol_release(struct gendisk *disk, fmode_t mode)
 	rw_exit(&zvol_state_lock);
 
 	ASSERT(MUTEX_HELD(&zv->zv_state_lock));
-	ASSERT(zv->zv_open_count != 1 || RW_READ_HELD(&zv->zv_suspend_lock));
 
 	zv->zv_open_count--;
-	if (zv->zv_open_count == 0)
+	if (zv->zv_open_count == 0) {
+		ASSERT(RW_READ_HELD(&zv->zv_suspend_lock));
 		zvol_last_close(zv);
+	}
 
 	mutex_exit(&zv->zv_state_lock);
 
@@ -644,7 +656,11 @@ static int
 zvol_update_volsize(zvol_state_t *zv, uint64_t volsize)
 {
 
+#ifdef HAVE_REVALIDATE_DISK_SIZE
+	revalidate_disk_size(zv->zv_zso->zvo_disk, false);
+#else
 	revalidate_disk(zv->zv_zso->zvo_disk);
+#endif
 	return (0);
 }
 
@@ -737,6 +753,9 @@ static struct block_device_operations zvol_ops = {
 	.revalidate_disk	= zvol_revalidate_disk,
 	.getgeo			= zvol_getgeo,
 	.owner			= THIS_MODULE,
+#ifdef HAVE_SUBMIT_BIO_IN_BLOCK_DEVICE_OPERATIONS
+    .submit_bio		= zvol_submit_bio,
+#endif
 };
 
 /*
@@ -766,7 +785,11 @@ zvol_alloc(dev_t dev, const char *name)
 	list_link_init(&zv->zv_next);
 	mutex_init(&zv->zv_state_lock, NULL, MUTEX_DEFAULT, NULL);
 
+#ifdef HAVE_SUBMIT_BIO_IN_BLOCK_DEVICE_OPERATIONS
+	zso->zvo_queue = blk_alloc_queue(NUMA_NO_NODE);
+#else
 	zso->zvo_queue = blk_generic_alloc_queue(zvol_request, NUMA_NO_NODE);
+#endif
 	if (zso->zvo_queue == NULL)
 		goto out_kmem;
 
@@ -843,8 +866,8 @@ zvol_free(zvol_state_t *zv)
 
 	ASSERT(!RW_LOCK_HELD(&zv->zv_suspend_lock));
 	ASSERT(!MUTEX_HELD(&zv->zv_state_lock));
-	ASSERT(zv->zv_open_count == 0);
-	ASSERT(zv->zv_zso->zvo_disk->private_data == NULL);
+	ASSERT0(zv->zv_open_count);
+	ASSERT3P(zv->zv_zso->zvo_disk->private_data, ==, NULL);
 
 	rw_destroy(&zv->zv_suspend_lock);
 	zfs_rangelock_fini(&zv->zv_rangelock);

@@ -116,7 +116,7 @@ SHA2Init(uint64_t mech, SHA2_CTX *c)
 			SHA512_256_Init(&c->SHA512_ctx);
 			break;
 		default:
-			panic("unknown mechanism %lu", mech);
+			panic("unknown mechanism %ju", (uintmax_t)mech);
 	}
 	c->algotype = (uint32_t)mech;
 }

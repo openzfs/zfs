@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2019 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
  * Copyright (c) 2018, Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  * Copyright 2013 Saso Kiselkov. All rights reserved.
@@ -622,7 +622,6 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 
 			if (!error) {
 				objset_t *os;
-				uint64_t propval;
 
 				if (strval == NULL || strval[0] == '\0') {
 					objnum = zpool_prop_default_numeric(
@@ -634,26 +633,8 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 				if (error != 0)
 					break;
 
-				/*
-				 * Must be ZPL, and its property settings
-				 * must be supported by GRUB (compression
-				 * is not gzip, and large dnodes are not
-				 * used).
-				 */
-
+				/* Must be ZPL. */
 				if (dmu_objset_type(os) != DMU_OST_ZFS) {
-					error = SET_ERROR(ENOTSUP);
-				} else if ((error =
-				    dsl_prop_get_int_ds(dmu_objset_ds(os),
-				    zfs_prop_to_name(ZFS_PROP_COMPRESSION),
-				    &propval)) == 0 &&
-				    !BOOTFS_COMPRESS_VALID(propval)) {
-					error = SET_ERROR(ENOTSUP);
-				} else if ((error =
-				    dsl_prop_get_int_ds(dmu_objset_ds(os),
-				    zfs_prop_to_name(ZFS_PROP_DNODESIZE),
-				    &propval)) == 0 &&
-				    propval != ZFS_DNSIZE_LEGACY) {
 					error = SET_ERROR(ENOTSUP);
 				} else {
 					objnum = dmu_objset_id(os);
@@ -1020,13 +1001,25 @@ spa_taskqs_init(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
 			/*
 			 * The write issue taskq can be extremely CPU
 			 * intensive.  Run it at slightly less important
-			 * priority than the other taskqs.  Under Linux this
-			 * means incrementing the priority value on platforms
-			 * like illumos it should be decremented.
+			 * priority than the other taskqs.
+			 *
+			 * Under Linux and FreeBSD this means incrementing
+			 * the priority value as opposed to platforms like
+			 * illumos where it should be decremented.
+			 *
+			 * On FreeBSD, if priorities divided by four (RQ_PPQ)
+			 * are equal then a difference between them is
+			 * insignificant.
 			 */
-			if (t == ZIO_TYPE_WRITE && q == ZIO_TASKQ_ISSUE)
+			if (t == ZIO_TYPE_WRITE && q == ZIO_TASKQ_ISSUE) {
+#if defined(__linux__)
 				pri++;
-
+#elif defined(__FreeBSD__)
+				pri += 4;
+#else
+#error "unknown OS"
+#endif
+			}
 			tq = taskq_create_proc(name, value, pri, 50,
 			    INT_MAX, spa->spa_proc, flags);
 		}
@@ -1268,7 +1261,7 @@ spa_activate(spa_t *spa, spa_mode_t mode)
 	/*
 	 * This taskq is used to perform zvol-minor-related tasks
 	 * asynchronously. This has several advantages, including easy
-	 * resolution of various deadlocks (zfsonlinux bug #3681).
+	 * resolution of various deadlocks.
 	 *
 	 * The taskq must be single threaded to ensure tasks are always
 	 * processed in the order in which they were dispatched.
@@ -2513,11 +2506,12 @@ spa_livelist_delete_cb(void *arg, zthr_t *z)
 	VERIFY0(dsl_get_next_livelist_obj(mos, zap_obj, &ll_obj));
 	VERIFY0(zap_count(mos, ll_obj, &count));
 	if (count > 0) {
-		dsl_deadlist_t ll = { 0 };
+		dsl_deadlist_t *ll;
 		dsl_deadlist_entry_t *dle;
 		bplist_t to_free;
-		dsl_deadlist_open(&ll, mos, ll_obj);
-		dle = dsl_deadlist_first(&ll);
+		ll = kmem_zalloc(sizeof (dsl_deadlist_t), KM_SLEEP);
+		dsl_deadlist_open(ll, mos, ll_obj);
+		dle = dsl_deadlist_first(ll);
 		ASSERT3P(dle, !=, NULL);
 		bplist_create(&to_free);
 		int err = dsl_process_sub_livelist(&dle->dle_bpobj, &to_free,
@@ -2525,7 +2519,7 @@ spa_livelist_delete_cb(void *arg, zthr_t *z)
 		if (err == 0) {
 			sublist_delete_arg_t sync_arg = {
 			    .spa = spa,
-			    .ll = &ll,
+			    .ll = ll,
 			    .key = dle->dle_mintxg,
 			    .to_free = &to_free
 			};
@@ -2536,11 +2530,12 @@ spa_livelist_delete_cb(void *arg, zthr_t *z)
 			    sublist_delete_sync, &sync_arg, 0,
 			    ZFS_SPACE_CHECK_DESTROY));
 		} else {
-			ASSERT(err == EINTR);
+			VERIFY3U(err, ==, EINTR);
 		}
 		bplist_clear(&to_free);
 		bplist_destroy(&to_free);
-		dsl_deadlist_close(&ll);
+		dsl_deadlist_close(ll);
+		kmem_free(ll, sizeof (dsl_deadlist_t));
 	} else {
 		livelist_delete_arg_t sync_arg = {
 		    .spa = spa,
@@ -2716,8 +2711,7 @@ spa_livelist_condense_cb(void *arg, zthr_t *t)
 			lca->first_size = first_size;
 			lca->next_size = next_size;
 			dsl_sync_task_nowait(spa_get_dsl(spa),
-			    spa_livelist_condense_sync, lca, 0,
-			    ZFS_SPACE_CHECK_NONE, tx);
+			    spa_livelist_condense_sync, lca, tx);
 			dmu_tx_commit(tx);
 			return;
 		}
@@ -2897,7 +2891,8 @@ spa_load(spa_t *spa, spa_load_state_t state, spa_import_type_t type)
 			spa->spa_loaded_ts.tv_nsec = 0;
 		}
 		if (error != EBADF) {
-			zfs_ereport_post(ereport, spa, NULL, NULL, NULL, 0, 0);
+			(void) zfs_ereport_post(ereport, spa,
+			    NULL, NULL, NULL, 0);
 		}
 	}
 	spa->spa_load_state = error ? SPA_LOAD_ERROR : SPA_LOAD_NONE;
@@ -3230,7 +3225,8 @@ spa_verify_host(spa_t *spa, nvlist_t *mos_config)
 			cmn_err(CE_WARN, "pool '%s' could not be "
 			    "loaded as it was last accessed by "
 			    "another system (host: %s hostid: 0x%llx). "
-			    "See: http://illumos.org/msg/ZFS-8000-EY",
+			    "See: https://openzfs.github.io/openzfs-docs/msg/"
+			    "ZFS-8000-EY",
 			    spa_name(spa), hostname, (u_longlong_t)hostid);
 			spa_load_failed(spa, "hostid verification failed: pool "
 			    "last accessed by host: %s (hostid: 0x%llx)",
@@ -6239,7 +6235,7 @@ spa_tryimport(nvlist_t *tryconfig)
  * we don't sync the labels or remove the configuration cache.
  */
 static int
-spa_export_common(char *pool, int new_state, nvlist_t **oldconfig,
+spa_export_common(const char *pool, int new_state, nvlist_t **oldconfig,
     boolean_t force, boolean_t hardforce)
 {
 	spa_t *spa;
@@ -6383,7 +6379,7 @@ export_spa:
  * Destroy a storage pool.
  */
 int
-spa_destroy(char *pool)
+spa_destroy(const char *pool)
 {
 	return (spa_export_common(pool, POOL_STATE_DESTROYED, NULL,
 	    B_FALSE, B_FALSE));
@@ -6393,7 +6389,7 @@ spa_destroy(char *pool)
  * Export a storage pool.
  */
 int
-spa_export(char *pool, nvlist_t **oldconfig, boolean_t force,
+spa_export(const char *pool, nvlist_t **oldconfig, boolean_t force,
     boolean_t hardforce)
 {
 	return (spa_export_common(pool, POOL_STATE_EXPORTED, oldconfig,
@@ -6405,7 +6401,7 @@ spa_export(char *pool, nvlist_t **oldconfig, boolean_t force,
  * from the namespace in any way.
  */
 int
-spa_reset(char *pool)
+spa_reset(const char *pool)
 {
 	return (spa_export_common(pool, POOL_STATE_UNINITIALIZED, NULL,
 	    B_FALSE, B_FALSE));
@@ -6780,7 +6776,7 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 	if (raidz) {
 		dmu_tx_t *tx = dmu_tx_create_assigned(spa->spa_dsl_pool, txg);
 		dsl_sync_task_nowait(spa->spa_dsl_pool, vdev_raidz_attach_sync,
-		    newvd, 0, ZFS_SPACE_CHECK_NONE, tx);
+		    newvd, tx);
 		dmu_tx_commit(tx);
 	} else {
 		vdev_dtl_dirty(newvd, DTL_MISSING, TXG_INITIAL,

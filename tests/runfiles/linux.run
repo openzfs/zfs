@@ -23,13 +23,12 @@ outputdir = /var/tmp/test_results
 tags = ['functional']
 
 [tests/functional/acl/posix:Linux]
-tests = ['posix_001_pos', 'posix_002_pos', 'posix_003_pos']
+tests = ['posix_001_pos', 'posix_002_pos', 'posix_003_pos', 'posix_004_pos']
 tags = ['functional', 'acl', 'posix']
 
-[tests/functional/arc:Linux]
-tests = ['dbufstats_001_pos', 'dbufstats_002_pos', 'dbufstats_003_pos',
-    'arcstats_runtime_tuning']
-tags = ['functional', 'arc']
+[tests/functional/acl/posix-sa:Linux]
+tests = ['posix_001_pos', 'posix_002_pos', 'posix_003_pos', 'posix_004_pos']
+tags = ['functional', 'acl', 'posix-sa']
 
 [tests/functional/atime:Linux]
 tests = ['atime_003_pos', 'root_relatime_on']
@@ -48,11 +47,13 @@ tests = ['zfs_003_neg']
 tags = ['functional', 'cli_root', 'zfs']
 
 [tests/functional/cli_root/zfs_mount:Linux]
-tests = ['zfs_mount_006_pos', 'zfs_mount_008_pos', 'zfs_multi_mount']
+tests = ['zfs_mount_006_pos', 'zfs_mount_008_pos', 'zfs_mount_013_pos',
+    'zfs_mount_014_neg', 'zfs_multi_mount']
 tags = ['functional', 'cli_root', 'zfs_mount']
 
 [tests/functional/cli_root/zfs_share:Linux]
-tests = ['zfs_share_005_pos', 'zfs_share_007_neg', 'zfs_share_009_neg']
+tests = ['zfs_share_005_pos', 'zfs_share_007_neg', 'zfs_share_009_neg',
+    'zfs_share_012_pos']
 tags = ['functional', 'cli_root', 'zfs_share']
 
 [tests/functional/cli_root/zfs_sysfs:Linux]

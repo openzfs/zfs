@@ -21,13 +21,19 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
  * Copyright (c) 2014, Joyent, Inc. All rights reserved.
  * Copyright (c) 2014 RackTop Systems.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  * Copyright (c) 2016 Actifio, Inc. All rights reserved.
  * Copyright 2016, OmniTI Computer Consulting, Inc. All rights reserved.
  * Copyright 2017 Nexenta Systems, Inc.
+ * Copyright (c) 2019, Klara Inc.
+ * Copyright (c) 2019, Allan Jude
+ * Copyright (c) 2020 The FreeBSD Foundation [1]
+ *
+ * [1] Portions of this software were developed by Allan Jude
+ *     under sponsorship from the FreeBSD Foundation.
  */
 
 #include <sys/dmu_objset.h>
@@ -127,6 +133,7 @@ dsl_dataset_block_born(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx)
 	int compressed = BP_GET_PSIZE(bp);
 	int uncompressed = BP_GET_UCSIZE(bp);
 	int64_t delta;
+	spa_feature_t f;
 
 	dprintf_bp(bp, "ds=%p", ds);
 
@@ -156,7 +163,15 @@ dsl_dataset_block_born(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx)
 		    (void *)B_TRUE;
 	}
 
-	spa_feature_t f = zio_checksum_to_feature(BP_GET_CHECKSUM(bp));
+
+	f = zio_checksum_to_feature(BP_GET_CHECKSUM(bp));
+	if (f != SPA_FEATURE_NONE) {
+		ASSERT3S(spa_feature_table[f].fi_type, ==,
+		    ZFEATURE_TYPE_BOOLEAN);
+		ds->ds_feature_activation[f] = (void *)B_TRUE;
+	}
+
+	f = zio_compress_to_feature(BP_GET_COMPRESS(bp));
 	if (f != SPA_FEATURE_NONE) {
 		ASSERT3S(spa_feature_table[f].fi_type, ==,
 		    ZFEATURE_TYPE_BOOLEAN);
@@ -1020,7 +1035,7 @@ zfeature_active(spa_feature_t f, void *arg)
 {
 	switch (spa_feature_table[f].fi_type) {
 	case ZFEATURE_TYPE_BOOLEAN: {
-		boolean_t val = (boolean_t)arg;
+		boolean_t val = (boolean_t)(uintptr_t)arg;
 		ASSERT(val == B_FALSE || val == B_TRUE);
 		return (val);
 	}
@@ -1076,7 +1091,7 @@ dsl_dataset_activate_feature(uint64_t dsobj, spa_feature_t f, void *arg,
 
 	switch (spa_feature_table[f].fi_type) {
 	case ZFEATURE_TYPE_BOOLEAN:
-		ASSERT3S((boolean_t)arg, ==, B_TRUE);
+		ASSERT3S((boolean_t)(uintptr_t)arg, ==, B_TRUE);
 		VERIFY0(zap_add(mos, dsobj, spa_feature_table[f].fi_guid,
 		    sizeof (zero), 1, &zero, tx));
 		break;
@@ -3735,7 +3750,7 @@ dsl_dataset_promote_sync(void *arg, dmu_tx_t *tx)
 	 * as well.
 	 */
 	dsl_dir_remove_livelist(dd, tx, B_TRUE);
-	dsl_dir_remove_livelist(origin_ds->ds_dir, tx, B_TRUE);
+	dsl_dir_remove_livelist(odd, tx, B_TRUE);
 
 	/* log history record */
 	spa_history_log_internal_ds(hds, "promote", tx, " ");
@@ -4504,6 +4519,74 @@ dsl_dataset_set_refreservation(const char *dsname, zprop_source_t source,
 
 	return (dsl_sync_task(dsname, dsl_dataset_set_refreservation_check,
 	    dsl_dataset_set_refreservation_sync, &ddsqra, 0,
+	    ZFS_SPACE_CHECK_EXTRA_RESERVED));
+}
+
+typedef struct dsl_dataset_set_compression_arg {
+	const char *ddsca_name;
+	zprop_source_t ddsca_source;
+	uint64_t ddsca_value;
+} dsl_dataset_set_compression_arg_t;
+
+/* ARGSUSED */
+static int
+dsl_dataset_set_compression_check(void *arg, dmu_tx_t *tx)
+{
+	dsl_dataset_set_compression_arg_t *ddsca = arg;
+	dsl_pool_t *dp = dmu_tx_pool(tx);
+
+	uint64_t compval = ZIO_COMPRESS_ALGO(ddsca->ddsca_value);
+	spa_feature_t f = zio_compress_to_feature(compval);
+
+	if (f == SPA_FEATURE_NONE)
+		return (SET_ERROR(EINVAL));
+
+	if (!spa_feature_is_enabled(dp->dp_spa, f))
+		return (SET_ERROR(ENOTSUP));
+
+	return (0);
+}
+
+static void
+dsl_dataset_set_compression_sync(void *arg, dmu_tx_t *tx)
+{
+	dsl_dataset_set_compression_arg_t *ddsca = arg;
+	dsl_pool_t *dp = dmu_tx_pool(tx);
+	dsl_dataset_t *ds = NULL;
+
+	uint64_t compval = ZIO_COMPRESS_ALGO(ddsca->ddsca_value);
+	spa_feature_t f = zio_compress_to_feature(compval);
+	ASSERT3S(spa_feature_table[f].fi_type, ==, ZFEATURE_TYPE_BOOLEAN);
+
+	VERIFY0(dsl_dataset_hold(dp, ddsca->ddsca_name, FTAG, &ds));
+	if (zfeature_active(f, ds->ds_feature[f]) != B_TRUE) {
+		ds->ds_feature_activation[f] = (void *)B_TRUE;
+		dsl_dataset_activate_feature(ds->ds_object, f,
+		    ds->ds_feature_activation[f], tx);
+		ds->ds_feature[f] = ds->ds_feature_activation[f];
+	}
+	dsl_dataset_rele(ds, FTAG);
+}
+
+int
+dsl_dataset_set_compression(const char *dsname, zprop_source_t source,
+    uint64_t compression)
+{
+	dsl_dataset_set_compression_arg_t ddsca;
+
+	/*
+	 * The sync task is only required for zstd in order to activate
+	 * the feature flag when the property is first set.
+	 */
+	if (ZIO_COMPRESS_ALGO(compression) != ZIO_COMPRESS_ZSTD)
+		return (0);
+
+	ddsca.ddsca_name = dsname;
+	ddsca.ddsca_source = source;
+	ddsca.ddsca_value = compression;
+
+	return (dsl_sync_task(dsname, dsl_dataset_set_compression_check,
+	    dsl_dataset_set_compression_sync, &ddsca, 0,
 	    ZFS_SPACE_CHECK_EXTRA_RESERVED));
 }
 

@@ -31,6 +31,7 @@ SUBDIRS = \
 	inheritance \
 	inuse \
 	io \
+	l2arc \
 	large_files \
 	largest_pool \
 	libzfs \
@@ -47,7 +48,6 @@ SUBDIRS = \
 	nopwrite \
 	online_offline \
 	pam \
-	persist_l2arc \
 	pool_checkpoint \
 	pool_names \
 	poolversion \
@@ -82,6 +82,7 @@ SUBDIRS = \
 	vdev_zaps \
 	write_dirs \
 	xattr \
+	zpool_influxdb \
 	zvol
 
 if BUILD_LINUX

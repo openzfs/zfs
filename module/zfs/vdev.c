@@ -112,6 +112,9 @@ int zfs_vdev_standard_sm_blksz = (1 << 17);
  */
 int zfs_nocacheflush = 0;
 
+uint64_t zfs_vdev_max_auto_ashift = ASHIFT_MAX;
+uint64_t zfs_vdev_min_auto_ashift = ASHIFT_MIN;
+
 /*PRINTFLIKE2*/
 void
 vdev_dbgmsg(vdev_t *vd, const char *fmt, ...)
@@ -228,7 +231,7 @@ vdev_default_xlate(vdev_t *vd, const range_seg64_t *in, range_seg64_t *res)
 
 /*
  * Derive the enumerated allocation bias from string input.
- * String origin is either the per-vdev zap or zpool(1M).
+ * String origin is either the per-vdev zap or zpool(8).
  */
 static vdev_alloc_bias_t
 vdev_derive_alloc_bias(const char *bias)
@@ -1155,6 +1158,8 @@ vdev_add_parent(vdev_t *cvd, vdev_ops_t *ops)
 	mvd->vdev_max_asize = cvd->vdev_max_asize;
 	mvd->vdev_psize = cvd->vdev_psize;
 	mvd->vdev_ashift = cvd->vdev_ashift;
+	mvd->vdev_logical_ashift = cvd->vdev_logical_ashift;
+	mvd->vdev_physical_ashift = cvd->vdev_physical_ashift;
 	mvd->vdev_state = cvd->vdev_state;
 	mvd->vdev_crtxg = cvd->vdev_crtxg;
 
@@ -1186,7 +1191,8 @@ vdev_remove_parent(vdev_t *cvd)
 	    mvd->vdev_ops == &vdev_replacing_ops ||
 	    mvd->vdev_ops == &vdev_spare_ops);
 	cvd->vdev_ashift = mvd->vdev_ashift;
-
+	cvd->vdev_logical_ashift = mvd->vdev_logical_ashift;
+	cvd->vdev_physical_ashift = mvd->vdev_physical_ashift;
 	vdev_remove_child(mvd, cvd);
 	vdev_remove_child(pvd, mvd);
 
@@ -1259,9 +1265,9 @@ vdev_metaslab_group_create(vdev_t *vd)
 		    spa->spa_alloc_count);
 
 		/*
-		 * The spa ashift values currently only reflect the
-		 * general vdev classes. Class destination is late
-		 * binding so ashift checking had to wait until now
+		 * The spa ashift min/max only apply for the normal metaslab
+		 * class. Class destination is late binding so ashift boundry
+		 * setting had to wait until now.
 		 */
 		if (vd->vdev_top == vd && vd->vdev_ashift != 0 &&
 		    mc == spa_normal_class(spa) && vd->vdev_aux == NULL) {
@@ -1453,8 +1459,8 @@ vdev_probe_done(zio_t *zio)
 		} else {
 			ASSERT(zio->io_error != 0);
 			vdev_dbgmsg(vd, "failed probe");
-			zfs_ereport_post(FM_EREPORT_ZFS_PROBE_FAILURE,
-			    spa, vd, NULL, NULL, 0, 0);
+			(void) zfs_ereport_post(FM_EREPORT_ZFS_PROBE_FAILURE,
+			    spa, vd, NULL, NULL, 0);
 			zio->io_error = SET_ERROR(ENXIO);
 		}
 
@@ -1648,6 +1654,38 @@ vdev_set_deflate_ratio(vdev_t *vd)
 }
 
 /*
+ * Maximize performance by inflating the configured ashift for top level
+ * vdevs to be as close to the physical ashift as possible while maintaining
+ * administrator defined limits and ensuring it doesn't go below the
+ * logical ashift.
+ */
+static void
+vdev_ashift_optimize(vdev_t *vd)
+{
+	ASSERT(vd == vd->vdev_top);
+
+	if (vd->vdev_ashift < vd->vdev_physical_ashift) {
+		vd->vdev_ashift = MIN(
+		    MAX(zfs_vdev_max_auto_ashift, vd->vdev_ashift),
+		    MAX(zfs_vdev_min_auto_ashift,
+		    vd->vdev_physical_ashift));
+	} else {
+		/*
+		 * If the logical and physical ashifts are the same, then
+		 * we ensure that the top-level vdev's ashift is not smaller
+		 * than our minimum ashift value. For the unusual case
+		 * where logical ashift > physical ashift, we can't cap
+		 * the calculated ashift based on max ashift as that
+		 * would cause failures.
+		 * We still check if we need to increase it to match
+		 * the min ashift.
+		 */
+		vd->vdev_ashift = MAX(zfs_vdev_min_auto_ashift,
+		    vd->vdev_ashift);
+	}
+}
+
+/*
  * Prepare a virtual device for access.
  */
 int
@@ -1658,7 +1696,8 @@ vdev_open(vdev_t *vd)
 	uint64_t osize = 0;
 	uint64_t max_osize = 0;
 	uint64_t asize, max_asize, psize;
-	uint64_t ashift = 0;
+	uint64_t logical_ashift = 0;
+	uint64_t physical_ashift = 0;
 
 	ASSERT(vd->vdev_open_thread == curthread ||
 	    spa_config_held(spa, SCL_STATE_ALL, RW_WRITER) == SCL_STATE_ALL);
@@ -1688,8 +1727,8 @@ vdev_open(vdev_t *vd)
 		return (SET_ERROR(ENXIO));
 	}
 
-	error = vd->vdev_ops->vdev_op_open(vd, &osize, &max_osize, &ashift);
-
+	error = vd->vdev_ops->vdev_op_open(vd, &osize, &max_osize,
+	    &logical_ashift, &physical_ashift);
 	/*
 	 * Physical volume size should never be larger than its max size, unless
 	 * the disk has shrunk while we were reading it or the device is buggy
@@ -1804,6 +1843,18 @@ vdev_open(vdev_t *vd)
 		return (SET_ERROR(EINVAL));
 	}
 
+	/*
+	 * We can always set the logical/physical ashift members since
+	 * their values are only used to calculate the vdev_ashift when
+	 * the device is first added to the config. These values should
+	 * not be used for anything else since they may change whenever
+	 * the device is reopened and we don't store them in the label.
+	 */
+	vd->vdev_physical_ashift =
+	    MAX(physical_ashift, vd->vdev_physical_ashift);
+	vd->vdev_logical_ashift = MAX(logical_ashift,
+	    vd->vdev_logical_ashift);
+
 	if (vd->vdev_asize == 0) {
 		/*
 		 * This is the first-ever open, so use the computed values.
@@ -1811,8 +1862,23 @@ vdev_open(vdev_t *vd)
 		 */
 		vd->vdev_asize = asize;
 		vd->vdev_max_asize = max_asize;
+
+		/*
+		 * If the vdev_ashift was not overriden at creation time,
+		 * then set it the logical ashift and optimize the ashift.
+		 */
 		if (vd->vdev_ashift == 0) {
-			vd->vdev_ashift = ashift; /* use detected value */
+			vd->vdev_ashift = vd->vdev_logical_ashift;
+
+			if (vd->vdev_logical_ashift > ASHIFT_MAX) {
+				vdev_set_state(vd, B_TRUE, VDEV_STATE_CANT_OPEN,
+				    VDEV_AUX_ASHIFT_TOO_BIG);
+				return (SET_ERROR(EDOM));
+			}
+
+			if (vd->vdev_top == vd) {
+				vdev_ashift_optimize(vd);
+			}
 		}
 		if (vd->vdev_ashift != 0 && (vd->vdev_ashift < ASHIFT_MIN ||
 		    vd->vdev_ashift > ASHIFT_MAX)) {
@@ -1822,16 +1888,17 @@ vdev_open(vdev_t *vd)
 		}
 	} else {
 		/*
-		 * Detect if the alignment requirement has increased.
-		 * We don't want to make the pool unavailable, just
-		 * post an event instead.
+		 * Make sure the alignment required hasn't increased.
 		 */
-		if (ashift > vd->vdev_top->vdev_ashift &&
+		if (vd->vdev_ashift > vd->vdev_top->vdev_ashift &&
 		    vd->vdev_ops->vdev_op_leaf) {
-			zfs_ereport_post(FM_EREPORT_ZFS_DEVICE_BAD_ASHIFT,
-			    spa, vd, NULL, NULL, 0, 0);
+			(void) zfs_ereport_post(
+			    FM_EREPORT_ZFS_DEVICE_BAD_ASHIFT,
+			    spa, vd, NULL, NULL, 0);
+			vdev_set_state(vd, B_TRUE, VDEV_STATE_CANT_OPEN,
+			    VDEV_AUX_BAD_LABEL);
+			return (SET_ERROR(EDOM));
 		}
-
 		vd->vdev_max_asize = max_asize;
 	}
 
@@ -1864,18 +1931,6 @@ vdev_open(vdev_t *vd)
 		vdev_set_state(vd, B_TRUE, VDEV_STATE_FAULTED,
 		    VDEV_AUX_ERR_EXCEEDED);
 		return (error);
-	}
-
-	/*
-	 * Track the min and max ashift values for normal data devices.
-	 */
-	if (vd->vdev_top == vd && vd->vdev_ashift != 0 &&
-	    vd->vdev_alloc_bias == VDEV_BIAS_NONE &&
-	    vd->vdev_islog == 0 && vd->vdev_aux == NULL) {
-		if (vd->vdev_ashift > spa->spa_max_ashift)
-			spa->spa_max_ashift = vd->vdev_ashift;
-		if (vd->vdev_ashift < spa->spa_min_ashift)
-			spa->spa_min_ashift = vd->vdev_ashift;
 	}
 
 	/*
@@ -4084,6 +4139,11 @@ vdev_get_stats_ex(vdev_t *vd, vdev_stat_t *vs, vdev_stat_ex_t *vsx)
 			    1ULL << tvd->vdev_ms_shift);
 		}
 
+		vs->vs_configured_ashift = vd->vdev_top != NULL
+		    ? vd->vdev_top->vdev_ashift : vd->vdev_ashift;
+		vs->vs_logical_ashift = vd->vdev_logical_ashift;
+		vs->vs_physical_ashift = vd->vdev_physical_ashift;
+
 		/*
 		 * Report fragmentation and rebuild progress for top-level,
 		 * non-auxiliary, concrete devices.
@@ -4708,8 +4768,8 @@ vdev_set_state(vdev_t *vd, boolean_t isopen, vdev_state_t state, vdev_aux_t aux)
 				class = FM_EREPORT_ZFS_DEVICE_UNKNOWN;
 			}
 
-			zfs_ereport_post(class, spa, vd, NULL, NULL,
-			    save_state, 0);
+			(void) zfs_ereport_post(class, spa, vd, NULL, NULL,
+			    save_state);
 		}
 
 		/* Erase any notion of persistent removed state */
@@ -5029,4 +5089,13 @@ ZFS_MODULE_PARAM(zfs_vdev, vdev_, validate_skip, INT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs, zfs_, nocacheflush, INT, ZMOD_RW,
 	"Disable cache flushes");
+
+ZFS_MODULE_PARAM_CALL(zfs_vdev, zfs_vdev_, min_auto_ashift,
+	param_set_min_auto_ashift, param_get_ulong, ZMOD_RW,
+	"Minimum ashift used when creating new top-level vdevs");
+
+ZFS_MODULE_PARAM_CALL(zfs_vdev, zfs_vdev_, max_auto_ashift,
+	param_set_max_auto_ashift, param_get_ulong, ZMOD_RW,
+	"Maximum ashift used when optimizing for logical -> physical sector "
+	"size on new top-level vdevs");
 /* END CSTYLED */

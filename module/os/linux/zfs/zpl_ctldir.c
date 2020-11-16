@@ -248,7 +248,8 @@ zpl_snapdir_iterate(struct file *filp, zpl_dir_context_t *ctx)
 	if (!zpl_dir_emit_dots(filp, ctx))
 		goto out;
 
-	pos = ctx->pos;
+	/* Start the position at 0 if it already emitted . and .. */
+	pos = (ctx->pos == 2 ? 0 : ctx->pos);
 	while (error == 0) {
 		dsl_pool_config_enter(dmu_objset_pool(zfsvfs->z_os), FTAG);
 		error = -dmu_snapshot_list_next(zfsvfs->z_os, MAXNAMELEN,

@@ -29,23 +29,23 @@
 .\"
 .Dd August 9, 2019
 .Dt ZPOOL-REMOVE 8
-.Os Linux
+.Os
 .Sh NAME
-.Nm zpool Ns Pf - Cm remove
+.Nm zpool-remove
 .Nd Remove a device from a ZFS storage pool
 .Sh SYNOPSIS
-.Nm
+.Nm zpool
 .Cm remove
 .Op Fl npw
 .Ar pool Ar device Ns ...
-.Nm
+.Nm zpool
 .Cm remove
 .Fl s
 .Ar pool
 .Sh DESCRIPTION
 .Bl -tag -width Ds
 .It Xo
-.Nm
+.Nm zpool
 .Cm remove
 .Op Fl npw
 .Ar pool Ar device Ns ...
@@ -55,6 +55,8 @@ This command supports removing hot spare, cache, log, and both mirrored and
 non-redundant primary top-level vdevs, including dedup and special vdevs.
 When the primary pool storage includes a top-level raidz vdev only hot spare,
 cache, and log devices can be removed.
+Note that keys for all encrypted datasets must be loaded for top-level vdevs
+to be removed.
 .sp
 Removing a top-level vdev reduces the total amount of space in the storage pool.
 The specified device will be evacuated by copying all allocated space from it to
@@ -93,7 +95,7 @@ flag, displays numbers as parsable (exact) values.
 Waits until the removal has completed before returning.
 .El
 .It Xo
-.Nm
+.Nm zpool
 .Cm remove
 .Fl s
 .Ar pool

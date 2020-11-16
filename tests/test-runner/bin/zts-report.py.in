@@ -253,6 +253,7 @@ if sys.platform.startswith('freebsd'):
         'removal/removal_condense_export': ['FAIL', known_reason],
         'removal/removal_with_export': ['FAIL', known_reason],
         'resilver/resilver_restart_001': ['FAIL', known_reason],
+        'zvol/zvol_misc/zvol_misc_volmode': ['FAIL', known_reason],
     })
 elif sys.platform.startswith('linux'):
     maybe.update({
@@ -265,6 +266,8 @@ elif sys.platform.startswith('linux'):
         'cli_root/zpool_reopen/zpool_reopen_003_pos': ['FAIL', known_reason],
         'limits/filesystem_limit': ['SKIP', known_reason],
         'limits/snapshot_limit': ['SKIP', known_reason],
+        'mmp/mmp_exported_import': ['FAIL', known_reason],
+        'mmp/mmp_inactive_import': ['FAIL', known_reason],
         'refreserv/refreserv_raidz': ['FAIL', known_reason],
         'rsend/rsend_007_pos': ['FAIL', known_reason],
         'rsend/rsend_010_pos': ['FAIL', known_reason],

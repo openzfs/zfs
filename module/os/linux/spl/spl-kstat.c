@@ -6,7 +6,6 @@
  *  UCRL-CODE-235197
  *
  *  This file is part of the SPL, Solaris Porting Layer.
- *  For details, see <http://zfsonlinux.org/>.
  *
  *  The SPL is free software; you can redistribute it and/or modify it
  *  under the terms of the GNU General Public License as published by the
@@ -22,6 +21,10 @@
  *  with the SPL.  If not, see <http://www.gnu.org/licenses/>.
  *
  *  Solaris Porting Layer (SPL) Kstat Implementation.
+ *
+ *  Links to Illumos.org for more information on kstat function:
+ *  [1] https://illumos.org/man/1M/kstat
+ *  [2] https://illumos.org/man/9f/kstat_create
  */
 
 #include <linux/seq_file.h>

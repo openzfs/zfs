@@ -267,7 +267,7 @@ vdev_rebuild_initiate(vdev_t *vd)
 	vd->vdev_rebuilding = B_TRUE;
 
 	dsl_sync_task_nowait(spa_get_dsl(spa), vdev_rebuild_initiate_sync,
-	    (void *)(uintptr_t)vd->vdev_id, 0, ZFS_SPACE_CHECK_NONE, tx);
+	    (void *)(uintptr_t)vd->vdev_id, tx);
 	dmu_tx_commit(tx);
 
 	vdev_rebuild_log_notify(spa, vd, ESC_ZFS_RESILVER_START);
@@ -553,8 +553,7 @@ vdev_rebuild_range(vdev_rebuild_t *vr, uint64_t start, uint64_t size)
 		vr->vr_scan_offset[txg & TXG_MASK] = start;
 		dsl_sync_task_nowait(spa_get_dsl(spa),
 		    vdev_rebuild_update_sync,
-		    (void *)(uintptr_t)vd->vdev_id, 2,
-		    ZFS_SPACE_CHECK_RESERVED, tx);
+		    (void *)(uintptr_t)vd->vdev_id, tx);
 	}
 
 	/* When exiting write out our progress. */
@@ -875,16 +874,14 @@ vdev_rebuild_thread(void *arg)
 		 * by a pool checkpoint.  See the dsl_scan_done() comments.
 		 */
 		dsl_sync_task_nowait(dp, vdev_rebuild_complete_sync,
-		    (void *)(uintptr_t)vd->vdev_id, 0,
-		    ZFS_SPACE_CHECK_NONE, tx);
+		    (void *)(uintptr_t)vd->vdev_id, tx);
 	} else if (vd->vdev_rebuild_cancel_wanted) {
 		/*
 		 * The rebuild operation was canceled.  This will occur when
 		 * a device participating in the rebuild is detached.
 		 */
 		dsl_sync_task_nowait(dp, vdev_rebuild_cancel_sync,
-		    (void *)(uintptr_t)vd->vdev_id, 0,
-		    ZFS_SPACE_CHECK_NONE, tx);
+		    (void *)(uintptr_t)vd->vdev_id, tx);
 	} else if (vd->vdev_rebuild_reset_wanted) {
 		/*
 		 * Reset the running rebuild without canceling and restarting
@@ -892,8 +889,7 @@ vdev_rebuild_thread(void *arg)
 		 * participate in the rebuild.
 		 */
 		dsl_sync_task_nowait(dp, vdev_rebuild_reset_sync,
-		    (void *)(uintptr_t)vd->vdev_id, 0,
-		    ZFS_SPACE_CHECK_NONE, tx);
+		    (void *)(uintptr_t)vd->vdev_id, tx);
 	} else {
 		/*
 		 * The rebuild operation should be suspended.  This may occur
@@ -911,6 +907,8 @@ vdev_rebuild_thread(void *arg)
 	spa_config_exit(spa, SCL_CONFIG, FTAG);
 
 	cv_broadcast(&vd->vdev_rebuild_cv);
+
+	thread_exit();
 }
 
 /*
