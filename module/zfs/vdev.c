@@ -55,6 +55,7 @@
 #include <sys/abd.h>
 #include <sys/vdev_initialize.h>
 #include <sys/vdev_trim.h>
+#include <sys/vdev_raidz.h>
 #include <sys/zvol.h>
 #include <sys/zfs_ratelimit.h>
 
@@ -249,13 +250,13 @@ vdev_derive_alloc_bias(const char *bias)
  * all children.  This is what's used by anything other than RAID-Z.
  */
 uint64_t
-vdev_default_asize(vdev_t *vd, uint64_t psize)
+vdev_default_asize(vdev_t *vd, uint64_t psize, uint64_t txg)
 {
 	uint64_t asize = P2ROUNDUP(psize, 1ULL << vd->vdev_top->vdev_ashift);
 	uint64_t csize;
 
 	for (int c = 0; c < vd->vdev_children; c++) {
-		csize = vdev_psize_to_asize(vd->vdev_child[c], psize);
+		csize = vdev_psize_to_asize_txg(vd->vdev_child[c], psize, txg);
 		asize = MAX(asize, csize);
 	}
 
@@ -909,10 +910,8 @@ vdev_free(vdev_t *vd)
 	ASSERT(vd->vdev_child == NULL);
 	ASSERT(vd->vdev_guid_sum == vd->vdev_guid);
 
-	if (vd->vdev_ops == &vdev_raidz_ops) {
-		vdev_raidz_t *rz = vd->vdev_tsd;
-		kmem_free(rz, sizeof (*rz));
-	}
+	if (vd->vdev_ops == &vdev_raidz_ops)
+		vdev_raidz_free(vd->vdev_tsd);
 
 	/*
 	 * Discard allocation state.
@@ -1632,17 +1631,19 @@ retry_sync:
 }
 
 /*
- * Compute the raidz-deflation ratio.  Note, we hard-code
- * in 128k (1 << 17) because it is the "typical" blocksize.
- * Even though SPA_MAXBLOCKSIZE changed, this algorithm can not change,
- * otherwise it would inconsistently account for existing bp's.
+ * Compute the raidz-deflation ratio.  Note, we hard-code 128k (1 << 17)
+ * because it is the "typical" blocksize.  Even though SPA_MAXBLOCKSIZE
+ * changed, this algorithm can not change, otherwise it would inconsistently
+ * account for existing bp's.  We also hard-code txg 0 for the same reason
+ * (expanded RAIDZ vdevs can use different asize for different birth txg's).
  */
 static void
 vdev_set_deflate_ratio(vdev_t *vd)
 {
 	if (vd == vd->vdev_top && !vd->vdev_ishole && vd->vdev_ashift != 0) {
 		vd->vdev_deflate_ratio = (1 << 17) /
-		    (vdev_psize_to_asize(vd, 1 << 17) >> SPA_MINBLOCKSHIFT);
+		    (vdev_psize_to_asize_txg(vd, 1 << 17, 0) >>
+		    SPA_MINBLOCKSHIFT);
 	}
 }
 
@@ -3426,10 +3427,22 @@ vdev_sync(vdev_t *vd, uint64_t txg)
 	dmu_tx_commit(tx);
 }
 
+/*
+ * Return the amount of space that should be (or was) allocated for the given
+ * psize (compressed block size) in the given TXG. Note that for expanded
+ * RAIDZ vdevs, the size allocated for older BP's may be larger. See
+ * vdev_raidz_asize().
+ */
+uint64_t
+vdev_psize_to_asize_txg(vdev_t *vd, uint64_t psize, uint64_t txg)
+{
+	return (vd->vdev_ops->vdev_op_asize(vd, psize, txg));
+}
+
 uint64_t
 vdev_psize_to_asize(vdev_t *vd, uint64_t psize)
 {
-	return (vd->vdev_ops->vdev_op_asize(vd, psize));
+	return (vdev_psize_to_asize_txg(vd, psize, 0));
 }
 
 /*

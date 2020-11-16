@@ -708,8 +708,9 @@ tags = ['functional', 'redacted_send']
 
 [tests/functional/raidz]
 tests = ['raidz_001_neg', 'raidz_002_pos', 'raidz_003_pos', 'raidz_004_pos',
-    'raidz_expand.ksh']
+    'raidz_expand_001_pos', 'raidz_expand_002_pos']
 tags = ['functional', 'raidz']
+timeout = 1200
 
 [tests/functional/redundancy]
 tests = ['redundancy_001_pos', 'redundancy_002_pos', 'redundancy_003_pos',

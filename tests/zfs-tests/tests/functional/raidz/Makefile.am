@@ -6,4 +6,5 @@ dist_pkgdata_SCRIPTS = \
 	raidz_002_pos.ksh \
 	raidz_003_pos.ksh \
 	raidz_004_pos.ksh \
-	raidz_expand.ksh
+	raidz_expand_001_pos.ksh \
+	raidz_expand_002_pos.ksh
