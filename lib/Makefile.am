@@ -19,13 +19,17 @@ DISTLIBS = libuutil libzfs_core libzfs libzpool libzfsbootenv
 SUBDIRS += $(DISTLIBS)
 DISTLIBS += libnvpair
 
+# An ABI is stored for each of these libraries.  Note that libzpool.so
+# is only linked against by ztest and zdb and no stable ABI is provided.
+ABILIBS = libnvpair libuutil libzfs_core libzfs libzfsbootenv
+
 PHONY = checkabi storeabi
-checkabi: $(DISTLIBS)
-	set -e ; for dir in $(DISTLIBS) ; do \
+checkabi: $(ABILIBS)
+	set -e ; for dir in $(ABILIBS) ; do \
 		$(MAKE) -C $$dir checkabi ; \
 	done
 
-storeabi: $(DISTLIBS)
-	set -e ; for dir in $(DISTLIBS) ; do \
+storeabi: $(ABILIBS)
+	set -e ; for dir in $(ABILIBS) ; do \
 		$(MAKE) -C $$dir storeabi ; \
 	done

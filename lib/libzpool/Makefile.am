@@ -1,5 +1,4 @@
 include $(top_srcdir)/config/Rules.am
-PHONY =
 
 VPATH = \
 	$(top_srcdir)/module/zfs \
@@ -29,8 +28,6 @@ AM_CFLAGS += $(ZLIB_CFLAGS)
 AM_CFLAGS += -DLIB_ZPOOL_BUILD
 
 lib_LTLIBRARIES = libzpool.la
-
-include $(top_srcdir)/config/Abigail.am
 
 USER_C = \
 	kernel.c \
