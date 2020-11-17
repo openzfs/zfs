@@ -333,6 +333,8 @@ tests = ['zpool_create_001_pos', 'zpool_create_002_pos',
     'zpool_create_020_pos', 'zpool_create_021_pos', 'zpool_create_022_pos',
     'zpool_create_023_neg', 'zpool_create_024_pos',
     'zpool_create_encrypted', 'zpool_create_crypt_combos',
+    'zpool_create_draid_001_pos', 'zpool_create_draid_002_pos',
+    'zpool_create_draid_003_pos', 'zpool_create_draid_004_pos',
     'zpool_create_features_001_pos', 'zpool_create_features_002_pos',
     'zpool_create_features_003_pos', 'zpool_create_features_004_neg',
     'zpool_create_features_005_pos',
@@ -375,7 +377,7 @@ tests = ['zpool_import_001_pos', 'zpool_import_002_pos',
     'zpool_import_006_pos', 'zpool_import_007_pos', 'zpool_import_008_pos',
     'zpool_import_009_neg', 'zpool_import_010_pos', 'zpool_import_011_neg',
     'zpool_import_012_pos', 'zpool_import_013_neg', 'zpool_import_014_pos',
-    'zpool_import_015_pos',
+    'zpool_import_015_pos', 'zpool_import_016_pos', 'zpool_import_017_pos',
     'zpool_import_features_001_pos', 'zpool_import_features_002_neg',
     'zpool_import_features_003_pos', 'zpool_import_missing_001_pos',
     'zpool_import_missing_002_pos', 'zpool_import_missing_003_pos',
@@ -716,8 +718,10 @@ tags = ['functional', 'raidz']
 timeout = 1200
 
 [tests/functional/redundancy]
-tests = ['redundancy_001_pos', 'redundancy_002_pos', 'redundancy_003_pos',
-    'redundancy_004_neg']
+tests = ['redundancy_draid1', 'redundancy_draid2', 'redundancy_draid3',
+    'redundancy_draid_spare1', 'redundancy_draid_spare2',
+    'redundancy_draid_spare3', 'redundancy_mirror', 'redundancy_raidz1',
+    'redundancy_raidz2', 'redundancy_raidz3', 'redundancy_stripe']
 tags = ['functional', 'redundancy']
 
 [tests/functional/refquota]

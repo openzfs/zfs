@@ -67,6 +67,23 @@ function random
 }
 
 #
+# Get the number of checksum errors for the pool.
+#
+# $1 Pool
+#
+function cksum_pool
+{
+	typeset -i cksum=$(zpool status $1 | awk '
+	    !NF { isvdev = 0 }
+	    isvdev { errors += $NF }
+	    /CKSUM$/ { isvdev = 1 }
+	    END { print errors }
+	')
+
+	echo $cksum
+}
+
+#
 # Record the directories construction and checksum all the files which reside
 # within the specified pool
 #
@@ -81,6 +98,7 @@ function record_data
 	[[ -z $pool ]] && log_fail "No specified pool."
 	[[ -f $recordfile ]] && log_must rm -f $recordfile
 
+	sync_pool $pool
 	typeset mntpnt
 	mntpnt=$(get_prop mountpoint $pool)
 	log_must eval "du -a $mntpnt > $recordfile 2>&1"
@@ -119,22 +137,43 @@ function setup_test_env
 		destroy_pool $pool
 	fi
 
-	log_must mkfile $MINVDEVSIZE $vdevs
+	log_must truncate -s $MINVDEVSIZE $vdevs
 
-	log_must zpool create -m $TESTDIR $pool $keyword $vdevs
+	log_must zpool create -f -m $TESTDIR $pool $keyword $vdevs
 
 	log_note "Filling up the filesystem ..."
 	typeset -i ret=0
 	typeset -i i=0
 	typeset file=$TESTDIR/file
+	typeset -i limit
+	(( limit = $(get_prop available $pool) / 4 ))
+
 	while true ; do
-		file_write -o create -f $file.$i \
-			-b $BLOCKSZ -c $NUM_WRITES
+		[[ $(get_prop available $pool) -lt $limit ]] && break
+		file_write -o create -f $file.$i -b $BLOCKSZ -c $NUM_WRITES
 		ret=$?
 		(( $ret != 0 )) && break
 		(( i = i + 1 ))
 	done
-	(($ret != 28 )) && log_note "file_write return value($ret) is unexpected."
+
+	record_data $TESTPOOL $PRE_RECORD_FILE
+}
+
+function refill_test_env
+{
+	log_note "Re-filling the filesystem ..."
+	typeset -i ret=0
+	typeset -i i=0
+	typeset mntpnt
+	mntpnt=$(get_prop mountpoint $pool)
+	typeset file=$mntpnt/file
+	while [[ -e $file.$i ]]; do
+		log_must rm -f $file.$i
+		file_write -o create -f $file.$i -b $BLOCKSZ -c $NUM_WRITES
+		ret=$?
+		(( $ret != 0 )) && break
+		(( i = i + 1 ))
+	done
 
 	record_data $TESTPOOL $PRE_RECORD_FILE
 }

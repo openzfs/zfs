@@ -2336,7 +2336,7 @@ function check_pool_status # pool token keyword <verbose>
 function is_pool_resilvering #pool <verbose>
 {
 	check_pool_status "$1" "scan" \
-	    "resilver[ ()0-9A-Za-z_-]* in progress since" $2
+	    "resilver[ ()0-9A-Za-z:_-]* in progress since" $2
 	return $?
 }
 

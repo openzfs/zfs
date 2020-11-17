@@ -81,9 +81,13 @@ vdev_missing_io_done(zio_t *zio)
 }
 
 vdev_ops_t vdev_missing_ops = {
+	.vdev_op_init = NULL,
+	.vdev_op_fini = NULL,
 	.vdev_op_open = vdev_missing_open,
 	.vdev_op_close = vdev_missing_close,
 	.vdev_op_asize = vdev_default_asize,
+	.vdev_op_min_asize = vdev_default_min_asize,
+	.vdev_op_min_alloc = NULL,
 	.vdev_op_io_start = vdev_missing_io_start,
 	.vdev_op_io_done = vdev_missing_io_done,
 	.vdev_op_state_change = NULL,
@@ -92,14 +96,23 @@ vdev_ops_t vdev_missing_ops = {
 	.vdev_op_rele = NULL,
 	.vdev_op_remap = NULL,
 	.vdev_op_xlate = NULL,
+	.vdev_op_rebuild_asize = NULL,
+	.vdev_op_metaslab_init = NULL,
+	.vdev_op_config_generate = NULL,
+	.vdev_op_nparity = NULL,
+	.vdev_op_ndisks = NULL,
 	.vdev_op_type = VDEV_TYPE_MISSING,	/* name of this vdev type */
 	.vdev_op_leaf = B_TRUE			/* leaf vdev */
 };
 
 vdev_ops_t vdev_hole_ops = {
+	.vdev_op_init = NULL,
+	.vdev_op_fini = NULL,
 	.vdev_op_open = vdev_missing_open,
 	.vdev_op_close = vdev_missing_close,
 	.vdev_op_asize = vdev_default_asize,
+	.vdev_op_min_asize = vdev_default_min_asize,
+	.vdev_op_min_alloc = NULL,
 	.vdev_op_io_start = vdev_missing_io_start,
 	.vdev_op_io_done = vdev_missing_io_done,
 	.vdev_op_state_change = NULL,
@@ -108,6 +121,11 @@ vdev_ops_t vdev_hole_ops = {
 	.vdev_op_rele = NULL,
 	.vdev_op_remap = NULL,
 	.vdev_op_xlate = NULL,
+	.vdev_op_rebuild_asize = NULL,
+	.vdev_op_metaslab_init = NULL,
+	.vdev_op_config_generate = NULL,
+	.vdev_op_nparity = NULL,
+	.vdev_op_ndisks = NULL,
 	.vdev_op_type = VDEV_TYPE_HOLE,		/* name of this vdev type */
 	.vdev_op_leaf = B_TRUE			/* leaf vdev */
 };

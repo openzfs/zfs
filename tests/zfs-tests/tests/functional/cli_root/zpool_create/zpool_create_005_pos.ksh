@@ -54,7 +54,7 @@ log_assert "'zpool create [-R root][-m mountpoint] <pool> <vdev> ...' can create
 	"an alternate pool or a new pool mounted at the specified mountpoint."
 log_onexit cleanup
 
-set -A pooltype "" "mirror" "raidz" "raidz1" "raidz2"
+set -A pooltype "" "mirror" "raidz" "raidz1" "raidz2" "draid" "draid2"
 
 #
 # cleanup the pools created in previous case if zpool_create_004_pos timedout
@@ -67,8 +67,8 @@ done
 rm -rf $TESTDIR
 log_must mkdir -p $TESTDIR
 typeset -i i=1
-while (( i < 4 )); do
-	log_must mkfile $FILESIZE $TESTDIR/file.$i
+while (( i < 5 )); do
+	log_must truncate -s $FILESIZE $TESTDIR/file.$i
 
 	(( i = i + 1 ))
 done
@@ -87,7 +87,7 @@ do
 			log_must zpool destroy -f $TESTPOOL
 		[[ -d $TESTDIR1 ]] && rm -rf $TESTDIR1
 		log_must zpool create $opt $TESTPOOL ${pooltype[i]} \
-			$file.1 $file.2 $file.3
+			$file.1 $file.2 $file.3 $file.4
 		! poolexists $TESTPOOL && \
 			log_fail "Creating pool with $opt fails."
 		mpt=`zfs mount | egrep "^$TESTPOOL[^/]" | awk '{print $2}'`

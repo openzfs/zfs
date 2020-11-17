@@ -78,19 +78,19 @@ static void print_opts(raidz_test_opts_t *opts, boolean_t force)
 		    "  (-a) zio ashift                   : %zu\n"
 		    "  (-o) zio offset                   : 1 << %zu\n"
 		    "  (-e) expanded map                 : %s\n"
-		    "  (-r) reflow offset                : %zx\n"
+		    "  (-r) reflow offset                : %llx\n"
 		    "  (-d) number of raidz data columns : %zu\n"
 		    "  (-s) size of DATA                 : 1 << %zu\n"
 		    "  (-S) sweep parameters             : %s \n"
 		    "  (-v) verbose                      : %s \n\n",
-		    opts->rto_ashift,			/* -a */
-		    ilog2(opts->rto_offset),		/* -o */
-		    opts->rto_expand ? "yes" : "no",	/* -e */
-		    opts->rto_expand_offset,		/* -r */
-		    opts->rto_dcols,			/* -d */
-		    ilog2(opts->rto_dsize),		/* -s */
-		    opts->rto_sweep ? "yes" : "no",	/* -S */
-		    verbose);				/* -v */
+		    opts->rto_ashift,				/* -a */
+		    ilog2(opts->rto_offset),			/* -o */
+		    opts->rto_expand ? "yes" : "no",		/* -e */
+		    (u_longlong_t)opts->rto_expand_offset,	/* -r */
+		    opts->rto_dcols,				/* -d */
+		    ilog2(opts->rto_dsize),			/* -s */
+		    opts->rto_sweep ? "yes" : "no",		/* -S */
+		    verbose);					/* -v */
 	}
 }
 
@@ -109,7 +109,7 @@ static void usage(boolean_t requested)
 	    "\t[-t timeout for parameter sweep test]\n"
 	    "\t[-B benchmark all raidz implementations]\n"
 	    "\t[-e use expanded raidz map (default: %s)]\n"
-	    "\t[-r expanded raidz map reflow offset (default: %zx)]\n"
+	    "\t[-r expanded raidz map reflow offset (default: %llx)]\n"
 	    "\t[-v increase verbosity (default: %zu)]\n"
 	    "\t[-h (print help)]\n"
 	    "\t[-T test the test, see if failure would be detected]\n"
@@ -121,7 +121,7 @@ static void usage(boolean_t requested)
 	    ilog2(o->rto_dsize),			/* -s */
 	    rto_opts.rto_sweep ? "yes" : "no",		/* -S */
 	    rto_opts.rto_expand ? "yes" : "no",		/* -e */
-	    o->rto_expand_offset,			/* -r */
+	    (u_longlong_t)o->rto_expand_offset,		/* -r */
 	    o->rto_v);					/* -d */
 
 	exit(requested ? 0 : 1);
@@ -323,7 +323,8 @@ init_raidz_golden_map(raidz_test_opts_t *opts, const int parity)
 	VERIFY0(vdev_raidz_impl_set("original"));
 
 	if (opts->rto_expand) {
-		opts->rm_golden = vdev_raidz_map_alloc_expanded(opts->zio_golden->io_abd,
+		opts->rm_golden =
+		    vdev_raidz_map_alloc_expanded(opts->zio_golden->io_abd,
 		    opts->zio_golden->io_size, opts->zio_golden->io_offset,
 		    opts->rto_ashift, total_ncols+1, total_ncols,
 		    parity, opts->rto_expand_offset, 0);
@@ -500,7 +501,8 @@ run_rec_check_impl(raidz_test_opts_t *opts, raidz_map_t *rm, const int fn)
 			if (x0 >= rm->rm_row[0]->rr_cols - raidz_parity(rm))
 				continue;
 			for (x1 = x0 + 1; x1 < opts->rto_dcols; x1++) {
-				if (x1 >= rm->rm_row[0]->rr_cols - raidz_parity(rm))
+				if (x1 >= rm->rm_row[0]->rr_cols -
+				    raidz_parity(rm))
 					continue;
 
 				/* Check if should stop */
@@ -530,11 +532,12 @@ run_rec_check_impl(raidz_test_opts_t *opts, raidz_map_t *rm, const int fn)
 			if (x0 >= rm->rm_row[0]->rr_cols - raidz_parity(rm))
 				continue;
 			for (x1 = x0 + 1; x1 < opts->rto_dcols; x1++) {
-				if (x1 >= rm->rm_row[0]->rr_cols - raidz_parity(rm))
+				if (x1 >= rm->rm_row[0]->rr_cols -
+				    raidz_parity(rm))
 					continue;
 				for (x2 = x1 + 1; x2 < opts->rto_dcols; x2++) {
-					if (x2 >=
-					    rm->rm_row[0]->rr_cols - raidz_parity(rm))
+					if (x2 >= rm->rm_row[0]->rr_cols -
+					    raidz_parity(rm))
 						continue;
 
 					/* Check if should stop */

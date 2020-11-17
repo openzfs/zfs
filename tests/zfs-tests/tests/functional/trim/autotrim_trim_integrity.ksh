@@ -61,7 +61,7 @@ log_must set_tunable64 TRIM_EXTENT_BYTES_MIN 4096
 typeset trim_txg_batch=$(get_tunable TRIM_TXG_BATCH)
 log_must set_tunable64 TRIM_TXG_BATCH 8
 
-for type in "" "mirror" "raidz" "raidz2" "raidz3"; do
+for type in "" "mirror" "raidz" "raidz2" "draid" "draid2"; do
 	log_must truncate -s 1G $TRIM_VDEVS
 
 	log_must zpool create -f $TESTPOOL $type $TRIM_VDEVS

@@ -31,7 +31,7 @@ function cleanup
 	log_must rm -rf $DEVICE_DIR/*
 	typeset i=0
 	while (( i < $MAX_NUM )); do
-		log_must mkfile $FILE_SIZE ${DEVICE_DIR}/${DEVICE_FILE}$i
+		log_must truncate -s $FILE_SIZE ${DEVICE_DIR}/${DEVICE_FILE}$i
 		((i += 1))
 	done
 	is_linux && set_tunable32 TXG_HISTORY 0
@@ -163,7 +163,7 @@ function increase_device_sizes
 
 	typeset -i i=0
 	while (( i < $MAX_NUM )); do
-		log_must mkfile $newfilesize ${DEVICE_DIR}/${DEVICE_FILE}$i
+		log_must truncate -s $newfilesize ${DEVICE_DIR}/${DEVICE_FILE}$i
 		((i += 1))
 	done
 }
@@ -171,15 +171,18 @@ function increase_device_sizes
 #
 # Translate vdev names returned by zpool status into more generic names.
 #
-# eg: mirror-2 --> mirror
-#
 function _translate_vdev
 {
 	typeset vdev=$1
 
-	typeset keywords="mirror replacing raidz1 raidz2 raidz3 indirect"
+	#
+	# eg: mirror-2 --> mirror
+	# eg: draid2:4d:12c:1s-0 --> draid2
+	#
+	typeset keywords="mirror replacing raidz1 raidz2 raidz3 indirect draid1 draid2 draid3"
 	for word in $keywords; do
-		echo $vdev | egrep "^${word}-[0-9]+\$" > /dev/null
+		echo $vdev | egrep -qE \
+		    "^${word}-[0-9]+\$|^${word}:[0-9]+d:[0-9]c:[0-9]+s-[0-9]+\$"
 		if [[ $? -eq 0 ]]; then
 			vdev=$word
 			break
@@ -188,6 +191,7 @@ function _translate_vdev
 
 	[[ $vdev == "logs" ]] && echo "log" && return 0
 	[[ $vdev == "raidz1" ]] && echo "raidz" && return 0
+	[[ $vdev == "draid1" ]] && echo "draid" && return 0
 
 	echo $vdev
 	return 0

@@ -23,6 +23,7 @@
 .\" Copyright (c) 2009 Oracle and/or its affiliates. All rights reserved.
 .\" Copyright (c) 2009 Michael Gebetsroither <michael.geb@gmx.at>. All rights
 .\" reserved.
+.\" Copyright (c) 2017, Intel Corporation.
 .\"
 .TH ZTEST 1 "Aug 24, 2020" OpenZFS
 
@@ -82,13 +83,29 @@ Used alignment in test.
 .IP
 Number of mirror copies.
 .HP
-.BI "\-r" " raidz_disks" " (default: 4)"
+.BI "\-r" " raidz_disks / draid_disks" " (default: 4 / 16)"
 .IP
 Number of raidz disks.
 .HP
-.BI "\-R" " raidz_parity" " (default: 1)"
+.BI "\-R" " raid_parity" " (default: 1)"
 .IP
-Raidz parity.
+Raid parity (raidz & draid).
+.HP
+.BI "\-K" " raid_kind" " (default: 'random') raidz|draid|random"
+.IP
+The kind of RAID config to use. With 'random' the kind alternates between raidz and draid.
+.HP
+.BI "\-D" " draid_data" " (default: 4)"
+.IP
+Number of data disks in a dRAID redundancy group.
+.HP
+.BI "\-S" " draid_spares" " (default: 1)"
+.IP
+Number of dRAID distributed spare disks.
+.HP
+.BI "\-C" " vdev_class_state" " (default: random)"
+.IP
+The vdev allocation class state: special=on|off|random.
 .HP
 .BI "\-d" " datasets" " (default: 7)"
 .IP

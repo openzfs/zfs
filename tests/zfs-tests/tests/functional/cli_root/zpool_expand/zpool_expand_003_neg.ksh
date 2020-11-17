@@ -73,7 +73,7 @@ log_onexit cleanup
 
 log_assert "zpool can not expand if set autoexpand=off after vdev expansion"
 
-for type in " " mirror raidz raidz2; do
+for type in " " mirror raidz draid; do
 	log_note "Setting up loopback, scsi_debug, and file vdevs"
 	log_must truncate -s $org_size $FILE_LO
 	DEV1=$(losetup -f)

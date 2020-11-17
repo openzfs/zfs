@@ -112,7 +112,6 @@ refresh_config_libzfs(void *handle, nvlist_t *tryconfig)
 	return (refresh_config((libzfs_handle_t *)handle, tryconfig));
 }
 
-
 static int
 pool_active_libzfs(void *handle, const char *name, uint64_t guid,
     boolean_t *isactive)

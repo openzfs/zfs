@@ -713,7 +713,7 @@ dsl_scan_setup_check(void *arg, dmu_tx_t *tx)
 	return (0);
 }
 
-static void
+void
 dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 {
 	dsl_scan_t *scn = dmu_tx_pool(tx)->dp_scan;
@@ -3328,19 +3328,12 @@ dsl_scan_need_resilver(spa_t *spa, const dva_t *dva, size_t psize,
 	}
 
 	/*
-	 * Check if the txg falls within the range which must be
-	 * resilvered.  DVAs outside this range can always be skipped.
-	 */
-	if (!vdev_dtl_contains(vd, DTL_PARTIAL, phys_birth, 1))
-		return (B_FALSE);
-
-	/*
 	 * Check if the top-level vdev must resilver this offset.
 	 * When the offset does not intersect with a dirty leaf DTL
 	 * then it may be possible to skip the resilver IO.  The psize
 	 * is provided instead of asize to simplify the check for RAIDZ.
 	 */
-	if (!vdev_dtl_need_resilver(vd, DVA_GET_OFFSET(dva), psize))
+	if (!vdev_dtl_need_resilver(vd, dva, psize, phys_birth))
 		return (B_FALSE);
 
 	/*

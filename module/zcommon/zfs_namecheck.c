@@ -442,7 +442,9 @@ pool_namecheck(const char *pool, namecheck_err_t *why, char *what)
 		return (-1);
 	}
 
-	if (strcmp(pool, "mirror") == 0 || strcmp(pool, "raidz") == 0) {
+	if (strcmp(pool, "mirror") == 0 ||
+	    strcmp(pool, "raidz") == 0 ||
+	    strcmp(pool, "draid") == 0) {
 		if (why)
 			*why = NAME_ERR_RESERVED;
 		return (-1);
