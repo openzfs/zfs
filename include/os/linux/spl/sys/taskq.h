@@ -101,7 +101,7 @@ typedef struct taskq {
 	spl_wait_queue_head_t	tq_work_waitq;	/* new work waitq */
 	spl_wait_queue_head_t	tq_wait_waitq;	/* wait waitq */
 	tq_lock_role_t		tq_lock_class;	/* class when taking tq_lock */
-	/* list node fot the cpu hotplug callback */
+	/* list node for the cpu hotplug callback */
 	struct hlist_node	tq_hp_cb_node;
 	boolean_t		tq_hp_support;
 } taskq_t;
