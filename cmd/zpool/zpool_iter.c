@@ -56,6 +56,7 @@ typedef struct zpool_node {
 
 struct zpool_list {
 	boolean_t	zl_findall;
+	boolean_t	zl_literal;
 	uu_avl_t	*zl_avl;
 	uu_avl_pool_t	*zl_pool;
 	zprop_list_t	**zl_proplist;
@@ -88,7 +89,9 @@ add_pool(zpool_handle_t *zhp, void *data)
 	uu_avl_node_init(node, &node->zn_avlnode, zlp->zl_pool);
 	if (uu_avl_find(zlp->zl_avl, node, NULL, &idx) == NULL) {
 		if (zlp->zl_proplist &&
-		    zpool_expand_proplist(zhp, zlp->zl_proplist) != 0) {
+		    zpool_expand_proplist(zhp, zlp->zl_proplist,
+		    zlp->zl_literal)
+		    != 0) {
 			zpool_close(zhp);
 			free(node);
 			return (-1);
@@ -110,7 +113,8 @@ add_pool(zpool_handle_t *zhp, void *data)
  * line.
  */
 zpool_list_t *
-pool_list_get(int argc, char **argv, zprop_list_t **proplist, int *err)
+pool_list_get(int argc, char **argv, zprop_list_t **proplist,
+    boolean_t literal, int *err)
 {
 	zpool_list_t *zlp;
 
@@ -127,6 +131,8 @@ pool_list_get(int argc, char **argv, zprop_list_t **proplist, int *err)
 		zpool_no_memory();
 
 	zlp->zl_proplist = proplist;
+
+	zlp->zl_literal = literal;
 
 	if (argc == 0) {
 		(void) zpool_iter(g_zfs, add_pool, zlp);
@@ -242,12 +248,12 @@ pool_list_count(zpool_list_t *zlp)
  */
 int
 for_each_pool(int argc, char **argv, boolean_t unavail,
-    zprop_list_t **proplist, zpool_iter_f func, void *data)
+    zprop_list_t **proplist, boolean_t literal, zpool_iter_f func, void *data)
 {
 	zpool_list_t *list;
 	int ret = 0;
 
-	if ((list = pool_list_get(argc, argv, proplist, &ret)) == NULL)
+	if ((list = pool_list_get(argc, argv, proplist, literal, &ret)) == NULL)
 		return (1);
 
 	if (pool_list_iter(list, unavail, func, data) != 0)
@@ -711,7 +717,7 @@ all_pools_for_each_vdev_run(int argc, char **argv, char *cmd,
 	vcdl->g_zfs = g_zfs;
 
 	/* Gather our list of all vdevs in all pools */
-	for_each_pool(argc, argv, B_TRUE, NULL,
+	for_each_pool(argc, argv, B_TRUE, NULL, B_FALSE,
 	    all_pools_for_each_vdev_gather_cb, vcdl);
 
 	/* Run command on all vdevs in all pools */

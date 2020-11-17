@@ -412,7 +412,7 @@ zfs_write(znode_t *zp, uio_t *uio, int ioflag, cred_t *cr)
 	if (zn_rlimit_fsize(zp, uio, uio->uio_td)) {
 		zfs_rangelock_exit(lr);
 		ZFS_EXIT(zfsvfs);
-		return (EFBIG);
+		return (SET_ERROR(EFBIG));
 	}
 
 	const rlim64_t limit = MAXOFFSET_T;
@@ -652,7 +652,7 @@ zfs_write(znode_t *zp, uio_t *uio, int ioflag, cred_t *cr)
 
 		if (n > 0) {
 			if (uio_prefaultpages(MIN(n, max_blksz), uio)) {
-				error = EFAULT;
+				error = SET_ERROR(EFAULT);
 				break;
 			}
 		}
@@ -662,10 +662,12 @@ zfs_write(znode_t *zp, uio_t *uio, int ioflag, cred_t *cr)
 	zfs_rangelock_exit(lr);
 
 	/*
-	 * If we're in replay mode, or we made no progress, return error.
-	 * Otherwise, it's at least a partial write, so it's successful.
+	 * If we're in replay mode, or we made no progress, or the
+	 * uio data is inaccessible return an error.  Otherwise, it's
+	 * at least a partial write, so it's successful.
 	 */
-	if (zfsvfs->z_replay || uio->uio_resid == start_resid) {
+	if (zfsvfs->z_replay || uio->uio_resid == start_resid ||
+	    error == EFAULT) {
 		ZFS_EXIT(zfsvfs);
 		return (error);
 	}

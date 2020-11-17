@@ -15,4 +15,21 @@ SUBDIRS += libzutil libunicode
 
 # These four libraries, which are installed as the final build product,
 # incorporate the eight convenience libraries given above.
-SUBDIRS += libuutil libzfs_core libzfs libzpool
+DISTLIBS = libuutil libzfs_core libzfs libzpool
+SUBDIRS += $(DISTLIBS)
+DISTLIBS += libnvpair
+
+# An ABI is stored for each of these libraries.  Note that libzpool.so
+# is only linked against by ztest and zdb and no stable ABI is provided.
+ABILIBS = libnvpair libuutil libzfs_core libzfs
+
+PHONY = checkabi storeabi
+checkabi: $(ABILIBS)
+	set -e ; for dir in $(ABILIBS) ; do \
+		$(MAKE) -C $$dir checkabi ; \
+	done
+
+storeabi: $(ABILIBS)
+	set -e ; for dir in $(ABILIBS) ; do \
+		$(MAKE) -C $$dir storeabi ; \
+	done

@@ -230,6 +230,13 @@ zfsdev_state_t *zfsdev_state_list;
  */
 unsigned long zfs_max_nvlist_src_size = 0;
 
+/*
+ * When logging the output nvlist of an ioctl in the on-disk history, limit
+ * the logged size to this many bytes.  This must be less then DMU_MAX_ACCESS.
+ * This applies primarily to zfs_ioc_channel_program().
+ */
+unsigned long zfs_history_output_max = 1024 * 1024;
+
 uint_t zfs_fsyncer_key;
 uint_t zfs_allow_log_key;
 
@@ -5852,7 +5859,6 @@ zfs_ioc_userspace_many(zfs_cmd_t *zc)
 static int
 zfs_ioc_userspace_upgrade(zfs_cmd_t *zc)
 {
-	objset_t *os;
 	int error = 0;
 	zfsvfs_t *zfsvfs;
 
@@ -5873,19 +5879,54 @@ zfs_ioc_userspace_upgrade(zfs_cmd_t *zc)
 				error = zfs_resume_fs(zfsvfs, newds);
 			}
 		}
-		if (error == 0)
-			error = dmu_objset_userspace_upgrade(zfsvfs->z_os);
+		if (error == 0) {
+			mutex_enter(&zfsvfs->z_os->os_upgrade_lock);
+			if (zfsvfs->z_os->os_upgrade_id == 0) {
+				/* clear potential error code and retry */
+				zfsvfs->z_os->os_upgrade_status = 0;
+				mutex_exit(&zfsvfs->z_os->os_upgrade_lock);
+
+				dsl_pool_config_enter(
+				    dmu_objset_pool(zfsvfs->z_os), FTAG);
+				dmu_objset_userspace_upgrade(zfsvfs->z_os);
+				dsl_pool_config_exit(
+				    dmu_objset_pool(zfsvfs->z_os), FTAG);
+			} else {
+				mutex_exit(&zfsvfs->z_os->os_upgrade_lock);
+			}
+
+			taskq_wait_id(zfsvfs->z_os->os_spa->spa_upgrade_taskq,
+			    zfsvfs->z_os->os_upgrade_id);
+			error = zfsvfs->z_os->os_upgrade_status;
+		}
 		zfs_vfs_rele(zfsvfs);
 	} else {
+		objset_t *os;
+
 		/* XXX kind of reading contents without owning */
 		error = dmu_objset_hold_flags(zc->zc_name, B_TRUE, FTAG, &os);
 		if (error != 0)
 			return (error);
 
-		error = dmu_objset_userspace_upgrade(os);
-		dmu_objset_rele_flags(os, B_TRUE, FTAG);
-	}
+		mutex_enter(&os->os_upgrade_lock);
+		if (os->os_upgrade_id == 0) {
+			/* clear potential error code and retry */
+			os->os_upgrade_status = 0;
+			mutex_exit(&os->os_upgrade_lock);
 
+			dmu_objset_userspace_upgrade(os);
+		} else {
+			mutex_exit(&os->os_upgrade_lock);
+		}
+
+		dsl_pool_rele(dmu_objset_pool(os), FTAG);
+
+		taskq_wait_id(os->os_spa->spa_upgrade_taskq, os->os_upgrade_id);
+		error = os->os_upgrade_status;
+
+		dsl_dataset_rele_flags(dmu_objset_ds(os), DS_HOLD_FLAG_DECRYPT,
+		    FTAG);
+	}
 	return (error);
 }
 
@@ -7520,8 +7561,14 @@ zfsdev_ioctl_common(uint_t vecnum, zfs_cmd_t *zc, int flag)
 		    vec->zvec_allow_log &&
 		    spa_open(zc->zc_name, &spa, FTAG) == 0) {
 			if (!nvlist_empty(outnvl)) {
-				fnvlist_add_nvlist(lognv, ZPOOL_HIST_OUTPUT_NVL,
-				    outnvl);
+				size_t out_size = fnvlist_size(outnvl);
+				if (out_size > zfs_history_output_max) {
+					fnvlist_add_int64(lognv,
+					    ZPOOL_HIST_OUTPUT_SIZE, out_size);
+				} else {
+					fnvlist_add_nvlist(lognv,
+					    ZPOOL_HIST_OUTPUT_NVL, outnvl);
+				}
 			}
 			if (error != 0) {
 				fnvlist_add_int64(lognv, ZPOOL_HIST_ERRNO,
@@ -7630,4 +7677,7 @@ zfs_kmod_fini(void)
 /* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs, zfs_, max_nvlist_src_size, ULONG, ZMOD_RW,
     "Maximum size in bytes allowed for src nvlist passed with ZFS ioctls");
+
+ZFS_MODULE_PARAM(zfs, zfs_, history_output_max, ULONG, ZMOD_RW,
+    "Maximum size in bytes of ZFS ioctl output that will be logged");
 /* END CSTYLED */

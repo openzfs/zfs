@@ -1,8 +1,11 @@
 include $(top_srcdir)/config/Rules.am
+PHONY =
 
 pkgconfig_DATA = libzfs_core.pc
 
 lib_LTLIBRARIES = libzfs_core.la
+
+include $(top_srcdir)/config/Abigail.am
 
 USER_C = \
 	libzfs_core.c
