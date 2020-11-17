@@ -412,7 +412,7 @@ arc_hotplug_callback(struct notifier_block *self, unsigned long action,
 void
 arc_register_hotplug(void)
 {
-	// There is no significance to the value 100
+	/* There is no significance to the value 100 */
 	hotplug_memory_notifier(arc_hotplug_callback, 100);
 }
 #else /* _KERNEL */
