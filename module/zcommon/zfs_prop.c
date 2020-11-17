@@ -23,6 +23,8 @@
  * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
  * Copyright 2016, Joyent, Inc.
+ * Copyright (c) 2019, Klara Inc.
+ * Copyright (c) 2019, Allan Jude
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -125,6 +127,87 @@ zfs_prop_init(void)
 		{ "gzip-9",	ZIO_COMPRESS_GZIP_9 },
 		{ "zle",	ZIO_COMPRESS_ZLE },
 		{ "lz4",	ZIO_COMPRESS_LZ4 },
+		{ "zstd",	ZIO_COMPRESS_ZSTD },
+		{ "zstd-fast",
+		    ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_FAST_DEFAULT) },
+
+		/*
+		 * ZSTD 1-19 are synthetic. We store the compression level in a
+		 * separate hidden property to avoid wasting a large amount of
+		 * space in the ZIO_COMPRESS enum.
+		 *
+		 * The compression level is also stored within the header of the
+		 * compressed block since we may need it for later recompression
+		 * to avoid checksum errors (L2ARC).
+		 *
+		 * Note that the level here is defined as bit shifted mask on
+		 * top of the method.
+		 */
+		{ "zstd-1",	ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_1) },
+		{ "zstd-2",	ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_2) },
+		{ "zstd-3",	ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_3) },
+		{ "zstd-4",	ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_4) },
+		{ "zstd-5",	ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_5) },
+		{ "zstd-6",	ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_6) },
+		{ "zstd-7",	ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_7) },
+		{ "zstd-8",	ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_8) },
+		{ "zstd-9",	ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_9) },
+		{ "zstd-10",	ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_10) },
+		{ "zstd-11",	ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_11) },
+		{ "zstd-12",	ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_12) },
+		{ "zstd-13",	ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_13) },
+		{ "zstd-14",	ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_14) },
+		{ "zstd-15",	ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_15) },
+		{ "zstd-16",	ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_16) },
+		{ "zstd-17",	ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_17) },
+		{ "zstd-18",	ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_18) },
+		{ "zstd-19",	ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_19) },
+
+		/*
+		 * The ZSTD-Fast levels are also synthetic.
+		 */
+		{ "zstd-fast-1",
+		    ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_FAST_1) },
+		{ "zstd-fast-2",
+		    ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_FAST_2) },
+		{ "zstd-fast-3",
+		    ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_FAST_3) },
+		{ "zstd-fast-4",
+		    ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_FAST_4) },
+		{ "zstd-fast-5",
+		    ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_FAST_5) },
+		{ "zstd-fast-6",
+		    ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_FAST_6) },
+		{ "zstd-fast-7",
+		    ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_FAST_7) },
+		{ "zstd-fast-8",
+		    ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_FAST_8) },
+		{ "zstd-fast-9",
+		    ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_FAST_9) },
+		{ "zstd-fast-10",
+		    ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_FAST_10) },
+		{ "zstd-fast-20",
+		    ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_FAST_20) },
+		{ "zstd-fast-30",
+		    ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_FAST_30) },
+		{ "zstd-fast-40",
+		    ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_FAST_40) },
+		{ "zstd-fast-50",
+		    ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_FAST_50) },
+		{ "zstd-fast-60",
+		    ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_FAST_60) },
+		{ "zstd-fast-70",
+		    ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_FAST_70) },
+		{ "zstd-fast-80",
+		    ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_FAST_80) },
+		{ "zstd-fast-90",
+		    ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_FAST_90) },
+		{ "zstd-fast-100",
+		    ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_FAST_100) },
+		{ "zstd-fast-500",
+		    ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_FAST_500) },
+		{ "zstd-fast-1000",
+		    ZIO_COMPLEVEL_ZSTD(ZIO_ZSTD_LEVEL_FAST_1000) },
 		{ NULL }
 	};
 
@@ -170,9 +253,11 @@ zfs_prop_init(void)
 
 	static zprop_index_t acltype_table[] = {
 		{ "off",	ZFS_ACLTYPE_OFF },
-		{ "disabled",	ZFS_ACLTYPE_OFF },
-		{ "noacl",	ZFS_ACLTYPE_OFF },
-		{ "posixacl",	ZFS_ACLTYPE_POSIXACL },
+		{ "posix",	ZFS_ACLTYPE_POSIX },
+		{ "nfsv4",	ZFS_ACLTYPE_NFSV4 },
+		{ "disabled",	ZFS_ACLTYPE_OFF }, /* bkwrd compatibility */
+		{ "noacl",	ZFS_ACLTYPE_OFF }, /* bkwrd compatibility */
+		{ "posixacl",	ZFS_ACLTYPE_POSIX }, /* bkwrd compatibility */
 		{ NULL }
 	};
 
@@ -320,9 +405,9 @@ zfs_prop_init(void)
 	    "CHECKSUM", checksum_table);
 	zprop_register_index(ZFS_PROP_DEDUP, "dedup", ZIO_CHECKSUM_OFF,
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
-	    "on | off | verify | sha256[,verify], sha512[,verify], "
+	    "on | off | verify | sha256[,verify] | sha512[,verify] | "
 #if !defined(__FreeBSD__)
-	    "skein[,verify], edonr,verify",
+	    "skein[,verify] | edonr,verify",
 #else
 	    "skein[,verify]",
 #endif
@@ -330,8 +415,10 @@ zfs_prop_init(void)
 	zprop_register_index(ZFS_PROP_COMPRESSION, "compression",
 	    ZIO_COMPRESS_DEFAULT, PROP_INHERIT,
 	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
-	    "on | off | lzjb | gzip | gzip-[1-9] | zle | lz4", "COMPRESS",
-	    compress_table);
+	    "on | off | lzjb | gzip | gzip-[1-9] | zle | lz4 | "
+	    "zstd | zstd-[1-19] | "
+	    "zstd-fast-[1-10,20,30,40,50,60,70,80,90,100,500,1000]",
+	    "COMPRESS", compress_table);
 	zprop_register_index(ZFS_PROP_SNAPDIR, "snapdir", ZFS_SNAPDIR_HIDDEN,
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM,
 	    "hidden | visible", "SNAPDIR", snapdir_table);
@@ -342,11 +429,15 @@ zfs_prop_init(void)
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM,
 	    "discard | groupmask | passthrough | restricted", "ACLMODE",
 	    acl_mode_table);
-#ifndef __FreeBSD__
-	zprop_register_index(ZFS_PROP_ACLTYPE, "acltype", ZFS_ACLTYPE_OFF,
-	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT,
-	    "noacl | posixacl", "ACLTYPE", acltype_table);
+	zprop_register_index(ZFS_PROP_ACLTYPE, "acltype",
+#ifdef __linux__
+	    /* Linux doesn't natively support ZFS's NFSv4-style ACLs. */
+	    ZFS_ACLTYPE_OFF,
+#else
+	    ZFS_ACLTYPE_NFSV4,
 #endif
+	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT,
+	    "off | nfsv4 | posix", "ACLTYPE", acltype_table);
 	zprop_register_index(ZFS_PROP_ACLINHERIT, "aclinherit",
 	    ZFS_ACL_RESTRICTED, PROP_INHERIT, ZFS_TYPE_FILESYSTEM,
 	    "discard | noallow | restricted | passthrough | passthrough-x",
@@ -460,14 +551,14 @@ zfs_prop_init(void)
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM, "<path> | legacy | none",
 	    "MOUNTPOINT");
 	zprop_register_string(ZFS_PROP_SHARENFS, "sharenfs", "off",
-	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM, "on | off | share(1M) options",
+	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM, "on | off | NFS share options",
 	    "SHARENFS");
 	zprop_register_string(ZFS_PROP_TYPE, "type", NULL, PROP_READONLY,
 	    ZFS_TYPE_DATASET | ZFS_TYPE_BOOKMARK,
 	    "filesystem | volume | snapshot | bookmark", "TYPE");
 	zprop_register_string(ZFS_PROP_SHARESMB, "sharesmb", "off",
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM,
-	    "on | off | sharemgr(1M) options", "SHARESMB");
+	    "on | off | SMB share options", "SHARESMB");
 	zprop_register_string(ZFS_PROP_MLSLABEL, "mlslabel",
 	    ZFS_MLSLABEL_DEFAULT, PROP_INHERIT, ZFS_TYPE_DATASET,
 	    "<sensitivity label>", "MLSLABEL");
@@ -616,12 +707,6 @@ zfs_prop_init(void)
 	 * that we don't have to change the values of the zfs_prop_t enum, or
 	 * have NULL pointers in the zfs_prop_table[].
 	 */
-#ifdef __FreeBSD__
-	zprop_register_impl(ZFS_PROP_ACLTYPE, "acltype", PROP_TYPE_INDEX,
-	    ZFS_ACLTYPE_OFF, NULL, PROP_INHERIT,
-	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT,
-	    "noacl | posixacl", "ACLTYPE", B_FALSE, B_FALSE, acltype_table);
-#endif
 	zprop_register_hidden(ZFS_PROP_REMAPTXG, "remaptxg", PROP_TYPE_NUMBER,
 	    PROP_READONLY, ZFS_TYPE_DATASET, "REMAPTXG");
 

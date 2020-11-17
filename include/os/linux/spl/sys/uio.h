@@ -7,7 +7,6 @@
  *  UCRL-CODE-235197
  *
  *  This file is part of the SPL, Solaris Porting Layer.
- *  For details, see <http://zfsonlinux.org/>.
  *
  *  The SPL is free software; you can redistribute it and/or modify it
  *  under the terms of the GNU General Public License as published by the
@@ -60,53 +59,9 @@ typedef struct uio {
 	boolean_t	uio_fault_disable;
 	uint16_t	uio_fmode;
 	uint16_t	uio_extflg;
-	offset_t	uio_limit;
 	ssize_t		uio_resid;
 	size_t		uio_skip;
 } uio_t;
-
-typedef struct aio_req {
-	uio_t		*aio_uio;
-	void		*aio_private;
-} aio_req_t;
-
-typedef enum xuio_type {
-	UIOTYPE_ASYNCIO,
-	UIOTYPE_ZEROCOPY,
-} xuio_type_t;
-
-
-#define	UIOA_IOV_MAX    16
-
-typedef struct uioa_page_s {
-	int	uioa_pfncnt;
-	void	**uioa_ppp;
-	caddr_t	uioa_base;
-	size_t	uioa_len;
-} uioa_page_t;
-
-typedef struct xuio {
-	uio_t xu_uio;
-	enum xuio_type xu_type;
-	union {
-		struct {
-			uint32_t xu_a_state;
-			ssize_t xu_a_mbytes;
-			uioa_page_t *xu_a_lcur;
-			void **xu_a_lppp;
-			void *xu_a_hwst[4];
-			uioa_page_t xu_a_locked[UIOA_IOV_MAX];
-		} xu_aio;
-
-		struct {
-			int xu_zc_rw;
-			void *xu_zc_priv;
-		} xu_zc;
-	} xu_ext;
-} xuio_t;
-
-#define	XUIO_XUZC_PRIV(xuio)	xuio->xu_ext.xu_zc.xu_zc_priv
-#define	XUIO_XUZC_RW(xuio)	xuio->xu_ext.xu_zc.xu_zc_rw
 
 #define	uio_segflg(uio)			(uio)->uio_segflg
 #define	uio_offset(uio)			(uio)->uio_loffset
@@ -114,6 +69,7 @@ typedef struct xuio {
 #define	uio_iovcnt(uio)			(uio)->uio_iovcnt
 #define	uio_iovlen(uio, idx)		(uio)->uio_iov[(idx)].iov_len
 #define	uio_iovbase(uio, idx)		(uio)->uio_iov[(idx)].iov_base
+#define	uio_fault_disable(uio, set)	(uio)->uio_fault_disable = set
 
 static inline void
 uio_iov_at_index(uio_t *uio, uint_t idx, void **base, uint64_t *len)

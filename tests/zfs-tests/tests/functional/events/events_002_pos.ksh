@@ -92,7 +92,7 @@ done
 
 # 5. Start the ZED and verify it only handled the new missed events.
 log_must zed_start
-log_must file_wait $ZED_DEBUG_LOG 15
+log_must file_wait $ZED_DEBUG_LOG 35
 log_must cp $ZED_DEBUG_LOG $TMP_EVENTS_ZED
 
 log_mustnot grep -q "sysevent.fs.zfs.pool_create" $TMP_EVENTS_ZED

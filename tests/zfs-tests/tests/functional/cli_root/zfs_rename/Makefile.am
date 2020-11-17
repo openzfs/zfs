@@ -18,7 +18,8 @@ dist_pkgdata_SCRIPTS = \
 	zfs_rename_014_neg.ksh \
 	zfs_rename_encrypted_child.ksh \
 	zfs_rename_to_encrypted.ksh \
-	zfs_rename_mountpoint.ksh
+	zfs_rename_mountpoint.ksh \
+	zfs_rename_nounmount.ksh
 
 dist_pkgdata_DATA = \
 	zfs_rename.cfg \

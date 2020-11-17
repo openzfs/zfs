@@ -62,7 +62,7 @@ typedef enum {
 	DATA_TYPE_UINT8,
 	DATA_TYPE_BOOLEAN_ARRAY,
 	DATA_TYPE_INT8_ARRAY,
-#if !defined(_KERNEL)
+#if !defined(_KERNEL) && !defined(_STANDALONE)
 	DATA_TYPE_UINT8_ARRAY,
 	DATA_TYPE_DOUBLE
 #else
@@ -191,7 +191,7 @@ int nvlist_add_uint64_array(nvlist_t *, const char *, uint64_t *, uint_t);
 int nvlist_add_string_array(nvlist_t *, const char *, char *const *, uint_t);
 int nvlist_add_nvlist_array(nvlist_t *, const char *, nvlist_t **, uint_t);
 int nvlist_add_hrtime(nvlist_t *, const char *, hrtime_t);
-#if !defined(_KERNEL)
+#if !defined(_KERNEL) && !defined(_STANDALONE)
 int nvlist_add_double(nvlist_t *, const char *, double);
 #endif
 
@@ -228,7 +228,7 @@ int nvlist_lookup_nvlist_array(nvlist_t *, const char *,
     nvlist_t ***, uint_t *);
 int nvlist_lookup_hrtime(nvlist_t *, const char *, hrtime_t *);
 int nvlist_lookup_pairs(nvlist_t *, int, ...);
-#if !defined(_KERNEL)
+#if !defined(_KERNEL) && !defined(_STANDALONE)
 int nvlist_lookup_double(nvlist_t *, const char *, double *);
 #endif
 
@@ -269,7 +269,7 @@ int nvpair_value_uint64_array(nvpair_t *, uint64_t **, uint_t *);
 int nvpair_value_string_array(nvpair_t *, char ***, uint_t *);
 int nvpair_value_nvlist_array(nvpair_t *, nvlist_t ***, uint_t *);
 int nvpair_value_hrtime(nvpair_t *, hrtime_t *);
-#if !defined(_KERNEL)
+#if !defined(_KERNEL) && !defined(_STANDALONE)
 int nvpair_value_double(nvpair_t *, double *);
 #endif
 

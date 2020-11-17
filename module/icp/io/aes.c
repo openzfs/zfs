@@ -1051,6 +1051,16 @@ out:
 		bzero(aes_ctx.ac_keysched, aes_ctx.ac_keysched_len);
 		kmem_free(aes_ctx.ac_keysched, aes_ctx.ac_keysched_len);
 	}
+#ifdef CAN_USE_GCM_ASM
+	if (aes_ctx.ac_flags & (GCM_MODE|GMAC_MODE) &&
+	    ((gcm_ctx_t *)&aes_ctx)->gcm_Htable != NULL) {
+
+		gcm_ctx_t *ctx = (gcm_ctx_t *)&aes_ctx;
+
+		bzero(ctx->gcm_Htable, ctx->gcm_htab_len);
+		kmem_free(ctx->gcm_Htable, ctx->gcm_htab_len);
+	}
+#endif
 
 	return (ret);
 }
@@ -1209,6 +1219,14 @@ out:
 			vmem_free(((gcm_ctx_t *)&aes_ctx)->gcm_pt_buf,
 			    ((gcm_ctx_t *)&aes_ctx)->gcm_pt_buf_len);
 		}
+#ifdef CAN_USE_GCM_ASM
+		if (((gcm_ctx_t *)&aes_ctx)->gcm_Htable != NULL) {
+			gcm_ctx_t *ctx = (gcm_ctx_t *)&aes_ctx;
+
+			bzero(ctx->gcm_Htable, ctx->gcm_htab_len);
+			kmem_free(ctx->gcm_Htable, ctx->gcm_htab_len);
+		}
+#endif
 	}
 
 	return (ret);

@@ -32,7 +32,7 @@
 Provides basic information on the ARC, its efficiency, the L2ARC (if present),
 the Data Management Unit (DMU), Virtual Devices (VDEVs), and tunables. See
 the in-source documentation and code at
-https://github.com/zfsonlinux/zfs/blob/master/module/zfs/arc.c for details.
+https://github.com/openzfs/zfs/blob/master/module/zfs/arc.c for details.
 The original introduction to arc_summary can be found at
 http://cuddletech.com/?p=454
 """
@@ -43,7 +43,7 @@ import subprocess
 import sys
 import time
 
-DESCRIPTION = 'Print ARC and other statistics for ZFS on Linux'
+DESCRIPTION = 'Print ARC and other statistics for OpenZFS'
 INDENT = ' '*8
 LINE_LENGTH = 72
 DATE_FORMAT = '%a %b %d %H:%M:%S %Y'
@@ -58,7 +58,6 @@ SECTION_PATHS = {'arc': 'arcstats',
                  'dmu': 'dmu_tx',
                  'l2arc': 'arcstats',  # L2ARC stuff lives in arcstats
                  'vdev': 'vdev_cache_stats',
-                 'xuio': 'xuio_stats',
                  'zfetch': 'zfetchstats',
                  'zil': 'zil'}
 
@@ -598,6 +597,20 @@ def section_arc(kstats_dict):
     prt_i1('Deleted:', f_hits(arc_stats['deleted']))
     prt_i1('Mutex misses:', f_hits(arc_stats['mutex_miss']))
     prt_i1('Eviction skips:', f_hits(arc_stats['evict_skip']))
+    prt_i1('Eviction skips due to L2 writes:',
+           f_hits(arc_stats['evict_l2_skip']))
+    prt_i1('L2 cached evictions:', f_bytes(arc_stats['evict_l2_cached']))
+    prt_i1('L2 eligible evictions:', f_bytes(arc_stats['evict_l2_eligible']))
+    prt_i2('L2 eligible MFU evictions:',
+           f_perc(arc_stats['evict_l2_eligible_mfu'],
+           arc_stats['evict_l2_eligible']),
+           f_bytes(arc_stats['evict_l2_eligible_mfu']))
+    prt_i2('L2 eligible MRU evictions:',
+           f_perc(arc_stats['evict_l2_eligible_mru'],
+           arc_stats['evict_l2_eligible']),
+           f_bytes(arc_stats['evict_l2_eligible_mru']))
+    prt_i1('L2 ineligible evictions:',
+           f_bytes(arc_stats['evict_l2_ineligible']))
     print()
 
 
@@ -736,6 +749,21 @@ def section_l2arc(kstats_dict):
     prt_i2('Header size:',
            f_perc(arc_stats['l2_hdr_size'], arc_stats['l2_size']),
            f_bytes(arc_stats['l2_hdr_size']))
+    prt_i2('MFU allocated size:',
+           f_perc(arc_stats['l2_mfu_asize'], arc_stats['l2_asize']),
+           f_bytes(arc_stats['l2_mfu_asize']))
+    prt_i2('MRU allocated size:',
+           f_perc(arc_stats['l2_mru_asize'], arc_stats['l2_asize']),
+           f_bytes(arc_stats['l2_mru_asize']))
+    prt_i2('Prefetch allocated size:',
+           f_perc(arc_stats['l2_prefetch_asize'], arc_stats['l2_asize']),
+           f_bytes(arc_stats['l2_prefetch_asize']))
+    prt_i2('Data (buffer content) allocated size:',
+           f_perc(arc_stats['l2_bufc_data_asize'], arc_stats['l2_asize']),
+           f_bytes(arc_stats['l2_bufc_data_asize']))
+    prt_i2('Metadata (buffer content) allocated size:',
+           f_perc(arc_stats['l2_bufc_metadata_asize'], arc_stats['l2_asize']),
+           f_bytes(arc_stats['l2_bufc_metadata_asize']))
 
     print()
     prt_1('L2ARC breakdown:', f_hits(l2_access_total))
@@ -755,13 +783,13 @@ def section_l2arc(kstats_dict):
         prt_i2('Done ratio:',
                f_perc(arc_stats['l2_writes_done'],
                       arc_stats['l2_writes_sent']),
-               f_bytes(arc_stats['l2_writes_done']))
+               f_hits(arc_stats['l2_writes_done']))
         prt_i2('Error ratio:',
                f_perc(arc_stats['l2_writes_error'],
                       arc_stats['l2_writes_sent']),
-               f_bytes(arc_stats['l2_writes_error']))
+               f_hits(arc_stats['l2_writes_error']))
     else:
-        prt_i2('Writes sent:', '100 %', f_bytes(arc_stats['l2_writes_sent']))
+        prt_i2('Writes sent:', '100 %', f_hits(arc_stats['l2_writes_sent']))
 
     print()
     print('L2ARC evicts:')
@@ -831,7 +859,7 @@ def section_vdev(kstats_dict):
 
     # Currently [Nov 2017] the VDEV cache is disabled, because it is actually
     # harmful. When this is the case, we just skip the whole entry. See
-    # https://github.com/zfsonlinux/zfs/blob/master/module/zfs/vdev_cache.c
+    # https://github.com/openzfs/zfs/blob/master/module/zfs/vdev_cache.c
     # for details
     tunables = get_vdev_params()
 
@@ -857,7 +885,7 @@ def section_vdev(kstats_dict):
 
 def section_zil(kstats_dict):
     """Collect information on the ZFS Intent Log. Some of the information
-    taken from https://github.com/zfsonlinux/zfs/blob/master/include/sys/zil.h
+    taken from https://github.com/openzfs/zfs/blob/master/include/sys/zil.h
     """
 
     zil_stats = isolate_section('zil', kstats_dict)

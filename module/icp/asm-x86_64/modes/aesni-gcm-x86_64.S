@@ -55,6 +55,7 @@
 .type	_aesni_ctr32_ghash_6x,@function
 .align	32
 _aesni_ctr32_ghash_6x:
+.cfi_startproc
 	vmovdqu	32(%r11),%xmm2
 	subq	$6,%rdx
 	vpxor	%xmm4,%xmm4,%xmm4
@@ -363,12 +364,14 @@ _aesni_ctr32_ghash_6x:
 	vpxor	%xmm4,%xmm8,%xmm8
 
 	.byte	0xf3,0xc3
+.cfi_endproc
 .size	_aesni_ctr32_ghash_6x,.-_aesni_ctr32_ghash_6x
 #endif /* ifdef HAVE_MOVBE */
 
 .type	_aesni_ctr32_ghash_no_movbe_6x,@function
 .align	32
 _aesni_ctr32_ghash_no_movbe_6x:
+.cfi_startproc
 	vmovdqu	32(%r11),%xmm2
 	subq	$6,%rdx
 	vpxor	%xmm4,%xmm4,%xmm4
@@ -689,6 +692,7 @@ _aesni_ctr32_ghash_no_movbe_6x:
 	vpxor	%xmm4,%xmm8,%xmm8
 
 	.byte	0xf3,0xc3
+.cfi_endproc
 .size	_aesni_ctr32_ghash_no_movbe_6x,.-_aesni_ctr32_ghash_no_movbe_6x
 
 .globl	aesni_gcm_decrypt
@@ -714,6 +718,8 @@ aesni_gcm_decrypt:
 .cfi_offset	%r14,-48
 	pushq	%r15
 .cfi_offset	%r15,-56
+	pushq	%r9
+.cfi_offset	%r9,-64
 	vzeroupper
 
 	vmovdqu	(%r8),%xmm1
@@ -726,7 +732,8 @@ aesni_gcm_decrypt:
 	andq	$-128,%rsp
 	vmovdqu	(%r11),%xmm0
 	leaq	128(%rcx),%rcx
-	leaq	32+32(%r9),%r9
+	movq	32(%r9),%r9
+	leaq	32(%r9),%r9
 	movl	504-128(%rcx),%ebp	// ICP has a larger offset for rounds.
 	vpshufb	%xmm0,%xmm8,%xmm8
 
@@ -782,7 +789,9 @@ aesni_gcm_decrypt:
 	vmovups	%xmm14,-16(%rsi)
 
 	vpshufb	(%r11),%xmm8,%xmm8
-	vmovdqu	%xmm8,-64(%r9)
+	movq	-56(%rax),%r9
+.cfi_restore	%r9
+	vmovdqu	%xmm8,(%r9)
 
 	vzeroupper
 	movq	-48(%rax),%r15
@@ -807,6 +816,7 @@ aesni_gcm_decrypt:
 .type	_aesni_ctr32_6x,@function
 .align	32
 _aesni_ctr32_6x:
+.cfi_startproc
 	vmovdqu	0-128(%rcx),%xmm4
 	vmovdqu	32(%r11),%xmm2
 	leaq	-2(%rbp),%r13	// ICP uses 10,12,14 not 9,11,13 for rounds.
@@ -893,6 +903,7 @@ _aesni_ctr32_6x:
 	vpshufb	%xmm0,%xmm1,%xmm1
 	vpxor	%xmm4,%xmm14,%xmm14
 	jmp	.Loop_ctr32
+.cfi_endproc
 .size	_aesni_ctr32_6x,.-_aesni_ctr32_6x
 
 .globl	aesni_gcm_encrypt
@@ -918,6 +929,8 @@ aesni_gcm_encrypt:
 .cfi_offset	%r14,-48
 	pushq	%r15
 .cfi_offset	%r15,-56
+	pushq	%r9
+.cfi_offset	%r9,-64
 	vzeroupper
 
 	vmovdqu	(%r8),%xmm1
@@ -960,7 +973,8 @@ aesni_gcm_encrypt:
 	call	_aesni_ctr32_6x
 
 	vmovdqu	(%r9),%xmm8
-	leaq	32+32(%r9),%r9
+	movq	32(%r9),%r9
+	leaq	32(%r9),%r9
 	subq	$12,%rdx
 	movq	$192,%r10
 	vpshufb	%xmm0,%xmm8,%xmm8
@@ -1151,7 +1165,9 @@ aesni_gcm_encrypt:
 	vpxor	%xmm7,%xmm2,%xmm2
 	vpxor	%xmm2,%xmm8,%xmm8
 	vpshufb	(%r11),%xmm8,%xmm8
-	vmovdqu	%xmm8,-64(%r9)
+	movq	-56(%rax),%r9
+.cfi_restore	%r9
+	vmovdqu	%xmm8,(%r9)
 
 	vzeroupper
 	movq	-48(%rax),%r15

@@ -54,6 +54,7 @@
 #include <sys/abd_impl.h>
 #include <sys/param.h>
 #include <sys/zio.h>
+#include <sys/arc.h>
 #include <sys/zfs_context.h>
 #include <sys/zfs_znode.h>
 #ifdef _KERNEL
@@ -631,17 +632,17 @@ void
 abd_update_scatter_stats(abd_t *abd, abd_stats_op_t op)
 {
 	ASSERT(op == ABDSTAT_INCR || op == ABDSTAT_DECR);
+	int waste = P2ROUNDUP(abd->abd_size, PAGESIZE) - abd->abd_size;
 	if (op == ABDSTAT_INCR) {
 		ABDSTAT_BUMP(abdstat_scatter_cnt);
 		ABDSTAT_INCR(abdstat_scatter_data_size, abd->abd_size);
-		ABDSTAT_INCR(abdstat_scatter_chunk_waste,
-		    P2ROUNDUP(abd->abd_size, PAGESIZE) - abd->abd_size);
+		ABDSTAT_INCR(abdstat_scatter_chunk_waste, waste);
+		arc_space_consume(waste, ARC_SPACE_ABD_CHUNK_WASTE);
 	} else {
 		ABDSTAT_BUMPDOWN(abdstat_scatter_cnt);
 		ABDSTAT_INCR(abdstat_scatter_data_size, -(int)abd->abd_size);
-		ABDSTAT_INCR(abdstat_scatter_chunk_waste,
-		    (int)abd->abd_size
-		    -(int)P2ROUNDUP(abd->abd_size, PAGESIZE));
+		ABDSTAT_INCR(abdstat_scatter_chunk_waste, -waste);
+		arc_space_return(waste, ARC_SPACE_ABD_CHUNK_WASTE);
 	}
 }
 

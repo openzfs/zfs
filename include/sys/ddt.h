@@ -179,7 +179,7 @@ typedef struct ddt_ops {
 	int (*ddt_op_count)(objset_t *os, uint64_t object, uint64_t *count);
 } ddt_ops_t;
 
-#define	DDT_NAMELEN	102
+#define	DDT_NAMELEN	107
 
 extern void ddt_object_name(ddt_t *ddt, enum ddt_type type,
     enum ddt_class clazz, char *name);

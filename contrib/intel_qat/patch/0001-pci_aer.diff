@@ -1,0 +1,20 @@
+In kernel 5.7 the pci_cleanup_aer_uncorrect_error_status() function was
+renamed with the following commit:
+
+git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=894020fdd88c1e9a74c60b67c0f19f1c7696ba2f
+
+This simply updates the function call with the proper name (pci_aer_clear_nonfatal_status()).
+
+---
+diff --git a/quickassist/qat/drivers/crypto/qat/qat_common/adf_aer.c b/quickassist/qat/drivers/crypto/qat/qat_common/adf_aer.c
+index a6ce6df..545bb79 100644
+--- a/quickassist/qat/drivers/crypto/qat/qat_common/adf_aer.c
++++ b/quickassist/qat/drivers/crypto/qat/qat_common/adf_aer.c
+@@ -304,7 +304,7 @@ static pci_ers_result_t adf_slot_reset(struct pci_dev *pdev)
+ 		pr_err("QAT: Can't find acceleration device\n");
+ 		return PCI_ERS_RESULT_DISCONNECT;
+ 	}
+-	pci_cleanup_aer_uncorrect_error_status(pdev);
++	pci_aer_clear_nonfatal_status(pdev);
+ 	if (adf_dev_aer_schedule_reset(accel_dev, ADF_DEV_RESET_SYNC))
+ 		return PCI_ERS_RESULT_DISCONNECT;

@@ -33,7 +33,7 @@
 #include <rpc/types.h>
 #include_next <rpc/xdr.h>
 
-#ifndef _KERNEL
+#if !defined(_KERNEL) && !defined(_STANDALONE)
 
 #include <assert.h>
 
@@ -66,6 +66,6 @@ xdrmem_control(XDR *xdrs, int request, void *info)
 	    xdrmem_control((xdrs), (req), (op)) :			\
 	    (*(xdrs)->x_ops->x_control)(xdrs, req, op))
 
-#endif	/* !_KERNEL */
+#endif	/* !_KERNEL && !_STANDALONE */
 
 #endif	/* !_OPENSOLARIS_RPC_XDR_H_ */

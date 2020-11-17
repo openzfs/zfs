@@ -445,17 +445,6 @@ bootfs_name_valid(const char *pool, const char *bootfs)
 	return (B_FALSE);
 }
 
-static boolean_t
-zpool_is_bootable(zpool_handle_t *zhp)
-{
-	char bootfs[ZFS_MAX_DATASET_NAME_LEN];
-
-	return (zpool_get_prop(zhp, ZPOOL_PROP_BOOTFS, bootfs,
-	    sizeof (bootfs), NULL, B_FALSE) == 0 && strncmp(bootfs, "-",
-	    sizeof (bootfs)) != 0);
-}
-
-
 /*
  * Given an nvlist of zpool properties to be set, validate that they are
  * correct, and parse any numeric properties (index, boolean, etc) if they are
@@ -3171,7 +3160,6 @@ zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
 	uint_t children;
 	nvlist_t *config_root;
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
-	boolean_t rootpool = zpool_is_bootable(zhp);
 	boolean_t raidz = B_FALSE;
 
 	if (replacing)
@@ -3263,18 +3251,8 @@ zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
 
 	zcmd_free_nvlists(&zc);
 
-	if (ret == 0) {
-		if (rootpool) {
-			/*
-			 * XXX need a better way to prevent user from
-			 * booting up a half-baked vdev.
-			 */
-			(void) fprintf(stderr, dgettext(TEXT_DOMAIN, "Make "
-			    "sure to wait until resilver is done "
-			    "before rebooting.\n"));
-		}
+	if (ret == 0)
 		return (0);
-	}
 
 	switch (errno) {
 	case ENOTSUP:
@@ -3706,13 +3684,6 @@ zpool_vdev_remove(zpool_handle_t *zhp, const char *path)
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 		    "pool must be upgraded to support log removal"));
 		return (zfs_error(hdl, EZFS_BADVERSION, msg));
-	}
-
-	if (!islog && !avail_spare && !l2cache && zpool_is_bootable(zhp)) {
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "root pool can not have removed devices, "
-		    "because GRUB does not understand them"));
-		return (zfs_error(hdl, EINVAL, msg));
 	}
 
 	zc.zc_guid = fnvlist_lookup_uint64(tgt, ZPOOL_CONFIG_GUID);
@@ -4580,7 +4551,7 @@ zpool_wait_status(zpool_handle_t *zhp, zpool_wait_activity_t activity,
 }
 
 int
-zpool_set_bootenv(zpool_handle_t *zhp, const char *envmap)
+zpool_set_bootenv(zpool_handle_t *zhp, const nvlist_t *envmap)
 {
 	int error = lzc_set_bootenv(zhp->zpool_name, envmap);
 	if (error != 0) {
@@ -4593,24 +4564,20 @@ zpool_set_bootenv(zpool_handle_t *zhp, const char *envmap)
 }
 
 int
-zpool_get_bootenv(zpool_handle_t *zhp, char *outbuf, size_t size, off_t offset)
+zpool_get_bootenv(zpool_handle_t *zhp, nvlist_t **nvlp)
 {
-	nvlist_t *nvl = NULL;
-	int error = lzc_get_bootenv(zhp->zpool_name, &nvl);
+	nvlist_t *nvl;
+	int error;
+
+	nvl = NULL;
+	error = lzc_get_bootenv(zhp->zpool_name, &nvl);
 	if (error != 0) {
 		(void) zpool_standard_error_fmt(zhp->zpool_hdl, error,
 		    dgettext(TEXT_DOMAIN,
 		    "error getting bootenv in pool '%s'"), zhp->zpool_name);
-		return (-1);
-	}
-	char *envmap = fnvlist_lookup_string(nvl, "envmap");
-	if (offset >= strlen(envmap)) {
-		fnvlist_free(nvl);
-		return (0);
+	} else {
+		*nvlp = nvl;
 	}
 
-	strncpy(outbuf, envmap + offset, size);
-	int bytes = MIN(strlen(envmap + offset), size);
-	fnvlist_free(nvl);
-	return (bytes);
+	return (error);
 }

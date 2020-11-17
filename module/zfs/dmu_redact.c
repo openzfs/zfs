@@ -568,8 +568,7 @@ commit_rl_updates(objset_t *os, struct merge_data *md, uint64_t object,
 	uint64_t txg = dmu_tx_get_txg(tx);
 	if (!md->md_synctask_txg[txg & TXG_MASK]) {
 		dsl_sync_task_nowait(dmu_tx_pool(tx),
-		    redaction_list_update_sync, md, 5, ZFS_SPACE_CHECK_NONE,
-		    tx);
+		    redaction_list_update_sync, md, tx);
 		md->md_synctask_txg[txg & TXG_MASK] = B_TRUE;
 		md->md_latest_synctask_txg = txg;
 	}
@@ -859,7 +858,7 @@ hold_next_object(objset_t *os, struct redact_record *rec, void *tag,
 {
 	int err = 0;
 	if (*dn != NULL)
-		dnode_rele(*dn, FTAG);
+		dnode_rele(*dn, tag);
 	*dn = NULL;
 	if (*object < rec->start_object) {
 		*object = rec->start_object - 1;
@@ -1007,9 +1006,13 @@ dmu_redact_snap(const char *snapname, nvlist_t *redactnvl,
 	objset_t *os;
 	struct redact_thread_arg *args = NULL;
 	redaction_list_t *new_rl = NULL;
+	char *newredactbook;
 
 	if ((err = dsl_pool_hold(snapname, FTAG, &dp)) != 0)
 		return (err);
+
+	newredactbook = kmem_zalloc(sizeof (char) * ZFS_MAX_DATASET_NAME_LEN,
+	    KM_SLEEP);
 
 	if ((err = dsl_dataset_hold_flags(dp, snapname, DS_HOLD_FLAG_DECRYPT,
 	    FTAG, &ds)) != 0) {
@@ -1059,12 +1062,11 @@ dmu_redact_snap(const char *snapname, nvlist_t *redactnvl,
 
 		}
 	}
-	VERIFY3P(nvlist_next_nvpair(redactnvl, pair), ==, NULL);
 	if (err != 0)
 		goto out;
+	VERIFY3P(nvlist_next_nvpair(redactnvl, pair), ==, NULL);
 
 	boolean_t resuming = B_FALSE;
-	char newredactbook[ZFS_MAX_DATASET_NAME_LEN];
 	zfs_bookmark_phys_t bookmark;
 
 	(void) strlcpy(newredactbook, snapname, ZFS_MAX_DATASET_NAME_LEN);
@@ -1074,6 +1076,10 @@ dmu_redact_snap(const char *snapname, nvlist_t *redactnvl,
 	    "#%s", redactbook);
 	if (n >= ZFS_MAX_DATASET_NAME_LEN - (c - newredactbook)) {
 		dsl_pool_rele(dp, FTAG);
+		kmem_free(newredactbook,
+		    sizeof (char) * ZFS_MAX_DATASET_NAME_LEN);
+		if (args != NULL)
+			kmem_free(args, numsnaps * sizeof (*args));
 		return (SET_ERROR(ENAMETOOLONG));
 	}
 	err = dsl_bookmark_lookup(dp, newredactbook, NULL, &bookmark);
@@ -1146,16 +1152,23 @@ dmu_redact_snap(const char *snapname, nvlist_t *redactnvl,
 		(void) thread_create(NULL, 0, redact_traverse_thread, rta,
 		    0, curproc, TS_RUN, minclsyspri);
 	}
-	struct redact_merge_thread_arg rmta = { { {0} } };
-	(void) bqueue_init(&rmta.q, zfs_redact_queue_ff,
+
+	struct redact_merge_thread_arg *rmta;
+	rmta = kmem_zalloc(sizeof (struct redact_merge_thread_arg), KM_SLEEP);
+
+	(void) bqueue_init(&rmta->q, zfs_redact_queue_ff,
 	    zfs_redact_queue_length, offsetof(struct redact_record, ln));
-	rmta.numsnaps = numsnaps;
-	rmta.spa = os->os_spa;
-	rmta.thr_args = args;
-	(void) thread_create(NULL, 0, redact_merge_thread, &rmta, 0, curproc,
+	rmta->numsnaps = numsnaps;
+	rmta->spa = os->os_spa;
+	rmta->thr_args = args;
+	(void) thread_create(NULL, 0, redact_merge_thread, rmta, 0, curproc,
 	    TS_RUN, minclsyspri);
-	err = perform_redaction(os, new_rl, &rmta);
+	err = perform_redaction(os, new_rl, rmta);
+	kmem_free(rmta, sizeof (struct redact_merge_thread_arg));
+
 out:
+	kmem_free(newredactbook, sizeof (char) * ZFS_MAX_DATASET_NAME_LEN);
+
 	if (new_rl != NULL) {
 		dsl_redaction_list_long_rele(new_rl, FTAG);
 		dsl_redaction_list_rele(new_rl, FTAG);

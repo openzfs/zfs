@@ -51,6 +51,7 @@ dist_pkgdata_SCRIPTS = \
 	send_spill_block.ksh \
 	send_holds.ksh \
 	send_hole_birth.ksh \
+	send_invalid.ksh \
 	send_mixed_raw.ksh \
 	send-wR_encrypted_zvol.ksh
 

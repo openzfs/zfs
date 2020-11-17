@@ -432,7 +432,8 @@ done:
 
 /* ARGSUSED */
 static int
-zil_clear_log_block(zilog_t *zilog, blkptr_t *bp, void *tx, uint64_t first_txg)
+zil_clear_log_block(zilog_t *zilog, const blkptr_t *bp, void *tx,
+    uint64_t first_txg)
 {
 	ASSERT(!BP_IS_HOLE(bp));
 
@@ -454,13 +455,15 @@ zil_clear_log_block(zilog_t *zilog, blkptr_t *bp, void *tx, uint64_t first_txg)
 
 /* ARGSUSED */
 static int
-zil_noop_log_record(zilog_t *zilog, lr_t *lrc, void *tx, uint64_t first_txg)
+zil_noop_log_record(zilog_t *zilog, const lr_t *lrc, void *tx,
+    uint64_t first_txg)
 {
 	return (0);
 }
 
 static int
-zil_claim_log_block(zilog_t *zilog, blkptr_t *bp, void *tx, uint64_t first_txg)
+zil_claim_log_block(zilog_t *zilog, const blkptr_t *bp, void *tx,
+    uint64_t first_txg)
 {
 	/*
 	 * Claim log block if not already committed and not already claimed.
@@ -476,7 +479,8 @@ zil_claim_log_block(zilog_t *zilog, blkptr_t *bp, void *tx, uint64_t first_txg)
 }
 
 static int
-zil_claim_log_record(zilog_t *zilog, lr_t *lrc, void *tx, uint64_t first_txg)
+zil_claim_log_record(zilog_t *zilog, const lr_t *lrc, void *tx,
+    uint64_t first_txg)
 {
 	lr_write_t *lr = (lr_write_t *)lrc;
 	int error;
@@ -503,7 +507,8 @@ zil_claim_log_record(zilog_t *zilog, lr_t *lrc, void *tx, uint64_t first_txg)
 
 /* ARGSUSED */
 static int
-zil_free_log_block(zilog_t *zilog, blkptr_t *bp, void *tx, uint64_t claim_txg)
+zil_free_log_block(zilog_t *zilog, const blkptr_t *bp, void *tx,
+    uint64_t claim_txg)
 {
 	zio_free(zilog->zl_spa, dmu_tx_get_txg(tx), bp);
 
@@ -511,7 +516,8 @@ zil_free_log_block(zilog_t *zilog, blkptr_t *bp, void *tx, uint64_t claim_txg)
 }
 
 static int
-zil_free_log_record(zilog_t *zilog, lr_t *lrc, void *tx, uint64_t claim_txg)
+zil_free_log_record(zilog_t *zilog, const lr_t *lrc, void *tx,
+    uint64_t claim_txg)
 {
 	lr_write_t *lr = (lr_write_t *)lrc;
 	blkptr_t *bp = &lr->lr_blkptr;
@@ -3471,7 +3477,7 @@ typedef struct zil_replay_arg {
 } zil_replay_arg_t;
 
 static int
-zil_replay_error(zilog_t *zilog, lr_t *lr, int error)
+zil_replay_error(zilog_t *zilog, const lr_t *lr, int error)
 {
 	char name[ZFS_MAX_DATASET_NAME_LEN];
 
@@ -3489,7 +3495,8 @@ zil_replay_error(zilog_t *zilog, lr_t *lr, int error)
 }
 
 static int
-zil_replay_log_record(zilog_t *zilog, lr_t *lr, void *zra, uint64_t claim_txg)
+zil_replay_log_record(zilog_t *zilog, const lr_t *lr, void *zra,
+    uint64_t claim_txg)
 {
 	zil_replay_arg_t *zr = zra;
 	const zil_header_t *zh = zilog->zl_header;
@@ -3572,7 +3579,7 @@ zil_replay_log_record(zilog_t *zilog, lr_t *lr, void *zra, uint64_t claim_txg)
 
 /* ARGSUSED */
 static int
-zil_incr_blks(zilog_t *zilog, blkptr_t *bp, void *arg, uint64_t claim_txg)
+zil_incr_blks(zilog_t *zilog, const blkptr_t *bp, void *arg, uint64_t claim_txg)
 {
 	zilog->zl_replay_blks++;
 

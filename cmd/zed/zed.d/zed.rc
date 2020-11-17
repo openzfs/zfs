@@ -118,5 +118,10 @@ ZED_USE_ENCLOSURE_LEDS=1
 # Otherwise, if ZED_SYSLOG_SUBCLASS_EXCLUDE is set, the
 # matching subclasses are excluded from logging.
 #ZED_SYSLOG_SUBCLASS_INCLUDE="checksum|scrub_*|vdev.*"
-#ZED_SYSLOG_SUBCLASS_EXCLUDE="statechange|config_*|history_event"
+ZED_SYSLOG_SUBCLASS_EXCLUDE="history_event"
+
+##
+# Use GUIDs instead of names when logging pool and vdevs
+# Disabled by default, 1 to enable and 0 to disable.
+#ZED_SYSLOG_DISPLAY_GUIDS=1
 

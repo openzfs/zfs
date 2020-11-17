@@ -1,0 +1,17 @@
+cryptohash.h was dropped and merged with crypto/sha.sh in 5.8 kernel. Details in:
+https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=228c4f265c6eb60eaa4ed0edb3bf7c113173576c
+
+---
+diff --git a/quickassist/utilities/osal/src/linux/kernel_space/OsalCryptoInterface.c b/quickassist/utilities/osal/src/linux/kernel_space/OsalCryptoInterface.c
+index 4c389da..e602377 100644
+--- a/quickassist/utilities/osal/src/linux/kernel_space/OsalCryptoInterface.c
++++ b/quickassist/utilities/osal/src/linux/kernel_space/OsalCryptoInterface.c
+@@ -66,7 +66,7 @@
+ 
+ #include "Osal.h"
+ #include <linux/crypto.h>
+-#include <linux/cryptohash.h>
++#include <crypto/sha.h>
+ #include <linux/version.h>
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,29))
+ #include <crypto/internal/hash.h>

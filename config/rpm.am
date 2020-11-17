@@ -7,7 +7,7 @@
 ###############################################################################
 
 PHONY += srpm srpms srpm-kmod srpm-dkms srpm-utils
-PHONY += rpm rpms rpm-kmod rpm-dkms rpm-utils
+PHONY += rpm rpms rpm-kmod rpm-dkms rpm-utils rpm-utils-initramfs
 PHONY += srpm-common rpm-common rpm-local
 
 srpm-kmod srpm-dkms srpm-utils: dist
@@ -35,9 +35,21 @@ rpm-dkms: srpm-dkms
 	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-dkms" \
 		def='${RPM_DEFINE_COMMON} ${RPM_DEFINE_DKMS}' rpm-common
 
+# The rpm-utils and rpm-utils-initramfs targets are identical except for the
+# zfs-initramfs package: rpm-utils never includes it, rpm-utils-initramfs
+# includes it if detected at configure time. The zfs-initramfs package does
+# not work on any known RPM-based distribution and the resulting RPM is only
+# used to create a Debian package. The rpm-utils-initramfs target is not
+# intended to be specified by the user directly, it is provided as a
+# dependency of the deb-utils target.
+
 rpm-utils: srpm-utils
 	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" \
 		def='${RPM_DEFINE_COMMON} ${RPM_DEFINE_UTIL}' rpm-common
+
+rpm-utils-initramfs: srpm-utils
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" \
+		def='${RPM_DEFINE_COMMON} ${RPM_DEFINE_UTIL} ${RPM_DEFINE_INITRAMFS}' rpm-common
 
 rpm: rpm-kmod rpm-dkms rpm-utils
 rpms: rpm-kmod rpm-dkms rpm-utils

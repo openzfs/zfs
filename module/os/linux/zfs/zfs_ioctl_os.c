@@ -148,6 +148,8 @@ zfsdev_state_destroy(struct file *filp)
 	zs->zs_minor = -1;
 	zfs_onexit_destroy(zs->zs_onexit);
 	zfs_zevent_destroy(zs->zs_zevent);
+	zs->zs_onexit = NULL;
+	zs->zs_zevent = NULL;
 
 	return (0);
 }
@@ -199,6 +201,15 @@ out:
 	kmem_free(zc, sizeof (zfs_cmd_t));
 	return (error);
 
+}
+
+uint64_t
+zfs_max_nvlist_src_size_os(void)
+{
+	if (zfs_max_nvlist_src_size != 0)
+		return (zfs_max_nvlist_src_size);
+
+	return (KMALLOC_MAX_SIZE);
 }
 
 void

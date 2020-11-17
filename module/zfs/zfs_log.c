@@ -299,7 +299,7 @@ zfs_xattr_owner_unlinked(znode_t *zp)
  */
 void
 zfs_log_create(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
-    znode_t *dzp, znode_t *zp, char *name, vsecattr_t *vsecp,
+    znode_t *dzp, znode_t *zp, const char *name, vsecattr_t *vsecp,
     zfs_fuid_info_t *fuidp, vattr_t *vap)
 {
 	itx_t *itx;
@@ -413,7 +413,7 @@ zfs_log_create(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
  */
 void
 zfs_log_remove(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
-    znode_t *dzp, char *name, uint64_t foid, boolean_t unlinked)
+    znode_t *dzp, const char *name, uint64_t foid, boolean_t unlinked)
 {
 	itx_t *itx;
 	lr_remove_t *lr;
@@ -448,7 +448,7 @@ zfs_log_remove(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
  */
 void
 zfs_log_link(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
-    znode_t *dzp, znode_t *zp, char *name)
+    znode_t *dzp, znode_t *zp, const char *name)
 {
 	itx_t *itx;
 	lr_link_t *lr;
@@ -471,7 +471,7 @@ zfs_log_link(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
  */
 void
 zfs_log_symlink(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
-    znode_t *dzp, znode_t *zp, char *name, char *link)
+    znode_t *dzp, znode_t *zp, const char *name, const char *link)
 {
 	itx_t *itx;
 	lr_create_t *lr;
@@ -502,8 +502,8 @@ zfs_log_symlink(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
  * Handles TX_RENAME transactions.
  */
 void
-zfs_log_rename(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
-    znode_t *sdzp, char *sname, znode_t *tdzp, char *dname, znode_t *szp)
+zfs_log_rename(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype, znode_t *sdzp,
+    const char *sname, znode_t *tdzp, const char *dname, znode_t *szp)
 {
 	itx_t *itx;
 	lr_rename_t *lr;
@@ -584,15 +584,22 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 		    (wr_state == WR_COPIED ? len : 0));
 		lr = (lr_write_t *)&itx->itx_lr;
 
-		DB_DNODE_ENTER(db);
-		if (wr_state == WR_COPIED && dmu_read_by_dnode(DB_DNODE(db),
-		    off, len, lr + 1, DMU_READ_NO_PREFETCH) != 0) {
-			zil_itx_destroy(itx);
-			itx = zil_itx_create(txtype, sizeof (*lr));
-			lr = (lr_write_t *)&itx->itx_lr;
-			wr_state = WR_NEED_COPY;
+		/*
+		 * For WR_COPIED records, copy the data into the lr_write_t.
+		 */
+		if (wr_state == WR_COPIED) {
+			int err;
+			DB_DNODE_ENTER(db);
+			err = dmu_read_by_dnode(DB_DNODE(db), off, len, lr + 1,
+			    DMU_READ_NO_PREFETCH);
+			if (err != 0) {
+				zil_itx_destroy(itx);
+				itx = zil_itx_create(txtype, sizeof (*lr));
+				lr = (lr_write_t *)&itx->itx_lr;
+				wr_state = WR_NEED_COPY;
+			}
+			DB_DNODE_EXIT(db);
 		}
-		DB_DNODE_EXIT(db);
 
 		itx->itx_wr_state = wr_state;
 		lr->lr_foid = zp->z_id;

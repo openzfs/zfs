@@ -269,12 +269,13 @@ typedef struct l2arc_log_ent_phys {
 	 */
 	uint64_t		le_prop;
 	uint64_t		le_daddr;	/* buf location on l2dev */
+	uint64_t		le_complevel;
 	/*
 	 * We pad the size of each entry to a power of 2 so that the size of
 	 * l2arc_log_blk_phys_t is power-of-2 aligned with SPA_MINBLOCKSHIFT,
 	 * because of the L2ARC_SET_*SIZE macros.
 	 */
-	const uint64_t		le_pad[3];	/* pad to 64 bytes	 */
+	const uint64_t		le_pad[2];	/* pad to 64 bytes	 */
 } l2arc_log_ent_phys_t;
 
 #define	L2ARC_LOG_BLK_MAX_ENTRIES	(1022)
@@ -349,6 +350,8 @@ typedef struct l2arc_lb_ptr_buf {
 #define	L2BLK_SET_TYPE(field, x)	BF64_SET((field), 48, 8, x)
 #define	L2BLK_GET_PROTECTED(field)	BF64_GET((field), 56, 1)
 #define	L2BLK_SET_PROTECTED(field, x)	BF64_SET((field), 56, 1, x)
+#define	L2BLK_GET_STATE(field)		BF64_GET((field), 57, 4)
+#define	L2BLK_SET_STATE(field, x)	BF64_SET((field), 57, 4, x)
 
 #define	PTR_SWAP(x, y)		\
 	do {			\
@@ -444,6 +447,7 @@ typedef struct l2arc_buf_hdr {
 	l2arc_dev_t		*b_dev;		/* L2ARC device */
 	uint64_t		b_daddr;	/* disk address, offset byte */
 	uint32_t		b_hits;
+	arc_state_type_t	b_arcs_state;
 	list_node_t		b_l2node;
 } l2arc_buf_hdr_t;
 
@@ -460,6 +464,9 @@ struct arc_buf_hdr {
 	uint64_t		b_birth;
 
 	arc_buf_contents_t	b_type;
+	uint8_t			b_complevel;
+	uint8_t			b_reserved1; /* used for 4 byte alignment */
+	uint16_t		b_reserved2; /* used for 4 byte alignment */
 	arc_buf_hdr_t		*b_hash_next;
 	arc_flags_t		b_flags;
 
@@ -542,6 +549,8 @@ typedef struct arc_stats {
 	kstat_named_t arcstat_evict_not_enough;
 	kstat_named_t arcstat_evict_l2_cached;
 	kstat_named_t arcstat_evict_l2_eligible;
+	kstat_named_t arcstat_evict_l2_eligible_mfu;
+	kstat_named_t arcstat_evict_l2_eligible_mru;
 	kstat_named_t arcstat_evict_l2_ineligible;
 	kstat_named_t arcstat_evict_l2_skip;
 	kstat_named_t arcstat_hash_elements;
@@ -615,6 +624,13 @@ typedef struct arc_stats {
 	 * Not updated directly; only synced in arc_kstat_update.
 	 */
 	kstat_named_t arcstat_bonus_size;
+#if defined(COMPAT_FREEBSD11)
+	/*
+	 * Sum of the previous three counters, provided for compatibility.
+	 */
+	kstat_named_t arcstat_other_size;
+#endif
+
 	/*
 	 * Total number of bytes consumed by ARC buffers residing in the
 	 * arc_anon state. This includes *all* buffers in the arc_anon
@@ -733,6 +749,18 @@ typedef struct arc_stats {
 	kstat_named_t arcstat_mfu_ghost_evictable_metadata;
 	kstat_named_t arcstat_l2_hits;
 	kstat_named_t arcstat_l2_misses;
+	/*
+	 * Allocated size (in bytes) of L2ARC cached buffers by ARC state.
+	 */
+	kstat_named_t arcstat_l2_prefetch_asize;
+	kstat_named_t arcstat_l2_mru_asize;
+	kstat_named_t arcstat_l2_mfu_asize;
+	/*
+	 * Allocated size (in bytes) of L2ARC cached buffers by buffer content
+	 * type.
+	 */
+	kstat_named_t arcstat_l2_bufc_data_asize;
+	kstat_named_t arcstat_l2_bufc_metadata_asize;
 	kstat_named_t arcstat_l2_feeds;
 	kstat_named_t arcstat_l2_rw_clash;
 	kstat_named_t arcstat_l2_read_bytes;
@@ -844,17 +872,14 @@ typedef struct arc_stats {
 	kstat_named_t arcstat_sys_free;
 	kstat_named_t arcstat_raw_size;
 	kstat_named_t arcstat_cached_only_in_progress;
+	kstat_named_t arcstat_abd_chunk_waste_size;
 } arc_stats_t;
 
-typedef enum free_memory_reason_t {
-	FMR_UNKNOWN,
-	FMR_NEEDFREE,
-	FMR_LOTSFREE,
-	FMR_SWAPFS_MINFREE,
-	FMR_PAGES_PP_MAXIMUM,
-	FMR_HEAP_ARENA,
-	FMR_ZIO_ARENA,
-} free_memory_reason_t;
+typedef struct arc_evict_waiter {
+	list_node_t aew_node;
+	kcondvar_t aew_cv;
+	uint64_t aew_count;
+} arc_evict_waiter_t;
 
 #define	ARCSTAT(stat)	(arc_stats.stat.value.ui64)
 
@@ -870,7 +895,6 @@ typedef enum free_memory_reason_t {
 #define	arc_c_min	ARCSTAT(arcstat_c_min)	/* min target cache size */
 #define	arc_c_max	ARCSTAT(arcstat_c_max)	/* max target cache size */
 #define	arc_sys_free	ARCSTAT(arcstat_sys_free) /* target system free bytes */
-#define	arc_need_free	ARCSTAT(arcstat_need_free) /* bytes to be freed */
 
 extern taskq_t *arc_prune_taskq;
 extern arc_stats_t arc_stats;
@@ -879,10 +903,6 @@ extern boolean_t arc_warm;
 extern int arc_grow_retry;
 extern int arc_no_grow_shift;
 extern int arc_shrink_shift;
-extern zthr_t		*arc_evict_zthr;
-extern kmutex_t		arc_evict_lock;
-extern kcondvar_t	arc_evict_waiters_cv;
-extern boolean_t	arc_evict_needed;
 extern kmutex_t arc_prune_mtx;
 extern list_t arc_prune_list;
 extern aggsum_t arc_size;
@@ -897,6 +917,7 @@ extern void arc_reduce_target_size(int64_t to_free);
 extern boolean_t arc_reclaim_needed(void);
 extern void arc_kmem_reap_soon(void);
 extern boolean_t arc_is_overflowing(void);
+extern void arc_wait_for_eviction(uint64_t);
 
 extern void arc_lowmem_init(void);
 extern void arc_lowmem_fini(void);

@@ -115,9 +115,11 @@ commitcheck:
 
 PHONY += cstyle
 cstyle:
-	@find ${top_srcdir} -name build -prune -o -type f -name '*.[hc]' \
+	@find ${top_srcdir} -name build -prune \
+		-o -type f -name '*.[hc]' \
 		! -name 'zfs_config.*' ! -name '*.mod.c' \
 		! -name 'opt_global.h' ! -name '*_if*.h' \
+		! -path './module/zstd/lib/*' \
 		-exec ${top_srcdir}/scripts/cstyle.pl -cpP {} \+
 
 filter_executable = -exec test -x '{}' \; -print
@@ -143,9 +145,16 @@ checkbashisms:
 				-o -name 'build' -prune \
 				-o -name 'tests' -prune \
 				-o -name 'config' -prune \
+				-o -name 'zed-functions.sh*' -prune \
+				-o -name 'zfs-import*' -prune \
+				-o -name 'zfs-mount*' -prune \
+				-o -name 'zfs-zed*' -prune \
+				-o -name 'smart' -prune \
+				-o -name 'paxcheck.sh' -prune \
+				-o -name 'make_gitrev.sh' -prune \
 				-o -type f ! -name 'config*' \
 				! -name 'libtool' \
-			-exec bash -c 'awk "NR==1 && /\#\!.*bin\/sh.*/ {print FILENAME;}" "{}"' \;); \
+			-exec sh -c 'awk "NR==1 && /\#\!.*bin\/sh.*/ {print FILENAME;}" "{}"' \;); \
 	else \
 		echo "skipping checkbashisms because checkbashisms is not installed"; \
 	fi

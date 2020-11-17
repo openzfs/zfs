@@ -72,8 +72,8 @@ props=(
 	mountpoint	/history.$$	mountpoint	legacy
 	mountpoint	none		compression	lz4
 	compression	on		compression	off
-	compression	lzjb		acltype		noacl
-	acltype		posixacl	xattr		sa
+	compression	lzjb		acltype		off
+	acltype		posix		acltype		nfsv4
 	atime		on		atime		off
 	devices		on		devices		off
 	exec		on		exec		off
@@ -84,9 +84,11 @@ props=(
 	aclinherit	discard		aclinherit	noallow
 	aclinherit	secure		aclinherit	passthrough
 	canmount	off		canmount	on
-	xattr		on		xattr		off
 	compression	gzip		compression	gzip-$((RANDOM%9 + 1))
-	copies		$((RANDOM%3 + 1))
+	compression     zstd		compression	zstd-$((RANDOM%9 + 1))
+	compression	zstd-fast	copies          $((RANDOM%3 + 1))
+	compression	zstd-fast-$((RANDOM%9 + 1))	xattr	sa
+	xattr		on		xattr		off
 )
 elif is_freebsd; then
 #	property	value		property	value
@@ -111,7 +113,10 @@ props=(
 	aclinherit	secure		aclinherit	passthrough
 	canmount	off		canmount	on
 	compression	gzip		compression	gzip-$((RANDOM%9 + 1))
-	copies		$((RANDOM%3 + 1))
+	compression     zstd		compression	zstd-$((RANDOM%9 + 1))
+	compression	zstd-fast	copies          $((RANDOM%3 + 1))
+	compression	zstd-fast-$((RANDOM%9 + 1))	acltype	off
+	acltype		posix		acltype		nfsv4
 )
 else
 #	property	value		property	value

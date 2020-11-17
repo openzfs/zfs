@@ -337,7 +337,6 @@ int dmu_objset_clone(const char *name, const char *origin);
 int dsl_destroy_snapshots_nvl(struct nvlist *snaps, boolean_t defer,
     struct nvlist *errlist);
 int dmu_objset_snapshot_one(const char *fsname, const char *snapname);
-int dmu_objset_snapshot_tmp(const char *, const char *, int);
 int dmu_objset_find(const char *name, int func(const char *, void *), void *arg,
     int flags);
 void dmu_objset_byteswap(void *buf, size_t size);
@@ -865,18 +864,6 @@ int dmu_assign_arcbuf_by_dnode(dnode_t *dn, uint64_t offset,
 int dmu_assign_arcbuf_by_dbuf(dmu_buf_t *handle, uint64_t offset,
     struct arc_buf *buf, dmu_tx_t *tx);
 #define	dmu_assign_arcbuf	dmu_assign_arcbuf_by_dbuf
-#ifdef HAVE_UIO_ZEROCOPY
-int dmu_xuio_init(struct xuio *uio, int niov);
-void dmu_xuio_fini(struct xuio *uio);
-int dmu_xuio_add(struct xuio *uio, struct arc_buf *abuf, offset_t off,
-    size_t n);
-int dmu_xuio_cnt(struct xuio *uio);
-struct arc_buf *dmu_xuio_arcbuf(struct xuio *uio, int i);
-void dmu_xuio_clear(struct xuio *uio, int i);
-#endif /* HAVE_UIO_ZEROCOPY */
-void xuio_stat_wbuf_copied(void);
-void xuio_stat_wbuf_nocopy(void);
-
 extern int zfs_prefetch_disable;
 extern int zfs_max_recordsize;
 
@@ -1009,7 +996,7 @@ extern int dmu_objset_blksize(objset_t *os);
 extern int dmu_snapshot_list_next(objset_t *os, int namelen, char *name,
     uint64_t *id, uint64_t *offp, boolean_t *case_conflict);
 extern int dmu_snapshot_lookup(objset_t *os, const char *name, uint64_t *val);
-extern int dmu_snapshot_realname(objset_t *os, char *name, char *real,
+extern int dmu_snapshot_realname(objset_t *os, const char *name, char *real,
     int maxlen, boolean_t *conflict);
 extern int dmu_dir_list_next(objset_t *os, int namelen, char *name,
     uint64_t *idp, uint64_t *offp);

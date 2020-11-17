@@ -4,3 +4,5 @@ uninitvar:module/os/freebsd/zfs/vdev_geom.c
 uninitvar:module/os/freebsd/zfs/zfs_vfsops.c
 uninitvar:module/os/freebsd/spl/spl_zone.c
 uninitvar:lib/libzutil/os/freebsd/zutil_import_os.c
+*:module/zstd/lib/zstd.c
+*:module/zstd/lib/zstd.h

@@ -62,6 +62,7 @@
 #include <sys/btree.h>
 #include <sys/zfeature.h>
 #include <sys/qat.h>
+#include <sys/zstd/zstd.h>
 
 /*
  * SPA locking
@@ -1365,7 +1366,7 @@ spa_vdev_state_exit(spa_t *spa, vdev_t *vd, int error)
 
 	/*
 	 * If anything changed, wait for it to sync.  This ensures that,
-	 * from the system administrator's perspective, zpool(1M) commands
+	 * from the system administrator's perspective, zpool(8) commands
 	 * are synchronous.  This is important for things like zpool offline:
 	 * when the command completes, you expect no further I/O from ZFS.
 	 */
@@ -2168,6 +2169,7 @@ spa_import_progress_init(void)
 	    spa_import_progress_list;
 
 	procfs_list_install("zfs",
+	    NULL,
 	    "import_progress",
 	    0644,
 	    &spa_import_progress_list->procfs_list,

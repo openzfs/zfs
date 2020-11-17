@@ -294,7 +294,7 @@ zfs_sync(struct super_block *sb, int wait, cred_t *cr)
 	} else {
 		/*
 		 * Sync all ZFS filesystems.  This is what happens when you
-		 * run sync(1M).  Unlike other filesystems, ZFS honors the
+		 * run sync(1).  Unlike other filesystems, ZFS honors the
 		 * request by waiting for all pools to commit all dirty data.
 		 */
 		spa_sync_allpools();
@@ -352,13 +352,14 @@ acltype_changed_cb(void *arg, uint64_t newval)
 	zfsvfs_t *zfsvfs = arg;
 
 	switch (newval) {
+	case ZFS_ACLTYPE_NFSV4:
 	case ZFS_ACLTYPE_OFF:
 		zfsvfs->z_acl_type = ZFS_ACLTYPE_OFF;
 		zfsvfs->z_sb->s_flags &= ~SB_POSIXACL;
 		break;
-	case ZFS_ACLTYPE_POSIXACL:
+	case ZFS_ACLTYPE_POSIX:
 #ifdef CONFIG_FS_POSIX_ACL
-		zfsvfs->z_acl_type = ZFS_ACLTYPE_POSIXACL;
+		zfsvfs->z_acl_type = ZFS_ACLTYPE_POSIX;
 		zfsvfs->z_sb->s_flags |= SB_POSIXACL;
 #else
 		zfsvfs->z_acl_type = ZFS_ACLTYPE_OFF;
@@ -2124,6 +2125,16 @@ zfs_get_vfs_flag_unmounted(objset_t *os)
 	mutex_exit(&os->os_user_ptr_lock);
 
 	return (unmounted);
+}
+
+/*ARGSUSED*/
+void
+zfsvfs_update_fromname(const char *oldname, const char *newname)
+{
+	/*
+	 * We don't need to do anything here, the devname is always current by
+	 * virtue of zfsvfs->z_sb->s_op->show_devname.
+	 */
 }
 
 void

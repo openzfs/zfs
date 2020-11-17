@@ -97,7 +97,7 @@ static pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
 static int g_refcount;
 
 #ifdef ZFS_DEBUG
-static zfs_ioc_t fail_ioc_cmd;
+static zfs_ioc_t fail_ioc_cmd = ZFS_IOC_LAST;
 static zfs_errno_t fail_ioc_err;
 
 static void
@@ -118,7 +118,7 @@ libzfs_core_debug_ioc(void)
 	 * cannot checkpoint 'tank': the loaded zfs module does not support
 	 * this operation. A reboot may be required to enable this operation.
 	 */
-	if (fail_ioc_cmd == 0) {
+	if (fail_ioc_cmd == ZFS_IOC_LAST) {
 		char *ioc_test = getenv("ZFS_IOC_TEST");
 		unsigned int ioc_num = 0, ioc_err = 0;
 
@@ -1625,13 +1625,9 @@ lzc_wait_fs(const char *fs, zfs_wait_activity_t activity, boolean_t *waited)
  * Set the bootenv contents for the given pool.
  */
 int
-lzc_set_bootenv(const char *pool, const char *env)
+lzc_set_bootenv(const char *pool, const nvlist_t *env)
 {
-	nvlist_t *args = fnvlist_alloc();
-	fnvlist_add_string(args, "envmap", env);
-	int error = lzc_ioctl(ZFS_IOC_SET_BOOTENV, pool, args, NULL);
-	fnvlist_free(args);
-	return (error);
+	return (lzc_ioctl(ZFS_IOC_SET_BOOTENV, pool, (nvlist_t *)env, NULL));
 }
 
 /*

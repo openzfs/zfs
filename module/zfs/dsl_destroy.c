@@ -738,6 +738,10 @@ old_synchronous_dataset_destroy(dsl_dataset_t *ds, dmu_tx_t *tx)
 {
 	struct killarg ka;
 
+	spa_history_log_internal_ds(ds, "destroy", tx,
+	    "(synchronous, mintxg=%llu)",
+	    (long long)dsl_dataset_phys(ds)->ds_prev_snap_txg);
+
 	/*
 	 * Free everything that we point to (that's born after
 	 * the previous snapshot, if we are a clone)
@@ -902,6 +906,14 @@ dsl_async_clone_destroy(dsl_dataset_t *ds, dmu_tx_t *tx)
 	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
 	VERIFY0(dmu_objset_from_ds(ds, &os));
 
+	uint64_t mintxg = 0;
+	dsl_deadlist_entry_t *dle = dsl_deadlist_first(&dd->dd_livelist);
+	if (dle != NULL)
+		mintxg = dle->dle_mintxg;
+
+	spa_history_log_internal_ds(ds, "destroy", tx,
+	    "(livelist, mintxg=%llu)", (long long)mintxg);
+
 	/* Check that the clone is in a correct state to be deleted */
 	dsl_clone_destroy_assert(dd);
 
@@ -922,7 +934,7 @@ dsl_async_clone_destroy(dsl_dataset_t *ds, dmu_tx_t *tx)
 		spa->spa_livelists_to_delete = zap_obj;
 	} else if (error != 0) {
 		zfs_panic_recover("zfs: error %d was returned while looking "
-		    "up DMU_POOL_DELETED_CLONES in the zap");
+		    "up DMU_POOL_DELETED_CLONES in the zap", error);
 		return;
 	}
 	VERIFY0(zap_add_int(mos, zap_obj, to_delete, tx));
@@ -951,6 +963,10 @@ dsl_async_dataset_destroy(dsl_dataset_t *ds, dmu_tx_t *tx)
 	VERIFY0(dmu_objset_from_ds(ds, &os));
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	objset_t *mos = dp->dp_meta_objset;
+
+	spa_history_log_internal_ds(ds, "destroy", tx,
+	    "(bptree, mintxg=%llu)",
+	    (long long)dsl_dataset_phys(ds)->ds_prev_snap_txg);
 
 	zil_destroy_sync(dmu_objset_zil(os), tx);
 
@@ -1002,9 +1018,6 @@ dsl_destroy_head_sync_impl(dsl_dataset_t *ds, dmu_tx_t *tx)
 	ASSERT3U(dsl_dataset_phys(ds)->ds_bp.blk_birth, <=, tx->tx_txg);
 	rrw_exit(&ds->ds_bp_rwlock, FTAG);
 	ASSERT(RRW_WRITE_HELD(&dp->dp_config_rwlock));
-
-	/* We need to log before removing it from the namespace. */
-	spa_history_log_internal_ds(ds, "destroy", tx, " ");
 
 	dsl_dir_cancel_waiters(ds->ds_dir);
 

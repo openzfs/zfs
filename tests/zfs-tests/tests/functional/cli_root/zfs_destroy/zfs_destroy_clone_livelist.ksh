@@ -11,7 +11,7 @@
 #
 
 #
-# Copyright (c) 2018 by Delphix. All rights reserved.
+# Copyright (c) 2018, 2020 by Delphix. All rights reserved.
 #
 
 # DESCRIPTION
@@ -32,6 +32,7 @@
 #	- same as 1. but with multiple clones
 # 4. Multiple clones with populated livelists
 #	- same as 2. but with multiple clones
+# 5. Clone of clone with populated livelists with promote
 
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/cli_root/zfs_destroy/zfs_destroy_common.kshlib
@@ -120,6 +121,28 @@ function test_promote
 	log_must zfs destroy -R $TESTPOOL/$TESTCLONE
 }
 
+function test_clone_clone_promote
+{
+	log_must zfs create $TESTPOOL/fs
+	log_must dd if=/dev/zero of=/$TESTPOOL/fs/file bs=128k count=100
+	log_must zfs snapshot $TESTPOOL/fs@snap
+	log_must zfs clone $TESTPOOL/fs@snap $TESTPOOL/clone
+	log_must dd if=/dev/zero of=/$TESTPOOL/clone/clonefile bs=128k count=10
+	log_must zfs snapshot $TESTPOOL/clone@csnap
+	log_must zfs clone $TESTPOOL/clone@csnap $TESTPOOL/cloneclone
+
+	check_livelist_exists clone
+	check_livelist_exists cloneclone
+
+	# Promote should remove both clones' livelists
+	log_must zfs promote $TESTPOOL/cloneclone
+	check_livelist_gone
+
+	# This destroy should not use a livelist
+	log_must zfs destroy $TESTPOOL/clone
+	log_must zdb -bcc $TESTPOOL
+}
+
 ORIGINAL_MAX=$(get_tunable LIVELIST_MAX_ENTRIES)
 
 log_onexit cleanup
@@ -135,6 +158,7 @@ test_one
 test_multiple_empty
 test_multiple
 test_promote
+test_clone_clone_promote
 
 log_pass "Clone with the livelist feature enabled could be destroyed," \
 	"also could be promoted and destroyed as expected."

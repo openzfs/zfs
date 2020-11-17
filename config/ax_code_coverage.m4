@@ -222,7 +222,8 @@ CODE_COVERAGE_GENHTML_OPTIONS ?= $(CODE_COVERAGE_GENHTML_OPTIONS_DEFAULT)
 
 # Add any folders you want to ignore here
 # Ignore tmp and tests themselves
-CODE_COVERAGE_IGNORE_PATTERN ?= "/tmp/*" "*/tests/*"  
+CODE_COVERAGE_IGNORE_PATTERN ?= "/tmp/*" "*/tests/*"
+CODE_COVERAGE_IGNORE_PATTERN += "*/module/zstd/lib/*"
 
 GITIGNOREFILES ?=
 GITIGNOREFILES += $(CODE_COVERAGE_OUTPUT_FILE) $(CODE_COVERAGE_OUTPUT_DIRECTORY)

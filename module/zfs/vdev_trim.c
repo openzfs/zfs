@@ -317,7 +317,7 @@ vdev_trim_change_state(vdev_t *vd, vdev_trim_state_t new_state,
 	dmu_tx_t *tx = dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
 	VERIFY0(dmu_tx_assign(tx, TXG_WAIT));
 	dsl_sync_task_nowait(spa_get_dsl(spa), vdev_trim_zap_update_sync,
-	    guid, 2, ZFS_SPACE_CHECK_NONE, tx);
+	    guid, tx);
 
 	switch (new_state) {
 	case VDEV_TRIM_ACTIVE:
@@ -481,7 +481,7 @@ vdev_trim_range(trim_args_t *ta, uint64_t start, uint64_t size)
 	if (ta->trim_type == TRIM_TYPE_MANUAL) {
 		while (vd->vdev_trim_rate != 0 && !vdev_trim_should_stop(vd) &&
 		    vdev_trim_calculate_rate(ta) > vd->vdev_trim_rate) {
-			cv_timedwait_sig(&vd->vdev_trim_io_cv,
+			cv_timedwait_idle(&vd->vdev_trim_io_cv,
 			    &vd->vdev_trim_io_lock, ddi_get_lbolt() +
 			    MSEC_TO_TICK(10));
 		}
@@ -510,8 +510,7 @@ vdev_trim_range(trim_args_t *ta, uint64_t start, uint64_t size)
 
 		/* This is the first write of this txg. */
 		dsl_sync_task_nowait(spa_get_dsl(spa),
-		    vdev_trim_zap_update_sync, guid, 2,
-		    ZFS_SPACE_CHECK_RESERVED, tx);
+		    vdev_trim_zap_update_sync, guid, tx);
 	}
 
 	/*
@@ -1411,6 +1410,8 @@ vdev_autotrim_thread(void *arg)
 	vd->vdev_autotrim_thread = NULL;
 	cv_broadcast(&vd->vdev_autotrim_cv);
 	mutex_exit(&vd->vdev_autotrim_lock);
+
+	thread_exit();
 }
 
 /*

@@ -96,6 +96,9 @@
  * which each have their own compilation environments and subsequent
  * requirements. Each of these environments must be considered when adding
  * dependencies from avl.c.
+ *
+ * Link to Illumos.org for more information on avl function:
+ * [1] https://illumos.org/man/9f/avl
  */
 
 #include <sys/types.h>

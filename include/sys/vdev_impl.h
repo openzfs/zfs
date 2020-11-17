@@ -69,7 +69,7 @@ extern uint32_t zfs_vdev_async_write_max_active;
  * Virtual device operations
  */
 typedef int	vdev_open_func_t(vdev_t *vd, uint64_t *size, uint64_t *max_size,
-    uint64_t *ashift);
+    uint64_t *ashift, uint64_t *pshift);
 typedef void	vdev_close_func_t(vdev_t *vd);
 typedef uint64_t vdev_asize_func_t(vdev_t *vd, uint64_t psize, uint64_t txg);
 typedef void	vdev_io_start_func_t(zio_t *zio);
@@ -216,6 +216,25 @@ struct vdev {
 	uint64_t	vdev_min_asize;	/* min acceptable asize		*/
 	uint64_t	vdev_max_asize;	/* max acceptable asize		*/
 	uint64_t	vdev_ashift;	/* block alignment shift	*/
+
+	/*
+	 * Logical block alignment shift
+	 *
+	 * The smallest sized/aligned I/O supported by the device.
+	 */
+	uint64_t	vdev_logical_ashift;
+	/*
+	 * Physical block alignment shift
+	 *
+	 * The device supports logical I/Os with vdev_logical_ashift
+	 * size/alignment, but optimum performance will be achieved by
+	 * aligning/sizing requests to vdev_physical_ashift.  Smaller
+	 * requests may be inflated or incur device level read-modify-write
+	 * operations.
+	 *
+	 * May be 0 to indicate no preference (i.e. use vdev_logical_ashift).
+	 */
+	uint64_t	vdev_physical_ashift;
 	uint64_t	vdev_state;	/* see VDEV_STATE_* #defines	*/
 	uint64_t	vdev_prevstate;	/* used when reopening a vdev	*/
 	vdev_ops_t	*vdev_ops;	/* vdev operations		*/
@@ -457,7 +476,16 @@ typedef struct vdev_phys {
 } vdev_phys_t;
 
 typedef enum vbe_vers {
-	/* The bootenv file is stored as ascii text in the envblock */
+	/*
+	 * The bootenv file is stored as ascii text in the envblock.
+	 * It is used by the GRUB bootloader used on Linux to store the
+	 * contents of the grubenv file. The file is stored as raw ASCII,
+	 * and is protected by an embedded checksum. By default, GRUB will
+	 * check if the boot filesystem supports storing the environment data
+	 * in a special location, and if so, will invoke filesystem specific
+	 * logic to retrieve it. This can be overriden by a variable, should
+	 * the user so desire.
+	 */
 	VB_RAW = 0,
 
 	/*
@@ -585,6 +613,14 @@ extern int vdev_obsolete_counts_are_precise(vdev_t *vd, boolean_t *are_precise);
  * Other miscellaneous functions
  */
 int vdev_checkpoint_sm_object(vdev_t *vd, uint64_t *sm_obj);
+
+/*
+ * Vdev ashift optimization tunables
+ */
+extern uint64_t zfs_vdev_min_auto_ashift;
+extern uint64_t zfs_vdev_max_auto_ashift;
+int param_set_min_auto_ashift(ZFS_MODULE_PARAM_ARGS);
+int param_set_max_auto_ashift(ZFS_MODULE_PARAM_ARGS);
 
 #ifdef	__cplusplus
 }

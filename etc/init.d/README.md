@@ -16,7 +16,7 @@ DESCRIPTION
 
 SUPPORT
   If you find that they don't work for your platform, please report this
-  at the ZFS On Linux issue tracker at https://github.com/zfsonlinux/zfs/issues.
+  at the OpenZFS issue tracker at https://github.com/openzfs/zfs/issues.
 
   Please include:
 

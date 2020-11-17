@@ -32,7 +32,15 @@
 extern "C" {
 #endif
 
-#ifdef __KERNEL__
+/*
+ * This code compiles in three different contexts. When __KERNEL__ is defined,
+ * the code uses "unix-like" kernel interfaces. When _STANDALONE is defined, the
+ * code is running in a reduced capacity environment of the boot loader which is
+ * generally a subset of both POSIX and kernel interfaces (with a few unique
+ * interfaces too). When neither are defined, it's in a userland POSIX or
+ * similar environment.
+ */
+#if defined(__KERNEL__) || defined(_STANDALONE)
 #include <sys/note.h>
 #include <sys/types.h>
 #include <sys/atomic.h>
@@ -65,7 +73,7 @@ extern "C" {
 #include <sys/procfs_list.h>
 #include <sys/mod.h>
 #include <sys/zfs_context_os.h>
-#else /* _KERNEL */
+#else /* _KERNEL || _STANDALONE */
 
 #define	_SYS_MUTEX_H
 #define	_SYS_RWLOCK_H
@@ -325,10 +333,14 @@ extern void cv_signal(kcondvar_t *cv);
 extern void cv_broadcast(kcondvar_t *cv);
 
 #define	cv_timedwait_io(cv, mp, at)		cv_timedwait(cv, mp, at)
+#define	cv_timedwait_idle(cv, mp, at)		cv_timedwait(cv, mp, at)
 #define	cv_timedwait_sig(cv, mp, at)		cv_timedwait(cv, mp, at)
 #define	cv_wait_io(cv, mp)			cv_wait(cv, mp)
+#define	cv_wait_idle(cv, mp)			cv_wait(cv, mp)
 #define	cv_wait_io_sig(cv, mp)			cv_wait_sig(cv, mp)
 #define	cv_timedwait_sig_hires(cv, mp, t, r, f) \
+	cv_timedwait_hires(cv, mp, t, r, f)
+#define	cv_timedwait_idle_hires(cv, mp, t, r, f) \
 	cv_timedwait_hires(cv, mp, t, r, f)
 
 /*
@@ -382,6 +394,7 @@ typedef struct procfs_list_node {
 } procfs_list_node_t;
 
 void procfs_list_install(const char *module,
+    const char *submodule,
     const char *name,
     mode_t mode,
     procfs_list_t *procfs_list,
@@ -402,8 +415,6 @@ void procfs_list_add(procfs_list_t *procfs_list, void *p);
 #define	KM_NOSLEEP		UMEM_DEFAULT
 #define	KM_NORMALPRI		0	/* not needed with UMEM_DEFAULT */
 #define	KMC_NODEBUG		UMC_NODEBUG
-#define	KMC_KMEM		0x0
-#define	KMC_VMEM		0x0
 #define	KMC_KVMEM		0x0
 #define	kmem_alloc(_s, _f)	umem_alloc(_s, _f)
 #define	kmem_zalloc(_s, _f)	umem_zalloc(_s, _f)
@@ -600,9 +611,9 @@ typedef struct vsecattr {
 extern void delay(clock_t ticks);
 
 #define	SEC_TO_TICK(sec)	((sec) * hz)
-#define	MSEC_TO_TICK(msec)	((msec) / (MILLISEC / hz))
-#define	USEC_TO_TICK(usec)	((usec) / (MICROSEC / hz))
-#define	NSEC_TO_TICK(usec)	((usec) / (NANOSEC / hz))
+#define	MSEC_TO_TICK(msec)	(howmany((hrtime_t)(msec) * hz, MILLISEC))
+#define	USEC_TO_TICK(usec)	(howmany((hrtime_t)(usec) * hz, MICROSEC))
+#define	NSEC_TO_TICK(nsec)	(howmany((hrtime_t)(nsec) * hz, NANOSEC))
 
 #define	max_ncpus	64
 #define	boot_ncpus	(sysconf(_SC_NPROCESSORS_ONLN))
@@ -615,6 +626,7 @@ extern void delay(clock_t ticks);
 #define	defclsyspri	0
 
 #define	CPU_SEQID	((uintptr_t)pthread_self() & (max_ncpus - 1))
+#define	CPU_SEQID_UNSTABLE	CPU_SEQID
 
 #define	kcred		NULL
 #define	CRED()		NULL
@@ -750,7 +762,13 @@ extern int kmem_cache_reap_active(void);
 
 #define	____cacheline_aligned
 
-#endif /* _KERNEL */
+/*
+ * Kernel modules
+ */
+#define	__init
+#define	__exit
+
+#endif  /* _KERNEL || _STANDALONE */
 
 #ifdef __cplusplus
 };

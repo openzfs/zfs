@@ -27,6 +27,10 @@
  * Copyright (c) 2017, 2018 Lawrence Livermore National Security, LLC.
  * Copyright (c) 2015, 2017, Intel Corporation.
  * Copyright (c) 2020 Datto Inc.
+ * Copyright (c) 2020, The FreeBSD Foundation [1]
+ *
+ * [1] Portions of this software were developed by Allan Jude
+ *     under sponsorship from the FreeBSD Foundation.
  */
 
 #include <stdio.h>
@@ -71,6 +75,7 @@
 #include <sys/dsl_scan.h>
 #include <sys/btree.h>
 #include <zfs_comutil.h>
+#include <sys/zstd/zstd.h>
 
 #include <libnvpair.h>
 #include <libzutil.h>
@@ -834,6 +839,7 @@ usage(void)
 	    "work with dataset)\n");
 	(void) fprintf(stderr, "        -Y attempt all reconstruction "
 	    "combinations for split blocks\n");
+	(void) fprintf(stderr, "        -Z show ZSTD headers \n");
 	(void) fprintf(stderr, "Specify an option more than once (e.g. -bb) "
 	    "to make only that option verbose\n");
 	(void) fprintf(stderr, "Default is to dump everything non-verbosely\n");
@@ -1114,7 +1120,21 @@ dump_zap(objset_t *os, uint64_t object, void *data, size_t size)
 		(void) zap_lookup(os, object, attr.za_name,
 		    attr.za_integer_length, attr.za_num_integers, prop);
 		if (attr.za_integer_length == 1) {
-			(void) printf("%s", (char *)prop);
+			if (strcmp(attr.za_name,
+			    DSL_CRYPTO_KEY_MASTER_KEY) == 0 ||
+			    strcmp(attr.za_name,
+			    DSL_CRYPTO_KEY_HMAC_KEY) == 0 ||
+			    strcmp(attr.za_name, DSL_CRYPTO_KEY_IV) == 0 ||
+			    strcmp(attr.za_name, DSL_CRYPTO_KEY_MAC) == 0 ||
+			    strcmp(attr.za_name, DMU_POOL_CHECKSUM_SALT) == 0) {
+				uint8_t *u8 = prop;
+
+				for (i = 0; i < attr.za_num_integers; i++) {
+					(void) printf("%02x", u8[i]);
+				}
+			} else {
+				(void) printf("%s", (char *)prop);
+			}
 		} else {
 			for (i = 0; i < attr.za_num_integers; i++) {
 				switch (attr.za_integer_length) {
@@ -2135,6 +2155,65 @@ blkid2offset(const dnode_phys_t *dnp, const blkptr_t *bp,
 }
 
 static void
+snprintf_zstd_header(spa_t *spa, char *blkbuf, size_t buflen,
+    const blkptr_t *bp)
+{
+	abd_t *pabd;
+	void *buf;
+	zio_t *zio;
+	zfs_zstdhdr_t zstd_hdr;
+	int error;
+
+	if (BP_GET_COMPRESS(bp) != ZIO_COMPRESS_ZSTD)
+		return;
+
+	if (BP_IS_HOLE(bp))
+		return;
+
+	if (BP_IS_EMBEDDED(bp)) {
+		buf = malloc(SPA_MAXBLOCKSIZE);
+		if (buf == NULL) {
+			(void) fprintf(stderr, "out of memory\n");
+			exit(1);
+		}
+		decode_embedded_bp_compressed(bp, buf);
+		memcpy(&zstd_hdr, buf, sizeof (zstd_hdr));
+		free(buf);
+		zstd_hdr.c_len = BE_32(zstd_hdr.c_len);
+		zstd_hdr.raw_version_level = BE_32(zstd_hdr.raw_version_level);
+		(void) snprintf(blkbuf + strlen(blkbuf),
+		    buflen - strlen(blkbuf),
+		    " ZSTD:size=%u:version=%u:level=%u:EMBEDDED",
+		    zstd_hdr.c_len, zstd_hdr.version, zstd_hdr.level);
+		return;
+	}
+
+	pabd = abd_alloc_for_io(SPA_MAXBLOCKSIZE, B_FALSE);
+	zio = zio_root(spa, NULL, NULL, 0);
+
+	/* Decrypt but don't decompress so we can read the compression header */
+	zio_nowait(zio_read(zio, spa, bp, pabd, BP_GET_PSIZE(bp), NULL, NULL,
+	    ZIO_PRIORITY_SYNC_READ, ZIO_FLAG_CANFAIL | ZIO_FLAG_RAW_COMPRESS,
+	    NULL));
+	error = zio_wait(zio);
+	if (error) {
+		(void) fprintf(stderr, "read failed: %d\n", error);
+		return;
+	}
+	buf = abd_borrow_buf_copy(pabd, BP_GET_LSIZE(bp));
+	memcpy(&zstd_hdr, buf, sizeof (zstd_hdr));
+	zstd_hdr.c_len = BE_32(zstd_hdr.c_len);
+	zstd_hdr.raw_version_level = BE_32(zstd_hdr.raw_version_level);
+
+	(void) snprintf(blkbuf + strlen(blkbuf),
+	    buflen - strlen(blkbuf),
+	    " ZSTD:size=%u:version=%u:level=%u:NORMAL",
+	    zstd_hdr.c_len, zstd_hdr.version, zstd_hdr.level);
+
+	abd_return_buf_copy(pabd, buf, BP_GET_LSIZE(bp));
+}
+
+static void
 snprintf_blkptr_compact(char *blkbuf, size_t buflen, const blkptr_t *bp,
     boolean_t bp_freed)
 {
@@ -2198,7 +2277,7 @@ snprintf_blkptr_compact(char *blkbuf, size_t buflen, const blkptr_t *bp,
 }
 
 static void
-print_indirect(blkptr_t *bp, const zbookmark_phys_t *zb,
+print_indirect(spa_t *spa, blkptr_t *bp, const zbookmark_phys_t *zb,
     const dnode_phys_t *dnp)
 {
 	char blkbuf[BP_SPRINTF_LEN];
@@ -2222,6 +2301,8 @@ print_indirect(blkptr_t *bp, const zbookmark_phys_t *zb,
 	}
 
 	snprintf_blkptr_compact(blkbuf, sizeof (blkbuf), bp, B_FALSE);
+	if (dump_opt['Z'] && BP_GET_COMPRESS(bp) == ZIO_COMPRESS_ZSTD)
+		snprintf_zstd_header(spa, blkbuf, sizeof (blkbuf), bp);
 	(void) printf("%s\n", blkbuf);
 }
 
@@ -2234,7 +2315,7 @@ visit_indirect(spa_t *spa, const dnode_phys_t *dnp,
 	if (bp->blk_birth == 0)
 		return (0);
 
-	print_indirect(bp, zb, dnp);
+	print_indirect(spa, bp, zb, dnp);
 
 	if (BP_GET_LEVEL(bp) > 0 && !BP_IS_HOLE(bp)) {
 		arc_flags_t flags = ARC_FLAG_WAIT;
@@ -3310,7 +3391,25 @@ dump_object(objset_t *os, uint64_t object, int verbosity,
 		    " (K=%s)", ZDB_CHECKSUM_NAME(doi.doi_checksum));
 	}
 
-	if (doi.doi_compress != ZIO_COMPRESS_INHERIT || verbosity >= 6) {
+	if (doi.doi_compress == ZIO_COMPRESS_INHERIT &&
+	    ZIO_COMPRESS_HASLEVEL(os->os_compress) && verbosity >= 6) {
+		const char *compname = NULL;
+		if (zfs_prop_index_to_string(ZFS_PROP_COMPRESSION,
+		    ZIO_COMPRESS_RAW(os->os_compress, os->os_complevel),
+		    &compname) == 0) {
+			(void) snprintf(aux + strlen(aux),
+			    sizeof (aux) - strlen(aux), " (Z=inherit=%s)",
+			    compname);
+		} else {
+			(void) snprintf(aux + strlen(aux),
+			    sizeof (aux) - strlen(aux),
+			    " (Z=inherit=%s-unknown)",
+			    ZDB_COMPRESS_NAME(os->os_compress));
+		}
+	} else if (doi.doi_compress == ZIO_COMPRESS_INHERIT && verbosity >= 6) {
+		(void) snprintf(aux + strlen(aux), sizeof (aux) - strlen(aux),
+		    " (Z=inherit=%s)", ZDB_COMPRESS_NAME(os->os_compress));
+	} else if (doi.doi_compress != ZIO_COMPRESS_INHERIT || verbosity >= 6) {
 		(void) snprintf(aux + strlen(aux), sizeof (aux) - strlen(aux),
 		    " (Z=%s)", ZDB_COMPRESS_NAME(doi.doi_compress));
 	}
@@ -4093,6 +4192,8 @@ dump_l2arc_log_entries(uint64_t log_entries,
 		    (u_longlong_t)L2BLK_GET_PSIZE((&le[j])->le_prop));
 		(void) printf("|\t\t\t\tcompr: %llu\n",
 		    (u_longlong_t)L2BLK_GET_COMPRESS((&le[j])->le_prop));
+		(void) printf("|\t\t\t\tcomplevel: %llu\n",
+		    (u_longlong_t)(&le[j])->le_complevel);
 		(void) printf("|\t\t\t\ttype: %llu\n",
 		    (u_longlong_t)L2BLK_GET_TYPE((&le[j])->le_prop));
 		(void) printf("|\t\t\t\tprotected: %llu\n",
@@ -4101,6 +4202,8 @@ dump_l2arc_log_entries(uint64_t log_entries,
 		    (u_longlong_t)L2BLK_GET_PREFETCH((&le[j])->le_prop));
 		(void) printf("|\t\t\t\taddress: %llu\n",
 		    (u_longlong_t)le[j].le_daddr);
+		(void) printf("|\t\t\t\tARC state: %llu\n",
+		    (u_longlong_t)L2BLK_GET_STATE((&le[j])->le_prop));
 		(void) printf("|\n");
 	}
 	(void) printf("\n");
@@ -4186,15 +4289,13 @@ dump_l2arc_log_blocks(int fd, l2arc_dev_hdr_phys_t l2dhdr,
 		switch (L2BLK_GET_COMPRESS((&lbps[0])->lbp_prop)) {
 		case ZIO_COMPRESS_OFF:
 			break;
-		case ZIO_COMPRESS_LZ4:
+		default:
 			abd = abd_alloc_for_io(asize, B_TRUE);
 			abd_copy_from_buf_off(abd, &this_lb, 0, asize);
 			zio_decompress_data(L2BLK_GET_COMPRESS(
 			    (&lbps[0])->lbp_prop), abd, &this_lb,
-			    asize, sizeof (this_lb));
+			    asize, sizeof (this_lb), NULL);
 			abd_free(abd);
-			break;
-		default:
 			break;
 		}
 
@@ -5255,11 +5356,6 @@ load_unflushed_svr_segs_cb(spa_t *spa, space_map_entry_t *sme,
 	if (txg < metaslab_unflushed_txg(ms))
 		return (0);
 
-	vdev_indirect_mapping_t *vim = vd->vdev_indirect_mapping;
-	ASSERT(vim != NULL);
-	if (offset >= vdev_indirect_mapping_max_offset(vim))
-		return (0);
-
 	if (sme->sme_type == SM_ALLOC)
 		range_tree_add(svr->svr_allocd_segs, offset, size);
 	else
@@ -5321,9 +5417,6 @@ zdb_claim_removing(spa_t *spa, zdb_cb_t *zcb)
 	range_tree_t *allocs = range_tree_create(NULL, RANGE_SEG64, NULL, 0, 0);
 	for (uint64_t msi = 0; msi < vd->vdev_ms_count; msi++) {
 		metaslab_t *msp = vd->vdev_ms[msi];
-
-		if (msp->ms_start >= vdev_indirect_mapping_max_offset(vim))
-			break;
 
 		ASSERT0(range_tree_space(allocs));
 		if (msp->ms_sm != NULL)
@@ -7684,9 +7777,9 @@ zdb_decompress_block(abd_t *pabd, void *buf, void *lbuf, uint64_t lsize,
 			VERIFY0(random_get_pseudo_bytes(lbuf2, lsize));
 
 			if (zio_decompress_data(*cfuncp, pabd,
-			    lbuf, psize, lsize) == 0 &&
+			    lbuf, psize, lsize, NULL) == 0 &&
 			    zio_decompress_data(*cfuncp, pabd,
-			    lbuf2, psize, lsize) == 0 &&
+			    lbuf2, psize, lsize, NULL) == 0 &&
 			    bcmp(lbuf, lbuf2, lsize) == 0)
 				break;
 		}
@@ -8078,7 +8171,7 @@ main(int argc, char **argv)
 	zfs_btree_verify_intensity = 3;
 
 	while ((c = getopt(argc, argv,
-	    "AbcCdDeEFGhiI:klLmMo:Op:PqRsSt:uU:vVx:XYy")) != -1) {
+	    "AbcCdDeEFGhiI:klLmMo:Op:PqRsSt:uU:vVx:XYyZ")) != -1) {
 		switch (c) {
 		case 'b':
 		case 'c':
@@ -8098,6 +8191,7 @@ main(int argc, char **argv)
 		case 'S':
 		case 'u':
 		case 'y':
+		case 'Z':
 			dump_opt[c]++;
 			dump_all = 0;
 			break;

@@ -38,8 +38,6 @@ do_fail() {
 is_known() {
   query="$1"
   IFS=' '
-  # protect against special characters
-  set -f
   for element in $2 ; do
     if [ "$query" = "$element" ] ; then
       return 0
@@ -54,8 +52,7 @@ is_known() {
 create_dependencies() {
   unitfile="$1"
   suffix="$2"
-  # protect against special characters
-  set -f
+  IFS=' '
   for target in $3 ; do
     target_dir="${dest_norm}/${target}.${suffix}/"
     mkdir -p "${target_dir}"
@@ -72,6 +69,7 @@ else
   do_fail "zero or three arguments required"
 fi
 
+pools=$(zpool list -H -o name || true)
 
 # All needed information about each ZFS is available from
 # zfs list -H -t filesystem -o <properties>
@@ -83,11 +81,11 @@ process_line() {
   # zfs list -H -o name,...
   # fields are tab separated
   IFS="$(printf '\t')"
-  # protect against special characters in, e.g., mountpoints
-  set -f
   # shellcheck disable=SC2086
   set -- $1
+
   dataset="${1}"
+  pool="${dataset%%/*}"
   p_mountpoint="${2}"
   p_canmount="${3}"
   p_atime="${4}"
@@ -119,6 +117,25 @@ process_line() {
   wantedby=""
   requiredby=""
   noauto="off"
+
+  # If the pool is already imported, zfs-import.target is not needed.  This
+  # avoids a dependency loop on root-on-ZFS systems:
+  # systemd-random-seed.service After (via RequiresMountsFor) var-lib.mount
+  # After zfs-import.target After zfs-import-{cache,scan}.service After
+  # cryptsetup.service After systemd-random-seed.service.
+  #
+  # Pools are newline-separated and may contain spaces in their names.
+  # There is no better portable way to set IFS to just a newline.  Using
+  # $(printf '\n') doesn't work because $(...) strips trailing newlines.
+  IFS="
+"
+  for p in $pools ; do
+    if [ "$p" = "$pool" ] ; then
+      after=""
+      wants=""
+      break
+    fi
+  done
 
   if [ -n "${p_systemd_after}" ] && \
       [ "${p_systemd_after}" != "-" ] ; then
@@ -204,6 +221,10 @@ ${keymountdep}
 [Service]
 Type=oneshot
 RemainAfterExit=yes
+# This avoids a dependency loop involving systemd-journald.socket if this
+# dataset is a parent of the root filesystem.
+StandardOutput=null
+StandardError=null
 ExecStart=${keyloadcmd}
 ExecStop=${keyunloadcmd}"   > "${dest_norm}/${keyloadunit}"
     fi
@@ -438,6 +459,8 @@ Options=defaults${opts},zfsutil" > "${dest_norm}/${mountfile}"
 }
 
 for cachefile in "${FSLIST}/"* ; do
+  # Disable glob expansion to protect against special characters when parsing.
+  set -f
   # Sort cachefile's lines by canmount, "on" before "noauto"
   # and feed each line into process_line
   sort -t "$(printf '\t')" -k 3 -r "${cachefile}" | \

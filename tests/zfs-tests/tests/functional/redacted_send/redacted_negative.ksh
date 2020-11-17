@@ -56,6 +56,8 @@ done
 log_mustnot zfs redact $sendfs@snap1
 log_mustnot zfs redact $sendfs@snap1 book
 log_mustnot zfs redact $sendfs#book1 book4 $clone1
+log_mustnot zfs redact $sendfs@snap1 book snap2 snap3
+log_mustnot zfs redact $sendfs@snap1 book @snap2 @snap3
 log_mustnot eval "zfs send --redact $sendfs#book $sendfs@snap >/dev/null"
 
 # Redaction snapshots not a descendant of tosnap

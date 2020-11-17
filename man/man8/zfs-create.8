@@ -32,9 +32,9 @@
 .\"
 .Dd June 30, 2019
 .Dt ZFS-CREATE 8
-.Os Linux
+.Os
 .Sh NAME
-.Nm zfs Ns Pf - Cm create
+.Nm zfs-create
 .Nd Creates a new ZFS file system.
 .Sh SYNOPSIS
 .Nm zfs
@@ -42,7 +42,7 @@
 .Op Fl Pnpv
 .Oo Fl o Ar property Ns = Ns Ar value Oc Ns ...
 .Ar filesystem
-.Nm
+.Nm zfs
 .Cm create
 .Op Fl ps
 .Op Fl b Ar blocksize
@@ -51,7 +51,7 @@
 .Sh DESCRIPTION
 .Bl -tag -width ""
 .It Xo
-.Nm
+.Nm zfs
 .Cm create
 .Op Fl Pnpv
 .Oo Fl o Ar property Ns = Ns Ar value Oc Ns ...
@@ -126,7 +126,7 @@ option.
 Print verbose information about the created dataset.
 .El
 .It Xo
-.Nm
+.Nm zfs
 .Cm create
 .Op Fl ps
 .Op Fl b Ar blocksize

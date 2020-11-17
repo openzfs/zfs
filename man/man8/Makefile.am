@@ -82,10 +82,21 @@ dist_man_MANS = \
 	zpool-upgrade.8 \
 	zpool-wait.8 \
 	zstream.8 \
-	zstreamdump.8
+	zstreamdump.8 \
+	zpool_influxdb.8
 
 nodist_man_MANS = \
 	zed.8 \
 	zfs-mount-generator.8
 
 SUBSTFILES += $(nodist_man_MANS)
+
+if BUILD_LINUX
+# The man pager in most Linux distros defaults to BSD instead of Linux
+# when .Os is blank, but leaving it blank makes things a lot easier on
+# FreeBSD when OpenZFS is vendored in the base system.
+install-data-hook:
+	cd $(DESTDIR)$(mandir)/man8; \
+	$(SED) ${ac_inplace} -e 's/^\.Os$$/.Os Linux/' \
+	    $(dist_man_MANS) $(nodist_man_MANS)
+endif

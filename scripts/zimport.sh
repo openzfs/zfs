@@ -39,7 +39,7 @@
 #      -s "zfs-0.6.2 master installed" \
 #      -p "zevo-1.1.1 zol-0.6.2 zol-0.6.2-173 master installed"
 #
-# --------------------- ZFS on Linux Source Versions --------------
+# ------------------------ OpenZFS Source Versions ----------------
 #                 zfs-0.6.2       master          0.6.2-175_g36eb554
 # -----------------------------------------------------------------
 # Clone ZFS       Local		Local		Skip
@@ -68,9 +68,9 @@ TEST_DIR=$(mktemp -u -d -p /var/tmp zimport.XXXXXXXX)
 KEEP="no"
 VERBOSE="no"
 COLOR="yes"
-REPO="https://github.com/zfsonlinux"
+REPO="https://github.com/openzfs"
 IMAGES_DIR="$SCRIPTDIR/zfs-images/"
-IMAGES_TAR="https://github.com/zfsonlinux/zfs-images/tarball/master"
+IMAGES_TAR="https://github.com/openzfs/zfs-images/tarball/master"
 ERROR=0
 
 CONFIG_LOG="configure.log"
@@ -365,7 +365,7 @@ if [ ! -d "$SRC_DIR" ]; then
 fi
 
 # Print a header for all tags which are being tested.
-echo "--------------------- ZFS on Linux Source Versions --------------"
+echo "------------------------ OpenZFS Source Versions ----------------"
 printf "%-16s" " "
 for TAG in $SRC_TAGS; do
 	src_set_vars "$TAG"

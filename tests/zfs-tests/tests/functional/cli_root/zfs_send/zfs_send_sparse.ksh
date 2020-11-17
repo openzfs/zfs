@@ -24,7 +24,7 @@
 # 1. Create sparse files of various size
 # 2. Snapshot and send these sparse files
 # 3. Verify these files are received correctly and we don't trigger any issue
-#    like the one described in https://github.com/zfsonlinux/zfs/pull/6760
+#    like the one described in https://github.com/openzfs/zfs/pull/6760
 #
 
 verify_runnable "both"

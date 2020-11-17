@@ -6,7 +6,6 @@
  *  UCRL-CODE-235197
  *
  *  This file is part of the SPL, Solaris Porting Layer.
- *  For details, see <http://zfsonlinux.org/>.
  *
  *  The SPL is free software; you can redistribute it and/or modify it
  *  under the terms of the GNU General Public License as published by the
@@ -52,6 +51,12 @@
 #endif
 
 #define	F_FREESP	11 	/* Free file space */
+
+
+#if defined(SEEK_HOLE) && defined(SEEK_DATA)
+#define	F_SEEK_DATA	SEEK_DATA
+#define	F_SEEK_HOLE	SEEK_HOLE
+#endif
 
 /*
  * The vnode AT_ flags are mapped to the Linux ATTR_* flags.

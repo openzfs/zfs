@@ -49,7 +49,9 @@ enum symfollow { NO_FOLLOW = NOFOLLOW };
 
 #include <sys/proc.h>
 #include <sys/vnode_impl.h>
+#ifndef IN_BASE
 #include_next <sys/vnode.h>
+#endif
 #include <sys/mount.h>
 #include <sys/cred.h>
 #include <sys/fcntl.h>
@@ -70,11 +72,14 @@ typedef	struct vop_vector	vnodeops_t;
 
 #define	rootvfs		(rootvnode == NULL ? NULL : rootvnode->v_mount)
 
+
+#ifndef IN_BASE
 static __inline int
 vn_is_readonly(vnode_t *vp)
 {
 	return (vp->v_mount->mnt_flag & MNT_RDONLY);
 }
+#endif
 #define	vn_vfswlock(vp)		(0)
 #define	vn_vfsunlock(vp)	do { } while (0)
 #define	vn_ismntpt(vp)	   \
@@ -166,6 +171,7 @@ vn_is_readonly(vnode_t *vp)
 #define	AT_NOSET	(AT_NLINK|AT_RDEV|AT_FSID|AT_NODEID|\
 			AT_BLKSIZE|AT_NBLOCKS|AT_SEQ)
 
+#ifndef IN_BASE
 static __inline void
 vattr_init_mask(vattr_t *vap)
 {
@@ -187,6 +193,7 @@ vattr_init_mask(vattr_t *vap)
 	if (vap->va_flags != VNOVAL)
 		vap->va_mask |= AT_XVATTR;
 }
+#endif
 
 #define		RLIM64_INFINITY 0
 
