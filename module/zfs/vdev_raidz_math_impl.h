@@ -1227,7 +1227,7 @@ raidz_reconstruct_qr_impl(raidz_row_t *rr, const int *tgtidx)
 	size_t c;
 	size_t dsize;
 	abd_t *dabd;
-	const size_t firstdc =rr->rr_firstdatacol;
+	const size_t firstdc = rr->rr_firstdatacol;
 	const size_t ncols = rr->rr_cols;
 	const size_t x = tgtidx[TARGET_X];
 	const size_t y = tgtidx[TARGET_Y];

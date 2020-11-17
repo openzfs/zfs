@@ -25,6 +25,7 @@
  */
 
 #include <sys/vdev_impl.h>
+#include <sys/vdev_draid.h>
 #include <sys/dsl_scan.h>
 #include <sys/spa_impl.h>
 #include <sys/metaslab_impl.h>
@@ -63,13 +64,15 @@
  *
  * Limitations:
  *
- *   - Only supported for mirror vdev types.  Due to the variable stripe
- *     width used by raidz sequential reconstruction is not possible.
+ *   - Sequential reconstruction is not possible on RAIDZ due to its
+ *     variable stripe width.  Note dRAID uses a fixed stripe width which
+ *     avoids this issue, but comes at the expense of some usable capacity.
  *
- *   - Block checksums are not verified during sequential reconstuction.
+ *   - Block checksums are not verified during sequential reconstruction.
  *     Similar to traditional RAID the parity/mirror data is reconstructed
  *     but cannot be immediately double checked.  For this reason when the
- *     last active resilver completes the pool is automatically scrubbed.
+ *     last active resilver completes the pool is automatically scrubbed
+ *     by default.
  *
  *   - Deferred resilvers using sequential reconstruction are not currently
  *     supported.  When adding another vdev to an active top-level resilver
@@ -77,8 +80,8 @@
  *
  * Advantages:
  *
- *   - Sequential reconstuction is performed in LBA order which may be faster
- *     than healing reconstuction particularly when using using HDDs (or
+ *   - Sequential reconstruction is performed in LBA order which may be faster
+ *     than healing reconstruction particularly when using using HDDs (or
  *     especially with SMR devices).  Only allocated capacity is resilvered.
  *
  *   - Sequential reconstruction is not constrained by ZFS block boundaries.
@@ -86,9 +89,9 @@
  *     allowing all of these logical blocks to be repaired with a single IO.
  *
  *   - Unlike a healing resilver or scrub which are pool wide operations,
- *     sequential reconstruction is handled by the top-level mirror vdevs.
- *     This allows for it to be started or canceled on a top-level vdev
- *     without impacting any other top-level vdevs in the pool.
+ *     sequential reconstruction is handled by the top-level vdevs.  This
+ *     allows for it to be started or canceled on a top-level vdev without
+ *     impacting any other top-level vdevs in the pool.
  *
  *   - Data only referenced by a pool checkpoint will be repaired because
  *     that space is reflected in the space maps.  This differs for a
@@ -97,17 +100,35 @@
 
 
 /*
- * Maximum number of queued rebuild I/Os top-level vdev.  The number of
- * concurrent rebuild I/Os issued to the device is controlled by the
- * zfs_vdev_rebuild_min_active and zfs_vdev_rebuild_max_active module
- * options.
- */
-unsigned int zfs_rebuild_queue_limit = 20;
-
-/*
- * Size of rebuild reads; defaults to 1MiB and is capped at SPA_MAXBLOCKSIZE.
+ * Size of rebuild reads; defaults to 1MiB per data disk and is capped at
+ * SPA_MAXBLOCKSIZE.
  */
 unsigned long zfs_rebuild_max_segment = 1024 * 1024;
+
+/*
+ * Maximum number of parallelly executed bytes per leaf vdev caused by a
+ * sequential resilver.  We attempt to strike a balance here between keeping
+ * the vdev queues full of I/Os at all times and not overflowing the queues
+ * to cause long latency, which would cause long txg sync times.
+ *
+ * A large default value can be safely used here because the default target
+ * segment size is also large (zfs_rebuild_max_segment=1M).  This helps keep
+ * the queue depth short.
+ *
+ * 32MB was selected as the default value to achieve good performance with
+ * a large 90-drive dRAID HDD configuration (draid2:8d:90c:2s). A sequential
+ * rebuild was unable to saturate all of the drives using smaller values.
+ * With a value of 32MB the sequential resilver write rate was measured at
+ * 800MB/s sustained while rebuilding to a distributed spare.
+ */
+unsigned long zfs_rebuild_vdev_limit = 32 << 20;
+
+/*
+ * Automatically start a pool scrub when the last active sequential resilver
+ * completes in order to verify the checksums of all blocks which have been
+ * resilvered. This option is enabled by default and is strongly recommended.
+ */
+int zfs_rebuild_scrub_enabled = 1;
 
 /*
  * For vdev_rebuild_initiate_sync() and vdev_rebuild_reset_sync().
@@ -293,7 +314,7 @@ vdev_rebuild_complete_sync(void *arg, dmu_tx_t *tx)
 	    VDEV_TOP_ZAP_VDEV_REBUILD_PHYS, sizeof (uint64_t),
 	    REBUILD_PHYS_ENTRIES, vrp, tx));
 
-	vdev_dtl_reassess(vd,  tx->tx_txg, vrp->vrp_max_txg, B_TRUE, B_TRUE);
+	vdev_dtl_reassess(vd, tx->tx_txg, vrp->vrp_max_txg, B_TRUE, B_TRUE);
 	spa_feature_decr(vd->vdev_spa, SPA_FEATURE_DEVICE_REBUILD, tx);
 
 	spa_history_log_internal(spa, "rebuild",  tx,
@@ -306,7 +327,16 @@ vdev_rebuild_complete_sync(void *arg, dmu_tx_t *tx)
 	vd->vdev_rebuilding = B_FALSE;
 	mutex_exit(&vd->vdev_rebuild_lock);
 
-	spa_notify_waiters(spa);
+	/*
+	 * While we're in syncing context take the opportunity to
+	 * setup the scrub when there are no more active rebuilds.
+	 */
+	if (!vdev_rebuild_active(spa->spa_root_vdev) &&
+	    zfs_rebuild_scrub_enabled) {
+		pool_scan_func_t func = POOL_SCAN_SCRUB;
+		dsl_scan_setup_sync(&func, tx);
+	}
+
 	cv_broadcast(&vd->vdev_rebuild_cv);
 }
 
@@ -438,7 +468,7 @@ vdev_rebuild_cb(zio_t *zio)
 	vdev_rebuild_phys_t *vrp = &vr->vr_rebuild_phys;
 	vdev_t *vd = vr->vr_top_vdev;
 
-	mutex_enter(&vd->vdev_rebuild_io_lock);
+	mutex_enter(&vr->vr_io_lock);
 	if (zio->io_error == ENXIO && !vdev_writeable(vd)) {
 		/*
 		 * The I/O failed because the top-level vdev was unavailable.
@@ -455,34 +485,30 @@ vdev_rebuild_cb(zio_t *zio)
 
 	abd_free(zio->io_abd);
 
-	ASSERT3U(vd->vdev_rebuild_inflight, >, 0);
-	vd->vdev_rebuild_inflight--;
-	cv_broadcast(&vd->vdev_rebuild_io_cv);
-	mutex_exit(&vd->vdev_rebuild_io_lock);
+	ASSERT3U(vr->vr_bytes_inflight, >, 0);
+	vr->vr_bytes_inflight -= zio->io_size;
+	cv_broadcast(&vr->vr_io_cv);
+	mutex_exit(&vr->vr_io_lock);
 
 	spa_config_exit(vd->vdev_spa, SCL_STATE_ALL, vd);
 }
 
 /*
- * Rebuild the data in this range by constructing a special dummy block
- * pointer for the given range.  It has no relation to any existing blocks
- * in the pool.  But by disabling checksum verification and issuing a scrub
- * I/O mirrored vdevs will replicate the block using any available mirror
- * leaf vdevs.
+ * Initialize a block pointer that can be used to read the given segment
+ * for sequential rebuild.
  */
 static void
-vdev_rebuild_rebuild_block(vdev_rebuild_t *vr, uint64_t start, uint64_t asize,
-    uint64_t txg)
+vdev_rebuild_blkptr_init(blkptr_t *bp, vdev_t *vd, uint64_t start,
+    uint64_t asize)
 {
-	vdev_t *vd = vr->vr_top_vdev;
-	spa_t *spa = vd->vdev_spa;
-	uint64_t psize = asize;
-
-	ASSERT(vd->vdev_ops == &vdev_mirror_ops ||
+	ASSERT(vd->vdev_ops == &vdev_draid_ops ||
+	    vd->vdev_ops == &vdev_mirror_ops ||
 	    vd->vdev_ops == &vdev_replacing_ops ||
 	    vd->vdev_ops == &vdev_spare_ops);
 
-	blkptr_t blk, *bp = &blk;
+	uint64_t psize = vd->vdev_ops == &vdev_draid_ops ?
+	    vdev_draid_asize_to_psize(vd, asize) : asize;
+
 	BP_ZERO(bp);
 
 	DVA_SET_VDEV(&bp->blk_dva[0], vd->vdev_id);
@@ -499,19 +525,6 @@ vdev_rebuild_rebuild_block(vdev_rebuild_t *vr, uint64_t start, uint64_t asize,
 	BP_SET_LEVEL(bp, 0);
 	BP_SET_DEDUP(bp, 0);
 	BP_SET_BYTEORDER(bp, ZFS_HOST_BYTEORDER);
-
-	/*
-	 * We increment the issued bytes by the asize rather than the psize
-	 * so the scanned and issued bytes may be directly compared.  This
-	 * is consistent with the scrub/resilver issued reporting.
-	 */
-	vr->vr_pass_bytes_issued += asize;
-	vr->vr_rebuild_phys.vrp_bytes_issued += asize;
-
-	zio_nowait(zio_read(spa->spa_txg_zio[txg & TXG_MASK], spa, bp,
-	    abd_alloc(psize, B_FALSE), psize, vdev_rebuild_cb, vr,
-	    ZIO_PRIORITY_REBUILD, ZIO_FLAG_RAW | ZIO_FLAG_CANFAIL |
-	    ZIO_FLAG_RESILVER, NULL));
 }
 
 /*
@@ -525,6 +538,7 @@ vdev_rebuild_range(vdev_rebuild_t *vr, uint64_t start, uint64_t size)
 	uint64_t ms_id __maybe_unused = vr->vr_scan_msp->ms_id;
 	vdev_t *vd = vr->vr_top_vdev;
 	spa_t *spa = vd->vdev_spa;
+	blkptr_t blk;
 
 	ASSERT3U(ms_id, ==, start >> vd->vdev_ms_shift);
 	ASSERT3U(ms_id, ==, (start + size - 1) >> vd->vdev_ms_shift);
@@ -532,14 +546,26 @@ vdev_rebuild_range(vdev_rebuild_t *vr, uint64_t start, uint64_t size)
 	vr->vr_pass_bytes_scanned += size;
 	vr->vr_rebuild_phys.vrp_bytes_scanned += size;
 
-	mutex_enter(&vd->vdev_rebuild_io_lock);
+	/*
+	 * Rebuild the data in this range by constructing a special block
+	 * pointer.  It has no relation to any existing blocks in the pool.
+	 * However, by disabling checksum verification and issuing a scrub IO
+	 * we can reconstruct and repair any children with missing data.
+	 */
+	vdev_rebuild_blkptr_init(&blk, vd, start, size);
+	uint64_t psize = BP_GET_PSIZE(&blk);
+
+	if (!vdev_dtl_need_resilver(vd, &blk.blk_dva[0], psize, TXG_UNKNOWN))
+		return (0);
+
+	mutex_enter(&vr->vr_io_lock);
 
 	/* Limit in flight rebuild I/Os */
-	while (vd->vdev_rebuild_inflight >= zfs_rebuild_queue_limit)
-		cv_wait(&vd->vdev_rebuild_io_cv, &vd->vdev_rebuild_io_lock);
+	while (vr->vr_bytes_inflight >= vr->vr_bytes_inflight_max)
+		cv_wait(&vr->vr_io_cv, &vr->vr_io_lock);
 
-	vd->vdev_rebuild_inflight++;
-	mutex_exit(&vd->vdev_rebuild_io_lock);
+	vr->vr_bytes_inflight += psize;
+	mutex_exit(&vr->vr_io_lock);
 
 	dmu_tx_t *tx = dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
 	VERIFY0(dmu_tx_assign(tx, TXG_WAIT));
@@ -558,43 +584,27 @@ vdev_rebuild_range(vdev_rebuild_t *vr, uint64_t start, uint64_t size)
 
 	/* When exiting write out our progress. */
 	if (vdev_rebuild_should_stop(vd)) {
-		mutex_enter(&vd->vdev_rebuild_io_lock);
-		vd->vdev_rebuild_inflight--;
-		mutex_exit(&vd->vdev_rebuild_io_lock);
+		mutex_enter(&vr->vr_io_lock);
+		vr->vr_bytes_inflight -= psize;
+		mutex_exit(&vr->vr_io_lock);
 		spa_config_exit(vd->vdev_spa, SCL_STATE_ALL, vd);
 		mutex_exit(&vd->vdev_rebuild_lock);
 		dmu_tx_commit(tx);
 		return (SET_ERROR(EINTR));
 	}
 	mutex_exit(&vd->vdev_rebuild_lock);
-
-	vr->vr_scan_offset[txg & TXG_MASK] = start + size;
-	vdev_rebuild_rebuild_block(vr, start, size, txg);
-
 	dmu_tx_commit(tx);
 
+	vr->vr_scan_offset[txg & TXG_MASK] = start + size;
+	vr->vr_pass_bytes_issued += size;
+	vr->vr_rebuild_phys.vrp_bytes_issued += size;
+
+	zio_nowait(zio_read(spa->spa_txg_zio[txg & TXG_MASK], spa, &blk,
+	    abd_alloc(psize, B_FALSE), psize, vdev_rebuild_cb, vr,
+	    ZIO_PRIORITY_REBUILD, ZIO_FLAG_RAW | ZIO_FLAG_CANFAIL |
+	    ZIO_FLAG_RESILVER, NULL));
+
 	return (0);
-}
-
-/*
- * Split range into legally-sized logical chunks given the constraints of the
- * top-level mirror vdev type.
- */
-static uint64_t
-vdev_rebuild_chunk_size(vdev_t *vd, uint64_t start, uint64_t size)
-{
-	uint64_t chunk_size, max_asize, max_segment;
-
-	ASSERT(vd->vdev_ops == &vdev_mirror_ops ||
-	    vd->vdev_ops == &vdev_replacing_ops ||
-	    vd->vdev_ops == &vdev_spare_ops);
-
-	max_segment = MIN(P2ROUNDUP(zfs_rebuild_max_segment,
-	    1 << vd->vdev_ashift), SPA_MAXBLOCKSIZE);
-	max_asize = vdev_psize_to_asize(vd, max_segment);
-	chunk_size = MIN(size, max_asize);
-
-	return (chunk_size);
 }
 
 /*
@@ -625,7 +635,14 @@ vdev_rebuild_ranges(vdev_rebuild_t *vr)
 		while (size > 0) {
 			uint64_t chunk_size;
 
-			chunk_size = vdev_rebuild_chunk_size(vd, start, size);
+			/*
+			 * Split range into legally-sized logical chunks
+			 * given the constraints of the top-level vdev
+			 * being rebuilt (dRAID or mirror).
+			 */
+			ASSERT3P(vd->vdev_ops, !=, NULL);
+			chunk_size = vd->vdev_ops->vdev_op_rebuild_asize(vd,
+			    start, size, zfs_rebuild_max_segment);
 
 			error = vdev_rebuild_range(vr, start, chunk_size);
 			if (error != 0)
@@ -747,9 +764,15 @@ vdev_rebuild_thread(void *arg)
 	vr->vr_top_vdev = vd;
 	vr->vr_scan_msp = NULL;
 	vr->vr_scan_tree = range_tree_create(NULL, RANGE_SEG64, NULL, 0, 0);
+	mutex_init(&vr->vr_io_lock, NULL, MUTEX_DEFAULT, NULL);
+	cv_init(&vr->vr_io_cv, NULL, CV_DEFAULT, NULL);
+
 	vr->vr_pass_start_time = gethrtime();
 	vr->vr_pass_bytes_scanned = 0;
 	vr->vr_pass_bytes_issued = 0;
+
+	vr->vr_bytes_inflight_max = MAX(1ULL << 20,
+	    zfs_rebuild_vdev_limit * vd->vdev_children);
 
 	uint64_t update_est_time = gethrtime();
 	vdev_rebuild_update_bytes_est(vd, 0);
@@ -780,21 +803,32 @@ vdev_rebuild_thread(void *arg)
 
 		ASSERT0(range_tree_space(vr->vr_scan_tree));
 
-		/*
-		 * Disable any new allocations to this metaslab and wait
-		 * for any writes inflight to complete.  This is needed to
-		 * ensure all allocated ranges are rebuilt.
-		 */
+		/* Disable any new allocations to this metaslab */
 		metaslab_disable(msp);
 		spa_config_exit(spa, SCL_CONFIG, FTAG);
-		txg_wait_synced(dsl, 0);
 
 		mutex_enter(&msp->ms_sync_lock);
 		mutex_enter(&msp->ms_lock);
 
 		/*
+		 * If there are outstanding allocations wait for them to be
+		 * synced.  This is needed to ensure all allocated ranges are
+		 * on disk and therefore will be rebuilt.
+		 */
+		for (int j = 0; j < TXG_SIZE; j++) {
+			if (range_tree_space(msp->ms_allocating[j])) {
+				mutex_exit(&msp->ms_lock);
+				mutex_exit(&msp->ms_sync_lock);
+				txg_wait_synced(dsl, 0);
+				mutex_enter(&msp->ms_sync_lock);
+				mutex_enter(&msp->ms_lock);
+				break;
+			}
+		}
+
+		/*
 		 * When a metaslab has been allocated from read its allocated
-		 * ranges from the space map object in to the vr_scan_tree.
+		 * ranges from the space map object into the vr_scan_tree.
 		 * Then add inflight / unflushed ranges and remove inflight /
 		 * unflushed frees.  This is the minimum range to be rebuilt.
 		 */
@@ -827,7 +861,7 @@ vdev_rebuild_thread(void *arg)
 		/*
 		 * To provide an accurate estimate re-calculate the estimated
 		 * size every 5 minutes to account for recent allocations and
-		 * frees made space maps which have not yet been rebuilt.
+		 * frees made to space maps which have not yet been rebuilt.
 		 */
 		if (gethrtime() > update_est_time + SEC2NSEC(300)) {
 			update_est_time = gethrtime();
@@ -851,11 +885,14 @@ vdev_rebuild_thread(void *arg)
 	spa_config_exit(spa, SCL_CONFIG, FTAG);
 
 	/* Wait for any remaining rebuild I/O to complete */
-	mutex_enter(&vd->vdev_rebuild_io_lock);
-	while (vd->vdev_rebuild_inflight > 0)
-		cv_wait(&vd->vdev_rebuild_io_cv, &vd->vdev_rebuild_io_lock);
+	mutex_enter(&vr->vr_io_lock);
+	while (vr->vr_bytes_inflight > 0)
+		cv_wait(&vr->vr_io_cv, &vr->vr_io_lock);
 
-	mutex_exit(&vd->vdev_rebuild_io_lock);
+	mutex_exit(&vr->vr_io_lock);
+
+	mutex_destroy(&vr->vr_io_lock);
+	cv_destroy(&vr->vr_io_cv);
 
 	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 
@@ -1100,5 +1137,11 @@ vdev_rebuild_get_stats(vdev_t *tvd, vdev_rebuild_stat_t *vrs)
 
 /* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs, zfs_, rebuild_max_segment, ULONG, ZMOD_RW,
-        "Max segment size in bytes of rebuild reads");
+	"Max segment size in bytes of rebuild reads");
+
+ZFS_MODULE_PARAM(zfs, zfs_, rebuild_vdev_limit, ULONG, ZMOD_RW,
+	"Max bytes in flight per leaf vdev for sequential resilvers");
+
+ZFS_MODULE_PARAM(zfs, zfs_, rebuild_scrub_enabled, INT, ZMOD_RW,
+	"Automatically scrub after sequential resilver completes");
 /* END CSTYLED */

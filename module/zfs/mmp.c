@@ -307,8 +307,17 @@ mmp_next_leaf(spa_t *spa)
 		if (leaf == NULL)
 			leaf = list_head(&spa->spa_leaf_list);
 
-		if (!vdev_writeable(leaf)) {
+		/*
+		 * We skip unwritable, offline, detached, and dRAID spare
+		 * devices as they are either not legal targets or the write
+		 * may fail or not be seen by other hosts.  Skipped dRAID
+		 * spares can never be written so the fail mask is not set.
+		 */
+		if (!vdev_writeable(leaf) || leaf->vdev_offline ||
+		    leaf->vdev_detached) {
 			fail_mask |= MMP_FAIL_NOT_WRITABLE;
+		} else if (leaf->vdev_ops == &vdev_draid_spare_ops) {
+			continue;
 		} else if (leaf->vdev_mmp_pending != 0) {
 			fail_mask |= MMP_FAIL_WRITE_PENDING;
 		} else {

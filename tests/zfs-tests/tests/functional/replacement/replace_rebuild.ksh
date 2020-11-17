@@ -38,7 +38,7 @@
 # 	Replacing disks during I/O should pass for supported pools.
 #
 # STRATEGY:
-#	1. Create multidisk pools (stripe/mirror) and
+#	1. Create multidisk pools (stripe/mirror/draid) and
 #	   start some random I/O
 #	2. Replace a disk in the pool with another disk.
 #	3. Verify the integrity of the file system and the rebuilding.
@@ -137,7 +137,7 @@ done
 #
 log_must truncate -s $MINVDEVSIZE $TESTDIR/$REPLACEFILE
 
-for type in "" "mirror"; do
+for type in "" "mirror" "draid"; do
 	for op in "" "-f"; do
 		create_pool $TESTPOOL1 $type $specials_list
 		log_must zfs create $TESTPOOL1/$TESTFS1

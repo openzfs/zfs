@@ -57,8 +57,8 @@
 #	   Using the various combinations.
 #		- Regular import
 #		- Alternate Root Specified
-#	   It should be succeed with single d/m device upon 'raidz' & 'mirror',
-#	   but failed against 'regular' or more d/m devices.
+#	   It should succeed with single d/m device upon 'raidz', 'mirror',
+#	   'draid' but failed against 'regular' or more d/m devices.
 #	6. If import succeed, verify following is true:
 #		- The pool shows up under 'zpool list'.
 #		- The pool's health should be DEGRADED.
@@ -67,7 +67,16 @@
 
 verify_runnable "global"
 
-set -A vdevs "" "mirror" "raidz"
+# Randomly test a subset of combinations to speed up the test.
+(( rc=RANDOM % 3 ))
+if [[ $rc == 0 ]] ; then
+	set -A vdevs "" "mirror" "raidz"
+elif [[ $rc == 1 ]] ; then
+	set -A vdevs "" "mirror" "draid"
+else
+	set -A vdevs "" "raidz" "draid"
+fi
+
 set -A options "" "-R $ALTER_ROOT"
 
 function cleanup
@@ -89,7 +98,8 @@ function recreate_files
 	log_must rm -rf $DEVICE_DIR/*
 	typeset i=0
 	while (( i < $MAX_NUM )); do
-		log_must mkfile $FILE_SIZE ${DEVICE_DIR}/${DEVICE_FILE}$i
+		log_must rm -f ${DEVICE_DIR}/${DEVICE_FILE}$i
+		log_must truncate -s $FILE_SIZE ${DEVICE_DIR}/${DEVICE_FILE}$i
 		((i += 1))
 	done
 }
@@ -155,6 +165,9 @@ while (( i < ${#vdevs[*]} )); do
 						action=log_mustnot
 					;;
 				'raidz')  (( count > 1 )) && \
+						action=log_mustnot
+					;;
+				'draid')  (( count > 1 )) && \
 						action=log_mustnot
 					;;
 				'')  action=log_mustnot

@@ -49,7 +49,7 @@ log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
 
 i=0
 while (( i < $MAX_NUM )); do
-	log_must mkfile $FILE_SIZE ${DEVICE_DIR}/${DEVICE_FILE}$i
+	log_must truncate -s $FILE_SIZE ${DEVICE_DIR}/${DEVICE_FILE}$i
 	(( i = i + 1 ))
 done
 

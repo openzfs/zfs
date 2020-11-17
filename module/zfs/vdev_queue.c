@@ -593,6 +593,13 @@ vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 	if (zio->io_type == ZIO_TYPE_TRIM && !zfs_vdev_aggregate_trim)
 		return (NULL);
 
+	/*
+	 * I/Os to distributed spares are directly dispatched to the dRAID
+	 * leaf vdevs for aggregation.  See the comment at the end of the
+	 * zio_vdev_io_start() function.
+	 */
+	ASSERT(vq->vq_vdev->vdev_ops != &vdev_draid_spare_ops);
+
 	first = last = zio;
 
 	if (zio->io_type == ZIO_TYPE_READ)
