@@ -27,7 +27,6 @@ USER_C = \
 	strlcat.c \
 	strlcpy.c \
 	timestamp.c \
-	zone.c \
 	include/sys/list.h \
 	include/sys/list_impl.h
 
@@ -35,7 +34,8 @@ if BUILD_LINUX
 USER_C += \
 	os/linux/getexecname.c \
 	os/linux/gethostid.c \
-	os/linux/getmntany.c
+	os/linux/getmntany.c \
+	os/linux/zone.c
 endif
 
 if BUILD_FREEBSD
@@ -43,7 +43,8 @@ USER_C += \
 	os/freebsd/getexecname.c \
 	os/freebsd/gethostid.c \
 	os/freebsd/getmntany.c \
-	os/freebsd/mnttab.c
+	os/freebsd/mnttab.c \
+	os/freebsd/zone.c
 endif
 
 libspl_la_SOURCES = \

@@ -6,7 +6,6 @@
  *  UCRL-CODE-235197
  *
  *  This file is part of the SPL, Solaris Porting Layer.
- *  For details, see <http://zfsonlinux.org/>.
  *
  *  The SPL is free software; you can redistribute it and/or modify it
  *  under the terms of the GNU General Public License as published by the
@@ -84,7 +83,7 @@ __ ## varname ## _wrapper(struct shrinker *shrink, struct shrink_control *sc)\
 									\
 static struct shrinker varname = {					\
 	.shrink = __ ## varname ## _wrapper,				\
-	.seeks = seek_cost						\
+	.seeks = seek_cost,						\
 }
 
 #define	SHRINK_STOP	(-1)
@@ -97,7 +96,7 @@ static struct shrinker varname = {					\
 static struct shrinker varname = {					\
 	.count_objects = countfunc,					\
 	.scan_objects = scanfunc,					\
-	.seeks = seek_cost						\
+	.seeks = seek_cost,						\
 }
 
 #else

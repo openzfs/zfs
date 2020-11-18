@@ -29,6 +29,8 @@
 #ifndef _OPENSOLARIS_SYS_ZONE_H_
 #define	_OPENSOLARIS_SYS_ZONE_H_
 
+#include <sys/jail.h>
+
 /*
  * Macros to help with zone visibility restrictions.
  */
@@ -36,12 +38,9 @@
 #define	GLOBAL_ZONEID	0
 
 /*
- * Is thread in the global zone?
+ * Is proc in the global zone?
  */
-#define	INGLOBALZONE(p)	in_globalzone((p))
-
-
-extern boolean_t in_globalzone(struct proc *);
+#define	INGLOBALZONE(proc)	(!jailed((proc)->p_ucred))
 
 /*
  * Attach the given dataset to the given jail.

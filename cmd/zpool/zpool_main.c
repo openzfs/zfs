@@ -2082,7 +2082,7 @@ print_status_config(zpool_handle_t *zhp, status_cbdata_t *cb, const char *name,
     nvlist_t *nv, int depth, boolean_t isspare, vdev_rebuild_stat_t *vrs)
 {
 	nvlist_t **child, *root;
-	uint_t c, i, children;
+	uint_t c, i, vsc, children;
 	pool_scan_stat_t *ps = NULL;
 	vdev_stat_t *vs;
 	char rbuf[6], wbuf[6], cbuf[6];
@@ -2099,7 +2099,7 @@ print_status_config(zpool_handle_t *zhp, status_cbdata_t *cb, const char *name,
 		children = 0;
 
 	verify(nvlist_lookup_uint64_array(nv, ZPOOL_CONFIG_VDEV_STATS,
-	    (uint64_t **)&vs, &c) == 0);
+	    (uint64_t **)&vs, &vsc) == 0);
 
 	verify(nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE, &type) == 0);
 
@@ -2199,6 +2199,10 @@ print_status_config(zpool_handle_t *zhp, status_cbdata_t *cb, const char *name,
 			(void) printf(gettext("unsupported feature(s)"));
 			break;
 
+		case VDEV_AUX_ASHIFT_TOO_BIG:
+			(void) printf(gettext("unsupported minimum blocksize"));
+			break;
+
 		case VDEV_AUX_SPARED:
 			verify(nvlist_lookup_uint64(nv, ZPOOL_CONFIG_GUID,
 			    &spare_cb.cb_guid) == 0);
@@ -2250,6 +2254,13 @@ print_status_config(zpool_handle_t *zhp, status_cbdata_t *cb, const char *name,
 			break;
 		}
 		color_end();
+	} else if (children == 0 && !isspare &&
+	    getenv("ZPOOL_STATUS_NON_NATIVE_ASHIFT_IGNORE") == NULL &&
+	    VDEV_STAT_VALID(vs_physical_ashift, vsc) &&
+	    vs->vs_configured_ashift < vs->vs_physical_ashift) {
+		(void) printf(
+		    gettext("  block size: %dB configured, %dB native"),
+		    1 << vs->vs_configured_ashift, 1 << vs->vs_physical_ashift);
 	}
 
 	/* The root vdev has the scrub/resilver stats */
@@ -2283,7 +2294,7 @@ print_status_config(zpool_handle_t *zhp, status_cbdata_t *cb, const char *name,
 		}
 	}
 
-	/* Display vdev initialization and trim status for leaves */
+	/* Display vdev initialization and trim status for leaves. */
 	if (children == 0) {
 		print_status_initialize(vs, cb->cb_print_vdev_init);
 		print_status_trim(vs, cb->cb_print_vdev_trim);
@@ -2650,6 +2661,13 @@ show_import(nvlist_t *config)
 		    errata);
 		break;
 
+	case ZPOOL_STATUS_NON_NATIVE_ASHIFT:
+		printf_color(ANSI_BOLD, gettext("status: "));
+		printf_color(ANSI_YELLOW, gettext("One or more devices are "
+		    "configured to use a non-native block size.\n"
+		    "\tExpect reduced performance.\n"));
+		break;
+
 	default:
 		/*
 		 * No other status can be seen when importing pools.
@@ -2812,7 +2830,8 @@ show_import(nvlist_t *config)
 
 	if (msgid != NULL) {
 		(void) printf(gettext(
-		    "   see: https://zfsonlinux.org/msg/%s\n"), msgid);
+		    "   see: https://openzfs.github.io/openzfs-docs/msg/%s\n"),
+		    msgid);
 	}
 
 	(void) printf(gettext(" config:\n\n"));
@@ -7893,7 +7912,7 @@ print_dedup_stats(nvlist_t *config)
  *        pool: tank
  *	status: DEGRADED
  *	reason: One or more devices ...
- *         see: https://zfsonlinux.org/msg/ZFS-xxxx-01
+ *         see: https://openzfs.github.io/openzfs-docs/msg/ZFS-xxxx-01
  *	config:
  *		mirror		DEGRADED
  *                c1t0d0	OK
@@ -8198,6 +8217,15 @@ status_callback(zpool_handle_t *zhp, void *data)
 		    "'zpool clear'.\n"));
 		break;
 
+	case ZPOOL_STATUS_NON_NATIVE_ASHIFT:
+		(void) printf(gettext("status: One or more devices are "
+		    "configured to use a non-native block size.\n"
+		    "\tExpect reduced performance.\n"));
+		(void) printf(gettext("action: Replace affected devices with "
+		    "devices that support the\n\tconfigured block size, or "
+		    "migrate data to a properly configured\n\tpool.\n"));
+		break;
+
 	case ZPOOL_STATUS_HOSTID_MISMATCH:
 		printf_color(ANSI_BOLD, gettext("status: "));
 		printf_color(ANSI_YELLOW, gettext("Mismatch between pool hostid"
@@ -8273,7 +8301,9 @@ status_callback(zpool_handle_t *zhp, void *data)
 	if (msgid != NULL) {
 		printf("   ");
 		printf_color(ANSI_BOLD, gettext("see:"));
-		printf(gettext(" https://zfsonlinux.org/msg/%s\n"), msgid);
+		printf(gettext(
+		    " https://openzfs.github.io/openzfs-docs/msg/%s\n"),
+		    msgid);
 	}
 
 	if (config != NULL) {
@@ -9917,7 +9947,8 @@ vdev_any_spare_replacing(nvlist_t *nv)
 	(void) nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE, &vdev_type);
 
 	if (strcmp(vdev_type, VDEV_TYPE_REPLACING) == 0 ||
-	    strcmp(vdev_type, VDEV_TYPE_SPARE) == 0) {
+	    strcmp(vdev_type, VDEV_TYPE_SPARE) == 0 ||
+	    strcmp(vdev_type, VDEV_TYPE_DRAID_SPARE) == 0) {
 		return (B_TRUE);
 	}
 
@@ -10311,6 +10342,7 @@ main(int argc, char **argv)
 	char **newargv;
 
 	(void) setlocale(LC_ALL, "");
+	(void) setlocale(LC_NUMERIC, "C");
 	(void) textdomain(TEXT_DOMAIN);
 	srand(time(NULL));
 

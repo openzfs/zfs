@@ -134,7 +134,6 @@ zfs_znode_cache_constructor(void *buf, void *arg, int kmflags)
 	zp->z_acl_cached = NULL;
 	zp->z_xattr_cached = NULL;
 	zp->z_xattr_parent = 0;
-	zp->z_moved = B_FALSE;
 	return (0);
 }
 
@@ -505,6 +504,7 @@ zfs_inode_update(znode_t *zp)
 	dmu_object_size_from_db(sa_get_db(zp->z_sa_hdl), &blksize, &i_blocks);
 
 	spin_lock(&ip->i_lock);
+	ip->i_mode = zp->z_mode;
 	ip->i_blocks = i_blocks;
 	i_size_write(ip, zp->z_size);
 	spin_unlock(&ip->i_lock);
@@ -546,7 +546,6 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	ASSERT3P(zp->z_xattr_cached, ==, NULL);
 	zp->z_unlinked = B_FALSE;
 	zp->z_atime_dirty = B_FALSE;
-	zp->z_moved = B_FALSE;
 	zp->z_is_mapped = B_FALSE;
 	zp->z_is_ctldir = B_FALSE;
 	zp->z_is_stale = B_FALSE;
@@ -619,7 +618,6 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	mutex_enter(&zfsvfs->z_znodes_lock);
 	list_insert_tail(&zfsvfs->z_all_znodes, zp);
 	zfsvfs->z_nr_znodes++;
-	membar_producer();
 	mutex_exit(&zfsvfs->z_znodes_lock);
 
 	unlock_new_inode(ip);
@@ -1901,7 +1899,6 @@ zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 	rootzp = kmem_cache_alloc(znode_cache, KM_SLEEP);
 	rootzp->z_unlinked = B_FALSE;
 	rootzp->z_atime_dirty = B_FALSE;
-	rootzp->z_moved = B_FALSE;
 	rootzp->z_is_sa = USE_SA(version, os);
 	rootzp->z_pflags = 0;
 

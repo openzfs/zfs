@@ -36,6 +36,7 @@
 #include <sys/spl_condvar.h>
 #include <sys/mutex.h>
 #include <sys/time.h>
+#include <sys/errno.h>
 
 /*
  * cv_timedwait() is similar to cv_wait() except that it additionally expects
@@ -142,8 +143,14 @@ cv_timedwait_sig(kcondvar_t *cvp, kmutex_t *mp, clock_t timo)
 	return (1);
 }
 
-#define	cv_timedwait_io cv_timedwait
-#define	cv_timedwait_sig_io cv_timedwait_sig
+#define	cv_timedwait_io		cv_timedwait
+#define	cv_timedwait_idle	cv_timedwait
+#define	cv_timedwait_sig_io	cv_timedwait_sig
+#define	cv_wait_io		cv_wait
+#define	cv_wait_io_sig		cv_wait_sig
+#define	cv_wait_idle		cv_wait
+#define	cv_timedwait_io_hires	cv_timedwait_hires
+#define	cv_timedwait_idle_hires cv_timedwait_hires
 
 static inline int
 cv_timedwait_hires(kcondvar_t *cvp, kmutex_t *mp, hrtime_t tim, hrtime_t res,

@@ -15,4 +15,4 @@ esac
 
 . /usr/share/initramfs-tools/hook-functions
 
-copy_exec /usr/share/initramfs-tools/zfsunlock /usr/bin
+copy_exec /usr/share/initramfs-tools/zfsunlock /usr/bin/zfsunlock

@@ -249,7 +249,7 @@ typedef enum {
 	ZPOOL_NUM_PROPS
 } zpool_prop_t;
 
-/* Small enough to not hog a whole line of printout in zpool(1M). */
+/* Small enough to not hog a whole line of printout in zpool(8). */
 #define	ZPROP_MAX_COMMENT	32
 
 #define	ZPROP_VALUE		"value"
@@ -617,6 +617,7 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_PREV_INDIRECT_VDEV	"com.delphix:prev_indirect_vdev"
 #define	ZPOOL_CONFIG_PATH		"path"
 #define	ZPOOL_CONFIG_DEVID		"devid"
+#define	ZPOOL_CONFIG_SPARE_ID		"spareid"
 #define	ZPOOL_CONFIG_METASLAB_ARRAY	"metaslab_array"
 #define	ZPOOL_CONFIG_METASLAB_SHIFT	"metaslab_shift"
 #define	ZPOOL_CONFIG_ASHIFT		"ashift"
@@ -686,8 +687,8 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_SPARES		"spares"
 #define	ZPOOL_CONFIG_IS_SPARE		"is_spare"
 #define	ZPOOL_CONFIG_NPARITY		"nparity"
-#define	ZPOOL_CONFIG_RAIDZ_LOGICAL_WIDTH "raidz_logical_width"
 #define	ZPOOL_CONFIG_RAIDZ_EXPAND_OFFSET "raidz_expand_offset"
+#define	ZPOOL_CONFIG_RAIDZ_EXPAND_TXGS	"raidz_expand_txgs"
 #define	ZPOOL_CONFIG_HOSTID		"hostid"
 #define	ZPOOL_CONFIG_HOSTNAME		"hostname"
 #define	ZPOOL_CONFIG_LOADED_TIME	"initial_load_time"
@@ -760,10 +761,17 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_LOAD_DATA_ERRORS	"verify_data_errors"
 #define	ZPOOL_CONFIG_REWIND_TIME	"seconds_of_rewind"
 
+/* dRAID configuration */
+#define	ZPOOL_CONFIG_DRAID_NDATA	"draid_ndata"
+#define	ZPOOL_CONFIG_DRAID_NSPARES	"draid_nspares"
+#define	ZPOOL_CONFIG_DRAID_NGROUPS	"draid_ngroups"
+
 #define	VDEV_TYPE_ROOT			"root"
 #define	VDEV_TYPE_MIRROR		"mirror"
 #define	VDEV_TYPE_REPLACING		"replacing"
 #define	VDEV_TYPE_RAIDZ			"raidz"
+#define	VDEV_TYPE_DRAID			"draid"
+#define	VDEV_TYPE_DRAID_SPARE		"dspare"
 #define	VDEV_TYPE_DISK			"disk"
 #define	VDEV_TYPE_FILE			"file"
 #define	VDEV_TYPE_MISSING		"missing"
@@ -772,6 +780,12 @@ typedef struct zpool_load_policy {
 #define	VDEV_TYPE_LOG			"log"
 #define	VDEV_TYPE_L2CACHE		"l2cache"
 #define	VDEV_TYPE_INDIRECT		"indirect"
+
+#define	VDEV_RAIDZ_MAXPARITY		3
+
+#define	VDEV_DRAID_MAXPARITY		3
+#define	VDEV_DRAID_MIN_CHILDREN		2
+#define	VDEV_DRAID_MAX_CHILDREN		UINT8_MAX
 
 /* VDEV_TOP_ZAP_* are used in top-level vdev ZAP objects. */
 #define	VDEV_TOP_ZAP_INDIRECT_OBSOLETE_SM \
@@ -839,8 +853,8 @@ typedef struct zpool_load_policy {
  * The location of the pool configuration repository, shared between kernel and
  * userland.
  */
+#define	ZPOOL_CACHE_BOOT	"/boot/zfs/zpool.cache"
 #define	ZPOOL_CACHE		"/etc/zfs/zpool.cache"
-
 /*
  * vdev states are ordered from least to most healthy.
  * A vdev that's CANT_OPEN or below is considered unusable.
@@ -883,6 +897,7 @@ typedef enum vdev_aux {
 	VDEV_AUX_EXTERNAL_PERSIST,	/* persistent forced fault	*/
 	VDEV_AUX_ACTIVE,	/* vdev active on a different host	*/
 	VDEV_AUX_CHILDREN_OFFLINE, /* all children are offline		*/
+	VDEV_AUX_ASHIFT_TOO_BIG, /* vdev's min block size is too large   */
 } vdev_aux_t;
 
 /*
@@ -1031,10 +1046,10 @@ typedef struct vdev_rebuild_stat {
 } vdev_rebuild_stat_t;
 
 /*
- * Errata described by https://zfsonlinux.org/msg/ZFS-8000-ER.  The ordering
- * of this enum must be maintained to ensure the errata identifiers map to
- * the correct documentation.  New errata may only be appended to the list
- * and must contain corresponding documentation at the above link.
+ * Errata described by https://openzfs.github.io/openzfs-docs/msg/ZFS-8000-ER.
+ * The ordering of this enum must be maintained to ensure the errata identifiers
+ * map to the correct documentation.  New errata may only be appended to the
+ * list and must contain corresponding documentation at the above link.
  */
 typedef enum zpool_errata {
 	ZPOOL_ERRATA_NONE,
@@ -1087,7 +1102,16 @@ typedef struct vdev_stat {
 	uint64_t	vs_trim_state;		/* vdev_trim_state_t */
 	uint64_t	vs_trim_action_time;	/* time_t */
 	uint64_t	vs_rebuild_processed;	/* bytes rebuilt */
+	uint64_t	vs_configured_ashift;   /* TLV vdev_ashift */
+	uint64_t	vs_logical_ashift;	/* vdev_logical_ashift  */
+	uint64_t	vs_physical_ashift;	/* vdev_physical_ashift */
 } vdev_stat_t;
+
+/* BEGIN CSTYLED */
+#define	VDEV_STAT_VALID(field, uint64_t_field_count) \
+    ((uint64_t_field_count * sizeof (uint64_t)) >=	 \
+     (offsetof(vdev_stat_t, field) + sizeof (((vdev_stat_t *)NULL)->field)))
+/* END CSTYLED */
 
 /*
  * Extended stats
@@ -1191,6 +1215,9 @@ typedef struct ddt_histogram {
 #define	ZFS_DEV		"/dev/zfs"
 
 #define	ZFS_SUPER_MAGIC	0x2fc12fc1
+
+/* general zvol path */
+#define	ZVOL_DIR		"/dev/zvol/"
 
 #define	ZVOL_MAJOR		230
 #define	ZVOL_MINOR_BITS		4
@@ -1342,8 +1369,8 @@ typedef enum zfs_ioc {
 	ZFS_IOC_NEXTBOOT,			/* 0x84 (FreeBSD) */
 	ZFS_IOC_JAIL,				/* 0x85 (FreeBSD) */
 	ZFS_IOC_UNJAIL,				/* 0x86 (FreeBSD) */
-	ZFS_IOC_SET_BOOTENV,			/* 0x87 (Linux) */
-	ZFS_IOC_GET_BOOTENV,			/* 0x88 (Linux) */
+	ZFS_IOC_SET_BOOTENV,			/* 0x87 */
+	ZFS_IOC_GET_BOOTENV,			/* 0x88 */
 	ZFS_IOC_LAST
 } zfs_ioc_t;
 
@@ -1385,6 +1412,7 @@ typedef enum {
 	ZFS_ERR_STREAM_LARGE_BLOCK_MISMATCH,
 	ZFS_ERR_RESILVER_IN_PROGRESS,
 	ZFS_ERR_REBUILD_IN_PROGRESS,
+	ZFS_ERR_BADPROP,
 } zfs_errno_t;
 
 /*

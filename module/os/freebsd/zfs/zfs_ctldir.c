@@ -314,7 +314,6 @@ sfs_readdir_common(uint64_t parent_id, uint64_t id, struct vop_readdir_args *ap,
 static struct vop_vector zfsctl_ops_root;
 static struct vop_vector zfsctl_ops_snapdir;
 static struct vop_vector zfsctl_ops_snapshot;
-static struct vop_vector zfsctl_ops_shares_dir;
 
 void
 zfsctl_init(void)
@@ -331,8 +330,7 @@ zfsctl_is_node(vnode_t *vp)
 {
 	return (vn_matchops(vp, zfsctl_ops_root) ||
 	    vn_matchops(vp, zfsctl_ops_snapdir) ||
-	    vn_matchops(vp, zfsctl_ops_snapshot) ||
-	    vn_matchops(vp, zfsctl_ops_shares_dir));
+	    vn_matchops(vp, zfsctl_ops_snapshot));
 
 }
 
@@ -798,6 +796,9 @@ zfsctl_common_getacl(struct vop_getacl_args *ap)
 
 static struct vop_vector zfsctl_ops_root = {
 	.vop_default =	&default_vnodeops,
+#if __FreeBSD_version >= 1300121
+	.vop_fplookup_vexec = VOP_EAGAIN,
+#endif
 	.vop_open =	zfsctl_common_open,
 	.vop_close =	zfsctl_common_close,
 	.vop_ioctl =	VOP_EINVAL,
@@ -1088,11 +1089,12 @@ zfsctl_snapdir_getattr(struct vop_getattr_args *ap)
 	vnode_t *vp = ap->a_vp;
 	vattr_t *vap = ap->a_vap;
 	zfsvfs_t *zfsvfs = vp->v_vfsp->vfs_data;
-	dsl_dataset_t *ds = dmu_objset_ds(zfsvfs->z_os);
+	dsl_dataset_t *ds;
 	uint64_t snap_count;
 	int err;
 
 	ZFS_ENTER(zfsvfs);
+	ds = dmu_objset_ds(zfsvfs->z_os);
 	zfsctl_common_getattr(vp, vap);
 	vap->va_ctime = dmu_objset_snap_cmtime(zfsvfs->z_os);
 	vap->va_mtime = vap->va_ctime;
@@ -1114,6 +1116,9 @@ zfsctl_snapdir_getattr(struct vop_getattr_args *ap)
 
 static struct vop_vector zfsctl_ops_snapdir = {
 	.vop_default =	&default_vnodeops,
+#if __FreeBSD_version >= 1300121
+	.vop_fplookup_vexec = VOP_EAGAIN,
+#endif
 	.vop_open =	zfsctl_common_open,
 	.vop_close =	zfsctl_common_close,
 	.vop_getattr =	zfsctl_snapdir_getattr,
@@ -1215,6 +1220,9 @@ zfsctl_snapshot_vptocnp(struct vop_vptocnp_args *ap)
  */
 static struct vop_vector zfsctl_ops_snapshot = {
 	.vop_default =		NULL, /* ensure very restricted access */
+#if __FreeBSD_version >= 1300121
+	.vop_fplookup_vexec =	VOP_EAGAIN,
+#endif
 	.vop_inactive =		zfsctl_snapshot_inactive,
 #if __FreeBSD_version >= 1300045
 	.vop_need_inactive = vop_stdneed_inactive,
@@ -1326,7 +1334,7 @@ zfsctl_umount_snapshots(vfs_t *vfsp, int fflags, cred_t *cr)
 }
 
 int
-zfsctl_snapshot_unmount(char *snapname, int flags __unused)
+zfsctl_snapshot_unmount(const char *snapname, int flags __unused)
 {
 	vfs_t *vfsp = NULL;
 	zfsvfs_t *zfsvfs = NULL;

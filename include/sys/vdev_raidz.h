@@ -35,6 +35,7 @@ extern "C" {
 struct zio;
 struct raidz_row;
 struct raidz_map;
+struct vdev_raidz;
 #if !defined(_KERNEL)
 struct kernel_param {};
 #endif
@@ -45,10 +46,14 @@ struct kernel_param {};
 struct raidz_map *vdev_raidz_map_alloc(struct zio *, uint64_t, uint64_t,
     uint64_t);
 struct raidz_map *vdev_raidz_map_alloc_expanded(abd_t *, uint64_t, uint64_t,
-    uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
+    uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
 void vdev_raidz_map_free(struct raidz_map *);
+void vdev_raidz_free(struct vdev_raidz *);
+void vdev_raidz_generate_parity_row(struct raidz_map *, struct raidz_row *);
 void vdev_raidz_generate_parity(struct raidz_map *);
 void vdev_raidz_reconstruct(struct raidz_map *, const int *, int);
+void vdev_raidz_child_done(zio_t *);
+void vdev_raidz_io_done(zio_t *);
 
 /*
  * vdev_raidz_math interface
@@ -92,9 +97,16 @@ typedef struct vdev_raidz_expand {
 } vdev_raidz_expand_t;
 
 typedef struct vdev_raidz {
-	int vd_logical_width;
+	int vd_original_width;
 	int vd_physical_width;
 	int vd_nparity;
+
+	/*
+	 * tree of reflow_node_t's.  The lock protects the avl tree only.
+	 */
+	kmutex_t vd_expand_lock;
+	avl_tree_t vd_expand_txgs;
+
 	/*
 	 * If this vdev is being expanded, spa_raidz_expand is set to this
 	 */
@@ -102,8 +114,6 @@ typedef struct vdev_raidz {
 } vdev_raidz_t;
 
 extern void vdev_raidz_attach_sync(void *, dmu_tx_t *);
-extern void vdev_raidz_config_generate(vdev_t *, nvlist_t *);
-extern void *vdev_raidz_get_tsd(spa_t *, nvlist_t *);
 extern void spa_start_raidz_expansion_thread(spa_t *);
 extern int spa_raidz_expand_get_stats(spa_t *, pool_raidz_expand_stat_t *);
 extern int vdev_raidz_load(vdev_t *);

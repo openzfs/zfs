@@ -22,7 +22,7 @@
 .\"
 .\" Copyright (c) 2016 Gvozden Nešković. All rights reserved.
 .\"
-.TH raidz_test 1 "2016" "ZFS on Linux" "User Commands"
+.TH RAIDZ_TEST 1 "Aug 24, 2020" OpenZFS
 
 .SH NAME
 \fBraidz_test\fR \- raidz implementation verification and benchmarking tool
@@ -64,7 +64,7 @@ Size of data for raidz block. Size is 1 << (zio_size_shift).
 .BI "\-r" " reflow_offset" " (default: uint max)"
 .IP
 Set raidz expansion offset. The expanded raidz map allocation function will
-produce different map configurations depending of this value.
+produce different map configurations depending on this value.
 .HP
 .BI "\-S(weep)"
 .IP
@@ -103,4 +103,4 @@ Debugging option. Specify to attach gdb when SIGSEGV or SIGABRT are received.
 .SH "SEE ALSO"
 .BR "ztest (1)"
 .SH "AUTHORS"
-vdev_raidz, created for ZFS on Linux by Gvozden Nešković <neskovic@gmail.com>
+vdev_raidz, created for OpenZFS by Gvozden Nešković <neskovic@gmail.com>

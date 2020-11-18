@@ -18,6 +18,7 @@
 #
 # Copyright (c) 2015 by Delphix. All rights reserved.
 # Copyright (C) 2016 Lawrence Livermore National Security, LLC.
+# Copyright (c) 2017, Intel Corporation.
 #
 
 BASE_DIR=$(dirname "$0")
@@ -246,27 +247,60 @@ while [[ $timeout -eq 0 ]] || [[ $curtime -le $((starttime + timeout)) ]]; do
 	or_die rm -rf "$workdir"
 	or_die mkdir "$workdir"
 
-	# switch between common arrangements & fully randomized
-	if [[ $((RANDOM % 2)) -eq 0 ]]; then
-		mirrors=2
-		raidz=0
-		parity=1
-		vdevs=2
-	else
-		mirrors=$(((RANDOM % 3) * 1))
-		parity=$(((RANDOM % 3) + 1))
-		raidz=$((((RANDOM % 9) + parity + 1) * (RANDOM % 2)))
-		vdevs=$(((RANDOM % 3) + 3))
-	fi
+	# switch between three types of configs
+	# 1/3 basic, 1/3 raidz mix, and 1/3 draid mix
+	choice=$((RANDOM % 3))
+
+	# ashift range 9 - 15
 	align=$(((RANDOM % 2) * 3 + 9))
-	runtime=$((RANDOM % 100))
+
+	# randomly use special classes
+	class="special=random"
+
+	if [[ $choice -eq 0 ]]; then
+		# basic mirror only
+		parity=1
+		mirrors=2
+		draid_data=0
+		draid_spares=0
+		raid_children=0
+		vdevs=2
+		raid_type="raidz"
+	elif [[ $choice -eq 1 ]]; then
+		# fully randomized mirror/raidz (sans dRAID)
+		parity=$(((RANDOM % 3) + 1))
+		mirrors=$(((RANDOM % 3) * 1))
+		draid_data=0
+		draid_spares=0
+		raid_children=$((((RANDOM % 9) + parity + 1) * (RANDOM % 2)))
+		vdevs=$(((RANDOM % 3) + 3))
+		raid_type="raidz"
+	else
+		# fully randomized dRAID (sans mirror/raidz)
+		parity=$(((RANDOM % 3) + 1))
+		mirrors=0
+		draid_data=$(((RANDOM % 8) + 3))
+		draid_spares=$(((RANDOM % 2) + parity))
+		stripe=$((draid_data + parity))
+		extra=$((draid_spares + (RANDOM % 4)))
+		raid_children=$(((((RANDOM % 4) + 1) * stripe) + extra))
+		vdevs=$((RANDOM % 3))
+		raid_type="draid"
+	fi
+
+	# run from 30 to 120 seconds
+	runtime=$(((RANDOM % 90) + 30))
 	passtime=$((RANDOM % (runtime / 3 + 1) + 10))
 
+	zopt="$zopt -K $raid_type"
 	zopt="$zopt -m $mirrors"
-	zopt="$zopt -r $raidz"
+	zopt="$zopt -r $raid_children"
+	zopt="$zopt -D $draid_data"
+	zopt="$zopt -S $draid_spares"
 	zopt="$zopt -R $parity"
 	zopt="$zopt -v $vdevs"
 	zopt="$zopt -a $align"
+	zopt="$zopt -C $class"
 	zopt="$zopt -T $runtime"
 	zopt="$zopt -P $passtime"
 	zopt="$zopt -s $size"

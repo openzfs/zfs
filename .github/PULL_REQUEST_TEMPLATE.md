@@ -33,9 +33,9 @@ https://openzfs.github.io/openzfs-docs/Developer%20Resources/Buildbot%20Options.
 ### Checklist:
 <!--- Go over all the following points, and put an `x` in all the boxes that apply. -->
 <!--- If you're unsure about any of these, don't hesitate to ask. We're here to help! -->
-- [ ] My code follows the ZFS on Linux [code style requirements](https://github.com/zfsonlinux/zfs/blob/master/.github/CONTRIBUTING.md#coding-conventions).
+- [ ] My code follows the OpenZFS [code style requirements](https://github.com/openzfs/zfs/blob/master/.github/CONTRIBUTING.md#coding-conventions).
 - [ ] I have updated the documentation accordingly.
-- [ ] I have read the [**contributing** document](https://github.com/zfsonlinux/zfs/blob/master/.github/CONTRIBUTING.md).
-- [ ] I have added [tests](https://github.com/zfsonlinux/zfs/tree/master/tests) to cover my changes.
+- [ ] I have read the [**contributing** document](https://github.com/openzfs/zfs/blob/master/.github/CONTRIBUTING.md).
+- [ ] I have added [tests](https://github.com/openzfs/zfs/tree/master/tests) to cover my changes.
 - [ ] I have run the ZFS Test Suite with this change applied.
-- [ ] All commit messages are properly formatted and contain [`Signed-off-by`](https://github.com/zfsonlinux/zfs/blob/master/.github/CONTRIBUTING.md#signed-off-by).
+- [ ] All commit messages are properly formatted and contain [`Signed-off-by`](https://github.com/openzfs/zfs/blob/master/.github/CONTRIBUTING.md#signed-off-by).

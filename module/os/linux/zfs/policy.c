@@ -204,7 +204,8 @@ secpolicy_vnode_setdac(const cred_t *cr, uid_t owner)
  * Enforced in the Linux VFS.
  */
 int
-secpolicy_vnode_setid_retain(const cred_t *cr, boolean_t issuidroot)
+secpolicy_vnode_setid_retain(struct znode *zp __maybe_unused, const cred_t *cr,
+    boolean_t issuidroot)
 {
 	return (priv_policy_user(cr, CAP_FSETID, EPERM));
 }
@@ -271,7 +272,7 @@ void
 secpolicy_setid_clear(vattr_t *vap, cred_t *cr)
 {
 	if ((vap->va_mode & (S_ISUID | S_ISGID)) != 0 &&
-	    secpolicy_vnode_setid_retain(cr,
+	    secpolicy_vnode_setid_retain(NULL, cr,
 	    (vap->va_mode & S_ISUID) != 0 &&
 	    (vap->va_mask & AT_UID) != 0 && vap->va_uid == 0) != 0) {
 		vap->va_mask |= AT_MODE;

@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/sh
 #
 # CDDL HEADER START
 #
@@ -41,7 +41,7 @@ DEFAULT_RUNFILES="common.run,$(uname | tr '[:upper:]' '[:lower:]').run"
 RUNFILES=${RUNFILES:-$DEFAULT_RUNFILES}
 FILEDIR=${FILEDIR:-/var/tmp}
 DISKS=${DISKS:-""}
-SINGLETEST=()
+SINGLETEST=""
 SINGLETESTUSER="root"
 TAGS=""
 ITERATIONS=1
@@ -74,7 +74,7 @@ msg() {
 # Log a failure message, cleanup, and return an error.
 #
 fail() {
-        echo -e "$PROG: $1" >&2
+	echo "$PROG: $1" >&2
 	cleanup
 	exit 1
 }
@@ -126,7 +126,7 @@ cleanup() {
 	fi
 
 	for TEST_FILE in ${FILES}; do
-		rm -f "${TEST_FILE}" &>/dev/null
+		rm -f "${TEST_FILE}" >/dev/null 2>&1
 	done
 
 	if [ "$STF_PATH_REMOVE" = "yes" ] && [ -d "$STF_PATH" ]; then
@@ -142,15 +142,12 @@ trap cleanup EXIT
 # be dangerous and should only be used in a dedicated test environment.
 #
 cleanup_all() {
-	local TEST_POOLS
 	TEST_POOLS=$(sudo "$ZPOOL" list -H -o name | grep testpool)
-	local TEST_LOOPBACKS
 	if [ "$UNAME" = "FreeBSD" ] ; then
 		TEST_LOOPBACKS=$(sudo "${LOSETUP}" -l)
 	else
 		TEST_LOOPBACKS=$(sudo "${LOSETUP}" -a|grep file-vdev|cut -f1 -d:)
 	fi
-	local TEST_FILES
 	TEST_FILES=$(ls /var/tmp/file-vdev* 2>/dev/null)
 
 	msg
@@ -191,8 +188,8 @@ cleanup_all() {
 # <name>.run
 #
 find_runfile() {
-	local NAME=$1
-	local RESULT=""
+	NAME=$1
+	RESULT=""
 
 	if [ -f "$RUNFILE_DIR/$NAME" ]; then
 		RESULT="$RUNFILE_DIR/$NAME"
@@ -211,8 +208,8 @@ find_runfile() {
 # Symlink file if it appears under any of the given paths.
 #
 create_links() {
-	local dir_list="$1"
-	local file_list="$2"
+	dir_list="$1"
+	file_list="$2"
 
 	[ -n "$STF_PATH" ] || fail "STF_PATH wasn't correctly set"
 
@@ -227,8 +224,10 @@ create_links() {
 			fi
 		done
 
-		[ ! -e "$STF_PATH/$i" ] && STF_MISSING_BIN="$STF_MISSING_BIN$i "
+		[ ! -e "$STF_PATH/$i" ] && \
+		    STF_MISSING_BIN="$STF_MISSING_BIN $i"
 	done
+	STF_MISSING_BIN=${STF_MISSING_BIN# }
 }
 
 #
@@ -243,7 +242,7 @@ constrain_path() {
 	# install to /usr/local/sbin. To avoid testing the wrong utils we
 	# need /usr/local to come before / in the path search order.
 	SYSTEM_DIRS="/usr/local/bin /usr/local/sbin"
-	SYSTEM_DIRS+=" /usr/bin /usr/sbin /bin /sbin"
+	SYSTEM_DIRS="$SYSTEM_DIRS /usr/bin /usr/sbin /bin /sbin"
 
 	if [ "$INTREE" = "yes" ]; then
 		# Constrained path set to ./zfs/bin/
@@ -283,9 +282,9 @@ constrain_path() {
 	# Standard system utilities
 	SYSTEM_FILES="$SYSTEM_FILES_COMMON"
 	if [ "$UNAME" = "FreeBSD" ] ; then
-		SYSTEM_FILES+=" $SYSTEM_FILES_FREEBSD"
+		SYSTEM_FILES="$SYSTEM_FILES $SYSTEM_FILES_FREEBSD"
 	else
-		SYSTEM_FILES+=" $SYSTEM_FILES_LINUX"
+		SYSTEM_FILES="$SYSTEM_FILES $SYSTEM_FILES_LINUX"
 	fi
 	create_links "$SYSTEM_DIRS" "$SYSTEM_FILES"
 
@@ -309,7 +308,7 @@ constrain_path() {
 usage() {
 cat << EOF
 USAGE:
-$0 [hvqxkfS] [-s SIZE] [-r RUNFILES] [-t PATH] [-u USER]
+$0 [-hvqxkfS] [-s SIZE] [-r RUNFILES] [-t PATH] [-u USER]
 
 DESCRIPTION:
 	ZFS Test Suite launch script
@@ -380,7 +379,7 @@ while getopts 'hvqxkfScn:d:s:r:?t:T:u:I:' OPTION; do
 		;;
 	n)
 		nfsfile=$OPTARG
-		[[ -f $nfsfile ]] || fail "Cannot read file: $nfsfile"
+		[ -f "$nfsfile" ] || fail "Cannot read file: $nfsfile"
 		export NFS=1
 		. "$nfsfile"
 		;;
@@ -400,10 +399,10 @@ while getopts 'hvqxkfScn:d:s:r:?t:T:u:I:' OPTION; do
 		RUNFILES="$OPTARG"
 		;;
 	t)
-		if [ ${#SINGLETEST[@]} -ne 0 ]; then
+		if [ -n "$SINGLETEST" ]; then
 			fail "-t can only be provided once."
 		fi
-		SINGLETEST+=("$OPTARG")
+		SINGLETEST="$OPTARG"
 		;;
 	T)
 		TAGS="$OPTARG"
@@ -423,7 +422,7 @@ shift $((OPTIND-1))
 FILES=${FILES:-"$FILEDIR/file-vdev0 $FILEDIR/file-vdev1 $FILEDIR/file-vdev2"}
 LOOPBACKS=${LOOPBACKS:-""}
 
-if [ ${#SINGLETEST[@]} -ne 0 ]; then
+if [ -n "$SINGLETEST" ]; then
 	if [ -n "$TAGS" ]; then
 		fail "-t and -T are mutually exclusive."
 	fi
@@ -446,22 +445,20 @@ post_user = root
 post =
 outputdir = /var/tmp/test_results
 EOF
-	for t in "${SINGLETEST[@]}"
-	do
-		SINGLETESTDIR=$(dirname "$t")
-		SINGLETESTFILE=$(basename "$t")
-		SETUPSCRIPT=
-		CLEANUPSCRIPT=
+	SINGLETESTDIR=$(dirname "$SINGLETEST")
+	SINGLETESTFILE=$(basename "$SINGLETEST")
+	SETUPSCRIPT=
+	CLEANUPSCRIPT=
 
-		if [ -f "$STF_SUITE/$SINGLETESTDIR/setup.ksh" ]; then
-			SETUPSCRIPT="setup"
-		fi
+	if [ -f "$STF_SUITE/$SINGLETESTDIR/setup.ksh" ]; then
+		SETUPSCRIPT="setup"
+	fi
 
-		if [ -f "$STF_SUITE/$SINGLETESTDIR/cleanup.ksh" ]; then
-			CLEANUPSCRIPT="cleanup"
-		fi
+	if [ -f "$STF_SUITE/$SINGLETESTDIR/cleanup.ksh" ]; then
+		CLEANUPSCRIPT="cleanup"
+	fi
 
-		cat >>$RUNFILE_DIR/$RUNFILES << EOF
+	cat >>$RUNFILE_DIR/$RUNFILES << EOF
 
 [$SINGLETESTDIR]
 tests = ['$SINGLETESTFILE']
@@ -469,7 +466,6 @@ pre = $SETUPSCRIPT
 post = $CLEANUPSCRIPT
 tags = ['functional']
 EOF
-	done
 fi
 
 #
@@ -487,7 +483,7 @@ for RUNFILE in $RUNFILES; do
 		SAVED_RUNFILE="$RUNFILE"
 		RUNFILE=$(find_runfile "$RUNFILE")
 		[ -z "$RUNFILE" ] && fail "Cannot find runfile: $SAVED_RUNFILE"
-		R+="${R:+,}${RUNFILE}"
+		R="$R,$RUNFILE"
 	fi
 
 	if [ ! -r "$RUNFILE" ]; then
@@ -495,7 +491,7 @@ for RUNFILE in $RUNFILES; do
 	fi
 done
 unset IFS
-RUNFILES=$R
+RUNFILES=${R#,}
 
 #
 # This script should not be run as root.  Instead the test user, which may
@@ -529,9 +525,9 @@ fi
 # Verify the ZFS module stack is loaded.
 #
 if [ "$STACK_TRACER" = "yes" ]; then
-	sudo "${ZFS_SH}" -S &>/dev/null
+	sudo "${ZFS_SH}" -S >/dev/null 2>&1
 else
-	sudo "${ZFS_SH}" &>/dev/null
+	sudo "${ZFS_SH}" >/dev/null 2>&1
 fi
 
 #
@@ -552,7 +548,7 @@ if [ -z "${KEEP}" ]; then
 		KEEP="rpool"
 	fi
 else
-	KEEP="$(echo -e "${KEEP//[[:blank:]]/\n}")"
+	KEEP="$(echo "$KEEP" | tr '[:blank:]' '\n')"
 fi
 
 #
@@ -592,19 +588,12 @@ if [ -z "${DISKS}" ]; then
 		[ -f "$TEST_FILE" ] && fail "Failed file exists: ${TEST_FILE}"
 		truncate -s "${FILESIZE}" "${TEST_FILE}" ||
 		    fail "Failed creating: ${TEST_FILE} ($?)"
-		if [[ "$DISKS" ]]; then
-			DISKS="$DISKS $TEST_FILE"
-		else
-			DISKS="$TEST_FILE"
-		fi
 	done
 
 	#
 	# If requested setup loopback devices backed by the sparse files.
 	#
 	if [ "$LOOPBACK" = "yes" ]; then
-		DISKS=""
-
 		test -x "$LOSETUP" || fail "$LOSETUP utility must be installed"
 
 		for TEST_FILE in ${FILES}; do
@@ -613,25 +602,21 @@ if [ -z "${DISKS}" ]; then
 				if [ -z "$MDDEVICE" ] ; then
 					fail "Failed: ${TEST_FILE} -> loopback"
 				fi
-				LOOPBACKS="${LOOPBACKS}${MDDEVICE} "
-				if [[ "$DISKS" ]]; then
-					DISKS="$DISKS $MDDEVICE"
-				else
-					DISKS="$MDDEVICE"
-				fi
+				DISKS="$DISKS $MDDEVICE"
+				LOOPBACKS="$LOOPBACKS $MDDEVICE"
 			else
 				TEST_LOOPBACK=$(sudo "${LOSETUP}" -f)
 				sudo "${LOSETUP}" "${TEST_LOOPBACK}" "${TEST_FILE}" ||
 				    fail "Failed: ${TEST_FILE} -> ${TEST_LOOPBACK}"
-				LOOPBACKS="${LOOPBACKS}${TEST_LOOPBACK} "
-				BASELOOPBACKS=$(basename "$TEST_LOOPBACK")
-				if [[ "$DISKS" ]]; then
-					DISKS="$DISKS $BASELOOPBACKS"
-				else
-					DISKS="$BASELOOPBACKS"
-				fi
+				BASELOOPBACK=$(basename "$TEST_LOOPBACK")
+				DISKS="$DISKS $BASELOOPBACK"
+				LOOPBACKS="$LOOPBACKS $TEST_LOOPBACK"
 			fi
 		done
+		DISKS=${DISKS# }
+		LOOPBACKS=${LOOPBACKS# }
+	else
+		DISKS="$FILES"
 	fi
 fi
 
@@ -642,7 +627,7 @@ NUM_DISKS=$(echo "${DISKS}" | awk '{print NF}')
 # Disable SELinux until the ZFS Test Suite has been updated accordingly.
 #
 if [ -x "$STF_PATH/setenforce" ]; then
-	sudo setenforce permissive &>/dev/null
+	sudo setenforce permissive >/dev/null 2>&1
 fi
 
 #
@@ -703,10 +688,9 @@ ${TEST_RUNNER} ${QUIET:+-q} \
 #
 # Analyze the results.
 #
-set -o pipefail
-${ZTS_REPORT} "$RESULTS_FILE" | tee "$REPORT_FILE"
+${ZTS_REPORT} "$RESULTS_FILE" >"$REPORT_FILE"
 RESULT=$?
-set +o pipefail
+cat "$REPORT_FILE"
 
 RESULTS_DIR=$(awk '/^Log directory/ { print $3 }' "$RESULTS_FILE")
 if [ -d "$RESULTS_DIR" ]; then
@@ -715,8 +699,8 @@ fi
 
 rm -f "$RESULTS_FILE" "$REPORT_FILE"
 
-if [ ${#SINGLETEST[@]} -ne 0 ]; then
-	rm -f "$RUNFILES" &>/dev/null
+if [ -n "$SINGLETEST" ]; then
+	rm -f "$RUNFILES" >/dev/null 2>&1
 fi
 
 exit ${RESULT}

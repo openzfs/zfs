@@ -235,11 +235,7 @@ dsl_crypto_params_create_nvlist(dcp_cmd_t cmd, nvlist_t *props,
 	return (0);
 
 error:
-	if (wkey != NULL)
-		dsl_wrapping_key_free(wkey);
-	if (dcp != NULL)
-		kmem_free(dcp, sizeof (dsl_crypto_params_t));
-
+	kmem_free(dcp, sizeof (dsl_crypto_params_t));
 	*dcp_out = NULL;
 	return (ret);
 }

@@ -2893,11 +2893,12 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 	case ZFS_PROP_GUID:
 	case ZFS_PROP_CREATETXG:
 	case ZFS_PROP_OBJSETID:
+	case ZFS_PROP_PBKDF2_ITERS:
 		/*
 		 * These properties are stored as numbers, but they are
-		 * identifiers.
+		 * identifiers or counters.
 		 * We don't want them to be pretty printed, because pretty
-		 * printing mangles the ID into a truncated and useless value.
+		 * printing truncates their values making them useless.
 		 */
 		if (get_numeric_property(zhp, prop, src, &source, &val) != 0)
 			return (-1);
@@ -4370,14 +4371,14 @@ zfs_rollback(zfs_handle_t *zhp, zfs_handle_t *snap, boolean_t force)
  * Renames the given dataset.
  */
 int
-zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive,
-    boolean_t force_unmount)
+zfs_rename(zfs_handle_t *zhp, const char *target, renameflags_t flags)
 {
 	int ret = 0;
 	zfs_cmd_t zc = {"\0"};
 	char *delim;
 	prop_changelist_t *cl = NULL;
 	char parent[ZFS_MAX_DATASET_NAME_LEN];
+	char property[ZFS_MAXPROPLEN];
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
 	char errbuf[1024];
 
@@ -4429,7 +4430,7 @@ zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive,
 		if (!zfs_validate_name(hdl, target, zhp->zfs_type, B_TRUE))
 			return (zfs_error(hdl, EZFS_INVALIDNAME, errbuf));
 	} else {
-		if (recursive) {
+		if (flags.recursive) {
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "recursive rename must be a snapshot"));
 			return (zfs_error(hdl, EZFS_BADTYPE, errbuf));
@@ -4470,8 +4471,19 @@ zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive,
 		return (zfs_error(hdl, EZFS_ZONED, errbuf));
 	}
 
-	if (recursive) {
-		zfs_handle_t *zhrp;
+	/*
+	 * Avoid unmounting file systems with mountpoint property set to
+	 * 'legacy' or 'none' even if -u option is not given.
+	 */
+	if (zhp->zfs_type == ZFS_TYPE_FILESYSTEM &&
+	    !flags.recursive && !flags.nounmount &&
+	    zfs_prop_get(zhp, ZFS_PROP_MOUNTPOINT, property,
+	    sizeof (property), NULL, NULL, 0, B_FALSE) == 0 &&
+	    (strcmp(property, "legacy") == 0 ||
+	    strcmp(property, "none") == 0)) {
+		flags.nounmount = B_TRUE;
+	}
+	if (flags.recursive) {
 		char *parentname = zfs_strdup(zhp->zfs_hdl, zhp->zfs_name);
 		if (parentname == NULL) {
 			ret = -1;
@@ -4479,7 +4491,8 @@ zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive,
 		}
 		delim = strchr(parentname, '@');
 		*delim = '\0';
-		zhrp = zfs_open(zhp->zfs_hdl, parentname, ZFS_TYPE_DATASET);
+		zfs_handle_t *zhrp = zfs_open(zhp->zfs_hdl, parentname,
+		    ZFS_TYPE_DATASET);
 		free(parentname);
 		if (zhrp == NULL) {
 			ret = -1;
@@ -4488,8 +4501,9 @@ zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive,
 		zfs_close(zhrp);
 	} else if (zhp->zfs_type != ZFS_TYPE_SNAPSHOT) {
 		if ((cl = changelist_gather(zhp, ZFS_PROP_NAME,
+		    flags.nounmount ? CL_GATHER_DONT_UNMOUNT :
 		    CL_GATHER_ITER_MOUNTED,
-		    force_unmount ? MS_FORCE : 0)) == NULL)
+		    flags.forceunmount ? MS_FORCE : 0)) == NULL)
 			return (-1);
 
 		if (changelist_haszonedchild(cl)) {
@@ -4513,7 +4527,8 @@ zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive,
 	(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
 	(void) strlcpy(zc.zc_value, target, sizeof (zc.zc_value));
 
-	zc.zc_cookie = recursive;
+	zc.zc_cookie = !!flags.recursive;
+	zc.zc_cookie |= (!!flags.nounmount) << 1;
 
 	if ((ret = zfs_ioctl(zhp->zfs_hdl, ZFS_IOC_RENAME, &zc)) != 0) {
 		/*
@@ -4523,7 +4538,7 @@ zfs_rename(zfs_handle_t *zhp, const char *target, boolean_t recursive,
 		(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
 		    "cannot rename '%s'"), zc.zc_name);
 
-		if (recursive && errno == EEXIST) {
+		if (flags.recursive && errno == EEXIST) {
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "a child dataset already has a snapshot "
 			    "with the new name"));
@@ -5321,6 +5336,16 @@ zfs_get_holds(zfs_handle_t *zhp, nvlist_t **nvl)
  * 160k.  Again, 128k is from SPA_OLD_MAXBLOCKSIZE and 160k is as calculated in
  * the 128k block example above.
  *
+ * The situtation is slightly different for dRAID since the minimum allocation
+ * size is the full group width.  The same 8K block above would be written as
+ * follows in a dRAID group:
+ *
+ * +-------+-------+-------+-------+-------+
+ * | disk1 | disk2 | disk3 | disk4 | disk5 |
+ * +-------+-------+-------+-------+-------+
+ * |  P0   |  D0   |  D1   |  S0   |  S1   |
+ * +-------+-------+-------+-------+-------+
+ *
  * Compression may lead to a variety of block sizes being written for the same
  * volume or file.  There is no clear way to reserve just the amount of space
  * that will be required, so the worst case (no compression) is assumed.
@@ -5351,6 +5376,23 @@ vdev_raidz_asize(uint64_t ndisks, uint64_t nparity, uint64_t ashift,
 }
 
 /*
+ * Derived from function of same name in module/zfs/vdev_draid.c.  Returns the
+ * amount of space (in bytes) that will be allocated for the specified block
+ * size.
+ */
+static uint64_t
+vdev_draid_asize(uint64_t ndisks, uint64_t nparity, uint64_t ashift,
+    uint64_t blksize)
+{
+	ASSERT3U(ndisks, >, nparity);
+	uint64_t ndata = ndisks - nparity;
+	uint64_t rows = ((blksize - 1) / (ndata << ashift)) + 1;
+	uint64_t asize = (rows * ndisks) << ashift;
+
+	return (asize);
+}
+
+/*
  * Determine how much space will be allocated if it lands on the most space-
  * inefficient top-level vdev.  Returns the size in bytes required to store one
  * copy of the volume data.  See theory comment above.
@@ -5359,7 +5401,7 @@ static uint64_t
 volsize_from_vdevs(zpool_handle_t *zhp, uint64_t nblocks, uint64_t blksize)
 {
 	nvlist_t *config, *tree, **vdevs;
-	uint_t nvdevs, v;
+	uint_t nvdevs;
 	uint64_t ret = 0;
 
 	config = zpool_get_config(zhp, NULL);
@@ -5369,33 +5411,61 @@ volsize_from_vdevs(zpool_handle_t *zhp, uint64_t nblocks, uint64_t blksize)
 		return (nblocks * blksize);
 	}
 
-	for (v = 0; v < nvdevs; v++) {
+	for (int v = 0; v < nvdevs; v++) {
 		char *type;
 		uint64_t nparity, ashift, asize, tsize;
-		nvlist_t **disks;
-		uint_t ndisks;
 		uint64_t volsize;
 
 		if (nvlist_lookup_string(vdevs[v], ZPOOL_CONFIG_TYPE,
-		    &type) != 0 || strcmp(type, VDEV_TYPE_RAIDZ) != 0 ||
-		    nvlist_lookup_uint64(vdevs[v], ZPOOL_CONFIG_NPARITY,
-		    &nparity) != 0 ||
-		    nvlist_lookup_uint64(vdevs[v], ZPOOL_CONFIG_ASHIFT,
-		    &ashift) != 0 ||
-		    nvlist_lookup_nvlist_array(vdevs[v], ZPOOL_CONFIG_CHILDREN,
-		    &disks, &ndisks) != 0) {
+		    &type) != 0)
 			continue;
+
+		if (strcmp(type, VDEV_TYPE_RAIDZ) != 0 &&
+		    strcmp(type, VDEV_TYPE_DRAID) != 0)
+			continue;
+
+		if (nvlist_lookup_uint64(vdevs[v],
+		    ZPOOL_CONFIG_NPARITY, &nparity) != 0)
+			continue;
+
+		if (nvlist_lookup_uint64(vdevs[v],
+		    ZPOOL_CONFIG_ASHIFT, &ashift) != 0)
+			continue;
+
+		if (strcmp(type, VDEV_TYPE_RAIDZ) == 0) {
+			nvlist_t **disks;
+			uint_t ndisks;
+
+			if (nvlist_lookup_nvlist_array(vdevs[v],
+			    ZPOOL_CONFIG_CHILDREN, &disks, &ndisks) != 0)
+				continue;
+
+			/* allocation size for the "typical" 128k block */
+			tsize = vdev_raidz_asize(ndisks, nparity, ashift,
+			    SPA_OLD_MAXBLOCKSIZE);
+
+			/* allocation size for the blksize block */
+			asize = vdev_raidz_asize(ndisks, nparity, ashift,
+			    blksize);
+		} else {
+			uint64_t ndata;
+
+			if (nvlist_lookup_uint64(vdevs[v],
+			    ZPOOL_CONFIG_DRAID_NDATA, &ndata) != 0)
+				continue;
+
+			/* allocation size for the "typical" 128k block */
+			tsize = vdev_draid_asize(ndata + nparity, nparity,
+			    ashift, SPA_OLD_MAXBLOCKSIZE);
+
+			/* allocation size for the blksize block */
+			asize = vdev_draid_asize(ndata + nparity, nparity,
+			    ashift, blksize);
 		}
 
-		/* allocation size for the "typical" 128k block */
-		tsize = vdev_raidz_asize(ndisks, nparity, ashift,
-		    SPA_OLD_MAXBLOCKSIZE);
-		/* allocation size for the blksize block */
-		asize = vdev_raidz_asize(ndisks, nparity, ashift, blksize);
-
 		/*
-		 * Scale this size down as a ratio of 128k / tsize.  See theory
-		 * statement above.
+		 * Scale this size down as a ratio of 128k / tsize.
+		 * See theory statement above.
 		 */
 		volsize = nblocks * asize * SPA_OLD_MAXBLOCKSIZE / tsize;
 		if (volsize > ret) {

@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2016 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -44,6 +44,17 @@
  */
 
 static taskq_t *vdev_file_taskq;
+
+/*
+ * By default, the logical/physical ashift for file vdevs is set to
+ * SPA_MINBLOCKSHIFT (9). This allows all file vdevs to use 512B (1 << 9)
+ * blocksizes. Users may opt to change one or both of these for testing
+ * or performance reasons. Care should be taken as these values will
+ * impact the vdev_ashift setting which can only be set at vdev creation
+ * time.
+ */
+unsigned long vdev_file_logical_ashift = SPA_MINBLOCKSHIFT;
+unsigned long vdev_file_physical_ashift = SPA_MINBLOCKSHIFT;
 
 static void
 vdev_file_hold(vdev_t *vd)
@@ -75,7 +86,7 @@ vdev_file_open_mode(spa_mode_t spa_mode)
 
 static int
 vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
-    uint64_t *ashift)
+    uint64_t *logical_ashift, uint64_t *physical_ashift)
 {
 	vdev_file_t *vf;
 	zfs_file_t *fp;
@@ -159,7 +170,8 @@ skip_open:
 	}
 
 	*max_psize = *psize = zfa.zfa_size;
-	*ashift = SPA_MINBLOCKSHIFT;
+	*logical_ashift = vdev_file_logical_ashift;
+	*physical_ashift = vdev_file_physical_ashift;
 
 	return (0);
 }
@@ -293,9 +305,13 @@ vdev_file_io_done(zio_t *zio)
 }
 
 vdev_ops_t vdev_file_ops = {
+	.vdev_op_init = NULL,
+	.vdev_op_fini = NULL,
 	.vdev_op_open = vdev_file_open,
 	.vdev_op_close = vdev_file_close,
 	.vdev_op_asize = vdev_default_asize,
+	.vdev_op_min_asize = vdev_default_min_asize,
+	.vdev_op_min_alloc = NULL,
 	.vdev_op_io_start = vdev_file_io_start,
 	.vdev_op_io_done = vdev_file_io_done,
 	.vdev_op_state_change = NULL,
@@ -304,6 +320,11 @@ vdev_ops_t vdev_file_ops = {
 	.vdev_op_rele = vdev_file_rele,
 	.vdev_op_remap = NULL,
 	.vdev_op_xlate = vdev_default_xlate,
+	.vdev_op_rebuild_asize = NULL,
+	.vdev_op_metaslab_init = NULL,
+	.vdev_op_config_generate = NULL,
+	.vdev_op_nparity = NULL,
+	.vdev_op_ndisks = NULL,
 	.vdev_op_type = VDEV_TYPE_FILE,		/* name of this vdev type */
 	.vdev_op_leaf = B_TRUE			/* leaf vdev */
 };
@@ -329,9 +350,13 @@ vdev_file_fini(void)
 #ifndef _KERNEL
 
 vdev_ops_t vdev_disk_ops = {
+	.vdev_op_init = NULL,
+	.vdev_op_fini = NULL,
 	.vdev_op_open = vdev_file_open,
 	.vdev_op_close = vdev_file_close,
 	.vdev_op_asize = vdev_default_asize,
+	.vdev_op_min_asize = vdev_default_min_asize,
+	.vdev_op_min_alloc = NULL,
 	.vdev_op_io_start = vdev_file_io_start,
 	.vdev_op_io_done = vdev_file_io_done,
 	.vdev_op_state_change = NULL,
@@ -340,8 +365,18 @@ vdev_ops_t vdev_disk_ops = {
 	.vdev_op_rele = vdev_file_rele,
 	.vdev_op_remap = NULL,
 	.vdev_op_xlate = vdev_default_xlate,
+	.vdev_op_rebuild_asize = NULL,
+	.vdev_op_metaslab_init = NULL,
+	.vdev_op_config_generate = NULL,
+	.vdev_op_nparity = NULL,
+	.vdev_op_ndisks = NULL,
 	.vdev_op_type = VDEV_TYPE_DISK,		/* name of this vdev type */
 	.vdev_op_leaf = B_TRUE			/* leaf vdev */
 };
 
 #endif
+
+ZFS_MODULE_PARAM(zfs_vdev_file, vdev_file_, logical_ashift, ULONG, ZMOD_RW,
+	"Logical ashift for file-based devices");
+ZFS_MODULE_PARAM(zfs_vdev_file, vdev_file_, physical_ashift, ULONG, ZMOD_RW,
+	"Physical ashift for file-based devices");

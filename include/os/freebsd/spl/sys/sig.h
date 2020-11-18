@@ -29,6 +29,8 @@
 #ifndef _OPENSOLARIS_SYS_SIG_H_
 #define	_OPENSOLARIS_SYS_SIG_H_
 
+#ifndef _STANDALONE
+
 #include_next <sys/signal.h>
 #include <sys/param.h>
 #include <sys/lock.h>
@@ -62,4 +64,7 @@ issig(int why)
 	}
 	return (0);
 }
+
+#endif /* !_STANDALONE */
+
 #endif	/* _OPENSOLARIS_SYS_SIG_H_ */

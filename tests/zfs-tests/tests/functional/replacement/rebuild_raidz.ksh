@@ -26,7 +26,7 @@
 #
 # DESCRIPTION:
 # Executing 'zpool replace -s' for raidz vdevs failed.  Sequential
-# resilvers are only allowed for stripe/mirror pools.
+# resilvers are only allowed for stripe/mirror/dRAID pools.
 #
 # STRATEGY:
 # 1. Create a raidz pool, verify 'zpool replace -s' fails
@@ -65,6 +65,11 @@ destroy_pool $TESTPOOL1
 # mirror
 log_must zpool create $TESTPOOL1 mirror ${VDEV_FILES[0]} ${VDEV_FILES[1]}
 log_must zpool replace -s $TESTPOOL1 ${VDEV_FILES[1]}  $SPARE_VDEV_FILE
+destroy_pool $TESTPOOL1
+
+# draid
+log_must zpool create $TESTPOOL1 draid ${VDEV_FILES[@]}
+log_must zpool replace -s $TESTPOOL1 ${VDEV_FILES[1]} $SPARE_VDEV_FILE
 destroy_pool $TESTPOOL1
 
 log_pass "Sequential resilver is not allowed for raidz vdevs"

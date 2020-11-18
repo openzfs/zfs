@@ -134,6 +134,7 @@ dsl_deadlist_load_tree(dsl_deadlist_t *dl)
 {
 	zap_cursor_t zc;
 	zap_attribute_t za;
+	int error;
 
 	ASSERT(MUTEX_HELD(&dl->dl_lock));
 
@@ -162,7 +163,7 @@ dsl_deadlist_load_tree(dsl_deadlist_t *dl)
 	    sizeof (dsl_deadlist_entry_t),
 	    offsetof(dsl_deadlist_entry_t, dle_node));
 	for (zap_cursor_init(&zc, dl->dl_os, dl->dl_object);
-	    zap_cursor_retrieve(&zc, &za) == 0;
+	    (error = zap_cursor_retrieve(&zc, &za)) == 0;
 	    zap_cursor_advance(&zc)) {
 		dsl_deadlist_entry_t *dle = kmem_alloc(sizeof (*dle), KM_SLEEP);
 		dle->dle_mintxg = zfs_strtonum(za.za_name, NULL);
@@ -177,6 +178,7 @@ dsl_deadlist_load_tree(dsl_deadlist_t *dl)
 
 		avl_add(&dl->dl_tree, dle);
 	}
+	VERIFY3U(error, ==, ENOENT);
 	zap_cursor_fini(&zc);
 
 	for (dsl_deadlist_entry_t *dle = avl_first(&dl->dl_tree);
@@ -206,6 +208,7 @@ dsl_deadlist_load_cache(dsl_deadlist_t *dl)
 {
 	zap_cursor_t zc;
 	zap_attribute_t za;
+	int error;
 
 	ASSERT(MUTEX_HELD(&dl->dl_lock));
 
@@ -219,7 +222,7 @@ dsl_deadlist_load_cache(dsl_deadlist_t *dl)
 	    sizeof (dsl_deadlist_cache_entry_t),
 	    offsetof(dsl_deadlist_cache_entry_t, dlce_node));
 	for (zap_cursor_init(&zc, dl->dl_os, dl->dl_object);
-	    zap_cursor_retrieve(&zc, &za) == 0;
+	    (error = zap_cursor_retrieve(&zc, &za)) == 0;
 	    zap_cursor_advance(&zc)) {
 		if (za.za_first_integer == empty_bpobj)
 			continue;
@@ -236,6 +239,7 @@ dsl_deadlist_load_cache(dsl_deadlist_t *dl)
 		    0, 0, 0, ZIO_PRIORITY_SYNC_READ);
 		avl_add(&dl->dl_cache, dlce);
 	}
+	VERIFY3U(error, ==, ENOENT);
 	zap_cursor_fini(&zc);
 
 	for (dsl_deadlist_cache_entry_t *dlce = avl_first(&dl->dl_cache);
@@ -378,6 +382,7 @@ dsl_deadlist_free(objset_t *os, uint64_t dlobj, dmu_tx_t *tx)
 	dmu_object_info_t doi;
 	zap_cursor_t zc;
 	zap_attribute_t za;
+	int error;
 
 	VERIFY0(dmu_object_info(os, dlobj, &doi));
 	if (doi.doi_type == DMU_OT_BPOBJ) {
@@ -386,7 +391,7 @@ dsl_deadlist_free(objset_t *os, uint64_t dlobj, dmu_tx_t *tx)
 	}
 
 	for (zap_cursor_init(&zc, os, dlobj);
-	    zap_cursor_retrieve(&zc, &za) == 0;
+	    (error = zap_cursor_retrieve(&zc, &za)) == 0;
 	    zap_cursor_advance(&zc)) {
 		uint64_t obj = za.za_first_integer;
 		if (obj == dmu_objset_pool(os)->dp_empty_bpobj)
@@ -394,6 +399,7 @@ dsl_deadlist_free(objset_t *os, uint64_t dlobj, dmu_tx_t *tx)
 		else
 			bpobj_free(os, obj, tx);
 	}
+	VERIFY3U(error, ==, ENOENT);
 	zap_cursor_fini(&zc);
 	VERIFY0(dmu_object_free(os, dlobj, tx));
 }
@@ -824,6 +830,7 @@ dsl_deadlist_merge(dsl_deadlist_t *dl, uint64_t obj, dmu_tx_t *tx)
 	dmu_buf_t *bonus;
 	dsl_deadlist_phys_t *dlp;
 	dmu_object_info_t doi;
+	int error;
 
 	VERIFY0(dmu_object_info(dl->dl_os, obj, &doi));
 	if (doi.doi_type == DMU_OT_BPOBJ) {
@@ -836,12 +843,13 @@ dsl_deadlist_merge(dsl_deadlist_t *dl, uint64_t obj, dmu_tx_t *tx)
 
 	mutex_enter(&dl->dl_lock);
 	for (zap_cursor_init(&zc, dl->dl_os, obj);
-	    zap_cursor_retrieve(&zc, &za) == 0;
+	    (error = zap_cursor_retrieve(&zc, &za)) == 0;
 	    zap_cursor_advance(&zc)) {
 		uint64_t mintxg = zfs_strtonum(za.za_name, NULL);
 		dsl_deadlist_insert_bpobj(dl, za.za_first_integer, mintxg, tx);
 		VERIFY0(zap_remove_int(dl->dl_os, obj, mintxg, tx));
 	}
+	VERIFY3U(error, ==, ENOENT);
 	zap_cursor_fini(&zc);
 
 	VERIFY0(dmu_bonus_hold(dl->dl_os, obj, FTAG, &bonus));

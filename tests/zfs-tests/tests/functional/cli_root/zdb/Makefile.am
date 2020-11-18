@@ -10,6 +10,7 @@ dist_pkgdata_SCRIPTS = \
 	zdb_block_size_histogram.ksh \
 	zdb_checksum.ksh \
 	zdb_decompress.ksh \
+	zdb_decompress_zstd.ksh \
 	zdb_object_range_neg.ksh \
 	zdb_object_range_pos.ksh \
 	zdb_display_block.ksh \

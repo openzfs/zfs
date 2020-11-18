@@ -8,7 +8,7 @@ while [ ! -e /run/zfs_fs_name ]; do
 	if [ -e /run/zfs_unlock_complete ]; then
 		exit 0
 	fi
-	sleep 0.5
+	sleep 1
 done
 echo
 echo "Unlocking encrypted ZFS filesystems..."
@@ -31,7 +31,7 @@ while [ ! -e /run/zfs_unlock_complete ]; do
 		fi
 		# Wait for another filesystem to unlock.
 		while [ "$(cat /run/zfs_fs_name)" = "$zfs_fs_name" ] && [ ! -e /run/zfs_unlock_complete ]; do
-			sleep 0.5
+			sleep 1
 		done
 	else
 		echo "Wrong password.  Try again."

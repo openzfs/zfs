@@ -93,7 +93,7 @@ extern cred_t *zone_kcred(void);
 extern gid_t crgetrgid(const cred_t *);
 extern gid_t crgetsgid(const cred_t *);
 
-#define	crgetzoneid(x) (0)
+#define	crgetzoneid(cr) ((cr)->cr_prison->pr_id)
 extern projid_t crgetprojid(const cred_t *);
 
 extern cred_t *crgetmapped(const cred_t *);

@@ -198,14 +198,6 @@ mmp_init(spa_t *spa)
 	cv_init(&mmp->mmp_thread_cv, NULL, CV_DEFAULT, NULL);
 	mutex_init(&mmp->mmp_io_lock, NULL, MUTEX_DEFAULT, NULL);
 	mmp->mmp_kstat_id = 1;
-
-	/*
-	 * mmp_write_done() calculates mmp_delay based on prior mmp_delay and
-	 * the elapsed time since the last write.  For the first mmp write,
-	 * there is no "last write", so we start with fake non-zero values.
-	 */
-	mmp->mmp_last_write = gethrtime();
-	mmp->mmp_delay = MSEC2NSEC(MMP_INTERVAL_OK(zfs_multihost_interval));
 }
 
 void
@@ -315,8 +307,17 @@ mmp_next_leaf(spa_t *spa)
 		if (leaf == NULL)
 			leaf = list_head(&spa->spa_leaf_list);
 
-		if (!vdev_writeable(leaf)) {
+		/*
+		 * We skip unwritable, offline, detached, and dRAID spare
+		 * devices as they are either not legal targets or the write
+		 * may fail or not be seen by other hosts.  Skipped dRAID
+		 * spares can never be written so the fail mask is not set.
+		 */
+		if (!vdev_writeable(leaf) || leaf->vdev_offline ||
+		    leaf->vdev_detached) {
 			fail_mask |= MMP_FAIL_NOT_WRITABLE;
+		} else if (leaf->vdev_ops == &vdev_draid_spare_ops) {
+			continue;
 		} else if (leaf->vdev_mmp_pending != 0) {
 			fail_mask |= MMP_FAIL_WRITE_PENDING;
 		} else {
@@ -557,6 +558,18 @@ mmp_thread(void *arg)
 
 	mmp_thread_enter(mmp, &cpr);
 
+	/*
+	 * There have been no MMP writes yet.  Setting mmp_last_write here gives
+	 * us one mmp_fail_ns period, which is consistent with the activity
+	 * check duration, to try to land an MMP write before MMP suspends the
+	 * pool (if so configured).
+	 */
+
+	mutex_enter(&mmp->mmp_io_lock);
+	mmp->mmp_last_write = gethrtime();
+	mmp->mmp_delay = MSEC2NSEC(MMP_INTERVAL_OK(zfs_multihost_interval));
+	mutex_exit(&mmp->mmp_io_lock);
+
 	while (!mmp->mmp_thread_exiting) {
 		hrtime_t next_time = gethrtime() +
 		    MSEC2NSEC(MMP_DEFAULT_INTERVAL);
@@ -671,7 +684,7 @@ mmp_thread(void *arg)
 		}
 
 		CALLB_CPR_SAFE_BEGIN(&cpr);
-		(void) cv_timedwait_sig_hires(&mmp->mmp_thread_cv,
+		(void) cv_timedwait_idle_hires(&mmp->mmp_thread_cv,
 		    &mmp->mmp_thread_lock, next_time, USEC2NSEC(100),
 		    CALLOUT_FLAG_ABSOLUTE);
 		CALLB_CPR_SAFE_END(&cpr, &mmp->mmp_thread_lock);

@@ -228,21 +228,33 @@ nfs_copy_entries(char *filename, const char *mountpoint)
 	int error = SA_OK;
 	char *line;
 
-	/*
-	 * If the file doesn't exist then there is nothing more
-	 * we need to do.
-	 */
 	FILE *oldfp = fopen(ZFS_EXPORTS_FILE, "r");
-	if (oldfp == NULL)
-		return (SA_OK);
-
 	FILE *newfp = fopen(filename, "w+");
-	fputs(FILE_HEADER, newfp);
-	while ((line = zgetline(oldfp, mountpoint)) != NULL)
-		fprintf(newfp, "%s\n", line);
-	if (ferror(oldfp) != 0) {
-		error = ferror(oldfp);
+	if (newfp == NULL) {
+		fprintf(stderr, "failed to open %s file: %s", filename,
+		    strerror(errno));
+		fclose(oldfp);
+		return (SA_SYSTEM_ERR);
 	}
+	fputs(FILE_HEADER, newfp);
+
+	/*
+	 * The ZFS_EXPORTS_FILE may not exist yet. If that's the
+	 * case then just write out the new file.
+	 */
+	if (oldfp != NULL) {
+		while ((line = zgetline(oldfp, mountpoint)) != NULL)
+			fprintf(newfp, "%s\n", line);
+		if (ferror(oldfp) != 0) {
+			error = ferror(oldfp);
+		}
+		if (fclose(oldfp) != 0) {
+			fprintf(stderr, "Unable to close file %s: %s\n",
+			    filename, strerror(errno));
+			error = error != 0 ? error : SA_SYSTEM_ERR;
+		}
+	}
+
 	if (error == 0 && ferror(newfp) != 0) {
 		error = ferror(newfp);
 	}
@@ -252,8 +264,6 @@ nfs_copy_entries(char *filename, const char *mountpoint)
 		    filename, strerror(errno));
 		error = error != 0 ? error : SA_SYSTEM_ERR;
 	}
-	fclose(oldfp);
-
 	return (error);
 }
 

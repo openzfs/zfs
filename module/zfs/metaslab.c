@@ -22,6 +22,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2011, 2019 by Delphix. All rights reserved.
  * Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
+ * Copyright (c) 2015, Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2017, Intel Corporation.
  */
 
@@ -31,6 +32,7 @@
 #include <sys/space_map.h>
 #include <sys/metaslab_impl.h>
 #include <sys/vdev_impl.h>
+#include <sys/vdev_draid.h>
 #include <sys/zio.h>
 #include <sys/spa_impl.h>
 #include <sys/zfeature.h>
@@ -1562,6 +1564,7 @@ metaslab_block_find(zfs_btree_t *t, range_tree_t *rt, uint64_t start,
 
 #if defined(WITH_DF_BLOCK_ALLOCATOR) || \
     defined(WITH_CF_BLOCK_ALLOCATOR)
+
 /*
  * This is a helper function that can be used by the allocator to find a
  * suitable block to allocate. This will search the specified B-tree looking
@@ -1653,6 +1656,7 @@ metaslab_df_alloc(metaslab_t *msp, uint64_t size)
 		range_seg_t *rs;
 		if (zfs_btree_numnodes(&msp->ms_allocatable_by_size) == 0)
 			metaslab_size_tree_full_load(msp->ms_allocatable);
+
 		if (metaslab_df_use_largest_segment) {
 			/* use largest free segment */
 			rs = zfs_btree_last(&msp->ms_allocatable_by_size, NULL);
@@ -2399,25 +2403,26 @@ metaslab_load_impl(metaslab_t *msp)
 	msp->ms_max_size = metaslab_largest_allocatable(msp);
 	ASSERT3U(max_size, <=, msp->ms_max_size);
 	hrtime_t load_end = gethrtime();
-		msp->ms_load_time = load_end;
-	if (zfs_flags & ZFS_DEBUG_LOG_SPACEMAP) {
-		zfs_dbgmsg("loading: txg %llu, spa %s, vdev_id %llu, "
-		    "ms_id %llu, smp_length %llu, "
-		    "unflushed_allocs %llu, unflushed_frees %llu, "
-		    "freed %llu, defer %llu + %llu, "
-		    "loading_time %lld ms, ms_max_size %llu, "
-		    "max size error %llu",
-		    spa_syncing_txg(spa), spa_name(spa),
-		    msp->ms_group->mg_vd->vdev_id, msp->ms_id,
-		    space_map_length(msp->ms_sm),
-		    range_tree_space(msp->ms_unflushed_allocs),
-		    range_tree_space(msp->ms_unflushed_frees),
-		    range_tree_space(msp->ms_freed),
-		    range_tree_space(msp->ms_defer[0]),
-		    range_tree_space(msp->ms_defer[1]),
-		    (longlong_t)((load_end - load_start) / 1000000),
-		    msp->ms_max_size, msp->ms_max_size - max_size);
-	}
+	msp->ms_load_time = load_end;
+	zfs_dbgmsg("metaslab_load: txg %llu, spa %s, vdev_id %llu, "
+	    "ms_id %llu, smp_length %llu, "
+	    "unflushed_allocs %llu, unflushed_frees %llu, "
+	    "freed %llu, defer %llu + %llu, unloaded time %llu ms, "
+	    "loading_time %lld ms, ms_max_size %llu, "
+	    "max size error %lld, "
+	    "old_weight %llx, new_weight %llx",
+	    spa_syncing_txg(spa), spa_name(spa),
+	    msp->ms_group->mg_vd->vdev_id, msp->ms_id,
+	    space_map_length(msp->ms_sm),
+	    range_tree_space(msp->ms_unflushed_allocs),
+	    range_tree_space(msp->ms_unflushed_frees),
+	    range_tree_space(msp->ms_freed),
+	    range_tree_space(msp->ms_defer[0]),
+	    range_tree_space(msp->ms_defer[1]),
+	    (longlong_t)((load_start - msp->ms_unload_time) / 1000000),
+	    (longlong_t)((load_end - load_start) / 1000000),
+	    msp->ms_max_size, msp->ms_max_size - max_size,
+	    weight, msp->ms_weight);
 
 	metaslab_verify_space(msp, spa_syncing_txg(spa));
 	mutex_exit(&msp->ms_sync_lock);
@@ -2508,6 +2513,20 @@ metaslab_unload(metaslab_t *msp)
 		if (multilist_link_active(&msp->ms_class_txg_node))
 			multilist_sublist_remove(mls, msp);
 		multilist_sublist_unlock(mls);
+
+		spa_t *spa = msp->ms_group->mg_vd->vdev_spa;
+		zfs_dbgmsg("metaslab_unload: txg %llu, spa %s, vdev_id %llu, "
+		    "ms_id %llu, weight %llx, "
+		    "selected txg %llu (%llu ms ago), alloc_txg %llu, "
+		    "loaded %llu ms ago, max_size %llu",
+		    spa_syncing_txg(spa), spa_name(spa),
+		    msp->ms_group->mg_vd->vdev_id, msp->ms_id,
+		    msp->ms_weight,
+		    msp->ms_selected_txg,
+		    (msp->ms_unload_time - msp->ms_selected_time) / 1000 / 1000,
+		    msp->ms_alloc_txg,
+		    (msp->ms_unload_time - msp->ms_load_time) / 1000 / 1000,
+		    msp->ms_max_size);
 	}
 
 	/*
@@ -2599,6 +2618,10 @@ metaslab_init(metaslab_group_t *mg, uint64_t id, uint64_t object,
 	ms->ms_size = 1ULL << vd->vdev_ms_shift;
 	ms->ms_allocator = -1;
 	ms->ms_new = B_TRUE;
+
+	vdev_ops_t *ops = vd->vdev_ops;
+	if (ops->vdev_op_metaslab_init != NULL)
+		ops->vdev_op_metaslab_init(vd, &ms->ms_start, &ms->ms_size);
 
 	/*
 	 * We only open space map objects that already exist. All others
@@ -5173,7 +5196,7 @@ top:
 
 		ASSERT(mg->mg_class == mc);
 
-		uint64_t asize = vdev_psize_to_asize(vd, psize);
+		uint64_t asize = vdev_psize_to_asize_txg(vd, psize, txg);
 		ASSERT(P2PHASE(asize, 1ULL << vd->vdev_ashift) == 0);
 
 		/*
@@ -5520,7 +5543,7 @@ metaslab_unalloc_dva(spa_t *spa, const dva_t *dva, uint64_t txg)
 	ASSERT3P(vd->vdev_indirect_mapping, ==, NULL);
 
 	if (DVA_GET_GANG(dva))
-		size = vdev_psize_to_asize(vd, SPA_GANGBLOCKSIZE);
+		size = vdev_gang_header_asize(vd);
 
 	msp = vd->vdev_ms[offset >> vd->vdev_ms_shift];
 
@@ -5555,7 +5578,7 @@ metaslab_free_dva(spa_t *spa, const dva_t *dva, boolean_t checkpoint)
 	ASSERT3U(spa_config_held(spa, SCL_ALL, RW_READER), !=, 0);
 
 	if (DVA_GET_GANG(dva)) {
-		size = vdev_psize_to_asize(vd, SPA_GANGBLOCKSIZE);
+		size = vdev_gang_header_asize(vd);
 	}
 
 	metaslab_free_impl(vd, offset, size, checkpoint);
@@ -5658,7 +5681,7 @@ metaslab_claim_concrete(vdev_t *vd, uint64_t offset, uint64_t size,
 	range_tree_remove(msp->ms_allocatable, offset, size);
 	range_tree_clear(msp->ms_trim, offset, size);
 
-	if (spa_writeable(spa)) {	/* don't dirty if we're zdb(1M) */
+	if (spa_writeable(spa)) {	/* don't dirty if we're zdb(8) */
 		metaslab_class_t *mc = msp->ms_group->mg_class;
 		multilist_sublist_t *mls =
 		    multilist_sublist_lock_obj(mc->mc_metaslab_txg_list, msp);
@@ -5705,7 +5728,7 @@ metaslab_claim_impl(vdev_t *vd, uint64_t offset, uint64_t size, uint64_t txg)
 		metaslab_claim_cb_arg_t arg;
 
 		/*
-		 * Only zdb(1M) can claim on indirect vdevs.  This is used
+		 * Only zdb(8) can claim on indirect vdevs.  This is used
 		 * to detect leaks of mapped space (that are not accounted
 		 * for in the obsolete counts, spacemap, or bpobj).
 		 */
@@ -5747,7 +5770,7 @@ metaslab_claim_dva(spa_t *spa, const dva_t *dva, uint64_t txg)
 	ASSERT(DVA_IS_VALID(dva));
 
 	if (DVA_GET_GANG(dva))
-		size = vdev_psize_to_asize(vd, SPA_GANGBLOCKSIZE);
+		size = vdev_gang_header_asize(vd);
 
 	return (metaslab_claim_impl(vd, offset, size, txg));
 }
@@ -5797,7 +5820,6 @@ metaslab_alloc(spa_t *spa, metaslab_class_t *mc, uint64_t psize, blkptr_t *bp,
 			metaslab_group_alloc_increment(spa,
 			    DVA_GET_VDEV(&dva[d]), zio, flags, allocator);
 		}
-
 	}
 	ASSERT(error == 0);
 	ASSERT(BP_GET_NDVAS(bp) == ndvas);
@@ -6013,7 +6035,7 @@ metaslab_check_free(spa_t *spa, const blkptr_t *bp)
 		uint64_t size = DVA_GET_ASIZE(&bp->blk_dva[i]);
 
 		if (DVA_GET_GANG(&bp->blk_dva[i]))
-			size = vdev_psize_to_asize(vd, SPA_GANGBLOCKSIZE);
+			size = vdev_gang_header_asize(vd);
 
 		ASSERT3P(vd, !=, NULL);
 

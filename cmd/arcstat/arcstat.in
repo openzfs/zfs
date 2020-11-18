@@ -88,6 +88,12 @@ cols = {
     "mfug":       [4, 1000, "MFU ghost list hits per second"],
     "mrug":       [4, 1000, "MRU ghost list hits per second"],
     "eskip":      [5, 1000, "evict_skip per second"],
+    "el2skip":    [7, 1000, "evict skip, due to l2 writes, per second"],
+    "el2cach":    [7, 1024, "Size of L2 cached evictions per second"],
+    "el2el":      [5, 1024, "Size of L2 eligible evictions per second"],
+    "el2mfu":     [6, 1024, "Size of L2 eligible MFU evictions per second"],
+    "el2mru":     [6, 1024, "Size of L2 eligible MRU evictions per second"],
+    "el2inel":    [7, 1024, "Size of L2 ineligible evictions per second"],
     "mtxmis":     [6, 1000, "mutex_miss per second"],
     "dread":      [5, 1000, "Demand accesses per second"],
     "pread":      [5, 1000, "Prefetch accesses per second"],
@@ -96,6 +102,16 @@ cols = {
     "l2read":     [6, 1000, "Total L2ARC accesses per second"],
     "l2hit%":     [6, 100, "L2ARC access hit percentage"],
     "l2miss%":    [7, 100, "L2ARC access miss percentage"],
+    "l2pref":     [6, 1024, "L2ARC prefetch allocated size"],
+    "l2mfu":      [5, 1024, "L2ARC MFU allocated size"],
+    "l2mru":      [5, 1024, "L2ARC MRU allocated size"],
+    "l2data":     [6, 1024, "L2ARC data allocated size"],
+    "l2meta":     [6, 1024, "L2ARC metadata allocated size"],
+    "l2pref%":    [7, 100, "L2ARC prefetch percentage"],
+    "l2mfu%":     [6, 100, "L2ARC MFU percentage"],
+    "l2mru%":     [6, 100, "L2ARC MRU percentage"],
+    "l2data%":    [7, 100, "L2ARC data percentage"],
+    "l2meta%":    [7, 100, "L2ARC metadata percentage"],
     "l2asize":    [7, 1024, "Actual (compressed) size of the L2ARC"],
     "l2size":     [6, 1024, "Size of the L2ARC"],
     "l2bytes":    [7, 1024, "Bytes read per second from the L2ARC"],
@@ -103,6 +119,7 @@ cols = {
     "need":       [4, 1024, "ARC reclaim need"],
     "free":       [4, 1024, "ARC free memory"],
     "avail":      [5, 1024, "ARC available memory"],
+    "waste":      [5, 1024, "Wasted memory due to round up to pagesize"],
 }
 
 v = {}
@@ -117,12 +134,13 @@ opfile = None
 sep = "  "              # Default separator is 2 spaces
 version = "0.4"
 l2exist = False
-cmd = ("Usage: arcstat [-hvx] [-f fields] [-o file] [-s string] [interval "
+cmd = ("Usage: arcstat [-havxp] [-f fields] [-o file] [-s string] [interval "
        "[count]]\n")
 cur = {}
 d = {}
 out = None
 kstat = None
+pretty_print = True
 
 
 if sys.platform.startswith('freebsd'):
@@ -180,6 +198,7 @@ def detailed_usage():
 def usage():
     sys.stderr.write("%s\n" % cmd)
     sys.stderr.write("\t -h : Print this help message\n")
+    sys.stderr.write("\t -a : Print all possible stats\n")
     sys.stderr.write("\t -v : List all possible field headers and definitions"
                      "\n")
     sys.stderr.write("\t -x : Print extended stats\n")
@@ -187,6 +206,7 @@ def usage():
     sys.stderr.write("\t -o : Redirect output to the specified file\n")
     sys.stderr.write("\t -s : Override default field separator with custom "
                      "character or string\n")
+    sys.stderr.write("\t -p : Disable auto-scaling of numerical fields\n")
     sys.stderr.write("\nExamples:\n")
     sys.stderr.write("\tarcstat -o /tmp/a.log 2 10\n")
     sys.stderr.write("\tarcstat -s \",\" -o /tmp/a.log 2 10\n")
@@ -245,10 +265,14 @@ def print_values():
     global hdr
     global sep
     global v
+    global pretty_print
 
-    sys.stdout.write(sep.join(
-      prettynum(cols[col][0], cols[col][1], v[col]) for col in hdr))
+    if pretty_print:
+        fmt = lambda col: prettynum(cols[col][0], cols[col][1], v[col])
+    else:
+        fmt = lambda col: v[col]
 
+    sys.stdout.write(sep.join(fmt(col) for col in hdr))
     sys.stdout.write("\n")
     sys.stdout.flush()
 
@@ -256,9 +280,14 @@ def print_values():
 def print_header():
     global hdr
     global sep
+    global pretty_print
 
-    sys.stdout.write(sep.join("%*s" % (cols[col][0], col) for col in hdr))
+    if pretty_print:
+        fmt = lambda col: "%*s" % (cols[col][0], col)
+    else:
+        fmt = lambda col: col
 
+    sys.stdout.write(sep.join(fmt(col) for col in hdr))
     sys.stdout.write("\n")
 
 
@@ -295,8 +324,10 @@ def init():
     global sep
     global out
     global l2exist
+    global pretty_print
 
     desired_cols = None
+    aflag = False
     xflag = False
     hflag = False
     vflag = False
@@ -305,14 +336,16 @@ def init():
     try:
         opts, args = getopt.getopt(
             sys.argv[1:],
-            "xo:hvs:f:",
+            "axo:hvs:f:p",
             [
+                "all",
                 "extended",
                 "outfile",
                 "help",
                 "verbose",
                 "separator",
-                "columns"
+                "columns",
+                "parsable"
             ]
         )
     except getopt.error as msg:
@@ -321,6 +354,8 @@ def init():
         opts = None
 
     for opt, arg in opts:
+        if opt in ('-a', '--all'):
+            aflag = True
         if opt in ('-x', '--extended'):
             xflag = True
         if opt in ('-o', '--outfile'):
@@ -336,6 +371,8 @@ def init():
         if opt in ('-f', '--columns'):
             desired_cols = arg
             i += 1
+        if opt in ('-p', '--parsable'):
+            pretty_print = False
         i += 1
 
     argv = sys.argv[i:]
@@ -379,6 +416,12 @@ def init():
             sys.stderr.write("Incompatible field specified! -- %s\n" %
                              incompat)
             usage()
+
+    if aflag:
+        if l2exist:
+            hdr = cols.keys()
+        else:
+            hdr = [col for col in cols.keys() if not col.startswith("l2")]
 
     if opfile:
         try:
@@ -435,6 +478,12 @@ def calculate():
     v["mrug"] = d["mru_ghost_hits"] / sint
     v["mfug"] = d["mfu_ghost_hits"] / sint
     v["eskip"] = d["evict_skip"] / sint
+    v["el2skip"] = d["evict_l2_skip"] / sint
+    v["el2cach"] = d["evict_l2_cached"] / sint
+    v["el2el"] = d["evict_l2_eligible"] / sint
+    v["el2mfu"] = d["evict_l2_eligible_mfu"] / sint
+    v["el2mru"] = d["evict_l2_eligible_mru"] / sint
+    v["el2inel"] = d["evict_l2_ineligible"] / sint
     v["mtxmis"] = d["mutex_miss"] / sint
 
     if l2exist:
@@ -448,10 +497,22 @@ def calculate():
         v["l2size"] = cur["l2_size"]
         v["l2bytes"] = d["l2_read_bytes"] / sint
 
+        v["l2pref"] = cur["l2_prefetch_asize"]
+        v["l2mfu"] = cur["l2_mfu_asize"]
+        v["l2mru"] = cur["l2_mru_asize"]
+        v["l2data"] = cur["l2_bufc_data_asize"]
+        v["l2meta"] = cur["l2_bufc_metadata_asize"]
+        v["l2pref%"] = 100 * v["l2pref"] / v["l2asize"]
+        v["l2mfu%"] = 100 * v["l2mfu"] / v["l2asize"]
+        v["l2mru%"] = 100 * v["l2mru"] / v["l2asize"]
+        v["l2data%"] = 100 * v["l2data"] / v["l2asize"]
+        v["l2meta%"] = 100 * v["l2meta"] / v["l2asize"]
+
     v["grow"] = 0 if cur["arc_no_grow"] else 1
     v["need"] = cur["arc_need_free"]
     v["free"] = cur["memory_free_bytes"]
     v["avail"] = cur["memory_available_bytes"]
+    v["waste"] = cur["abd_chunk_waste_size"]
 
 
 def main():

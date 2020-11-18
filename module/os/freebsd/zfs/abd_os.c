@@ -131,16 +131,17 @@ abd_update_scatter_stats(abd_t *abd, abd_stats_op_t op)
 {
 	size_t n = abd_scatter_chunkcnt(abd);
 	ASSERT(op == ABDSTAT_INCR || op == ABDSTAT_DECR);
+	int waste = n * zfs_abd_chunk_size - abd->abd_size;
 	if (op == ABDSTAT_INCR) {
 		ABDSTAT_BUMP(abdstat_scatter_cnt);
 		ABDSTAT_INCR(abdstat_scatter_data_size, abd->abd_size);
-		ABDSTAT_INCR(abdstat_scatter_chunk_waste,
-		    n * zfs_abd_chunk_size - abd->abd_size);
+		ABDSTAT_INCR(abdstat_scatter_chunk_waste, waste);
+		arc_space_consume(waste, ARC_SPACE_ABD_CHUNK_WASTE);
 	} else {
 		ABDSTAT_BUMPDOWN(abdstat_scatter_cnt);
 		ABDSTAT_INCR(abdstat_scatter_data_size, -(int)abd->abd_size);
-		ABDSTAT_INCR(abdstat_scatter_chunk_waste,
-		    abd->abd_size - n * zfs_abd_chunk_size);
+		ABDSTAT_INCR(abdstat_scatter_chunk_waste, -waste);
+		arc_space_return(waste, ARC_SPACE_ABD_CHUNK_WASTE);
 	}
 }
 
@@ -275,7 +276,7 @@ void
 abd_init(void)
 {
 	abd_chunk_cache = kmem_cache_create("abd_chunk", zfs_abd_chunk_size, 0,
-	    NULL, NULL, NULL, NULL, 0, KMC_NOTOUCH | KMC_NODEBUG);
+	    NULL, NULL, NULL, NULL, 0, KMC_NODEBUG);
 
 	abd_ksp = kstat_create("zfs", 0, "abdstats", "misc", KSTAT_TYPE_NAMED,
 	    sizeof (abd_stats) / sizeof (kstat_named_t), KSTAT_FLAG_VIRTUAL);

@@ -282,7 +282,6 @@ AC_DEFUN([ZFS_AC_RPM], [
 	AS_IF([test -n "$udevruledir" ], [
 		RPM_DEFINE_UTIL=${RPM_DEFINE_UTIL}' --define "_udevruledir $(udevruledir)"'
 	])
-	RPM_DEFINE_UTIL=${RPM_DEFINE_UTIL}' $(DEFINE_INITRAMFS)'
 	RPM_DEFINE_UTIL=${RPM_DEFINE_UTIL}' $(DEFINE_SYSTEMD)'
 	RPM_DEFINE_UTIL=${RPM_DEFINE_UTIL}' $(DEFINE_PYZFS)'
 	RPM_DEFINE_UTIL=${RPM_DEFINE_UTIL}' $(DEFINE_PAM)'
@@ -418,33 +417,43 @@ dnl # package type for 'make pkg': (rpm | deb | tgz)
 dnl #
 AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 	AC_MSG_CHECKING([os distribution])
-	if test -f /etc/toss-release ; then
-		VENDOR=toss ;
-	elif test -f /etc/fedora-release ; then
-		VENDOR=fedora ;
-	elif test -f /etc/redhat-release ; then
-		VENDOR=redhat ;
-	elif test -f /etc/gentoo-release ; then
-		VENDOR=gentoo ;
-	elif test -f /etc/arch-release ; then
-		VENDOR=arch ;
-	elif test -f /etc/SuSE-release ; then
-		VENDOR=sles ;
-	elif test -f /etc/slackware-version ; then
-		VENDOR=slackware ;
-	elif test -f /etc/lunar.release ; then
-		VENDOR=lunar ;
-	elif test -f /etc/lsb-release ; then
-		VENDOR=ubuntu ;
-	elif test -f /etc/debian_version ; then
-		VENDOR=debian ;
-	elif test -f /etc/alpine-release ; then
-		VENDOR=alpine ;
-	elif test -f /bin/freebsd-version ; then
-		VENDOR=freebsd ;
-	else
-		VENDOR= ;
-	fi
+	AC_ARG_WITH([vendor],
+		[AS_HELP_STRING([--with-vendor],
+			[Distribution vendor @<:@default=check@:>@])],
+		[with_vendor=$withval],
+		[with_vendor=check])
+	AS_IF([test "x$with_vendor" = "xcheck"],[
+		if test -f /etc/toss-release ; then
+			VENDOR=toss ;
+		elif test -f /etc/fedora-release ; then
+			VENDOR=fedora ;
+		elif test -f /etc/redhat-release ; then
+			VENDOR=redhat ;
+		elif test -f /etc/gentoo-release ; then
+			VENDOR=gentoo ;
+		elif test -f /etc/arch-release ; then
+			VENDOR=arch ;
+		elif test -f /etc/SuSE-release ; then
+			VENDOR=sles ;
+		elif test -f /etc/slackware-version ; then
+			VENDOR=slackware ;
+		elif test -f /etc/lunar.release ; then
+			VENDOR=lunar ;
+		elif test -f /etc/lsb-release ; then
+			VENDOR=ubuntu ;
+		elif test -f /etc/debian_version ; then
+			VENDOR=debian ;
+		elif test -f /etc/alpine-release ; then
+			VENDOR=alpine ;
+		elif test -f /bin/freebsd-version ; then
+			VENDOR=freebsd ;
+		else
+			VENDOR= ;
+		fi],
+		[ test "x${with_vendor}" != x],[
+			VENDOR="$with_vendor" ],
+		[ VENDOR= ; ]
+	)
 	AC_MSG_RESULT([$VENDOR])
 	AC_SUBST(VENDOR)
 
@@ -532,13 +541,13 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 
 	AC_MSG_CHECKING([whether initramfs-tools is available])
 	if test -d /usr/share/initramfs-tools ; then
-		DEFINE_INITRAMFS='--define "_initramfs 1"'
+		RPM_DEFINE_INITRAMFS='--define "_initramfs 1"'
 		AC_MSG_RESULT([yes])
 	else
-		DEFINE_INITRAMFS=''
+		RPM_DEFINE_INITRAMFS=''
 		AC_MSG_RESULT([no])
 	fi
-	AC_SUBST(DEFINE_INITRAMFS)
+	AC_SUBST(RPM_DEFINE_INITRAMFS)
 ])
 
 dnl #

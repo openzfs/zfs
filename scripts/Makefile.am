@@ -36,6 +36,7 @@ export ZPOOL_SCRIPT_DIR=$$CMD_DIR/zpool/zpool.d
 export ZPOOL_SCRIPTS_PATH=$$CMD_DIR/zpool/zpool.d
 export CONTRIB_DIR=@abs_top_builddir@/contrib
 export LIB_DIR=@abs_top_builddir@/lib
+export SYSCONF_DIR=@abs_top_builddir@/etc
 
 export INSTALL_UDEV_DIR=@udevdir@
 export INSTALL_UDEV_RULE_DIR=@udevruledir@
@@ -52,6 +53,7 @@ export KMOD_ZLUA=@abs_top_builddir@/module/lua/zlua.ko
 export KMOD_ICP=@abs_top_builddir@/module/icp/icp.ko
 export KMOD_ZFS=@abs_top_builddir@/module/zfs/zfs.ko
 export KMOD_FREEBSD=@abs_top_builddir@/module/openzfs.ko
+export KMOD_ZZSTD=@abs_top_builddir@/module/zstd/zzstd.ko
 endef
 
 export EXTRA_ENVIRONMENT

@@ -167,9 +167,7 @@ aggsum_add(aggsum_t *as, int64_t delta)
 	struct aggsum_bucket *asb;
 	int64_t borrow;
 
-	kpreempt_disable();
-	asb = &as->as_buckets[CPU_SEQID % as->as_numbuckets];
-	kpreempt_enable();
+	asb = &as->as_buckets[CPU_SEQID_UNSTABLE % as->as_numbuckets];
 
 	/* Try fast path if we already borrowed enough before. */
 	mutex_enter(&asb->asc_lock);

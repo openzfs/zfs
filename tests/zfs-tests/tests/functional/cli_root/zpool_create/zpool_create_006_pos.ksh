@@ -97,6 +97,20 @@ set -A valid_args \
 	"raidz2 $vdev0 $vdev1 $vdev2 spare $vdev3 raidz2 $vdev4 $vdev5 $vdev6" \
 	"raidz3 $vdev0 $vdev1 $vdev2 $vdev3 \
 		mirror $vdev4 $vdev5 $vdev6 $vdev7" \
+	"draid $vdev0 $vdev1 $vdev2 mirror $vdev3 $vdev4" \
+	"draid $vdev0 $vdev1 $vdev2 raidz1 $vdev3 $vdev4 $vdev5" \
+	"draid $vdev0 $vdev1 $vdev2 draid1 $vdev3 $vdev4 $vdev5" \
+	"draid $vdev0 $vdev1 $vdev2 special mirror $vdev3 $vdev4" \
+	"draid2 $vdev0 $vdev1 $vdev2 $vdev3 mirror $vdev4 $vdev5 $vdev6" \
+	"draid2 $vdev0 $vdev1 $vdev2 $vdev3 raidz2 $vdev4 $vdev5 $vdev6" \
+	"draid2 $vdev0 $vdev1 $vdev2 $vdev3 draid2 $vdev4 $vdev5 $vdev6 $vdev7"\
+	"draid2 $vdev0 $vdev1 $vdev2 $vdev3 \
+		special mirror $vdev4 $vdev5 $vdev6" \
+	"draid2 $vdev0 $vdev1 $vdev2 $vdev3 \
+		special mirror $vdev4 $vdev5 $vdev6 \
+		cache $vdev7 log mirror $vdev8 $vdev9" \
+	"draid $vdev0 $vdev1 $vdev2 draid $vdev4 $vdev5 $vdev6 $vdev7 \
+		special mirror $vdev8 $vdev9" \
 	"spare $vdev0 $vdev1 $vdev2 mirror $vdev3 $vdev4 raidz $vdev5 $vdev6"
 
 set -A forced_args \
@@ -109,11 +123,19 @@ set -A forced_args \
 	"raidz $vdev0 $vdev1 raidz2 $vdev2 $vdev3 $vdev4" \
 	"raidz $vdev0 $vdev1 raidz2 $vdev2 $vdev3 $vdev4 spare $vdev5" \
 	"raidz $vdev0 $vdev1 spare $vdev2 raidz2 $vdev3 $vdev4 $vdev5" \
+	"raidz $vdev0 $vdev1 draid2 $vdev2 $vdev3 $vdev4 $vdev5" \
+	"raidz $vdev0 $vdev1 draid3 $vdev2 $vdev3 $vdev4 $vdev5 $vdev6" \
 	"mirror $vdev0 $vdev1 raidz $vdev2 $vdev3 raidz2 $vdev4 $vdev5 $vdev6" \
 	"mirror $vdev0 $vdev1 raidz $vdev2 $vdev3 \
 		raidz2 $vdev4 $vdev5 $vdev6 spare $vdev7" \
 	"mirror $vdev0 $vdev1 raidz $vdev2 $vdev3 \
 		spare $vdev4 raidz2 $vdev5 $vdev6 $vdev7" \
+	"mirror $vdev0 $vdev1 draid $vdev2 $vdev3 $vdev4 \
+		draid2 $vdev5 $vdev6 $vdev7 $vdev8 spare $vdev9" \
+	"draid $vdev0 $vdev1 $vdev2 $vdev3 \
+		draid2 $vdev4 $vdev5 $vdev6 $vdev7 $vdev8" \
+	"draid $vdev0 $vdev1 $vdev2 draid $vdev4 $vdev5 $vdev6 \
+		special mirror $vdev7 $vdev8 $vdev9" \
 	"spare $vdev0 $vdev1 $vdev2 mirror $vdev3 $vdev4 \
 		raidz2 $vdev5 $vdev6 $vdev7"
 

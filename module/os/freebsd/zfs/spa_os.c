@@ -185,7 +185,7 @@ spa_generate_rootconf(const char *name)
 }
 
 int
-spa_import_rootpool(const char *name)
+spa_import_rootpool(const char *name, bool checkpointrewind)
 {
 	spa_t *spa;
 	vdev_t *rvd;
@@ -244,6 +244,9 @@ spa_import_rootpool(const char *name)
 	}
 	spa->spa_is_root = B_TRUE;
 	spa->spa_import_flags = ZFS_IMPORT_VERBATIM;
+	if (checkpointrewind) {
+		spa->spa_import_flags |= ZFS_IMPORT_CHECKPOINT;
+	}
 
 	/*
 	 * Build up a vdev tree based on the boot device's label config.

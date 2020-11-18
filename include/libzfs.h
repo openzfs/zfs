@@ -88,8 +88,8 @@ typedef enum zfs_error {
 	EZFS_ZONED,		/* used improperly in local zone */
 	EZFS_MOUNTFAILED,	/* failed to mount dataset */
 	EZFS_UMOUNTFAILED,	/* failed to unmount dataset */
-	EZFS_UNSHARENFSFAILED,	/* unshare(1M) failed */
-	EZFS_SHARENFSFAILED,	/* share(1M) failed */
+	EZFS_UNSHARENFSFAILED,	/* failed to unshare over nfs */
+	EZFS_SHARENFSFAILED,	/* failed to share over nfs */
 	EZFS_PERM,		/* permission denied */
 	EZFS_NOSPC,		/* out of space */
 	EZFS_FAULT,		/* bad address */
@@ -390,6 +390,7 @@ typedef enum {
 	ZPOOL_STATUS_REMOVED_DEV,	/* removed device */
 	ZPOOL_STATUS_REBUILDING,	/* device being rebuilt */
 	ZPOOL_STATUS_REBUILD_SCRUB,	/* recommend scrubbing the pool */
+	ZPOOL_STATUS_NON_NATIVE_ASHIFT,	/* (e.g. 512e dev with ashift of 9) */
 
 	/*
 	 * Finally, the following indicates a healthy pool.
@@ -454,6 +455,7 @@ extern void zpool_explain_recover(libzfs_handle_t *, const char *, int,
     nvlist_t *);
 extern int zpool_checkpoint(zpool_handle_t *);
 extern int zpool_discard_checkpoint(zpool_handle_t *);
+extern boolean_t zpool_is_draid_spare(const char *);
 
 /*
  * Basic handle manipulations.  These functions do not create or destroy the
@@ -641,7 +643,19 @@ extern int zfs_snapshot(libzfs_handle_t *, const char *, boolean_t, nvlist_t *);
 extern int zfs_snapshot_nvl(libzfs_handle_t *hdl, nvlist_t *snaps,
     nvlist_t *props);
 extern int zfs_rollback(zfs_handle_t *, zfs_handle_t *, boolean_t);
-extern int zfs_rename(zfs_handle_t *, const char *, boolean_t, boolean_t);
+
+typedef struct renameflags {
+	/* recursive rename */
+	int recursive : 1;
+
+	/* don't unmount file systems */
+	int nounmount : 1;
+
+	/* force unmount file systems */
+	int forceunmount : 1;
+} renameflags_t;
+
+extern int zfs_rename(zfs_handle_t *, const char *, renameflags_t);
 
 typedef struct sendflags {
 	/* Amount of extra information to print. */
@@ -879,8 +893,8 @@ extern int zpool_in_use(libzfs_handle_t *, int, pool_state_t *, char **,
  * Label manipulation.
  */
 extern int zpool_clear_label(int);
-extern int zpool_set_bootenv(zpool_handle_t *, const char *);
-extern int zpool_get_bootenv(zpool_handle_t *, char *, size_t, off_t);
+extern int zpool_set_bootenv(zpool_handle_t *, const nvlist_t *);
+extern int zpool_get_bootenv(zpool_handle_t *, nvlist_t **);
 
 /*
  * Management interfaces for SMB ACL files

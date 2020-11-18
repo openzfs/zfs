@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2019 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  * Copyright 2013 Saso Kiselkov. All rights reserved.
@@ -28,6 +28,8 @@
  * Copyright 2017 Joyent, Inc.
  * Copyright (c) 2017, 2019, Datto Inc. All rights reserved.
  * Copyright (c) 2017, Intel Corporation.
+ * Copyright (c) 2019, Allan Jude
+ * Copyright (c) 2019, Klara Inc.
  */
 
 #ifndef _SYS_SPA_H
@@ -120,6 +122,7 @@ struct dsl_crypto_params;
 
 #define	SPA_COMPRESSBITS	7
 #define	SPA_VDEVBITS		24
+#define	SPA_COMPRESSMASK	((1U << SPA_COMPRESSBITS) - 1)
 
 /*
  * All SPA data is represented by 128-bit data virtual addresses (DVAs).
@@ -401,6 +404,12 @@ typedef struct blkptr {
 
 /*
  * Macros to get and set fields in a bp or DVA.
+ */
+
+/*
+ * Note, for gang blocks, DVA_GET_ASIZE() is the total space allocated for
+ * this gang DVA including its children BP's.  The space allocated at this
+ * DVA's vdev/offset is vdev_gang_header_asize(vdev).
  */
 #define	DVA_GET_ASIZE(dva)	\
 	BF64_GET_SB((dva)->dva_word[0], 0, SPA_ASIZEBITS, SPA_MINBLOCKSHIFT, 0)
@@ -733,10 +742,16 @@ typedef enum spa_mode {
  * Send TRIM commands in-line during normal pool operation while deleting.
  *	OFF: no
  *	ON: yes
+ * NB: IN_FREEBSD_BASE is defined within the FreeBSD sources.
  */
 typedef enum {
 	SPA_AUTOTRIM_OFF = 0,	/* default */
-	SPA_AUTOTRIM_ON
+	SPA_AUTOTRIM_ON,
+#ifdef IN_FREEBSD_BASE
+	SPA_AUTOTRIM_DEFAULT = SPA_AUTOTRIM_ON,
+#else
+	SPA_AUTOTRIM_DEFAULT = SPA_AUTOTRIM_OFF,
+#endif
 } spa_autotrim_t;
 
 /*
@@ -759,12 +774,12 @@ extern int spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 extern int spa_import(char *pool, nvlist_t *config, nvlist_t *props,
     uint64_t flags);
 extern nvlist_t *spa_tryimport(nvlist_t *tryconfig);
-extern int spa_destroy(char *pool);
+extern int spa_destroy(const char *pool);
 extern int spa_checkpoint(const char *pool);
 extern int spa_checkpoint_discard(const char *pool);
-extern int spa_export(char *pool, nvlist_t **oldconfig, boolean_t force,
+extern int spa_export(const char *pool, nvlist_t **oldconfig, boolean_t force,
     boolean_t hardforce);
-extern int spa_reset(char *pool);
+extern int spa_reset(const char *pool);
 extern void spa_async_request(spa_t *spa, int flag);
 extern void spa_async_unrequest(spa_t *spa, int flag);
 extern void spa_async_suspend(spa_t *spa);
@@ -1136,10 +1151,10 @@ extern const char *spa_state_to_name(spa_t *spa);
 struct zbookmark_phys;
 extern void spa_log_error(spa_t *spa, const zbookmark_phys_t *zb);
 extern int zfs_ereport_post(const char *clazz, spa_t *spa, vdev_t *vd,
-    const zbookmark_phys_t *zb, zio_t *zio, uint64_t stateoroffset,
-    uint64_t length);
+    const zbookmark_phys_t *zb, zio_t *zio, uint64_t state);
 extern boolean_t zfs_ereport_is_valid(const char *clazz, spa_t *spa, vdev_t *vd,
     zio_t *zio);
+extern void zfs_ereport_taskq_fini(void);
 extern nvlist_t *zfs_event_create(spa_t *spa, vdev_t *vd, const char *type,
     const char *name, nvlist_t *aux);
 extern void zfs_post_remove(spa_t *spa, vdev_t *vd);

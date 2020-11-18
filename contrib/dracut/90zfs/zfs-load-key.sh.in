@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # only run this on systemd systems, we handle the decrypt in mount-zfs.sh in the mount hook otherwise
 [ -e /bin/systemctl ] || return 0

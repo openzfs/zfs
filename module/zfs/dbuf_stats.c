@@ -134,7 +134,8 @@ dbuf_stats_hash_table_data(char *buf, size_t size, void *data)
 
 	ASSERT3S(dsh->idx, >=, 0);
 	ASSERT3S(dsh->idx, <=, h->hash_table_mask);
-	memset(buf, 0, size);
+	if (size)
+		buf[0] = 0;
 
 	mutex_enter(DBUF_HASH_MUTEX(h, dsh->idx));
 	for (db = h->hash_table[dsh->idx]; db != NULL; db = db->db_hash_next) {

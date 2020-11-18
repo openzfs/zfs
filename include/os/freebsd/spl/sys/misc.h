@@ -30,6 +30,7 @@
 #define	_OPENSOLARIS_SYS_MISC_H_
 
 #include <sys/limits.h>
+#include <sys/filio.h>
 
 #define	MAXUID	UID_MAX
 
@@ -40,8 +41,8 @@
 #define	_FIOGDIO	(INT_MIN+1)
 #define	_FIOSDIO	(INT_MIN+2)
 
-#define	_FIO_SEEK_DATA	FIOSEEKDATA
-#define	_FIO_SEEK_HOLE	FIOSEEKHOLE
+#define	F_SEEK_DATA	FIOSEEKDATA
+#define	F_SEEK_HOLE	FIOSEEKHOLE
 
 struct opensolaris_utsname {
 	char	*sysname;
@@ -52,5 +53,8 @@ struct opensolaris_utsname {
 };
 
 extern char hw_serial[11];
+
+#define	task_io_account_read(n)
+#define	task_io_account_write(n)
 
 #endif	/* _OPENSOLARIS_SYS_MISC_H_ */

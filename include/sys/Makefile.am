@@ -1,4 +1,4 @@
-SUBDIRS = fm fs crypto lua sysevent
+SUBDIRS = fm fs crypto lua sysevent zstd
 
 COMMON_H = \
 	abd.h \
@@ -82,6 +82,7 @@ COMMON_H = \
 	vdev_disk.h \
 	vdev_file.h \
 	vdev.h \
+	vdev_draid.h \
 	vdev_impl.h \
 	vdev_indirect_births.h \
 	vdev_indirect_mapping.h \
@@ -102,6 +103,7 @@ COMMON_H = \
 	zcp_set.h \
 	zfeature.h \
 	zfs_acl.h \
+	zfs_bootenv.h \
 	zfs_context.h \
 	zfs_debug.h \
 	zfs_delay.h \
@@ -115,6 +117,8 @@ COMMON_H = \
 	zfs_sa.h \
 	zfs_stat.h \
 	zfs_sysfs.h \
+	zfs_vfsops.h \
+	zfs_vnops.h \
 	zfs_znode.h \
 	zil.h \
 	zil_impl.h \

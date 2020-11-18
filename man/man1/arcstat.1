@@ -13,13 +13,13 @@
 .\" Copyright (c) 2015 by Delphix. All rights reserved.
 .\" Copyright (c) 2020 by AJ Jordan. All rights reserved.
 .\"
-.TH ARCSTAT 1 "May 7, 2020"
+.TH ARCSTAT 1 "Oct 20, 2020" OpenZFS
 .SH NAME
 arcstat \- report ZFS ARC and L2ARC statistics
 .SH SYNOPSIS
 .LP
 .nf
-\fBarcstat\fR [\fB-hvx\fR] [\fB-f field[,field]...\fR] [\fB-o file\fR] [\fB-s string\fR] [\fBinterval\fR [\fBcount\fR]]
+\fBarcstat\fR [\fB-havxp\fR] [\fB-f field[,field]...\fR] [\fB-o file\fR] [\fB-s string\fR] [\fBinterval\fR [\fBcount\fR]]
 .fi
 
 .SH DESCRIPTION
@@ -335,6 +335,96 @@ Total L2ARC accesses per second
 .sp
 .ne 2
 .na
+\fBl2pref \fR
+.ad
+.RS 14n
+L2ARC prefetch allocated size per second
+.RE
+
+.sp
+.ne 2
+.na
+\fBl2pref% \fR
+.ad
+.RS 14n
+L2ARC prefetch allocated size percentage
+.RE
+
+.sp
+.ne 2
+.na
+\fBl2mfu \fR
+.ad
+.RS 14n
+L2ARC MFU allocated size per second
+.RE
+
+.sp
+.ne 2
+.na
+\fBl2mfu% \fR
+.ad
+.RS 14n
+L2ARC MFU allocated size percentage
+.RE
+
+.sp
+.ne 2
+.na
+\fBl2mru \fR
+.ad
+.RS 14n
+L2ARC MRU allocated size per second
+.RE
+
+.sp
+.ne 2
+.na
+\fBl2mru% \fR
+.ad
+.RS 14n
+L2ARC MRU allocated size percentage
+.RE
+
+.sp
+.ne 2
+.na
+\fBl2data \fR
+.ad
+.RS 14n
+L2ARC data (buf content) allocated size per second
+.RE
+
+.sp
+.ne 2
+.na
+\fBl2data% \fR
+.ad
+.RS 14n
+L2ARC data (buf content) allocated size percentage
+.RE
+
+.sp
+.ne 2
+.na
+\fBl2meta \fR
+.ad
+.RS 14n
+L2ARC metadata (buf content) allocated size per second
+.RE
+
+.sp
+.ne 2
+.na
+\fBl2meta% \fR
+.ad
+.RS 14n
+L2ARC metadata (buf content) allocated size percentage
+.RE
+
+.sp
+.ne 2
+.na
 \fBl2size \fR
 .ad
 .RS 14n
@@ -423,6 +513,15 @@ The following options are supported:
 .sp
 .ne 2
 .na
+\fB\fB-a\fR\fR
+.ad
+.RS 12n
+Print all possible stats.
+.RE
+
+.sp
+.ne 2
+.na
 \fB\fB-f\fR\fR
 .ad
 .RS 12n
@@ -445,6 +544,15 @@ Display help message.
 .ad
 .RS 12n
 Report statistics to a file instead of the standard output.
+.RE
+
+.sp
+.ne 2
+.na
+\fB\fB-p\fR\fR
+.ad
+.RS 12n
+Disable auto-scaling of numerical fields (for raw, machine-parsable values).
 .RE
 
 .sp

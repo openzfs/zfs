@@ -63,7 +63,7 @@ log_onexit cleanup
 
 unset NOINUSE_CHECK
 typeset opt
-for opt in "" "mirror" "raidz" "raidz1"; do
+for opt in "" "mirror" "raidz" "draid"; do
 	if [[ $opt == "" ]]; then
 		typeset disks=$DISK0
 	else

@@ -35,12 +35,8 @@
 #include <string.h>
 #include <stdlib.h>
 
-/*
- * Some old glibc headers don't define BLKGETSIZE64
- * and we don't want to require the kernel headers
- */
 #if !defined(BLKGETSIZE64)
-#define	BLKGETSIZE64		_IOR(0x12, 114, size_t)
+#define	BLKGETSIZE64		DIOCGMEDIASIZE
 #endif
 
 /*

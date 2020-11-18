@@ -29,6 +29,7 @@
 #include <sys/debug.h>
 #include <sys/kstat.h>
 #include <sys/abd.h>
+#include <sys/vdev_impl.h>
 #include <sys/abd_impl.h>
 #include <sys/zfs_rlock.h>
 
@@ -103,25 +104,6 @@ typedef struct raidz_impl_ops {
 	char name[RAIDZ_IMPL_NAME_MAX];	/* Name of the implementation */
 } raidz_impl_ops_t;
 
-#if 0
-typedef struct raidz_map {
-	uint64_t rm_cols;		/* Regular column count */
-	uint64_t rm_scols;		/* Count including skipped columns */
-	uint64_t rm_bigcols;		/* Number of oversized columns */
-	uint64_t rm_asize;		/* Actual total I/O size */
-	uint64_t rm_missingdata;	/* Count of missing data devices */
-	uint64_t rm_missingparity;	/* Count of missing parity devices */
-	uint64_t rm_firstdatacol;	/* First data column/parity count */
-	uint64_t rm_nskip;		/* Skipped sectors for padding */
-	uint64_t rm_skipstart;		/* Column index of padding start */
-	abd_t *rm_abd_copy;		/* rm_asize-buffer of copied data */
-	uintptr_t rm_reports;		/* # of referencing checksum reports */
-	uint8_t	rm_freed;		/* map no longer has referencing ZIO */
-	uint8_t	rm_ecksuminjected;	/* checksum error was injected */
-	const raidz_impl_ops_t *rm_ops;	/* RAIDZ math operations */
-	raidz_col_t rm_col[1];		/* Flexible array of I/O columns */
-} raidz_map_t;
-#endif
 
 typedef struct raidz_col {
 	uint64_t rc_devidx;		/* child device index for I/O */
@@ -135,15 +117,27 @@ typedef struct raidz_col {
 	uint8_t rc_tried;		/* Did we attempt this I/O column? */
 	uint8_t rc_skipped;		/* Did we skip this I/O column? */
 	uint8_t rc_need_orig_restore;	/* need to restore from orig_data? */
+	uint8_t rc_repair;		/* Write good data to this column */
+	uint64_t rc_shadow_devidx;	/* for double write */
+	uint64_t rc_shadow_offset;	/* for double write */
+	int rc_shadow_error;		/* for double write */
 } raidz_col_t;
 
 typedef struct raidz_row {
 	uint64_t rr_cols;		/* Regular column count */
+	uint64_t rr_scols;		/* Count including skipped columns */
+	uint64_t rr_bigcols;		/* Remainder data column count */
 	uint64_t rr_missingdata;	/* Count of missing data devices */
 	uint64_t rr_missingparity;	/* Count of missing parity devices */
 	uint64_t rr_firstdatacol;	/* First data column/parity count */
 	abd_t *rr_abd_copy;		/* rm_asize-buffer of copied data */
-	int rr_code;			/* reconstruction code */
+	abd_t *rr_abd_empty;		/* dRAID empty sector buffer */
+	int rr_nempty;			/* empty sectors included in parity */
+	int rr_code;			/* reconstruction code (unused) */
+#ifdef ZFS_DEBUG
+	uint64_t rr_offset;		/* Logical offset for *_io_verify() */
+	uint64_t rr_size;		/* Physical size for *_io_verify() */
+#endif
 	raidz_col_t rr_col[0];		/* Flexible array of I/O columns */
 } raidz_row_t;
 
@@ -152,14 +146,27 @@ typedef struct raidz_map {
 	boolean_t rm_freed;		/* map no longer has referencing ZIO */
 	boolean_t rm_ecksuminjected;	/* checksum error was injected */
 	boolean_t rm_io_aggregation;
-	int rm_nrows;
-	int rm_nskip;			/* Sectors skipped for padding */
+	int rm_nrows;			/* Regular row count */
+	int rm_nskip;			/* RAIDZ sectors skipped for padding */
+	int rm_skipstart;		/* Column index of padding start */
+	int rm_original_width;		/* pre-expansion width of raidz vdev */
 	int rm_nphys_cols;		/* Number of leaf devices */
 	zfs_locked_range_t *rm_lr;
 	const raidz_impl_ops_t *rm_ops;	/* RAIDZ math operations */
 	raidz_col_t *rm_phys_col;	/* leaf devices array */
 	raidz_row_t *rm_row[0];		/* flexible array of rows */
 } raidz_map_t;
+
+/*
+ * Nodes in vdev_raidz_t:vd_expand_txgs.
+ * Blocks with physical birth time of re_txg or later have the specified
+ * logical width (until the next node).
+ */
+typedef struct reflow_node {
+	uint64_t re_txg;
+	uint64_t re_logical_width;
+	avl_node_t re_link;
+} reflow_node_t;
 
 
 #define	RAIDZ_ORIGINAL_IMPL	(INT_MAX)

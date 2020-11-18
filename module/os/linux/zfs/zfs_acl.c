@@ -1153,7 +1153,7 @@ zfs_acl_chown_setattr(znode_t *zp)
 	int error;
 	zfs_acl_t *aclp;
 
-	if (ZTOZSB(zp)->z_acl_type == ZFS_ACLTYPE_POSIXACL)
+	if (ZTOZSB(zp)->z_acl_type == ZFS_ACLTYPE_POSIX)
 		return (0);
 
 	ASSERT(MUTEX_HELD(&zp->z_lock));
@@ -1765,6 +1765,10 @@ zfs_acl_inherit(zfsvfs_t *zfsvfs, umode_t va_mode, zfs_acl_t *paclp,
 			aclp->z_ops->ace_flags_set(acep,
 			    newflags|ACE_INHERITED_ACE);
 		}
+	}
+	if (zfsvfs->z_acl_mode == ZFS_ACL_RESTRICTED &&
+	    aclp->z_acl_count != 0) {
+		*need_chmod = B_FALSE;
 	}
 
 	return (aclp);
@@ -2662,7 +2666,7 @@ zfs_zaccess(znode_t *zp, int mode, int flags, boolean_t skipaclchk, cred_t *cr)
 
 /*
  * Translate traditional unix S_IRUSR/S_IWUSR/S_IXUSR mode into
- * native ACL format and call zfs_zaccess()
+ * NFSv4-style ZFS ACL format and call zfs_zaccess()
  */
 int
 zfs_zaccess_rwx(znode_t *zp, mode_t mode, int flags, cred_t *cr)

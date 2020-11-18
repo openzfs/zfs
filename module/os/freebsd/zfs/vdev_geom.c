@@ -802,7 +802,7 @@ vdev_geom_open_by_path(vdev_t *vd, int check_guid)
 
 static int
 vdev_geom_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
-    uint64_t *logical_ashift)
+    uint64_t *logical_ashift, uint64_t *physical_ashift)
 {
 	struct g_provider *pp;
 	struct g_consumer *cp;
@@ -949,11 +949,12 @@ skip_open:
 	 * transfer size.
 	 */
 	*logical_ashift = highbit(MAX(pp->sectorsize, SPA_MINBLOCKSIZE)) - 1;
-#ifdef notyet
-	if (pp->stripesize > (1 << *logical_ashift) && ISP2(pp->stripesize) &&
-	    pp->stripesize <= (1 << ASHIFT_MAX) && pp->stripeoffset == 0)
+	*physical_ashift = 0;
+	if (pp->stripesize && pp->stripesize > (1 << *logical_ashift) &&
+	    ISP2(pp->stripesize) && pp->stripesize <= (1 << ASHIFT_MAX) &&
+	    pp->stripeoffset == 0)
 		*physical_ashift = highbit(pp->stripesize) - 1;
-#endif
+
 	/*
 	 * Clear the nowritecache settings, so that on a vdev_reopen()
 	 * we will try again.
@@ -1140,7 +1141,6 @@ sendreq:
 		break;
 	case ZIO_TYPE_IOCTL:
 		bp->bio_cmd = BIO_FLUSH;
-		bp->bio_flags |= BIO_ORDERED;
 		bp->bio_data = NULL;
 		bp->bio_offset = cp->provider->mediasize;
 		bp->bio_length = 0;
@@ -1189,17 +1189,26 @@ vdev_geom_rele(vdev_t *vd)
 }
 
 vdev_ops_t vdev_disk_ops = {
-	vdev_geom_open,
-	vdev_geom_close,
-	vdev_default_asize,
-	vdev_geom_io_start,
-	vdev_geom_io_done,
-	NULL,
-	NULL,
-	vdev_geom_hold,
-	vdev_geom_rele,
-	NULL,
-	vdev_default_xlate,
-	VDEV_TYPE_DISK,		/* name of this vdev type */
-	B_TRUE			/* leaf vdev */
+	.vdev_op_init = NULL,
+	.vdev_op_fini = NULL,
+	.vdev_op_open = vdev_geom_open,
+	.vdev_op_close = vdev_geom_close,
+	.vdev_op_asize = vdev_default_asize,
+	.vdev_op_min_asize = vdev_default_min_asize,
+	.vdev_op_min_alloc = NULL,
+	.vdev_op_io_start = vdev_geom_io_start,
+	.vdev_op_io_done = vdev_geom_io_done,
+	.vdev_op_state_change = NULL,
+	.vdev_op_need_resilver = NULL,
+	.vdev_op_hold = vdev_geom_hold,
+	.vdev_op_rele = vdev_geom_rele,
+	.vdev_op_remap = NULL,
+	.vdev_op_xlate = vdev_default_xlate,
+	.vdev_op_rebuild_asize = NULL,
+	.vdev_op_metaslab_init = NULL,
+	.vdev_op_config_generate = NULL,
+	.vdev_op_nparity = NULL,
+	.vdev_op_ndisks = NULL,
+	.vdev_op_type = VDEV_TYPE_DISK,		/* name of this vdev type */
+	.vdev_op_leaf = B_TRUE			/* leaf vdev */
 };

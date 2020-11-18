@@ -8,11 +8,11 @@ After=cryptsetup.target
 After=multipathd.target
 Before=zfs-import.target
 ConditionPathExists=!@sysconfdir@/zfs/zpool.cache
+ConditionPathIsDirectory=/sys/module/zfs
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecCondition=/usr/bin/grep -q "^zfs " /proc/modules
 ExecStart=@sbindir@/zpool import -aN -o cachefile=none
 
 [Install]

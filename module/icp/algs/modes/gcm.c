@@ -59,10 +59,12 @@ boolean_t gcm_avx_can_use_movbe = B_FALSE;
 static boolean_t gcm_use_avx = B_FALSE;
 #define	GCM_IMPL_USE_AVX	(*(volatile boolean_t *)&gcm_use_avx)
 
+extern boolean_t atomic_toggle_boolean_nv(volatile boolean_t *);
+
 static inline boolean_t gcm_avx_will_work(void);
 static inline void gcm_set_avx(boolean_t);
 static inline boolean_t gcm_toggle_avx(void);
-extern boolean_t atomic_toggle_boolean_nv(volatile boolean_t *);
+static inline size_t gcm_simd_get_htab_size(boolean_t);
 
 static int gcm_mode_encrypt_contiguous_blocks_avx(gcm_ctx_t *, char *, size_t,
     crypto_data_t *, size_t);
@@ -629,6 +631,21 @@ gcm_init_ctx(gcm_ctx_t *gcm_ctx, char *param, size_t block_size,
 			    (volatile boolean_t *)&gcm_avx_can_use_movbe);
 		}
 	}
+	/* Allocate Htab memory as needed. */
+	if (gcm_ctx->gcm_use_avx == B_TRUE) {
+		size_t htab_len = gcm_simd_get_htab_size(gcm_ctx->gcm_use_avx);
+
+		if (htab_len == 0) {
+			return (CRYPTO_MECHANISM_PARAM_INVALID);
+		}
+		gcm_ctx->gcm_htab_len = htab_len;
+		gcm_ctx->gcm_Htable =
+		    (uint64_t *)kmem_alloc(htab_len, gcm_ctx->gcm_kmflag);
+
+		if (gcm_ctx->gcm_Htable == NULL) {
+			return (CRYPTO_HOST_MEMORY);
+		}
+	}
 	/* Avx and non avx context initialization differs from here on. */
 	if (gcm_ctx->gcm_use_avx == B_FALSE) {
 #endif /* ifdef CAN_USE_GCM_ASM */
@@ -689,6 +706,22 @@ gmac_init_ctx(gcm_ctx_t *gcm_ctx, char *param, size_t block_size,
 	if (ks->ops->needs_byteswap == B_TRUE) {
 		gcm_ctx->gcm_use_avx = B_FALSE;
 	}
+	/* Allocate Htab memory as needed. */
+	if (gcm_ctx->gcm_use_avx == B_TRUE) {
+		size_t htab_len = gcm_simd_get_htab_size(gcm_ctx->gcm_use_avx);
+
+		if (htab_len == 0) {
+			return (CRYPTO_MECHANISM_PARAM_INVALID);
+		}
+		gcm_ctx->gcm_htab_len = htab_len;
+		gcm_ctx->gcm_Htable =
+		    (uint64_t *)kmem_alloc(htab_len, gcm_ctx->gcm_kmflag);
+
+		if (gcm_ctx->gcm_Htable == NULL) {
+			return (CRYPTO_HOST_MEMORY);
+		}
+	}
+
 	/* Avx and non avx context initialization differs from here on. */
 	if (gcm_ctx->gcm_use_avx == B_FALSE) {
 #endif	/* ifdef CAN_USE_GCM_ASM */
@@ -1018,7 +1051,7 @@ MODULE_PARM_DESC(icp_gcm_impl, "Select gcm implementation.");
 /* Clear the FPU registers since they hold sensitive internal state. */
 #define	clear_fpu_regs() clear_fpu_regs_avx()
 #define	GHASH_AVX(ctx, in, len) \
-    gcm_ghash_avx((ctx)->gcm_ghash, (const uint64_t (*)[2])(ctx)->gcm_Htable, \
+    gcm_ghash_avx((ctx)->gcm_ghash, (const uint64_t *)(ctx)->gcm_Htable, \
     in, len)
 
 #define	gcm_incr_counter_block(ctx) gcm_incr_counter_block_by(ctx, 1)
@@ -1036,8 +1069,8 @@ extern void gcm_xor_avx(const uint8_t *src, uint8_t *dst);
 extern void aes_encrypt_intel(const uint32_t rk[], int nr,
     const uint32_t pt[4], uint32_t ct[4]);
 
-extern void gcm_init_htab_avx(uint64_t Htable[16][2], const uint64_t H[2]);
-extern void gcm_ghash_avx(uint64_t ghash[2], const uint64_t Htable[16][2],
+extern void gcm_init_htab_avx(uint64_t *Htable, const uint64_t H[2]);
+extern void gcm_ghash_avx(uint64_t ghash[2], const uint64_t *Htable,
     const uint8_t *in, size_t len);
 
 extern size_t aesni_gcm_encrypt(const uint8_t *, uint8_t *, size_t,
@@ -1073,6 +1106,18 @@ gcm_toggle_avx(void)
 	}
 }
 
+static inline size_t
+gcm_simd_get_htab_size(boolean_t simd_mode)
+{
+	switch (simd_mode) {
+	case B_TRUE:
+		return (2 * 6 * 2 * sizeof (uint64_t));
+
+	default:
+		return (0);
+	}
+}
+
 /*
  * Clear sensitive data in the context.
  *
@@ -1088,7 +1133,6 @@ gcm_clear_ctx(gcm_ctx_t *ctx)
 {
 	bzero(ctx->gcm_remainder, sizeof (ctx->gcm_remainder));
 	bzero(ctx->gcm_H, sizeof (ctx->gcm_H));
-	bzero(ctx->gcm_Htable, sizeof (ctx->gcm_Htable));
 	bzero(ctx->gcm_J0, sizeof (ctx->gcm_J0));
 	bzero(ctx->gcm_tmp, sizeof (ctx->gcm_tmp));
 }

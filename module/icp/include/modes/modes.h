@@ -219,14 +219,14 @@ typedef struct gcm_ctx {
 	size_t gcm_pt_buf_len;
 	uint32_t gcm_tmp[4];
 	/*
-	 * The relative positions of gcm_ghash, gcm_H and pre-computed
-	 * gcm_Htable are hard coded in aesni-gcm-x86_64.S and ghash-x86_64.S,
-	 * so please don't change (or adjust accordingly).
+	 * The offset of gcm_Htable relative to gcm_ghash, (32), is hard coded
+	 * in aesni-gcm-x86_64.S, so please don't change (or adjust there).
 	 */
 	uint64_t gcm_ghash[2];
 	uint64_t gcm_H[2];
 #ifdef CAN_USE_GCM_ASM
-	uint64_t gcm_Htable[12][2];
+	uint64_t *gcm_Htable;
+	size_t gcm_htab_len;
 #endif
 	uint64_t gcm_J0[2];
 	uint64_t gcm_len_a_len_c[2];

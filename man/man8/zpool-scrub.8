@@ -29,12 +29,12 @@
 .\"
 .Dd August 9, 2019
 .Dt ZPOOL-SCRUB 8
-.Os Linux
+.Os
 .Sh NAME
-.Nm zpool Ns Pf - Cm scrub
+.Nm zpool-scrub
 .Nd Begin a scrub or resume a paused scrub of a ZFS storage pool
 .Sh SYNOPSIS
-.Nm
+.Nm zpool
 .Cm scrub
 .Op Fl s | Fl p
 .Op Fl w
@@ -42,7 +42,7 @@
 .Sh DESCRIPTION
 .Bl -tag -width Ds
 .It Xo
-.Nm
+.Nm zpool
 .Cm scrub
 .Op Fl s | Fl p
 .Op Fl w
@@ -52,7 +52,7 @@ Begins a scrub or resumes a paused scrub.
 The scrub examines all data in the specified pools to verify that it checksums
 correctly.
 For replicated
-.Pq mirror or raidz
+.Pq mirror, raidz, or draid
 devices, ZFS automatically repairs any damage discovered during the scrub.
 The
 .Nm zpool Cm status

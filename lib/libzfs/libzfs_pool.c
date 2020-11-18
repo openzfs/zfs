@@ -42,10 +42,10 @@
 #include <sys/efi_partition.h>
 #include <sys/systeminfo.h>
 #include <sys/zfs_ioctl.h>
+#include <sys/zfs_sysfs.h>
 #include <sys/vdev_disk.h>
 #include <dlfcn.h>
 #include <libzutil.h>
-
 #include "zfs_namecheck.h"
 #include "zfs_prop.h"
 #include "libzfs_impl.h"
@@ -445,17 +445,6 @@ bootfs_name_valid(const char *pool, const char *bootfs)
 	return (B_FALSE);
 }
 
-static boolean_t
-zpool_is_bootable(zpool_handle_t *zhp)
-{
-	char bootfs[ZFS_MAX_DATASET_NAME_LEN];
-
-	return (zpool_get_prop(zhp, ZPOOL_PROP_BOOTFS, bootfs,
-	    sizeof (bootfs), NULL, B_FALSE) == 0 && strncmp(bootfs, "-",
-	    sizeof (bootfs)) != 0);
-}
-
-
 /*
  * Given an nvlist of zpool properties to be set, validate that they are
  * correct, and parse any numeric properties (index, boolean, etc) if they are
@@ -492,7 +481,8 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 			if (err != 0) {
 				ASSERT3U(err, ==, ENOENT);
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-				    "invalid feature '%s'"), fname);
+				    "feature '%s' unsupported by kernel"),
+				    fname);
 				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
 				goto error;
 			}
@@ -971,6 +961,7 @@ zpool_name_valid(libzfs_handle_t *hdl, boolean_t isopen, const char *pool)
 	if (ret == 0 && !isopen &&
 	    (strncmp(pool, "mirror", 6) == 0 ||
 	    strncmp(pool, "raidz", 5) == 0 ||
+	    strncmp(pool, "draid", 5) == 0 ||
 	    strncmp(pool, "spare", 5) == 0 ||
 	    strcmp(pool, "log") == 0)) {
 		if (hdl != NULL)
@@ -1194,6 +1185,37 @@ zpool_has_special_vdev(nvlist_t *nvroot)
 			}
 		}
 	}
+	return (B_FALSE);
+}
+
+/*
+ * Output a dRAID top-level vdev name in to the provided buffer.
+ */
+static char *
+zpool_draid_name(char *name, int len, uint64_t data, uint64_t parity,
+    uint64_t spares, uint64_t children)
+{
+	snprintf(name, len, "%s%llu:%llud:%lluc:%llus",
+	    VDEV_TYPE_DRAID, (u_longlong_t)parity, (u_longlong_t)data,
+	    (u_longlong_t)children, (u_longlong_t)spares);
+
+	return (name);
+}
+
+/*
+ * Return B_TRUE if the provided name is a dRAID spare name.
+ */
+boolean_t
+zpool_is_draid_spare(const char *name)
+{
+	uint64_t spare_id, parity, vdev_id;
+
+	if (sscanf(name, VDEV_TYPE_DRAID "%llu-%llu-%llu",
+	    (u_longlong_t *)&parity, (u_longlong_t *)&vdev_id,
+	    (u_longlong_t *)&spare_id) == 3) {
+		return (B_TRUE);
+	}
+
 	return (B_FALSE);
 }
 
@@ -2562,6 +2584,34 @@ vdev_to_nvlist_iter(nvlist_t *nv, nvlist_t *search, boolean_t *avail_spare,
 			errno = 0;
 			vdev_id = strtoull(idx, &end, 10);
 
+			/*
+			 * If we are looking for a raidz and a parity is
+			 * specified, make sure it matches.
+			 */
+			int rzlen = strlen(VDEV_TYPE_RAIDZ);
+			int typlen = strlen(type);
+			if (strncmp(type, VDEV_TYPE_RAIDZ, rzlen) == 0 &&
+			    typlen != rzlen) {
+				uint64_t vdev_parity;
+				int parity = *(type + rzlen) - '0';
+
+				if (parity < 0 || parity > 3 ||
+				    (typlen - rzlen) != 1) {
+					/*
+					 * Nonsense parity specified, can
+					 * never match
+					 */
+					free(type);
+					return (NULL);
+				}
+				verify(nvlist_lookup_uint64(nv,
+				    ZPOOL_CONFIG_NPARITY, &vdev_parity) == 0);
+				if ((int)vdev_parity != parity) {
+					free(type);
+					break;
+				}
+			}
+
 			free(type);
 			if (errno != 0)
 				return (NULL);
@@ -2679,6 +2729,11 @@ zpool_vdev_is_interior(const char *name)
 	    VDEV_TYPE_REPLACING, strlen(VDEV_TYPE_REPLACING)) == 0 ||
 	    strncmp(name, VDEV_TYPE_MIRROR, strlen(VDEV_TYPE_MIRROR)) == 0)
 		return (B_TRUE);
+
+	if (strncmp(name, VDEV_TYPE_DRAID, strlen(VDEV_TYPE_DRAID)) == 0 &&
+	    !zpool_is_draid_spare(name))
+		return (B_TRUE);
+
 	return (B_FALSE);
 }
 
@@ -3112,7 +3167,8 @@ is_replacing_spare(nvlist_t *search, nvlist_t *tgt, int which)
 		verify(nvlist_lookup_string(search, ZPOOL_CONFIG_TYPE,
 		    &type) == 0);
 
-		if (strcmp(type, VDEV_TYPE_SPARE) == 0 &&
+		if ((strcmp(type, VDEV_TYPE_SPARE) == 0 ||
+		    strcmp(type, VDEV_TYPE_DRAID_SPARE) == 0) &&
 		    children == 2 && child[which] == tgt)
 			return (B_TRUE);
 
@@ -3143,7 +3199,7 @@ zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
 	uint_t children;
 	nvlist_t *config_root;
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
-	boolean_t rootpool = zpool_is_bootable(zhp);
+	boolean_t raidz = B_FALSE;
 
 	if (replacing)
 		(void) snprintf(msg, sizeof (msg), dgettext(TEXT_DOMAIN,
@@ -3177,6 +3233,7 @@ zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
 	char *typestr;
 	if (nvlist_lookup_string(tgt, ZPOOL_CONFIG_TYPE, &typestr) == 0 &&
 	    strcmp(typestr, "raidz") == 0) {
+		raidz = B_TRUE;
 		printf(
 		    " *****************************************************\n"
 		    " * Thank you for testing this alpha-quality release  *\n"
@@ -3233,18 +3290,8 @@ zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
 
 	zcmd_free_nvlists(&zc);
 
-	if (ret == 0) {
-		if (rootpool) {
-			/*
-			 * XXX need a better way to prevent user from
-			 * booting up a half-baked vdev.
-			 */
-			(void) fprintf(stderr, dgettext(TEXT_DOMAIN, "Make "
-			    "sure to wait until resilver is done "
-			    "before rebooting.\n"));
-		}
+	if (ret == 0)
 		return (0);
-	}
 
 	switch (errno) {
 	case ENOTSUP:
@@ -3260,8 +3307,12 @@ zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
 				    "cannot replace a log with a spare"));
 			} else if (rebuild) {
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-				    "only mirror vdevs support sequential "
-				    "reconstruction"));
+				    "only mirror and dRAID vdevs support "
+				    "sequential reconstruction"));
+			} else if (zpool_is_draid_spare(new_disk)) {
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "dRAID spares can only replace child "
+				    "devices in their parent's dRAID vdev"));
 			} else if (version >= SPA_VERSION_MULTI_REPLACE) {
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 				    "already in replacing/spare config; wait "
@@ -3287,13 +3338,17 @@ zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
 		(void) zfs_error(hdl, EZFS_INVALCONFIG, msg);
 		break;
 
-	case EBUSY:
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "%s is busy, "
-		    "or device removal is in progress"),
-		    new_disk);
+	case EBUSY: {
+		char *reason = "%s is busy. or device removal is in progress";
+
+		if (raidz)
+			reason = "%s is busy, or a previous raidz expand"
+			" is in progress";
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, reason), new_disk);
 		(void) zfs_error(hdl, EZFS_BADDEV, msg);
 		break;
 
+	}
 	case EOVERFLOW:
 		/*
 		 * The new device is too small.
@@ -3662,6 +3717,12 @@ zpool_vdev_remove(zpool_handle_t *zhp, const char *path)
 	(void) snprintf(msg, sizeof (msg),
 	    dgettext(TEXT_DOMAIN, "cannot remove %s"), path);
 
+	if (zpool_is_draid_spare(path)) {
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "dRAID spares cannot be removed"));
+		return (zfs_error(hdl, EZFS_NODEVICE, msg));
+	}
+
 	(void) strlcpy(zc.zc_name, zhp->zpool_name, sizeof (zc.zc_name));
 	if ((tgt = zpool_find_vdev(zhp, path, &avail_spare, &l2cache,
 	    &islog)) == NULL)
@@ -3672,13 +3733,6 @@ zpool_vdev_remove(zpool_handle_t *zhp, const char *path)
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 		    "pool must be upgraded to support log removal"));
 		return (zfs_error(hdl, EZFS_BADVERSION, msg));
-	}
-
-	if (!islog && !avail_spare && !l2cache && zpool_is_bootable(zhp)) {
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "root pool can not have removed devices, "
-		    "because GRUB does not understand them"));
-		return (zfs_error(hdl, EINVAL, msg));
 	}
 
 	zc.zc_guid = fnvlist_lookup_uint64(tgt, ZPOOL_CONFIG_GUID);
@@ -4006,9 +4060,10 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 		}
 
 		/*
-		 * Remove the partition from the path it this is a whole disk.
+		 * Remove the partition from the path if this is a whole disk.
 		 */
-		if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_WHOLE_DISK, &value)
+		if (strcmp(type, VDEV_TYPE_DRAID_SPARE) != 0 &&
+		    nvlist_lookup_uint64(nv, ZPOOL_CONFIG_WHOLE_DISK, &value)
 		    == 0 && value && !(name_flags & VDEV_NAME_PATH)) {
 			return (zfs_strip_partition(path));
 		}
@@ -4024,6 +4079,27 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 			(void) snprintf(buf, sizeof (buf), "%s%llu", path,
 			    (u_longlong_t)value);
 			path = buf;
+		}
+
+		/*
+		 * If it's a dRAID device, we add parity, groups, and spares.
+		 */
+		if (strcmp(path, VDEV_TYPE_DRAID) == 0) {
+			uint64_t ndata, nparity, nspares;
+			nvlist_t **child;
+			uint_t children;
+
+			verify(nvlist_lookup_nvlist_array(nv,
+			    ZPOOL_CONFIG_CHILDREN, &child, &children) == 0);
+			verify(nvlist_lookup_uint64(nv,
+			    ZPOOL_CONFIG_NPARITY, &nparity) == 0);
+			verify(nvlist_lookup_uint64(nv,
+			    ZPOOL_CONFIG_DRAID_NDATA, &ndata) == 0);
+			verify(nvlist_lookup_uint64(nv,
+			    ZPOOL_CONFIG_DRAID_NSPARES, &nspares) == 0);
+
+			path = zpool_draid_name(buf, sizeof (buf), ndata,
+			    nparity, nspares, children);
 		}
 
 		/*
@@ -4546,7 +4622,7 @@ zpool_wait_status(zpool_handle_t *zhp, zpool_wait_activity_t activity,
 }
 
 int
-zpool_set_bootenv(zpool_handle_t *zhp, const char *envmap)
+zpool_set_bootenv(zpool_handle_t *zhp, const nvlist_t *envmap)
 {
 	int error = lzc_set_bootenv(zhp->zpool_name, envmap);
 	if (error != 0) {
@@ -4559,24 +4635,20 @@ zpool_set_bootenv(zpool_handle_t *zhp, const char *envmap)
 }
 
 int
-zpool_get_bootenv(zpool_handle_t *zhp, char *outbuf, size_t size, off_t offset)
+zpool_get_bootenv(zpool_handle_t *zhp, nvlist_t **nvlp)
 {
-	nvlist_t *nvl = NULL;
-	int error = lzc_get_bootenv(zhp->zpool_name, &nvl);
+	nvlist_t *nvl;
+	int error;
+
+	nvl = NULL;
+	error = lzc_get_bootenv(zhp->zpool_name, &nvl);
 	if (error != 0) {
 		(void) zpool_standard_error_fmt(zhp->zpool_hdl, error,
 		    dgettext(TEXT_DOMAIN,
 		    "error getting bootenv in pool '%s'"), zhp->zpool_name);
-		return (-1);
-	}
-	char *envmap = fnvlist_lookup_string(nvl, "envmap");
-	if (offset >= strlen(envmap)) {
-		fnvlist_free(nvl);
-		return (0);
+	} else {
+		*nvlp = nvl;
 	}
 
-	strncpy(outbuf, envmap + offset, size);
-	int bytes = MIN(strlen(envmap + offset), size);
-	fnvlist_free(nvl);
-	return (bytes);
+	return (error);
 }

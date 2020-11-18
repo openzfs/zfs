@@ -28,8 +28,12 @@
 	.file	"%M%"
 
 #define _ASM
+#ifdef __linux__
 #include <ia32/sys/asm_linkage.h>
-
+#elif __FreeBSD__
+#include <machine/asmacros.h>
+#define SET_SIZE(x)
+#endif
 	ENTRY(atomic_inc_8)
 	ALTENTRY(atomic_inc_uchar)
 	movl	4(%esp), %eax

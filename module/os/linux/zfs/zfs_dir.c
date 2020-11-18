@@ -60,8 +60,9 @@
  * of names after deciding which is the appropriate lookup interface.
  */
 static int
-zfs_match_find(zfsvfs_t *zfsvfs, znode_t *dzp, char *name, matchtype_t mt,
-    boolean_t update, int *deflags, pathname_t *rpnp, uint64_t *zoid)
+zfs_match_find(zfsvfs_t *zfsvfs, znode_t *dzp, const char *name,
+    matchtype_t mt, boolean_t update, int *deflags, pathname_t *rpnp,
+    uint64_t *zoid)
 {
 	boolean_t conflict = B_FALSE;
 	int error;
@@ -139,8 +140,8 @@ zfs_match_find(zfsvfs_t *zfsvfs, znode_t *dzp, char *name, matchtype_t mt,
  *	 but return znode pointers to a single match.
  */
 int
-zfs_dirent_lock(zfs_dirlock_t **dlpp, znode_t *dzp, char *name, znode_t **zpp,
-    int flag, int *direntflags, pathname_t *realpnp)
+zfs_dirent_lock(zfs_dirlock_t **dlpp, znode_t *dzp, char *name,
+    znode_t **zpp, int flag, int *direntflags, pathname_t *realpnp)
 {
 	zfsvfs_t	*zfsvfs = ZTOZSB(dzp);
 	zfs_dirlock_t	*dl;

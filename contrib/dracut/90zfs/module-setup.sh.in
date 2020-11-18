@@ -5,7 +5,7 @@ check() {
 	[ "${1}" = "-d" ] && return 0
 
 	# Verify the zfs tool chain
-	for tool in "@sbindir@/zpool" "@sbindir@/zfs" "@mounthelperdir@/mount.zfs" ; do
+	for tool in "@bindir@/zgenhostid" "@sbindir@/zpool" "@sbindir@/zfs" "@mounthelperdir@/mount.zfs" ; do
 		test -x "$tool" || return 1
 	done
 	# Verify grep exists
@@ -38,9 +38,11 @@ install() {
 	inst_rules @udevruledir@/60-zvol.rules
 	dracut_install hostid
 	dracut_install grep
+	dracut_install @bindir@/zgenhostid
 	dracut_install @sbindir@/zfs
 	dracut_install @sbindir@/zpool
-	# Workaround for zfsonlinux/zfs#4749 by ensuring libgcc_s.so(.1) is included
+	# Workaround for https://github.com/openzfs/zfs/issues/4749 by
+	# ensuring libgcc_s.so(.1) is included
 	if [[ -n "$(ldd @sbindir@/zpool | grep -F 'libgcc_s.so')" ]]; then
 		# Dracut will have already tracked and included it
 		:;
@@ -83,11 +85,7 @@ install() {
 	fi
 
 	# Synchronize initramfs and system hostid
-	AA=`hostid | cut -b 1,2`
-	BB=`hostid | cut -b 3,4`
-	CC=`hostid | cut -b 5,6`
-	DD=`hostid | cut -b 7,8`
-	echo -ne "\\x${DD}\\x${CC}\\x${BB}\\x${AA}" > "${initdir}/etc/hostid"
+	zgenhostid -o "${initdir}/etc/hostid" "$(hostid)"
 
 	if dracut_module_included "systemd"; then
 		mkdir -p "${initdir}/$systemdsystemunitdir/zfs-import.target.wants"

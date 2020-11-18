@@ -34,6 +34,7 @@
 #include <sys/abd.h>
 #include <sys/fs/zfs.h>
 #include <sys/zio.h>
+#include <linux/blkpg.h>
 #include <linux/msdos_fs.h>
 #include <linux/vfs_compat.h>
 
@@ -159,7 +160,7 @@ vdev_disk_error(zio_t *zio)
 
 static int
 vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
-    uint64_t *ashift)
+    uint64_t *logical_ashift, uint64_t *physical_ashift)
 {
 	struct block_device *bdev;
 	fmode_t mode = vdev_bdev_mode(spa_mode(v->vdev_spa));
@@ -175,7 +176,8 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 
 	/*
 	 * Reopen the device if it is currently open.  When expanding a
-	 * partition force re-scanning the partition table while closed
+	 * partition force re-scanning the partition table if userland
+	 * did not take care of this already. We need to do this while closed
 	 * in order to get an accurate updated block device size.  Then
 	 * since udev may need to recreate the device links increase the
 	 * open retry timeout before reporting the device as unavailable.
@@ -192,7 +194,23 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 		if (bdev) {
 			if (v->vdev_expanding && bdev != bdev->bd_contains) {
 				bdevname(bdev->bd_contains, disk_name + 5);
-				reread_part = B_TRUE;
+				/*
+				 * If userland has BLKPG_RESIZE_PARTITION,
+				 * then it should have updated the partition
+				 * table already. We can detect this by
+				 * comparing our current physical size
+				 * with that of the device. If they are
+				 * the same, then we must not have
+				 * BLKPG_RESIZE_PARTITION or it failed to
+				 * update the partition table online. We
+				 * fallback to rescanning the partition
+				 * table from the kernel below. However,
+				 * if the capacity already reflects the
+				 * updated partition, then we skip
+				 * rescanning the partition table here.
+				 */
+				if (v->vdev_psize == bdev_capacity(bdev))
+					reread_part = B_TRUE;
 			}
 
 			blkdev_put(bdev, mode | FMODE_EXCL);
@@ -270,7 +288,10 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 	struct request_queue *q = bdev_get_queue(vd->vd_bdev);
 
 	/*  Determine the physical block size */
-	int block_size = bdev_physical_block_size(vd->vd_bdev);
+	int physical_block_size = bdev_physical_block_size(vd->vd_bdev);
+
+	/*  Determine the logical block size */
+	int logical_block_size = bdev_logical_block_size(vd->vd_bdev);
 
 	/* Clear the nowritecache bit, causes vdev_reopen() to try again. */
 	v->vdev_nowritecache = B_FALSE;
@@ -291,7 +312,11 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 	*max_psize = bdev_max_capacity(vd->vd_bdev, v->vdev_wholedisk);
 
 	/* Based on the minimum sector size set the block size */
-	*ashift = highbit64(MAX(block_size, SPA_MINBLOCKSIZE)) - 1;
+	*physical_ashift = highbit64(MAX(physical_block_size,
+	    SPA_MINBLOCKSIZE)) - 1;
+
+	*logical_ashift = highbit64(MAX(logical_block_size,
+	    SPA_MINBLOCKSIZE)) - 1;
 
 	return (0);
 }
@@ -411,6 +436,16 @@ vdev_submit_bio_impl(struct bio *bio)
 #endif
 }
 
+/*
+ * preempt_schedule_notrace is GPL-only which breaks the ZFS build, so
+ * replace it with preempt_schedule under the following condition:
+ */
+#if defined(CONFIG_ARM64) && \
+    defined(CONFIG_PREEMPTION) && \
+    defined(CONFIG_BLK_CGROUP)
+#define	preempt_schedule_notrace(x) preempt_schedule(x)
+#endif
+
 #ifdef HAVE_BIO_SET_DEV
 #if defined(CONFIG_BLK_CGROUP) && defined(HAVE_BIO_SET_DEV_GPL_ONLY)
 /*
@@ -433,7 +468,11 @@ vdev_blkg_tryget(struct blkcg_gq *blkg)
 		this_cpu_inc(*count);
 		rc = true;
 	} else {
+#ifdef ZFS_PERCPU_REF_COUNT_IN_DATA
+		rc = atomic_long_inc_not_zero(&ref->data->count);
+#else
 		rc = atomic_long_inc_not_zero(&ref->count);
+#endif
 	}
 
 	rcu_read_unlock_sched();
@@ -752,7 +791,7 @@ vdev_disk_io_done(zio_t *zio)
 		vdev_t *v = zio->io_vd;
 		vdev_disk_t *vd = v->vdev_tsd;
 
-		if (check_disk_change(vd->vd_bdev)) {
+		if (zfs_check_media_change(vd->vd_bdev)) {
 			invalidate_bdev(vd->vd_bdev);
 			v->vdev_remove_wanted = B_TRUE;
 			spa_async_request(zio->io_spa, SPA_ASYNC_REMOVE);
@@ -787,9 +826,13 @@ vdev_disk_rele(vdev_t *vd)
 }
 
 vdev_ops_t vdev_disk_ops = {
+	.vdev_op_init = NULL,
+	.vdev_op_fini = NULL,
 	.vdev_op_open = vdev_disk_open,
 	.vdev_op_close = vdev_disk_close,
 	.vdev_op_asize = vdev_default_asize,
+	.vdev_op_min_asize = vdev_default_min_asize,
+	.vdev_op_min_alloc = NULL,
 	.vdev_op_io_start = vdev_disk_io_start,
 	.vdev_op_io_done = vdev_disk_io_done,
 	.vdev_op_state_change = NULL,
@@ -798,6 +841,11 @@ vdev_ops_t vdev_disk_ops = {
 	.vdev_op_rele = vdev_disk_rele,
 	.vdev_op_remap = NULL,
 	.vdev_op_xlate = vdev_default_xlate,
+	.vdev_op_rebuild_asize = NULL,
+	.vdev_op_metaslab_init = NULL,
+	.vdev_op_config_generate = NULL,
+	.vdev_op_nparity = NULL,
+	.vdev_op_ndisks = NULL,
 	.vdev_op_type = VDEV_TYPE_DISK,		/* name of this vdev type */
 	.vdev_op_leaf = B_TRUE			/* leaf vdev */
 };
@@ -824,3 +872,43 @@ char *zfs_vdev_scheduler = "unused";
 module_param_call(zfs_vdev_scheduler, param_set_vdev_scheduler,
     param_get_charp, &zfs_vdev_scheduler, 0644);
 MODULE_PARM_DESC(zfs_vdev_scheduler, "I/O scheduler");
+
+int
+param_set_min_auto_ashift(const char *buf, zfs_kernel_param_t *kp)
+{
+	uint64_t val;
+	int error;
+
+	error = kstrtoull(buf, 0, &val);
+	if (error < 0)
+		return (SET_ERROR(error));
+
+	if (val < ASHIFT_MIN || val > zfs_vdev_max_auto_ashift)
+		return (SET_ERROR(-EINVAL));
+
+	error = param_set_ulong(buf, kp);
+	if (error < 0)
+		return (SET_ERROR(error));
+
+	return (0);
+}
+
+int
+param_set_max_auto_ashift(const char *buf, zfs_kernel_param_t *kp)
+{
+	uint64_t val;
+	int error;
+
+	error = kstrtoull(buf, 0, &val);
+	if (error < 0)
+		return (SET_ERROR(error));
+
+	if (val > ASHIFT_MAX || val < zfs_vdev_min_auto_ashift)
+		return (SET_ERROR(-EINVAL));
+
+	error = param_set_ulong(buf, kp);
+	if (error < 0)
+		return (SET_ERROR(error));
+
+	return (0);
+}

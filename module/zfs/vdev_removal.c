@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2019 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
  * Copyright (c) 2019, loli10K <ezomori.nozomu@gmail.com>. All rights reserved.
  */
 
@@ -250,7 +250,7 @@ vdev_remove_initiate_sync(void *arg, dmu_tx_t *tx)
 	spa_vdev_removal_t *svr = NULL;
 	uint64_t txg __maybe_unused = dmu_tx_get_txg(tx);
 
-	ASSERT3P(vd->vdev_ops, !=, &vdev_raidz_ops);
+	ASSERT0(vdev_get_nparity(vd));
 	svr = spa_vdev_removal_create(vd);
 
 	ASSERT(vd->vdev_removing);
@@ -1120,7 +1120,7 @@ static void
 vdev_remove_enlist_zaps(vdev_t *vd, nvlist_t *zlist)
 {
 	ASSERT3P(zlist, !=, NULL);
-	ASSERT3P(vd->vdev_ops, !=, &vdev_raidz_ops);
+	ASSERT0(vdev_get_nparity(vd));
 
 	if (vd->vdev_leaf_zap != 0) {
 		char zkey[32];
@@ -1167,8 +1167,8 @@ vdev_remove_replace_with_indirect(vdev_t *vd, uint64_t txg)
 
 	/* After this, we can not use svr. */
 	tx = dmu_tx_create_assigned(spa->spa_dsl_pool, txg);
-	dsl_sync_task_nowait(spa->spa_dsl_pool, vdev_remove_complete_sync, svr,
-	    0, ZFS_SPACE_CHECK_NONE, tx);
+	dsl_sync_task_nowait(spa->spa_dsl_pool,
+	    vdev_remove_complete_sync, svr, tx);
 	dmu_tx_commit(tx);
 }
 
@@ -1317,7 +1317,7 @@ spa_vdev_copy_impl(vdev_t *vd, spa_vdev_removal_t *svr, vdev_copy_arg_t *vca,
 
 	if (svr->svr_max_offset_to_sync[txg & TXG_MASK] == 0) {
 		dsl_sync_task_nowait(dmu_tx_pool(tx), vdev_mapping_sync,
-		    svr, 0, ZFS_SPACE_CHECK_NONE, tx);
+		    svr, tx);
 	}
 
 	svr->svr_max_offset_to_sync[txg & TXG_MASK] = range_tree_max(segs);
@@ -2031,20 +2031,40 @@ spa_vdev_remove_top_check(vdev_t *vd)
 	}
 
 	/*
+	 * A removed special/dedup vdev must have same ashift as normal class.
+	 */
+	ASSERT(!vd->vdev_islog);
+	if (vd->vdev_alloc_bias != VDEV_BIAS_NONE &&
+	    vd->vdev_ashift != spa->spa_max_ashift) {
+		return (SET_ERROR(EINVAL));
+	}
+
+	/*
 	 * All vdevs in normal class must have the same ashift
-	 * and not be raidz.
+	 * and not be raidz or draid.
 	 */
 	vdev_t *rvd = spa->spa_root_vdev;
 	int num_indirect = 0;
 	for (uint64_t id = 0; id < rvd->vdev_children; id++) {
 		vdev_t *cvd = rvd->vdev_child[id];
-		if (cvd->vdev_ashift != 0 && !cvd->vdev_islog)
+
+		/*
+		 * A removed special/dedup vdev must have the same ashift
+		 * across all vdevs in its class.
+		 */
+		if (vd->vdev_alloc_bias != VDEV_BIAS_NONE &&
+		    cvd->vdev_alloc_bias == vd->vdev_alloc_bias &&
+		    cvd->vdev_ashift != vd->vdev_ashift) {
+			return (SET_ERROR(EINVAL));
+		}
+		if (cvd->vdev_ashift != 0 &&
+		    cvd->vdev_alloc_bias == VDEV_BIAS_NONE)
 			ASSERT3U(cvd->vdev_ashift, ==, spa->spa_max_ashift);
 		if (cvd->vdev_ops == &vdev_indirect_ops)
 			num_indirect++;
 		if (!vdev_is_concrete(cvd))
 			continue;
-		if (cvd->vdev_ops == &vdev_raidz_ops)
+		if (vdev_get_nparity(cvd) != 0)
 			return (SET_ERROR(EINVAL));
 		/*
 		 * Need the mirror to be mirror of leaf vdevs only
@@ -2143,8 +2163,7 @@ spa_vdev_remove_top(vdev_t *vd, uint64_t *txg)
 	vdev_config_dirty(vd);
 	dmu_tx_t *tx = dmu_tx_create_assigned(spa->spa_dsl_pool, *txg);
 	dsl_sync_task_nowait(spa->spa_dsl_pool,
-	    vdev_remove_initiate_sync,
-	    (void *)(uintptr_t)vd->vdev_id, 0, ZFS_SPACE_CHECK_NONE, tx);
+	    vdev_remove_initiate_sync, (void *)(uintptr_t)vd->vdev_id, tx);
 	dmu_tx_commit(tx);
 
 	return (0);
@@ -2198,18 +2217,30 @@ spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare)
 		 * in this pool.
 		 */
 		if (vd == NULL || unspare) {
-			if (vd == NULL)
-				vd = spa_lookup_by_guid(spa, guid, B_TRUE);
-			ev = spa_event_create(spa, vd, NULL,
-			    ESC_ZFS_VDEV_REMOVE_AUX);
+			char *type;
+			boolean_t draid_spare = B_FALSE;
 
-			vd_type = VDEV_TYPE_SPARE;
-			vd_path = spa_strdup(fnvlist_lookup_string(
-			    nv, ZPOOL_CONFIG_PATH));
-			spa_vdev_remove_aux(spa->spa_spares.sav_config,
-			    ZPOOL_CONFIG_SPARES, spares, nspares, nv);
-			spa_load_spares(spa);
-			spa->spa_spares.sav_sync = B_TRUE;
+			if (nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE, &type)
+			    == 0 && strcmp(type, VDEV_TYPE_DRAID_SPARE) == 0)
+				draid_spare = B_TRUE;
+
+			if (vd == NULL && draid_spare) {
+				error = SET_ERROR(ENOTSUP);
+			} else {
+				if (vd == NULL)
+					vd = spa_lookup_by_guid(spa,
+					    guid, B_TRUE);
+				ev = spa_event_create(spa, vd, NULL,
+				    ESC_ZFS_VDEV_REMOVE_AUX);
+
+				vd_type = VDEV_TYPE_SPARE;
+				vd_path = spa_strdup(fnvlist_lookup_string(
+				    nv, ZPOOL_CONFIG_PATH));
+				spa_vdev_remove_aux(spa->spa_spares.sav_config,
+				    ZPOOL_CONFIG_SPARES, spares, nspares, nv);
+				spa_load_spares(spa);
+				spa->spa_spares.sav_sync = B_TRUE;
+			}
 		} else {
 			error = SET_ERROR(EBUSY);
 		}

@@ -242,16 +242,11 @@ txg_thread_wait(tx_state_t *tx, callb_cpr_t *cpr, kcondvar_t *cv, clock_t time)
 {
 	CALLB_CPR_SAFE_BEGIN(cpr);
 
-	/*
-	 * cv_wait_sig() is used instead of cv_wait() in order to prevent
-	 * this process from incorrectly contributing to the system load
-	 * average when idle.
-	 */
 	if (time) {
-		(void) cv_timedwait_sig(cv, &tx->tx_sync_lock,
+		(void) cv_timedwait_idle(cv, &tx->tx_sync_lock,
 		    ddi_get_lbolt() + time);
 	} else {
-		cv_wait_sig(cv, &tx->tx_sync_lock);
+		cv_wait_idle(cv, &tx->tx_sync_lock);
 	}
 
 	CALLB_CPR_SAFE_END(cpr, &tx->tx_sync_lock);
@@ -310,9 +305,7 @@ txg_hold_open(dsl_pool_t *dp, txg_handle_t *th)
 	 * significance to the chosen tx_cpu. Because.. Why not use
 	 * the current cpu to index into the array?
 	 */
-	kpreempt_disable();
-	tc = &tx->tx_cpu[CPU_SEQID];
-	kpreempt_enable();
+	tc = &tx->tx_cpu[CPU_SEQID_UNSTABLE];
 
 	mutex_enter(&tc->tc_open_lock);
 	txg = tx->tx_open_txg;
@@ -760,7 +753,8 @@ txg_wait_open(dsl_pool_t *dp, uint64_t txg, boolean_t should_quiesce)
 		if (should_quiesce == B_TRUE) {
 			cv_wait_io(&tx->tx_quiesce_done_cv, &tx->tx_sync_lock);
 		} else {
-			cv_wait_sig(&tx->tx_quiesce_done_cv, &tx->tx_sync_lock);
+			cv_wait_idle(&tx->tx_quiesce_done_cv,
+			    &tx->tx_sync_lock);
 		}
 	}
 	mutex_exit(&tx->tx_sync_lock);

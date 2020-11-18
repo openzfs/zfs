@@ -2336,7 +2336,7 @@ function check_pool_status # pool token keyword <verbose>
 function is_pool_resilvering #pool <verbose>
 {
 	check_pool_status "$1" "scan" \
-	    "resilver[ ()0-9A-Za-z_-]* in progress since" $2
+	    "resilver[ ()0-9A-Za-z:_-]* in progress since" $2
 	return $?
 }
 
@@ -4154,23 +4154,80 @@ function ls_xattr # path
 	esac
 }
 
+function kstat # stat flags?
+{
+	typeset stat=$1
+	typeset flags=${2-"-n"}
+
+	case $(uname) in
+	FreeBSD)
+		sysctl $flags kstat.zfs.misc.$stat
+		;;
+	Linux)
+		typeset zfs_kstat="/proc/spl/kstat/zfs/$stat"
+		[[ -f "$zfs_kstat" ]] || return 1
+		cat $zfs_kstat
+		;;
+	*)
+		false
+		;;
+	esac
+}
+
 function get_arcstat # stat
 {
 	typeset stat=$1
 
 	case $(uname) in
 	FreeBSD)
-		sysctl -n kstat.zfs.misc.arcstats.$stat
+		kstat arcstats.$stat
 		;;
 	Linux)
-		typeset zfs_arcstats="/proc/spl/kstat/zfs/arcstats"
-		[[ -f "$zfs_arcstats" ]] || return 1
-		grep $stat $zfs_arcstats | awk '{print $3}'
+		kstat arcstats | awk "/$stat/ { print \$3 }"
 		;;
 	*)
 		false
 		;;
 	esac
+}
+
+#
+# Wait for the specified arcstat to reach non-zero quiescence.
+# If echo is 1 echo the value after reaching quiescence, otherwise
+# if echo is 0 print the arcstat we are waiting on.
+#
+function arcstat_quiescence # stat echo
+{
+	typeset stat=$1
+	typeset echo=$2
+	typeset do_once=true
+
+	if [[ $echo -eq 0 ]]; then
+		echo "Waiting for arcstat $1 quiescence."
+	fi
+
+	while $do_once || [ $stat1 -ne $stat2 ] || [ $stat2 -eq 0 ]; do
+		typeset stat1=$(get_arcstat $stat)
+		sleep 2
+		typeset stat2=$(get_arcstat $stat)
+		do_once=false
+	done
+
+	if [[ $echo -eq 1 ]]; then
+		echo $stat2
+	fi
+}
+
+function arcstat_quiescence_noecho # stat
+{
+	typeset stat=$1
+	arcstat_quiescence $stat 0
+}
+
+function arcstat_quiescence_echo # stat
+{
+	typeset stat=$1
+	arcstat_quiescence $stat 1
 }
 
 #

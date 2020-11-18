@@ -610,6 +610,18 @@ send_iterate_fs(zfs_handle_t *zhp, void *arg)
 	fnvlist_free(sd->snapprops);
 	fnvlist_free(sd->snapholds);
 
+	/* Do not allow the size of the properties list to exceed the limit */
+	if ((fnvlist_size(nvfs) + fnvlist_size(sd->fss)) >
+	    zhp->zfs_hdl->libzfs_max_nvlist) {
+		(void) fprintf(stderr, dgettext(TEXT_DOMAIN,
+		    "warning: cannot send %s@%s: the size of the list of "
+		    "snapshots and properties is too large to be received "
+		    "successfully.\n"
+		    "Select a smaller number of snapshots to send.\n"),
+		    zhp->zfs_name, sd->tosnap);
+		rv = EZFS_NOSPC;
+		goto out;
+	}
 	/* add this fs to nvlist */
 	(void) snprintf(guidstring, sizeof (guidstring),
 	    "0x%llx", (longlong_t)guid);
@@ -2015,6 +2027,21 @@ send_prelim_records(zfs_handle_t *zhp, const char *from, int fd,
 			return (zfs_error(zhp->zfs_hdl, EZFS_BADBACKUP,
 			    errbuf));
 		}
+		/*
+		 * Do not allow the size of the properties list to exceed
+		 * the limit
+		 */
+		if ((fnvlist_size(fss) + fnvlist_size(hdrnv)) >
+		    zhp->zfs_hdl->libzfs_max_nvlist) {
+			(void) snprintf(errbuf, sizeof (errbuf),
+			    dgettext(TEXT_DOMAIN, "warning: cannot send '%s': "
+			    "the size of the list of snapshots and properties "
+			    "is too large to be received successfully.\n"
+			    "Select a smaller number of snapshots to send.\n"),
+			    zhp->zfs_name);
+			return (zfs_error(zhp->zfs_hdl, EZFS_NOSPC,
+			    errbuf));
+		}
 		fnvlist_add_nvlist(hdrnv, "fss", fss);
 		VERIFY0(nvlist_pack(hdrnv, &packbuf, &buflen, NV_ENCODE_XDR,
 		    0));
@@ -2092,8 +2119,6 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 	avl_tree_t *fsavl = NULL;
 	static uint64_t holdseq;
 	int spa_version;
-	pthread_t tid = 0;
-	int pipefd[2];
 	int featureflags = 0;
 	FILE *fout;
 
@@ -2145,10 +2170,7 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 	/* dump each stream */
 	sdd.fromsnap = fromsnap;
 	sdd.tosnap = tosnap;
-	if (tid != 0)
-		sdd.outfd = pipefd[0];
-	else
-		sdd.outfd = outfd;
+	sdd.outfd = outfd;
 	sdd.replicate = flags->replicate;
 	sdd.doall = flags->doall;
 	sdd.fromorigin = flags->fromorigin;
@@ -2251,13 +2273,6 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 	if (err == 0 && !sdd.seento)
 		err = ENOENT;
 
-	if (tid != 0) {
-		if (err != 0)
-			(void) pthread_cancel(tid);
-		(void) close(pipefd[0]);
-		(void) pthread_join(tid, NULL);
-	}
-
 	if (sdd.cleanup_fd != -1) {
 		VERIFY(0 == close(sdd.cleanup_fd));
 		sdd.cleanup_fd = -1;
@@ -2286,11 +2301,6 @@ err_out:
 
 	if (sdd.cleanup_fd != -1)
 		VERIFY(0 == close(sdd.cleanup_fd));
-	if (tid != 0) {
-		(void) pthread_cancel(tid);
-		(void) close(pipefd[0]);
-		(void) pthread_join(tid, NULL);
-	}
 	return (err);
 }
 
@@ -2578,8 +2588,6 @@ recv_read(libzfs_handle_t *hdl, int fd, void *buf, int ilen,
 	int rv;
 	int len = ilen;
 
-	assert(ilen <= SPA_MAXBLOCKSIZE);
-
 	do {
 		rv = read(fd, cp, len);
 		cp += rv;
@@ -2612,6 +2620,12 @@ recv_read_nvlist(libzfs_handle_t *hdl, int fd, int len, nvlist_t **nvp,
 	buf = zfs_alloc(hdl, len);
 	if (buf == NULL)
 		return (ENOMEM);
+
+	if (len > hdl->libzfs_max_nvlist) {
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "nvlist too large"));
+		free(buf);
+		return (ENOMEM);
+	}
 
 	err = recv_read(hdl, fd, buf, len, byteswap, zc);
 	if (err != 0) {
@@ -3783,6 +3797,7 @@ recv_skip(libzfs_handle_t *hdl, int fd, boolean_t byteswap)
 			}
 			payload_size =
 			    DRR_WRITE_PAYLOAD_SIZE(&drr->drr_u.drr_write);
+			assert(payload_size <= SPA_MAXBLOCKSIZE);
 			(void) recv_read(hdl, fd, buf,
 			    payload_size, B_FALSE, NULL);
 			break;
@@ -4076,7 +4091,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	char errbuf[1024];
 	const char *chopprefix;
 	boolean_t newfs = B_FALSE;
-	boolean_t stream_wantsnewfs;
+	boolean_t stream_wantsnewfs, stream_resumingnewfs;
 	boolean_t newprops = B_FALSE;
 	uint64_t read_bytes = 0;
 	uint64_t errflags = 0;
@@ -4297,6 +4312,8 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	    DMU_BACKUP_FEATURE_EMBED_DATA;
 	stream_wantsnewfs = (drrb->drr_fromguid == 0 ||
 	    (drrb->drr_flags & DRR_FLAG_CLONE) || originsnap) && !resuming;
+	stream_resumingnewfs = (drrb->drr_fromguid == 0 ||
+	    (drrb->drr_flags & DRR_FLAG_CLONE) || originsnap) && resuming;
 
 	if (stream_wantsnewfs) {
 		/*
@@ -4464,7 +4481,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		}
 
 		if (!flags->dryrun && zhp->zfs_type == ZFS_TYPE_FILESYSTEM &&
-		    stream_wantsnewfs) {
+		    (stream_wantsnewfs || stream_resumingnewfs)) {
 			/* We can't do online recv in this case */
 			clp = changelist_gather(zhp, ZFS_PROP_NAME, 0,
 			    flags->forceunmount ? MS_FORCE : 0);
@@ -4819,7 +4836,8 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		case ZFS_ERR_FROM_IVSET_GUID_MISSING:
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "IV set guid missing. See errata %u at "
-			    "https://zfsonlinux.org/msg/ZFS-8000-ER."),
+			    "https://openzfs.github.io/openzfs-docs/msg/"
+			    "ZFS-8000-ER."),
 			    ZPOOL_ERRATA_ZOL_8308_ENCRYPTION);
 			(void) zfs_error(hdl, EZFS_BADSTREAM, errbuf);
 			break;
