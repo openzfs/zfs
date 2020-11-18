@@ -927,6 +927,7 @@ extern uint64_t arc_free_memory(void);
 extern int64_t arc_available_memory(void);
 extern void arc_tuning_update(boolean_t);
 extern void arc_register_hotplug(void);
+extern void arc_unregister_hotplug(void);
 
 extern int param_set_arc_long(ZFS_MODULE_PARAM_ARGS);
 extern int param_set_arc_int(ZFS_MODULE_PARAM_ARGS);

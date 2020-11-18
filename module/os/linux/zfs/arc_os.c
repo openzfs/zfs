@@ -392,6 +392,10 @@ arc_hotplug_callback(struct notifier_block *self, unsigned long action,
 	if (action != MEM_ONLINE)
 		return (NOTIFY_OK);
 
+	/*
+	 * This logic should remain in sync with the size configuration logic
+	 * in arc_init().
+	 */
 	arc_c_min = MAX(allmem / 32, 2ULL << SPA_MAXBLOCKSHIFT);
 	arc_c_max = arc_default_max(arc_c_min, allmem);
 
@@ -414,6 +418,13 @@ arc_register_hotplug(void)
 {
 	/* There is no significance to the value 100 */
 	hotplug_memory_notifier(arc_hotplug_callback, 100);
+}
+
+void
+arc_unregister_hotplug(void)
+{
+	/* There is no significance to the value 100 */
+	unregister_memory_notifier(&arc_hotplug_callback_mem_nb);
 }
 #else /* _KERNEL */
 int64_t
@@ -445,8 +456,14 @@ arc_free_memory(void)
 {
 	return (spa_get_random(arc_all_memory() * 20 / 100));
 }
+
 void
 arc_register_hotplug(void)
+{
+}
+
+void
+arc_unregister_hotplug(void)
 {
 }
 #endif /* _KERNEL */

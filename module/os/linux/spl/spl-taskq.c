@@ -1275,6 +1275,15 @@ module_param_call(spl_taskq_kick, param_set_taskq_kick, param_get_uint,
 MODULE_PARM_DESC(spl_taskq_kick,
 	"Write nonzero to kick stuck taskqs to spawn more threads");
 
+/*
+ * This callback will be called exactly once for each core that comes online,
+ * for each dynamic taskq.  There are two kinds of dynamic taskqs that we
+ * attempt to expand; those who have TASKQ_THREADS_CPU_PCT set, and those
+ * created with the same number of threads as we have cores. In the CPU_PCT
+ * case, we need to redo the percentage calculation each time this is
+ * called. For the threads == cores case, we always want to create a new
+ * thread to keep the number of cores and threads in sync.
+ */
 static int
 spl_taskq_expand(unsigned int cpu, struct hlist_node *node)
 {
@@ -1290,7 +1299,6 @@ spl_taskq_expand(unsigned int cpu, struct hlist_node *node)
 
 	if (tq->tq_flags & TASKQ_THREADS_CPU_PCT) {
 		int nthreads = MIN(tq->tq_orig_maxthreads, 100);
-		nthreads = MAX(nthreads, 0);
 		nthreads = MAX(((num_online_cpus() + 1) * nthreads) / 100, 1);
 		tq->tq_maxthreads = nthreads;
 	} else {
@@ -1328,7 +1336,6 @@ spl_taskq_prepare_down(unsigned int cpu, struct hlist_node *node)
 
 	if (tq->tq_flags & TASKQ_THREADS_CPU_PCT) {
 		int nthreads = MIN(tq->tq_orig_maxthreads, 100);
-		nthreads = MAX(nthreads, 0);
 		nthreads = MAX(((num_online_cpus()) * nthreads) / 100, 1);
 		tq->tq_maxthreads = nthreads;
 	} else {
@@ -1369,6 +1376,7 @@ spl_taskq_init(void)
 	system_delay_taskq = taskq_create("spl_delay_taskq", MAX(boot_ncpus, 4),
 	    maxclsyspri, boot_ncpus, INT_MAX, TASKQ_PREPOPULATE|TASKQ_DYNAMIC);
 	if (system_delay_taskq == NULL) {
+		cpuhp_remove_multi_state(spl_taskq_cpuhp_state);
 		taskq_destroy(system_taskq);
 		return (1);
 	}
@@ -1376,6 +1384,7 @@ spl_taskq_init(void)
 	dynamic_taskq = taskq_create("spl_dynamic_taskq", 1,
 	    maxclsyspri, boot_ncpus, INT_MAX, TASKQ_PREPOPULATE);
 	if (dynamic_taskq == NULL) {
+		cpuhp_remove_multi_state(spl_taskq_cpuhp_state);
 		taskq_destroy(system_taskq);
 		taskq_destroy(system_delay_taskq);
 		return (1);

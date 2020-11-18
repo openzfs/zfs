@@ -248,3 +248,8 @@ void
 arc_register_hotplug(void)
 {
 }
+
+void
+arc_unregister_hotplug(void)
+{
+}

@@ -7755,6 +7755,8 @@ arc_fini(void)
 	buf_fini();
 	arc_state_fini();
 
+	arc_unregister_hotplug();
+
 	/*
 	 * We destroy the zthrs after all the ARC state has been
 	 * torn down to avoid the case of them receiving any
