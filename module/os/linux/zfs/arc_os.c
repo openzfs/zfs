@@ -423,7 +423,6 @@ arc_register_hotplug(void)
 void
 arc_unregister_hotplug(void)
 {
-	/* There is no significance to the value 100 */
 	unregister_memory_notifier(&arc_hotplug_callback_mem_nb);
 }
 #else /* _KERNEL */
