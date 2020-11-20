@@ -120,10 +120,10 @@ License:        @ZFS_META_LICENSE@
 URL:            https://github.com/openzfs/zfs
 Source0:        %{name}-%{version}.tar.gz
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
-Requires:       libzpool2 = %{version}
-Requires:       libnvpair1 = %{version}
-Requires:       libuutil1 = %{version}
-Requires:       libzfs2 = %{version}
+Requires:       libzpool4 = %{version}
+Requires:       libnvpair3 = %{version}
+Requires:       libuutil3 = %{version}
+Requires:       libzfs4 = %{version}
 Requires:       %{name}-kmod = %{version}
 Provides:       %{name}-kmod-common = %{version}
 Obsoletes:      spl
@@ -162,35 +162,35 @@ Requires:  sysstat
 %description
 This package contains the core ZFS command line utilities.
 
-%package -n libzpool2
+%package -n libzpool4
 Summary:        Native ZFS pool library for Linux
 Group:          System Environment/Kernel
 
-%description -n libzpool2
+%description -n libzpool4
 This package contains the zpool library, which provides support
 for managing zpools
 
-%post -n libzpool2 -p /sbin/ldconfig
-%postun -n libzpool2 -p /sbin/ldconfig
+%post -n libzpool4 -p /sbin/ldconfig
+%postun -n libzpool4 -p /sbin/ldconfig
 
-%package -n libnvpair1
+%package -n libnvpair3
 Summary:        Solaris name-value library for Linux
 Group:          System Environment/Kernel
 
-%description -n libnvpair1
+%description -n libnvpair3
 This package contains routines for packing and unpacking name-value
 pairs.  This functionality is used to portably transport data across
 process boundaries, between kernel and user space, and can be used
 to write self describing data structures on disk.
 
-%post -n libnvpair1 -p /sbin/ldconfig
-%postun -n libnvpair1 -p /sbin/ldconfig
+%post -n libnvpair3 -p /sbin/ldconfig
+%postun -n libnvpair3 -p /sbin/ldconfig
 
-%package -n libuutil1
+%package -n libuutil3
 Summary:        Solaris userland utility library for Linux
 Group:          System Environment/Kernel
 
-%description -n libuutil1
+%description -n libuutil3
 This library provides a variety of compatibility functions for OpenZFS:
  * libspl: The Solaris Porting Layer userland library, which provides APIs
    that make it possible to run Solaris user code in a Linux environment
@@ -201,32 +201,32 @@ This library provides a variety of compatibility functions for OpenZFS:
    partitioning.
  * libshare: NFS, SMB, and iSCSI service integration for ZFS.
 
-%post -n libuutil1 -p /sbin/ldconfig
-%postun -n libuutil1 -p /sbin/ldconfig
+%post -n libuutil3 -p /sbin/ldconfig
+%postun -n libuutil3 -p /sbin/ldconfig
 
-%package -n libzfs2
+%package -n libzfs4
 Summary:        Native ZFS filesystem library for Linux
 Group:          System Environment/Kernel
 
-%description -n libzfs2
+%description -n libzfs4
 This package provides support for managing ZFS filesystems
 
-%post -n libzfs2 -p /sbin/ldconfig
-%postun -n libzfs2 -p /sbin/ldconfig
+%post -n libzfs4 -p /sbin/ldconfig
+%postun -n libzfs4 -p /sbin/ldconfig
 
-%package -n libzfs2-devel
+%package -n libzfs4-devel
 Summary:        Development headers
 Group:          System Environment/Kernel
-Requires:       libzfs2 = %{version}
-Requires:       libzpool2 = %{version}
-Requires:       libnvpair1 = %{version}
-Requires:       libuutil1 = %{version}
-Provides:       libzpool2-devel
-Provides:       libnvpair1-devel
-Provides:       libuutil1-devel
+Requires:       libzfs4 = %{version}
+Requires:       libzpool4 = %{version}
+Requires:       libnvpair3 = %{version}
+Requires:       libuutil3 = %{version}
+Provides:       libzpool4-devel
+Provides:       libnvpair3-devel
+Provides:       libuutil3-devel
 Obsoletes:      zfs-devel
 
-%description -n libzfs2-devel
+%description -n libzfs4-devel
 This package contains the header files needed for building additional
 applications against the ZFS libraries.
 
@@ -273,8 +273,8 @@ Summary:        Python %{python_version} wrapper for libzfs_core
 Group:          Development/Languages/Python
 License:        Apache-2.0
 BuildArch:      noarch
-Requires:       libzfs2 = %{version}
-Requires:       libnvpair1 = %{version}
+Requires:       libzfs4 = %{version}
+Requires:       libnvpair3 = %{version}
 Requires:       libffi
 Requires:       python%{__python_pkg_version}
 Requires:       %{__python_cffi_pkg}
@@ -478,19 +478,19 @@ systemctl --system daemon-reload >/dev/null || true
 %{_datadir}/pam-configs/*
 %endif
 
-%files -n libzpool2
+%files -n libzpool4
 %{_libdir}/libzpool.so.*
 
-%files -n libnvpair1
+%files -n libnvpair3
 %{_libdir}/libnvpair.so.*
 
-%files -n libuutil1
+%files -n libuutil3
 %{_libdir}/libuutil.so.*
 
-%files -n libzfs2
+%files -n libzfs4
 %{_libdir}/libzfs*.so.*
 
-%files -n libzfs2-devel
+%files -n libzfs4-devel
 %{_pkgconfigdir}/libzfs.pc
 %{_pkgconfigdir}/libzfs_core.pc
 %{_libdir}/*.so
