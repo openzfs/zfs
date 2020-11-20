@@ -75,6 +75,9 @@
  */
 int zfs_arc_shrinker_limit = 10000;
 
+#ifdef CONFIG_MEMORY_HOTPLUG
+static struct notifier_block arc_hotplug_callback_mem_nb;
+#endif
 
 /*
  * Return a default max arc size based on the amount of physical memory.
@@ -416,14 +419,20 @@ arc_hotplug_callback(struct notifier_block *self, unsigned long action,
 void
 arc_register_hotplug(void)
 {
+#ifdef CONFIG_MEMORY_HOTPLUG
+	arc_hotplug_callback_mem_nb.notifier_call = arc_hotplug_callback;
 	/* There is no significance to the value 100 */
-	hotplug_memory_notifier(arc_hotplug_callback, 100);
+	arc_hotplug_callback_mem_nb.priority = 100;
+	register_memory_notifier(&arc_hotplug_callback_mem_nb);
+#endif
 }
 
 void
 arc_unregister_hotplug(void)
 {
+#ifdef CONFIG_MEMORY_HOTPLUG
 	unregister_memory_notifier(&arc_hotplug_callback_mem_nb);
+#endif
 }
 #else /* _KERNEL */
 int64_t
