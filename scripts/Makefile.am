@@ -61,6 +61,7 @@ export EXTRA_ENVIRONMENT
 all-local:
 	-$(SED) -e '\|^export BIN_DIR=|s|$$|@abs_top_builddir@/bin|' \
 		-e '\|^export SBIN_DIR=|s|$$|@abs_top_builddir@/bin|' \
+		-e '\|^export LIBEXEC_DIR=|s|$$|@abs_top_builddir@/bin|' \
 		-e '\|^export ZTS_DIR=|s|$$|@abs_top_srcdir@/tests|' \
 		-e '\|^export SCRIPT_DIR=|s|$$|@abs_top_srcdir@/scripts|' \
 		$(abs_top_srcdir)/scripts/common.sh.in >common.sh
@@ -72,6 +73,7 @@ clean-local:
 install-data-hook:
 	-$(SED) -e '\|^export BIN_DIR=|s|$$|@bindir@|' \
 		-e '\|^export SBIN_DIR=|s|$$|@sbindir@|' \
+		-e '\|^export LIBEXEC_DIR=|s|$$|@libexecdir@|' \
 		-e '\|^export ZTS_DIR=|s|$$|@datadir@/@PACKAGE@|' \
 		-e '\|^export SCRIPT_DIR=|s|$$|@datadir@/@PACKAGE@|' \
 		$(abs_top_srcdir)/scripts/common.sh.in \
