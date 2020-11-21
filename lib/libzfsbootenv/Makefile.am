@@ -33,3 +33,6 @@ libzfsbootenv_la_LDFLAGS += -Wl,-z,defs
 endif
 
 libzfsbootenv_la_LDFLAGS += -version-info 1:0:0
+
+# Library ABI
+EXTRA_DIST = libzfsbootenv.abi libzfsbootenv.suppr
