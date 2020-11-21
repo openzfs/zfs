@@ -91,5 +91,8 @@ endif
 
 libzfs_la_LDFLAGS += -version-info 4:0:0
 
+# Library ABI
+EXTRA_DIST = libzfs.abi libzfs.suppr
+
 # Licensing data
-EXTRA_DIST = THIRDPARTYLICENSE.openssl THIRDPARTYLICENSE.openssl.descrip
+EXTRA_DIST += THIRDPARTYLICENSE.openssl THIRDPARTYLICENSE.openssl.descrip

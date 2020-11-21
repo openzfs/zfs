@@ -41,3 +41,6 @@ libnvpair_la_LDFLAGS += -Wl,-z,defs
 endif
 
 libnvpair_la_LDFLAGS += -version-info 3:0:0
+
+# Library ABI
+EXTRA_DIST = libnvpair.abi libnvpair.suppr
