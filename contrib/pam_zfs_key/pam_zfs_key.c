@@ -661,11 +661,6 @@ pam_sm_open_session(pam_handle_t *pamh, int flags,
 		return (PAM_SUCCESS);
 	}
 
-	const pw_password_t *token = pw_get(pamh);
-	if (token == NULL) {
-		zfs_key_config_free(&config);
-		return (PAM_SESSION_ERR);
-	}
 	if (pam_zfs_init(pamh) != 0) {
 		zfs_key_config_free(&config);
 		return (PAM_SERVICE_ERR);
@@ -676,6 +671,27 @@ pam_sm_open_session(pam_handle_t *pamh, int flags,
 		zfs_key_config_free(&config);
 		return (PAM_SERVICE_ERR);
 	}
+
+	if (is_key_loaded(pamh, dataset)) {
+		// -1 represents an unavailable dataset
+		//  1 represents a loaded key
+		//  0 represents an unloaded key for an available dataset
+		free(dataset);
+		pam_zfs_free();
+		zfs_key_config_free(&config);
+		// We assume that an unavailable dataset means we
+		// do not need to decrypt it.
+		return (PAM_SUCCESS);
+	}
+
+	const pw_password_t *token = pw_get(pamh);
+	if (token == NULL) {
+		free(dataset);
+		pam_zfs_free();
+		zfs_key_config_free(&config);
+		return (PAM_SESSION_ERR);
+	}
+
 	if (decrypt_mount(pamh, dataset, token->value) == -1) {
 		free(dataset);
 		pam_zfs_free();
