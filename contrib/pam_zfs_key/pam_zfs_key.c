@@ -386,6 +386,8 @@ unmount_unload(pam_handle_t *pamh, const char *ds_name)
 typedef struct {
 	char *homes_prefix;
 	char *runstatedir;
+	char *homedir;
+	char *dsname;
 	uid_t uid;
 	const char *username;
 	int unmount_and_unload;
@@ -423,6 +425,8 @@ zfs_key_config_load(pam_handle_t *pamh, zfs_key_config_t *config,
 	config->uid = entry->pw_uid;
 	config->username = name;
 	config->unmount_and_unload = 1;
+	config->dsname = NULL;
+	config->homedir = NULL;
 	for (int c = 0; c < argc; c++) {
 		if (strncmp(argv[c], "homes=", 6) == 0) {
 			free(config->homes_prefix);
@@ -432,6 +436,8 @@ zfs_key_config_load(pam_handle_t *pamh, zfs_key_config_t *config,
 			config->runstatedir = strdup(argv[c] + 12);
 		} else if (strcmp(argv[c], "nounmount") == 0) {
 			config->unmount_and_unload = 0;
+		} else if (strcmp(argv[c], "prop_mountpoint") == 0) {
+			config->homedir = strdup(entry->pw_dir);
 		}
 	}
 	return (0);
@@ -441,11 +447,59 @@ static void
 zfs_key_config_free(zfs_key_config_t *config)
 {
 	free(config->homes_prefix);
+	free(config->runstatedir);
+	free(config->homedir);
+	free(config->dsname);
+}
+
+static int
+find_dsname_by_prop_value(zfs_handle_t *zhp, void *data)
+{
+	zfs_type_t type = zfs_get_type(zhp);
+	zfs_key_config_t *target = data;
+	char mountpoint[ZFS_MAXPROPLEN];
+
+	/* Skip any datasets whose type does not match */
+	if ((type & ZFS_TYPE_FILESYSTEM) == 0) {
+		zfs_close(zhp);
+		return (0);
+	}
+
+	/* Skip any datasets whose mountpoint does not match */
+	(void) zfs_prop_get(zhp, ZFS_PROP_MOUNTPOINT, mountpoint,
+	    sizeof (mountpoint), NULL, NULL, 0, B_FALSE);
+	if (strcmp(target->homedir, mountpoint) != 0) {
+		zfs_close(zhp);
+		return (0);
+	}
+
+	target->dsname = strdup(zfs_get_name(zhp));
+	zfs_close(zhp);
+	return (1);
 }
 
 static char *
 zfs_key_config_get_dataset(zfs_key_config_t *config)
 {
+	if (config->homedir != NULL &&
+	    config->homes_prefix != NULL) {
+		zfs_handle_t *zhp = zfs_open(g_zfs, config->homes_prefix,
+		    ZFS_TYPE_FILESYSTEM);
+		if (zhp == NULL) {
+			pam_syslog(NULL, LOG_ERR, "dataset %s not found",
+			    config->homes_prefix);
+			zfs_close(zhp);
+			return (NULL);
+		}
+
+		(void) zfs_iter_filesystems(zhp, find_dsname_by_prop_value,
+		    config);
+		zfs_close(zhp);
+		char *dsname = config->dsname;
+		config->dsname = NULL;
+		return (dsname);
+	}
+
 	size_t len = ZFS_MAX_DATASET_NAME_LEN;
 	size_t total_len = strlen(config->homes_prefix) + 1
 	    + strlen(config->username);
