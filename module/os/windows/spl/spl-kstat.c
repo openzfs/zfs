@@ -1004,6 +1004,9 @@ kstat_create_zone(const char *ks_module, int ks_instance, const char *ks_name,
 	avl_index_t where;
 	char namebuf[KSTAT_STRLEN + 16];
 
+	if (ks_class == NULL)
+		ks_class = "misc";
+
 	if (avl_numnodes(&kstat_avl_bykid) == 0) {
 		avl_create(&kstat_avl_bykid, kstat_compare_bykid,
 			sizeof(ekstat_t), offsetof(struct ekstat, e_avl_bykid));

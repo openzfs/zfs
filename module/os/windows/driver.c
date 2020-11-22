@@ -6,11 +6,12 @@
 //#include <wdf.h>
 
 #include <sys/wzvol.h>
+#include <sys/taskq.h>
 
 #include "Trace.h"
 
 DRIVER_INITIALIZE DriverEntry;
-//EVT_WDF_DRIVER_DEVICE_ADD ZFSin_Init;
+//EVT_WDF_DRIVER_DEVICE_ADD OpenZFS_Init;
 
 extern int initDbgCircularBuffer(void);
 extern int finiDbgCircularBuffer(void);
@@ -19,6 +20,11 @@ extern int spl_stop(void);
 extern int zfs_start(void);
 extern void zfs_stop(void);
 extern void windows_delay(int ticks);
+extern int    zfs_vfsops_init(void);
+extern int    zfs_vfsops_fini(void);
+int zfs_kmod_init(void);
+void zfs_kmod_fini(void);
+
 
 PDRIVER_OBJECT WIN_DriverObject = NULL;
 PDRIVER_UNLOAD STOR_DriverUnload;
@@ -26,10 +32,10 @@ PDRIVER_DISPATCH STOR_MajorFunction[IRP_MJ_MAXIMUM_FUNCTION + 1];
 
 wzvolDriverInfo STOR_wzvolDriverInfo;
 
-DRIVER_UNLOAD ZFSin_Fini;
-void ZFSin_Fini(PDRIVER_OBJECT  DriverObject)
+DRIVER_UNLOAD OpenZFS_Fini;
+void OpenZFS_Fini(PDRIVER_OBJECT  DriverObject)
 {
-	KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_INFO_LEVEL, "ZFSin_Fini\n"));
+	KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_INFO_LEVEL, "OpenZFS_Fini\n"));
 	system_taskq_fini();
 
 	zfs_vfsops_fini();
@@ -58,9 +64,11 @@ void ZFSin_Fini(PDRIVER_OBJECT  DriverObject)
 NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT  DriverObject, _In_ PUNICODE_STRING pRegistryPath)
 {
 	NTSTATUS status;
+	KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_INFO_LEVEL, "OpenZFS: DriverEntry\n"));
+
 	ZFSWppInit(DriverObject, pRegistryPath);
 	
-	KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_INFO_LEVEL, "ZFSin: DriverEntry\n"));
+	KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_INFO_LEVEL, "OpenZFS: DriverEntry\n"));
 
 	// Setup global so zfs_ioctl.c can setup devnode
 	WIN_DriverObject = DriverObject;
@@ -81,7 +89,7 @@ NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT  DriverObject, _In_ PUNICODE_STRING pRe
 
 	if (STATUS_SUCCESS != status) {
 		/* If we failed, we carryon without ZVOL support. */
-		KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "ZFSin: StorPortInitialize() failed, no ZVOL for you. %d/0x%x\n", status, status));
+		KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "OpenZFS: StorPortInitialize() failed, no ZVOL for you. %d/0x%x\n", status, status));
 		memset(STOR_MajorFunction, 0, sizeof(STOR_MajorFunction));
 		STOR_DriverUnload = NULL;
 	} else {
@@ -91,7 +99,7 @@ NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT  DriverObject, _In_ PUNICODE_STRING pRe
 	}
 
 	/* Now set the Driver Callbacks to dispatcher and start ZFS */
-	WIN_DriverObject->DriverUnload = ZFSin_Fini;
+	WIN_DriverObject->DriverUnload = OpenZFS_Fini;
 
         /* Start ZFS itself */
         zfs_kmod_init();
@@ -101,7 +109,7 @@ NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT  DriverObject, _In_ PUNICODE_STRING pRe
 
         system_taskq_init();
 
-	KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "ZFSin: Started\n"));
+	KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "OpenZFS: Started\n"));
 	return STATUS_SUCCESS;
 }
 
@@ -143,8 +151,10 @@ void spl_update_version(HANDLE h, PUNICODE_STRING pRegistryPath)
 
 	UNICODE_STRING                AttachKey;
 	UNICODE_STRING                ValueKey;
+	// FIX me
 	RtlInitUnicodeString(&AttachKey, L"version");
-	RtlInitUnicodeString(&ValueKey, L""ZFS_META_VERSION "-" ZFS_META_RELEASE);
+	RtlInitUnicodeString(&ValueKey, L"fixme");
+	//RtlInitUnicodeString(&ValueKey, L"fixme"ZFS_META_VERSION "-" ZFS_META_RELEASE);
 
 	Status = ZwSetValueKey(
 		h,

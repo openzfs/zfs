@@ -1,3 +1,7 @@
+
+set(CMAKE_C_COMPILER clang-cl.exe)
+set(CMAKE_CXX_COMPILER clang-cl.exe)
+
 wdk_add_library(icpkern
   algs/aes/aes_impl_generic.c
   algs/aes/aes_impl.c

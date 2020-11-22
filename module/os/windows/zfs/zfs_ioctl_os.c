@@ -383,10 +383,6 @@ zfsdev_attach(void)
 	UNICODE_STRING  ntUnicodeString;    // NT Device Name
 	UNICODE_STRING ntWin32NameString; // Win32 Name 
 
-	mutex_init(&zfsdev_state_lock, NULL, MUTEX_DEFAULT, NULL);
-	zfsdev_state_list = kmem_zalloc(sizeof(zfsdev_state_t), KM_SLEEP);
-	zfsdev_state_list->zs_minor = -1;
-
 	static UNICODE_STRING sddl = RTL_CONSTANT_STRING(
 		L"D:P(A;;GA;;;SY)(A;;GRGWGX;;;BA)(A;;GRGWGX;;;WD)(A;;GRGX;;;RC)");
 	// Or use &SDDL_DEVOBJ_SYS_ALL_ADM_RWX_WORLD_RW_RES_R
@@ -521,21 +517,6 @@ zfsdev_detach(void)
 		ObDereferenceObject(deviceObject);
 		IoDeleteDevice(deviceObject);
 	}
-
-	mutex_destroy(&zfsdev_state_lock);
-
-	for (zs = zfsdev_state_list; zs != NULL; zs = zs->zs_next) {
-		if (zsprev) {
-			if (zsprev->zs_minor != -1) {
-				zfs_onexit_destroy(zsprev->zs_onexit);
-				zfs_zevent_destroy(zsprev->zs_zevent);
-			}
-			kmem_free(zsprev, sizeof (zfsdev_state_t));
-		}
-		zsprev = zs;
-	}
-	if (zsprev)
-		kmem_free(zsprev, sizeof (zfsdev_state_t));
 
 	tsd_destroy(&zfsdev_private_tsd);
 

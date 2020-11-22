@@ -98,14 +98,13 @@ spl_thread_create(
         //thread_deallocate(thread);
 
         atomic_inc_64(&zfs_threads);
-		void *threadid;
-		PETHREAD eThread;
-		ObReferenceObjectByHandle(thread, 0, 0, KernelMode, (void **)&eThread, 0);
-		// Perhaps threadid should move to 64bit.
-		threadid = (void *)(uintptr_t) PsGetThreadId(eThread);
-		ObDereferenceObject(eThread);
-		ZwClose(thread);
-        return ((kthread_t *)threadid);
+
+	// Convert thread handle to pethread, so it matches current_thread()
+	PETHREAD eThread;
+	ObReferenceObjectByHandle(thread, THREAD_ALL_ACCESS, 0, KernelMode, (void **)&eThread, 0);
+	ObDereferenceObject(eThread);
+	ZwClose(thread);
+        return ((kthread_t *)eThread);
 }
 
 kthread_t *

@@ -69,24 +69,24 @@ add_compile_options(
 )
 
 # Silence clang things
-add_compile_options(
-	# These are all MS headers
-	-Wno-nonportable-include-path
-	-Wno-unknown-pragmas
-	-Wno-ignored-pragma-intrinsic
-	-Wno-pragma-pack
-	-Wno-microsoft-enum-forward-reference
-	-Wno-visibility
-	-Wno-microsoft-anon-tag
-	-Wno-ignored-attributes
-	-Wno-unused-command-line-argument
-	-Wno-unused-local-typedef
-	# ZFS related
-	-Wno-misleading-indentation
-	-Wno-dangling-else
-	-Wno-missing-field-initializers
-	#-fms-extensions
-)
+#add_compile_options(
+#	# These are all MS headers
+#	-Wno-nonportable-include-path
+#	-Wno-unknown-pragmas
+#	-Wno-ignored-pragma-intrinsic
+#	-Wno-pragma-pack
+#	-Wno-microsoft-enum-forward-reference
+#	-Wno-visibility
+#	-Wno-microsoft-anon-tag
+#	-Wno-ignored-attributes
+#	-Wno-unused-command-line-argument
+#	-Wno-unused-local-typedef
+#	# ZFS related
+#	-Wno-misleading-indentation
+#	-Wno-dangling-else
+#	-Wno-missing-field-initializers
+#	#-fms-extensions
+#)
 
 string(REPLACE "/W3" "/W4" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
 string(REGEX REPLACE "[-/]DWIN32" "" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")

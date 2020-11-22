@@ -58,21 +58,37 @@
 #include <spl-debug.h>
 #include <stdio.h>
 
+#ifdef _MSC_VER
+
+#define unlikely
+#define likely
+#define __attribute__(X)
+#define __maybe_unused
+#define __printflike(X,Y)
+#define __unused
+#define always_inline __forceinline
+
+#else
+
+#define	try __try
+#define	except __except
+
 #ifndef expect
 #define expect(expr, value) (__builtin_expect((expr), (value)))
 #endif
 #define likely(x)               __builtin_expect(!!(x), 1)
 #define unlikely(x)             __builtin_expect(!!(x), 0)
 
-// For some reason these two dont work, so make them empty
 #ifndef __maybe_unused
 #define __maybe_unused  __attribute__((unused))
-// #define	__maybe_unused
 #endif
 #define	__printflike(a, b) __attribute__((__format__ (__printf__, a, b)))
-//#define __printflike(a,b)
 
 #define __unused  __attribute__((unused))
+
+#endif
+
+
 
 extern void panic(const char *fmt, ...) __attribute__((__noreturn__));
 

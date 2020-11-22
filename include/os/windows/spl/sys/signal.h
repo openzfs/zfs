@@ -56,7 +56,8 @@ struct proc;
 //thread_issignal(struct proc *, thread_t, sigset_t);
 
 typedef struct __siginfo {
-    /* Windows version goes here */
+	/* Windows version goes here */
+	void *dummy;
 } siginfo_t;
 
 /* The "why" argument indicates the allowable side-effects of the call:
