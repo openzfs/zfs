@@ -7,6 +7,6 @@ Name: libzfsbootenv
 Description: LibZFSBootENV library
 Version: @VERSION@
 URL: https://github.com/openzfs/zfs
-Requires: libzfs libnvpair
+Requires: libzfs
 Cflags: -I${includedir}
 Libs: -L${libdir} -lzfsbootenv
