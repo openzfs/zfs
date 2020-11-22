@@ -38,8 +38,13 @@ extern "C" {
 #define	ZFS_MODULE_PARAM_CALL(scope_prefix, name_prefix, name, setfunc, \
     getfunc, perm, desc)
 
+#ifdef _MSC_VER
+#define	__init
+#define	__exit 
+#else
 #define	__init __attribute__((unused))
 #define	__exit __attribute__((unused))
+#endif
 
 /*
  * The init/fini functions need to be called, but they are all static

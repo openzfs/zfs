@@ -1,3 +1,9 @@
+# cmake_minimum_required(VERSION 3.13)
+# project(OpenZFS_zfs)
+
+set(CMAKE_C_COMPILER clang-cl.exe)
+set(CMAKE_CXX_COMPILER clang-cl.exe)
+
 wdk_add_library(zfskern_os
   KMDF 1.9
 abd_os.c

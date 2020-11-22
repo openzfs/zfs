@@ -1,5 +1,5 @@
 
-[![Build status](https://ci.appveyor.com/api/projects/status/dcw734sl0prmolwr/branch/master?svg=true)](https://ci.appveyor.com/project/lundman/zfsin/branch/master)
+[![Build status](https://ci.appveyor.com/api/projects/status/dcw734sl0prmolwr/branch/master?svg=true)](https://ci.appveyor.com/project/lundman/openzfs/branch/master)
 
 
 # To setup a development environment for compiling ZFS.
@@ -42,9 +42,9 @@ C:\Program Files (x86)\Windows Kits\10\Remote\x64\WDK Test Target Setup x64-x64_
 * reboot Target VM
 
 
-On the Host VM, continue the guide to configure Visual Studio 2017.
+On the Host VM, continue the guide to configure Visual Studio.
 
-* Load Visual Studio 2017, there is no need to load the project yet.
+* Load Visual Studio, there is no need to load the project yet.
 * Menu > Driver > Test > Configure Devices
 * Click "Add New Device"
 * In "Display name:" enter "Target"
@@ -102,7 +102,7 @@ cd /d %VCToolsRedistDir%\debug_nonredist
 MKLINK /J x86\Microsoft.VC141.DebugCRT x86\Microsoft.VC142.DebugCRT
 MKLINK /J x64\Microsoft.VC141.DebugCRT x64\Microsoft.VC142.DebugCRT
 
-Retry configuration by following guide to configure Visual Studio 2017 mentioned above.
+Retry configuration by following guide to configure Visual Studio mentioned above.
 
 ---
 
@@ -115,8 +115,45 @@ Debug : ARM
 
 you probably want to change ARM ==> X64.
 
-* Load ZFSin solution
-* Menu > Debug > ZFSin Properties
+---
+
+Currently OpenZFS is compiled using CMake. The easiest
+way to do so is with Visual Studio. You will need to
+enable "clang" support, as well as Spectre libraries in
+the Visual Studio Installer.
+
+Open Visual Studio 2019 (As of Nov 2020)
+File -> Open -> Folder
+
+and open the top source folder. Hit build when ready.
+
+It is expected of you to set the environment variables
+(either globally, or in your CMakeSettings.json)
+		${OPENZFS_SIGNTOOL_CERTSTORE}
+		${OPENZFS_SIGNTOOL_CERTNAME}
+		${OPENZFS_SIGNTOOL_TSA}
+
+Only the top `driver.c` is compiled using MSVC, and the
+linking of OpenZFS.sys.
+All other files are compiled using clang, and linked into
+libraries.
+
+
+---
+
+Deploying with Visual Studio.
+
+If you wish to use Visual Studio to deploy, and debug, against
+remote Windows kernel. You can load the
+contrib/windows/OpenZFS.sln Solutions file.
+
+This file is only used for deploying!
+
+You are still expected to compile the OpenZFS code using
+CMake as described above. This section only compiles
+`driver.c` and links against already compiled libraries.
+
+
 * Configuration Properties > Debugging
 "Debugging tools for Windows - Kernel Debugger"
 Remote Computer Name: Target
@@ -125,7 +162,7 @@ Remote Computer Name: Target
 Target Device Name: Target
 [Tick] Remove previous driver versions
 O Hardware ID Driver Update
-Root\ZFSin
+Root\OpenZFS
 
 
 You can run DbgView on the Target VM to see the kernel prints on that VM.
@@ -136,7 +173,7 @@ Run the compiled Target
 * Compile solution
 * Menu > Debug > Start Debugging (F5)
 
-wait a while, for VS2017 to deploy the .sys file on Target and start it.
+wait a while, for Visual Studio to deploy the .sys file on Target and start it.
 
 
 
@@ -267,7 +304,7 @@ not set, it will mount "/pool" as "C:/pool".
 
 # Installing a binary release
 
-Latest binary files are available at [GitHub releases](https://github.com/openzfsonwindows/ZFSin/releases)
+Latest binary files are available at [GitHub releases](https://github.com/openzfsonwindows/OpenZFS/releases)
 
 
 If you are running windows 10 with secure boot on and/or installing an older release you will need to enable unsigned drivers from an elevated CMD:
@@ -284,7 +321,7 @@ After that either
   * If installing an unsigned release, click "Install anyway" in the "unknown developer" popup
 
 Or if you do not want to run the Installer, run this command by hand from elevated CMD:
-* `zfsinstaller.exe install .\ZFSin.inf`
+* `zfsinstaller.exe install .\OpenZFS.inf`
 * *Would you like to install device software?* should pop up, click install
   * If installing an unsigned release, click "Install anyway" in the "unknown developer" popup
 
@@ -400,7 +437,7 @@ click on "OpenZFS On Windows-debug version x.xx" and select Uninstall.
 If you did not use the Installer, you can manually uninstall it:
 
 ```
-zfsinstaller uninstall .\ZFSin.inf
+zfsinstaller uninstall .\OpenZFS.inf
 ```
 
 To verify that the driver got uninstalled properly you can check "zpool.exe status".
@@ -424,7 +461,7 @@ Also, there is [`kstat`](https://openzfsonosx.org/wiki/Windows_kstat) to dynamic
 
 # Nightly builds
 
-There are nightly builds available at [AppVeyor](https://ci.appveyor.com/project/lundman/zfsin/branch/master/artifacts)  
+There are nightly builds available at [AppVeyor](https://ci.appveyor.com/project/lundman/openzfs/branch/master/artifacts)  
 - These builds are currently not signed and therefore require test mode to be enabled.
 
 There also are test builds [available here](https://openzfsonosx.org/wiki/Windows_builds). These are "hotfix" builds for allowing people to test specific fixes before they are ready for a release.

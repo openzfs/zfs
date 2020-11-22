@@ -186,15 +186,6 @@ extern proc_t p0;
 struct mount;
 typedef struct mount mount_t;
 
-#ifdef __clang__
-#define	try __try
-#define	except __except
-#else // MSVC++
-#define always_inline __forceinline
-#define __attribute__
-#endif
-
-
 struct kauth_cred;
 typedef struct kauth_cred kauth_cred_t;
 struct kauth_acl;

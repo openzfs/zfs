@@ -4898,7 +4898,7 @@ void zfs_windows_vnops_callback(PDEVICE_OBJECT deviceObject)
 int
 zfs_vfsops_init(void)
 {
-	zfs_init();
+
 #ifdef DEBUG_IOCOUNT
 	mutex_init(&GIANT_SERIAL_LOCK, NULL, MUTEX_DEFAULT, NULL);
 #endif
@@ -4908,7 +4908,7 @@ zfs_vfsops_init(void)
 int
 zfs_vfsops_fini(void)
 {
-	zfs_fini();
+
 #ifdef DEBUG_IOCOUNT
 	mutex_destroy(&GIANT_SERIAL_LOCK);
 #endif
