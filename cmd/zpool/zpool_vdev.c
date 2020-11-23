@@ -1230,7 +1230,7 @@ is_grouping(const char *type, int *mindev, int *maxdev)
 		if (nparity == 0)
 			return (NULL);
 		if (mindev != NULL)
-			*mindev = nparity + 1;
+			*mindev = nparity + 2;
 		if (maxdev != NULL)
 			*maxdev = 255;
 
