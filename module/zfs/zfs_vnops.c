@@ -559,7 +559,6 @@ zfs_write(znode_t *zp, uio_t *uio, int ioflag, cred_t *cr)
 		} else {
 			/* Implied by abuf != NULL: */
 			ASSERT3S(n, >=, max_blksz);
-			ASSERT3S(woff, >=, zp->z_size);
 			ASSERT0(P2PHASE(woff, max_blksz));
 			/*
 			 * We can simplify nbytes to MIN(n, max_blksz) since
