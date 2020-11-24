@@ -4882,14 +4882,7 @@ arc_kmem_reap_soon(void)
 static boolean_t
 arc_evict_cb_check(void *arg, zthr_t *zthr)
 {
-	/*
-	 * This is necessary so that any changes which may have been made to
-	 * many of the zfs_arc_* module parameters will be propagated to
-	 * their actual internal variable counterparts. Without this,
-	 * changing those module params at runtime would have no effect.
-	 */
-	arc_tuning_update(B_FALSE);
-
+#ifdef ZFS_DEBUG
 	/*
 	 * This is necessary in order to keep the kstat information
 	 * up to date for tools that display kstat data such as the
@@ -4897,15 +4890,15 @@ arc_evict_cb_check(void *arg, zthr_t *zthr)
 	 * typically do not call kstat's update function, but simply
 	 * dump out stats from the most recent update.  Without
 	 * this call, these commands may show stale stats for the
-	 * anon, mru, mru_ghost, mfu, and mfu_ghost lists. Even
-	 * with this change, the data might be up to 1 second
-	 * out of date(the arc_evict_zthr has a maximum sleep
-	 * time of 1 second); but that should suffice.  The
-	 * arc_state_t structures can be queried directly if more
-	 * accurate information is needed.
+	 * anon, mru, mru_ghost, mfu, and mfu_ghost lists.  Even
+	 * with this call, the data might be out of date if the
+	 * evict thread hasn't been woken recently; but that should
+	 * suffice.  The arc_state_t structures can be queried
+	 * directly if more accurate information is needed.
 	 */
 	if (arc_ksp != NULL)
 		arc_ksp->ks_update(arc_ksp, KSTAT_READ);
+#endif
 
 	/*
 	 * We have to rely on arc_wait_for_eviction() to tell us when to
@@ -7667,8 +7660,8 @@ arc_init(void)
 		kstat_install(arc_ksp);
 	}
 
-	arc_evict_zthr = zthr_create_timer("arc_evict",
-	    arc_evict_cb_check, arc_evict_cb, NULL, SEC2NSEC(1));
+	arc_evict_zthr = zthr_create("arc_evict",
+	    arc_evict_cb_check, arc_evict_cb, NULL);
 	arc_reap_zthr = zthr_create_timer("arc_reap",
 	    arc_reap_cb_check, arc_reap_cb, NULL, SEC2NSEC(1));
 
