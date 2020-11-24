@@ -448,9 +448,14 @@ struct vdev {
 	/*
 	 * We rate limit ZIO delay, deadman, and checksum events, since they
 	 * can flood ZED with tons of events when a drive is acting up.
+	 *
+	 * We also rate limit Direct I/O write verify errors, since a user might
+	 * be continually manipulating a buffer that can flood ZED with tons of
+	 * events.
 	 */
 	zfs_ratelimit_t vdev_delay_rl;
 	zfs_ratelimit_t vdev_deadman_rl;
+	zfs_ratelimit_t vdev_dio_verify_rl;
 	zfs_ratelimit_t vdev_checksum_rl;
 
 	/*
@@ -648,6 +653,11 @@ extern uint_t zfs_vdev_min_auto_ashift;
 extern uint_t zfs_vdev_max_auto_ashift;
 int param_set_min_auto_ashift(ZFS_MODULE_PARAM_ARGS);
 int param_set_max_auto_ashift(ZFS_MODULE_PARAM_ARGS);
+
+/*
+ * VDEV checksum verification for Direct I/O writes
+ */
+extern uint_t zfs_vdev_direct_write_verify;
 
 #ifdef	__cplusplus
 }

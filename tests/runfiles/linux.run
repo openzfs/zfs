@@ -102,6 +102,10 @@ tags = ['functional', 'compression']
 tests = ['devices_001_pos', 'devices_002_neg', 'devices_003_pos']
 tags = ['functional', 'devices']
 
+[tests/functional/direct:Linux]
+tests = ['dio_write_verify']
+tags = ['functional', 'direct']
+
 [tests/functional/events:Linux]
 tests = ['events_001_pos', 'events_002_pos', 'zed_rc_filter', 'zed_fd_spill',
     'zed_cksum_reported', 'zed_cksum_config', 'zed_io_config',

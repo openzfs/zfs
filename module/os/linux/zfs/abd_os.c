@@ -186,6 +186,7 @@ static int zfs_abd_scatter_min_size = 512 * 3;
 abd_t *abd_zero_scatter = NULL;
 
 struct page;
+
 /*
  * abd_zero_page is assigned to each of the pages of abd_zero_scatter. It will
  * point to ZERO_PAGE if it is available or it will be an allocated zero'd
@@ -453,14 +454,21 @@ abd_free_chunks(abd_t *abd)
 	if (abd->abd_flags & ABD_FLAG_MULTI_CHUNK)
 		ABDSTAT_BUMPDOWN(abdstat_scatter_page_multi_chunk);
 
-	abd_for_each_sg(abd, sg, nr_pages, i) {
-		page = sg_page(sg);
-		abd_unmark_zfs_page(page);
-		order = compound_order(page);
-		__free_pages(page, order);
-		ASSERT3U(sg->length, <=, PAGE_SIZE << order);
-		ABDSTAT_BUMPDOWN(abdstat_scatter_orders[order]);
+	/*
+	 * Scatter ABDs may be constructed by abd_alloc_from_pages() from
+	 * an array of pages. In which case they should not be freed.
+	 */
+	if (!abd_is_from_pages(abd)) {
+		abd_for_each_sg(abd, sg, nr_pages, i) {
+			page = sg_page(sg);
+			abd_unmark_zfs_page(page);
+			order = compound_order(page);
+			__free_pages(page, order);
+			ASSERT3U(sg->length, <=, PAGE_SIZE << order);
+			ABDSTAT_BUMPDOWN(abdstat_scatter_orders[order]);
+		}
 	}
+
 	abd_free_sg_table(abd);
 }
 
@@ -551,17 +559,19 @@ abd_update_linear_stats(abd_t *abd, abd_stats_op_t op)
 void
 abd_verify_scatter(abd_t *abd)
 {
-	size_t n;
-	int i = 0;
-	struct scatterlist *sg = NULL;
-
 	ASSERT3U(ABD_SCATTER(abd).abd_nents, >, 0);
 	ASSERT3U(ABD_SCATTER(abd).abd_offset, <,
 	    ABD_SCATTER(abd).abd_sgl->length);
-	n = ABD_SCATTER(abd).abd_nents;
+
+#ifdef ZFS_DEBUG
+	struct scatterlist *sg = NULL;
+	size_t n = ABD_SCATTER(abd).abd_nents;
+	int i = 0;
+
 	abd_for_each_sg(abd, sg, n, i) {
 		ASSERT3P(sg_page(sg), !=, NULL);
 	}
+#endif
 }
 
 static void
@@ -687,14 +697,77 @@ abd_free_linear_page(abd_t *abd)
 {
 	/* Transform it back into a scatter ABD for freeing */
 	struct scatterlist *sg = abd->abd_u.abd_linear.abd_sgl;
+
+	/* When backed by user page unmap it */
+	if (abd_is_from_pages(abd))
+		zfs_kunmap(sg_page(sg));
+
 	abd->abd_flags &= ~ABD_FLAG_LINEAR;
 	abd->abd_flags &= ~ABD_FLAG_LINEAR_PAGE;
 	ABD_SCATTER(abd).abd_nents = 1;
 	ABD_SCATTER(abd).abd_offset = 0;
 	ABD_SCATTER(abd).abd_sgl = sg;
 	abd_free_chunks(abd);
+}
 
-	abd_update_scatter_stats(abd, ABDSTAT_DECR);
+/*
+ * Allocate a scatter ABD structure from user pages. The pages must be
+ * pinned with get_user_pages, or similiar, but need not be mapped via
+ * the kmap interfaces.
+ */
+abd_t *
+abd_alloc_from_pages(struct page **pages, unsigned long offset, uint64_t size)
+{
+	uint_t npages = DIV_ROUND_UP(size, PAGE_SIZE);
+	struct sg_table table;
+
+	VERIFY3U(size, <=, DMU_MAX_ACCESS);
+	ASSERT3U(offset, <, PAGE_SIZE);
+	ASSERT3P(pages, !=, NULL);
+
+	/*
+	 * Even if this buf is filesystem metadata, we only track that we
+	 * own the underlying data buffer, which is not true in this case.
+	 * Therefore, we don't ever use ABD_FLAG_META here.
+	 */
+	abd_t *abd = abd_alloc_struct(0);
+	abd->abd_flags |= ABD_FLAG_FROM_PAGES | ABD_FLAG_OWNER;
+	abd->abd_size = size;
+
+	while (sg_alloc_table_from_pages(&table, pages, npages, offset,
+	    size, __GFP_NOWARN | GFP_NOIO) != 0) {
+		ABDSTAT_BUMP(abdstat_scatter_sg_table_retry);
+		schedule_timeout_interruptible(1);
+	}
+
+	if ((offset + size) <= PAGE_SIZE) {
+		/*
+		 * Since there is only one entry, this ABD can be represented
+		 * as a linear buffer. All single-page (4K) ABD's constructed
+		 * from a user page can be represented this way as long as the
+		 * page is mapped to a virtual address. This allows us to
+		 * apply an offset in to the mapped page.
+		 *
+		 * Note that kmap() must be used, not kmap_atomic(), because
+		 * the mapping needs to bet set up on all CPUs. Using kmap()
+		 * also enables the user of highmem pages when required.
+		 */
+		abd->abd_flags |= ABD_FLAG_LINEAR | ABD_FLAG_LINEAR_PAGE;
+		abd->abd_u.abd_linear.abd_sgl = table.sgl;
+		zfs_kmap(sg_page(table.sgl));
+		ABD_LINEAR_BUF(abd) = sg_virt(table.sgl);
+	} else {
+		ABDSTAT_BUMP(abdstat_scatter_page_multi_chunk);
+		abd->abd_flags |= ABD_FLAG_MULTI_CHUNK;
+
+		ABD_SCATTER(abd).abd_offset = offset;
+		ABD_SCATTER(abd).abd_sgl = table.sgl;
+		ABD_SCATTER(abd).abd_nents = table.nents;
+
+		ASSERT0(ABD_SCATTER(abd).abd_offset);
+	}
+
+	return (abd);
 }
 
 /*
@@ -745,6 +818,9 @@ abd_get_offset_scatter(abd_t *abd, abd_t *sabd, size_t off,
 	ABD_SCATTER(abd).abd_sgl = sg;
 	ABD_SCATTER(abd).abd_offset = new_offset;
 	ABD_SCATTER(abd).abd_nents = ABD_SCATTER(sabd).abd_nents - i;
+
+	if (abd_is_from_pages(sabd))
+		abd->abd_flags |= ABD_FLAG_FROM_PAGES;
 
 	return (abd);
 }
@@ -871,6 +947,115 @@ abd_iter_unmap(struct abd_iter *aiter)
 void
 abd_cache_reap_now(void)
 {
+}
+
+/*
+ * Borrow a raw buffer from an ABD without copying the contents of the ABD
+ * into the buffer. If the ABD is scattered, this will allocate a raw buffer
+ * whose contents are undefined. To copy over the existing data in the ABD, use
+ * abd_borrow_buf_copy() instead.
+ */
+void *
+abd_borrow_buf(abd_t *abd, size_t n)
+{
+	void *buf;
+	abd_verify(abd);
+	ASSERT3U(abd->abd_size, >=, 0);
+	/*
+	 * In the event the ABD is composed of a single user page from Direct
+	 * I/O we can not direclty return the raw buffer. This is a consequence
+	 * of not being able to write protect the page and the contents of the
+	 * page can be changed at any time by the user.
+	 */
+	if (abd_is_from_pages(abd)) {
+		buf = zio_buf_alloc(n);
+	} else if (abd_is_linear(abd)) {
+		buf = abd_to_buf(abd);
+	} else {
+		buf = zio_buf_alloc(n);
+	}
+
+#ifdef ZFS_DEBUG
+	(void) zfs_refcount_add_many(&abd->abd_children, n, buf);
+#endif
+	return (buf);
+}
+
+void *
+abd_borrow_buf_copy(abd_t *abd, size_t n)
+{
+	void *buf = abd_borrow_buf(abd, n);
+
+	/*
+	 * In the event the ABD is composed of a single user page from Direct
+	 * I/O we must make sure copy the data over into the newly allocated
+	 * buffer. This is a consequence of the fact that we can not write
+	 * protect the user page and there is a risk the contents of the page
+	 * could be changed by the user at any moment.
+	 */
+	if (!abd_is_linear(abd) || abd_is_from_pages(abd)) {
+		abd_copy_to_buf(buf, abd, n);
+	}
+	return (buf);
+}
+
+/*
+ * Return a borrowed raw buffer to an ABD. If the ABD is scatterd, this will
+ * not change the contents of the ABD. If you want any changes you made to
+ * buf to be copied back to abd, use abd_return_buf_copy() instead. If the
+ * ABD is not constructed from user pages for Direct I/O then an ASSERT
+ * checks to make sure the contents of buffer have not changed since it was
+ * borrowed. We can not ASSERT that the contents of the buffer have not changed
+ * if it is composed of user pages because the pages can not be placed under
+ * write protection and the user could have possibly changed the contents in
+ * the pages at any time.
+ */
+void
+abd_return_buf(abd_t *abd, void *buf, size_t n)
+{
+	abd_verify(abd);
+	ASSERT3U(abd->abd_size, >=, n);
+#ifdef ZFS_DEBUG
+	(void) zfs_refcount_remove_many(&abd->abd_children, n, buf);
+#endif
+	if (abd_is_from_pages(abd)) {
+		zio_buf_free(buf, n);
+	} else if (abd_is_linear(abd)) {
+		ASSERT3P(buf, ==, abd_to_buf(abd));
+	} else if (abd_is_gang(abd)) {
+#ifdef ZFS_DEBUG
+		/*
+		 * We have to be careful with gang ABD's that we do not ASSERT0
+		 * for any ABD's that contain user pages from Direct I/O. In
+		 * order to handle this, we just iterate through the gang ABD
+		 * and only verify ABDs that are not from user pages.
+		 */
+		void *cmp_buf = buf;
+
+		for (abd_t *cabd = list_head(&ABD_GANG(abd).abd_gang_chain);
+		    cabd != NULL;
+		    cabd = list_next(&ABD_GANG(abd).abd_gang_chain, cabd)) {
+			if (!abd_is_from_pages(cabd)) {
+				ASSERT0(abd_cmp_buf(cabd, cmp_buf,
+				    cabd->abd_size));
+			}
+			cmp_buf = (char *)cmp_buf + cabd->abd_size;
+		}
+#endif
+		zio_buf_free(buf, n);
+	} else {
+		ASSERT0(abd_cmp_buf(abd, buf, n));
+		zio_buf_free(buf, n);
+	}
+}
+
+void
+abd_return_buf_copy(abd_t *abd, void *buf, size_t n)
+{
+	if (!abd_is_linear(abd) || abd_is_from_pages(abd)) {
+		abd_copy_from_buf(abd, buf, n);
+	}
+	abd_return_buf(abd, buf, n);
 }
 
 /*

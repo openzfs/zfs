@@ -27,5 +27,5 @@
 . $STF_SUITE/include/libtest.shlib
 verify_runnable "global"
 
-default_setup "$DISKS"
+default_raidz_setup "$DISKS"
 log_must zfs set compression=on $TESTPOOL/$TESTFS

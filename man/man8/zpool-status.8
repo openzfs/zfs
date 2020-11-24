@@ -36,7 +36,7 @@
 .Sh SYNOPSIS
 .Nm zpool
 .Cm status
-.Op Fl DegiLpPstvx
+.Op Fl dDegiLpPstvx
 .Op Fl T Sy u Ns | Ns Sy d
 .Op Fl c Op Ar SCRIPT1 Ns Oo , Ns Ar SCRIPT2 Oc Ns …
 .Oo Ar pool Oc Ns …
@@ -81,6 +81,15 @@ to display vdevs in flat hierarchy instead of nested vdev objects.
 Specify
 .Sy --json-pool-key-guid
 to set pool GUID as key for pool objects instead of pool names.
+.It Fl d
+Display the number of Direct I/O write checksum verify errors that have occured
+on a top-level VDEV.
+See
+.Sx zfs_vdev_direct_write_verify
+in
+.Xr zfs 4
+for details about the conditions that can cause Direct I/O write checksum
+verify failures to occur.
 .It Fl D
 Display a histogram of deduplication statistics, showing the allocated
 .Pq physically present on disk

@@ -1,0 +1,331 @@
+#
+# CDDL HEADER START
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright (c) 2021 by Lawrence Livermore National Security, LLC.
+#
+
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/direct/dio.cfg
+
+function dio_cleanup
+{
+	if poolexists $TESTPOOL1; then
+		destroy_pool $TESTPOOL1
+	fi
+
+	rm -f $DIO_VDEVS
+}
+
+#
+# Generate an IO workload using fio and then verify the resulting data.
+#
+function dio_and_verify # mode file-size block-size directory ioengine extra-args
+{
+	typeset mode=$1
+	typeset size=$2
+	typeset bs=$3
+	typeset mntpnt=$4
+	typeset ioengine=$5
+	typeset extra_args=$6
+
+	# Invoke an fio workload via Direct I/O and verify with Direct I/O.
+	log_must fio --directory=$mntpnt --name=direct-$mode \
+	    --rw=$mode --size=$size --bs=$bs --direct=1 --numjobs=1 \
+	    --verify=sha1 --ioengine=$ioengine --fallocate=none \
+	    --group_reporting --minimal --do_verify=1 $extra_args
+
+	# Now just read back the file without Direct I/O into the ARC as an
+	# additional verfication step.
+	log_must fio --directory=$mntpnt --name=direct-$mode \
+	    --rw=read --size=$size --bs=$bs --direct=0 --numjobs=1 \
+		--ioengine=$ioengine --group_reporting --minimal
+
+	log_must rm -f "$mntpnt/direct-*"
+}
+
+#
+# Get zpool status -d checksum verify failures
+#
+function get_zpool_status_chksum_verify_failures # pool_name vdev_type
+{
+	typeset pool=$1
+	typeset vdev_type=$2
+
+	if [[ "$vdev_type" == "stripe" ]]; then
+		val=$(zpool status -dp $pool | \
+		    awk '{s+=$6} END {print s}' )
+	elif [[ "$vdev_type" == "mirror" || "$vdev_type" == "raidz" ||
+	    "$vdev_type" == "draid" ]]; then 
+		val=$(zpool status -dp $pool | \
+		    awk -v d="$vdev_type" '$0 ~ d {print $6}' )
+	else
+		log_fail "Unsupported VDEV type in \
+		   get_zpool_status_chksum_verify_failures(): $vdev_type"
+	fi
+	echo "$val"
+}
+
+#
+# Get ZED dio_verify events
+#
+function get_zed_dio_verify_events # pool
+{
+	typeset pool=$1
+
+	val=$(zpool events $pool | grep -c dio_verify)
+
+	echo "$val"
+}
+
+#
+# Checking for checksum verify write failures with:
+# zpool status -d
+# zpool events
+# After getting that counts will clear the out the ZPool errors and events
+#
+function check_dio_write_chksum_verify_failures # pool vdev_type expect_errors
+{
+	typeset pool=$1
+	typeset vdev_type=$2
+	typeset expect_errors=$3
+	typeset note_str="expecting none"
+
+	if [[ $expect_errors -ne 0 ]]; then
+		note_str="expecting some"
+	fi
+
+	log_note "Checking for Direct I/O write checksum verify errors \
+	    $note_str on ZPool: $pool"
+
+	status_failures=$(get_zpool_status_chksum_verify_failures $pool $vdev_type)
+	zed_dio_verify_events=$(get_zed_dio_verify_events $pool)
+
+	if [[ $expect_errors -ne 0 ]]; then
+		if [[ $status_failures -eq 0 ||
+		    $zed_dio_verify_events -eq 0 ]]; then
+			zpool status -dp $pool
+			zpool events $pool
+			log_fail "Checksum verifies in zpool status -d  \
+			    $status_failures. ZED dio_verify events \
+			    $zed_dio_verify_events. Neither should be 0."
+		fi
+	else
+		if [[ $status_failures -ne 0 ||
+		    $zed_dio_verify_events -ne 0 ]]; then
+			zpool status -dp $pool
+			zpool events $pool
+			log_fail "Checksum verifies in zpool status -d  \
+			    $status_failures. ZED dio_verify events \
+			    $zed_dio_verify_events. Both should be zero."
+		fi
+	fi
+
+	log_must zpool clear $pool
+	log_must zpool events -c
+
+}
+
+#
+# Get the value of a counter from
+# Linux: /proc/spl/kstat/zfs/$pool/iostats file.
+# FreeBSD: kstat.zfs.$pool.msic.iostats.$stat
+#
+function get_iostats_stat # pool stat
+{
+	typeset pool=$1
+	typeset stat=$2
+
+	if is_linux; then
+		iostats_file=/proc/spl/kstat/zfs/$pool/iostats
+		val=$(grep -m1 "$stat" $iostats_file | awk '{ print $3 }')
+	else
+		val=$(sysctl -n kstat.zfs.$pool.misc.iostats.$stat)
+	fi
+	if [[ -z "$val" ]]; then
+		log_fail "Unable to read $stat counter"
+	fi
+
+	echo "$val"
+}
+
+#
+# Evict any buffered blocks by overwritting them using an O_DIRECT request.
+#
+function evict_blocks
+{
+	typeset pool=$1
+	typeset file=$2
+	typeset size=$3
+
+	log_must stride_dd -i /dev/urandom -o $file -b $size -c 1 -D
+}
+
+#
+# Perform FIO Direct I/O writes to a file with the given arguments.
+# Then verify thae minimum expected number of blocks were written as
+# Direct I/O.
+#
+function verify_dio_write_count #pool bs size mnpnt
+{
+	typeset pool=$1
+	typeset bs=$2
+	typeset size=$3
+	typeset mntpnt=$4
+	typeset dio_wr_expected=$(((size / bs) -1))
+
+	log_note "Checking for $dio_wr_expected Direct I/O writes"
+
+	prev_dio_wr=$(get_iostats_stat $pool direct_write_count)
+	dio_and_verify write $size $bs $mntpnt "sync"
+	curr_dio_wr=$(get_iostats_stat $pool direct_write_count)
+	dio_wr_actual=$((curr_dio_wr - prev_dio_wr))
+
+	if [[ $dio_wr_actual -lt $dio_wr_expected ]]; then
+		if is_linux; then
+			cat /proc/spl/kstat/zfs/$pool/iostats
+		else
+			sysctl kstat.zfs.$pool.misc.iostats
+		fi
+		log_fail "Direct writes $dio_wr_actual of $dio_wr_expected"
+	fi
+}
+
+#
+# Perform a stride_dd write command to the file with the given arguments.
+# Then verify the minimum expected number of blocks were written as either
+# buffered IO (by the ARC), or Direct I/O to the application (dd).
+#
+function check_write # pool file bs count seek flags buf_wr dio_wr
+{
+	typeset pool=$1
+	typeset file=$2
+	typeset bs=$3
+	typeset count=$4
+	typeset seek=$5
+	typeset flags=$6
+	typeset buf_wr_expect=$7
+	typeset dio_wr_expect=$8
+
+	log_note "Checking $count * $bs write(s) at offset $seek, $flags"
+
+	prev_buf_wr=$(get_iostats_stat $pool arc_write_count)
+	prev_dio_wr=$(get_iostats_stat $pool direct_write_count)
+
+	log_must stride_dd -i /dev/urandom -o $file -b $bs -c $count \
+	    -k $seek $flags
+
+	curr_buf_wr=$(get_iostats_stat $pool arc_write_count)
+	buf_wr_actual=$((curr_buf_wr - prev_buf_wr))
+
+	curr_dio_wr=$(get_iostats_stat $pool direct_write_count)
+	dio_wr_actual=$((curr_dio_wr - prev_dio_wr))
+
+	if [[ $buf_wr_actual -lt $buf_wr_expect ]]; then
+		if is_linux; then
+			cat /proc/spl/kstat/zfs/$pool/iostats
+		else
+			sysctl kstat.zfs.$pool.misc.iostats
+		fi
+		log_fail "Buffered writes $buf_wr_actual of $buf_wr_expect"
+	fi
+
+	if [[ $dio_wr_actual -lt $dio_wr_expect ]]; then
+		if is_linux; then
+			cat /proc/spl/kstat/zfs/$pool/iostats
+		else
+			sysctl kstat.zfs.$pool.misc.iostats
+		fi
+		log_fail "Direct writes $dio_wr_actual of $dio_wr_expect"
+	fi
+}
+
+#
+# Perform a stride_dd read command to the file with the given arguments.
+# Then verify the minimum expected number of blocks were read as either
+# buffered IO (by the ARC), or Direct I/O to the application (dd).
+#
+function check_read # pool file bs count skip flags buf_rd dio_rd
+{
+	typeset pool=$1
+	typeset file=$2
+	typeset bs=$3
+	typeset count=$4
+	typeset skip=$5
+	typeset flags=$6
+	typeset buf_rd_expect=$7
+	typeset dio_rd_expect=$8
+
+	log_note "Checking $count * $bs read(s) at offset $skip, $flags"
+
+	prev_buf_rd=$(get_iostats_stat $pool arc_read_count)
+	prev_dio_rd=$(get_iostats_stat $pool direct_read_count)
+
+	log_must stride_dd -i $file -o /dev/null -b $bs -c $count \
+	    -p $skip $flags
+
+	curr_buf_rd=$(get_iostats_stat $pool arc_read_count)
+	buf_rd_actual=$((curr_buf_rd - prev_buf_rd))
+
+	curr_dio_rd=$(get_iostats_stat $pool direct_read_count)
+	dio_rd_actual=$((curr_dio_rd - prev_dio_rd))
+
+	if [[ $buf_rd_actual -lt $buf_rd_expect ]]; then
+		if is_linux; then
+			cat /proc/spl/kstat/zfs/$pool/iostats
+		else
+			sysctl kstat.zfs.$pool.misc.iostats
+		fi
+		log_fail "Buffered reads $buf_rd_actual of $buf_rd_expect"
+	fi
+
+	if [[ $dio_rd_actual -lt $dio_rd_expect ]]; then
+		if is_linux; then
+			cat /proc/spl/kstat/zfs/$pool/iostats
+		else
+			sysctl kstat.zfs.$pool.misc.iostats
+		fi
+		log_fail "Direct reads $dio_rd_actual of $dio_rd_expect"
+	fi
+}
+
+function get_file_size
+{
+	typeset filename="$1"
+
+	if is_linux; then
+		filesize=$(stat -c %s $filename)
+	else
+		filesize=$(stat -s $filename | awk '{print $8}' | grep -o '[0-9]\+')
+	fi
+
+	echo $filesize
+}
+
+function do_truncate_reduce
+{
+	typeset filename=$1
+	typeset size=$2
+
+	filesize=$(get_file_size $filename)
+	eval "echo original filesize: $filesize"
+	if is_linux; then
+		truncate $filename -s $((filesize - size))
+	else
+		truncate -s -$size $filename
+	fi
+	filesize=$(get_file_size $filename)
+	eval "echo new filesize after truncate: $filesize"
+}

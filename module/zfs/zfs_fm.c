@@ -595,6 +595,8 @@ zfs_ereport_start(nvlist_t **ereport_out, nvlist_t **detector_out,
 			    DATA_TYPE_UINT64, vs->vs_checksum_errors,
 			    FM_EREPORT_PAYLOAD_ZFS_VDEV_DELAYS,
 			    DATA_TYPE_UINT64, vs->vs_slow_ios,
+			    FM_EREPORT_PAYLOAD_ZFS_VDEV_DIO_VERIFY_ERRORS,
+			    DATA_TYPE_UINT64, vs->vs_dio_verify_errors,
 			    NULL);
 		}
 

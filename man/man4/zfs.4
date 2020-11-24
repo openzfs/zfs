@@ -291,6 +291,14 @@ Default dnode block size as a power of 2.
 .It Sy zfs_default_ibs Ns = Ns Sy 17 Po 128 KiB Pc Pq int
 Default dnode indirect block size as a power of 2.
 .
+.It Sy zfs_dio_enabled Ns = Ns Sy 0 Ns | Ns 1 Pq int
+Enable Direct I/O.
+If this setting is 0, then all I/O requests will be directed through the ARC
+acting as though the dataset property
+.Sy direct
+was set to
+.Sy disabled .
+.
 .It Sy zfs_history_output_max Ns = Ns Sy 1048576 Ns B Po 1 MiB Pc Pq u64
 When attempting to log an output nvlist of an ioctl in the on-disk history,
 the output will not be stored if it is larger than this size (in bytes).
@@ -415,6 +423,26 @@ top-level vdevs.
 May be increased up to
 .Sy ASHIFT_MAX Po 16 Pc ,
 but this may negatively impact pool space efficiency.
+.
+.It Sy zfs_vdev_direct_write_verify Ns = Ns Sy Linux 1 | FreeBSD 0 Pq uint
+If non-zero, then a Direct I/O write's checksum will be verified every
+time the write is issued and before it is commited to the block pointer.
+In the event the checksum is not valid then the I/O operation will return EIO.
+This module parameter can be used to detect if the
+contents of the users buffer have changed in the process of doing a Direct I/O
+write.
+It can also help to identify if reported checksum errors are tied to Direct I/O
+writes.
+Each verify error causes a
+.Sy dio_verify
+zevent.
+Direct Write I/O checkum verify errors can be seen with
+.Nm zpool Cm status Fl d .
+The default value for this is 1 on Linux, but is 0 for
+.Fx
+because user pages can be placed under write protection in
+.Fx
+before the Direct I/O write is issued.
 .
 .It Sy zfs_vdev_min_auto_ashift Ns = Ns Sy ASHIFT_MIN Po 9 Pc Pq uint
 Minimum ashift used when creating new top-level vdevs.
@@ -1092,6 +1120,9 @@ This will smoothly handle between ten times and a tenth of this number.
 .No See Sx ZFS TRANSACTION DELAY .
 .Pp
 .Sy zfs_delay_scale No \(mu Sy zfs_dirty_data_max Em must No be smaller than Sy 2^64 .
+.
+.It Sy zfs_dio_write_verify_events_per_second Ns = Ns Sy 20 Ns /s Pq uint
+Rate limit Direct I/O write verify events to this many per second.
 .
 .It Sy zfs_disable_ivset_guid_check Ns = Ns Sy 0 Ns | Ns 1 Pq int
 Disables requirement for IVset GUIDs to be present and match when doing a raw

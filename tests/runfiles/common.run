@@ -693,6 +693,14 @@ tests = ['zfs_allow_001_pos', 'zfs_allow_002_pos', 'zfs_allow_003_pos',
     'zfs_unallow_007_neg', 'zfs_unallow_008_neg']
 tags = ['functional', 'delegate']
 
+[tests/functional/direct]
+tests = ['dio_aligned_block', 'dio_async_always', 'dio_async_fio_ioengines',
+    'dio_compression', 'dio_dedup', 'dio_encryption', 'dio_grow_block',
+    'dio_max_recordsize', 'dio_mixed', 'dio_mmap', 'dio_overwrites',
+    'dio_property', 'dio_random', 'dio_recordsize', 'dio_unaligned_block',
+    'dio_unaligned_filesize']
+tags = ['functional', 'direct']
+
 [tests/functional/exec]
 tests = ['exec_001_pos', 'exec_002_neg']
 tags = ['functional', 'exec']
@@ -735,7 +743,7 @@ pre =
 tags = ['functional', 'inheritance']
 
 [tests/functional/io]
-tests = ['sync', 'psync', 'posixaio', 'mmap']
+tests = ['mmap', 'posixaio', 'psync', 'sync']
 tags = ['functional', 'io']
 
 [tests/functional/inuse]

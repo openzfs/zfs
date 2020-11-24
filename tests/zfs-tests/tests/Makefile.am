@@ -265,6 +265,8 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/delegate/delegate_common.kshlib \
 	functional/devices/devices.cfg \
 	functional/devices/devices_common.kshlib \
+	functional/direct/dio.cfg \
+	functional/direct/dio.kshlib \
 	functional/events/events.cfg \
 	functional/events/events_common.kshlib \
 	functional/fault/fault.cfg \
@@ -1458,6 +1460,26 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/devices/devices_002_neg.ksh \
 	functional/devices/devices_003_pos.ksh \
 	functional/devices/setup.ksh \
+	functional/direct/dio_aligned_block.ksh \
+	functional/direct/dio_async_always.ksh \
+	functional/direct/dio_async_fio_ioengines.ksh \
+	functional/direct/dio_compression.ksh \
+	functional/direct/dio_dedup.ksh \
+	functional/direct/dio_encryption.ksh \
+	functional/direct/dio_grow_block.ksh \
+	functional/direct/dio_max_recordsize.ksh \
+	functional/direct/dio_mixed.ksh \
+	functional/direct/dio_mmap.ksh \
+	functional/direct/dio_overwrites.ksh \
+	functional/direct/dio_property.ksh \
+	functional/direct/dio_random.ksh \
+	functional/direct/dio_recordsize.ksh \
+	functional/direct/dio_unaligned_block.ksh \
+	functional/direct/dio_unaligned_filesize.ksh \
+	functional/direct/dio_write_verify.ksh \
+	functional/direct/dio_write_stable_pages.ksh \
+	functional/direct/setup.ksh \
+	functional/direct/cleanup.ksh \
 	functional/dos_attributes/cleanup.ksh \
 	functional/dos_attributes/read_dos_attrs_001.ksh \
 	functional/dos_attributes/setup.ksh \

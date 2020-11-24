@@ -55,6 +55,9 @@ int abd_iterate_page_func(abd_t *, size_t, size_t, abd_iter_page_func_t *,
 unsigned int abd_bio_map_off(struct bio *, abd_t *, unsigned int, size_t);
 unsigned long abd_nr_pages_off(abd_t *, unsigned int, size_t);
 
+__attribute__((malloc))
+abd_t *abd_alloc_from_pages(struct page **, unsigned long, uint64_t);
+
 #ifdef __cplusplus
 }
 #endif

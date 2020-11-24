@@ -949,6 +949,14 @@ typedef struct spa_iostats {
 	kstat_named_t	simple_trim_bytes_skipped;
 	kstat_named_t	simple_trim_extents_failed;
 	kstat_named_t	simple_trim_bytes_failed;
+	kstat_named_t	arc_read_count;
+	kstat_named_t	arc_read_bytes;
+	kstat_named_t	arc_write_count;
+	kstat_named_t	arc_write_bytes;
+	kstat_named_t	direct_read_count;
+	kstat_named_t	direct_read_bytes;
+	kstat_named_t	direct_write_count;
+	kstat_named_t	direct_write_bytes;
 } spa_iostats_t;
 
 extern void spa_stats_init(spa_t *spa);
@@ -972,6 +980,10 @@ extern void spa_iostats_trim_add(spa_t *spa, trim_type_t type,
     uint64_t extents_written, uint64_t bytes_written,
     uint64_t extents_skipped, uint64_t bytes_skipped,
     uint64_t extents_failed, uint64_t bytes_failed);
+extern void spa_iostats_read_add(spa_t *spa, uint64_t size, uint64_t iops,
+    uint32_t flags);
+extern void spa_iostats_write_add(spa_t *spa, uint64_t size, uint64_t iops,
+    uint32_t flags);
 extern void spa_import_progress_add(spa_t *spa);
 extern void spa_import_progress_remove(uint64_t spa_guid);
 extern int spa_import_progress_set_mmp_check(uint64_t pool_guid,
