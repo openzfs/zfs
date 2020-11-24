@@ -4131,7 +4131,7 @@ zfs_putpages(struct vnode *vp, vm_page_t *ma, size_t len, int flags,
 		 * but that would make the locking messier
 		 */
 		zfs_log_write(zfsvfs->z_log, tx, TX_WRITE, zp, off,
-		    len, commit, NULL, NULL);
+		    len, commit, B_FALSE, NULL, NULL);
 
 		zfs_vmobject_wlock(object);
 		for (i = 0; i < ncount; i++) {
@@ -4266,10 +4266,35 @@ ioflags(int ioflags)
 		flags |= O_APPEND;
 	if (ioflags & IO_NDELAY)
 		flags |= O_NONBLOCK;
+	if (ioflags & IO_DIRECT)
+		flags |= O_DIRECT;
 	if (ioflags & IO_SYNC)
 		flags |= O_SYNC;
 
 	return (flags);
+}
+
+static int
+zfs_freebsd_read_direct(znode_t *zp, zfs_uio_t *uio, zfs_uio_rw_t rw,
+    int ioflag, cred_t *cr)
+{
+	int ret;
+	int flags = ioflag;
+
+	ASSERT3U(rw, ==, UIO_READ);
+
+	/* On error, return to fallback to the buffred path */
+	ret = zfs_setup_direct(zp, uio, rw, &flags);
+	if (ret)
+		return (ret);
+
+	ASSERT(uio->uio_extflg & UIO_DIRECT);
+
+	ret = zfs_read(zp, uio, flags, cr);
+
+	zfs_uio_free_dio_pages(uio, rw);
+
+	return (ret);
 }
 
 #ifndef _SYS_SYSPROTO_H_
@@ -4285,9 +4310,87 @@ static int
 zfs_freebsd_read(struct vop_read_args *ap)
 {
 	zfs_uio_t uio;
+	int error = 0;
+	znode_t *zp = VTOZ(ap->a_vp);
+	int ioflag = ioflags(ap->a_ioflag);
+
 	zfs_uio_init(&uio, ap->a_uio);
-	return (zfs_read(VTOZ(ap->a_vp), &uio, ioflags(ap->a_ioflag),
-	    ap->a_cred));
+
+	zfs_direct_enabled_t direct =
+	    zfs_check_direct_enabled(zp, ioflag, &error);
+
+	if (direct == ZFS_DIRECT_IO_ERR) {
+		return (error);
+	} else if (direct == ZFS_DIRECT_IO_ENABLED) {
+		error =
+		    zfs_freebsd_read_direct(zp, &uio, UIO_READ, ioflag,
+		    ap->a_cred);
+		/*
+		 * XXX We occasionally get an EFAULT for Direct I/O reads on
+		 * FreeBSD 13. This still needs to be resolved. The EFAULT comes
+		 * from:
+		 * zfs_uio_get__dio_pages_alloc() ->
+		 * zfs_uio_get_dio_pages_impl() ->
+		 * zfs_uio_iov_step() ->
+		 * zfs_uio_get_user_pages().
+		 * We return EFAULT from zfs_uio_iov_step(). When a Direct I/O
+		 * read fails to map in the user pages (returning EFAULT) the
+		 * Direct I/O request is broken up into two separate IO requests
+		 * and issued separately using Direct I/O.
+		 */
+#ifdef ZFS_DEBUG
+		if (error == EFAULT) {
+#if 0
+			printf("%s(%d): Direct I/O read returning EFAULT "
+			    "uio = %p, zfs_uio_offset(uio) = %lu "
+			    "zfs_uio_resid(uio) = %lu\n",
+			    __FUNCTION__, __LINE__, &uio, zfs_uio_offset(&uio),
+			    zfs_uio_resid(&uio));
+#endif
+		}
+
+#endif
+
+		/*
+		 * On error we will return unless the error is EAGAIN, which
+		 * just tells us to fallback to the buffered path.
+		 */
+		if (error != EAGAIN)
+			return (error);
+		else
+			ioflag &= ~O_DIRECT;
+	}
+
+
+	ASSERT(direct == ZFS_DIRECT_IO_DISABLED ||
+	    (direct == ZFS_DIRECT_IO_ENABLED && error == EAGAIN));
+
+	error = zfs_read(zp, &uio, ioflag, ap->a_cred);
+
+	return (error);
+}
+
+static int
+zfs_freebsd_write_direct(znode_t *zp, zfs_uio_t *uio, zfs_uio_rw_t rw,
+    int ioflag, cred_t *cr)
+{
+	int ret;
+	int flags = ioflag;
+
+	ASSERT3U(rw, ==, UIO_WRITE);
+
+	/* On error, return to fallback to the buffred path */
+	ret = zfs_setup_direct(zp, uio, rw, &flags);
+	if (ret)
+		return (ret);
+
+	ASSERT(uio->uio_extflg & UIO_DIRECT);
+
+	ret = zfs_write(zp, uio, flags, cr);
+
+	zfs_uio_free_dio_pages(uio, rw);
+
+	return (ret);
 }
 
 #ifndef _SYS_SYSPROTO_H_
@@ -4303,9 +4406,39 @@ static int
 zfs_freebsd_write(struct vop_write_args *ap)
 {
 	zfs_uio_t uio;
+	int error = 0;
+	znode_t *zp = VTOZ(ap->a_vp);
+	int ioflag = ioflags(ap->a_ioflag);
+
 	zfs_uio_init(&uio, ap->a_uio);
-	return (zfs_write(VTOZ(ap->a_vp), &uio, ioflags(ap->a_ioflag),
-	    ap->a_cred));
+
+	zfs_direct_enabled_t direct =
+	    zfs_check_direct_enabled(zp, ioflag, &error);
+
+	if (direct == ZFS_DIRECT_IO_ERR) {
+		return (error);
+	} else if (direct == ZFS_DIRECT_IO_ENABLED) {
+		error =
+		    zfs_freebsd_write_direct(zp, &uio, UIO_WRITE, ioflag,
+		    ap->a_cred);
+
+		/*
+		 * On error we will return unless the error is EAGAIN, which
+		 * just tells us to fallback to the buffered path.
+		 */
+		if (error != EAGAIN)
+			return (error);
+		else
+			ioflag &= ~O_DIRECT;
+
+	}
+
+	ASSERT(direct == ZFS_DIRECT_IO_DISABLED ||
+	    (direct == ZFS_DIRECT_IO_ENABLED && error == EAGAIN));
+
+	error = zfs_write(zp, &uio, ioflag, ap->a_cred);
+
+	return (error);
 }
 
 /*

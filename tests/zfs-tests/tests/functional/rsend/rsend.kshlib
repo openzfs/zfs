@@ -155,13 +155,6 @@ function cleanup_pool
 	fi
 }
 
-function cmp_md5s {
-	typeset file1=$1
-	typeset file2=$2
-
-	[ "$(md5digest $file1)" = "$(md5digest $file2)" ]
-}
-
 #
 # Detect if the given two filesystems have same sub-datasets
 #

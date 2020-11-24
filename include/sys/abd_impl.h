@@ -42,6 +42,9 @@ typedef enum abd_stats_op {
 /* forward declarations */
 struct scatterlist;
 struct page;
+#if defined(__FreeBSD__) && defined(_KERNEL)
+struct sf_buf;
+#endif
 
 struct abd_iter {
 	/* public interface */
@@ -70,6 +73,9 @@ struct abd_iter {
 	size_t		iter_offset;	/* offset in current sg/abd_buf, */
 					/* abd_offset included */
 	struct scatterlist *iter_sg;	/* current sg */
+#if defined(__FreeBSD__) && defined(_KERNEL)
+	struct sf_buf	*sf;		/* used to map in vm_page_t FreeBSD */
+#endif
 };
 
 extern abd_t *abd_zero_scatter;
@@ -77,6 +83,7 @@ extern abd_t *abd_zero_scatter;
 abd_t *abd_gang_get_offset(abd_t *, size_t *);
 abd_t *abd_alloc_struct(size_t);
 void abd_free_struct(abd_t *);
+void abd_init_struct(abd_t *);
 
 /*
  * OS specific functions
@@ -107,9 +114,9 @@ void abd_iter_page(struct abd_iter *);
 #define	ABDSTAT_BUMP(stat)	ABDSTAT_INCR(stat, 1)
 #define	ABDSTAT_BUMPDOWN(stat)	ABDSTAT_INCR(stat, -1)
 
-#define	ABD_SCATTER(abd)	(abd->abd_u.abd_scatter)
-#define	ABD_LINEAR_BUF(abd)	(abd->abd_u.abd_linear.abd_buf)
-#define	ABD_GANG(abd)		(abd->abd_u.abd_gang)
+#define	ABD_SCATTER(abd)	((abd)->abd_u.abd_scatter)
+#define	ABD_LINEAR_BUF(abd)	((abd)->abd_u.abd_linear.abd_buf)
+#define	ABD_GANG(abd)		((abd)->abd_u.abd_gang)
 
 #if defined(_KERNEL)
 #if defined(__FreeBSD__)

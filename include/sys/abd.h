@@ -29,11 +29,12 @@
 #include <sys/isa_defs.h>
 #include <sys/debug.h>
 #include <sys/zfs_refcount.h>
-#include <sys/uio.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+struct sf_buf;
 
 typedef enum abd_flags {
 	ABD_FLAG_LINEAR		= 1 << 0, /* is buffer linear (or scattered)? */
@@ -46,6 +47,7 @@ typedef enum abd_flags {
 	ABD_FLAG_GANG_FREE	= 1 << 7, /* gang ABD is responsible for mem */
 	ABD_FLAG_ZEROS		= 1 << 8, /* ABD for zero-filled buffer */
 	ABD_FLAG_ALLOCD		= 1 << 9, /* we allocated the abd_t */
+	ABD_FLAG_FROM_PAGES	= 1 << 10, /* does not own pages */
 } abd_flags_t;
 
 typedef struct abd {
@@ -69,7 +71,8 @@ typedef struct abd {
 		} abd_scatter;
 		struct abd_linear {
 			void		*abd_buf;
-			struct scatterlist *abd_sgl; /* for LINEAR_PAGE */
+			struct scatterlist *abd_sgl; /* for LINEAR_PAGE Linux */
+			struct sf_buf	*sf; /* for LINEAR_PAGE FreeBSD */
 		} abd_linear;
 		struct abd_gang {
 			list_t abd_gang_chain;
@@ -100,6 +103,14 @@ abd_t *abd_alloc_for_io(size_t, boolean_t);
 __attribute__((malloc))
 abd_t *abd_alloc_sametype(abd_t *, size_t);
 boolean_t abd_size_alloc_linear(size_t);
+#if defined(_KERNEL)
+__attribute__((malloc))
+#if defined(__linux__)
+abd_t *abd_alloc_from_pages(struct page **, unsigned long, uint64_t size);
+#elif defined(__FreeBSD__)
+abd_t *abd_alloc_from_pages(vm_page_t *, unsigned long, uint64_t size);
+#endif
+#endif /* _KERNEL */
 void abd_gang_add(abd_t *, abd_t *, boolean_t);
 void abd_free(abd_t *);
 abd_t *abd_get_offset(abd_t *, size_t);
@@ -208,6 +219,12 @@ static inline uint_t
 abd_get_size(abd_t *abd)
 {
 	return (abd->abd_size);
+}
+
+static inline boolean_t
+abd_is_from_pages(abd_t *abd)
+{
+	return ((abd->abd_flags & ABD_FLAG_FROM_PAGES) ? B_TRUE : B_FALSE);
 }
 
 /*
