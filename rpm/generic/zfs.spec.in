@@ -165,6 +165,7 @@ This package contains the core ZFS command line utilities.
 %package -n libzpool4
 Summary:        Native ZFS pool library for Linux
 Group:          System Environment/Kernel
+Obsoletes:      libzpool2
 
 %description -n libzpool4
 This package contains the zpool library, which provides support
@@ -176,6 +177,7 @@ for managing zpools
 %package -n libnvpair3
 Summary:        Solaris name-value library for Linux
 Group:          System Environment/Kernel
+Obsoletes:      libnvpair1
 
 %description -n libnvpair3
 This package contains routines for packing and unpacking name-value
@@ -189,6 +191,7 @@ to write self describing data structures on disk.
 %package -n libuutil3
 Summary:        Solaris userland utility library for Linux
 Group:          System Environment/Kernel
+Obsoletes:      libuutil1
 
 %description -n libuutil3
 This library provides a variety of compatibility functions for OpenZFS:
@@ -207,6 +210,7 @@ This library provides a variety of compatibility functions for OpenZFS:
 %package -n libzfs4
 Summary:        Native ZFS filesystem library for Linux
 Group:          System Environment/Kernel
+Obsoletes:      libzfs2
 
 %description -n libzfs4
 This package provides support for managing ZFS filesystems
@@ -225,6 +229,7 @@ Provides:       libzpool4-devel
 Provides:       libnvpair3-devel
 Provides:       libuutil3-devel
 Obsoletes:      zfs-devel
+Obsoletes:      libzfs2-devel
 
 %description -n libzfs4-devel
 This package contains the header files needed for building additional
