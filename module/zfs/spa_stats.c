@@ -895,6 +895,14 @@ static const spa_iostats_t spa_iostats_template = {
 	{ "simple_trim_bytes_skipped",		KSTAT_DATA_UINT64 },
 	{ "simple_trim_extents_failed",		KSTAT_DATA_UINT64 },
 	{ "simple_trim_bytes_failed",		KSTAT_DATA_UINT64 },
+	{ "arc_read_count",			KSTAT_DATA_UINT64 },
+	{ "arc_read_bytes",			KSTAT_DATA_UINT64 },
+	{ "arc_write_count",			KSTAT_DATA_UINT64 },
+	{ "arc_write_bytes",			KSTAT_DATA_UINT64 },
+	{ "direct_read_count",			KSTAT_DATA_UINT64 },
+	{ "direct_read_bytes",			KSTAT_DATA_UINT64 },
+	{ "direct_write_count",			KSTAT_DATA_UINT64 },
+	{ "direct_write_bytes",			KSTAT_DATA_UINT64 },
 };
 
 #define	SPA_IOSTATS_ADD(stat, val) \
@@ -935,6 +943,44 @@ spa_iostats_trim_add(spa_t *spa, trim_type_t type,
 		SPA_IOSTATS_ADD(simple_trim_bytes_skipped, bytes_skipped);
 		SPA_IOSTATS_ADD(simple_trim_extents_failed, extents_failed);
 		SPA_IOSTATS_ADD(simple_trim_bytes_failed, bytes_failed);
+	}
+}
+
+void
+spa_iostats_read_add(spa_t *spa, uint64_t size, uint64_t iops, uint32_t flags)
+{
+	spa_history_kstat_t *shk = &spa->spa_stats.iostats;
+	kstat_t *ksp = shk->kstat;
+
+	if (ksp == NULL)
+		return;
+
+	spa_iostats_t *iostats = ksp->ks_data;
+	if (flags & DMU_DIRECTIO) {
+		SPA_IOSTATS_ADD(direct_read_count, iops);
+		SPA_IOSTATS_ADD(direct_read_bytes, size);
+	} else {
+		SPA_IOSTATS_ADD(arc_read_count, iops);
+		SPA_IOSTATS_ADD(arc_read_bytes, size);
+	}
+}
+
+void
+spa_iostats_write_add(spa_t *spa, uint64_t size, uint64_t iops, uint32_t flags)
+{
+	spa_history_kstat_t *shk = &spa->spa_stats.iostats;
+	kstat_t *ksp = shk->kstat;
+
+	if (ksp == NULL)
+		return;
+
+	spa_iostats_t *iostats = ksp->ks_data;
+	if (flags & DMU_DIRECTIO) {
+		SPA_IOSTATS_ADD(direct_write_count, iops);
+		SPA_IOSTATS_ADD(direct_write_bytes, size);
+	} else {
+		SPA_IOSTATS_ADD(arc_write_count, iops);
+		SPA_IOSTATS_ADD(arc_write_bytes, size);
 	}
 }
 

@@ -59,6 +59,7 @@
 #include <sys/objlist.h>
 #include <sys/zpl.h>
 #include <linux/vfs_compat.h>
+#include <linux/fs.h>
 #include "zfs_comutil.h"
 
 enum {

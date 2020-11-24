@@ -29,6 +29,12 @@
 
 extern int zfs_bclone_enabled;
 
+typedef enum zfs_direct_enabled {
+	ZFS_DIRECT_IO_ERR,
+	ZFS_DIRECT_IO_DISABLED,
+	ZFS_DIRECT_IO_ENABLED
+} zfs_direct_enabled_t;
+
 extern int zfs_fsync(znode_t *, int, cred_t *);
 extern int zfs_read(znode_t *, zfs_uio_t *, int, cred_t *);
 extern int zfs_write(znode_t *, zfs_uio_t *, int, cred_t *);
@@ -45,6 +51,9 @@ extern int zfs_setsecattr(znode_t *, vsecattr_t *, int, cred_t *);
 extern int mappedread(znode_t *, int, zfs_uio_t *);
 extern int mappedread_sf(znode_t *, int, zfs_uio_t *);
 extern void update_pages(znode_t *, int64_t, int, objset_t *);
+
+extern zfs_direct_enabled_t zfs_check_direct_enabled(znode_t *, int, int *);
+extern int zfs_setup_direct(znode_t *, zfs_uio_t *, zfs_uio_rw_t, int *);
 
 /*
  * Platform code that asynchronously drops zp's inode / vnode_t.

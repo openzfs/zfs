@@ -134,6 +134,7 @@ struct objset {
 	zfs_cache_type_t os_secondary_cache;
 	zfs_prefetch_type_t os_prefetch;
 	zfs_sync_type_t os_sync;
+	zfs_direct_t os_direct;
 	zfs_redundant_metadata_type_t os_redundant_metadata;
 	uint64_t os_recordsize;
 	/*

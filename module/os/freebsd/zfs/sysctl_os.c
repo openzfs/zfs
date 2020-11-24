@@ -832,6 +832,35 @@ SYSCTL_PROC(_vfs_zfs, OID_AUTO, max_auto_ashift,
 	" new top-level vdevs. (LEGACY)");
 /* END CSTYLED */
 
+int
+param_set_direct_write_verify_pct(SYSCTL_HANDLER_ARGS)
+{
+	int val;
+	int err;
+
+	val = zfs_vdev_direct_write_verify_pct;
+	err = sysctl_handle_int(oidp, &val, 0, req);
+	if (err != 0 || req->newptr == NULL)
+		return (SET_ERROR(err));
+
+	if (val > 100 || val < 0)
+		return (SET_ERROR(EINVAL));
+
+	zfs_vdev_direct_write_verify_pct = val;
+
+	return (0);
+}
+
+/* BEGIN CSTYLED */
+SYSCTL_PROC(_vfs_zfs, OID_AUTO, direct_write_verify_pct,
+	CTLTYPE_UINT | CTLFLAG_RWTUN | CTLFLAG_MPSAFE,
+	&zfs_vdev_direct_write_verify_pct,
+	sizeof (zfs_vdev_direct_write_verify_pct),
+	param_set_direct_write_verify_pct, "IU",
+	"Percentage of Direct I/O writes per top-level VDEV for checksum"
+	" verification to be performed");
+/* END CSTYLED */
+
 /*
  * Since the DTL space map of a vdev is not expected to have a lot of
  * entries, we default its block size to 4K.

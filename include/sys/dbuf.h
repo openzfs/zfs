@@ -61,17 +61,17 @@ extern "C" {
 /*
  * The simplified state transition diagram for dbufs looks like:
  *
- *                  +--> READ --+
- *                  |           |
- *                  |           V
- *  (alloc)-->UNCACHED       CACHED-->EVICTING-->(free)
- *             ^    |           ^        ^
- *             |    |           |        |
- *             |    +--> FILL --+        |
- *             |    |                    |
- *             |    |                    |
- *             |    +------> NOFILL -----+
- *             |               |
+ *                  +-------> READ ------+
+ *                  |                    |
+ *                  |                    V
+ *  (alloc)-->UNCACHED                  CACHED-->EVICTING-->(free)
+ *             ^    |                    ^          ^
+ *             |    |                    |          |
+ *             |    +-------> FILL ------+          |
+ *             |    |                    |          |
+ *             |    |                    |          |
+ *             |    +------> NOFILL -----+-----> UNCACHED
+ *             |               |               (Direct I/O)
  *             +---------------+
  *
  * DB_SEARCH is an invalid state for a dbuf. It is used by dbuf_free_range
@@ -330,6 +330,14 @@ typedef struct dmu_buf_impl {
 
 	/* The buffer was partially read.  More reads may follow. */
 	uint8_t db_partial_read;
+
+	/*
+	 * This block is being held under a writer rangelock of a Direct I/O
+	 * write that is waiting for previous buffered writes to synced out
+	 * due to mixed buffered and O_DIRECT operations. This is needed to
+	 * check whether to grab the rangelock in zfs_get_data().
+	 */
+	uint8_t db_mixed_io_dio_wait;
 } dmu_buf_impl_t;
 
 #define	DBUF_HASH_MUTEX(h, idx) \
@@ -387,6 +395,11 @@ dbuf_dirty_record_t *dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx);
 dbuf_dirty_record_t *dbuf_dirty_lightweight(dnode_t *dn, uint64_t blkid,
     dmu_tx_t *tx);
 boolean_t dbuf_undirty(dmu_buf_impl_t *db, dmu_tx_t *tx);
+void dmu_buf_direct_mixed_io_wait(dmu_buf_impl_t *db, uint64_t txg,
+    boolean_t read);
+void dmu_buf_undirty(dmu_buf_impl_t *db, dmu_tx_t *tx);
+blkptr_t *dmu_buf_get_bp_from_dbuf(dmu_buf_impl_t *db);
+int dmu_buf_untransform_direct(dmu_buf_impl_t *db, spa_t *spa);
 arc_buf_t *dbuf_loan_arcbuf(dmu_buf_impl_t *db);
 void dmu_buf_write_embedded(dmu_buf_t *dbuf, void *data,
     bp_embedded_type_t etype, enum zio_compress comp,
@@ -451,6 +464,32 @@ dbuf_find_dirty_eq(dmu_buf_impl_t *db, uint64_t txg)
 	return (NULL);
 }
 
+/*
+ * All Direct I/O writes happen in open context so the first dirty record will
+ * always be associated with the write. After a Direct I/O write completes the
+ * dirty records dr_overriden state will bet DR_OVERRIDDEN and the dr_data will
+ * get set to NULL.
+ */
+static inline dbuf_dirty_record_t *
+dbuf_get_dirty_direct(dmu_buf_impl_t *db)
+{
+	return (list_head(&db->db_dirty_records));
+}
+
+static inline boolean_t
+dbuf_dirty_is_direct_write(dmu_buf_impl_t *db, dbuf_dirty_record_t *dr)
+{
+	boolean_t ret = B_FALSE;
+	ASSERT(MUTEX_HELD(&db->db_mtx));
+
+	if (dr != NULL && db->db_level == 0 && !dr->dt.dl.dr_brtwrite &&
+	    dr->dt.dl.dr_override_state == DR_OVERRIDDEN &&
+	    dr->dt.dl.dr_data == NULL) {
+		ret = B_TRUE;
+	}
+	return (ret);
+}
+
 #define	DBUF_GET_BUFC_TYPE(_db)	\
 	(dbuf_is_metadata(_db) ? ARC_BUFC_METADATA : ARC_BUFC_DATA)
 
@@ -459,7 +498,7 @@ dbuf_find_dirty_eq(dmu_buf_impl_t *db, uint64_t txg)
 	(dbuf_is_metadata(_db) &&					\
 	((_db)->db_objset->os_primary_cache == ZFS_CACHE_METADATA)))
 
-boolean_t dbuf_is_l2cacheable(dmu_buf_impl_t *db);
+boolean_t dbuf_is_l2cacheable(dmu_buf_impl_t *db, blkptr_t *db_bp);
 
 #ifdef ZFS_DEBUG
 
