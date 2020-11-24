@@ -14,5 +14,5 @@ add_subdirectory(module)
 
 
 # Temporarily
-add_subdirectory(lib/os/windows)
+add_subdirectory(lib)
 
