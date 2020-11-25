@@ -327,38 +327,6 @@ change_key(pam_handle_t *pamh, const char *ds_name,
 }
 
 static int
-decrypt_mount(pam_handle_t *pamh, const char *ds_name,
-    const char *passphrase)
-{
-	zfs_handle_t *ds = zfs_open(g_zfs, ds_name, ZFS_TYPE_FILESYSTEM);
-	if (ds == NULL) {
-		pam_syslog(pamh, LOG_ERR, "dataset %s not found", ds_name);
-		return (-1);
-	}
-	pw_password_t *key = prepare_passphrase(pamh, ds, passphrase, NULL);
-	if (key == NULL) {
-		zfs_close(ds);
-		return (-1);
-	}
-	int ret = lzc_load_key(ds_name, B_FALSE, (uint8_t *)key->value,
-	    WRAPPING_KEY_LEN);
-	pw_free(key);
-	if (ret) {
-		pam_syslog(pamh, LOG_ERR, "load_key failed: %d", ret);
-		zfs_close(ds);
-		return (-1);
-	}
-	ret = zfs_mount(ds, NULL, 0);
-	if (ret) {
-		pam_syslog(pamh, LOG_ERR, "mount failed: %d", ret);
-		zfs_close(ds);
-		return (-1);
-	}
-	zfs_close(ds);
-	return (0);
-}
-
-static int
 unmount_unload(pam_handle_t *pamh, const char *ds_name)
 {
 	zfs_handle_t *ds = zfs_open(g_zfs, ds_name, ZFS_TYPE_FILESYSTEM);
@@ -386,6 +354,7 @@ unmount_unload(pam_handle_t *pamh, const char *ds_name)
 typedef struct {
 	char *homes_prefix;
 	char *runstatedir;
+	boolean_t convKeyPrompt;	/* argv to change prompt forcefully */
 	char *homedir;
 	char *dsname;
 	uid_t uid;
@@ -425,6 +394,7 @@ zfs_key_config_load(pam_handle_t *pamh, zfs_key_config_t *config,
 	config->uid = entry->pw_uid;
 	config->username = name;
 	config->unmount_and_unload = 1;
+	config->convKeyPrompt = B_FALSE;
 	config->dsname = NULL;
 	config->homedir = NULL;
 	for (int c = 0; c < argc; c++) {
@@ -434,6 +404,8 @@ zfs_key_config_load(pam_handle_t *pamh, zfs_key_config_t *config,
 		} else if (strncmp(argv[c], "runstatedir=", 12) == 0) {
 			free(config->runstatedir);
 			config->runstatedir = strdup(argv[c] + 12);
+		} else if (strcmp(argv[c], "convKeyPrompt") == 0) {
+			config->convKeyPrompt = B_TRUE;
 		} else if (strcmp(argv[c], "nounmount") == 0) {
 			config->unmount_and_unload = 0;
 		} else if (strcmp(argv[c], "prop_mountpoint") == 0) {
@@ -593,6 +565,19 @@ zfs_key_config_modify_session_counter(pam_handle_t *pamh,
 	return (counter_value);
 }
 
+static boolean_t
+zfs_keylocation_is_prompt(pam_handle_t *pamh, const char *ds_name)
+{
+	zfs_handle_t *ds = zfs_open(g_zfs, ds_name, ZFS_TYPE_FILESYSTEM);
+	if (ds == NULL) {
+		pam_syslog(pamh, LOG_ERR, "dataset %s not found", ds_name);
+		return (B_FALSE);
+	}
+	uint64_t keyloc = zfs_prop_get_int(ds, ZFS_PROP_KEYLOCATION);
+	zfs_close(ds);
+	return (keyloc == ZFS_KEYLOCATION_PROMPT);
+}
+
 __attribute__((visibility("default")))
 PAM_EXTERN int
 pam_sm_authenticate(pam_handle_t *pamh, int flags,
@@ -660,11 +645,6 @@ pam_sm_chauthtok(pam_handle_t *pamh, int flags,
 	}
 
 	if ((flags & PAM_UPDATE_AUTHTOK) != 0) {
-		const pw_password_t *token = pw_get(pamh);
-		if (token == NULL) {
-			zfs_key_config_free(&config);
-			return (PAM_SERVICE_ERR);
-		}
 		if (pam_zfs_init(pamh) != 0) {
 			zfs_key_config_free(&config);
 			return (PAM_SERVICE_ERR);
@@ -672,6 +652,18 @@ pam_sm_chauthtok(pam_handle_t *pamh, int flags,
 		char *dataset = zfs_key_config_get_dataset(&config);
 		if (!dataset) {
 			pam_zfs_free();
+			zfs_key_config_free(&config);
+			return (PAM_SERVICE_ERR);
+		}
+		/* keyfile won't be overriden unless convKeyPrompt is set */
+		if (!zfs_keylocation_is_prompt(pamh, dataset) &&
+		    !config.convKeyPrompt) {
+			pam_zfs_free();
+			zfs_key_config_free(&config);
+			return (PAM_IGNORE);
+		}
+		const pw_password_t *token = pw_get(pamh);
+		if (token == NULL) {
 			zfs_key_config_free(&config);
 			return (PAM_SERVICE_ERR);
 		}
@@ -708,17 +700,10 @@ pam_sm_open_session(pam_handle_t *pamh, int flags,
 		zfs_key_config_free(&config);
 		return (PAM_SUCCESS);
 	}
-
 	int counter = zfs_key_config_modify_session_counter(pamh, &config, 1);
 	if (counter != 1) {
 		zfs_key_config_free(&config);
 		return (PAM_SUCCESS);
-	}
-
-	const pw_password_t *token = pw_get(pamh);
-	if (token == NULL) {
-		zfs_key_config_free(&config);
-		return (PAM_SESSION_ERR);
 	}
 	if (pam_zfs_init(pamh) != 0) {
 		zfs_key_config_free(&config);
@@ -730,20 +715,115 @@ pam_sm_open_session(pam_handle_t *pamh, int flags,
 		zfs_key_config_free(&config);
 		return (PAM_SERVICE_ERR);
 	}
-	if (decrypt_mount(pamh, dataset, token->value) == -1) {
-		free(dataset);
+	zfs_handle_t *zhp = zfs_open(g_zfs, dataset, ZFS_TYPE_FILESYSTEM);
+	if (zhp == NULL) {
+		pam_syslog(pamh, LOG_ERR, "dataset %s not found", dataset);
 		pam_zfs_free();
 		zfs_key_config_free(&config);
 		return (PAM_SERVICE_ERR);
 	}
+	/* Fetch the keyformat. Check that the dataset is encrypted. */
+	uint64_t keyformat = zfs_prop_get_int(zhp, ZFS_PROP_KEYFORMAT);
+	if (keyformat == ZFS_KEYFORMAT_NONE) {
+		pam_syslog(pamh, LOG_ERR, "dataset %s not encrypted", dataset);
+		zfs_close(zhp);
+		pam_zfs_free();
+		zfs_key_config_free(&config);
+		return (PAM_SUCCESS);
+	}
+	/*
+	 * Check keystatus and load-key if yet
+	 *
+	 * IF keylocation == prompt: load-key use pam's pw token
+	 * IF keylocation == others: load-key use zfs_crypto_load_key()
+	 */
+	uint64_t keystatus = zfs_prop_get_int(zhp, ZFS_PROP_KEYSTATUS);
+	if (keystatus == ZFS_KEYSTATUS_UNAVAILABLE) {
+		char str_keylocation[MAXNAMELEN];
+		if (zfs_prop_get(zhp, ZFS_PROP_KEYLOCATION, str_keylocation,
+		    sizeof (str_keylocation), NULL, NULL, 0, B_TRUE) != 0) {
+			pam_syslog(pamh, LOG_ERR,
+			    "Failed to get keylocation for '%s'", dataset);
+			zfs_close(zhp);
+			pam_zfs_free();
+			zfs_key_config_free(&config);
+			return (PAM_SERVICE_ERR);
+		}
+		if (strcmp("prompt", str_keylocation) == 0) {
+			const pw_password_t *token = pw_get(pamh);
+			if (token == NULL) {
+				zfs_close(zhp);
+				pam_zfs_free();
+				zfs_key_config_free(&config);
+				return (PAM_SESSION_ERR);
+			}
+			pw_password_t *key = prepare_passphrase(pamh, zhp,
+			    token->value, NULL);
+			if (key == NULL) {
+				zfs_close(zhp);
+				pam_zfs_free();
+				zfs_key_config_free(&config);
+				return (PAM_SESSION_ERR);
+			}
+			int ret = lzc_load_key(dataset, B_FALSE,
+			    (uint8_t *)key->value, WRAPPING_KEY_LEN);
+			pw_free(key);
+			if (ret) {
+				pam_syslog(pamh, LOG_ERR,
+				    "pam load_key failed: %d", ret);
+				zfs_close(zhp);
+				pam_zfs_free();
+				zfs_key_config_free(&config);
+				return (PAM_SERVICE_ERR);
+			}
+		} else {
+			int ret = zfs_crypto_load_key(zhp, B_FALSE, NULL);
+			if (ret) {
+				pam_syslog(pamh, LOG_ERR,
+				    "zfs load_key failed: %d", ret);
+				zfs_close(zhp);
+				pam_zfs_free();
+				zfs_key_config_free(&config);
+				return (PAM_SERVICE_ERR);
+			}
+		}
+	}
+	zfs_refresh_properties(zhp);
+	if (zfs_is_mounted(zhp, NULL)) {
+		pam_syslog(pamh, LOG_WARNING,
+		    "'%s': filesystem already mounted", dataset);
+		zfs_close(zhp);
+		pam_zfs_free();
+		zfs_key_config_free(&config);
+		return (PAM_SUCCESS);
+	}
+	/* assure key is loaded and available */
+	keystatus = zfs_prop_get_int(zhp, ZFS_PROP_KEYSTATUS);
+	if (keystatus != ZFS_KEYSTATUS_AVAILABLE) {
+		pam_syslog(pamh, LOG_ERR, "key not ready: %ld", keystatus);
+		zfs_close(zhp);
+		pam_zfs_free();
+		zfs_key_config_free(&config);
+		return (PAM_SESSION_ERR);
+	}
+	/* mount the filesystem */
+	int ret = zfs_mount(zhp, NULL, 0);
+	if (ret) {
+		pam_syslog(pamh, LOG_ERR, "mount failed: %d", ret);
+		zfs_close(zhp);
+		pam_zfs_free();
+		zfs_key_config_free(&config);
+		return (PAM_SESSION_ERR);
+	}
+	/* cleanup */
 	free(dataset);
+	zfs_close(zhp);
 	pam_zfs_free();
 	zfs_key_config_free(&config);
 	if (pw_clear(pamh) == -1) {
 		return (PAM_SERVICE_ERR);
 	}
 	return (PAM_SUCCESS);
-
 }
 
 __attribute__((visibility("default")))
