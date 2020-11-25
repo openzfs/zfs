@@ -31,3 +31,6 @@ libuutil_la_LDFLAGS += -Wl,-z,defs
 endif
 
 libuutil_la_LDFLAGS += -version-info 3:0:0
+
+# Library ABI
+EXTRA_DIST = libuutil.abi libuutil.suppr

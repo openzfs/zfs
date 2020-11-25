@@ -29,3 +29,6 @@ libzfs_core_la_LIBADD += -lutil -lgeom
 endif
 
 libzfs_core_la_LDFLAGS += -version-info 3:0:0
+
+# Library ABI
+EXTRA_DIST = libzfs_core.abi libzfs_core.suppr
