@@ -50,7 +50,7 @@ function check_for
 }
 
 # by default, all stats and histograms for all pools
-log_must $LIBEXEC_DIR/zpool_influxdb > $tmpfile
+log_must zpool_influxdb > $tmpfile
 
 STATS="
 zpool_io_size

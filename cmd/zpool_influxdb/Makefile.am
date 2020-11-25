@@ -1,6 +1,6 @@
 include $(top_srcdir)/config/Rules.am
 
-libexec_PROGRAMS = zpool_influxdb
+zfsexec_PROGRAMS = zpool_influxdb
 
 zpool_influxdb_SOURCES = \
 	zpool_influxdb.c

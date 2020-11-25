@@ -73,7 +73,7 @@ clean-local:
 install-data-hook:
 	-$(SED) -e '\|^export BIN_DIR=|s|$$|@bindir@|' \
 		-e '\|^export SBIN_DIR=|s|$$|@sbindir@|' \
-		-e '\|^export LIBEXEC_DIR=|s|$$|@libexecdir@|' \
+		-e '\|^export LIBEXEC_DIR=|s|$$|@zfsexecdir@|' \
 		-e '\|^export ZTS_DIR=|s|$$|@datadir@/@PACKAGE@|' \
 		-e '\|^export SCRIPT_DIR=|s|$$|@datadir@/@PACKAGE@|' \
 		$(abs_top_srcdir)/scripts/common.sh.in \

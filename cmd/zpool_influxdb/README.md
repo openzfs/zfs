@@ -237,7 +237,7 @@ be restarted to read the config-directory files.
 # # Read metrics from zpool_influxdb
 [[inputs.execd]]
 #   ## default installation location for zpool_influxdb command
-  command = ["/usr/libexec/zpool_influxdb", "--execd"]
+  command = ["/usr/libexec/zfs/zpool_influxdb", "--execd"]
 
     ## Define how the process is signaled on each collection interval.
     ## Valid values are:
@@ -264,7 +264,7 @@ be restarted to read the config-directory files.
 # # Read metrics from zpool_influxdb
 [[inputs.exec]]
 #   ## default installation location for zpool_influxdb command
-  commands = ["/usr/libexec/zpool_influxdb"]
+  commands = ["/usr/libexec/zfs/zpool_influxdb"]
   data_format = "influx"
 ```
 

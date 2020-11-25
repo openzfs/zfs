@@ -448,8 +448,6 @@ systemctl --system daemon-reload >/dev/null || true
 %{_bindir}/arc_summary
 %{_bindir}/arcstat
 %{_bindir}/dbufstat
-# Auxiliary executables
-%{_libexecdir}/zpool_influxdb
 # Man pages
 %{_mandir}/man1/*
 %{_mandir}/man5/*

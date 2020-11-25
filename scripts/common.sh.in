@@ -3,9 +3,9 @@
 # Directories
 export BIN_DIR=
 export SBIN_DIR=
+export LIBEXEC_DIR=
 export ZTS_DIR=
 export SCRIPT_DIR=
-export LIBEXEC_DIR=
 
 # General commands
 export ZDB=${ZDB:-$SBIN_DIR/zdb}
