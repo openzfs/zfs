@@ -3,6 +3,7 @@
 # Directories
 export BIN_DIR=
 export SBIN_DIR=
+export LIBEXEC_DIR=
 export ZTS_DIR=
 export SCRIPT_DIR=
 
