@@ -159,6 +159,7 @@ checkbashisms:
 				-o -name 'smart' -prune \
 				-o -name 'paxcheck.sh' -prune \
 				-o -name 'make_gitrev.sh' -prune \
+				-o -name '90zfs' -prune \
 				-o -type f ! -name 'config*' \
 				! -name 'libtool' \
 			-exec sh -c 'awk "NR==1 && /\#\!.*bin\/sh.*/ {print FILENAME;}" "{}"' \;); \

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 command -v getarg >/dev/null || . /lib/dracut-lib.sh
 command -v getargbool >/dev/null || {
@@ -144,7 +144,7 @@ ask_for_password() {
 
     { flock -s 9;
         # Prompt for password with plymouth, if installed and running.
-        if type plymouth >/dev/null 2>&1 && plymouth --ping 2>/dev/null; then
+        if plymouth --ping 2>/dev/null; then
             plymouth ask-for-password \
                 --prompt "$ply_prompt" --number-of-tries="$ply_tries" \
                 --command="$ply_cmd"
