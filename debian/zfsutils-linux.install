@@ -16,6 +16,7 @@ debian/tmp/etc/default/zfs etc/default/
 debian/tmp/etc/zfs/zfs-functions etc/zfs/
 etc/zfs/zpool.d/
 usr/lib/*/zfs/zpool.d/
+usr/lib/*/zfs/zpool_influxdb
 sbin/fsck.zfs
 sbin/mount.zfs
 sbin/ztest
@@ -29,7 +30,6 @@ sbin/zfs_ids_to_path
 sbin/zpool
 sbin/zfs
 usr/bin/zgenhostid
-usr/bin/zpool_influxdb
 usr/bin/zvol_wait
 usr/sbin/arc_summary
 usr/sbin/arcstat

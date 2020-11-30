@@ -242,7 +242,7 @@ constrain_path() {
 	# install to /usr/local/sbin. To avoid testing the wrong utils we
 	# need /usr/local to come before / in the path search order.
 	SYSTEM_DIRS="/usr/local/bin /usr/local/sbin"
-	SYSTEM_DIRS="$SYSTEM_DIRS /usr/bin /usr/sbin /bin /sbin"
+	SYSTEM_DIRS="$SYSTEM_DIRS /usr/bin /usr/sbin /bin /sbin $LIBEXEC_DIR"
 
 	if [ "$INTREE" = "yes" ]; then
 		# Constrained path set to ./zfs/bin/
