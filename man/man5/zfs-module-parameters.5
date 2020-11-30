@@ -2011,7 +2011,8 @@ Default value: \fB1\fR.
 .ad
 .RS 12n
 The maximum number of I/Os active to each device.  Ideally, this will be >=
-the sum of each queue's max_active.  See the section "ZFS I/O SCHEDULER".
+the sum of each queue's max_active.  It must be at least the sum of each
+queue's min_active.  See the section "ZFS I/O SCHEDULER".
 .sp
 Default value: \fB1,000\fR.
 .RE
@@ -2158,42 +2159,6 @@ Minimum trim/discard I/Os active to each device.
 See the section "ZFS I/O SCHEDULER".
 .sp
 Default value: \fB1\fR.
-.RE
-
-.sp
-.ne 2
-.na
-\fBzfs_vdev_nia_delay\fR (int)
-.ad
-.RS 12n
-For non-interactive I/O (scrub, resilver, removal, initialize and rebuild),
-the number of concurrently-active I/O's is limited to *_min_active, unless
-the vdev is "idle".  When there are no interactive I/Os active (sync or
-async), and zfs_vdev_nia_delay I/Os have completed since the last
-interactive I/O, then the vdev is considered to be "idle", and the number
-of concurrently-active non-interactive I/O's is increased to *_max_active.
-See the section "ZFS I/O SCHEDULER".
-.sp
-Default value: \fB5\fR.
-.RE
-
-.sp
-.ne 2
-.na
-\fBzfs_vdev_nia_credit\fR (int)
-.ad
-.RS 12n
-Some HDDs tend to prioritize sequential I/O so high, that concurrent
-random I/O latency reaches several seconds.  On some HDDs it happens
-even if sequential I/Os are submitted one at a time, and so setting
-*_max_active to 1 does not help.  To prevent non-interactive I/Os, like
-scrub, from monopolizing the device no more than zfs_vdev_nia_credit
-I/Os can be sent while there are outstanding incomplete interactive
-I/Os.  This enforced wait ensures the HDD services the interactive I/O
-within a reasonable amount of time.
-See the section "ZFS I/O SCHEDULER".
-.sp
-Default value: \fB5\fR.
 .RE
 
 .sp

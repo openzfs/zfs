@@ -148,9 +148,6 @@ struct vdev_queue {
 	avl_tree_t	vq_write_offset_tree;
 	avl_tree_t	vq_trim_offset_tree;
 	uint64_t	vq_last_offset;
-	zio_priority_t	vq_last_prio;	/* Last sent I/O priority. */
-	uint32_t	vq_ia_active;	/* Active interactive I/Os. */
-	uint32_t	vq_nia_credit;	/* Non-interactive I/Os credit. */
 	hrtime_t	vq_io_complete_ts; /* time last i/o completed */
 	hrtime_t	vq_io_delta_ts;
 	zio_t		vq_io_search; /* used as local for stack reduction */
