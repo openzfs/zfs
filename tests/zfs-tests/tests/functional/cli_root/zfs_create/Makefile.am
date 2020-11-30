@@ -19,6 +19,7 @@ dist_pkgdata_SCRIPTS = \
 	zfs_create_encrypted.ksh \
 	zfs_create_crypt_combos.ksh \
 	zfs_create_dryrun.ksh \
+	zfs_create_nomount.ksh \
 	zfs_create_verbose.ksh
 
 dist_pkgdata_DATA = \
