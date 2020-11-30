@@ -181,6 +181,8 @@ zfs_agent_post_event(const char *class, const char *subclass, nvlist_t *nvl)
 	 * from the vdev_disk layer after a hot unplug. Fortunately we do
 	 * get an EC_DEV_REMOVE from our disk monitor and it is a suitable
 	 * proxy so we remap it here for the benefit of the diagnosis engine.
+	 * Starting in OpenZFS 2.0, we do get FM_RESOURCE_REMOVED from the spa
+	 * layer. Processing multiple FM_RESOURCE_REMOVED events is not harmful.
 	 */
 	if ((strcmp(class, EC_DEV_REMOVE) == 0) &&
 	    (strcmp(subclass, ESC_DISK) == 0) &&
