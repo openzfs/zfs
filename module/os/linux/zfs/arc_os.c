@@ -395,12 +395,7 @@ arc_hotplug_callback(struct notifier_block *self, unsigned long action,
 	if (action != MEM_ONLINE)
 		return (NOTIFY_OK);
 
-	/*
-	 * This logic should remain in sync with the size configuration logic
-	 * in arc_init().
-	 */
-	arc_c_min = MAX(allmem / 32, 2ULL << SPA_MAXBLOCKSHIFT);
-	arc_c_max = arc_default_max(arc_c_min, allmem);
+	arc_set_limits(allmem);
 
 #ifdef __LP64__
 	if (zfs_dirty_data_max_max == 0)

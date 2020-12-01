@@ -1032,14 +1032,14 @@ taskq_thread_create(taskq_t *tq)
 }
 
 taskq_t *
-taskq_create(const char *name, int nthreads, pri_t pri,
+taskq_create(const char *name, int threads_arg, pri_t pri,
     int minalloc, int maxalloc, uint_t flags)
 {
 	taskq_t *tq;
 	taskq_thread_t *tqt;
 	int count = 0, rc = 0, i;
 	unsigned long irqflags;
-	int proper_nthreads = nthreads;
+	int nthreads = threads_arg;
 
 	ASSERT(name != NULL);
 	ASSERT(minalloc >= 0);
@@ -1050,9 +1050,9 @@ taskq_create(const char *name, int nthreads, pri_t pri,
 	if (flags & TASKQ_THREADS_CPU_PCT) {
 		ASSERT(nthreads <= 100);
 		ASSERT(nthreads >= 0);
-		proper_nthreads = MIN(nthreads, 100);
-		proper_nthreads = MAX(proper_nthreads, 0);
-		proper_nthreads = MAX((num_online_cpus() * proper_nthreads) /
+		nthreads = MIN(threads_arg, 100);
+		nthreads = MAX(nthreads, 0);
+		nthreads = MAX((num_online_cpus() * nthreads) /
 		    100, 1);
 	}
 
@@ -1060,16 +1060,15 @@ taskq_create(const char *name, int nthreads, pri_t pri,
 	if (tq == NULL)
 		return (NULL);
 
+	tq->tq_hp_support = B_FALSE;
 #ifdef HAVE_CPU_HOTPLUG
-	if (nthreads == boot_ncpus || flags & TASKQ_THREADS_CPU_PCT) {
+	if (flags & TASKQ_THREADS_CPU_PCT) {
 		tq->tq_hp_support = B_TRUE;
 		if (cpuhp_state_add_instance_nocalls(spl_taskq_cpuhp_state,
 		    &tq->tq_hp_cb_node) != 0) {
 			kmem_free(tq, sizeof (*tq));
 			return (NULL);
 		}
-	} else {
-		tq->tq_hp_support = B_FALSE;
 	}
 #endif
 
@@ -1080,8 +1079,8 @@ taskq_create(const char *name, int nthreads, pri_t pri,
 	tq->tq_nactive = 0;
 	tq->tq_nthreads = 0;
 	tq->tq_nspawn = 0;
-	tq->tq_maxthreads = proper_nthreads;
-	tq->tq_orig_maxthreads = nthreads;
+	tq->tq_maxthreads = nthreads;
+	tq->tq_cpu_pct = threads_arg;
 	tq->tq_pri = pri;
 	tq->tq_minalloc = minalloc;
 	tq->tq_maxalloc = maxalloc;
@@ -1112,7 +1111,7 @@ taskq_create(const char *name, int nthreads, pri_t pri,
 	if ((flags & TASKQ_DYNAMIC) && spl_taskq_thread_dynamic)
 		nthreads = 1;
 
-	for (i = 0; i < proper_nthreads; i++) {
+	for (i = 0; i < nthreads; i++) {
 		tqt = taskq_thread_create(tq);
 		if (tqt == NULL)
 			rc = 1;
@@ -1284,6 +1283,7 @@ module_param_call(spl_taskq_kick, param_set_taskq_kick, param_get_uint,
 MODULE_PARM_DESC(spl_taskq_kick,
 	"Write nonzero to kick stuck taskqs to spawn more threads");
 
+#ifdef HAVE_CPU_HOTPLUG
 /*
  * This callback will be called exactly once for each core that comes online,
  * for each dynamic taskq.  There are two kinds of dynamic taskqs that we
@@ -1307,14 +1307,15 @@ spl_taskq_expand(unsigned int cpu, struct hlist_node *node)
 		goto out;
 
 	if (tq->tq_flags & TASKQ_THREADS_CPU_PCT) {
-		int nthreads = MIN(tq->tq_orig_maxthreads, 100);
+		int nthreads = MIN(tq->tq_cpu_pct, 100);
 		nthreads = MAX(((num_online_cpus() + 1) * nthreads) / 100, 1);
 		tq->tq_maxthreads = nthreads;
 	} else {
 		tq->tq_maxthreads++;
 	}
 
-	if (!((tq->tq_flags & TASKQ_DYNAMIC) && spl_taskq_thread_dynamic)) {
+	if (!((tq->tq_flags & TASKQ_DYNAMIC) && spl_taskq_thread_dynamic) &&
+	    tq->tq_maxthreads > tq->tq_nthreads) {
 		taskq_thread_t *tqt = taskq_thread_create(tq);
 		if (tqt == NULL)
 			err = -1;
@@ -1344,14 +1345,15 @@ spl_taskq_prepare_down(unsigned int cpu, struct hlist_node *node)
 		goto out;
 
 	if (tq->tq_flags & TASKQ_THREADS_CPU_PCT) {
-		int nthreads = MIN(tq->tq_orig_maxthreads, 100);
+		int nthreads = MIN(tq->tq_cpu_pct, 100);
 		nthreads = MAX(((num_online_cpus()) * nthreads) / 100, 1);
 		tq->tq_maxthreads = nthreads;
 	} else {
 		tq->tq_maxthreads--;
 	}
 
-	if (!(flags & TASKQ_DYNAMIC) || !spl_taskq_thread_dynamic) {
+	if (!((tq->tq_flags & TASKQ_DYNAMIC) && spl_taskq_thread_dynamic) &&
+	    tq->tq_maxthreads > tq->tq_nthreads) {
 		taskq_thread_t *tqt = list_entry(tq->tq_thread_list.next,
 		    taskq_thread_t, tqt_thread_list);
 		struct task_struct *thread = tqt->tqt_thread;
@@ -1367,6 +1369,7 @@ out:
 	spin_unlock_irqrestore(&tq->tq_lock, flags);
 	return (err);
 }
+#endif
 
 int
 spl_taskq_init(void)

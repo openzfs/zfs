@@ -84,8 +84,8 @@ typedef struct taskq {
 	int			tq_nthreads;	/* # of existing threads */
 	int			tq_nspawn;	/* # of threads being spawned */
 	int			tq_maxthreads;	/* # of threads maximum */
-	/* original maxthreads arg to create */
-	int			tq_orig_maxthreads;
+	/* If PERCPU flag is set, percent of NCPUs to have as threads */
+	int			tq_cpu_pct;
 	int			tq_pri;		/* priority */
 	int			tq_minalloc;	/* min taskq_ent_t pool size */
 	int			tq_maxalloc;	/* max taskq_ent_t pool size */
