@@ -22,6 +22,12 @@ USER_C += \
 	os/freebsd/smb.c
 endif
 
+if BUILD_MACOS
+USER_C += \
+	os/macos/nfs.c \
+	os/macos/smb.c
+endif
+
 libshare_la_SOURCES = $(USER_C)
 
 include $(top_srcdir)/config/CppCheck.am

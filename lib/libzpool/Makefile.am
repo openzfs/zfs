@@ -13,6 +13,9 @@ endif
 if BUILD_LINUX
 DEFAULT_INCLUDES += -I$(top_srcdir)/include/os/linux/zfs
 endif
+if BUILD_MACOS
+DEFAULT_INCLUDES += -I$(top_srcdir)/include/os/macos/zfs
+endif
 
 # Unconditionally enable debugging for libzpool
 AM_CPPFLAGS += -DDEBUG -UNDEBUG -DZFS_DEBUG
@@ -222,8 +225,10 @@ libzpool_la_LIBADD += $(LIBCLOCK_GETTIME) $(ZLIB_LIBS) -ldl -lm
 
 libzpool_la_LDFLAGS = -pthread
 
+if !BUILD_MACOS
 if !ASAN_ENABLED
 libzpool_la_LDFLAGS += -Wl,-z,defs
+endif
 endif
 
 if BUILD_FREEBSD

@@ -10,6 +10,9 @@ endif
 if BUILD_LINUX
 DEFAULT_INCLUDES += -I$(top_srcdir)/include/os/linux/zfs
 endif
+if BUILD_MACOS
+DEFAULT_INCLUDES += -I$(top_srcdir)/include/os/macos/zfs
+endif
 
 libzfs_input_check_SOURCES = libzfs_input_check.c
 libzfs_input_check_LDADD = \

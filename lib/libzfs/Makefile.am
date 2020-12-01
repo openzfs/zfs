@@ -77,6 +77,7 @@ nodist_libzfs_la_SOURCES = \
 	$(KERNEL_C)
 
 libzfs_la_LIBADD = \
+	$(abs_top_builddir)/lib/libzutil/libzutil.la \
 	$(abs_top_builddir)/lib/libshare/libshare.la \
 	$(abs_top_builddir)/lib/libzfs_core/libzfs_core.la \
 	$(abs_top_builddir)/lib/libnvpair/libnvpair.la \
@@ -86,8 +87,10 @@ libzfs_la_LIBADD += -lm $(LIBCRYPTO_LIBS) $(ZLIB_LIBS) $(LTLIBINTL)
 
 libzfs_la_LDFLAGS = -pthread
 
+if !BUILD_MACOS
 if !ASAN_ENABLED
 libzfs_la_LDFLAGS += -Wl,-z,defs
+endif
 endif
 
 if BUILD_FREEBSD

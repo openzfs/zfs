@@ -35,8 +35,10 @@ libnvpair_la_LIBADD += $(LIBTIRPC_LIBS) $(LTLIBINTL)
 
 libnvpair_la_LDFLAGS =
 
+if !BUILD_MACOS
 if !ASAN_ENABLED
 libnvpair_la_LDFLAGS += -Wl,-z,defs
+endif
 endif
 
 libnvpair_la_LDFLAGS += -version-info 3:0:0
