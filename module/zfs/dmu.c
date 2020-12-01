@@ -581,7 +581,7 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 			}
 		}
 	}
-	
+
 	*numbufsp = nblks;
 	*dbpp = dbp;
 	return (0);
