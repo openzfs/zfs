@@ -7595,7 +7595,7 @@ print_removal_status(zpool_handle_t *zhp, pool_removal_stat_t *prs)
 	vdev_name = zpool_vdev_name(g_zfs, zhp,
 	    child[prs->prs_removing_vdev], B_TRUE);
 
-	(void) printf(gettext("remove: "));
+	printf_color(ANSI_BOLD, gettext("remove: "));
 
 	start = prs->prs_start_time;
 	end = prs->prs_end_time;
