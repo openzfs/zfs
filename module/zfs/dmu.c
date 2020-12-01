@@ -532,7 +532,8 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 	dbp = kmem_zalloc(sizeof (dmu_buf_t *) * nblks, KM_SLEEP);
 
 	if (read)
-		zio = zio_root(dn->dn_objset->os_spa, NULL, NULL, ZIO_FLAG_CANFAIL);
+		zio = zio_root(dn->dn_objset->os_spa, NULL, NULL,
+		    ZIO_FLAG_CANFAIL);
 	blkid = dbuf_whichblock(dn, 0, offset);
 	for (i = 0; i < nblks; i++) {
 		dmu_buf_impl_t *db = dbuf_hold(dn, blkid + i, tag);
@@ -581,7 +582,7 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 			}
 		}
 	}
-	
+
 	*numbufsp = nblks;
 	*dbpp = dbp;
 	return (0);
