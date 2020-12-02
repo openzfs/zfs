@@ -63,7 +63,7 @@ log_assert "For raidz, one destroyed pools devices was removed or used by " \
 	"other pool, it still can be imported correctly."
 log_onexit cleanup
 
-log_must zpool create $TESTPOOL1 raidz $VDEV0 $VDEV1 $VDEV2 $VDIV3
+log_must zpool create $TESTPOOL1 raidz $VDEV0 $VDEV1 $VDEV2 $VDEV3
 typeset guid=$(get_config $TESTPOOL1 pool_guid)
 typeset target=$TESTPOOL1
 if (( RANDOM % 2 == 0 )) ; then

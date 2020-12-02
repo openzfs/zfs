@@ -54,7 +54,7 @@ if is_linux; then
 	# Add one 512b scsi_debug device (4Kn would generate IO errors)
 	# NOTE: must be larger than other "file" vdevs and minimum SPA devsize:
 	# add 32m of fudge
-	load_scsi_debug $(($SPA_MINDEVSIZE/1024/1024+32)) 1 1 1 '512b'
+	load_scsi_debug $(($MINVDEVSIZE/1024/1024+32)) 1 1 1 '512b'
 else
 	log_unsupported "scsi debug module unsupported"
 fi
@@ -85,10 +85,10 @@ typeset poolconfs=(
     "mirror $filedev1 $filedev2 special mirror $filedev3 $removedev"
 )
 
-log_must truncate -s $SPA_MINDEVSIZE $filedev1
-log_must truncate -s $SPA_MINDEVSIZE $filedev2
-log_must truncate -s $SPA_MINDEVSIZE $filedev3
-log_must truncate -s $SPA_MINDEVSIZE $sparedev
+log_must truncate -s $MINVDEVSIZE $filedev1
+log_must truncate -s $MINVDEVSIZE $filedev2
+log_must truncate -s $MINVDEVSIZE $filedev3
+log_must truncate -s $MINVDEVSIZE $sparedev
 
 for conf in "${poolconfs[@]}"
 do

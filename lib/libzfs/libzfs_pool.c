@@ -42,10 +42,10 @@
 #include <sys/efi_partition.h>
 #include <sys/systeminfo.h>
 #include <sys/zfs_ioctl.h>
+#include <sys/zfs_sysfs.h>
 #include <sys/vdev_disk.h>
 #include <dlfcn.h>
 #include <libzutil.h>
-
 #include "zfs_namecheck.h"
 #include "zfs_prop.h"
 #include "libzfs_impl.h"
@@ -481,7 +481,8 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 			if (err != 0) {
 				ASSERT3U(err, ==, ENOENT);
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-				    "invalid feature '%s'"), fname);
+				    "feature '%s' unsupported by kernel"),
+				    fname);
 				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
 				goto error;
 			}
@@ -960,6 +961,7 @@ zpool_name_valid(libzfs_handle_t *hdl, boolean_t isopen, const char *pool)
 	if (ret == 0 && !isopen &&
 	    (strncmp(pool, "mirror", 6) == 0 ||
 	    strncmp(pool, "raidz", 5) == 0 ||
+	    strncmp(pool, "draid", 5) == 0 ||
 	    strncmp(pool, "spare", 5) == 0 ||
 	    strcmp(pool, "log") == 0)) {
 		if (hdl != NULL)
@@ -1183,6 +1185,37 @@ zpool_has_special_vdev(nvlist_t *nvroot)
 			}
 		}
 	}
+	return (B_FALSE);
+}
+
+/*
+ * Output a dRAID top-level vdev name in to the provided buffer.
+ */
+static char *
+zpool_draid_name(char *name, int len, uint64_t data, uint64_t parity,
+    uint64_t spares, uint64_t children)
+{
+	snprintf(name, len, "%s%llu:%llud:%lluc:%llus",
+	    VDEV_TYPE_DRAID, (u_longlong_t)parity, (u_longlong_t)data,
+	    (u_longlong_t)children, (u_longlong_t)spares);
+
+	return (name);
+}
+
+/*
+ * Return B_TRUE if the provided name is a dRAID spare name.
+ */
+boolean_t
+zpool_is_draid_spare(const char *name)
+{
+	uint64_t spare_id, parity, vdev_id;
+
+	if (sscanf(name, VDEV_TYPE_DRAID "%llu-%llu-%llu",
+	    (u_longlong_t *)&parity, (u_longlong_t *)&vdev_id,
+	    (u_longlong_t *)&spare_id) == 3) {
+		return (B_TRUE);
+	}
+
 	return (B_FALSE);
 }
 
@@ -2696,6 +2729,11 @@ zpool_vdev_is_interior(const char *name)
 	    VDEV_TYPE_REPLACING, strlen(VDEV_TYPE_REPLACING)) == 0 ||
 	    strncmp(name, VDEV_TYPE_MIRROR, strlen(VDEV_TYPE_MIRROR)) == 0)
 		return (B_TRUE);
+
+	if (strncmp(name, VDEV_TYPE_DRAID, strlen(VDEV_TYPE_DRAID)) == 0 &&
+	    !zpool_is_draid_spare(name))
+		return (B_TRUE);
+
 	return (B_FALSE);
 }
 
@@ -3129,7 +3167,8 @@ is_replacing_spare(nvlist_t *search, nvlist_t *tgt, int which)
 		verify(nvlist_lookup_string(search, ZPOOL_CONFIG_TYPE,
 		    &type) == 0);
 
-		if (strcmp(type, VDEV_TYPE_SPARE) == 0 &&
+		if ((strcmp(type, VDEV_TYPE_SPARE) == 0 ||
+		    strcmp(type, VDEV_TYPE_DRAID_SPARE) == 0) &&
 		    children == 2 && child[which] == tgt)
 			return (B_TRUE);
 
@@ -3268,8 +3307,12 @@ zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
 				    "cannot replace a log with a spare"));
 			} else if (rebuild) {
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-				    "only mirror vdevs support sequential "
-				    "reconstruction"));
+				    "only mirror and dRAID vdevs support "
+				    "sequential reconstruction"));
+			} else if (zpool_is_draid_spare(new_disk)) {
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "dRAID spares can only replace child "
+				    "devices in their parent's dRAID vdev"));
 			} else if (version >= SPA_VERSION_MULTI_REPLACE) {
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 				    "already in replacing/spare config; wait "
@@ -3674,6 +3717,12 @@ zpool_vdev_remove(zpool_handle_t *zhp, const char *path)
 	(void) snprintf(msg, sizeof (msg),
 	    dgettext(TEXT_DOMAIN, "cannot remove %s"), path);
 
+	if (zpool_is_draid_spare(path)) {
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "dRAID spares cannot be removed"));
+		return (zfs_error(hdl, EZFS_NODEVICE, msg));
+	}
+
 	(void) strlcpy(zc.zc_name, zhp->zpool_name, sizeof (zc.zc_name));
 	if ((tgt = zpool_find_vdev(zhp, path, &avail_spare, &l2cache,
 	    &islog)) == NULL)
@@ -4011,9 +4060,10 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 		}
 
 		/*
-		 * Remove the partition from the path it this is a whole disk.
+		 * Remove the partition from the path if this is a whole disk.
 		 */
-		if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_WHOLE_DISK, &value)
+		if (strcmp(type, VDEV_TYPE_DRAID_SPARE) != 0 &&
+		    nvlist_lookup_uint64(nv, ZPOOL_CONFIG_WHOLE_DISK, &value)
 		    == 0 && value && !(name_flags & VDEV_NAME_PATH)) {
 			return (zfs_strip_partition(path));
 		}
@@ -4029,6 +4079,27 @@ zpool_vdev_name(libzfs_handle_t *hdl, zpool_handle_t *zhp, nvlist_t *nv,
 			(void) snprintf(buf, sizeof (buf), "%s%llu", path,
 			    (u_longlong_t)value);
 			path = buf;
+		}
+
+		/*
+		 * If it's a dRAID device, we add parity, groups, and spares.
+		 */
+		if (strcmp(path, VDEV_TYPE_DRAID) == 0) {
+			uint64_t ndata, nparity, nspares;
+			nvlist_t **child;
+			uint_t children;
+
+			verify(nvlist_lookup_nvlist_array(nv,
+			    ZPOOL_CONFIG_CHILDREN, &child, &children) == 0);
+			verify(nvlist_lookup_uint64(nv,
+			    ZPOOL_CONFIG_NPARITY, &nparity) == 0);
+			verify(nvlist_lookup_uint64(nv,
+			    ZPOOL_CONFIG_DRAID_NDATA, &ndata) == 0);
+			verify(nvlist_lookup_uint64(nv,
+			    ZPOOL_CONFIG_DRAID_NSPARES, &nspares) == 0);
+
+			path = zpool_draid_name(buf, sizeof (buf), ndata,
+			    nparity, nspares, children);
 		}
 
 		/*

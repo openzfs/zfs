@@ -49,8 +49,11 @@ struct raidz_map *vdev_raidz_map_alloc_expanded(abd_t *, uint64_t, uint64_t,
     uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
 void vdev_raidz_map_free(struct raidz_map *);
 void vdev_raidz_free(struct vdev_raidz *);
+void vdev_raidz_generate_parity_row(struct raidz_map *, struct raidz_row *);
 void vdev_raidz_generate_parity(struct raidz_map *);
 void vdev_raidz_reconstruct(struct raidz_map *, const int *, int);
+void vdev_raidz_child_done(zio_t *);
+void vdev_raidz_io_done(zio_t *);
 
 /*
  * vdev_raidz_math interface
@@ -111,8 +114,6 @@ typedef struct vdev_raidz {
 } vdev_raidz_t;
 
 extern void vdev_raidz_attach_sync(void *, dmu_tx_t *);
-extern void vdev_raidz_config_generate(vdev_t *, nvlist_t *);
-extern void *vdev_raidz_get_tsd(spa_t *, nvlist_t *);
 extern void spa_start_raidz_expansion_thread(spa_t *);
 extern int spa_raidz_expand_get_stats(spa_t *, pool_raidz_expand_stat_t *);
 extern int vdev_raidz_load(vdev_t *);

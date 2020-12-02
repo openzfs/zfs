@@ -243,6 +243,8 @@ SRCS+=	abd.c \
 	unique.c \
 	vdev.c \
 	vdev_cache.c \
+	vdev_draid.c \
+	vdev_draid_rand.c \
 	vdev_indirect.c \
 	vdev_indirect_births.c \
 	vdev_indirect_mapping.c \
@@ -341,6 +343,7 @@ CFLAGS.lz4.c= -Wno-cast-qual
 CFLAGS.spa.c= -Wno-cast-qual
 CFLAGS.spa_misc.c= -Wno-cast-qual
 CFLAGS.sysctl_os.c= -include ../zfs_config.h
+CFLAGS.vdev_draid.c= -Wno-cast-qual
 CFLAGS.vdev_raidz.c= -Wno-cast-qual
 CFLAGS.vdev_raidz_math.c= -Wno-cast-qual
 CFLAGS.vdev_raidz_math_scalar.c= -Wno-cast-qual

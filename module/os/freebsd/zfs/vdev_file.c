@@ -292,19 +292,28 @@ vdev_file_io_done(zio_t *zio)
 }
 
 vdev_ops_t vdev_file_ops = {
-	vdev_file_open,
-	vdev_file_close,
-	vdev_default_asize,
-	vdev_file_io_start,
-	vdev_file_io_done,
-	NULL,
-	NULL,
-	vdev_file_hold,
-	vdev_file_rele,
-	NULL,
-	vdev_default_xlate,
-	VDEV_TYPE_FILE,		/* name of this vdev type */
-	B_TRUE			/* leaf vdev */
+	.vdev_op_init = NULL,
+	.vdev_op_fini = NULL,
+	.vdev_op_open = vdev_file_open,
+	.vdev_op_close = vdev_file_close,
+	.vdev_op_asize = vdev_default_asize,
+	.vdev_op_min_asize = vdev_default_min_asize,
+	.vdev_op_min_alloc = NULL,
+	.vdev_op_io_start = vdev_file_io_start,
+	.vdev_op_io_done = vdev_file_io_done,
+	.vdev_op_state_change = NULL,
+	.vdev_op_need_resilver = NULL,
+	.vdev_op_hold = vdev_file_hold,
+	.vdev_op_rele = vdev_file_rele,
+	.vdev_op_remap = NULL,
+	.vdev_op_xlate = vdev_default_xlate,
+	.vdev_op_rebuild_asize = NULL,
+	.vdev_op_metaslab_init = NULL,
+	.vdev_op_config_generate = NULL,
+	.vdev_op_nparity = NULL,
+	.vdev_op_ndisks = NULL,
+	.vdev_op_type = VDEV_TYPE_FILE,		/* name of this vdev type */
+	.vdev_op_leaf = B_TRUE			/* leaf vdev */
 };
 
 /*
@@ -313,19 +322,28 @@ vdev_ops_t vdev_file_ops = {
 #ifndef _KERNEL
 
 vdev_ops_t vdev_disk_ops = {
-	vdev_file_open,
-	vdev_file_close,
-	vdev_default_asize,
-	vdev_file_io_start,
-	vdev_file_io_done,
-	NULL,
-	NULL,
-	vdev_file_hold,
-	vdev_file_rele,
-	NULL,
-	vdev_default_xlate,
-	VDEV_TYPE_DISK,		/* name of this vdev type */
-	B_TRUE			/* leaf vdev */
+	.vdev_op_init = NULL,
+	.vdev_op_fini = NULL,
+	.vdev_op_open = vdev_file_open,
+	.vdev_op_close = vdev_file_close,
+	.vdev_op_asize = vdev_default_asize,
+	.vdev_op_min_asize = vdev_default_min_asize,
+	.vdev_op_min_alloc = NULL,
+	.vdev_op_io_start = vdev_file_io_start,
+	.vdev_op_io_done = vdev_file_io_done,
+	.vdev_op_state_change = NULL,
+	.vdev_op_need_resilver = NULL,
+	.vdev_op_hold = vdev_file_hold,
+	.vdev_op_rele = vdev_file_rele,
+	.vdev_op_remap = NULL,
+	.vdev_op_xlate = vdev_default_xlate,
+	.vdev_op_rebuild_asize = NULL,
+	.vdev_op_metaslab_init = NULL,
+	.vdev_op_config_generate = NULL,
+	.vdev_op_nparity = NULL,
+	.vdev_op_ndisks = NULL,
+	.vdev_op_type = VDEV_TYPE_DISK,		/* name of this vdev type */
+	.vdev_op_leaf = B_TRUE			/* leaf vdev */
 };
 
 #endif

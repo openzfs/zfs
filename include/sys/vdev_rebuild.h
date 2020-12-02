@@ -66,10 +66,14 @@ typedef struct vdev_rebuild {
 	vdev_t		*vr_top_vdev;		/* top-level vdev to rebuild */
 	metaslab_t	*vr_scan_msp;		/* scanning disabled metaslab */
 	range_tree_t	*vr_scan_tree;		/* scan ranges (in metaslab) */
+	kmutex_t	vr_io_lock;		/* inflight IO lock */
+	kcondvar_t	vr_io_cv;		/* inflight IO cv */
 
 	/* In-core state and progress */
 	uint64_t	vr_scan_offset[TXG_SIZE];
 	uint64_t	vr_prev_scan_time_ms;	/* any previous scan time */
+	uint64_t	vr_bytes_inflight_max;	/* maximum bytes inflight */
+	uint64_t	vr_bytes_inflight;	/* current bytes inflight */
 
 	/* Per-rebuild pass statistics for calculating bandwidth */
 	uint64_t	vr_pass_start_time;

@@ -220,6 +220,7 @@ test_add_vdevs "$VDEV0 $VDEV1" "$VDEV2"
 test_add_vdevs "$VDEV0" "$VDEV1 $VDEV2"
 test_add_vdevs "mirror $VDEV0 $VDEV1" "mirror $VDEV2 $VDEV3"
 test_add_vdevs "$VDEV0" "raidz $VDEV1 $VDEV2 $VDEV3"
+test_add_vdevs "$VDEV0" "draid $VDEV1 $VDEV2 $VDEV3"
 test_add_vdevs "$VDEV0" "log $VDEV1"
 test_add_vdevs "$VDEV0 log $VDEV1" "$VDEV2"
 

@@ -166,6 +166,8 @@ if [ "${INSTALL}" = "yes" ]; then
 	    "$INSTALL_UDEV_RULE_DIR/90-zfs.rules"
 	install "$CMD_DIR/zpool/zpool.d" \
 	    "$INSTALL_SYSCONF_DIR/zfs/zpool.d"
+	install "$SYSCONF_DIR/zfs/draid.d" \
+	    "$INSTALL_SYSCONF_DIR/zfs/draid.d"
 	install "$CONTRIB_DIR/pyzfs/libzfs_core" \
 	    "$INSTALL_PYTHON_DIR/libzfs_core"
 	# Ideally we would install these in the configured ${libdir}, which is
@@ -185,6 +187,7 @@ else
 	remove "$INSTALL_UDEV_RULE_DIR/69-vdev.rules"
 	remove "$INSTALL_UDEV_RULE_DIR/90-zfs.rules"
 	remove "$INSTALL_SYSCONF_DIR/zfs/zpool.d"
+	remove "$INSTALL_SYSCONF_DIR/zfs/draid.d"
 	remove "$INSTALL_PYTHON_DIR/libzfs_core"
 	remove "/lib/libzfs_core.so"
 	remove "/lib/libnvpair.so"

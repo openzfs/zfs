@@ -435,7 +435,15 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 		return;
 	}
 
-	ret = zpool_vdev_attach(zhp, fullpath, path, nvroot, B_TRUE, B_FALSE);
+	/*
+	 * Prefer sequential resilvering when supported (mirrors and dRAID),
+	 * otherwise fallback to a traditional healing resilver.
+	 */
+	ret = zpool_vdev_attach(zhp, fullpath, path, nvroot, B_TRUE, B_TRUE);
+	if (ret != 0) {
+		ret = zpool_vdev_attach(zhp, fullpath, path, nvroot,
+		    B_TRUE, B_FALSE);
+	}
 
 	zed_log_msg(LOG_INFO, "  zpool_vdev_replace: %s with %s (%s)",
 	    fullpath, path, (ret == 0) ? "no errors" :
