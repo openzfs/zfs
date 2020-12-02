@@ -2346,7 +2346,6 @@ vdev_raidz_io_start_read(zio_t *zio, raidz_map_t *rm)
 			vdev_raidz_io_start_read_row(zio, rr, forceparity);
 		}
 	}
-
 }
 
 /*
