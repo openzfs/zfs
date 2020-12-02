@@ -1600,7 +1600,7 @@ dmu_sync_late_arrival_done(zio_t *zio)
 
 	dsa->dsa_done(dsa->dsa_zgd, zio->io_error);
 
-	abd_put(zio->io_abd);
+	abd_free(zio->io_abd);
 	kmem_free(dsa, sizeof (*dsa));
 }
 

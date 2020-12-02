@@ -185,7 +185,7 @@ abd_chunkcnt_for_bytes(size_t size)
 }
 
 abd_t *
-abd_alloc_struct(size_t size)
+abd_alloc_struct_impl(size_t size)
 {
 	/*
 	 * In Linux we do not use the size passed in during ABD
@@ -193,18 +193,14 @@ abd_alloc_struct(size_t size)
 	 */
 	abd_t *abd = kmem_cache_alloc(abd_cache, KM_PUSHPAGE);
 	ASSERT3P(abd, !=, NULL);
-	list_link_init(&abd->abd_gang_link);
-	mutex_init(&abd->abd_mtx, NULL, MUTEX_DEFAULT, NULL);
 	ABDSTAT_INCR(abdstat_struct_size, sizeof (abd_t));
 
 	return (abd);
 }
 
 void
-abd_free_struct(abd_t *abd)
+abd_free_struct_impl(abd_t *abd)
 {
-	mutex_destroy(&abd->abd_mtx);
-	ASSERT(!list_link_active(&abd->abd_gang_link));
 	kmem_cache_free(abd_cache, abd);
 	ABDSTAT_INCR(abdstat_struct_size, -(int)sizeof (abd_t));
 }
@@ -472,14 +468,12 @@ abd_alloc_zero_scatter(void)
 	ASSERT3U(table.nents, ==, nr_pages);
 
 	abd_zero_scatter = abd_alloc_struct(SPA_MAXBLOCKSIZE);
-	abd_zero_scatter->abd_flags = ABD_FLAG_OWNER;
+	abd_zero_scatter->abd_flags |= ABD_FLAG_OWNER;
 	ABD_SCATTER(abd_zero_scatter).abd_offset = 0;
 	ABD_SCATTER(abd_zero_scatter).abd_sgl = table.sgl;
 	ABD_SCATTER(abd_zero_scatter).abd_nents = nr_pages;
 	abd_zero_scatter->abd_size = SPA_MAXBLOCKSIZE;
-	abd_zero_scatter->abd_parent = NULL;
 	abd_zero_scatter->abd_flags |= ABD_FLAG_MULTI_CHUNK | ABD_FLAG_ZEROS;
-	zfs_refcount_create(&abd_zero_scatter->abd_children);
 
 	abd_for_each_sg(abd_zero_scatter, sg, nr_pages, i) {
 		sg_set_page(sg, abd_zero_page, PAGESIZE, 0);
@@ -599,12 +593,11 @@ abd_alloc_zero_scatter(void)
 	abd_zero_page = umem_alloc_aligned(PAGESIZE, 64, KM_SLEEP);
 	memset(abd_zero_page, 0, PAGESIZE);
 	abd_zero_scatter = abd_alloc_struct(SPA_MAXBLOCKSIZE);
-	abd_zero_scatter->abd_flags = ABD_FLAG_OWNER;
+	abd_zero_scatter->abd_flags |= ABD_FLAG_OWNER;
 	abd_zero_scatter->abd_flags |= ABD_FLAG_MULTI_CHUNK | ABD_FLAG_ZEROS;
 	ABD_SCATTER(abd_zero_scatter).abd_offset = 0;
 	ABD_SCATTER(abd_zero_scatter).abd_nents = nr_pages;
 	abd_zero_scatter->abd_size = SPA_MAXBLOCKSIZE;
-	abd_zero_scatter->abd_parent = NULL;
 	zfs_refcount_create(&abd_zero_scatter->abd_children);
 	ABD_SCATTER(abd_zero_scatter).abd_sgl = vmem_alloc(nr_pages *
 	    sizeof (struct scatterlist), KM_SLEEP);
@@ -678,7 +671,6 @@ abd_verify_scatter(abd_t *abd)
 static void
 abd_free_zero_scatter(void)
 {
-	zfs_refcount_destroy(&abd_zero_scatter->abd_children);
 	ABDSTAT_BUMPDOWN(abdstat_scatter_cnt);
 	ABDSTAT_INCR(abdstat_scatter_data_size, -(int)PAGESIZE);
 	ABDSTAT_BUMPDOWN(abdstat_scatter_page_multi_chunk);
@@ -747,9 +739,7 @@ abd_free_linear_page(abd_t *abd)
 	ABD_SCATTER(abd).abd_sgl = sg;
 	abd_free_chunks(abd);
 
-	zfs_refcount_destroy(&abd->abd_children);
 	abd_update_scatter_stats(abd, ABDSTAT_DECR);
-	abd_free_struct(abd);
 }
 
 /*
@@ -770,9 +760,8 @@ abd_alloc_for_io(size_t size, boolean_t is_metadata)
 }
 
 abd_t *
-abd_get_offset_scatter(abd_t *sabd, size_t off)
+abd_get_offset_scatter(abd_t *abd, abd_t *sabd, size_t off)
 {
-	abd_t *abd = NULL;
 	int i = 0;
 	struct scatterlist *sg = NULL;
 
@@ -781,14 +770,14 @@ abd_get_offset_scatter(abd_t *sabd, size_t off)
 
 	size_t new_offset = ABD_SCATTER(sabd).abd_offset + off;
 
-	abd = abd_alloc_struct(0);
+	if (abd == NULL)
+		abd = abd_alloc_struct(0);
 
 	/*
 	 * Even if this buf is filesystem metadata, we only track that
 	 * if we own the underlying data buffer, which is not true in
 	 * this case. Therefore, we don't ever use ABD_FLAG_META here.
 	 */
-	abd->abd_flags = 0;
 
 	abd_for_each_sg(sabd, sg, ABD_SCATTER(sabd).abd_nents, i) {
 		if (new_offset < sg->length)

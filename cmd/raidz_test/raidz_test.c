@@ -492,8 +492,9 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 					    (dc - r) * (rows - 1) + row;
 				}
 				rr->rr_col[c].rc_size = 1ULL << ashift;
-				rr->rr_col[c].rc_abd =
-				    abd_get_offset(abd, off << ashift);
+				rr->rr_col[c].rc_abd = abd_get_offset_struct(
+				    &rr->rr_col[c].rc_abdstruct,
+				    abd, off << ashift, 1 << ashift);
 			}
 
 			asize += rr->rr_col[c].rc_size;

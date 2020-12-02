@@ -4656,7 +4656,7 @@ dbuf_write_override_done(zio_t *zio)
 	dbuf_write_done(zio, NULL, db);
 
 	if (zio->io_abd != NULL)
-		abd_put(zio->io_abd);
+		abd_free(zio->io_abd);
 }
 
 typedef struct dbuf_remap_impl_callback_arg {
