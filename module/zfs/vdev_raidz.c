@@ -162,7 +162,7 @@ vdev_raidz_row_free(raidz_row_t *rr, boolean_t aggregate)
 
 	for (c = 0; c < rr->rr_firstdatacol && c < rr->rr_cols; c++) {
 		if (aggregate)
-			abd_put_impl(rr->rr_col[c].rc_abd);
+			abd_put(rr->rr_col[c].rc_abd);
 		else
 			abd_free(rr->rr_col[c].rc_abd);
 
@@ -179,7 +179,7 @@ vdev_raidz_row_free(raidz_row_t *rr, boolean_t aggregate)
 			if (abd_is_gang(rr->rr_col[c].rc_abd))
 				abd_free(rr->rr_col[c].rc_abd);
 			else
-				abd_put_impl(rr->rr_col[c].rc_abd);
+				abd_put(rr->rr_col[c].rc_abd);
 		}
 		if (rr->rr_col[c].rc_orig_data != NULL) {
 			zio_buf_free(rr->rr_col[c].rc_orig_data,
@@ -757,9 +757,14 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 				    (int)row_phys_cols);
 #endif
 				rc->rc_size = 1ULL << ashift;
+#if 0
 				rc->rc_abd = abd_get_offset_impl(
 				    &rc->rc_abdstruct, abd,
 				    off << ashift, 1 << ashift);
+#else
+				rc->rc_abd = abd_get_offset_size(abd,
+				    off << ashift, 1 << ashift);
+#endif
 			}
 
 			/*
@@ -877,11 +882,18 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 			for (int c = 0; c < rr->rr_firstdatacol; c++) {
 				raidz_col_t *rc = &rr->rr_col[c];
 				raidz_col_t *prc = &rm->rm_phys_col[rc->rc_devidx];
+#if 0
 				rc->rc_abd =
 				    abd_get_offset_impl(&rc->rc_abdstruct,
 				    prc->rc_abd,
 				    rc->rc_offset - prc->rc_offset,
 				    rc->rc_size);
+#else
+				rc->rc_abd =
+				    abd_get_offset_size(prc->rc_abd,
+				    rc->rc_offset - prc->rc_offset,
+				    rc->rc_size);
+#endif
 			}
 		}
 	}
