@@ -39,7 +39,6 @@ typeset VDEV_PREFIX="$TEST_BASE_DIR/filedev"
 # 1. Create a storage pool
 #
 
-typeset dev_size=4M
 typeset -a dev=(
 	"${VDEV_PREFIX}00" "${VDEV_PREFIX}01" "${VDEV_PREFIX}02"
 	"${VDEV_PREFIX}03" "${VDEV_PREFIX}04" "${VDEV_PREFIX}05"
@@ -123,7 +122,7 @@ typeset disk1=$(create_blockfile $FILESIZE)
 
 # Create needed file vdevs.
 for (( i=0; i < ${#dev[@]}; i+=1 )); do
-	log_must truncate -s $dev_size "${dev[$i]}"
+	log_must truncate -s $SPA_MINDEVSIZE "${dev[$i]}"
 done
 
 # Foreach test create pool, add -n devices and check output.
