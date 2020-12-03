@@ -380,21 +380,21 @@ vdev_queue_class_max_active(spa_t *spa, vdev_queue_t *vq, zio_priority_t p)
 			return (MIN(vq->vq_nia_credit,
 			    zfs_vdev_scrub_min_active));
 		} else if (vq->vq_nia_credit < zfs_vdev_nia_delay)
-			return (zfs_vdev_scrub_min_active);
+			return (MAX(1, zfs_vdev_scrub_min_active));
 		return (zfs_vdev_scrub_max_active);
 	case ZIO_PRIORITY_REMOVAL:
 		if (vq->vq_ia_active > 0) {
 			return (MIN(vq->vq_nia_credit,
 			    zfs_vdev_removal_min_active));
 		} else if (vq->vq_nia_credit < zfs_vdev_nia_delay)
-			return (zfs_vdev_removal_min_active);
+			return (MAX(1, zfs_vdev_removal_min_active));
 		return (zfs_vdev_removal_max_active);
 	case ZIO_PRIORITY_INITIALIZING:
 		if (vq->vq_ia_active > 0) {
 			return (MIN(vq->vq_nia_credit,
 			    zfs_vdev_initializing_min_active));
 		} else if (vq->vq_nia_credit < zfs_vdev_nia_delay)
-			return (zfs_vdev_initializing_min_active);
+			return (MAX(1, zfs_vdev_initializing_min_active));
 		return (zfs_vdev_initializing_max_active);
 	case ZIO_PRIORITY_TRIM:
 		return (zfs_vdev_trim_max_active);
@@ -403,7 +403,7 @@ vdev_queue_class_max_active(spa_t *spa, vdev_queue_t *vq, zio_priority_t p)
 			return (MIN(vq->vq_nia_credit,
 			    zfs_vdev_rebuild_min_active));
 		} else if (vq->vq_nia_credit < zfs_vdev_nia_delay)
-			return (zfs_vdev_rebuild_min_active);
+			return (MAX(1, zfs_vdev_rebuild_min_active));
 		return (zfs_vdev_rebuild_max_active);
 	default:
 		panic("invalid priority %u", p);
