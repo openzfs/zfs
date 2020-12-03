@@ -386,6 +386,7 @@ param_set_arc_int(const char *buf, zfs_kernel_param_t *kp)
 	return (0);
 }
 
+#ifdef CONFIG_MEMORY_HOTPLUG
 /* ARGSUSED */
 static int
 arc_hotplug_callback(struct notifier_block *self, unsigned long action,
@@ -410,6 +411,7 @@ arc_hotplug_callback(struct notifier_block *self, unsigned long action,
 	arc_set_sys_free(allmem);
 	return (NOTIFY_OK);
 }
+#endif
 
 void
 arc_register_hotplug(void)

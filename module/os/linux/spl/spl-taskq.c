@@ -1336,7 +1336,6 @@ spl_taskq_prepare_down(unsigned int cpu, struct hlist_node *node)
 {
 	taskq_t *tq = list_entry(node, taskq_t, tq_hp_cb_node);
 	unsigned long flags;
-	int err = 0;
 
 	ASSERT(tq);
 	spin_lock_irqsave_nested(&tq->tq_lock, flags, tq->tq_lock_class);
@@ -1361,13 +1360,12 @@ spl_taskq_prepare_down(unsigned int cpu, struct hlist_node *node)
 
 		kthread_stop(thread);
 
-		spin_lock_irqsave_nested(&tq->tq_lock, flags,
-		    tq->tq_lock_class);
+		return (0);
 	}
 
 out:
 	spin_unlock_irqrestore(&tq->tq_lock, flags);
-	return (err);
+	return (0);
 }
 #endif
 
