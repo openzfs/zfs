@@ -8,6 +8,12 @@
 # source.  A copy of the CDDL is also available via the Internet at
 # http://www.illumos.org/license/CDDL.
 #
+# This run file contains all of the common functional tests.  When
+# adding a new test consider also adding it to the sanity.run file
+# if the new test runs to completion in only a few seconds.
+#
+# Approximate run time: 4-5 hours
+#
 
 [DEFAULT]
 pre = setup
