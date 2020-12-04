@@ -865,7 +865,8 @@ tests = [
     'userquota_004_pos', 'userquota_005_neg', 'userquota_006_pos',
     'userquota_007_pos', 'userquota_008_pos', 'userquota_009_pos',
     'userquota_010_pos', 'userquota_011_pos', 'userquota_012_neg',
-    'userspace_001_pos', 'userspace_002_pos', 'userspace_encrypted']
+    'userspace_001_pos', 'userspace_002_pos', 'userspace_encrypted',
+    'userspace_send_encrypted']
 tags = ['functional', 'userquota']
 
 [tests/functional/vdev_zaps]
