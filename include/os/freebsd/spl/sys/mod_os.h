@@ -93,6 +93,13 @@ wrap_ ## fn(void *dummy __unused) \
 }																		\
 SYSINIT(zfs_ ## fn, SI_SUB_LAST, SI_ORDER_FIRST, wrap_ ## fn, NULL)
 
+#define	module_init_early(fn)							\
+static void \
+wrap_ ## fn(void *dummy __unused) \
+{								 \
+	fn();						 \
+}																		\
+SYSINIT(zfs_ ## fn, SI_SUB_INT_CONFIG_HOOKS, SI_ORDER_FIRST, wrap_ ## fn, NULL)
 
 #define	module_exit(fn) 							\
 static void \
