@@ -18,7 +18,6 @@ USER_C = \
 libuutil_la_SOURCES = $(USER_C)
 
 libuutil_la_LIBADD = \
-	$(abs_top_builddir)/lib/libefi/libefi.la \
 	$(abs_top_builddir)/lib/libavl/libavl.la \
 	$(abs_top_builddir)/lib/libspl/libspl.la
 
@@ -30,6 +29,11 @@ if !BUILD_MACOS
 if !ASAN_ENABLED
 libuutil_la_LDFLAGS += -Wl,-z,defs
 endif
+endif
+
+if BUILD_MACOS
+libuutil_la_LIBADD += \
+	$(abs_top_builddir)/lib/libefi/libefi.la
 endif
 
 libuutil_la_LDFLAGS += -version-info 3:0:0

@@ -97,11 +97,6 @@ extern void __dprintf(boolean_t dprint, const char *file, const char *func,
 
 #else /* !APPLE */
 
-/*
- * To enable this:
- *
- * $ echo 1 >/sys/module/zfs/parameters/zfs_flags
- */
 #ifdef ZFS_DEBUG
 	/*
 	 * To enable this:
