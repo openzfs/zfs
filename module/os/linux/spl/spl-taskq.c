@@ -1052,8 +1052,7 @@ taskq_create(const char *name, int threads_arg, pri_t pri,
 		ASSERT(nthreads >= 0);
 		nthreads = MIN(threads_arg, 100);
 		nthreads = MAX(nthreads, 0);
-		nthreads = MAX((num_online_cpus() * nthreads) /
-		    100, 1);
+		nthreads = MAX((num_online_cpus() * nthreads) /100, 1);
 	}
 
 	tq = kmem_alloc(sizeof (*tq), KM_PUSHPAGE);
@@ -1286,12 +1285,9 @@ MODULE_PARM_DESC(spl_taskq_kick,
 #ifdef HAVE_CPU_HOTPLUG
 /*
  * This callback will be called exactly once for each core that comes online,
- * for each dynamic taskq.  There are two kinds of dynamic taskqs that we
- * attempt to expand; those who have TASKQ_THREADS_CPU_PCT set, and those
- * created with the same number of threads as we have cores. In the CPU_PCT
- * case, we need to redo the percentage calculation each time this is
- * called. For the threads == cores case, we always want to create a new
- * thread to keep the number of cores and threads in sync.
+ * for each dynamic taskq. We attempt to expand taskqs that have
+ * TASKQ_THREADS_CPU_PCT set. We need to redo the percentage calculation every
+ * time, to correctly determine whether or not to add a thread.
  */
 static int
 spl_taskq_expand(unsigned int cpu, struct hlist_node *node)
@@ -1306,16 +1302,14 @@ spl_taskq_expand(unsigned int cpu, struct hlist_node *node)
 	if (!(tq->tq_flags & TASKQ_ACTIVE))
 		goto out;
 
-	if (tq->tq_flags & TASKQ_THREADS_CPU_PCT) {
-		int nthreads = MIN(tq->tq_cpu_pct, 100);
-		nthreads = MAX(((num_online_cpus() + 1) * nthreads) / 100, 1);
-		tq->tq_maxthreads = nthreads;
-	} else {
-		tq->tq_maxthreads++;
-	}
+	ASSERT(tq->tq_flags & TASKQ_THREADS_CPU_PCT);
+	int nthreads = MIN(tq->tq_cpu_pct, 100);
+	nthreads = MAX(((num_online_cpus() + 1) * nthreads) / 100, 1);
+	tq->tq_maxthreads = nthreads;
 
 	if (!((tq->tq_flags & TASKQ_DYNAMIC) && spl_taskq_thread_dynamic) &&
 	    tq->tq_maxthreads > tq->tq_nthreads) {
+		ASSERT3U(tq->tq_maxthreads, ==, tq->tq_nthreads + 1);
 		taskq_thread_t *tqt = taskq_thread_create(tq);
 		if (tqt == NULL)
 			err = -1;
@@ -1343,16 +1337,14 @@ spl_taskq_prepare_down(unsigned int cpu, struct hlist_node *node)
 	if (!(tq->tq_flags & TASKQ_ACTIVE))
 		goto out;
 
-	if (tq->tq_flags & TASKQ_THREADS_CPU_PCT) {
-		int nthreads = MIN(tq->tq_cpu_pct, 100);
-		nthreads = MAX(((num_online_cpus()) * nthreads) / 100, 1);
-		tq->tq_maxthreads = nthreads;
-	} else {
-		tq->tq_maxthreads--;
-	}
+	ASSERT(tq->tq_flags & TASKQ_THREADS_CPU_PCT);
+	int nthreads = MIN(tq->tq_cpu_pct, 100);
+	nthreads = MAX(((num_online_cpus()) * nthreads) / 100, 1);
+	tq->tq_maxthreads = nthreads;
 
 	if (!((tq->tq_flags & TASKQ_DYNAMIC) && spl_taskq_thread_dynamic) &&
-	    tq->tq_maxthreads > tq->tq_nthreads) {
+	    tq->tq_maxthreads < tq->tq_nthreads) {
+		ASSERT3U(tq->tq_maxthreads, ==, tq->tq_nthreads - 1);
 		taskq_thread_t *tqt = list_entry(tq->tq_thread_list.next,
 		    taskq_thread_t, tqt_thread_list);
 		struct task_struct *thread = tqt->tqt_thread;
