@@ -61,7 +61,7 @@ log_onexit cleanup
 typeset TMPFILE_PREFIX="$TEST_BASE_DIR/zpool_add_003"
 typeset STR_DRYRUN="would update '$TESTPOOL' to the following configuration:"
 typeset VDEV_PREFIX="$TEST_BASE_DIR/filedev"
-typeset -a VDEV_TYPES=("" "dedup" "special" "log" "cache")
+typeset -a VDEV_TYPES=("" "dedup" "special" "log" "cache" "spare")
 
 vdevs=""
 config=""
@@ -91,7 +91,7 @@ log_must zpool add -f $TESTPOOL $config
 zpool status $TESTPOOL | awk 'NR == 1, /NAME/ { next } /^$/ {exit}
 	{print $1}' > "$TMPFILE_PREFIX-vdevtree"
 cat "$TMPFILE_PREFIX-dryrun" | awk 'NR == 1, /would/ {next}
-	{print $1}' > "$TMPFILE_PREFIX-vdevtree-n"
+	/^$/ {next} {print $1}' > "$TMPFILE_PREFIX-vdevtree-n"
 log_must eval "diff $TMPFILE_PREFIX-vdevtree-n $TMPFILE_PREFIX-vdevtree"
 
 log_pass "'zpool add -n <pool> <vdev> ...' executes successfully."
