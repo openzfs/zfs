@@ -24,6 +24,8 @@ PKGINFO = PkgInfo
 INFO_PLIST = Info.plist
 INFOPLIST_STRINGS = InfoPlist.strings
 
+zfs_fs_SOURCES =
+
 bin_PROGRAMS = zfs.fs
 
 dist_noinst_DATA = $(INFO_PLIST) English.lproj/$(INFOPLIST_STRINGS) $(PKGINFO)
