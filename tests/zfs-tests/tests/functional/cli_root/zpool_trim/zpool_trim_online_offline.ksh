@@ -27,7 +27,7 @@
 # Trimming automatically resumes across offline/online.
 #
 # STRATEGY:
-# 1. Create a pool with a two-way mirror.
+# 1. Create a pool with a two-way mirror, prepare blocks to trim.
 # 2. Start trimming one of the disks and verify that trimming is active.
 # 3. Offline the disk.
 # 4. Online the disk.
@@ -39,8 +39,10 @@
 DISK1=${DISKS%% *}
 DISK2="$(echo $DISKS | cut -d' ' -f2)"
 
-log_must zpool create -f $TESTPOOL mirror $DISK1 $DISK2
-log_must zpool trim -r 128M $TESTPOOL $DISK1
+log_must zpool create -f $TESTPOOL mirror $DISK1 $DISK2 -O recordsize=4k
+sync_and_rewrite_some_data_a_few_times $TESTPOOL
+
+log_must zpool trim -r 1 $TESTPOOL $DISK1
 
 log_must zpool offline $TESTPOOL $DISK1
 

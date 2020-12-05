@@ -39,8 +39,10 @@ DISK2="$(echo $DISKS | cut -d' ' -f2)"
 DISK3="$(echo $DISKS | cut -d' ' -f3)"
 
 log_must zpool list -v
-log_must zpool create -f $TESTPOOL $DISK1 $DISK2 $DISK3
-log_must zpool trim -r 128M $TESTPOOL $DISK1
+log_must zpool create -f $TESTPOOL $DISK1 $DISK2 $DISK3 -O recordsize=4k
+sync_and_rewrite_some_data_a_few_times $TESTPOOL
+
+log_must zpool trim -r 1 $TESTPOOL $DISK1
 
 [[ -z "$(trim_progress $TESTPOOL $DISK1)" ]] && \
     log_fail "Trim did not start"
