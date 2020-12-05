@@ -23,12 +23,16 @@ nodist_kernel_HEADERS = zfs.release zfs_config.h module/$(LINUX_SYMBOLS)
 endif
 endif
 
+# Why is this required?
+DIST_SUBDIRS=module/os/macos
+
 AUTOMAKE_OPTIONS = foreign
 EXTRA_DIST  = autogen.sh copy-builtin
 EXTRA_DIST += config/config.awk config/rpm.am config/deb.am config/tgz.am
 EXTRA_DIST += META AUTHORS COPYRIGHT LICENSE NEWS NOTICE README.md
 EXTRA_DIST += CODE_OF_CONDUCT.md
 EXTRA_DIST += module/lua/README.zfs module/os/linux/spl/README.md
+EXTRA_DIST += module/os/macos/README.md
 
 # Include all the extra licensing information for modules
 EXTRA_DIST += module/icp/algs/skein/THIRDPARTYLICENSE
