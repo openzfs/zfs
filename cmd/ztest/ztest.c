@@ -3099,7 +3099,7 @@ ztest_vdev_add_remove(ztest_ds_t *zd, uint64_t id)
 		/*
 		 * find the first real slog in log allocation class
 		 */
-		mg =  spa_log_class(spa)->mc_rotor;
+		mg =  spa_log_class(spa)->mc_allocator[0].mca_rotor;
 		while (!mg->mg_vd->vdev_islog)
 			mg = mg->mg_next;
 

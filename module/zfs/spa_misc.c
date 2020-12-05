@@ -2436,7 +2436,7 @@ spa_fini(void)
 boolean_t
 spa_has_slogs(spa_t *spa)
 {
-	return (spa->spa_log_class->mc_rotor != NULL);
+	return (spa->spa_log_class->mc_groups != 0);
 }
 
 spa_log_state_t
