@@ -29,7 +29,7 @@
 #
 # DESCRIPTION:
 # Verify that 'zfs set sharenfs=on', 'zfs share', and 'zfs unshare' can
-# run concurrently. The test creates 300 filesystem and 300 threads.
+# run concurrently. The test creates 50 filesystem and 50 threads.
 # Each thread will run through the test strategy in parallel.
 #
 # STRATEGY:
@@ -47,7 +47,7 @@ verify_runnable "global"
 function cleanup
 {
 	wait
-	for fs in $(seq 0 100)
+	for fs in $(seq 0 50)
 	do
 		log_must zfs set sharenfs=off $TESTPOOL/$TESTFS1/$fs
 		log_must zfs set sharenfs=off $TESTPOOL/$TESTFS2/$fs
@@ -79,7 +79,7 @@ function cleanup
 
 function create_filesystems
 {
-	for fs in $(seq 0 100)
+	for fs in $(seq 0 50)
 	do
 		log_must zfs create -p $TESTPOOL/$TESTFS1/$fs
 		log_must zfs create -p $TESTPOOL/$TESTFS2/$fs
@@ -137,7 +137,7 @@ log_onexit cleanup
 create_filesystems
 
 child_pids=()
-for fs in $(seq 0 100)
+for fs in $(seq 0 50)
 do
 	test_share $TESTPOOL/$TESTFS1/$fs &
 	child_pids+=($!)
@@ -158,7 +158,7 @@ log_note "Verify 'zfs share -a' succeeds."
 # Unshare each of the file systems.
 #
 child_pids=()
-for fs in $(seq 0 100)
+for fs in $(seq 0 50)
 do
 	unshare_fs $TESTPOOL/$TESTFS1/$fs &
 	child_pids+=($!)
@@ -181,7 +181,7 @@ log_must zfs share -a
 #
 unset __ZFS_POOL_EXCLUDE
 
-for fs in $(seq 0 100)
+for fs in $(seq 0 50)
 do
 	is_shared $TESTPOOL/$TESTFS1/$fs || \
 	    log_fail "File system $TESTPOOL/$TESTFS1/$fs is not shared"
