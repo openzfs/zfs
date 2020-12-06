@@ -660,7 +660,7 @@ fletcher_4_kstat_addr(kstat_t *ksp, loff_t n)
 	fletcher_4_fastest_impl.compute_ ## type = src->compute_ ## type; \
 }
 
-#define	FLETCHER_4_BENCH_NS	(MSEC2NSEC(50))		/* 50ms */
+#define	FLETCHER_4_BENCH_NS	(MSEC2NSEC(1))		/* 1ms */
 
 typedef void fletcher_checksum_func_t(const void *, uint64_t, const void *,
 					zio_cksum_t *);
