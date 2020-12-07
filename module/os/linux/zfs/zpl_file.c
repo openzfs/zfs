@@ -212,242 +212,224 @@ zfs_io_flags(struct kiocb *kiocb)
 	return (flags);
 }
 
-static ssize_t
-zpl_read_common_iovec(struct inode *ip, const struct iovec *iovp, size_t count,
-    unsigned long nr_segs, loff_t *ppos, uio_seg_t segment, int flags,
-    cred_t *cr, size_t skip)
+/*
+ * If relatime is enabled, call file_accessed() if zfs_relatime_need_update()
+ * is true.  This is needed since datasets with inherited "relatime" property
+ * aren't necessarily mounted with the MNT_RELATIME flag (e.g. after
+ * `zfs set relatime=...`), which is what relatime test in VFS by
+ * relatime_need_update() is based on.
+ */
+static inline void
+zpl_file_accessed(struct file *filp)
 {
-	ssize_t read;
-	uio_t uio = { { 0 }, 0 };
-	int error;
-	fstrans_cookie_t cookie;
-
-	uio.uio_iov = iovp;
-	uio.uio_iovcnt = nr_segs;
-	uio.uio_loffset = *ppos;
-	uio.uio_segflg = segment;
-	uio.uio_resid = count;
-	uio.uio_skip = skip;
-
-	cookie = spl_fstrans_mark();
-	error = -zfs_read(ITOZ(ip), &uio, flags, cr);
-	spl_fstrans_unmark(cookie);
-	if (error < 0)
-		return (error);
-
-	read = count - uio.uio_resid;
-	*ppos += read;
-
-	return (read);
-}
-
-inline ssize_t
-zpl_read_common(struct inode *ip, const char *buf, size_t len, loff_t *ppos,
-    uio_seg_t segment, int flags, cred_t *cr)
-{
-	struct iovec iov;
-
-	iov.iov_base = (void *)buf;
-	iov.iov_len = len;
-
-	return (zpl_read_common_iovec(ip, &iov, len, 1, ppos, segment,
-	    flags, cr, 0));
-}
-
-static ssize_t
-zpl_iter_read_common(struct kiocb *kiocb, const struct iovec *iovp,
-    unsigned long nr_segs, size_t count, uio_seg_t seg, size_t skip)
-{
-	cred_t *cr = CRED();
-	struct file *filp = kiocb->ki_filp;
 	struct inode *ip = filp->f_mapping->host;
-	zfsvfs_t *zfsvfs = ZTOZSB(ITOZ(ip));
-	ssize_t read;
-	unsigned int f_flags = filp->f_flags;
 
-	f_flags |= zfs_io_flags(kiocb);
-	crhold(cr);
-	read = zpl_read_common_iovec(filp->f_mapping->host, iovp, count,
-	    nr_segs, &kiocb->ki_pos, seg, f_flags, cr, skip);
-	crfree(cr);
-
-	/*
-	 * If relatime is enabled, call file_accessed() only if
-	 * zfs_relatime_need_update() is true.  This is needed since datasets
-	 * with inherited "relatime" property aren't necessarily mounted with
-	 * MNT_RELATIME flag (e.g. after `zfs set relatime=...`), which is what
-	 * relatime test in VFS by relatime_need_update() is based on.
-	 */
-	if (!IS_NOATIME(ip) && zfsvfs->z_relatime) {
+	if (!IS_NOATIME(ip) && ITOZSB(ip)->z_relatime) {
 		if (zfs_relatime_need_update(ip))
 			file_accessed(filp);
 	} else {
 		file_accessed(filp);
 	}
+}
+
+#if defined(HAVE_VFS_RW_ITERATE)
+
+/*
+ * When HAVE_VFS_IOV_ITER is defined the iov_iter structure supports
+ * iovecs, kvevs, bvecs and pipes, plus all the required interfaces to
+ * manipulate the iov_iter are available.  In which case the full iov_iter
+ * can be attached to the uio and correctly handled in the lower layers.
+ * Otherwise, for older kernels extract the iovec and pass it instead.
+ */
+static void
+zpl_uio_init(uio_t *uio, struct kiocb *kiocb, struct iov_iter *to,
+    loff_t pos, ssize_t count, size_t skip)
+{
+#if defined(HAVE_VFS_IOV_ITER)
+	uio_iov_iter_init(uio, to, pos, count, skip);
+#else
+	uio_iovec_init(uio, to->iov, to->nr_segs, pos,
+	    to->type & ITER_KVEC ? UIO_SYSSPACE : UIO_USERSPACE,
+	    count, skip);
+#endif
+}
+
+static ssize_t
+zpl_iter_read(struct kiocb *kiocb, struct iov_iter *to)
+{
+	cred_t *cr = CRED();
+	fstrans_cookie_t cookie;
+	struct file *filp = kiocb->ki_filp;
+	ssize_t count = iov_iter_count(to);
+	uio_t uio;
+
+	zpl_uio_init(&uio, kiocb, to, kiocb->ki_pos, count, 0);
+
+	crhold(cr);
+	cookie = spl_fstrans_mark();
+
+	int error = -zfs_read(ITOZ(filp->f_mapping->host), &uio,
+	    filp->f_flags | zfs_io_flags(kiocb), cr);
+
+	spl_fstrans_unmark(cookie);
+	crfree(cr);
+
+	if (error < 0)
+		return (error);
+
+	ssize_t read = count - uio.uio_resid;
+	kiocb->ki_pos += read;
+
+	zpl_file_accessed(filp);
+
+	if (read > 0)
+		iov_iter_advance(to, read);
 
 	return (read);
 }
 
-#if defined(HAVE_VFS_RW_ITERATE)
-static ssize_t
-zpl_iter_read(struct kiocb *kiocb, struct iov_iter *to)
+static inline ssize_t
+zpl_generic_write_checks(struct kiocb *kiocb, struct iov_iter *from,
+    size_t *countp)
 {
-	ssize_t ret;
-	uio_seg_t seg = UIO_USERSPACE;
-	if (to->type & ITER_KVEC)
-		seg = UIO_SYSSPACE;
-	if (to->type & ITER_BVEC)
-		seg = UIO_BVEC;
-	ret = zpl_iter_read_common(kiocb, to->iov, to->nr_segs,
-	    iov_iter_count(to), seg, to->iov_offset);
-	if (ret > 0)
-		iov_iter_advance(to, ret);
-	return (ret);
-}
-#else
-static ssize_t
-zpl_aio_read(struct kiocb *kiocb, const struct iovec *iovp,
-    unsigned long nr_segs, loff_t pos)
-{
-	ssize_t ret;
-	size_t count;
-
-	ret = generic_segment_checks(iovp, &nr_segs, &count, VERIFY_WRITE);
-	if (ret)
+#ifdef HAVE_GENERIC_WRITE_CHECKS_KIOCB
+	ssize_t ret = generic_write_checks(kiocb, from);
+	if (ret <= 0)
 		return (ret);
 
-	return (zpl_iter_read_common(kiocb, iovp, nr_segs, count,
-	    UIO_USERSPACE, 0));
-}
-#endif /* HAVE_VFS_RW_ITERATE */
+	*countp = ret;
+#else
+	struct file *file = kiocb->ki_filp;
+	struct address_space *mapping = file->f_mapping;
+	struct inode *ip = mapping->host;
+	int isblk = S_ISBLK(ip->i_mode);
 
-static ssize_t
-zpl_write_common_iovec(struct inode *ip, const struct iovec *iovp, size_t count,
-    unsigned long nr_segs, loff_t *ppos, uio_seg_t segment, int flags,
-    cred_t *cr, size_t skip)
-{
-	ssize_t wrote;
-	uio_t uio = { { 0 }, 0 };
-	int error;
-	fstrans_cookie_t cookie;
+	*countp = iov_iter_count(from);
+	ssize_t ret = generic_write_checks(file, &kiocb->ki_pos, countp, isblk);
+	if (ret)
+		return (ret);
+#endif
 
-	if (flags & O_APPEND)
-		*ppos = i_size_read(ip);
-
-	uio.uio_iov = iovp;
-	uio.uio_iovcnt = nr_segs;
-	uio.uio_loffset = *ppos;
-	uio.uio_segflg = segment;
-	uio.uio_resid = count;
-	uio.uio_skip = skip;
-
-	cookie = spl_fstrans_mark();
-	error = -zfs_write(ITOZ(ip), &uio, flags, cr);
-	spl_fstrans_unmark(cookie);
-	if (error < 0)
-		return (error);
-
-	wrote = count - uio.uio_resid;
-	*ppos += wrote;
-
-	return (wrote);
+	return (0);
 }
 
-inline ssize_t
-zpl_write_common(struct inode *ip, const char *buf, size_t len, loff_t *ppos,
-    uio_seg_t segment, int flags, cred_t *cr)
-{
-	struct iovec iov;
-
-	iov.iov_base = (void *)buf;
-	iov.iov_len = len;
-
-	return (zpl_write_common_iovec(ip, &iov, len, 1, ppos, segment,
-	    flags, cr, 0));
-}
-
-static ssize_t
-zpl_iter_write_common(struct kiocb *kiocb, const struct iovec *iovp,
-    unsigned long nr_segs, size_t count, uio_seg_t seg, size_t skip)
-{
-	cred_t *cr = CRED();
-	struct file *filp = kiocb->ki_filp;
-	ssize_t wrote;
-	unsigned int f_flags = filp->f_flags;
-
-	f_flags |= zfs_io_flags(kiocb);
-	crhold(cr);
-	wrote = zpl_write_common_iovec(filp->f_mapping->host, iovp, count,
-	    nr_segs, &kiocb->ki_pos, seg, f_flags, cr, skip);
-	crfree(cr);
-
-	return (wrote);
-}
-
-#if defined(HAVE_VFS_RW_ITERATE)
 static ssize_t
 zpl_iter_write(struct kiocb *kiocb, struct iov_iter *from)
 {
+	cred_t *cr = CRED();
+	fstrans_cookie_t cookie;
+	struct file *filp = kiocb->ki_filp;
+	struct inode *ip = filp->f_mapping->host;
+	uio_t uio;
 	size_t count;
 	ssize_t ret;
-	uio_seg_t seg = UIO_USERSPACE;
 
-#ifndef HAVE_GENERIC_WRITE_CHECKS_KIOCB
-	struct file *file = kiocb->ki_filp;
-	struct address_space *mapping = file->f_mapping;
-	struct inode *ip = mapping->host;
-	int isblk = S_ISBLK(ip->i_mode);
-
-	count = iov_iter_count(from);
-	ret = generic_write_checks(file, &kiocb->ki_pos, &count, isblk);
+	ret = zpl_generic_write_checks(kiocb, from, &count);
 	if (ret)
 		return (ret);
-#else
-	/*
-	 * XXX - ideally this check should be in the same lock region with
-	 * write operations, so that there's no TOCTTOU race when doing
-	 * append and someone else grow the file.
-	 */
-	ret = generic_write_checks(kiocb, from);
-	if (ret <= 0)
-		return (ret);
-	count = ret;
-#endif
 
-	if (from->type & ITER_KVEC)
-		seg = UIO_SYSSPACE;
-	if (from->type & ITER_BVEC)
-		seg = UIO_BVEC;
+	zpl_uio_init(&uio, kiocb, from, kiocb->ki_pos, count, from->iov_offset);
 
-	ret = zpl_iter_write_common(kiocb, from->iov, from->nr_segs,
-	    count, seg, from->iov_offset);
-	if (ret > 0)
-		iov_iter_advance(from, ret);
+	crhold(cr);
+	cookie = spl_fstrans_mark();
 
-	return (ret);
+	int error = -zfs_write(ITOZ(ip), &uio,
+	    filp->f_flags | zfs_io_flags(kiocb), cr);
+
+	spl_fstrans_unmark(cookie);
+	crfree(cr);
+
+	if (error < 0)
+		return (error);
+
+	ssize_t wrote = count - uio.uio_resid;
+	kiocb->ki_pos += wrote;
+
+	if (wrote > 0)
+		iov_iter_advance(from, wrote);
+
+	return (wrote);
 }
-#else
+
+#else /* !HAVE_VFS_RW_ITERATE */
+
 static ssize_t
-zpl_aio_write(struct kiocb *kiocb, const struct iovec *iovp,
+zpl_aio_read(struct kiocb *kiocb, const struct iovec *iov,
     unsigned long nr_segs, loff_t pos)
 {
-	struct file *file = kiocb->ki_filp;
-	struct address_space *mapping = file->f_mapping;
-	struct inode *ip = mapping->host;
-	int isblk = S_ISBLK(ip->i_mode);
+	cred_t *cr = CRED();
+	fstrans_cookie_t cookie;
+	struct file *filp = kiocb->ki_filp;
 	size_t count;
 	ssize_t ret;
 
-	ret = generic_segment_checks(iovp, &nr_segs, &count, VERIFY_READ);
+	ret = generic_segment_checks(iov, &nr_segs, &count, VERIFY_WRITE);
 	if (ret)
 		return (ret);
 
-	ret = generic_write_checks(file, &pos, &count, isblk);
+	uio_t uio;
+	uio_iovec_init(&uio, iov, nr_segs, kiocb->ki_pos, UIO_USERSPACE,
+	    count, 0);
+
+	crhold(cr);
+	cookie = spl_fstrans_mark();
+
+	int error = -zfs_read(ITOZ(filp->f_mapping->host), &uio,
+	    filp->f_flags | zfs_io_flags(kiocb), cr);
+
+	spl_fstrans_unmark(cookie);
+	crfree(cr);
+
+	if (error < 0)
+		return (error);
+
+	ssize_t read = count - uio.uio_resid;
+	kiocb->ki_pos += read;
+
+	zpl_file_accessed(filp);
+
+	return (read);
+}
+
+static ssize_t
+zpl_aio_write(struct kiocb *kiocb, const struct iovec *iov,
+    unsigned long nr_segs, loff_t pos)
+{
+	cred_t *cr = CRED();
+	fstrans_cookie_t cookie;
+	struct file *filp = kiocb->ki_filp;
+	struct inode *ip = filp->f_mapping->host;
+	size_t count;
+	ssize_t ret;
+
+	ret = generic_segment_checks(iov, &nr_segs, &count, VERIFY_READ);
 	if (ret)
 		return (ret);
 
-	return (zpl_iter_write_common(kiocb, iovp, nr_segs, count,
-	    UIO_USERSPACE, 0));
+	ret = generic_write_checks(filp, &pos, &count, S_ISBLK(ip->i_mode));
+	if (ret)
+		return (ret);
+
+	uio_t uio;
+	uio_iovec_init(&uio, iov, nr_segs, kiocb->ki_pos, UIO_USERSPACE,
+	    count, 0);
+
+	crhold(cr);
+	cookie = spl_fstrans_mark();
+
+	int error = -zfs_write(ITOZ(ip), &uio,
+	    filp->f_flags | zfs_io_flags(kiocb), cr);
+
+	spl_fstrans_unmark(cookie);
+	crfree(cr);
+
+	if (error < 0)
+		return (error);
+
+	ssize_t wrote = count - uio.uio_resid;
+	kiocb->ki_pos += wrote;
+
+	return (wrote);
 }
 #endif /* HAVE_VFS_RW_ITERATE */
 
@@ -488,13 +470,13 @@ zpl_direct_IO(int rw, struct kiocb *kiocb, struct iov_iter *iter, loff_t pos)
 
 #if defined(HAVE_VFS_DIRECT_IO_IOVEC)
 static ssize_t
-zpl_direct_IO(int rw, struct kiocb *kiocb, const struct iovec *iovp,
+zpl_direct_IO(int rw, struct kiocb *kiocb, const struct iovec *iov,
     loff_t pos, unsigned long nr_segs)
 {
 	if (rw == WRITE)
-		return (zpl_aio_write(kiocb, iovp, nr_segs, pos));
+		return (zpl_aio_write(kiocb, iov, nr_segs, pos));
 	else
-		return (zpl_aio_read(kiocb, iovp, nr_segs, pos));
+		return (zpl_aio_read(kiocb, iov, nr_segs, pos));
 }
 #else
 #error "Unknown direct IO interface"
@@ -601,10 +583,6 @@ zpl_mmap(struct file *filp, struct vm_area_struct *vma)
  * Populate a page with data for the Linux page cache.  This function is
  * only used to support mmap(2).  There will be an identical copy of the
  * data in the ARC which is kept up to date via .write() and .writepage().
- *
- * Current this function relies on zpl_read_common() and the O_DIRECT
- * flag to read in a page.  This works but the more correct way is to
- * update zfs_fillpage() to be Linux friendly and use that interface.
  */
 static int
 zpl_readpage(struct file *filp, struct page *pp)
@@ -1035,6 +1013,10 @@ const struct file_operations zpl_file_operations = {
 #endif
 	.read_iter	= zpl_iter_read,
 	.write_iter	= zpl_iter_write,
+#ifdef HAVE_VFS_IOV_ITER
+	.splice_read	= generic_file_splice_read,
+	.splice_write	= iter_file_splice_write,
+#endif
 #else
 	.read		= do_sync_read,
 	.write		= do_sync_write,
