@@ -30,6 +30,23 @@ function trim_progress # pool disk
 	trim_prog_line "$1" "$2" | sed 's/.*(\([0-9]\{1,\}\)% trimmed.*/\1/g'
 }
 
+#
+# Write a bit of data and sync several times.
+#
+function sync_and_rewrite_some_data_a_few_times
+{
+	typeset pool=$1
+	typeset -i a_few_times=${2:-20}
+
+	typeset file="/$pool/tmpfile"
+	for i in {0..$a_few_times}; do
+		dd if=/dev/urandom of=${file} bs=128k count=10
+		sync_pool "$pool"
+	done
+
+	return 0
+}
+
 function cleanup
 {
 	if poolexists $TESTPOOL; then
