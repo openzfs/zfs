@@ -133,8 +133,8 @@ mtab_update(char *dataset, char *mntpoint, char *type, char *mntopts)
 	if (!fp) {
 		(void) fprintf(stderr, gettext(
 		    "filesystem '%s' was mounted, but /etc/mtab "
-		    "could not be opened due to error %d\n"),
-		    dataset, errno);
+		    "could not be opened due to error: %s\n"),
+		    dataset, strerror(errno));
 		return (MOUNT_FILEIO);
 	}
 
@@ -142,8 +142,8 @@ mtab_update(char *dataset, char *mntpoint, char *type, char *mntopts)
 	if (error) {
 		(void) fprintf(stderr, gettext(
 		    "filesystem '%s' was mounted, but /etc/mtab "
-		    "could not be updated due to error %d\n"),
-		    dataset, errno);
+		    "could not be updated due to error: %s\n"),
+		    dataset, strerror(errno));
 		return (MOUNT_FILEIO);
 	}
 
@@ -223,8 +223,8 @@ main(int argc, char **argv)
 	/* canonicalize the mount point */
 	if (realpath(argv[1], mntpoint) == NULL) {
 		(void) fprintf(stderr, gettext("filesystem '%s' cannot be "
-		    "mounted at '%s' due to canonicalization error %d.\n"),
-		    dataset, argv[1], errno);
+		    "mounted at '%s' due to canonicalization error: %s\n"),
+		    dataset, argv[1], strerror(errno));
 		return (MOUNT_SYSERR);
 	}
 
