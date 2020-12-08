@@ -1635,7 +1635,6 @@ dsl_redaction_list_traverse(redaction_list_t *rl, zbookmark_phys_t *resume,
 	uint64_t minidx = 0;
 	while (resume != NULL && maxidx > minidx) {
 		redact_block_phys_t rbp = { 0 };
-		ASSERT3U(maxidx, >, minidx);
 		uint64_t mididx = minidx + ((maxidx - minidx) / 2);
 		err = dmu_read(mos, rl->rl_object, mididx * sizeof (rbp),
 		    sizeof (rbp), &rbp, DMU_READ_NO_PREFETCH);
@@ -1681,32 +1680,24 @@ dsl_redaction_list_traverse(redaction_list_t *rl, zbookmark_phys_t *resume,
 				break;
 		}
 		redact_block_phys_t *rb = &buf[curidx % entries_per_buf];
-		/*
-		 * If resume is non-null, we should either not send the data, or
-		 * null out resume so we don't have to keep doing these
-		 * comparisons.
-		 */
 		if (resume != NULL) {
-			if (redact_block_zb_compare(rb, resume) < 0) {
-				continue;
-			} else {
-				/*
-				 * If the place to resume is in the middle of
-				 * the range described by this
-				 * redact_block_phys, then modify the
-				 * redact_block_phys in memory so we generate
-				 * the right records.
-				 */
-				if (resume->zb_object == rb->rbp_object &&
-				    resume->zb_blkid > rb->rbp_blkid) {
-					uint64_t diff = resume->zb_blkid -
-					    rb->rbp_blkid;
-					rb->rbp_blkid = resume->zb_blkid;
-					redact_block_set_count(rb,
-					    redact_block_get_count(rb) - diff);
-				}
-				resume = NULL;
+			ASSERT3S(redact_block_zb_compare(rb, resume), >=, 0);
+			/*
+			 * If the place to resume is in the middle of
+			 * the range described by this
+			 * redact_block_phys, then modify the
+			 * redact_block_phys in memory so we generate
+			 * the right records.
+			 */
+			if (resume->zb_object == rb->rbp_object &&
+			    resume->zb_blkid > rb->rbp_blkid) {
+				uint64_t diff = resume->zb_blkid -
+				    rb->rbp_blkid;
+				rb->rbp_blkid = resume->zb_blkid;
+				redact_block_set_count(rb,
+				    redact_block_get_count(rb) - diff);
 			}
+			resume = NULL;
 		}
 
 		if (cb(rb, arg) != 0) {
