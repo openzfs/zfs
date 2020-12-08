@@ -402,6 +402,7 @@ tests = ['zpool_import_001_pos', 'zpool_import_002_pos',
     'import_rewind_config_changed',
     'import_rewind_device_replaced']
 tags = ['functional', 'cli_root', 'zpool_import']
+timeout = 1200
 
 [tests/functional/cli_root/zpool_labelclear]
 tests = ['zpool_labelclear_active', 'zpool_labelclear_exported',
