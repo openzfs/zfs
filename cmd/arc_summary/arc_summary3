@@ -85,16 +85,24 @@ if sys.platform.startswith('freebsd'):
 
     VDEV_CACHE_SIZE = 'vdev.cache_size'
 
+    def is_value(ctl):
+        return ctl.type != sysctl.CTLTYPE_NODE
+
+    def namefmt(ctl, base='vfs.zfs.'):
+        # base is removed from the name
+        cut = len(base)
+        return ctl.name[cut:]
+
     def load_kstats(section):
         base = 'kstat.zfs.misc.{section}.'.format(section=section)
-        # base is removed from the name
-        fmt = lambda kstat: '{name} : {value}'.format(name=kstat.name[len(base):],
+        fmt = lambda kstat: '{name} : {value}'.format(name=namefmt(kstat, base),
                                                       value=kstat.value)
-        return [fmt(kstat) for kstat in sysctl.filter(base)]
+        kstats = sysctl.filter(base)
+        return [fmt(kstat) for kstat in kstats if is_value(kstat)]
 
     def get_params(base):
-        cut = 8 # = len('vfs.zfs.')
-        return {ctl.name[cut:]: str(ctl.value) for ctl in sysctl.filter(base)}
+        ctls = sysctl.filter(base)
+        return {namefmt(ctl): str(ctl.value) for ctl in ctls if is_value(ctl)}
 
     def get_tunable_params():
         return get_params('vfs.zfs')
@@ -111,25 +119,8 @@ if sys.platform.startswith('freebsd'):
         return '{} version {}'.format(name, version)
 
     def get_descriptions(_request):
-        # py-sysctl doesn't give descriptions, so we have to shell out.
-        command = ['sysctl', '-d', 'vfs.zfs']
-
-        # The recommended way to do this is with subprocess.run(). However,
-        # some installed versions of Python are < 3.5, so we offer them
-        # the option of doing it the old way (for now)
-        if 'run' in dir(subprocess):
-            info = subprocess.run(command, stdout=subprocess.PIPE,
-                                  universal_newlines=True)
-            lines = info.stdout.split('\n')
-        else:
-            info = subprocess.check_output(command, universal_newlines=True)
-            lines = info.split('\n')
-
-        def fmt(line):
-            name, desc = line.split(':', 1)
-            return (name.strip(), desc.strip())
-
-        return dict([fmt(line) for line in lines if len(line) > 0])
+        ctls = sysctl.filter('vfs.zfs')
+        return {namefmt(ctl): ctl.description for ctl in ctls if is_value(ctl)}
 
 
 elif sys.platform.startswith('linux'):
