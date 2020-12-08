@@ -1309,7 +1309,6 @@ spl_taskq_expand(unsigned int cpu, struct hlist_node *node)
 
 	if (!((tq->tq_flags & TASKQ_DYNAMIC) && spl_taskq_thread_dynamic) &&
 	    tq->tq_maxthreads > tq->tq_nthreads) {
-		ASSERT3U(tq->tq_maxthreads, ==, tq->tq_nthreads + 1);
 		taskq_thread_t *tqt = taskq_thread_create(tq);
 		if (tqt == NULL)
 			err = -1;
@@ -1344,7 +1343,6 @@ spl_taskq_prepare_down(unsigned int cpu, struct hlist_node *node)
 
 	if (!((tq->tq_flags & TASKQ_DYNAMIC) && spl_taskq_thread_dynamic) &&
 	    tq->tq_maxthreads < tq->tq_nthreads) {
-		ASSERT3U(tq->tq_maxthreads, ==, tq->tq_nthreads - 1);
 		taskq_thread_t *tqt = list_entry(tq->tq_thread_list.next,
 		    taskq_thread_t, tqt_thread_list);
 		struct task_struct *thread = tqt->tqt_thread;
