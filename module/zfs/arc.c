@@ -5924,6 +5924,7 @@ arc_read(zio_t *pio, spa_t *spa, const blkptr_t *bp,
 	boolean_t noauth_read = BP_IS_AUTHENTICATED(bp) &&
 	    (zio_flags & ZIO_FLAG_RAW_ENCRYPT) != 0;
 	boolean_t embedded_bp = !!BP_IS_EMBEDDED(bp);
+	boolean_t no_buf = *arc_flags & ARC_FLAG_NO_BUF;
 	int rc = 0;
 
 	ASSERT(!embedded_bp ||
@@ -5998,7 +5999,7 @@ top:
 			}
 			ASSERT(*arc_flags & ARC_FLAG_NOWAIT);
 
-			if (done) {
+			if (done && !no_buf) {
 				arc_callback_t *acb = NULL;
 
 				acb = kmem_zalloc(sizeof (arc_callback_t),
@@ -6027,7 +6028,7 @@ top:
 		ASSERT(hdr->b_l1hdr.b_state == arc_mru ||
 		    hdr->b_l1hdr.b_state == arc_mfu);
 
-		if (done) {
+		if (done && !no_buf) {
 			if (hdr->b_flags & ARC_FLAG_PREDICTIVE_PREFETCH) {
 				/*
 				 * This is a demand read which does not have to

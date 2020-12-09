@@ -155,6 +155,11 @@ typedef enum arc_flags
 	ARC_FLAG_CACHED_ONLY		= 1 << 22,
 
 	/*
+	 * Don't instantiate an arc_buf_t for arc_read_done.
+	 */
+	ARC_FLAG_NO_BUF			= 1 << 23,
+
+	/*
 	 * The arc buffer's compression mode is stored in the top 7 bits of the
 	 * flags field, so these dummy flags are included so that MDB can
 	 * interpret the enum properly.
