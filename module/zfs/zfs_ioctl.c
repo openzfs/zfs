@@ -6648,14 +6648,17 @@ static int
 zfs_ioc_pool_sync(const char *pool, nvlist_t *innvl, nvlist_t *onvl)
 {
 	int err;
-	boolean_t force = B_FALSE;
+	boolean_t rc, force = B_FALSE;
 	spa_t *spa;
 
 	if ((err = spa_open(pool, &spa, FTAG)) != 0)
 		return (err);
 
-	if (innvl)
-		force = fnvlist_lookup_boolean_value(innvl, "force");
+	if (innvl) {
+		err = nvlist_lookup_boolean_value(innvl, "force", &rc);
+		if (err == 0)
+			force = rc;
+	}
 
 	if (force) {
 		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_WRITER);
@@ -6666,7 +6669,7 @@ zfs_ioc_pool_sync(const char *pool, nvlist_t *innvl, nvlist_t *onvl)
 
 	spa_close(spa, FTAG);
 
-	return (err);
+	return (0);
 }
 
 /*
