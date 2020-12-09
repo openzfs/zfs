@@ -1654,7 +1654,7 @@ dsl_redaction_list_traverse(redaction_list_t *rl, zbookmark_phys_t *resume,
 		}
 	}
 
-        unsigned int bufsize = SPA_OLD_MAXBLOCKSIZE;
+	unsigned int bufsize = SPA_OLD_MAXBLOCKSIZE;
 	redact_block_phys_t *buf = zio_data_buf_alloc(bufsize);
 
 	unsigned int entries_per_buf = bufsize / sizeof (redact_block_phys_t);
