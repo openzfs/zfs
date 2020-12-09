@@ -178,7 +178,7 @@ static struct page *abd_zero_page = NULL;
 static kmem_cache_t *abd_cache = NULL;
 static kstat_t *abd_ksp;
 
-static size_t
+static uint_t
 abd_chunkcnt_for_bytes(size_t size)
 {
 	return (P2ROUNDUP(size, PAGESIZE) / PAGESIZE);
