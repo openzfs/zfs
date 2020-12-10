@@ -1687,6 +1687,19 @@ dsl_redaction_list_traverse(redaction_list_t *rl, zbookmark_phys_t *resume,
 		 * comparisons.
 		 */
 		if (resume != NULL) {
+			/*
+			 * It is possible that after the binary search we got
+			 * a record before the resume point. There's two cases
+			 * where this can occur. If the record is the last
+			 * redaction record, and the resume point is after the
+			 * end of the redacted data, curidx will be the last
+			 * redaction record. In that case, the loop will end
+			 * after this iteration. The second case is if the
+			 * resume point is between two redaction records, the
+			 * binary search can return either the record before
+			 * or after the resume point. In that case, the next
+			 * iteration will be greater than the resume point.
+			 */
 			if (redact_block_zb_compare(rb, resume) < 0) {
 				ASSERT3U(curidx, ==, minidx);
 				continue;
