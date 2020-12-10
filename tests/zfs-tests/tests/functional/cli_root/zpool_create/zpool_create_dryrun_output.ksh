@@ -25,9 +25,7 @@
 #
 
 . $STF_SUITE/include/libtest.shlib
-. $STF_SUITE/tests/functional/cli_root/zpool_create/zpool_create.shlib
 
-typeset TMPFILE_PREFIX="$TEST_BASE_DIR/zpool_create_dryrun_output"
 typeset STR_DRYRUN="would create '$TESTPOOL' with the following layout:"
 typeset VDEV_PREFIX="$TEST_BASE_DIR/filedev"
 
@@ -36,7 +34,7 @@ typeset VDEV_PREFIX="$TEST_BASE_DIR/filedev"
 # 'zpool create -n <pool> <vdev> ...' can display the correct configuration
 #
 # STRATEGY:
-# 1. Create a storage pool
+# 1. Create -n a storage pool and verify the output is as expected.
 #
 
 typeset -a dev=(
@@ -112,13 +110,12 @@ verify_runnable "global"
 
 function cleanup
 {
-	rm -f "$TMPFILE_PREFIX"* "$VDEV_PREFIX"*
+	rm -f "$VDEV_PREFIX"*
 }
 
 log_assert "'zpool add -n <pool> <vdev> ...' can display the configuration"
 
 log_onexit cleanup
-typeset disk1=$(create_blockfile $FILESIZE)
 
 # Create needed file vdevs.
 for (( i=0; i < ${#dev[@]}; i+=1 )); do
