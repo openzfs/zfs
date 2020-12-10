@@ -25,9 +25,7 @@
 #
 
 . $STF_SUITE/include/libtest.shlib
-. $STF_SUITE/tests/functional/cli_root/zpool_add/zpool_add.kshlib
 
-typeset TMPFILE_PREFIX="$TEST_BASE_DIR/zpool_add_dryrun_output"
 typeset STR_DRYRUN="would update '$TESTPOOL' to the following configuration:"
 typeset VDEV_PREFIX="$TEST_BASE_DIR/filedev"
 
@@ -136,7 +134,7 @@ verify_runnable "global"
 function cleanup
 {
 	destroy_pool "$TESTPOOL"
-	rm -f "$TMPFILE_PREFIX"* "$VDEV_PREFIX"*
+	rm -f "$VDEV_PREFIX"*
 }
 
 log_assert "'zpool add -n <pool> <vdev> ...' can display the configuration"

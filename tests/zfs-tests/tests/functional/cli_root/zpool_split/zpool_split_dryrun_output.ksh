@@ -118,6 +118,7 @@ verify_runnable "global"
 function cleanup
 {
 	destroy_pool "$TESTPOOL"
+	rm -f "$VDEV_PREFIX"*
 }
 
 log_assert \
