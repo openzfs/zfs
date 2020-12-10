@@ -1016,7 +1016,7 @@ zcommon_fini(void)
 	kfpu_fini();
 }
 
-module_init(zcommon_init);
+module_init_early(zcommon_init);
 module_exit(zcommon_fini);
 
 #endif
