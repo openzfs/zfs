@@ -48,6 +48,8 @@
 #include <sys/vmsystm.h>
 #include <sys/zpl.h>
 #include <linux/page_compat.h>
+#include <linux/notifier.h>
+#include <linux/memory.h>
 #endif
 #include <sys/callb.h>
 #include <sys/kstat.h>
@@ -73,6 +75,9 @@
  */
 int zfs_arc_shrinker_limit = 10000;
 
+#ifdef CONFIG_MEMORY_HOTPLUG
+static struct notifier_block arc_hotplug_callback_mem_nb;
+#endif
 
 /*
  * Return a default max arc size based on the amount of physical memory.
@@ -278,18 +283,9 @@ arc_memory_throttle(spa_t *spa, uint64_t reserve, uint64_t txg)
 	return (0);
 }
 
-void
-arc_lowmem_init(void)
+static void
+arc_set_sys_free(uint64_t allmem)
 {
-	uint64_t allmem = arc_all_memory();
-
-	/*
-	 * Register a shrinker to support synchronous (direct) memory
-	 * reclaim from the arc.  This is done to prevent kswapd from
-	 * swapping out pages when it is preferable to shrink the arc.
-	 */
-	spl_register_shrinker(&arc_shrinker);
-
 	/*
 	 * The ARC tries to keep at least this much memory available for the
 	 * system.  This gives the ARC time to shrink in response to memory
@@ -343,6 +339,20 @@ arc_lowmem_init(void)
 }
 
 void
+arc_lowmem_init(void)
+{
+	uint64_t allmem = arc_all_memory();
+
+	/*
+	 * Register a shrinker to support synchronous (direct) memory
+	 * reclaim from the arc.  This is done to prevent kswapd from
+	 * swapping out pages when it is preferable to shrink the arc.
+	 */
+	spl_register_shrinker(&arc_shrinker);
+	arc_set_sys_free(allmem);
+}
+
+void
 arc_lowmem_fini(void)
 {
 	spl_unregister_shrinker(&arc_shrinker);
@@ -375,6 +385,52 @@ param_set_arc_int(const char *buf, zfs_kernel_param_t *kp)
 
 	return (0);
 }
+
+#ifdef CONFIG_MEMORY_HOTPLUG
+/* ARGSUSED */
+static int
+arc_hotplug_callback(struct notifier_block *self, unsigned long action,
+    void *arg)
+{
+	uint64_t allmem = arc_all_memory();
+	if (action != MEM_ONLINE)
+		return (NOTIFY_OK);
+
+	arc_set_limits(allmem);
+
+#ifdef __LP64__
+	if (zfs_dirty_data_max_max == 0)
+		zfs_dirty_data_max_max = MIN(4ULL * 1024 * 1024 * 1024,
+		    allmem * zfs_dirty_data_max_max_percent / 100);
+#else
+	if (zfs_dirty_data_max_max == 0)
+		zfs_dirty_data_max_max = MIN(1ULL * 1024 * 1024 * 1024,
+		    allmem * zfs_dirty_data_max_max_percent / 100);
+#endif
+
+	arc_set_sys_free(allmem);
+	return (NOTIFY_OK);
+}
+#endif
+
+void
+arc_register_hotplug(void)
+{
+#ifdef CONFIG_MEMORY_HOTPLUG
+	arc_hotplug_callback_mem_nb.notifier_call = arc_hotplug_callback;
+	/* There is no significance to the value 100 */
+	arc_hotplug_callback_mem_nb.priority = 100;
+	register_memory_notifier(&arc_hotplug_callback_mem_nb);
+#endif
+}
+
+void
+arc_unregister_hotplug(void)
+{
+#ifdef CONFIG_MEMORY_HOTPLUG
+	unregister_memory_notifier(&arc_hotplug_callback_mem_nb);
+#endif
+}
 #else /* _KERNEL */
 int64_t
 arc_available_memory(void)
@@ -404,6 +460,16 @@ uint64_t
 arc_free_memory(void)
 {
 	return (spa_get_random(arc_all_memory() * 20 / 100));
+}
+
+void
+arc_register_hotplug(void)
+{
+}
+
+void
+arc_unregister_hotplug(void)
+{
 }
 #endif /* _KERNEL */
 

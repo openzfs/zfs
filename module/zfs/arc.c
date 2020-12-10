@@ -7593,6 +7593,15 @@ arc_target_bytes(void)
 }
 
 void
+arc_set_limits(uint64_t allmem)
+{
+	/* Set min cache to 1/32 of all memory, or 32MB, whichever is more. */
+	arc_c_min = MAX(allmem / 32, 2ULL << SPA_MAXBLOCKSHIFT);
+
+	/* How to set default max varies by platform. */
+	arc_c_max = arc_default_max(arc_c_min, allmem);
+}
+void
 arc_init(void)
 {
 	uint64_t percent, allmem = arc_all_memory();
@@ -7607,11 +7616,7 @@ arc_init(void)
 	arc_lowmem_init();
 #endif
 
-	/* Set min cache to 1/32 of all memory, or 32MB, whichever is more. */
-	arc_c_min = MAX(allmem / 32, 2ULL << SPA_MAXBLOCKSHIFT);
-
-	/* How to set default max varies by platform. */
-	arc_c_max = arc_default_max(arc_c_min, allmem);
+	arc_set_limits(allmem);
 
 #ifndef _KERNEL
 	/*
@@ -7648,6 +7653,8 @@ arc_init(void)
 	if (arc_c < arc_c_min)
 		arc_c = arc_c_min;
 
+	arc_register_hotplug();
+
 	arc_state_init();
 
 	buf_init();
@@ -7656,8 +7663,9 @@ arc_init(void)
 	    offsetof(arc_prune_t, p_node));
 	mutex_init(&arc_prune_mtx, NULL, MUTEX_DEFAULT, NULL);
 
-	arc_prune_taskq = taskq_create("arc_prune", boot_ncpus, defclsyspri,
-	    boot_ncpus, INT_MAX, TASKQ_PREPOPULATE | TASKQ_DYNAMIC);
+	arc_prune_taskq = taskq_create("arc_prune", 100, defclsyspri,
+	    boot_ncpus, INT_MAX, TASKQ_PREPOPULATE | TASKQ_DYNAMIC |
+	    TASKQ_THREADS_CPU_PCT);
 
 	arc_ksp = kstat_create("zfs", 0, "arcstats", "misc", KSTAT_TYPE_NAMED,
 	    sizeof (arc_stats) / sizeof (kstat_named_t), KSTAT_FLAG_VIRTUAL);
@@ -7753,6 +7761,8 @@ arc_fini(void)
 	 */
 	buf_fini();
 	arc_state_fini();
+
+	arc_unregister_hotplug();
 
 	/*
 	 * We destroy the zthrs after all the ARC state has been

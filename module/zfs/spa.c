@@ -1281,15 +1281,15 @@ spa_activate(spa_t *spa, spa_mode_t mode)
 	 * pool traverse code from monopolizing the global (and limited)
 	 * system_taskq by inappropriately scheduling long running tasks on it.
 	 */
-	spa->spa_prefetch_taskq = taskq_create("z_prefetch", boot_ncpus,
-	    defclsyspri, 1, INT_MAX, TASKQ_DYNAMIC);
+	spa->spa_prefetch_taskq = taskq_create("z_prefetch", 100,
+	    defclsyspri, 1, INT_MAX, TASKQ_DYNAMIC | TASKQ_THREADS_CPU_PCT);
 
 	/*
 	 * The taskq to upgrade datasets in this pool. Currently used by
 	 * feature SPA_FEATURE_USEROBJ_ACCOUNTING/SPA_FEATURE_PROJECT_QUOTA.
 	 */
-	spa->spa_upgrade_taskq = taskq_create("z_upgrade", boot_ncpus,
-	    defclsyspri, 1, INT_MAX, TASKQ_DYNAMIC);
+	spa->spa_upgrade_taskq = taskq_create("z_upgrade", 100,
+	    defclsyspri, 1, INT_MAX, TASKQ_DYNAMIC | TASKQ_THREADS_CPU_PCT);
 }
 
 /*
