@@ -1688,6 +1688,7 @@ dsl_redaction_list_traverse(redaction_list_t *rl, zbookmark_phys_t *resume,
 		 */
 		if (resume != NULL) {
 			if (redact_block_zb_compare(rb, resume) < 0) {
+				ASSERT3U(curidx, ==, minidx);
 				continue;
 			} else {
 				/*
