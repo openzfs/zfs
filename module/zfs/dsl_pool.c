@@ -1086,15 +1086,31 @@ static int
 sync_bookmark_featureflags_cb(dsl_pool_t *dp, dsl_dataset_t *ds, void *arg)
 {
 	dmu_tx_t *tx = arg;
-	for (dsl_bookmark_node_t *dbn = avl_first(&ds->ds_bookmarks);
-	    dbn != NULL; dbn = AVL_NEXT(&ds->ds_bookmarks, dbn)) {
-		if (dbn->dbn_phys.zbm_flags & ZBM_FLAG_HAS_FBN ||
-		    dbn->dbn_phys.zbm_redaction_obj != 0) {
+
+	if (ds->ds_bookmarks_obj == 0)
+		return (0);
+
+	int err = 0;
+	zap_cursor_t zc;
+	zap_attribute_t attr;
+
+	for (zap_cursor_init(&zc, dp->dp_meta_objset, ds->ds_bookmarks_obj);
+	    (err = zap_cursor_retrieve(&zc, &attr)) == 0;
+	    zap_cursor_advance(&zc)) {
+		ASSERT3U(attr.za_integer_length, ==, sizeof (uint64_t));
+		/*
+		 * This logic matches that in dsl_bookmark_destroy_sync_impl().
+		 */
+		if (attr.za_num_integers * attr.za_integer_length >
+		    BOOKMARK_PHYS_SIZE_V1) {
 			spa_feature_incr(dp->dp_spa, SPA_FEATURE_BOOKMARK_V2,
 			    tx);
 		}
 	}
-	return (0);
+	zap_cursor_fini(&zc);
+	if (err == ENOENT)
+		err = 0;
+	return (err);
 }
 
 void
@@ -1102,9 +1118,31 @@ dsl_pool_sync_bookmark_featureflags(dsl_pool_t *dp, dmu_tx_t *tx)
 {
 	ASSERT(dmu_tx_is_syncing(tx));
 
+	/*
+	 * We may need to re-evaluate the feature refcount because it was
+	 * previously incorrectly calculated, due to a bug.  Therefore the
+	 * refcount may be nonzero.  Because some bookmarks may have been
+	 * deleted after the incorrect calculation, the current refcount value
+	 * may be unrelated to the current on-disk state.  Therefore we need to
+	 * reset the refcount to 0 and recalculate from scratch.
+	 */
+	uint64_t old_refcount = 0;
+	while (spa_feature_is_active(dp->dp_spa, SPA_FEATURE_BOOKMARK_V2)) {
+		spa_feature_decr(dp->dp_spa, SPA_FEATURE_BOOKMARK_V2, tx);
+		old_refcount++;
+	}
+
 	VERIFY0(dmu_objset_find_dp(dp, dp->dp_root_dir_obj,
-	    sync_bookmark_featureflags_cb, tx, DS_FIND_CHILDREN |
-	    DS_FIND_SERIALIZE));
+	    sync_bookmark_featureflags_cb, tx,
+	    DS_FIND_CHILDREN | DS_FIND_SERIALIZE));
+
+	uint64_t new_refcount;
+	VERIFY0(feature_get_refcount(dp->dp_spa,
+	    &spa_feature_table[SPA_FEATURE_BOOKMARK_V2], &new_refcount));
+	spa_history_log_internal(dp->dp_spa,
+	    "recalculate SPA_FEATURE_BOOKMARK_V2 refcount", tx,
+	    "old=%llu new=%llu",
+	    (long long)old_refcount, (long long)new_refcount);
 }
 
 void

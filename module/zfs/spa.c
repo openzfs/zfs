@@ -8809,30 +8809,51 @@ spa_sync_upgrades(spa_t *spa, dmu_tx_t *tx)
 		 * has those features that is upgraded to a version with
 		 * BOOKMARK_V2 will crash if the number of bookmarks ever goes
 		 * below the amount that existed when the pool was upgraded.
-		 * This code iterates over all the bookmarks in the system and
-		 * increments the V2 feature once for each bookmark that uses
-		 * either BOOKMARK_WRITTEN or REDACTION_BOOKMARKS.  It's not
-		 * just the sum of the two, because some bookmarks will have
-		 * both REDACTION and WRITTEN, and some could have either
-		 * without the other.
 		 *
-		 * This logic will only execute once because, going forwards,
-		 * any time BOOKMARK_WRITTEN or REDACTION_BOOKMARKS is
-		 * incremented, BOOKMARK_V2 will be as well.  As a result, its
-		 * count should never dip back to zero (maaking in inactive
-		 * but enabled) while the other two are active.
+		 * Additionally, the logic for decrementing BOOKMARK_V2 is
+		 * based on the bookmark's ZAP entry size, not the use of the
+		 * redaction or written fields.  In the current code, these
+		 * values are equivalent (the size is > BOOKMARK_PHYS_SIZE_V1
+		 * if and only if the new fields are in use), but in Delphix
+		 * version 5.0.x.x, a larger size was used unconditionally
+		 * (even if the redaction field was not set). Before Delphix
+		 * version 6.0.6.0, this upgrade code did not take into
+		 * account this possibility, resulting in a lower-than
+		 * expected refcount, and subsequent panics when attempting
+		 * to decrement a zero refcount.  Therefore, we need to
+		 * recalculate the refcount even if it was calculated once
+		 * (by the buggy code).
+		 *
+		 * We only need to recalculate the refcount once (with the
+		 * current algorithm), because now any time BOOKMARK_WRITTEN
+		 * or REDACTION_BOOKMARKS is incremented, BOOKMARK_V2 will be
+		 * as well.
+		 *
+		 * Presence of the DMU_POOL_BOOKMARK_V2_RECALCULATED field
+		 * indicates that it has been recalculated with the current
+		 * algorithm, based on the zap entry size.  After
+		 * recalculating the refcount, if the pool is brought back to
+		 * a system with the buggy upgrade code, that code won't be
+		 * invoked because it's predicated on the V2 refcount being
+		 * nonzero (and if it is zero, that's accurate and the old
+		 * code will leave it at zero). Therefore we can use this
+		 * backwards-compatible field rather than a feature flag.
+		 *
+		 * This upgrade code can be removed once we no longer support
+		 * upgrading from releases before Delphix 6.0.6.0.
 		 */
-		boolean_t bv2_en = spa_feature_is_enabled(spa,
+		boolean_t bv2_enabled = spa_feature_is_enabled(spa,
 		    SPA_FEATURE_BOOKMARK_V2);
-		boolean_t bv2_ac = spa_feature_is_active(spa,
-		    SPA_FEATURE_BOOKMARK_V2);
-
-		boolean_t dep_ac = spa_feature_is_active(spa,
-		    SPA_FEATURE_BOOKMARK_WRITTEN) || spa_feature_is_active(spa,
-		    SPA_FEATURE_REDACTION_BOOKMARKS);
-
-		if (bv2_en && !bv2_ac && dep_ac) {
+		boolean_t recalculated = (zap_contains(spa->spa_meta_objset,
+		    DMU_POOL_DIRECTORY_OBJECT,
+		    DMU_POOL_BOOKMARK_V2_RECALCULATED) == 0);
+		if (bv2_enabled && !recalculated) {
 			dsl_pool_sync_bookmark_featureflags(dp, tx);
+			uint64_t one = 1;
+			VERIFY0(zap_add(spa->spa_meta_objset,
+			    DMU_POOL_DIRECTORY_OBJECT,
+			    DMU_POOL_BOOKMARK_V2_RECALCULATED,
+			    sizeof (one), 1, &one, tx));
 		}
 	}
 
