@@ -70,6 +70,11 @@
  * zeroing out the borrowed value (forcing that thread to borrow on its next
  * request, which will also be expensive).  This is what makes aggsums well
  * suited for write-many read-rarely operations.
+ *
+ * Note that the aggsums do not expand if more CPUs are hot-added. In that
+ * case, we will have less fanout than boot_ncpus, but we don't want to always
+ * reserve the RAM necessary to create the extra slots for additional CPUs up
+ * front, and dynamically adding them is a complex task.
  */
 
 /*
