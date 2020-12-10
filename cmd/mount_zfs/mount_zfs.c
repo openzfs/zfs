@@ -43,53 +43,30 @@
 libzfs_handle_t *g_zfs;
 
 /*
- * Return the pool/dataset to mount given the name passed to mount.  This
- * is expected to be of the form pool/dataset, however may also refer to
- * a block device if that device contains a valid zfs label.
+ * Opportunistically convert a target string into a pool name. If the
+ * string does not represent a block device with a valid zfs label
+ * then it is passed through without modification.
  */
 static void
 parse_dataset(const char *target, char **dataset)
 {
-	/*
-	 * We expect a pool/dataset to be provided, however if we're
-	 * given a device which is a member of a zpool we attempt to
-	 * extract the pool name stored in the label.  Given the pool
-	 * name we can mount the root dataset.
-	 */
-	int fd = open(target, O_RDONLY);
-	if (fd >= 0) {
-		nvlist_t *config = NULL;
-		if (zpool_read_label(fd, &config, NULL) != 0)
-			config = NULL;
-		if (close(fd))
-			perror("close");
-
-		if (config) {
-			char *name = NULL;
-			if (!nvlist_lookup_string(config,
-			    ZPOOL_CONFIG_POOL_NAME, &name))
-				(void) strlcpy(*dataset, name, PATH_MAX);
-			nvlist_free(config);
-			if (name)
-				return;
-		}
-	}
-
-	/*
-	 * If a file or directory in your current working directory is
-	 * named 'dataset' then mount(8) will prepend your current working
-	 * directory to the dataset.  There is no way to prevent this
-	 * behavior so we simply check for it and strip the prepended
-	 * patch when it is added.
-	 */
-	char cwd[PATH_MAX];
-	if (getcwd(cwd, PATH_MAX) != NULL) {
-		int len = strlen(cwd);
-		/* Do not add one when cwd already ends in a trailing '/' */
-		if (strncmp(cwd, target, len) == 0)
-			target += len + (cwd[len-1] != '/');
-	}
+	/* Assume pool/dataset is more likely */
 	strlcpy(*dataset, target, PATH_MAX);
+
+	int fd = open(target, O_RDONLY | O_CLOEXEC);
+	if (fd < 0)
+		return;
+
+	nvlist_t *cfg = NULL;
+	if (zpool_read_label(fd, &cfg, NULL) == 0) {
+		char *nm = NULL;
+		if (!nvlist_lookup_string(cfg, ZPOOL_CONFIG_POOL_NAME, &nm))
+			strlcpy(*dataset, nm, PATH_MAX);
+		nvlist_free(cfg);
+	}
+
+	if (close(fd))
+		perror("close");
 }
 
 /*
