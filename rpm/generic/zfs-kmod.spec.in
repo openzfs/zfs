@@ -120,6 +120,29 @@ bash %{SOURCE10}  --target %{_target_cpu} %{?repo:--repo %{?repo}} --kmodname %{
     %define debuginfo --disable-debuginfo
 %endif
 
+#
+# = Delphix-Specific Note
+#
+# With the introduction of commit 48edb0029728d72088a1c2c65151fa2390fabf22
+# where we split the debug info as part of `make install`, we started
+# creating these debug files that are not picked up by the process that
+# creates the RPM packages of ZFS. Yet the fact that we don't use them
+# for RPMs is enough for that process to generate errors. With the following
+# `define` statement we silence those errors.
+#
+# This is reasonable for us to do for the following reasons:
+# [1] We don't currently care about RPMs, as our product uses DEBIAN files
+#     and the debug files are picked up by those packages.
+# [2] We won't be getting build failures related to RPMs that are caused
+#     due to this issue in the future anymore, and this is fine because
+#     of [1].
+# [3] This change is not as invasive in the RPM configuration as it would
+#     be to fix it to include those debug files. This is good for avoiding
+#     potential merge conflicts in the future, or at least make them more
+#     straightforward to resolve.
+#
+%define _unpackaged_files_terminate_build 0
+
 # Leverage VPATH from configure to avoid making multiple copies.
 %define _configure ../%{module}-%{version}/configure
 
