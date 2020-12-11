@@ -2800,6 +2800,18 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 	error = metaslab_alloc(spa, mc, SPA_GANGBLOCKSIZE,
 	    bp, gbh_copies, txg, pio == gio ? NULL : gio->io_bp, flags,
 	    &pio->io_alloc_list, pio, pio->io_allocator);
+	if (error == ENOSPC && !spa_has_log_device(spa) &&
+	    mc != spa_log_class(spa)) {
+		if (zfs_flags & ZFS_DEBUG_METASLAB_ALLOC) {
+			zfs_dbgmsg("%s: gang block metaslab allocation "
+			    "failure, trying log class: zio %px",
+			    spa_name(spa), pio);
+		}
+		error = metaslab_alloc(spa, spa_log_class(spa),
+		    SPA_GANGBLOCKSIZE,
+		    bp, gbh_copies, txg, pio == gio ? NULL : gio->io_bp, flags,
+		    &pio->io_alloc_list, pio, pio->io_allocator);
+	}
 	if (error) {
 		if (pio->io_flags & ZIO_FLAG_IO_ALLOCATING) {
 			ASSERT(pio->io_priority == ZIO_PRIORITY_ASYNC_WRITE);
@@ -3472,8 +3484,14 @@ zio_dva_allocate(zio_t *zio)
 	/*
 	 * Try allocating the block in the usual metaslab class.
 	 * If that's full, allocate it in the normal class.
-	 * If that's full, allocate it in slog space,
-	 * and if all are full, allocate as a gang block.
+	 * If that's full, allocate as a gang block,
+	 * If that's full, allocate it in embedded slog space,
+	 * and if all are full, the allocation fails (which shouldn't happen).
+	 *
+	 * Note that we try ganging before going to embedded slog (ZIL) space,
+	 * to preserve unfragmented slog space, which is critical for decent
+	 * sync write performance.  If a log allocation fails, we will fall
+	 * back to spa_sync() which is abysmal for performance.
 	 */
 	error = metaslab_alloc(spa, mc, zio->io_size, bp,
 	    zio->io_prop.zp_copies, zio->io_txg, NULL, flags,
@@ -3513,8 +3531,13 @@ zio_dva_allocate(zio_t *zio)
 		    &zio->io_alloc_list, zio, zio->io_allocator);
 	}
 
+	/*
+	 * If ganging won't help, because this allocation is already as small
+	 * as it can get, then use the embedded ZIL metaslabs.
+	 */
 	if (error == ENOSPC && !spa_has_log_device(spa) &&
-	    mc != spa_log_class(spa)) {
+	    mc != spa_log_class(spa) &&
+	    zio->io_size <= 1 << spa->spa_min_ashift) {
 		if (zfs_flags & ZFS_DEBUG_METASLAB_ALLOC) {
 			zfs_dbgmsg("%s: metaslab allocation failure, "
 			    "trying log class: zio %px, size %llu, error %d",
