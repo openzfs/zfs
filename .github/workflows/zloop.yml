@@ -2,7 +2,13 @@ name: zloop
 
 on:
   push:
+    branches:
+      - master
+      - 'zfs-*-release'
   pull_request:
+    branches:
+      - master
+      - 'zfs-*-release'
 
 jobs:
   tests:
