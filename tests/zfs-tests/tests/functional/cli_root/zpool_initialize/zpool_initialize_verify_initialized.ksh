@@ -24,7 +24,6 @@
 # Copyright (c) 2016 by Delphix. All rights reserved.
 #
 . $STF_SUITE/include/libtest.shlib
-. $STF_SUITE/tests/functional/cli_root/zpool_initialize/zpool_initialize.kshlib
 
 #
 # DESCRIPTION:
@@ -48,42 +47,49 @@ function cleanup
         if [[ -d "$TESTDIR" ]]; then
                 rm -rf "$TESTDIR"
         fi
+
+	rm -f $ZDBOUT
 }
 log_onexit cleanup
 
-PATTERN="deadbeefdeadbeef"
+ZDBOUT="$TEST_BASE_DIR/zdbout.txt"
+
+PATTERN="16045690984833335023" # 0xdeadbeefdeadbeef
 SMALLFILE="$TESTDIR/smallfile"
 
 ORIG_PATTERN=$(get_tunable INITIALIZE_VALUE)
-log_must set_tunable64 INITIALIZE_VALUE $(printf %llu 0x$PATTERN)
+log_must set_tunable64 INITIALIZE_VALUE $PATTERN
 
 log_must mkdir "$TESTDIR"
 log_must mkfile $MINVDEVSIZE "$SMALLFILE"
 log_must zpool create $TESTPOOL "$SMALLFILE"
 log_must zpool initialize $TESTPOOL
-
-while [[ "$(initialize_progress $TESTPOOL $SMALLFILE)" -lt "100" ]]; do
-        sleep 0.5
-done
-
+log_must zpool wait -t initialize $TESTPOOL
 log_must zpool export $TESTPOOL
 
-spacemaps=0
+metaslabs=0
 bs=512
-while read -r sm; do
-        typeset offset="$(echo $sm | cut -d ' ' -f1)"
-        typeset size="$(echo $sm | cut -d ' ' -f2)"
+zdb -p $TESTDIR -Pme $TESTPOOL >$ZDBOUT
+log_note "zdb output: $(cat $ZDBOUT)"
+awk '/spacemap  *0 / { print $4, $8 }' $ZDBOUT |
+while read -r offset_size; do
+	log_note "offset_size: '$offset_size'"
 
-	spacemaps=$((spacemaps + 1))
-        offset=$(((4 * 1024 * 1024) + 16#$offset))
-	out=$(dd if=$SMALLFILE skip=$(($offset / $bs)) \
-	    count=$(($size / $bs)) bs=$bs 2>/dev/null | od -t x8 -Ad)
-	echo "$out" | log_must egrep "$PATTERN|\*|$size"
-done <<< "$(zdb -p $TESTDIR -Pme $TESTPOOL | egrep 'spacemap[ ]+0 ' | \
-    awk '{print $4, $8}')"
+	typeset offset=$(echo $offset_size | cut -d ' ' -f1)
+	typeset size=$(echo $offset_size | cut -d ' ' -f2)
 
-if [[ $spacemaps -eq 0 ]];then
-	log_fail "Did not find any empty space maps to check"
+	log_note "offset: '$offset'"
+	log_note "size: '$size'"
+
+	metaslabs=$((metaslabs + 1))
+	offset=$(((4 * 1024 * 1024) + 16#$offset))
+	log_note "decoded offset: '$offset'"
+	dd if=$SMALLFILE skip=$((offset / bs)) count=$((size / bs)) bs=$bs |
+	log_must egrep "$PATTERN|\*|$size"
+done
+
+if [[ $metaslabs -eq 0 ]]; then
+	log_fail "Did not find any empty metaslabs to check"
 else
 	log_pass "Initializing wrote appropriate amount to disk"
 fi
