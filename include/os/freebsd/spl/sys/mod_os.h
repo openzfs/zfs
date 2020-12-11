@@ -57,6 +57,8 @@
 #define	ZFS_MODULE_PARAM_CALL(scope_prefix, name_prefix, name, func, _, perm, desc) \
     ZFS_MODULE_PARAM_CALL_IMPL(_vfs_ ## scope_prefix, name, perm, func ## _args(name_prefix ## name), desc)
 
+#define	ZFS_MODULE_VIRTUAL_PARAM_CALL ZFS_MODULE_PARAM_CALL
+
 #define	param_set_arc_long_args(var) \
     CTLTYPE_ULONG, &var, 0, param_set_arc_long, "LU"
 
@@ -83,6 +85,9 @@
 
 #define	param_set_max_auto_ashift_args(var) \
     CTLTYPE_U64, &var, 0, param_set_max_auto_ashift, "QU"
+
+#define	fletcher_4_param_set_args(var) \
+    CTLTYPE_STRING, NULL, 0, fletcher_4_param, "A"
 
 #include <sys/kernel.h>
 #define	module_init(fn)							\

@@ -387,8 +387,12 @@ def format_raw_line(name, value):
     if ARGS.alt:
         result = '{0}{1}={2}'.format(INDENT, name, value)
     else:
-        spc = LINE_LENGTH-(len(INDENT)+len(value))
-        result = '{0}{1:<{spc}}{2}'.format(INDENT, name, value, spc=spc)
+        # Right-align the value within the line length if it fits,
+        # otherwise just separate it from the name by a single space.
+        fit = LINE_LENGTH - len(INDENT) - len(name)
+        overflow = len(value) + 1
+        w = max(fit, overflow)
+        result = '{0}{1}{2:>{w}}'.format(INDENT, name, value, w=w)
 
     return result
 
