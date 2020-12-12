@@ -322,7 +322,7 @@ uint32_t metaslab_by_size_min_shift = 14;
  *
  * If set, we will first try normal allocation.  If that fails then
  * we will do a "try hard" allocation.  If that fails we will do a gang
- * allocation.  If that fails we will do a "try hard" gang alloation.  If
+ * allocation.  If that fails we will do a "try hard" gang allocation.  If
  * that fails then we will have a multi-layer gang block.
  */
 int zfs_metaslab_try_hard_before_gang = B_FALSE;
