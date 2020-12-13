@@ -99,6 +99,7 @@ struct arc_callback {
 	boolean_t		acb_encrypted;
 	boolean_t		acb_compressed;
 	boolean_t		acb_noauth;
+	boolean_t		acb_nobuf;
 	zbookmark_phys_t	acb_zb;
 	zio_t			*acb_zio_dummy;
 	zio_t			*acb_zio_head;

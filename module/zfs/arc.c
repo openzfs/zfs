@@ -5759,7 +5759,7 @@ arc_read_done(zio_t *zio)
 	 */
 	int callback_cnt = 0;
 	for (acb = callback_list; acb != NULL; acb = acb->acb_next) {
-		if (!acb->acb_done)
+		if (!acb->acb_done || acb->acb_nobuf)
 			continue;
 
 		callback_cnt++;
@@ -5999,7 +5999,7 @@ top:
 			}
 			ASSERT(*arc_flags & ARC_FLAG_NOWAIT);
 
-			if (done && !no_buf) {
+			if (done) {
 				arc_callback_t *acb = NULL;
 
 				acb = kmem_zalloc(sizeof (arc_callback_t),
@@ -6009,6 +6009,7 @@ top:
 				acb->acb_compressed = compressed_read;
 				acb->acb_encrypted = encrypted_read;
 				acb->acb_noauth = noauth_read;
+				acb->acb_nobuf = no_buf;
 				acb->acb_zb = *zb;
 				if (pio != NULL)
 					acb->acb_zio_dummy = zio_null(pio,
@@ -6018,8 +6019,6 @@ top:
 				acb->acb_zio_head = head_zio;
 				acb->acb_next = hdr->b_l1hdr.b_acb;
 				hdr->b_l1hdr.b_acb = acb;
-				mutex_exit(hash_lock);
-				goto out;
 			}
 			mutex_exit(hash_lock);
 			goto out;
