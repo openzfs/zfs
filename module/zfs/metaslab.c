@@ -264,9 +264,7 @@ int zfs_metaslab_switch_threshold = 2;
  * Internal switch to enable/disable the metaslab allocation tracing
  * facility.
  */
-#ifdef _METASLAB_TRACING
-boolean_t metaslab_trace_enabled = B_TRUE;
-#endif
+boolean_t metaslab_trace_enabled = B_FALSE;
 
 /*
  * Maximum entries that the metaslab allocation tracing facility will keep
@@ -276,9 +274,7 @@ boolean_t metaslab_trace_enabled = B_TRUE;
  * to every exceed this value. In debug mode, the system will panic if this
  * limit is ever reached allowing for further investigation.
  */
-#ifdef _METASLAB_TRACING
 uint64_t metaslab_trace_max_entries = 5000;
-#endif
 
 /*
  * Maximum number of metaslabs per group that can be disabled
@@ -358,7 +354,6 @@ kmem_cache_t *metaslab_alloc_trace_cache;
 
 typedef struct metaslab_stats {
 	kstat_named_t metaslabstat_trace_over_limit;
-	kstat_named_t metaslabstat_df_find_under_floor;
 	kstat_named_t metaslabstat_reload_tree;
 	kstat_named_t metaslabstat_too_many_tries;
 	kstat_named_t metaslabstat_try_hard;
@@ -366,7 +361,6 @@ typedef struct metaslab_stats {
 
 static metaslab_stats_t metaslab_stats = {
 	{ "trace_over_limit",		KSTAT_DATA_UINT64 },
-	{ "df_find_under_floor",	KSTAT_DATA_UINT64 },
 	{ "reload_tree",		KSTAT_DATA_UINT64 },
 	{ "too_many_tries",		KSTAT_DATA_UINT64 },
 	{ "try_hard",			KSTAT_DATA_UINT64 },
@@ -1681,13 +1675,6 @@ metaslab_df_alloc(metaslab_t *msp, uint64_t size)
 		} else {
 			zfs_btree_index_t where;
 			/* use segment of this size, or next largest */
-#ifdef _METASLAB_TRACING
-			metaslab_rt_arg_t *mrap = msp->ms_allocatable->rt_arg;
-			if (size < (1 << mrap->mra_floor_shift)) {
-				METASLABSTAT_BUMP(
-				    metaslabstat_df_find_under_floor);
-			}
-#endif
 			rs = metaslab_block_find(&msp->ms_allocatable_by_size,
 			    rt, msp->ms_start, size, &where);
 		}
@@ -4418,7 +4405,6 @@ metaslab_is_unique(metaslab_t *msp, dva_t *dva)
  * Metaslab allocation tracing facility
  * ==========================================================================
  */
-#ifdef _METASLAB_TRACING
 
 /*
  * Add an allocation trace element to the allocation tracing list.
@@ -4493,21 +4479,6 @@ metaslab_trace_fini(zio_alloc_list_t *zal)
 	list_destroy(&zal->zal_list);
 	zal->zal_size = 0;
 }
-#else
-
-#define	metaslab_trace_add(zal, mg, msp, psize, id, off, alloc)
-
-void
-metaslab_trace_init(zio_alloc_list_t *zal)
-{
-}
-
-void
-metaslab_trace_fini(zio_alloc_list_t *zal)
-{
-}
-
-#endif /* _METASLAB_TRACING */
 
 /*
  * ==========================================================================
