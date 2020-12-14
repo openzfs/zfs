@@ -5284,13 +5284,6 @@ next:
 	    GANG_ALLOCATION(flags) || (flags & METASLAB_ZIL) != 0 ||
 	    psize <= 1 << spa->spa_min_ashift)) {
 		METASLABSTAT_BUMP(metaslabstat_try_hard);
-		if (zfs_flags & ZFS_DEBUG_METASLAB_ALLOC) {
-			zfs_dbgmsg("%s: metaslab allocation failure, "
-			    "trying hard: size %llu class %s",
-			    spa_name(spa), psize,
-			    mc == spa_normal_class(spa) ? "normal" :
-			    mc == spa_log_class(spa) ? "log" : "unknown");
-		}
 		try_hard = B_TRUE;
 		goto top;
 	}
