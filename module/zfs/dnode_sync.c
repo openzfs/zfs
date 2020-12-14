@@ -595,10 +595,11 @@ dnode_sync_free(dnode_t *dn, dmu_tx_t *tx)
 	ASSERT(dn->dn_type != DMU_OT_NONE);
 
 	ASSERT(dn->dn_free_txg > 0);
-	if (dn->dn_allocated_txg != dn->dn_free_txg)
+	if (dn->dn_allocated_txg != dn->dn_free_txg && &dn->dn_dbuf->db != NULL)
 		dmu_buf_will_dirty(&dn->dn_dbuf->db, tx);
 	bzero(dn->dn_phys, sizeof (dnode_phys_t) * dn->dn_num_slots);
-	dnode_free_interior_slots(dn);
+	if (&dn->dn_dbuf->db != NULL)
+		dnode_free_interior_slots(dn);
 
 	mutex_enter(&dn->dn_mtx);
 	dn->dn_type = DMU_OT_NONE;

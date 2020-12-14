@@ -2007,14 +2007,6 @@ dsl_crypto_recv_raw_objset_check(dsl_dataset_t *ds, dsl_dataset_t *fromds,
 	if (ret != 0)
 		return (ret);
 
-	/*
-	 * Useraccounting is not portable and must be done with the keys loaded.
-	 * Therefore, whenever we do any kind of receive the useraccounting
-	 * must not be present.
-	 */
-	ASSERT0(os->os_flags & OBJSET_FLAG_USERACCOUNTING_COMPLETE);
-	ASSERT0(os->os_flags & OBJSET_FLAG_USEROBJACCOUNTING_COMPLETE);
-
 	mdn = DMU_META_DNODE(os);
 
 	/*
@@ -2106,7 +2098,22 @@ dsl_crypto_recv_raw_objset_sync(dsl_dataset_t *ds, dmu_objset_type_t ostype,
 	arc_release(os->os_phys_buf, &os->os_phys_buf);
 	bcopy(portable_mac, os->os_phys->os_portable_mac, ZIO_OBJSET_MAC_LEN);
 	bzero(os->os_phys->os_local_mac, ZIO_OBJSET_MAC_LEN);
+
+	/*
+	 * Needed for triggering recalculation of metadata
+	 */
+	os->os_phys->os_flags &= ~OBJSET_FLAG_USERACCOUNTING_COMPLETE;
+	os->os_phys->os_flags &= ~OBJSET_FLAG_USEROBJACCOUNTING_COMPLETE;
+	os->os_phys->os_flags &= ~OBJSET_FLAG_PROJECTQUOTA_COMPLETE;
+	os->os_flags = os->os_phys->os_flags;
 	os->os_next_write_raw[tx->tx_txg & TXG_MASK] = B_TRUE;
+
+	/*
+	 * Needed for zeroing out the local_mac
+	 */
+	dmu_object_free(os, DMU_USERUSED_OBJECT, tx);
+	dmu_object_free(os, DMU_GROUPUSED_OBJECT, tx);
+	dmu_object_free(os, DMU_PROJECTUSED_OBJECT, tx);
 
 	/* set metadnode compression and checksum */
 	mdn->dn_compress = compress;
@@ -2131,6 +2138,8 @@ dsl_crypto_recv_raw_objset_sync(dsl_dataset_t *ds, dmu_objset_type_t ostype,
 		/* dsl_dataset_sync_done will drop this reference. */
 		dmu_buf_add_ref(ds->ds_dbuf, ds);
 		dsl_dataset_sync_done(ds, tx);
+
+		dsl_dataset_create_key_mapping(ds);
 	}
 }
 

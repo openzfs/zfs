@@ -682,6 +682,8 @@ dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
 	for (ds = list_head(&synced_datasets); ds != NULL;
 	    ds = list_next(&synced_datasets, ds)) {
 		dmu_objset_sync_done(ds->ds_objset, tx);
+		cmn_err(CE_NOTE, "os_p_flags: %llu",
+		    ds->ds_objset->os_phys->os_flags);
 	}
 	taskq_wait(dp->dp_sync_taskq);
 

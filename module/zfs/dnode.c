@@ -1605,7 +1605,11 @@ dnode_rele_and_unlock(dnode_t *dn, void *tag, boolean_t evicting)
 	dmu_buf_impl_t *db = dn->dn_dbuf;
 	dnode_handle_t *dnh = dn->dn_handle;
 
-	refs = zfs_refcount_remove(&dn->dn_holds, tag);
+	if (zfs_refcount_count(&dn->dn_holds) > 0) {
+		refs = zfs_refcount_remove(&dn->dn_holds, tag);
+	} else {
+		refs = 0;
+	}
 	if (refs == 0)
 		cv_broadcast(&dn->dn_nodnholds);
 	mutex_exit(&dn->dn_mtx);

@@ -782,6 +782,8 @@ dmu_objset_own(const char *name, dmu_objset_type_t type,
 	 */
 	if (!readonly && !dp->dp_spa->spa_claiming &&
 	    (ds->ds_dir->dd_crypto_obj == 0 || decrypt)) {
+		cmn_err(CE_NOTE, "upgrade, dn_type_uu: %llu",
+		    (*osp)->os_userused_dnode.dnh_dnode->dn_type);
 		if (dmu_objset_userobjspace_upgradable(*osp) ||
 		    dmu_objset_projectquota_upgradable(*osp)) {
 			dmu_objset_id_quota_upgrade(*osp);
@@ -1078,18 +1080,13 @@ dmu_objset_create_impl_dnstats(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 	 */
 	if (dmu_objset_userused_enabled(os) &&
 	    (!os->os_encrypted || !dmu_objset_is_receiving(os))) {
-		os->os_phys->os_flags |= OBJSET_FLAG_USERACCOUNTING_COMPLETE;
 		if (dmu_objset_userobjused_enabled(os)) {
 			ds->ds_feature_activation[
 			    SPA_FEATURE_USEROBJ_ACCOUNTING] = (void *)B_TRUE;
-			os->os_phys->os_flags |=
-			    OBJSET_FLAG_USEROBJACCOUNTING_COMPLETE;
 		}
 		if (dmu_objset_projectquota_enabled(os)) {
 			ds->ds_feature_activation[
 			    SPA_FEATURE_PROJECT_QUOTA] = (void *)B_TRUE;
-			os->os_phys->os_flags |=
-			    OBJSET_FLAG_PROJECTQUOTA_COMPLETE;
 		}
 		os->os_flags = os->os_phys->os_flags;
 	}
@@ -2065,6 +2062,7 @@ dmu_objset_do_userquota_updates_prep(objset_t *os, dmu_tx_t *tx)
 
 	/* Allocate the user/group/project used objects if necessary. */
 	if (DMU_USERUSED_DNODE(os)->dn_type == DMU_OT_NONE) {
+		cmn_err(CE_NOTE, "create obj");
 		VERIFY0(zap_create_claim(os,
 		    DMU_USERUSED_OBJECT,
 		    DMU_OT_USERGROUP_USED, DMU_OT_NONE, 0, tx));
