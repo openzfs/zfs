@@ -692,7 +692,11 @@ cmn_err(int ce, const char *fmt, ...)
 void
 delay(clock_t ticks)
 {
+#if HAVE_USLEEP
+	usleep(ticks * 1000 / hz);
+#else
 	(void) poll(0, 0, ticks * (1000 / hz));
+#endif
 }
 
 /*
