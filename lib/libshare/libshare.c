@@ -69,7 +69,14 @@ register_fstype(const char *name, const sa_share_ops_t *ops)
 	return (fstype);
 }
 
-__attribute__((constructor)) static void
+#ifdef __GNUC__
+static void
+libshare_init(void) __attribute__((constructor));
+#else
+#pragma init(libshare_init)
+#endif
+
+static void
 libshare_init(void)
 {
 	libshare_nfs_init();
