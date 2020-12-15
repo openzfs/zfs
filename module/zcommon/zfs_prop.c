@@ -696,6 +696,11 @@ zfs_prop_init(void)
 	    PROP_READONLY, ZFS_TYPE_DATASET, "KEYGUID");
 	zprop_register_hidden(ZFS_PROP_REDACTED, "redacted", PROP_TYPE_NUMBER,
 	    PROP_READONLY, ZFS_TYPE_DATASET, "REDACTED");
+#ifdef _WIN32
+	zprop_register_string(ZFS_PROP_DRIVELETTER, "driveletter", "-",
+	    0, ZFS_TYPE_FILESYSTEM, "off | on | A-Z ",
+	    "DRIVELETTER");
+#endif
 
 	/*
 	 * Properties that are obsolete and not used.  These are retained so
