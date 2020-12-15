@@ -359,6 +359,12 @@ taskq_cancel_id(taskq_t *tq, taskqid_t id)
 	return (ENOENT);
 }
 
+int
+EMPTY_TASKQ(taskq_t *tq)
+{
+	return (tq->tq_task.tqent_next == &tq->tq_task || tq->tq_active == 0);
+}
+
 void
 system_taskq_init(void)
 {
