@@ -399,6 +399,13 @@ zvol_update_volsize(uint64_t volsize, objset_t *os)
 	return (error);
 }
 
+
+/*
+ * Forward declare this so we can us it inside zvol_set_volsize().
+ */
+static int zvol_revalidate_disk(struct gendisk *disk);
+
+
 /*
  * Set ZFS_PROP_VOLSIZE set entry point.  Note that modifying the volume
  * size will result in a udev "change" event being generated.
@@ -411,6 +418,7 @@ zvol_set_volsize(const char *name, uint64_t volsize)
 	uint64_t readonly;
 	int error;
 	boolean_t owned = B_FALSE;
+	int ret = 0;
 
 	error = dsl_prop_get_integer(name,
 	    zfs_prop_to_name(ZFS_PROP_READONLY), &readonly, NULL);
@@ -466,8 +474,10 @@ out:
 	if (zv != NULL)
 		mutex_exit(&zv->zv_state_lock);
 
-	if (disk != NULL)
-		revalidate_disk(disk);
+	if (disk != NULL) {
+		ret = zvol_revalidate_disk(disk);
+		revalidate_disk_size(disk, ret == 0);
+	}
 
 	return (SET_ERROR(error));
 }
