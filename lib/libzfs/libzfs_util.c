@@ -872,6 +872,7 @@ libzfs_read_stdout_from_fd(int fd, char **lines[])
 	return (lines_cnt);
 }
 
+#ifndef _WIN32
 static int
 libzfs_run_process_impl(const char *path, char *argv[], char *env[], int flags,
     char **lines[], int *lines_cnt)
@@ -940,6 +941,7 @@ libzfs_run_process_impl(const char *path, char *argv[], char *env[], int flags,
 
 	return (-1);
 }
+#endif
 
 int
 libzfs_run_process(const char *path, char *argv[], int flags)
