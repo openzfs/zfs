@@ -2111,9 +2111,6 @@ spa_passivate_log(spa_t *spa)
 
 	ASSERT(spa_config_held(spa, SCL_ALLOC, RW_WRITER));
 
-	if (!spa_has_slogs(spa))
-		return (B_FALSE);
-
 	for (int c = 0; c < rvd->vdev_children; c++) {
 		vdev_t *tvd = rvd->vdev_child[c];
 		metaslab_group_t *mg = tvd->vdev_mg;
@@ -8883,12 +8880,18 @@ spa_sync_adjust_vdev_max_queue_depth(spa_t *spa)
 	}
 
 	for (int i = 0; i < spa->spa_alloc_count; i++) {
-		ASSERT0(zfs_refcount_count(&normal->mc_alloc_slots[i]));
-		ASSERT0(zfs_refcount_count(&special->mc_alloc_slots[i]));
-		ASSERT0(zfs_refcount_count(&dedup->mc_alloc_slots[i]));
-		normal->mc_alloc_max_slots[i] = slots_per_allocator;
-		special->mc_alloc_max_slots[i] = slots_per_allocator;
-		dedup->mc_alloc_max_slots[i] = slots_per_allocator;
+		ASSERT0(zfs_refcount_count(&normal->mc_allocator[i].
+		    mca_alloc_slots));
+		ASSERT0(zfs_refcount_count(&special->mc_allocator[i].
+		    mca_alloc_slots));
+		ASSERT0(zfs_refcount_count(&dedup->mc_allocator[i].
+		    mca_alloc_slots));
+		normal->mc_allocator[i].mca_alloc_max_slots =
+		    slots_per_allocator;
+		special->mc_allocator[i].mca_alloc_max_slots =
+		    slots_per_allocator;
+		dedup->mc_allocator[i].mca_alloc_max_slots =
+		    slots_per_allocator;
 	}
 	normal->mc_alloc_throttle_enabled = zio_dva_throttle_enabled;
 	special->mc_alloc_throttle_enabled = zio_dva_throttle_enabled;
