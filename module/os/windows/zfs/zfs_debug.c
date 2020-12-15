@@ -169,6 +169,7 @@ __set_error(const char *file, const char *func, int line, int err)
  */
 
 /*
+ * Look into Windows dtrace?
  * MacOS X's dtrace doesn't handle the PROBEs, so
  * we have a utility function that we can watch with
  * sudo dtrace -qn '__zfs_dbgmsg:entry{printf("%s\n", stringof(arg0));}'
@@ -189,6 +190,7 @@ __zfs_dbgmsg(char *buf)
 	mutex_exit(&zfs_dbgmsgs_lock);
 }
 
+#ifdef _KERNEL
 void
 __dprintf(boolean_t dprint, const char *file, const char *func,
     int line, const char *fmt, ...)
@@ -249,6 +251,12 @@ __dprintf(boolean_t dprint, const char *file, const char *func,
 
 	kmem_free(buf, size);
 }
+
+#else
+
+#define	printBuffer printf
+
+#endif
 
 void
 zfs_dbgmsg_print(const char *tag)

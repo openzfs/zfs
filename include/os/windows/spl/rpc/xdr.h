@@ -84,6 +84,8 @@ struct xdr_bytesrec {
 	size_t xc_num_avail;
 };
 
+typedef struct xdr_bytesrec xdr_bytesrec;
+
 /*
  * XDR functions.
  */

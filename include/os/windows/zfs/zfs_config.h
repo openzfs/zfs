@@ -1,8 +1,10 @@
-/* zfs_config.h.  Generated from zfs_config.h.in by configure.  */
-/* zfs_config.h.in.  Generated from configure.ac by autoheader.  */
+/* zfs_config.h.  static file on Windows.  */
 
 /* Define to 1 to enabled dmu tx validation */
 /* #undef DEBUG_DMU_TX */
+
+#define SYSCONFDIR "/etc/zfs/scripts/"  // Windwosify me
+#define	TEXT_DOMAIN "zfs-windows-user"
 
 /* Path where the Filesystems bundle is installed. */
 #define FILESYSTEMS_PREFIX "/Library/Filesystems"
@@ -18,6 +20,8 @@
 
 /* Define if you have libuuid */
 #define HAVE_LIBUUID 1
+
+#define HAVE_XDR_BYTESREC 1
 
 /* Define to 1 if you have the <memory.h> header file. */
 #define HAVE_MEMORY_H 1
@@ -49,6 +53,10 @@
 /* Define if you have zlib */
 #define HAVE_ZLIB 1
 
+#define	HAVE_LOFF_T 1
+
+#define	HAVE_USLEEP 1
+
 /* Path where the kernel module is installed. */
 #define KERNEL_MODPREFIX "/Library/Extensions"
 
@@ -64,7 +72,7 @@
 /* zfs debugging enabled */
 
 /* Define the project author. */
-#define ZFS_META_AUTHOR "OpenZFS on OS X"
+#define ZFS_META_AUTHOR "OpenZFS on Windows"
 
 /* Define the project release date. */
 /* #undef ZFS_META_DATA */
@@ -85,10 +93,10 @@
 #define ZFS_META_NAME "zfs"
 
 /* Define the project release. */
-#define ZFS_META_RELEASE "1"
+#define ZFS_META_RELEASE "2"
 
 /* Define the project version. */
-#define ZFS_META_VERSION "0.2.4"
+#define ZFS_META_VERSION "2.0.0"
 
 /* Define the project alias string. */
 #define ZFS_META_ALIAS "zfs-" ZFS_META_VERSION "-" ZFS_META_RELEASE

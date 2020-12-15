@@ -500,4 +500,8 @@ extern "C" {
 
 #pragma pack()
 
+#ifdef	__cplusplus
+}
+#endif
+
 #endif

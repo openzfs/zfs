@@ -1,6 +1,5 @@
 
-set(CMAKE_C_COMPILER clang-cl.exe)
-set(CMAKE_CXX_COMPILER clang-cl.exe)
+use_clang()
 
 add_library(libzfs
 	libzfs_changelist.c
@@ -19,5 +18,20 @@ add_library(libzfs
 	os/windows/libzfs_pool_os.c
 	os/windows/libzfs_util_os.c
 )
-target_include_directories(libzfs BEFORE PRIVATE ../libspl/include)
-target_link_libraries(libzfs PUBLIC libpthread zlib)
+
+variable_watch(CRYPTO_STATIC)
+# set(CRYPTO_STATIC "notset")
+set(CMAKE_FIND_DEBUG_MODE TRUE)
+find_library(CRYPTO_STATIC
+    NAMES
+      libcrypto_static
+    NAMES_PER_DIR
+    ${_OPENSSL_ROOT_HINTS_AND_PATHS}
+    HINTS
+      ${OPENSSL_ROOT_DIR}/lib
+    PATH_SUFFIXES
+      lib
+	REQUIRED
+  )
+
+target_link_libraries(libzfs PUBLIC libpthread zlib libzutil libshare libzfs_core libnvpair libuutil ${CRYPTO_STATIC})

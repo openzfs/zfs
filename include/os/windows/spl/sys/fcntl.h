@@ -14,6 +14,8 @@
 #define O_DIRECT                0
 #define O_SYNC                0
 #define	O_DSYNC 0
+#define	O_CLOEXEC 0
+#define	O_NDELAY 0
 
 #define F_RDLCK         1               /* shared or read lock */
 #define F_UNLCK         2               /* unlock */

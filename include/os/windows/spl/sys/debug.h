@@ -164,7 +164,9 @@ do {									\
 
 #define ASSERTV(x)	x
 
-#define ZFS_DEBUG
+#ifndef ZFS_DEBUG
+#define ZFS_DEBUG	1
+#endif
 
 #else /* Debugging Enabled */
 

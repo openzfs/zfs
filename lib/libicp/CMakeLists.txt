@@ -1,6 +1,5 @@
 
-set(CMAKE_C_COMPILER clang-cl.exe)
-set(CMAKE_CXX_COMPILER clang-cl.exe)
+use_clang()
 
 set(ICP_MODULE_DIR "../../module/icp")
 
@@ -36,8 +35,10 @@ add_library(libicp
     "${ICP_MODULE_DIR}/core/kcf_sched.c"
     "${ICP_MODULE_DIR}/illumos-crypto.c"
     "${ICP_MODULE_DIR}/io/aes.c"
+    "${ICP_MODULE_DIR}/io/edonr_mod.c"
     "${ICP_MODULE_DIR}/io/sha1_mod.c"
     "${ICP_MODULE_DIR}/io/sha2_mod.c"
+    "${ICP_MODULE_DIR}/io/skein_mod.c"
     "${ICP_MODULE_DIR}/os/modconf.c"
     "${ICP_MODULE_DIR}/os/modhash.c"
     "${ICP_MODULE_DIR}/spi/kcf_spi.c"

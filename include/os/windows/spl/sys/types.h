@@ -61,15 +61,12 @@ typedef char int8_t;
 typedef short int int16_t;
 typedef unsigned short int uint16_t;
 //#include_next <sys/types.h>
-#include <string.h>
-#include <sys/sysmacros.h>
 //#include <libkern/libkern.h>
 typedef unsigned long long uid_t;
 typedef unsigned long long gid_t;
 typedef unsigned int pid_t;
-// size_t is 32bit on IllumOS, but 64bit on windows, so changed to uint32_t
-typedef uintptr_t pc_t;
-typedef uint64_t ssize_t;
+
+typedef int64_t ssize_t;
 typedef uint64_t vm_offset_t;
 typedef uint64_t dev_t;
 #define NGROUPS 16
@@ -92,6 +89,10 @@ typedef unsigned char   uuid_t[16];
 struct buf;
 typedef struct buf buf_t;
 typedef unsigned int uInt;
+#include <string.h>
+#include <sys/sysmacros.h>
+typedef uintptr_t pc_t;
+
 #include <sys/stropts.h>
 #include <sys/errno.h>
 #include <ntintsafe.h>

@@ -13,7 +13,6 @@
 #include <unistd.h>
 #include <errno.h>
 #include <sys/types.h>
-#include <sys/w32_types.h>
 
 #include "c.h"
 

@@ -16,7 +16,7 @@
 extern "C" {
 #endif
 
-#define	BOOTENV_OS		BE_MACOS_VENDOR
+#define	BOOTENV_OS		BE_WINDOWS_VENDOR
 
 #ifdef __cplusplus
 }

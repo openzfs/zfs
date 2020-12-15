@@ -295,18 +295,28 @@ voidpf opaque;
 unsigned items;
 unsigned size;
 {
-	return kmem_alloc(items * size, KM_SLEEP);
+	return zfs_kmem_alloc(items * size, KM_SLEEP);
 }
 
 void  zcfree(opaque, ptr)
 voidpf opaque;
 voidpf ptr;
 {
-	kmem_free(ptr, 0);
+	zfs_kmem_free(ptr, 0);
 }
 #endif
 
+#ifndef MY_ZCALLOC
+#ifdef _KERNEL
+#error "should not get here in kernel"
+#endif
+#endif
 
+#ifdef MY_ZCALLOC
+#ifndef _KERNEL
+#error "should not get here in userland"
+#endif
+#endif
 
 #ifndef MY_ZCALLOC /* Any system without a special alloc function */
 

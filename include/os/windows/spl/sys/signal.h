@@ -57,7 +57,7 @@ struct proc;
 
 typedef struct __siginfo {
 	/* Windows version goes here */
-	void *dummy;
+	void *si_addr;
 } siginfo_t;
 
 /* The "why" argument indicates the allowable side-effects of the call:
