@@ -28,7 +28,9 @@
 #define	_LIBSPL_LIBGEN_H
 
 #include <sys/types.h>
+#ifndef _WIN32
 #include_next <libgen.h>
+#endif
 
 extern int mkdirp(const char *, mode_t);
 
