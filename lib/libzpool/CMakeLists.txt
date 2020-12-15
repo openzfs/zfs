@@ -1,6 +1,10 @@
 
-set(CMAKE_C_COMPILER clang-cl.exe)
-set(CMAKE_CXX_COMPILER clang-cl.exe)
+use_clang()
+
+add_definitions(-DLIB_ZPOOL_BUILD)
+# Unfortunately, libbootenv uses kernel headers as well.
+include_directories(PRIVATE "${CMAKE_SOURCE_DIR}/include/os/windows/zfs")
+
 
 set(MODULE_DIR "../../module")
 
@@ -34,6 +38,8 @@ add_library(libzpool
     "${MODULE_DIR}/zcommon/zfs_comutil.c"
     "${MODULE_DIR}/zcommon/zfs_deleg.c"
     "${MODULE_DIR}/zcommon/zfs_fletcher.c"
+    "${MODULE_DIR}/zcommon/zfs_fletcher_superscalar.c"
+    "${MODULE_DIR}/zcommon/zfs_fletcher_superscalar4.c"
     "${MODULE_DIR}/zcommon/zfs_namecheck.c"
     "${MODULE_DIR}/zcommon/zfs_prop.c"
     "${MODULE_DIR}/zcommon/zfs_uio.c"
@@ -46,6 +52,7 @@ add_library(libzpool
     "${MODULE_DIR}/zfs/bplist.c"
     "${MODULE_DIR}/zfs/bpobj.c"
     "${MODULE_DIR}/zfs/bptree.c"
+    "${MODULE_DIR}/zfs/btree.c"
     "${MODULE_DIR}/zfs/bqueue.c"
     "${MODULE_DIR}/zfs/dbuf.c"
     "${MODULE_DIR}/zfs/dbuf_stats.c"
@@ -56,6 +63,7 @@ add_library(libzpool
     "${MODULE_DIR}/zfs/dmu_object.c"
     "${MODULE_DIR}/zfs/dmu_objset.c"
     "${MODULE_DIR}/zfs/dmu_recv.c"
+    "${MODULE_DIR}/zfs/dmu_redact.c"
     "${MODULE_DIR}/zfs/dmu_send.c"
     "${MODULE_DIR}/zfs/dmu_traverse.c"
     "${MODULE_DIR}/zfs/dmu_tx.c"
@@ -83,6 +91,8 @@ add_library(libzpool
     "${MODULE_DIR}/zfs/metaslab.c"
     "${MODULE_DIR}/zfs/mmp.c"
     "${MODULE_DIR}/zfs/multilist.c"
+    "${MODULE_DIR}/zfs/objlist.c"
+    "${MODULE_DIR}/zfs/pathname.c"
     "${MODULE_DIR}/zfs/range_tree.c"
     "${MODULE_DIR}/zfs/refcount.c"
     "${MODULE_DIR}/zfs/rrwlock.c"
@@ -97,6 +107,7 @@ add_library(libzpool
     "${MODULE_DIR}/zfs/spa_config.c"
     "${MODULE_DIR}/zfs/spa_errlog.c"
     "${MODULE_DIR}/zfs/spa_history.c"
+    "${MODULE_DIR}/zfs/spa_log_spacemap.c"
     "${MODULE_DIR}/zfs/spa_misc.c"
     "${MODULE_DIR}/zfs/spa_stats.c"
     "${MODULE_DIR}/zfs/txg.c"
@@ -113,6 +124,9 @@ add_library(libzpool
     "${MODULE_DIR}/zfs/vdev_missing.c"
     "${MODULE_DIR}/zfs/vdev_queue.c"
     "${MODULE_DIR}/zfs/vdev_raidz.c"
+    "${MODULE_DIR}/zfs/vdev_raidz_math.c"
+    "${MODULE_DIR}/zfs/vdev_raidz_math_scalar.c"
+    "${MODULE_DIR}/zfs/vdev_rebuild.c"
     "${MODULE_DIR}/zfs/vdev_removal.c"
     "${MODULE_DIR}/zfs/vdev_root.c"
     "${MODULE_DIR}/zfs/vdev_trim.c"
@@ -121,6 +135,7 @@ add_library(libzpool
     "${MODULE_DIR}/zfs/zap_micro.c"
     "${MODULE_DIR}/zfs/zcp.c"
     "${MODULE_DIR}/zfs/zcp_get.c"
+    "${MODULE_DIR}/zfs/zcp_set.c"
     "${MODULE_DIR}/zfs/zcp_global.c"
     "${MODULE_DIR}/zfs/zcp_iter.c"
     "${MODULE_DIR}/zfs/zcp_synctask.c"
@@ -128,6 +143,8 @@ add_library(libzpool
     "${MODULE_DIR}/zfs/zfs_byteswap.c"
     "${MODULE_DIR}/zfs/zfs_fm.c"
     "${MODULE_DIR}/zfs/zfs_fuid.c"
+    "${MODULE_DIR}/zfs/zfs_ratelimit.c"
+    "${MODULE_DIR}/zfs/zfs_rlock.c"
     "${MODULE_DIR}/zfs/zfs_sa.c"
     "${MODULE_DIR}/zfs/zil.c"
     "${MODULE_DIR}/zfs/zio.c"
@@ -137,14 +154,17 @@ add_library(libzpool
     "${MODULE_DIR}/zfs/zle.c"
     "${MODULE_DIR}/zfs/zrlock.c"
     "${MODULE_DIR}/zfs/zthr.c"
+    "${MODULE_DIR}/os/windows/zfs/arc_os.c"
     "${MODULE_DIR}/os/windows/zfs/vdev_file.c"
     "${MODULE_DIR}/os/windows/zfs/zio_crypt.c"
     "${MODULE_DIR}/os/windows/zfs/zfs_debug.c"
     "${MODULE_DIR}/os/windows/zfs/zfs_znode.c"
+    "${MODULE_DIR}/os/linux/zfs/abd_os.c"  # Seems undesirable - one day fix.
     "kernel.c"
     "taskq.c"
     "util.c"
 )
+
 target_link_libraries(libzpool PUBLIC
 	libicp
 	libnvpair
@@ -155,4 +175,5 @@ target_link_libraries(libzpool PUBLIC
 	libefi
 	libshare
 	zlib
+	libzstd
 )

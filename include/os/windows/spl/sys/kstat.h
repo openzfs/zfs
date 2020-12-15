@@ -146,6 +146,9 @@ typedef struct kstat {
 	uint_t          ks_ndata;       /* # of type-specific data records */
 	size_t          ks_data_size;   /* total size of kstat data section */
 	hrtime_t        ks_snaptime;    /* time of last data shapshot */
+	int	ks_returnvalue;
+	int	ks_errnovalue;
+
 									/*
 									* Fields relevant to kernel only
 									*/
@@ -158,8 +161,6 @@ typedef struct kstat {
 	kstat_raw_ops_t ks_raw_ops;	/* ops table for raw type */
 	char	    *ks_raw_buf;	/* buf used for raw ops */
 	size_t  ks_raw_bufsize; /* size of raw ops buffer */
-	int	ks_returnvalue;
-	int	ks_errnovalue;
 } kstat_t;
 #pragma pack()
 

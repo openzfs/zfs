@@ -1,6 +1,8 @@
 
-set(CMAKE_C_COMPILER clang-cl.exe)
-set(CMAKE_CXX_COMPILER clang-cl.exe)
+use_clang()
+
+# Unfortunately, libbootenv uses kernel headers as well.
+include_directories(PRIVATE "${CMAKE_SOURCE_DIR}/include/os/windows/zfs")
 
 add_library(libzfsbootenv
 	lzbe_device.c

@@ -143,7 +143,6 @@ void spl_create_hostid(HANDLE h, PUNICODE_STRING pRegistryPath)
 }
 
 // Whenever we start up, write the version string to registry.
-#include <zfs_config.h>
 
 void spl_update_version(HANDLE h, PUNICODE_STRING pRegistryPath)
 {

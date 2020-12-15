@@ -42,7 +42,9 @@
 
 static taskq_t *vdev_file_taskq;
 
+#ifdef _KERNEL
 extern void UnlockAndFreeMdl(PMDL);
+#endif
 
 static void
 vdev_file_hold(vdev_t *vd)
@@ -143,6 +145,7 @@ vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 		return (SET_ERROR(ENODEV));
 	}
 
+#ifdef _KERNEL
 	// Change it to SPARSE, so TRIM might work
 	error = ZwFsControlFile(
 		fp->f_handle,
@@ -157,7 +160,9 @@ vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 		0
 	);
 	dprintf("%s: set Sparse 0x%x.\n", __func__, error);
-
+#else
+	// Userland?
+#endif
 
 skip_open:
 	/*

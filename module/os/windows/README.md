@@ -138,6 +138,11 @@ linking of OpenZFS.sys.
 All other files are compiled using clang, and linked into
 libraries.
 
+---
+
+You will need to download OpenSSL for Windows:
+Non-Light version recommended for Developers. Install to openssl/bin.
+https://slproweb.com/products/Win32OpenSSL.html
 
 ---
 

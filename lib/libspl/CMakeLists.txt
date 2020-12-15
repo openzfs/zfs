@@ -1,6 +1,5 @@
 
-set(CMAKE_C_COMPILER clang-cl.exe)
-set(CMAKE_CXX_COMPILER clang-cl.exe)
+use_clang()
 
 add_library(libspl
     asm-generic/atomic.c
@@ -10,21 +9,27 @@ add_library(libspl
 	strlcat.c
 	strlcpy.c
     timestamp.c
-    #posix.c
+	assert.c
+    os/windows/posix.c
     #fdatasync.c
     #gethrestime.c
     #gethrtime.c
-    #getmntany.c
-    #getopt.c
-    #getoptl.c
+    #
+	os/windows/getmntany.c
+    os/windows/getopt.c
+    os/windows/getoptl.c
+    os/windows/gethostid.c
+    os/windows/regex.c
+    os/windows/signal.c
     #crc32.c
-    #uio.c
-    #xdr.c
-    #xdr_array.c
-    #xdr_float.c
-    #xdr_mem.c
+    os/windows/weakpragma.c
+    os/windows/uio.c
+    os/windows/xdr.c
+    os/windows/xdr_array.c
+    os/windows/xdr_float.c
+    os/windows/xdr_mem.c
     #os/windows/zmount.c
-    #os/windows/zone.c
+    os/windows/zone.c
 )
-target_include_directories(libspl BEFORE PUBLIC include)
+
 target_link_libraries(libspl PRIVATE libpthread advapi32 shell32)

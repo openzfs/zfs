@@ -46,13 +46,20 @@
 #ifndef WIN_PTHREADS
 #define WIN_PTHREADS
 
+/* Windows has own VT_ERROR to libefi one */
+#undef VT_ERROR
+#define	VT_ERROR WIN_VT_ERROR
 #define _WIN32_MEAN_AND_LEAN
 #include <windows.h>
+#undef VT_ERROR
+
 #include <setjmp.h>
 #include <errno.h>
 #include <sys/timeb.h>
 #include <process.h>
 #include <time.h>
+#include <sys/time.h>
+#include <sched.h>
 
 //#define ETIMEDOUT	110
 //#define ENOTSUP		134
@@ -725,6 +732,20 @@ static int pthread_attr_setstacksize(pthread_attr_t *attr, size_t size)
 	return 0;
 }
 
+static int pthread_attr_getstack(pthread_attr_t *attr, void **stack, size_t *size)
+{
+	*stack = attr->stack;
+	*size = attr->s_size;
+	return 0;
+}
+
+static int pthread_attr_setstack(pthread_attr_t *attr, void *stack, size_t size)
+{
+	attr->stack = stack;
+	attr->s_size = size;
+	return 0;
+}
+
 #define pthread_attr_getguardsize(A, S) ENOTSUP
 #define pthread_attr_setguardsize(A, S) ENOTSUP
 #define pthread_attr_getschedparam(A, S) ENOTSUP
@@ -1349,6 +1370,7 @@ static int pthread_rwlockattr_destroy(pthread_rwlockattr_t *a)
 static int pthread_rwlockattr_init(pthread_rwlockattr_t *a)
 {
 	*a = 0;
+	return 0;
 }
 
 static int pthread_rwlockattr_getpshared(pthread_rwlockattr_t *a, int *s)

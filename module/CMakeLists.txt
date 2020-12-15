@@ -36,13 +36,6 @@ list(APPEND WDK_COMPILE_DEFINITIONS	-D_KERNEL -D__KERNEL__)
 list(APPEND WDK_COMPILE_FLAGS
 	$<IF:$<CONFIG:Debug>,/MTd,/MT>
 )
-if(CMAKE_SIZEOF_VOID_P EQUAL 4)
-    add_definitions(-D__x86_32__ -D__i386 -D__i386__ -D_LP32 -DWIN32)
-elseif(CMAKE_SIZEOF_VOID_P EQUAL 8)
-    add_definitions(-D__x86_64__ -D_LP64 -D__x86_64 -D_AMD64_ -D_WIN64 -DAMD64 -DWIN64)
-else()
-    message(FATAL_ERROR "Unsupported architecture")
-endif()
 
 set(CMAKE_C_STANDARD_LIBRARIES "")
 
@@ -67,26 +60,6 @@ add_compile_options(
 	/wd4324 # structure was padded due to alignment specifier
 	/wd4053 # one void operand for '?:'
 )
-
-# Silence clang things
-#add_compile_options(
-#	# These are all MS headers
-#	-Wno-nonportable-include-path
-#	-Wno-unknown-pragmas
-#	-Wno-ignored-pragma-intrinsic
-#	-Wno-pragma-pack
-#	-Wno-microsoft-enum-forward-reference
-#	-Wno-visibility
-#	-Wno-microsoft-anon-tag
-#	-Wno-ignored-attributes
-#	-Wno-unused-command-line-argument
-#	-Wno-unused-local-typedef
-#	# ZFS related
-#	-Wno-misleading-indentation
-#	-Wno-dangling-else
-#	-Wno-missing-field-initializers
-#	#-fms-extensions
-#)
 
 string(REPLACE "/W3" "/W4" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
 string(REGEX REPLACE "[-/]DWIN32" "" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")

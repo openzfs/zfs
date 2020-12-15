@@ -1,6 +1,7 @@
 
-set(CMAKE_C_COMPILER clang-cl.exe)
-set(CMAKE_CXX_COMPILER clang-cl.exe)
+use_clang()
+
+include_directories(PRIVATE .)
 
 add_library(libshare
 	libshare.c
