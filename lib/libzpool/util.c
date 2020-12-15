@@ -182,6 +182,7 @@ set_global_var(char *arg)
 		return (EINVAL);
 	}
 
+#ifndef _WIN32 // Windowsify me
 	zpoolhdl = dlopen("libzpool.so", RTLD_LAZY);
 	if (zpoolhdl != NULL) {
 		uint32_t *var;
@@ -199,7 +200,7 @@ set_global_var(char *arg)
 		    "variable\n");
 		return (EIO);
 	}
-
+#endif
 	return (0);
 }
 
