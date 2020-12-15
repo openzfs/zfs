@@ -5,7 +5,6 @@ add_library(libspl
     asm-generic/atomic.c
     list.c
     mkdirp.c
-	page.c
 	strlcat.c
 	strlcpy.c
     timestamp.c
@@ -19,6 +18,7 @@ add_library(libspl
     os/windows/getopt.c
     os/windows/getoptl.c
     os/windows/gethostid.c
+	os/windows/page.c
     os/windows/regex.c
     os/windows/signal.c
     #crc32.c
