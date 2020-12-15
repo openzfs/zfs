@@ -68,7 +68,9 @@
 
 #include <libzfs.h>
 #include <libzutil.h>
-
+#ifdef _WIN32
+#include <termios.h>
+#endif
 #include "zpool_util.h"
 #include "zfs_comutil.h"
 #include "zfeature_common.h"
