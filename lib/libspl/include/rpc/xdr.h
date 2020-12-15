@@ -32,7 +32,9 @@
 #ifndef LIBSPL_RPC_XDR_H
 #define	LIBSPL_RPC_XDR_H
 
+#ifndef _WIN32
 #include_next <rpc/xdr.h>
+#endif
 
 #ifdef xdr_control /* if e.g. using tirpc */
 #undef xdr_control
