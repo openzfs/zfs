@@ -374,7 +374,7 @@ do_mount(zfs_handle_t *zhp, const char *mntpt, char *opts, int flags)
 }
 
 int
-do_unmount(const char *mntpt, int flags)
+do_unmount(zfs_handle_t *zhp, const char *mntpt, int flags)
 {
 	if (!libzfs_envvar_is_set("ZFS_MOUNT_HELPER")) {
 		return (umount2(mntpt, flags));

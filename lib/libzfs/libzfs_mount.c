@@ -127,7 +127,7 @@ zfs_share_proto_t share_all_proto[] = {
 static boolean_t
 dir_is_empty_stat(const char *dirname)
 {
-	struct stat st;
+	struct _stat st;
 
 	/*
 	 * We only want to return false if the given path is a non empty
@@ -547,13 +547,13 @@ zfs_mount_at(zfs_handle_t *zhp, const char *options, int flags,
  * Unmount a single filesystem.
  */
 static int
-unmount_one(libzfs_handle_t *hdl, const char *mountpoint, int flags)
+unmount_one(zfs_handle_t *zhp, const char *mountpoint, int flags)
 {
 	int error;
 
-	error = do_unmount(mountpoint, flags);
+	error = do_unmount(zhp, mountpoint, flags);
 	if (error != 0) {
-		return (zfs_error_fmt(hdl, EZFS_UMOUNTFAILED,
+		return (zfs_error_fmt(zhp->zfs_hdl, EZFS_UMOUNTFAILED,
 		    dgettext(TEXT_DOMAIN, "cannot unmount '%s'"),
 		    mountpoint));
 	}
@@ -595,7 +595,7 @@ zfs_unmount(zfs_handle_t *zhp, const char *mountpoint, int flags)
 		}
 		zfs_commit_all_shares();
 
-		if (unmount_one(hdl, mntpt, flags) != 0) {
+		if (unmount_one(zhp, mntpt, flags) != 0) {
 			free(mntpt);
 			(void) zfs_shareall(zhp);
 			zfs_commit_all_shares();
