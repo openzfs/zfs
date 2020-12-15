@@ -16,6 +16,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <strings.h>
+#include <sys/types.h>
 #include <wchar.h>
 #include <sys/debug.h>
 
