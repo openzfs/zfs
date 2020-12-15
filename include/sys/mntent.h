@@ -79,6 +79,9 @@
 #elif defined(__FreeBSD__)
 #define	MNTOPT_SETUID	"setuid"	/* Set uid allowed */
 #define	MNTOPT_NOSETUID	"nosetuid"	/* Set uid not allowed */
+#elif defined(_WIN32)
+#define	MNTOPT_SETUID	"setuid"	/* Set uid allowed */
+#define	MNTOPT_NOSETUID	"nosetuid"	/* Set uid not allowed */
 #else
 #error "unknown OS"
 #endif
