@@ -910,7 +910,7 @@ zio_abd_checksum_func_t fletcher_4_abd_ops = {
 
 #define	IMPL_FMT(impl, i)	(((impl) == (i)) ? "[%s] " : "%s ")
 
-#if defined(__linux__)
+#if defined(__linux__) || defined(__APPLE__)
 
 static int
 fletcher_4_param_get(char *buffer, zfs_kernel_param_t *unused)
