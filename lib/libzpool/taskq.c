@@ -378,3 +378,9 @@ system_taskq_fini(void)
 	system_delay_taskq = NULL;
 	VERIFY0(pthread_key_delete(taskq_tsd));
 }
+
+int
+EMPTY_TASKQ(taskq_t *tq)
+{
+	return (tq->tq_task.tqent_next == &tq->tq_task || tq->tq_active == 0);
+}
