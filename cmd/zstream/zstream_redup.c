@@ -57,6 +57,7 @@ typedef struct redup_table {
 	int		numhashbits;
 } redup_table_t;
 
+#ifndef _WIN32
 int
 highbit64(uint64_t i)
 {
@@ -65,6 +66,7 @@ highbit64(uint64_t i)
 
 	return (NBBY * sizeof (uint64_t) - __builtin_clzll(i));
 }
+#endif
 
 static void *
 safe_calloc(size_t n)
