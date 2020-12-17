@@ -187,8 +187,6 @@ elif sys.platform.startswith('linux'):
 # reasons listed above can be used.
 #
 maybe = {
-    'alloc_class/alloc_class_012_pos': ['FAIL', '9142'],
-    'alloc_class/alloc_class_013_pos': ['FAIL', '9142'],
     'chattr/setup': ['SKIP', exec_reason],
     'cli_root/zdb/zdb_006_pos': ['FAIL', known_reason],
     'cli_root/zfs_get/zfs_get_004_pos': ['FAIL', known_reason],

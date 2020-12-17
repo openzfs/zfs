@@ -993,7 +993,7 @@ spa_vdev_copy_segment(vdev_t *vd, range_tree_t *segs,
 	 * An allocation class might not have any remaining vdevs or space
 	 */
 	metaslab_class_t *mc = mg->mg_class;
-	if (mc != spa_normal_class(spa) && mc->mc_groups <= 1)
+	if (mc->mc_groups == 0)
 		mc = spa_normal_class(spa);
 	int error = metaslab_alloc_dva(spa, mc, size, &dst, 0, NULL, txg, 0,
 	    zal, 0);
@@ -1976,32 +1976,38 @@ spa_vdev_remove_top_check(vdev_t *vd)
 	if (!spa_feature_is_enabled(spa, SPA_FEATURE_DEVICE_REMOVAL))
 		return (SET_ERROR(ENOTSUP));
 
-	/* available space in the pool's normal class */
-	uint64_t available = dsl_dir_space_available(
-	    spa->spa_dsl_pool->dp_root_dir, NULL, 0, B_TRUE);
 
 	metaslab_class_t *mc = vd->vdev_mg->mg_class;
-
-	/*
-	 * When removing a vdev from an allocation class that has
-	 * remaining vdevs, include available space from the class.
-	 */
-	if (mc != spa_normal_class(spa) && mc->mc_groups > 1) {
-		uint64_t class_avail = metaslab_class_get_space(mc) -
-		    metaslab_class_get_alloc(mc);
-
-		/* add class space, adjusted for overhead */
-		available += (class_avail * 94) / 100;
-	}
-
-	/*
-	 * There has to be enough free space to remove the
-	 * device and leave double the "slop" space (i.e. we
-	 * must leave at least 3% of the pool free, in addition to
-	 * the normal slop space).
-	 */
-	if (available < vd->vdev_stat.vs_dspace + spa_get_slop_space(spa)) {
-		return (SET_ERROR(ENOSPC));
+	metaslab_class_t *normal = spa_normal_class(spa);
+	if (mc != normal) {
+		/*
+		 * Space allocated from the special (or dedup) class is
+		 * included in the DMU's space usage, but it's not included
+		 * in spa_dspace (or dsl_pool_adjustedsize()).  Therefore
+		 * there is always at least as much free space in the normal
+		 * class, as is allocated from the special (and dedup) class.
+		 * As a backup check, we will return ENOSPC if this is
+		 * violated. See also spa_update_dspace().
+		 */
+		uint64_t available = metaslab_class_get_space(normal) -
+		    metaslab_class_get_alloc(normal);
+		ASSERT3U(available, >=, vd->vdev_stat.vs_alloc);
+		if (available < vd->vdev_stat.vs_alloc)
+			return (SET_ERROR(ENOSPC));
+	} else {
+		/* available space in the pool's normal class */
+		uint64_t available = dsl_dir_space_available(
+		    spa->spa_dsl_pool->dp_root_dir, NULL, 0, B_TRUE);
+		if (available <
+		    vd->vdev_stat.vs_dspace + spa_get_slop_space(spa)) {
+			/*
+			 * This is a normal device. There has to be enough free
+			 * space to remove the device and leave double the
+			 * "slop" space (i.e. we must leave at least 3% of the
+			 * pool free, in addition to the normal slop space).
+			 */
+			return (SET_ERROR(ENOSPC));
+		}
 	}
 
 	/*
