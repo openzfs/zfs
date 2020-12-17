@@ -48,6 +48,8 @@
 #endif /* MNTTAB */
 #define	MNTTAB		"/etc/mtab"
 
+#define	umount2(p, f)	unmount(p, f)
+
 #define	MNT_LINE_MAX	4096
 
 #define	MNT_TOOLONG	1	/* entry exceeds MNT_LINE_MAX */
