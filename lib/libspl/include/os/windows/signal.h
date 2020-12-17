@@ -31,6 +31,9 @@
 #define	FORREAL		0	/* Usual side-effects */
 #define	JUSTLOOKING	1	/* Don't stop the process */
 
+
+#define	SIGPIPE	    0
+
 struct proc;
 
 //extern int
