@@ -10147,7 +10147,7 @@ int
 zpool_do_wait(int argc, char **argv)
 {
 	boolean_t verbose = B_FALSE;
-	char c;
+	int c;
 	char *value;
 	int i;
 	unsigned long count;
