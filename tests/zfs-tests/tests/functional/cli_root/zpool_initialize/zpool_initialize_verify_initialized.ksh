@@ -24,7 +24,6 @@
 # Copyright (c) 2016 by Delphix. All rights reserved.
 #
 . $STF_SUITE/include/libtest.shlib
-. $STF_SUITE/tests/functional/cli_root/zpool_initialize/zpool_initialize.kshlib
 
 #
 # DESCRIPTION:
@@ -33,8 +32,8 @@
 # STRATEGY:
 # 1. Create a one-disk pool.
 # 2. Initialize the disk to completion.
-# 3. Load all metaslabs that don't have a spacemap, and make sure the entire
-#    metaslab has been filled with the initializing pattern (deadbeef).
+# 3. Load all metaslabs and make sure that each contains at least
+#    once instance of the initializing pattern (deadbeef).
 #
 
 function cleanup
@@ -58,32 +57,34 @@ ORIG_PATTERN=$(get_tunable INITIALIZE_VALUE)
 log_must set_tunable64 INITIALIZE_VALUE $(printf %llu 0x$PATTERN)
 
 log_must mkdir "$TESTDIR"
-log_must mkfile $MINVDEVSIZE "$SMALLFILE"
+log_must truncate -s $MINVDEVSIZE "$SMALLFILE"
 log_must zpool create $TESTPOOL "$SMALLFILE"
-log_must zpool initialize $TESTPOOL
-
-while [[ "$(initialize_progress $TESTPOOL $SMALLFILE)" -lt "100" ]]; do
-        sleep 0.5
-done
-
+log_must zpool initialize -w $TESTPOOL
 log_must zpool export $TESTPOOL
 
-spacemaps=0
+metaslabs=0
 bs=512
-while read -r sm; do
-        typeset offset="$(echo $sm | cut -d ' ' -f1)"
-        typeset size="$(echo $sm | cut -d ' ' -f2)"
+zdb -p $TESTDIR -Pme $TESTPOOL | awk '/metaslab[ ]+[0-9]+/ { print $4, $8 }' |
+while read -r offset_size; do
+	typeset offset=$(echo $offset_size | cut -d ' ' -f1)
+	typeset size=$(echo $offset_size | cut -d ' ' -f2)
 
-	spacemaps=$((spacemaps + 1))
-        offset=$(((4 * 1024 * 1024) + 16#$offset))
-	out=$(dd if=$SMALLFILE skip=$(($offset / $bs)) \
-	    count=$(($size / $bs)) bs=$bs 2>/dev/null | od -t x8 -Ad)
-	echo "$out" | log_must egrep "$PATTERN|\*|$size"
-done <<< "$(zdb -p $TESTDIR -Pme $TESTPOOL | egrep 'spacemap[ ]+0 ' | \
-    awk '{print $4, $8}')"
+	log_note "offset: '$offset'"
+	log_note "size: '$size'"
 
-if [[ $spacemaps -eq 0 ]];then
-	log_fail "Did not find any empty space maps to check"
+	metaslabs=$((metaslabs + 1))
+	offset=$(((4 * 1024 * 1024) + 16#$offset))
+	log_note "vdev file offset: '$offset'"
+
+	# Note we use '-t x4' instead of '-t x8' here because x8 is not
+	# a supported format on FreeBSD.
+	dd if=$SMALLFILE skip=$((offset / bs)) count=$((size / bs)) bs=$bs |
+	    od -t x4 -Ad | egrep -q "deadbeef +deadbeef +deadbeef +deadbeef" ||
+	    log_fail "Pattern not found in metaslab free space"
+done
+
+if [[ $metaslabs -eq 0 ]]; then
+	log_fail "Did not find any metaslabs to check"
 else
-	log_pass "Initializing wrote appropriate amount to disk"
+	log_pass "Initializing wrote to each metaslab"
 fi
