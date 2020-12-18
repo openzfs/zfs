@@ -59,7 +59,6 @@ typedef enum uio_rw {
 typedef enum uio_seg {
 	UIO_USERSPACE =	0,
 	UIO_SYSSPACE =	1,
-	UIO_USERISPACE = 2,
 } uio_seg_t;
 
 #elif defined(__FreeBSD__)
