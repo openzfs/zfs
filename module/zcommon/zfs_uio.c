@@ -39,12 +39,6 @@
  * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
-/*
- * The uio support from OpenSolaris has been added as a short term
- * work around.  The hope is to adopt native Linux type and drop the
- * use of uio's entirely.  Under Linux they only add overhead and
- * when possible we want to use native APIs for the ZPL layer.
- */
 #ifdef _KERNEL
 
 #include <sys/types.h>
@@ -71,7 +65,6 @@ uiomove_iov(void *p, size_t n, enum uio_rw rw, struct uio *uio)
 		cnt = MIN(iov->iov_len - skip, n);
 		switch (uio->uio_segflg) {
 		case UIO_USERSPACE:
-		case UIO_USERISPACE:
 			/*
 			 * p = kernel data pointer
 			 * iov->iov_base = user data pointer
@@ -165,81 +158,82 @@ uiomove_bvec(void *p, size_t n, enum uio_rw rw, struct uio *uio)
 	return (0);
 }
 
+#if defined(HAVE_VFS_IOV_ITER)
+static int
+uiomove_iter(void *p, size_t n, enum uio_rw rw, struct uio *uio,
+    boolean_t revert)
+{
+	size_t cnt = MIN(n, uio->uio_resid);
+
+	if (uio->uio_skip)
+		iov_iter_advance(uio->uio_iter, uio->uio_skip);
+
+	if (rw == UIO_READ)
+		cnt = copy_to_iter(p, cnt, uio->uio_iter);
+	else
+		cnt = copy_from_iter(p, cnt, uio->uio_iter);
+
+	/*
+	 * When operating on a full pipe no bytes are processed.
+	 * In which case return EFAULT which is converted to EAGAIN
+	 * by the kernel's generic_file_splice_read() function.
+	 */
+	if (cnt == 0)
+		return (EFAULT);
+
+	/*
+	 * Revert advancing the uio_iter.  This is set by uiocopy()
+	 * to avoid consuming the uio and its iov_iter structure.
+	 */
+	if (revert)
+		iov_iter_revert(uio->uio_iter, cnt);
+
+	uio->uio_resid -= cnt;
+	uio->uio_loffset += cnt;
+
+	return (0);
+}
+#endif
+
 int
 uiomove(void *p, size_t n, enum uio_rw rw, struct uio *uio)
 {
-	if (uio->uio_segflg != UIO_BVEC)
-		return (uiomove_iov(p, n, rw, uio));
-	else
+	if (uio->uio_segflg == UIO_BVEC)
 		return (uiomove_bvec(p, n, rw, uio));
+#if defined(HAVE_VFS_IOV_ITER)
+	else if (uio->uio_segflg == UIO_ITER)
+		return (uiomove_iter(p, n, rw, uio, B_FALSE));
+#endif
+	else
+		return (uiomove_iov(p, n, rw, uio));
 }
 EXPORT_SYMBOL(uiomove);
 
-#define	fuword8(uptr, vptr)	get_user((*vptr), (uptr))
-
-/*
- * Fault in the pages of the first n bytes specified by the uio structure.
- * 1 byte in each page is touched and the uio struct is unmodified. Any
- * error will terminate the process as this is only a best attempt to get
- * the pages resident.
- */
 int
 uio_prefaultpages(ssize_t n, struct uio *uio)
 {
-	const struct iovec *iov;
-	ulong_t cnt, incr;
-	caddr_t p;
-	uint8_t tmp;
-	int iovcnt;
-	size_t skip;
+	struct iov_iter iter, *iterp = NULL;
 
-	/* no need to fault in kernel pages */
-	switch (uio->uio_segflg) {
-		case UIO_SYSSPACE:
-		case UIO_BVEC:
-			return (0);
-		case UIO_USERSPACE:
-		case UIO_USERISPACE:
-			break;
-		default:
-			ASSERT(0);
+#if defined(HAVE_IOV_ITER_FAULT_IN_READABLE)
+	if (uio->uio_segflg == UIO_USERSPACE) {
+		iterp = &iter;
+		iov_iter_init_compat(iterp, READ, uio->uio_iov,
+		    uio->uio_iovcnt, uio->uio_resid);
+#if defined(HAVE_VFS_IOV_ITER)
+	} else if (uio->uio_segflg == UIO_ITER) {
+		iterp = uio->uio_iter;
+#endif
 	}
 
-	iov = uio->uio_iov;
-	iovcnt = uio->uio_iovcnt;
-	skip = uio->uio_skip;
-
-	for (; n > 0 && iovcnt > 0; iov++, iovcnt--, skip = 0) {
-		cnt = MIN(iov->iov_len - skip, n);
-		/* empty iov */
-		if (cnt == 0)
-			continue;
-		n -= cnt;
-		/*
-		 * touch each page in this segment.
-		 */
-		p = iov->iov_base + skip;
-		while (cnt) {
-			if (fuword8((uint8_t *)p, &tmp))
-				return (EFAULT);
-			incr = MIN(cnt, PAGESIZE);
-			p += incr;
-			cnt -= incr;
-		}
-		/*
-		 * touch the last byte in case it straddles a page.
-		 */
-		p--;
-		if (fuword8((uint8_t *)p, &tmp))
-			return (EFAULT);
-	}
-
+	if (iterp && iov_iter_fault_in_readable(iterp, n))
+		return (EFAULT);
+#endif
 	return (0);
 }
 EXPORT_SYMBOL(uio_prefaultpages);
 
 /*
- * same as uiomove() but doesn't modify uio structure.
+ * The same as uiomove() but doesn't modify uio structure.
  * return in cbytes how many bytes were copied.
  */
 int
@@ -249,39 +243,54 @@ uiocopy(void *p, size_t n, enum uio_rw rw, struct uio *uio, size_t *cbytes)
 	int ret;
 
 	bcopy(uio, &uio_copy, sizeof (struct uio));
-	ret = uiomove(p, n, rw, &uio_copy);
+
+	if (uio->uio_segflg == UIO_BVEC)
+		ret = uiomove_bvec(p, n, rw, &uio_copy);
+#if defined(HAVE_VFS_IOV_ITER)
+	else if (uio->uio_segflg == UIO_ITER)
+		ret = uiomove_iter(p, n, rw, &uio_copy, B_TRUE);
+#endif
+	else
+		ret = uiomove_iov(p, n, rw, &uio_copy);
+
 	*cbytes = uio->uio_resid - uio_copy.uio_resid;
+
 	return (ret);
 }
 EXPORT_SYMBOL(uiocopy);
 
 /*
- * Drop the next n chars out of *uiop.
+ * Drop the next n chars out of *uio.
  */
 void
-uioskip(uio_t *uiop, size_t n)
+uioskip(uio_t *uio, size_t n)
 {
-	if (n > uiop->uio_resid)
+	if (n > uio->uio_resid)
 		return;
 
-	uiop->uio_skip += n;
-	if (uiop->uio_segflg != UIO_BVEC) {
-		while (uiop->uio_iovcnt &&
-		    uiop->uio_skip >= uiop->uio_iov->iov_len) {
-			uiop->uio_skip -= uiop->uio_iov->iov_len;
-			uiop->uio_iov++;
-			uiop->uio_iovcnt--;
+	if (uio->uio_segflg == UIO_BVEC) {
+		uio->uio_skip += n;
+		while (uio->uio_iovcnt &&
+		    uio->uio_skip >= uio->uio_bvec->bv_len) {
+			uio->uio_skip -= uio->uio_bvec->bv_len;
+			uio->uio_bvec++;
+			uio->uio_iovcnt--;
 		}
+#if defined(HAVE_VFS_IOV_ITER)
+	} else if (uio->uio_segflg == UIO_ITER) {
+		iov_iter_advance(uio->uio_iter, n);
+#endif
 	} else {
-		while (uiop->uio_iovcnt &&
-		    uiop->uio_skip >= uiop->uio_bvec->bv_len) {
-			uiop->uio_skip -= uiop->uio_bvec->bv_len;
-			uiop->uio_bvec++;
-			uiop->uio_iovcnt--;
+		uio->uio_skip += n;
+		while (uio->uio_iovcnt &&
+		    uio->uio_skip >= uio->uio_iov->iov_len) {
+			uio->uio_skip -= uio->uio_iov->iov_len;
+			uio->uio_iov++;
+			uio->uio_iovcnt--;
 		}
 	}
-	uiop->uio_loffset += n;
-	uiop->uio_resid -= n;
+	uio->uio_loffset += n;
+	uio->uio_resid -= n;
 }
 EXPORT_SYMBOL(uioskip);
 #endif /* _KERNEL */

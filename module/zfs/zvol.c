@@ -729,26 +729,14 @@ typedef struct zv_request {
 } zv_request_t;
 
 static void
-uio_from_bio(uio_t *uio, struct bio *bio)
-{
-	uio->uio_bvec = &bio->bi_io_vec[BIO_BI_IDX(bio)];
-	uio->uio_iovcnt = bio->bi_vcnt - BIO_BI_IDX(bio);
-	uio->uio_loffset = BIO_BI_SECTOR(bio) << 9;
-	uio->uio_segflg = UIO_BVEC;
-	uio->uio_limit = MAXOFFSET_T;
-	uio->uio_resid = BIO_BI_SIZE(bio);
-	uio->uio_skip = BIO_BI_SKIP(bio);
-}
-
-static void
 zvol_write(void *arg)
 {
-	int error = 0;
-
 	zv_request_t *zvr = arg;
 	struct bio *bio = zvr->bio;
-	uio_t uio = { { 0 }, 0 };
-	uio_from_bio(&uio, bio);
+	int error = 0;
+	uio_t uio;
+
+	uio_bvec_init(&uio, bio);
 
 	zvol_state_t *zv = zvr->zv;
 	ASSERT(zv && zv->zv_open_count > 0);
@@ -898,12 +886,12 @@ unlock:
 static void
 zvol_read(void *arg)
 {
-	int error = 0;
-
 	zv_request_t *zvr = arg;
 	struct bio *bio = zvr->bio;
-	uio_t uio = { { 0 }, 0 };
-	uio_from_bio(&uio, bio);
+	int error = 0;
+	uio_t uio;
+
+	uio_bvec_init(&uio, bio);
 
 	zvol_state_t *zv = zvr->zv;
 	ASSERT(zv && zv->zv_open_count > 0);

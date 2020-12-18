@@ -767,7 +767,7 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 				dmu_return_arcbuf(abuf);
 				break;
 			}
-			ASSERT(cbytes == max_blksz);
+			ASSERT3S(cbytes, ==, max_blksz);
 		}
 
 		/*
@@ -947,7 +947,7 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 
 		if (error != 0)
 			break;
-		ASSERT(tx_bytes == nbytes);
+		ASSERT3S(tx_bytes, ==, nbytes);
 		n -= nbytes;
 
 		if (!xuio && n > 0) {
@@ -980,6 +980,51 @@ zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr)
 
 	ZFS_EXIT(zfsvfs);
 	return (0);
+}
+
+/*
+ * Write the bytes to a file.
+ *
+ *	IN:	zp	- znode of file to be written to
+ *		data	- bytes to write
+ *		len	- number of bytes to write
+ *		pos	- offset to start writing at
+ *
+ *	OUT:	resid	- remaining bytes to write
+ *
+ *	RETURN:	0 if success
+ *		positive error code if failure.  EIO is	returned
+ *		for a short write when residp isn't provided.
+ *
+ * Timestamps:
+ *	zp - ctime|mtime updated if byte count > 0
+ */
+int
+zfs_write_simple(znode_t *zp, const void *data, size_t len,
+    loff_t pos, size_t *residp)
+{
+	fstrans_cookie_t cookie;
+	int error;
+
+	struct iovec iov;
+	iov.iov_base = (void *)data;
+	iov.iov_len = len;
+
+	uio_t uio;
+	uio_iovec_init(&uio, &iov, 1, pos, UIO_SYSSPACE, len, 0);
+
+	cookie = spl_fstrans_mark();
+	error = zfs_write(zp, &uio, 0, kcred);
+	spl_fstrans_unmark(cookie);
+
+	if (error == 0) {
+		if (residp != NULL)
+			*residp = uio_resid(&uio);
+		else if (uio_resid(&uio) != 0)
+			error = SET_ERROR(EIO);
+	}
+
+	return (error);
 }
 
 /*

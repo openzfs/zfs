@@ -42,6 +42,8 @@ extern int zfs_close(struct inode *ip, int flag, cred_t *cr);
 extern int zfs_holey(struct inode *ip, int cmd, loff_t *off);
 extern int zfs_read(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr);
 extern int zfs_write(struct inode *ip, uio_t *uio, int ioflag, cred_t *cr);
+extern int zfs_write_simple(znode_t *zp, const void *data, size_t len,
+    loff_t pos, size_t *resid);
 extern int zfs_access(struct inode *ip, int mode, int flag, cred_t *cr);
 extern int zfs_lookup(struct inode *dip, char *nm, struct inode **ipp,
     int flags, cred_t *cr, int *direntflags, pathname_t *realpnp);
