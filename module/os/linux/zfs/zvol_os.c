@@ -644,11 +644,12 @@ zvol_revalidate_disk(struct gendisk *disk)
 static int
 zvol_update_volsize(zvol_state_t *zv, uint64_t volsize)
 {
+	struct gendisk *disk = zv->zv_zso->zvo_disk;
 
 #ifdef HAVE_REVALIDATE_DISK_SIZE
-	revalidate_disk_size(zv->zv_zso->zvo_disk, false);
+	revalidate_disk_size(disk, zvol_revalidate_disk(disk) == 0);
 #else
-	revalidate_disk(zv->zv_zso->zvo_disk);
+	revalidate_disk(disk);
 #endif
 	return (0);
 }
