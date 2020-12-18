@@ -47,7 +47,6 @@ KERNEL_C = \
 	zfs_fletcher_superscalar4.c \
 	zfs_namecheck.c \
 	zfs_prop.c \
-	zfs_uio.c \
 	zpool_prop.c \
 	zprop_common.c \
 	abd.c \
