@@ -282,9 +282,6 @@ zpl_iter_read(struct kiocb *kiocb, struct iov_iter *to)
 
 	zpl_file_accessed(filp);
 
-	if (read > 0)
-		iov_iter_advance(to, read);
-
 	return (read);
 }
 
