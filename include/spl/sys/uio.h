@@ -28,6 +28,7 @@
 
 #include <linux/uio.h>
 #include <linux/blkdev.h>
+#include <linux/blkdev_compat.h>
 #include <asm/uaccess.h>
 #include <sys/types.h>
 
