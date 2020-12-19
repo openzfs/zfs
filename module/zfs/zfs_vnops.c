@@ -1014,7 +1014,7 @@ zfs_write_simple(znode_t *zp, const void *data, size_t len,
 	uio_iovec_init(&uio, &iov, 1, pos, UIO_SYSSPACE, len, 0);
 
 	cookie = spl_fstrans_mark();
-	error = zfs_write(zp, &uio, 0, kcred);
+	error = zfs_write(ZTOI(zp), &uio, 0, kcred);
 	spl_fstrans_unmark(cookie);
 
 	if (error == 0) {

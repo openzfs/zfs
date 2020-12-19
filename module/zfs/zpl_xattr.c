@@ -307,7 +307,7 @@ zpl_xattr_get_dir(struct inode *ip, const char *name, void *value,
 	uio_iovec_init(&uio, &iov, 1, 0, UIO_SYSSPACE, size, 0);
 
 	cookie = spl_fstrans_mark();
-	error = -zfs_read(ITOZ(xip), &uio, 0, cr);
+	error = -zfs_read(xip, &uio, 0, cr);
 	spl_fstrans_unmark(cookie);
 
 	if (error == 0)
@@ -503,7 +503,7 @@ zpl_xattr_set_dir(struct inode *ip, const char *name, const void *value,
 	if (error)
 		goto out;
 
-	error = -zfs_write_simple(xip, value, size, pos, NULL);
+	error = -zfs_write_simple(ITOZ(xip), value, size, pos, NULL);
 out:
 	if (error == 0) {
 		ip->i_ctime = current_time(ip);
