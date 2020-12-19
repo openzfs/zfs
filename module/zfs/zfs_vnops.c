@@ -1019,8 +1019,8 @@ zfs_write_simple(znode_t *zp, const void *data, size_t len,
 
 	if (error == 0) {
 		if (residp != NULL)
-			*residp = uio_resid(&uio);
-		else if (uio_resid(&uio) != 0)
+			*residp = uio.uio_resid;
+		else if (uio.uio_resid != 0)
 			error = SET_ERROR(EIO);
 	}
 

@@ -311,7 +311,7 @@ zpl_xattr_get_dir(struct inode *ip, const char *name, void *value,
 	spl_fstrans_unmark(cookie);
 
 	if (error == 0)
-		error = size - uio_resid(&uio);
+		error = size - uio.uio_resid;
 out:
 	if (xip)
 		iput(xip);
