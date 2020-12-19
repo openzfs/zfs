@@ -3097,7 +3097,7 @@ ztest_vdev_add_remove(ztest_ds_t *zd, uint64_t id)
 		metaslab_group_t *rotor, *mg;
 		boolean_t slog_found = B_FALSE;
 
-		mg = rotor = spa_log_class(spa)->mc_rotor;
+		mg = rotor = spa_log_class(spa)->mc_allocator[0].mca_rotor;
 		do {
 			if (mg == NULL) {
 				/*

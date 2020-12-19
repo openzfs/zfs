@@ -6327,7 +6327,7 @@ dump_block_stats(spa_t *spa)
 	(void) printf("\t%-16s %14llu     used: %5.2f%%\n", "Normal class:",
 	    (u_longlong_t)norm_alloc, 100.0 * norm_alloc / norm_space);
 
-	if (spa_special_class(spa)->mc_rotor != NULL) {
+	if (spa_special_class(spa)->mc_allocator[0].mca_rotor != NULL) {
 		uint64_t alloc = metaslab_class_get_alloc(
 		    spa_special_class(spa));
 		uint64_t space = metaslab_class_get_space(
@@ -6338,7 +6338,7 @@ dump_block_stats(spa_t *spa)
 		    100.0 * alloc / space);
 	}
 
-	if (spa_dedup_class(spa)->mc_rotor != NULL) {
+	if (spa_dedup_class(spa)->mc_allocator[0].mca_rotor != NULL) {
 		uint64_t alloc = metaslab_class_get_alloc(
 		    spa_dedup_class(spa));
 		uint64_t space = metaslab_class_get_space(
