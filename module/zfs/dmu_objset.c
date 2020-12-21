@@ -1428,10 +1428,15 @@ dmu_objset_upgrade_task_cb(void *data)
 	mutex_enter(&os->os_upgrade_lock);
 	os->os_upgrade_status = EINTR;
 	if (!os->os_upgrade_exit) {
+		int status;
+
 		mutex_exit(&os->os_upgrade_lock);
 
-		os->os_upgrade_status = os->os_upgrade_cb(os);
+		status = os->os_upgrade_cb(os);
+
 		mutex_enter(&os->os_upgrade_lock);
+
+		os->os_upgrade_status = status;
 	}
 	os->os_upgrade_exit = B_TRUE;
 	os->os_upgrade_id = 0;
@@ -1459,6 +1464,8 @@ dmu_objset_upgrade(objset_t *os, dmu_objset_upgrade_cb_t cb)
 			dsl_dataset_long_rele(dmu_objset_ds(os), upgrade_tag);
 			os->os_upgrade_status = ENOMEM;
 		}
+	} else {
+		dsl_dataset_long_rele(dmu_objset_ds(os), upgrade_tag);
 	}
 	mutex_exit(&os->os_upgrade_lock);
 }
