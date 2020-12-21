@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
+  - name: OpenZFS Questions
+    url: https://github.com/openzfs/zfs/discussions/new
+    about: Ask the community for help
   - name: OpenZFS Community Support Mailing list (Linux)
     url: https://zfsonlinux.topicbox.com/groups/zfs-discuss
     about: Get community support for OpenZFS on Linux
