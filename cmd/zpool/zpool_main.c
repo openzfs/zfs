@@ -10273,7 +10273,7 @@ main(int argc, char **argv)
 
 	libzfs_print_on_error(g_zfs, B_TRUE);
 
-	zfs_save_arguments(argc, argv, history_str, sizeof (history_str));
+	///zfs_save_arguments(argc, argv, history_str, sizeof (history_str));
 
 	/*
 	 * Many commands modify input strings for string parsing reasons.

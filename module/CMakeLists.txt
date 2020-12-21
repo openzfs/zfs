@@ -39,6 +39,11 @@ list(APPEND WDK_COMPILE_FLAGS
 
 set(CMAKE_C_STANDARD_LIBRARIES "")
 
+# add_definitions(-D_CRT_LOADCFG_DISABLE_CET)
+# list(APPEND WDK_COMPILE_DEFINITIONS	-D_CRT_LOADCFG_DISABLE_CET)
+# What the blazes is __guard_eh_cont_table
+
+
 # Silence MSVC++ things
 add_compile_options(
 	/we4013 # 'function' undefined; assuming extern returning int

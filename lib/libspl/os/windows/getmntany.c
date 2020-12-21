@@ -532,3 +532,19 @@ getextmntent(const char *path, struct extmnttab *entry, struct stat64 *statbuf)
 	statfs2mnttab(&sfs, (struct mnttab *)entry);
 	return (0);
 }
+
+FILE *
+setmntent(const char *filename, const char *type)
+{
+	FILE *ret;
+
+	if (tmpfile_s(&ret) == 0)
+		return (ret);
+	return (NULL);
+}
+
+void
+endmntent(FILE *fd)
+{
+    fclose(fd);
+}

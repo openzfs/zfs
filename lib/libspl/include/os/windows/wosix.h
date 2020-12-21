@@ -62,8 +62,8 @@ struct stat64 {
 extern int wosix_fsync(int fd);
 extern int wosix_open(const char *path, int oflag, ...);
 extern int wosix_close(int fd);
-struct zfs_cmd;
-extern int wosix_ioctl(int fd, unsigned long request, struct zfs_cmd *zc);
+struct zfs_iocparm;
+extern int wosix_ioctl(int fd, unsigned long request, struct zfs_iocparm *zc);
 extern int wosix_read(int fd, void *data, uint32_t len);
 extern int wosix_write(int fd, const void *data, uint32_t len);
 extern int wosix_isatty(int fd);
