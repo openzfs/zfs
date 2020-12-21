@@ -38,6 +38,8 @@
 #include <pthread.h>
 #include <Windows.h>
 #include <langinfo.h>
+#include <os/windows/zfs/sys/zfs_ioctl_compat.h>
+
 
 #pragma comment(lib, "ws2_32.lib")
 
@@ -916,17 +918,17 @@ int wosix_close(int fd)
 	return -1;
 }
 
-int wosix_ioctl(int fd, unsigned long request, zfs_cmd_t *zc)
+int wosix_ioctl(int fd, unsigned long request, zfs_iocparm_t *wrap)
 {
 	int error;
 	ULONG bytesReturned;
 
 	error = DeviceIoControl(ITOH(fd),
 		(DWORD)request,
-		zc,
-		(DWORD)sizeof(zfs_cmd_t),
-		zc,
-		(DWORD)sizeof(zfs_cmd_t),
+		wrap,
+		(DWORD)sizeof(zfs_iocparm_t),
+		wrap,
+		(DWORD)sizeof(zfs_iocparm_t),
 		&bytesReturned,
 		NULL
 	);

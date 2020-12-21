@@ -50,6 +50,8 @@
 /* Define to 1 if you have the <unistd.h> header file. */
 #define HAVE_UNISTD_H 1
 
+#define	HAVE_SETMNTENT
+
 /* Define if you have zlib */
 #define HAVE_ZLIB 1
 

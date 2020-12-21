@@ -25,6 +25,10 @@ extern int    zfs_vfsops_fini(void);
 int zfs_kmod_init(void);
 void zfs_kmod_fini(void);
 
+/* Why is this required on one of my build VMs */
+void *__guard_eh_cont_table = 0;
+size_t __guard_eh_cont_count = 0;
+
 
 PDRIVER_OBJECT WIN_DriverObject = NULL;
 PDRIVER_UNLOAD STOR_DriverUnload;

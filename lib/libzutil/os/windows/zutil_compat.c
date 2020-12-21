@@ -32,28 +32,47 @@ zcmd_ioctl_compat(int fd, int request, zfs_cmd_t *zc, const int cflag)
 	int ret;
 	void *zc_c;
 	unsigned long ncmd;
-	zfs_iocparm_t zp;
+	zfs_iocparm_t *zip;
+	DWORD bytesReturned = 0;
 
 	switch (cflag) {
 	case ZFS_CMD_COMPAT_NONE:
-		ncmd = CTL_CODE(ZFSIOCTL_TYPE, 0x800 + request, METHOD_NEITHER, FILE_ANY_ACCESS);
+		ncmd = CTL_CODE(ZFSIOCTL_TYPE, ZFSIOCTL_BASE + request, METHOD_NEITHER, FILE_ANY_ACCESS);
 
-		zp.zfs_cmd = (uint64_t)zc;
-		zp.zfs_cmd_size = sizeof (zfs_cmd_t);
-		zp.zfs_ioctl_version = ZFS_IOCVER_ZOF;
-		zp.zfs_ioc_error = 0;
+		zip = malloc(sizeof(zfs_iocparm_t));
+		zip->zfs_cmd = (uint64_t)zc;
+		zip->zfs_cmd_size = sizeof (zfs_cmd_t);
+		zip->zfs_ioctl_version = ZFS_IOCVER_ZOF;
+		zip->zfs_ioc_error = 0;
+		bytesReturned = sizeof(zfs_iocparm_t);
 
-		ret = ioctl(fd, ncmd, &zp);
+		// ret = ioctl(fd, ncmd, &zp);
+		ret = DeviceIoControl(ITOH(fd),
+		    (DWORD)ncmd,
+		    zip,
+		    (DWORD)sizeof(zfs_iocparm_t),
+		    zc,
+		    (DWORD)sizeof(zfs_cmd_t),
+		    &bytesReturned,
+		    NULL
+		);
+
+		if (ret == 0)
+		    ret = GetLastError();
+		else
+		    ret = 0;
+
 
 		/*
 		 * If ioctl worked, get actual rc from kernel, which goes
 		 * into errno, and return -1 if not-zero.
 		 */
 		if (ret == 0) {
-			errno = zp.zfs_ioc_error;
-			if (zp.zfs_ioc_error != 0)
+			errno = zip->zfs_ioc_error;
+			if (zip->zfs_ioc_error != 0)
 				ret = -1;
 		}
+		free(zip);
 		return (ret);
 
 	default:
