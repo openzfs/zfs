@@ -529,6 +529,8 @@ blk_generic_alloc_queue(make_request_fn make_request, int node_id)
 {
 #if defined(HAVE_BLK_ALLOC_QUEUE_REQUEST_FN)
 	return (blk_alloc_queue(make_request, node_id));
+#elif defined(HAVE_BLK_ALLOC_QUEUE_REQUEST_FN_RH)
+	return (blk_alloc_queue_rh(make_request, node_id));
 #else
 	struct request_queue *q = blk_alloc_queue(GFP_KERNEL);
 	if (q != NULL)

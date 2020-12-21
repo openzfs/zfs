@@ -8493,7 +8493,7 @@ zfs_do_wait(int argc, char **argv)
 {
 	boolean_t enabled[ZFS_WAIT_NUM_ACTIVITIES];
 	int error, i;
-	char c;
+	int c;
 
 	/* By default, wait for all types of activity. */
 	for (i = 0; i < ZFS_WAIT_NUM_ACTIVITIES; i++)

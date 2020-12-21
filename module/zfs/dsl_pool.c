@@ -1334,8 +1334,16 @@ dsl_pool_user_release(dsl_pool_t *dp, uint64_t dsobj, const char *tag,
  * (e.g. it could be destroyed).  Therefore you shouldn't do anything to the
  * dataset except release it.
  *
- * User-initiated operations (e.g. ioctls, zfs_ioc_*()) are either read-only
- * or modifying operations.
+ * Operations generally fall somewhere into the following taxonomy:
+ *
+ *                              Read-Only             Modifying
+ *
+ *    Dataset Layer / MOS        zfs get             zfs destroy
+ *
+ *     Individual Dataset         read()                write()
+ *
+ *
+ * Dataset Layer Operations
  *
  * Modifying operations should generally use dsl_sync_task().  The synctask
  * infrastructure enforces proper locking strategy with respect to the
@@ -1345,6 +1353,25 @@ dsl_pool_user_release(dsl_pool_t *dp, uint64_t dsobj, const char *tag,
  * information from the dataset, then release the pool and dataset.
  * dmu_objset_{hold,rele}() are convenience routines that also do the pool
  * hold/rele.
+ *
+ *
+ * Operations On Individual Datasets
+ *
+ * Objects _within_ an objset should only be modified by the current 'owner'
+ * of the objset to prevent incorrect concurrent modification. Thus, use
+ * {dmu_objset,dsl_dataset}_own to mark some entity as the current owner,
+ * and fail with EBUSY if there is already an owner. The owner can then
+ * implement its own locking strategy, independent of the dataset layer's
+ * locking infrastructure.
+ * (E.g., the ZPL has its own set of locks to control concurrency. A regular
+ *  vnop will not reach into the dataset layer).
+ *
+ * Ideally, objects would also only be read by the objset’s owner, so that we
+ * don’t observe state mid-modification.
+ * (E.g. the ZPL is creating a new object and linking it into a directory; if
+ * you don’t coordinate with the ZPL to hold ZPL-level locks, you could see an
+ * intermediate state.  The ioctl level violates this but in pretty benign
+ * ways, e.g. reading the zpl props object.)
  */
 
 int

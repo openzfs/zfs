@@ -78,6 +78,7 @@ uint64_t metaslab_largest_allocatable(metaslab_t *);
 #define	METASLAB_DONT_THROTTLE		0x10
 #define	METASLAB_MUST_RESERVE		0x20
 #define	METASLAB_FASTWRITE		0x40
+#define	METASLAB_ZIL			0x80
 
 int metaslab_alloc(spa_t *, metaslab_class_t *, uint64_t,
     blkptr_t *, int, uint64_t, blkptr_t *, int, zio_alloc_list_t *, zio_t *,

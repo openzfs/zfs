@@ -98,25 +98,14 @@ zvol_is_zvol_impl(const char *device)
 }
 
 static void
-uio_from_bio(uio_t *uio, struct bio *bio)
-{
-	uio->uio_bvec = &bio->bi_io_vec[BIO_BI_IDX(bio)];
-	uio->uio_iovcnt = bio->bi_vcnt - BIO_BI_IDX(bio);
-	uio->uio_loffset = BIO_BI_SECTOR(bio) << 9;
-	uio->uio_segflg = UIO_BVEC;
-	uio->uio_resid = BIO_BI_SIZE(bio);
-	uio->uio_skip = BIO_BI_SKIP(bio);
-}
-
-static void
 zvol_write(void *arg)
 {
-	int error = 0;
-
 	zv_request_t *zvr = arg;
 	struct bio *bio = zvr->bio;
-	uio_t uio = { { 0 }, 0 };
-	uio_from_bio(&uio, bio);
+	int error = 0;
+	uio_t uio;
+
+	uio_bvec_init(&uio, bio);
 
 	zvol_state_t *zv = zvr->zv;
 	ASSERT3P(zv, !=, NULL);
@@ -266,12 +255,12 @@ unlock:
 static void
 zvol_read(void *arg)
 {
-	int error = 0;
-
 	zv_request_t *zvr = arg;
 	struct bio *bio = zvr->bio;
-	uio_t uio = { { 0 }, 0 };
-	uio_from_bio(&uio, bio);
+	int error = 0;
+	uio_t uio;
+
+	uio_bvec_init(&uio, bio);
 
 	zvol_state_t *zv = zvr->zv;
 	ASSERT3P(zv, !=, NULL);
@@ -672,11 +661,12 @@ zvol_revalidate_disk(struct gendisk *disk)
 static int
 zvol_update_volsize(zvol_state_t *zv, uint64_t volsize)
 {
+	struct gendisk *disk = zv->zv_zso->zvo_disk;
 
 #ifdef HAVE_REVALIDATE_DISK_SIZE
-	revalidate_disk_size(zv->zv_zso->zvo_disk, false);
+	revalidate_disk_size(disk, zvol_revalidate_disk(disk) == 0);
 #else
-	revalidate_disk(zv->zv_zso->zvo_disk);
+	revalidate_disk(disk);
 #endif
 	return (0);
 }

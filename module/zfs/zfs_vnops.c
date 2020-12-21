@@ -472,7 +472,7 @@ zfs_write(znode_t *zp, uio_t *uio, int ioflag, cred_t *cr)
 				dmu_return_arcbuf(abuf);
 				break;
 			}
-			ASSERT(cbytes == max_blksz);
+			ASSERT3S(cbytes, ==, max_blksz);
 		}
 
 		/*
@@ -652,7 +652,7 @@ zfs_write(znode_t *zp, uio_t *uio, int ioflag, cred_t *cr)
 
 		if (error != 0)
 			break;
-		ASSERT(tx_bytes == nbytes);
+		ASSERT3S(tx_bytes, ==, nbytes);
 		n -= nbytes;
 
 		if (n > 0) {
