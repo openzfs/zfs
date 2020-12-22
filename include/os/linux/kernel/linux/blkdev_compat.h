@@ -318,16 +318,38 @@ zfs_check_media_change(struct block_device *bdev)
  *
  * 4.4.0-6.21 API change for Ubuntu
  * lookup_bdev() gained a second argument, FMODE_*, to check inode permissions.
+ *
+ * 5.11 API change
+ * Changed to take a dev_t argument which is set on success and return a
+ * non-zero error code on failure.
  */
-#ifdef HAVE_1ARG_LOOKUP_BDEV
-#define	vdev_lookup_bdev(path)	lookup_bdev(path)
-#else
-#ifdef HAVE_2ARGS_LOOKUP_BDEV
-#define	vdev_lookup_bdev(path)	lookup_bdev(path, 0)
+static inline int
+vdev_lookup_bdev(const char *path, dev_t *dev)
+{
+#if defined(HAVE_DEVT_LOOKUP_BDEV)
+	return (lookup_bdev(path, dev));
+#elif defined(HAVE_1ARG_LOOKUP_BDEV)
+	struct block_device *bdev = lookup_bdev(path);
+	if (IS_ERR(bdev))
+		return (PTR_ERR(bdev));
+
+	*dev = bdev->bd_dev;
+	bdput(bdev);
+
+	return (0);
+#elif defined(HAVE_MODE_LOOKUP_BDEV)
+	struct block_device *bdev = lookup_bdev(path, FMODE_READ);
+	if (IS_ERR(bdev))
+		return (PTR_ERR(bdev));
+
+	*dev = bdev->bd_dev;
+	bdput(bdev);
+
+	return (0);
 #else
 #error "Unsupported kernel"
-#endif /* HAVE_2ARGS_LOOKUP_BDEV */
-#endif /* HAVE_1ARG_LOOKUP_BDEV */
+#endif
+}
 
 /*
  * Kernels without bio_set_op_attrs use bi_rw for the bio flags.
