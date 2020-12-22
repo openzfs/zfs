@@ -523,25 +523,38 @@ blk_queue_discard_secure(struct request_queue *q)
  */
 #define	VDEV_HOLDER			((void *)0x2401de7)
 
-static inline void
-blk_generic_start_io_acct(struct request_queue *q, int rw,
-    unsigned long sectors, struct hd_struct *part)
+static inline unsigned long
+blk_generic_start_io_acct(struct request_queue *q __attribute__((unused)),
+    struct gendisk *disk __attribute__((unused)),
+    int rw __attribute__((unused)), struct bio *bio)
 {
-#if defined(HAVE_GENERIC_IO_ACCT_3ARG)
-	generic_start_io_acct(rw, sectors, part);
+#if defined(HAVE_BIO_IO_ACCT)
+	return (bio_start_io_acct(bio));
+#elif defined(HAVE_GENERIC_IO_ACCT_3ARG)
+	unsigned long start_time = jiffies;
+	generic_start_io_acct(rw, bio_sectors(bio), &disk->part0);
+	return (start_time);
 #elif defined(HAVE_GENERIC_IO_ACCT_4ARG)
-	generic_start_io_acct(q, rw, sectors, part);
+	unsigned long start_time = jiffies;
+	generic_start_io_acct(q, rw, bio_sectors(bio), &disk->part0);
+	return (start_time);
+#else
+	/* Unsupported */
+	return (0);
 #endif
 }
 
 static inline void
-blk_generic_end_io_acct(struct request_queue *q, int rw,
-    struct hd_struct *part, unsigned long start_time)
+blk_generic_end_io_acct(struct request_queue *q __attribute__((unused)),
+    struct gendisk *disk __attribute__((unused)),
+    int rw __attribute__((unused)), struct bio *bio, unsigned long start_time)
 {
-#if defined(HAVE_GENERIC_IO_ACCT_3ARG)
-	generic_end_io_acct(rw, part, start_time);
+#if defined(HAVE_BIO_IO_ACCT)
+	bio_end_io_acct(bio, start_time);
+#elif defined(HAVE_GENERIC_IO_ACCT_3ARG)
+	generic_end_io_acct(rw, &disk->part0, start_time);
 #elif defined(HAVE_GENERIC_IO_ACCT_4ARG)
-	generic_end_io_acct(q, rw, part, start_time);
+	generic_end_io_acct(q, rw, &disk->part0, start_time);
 #endif
 }
 
