@@ -227,7 +227,12 @@ zfsdev_ioctl(PDEVICE_OBJECT DeviceObject, PIRP Irp, int flag)
 	cmd = irpSp->Parameters.DeviceIoControl.IoControlCode;
 	arg = irpSp->Parameters.DeviceIoControl.Type3InputBuffer;
 
-	vecnum = cmd - CTL_CODE(ZFSIOCTL_TYPE, ZFSIOCTL_BASE, METHOD_NEITHER, FILE_ANY_ACCESS);
+	// vecnum = cmd - CTL_CODE(ZFSIOCTL_TYPE, ZFSIOCTL_BASE, METHOD_NEITHER, FILE_ANY_ACCESS);
+
+	vecnum = DEVICE_FUNCTION_FROM_CTL_CODE(cmd);
+	ASSERT3U(vecnum, >=, ZFSIOCTL_BASE + ZFS_IOC_FIRST);
+	ASSERT3U(vecnum, <, ZFSIOCTL_BASE + ZFS_IOC_LAST);
+	vecnum -= ZFSIOCTL_BASE;
 
 	if (len != sizeof (zfs_iocparm_t)) {
 		/*
