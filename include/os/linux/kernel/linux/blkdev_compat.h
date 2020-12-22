@@ -99,14 +99,6 @@ blk_queue_set_read_ahead(struct request_queue *q, unsigned long ra_pages)
 #endif
 }
 
-#if !defined(HAVE_GET_DISK_AND_MODULE)
-static inline struct kobject *
-get_disk_and_module(struct gendisk *disk)
-{
-	return (get_disk(disk));
-}
-#endif
-
 #ifdef HAVE_BIO_BVEC_ITER
 #define	BIO_BI_SECTOR(bio)	(bio)->bi_iter.bi_sector
 #define	BIO_BI_SIZE(bio)	(bio)->bi_iter.bi_size
