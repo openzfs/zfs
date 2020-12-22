@@ -658,10 +658,12 @@ zvol_update_volsize(zvol_state_t *zv, uint64_t volsize)
 {
 	struct gendisk *disk = zv->zv_zso->zvo_disk;
 
-#ifdef HAVE_REVALIDATE_DISK_SIZE
+#if defined(HAVE_REVALIDATE_DISK_SIZE)
 	revalidate_disk_size(disk, zvol_revalidate_disk(disk) == 0);
-#else
+#elif defined(HAVE_REVALIDATE_DISK)
 	revalidate_disk(disk);
+#else
+	zvol_revalidate_disk(disk);
 #endif
 	return (0);
 }
