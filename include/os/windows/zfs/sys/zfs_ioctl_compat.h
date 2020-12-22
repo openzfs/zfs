@@ -43,6 +43,8 @@ extern "C" {
 #define ZFSIOCTL_TYPE 40000
 #define ZFSIOCTL_BASE 0x800
 
+#define	DEVICE_FUNCTION_FROM_CTL_CODE(X) (((X)>>2) & 0x1fff)
+
 /*
  * Backwards ioctl compatibility
  */

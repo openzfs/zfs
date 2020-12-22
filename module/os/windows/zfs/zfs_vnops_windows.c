@@ -34,6 +34,8 @@
 #include <mountmgr.h>
 #include <Mountdev.h>
 #include <ntddvol.h>
+#include <os/windows/zfs/sys/zfs_ioctl_compat.h>
+
  // I have no idea what black magic is needed to get ntifs.h to define these
 
 
@@ -3890,37 +3892,44 @@ ioctlDispatcher(
 		{
 			/* Is it a ZFS ioctl? */
 			u_long cmd = IrpSp->Parameters.DeviceIoControl.IoControlCode;
-			if (cmd >= ZFS_IOC_FIRST &&
-				cmd < ZFS_IOC_LAST) {
 
-				/* Some IOCTL are very long-living, so we will put them in the
-				 * background and return PENDING. Possibly we should always do
-				 * this logic, but some ioctls are really short lived.
-				 */
-				switch (cmd) {
-				case ZFS_IOC_UNREGISTER_FS:
-					// We abuse returnedBytes to send back busy
-					Irp->IoStatus.Information = zfs_ioc_unregister_fs();
-					Status = STATUS_SUCCESS;
-					break;
-					/*
-					 * So to do ioctl in async mode is a hassle, we have to do the copyin/copyout
-					 * MDL work in *this* thread, as the thread we spawn does not have access.
-					 * This would also include zc->zc_nvlist_src / zc->zc_nvlist_dst, so 
-					 * zfsdev_ioctl() would need to be changed quite a bit. The file-descriptor
-					 * passed in (zfs send/recv) also needs to be opened for kernel mode. This
-					 * code is left here as an example on how it can be done (without zc->zc_nvlist_*)
-					 * but we currently do not use it. Everything is handled synchronously.
-					 *
-				case ZFS_IOC_SEND:
-					Status = zfsdev_async(DeviceObject, Irp);
-					break;
-					 *
+			if ((DEVICE_TYPE_FROM_CTL_CODE(cmd) == ZFSIOCTL_TYPE)) {
+
+				cmd = DEVICE_FUNCTION_FROM_CTL_CODE(cmd);
+				if ((cmd >= ZFSIOCTL_BASE + ZFS_IOC_FIRST &&
+				    cmd < ZFSIOCTL_BASE + ZFS_IOC_LAST)) {
+
+					cmd -= ZFSIOCTL_BASE;
+
+					/* Some IOCTL are very long-living, so we will put them in the
+					 * background and return PENDING. Possibly we should always do
+					 * this logic, but some ioctls are really short lived.
 					 */
-				default:
-					Status = zfsdev_ioctl(DeviceObject, Irp, 0);
-				} // switch cmd for async
-				break;
+					switch (cmd) {
+					case ZFS_IOC_UNREGISTER_FS:
+						// We abuse returnedBytes to send back busy
+						Irp->IoStatus.Information = zfs_ioc_unregister_fs();
+						Status = STATUS_SUCCESS;
+						break;
+						/*
+						 * So to do ioctl in async mode is a hassle, we have to do the copyin/copyout
+						 * MDL work in *this* thread, as the thread we spawn does not have access.
+						 * This would also include zc->zc_nvlist_src / zc->zc_nvlist_dst, so 
+						 * zfsdev_ioctl() would need to be changed quite a bit. The file-descriptor
+						 * passed in (zfs send/recv) also needs to be opened for kernel mode. This
+						 * code is left here as an example on how it can be done (without zc->zc_nvlist_*)
+						 * but we currently do not use it. Everything is handled synchronously.
+						 *
+					case ZFS_IOC_SEND:
+						Status = zfsdev_async(DeviceObject, Irp);
+						break;
+						 *
+						 */
+					default:
+						Status = zfsdev_ioctl(DeviceObject, Irp, 0);
+					} // switch cmd for async
+					break;
+				}
 			}
 			/* Not ZFS ioctl, handle Windows ones */
 			switch (cmd) {

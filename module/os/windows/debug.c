@@ -62,7 +62,7 @@ int finiDbgCircularBuffer(void)
  *	Howto: Read the circular buffer with windbg
  *	
  *	get address of cbuf buffer:
- *		dt ZFSin!cbuf --> copy shown address
+ *		dt OpenZFS!cbuf --> copy shown address
  *
  *	write memory to file
  *		.writemem [filepath] [cbuf address] L[Length as hex]
