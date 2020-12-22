@@ -708,46 +708,6 @@ zvol_getgeo(struct block_device *bdev, struct hd_geometry *geo)
 	return (0);
 }
 
-/*
- * Find a zvol_state_t given the full major+minor dev_t. If found,
- * return with zv_state_lock taken, otherwise, return (NULL) without
- * taking zv_state_lock.
- */
-static zvol_state_t *
-zvol_find_by_dev(dev_t dev)
-{
-	zvol_state_t *zv;
-
-	rw_enter(&zvol_state_lock, RW_READER);
-	for (zv = list_head(&zvol_state_list); zv != NULL;
-	    zv = list_next(&zvol_state_list, zv)) {
-		mutex_enter(&zv->zv_state_lock);
-		if (zv->zv_zso->zvo_dev == dev) {
-			rw_exit(&zvol_state_lock);
-			return (zv);
-		}
-		mutex_exit(&zv->zv_state_lock);
-	}
-	rw_exit(&zvol_state_lock);
-
-	return (NULL);
-}
-
-static struct kobject *
-zvol_probe(dev_t dev, int *part, void *arg)
-{
-	zvol_state_t *zv;
-	struct kobject *kobj;
-
-	zv = zvol_find_by_dev(dev);
-	kobj = zv ? get_disk_and_module(zv->zv_zso->zvo_disk) : NULL;
-	ASSERT(zv == NULL || MUTEX_HELD(&zv->zv_state_lock));
-	if (zv)
-		mutex_exit(&zv->zv_state_lock);
-
-	return (kobj);
-}
-
 static struct block_device_operations zvol_ops = {
 	.open			= zvol_open,
 	.release		= zvol_release,
@@ -1100,9 +1060,6 @@ zvol_init(void)
 		return (-ENOMEM);
 	}
 	zvol_init_impl();
-	blk_register_region(MKDEV(zvol_major, 0), 1UL << MINORBITS,
-	    THIS_MODULE, zvol_probe, NULL, NULL);
-
 	ida_init(&zvol_ida);
 	zvol_register_ops(&zvol_linux_ops);
 	return (0);
@@ -1112,7 +1069,6 @@ void
 zvol_fini(void)
 {
 	zvol_fini_impl();
-	blk_unregister_region(MKDEV(zvol_major, 0), 1UL << MINORBITS);
 	unregister_blkdev(zvol_major, ZVOL_DRIVER);
 	taskq_destroy(zvol_taskq);
 	ida_destroy(&zvol_ida);
