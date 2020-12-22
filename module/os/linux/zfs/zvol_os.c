@@ -66,19 +66,14 @@ typedef struct zv_request {
  * Given a path, return TRUE if path is a ZVOL.
  */
 static boolean_t
-zvol_is_zvol_impl(const char *device)
+zvol_is_zvol_impl(const char *path)
 {
-	struct block_device *bdev;
-	unsigned int major;
+	dev_t dev = 0;
 
-	bdev = vdev_lookup_bdev(device);
-	if (IS_ERR(bdev))
+	if (vdev_lookup_bdev(path, &dev) != 0)
 		return (B_FALSE);
 
-	major = MAJOR(bdev->bd_dev);
-	bdput(bdev);
-
-	if (major == zvol_major)
+	if (MAJOR(dev) == zvol_major)
 		return (B_TRUE);
 
 	return (B_FALSE);
