@@ -99,7 +99,7 @@ blk_queue_set_read_ahead(struct request_queue *q, unsigned long ra_pages)
 #endif
 }
 
-#if !defined(HAVE_GET_DISK_AND_MODULE)
+#if !defined(HAVE_GET_DISK_AND_MODULE) && defined(HAVE_GET_DISK)
 static inline struct kobject *
 get_disk_and_module(struct gendisk *disk)
 {
@@ -318,16 +318,34 @@ zfs_check_media_change(struct block_device *bdev)
  *
  * 4.4.0-6.21 API change for Ubuntu
  * lookup_bdev() gained a second argument, FMODE_*, to check inode permissions.
+ *
+ * 5.10+ in 4e7b5671c6a883d94b5428e1a9c141bbd56cb2a6 API change
+ * lookup_bdev() takes the destination dev_t* as the second argument and
+ * calling bdput(struct block_device*) is no longer necessary.
  */
-#ifdef HAVE_1ARG_LOOKUP_BDEV
-#define	vdev_lookup_bdev(path)	lookup_bdev(path)
+#ifdef HAVE_DEVT_LOOKUP_BDEV
+#define vdev_lookup_bdev(path, dev)	(!lookup_bdev(path, dev))
 #else
+#if defined(HAVE_2ARGS_LOOKUP_BDEV) || defined(HAVE_1ARG_LOOKUP_BDEV)
+static inline boolean_t
+vdev_lookup_bdev(const char *path, dev_t *dev)
+{
+	struct block_device *bdev;
 #ifdef HAVE_2ARGS_LOOKUP_BDEV
-#define	vdev_lookup_bdev(path)	lookup_bdev(path, 0)
+	bdev = lookup_bdev(path, 0);
+#else
+	bdev = lookup_bdev(path);
+#endif
+	if (IS_ERR(bdev))
+		return (B_FALSE);
+	bdput(bdev);
+	*dev = bdev->bd_dev;
+	return (B_TRUE);
+}
 #else
 #error "Unsupported kernel"
-#endif /* HAVE_2ARGS_LOOKUP_BDEV */
-#endif /* HAVE_1ARG_LOOKUP_BDEV */
+#endif /* HAVE_2ARGS_LOOKUP_BDEV || HAVE_1ARG_LOOKUP_BDEV */
+#endif /* HAVE_DEVT_LOOKUP_BDEV */
 
 /*
  * Kernels without bio_set_op_attrs use bi_rw for the bio flags.

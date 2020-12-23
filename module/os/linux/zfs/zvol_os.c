@@ -68,15 +68,13 @@ typedef struct zv_request {
 static boolean_t
 zvol_is_zvol_impl(const char *device)
 {
-	struct block_device *bdev;
+	dev_t dev;
 	unsigned int major;
 
-	bdev = vdev_lookup_bdev(device);
-	if (IS_ERR(bdev))
+	if (!vdev_lookup_bdev(device, &dev))
 		return (B_FALSE);
 
-	major = MAJOR(bdev->bd_dev);
-	bdput(bdev);
+	major = MAJOR(dev);
 
 	if (major == zvol_major)
 		return (B_TRUE);

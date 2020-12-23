@@ -158,6 +158,13 @@ dnl # 2.6.27, lookup_bdev() was exported.
 dnl # 4.4.0-6.21 - lookup_bdev() takes 2 arguments.
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV_LOOKUP_BDEV], [
+	ZFS_LINUX_TEST_SRC([lookup_bdev_devt], [
+		#include <linux/blkdev.h>
+	], [
+		dev_t dev;
+		lookup_bdev(NULL, &dev);
+	])
+
 	ZFS_LINUX_TEST_SRC([lookup_bdev_1arg], [
 		#include <linux/fs.h>
 		#include <linux/blkdev.h>
@@ -173,23 +180,33 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV_LOOKUP_BDEV], [
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_BLKDEV_LOOKUP_BDEV], [
-	AC_MSG_CHECKING([whether lookup_bdev() wants 1 arg])
-	ZFS_LINUX_TEST_RESULT_SYMBOL([lookup_bdev_1arg],
+	AC_MSG_CHECKING([whether lookup_bdev() takes a dev_t*])
+	ZFS_LINUX_TEST_RESULT_SYMBOL([lookup_bdev_devt],
 	    [lookup_bdev], [fs/block_dev.c], [
 		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_1ARG_LOOKUP_BDEV, 1,
-		    [lookup_bdev() wants 1 arg])
+		AC_DEFINE(HAVE_DEVT_LOOKUP_BDEV, 1,
+		    [lookup_bdev() takes a dev_t*])
 	], [
 		AC_MSG_RESULT(no)
 
-		AC_MSG_CHECKING([whether lookup_bdev() wants 2 args])
-		ZFS_LINUX_TEST_RESULT_SYMBOL([lookup_bdev_2args],
+		AC_MSG_CHECKING([whether lookup_bdev() wants 1 arg])
+		ZFS_LINUX_TEST_RESULT_SYMBOL([lookup_bdev_1arg],
 		    [lookup_bdev], [fs/block_dev.c], [
 			AC_MSG_RESULT(yes)
-			AC_DEFINE(HAVE_2ARGS_LOOKUP_BDEV, 1,
-			    [lookup_bdev() wants 2 args])
+			AC_DEFINE(HAVE_1ARG_LOOKUP_BDEV, 1,
+			    [lookup_bdev() wants 1 arg])
 		], [
-			ZFS_LINUX_TEST_ERROR([lookup_bdev()])
+			AC_MSG_RESULT(no)
+
+			AC_MSG_CHECKING([whether lookup_bdev() wants 2 args])
+			ZFS_LINUX_TEST_RESULT_SYMBOL([lookup_bdev_2args],
+			    [lookup_bdev], [fs/block_dev.c], [
+				AC_MSG_RESULT(yes)
+				AC_DEFINE(HAVE_2ARGS_LOOKUP_BDEV, 1,
+				    [lookup_bdev() wants 2 args])
+			], [
+				ZFS_LINUX_TEST_ERROR([lookup_bdev()])
+			])
 		])
 	])
 ])
