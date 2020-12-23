@@ -72,5 +72,7 @@ typedef struct rdsk_node {
 int slice_cache_compare(const void *, const void *);
 
 void zpool_open_func(void *);
+int zfs_resolve_shortname_os(const char *name, char *path, size_t len);
+
 
 #endif /* _LIBZUTIL_ZUTIL_IMPORT_H_ */
