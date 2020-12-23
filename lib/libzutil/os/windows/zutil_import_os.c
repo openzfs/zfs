@@ -919,7 +919,7 @@ zpool_find_import_blkid(libpc_handle_t *hdl, pthread_mutex_t *lock,
 
 		slice = zutil_alloc(hdl, sizeof (rdsk_node_t));
 
-		slice->rn_name = zfs_strdup(hdl, rdsk);
+		slice->rn_name = zutil_strdup(hdl, rdsk);
 		slice->rn_vdev_guid = 0;
 		slice->rn_lock = lock;
 		slice->rn_avl = *slice_cache;

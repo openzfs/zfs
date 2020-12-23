@@ -242,7 +242,7 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, const char *name)
 		start_block = NEW_START_BLOCK;
 	}
 
-	(void) snprintf(path, sizeof (path), "%s/%s", DISK_ROOT, name);
+	(void) snprintf(path, sizeof (path), "%s%s", DISK_ROOT, name);
 
 	if ((fd = open(path, O_RDWR|O_DIRECT|O_EXCL)) < 0) {
 		/*
@@ -320,7 +320,7 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, const char *name)
 	(void) close(fd);
 	efi_free(vtoc);
 
-	(void) snprintf(path, sizeof (path), "%s/%s", DISK_ROOT, name);
+	(void) snprintf(path, sizeof (path), "%s%s", DISK_ROOT, name);
 	(void) zfs_append_partition(path, MAXPATHLEN);
 
 	/* Wait to udev to signal use the device has settled. */
@@ -332,7 +332,7 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, const char *name)
 	}
 
 	/* We can't be to paranoid.  Read the label back and verify it. */
-	(void) snprintf(path, sizeof (path), "%s/%s", DISK_ROOT, name);
+	(void) snprintf(path, sizeof (path), "%s%s", DISK_ROOT, name);
 	rval = zpool_label_disk_check(path);
 	if (rval) {
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "freshly written "
