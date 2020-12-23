@@ -960,7 +960,13 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 		 * and then block until udev creates the new link.
 		 */
 		if (!is_exclusive && !is_spare(NULL, udevpath)) {
-			char *devnode = strrchr(devpath, '/') + 1;
+			char *devnode = strrchr(devpath, '/');
+#ifdef _WIN32
+			char *backslash = strrchr(devpath, '\\');
+			if (devnode == NULL || backslash > devnode)
+			    devnode = backslash;
+#endif
+			devnode = &devnode[1];
 
 			ret = strncmp(udevpath, UDISK_ROOT, strlen(UDISK_ROOT));
 			if (ret == 0) {
