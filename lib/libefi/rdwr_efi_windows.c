@@ -338,6 +338,7 @@ efi_get_info(int fd, struct dk_cinfo *dki_info)
 		(LPOVERLAPPED)NULL);
 	if (err) {
 		dki_info->dki_partition = 0;
+		dki_info->dki_ctype = DKC_DIRECT;
 		strlcpy(dki_info->dki_dname,
 		"getnamehere",
 		sizeof(dki_info->dki_dname));
@@ -386,7 +387,6 @@ efi_alloc_and_init(int fd, uint32_t nparts, struct dk_gpt **vtoc)
 	if (read_disk_info(fd, &capacity, &lbsize) != 0)
 		return (-1);
 
-#if defined(__linux__) || defined(__APPLE__) || defined(_WIN32)
 	if (efi_get_info(fd, &dki_info) != 0)
 		return (-1);
 
@@ -397,7 +397,9 @@ efi_alloc_and_init(int fd, uint32_t nparts, struct dk_gpt **vtoc)
 	    (dki_info.dki_ctype == DKC_VBD) ||
 	    (dki_info.dki_ctype == DKC_UNKNOWN))
 		return (-1);
-#endif
+
+	if (lbsize == 0)
+	    return (-1);
 
 	nblocks = NBLOCKS(nparts, lbsize);
 	if ((nblocks * lbsize) < EFI_MIN_ARRAY_SIZE + lbsize) {

@@ -30,6 +30,8 @@
 
 #include <libzutil.h>
 
+#include <wosix.h>
+
 /*
  * We don't strip/append partitions on FreeBSD.
  */
@@ -61,36 +63,6 @@ zfs_append_partition(char *path, size_t max_len)
 {
 	int len = strlen(path);
 
-	if (strncmp(path, "/private/var/run/disk/by-id", 27) == 0) {
-		return (len);
-	} else if (strncmp(path, "/private/var/run/disk/by-path", 29) == 0) {
-		if (path[len - 1] == '0' &&
-		    path[len - 2] == ':')
-			path[len - 1] = '1';
-		else
-			return (-1); /* should have ended with ":0" */
-
-	} else if (strncmp(path, "/private/var/run/disk/by-serial", 31) == 0) {
-		if (len + 2 >= max_len)
-			return (-1);
-
-		(void) strcat(path, ":1");
-		len += 2;
-
-	} else {
-
-		if (len + 2 >= max_len)
-			return (-1);
-
-		if (isdigit(path[len-1])) {
-			(void) strcat(path, "s1");
-			len += 2;
-		} else {
-			(void) strcat(path, "1");
-			len += 1;
-		}
-	}
-
 	return (len);
 }
 
@@ -104,9 +76,12 @@ zfs_strip_path(char *path)
 {
 	char *r;
 	r = strrchr(path, '/');
-	if (r == NULL)
-		return (r);
-	return (&r[1]);
+	if (r != NULL)
+		return (&r[1]);
+	r = strrchr(path, '\\');
+	if (r != NULL)
+	    return (&r[1]);
+	return (path);
 }
 
 char *
@@ -154,6 +129,8 @@ zpool_label_disk_wait(const char *path, int timeout_ms)
 	long sleep_ms = 10;
 	hrtime_t start, settle;
 	struct stat statbuf;
+
+	return (0);
 
 	start = gethrtime();
 	settle = 0;
