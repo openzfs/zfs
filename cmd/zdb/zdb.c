@@ -8429,6 +8429,11 @@ main(int argc, char **argv)
 		}
 	}
 
+	if (searchdirs != NULL) {
+		umem_free(searchdirs, nsearch * sizeof (char *));
+		searchdirs = NULL;
+	}
+
 	/*
 	 * import_checkpointed_state makes the assumption that the
 	 * target pool that we pass it is already part of the spa
@@ -8445,6 +8450,11 @@ main(int argc, char **argv)
 
 		if (checkpoint_target != NULL)
 			target = checkpoint_target;
+	}
+
+	if (cfg != NULL) {
+		nvlist_free(cfg);
+		cfg = NULL;
 	}
 
 	if (target_pool != target)

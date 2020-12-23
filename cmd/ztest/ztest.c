@@ -7016,6 +7016,7 @@ ztest_import_impl(ztest_shared_t *zs)
 	VERIFY0(zpool_find_config(NULL, ztest_opts.zo_pool, &cfg, &args,
 	    &libzpool_config_ops));
 	VERIFY0(spa_import(ztest_opts.zo_pool, cfg, NULL, flags));
+	fnvlist_free(cfg);
 }
 
 /*
