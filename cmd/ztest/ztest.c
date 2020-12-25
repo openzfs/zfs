@@ -3490,8 +3490,7 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	 */
 	if (ztest_device_removal_active) {
 		spa_config_exit(spa, SCL_ALL, FTAG);
-		mutex_exit(&ztest_vdev_lock);
-		return;
+		goto out;
 	}
 
 	/*
