@@ -6756,6 +6756,7 @@ import_checkpointed_state(char *target, nvlist_t *cfg, char **new_path)
 {
 	int error = 0;
 	char *poolname, *bogus_name = NULL;
+	boolean_t freecfg = B_FALSE;
 
 	/* If the target is not a pool, the extract the pool name */
 	char *path_start = strchr(target, '/');
@@ -6774,6 +6775,7 @@ import_checkpointed_state(char *target, nvlist_t *cfg, char **new_path)
 			    "spa_get_stats() failed with error %d\n",
 			    poolname, error);
 		}
+		freecfg = B_TRUE;
 	}
 
 	if (asprintf(&bogus_name, "%s%s", poolname, BOGUS_SUFFIX) == -1)
@@ -6783,6 +6785,8 @@ import_checkpointed_state(char *target, nvlist_t *cfg, char **new_path)
 	error = spa_import(bogus_name, cfg, NULL,
 	    ZFS_IMPORT_MISSING_LOG | ZFS_IMPORT_CHECKPOINT |
 	    ZFS_IMPORT_SKIP_MMP);
+	if (freecfg)
+		nvlist_free(cfg);
 	if (error != 0) {
 		fatal("Tried to import pool \"%s\" but spa_import() failed "
 		    "with error %d\n", bogus_name, error);
@@ -7011,7 +7015,6 @@ verify_checkpoint_blocks(spa_t *spa)
 
 	spa_t *checkpoint_spa;
 	char *checkpoint_pool;
-	nvlist_t *config = NULL;
 	int error = 0;
 
 	/*
@@ -7019,7 +7022,7 @@ verify_checkpoint_blocks(spa_t *spa)
 	 * name) so we can do verification on it against the current state
 	 * of the pool.
 	 */
-	checkpoint_pool = import_checkpointed_state(spa->spa_name, config,
+	checkpoint_pool = import_checkpointed_state(spa->spa_name, NULL,
 	    NULL);
 	ASSERT(strcmp(spa->spa_name, checkpoint_pool) != 0);
 
