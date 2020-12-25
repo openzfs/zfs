@@ -1441,7 +1441,11 @@ ztest_dmu_objset_own(const char *name, dmu_objset_type_t type,
 		VERIFY0(dsl_crypto_params_create_nvlist(DCP_CMD_NONE, NULL,
 		    crypto_args, &dcp));
 		err = spa_keystore_load_wkey(ddname, dcp, B_FALSE);
-		dsl_crypto_params_free(dcp, B_FALSE);
+		/*
+		 * Note: if there was an error loading, the wkey was not
+		 * consumed, and needs to be freed.
+		 */
+		dsl_crypto_params_free(dcp, (err != 0));
 		fnvlist_free(crypto_args);
 
 		if (err == EINVAL) {
