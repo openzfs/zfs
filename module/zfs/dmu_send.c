@@ -2626,7 +2626,7 @@ dmu_send_obj(const char *pool, uint64_t tosnap, uint64_t fromsnap,
 {
 	int err;
 	dsl_dataset_t *fromds;
-	ds_hold_flags_t dsflags = (rawok) ? 0 : DS_HOLD_FLAG_DECRYPT;
+	ds_hold_flags_t dsflags;
 	struct dmu_send_params dspp = {0};
 	dspp.embedok = embedok;
 	dspp.large_block_ok = large_block_ok;
@@ -2638,6 +2638,7 @@ dmu_send_obj(const char *pool, uint64_t tosnap, uint64_t fromsnap,
 	dspp.rawok = rawok;
 	dspp.savedok = savedok;
 
+	dsflags = (rawok) ? DS_HOLD_FLAG_NONE : DS_HOLD_FLAG_DECRYPT;
 	err = dsl_pool_hold(pool, FTAG, &dspp.dp);
 	if (err != 0)
 		return (err);
@@ -2711,12 +2712,13 @@ dmu_send(const char *tosnap, const char *fromsnap, boolean_t embedok,
     dmu_send_outparams_t *dsop)
 {
 	int err = 0;
-	ds_hold_flags_t dsflags = (rawok) ? 0 : DS_HOLD_FLAG_DECRYPT;
+	ds_hold_flags_t dsflags;
 	boolean_t owned = B_FALSE;
 	dsl_dataset_t *fromds = NULL;
 	zfs_bookmark_phys_t book = {0};
 	struct dmu_send_params dspp = {0};
 
+	dsflags = (rawok) ? DS_HOLD_FLAG_NONE : DS_HOLD_FLAG_DECRYPT;
 	dspp.tosnap = tosnap;
 	dspp.embedok = embedok;
 	dspp.large_block_ok = large_block_ok;
