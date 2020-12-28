@@ -682,8 +682,9 @@ dmu_objset_hold_flags(const char *name, boolean_t decrypt, void *tag,
 	dsl_pool_t *dp;
 	dsl_dataset_t *ds;
 	int err;
-	ds_hold_flags_t flags = (decrypt) ? DS_HOLD_FLAG_DECRYPT : 0;
+	ds_hold_flags_t flags;
 
+	flags = (decrypt) ? DS_HOLD_FLAG_DECRYPT : DS_HOLD_FLAG_NONE;
 	err = dsl_pool_hold(name, tag, &dp);
 	if (err != 0)
 		return (err);
@@ -755,8 +756,9 @@ dmu_objset_own(const char *name, dmu_objset_type_t type,
 	dsl_pool_t *dp;
 	dsl_dataset_t *ds;
 	int err;
-	ds_hold_flags_t flags = (decrypt) ? DS_HOLD_FLAG_DECRYPT : 0;
+	ds_hold_flags_t flags;
 
+	flags = (decrypt) ? DS_HOLD_FLAG_DECRYPT : DS_HOLD_FLAG_NONE;
 	err = dsl_pool_hold(name, FTAG, &dp);
 	if (err != 0)
 		return (err);
@@ -798,8 +800,9 @@ dmu_objset_own_obj(dsl_pool_t *dp, uint64_t obj, dmu_objset_type_t type,
 {
 	dsl_dataset_t *ds;
 	int err;
-	ds_hold_flags_t flags = (decrypt) ? DS_HOLD_FLAG_DECRYPT : 0;
+	ds_hold_flags_t flags;
 
+	flags = (decrypt) ? DS_HOLD_FLAG_DECRYPT : DS_HOLD_FLAG_NONE;
 	err = dsl_dataset_own_obj(dp, obj, flags, tag, &ds);
 	if (err != 0)
 		return (err);
@@ -816,9 +819,10 @@ dmu_objset_own_obj(dsl_pool_t *dp, uint64_t obj, dmu_objset_type_t type,
 void
 dmu_objset_rele_flags(objset_t *os, boolean_t decrypt, void *tag)
 {
-	ds_hold_flags_t flags = (decrypt) ? DS_HOLD_FLAG_DECRYPT : 0;
-
+	ds_hold_flags_t flags;
 	dsl_pool_t *dp = dmu_objset_pool(os);
+
+	flags = (decrypt) ? DS_HOLD_FLAG_DECRYPT : DS_HOLD_FLAG_NONE;
 	dsl_dataset_rele_flags(os->os_dsl_dataset, flags, tag);
 	dsl_pool_rele(dp, tag);
 }
@@ -846,7 +850,9 @@ dmu_objset_refresh_ownership(dsl_dataset_t *ds, dsl_dataset_t **newds,
 {
 	dsl_pool_t *dp;
 	char name[ZFS_MAX_DATASET_NAME_LEN];
+	ds_hold_flags_t flags;
 
+	flags = (decrypt) ? DS_HOLD_FLAG_DECRYPT : DS_HOLD_FLAG_NONE;
 	VERIFY3P(ds, !=, NULL);
 	VERIFY3P(ds->ds_owner, ==, tag);
 	VERIFY(dsl_dataset_long_held(ds));
@@ -854,21 +860,22 @@ dmu_objset_refresh_ownership(dsl_dataset_t *ds, dsl_dataset_t **newds,
 	dsl_dataset_name(ds, name);
 	dp = ds->ds_dir->dd_pool;
 	dsl_pool_config_enter(dp, FTAG);
-	dsl_dataset_disown(ds, decrypt, tag);
-	VERIFY0(dsl_dataset_own(dp, name,
-	    (decrypt) ? DS_HOLD_FLAG_DECRYPT : 0, tag, newds));
+	dsl_dataset_disown(ds, flags, tag);
+	VERIFY0(dsl_dataset_own(dp, name, flags, tag, newds));
 	dsl_pool_config_exit(dp, FTAG);
 }
 
 void
 dmu_objset_disown(objset_t *os, boolean_t decrypt, void *tag)
 {
+	ds_hold_flags_t flags;
+
+	flags = (decrypt) ? DS_HOLD_FLAG_DECRYPT : DS_HOLD_FLAG_NONE;
 	/*
 	 * Stop upgrading thread
 	 */
 	dmu_objset_upgrade_stop(os);
-	dsl_dataset_disown(os->os_dsl_dataset,
-	    (decrypt) ? DS_HOLD_FLAG_DECRYPT : 0, tag);
+	dsl_dataset_disown(os->os_dsl_dataset, flags, tag);
 }
 
 void
