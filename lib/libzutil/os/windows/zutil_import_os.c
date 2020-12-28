@@ -972,16 +972,56 @@ zfs_device_get_physical(struct udev_device *dev, char *bufptr, size_t buflen)
 	return (ENODATA);
 }
 
-/*
- * Encode the persistent devices strings
- * used for the vdev disk label
- */
+/* Given a "#1234#1234#/path/part" - find the path part only */ 
 static int
-encode_device_strings(const char *path, vdev_dev_strs_t *ds,
-    boolean_t wholedisk)
+remove_partition_offset_hack(char *hacked_path, char **out_dev_path)
 {
-	return (ENOENT);
+	uint64_t offset;
+	uint64_t len;
+	char *end = NULL;
+	end = hacked_path;
+	for (int i = 0; i < 3; i++) {
+		while (*end && *end != '#') {
+			end++;
+		}
+		if (*end == 0)
+			break;
+		end++;
+	}
+	*out_dev_path = end;
+	return (0);
 }
+
+static int
+get_device_number(char *device_path, STORAGE_DEVICE_NUMBER *device_number)
+{
+	HANDLE hDevice = INVALID_HANDLE_VALUE;
+	DWORD returned = 0;
+
+	hDevice = CreateFile(device_path,
+	    GENERIC_READ,
+	    FILE_SHARE_READ /*| FILE_SHARE_WRITE*/,
+	    NULL,
+	    OPEN_EXISTING,
+	    FILE_ATTRIBUTE_NORMAL /*| FILE_FLAG_OVERLAPPED*/,
+	    NULL);
+	if (hDevice == INVALID_HANDLE_VALUE) {
+		//fprintf(stderr, "invalid handle value\n"); fflush(stderr);
+		return GetLastError();
+	}
+
+	BOOL ret = DeviceIoControl(hDevice, IOCTL_STORAGE_GET_DEVICE_NUMBER, NULL, 0, (LPVOID)device_number, (DWORD)sizeof(*device_number), (LPDWORD)&returned, (LPOVERLAPPED)NULL);
+
+	CloseHandle(hDevice);
+
+	if (!ret) {
+		//fprintf(stderr, "DeviceIoControl returned error\n"); fflush(stderr);
+		return ERROR_INVALID_FUNCTION;
+	}
+
+	return ERROR_SUCCESS;
+}
+
 
 /*
  * Update a leaf vdev's persistent device strings
@@ -1007,8 +1047,44 @@ void
 update_vdev_config_dev_strs(nvlist_t *nv)
 {
 	vdev_dev_strs_t vds;
-	char *env, *type, *path;
+	char *env, *type, *path, *devid;
 	uint64_t wholedisk = 0;
+	int ret;
+	// Build a pretty vdev_path here
+	char *end = NULL;
+	STORAGE_DEVICE_NUMBER deviceNumber;
+
+	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &path) != 0)
+		return;
+
+	fprintf(stderr, "working on dev '%s'\n", path); fflush(stderr);
+	
+	ret = remove_partition_offset_hack(path, &end);
+	if (ret) {
+		fprintf(stderr, "remove_partition_offset_hack failed, return\n"); fflush(stderr);
+		return;
+	}
+
+	// If it is a device, clean that up - otherwise it is a filename pool
+	ret = get_device_number(end, &deviceNumber);
+	if (ret == 0) {
+		char vdev_path[MAX_PATH];
+		sprintf(vdev_path, "/dev/physicaldrive%lu", deviceNumber.DeviceNumber);
+
+		fprintf(stderr, "setting path here '%s'\r\n", vdev_path); fflush(stderr);
+		fprintf(stderr, "setting physpath here '%s'\r\n", path); fflush(stderr);
+		if (nvlist_add_string(nv, ZPOOL_CONFIG_PATH, vdev_path) != 0)
+			return;
+		if (nvlist_add_string(nv, ZPOOL_CONFIG_PHYS_PATH, path) != 0)
+			return;
+	} else {
+		if (nvlist_add_string(nv, ZPOOL_CONFIG_PATH, path) != 0)
+			return;
+	}
+
+	return;
+
+#if 0
 
 	/*
 	 * For the benefit of legacy ZFS implementations, allow
@@ -1062,6 +1138,7 @@ update_vdev_config_dev_strs(nvlist_t *nv)
 		(void) nvlist_remove_all(nv, ZPOOL_CONFIG_PHYS_PATH);
 		(void) nvlist_remove_all(nv, ZPOOL_CONFIG_VDEV_ENC_SYSFS_PATH);
 	}
+#endif
 }
 
 /*
