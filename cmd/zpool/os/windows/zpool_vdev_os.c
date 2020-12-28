@@ -57,5 +57,6 @@ check_device(const char *name, boolean_t force,
 //	else
 //		strlcpy(path, name, sizeof (path));
 
+
 	return (check_file(path, force, isspare));
 }
