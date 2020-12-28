@@ -1053,12 +1053,32 @@ update_vdev_config_dev_strs(nvlist_t *nv)
 	// Build a pretty vdev_path here
 	char *end = NULL;
 	STORAGE_DEVICE_NUMBER deviceNumber;
+	char udevpath[MAXPATHLEN];
 
 	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &path) != 0)
 		return;
 
 	fprintf(stderr, "working on dev '%s'\n", path); fflush(stderr);
-	
+
+
+	HANDLE h;
+	h = CreateFile(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+	if (h != INVALID_HANDLE_VALUE) {
+	    struct dk_gpt* vtoc;
+	    if ((efi_alloc_and_read(h, &vtoc)) == 0) {
+		// Slice 1 should be ZFS
+		snprintf(udevpath, MAXPATHLEN, "#%llu#%llu#%s",
+		    vtoc->efi_parts[0].p_start * (uint64_t)vtoc->efi_lbasize,
+		    vtoc->efi_parts[0].p_size * (uint64_t)vtoc->efi_lbasize,
+		    path);
+		efi_free(vtoc);
+		path = udevpath;
+	    }
+	    CloseHandle(h);
+	}
+
+
+
 	ret = remove_partition_offset_hack(path, &end);
 	if (ret) {
 		fprintf(stderr, "remove_partition_offset_hack failed, return\n"); fflush(stderr);
