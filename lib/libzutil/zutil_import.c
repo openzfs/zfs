@@ -948,7 +948,9 @@ zpool_read_label(int fd, nvlist_t **config, int *num_labels)
 	if (num_labels != NULL)
 		*num_labels = count;
 
-	free(label);
+	/* Windows has special aligned free, let's invent a complementary free to memalign */
+	posix_memalign_free(label);
+
 	*config = expected_config;
 
 	return (0);
