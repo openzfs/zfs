@@ -25,7 +25,7 @@
 int
 spl_priv_check_cred(const cred_t *cred, int priv, int flags)
 {
-	int error;
+	int error = 0;
 
 // apple	if (kauth_cred_getuid(cred) == 0) {
 //		error = 0;
@@ -36,7 +36,16 @@ spl_priv_check_cred(const cred_t *cred, int priv, int flags)
 	 * The default is deny, so if no policies have granted it, reject
 	 * with a privilege error here.
 	 */
-	error = EPERM;
+
+	// WIN32 - only root can run commands at the moment, but we should
+	// fix this test
+	// SC_HANDLE SCM;
+	// SCL = OpenSCManager(NULL, NULL, SC_MANAGER_CREATE_SERVICE)
+	// if (SCM != NULL) {
+	//   isAdmin = TRUE;
+	//   CloseServiceHandle(SCM);
+	// }
+	// error = EPERM;
 //out:
 	return (error);
 }
