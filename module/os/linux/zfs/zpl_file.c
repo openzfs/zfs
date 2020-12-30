@@ -463,7 +463,7 @@ zpl_direct_IO(int rw, struct kiocb *kiocb, struct iov_iter *iter, loff_t pos)
 #error "Unknown direct IO interface"
 #endif
 
-#else
+#else /* HAVE_VFS_RW_ITERATE */
 
 #if defined(HAVE_VFS_DIRECT_IO_IOVEC)
 static ssize_t
@@ -474,6 +474,19 @@ zpl_direct_IO(int rw, struct kiocb *kiocb, const struct iovec *iov,
 		return (zpl_aio_write(kiocb, iov, nr_segs, pos));
 	else
 		return (zpl_aio_read(kiocb, iov, nr_segs, pos));
+}
+#elif defined(HAVE_VFS_DIRECT_IO_ITER_RW_OFFSET)
+static ssize_t
+zpl_direct_IO(int rw, struct kiocb *kiocb, struct iov_iter *iter, loff_t pos)
+{
+	const struct iovec *iovp = iov_iter_iovec(iter);
+	unsigned long nr_segs = iter->nr_segs;
+
+	ASSERT3S(pos, ==, kiocb->ki_pos);
+	if (rw == WRITE)
+		return (zpl_aio_write(kiocb, iovp, nr_segs, pos));
+	else
+		return (zpl_aio_read(kiocb, iovp, nr_segs, pos));
 }
 #else
 #error "Unknown direct IO interface"
