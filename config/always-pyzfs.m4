@@ -22,7 +22,7 @@ dnl # Determines if pyzfs can be built, requires Python 2.7 or later.
 dnl #
 AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_PYZFS], [
 	AC_ARG_ENABLE([pyzfs],
-		AC_HELP_STRING([--enable-pyzfs],
+		AS_HELP_STRING([--enable-pyzfs],
 		[install libzfs_core python bindings @<:@default=check@:>@]),
 		[enable_pyzfs=$enableval],
 		[enable_pyzfs=check])
