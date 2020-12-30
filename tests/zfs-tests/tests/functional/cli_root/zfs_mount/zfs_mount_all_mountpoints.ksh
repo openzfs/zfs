@@ -109,6 +109,8 @@ function cleanup_all
 	export __ZFS_POOL_RESTRICT="$TESTPOOL"
 	log_must zfs $unmountall
 	unset __ZFS_POOL_RESTRICT
+	# make sure we leave $TESTPOOL mounted
+	log_must zfs mount $TESTPOOL
 
 	for fs in ${filesystems[@]}; do
 		cleanup_filesystem "$TESTPOOL" "$fs"
