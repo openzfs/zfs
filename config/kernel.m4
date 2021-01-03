@@ -320,19 +320,15 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 	utsrelease2=$kernelbuild/include/linux/utsrelease.h
 	utsrelease3=$kernelbuild/include/generated/utsrelease.h
 	AS_IF([test -r $utsrelease1 && fgrep -q UTS_RELEASE $utsrelease1], [
-		utsrelease=linux/version.h
+		utsrelease=$utsrelease1
 	], [test -r $utsrelease2 && fgrep -q UTS_RELEASE $utsrelease2], [
-		utsrelease=linux/utsrelease.h
+		utsrelease=$utsrelease2
 	], [test -r $utsrelease3 && fgrep -q UTS_RELEASE $utsrelease3], [
-		utsrelease=generated/utsrelease.h
+		utsrelease=$utsrelease3
 	])
 
-	AS_IF([test "$utsrelease"], [
-		kernsrcver=`(echo "#include <$utsrelease>";
-		             echo "kernsrcver=UTS_RELEASE") |
-		             ${CPP} -I $kernelbuild/include - |
-		             grep "^kernsrcver=" | cut -d \" -f 2`
-
+	AS_IF([test -n "$utsrelease"], [
+		kernsrcver=$($AWK '/UTS_RELEASE/ { gsub(/"/, "", $[3]); print $[3] }' $utsrelease)
 		AS_IF([test -z "$kernsrcver"], [
 			AC_MSG_RESULT([Not found])
 			AC_MSG_ERROR([
