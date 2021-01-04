@@ -1226,7 +1226,7 @@ zfs_lookup(znode_t *zdp, char *nm, znode_t **zpp, int flags,
 	*zpp = NULL;
 
 	/*
-	 * OsX has separate vnops for XATTR activity
+	 * Windows has separate vnops for XATTR activity
 	 */
 
 

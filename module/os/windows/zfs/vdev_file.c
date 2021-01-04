@@ -201,7 +201,7 @@ vdev_file_close(vdev_t *vd)
 	vd->vdev_tsd = NULL;
 }
 
-#ifdef _KERNEL
+#ifdef _KERNEL_THISISNTUSEDANYMORE
 struct vdev_file_callback_struct {
 	zio_t *zio;
 	PIRP irp;
@@ -251,7 +251,7 @@ FileIoWkRtn(
 }
 
 static NTSTATUS
-vdev_file_io_intrxxx(PDEVICE_OBJECT DeviceObject, PIRP irp, PVOID Context)
+vdev_file_io_intr(PDEVICE_OBJECT DeviceObject, PIRP irp, PVOID Context)
 {
 	vf_callback_t *vb = (vf_callback_t *)Context;
 

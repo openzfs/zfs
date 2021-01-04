@@ -201,12 +201,11 @@ zfsctl_vnode_alloc(zfsvfs_t *zfsvfs, uint64_t id,
 	ZFS_TIME_ENCODE(&now, zp->z_atime);
 
 	zp->z_snap_mount_time = 0; /* Allow automount attempt */
-
-	strlcpy(zp->z_name_cache, name, sizeof (zp->z_name_cache));
+	zp->z_name_cache = NULL;
+	zp->z_name_len = 0;
 
 	dprintf("%s zp %p with vp %p zfsvfs %p vfs %p\n", __func__,
 	    zp, vp, zfsvfs, zfsvfs->z_vfs);
-
 
 	/* Tag root directory */
 	if (id == ZFSCTL_INO_ROOT)
@@ -227,6 +226,12 @@ zfsctl_vnode_alloc(zfsvfs_t *zfsvfs, uint64_t id,
 
 	zp->z_vid = vnode_vid(vp);
 	zp->z_vnode = vp;
+
+	// Build a fullpath string here, for Notifications and set_name_information
+	if (zfs_build_path(zp, NULL, &zp->z_name_cache, &zp->z_name_len, &zp->z_name_offset) == -1)
+		dprintf("%s: failed to build fullpath\n", __func__);
+
+	zfs_set_security(vp, NULL);
 
 	mutex_enter(&zfsvfs->z_znodes_lock);
 	list_insert_tail(&zfsvfs->z_all_znodes, zp);

@@ -44,6 +44,7 @@
 #include <sys/zap.h>
 #include <sys/sa.h>
 #include <sys/zfs_vnops.h>
+#include <sys/zfs_ctldir.h>
 #include <sys/stat.h>
 
 #include <sys/unistd.h>
@@ -1379,7 +1380,7 @@ int zfs_build_path(znode_t *start_zp, znode_t *start_parent, char **fullpath, ui
 			VN_HOLD(ZTOV(dzp));
 			parent = dzp->z_id;
 			start_parent = NULL;
-		} else {
+		} else if (zp->z_sa_hdl != NULL) {
 			VERIFY(sa_lookup(zp->z_sa_hdl, SA_ZPL_PARENT(zfsvfs),
 				&parent, sizeof(parent)) == 0);
 			error = zfs_zget(zfsvfs, parent, &dzp);
@@ -1391,7 +1392,8 @@ int zfs_build_path(znode_t *start_zp, znode_t *start_parent, char **fullpath, ui
 		// dzp held from here.
 
 		// Find name
-		if (zp->z_id == zfsvfs->z_root)
+		if (zp->z_id == zfsvfs->z_root ||
+		    zp->z_id == ZFSCTL_INO_ROOT)
 			strlcpy(name, "", MAXPATHLEN);  // Empty string, as we add "\\" below
 		else
 			if ((error = zap_value_search(zfsvfs->z_os, parent, zp->z_id,
@@ -1423,13 +1425,18 @@ int zfs_build_path(znode_t *start_zp, znode_t *start_parent, char **fullpath, ui
 		zp = dzp; // Now focus on parent
 		dzp = NULL;
 
-		// If parent, stop, "/" is already copied in.
-		if (zp->z_id == zfsvfs->z_root) break;
+		if (zp == NULL)	// No parent
+			break;
 
+		// If parent, stop, "/" is already copied in.
+		if (zp->z_id == zfsvfs->z_root ||
+		    zp->z_id == ZFSCTL_INO_ROOT)
+			break;
 	}
 
 	// Release "parent" if it was held, now called zp.
-	if (zp) VN_RELE(ZTOV(zp));
+	if (zp != NULL)
+		VN_RELE(ZTOV(zp));
 
 	// Correct index
 	if (start_zp_offset)
@@ -1444,8 +1451,10 @@ int zfs_build_path(znode_t *start_zp, znode_t *start_parent, char **fullpath, ui
 	return 0;
 
 failed:
-	if (zp) VN_RELE(ZTOV(zp));
-	if (dzp) VN_RELE(ZTOV(dzp));
+	if (zp != NULL)
+		VN_RELE(ZTOV(zp));
+	if (dzp != NULL)
+		VN_RELE(ZTOV(dzp));
 	kmem_free(work, MAXPATHLEN * 2);
 	return -1;
 }
@@ -1680,7 +1689,8 @@ void zfs_set_security(struct vnode *vp, struct vnode *dvp)
 	zfsvfs_t *zfsvfs = zp->z_zfsvfs;
 
 	// If we are the rootvp, we don't have a parent, so do different setup
-	if (zp->z_id == zfsvfs->z_root) {
+	if (zp->z_id == zfsvfs->z_root ||
+	    zp->z_id == ZFSCTL_INO_ROOT) {
 		zfs_set_security_root(vp);
 		return;
 	}
@@ -1692,16 +1702,18 @@ void zfs_set_security(struct vnode *vp, struct vnode *dvp)
 	// dvp, either directly or from zget().
 	znode_t *dzp = NULL;
 	if (dvp == NULL) {
-		uint64_t parent;
-		if (sa_lookup(zp->z_sa_hdl, SA_ZPL_PARENT(zfsvfs),
-			&parent, sizeof(parent)) != 0) {
-			goto err;
-		}
-		if (zfs_zget(zfsvfs, parent, &dzp)) {
-			dvp = NULL;
-			goto err;
-		}
-		dvp = ZTOV(dzp);
+		if (zp->z_sa_hdl != NULL) {
+		    uint64_t parent;
+		    if (sa_lookup(zp->z_sa_hdl, SA_ZPL_PARENT(zfsvfs),
+			    &parent, sizeof(parent)) != 0) {
+			    goto err;
+		    }
+		    if (zfs_zget(zfsvfs, parent, &dzp)) {
+			    dvp = NULL;
+			    goto err;
+		    }
+		    dvp = ZTOV(dzp);
+		} // What to do if no sa_hdl ?
 	} else {
 		VN_HOLD(dvp);
 		dzp = VTOZ(dvp);
@@ -2442,7 +2454,7 @@ NTSTATUS file_rename_information(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STAC
 
 
 	error = zfs_rename(VTOZ(fdvp), &zp->z_name_cache[zp->z_name_offset],
-		tdvp, remainder ? remainder : filename,
+		VTOZ(tdvp), remainder ? remainder : filename,
 		NULL, 0);
 
 	if (error == 0) {

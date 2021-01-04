@@ -26,7 +26,7 @@ int zfs_kmod_init(void);
 void zfs_kmod_fini(void);
 
 /* Why is this required on one of my build VMs */
-#if 1
+#ifndef _MSC_VER
 void *__guard_eh_cont_table = 0;
 size_t __guard_eh_cont_count = 0;
 #endif
@@ -80,7 +80,13 @@ NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT  DriverObject, _In_ PUNICODE_STRING pRe
 
 	/* Setup print buffer, since we print from SPL */
 	initDbgCircularBuffer();
-	
+
+#ifdef DBG
+	// DEBUG build, let's be noisy by default.
+	extern int zfs_flags;
+	zfs_flags |= 1;
+#endif
+
 	spl_start();
 
 	kstat_windows_init(pRegistryPath);

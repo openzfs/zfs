@@ -1014,6 +1014,12 @@ taskq_ent_free(taskq_t *tq, taskq_ent_t *tqe)
 	ASSERT(MUTEX_HELD(&tq->tq_lock));
 
 	if (tq->tq_nalloc <= tq->tq_minalloc) {
+
+		if (tqe->tqent_next == 0xdeadbeefdeadbeef) {
+			dprintf("%s: Avoiding MAF\n", __func__);
+			return;
+		}
+
 		tqe->tqent_next = tq->tq_freelist;
 		tq->tq_freelist = tqe;
 	} else {
@@ -1079,6 +1085,7 @@ taskq_bucket_dispatch(taskq_bucket_t *b, task_func_t func, void *arg)
 
 		ASSERT(tqe != &b->tqbucket_freelist);
 		ASSERT(tqe->tqent_thread != NULL);
+	VERIFY3P(tqe->tqent_prev->tqent_next, !=, 0xdeadbeefdeadbeef);
 
 		tqe->tqent_prev->tqent_next = tqe->tqent_next;
 		tqe->tqent_next->tqent_prev = tqe->tqent_prev;
@@ -1280,16 +1287,19 @@ taskq_dispatch_delay(taskq_t *tq, task_func_t func, void *arg,
 void
 taskq_init_ent(taskq_ent_t *t)
 {
+	VERIFY3P(t->tqent_next, !=, 0xdeadbeefdeadbeef);
 	memset(t, 0, sizeof(*t));
+//	t->tqent_prev = t;
+//	t->tqent_next = t->tqent_prev;
 }
-
 
 void
 taskq_dispatch_ent(taskq_t *tq, task_func_t func, void *arg, uint_t flags,
     taskq_ent_t *tqe)
 {
 	ASSERT(func != NULL);
-	ASSERT(!(tq->tq_flags & TASKQ_DYNAMIC));
+	/* ZOL creates z_null_int with DYNAMIC */
+	// ASSERT(!(tq->tq_flags & TASKQ_DYNAMIC));
 
 	/*
 	 * Mark it as a prealloc'd task.  This is important
@@ -1327,6 +1337,11 @@ taskq_empty(taskq_t *tq)
 int
 taskq_empty_ent(taskq_ent_t *t)
 {
+	boolean_t ret;
+
+	if (t->tqent_prev == NULL &&
+	    t->tqent_next == NULL)
+		return TRUE;
 	return (IS_EMPTY(*t));
 }
 
@@ -1652,6 +1667,7 @@ taskq_thread(void *arg)
 			tq->tq_active++;
 			continue;
 		}
+	VERIFY3P(tqe->tqent_prev->tqent_next, !=, 0xdeadbeefdeadbeef);
 
 		tqe->tqent_prev->tqent_next = tqe->tqent_next;
 		tqe->tqent_next->tqent_prev = tqe->tqent_prev;
@@ -1665,9 +1681,11 @@ taskq_thread(void *arg)
 		 * ownershp of the tqent back to caller of
 		 * taskq_dispatch.)
 		 */
-		if ((!(tq->tq_flags & TASKQ_DYNAMIC)) &&
+		if (/*(!(tq->tq_flags & TASKQ_DYNAMIC)) &&*/
 		    (tqe->tqent_un.tqent_flags & TQENT_FLAG_PREALLOC)) {
 			/* clear pointers to assist assertion checks */
+	VERIFY3P(tqe->tqent_next, !=, 0xdeadbeefdeadbeef);
+
 			tqe->tqent_next = tqe->tqent_prev = NULL;
 			freeit = B_FALSE;
 		} else {
@@ -1843,6 +1861,8 @@ taskq_d_thread(taskq_ent_t *tqe)
 			 */
 
 			/* Remove the entry from the free list. */
+	VERIFY3P(tqe->tqent_prev->tqent_next, !=, 0xdeadbeefdeadbeef);
+
 			tqe->tqent_prev->tqent_next = tqe->tqent_next;
 			tqe->tqent_next->tqent_prev = tqe->tqent_prev;
 			ASSERT(bucket->tqbucket_nfree > 0);

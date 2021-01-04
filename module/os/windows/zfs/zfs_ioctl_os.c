@@ -405,10 +405,10 @@ zfsdev_attach(void)
 		&ioctlDeviceObject);                // Returned ptr to Device Object
 
 	if (!NT_SUCCESS(ntStatus)) {
-		dprintf("ZFS: Couldn't create the device object /dev/zfs (%wZ)\n", ZFS_DEV_KERNEL);
+		dprintf("ZFS: Couldn't create the device object /dev/zfs (%S)\n", ZFS_DEV_KERNEL);
 		return ntStatus;
 	}
-	dprintf("ZFS: created kernel device node: %p: name %wZ\n", ioctlDeviceObject, ZFS_DEV_KERNEL);
+	dprintf("ZFS: created kernel device node: %p: name %S\n", ioctlDeviceObject, ZFS_DEV_KERNEL);
 
 
 	UNICODE_STRING fsDiskDeviceName;
