@@ -52,17 +52,17 @@ dnl GNU format catalogs when building on a platform with an X/Open gettext),
 dnl but we keep it in order not to force irrelevant filename changes on the
 dnl maintainers.
 dnl
-AC_DEFUN([AM_GNU_GETTEXT],
+AC_DEFUN([CUSTOM_AM_GNU_GETTEXT],
 [
   dnl Argument checking.
   ifelse([$1], [], , [ifelse([$1], [external], , [ifelse([$1], [use-libtool], ,
-    [errprint([ERROR: invalid first argument to AM_GNU_GETTEXT
+    [errprint([ERROR: invalid first argument to CUSTOM_AM_GNU_GETTEXT
 ])])])])
   ifelse(ifelse([$1], [], [old])[]ifelse([$1], [no-libtool], [old]), [old],
-    [errprint([ERROR: Use of AM_GNU_GETTEXT without [external] argument is no longer supported.
+    [errprint([ERROR: Use of CUSTOM_AM_GNU_GETTEXT without [external] argument is no longer supported.
 ])])
   ifelse([$2], [], , [ifelse([$2], [need-ngettext], , [ifelse([$2], [need-formatstring-macros], ,
-    [errprint([ERROR: invalid second argument to AM_GNU_GETTEXT
+    [errprint([ERROR: invalid second argument to CUSTOM_AM_GNU_GETTEXT
 ])])])])
   define([gt_included_intl],
     ifelse([$1], [external], [no], [yes]))
