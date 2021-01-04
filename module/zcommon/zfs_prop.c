@@ -377,6 +377,17 @@ zfs_prop_init(void)
 		{ NULL }
 	};
 
+#ifdef _WIN32
+	static zprop_index_t mimic_table[] = {
+		{ "off",		ZFS_MIMIC_OFF },
+		{ "hfs",		ZFS_MIMIC_HFS },
+		{ "apfs",		ZFS_MIMIC_APFS },
+		{ "ntfs",		ZFS_MIMIC_NTFS },
+		{ NULL }
+	};
+	/* ___APPLE___ */
+#endif
+
 	struct zfs_mod_supported_features *sfeatures =
 	    zfs_mod_list_supported(ZFS_SYSFS_DATASET_PROPERTIES);
 
@@ -712,6 +723,9 @@ zfs_prop_init(void)
 	zprop_register_string(ZFS_PROP_DRIVELETTER, "driveletter", "-",
 	    0, ZFS_TYPE_FILESYSTEM, "off | on | A-Z ",
 	    "DRIVELETTER", sfeatures);
+	zprop_register_index(ZFS_PROP_MIMIC, "com.apple.mimic", 0,
+	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM, "off | ntfs",
+	    "COM.APPLE.MIMIC_HFS", mimic_table, sfeature);
 #endif
 
 	/*
