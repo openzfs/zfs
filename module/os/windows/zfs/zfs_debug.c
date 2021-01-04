@@ -247,7 +247,7 @@ __dprintf(boolean_t dprint, const char *file, const char *func,
 	__zfs_dbgmsg(buf);
 
 	/* Also emit string to log/console */
-	 printBuffer("%s\n", buf);
+	printBuffer("%s\n", buf);
 
 	kmem_free(buf, size);
 }

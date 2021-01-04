@@ -1275,7 +1275,7 @@ int     vnode_isvroot(vnode_t *vp)
 
 mount_t *vnode_mount(vnode_t *vp)
 {
-	return NULL;
+	return vp->v_mount;
 }
 
 void    vnode_clearfsnode(vnode_t *vp)

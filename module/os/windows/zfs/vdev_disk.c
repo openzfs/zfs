@@ -119,25 +119,25 @@ vdev_disk_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 
 	dprintf("%s: open of '%s' (physpath '%s')\n", __func__, vd->vdev_path, vd->vdev_physpath ? vd->vdev_physpath : "");
 	/*
-	* We must have a pathname, and it must be absolute.
-	* It can also start with # for partition encoded paths
-	*/
+	 * We must have a pathname, and it must be absolute.
+	 * It can also start with # for partition encoded paths
+	 */
 	if (vd->vdev_path == NULL || (vd->vdev_path[0] != '/' && vd->vdev_path[0] != '#')) {
 		vd->vdev_stat.vs_aux = VDEV_AUX_BAD_LABEL;
 		return (SET_ERROR(EINVAL));
 	}
 
 	/*
-	* Reopen the device if it's not currently open. Otherwise,
-	* just update the physical size of the device.
-	*/
+	 * Reopen the device if it's not currently open. Otherwise,
+	 * just update the physical size of the device.
+	 */
 	if (dvd != NULL) {
 		if (dvd->vd_ldi_offline && dvd->vd_lh == NULL) {
 			/*
-			* If we are opening a device in its offline notify
-			* context, the LDI handle was just closed. Clean
-			* up the LDI event callbacks and free vd->vdev_tsd.
-			*/
+			 * If we are opening a device in its offline notify
+			 * context, the LDI handle was just closed. Clean
+			 * up the LDI event callbacks and free vd->vdev_tsd.
+			 */
 			vdev_disk_free(vd);
 		}
 		else {
@@ -153,9 +153,9 @@ vdev_disk_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 	dvd = vd->vdev_tsd;
 
 	/*
-	* If we have not yet opened the device, try to open it by the
-	* specified path.
-	*/
+	 * If we have not yet opened the device, try to open it by the
+	 * specified path.
+	 */
 	NTSTATUS            ntstatus;
 	uint8_t *FileName = NULL;
 	uint32_t FileLength;
@@ -446,7 +446,7 @@ vdev_disk_physio(vdev_t *vd, caddr_t data,
 {
 	vdev_disk_t *dvd = vd->vdev_tsd;
 
-	//dprintf("%s: \n", __func__);
+	// dprintf("%s: \n", __func__);
 
 	/*
 	 * If the vdev is closed, it's likely in the REMOVED or FAULTED state.
@@ -537,10 +537,10 @@ DiskIoWkRtn(
 * locking, like from kmem_free())
 */
 
-IO_COMPLETION_ROUTINE vdev_disk_io_intrxxx;
+IO_COMPLETION_ROUTINE vdev_disk_io_intr;
 
 static NTSTATUS
-vdev_disk_io_intrxxx(PDEVICE_OBJECT DeviceObject, PIRP irp, PVOID Context)
+vdev_disk_io_intr(PDEVICE_OBJECT DeviceObject, PIRP irp, PVOID Context)
 {
 	vd_callback_t *vb = (vd_callback_t *)Context;
 
@@ -548,9 +548,10 @@ vdev_disk_io_intrxxx(PDEVICE_OBJECT DeviceObject, PIRP irp, PVOID Context)
 
 	vdev_disk_t *dvd = vb->zio->io_vd->vdev_tsd;
 
-	/* If IRQL is below DIPATCH_LEVEL then there is no issue in calling
+	/*
+	 * If IRQL is below DIPATCH_LEVEL then there is no issue in calling
 	 * vdev_disk_io_start_done() directly; otherwise queue a new Work Item
-	*/
+	 */
 	if (KeGetCurrentIrql() < DISPATCH_LEVEL)
 		vdev_disk_io_start_done(vb);
 	else {
@@ -570,7 +571,7 @@ vdev_disk_io_start(zio_t *zio)
 	unsigned long trim_flags = 0;
 	int flags, error = 0;
 
-	//dprintf("%s: type 0x%x offset 0x%llx len 0x%llx \n", __func__, zio->io_type, zio->io_offset, zio->io_size);
+	// dprintf("%s: type 0x%x offset 0x%llx len 0x%llx \n", __func__, zio->io_type, zio->io_offset, zio->io_size);
 
 	/*
 	 * If the vdev is closed, it's likely in the REMOVED or FAULTED state.
@@ -609,6 +610,7 @@ vdev_disk_io_start(zio_t *zio)
 //			dkc->dkc_flag = FLUSH_VOLATILE;
 			dkc->dkc_cookie = zio;
 
+			// Windows: find me
 //			error = ldi_ioctl(dvd->vd_lh, zio->io_cmd,
 //			    (uintptr_t)dkc, FKIOCTL, kcred, NULL);
 
@@ -634,17 +636,13 @@ vdev_disk_io_start(zio_t *zio)
 		return;
 
 	case ZIO_TYPE_WRITE:
-		if (zio->io_priority == ZIO_PRIORITY_SYNC_WRITE)
-			flags = B_WRITE;
-		else
-			flags = B_WRITE | B_ASYNC;
+		// if (zio->io_priority == ZIO_PRIORITY_SYNC_WRITE)
+		// Windows: do we need to pass this down IRP somehow?
 		break;
 
 	case ZIO_TYPE_READ:
-		if (zio->io_priority == ZIO_PRIORITY_SYNC_READ)
-			flags = B_READ;
-		else
-			flags = B_READ | B_ASYNC;
+		// if (zio->io_priority == ZIO_PRIORITY_SYNC_READ)
+		// Windows: do we need to pass this down IRP somehow?
 		break;
 
 	case ZIO_TYPE_TRIM:
@@ -665,9 +663,6 @@ vdev_disk_io_start(zio_t *zio)
 
 	ASSERT(zio->io_type == ZIO_TYPE_READ || zio->io_type == ZIO_TYPE_WRITE);
 
-	/* Stop OSX from also caching our data */
-	flags |= B_NOCACHE | B_PASSIVE; // Windowsify me
-
 	zio->io_target_timestamp = zio_handle_io_delay(zio);
 
 	ASSERT(zio->io_size != 0);
@@ -685,23 +680,22 @@ vdev_disk_io_start(zio_t *zio)
 	vb->zio = zio;
 
 	if (zio->io_type == ZIO_TYPE_READ) {
-		ASSERT3S(zio->io_abd->abd_size, >= , zio->io_size);
-		vb->b_addr =
-			abd_borrow_buf(zio->io_abd, zio->io_abd->abd_size);
-	} else {
-		vb->b_addr =
-			abd_borrow_buf_copy(zio->io_abd, zio->io_abd->abd_size);
-	}
 
-	if (flags & B_READ) {
+		vb->b_addr =
+			abd_borrow_buf(zio->io_abd, zio->io_size);
+
 		irp = IoBuildAsynchronousFsdRequest(IRP_MJ_READ,
 			dvd->vd_DeviceObject,
 			vb->b_addr,
 			(ULONG)zio->io_size,
 			&offset,
 			&IoStatusBlock);
+
 	} else {
-			irp = IoBuildAsynchronousFsdRequest(IRP_MJ_WRITE,
+		vb->b_addr =
+			abd_borrow_buf_copy(zio->io_abd, zio->io_size);
+
+		irp = IoBuildAsynchronousFsdRequest(IRP_MJ_WRITE,
 			dvd->vd_DeviceObject,
 			vb->b_addr,
 			(ULONG)zio->io_size,
@@ -710,6 +704,15 @@ vdev_disk_io_start(zio_t *zio)
 	}
 	
 	if (!irp) {
+
+		if (zio->io_type == ZIO_TYPE_READ) {
+			abd_return_buf_copy(zio->io_abd, vb->b_addr,
+			    zio->io_size);
+		} else {
+			abd_return_buf(zio->io_abd, vb->b_addr,
+			    zio->io_size);
+		}
+
 		kmem_free(vb, sizeof(vd_callback_t) + IoSizeofWorkItem());
 		zio->io_error = EIO;
 		zio_interrupt(zio);
@@ -725,7 +728,7 @@ vdev_disk_io_start(zio_t *zio)
 	irpStack->FileObject = dvd->vd_FileObject;
 
 	IoSetCompletionRoutine(irp,
-		vdev_disk_io_intrxxx,
+		vdev_disk_io_intr,
 		vb, // "Context" in vdev_disk_io_intr()
 		TRUE, // On Success
 		TRUE, // On Error

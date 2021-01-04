@@ -111,10 +111,7 @@ unsigned int zfs_vnop_create_negatives = 1;
 	DECLARE_CRED(ap);		\
 	DECLARE_CONTEXT(ap)
 
-//#define	dprintf if (debug_vnop_osx_printf) kprintf
-//#define dprintf kprintf
 
-//#define	dprintf(...) if (debug_vnop_osx_printf) {printf(__VA_ARGS__);delay(hz>>2);}
 #ifdef _KERNEL
 uint64_t vnop_num_reclaims = 0;
 uint64_t vnop_num_vnodes = 0;
@@ -352,8 +349,8 @@ int zfs_find_dvp_vp(zfsvfs_t *zfsvfs, char *filename, int finalpartmaynotexist, 
 		cn.cn_namelen = strlen(word);
 		cn.cn_nameptr = word;
 
-		error = zfs_lookup(dvp, word,
-			&vp, &cn, cn.cn_nameiop, NULL, flags);
+		error = zfs_lookup(VTOZ(dvp), word,
+			&zp, &cn, cn.cn_nameiop, NULL, flags);
 
 		if (error != 0) {
 			// If we are creating a file, or looking up parent,
@@ -366,7 +363,7 @@ int zfs_find_dvp_vp(zfsvfs_t *zfsvfs, char *filename, int finalpartmaynotexist, 
 		}
 
 		// If last lookup hit a non-directory type, we stop
-		zp = VTOZ(vp);
+		vp = ZTOV(zp);
 		ASSERT(zp != NULL);
 		if (S_ISDIR(zp->z_mode)) {
 
@@ -882,6 +879,7 @@ int zfs_vnop_lookup_impl(PIRP Irp, PIO_STACK_LOCATION IrpSp, mount_t *zmo, char 
 		// Set default 777 if something else wasn't passed in
 		if (!(vap->va_mask & ATTR_MODE))
 			vap->va_mode = 0777;
+		vap->va_mode |= S_IFDIR;
 		vap->va_mask |= (ATTR_MODE | ATTR_TYPE);
 
 		ASSERT(strchr(finalname, '\\') == NULL);
@@ -1105,7 +1103,7 @@ int zfs_vnop_lookup_impl(PIRP Irp, PIO_STACK_LOCATION IrpSp, mount_t *zmo, char 
 		error = zfs_create(VTOZ(dvp), finalname, vap, CreateDisposition == FILE_CREATE, vap->va_mode, &zp, NULL, 0, NULL);
 		if (error == 0) {
 
-			vp = VTOZ(zp);
+			vp = ZTOV(zp);
 
 			zfs_couplefileobject(vp, FileObject, zp?zp->z_size:0ULL);
 			vnode_ref(vp); // Hold open reference, until CLOSE
@@ -3505,7 +3503,7 @@ NTSTATUS set_security(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION 
 
 	// Do we need to update ZFS?
 	if (vattr.va_mask != 0) {
-		zfs_setattr(vp, &vattr, 0, NULL);
+		zfs_setattr(zp, &vattr, 0, NULL);
 		Status = STATUS_SUCCESS;
 	}
 

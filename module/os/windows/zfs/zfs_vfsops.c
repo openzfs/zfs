@@ -337,9 +337,9 @@ mimic_changed_cb(void *arg, uint64_t newval)
 	vfsstatfs = vfs_statfs(zfsvfs->z_vfs);
 
 	if (newval == 0) {
-		strlcpy(vfsstatfs->f_fstypename, "zfs", MFSTYPENAMELEN);
+	//	strlcpy(vfsstatfs->f_fstypename, "zfs", MFSTYPENAMELEN);
 	} else {
-		strlcpy(vfsstatfs->f_fstypename, "hfs", MFSTYPENAMELEN);
+	//	strlcpy(vfsstatfs->f_fstypename, "hfs", MFSTYPENAMELEN);
 	}
 }
 
@@ -985,24 +985,12 @@ zfs_domount(struct mount *vfsp, dev_t mount_dev, char *osname,
 	 */
 
 	error = dsl_prop_get_integer(osname, "com.apple.mimic", &mimic, NULL);
-	if (zfsvfs->z_rdev) {
-		struct vfsstatfs *vfsstatfs;
-		vfsstatfs = vfs_statfs(vfsp);
-		vfsstatfs->f_fsid.val[0] = zfsvfs->z_rdev;
-		vfsstatfs->f_fsid.val[1] = vfs_typenum(vfsp);
-	} else {
-		// Otherwise, ask VFS to give us a random unique one.
-		vfs_getnewfsid(vfsp);
-		struct vfsstatfs *vfsstatfs;
-		vfsstatfs = vfs_statfs(vfsp);
-		zfsvfs->z_rdev = vfsstatfs->f_fsid.val[0];
-	}
 
 	/*
 	 * If we are readonly (ie, waiting for rootmount) we need to reply
 	 * honestly, so launchd runs fsck_zfs and mount_zfs
 	 */
-	if (mimic) {
+	if (mimic /* == ZFS_MIMIC_NTFS */) {
 		struct vfsstatfs *vfsstatfs;
 		vfsstatfs = vfs_statfs(vfsp);
 		strlcpy(vfsstatfs->f_fstypename, "ntfs", MFSTYPENAMELEN);
