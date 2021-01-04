@@ -457,6 +457,13 @@ typedef enum zfs_key_location {
 	ZFS_KEYLOCATION_LOCATIONS
 } zfs_keylocation_t;
 
+typedef enum zfs_mimic {
+	ZFS_MIMIC_OFF = 0,
+	ZFS_MIMIC_HFS,
+	ZFS_MIMIC_APFS,
+	ZFS_MIMIC_NTFS
+} zfs_mimic_t;
+
 #define	DEFAULT_PBKDF2_ITERATIONS 350000
 #define	MIN_PBKDF2_ITERATIONS 100000
 
