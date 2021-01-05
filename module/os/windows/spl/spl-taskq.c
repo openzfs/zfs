@@ -1012,6 +1012,7 @@ static void
 taskq_ent_free(taskq_t *tq, taskq_ent_t *tqe)
 {
 	ASSERT(MUTEX_HELD(&tq->tq_lock));
+	ASSERT((tqe->tqent_un.tqent_flags & TQENT_FLAG_PREALLOC) == 0);
 
 	if (tq->tq_nalloc <= tq->tq_minalloc) {
 

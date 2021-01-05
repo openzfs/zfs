@@ -482,6 +482,7 @@ int zfs_vnop_lookup_impl(PIRP Irp, PIO_STACK_LOCATION IrpSp, mount_t *zmo, char 
 	struct vnode *dvp = NULL;
 	struct vnode *vp = NULL;
 	znode_t *zp = NULL;
+	znode_t *dzp = NULL;
 	struct componentname cn;
 	ULONG Options;
 	BOOLEAN CreateDirectory;
@@ -791,6 +792,7 @@ int zfs_vnop_lookup_impl(PIRP Irp, PIO_STACK_LOCATION IrpSp, mount_t *zmo, char 
 		return STATUS_OBJECT_NAME_NOT_FOUND;
 	}
 
+
 	// Streams
 	// If we opened vp, grab its xattrdir, and try to to locate stream
 	if (stream_name != NULL && vp != NULL) {
@@ -800,17 +802,19 @@ int zfs_vnop_lookup_impl(PIRP Irp, PIO_STACK_LOCATION IrpSp, mount_t *zmo, char 
 		if (dvp_no_rele)
 			VN_RELE(dvp);
 		// Create the xattrdir only if we are to create a new entry
-		if (error = zfs_get_xattrdir(VTOZ(vp), &dvp, cr, CreateFile ? CREATE_XATTR_DIR : 0)) {
+		if (error = zfs_get_xattrdir(VTOZ(vp), &dzp, cr, CreateFile ? CREATE_XATTR_DIR : 0)) {
 			VN_RELE(vp);
 			Irp->IoStatus.Information = FILE_DOES_NOT_EXIST;
 			return STATUS_OBJECT_NAME_NOT_FOUND;
 		}
 		VN_RELE(vp);
 		vp = NULL;
+		dvp = ZTOV(dzp);
 		int direntflags = 0; // To detect ED_CASE_CONFLICT
-		error = zfs_dirlook(VTOZ(dvp), stream_name, &vp, 0 /*FIGNORECASE*/, &direntflags, NULL);
+		error = zfs_dirlook(dzp, stream_name, &zp, 0 /*FIGNORECASE*/, &direntflags, NULL);
 		// Here, it may not exist, as we are to create it.
 		finalname = stream_name;
+		vp = ZTOV(zp);
 	}
 
 
@@ -1485,7 +1489,7 @@ zfs_znode_getvnode(znode_t *zp, znode_t *dzp, zfsvfs_t *zfsvfs)
 
 	// Build a fullpath string here, for Notifications and set_name_information
 	ASSERT(zp->z_name_cache == NULL);
-	if (zfs_build_path(zp, NULL, &zp->z_name_cache, &zp->z_name_len, &zp->z_name_offset) == -1)
+	if (zfs_build_path(zp, dzp, &zp->z_name_cache, &zp->z_name_len, &zp->z_name_offset) == -1)
 		dprintf("%s: failed to build fullpath\n", __func__);
 
 	// Assign security here. But, if we are XATTR, we do not? In Windows, it refers to Streams
@@ -1602,7 +1606,9 @@ NTSTATUS query_volume_information(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STA
 		}
 
 /* Do not enable until we have implemented FileRenameInformationEx method. */
-//#define ZFS_FS_ATTRIBUTE_POSIX
+#if (NTDDI_VERSION >= NTDDI_WIN10_RS1)
+#define ZFS_FS_ATTRIBUTE_POSIX
+#endif
 
 #define ZFS_FS_ATTRIBUTE_CLEANUP_INFO
 
@@ -2116,7 +2122,7 @@ NTSTATUS query_ea(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpS
 	BOOLEAN IndexSpecified;
 	DWORD *lastNextEntryOffset = NULL;
 	uint64_t spaceused = 0;
-	znode_t *zp = NULL;
+	znode_t *zp = NULL, *xdzp = NULL;
 	zfsvfs_t *zfsvfs = NULL;
 	zap_cursor_t  zc;
 	zap_attribute_t  za;
@@ -2142,12 +2148,12 @@ NTSTATUS query_ea(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpS
 	dprintf("%s\n", __func__);
 
 	// Grab the xattr dir - if any
-	if (zfs_get_xattrdir(zp, &xdvp, NULL, 0) != 0) {
+	if (zfs_get_xattrdir(zp, &xdzp, NULL, 0) != 0) {
 		return STATUS_NO_EAS_ON_FILE;
 		Status = STATUS_NO_EAS_ON_FILE;
 		goto out;
 	}
-
+	xdvp = ZTOV(xdzp);
 	Buffer = MapUserBuffer(Irp);
 
 	struct vnode *xvp = NULL;
@@ -2819,11 +2825,11 @@ NTSTATUS set_information(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATI
 				if (zfs_setwinflags(VTOZ(vp), fbi->FileAttributes))
 					va.va_active |= ATTR_MODE;
 
-			Status = zfs_setattr(vp, &va, 0, NULL);
+			Status = zfs_setattr(zp, &va, 0, NULL);
 
 			// zfs_setattr will turn ARCHIVE back on, when perhaps it is set off by this call
 			if (fbi->FileAttributes)
-				zfs_setwinflags(VTOZ(vp), fbi->FileAttributes);
+				zfs_setwinflags(zp, fbi->FileAttributes);
 
 			VN_RELE(vp);
 		}
@@ -2842,6 +2848,7 @@ NTSTATUS set_information(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATI
 		dprintf("* SET FilePositionInformation NOTIMPLEMENTED\n");
 		break;
 	case FileRenameInformation: // vnop_rename
+	case FileRenameInformationEx: 
 		Status = file_rename_information(DeviceObject, Irp, IrpSp);
 		break;
 	case FileValidDataLengthInformation:  // truncate?
@@ -2850,8 +2857,6 @@ NTSTATUS set_information(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATI
 	case FileDispositionInformationEx:
 		Status = file_disposition_information_ex(DeviceObject, Irp, IrpSp);
 		break;
-	//case FileRenameInformationEx:
-	//	break;
 	default:
 		dprintf("* %s: unknown type NOTIMPLEMENTED\n", __func__);
 		break;

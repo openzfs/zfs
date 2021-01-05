@@ -449,15 +449,8 @@ zfs_vnop_ioctl_fullfsync(struct vnode *vp, vfs_context_t *ct, zfsvfs_t *zfsvfs)
 {
 	int error;
 
-	error = zfs_fsync(VTOZ(vp), /*syncflag*/0, NULL);
-	if (error)
-		return (error);
-
-	if (zfsvfs->z_log != NULL)
-		zil_commit(zfsvfs->z_log, 0);
-	else
-		txg_wait_synced(dmu_objset_pool(zfsvfs->z_os), 0);
-	return (0);
+	// error = zfs_fsync(VTOZ(vp), /*syncflag*/0, NULL);
+	return (error);
 }
 
 uint32_t
@@ -617,6 +610,7 @@ NTSTATUS vnode_apply_eas(struct vnode *vp, PFILE_FULL_EA_INFORMATION eas, ULONG 
 	}
 
 	struct vnode *xdvp = NULL;
+	znode_t *xdzp = NULL;
 	vattr_t vap = { 0 };
 	int error;
 	PFILE_FULL_EA_INFORMATION ea;
@@ -627,10 +621,11 @@ NTSTATUS vnode_apply_eas(struct vnode *vp, PFILE_FULL_EA_INFORMATION eas, ULONG 
 			// optimization: defer creating an xattr dir until the first standard EA
 			if (xdvp == NULL) {
 				// Open (or Create) the xattr directory
-				if (zfs_get_xattrdir(VTOZ(vp), &xdvp, NULL, CREATE_XATTR_DIR) != 0) {
+				if (zfs_get_xattrdir(VTOZ(vp), &xdzp, NULL, CREATE_XATTR_DIR) != 0) {
 					Status = STATUS_EA_CORRUPT_ERROR;
 					goto out;
 				}
+				xdvp = ZTOV(xdzp);
 			}
 			error = vnode_apply_single_ea(vp, xdvp, ea);
 			if (error != 0) dprintf("  failed to process xattr: %d\n", error);
@@ -1780,7 +1775,7 @@ uint64_t xattr_getsize(struct vnode *vp)
 {
 	uint64_t ret = 0;
 	struct vnode *xdvp = NULL, *xvp = NULL;
-	znode_t *zp;
+	znode_t *zp, *xdzp = NULL;
 	zfsvfs_t *zfsvfs;
 	zap_cursor_t  zc;
 	zap_attribute_t  za;
@@ -1802,10 +1797,10 @@ uint64_t xattr_getsize(struct vnode *vp)
 	 * with IRP_MJ_QUERY_EA and we will have to return short.
 	 * We will return the true space needed.
 	 */
-	if (zfs_get_xattrdir(zp, &xdvp, NULL, 0) != 0) {
+	if (zfs_get_xattrdir(zp, &xdzp, NULL, 0) != 0) {
 		goto out;
 	}
-
+	xdvp = ZTOV(xdzp);
 	os = zfsvfs->z_os;
 
 	for (zap_cursor_init(&zc, os, VTOZ(xdvp)->z_id);
@@ -2278,6 +2273,7 @@ out:
 NTSTATUS file_rename_information(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 {
 	NTSTATUS Status;
+	boolean_t ExVariant = IrpSp->Parameters.SetFile.FileInformationClass == FileRenameInformationEx;
 	/*
 	The file name string in the FileName member must be specified in one of the following forms.
 	A simple file name. (The RootDirectory member is NULL.) In this case, the file is simply renamed within the same directory.
@@ -2422,11 +2418,14 @@ NTSTATUS file_rename_information(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STAC
 	VN_HOLD(fvp);
 
 	// If we have a "tvp" here, then something exists where we are to rename
-	if (tvp && !ren->ReplaceIfExists) {
+	if (tvp && !ExVariant && !ren->ReplaceIfExists) {
 		error = STATUS_OBJECT_NAME_COLLISION;
 		goto out;
 	}
-
+	if (tvp && ExVariant && !(ren->Flags&FILE_RENAME_REPLACE_IF_EXISTS) ) {
+		error = STATUS_OBJECT_NAME_COLLISION;
+		goto out;
+	}
 
 	VERIFY(sa_lookup(zp->z_sa_hdl, SA_ZPL_PARENT(zfsvfs),
 		&parent, sizeof(parent)) == 0);
@@ -3154,6 +3153,7 @@ NTSTATUS file_stream_information(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STAC
 
 	struct vnode *vp = FileObject->FsContext, *xvp = NULL;
 	znode_t *zp = VTOZ(vp);
+	znode_t *xdzp = NULL;
 	zfsvfs_t *zfsvfs = zp->z_zfsvfs;
 
 	// This exits when unmounting
@@ -3173,9 +3173,11 @@ NTSTATUS file_stream_information(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STAC
 	overflow = zfswin_insert_streamname(":$DATA", outbuffer, &lastNextEntryOffset, availablebytes, &spaceused, zp->z_size);
 
 	/* Grab the hidden attribute directory vnode. */
-	if (zfs_get_xattrdir(zp, &xdvp, cr, 0) != 0) {
+	if (zfs_get_xattrdir(zp, &xdzp, cr, 0) != 0) {
 		goto out;
 	}
+
+	xdvp = ZTOV(xdzp);
 	os = zfsvfs->z_os;
 
 	for (zap_cursor_init(&zc, os, VTOZ(xdvp)->z_id);
