@@ -387,8 +387,9 @@ typedef struct {
 } zil_parse_result_t;
 int zil_parse_phys(spa_t *spa, const zil_header_t *zh,
     zil_parse_phys_blk_func_t *parse_blk_func,
-	zil_parse_phys_lr_func_t *parse_lr_func, void *arg, boolean_t decrypt,
-	zio_priority_t zio_priority, zil_parse_result_t *result);
+    zil_parse_phys_lr_func_t *parse_lr_func, void *arg,
+    boolean_t decrypt, zio_priority_t zio_priority,
+    zil_parse_result_t *result);
 
 extern void	zil_init(void);
 extern void	zil_fini(void);
@@ -411,7 +412,6 @@ extern void	zil_itx_assign(zilog_t *zilog, itx_t *itx, dmu_tx_t *tx);
 
 extern void	zil_async_to_sync(zilog_t *zilog, uint64_t oid);
 extern void	zil_commit(zilog_t *zilog, uint64_t oid);
-extern void	zil_commit_impl(zilog_t *zilog, uint64_t oid);
 extern void	zil_remove_async(zilog_t *zilog, uint64_t oid);
 
 extern int	zil_reset(const char *osname, void *txarg);

@@ -28,8 +28,8 @@
 #undef TRACE_SYSTEM_VAR
 #define	TRACE_SYSTEM_VAR zfs_zil
 
-#if !defined(_TRACE_ZIL_H) || defined(TRACE_HEADER_MULTI_READ)
-#define	_TRACE_ZIL_H
+#if !defined(_TRACE_ZIL_LWB_H) || defined(TRACE_HEADER_MULTI_READ)
+#define	_TRACE_ZIL_LWB_H
 
 #include <sys/zil_lwb.h>
 
@@ -191,11 +191,11 @@ DEFINE_ZIL_PROCESS_ITX_EVENT(zfs_zil__process__normal__itx);
  *
  * DTRACE_PROBE2(...,
  *     zilog_t *, ...,
- *     zil_commit_waiter_t *, ...);
+ *     zillwb_commit_waiter_t *, ...);
  */
 /* BEGIN CSTYLED */
 DECLARE_EVENT_CLASS(zfs_zil_commit_io_error_class,
-	TP_PROTO(zilog_t *zilog, zil_commit_waiter_t *zcw),
+	TP_PROTO(zilog_t *zilog, zillwb_commit_waiter_t *zcw),
 	TP_ARGS(zilog, zcw),
 	TP_STRUCT__entry(
 	    ZILOG_TP_STRUCT_ENTRY
@@ -213,17 +213,17 @@ DECLARE_EVENT_CLASS(zfs_zil_commit_io_error_class,
 /* BEGIN CSTYLED */
 #define	DEFINE_ZIL_COMMIT_IO_ERROR_EVENT(name) \
 DEFINE_EVENT(zfs_zil_commit_io_error_class, name, \
-	TP_PROTO(zilog_t *zilog, zil_commit_waiter_t *zcw), \
+	TP_PROTO(zilog_t *zilog, zillwb_commit_waiter_t *zcw), \
 	TP_ARGS(zilog, zcw))
 DEFINE_ZIL_COMMIT_IO_ERROR_EVENT(zfs_zil__commit__io__error);
 /* END CSTYLED */
 
-#endif /* _TRACE_ZIL_H */
+#endif /* _TRACE_ZIL_LWB_H */
 
 #undef TRACE_INCLUDE_PATH
 #undef TRACE_INCLUDE_FILE
 #define	TRACE_INCLUDE_PATH sys
-#define	TRACE_INCLUDE_FILE trace_zil
+#define	TRACE_INCLUDE_FILE trace_zil_lwb
 #include <trace/define_trace.h>
 
 #else

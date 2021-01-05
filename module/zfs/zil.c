@@ -182,7 +182,7 @@ zil_itxg_clean(void *arg)
 		/*
 		 * In the general case, commit itxs will not be found
 		 * here, as they'll be committed to an lwb via
-		 * zil_lwb_commit(), and free'd in that function. Having
+		 * zillwb_lwb_commit(), and free'd in that function. Having
 		 * said that, it is still possible for commit itxs to be
 		 * found here, due to the following race:
 		 *
@@ -195,11 +195,11 @@ zil_itxg_clean(void *arg)
 		 * waiter is on the i_sync_list. This normally doesn't
 		 * happen because spa_sync() is slower than zil_commit(),
 		 * but if zil_commit() calls txg_wait_synced() (e.g.
-		 * because zil_create() or zil_commit_writer_stall() is
+		 * because zil_create() or zillwb_commit_writer_stall() is
 		 * called) we will hit this case.
 		 */
 		if (itx->itx_lr.lrc_txtype == TX_COMMIT)
-			zil_commit_waiter_skip(itx->itx_private);
+			zillwb_commit_waiter_skip(itx->itx_private);
 
 		list_remove(list, itx);
 		zil_itx_destroy(itx);
@@ -618,6 +618,133 @@ zil_objset(zilog_t *zl)
 	return (zl->zl_os);
 }
 
+int zil_parse_phys(spa_t *spa, const zil_header_t *zh,
+    zil_parse_phys_blk_func_t *parse_blk_func,
+	zil_parse_phys_lr_func_t *parse_lr_func, void *arg,
+	boolean_t decrypt, zio_priority_t zio_priority,
+	zil_parse_result_t *result)
+{
+	return (zillwb_parse_phys(spa, zh, parse_blk_func, parse_lr_func, arg,
+	    decrypt, zio_priority, result));
+}
+
+void
+zil_init(void)
+{
+	zillwb_init();
+}
+
+void
+zil_fini(void)
+{
+	zillwb_fini();
+}
+
+void
+zil_close(zilog_t *zilog)
+{
+	zillwb_close(zilog);
+}
+
+void
+zil_replay(objset_t *os, void *arg,
+    zil_replay_func_t *replay_func[TX_MAX_TYPE])
+{
+	zillwb_replay(os, arg, replay_func);
+}
+
+boolean_t
+zil_replaying(zilog_t *zilog, dmu_tx_t *tx)
+{
+	return (zillwb_replaying(zilog, tx));
+}
+
+void
+zil_destroy(zilog_t *zilog, boolean_t keep_first)
+{
+	zillwb_destroy(zilog, keep_first);
+}
+
+void
+zil_destroy_sync(zilog_t *zilog, dmu_tx_t *tx)
+{
+	zillwb_destroy_sync(zilog, tx);
+}
+
+void
+zil_commit(zilog_t *zilog, uint64_t oid)
+{
+	zillwb_commit(zilog, oid);
+}
+
+int
+zil_reset(const char *osname, void *txarg)
+{
+	return (zillwb_reset(osname, txarg));
+}
+
+int
+zil_claim(struct dsl_pool *dp,
+    struct dsl_dataset *ds, void *txarg)
+{
+	return (zillwb_claim(dp, ds, txarg));
+}
+
+int
+zil_check_log_chain(struct dsl_pool *dp,
+    struct dsl_dataset *ds, void *tx)
+{
+	return (zillwb_check_log_chain(dp, ds, tx));
+}
+
+void
+zil_sync(zilog_t *zilog, dmu_tx_t *tx)
+{
+	zillwb_sync(zilog, tx);
+}
+
+int
+zil_suspend(const char *osname, void **cookiep)
+{
+	return (zillwb_suspend(osname, cookiep));
+}
+
+void
+zil_resume(void *cookie)
+{
+	zillwb_resume(cookie);
+}
+
+void
+zil_lwb_add_block(struct lwb *lwb, const blkptr_t *bp)
+{
+	zillwb_lwb_add_block(lwb, bp);
+}
+
+void
+zil_lwb_add_txg(struct lwb *lwb, uint64_t txg)
+{
+	zillwb_lwb_add_txg(lwb, txg);
+}
+
+int
+zil_bp_tree_add(zilog_t *zilog, const blkptr_t *bp)
+{
+	return (zillwb_bp_tree_add(zilog, bp));
+}
+
+uint64_t
+zil_max_copied_data(zilog_t *zilog)
+{
+	return (zillwb_max_copied_data(zilog));
+}
+
+uint64_t
+zil_max_log_data(zilog_t *zilog)
+{
+	return (zillwb_max_log_data(zilog));
+}
+
 EXPORT_SYMBOL(zil_alloc);
 EXPORT_SYMBOL(zil_free);
 EXPORT_SYMBOL(zil_open);
@@ -628,6 +755,20 @@ EXPORT_SYMBOL(zil_sync);
 EXPORT_SYMBOL(zil_clean);
 EXPORT_SYMBOL(zil_set_sync);
 EXPORT_SYMBOL(zil_set_logbias);
+
+/* forwarding functions */
+EXPORT_SYMBOL(zil_close);
+EXPORT_SYMBOL(zil_replay);
+EXPORT_SYMBOL(zil_replaying);
+EXPORT_SYMBOL(zil_destroy);
+EXPORT_SYMBOL(zil_destroy_sync);
+EXPORT_SYMBOL(zil_commit);
+EXPORT_SYMBOL(zil_claim);
+EXPORT_SYMBOL(zil_check_log_chain);
+EXPORT_SYMBOL(zil_suspend);
+EXPORT_SYMBOL(zil_resume);
+EXPORT_SYMBOL(zil_lwb_add_block);
+EXPORT_SYMBOL(zil_bp_tree_add);
 
 /* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs_zil, zil_, replay_disable, INT, ZMOD_RW,

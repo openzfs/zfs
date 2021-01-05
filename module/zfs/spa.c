@@ -4505,7 +4505,7 @@ spa_ld_claim_log_blocks(spa_t *spa)
 	 * Claim log blocks that haven't been committed yet.
 	 * This must all happen in a single txg.
 	 * Note: spa_claim_max_txg is updated by spa_claim_notify(),
-	 * invoked from zil_claim_log_block()'s i/o done callback.
+	 * invoked from zillwb_claim_log_block()'s i/o done callback.
 	 * Price of rollback is that we abandon the log.
 	 */
 	spa->spa_claiming = B_TRUE;

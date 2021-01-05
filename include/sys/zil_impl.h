@@ -35,7 +35,6 @@
 extern "C" {
 #endif
 
-
 /*
  * Intent log transaction lists
  */
@@ -58,10 +57,43 @@ typedef struct itx_async_node {
 } itx_async_node_t;
 
 
+
 /* zil.c <=> zil_lwb.c */
+
 extern int zil_maxblocksize;
 boolean_t zilog_is_dirty(zilog_t *zilog);
 void zil_get_commit_list(zilog_t *zilog);
+
+typedef int zil_replay_func_t(void *arg1, void *arg2, boolean_t byteswap);
+
+int zillwb_parse_phys(spa_t *spa, const zil_header_t *zh,
+    zil_parse_phys_blk_func_t *parse_blk_func,
+	zil_parse_phys_lr_func_t *parse_lr_func, void *arg,
+	boolean_t decrypt, zio_priority_t zio_priority,
+	zil_parse_result_t *result);
+
+extern void	zillwb_init(void);
+extern void	zillwb_fini(void);
+extern void	zillwb_close(zilog_t *zilog);
+extern void	zillwb_replay(objset_t *os, void *arg,
+    zil_replay_func_t *replay_func[TX_MAX_TYPE]);
+extern boolean_t zillwb_replaying(zilog_t *zilog, dmu_tx_t *tx);
+extern void	zillwb_destroy(zilog_t *zilog, boolean_t keep_first);
+extern void	zillwb_destroy_sync(zilog_t *zilog, dmu_tx_t *tx);
+extern void	zillwb_commit(zilog_t *zilog, uint64_t oid);
+extern int	zillwb_reset(const char *osname, void *txarg);
+extern int	zillwb_claim(struct dsl_pool *dp,
+    struct dsl_dataset *ds, void *txarg);
+extern int 	zillwb_check_log_chain(struct dsl_pool *dp,
+    struct dsl_dataset *ds, void *tx);
+extern void	zillwb_sync(zilog_t *zilog, dmu_tx_t *tx);
+extern int	zillwb_suspend(const char *osname, void **cookiep);
+extern void	zillwb_resume(void *cookie);
+extern void	zillwb_lwb_add_block(struct lwb *lwb, const blkptr_t *bp);
+extern void	zillwb_lwb_add_txg(struct lwb *lwb, uint64_t txg);
+extern int	zillwb_bp_tree_add(zilog_t *zilog, const blkptr_t *bp);
+extern uint64_t	zillwb_max_copied_data(zilog_t *zilog);
+extern uint64_t	zillwb_max_log_data(zilog_t *zilog);
 
 #ifdef	__cplusplus
 }

@@ -39,20 +39,20 @@ typedef struct zil_chain {
 #define	ZIL_ZC_OBJSET	2
 #define	ZIL_ZC_SEQ	3
 
-typedef struct zil_bp_node {
+typedef struct zillwb_bp_node {
 	dva_t		zn_dva;
 	avl_node_t	zn_node;
-} zil_bp_node_t;
+} zillwb_bp_node_t;
 
 
 /*
  * Vdev flushing: during a zil_commit(), we build up an AVL tree of the vdevs
  * we've touched so we know which ones need a write cache flush at the end.
  */
-typedef struct zil_vdev_node {
+typedef struct zillwb_vdev_node {
 	uint64_t	zv_vdev;	/* vdev to be flushed */
 	avl_node_t	zv_node;	/* AVL tree linkage */
-} zil_vdev_node_t;
+} zillwb_vdev_node_t;
 
 
 #define	ZIL_PREV_BLKS 16
@@ -62,17 +62,17 @@ typedef struct zil_vdev_node {
  * Possible states for a given lwb structure.
  *
  * An lwb will start out in the "closed" state, and then transition to
- * the "opened" state via a call to zil_lwb_write_open(). When
+ * the "opened" state via a call to zillwb_lwb_write_open(). When
  * transitioning from "closed" to "opened" the zilog's "zl_issuer_lock"
  * must be held.
  *
  * After the lwb is "opened", it can transition into the "issued" state
- * via zil_lwb_write_issue(). Again, the zilog's "zl_issuer_lock" must
+ * via zillwb_lwb_write_issue(). Again, the zilog's "zl_issuer_lock" must
  * be held when making this transition.
  *
  * After the lwb's write zio completes, it transitions into the "write
- * done" state via zil_lwb_write_done(); and then into the "flush done"
- * state via zil_lwb_flush_vdevs_done(). When transitioning from
+ * done" state via zillwb_lwb_write_done(); and then into the "flush done"
+ * state via zillwb_lwb_flush_vdevs_done(). When transitioning from
  * "issued" to "write done", and then from "write done" to "flush done",
  * the zilog's "zl_lock" must be held, *not* the "zl_issuer_lock".
  *
@@ -106,7 +106,7 @@ typedef enum {
 /*
  * Log write block (lwb)
  *
- * Prior to an lwb being issued to disk via zil_lwb_write_issue(), it
+ * Prior to an lwb being issued to disk via zillwb_lwb_write_issue(), it
  * will be protected by the zilog's "zl_issuer_lock". Basically, prior
  * to it being issued, it will only be accessed by the thread that's
  * holding the "zl_issuer_lock". After the lwb is issued, the zilog's
@@ -145,19 +145,20 @@ typedef struct lwb {
  * The "zcw_lock" field is used to protect the commit waiter against
  * concurrent access. This lock is often acquired while already holding
  * the zilog's "zl_issuer_lock" or "zl_lock"; see the functions
- * zil_process_commit_list() and zil_lwb_flush_vdevs_done() as examples
+ * zillwb_process_commit_list() and zillwb_lwb_flush_vdevs_done() as examples
  * of this. Thus, one must be careful not to acquire the
  * "zl_issuer_lock" or "zl_lock" when already holding the "zcw_lock";
- * e.g. see the zil_commit_waiter_timeout() function.
+ * e.g. see the zillwb_commit_waiter_timeout() function.
  */
-typedef struct zil_commit_waiter {
+typedef struct zillwb_commit_waiter {
 	kcondvar_t	zcw_cv;		/* signalled when "done" */
 	kmutex_t	zcw_lock;	/* protects fields of this struct */
 	list_node_t	zcw_node;	/* linkage in lwb_t:lwb_waiter list */
 	lwb_t		*zcw_lwb;	/* back pointer to lwb when linked */
 	boolean_t	zcw_done;	/* B_TRUE when "done", else B_FALSE */
 	int		zcw_zio_error;	/* contains the zio io_error value */
-} zil_commit_waiter_t;
+} zillwb_commit_waiter_t;
+
 
 
 /*
@@ -208,7 +209,7 @@ struct zilog {
 	uint64_t	zl_max_block_size;
 };
 
-void zil_commit_waiter_skip(zil_commit_waiter_t *zcw);
+void zillwb_commit_waiter_skip(zillwb_commit_waiter_t *zcw);
 
 
 /*

@@ -49,7 +49,7 @@
 #include <sys/trace_rrwlock.h>
 #include <sys/trace_txg.h>
 #include <sys/trace_vdev.h>
-#include <sys/trace_zil.h>
+#include <sys/trace_zil_lwb.h>
 #include <sys/trace_zio.h>
 #include <sys/trace_zrlock.h>
 #endif
