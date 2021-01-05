@@ -1469,7 +1469,7 @@ top:
 		dmu_tx_commit(tx);
 
 		/*
-		 * OS X - attach the vnode _after_ committing the transaction
+		 * Windows - attach the vnode _after_ committing the transaction
 		 */
 		zfs_znode_getvnode(zp, dzp, zfsvfs);
 
@@ -1951,7 +1951,7 @@ out:
 
 	dmu_tx_commit(tx);
 	/*
-	 * OS X - attach the vnode _after_ committing the transaction
+	 * Windows - attach the vnode _after_ committing the transaction
 	 */
 	zfs_znode_getvnode(zp, dzp, zfsvfs);
 
@@ -4158,22 +4158,6 @@ top:
 				    (flags & FIGNORECASE ? TX_CI : 0), sdzp,
 				    sdl->dl_name, tdzp, tdl->dl_name, szp);
 
-				/*
-				 * Update cached name - for vget, and access
-				 * without calling vnop_lookup first - it is
-				 * easier to clear it out and let getattr
-				 * look it up if needed.
-				 */
-				if (tzp) {
-					mutex_enter(&tzp->z_lock);
-					tzp->z_name_cache[0] = 0;
-					mutex_exit(&tzp->z_lock);
-				}
-				if (szp) {
-					mutex_enter(&szp->z_lock);
-					szp->z_name_cache[0] = 0;
-					mutex_exit(&szp->z_lock);
-				}
 
 			} else {
 				/*
@@ -4379,7 +4363,7 @@ top:
 	zfs_dirent_unlock(dl);
 
 	/*
-	 * OS X - attach the vnode _after_ committing the transaction
+	 * Windows - attach the vnode _after_ committing the transaction
 	 */
 	zfs_znode_getvnode(zp, dzp, zfsvfs);
 
@@ -4477,12 +4461,10 @@ zfs_link(znode_t *tdzp, znode_t *szp, char *name, cred_t *cr,
 	ZFS_VERIFY_ZP(tdzp);
 	zilog = zfsvfs->z_log;
 
-#ifdef __APPLE__
 	if (VTOM(svp) != VTOM(ZTOV(tdzp))) {
 		ZFS_EXIT(zfsvfs);
 		return (EXDEV);
 	}
-#endif
 
 	/*
 	 * POSIX dictates that we return EPERM here.

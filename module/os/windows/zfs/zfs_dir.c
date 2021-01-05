@@ -1090,12 +1090,10 @@ zfs_make_xattrdir(znode_t *zp, vattr_t *vap, znode_t **xzpp, cred_t *cr)
 	zfs_acl_ids_free(&acl_ids);
 	dmu_tx_commit(tx);
 
-#ifdef __APPLE__
 	/*
-	 * OS X - attach the vnode _after_ committing the transaction
+	 * Windows - attach the vnode _after_ committing the transaction
 	 */
-	zfs_znode_getvnode(xzp, zfsvfs);
-#endif
+	zfs_znode_getvnode(xzp, zp, zfsvfs);
 
 	*xzpp = xzp;
 
