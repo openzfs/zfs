@@ -132,14 +132,14 @@ zillwb_bp_compare(const void *x1, const void *x2)
 }
 
 static void
-zillwb_bp_tree_init(zilog_t *zilog)
+zillwb_bp_tree_init(zilog_lwb_t *zilog)
 {
 	avl_create(&zilog->zl_bp_tree, zillwb_bp_compare,
 	    sizeof (zillwb_bp_node_t), offsetof(zillwb_bp_node_t, zn_node));
 }
 
 static void
-zillwb_bp_tree_fini(zilog_t *zilog)
+zillwb_bp_tree_fini(zilog_lwb_t *zilog)
 {
 	avl_tree_t *t = &zilog->zl_bp_tree;
 	zillwb_bp_node_t *zn;
@@ -152,7 +152,7 @@ zillwb_bp_tree_fini(zilog_t *zilog)
 }
 
 int
-zillwb_bp_tree_add(zilog_t *zilog, const blkptr_t *bp)
+zillwb_bp_tree_add(zilog_lwb_t *zilog, const blkptr_t *bp)
 {
 	avl_tree_t *t = &zilog->zl_bp_tree;
 	const dva_t *dva;
@@ -175,13 +175,13 @@ zillwb_bp_tree_add(zilog_t *zilog, const blkptr_t *bp)
 }
 
 static zil_header_t *
-zil_header_in_syncing_context(zilog_t *zilog)
+zil_header_in_syncing_context(zilog_lwb_t *zilog)
 {
 	return ((zil_header_t *)zilog->zl_header);
 }
 
 static void
-zillwb_init_log_chain(zilog_t *zilog, blkptr_t *bp)
+zillwb_init_log_chain(zilog_lwb_t *zilog, blkptr_t *bp)
 {
 	zio_cksum_t *zc = &bp->blk_cksum;
 
@@ -278,7 +278,7 @@ zillwb_read_log_block(spa_t *spa, const zil_header_t *zh, boolean_t decrypt,
  * Read a TX_WRITE log data block.
  */
 static int
-zillwb_read_log_data(zilog_t *zilog, const lr_write_t *lr, void *wbuf)
+zillwb_read_log_data(zilog_lwb_t *zilog, const lr_write_t *lr, void *wbuf)
 {
 	enum zio_flag zio_flags = ZIO_FLAG_CANFAIL;
 	const blkptr_t *bp = &lr->lr_blkptr;
@@ -410,12 +410,13 @@ done:
 
 	return (error);
 }
-typedef int zillwb_parse_blk_func_t(zilog_t *zilog, const blkptr_t *bp,
+
+typedef int zillwb_parse_blk_func_t(zilog_lwb_t *zilog, const blkptr_t *bp,
     void *arg, uint64_t txg);
-typedef int zillwb_parse_lr_func_t(zilog_t *zilog, const lr_t *lr, void *arg,
-    uint64_t txg);
+typedef int zillwb_parse_lr_func_t(zilog_lwb_t *zilog, const lr_t *lr,
+    void *arg, uint64_t txg);
 typedef struct {
-	zilog_t *zpwa_zl;
+	zilog_lwb_t *zpwa_zl;
 	uint64_t zpwa_txg;
 	zillwb_parse_blk_func_t *zpwa_parse_blk_func;
 	zillwb_parse_lr_func_t *zpwa_parse_lr_func;
@@ -442,7 +443,7 @@ zillwb_parse_lr_wrapper(const lr_t *lr, void *arg)
 }
 
 static int
-zillwb_parse(zilog_t *zilog, zillwb_parse_blk_func_t *parse_blk_func,
+zillwb_parse(zilog_lwb_t *zilog, zillwb_parse_blk_func_t *parse_blk_func,
     zillwb_parse_lr_func_t *parse_lr_func, void *arg, uint64_t txg,
     boolean_t decrypt)
 {
@@ -468,7 +469,7 @@ zillwb_parse(zilog_t *zilog, zillwb_parse_blk_func_t *parse_blk_func,
 
 /* ARGSUSED */
 static int
-zillwb_clear_log_block(zilog_t *zilog, const blkptr_t *bp, void *tx,
+zillwb_clear_log_block(zilog_lwb_t *zilog, const blkptr_t *bp, void *tx,
     uint64_t first_txg)
 {
 	ASSERT(!BP_IS_HOLE(bp));
@@ -491,14 +492,14 @@ zillwb_clear_log_block(zilog_t *zilog, const blkptr_t *bp, void *tx,
 
 /* ARGSUSED */
 static int
-zillwb_noop_log_record(zilog_t *zilog, const lr_t *lrc, void *tx,
+zillwb_noop_log_record(zilog_lwb_t *zilog, const lr_t *lrc, void *tx,
     uint64_t first_txg)
 {
 	return (0);
 }
 
 static int
-zillwb_claim_log_block(zilog_t *zilog, const blkptr_t *bp, void *tx,
+zillwb_claim_log_block(zilog_lwb_t *zilog, const blkptr_t *bp, void *tx,
     uint64_t first_txg)
 {
 	/*
@@ -515,7 +516,7 @@ zillwb_claim_log_block(zilog_t *zilog, const blkptr_t *bp, void *tx,
 }
 
 static int
-zillwb_claim_log_record(zilog_t *zilog, const lr_t *lrc, void *tx,
+zillwb_claim_log_record(zilog_lwb_t *zilog, const lr_t *lrc, void *tx,
     uint64_t first_txg)
 {
 	lr_write_t *lr = (lr_write_t *)lrc;
@@ -543,7 +544,7 @@ zillwb_claim_log_record(zilog_t *zilog, const lr_t *lrc, void *tx,
 
 /* ARGSUSED */
 static int
-zillwb_free_log_block(zilog_t *zilog, const blkptr_t *bp, void *tx,
+zillwb_free_log_block(zilog_lwb_t *zilog, const blkptr_t *bp, void *tx,
     uint64_t claim_txg)
 {
 	zio_free(zilog->zl_spa, dmu_tx_get_txg(tx), bp);
@@ -552,7 +553,7 @@ zillwb_free_log_block(zilog_t *zilog, const blkptr_t *bp, void *tx,
 }
 
 static int
-zillwb_free_log_record(zilog_t *zilog, const lr_t *lrc, void *tx,
+zillwb_free_log_record(zilog_lwb_t *zilog, const lr_t *lrc, void *tx,
     uint64_t claim_txg)
 {
 	lr_write_t *lr = (lr_write_t *)lrc;
@@ -579,7 +580,7 @@ zillwb_lwb_vdev_compare(const void *x1, const void *x2)
 }
 
 static lwb_t *
-zillwb_alloc_lwb(zilog_t *zilog, const blkptr_t *bp, boolean_t slog,
+zillwb_alloc_lwb(zilog_lwb_t *zilog, const blkptr_t *bp, boolean_t slog,
     uint64_t txg, boolean_t fastwrite)
 {
 	lwb_t *lwb;
@@ -617,7 +618,7 @@ zillwb_alloc_lwb(zilog_t *zilog, const blkptr_t *bp, boolean_t slog,
 }
 
 static void
-zillwb_free_lwb(zilog_t *zilog, lwb_t *lwb)
+zillwb_free_lwb(zilog_lwb_t *zilog, lwb_t *lwb)
 {
 	ASSERT(MUTEX_HELD(&zilog->zl_lock));
 	ASSERT(!MUTEX_HELD(&lwb->lwb_vdev_lock));
@@ -644,7 +645,7 @@ zillwb_free_lwb(zilog_t *zilog, lwb_t *lwb)
  * Create an on-disk intent log.
  */
 static lwb_t *
-zillwb_create(zilog_t *zilog)
+zillwb_create(zilog_lwb_t *zilog)
 {
 	const zil_header_t *zh = zilog->zl_header;
 	lwb_t *lwb = NULL;
@@ -721,7 +722,7 @@ zillwb_create(zilog_t *zilog)
  * to complete.
  */
 void
-zillwb_destroy(zilog_t *zilog, boolean_t keep_first)
+zillwb_destroy(zilog_lwb_t *zilog, boolean_t keep_first)
 {
 	const zil_header_t *zh = zilog->zl_header;
 	lwb_t *lwb;
@@ -772,7 +773,7 @@ zillwb_destroy(zilog_t *zilog, boolean_t keep_first)
 }
 
 void
-zillwb_destroy_sync(zilog_t *zilog, dmu_tx_t *tx)
+zillwb_destroy_sync(zilog_lwb_t *zilog, dmu_tx_t *tx)
 {
 	ASSERT(list_is_empty(&zilog->zl_lwb_list));
 	(void) zillwb_parse(zilog, zillwb_free_log_block,
@@ -784,7 +785,7 @@ int
 zillwb_claim(dsl_pool_t *dp, dsl_dataset_t *ds, void *txarg)
 {
 	dmu_tx_t *tx = txarg;
-	zilog_t *zilog;
+	zilog_lwb_t *zilog;
 	uint64_t first_txg;
 	zil_header_t *zh;
 	objset_t *os;
@@ -895,7 +896,7 @@ zillwb_claim(dsl_pool_t *dp, dsl_dataset_t *ds, void *txarg)
 int
 zillwb_check_log_chain(dsl_pool_t *dp, dsl_dataset_t *ds, void *tx)
 {
-	zilog_t *zilog;
+	zilog_lwb_t *zilog;
 	objset_t *os;
 	blkptr_t *bp;
 	int error;
@@ -1105,7 +1106,7 @@ static void
 zillwb_lwb_flush_vdevs_done(zio_t *zio)
 {
 	lwb_t *lwb = zio->io_private;
-	zilog_t *zilog = lwb->lwb_zilog;
+	zilog_lwb_t *zilog = lwb->lwb_zilog;
 	dmu_tx_t *tx = lwb->lwb_tx;
 	zillwb_commit_waiter_t *zcw;
 	itx_t *itx;
@@ -1210,7 +1211,7 @@ zillwb_lwb_write_done(zio_t *zio)
 {
 	lwb_t *lwb = zio->io_private;
 	spa_t *spa = zio->io_spa;
-	zilog_t *zilog = lwb->lwb_zilog;
+	zilog_lwb_t *zilog = lwb->lwb_zilog;
 	avl_tree_t *t = &lwb->lwb_vdev_tree;
 	void *cookie = NULL;
 	zillwb_vdev_node_t *zv;
@@ -1297,7 +1298,7 @@ zillwb_lwb_write_done(zio_t *zio)
 }
 
 static void
-zillwb_lwb_set_zio_dependency(zilog_t *zilog, lwb_t *lwb)
+zillwb_lwb_set_zio_dependency(zilog_lwb_t *zilog, lwb_t *lwb)
 {
 	lwb_t *last_lwb_opened = zilog->zl_last_lwb_opened;
 
@@ -1370,7 +1371,7 @@ zillwb_lwb_set_zio_dependency(zilog_t *zilog, lwb_t *lwb)
  * function is essentially a no-op.
  */
 static void
-zillwb_lwb_write_open(zilog_t *zilog, lwb_t *lwb)
+zillwb_lwb_write_open(zilog_lwb_t *zilog, lwb_t *lwb)
 {
 	zbookmark_phys_t zb;
 	zio_priority_t prio;
@@ -1454,7 +1455,7 @@ int zil_maxblocksize = SPA_OLD_MAXBLOCKSIZE;
  * Calls are serialized.
  */
 static lwb_t *
-zillwb_lwb_write_issue(zilog_t *zilog, lwb_t *lwb)
+zillwb_lwb_write_issue(zilog_lwb_t *zilog, lwb_t *lwb)
 {
 	lwb_t *nlwb = NULL;
 	zillwb_chain_t *zilc;
@@ -1597,7 +1598,7 @@ zillwb_lwb_write_issue(zilog_t *zilog, lwb_t *lwb)
  * Maximum amount of write data that can be put into single log block.
  */
 uint64_t
-zillwb_max_log_data(zilog_t *zilog)
+zillwb_max_log_data(zilog_lwb_t *zilog)
 {
 	return (zilog->zl_max_block_size -
 	    sizeof (zillwb_chain_t) - sizeof (lr_write_t));
@@ -1608,7 +1609,7 @@ zillwb_max_log_data(zilog_t *zilog)
  * WR_NEED_COPY chunks to reduce zl_get_data() overhead (~12%).
  */
 static inline uint64_t
-zillwb_max_waste_space(zilog_t *zilog)
+zillwb_max_waste_space(zilog_lwb_t *zilog)
 {
 	return (zillwb_max_log_data(zilog) / 8);
 }
@@ -1621,14 +1622,14 @@ zillwb_max_waste_space(zilog_t *zilog)
  * max-sized log block.
  */
 uint64_t
-zillwb_max_copied_data(zilog_t *zilog)
+zillwb_max_copied_data(zilog_lwb_t *zilog)
 {
 	return ((zilog->zl_max_block_size - sizeof (zillwb_chain_t)) / 2 -
 	    sizeof (lr_write_t));
 }
 
 static lwb_t *
-zillwb_lwb_commit(zilog_t *zilog, itx_t *itx, lwb_t *lwb)
+zillwb_lwb_commit(zilog_lwb_t *zilog, itx_t *itx, lwb_t *lwb)
 {
 	lr_t *lrcb, *lrc;
 	lr_write_t *lrwb, *lrw;
@@ -1813,7 +1814,7 @@ cont:
  * from generating new lwbs when it's unnecessary to do so.
  */
 static void
-zillwb_prune_commit_list(zilog_t *zilog)
+zillwb_prune_commit_list(zilog_lwb_t *zilog)
 {
 	itx_t *itx;
 
@@ -1852,7 +1853,7 @@ zillwb_prune_commit_list(zilog_t *zilog)
 }
 
 static void
-zillwb_commit_writer_stall(zilog_t *zilog)
+zillwb_commit_writer_stall(zilog_lwb_t *zilog)
 {
 	/*
 	 * When zio_alloc_zil() fails to allocate the next lwb block on
@@ -1886,7 +1887,7 @@ zillwb_commit_writer_stall(zilog_t *zilog)
  * lwb will be issued to the zio layer to be written to disk.
  */
 static void
-zillwb_process_commit_list(zilog_t *zilog)
+zillwb_process_commit_list(zilog_lwb_t *zilog)
 {
 	spa_t *spa = zilog->zl_spa;
 	list_t nolwb_itxs;
@@ -1924,10 +1925,10 @@ zillwb_process_commit_list(zilog_t *zilog)
 
 		if (lrc->lrc_txtype == TX_COMMIT) {
 			DTRACE_PROBE2(zil__process__commit__itx,
-			    zilog_t *, zilog, itx_t *, itx);
+			    zilog_lwb_t *, zilog, itx_t *, itx);
 		} else {
 			DTRACE_PROBE2(zil__process__normal__itx,
-			    zilog_t *, zilog, itx_t *, itx);
+			    zilog_lwb_t *, zilog, itx_t *, itx);
 		}
 
 		list_remove(&zilog->zl_itx_commit_list, itx);
@@ -2103,7 +2104,7 @@ zillwb_process_commit_list(zilog_t *zilog)
  * the lwb, or the timeout mechanism found in zillwb_commit_waiter().
  */
 static void
-zillwb_commit_writer(zilog_t *zilog, zillwb_commit_waiter_t *zcw)
+zillwb_commit_writer(zilog_lwb_t *zilog, zillwb_commit_waiter_t *zcw)
 {
 	ASSERT(!MUTEX_HELD(&zilog->zl_lock));
 	ASSERT(spa_writeable(zilog->zl_spa));
@@ -2141,7 +2142,7 @@ out:
 }
 
 static void
-zillwb_commit_waiter_timeout(zilog_t *zilog, zillwb_commit_waiter_t *zcw)
+zillwb_commit_waiter_timeout(zilog_lwb_t *zilog, zillwb_commit_waiter_t *zcw)
 {
 	ASSERT(!MUTEX_HELD(&zilog->zl_issuer_lock));
 	ASSERT(MUTEX_HELD(&zcw->zcw_lock));
@@ -2291,7 +2292,7 @@ out:
  * the comment at the bottom of that function.
  */
 static void
-zillwb_commit_waiter(zilog_t *zilog, zillwb_commit_waiter_t *zcw)
+zillwb_commit_waiter(zilog_lwb_t *zilog, zillwb_commit_waiter_t *zcw)
 {
 	ASSERT(!MUTEX_HELD(&zilog->zl_lock));
 	ASSERT(!MUTEX_HELD(&zilog->zl_issuer_lock));
@@ -2424,7 +2425,7 @@ zillwb_free_commit_waiter(zillwb_commit_waiter_t *zcw)
  * zillwb_process_commit_list() is called.
  */
 static void
-zillwb_commit_itx_assign(zilog_t *zilog, zillwb_commit_waiter_t *zcw)
+zillwb_commit_itx_assign(zilog_lwb_t *zilog, zillwb_commit_waiter_t *zcw)
 {
 	dmu_tx_t *tx = dmu_tx_create(zilog->zl_os);
 	VERIFY0(dmu_tx_assign(tx, TXG_WAIT));
@@ -2438,7 +2439,7 @@ zillwb_commit_itx_assign(zilog_t *zilog, zillwb_commit_waiter_t *zcw)
 	dmu_tx_commit(tx);
 }
 
-static void zillwb_commit_impl(zilog_t *zilog, uint64_t foid);
+static void zillwb_commit_impl(zilog_lwb_t *zilog, uint64_t foid);
 
 /*
  * Commit ZFS Intent Log transactions (itxs) to stable storage.
@@ -2556,7 +2557,7 @@ static void zillwb_commit_impl(zilog_t *zilog, uint64_t foid);
  *      which they were created.
  */
 void
-zillwb_commit(zilog_t *zilog, uint64_t foid)
+zillwb_commit(zilog_lwb_t *zilog, uint64_t foid)
 {
 	/*
 	 * We should never attempt to call zil_commit on a snapshot for
@@ -2607,7 +2608,7 @@ zillwb_commit(zilog_t *zilog, uint64_t foid)
 }
 
 static void
-zillwb_commit_impl(zilog_t *zilog, uint64_t foid)
+zillwb_commit_impl(zilog_lwb_t *zilog, uint64_t foid)
 {
 	ZIL_STAT_BUMP(zil_commit_count);
 
@@ -2653,7 +2654,7 @@ zillwb_commit_impl(zilog_t *zilog, uint64_t foid)
 		 * an exceptional case, and shouldn't occur often.
 		 */
 		DTRACE_PROBE2(zil__commit__io__error,
-		    zilog_t *, zilog, zillwb_commit_waiter_t *, zcw);
+		    zilog_lwb_t *, zilog, zillwb_commit_waiter_t *, zcw);
 		txg_wait_synced(zilog->zl_dmu_pool, 0);
 	}
 
@@ -2664,7 +2665,7 @@ zillwb_commit_impl(zilog_t *zilog, uint64_t foid)
  * Called in syncing context to free committed log blocks and update log header.
  */
 void
-zillwb_sync(zilog_t *zilog, dmu_tx_t *tx)
+zillwb_sync(zilog_lwb_t *zilog, dmu_tx_t *tx)
 {
 	zil_header_t *zh = zil_header_in_syncing_context(zilog);
 	uint64_t txg = dmu_tx_get_txg(tx);
@@ -2806,7 +2807,7 @@ zillwb_fini(void)
  * Close an intent log.
  */
 void
-zillwb_close(zilog_t *zilog)
+zillwb_close(zilog_lwb_t *zilog)
 {
 	lwb_t *lwb;
 	uint64_t txg;
@@ -2890,7 +2891,7 @@ int
 zillwb_suspend(const char *osname, void **cookiep)
 {
 	objset_t *os;
-	zilog_t *zilog;
+	zilog_lwb_t *zilog;
 	const zil_header_t *zh;
 	int error;
 
@@ -3012,7 +3013,7 @@ void
 zillwb_resume(void *cookie)
 {
 	objset_t *os = cookie;
-	zilog_t *zilog = dmu_objset_zil(os);
+	zilog_lwb_t *zilog = dmu_objset_zil(os);
 
 	mutex_enter(&zilog->zl_lock);
 	ASSERT(zilog->zl_suspend != 0);
@@ -3031,7 +3032,7 @@ typedef struct zillwb_replay_arg {
 } zillwb_replay_arg_t;
 
 static int
-zillwb_replay_error(zilog_t *zilog, const lr_t *lr, int error)
+zillwb_replay_error(zilog_lwb_t *zilog, const lr_t *lr, int error)
 {
 	char name[ZFS_MAX_DATASET_NAME_LEN];
 
@@ -3049,7 +3050,7 @@ zillwb_replay_error(zilog_t *zilog, const lr_t *lr, int error)
 }
 
 static int
-zillwb_replay_log_record(zilog_t *zilog, const lr_t *lr, void *zra,
+zillwb_replay_log_record(zilog_lwb_t *zilog, const lr_t *lr, void *zra,
     uint64_t claim_txg)
 {
 	zillwb_replay_arg_t *zr = zra;
@@ -3133,7 +3134,7 @@ zillwb_replay_log_record(zilog_t *zilog, const lr_t *lr, void *zra,
 
 /* ARGSUSED */
 static int
-zillwb_incr_blks(zilog_t *zilog, const blkptr_t *bp, void *arg,
+zillwb_incr_blks(zilog_lwb_t *zilog, const blkptr_t *bp, void *arg,
     uint64_t claim_txg)
 {
 	zilog->zl_replay_blks++;
@@ -3148,7 +3149,7 @@ void
 zillwb_replay(objset_t *os, void *arg,
     zil_replay_func_t *replay_func[TX_MAX_TYPE])
 {
-	zilog_t *zilog = dmu_objset_zil(os);
+	zilog_lwb_t *zilog = dmu_objset_zil(os);
 	const zil_header_t *zh = zilog->zl_header;
 	zillwb_replay_arg_t zr;
 
@@ -3180,7 +3181,7 @@ zillwb_replay(objset_t *os, void *arg,
 }
 
 boolean_t
-zillwb_replaying(zilog_t *zilog, dmu_tx_t *tx)
+zillwb_replaying(zilog_lwb_t *zilog, dmu_tx_t *tx)
 {
 	if (zilog->zl_sync == ZFS_SYNC_DISABLED)
 		return (B_TRUE);

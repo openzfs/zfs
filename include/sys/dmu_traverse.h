@@ -36,7 +36,6 @@ extern "C" {
 
 struct dnode_phys;
 struct dsl_dataset;
-struct zilog;
 struct arc_buf;
 
 typedef int (blkptr_cb_t)(spa_t *spa, const blkptr_t *bp,

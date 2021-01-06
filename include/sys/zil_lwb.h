@@ -164,8 +164,8 @@ typedef struct zillwb_commit_waiter {
 /*
  * Stable storage intent log management structure.  One per dataset.
  */
-struct zilog {
-	kmutex_t	zl_lock;	/* protects most zilog_t fields */
+struct zilog_lwb {
+	kmutex_t	zl_lock;	/* protects most zilog_lwb_t fields */
 	struct dsl_pool	*zl_dmu_pool;	/* DSL pool */
 	spa_t		*zl_spa;	/* handle for read/write log */
 	const zil_header_t *zl_header;	/* log header buffer */
@@ -209,6 +209,8 @@ struct zilog {
 	 */
 	uint64_t	zl_max_block_size;
 };
+typedef struct zilog_lwb zilog_lwb_t;
+typedef struct zilog_lwb zilog_t;
 
 void zillwb_commit_waiter_skip(zillwb_commit_waiter_t *zcw);
 

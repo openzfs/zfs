@@ -60,7 +60,7 @@ typedef struct metaslab metaslab_t;
 typedef struct metaslab_group metaslab_group_t;
 typedef struct metaslab_class metaslab_class_t;
 typedef struct zio zio_t;
-typedef struct zilog zilog_t;
+typedef struct zilog_lwb zilog_t;
 typedef struct spa_aux_vdev spa_aux_vdev_t;
 typedef struct ddt ddt_t;
 typedef struct ddt_entry ddt_entry_t;
