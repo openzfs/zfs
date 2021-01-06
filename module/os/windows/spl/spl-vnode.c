@@ -1630,7 +1630,7 @@ int vnode_flushcache(vnode_t *vp, FILE_OBJECT *fileobject, boolean_t hard)
 	CACHE_UNINITIALIZE_EVENT UninitializeCompleteEvent;
 	// NTSTATUS WaitStatus;
 	LARGE_INTEGER Zero = { .QuadPart = 0 };
-	int ret = 0;
+	int ret = 1;
 
 	if (vp == NULL)
 		return 1;

@@ -83,6 +83,7 @@ extern int wosix_pipe(int fildes[2]);
 #define wosix_fileno(X) (_get_osfhandle(_fileno((X))))
 
 extern FILE *wosix_fdopen(int fildes, const char *mode);
+extern FILE *wosix_freopen(const char *path, const char *mode, FILE *stream);
 
  /*
  * Thin wrapper for the POSIX IO calls, to translate to HANDLEs
@@ -146,7 +147,9 @@ extern FILE *wosix_fdopen(int fildes, const char *mode);
 #define socketpair	wosix_socketpair
 #undef  fdopen
 #define fdopen	wosix_fdopen
-// Alas, edonr.c has a member named "pipe".
+#undef  freopen
+#define freopen	wosix_freopen
+ // Alas, edonr.c has a member named "pipe".
 #ifndef _SYS_EDONR_H_
 #undef  pipe
 #define pipe	wosix_pipe
