@@ -1591,7 +1591,7 @@ zpool_disable_datasets(zpool_handle_t *zhp, boolean_t force)
 	 * appropriate.
 	 */
 	for (i = 0; i < used; i++) {
-		if (unmount_one(hdl, mountpoints[i], flags) != 0)
+		if (unmount_one(datasets[i], mountpoints[i], flags) != 0)
 			goto out;
 	}
 
