@@ -1588,7 +1588,7 @@ zfs_vfs_unmount(struct mount *mp, int mntflags, vfs_context_t context)
 	 * detect unmount is inflight. But why not just sync now, it
 	 * is safe. Optionally, sync if (mount_isforce());
 	 */
-	spa_sync_allpools();
+	// spa_sync_allpools();
 
 	/*
 	 * We purge the parent filesystem's vfsp as the parent filesystem

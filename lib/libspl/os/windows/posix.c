@@ -1589,3 +1589,13 @@ wosix_openat(int fd, const char* path, int oflag, ...)
     ASSERT("openat() implementation lacking support");
     return (-1);
 }
+
+/*
+ * This is a poor "port" of freopen() but, to date, it is only
+ * used to re-open the MNTTAB, of which we have none, and the return
+ * code is never used.
+ */
+FILE *wosix_freopen(const char *path, const char *mode, FILE *stream)
+{
+	return ((FILE *)path); // Anything not NULL
+}

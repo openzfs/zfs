@@ -1310,7 +1310,8 @@ taskq_dispatch_ent(taskq_t *tq, task_func_t func, void *arg, uint_t flags,
 	/*
 	 * Enqueue the task to the underlying queue.
 	 */
-	mutex_enter(&tq->tq_lock);
+	if (!MUTEX_HELD(&tq->tq_lock))
+		mutex_enter(&tq->tq_lock);
 
 	if (flags & TQ_FRONT) {
 		TQ_ENQUEUE_FRONT(tq, tqe, func, arg);
