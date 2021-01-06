@@ -430,7 +430,10 @@ done:
 
 	return (error);
 }
-
+typedef int zil_parse_blk_func_t(zilog_t *zilog, const blkptr_t *bp, void *arg,
+    uint64_t txg);
+typedef int zil_parse_lr_func_t(zilog_t *zilog, const lr_t *lr, void *arg,
+    uint64_t txg);
 typedef struct {
 	zilog_t *zpwa_zl;
 	uint64_t zpwa_txg;
@@ -458,7 +461,7 @@ zil_parse_lr_wrapper(const lr_t *lr, void *arg)
 	return (ret);
 }
 
-int
+static int
 zil_parse(zilog_t *zilog, zil_parse_blk_func_t *parse_blk_func,
     zil_parse_lr_func_t *parse_lr_func, void *arg, uint64_t txg,
     boolean_t decrypt)
