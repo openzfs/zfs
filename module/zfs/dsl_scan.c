@@ -44,7 +44,6 @@
 #include <sys/zfs_znode.h>
 #include <sys/spa_impl.h>
 #include <sys/vdev_impl.h>
-#include <sys/zil.h>
 #include <sys/zil_lwb.h>
 #include <sys/zio_checksum.h>
 #include <sys/ddt.h>
@@ -1381,7 +1380,7 @@ dsl_scan_check_suspend(dsl_scan_t *scn, const zbookmark_phys_t *zb)
 
 typedef struct zil_scan_arg {
 	dsl_pool_t	*zsa_dp;
-	const zil_header_t	*zsa_zh;
+	const zil_header_lwb_t	*zsa_zh;
 	uint64_t zsa_claim_txg;
 } zil_scan_arg_t;
 
@@ -1393,7 +1392,7 @@ dsl_scan_zil_block(const blkptr_t *bp, void *arg)
 	uint64_t claim_txg = zsa->zsa_claim_txg;
 	dsl_pool_t *dp = zsa->zsa_dp;
 	dsl_scan_t *scn = dp->dp_scan;
-	const zil_header_t *zh = zsa->zsa_zh;
+	const zil_header_lwb_t *zh = zsa->zsa_zh;
 	zbookmark_phys_t zb;
 
 	ASSERT(!BP_IS_REDACTED(bp));
@@ -1425,7 +1424,7 @@ dsl_scan_zil_record(const lr_t *lrc, void *arg)
 		uint64_t claim_txg = zsa->zsa_claim_txg;
 		dsl_pool_t *dp = zsa->zsa_dp;
 		dsl_scan_t *scn = dp->dp_scan;
-		const zil_header_t *zh = zsa->zsa_zh;
+		const zil_header_lwb_t *zh = zsa->zsa_zh;
 		const lr_write_t *lr = (const lr_write_t *)lrc;
 		const blkptr_t *bp = &lr->lr_blkptr;
 		zbookmark_phys_t zb;
@@ -1453,7 +1452,7 @@ dsl_scan_zil_record(const lr_t *lrc, void *arg)
 }
 
 static void
-dsl_scan_zil(dsl_pool_t *dp, zil_header_t *zh)
+dsl_scan_zil(dsl_pool_t *dp, zil_header_lwb_t *zh)
 {
 	uint64_t claim_txg = zh->zh_claim_txg;
 	zil_scan_arg_t zsa = { dp, zh, claim_txg };
@@ -2435,7 +2434,7 @@ dsl_scan_visitds(dsl_scan_t *scn, uint64_t dsobj, dmu_tx_t *tx)
 		if (dmu_objset_from_ds(ds, &os) != 0) {
 			goto out;
 		}
-		dsl_scan_zil(dp, &os->os_zil_header);
+		dsl_scan_zil(dp, &os->os_zil_header.zh_lwb);
 	}
 
 	/*

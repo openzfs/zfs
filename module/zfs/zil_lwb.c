@@ -67,6 +67,7 @@
  */
 
 
+
 /*
  * Macros to abstract-away access to the zilog's pointers to various parent
  * data structures that are frequently accessed.
@@ -74,7 +75,7 @@
  * The next commit's diff is reduced by using those macros in this commit.
  */
 #define	ZL_SPA(zilog)	(zilog->zl_spa)
-#define	ZL_HDR(zilog)	(zilog->zl_header)
+#define	ZL_HDR(zilog)	(&zilog->zl_header->zh_lwb)
 #define	ZL_POOL(zilog)	(zilog->zl_dmu_pool)
 #define	ZL_OS(zilog)	(zilog->zl_os)
 
@@ -185,10 +186,10 @@ zillwb_bp_tree_add(zilog_lwb_t *zilog, const blkptr_t *bp)
 	return (0);
 }
 
-static zil_header_t *
+static zil_header_lwb_t *
 zil_header_in_syncing_context(zilog_lwb_t *zilog)
 {
-	return ((zil_header_t *)ZL_HDR(zilog));
+	return ((zil_header_lwb_t *)ZL_HDR(zilog));
 }
 
 static void
@@ -208,7 +209,7 @@ zillwb_init_log_chain(zilog_lwb_t *zilog, blkptr_t *bp)
  * Read a log block and make sure it's valid.
  */
 static int
-zillwb_read_log_block(spa_t *spa, const zil_header_t *zh, boolean_t decrypt,
+zillwb_read_log_block(spa_t *spa, const zil_header_lwb_t *zh, boolean_t decrypt,
     zio_priority_t prio, const blkptr_t *bp, blkptr_t *nbp, void *dst,
     char **end)
 {
@@ -331,7 +332,7 @@ zillwb_read_log_data(zilog_lwb_t *zilog, const lr_write_t *lr, void *wbuf)
 }
 
 int
-zillwb_parse_phys(spa_t *spa, const zil_header_t *zh,
+zillwb_parse_phys(spa_t *spa, const zil_header_lwb_t *zh,
     zillwb_parse_phys_blk_func_t *parse_blk_func,
     zillwb_parse_phys_lr_func_t *parse_lr_func, void *arg, boolean_t decrypt,
     zio_priority_t prio, zillwb_parse_result_t *result)
@@ -658,7 +659,7 @@ zillwb_free_lwb(zilog_lwb_t *zilog, lwb_t *lwb)
 static lwb_t *
 zillwb_create(zilog_lwb_t *zilog)
 {
-	const zil_header_t *zh = ZL_HDR(zilog);
+	const zil_header_lwb_t *zh = ZL_HDR(zilog);
 	lwb_t *lwb = NULL;
 	uint64_t txg = 0;
 	dmu_tx_t *tx = NULL;
@@ -735,7 +736,7 @@ zillwb_create(zilog_lwb_t *zilog)
 void
 zillwb_destroy(zilog_lwb_t *zilog, boolean_t keep_first)
 {
-	const zil_header_t *zh = ZL_HDR(zilog);
+	const zil_header_lwb_t *zh = ZL_HDR(zilog);
 	lwb_t *lwb;
 	dmu_tx_t *tx;
 	uint64_t txg;
@@ -798,7 +799,7 @@ zillwb_claim(dsl_pool_t *dp, dsl_dataset_t *ds, void *txarg)
 	dmu_tx_t *tx = txarg;
 	zilog_lwb_t *zilog;
 	uint64_t first_txg;
-	zil_header_t *zh;
+	zil_header_lwb_t *zh;
 	objset_t *os;
 	int error;
 
@@ -952,7 +953,7 @@ zillwb_check_log_chain(dsl_pool_t *dp, dsl_dataset_t *ds, void *tx)
 		 * do this because its ZIL blocks may be part of the pool's
 		 * state before the rewind, which is no longer valid.
 		 */
-		zil_header_t *zh = zil_header_in_syncing_context(zilog);
+		zil_header_lwb_t *zh = zil_header_in_syncing_context(zilog);
 		if (ZL_SPA(zilog)->spa_uberblock.ub_checkpoint_txg != 0 &&
 		    zh->zh_claim_txg == 0)
 			return (0);
@@ -2679,7 +2680,7 @@ zillwb_commit_impl(zilog_lwb_t *zilog, uint64_t foid)
 void
 zillwb_sync(zilog_lwb_t *zilog, dmu_tx_t *tx)
 {
-	zil_header_t *zh = zil_header_in_syncing_context(zilog);
+	zil_header_lwb_t *zh = zil_header_in_syncing_context(zilog);
 	uint64_t txg = dmu_tx_get_txg(tx);
 	spa_t *spa = ZL_SPA(zilog);
 	uint64_t *replayed_seq = &zilog->zl_replayed_seq[txg & TXG_MASK];
@@ -2707,7 +2708,7 @@ zillwb_sync(zilog_lwb_t *zilog, dmu_tx_t *tx)
 
 		ASSERT(list_head(&zilog->zl_lwb_list) == NULL);
 
-		bzero(zh, sizeof (zil_header_t));
+		bzero(zh, sizeof (zil_header_lwb_t));
 		bzero(zilog->zl_replayed_seq, sizeof (zilog->zl_replayed_seq));
 
 		if (zilog->zl_keep_first) {
@@ -2904,7 +2905,7 @@ zillwb_suspend(const char *osname, void **cookiep)
 {
 	objset_t *os;
 	zilog_lwb_t *zilog;
-	const zil_header_t *zh;
+	const zil_header_lwb_t *zh;
 	int error;
 
 	error = dmu_objset_hold(osname, suspend_tag, &os);
@@ -3066,7 +3067,7 @@ zillwb_replay_log_record(zilog_lwb_t *zilog, const lr_t *lr, void *zra,
     uint64_t claim_txg)
 {
 	zillwb_replay_arg_t *zr = zra;
-	const zil_header_t *zh = ZL_HDR(zilog);
+	const zil_header_lwb_t *zh = ZL_HDR(zilog);
 	uint64_t reclen = lr->lrc_reclen;
 	uint64_t txtype = lr->lrc_txtype;
 	int error = 0;
@@ -3162,7 +3163,7 @@ zillwb_replay(objset_t *os, void *arg,
     zil_replay_func_t *replay_func[TX_MAX_TYPE])
 {
 	zilog_lwb_t *zilog = dmu_objset_zil(os);
-	const zil_header_t *zh = ZL_HDR(zilog);
+	const zil_header_lwb_t *zh = ZL_HDR(zilog);
 	zillwb_replay_arg_t zr;
 
 	if ((zh->zh_flags & ZIL_REPLAY_NEEDED) == 0) {

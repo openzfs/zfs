@@ -89,6 +89,7 @@ extern int	zillwb_bp_tree_add(zilog_t *zilog, const blkptr_t *bp);
 extern uint64_t	zillwb_max_copied_data(zilog_t *zilog);
 extern uint64_t	zillwb_max_log_data(zilog_t *zilog);
 
+
 #ifdef	__cplusplus
 }
 #endif

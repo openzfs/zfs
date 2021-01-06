@@ -58,7 +58,7 @@ struct lwb;
  * Intent log header - this on disk structure holds fields to manage
  * the log.  All fields are 64 bit to easily handle cross architectures.
  */
-typedef struct zil_header {
+typedef struct zil_header_lwb {
 	uint64_t zh_claim_txg;	/* txg in which log blocks were claimed */
 	uint64_t zh_replay_seq;	/* highest replayed sequence number */
 	blkptr_t zh_log;	/* log chain */
@@ -66,6 +66,9 @@ typedef struct zil_header {
 	uint64_t zh_flags;	/* header flags */
 	uint64_t zh_claim_lr_seq; /* highest claimed lr sequence number */
 	uint64_t zh_pad[3];
+} zil_header_lwb_t;
+typedef struct zil_header {
+	zil_header_lwb_t zh_lwb;
 } zil_header_t;
 
 
@@ -385,7 +388,7 @@ typedef struct {
 	uint64_t	zlpr_blk_count; /* number of blocks parsed */
 	uint64_t	zlpr_lr_count; /* number of log records parsed */
 } zillwb_parse_result_t;
-int zillwb_parse_phys(spa_t *spa, const zil_header_t *zh,
+int zillwb_parse_phys(spa_t *spa, const zil_header_lwb_t *zh,
     zillwb_parse_phys_blk_func_t *parse_blk_func,
     zillwb_parse_phys_lr_func_t *parse_lr_func, void *arg,
     boolean_t decrypt, zio_priority_t zio_priority,

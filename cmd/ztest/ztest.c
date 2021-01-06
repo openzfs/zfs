@@ -7204,11 +7204,11 @@ ztest_dataset_open(int d)
 
 	zilog = zd->zd_zilog;
 
-	if (zilog->zl_header->zh_claim_lr_seq != 0 &&
-	    zilog->zl_header->zh_claim_lr_seq < committed_seq)
+	const zil_header_lwb_t *zh = zillwb_zil_header_const(zilog);
+	if (zh->zh_claim_lr_seq != 0 && zh->zh_claim_lr_seq < committed_seq)
 		fatal(B_FALSE, "missing log records: "
 		    "claimed %"PRIu64" < committed %"PRIu64"",
-		    zilog->zl_header->zh_claim_lr_seq, committed_seq);
+		    zh->zh_claim_lr_seq, committed_seq);
 
 	ztest_dataset_dirobj_verify(zd);
 
@@ -7302,7 +7302,7 @@ ztest_freeze(void)
 	 * We have to do this before we freeze the pool -- otherwise
 	 * the log chain won't be anchored.
 	 */
-	while (BP_IS_HOLE(&zd->zd_zilog->zl_header->zh_log)) {
+	while (BP_IS_HOLE(&zd->zd_zilog->zl_header->zh_lwb.zh_log)) {
 		ztest_dmu_object_alloc_free(zd, 0);
 		zil_commit(zd->zd_zilog, 0);
 	}

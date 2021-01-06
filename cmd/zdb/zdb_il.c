@@ -63,7 +63,7 @@ print_log_bp(const blkptr_t *bp, const char *prefix)
 typedef struct {
 	spa_t *pra_spa;
 	objset_t *pra_os;
-	const zil_header_t *pra_zh;
+	const zil_header_lwb_t *pra_zh;
 } print_record_arg_t;
 
 /* ARGSUSED */
@@ -410,7 +410,7 @@ print_log_stats(int verbose)
 void
 dump_intent_log(zilog_t *zilog)
 {
-	const zil_header_t *zh = zilog->zl_header;
+	const zil_header_lwb_t *zh = &zilog->zl_header->zh_lwb;
 	int verbose = MAX(dump_opt['d'], dump_opt['i']);
 	int i;
 

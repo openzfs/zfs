@@ -1171,7 +1171,7 @@ zvol_ensure_zilog(zvol_state_t *zv)
 			    zvol_get_data);
 			zv->zv_flags |= ZVOL_WRITTEN_TO;
 			/* replay / destroy done in zvol_create_minor_impl() */
-			VERIFY0(zv->zv_zilog->zl_header->zh_flags &
+			VERIFY0(zv->zv_zilog->zl_header->zh_lwb.zh_flags &
 			    ZIL_REPLAY_NEEDED);
 		}
 		rw_downgrade(&zv->zv_suspend_lock);

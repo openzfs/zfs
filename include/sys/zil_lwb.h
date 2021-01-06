@@ -196,7 +196,7 @@ struct zilog_lwb {
 	avl_tree_t	zl_bp_tree;	/* track bps during log parse */
 	clock_t		zl_replay_time;	/* lbolt of when replay started */
 	uint64_t	zl_replay_blks;	/* number of log blocks replayed */
-	zil_header_t	zl_old_header;	/* debugging aid */
+	zil_header_lwb_t	zl_old_header;	/* debugging aid */
 	uint_t		zl_prev_blks[ZIL_PREV_BLKS]; /* size - sector rounded */
 	uint_t		zl_prev_rotor;	/* rotor for zl_prev[] */
 	txg_node_t	zl_dirty_link;	/* protected by dp_dirty_zilogs list */
@@ -214,6 +214,12 @@ typedef struct zilog_lwb zilog_t;
 
 void zillwb_commit_waiter_skip(zillwb_commit_waiter_t *zcw);
 
+static inline
+const zil_header_lwb_t *
+zillwb_zil_header_const(const zilog_lwb_t *zilog)
+{
+	return &zilog->zl_header->zh_lwb;
+}
 
 /*
  * Used for zil kstat.

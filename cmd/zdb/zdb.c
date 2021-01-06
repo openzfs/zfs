@@ -6391,8 +6391,10 @@ dump_block_stats_zil_header_cb_record(const lr_t *lrc, void *arg)
 
 static int
 dump_block_stats_zil_header_cb(spa_t *spa, uint64_t objset,
-    const zil_header_t *zh, void *arg)
+    const zil_header_t *zh_, void *arg)
 {
+	const zil_header_lwb_t *zh = &zh_->zh_lwb;
+
 	zdb_cb_t *zcb = arg;
 	uint64_t claim_txg = zh->zh_claim_txg;
 
