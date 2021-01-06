@@ -5679,11 +5679,11 @@ arc_read_done(zio_t *zio)
 			void *tmpbuf;
 
 			tmpbuf = abd_borrow_buf_copy(zio->io_abd,
-			    sizeof (zil_chain_t));
+			    sizeof (zillwb_chain_t));
 			zio_crypt_decode_mac_zil(tmpbuf,
 			    hdr->b_crypt_hdr.b_mac);
 			abd_return_buf(zio->io_abd, tmpbuf,
-			    sizeof (zil_chain_t));
+			    sizeof (zillwb_chain_t));
 		} else {
 			zio_crypt_decode_mac_bp(bp, hdr->b_crypt_hdr.b_mac);
 		}

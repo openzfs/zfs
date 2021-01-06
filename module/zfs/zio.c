@@ -542,9 +542,9 @@ zio_decrypt(zio_t *zio, abd_t *data, uint64_t size)
 	zio_crypt_decode_params_bp(bp, salt, iv);
 
 	if (ot == DMU_OT_INTENT_LOG) {
-		tmp = abd_borrow_buf_copy(zio->io_abd, sizeof (zil_chain_t));
+		tmp = abd_borrow_buf_copy(zio->io_abd, sizeof (zillwb_chain_t));
 		zio_crypt_decode_mac_zil(tmp, mac);
-		abd_return_buf(zio->io_abd, tmp, sizeof (zil_chain_t));
+		abd_return_buf(zio->io_abd, tmp, sizeof (zillwb_chain_t));
 	} else {
 		zio_crypt_decode_mac_bp(bp, mac);
 	}

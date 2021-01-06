@@ -27,7 +27,7 @@ typedef struct zil_chain {
 	blkptr_t zc_next_blk;	/* next block in chain */
 	uint64_t zc_nused;	/* bytes in log block used */
 	zio_eck_t zc_eck;	/* block trailer */
-} zil_chain_t;
+} zillwb_chain_t;
 
 #define	ZIL_MIN_BLKSZ	4096ULL
 

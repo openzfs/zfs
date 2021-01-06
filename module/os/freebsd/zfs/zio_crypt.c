@@ -100,8 +100,8 @@
  * ZIL ENCRYPTION:
  * ZIL blocks have their bp written to disk ahead of the associated data, so we
  * cannot store the MAC there as we normally do. For these blocks the MAC is
- * stored in the embedded checksum within the zil_chain_t header. The salt and
- * IV are generated for the block on bp allocation instead of at encryption
+ * stored in the embedded checksum within the zillwb_chain_t header. The salt
+ * and IV are generated for the block on bp allocation instead of at encryption
  * time. In addition, ZIL blocks have some pieces that must be left in plaintext
  * for claiming even though all of the sensitive user data still needs to be
  * encrypted. The function zio_crypt_init_uios_zil() handles parsing which
@@ -788,7 +788,7 @@ zio_crypt_decode_mac_bp(const blkptr_t *bp, uint8_t *mac)
 void
 zio_crypt_encode_mac_zil(void *data, uint8_t *mac)
 {
-	zil_chain_t *zilc = data;
+	zillwb_chain_t *zilc = data;
 
 	bcopy(mac, &zilc->zc_eck.zec_cksum.zc_word[2], sizeof (uint64_t));
 	bcopy(mac + sizeof (uint64_t), &zilc->zc_eck.zec_cksum.zc_word[3],
@@ -803,7 +803,7 @@ zio_crypt_decode_mac_zil(const void *data, uint8_t *mac)
 	 * not have been byteswapped by the time this function has been called.
 	 * As a result, we don't need to worry about byteswapping the MAC.
 	 */
-	const zil_chain_t *zilc = data;
+	const zillwb_chain_t *zilc = data;
 
 	bcopy(&zilc->zc_eck.zec_cksum.zc_word[2], mac, sizeof (uint64_t));
 	bcopy(&zilc->zc_eck.zec_cksum.zc_word[3], mac + sizeof (uint64_t),
@@ -1231,7 +1231,7 @@ zio_crypt_do_indirect_mac_checksum_abd(boolean_t generate, abd_t *abd,
  * We do not check for the older ZIL chain because the encryption feature
  * was not available before the newer ZIL chain was introduced. The goal
  * here is to encrypt everything except the blkptr_t of a lr_write_t and
- * the zil_chain_t header. Everything that is not encrypted is authenticated.
+ * the zillwb_chain_t header. Everything that is not encrypted is authenticated.
  */
 /*
  * The OpenCrypto used in FreeBSD does not use separate source and
@@ -1252,7 +1252,7 @@ zio_crypt_init_uios_zil(boolean_t encrypt, uint8_t *plainbuf,
 	uint8_t *aadbuf = zio_buf_alloc(datalen);
 	uint8_t *src, *dst, *slrp, *dlrp, *blkend, *aadp;
 	iovec_t *dst_iovecs;
-	zil_chain_t *zilc;
+	zillwb_chain_t *zilc;
 	lr_t *lr;
 	uint64_t txtype, lr_len;
 	uint_t crypt_len, nr_iovecs, vec;
@@ -1268,8 +1268,8 @@ zio_crypt_init_uios_zil(boolean_t encrypt, uint8_t *plainbuf,
 	bcopy(src, dst, datalen);
 
 	/* Find the start and end record of the log block. */
-	zilc = (zil_chain_t *)src;
-	slrp = src + sizeof (zil_chain_t);
+	zilc = (zillwb_chain_t *)src;
+	slrp = src + sizeof (zillwb_chain_t);
 	aadp = aadbuf;
 	blkend = src + ((byteswap) ? BSWAP_64(zilc->zc_nused) : zilc->zc_nused);
 
@@ -1304,12 +1304,12 @@ zio_crypt_init_uios_zil(boolean_t encrypt, uint8_t *plainbuf,
 	 * the embedded checksum will not have been calculated yet, so we don't
 	 * authenticate that.
 	 */
-	bcopy(src, aadp, sizeof (zil_chain_t) - sizeof (zio_eck_t));
-	aadp += sizeof (zil_chain_t) - sizeof (zio_eck_t);
-	aad_len += sizeof (zil_chain_t) - sizeof (zio_eck_t);
+	bcopy(src, aadp, sizeof (zillwb_chain_t) - sizeof (zio_eck_t));
+	aadp += sizeof (zillwb_chain_t) - sizeof (zio_eck_t);
+	aad_len += sizeof (zillwb_chain_t) - sizeof (zio_eck_t);
 
-	slrp = src + sizeof (zil_chain_t);
-	dlrp = dst + sizeof (zil_chain_t);
+	slrp = src + sizeof (zillwb_chain_t);
+	dlrp = dst + sizeof (zillwb_chain_t);
 
 	/*
 	 * Loop over records again, filling in iovecs.

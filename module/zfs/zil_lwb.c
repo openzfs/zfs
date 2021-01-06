@@ -116,7 +116,7 @@ static kmem_cache_t *zil_lwb_cache;
 static kmem_cache_t *zil_zcw_cache;
 
 #define	LWB_EMPTY(lwb) ((BP_GET_LSIZE(&lwb->lwb_blk) - \
-    sizeof (zil_chain_t)) == (lwb->lwb_sz - lwb->lwb_nused))
+    sizeof (zillwb_chain_t)) == (lwb->lwb_sz - lwb->lwb_nused))
 
 static int
 zillwb_bp_compare(const void *x1, const void *x2)
@@ -236,9 +236,9 @@ zillwb_read_log_block(spa_t *spa, const zil_header_t *zh, boolean_t decrypt,
 		cksum.zc_word[ZIL_ZC_SEQ]++;
 
 		if (BP_GET_CHECKSUM(bp) == ZIO_CHECKSUM_ZILOG2) {
-			zil_chain_t *zilc = abuf->b_data;
+			zillwb_chain_t *zilc = abuf->b_data;
 			char *lr = (char *)(zilc + 1);
-			uint64_t len = zilc->zc_nused - sizeof (zil_chain_t);
+			uint64_t len = zilc->zc_nused - sizeof (zillwb_chain_t);
 
 			if (bcmp(&cksum, &zilc->zc_next_blk.blk_cksum,
 			    sizeof (cksum)) || BP_IS_HOLE(&zilc->zc_next_blk)) {
@@ -252,7 +252,8 @@ zillwb_read_log_block(spa_t *spa, const zil_header_t *zh, boolean_t decrypt,
 		} else {
 			char *lr = abuf->b_data;
 			uint64_t size = BP_GET_LSIZE(bp);
-			zil_chain_t *zilc = (zil_chain_t *)(lr + size) - 1;
+			zillwb_chain_t *zilc =
+			    (zillwb_chain_t *)(lr + size) - 1;
 
 			if (bcmp(&cksum, &zilc->zc_next_blk.blk_cksum,
 			    sizeof (cksum)) || BP_IS_HOLE(&zilc->zc_next_blk) ||
@@ -596,11 +597,11 @@ zillwb_alloc_lwb(zilog_t *zilog, const blkptr_t *bp, boolean_t slog,
 	lwb->lwb_tx = NULL;
 	lwb->lwb_issued_timestamp = 0;
 	if (BP_GET_CHECKSUM(bp) == ZIO_CHECKSUM_ZILOG2) {
-		lwb->lwb_nused = sizeof (zil_chain_t);
+		lwb->lwb_nused = sizeof (zillwb_chain_t);
 		lwb->lwb_sz = BP_GET_LSIZE(bp);
 	} else {
 		lwb->lwb_nused = 0;
-		lwb->lwb_sz = BP_GET_LSIZE(bp) - sizeof (zil_chain_t);
+		lwb->lwb_sz = BP_GET_LSIZE(bp) - sizeof (zillwb_chain_t);
 	}
 
 	mutex_enter(&zilog->zl_lock);
@@ -1456,7 +1457,7 @@ static lwb_t *
 zillwb_lwb_write_issue(zilog_t *zilog, lwb_t *lwb)
 {
 	lwb_t *nlwb = NULL;
-	zil_chain_t *zilc;
+	zillwb_chain_t *zilc;
 	spa_t *spa = zilog->zl_spa;
 	blkptr_t *bp;
 	dmu_tx_t *tx;
@@ -1471,10 +1472,10 @@ zillwb_lwb_write_issue(zilog_t *zilog, lwb_t *lwb)
 	ASSERT3S(lwb->lwb_state, ==, LWB_STATE_OPENED);
 
 	if (BP_GET_CHECKSUM(&lwb->lwb_blk) == ZIO_CHECKSUM_ZILOG2) {
-		zilc = (zil_chain_t *)lwb->lwb_buf;
+		zilc = (zillwb_chain_t *)lwb->lwb_buf;
 		bp = &zilc->zc_next_blk;
 	} else {
-		zilc = (zil_chain_t *)(lwb->lwb_buf + lwb->lwb_sz);
+		zilc = (zillwb_chain_t *)(lwb->lwb_buf + lwb->lwb_sz);
 		bp = &zilc->zc_next_blk;
 	}
 
@@ -1521,7 +1522,7 @@ zillwb_lwb_write_issue(zilog_t *zilog, lwb_t *lwb)
 	 * the maximum block size because we can exhaust the available
 	 * pool log space.
 	 */
-	zil_blksz = zilog->zl_cur_used + sizeof (zil_chain_t);
+	zil_blksz = zilog->zl_cur_used + sizeof (zillwb_chain_t);
 	for (i = 0; zil_blksz > zil_block_buckets[i].limit; i++)
 		continue;
 	zil_blksz = MIN(zil_block_buckets[i].blksz, zilog->zl_max_block_size);
@@ -1599,7 +1600,7 @@ uint64_t
 zillwb_max_log_data(zilog_t *zilog)
 {
 	return (zilog->zl_max_block_size -
-	    sizeof (zil_chain_t) - sizeof (lr_write_t));
+	    sizeof (zillwb_chain_t) - sizeof (lr_write_t));
 }
 
 /*
@@ -1622,7 +1623,7 @@ zillwb_max_waste_space(zilog_t *zilog)
 uint64_t
 zillwb_max_copied_data(zilog_t *zilog)
 {
-	return ((zilog->zl_max_block_size - sizeof (zil_chain_t)) / 2 -
+	return ((zilog->zl_max_block_size - sizeof (zillwb_chain_t)) / 2 -
 	    sizeof (lr_write_t));
 }
 
