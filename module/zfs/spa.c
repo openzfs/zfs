@@ -2337,7 +2337,7 @@ spa_load_verify_zil_cb_block(const blkptr_t *bp, void *arg)
 		return (-1);
 
 	SET_BOOKMARK(&zb, slvza->slvza_objset, ZB_ZIL_OBJECT, ZB_ZIL_LEVEL,
-	    bp->blk_cksum.zc_word[ZIL_ZC_SEQ]);
+	    bp->blk_cksum.zc_word[ZILLWB_ZC_SEQ]);
 
 	(void) spa_load_verify_blk_cb(spa, bp, &zb, NULL, slvza->slvza_rio);
 

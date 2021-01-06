@@ -67,7 +67,6 @@
  */
 
 
-
 /*
  * Macros to abstract-away access to the zilog's pointers to various parent
  * data structures that are frequently accessed.
@@ -197,12 +196,12 @@ zillwb_init_log_chain(zilog_lwb_t *zilog, blkptr_t *bp)
 {
 	zio_cksum_t *zc = &bp->blk_cksum;
 
-	(void) random_get_pseudo_bytes((void *)&zc->zc_word[ZIL_ZC_GUID_0],
-	    sizeof (zc->zc_word[ZIL_ZC_GUID_0]));
-	(void) random_get_pseudo_bytes((void *)&zc->zc_word[ZIL_ZC_GUID_1],
-	    sizeof (zc->zc_word[ZIL_ZC_GUID_1]));
-	zc->zc_word[ZIL_ZC_OBJSET] = dmu_objset_id(ZL_OS(zilog));
-	zc->zc_word[ZIL_ZC_SEQ] = 1ULL;
+	(void) random_get_pseudo_bytes((void *)&zc->zc_word[ZILLWB_ZC_GUID_0],
+	    sizeof (zc->zc_word[ZILLWB_ZC_GUID_0]));
+	(void) random_get_pseudo_bytes((void *)&zc->zc_word[ZILLWB_ZC_GUID_1],
+	    sizeof (zc->zc_word[ZILLWB_ZC_GUID_1]));
+	zc->zc_word[ZILLWB_ZC_OBJSET] = dmu_objset_id(ZL_OS(zilog));
+	zc->zc_word[ZILLWB_ZC_SEQ] = 1ULL;
 }
 
 /*
@@ -222,14 +221,14 @@ zillwb_read_log_block(spa_t *spa, const zil_header_lwb_t *zh, boolean_t decrypt,
 	if (zh->zh_claim_txg == 0)
 		zio_flags |= ZIO_FLAG_SPECULATIVE | ZIO_FLAG_SCRUB;
 
-	if (!(zh->zh_flags & ZIL_CLAIM_LR_SEQ_VALID))
+	if (!(zh->zh_flags & ZILLWB_CLAIM_LR_SEQ_VALID))
 		zio_flags |= ZIO_FLAG_SPECULATIVE;
 
 	if (!decrypt)
 		zio_flags |= ZIO_FLAG_RAW;
 
-	SET_BOOKMARK(&zb, bp->blk_cksum.zc_word[ZIL_ZC_OBJSET],
-	    ZB_ZIL_OBJECT, ZB_ZIL_LEVEL, bp->blk_cksum.zc_word[ZIL_ZC_SEQ]);
+	SET_BOOKMARK(&zb, bp->blk_cksum.zc_word[ZILLWB_ZC_OBJSET],
+	    ZB_ZIL_OBJECT, ZB_ZIL_LEVEL, bp->blk_cksum.zc_word[ZILLWB_ZC_SEQ]);
 
 	error = arc_read(NULL, spa, bp, arc_getbuf_func, &abuf, prio, zio_flags,
 	    &aflags, &zb);
@@ -245,7 +244,7 @@ zillwb_read_log_block(spa_t *spa, const zil_header_lwb_t *zh, boolean_t decrypt,
 		 *
 		 * Also check the log chain linkage and size used.
 		 */
-		cksum.zc_word[ZIL_ZC_SEQ]++;
+		cksum.zc_word[ZILLWB_ZC_SEQ]++;
 
 		if (BP_GET_CHECKSUM(bp) == ZIO_CHECKSUM_ZILOG2) {
 			zillwb_chain_t *zilc = abuf->b_data;
@@ -353,7 +352,7 @@ zillwb_parse_phys(spa_t *spa, const zil_header_lwb_t *zh,
 	/*
 	 * Old logs didn't record the maximum zh_claim_lr_seq.
 	 */
-	if (!(zh->zh_flags & ZIL_CLAIM_LR_SEQ_VALID))
+	if (!(zh->zh_flags & ZILLWB_CLAIM_LR_SEQ_VALID))
 		claim_lr_seq = UINT64_MAX;
 
 	/*
@@ -368,7 +367,7 @@ zillwb_parse_phys(spa_t *spa, const zil_header_lwb_t *zh,
 	lrbuf = zio_buf_alloc(SPA_OLD_MAXBLOCKSIZE);
 
 	for (blk = zh->zh_log; !BP_IS_HOLE(&blk); blk = next_blk) {
-		uint64_t blk_seq = blk.blk_cksum.zc_word[ZIL_ZC_SEQ];
+		uint64_t blk_seq = blk.blk_cksum.zc_word[ZILLWB_ZC_SEQ];
 		int reclen;
 		char *end = NULL;
 
@@ -414,7 +413,7 @@ done:
 		result->zlpr_lr_count = lr_count;
 	}
 
-	ASSERT(!claimed || !(zh->zh_flags & ZIL_CLAIM_LR_SEQ_VALID) ||
+	ASSERT(!claimed || !(zh->zh_flags & ZILLWB_CLAIM_LR_SEQ_VALID) ||
 	    (max_blk_seq == claim_blk_seq && max_lr_seq == claim_lr_seq) ||
 	    (decrypt && error == EIO));
 
@@ -695,7 +694,7 @@ zillwb_create(zilog_lwb_t *zilog)
 		}
 
 		error = zio_alloc_zil(ZL_SPA(zilog), ZL_OS(zilog), txg, &blk,
-		    ZIL_MIN_BLKSZ, &slog);
+		    ZILLWB_MIN_BLKSZ, &slog);
 		fastwrite = TRUE;
 
 		if (error == 0)
@@ -887,8 +886,8 @@ zillwb_claim(dsl_pool_t *dp, dsl_dataset_t *ds, void *txarg)
 		zh->zh_claim_blk_seq = lpr->zlpr_blk_seq;
 		zh->zh_claim_lr_seq = lpr->zlpr_lr_seq;
 		if (lpr->zlpr_lr_count || lpr->zlpr_blk_count > 1)
-			zh->zh_flags |= ZIL_REPLAY_NEEDED;
-		zh->zh_flags |= ZIL_CLAIM_LR_SEQ_VALID;
+			zh->zh_flags |= ZILLWB_REPLAY_NEEDED;
+		zh->zh_flags |= ZILLWB_CLAIM_LR_SEQ_VALID;
 		if (os->os_encrypted)
 			os->os_next_write_raw[tx->tx_txg & TXG_MASK] = B_TRUE;
 		dsl_dataset_dirty(dmu_objset_ds(os), tx);
@@ -1394,9 +1393,9 @@ zillwb_lwb_write_open(zilog_lwb_t *zilog, lwb_t *lwb)
 	EQUIV(lwb->lwb_root_zio == NULL, lwb->lwb_state == LWB_STATE_CLOSED);
 	EQUIV(lwb->lwb_root_zio != NULL, lwb->lwb_state == LWB_STATE_OPENED);
 
-	SET_BOOKMARK(&zb, lwb->lwb_blk.blk_cksum.zc_word[ZIL_ZC_OBJSET],
+	SET_BOOKMARK(&zb, lwb->lwb_blk.blk_cksum.zc_word[ZILLWB_ZC_OBJSET],
 	    ZB_ZIL_OBJECT, ZB_ZIL_LEVEL,
-	    lwb->lwb_blk.blk_cksum.zc_word[ZIL_ZC_SEQ]);
+	    lwb->lwb_blk.blk_cksum.zc_word[ZILLWB_ZC_SEQ]);
 
 	/* Lock so zil_sync() doesn't fastwrite_unmark after zio is created */
 	mutex_enter(&zilog->zl_lock);
@@ -1541,9 +1540,10 @@ zillwb_lwb_write_issue(zilog_lwb_t *zilog, lwb_t *lwb)
 		continue;
 	zil_blksz = MIN(zil_block_buckets[i].blksz, zilog->zl_max_block_size);
 	zilog->zl_prev_blks[zilog->zl_prev_rotor] = zil_blksz;
-	for (i = 0; i < ZIL_PREV_BLKS; i++)
+	for (i = 0; i < ZILLWB_PREV_BLKS; i++)
 		zil_blksz = MAX(zil_blksz, zilog->zl_prev_blks[i]);
-	zilog->zl_prev_rotor = (zilog->zl_prev_rotor + 1) & (ZIL_PREV_BLKS - 1);
+	zilog->zl_prev_rotor =
+	    (zilog->zl_prev_rotor + 1) & (ZILLWB_PREV_BLKS - 1);
 
 	BP_ZERO(bp);
 	error = zio_alloc_zil(spa, ZL_OS(zilog), txg, bp, zil_blksz, &slog);
@@ -1561,10 +1561,10 @@ zillwb_lwb_write_issue(zilog_lwb_t *zilog, lwb_t *lwb)
 		 * lwb that we just allocated using zio_alloc_zil.
 		 * But we still need to set up the (ZIL-specific) checksum.
 		 * All components of the checksum remain the same except for
-		 * the bumped lwb sequence number (ZIL_ZC_SEQ).
+		 * the bumped lwb sequence number (ZILLWB_ZC_SEQ).
 		 */
 		bp->blk_cksum = lwb->lwb_blk.blk_cksum;
-		bp->blk_cksum.zc_word[ZIL_ZC_SEQ]++;
+		bp->blk_cksum.zc_word[ZILLWB_ZC_SEQ]++;
 
 		/*
 		 * Allocate a new log write block (lwb).
@@ -1574,7 +1574,8 @@ zillwb_lwb_write_issue(zilog_lwb_t *zilog, lwb_t *lwb)
 
 	if (BP_GET_CHECKSUM(&lwb->lwb_blk) == ZIO_CHECKSUM_ZILOG2) {
 		/* For Slim ZIL only write what is used. */
-		wsz = P2ROUNDUP_TYPED(lwb->lwb_nused, ZIL_MIN_BLKSZ, uint64_t);
+		wsz =
+		    P2ROUNDUP_TYPED(lwb->lwb_nused, ZILLWB_MIN_BLKSZ, uint64_t);
 		ASSERT3U(wsz, <=, lwb->lwb_sz);
 		zio_shrink(lwb->lwb_write_zio, wsz);
 
@@ -2916,7 +2917,7 @@ zillwb_suspend(const char *osname, void **cookiep)
 	mutex_enter(&zilog->zl_lock);
 	zh = ZL_HDR(zilog);
 
-	if (zh->zh_flags & ZIL_REPLAY_NEEDED) {		/* unplayed log */
+	if (zh->zh_flags & ZILLWB_REPLAY_NEEDED) { /* unplayed log */
 		mutex_exit(&zilog->zl_lock);
 		dmu_objset_rele(os, suspend_tag);
 		return (SET_ERROR(EBUSY));
@@ -3166,7 +3167,7 @@ zillwb_replay(objset_t *os, void *arg,
 	const zil_header_lwb_t *zh = ZL_HDR(zilog);
 	zillwb_replay_arg_t zr;
 
-	if ((zh->zh_flags & ZIL_REPLAY_NEEDED) == 0) {
+	if ((zh->zh_flags & ZILLWB_REPLAY_NEEDED) == 0) {
 		zillwb_destroy(zilog, B_TRUE);
 		return;
 	}

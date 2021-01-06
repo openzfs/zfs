@@ -361,8 +361,8 @@ zio_checksum_compute(zio_t *zio, enum zio_checksum checksum,
 			zillwb_chain_t zilc;
 			abd_copy_to_buf(&zilc, abd, sizeof (zillwb_chain_t));
 
-			size = P2ROUNDUP_TYPED(zilc.zc_nused, ZIL_MIN_BLKSZ,
-			    uint64_t);
+			size = P2ROUNDUP_TYPED(zilc.zc_nused,
+			    ZILLWB_MIN_BLKSZ, uint64_t);
 			eck = zilc.zc_eck;
 			eck_offset = offsetof(zillwb_chain_t, zc_eck);
 		} else {
@@ -447,7 +447,8 @@ zio_checksum_error_impl(spa_t *spa, const blkptr_t *bp,
 				return (SET_ERROR(ECKSUM));
 			}
 
-			size = P2ROUNDUP_TYPED(nused, ZIL_MIN_BLKSZ, uint64_t);
+			size = P2ROUNDUP_TYPED(nused, ZILLWB_MIN_BLKSZ,
+			    uint64_t);
 		} else {
 			eck_offset = size - sizeof (zio_eck_t);
 			abd_copy_to_buf_off(&eck, abd, eck_offset,

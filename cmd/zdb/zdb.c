@@ -6356,7 +6356,7 @@ dump_block_stats_zil_header_cb_block(const blkptr_t *bp, void *arg)
 		return (-1);
 
 	SET_BOOKMARK(&zb, dbsa->objset, ZB_ZIL_OBJECT, ZB_ZIL_LEVEL,
-	    bp->blk_cksum.zc_word[ZIL_ZC_SEQ]);
+	    bp->blk_cksum.zc_word[ZILLWB_ZC_SEQ]);
 
 	(void) zdb_blkptr_cb(dbsa->spa, bp, &zb, NULL, dbsa->zcb);
 

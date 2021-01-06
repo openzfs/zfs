@@ -379,7 +379,7 @@ print_log_block(const blkptr_t *bp, void *varg)
 		claim = "won't claim";
 
 	(void) printf("\tBlock seqno %llu, %s%s\n",
-	    (u_longlong_t)bp->blk_cksum.zc_word[ZIL_ZC_SEQ], claim, blkbuf);
+	    (u_longlong_t)bp->blk_cksum.zc_word[ZILLWB_ZC_SEQ], claim, blkbuf);
 
 	return (0);
 }

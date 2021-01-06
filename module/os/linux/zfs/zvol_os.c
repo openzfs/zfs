@@ -404,7 +404,7 @@ zvol_request(struct request_queue *q, struct bio *bio)
 				/* replay / destroy done in zvol_create_minor */
 				VERIFY0((
 				    zv->zv_zilog->zl_header->zh_lwb.zh_flags &
-				    ZIL_REPLAY_NEEDED));
+				    ZILLWB_REPLAY_NEEDED));
 			}
 			rw_downgrade(&zv->zv_suspend_lock);
 		}

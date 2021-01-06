@@ -6,8 +6,8 @@
 /*
  * zh_flags bit settings
  */
-#define	ZIL_REPLAY_NEEDED	0x1	/* replay needed - internal only */
-#define	ZIL_CLAIM_LR_SEQ_VALID	0x2	/* zh_claim_lr_seq field is valid */
+#define	ZILLWB_REPLAY_NEEDED	0x1 /* replay needed - internal only */
+#define	ZILLWB_CLAIM_LR_SEQ_VALID	0x2 /* zh_claim_lr_seq field is valid */
 
 /*
  * Log block chaining.
@@ -29,15 +29,15 @@ typedef struct zil_chain {
 	zio_eck_t zc_eck;	/* block trailer */
 } zillwb_chain_t;
 
-#define	ZIL_MIN_BLKSZ	4096ULL
+#define	ZILLWB_MIN_BLKSZ	4096ULL
 
 /*
  * The words of a log block checksum.
  */
-#define	ZIL_ZC_GUID_0	0
-#define	ZIL_ZC_GUID_1	1
-#define	ZIL_ZC_OBJSET	2
-#define	ZIL_ZC_SEQ	3
+#define	ZILLWB_ZC_GUID_0	0
+#define	ZILLWB_ZC_GUID_1	1
+#define	ZILLWB_ZC_OBJSET	2
+#define	ZILLWB_ZC_SEQ	3
 
 typedef struct zillwb_bp_node {
 	dva_t		zn_dva;
@@ -55,7 +55,7 @@ typedef struct zillwb_vdev_node {
 } zillwb_vdev_node_t;
 
 
-#define	ZIL_PREV_BLKS 16
+#define	ZILLWB_PREV_BLKS 16
 
 
 /*
@@ -197,7 +197,7 @@ struct zilog_lwb {
 	clock_t		zl_replay_time;	/* lbolt of when replay started */
 	uint64_t	zl_replay_blks;	/* number of log blocks replayed */
 	zil_header_lwb_t	zl_old_header;	/* debugging aid */
-	uint_t		zl_prev_blks[ZIL_PREV_BLKS]; /* size - sector rounded */
+	uint_t		zl_prev_blks[ZILLWB_PREV_BLKS];
 	uint_t		zl_prev_rotor;	/* rotor for zl_prev[] */
 	txg_node_t	zl_dirty_link;	/* protected by dp_dirty_zilogs list */
 	uint64_t	zl_dirty_max_txg; /* highest txg used to dirty zilog */
