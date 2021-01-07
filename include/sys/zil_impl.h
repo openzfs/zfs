@@ -60,7 +60,7 @@ typedef struct itx_async_node {
 
 /* zil.c <=> zil_lwb.c */
 
-extern int zil_maxblocksize;
+extern int zfs_zil_lwb_maxblocksize;
 boolean_t zilog_is_dirty(zilog_t *zilog);
 void zil_get_commit_list(zilog_t *zilog);
 

@@ -794,13 +794,15 @@ Note that this should not be set below the ZED thresholds
 (currently 10 checksums over 10 seconds)
 or else the daemon may not trigger any action.
 .
-.It Sy zfs_commit_timeout_pct Ns = Ns Sy 5 Ns % Pq int
-This controls the amount of time that a ZIL block (lwb) will remain "open"
-when it isn't "full", and it has a thread waiting for it to be committed to
-stable storage.
-The timeout is scaled based on a percentage of the last lwb
+.It Sy zfs_zil_lwb_commit_timeout_pct Ns = Ns Sy 5 Ns % Pq int
+In ZIL-LWB, this controls the amount of time that a ZIL block (lwb) will remain
+"open" when it isn't "full", and it has a thread waiting for it to be committed
+to stable storage.  The timeout is scaled based on a percentage of the last lwb
 latency to avoid significantly impacting the latency of each individual
 transaction record (itx).
+.
+.It Sy zfs_commit_timeout_pct Sy Pq int
+This is a \fBDEPRECATED\fR alias for \fBzfs_zil_lwb_commit_timeout_pct\fR.
 .
 .It Sy zfs_condense_indirect_commit_entry_delay_ms Ns = Ns Sy 0 Ns ms Pq int
 Vdev indirection layer (used for device removal) sleeps for this many
@@ -2066,26 +2068,34 @@ The default value of
 .Sy 100%
 will create a maximum of one thread per cpu.
 .
-.It Sy zil_maxblocksize Ns = Ns Sy 131072 Ns B Po 128kB Pc Pq int
-This sets the maximum block size used by the ZIL.
-On very fragmented pools, lowering this
+.It Sy zfs_zil_lwb_maxblocksize Ns = Ns Sy 131072 Ns B Po 128kB Pc Pq int
+This sets the maximum block size used by ZIL-LWB.  On very fragmented pools,
+lowering this
 .Pq typically to Sy 36kB
 can improve performance.
 .
-.It Sy zil_nocacheflush Ns = Ns Sy 0 Ns | Ns 1 Pq int
-Disable the cache flush commands that are normally sent to disk by
-the ZIL after an LWB write has completed.
-Setting this will cause ZIL corruption on power loss
-if a volatile out-of-order write cache is enabled.
+.It Sy zil_maxblocksize Sy Pq int
+This is a \fBDEPRECATED\fR alias for \fBzfs_zil_lwb_maxblocksize\fR.
+.
+.It Sy zfs_zil_lwb_nocacheflush Ns = Ns Sy 0 Ns | Ns 1 Pq int
+For ZIL-LWB, disable the cache flush commands that are normally sent to the
+disk(s) after an LWB write has completed. Setting this will cause corruption
+of ZIL-LWBs on power loss if a volatile out-of-order write cache is enabled.
+.
+.It Sy zil_nocacheflush Sy Pq int
+This is a \fBDEPRECATED\fR alias for \fBzfs_zil_lwb_nocacheflush\fR.
 .
 .It Sy zil_replay_disable Ns = Ns Sy 0 Ns | Ns 1 Pq int
 Disable intent logging replay.
 Can be disabled for recovery from corrupted ZIL.
 .
-.It Sy zil_slog_bulk Ns = Ns Sy 786432 Ns B Po 768kB Pc Pq ulong
-Limit SLOG write size per commit executed with synchronous priority.
+.It Sy zfs_zil_lwb_slog_bulk Ns = Ns Sy 786432 Ns B Po 768kB Pc Pq ulong
+Limit ZIL-LWB SLOG write size per commit executed with synchronous priority.
 Any writes above that will be executed with lower (asynchronous) priority
 to limit potential SLOG device abuse by single active ZIL writer.
+.
+.It Sy zil_slog_bulk Sy Pq int
+This is a \fBDEPRECATED\fR alias for \fBzfs_zil_lwb_slog_bulk\fR.
 .
 .It Sy zfs_embedded_slog_min_ms Ns = Ns Sy 64  Pq int
 Usually, one metaslab from each normal-class vdev is dedicated for use by

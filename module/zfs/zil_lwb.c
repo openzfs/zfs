@@ -84,7 +84,7 @@
  * committed to stable storage. Please refer to the zillwb_commit_waiter()
  * function (and the comments within it) for more details.
  */
-int zfs_commit_timeout_pct = 5;
+int zfs_zil_lwb_commit_timeout_pct = 5;
 
 /*
  * See zil.h for more information about these fields.
@@ -114,14 +114,14 @@ static kstat_t *zil_ksp;
  * will cause ZIL corruption on power loss if a volatile out-of-order
  * write cache is enabled.
  */
-int zil_nocacheflush = 0;
+int zfs_zil_lwb_nocacheflush = 0;
 
 /*
  * Limit SLOG write size per commit executed with synchronous priority.
  * Any writes above that will be executed with lower (asynchronous) priority
  * to limit potential SLOG device abuse by single active ZIL writer.
  */
-unsigned long zil_slog_bulk = 768 * 1024;
+unsigned long zfs_zil_lwb_slog_bulk = 768 * 1024;
 
 static kmem_cache_t *zil_lwb_cache;
 static kmem_cache_t *zil_zcw_cache;
@@ -470,8 +470,8 @@ zillwb_parse(zilog_lwb_t *zilog, zillwb_parse_blk_func_t *parse_blk_func,
 	zillwb_bp_tree_init(zilog);
 
 	err = zillwb_parse_phys(ZL_SPA(zilog), ZL_HDR(zilog),
-	    zillwb_parse_blk_wrapper, zillwb_parse_lr_wrapper, &warg, decrypt,
-	    ZIO_PRIORITY_SYNC_READ, &zilog->zl_last_parse_result);
+	    zillwb_parse_blk_wrapper, zillwb_parse_lr_wrapper, &warg,
+	    decrypt, ZIO_PRIORITY_SYNC_READ, &zilog->zl_last_parse_result);
 
 	zillwb_bp_tree_fini(zilog);
 
@@ -489,7 +489,7 @@ zillwb_clear_log_block(zilog_lwb_t *zilog, const blkptr_t *bp, void *tx,
 	 * As we call this function from the context of a rewind to a
 	 * checkpoint, each ZIL block whose txg is later than the txg
 	 * that we rewind to is invalid. Thus, we return -1 so
-	 * zillwb_parse()) doesn't attempt to read it.
+	 * zil_parse() doesn't attempt to read it.
 	 */
 	if (bp->blk_birth >= first_txg)
 		return (-1);
@@ -1042,7 +1042,7 @@ zillwb_lwb_add_block(lwb_t *lwb, const blkptr_t *bp)
 	int ndvas = BP_GET_NDVAS(bp);
 	int i;
 
-	if (zil_nocacheflush)
+	if (zfs_zil_lwb_nocacheflush)
 		return;
 
 	mutex_enter(&lwb->lwb_vdev_lock);
@@ -1102,7 +1102,7 @@ zillwb_lwb_add_txg(lwb_t *lwb, uint64_t txg)
 /*
  * This function is a called after all vdevs associated with a given lwb
  * write have completed their DKIOCFLUSHWRITECACHE command; or as soon
- * as the lwb write completes, if "zil_nocacheflush" is set. Further,
+ * as the lwb write completes, if "zfs_zil_lwb_nocacheflush" is set. Further,
  * all "previous" lwb's will have completed before this function is
  * called; i.e. this function is called for all previous lwbs before
  * it's called for "this" lwb (enforced via zio the dependencies
@@ -1408,7 +1408,8 @@ zillwb_lwb_write_open(zilog_lwb_t *zilog, lwb_t *lwb)
 			lwb->lwb_fastwrite = 1;
 		}
 
-		if (!lwb->lwb_slog || zilog->zl_cur_used <= zil_slog_bulk)
+		if (!lwb->lwb_slog || zilog->zl_cur_used <=
+		    zfs_zil_lwb_slog_bulk)
 			prio = ZIO_PRIORITY_SYNC_WRITE;
 		else
 			prio = ZIO_PRIORITY_ASYNC_WRITE;
@@ -1460,7 +1461,7 @@ struct {
  * initialized.  Otherwise this should not be used directly; see
  * zl_max_block_size instead.
  */
-int zil_maxblocksize = SPA_OLD_MAXBLOCKSIZE;
+int zfs_zil_lwb_maxblocksize = SPA_OLD_MAXBLOCKSIZE;
 
 /*
  * Start a log block write and advance to the next log block.
@@ -2320,7 +2321,7 @@ zillwb_commit_waiter(zilog_lwb_t *zilog, zillwb_commit_waiter_t *zcw)
 	 * For more details, see the comment at the bottom of the
 	 * zillwb_process_commit_list() function.
 	 */
-	int pct = MAX(zfs_commit_timeout_pct, 1);
+	int pct = MAX(zfs_zil_lwb_commit_timeout_pct, 1);
 	hrtime_t sleep = (zilog->zl_last_lwb_latency * pct) / 100;
 	hrtime_t wakeup = gethrtime() + sleep;
 	boolean_t timedout = B_FALSE;
@@ -3225,16 +3226,36 @@ zillwb_reset(const char *osname, void *arg)
 	return (0);
 }
 
+ZFS_MODULE_PARAM(zfs_zil_lwb, zfs_zil_lwb_, commit_timeout_pct, INT, ZMOD_RW,
+	"ZIL-LWB block open timeout percentage");
+ZFS_MODULE_PARAM_FORWARD(
+	zfs,		zfs_,		commit_timeout_pct,
+	zfs_zil_lwb,	zfs_zil_lwb_,	commit_timeout_pct,
+	ZMOD_RW
+);
 
-/* BEGIN CSTYLED */
-ZFS_MODULE_PARAM(zfs, zfs_, commit_timeout_pct, INT, ZMOD_RW,
-	"ZIL block open timeout percentage");
-ZFS_MODULE_PARAM(zfs_zil, zil_, nocacheflush, INT, ZMOD_RW,
-	"Disable ZIL cache flushes");
+ZFS_MODULE_PARAM(zfs_zil, zfs_zil_lwb_, nocacheflush, INT, ZMOD_RW,
+	"Disable ZIL-LWB cache flushes");
+ZFS_MODULE_PARAM_FORWARD(
+	zfs_zil,	zil_, 		nocacheflush,
+	zfs_zil_lwb,	zfs_zil_lwb_, 	nocacheflush,
+	ZMOD_RW
+);
 
-ZFS_MODULE_PARAM(zfs_zil, zil_, slog_bulk, ULONG, ZMOD_RW,
-	"Limit in bytes slog sync writes per commit");
+ZFS_MODULE_PARAM(zfs_zil, zfs_zil_lwb_, slog_bulk, ULONG, ZMOD_RW,
+	"ZIL-LWB limit in bytes slog sync writes per commit");
+ZFS_MODULE_PARAM_FORWARD(
+	zfs_zil,	zil_,		slog_bulk,
+	zfs_zil_lwb, 	zfs_zil_lwb_,	slog_bulk,
+	ZMOD_RW
+);
 
-ZFS_MODULE_PARAM(zfs_zil, zil_, maxblocksize, INT, ZMOD_RW,
-	"Limit in bytes of ZIL log block size");
+ZFS_MODULE_PARAM(zfs_zil, zfs_zil_lwb_, maxblocksize, INT, ZMOD_RW,
+	"Limit in bytes of ZIL-LWB log block size");
+ZFS_MODULE_PARAM_FORWARD(
+	zfs_zil,	zil_,		maxblocksize,
+	zfs_zil_lwb,	zfs_zil_lwb_,	maxblocksize,
+	ZMOD_RW
+);
+
 /* END CSTYLED */
