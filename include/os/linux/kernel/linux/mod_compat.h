@@ -155,6 +155,47 @@ enum scope_prefix_types {
 	MODULE_PARM_DESC(name_prefix ## name, desc)
 /* END CSTYLED */
 
+
+/*
+ * Declare a module parameter as a deprecated forwarding alias to a new name.
+ * When the alias is used, we printk a deprecation warning.
+ *
+ * The alias module parameter is declared by:
+ * - from_scope_prefix
+ * - from_name_prefix
+ * - from_name
+ * - perm
+ * (see ZFS_MODULE_PARAM comment for semantics).
+ *
+ * The new module parameter is _referenced_ by:
+ * - to_scope_prefix
+ * - to_name_prefix
+ * - to_name
+ *
+ * Note that the new module parameter must have already been declared in the
+ * same file as the call to this macro.
+ *
+ * Note that `perm` must be manually kept in sync with the target of the alias.
+ *
+ */
+/* BEGIN CSTYLED */
+#define	ZFS_MODULE_PARAM_FORWARD(from_scope_prefix, from_name_prefix, from_name, to_scope_prefix, to_name_prefix, to_name, perm) \
+	CTASSERT_GLOBAL((sizeof (from_scope_prefix) == sizeof (enum scope_prefix_types))); \
+	CTASSERT_GLOBAL((sizeof (to_scope_prefix) == sizeof (enum scope_prefix_types))); \
+	static int __zfs_param_forward_set_ ## from_name_prefix ## from_name ## __to__ ## to_name_prefix ## to_name (const char *arg, const struct kernel_param *param) { \
+		int error = (__param_##to_name_prefix##to_name).ops->set(arg, param);\
+		if (error == 0) { \
+			printk(KERN_WARNING KBUILD_MODNAME ": the '" #from_name_prefix #from_name "' module option is deprecated. Use '" #to_name_prefix #to_name "' instead.\n"); \
+		} \
+		return (error);\
+	} \
+	static int __zfs_param_forward_get_ ## from_name_prefix ## from_name ## __to__ ## to_name_prefix ## to_name(char *buffer, const struct kernel_param *param) { \
+		return ((__param_##to_name_prefix##to_name).ops->get(buffer, param));\
+	} \
+	module_param_call(from_name_prefix ## from_name, __zfs_param_forward_set_ ## from_name_prefix ## from_name ## __to__ ## to_name_prefix ## to_name, __zfs_param_forward_get_ ## from_name_prefix ## from_name ## __to__ ## to_name_prefix ## to_name, &to_name_prefix ## to_name, perm); \
+	MODULE_PARM_DESC(from_name_prefix ## from_name, "deprecated alias for " #to_name_prefix #to_name)
+/* END CSTYLED */
+
 #define	ZFS_MODULE_PARAM_ARGS	const char *buf, zfs_kernel_param_t *kp
 
 #define	ZFS_MODULE_DESCRIPTION(s) MODULE_DESCRIPTION(s)

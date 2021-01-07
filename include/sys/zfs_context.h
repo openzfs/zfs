@@ -210,6 +210,8 @@ typedef struct zfs_kernel_param {
 #define	ZFS_MODULE_PARAM_ARGS void
 #define	ZFS_MODULE_PARAM_CALL(scope_prefix, name_prefix, name, setfunc, \
 	getfunc, perm, desc)
+#define	ZFS_MODULE_PARAM_FORWARD(from_scope_prefix, from_name_prefix, \
+	from_name, to_scope_prefix, to_name_prefix, to_name, perm)
 
 /*
  * Threads.
