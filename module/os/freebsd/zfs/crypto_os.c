@@ -197,7 +197,7 @@ static void
 freebsd_crypt_uio_debug_log(boolean_t encrypt,
     freebsd_crypt_session_t *input_sessionp,
     struct zio_crypt_info *c_info,
-    uio_t *data_uio,
+    zfs_uio_t *data_uio,
     crypto_key_t *key,
     uint8_t *ivbuf,
     size_t datalen,
@@ -222,13 +222,13 @@ freebsd_crypt_uio_debug_log(boolean_t encrypt,
 		printf("%02x ", b[i]);
 	}
 	printf("}\n");
-	for (int i = 0; i < data_uio->uio_iovcnt; i++) {
+	for (int i = 0; i < zfs_uio_iovcnt(data_uio); i++) {
 		printf("\tiovec #%d: <%p, %u>\n", i,
-		    data_uio->uio_iov[i].iov_base,
-		    (unsigned int)data_uio->uio_iov[i].iov_len);
-		total += data_uio->uio_iov[i].iov_len;
+		    zfs_uio_iovbase(data_uio, i),
+		    (unsigned int)zfs_uio_iovlen(data_uio, i));
+		total += zfs_uio_iovlen(data_uio, i);
 	}
-	data_uio->uio_resid = total;
+	zfs_uio_resid(data_uio) = total;
 #endif
 }
 /*
@@ -310,7 +310,7 @@ int
 freebsd_crypt_uio(boolean_t encrypt,
     freebsd_crypt_session_t *input_sessionp,
     struct zio_crypt_info *c_info,
-    uio_t *data_uio,
+    zfs_uio_t *data_uio,
     crypto_key_t *key,
     uint8_t *ivbuf,
     size_t datalen,
@@ -323,9 +323,9 @@ freebsd_crypt_uio(boolean_t encrypt,
 
 	freebsd_crypt_uio_debug_log(encrypt, input_sessionp, c_info, data_uio,
 	    key, ivbuf, datalen, auth_len);
-	for (int i = 0; i < data_uio->uio_iovcnt; i++)
-		total += data_uio->uio_iov[i].iov_len;
-	data_uio->uio_resid = total;
+	for (int i = 0; i < zfs_uio_iovcnt(data_uio); i++)
+		total += zfs_uio_iovlen(data_uio, i);
+	zfs_uio_resid(data_uio) = total;
 	if (input_sessionp == NULL) {
 		session = kmem_zalloc(sizeof (*session), KM_SLEEP);
 		error = freebsd_crypt_newsession(session, c_info, key);
@@ -343,7 +343,7 @@ freebsd_crypt_uio(boolean_t encrypt,
 		    CRYPTO_OP_VERIFY_DIGEST;
 	}
 	crp->crp_flags = CRYPTO_F_CBIFSYNC | CRYPTO_F_IV_SEPARATE;
-	crypto_use_uio(crp, data_uio);
+	crypto_use_uio(crp, GET_UIO_STRUCT(data_uio));
 
 	crp->crp_aad_start = 0;
 	crp->crp_aad_length = auth_len;
@@ -480,7 +480,7 @@ int
 freebsd_crypt_uio(boolean_t encrypt,
     freebsd_crypt_session_t *input_sessionp,
     struct zio_crypt_info *c_info,
-    uio_t *data_uio,
+    zfs_uio_t *data_uio,
     crypto_key_t *key,
     uint8_t *ivbuf,
     size_t datalen,
@@ -564,7 +564,7 @@ freebsd_crypt_uio(boolean_t encrypt,
 
 	crp->crp_session = session->fs_sid;
 	crp->crp_ilen = auth_len + datalen;
-	crp->crp_buf = (void*)data_uio;
+	crp->crp_buf = (void*)GET_UIO_STRUCT(data_uio);
 	crp->crp_flags = CRYPTO_F_IOV | CRYPTO_F_CBIFSYNC;
 
 	auth_desc->crd_skip = 0;

@@ -36,21 +36,21 @@
 
 typedef struct iovec iovec_t;
 
-typedef enum uio_rw {
+typedef enum zfs_uio_rw {
 	UIO_READ =		0,
 	UIO_WRITE =		1,
-} uio_rw_t;
+} zfs_uio_rw_t;
 
-typedef enum uio_seg {
+typedef enum zfs_uio_seg {
 	UIO_USERSPACE =		0,
 	UIO_SYSSPACE =		1,
 	UIO_BVEC =		2,
 #if defined(HAVE_VFS_IOV_ITER)
 	UIO_ITER =		3,
 #endif
-} uio_seg_t;
+} zfs_uio_seg_t;
 
-typedef struct uio {
+typedef struct zfs_uio {
 	union {
 		const struct iovec	*uio_iov;
 		const struct bio_vec	*uio_bvec;
@@ -60,42 +60,45 @@ typedef struct uio {
 	};
 	int		uio_iovcnt;
 	offset_t	uio_loffset;
-	uio_seg_t	uio_segflg;
+	zfs_uio_seg_t	uio_segflg;
 	boolean_t	uio_fault_disable;
 	uint16_t	uio_fmode;
 	uint16_t	uio_extflg;
 	ssize_t		uio_resid;
 	size_t		uio_skip;
-} uio_t;
+} zfs_uio_t;
 
-#define	uio_segflg(uio)			(uio)->uio_segflg
-#define	uio_offset(uio)			(uio)->uio_loffset
-#define	uio_resid(uio)			(uio)->uio_resid
-#define	uio_iovcnt(uio)			(uio)->uio_iovcnt
-#define	uio_iovlen(uio, idx)		(uio)->uio_iov[(idx)].iov_len
-#define	uio_iovbase(uio, idx)		(uio)->uio_iov[(idx)].iov_base
-#define	uio_fault_disable(uio, set)	(uio)->uio_fault_disable = set
+#define	zfs_uio_segflg(u)		(u)->uio_segflg
+#define	zfs_uio_offset(u)		(u)->uio_loffset
+#define	zfs_uio_resid(u)		(u)->uio_resid
+#define	zfs_uio_iovcnt(u)		(u)->uio_iovcnt
+#define	zfs_uio_iovlen(u, idx)		(u)->uio_iov[(idx)].iov_len
+#define	zfs_uio_iovbase(u, idx)		(u)->uio_iov[(idx)].iov_base
+#define	zfs_uio_fault_disable(u, set)	(u)->uio_fault_disable = set
+#define	zfs_uio_rlimit_fsize(z, u)	(0)
+#define	zfs_uio_fault_move(p, n, rw, u)	zfs_uiomove((p), (n), (rw), (u))
 
 static inline void
-uio_iov_at_index(uio_t *uio, uint_t idx, void **base, uint64_t *len)
+zfs_uio_iov_at_index(zfs_uio_t *uio, uint_t idx, void **base, uint64_t *len)
 {
-	*base = uio_iovbase(uio, idx);
-	*len = uio_iovlen(uio, idx);
+	*base = zfs_uio_iovbase(uio, idx);
+	*len = zfs_uio_iovlen(uio, idx);
 }
 
 static inline void
-uio_advance(uio_t *uio, size_t size)
+zfs_uio_advance(zfs_uio_t *uio, size_t size)
 {
 	uio->uio_resid -= size;
 	uio->uio_loffset += size;
 }
 
 static inline offset_t
-uio_index_at_offset(uio_t *uio, offset_t off, uint_t *vec_idx)
+zfs_uio_index_at_offset(zfs_uio_t *uio, offset_t off, uint_t *vec_idx)
 {
 	*vec_idx = 0;
-	while (*vec_idx < uio_iovcnt(uio) && off >= uio_iovlen(uio, *vec_idx)) {
-		off -= uio_iovlen(uio, *vec_idx);
+	while (*vec_idx < zfs_uio_iovcnt(uio) &&
+	    off >= zfs_uio_iovlen(uio, *vec_idx)) {
+		off -= zfs_uio_iovlen(uio, *vec_idx);
 		(*vec_idx)++;
 	}
 
@@ -116,8 +119,9 @@ iov_iter_init_compat(struct iov_iter *iter, unsigned int dir,
 }
 
 static inline void
-uio_iovec_init(uio_t *uio, const struct iovec *iov, unsigned long nr_segs,
-    offset_t offset, uio_seg_t seg, ssize_t resid, size_t skip)
+zfs_uio_iovec_init(zfs_uio_t *uio, const struct iovec *iov,
+    unsigned long nr_segs, offset_t offset, zfs_uio_seg_t seg, ssize_t resid,
+    size_t skip)
 {
 	ASSERT(seg == UIO_USERSPACE || seg == UIO_SYSSPACE);
 
@@ -133,7 +137,7 @@ uio_iovec_init(uio_t *uio, const struct iovec *iov, unsigned long nr_segs,
 }
 
 static inline void
-uio_bvec_init(uio_t *uio, struct bio *bio)
+zfs_uio_bvec_init(zfs_uio_t *uio, struct bio *bio)
 {
 	uio->uio_bvec = &bio->bi_io_vec[BIO_BI_IDX(bio)];
 	uio->uio_iovcnt = bio->bi_vcnt - BIO_BI_IDX(bio);
@@ -148,7 +152,7 @@ uio_bvec_init(uio_t *uio, struct bio *bio)
 
 #if defined(HAVE_VFS_IOV_ITER)
 static inline void
-uio_iov_iter_init(uio_t *uio, struct iov_iter *iter, offset_t offset,
+zfs_uio_iov_iter_init(zfs_uio_t *uio, struct iov_iter *iter, offset_t offset,
     ssize_t resid, size_t skip)
 {
 	uio->uio_iter = iter;

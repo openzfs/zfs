@@ -85,9 +85,9 @@ zvol_write(void *arg)
 	zv_request_t *zvr = arg;
 	struct bio *bio = zvr->bio;
 	int error = 0;
-	uio_t uio;
+	zfs_uio_t uio;
 
-	uio_bvec_init(&uio, bio);
+	zfs_uio_bvec_init(&uio, bio);
 
 	zvol_state_t *zv = zvr->zv;
 	ASSERT3P(zv, !=, NULL);
@@ -247,9 +247,9 @@ zvol_read(void *arg)
 	zv_request_t *zvr = arg;
 	struct bio *bio = zvr->bio;
 	int error = 0;
-	uio_t uio;
+	zfs_uio_t uio;
 
-	uio_bvec_init(&uio, bio);
+	zfs_uio_bvec_init(&uio, bio);
 
 	zvol_state_t *zv = zvr->zv;
 	ASSERT3P(zv, !=, NULL);
