@@ -64,7 +64,7 @@ typedef u_int		uint_t;
 typedef u_char		uchar_t;
 typedef u_short		ushort_t;
 typedef u_long		ulong_t;
-typedef	u_int		minor_t;
+typedef	int		minor_t;
 /* END CSTYLED */
 #ifndef	_OFF64_T_DECLARED
 #define	_OFF64_T_DECLARED
