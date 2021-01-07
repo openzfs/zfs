@@ -7416,6 +7416,7 @@ zfsdev_ioctl_common(uint_t vecnum, zfs_cmd_t *zc, int flag)
 	size_t saved_poolname_len = 0;
 	nvlist_t *innvl = NULL;
 	fstrans_cookie_t cookie;
+	hrtime_t start_time = gethrtime();
 
 	cmd = vecnum;
 	error = 0;
@@ -7574,6 +7575,8 @@ zfsdev_ioctl_common(uint_t vecnum, zfs_cmd_t *zc, int flag)
 				fnvlist_add_int64(lognv, ZPOOL_HIST_ERRNO,
 				    error);
 			}
+			fnvlist_add_int64(lognv, ZPOOL_HIST_ELAPSED_NS,
+			    gethrtime() - start_time);
 			(void) spa_history_log_nvl(spa, lognv);
 			spa_close(spa, FTAG);
 		}

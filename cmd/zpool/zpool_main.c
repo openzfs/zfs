@@ -9063,7 +9063,7 @@ print_history_records(nvlist_t *nvhis, hist_cbdata_t *cb)
 	    &records, &numrecords) == 0);
 	for (i = 0; i < numrecords; i++) {
 		nvlist_t *rec = records[i];
-		char tbuf[30] = "";
+		char tbuf[64] = "";
 
 		if (nvlist_exists(rec, ZPOOL_HIST_TIME)) {
 			time_t tsec;
@@ -9073,6 +9073,14 @@ print_history_records(nvlist_t *nvhis, hist_cbdata_t *cb)
 			    ZPOOL_HIST_TIME);
 			(void) localtime_r(&tsec, &t);
 			(void) strftime(tbuf, sizeof (tbuf), "%F.%T", &t);
+		}
+
+		if (nvlist_exists(rec, ZPOOL_HIST_ELAPSED_NS)) {
+			uint64_t elapsed_ns = fnvlist_lookup_int64(records[i],
+			    ZPOOL_HIST_ELAPSED_NS);
+			(void) snprintf(tbuf + strlen(tbuf),
+			    sizeof (tbuf) - strlen(tbuf),
+			    " (%lldms)", (long long)elapsed_ns / 1000 / 1000);
 		}
 
 		if (nvlist_exists(rec, ZPOOL_HIST_CMD)) {
