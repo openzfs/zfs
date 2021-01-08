@@ -4163,7 +4163,7 @@ arc_evict_state_impl(multilist_t *ml, int idx, arc_buf_hdr_t *marker,
 	mutex_enter(&arc_evict_lock);
 	arc_evict_count += bytes_evicted;
 
-	if ((int64_t)(arc_free_memory() - arc_sys_free / 2) > 0) {
+	if (arc_free_memory() > arc_sys_free / 2) {
 		arc_evict_waiter_t *aw;
 		while ((aw = list_head(&arc_evict_waiters)) != NULL &&
 		    aw->aew_count <= arc_evict_count) {
@@ -5242,14 +5242,20 @@ arc_wait_for_eviction(uint64_t amount)
 			list_link_init(&aw.aew_node);
 			cv_init(&aw.aew_cv, NULL, CV_DEFAULT, NULL);
 
-			arc_evict_waiter_t *last =
-			    list_tail(&arc_evict_waiters);
-			if (last != NULL) {
-				ASSERT3U(last->aew_count, >, arc_evict_count);
-				aw.aew_count = last->aew_count + amount;
-			} else {
-				aw.aew_count = arc_evict_count + amount;
+			uint64_t last_count = 0;
+			if (!list_is_empty(&arc_evict_waiters)) {
+				arc_evict_waiter_t *last =
+				    list_tail(&arc_evict_waiters);
+				last_count = last->aew_count;
 			}
+			/*
+			 * Note, the last waiter's count may be less than
+			 * arc_evict_count if we are low on memory in which
+			 * case arc_evict_state_impl() may have deferred
+			 * wakeups (but still incremented arc_evict_count).
+			 */
+			aw.aew_count =
+			    MAX(last_count, arc_evict_count) + amount;
 
 			list_insert_tail(&arc_evict_waiters, &aw);
 
