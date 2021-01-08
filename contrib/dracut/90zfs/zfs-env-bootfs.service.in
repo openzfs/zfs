@@ -8,7 +8,7 @@ Before=zfs-import.target
 
 [Service]
 Type=oneshot
-ExecStart=/bin/sh -c "/bin/systemctl set-environment BOOTFS=$(@sbindir@/zpool list -H -o bootfs | grep -m1 -v '^-$')"
+ExecStart=/bin/sh -c "systemctl set-environment BOOTFS=$(@sbindir@/zpool list -H -o bootfs | grep -m1 -v '^-$')"
 
 [Install]
 WantedBy=zfs-import.target
