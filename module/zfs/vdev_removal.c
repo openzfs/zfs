@@ -2003,17 +2003,18 @@ spa_vdev_remove_top_check(vdev_t *vd)
 		if (available < vd->vdev_stat.vs_alloc)
 			return (SET_ERROR(ENOSPC));
 	} else {
-		/* available space in the pool's normal class */
+		/*
+		 * This is a normal device. There has to be enough free
+		 * space in the pool's normal class to remove the device
+		 * and leave 1.6% of the space available.  The available
+		 * space accounts for both reserved and "slop" space.
+		 */
 		uint64_t available = dsl_dir_space_available(
 		    spa->spa_dsl_pool->dp_root_dir, NULL, 0, B_TRUE);
-		if (available <
-		    vd->vdev_stat.vs_dspace + spa_get_slop_space(spa)) {
-			/*
-			 * This is a normal device. There has to be enough free
-			 * space to remove the device and leave double the
-			 * "slop" space (i.e. we must leave at least 3% of the
-			 * pool free, in addition to the normal slop space).
-			 */
+
+		if (available < vd->vdev_stat.vs_dspace ||
+		    available - vd->vdev_stat.vs_dspace <
+		    spa_get_dspace(spa) >> 6) {
 			return (SET_ERROR(ENOSPC));
 		}
 	}

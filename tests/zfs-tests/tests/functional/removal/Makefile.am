@@ -30,7 +30,7 @@ dist_pkgdata_SCRIPTS = \
 	removal_with_snapshot.ksh removal_with_write.ksh \
 	removal_with_zdb.ksh remove_mirror.ksh remove_mirror_sanity.ksh \
 	remove_raidz.ksh remove_expanded.ksh remove_indirect.ksh \
-	remove_attach_mirror.ksh
+	remove_attach_mirror.ksh remove_minimum.ksh remove_unbalanced.ksh
 
 dist_pkgdata_DATA = \
 	removal.kshlib
