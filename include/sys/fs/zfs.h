@@ -1456,6 +1456,7 @@ typedef enum {
 #define	ZPOOL_HIST_DSNAME	"dsname"
 #define	ZPOOL_HIST_DSID		"dsid"
 #define	ZPOOL_HIST_ERRNO	"errno"
+#define	ZPOOL_HIST_ELAPSED_NS	"elapsed_ns"
 
 /*
  * Special nvlist name that will not have its args recorded in the pool's
