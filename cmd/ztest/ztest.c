@@ -1122,11 +1122,11 @@ make_vdev_file(char *path, char *aux, char *pool, size_t size, uint64_t ashift)
 		(void) close(fd);
 	}
 
-	VERIFY0(nvlist_alloc(&file, NV_UNIQUE_NAME, 0));
-	VERIFY0(nvlist_add_string(file, ZPOOL_CONFIG_TYPE,
-	    draid_spare ? VDEV_TYPE_DRAID_SPARE : VDEV_TYPE_FILE));
-	VERIFY0(nvlist_add_string(file, ZPOOL_CONFIG_PATH, path));
-	VERIFY0(nvlist_add_uint64(file, ZPOOL_CONFIG_ASHIFT, ashift));
+	file = fnvlist_alloc();
+	fnvlist_add_string(file, ZPOOL_CONFIG_TYPE,
+	    draid_spare ? VDEV_TYPE_DRAID_SPARE : VDEV_TYPE_FILE);
+	fnvlist_add_string(file, ZPOOL_CONFIG_PATH, path);
+	fnvlist_add_uint64(file, ZPOOL_CONFIG_ASHIFT, ashift);
 	umem_free(pathbuf, MAXPATHLEN);
 
 	return (file);
@@ -1146,13 +1146,12 @@ make_vdev_raid(char *path, char *aux, char *pool, size_t size,
 	for (c = 0; c < r; c++)
 		child[c] = make_vdev_file(path, aux, pool, size, ashift);
 
-	VERIFY0(nvlist_alloc(&raid, NV_UNIQUE_NAME, 0));
-	VERIFY0(nvlist_add_string(raid, ZPOOL_CONFIG_TYPE,
-	    ztest_opts.zo_raid_type));
-	VERIFY0(nvlist_add_uint64(raid, ZPOOL_CONFIG_NPARITY,
-	    ztest_opts.zo_raid_parity));
-	VERIFY0(nvlist_add_nvlist_array(raid, ZPOOL_CONFIG_CHILDREN,
-	    child, r));
+	raid = fnvlist_alloc();
+	fnvlist_add_string(raid, ZPOOL_CONFIG_TYPE,
+	    ztest_opts.zo_raid_type);
+	fnvlist_add_uint64(raid, ZPOOL_CONFIG_NPARITY,
+	    ztest_opts.zo_raid_parity);
+	fnvlist_add_nvlist_array(raid, ZPOOL_CONFIG_CHILDREN, child, r);
 
 	if (strcmp(ztest_opts.zo_raid_type, VDEV_TYPE_DRAID) == 0) {
 		uint64_t ndata = ztest_opts.zo_draid_data;
@@ -1176,7 +1175,7 @@ make_vdev_raid(char *path, char *aux, char *pool, size_t size,
 	}
 
 	for (c = 0; c < r; c++)
-		nvlist_free(child[c]);
+		fnvlist_free(child[c]);
 
 	umem_free(child, r * sizeof (nvlist_t *));
 
@@ -1198,14 +1197,12 @@ make_vdev_mirror(char *path, char *aux, char *pool, size_t size,
 	for (c = 0; c < m; c++)
 		child[c] = make_vdev_raid(path, aux, pool, size, ashift, r);
 
-	VERIFY(nvlist_alloc(&mirror, NV_UNIQUE_NAME, 0) == 0);
-	VERIFY(nvlist_add_string(mirror, ZPOOL_CONFIG_TYPE,
-	    VDEV_TYPE_MIRROR) == 0);
-	VERIFY(nvlist_add_nvlist_array(mirror, ZPOOL_CONFIG_CHILDREN,
-	    child, m) == 0);
+	mirror = fnvlist_alloc();
+	fnvlist_add_string(mirror, ZPOOL_CONFIG_TYPE, VDEV_TYPE_MIRROR);
+	fnvlist_add_nvlist_array(mirror, ZPOOL_CONFIG_CHILDREN, child, m);
 
 	for (c = 0; c < m; c++)
-		nvlist_free(child[c]);
+		fnvlist_free(child[c]);
 
 	umem_free(child, m * sizeof (nvlist_t *));
 
@@ -1229,23 +1226,22 @@ make_vdev_root(char *path, char *aux, char *pool, size_t size, uint64_t ashift,
 	for (c = 0; c < t; c++) {
 		child[c] = make_vdev_mirror(path, aux, pool, size, ashift,
 		    r, m);
-		VERIFY(nvlist_add_uint64(child[c], ZPOOL_CONFIG_IS_LOG,
-		    log) == 0);
+		fnvlist_add_uint64(child[c], ZPOOL_CONFIG_IS_LOG, log);
 
 		if (class != NULL && class[0] != '\0') {
 			ASSERT(m > 1 || log);   /* expecting a mirror */
-			VERIFY(nvlist_add_string(child[c],
-			    ZPOOL_CONFIG_ALLOCATION_BIAS, class) == 0);
+			fnvlist_add_string(child[c],
+			    ZPOOL_CONFIG_ALLOCATION_BIAS, class);
 		}
 	}
 
-	VERIFY(nvlist_alloc(&root, NV_UNIQUE_NAME, 0) == 0);
-	VERIFY(nvlist_add_string(root, ZPOOL_CONFIG_TYPE, VDEV_TYPE_ROOT) == 0);
-	VERIFY(nvlist_add_nvlist_array(root, aux ? aux : ZPOOL_CONFIG_CHILDREN,
-	    child, t) == 0);
+	root = fnvlist_alloc();
+	fnvlist_add_string(root, ZPOOL_CONFIG_TYPE, VDEV_TYPE_ROOT);
+	fnvlist_add_nvlist_array(root, aux ? aux : ZPOOL_CONFIG_CHILDREN,
+	    child, t);
 
 	for (c = 0; c < t; c++)
-		nvlist_free(child[c]);
+		fnvlist_free(child[c]);
 
 	umem_free(child, t * sizeof (nvlist_t *));
 
@@ -1402,12 +1398,12 @@ ztest_spa_prop_set_uint64(zpool_prop_t prop, uint64_t value)
 	nvlist_t *props = NULL;
 	int error;
 
-	VERIFY(nvlist_alloc(&props, NV_UNIQUE_NAME, 0) == 0);
-	VERIFY(nvlist_add_uint64(props, zpool_prop_to_name(prop), value) == 0);
+	props = fnvlist_alloc();
+	fnvlist_add_uint64(props, zpool_prop_to_name(prop), value);
 
 	error = spa_prop_set(spa, props);
 
-	nvlist_free(props);
+	fnvlist_free(props);
 
 	if (error == ENOSPC) {
 		ztest_record_enospc(FTAG);
@@ -2817,7 +2813,7 @@ ztest_spa_create_destroy(ztest_ds_t *zd, uint64_t id)
 	nvroot = make_vdev_root("/dev/bogus", NULL, NULL, 0, 0, NULL, 0, 0, 1);
 	VERIFY3U(ENOENT, ==,
 	    spa_create("ztest_bad_file", nvroot, NULL, NULL, NULL));
-	nvlist_free(nvroot);
+	fnvlist_free(nvroot);
 
 	/*
 	 * Attempt to create using a bad mirror.
@@ -2825,7 +2821,7 @@ ztest_spa_create_destroy(ztest_ds_t *zd, uint64_t id)
 	nvroot = make_vdev_root("/dev/bogus", NULL, NULL, 0, 0, NULL, 0, 2, 1);
 	VERIFY3U(ENOENT, ==,
 	    spa_create("ztest_bad_mirror", nvroot, NULL, NULL, NULL));
-	nvlist_free(nvroot);
+	fnvlist_free(nvroot);
 
 	/*
 	 * Attempt to create an existing pool.  It shouldn't matter
@@ -2835,7 +2831,7 @@ ztest_spa_create_destroy(ztest_ds_t *zd, uint64_t id)
 	nvroot = make_vdev_root("/dev/bogus", NULL, NULL, 0, 0, NULL, 0, 0, 1);
 	VERIFY3U(EEXIST, ==,
 	    spa_create(zo->zo_pool, nvroot, NULL, NULL, NULL));
-	nvlist_free(nvroot);
+	fnvlist_free(nvroot);
 
 	/*
 	 * We open a reference to the spa and then we try to export it
@@ -3172,7 +3168,7 @@ ztest_vdev_add_remove(ztest_ds_t *zd, uint64_t id)
 		    1);
 
 		error = spa_vdev_add(spa, nvroot);
-		nvlist_free(nvroot);
+		fnvlist_free(nvroot);
 
 		switch (error) {
 		case 0:
@@ -3234,7 +3230,7 @@ ztest_vdev_class_add(ztest_ds_t *zd, uint64_t id)
 	    class, ztest_opts.zo_raid_children, zs->zs_mirrors, 1);
 
 	error = spa_vdev_add(spa, nvroot);
-	nvlist_free(nvroot);
+	fnvlist_free(nvroot);
 
 	if (error == ENOSPC)
 		ztest_record_enospc("spa_vdev_add");
@@ -3347,7 +3343,7 @@ ztest_vdev_aux_add_remove(ztest_ds_t *zd, uint64_t id)
 		default:
 			fatal(0, "spa_vdev_add(%p) = %d", nvroot, error);
 		}
-		nvlist_free(nvroot);
+		fnvlist_free(nvroot);
 	} else {
 		/*
 		 * Remove an existing device.  Sometimes, dirty its
@@ -3409,12 +3405,11 @@ ztest_split_pool(ztest_ds_t *zd, uint64_t id)
 
 	/* generate a config from the existing config */
 	mutex_enter(&spa->spa_props_lock);
-	VERIFY(nvlist_lookup_nvlist(spa->spa_config, ZPOOL_CONFIG_VDEV_TREE,
-	    &tree) == 0);
+	tree = fnvlist_lookup_nvlist(spa->spa_config, ZPOOL_CONFIG_VDEV_TREE);
 	mutex_exit(&spa->spa_props_lock);
 
-	VERIFY(nvlist_lookup_nvlist_array(tree, ZPOOL_CONFIG_CHILDREN, &child,
-	    &children) == 0);
+	VERIFY0(nvlist_lookup_nvlist_array(tree, ZPOOL_CONFIG_CHILDREN,
+	    &child, &children));
 
 	schild = malloc(rvd->vdev_children * sizeof (nvlist_t *));
 	for (c = 0; c < children; c++) {
@@ -3423,37 +3418,35 @@ ztest_split_pool(ztest_ds_t *zd, uint64_t id)
 		uint_t mchildren;
 
 		if (tvd->vdev_islog || tvd->vdev_ops == &vdev_hole_ops) {
-			VERIFY(nvlist_alloc(&schild[schildren], NV_UNIQUE_NAME,
-			    0) == 0);
-			VERIFY(nvlist_add_string(schild[schildren],
-			    ZPOOL_CONFIG_TYPE, VDEV_TYPE_HOLE) == 0);
-			VERIFY(nvlist_add_uint64(schild[schildren],
-			    ZPOOL_CONFIG_IS_HOLE, 1) == 0);
+			schild[schildren] = fnvlist_alloc();
+			fnvlist_add_string(schild[schildren],
+			    ZPOOL_CONFIG_TYPE, VDEV_TYPE_HOLE);
+			fnvlist_add_uint64(schild[schildren],
+			    ZPOOL_CONFIG_IS_HOLE, 1);
 			if (lastlogid == 0)
 				lastlogid = schildren;
 			++schildren;
 			continue;
 		}
 		lastlogid = 0;
-		VERIFY(nvlist_lookup_nvlist_array(child[c],
-		    ZPOOL_CONFIG_CHILDREN, &mchild, &mchildren) == 0);
-		VERIFY(nvlist_dup(mchild[0], &schild[schildren++], 0) == 0);
+		VERIFY0(nvlist_lookup_nvlist_array(child[c],
+		    ZPOOL_CONFIG_CHILDREN, &mchild, &mchildren));
+		schild[schildren++] = fnvlist_dup(mchild[0]);
 	}
 
 	/* OK, create a config that can be used to split */
-	VERIFY(nvlist_alloc(&split, NV_UNIQUE_NAME, 0) == 0);
-	VERIFY(nvlist_add_string(split, ZPOOL_CONFIG_TYPE,
-	    VDEV_TYPE_ROOT) == 0);
-	VERIFY(nvlist_add_nvlist_array(split, ZPOOL_CONFIG_CHILDREN, schild,
-	    lastlogid != 0 ? lastlogid : schildren) == 0);
+	split = fnvlist_alloc();
+	fnvlist_add_string(split, ZPOOL_CONFIG_TYPE, VDEV_TYPE_ROOT);
+	fnvlist_add_nvlist_array(split, ZPOOL_CONFIG_CHILDREN, schild,
+	    lastlogid != 0 ? lastlogid : schildren);
 
-	VERIFY(nvlist_alloc(&config, NV_UNIQUE_NAME, 0) == 0);
-	VERIFY(nvlist_add_nvlist(config, ZPOOL_CONFIG_VDEV_TREE, split) == 0);
+	config = fnvlist_alloc();
+	fnvlist_add_nvlist(config, ZPOOL_CONFIG_VDEV_TREE, split);
 
 	for (c = 0; c < schildren; c++)
-		nvlist_free(schild[c]);
+		fnvlist_free(schild[c]);
 	free(schild);
-	nvlist_free(split);
+	fnvlist_free(split);
 
 	spa_config_exit(spa, SCL_VDEV, FTAG);
 
@@ -3461,7 +3454,7 @@ ztest_split_pool(ztest_ds_t *zd, uint64_t id)
 	error = spa_vdev_split_mirror(spa, "splitp", config, NULL, B_FALSE);
 	(void) pthread_rwlock_unlock(&ztest_name_lock);
 
-	nvlist_free(config);
+	fnvlist_free(config);
 
 	if (error == 0) {
 		(void) printf("successful split - results:\n");
@@ -3684,7 +3677,7 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 
 	error = spa_vdev_attach(spa, oldguid, root, replacing, rebuilding);
 
-	nvlist_free(root);
+	fnvlist_free(root);
 
 	/*
 	 * If our parent was the replacing vdev, but the replace completed,
@@ -5739,7 +5732,7 @@ ztest_spa_prop_get_set(ztest_ds_t *zd, uint64_t id)
 	if (ztest_opts.zo_verbose >= 6)
 		dump_nvlist(props, 4);
 
-	nvlist_free(props);
+	fnvlist_free(props);
 
 	(void) pthread_rwlock_unlock(&ztest_name_lock);
 }
@@ -6728,7 +6721,7 @@ ztest_spa_import_export(char *oldname, char *newname)
 	 */
 	newconfig = spa_tryimport(config);
 	ASSERT(newconfig != NULL);
-	nvlist_free(newconfig);
+	fnvlist_free(newconfig);
 
 	/*
 	 * Import it under the new name.
@@ -6764,7 +6757,7 @@ ztest_spa_import_export(char *oldname, char *newname)
 	ASSERT(pool_guid == spa_guid(spa));
 	spa_close(spa, FTAG);
 
-	nvlist_free(config);
+	fnvlist_free(config);
 }
 
 static void
@@ -7478,13 +7471,13 @@ make_random_props(void)
 {
 	nvlist_t *props;
 
-	VERIFY0(nvlist_alloc(&props, NV_UNIQUE_NAME, 0));
+	props = fnvlist_alloc();
 
 	if (ztest_random(2) == 0)
 		return (props);
 
-	VERIFY0(nvlist_add_uint64(props,
-	    zpool_prop_to_name(ZPOOL_PROP_AUTOREPLACE), 1));
+	fnvlist_add_uint64(props,
+	    zpool_prop_to_name(ZPOOL_PROP_AUTOREPLACE), 1);
 
 	return (props);
 }
@@ -7522,9 +7515,9 @@ ztest_init(ztest_shared_t *zs)
 	 * in which case ztest_fault_inject() temporarily takes away
 	 * the only valid replica.
 	 */
-	VERIFY0(nvlist_add_uint64(props,
+	fnvlist_add_uint64(props,
 	    zpool_prop_to_name(ZPOOL_PROP_FAILUREMODE),
-	    MAXFAULTS(zs) ? ZIO_FAILURE_MODE_PANIC : ZIO_FAILURE_MODE_WAIT));
+	    MAXFAULTS(zs) ? ZIO_FAILURE_MODE_PANIC : ZIO_FAILURE_MODE_WAIT);
 
 	for (i = 0; i < SPA_FEATURES; i++) {
 		char *buf;
@@ -7539,13 +7532,13 @@ ztest_init(ztest_shared_t *zs)
 
 		VERIFY3S(-1, !=, asprintf(&buf, "feature@%s",
 		    spa_feature_table[i].fi_uname));
-		VERIFY3U(0, ==, nvlist_add_uint64(props, buf, 0));
+		fnvlist_add_uint64(props, buf, 0);
 		free(buf);
 	}
 
 	VERIFY0(spa_create(ztest_opts.zo_pool, nvroot, props, NULL, NULL));
-	nvlist_free(nvroot);
-	nvlist_free(props);
+	fnvlist_free(nvroot);
+	fnvlist_free(props);
 
 	VERIFY3U(0, ==, spa_open(ztest_opts.zo_pool, &spa, FTAG));
 	zs->zs_metaslab_sz =

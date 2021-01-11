@@ -288,7 +288,6 @@ spa_history_log_sync(void *arg, dmu_tx_t *tx)
 	}
 #endif
 
-	fnvlist_add_uint64(nvl, ZPOOL_HIST_TIME, gethrestime_sec());
 	fnvlist_add_string(nvl, ZPOOL_HIST_HOST, utsname()->nodename);
 
 	if (nvlist_exists(nvl, ZPOOL_HIST_CMD)) {
@@ -395,6 +394,12 @@ spa_history_log_nvl(spa_t *spa, nvlist_t *nvl)
 		    spa_history_zone());
 	}
 	fnvlist_add_uint64(nvarg, ZPOOL_HIST_WHO, crgetruid(CRED()));
+
+	/*
+	 * Since the history is recorded asynchronously, the effective time is
+	 * now, which may be considerably before the change is made on disk.
+	 */
+	fnvlist_add_uint64(nvarg, ZPOOL_HIST_TIME, gethrestime_sec());
 
 	/* Kick this off asynchronously; errors are ignored. */
 	dsl_sync_task_nowait(spa_get_dsl(spa), spa_history_log_sync, nvarg, tx);
@@ -526,6 +531,7 @@ log_internal(nvlist_t *nvl, const char *operation, spa_t *spa,
 
 	fnvlist_add_string(nvl, ZPOOL_HIST_INT_NAME, operation);
 	fnvlist_add_uint64(nvl, ZPOOL_HIST_TXG, tx->tx_txg);
+	fnvlist_add_uint64(nvl, ZPOOL_HIST_TIME, gethrestime_sec());
 
 	if (dmu_tx_is_syncing(tx)) {
 		spa_history_log_sync(nvl, tx);
