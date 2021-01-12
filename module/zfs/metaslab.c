@@ -522,6 +522,7 @@ metaslab_class_histogram_verify(metaslab_class_t *mc)
 	mc_hist = kmem_zalloc(sizeof (uint64_t) * RANGE_TREE_HISTOGRAM_SIZE,
 	    KM_SLEEP);
 
+	mutex_enter(&mc->mc_lock);
 	for (int c = 0; c < rvd->vdev_children; c++) {
 		vdev_t *tvd = rvd->vdev_child[c];
 		metaslab_group_t *mg = vdev_get_mg(tvd, mc);
@@ -546,6 +547,7 @@ metaslab_class_histogram_verify(metaslab_class_t *mc)
 		VERIFY3U(mc_hist[i], ==, mc->mc_histogram[i]);
 	}
 
+	mutex_exit(&mc->mc_lock);
 	kmem_free(mc_hist, sizeof (uint64_t) * RANGE_TREE_HISTOGRAM_SIZE);
 }
 
@@ -1067,6 +1069,7 @@ metaslab_group_histogram_add(metaslab_group_t *mg, metaslab_t *msp)
 		return;
 
 	mutex_enter(&mg->mg_lock);
+	mutex_enter(&mc->mc_lock);
 	for (int i = 0; i < SPACE_MAP_HISTOGRAM_SIZE; i++) {
 		IMPLY(mg == mg->mg_vd->vdev_log_mg,
 		    mc == spa_embedded_log_class(mg->mg_vd->vdev_spa));
@@ -1075,6 +1078,7 @@ metaslab_group_histogram_add(metaslab_group_t *mg, metaslab_t *msp)
 		mc->mc_histogram[i + ashift] +=
 		    msp->ms_sm->sm_phys->smp_histogram[i];
 	}
+	mutex_exit(&mc->mc_lock);
 	mutex_exit(&mg->mg_lock);
 }
 
@@ -1089,6 +1093,7 @@ metaslab_group_histogram_remove(metaslab_group_t *mg, metaslab_t *msp)
 		return;
 
 	mutex_enter(&mg->mg_lock);
+	mutex_enter(&mc->mc_lock);
 	for (int i = 0; i < SPACE_MAP_HISTOGRAM_SIZE; i++) {
 		ASSERT3U(mg->mg_histogram[i + ashift], >=,
 		    msp->ms_sm->sm_phys->smp_histogram[i]);
@@ -1102,6 +1107,7 @@ metaslab_group_histogram_remove(metaslab_group_t *mg, metaslab_t *msp)
 		mc->mc_histogram[i + ashift] -=
 		    msp->ms_sm->sm_phys->smp_histogram[i];
 	}
+	mutex_exit(&mc->mc_lock);
 	mutex_exit(&mg->mg_lock);
 }
 
