@@ -2136,6 +2136,16 @@ vdev_open(vdev_t *vd)
 	return (0);
 }
 
+static void
+vdev_validate_child(void *arg)
+{
+	vdev_t *vd = arg;
+
+	vd->vdev_validate_thread = curthread;
+	vd->vdev_validate_error = vdev_validate(vd);
+	vd->vdev_validate_thread = NULL;
+}
+
 /*
  * Called once the vdevs are all opened, this routine validates the label
  * contents. This needs to be done before vdev_load() so that we don't
@@ -2150,18 +2160,43 @@ int
 vdev_validate(vdev_t *vd)
 {
 	spa_t *spa = vd->vdev_spa;
+	taskq_t *tq = NULL;
 	nvlist_t *label;
 	uint64_t guid = 0, aux_guid = 0, top_guid;
 	uint64_t state;
 	nvlist_t *nvl;
 	uint64_t txg;
+	int children = vd->vdev_children;
 
 	if (vdev_validate_skip)
 		return (0);
 
-	for (uint64_t c = 0; c < vd->vdev_children; c++)
-		if (vdev_validate(vd->vdev_child[c]) != 0)
+	if (children > 0) {
+		tq = taskq_create("vdev_validate", children, minclsyspri,
+		    children, children, TASKQ_PREPOPULATE);
+	}
+
+	for (uint64_t c = 0; c < children; c++) {
+		vdev_t *cvd = vd->vdev_child[c];
+
+		if (tq == NULL || vdev_uses_zvols(cvd)) {
+			vdev_validate_child(cvd);
+		} else {
+			VERIFY(taskq_dispatch(tq, vdev_validate_child, cvd,
+			    TQ_SLEEP) != TASKQID_INVALID);
+		}
+	}
+	if (tq != NULL) {
+		taskq_wait(tq);
+		taskq_destroy(tq);
+	}
+	for (int c = 0; c < children; c++) {
+		int error = vd->vdev_child[c]->vdev_validate_error;
+
+		if (error != 0)
 			return (SET_ERROR(EBADF));
+	}
+
 
 	/*
 	 * If the device has already failed, or was marked offline, don't do
