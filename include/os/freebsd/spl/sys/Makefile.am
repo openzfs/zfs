@@ -15,6 +15,7 @@ KERNEL_H = \
 	disp.h \
 	dkio.h \
 	extdirent.h \
+	fcntl.h \
 	file.h \
 	freebsd_rwlock.h \
 	inttypes.h \
