@@ -888,7 +888,7 @@ zpool_read_label(int fd, nvlist_t **config, int *num_labels)
 {
 	struct stat64 statbuf;
 	int l, count = 0;
-	vdev_label_t *label;
+	vdev_phys_t *label;
 	nvlist_t *expected_config = NULL;
 	uint64_t expected_guid = 0, size;
 	int error;
@@ -905,13 +905,14 @@ zpool_read_label(int fd, nvlist_t **config, int *num_labels)
 
 	for (l = 0; l < VDEV_LABELS; l++) {
 		uint64_t state, guid, txg;
+		off_t offset = label_offset(size, l) + VDEV_SKIP_SIZE;
 
-		if (pread64(fd, label, sizeof (vdev_label_t),
-		    label_offset(size, l)) != sizeof (vdev_label_t))
+		if (pread64(fd, label, sizeof (vdev_phys_t),
+		    offset) != sizeof (vdev_phys_t))
 			continue;
 
-		if (nvlist_unpack(label->vl_vdev_phys.vp_nvlist,
-		    sizeof (label->vl_vdev_phys.vp_nvlist), config, 0) != 0)
+		if (nvlist_unpack(label->vp_nvlist,
+		    sizeof (label->vp_nvlist), config, 0) != 0)
 			continue;
 
 		if (nvlist_lookup_uint64(*config, ZPOOL_CONFIG_GUID,
