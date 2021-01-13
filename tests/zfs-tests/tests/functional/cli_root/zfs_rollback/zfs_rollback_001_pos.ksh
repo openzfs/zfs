@@ -80,6 +80,7 @@ function test_n_check #opt num_snap_clone num_rollback
 	if datasetexists $VOL; then
 		if ismounted $TESTDIR1 $NEWFS_DEFAULT_FS; then
 			log_must umount -f $TESTDIR1
+			sleep 0.1
 		fi
 
 		log_must zfs destroy -Rf $VOL
