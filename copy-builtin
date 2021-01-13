@@ -36,7 +36,7 @@ rm -rf "$KERNEL_DIR/include/zfs" "$KERNEL_DIR/fs/zfs"
 cp --recursive include "$KERNEL_DIR/include/zfs"
 cp --recursive module "$KERNEL_DIR/fs/zfs"
 cp zfs_config.h "$KERNEL_DIR/include/zfs/"
-rm "$KERNEL_DIR/include/zfs/.gitignore"
+rm -f "$KERNEL_DIR/include/zfs/.gitignore"
 
 for MODULE in "${MODULES[@]}"
 do
