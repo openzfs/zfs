@@ -1,6 +1,7 @@
 libspldir = $(includedir)/libspl/sys
 libspl_HEADERS = \
 	byteorder.h \
+	fcntl.h \
 	file.h \
 	mnttab.h \
 	mount.h \
