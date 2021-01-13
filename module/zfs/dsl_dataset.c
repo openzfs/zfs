@@ -2322,18 +2322,7 @@ void
 get_clones_stat(dsl_dataset_t *ds, nvlist_t *nv)
 {
 	nvlist_t *propval = fnvlist_alloc();
-	nvlist_t *val;
-
-	/*
-	 * We use nvlist_alloc() instead of fnvlist_alloc() because the
-	 * latter would allocate the list with NV_UNIQUE_NAME flag.
-	 * As a result, every time a clone name is appended to the list
-	 * it would be (linearly) searched for a duplicate name.
-	 * We already know that all clone names must be unique and we
-	 * want avoid the quadratic complexity of double-checking that
-	 * because we can have a large number of clones.
-	 */
-	VERIFY0(nvlist_alloc(&val, 0, KM_SLEEP));
+	nvlist_t *val = fnvlist_alloc();
 
 	if (get_clones_stat_impl(ds, val) == 0) {
 		fnvlist_add_nvlist(propval, ZPROP_VALUE, val);
