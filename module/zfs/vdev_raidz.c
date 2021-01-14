@@ -342,7 +342,6 @@ vdev_raidz_cksum_report(zio_t *zio, zio_cksum_report_t *zcr, void *arg)
 
 	rm->rm_reports++;
 	ASSERT3U(rm->rm_reports, >, 0);
-	ASSERT3U(rm->rm_nrows, ==, 1);
 
 	if (rm->rm_row[0]->rr_abd_copy != NULL)
 		return;

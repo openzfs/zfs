@@ -4163,7 +4163,7 @@ arc_evict_state_impl(multilist_t *ml, int idx, arc_buf_hdr_t *marker,
 	mutex_enter(&arc_evict_lock);
 	arc_evict_count += bytes_evicted;
 
-	if ((int64_t)(arc_free_memory() - arc_sys_free / 2) > 0) {
+	if (arc_free_memory() > arc_sys_free / 2) {
 		arc_evict_waiter_t *aw;
 		while ((aw = list_head(&arc_evict_waiters)) != NULL &&
 		    aw->aew_count <= arc_evict_count) {
@@ -4882,14 +4882,7 @@ arc_kmem_reap_soon(void)
 static boolean_t
 arc_evict_cb_check(void *arg, zthr_t *zthr)
 {
-	/*
-	 * This is necessary so that any changes which may have been made to
-	 * many of the zfs_arc_* module parameters will be propagated to
-	 * their actual internal variable counterparts. Without this,
-	 * changing those module params at runtime would have no effect.
-	 */
-	arc_tuning_update(B_FALSE);
-
+#ifdef ZFS_DEBUG
 	/*
 	 * This is necessary in order to keep the kstat information
 	 * up to date for tools that display kstat data such as the
@@ -4897,15 +4890,15 @@ arc_evict_cb_check(void *arg, zthr_t *zthr)
 	 * typically do not call kstat's update function, but simply
 	 * dump out stats from the most recent update.  Without
 	 * this call, these commands may show stale stats for the
-	 * anon, mru, mru_ghost, mfu, and mfu_ghost lists. Even
-	 * with this change, the data might be up to 1 second
-	 * out of date(the arc_evict_zthr has a maximum sleep
-	 * time of 1 second); but that should suffice.  The
-	 * arc_state_t structures can be queried directly if more
-	 * accurate information is needed.
+	 * anon, mru, mru_ghost, mfu, and mfu_ghost lists.  Even
+	 * with this call, the data might be out of date if the
+	 * evict thread hasn't been woken recently; but that should
+	 * suffice.  The arc_state_t structures can be queried
+	 * directly if more accurate information is needed.
 	 */
 	if (arc_ksp != NULL)
 		arc_ksp->ks_update(arc_ksp, KSTAT_READ);
+#endif
 
 	/*
 	 * We have to rely on arc_wait_for_eviction() to tell us when to
@@ -5249,14 +5242,20 @@ arc_wait_for_eviction(uint64_t amount)
 			list_link_init(&aw.aew_node);
 			cv_init(&aw.aew_cv, NULL, CV_DEFAULT, NULL);
 
-			arc_evict_waiter_t *last =
-			    list_tail(&arc_evict_waiters);
-			if (last != NULL) {
-				ASSERT3U(last->aew_count, >, arc_evict_count);
-				aw.aew_count = last->aew_count + amount;
-			} else {
-				aw.aew_count = arc_evict_count + amount;
+			uint64_t last_count = 0;
+			if (!list_is_empty(&arc_evict_waiters)) {
+				arc_evict_waiter_t *last =
+				    list_tail(&arc_evict_waiters);
+				last_count = last->aew_count;
 			}
+			/*
+			 * Note, the last waiter's count may be less than
+			 * arc_evict_count if we are low on memory in which
+			 * case arc_evict_state_impl() may have deferred
+			 * wakeups (but still incremented arc_evict_count).
+			 */
+			aw.aew_count =
+			    MAX(last_count, arc_evict_count) + amount;
 
 			list_insert_tail(&arc_evict_waiters, &aw);
 
@@ -5759,7 +5758,7 @@ arc_read_done(zio_t *zio)
 	 */
 	int callback_cnt = 0;
 	for (acb = callback_list; acb != NULL; acb = acb->acb_next) {
-		if (!acb->acb_done)
+		if (!acb->acb_done || acb->acb_nobuf)
 			continue;
 
 		callback_cnt++;
@@ -5924,6 +5923,7 @@ arc_read(zio_t *pio, spa_t *spa, const blkptr_t *bp,
 	boolean_t noauth_read = BP_IS_AUTHENTICATED(bp) &&
 	    (zio_flags & ZIO_FLAG_RAW_ENCRYPT) != 0;
 	boolean_t embedded_bp = !!BP_IS_EMBEDDED(bp);
+	boolean_t no_buf = *arc_flags & ARC_FLAG_NO_BUF;
 	int rc = 0;
 
 	ASSERT(!embedded_bp ||
@@ -6008,6 +6008,7 @@ top:
 				acb->acb_compressed = compressed_read;
 				acb->acb_encrypted = encrypted_read;
 				acb->acb_noauth = noauth_read;
+				acb->acb_nobuf = no_buf;
 				acb->acb_zb = *zb;
 				if (pio != NULL)
 					acb->acb_zio_dummy = zio_null(pio,
@@ -6017,8 +6018,6 @@ top:
 				acb->acb_zio_head = head_zio;
 				acb->acb_next = hdr->b_l1hdr.b_acb;
 				hdr->b_l1hdr.b_acb = acb;
-				mutex_exit(hash_lock);
-				goto out;
 			}
 			mutex_exit(hash_lock);
 			goto out;
@@ -6027,7 +6026,7 @@ top:
 		ASSERT(hdr->b_l1hdr.b_state == arc_mru ||
 		    hdr->b_l1hdr.b_state == arc_mfu);
 
-		if (done) {
+		if (done && !no_buf) {
 			if (hdr->b_flags & ARC_FLAG_PREDICTIVE_PREFETCH) {
 				/*
 				 * This is a demand read which does not have to
@@ -7592,6 +7591,15 @@ arc_target_bytes(void)
 }
 
 void
+arc_set_limits(uint64_t allmem)
+{
+	/* Set min cache to 1/32 of all memory, or 32MB, whichever is more. */
+	arc_c_min = MAX(allmem / 32, 2ULL << SPA_MAXBLOCKSHIFT);
+
+	/* How to set default max varies by platform. */
+	arc_c_max = arc_default_max(arc_c_min, allmem);
+}
+void
 arc_init(void)
 {
 	uint64_t percent, allmem = arc_all_memory();
@@ -7606,11 +7614,7 @@ arc_init(void)
 	arc_lowmem_init();
 #endif
 
-	/* Set min cache to 1/32 of all memory, or 32MB, whichever is more. */
-	arc_c_min = MAX(allmem / 32, 2ULL << SPA_MAXBLOCKSHIFT);
-
-	/* How to set default max varies by platform. */
-	arc_c_max = arc_default_max(arc_c_min, allmem);
+	arc_set_limits(allmem);
 
 #ifndef _KERNEL
 	/*
@@ -7647,6 +7651,8 @@ arc_init(void)
 	if (arc_c < arc_c_min)
 		arc_c = arc_c_min;
 
+	arc_register_hotplug();
+
 	arc_state_init();
 
 	buf_init();
@@ -7655,8 +7661,9 @@ arc_init(void)
 	    offsetof(arc_prune_t, p_node));
 	mutex_init(&arc_prune_mtx, NULL, MUTEX_DEFAULT, NULL);
 
-	arc_prune_taskq = taskq_create("arc_prune", boot_ncpus, defclsyspri,
-	    boot_ncpus, INT_MAX, TASKQ_PREPOPULATE | TASKQ_DYNAMIC);
+	arc_prune_taskq = taskq_create("arc_prune", 100, defclsyspri,
+	    boot_ncpus, INT_MAX, TASKQ_PREPOPULATE | TASKQ_DYNAMIC |
+	    TASKQ_THREADS_CPU_PCT);
 
 	arc_ksp = kstat_create("zfs", 0, "arcstats", "misc", KSTAT_TYPE_NAMED,
 	    sizeof (arc_stats) / sizeof (kstat_named_t), KSTAT_FLAG_VIRTUAL);
@@ -7667,8 +7674,8 @@ arc_init(void)
 		kstat_install(arc_ksp);
 	}
 
-	arc_evict_zthr = zthr_create_timer("arc_evict",
-	    arc_evict_cb_check, arc_evict_cb, NULL, SEC2NSEC(1));
+	arc_evict_zthr = zthr_create("arc_evict",
+	    arc_evict_cb_check, arc_evict_cb, NULL);
 	arc_reap_zthr = zthr_create_timer("arc_reap",
 	    arc_reap_cb_check, arc_reap_cb, NULL, SEC2NSEC(1));
 
@@ -7752,6 +7759,8 @@ arc_fini(void)
 	 */
 	buf_fini();
 	arc_state_fini();
+
+	arc_unregister_hotplug();
 
 	/*
 	 * We destroy the zthrs after all the ARC state has been
@@ -8886,9 +8895,16 @@ out:
 		goto top;
 	}
 
-	ASSERT3U(dev->l2ad_hand + distance, <, dev->l2ad_end);
-	if (!dev->l2ad_first)
-		ASSERT3U(dev->l2ad_hand, <, dev->l2ad_evict);
+	if (!all) {
+		/*
+		 * In case of cache device removal (all) the following
+		 * assertions may be violated without functional consequences
+		 * as the device is about to be removed.
+		 */
+		ASSERT3U(dev->l2ad_hand + distance, <, dev->l2ad_end);
+		if (!dev->l2ad_first)
+			ASSERT3U(dev->l2ad_hand, <, dev->l2ad_evict);
+	}
 }
 
 /*

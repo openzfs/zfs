@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 . /lib/dracut-zfs-lib.sh
 
@@ -58,7 +58,7 @@ ZFS_POOL="${ZFS_DATASET%%/*}"
 
 if import_pool "${ZFS_POOL}" ; then
 	# Load keys if we can or if we need to
-	if [ $(zpool list -H -o feature@encryption $(echo "${ZFS_POOL}" | awk -F\/ '{print $1}')) = 'active' ]; then
+	if [ "$(zpool list -H -o feature@encryption "$(echo "${ZFS_POOL}" | awk -F/ '{print $1}')")" = 'active' ]; then
 		# if the root dataset has encryption enabled
 		ENCRYPTIONROOT="$(zfs get -H -o value encryptionroot "${ZFS_DATASET}")"
 		if ! [ "${ENCRYPTIONROOT}" = "-" ]; then

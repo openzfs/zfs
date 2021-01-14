@@ -12,7 +12,8 @@ dist_pkgdata_SCRIPTS = \
 	zpool_split_vdevs.ksh \
 	zpool_split_resilver.ksh \
 	zpool_split_wholedisk.ksh \
-	zpool_split_indirect.ksh
+	zpool_split_indirect.ksh \
+	zpool_split_dryrun_output.ksh
 
 dist_pkgdata_DATA = \
 	zpool_split.cfg

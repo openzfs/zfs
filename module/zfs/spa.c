@@ -1282,15 +1282,15 @@ spa_activate(spa_t *spa, spa_mode_t mode)
 	 * pool traverse code from monopolizing the global (and limited)
 	 * system_taskq by inappropriately scheduling long running tasks on it.
 	 */
-	spa->spa_prefetch_taskq = taskq_create("z_prefetch", boot_ncpus,
-	    defclsyspri, 1, INT_MAX, TASKQ_DYNAMIC);
+	spa->spa_prefetch_taskq = taskq_create("z_prefetch", 100,
+	    defclsyspri, 1, INT_MAX, TASKQ_DYNAMIC | TASKQ_THREADS_CPU_PCT);
 
 	/*
 	 * The taskq to upgrade datasets in this pool. Currently used by
 	 * feature SPA_FEATURE_USEROBJ_ACCOUNTING/SPA_FEATURE_PROJECT_QUOTA.
 	 */
-	spa->spa_upgrade_taskq = taskq_create("z_upgrade", boot_ncpus,
-	    defclsyspri, 1, INT_MAX, TASKQ_DYNAMIC);
+	spa->spa_upgrade_taskq = taskq_create("z_upgrade", 100,
+	    defclsyspri, 1, INT_MAX, TASKQ_DYNAMIC | TASKQ_THREADS_CPU_PCT);
 }
 
 /*
@@ -2119,9 +2119,6 @@ spa_passivate_log(spa_t *spa)
 	boolean_t slog_found = B_FALSE;
 
 	ASSERT(spa_config_held(spa, SCL_ALLOC, RW_WRITER));
-
-	if (!spa_has_slogs(spa))
-		return (B_FALSE);
 
 	for (int c = 0; c < rvd->vdev_children; c++) {
 		vdev_t *tvd = rvd->vdev_child[c];
@@ -8032,6 +8029,9 @@ spa_async_remove(spa_t *spa, vdev_t *vd)
 		vd->vdev_stat.vs_checksum_errors = 0;
 
 		vdev_state_dirty(vd->vdev_top);
+
+		/* Tell userspace that the vdev is gone. */
+		zfs_post_remove(spa, vd);
 	}
 
 	for (int c = 0; c < vd->vdev_children; c++)
@@ -8946,12 +8946,18 @@ spa_sync_adjust_vdev_max_queue_depth(spa_t *spa)
 	}
 
 	for (int i = 0; i < spa->spa_alloc_count; i++) {
-		ASSERT0(zfs_refcount_count(&normal->mc_alloc_slots[i]));
-		ASSERT0(zfs_refcount_count(&special->mc_alloc_slots[i]));
-		ASSERT0(zfs_refcount_count(&dedup->mc_alloc_slots[i]));
-		normal->mc_alloc_max_slots[i] = slots_per_allocator;
-		special->mc_alloc_max_slots[i] = slots_per_allocator;
-		dedup->mc_alloc_max_slots[i] = slots_per_allocator;
+		ASSERT0(zfs_refcount_count(&normal->mc_allocator[i].
+		    mca_alloc_slots));
+		ASSERT0(zfs_refcount_count(&special->mc_allocator[i].
+		    mca_alloc_slots));
+		ASSERT0(zfs_refcount_count(&dedup->mc_allocator[i].
+		    mca_alloc_slots));
+		normal->mc_allocator[i].mca_alloc_max_slots =
+		    slots_per_allocator;
+		special->mc_allocator[i].mca_alloc_max_slots =
+		    slots_per_allocator;
+		dedup->mc_allocator[i].mca_alloc_max_slots =
+		    slots_per_allocator;
 	}
 	normal->mc_alloc_throttle_enabled = zio_dva_throttle_enabled;
 	special->mc_alloc_throttle_enabled = zio_dva_throttle_enabled;

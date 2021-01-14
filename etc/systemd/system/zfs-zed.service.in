@@ -1,6 +1,7 @@
 [Unit]
 Description=ZFS Event Daemon (zed)
 Documentation=man:zed(8)
+ConditionPathIsDirectory=/sys/module/zfs
 
 [Service]
 ExecStart=@sbindir@/zed -F

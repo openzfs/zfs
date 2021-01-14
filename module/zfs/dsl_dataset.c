@@ -2267,10 +2267,8 @@ dsl_dataset_sync_done(dsl_dataset_t *ds, dmu_tx_t *tx)
 
 	dsl_bookmark_sync_done(ds, tx);
 
-	if (os->os_synced_dnodes != NULL) {
-		multilist_destroy(os->os_synced_dnodes);
-		os->os_synced_dnodes = NULL;
-	}
+	multilist_destroy(os->os_synced_dnodes);
+	os->os_synced_dnodes = NULL;
 
 	if (os->os_encrypted)
 		os->os_next_write_raw[tx->tx_txg & TXG_MASK] = B_FALSE;

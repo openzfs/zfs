@@ -25,15 +25,15 @@
 verify_runnable "both"
 
 set -A vdevs $(get_disklist_fullpath $TESTPOOL)
-vdev=${vdevs[0]}
-mntpoint=$TESTDIR/$TESTPOOL
-helper="mount.zfs -o zfsutil"
-fs=$TESTPOOL/$TESTFS
+typeset -r mntpoint=$(get_prop mountpoint $TESTPOOL)
+typeset -r helper="mount.zfs -o zfsutil"
+typeset -r fs=$TESTPOOL/$TESTFS
 
 function cleanup
 {
-    log_must force_unmount $vdev
-    [[ -d $mntpoint ]] && log_must rm -rf $mntpoint
+	cd $STF_SUITE
+	[[ -d $TESTDIR/$$ ]] && (rm -rf $TESTDIR/$$ || log_fail)
+	mounted && zfs $mountcmd $TESTPOOL
 	return 0
 }
 log_onexit cleanup
@@ -41,18 +41,21 @@ log_onexit cleanup
 log_note "Verify zfs mount helper functions for both devices and pools"
 
 # Ensure that the ZFS filesystem is unmounted
-force_unmount $fs
-log_must mkdir -p $mntpoint
+force_unmount $TESTPOOL
 
 log_note "Verify '<dataset> <path>'"
 log_must $helper $fs $mntpoint
 log_must ismounted $fs
 force_unmount $fs
 
-log_note "Verify '\$PWD/<pool> <path>' prefix workaround"
-log_must $helper $PWD/$fs $mntpoint
-log_must ismounted $fs
-force_unmount $fs
+log_note "Verify mount(8) does not canonicalize before calling helper"
+# Canonicalization is confused by files in PWD matching [device|mountpoint]
+mkdir -p $TESTDIR/$$/$TESTPOOL && cd $TESTDIR/$$ || log_fail
+# The env flag directs zfs to exec /bin/mount, which then calls helper
+log_must eval ZFS_MOUNT_HELPER=1 zfs $mountcmd -v $TESTPOOL
+# mount (2.35.2) still suffers from a cosmetic PWD prefix bug
+log_must mounted $TESTPOOL
+force_unmount $TESTPOOL
 
 log_note "Verify '-f <dataset> <path>' fakemount"
 log_must $helper -f $fs $mntpoint
@@ -63,14 +66,13 @@ log_must ${helper},ro -v $fs $mntpoint
 log_must ismounted $fs
 force_unmount $fs
 
-log_note "Verify '<device> <path>'"
-log_must $helper $vdev $mntpoint
-log_must ismounted $mntpoint
-log_must umount $TESTPOOL
-
 log_note "Verify '-o abc -s <device> <path>' sloppy option"
-log_must ${helper},abc -s $vdev $mntpoint
-log_must ismounted $mntpoint
-log_must umount $TESTPOOL
+log_must ${helper},abc -s ${vdevs[0]} $mntpoint
+log_must mounted $mntpoint
+force_unmount $TESTPOOL
+
+log_note "Verify '<device> <path>'"
+log_must $helper ${vdevs[0]} $mntpoint
+log_must mounted $mntpoint
 
 log_pass "zfs mount helper correctly handles both device and pool strings"

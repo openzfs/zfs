@@ -20,7 +20,8 @@ dist_pkgdata_SCRIPTS = \
 	userquota_013_pos.ksh \
 	userspace_001_pos.ksh \
 	userspace_002_pos.ksh \
-	userspace_003_pos.ksh
+	userspace_003_pos.ksh \
+	userspace_encrypted.ksh
 
 dist_pkgdata_DATA = \
 	userquota.cfg \

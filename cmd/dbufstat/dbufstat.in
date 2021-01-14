@@ -131,7 +131,7 @@ elif sys.platform.startswith("linux"):
 def print_incompat_helper(incompat):
     cnt = 0
     for key in sorted(incompat):
-        if cnt is 0:
+        if cnt == 0:
             sys.stderr.write("\t")
         elif cnt > 8:
             sys.stderr.write(",\n\t")
@@ -662,7 +662,7 @@ def main():
     if not ifile:
         ifile = default_ifile()
 
-    if ifile is not "-":
+    if ifile != "-":
         try:
             tmp = open(ifile, "r")
             sys.stdin = tmp

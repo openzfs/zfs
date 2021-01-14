@@ -66,44 +66,28 @@ typedef struct zv_request {
  * Given a path, return TRUE if path is a ZVOL.
  */
 static boolean_t
-zvol_is_zvol_impl(const char *device)
+zvol_is_zvol_impl(const char *path)
 {
-	struct block_device *bdev;
-	unsigned int major;
+	dev_t dev = 0;
 
-	bdev = vdev_lookup_bdev(device);
-	if (IS_ERR(bdev))
+	if (vdev_lookup_bdev(path, &dev) != 0)
 		return (B_FALSE);
 
-	major = MAJOR(bdev->bd_dev);
-	bdput(bdev);
-
-	if (major == zvol_major)
+	if (MAJOR(dev) == zvol_major)
 		return (B_TRUE);
 
 	return (B_FALSE);
 }
 
 static void
-uio_from_bio(uio_t *uio, struct bio *bio)
-{
-	uio->uio_bvec = &bio->bi_io_vec[BIO_BI_IDX(bio)];
-	uio->uio_iovcnt = bio->bi_vcnt - BIO_BI_IDX(bio);
-	uio->uio_loffset = BIO_BI_SECTOR(bio) << 9;
-	uio->uio_segflg = UIO_BVEC;
-	uio->uio_resid = BIO_BI_SIZE(bio);
-	uio->uio_skip = BIO_BI_SKIP(bio);
-}
-
-static void
 zvol_write(void *arg)
 {
-	int error = 0;
-
 	zv_request_t *zvr = arg;
 	struct bio *bio = zvr->bio;
-	uio_t uio = { { 0 }, 0 };
-	uio_from_bio(&uio, bio);
+	int error = 0;
+	uio_t uio;
+
+	uio_bvec_init(&uio, bio);
 
 	zvol_state_t *zv = zvr->zv;
 	ASSERT3P(zv, !=, NULL);
@@ -122,10 +106,14 @@ zvol_write(void *arg)
 		return;
 	}
 
+	struct request_queue *q = zv->zv_zso->zvo_queue;
+	struct gendisk *disk = zv->zv_zso->zvo_disk;
 	ssize_t start_resid = uio.uio_resid;
-	unsigned long start_jif = jiffies;
-	blk_generic_start_io_acct(zv->zv_zso->zvo_queue, WRITE,
-	    bio_sectors(bio), &zv->zv_zso->zvo_disk->part0);
+	unsigned long start_time;
+
+	boolean_t acct = blk_queue_io_stat(q);
+	if (acct)
+		start_time = blk_generic_start_io_acct(q, disk, WRITE, bio);
 
 	boolean_t sync =
 	    bio_is_fua(bio) || zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS;
@@ -169,8 +157,10 @@ zvol_write(void *arg)
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
 
 	rw_exit(&zv->zv_suspend_lock);
-	blk_generic_end_io_acct(zv->zv_zso->zvo_queue,
-	    WRITE, &zv->zv_zso->zvo_disk->part0, start_jif);
+
+	if (acct)
+		blk_generic_end_io_acct(q, disk, WRITE, bio, start_time);
+
 	BIO_END_IO(bio, -error);
 	kmem_free(zvr, sizeof (zv_request_t));
 }
@@ -187,15 +177,18 @@ zvol_discard(void *arg)
 	boolean_t sync;
 	int error = 0;
 	dmu_tx_t *tx;
-	unsigned long start_jif;
 
 	ASSERT3P(zv, !=, NULL);
 	ASSERT3U(zv->zv_open_count, >, 0);
 	ASSERT3P(zv->zv_zilog, !=, NULL);
 
-	start_jif = jiffies;
-	blk_generic_start_io_acct(zv->zv_zso->zvo_queue, WRITE,
-	    bio_sectors(bio), &zv->zv_zso->zvo_disk->part0);
+	struct request_queue *q = zv->zv_zso->zvo_queue;
+	struct gendisk *disk = zv->zv_zso->zvo_disk;
+	unsigned long start_time;
+
+	boolean_t acct = blk_queue_io_stat(q);
+	if (acct)
+		start_time = blk_generic_start_io_acct(q, disk, WRITE, bio);
 
 	sync = bio_is_fua(bio) || zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS;
 
@@ -240,8 +233,10 @@ zvol_discard(void *arg)
 
 unlock:
 	rw_exit(&zv->zv_suspend_lock);
-	blk_generic_end_io_acct(zv->zv_zso->zvo_queue, WRITE,
-	    &zv->zv_zso->zvo_disk->part0, start_jif);
+
+	if (acct)
+		blk_generic_end_io_acct(q, disk, WRITE, bio, start_time);
+
 	BIO_END_IO(bio, -error);
 	kmem_free(zvr, sizeof (zv_request_t));
 }
@@ -249,21 +244,25 @@ unlock:
 static void
 zvol_read(void *arg)
 {
-	int error = 0;
-
 	zv_request_t *zvr = arg;
 	struct bio *bio = zvr->bio;
-	uio_t uio = { { 0 }, 0 };
-	uio_from_bio(&uio, bio);
+	int error = 0;
+	uio_t uio;
+
+	uio_bvec_init(&uio, bio);
 
 	zvol_state_t *zv = zvr->zv;
 	ASSERT3P(zv, !=, NULL);
 	ASSERT3U(zv->zv_open_count, >, 0);
 
+	struct request_queue *q = zv->zv_zso->zvo_queue;
+	struct gendisk *disk = zv->zv_zso->zvo_disk;
 	ssize_t start_resid = uio.uio_resid;
-	unsigned long start_jif = jiffies;
-	blk_generic_start_io_acct(zv->zv_zso->zvo_queue, READ, bio_sectors(bio),
-	    &zv->zv_zso->zvo_disk->part0);
+	unsigned long start_time;
+
+	boolean_t acct = blk_queue_io_stat(q);
+	if (acct)
+		start_time = blk_generic_start_io_acct(q, disk, READ, bio);
 
 	zfs_locked_range_t *lr = zfs_rangelock_enter(&zv->zv_rangelock,
 	    uio.uio_loffset, uio.uio_resid, RL_READER);
@@ -291,8 +290,10 @@ zvol_read(void *arg)
 	task_io_account_read(nread);
 
 	rw_exit(&zv->zv_suspend_lock);
-	blk_generic_end_io_acct(zv->zv_zso->zvo_queue, READ,
-	    &zv->zv_zso->zvo_disk->part0, start_jif);
+
+	if (acct)
+		blk_generic_end_io_acct(q, disk, READ, bio, start_time);
+
 	BIO_END_IO(bio, -error);
 	kmem_free(zvr, sizeof (zv_request_t));
 }
@@ -655,11 +656,14 @@ zvol_revalidate_disk(struct gendisk *disk)
 static int
 zvol_update_volsize(zvol_state_t *zv, uint64_t volsize)
 {
+	struct gendisk *disk = zv->zv_zso->zvo_disk;
 
-#ifdef HAVE_REVALIDATE_DISK_SIZE
-	revalidate_disk_size(zv->zv_zso->zvo_disk, false);
+#if defined(HAVE_REVALIDATE_DISK_SIZE)
+	revalidate_disk_size(disk, zvol_revalidate_disk(disk) == 0);
+#elif defined(HAVE_REVALIDATE_DISK)
+	revalidate_disk(disk);
 #else
-	revalidate_disk(zv->zv_zso->zvo_disk);
+	zvol_revalidate_disk(disk);
 #endif
 	return (0);
 }
@@ -704,46 +708,6 @@ zvol_getgeo(struct block_device *bdev, struct hd_geometry *geo)
 	return (0);
 }
 
-/*
- * Find a zvol_state_t given the full major+minor dev_t. If found,
- * return with zv_state_lock taken, otherwise, return (NULL) without
- * taking zv_state_lock.
- */
-static zvol_state_t *
-zvol_find_by_dev(dev_t dev)
-{
-	zvol_state_t *zv;
-
-	rw_enter(&zvol_state_lock, RW_READER);
-	for (zv = list_head(&zvol_state_list); zv != NULL;
-	    zv = list_next(&zvol_state_list, zv)) {
-		mutex_enter(&zv->zv_state_lock);
-		if (zv->zv_zso->zvo_dev == dev) {
-			rw_exit(&zvol_state_lock);
-			return (zv);
-		}
-		mutex_exit(&zv->zv_state_lock);
-	}
-	rw_exit(&zvol_state_lock);
-
-	return (NULL);
-}
-
-static struct kobject *
-zvol_probe(dev_t dev, int *part, void *arg)
-{
-	zvol_state_t *zv;
-	struct kobject *kobj;
-
-	zv = zvol_find_by_dev(dev);
-	kobj = zv ? get_disk_and_module(zv->zv_zso->zvo_disk) : NULL;
-	ASSERT(zv == NULL || MUTEX_HELD(&zv->zv_state_lock));
-	if (zv)
-		mutex_exit(&zv->zv_state_lock);
-
-	return (kobj);
-}
-
 static struct block_device_operations zvol_ops = {
 	.open			= zvol_open,
 	.release		= zvol_release,
@@ -781,6 +745,7 @@ zvol_alloc(dev_t dev, const char *name)
 	zv = kmem_zalloc(sizeof (zvol_state_t), KM_SLEEP);
 	zso = kmem_zalloc(sizeof (struct zvol_state_os), KM_SLEEP);
 	zv->zv_zso = zso;
+	zv->zv_volmode = volmode;
 
 	list_link_init(&zv->zv_next);
 	mutex_init(&zv->zv_state_lock, NULL, MUTEX_DEFAULT, NULL);
@@ -884,6 +849,11 @@ zvol_free(zvol_state_t *zv)
 
 	kmem_free(zv->zv_zso, sizeof (struct zvol_state_os));
 	kmem_free(zv, sizeof (zvol_state_t));
+}
+
+void
+zvol_wait_close(zvol_state_t *zv)
+{
 }
 
 /*
@@ -1090,9 +1060,6 @@ zvol_init(void)
 		return (-ENOMEM);
 	}
 	zvol_init_impl();
-	blk_register_region(MKDEV(zvol_major, 0), 1UL << MINORBITS,
-	    THIS_MODULE, zvol_probe, NULL, NULL);
-
 	ida_init(&zvol_ida);
 	zvol_register_ops(&zvol_linux_ops);
 	return (0);
@@ -1102,7 +1069,6 @@ void
 zvol_fini(void)
 {
 	zvol_fini_impl();
-	blk_unregister_region(MKDEV(zvol_major, 0), 1UL << MINORBITS);
 	unregister_blkdev(zvol_major, ZVOL_DRIVER);
 	taskq_destroy(zvol_taskq);
 	ida_destroy(&zvol_ida);

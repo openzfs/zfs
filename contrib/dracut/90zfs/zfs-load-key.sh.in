@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 # only run this on systemd systems, we handle the decrypt in mount-zfs.sh in the mount hook otherwise
 [ -e /bin/systemctl ] || return 0
@@ -17,10 +17,8 @@
 [ "${root##zfs:}" = "${root}" ] && [ "${root##ZFS=}" = "${root}" ] && [ "$rootfstype" != "zfs" ] && exit 0
 
 # There is a race between the zpool import and the pre-mount hooks, so we wait for a pool to be imported
-while true; do
-    zpool list -H | grep -q -v '^$' && break
-    [ "$(systemctl is-failed zfs-import-cache.service)" = 'failed' ] && exit 1
-    [ "$(systemctl is-failed zfs-import-scan.service)" = 'failed' ] && exit 1
+while [ "$(zpool list -H)" = "" ]; do
+    systemctl is-failed --quiet zfs-import-cache.service zfs-import-scan.service && exit 1
     sleep 0.1s
 done
 
@@ -34,11 +32,11 @@ else
 fi
 
 # if pool encryption is active and the zfs command understands '-o encryption'
-if [ "$(zpool list -H -o feature@encryption $(echo "${BOOTFS}" | awk -F\/ '{print $1}'))" = 'active' ]; then
+if [ "$(zpool list -H -o feature@encryption "$(echo "${BOOTFS}" | awk -F/ '{print $1}')")" = 'active' ]; then
     # if the root dataset has encryption enabled
-    ENCRYPTIONROOT=$(zfs get -H -o value encryptionroot "${BOOTFS}")
+    ENCRYPTIONROOT="$(zfs get -H -o value encryptionroot "${BOOTFS}")"
     # where the key is stored (in a file or loaded via prompt)
-    KEYLOCATION=$(zfs get -H -o value keylocation "${ENCRYPTIONROOT}")
+    KEYLOCATION="$(zfs get -H -o value keylocation "${ENCRYPTIONROOT}")"
     if ! [ "${ENCRYPTIONROOT}" = "-" ]; then
         KEYSTATUS="$(zfs get -H -o value keystatus "${ENCRYPTIONROOT}")"
         # continue only if the key needs to be loaded

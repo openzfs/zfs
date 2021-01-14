@@ -6322,7 +6322,7 @@ dump_block_stats(spa_t *spa)
 	(void) printf("\t%-16s %14llu     used: %5.2f%%\n", "Normal class:",
 	    (u_longlong_t)norm_alloc, 100.0 * norm_alloc / norm_space);
 
-	if (spa_special_class(spa)->mc_rotor != NULL) {
+	if (spa_special_class(spa)->mc_allocator[0].mca_rotor != NULL) {
 		uint64_t alloc = metaslab_class_get_alloc(
 		    spa_special_class(spa));
 		uint64_t space = metaslab_class_get_space(
@@ -6333,7 +6333,7 @@ dump_block_stats(spa_t *spa)
 		    100.0 * alloc / space);
 	}
 
-	if (spa_dedup_class(spa)->mc_rotor != NULL) {
+	if (spa_dedup_class(spa)->mc_allocator[0].mca_rotor != NULL) {
 		uint64_t alloc = metaslab_class_get_alloc(
 		    spa_dedup_class(spa));
 		uint64_t space = metaslab_class_get_space(
@@ -6762,6 +6762,7 @@ import_checkpointed_state(char *target, nvlist_t *cfg, char **new_path)
 {
 	int error = 0;
 	char *poolname, *bogus_name = NULL;
+	boolean_t freecfg = B_FALSE;
 
 	/* If the target is not a pool, the extract the pool name */
 	char *path_start = strchr(target, '/');
@@ -6780,6 +6781,7 @@ import_checkpointed_state(char *target, nvlist_t *cfg, char **new_path)
 			    "spa_get_stats() failed with error %d\n",
 			    poolname, error);
 		}
+		freecfg = B_TRUE;
 	}
 
 	if (asprintf(&bogus_name, "%s%s", poolname, BOGUS_SUFFIX) == -1)
@@ -6789,6 +6791,8 @@ import_checkpointed_state(char *target, nvlist_t *cfg, char **new_path)
 	error = spa_import(bogus_name, cfg, NULL,
 	    ZFS_IMPORT_MISSING_LOG | ZFS_IMPORT_CHECKPOINT |
 	    ZFS_IMPORT_SKIP_MMP);
+	if (freecfg)
+		nvlist_free(cfg);
 	if (error != 0) {
 		fatal("Tried to import pool \"%s\" but spa_import() failed "
 		    "with error %d\n", bogus_name, error);
@@ -7017,7 +7021,6 @@ verify_checkpoint_blocks(spa_t *spa)
 
 	spa_t *checkpoint_spa;
 	char *checkpoint_pool;
-	nvlist_t *config = NULL;
 	int error = 0;
 
 	/*
@@ -7025,7 +7028,7 @@ verify_checkpoint_blocks(spa_t *spa)
 	 * name) so we can do verification on it against the current state
 	 * of the pool.
 	 */
-	checkpoint_pool = import_checkpointed_state(spa->spa_name, config,
+	checkpoint_pool = import_checkpointed_state(spa->spa_name, NULL,
 	    NULL);
 	ASSERT(strcmp(spa->spa_name, checkpoint_pool) != 0);
 
@@ -8435,6 +8438,11 @@ main(int argc, char **argv)
 		}
 	}
 
+	if (searchdirs != NULL) {
+		umem_free(searchdirs, nsearch * sizeof (char *));
+		searchdirs = NULL;
+	}
+
 	/*
 	 * import_checkpointed_state makes the assumption that the
 	 * target pool that we pass it is already part of the spa
@@ -8451,6 +8459,11 @@ main(int argc, char **argv)
 
 		if (checkpoint_target != NULL)
 			target = checkpoint_target;
+	}
+
+	if (cfg != NULL) {
+		nvlist_free(cfg);
+		cfg = NULL;
 	}
 
 	if (target_pool != target)

@@ -2786,8 +2786,8 @@ zio_write_gang_block(zio_t *pio)
 		ASSERT(has_data);
 
 		flags |= METASLAB_ASYNC_ALLOC;
-		VERIFY(zfs_refcount_held(&mc->mc_alloc_slots[pio->io_allocator],
-		    pio));
+		VERIFY(zfs_refcount_held(&mc->mc_allocator[pio->io_allocator].
+		    mca_alloc_slots, pio));
 
 		/*
 		 * The logical zio has already placed a reservation for
@@ -3588,17 +3588,16 @@ zio_alloc_zil(spa_t *spa, objset_t *os, uint64_t txg, blkptr_t *new_bp,
 	 * of, so we just hash the objset ID to pick the allocator to get
 	 * some parallelism.
 	 */
-	error = metaslab_alloc(spa, spa_log_class(spa), size, new_bp, 1,
-	    txg, NULL, METASLAB_FASTWRITE, &io_alloc_list, NULL,
-	    cityhash4(0, 0, 0, os->os_dsl_dataset->ds_object) %
-	    spa->spa_alloc_count);
+	int flags = METASLAB_FASTWRITE | METASLAB_ZIL;
+	int allocator = cityhash4(0, 0, 0, os->os_dsl_dataset->ds_object) %
+	    spa->spa_alloc_count;
+	error = metaslab_alloc(spa, spa_log_class(spa), size, new_bp,
+	    1, txg, NULL, flags, &io_alloc_list, NULL, allocator);
 	if (error == 0) {
 		*slog = TRUE;
 	} else {
-		error = metaslab_alloc(spa, spa_normal_class(spa), size,
-		    new_bp, 1, txg, NULL, METASLAB_FASTWRITE,
-		    &io_alloc_list, NULL, cityhash4(0, 0, 0,
-		    os->os_dsl_dataset->ds_object) % spa->spa_alloc_count);
+		error = metaslab_alloc(spa, spa_normal_class(spa), size, new_bp,
+		    1, txg, NULL, flags, &io_alloc_list, NULL, allocator);
 		if (error == 0)
 			*slog = FALSE;
 	}
@@ -4471,9 +4470,8 @@ zio_done(zio_t *zio)
 
 		metaslab_group_alloc_verify(zio->io_spa, zio->io_bp, zio,
 		    zio->io_allocator);
-		VERIFY(zfs_refcount_not_held(
-		    &zio->io_metaslab_class->mc_alloc_slots[zio->io_allocator],
-		    zio));
+		VERIFY(zfs_refcount_not_held(&zio->io_metaslab_class->
+		    mc_allocator[zio->io_allocator].mca_alloc_slots, zio));
 	}
 
 

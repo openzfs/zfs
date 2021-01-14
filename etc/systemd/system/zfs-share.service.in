@@ -8,6 +8,7 @@ Wants=zfs-mount.service
 After=zfs-mount.service
 PartOf=nfs-server.service nfs-kernel-server.service
 PartOf=smb.service
+ConditionPathIsDirectory=/sys/module/zfs
 
 [Service]
 Type=oneshot

@@ -355,28 +355,37 @@ unsigned long zfs_delete_blocks = DMU_MAX_DELETEBLKCNT;
  *	OUT:	resid	- remaining bytes to write
  *
  *	RETURN:	0 if success
- *		positive error code if failure
+ *		positive error code if failure.  EIO is	returned
+ *		for a short write when residp isn't provided.
  *
  * Timestamps:
  *	zp - ctime|mtime updated if byte count > 0
  */
 int
 zfs_write_simple(znode_t *zp, const void *data, size_t len,
-    loff_t pos, size_t *resid)
+    loff_t pos, size_t *residp)
 {
-	ssize_t written;
-	int error = 0;
+	fstrans_cookie_t cookie;
+	int error;
 
-	written = zpl_write_common(ZTOI(zp), data, len, &pos,
-	    UIO_SYSSPACE, 0, kcred);
-	if (written < 0) {
-		error = -written;
-	} else if (resid == NULL) {
-		if (written < len)
-			error = SET_ERROR(EIO); /* short write */
-	} else {
-		*resid = len - written;
+	struct iovec iov;
+	iov.iov_base = (void *)data;
+	iov.iov_len = len;
+
+	uio_t uio;
+	uio_iovec_init(&uio, &iov, 1, pos, UIO_SYSSPACE, len, 0);
+
+	cookie = spl_fstrans_mark();
+	error = zfs_write(zp, &uio, 0, kcred);
+	spl_fstrans_unmark(cookie);
+
+	if (error == 0) {
+		if (residp != NULL)
+			*residp = uio_resid(&uio);
+		else if (uio_resid(&uio) != 0)
+			error = SET_ERROR(EIO);
 	}
+
 	return (error);
 }
 

@@ -490,19 +490,17 @@ zpl_get_link_common(struct dentry *dentry, struct inode *ip, char **link)
 {
 	fstrans_cookie_t cookie;
 	cred_t *cr = CRED();
-	struct iovec iov;
-	uio_t uio = { { 0 }, 0 };
 	int error;
 
 	crhold(cr);
 	*link = NULL;
+
+	struct iovec iov;
 	iov.iov_len = MAXPATHLEN;
 	iov.iov_base = kmem_zalloc(MAXPATHLEN, KM_SLEEP);
 
-	uio.uio_iov = &iov;
-	uio.uio_iovcnt = 1;
-	uio.uio_segflg = UIO_SYSSPACE;
-	uio.uio_resid = (MAXPATHLEN - 1);
+	uio_t uio;
+	uio_iovec_init(&uio, &iov, 1, 0, UIO_SYSSPACE, MAXPATHLEN - 1, 0);
 
 	cookie = spl_fstrans_mark();
 	error = -zfs_readlink(ip, &uio, cr);

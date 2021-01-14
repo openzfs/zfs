@@ -1,0 +1,58 @@
+name: zfs-tests-sanity
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install --yes -qq build-essential autoconf libtool gdb lcov \
+          git alien fakeroot wget curl bc fio acl \
+          sysstat mdadm lsscsi parted gdebi attr dbench watchdog ksh \
+          nfs-kernel-server samba rng-tools xz-utils \
+          zlib1g-dev uuid-dev libblkid-dev libselinux-dev \
+          xfslibs-dev libattr1-dev libacl1-dev libudev-dev libdevmapper-dev \
+          libssl-dev libffi-dev libaio-dev libelf-dev libmount-dev \
+          libpam0g-dev pamtester python-dev python-setuptools python-cffi \
+          python3 python3-dev python3-setuptools python3-cffi
+    - name: Autogen.sh
+      run: |
+        sh autogen.sh
+    - name: Configure
+      run: |
+        ./configure --enable-debug --enable-debuginfo
+    - name: Make
+      run: |
+        make --no-print-directory -s pkg-utils pkg-kmod
+    - name: Install
+      run: |
+        sudo dpkg -i *.deb
+        # Update order of directories to search for modules, otherwise
+        #   Ubuntu will load kernel-shipped ones.
+        sudo sed -i.bak 's/updates/extra updates/' /etc/depmod.d/ubuntu.conf
+        sudo depmod
+        sudo modprobe zfs
+    - name: Tests
+      run: |
+        /usr/share/zfs/zfs-tests.sh -v -s 3G -r sanity
+    - name: Prepare artifacts
+      if: failure()
+      run: |
+        RESULTS_PATH=$(readlink -f /var/tmp/test_results/current)
+        sudo dmesg > $RESULTS_PATH/dmesg
+        sudo cp /var/log/syslog $RESULTS_PATH/
+        sudo chmod +r $RESULTS_PATH/*
+    - uses: actions/upload-artifact@v2
+      if: failure()
+      with:
+        name: Test logs
+        path: /var/tmp/test_results/20*/
+        if-no-files-found: ignore

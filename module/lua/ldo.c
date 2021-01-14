@@ -33,14 +33,16 @@
 #if defined (_KERNEL) && defined(__linux__)
 #include <asm/current.h>
 static intptr_t stack_remaining(void) {
-  char local;
-  return (intptr_t)(&local - (char *)current->stack);
+  intptr_t local;
+  local = (intptr_t)&local - (intptr_t)current->stack;
+  return local;
 }
 #elif defined (_KERNEL) && defined(__FreeBSD__)
 #include <sys/pcpu.h>
 static intptr_t stack_remaining(void) {
-  char local;
-  return (intptr_t)(&local - (char *)curthread->td_kstack);
+  intptr_t local;
+  local = (intptr_t)&local - (intptr_t)curthread->td_kstack;
+  return local;
 }
 #else
 static intptr_t stack_remaining(void) {
