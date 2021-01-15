@@ -24,6 +24,7 @@
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
  * Copyright 2017 Joyent, Inc.
+ * Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
  */
 
 #include <sys/spa.h>
@@ -446,6 +447,9 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
 	if (spa->spa_comment != NULL)
 		fnvlist_add_string(config, ZPOOL_CONFIG_COMMENT,
 		    spa->spa_comment);
+	if (spa->spa_compatibility != NULL)
+		fnvlist_add_string(config, ZPOOL_CONFIG_COMPATIBILITY,
+		    spa->spa_compatibility);
 
 	hostid = spa_get_hostid(spa);
 	if (hostid != 0)

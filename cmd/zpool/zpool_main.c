@@ -31,6 +31,7 @@
  * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
  * Copyright (c) 2017, Intel Corporation.
  * Copyright (c) 2019, loli10K <ezomori.nozomu@gmail.com>
+ * Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
  */
 
 #include <assert.h>
@@ -123,6 +124,9 @@ static int zpool_do_sync(int, char **);
 static int zpool_do_version(int, char **);
 
 static int zpool_do_wait(int, char **);
+
+static zpool_compat_status_t zpool_do_load_compat(
+    const char *, boolean_t *);
 
 /*
  * These libumem hooks provide a reasonable set of defaults for the allocator's
@@ -782,6 +786,8 @@ add_prop_list(const char *propname, char *propval, nvlist_t **props,
 
 	if (poolprop) {
 		const char *vname = zpool_prop_to_name(ZPOOL_PROP_VERSION);
+		const char *fname =
+		    zpool_prop_to_name(ZPOOL_PROP_COMPATIBILITY);
 
 		if ((prop = zpool_name_to_prop(propname)) == ZPOOL_PROP_INVAL &&
 		    !zpool_prop_feature(propname)) {
@@ -804,6 +810,19 @@ add_prop_list(const char *propname, char *propval, nvlist_t **props,
 			return (2);
 		}
 
+		/*
+		 * compatibility property and version should not be specified
+		 * at the same time.
+		 */
+		if ((prop == ZPOOL_PROP_COMPATIBILITY &&
+		    nvlist_exists(proplist, vname)) ||
+		    (prop == ZPOOL_PROP_VERSION &&
+		    nvlist_exists(proplist, fname))) {
+			(void) fprintf(stderr, gettext("'compatibility' and "
+			    "'version' properties cannot be specified "
+			    "together\n"));
+			return (2);
+		}
 
 		if (zpool_prop_feature(propname))
 			normnm = propname;
@@ -1374,13 +1393,15 @@ zpool_do_create(int argc, char **argv)
 {
 	boolean_t force = B_FALSE;
 	boolean_t dryrun = B_FALSE;
-	boolean_t enable_all_pool_feat = B_TRUE;
+	boolean_t enable_pool_features = B_TRUE;
+
 	int c;
 	nvlist_t *nvroot = NULL;
 	char *poolname;
 	char *tname = NULL;
 	int ret = 1;
 	char *altroot = NULL;
+	char *compat = NULL;
 	char *mountpoint = NULL;
 	nvlist_t *fsprops = NULL;
 	nvlist_t *props = NULL;
@@ -1396,7 +1417,7 @@ zpool_do_create(int argc, char **argv)
 			dryrun = B_TRUE;
 			break;
 		case 'd':
-			enable_all_pool_feat = B_FALSE;
+			enable_pool_features = B_FALSE;
 			break;
 		case 'R':
 			altroot = optarg;
@@ -1434,11 +1455,14 @@ zpool_do_create(int argc, char **argv)
 				ver = strtoull(propval, &end, 10);
 				if (*end == '\0' &&
 				    ver < SPA_VERSION_FEATURES) {
-					enable_all_pool_feat = B_FALSE;
+					enable_pool_features = B_FALSE;
 				}
 			}
 			if (zpool_name_to_prop(optarg) == ZPOOL_PROP_ALTROOT)
 				altroot = propval;
+			if (zpool_name_to_prop(optarg) ==
+			    ZPOOL_PROP_COMPATIBILITY)
+				compat = propval;
 			break;
 		case 'O':
 			if ((propval = strchr(optarg, '=')) == NULL) {
@@ -1632,10 +1656,26 @@ zpool_do_create(int argc, char **argv)
 		ret = 0;
 	} else {
 		/*
-		 * Hand off to libzfs.
+		 * Load in feature set.
+		 * Note: if compatibility property not given, we'll have
+		 * NULL, which means 'all features'.
 		 */
-		spa_feature_t i;
-		for (i = 0; i < SPA_FEATURES; i++) {
+		boolean_t requested_features[SPA_FEATURES];
+		if (zpool_do_load_compat(compat, requested_features) !=
+		    ZPOOL_COMPATIBILITY_OK)
+			goto errout;
+
+		/*
+		 * props contains list of features to enable.
+		 * For each feature:
+		 *  - remove it if feature@name=disabled
+		 *  - leave it there if feature@name=enabled
+		 *  - add it if:
+		 *    - enable_pool_features (ie: no '-d' or '-o version')
+		 *    - it's supported by the kernel module
+		 *    - it's in the requested feature set
+		 */
+		for (spa_feature_t i = 0; i < SPA_FEATURES; i++) {
 			char propname[MAXPATHLEN];
 			char *propval;
 			zfeature_info_t *feat = &spa_feature_table[i];
@@ -1643,18 +1683,14 @@ zpool_do_create(int argc, char **argv)
 			(void) snprintf(propname, sizeof (propname),
 			    "feature@%s", feat->fi_uname);
 
-			/*
-			 * Only features contained in props will be enabled:
-			 * remove from the nvlist every ZFS_FEATURE_DISABLED
-			 * value and add every missing ZFS_FEATURE_ENABLED if
-			 * enable_all_pool_feat is set.
-			 */
 			if (!nvlist_lookup_string(props, propname, &propval)) {
 				if (strcmp(propval, ZFS_FEATURE_DISABLED) == 0)
 					(void) nvlist_remove_all(props,
 					    propname);
-			} else if (enable_all_pool_feat &&
-			    feat->fi_zfs_mod_supported) {
+			} else if (
+			    enable_pool_features &&
+			    feat->fi_zfs_mod_supported &&
+			    requested_features[i]) {
 				ret = add_prop_list(propname,
 				    ZFS_FEATURE_ENABLED, &props, B_TRUE);
 				if (ret != 0)
@@ -2674,8 +2710,15 @@ show_import(nvlist_t *config)
 
 	case ZPOOL_STATUS_FEAT_DISABLED:
 		printf_color(ANSI_BOLD, gettext("status: "));
-		printf_color(ANSI_YELLOW, gettext("Some supported features are "
-		    "not enabled on the pool.\n"));
+		printf_color(ANSI_YELLOW, gettext("Some supported and "
+		    "requested features are not enabled on the pool.\n"));
+		break;
+
+	case ZPOOL_STATUS_COMPATIBILITY_ERR:
+		printf_color(ANSI_BOLD, gettext("status: "));
+		printf_color(ANSI_YELLOW, gettext("Error reading or parsing "
+		    "the file(s) indicated by the 'compatibility'\n"
+		    "property.\n"));
 		break;
 
 	case ZPOOL_STATUS_UNSUP_FEAT_READ:
@@ -2767,6 +2810,12 @@ show_import(nvlist_t *config)
 			    "imported using its name or numeric identifier, "
 			    "though\n\tsome features will not be available "
 			    "without an explicit 'zpool upgrade'.\n"));
+		} else if (reason == ZPOOL_STATUS_COMPATIBILITY_ERR) {
+			(void) printf(gettext(" action: The pool can be "
+			    "imported using its name or numeric\n\tidentifier, "
+			    "though the file(s) indicated by its "
+			    "'compatibility'\n\tproperty cannot be parsed at "
+			    "this time.\n"));
 		} else if (reason == ZPOOL_STATUS_HOSTID_MISMATCH) {
 			(void) printf(gettext(" action: The pool can be "
 			    "imported using its name or numeric "
@@ -7942,7 +7991,8 @@ status_callback(zpool_handle_t *zhp, void *data)
 	if (cbp->cb_explain &&
 	    (reason == ZPOOL_STATUS_OK ||
 	    reason == ZPOOL_STATUS_VERSION_OLDER ||
-	    reason == ZPOOL_STATUS_FEAT_DISABLED)) {
+	    reason == ZPOOL_STATUS_FEAT_DISABLED ||
+	    reason == ZPOOL_STATUS_COMPATIBILITY_ERR)) {
 		if (!cbp->cb_allpools) {
 			(void) printf(gettext("pool '%s' is healthy\n"),
 			    zpool_get_name(zhp));
@@ -8117,14 +8167,28 @@ status_callback(zpool_handle_t *zhp, void *data)
 
 	case ZPOOL_STATUS_FEAT_DISABLED:
 		printf_color(ANSI_BOLD, gettext("status: "));
-		printf_color(ANSI_YELLOW, gettext("Some supported features are "
-		    "not enabled on the pool. The pool can\n\tstill be used, "
-		    "but some features are unavailable.\n"));
+		printf_color(ANSI_YELLOW, gettext("Some supported and "
+		    "requested features are not enabled on the pool.\n\t"
+		    "The pool can still be used, but some features are "
+		    "unavailable.\n"));
 		printf_color(ANSI_BOLD, gettext("action: "));
 		printf_color(ANSI_YELLOW, gettext("Enable all features using "
 		    "'zpool upgrade'. Once this is done,\n\tthe pool may no "
 		    "longer be accessible by software that does not support\n\t"
 		    "the features. See zpool-features(5) for details.\n"));
+		break;
+
+	case ZPOOL_STATUS_COMPATIBILITY_ERR:
+		printf_color(ANSI_BOLD, gettext("status: "));
+		printf_color(ANSI_YELLOW, gettext("This pool has a "
+		    "compatibility list specified, but it could not be\n\t"
+		    "read/parsed at this time. The pool can still be used, "
+		    "but this\n\tshould be investigated.\n"));
+		printf_color(ANSI_BOLD, gettext("action: "));
+		printf_color(ANSI_YELLOW, gettext("Check the value of the "
+		    "'compatibility' property against the\n\t"
+		    "appropriate file in " ZPOOL_SYSCONF_COMPAT_D " or "
+		    ZPOOL_DATA_COMPAT_D ".\n"));
 		break;
 
 	case ZPOOL_STATUS_UNSUP_FEAT_READ:
@@ -8625,6 +8689,16 @@ upgrade_enable_all(zpool_handle_t *zhp, int *countp)
 	boolean_t firstff = B_TRUE;
 	nvlist_t *enabled = zpool_get_features(zhp);
 
+	char compat[ZFS_MAXPROPLEN];
+	if (zpool_get_prop(zhp, ZPOOL_PROP_COMPATIBILITY, compat,
+	    ZFS_MAXPROPLEN, NULL, B_FALSE) != 0)
+		compat[0] = '\0';
+
+	boolean_t requested_features[SPA_FEATURES];
+	if (zpool_do_load_compat(compat, requested_features) !=
+	    ZPOOL_COMPATIBILITY_OK)
+		return (-1);
+
 	count = 0;
 	for (i = 0; i < SPA_FEATURES; i++) {
 		const char *fname = spa_feature_table[i].fi_uname;
@@ -8633,7 +8707,7 @@ upgrade_enable_all(zpool_handle_t *zhp, int *countp)
 		if (!spa_feature_table[i].fi_zfs_mod_supported)
 			continue;
 
-		if (!nvlist_exists(enabled, fguid)) {
+		if (!nvlist_exists(enabled, fguid) && requested_features[i]) {
 			char *propname;
 			verify(-1 != asprintf(&propname, "feature@%s", fname));
 			ret = zpool_set_prop(zhp, propname,
@@ -8855,7 +8929,7 @@ upgrade_one(zpool_handle_t *zhp, void *data)
 			printnl = B_TRUE;
 		} else if (cur_version == SPA_VERSION) {
 			(void) printf(gettext("Pool '%s' already has all "
-			    "supported features enabled.\n"),
+			    "supported and requested features enabled.\n"),
 			    zpool_get_name(zhp));
 		}
 	}
@@ -9016,8 +9090,8 @@ zpool_do_upgrade(int argc, char **argv)
 				(void) printf(gettext("All pools are already "
 				    "formatted using feature flags.\n\n"));
 				(void) printf(gettext("Every feature flags "
-				    "pool already has all supported features "
-				    "enabled.\n"));
+				    "pool already has all supported and "
+				    "requested features enabled.\n"));
 			} else {
 				(void) printf(gettext("All pools are already "
 				    "formatted with version %llu or higher.\n"),
@@ -9043,7 +9117,7 @@ zpool_do_upgrade(int argc, char **argv)
 
 		if (cb.cb_first) {
 			(void) printf(gettext("Every feature flags pool has "
-			    "all supported features enabled.\n"));
+			    "all supported and requested features enabled.\n"));
 		} else {
 			(void) printf(gettext("\n"));
 		}
@@ -10345,6 +10419,39 @@ zpool_do_version(int argc, char **argv)
 		return (1);
 
 	return (0);
+}
+
+/*
+ * Do zpool_load_compat() and print error message on failure
+ */
+static zpool_compat_status_t
+zpool_do_load_compat(const char *compat, boolean_t *list)
+{
+	char badword[ZFS_MAXPROPLEN];
+	char badfile[MAXPATHLEN];
+	zpool_compat_status_t ret;
+
+	switch (ret = zpool_load_compat(compat, list, badword, badfile)) {
+	case ZPOOL_COMPATIBILITY_OK:
+		break;
+	case ZPOOL_COMPATIBILITY_READERR:
+		(void) fprintf(stderr, gettext("error reading compatibility "
+		    "file '%s'\n"), badfile);
+		break;
+	case ZPOOL_COMPATIBILITY_BADFILE:
+		(void) fprintf(stderr, gettext("compatibility file '%s' "
+		    "too large or not newline-terminated\n"), badfile);
+		break;
+	case ZPOOL_COMPATIBILITY_BADWORD:
+		(void) fprintf(stderr, gettext("unknown feature '%s' in "
+		    "compatibility file '%s'\n"), badword, badfile);
+		break;
+	case ZPOOL_COMPATIBILITY_NOFILES:
+		(void) fprintf(stderr, gettext("no compatibility files "
+		    "specified\n"));
+		break;
+	}
+	return (ret);
 }
 
 int

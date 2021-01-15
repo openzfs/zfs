@@ -16,6 +16,7 @@
 .\" Portions Copyright [yyyy] [name of copyright owner]
 .\" Copyright (c) 2019, Klara Inc.
 .\" Copyright (c) 2019, Allan Jude
+.\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
 .TH ZPOOL-FEATURES 5 "Aug 24, 2020" OpenZFS
 .SH NAME
 zpool\-features \- ZFS pool feature descriptions
@@ -26,7 +27,8 @@ ZFS pool on\-disk format versions are specified via "features" which replace
 the old on\-disk format numbers (the last supported on\-disk format number is
 28). To enable a feature on a pool use the \fBupgrade\fR subcommand of the
 zpool(8) command, or set the \fBfeature@\fR\fIfeature_name\fR property
-to \fBenabled\fR.
+to \fBenabled\fR. Please also see the \fB"Compatibility feature sets"\fR
+section for information on how sets of features may be enabled together.
 .sp
 .LP
 The pool format does not affect file system version compatibility or the ability
@@ -140,6 +142,61 @@ read\-only mode.
 Some features depend on other features being enabled in order to function
 properly. Enabling a feature will automatically enable any features it
 depends on.
+
+.SS "Compatibility feature sets"
+.sp
+.LP
+It is sometimes necessary for a pool to maintain compatibility with a
+specific on\-disk format, by enabling and disabling particular features. The
+\fBcompatibility\fR feature facilitates this by allowing feature sets to
+be read from text files. When set to \fBoff\fR (the default); compatibility
+feature sets are disabled (ie: all features are enabled); when set to
+\fBlegacy\fR; no features are enabled. When set to a comma\-separated list
+of filenames (each filename may either be an absolute path, or relative to
+\fB/etc/zfs/compatibility.d\fR or \fB/usr/share/zfs/compatibility.d\fR)
+the lists of requested features are read from those files, separated by
+whitespace and/or commas. Only features present in all files are enabled.
+.LP
+Simple sanity checks are applied to the files; they must be between 1 and
+16,384 bytes in size, and must end with a newline character.
+.LP
+The requested features are applied when a pool is created using
+\fBzpool create \-o compatibility=...\fR and controls which features are
+enabled when using \fBzpool upgrade\fR. \fBzpool status\fR
+will not show a warning about disabled features which are not part
+of the requested feature set.
+.LP
+By convention, compatibility files in \fB/usr/share/zfs/compatibility.d\fR
+are provided by the distribution package, and include feature sets
+supported by important versions of popular distribtions, and feature
+sets commonly supported at the start of each year.  Compatibility files
+in \fB/etc/zfs/compatibility.d\fR, if present, will take precedence over
+files with the same name in \fB/usr/share/zfs/compatibility.d\fR.
+.LP
+Compatibility files may include comments; any text from \fB#\fR to the end
+of the line is ignored.
+.LP
+\fBExample:\fR
+.EX
+# \fBcat /usr/share/zfs/compatibility.d/grub2\fR
+# Features which are supported by GRUB2
+async_destroy
+bookmarks
+embedded_data
+empty_bpobj
+enabled_txg
+extensible_dataset
+filesystem_limits
+hole_birth
+large_blocks
+lz4_compress
+spacemap_histogram
+
+# \fBzpool create \-o compatibility=grub2 bootpool vdev\fR
+.EE
+.LP
+See \fBzpool\-create(8)\fR and \fBzpool\-upgrade(8)\fR for more information
+on how these commands are affected by feature sets.
 .SH FEATURES
 .sp
 .LP

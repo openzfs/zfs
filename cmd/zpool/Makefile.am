@@ -39,7 +39,7 @@ include $(top_srcdir)/config/CppCheck.am
 zpoolconfdir = $(sysconfdir)/zfs/zpool.d
 zpoolexecdir = $(zfsexecdir)/zpool.d
 
-EXTRA_DIST = zpool.d/README
+EXTRA_DIST = zpool.d/README compatibility.d
 
 dist_zpoolexec_SCRIPTS = \
 	zpool.d/dm-deps \
@@ -129,10 +129,55 @@ zpoolconfdefaults = \
 	test_progress \
 	test_ended
 
+zpoolcompatdir = $(pkgdatadir)/compatibility.d
+
+dist_zpoolcompat_DATA = \
+	compatibility.d/compat-2018 \
+	compatibility.d/compat-2019 \
+	compatibility.d/compat-2020 \
+	compatibility.d/compat-2021 \
+	compatibility.d/freebsd-11.0 \
+	compatibility.d/freebsd-11.2 \
+	compatibility.d/freebsd-11.3 \
+	compatibility.d/freenas-9.10.2 \
+	compatibility.d/grub2 \
+	compatibility.d/openzfsonosx-1.7.0 \
+	compatibility.d/openzfsonosx-1.8.1 \
+	compatibility.d/openzfsonosx-1.9.3 \
+	compatibility.d/openzfs-2.0-freebsd \
+	compatibility.d/openzfs-2.0-linux \
+	compatibility.d/zol-0.6.5 \
+	compatibility.d/zol-0.7 \
+	compatibility.d/zol-0.8
+
+# canonical <- alias symbolic link pairs
+# eg: "2018" is a link to "compat-2018"
+zpoolcompatlinks = \
+	"compat-2018		2018" \
+	"compat-2019		2019" \
+	"compat-2020		2020" \
+	"compat-2021		2021" \
+	"freebsd-11.0		freebsd-11.1" \
+	"freebsd-11.0		freenas-11.0" \
+	"freebsd-11.2		freenas-11.2" \
+	"freebsd-11.3		freebsd-11.4" \
+	"freebsd-11.3		freebsd-12.0" \
+	"freebsd-11.3		freebsd-12.1" \
+	"freebsd-11.3		freebsd-12.2" \
+	"freebsd-11.3		freenas-11.3" \
+	"freenas-11.0		freenas-11.1" \
+	"openzfsonosx-1.9.3	openzfsonosx-1.9.4" \
+	"openzfs-2.0-freebsd	truenas-12.0" \
+	"zol-0.7		ubuntu-18.04" \
+	"zol-0.8		ubuntu-20.04"
+
 install-data-hook:
 	$(MKDIR_P) "$(DESTDIR)$(zpoolconfdir)"
 	for f in $(zpoolconfdefaults); do \
 	  test -f "$(DESTDIR)$(zpoolconfdir)/$${f}" -o \
 	       -L "$(DESTDIR)$(zpoolconfdir)/$${f}" || \
 	    ln -s "$(zpoolexecdir)/$${f}" "$(DESTDIR)$(zpoolconfdir)"; \
+	done
+	for l in $(zpoolcompatlinks); do \
+		(cd "$(DESTDIR)$(zpoolcompatdir)"; ln -s $${l} ); \
 	done
