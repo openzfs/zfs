@@ -2489,11 +2489,11 @@ raidz_simulate_failure(int physical_width, int original_width, int ashift,
 	    physical_width * (rc->rc_offset >> ashift) +
 	    rc->rc_devidx;
 
-#if 0
+#if 1
 	zfs_dbgmsg("raidz_simulate_failure(pw=%u lw=%u ashift=%u i=%u "
 	    "rc_offset=%llx rc_devidx=%u sector_id=%u",
-	    vdrz->vd_physical_width,
-	    vdrz->vd_original_width,
+	    physical_width,
+	    original_width,
 	    ashift,
 	    i,
 	    (long long)rc->rc_offset,
