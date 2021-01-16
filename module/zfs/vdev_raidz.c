@@ -2339,7 +2339,7 @@ raidz_parity_verify(zio_t *zio, raidz_row_t *rr)
 	 */
 	for (c = rr->rr_firstdatacol; c < rr->rr_cols; c++) {
 		rc = &rr->rr_col[c];
-		if (!rc->rc_tried || rc->rc_error != 0)
+		if (rc->rc_size != 0 && (!rc->rc_tried || rc->rc_error != 0))
 			return (ret);
 	}
 
