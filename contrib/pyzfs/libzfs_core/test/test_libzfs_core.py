@@ -154,8 +154,8 @@ def os_open(name, mode):
 
 @contextlib.contextmanager
 def dev_null():
-    with os_open('/dev/null', os.O_WRONLY) as fd:
-        yield fd
+    with tempfile.TemporaryFile(suffix='.zstream') as fd:
+        yield fd.fileno()
 
 
 @contextlib.contextmanager
