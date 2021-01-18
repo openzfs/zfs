@@ -3796,6 +3796,8 @@ vdev_raidz_attach_sync(void *arg, dmu_tx_t *tx)
 	ASSERT3P(raidvd->vdev_child[raidvd->vdev_children - 1], ==,
 	    new_child);
 
+	spa_feature_incr(spa, SPA_FEATURE_RAIDZ_EXPANSION, tx);
+
 	vdrz->vd_physical_width++;
 
 	vdrz->vn_vre.vre_vdev_id = raidvd->vdev_id;
