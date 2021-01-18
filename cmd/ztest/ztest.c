@@ -7223,6 +7223,9 @@ ztest_freeze(void)
 	spa_t *spa;
 	int numloops = 0;
 
+	if (ztest_raidz_attach_test)
+		return;
+
 	if (ztest_opts.zo_verbose >= 3)
 		(void) printf("testing spa_freeze()...\n");
 
