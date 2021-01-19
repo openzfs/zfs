@@ -53,7 +53,7 @@ log_must eval "echo $passphrase | zfs create -o encryption=on" \
 log_must zfs snapshot $snap
 log_must zfs unmount $TESTPOOL/$TESTFS1
 log_must zfs unload-key $TESTPOOL/$TESTFS1
-log_mustnot eval "zfs send $snap > /dev/null"
+log_mustnot eval "zfs send $snap >$TEST_BASE_DIR/devnull"
 
 log_pass "ZFS does not perform unencrypted sends from encrypted datasets" \
 	"with unloaded keys."

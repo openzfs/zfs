@@ -61,6 +61,6 @@ log_must zfs snapshot -r $TESTPOOL@snap
 log_must zpool export $TESTPOOL
 log_must zpool import -o readonly=on $TESTPOOL
 
-log_must eval "zfs send -R $TESTPOOL@snap >/dev/null"
+log_must eval "zfs send -R $TESTPOOL@snap >$TEST_BASE_DIR/devnull"
 
 log_pass "'zfs send -R' can send from read-only pools"
