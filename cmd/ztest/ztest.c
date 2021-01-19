@@ -334,11 +334,18 @@ typedef struct ztest_ds {
  */
 typedef void ztest_func_t(ztest_ds_t *zd, uint64_t id);
 
+/*
+ * XXX: remove zi_raidz_attach_compatible field, when
+ * raidz expansion will be completely integrated together with
+ * ztest_raidz_attach_test variable.
+ */
+
 typedef struct ztest_info {
 	ztest_func_t	*zi_func;	/* test function */
 	uint64_t	zi_iters;	/* iterations per execution */
 	uint64_t	*zi_interval;	/* execute every <interval> seconds */
 	const char	*zi_funcname;	/* name of test function */
+	boolean_t	zi_raidz_attach_compatible;
 } ztest_info_t;
 
 typedef struct ztest_shared_callstate {
@@ -395,81 +402,82 @@ uint64_t zopt_often = 1ULL * NANOSEC;		/* every second */
 uint64_t zopt_sometimes = 10ULL * NANOSEC;	/* every 10 seconds */
 uint64_t zopt_rarely = 60ULL * NANOSEC;		/* every 60 seconds */
 
-#define	ZTI_INIT(func, iters, interval) \
+#define	ZTI_INIT(func, iters, interval, compatible) \
 	{   .zi_func = (func), \
 	    .zi_iters = (iters), \
 	    .zi_interval = (interval), \
+	    .zi_raidz_attach_compatible = (compatible), \
 	    .zi_funcname = # func }
 
 ztest_info_t ztest_info[] = {
-	ZTI_INIT(ztest_dmu_read_write, 1, &zopt_always),
-	ZTI_INIT(ztest_dmu_write_parallel, 10, &zopt_always),
-	ZTI_INIT(ztest_dmu_object_alloc_free, 1, &zopt_always),
-	ZTI_INIT(ztest_dmu_object_next_chunk, 1, &zopt_sometimes),
-	ZTI_INIT(ztest_dmu_commit_callbacks, 1, &zopt_always),
-	ZTI_INIT(ztest_zap, 30, &zopt_always),
-	ZTI_INIT(ztest_zap_parallel, 100, &zopt_always),
-	ZTI_INIT(ztest_split_pool, 1, &zopt_always),
-	ZTI_INIT(ztest_zil_commit, 1, &zopt_incessant),
-	ZTI_INIT(ztest_zil_remount, 1, &zopt_sometimes),
-	ZTI_INIT(ztest_dmu_read_write_zcopy, 1, &zopt_often),
-	ZTI_INIT(ztest_dmu_objset_create_destroy, 1, &zopt_often),
-	ZTI_INIT(ztest_dsl_prop_get_set, 1, &zopt_often),
-	ZTI_INIT(ztest_spa_prop_get_set, 1, &zopt_sometimes),
+	ZTI_INIT(ztest_dmu_read_write, 1, &zopt_always, B_TRUE),
+	ZTI_INIT(ztest_dmu_write_parallel, 10, &zopt_always, B_TRUE),
+	ZTI_INIT(ztest_dmu_object_alloc_free, 1, &zopt_always, B_TRUE),
+	ZTI_INIT(ztest_dmu_object_next_chunk, 1, &zopt_sometimes, B_TRUE),
+	ZTI_INIT(ztest_dmu_commit_callbacks, 1, &zopt_always, B_FALSE),
+	ZTI_INIT(ztest_zap, 30, &zopt_always, B_FALSE),
+	ZTI_INIT(ztest_zap_parallel, 100, &zopt_always, B_FALSE),
+	ZTI_INIT(ztest_split_pool, 1, &zopt_always, B_FALSE),
+	ZTI_INIT(ztest_zil_commit, 1, &zopt_incessant, B_FALSE),
+	ZTI_INIT(ztest_zil_remount, 1, &zopt_sometimes, B_FALSE),
+	ZTI_INIT(ztest_dmu_read_write_zcopy, 1, &zopt_often, B_FALSE),
+	ZTI_INIT(ztest_dmu_objset_create_destroy, 1, &zopt_often, B_FALSE),
+	ZTI_INIT(ztest_dsl_prop_get_set, 1, &zopt_often, B_FALSE),
+	ZTI_INIT(ztest_spa_prop_get_set, 1, &zopt_sometimes, B_FALSE),
 #if 0
-	ZTI_INIT(ztest_dmu_prealloc, 1, &zopt_sometimes),
+	ZTI_INIT(ztest_dmu_prealloc, 1, &zopt_sometimes, B_FALSE),
 #endif
-	ZTI_INIT(ztest_fzap, 1, &zopt_sometimes),
-	ZTI_INIT(ztest_dmu_snapshot_create_destroy, 1, &zopt_sometimes),
-	ZTI_INIT(ztest_spa_create_destroy, 1, &zopt_sometimes),
-	ZTI_INIT(ztest_fault_inject, 1, &zopt_sometimes),
-	ZTI_INIT(ztest_dmu_snapshot_hold, 1, &zopt_sometimes),
-	ZTI_INIT(ztest_mmp_enable_disable, 1, &zopt_sometimes),
-	ZTI_INIT(ztest_reguid, 1, &zopt_rarely),
-	ZTI_INIT(ztest_scrub, 1, &zopt_rarely),
-	ZTI_INIT(ztest_spa_upgrade, 1, &zopt_rarely),
-	ZTI_INIT(ztest_dsl_dataset_promote_busy, 1, &zopt_rarely),
-	ZTI_INIT(ztest_vdev_attach_detach, 1, &zopt_sometimes),
-	ZTI_INIT(ztest_vdev_raidz_attach, 1, &zopt_sometimes),
-	ZTI_INIT(ztest_vdev_LUN_growth, 1, &zopt_rarely),
-	ZTI_INIT(ztest_vdev_add_remove, 1, &ztest_opts.zo_vdevtime),
-	ZTI_INIT(ztest_vdev_class_add, 1, &ztest_opts.zo_vdevtime),
-	ZTI_INIT(ztest_vdev_aux_add_remove, 1, &ztest_opts.zo_vdevtime),
-	ZTI_INIT(ztest_device_removal, 1, &zopt_sometimes),
-	ZTI_INIT(ztest_spa_checkpoint_create_discard, 1, &zopt_rarely),
-	ZTI_INIT(ztest_initialize, 1, &zopt_sometimes),
-	ZTI_INIT(ztest_trim, 1, &zopt_sometimes),
-	ZTI_INIT(ztest_fletcher, 1, &zopt_rarely),
-	ZTI_INIT(ztest_fletcher_incr, 1, &zopt_rarely),
-	ZTI_INIT(ztest_verify_dnode_bt, 1, &zopt_sometimes),
+	ZTI_INIT(ztest_fzap, 1, &zopt_sometimes, B_FALSE),
+	ZTI_INIT(ztest_dmu_snapshot_create_destroy, 1, &zopt_sometimes, B_FALSE),
+	ZTI_INIT(ztest_spa_create_destroy, 1, &zopt_sometimes, B_FALSE),
+	ZTI_INIT(ztest_fault_inject, 1, &zopt_sometimes, B_FALSE),
+	ZTI_INIT(ztest_dmu_snapshot_hold, 1, &zopt_sometimes, B_FALSE),
+	ZTI_INIT(ztest_mmp_enable_disable, 1, &zopt_sometimes, B_FALSE),
+	ZTI_INIT(ztest_reguid, 1, &zopt_rarely, B_FALSE),
+	ZTI_INIT(ztest_scrub, 1, &zopt_rarely, B_FALSE),
+	ZTI_INIT(ztest_spa_upgrade, 1, &zopt_rarely, B_FALSE),
+	ZTI_INIT(ztest_dsl_dataset_promote_busy, 1, &zopt_rarely, B_FALSE),
+	ZTI_INIT(ztest_vdev_attach_detach, 1, &zopt_sometimes, B_FALSE),
+	ZTI_INIT(ztest_vdev_raidz_attach, 1, &zopt_sometimes, B_TRUE),
+	ZTI_INIT(ztest_vdev_LUN_growth, 1, &zopt_rarely, B_FALSE),
+	ZTI_INIT(ztest_vdev_add_remove, 1, &ztest_opts.zo_vdevtime, B_FALSE),
+	ZTI_INIT(ztest_vdev_class_add, 1, &ztest_opts.zo_vdevtime, B_FALSE),
+	ZTI_INIT(ztest_vdev_aux_add_remove, 1, &ztest_opts.zo_vdevtime, B_FALSE),
+	ZTI_INIT(ztest_device_removal, 1, &zopt_sometimes, B_FALSE),
+	ZTI_INIT(ztest_spa_checkpoint_create_discard, 1, &zopt_rarely, B_FALSE),
+	ZTI_INIT(ztest_initialize, 1, &zopt_sometimes, B_FALSE),
+	ZTI_INIT(ztest_trim, 1, &zopt_sometimes, B_FALSE),
+	ZTI_INIT(ztest_fletcher, 1, &zopt_rarely, B_FALSE),
+	ZTI_INIT(ztest_fletcher_incr, 1, &zopt_rarely, B_FALSE),
+	ZTI_INIT(ztest_verify_dnode_bt, 1, &zopt_sometimes, B_FALSE),
 };
 
 #define	ZTEST_FUNCS	(sizeof (ztest_info) / sizeof (ztest_info_t))
 
 ztest_info_t raidz_expand_info[] = {
 /* XXX - does this list of activities need further pruning? */
-	ZTI_INIT(ztest_dmu_read_write, 1, &zopt_always),
-	ZTI_INIT(ztest_dmu_write_parallel, 10, &zopt_always),
-	ZTI_INIT(ztest_dmu_object_alloc_free, 1, &zopt_always),
-	ZTI_INIT(ztest_dmu_object_next_chunk, 1, &zopt_sometimes),
-	ZTI_INIT(ztest_dmu_commit_callbacks, 1, &zopt_always),
-	ZTI_INIT(ztest_zap, 30, &zopt_always),
-	ZTI_INIT(ztest_zap_parallel, 100, &zopt_always),
-	ZTI_INIT(ztest_split_pool, 1, &zopt_always),
-	ZTI_INIT(ztest_zil_commit, 1, &zopt_incessant),
-	ZTI_INIT(ztest_zil_remount, 1, &zopt_sometimes),
-	ZTI_INIT(ztest_dmu_read_write_zcopy, 1, &zopt_often),
-	ZTI_INIT(ztest_dmu_objset_create_destroy, 1, &zopt_often),
-	ZTI_INIT(ztest_dsl_prop_get_set, 1, &zopt_often),
-	ZTI_INIT(ztest_spa_prop_get_set, 1, &zopt_sometimes),
+	ZTI_INIT(ztest_dmu_read_write, 1, &zopt_always, B_TRUE),
+	ZTI_INIT(ztest_dmu_write_parallel, 10, &zopt_always, B_TRUE),
+	ZTI_INIT(ztest_dmu_object_alloc_free, 1, &zopt_always, B_TRUE),
+	ZTI_INIT(ztest_dmu_object_next_chunk, 1, &zopt_sometimes, B_TRUE),
+	ZTI_INIT(ztest_dmu_commit_callbacks, 1, &zopt_always, B_TRUE),
+	ZTI_INIT(ztest_zap, 30, &zopt_always, B_TRUE),
+	ZTI_INIT(ztest_zap_parallel, 100, &zopt_always, B_TRUE),
+	ZTI_INIT(ztest_split_pool, 1, &zopt_always, B_TRUE),
+	ZTI_INIT(ztest_zil_commit, 1, &zopt_incessant, B_TRUE),
+	ZTI_INIT(ztest_zil_remount, 1, &zopt_sometimes, B_TRUE),
+	ZTI_INIT(ztest_dmu_read_write_zcopy, 1, &zopt_often, B_TRUE),
+	ZTI_INIT(ztest_dmu_objset_create_destroy, 1, &zopt_often, B_TRUE),
+	ZTI_INIT(ztest_dsl_prop_get_set, 1, &zopt_often, B_TRUE),
+	ZTI_INIT(ztest_spa_prop_get_set, 1, &zopt_sometimes, B_TRUE),
 #if 0
-	ZTI_INIT(ztest_dmu_prealloc, 1, &zopt_sometimes),
+	ZTI_INIT(ztest_dmu_prealloc, 1, &zopt_sometimes, B_TRUE),
 #endif
-	ZTI_INIT(ztest_fzap, 1, &zopt_sometimes),
-	ZTI_INIT(ztest_dsl_dataset_promote_busy, 1, &zopt_rarely),
-	ZTI_INIT(ztest_initialize, 1, &zopt_sometimes),
-	ZTI_INIT(ztest_trim, 1, &zopt_sometimes),
-	ZTI_INIT(ztest_verify_dnode_bt, 1, &zopt_sometimes),
+	ZTI_INIT(ztest_fzap, 1, &zopt_sometimes, B_TRUE),
+	ZTI_INIT(ztest_dsl_dataset_promote_busy, 1, &zopt_rarely, B_TRUE),
+	ZTI_INIT(ztest_initialize, 1, &zopt_sometimes, B_TRUE),
+	ZTI_INIT(ztest_trim, 1, &zopt_sometimes, B_TRUE),
+	ZTI_INIT(ztest_verify_dnode_bt, 1, &zopt_sometimes, B_TRUE),
 };
 
 #define	RAIDZ_EXPAND_FUNCS (sizeof (raidz_expand_info) / sizeof (ztest_info_t))
@@ -516,6 +524,7 @@ static ztest_ds_t *ztest_ds;
 
 static kmutex_t ztest_vdev_lock;
 static boolean_t ztest_device_removal_active = B_FALSE;
+static boolean_t ztest_raidz_attach_test = B_FALSE;
 static boolean_t ztest_pool_scrubbed = B_FALSE;
 static kmutex_t ztest_checkpoint_lock;
 
@@ -3726,6 +3735,21 @@ out:
 	umem_free(newpath, MAXPATHLEN);
 }
 
+static boolean_t
+ztest_vdev_raidz_attach_possible(spa_t *spa)
+{
+	ztest_shared_t *zs = ztest_shared;
+	vdev_t *rvd = spa->spa_root_vdev;
+	vdev_t *vd = rvd->vdev_child[0];
+
+	if (rvd->vdev_children == 1 &&
+	    strcmp(vd->vdev_ops->vdev_op_type, "raidz") == 0 &&
+	    zs->zs_mirrors == 0)
+		return (B_TRUE);
+
+	return (B_FALSE);
+}
+
 /*
  * Verify that we can attach raidz device.
  */
@@ -3733,7 +3757,6 @@ out:
 void
 ztest_vdev_raidz_attach(ztest_ds_t *zd, uint64_t id)
 {
-	ztest_shared_t *zs = ztest_shared;
 	spa_t *spa = ztest_spa;
 	uint64_t csize, ashift = ztest_get_ashift();
 	vdev_t *cvd, *pvd;
@@ -3753,17 +3776,12 @@ ztest_vdev_raidz_attach(ztest_ds_t *zd, uint64_t id)
 		goto out;
 	}
 
-	pvd = vdev_lookup_top(spa, ztest_random_vdev_top(spa, B_FALSE));
-
-	/*
-	 * XXX restrict raidz expansion to use with top level raidz vdev only
-	 * and no mirrors
-	 */
-	if (strcmp(pvd->vdev_ops->vdev_op_type, "raidz") != 0 ||
-	    zs->zs_mirrors != 0) {
+	if (!ztest_vdev_raidz_attach_possible(spa)) {
 		spa_config_exit(spa, SCL_ALL, FTAG);
 		goto out;
 	}
+
+	pvd = vdev_lookup_top(spa, 0);
 
 	ASSERT(pvd->vdev_ops == &vdev_raidz_ops);
 
@@ -6954,8 +6972,12 @@ ztest_execute(int test, ztest_info_t *zi, uint64_t id)
 	hrtime_t functime = gethrtime();
 	int i;
 
-	for (i = 0; i < zi->zi_iters; i++)
-		zi->zi_func(zd, id);
+	for (i = 0; i < zi->zi_iters; i++) {
+		if (!ztest_raidz_attach_test)
+			zi->zi_func(zd, id);
+		else if (zi->zi_raidz_attach_compatible)
+			zi->zi_func(zd, id);
+	}
 
 	functime = gethrtime() - functime;
 
@@ -7748,6 +7770,8 @@ ztest_run(ztest_shared_t *zs)
 
 	metaslab_preload_limit = ztest_random(20) + 1;
 	ztest_spa = spa;
+
+	ztest_raidz_attach_test = ztest_vdev_raidz_attach_possible(spa);
 
 	/*
 	 * BUGBUG raidz expansion do not run this for now
