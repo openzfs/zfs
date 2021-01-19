@@ -373,6 +373,7 @@ ztest_func_t ztest_mmp_enable_disable;
 ztest_func_t ztest_scrub;
 ztest_func_t ztest_dsl_dataset_promote_busy;
 ztest_func_t ztest_vdev_attach_detach;
+ztest_func_t ztest_vdev_raidz_attach;
 ztest_func_t ztest_vdev_LUN_growth;
 ztest_func_t ztest_vdev_add_remove;
 ztest_func_t ztest_vdev_class_add;
@@ -429,6 +430,7 @@ ztest_info_t ztest_info[] = {
 	ZTI_INIT(ztest_spa_upgrade, 1, &zopt_rarely),
 	ZTI_INIT(ztest_dsl_dataset_promote_busy, 1, &zopt_rarely),
 	ZTI_INIT(ztest_vdev_attach_detach, 1, &zopt_sometimes),
+	ZTI_INIT(ztest_vdev_raidz_attach, 1, &zopt_sometimes),
 	ZTI_INIT(ztest_vdev_LUN_growth, 1, &zopt_rarely),
 	ZTI_INIT(ztest_vdev_add_remove, 1, &ztest_opts.zo_vdevtime),
 	ZTI_INIT(ztest_vdev_class_add, 1, &ztest_opts.zo_vdevtime),
@@ -3561,7 +3563,6 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 			ASSERT(oldvd->vdev_ops == &vdev_raidz_ops);
 		else
 			ASSERT(oldvd->vdev_ops == &vdev_draid_ops);
-		ASSERT(oldvd->vdev_children == ztest_opts.zo_raid_children);
 		oldvd = oldvd->vdev_child[leaf % ztest_opts.zo_raid_children];
 	}
 
@@ -3722,6 +3723,87 @@ out:
 	mutex_exit(&ztest_vdev_lock);
 
 	umem_free(oldpath, MAXPATHLEN);
+	umem_free(newpath, MAXPATHLEN);
+}
+
+/*
+ * Verify that we can attach raidz device.
+ */
+/* ARGSUSED */
+void
+ztest_vdev_raidz_attach(ztest_ds_t *zd, uint64_t id)
+{
+	ztest_shared_t *zs = ztest_shared;
+	spa_t *spa = ztest_spa;
+	uint64_t csize, ashift = ztest_get_ashift();
+	vdev_t *cvd, *pvd;
+	nvlist_t *root;
+	char *newpath = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
+	int error, expected_error = 0;
+
+	if (ztest_opts.zo_mmp_test)
+		return;
+
+	mutex_enter(&ztest_vdev_lock);
+
+	spa_config_enter(spa, SCL_ALL, FTAG, RW_READER);
+
+	if (ztest_device_removal_active) {
+		spa_config_exit(spa, SCL_ALL, FTAG);
+		goto out;
+	}
+
+	pvd = vdev_lookup_top(spa, ztest_random_vdev_top(spa, B_FALSE));
+
+	/*
+	 * XXX restrict raidz expansion to use with top level raidz vdev only
+	 * and no mirrors
+	 */
+	if (strcmp(pvd->vdev_ops->vdev_op_type, "raidz") != 0 ||
+	    zs->zs_mirrors != 0) {
+		spa_config_exit(spa, SCL_ALL, FTAG);
+		goto out;
+	}
+
+	ASSERT(pvd->vdev_ops == &vdev_raidz_ops);
+
+	/*
+	 * Get size of a child of the raidz group,
+	 * make sure device is a bit bigger
+	 */
+	cvd = pvd->vdev_child[0];
+	csize = vdev_get_min_asize(cvd);
+	csize += csize / 10;
+
+	if (spa->spa_raidz_expand)
+		expected_error = EBUSY;
+
+	spa_config_exit(spa, SCL_ALL, FTAG);
+
+	/*
+	 * Path to vdev to be attached
+	 */
+	(void) snprintf(newpath, MAXPATHLEN, ztest_dev_template,
+	ztest_opts.zo_dir, ztest_opts.zo_pool, pvd->vdev_children);
+
+	/*
+	 * Build the nvlist describing newpath.
+	 */
+	root = make_vdev_root(newpath, NULL, NULL, csize, ashift, NULL,
+	    0, 0, 1);
+
+	error = spa_vdev_attach(spa, pvd->vdev_guid, root, B_FALSE, B_FALSE);
+
+	nvlist_free(root);
+
+	if (error != 0 && error != expected_error) {
+		fatal(0, "raidz attach (%s %llu) returned %d, expected %d",
+		    newpath, csize, error, expected_error);
+	}
+
+out:
+	mutex_exit(&ztest_vdev_lock);
+
 	umem_free(newpath, MAXPATHLEN);
 }
 
