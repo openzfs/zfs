@@ -2333,16 +2333,6 @@ raidz_parity_verify(zio_t *zio, raidz_row_t *rr)
 	if (checksum == ZIO_CHECKSUM_NOPARITY)
 		return (ret);
 
-	/*
-	 * All data columns must have been successfully read in order
-	 * to use them to generate parity columns for comparison.
-	 */
-	for (c = rr->rr_firstdatacol; c < rr->rr_cols; c++) {
-		rc = &rr->rr_col[c];
-		if (rc->rc_size != 0 && (!rc->rc_tried || rc->rc_error != 0))
-			return (ret);
-	}
-
 	for (c = 0; c < rr->rr_firstdatacol; c++) {
 		rc = &rr->rr_col[c];
 		if (!rc->rc_tried || rc->rc_error != 0)
