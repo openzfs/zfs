@@ -32,7 +32,9 @@ typeset -r fs=$TESTPOOL/$TESTFS
 function cleanup
 {
 	cd $STF_SUITE
-	[[ -d $TESTDIR/$$ ]] && (rm -rf $TESTDIR/$$ || log_fail)
+	if [[ -d $TESTDIR/$$ ]]; then
+		log_must rm -rf $TESTDIR/$$
+	fi
 	mounted && zfs $mountcmd $TESTPOOL
 	return 0
 }
@@ -50,11 +52,23 @@ force_unmount $fs
 
 log_note "Verify mount(8) does not canonicalize before calling helper"
 # Canonicalization is confused by files in PWD matching [device|mountpoint]
-mkdir -p $TESTDIR/$$/$TESTPOOL && cd $TESTDIR/$$ || log_fail
+log_must mkdir -p $TESTDIR/$$/$TESTPOOL
+log_must cd $TESTDIR/$$
 # The env flag directs zfs to exec /bin/mount, which then calls helper
 log_must eval ZFS_MOUNT_HELPER=1 zfs $mountcmd -v $TESTPOOL
 # mount (2.35.2) still suffers from a cosmetic PWD prefix bug
 log_must mounted $TESTPOOL
+force_unmount $TESTPOOL
+
+log_note "Verify CWD prefix filter <dataset> <path>"
+log_must cd /
+log_must zfs set mountpoint=legacy $TESTPOOL
+log_must mkdir -p $mntpoint
+log_must mount -t zfs $TESTPOOL $mntpoint
+log_must ismounted $TESTPOOL
+log_must umount $mntpoint
+log_must zfs set mountpoint=$mntpoint $TESTPOOL
+log_must cd -
 force_unmount $TESTPOOL
 
 log_note "Verify '-f <dataset> <path>' fakemount"
