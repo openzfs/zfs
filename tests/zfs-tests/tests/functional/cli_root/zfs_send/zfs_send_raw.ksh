@@ -59,21 +59,21 @@ log_must eval "echo $passphrase | zfs create -o encryption=on" \
 log_must zfs snapshot $snap
 log_must zfs snapshot $snap1
 
-log_must eval "zfs send -w $snap > /dev/null"
-log_must eval "zfs send -w $snap1 > /dev/null"
+log_must eval "zfs send -w $snap >$TEST_BASE_DIR/devnull"
+log_must eval "zfs send -w $snap1 >$TEST_BASE_DIR/devnull"
 
 log_note "Verify ZFS can perform raw sends with properties"
-log_must eval "zfs send -wp $snap > /dev/null"
-log_must eval "zfs send -wp $snap1 > /dev/null"
+log_must eval "zfs send -wp $snap >$TEST_BASE_DIR/devnull"
+log_must eval "zfs send -wp $snap1 >$TEST_BASE_DIR/devnull"
 
 log_note "Verify ZFS can perform raw replication sends"
-log_must eval "zfs send -wR $snap > /dev/null"
-log_must eval "zfs send -wR $snap1 > /dev/null"
+log_must eval "zfs send -wR $snap >$TEST_BASE_DIR/devnull"
+log_must eval "zfs send -wR $snap1 >$TEST_BASE_DIR/devnull"
 
 log_note "Verify ZFS can perform a raw send of an encrypted datasets with" \
 	"its key unloaded"
 log_must zfs unmount $TESTPOOL/$TESTFS1
 log_must zfs unload-key $TESTPOOL/$TESTFS1
-log_must eval "zfs send -w $snap1 > /dev/null"
+log_must eval "zfs send -w $snap1 >$TEST_BASE_DIR/devnull"
 
 log_pass "ZFS performs raw sends of datasets"

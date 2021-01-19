@@ -82,8 +82,8 @@ log_must zfs snapshot $init_snap
 log_must eval "zfs send $init_snap > $full_bkup"
 
 log_note "'zfs receive' fails with invalid send streams."
-log_mustnot eval "zfs receive $rst_init_snap < /dev/zero"
-log_mustnot eval "zfs receive -d $rst_root </dev/zero"
+log_mustnot eval "cat </dev/zero | zfs receive $rst_init_snap"
+log_mustnot eval "cat </dev/zero | zfs receive -d $rst_root"
 
 log_must eval "zfs receive $rst_init_snap < $full_bkup"
 
