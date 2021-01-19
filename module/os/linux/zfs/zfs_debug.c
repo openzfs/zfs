@@ -173,7 +173,8 @@ __dprintf(boolean_t dprint, const char *file, const char *func,
 		newfile = file;
 	}
 
-	i = snprintf(buf, size, "%s%s:%d:%s(): ", prefix, newfile, line, func);
+	i = snprintf(buf, size, "%llx %s%s:%d:%s(): ",
+	    (long long)curthread, prefix, newfile, line, func);
 
 	if (i < size) {
 		va_start(adx, fmt);
