@@ -399,7 +399,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 			 */
 			woff = zp->z_size;
 		}
-		zfs_uio_offset(uio) = woff;
+		zfs_uio_setoffset(uio, woff);
 	} else {
 		/*
 		 * Note that if the file block size will change as a result of

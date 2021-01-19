@@ -62,6 +62,12 @@ zfs_uio_init(zfs_uio_t *uio, struct uio *uio_s)
 	GET_UIO_STRUCT(uio) = uio_s;
 }
 
+static __inline void
+zfs_uio_setoffset(zfs_uio_t *uio, offset_t off)
+{
+	zfs_uio_offset(uio) = off;
+}
+
 static __inline int
 zfs_uiomove(void *cp, size_t n, zfs_uio_rw_t dir, zfs_uio_t *uio)
 {

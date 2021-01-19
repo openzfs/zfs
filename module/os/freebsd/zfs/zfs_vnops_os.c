@@ -584,8 +584,7 @@ mappedread_sf(znode_t *zp, int nbytes, zfs_uio_t *uio)
 		}
 		if (error)
 			break;
-		zfs_uio_resid(uio) -= bytes;
-		zfs_uio_offset(uio) += bytes;
+		zfs_uio_advance(uio, bytes);
 		len -= bytes;
 	}
 	zfs_vmobject_wunlock_12(obj);
@@ -1954,7 +1953,7 @@ update:
 
 	ZFS_ACCESSTIME_STAMP(zfsvfs, zp);
 
-	zfs_uio_offset(uio) = offset;
+	zfs_uio_setoffset(uio, offset);
 	ZFS_EXIT(zfsvfs);
 	if (error != 0 && cookies != NULL) {
 		free(*cookies, M_TEMP);

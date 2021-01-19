@@ -79,6 +79,12 @@ typedef struct zfs_uio {
 #define	zfs_uio_fault_move(p, n, rw, u)	zfs_uiomove((p), (n), (rw), (u))
 
 static inline void
+zfs_uio_setoffset(zfs_uio_t *uio, offset_t off)
+{
+	uio->uio_loffset = off;
+}
+
+static inline void
 zfs_uio_iov_at_index(zfs_uio_t *uio, uint_t idx, void **base, uint64_t *len)
 {
 	*base = zfs_uio_iovbase(uio, idx);

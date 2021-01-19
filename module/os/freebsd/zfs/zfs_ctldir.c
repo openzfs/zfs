@@ -1082,7 +1082,7 @@ zfsctl_snapdir_readdir(struct vop_readdir_args *ap)
 			ZFS_EXIT(zfsvfs);
 			return (SET_ERROR(error));
 		}
-		zfs_uio_offset(&uio) = cookie + dots_offset;
+		zfs_uio_setoffset(&uio, cookie + dots_offset);
 	}
 	/* NOTREACHED */
 }
