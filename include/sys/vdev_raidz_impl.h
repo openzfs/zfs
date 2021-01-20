@@ -106,6 +106,7 @@ typedef struct raidz_col {
 	uint64_t rc_devidx;		/* child device index for I/O */
 	uint64_t rc_offset;		/* device offset */
 	uint64_t rc_size;		/* I/O size */
+	abd_t rc_abdstruct;		/* rc_abd probably points here */
 	abd_t *rc_abd;			/* I/O data */
 	void *rc_orig_data;		/* pre-reconstruction */
 	abd_t *rc_gdata;		/* used to store the "good" version */

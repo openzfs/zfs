@@ -3065,7 +3065,7 @@ arc_unshare_buf(arc_buf_hdr_t *hdr, arc_buf_t *buf)
 	    arc_hdr_size(hdr), hdr, buf);
 	arc_hdr_clear_flags(hdr, ARC_FLAG_SHARED_DATA);
 	abd_release_ownership_of_buf(hdr->b_l1hdr.b_pabd);
-	abd_put(hdr->b_l1hdr.b_pabd);
+	abd_free(hdr->b_l1hdr.b_pabd);
 	hdr->b_l1hdr.b_pabd = NULL;
 	buf->b_flags &= ~ARC_BUF_FLAG_SHARED;
 
@@ -7047,7 +7047,7 @@ arc_write_done(zio_t *zio)
 	ASSERT(!zfs_refcount_is_zero(&hdr->b_l1hdr.b_refcnt));
 	callback->awcb_done(zio, buf, callback->awcb_private);
 
-	abd_put(zio->io_abd);
+	abd_free(zio->io_abd);
 	kmem_free(callback, sizeof (arc_write_callback_t));
 }
 
@@ -9043,7 +9043,7 @@ l2arc_blk_fetch_done(zio_t *zio)
 
 	cb = zio->io_private;
 	if (cb->l2rcb_abd != NULL)
-		abd_put(cb->l2rcb_abd);
+		abd_free(cb->l2rcb_abd);
 	kmem_free(cb, sizeof (l2arc_read_callback_t));
 }
 
@@ -10015,7 +10015,7 @@ l2arc_dev_hdr_read(l2arc_dev_t *dev)
 	    ZIO_FLAG_DONT_PROPAGATE | ZIO_FLAG_DONT_RETRY |
 	    ZIO_FLAG_SPECULATIVE, B_FALSE));
 
-	abd_put(abd);
+	abd_free(abd);
 
 	if (err != 0) {
 		ARCSTAT_BUMP(arcstat_l2_rebuild_abort_dh_errors);
@@ -10383,7 +10383,7 @@ l2arc_dev_hdr_update(l2arc_dev_t *dev)
 	    VDEV_LABEL_START_SIZE, l2dhdr_asize, abd, ZIO_CHECKSUM_LABEL, NULL,
 	    NULL, ZIO_PRIORITY_ASYNC_WRITE, ZIO_FLAG_CANFAIL, B_FALSE));
 
-	abd_put(abd);
+	abd_free(abd);
 
 	if (err != 0) {
 		zfs_dbgmsg("L2ARC IO error (%d) while writing device header, "
@@ -10472,7 +10472,7 @@ l2arc_log_blk_commit(l2arc_dev_t *dev, zio_t *pio, l2arc_write_callback_t *cb)
 	fletcher_4_native(tmpbuf, asize, NULL,
 	    &l2dhdr->dh_start_lbps[0].lbp_cksum);
 
-	abd_put(abd_buf->abd);
+	abd_free(abd_buf->abd);
 
 	/* perform the write itself */
 	abd_buf->abd = abd_get_from_buf(tmpbuf, sizeof (*lb));
