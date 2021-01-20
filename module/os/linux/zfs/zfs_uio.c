@@ -209,25 +209,58 @@ uiomove(void *p, size_t n, enum uio_rw rw, struct uio *uio)
 }
 EXPORT_SYMBOL(uiomove);
 
+/*
+ * Fault in the pages of the first n bytes specified by the uio structure.
+ * 1 byte in each page is touched and the uio struct is unmodified. Any
+ * error will terminate the process as this is only a best attempt to get
+ * the pages resident.
+ */
 int
 uio_prefaultpages(ssize_t n, struct uio *uio)
 {
-	struct iov_iter iter, *iterp = NULL;
-
-#if defined(HAVE_IOV_ITER_FAULT_IN_READABLE)
-	if (uio->uio_segflg == UIO_USERSPACE) {
-		iterp = &iter;
-		iov_iter_init_compat(iterp, READ, uio->uio_iov,
-		    uio->uio_iovcnt, uio->uio_resid);
+	if (uio->uio_segflg == UIO_SYSSPACE || uio->uio_segflg == UIO_BVEC) {
+		/* There's never a need to fault in kernel pages */
+		return (0);
 #if defined(HAVE_VFS_IOV_ITER)
 	} else if (uio->uio_segflg == UIO_ITER) {
-		iterp = uio->uio_iter;
+		/*
+		 * At least a Linux 4.9 kernel, iov_iter_fault_in_readable()
+		 * can be relied on to fault in user pages when referenced.
+		 */
+		if (iov_iter_fault_in_readable(uio->uio_iter, n))
+			return (EFAULT);
 #endif
+	} else {
+		/* Fault in all user pages */
+		ASSERT3S(uio->uio_segflg, ==, UIO_USERSPACE);
+		const struct iovec *iov = uio->uio_iov;
+		int iovcnt = uio->uio_iovcnt;
+		size_t skip = uio->uio_skip;
+		uint8_t tmp;
+		caddr_t p;
+
+		for (; n > 0 && iovcnt > 0; iov++, iovcnt--, skip = 0) {
+			ulong_t cnt = MIN(iov->iov_len - skip, n);
+			/* empty iov */
+			if (cnt == 0)
+				continue;
+			n -= cnt;
+			/* touch each page in this segment. */
+			p = iov->iov_base + skip;
+			while (cnt) {
+				if (get_user(tmp, (uint8_t *)p))
+					return (EFAULT);
+				ulong_t incr = MIN(cnt, PAGESIZE);
+				p += incr;
+				cnt -= incr;
+			}
+			/* touch the last byte in case it straddles a page. */
+			p--;
+			if (get_user(tmp, (uint8_t *)p))
+				return (EFAULT);
+		}
 	}
 
-	if (iterp && iov_iter_fault_in_readable(iterp, n))
-		return (EFAULT);
-#endif
 	return (0);
 }
 EXPORT_SYMBOL(uio_prefaultpages);
