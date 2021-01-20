@@ -5,7 +5,7 @@ check() {
 	[ "${1}" = "-d" ] && return 0
 
 	# Verify the zfs tool chain
-	for tool in "@bindir@/zgenhostid" "@sbindir@/zpool" "@sbindir@/zfs" "@mounthelperdir@/mount.zfs" ; do
+	for tool in "@sbindir@/zgenhostid" "@sbindir@/zpool" "@sbindir@/zfs" "@mounthelperdir@/mount.zfs" ; do
 		test -x "$tool" || return 1
 	done
 	# Verify grep exists
@@ -38,7 +38,7 @@ install() {
 	inst_rules @udevruledir@/60-zvol.rules
 	dracut_install hostid
 	dracut_install grep
-	dracut_install @bindir@/zgenhostid
+	dracut_install @sbindir@/zgenhostid
 	dracut_install @sbindir@/zfs
 	dracut_install @sbindir@/zpool
 	# Workaround for https://github.com/openzfs/zfs/issues/4749 by
