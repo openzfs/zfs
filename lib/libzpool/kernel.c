@@ -403,6 +403,71 @@ cv_broadcast(kcondvar_t *cv)
 	VERIFY0(pthread_cond_broadcast(cv));
 }
 
+
+
+/*
+ * Semaphores
+ */
+typedef	sem_t	spl_sem_t;
+
+void
+spl_sem_init(spl_sem_t *sem, int n)
+{
+	VERIFY0(sem_init(sem, 0, n));
+}
+
+void
+spl_sem_destroy(spl_sem_t *sem)
+{
+	VERIFY0(sem_destroy(sem));
+}
+
+void
+spl_sem_wait(spl_sem_t *sem)
+{
+	VERIFY0(sem_wait(sem));
+}
+
+void
+spl_sem_post(spl_sem_t *sem)
+{
+	VERIFY0(sem_post(sem));
+}
+
+/*
+ * Spinlocks
+ */
+
+/*
+ * FIXME maybe define this to be a mutex? would hose the userspace benchmarks
+ * though
+ */
+typedef pthread_spinlock_t	spl_spinlock_t;
+
+void
+spl_spin_init(spl_spinlock_t *l)
+{
+	VERIFY0(pthread_spin_init(l, PTHREAD_PROCESS_PRIVATE));
+}
+
+void
+spl_spin_destroy(spl_spinlock_t *l)
+{
+	VERIFY0(pthread_spin_destroy(l));
+}
+
+void
+spl_spin_lock(spl_spinlock_t *l)
+{
+	VERIFY0(pthread_spin_lock(l));
+}
+
+void
+spl_spin_unlock(spl_spinlock_t *l)
+{
+	VERIFY0(pthread_spin_unlock(l));
+}
+
 /*
  * =========================================================================
  * procfs list

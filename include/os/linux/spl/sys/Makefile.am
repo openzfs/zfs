@@ -32,6 +32,8 @@ KERNEL_H = \
 	sid.h \
 	signal.h \
 	simd.h \
+	spl-sem.h \
+	spl-spinlock.h \
 	stat.h \
 	strings.h \
 	sunddi.h \

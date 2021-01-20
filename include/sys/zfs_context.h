@@ -73,6 +73,8 @@ extern "C" {
 #include <sys/mod.h>
 #include <sys/uio_impl.h>
 #include <sys/zfs_context_os.h>
+#include <sys/spl-sem.h>
+#include <sys/spl-spinlock.h>
 #else /* _KERNEL || _STANDALONE */
 
 #define	_SYS_MUTEX_H
@@ -93,6 +95,7 @@ extern "C" {
 #include <string.h>
 #include <strings.h>
 #include <pthread.h>
+#include <semaphore.h>
 #include <setjmp.h>
 #include <assert.h>
 #include <umem.h>
@@ -341,6 +344,30 @@ extern void cv_broadcast(kcondvar_t *cv);
 	cv_timedwait_hires(cv, mp, t, r, f)
 #define	cv_timedwait_idle_hires(cv, mp, t, r, f) \
 	cv_timedwait_hires(cv, mp, t, r, f)
+
+
+/*
+ * Semaphores
+ */
+typedef	sem_t	spl_sem_t;
+void spl_sem_init(spl_sem_t *sem, int n);
+void spl_sem_destroy(spl_sem_t *sem);
+void spl_sem_wait(spl_sem_t *sem);
+void spl_sem_post(spl_sem_t *sem);
+
+/*
+ * Spinlocks
+ */
+
+/*
+ * FIXME maybe define this to be a mutex? would hose the userspace benchmarks
+ * though
+ */
+typedef pthread_spinlock_t	spl_spinlock_t;
+void spl_spin_init(spl_spinlock_t *l);
+void spl_spin_destroy(spl_spinlock_t *l);
+void spl_spin_lock(spl_spinlock_t *l);
+void spl_spin_unlock(spl_spinlock_t *l);
 
 /*
  * Thread-specific data
