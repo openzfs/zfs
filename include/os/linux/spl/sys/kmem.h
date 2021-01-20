@@ -174,12 +174,16 @@ extern unsigned long long kmem_alloc_max;
 extern unsigned int spl_kmem_alloc_warn;
 extern unsigned int spl_kmem_alloc_max;
 
+#define	kmem_alloc_aligned(sz, al, fl) \
+    spl_kmem_alloc_aligned((sz), (al), (fl), __func__, __LINE__)
 #define	kmem_alloc(sz, fl)	spl_kmem_alloc((sz), (fl), __func__, __LINE__)
 #define	kmem_zalloc(sz, fl)	spl_kmem_zalloc((sz), (fl), __func__, __LINE__)
 #define	kmem_free(ptr, sz)	spl_kmem_free((ptr), (sz))
 #define	kmem_cache_reap_active	spl_kmem_cache_reap_active
 
 extern void *spl_kmem_alloc(size_t sz, int fl, const char *func, int line);
+extern void *spl_kmem_alloc_aligned(size_t sz, size_t al, int fl,
+    const char *func, int line);
 extern void *spl_kmem_zalloc(size_t sz, int fl, const char *func, int line);
 extern void spl_kmem_free(const void *ptr, size_t sz);
 
@@ -195,7 +199,7 @@ extern void spl_kmem_free(const void *ptr, size_t sz);
 /*
  * The following functions are only available for internal use.
  */
-extern void *spl_kmem_alloc_impl(size_t size, int flags, int node);
+extern void *spl_kmem_alloc_impl(size_t size, size_t al, int flags, int node);
 extern void *spl_kmem_alloc_debug(size_t size, int flags, int node);
 extern void *spl_kmem_alloc_track(size_t size, int flags,
     const char *func, int line, int node);

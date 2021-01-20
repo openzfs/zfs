@@ -410,6 +410,7 @@ void procfs_list_add(procfs_list_t *procfs_list, void *p);
 #define	KMC_NODEBUG		UMC_NODEBUG
 #define	KMC_KVMEM		0x0
 #define	kmem_alloc(_s, _f)	umem_alloc(_s, _f)
+#define	kmem_alloc_aligned(_s, _a, _f)	umem_alloc_aligned(_s, _a, _f)
 #define	kmem_zalloc(_s, _f)	umem_zalloc(_s, _f)
 #define	kmem_free(_b, _s)	umem_free(_b, _s)
 #define	vmem_alloc(_s, _f)	kmem_alloc(_s, _f)
