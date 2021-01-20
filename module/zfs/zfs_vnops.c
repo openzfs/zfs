@@ -544,7 +544,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 				 * error, and we may break the loop early.
 				 */
 				if (tx_bytes != zfs_uio_resid(uio))
-					n -= tx_bytes - uio->uio_resid;
+					n -= tx_bytes - zfs_uio_resid(uio);
 				if (zfs_uio_prefaultpages(MIN(n, max_blksz),
 				    uio)) {
 					break;

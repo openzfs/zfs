@@ -1210,7 +1210,7 @@ dmu_read_uio_dnode(dnode_t *dn, zfs_uio_t *uio, uint64_t size)
 /*
  * Read 'size' bytes into the uio buffer.
  * From object zdb->db_object.
- * Starting at offset uio->uio_loffset.
+ * Starting at zfs_uio_offset(uio).
  *
  * If the caller already has a dbuf in the target object
  * (e.g. its bonus buffer), this routine is faster than dmu_read_uio(),
@@ -1237,7 +1237,7 @@ dmu_read_uio_dbuf(dmu_buf_t *zdb, zfs_uio_t *uio, uint64_t size)
 /*
  * Read 'size' bytes into the uio buffer.
  * From the specified object
- * Starting at offset uio->uio_loffset.
+ * Starting at offset zfs_uio_offset(uio).
  */
 int
 dmu_read_uio(objset_t *os, uint64_t object, zfs_uio_t *uio, uint64_t size)
@@ -1314,7 +1314,7 @@ dmu_write_uio_dnode(dnode_t *dn, zfs_uio_t *uio, uint64_t size, dmu_tx_t *tx)
 /*
  * Write 'size' bytes from the uio buffer.
  * To object zdb->db_object.
- * Starting at offset uio->uio_loffset.
+ * Starting at offset zfs_uio_offset(uio).
  *
  * If the caller already has a dbuf in the target object
  * (e.g. its bonus buffer), this routine is faster than dmu_write_uio(),
@@ -1342,7 +1342,7 @@ dmu_write_uio_dbuf(dmu_buf_t *zdb, zfs_uio_t *uio, uint64_t size,
 /*
  * Write 'size' bytes from the uio buffer.
  * To the specified object.
- * Starting at offset uio->uio_loffset.
+ * Starting at offset zfs_uio_offset(uio).
  */
 int
 dmu_write_uio(objset_t *os, uint64_t object, zfs_uio_t *uio, uint64_t size,
