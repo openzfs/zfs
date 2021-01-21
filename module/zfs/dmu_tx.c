@@ -230,9 +230,6 @@ dmu_tx_count_write(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 
 	(void) zfs_refcount_add_many(&txh->txh_space_towrite, len, FTAG);
 
-	if (zfs_refcount_count(&txh->txh_space_towrite) > 2 * DMU_MAX_ACCESS)
-		err = SET_ERROR(EFBIG);
-
 	if (dn == NULL)
 		return;
 

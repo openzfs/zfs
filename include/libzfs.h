@@ -557,7 +557,7 @@ extern void zfs_prune_proplist(zfs_handle_t *, uint8_t *);
 /*
  * zpool property management
  */
-extern int zpool_expand_proplist(zpool_handle_t *, zprop_list_t **);
+extern int zpool_expand_proplist(zpool_handle_t *, zprop_list_t **, boolean_t);
 extern int zpool_prop_get_feature(zpool_handle_t *, const char *, char *,
     size_t);
 extern const char *zpool_prop_default_string(zpool_prop_t);

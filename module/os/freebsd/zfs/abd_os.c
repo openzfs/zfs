@@ -106,13 +106,13 @@ abd_free_chunk(void *c)
 	kmem_cache_free(abd_chunk_cache, c);
 }
 
-static size_t
+static uint_t
 abd_chunkcnt_for_bytes(size_t size)
 {
 	return (P2ROUNDUP(size, zfs_abd_chunk_size) / zfs_abd_chunk_size);
 }
 
-static inline size_t
+static inline uint_t
 abd_scatter_chunkcnt(abd_t *abd)
 {
 	ASSERT(!abd_is_linear(abd));
@@ -129,7 +129,7 @@ abd_size_alloc_linear(size_t size)
 void
 abd_update_scatter_stats(abd_t *abd, abd_stats_op_t op)
 {
-	size_t n = abd_scatter_chunkcnt(abd);
+	uint_t n = abd_scatter_chunkcnt(abd);
 	ASSERT(op == ABDSTAT_INCR || op == ABDSTAT_DECR);
 	int waste = n * zfs_abd_chunk_size - abd->abd_size;
 	if (op == ABDSTAT_INCR) {
@@ -161,25 +161,28 @@ abd_update_linear_stats(abd_t *abd, abd_stats_op_t op)
 void
 abd_verify_scatter(abd_t *abd)
 {
+	uint_t i, n;
+
 	/*
 	 * There is no scatter linear pages in FreeBSD so there is an
 	 * if an error if the ABD has been marked as a linear page.
 	 */
-	VERIFY(!abd_is_linear_page(abd));
+	ASSERT(!abd_is_linear_page(abd));
 	ASSERT3U(ABD_SCATTER(abd).abd_offset, <,
 	    zfs_abd_chunk_size);
-	size_t n = abd_scatter_chunkcnt(abd);
-	for (int i = 0; i < n; i++) {
-		ASSERT3P(
-		    ABD_SCATTER(abd).abd_chunks[i], !=, NULL);
+	n = abd_scatter_chunkcnt(abd);
+	for (i = 0; i < n; i++) {
+		ASSERT3P(ABD_SCATTER(abd).abd_chunks[i], !=, NULL);
 	}
 }
 
 void
 abd_alloc_chunks(abd_t *abd, size_t size)
 {
-	size_t n = abd_chunkcnt_for_bytes(size);
-	for (int i = 0; i < n; i++) {
+	uint_t i, n;
+
+	n = abd_chunkcnt_for_bytes(size);
+	for (i = 0; i < n; i++) {
 		void *c = kmem_cache_alloc(abd_chunk_cache, KM_PUSHPAGE);
 		ASSERT3P(c, !=, NULL);
 		ABD_SCATTER(abd).abd_chunks[i] = c;
@@ -190,16 +193,18 @@ abd_alloc_chunks(abd_t *abd, size_t size)
 void
 abd_free_chunks(abd_t *abd)
 {
-	size_t n = abd_scatter_chunkcnt(abd);
-	for (int i = 0; i < n; i++) {
+	uint_t i, n;
+
+	n = abd_scatter_chunkcnt(abd);
+	for (i = 0; i < n; i++) {
 		abd_free_chunk(ABD_SCATTER(abd).abd_chunks[i]);
 	}
 }
 
 abd_t *
-abd_alloc_struct(size_t size)
+abd_alloc_struct_impl(size_t size)
 {
-	size_t chunkcnt = abd_chunkcnt_for_bytes(size);
+	uint_t chunkcnt = abd_chunkcnt_for_bytes(size);
 	/*
 	 * In the event we are allocating a gang ABD, the size passed in
 	 * will be 0. We must make sure to set abd_size to the size of an
@@ -211,22 +216,18 @@ abd_alloc_struct(size_t size)
 	    offsetof(abd_t, abd_u.abd_scatter.abd_chunks[chunkcnt]));
 	abd_t *abd = kmem_alloc(abd_size, KM_PUSHPAGE);
 	ASSERT3P(abd, !=, NULL);
-	list_link_init(&abd->abd_gang_link);
-	mutex_init(&abd->abd_mtx, NULL, MUTEX_DEFAULT, NULL);
 	ABDSTAT_INCR(abdstat_struct_size, abd_size);
 
 	return (abd);
 }
 
 void
-abd_free_struct(abd_t *abd)
+abd_free_struct_impl(abd_t *abd)
 {
-	size_t chunkcnt = abd_is_linear(abd) || abd_is_gang(abd) ? 0 :
+	uint_t chunkcnt = abd_is_linear(abd) || abd_is_gang(abd) ? 0 :
 	    abd_scatter_chunkcnt(abd);
-	int size = MAX(sizeof (abd_t),
+	ssize_t size = MAX(sizeof (abd_t),
 	    offsetof(abd_t, abd_u.abd_scatter.abd_chunks[chunkcnt]));
-	mutex_destroy(&abd->abd_mtx);
-	ASSERT(!list_link_active(&abd->abd_gang_link));
 	kmem_free(abd, size);
 	ABDSTAT_INCR(abdstat_struct_size, -size);
 }
@@ -238,20 +239,20 @@ abd_free_struct(abd_t *abd)
 static void
 abd_alloc_zero_scatter(void)
 {
-	size_t n = abd_chunkcnt_for_bytes(SPA_MAXBLOCKSIZE);
+	uint_t i, n;
+
+	n = abd_chunkcnt_for_bytes(SPA_MAXBLOCKSIZE);
 	abd_zero_buf = kmem_zalloc(zfs_abd_chunk_size, KM_SLEEP);
 	abd_zero_scatter = abd_alloc_struct(SPA_MAXBLOCKSIZE);
 
-	abd_zero_scatter->abd_flags = ABD_FLAG_OWNER | ABD_FLAG_ZEROS;
+	abd_zero_scatter->abd_flags |= ABD_FLAG_OWNER | ABD_FLAG_ZEROS;
 	abd_zero_scatter->abd_size = SPA_MAXBLOCKSIZE;
-	abd_zero_scatter->abd_parent = NULL;
-	zfs_refcount_create(&abd_zero_scatter->abd_children);
 
 	ABD_SCATTER(abd_zero_scatter).abd_offset = 0;
 	ABD_SCATTER(abd_zero_scatter).abd_chunk_size =
 	    zfs_abd_chunk_size;
 
-	for (int i = 0; i < n; i++) {
+	for (i = 0; i < n; i++) {
 		ABD_SCATTER(abd_zero_scatter).abd_chunks[i] =
 		    abd_zero_buf;
 	}
@@ -263,7 +264,6 @@ abd_alloc_zero_scatter(void)
 static void
 abd_free_zero_scatter(void)
 {
-	zfs_refcount_destroy(&abd_zero_scatter->abd_children);
 	ABDSTAT_BUMPDOWN(abdstat_scatter_cnt);
 	ABDSTAT_INCR(abdstat_scatter_data_size, -(int)zfs_abd_chunk_size);
 
@@ -347,26 +347,34 @@ abd_alloc_scatter_offset_chunkcnt(size_t chunkcnt)
 	return (abd);
 }
 
-void
+abd_t *
 abd_get_offset_scatter(abd_t *abd, abd_t *sabd, size_t off)
 {
-
 	abd_verify(sabd);
 	ASSERT3U(off, <=, sabd->abd_size);
 
 	size_t new_offset = ABD_SCATTER(sabd).abd_offset + off;
-	size_t chunkcnt = abd_scatter_chunkcnt(sabd) -
+	uint_t chunkcnt = abd_scatter_chunkcnt(sabd) -
 	    (new_offset / zfs_abd_chunk_size);
 
-	VERIFY(!"does not work, provided abd struct must be correct size");
-	abd = abd_alloc_scatter_offset_chunkcnt(chunkcnt);
+	/*
+	 * If an abd struct is provided, it is only the minimum size.  If we
+	 * need additional chunks, we need to allocate a new struct.
+	 */
+	if (abd != NULL &&
+	    offsetof(abd_t, abd_u.abd_scatter.abd_chunks[chunkcnt]) >
+	    sizeof (abd_t)) {
+		abd = NULL;
+	}
+
+	if (abd == NULL)
+		abd = abd_alloc_struct(chunkcnt * zfs_abd_chunk_size);
 
 	/*
 	 * Even if this buf is filesystem metadata, we only track that
 	 * if we own the underlying data buffer, which is not true in
 	 * this case. Therefore, we don't ever use ABD_FLAG_META here.
 	 */
-	abd->abd_flags = 0;
 
 	ABD_SCATTER(abd).abd_offset = new_offset % zfs_abd_chunk_size;
 	ABD_SCATTER(abd).abd_chunk_size = zfs_abd_chunk_size;

@@ -376,7 +376,7 @@ error:
 static int
 zio_do_crypt_uio(boolean_t encrypt, uint64_t crypt, crypto_key_t *key,
     crypto_ctx_template_t tmpl, uint8_t *ivbuf, uint_t datalen,
-    uio_t *puio, uio_t *cuio, uint8_t *authbuf, uint_t auth_len)
+    zfs_uio_t *puio, zfs_uio_t *cuio, uint8_t *authbuf, uint_t auth_len)
 {
 	int ret;
 	crypto_data_t plaindata, cipherdata;
@@ -479,7 +479,7 @@ zio_crypt_key_wrap(crypto_key_t *cwkey, zio_crypt_key_t *key, uint8_t *iv,
     uint8_t *mac, uint8_t *keydata_out, uint8_t *hmac_keydata_out)
 {
 	int ret;
-	uio_t puio, cuio;
+	zfs_uio_t puio, cuio;
 	uint64_t aad[3];
 	iovec_t plain_iovecs[2], cipher_iovecs[3];
 	uint64_t crypt = key->zk_crypt;
@@ -495,7 +495,7 @@ zio_crypt_key_wrap(crypto_key_t *cwkey, zio_crypt_key_t *key, uint8_t *iv,
 	if (ret != 0)
 		goto error;
 
-	/* initialize uio_ts */
+	/* initialize zfs_uio_ts */
 	plain_iovecs[0].iov_base = key->zk_master_keydata;
 	plain_iovecs[0].iov_len = keydata_len;
 	plain_iovecs[1].iov_base = key->zk_hmac_keydata;
@@ -550,7 +550,7 @@ zio_crypt_key_unwrap(crypto_key_t *cwkey, uint64_t crypt, uint64_t version,
     uint8_t *mac, zio_crypt_key_t *key)
 {
 	crypto_mechanism_t mech;
-	uio_t puio, cuio;
+	zfs_uio_t puio, cuio;
 	uint64_t aad[3];
 	iovec_t plain_iovecs[2], cipher_iovecs[3];
 	uint_t enc_len, keydata_len, aad_len;
@@ -563,7 +563,7 @@ zio_crypt_key_unwrap(crypto_key_t *cwkey, uint64_t crypt, uint64_t version,
 
 	keydata_len = zio_crypt_table[crypt].ci_keylen;
 
-	/* initialize uio_ts */
+	/* initialize zfs_uio_ts */
 	plain_iovecs[0].iov_base = key->zk_master_keydata;
 	plain_iovecs[0].iov_len = keydata_len;
 	plain_iovecs[1].iov_base = key->zk_hmac_keydata;
@@ -1198,6 +1198,16 @@ zio_crypt_do_objset_hmacs(zio_crypt_key_t *key, void *data, uint_t datalen,
 	bcopy(raw_portable_mac, portable_mac, ZIO_OBJSET_MAC_LEN);
 
 	/*
+	 * This is necessary here as we check next whether
+	 * OBJSET_FLAG_USERACCOUNTING_COMPLETE or
+	 * OBJSET_FLAG_USEROBJACCOUNTING are set in order to
+	 * decide if the local_mac should be zeroed out.
+	 */
+	intval = osp->os_flags;
+	if (should_bswap)
+		intval = BSWAP_64(intval);
+
+	/*
 	 * The local MAC protects the user, group and project accounting.
 	 * If these objects are not present, the local MAC is zeroed out.
 	 */
@@ -1208,7 +1218,10 @@ zio_crypt_do_objset_hmacs(zio_crypt_key_t *key, void *data, uint_t datalen,
 	    (datalen >= OBJSET_PHYS_SIZE_V2 &&
 	    osp->os_userused_dnode.dn_type == DMU_OT_NONE &&
 	    osp->os_groupused_dnode.dn_type == DMU_OT_NONE) ||
-	    (datalen <= OBJSET_PHYS_SIZE_V1)) {
+	    (datalen <= OBJSET_PHYS_SIZE_V1) ||
+	    (((intval & OBJSET_FLAG_USERACCOUNTING_COMPLETE) == 0 ||
+	    (intval & OBJSET_FLAG_USEROBJACCOUNTING_COMPLETE) == 0) &&
+	    key->zk_version > 0)) {
 		bzero(local_mac, ZIO_OBJSET_MAC_LEN);
 		return (0);
 	}
@@ -1283,7 +1296,7 @@ error:
 }
 
 static void
-zio_crypt_destroy_uio(uio_t *uio)
+zio_crypt_destroy_uio(zfs_uio_t *uio)
 {
 	if (uio->uio_iov)
 		kmem_free(uio->uio_iov, uio->uio_iovcnt * sizeof (iovec_t));
@@ -1373,8 +1386,8 @@ zio_crypt_do_indirect_mac_checksum_abd(boolean_t generate, abd_t *abd,
  */
 static int
 zio_crypt_init_uios_zil(boolean_t encrypt, uint8_t *plainbuf,
-    uint8_t *cipherbuf, uint_t datalen, boolean_t byteswap, uio_t *puio,
-    uio_t *cuio, uint_t *enc_len, uint8_t **authbuf, uint_t *auth_len,
+    uint8_t *cipherbuf, uint_t datalen, boolean_t byteswap, zfs_uio_t *puio,
+    zfs_uio_t *cuio, uint_t *enc_len, uint8_t **authbuf, uint_t *auth_len,
     boolean_t *no_crypt)
 {
 	int ret;
@@ -1568,7 +1581,7 @@ error:
 static int
 zio_crypt_init_uios_dnode(boolean_t encrypt, uint64_t version,
     uint8_t *plainbuf, uint8_t *cipherbuf, uint_t datalen, boolean_t byteswap,
-    uio_t *puio, uio_t *cuio, uint_t *enc_len, uint8_t **authbuf,
+    zfs_uio_t *puio, zfs_uio_t *cuio, uint_t *enc_len, uint8_t **authbuf,
     uint_t *auth_len, boolean_t *no_crypt)
 {
 	int ret;
@@ -1751,7 +1764,7 @@ error:
 
 static int
 zio_crypt_init_uios_normal(boolean_t encrypt, uint8_t *plainbuf,
-    uint8_t *cipherbuf, uint_t datalen, uio_t *puio, uio_t *cuio,
+    uint8_t *cipherbuf, uint_t datalen, zfs_uio_t *puio, zfs_uio_t *cuio,
     uint_t *enc_len)
 {
 	int ret;
@@ -1811,8 +1824,8 @@ error:
 static int
 zio_crypt_init_uios(boolean_t encrypt, uint64_t version, dmu_object_type_t ot,
     uint8_t *plainbuf, uint8_t *cipherbuf, uint_t datalen, boolean_t byteswap,
-    uint8_t *mac, uio_t *puio, uio_t *cuio, uint_t *enc_len, uint8_t **authbuf,
-    uint_t *auth_len, boolean_t *no_crypt)
+    uint8_t *mac, zfs_uio_t *puio, zfs_uio_t *cuio, uint_t *enc_len,
+    uint8_t **authbuf, uint_t *auth_len, boolean_t *no_crypt)
 {
 	int ret;
 	iovec_t *mac_iov;
@@ -1871,7 +1884,7 @@ zio_do_crypt_data(boolean_t encrypt, zio_crypt_key_t *key,
 	uint64_t crypt = key->zk_crypt;
 	uint_t keydata_len = zio_crypt_table[crypt].ci_keylen;
 	uint_t enc_len, auth_len;
-	uio_t puio, cuio;
+	zfs_uio_t puio, cuio;
 	uint8_t enc_keydata[MASTER_KEY_MAX_LEN];
 	crypto_key_t tmp_ckey, *ckey = NULL;
 	crypto_ctx_template_t tmpl;
@@ -1937,8 +1950,8 @@ zio_do_crypt_data(boolean_t encrypt, zio_crypt_key_t *key,
 		/* If the hardware implementation fails fall back to software */
 	}
 
-	bzero(&puio, sizeof (uio_t));
-	bzero(&cuio, sizeof (uio_t));
+	bzero(&puio, sizeof (zfs_uio_t));
+	bzero(&cuio, sizeof (zfs_uio_t));
 
 	/* create uios for encryption */
 	ret = zio_crypt_init_uios(encrypt, key->zk_version, ot, plainbuf,

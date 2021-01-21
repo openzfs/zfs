@@ -61,7 +61,7 @@ log_must zfs snapshot $snap2
 
 typeset -i i=0
 while (( i < ${#args[*]} )); do
-	log_must eval "zfs send -i ${args[i]} > /dev/null"
+	log_must eval "zfs send -i ${args[i]} >$TEST_BASE_DIR/devnull"
 
 	(( i += 1 ))
 done

@@ -457,7 +457,7 @@ main(int argc, char *argv[])
 	int failed_tests = 0;
 	struct timeval tp;
 	zfs_btree_t bt;
-	char c;
+	int c;
 
 	while ((c = getopt(argc, argv, "c:l:n:r:st:")) != -1) {
 		switch (c) {

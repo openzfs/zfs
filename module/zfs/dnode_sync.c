@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2020 by Delphix. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  * Copyright 2020 Oxide Computer Company
  */
@@ -851,6 +851,8 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 	/*
 	 * Although we have dropped our reference to the dnode, it
 	 * can't be evicted until its written, and we haven't yet
-	 * initiated the IO for the dnode's dbuf.
+	 * initiated the IO for the dnode's dbuf.  Additionally, the caller
+	 * has already added a reference to the dnode because it's on the
+	 * os_synced_dnodes list.
 	 */
 }

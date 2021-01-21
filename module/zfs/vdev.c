@@ -2655,15 +2655,12 @@ vdev_dtl_contains(vdev_t *vd, vdev_dtl_type_t t, uint64_t txg, uint64_t size)
 
 	/*
 	 * While we are loading the pool, the DTLs have not been loaded yet.
-	 * Ignore the DTLs and try all devices.  This avoids a recursive
-	 * mutex enter on the vdev_dtl_lock, and also makes us try hard
-	 * when loading the pool (relying on the checksum to ensure that
-	 * we get the right data -- note that we while loading, we are
-	 * only reading the MOS, which is always checksummed).
+	 * This isn't a problem but it can result in devices being tried
+	 * which are known to not have the data.  In which case, the import
+	 * is relying on the checksum to ensure that we get the right data.
+	 * Note that while importing we are only reading the MOS, which is
+	 * always checksummed.
 	 */
-	if (vd->vdev_spa->spa_load_state != SPA_LOAD_NONE)
-		return (B_FALSE);
-
 	mutex_enter(&vd->vdev_dtl_lock);
 	if (!range_tree_is_empty(rt))
 		dirty = range_tree_contains(rt, txg, size);
@@ -2981,6 +2978,7 @@ vdev_dtl_load(vdev_t *vd)
 {
 	spa_t *spa = vd->vdev_spa;
 	objset_t *mos = spa->spa_meta_objset;
+	range_tree_t *rt;
 	int error = 0;
 
 	if (vd->vdev_ops->vdev_op_leaf && vd->vdev_dtl_object != 0) {
@@ -2992,10 +2990,17 @@ vdev_dtl_load(vdev_t *vd)
 			return (error);
 		ASSERT(vd->vdev_dtl_sm != NULL);
 
-		mutex_enter(&vd->vdev_dtl_lock);
-		error = space_map_load(vd->vdev_dtl_sm,
-		    vd->vdev_dtl[DTL_MISSING], SM_ALLOC);
-		mutex_exit(&vd->vdev_dtl_lock);
+		rt = range_tree_create(NULL, RANGE_SEG64, NULL, 0, 0);
+		error = space_map_load(vd->vdev_dtl_sm, rt, SM_ALLOC);
+		if (error == 0) {
+			mutex_enter(&vd->vdev_dtl_lock);
+			range_tree_walk(rt, range_tree_add,
+			    vd->vdev_dtl[DTL_MISSING]);
+			mutex_exit(&vd->vdev_dtl_lock);
+		}
+
+		range_tree_vacate(rt, NULL, NULL);
+		range_tree_destroy(rt);
 
 		return (error);
 	}
@@ -4483,8 +4488,7 @@ vdev_stat_update(zio_t *zio, uint64_t psize)
 	if (zio->io_vd == NULL && (zio->io_flags & ZIO_FLAG_DONT_PROPAGATE))
 		return;
 
-	if (spa->spa_load_state == SPA_LOAD_NONE &&
-	    type == ZIO_TYPE_WRITE && txg != 0 &&
+	if (type == ZIO_TYPE_WRITE && txg != 0 &&
 	    (!(flags & ZIO_FLAG_IO_REPAIR) ||
 	    (flags & ZIO_FLAG_SCAN_THREAD) ||
 	    spa->spa_claiming)) {

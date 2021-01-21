@@ -35,55 +35,72 @@
 #include <sys/_uio.h>
 #include <sys/debug.h>
 
-
-
-#define	uio_loffset	uio_offset
-
-typedef	struct uio	uio_t;
 typedef	struct iovec	iovec_t;
-typedef	enum uio_seg	uio_seg_t;
+typedef	enum uio_seg	zfs_uio_seg_t;
+typedef	enum uio_rw	zfs_uio_rw_t;
+
+typedef struct zfs_uio {
+	struct uio	*uio;
+} zfs_uio_t;
+
+#define	GET_UIO_STRUCT(u)	(u)->uio
+#define	zfs_uio_segflg(u)	GET_UIO_STRUCT(u)->uio_segflg
+#define	zfs_uio_offset(u)	GET_UIO_STRUCT(u)->uio_offset
+#define	zfs_uio_resid(u)	GET_UIO_STRUCT(u)->uio_resid
+#define	zfs_uio_iovcnt(u)	GET_UIO_STRUCT(u)->uio_iovcnt
+#define	zfs_uio_iovlen(u, idx)	GET_UIO_STRUCT(u)->uio_iov[(idx)].iov_len
+#define	zfs_uio_iovbase(u, idx)	GET_UIO_STRUCT(u)->uio_iov[(idx)].iov_base
+#define	zfs_uio_td(u)		GET_UIO_STRUCT(u)->uio_td
+#define	zfs_uio_rw(u)		GET_UIO_STRUCT(u)->uio_rw
+#define	zfs_uio_fault_disable(u, set)
+#define	zfs_uio_prefaultpages(size, u)	(0)
+
+
+static __inline void
+zfs_uio_init(zfs_uio_t *uio, struct uio *uio_s)
+{
+	GET_UIO_STRUCT(uio) = uio_s;
+}
+
+static __inline void
+zfs_uio_setoffset(zfs_uio_t *uio, offset_t off)
+{
+	zfs_uio_offset(uio) = off;
+}
 
 static __inline int
-zfs_uiomove(void *cp, size_t n, enum uio_rw dir, uio_t *uio)
+zfs_uiomove(void *cp, size_t n, zfs_uio_rw_t dir, zfs_uio_t *uio)
 {
-
-	ASSERT(uio->uio_rw == dir);
-	return (uiomove(cp, (int)n, uio));
+	ASSERT(zfs_uio_rw(uio) == dir);
+	return (uiomove(cp, (int)n, GET_UIO_STRUCT(uio)));
 }
-#define	uiomove(cp, n, dir, uio)	zfs_uiomove((cp), (n), (dir), (uio))
 
-int uiocopy(void *p, size_t n, enum uio_rw rw, struct uio *uio, size_t *cbytes);
-void uioskip(uio_t *uiop, size_t n);
-
-#define	uio_segflg(uio)			(uio)->uio_segflg
-#define	uio_offset(uio)			(uio)->uio_loffset
-#define	uio_resid(uio)			(uio)->uio_resid
-#define	uio_iovcnt(uio)			(uio)->uio_iovcnt
-#define	uio_iovlen(uio, idx)		(uio)->uio_iov[(idx)].iov_len
-#define	uio_iovbase(uio, idx)		(uio)->uio_iov[(idx)].iov_base
-#define	uio_fault_disable(uio, set)
-#define	uio_prefaultpages(size, uio)	(0)
+int zfs_uiocopy(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio,
+    size_t *cbytes);
+void zfs_uioskip(zfs_uio_t *uiop, size_t n);
+int zfs_uio_fault_move(void *p, size_t n, zfs_uio_rw_t dir, zfs_uio_t *uio);
 
 static inline void
-uio_iov_at_index(uio_t *uio, uint_t idx, void **base, uint64_t *len)
+zfs_uio_iov_at_index(zfs_uio_t *uio, uint_t idx, void **base, uint64_t *len)
 {
-	*base = uio_iovbase(uio, idx);
-	*len = uio_iovlen(uio, idx);
+	*base = zfs_uio_iovbase(uio, idx);
+	*len = zfs_uio_iovlen(uio, idx);
 }
 
 static inline void
-uio_advance(uio_t *uio, size_t size)
+zfs_uio_advance(zfs_uio_t *uio, size_t size)
 {
-	uio->uio_resid -= size;
-	uio->uio_loffset += size;
+	zfs_uio_resid(uio) -= size;
+	zfs_uio_offset(uio) += size;
 }
 
 static inline offset_t
-uio_index_at_offset(uio_t *uio, offset_t off, uint_t *vec_idx)
+zfs_uio_index_at_offset(zfs_uio_t *uio, offset_t off, uint_t *vec_idx)
 {
 	*vec_idx = 0;
-	while (*vec_idx < uio_iovcnt(uio) && off >= uio_iovlen(uio, *vec_idx)) {
-		off -= uio_iovlen(uio, *vec_idx);
+	while (*vec_idx < zfs_uio_iovcnt(uio) &&
+	    off >= zfs_uio_iovlen(uio, *vec_idx)) {
+		off -= zfs_uio_iovlen(uio, *vec_idx);
 		(*vec_idx)++;
 	}
 

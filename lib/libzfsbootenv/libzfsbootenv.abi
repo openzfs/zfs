@@ -1,0 +1,212 @@
+<abi-corpus path='libzfsbootenv.so' architecture='elf-amd-x86_64' soname='libzfsbootenv.so.1'>
+  <elf-needed>
+    <dependency name='libzfs.so.4'/>
+    <dependency name='libzfs_core.so.3'/>
+    <dependency name='libuuid.so.1'/>
+    <dependency name='libblkid.so.1'/>
+    <dependency name='libudev.so.1'/>
+    <dependency name='libuutil.so.3'/>
+    <dependency name='libm.so.6'/>
+    <dependency name='libcrypto.so.1.1'/>
+    <dependency name='libz.so.1'/>
+    <dependency name='libnvpair.so.3'/>
+    <dependency name='libtirpc.so.3'/>
+    <dependency name='libpthread.so.0'/>
+    <dependency name='libc.so.6'/>
+  </elf-needed>
+  <elf-function-symbols>
+    <elf-symbol name='lzbe_add_pair' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='lzbe_bootenv_print' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='lzbe_get_boot_device' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='lzbe_nvlist_free' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='lzbe_nvlist_get' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='lzbe_nvlist_set' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='lzbe_remove_pair' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='lzbe_set_boot_device' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+  </elf-function-symbols>
+  <abi-instr version='1.0' address-size='64' path='lzbe_device.c' comp-dir-path='/home/fedora/zfs/lib/libzfsbootenv' language='LANG_C99'>
+    <type-decl name='char' size-in-bits='8' id='type-id-1'/>
+    <type-decl name='int' size-in-bits='32' id='type-id-2'/>
+    <type-decl name='unnamed-enum-underlying-type' is-anonymous='yes' size-in-bits='32' alignment-in-bits='32' id='type-id-3'/>
+    <typedef-decl name='lzbe_flags_t' type-id='type-id-4' filepath='../../include/libzfsbootenv.h' line='26' column='1' id='type-id-5'/>
+    <enum-decl name='lzbe_flags' filepath='../../include/libzfsbootenv.h' line='23' column='1' id='type-id-4'>
+      <underlying-type type-id='type-id-3'/>
+      <enumerator name='lzbe_add' value='0'/>
+      <enumerator name='lzbe_replace' value='1'/>
+    </enum-decl>
+    <pointer-type-def type-id='type-id-1' size-in-bits='64' id='type-id-6'/>
+    <pointer-type-def type-id='type-id-6' size-in-bits='64' id='type-id-7'/>
+    <qualified-type-def type-id='type-id-1' const='yes' id='type-id-8'/>
+    <pointer-type-def type-id='type-id-8' size-in-bits='64' id='type-id-9'/>
+    <function-decl name='lzbe_get_boot_device' mangled-name='lzbe_get_boot_device' filepath='/home/fedora/zfs/lib/libzfsbootenv/lzbe_device.c' line='114' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzbe_get_boot_device'>
+      <parameter type-id='type-id-9' name='pool' filepath='/home/fedora/zfs/lib/libzfsbootenv/lzbe_device.c' line='114' column='1'/>
+      <parameter type-id='type-id-7' name='device' filepath='/home/fedora/zfs/lib/libzfsbootenv/lzbe_device.c' line='114' column='1'/>
+      <return type-id='type-id-2'/>
+    </function-decl>
+    <function-decl name='lzbe_set_boot_device' mangled-name='lzbe_set_boot_device' filepath='/home/fedora/zfs/lib/libzfsbootenv/lzbe_device.c' line='28' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzbe_set_boot_device'>
+      <parameter type-id='type-id-9' name='pool' filepath='/home/fedora/zfs/lib/libzfsbootenv/lzbe_device.c' line='28' column='1'/>
+      <parameter type-id='type-id-5' name='flag' filepath='/home/fedora/zfs/lib/libzfsbootenv/lzbe_device.c' line='28' column='1'/>
+      <parameter type-id='type-id-9' name='device' filepath='/home/fedora/zfs/lib/libzfsbootenv/lzbe_device.c' line='28' column='1'/>
+      <return type-id='type-id-2'/>
+    </function-decl>
+  </abi-instr>
+  <abi-instr version='1.0' address-size='64' path='lzbe_pair.c' comp-dir-path='/home/fedora/zfs/lib/libzfsbootenv' language='LANG_C99'>
+    <type-decl name='unsigned long int' size-in-bits='64' id='type-id-10'/>
+    <type-decl name='void' id='type-id-11'/>
+    <typedef-decl name='size_t' type-id='type-id-10' filepath='/usr/lib/gcc/x86_64-redhat-linux/10/include/stddef.h' line='209' column='1' id='type-id-12'/>
+    <pointer-type-def type-id='type-id-11' size-in-bits='64' id='type-id-13'/>
+    <pointer-type-def type-id='type-id-13' size-in-bits='64' id='type-id-14'/>
+    <function-decl name='lzbe_remove_pair' mangled-name='lzbe_remove_pair' filepath='/home/fedora/zfs/lib/libzfsbootenv/lzbe_pair.c' line='343' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzbe_remove_pair'>
+      <parameter type-id='type-id-13' name='ptr' filepath='/home/fedora/zfs/lib/libzfsbootenv/lzbe_pair.c' line='343' column='1'/>
+      <parameter type-id='type-id-9' name='key' filepath='/home/fedora/zfs/lib/libzfsbootenv/lzbe_pair.c' line='343' column='1'/>
+      <return type-id='type-id-2'/>
+    </function-decl>
+    <function-decl name='lzbe_add_pair' mangled-name='lzbe_add_pair' filepath='/home/fedora/zfs/lib/libzfsbootenv/lzbe_pair.c' line='182' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzbe_add_pair'>
+      <parameter type-id='type-id-13' name='ptr' filepath='/home/fedora/zfs/lib/libzfsbootenv/lzbe_pair.c' line='182' column='1'/>
+      <parameter type-id='type-id-9' name='key' filepath='/home/fedora/zfs/lib/libzfsbootenv/lzbe_pair.c' line='182' column='1'/>
+      <parameter type-id='type-id-9' name='type' filepath='/home/fedora/zfs/lib/libzfsbootenv/lzbe_pair.c' line='182' column='1'/>
+      <parameter type-id='type-id-13' name='value' filepath='/home/fedora/zfs/lib/libzfsbootenv/lzbe_pair.c' line='182' column='1'/>
+      <parameter type-id='type-id-12' name='size' filepath='/home/fedora/zfs/lib/libzfsbootenv/lzbe_pair.c' line='183' column='1'/>
+      <return type-id='type-id-2'/>
+    </function-decl>
+    <function-decl name='lzbe_nvlist_free' mangled-name='lzbe_nvlist_free' filepath='/home/fedora/zfs/lib/libzfsbootenv/lzbe_pair.c' line='131' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzbe_nvlist_free'>
+      <parameter type-id='type-id-13' name='ptr' filepath='/home/fedora/zfs/lib/libzfsbootenv/lzbe_pair.c' line='131' column='1'/>
+      <return type-id='type-id-11'/>
+    </function-decl>
+    <function-decl name='lzbe_nvlist_set' mangled-name='lzbe_nvlist_set' filepath='/home/fedora/zfs/lib/libzfsbootenv/lzbe_pair.c' line='74' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzbe_nvlist_set'>
+      <parameter type-id='type-id-9' name='pool' filepath='/home/fedora/zfs/lib/libzfsbootenv/lzbe_pair.c' line='74' column='1'/>
+      <parameter type-id='type-id-9' name='key' filepath='/home/fedora/zfs/lib/libzfsbootenv/lzbe_pair.c' line='74' column='1'/>
+      <parameter type-id='type-id-13' name='ptr' filepath='/home/fedora/zfs/lib/libzfsbootenv/lzbe_pair.c' line='74' column='1'/>
+      <return type-id='type-id-2'/>
+    </function-decl>
+    <function-decl name='lzbe_nvlist_get' mangled-name='lzbe_nvlist_get' filepath='/home/fedora/zfs/lib/libzfsbootenv/lzbe_pair.c' line='27' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzbe_nvlist_get'>
+      <parameter type-id='type-id-9' name='pool' filepath='/home/fedora/zfs/lib/libzfsbootenv/lzbe_pair.c' line='27' column='1'/>
+      <parameter type-id='type-id-9' name='key' filepath='/home/fedora/zfs/lib/libzfsbootenv/lzbe_pair.c' line='27' column='1'/>
+      <parameter type-id='type-id-14' name='ptr' filepath='/home/fedora/zfs/lib/libzfsbootenv/lzbe_pair.c' line='27' column='1'/>
+      <return type-id='type-id-2'/>
+    </function-decl>
+  </abi-instr>
+  <abi-instr version='1.0' address-size='64' path='lzbe_util.c' comp-dir-path='/home/fedora/zfs/lib/libzfsbootenv' language='LANG_C99'>
+
+
+    <array-type-def dimensions='1' type-id='type-id-1' size-in-bits='8' id='type-id-15'>
+      <subrange length='1' type-id='type-id-10' id='type-id-16'/>
+
+    </array-type-def>
+    <array-type-def dimensions='1' type-id='type-id-1' size-in-bits='160' id='type-id-17'>
+      <subrange length='20' type-id='type-id-10' id='type-id-18'/>
+
+    </array-type-def>
+    <class-decl name='_IO_codecvt' is-struct='yes' visibility='default' is-declaration-only='yes' id='type-id-19'/>
+    <class-decl name='_IO_marker' is-struct='yes' visibility='default' is-declaration-only='yes' id='type-id-20'/>
+    <class-decl name='_IO_wide_data' is-struct='yes' visibility='default' is-declaration-only='yes' id='type-id-21'/>
+    <type-decl name='long int' size-in-bits='64' id='type-id-22'/>
+    <type-decl name='signed char' size-in-bits='8' id='type-id-23'/>
+    <type-decl name='unsigned short int' size-in-bits='16' id='type-id-24'/>
+    <typedef-decl name='FILE' type-id='type-id-25' filepath='/usr/include/bits/types/FILE.h' line='7' column='1' id='type-id-26'/>
+    <class-decl name='_IO_FILE' size-in-bits='1728' is-struct='yes' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='49' column='1' id='type-id-25'>
+      <data-member access='public' layout-offset-in-bits='0'>
+        <var-decl name='_flags' type-id='type-id-2' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='51' column='1'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='64'>
+        <var-decl name='_IO_read_ptr' type-id='type-id-6' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='54' column='1'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='128'>
+        <var-decl name='_IO_read_end' type-id='type-id-6' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='55' column='1'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='192'>
+        <var-decl name='_IO_read_base' type-id='type-id-6' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='56' column='1'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='256'>
+        <var-decl name='_IO_write_base' type-id='type-id-6' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='57' column='1'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='320'>
+        <var-decl name='_IO_write_ptr' type-id='type-id-6' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='58' column='1'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='384'>
+        <var-decl name='_IO_write_end' type-id='type-id-6' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='59' column='1'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='448'>
+        <var-decl name='_IO_buf_base' type-id='type-id-6' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='60' column='1'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='512'>
+        <var-decl name='_IO_buf_end' type-id='type-id-6' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='61' column='1'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='576'>
+        <var-decl name='_IO_save_base' type-id='type-id-6' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='64' column='1'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='640'>
+        <var-decl name='_IO_backup_base' type-id='type-id-6' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='65' column='1'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='704'>
+        <var-decl name='_IO_save_end' type-id='type-id-6' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='66' column='1'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='768'>
+        <var-decl name='_markers' type-id='type-id-27' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='68' column='1'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='832'>
+        <var-decl name='_chain' type-id='type-id-28' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='70' column='1'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='896'>
+        <var-decl name='_fileno' type-id='type-id-2' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='72' column='1'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='928'>
+        <var-decl name='_flags2' type-id='type-id-2' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='73' column='1'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='960'>
+        <var-decl name='_old_offset' type-id='type-id-29' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='74' column='1'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='1024'>
+        <var-decl name='_cur_column' type-id='type-id-24' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='77' column='1'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='1040'>
+        <var-decl name='_vtable_offset' type-id='type-id-23' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='78' column='1'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='1048'>
+        <var-decl name='_shortbuf' type-id='type-id-15' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='79' column='1'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='1088'>
+        <var-decl name='_lock' type-id='type-id-30' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='81' column='1'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='1152'>
+        <var-decl name='_offset' type-id='type-id-31' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='89' column='1'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='1216'>
+        <var-decl name='_codecvt' type-id='type-id-32' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='91' column='1'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='1280'>
+        <var-decl name='_wide_data' type-id='type-id-33' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='92' column='1'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='1344'>
+        <var-decl name='_freeres_list' type-id='type-id-28' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='93' column='1'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='1408'>
+        <var-decl name='_freeres_buf' type-id='type-id-13' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='94' column='1'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='1472'>
+        <var-decl name='__pad5' type-id='type-id-12' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='95' column='1'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='1536'>
+        <var-decl name='_mode' type-id='type-id-2' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='96' column='1'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='1568'>
+        <var-decl name='_unused2' type-id='type-id-17' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='98' column='1'/>
+      </data-member>
+    </class-decl>
+    <typedef-decl name='__off_t' type-id='type-id-22' filepath='/usr/include/bits/types.h' line='152' column='1' id='type-id-29'/>
+    <typedef-decl name='_IO_lock_t' type-id='type-id-11' filepath='/usr/include/bits/types/struct_FILE.h' line='43' column='1' id='type-id-34'/>
+    <typedef-decl name='__off64_t' type-id='type-id-22' filepath='/usr/include/bits/types.h' line='153' column='1' id='type-id-31'/>
+    <pointer-type-def type-id='type-id-26' size-in-bits='64' id='type-id-35'/>
+    <pointer-type-def type-id='type-id-25' size-in-bits='64' id='type-id-28'/>
+    <pointer-type-def type-id='type-id-19' size-in-bits='64' id='type-id-32'/>
+    <pointer-type-def type-id='type-id-34' size-in-bits='64' id='type-id-30'/>
+    <pointer-type-def type-id='type-id-20' size-in-bits='64' id='type-id-27'/>
+    <pointer-type-def type-id='type-id-21' size-in-bits='64' id='type-id-33'/>
+    <function-decl name='lzbe_bootenv_print' mangled-name='lzbe_bootenv_print' filepath='/home/fedora/zfs/lib/libzfsbootenv/lzbe_util.c' line='24' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzbe_bootenv_print'>
+      <parameter type-id='type-id-9' name='pool' filepath='/home/fedora/zfs/lib/libzfsbootenv/lzbe_util.c' line='24' column='1'/>
+      <parameter type-id='type-id-9' name='nvlist' filepath='/home/fedora/zfs/lib/libzfsbootenv/lzbe_util.c' line='24' column='1'/>
+      <parameter type-id='type-id-35' name='of' filepath='/home/fedora/zfs/lib/libzfsbootenv/lzbe_util.c' line='24' column='1'/>
+      <return type-id='type-id-2'/>
+    </function-decl>
+  </abi-instr>
+</abi-corpus>

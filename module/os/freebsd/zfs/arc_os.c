@@ -243,3 +243,13 @@ arc_lowmem_fini(void)
 	if (arc_event_lowmem != NULL)
 		EVENTHANDLER_DEREGISTER(vm_lowmem, arc_event_lowmem);
 }
+
+void
+arc_register_hotplug(void)
+{
+}
+
+void
+arc_unregister_hotplug(void)
+{
+}

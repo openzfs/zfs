@@ -179,7 +179,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLK_QUEUE_FLUSH], [
 	], [
 		struct request_queue *q = NULL;
 		(void) blk_queue_flush(q, REQ_FLUSH);
-	], [$NO_UNUSED_BUT_SET_VARIABLE], [$ZFS_META_LICENSE])
+	], [$NO_UNUSED_BUT_SET_VARIABLE], [ZFS_META_LICENSE])
 
 	ZFS_LINUX_TEST_SRC([blk_queue_write_cache], [
 		#include <linux/kernel.h>
@@ -187,7 +187,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLK_QUEUE_FLUSH], [
 	], [
 		struct request_queue *q = NULL;
 		blk_queue_write_cache(q, true, true);
-	], [$NO_UNUSED_BUT_SET_VARIABLE], [$ZFS_META_LICENSE])
+	], [$NO_UNUSED_BUT_SET_VARIABLE], [ZFS_META_LICENSE])
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_BLK_QUEUE_FLUSH], [

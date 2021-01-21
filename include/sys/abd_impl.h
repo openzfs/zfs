@@ -32,6 +32,10 @@
 extern "C" {
 #endif
 
+typedef enum abd_stats_op {
+	ABDSTAT_INCR, /* Increase abdstat values */
+	ABDSTAT_DECR  /* Decrease abdstat values */
+} abd_stats_op_t;
 
 struct scatterlist; /* forward declaration */
 
@@ -51,14 +55,16 @@ struct abd_iter {
 extern abd_t *abd_zero_scatter;
 
 abd_t *abd_gang_get_offset(abd_t *, size_t *);
+abd_t *abd_alloc_struct(size_t);
+void abd_free_struct(abd_t *);
 
 /*
  * OS specific functions
  */
 
-abd_t *abd_alloc_struct(size_t);
-void abd_get_offset_scatter(abd_t *, abd_t *, size_t);
-void abd_free_struct(abd_t *);
+abd_t *abd_alloc_struct_impl(size_t);
+abd_t *abd_get_offset_scatter(abd_t *, abd_t *, size_t);
+void abd_free_struct_impl(abd_t *);
 void abd_alloc_chunks(abd_t *, size_t);
 void abd_free_chunks(abd_t *);
 boolean_t abd_size_alloc_linear(size_t);

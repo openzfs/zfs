@@ -144,13 +144,14 @@ pretty_print = True
 
 
 if sys.platform.startswith('freebsd'):
-    # Requires py27-sysctl on FreeBSD
+    # Requires py-sysctl on FreeBSD
     import sysctl
 
     def kstat_update():
         global kstat
 
-        k = sysctl.filter('kstat.zfs.misc.arcstats')
+        k = [ctl for ctl in sysctl.filter('kstat.zfs.misc.arcstats')
+             if ctl.type != sysctl.CTLTYPE_NODE]
 
         if not k:
             sys.exit(1)

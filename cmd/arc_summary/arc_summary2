@@ -59,14 +59,20 @@ if sys.platform.startswith('freebsd'):
     # Requires py27-sysctl on FreeBSD
     import sysctl
 
+    def is_value(ctl):
+        return ctl.type != sysctl.CTLTYPE_NODE
+
     def load_kstats(namespace):
         """Collect information on a specific subsystem of the ARC"""
 
         base = 'kstat.zfs.misc.%s.' % namespace
-        return [(kstat.name, D(kstat.value)) for kstat in sysctl.filter(base)]
+        fmt = lambda kstat: (kstat.name, D(kstat.value))
+        kstats = sysctl.filter(base)
+        return [fmt(kstat) for kstat in kstats if is_value(kstat)]
 
     def load_tunables():
-        return dict((ctl.name, ctl.value) for ctl in sysctl.filter('vfs.zfs'))
+        ctls = sysctl.filter('vfs.zfs')
+        return dict((ctl.name, ctl.value) for ctl in ctls if is_value(ctl))
 
 elif sys.platform.startswith('linux'):
 

@@ -290,7 +290,7 @@ zfs_file_private(zfs_file_t *fp)
 int
 zfs_file_unlink(const char *fnamep)
 {
-	enum uio_seg seg = UIO_SYSSPACE;
+	zfs_uio_seg_t seg = UIO_SYSSPACE;
 	int rc;
 
 #if __FreeBSD_version >= 1300018

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 . /lib/dracut-zfs-lib.sh
 

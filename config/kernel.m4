@@ -61,8 +61,7 @@ AC_DEFUN([ZFS_AC_KERNEL_TEST_SRC], [
 	ZFS_AC_KERNEL_SRC_BIO
 	ZFS_AC_KERNEL_SRC_BLKDEV
 	ZFS_AC_KERNEL_SRC_BLK_QUEUE
-	ZFS_AC_KERNEL_SRC_GET_DISK_AND_MODULE
-	ZFS_AC_KERNEL_SRC_REVALIDATE_DISK_SIZE
+	ZFS_AC_KERNEL_SRC_REVALIDATE_DISK
 	ZFS_AC_KERNEL_SRC_GET_DISK_RO
 	ZFS_AC_KERNEL_SRC_GENERIC_READLINK_GLOBAL
 	ZFS_AC_KERNEL_SRC_DISCARD_GRANULARITY
@@ -106,6 +105,7 @@ AC_DEFUN([ZFS_AC_KERNEL_TEST_SRC], [
 	ZFS_AC_KERNEL_SRC_VFS_DIRECT_IO
 	ZFS_AC_KERNEL_SRC_VFS_RW_ITERATE
 	ZFS_AC_KERNEL_SRC_VFS_GENERIC_WRITE_CHECKS
+	ZFS_AC_KERNEL_SRC_VFS_IOV_ITER
 	ZFS_AC_KERNEL_SRC_KMAP_ATOMIC_ARGS
 	ZFS_AC_KERNEL_SRC_FOLLOW_DOWN_ONE
 	ZFS_AC_KERNEL_SRC_MAKE_REQUEST_FN
@@ -124,6 +124,7 @@ AC_DEFUN([ZFS_AC_KERNEL_TEST_SRC], [
 	ZFS_AC_KERNEL_SRC_TOTALHIGH_PAGES
 	ZFS_AC_KERNEL_SRC_KSTRTOUL
 	ZFS_AC_KERNEL_SRC_PERCPU
+	ZFS_AC_KERNEL_SRC_CPU_HOTPLUG
 
 	AC_MSG_CHECKING([for available kernel interfaces])
 	ZFS_LINUX_TEST_COMPILE_ALL([kabi])
@@ -158,8 +159,7 @@ AC_DEFUN([ZFS_AC_KERNEL_TEST_RESULT], [
 	ZFS_AC_KERNEL_BIO
 	ZFS_AC_KERNEL_BLKDEV
 	ZFS_AC_KERNEL_BLK_QUEUE
-	ZFS_AC_KERNEL_GET_DISK_AND_MODULE
-	ZFS_AC_KERNEL_REVALIDATE_DISK_SIZE
+	ZFS_AC_KERNEL_REVALIDATE_DISK
 	ZFS_AC_KERNEL_GET_DISK_RO
 	ZFS_AC_KERNEL_GENERIC_READLINK_GLOBAL
 	ZFS_AC_KERNEL_DISCARD_GRANULARITY
@@ -203,6 +203,7 @@ AC_DEFUN([ZFS_AC_KERNEL_TEST_RESULT], [
 	ZFS_AC_KERNEL_VFS_DIRECT_IO
 	ZFS_AC_KERNEL_VFS_RW_ITERATE
 	ZFS_AC_KERNEL_VFS_GENERIC_WRITE_CHECKS
+	ZFS_AC_KERNEL_VFS_IOV_ITER
 	ZFS_AC_KERNEL_KMAP_ATOMIC_ARGS
 	ZFS_AC_KERNEL_FOLLOW_DOWN_ONE
 	ZFS_AC_KERNEL_MAKE_REQUEST_FN
@@ -221,6 +222,7 @@ AC_DEFUN([ZFS_AC_KERNEL_TEST_RESULT], [
 	ZFS_AC_KERNEL_TOTALHIGH_PAGES
 	ZFS_AC_KERNEL_KSTRTOUL
 	ZFS_AC_KERNEL_PERCPU
+	ZFS_AC_KERNEL_CPU_HOTPLUG
 ])
 
 dnl #
@@ -320,19 +322,15 @@ AC_DEFUN([ZFS_AC_KERNEL], [
 	utsrelease2=$kernelbuild/include/linux/utsrelease.h
 	utsrelease3=$kernelbuild/include/generated/utsrelease.h
 	AS_IF([test -r $utsrelease1 && fgrep -q UTS_RELEASE $utsrelease1], [
-		utsrelease=linux/version.h
+		utsrelease=$utsrelease1
 	], [test -r $utsrelease2 && fgrep -q UTS_RELEASE $utsrelease2], [
-		utsrelease=linux/utsrelease.h
+		utsrelease=$utsrelease2
 	], [test -r $utsrelease3 && fgrep -q UTS_RELEASE $utsrelease3], [
-		utsrelease=generated/utsrelease.h
+		utsrelease=$utsrelease3
 	])
 
-	AS_IF([test "$utsrelease"], [
-		kernsrcver=`(echo "#include <$utsrelease>";
-		             echo "kernsrcver=UTS_RELEASE") |
-		             ${CPP} -I $kernelbuild/include - |
-		             grep "^kernsrcver=" | cut -d \" -f 2`
-
+	AS_IF([test -n "$utsrelease"], [
+		kernsrcver=$($AWK '/UTS_RELEASE/ { gsub(/"/, "", $[3]); print $[3] }' $utsrelease)
 		AS_IF([test -z "$kernsrcver"], [
 			AC_MSG_RESULT([Not found])
 			AC_MSG_ERROR([
@@ -539,7 +537,9 @@ dnl #
 dnl # ZFS_LINUX_TEST_PROGRAM(C)([PROLOGUE], [BODY])
 dnl #
 m4_define([ZFS_LINUX_TEST_PROGRAM], [
+#include <linux/module.h>
 $1
+
 int
 main (void)
 {
@@ -547,6 +547,11 @@ $2
 	;
 	return 0;
 }
+
+MODULE_DESCRIPTION("conftest");
+MODULE_AUTHOR(ZFS_META_AUTHOR);
+MODULE_VERSION(ZFS_META_VERSION "-" ZFS_META_RELEASE);
+MODULE_LICENSE($3);
 ])
 
 dnl #
@@ -686,19 +691,21 @@ dnl # $3 - source
 dnl # $4 - extra cflags
 dnl # $5 - check license-compatibility
 dnl #
+dnl # Check if the test source is buildable at all and then if it is
+dnl # license compatible.
+dnl #
 dnl # N.B because all of the test cases are compiled in parallel they
 dnl # must never depend on the results of previous tests.  Each test
 dnl # needs to be entirely independent.
 dnl #
 AC_DEFUN([ZFS_LINUX_TEST_SRC], [
-	ZFS_LINUX_CONFTEST_C([ZFS_LINUX_TEST_PROGRAM([[$2]], [[$3]])], [$1])
+	ZFS_LINUX_CONFTEST_C([ZFS_LINUX_TEST_PROGRAM([[$2]], [[$3]],
+	    [["Dual BSD/GPL"]])], [$1])
 	ZFS_LINUX_CONFTEST_MAKEFILE([$1], [yes], [$4])
 
 	AS_IF([ test -n "$5" ], [
-		ZFS_LINUX_CONFTEST_C([ZFS_LINUX_TEST_PROGRAM([[
-			#include <linux/module.h>
-			MODULE_LICENSE("$5");
-			$2]], [[$3]])], [$1_license])
+		ZFS_LINUX_CONFTEST_C([ZFS_LINUX_TEST_PROGRAM(
+		    [[$2]], [[$3]], [[$5]])], [$1_license])
 		ZFS_LINUX_CONFTEST_MAKEFILE([$1_license], [yes], [$4])
 	])
 ])
@@ -788,11 +795,13 @@ dnl #
 AC_DEFUN([ZFS_LINUX_TRY_COMPILE], [
 	AS_IF([test "x$enable_linux_builtin" = "xyes"], [
 		ZFS_LINUX_COMPILE_IFELSE(
-		    [ZFS_LINUX_TEST_PROGRAM([[$1]], [[$2]])],
+		    [ZFS_LINUX_TEST_PROGRAM([[$1]], [[$2]],
+		    [[ZFS_META_LICENSE]])],
 		    [test -f build/conftest/conftest.o], [$3], [$4])
 	], [
 		ZFS_LINUX_COMPILE_IFELSE(
-		    [ZFS_LINUX_TEST_PROGRAM([[$1]], [[$2]])],
+		    [ZFS_LINUX_TEST_PROGRAM([[$1]], [[$2]],
+		    [[ZFS_META_LICENSE]])],
 		    [test -f build/conftest/conftest.ko], [$3], [$4])
 	])
 ])
@@ -858,7 +867,7 @@ dnl # provided via the fifth parameter
 dnl #
 AC_DEFUN([ZFS_LINUX_TRY_COMPILE_HEADER], [
 	ZFS_LINUX_COMPILE_IFELSE(
-	    [ZFS_LINUX_TEST_PROGRAM([[$1]], [[$2]])],
+	    [ZFS_LINUX_TEST_PROGRAM([[$1]], [[$2]], [[ZFS_META_LICENSE]])],
 	    [test -f build/conftest/conftest.ko],
 	    [$3], [$4], [$5])
 ])

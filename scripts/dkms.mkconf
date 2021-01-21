@@ -22,6 +22,7 @@ cat >${filename} <<EOF
 PACKAGE_NAME="${pkgname}"
 PACKAGE_VERSION="${pkgver}"
 PACKAGE_CONFIG="${pkgcfg}"
+NO_WEAK_MODULES="yes"
 PRE_BUILD="configure
   --prefix=/usr
   --with-config=kernel

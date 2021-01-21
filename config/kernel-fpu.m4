@@ -42,7 +42,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_FPU], [
 	], [
 		kernel_fpu_begin();
 		kernel_fpu_end();
-	], [], [$ZFS_META_LICENSE])
+	], [], [ZFS_META_LICENSE])
 
 	ZFS_LINUX_TEST_SRC([__kernel_fpu], [
 		#include <linux/types.h>
@@ -55,7 +55,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_FPU], [
 	], [
 		__kernel_fpu_begin();
 		__kernel_fpu_end();
-	], [], [$ZFS_META_LICENSE])
+	], [], [ZFS_META_LICENSE])
 
 	ZFS_LINUX_TEST_SRC([fpu_internal], [
 		#if defined(__x86_64) || defined(__x86_64__) || \

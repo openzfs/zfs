@@ -1,4 +1,5 @@
 include $(top_srcdir)/config/Rules.am
+PHONY =
 
 VPATH = \
 	$(top_srcdir)/module/icp \
@@ -12,6 +13,8 @@ AM_CFLAGS += $(LIBCRYPTO_CFLAGS) $(ZLIB_CFLAGS)
 pkgconfig_DATA = libzfs.pc
 
 lib_LTLIBRARIES = libzfs.la
+
+include $(top_srcdir)/config/Abigail.am
 
 USER_C = \
 	libzfs_changelist.c \
@@ -58,7 +61,6 @@ KERNEL_C = \
 	zfs_fletcher_superscalar4.c \
 	zfs_namecheck.c \
 	zfs_prop.c \
-	zfs_uio.c \
 	zpool_prop.c \
 	zprop_common.c
 
@@ -88,5 +90,8 @@ endif
 
 libzfs_la_LDFLAGS += -version-info 4:0:0
 
+# Library ABI
+EXTRA_DIST = libzfs.abi libzfs.suppr
+
 # Licensing data
-EXTRA_DIST = THIRDPARTYLICENSE.openssl THIRDPARTYLICENSE.openssl.descrip
+EXTRA_DIST += THIRDPARTYLICENSE.openssl THIRDPARTYLICENSE.openssl.descrip

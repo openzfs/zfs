@@ -64,7 +64,7 @@ nvlist_t *split_mirror_vdev(zpool_handle_t *zhp, char *newname,
  * Pool list functions
  */
 int for_each_pool(int, char **, boolean_t unavail, zprop_list_t **,
-    zpool_iter_f, void *);
+    boolean_t, zpool_iter_f, void *);
 
 /* Vdev list functions */
 typedef int (*pool_vdev_iter_f)(zpool_handle_t *, nvlist_t *, void *);
@@ -72,7 +72,7 @@ int for_each_vdev(zpool_handle_t *zhp, pool_vdev_iter_f func, void *data);
 
 typedef struct zpool_list zpool_list_t;
 
-zpool_list_t *pool_list_get(int, char **, zprop_list_t **, int *);
+zpool_list_t *pool_list_get(int, char **, zprop_list_t **, boolean_t, int *);
 void pool_list_update(zpool_list_t *);
 int pool_list_iter(zpool_list_t *, int unavail, zpool_iter_f, void *);
 void pool_list_free(zpool_list_t *);

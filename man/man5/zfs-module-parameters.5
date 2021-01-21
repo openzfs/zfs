@@ -382,6 +382,20 @@ Default value: \fB16,777,217\fR.
 .sp
 .ne 2
 .na
+\fBzfs_history_output_max\fR (int)
+.ad
+.RS 12n
+When attempting to log the output nvlist of an ioctl in the on-disk history, the
+output will not be stored if it is larger than size (in bytes). This must be
+less then DMU_MAX_ACCESS (64MB). This applies primarily to
+zfs_ioc_channel_program().
+.sp
+Default value: \fB1MB\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_keep_log_spacemaps_at_export\fR (int)
 .ad
 .RS 12n
@@ -510,6 +524,40 @@ its memory with range trees. This tunable sets the percentage of total system
 memory that is the threshold.
 .sp
 Default value: \fB25 percent\fR
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_metaslab_try_hard_before_gang\fR (int)
+.ad
+.RS 12n
+If not set (the default), we will first try normal allocation.
+If that fails then we will do a gang allocation.
+If that fails then we will do a "try hard" gang allocation.
+If that fails then we will have a multi-layer gang block.
+.sp
+If set, we will first try normal allocation.
+If that fails then we will do a "try hard" allocation.
+If that fails we will do a gang allocation.
+If that fails we will do a "try hard" gang allocation.
+If that fails then we will have a multi-layer gang block.
+.sp
+Default value: \fB0 (false)\fR
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_metaslab_find_max_tries\fR (int)
+.ad
+.RS 12n
+When not trying hard, we only consider this number of the best metaslabs.
+This improves performance, especially when there are many metaslabs per vdev
+and the allocation can't actually be satisfied (so we would otherwise iterate
+all the metaslabs).
+.sp
+Default value: \fB100\fR
 .RE
 
 .sp
@@ -2015,8 +2063,7 @@ Default value: \fB1\fR.
 .ad
 .RS 12n
 The maximum number of I/Os active to each device.  Ideally, this will be >=
-the sum of each queue's max_active.  It must be at least the sum of each
-queue's min_active.  See the section "ZFS I/O SCHEDULER".
+the sum of each queue's max_active.  See the section "ZFS I/O SCHEDULER".
 .sp
 Default value: \fB1,000\fR.
 .RE
@@ -2163,6 +2210,42 @@ Minimum trim/discard I/Os active to each device.
 See the section "ZFS I/O SCHEDULER".
 .sp
 Default value: \fB1\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_nia_delay\fR (int)
+.ad
+.RS 12n
+For non-interactive I/O (scrub, resilver, removal, initialize and rebuild),
+the number of concurrently-active I/O's is limited to *_min_active, unless
+the vdev is "idle".  When there are no interactive I/Os active (sync or
+async), and zfs_vdev_nia_delay I/Os have completed since the last
+interactive I/O, then the vdev is considered to be "idle", and the number
+of concurrently-active non-interactive I/O's is increased to *_max_active.
+See the section "ZFS I/O SCHEDULER".
+.sp
+Default value: \fB5\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_vdev_nia_credit\fR (int)
+.ad
+.RS 12n
+Some HDDs tend to prioritize sequential I/O so high, that concurrent
+random I/O latency reaches several seconds.  On some HDDs it happens
+even if sequential I/Os are submitted one at a time, and so setting
+*_max_active to 1 does not help.  To prevent non-interactive I/Os, like
+scrub, from monopolizing the device no more than zfs_vdev_nia_credit
+I/Os can be sent while there are outstanding incomplete interactive
+I/Os.  This enforced wait ensures the HDD services the interactive I/O
+within a reasonable amount of time.
+See the section "ZFS I/O SCHEDULER".
+.sp
+Default value: \fB5\fR.
 .RE
 
 .sp

@@ -103,7 +103,7 @@ set -A badargs \
 
 while (( i < ${#badargs[*]} ))
 do
-	log_mustnot eval "zfs send --saved ${badargs[i]} >/dev/null"
+	log_mustnot eval "zfs send --saved ${badargs[i]} >$TEST_BASE_DIR/devnull"
 	(( i = i + 1 ))
 done
 

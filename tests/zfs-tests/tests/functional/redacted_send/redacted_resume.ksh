@@ -81,7 +81,7 @@ log_must eval "zfs send --redact book1 $sendfs@snap >$stream"
 dd if=$stream bs=64k count=1 | log_mustnot zfs receive -s $recvfs
 [[ "-" = $(get_prop receive_resume_token $recvfs) ]] && \
     log_fail "Receive token not found."
-log_mustnot eval "zfs send --saved --redact book1 $recvfs > /dev/null"
+log_mustnot eval "zfs send --saved --redact book1 $recvfs >$TEST_BASE_DIR/devnull"
 log_must zfs recv -A $recvfs
 log_must datasetnonexists $recvfs
 

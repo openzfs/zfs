@@ -591,7 +591,7 @@ zpool_feature_init(void)
 	}
 
 	zfeature_register(SPA_FEATURE_DRAID,
-	    "org.openzfs:draid", "draid", "Support for distributed parity RAID",
+	    "org.openzfs:draid", "draid", "Support for distributed spare RAID",
 	    ZFEATURE_FLAG_MOS, ZFEATURE_TYPE_BOOLEAN, NULL);
 }
 

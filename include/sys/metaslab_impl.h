@@ -137,6 +137,29 @@ typedef enum trace_alloc_type {
 #define	WEIGHT_SET_COUNT(weight, x)		BF64_SET((weight), 0, 54, x)
 
 /*
+ * Per-allocator data structure.
+ */
+typedef struct metaslab_class_allocator {
+	metaslab_group_t	*mca_rotor;
+	uint64_t		mca_aliquot;
+
+	/*
+	 * The allocation throttle works on a reservation system. Whenever
+	 * an asynchronous zio wants to perform an allocation it must
+	 * first reserve the number of blocks that it wants to allocate.
+	 * If there aren't sufficient slots available for the pending zio
+	 * then that I/O is throttled until more slots free up. The current
+	 * number of reserved allocations is maintained by the mca_alloc_slots
+	 * refcount. The mca_alloc_max_slots value determines the maximum
+	 * number of allocations that the system allows. Gang blocks are
+	 * allowed to reserve slots even if we've reached the maximum
+	 * number of allocations allowed.
+	 */
+	uint64_t		mca_alloc_max_slots;
+	zfs_refcount_t		mca_alloc_slots;
+} metaslab_class_allocator_t;
+
+/*
  * A metaslab class encompasses a category of allocatable top-level vdevs.
  * Each top-level vdev is associated with a metaslab group which defines
  * the allocatable region for that vdev. Examples of these categories include
@@ -145,7 +168,7 @@ typedef enum trace_alloc_type {
  * When a block allocation is requested from the SPA it is associated with a
  * metaslab_class_t, and only top-level vdevs (i.e. metaslab groups) belonging
  * to the class can be used to satisfy that request. Allocations are done
- * by traversing the metaslab groups that are linked off of the mc_rotor field.
+ * by traversing the metaslab groups that are linked off of the mca_rotor field.
  * This rotor points to the next metaslab group where allocations will be
  * attempted. Allocating a block is a 3 step process -- select the metaslab
  * group, select the metaslab, and then allocate the block. The metaslab
@@ -156,9 +179,7 @@ typedef enum trace_alloc_type {
 struct metaslab_class {
 	kmutex_t		mc_lock;
 	spa_t			*mc_spa;
-	metaslab_group_t	*mc_rotor;
 	metaslab_ops_t		*mc_ops;
-	uint64_t		mc_aliquot;
 
 	/*
 	 * Track the number of metaslab groups that have been initialized
@@ -173,21 +194,6 @@ struct metaslab_class {
 	 */
 	boolean_t		mc_alloc_throttle_enabled;
 
-	/*
-	 * The allocation throttle works on a reservation system. Whenever
-	 * an asynchronous zio wants to perform an allocation it must
-	 * first reserve the number of blocks that it wants to allocate.
-	 * If there aren't sufficient slots available for the pending zio
-	 * then that I/O is throttled until more slots free up. The current
-	 * number of reserved allocations is maintained by the mc_alloc_slots
-	 * refcount. The mc_alloc_max_slots value determines the maximum
-	 * number of allocations that the system allows. Gang blocks are
-	 * allowed to reserve slots even if we've reached the maximum
-	 * number of allocations allowed.
-	 */
-	uint64_t		*mc_alloc_max_slots;
-	zfs_refcount_t		*mc_alloc_slots;
-
 	uint64_t		mc_alloc_groups; /* # of allocatable groups */
 
 	uint64_t		mc_alloc;	/* total allocated space */
@@ -201,6 +207,8 @@ struct metaslab_class {
 	 * recent use.
 	 */
 	multilist_t		*mc_metaslab_txg_list;
+
+	metaslab_class_allocator_t	mc_allocator[];
 };
 
 /*
@@ -258,7 +266,7 @@ struct metaslab_group {
 	 *
 	 * Each allocator in each metaslab group has a current queue depth
 	 * (mg_alloc_queue_depth[allocator]) and a current max queue depth
-	 * (mg_cur_max_alloc_queue_depth[allocator]), and each metaslab group
+	 * (mga_cur_max_alloc_queue_depth[allocator]), and each metaslab group
 	 * has an absolute max queue depth (mg_max_alloc_queue_depth).  We
 	 * add IOs to an allocator until the mg_alloc_queue_depth for that
 	 * allocator hits the cur_max. Every time an IO completes for a given
@@ -271,8 +279,7 @@ struct metaslab_group {
 	 * groups are unable to handle their share of allocations.
 	 */
 	uint64_t		mg_max_alloc_queue_depth;
-	int			mg_allocators;
-	metaslab_group_allocator_t *mg_allocator; /* array */
+
 	/*
 	 * A metalab group that can no longer allocate the minimum block
 	 * size will set mg_no_free_space. Once a metaslab group is out
@@ -290,6 +297,9 @@ struct metaslab_group {
 	boolean_t		mg_disabled_updating;
 	kmutex_t		mg_ms_disabled_lock;
 	kcondvar_t		mg_ms_disabled_cv;
+
+	int			mg_allocators;
+	metaslab_group_allocator_t	mg_allocator[];
 };
 
 /*

@@ -41,11 +41,11 @@ deb-utils: deb-local rpm-utils-initramfs
 	arch=`$(RPM) -qp $${name}-$${version}.src.rpm --qf %{arch} | tail -1`; \
 	debarch=`$(DPKG) --print-architecture`; \
 	pkg1=$${name}-$${version}.$${arch}.rpm; \
-	pkg2=libnvpair1-$${version}.$${arch}.rpm; \
-	pkg3=libuutil1-$${version}.$${arch}.rpm; \
-	pkg4=libzfs2-$${version}.$${arch}.rpm; \
-	pkg5=libzpool2-$${version}.$${arch}.rpm; \
-	pkg6=libzfs2-devel-$${version}.$${arch}.rpm; \
+	pkg2=libnvpair3-$${version}.$${arch}.rpm; \
+	pkg3=libuutil3-$${version}.$${arch}.rpm; \
+	pkg4=libzfs4-$${version}.$${arch}.rpm; \
+	pkg5=libzpool4-$${version}.$${arch}.rpm; \
+	pkg6=libzfs4-devel-$${version}.$${arch}.rpm; \
 	pkg7=$${name}-test-$${version}.$${arch}.rpm; \
 	pkg8=$${name}-dracut-$${version}.noarch.rpm; \
 	pkg9=$${name}-initramfs-$${version}.$${arch}.rpm; \
@@ -53,10 +53,10 @@ deb-utils: deb-local rpm-utils-initramfs
 ## Arguments need to be passed to dh_shlibdeps. Alien provides no mechanism
 ## to do this, so we install a shim onto the path which calls the real
 ## dh_shlibdeps with the required arguments.
-	path_prepend=`mktemp -d /tmp/intercept.XXX`; \
+	path_prepend=`mktemp -d /tmp/intercept.XXXXXX`; \
 	echo "#$(SHELL)" > $${path_prepend}/dh_shlibdeps; \
 	echo "`which dh_shlibdeps` -- \
-	 -xlibuutil1linux -xlibnvpair1linux -xlibzfs2linux -xlibzpool2linux" \
+	 -xlibuutil3linux -xlibnvpair3linux -xlibzfs4linux -xlibzpool4linux" \
 	 >> $${path_prepend}/dh_shlibdeps; \
 ## These -x arguments are passed to dpkg-shlibdeps, which exclude the
 ## Debianized packages from the auto-generated dependencies of the new debs,

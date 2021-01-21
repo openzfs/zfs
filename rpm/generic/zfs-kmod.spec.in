@@ -88,10 +88,6 @@ BuildRequires:  %{_bindir}/kmodtool
 %global __global_ldflags %{nil}
 %endif
 
-%if 0%{?fedora} >= 17
-%define prefix  /usr
-%endif
-
 # Kmodtool does its magic here.  A patched version of kmodtool is shipped
 # with the source rpm until kmod development packages are supported upstream.
 # https://bugzilla.rpmfusion.org/show_bug.cgi?id=2714

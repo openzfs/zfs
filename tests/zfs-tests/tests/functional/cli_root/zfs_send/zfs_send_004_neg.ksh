@@ -96,7 +96,7 @@ log_must zfs snapshot $snap3
 typeset -i i=0
 while (( i < ${#badargs[*]} ))
 do
-	log_mustnot eval "zfs send ${badargs[i]} >/dev/null"
+	log_mustnot eval "zfs send ${badargs[i]} >$TEST_BASE_DIR/devnull"
 
 	(( i = i + 1 ))
 done

@@ -84,6 +84,8 @@ typedef struct taskq {
 	int			tq_nthreads;	/* # of existing threads */
 	int			tq_nspawn;	/* # of threads being spawned */
 	int			tq_maxthreads;	/* # of threads maximum */
+	/* If PERCPU flag is set, percent of NCPUs to have as threads */
+	int			tq_cpu_pct;
 	int			tq_pri;		/* priority */
 	int			tq_minalloc;	/* min taskq_ent_t pool size */
 	int			tq_maxalloc;	/* max taskq_ent_t pool size */
@@ -99,6 +101,9 @@ typedef struct taskq {
 	spl_wait_queue_head_t	tq_work_waitq;	/* new work waitq */
 	spl_wait_queue_head_t	tq_wait_waitq;	/* wait waitq */
 	tq_lock_role_t		tq_lock_class;	/* class when taking tq_lock */
+	/* list node for the cpu hotplug callback */
+	struct hlist_node	tq_hp_cb_node;
+	boolean_t		tq_hp_support;
 } taskq_t;
 
 typedef struct taskq_ent {

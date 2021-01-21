@@ -188,7 +188,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BIO_SET_DEV], [
 		struct block_device *bdev = NULL;
 		struct bio *bio = NULL;
 		bio_set_dev(bio, bdev);
-	], [], [$ZFS_META_LICENSE])
+	], [], [ZFS_META_LICENSE])
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_BIO_SET_DEV], [
@@ -347,7 +347,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKG_TRYGET], [
 		struct blkcg_gq blkg __attribute__ ((unused)) = {};
 		bool rc __attribute__ ((unused));
 		rc = blkg_tryget(&blkg);
-	], [], [$ZFS_META_LICENSE])
+	], [], [ZFS_META_LICENSE])
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_BLKG_TRYGET], [

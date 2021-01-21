@@ -13,7 +13,7 @@ FSLIST="${FSLIST_DIR}/${ZEVENT_POOL}"
 [ -f "${ZED_ZEDLET_DIR}/zed.rc" ] && . "${ZED_ZEDLET_DIR}/zed.rc"
 . "${ZED_ZEDLET_DIR}/zed-functions.sh"
 
-zed_exit_if_ignoring_this_event
+[ "$ZEVENT_SUBCLASS" != "history_event" ] && exit 0
 zed_check_cmd "${ZFS}" sort diff grep
 
 # If we are acting on a snapshot, we have nothing to do

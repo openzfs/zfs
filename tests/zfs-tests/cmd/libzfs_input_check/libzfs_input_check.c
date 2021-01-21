@@ -796,7 +796,7 @@ zfs_ioc_input_tests(const char *pool)
 	(void) snprintf(clonesnap, sizeof (clonesnap), "%s@snap", clone);
 	(void) snprintf(backup, sizeof (backup), "%s/backup", pool);
 
-	err = lzc_create(dataset, DMU_OST_ZFS, NULL, NULL, 0);
+	err = lzc_create(dataset, LZC_DATSET_TYPE_ZFS, NULL, NULL, -1);
 	if (err) {
 		(void) fprintf(stderr, "could not create '%s': %s\n",
 		    dataset, strerror(errno));

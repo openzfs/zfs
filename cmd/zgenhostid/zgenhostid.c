@@ -47,10 +47,10 @@ usage(void)
 	    "  -h\t\t print this usage and exit\n"
 	    "  -o <filename>\t write hostid to this file\n\n"
 	    "If hostid file is not present, store a hostid in it.\n"
-	    "The optional value must be an 8-digit hex number between"
-	    "1 and 2^32-1.\n"
-	    "If no value is provided, a random one will"
-	    "be generated.\n"
+	    "The optional value should be an 8-digit hex number between"
+	    " 1 and 2^32-1.\n"
+	    "If the value is 0 or no value is provided, a random one"
+	    " will be generated.\n"
 	    "The value must be unique among your systems.\n");
 	exit(EXIT_FAILURE);
 	/* NOTREACHED */
@@ -108,7 +108,7 @@ main(int argc, char **argv)
 			exit(EXIT_FAILURE);
 		}
 
-		if (input_i < 0x1 || input_i > UINT32_MAX) {
+		if (input_i > UINT32_MAX) {
 			fprintf(stderr, "%s\n", strerror(ERANGE));
 			usage();
 		}

@@ -19,7 +19,6 @@ $(MODULE)-objs += zfs_fletcher_superscalar.o
 $(MODULE)-objs += zfs_fletcher_superscalar4.o
 $(MODULE)-objs += zfs_namecheck.o
 $(MODULE)-objs += zfs_prop.o
-$(MODULE)-objs += zfs_uio.o
 $(MODULE)-objs += zpool_prop.o
 $(MODULE)-objs += zprop_common.o
 

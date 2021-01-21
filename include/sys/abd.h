@@ -35,9 +35,6 @@
 extern "C" {
 #endif
 
-struct abd; /* forward declaration */
-typedef struct abd abd_t;
-
 typedef enum abd_flags {
 	ABD_FLAG_LINEAR		= 1 << 0, /* is buffer linear (or scattered)? */
 	ABD_FLAG_OWNER		= 1 << 1, /* does it own its data buffers? */
@@ -48,14 +45,10 @@ typedef enum abd_flags {
 	ABD_FLAG_GANG		= 1 << 6, /* mult ABDs chained together */
 	ABD_FLAG_GANG_FREE	= 1 << 7, /* gang ABD is responsible for mem */
 	ABD_FLAG_ZEROS		= 1 << 8, /* ABD for zero-filled buffer */
+	ABD_FLAG_ALLOCD		= 1 << 9, /* we allocated the abd_t */
 } abd_flags_t;
 
-typedef enum abd_stats_op {
-	ABDSTAT_INCR, /* Increase abdstat values */
-	ABDSTAT_DECR  /* Decrease abdstat values */
-} abd_stats_op_t;
-
-struct abd {
+typedef struct abd {
 	abd_flags_t	abd_flags;
 	uint_t		abd_size;	/* excludes scattered abd_offset */
 	list_node_t	abd_gang_link;
@@ -67,7 +60,7 @@ struct abd {
 			uint_t		abd_offset;
 #if defined(__FreeBSD__) && defined(_KERNEL)
 			uint_t  abd_chunk_size;
-			void    *abd_chunks[];
+			void    *abd_chunks[1]; /* actually variable-length */
 #else
 			uint_t		abd_nents;
 			struct scatterlist *abd_sgl;
@@ -81,7 +74,7 @@ struct abd {
 			list_t abd_gang_chain;
 		} abd_gang;
 	} abd_u;
-};
+} abd_t;
 
 typedef int abd_iter_func_t(void *buf, size_t len, void *priv);
 typedef int abd_iter_func2_t(void *bufa, void *bufb, size_t len, void *priv);
@@ -94,16 +87,14 @@ extern int zfs_abd_scatter_enabled;
 
 abd_t *abd_alloc(size_t, boolean_t);
 abd_t *abd_alloc_linear(size_t, boolean_t);
-abd_t *abd_alloc_gang_abd(void);
+abd_t *abd_alloc_gang(void);
 abd_t *abd_alloc_for_io(size_t, boolean_t);
 abd_t *abd_alloc_sametype(abd_t *, size_t);
 void abd_gang_add(abd_t *, abd_t *, boolean_t);
 void abd_free(abd_t *);
-void abd_put(abd_t *);
-void abd_put_impl(abd_t *);
 abd_t *abd_get_offset(abd_t *, size_t);
 abd_t *abd_get_offset_size(abd_t *, size_t, size_t);
-abd_t *abd_get_offset_impl(abd_t *, abd_t *, size_t, size_t);
+abd_t *abd_get_offset_struct(abd_t *, abd_t *, size_t, size_t);
 abd_t *abd_get_zeros(size_t);
 abd_t *abd_get_from_buf(void *, size_t);
 void abd_cache_reap_now(void);
@@ -134,7 +125,6 @@ int abd_cmp(abd_t *, abd_t *);
 int abd_cmp_buf_off(abd_t *, const void *, size_t, size_t);
 void abd_zero_off(abd_t *, size_t, size_t);
 void abd_verify(abd_t *);
-uint_t abd_get_size(abd_t *);
 
 void abd_raidz_gen_iterate(abd_t **cabds, abd_t *dabd,
 	ssize_t csize, ssize_t dsize, const unsigned parity,
@@ -185,11 +175,26 @@ abd_zero(abd_t *abd, size_t size)
 static inline boolean_t
 abd_is_linear(abd_t *abd)
 {
-	return ((abd->abd_flags & ABD_FLAG_LINEAR) != 0 ? B_TRUE : B_FALSE);
+	return ((abd->abd_flags & ABD_FLAG_LINEAR) != 0);
 }
 
-boolean_t abd_is_gang(abd_t *);
-boolean_t abd_is_linear_page(abd_t *);
+static inline boolean_t
+abd_is_linear_page(abd_t *abd)
+{
+	return ((abd->abd_flags & ABD_FLAG_LINEAR_PAGE) != 0);
+}
+
+static inline boolean_t
+abd_is_gang(abd_t *abd)
+{
+	return ((abd->abd_flags & ABD_FLAG_GANG) != 0);
+}
+
+static inline uint_t
+abd_get_size(abd_t *abd)
+{
+	return (abd->abd_size);
+}
 
 /*
  * Module lifecycle

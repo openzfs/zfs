@@ -1561,33 +1561,6 @@ dsl_bookmark_latest_txg(dsl_dataset_t *ds)
 	return (dbn->dbn_phys.zbm_creation_txg);
 }
 
-static inline unsigned int
-redact_block_buf_num_entries(unsigned int size)
-{
-	return (size / sizeof (redact_block_phys_t));
-}
-
-/*
- * This function calculates the offset of the last entry in the array of
- * redact_block_phys_t.  If we're reading the redaction list into buffers of
- * size bufsize, then for all but the last buffer, the last valid entry in the
- * array will be the last entry in the array.  However, for the last buffer, any
- * amount of it may be filled.  Thus, we check to see if we're looking at the
- * last buffer in the redaction list, and if so, we return the total number of
- * entries modulo the number of entries per buffer.  Otherwise, we return the
- * number of entries per buffer minus one.
- */
-static inline unsigned int
-last_entry(redaction_list_t *rl, unsigned int bufsize, uint64_t bufid)
-{
-	if (bufid == (rl->rl_phys->rlp_num_entries - 1) /
-	    redact_block_buf_num_entries(bufsize)) {
-		return ((rl->rl_phys->rlp_num_entries - 1) %
-		    redact_block_buf_num_entries(bufsize));
-	}
-	return (redact_block_buf_num_entries(bufsize) - 1);
-}
-
 /*
  * Compare the redact_block_phys_t to the bookmark. If the last block in the
  * redact_block_phys_t is before the bookmark, return -1.  If the first block in
@@ -1633,8 +1606,6 @@ dsl_redaction_list_traverse(redaction_list_t *rl, zbookmark_phys_t *resume,
     rl_traverse_callback_t cb, void *arg)
 {
 	objset_t *mos = rl->rl_mos;
-	redact_block_phys_t *buf;
-	unsigned int bufsize = SPA_OLD_MAXBLOCKSIZE;
 	int err = 0;
 
 	if (rl->rl_phys->rlp_last_object != UINT64_MAX ||
@@ -1651,42 +1622,48 @@ dsl_redaction_list_traverse(redaction_list_t *rl, zbookmark_phys_t *resume,
 	}
 
 	/*
-	 * Binary search for the point to resume from.  The goal is to minimize
-	 * the number of disk reads we have to perform.
+	 * This allows us to skip the binary search and resume checking logic
+	 * below, if we're not resuming a redacted send.
 	 */
-	buf = zio_data_buf_alloc(bufsize);
-	uint64_t maxbufid = (rl->rl_phys->rlp_num_entries - 1) /
-	    redact_block_buf_num_entries(bufsize);
-	uint64_t minbufid = 0;
-	while (resume != NULL && maxbufid - minbufid >= 1) {
-		ASSERT3U(maxbufid, >, minbufid);
-		uint64_t midbufid = minbufid + ((maxbufid - minbufid) / 2);
-		err = dmu_read(mos, rl->rl_object, midbufid * bufsize, bufsize,
-		    buf, DMU_READ_NO_PREFETCH);
+	if (ZB_IS_ZERO(resume))
+		resume = NULL;
+
+	/*
+	 * Binary search for the point to resume from.
+	 */
+	uint64_t maxidx = rl->rl_phys->rlp_num_entries - 1;
+	uint64_t minidx = 0;
+	while (resume != NULL && maxidx > minidx) {
+		redact_block_phys_t rbp = { 0 };
+		ASSERT3U(maxidx, >, minidx);
+		uint64_t mididx = minidx + ((maxidx - minidx) / 2);
+		err = dmu_read(mos, rl->rl_object, mididx * sizeof (rbp),
+		    sizeof (rbp), &rbp, DMU_READ_NO_PREFETCH);
 		if (err != 0)
 			break;
 
-		int cmp0 = redact_block_zb_compare(&buf[0], resume);
-		int cmpn = redact_block_zb_compare(
-		    &buf[last_entry(rl, bufsize, maxbufid)], resume);
+		int cmp = redact_block_zb_compare(&rbp, resume);
 
-		/*
-		 * If the first block is before or equal to the resume point,
-		 * and the last one is equal or after, then the resume point is
-		 * in this buf, and we should start here.
-		 */
-		if (cmp0 <= 0 && cmpn >= 0)
+		if (cmp == 0) {
+			minidx = mididx;
 			break;
-
-		if (cmp0 > 0)
-			maxbufid = midbufid - 1;
-		else if (cmpn < 0)
-			minbufid = midbufid + 1;
-		else
-			panic("No progress in binary search for resume point");
+		} else if (cmp > 0) {
+			maxidx =
+			    (mididx == minidx ? minidx : mididx - 1);
+		} else {
+			minidx = mididx + 1;
+		}
 	}
 
-	for (uint64_t curidx = minbufid * redact_block_buf_num_entries(bufsize);
+	unsigned int bufsize = SPA_OLD_MAXBLOCKSIZE;
+	redact_block_phys_t *buf = zio_data_buf_alloc(bufsize);
+
+	unsigned int entries_per_buf = bufsize / sizeof (redact_block_phys_t);
+	uint64_t start_block = minidx / entries_per_buf;
+	err = dmu_read(mos, rl->rl_object, start_block * bufsize, bufsize, buf,
+	    DMU_READ_PREFETCH);
+
+	for (uint64_t curidx = minidx;
 	    err == 0 && curidx < rl->rl_phys->rlp_num_entries;
 	    curidx++) {
 		/*
@@ -1696,22 +1673,35 @@ dsl_redaction_list_traverse(redaction_list_t *rl, zbookmark_phys_t *resume,
 		 * prefetching, and this code shouldn't be the bottleneck, so we
 		 * don't need to do manual prefetching.
 		 */
-		if (curidx % redact_block_buf_num_entries(bufsize) == 0) {
+		if (curidx % entries_per_buf == 0) {
 			err = dmu_read(mos, rl->rl_object, curidx *
 			    sizeof (*buf), bufsize, buf,
 			    DMU_READ_PREFETCH);
 			if (err != 0)
 				break;
 		}
-		redact_block_phys_t *rb = &buf[curidx %
-		    redact_block_buf_num_entries(bufsize)];
+		redact_block_phys_t *rb = &buf[curidx % entries_per_buf];
 		/*
 		 * If resume is non-null, we should either not send the data, or
 		 * null out resume so we don't have to keep doing these
 		 * comparisons.
 		 */
 		if (resume != NULL) {
+			/*
+			 * It is possible that after the binary search we got
+			 * a record before the resume point. There's two cases
+			 * where this can occur. If the record is the last
+			 * redaction record, and the resume point is after the
+			 * end of the redacted data, curidx will be the last
+			 * redaction record. In that case, the loop will end
+			 * after this iteration. The second case is if the
+			 * resume point is between two redaction records, the
+			 * binary search can return either the record before
+			 * or after the resume point. In that case, the next
+			 * iteration will be greater than the resume point.
+			 */
 			if (redact_block_zb_compare(rb, resume) < 0) {
+				ASSERT3U(curidx, ==, minidx);
 				continue;
 			} else {
 				/*
@@ -1733,8 +1723,10 @@ dsl_redaction_list_traverse(redaction_list_t *rl, zbookmark_phys_t *resume,
 			}
 		}
 
-		if (cb(rb, arg) != 0)
+		if (cb(rb, arg) != 0) {
+			err = EINTR;
 			break;
+		}
 	}
 
 	zio_data_buf_free(buf, bufsize);

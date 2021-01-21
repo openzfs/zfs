@@ -54,7 +54,8 @@ instead of default
 .It Ar hostid
 Specifies the value to be placed in
 .Pa /etc/hostid .
-It must be a number with a value between 1 and 2^32-1.
+It should be a number with a value between 1 and 2^32-1.
+If it is 0, zgenhostid will generate a random hostid.
 This value
 .Sy must
 be unique among your systems.

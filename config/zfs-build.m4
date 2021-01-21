@@ -180,7 +180,7 @@ AC_DEFUN([ZFS_AC_CONFIG], [
 		[Config file 'kernel|user|all|srpm']),
 		[ZFS_CONFIG="$withval"])
 	AC_ARG_ENABLE([linux-builtin],
-		[AC_HELP_STRING([--enable-linux-builtin],
+		[AS_HELP_STRING([--enable-linux-builtin],
 		[Configure for builtin in-tree kernel modules @<:@default=no@:>@])],
 		[],
 		[enable_linux_builtin=no])

@@ -660,7 +660,7 @@ fletcher_4_kstat_addr(kstat_t *ksp, loff_t n)
 	fletcher_4_fastest_impl.compute_ ## type = src->compute_ ## type; \
 }
 
-#define	FLETCHER_4_BENCH_NS	(MSEC2NSEC(50))		/* 50ms */
+#define	FLETCHER_4_BENCH_NS	(MSEC2NSEC(1))		/* 1ms */
 
 typedef void fletcher_checksum_func_t(const void *, uint64_t, const void *,
 					zio_cksum_t *);
@@ -885,23 +885,26 @@ zio_abd_checksum_func_t fletcher_4_abd_ops = {
 	.acf_iter = abd_fletcher_4_iter
 };
 
+#if defined(_KERNEL)
 
-#if defined(_KERNEL) && defined(__linux__)
+#define	IMPL_FMT(impl, i)	(((impl) == (i)) ? "[%s] " : "%s ")
+
+#if defined(__linux__)
 
 static int
 fletcher_4_param_get(char *buffer, zfs_kernel_param_t *unused)
 {
 	const uint32_t impl = IMPL_READ(fletcher_4_impl_chosen);
 	char *fmt;
-	int i, cnt = 0;
+	int cnt = 0;
 
 	/* list fastest */
-	fmt = (impl == IMPL_FASTEST) ? "[%s] " : "%s ";
+	fmt = IMPL_FMT(impl, IMPL_FASTEST);
 	cnt += sprintf(buffer + cnt, fmt, "fastest");
 
 	/* list all supported implementations */
-	for (i = 0; i < fletcher_4_supp_impls_cnt; i++) {
-		fmt = (i == impl) ? "[%s] " : "%s ";
+	for (uint32_t i = 0; i < fletcher_4_supp_impls_cnt; ++i) {
+		fmt = IMPL_FMT(impl, i);
 		cnt += sprintf(buffer + cnt, fmt,
 		    fletcher_4_supp_impls[i]->name);
 	}
@@ -915,14 +918,62 @@ fletcher_4_param_set(const char *val, zfs_kernel_param_t *unused)
 	return (fletcher_4_impl_set(val));
 }
 
+#else
+
+#include <sys/sbuf.h>
+
+static int
+fletcher_4_param(ZFS_MODULE_PARAM_ARGS)
+{
+	int err;
+
+	if (req->newptr == NULL) {
+		const uint32_t impl = IMPL_READ(fletcher_4_impl_chosen);
+		const int init_buflen = 64;
+		const char *fmt;
+		struct sbuf *s;
+
+		s = sbuf_new_for_sysctl(NULL, NULL, init_buflen, req);
+
+		/* list fastest */
+		fmt = IMPL_FMT(impl, IMPL_FASTEST);
+		(void) sbuf_printf(s, fmt, "fastest");
+
+		/* list all supported implementations */
+		for (uint32_t i = 0; i < fletcher_4_supp_impls_cnt; ++i) {
+			fmt = IMPL_FMT(impl, i);
+			(void) sbuf_printf(s, fmt,
+			    fletcher_4_supp_impls[i]->name);
+		}
+
+		err = sbuf_finish(s);
+		sbuf_delete(s);
+
+		return (err);
+	}
+
+	char buf[16];
+
+	err = sysctl_handle_string(oidp, buf, sizeof (buf), req);
+	if (err)
+		return (err);
+	return (-fletcher_4_impl_set(buf));
+}
+
+#endif
+
+#undef IMPL_FMT
+
 /*
  * Choose a fletcher 4 implementation in ZFS.
  * Users can choose "cycle" to exercise all implementations, but this is
  * for testing purpose therefore it can only be set in user space.
  */
-module_param_call(zfs_fletcher_4_impl,
-    fletcher_4_param_set, fletcher_4_param_get, NULL, 0644);
-MODULE_PARM_DESC(zfs_fletcher_4_impl, "Select fletcher 4 implementation.");
+/* BEGIN CSTYLED */
+ZFS_MODULE_VIRTUAL_PARAM_CALL(zfs, zfs_, fletcher_4_impl,
+	fletcher_4_param_set, fletcher_4_param_get, ZMOD_RW,
+	"Select fletcher 4 implementation.");
+/* END CSTYLED */
 
 EXPORT_SYMBOL(fletcher_init);
 EXPORT_SYMBOL(fletcher_2_incremental_native);

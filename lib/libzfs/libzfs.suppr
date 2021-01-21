@@ -1,0 +1,13 @@
+[suppress_type]
+	name = FILE*
+
+[suppress_type]
+	type_kind = typedef
+	name = SHA256_CTX
+
+[suppress_type]
+	type_kind = typedef
+	name = SHA2_CTX
+
+[suppress_variable]
+	name = zfs_deleg_perm_tab

@@ -94,6 +94,14 @@ bdev_capacity(struct block_device *bdev)
 	return (i_size_read(bdev->bd_inode));
 }
 
+#if !defined(HAVE_BDEV_WHOLE)
+static inline struct block_device *
+bdev_whole(struct block_device *bdev)
+{
+	return (bdev->bd_contains);
+}
+#endif
+
 /*
  * Returns the maximum expansion capacity of the block device (in bytes).
  *
@@ -118,7 +126,7 @@ bdev_max_capacity(struct block_device *bdev, uint64_t wholedisk)
 	uint64_t psize;
 	int64_t available;
 
-	if (wholedisk && bdev->bd_part != NULL && bdev != bdev->bd_contains) {
+	if (wholedisk && bdev != bdev_whole(bdev)) {
 		/*
 		 * When reporting maximum expansion capacity for a wholedisk
 		 * deduct any capacity which is expected to be lost due to
@@ -132,7 +140,7 @@ bdev_max_capacity(struct block_device *bdev, uint64_t wholedisk)
 		 * "reserved" EFI partition: in such cases return the device
 		 * usable capacity.
 		 */
-		available = i_size_read(bdev->bd_contains->bd_inode) -
+		available = i_size_read(bdev_whole(bdev)->bd_inode) -
 		    ((EFI_MIN_RESV_SIZE + NEW_START_BLOCK +
 		    PARTITION_END_ALIGNMENT) << SECTOR_BITS);
 		psize = MAX(available, bdev_capacity(bdev));
@@ -192,8 +200,8 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 		vd->vd_bdev = NULL;
 
 		if (bdev) {
-			if (v->vdev_expanding && bdev != bdev->bd_contains) {
-				bdevname(bdev->bd_contains, disk_name + 5);
+			if (v->vdev_expanding && bdev != bdev_whole(bdev)) {
+				bdevname(bdev_whole(bdev), disk_name + 5);
 				/*
 				 * If userland has BLKPG_RESIZE_PARTITION,
 				 * then it should have updated the partition

@@ -11,7 +11,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_POSIX_ACL_RELEASE], [
 	], [
 		struct posix_acl *tmp = posix_acl_alloc(1, 0);
 		posix_acl_release(tmp);
-	], [], [$ZFS_META_LICENSE])
+	], [], [ZFS_META_LICENSE])
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_POSIX_ACL_RELEASE], [
@@ -50,7 +50,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_SET_CACHED_ACL_USABLE], [
 		struct posix_acl *acl = posix_acl_alloc(1, 0);
 		set_cached_acl(ip, ACL_TYPE_ACCESS, acl);
 		forget_cached_acl(ip, ACL_TYPE_ACCESS);
-	], [], [$ZFS_META_LICENSE])
+	], [], [ZFS_META_LICENSE])
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_SET_CACHED_ACL_USABLE], [

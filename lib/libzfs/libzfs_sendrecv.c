@@ -186,15 +186,15 @@ fsavl_create(nvlist_t *fss)
 		nvlist_t *nvfs, *snaps;
 		nvpair_t *snapelem = NULL;
 
-		VERIFY(0 == nvpair_value_nvlist(fselem, &nvfs));
-		VERIFY(0 == nvlist_lookup_nvlist(nvfs, "snaps", &snaps));
+		nvfs = fnvpair_value_nvlist(fselem);
+		snaps = fnvlist_lookup_nvlist(nvfs, "snaps");
 
 		while ((snapelem =
 		    nvlist_next_nvpair(snaps, snapelem)) != NULL) {
 			fsavl_node_t *fn;
 			uint64_t guid;
 
-			VERIFY(0 == nvpair_value_uint64(snapelem, &guid));
+			guid = fnvpair_value_uint64(snapelem);
 			if ((fn = malloc(sizeof (fsavl_node_t))) == NULL) {
 				fsavl_destroy(fsavl);
 				return (NULL);
@@ -311,7 +311,7 @@ send_iterate_snap(zfs_handle_t *zhp, void *arg)
 		return (0);
 	}
 
-	VERIFY(0 == nvlist_add_uint64(sd->parent_snaps, snapname, guid));
+	fnvlist_add_uint64(sd->parent_snaps, snapname, guid);
 	/*
 	 * NB: if there is no fromsnap here (it's a newly created fs in
 	 * an incremental replication), we will substitute the tosnap.
@@ -336,16 +336,15 @@ send_iterate_snap(zfs_handle_t *zhp, void *arg)
 			sd->seento = B_TRUE;
 	}
 
-	VERIFY(0 == nvlist_alloc(&nv, NV_UNIQUE_NAME, 0));
+	nv = fnvlist_alloc();
 	send_iterate_prop(zhp, sd->backup, nv);
-	VERIFY(0 == nvlist_add_nvlist(sd->snapprops, snapname, nv));
-	nvlist_free(nv);
+	fnvlist_add_nvlist(sd->snapprops, snapname, nv);
+	fnvlist_free(nv);
 	if (sd->holds) {
 		nvlist_t *holds = fnvlist_alloc();
 		int err = lzc_get_holds(zhp->zfs_name, &holds);
 		if (err == 0) {
-			VERIFY(0 == nvlist_add_nvlist(sd->snapholds,
-			    snapname, holds));
+			fnvlist_add_nvlist(sd->snapholds, snapname, holds);
 		}
 		fnvlist_free(holds);
 	}
@@ -420,14 +419,12 @@ send_iterate_prop(zfs_handle_t *zhp, boolean_t received_only, nvlist_t *nv)
 		if (zfs_prop_user(propname) ||
 		    zfs_prop_get_type(prop) == PROP_TYPE_STRING) {
 			char *value;
-			verify(nvlist_lookup_string(propnv,
-			    ZPROP_VALUE, &value) == 0);
-			VERIFY(0 == nvlist_add_string(nv, propname, value));
+			value = fnvlist_lookup_string(propnv, ZPROP_VALUE);
+			fnvlist_add_string(nv, propname, value);
 		} else {
 			uint64_t value;
-			verify(nvlist_lookup_uint64(propnv,
-			    ZPROP_VALUE, &value) == 0);
-			VERIFY(0 == nvlist_add_uint64(nv, propname, value));
+			value = fnvlist_lookup_uint64(propnv, ZPROP_VALUE);
+			fnvlist_add_uint64(nv, propname, value);
 		}
 	}
 }
@@ -572,8 +569,7 @@ send_iterate_fs(zfs_handle_t *zhp, void *arg)
 	sd->parent_snaps = fnvlist_alloc();
 	sd->snapprops = fnvlist_alloc();
 	if (sd->holds)
-		VERIFY(0 == nvlist_alloc(&sd->snapholds, NV_UNIQUE_NAME, 0));
-
+		sd->snapholds = fnvlist_alloc();
 
 	/*
 	 * If this is a "doall" send, a replicate send or we're just trying
@@ -656,7 +652,7 @@ gather_nvlist(libzfs_handle_t *hdl, const char *fsname, const char *fromsnap,
 	if (zhp == NULL)
 		return (EZFS_BADTYPE);
 
-	VERIFY(0 == nvlist_alloc(&sd.fss, NV_UNIQUE_NAME, 0));
+	sd.fss = fnvlist_alloc();
 	sd.fsname = fsname;
 	sd.fromsnap = fromsnap;
 	sd.tosnap = tosnap;
@@ -670,7 +666,7 @@ gather_nvlist(libzfs_handle_t *hdl, const char *fsname, const char *fromsnap,
 	sd.props = props;
 
 	if ((error = send_iterate_fs(zhp, &sd)) != 0) {
-		nvlist_free(sd.fss);
+		fnvlist_free(sd.fss);
 		if (avlp != NULL)
 			*avlp = NULL;
 		*nvlp = NULL;
@@ -678,7 +674,7 @@ gather_nvlist(libzfs_handle_t *hdl, const char *fsname, const char *fromsnap,
 	}
 
 	if (avlp != NULL && (*avlp = fsavl_create(sd.fss)) == NULL) {
-		nvlist_free(sd.fss);
+		fnvlist_free(sd.fss);
 		*nvlp = NULL;
 		return (EZFS_NOMEM);
 	}
@@ -789,10 +785,9 @@ dump_ioctl(zfs_handle_t *zhp, const char *fromsnap, uint64_t fromsnap_obj,
 	zc.zc_fromobj = fromsnap_obj;
 	zc.zc_flags = flags;
 
-	VERIFY(0 == nvlist_alloc(&thisdbg, NV_UNIQUE_NAME, 0));
+	thisdbg = fnvlist_alloc();
 	if (fromsnap && fromsnap[0] != '\0') {
-		VERIFY(0 == nvlist_add_string(thisdbg,
-		    "fromsnap", fromsnap));
+		fnvlist_add_string(thisdbg, "fromsnap", fromsnap);
 	}
 
 	if (zfs_ioctl(zhp->zfs_hdl, ZFS_IOC_SEND, &zc) != 0) {
@@ -800,12 +795,11 @@ dump_ioctl(zfs_handle_t *zhp, const char *fromsnap, uint64_t fromsnap_obj,
 		(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
 		    "warning: cannot send '%s'"), zhp->zfs_name);
 
-		VERIFY(0 == nvlist_add_uint64(thisdbg, "error", errno));
+		fnvlist_add_uint64(thisdbg, "error", errno);
 		if (debugnv) {
-			VERIFY(0 == nvlist_add_nvlist(debugnv,
-			    zhp->zfs_name, thisdbg));
+			fnvlist_add_nvlist(debugnv, zhp->zfs_name, thisdbg);
 		}
-		nvlist_free(thisdbg);
+		fnvlist_free(thisdbg);
 
 		switch (errno) {
 		case EXDEV:
@@ -847,8 +841,8 @@ dump_ioctl(zfs_handle_t *zhp, const char *fromsnap, uint64_t fromsnap_obj,
 	}
 
 	if (debugnv)
-		VERIFY(0 == nvlist_add_nvlist(debugnv, zhp->zfs_name, thisdbg));
-	nvlist_free(thisdbg);
+		fnvlist_add_nvlist(debugnv, zhp->zfs_name, thisdbg);
+	fnvlist_free(thisdbg);
 
 	return (0);
 }
@@ -1047,10 +1041,8 @@ dump_snapshot(zfs_handle_t *zhp, void *arg)
 			nvlist_t *nvfs = fsavl_find(sdd->fsavl,
 			    zhp->zfs_dmustats.dds_guid, &snapname);
 
-			VERIFY(0 == nvlist_lookup_nvlist(nvfs,
-			    "snapprops", &snapprops));
-			VERIFY(0 == nvlist_lookup_nvlist(snapprops,
-			    thissnap, &snapprops));
+			snapprops = fnvlist_lookup_nvlist(nvfs, "snapprops");
+			snapprops = fnvlist_lookup_nvlist(snapprops, thissnap);
 			exclude = !nvlist_exists(snapprops, "is_clone_origin");
 		} else {
 			exclude = B_TRUE;
@@ -1269,7 +1261,7 @@ dump_filesystems(zfs_handle_t *rzhp, void *arg)
 		nvlist_t *nvfs;
 		uint64_t origin_guid = 0;
 
-		VERIFY(0 == nvpair_value_nvlist(fspair, &nvfs));
+		nvfs = fnvpair_value_nvlist(fspair);
 		(void) nvlist_lookup_uint64(nvfs, "origin", &origin_guid);
 		if (origin_guid != 0) {
 			char *snapname;
@@ -1277,12 +1269,12 @@ dump_filesystems(zfs_handle_t *rzhp, void *arg)
 			    origin_guid, &snapname);
 			if (origin_nv != NULL) {
 				nvlist_t *snapprops;
-				VERIFY(0 == nvlist_lookup_nvlist(origin_nv,
-				    "snapprops", &snapprops));
-				VERIFY(0 == nvlist_lookup_nvlist(snapprops,
-				    snapname, &snapprops));
-				VERIFY(0 == nvlist_add_boolean(
-				    snapprops, "is_clone_origin"));
+				snapprops = fnvlist_lookup_nvlist(origin_nv,
+				    "snapprops");
+				snapprops = fnvlist_lookup_nvlist(snapprops,
+				    snapname);
+				fnvlist_add_boolean(snapprops,
+				    "is_clone_origin");
 			}
 		}
 	}
@@ -1297,11 +1289,11 @@ again:
 		uint64_t origin_guid = 0;
 		uint64_t parent_guid = 0;
 
-		VERIFY(nvpair_value_nvlist(fspair, &fslist) == 0);
+		fslist = fnvpair_value_nvlist(fspair);
 		if (nvlist_lookup_boolean(fslist, "sent") == 0)
 			continue;
 
-		VERIFY(nvlist_lookup_string(fslist, "name", &fsname) == 0);
+		fsname = fnvlist_lookup_string(fslist, "name");
 		(void) nvlist_lookup_uint64(fslist, "origin", &origin_guid);
 		(void) nvlist_lookup_uint64(fslist, "parentfromsnap",
 		    &parent_guid);
@@ -1333,7 +1325,7 @@ again:
 		if (zhp == NULL)
 			return (-1);
 		err = dump_filesystem(zhp, sdd);
-		VERIFY(nvlist_add_boolean(fslist, "sent") == 0);
+		fnvlist_add_boolean(fslist, "sent");
 		progress = B_TRUE;
 		zfs_close(zhp);
 		if (err)
@@ -1349,7 +1341,7 @@ again:
 	    fspair = nvlist_next_nvpair(sdd->fss, fspair)) {
 		nvlist_t *fslist;
 
-		VERIFY(nvpair_value_nvlist(fspair, &fslist) == 0);
+		fslist = fnvpair_value_nvlist(fspair);
 		(void) nvlist_remove_all(fslist, "sent");
 	}
 
@@ -1560,7 +1552,7 @@ find_redact_book(libzfs_handle_t *hdl, const char *path,
 	fnvlist_add_boolean(props, "redact_complete");
 	fnvlist_add_boolean(props, zfs_prop_to_name(ZFS_PROP_REDACT_SNAPS));
 	error = lzc_get_bookmarks(path, props, &bmarks);
-	nvlist_free(props);
+	fnvlist_free(props);
 	if (error != 0) {
 		if (error == ESRCH) {
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
@@ -1850,7 +1842,7 @@ zfs_send_resume(libzfs_handle_t *hdl, sendflags_t *flags, int outfd,
 	}
 
 	ret = zfs_send_resume_impl(hdl, flags, outfd, resume_nvl);
-	nvlist_free(resume_nvl);
+	fnvlist_free(resume_nvl);
 
 	return (ret);
 }
@@ -1940,8 +1932,8 @@ zfs_send_saved(zfs_handle_t *zhp, sendflags_t *flags, int outfd,
 	ret = zfs_send_resume_impl(hdl, flags, outfd, saved_nvl);
 
 out:
-	nvlist_free(saved_nvl);
-	nvlist_free(resume_nvl);
+	fnvlist_free(saved_nvl);
+	fnvlist_free(resume_nvl);
 	return (ret);
 }
 
@@ -2018,7 +2010,7 @@ send_prelim_records(zfs_handle_t *zhp, const char *from, int fd,
 			fnvlist_add_boolean(hdrnv, "not_recursive");
 
 		if (raw) {
-			VERIFY0(nvlist_add_boolean(hdrnv, "raw"));
+			fnvlist_add_boolean(hdrnv, "raw");
 		}
 
 		if ((err = gather_nvlist(zhp->zfs_hdl, tofs,
@@ -2048,9 +2040,9 @@ send_prelim_records(zfs_handle_t *zhp, const char *from, int fd,
 		if (fssp != NULL) {
 			*fssp = fss;
 		} else {
-			nvlist_free(fss);
+			fnvlist_free(fss);
 		}
-		nvlist_free(hdrnv);
+		fnvlist_free(hdrnv);
 	}
 
 	if (!dryrun) {
@@ -2267,7 +2259,7 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 
 	err = dump_filesystems(zhp, &sdd);
 	fsavl_destroy(fsavl);
-	nvlist_free(fss);
+	fnvlist_free(fss);
 
 	/* Ensure no snaps found is treated as an error. */
 	if (err == 0 && !sdd.seento)
@@ -2296,7 +2288,7 @@ stderr_out:
 	err = zfs_standard_error(zhp->zfs_hdl, err, errbuf);
 err_out:
 	fsavl_destroy(fsavl);
-	nvlist_free(fss);
+	fnvlist_free(fss);
 	fnvlist_free(sdd.snapholds);
 
 	if (sdd.cleanup_fd != -1)
@@ -3041,14 +3033,14 @@ created_before(libzfs_handle_t *hdl, avl_tree_t *avl,
 		return (1);
 
 	nvfs = fsavl_find(avl, guid1, &snapname);
-	VERIFY(0 == nvlist_lookup_string(nvfs, "name", &fsname));
+	fsname = fnvlist_lookup_string(nvfs, "name");
 	(void) snprintf(buf, sizeof (buf), "%s@%s", fsname, snapname);
 	guid1hdl = zfs_open(hdl, buf, ZFS_TYPE_SNAPSHOT);
 	if (guid1hdl == NULL)
 		return (-1);
 
 	nvfs = fsavl_find(avl, guid2, &snapname);
-	VERIFY(0 == nvlist_lookup_string(nvfs, "name", &fsname));
+	fsname = fnvlist_lookup_string(nvfs, "name");
 	(void) snprintf(buf, sizeof (buf), "%s@%s", fsname, snapname);
 	guid2hdl = zfs_open(hdl, buf, ZFS_TYPE_SNAPSHOT);
 	if (guid2hdl == NULL) {
@@ -3086,7 +3078,7 @@ recv_fix_encryption_hierarchy(libzfs_handle_t *hdl, const char *top_zfs,
 	nvpair_t *fselem = NULL;
 	nvlist_t *stream_fss;
 
-	VERIFY(0 == nvlist_lookup_nvlist(stream_nv, "fss", &stream_fss));
+	stream_fss = fnvlist_lookup_nvlist(stream_nv, "fss");
 
 	while ((fselem = nvlist_next_nvpair(stream_fss, fselem)) != NULL) {
 		zfs_handle_t *zhp = NULL;
@@ -3100,9 +3092,9 @@ recv_fix_encryption_hierarchy(libzfs_handle_t *hdl, const char *top_zfs,
 		char fsname[ZFS_MAX_DATASET_NAME_LEN];
 
 		keylocation[0] = '\0';
-		VERIFY(0 == nvpair_value_nvlist(fselem, &stream_nvfs));
-		VERIFY(0 == nvlist_lookup_nvlist(stream_nvfs, "snaps", &snaps));
-		VERIFY(0 == nvlist_lookup_nvlist(stream_nvfs, "props", &props));
+		stream_nvfs = fnvpair_value_nvlist(fselem);
+		snaps = fnvlist_lookup_nvlist(stream_nvfs, "snaps");
+		props = fnvlist_lookup_nvlist(stream_nvfs, "props");
 		stream_encroot = nvlist_exists(stream_nvfs, "is_encroot");
 
 		/* find a snapshot from the stream that exists locally */
@@ -3110,7 +3102,7 @@ recv_fix_encryption_hierarchy(libzfs_handle_t *hdl, const char *top_zfs,
 		while ((snapel = nvlist_next_nvpair(snaps, snapel)) != NULL) {
 			uint64_t guid;
 
-			VERIFY(0 == nvpair_value_uint64(snapel, &guid));
+			guid = fnvpair_value_uint64(snapel);
 			err = guid_to_name(hdl, top_zfs, guid, B_FALSE,
 			    fsname);
 			if (err == 0)
@@ -3155,9 +3147,8 @@ recv_fix_encryption_hierarchy(libzfs_handle_t *hdl, const char *top_zfs,
 				}
 			}
 
-			VERIFY(0 == nvlist_lookup_string(props,
-			    zfs_prop_to_name(ZFS_PROP_KEYLOCATION),
-			    &stream_keylocation));
+			stream_keylocation = fnvlist_lookup_string(props,
+			    zfs_prop_to_name(ZFS_PROP_KEYLOCATION));
 
 			/*
 			 * Refresh the properties in case the call to
@@ -3223,7 +3214,7 @@ recv_incremental_replication(libzfs_handle_t *hdl, const char *tofs,
 	boolean_t needagain, progress, recursive;
 	char *s1, *s2;
 
-	VERIFY(0 == nvlist_lookup_string(stream_nv, "fromsnap", &fromsnap));
+	fromsnap = fnvlist_lookup_string(stream_nv, "fromsnap");
 
 	recursive = (nvlist_lookup_boolean(stream_nv, "not_recursive") ==
 	    ENOENT);
@@ -3234,7 +3225,7 @@ recv_incremental_replication(libzfs_handle_t *hdl, const char *tofs,
 again:
 	needagain = progress = B_FALSE;
 
-	VERIFY(0 == nvlist_alloc(&deleted, NV_UNIQUE_NAME, 0));
+	deleted = fnvlist_alloc();
 
 	if ((error = gather_nvlist(hdl, tofs, fromsnap, NULL,
 	    recursive, B_TRUE, B_FALSE, recursive, B_FALSE, B_FALSE,
@@ -3257,11 +3248,11 @@ again:
 
 		nextfselem = nvlist_next_nvpair(local_nv, fselem);
 
-		VERIFY(0 == nvpair_value_nvlist(fselem, &nvfs));
-		VERIFY(0 == nvlist_lookup_nvlist(nvfs, "snaps", &snaps));
-		VERIFY(0 == nvlist_lookup_string(nvfs, "name", &fsname));
-		VERIFY(0 == nvlist_lookup_uint64(nvfs, "parentfromsnap",
-		    &parent_fromsnap_guid));
+		nvfs = fnvpair_value_nvlist(fselem);
+		snaps = fnvlist_lookup_nvlist(nvfs, "snaps");
+		fsname = fnvlist_lookup_string(nvfs, "name");
+		parent_fromsnap_guid = fnvlist_lookup_uint64(nvfs,
+		    "parentfromsnap");
 		(void) nvlist_lookup_uint64(nvfs, "origin", &originguid);
 
 		/*
@@ -3272,7 +3263,7 @@ again:
 		    snapelem; snapelem = nvlist_next_nvpair(snaps, snapelem)) {
 			uint64_t thisguid;
 
-			VERIFY(0 == nvpair_value_uint64(snapelem, &thisguid));
+			thisguid = fnvpair_value_uint64(snapelem);
 			stream_nvfs = fsavl_find(stream_avl, thisguid, NULL);
 
 			if (stream_nvfs != NULL)
@@ -3292,8 +3283,8 @@ again:
 
 				origin_nvfs = fsavl_find(local_avl, originguid,
 				    NULL);
-				VERIFY(0 == nvlist_lookup_string(origin_nvfs,
-				    "name", &origin_fsname));
+				origin_fsname = fnvlist_lookup_string(
+				    origin_nvfs, "name");
 				error = recv_promote(hdl, fsname, origin_fsname,
 				    flags);
 				if (error == 0)
@@ -3304,7 +3295,7 @@ again:
 				break;
 			case -1:
 				fsavl_destroy(local_avl);
-				nvlist_free(local_nv);
+				fnvlist_free(local_nv);
 				return (-1);
 			}
 			/*
@@ -3324,7 +3315,7 @@ again:
 
 			nextsnapelem = nvlist_next_nvpair(snaps, snapelem);
 
-			VERIFY(0 == nvpair_value_uint64(snapelem, &thisguid));
+			thisguid = fnvpair_value_uint64(snapelem);
 			found = fsavl_find(stream_avl, thisguid,
 			    &stream_snapname);
 
@@ -3418,10 +3409,9 @@ again:
 			continue;
 		}
 
-		VERIFY(0 == nvlist_lookup_string(stream_nvfs,
-		    "name", &stream_fsname));
-		VERIFY(0 == nvlist_lookup_uint64(stream_nvfs,
-		    "parentfromsnap", &stream_parent_fromsnap_guid));
+		stream_fsname = fnvlist_lookup_string(stream_nvfs, "name");
+		stream_parent_fromsnap_guid = fnvlist_lookup_uint64(
+		    stream_nvfs, "parentfromsnap");
 
 		s1 = strrchr(fsname, '/');
 		s2 = strrchr(stream_fsname, '/');
@@ -3470,8 +3460,7 @@ again:
 			if (parent != NULL) {
 				char *pname;
 
-				VERIFY(0 == nvlist_lookup_string(parent, "name",
-				    &pname));
+				pname = fnvlist_lookup_string(parent, "name");
 				(void) snprintf(tryname, sizeof (tryname),
 				    "%s%s", pname, strrchr(stream_fsname, '/'));
 			} else {
@@ -3488,8 +3477,7 @@ again:
 			    strlen(tofs)+1, newname, flags);
 
 			if (renamed != NULL && newname[0] != '\0') {
-				VERIFY(0 == nvlist_add_boolean(renamed,
-				    newname));
+				fnvlist_add_boolean(renamed, newname);
 			}
 
 			if (error)
@@ -3501,8 +3489,8 @@ again:
 
 doagain:
 	fsavl_destroy(local_avl);
-	nvlist_free(local_nv);
-	nvlist_free(deleted);
+	fnvlist_free(local_nv);
+	fnvlist_free(deleted);
 
 	if (needagain && progress) {
 		/* do another pass to fix up temporary names */
@@ -3597,8 +3585,7 @@ zfs_receive_package(libzfs_handle_t *hdl, int fd, const char *destname,
 	if (drr->drr_payloadlen != 0) {
 		nvlist_t *stream_fss;
 
-		VERIFY(0 == nvlist_lookup_nvlist(stream_nv, "fss",
-		    &stream_fss));
+		stream_fss = fnvlist_lookup_nvlist(stream_nv, "fss");
 		if ((stream_avl = fsavl_create(stream_fss)) == NULL) {
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "couldn't allocate avl tree"));
@@ -3634,8 +3621,7 @@ zfs_receive_package(libzfs_handle_t *hdl, int fd, const char *destname,
 			}
 
 			if (!flags->dryrun && !flags->nomount) {
-				VERIFY(0 == nvlist_alloc(&renamed,
-				    NV_UNIQUE_NAME, 0));
+				renamed = fnvlist_alloc();
 			}
 
 			softerr = recv_incremental_replication(hdl, tofs, flags,
@@ -3662,7 +3648,7 @@ zfs_receive_package(libzfs_handle_t *hdl, int fd, const char *destname,
 				}
 			}
 
-			nvlist_free(renamed);
+			fnvlist_free(renamed);
 		}
 	}
 
@@ -3718,7 +3704,7 @@ zfs_receive_package(libzfs_handle_t *hdl, int fd, const char *destname,
 
 out:
 	fsavl_destroy(stream_avl);
-	nvlist_free(stream_nv);
+	fnvlist_free(stream_nv);
 	if (softerr)
 		error = -2;
 	if (anyerr)
@@ -4141,7 +4127,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		    &parent_snapguid);
 		err = nvlist_lookup_nvlist(fs, "props", &rcvprops);
 		if (err) {
-			VERIFY(0 == nvlist_alloc(&rcvprops, NV_UNIQUE_NAME, 0));
+			rcvprops = fnvlist_alloc();
 			newprops = B_TRUE;
 		}
 
@@ -4162,22 +4148,22 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		}
 
 		if (flags->canmountoff) {
-			VERIFY(0 == nvlist_add_uint64(rcvprops,
-			    zfs_prop_to_name(ZFS_PROP_CANMOUNT), 0));
+			fnvlist_add_uint64(rcvprops,
+			    zfs_prop_to_name(ZFS_PROP_CANMOUNT), 0);
 		} else if (newprops) {	/* nothing in rcvprops, eliminate it */
-			nvlist_free(rcvprops);
+			fnvlist_free(rcvprops);
 			rcvprops = NULL;
 			newprops = B_FALSE;
 		}
 		if (0 == nvlist_lookup_nvlist(fs, "snapprops", &lookup)) {
-			VERIFY(0 == nvlist_lookup_nvlist(lookup,
-			    snapname, &snapprops_nvlist));
+			snapprops_nvlist = fnvlist_lookup_nvlist(lookup,
+			    snapname);
 		}
 		if (holds) {
 			if (0 == nvlist_lookup_nvlist(fs, "snapholds",
 			    &lookup)) {
-				VERIFY(0 == nvlist_lookup_nvlist(lookup,
-				    snapname, &snapholds_nvlist));
+				snapholds_nvlist = fnvlist_lookup_nvlist(
+				    lookup, snapname);
 			}
 		}
 	}
@@ -4711,12 +4697,11 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		for (pair = nvlist_next_nvpair(snapholds_nvlist, NULL);
 		    pair != NULL;
 		    pair = nvlist_next_nvpair(snapholds_nvlist, pair)) {
-			VERIFY(0 == nvlist_add_string(holds, destsnap,
-			    nvpair_name(pair)));
+			fnvlist_add_string(holds, destsnap, nvpair_name(pair));
 		}
 		(void) lzc_hold(holds, cleanup_fd, &errors);
-		nvlist_free(snapholds_nvlist);
-		nvlist_free(holds);
+		fnvlist_free(snapholds_nvlist);
+		fnvlist_free(holds);
 	}
 
 	if (err && (ioctl_errno == ENOENT || ioctl_errno == EEXIST)) {
@@ -4741,7 +4726,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			*cp = '@';
 			fs = fsavl_find(local_avl, drrb->drr_toguid, NULL);
 			fsavl_destroy(local_avl);
-			nvlist_free(local_nv);
+			fnvlist_free(local_nv);
 
 			if (fs != NULL) {
 				if (flags->verbose) {
@@ -4917,18 +4902,18 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	err = 0;
 out:
 	if (prop_errors != NULL)
-		nvlist_free(prop_errors);
+		fnvlist_free(prop_errors);
 
 	if (tmp_keylocation[0] != '\0') {
-		VERIFY(0 == nvlist_add_string(rcvprops,
-		    zfs_prop_to_name(ZFS_PROP_KEYLOCATION), tmp_keylocation));
+		fnvlist_add_string(rcvprops,
+		    zfs_prop_to_name(ZFS_PROP_KEYLOCATION), tmp_keylocation);
 	}
 
 	if (newprops)
-		nvlist_free(rcvprops);
+		fnvlist_free(rcvprops);
 
-	nvlist_free(oxprops);
-	nvlist_free(origprops);
+	fnvlist_free(oxprops);
+	fnvlist_free(origprops);
 
 	return (err);
 }

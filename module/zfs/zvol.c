@@ -1376,7 +1376,9 @@ typedef struct zvol_volmode_cb_arg {
 static void
 zvol_set_volmode_impl(char *name, uint64_t volmode)
 {
-	fstrans_cookie_t cookie = spl_fstrans_mark();
+	fstrans_cookie_t cookie;
+	uint64_t old_volmode;
+	zvol_state_t *zv;
 
 	if (strchr(name, '@') != NULL)
 		return;
@@ -1386,9 +1388,18 @@ zvol_set_volmode_impl(char *name, uint64_t volmode)
 	 * this is necessary because our backing gendisk (zvol_state->zv_disk)
 	 * could be different when we set, for instance, volmode from "geom"
 	 * to "dev" (or vice versa).
-	 * A possible optimization is to modify our consumers so we don't get
-	 * called when "volmode" does not change.
 	 */
+	zv = zvol_find_by_name(name, RW_NONE);
+	if (zv == NULL && volmode == ZFS_VOLMODE_NONE)
+			return;
+	if (zv != NULL) {
+		old_volmode = zv->zv_volmode;
+		mutex_exit(&zv->zv_state_lock);
+		if (old_volmode == volmode)
+			return;
+		zvol_wait_close(zv);
+	}
+	cookie = spl_fstrans_mark();
 	switch (volmode) {
 		case ZFS_VOLMODE_NONE:
 			(void) zvol_remove_minor_impl(name);
@@ -1406,7 +1417,6 @@ zvol_set_volmode_impl(char *name, uint64_t volmode)
 				(void) ops->zv_create_minor(name);
 			break;
 	}
-
 	spl_fstrans_unmark(cookie);
 }
 

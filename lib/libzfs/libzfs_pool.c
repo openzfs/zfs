@@ -784,7 +784,8 @@ zpool_set_prop(zpool_handle_t *zhp, const char *propname, const char *propval)
 }
 
 int
-zpool_expand_proplist(zpool_handle_t *zhp, zprop_list_t **plp)
+zpool_expand_proplist(zpool_handle_t *zhp, zprop_list_t **plp,
+    boolean_t literal)
 {
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
 	zprop_list_t *entry;
@@ -863,13 +864,12 @@ zpool_expand_proplist(zpool_handle_t *zhp, zprop_list_t **plp)
 	}
 
 	for (entry = *plp; entry != NULL; entry = entry->pl_next) {
-
-		if (entry->pl_fixed)
+		if (entry->pl_fixed && !literal)
 			continue;
 
 		if (entry->pl_prop != ZPROP_INVAL &&
 		    zpool_get_prop(zhp, entry->pl_prop, buf, sizeof (buf),
-		    NULL, B_FALSE) == 0) {
+		    NULL, literal) == 0) {
 			if (strlen(buf) > entry->pl_width)
 				entry->pl_width = strlen(buf);
 		}
@@ -3487,7 +3487,7 @@ zpool_vdev_split(zpool_handle_t *zhp, char *newname, nvlist_t **newroot,
     nvlist_t *props, splitflags_t flags)
 {
 	zfs_cmd_t zc = {"\0"};
-	char msg[1024];
+	char msg[1024], *bias;
 	nvlist_t *tree, *config, **child, **newchild, *newconfig = NULL;
 	nvlist_t **varray = NULL, *zc_props = NULL;
 	uint_t c, children, newchildren, lastlog = 0, vcount, found = 0;
@@ -3545,6 +3545,7 @@ zpool_vdev_split(zpool_handle_t *zhp, char *newname, nvlist_t **newroot,
 
 	for (c = 0; c < children; c++) {
 		uint64_t is_log = B_FALSE, is_hole = B_FALSE;
+		boolean_t is_special = B_FALSE, is_dedup = B_FALSE;
 		char *type;
 		nvlist_t **mchild, *vdev;
 		uint_t mchildren;
@@ -3591,6 +3592,13 @@ zpool_vdev_split(zpool_handle_t *zhp, char *newname, nvlist_t **newroot,
 			goto out;
 		}
 
+		if (nvlist_lookup_string(child[c],
+		    ZPOOL_CONFIG_ALLOCATION_BIAS, &bias) == 0) {
+			if (strcmp(bias, VDEV_ALLOC_BIAS_SPECIAL) == 0)
+				is_special = B_TRUE;
+			else if (strcmp(bias, VDEV_ALLOC_BIAS_DEDUP) == 0)
+				is_dedup = B_TRUE;
+		}
 		verify(nvlist_lookup_nvlist_array(child[c],
 		    ZPOOL_CONFIG_CHILDREN, &mchild, &mchildren) == 0);
 
@@ -3608,6 +3616,20 @@ zpool_vdev_split(zpool_handle_t *zhp, char *newname, nvlist_t **newroot,
 
 		if (nvlist_dup(vdev, &varray[vcount++], 0) != 0)
 			goto out;
+
+		if (flags.dryrun != 0) {
+			if (is_dedup == B_TRUE) {
+				if (nvlist_add_string(varray[vcount - 1],
+				    ZPOOL_CONFIG_ALLOCATION_BIAS,
+				    VDEV_ALLOC_BIAS_DEDUP) != 0)
+					goto out;
+			} else if (is_special == B_TRUE) {
+				if (nvlist_add_string(varray[vcount - 1],
+				    ZPOOL_CONFIG_ALLOCATION_BIAS,
+				    VDEV_ALLOC_BIAS_SPECIAL) != 0)
+					goto out;
+			}
+		}
 	}
 
 	/* did we find every disk the user specified? */
