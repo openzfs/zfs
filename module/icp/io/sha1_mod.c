@@ -271,15 +271,15 @@ sha1_digest_update_uio(SHA1_CTX *sha1_ctx, crypto_data_t *data)
 	size_t cur_len;
 
 	/* we support only kernel buffer */
-	if (uio_segflg(data->cd_uio) != UIO_SYSSPACE)
+	if (zfs_uio_segflg(data->cd_uio) != UIO_SYSSPACE)
 		return (CRYPTO_ARGUMENTS_BAD);
 
 	/*
 	 * Jump to the first iovec containing data to be
 	 * digested.
 	 */
-	offset = uio_index_at_offset(data->cd_uio, offset, &vec_idx);
-	if (vec_idx == uio_iovcnt(data->cd_uio)) {
+	offset = zfs_uio_index_at_offset(data->cd_uio, offset, &vec_idx);
+	if (vec_idx == zfs_uio_iovcnt(data->cd_uio)) {
 		/*
 		 * The caller specified an offset that is larger than the
 		 * total size of the buffers it provided.
@@ -290,12 +290,12 @@ sha1_digest_update_uio(SHA1_CTX *sha1_ctx, crypto_data_t *data)
 	/*
 	 * Now do the digesting on the iovecs.
 	 */
-	while (vec_idx < uio_iovcnt(data->cd_uio) && length > 0) {
-		cur_len = MIN(uio_iovlen(data->cd_uio, vec_idx) -
+	while (vec_idx < zfs_uio_iovcnt(data->cd_uio) && length > 0) {
+		cur_len = MIN(zfs_uio_iovlen(data->cd_uio, vec_idx) -
 		    offset, length);
 
 		SHA1Update(sha1_ctx,
-		    (uint8_t *)uio_iovbase(data->cd_uio, vec_idx) + offset,
+		    (uint8_t *)zfs_uio_iovbase(data->cd_uio, vec_idx) + offset,
 		    cur_len);
 
 		length -= cur_len;
@@ -303,7 +303,7 @@ sha1_digest_update_uio(SHA1_CTX *sha1_ctx, crypto_data_t *data)
 		offset = 0;
 	}
 
-	if (vec_idx == uio_iovcnt(data->cd_uio) && length > 0) {
+	if (vec_idx == zfs_uio_iovcnt(data->cd_uio) && length > 0) {
 		/*
 		 * The end of the specified iovec's was reached but
 		 * the length requested could not be processed, i.e.
@@ -330,15 +330,15 @@ sha1_digest_final_uio(SHA1_CTX *sha1_ctx, crypto_data_t *digest,
 	uint_t vec_idx = 0;
 
 	/* we support only kernel buffer */
-	if (uio_segflg(digest->cd_uio) != UIO_SYSSPACE)
+	if (zfs_uio_segflg(digest->cd_uio) != UIO_SYSSPACE)
 		return (CRYPTO_ARGUMENTS_BAD);
 
 	/*
 	 * Jump to the first iovec containing ptr to the digest to
 	 * be returned.
 	 */
-	offset = uio_index_at_offset(digest->cd_uio, offset, &vec_idx);
-	if (vec_idx == uio_iovcnt(digest->cd_uio)) {
+	offset = zfs_uio_index_at_offset(digest->cd_uio, offset, &vec_idx);
+	if (vec_idx == zfs_uio_iovcnt(digest->cd_uio)) {
 		/*
 		 * The caller specified an offset that is
 		 * larger than the total size of the buffers
@@ -348,7 +348,7 @@ sha1_digest_final_uio(SHA1_CTX *sha1_ctx, crypto_data_t *digest,
 	}
 
 	if (offset + digest_len <=
-	    uio_iovlen(digest->cd_uio, vec_idx)) {
+	    zfs_uio_iovlen(digest->cd_uio, vec_idx)) {
 		/*
 		 * The computed SHA1 digest will fit in the current
 		 * iovec.
@@ -360,11 +360,11 @@ sha1_digest_final_uio(SHA1_CTX *sha1_ctx, crypto_data_t *digest,
 			 * the user only what was requested.
 			 */
 			SHA1Final(digest_scratch, sha1_ctx);
-			bcopy(digest_scratch, (uchar_t *)uio_iovbase(digest->
-			    cd_uio, vec_idx) + offset,
+			bcopy(digest_scratch, (uchar_t *)
+			    zfs_uio_iovbase(digest->cd_uio, vec_idx) + offset,
 			    digest_len);
 		} else {
-			SHA1Final((uchar_t *)uio_iovbase(digest->
+			SHA1Final((uchar_t *)zfs_uio_iovbase(digest->
 			    cd_uio, vec_idx) + offset,
 			    sha1_ctx);
 		}
@@ -382,11 +382,11 @@ sha1_digest_final_uio(SHA1_CTX *sha1_ctx, crypto_data_t *digest,
 
 		SHA1Final(digest_tmp, sha1_ctx);
 
-		while (vec_idx < uio_iovcnt(digest->cd_uio) && length > 0) {
-			cur_len = MIN(uio_iovlen(digest->cd_uio, vec_idx) -
+		while (vec_idx < zfs_uio_iovcnt(digest->cd_uio) && length > 0) {
+			cur_len = MIN(zfs_uio_iovlen(digest->cd_uio, vec_idx) -
 			    offset, length);
 			bcopy(digest_tmp + scratch_offset,
-			    uio_iovbase(digest->cd_uio, vec_idx) + offset,
+			    zfs_uio_iovbase(digest->cd_uio, vec_idx) + offset,
 			    cur_len);
 
 			length -= cur_len;
@@ -395,7 +395,7 @@ sha1_digest_final_uio(SHA1_CTX *sha1_ctx, crypto_data_t *digest,
 			offset = 0;
 		}
 
-		if (vec_idx == uio_iovcnt(digest->cd_uio) && length > 0) {
+		if (vec_idx == zfs_uio_iovcnt(digest->cd_uio) && length > 0) {
 			/*
 			 * The end of the specified iovec's was reached but
 			 * the length requested could not be processed, i.e.
@@ -1096,12 +1096,12 @@ sha1_mac_verify_atomic(crypto_provider_handle_t provider,
 		size_t cur_len;
 
 		/* we support only kernel buffer */
-		if (uio_segflg(mac->cd_uio) != UIO_SYSSPACE)
+		if (zfs_uio_segflg(mac->cd_uio) != UIO_SYSSPACE)
 			return (CRYPTO_ARGUMENTS_BAD);
 
 		/* jump to the first iovec containing the expected digest */
-		offset = uio_index_at_offset(mac->cd_uio, offset, &vec_idx);
-		if (vec_idx == uio_iovcnt(mac->cd_uio)) {
+		offset = zfs_uio_index_at_offset(mac->cd_uio, offset, &vec_idx);
+		if (vec_idx == zfs_uio_iovcnt(mac->cd_uio)) {
 			/*
 			 * The caller specified an offset that is
 			 * larger than the total size of the buffers
@@ -1112,12 +1112,12 @@ sha1_mac_verify_atomic(crypto_provider_handle_t provider,
 		}
 
 		/* do the comparison of computed digest vs specified one */
-		while (vec_idx < uio_iovcnt(mac->cd_uio) && length > 0) {
-			cur_len = MIN(uio_iovlen(mac->cd_uio, vec_idx) -
+		while (vec_idx < zfs_uio_iovcnt(mac->cd_uio) && length > 0) {
+			cur_len = MIN(zfs_uio_iovlen(mac->cd_uio, vec_idx) -
 			    offset, length);
 
 			if (bcmp(digest + scratch_offset,
-			    uio_iovbase(mac->cd_uio, vec_idx) + offset,
+			    zfs_uio_iovbase(mac->cd_uio, vec_idx) + offset,
 			    cur_len) != 0) {
 				ret = CRYPTO_INVALID_MAC;
 				break;

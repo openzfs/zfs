@@ -42,8 +42,8 @@
  * 2. In the same process, context #2, mmap page fault (which means the mm_sem
  *    is hold) occurred, zfs_dirty_inode open a txg failed, and wait previous
  *    txg "n" completed.
- * 3. context #1 call uiomove to write, however page fault is occurred in
- *    uiomove, which means it needs mm_sem, but mm_sem is hold by
+ * 3. context #1 call zfs_uiomove to write, however page fault is occurred in
+ *    zfs_uiomove, which means it needs mm_sem, but mm_sem is hold by
  *    context #2, so it stuck and can't complete, then txg "n" will not
  *    complete.
  *

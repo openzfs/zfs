@@ -43,31 +43,32 @@
 #include <sys/param.h>
 #include <sys/uio.h>
 #include <sys/vnode.h>
+#include <sys/zfs_znode.h>
 
 /*
- * same as uiomove() but doesn't modify uio structure.
+ * same as zfs_uiomove() but doesn't modify uio structure.
  * return in cbytes how many bytes were copied.
  */
 int
-uiocopy(void *p, size_t n, enum uio_rw rw, struct uio *uio, size_t *cbytes)
+zfs_uiocopy(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio, size_t *cbytes)
 {
 	struct iovec small_iovec[1];
 	struct uio small_uio_clone;
 	struct uio *uio_clone;
 	int error;
 
-	ASSERT3U(uio->uio_rw, ==, rw);
-	if (uio->uio_iovcnt == 1) {
-		small_uio_clone = *uio;
-		small_iovec[0] = *uio->uio_iov;
+	ASSERT3U(zfs_uio_rw(uio), ==, rw);
+	if (zfs_uio_iovcnt(uio) == 1) {
+		small_uio_clone = *(GET_UIO_STRUCT(uio));
+		small_iovec[0] = *(GET_UIO_STRUCT(uio)->uio_iov);
 		small_uio_clone.uio_iov = small_iovec;
 		uio_clone = &small_uio_clone;
 	} else {
-		uio_clone = cloneuio(uio);
+		uio_clone = cloneuio(GET_UIO_STRUCT(uio));
 	}
 
 	error = vn_io_fault_uiomove(p, n, uio_clone);
-	*cbytes = uio->uio_resid - uio_clone->uio_resid;
+	*cbytes = zfs_uio_resid(uio) - uio_clone->uio_resid;
 	if (uio_clone != &small_uio_clone)
 		free(uio_clone, M_IOV);
 	return (error);
@@ -77,16 +78,23 @@ uiocopy(void *p, size_t n, enum uio_rw rw, struct uio *uio, size_t *cbytes)
  * Drop the next n chars out of *uiop.
  */
 void
-uioskip(uio_t *uio, size_t n)
+zfs_uioskip(zfs_uio_t *uio, size_t n)
 {
-	enum uio_seg segflg;
+	zfs_uio_seg_t segflg;
 
 	/* For the full compatibility with illumos. */
-	if (n > uio->uio_resid)
+	if (n > zfs_uio_resid(uio))
 		return;
 
-	segflg = uio->uio_segflg;
-	uio->uio_segflg = UIO_NOCOPY;
-	uiomove(NULL, n, uio->uio_rw, uio);
-	uio->uio_segflg = segflg;
+	segflg = zfs_uio_segflg(uio);
+	zfs_uio_segflg(uio) = UIO_NOCOPY;
+	zfs_uiomove(NULL, n, zfs_uio_rw(uio), uio);
+	zfs_uio_segflg(uio) = segflg;
+}
+
+int
+zfs_uio_fault_move(void *p, size_t n, zfs_uio_rw_t dir, zfs_uio_t *uio)
+{
+	ASSERT(zfs_uio_rw(uio) == dir);
+	return (vn_io_fault_uiomove(p, n, GET_UIO_STRUCT(uio)));
 }
