@@ -442,7 +442,7 @@ systemctl --system daemon-reload >/dev/null || true
 # Core utilities
 %{_sbindir}/*
 %{_bindir}/raidz_test
-%{_bindir}/zgenhostid
+%{_sbindir}/zgenhostid
 %{_bindir}/zvol_wait
 # Optional Python 2/3 scripts
 %{_bindir}/arc_summary
