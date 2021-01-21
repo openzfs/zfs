@@ -8,6 +8,7 @@ After=systemd-udev-settle.service
 After=cryptsetup.target
 After=multipathd.target
 After=systemd-remount-fs.service
+After=open-iscsi.service
 Before=zfs-import.target
 ConditionPathExists=@sysconfdir@/zfs/zpool.cache
 ConditionPathIsDirectory=/sys/module/zfs
