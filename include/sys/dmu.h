@@ -142,9 +142,6 @@ typedef enum dmu_object_byteswap {
 #define	DMU_OT_IS_DDT(ot) \
 	((ot) == DMU_OT_DDT_ZAP)
 
-#define	DMU_OT_IS_ZIL(ot) \
-	((ot) == DMU_OT_INTENT_LOG)
-
 /* Note: ztest uses DMU_OT_UINT64_OTHER as a proxy for file blocks */
 #define	DMU_OT_IS_FILE(ot) \
 	((ot) == DMU_OT_PLAIN_FILE_CONTENTS || (ot) == DMU_OT_UINT64_OTHER)

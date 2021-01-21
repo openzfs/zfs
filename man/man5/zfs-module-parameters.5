@@ -3939,6 +3939,22 @@ Default value: \fB786,432\fR.
 .sp
 .ne 2
 .na
+\fBzfs_embedded_slog_min_ms\fR (int)
+.ad
+.RS 12n
+Usually, one metaslab from each (normal-class) vdev is dedicated for use by
+the ZIL (to log synchronous writes).
+However, if there are fewer than zfs_embedded_slog_min_ms metaslabs in the
+vdev, this functionality is disabled.
+This ensures that we don't set aside an unreasonable amount of space for the
+ZIL.
+.sp
+Default value: \fB64\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzio_deadman_log_all\fR (int)
 .ad
 .RS 12n
