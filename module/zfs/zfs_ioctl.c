@@ -224,6 +224,30 @@
 kmutex_t zfsdev_state_lock;
 zfsdev_state_t *zfsdev_state_list;
 
+static void
+zfsdev_init(void)
+{
+	mutex_init(&zfsdev_state_lock, NULL, MUTEX_DEFAULT, NULL);
+	zfsdev_state_list = kmem_zalloc(sizeof (zfsdev_state_t), KM_SLEEP);
+	zfsdev_state_list->zs_minor = -1;
+}
+
+static void
+zfsdev_fini(void)
+{
+	zfsdev_state_t *zs, *zsnext = NULL;
+	for (zs = zfsdev_state_list; zs != NULL; zs = zsnext) {
+		zsnext = zs->zs_next;
+		if (zs->zs_onexit)
+			zfs_onexit_destroy(zs->zs_onexit);
+		if (zs->zs_zevent)
+			zfs_zevent_destroy(zs->zs_zevent);
+		kmem_free(zs, sizeof (zfsdev_state_t));
+	}
+
+	mutex_destroy(&zfsdev_state_lock);
+}
+
 /*
  * Limit maximum nvlist size.  We don't want users passing in insane values
  * for zc->zc_nvlist_src_size, since we will need to allocate that much memory.
@@ -7708,62 +7732,56 @@ out:
 int
 zfs_kmod_init(void)
 {
-	int error;
+	int error = 0;
+
+	zfs_dbgmsg_init();
 
 	if ((error = zvol_init()) != 0)
-		return (error);
+		goto err0;
 
 	spa_init(SPA_MODE_READ | SPA_MODE_WRITE);
+
 	zfs_init();
 
 	zfs_ioctl_init();
 
-	mutex_init(&zfsdev_state_lock, NULL, MUTEX_DEFAULT, NULL);
-	zfsdev_state_list = kmem_zalloc(sizeof (zfsdev_state_t), KM_SLEEP);
-	zfsdev_state_list->zs_minor = -1;
+	zfsdev_init();
 
 	if ((error = zfsdev_attach()) != 0)
-		goto out;
+		goto err1;
 
 	tsd_create(&zfs_fsyncer_key, NULL);
 	tsd_create(&rrw_tsd_key, rrw_tsd_destroy);
 	tsd_create(&zfs_allow_log_key, zfs_allow_log_destroy);
 
 	return (0);
-out:
+err1:
+	zfsdev_fini();
+	/* no counterpart to zfs_ioctl_init(); */
 	zfs_fini();
 	spa_fini();
 	zvol_fini();
-
+err0:
+	zfs_dbgmsg_fini();
 	return (error);
 }
 
 void
 zfs_kmod_fini(void)
 {
-	zfsdev_state_t *zs, *zsnext = NULL;
 
-	zfsdev_detach();
+	tsd_destroy(&zfs_allow_log_key);
+	tsd_destroy(&rrw_tsd_key);
+	tsd_destroy(&zfs_fsyncer_key);
 
-	mutex_destroy(&zfsdev_state_lock);
-
-	for (zs = zfsdev_state_list; zs != NULL; zs = zsnext) {
-		zsnext = zs->zs_next;
-		if (zs->zs_onexit)
-			zfs_onexit_destroy(zs->zs_onexit);
-		if (zs->zs_zevent)
-			zfs_zevent_destroy(zs->zs_zevent);
-		kmem_free(zs, sizeof (zfsdev_state_t));
-	}
-
+	zfsdev_detach(); /* no counterpart in zfs_kmod_init */
+	zfsdev_fini();
 	zfs_ereport_taskq_fini();	/* run before zfs_fini() on Linux */
+	/* no counterpart to zfs_ioctl_init() */
 	zfs_fini();
 	spa_fini();
 	zvol_fini();
-
-	tsd_destroy(&zfs_fsyncer_key);
-	tsd_destroy(&rrw_tsd_key);
-	tsd_destroy(&zfs_allow_log_key);
+	zfs_dbgmsg_fini();
 }
 
 /* BEGIN CSTYLED */

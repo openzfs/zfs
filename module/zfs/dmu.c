@@ -2283,7 +2283,6 @@ void
 dmu_init(void)
 {
 	abd_init();
-	zfs_dbgmsg_init();
 	sa_cache_init();
 	dmu_objset_init();
 	dnode_init();
@@ -2305,7 +2304,6 @@ dmu_fini(void)
 	dnode_fini();
 	dmu_objset_fini();
 	sa_cache_fini();
-	zfs_dbgmsg_fini();
 	abd_fini();
 }
 

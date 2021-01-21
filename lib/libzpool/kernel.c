@@ -797,6 +797,8 @@ kernel_init(int mode)
 
 	VERIFY0(uname(&hw_utsname));
 
+	zfs_dbgmsg_init();
+
 	system_taskq_init();
 	icp_init();
 
