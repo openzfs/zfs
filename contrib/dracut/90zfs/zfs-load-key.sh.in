@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # only run this on systemd systems, we handle the decrypt in mount-zfs.sh in the mount hook otherwise
-[ -e /bin/systemctl ] || return 0
+[ -e /bin/systemctl ] || [ -e /usr/bin/systemctl ] || return 0
 
 # This script only gets executed on systemd systems, see mount-zfs.sh for non-systemd systems
 
