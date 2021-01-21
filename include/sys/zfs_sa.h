@@ -134,7 +134,7 @@ typedef struct znode_phys {
 #define	DXATTR_MAX_ENTRY_SIZE	(32768)
 #define	DXATTR_MAX_SA_SIZE	(SPA_OLD_MAXBLOCKSIZE >> 1)
 
-int zfs_sa_readlink(struct znode *, uio_t *);
+int zfs_sa_readlink(struct znode *, zfs_uio_t *);
 void zfs_sa_symlink(struct znode *, char *link, int len, dmu_tx_t *);
 void zfs_sa_get_scanstamp(struct znode *, xvattr_t *);
 void zfs_sa_set_scanstamp(struct znode *, xvattr_t *, dmu_tx_t *);

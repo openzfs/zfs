@@ -41,9 +41,9 @@
 
 #include <sys/uio.h>
 
-extern int uiomove(void *, size_t, enum uio_rw, uio_t *);
-extern int uio_prefaultpages(ssize_t, uio_t *);
-extern int uiocopy(void *, size_t, enum uio_rw, uio_t *, size_t *);
-extern void uioskip(uio_t *, size_t);
+extern int zfs_uiomove(void *, size_t, zfs_uio_rw_t, zfs_uio_t *);
+extern int zfs_uio_prefaultpages(ssize_t, zfs_uio_t *);
+extern int zfs_uiocopy(void *, size_t, zfs_uio_rw_t, zfs_uio_t *, size_t *);
+extern void zfs_uioskip(zfs_uio_t *, size_t);
 
 #endif	/* _SYS_UIO_IMPL_H */

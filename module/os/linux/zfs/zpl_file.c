@@ -242,13 +242,13 @@ zpl_file_accessed(struct file *filp)
  * Otherwise, for older kernels extract the iovec and pass it instead.
  */
 static void
-zpl_uio_init(uio_t *uio, struct kiocb *kiocb, struct iov_iter *to,
+zpl_uio_init(zfs_uio_t *uio, struct kiocb *kiocb, struct iov_iter *to,
     loff_t pos, ssize_t count, size_t skip)
 {
 #if defined(HAVE_VFS_IOV_ITER)
-	uio_iov_iter_init(uio, to, pos, count, skip);
+	zfs_uio_iov_iter_init(uio, to, pos, count, skip);
 #else
-	uio_iovec_init(uio, to->iov, to->nr_segs, pos,
+	zfs_uio_iovec_init(uio, to->iov, to->nr_segs, pos,
 	    to->type & ITER_KVEC ? UIO_SYSSPACE : UIO_USERSPACE,
 	    count, skip);
 #endif
@@ -261,7 +261,7 @@ zpl_iter_read(struct kiocb *kiocb, struct iov_iter *to)
 	fstrans_cookie_t cookie;
 	struct file *filp = kiocb->ki_filp;
 	ssize_t count = iov_iter_count(to);
-	uio_t uio;
+	zfs_uio_t uio;
 
 	zpl_uio_init(&uio, kiocb, to, kiocb->ki_pos, count, 0);
 
@@ -317,7 +317,7 @@ zpl_iter_write(struct kiocb *kiocb, struct iov_iter *from)
 	fstrans_cookie_t cookie;
 	struct file *filp = kiocb->ki_filp;
 	struct inode *ip = filp->f_mapping->host;
-	uio_t uio;
+	zfs_uio_t uio;
 	size_t count = 0;
 	ssize_t ret;
 
@@ -364,8 +364,8 @@ zpl_aio_read(struct kiocb *kiocb, const struct iovec *iov,
 	if (ret)
 		return (ret);
 
-	uio_t uio;
-	uio_iovec_init(&uio, iov, nr_segs, kiocb->ki_pos, UIO_USERSPACE,
+	zfs_uio_t uio;
+	zfs_uio_iovec_init(&uio, iov, nr_segs, kiocb->ki_pos, UIO_USERSPACE,
 	    count, 0);
 
 	crhold(cr);
@@ -407,8 +407,8 @@ zpl_aio_write(struct kiocb *kiocb, const struct iovec *iov,
 	if (ret)
 		return (ret);
 
-	uio_t uio;
-	uio_iovec_init(&uio, iov, nr_segs, kiocb->ki_pos, UIO_USERSPACE,
+	zfs_uio_t uio;
+	zfs_uio_iovec_init(&uio, iov, nr_segs, kiocb->ki_pos, UIO_USERSPACE,
 	    count, 0);
 
 	crhold(cr);

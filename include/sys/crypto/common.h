@@ -244,7 +244,7 @@ typedef struct crypto_data {
 		iovec_t cdu_raw;		/* Pointer and length	    */
 
 		/* uio scatter-gather format */
-		uio_t	*cdu_uio;
+		zfs_uio_t	*cdu_uio;
 
 	} cdu;	/* Crypto Data Union */
 } crypto_data_t;

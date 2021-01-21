@@ -298,7 +298,7 @@ update_pages(znode_t *zp, int64_t start, int len, objset_t *os)
  *	 the file is memory mapped.
  */
 int
-mappedread(znode_t *zp, int nbytes, uio_t *uio)
+mappedread(znode_t *zp, int nbytes, zfs_uio_t *uio)
 {
 	struct inode *ip = ZTOI(zp);
 	struct address_space *mp = ip->i_mapping;
@@ -320,7 +320,7 @@ mappedread(znode_t *zp, int nbytes, uio_t *uio)
 			unlock_page(pp);
 
 			pb = kmap(pp);
-			error = uiomove(pb + off, bytes, UIO_READ, uio);
+			error = zfs_uiomove(pb + off, bytes, UIO_READ, uio);
 			kunmap(pp);
 
 			if (mapping_writably_mapped(mp))
@@ -372,8 +372,8 @@ zfs_write_simple(znode_t *zp, const void *data, size_t len,
 	iov.iov_base = (void *)data;
 	iov.iov_len = len;
 
-	uio_t uio;
-	uio_iovec_init(&uio, &iov, 1, pos, UIO_SYSSPACE, len, 0);
+	zfs_uio_t uio;
+	zfs_uio_iovec_init(&uio, &iov, 1, pos, UIO_SYSSPACE, len, 0);
 
 	cookie = spl_fstrans_mark();
 	error = zfs_write(zp, &uio, 0, kcred);
@@ -381,8 +381,8 @@ zfs_write_simple(znode_t *zp, const void *data, size_t len,
 
 	if (error == 0) {
 		if (residp != NULL)
-			*residp = uio_resid(&uio);
-		else if (uio_resid(&uio) != 0)
+			*residp = zfs_uio_resid(&uio);
+		else if (zfs_uio_resid(&uio) != 0)
 			error = SET_ERROR(EIO);
 	}
 
@@ -3198,7 +3198,7 @@ top:
  */
 /* ARGSUSED */
 int
-zfs_readlink(struct inode *ip, uio_t *uio, cred_t *cr)
+zfs_readlink(struct inode *ip, zfs_uio_t *uio, cred_t *cr)
 {
 	znode_t		*zp = ITOZ(ip);
 	zfsvfs_t	*zfsvfs = ITOZSB(ip);
