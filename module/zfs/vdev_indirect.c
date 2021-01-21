@@ -1187,7 +1187,7 @@ vdev_indirect_child_io_done(zio_t *zio)
 	pio->io_error = zio_worst_error(pio->io_error, zio->io_error);
 	mutex_exit(&pio->io_lock);
 
-	abd_put(zio->io_abd);
+	abd_free(zio->io_abd);
 }
 
 /*

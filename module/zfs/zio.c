@@ -2453,7 +2453,7 @@ zio_resume_wait(spa_t *spa)
 static void
 zio_gang_issue_func_done(zio_t *zio)
 {
-	abd_put(zio->io_abd);
+	abd_free(zio->io_abd);
 }
 
 static zio_t *
@@ -2497,7 +2497,7 @@ zio_rewrite_gang(zio_t *pio, blkptr_t *bp, zio_gang_node_t *gn, abd_t *data,
 			zio_checksum_compute(zio, BP_GET_CHECKSUM(bp),
 			    buf, BP_GET_PSIZE(bp));
 
-			abd_put(buf);
+			abd_free(buf);
 		}
 		/*
 		 * If we are here to damage data for testing purposes,
@@ -2625,7 +2625,7 @@ zio_gang_tree_assemble_done(zio_t *zio)
 	ASSERT(zio->io_size == SPA_GANGBLOCKSIZE);
 	ASSERT(gn->gn_gbh->zg_tail.zec_magic == ZEC_MAGIC);
 
-	abd_put(zio->io_abd);
+	abd_free(zio->io_abd);
 
 	for (int g = 0; g < SPA_GBH_NBLKPTRS; g++) {
 		blkptr_t *gbp = &gn->gn_gbh->zg_blkptr[g];
@@ -2749,7 +2749,7 @@ zio_write_gang_done(zio_t *zio)
 	 * check for it here as it is cleared in zio_ready.
 	 */
 	if (zio->io_abd != NULL)
-		abd_put(zio->io_abd);
+		abd_free(zio->io_abd);
 }
 
 static zio_t *

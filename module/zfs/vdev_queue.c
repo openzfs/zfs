@@ -789,7 +789,7 @@ vdev_queue_aggregate(vdev_queue_t *vq, zio_t *zio)
 	size = IO_SPAN(first, last);
 	ASSERT3U(size, <=, maxblocksize);
 
-	abd = abd_alloc_gang_abd();
+	abd = abd_alloc_gang();
 	if (abd == NULL)
 		return (NULL);
 

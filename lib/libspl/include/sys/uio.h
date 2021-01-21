@@ -51,58 +51,58 @@
 typedef struct iovec iovec_t;
 
 #if defined(__linux__) || defined(__APPLE__)
-typedef enum uio_rw {
+typedef enum zfs_uio_rw {
 	UIO_READ =	0,
 	UIO_WRITE =	1,
-} uio_rw_t;
+} zfs_uio_rw_t;
 
-typedef enum uio_seg {
+typedef enum zfs_uio_seg {
 	UIO_USERSPACE =	0,
 	UIO_SYSSPACE =	1,
-} uio_seg_t;
+} zfs_uio_seg_t;
 
 #elif defined(__FreeBSD__)
-typedef enum uio_seg  uio_seg_t;
+typedef enum uio_seg  zfs_uio_seg_t;
 #endif
 
-typedef struct uio {
+typedef struct zfs_uio {
 	struct iovec	*uio_iov;	/* pointer to array of iovecs */
 	int		uio_iovcnt;	/* number of iovecs */
 	offset_t	uio_loffset;	/* file offset */
-	uio_seg_t	uio_segflg;	/* address space (kernel or user) */
+	zfs_uio_seg_t	uio_segflg;	/* address space (kernel or user) */
 	uint16_t	uio_fmode;	/* file mode flags */
 	uint16_t	uio_extflg;	/* extended flags */
 	ssize_t		uio_resid;	/* residual count */
-} uio_t;
+} zfs_uio_t;
 
-#define	uio_segflg(uio)			(uio)->uio_segflg
-#define	uio_offset(uio)			(uio)->uio_loffset
-#define	uio_resid(uio)			(uio)->uio_resid
-#define	uio_iovcnt(uio)			(uio)->uio_iovcnt
-#define	uio_iovlen(uio, idx)		(uio)->uio_iov[(idx)].iov_len
-#define	uio_iovbase(uio, idx)		(uio)->uio_iov[(idx)].iov_base
+#define	zfs_uio_segflg(uio)		(uio)->uio_segflg
+#define	zfs_uio_offset(uio)		(uio)->uio_loffset
+#define	zfs_uio_resid(uio)		(uio)->uio_resid
+#define	zfs_uio_iovcnt(uio)		(uio)->uio_iovcnt
+#define	zfs_uio_iovlen(uio, idx)	(uio)->uio_iov[(idx)].iov_len
+#define	zfs_uio_iovbase(uio, idx)	(uio)->uio_iov[(idx)].iov_base
 
 static inline void
-uio_iov_at_index(uio_t *uio, uint_t idx, void **base, uint64_t *len)
+zfs_uio_iov_at_index(zfs_uio_t *uio, uint_t idx, void **base, uint64_t *len)
 {
-	*base = uio_iovbase(uio, idx);
-	*len = uio_iovlen(uio, idx);
+	*base = zfs_uio_iovbase(uio, idx);
+	*len = zfs_uio_iovlen(uio, idx);
 }
 
 static inline void
-uio_advance(uio_t *uio, size_t size)
+zfs_uio_advance(zfs_uio_t *uio, size_t size)
 {
 	uio->uio_resid -= size;
 	uio->uio_loffset += size;
 }
 
 static inline offset_t
-uio_index_at_offset(uio_t *uio, offset_t off, uint_t *vec_idx)
+zfs_uio_index_at_offset(zfs_uio_t *uio, offset_t off, uint_t *vec_idx)
 {
 	*vec_idx = 0;
-	while (*vec_idx < (uint_t)uio_iovcnt(uio) &&
-	    off >= (offset_t)uio_iovlen(uio, *vec_idx)) {
-		off -= uio_iovlen(uio, *vec_idx);
+	while (*vec_idx < (uint_t)zfs_uio_iovcnt(uio) &&
+	    off >= (offset_t)zfs_uio_iovlen(uio, *vec_idx)) {
+		off -= zfs_uio_iovlen(uio, *vec_idx);
 		(*vec_idx)++;
 	}
 

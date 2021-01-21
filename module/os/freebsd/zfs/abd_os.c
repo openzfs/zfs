@@ -202,7 +202,7 @@ abd_free_chunks(abd_t *abd)
 }
 
 abd_t *
-abd_alloc_struct(size_t size)
+abd_alloc_struct_impl(size_t size)
 {
 	uint_t chunkcnt = abd_chunkcnt_for_bytes(size);
 	/*
@@ -216,22 +216,18 @@ abd_alloc_struct(size_t size)
 	    offsetof(abd_t, abd_u.abd_scatter.abd_chunks[chunkcnt]));
 	abd_t *abd = kmem_alloc(abd_size, KM_PUSHPAGE);
 	ASSERT3P(abd, !=, NULL);
-	list_link_init(&abd->abd_gang_link);
-	mutex_init(&abd->abd_mtx, NULL, MUTEX_DEFAULT, NULL);
 	ABDSTAT_INCR(abdstat_struct_size, abd_size);
 
 	return (abd);
 }
 
 void
-abd_free_struct(abd_t *abd)
+abd_free_struct_impl(abd_t *abd)
 {
 	uint_t chunkcnt = abd_is_linear(abd) || abd_is_gang(abd) ? 0 :
 	    abd_scatter_chunkcnt(abd);
 	ssize_t size = MAX(sizeof (abd_t),
 	    offsetof(abd_t, abd_u.abd_scatter.abd_chunks[chunkcnt]));
-	mutex_destroy(&abd->abd_mtx);
-	ASSERT(!list_link_active(&abd->abd_gang_link));
 	kmem_free(abd, size);
 	ABDSTAT_INCR(abdstat_struct_size, -size);
 }
@@ -249,10 +245,8 @@ abd_alloc_zero_scatter(void)
 	abd_zero_buf = kmem_zalloc(zfs_abd_chunk_size, KM_SLEEP);
 	abd_zero_scatter = abd_alloc_struct(SPA_MAXBLOCKSIZE);
 
-	abd_zero_scatter->abd_flags = ABD_FLAG_OWNER | ABD_FLAG_ZEROS;
+	abd_zero_scatter->abd_flags |= ABD_FLAG_OWNER | ABD_FLAG_ZEROS;
 	abd_zero_scatter->abd_size = SPA_MAXBLOCKSIZE;
-	abd_zero_scatter->abd_parent = NULL;
-	zfs_refcount_create(&abd_zero_scatter->abd_children);
 
 	ABD_SCATTER(abd_zero_scatter).abd_offset = 0;
 	ABD_SCATTER(abd_zero_scatter).abd_chunk_size =
@@ -270,7 +264,6 @@ abd_alloc_zero_scatter(void)
 static void
 abd_free_zero_scatter(void)
 {
-	zfs_refcount_destroy(&abd_zero_scatter->abd_children);
 	ABDSTAT_BUMPDOWN(abdstat_scatter_cnt);
 	ABDSTAT_INCR(abdstat_scatter_data_size, -(int)zfs_abd_chunk_size);
 
@@ -355,10 +348,8 @@ abd_alloc_scatter_offset_chunkcnt(size_t chunkcnt)
 }
 
 abd_t *
-abd_get_offset_scatter(abd_t *sabd, size_t off)
+abd_get_offset_scatter(abd_t *abd, abd_t *sabd, size_t off)
 {
-	abd_t *abd = NULL;
-
 	abd_verify(sabd);
 	ASSERT3U(off, <=, sabd->abd_size);
 
@@ -366,14 +357,24 @@ abd_get_offset_scatter(abd_t *sabd, size_t off)
 	uint_t chunkcnt = abd_scatter_chunkcnt(sabd) -
 	    (new_offset / zfs_abd_chunk_size);
 
-	abd = abd_alloc_scatter_offset_chunkcnt(chunkcnt);
+	/*
+	 * If an abd struct is provided, it is only the minimum size.  If we
+	 * need additional chunks, we need to allocate a new struct.
+	 */
+	if (abd != NULL &&
+	    offsetof(abd_t, abd_u.abd_scatter.abd_chunks[chunkcnt]) >
+	    sizeof (abd_t)) {
+		abd = NULL;
+	}
+
+	if (abd == NULL)
+		abd = abd_alloc_struct(chunkcnt * zfs_abd_chunk_size);
 
 	/*
 	 * Even if this buf is filesystem metadata, we only track that
 	 * if we own the underlying data buffer, which is not true in
 	 * this case. Therefore, we don't ever use ABD_FLAG_META here.
 	 */
-	abd->abd_flags = 0;
 
 	ABD_SCATTER(abd).abd_offset = new_offset % zfs_abd_chunk_size;
 	ABD_SCATTER(abd).abd_chunk_size = zfs_abd_chunk_size;
