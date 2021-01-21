@@ -43,11 +43,11 @@ crypto_init_ptrs(crypto_data_t *out, void **iov_or_mp, offset_t *current_offset)
 		break;
 
 	case CRYPTO_DATA_UIO: {
-		uio_t *uiop = out->cd_uio;
+		zfs_uio_t *uiop = out->cd_uio;
 		uint_t vec_idx;
 
 		offset = out->cd_offset;
-		offset = uio_index_at_offset(uiop, offset, &vec_idx);
+		offset = zfs_uio_index_at_offset(uiop, offset, &vec_idx);
 
 		*current_offset = offset;
 		*iov_or_mp = (void *)(uintptr_t)vec_idx;
@@ -85,7 +85,7 @@ crypto_get_ptrs(crypto_data_t *out, void **iov_or_mp, offset_t *current_offset,
 	}
 
 	case CRYPTO_DATA_UIO: {
-		uio_t *uio = out->cd_uio;
+		zfs_uio_t *uio = out->cd_uio;
 		offset_t offset;
 		uint_t vec_idx;
 		uint8_t *p;
@@ -94,7 +94,7 @@ crypto_get_ptrs(crypto_data_t *out, void **iov_or_mp, offset_t *current_offset,
 
 		offset = *current_offset;
 		vec_idx = (uintptr_t)(*iov_or_mp);
-		uio_iov_at_index(uio, vec_idx, &iov_base, &iov_len);
+		zfs_uio_iov_at_index(uio, vec_idx, &iov_base, &iov_len);
 		p = (uint8_t *)iov_base + offset;
 		*out_data_1 = p;
 
@@ -106,10 +106,10 @@ crypto_get_ptrs(crypto_data_t *out, void **iov_or_mp, offset_t *current_offset,
 		} else {
 			/* one block spans two iovecs */
 			*out_data_1_len = iov_len - offset;
-			if (vec_idx == uio_iovcnt(uio))
+			if (vec_idx == zfs_uio_iovcnt(uio))
 				return;
 			vec_idx++;
-			uio_iov_at_index(uio, vec_idx, &iov_base, &iov_len);
+			zfs_uio_iov_at_index(uio, vec_idx, &iov_base, &iov_len);
 			*out_data_2 = (uint8_t *)iov_base;
 			*current_offset = amt - *out_data_1_len;
 		}

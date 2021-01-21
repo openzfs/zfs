@@ -40,7 +40,7 @@ int
 crypto_uio_data(crypto_data_t *data, uchar_t *buf, int len, cmd_type_t cmd,
     void *digest_ctx, void (*update)(void))
 {
-	uio_t *uiop = data->cd_uio;
+	zfs_uio_t *uiop = data->cd_uio;
 	off_t offset = data->cd_offset;
 	size_t length = len;
 	uint_t vec_idx;
@@ -48,7 +48,7 @@ crypto_uio_data(crypto_data_t *data, uchar_t *buf, int len, cmd_type_t cmd,
 	uchar_t *datap;
 
 	ASSERT(data->cd_format == CRYPTO_DATA_UIO);
-	if (uio_segflg(uiop) != UIO_SYSSPACE) {
+	if (zfs_uio_segflg(uiop) != UIO_SYSSPACE) {
 		return (CRYPTO_ARGUMENTS_BAD);
 	}
 
@@ -56,9 +56,9 @@ crypto_uio_data(crypto_data_t *data, uchar_t *buf, int len, cmd_type_t cmd,
 	 * Jump to the first iovec containing data to be
 	 * processed.
 	 */
-	offset = uio_index_at_offset(uiop, offset, &vec_idx);
+	offset = zfs_uio_index_at_offset(uiop, offset, &vec_idx);
 
-	if (vec_idx == uio_iovcnt(uiop) && length > 0) {
+	if (vec_idx == zfs_uio_iovcnt(uiop) && length > 0) {
 		/*
 		 * The caller specified an offset that is larger than
 		 * the total size of the buffers it provided.
@@ -66,11 +66,11 @@ crypto_uio_data(crypto_data_t *data, uchar_t *buf, int len, cmd_type_t cmd,
 		return (CRYPTO_DATA_LEN_RANGE);
 	}
 
-	while (vec_idx < uio_iovcnt(uiop) && length > 0) {
-		cur_len = MIN(uio_iovlen(uiop, vec_idx) -
+	while (vec_idx < zfs_uio_iovcnt(uiop) && length > 0) {
+		cur_len = MIN(zfs_uio_iovlen(uiop, vec_idx) -
 		    offset, length);
 
-		datap = (uchar_t *)(uio_iovbase(uiop, vec_idx) + offset);
+		datap = (uchar_t *)(zfs_uio_iovbase(uiop, vec_idx) + offset);
 		switch (cmd) {
 		case COPY_FROM_DATA:
 			bcopy(datap, buf, cur_len);
@@ -97,7 +97,7 @@ crypto_uio_data(crypto_data_t *data, uchar_t *buf, int len, cmd_type_t cmd,
 		offset = 0;
 	}
 
-	if (vec_idx == uio_iovcnt(uiop) && length > 0) {
+	if (vec_idx == zfs_uio_iovcnt(uiop) && length > 0) {
 		/*
 		 * The end of the specified iovec's was reached but
 		 * the length requested could not be processed.
@@ -166,7 +166,7 @@ crypto_update_uio(void *ctx, crypto_data_t *input, crypto_data_t *output,
     void (*copy_block)(uint8_t *, uint64_t *))
 {
 	common_ctx_t *common_ctx = ctx;
-	uio_t *uiop = input->cd_uio;
+	zfs_uio_t *uiop = input->cd_uio;
 	off_t offset = input->cd_offset;
 	size_t length = input->cd_length;
 	uint_t vec_idx;
@@ -178,7 +178,7 @@ crypto_update_uio(void *ctx, crypto_data_t *input, crypto_data_t *output,
 		    &common_ctx->cc_iv[0]);
 	}
 
-	if (uio_segflg(input->cd_uio) != UIO_SYSSPACE) {
+	if (zfs_uio_segflg(input->cd_uio) != UIO_SYSSPACE) {
 		return (CRYPTO_ARGUMENTS_BAD);
 	}
 
@@ -186,8 +186,8 @@ crypto_update_uio(void *ctx, crypto_data_t *input, crypto_data_t *output,
 	 * Jump to the first iovec containing data to be
 	 * processed.
 	 */
-	offset = uio_index_at_offset(uiop, offset, &vec_idx);
-	if (vec_idx == uio_iovcnt(uiop) && length > 0) {
+	offset = zfs_uio_index_at_offset(uiop, offset, &vec_idx);
+	if (vec_idx == zfs_uio_iovcnt(uiop) && length > 0) {
 		/*
 		 * The caller specified an offset that is larger than the
 		 * total size of the buffers it provided.
@@ -198,11 +198,11 @@ crypto_update_uio(void *ctx, crypto_data_t *input, crypto_data_t *output,
 	/*
 	 * Now process the iovecs.
 	 */
-	while (vec_idx < uio_iovcnt(uiop) && length > 0) {
-		cur_len = MIN(uio_iovlen(uiop, vec_idx) -
+	while (vec_idx < zfs_uio_iovcnt(uiop) && length > 0) {
+		cur_len = MIN(zfs_uio_iovlen(uiop, vec_idx) -
 		    offset, length);
 
-		int rv = (cipher)(ctx, uio_iovbase(uiop, vec_idx) + offset,
+		int rv = (cipher)(ctx, zfs_uio_iovbase(uiop, vec_idx) + offset,
 		    cur_len, output);
 
 		if (rv != CRYPTO_SUCCESS) {
@@ -213,7 +213,7 @@ crypto_update_uio(void *ctx, crypto_data_t *input, crypto_data_t *output,
 		offset = 0;
 	}
 
-	if (vec_idx == uio_iovcnt(uiop) && length > 0) {
+	if (vec_idx == zfs_uio_iovcnt(uiop) && length > 0) {
 		/*
 		 * The end of the specified iovec's was reached but
 		 * the length requested could not be processed, i.e.

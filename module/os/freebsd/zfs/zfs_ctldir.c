@@ -251,7 +251,7 @@ sfs_reclaim_vnode(vnode_t *vp)
 
 static int
 sfs_readdir_common(uint64_t parent_id, uint64_t id, struct vop_readdir_args *ap,
-    uio_t *uio, off_t *offp)
+    zfs_uio_t *uio, off_t *offp)
 {
 	struct dirent entry;
 	int error;
@@ -260,26 +260,26 @@ sfs_readdir_common(uint64_t parent_id, uint64_t id, struct vop_readdir_args *ap,
 	if (ap->a_ncookies != NULL)
 		*ap->a_ncookies = 0;
 
-	if (uio->uio_resid < sizeof (entry))
+	if (zfs_uio_resid(uio) < sizeof (entry))
 		return (SET_ERROR(EINVAL));
 
-	if (uio->uio_offset < 0)
+	if (zfs_uio_offset(uio) < 0)
 		return (SET_ERROR(EINVAL));
-	if (uio->uio_offset == 0) {
+	if (zfs_uio_offset(uio) == 0) {
 		entry.d_fileno = id;
 		entry.d_type = DT_DIR;
 		entry.d_name[0] = '.';
 		entry.d_name[1] = '\0';
 		entry.d_namlen = 1;
 		entry.d_reclen = sizeof (entry);
-		error = vfs_read_dirent(ap, &entry, uio->uio_offset);
+		error = vfs_read_dirent(ap, &entry, zfs_uio_offset(uio));
 		if (error != 0)
 			return (SET_ERROR(error));
 	}
 
-	if (uio->uio_offset < sizeof (entry))
+	if (zfs_uio_offset(uio) < sizeof (entry))
 		return (SET_ERROR(EINVAL));
-	if (uio->uio_offset == sizeof (entry)) {
+	if (zfs_uio_offset(uio) == sizeof (entry)) {
 		entry.d_fileno = parent_id;
 		entry.d_type = DT_DIR;
 		entry.d_name[0] = '.';
@@ -287,7 +287,7 @@ sfs_readdir_common(uint64_t parent_id, uint64_t id, struct vop_readdir_args *ap,
 		entry.d_name[2] = '\0';
 		entry.d_namlen = 2;
 		entry.d_reclen = sizeof (entry);
-		error = vfs_read_dirent(ap, &entry, uio->uio_offset);
+		error = vfs_read_dirent(ap, &entry, zfs_uio_offset(uio));
 		if (error != 0)
 			return (SET_ERROR(error));
 	}
@@ -666,21 +666,23 @@ zfsctl_root_readdir(struct vop_readdir_args *ap)
 	vnode_t *vp = ap->a_vp;
 	zfsvfs_t *zfsvfs = vp->v_vfsp->vfs_data;
 	zfsctl_root_t *node = vp->v_data;
-	uio_t *uio = ap->a_uio;
+	zfs_uio_t uio;
 	int *eofp = ap->a_eofflag;
 	off_t dots_offset;
 	int error;
 
+	zfs_uio_init(&uio, ap->a_uio);
+
 	ASSERT(vp->v_type == VDIR);
 
-	error = sfs_readdir_common(zfsvfs->z_root, ZFSCTL_INO_ROOT, ap, uio,
+	error = sfs_readdir_common(zfsvfs->z_root, ZFSCTL_INO_ROOT, ap, &uio,
 	    &dots_offset);
 	if (error != 0) {
 		if (error == ENAMETOOLONG) /* ran out of destination space */
 			error = 0;
 		return (error);
 	}
-	if (uio->uio_offset != dots_offset)
+	if (zfs_uio_offset(&uio) != dots_offset)
 		return (SET_ERROR(EINVAL));
 
 	CTASSERT(sizeof (node->snapdir->sn_name) <= sizeof (entry.d_name));
@@ -689,7 +691,7 @@ zfsctl_root_readdir(struct vop_readdir_args *ap)
 	strcpy(entry.d_name, node->snapdir->sn_name);
 	entry.d_namlen = strlen(entry.d_name);
 	entry.d_reclen = sizeof (entry);
-	error = vfs_read_dirent(ap, &entry, uio->uio_offset);
+	error = vfs_read_dirent(ap, &entry, zfs_uio_offset(&uio));
 	if (error != 0) {
 		if (error == ENAMETOOLONG)
 			error = 0;
@@ -1030,15 +1032,17 @@ zfsctl_snapdir_readdir(struct vop_readdir_args *ap)
 	struct dirent entry;
 	vnode_t *vp = ap->a_vp;
 	zfsvfs_t *zfsvfs = vp->v_vfsp->vfs_data;
-	uio_t *uio = ap->a_uio;
+	zfs_uio_t uio;
 	int *eofp = ap->a_eofflag;
 	off_t dots_offset;
 	int error;
 
+	zfs_uio_init(&uio, ap->a_uio);
+
 	ASSERT(vp->v_type == VDIR);
 
-	error = sfs_readdir_common(ZFSCTL_INO_ROOT, ZFSCTL_INO_SNAPDIR, ap, uio,
-	    &dots_offset);
+	error = sfs_readdir_common(ZFSCTL_INO_ROOT, ZFSCTL_INO_SNAPDIR, ap,
+	    &uio, &dots_offset);
 	if (error != 0) {
 		if (error == ENAMETOOLONG) /* ran out of destination space */
 			error = 0;
@@ -1050,7 +1054,7 @@ zfsctl_snapdir_readdir(struct vop_readdir_args *ap)
 		uint64_t cookie;
 		uint64_t id;
 
-		cookie = uio->uio_offset - dots_offset;
+		cookie = zfs_uio_offset(&uio) - dots_offset;
 
 		dsl_pool_config_enter(dmu_objset_pool(zfsvfs->z_os), FTAG);
 		error = dmu_snapshot_list_next(zfsvfs->z_os, sizeof (snapname),
@@ -1071,14 +1075,14 @@ zfsctl_snapdir_readdir(struct vop_readdir_args *ap)
 		strcpy(entry.d_name, snapname);
 		entry.d_namlen = strlen(entry.d_name);
 		entry.d_reclen = sizeof (entry);
-		error = vfs_read_dirent(ap, &entry, uio->uio_offset);
+		error = vfs_read_dirent(ap, &entry, zfs_uio_offset(&uio));
 		if (error != 0) {
 			if (error == ENAMETOOLONG)
 				error = 0;
 			ZFS_EXIT(zfsvfs);
 			return (SET_ERROR(error));
 		}
-		uio->uio_offset = cookie + dots_offset;
+		zfs_uio_setoffset(&uio, cookie + dots_offset);
 	}
 	/* NOTREACHED */
 }

@@ -1502,7 +1502,7 @@ sa_lookup(sa_handle_t *hdl, sa_attr_type_t attr, void *buf, uint32_t buflen)
 
 #ifdef _KERNEL
 int
-sa_lookup_uio(sa_handle_t *hdl, sa_attr_type_t attr, uio_t *uio)
+sa_lookup_uio(sa_handle_t *hdl, sa_attr_type_t attr, zfs_uio_t *uio)
 {
 	int error;
 	sa_bulk_attr_t bulk;
@@ -1515,8 +1515,8 @@ sa_lookup_uio(sa_handle_t *hdl, sa_attr_type_t attr, uio_t *uio)
 
 	mutex_enter(&hdl->sa_lock);
 	if ((error = sa_attr_op(hdl, &bulk, 1, SA_LOOKUP, NULL)) == 0) {
-		error = uiomove((void *)bulk.sa_addr, MIN(bulk.sa_size,
-		    uio_resid(uio)), UIO_READ, uio);
+		error = zfs_uiomove((void *)bulk.sa_addr, MIN(bulk.sa_size,
+		    zfs_uio_resid(uio)), UIO_READ, uio);
 	}
 	mutex_exit(&hdl->sa_lock);
 	return (error);
