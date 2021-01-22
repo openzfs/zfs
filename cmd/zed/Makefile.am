@@ -47,3 +47,5 @@ zed_LDADD += -lrt $(LIBUDEV_LIBS) $(LIBUUID_LIBS)
 zed_LDFLAGS = -pthread
 
 EXTRA_DIST = agents/README.md
+
+include $(top_srcdir)/config/CppCheck.am

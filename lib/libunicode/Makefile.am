@@ -13,3 +13,5 @@ KERNEL_C = \
 
 nodist_libunicode_la_SOURCES = \
 	$(KERNEL_C)
+
+include $(top_srcdir)/config/CppCheck.am
