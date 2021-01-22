@@ -2010,7 +2010,7 @@ zpool_print_cmd(vdev_cmd_data_list_t *vcdl, const char *pool, char *path)
 			 * Mark empty values with dashes to make output
 			 * awk-able.
 			 */
-			if (is_blank_str(val))
+			if (val == NULL || is_blank_str(val))
 				val = "-";
 
 			printf("%*s", vcdl->uniq_cols_width[j], val);
