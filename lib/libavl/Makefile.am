@@ -12,3 +12,5 @@ KERNEL_C = \
 
 nodist_libavl_la_SOURCES = \
 	$(KERNEL_C)
+
+include $(top_srcdir)/config/CppCheck.am

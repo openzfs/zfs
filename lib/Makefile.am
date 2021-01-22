@@ -1,9 +1,12 @@
 # NB: GNU Automake Manual, Chapter 8.3.5: Libtool Convenience Libraries
 # These nine libraries are intermediary build components.
 SUBDIRS = libavl libicp libshare libspl libtpool libzstd
+CPPCHECKDIRS  = libavl libicp libnvpair libshare libspl libtpool libunicode
+CPPCHECKDIRS += libuutil libzfs libzfs_core libzfsbootenv libzpool libzutil
 
 if BUILD_LINUX
 SUBDIRS += libefi
+CPPCHECKDIRS += libefi
 endif
 
 # libnvpair is installed as part of the final build product
@@ -23,7 +26,7 @@ DISTLIBS += libnvpair
 # is only linked against by ztest and zdb and no stable ABI is provided.
 ABILIBS = libnvpair libuutil libzfs_core libzfs libzfsbootenv
 
-PHONY = checkabi storeabi
+PHONY = checkabi storeabi cppcheck
 checkabi: $(ABILIBS)
 	set -e ; for dir in $(ABILIBS) ; do \
 		$(MAKE) -C $$dir checkabi ; \
@@ -32,4 +35,9 @@ checkabi: $(ABILIBS)
 storeabi: $(ABILIBS)
 	set -e ; for dir in $(ABILIBS) ; do \
 		$(MAKE) -C $$dir storeabi ; \
+	done
+
+cppcheck: $(CPPCHECKDIRS)
+	set -e ; for dir in $(CPPCHECKDIRS) ; do \
+		$(MAKE) -C $$dir cppcheck ; \
 	done

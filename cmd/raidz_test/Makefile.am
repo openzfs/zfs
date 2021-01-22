@@ -18,3 +18,5 @@ raidz_test_LDADD = \
 	$(abs_top_builddir)/lib/libzfs_core/libzfs_core.la
 
 raidz_test_LDADD += -lm
+
+include $(top_srcdir)/config/CppCheck.am

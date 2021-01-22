@@ -1,8 +1,0 @@
-preprocessorErrorDirective:./module/zfs/vdev_raidz_math_avx512f.c:243
-preprocessorErrorDirective:./module/zfs/vdev_raidz_math_sse2.c:266
-uninitvar:module/os/freebsd/zfs/vdev_geom.c
-uninitvar:module/os/freebsd/zfs/zfs_vfsops.c
-uninitvar:module/os/freebsd/spl/spl_zone.c
-uninitvar:lib/libzutil/os/freebsd/zutil_import_os.c
-*:module/zstd/lib/zstd.c
-*:module/zstd/lib/zstd.h

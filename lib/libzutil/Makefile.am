@@ -50,3 +50,5 @@ libzutil_la_LIBADD += \
 endif
 
 libzutil_la_LIBADD += -lm $(LIBBLKID_LIBS) $(LIBUDEV_LIBS)
+
+include $(top_srcdir)/config/CppCheck.am

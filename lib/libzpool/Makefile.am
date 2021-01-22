@@ -235,3 +235,5 @@ if TARGET_CPU_POWERPC
 vdev_raidz_math_powerpc_altivec.$(OBJEXT): CFLAGS += -maltivec
 vdev_raidz_math_powerpc_altivec.l$(OBJEXT): CFLAGS += -maltivec
 endif
+
+include $(top_srcdir)/config/CppCheck.am

@@ -71,3 +71,5 @@ KERNEL_ASM = $(ASM_SOURCES_AS)
 nodist_libicp_la_SOURCES = \
 	$(KERNEL_C) \
 	$(KERNEL_ASM)
+
+include $(top_srcdir)/config/CppCheck.am

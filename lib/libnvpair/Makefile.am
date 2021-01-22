@@ -1,5 +1,4 @@
 include $(top_srcdir)/config/Rules.am
-PHONY =
 
 VPATH = \
 	$(top_srcdir)/module/nvpair \
@@ -41,6 +40,8 @@ libnvpair_la_LDFLAGS += -Wl,-z,defs
 endif
 
 libnvpair_la_LDFLAGS += -version-info 3:0:0
+
+include $(top_srcdir)/config/CppCheck.am
 
 # Library ABI
 EXTRA_DIST = libnvpair.abi libnvpair.suppr
