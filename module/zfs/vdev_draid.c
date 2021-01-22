@@ -1200,16 +1200,10 @@ vdev_draid_map_alloc_row(zio_t *zio, raidz_row_t **rrp, uint64_t io_offset,
 	/* The total number of data and parity sectors for this I/O. */
 	uint64_t tot = psize + (vdc->vdc_nparity * (q + (r == 0 ? 0 : 1)));
 
-	raidz_row_t *rr;
-	rr = kmem_alloc(offsetof(raidz_row_t, rr_col[groupwidth]), KM_SLEEP);
-	rr->rr_cols = groupwidth;
+	raidz_row_t *rr = vdev_raidz_row_alloc(groupwidth);
 	rr->rr_scols = groupwidth;
 	rr->rr_bigcols = bc;
-	rr->rr_missingdata = 0;
-	rr->rr_missingparity = 0;
 	rr->rr_firstdatacol = vdc->vdc_nparity;
-	rr->rr_abd_copy = NULL;
-	rr->rr_abd_empty = NULL;
 #ifdef ZFS_DEBUG
 	rr->rr_offset = io_offset;
 	rr->rr_size = io_size;
@@ -1229,17 +1223,6 @@ vdev_draid_map_alloc_row(zio_t *zio, raidz_row_t **rrp, uint64_t io_offset,
 
 		rc->rc_devidx = vdev_draid_permute_id(vdc, base, iter, c);
 		rc->rc_offset = physical_offset;
-		rc->rc_abd = NULL;
-		rc->rc_gdata = NULL;
-		rc->rc_orig_data = NULL;
-		rc->rc_error = 0;
-		rc->rc_tried = 0;
-		rc->rc_skipped = 0;
-		rc->rc_repair = 0;
-		rc->rc_need_orig_restore = B_FALSE;
-		rc->rc_shadow_devidx = UINT64_MAX;
-		rc->rc_shadow_offset = UINT64_MAX;
-		rc->rc_shadow_error = 0;
 
 		if (q == 0 && i >= bc)
 			rc->rc_size = 0;
