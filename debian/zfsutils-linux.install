@@ -19,6 +19,7 @@ usr/lib/*/zfs/zpool.d/
 usr/lib/*/zfs/zpool_influxdb
 sbin/fsck.zfs
 sbin/mount.zfs
+sbin/zgenhostid
 sbin/ztest
 sbin/zstream
 sbin/zstreamdump
@@ -29,7 +30,6 @@ sbin/zfs_file
 sbin/zfs_ids_to_path
 sbin/zpool
 sbin/zfs
-usr/bin/zgenhostid
 usr/bin/zvol_wait
 usr/sbin/arc_summary
 usr/sbin/arcstat

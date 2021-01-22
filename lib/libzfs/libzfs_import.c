@@ -77,7 +77,7 @@ refresh_config(libzfs_handle_t *hdl, nvlist_t *config)
 	if (zcmd_write_conf_nvlist(hdl, &zc, config) != 0)
 		return (NULL);
 
-	dstbuf_size = MAX(CONFIG_BUF_MINSIZE, zc.zc_nvlist_conf_size * 4);
+	dstbuf_size = MAX(CONFIG_BUF_MINSIZE, zc.zc_nvlist_conf_size * 32);
 
 	if (zcmd_alloc_dst_nvlist(hdl, &zc, dstbuf_size) != 0) {
 		zcmd_free_nvlists(&zc);
