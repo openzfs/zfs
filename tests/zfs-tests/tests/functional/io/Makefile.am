@@ -5,6 +5,7 @@ dist_pkgdata_SCRIPTS = \
 	sync.ksh \
 	psync.ksh \
 	libaio.ksh \
+	io_uring.ksh \
 	posixaio.ksh \
 	mmap.ksh
 
