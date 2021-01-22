@@ -2559,7 +2559,7 @@ vdev_raidz_io_done_verified(zio_t *zio, raidz_row_t *rr)
 	    (parity_errors + parity_untried <
 	    rr->rr_firstdatacol - data_errors) ? "yes" : "no");
 #endif
-#if 0
+#if 1
 	if (parity_errors + parity_untried <
 	    rr->rr_firstdatacol - data_errors ||
 	    (zio->io_flags & ZIO_FLAG_RESILVER)) {
