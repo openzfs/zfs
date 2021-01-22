@@ -30,5 +30,7 @@
 #include <sys/types.h>
 
 extern int mkdirp(const char *, mode_t);
+extern char *basename(char *);
+
 
 #endif /* _LIBSPL_LIBGEN_H */
