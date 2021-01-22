@@ -1189,6 +1189,30 @@ zpool_has_special_vdev(nvlist_t *nvroot)
 }
 
 /*
+ * Check if vdev list contains a dRAID vdev
+ */
+static boolean_t
+zpool_has_draid_vdev(nvlist_t *nvroot)
+{
+	nvlist_t **child;
+	uint_t children;
+
+	if (nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN,
+	    &child, &children) == 0) {
+		for (uint_t c = 0; c < children; c++) {
+			char *type;
+
+			if (nvlist_lookup_string(child[c],
+			    ZPOOL_CONFIG_TYPE, &type) == 0 &&
+			    strcmp(type, VDEV_TYPE_DRAID) == 0) {
+				return (B_TRUE);
+			}
+		}
+	}
+	return (B_FALSE);
+}
+
+/*
  * Output a dRAID top-level vdev name in to the provided buffer.
  */
 static char *
@@ -1373,6 +1397,17 @@ zpool_create(libzfs_handle_t *hdl, const char *pool, nvlist_t *nvroot,
 			    "one or more devices is out of space"));
 			return (zfs_error(hdl, EZFS_BADDEV, msg));
 
+		case EINVAL:
+			if (zpool_has_draid_vdev(nvroot) &&
+			    zfeature_lookup_name("draid", NULL) != 0) {
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "dRAID vdevs are unsupported by the "
+				    "kernel"));
+				return (zfs_error(hdl, EZFS_BADDEV, msg));
+			} else {
+				return (zpool_standard_error(hdl, errno, msg));
+			}
+
 		default:
 			return (zpool_standard_error(hdl, errno, msg));
 		}
@@ -1528,9 +1563,19 @@ zpool_add(zpool_handle_t *zhp, nvlist_t *nvroot)
 			break;
 
 		case EINVAL:
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "invalid config; a pool with removing/removed "
-			    "vdevs does not support adding raidz vdevs"));
+
+			if (zpool_has_draid_vdev(nvroot) &&
+			    zfeature_lookup_name("draid", NULL) != 0) {
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "dRAID vdevs are unsupported by the "
+				    "kernel"));
+			} else {
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "invalid config; a pool with removing/"
+				    "removed vdevs does not support adding "
+				    "raidz or dRAID vdevs"));
+			}
+
 			(void) zfs_error(hdl, EZFS_BADDEV, msg);
 			break;
 

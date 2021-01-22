@@ -1653,7 +1653,8 @@ zpool_do_create(int argc, char **argv)
 				if (strcmp(propval, ZFS_FEATURE_DISABLED) == 0)
 					(void) nvlist_remove_all(props,
 					    propname);
-			} else if (enable_all_pool_feat) {
+			} else if (enable_all_pool_feat &&
+			    feat->fi_zfs_mod_supported) {
 				ret = add_prop_list(propname,
 				    ZFS_FEATURE_ENABLED, &props, B_TRUE);
 				if (ret != 0)
