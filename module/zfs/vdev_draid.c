@@ -1237,6 +1237,9 @@ vdev_draid_map_alloc_row(zio_t *zio, raidz_row_t **rrp, uint64_t io_offset,
 		rc->rc_skipped = 0;
 		rc->rc_repair = 0;
 		rc->rc_need_orig_restore = B_FALSE;
+		rc->rc_shadow_devidx = UINT64_MAX;
+		rc->rc_shadow_offset = UINT64_MAX;
+		rc->rc_shadow_error = 0;
 
 		if (q == 0 && i >= bc)
 			rc->rc_size = 0;
