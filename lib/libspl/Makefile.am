@@ -55,3 +55,12 @@ libspl_la_LIBADD = \
 	libspl_assert.la
 
 libspl_la_LIBADD += $(LIBCLOCK_GETTIME)
+
+include $(top_srcdir)/config/CppCheck.am
+
+# Override the default SOURCES which includes TARGET_CPU_ATOMIC_SOURCE
+# in order to always evaluate the generic asm-generic/atomic.c source.
+CPPCHECKSRC = $(USER_C) asm-generic/atomic.c
+cppcheck:
+	$(CPPCHECK) -j$(CPU_COUNT) $(CPPCHECKFLAGS) --force \
+		$(DEFAULT_INCLUDES) $(CPPCHECKSRC)

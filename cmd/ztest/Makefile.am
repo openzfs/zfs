@@ -21,3 +21,5 @@ ztest_LDADD = \
 
 ztest_LDADD += -lm
 ztest_LDFLAGS = -pthread
+
+include $(top_srcdir)/config/CppCheck.am

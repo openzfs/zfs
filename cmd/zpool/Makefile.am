@@ -34,6 +34,8 @@ zpool_LDADD += -lgeom
 endif
 zpool_LDADD += -lm $(LIBBLKID_LIBS) $(LIBUUID_LIBS)
 
+include $(top_srcdir)/config/CppCheck.am
+
 zpoolconfdir = $(sysconfdir)/zfs/zpool.d
 zpoolexecdir = $(zfsexecdir)/zpool.d
 

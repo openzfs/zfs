@@ -1,5 +1,4 @@
 include $(top_srcdir)/config/Rules.am
-PHONY =
 
 lib_LTLIBRARIES = libuutil.la
 
@@ -31,6 +30,8 @@ libuutil_la_LDFLAGS += -Wl,-z,defs
 endif
 
 libuutil_la_LDFLAGS += -version-info 3:0:0
+
+include $(top_srcdir)/config/CppCheck.am
 
 # Library ABI
 EXTRA_DIST = libuutil.abi libuutil.suppr
