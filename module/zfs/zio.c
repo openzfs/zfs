@@ -792,8 +792,6 @@ zio_create(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 	ASSERT(vd || stage == ZIO_STAGE_OPEN);
 
 	IMPLY(lsize != psize, (flags & ZIO_FLAG_RAW_COMPRESS) != 0);
-	ASSERT(!(type == ZIO_TYPE_WRITE && data == NULL &&
-	    (flags & ZIO_FLAG_NODATA) == 0));
 
 	zio = kmem_cache_alloc(zio_cache, KM_SLEEP);
 	bzero(zio, sizeof (zio_t));
