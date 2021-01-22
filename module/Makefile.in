@@ -14,7 +14,8 @@ check:
 	modules modules-Linux modules-FreeBSD modules-unknown \
 	clean clean-Linux clean-FreeBSD \
 	modules_install modules_install-Linux modules_install-FreeBSD \
-	modules_uninstall modules_uninstall-Linux modules_uninstall-FreeBSD
+	modules_uninstall modules_uninstall-Linux modules_uninstall-FreeBSD \
+	cppcheck cppcheck-Linux cppcheck-FreeBSD
 
 # Filter out options that FreeBSD make doesn't understand
 getflags = ( \
@@ -105,6 +106,25 @@ modules_uninstall-FreeBSD:
 	@false
 
 modules_uninstall: modules_uninstall-@ac_system@
+
+cppcheck-Linux:
+	@CPPCHECK@ -j@CPU_COUNT@ --std=c99 --quiet --force --error-exitcode=2 \
+		--inline-suppr --suppress=noValidConfiguration \
+		--enable=warning,information -D_KERNEL \
+		--include=@LINUX_OBJ@/include/generated/autoconf.h \
+		--include=@top_srcdir@/zfs_config.h \
+		--config-exclude=@LINUX_OBJ@/include \
+		-I @LINUX_OBJ@/include \
+		-I @top_srcdir@/include/os/linux/kernel \
+		-I @top_srcdir@/include/os/linux/spl \
+		-I @top_srcdir@/include/os/linux/zfs \
+		-I @top_srcdir@/include \
+		avl icp lua nvpair spl unicode zcommon zfs zstd os/linux
+
+cppcheck-FreeBSD:
+	@true
+
+cppcheck: cppcheck-@ac_system@
 
 distdir:
 	(cd @srcdir@ && find $(ZFS_MODULES) os -name '*.[chS]') | \

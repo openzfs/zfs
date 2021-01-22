@@ -3,6 +3,7 @@
 # should include these rules and override or extend them as needed.
 #
 
+PHONY =
 DEFAULT_INCLUDES = \
 	-include $(top_builddir)/zfs_config.h \
 	-I$(top_builddir)/include \

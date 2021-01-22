@@ -284,9 +284,7 @@ int64_t
 __divdi3(int64_t u, int64_t v)
 {
 	int64_t q, t;
-	// cppcheck-suppress shiftTooManyBitsSigned
 	q = __udivdi3(abs64(u), abs64(v));
-	// cppcheck-suppress shiftTooManyBitsSigned
 	t = (u ^ v) >> 63;	// If u, v have different
 	return ((q ^ t) - t);	// signs, negate q.
 }
