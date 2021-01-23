@@ -557,6 +557,7 @@ abd_get_offset_impl(abd_t *sabd, size_t off, size_t size)
 		abd = abd_get_offset_scatter(sabd, off);
 	}
 
+	ASSERT3P(abd, !=, NULL);
 	abd->abd_size = size;
 	abd->abd_parent = sabd;
 	zfs_refcount_create(&abd->abd_children);

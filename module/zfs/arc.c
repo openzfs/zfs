@@ -8937,17 +8937,17 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 	/*
 	 * Copy buffers for L2ARC writing.
 	 */
-	for (int try = 0; try < L2ARC_FEED_TYPES; try++) {
+	for (int pass = 0; pass < L2ARC_FEED_TYPES; pass++) {
 		/*
-		 * If try == 1 or 3, we cache MRU metadata and data
+		 * If pass == 1 or 3, we cache MRU metadata and data
 		 * respectively.
 		 */
 		if (l2arc_mfuonly) {
-			if (try == 1 || try == 3)
+			if (pass == 1 || pass == 3)
 				continue;
 		}
 
-		multilist_sublist_t *mls = l2arc_sublist_lock(try);
+		multilist_sublist_t *mls = l2arc_sublist_lock(pass);
 		uint64_t passed_sz = 0;
 
 		VERIFY3P(mls, !=, NULL);
