@@ -263,6 +263,7 @@ elif sys.platform.startswith('linux'):
         'cli_root/zpool_expand/zpool_expand_001_pos': ['FAIL', known_reason],
         'cli_root/zpool_expand/zpool_expand_005_pos': ['FAIL', known_reason],
         'cli_root/zpool_reopen/zpool_reopen_003_pos': ['FAIL', known_reason],
+        'io/io_uring': ['SKIP', 'io_uring support required'],
         'limits/filesystem_limit': ['SKIP', known_reason],
         'limits/snapshot_limit': ['SKIP', known_reason],
         'mmp/mmp_exported_import': ['FAIL', known_reason],
