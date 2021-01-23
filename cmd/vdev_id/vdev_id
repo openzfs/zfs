@@ -545,6 +545,7 @@ while getopts 'c:d:eg:mp:h' OPTION; do
 done
 
 if [ ! -r $CONFIG ] ; then
+	echo "Error: Config file \"$CONFIG\" not found"
 	exit 0
 fi
 
