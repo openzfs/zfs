@@ -326,7 +326,7 @@ smallblk_changed_cb(void *arg, uint64_t newval)
 	/*
 	 * Inheritance and range checking should have been done by now.
 	 */
-	ASSERT(newval <= SPA_OLD_MAXBLOCKSIZE);
+	ASSERT(newval <= SPA_MAXBLOCKSIZE);
 	ASSERT(ISP2(newval));
 
 	os->os_zpl_special_smallblock = newval;
