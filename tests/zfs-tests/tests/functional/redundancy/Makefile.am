@@ -9,6 +9,7 @@ dist_pkgdata_SCRIPTS = \
 	redundancy_draid_spare2.ksh \
 	redundancy_draid_spare3.ksh \
 	redundancy_mirror.ksh \
+	redundancy_raidz.ksh \
 	redundancy_raidz1.ksh \
 	redundancy_raidz2.ksh \
 	redundancy_raidz3.ksh \
