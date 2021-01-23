@@ -274,8 +274,6 @@ taskq_lowest_id(taskq_t *tq)
 	taskq_ent_t *t;
 	taskq_thread_t *tqt;
 
-	ASSERT(tq);
-
 	if (!list_empty(&tq->tq_pend_list)) {
 		t = list_entry(tq->tq_pend_list.next, taskq_ent_t, tqent_list);
 		lowest_id = MIN(lowest_id, t->tqent_id);
