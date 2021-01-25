@@ -54,6 +54,7 @@ void vdev_raidz_generate_parity(struct raidz_map *);
 void vdev_raidz_reconstruct(struct raidz_map *, const int *, int);
 void vdev_raidz_child_done(zio_t *);
 void vdev_raidz_io_done(zio_t *);
+struct raidz_row *vdev_raidz_row_alloc(int);
 
 /*
  * vdev_raidz_math interface

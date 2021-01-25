@@ -395,6 +395,22 @@ static const zio_vsd_ops_t vdev_raidz_vsd_ops = {
 	.vsd_cksum_report = vdev_raidz_cksum_report
 };
 
+raidz_row_t *
+vdev_raidz_row_alloc(int cols)
+{
+	raidz_row_t *rr =
+	    kmem_zalloc(offsetof(raidz_row_t, rr_col[cols]), KM_SLEEP);
+
+	rr->rr_cols = cols;
+
+	for (int c = 0; c < cols; c++) {
+		raidz_col_t *rc = &rr->rr_col[c];
+		rc->rc_shadow_devidx = UINT64_MAX;
+		rc->rc_shadow_offset = UINT64_MAX;
+	}
+	return (rr);
+}
+
 /*
  * Divides the IO evenly across all child vdevs; usually, dcols is
  * the number of children in the target vdev.
@@ -452,16 +468,9 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t ashift, uint64_t dcols,
 		acols = dcols;
 	}
 
-	rr = kmem_alloc(offsetof(raidz_row_t, rr_col[acols]), KM_SLEEP);
+	rr = vdev_raidz_row_alloc(acols);
 	rm->rm_row[0] = rr;
-
-	rr->rr_cols = acols;
-	rr->rr_missingdata = 0;
-	rr->rr_missingparity = 0;
 	rr->rr_firstdatacol = nparity;
-	rr->rr_abd_copy = NULL;
-	rr->rr_abd_empty = NULL;
-	rr->rr_nempty = 0;
 #ifdef ZFS_DEBUG
 	rr->rr_offset = zio->io_offset;
 	rr->rr_size = zio->io_size;
@@ -479,17 +488,6 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t ashift, uint64_t dcols,
 		}
 		rc->rc_devidx = col;
 		rc->rc_offset = coff;
-		rc->rc_abd = NULL;
-		rc->rc_gdata = NULL;
-		rc->rc_orig_data = NULL;
-		rc->rc_error = 0;
-		rc->rc_tried = 0;
-		rc->rc_skipped = 0;
-		rc->rc_repair = 0;
-		rc->rc_need_orig_restore = B_FALSE;
-		rc->rc_shadow_devidx = UINT64_MAX;
-		rc->rc_shadow_offset = UINT64_MAX;
-		rc->rc_shadow_error = 0;
 
 		if (c < bc)
 			rc->rc_size = (q + 1) << ashift;
@@ -624,8 +622,7 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 #endif
 
 	for (uint64_t row = 0; row < rows; row++) {
-		raidz_row_t *rr = kmem_alloc(offsetof(raidz_row_t,
-		    rr_col[cols]), KM_SLEEP);
+		raidz_row_t *rr = vdev_raidz_row_alloc(cols);
 		rm->rm_row[row] = rr;
 
 		/* The starting RAIDZ (parent) vdev sector of the row. */
@@ -646,7 +643,7 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 		uint64_t child_offset = (b / row_phys_cols) << ashift;
 
 		/*
-		 * We set cols to the entire width of the block, even
+		 * Note, rr_cols is the entire width of the block, even
 		 * if this row is shorter.  This is needed because parity
 		 * generation (for Q and R) needs to know the entire width,
 		 * because it treats the short row as though it was
@@ -659,13 +656,7 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 		 * vdev_raidz_reconstruct_general()) would also need to
 		 * know about the "entire width".
 		 */
-		rr->rr_cols = cols;
-		rr->rr_missingdata = 0;
-		rr->rr_missingparity = 0;
 		rr->rr_firstdatacol = nparity;
-		rr->rr_abd_copy = NULL;
-		rr->rr_abd_empty = NULL;
-		rr->rr_nempty = 0;
 #ifdef ZFS_DEBUG
 		rr->rr_offset = offset;
 		rr->rr_size = size;
@@ -679,16 +670,6 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 			raidz_col_t *rc = &rr->rr_col[c];
 			rc->rc_devidx = child_id;
 			rc->rc_offset = child_offset;
-			rc->rc_gdata = NULL;
-			rc->rc_orig_data = NULL;
-			rc->rc_error = 0;
-			rc->rc_tried = 0;
-			rc->rc_skipped = 0;
-			rc->rc_repair = 0;
-			rc->rc_need_orig_restore = B_FALSE;
-			rc->rc_shadow_devidx = UINT64_MAX;
-			rc->rc_shadow_offset = UINT64_MAX;
-			rc->rc_shadow_error = 0;
 
 			list_link_init(&rr->rr_col[c].rc_abdstruct.abd_gang_link);
 			mutex_init(&rr->rr_col[c].rc_abdstruct.abd_mtx, NULL, MUTEX_DEFAULT, NULL);
