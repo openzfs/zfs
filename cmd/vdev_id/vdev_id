@@ -155,9 +155,9 @@ map_slot() {
 }
 
 map_channel() {
-	MAPPED_CHAN=
-	PCI_ID=$1
-	PORT=$2
+	local MAPPED_CHAN=
+	local PCI_ID=$1
+	local PORT=$2
 
 	case $TOPOLOGY in
 		"sas_switch")
