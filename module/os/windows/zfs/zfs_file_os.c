@@ -50,20 +50,38 @@ zfs_file_open(const char *path, int flags, int mode, zfs_file_t **fpp)
 	DWORD dwCreationDisposition;
 
 	mbstowcs(buf, path, sizeof (buf));
-	if (flags == O_RDONLY) {
-		desiredAccess = GENERIC_READ;
-		dwCreationDisposition = FILE_OPEN_IF;
-	}
-	if (flags & O_WRONLY) {
+
+	desiredAccess = GENERIC_READ;
+	if (flags&O_WRONLY)
 		desiredAccess = GENERIC_WRITE;
-		dwCreationDisposition = FILE_OVERWRITE_IF;
-	}
-	if (flags & O_RDWR) {
+	if (flags&O_RDWR)
 		desiredAccess = GENERIC_READ | GENERIC_WRITE;
-		dwCreationDisposition = FILE_OVERWRITE_IF;
-	}
-	if (flags & O_TRUNC)
+
+	switch (flags&(O_CREAT | O_TRUNC | O_EXCL)) {
+	case O_CREAT:
+		dwCreationDisposition = FILE_OPEN_IF;
+		break;
+	case O_TRUNC:
 		dwCreationDisposition = FILE_SUPERSEDE;
+		break;
+	case (O_CREAT | O_EXCL):
+	case (O_CREAT | O_EXCL | O_TRUNC): // Only creating new implies starting from 0
+		dwCreationDisposition = FILE_CREATE;
+		break;
+	case (O_CREAT | O_TRUNC):
+		dwCreationDisposition = FILE_OVERWRITE_IF;
+		break;
+	default:
+	case O_EXCL: // Invalid, ignore bit - treat as normal open
+		dwCreationDisposition = FILE_OPEN;
+		break;
+	}
+
+	if (flags&O_APPEND) mode |= FILE_APPEND_DATA;
+
+#ifdef O_EXLOCK
+	// if (flags&O_EXLOCK) share &= ~FILE_SHARE_WRITE;
+#endif
 
 	RtlInitUnicodeString(&uniName, buf);
 	InitializeObjectAttributes(&objAttr, &uniName,
@@ -208,7 +226,7 @@ zfs_file_pwrite(zfs_file_t *fp, const void *buf, size_t count, loff_t off,
 	IO_STATUS_BLOCK ioStatusBlock;
 	LARGE_INTEGER offset = { 0 };
 	offset.QuadPart = off;
-	ntstatus = ZwReadFile(fp->f_handle, NULL, NULL, NULL, &ioStatusBlock, buf, count, &offset, NULL);
+	ntstatus = ZwWriteFile(fp->f_handle, NULL, NULL, NULL, &ioStatusBlock, buf, count, &offset, NULL);
 	// reset fp to its original position
 	if (STATUS_SUCCESS != ntstatus)
 		return (EIO);
