@@ -552,9 +552,23 @@ vdev_disk_io_intr(PDEVICE_OBJECT DeviceObject, PIRP irp, PVOID Context)
 	 * If IRQL is below DIPATCH_LEVEL then there is no issue in calling
 	 * vdev_disk_io_start_done() directly; otherwise queue a new Work Item
 	 */
-	if (KeGetCurrentIrql() < DISPATCH_LEVEL)
+	/*
+	 * Unfortunately:
+	 * Whatever thread happened to be running is "borrowed" to handle
+	 * the completion.
+	 * As about DPCs - in Windows, they are not bound to a thread, KeGetCurrentThread
+	 * is just nonsense in them.
+	 *
+	 * So, the whole Windows kernel framework just does not support the notion of
+	 * "current thread" in DPCs and thus completion routines.
+	 *
+	 * This means our call to "mutex_enter()" will "panic: lock against myself" if that
+	 * thread it "borrowed" is the actual owner thread.   
+	 */ 
+//	if (KeGetCurrentIrql() < DISPATCH_LEVEL)
+	if (0) {
 		vdev_disk_io_start_done(vb);
-	else {
+	} else {
 		IoInitializeWorkItem(dvd->vd_DeviceObject, (PIO_WORKITEM)vb->work_item);
 		IoQueueWorkItem((PIO_WORKITEM)vb->work_item, DiskIoWkRtn, DelayedWorkQueue, vb);
 	}

@@ -353,6 +353,17 @@ zpool_read_label_win(HANDLE h, off_t offset, uint64_t len, nvlist_t **config, in
 	return (0);
 }
 
+/*
+ * Somethings do not like mixing slashes with backslashes
+ */
+static void
+zfs_backslashes(char *s)
+{
+	char *r;
+	while((r = strchr(s, '/')) != NULL)
+		*r = '\\';
+}
+
 
 void
 zpool_open_func(void *arg)
@@ -397,10 +408,11 @@ zpool_open_func(void *arg)
 
 	} else {
 		// We have no openat() - so stitch paths togther.
-		char fullpath[MAX_PATH];
-		snprintf(fullpath, sizeof(fullpath), "%s%s", 
-			"", rn->rn_name);
-		fd = CreateFile(fullpath,
+		// char fullpath[MAX_PATH];
+		// snprintf(fullpath, sizeof(fullpath), "%s%s", 
+		// 	"", rn->rn_name);
+		zfs_backslashes(rn->rn_name);
+		fd = CreateFile(rn->rn_name,
 			GENERIC_READ,
 			FILE_SHARE_READ /*| FILE_SHARE_WRITE*/,
 			NULL,
@@ -418,7 +430,7 @@ zpool_open_func(void *arg)
 	DWORD type = GetFileType(fd);
 	//fprintf(stderr, "device '%s' filetype %d 0x%x\n", rn->rn_name, type, type);
 	
-	type = GetDriveType(rn->rn_name);
+	// type = GetDriveType(rn->rn_name);
 	//fprintf(stderr, "device '%s' filetype %d 0x%x\n", rn->rn_name, type, type);
 
 	
