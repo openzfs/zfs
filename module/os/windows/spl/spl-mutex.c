@@ -147,6 +147,7 @@ void spl_mutex_exit(kmutex_t *mp)
 
 	atomic_inc_32(&mp->set_event_guard);
 
+	mp->m_released_by = current_thread();
 	mp->m_owner = NULL;
 
 	VERIFY3U(KeGetCurrentIrql(), <= , DISPATCH_LEVEL);

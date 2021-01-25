@@ -210,6 +210,12 @@ __dprintf(boolean_t dprint, const char *file, const char *func,
 	} else {
 		newfile = file;
 	}
+	newfile = strrchr(file, '\\');
+	if (newfile != NULL) {
+		newfile = newfile + 1; /* Get rid of leading / */
+	} else {
+		newfile = file;
+	}
 
 	va_start(adx, fmt);
 	size = vsnprintf(NULL, 0, fmt, adx);

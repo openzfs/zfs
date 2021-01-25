@@ -127,6 +127,12 @@ vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 
 	vf = vd->vdev_tsd = kmem_zalloc(sizeof(vdev_file_t), KM_SLEEP);
 
+	/* Make sure to change //?/ into kernel /??/ */
+	if (vd->vdev_path[0] == '\\' &&
+	    vd->vdev_path[1] == '\\' &&
+	    vd->vdev_path[2] == '?' &&
+	    vd->vdev_path[3] == '\\')
+		vd->vdev_path[1] = '?';
 
 	error = zfs_file_open(vd->vdev_path,
 	    vdev_file_open_mode(spa_mode(vd->vdev_spa)), 0, &fp);

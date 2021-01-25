@@ -201,14 +201,14 @@ int zfs_file_read(zfs_file_t *fp, /* const */void *buf, size_t count, ssize_t *r
  * Returns 0 on success errno on failure.
  */
 int
-zfs_file_pwrite(zfs_file_t* fp, const void* buf, size_t count, loff_t off,
-	ssize_t* resid)
+zfs_file_pwrite(zfs_file_t *fp, const void *buf, size_t count, loff_t off,
+	ssize_t *resid)
 {
 	NTSTATUS ntstatus;
 	IO_STATUS_BLOCK ioStatusBlock;
 	LARGE_INTEGER offset = { 0 };
 	offset.QuadPart = off;
-	ntstatus = ZwReadFile(fp, NULL, NULL, NULL, &ioStatusBlock, buf, count, &offset, NULL);
+	ntstatus = ZwReadFile(fp->f_handle, NULL, NULL, NULL, &ioStatusBlock, buf, count, &offset, NULL);
 	// reset fp to its original position
 	if (STATUS_SUCCESS != ntstatus)
 		return (EIO);
@@ -236,7 +236,7 @@ zfs_file_pread(zfs_file_t *fp, void *buf, size_t count, loff_t off,
 	IO_STATUS_BLOCK ioStatusBlock;
 	LARGE_INTEGER offset = { 0 };
 	offset.QuadPart = off;
-	ntstatus = ZwReadFile(fp, NULL, NULL, NULL, &ioStatusBlock, buf, count, &offset, NULL);
+	ntstatus = ZwReadFile(fp->f_handle, NULL, NULL, NULL, &ioStatusBlock, buf, count, &offset, NULL);
 	if (STATUS_SUCCESS != ntstatus)
 		return (EIO);
 	if (resid)
@@ -316,12 +316,13 @@ zfs_file_getattr(zfs_file_t *fp, zfs_file_attr_t *zfattr)
 		&ioStatusBlock,
 		&fileInfo,
 		sizeof(fileInfo),
-		FileNameInformation
+		FileStandardInformation
 	);
 	if (ntStatus != STATUS_SUCCESS) {
-		return -1;
+		return (-1);
 	}
 	zfattr->zfa_size = fileInfo.EndOfFile.QuadPart;
+	return (0);
 }
 
 /*
