@@ -1012,6 +1012,22 @@ dmu_tx_unassign(dmu_tx_t *tx)
  * details on the throttle). This is used by the VFS operations, after
  * they have already called dmu_tx_wait() (though most likely on a
  * different tx).
+ *
+ * It is guaranteed that subsequent successful calls to dmu_tx_assign()
+ * will assign the tx to monotonically increasing txgs. Of course this is
+ * not strong monotonicity, because the same txg can be returned multiple
+ * times in a row. This guarantee holds both for subsequent calls from
+ * one thread and for multiple threads. For example, it is impossible to
+ * observe the following sequence of events:
+ *
+ *          Thread 1                            Thread 2
+ *
+ *     dmu_tx_assign(T1, ...)
+ *     1 <- dmu_tx_get_txg(T1)
+ *                                       dmu_tx_assign(T2, ...)
+ *                                       2 <- dmu_tx_get_txg(T2)
+ *     dmu_tx_assign(T3, ...)
+ *     1 <- dmu_tx_get_txg(T3)
  */
 int
 dmu_tx_assign(dmu_tx_t *tx, uint64_t txg_how)
