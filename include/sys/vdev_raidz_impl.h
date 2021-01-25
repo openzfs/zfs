@@ -106,9 +106,9 @@ typedef struct raidz_impl_ops {
 
 
 typedef struct raidz_col {
-	uint64_t rc_devidx;		/* child device index for I/O */
+	int rc_devidx;			/* child device index for I/O */
+	uint32_t rc_size;		/* I/O size */
 	uint64_t rc_offset;		/* device offset */
-	uint64_t rc_size;		/* I/O size */
 	abd_t rc_abdstruct;		/* rc_abd probably points here */
 	abd_t *rc_abd;			/* I/O data */
 	void *rc_orig_data;		/* pre-reconstruction */
@@ -118,18 +118,18 @@ typedef struct raidz_col {
 	uint8_t rc_skipped;		/* Did we skip this I/O column? */
 	uint8_t rc_need_orig_restore;	/* need to restore from orig_data? */
 	uint8_t rc_repair;		/* Write good data to this column */
-	uint64_t rc_shadow_devidx;	/* for double write */
-	uint64_t rc_shadow_offset;	/* for double write */
+	int rc_shadow_devidx;		/* for double write */
 	int rc_shadow_error;		/* for double write */
+	uint64_t rc_shadow_offset;	/* for double write */
 } raidz_col_t;
 
 typedef struct raidz_row {
-	uint64_t rr_cols;		/* Regular column count */
-	uint64_t rr_scols;		/* Count including skipped columns */
-	uint64_t rr_bigcols;		/* Remainder data column count */
-	uint64_t rr_missingdata;	/* Count of missing data devices */
-	uint64_t rr_missingparity;	/* Count of missing parity devices */
-	uint64_t rr_firstdatacol;	/* First data column/parity count */
+	int rr_cols;		/* Regular column count */
+	int rr_scols;		/* Count including skipped columns */
+	int rr_bigcols;		/* Remainder data column count */
+	int rr_missingdata;	/* Count of missing data devices */
+	int rr_missingparity;	/* Count of missing parity devices */
+	int rr_firstdatacol;	/* First data column/parity count */
 	abd_t *rr_abd_copy;		/* rm_asize-buffer of copied data */
 	abd_t *rr_abd_empty;		/* dRAID empty sector buffer */
 	int rr_nempty;			/* empty sectors included in parity */

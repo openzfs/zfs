@@ -147,13 +147,7 @@ uint64_t zfs_raidz_expand_max_copy_bytes = 10 * SPA_MAXBLOCKSIZE;
  * Apply raidz map abds aggregation if the number of rows in the map is equal
  * or greater than the value below.
  */
-unsigned long raidz_io_aggregate_rows = 8;
-
-/*
- * Aggregated IO statistics.
- */
-unsigned long raidz_io_count_total = 0;
-unsigned long raidz_io_count_aggregated = 0;
+unsigned long raidz_io_aggregate_rows = 4;
 
 static void
 vdev_raidz_row_free(raidz_row_t *rr)
@@ -185,9 +179,10 @@ vdev_raidz_map_free(raidz_map_t *rm)
 		vdev_raidz_row_free(rm->rm_row[i]);
 
 	if (rm->rm_nphys_cols) {
-		for (int i = 0; i < rm->rm_nphys_cols; i++)
-			if (rm->rm_phys_col[i].rc_abd)
+		for (int i = 0; i < rm->rm_nphys_cols; i++) {
+			if (rm->rm_phys_col[i].rc_abd != NULL)
 				abd_free(rm->rm_phys_col[i].rc_abd);
+		}
 
 		kmem_free(rm->rm_phys_col, sizeof (raidz_col_t) *
 		    rm->rm_nphys_cols);
@@ -405,7 +400,7 @@ vdev_raidz_row_alloc(int cols)
 
 	for (int c = 0; c < cols; c++) {
 		raidz_col_t *rc = &rr->rr_col[c];
-		rc->rc_shadow_devidx = UINT64_MAX;
+		rc->rc_shadow_devidx = INT_MAX;
 		rc->rc_shadow_offset = UINT64_MAX;
 	}
 	return (rr);
@@ -610,10 +605,7 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 		    kmem_zalloc(sizeof (raidz_col_t) * rm->rm_nphys_cols,
 		    KM_SLEEP);
 
-		raidz_io_count_aggregated++;
 	}
-
-	raidz_io_count_total++;
 
 #if 0
 	zfs_dbgmsg("rm=%llx s=%d q=%d r=%d bc=%d nrows=%d cols=%d rfo=%llx",
@@ -670,9 +662,6 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 			raidz_col_t *rc = &rr->rr_col[c];
 			rc->rc_devidx = child_id;
 			rc->rc_offset = child_offset;
-
-			list_link_init(&rr->rr_col[c].rc_abdstruct.abd_gang_link);
-			mutex_init(&rr->rr_col[c].rc_abdstruct.abd_mtx, NULL, MUTEX_DEFAULT, NULL);
 
 			uint64_t dc = c - rr->rr_firstdatacol;
 			if (c < rr->rr_firstdatacol) {
@@ -793,12 +782,8 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 
 	if (rm->rm_io_aggregation) {
 		/*
-		 * Determine the aggregate ABD's offset and size.
+		 * Determine the aggregate io's offset and size.
 		 */
-		for (int i = 0; i < rm->rm_nphys_cols; i++) {
-			raidz_col_t *prc = &rm->rm_phys_col[i];
-			prc->rc_offset = UINT64_MAX;
-		}
 		for (int i = 0; i < rm->rm_nrows; i++) {
 			raidz_row_t *rr = rm->rm_row[i];
 			for (int c = 0; c < rr->rr_cols; c++) {
@@ -808,7 +793,13 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 				if (rc->rc_size == 0)
 					continue;
 
-				prc->rc_offset = MIN(prc->rc_offset, rc->rc_offset);
+				if (prc->rc_size == 0) {
+					ASSERT0(prc->rc_offset);
+					prc->rc_offset = rc->rc_offset;
+				} else {
+					ASSERT3U(prc->rc_offset + prc->rc_size,
+					    ==, rc->rc_offset);
+				}
 				prc->rc_size += rc->rc_size;
 			}
 		}
@@ -2168,7 +2159,7 @@ vdev_raidz_io_start_write(zio_t *zio, raidz_row_t *rr, uint64_t ashift)
 		    zio->io_type, zio->io_priority, 0,
 		    vdev_raidz_child_done, rc));
 
-		if (rc->rc_shadow_devidx != UINT64_MAX) {
+		if (rc->rc_shadow_devidx != INT_MAX) {
 			vdev_t *cvd2 = vd->vdev_child[rc->rc_shadow_devidx];
 			zio_nowait(zio_vdev_child_io(zio, NULL, cvd2,
 			    rc->rc_shadow_offset, rc->rc_abd, rc->rc_size,
@@ -2236,13 +2227,6 @@ vdev_raidz_io_start_read_row(zio_t *zio, raidz_row_t *rr, boolean_t forceparity)
 		if (forceparity ||
 		    c >= rr->rr_firstdatacol || rr->rr_missingdata > 0 ||
 		    (zio->io_flags & (ZIO_FLAG_SCRUB | ZIO_FLAG_RESILVER))) {
-			ASSERT(rc->rc_abd != NULL);
-			if (rc->rc_abd == NULL) {
-				// XXX does this really happen?
-				ASSERT3U(c, <, rr->rr_firstdatacol);
-				rc->rc_abd = abd_alloc_linear(rc->rc_size,
-				    B_TRUE);
-			}
 			zio_nowait(zio_vdev_child_io(zio, NULL, cvd,
 			    rc->rc_offset, rc->rc_abd, rc->rc_size,
 			    zio->io_type, zio->io_priority, 0,
@@ -2252,7 +2236,7 @@ vdev_raidz_io_start_read_row(zio_t *zio, raidz_row_t *rr, boolean_t forceparity)
 }
 
 static void
-vdev_raidz_io_start_read_phys_col(zio_t *zio, raidz_map_t *rm)
+vdev_raidz_io_start_read_phys_cols(zio_t *zio, raidz_map_t *rm)
 {
 	vdev_t *vd = zio->io_vd;
 
@@ -2262,11 +2246,6 @@ vdev_raidz_io_start_read_phys_col(zio_t *zio, raidz_map_t *rm)
 			continue;
 
 		vdev_t *cvd = vd->vdev_child[i];
-		/*
-		 * XXX The physcical column errors are ignored by *_io_done().
-		 * If raidz_checksum_verify() will fail, the data will be
-		 * re-read by vdev_raidz_read_all() without IO aggregation.
-		 */
 		if (!vdev_readable(cvd)) {
 			prc->rc_error = SET_ERROR(ENXIO);
 			prc->rc_tried = 1;	/* don't even try */
@@ -2297,7 +2276,7 @@ vdev_raidz_io_start_read(zio_t *zio, raidz_map_t *rm)
 	boolean_t forceparity = rm->rm_nrows > 1;
 
 	if (rm->rm_io_aggregation) {
-		vdev_raidz_io_start_read_phys_col(zio, rm);
+		vdev_raidz_io_start_read_phys_cols(zio, rm);
 	} else {
 		for (int i = 0; i < rm->rm_nrows; i++) {
 			raidz_row_t *rr = rm->rm_row[i];
@@ -3121,9 +3100,12 @@ vdev_raidz_io_done(zio_t *zio)
 					if (rc->rc_size == 0)
 						continue;
 
-					int idx = rc->rc_devidx;
-					raidz_col_t *prc = &rm->rm_phys_col[idx];
-#if 1
+					raidz_col_t *prc =
+					    &rm->rm_phys_col[rc->rc_devidx];
+					rc->rc_error = prc->rc_error;
+					rc->rc_tried = prc->rc_tried;
+					rc->rc_skipped = prc->rc_skipped;
+#if 1 // XXX evaluate perf impact. if it matters then make a fast-path in abd_copy_off where one of the abd's is linear?
 					char *physbuf = abd_to_buf(prc->rc_abd);
 					void *physloc = physbuf +
 					    rc->rc_offset - prc->rc_offset;
@@ -3169,7 +3151,8 @@ vdev_raidz_io_done(zio_t *zio)
 			 * data and parity as we can track down. If we've
 			 * already been through once before, all children will
 			 * be marked as tried so we'll proceed to combinatorial
-			 * reconstruction.
+			 * reconstruction.  If we need to read again,
+			 * do so without aggregation.
 			 */
 			rm->rm_io_aggregation = B_FALSE;
 			int nread = 0;
@@ -4129,8 +4112,3 @@ vdev_ops_t vdev_raidz_ops = {
 
 ZFS_MODULE_PARAM(zfs_vdev, raidz_, io_aggregate_rows, ULONG, ZMOD_RW,
     "Apply raidz map abds aggregation if the map contain more rows than value");
-
-ZFS_MODULE_PARAM(zfs_vdev, raidz_, io_count_total, ULONG, ZMOD_RD,
-    "Expanded reads total");
-ZFS_MODULE_PARAM(zfs_vdev, raidz_, io_count_aggregated, ULONG, ZMOD_RD,
-    "Expanded reads aggregated");
