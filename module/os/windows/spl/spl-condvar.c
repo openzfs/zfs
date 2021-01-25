@@ -125,6 +125,8 @@ spl_cv_wait(kcondvar_t *cvp, kmutex_t *mp, int flags, const char *msg)
 //	KeAcquireSpinLock(&cvp->waiters_count_lock, &oldIrq);
 	// If last listener, clear BROADCAST event. (Even if it was SIGNAL
 	// overclearing will not hurt?)
+	mutex_enter(mp);
+
 	if (cvp->waiters_count == 1)
 		KeClearEvent(&cvp->kevent[CV_BROADCAST]);
 
@@ -138,7 +140,6 @@ spl_cv_wait(kcondvar_t *cvp, kmutex_t *mp, int flags, const char *msg)
 	//if (last_waiter)
 	//	KeClearEvent(&cvp->kevent[CV_BROADCAST]);
 
-	mutex_enter(mp);
 
 #ifdef SPL_DEBUG_MUTEX
 	spl_wdlist_settime(mp->leak, gethrestime_sec());

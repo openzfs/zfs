@@ -336,8 +336,8 @@ RegisterDeviceInterface(__in PDRIVER_OBJECT DriverObject,
 	status = IoReportDetectedDevice(
 		DriverObject,
 		InterfaceTypeUndefined,
-		0,
-		0,
+		0xFFFFFFFF, // 0
+		0xFFFFFFFF, // 0
 		NULL,
 		NULL,
 		FALSE,
@@ -360,7 +360,7 @@ RegisterDeviceInterface(__in PDRIVER_OBJECT DriverObject,
 		pnpDeviceObject,
 		&GUID_DEVINTERFACE_DISK,
 		NULL,
-		&Dcb->device_name);
+		&Dcb->device_name);  // device_name checks out
 
 	if (NT_SUCCESS(status)) {
 		dprintf("  IoRegisterDeviceInterface success: %wZ\n", &Dcb->device_name);
@@ -988,6 +988,7 @@ int zfs_vnop_mount(PDEVICE_OBJECT DiskDevice, PIRP Irp, PIO_STACK_LOCATION IrpSp
 		goto out;
 	}
 #endif
+
 	mount_t *dcb = DeviceToMount->DeviceExtension;
 	if (dcb == NULL) {
 		dprintf("%s: Not a ZFS dataset -- ignoring\n", __func__);
@@ -1080,7 +1081,6 @@ int zfs_vnop_mount(PDEVICE_OBJECT DiskDevice, PIRP Irp, PIO_STACK_LOCATION IrpSp
 	//SetLongFlag(vcb->Flags, VCB_MOUNTED);
 
 	ObReferenceObject(volDeviceObject);
-
 
 	status = SendVolumeArrivalNotification(&dcb->device_name);
 	if (!NT_SUCCESS(status)) {
@@ -1204,6 +1204,22 @@ int zfs_vnop_mount(PDEVICE_OBJECT DiskDevice, PIRP Irp, PIO_STACK_LOCATION IrpSp
 	// match IoGetDeviceAttachmentBaseRef()
 	ObDereferenceObject(fileObject);
 
+
+	// It seems likely we should announce our new filesystem, but when we do it stops working
+	// in explorer with "invalid function". But if we can set this, we can't call
+	// FSRTL_VOLUME_MOUNT below it, and more importantly, FSRTL_VOLUME_DISMOUNT
+	// before we umount. Need to figure out why.
+
+#if 0
+	RegisterDeviceInterface(dcb->deviceObject->DriverObject, dcb->deviceObject, dcb);
+
+	FILE_OBJECT *root_file;
+	root_file = IoCreateStreamFileObject(NULL, dcb->deviceObject);
+	status = FsRtlNotifyVolumeEvent(root_file, FSRTL_VOLUME_MOUNT);
+	ObDereferenceObject(root_file);
+#endif
+
+
 out:
 	ObDereferenceObject(DeviceToMount);
 	dprintf("%s: exit: 0x%x\n", __func__, status);
@@ -1267,6 +1283,95 @@ out:
 	return Status;
 }
 
+// Test increasingly more desperate things to unmount
+void test(mount_t *zmo, zfs_cmd_t *zc)
+{
+	ANSI_STRING         AnsiFilespec;
+	UNICODE_STRING      UnicodeFilespec;
+	OBJECT_ATTRIBUTES   ObjectAttributes;
+
+	SHORT                   UnicodeName[PATH_MAX];
+	CHAR                    AnsiName[PATH_MAX];
+	USHORT                  NameLength = 0;
+	NTSTATUS ntstatus;
+
+	DECLARE_UNICODE_STRING_SIZE(volStr, ZFS_MAX_DATASET_NAME_LEN); // 36(uuid) + 6 (punct) + 6 (Volume)
+	//RtlUnicodeStringPrintf(&volStr, L"\\??\\E:", zmo->uuid); // "\??\Volume{0b1bb601-af0b-32e8-a1d2-54c167af6277}"
+	RtlUnicodeStringPrintf(&volStr, L"\\??\\Volume{%wZ}", zmo->uuid); // "\??\Volume{0b1bb601-af0b-32e8-a1d2-54c167af6277}"
+
+#if 0
+	memset(UnicodeName, 0, sizeof(SHORT) * PATH_MAX);
+	memset(AnsiName, 0, sizeof(UCHAR) * PATH_MAX);
+
+	NameLength = strlen(FileName);
+	ASSERT(NameLength < PATH_MAX);
+
+	memmove(AnsiName, FileName, NameLength);
+
+	AnsiFilespec.MaximumLength = AnsiFilespec.Length = NameLength;
+	AnsiFilespec.Buffer = AnsiName;
+
+	UnicodeFilespec.MaximumLength = PATH_MAX * 2;
+	UnicodeFilespec.Length = 0;
+	UnicodeFilespec.Buffer = (PWSTR)UnicodeName;
+#endif
+
+	ObjectAttributes.Length = sizeof(OBJECT_ATTRIBUTES);
+	ObjectAttributes.RootDirectory = NULL;
+	ObjectAttributes.Attributes = /*OBJ_CASE_INSENSITIVE |*/ OBJ_KERNEL_HANDLE; 
+	ObjectAttributes.ObjectName = &volStr;
+	ObjectAttributes.SecurityDescriptor = NULL;
+	ObjectAttributes.SecurityQualityOfService = NULL;
+	IO_STATUS_BLOCK iostatus;
+	HANDLE handle;
+#if 0
+	ntstatus = ZwCreateFile(&handle,
+		GENERIC_WRITE | SYNCHRONIZE,
+		&ObjectAttributes,
+		&iostatus,
+		0,
+		FILE_ATTRIBUTE_NORMAL,
+		/* FILE_SHARE_WRITE | */ FILE_SHARE_READ,
+		FILE_OPEN,
+		FILE_SYNCHRONOUS_IO_NONALERT | FILE_NO_INTERMEDIATE_BUFFERING,
+		NULL,
+		0);
+#else
+	ntstatus = ZwOpenFile(&handle,
+	    FILE_READ_ATTRIBUTES|FILE_WRITE_ATTRIBUTES,
+	    &ObjectAttributes,
+	    &iostatus,
+	    FILE_SHARE_READ|FILE_SHARE_WRITE,
+	    FILE_NON_DIRECTORY_FILE|FILE_SYNCHRONOUS_IO_NONALERT );
+#endif
+
+	if (NT_SUCCESS(ntstatus)) {
+		IO_STATUS_BLOCK IoStatus;
+
+		ntstatus = FsRtlNotifyVolumeEvent(handle, FSRTL_VOLUME_DISMOUNT);
+
+		FILE_OBJECT *root_file;
+		root_file = IoCreateStreamFileObject(handle, NULL);
+		ntstatus = FsRtlNotifyVolumeEvent(root_file, FSRTL_VOLUME_DISMOUNT);
+		ObDereferenceObject(root_file);
+
+#if 0
+		ntstatus = ZwDeviceIoControlFile(handle,
+		    0,0,0, &IoStatus, FSCTL_LOCK_VOLUME, 0,0,0,0);
+		ntstatus = ZwDeviceIoControlFile(handle,
+		    0,0,0, &IoStatus, FSCTL_DISMOUNT_VOLUME, 0,0,0,0);
+
+		// ntstatus = kernel_ioctl(handle, FSCTL_LOCK_VOLUME, NULL, 0, NULL, 0);
+#endif
+		ZwClose(handle);
+	}
+
+
+}
+
+
+
+
 int zfs_windows_unmount(zfs_cmd_t *zc)
 {
 	// IRP_MN_QUERY_REMOVE_DEVICE
@@ -1286,7 +1391,31 @@ int zfs_windows_unmount(zfs_cmd_t *zc)
 	if (getzfsvfs(zc->zc_name, &zfsvfs) == 0) {
 
 		zmo = zfsvfs->z_vfs;
+		NTSTATUS ntstatus;
 		ASSERT(zmo->type == MOUNT_TYPE_VCB);
+
+		// DbgBreakPoint();
+
+		// Try issuing DISMOUNT ... this wont work unless "attached" in RegisterDeviceInterface()
+		FILE_OBJECT *root_file;
+		root_file = IoCreateStreamFileObject(NULL, zmo->deviceObject);
+		ntstatus = FsRtlNotifyVolumeEvent(root_file, FSRTL_VOLUME_DISMOUNT);
+		ObDereferenceObject(root_file);
+
+		// Try other desperate things
+		// test(zmo, zc);
+
+		// Carry on like ZFSin
+		zfs_remove_driveletter(zmo);
+
+#if 0
+		error = kernel_ioctl(zmo->deviceObject, FSCTL_LOCK_VOLUME, NULL, 0, NULL, 0);
+		dprintf("LOCK_VOLUME said %d\n", error);
+		// If lock fails, it becomes a force dismount
+		error = kernel_ioctl(zmo->deviceObject, FSCTL_DISMOUNT_VOLUME, NULL, 0, NULL, 0);
+		dprintf("DISMOUNT_VOLUME said %d\n", error);
+		error = kernel_ioctl(zmo->deviceObject, FSCTL_UNLOCK_VOLUME, NULL, 0, NULL, 0);
+#endif
 
 		// Flush volume
 		// rdonly = !spa_writeable(dmu_objset_spa(zfsvfs->z_os));
