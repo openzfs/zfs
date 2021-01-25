@@ -22,9 +22,11 @@
 
 #
 # Copyright (c) 2020 by vStack. All rights reserved.
+# Copyright (c) 2021 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/redundancy/redundancy.kshlib
 
 #
 # DESCRIPTION:
@@ -48,13 +50,13 @@ prefetch_disable=$(get_tunable PREFETCH_DISABLE)
 
 function cleanup
 {
-	poolexists "$TESTPOOL" && log_must_busy zpool destroy "$TESTPOOL"
+	poolexists "$TESTPOOL" && destroy_pool "$TESTPOOL"
 
 	for i in {0..$devs}; do
-		log_must rm -f "$TEST_BASE_DIR/dev-$i"
+		rm -f "$TEST_BASE_DIR/dev-$i"
 	done
 
-	log_must set_tunable32 PREFETCH_DISABLE $prefetch_disable
+	set_tunable32 PREFETCH_DISABLE $prefetch_disable
 }
 
 function test_resilver # <pool> <parity> <dir>
@@ -76,14 +78,15 @@ function test_resilver # <pool> <parity> <dir>
 	log_must zpool import -o cachefile=none -d $dir $pool
 
 	for (( i=0; i<$nparity; i=i+1 )); do
-		log_must zpool replace -f $pool $dir/dev-$i
-	done
-
-	while ! is_pool_resilvered $pool; do
-		sleep 1
+		log_must zpool replace -fw $pool $dir/dev-$i
 	done
 
 	log_must check_pool_status $pool "errors" "No known data errors"
+	resilver_cksum=$(cksum_pool $pool)
+	if [[ $resilver_cksum != 0 ]]; then
+		log_must zpool status -v $pool
+		log_fail "resilver cksum errors: $resilver_cksum"
+	fi
 
 	log_must zpool clear $pool
 
@@ -100,14 +103,15 @@ function test_resilver # <pool> <parity> <dir>
 	log_must zpool import -o cachefile=none -d $dir $pool
 
 	for (( i=$nparity; i<$nparity*2; i=i+1 )); do
-		log_must zpool replace -f $pool $dir/dev-$i
-	done
-
-	while ! is_pool_resilvered $pool; do
-		sleep 1
+		log_must zpool replace -fw $pool $dir/dev-$i
 	done
 
 	log_must check_pool_status $pool "errors" "No known data errors"
+	resilver_cksum=$(cksum_pool $pool)
+	if [[ $resilver_cksum != 0 ]]; then
+		log_must zpool status -v $pool
+		log_fail "resilver cksum errors: $resilver_cksum"
+	fi
 
 	log_must zpool clear $pool
 }
@@ -128,12 +132,7 @@ function test_scrub # <pool> <parity> <dir>
 
 	log_must zpool import -o cachefile=none -d $dir $pool
 
-	log_must zpool scrub $pool
-
-	while ! is_pool_scrubbed $pool; do
-		sleep 1
-	done
-
+	log_must zpool scrub -w $pool
 	log_must check_pool_status $pool "errors" "No known data errors"
 
 	log_must zpool clear $pool
@@ -147,12 +146,7 @@ function test_scrub # <pool> <parity> <dir>
 
 	log_must zpool import -o cachefile=none -d $dir $pool
 
-	log_must zpool scrub $pool
-
-	while ! is_pool_scrubbed $pool; do
-		sleep 1
-	done
-
+	log_must zpool scrub -w $pool
 	log_must check_pool_status $pool "errors" "No known data errors"
 
 	log_must zpool clear $pool
@@ -198,7 +192,7 @@ for nparity in 1 2 3; do
 	test_resilver $TESTPOOL $nparity $dir
 	test_scrub $TESTPOOL $nparity $dir
 
-	zpool destroy "$TESTPOOL"
+	log_must zpool destroy "$TESTPOOL"
 done
 
 log_pass "raidz redundancy test succeeded."
