@@ -69,6 +69,7 @@
 typedef struct vnode_fileobjects {
 	avl_node_t avlnode;
 	void *fileobject;
+	int remove;
 } vnode_fileobjects_t;
 
 

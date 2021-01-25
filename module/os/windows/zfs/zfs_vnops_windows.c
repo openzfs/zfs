@@ -196,6 +196,19 @@ CACHE_MANAGER_CALLBACKS CacheManagerCallbacks =
 	.ReleaseFromReadAhead = zfs_ReleaseFromReadAhead
 };
 
+void
+zfs_init_cache(FILE_OBJECT *fo, struct vnode *vp)
+{
+	CcInitializeCacheMap(fo,
+		(PCC_FILE_SIZES)&vp->FileHeader.AllocationSize,
+		FALSE,
+		&CacheManagerCallbacks, vp);
+	dprintf("CcInitializeCacheMap called on vp %p\n", vp);
+	CcSetAdditionalCacheAttributes(fo, TRUE, TRUE); // FIXME: for now
+	fo->Flags |= FO_CACHE_SUPPORTED;
+	dprintf("%s: CcInitializeCacheMap\n", __func__);
+}
+
 
 /*
  * zfs vfs operations.
@@ -214,6 +227,8 @@ void zfs_couplefileobject(vnode_t *vp, FILE_OBJECT *fileobject, uint64_t size)
 	fileobject->FsContext2 = zccb;
 
 	vnode_couplefileobject(vp, fileobject, size);
+
+	zfs_init_cache(fileobject, vp);
 }
 
 void zfs_decouplefileobject(vnode_t *vp, FILE_OBJECT *fileobject)
@@ -222,16 +237,17 @@ void zfs_decouplefileobject(vnode_t *vp, FILE_OBJECT *fileobject)
 	// CLOSE. Does this matter?
 	zfs_dirlist_t* zccb = fileobject->FsContext2;
 
-	ASSERT3P(zccb, != , NULL);
+	if (zccb != NULL) {
 
-	if (zccb->searchname.Buffer != NULL) {
-		kmem_free(zccb->searchname.Buffer, zccb->searchname.MaximumLength);
-		zccb->searchname.Buffer = NULL;
-		zccb->searchname.MaximumLength = 0;
+		if (zccb->searchname.Buffer != NULL) {
+			kmem_free(zccb->searchname.Buffer, zccb->searchname.MaximumLength);
+			zccb->searchname.Buffer = NULL;
+			zccb->searchname.MaximumLength = 0;
+		}
+
+		kmem_free(zccb, sizeof(zfs_dirlist_t));
+		fileobject->FsContext2 = NULL;
 	}
-
-	kmem_free(zccb, sizeof(zfs_dirlist_t));
-	fileobject->FsContext2 = NULL;
 
 	vnode_decouplefileobject(vp, fileobject);
 }
@@ -584,7 +600,6 @@ int zfs_vnop_lookup_impl(PIRP Irp, PIO_STACK_LOCATION IrpSp, mount_t *zmo, char 
 		(CreateDisposition == FILE_SUPERSEDE) ||
 		(CreateDisposition == FILE_OVERWRITE_IF)));
 
-
 	// If it is a volumeopen, we just grab rootvp so that directory listings work
 	if (FileObject->FileName.Length == 0 && FileObject->RelatedFileObject == NULL) {
 		// If DirectoryFile return STATUS_NOT_A_DIRECTORY
@@ -623,6 +638,12 @@ int zfs_vnop_lookup_impl(PIRP Irp, PIO_STACK_LOCATION IrpSp, mount_t *zmo, char 
 			dprintf("%s: converted name is '%s' input len bytes %d (err %d) %s %s\n", __func__, filename, FileObject->FileName.Length, error,
 				DeleteOnClose ? "DeleteOnClose" : "",
 				IrpSp->Flags&SL_CASE_SENSITIVE ? "CaseSensitive" : "CaseInsensitive");
+
+#if 0
+			if (strcmp("\\System Volume Information\\WPSettings.dat", filename) == 0)
+				return STATUS_OBJECT_NAME_INVALID;
+#endif
+
 
 			if (Irp->Overlay.AllocationSize.QuadPart > 0)
 				dprintf("AllocationSize requested %llu\n", Irp->Overlay.AllocationSize.QuadPart);
@@ -836,7 +857,6 @@ int zfs_vnop_lookup_impl(PIRP Irp, PIO_STACK_LOCATION IrpSp, mount_t *zmo, char 
 			vnode_ref(dvp); // Hold open reference, until CLOSE
 			if (DeleteOnClose) 
 				Status = zfs_setunlink(FileObject, dvp);
-
 			if (Status == STATUS_SUCCESS)
 				Irp->IoStatus.Information = FILE_OPENED;
 
@@ -1423,10 +1443,12 @@ int zfs_vnop_reclaim(struct vnode *vp)
 	*/
 	if (fastpath == B_FALSE) {
 		rw_enter(&zfsvfs->z_teardown_inactive_lock, RW_READER);
-		if (zp->z_sa_hdl == NULL)
+		if (zp->z_sa_hdl == NULL) {
 			zfs_znode_free(zp);
-		else
+		} else {
 			zfs_zinactive(zp);
+			zfs_znode_free(zp);
+		}
 		rw_exit(&zfsvfs->z_teardown_inactive_lock);
 	}
 
@@ -2965,10 +2987,8 @@ NTSTATUS fs_read(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp
 			ccfs.AllocationSize = vp->FileHeader.AllocationSize;
 			ccfs.FileSize = vp->FileHeader.FileSize;
 			ccfs.ValidDataLength = vp->FileHeader.ValidDataLength;
-			CcInitializeCacheMap(fileObject, &ccfs, FALSE,
-				&CacheManagerCallbacks, vp);
-			CcSetAdditionalCacheAttributes(fileObject, TRUE, TRUE); // FIXME: for now
-			dprintf("%s: CcInitializeCacheMap\n", __func__);
+
+			zfs_init_cache(fileObject, vp);
 		}
 #endif
 
@@ -3162,11 +3182,8 @@ NTSTATUS fs_write(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpS
 		if (fileObject->PrivateCacheMap == NULL) {
 			vnode_pager_setsize(vp, zp->z_size);
 			vnode_setsizechange(vp, 0);
-			CcInitializeCacheMap(fileObject,
-				(PCC_FILE_SIZES)&vp->FileHeader.AllocationSize, FALSE,
-				&CacheManagerCallbacks, vp);
-			CcSetAdditionalCacheAttributes(fileObject, TRUE, TRUE); // FIXME: for now
-			dprintf("%s: CcInitializeCacheMap\n", __func__);
+
+			zfs_init_cache(fileObject, vp);
 			//CcSetReadAheadGranularity(fileObject, READ_AHEAD_GRANULARITY);
 		}
 
@@ -3635,6 +3652,11 @@ int zfs_fileobject_cleanup(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCA
 
 		if (zp != NULL) {
 
+			if (!isdir) {
+				if (vnode_flushcache(vp, IrpSp->FileObject, FALSE))
+					dprintf("cleanup: flushcache said no?\n");
+			}
+
 			/* Technically, this should only be called on the FileObject which
 			 * opened the file with DELETE_ON_CLOSE - in fastfat, that is stored
 			 * in the ccb (context) set in FsContext2, which holds data for each
@@ -3682,6 +3704,8 @@ int zfs_fileobject_cleanup(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCA
 #elif defined (ZFS_FS_ATTRIBUTE_CLEANUP_INFO)
 				Irp->IoStatus.Information = FILE_CLEANUP_FILE_DELETED;
 #endif
+			} else {
+				// fastfat zeros end of file here if last open closed
 			}
 
 		}
@@ -3696,8 +3720,15 @@ int zfs_fileobject_cleanup(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCA
 		FsRtlNotifyFullChangeDirectory(zmo->NotifySync, &zmo->DirNotifyList,
 			zp, NULL, FALSE, FALSE, 0, NULL, NULL, NULL);
 
-		SetFlag(IrpSp->FileObject->Flags, FO_CLEANUP_COMPLETE);
+		//dprintf("cleanup: vp %p attempt to ditch CCMgr\n", vp);
+		//if (vnode_flushcache(vp, IrpSp->FileObject, TRUE) == 1) {
+		//	dprintf("vp %p clearing out FsContext\n", vp);
+			// IrpSp->FileObject->FsContext = NULL;
+		//}
+		// vnode_fileobject_remove(vp, IrpSp->FileObject);
+		//zfs_decouplefileobject(vp, IrpSp->FileObject);
 
+		IrpSp->FileObject->Flags |= FO_CLEANUP_COMPLETE;
 		Status = STATUS_SUCCESS;
 	}
 
@@ -3727,13 +3758,21 @@ int zfs_fileobject_close(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATI
 			vnode_t *vp = IrpSp->FileObject->FsContext;
 			znode_t *zp = (VTOZ(vp));
 
+			int isdir = vnode_isdir(vp);
+
 			/*
 			 * First encourage Windows to release the FileObject, CcMgr etc, flush everything.
 			 */
 
 			// FileObject should/could no longer point to vp.
 			zfs_decouplefileobject(vp, IrpSp->FileObject);
-			vnode_fileobject_remove(vp, IrpSp->FileObject);
+			// vnode_fileobject_remove(vp, IrpSp->FileObject);
+
+			if (isdir) {
+				CcUninitializeCacheMap(IrpSp->FileObject,
+				    NULL, NULL);
+				// fastfat also flushes while(parent) dir here, if !iocount
+			}
 
 			/* 
 			 * If we can release now, do so.
@@ -4509,6 +4548,17 @@ fsDispatcher(
 			dprintf("IOCTL_STORAGE_QUERY_PROPERTY\n");
 			Status = ioctl_storage_query_property(DeviceObject, Irp, IrpSp);
 			break;
+
+		case FSCTL_DISMOUNT_VOLUME:
+			dprintf("FSCTL_DISMOUNT_VOLUME\n");
+			Status = 0;
+			break;
+		case FSCTL_LOCK_VOLUME:
+			dprintf("FSCTL_LOCK_VOLUME\n");
+			Status = 0;
+			break;
+
+
 		default:
 			dprintf("**** unknown fsWindows IOCTL: 0x%lx\n", cmd);
 		}
@@ -4721,8 +4771,8 @@ dispatcher(
 	validity_check = *((uint64_t *)Irp);
 	IrpSp = IoGetCurrentIrpStackLocation(Irp);
 
-	dprintf("%s: enter: major %d: minor %d: %s: type 0x%x\n", __func__, IrpSp->MajorFunction, IrpSp->MinorFunction,
-		major2str(IrpSp->MajorFunction, IrpSp->MinorFunction), Irp->Type);
+	dprintf("%s: enter: major %d: minor %d: %s: type 0x%x: fo %p\n", __func__, IrpSp->MajorFunction, IrpSp->MinorFunction,
+		major2str(IrpSp->MajorFunction, IrpSp->MinorFunction), Irp->Type, IrpSp->FileObject);
 
 	AtIrqlPassiveLevel = (KeGetCurrentIrql() == PASSIVE_LEVEL);
 	if (AtIrqlPassiveLevel) {

@@ -3257,6 +3257,7 @@ NTSTATUS ioctl_query_device_name(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STAC
 	name = Irp->AssociatedIrp.SystemBuffer;
 
 	int space = IrpSp->Parameters.DeviceIoControl.OutputBufferLength - sizeof(MOUNTDEV_NAME);
+#if 1
 	space = MIN(space, zmo->device_name.Length);
 	name->NameLength = zmo->device_name.Length;
 	RtlCopyMemory(name->Name, zmo->device_name.Buffer, space + sizeof(name->Name));
@@ -3266,6 +3267,23 @@ NTSTATUS ioctl_query_device_name(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STAC
 		Status = STATUS_BUFFER_OVERFLOW;
 	else
 		Status = STATUS_SUCCESS;
+#else
+	if (zmo->parent_device != NULL) {
+		DeviceObject = zmo->parent_device;
+		zmo = (mount_t *)DeviceObject->DeviceExtension;
+	}
+
+	space = MIN(space, zmo->device_name.Length);
+	name->NameLength = zmo->device_name.Length;
+	RtlCopyMemory(name->Name, zmo->device_name.Buffer, space + sizeof(name->Name));
+	Irp->IoStatus.Information = sizeof(MOUNTDEV_NAME) + space;
+
+	if (space < zmo->device_name.Length - sizeof(name->Name))
+		Status = STATUS_BUFFER_OVERFLOW;
+	else
+		Status = STATUS_SUCCESS;
+#endif
+
 	ASSERT(Irp->IoStatus.Information <= IrpSp->Parameters.DeviceIoControl.OutputBufferLength);
 
 	dprintf("replying with '%.*S'\n", space + sizeof(name->Name) / sizeof(WCHAR), name->Name);

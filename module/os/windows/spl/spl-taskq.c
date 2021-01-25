@@ -1300,7 +1300,8 @@ taskq_dispatch_ent(taskq_t *tq, task_func_t func, void *arg, uint_t flags,
 {
 	ASSERT(func != NULL);
 	/* ZOL creates z_null_int with DYNAMIC */
-	// ASSERT(!(tq->tq_flags & TASKQ_DYNAMIC));
+
+	ASSERT(!(tq->tq_flags & TASKQ_DYNAMIC));
 
 	/*
 	 * Mark it as a prealloc'd task.  This is important
@@ -1310,8 +1311,7 @@ taskq_dispatch_ent(taskq_t *tq, task_func_t func, void *arg, uint_t flags,
 	/*
 	 * Enqueue the task to the underlying queue.
 	 */
-	if (!MUTEX_HELD(&tq->tq_lock))
-		mutex_enter(&tq->tq_lock);
+	mutex_enter(&tq->tq_lock);
 
 	if (flags & TQ_FRONT) {
 		TQ_ENQUEUE_FRONT(tq, tqe, func, arg);
@@ -1669,7 +1669,6 @@ taskq_thread(void *arg)
 			tq->tq_active++;
 			continue;
 		}
-	VERIFY3P(tqe->tqent_prev->tqent_next, !=, 0xdeadbeefdeadbeef);
 
 		tqe->tqent_prev->tqent_next = tqe->tqent_next;
 		tqe->tqent_next->tqent_prev = tqe->tqent_prev;
@@ -1686,7 +1685,6 @@ taskq_thread(void *arg)
 		if (/*(!(tq->tq_flags & TASKQ_DYNAMIC)) &&*/
 		    (tqe->tqent_un.tqent_flags & TQENT_FLAG_PREALLOC)) {
 			/* clear pointers to assist assertion checks */
-	VERIFY3P(tqe->tqent_next, !=, 0xdeadbeefdeadbeef);
 
 			tqe->tqent_next = tqe->tqent_prev = NULL;
 			freeit = B_FALSE;
@@ -1930,6 +1928,7 @@ taskq_create_proc(const char *name, int nthreads, pri_t pri, int minalloc,
     int maxalloc, proc_t *proc, uint_t flags)
 {
 	ASSERT((flags & ~TASKQ_INTERFACE_FLAGS) == 0);
+	flags &= ~TASKQ_DYNAMIC; // Linux likes invalid combinations
 	return (taskq_create_common(name, 0, nthreads, pri, minalloc,
 	    maxalloc, proc, 0, flags | TASKQ_NOINSTANCE));
 }
@@ -1939,6 +1938,7 @@ taskq_create_sysdc(const char *name, int nthreads, int minalloc,
     int maxalloc, proc_t *proc, uint_t dc, uint_t flags)
 {
 	ASSERT((flags & ~TASKQ_INTERFACE_FLAGS) == 0);
+	flags &= ~TASKQ_DYNAMIC; // Linux likes invalid combinations
 	return (taskq_create_common(name, 0, nthreads, minclsyspri, minalloc,
 	    maxalloc, proc, dc, flags | TASKQ_NOINSTANCE | TASKQ_DUTY_CYCLE));
 }

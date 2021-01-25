@@ -4596,6 +4596,9 @@ zfs_inactive(struct vnode *vp)
 	zfsvfs_t *zfsvfs = ITOZSB(vp);
 	int error;
 
+	if (zfsvfs == NULL)
+		return;
+
 	rw_enter(&zfsvfs->z_teardown_inactive_lock, RW_READER);
 	if (zp->z_sa_hdl == NULL) {
 		/*
