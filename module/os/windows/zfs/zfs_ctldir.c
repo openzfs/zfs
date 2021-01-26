@@ -445,13 +445,6 @@ zfsctl_vnop_lookup(struct vnop_lookup_args *ap)
 #endif
 
 
-/* Quick output function for readdir */
-#define	DIRENT_RECLEN(namelen, ext)	\
-	((ext) ? \
-	((sizeof (struct direntry) + (namelen) - (MAXPATHLEN-1) + 7) & ~7) \
-	: \
-	((sizeof (struct dirent) - (NAME_MAX+1)) + (((namelen)+1 + 7) &~ 7)))
-
 static int zfsctl_dir_emit(const char *name, uint64_t id, enum vtype type,
 	struct vnop_readdir_args *ap, uint64_t **next)
 {
@@ -508,6 +501,7 @@ static int zfsctl_dir_emit(const char *name, uint64_t id, enum vtype type,
 	kmem_free(buf, reclen);
 	return (error);
 #endif
+	return (-1);
 }
 
 int

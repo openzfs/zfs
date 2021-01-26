@@ -349,38 +349,38 @@ char *create_options(ULONG Options)
 	DirectoryFile = BooleanFlagOn(Options, FILE_DIRECTORY_FILE);
 
 	if (BooleanFlagOn(Options, FILE_DIRECTORY_FILE))
-		strncat(out, "DirectoryFile ", sizeof(out));
+		strlcat(out, "DirectoryFile ", sizeof(out));
 	if (BooleanFlagOn(Options, FILE_NON_DIRECTORY_FILE))
-		strncat(out, "NonDirectoryFile ", sizeof(out));
+		strlcat(out, "NonDirectoryFile ", sizeof(out));
 	if (BooleanFlagOn(Options, FILE_NO_INTERMEDIATE_BUFFERING))
-		strncat(out, "NoIntermediateBuffering ", sizeof(out));
+		strlcat(out, "NoIntermediateBuffering ", sizeof(out));
 	if (BooleanFlagOn(Options, FILE_NO_EA_KNOWLEDGE))
-		strncat(out, "NoEaKnowledge ", sizeof(out));
+		strlcat(out, "NoEaKnowledge ", sizeof(out));
 	if (BooleanFlagOn(Options, FILE_DELETE_ON_CLOSE))
-		strncat(out, "DeleteOnClose ", sizeof(out));
+		strlcat(out, "DeleteOnClose ", sizeof(out));
 	if (BooleanFlagOn(Options, FILE_OPEN_BY_FILE_ID))
-		strncat(out, "FileOpenByFileId ", sizeof(out));
+		strlcat(out, "FileOpenByFileId ", sizeof(out));
 
 	CreateDisposition = (Options >> 24) & 0x000000ff;
 
 	switch (CreateDisposition) {
 	case FILE_SUPERSEDE:
-		strncat(out, "@FILE_SUPERSEDE ", sizeof(out));
+		strlcat(out, "@FILE_SUPERSEDE ", sizeof(out));
 		break;
 	case FILE_CREATE:
-		strncat(out, "@FILE_CREATE ", sizeof(out));
+		strlcat(out, "@FILE_CREATE ", sizeof(out));
 		break;
 	case FILE_OPEN:
-		strncat(out, "@FILE_OPEN ", sizeof(out));
+		strlcat(out, "@FILE_OPEN ", sizeof(out));
 		break;
 	case FILE_OPEN_IF:
-		strncat(out, "@FILE_OPEN_IF ", sizeof(out));
+		strlcat(out, "@FILE_OPEN_IF ", sizeof(out));
 		break;
 	case FILE_OVERWRITE:
-		strncat(out, "@FILE_OVERWRITE ", sizeof(out));
+		strlcat(out, "@FILE_OVERWRITE ", sizeof(out));
 		break;
 	case FILE_OVERWRITE_IF:
-		strncat(out, "@FILE_OVERWRITE_IF ", sizeof(out));
+		strlcat(out, "@FILE_OVERWRITE_IF ", sizeof(out));
 		break;
 	}
 
@@ -398,11 +398,11 @@ char *create_options(ULONG Options)
 			(CreateDisposition == FILE_SUPERSEDE) ||
 			(CreateDisposition == FILE_OVERWRITE_IF)));
 	if (CreateDirectory)
-		strncat(out, "#CreateDirectory ", sizeof(out));
+		strlcat(out, "#CreateDirectory ", sizeof(out));
 	if (OpenDirectory)
-		strncat(out, "#OpenDirectory ", sizeof(out));
+		strlcat(out, "#OpenDirectory ", sizeof(out));
 	if (CreateFile)
-		strncat(out, "#CreateFile ", sizeof(out));
+		strlcat(out, "#CreateFile ", sizeof(out));
 
 	return out;
 }
@@ -447,7 +447,7 @@ void FreeUnicodeString(PUNICODE_STRING s)
 int
 zfs_vnop_ioctl_fullfsync(struct vnode *vp, vfs_context_t *ct, zfsvfs_t *zfsvfs)
 {
-	int error;
+	int error = 0;
 
 	// error = zfs_fsync(VTOZ(vp), /*syncflag*/0, NULL);
 	return (error);
@@ -1833,7 +1833,7 @@ out:
  */
 NTSTATUS zfs_setunlink(FILE_OBJECT *fo, vnode_t *dvp) 
 {
-	vnode_t *vp;
+	vnode_t *vp = NULL;
 	NTSTATUS Status = STATUS_UNSUCCESSFUL;
 
 	if (fo == NULL) {

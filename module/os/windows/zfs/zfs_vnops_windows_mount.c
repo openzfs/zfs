@@ -1243,7 +1243,7 @@ int zfs_remove_driveletter(mount_t *zmo)
 
 	MOUNTMGR_MOUNT_POINT* mmp = NULL;
 	ULONG mmpsize;
-	MOUNTMGR_MOUNT_POINTS mmps1, *mmps2;
+	MOUNTMGR_MOUNT_POINTS mmps1, *mmps2 = NULL;
 
 	mmpsize = sizeof(MOUNTMGR_MOUNT_POINT) + zmo->device_name.Length;
 

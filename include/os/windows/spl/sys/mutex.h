@@ -31,15 +31,20 @@
 #include <spl_config.h> // For SPL_DEBUG_MUTEX
 
 #ifdef _KERNEL
-//#include <libkern/locks.h>
-//#include <wdm.h>
-//#include <ntddk.h>
+
+#if __clang__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunknown-pragmas"
+#pragma GCC diagnostic ignored "-Wignored-pragma-intrinsic"
+#endif
+
 #include <intsafe.h>
 #include <ntifs.h>
 
-//#include <libkern/OSAtomic.h>
-//#include <kern/locks.h>
-//#include <kern/thread.h>
+#if __clang__
+#pragma GCC diagnostic pop
+#endif
+
 #include <sys/proc.h>
 
 

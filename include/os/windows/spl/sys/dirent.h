@@ -28,7 +28,9 @@ struct dirent {
         char      d_name[MAXPATHLEN]; /* entry name (up to MAXPATHLEN bytes) */ 
 };
 
+#ifndef IFTODT
 #define IFTODT(mode)    (((mode) & 0170000) >> 12)
+#endif
 #define DTTOIF(dirtype) ((dirtype) << 12)
 
 

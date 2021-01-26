@@ -2350,6 +2350,7 @@ NTSTATUS set_reparse_point(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCA
 	void *buffer = Irp->AssociatedIrp.SystemBuffer;
 	REPARSE_DATA_BUFFER *rdb = buffer;
 	ULONG tag;
+	struct vnode *vp = IrpSp->FileObject->FsContext;
 
 	if (!FileObject) 
 		return STATUS_INVALID_PARAMETER;
@@ -2370,7 +2371,6 @@ NTSTATUS set_reparse_point(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCA
 	RtlCopyMemory(&tag, buffer, sizeof(ULONG));
 	dprintf("Received tag 0x%x\n", tag);
 
-	struct vnode *vp = IrpSp->FileObject->FsContext;
 	VN_HOLD(vp);
 	znode_t *zp = VTOZ(vp);
 
@@ -3409,7 +3409,7 @@ NTSTATUS flush_buffers(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION
 {
 
 	PFILE_OBJECT FileObject = IrpSp->FileObject;
-	NTSTATUS Status;
+	NTSTATUS Status = 0;
 
 	dprintf("%s: \n", __func__);
 
