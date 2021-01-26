@@ -50,6 +50,8 @@ jobs:
         sudo dmesg > $RESULTS_PATH/dmesg
         sudo cp /var/log/syslog $RESULTS_PATH/
         sudo chmod +r $RESULTS_PATH/*
+        # Replace ':' in dir names, actions/upload-artifact doesn't support it
+        for f in $(find $RESULTS_PATH -name '*:*'); do mv "$f" "${f//:/__}"; done
     - uses: actions/upload-artifact@v2
       if: failure()
       with:
