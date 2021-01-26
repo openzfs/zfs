@@ -42,6 +42,12 @@
  * using our derived config, and record the results.
  */
 
+#include <sys/types.h>
+#include <sys/disk.h>
+#include <sys/ioctl.h>
+#include <sys/stat.h>
+#include <sys/sysctl.h>
+
 #include <aio.h>
 #include <ctype.h>
 #include <dirent.h>
@@ -51,9 +57,6 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/disk.h>
-#include <sys/ioctl.h>
-#include <sys/stat.h>
 #include <unistd.h>
 #include <fcntl.h>
 
@@ -181,6 +184,7 @@ int
 zpool_find_import_blkid(libpc_handle_t *hdl, pthread_mutex_t *lock,
     avl_tree_t **slice_cache)
 {
+	const char *oid = "vfs.zfs.vol.recursive";
 	char *end, path[MAXPATHLEN];
 	rdsk_node_t *slice;
 	struct gmesh mesh;
@@ -188,8 +192,9 @@ zpool_find_import_blkid(libpc_handle_t *hdl, pthread_mutex_t *lock,
 	struct ggeom *gp;
 	struct gprovider *pp;
 	avl_index_t where;
-	size_t pathleft;
-	int error;
+	int error, value;
+	size_t pathleft, size = sizeof (value);
+	boolean_t skip_zvols = B_FALSE;
 
 	end = stpcpy(path, "/dev/");
 	pathleft = &path[sizeof (path)] - end;
@@ -198,11 +203,16 @@ zpool_find_import_blkid(libpc_handle_t *hdl, pthread_mutex_t *lock,
 	if (error != 0)
 		return (error);
 
+	if (sysctlbyname(oid, &value, &size, NULL, 0) == 0 && value == 0)
+		skip_zvols = B_TRUE;
+
 	*slice_cache = zutil_alloc(hdl, sizeof (avl_tree_t));
 	avl_create(*slice_cache, slice_cache_compare, sizeof (rdsk_node_t),
 	    offsetof(rdsk_node_t, rn_node));
 
 	LIST_FOREACH(mp, &mesh.lg_class, lg_class) {
+		if (skip_zvols && strcmp(mp->lg_name, "ZFS::ZVOL") == 0)
+			continue;
 		LIST_FOREACH(gp, &mp->lg_geom, lg_geom) {
 			LIST_FOREACH(pp, &gp->lg_provider, lg_provider) {
 				strlcpy(end, pp->lg_name, pathleft);

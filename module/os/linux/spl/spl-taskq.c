@@ -995,6 +995,7 @@ error:
 	spin_unlock_irqrestore(&tq->tq_lock, flags);
 
 	tsd_set(taskq_tsd, NULL);
+	thread_exit();
 
 	return (0);
 }
