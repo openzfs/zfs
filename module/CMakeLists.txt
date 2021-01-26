@@ -24,6 +24,9 @@ endif()
 if (NOT "${ZFSIN_SIGNTOOL_CERTNAME}")
 	set(ZFSIN_SIGNTOOL_CERTNAME "Contoso.com(Test)" CACHE STRING "Name of the certificate (Contoso.com(Test)) that is installed in the specified certificate store.")
 endif()
+if (NOT "${ZFSIN_SIGNTOOL_SHA1}")
+	set(ZFSIN_SIGNTOOL_SHA1 "7FAC1AF0A39DF0D2AB9F92D6A544ECECD791D7AB" CACHE STRING "SHA1 of the certificate.")
+endif()
 if (NOT "${ZFSIN_SIGNTOOL_TSA}")
 	set(ZFSIN_SIGNTOOL_TSA "http://timestamp.digicert.com" CACHE STRING "Specifies URL of the TSA (http://timestamp.digicert.com) which will time stamp the digital signature.")
 endif()
@@ -98,8 +101,8 @@ function(um_add_executable name)
 		POST_BUILD
 		#COMMAND "${SIGNTOOL_PROGRAM}" sign /v /fd sha1 /s "${ZFSIN_SIGNTOOL_CERTSTORE}" /n "${ZFSIN_SIGNTOOL_CERTNAME}" /t "${ZFSIN_SIGNTOOL_TSA}" $<TARGET_FILE:${name}>
 		#COMMAND "${SIGNTOOL_PROGRAM}" sign /v /as /fd sha256 /s "${ZFSIN_SIGNTOOL_CERTSTORE}" /n "${ZFSIN_SIGNTOOL_CERTNAME}" /tr "${ZFSIN_SIGNTOOL_TSA}" $<TARGET_FILE:${name}>
-		COMMAND "${SIGNTOOL_PROGRAM}" sign /v /fd sha1 /sha1 "7FAC1AF0A39DF0D2AB9F92D6A544ECECD791D7AB" /t "${ZFSIN_SIGNTOOL_TSA}" $<TARGET_FILE:${name}>
-		COMMAND "${SIGNTOOL_PROGRAM}" sign /v /as /fd sha256 /sha1 "7FAC1AF0A39DF0D2AB9F92D6A544ECECD791D7AB" /tr "${ZFSIN_SIGNTOOL_TSA}" $<TARGET_FILE:${name}>
+		COMMAND "${SIGNTOOL_PROGRAM}" sign /v /fd sha1 /sha1 "${ZFSIN_SIGNTOOL_SHA1}" /t "${ZFSIN_SIGNTOOL_TSA}" $<TARGET_FILE:${name}>
+		COMMAND "${SIGNTOOL_PROGRAM}" sign /v /as /fd sha256 /sha1 "${ZFSIN_SIGNTOOL_SHA1}" /tr "${ZFSIN_SIGNTOOL_TSA}" $<TARGET_FILE:${name}>
 		WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
 		VERBATIM COMMENT "Sign userspace tool"
 	)
