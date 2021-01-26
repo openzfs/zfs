@@ -8,4 +8,5 @@ dist_pkgdata_SCRIPTS = \
 	zpool_export_004_pos.ksh
 
 dist_pkgdata_DATA = \
-	zpool_export.cfg
+	zpool_export.cfg \
+	zpool_export.kshlib
