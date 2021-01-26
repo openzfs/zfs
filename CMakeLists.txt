@@ -35,7 +35,7 @@ add_compile_options(
 	-Wno-dangling-else
 	-Wno-missing-field-initializers
 	#-fms-extensions
-	-Wunused-function
+	-Wno-unused-function
 )
 endfunction()
 
@@ -52,8 +52,8 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 endif()
 
 # Let's try to emulate gitrev
-find_path(BASH_DIR NAMES bash.exe git-bash.exe PATHS "/c/Program Files (x86)/Git/")
-execute_process(COMMAND $BASH_DIR -c "scripts/make_gitrev.h include/zfs_gitrev.h" )
+#find_path(BASH_DIR NAMES bash.exe git-bash.exe PATHS "/c/Program Files (x86)/Git/")
+#execute_process(COMMAND $BASH_DIR -c "scripts/make_gitrev.h include/zfs_gitrev.h" )
 
 
 add_subdirectory(module)

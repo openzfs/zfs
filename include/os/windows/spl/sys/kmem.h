@@ -150,6 +150,7 @@ extern void strident_canon(char *s, uint32_t n);
 extern uint64_t spl_kmem_cache_inuse(kmem_cache_t *cache);
 extern uint64_t spl_kmem_cache_entry_size(kmem_cache_t *cache);
 extern boolean_t spl_arc_no_grow(uint32_t, boolean_t, kmem_cache_t **);
+extern boolean_t kmem_cache_reap_active(void);
 
 #ifdef	__cplusplus
 }

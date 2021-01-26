@@ -104,7 +104,7 @@ typedef struct _MP_REG_INFO {
 typedef struct _wzvolContext {
 	PVOID	zv;
 	PIO_REMOVE_LOCK pIoRemLock;
-	volatile LONGLONG refCnt;
+	volatile ULONGLONG refCnt;
 } wzvolContext, * pwzvolContext;
 
 typedef struct _wzvolDriverInfo {                        // The master miniport object. In effect, an extension of the driver object for the miniport.
