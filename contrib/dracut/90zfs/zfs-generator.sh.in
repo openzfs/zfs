@@ -59,4 +59,12 @@ echo "zfs-generator: writing extension for sysroot.mount to $GENERATOR_DIR"/sysr
 [ -d "$GENERATOR_DIR"/initrd-root-fs.target.requires ] || mkdir -p "$GENERATOR_DIR"/initrd-root-fs.target.requires
 ln -s ../sysroot.mount "$GENERATOR_DIR"/initrd-root-fs.target.requires/sysroot.mount
 
+
+[ -d "$GENERATOR_DIR"/dracut-pre-mount.service.d ] || mkdir "$GENERATOR_DIR"/dracut-pre-mount.service.d
+
+{
+    echo "[Unit]"
+    echo "After=zfs-import.target"
+} > "$GENERATOR_DIR"/dracut-pre-mount.service.d/zfs-enhancement.conf
+
 echo "zfs-generator: finished" >> /dev/kmsg
