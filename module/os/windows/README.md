@@ -122,6 +122,15 @@ way to do so is with Visual Studio. You will need to
 enable "clang" support, as well as Spectre libraries in
 the Visual Studio Installer.
 
+Add individual components:
+(Versions refer to what was available at the time)
+
+* C++ Cmake tools for Windows
+* C++ Clang Compiler for Windows (10.0.0)
+* C++ Clang-cl for v142 build tools (x64/x86)
+* MSVC v142 - VS 2019 C++ x64/x86 Spectre-mitigated libs (v14.28)
+
+
 Open Visual Studio 2019 (As of Nov 2020)
 File -> Open -> Folder
 
@@ -130,7 +139,7 @@ and open the top source folder. Hit build when ready.
 It is expected of you to set the environment variables
 (either globally, or in your CMakeSettings.json)
 		${OPENZFS_SIGNTOOL_CERTSTORE}
-		${OPENZFS_SIGNTOOL_CERTNAME}
+		${OPENZFS_SIGNTOOL_SHA1}
 		${OPENZFS_SIGNTOOL_TSA}
 
 Only the top `driver.c` is compiled using MSVC, and the
