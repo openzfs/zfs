@@ -40,8 +40,6 @@
 #ifndef	_LIBSPL_WINDOWS_SYS_UIO_H
 #define	_LIBSPL_WINDOWS_SYS_UIO_H
 
-#pragma message "global uio.h included"
-
 struct iovec {
 	void    *iov_base;      /* Base address. */
 	uint32_t   iov_len;       /* Length. */

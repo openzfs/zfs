@@ -37,9 +37,10 @@
 #define	F_SETFD		2
 #define	FD_CLOEXEC	1
 
-#define AT_FDCWD		-100    /* Special value used to indicate
-                                           openat should use the current
-                                           working directory. */
-
+/*
+ * Special value used to indicate openat should use the current
+ * working directory. 
+ */
+#define AT_FDCWD		-100
 
 #endif /* _LIBSPL_SYS_FCNTL_H */

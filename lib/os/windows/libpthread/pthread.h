@@ -66,6 +66,10 @@
 
 // warning C4018: '>': signed/unsigned mismatch 
 #pragma warning (disable: 4018)
+#if __clang__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-function"
+#endif
 
 #define PTHREAD_CANCEL_DISABLE 0
 #define PTHREAD_CANCEL_ENABLE 0x01
@@ -836,7 +840,7 @@ static int pthread_create(pthread_t *th, pthread_attr_t *attr, void *(* func)(vo
 	/* Make sure tv->h has value of -1 */
 	_ReadWriteBarrier();
 
-	tv->h = (HANDLE) _beginthreadex(NULL, ssize, pthread_create_wrapper, tv, 0, NULL);
+	tv->h = (HANDLE) _beginthreadex(NULL, ssize, (_beginthreadex_proc_type) pthread_create_wrapper, tv, 0, NULL);
 
 	/* Failed */
 	if (!tv->h) return 1;
@@ -1632,5 +1636,10 @@ static int pthread_rwlockattr_setpshared(pthread_rwlockattr_t *a, int s)
 #define wprintf(...) (pthread_testcancel(), wprintf(__VA_ARGS__))
 #define wscanf(...) (pthread_testcancel(), wscanf(__VA_ARGS__))
 #endif
+
+#if __clang__
+#pragma GCC diagnostic pop
+#endif
+
 
 #endif /* WIN_PTHREADS */

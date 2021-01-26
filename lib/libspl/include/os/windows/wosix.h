@@ -26,8 +26,6 @@
 #ifndef WOSIX_HEADER
 #define WOSIX_HEADER
 
-#pragma message "wosix.h included"
-
 /* Replace all the normal POSIX calls; open, read, write, close, lseek, fstat
  * As we have to use HANDLEs to open devices, we add a shim-layer to handle
  * int fd and the change in underlying API calls.

@@ -141,6 +141,11 @@ struct __dir
 	long int index;
 };
 
+#if __clang__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-function"
+#endif
+
 static int closedir(DIR* dirp)
 {
 	struct __dir* data = NULL;
@@ -219,7 +224,7 @@ static DIR* __internal_opendir(wchar_t* wname, int size)
 	struct __dir* data = NULL;
 	struct dirent *tmp_entries = NULL;
 	static char default_char = '?';
-	static wchar_t* prefix = L"\\\\?\\";
+	// static wchar_t* prefix = L"\\\\?\\";
 	static wchar_t* suffix = L"\\*.*";
 	int extra_prefix = 4; /* use prefix "\\?\" to handle long file names */
 	static int extra_suffix = 4; /* use suffix "\*.*" to find everything */
@@ -526,6 +531,10 @@ static int versionsort(const void* a, const void* b)
 		return 0;
 	return __strverscmp((*dira)->d_name, (*dirb)->d_name);
 }
+
+#if __clang__
+#pragma GCC diagnostic pop
+#endif
 
 #ifdef __cplusplus
 }

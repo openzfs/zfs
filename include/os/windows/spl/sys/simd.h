@@ -81,7 +81,7 @@
 #endif
 //#include <i386/proc_reg.h>
 
-#ifdef __APPLE__
+#ifdef _WIN32
 // XNU fpu.h
 static inline uint64_t
 xgetbv(uint32_t c)
