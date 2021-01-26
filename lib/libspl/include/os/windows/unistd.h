@@ -66,7 +66,7 @@ char* realpath(const char* file_name, char* resolved_name);
 int usleep(__int64 usec);
 int vasprintf(char** strp, const char* fmt, va_list ap);
 int asprintf(char** strp, const char* fmt, ...);
-int strncasecmp(char* s1, char* s2, size_t n);
+int strncasecmp(const char *s1, const char *s2, size_t n);
 int readlink(const char *path, char* buf, size_t bufsize);
 const char *getexecname(void);
 uint64_t geteuid(void);
@@ -79,7 +79,7 @@ int gettimeofday(struct timeval *tp, struct timezone *tzp);
 void flockfile(FILE *file);
 void funlockfile(FILE *file);
 unsigned long gethostid(void);
-char* strndup(char *src, size_t size);
+char *strndup(const char *src, size_t size);
 int setrlimit(int resource, const struct rlimit *rlp);
 
 struct group *getgrgid(uint64_t gid);

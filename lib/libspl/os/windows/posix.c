@@ -342,7 +342,7 @@ nanosleep(const struct timespec *rqtp, struct timespec *rmtp)
 	return 0;
 }
 
-int strncasecmp(char *s1, char *s2, size_t n)
+int strncasecmp(const char *s1, const char *s2, size_t n)
 {
 	if (n == 0)
 		return 0;
@@ -743,7 +743,7 @@ strlcat(register char* s, register const char* t, register size_t n)
 	return (t - o) + m - 1;
 }
 
-char *strndup(char *src, size_t size)
+char *strndup(const char *src, size_t size)
 {
 	char *r = _strdup(src);
 	if (r) {

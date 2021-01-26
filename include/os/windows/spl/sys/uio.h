@@ -216,7 +216,7 @@ static inline int uiocopy(const uint8_t *p, uint32_t n, enum uio_rw rw, struct u
 }
 
 // Apple's uiomove puts the uio_rw in uio_create
-#define uiomove(A,B,C,D) spl_uiomove((A),(B),(D))
+#define uiomove(A,B,C,D) spl_uiomove((const uint8_t *)(A),(B),(D))
 #define uioskip(A,B)     uio_update((A), (B))
 
 

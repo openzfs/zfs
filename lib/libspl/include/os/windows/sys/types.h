@@ -33,10 +33,7 @@
 #ifndef _LIBSPL_SYS_W32_TYPES_H
 #define	_LIBSPL_SYS_W32_TYPES_H
 
-#pragma message "our types.h"
-
 #include <sys/types32.h>
-
 
 /* More #includes at end - after basic types */
 
@@ -150,9 +147,12 @@ typedef union {
 
 #define O_SHLOCK 0
 
+
+// #ifdef _MSC_VER
+#ifndef __clang__
+
 #define INT_MAX 2147483647
 
-#ifdef _MSC_VER
 #define	DBL_DIG		15
 #define	DBL_MAX		1.7976931348623157081452E+308
 #define	DBL_MIN		2.2250738585072013830903E-308

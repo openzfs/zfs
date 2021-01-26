@@ -193,6 +193,7 @@ struct i_ddi_soft_state {
 #define	MIN_N_ITEMS	8	/* 8 void *'s == 32 bytes */
 
 extern unsigned long long strlcpy(char *, const char *, unsigned long long);
+extern size_t strlcat(char *dst, const char *s2, size_t n);
 
 uint32_t
 ddi_strcspn(const char * __restrict s, const char * __restrict charset);
