@@ -536,7 +536,7 @@ metaslab_class_histogram_verify(metaslab_class_t *mc)
 		}
 
 		IMPLY(mg == mg->mg_vd->vdev_log_mg,
-		    spa_log_class(mg->mg_vd->vdev_spa) == mc);
+		    mc == spa_embedded_log_class(mg->mg_vd->vdev_spa));
 
 		for (i = 0; i < RANGE_TREE_HISTOGRAM_SIZE; i++)
 			mc_hist[i] += mg->mg_histogram[i];
@@ -1008,11 +1008,14 @@ metaslab_group_initialized(metaslab_group_t *mg)
 uint64_t
 metaslab_group_get_space(metaslab_group_t *mg)
 {
+	/*
+	 * Note that the number of nodes in mg_metaslab_tree may be one less
+	 * than vdev_ms_count, due to the embedded log metaslab.
+	 */
 	mutex_enter(&mg->mg_lock);
-	uint64_t space = (1ULL << mg->mg_vd->vdev_ms_shift) *
-	    avl_numnodes(&mg->mg_metaslab_tree);
+	uint64_t ms_count = avl_numnodes(&mg->mg_metaslab_tree);
 	mutex_exit(&mg->mg_lock);
-	return (space);
+	return ((1ULL << mg->mg_vd->vdev_ms_shift) * ms_count);
 }
 
 void
@@ -1066,7 +1069,7 @@ metaslab_group_histogram_add(metaslab_group_t *mg, metaslab_t *msp)
 	mutex_enter(&mg->mg_lock);
 	for (int i = 0; i < SPACE_MAP_HISTOGRAM_SIZE; i++) {
 		IMPLY(mg == mg->mg_vd->vdev_log_mg,
-		    spa_log_class(mg->mg_vd->vdev_spa) == mc);
+		    mc == spa_embedded_log_class(mg->mg_vd->vdev_spa));
 		mg->mg_histogram[i + ashift] +=
 		    msp->ms_sm->sm_phys->smp_histogram[i];
 		mc->mc_histogram[i + ashift] +=
@@ -1092,7 +1095,7 @@ metaslab_group_histogram_remove(metaslab_group_t *mg, metaslab_t *msp)
 		ASSERT3U(mc->mc_histogram[i + ashift], >=,
 		    msp->ms_sm->sm_phys->smp_histogram[i]);
 		IMPLY(mg == mg->mg_vd->vdev_log_mg,
-		    spa_log_class(mg->mg_vd->vdev_spa) == mc);
+		    mc == spa_embedded_log_class(mg->mg_vd->vdev_spa));
 
 		mg->mg_histogram[i + ashift] -=
 		    msp->ms_sm->sm_phys->smp_histogram[i];

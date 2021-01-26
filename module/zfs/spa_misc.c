@@ -349,9 +349,11 @@ int spa_asize_inflation = 24;
  * Normally, we don't allow the last 3.2% (1/(2^spa_slop_shift)) of space in
  * the pool to be consumed.  This ensures that we don't run the pool
  * completely out of space, due to unaccounted changes (e.g. to the MOS).
- * It also limits the worst-case time to allocate space.  If we have
- * less than this amount of free space, most ZPL operations (e.g. write,
- * create) will return ENOSPC.
+ * It also limits the worst-case time to allocate space.  If we have less than
+ * this amount of free space, most ZPL operations (e.g. write, create) will
+ * return ENOSPC.  The ZIL metaslabs (spa_embedded_log_class) are also part of
+ * this 3.2% of space which can't be consumed by normal writes; the slop space
+ * "proper" (spa_get_slop_space()) is decreased by the embedded log space.
  *
  * Certain operations (e.g. file removal, most administrative actions) can
  * use half the slop space.  They will only return ENOSPC if less than half
@@ -1236,6 +1238,7 @@ spa_vdev_config_exit(spa_t *spa, vdev_t *vd, uint64_t txg, int error, char *tag)
 	 */
 	ASSERT(metaslab_class_validate(spa_normal_class(spa)) == 0);
 	ASSERT(metaslab_class_validate(spa_log_class(spa)) == 0);
+	ASSERT(metaslab_class_validate(spa_embedded_log_class(spa)) == 0);
 	ASSERT(metaslab_class_validate(spa_special_class(spa)) == 0);
 	ASSERT(metaslab_class_validate(spa_dedup_class(spa)) == 0);
 
@@ -1776,17 +1779,37 @@ spa_get_worst_case_asize(spa_t *spa, uint64_t lsize)
 }
 
 /*
- * Return the amount of slop space in bytes.  It is 1/32 of the pool (3.2%),
- * or at least 128MB, unless that would cause it to be more than half the
- * pool size.
+ * Return the amount of slop space in bytes.  It is typically 1/32 of the pool
+ * (3.2%), minus the embedded log space.  On very small pools, it may be
+ * slightly larger than this. The embedded log space is not included in
+ * spa_dspace.  By subtracting it, the usable space (per "zfs list") is a
+ * constant 97% of the total space, regardless of metaslab size (assuming the
+ * default spa_slop_shift=5 and a non-tiny pool).
  *
- * See the comment above spa_slop_shift for details.
+ * See the comment above spa_slop_shift for more details.
  */
 uint64_t
 spa_get_slop_space(spa_t *spa)
 {
 	uint64_t space = spa_get_dspace(spa);
-	return (MAX(space >> spa_slop_shift, MIN(space >> 1, spa_min_slop)));
+	uint64_t slop = space >> spa_slop_shift;
+
+	/*
+	 * Subtract the embedded log space, but no more than half the (3.2%)
+	 * unusable space.  Note, the "no more than half" is only relevant if
+	 * zfs_embedded_slog_min_ms >> spa_slop_shift < 2, which is not true by
+	 * default.
+	 */
+	uint64_t embedded_log =
+	    metaslab_class_get_dspace(spa_embedded_log_class(spa));
+	slop -= MIN(embedded_log, slop >> 1);
+
+	/*
+	 * Slop space should be at least spa_min_slop, but no more than half
+	 * the entire pool.
+	 */
+	slop = MAX(slop, MIN(space >> 1, spa_min_slop));
+	return (slop);
 }
 
 uint64_t
@@ -1804,18 +1827,8 @@ spa_get_checkpoint_space(spa_t *spa)
 void
 spa_update_dspace(spa_t *spa)
 {
-	uint64_t dspace = metaslab_class_get_dspace(spa_normal_class(spa));
-	dspace += ddt_get_dedup_dspace(spa);
-
-	/*
-	 * If there are no log devices, the log space comes from the embedded
-	 * log metaslabs.  This space can be shared with normal allocations,
-	 * so we include it in the available space. See also the comment in
-	 * spa_prop_get_config.
-	 */
-	if (!spa_has_log_device(spa))
-		dspace += metaslab_class_get_dspace(spa_log_class(spa));
-
+	spa->spa_dspace = metaslab_class_get_dspace(spa_normal_class(spa)) +
+	    ddt_get_dedup_dspace(spa);
 	if (spa->spa_vdev_removal != NULL) {
 		/*
 		 * We can't allocate from the removing device, so subtract
@@ -1835,12 +1848,11 @@ spa_update_dspace(spa_t *spa)
 		vdev_t *vd =
 		    vdev_lookup_top(spa, spa->spa_vdev_removal->svr_vdev_id);
 		if (vd->vdev_mg->mg_class == spa_normal_class(spa)) {
-			dspace -= spa_deflate(spa) ?
+			spa->spa_dspace -= spa_deflate(spa) ?
 			    vd->vdev_stat.vs_dspace : vd->vdev_stat.vs_space;
 		}
 		spa_config_exit(spa, SCL_VDEV, FTAG);
 	}
-	spa->spa_dspace = dspace;
 }
 
 /*
@@ -1884,6 +1896,12 @@ spa_log_class(spa_t *spa)
 }
 
 metaslab_class_t *
+spa_embedded_log_class(spa_t *spa)
+{
+	return (spa->spa_embedded_log_class);
+}
+
+metaslab_class_t *
 spa_special_class(spa_t *spa)
 {
 	return (spa->spa_special_class);
@@ -1902,12 +1920,10 @@ metaslab_class_t *
 spa_preferred_class(spa_t *spa, uint64_t size, dmu_object_type_t objtype,
     uint_t level, uint_t special_smallblk)
 {
-	if (DMU_OT_IS_ZIL(objtype)) {
-		if (spa->spa_log_class->mc_groups != 0)
-			return (spa_log_class(spa));
-		else
-			return (spa_normal_class(spa));
-	}
+	/*
+	 * ZIL allocations determine their class in zio_alloc_zil().
+	 */
+	ASSERT(objtype != DMU_OT_INTENT_LOG);
 
 	boolean_t has_special_class = spa->spa_special_class->mc_groups != 0;
 
@@ -2448,9 +2464,9 @@ spa_fini(void)
  * performance and not correctness.
  */
 boolean_t
-spa_has_log_device(spa_t *spa)
+spa_has_slogs(spa_t *spa)
 {
-	return (spa->spa_log_devices > 0);
+	return (spa->spa_log_class->mc_groups != 0);
 }
 
 spa_log_state_t
@@ -2876,7 +2892,7 @@ EXPORT_SYMBOL(spa_has_spare);
 EXPORT_SYMBOL(dva_get_dsize_sync);
 EXPORT_SYMBOL(bp_get_dsize_sync);
 EXPORT_SYMBOL(bp_get_dsize);
-EXPORT_SYMBOL(spa_has_log_device);
+EXPORT_SYMBOL(spa_has_slogs);
 EXPORT_SYMBOL(spa_is_root);
 EXPORT_SYMBOL(spa_writeable);
 EXPORT_SYMBOL(spa_mode);

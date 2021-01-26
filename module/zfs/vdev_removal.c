@@ -1786,8 +1786,7 @@ spa_vdev_remove_cancel_impl(spa_t *spa)
 		vdev_t *vd = vdev_lookup_top(spa, vdid);
 		metaslab_group_activate(vd->vdev_mg);
 		ASSERT(!vd->vdev_islog);
-		if (vd->vdev_log_mg != NULL)
-			metaslab_group_activate(vd->vdev_log_mg);
+		metaslab_group_activate(vd->vdev_log_mg);
 		spa_config_exit(spa, SCL_ALLOC | SCL_VDEV, FTAG);
 	}
 
@@ -2132,8 +2131,7 @@ spa_vdev_remove_top(vdev_t *vd, uint64_t *txg)
 	metaslab_group_t *mg = vd->vdev_mg;
 	metaslab_group_passivate(mg);
 	ASSERT(!vd->vdev_islog);
-	if (vd->vdev_log_mg != NULL)
-		metaslab_group_passivate(vd->vdev_log_mg);
+	metaslab_group_passivate(vd->vdev_log_mg);
 
 	/*
 	 * Wait for the youngest allocations and frees to sync,
@@ -2171,8 +2169,7 @@ spa_vdev_remove_top(vdev_t *vd, uint64_t *txg)
 	if (error != 0) {
 		metaslab_group_activate(mg);
 		ASSERT(!vd->vdev_islog);
-		if (vd->vdev_log_mg != NULL)
-			metaslab_group_activate(vd->vdev_log_mg);
+		metaslab_group_activate(vd->vdev_log_mg);
 		spa_async_request(spa, SPA_ASYNC_INITIALIZE_RESTART);
 		spa_async_request(spa, SPA_ASYNC_TRIM_RESTART);
 		spa_async_request(spa, SPA_ASYNC_AUTOTRIM_RESTART);

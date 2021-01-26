@@ -1217,20 +1217,6 @@ Default value: \fB0\fR.
 .sp
 .ne 2
 .na
-\fBzfs_max_embedded_slogs\fR (int)
-.ad
-.RS 12n
-If there are no dedicated log devices (slogs), each vdev will "donate" a
-metaslab to be used by the ZIL.  These are called "embedded slog
-metaslabs".  This parameter limits the number of vdevs that will have
-log metaslabs.  If set to 0, there will be no embedded log metaslabs.
-.sp
-Default value: \fBINT_MAX\fR
-.RE
-
-.sp
-.ne 2
-.na
 \fBzfs_max_missing_tvds\fR (int)
 .ad
 .RS 12n
@@ -3948,6 +3934,22 @@ Any writes above that will be executed with lower (asynchronous) priority
 to limit potential SLOG device abuse by single active ZIL writer.
 .sp
 Default value: \fB786,432\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_embedded_slog_min_ms\fR (int)
+.ad
+.RS 12n
+Usually, one metaslab from each (normal-class) vdev is dedicated for use by
+the ZIL (to log synchronous writes).
+However, if there are fewer than zfs_embedded_slog_min_ms metaslabs in the
+vdev, this functionality is disabled.
+This ensures that we don't set aside an unreasonable amount of space for the
+ZIL.
+.sp
+Default value: \fB64\fR.
 .RE
 
 .sp

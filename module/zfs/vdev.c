@@ -60,14 +60,25 @@
 #include <sys/zfs_ratelimit.h>
 
 /*
- * If there are no dedicated log devices (slogs), each vdev will "donate" a
- * metaslab to be used by the ZIL.  These are called "embedded slog
- * metaslabs", and are referenced by vdev_log_mg.  See vdev_metaslab_init().
+ * One metaslab from each (normal-class) vdev is used by the ZIL.  These are
+ * called "embedded slog metaslabs", are referenced by vdev_log_mg, and are
+ * part of the spa_embedded_log_class.  The metaslab with the most free space
+ * in each vdev is selected for this purpose when the pool is opened (or a
+ * vdev is added).  See vdev_metaslab_init().
  *
- * zfs_max_embedded_slogs limits the number of vdevs that will have
- * log metaslabs.  If set to 0, there will be no embedded log metaslabs.
+ * Log blocks can be allocated from the following locations.  Each one is tried
+ * in order until the allocation succeeds:
+ * 1. dedicated log vdevs, aka "slog" (spa_log_class)
+ * 2. embedded slog metaslabs (spa_embedded_log_class)
+ * 3. other metaslabs in normal vdevs (spa_normal_class)
+ *
+ * zfs_embedded_slog_min_ms disables the embedded slog if there are fewer
+ * than this number of metaslabs in the vdev.  This ensures that we don't set
+ * aside an unreasonable amount of space for the ZIL.  If set to less than
+ * 1 << (spa_slop_shift + 1), on small pools the usable space may be reduced
+ * (by more than 1<<spa_slop_shift) due to the embedded slog metaslab.
  */
-int zfs_max_embedded_slogs = INT_MAX;
+int zfs_embedded_slog_min_ms = 64;
 
 /* default target for number of metaslabs per top-level vdev */
 int zfs_vdev_default_ms_count = 200;
@@ -242,7 +253,8 @@ vdev_getops(const char *type)
 metaslab_group_t *
 vdev_get_mg(vdev_t *vd, metaslab_class_t *mc)
 {
-	if (mc == spa_log_class(vd->vdev_spa) && vd->vdev_log_mg != NULL)
+	if (mc == spa_embedded_log_class(vd->vdev_spa) &&
+	    vd->vdev_log_mg != NULL)
 		return (vd->vdev_log_mg);
 	else
 		return (vd->vdev_mg);
@@ -768,10 +780,6 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 
 	vd = vdev_alloc_common(spa, id, guid, ops);
 	vd->vdev_tsd = tsd;
-
-	if (islog)
-		spa->spa_log_devices++;
-
 	vd->vdev_islog = islog;
 
 	if (top_level && alloc_bias != VDEV_BIAS_NONE)
@@ -1048,10 +1056,6 @@ vdev_free(vdev_t *vd)
 		spa_spare_remove(vd);
 	if (vd->vdev_isl2cache)
 		spa_l2cache_remove(vd);
-	if (vd->vdev_islog) {
-		ASSERT(spa->spa_log_devices > 0);
-		spa->spa_log_devices--;
-	}
 
 	txg_list_destroy(&vd->vdev_ms_list);
 	txg_list_destroy(&vd->vdev_dtl_list);
@@ -1361,6 +1365,11 @@ vdev_metaslab_group_create(vdev_t *vd)
 		vd->vdev_mg = metaslab_group_create(mc, vd,
 		    spa->spa_alloc_count);
 
+		if (!vd->vdev_islog) {
+			vd->vdev_log_mg = metaslab_group_create(
+			    spa_embedded_log_class(spa), vd, 1);
+		}
+
 		/*
 		 * The spa ashift min/max only apply for the normal metaslab
 		 * class. Class destination is late binding so ashift boundry
@@ -1380,46 +1389,10 @@ vdev_metaslab_group_create(vdev_t *vd)
 	}
 }
 
-static int
-vdev_metaslab_init_one(vdev_t *vd, metaslab_group_t *mg, uint64_t m,
-    uint64_t txg)
-{
-	spa_t *spa = vd->vdev_spa;
-	objset_t *mos = spa->spa_meta_objset;
-	uint64_t object = 0;
-	int error;
-
-	/*
-	 * vdev_ms_array may be 0 if we are creating the "fake"
-	 * metaslabs for an indirect vdev for zdb's leak detection.
-	 * See zdb_leak_init().
-	 */
-	if (txg == 0 && vd->vdev_ms_array != 0) {
-		error = dmu_read(mos, vd->vdev_ms_array,
-		    m * sizeof (uint64_t), sizeof (uint64_t), &object,
-		    DMU_READ_PREFETCH);
-		if (error != 0) {
-			vdev_dbgmsg(vd, "unable to read the metaslab "
-			    "array [error=%d]", error);
-			return (error);
-		}
-	}
-
-	error = metaslab_init(mg, m, object, txg, &(vd->vdev_ms[m]));
-	if (error != 0) {
-		vdev_dbgmsg(vd, "metaslab_init failed [error=%d]",
-		    error);
-		return (error);
-	}
-
-	return (0);
-}
-
 int
 vdev_metaslab_init(vdev_t *vd, uint64_t txg)
 {
 	spa_t *spa = vd->vdev_spa;
-	uint64_t m;
 	uint64_t oldc = vd->vdev_ms_count;
 	uint64_t newc = vd->vdev_asize >> vd->vdev_ms_shift;
 	metaslab_t **mspp;
@@ -1440,20 +1413,7 @@ vdev_metaslab_init(vdev_t *vd, uint64_t txg)
 
 	mspp = vmem_zalloc(newc * sizeof (*mspp), KM_SLEEP);
 
-	if (!expanding) {
-		/*
-		 * The first time we initialize any metaslabs for this vdev,
-		 * allocate an embedded log metaslab group unless the pool has
-		 * a dedicated slog or the embedded slog quota is filled.
-		 */
-		ASSERT3P(vd->vdev_log_mg, ==, NULL);
-		if (!spa_has_log_device(spa) &&
-		    (spa_log_class(spa)->mc_groups < zfs_max_embedded_slogs)) {
-			ASSERT(!vd->vdev_islog);
-			vd->vdev_log_mg =
-			    metaslab_group_create(spa_log_class(spa), vd, 1);
-		}
-	} else {
+	if (expanding) {
 		bcopy(vd->vdev_ms, mspp, oldc * sizeof (*mspp));
 		vmem_free(vd->vdev_ms, oldc * sizeof (*mspp));
 	}
@@ -1461,12 +1421,30 @@ vdev_metaslab_init(vdev_t *vd, uint64_t txg)
 	vd->vdev_ms = mspp;
 	vd->vdev_ms_count = newc;
 
-	for (m = oldc; m < newc; m++) {
-		error = vdev_metaslab_init_one(vd, vd->vdev_mg, m, txg);
+	for (uint64_t m = oldc; m < newc; m++) {
+		uint64_t object = 0;
+		/*
+		 * vdev_ms_array may be 0 if we are creating the "fake"
+		 * metaslabs for an indirect vdev for zdb's leak detection.
+		 * See zdb_leak_init().
+		 */
+		if (txg == 0 && vd->vdev_ms_array != 0) {
+			error = dmu_read(spa->spa_meta_objset,
+			    vd->vdev_ms_array,
+			    m * sizeof (uint64_t), sizeof (uint64_t), &object,
+			    DMU_READ_PREFETCH);
+			if (error != 0) {
+				vdev_dbgmsg(vd, "unable to read the metaslab "
+				    "array [error=%d]", error);
+				return (error);
+			}
+		}
+
+		error = metaslab_init(vd->vdev_mg, m, object, txg,
+		    &(vd->vdev_ms[m]));
 		if (error != 0) {
-			vmem_free(vd->vdev_ms, newc * sizeof (*mspp));
-			vd->vdev_ms = NULL;
-			vd->vdev_ms_count = 0;
+			vdev_dbgmsg(vd, "metaslab_init failed [error=%d]",
+			    error);
 			return (error);
 		}
 	}
@@ -1474,28 +1452,29 @@ vdev_metaslab_init(vdev_t *vd, uint64_t txg)
 	/*
 	 * Find the emptiest metaslab on the vdev and mark it for use for
 	 * embedded slog by moving it from the regular to the log metaslab
-	 * group. We might be expanding the vdev, so only allocate it if one
-	 * doesn't already exist.
+	 * group.
 	 */
-	if (vd->vdev_log_mg != NULL &&
+	if (vd->vdev_mg->mg_class == spa_normal_class(spa) &&
+	    vd->vdev_ms_count > zfs_embedded_slog_min_ms &&
 	    avl_is_empty(&vd->vdev_log_mg->mg_metaslab_tree)) {
-		uint64_t slog_id = 0;
+		uint64_t slog_msid = 0;
 		uint64_t smallest = UINT64_MAX;
 
-		for (m = oldc; m < newc; m++) {
+		/*
+		 * Note, we only search the new metaslabs, because the old
+		 * (pre-existing) ones may be active (e.g. have non-empty
+		 * range_tree's), and we don't move them to the new
+		 * metaslab_t.
+		 */
+		for (uint64_t m = oldc; m < newc; m++) {
 			uint64_t alloc =
 			    space_map_allocated(vd->vdev_ms[m]->ms_sm);
 			if (alloc < smallest) {
-				slog_id = m;
+				slog_msid = m;
 				smallest = alloc;
 			}
-			/*
-			 * Don't bother checking the rest if we find a totally
-			 * empty metaslab.
-			 */
-			if (smallest == 0)
-				break;
 		}
+		metaslab_t *slog_ms = vd->vdev_ms[slog_msid];
 		/*
 		 * The metaslab was marked as dirty at the end of
 		 * metaslab_init(). Remove it from the dirty list so that we
@@ -1503,17 +1482,12 @@ vdev_metaslab_init(vdev_t *vd, uint64_t txg)
 		 */
 		if (txg != 0) {
 			(void) txg_list_remove_this(&vd->vdev_ms_list,
-			    vd->vdev_ms[slog_id], txg);
+			    slog_ms, txg);
 		}
-		metaslab_fini(vd->vdev_ms[slog_id]);
-		error = vdev_metaslab_init_one(vd, vd->vdev_log_mg, slog_id,
-		    txg);
-		if (error != 0) {
-			vmem_free(vd->vdev_ms, newc * sizeof (*mspp));
-			vd->vdev_ms = NULL;
-			vd->vdev_ms_count = 0;
-			return (error);
-		}
+		uint64_t sm_obj = space_map_object(slog_ms->ms_sm);
+		metaslab_fini(slog_ms);
+		VERIFY0(metaslab_init(vd->vdev_log_mg, slog_msid, sm_obj, txg,
+		    &vd->vdev_ms[slog_msid]));
 	}
 
 	if (txg == 0)
@@ -1578,7 +1552,6 @@ vdev_metaslab_fini(vdev_t *vd)
 		}
 		vmem_free(vd->vdev_ms, count * sizeof (metaslab_t *));
 		vd->vdev_ms = NULL;
-
 		vd->vdev_ms_count = 0;
 
 		for (int i = 0; i < RANGE_TREE_HISTOGRAM_SIZE; i++) {
@@ -5362,9 +5335,8 @@ ZFS_MODULE_PARAM(zfs_vdev, vdev_, validate_skip, INT, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs, zfs_, nocacheflush, INT, ZMOD_RW,
 	"Disable cache flushes");
 
-ZFS_MODULE_PARAM(zfs, zfs_, max_embedded_slogs, INT, ZMOD_RW,
-	"Maximum number of vdevs that each contribute one metaslab for "
-	"log blocks");
+ZFS_MODULE_PARAM(zfs, zfs_, embedded_slog_min_ms, INT, ZMOD_RW,
+	"Minimum number of metaslabs required to dedicate one for log blocks");
 
 ZFS_MODULE_PARAM_CALL(zfs_vdev, zfs_vdev_, min_auto_ashift,
 	param_set_min_auto_ashift, param_get_ulong, ZMOD_RW,

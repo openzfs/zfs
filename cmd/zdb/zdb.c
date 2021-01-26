@@ -5883,6 +5883,7 @@ zdb_leak_init(spa_t *spa, zdb_cb_t *zcb)
 	 */
 	spa->spa_normal_class->mc_ops = &zdb_metaslab_ops;
 	spa->spa_log_class->mc_ops = &zdb_metaslab_ops;
+	spa->spa_embedded_log_class->mc_ops = &zdb_metaslab_ops;
 
 	zcb->zcb_vd_obsolete_counts =
 	    umem_zalloc(rvd->vdev_children * sizeof (uint32_t *),
@@ -6023,12 +6024,9 @@ zdb_leak_fini(spa_t *spa, zdb_cb_t *zcb)
 
 		for (uint64_t m = 0; m < vd->vdev_ms_count; m++) {
 			metaslab_t *msp = vd->vdev_ms[m];
-			if (!vd->vdev_islog &&
-			    msp->ms_group->mg_class == spa_log_class(spa)) {
-				ASSERT3P(msp->ms_group, ==, vd->vdev_log_mg);
-			} else {
-				ASSERT3P(msp->ms_group, ==, vd->vdev_mg);
-			}
+			ASSERT3P(msp->ms_group, ==, (msp->ms_group->mg_class ==
+			    spa_embedded_log_class(spa)) ?
+			    vd->vdev_log_mg : vd->vdev_mg);
 
 			/*
 			 * ms_allocatable has been overloaded
@@ -6235,6 +6233,8 @@ dump_block_stats(spa_t *spa)
 	zcb.zcb_totalasize = metaslab_class_get_alloc(spa_normal_class(spa));
 	zcb.zcb_totalasize += metaslab_class_get_alloc(spa_special_class(spa));
 	zcb.zcb_totalasize += metaslab_class_get_alloc(spa_dedup_class(spa));
+	zcb.zcb_totalasize +=
+	    metaslab_class_get_alloc(spa_embedded_log_class(spa));
 	zcb.zcb_start = zcb.zcb_lastprint = gethrtime();
 	err = traverse_pool(spa, 0, flags, zdb_blkptr_cb, &zcb);
 
@@ -6282,6 +6282,7 @@ dump_block_stats(spa_t *spa)
 
 	total_alloc = norm_alloc +
 	    metaslab_class_get_alloc(spa_log_class(spa)) +
+	    metaslab_class_get_alloc(spa_embedded_log_class(spa)) +
 	    metaslab_class_get_alloc(spa_special_class(spa)) +
 	    metaslab_class_get_alloc(spa_dedup_class(spa)) +
 	    get_unflushed_alloc_space(spa);
@@ -6346,6 +6347,17 @@ dump_block_stats(spa_t *spa)
 
 		(void) printf("\t%-16s %14llu     used: %5.2f%%\n",
 		    "Dedup class", (u_longlong_t)alloc,
+		    100.0 * alloc / space);
+	}
+
+	if (spa_embedded_log_class(spa)->mc_allocator[0].mca_rotor != NULL) {
+		uint64_t alloc = metaslab_class_get_alloc(
+		    spa_embedded_log_class(spa));
+		uint64_t space = metaslab_class_get_space(
+		    spa_embedded_log_class(spa));
+
+		(void) printf("\t%-16s %14llu     used: %5.2f%%\n",
+		    "Embedded log class", (u_longlong_t)alloc,
 		    100.0 * alloc / space);
 	}
 

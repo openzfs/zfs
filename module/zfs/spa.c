@@ -303,23 +303,12 @@ spa_prop_get_config(spa_t *spa, nvlist_t **nvp)
 		alloc = metaslab_class_get_alloc(mc);
 		alloc += metaslab_class_get_alloc(spa_special_class(spa));
 		alloc += metaslab_class_get_alloc(spa_dedup_class(spa));
-		/*
-		 * The embedded log metaslabs are included in the reported
-		 * space, since they can be used for normal allocations as
-		 * well (if necessary).  If there is a dedicated log device,
-		 * then there won't be any embedded log metaslabs, and
-		 * the log device can't be used for normal allocations, so
-		 * we exclude its space.
-		 */
-		if (!spa_has_log_device(spa))
-			alloc += metaslab_class_get_alloc(spa_log_class(spa));
+		alloc += metaslab_class_get_alloc(spa_embedded_log_class(spa));
 
 		size = metaslab_class_get_space(mc);
 		size += metaslab_class_get_space(spa_special_class(spa));
 		size += metaslab_class_get_space(spa_dedup_class(spa));
-		/* See above comment on log space. */
-		if (!spa_has_log_device(spa))
-			size += metaslab_class_get_space(spa_log_class(spa));
+		size += metaslab_class_get_space(spa_embedded_log_class(spa));
 
 		spa_prop_add_list(*nvp, ZPOOL_PROP_NAME, spa_name(spa), 0, src);
 		spa_prop_add_list(*nvp, ZPOOL_PROP_SIZE, NULL, size, src);
@@ -1209,7 +1198,8 @@ spa_activate(spa_t *spa, spa_mode_t mode)
 
 	spa->spa_normal_class = metaslab_class_create(spa, zfs_metaslab_ops);
 	spa->spa_log_class = metaslab_class_create(spa, zfs_metaslab_ops);
-	spa->spa_log_devices = 0;
+	spa->spa_embedded_log_class =
+	    metaslab_class_create(spa, zfs_metaslab_ops);
 	spa->spa_special_class = metaslab_class_create(spa, zfs_metaslab_ops);
 	spa->spa_dedup_class = metaslab_class_create(spa, zfs_metaslab_ops);
 
@@ -1360,6 +1350,9 @@ spa_deactivate(spa_t *spa)
 
 	metaslab_class_destroy(spa->spa_log_class);
 	spa->spa_log_class = NULL;
+
+	metaslab_class_destroy(spa->spa_embedded_log_class);
+	spa->spa_embedded_log_class = NULL;
 
 	metaslab_class_destroy(spa->spa_special_class);
 	spa->spa_special_class = NULL;
@@ -8054,12 +8047,16 @@ spa_async_thread(void *arg)
 		old_space = metaslab_class_get_space(spa_normal_class(spa));
 		old_space += metaslab_class_get_space(spa_special_class(spa));
 		old_space += metaslab_class_get_space(spa_dedup_class(spa));
+		old_space += metaslab_class_get_space(
+		    spa_embedded_log_class(spa));
 
 		spa_config_update(spa, SPA_CONFIG_UPDATE_POOL);
 
 		new_space = metaslab_class_get_space(spa_normal_class(spa));
 		new_space += metaslab_class_get_space(spa_special_class(spa));
 		new_space += metaslab_class_get_space(spa_dedup_class(spa));
+		new_space += metaslab_class_get_space(
+		    spa_embedded_log_class(spa));
 		mutex_exit(&spa_namespace_lock);
 
 		/*
