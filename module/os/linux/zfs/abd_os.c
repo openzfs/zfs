@@ -925,17 +925,28 @@ abd_nr_pages_off(abd_t *abd, unsigned int size, size_t off)
 {
 	unsigned long pos;
 
-	while (abd_is_gang(abd))
-		abd = abd_gang_get_offset(abd, &off);
+	if (abd_is_gang(abd)) {
+		unsigned long count = 0;
 
-	ASSERT(!abd_is_gang(abd));
+		for (abd_t *cabd = abd_gang_get_offset(abd, &off);
+		    cabd != NULL && size != 0;
+		    cabd = list_next(&ABD_GANG(abd).abd_gang_chain, cabd)) {
+			ASSERT3U(off, <, cabd->abd_size);
+			int mysize = MIN(size, cabd->abd_size - off);
+			count += abd_nr_pages_off(cabd, mysize, off);
+			size -= mysize;
+			off = 0;
+		}
+		return (count);
+	}
+
 	if (abd_is_linear(abd))
 		pos = (unsigned long)abd_to_buf(abd) + off;
 	else
 		pos = ABD_SCATTER(abd).abd_offset + off;
 
-	return ((pos + size + PAGESIZE - 1) >> PAGE_SHIFT) -
-	    (pos >> PAGE_SHIFT);
+	return (((pos + size + PAGESIZE - 1) >> PAGE_SHIFT) -
+	    (pos >> PAGE_SHIFT));
 }
 
 static unsigned int
