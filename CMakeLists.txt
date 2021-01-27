@@ -12,6 +12,12 @@ find_package(OpenSSL REQUIRED)
 
 option(BUILD_SHARED_LIBS "Build Shared Libraries" OFF)
 
+# Attempt to simulate scripts/make-gitrev.h and zfs_gitrev.h
+include(GetGitRevisionDescription)
+git_describe_working_tree(GIT_GITREV)
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/include/zfs_gitrev.h.in" "${CMAKE_CURRENT_SOURCE_DIR}/include/zfs_gitrev.h" @ONLY)
+#
+
 function(use_clang)
 # It seems "-include file" is "/FI file" on Windows
 add_definitions("/FI ${CMAKE_SOURCE_DIR}/include/os/windows/zfs/zfs_config.h")
