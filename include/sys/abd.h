@@ -52,8 +52,10 @@ typedef struct abd {
 	abd_flags_t	abd_flags;
 	uint_t		abd_size;	/* excludes scattered abd_offset */
 	list_node_t	abd_gang_link;
+#ifdef ZFS_DEBUG
 	struct abd	*abd_parent;
 	zfs_refcount_t	abd_children;
+#endif
 	kmutex_t	abd_mtx;
 	union {
 		struct abd_scatter {
