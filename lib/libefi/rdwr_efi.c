@@ -468,6 +468,7 @@ efi_alloc_and_read(int fd, struct dk_gpt **vtoc)
 		    (int) sizeof (struct dk_part) * (vptr->efi_nparts - 1);
 		nparts = vptr->efi_nparts;
 		if ((tmp = realloc(vptr, length)) == NULL) {
+			/* cppcheck-suppress doubleFree */
 			free(vptr);
 			*vtoc = NULL;
 			return (VT_ERROR);

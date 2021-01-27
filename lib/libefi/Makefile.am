@@ -10,3 +10,5 @@ USER_C = \
 libefi_la_SOURCES = $(USER_C)
 
 libefi_la_LIBADD = $(LIBUUID_LIBS) $(ZLIB_LIBS)
+
+include $(top_srcdir)/config/CppCheck.am

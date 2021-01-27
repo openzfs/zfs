@@ -21,3 +21,5 @@ zfs_LDADD += $(LTLIBINTL)
 if BUILD_FREEBSD
 zfs_LDADD += -lgeom -ljail
 endif
+
+include $(top_srcdir)/config/CppCheck.am

@@ -1725,6 +1725,14 @@ vdev_probe(vdev_t *vd, zio_t *zio)
 }
 
 static void
+vdev_load_child(void *arg)
+{
+	vdev_t *vd = arg;
+
+	vd->vdev_load_error = vdev_load(vd);
+}
+
+static void
 vdev_open_child(void *arg)
 {
 	vdev_t *vd = arg;
@@ -2128,6 +2136,16 @@ vdev_open(vdev_t *vd)
 	return (0);
 }
 
+static void
+vdev_validate_child(void *arg)
+{
+	vdev_t *vd = arg;
+
+	vd->vdev_validate_thread = curthread;
+	vd->vdev_validate_error = vdev_validate(vd);
+	vd->vdev_validate_thread = NULL;
+}
+
 /*
  * Called once the vdevs are all opened, this routine validates the label
  * contents. This needs to be done before vdev_load() so that we don't
@@ -2142,18 +2160,43 @@ int
 vdev_validate(vdev_t *vd)
 {
 	spa_t *spa = vd->vdev_spa;
+	taskq_t *tq = NULL;
 	nvlist_t *label;
 	uint64_t guid = 0, aux_guid = 0, top_guid;
 	uint64_t state;
 	nvlist_t *nvl;
 	uint64_t txg;
+	int children = vd->vdev_children;
 
 	if (vdev_validate_skip)
 		return (0);
 
-	for (uint64_t c = 0; c < vd->vdev_children; c++)
-		if (vdev_validate(vd->vdev_child[c]) != 0)
+	if (children > 0) {
+		tq = taskq_create("vdev_validate", children, minclsyspri,
+		    children, children, TASKQ_PREPOPULATE);
+	}
+
+	for (uint64_t c = 0; c < children; c++) {
+		vdev_t *cvd = vd->vdev_child[c];
+
+		if (tq == NULL || vdev_uses_zvols(cvd)) {
+			vdev_validate_child(cvd);
+		} else {
+			VERIFY(taskq_dispatch(tq, vdev_validate_child, cvd,
+			    TQ_SLEEP) != TASKQID_INVALID);
+		}
+	}
+	if (tq != NULL) {
+		taskq_wait(tq);
+		taskq_destroy(tq);
+	}
+	for (int c = 0; c < children; c++) {
+		int error = vd->vdev_child[c]->vdev_validate_error;
+
+		if (error != 0)
 			return (SET_ERROR(EBADF));
+	}
+
 
 	/*
 	 * If the device has already failed, or was marked offline, don't do
@@ -3350,16 +3393,44 @@ vdev_checkpoint_sm_object(vdev_t *vd, uint64_t *sm_obj)
 int
 vdev_load(vdev_t *vd)
 {
+	int children = vd->vdev_children;
 	int error = 0;
+	taskq_t *tq = NULL;
+
+	/*
+	 * It's only worthwhile to use the taskq for the root vdev, because the
+	 * slow part is metaslab_init, and that only happens for top-level
+	 * vdevs.
+	 */
+	if (vd->vdev_ops == &vdev_root_ops && vd->vdev_children > 0) {
+		tq = taskq_create("vdev_load", children, minclsyspri,
+		    children, children, TASKQ_PREPOPULATE);
+	}
 
 	/*
 	 * Recursively load all children.
 	 */
 	for (int c = 0; c < vd->vdev_children; c++) {
-		error = vdev_load(vd->vdev_child[c]);
-		if (error != 0) {
-			return (error);
+		vdev_t *cvd = vd->vdev_child[c];
+
+		if (tq == NULL || vdev_uses_zvols(cvd)) {
+			cvd->vdev_load_error = vdev_load(cvd);
+		} else {
+			VERIFY(taskq_dispatch(tq, vdev_load_child,
+			    cvd, TQ_SLEEP) != TASKQID_INVALID);
 		}
+	}
+
+	if (tq != NULL) {
+		taskq_wait(tq);
+		taskq_destroy(tq);
+	}
+
+	for (int c = 0; c < vd->vdev_children; c++) {
+		int error = vd->vdev_child[c]->vdev_load_error;
+
+		if (error != 0)
+			return (error);
 	}
 
 	vdev_set_deflate_ratio(vd);
