@@ -87,15 +87,18 @@
  *      must be checked with ZFS_VERIFY_ZP(zp).  Both of these macros
  *      can return EIO from the calling function.
  *
- *  (2)	zrele() should always be the last thing except for zil_commit()
- *	(if necessary) and ZFS_EXIT(). This is for 3 reasons:
- *	First, if it's the last reference, the vnode/znode
- *	can be freed, so the zp may point to freed memory.  Second, the last
- *	reference will call zfs_zinactive(), which may induce a lot of work --
- *	pushing cached pages (which acquires range locks) and syncing out
- *	cached atime changes.  Third, zfs_zinactive() may require a new tx,
- *	which could deadlock the system if you were already holding one.
- *	If you must call zrele() within a tx then use zfs_zrele_async().
+ *  (2) zrele() should always be the last thing except for zil_commit() (if
+ *	necessary) and ZFS_EXIT(). This is for 3 reasons: First, if it's the
+ *	last reference, the vnode/znode can be freed, so the zp may point to
+ *	freed memory.  Second, the last reference will call zfs_zinactive(),
+ *	which may induce a lot of work -- pushing cached pages (which acquires
+ *	range locks) and syncing out cached atime changes.  Third,
+ *	zfs_zinactive() may require a new tx, which could deadlock the system
+ *	if you were already holding one. This deadlock occurs because the tx
+ *	currently being operated on prevents a txg from syncing, which
+ *	prevents the new tx from progressing, resulting in a deadlock.  If you
+ *	must call zrele() within a tx, use zfs_zrele_async(). Note that iput()
+ *	is a synonym for zrele().
  *
  *  (3)	All range locks must be grabbed before calling dmu_tx_assign(),
  *	as they can span dmu_tx_assign() calls.
@@ -398,11 +401,18 @@ zfs_zrele_async(znode_t *zp)
 	ASSERT(atomic_read(&ip->i_count) > 0);
 	ASSERT(os != NULL);
 
-	if (atomic_read(&ip->i_count) == 1)
+	/*
+	 * If decrementing the count would put us at 0, we can't do it inline
+	 * here, because that would be synchronous. Instead, dispatch an iput
+	 * to run later.
+	 *
+	 * For more information on the dangers of a synchronous iput, see the
+	 * header comment of this file.
+	 */
+	if (!atomic_add_unless(&ip->i_count, -1, 1)) {
 		VERIFY(taskq_dispatch(dsl_pool_zrele_taskq(dmu_objset_pool(os)),
 		    (task_func_t *)iput, ip, TQ_SLEEP) != TASKQID_INVALID);
-	else
-		zrele(zp);
+	}
 }
 
 
