@@ -140,8 +140,8 @@
 	VDEV_RAIDZ_64MUL_2((x), mask); \
 }
 
-uint64_t zfs_raidz_expand_max_offset_pause = UINT64_MAX;
-uint64_t zfs_raidz_expand_max_copy_bytes = 10 * SPA_MAXBLOCKSIZE;
+unsigned long raidz_expand_max_offset_pause = UINT64_MAX;
+unsigned long raidz_expand_max_copy_bytes = 10 * SPA_MAXBLOCKSIZE;
 
 /*
  * Apply raidz map abds aggregation if the number of rows in the map is equal
@@ -3670,14 +3670,14 @@ spa_raidz_expand_cb(void *arg, zthr_t *zthr)
 			 * solely from the test suite or during debugging.
 			 */
 			/* XXX change to amount copied? */
-			while (zfs_raidz_expand_max_offset_pause <=
+			while (raidz_expand_max_offset_pause <=
 			    vre->vre_offset &&
 			    !zthr_iscancelled(spa->spa_raidz_expand_zthr))
 				delay(hz);
 
 			mutex_enter(&vre->vre_lock);
 			while (vre->vre_outstanding_bytes >
-			    zfs_raidz_expand_max_copy_bytes) {
+			    raidz_expand_max_copy_bytes) {
 				cv_wait(&vre->vre_cv, &vre->vre_lock);
 			}
 
@@ -4110,5 +4110,9 @@ vdev_ops_t vdev_raidz_ops = {
 	.vdev_op_leaf = B_FALSE			/* not a leaf vdev */
 };
 
+ZFS_MODULE_PARAM(zfs_vdev, raidz_, expand_max_offset_pause, ULONG, ZMOD_RW,
+    "For testing, pause RAIDZ expansion at this offset");
+ZFS_MODULE_PARAM(zfs_vdev, raidz_, expand_max_copy_bytes, ULONG, ZMOD_RW,
+    "Max amount of concurrent i/o for RAIDZ expansion");
 ZFS_MODULE_PARAM(zfs_vdev, raidz_, io_aggregate_rows, ULONG, ZMOD_RW,
     "Apply raidz map abds aggregation if the map contain more rows than value");

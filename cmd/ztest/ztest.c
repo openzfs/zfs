@@ -7279,7 +7279,7 @@ ztest_raidz_expand_run(ztest_shared_t *zs)
 	char *newpath;
 	pool_raidz_expand_stat_t rzx_stats;
 	pool_raidz_expand_stat_t *pres = &rzx_stats;
-	extern uint64_t zfs_raidz_expand_max_offset_pause;
+	extern uint64_t raidz_expand_max_offset_pause;
 
 	newpath = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
 	ztest_exiting = B_FALSE;
@@ -7391,7 +7391,7 @@ ztest_raidz_expand_run(ztest_shared_t *zs)
 		/*
 		 * Set the reflow to pause at the desired offset
 		 */
-		zfs_raidz_expand_max_offset_pause = desreflow;
+		raidz_expand_max_offset_pause = desreflow;
 		/*
 		 * In here on first pass of test only.
 		 */
