@@ -241,7 +241,7 @@ abd_free_linear(abd_t *abd)
 }
 
 static void
-abd_free_gang_abd(abd_t *abd)
+abd_free_gang(abd_t *abd)
 {
 	ASSERT(abd_is_gang(abd));
 	abd_t *cabd;
@@ -292,19 +292,19 @@ abd_free(abd_t *abd)
 	abd_verify(abd);
 	IMPLY(abd->abd_flags & ABD_FLAG_OWNER, abd->abd_parent == NULL);
 
+	if (abd->abd_parent != NULL) {
+		(void) zfs_refcount_remove_many(&abd->abd_parent->abd_children,
+		    abd->abd_size, abd);
+	}
+
 	if (abd_is_gang(abd)) {
-		abd_free_gang_abd(abd);
+		abd_free_gang(abd);
 	} else if (abd_is_linear(abd)) {
 		if (abd->abd_flags & ABD_FLAG_OWNER)
 			abd_free_linear(abd);
 	} else {
 		if (abd->abd_flags & ABD_FLAG_OWNER)
 			abd_free_scatter(abd);
-	}
-
-	if (abd->abd_parent != NULL) {
-		(void) zfs_refcount_remove_many(&abd->abd_parent->abd_children,
-		    abd->abd_size, abd);
 	}
 
 	abd_fini_struct(abd);
@@ -421,7 +421,7 @@ abd_gang_add(abd_t *pabd, abd_t *cabd, boolean_t free_on_free)
 		 * allocated ABD with ABD_FLAG_GANG_FREE, before
 		 * adding it to the gang ABD's list, to make the
 		 * gang ABD aware that it is responsible to call
-		 * abd_put(). We use abd_get_offset() in order
+		 * abd_free(). We use abd_get_offset() in order
 		 * to just allocate a new ABD but avoid copying the
 		 * data over into the newly allocated ABD.
 		 *
@@ -565,8 +565,7 @@ abd_get_offset_size(abd_t *sabd, size_t off, size_t size)
 }
 
 /*
- * Return a size scatter ABD. In order to free the returned
- * ABD abd_put() must be called.
+ * Return a size scatter ABD containing only zeros.
  */
 abd_t *
 abd_get_zeros(size_t size)
@@ -577,8 +576,7 @@ abd_get_zeros(size_t size)
 }
 
 /*
- * Allocate a linear ABD structure for buf. You must free this with abd_put()
- * since the resulting ABD doesn't own its own buffer.
+ * Allocate a linear ABD structure for buf.
  */
 abd_t *
 abd_get_from_buf(void *buf, size_t size)
