@@ -112,19 +112,6 @@ zfs_uio_index_at_offset(zfs_uio_t *uio, offset_t off, uint_t *vec_idx)
 }
 
 static inline void
-iov_iter_init_compat(struct iov_iter *iter, unsigned int dir,
-    const struct iovec *iov, unsigned long nr_segs, size_t count)
-{
-#if defined(HAVE_IOV_ITER_INIT)
-	iov_iter_init(iter, dir, iov, nr_segs, count);
-#elif defined(HAVE_IOV_ITER_INIT_LEGACY)
-	iov_iter_init(iter, iov, nr_segs, count, 0);
-#else
-#error "Unsupported kernel"
-#endif
-}
-
-static inline void
 zfs_uio_iovec_init(zfs_uio_t *uio, const struct iovec *iov,
     unsigned long nr_segs, offset_t offset, zfs_uio_seg_t seg, ssize_t resid,
     size_t skip)
