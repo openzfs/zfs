@@ -1021,7 +1021,6 @@ unsigned int
 abd_bio_map_off(struct bio *bio, abd_t *abd,
     unsigned int io_size, size_t off)
 {
-	int i;
 	struct abd_iter aiter;
 
 	ASSERT3U(io_size, <=, abd->abd_size - off);
@@ -1035,7 +1034,7 @@ abd_bio_map_off(struct bio *bio, abd_t *abd,
 	abd_iter_init(&aiter, abd);
 	abd_iter_advance(&aiter, off);
 
-	for (i = 0; i < bio->bi_max_vecs; i++) {
+	for (int i = 0; i < bio->bi_max_vecs; i++) {
 		struct page *pg;
 		size_t len, sgoff, pgoff;
 		struct scatterlist *sg;
