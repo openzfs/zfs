@@ -350,19 +350,14 @@ vdev_disk_close(vdev_t *v)
 static dio_request_t *
 vdev_disk_dio_alloc(int bio_count)
 {
-	dio_request_t *dr;
-	int i;
-
-	dr = kmem_zalloc(sizeof (dio_request_t) +
+	dio_request_t *dr = kmem_zalloc(sizeof (dio_request_t) +
 	    sizeof (struct bio *) * bio_count, KM_SLEEP);
-	if (dr) {
-		atomic_set(&dr->dr_ref, 0);
-		dr->dr_bio_count = bio_count;
-		dr->dr_error = 0;
+	atomic_set(&dr->dr_ref, 0);
+	dr->dr_bio_count = bio_count;
+	dr->dr_error = 0;
 
-		for (i = 0; i < dr->dr_bio_count; i++)
-			dr->dr_bio[i] = NULL;
-	}
+	for (int i = 0; i < dr->dr_bio_count; i++)
+		dr->dr_bio[i] = NULL;
 
 	return (dr);
 }
@@ -536,8 +531,9 @@ __vdev_disk_physio(struct block_device *bdev, zio_t *zio,
 	dio_request_t *dr;
 	uint64_t abd_offset;
 	uint64_t bio_offset;
-	int bio_size, bio_count = 16;
-	int i = 0, error = 0;
+	int bio_size;
+	int bio_count = 16;
+	int error = 0;
 	struct blk_plug plug;
 
 	/*
@@ -552,8 +548,6 @@ __vdev_disk_physio(struct block_device *bdev, zio_t *zio,
 
 retry:
 	dr = vdev_disk_dio_alloc(bio_count);
-	if (dr == NULL)
-		return (SET_ERROR(ENOMEM));
 
 	if (zio && !(zio->io_flags & (ZIO_FLAG_IO_RETRY | ZIO_FLAG_TRYHARD)))
 		bio_set_flags_failfast(bdev, &flags);
@@ -561,26 +555,28 @@ retry:
 	dr->dr_zio = zio;
 
 	/*
-	 * When the IO size exceeds the maximum bio size for the request
-	 * queue we are forced to break the IO in multiple bio's and wait
-	 * for them all to complete.  Ideally, all pool users will set
-	 * their volume block size to match the maximum request size and
-	 * the common case will be one bio per vdev IO request.
+	 * Since bio's can have up to BIO_MAX_PAGES=256 iovec's, each of which
+	 * is at least 512 bytes and at most PAGESIZE (typically 4K), one bio
+	 * can cover at least 128KB and at most 1MB.  When the required number
+	 * of iovec's exceeds this, we are forced to break the IO in multiple
+	 * bio's and wait for them all to complete.  This is likely if the
+	 * recordsize property is increased beyond 1MB.  The default
+	 * bio_count=16 should typically accommodate the maximum-size zio of
+	 * 16MB.
 	 */
 
 	abd_offset = 0;
 	bio_offset = io_offset;
-	bio_size   = io_size;
-	for (i = 0; i <= dr->dr_bio_count; i++) {
+	bio_size = io_size;
+	for (int i = 0; i <= dr->dr_bio_count; i++) {
 
 		/* Finished constructing bio's for given buffer */
 		if (bio_size <= 0)
 			break;
 
 		/*
-		 * By default only 'bio_count' bio's per dio are allowed.
-		 * However, if we find ourselves in a situation where more
-		 * are needed we allocate a larger dio and warn the user.
+		 * If additional bio's are required, we have to retry, but
+		 * this should be rare - see the comment above.
 		 */
 		if (dr->dr_bio_count == i) {
 			vdev_disk_dio_free(dr);
@@ -622,9 +618,10 @@ retry:
 		blk_start_plug(&plug);
 
 	/* Submit all bio's associated with this dio */
-	for (i = 0; i < dr->dr_bio_count; i++)
+	for (int i = 0; i < dr->dr_bio_count; i++) {
 		if (dr->dr_bio[i])
 			vdev_submit_bio(dr->dr_bio[i]);
+	}
 
 	if (dr->dr_bio_count > 1)
 		blk_finish_plug(&plug);
