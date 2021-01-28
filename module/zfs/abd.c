@@ -576,7 +576,7 @@ abd_get_zeros(size_t size)
 }
 
 /*
- * Allocate a linear ABD structure for buf..
+ * Allocate a linear ABD structure for buf.
  */
 abd_t *
 abd_get_from_buf(void *buf, size_t size)
