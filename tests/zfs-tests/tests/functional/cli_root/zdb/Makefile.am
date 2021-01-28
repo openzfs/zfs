@@ -14,4 +14,6 @@ dist_pkgdata_SCRIPTS = \
 	zdb_object_range_neg.ksh \
 	zdb_object_range_pos.ksh \
 	zdb_display_block.ksh \
-	zdb_objset_id.ksh
+	zdb_objset_id.ksh \
+	zdb_recover.ksh \
+	zdb_recover_2.ksh

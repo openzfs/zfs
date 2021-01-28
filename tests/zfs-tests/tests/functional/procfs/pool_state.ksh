@@ -61,16 +61,18 @@ function cleanup
 			log_must rm -f $BACKUP
 		fi
 
-		# Our disk is back.  Now we can clear errors and destroy the
-		# pool cleanly.
-		log_must zpool clear $TESTPOOL2
+		if poolexists $TESTPOOL2 ; then
+			# Our disk is back.  Now we can clear errors and destroy the
+			# pool cleanly.
+			log_must zpool clear $TESTPOOL2
 
-		# Now that the disk is back and errors cleared, wait for our
-		# hung 'zpool scrub' to finish.
-		wait
+			# Now that the disk is back and errors cleared, wait for our
+			# hung 'zpool scrub' to finish.
+			wait
 
-		destroy_pool $TESTPOOL2
-		log_must rm $REALDISK
+			destroy_pool $TESTPOOL2
+		fi
+		log_must rm -f $REALDISK
 		unload_scsi_debug
 	fi
 }

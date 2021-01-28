@@ -15,7 +15,7 @@
 .\" Copyright (c) 2017 Lawrence Livermore National Security, LLC.
 .\" Copyright (c) 2017 Intel Corporation.
 .\"
-.Dd April 14, 2019
+.Dd October 7, 2020
 .Dt ZDB 8 SMM
 .Os
 .Sh NAME
@@ -59,6 +59,9 @@
 .Nm
 .Fl O
 .Ar dataset path
+.Nm
+.Fl r
+.Ar dataset path destination
 .Nm
 .Fl R
 .Op Fl A
@@ -267,6 +270,19 @@ Look up the specified
 inside of the
 .Ar dataset
 and display its metadata and indirect blocks.
+Specified
+.Ar path
+must be relative to the root of
+.Ar dataset .
+This option can be combined with
+.Fl v
+for increasing verbosity.
+.It Fl r Ar dataset path destination
+Copy the specified
+.Ar path
+inside of the
+.Ar dataset
+to the specified destination.
 Specified
 .Ar path
 must be relative to the root of
