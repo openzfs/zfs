@@ -25,14 +25,16 @@
 *
 */
 
-#ifndef OSX_MUTEX_H
-#define OSX_MUTEX_H
+#ifndef WINDOWS_MUTEX_H
+#define	WINDOWS_MUTEX_H
 
 #include <spl_config.h> // For SPL_DEBUG_MUTEX
 
 #ifdef _KERNEL
 
 #if __clang__
+// We set this in top CMakelists.txt but these are emitted by the
+// pre-processor, so we need to push them here as well.
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunknown-pragmas"
 #pragma GCC diagnostic ignored "-Wignored-pragma-intrinsic"
