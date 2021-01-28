@@ -8925,6 +8925,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 	l2arc_write_callback_t	*cb = NULL;
 	zio_t 			*pio, *wzio;
 	uint64_t 		guid = spa_load_guid(spa);
+	l2arc_dev_hdr_phys_t	*l2dhdr = dev->l2ad_dev_hdr;
 
 	ASSERT3P(dev->l2ad_vdev, !=, NULL);
 
@@ -9153,7 +9154,8 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 		 * Although we did not write any buffers l2ad_evict may
 		 * have advanced.
 		 */
-		l2arc_dev_hdr_update(dev);
+		if (dev->l2ad_evict != l2dhdr->dh_evict)
+			l2arc_dev_hdr_update(dev);
 
 		return (0);
 	}
