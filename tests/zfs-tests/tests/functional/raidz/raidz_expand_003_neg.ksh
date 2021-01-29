@@ -29,12 +29,12 @@
 #
 # DESCRIPTION:
 #	'zpool attach poolname raidz ...' should reject device attach if pool is
-#	in chekpointed state. If checkpoint creation requested on expanded pool,
-#	the request should be rejected
+#	in checkpointed state. If checkpoint creation requested on expanding pool,
+#	the request should be rejected.
 
 #
 # STRATEGY:
-#	1. Create block device files for the test raidz pool
+#	1. Create block device files for the test raidz pool.
 #	2. Create pool and checkpoint it.
 #	3. Try to expand raidz, ensure that request rejected.
 #	4. Recreate the pool.
@@ -72,7 +72,6 @@ done
 
 nparity=1
 raid=raidz$nparity
-dir=$TEST_BASE_DIR
 pool=$TESTPOOL
 opts="-o cachefile=none"
 
@@ -83,7 +82,7 @@ log_must zpool checkpoint $pool
 log_mustnot zpool attach $pool ${raid}-0 ${disks[$devs]}
 log_must zpool destroy $pool
 
-# case 2: expansion had place, try to checkpoint
+# case 2: expansion in progress, try to checkpoint
 log_must zpool create -f $opts $pool $raid ${disks[1..$(($devs-1))]}
 log_must zfs set primarycache=metadata $pool
 log_must zfs create $pool/fs
