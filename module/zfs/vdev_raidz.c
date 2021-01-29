@@ -612,7 +612,6 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 		rm->rm_phys_col =
 		    kmem_zalloc(sizeof (raidz_col_t) * rm->rm_nphys_cols,
 		    KM_SLEEP);
-
 	}
 
 #if 1
@@ -3107,8 +3106,7 @@ vdev_raidz_io_done(zio_t *zio)
 			for (int i = 0; i < rm->rm_nrows; i++) {
 				raidz_row_t *rr = rm->rm_row[i];
 
-				for (int c = rr->rr_firstdatacol;
-				    c < rr->rr_cols; c++) {
+				for (int c = 0; c < rr->rr_cols; c++) {
 					raidz_col_t *rc = &rr->rr_col[c];
 					if (rc->rc_size == 0)
 						continue;
@@ -3118,19 +3116,24 @@ vdev_raidz_io_done(zio_t *zio)
 					rc->rc_error = prc->rc_error;
 					rc->rc_tried = prc->rc_tried;
 					rc->rc_skipped = prc->rc_skipped;
+					if (c >= rr->rr_firstdatacol) {
 #if 1 // XXX evaluate perf impact. if it matters then make a fast-path in abd_copy_off where one of the abd's is linear?
-					char *physbuf = abd_to_buf(prc->rc_abd);
-					void *physloc = physbuf +
-					    rc->rc_offset - prc->rc_offset;
+						char *physbuf = abd_to_buf(
+						    prc->rc_abd);
+						void *physloc = physbuf +
+						    rc->rc_offset -
+						    prc->rc_offset;
 
-					abd_copy_from_buf(rc->rc_abd,
-					    physloc, rc->rc_size);
+						abd_copy_from_buf(rc->rc_abd,
+						    physloc, rc->rc_size);
 #else
-					abd_copy_off(rc->rc_abd, prc->rc_abd,
-					    0,
-					    rc->rc_offset - prc->rc_offset,
-					    rc->rc_size);
+						abd_copy_off(rc->rc_abd,
+						    prc->rc_abd, 0,
+						    rc->rc_offset -
+						    prc->rc_offset,
+						    rc->rc_size);
 #endif
+					}
 				}
 			}
 		}
