@@ -257,11 +257,9 @@ abd_free_gang(abd_t *abd)
 		ASSERT(list_link_active(&cabd->abd_gang_link));
 		list_remove(&ABD_GANG(abd).abd_gang_chain, cabd);
 		mutex_exit(&cabd->abd_mtx);
-		abd->abd_size -= cabd->abd_size;
 		if (cabd->abd_flags & ABD_FLAG_GANG_FREE)
 			abd_free(cabd);
 	}
-	ASSERT0(abd->abd_size);
 	list_destroy(&ABD_GANG(abd).abd_gang_chain);
 }
 
@@ -292,11 +290,6 @@ abd_free(abd_t *abd)
 	abd_verify(abd);
 	IMPLY(abd->abd_flags & ABD_FLAG_OWNER, abd->abd_parent == NULL);
 
-	if (abd->abd_parent != NULL) {
-		(void) zfs_refcount_remove_many(&abd->abd_parent->abd_children,
-		    abd->abd_size, abd);
-	}
-
 	if (abd_is_gang(abd)) {
 		abd_free_gang(abd);
 	} else if (abd_is_linear(abd)) {
@@ -305,6 +298,11 @@ abd_free(abd_t *abd)
 	} else {
 		if (abd->abd_flags & ABD_FLAG_OWNER)
 			abd_free_scatter(abd);
+	}
+
+	if (abd->abd_parent != NULL) {
+		(void) zfs_refcount_remove_many(&abd->abd_parent->abd_children,
+		    abd->abd_size, abd);
 	}
 
 	abd_fini_struct(abd);
@@ -366,7 +364,7 @@ abd_gang_add_gang(abd_t *pabd, abd_t *cabd, boolean_t free_on_free)
 		    &ABD_GANG(cabd).abd_gang_chain);
 		ASSERT(list_is_empty(&ABD_GANG(cabd).abd_gang_chain));
 		abd_verify(pabd);
-		abd_free_struct(cabd);
+		abd_free(cabd);
 	} else {
 		for (abd_t *child = list_head(&ABD_GANG(cabd).abd_gang_chain);
 		    child != NULL;
