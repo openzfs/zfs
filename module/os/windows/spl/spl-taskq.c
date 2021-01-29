@@ -828,6 +828,7 @@ taskq_ent_constructor(void *buf, void *cdrarg, int kmflags)
 	mutex_init(&tqe->tqent_delay_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&tqe->tqent_delay_cv, NULL, CV_DEFAULT, NULL);
 
+	tqe->tqent_delay_time = 0;
 	return (0);
 }
 
@@ -2325,6 +2326,7 @@ taskq_bucket_extend(void *arg)
 	ASSERT(tqe->tqent_thread == NULL);
 
 	tqe->tqent_un.tqent_bucket = b;
+	tqe->tqent_delay_time = 0;
 
 	/*
 	 * There's no way in Mac OS X KPI to create a thread
