@@ -598,7 +598,15 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 	rm->rm_nskip = roundup(tot, nparity + 1) - tot;
 	asize = 0;
 
-	if (rows >= raidz_io_aggregate_rows) {
+	/*
+	 * If the block crosses the reflow progress boundary
+	 * (reflow_offset_phys), the physical location is disjoint (some rows
+	 * in the old location and some in the new location).  Since
+	 * aggregation assumes that the block is contiguous, it can't be used
+	 * with these blocks.
+	 */
+	if (rows >= raidz_io_aggregate_rows &&
+	    (offset + size <= reflow_offset_phys || offset >= reflow_offset_phys)) {
 		rm->rm_io_aggregation = B_TRUE;
 		rm->rm_nphys_cols = physical_cols;
 		rm->rm_phys_col =
@@ -650,6 +658,7 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 		 */
 		rr->rr_firstdatacol = nparity;
 #ifdef ZFS_DEBUG
+		/* XXX offset and size here are for the whole i/o, not this row */
 		rr->rr_offset = offset;
 		rr->rr_size = size;
 #endif
@@ -797,7 +806,11 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 					ASSERT0(prc->rc_offset);
 					prc->rc_offset = rc->rc_offset;
 				} else {
-					ASSERT3U(prc->rc_offset + prc->rc_size,
+					/*
+					 * The block must be contiguous to
+					 * use aggregation.
+					 */
+					VERIFY3U(prc->rc_offset + prc->rc_size,
 					    ==, rc->rc_offset);
 				}
 				prc->rc_size += rc->rc_size;
