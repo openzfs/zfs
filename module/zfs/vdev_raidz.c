@@ -3533,10 +3533,10 @@ raidz_reflow_impl(vdev_t *vd, vdev_raidz_expand_t *vre, range_tree_t *rt,
 	 */
 	uint64_t vre_offset_phys_blkid =
 	    MAX(old_children, vre->vre_offset_phys >> ashift);
-#if 0 // XXX this is correct; do sector at a time for testing
+#if 1
 	uint64_t next_overwrite_blkid = vre_offset_phys_blkid +
 	    vre_offset_phys_blkid / old_children;
-#else
+#else // XXX for testing
 	uint64_t next_overwrite_blkid = vre_offset_phys_blkid + 1;
 #endif
 	if (blkid >= next_overwrite_blkid) {
