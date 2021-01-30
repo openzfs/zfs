@@ -114,7 +114,9 @@ abd_verify(abd_t *abd)
 	    ABD_FLAG_OWNER | ABD_FLAG_META | ABD_FLAG_MULTI_ZONE |
 	    ABD_FLAG_MULTI_CHUNK | ABD_FLAG_LINEAR_PAGE | ABD_FLAG_GANG |
 	    ABD_FLAG_GANG_FREE | ABD_FLAG_ZEROS | ABD_FLAG_ALLOCD));
+#ifdef ZFS_DEBUG
 	IMPLY(abd->abd_parent != NULL, !(abd->abd_flags & ABD_FLAG_OWNER));
+#endif
 	IMPLY(abd->abd_flags & ABD_FLAG_META, abd->abd_flags & ABD_FLAG_OWNER);
 	if (abd_is_linear(abd)) {
 		ASSERT3P(ABD_LINEAR_BUF(abd), !=, NULL);
@@ -138,9 +140,11 @@ abd_init_struct(abd_t *abd)
 {
 	list_link_init(&abd->abd_gang_link);
 	mutex_init(&abd->abd_mtx, NULL, MUTEX_DEFAULT, NULL);
-	zfs_refcount_create(&abd->abd_children);
 	abd->abd_flags = 0;
+#ifdef ZFS_DEBUG
+	zfs_refcount_create(&abd->abd_children);
 	abd->abd_parent = NULL;
+#endif
 	abd->abd_size = 0;
 }
 
@@ -149,7 +153,9 @@ abd_fini_struct(abd_t *abd)
 {
 	mutex_destroy(&abd->abd_mtx);
 	ASSERT(!list_link_active(&abd->abd_gang_link));
+#ifdef ZFS_DEBUG
 	zfs_refcount_destroy(&abd->abd_children);
+#endif
 }
 
 abd_t *
@@ -288,7 +294,9 @@ abd_free(abd_t *abd)
 		return;
 
 	abd_verify(abd);
+#ifdef ZFS_DEBUG
 	IMPLY(abd->abd_flags & ABD_FLAG_OWNER, abd->abd_parent == NULL);
+#endif
 
 	if (abd_is_gang(abd)) {
 		abd_free_gang(abd);
@@ -300,10 +308,12 @@ abd_free(abd_t *abd)
 			abd_free_scatter(abd);
 	}
 
+#ifdef ZFS_DEBUG
 	if (abd->abd_parent != NULL) {
 		(void) zfs_refcount_remove_many(&abd->abd_parent->abd_children,
 		    abd->abd_size, abd);
 	}
+#endif
 
 	abd_fini_struct(abd);
 	if (abd->abd_flags & ABD_FLAG_ALLOCD)
@@ -526,8 +536,10 @@ abd_get_offset_impl(abd_t *abd, abd_t *sabd, size_t off, size_t size)
 
 	ASSERT3P(abd, !=, NULL);
 	abd->abd_size = size;
+#ifdef ZFS_DEBUG
 	abd->abd_parent = sabd;
 	(void) zfs_refcount_add_many(&sabd->abd_children, abd->abd_size, abd);
+#endif
 	return (abd);
 }
 
@@ -624,7 +636,9 @@ abd_borrow_buf(abd_t *abd, size_t n)
 	} else {
 		buf = zio_buf_alloc(n);
 	}
+#ifdef ZFS_DEBUG
 	(void) zfs_refcount_add_many(&abd->abd_children, n, buf);
+#endif
 	return (buf);
 }
 
@@ -655,7 +669,9 @@ abd_return_buf(abd_t *abd, void *buf, size_t n)
 		ASSERT0(abd_cmp_buf(abd, buf, n));
 		zio_buf_free(buf, n);
 	}
+#ifdef ZFS_DEBUG
 	(void) zfs_refcount_remove_many(&abd->abd_children, n, buf);
+#endif
 }
 
 void
