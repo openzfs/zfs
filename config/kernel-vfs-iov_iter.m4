@@ -10,31 +10,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_VFS_IOV_ITER], [
 		    ITER_IOVEC | ITER_KVEC | ITER_BVEC | ITER_PIPE;
 	])
 
-	ZFS_LINUX_TEST_SRC([iov_iter_init], [
-		#include <linux/fs.h>
-		#include <linux/uio.h>
-	],[
-		struct iov_iter iter = { 0 };
-		struct iovec iov;
-		unsigned long nr_segs = 1;
-		size_t count = 1024;
-
-		iov_iter_init(&iter, WRITE, &iov, nr_segs, count);
-	])
-
-	ZFS_LINUX_TEST_SRC([iov_iter_init_legacy], [
-		#include <linux/fs.h>
-		#include <linux/uio.h>
-	],[
-		struct iov_iter iter = { 0 };
-		struct iovec iov;
-		unsigned long nr_segs = 1;
-		size_t count = 1024;
-		size_t written = 0;
-
-		iov_iter_init(&iter, &iov, nr_segs, count, written);
-	])
-
 	ZFS_LINUX_TEST_SRC([iov_iter_advance], [
 		#include <linux/fs.h>
 		#include <linux/uio.h>
@@ -112,25 +87,6 @@ AC_DEFUN([ZFS_AC_KERNEL_VFS_IOV_ITER], [
 	],[
 		AC_MSG_RESULT(no)
 		enable_vfs_iov_iter="no"
-	])
-
-	dnl #
-	dnl # 'iov_iter_init' available in Linux 3.16 and newer.
-	dnl # 'iov_iter_init_legacy' available in Linux 3.15 and older.
-	dnl #
-	AC_MSG_CHECKING([whether iov_iter_init() is available])
-	ZFS_LINUX_TEST_RESULT([iov_iter_init], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_IOV_ITER_INIT, 1,
-		    [iov_iter_init() is available])
-	],[
-		ZFS_LINUX_TEST_RESULT([iov_iter_init_legacy], [
-			AC_MSG_RESULT(yes)
-			AC_DEFINE(HAVE_IOV_ITER_INIT_LEGACY, 1,
-			    [iov_iter_init() is available])
-		],[
-			ZFS_LINUX_TEST_ERROR([iov_iter_init()])
-		])
 	])
 
 	AC_MSG_CHECKING([whether iov_iter_advance() is available])
