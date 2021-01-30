@@ -26,6 +26,15 @@
 #include <sys/ioctl.h>
 #include <sys/callb.h>
 
+#define	ZIO_OS_FIELDS \
+	struct { \
+		IRP *irp; \
+		void *b_addr; \
+		IO_STATUS_BLOCK IoStatus; \
+		PIO_WORKITEM work_item; \
+	} windows;
+
+
 #define	MSEC_TO_TICK(msec)		((msec) / (MILLISEC / hz))
 
 #define	KMALLOC_MAX_SIZE		(128 * 1024) // Win32 MAXPHYS ?
