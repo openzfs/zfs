@@ -481,77 +481,50 @@ vdev_disk_ioctl_done(void *zio_arg, int error)
 	zio_interrupt(zio);
 }
 
-struct vdev_disk_callback_struct {
-	zio_t *zio;
-	PIRP irp;
-	void *b_addr;
-	char work_item[0];
-};
-typedef struct vdev_disk_callback_struct vd_callback_t;
-
 static void
-vdev_disk_io_start_done(void *param)
+vdev_disk_io_start_done(__in PVOID pDummy, __in PVOID pWkParms)
 {
-	vd_callback_t *vb = (vd_callback_t *)param;
+	zio_t *zio = (zio_t *)pWkParms;
+	UNREFERENCED_PARAMETER(pDummy);
 
-	ASSERT(vb != NULL);
+	ASSERT(zio != NULL);
 
-	NTSTATUS status = vb->irp->IoStatus.Status;
-	zio_t *zio = vb->zio;
+	IoFreeWorkItem(zio->windows.work_item);
+	zio->windows.work_item = NULL;
+
+	NTSTATUS status = zio->windows.IoStatus.Status;
 	zio->io_error = (!NT_SUCCESS(status) ? EIO : 0);
 
 	// Return abd buf
 	if (zio->io_type == ZIO_TYPE_READ) {
 		VERIFY3S(zio->io_abd->abd_size, >= , zio->io_size);
-		abd_return_buf_copy(zio->io_abd, vb->b_addr,
+		abd_return_buf_copy(zio->io_abd, zio->windows.b_addr,
 			zio->io_size);
 	} else {
 		VERIFY3S(zio->io_abd->abd_size, >= , zio->io_size);
-		abd_return_buf(zio->io_abd, vb->b_addr,
+		abd_return_buf(zio->io_abd, zio->windows.b_addr,
 			zio->io_size);
 	}
 
-	UnlockAndFreeMdl(vb->irp->MdlAddress);
-	IoFreeIrp(vb->irp);
-	kmem_free(vb, sizeof(vd_callback_t) + IoSizeofWorkItem());
-	vb = NULL;
+	UnlockAndFreeMdl(zio->windows.irp->MdlAddress);
+	IoFreeIrp(zio->windows.irp);
 	zio_delay_interrupt(zio);
 }
 
-static VOID
-DiskIoWkRtn(
-	__in PVOID           pDummy,           // Not used.
-	__in PVOID           pWkParms          // Parm list pointer.
-)
-{
-	vd_callback_t *vb = (vd_callback_t *)pWkParms;
-
-	UNREFERENCED_PARAMETER(pDummy);
-	IoUninitializeWorkItem((PIO_WORKITEM)vb->work_item);
-	vdev_disk_io_start_done(vb);
-}
-
 /*
-* IO has finished callback, in Windows this is called as a different
-* IRQ level, so we can practically do nothing here. (Can't call mutex
-* locking, like from kmem_free())
-*/
-
+ * IO has finished callback, in Windows this is called as a different
+ * IRQ level, so we can practically do nothing here. (Can't call mutex
+ * locking, like from kmem_free())
+ */
 IO_COMPLETION_ROUTINE vdev_disk_io_intr;
 
 static NTSTATUS
 vdev_disk_io_intr(PDEVICE_OBJECT DeviceObject, PIRP irp, PVOID Context)
 {
-	vd_callback_t *vb = (vd_callback_t *)Context;
+	zio_t *zio = (zio_t *)Context;
 
-	ASSERT(vb != NULL);
+	ASSERT(zio != NULL);
 
-	vdev_disk_t *dvd = vb->zio->io_vd->vdev_tsd;
-
-	/*
-	 * If IRQL is below DIPATCH_LEVEL then there is no issue in calling
-	 * vdev_disk_io_start_done() directly; otherwise queue a new Work Item
-	 */
 	/*
 	 * Unfortunately:
 	 * Whatever thread happened to be running is "borrowed" to handle
@@ -563,15 +536,13 @@ vdev_disk_io_intr(PDEVICE_OBJECT DeviceObject, PIRP irp, PVOID Context)
 	 * "current thread" in DPCs and thus completion routines.
 	 *
 	 * This means our call to "mutex_enter()" will "panic: lock against myself" if that
-	 * thread it "borrowed" is the actual owner thread.   
+	 * thread it "borrowed" is the actual owner thread.
+	 *
+	 * So schedule IoQueueWorkItem() to call the done function in a real context.  
 	 */ 
-//	if (KeGetCurrentIrql() < DISPATCH_LEVEL)
-	if (0) {
-		vdev_disk_io_start_done(vb);
-	} else {
-		IoInitializeWorkItem(dvd->vd_DeviceObject, (PIO_WORKITEM)vb->work_item);
-		IoQueueWorkItem((PIO_WORKITEM)vb->work_item, DiskIoWkRtn, DelayedWorkQueue, vb);
-	}
+
+	VERIFY3P(zio->windows.work_item, !=, NULL);
+	IoQueueWorkItem(zio->windows.work_item, vdev_disk_io_start_done, DelayedWorkQueue, zio);
 	return STATUS_MORE_PROCESSING_REQUIRED;
 }
 
@@ -683,67 +654,72 @@ vdev_disk_io_start(zio_t *zio)
 
 	PIRP irp = NULL;
 	PIO_STACK_LOCATION irpStack = NULL;
-	IO_STATUS_BLOCK IoStatusBlock = { 0 };
 	LARGE_INTEGER offset;
 
 	offset.QuadPart = zio->io_offset + dvd->vdev_win_offset;
 
-	/* Preallocate space for IoWorkItem, required for vdev_disk_io_start_done callback */
-	vd_callback_t *vb = (vd_callback_t *)kmem_alloc(sizeof(vd_callback_t) + IoSizeofWorkItem(), KM_SLEEP);
+	/*
+	 * Start IO -> IOCompletion callback 'vdev_disk_io_intr()' 
+	 *  -> IoQueueWorkItem(DelayedWorkQueue) -> callback vdev_disk_io_done()
+	 */
 
-	vb->zio = zio;
-
-	if (zio->io_type == ZIO_TYPE_READ) {
-
-		vb->b_addr =
-			abd_borrow_buf(zio->io_abd, zio->io_size);
-
-		irp = IoBuildAsynchronousFsdRequest(IRP_MJ_READ,
-			dvd->vd_DeviceObject,
-			vb->b_addr,
-			(ULONG)zio->io_size,
-			&offset,
-			&IoStatusBlock);
-
-	} else {
-		vb->b_addr =
-			abd_borrow_buf_copy(zio->io_abd, zio->io_size);
-
-		irp = IoBuildAsynchronousFsdRequest(IRP_MJ_WRITE,
-			dvd->vd_DeviceObject,
-			vb->b_addr,
-			(ULONG)zio->io_size,
-			&offset,
-			&IoStatusBlock);
-	}
-	
-	if (!irp) {
-
-		if (zio->io_type == ZIO_TYPE_READ) {
-			abd_return_buf_copy(zio->io_abd, vb->b_addr,
-			    zio->io_size);
-		} else {
-			abd_return_buf(zio->io_abd, vb->b_addr,
-			    zio->io_size);
-		}
-
-		kmem_free(vb, sizeof(vd_callback_t) + IoSizeofWorkItem());
+	zio->windows.work_item = IoAllocateWorkItem(dvd->vd_DeviceObject);
+	if (zio->windows.work_item == NULL) {
 		zio->io_error = EIO;
 		zio_interrupt(zio);
 		return;
 	}
 
-	vb->irp = irp;
+	if (zio->io_type == ZIO_TYPE_READ) {
+
+		zio->windows.b_addr =
+			abd_borrow_buf(zio->io_abd, zio->io_size);
+
+		irp = IoBuildAsynchronousFsdRequest(IRP_MJ_READ,
+			dvd->vd_DeviceObject,
+			zio->windows.b_addr,
+			(ULONG)zio->io_size,
+			&offset,
+			&zio->windows.IoStatus);
+
+	} else {
+		zio->windows.b_addr =
+			abd_borrow_buf_copy(zio->io_abd, zio->io_size);
+
+		irp = IoBuildAsynchronousFsdRequest(IRP_MJ_WRITE,
+			dvd->vd_DeviceObject,
+			zio->windows.b_addr,
+			(ULONG)zio->io_size,
+			&offset,
+			&zio->windows.IoStatus);
+	}
+	
+	if (!irp) {
+
+		if (zio->io_type == ZIO_TYPE_READ) {
+			abd_return_buf_copy(zio->io_abd, zio->windows.b_addr,
+			    zio->io_size);
+		} else {
+			abd_return_buf(zio->io_abd, zio->windows.b_addr,
+			    zio->io_size);
+		}
+
+		IoFreeWorkItem(zio->windows.work_item);
+		zio->io_error = EIO;
+		zio_interrupt(zio);
+		return;
+	}
+
+	zio->windows.irp = irp;
 
 	irpStack = IoGetNextIrpStackLocation(irp);
 
-	irpStack->Flags |= SL_OVERRIDE_VERIFY_VOLUME; // SetFlag(IoStackLocation->Flags, SL_OVERRIDE_VERIFY_VOLUME);
-												  //SetFlag(ReadIrp->Flags, IRP_NOCACHE);
+	irpStack->Flags |= SL_OVERRIDE_VERIFY_VOLUME;
 	irpStack->FileObject = dvd->vd_FileObject;
 
 	IoSetCompletionRoutine(irp,
 		vdev_disk_io_intr,
-		vb, // "Context" in vdev_disk_io_intr()
+		zio, // "Context" in vdev_disk_io_intr()
 		TRUE, // On Success
 		TRUE, // On Error
 		TRUE);// On Cancel
