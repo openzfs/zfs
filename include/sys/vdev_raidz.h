@@ -36,6 +36,7 @@ struct zio;
 struct raidz_row;
 struct raidz_map;
 struct vdev_raidz;
+struct uberblock;
 #if !defined(_KERNEL)
 struct kernel_param {};
 #endif
@@ -46,7 +47,8 @@ struct kernel_param {};
 struct raidz_map *vdev_raidz_map_alloc(struct zio *, uint64_t, uint64_t,
     uint64_t);
 struct raidz_map *vdev_raidz_map_alloc_expanded(abd_t *, uint64_t, uint64_t,
-    uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
+    uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t,
+    const struct uberblock *);
 void vdev_raidz_map_free(struct raidz_map *);
 void vdev_raidz_free(struct vdev_raidz *);
 void vdev_raidz_generate_parity_row(struct raidz_map *, struct raidz_row *);
@@ -55,6 +57,7 @@ void vdev_raidz_reconstruct(struct raidz_map *, const int *, int);
 void vdev_raidz_child_done(zio_t *);
 void vdev_raidz_io_done(zio_t *);
 struct raidz_row *vdev_raidz_row_alloc(int);
+extern void vdev_raidz_reflow_copy_scratch(spa_t *);
 
 /*
  * vdev_raidz_math interface
@@ -84,7 +87,7 @@ typedef struct vdev_raidz_expand {
 	uint64_t vre_offset;
 
 	/*
-	 * Next offset to issue i/o for which has been synced to disk.
+	 * The offset that will be synced this txg.
 	 */
 	uint64_t vre_offset_phys;
 
@@ -113,6 +116,13 @@ typedef struct vdev_raidz {
 	 */
 	vdev_raidz_expand_t vn_vre;
 } vdev_raidz_t;
+
+typedef struct vdev_raidz_scratch_phys {
+	uint64_t vrsp_txg; // must match uberblock txg
+	uint64_t vrsp_size; // logical size of entire scratch space across all children
+	uint64_t vrsp_overwrite_complete; // real location has new layout; just need to set vre_offset_phys=vrsp_size
+	// pad out to 1<<ashift
+} vdev_raidz_scratch_phys_t;
 
 extern void vdev_raidz_attach_sync(void *, dmu_tx_t *);
 extern void spa_start_raidz_expansion_thread(spa_t *);

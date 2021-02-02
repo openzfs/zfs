@@ -4801,6 +4801,15 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, char **ereport)
 		ASSERT(spa->spa_load_state != SPA_LOAD_TRYIMPORT);
 
 		/*
+		 * Before we do any zio_write's, complete the raidz expansion
+		 * scratch space copying, if necessary.
+		 */
+		if (RRSS_GET_STATE(&spa->spa_uberblock) != RRSS_SCRATCH_NOT_IN_USE) {
+			vdev_raidz_reflow_copy_scratch(spa);
+			spa->spa_uberblock.ub_raidz_reflow_info = 0;
+		}
+
+		/*
 		 * In case of a checkpoint rewind, log the original txg
 		 * of the checkpointed uberblock.
 		 */

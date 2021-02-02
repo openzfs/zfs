@@ -24,6 +24,7 @@
  */
 
 #include <sys/zfs_context.h>
+#include <sys/spa_impl.h>
 #include <sys/uberblock_impl.h>
 #include <sys/vdev_impl.h>
 #include <sys/mmp.h>
@@ -69,6 +70,12 @@ uberblock_update(uberblock_t *ub, vdev_t *rvd, uint64_t txg, uint64_t mmp_delay)
 		ub->ub_mmp_config = 0;
 	}
 	ub->ub_checkpoint_txg = 0;
+	if (rvd->vdev_spa->spa_raidz_expand != NULL) {
+		RAIDZ_REFLOW_SET(ub, RRSS_SCRATCH_NOT_IN_USE,
+		    rvd->vdev_spa->spa_raidz_expand->vre_offset_phys);
+	} else {
+		ub->ub_raidz_reflow_info = 0;
+	}
 
 	return (ub->ub_rootbp.blk_birth == txg);
 }

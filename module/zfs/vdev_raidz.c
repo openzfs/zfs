@@ -545,11 +545,14 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t ashift, uint64_t dcols,
 }
 
 /*
- * If reflow is not in progress, reflow_offset_phys should be UINT64_MAX.
- * For each row, if the row is entirely before reflow_offset_phys, it will
- * come from the new location.  Otherwise this row will come from the
- * old location.  Therefore, rows that straddle the reflow_offset_phys will
- * come from the old location.
+ * Everything before reflow_offset_phys should have been moved to the new
+ * location (read and write completed).  However, this may not yet be
+ * reflected in the on-disk format (e.g. raidz_reflow_sync() has been called
+ * but the uberblock has not yet been written). If reflow is not in progress,
+ * reflow_offset_phys should be UINT64_MAX. For each row, if the row is
+ * entirely before reflow_offset_phys, it will come from the new location.
+ * Otherwise this row will come from the old location.  Therefore, rows that
+ * straddle the reflow_offset_phys will come from the old location.
  *
  * For writes, reflow_offset_next is the next offset to copy.  If a sector has
  * been copied, but not yet reflected in the on-disk progress
@@ -559,7 +562,8 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t ashift, uint64_t dcols,
 noinline raidz_map_t *
 vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
     uint64_t ashift, uint64_t physical_cols, uint64_t logical_cols,
-    uint64_t nparity, uint64_t reflow_offset_phys, uint64_t reflow_offset_next)
+    uint64_t nparity, uint64_t reflow_offset_phys, uint64_t reflow_offset_next,
+    const uberblock_t *ub)
 {
 	/* The zio's size in units of the vdev's minimum sector size. */
 	uint64_t s = size >> ashift;
@@ -598,6 +602,15 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 	rm->rm_nskip = roundup(tot, nparity + 1) - tot;
 	asize = 0;
 
+	raidz_reflow_scratch_state_t rrss = RRSS_GET_STATE(ub);
+#if 0
+	if (rrss != RRSS_SCRATCH_NOT_IN_USE) {
+		ASSERT0(reflow_offset_phys);
+		ASSERT0(reflow_offset_next);
+		reflow_offset_phys = reflow_offset_next = RRSS_GET_OFFSET(ub);
+	}
+#endif
+
 	/*
 	 * If the block crosses the reflow progress boundary
 	 * (reflow_offset_phys), the physical location is disjoint (some rows
@@ -606,7 +619,9 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 	 * with these blocks.
 	 */
 	if (rows >= raidz_io_aggregate_rows &&
-	    (offset + size <= reflow_offset_phys || offset >= reflow_offset_phys)) {
+	    (offset + (tot << ashift) <= reflow_offset_phys ||
+	    offset >= reflow_offset_phys) &&
+	    rrss != RRSS_SCRATCH_VALID) {
 		rm->rm_io_aggregation = B_TRUE;
 		rm->rm_nphys_cols = physical_cols;
 		rm->rm_phys_col =
@@ -628,9 +643,14 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 		uint64_t b = (offset >> ashift) + row * logical_cols;
 
 		/*
-		 * If we are in the middle of a reflow, and any part of this
-		 * row has not been copied, then use the old location of
-		 * this row.
+		 * If we are in the middle of a reflow, and the copying has
+		 * not yet completed for any part of this row, then use the
+		 * old location of this row.  Note that
+		 * reflow_offset_phys==vre_offset_phys reflects the i/o
+		 * that's been completed, because it's updated by a synctask,
+		 * after zio_wait(spa_txg_zio[]).  This is sufficient for our
+		 * check, even if that progress has not yet been recorded to
+		 * disk (reflected in spa_ubsync).
 		 */
 		int row_phys_cols = physical_cols;
 		if (b + cols > reflow_offset_phys >> ashift)
@@ -658,6 +678,7 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 		rr->rr_firstdatacol = nparity;
 #ifdef ZFS_DEBUG
 		/* XXX offset and size here are for the whole i/o, not this row */
+		/* XXX note: size is PSIZE, not ASIZE */
 		rr->rr_offset = offset;
 		rr->rr_size = size;
 #endif
@@ -670,6 +691,20 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 			raidz_col_t *rc = &rr->rr_col[c];
 			rc->rc_devidx = child_id;
 			rc->rc_offset = child_offset;
+
+			/*
+			 * Get this from the scratch space if appropriate. We
+			 * should only be doing reads if this is the case.
+			 * This only happens when in the middle of pool
+			 * import if we crashed in the middle of
+			 * raidz_reflow_scratch_sync() (while it's running,
+			 * the rangelock prevents us from doing concurrent
+			 * io).
+			 */
+			if (rrss == RRSS_SCRATCH_VALID &&
+			    (b + c) << ashift < RRSS_GET_OFFSET(ub)) {
+				rc->rc_offset -= VDEV_BOOT_SIZE;
+			}
 
 			uint64_t dc = c - rr->rr_firstdatacol;
 			if (c < rr->rr_firstdatacol) {
@@ -719,24 +754,21 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 
 			/*
 			 * If any part of this row is in both old and new
-			 * locations, the primary location is the old location.
-			 * If we're in this situation (indicated by
-			 * row_phys_cols != physical_cols) and this sector is in
-			 * the new location, then we have to also write to the
-			 * new "shadow" location.
+			 * locations, the primary location is the old
+			 * location. If this sector was already copied to the
+			 * new location, we need to also write to the new,
+			 * "shadow" location.
+			 *
+			 * Note, `row_phys_cols != physical_cols` indicates
+			 * that the primary location is the old location.
+			 * `b+c < reflow_offset_next` indicates that the copy
+			 * to the new location has been initiated. We know
+			 * that the copy has completed because we have the
+			 * rangelock, which is held exclusively while the
+			 * copy is in progress.
 			 */
 			if (row_phys_cols != physical_cols &&
 			    b + c < reflow_offset_next >> ashift) {
-				/*
-				 * This sector was already copied (or wasn't
-				 * allocated at the time it would have been
-				 * copied) (<offset_next), but that progress
-				 * hasn't yet been reflected on disk
-				 * (>=offset_phys), so the primary write is to
-				 * the old location.  We need to also write to
-				 * the already copied (new) location, which is
-				 * represented as the "shadow" location.
-				 */
 				ASSERT3U(row_phys_cols, ==, physical_cols - 1);
 				rc->rc_shadow_devidx = (b + c) % physical_cols;
 				rc->rc_shadow_offset =
@@ -2351,7 +2383,8 @@ vdev_raidz_io_start(zio_t *zio)
 		    tvd->vdev_ashift, vdrz->vd_physical_width,
 		    logical_width, vdrz->vd_nparity,
 		    vdrz->vn_vre.vre_offset_phys,
-		    vdrz->vn_vre.vre_offset);
+		    vdrz->vn_vre.vre_offset,
+		    &zio->io_spa->spa_uberblock);
 		rm->rm_lr = lr;
 	} else {
 		rm = vdev_raidz_map_alloc(zio,
@@ -3369,14 +3402,16 @@ raidz_reflow_sync(void *arg, dmu_tx_t *tx)
 	    vre->vre_offset_phys,
 	    vre->vre_offset_pertxg[txgoff] - vre->vre_offset_phys,
 	    RL_WRITER);
+
 	/*
-	 * XXX this needs to happen after the txg is synced, for
-	 * purposes of determining if we can overwrite it.
+	 * When we write the uberblock, it will be updated based on
+	 * vre_offset_phys(). (see uberblock_update()).
 	 */
 	vre->vre_offset_phys = vre->vre_offset_pertxg[txgoff];
 	vre->vre_offset_pertxg[txgoff] = 0;
 	zfs_rangelock_exit(lr);
 
+#if 0
 	/*
 	 * vre_offset_phys will be added to the on-disk config by
 	 * vdev_raidz_config_generate().
@@ -3387,6 +3422,7 @@ raidz_reflow_sync(void *arg, dmu_tx_t *tx)
 	 */
 	vdev_t *vd = vdev_lookup_top(spa, vre->vre_vdev_id);
 	vdev_config_dirty(vd);
+#endif
 }
 
 static void
@@ -3433,6 +3469,8 @@ raidz_reflow_complete_sync(void *arg, dmu_tx_t *tx)
 	    "%s vdev %llu new width %llu", spa_name(spa),
 	    (unsigned long long)vd->vdev_id,
 	    (unsigned long long)vd->vdev_children);
+
+	spa->spa_raidz_expand = NULL;
 }
 
 /*
@@ -3524,29 +3562,41 @@ raidz_reflow_impl(vdev_t *vd, vdev_raidz_expand_t *vre, range_tree_t *rt,
 	int old_children = vd->vdev_children - 1;
 
 	/*
-	 * We can only progress to the point that writes will not overlap with
-	 * blocks whose progress has not yet been recorded on disk
-	 * (vre_offset_phys).  Note that even if we are skipping over a large
-	 * unallocated region, we can't move the on-disk progress to `offset`,
-	 * because concurrent writes/allocations could still use the
-	 * currently-unallocated region.
+	 * We can only progress to the point that writes will not overlap
+	 * with blocks whose progress has not yet been recorded on disk.
+	 * Note that vre_offset_phys may not have been recorded on disk,
+	 * because it's set in a synctask and we need to know what's actually
+	 * been persisted to disk.
+	 *
+	 * Note that even if we are skipping over a large unallocated region,
+	 * we can't move the on-disk progress to `offset`, because concurrent
+	 * writes/allocations could still use the currently-unallocated
+	 * region.
 	 */
-	uint64_t vre_offset_phys_blkid =
-	    MAX(old_children, vre->vre_offset_phys >> ashift);
+	uint64_t ubsync_blkid =
+	    RRSS_GET_OFFSET(&spa->spa_ubsync) >> ashift;
 #if 1
-	uint64_t next_overwrite_blkid = vre_offset_phys_blkid +
-	    vre_offset_phys_blkid / old_children;
+	uint64_t next_overwrite_blkid = ubsync_blkid +
+	    ubsync_blkid / old_children;
+	/*
+	 * The separation must be at least one row, so that a row does not
+	 * overwrite itself.  If it did, and a device fails, we could lose
+	 * data.  raidz_reflow_scratch_sync() ensures that we have already
+	 * copied enough that a row does not overwrite itself.
+	 */
+	ASSERT3U(next_overwrite_blkid - ubsync_blkid, >=, old_children);
 #else // XXX for testing
-	uint64_t next_overwrite_blkid = vre_offset_phys_blkid + 1;
+	uint64_t next_overwrite_blkid = ubsync_blkid + 1;
 #endif
+
 	if (blkid >= next_overwrite_blkid) {
 		raidz_reflow_record_progress(vre,
 		    next_overwrite_blkid << ashift, tx);
 
-		zfs_dbgmsg("copying offset %llu, vre_offset_phys %llu, "
+		zfs_dbgmsg("copying offset %llu, ubsync offset = %llu, "
 		    "max_overwrite = %llu wait for txg %llu",
 		    (long long)offset,
-		    (long long)vre->vre_offset_phys,
+		    (long long)ubsync_blkid << ashift,
 		    (long long)next_overwrite_blkid << ashift,
 		    (long long)dmu_tx_get_txg(tx));
 		return (B_TRUE);
@@ -3595,6 +3645,256 @@ raidz_reflow_impl(vdev_t *vd, vdev_raidz_expand_t *vre, range_tree_t *rt,
 	return (B_FALSE);
 }
 
+/*
+ * For testing.
+ */
+static void
+raidz_expand_pause(spa_t *spa, uint64_t progress)
+{
+	while (raidz_expand_max_offset_pause <= progress)
+		delay(hz);
+}
+
+
+static void
+raidz_reflow_scratch_sync(void *arg, dmu_tx_t *tx)
+{
+	vdev_raidz_expand_t *vre = arg;
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+	zio_t *pio;
+
+	spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
+	vdev_t *raidvd = vdev_lookup_top(spa, vre->vre_vdev_id);
+	int ashift = raidvd->vdev_ashift;
+	uint64_t scratch_size_per_child = raidvd->vdev_children << ashift;
+	uint64_t scratch_logical_size =
+	    scratch_size_per_child * (raidvd->vdev_children - 1);
+
+	/*
+	 * XXX need to check this first.
+	 * XXX for performance, may want to use the whole BOOT_SIZE
+	 */
+	ASSERT3U(scratch_size_per_child, <=, VDEV_BOOT_SIZE);
+
+	zfs_locked_range_t *lr = zfs_rangelock_enter(&vre->vre_rangelock,
+	    0, scratch_logical_size, RL_WRITER);
+
+	abd_t **abds = kmem_alloc(raidvd->vdev_children * sizeof (abd_t *),
+	    KM_SLEEP);
+	for (int i = 0; i < raidvd->vdev_children; i++) {
+		abds[i] = abd_alloc_linear(scratch_size_per_child, B_FALSE);
+	}
+
+	raidz_expand_pause(spa, 1);
+
+	/*
+	 * Read from original location.
+	 */
+	pio = zio_root(spa, NULL, NULL, 0);
+	for (int i = 0; i < raidvd->vdev_children - 1; i++) {
+		zio_nowait(zio_read_phys(pio, raidvd->vdev_child[i],
+		    VDEV_LABEL_START_SIZE, scratch_size_per_child, abds[i],
+		    ZIO_CHECKSUM_OFF, NULL, NULL, ZIO_PRIORITY_ASYNC_READ,
+		    0, B_FALSE));
+	}
+	zio_wait(pio);
+
+	/*
+	 * Reflow in memory.
+	 */
+	raidz_expand_pause(spa, 2);
+	for (int i = raidvd->vdev_children - 1;
+	    i < scratch_logical_size >> ashift; i++) {
+		int oldchild = i % (raidvd->vdev_children - 1);
+		uint64_t oldoff = (i / (raidvd->vdev_children - 1)) << ashift;
+
+		int newchild = i % raidvd->vdev_children;
+		uint64_t newoff = (i / raidvd->vdev_children) << ashift;
+
+		abd_copy_off(abds[newchild], abds[oldchild],
+		    newoff, oldoff, 1 << ashift);
+	}
+
+	/*
+	 * Write to scratch location (boot area).
+	 */
+	pio = zio_root(spa, NULL, NULL, 0);
+	for (int i = 0; i < raidvd->vdev_children; i++) {
+		zio_nowait(zio_write_phys(pio, raidvd->vdev_child[i],
+		    VDEV_BOOT_OFFSET, scratch_size_per_child, abds[i],
+		    ZIO_CHECKSUM_OFF, NULL, NULL, ZIO_PRIORITY_ASYNC_WRITE,
+		    0, B_TRUE));
+	}
+	zio_wait(pio);
+	pio = zio_root(spa, NULL, NULL, 0);
+	zio_flush(pio, raidvd);
+	zio_wait(pio);
+
+	zfs_dbgmsg("raidz reflow: wrote %llu bytes (logical) to scratch area",
+	    scratch_logical_size);
+
+	raidz_expand_pause(spa, 3);
+
+	/*
+	 * Update uberblock to indicate that scratch space is valid.  This is
+	 * needed because after this point, the real location may be
+	 * overwritten.  If we crash, we need to get the data from the
+	 * scratch space, rather than the real location.
+	 *
+	 * Note: ub_timestamp is bumped so that vdev_uberblock_compare()
+	 * will prefer this uberblock.
+	 */
+	RAIDZ_REFLOW_SET(&spa->spa_ubsync,
+	    RRSS_SCRATCH_VALID, scratch_logical_size);
+	spa->spa_ubsync.ub_timestamp++;
+	ASSERT0(vdev_uberblock_sync_list(&spa->spa_root_vdev, 1,
+	    &spa->spa_ubsync, ZIO_FLAG_CONFIG_WRITER));
+
+	zfs_dbgmsg("raidz reflow: uberblock updated (txg %llu, SCRATCH_VALID, size %llu, ts %llu)",
+	    spa->spa_ubsync.ub_txg, scratch_logical_size, spa->spa_ubsync.ub_timestamp);
+
+	raidz_expand_pause(spa, 4);
+
+	/*
+	 * Overwrite with reflow'ed data.
+	 *
+	 * Overwrite the whole thing even though some of it is unchanged.
+	 * Harmless and easier than calculating the new size for each child.
+	 */
+	pio = zio_root(spa, NULL, NULL, 0);
+	for (int i = 0; i < raidvd->vdev_children; i++) {
+		zio_nowait(zio_write_phys(pio, raidvd->vdev_child[i],
+		    VDEV_LABEL_START_SIZE, scratch_size_per_child, abds[i],
+		    ZIO_CHECKSUM_OFF, NULL, NULL, ZIO_PRIORITY_ASYNC_WRITE,
+		    0, B_FALSE));
+	}
+	zio_wait(pio);
+	pio = zio_root(spa, NULL, NULL, 0);
+	zio_flush(pio, raidvd);
+	zio_wait(pio);
+
+	zfs_dbgmsg("raidz reflow: overwrote %llu bytes (logical) to real location",
+	    scratch_logical_size);
+
+	for (int i = 0; i < raidvd->vdev_children; i++)
+		abd_free(abds[i]);
+	kmem_free(abds, raidvd->vdev_children * sizeof (abd_t *));
+
+	raidz_expand_pause(spa, 5);
+
+	/*
+	 * Update uberblock to indicate that the initial part has been
+	 * reflow'ed.  This is needed because after this point (when we exit
+	 * the rangelock), we allow regular writes to this region, which will
+	 * be written to the new location only (because vre_offset ==
+	 * vre_offset_phys).  If we crashed and re-copied from the scratch
+	 * space, we would lose the regular writes.
+	 */
+	RAIDZ_REFLOW_SET(&spa->spa_ubsync,
+	    RRSS_SCRATCH_NOT_IN_USE, scratch_logical_size);
+	spa->spa_ubsync.ub_timestamp++;
+	ASSERT0(vdev_uberblock_sync_list(&spa->spa_root_vdev, 1,
+	    &spa->spa_ubsync, ZIO_FLAG_CONFIG_WRITER));
+
+	zfs_dbgmsg("raidz reflow: uberblock updated (txg %llu, SCRATCH_NOT_IN_USE, size %llu, ts %llu)",
+	    spa->spa_ubsync.ub_txg, scratch_logical_size, spa->spa_ubsync.ub_timestamp);
+
+	raidz_expand_pause(spa, 6);
+
+	/*
+	 * Update progress.
+	 */
+	vre->vre_offset = vre->vre_offset_phys = scratch_logical_size;
+	zfs_rangelock_exit(lr);
+	//vdev_config_dirty(raidvd);
+	spa_config_exit(spa, SCL_STATE, FTAG);
+
+	raidz_expand_pause(spa, 7);
+}
+
+/*
+ * We crashed in the middle of raidz_reflow_scratch_sync(); complete its work
+ * here.  No other i/o can be in progress, so we don't need the
+ * vre_rangelock.
+ */
+void
+vdev_raidz_reflow_copy_scratch(spa_t *spa)
+{
+	vdev_raidz_expand_t *vre = spa->spa_raidz_expand;
+	uint64_t scratch_logical_size = vre->vre_offset;
+	ASSERT3U(scratch_logical_size, ==, RRSS_GET_OFFSET(&spa->spa_uberblock));
+	ASSERT3U(scratch_logical_size, ==, vre->vre_offset_phys);
+	ASSERT3U(RRSS_GET_STATE(&spa->spa_uberblock), ==, RRSS_SCRATCH_VALID);
+
+	spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
+	vdev_t *raidvd = vdev_lookup_top(spa, vre->vre_vdev_id);
+	ASSERT0(scratch_logical_size % raidvd->vdev_children);
+	uint64_t scratch_size_per_child =
+	    scratch_logical_size / raidvd->vdev_children;
+
+	zio_t *pio;
+
+	/*
+	 * Read from scratch space.
+	 */
+	abd_t **abds = kmem_alloc(raidvd->vdev_children * sizeof (abd_t *),
+	    KM_SLEEP);
+	for (int i = 0; i < raidvd->vdev_children; i++) {
+		abds[i] = abd_alloc_linear(scratch_size_per_child, B_FALSE);
+	}
+
+	raidz_expand_pause(spa, 8);
+	pio = zio_root(spa, NULL, NULL, 0);
+	for (int i = 0; i < raidvd->vdev_children; i++) {
+		zio_nowait(zio_read_phys(pio, raidvd->vdev_child[i],
+		    VDEV_BOOT_OFFSET, scratch_size_per_child, abds[i],
+		    ZIO_CHECKSUM_OFF, NULL, NULL, ZIO_PRIORITY_ASYNC_READ,
+		    0, B_TRUE));
+	}
+	zio_wait(pio);
+	raidz_expand_pause(spa, 9);
+
+	/*
+	 * Overwrite real location with reflow'ed data.
+	 */
+	pio = zio_root(spa, NULL, NULL, 0);
+	for (int i = 0; i < raidvd->vdev_children; i++) {
+		zio_nowait(zio_write_phys(pio, raidvd->vdev_child[i],
+		    VDEV_LABEL_START_SIZE, scratch_size_per_child, abds[i],
+		    ZIO_CHECKSUM_OFF, NULL, NULL, ZIO_PRIORITY_ASYNC_WRITE,
+		    0, B_FALSE));
+	}
+	zio_wait(pio);
+	pio = zio_root(spa, NULL, NULL, 0);
+	zio_flush(pio, raidvd);
+	zio_wait(pio);
+
+	zfs_dbgmsg("raidz reflow recovery: overwrote %llu bytes (logical) to real location",
+	    scratch_logical_size);
+
+	for (int i = 0; i < raidvd->vdev_children; i++)
+		abd_free(abds[i]);
+	kmem_free(abds, raidvd->vdev_children * sizeof (abd_t *));
+	raidz_expand_pause(spa, 10);
+
+	/*
+	 * Update uberblock.
+	 */
+	RAIDZ_REFLOW_SET(&spa->spa_ubsync,
+	    RRSS_SCRATCH_NOT_IN_USE, scratch_logical_size);
+	spa->spa_ubsync.ub_timestamp++;
+	VERIFY0(vdev_uberblock_sync_list(&spa->spa_root_vdev, 1,
+	    &spa->spa_ubsync, ZIO_FLAG_CONFIG_WRITER));
+
+	zfs_dbgmsg("raidz reflow recovery: uberblock updated (txg %llu, SCRATCH_NOT_IN_USE, size %llu, ts %llu)",
+	    spa->spa_ubsync.ub_txg, scratch_logical_size, spa->spa_ubsync.ub_timestamp);
+
+	vre->vre_offset = vre->vre_offset_phys = scratch_logical_size;
+	//vdev_config_dirty(raidvd);
+	spa_config_exit(spa, SCL_STATE, FTAG);
+	raidz_expand_pause(spa, 11);
+}
+
 /* ARGSUSED */
 static boolean_t
 spa_raidz_expand_cb_check(void *arg, zthr_t *zthr)
@@ -3610,6 +3910,13 @@ spa_raidz_expand_cb(void *arg, zthr_t *zthr)
 {
 	spa_t *spa = arg;
 	vdev_raidz_expand_t *vre = spa->spa_raidz_expand;
+
+	if (vre->vre_offset == 0) {
+		ASSERT0(vre->vre_offset_phys);
+		VERIFY0(dsl_sync_task(spa_name(spa),
+		    NULL, raidz_reflow_scratch_sync,
+		    vre, 0, ZFS_SPACE_CHECK_NONE));
+	}
 
 	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 	vdev_t *raidvd = vdev_lookup_top(spa, vre->vre_vdev_id);
@@ -3689,7 +3996,6 @@ spa_raidz_expand_cb(void *arg, zthr_t *zthr)
 			 * specified by zfs_remove_max_bytes_pause. We do this
 			 * solely from the test suite or during debugging.
 			 */
-			/* XXX change to amount copied? */
 			while (raidz_expand_max_offset_pause <=
 			    vre->vre_offset &&
 			    !zthr_iscancelled(spa->spa_raidz_expand_zthr))
@@ -3731,21 +4037,6 @@ spa_raidz_expand_cb(void *arg, zthr_t *zthr)
 
 		spa_config_exit(spa, SCL_CONFIG, FTAG);
 
-		/*
-		 * XXX If we did a txg sync (at least) once per metaslab,
-		 * (e.g. by passing TRUE to metaslab_enable)
-		 * then we should be able to rely on the triple-dittoing
-		 * of the MOS to ensure we can read the MOS config telling
-		 * us how far we've copied.  That's assuming that we are
-		 * able to allocate the different DVA's on different metaslabs.
-		 */
-
-#if 0 /* XXX should not be necessary */
-		mutex_enter(&vre->vre_lock);
-		vre->vre_offset = (msp->ms_id + 1) * msp->ms_size;
-		mutex_exit(&vre->vre_lock);
-#endif
-
 		metaslab_enable(msp, B_FALSE, B_FALSE);
 		range_tree_vacate(rt, NULL, NULL);
 		range_tree_destroy(rt);
@@ -3769,9 +4060,8 @@ spa_raidz_expand_cb(void *arg, zthr_t *zthr)
 		(void) vdev_online(spa, guid, ZFS_ONLINE_EXPAND, NULL);
 	} else {
 		txg_wait_synced(spa->spa_dsl_pool, 0);
+		//spa->spa_raidz_expand = NULL;
 	}
-
-	spa->spa_raidz_expand = NULL;
 }
 
 void
@@ -3987,6 +4277,7 @@ vdev_raidz_init(spa_t *spa, nvlist_t *nv, void **tsd)
 	(void) nvlist_lookup_uint64(nv, ZPOOL_CONFIG_ID,
 	    &vdrz->vn_vre.vre_vdev_id);
 
+#if 0
 	boolean_t reflow_in_progress = B_FALSE;
 	if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_RAIDZ_EXPAND_OFFSET,
 	    &vdrz->vn_vre.vre_offset_phys) == 0) {
@@ -3995,9 +4286,17 @@ vdev_raidz_init(spa_t *spa, nvlist_t *nv, void **tsd)
 		reflow_in_progress = B_TRUE;
 
 		/*
-		 * vdev_load() will set spa_raidz_expand.
+		 * vdev_load()->vdev_raidz_load() will set spa_raidz_expand.
 		 */
 	}
+#else
+	boolean_t reflow_in_progress =
+	    nvlist_exists(nv, ZPOOL_CONFIG_RAIDZ_EXPANDING);
+	if (reflow_in_progress) {
+		vdrz->vn_vre.vre_offset = vdrz->vn_vre.vre_offset_phys =
+		    RRSS_GET_OFFSET(&spa->spa_uberblock);
+	}
+#endif
 
 	vdrz->vd_original_width = children;
 	uint64_t *txgs;
@@ -4070,8 +4369,12 @@ vdev_raidz_config_generate(vdev_t *vd, nvlist_t *nv)
 	fnvlist_add_uint64(nv, ZPOOL_CONFIG_NPARITY, vdrz->vd_nparity);
 
 	if (vdrz->vn_vre.vre_offset_phys != UINT64_MAX) {
+#if 0
 		fnvlist_add_uint64(nv, ZPOOL_CONFIG_RAIDZ_EXPAND_OFFSET,
 		    vdrz->vn_vre.vre_offset_phys);
+#else
+		fnvlist_add_boolean(nv, ZPOOL_CONFIG_RAIDZ_EXPANDING);
+#endif
 	}
 
 	mutex_enter(&vdrz->vd_expand_lock);
