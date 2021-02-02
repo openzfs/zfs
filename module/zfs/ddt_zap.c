@@ -196,9 +196,10 @@ ddt_zap_walk(objset_t *os, uint64_t object, uint64_t *walk, ddt_key_t *ddk,
     void *phys, size_t psize)
 {
 	zap_cursor_t zc;
-	zap_attribute_t za;
+	zap_attribute_t *za;
 	int error;
 
+	za = zap_attribute_alloc();
 	if (*walk == 0) {
 		/*
 		 * We don't want to prefetch the entire ZAP object, because
@@ -211,20 +212,20 @@ ddt_zap_walk(objset_t *os, uint64_t object, uint64_t *walk, ddt_key_t *ddk,
 	} else {
 		zap_cursor_init_serialized(&zc, os, object, *walk);
 	}
-	if ((error = zap_cursor_retrieve(&zc, &za)) == 0) {
-		uint64_t csize = za.za_num_integers;
+	if ((error = zap_cursor_retrieve(&zc, za)) == 0) {
+		uint64_t csize = za->za_num_integers;
 
-		ASSERT3U(za.za_integer_length, ==, 1);
+		ASSERT3U(za->za_integer_length, ==, 1);
 		ASSERT3U(csize, <=, psize + 1);
 
 		uchar_t *cbuf = kmem_alloc(csize, KM_SLEEP);
 
-		error = zap_lookup_uint64(os, object, (uint64_t *)za.za_name,
+		error = zap_lookup_uint64(os, object, (uint64_t *)za->za_name,
 		    DDT_KEY_WORDS, 1, csize, cbuf);
 		ASSERT0(error);
 		if (error == 0) {
 			ddt_zap_decompress(cbuf, phys, csize, psize);
-			*ddk = *(ddt_key_t *)za.za_name;
+			*ddk = *(ddt_key_t *)za->za_name;
 		}
 
 		kmem_free(cbuf, csize);
@@ -233,6 +234,7 @@ ddt_zap_walk(objset_t *os, uint64_t object, uint64_t *walk, ddt_key_t *ddk,
 		*walk = zap_cursor_serialize(&zc);
 	}
 	zap_cursor_fini(&zc);
+	zap_attribute_free(za);
 	return (error);
 }
 

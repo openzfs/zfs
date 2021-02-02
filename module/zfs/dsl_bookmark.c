@@ -870,13 +870,14 @@ dsl_bookmark_init_ds(dsl_dataset_t *ds)
 
 	int err = 0;
 	zap_cursor_t zc;
-	zap_attribute_t attr;
+	zap_attribute_t *attr;
 
+	attr = zap_attribute_alloc();
 	for (zap_cursor_init(&zc, mos, ds->ds_bookmarks_obj);
-	    (err = zap_cursor_retrieve(&zc, &attr)) == 0;
+	    (err = zap_cursor_retrieve(&zc, attr)) == 0;
 	    zap_cursor_advance(&zc)) {
 		dsl_bookmark_node_t *dbn =
-		    dsl_bookmark_node_alloc(attr.za_name);
+		    dsl_bookmark_node_alloc(attr->za_name);
 
 		err = dsl_bookmark_lookup_impl(ds,
 		    dbn->dbn_name, &dbn->dbn_phys);
@@ -888,6 +889,7 @@ dsl_bookmark_init_ds(dsl_dataset_t *ds)
 		avl_add(&ds->ds_bookmarks, dbn);
 	}
 	zap_cursor_fini(&zc);
+	zap_attribute_free(attr);
 	if (err == ENOENT)
 		err = 0;
 	return (err);

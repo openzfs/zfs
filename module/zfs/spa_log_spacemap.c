@@ -1020,16 +1020,17 @@ spa_ld_log_sm_metadata(spa_t *spa)
 	}
 
 	zap_cursor_t zc;
-	zap_attribute_t za;
+	zap_attribute_t *za = zap_attribute_alloc();
 	for (zap_cursor_init(&zc, spa_meta_objset(spa), spacemap_zap);
-	    (error = zap_cursor_retrieve(&zc, &za)) == 0;
+	    (error = zap_cursor_retrieve(&zc, za)) == 0;
 	    zap_cursor_advance(&zc)) {
-		uint64_t log_txg = zfs_strtonum(za.za_name, NULL);
+		uint64_t log_txg = zfs_strtonum(za->za_name, NULL);
 		spa_log_sm_t *sls =
-		    spa_log_sm_alloc(za.za_first_integer, log_txg);
+		    spa_log_sm_alloc(za->za_first_integer, log_txg);
 		avl_add(&spa->spa_sm_logs_by_txg, sls);
 	}
 	zap_cursor_fini(&zc);
+	zap_attribute_free(za);
 	if (error != ENOENT) {
 		spa_load_failed(spa, "spa_ld_log_sm_metadata(): failed at "
 		    "zap_cursor_retrieve(spacemap_zap) [error %d]",

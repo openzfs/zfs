@@ -840,7 +840,7 @@ sa_attr_table_setup(objset_t *os, const sa_attr_reg_t *reg_attrs, int count)
 	uint64_t attr_value;
 	sa_attr_table_t *tb;
 	zap_cursor_t zc;
-	zap_attribute_t za;
+	zap_attribute_t *za;
 	int registered_count = 0;
 	int i;
 	dmu_objset_type_t ostype = dmu_objset_type(os);
@@ -914,11 +914,12 @@ sa_attr_table_setup(objset_t *os, const sa_attr_reg_t *reg_attrs, int count)
 	 */
 
 	if (sa->sa_reg_attr_obj) {
+		za = zap_attribute_alloc();
 		for (zap_cursor_init(&zc, os, sa->sa_reg_attr_obj);
-		    (error = zap_cursor_retrieve(&zc, &za)) == 0;
+		    (error = zap_cursor_retrieve(&zc, za)) == 0;
 		    zap_cursor_advance(&zc)) {
 			uint64_t value;
-			value  = za.za_first_integer;
+			value  = za->za_first_integer;
 
 			registered_count++;
 			tb[ATTR_NUM(value)].sa_attr = ATTR_NUM(value);
@@ -930,11 +931,12 @@ sa_attr_table_setup(objset_t *os, const sa_attr_reg_t *reg_attrs, int count)
 				continue;
 			}
 			tb[ATTR_NUM(value)].sa_name =
-			    kmem_zalloc(strlen(za.za_name) +1, KM_SLEEP);
-			(void) strlcpy(tb[ATTR_NUM(value)].sa_name, za.za_name,
-			    strlen(za.za_name) +1);
+			    kmem_zalloc(strlen(za->za_name) +1, KM_SLEEP);
+			(void) strlcpy(tb[ATTR_NUM(value)].sa_name, za->za_name,
+			    strlen(za->za_name) +1);
 		}
 		zap_cursor_fini(&zc);
+		zap_attribute_free(za);
 		/*
 		 * Make sure we processed the correct number of registered
 		 * attributes
@@ -996,7 +998,7 @@ sa_setup(objset_t *os, uint64_t sa_obj, const sa_attr_reg_t *reg_attrs,
     int count, sa_attr_type_t **user_table)
 {
 	zap_cursor_t zc;
-	zap_attribute_t za;
+	zap_attribute_t *za;
 	sa_os_t *sa;
 	dmu_objset_type_t ostype = dmu_objset_type(os);
 	sa_attr_type_t *tb;
@@ -1053,33 +1055,35 @@ sa_setup(objset_t *os, uint64_t sa_obj, const sa_attr_reg_t *reg_attrs,
 			goto fail;
 		}
 
+		za = zap_attribute_alloc();
 		for (zap_cursor_init(&zc, os, sa->sa_layout_attr_obj);
-		    (error = zap_cursor_retrieve(&zc, &za)) == 0;
+		    (error = zap_cursor_retrieve(&zc, za)) == 0;
 		    zap_cursor_advance(&zc)) {
 			sa_attr_type_t *lot_attrs;
 			uint64_t lot_num;
 
 			lot_attrs = kmem_zalloc(sizeof (sa_attr_type_t) *
-			    za.za_num_integers, KM_SLEEP);
+			    za->za_num_integers, KM_SLEEP);
 
 			if ((error = (zap_lookup(os, sa->sa_layout_attr_obj,
-			    za.za_name, 2, za.za_num_integers,
+			    za->za_name, 2, za->za_num_integers,
 			    lot_attrs))) != 0) {
 				kmem_free(lot_attrs, sizeof (sa_attr_type_t) *
-				    za.za_num_integers);
+				    za->za_num_integers);
 				break;
 			}
-			VERIFY0(ddi_strtoull(za.za_name, NULL, 10,
+			VERIFY0(ddi_strtoull(za->za_name, NULL, 10,
 			    (unsigned long long *)&lot_num));
 
 			(void) sa_add_layout_entry(os, lot_attrs,
-			    za.za_num_integers, lot_num,
+			    za->za_num_integers, lot_num,
 			    sa_layout_info_hash(lot_attrs,
-			    za.za_num_integers), B_FALSE, NULL);
+			    za->za_num_integers), B_FALSE, NULL);
 			kmem_free(lot_attrs, sizeof (sa_attr_type_t) *
-			    za.za_num_integers);
+			    za->za_num_integers);
 		}
 		zap_cursor_fini(&zc);
+		zap_attribute_free(za);
 
 		/*
 		 * Make sure layout count matches number of entries added
