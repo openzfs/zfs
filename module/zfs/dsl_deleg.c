@@ -327,9 +327,9 @@ dsl_deleg_get(const char *ddname, nvlist_t **nvp)
 	mos = dp->dp_meta_objset;
 
 	zc = kmem_alloc(sizeof (zap_cursor_t), KM_SLEEP);
-	za = kmem_alloc(sizeof (zap_attribute_t), KM_SLEEP);
+	za = zap_attribute_alloc();
 	basezc = kmem_alloc(sizeof (zap_cursor_t), KM_SLEEP);
-	baseza = kmem_alloc(sizeof (zap_attribute_t), KM_SLEEP);
+	baseza = zap_attribute_alloc();
 	source = kmem_alloc(ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP);
 	VERIFY(nvlist_alloc(nvp, NV_UNIQUE_NAME, KM_SLEEP) == 0);
 
@@ -371,9 +371,9 @@ dsl_deleg_get(const char *ddname, nvlist_t **nvp)
 	}
 
 	kmem_free(source, ZFS_MAX_DATASET_NAME_LEN);
-	kmem_free(baseza, sizeof (zap_attribute_t));
+	zap_attribute_free(baseza);
 	kmem_free(basezc, sizeof (zap_cursor_t));
-	kmem_free(za, sizeof (zap_attribute_t));
+	zap_attribute_free(za);
 	kmem_free(zc, sizeof (zap_cursor_t));
 
 	dsl_dir_rele(startdd, FTAG);
@@ -482,7 +482,7 @@ dsl_load_sets(objset_t *mos, uint64_t zapobj,
     char type, char checkflag, void *valp, avl_tree_t *avl)
 {
 	zap_cursor_t zc;
-	zap_attribute_t za;
+	zap_attribute_t *za;
 	perm_set_t *permnode;
 	avl_index_t idx;
 	uint64_t jumpobj;
@@ -495,11 +495,12 @@ dsl_load_sets(objset_t *mos, uint64_t zapobj,
 	if (error != 0)
 		return (error);
 
+	za = zap_attribute_alloc();
 	for (zap_cursor_init(&zc, mos, jumpobj);
-	    zap_cursor_retrieve(&zc, &za) == 0;
+	    zap_cursor_retrieve(&zc, za) == 0;
 	    zap_cursor_advance(&zc)) {
 		permnode = kmem_alloc(sizeof (perm_set_t), KM_SLEEP);
-		(void) strlcpy(permnode->p_setname, za.za_name,
+		(void) strlcpy(permnode->p_setname, za->za_name,
 		    sizeof (permnode->p_setname));
 		permnode->p_matched = B_FALSE;
 
@@ -510,6 +511,7 @@ dsl_load_sets(objset_t *mos, uint64_t zapobj,
 		}
 	}
 	zap_cursor_fini(&zc);
+	zap_attribute_free(za);
 	return (0);
 }
 
@@ -683,7 +685,7 @@ copy_create_perms(dsl_dir_t *dd, uint64_t pzapobj,
 	uint64_t jumpobj, pjumpobj;
 	uint64_t zapobj = dsl_dir_phys(dd)->dd_deleg_zapobj;
 	zap_cursor_t zc;
-	zap_attribute_t za;
+	zap_attribute_t *za;
 	char whokey[ZFS_MAX_DELEG_NAME];
 
 	zfs_deleg_whokey(whokey,
@@ -706,16 +708,18 @@ copy_create_perms(dsl_dir_t *dd, uint64_t pzapobj,
 		VERIFY(zap_add(mos, zapobj, whokey, 8, 1, &jumpobj, tx) == 0);
 	}
 
+	za = zap_attribute_alloc();
 	for (zap_cursor_init(&zc, mos, pjumpobj);
-	    zap_cursor_retrieve(&zc, &za) == 0;
+	    zap_cursor_retrieve(&zc, za) == 0;
 	    zap_cursor_advance(&zc)) {
 		uint64_t zero = 0;
-		ASSERT(za.za_integer_length == 8 && za.za_num_integers == 1);
+		ASSERT(za->za_integer_length == 8 && za->za_num_integers == 1);
 
-		VERIFY(zap_update(mos, jumpobj, za.za_name,
+		VERIFY(zap_update(mos, jumpobj, za->za_name,
 		    8, 1, &zero, tx) == 0);
 	}
 	zap_cursor_fini(&zc);
+	zap_attribute_free(za);
 }
 
 /*
@@ -746,19 +750,21 @@ int
 dsl_deleg_destroy(objset_t *mos, uint64_t zapobj, dmu_tx_t *tx)
 {
 	zap_cursor_t zc;
-	zap_attribute_t za;
+	zap_attribute_t *za;
 
 	if (zapobj == 0)
 		return (0);
 
+	za = zap_attribute_alloc();
 	for (zap_cursor_init(&zc, mos, zapobj);
-	    zap_cursor_retrieve(&zc, &za) == 0;
+	    zap_cursor_retrieve(&zc, za) == 0;
 	    zap_cursor_advance(&zc)) {
-		ASSERT(za.za_integer_length == 8 && za.za_num_integers == 1);
-		VERIFY(0 == zap_destroy(mos, za.za_first_integer, tx));
+		ASSERT(za->za_integer_length == 8 && za->za_num_integers == 1);
+		VERIFY(0 == zap_destroy(mos, za->za_first_integer, tx));
 	}
 	zap_cursor_fini(&zc);
 	VERIFY(0 == zap_destroy(mos, zapobj, tx));
+	zap_attribute_free(za);
 	return (0);
 }
 

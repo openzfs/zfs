@@ -1024,7 +1024,7 @@ zap_value_search(objset_t *os, uint64_t zapobj, uint64_t value, uint64_t mask,
 	if (mask == 0)
 		mask = -1ULL;
 
-	zap_attribute_t *za = kmem_alloc(sizeof (*za), KM_SLEEP);
+	zap_attribute_t *za = zap_attribute_alloc();
 	for (zap_cursor_init(&zc, os, zapobj);
 	    (err = zap_cursor_retrieve(&zc, za)) == 0;
 	    zap_cursor_advance(&zc)) {
@@ -1034,7 +1034,7 @@ zap_value_search(objset_t *os, uint64_t zapobj, uint64_t value, uint64_t mask,
 		}
 	}
 	zap_cursor_fini(&zc);
-	kmem_free(za, sizeof (*za));
+	zap_attribute_free(za);
 	return (err);
 }
 
@@ -1044,7 +1044,7 @@ zap_join(objset_t *os, uint64_t fromobj, uint64_t intoobj, dmu_tx_t *tx)
 	zap_cursor_t zc;
 	int err = 0;
 
-	zap_attribute_t *za = kmem_alloc(sizeof (*za), KM_SLEEP);
+	zap_attribute_t *za = zap_attribute_alloc();
 	for (zap_cursor_init(&zc, os, fromobj);
 	    zap_cursor_retrieve(&zc, za) == 0;
 	    (void) zap_cursor_advance(&zc)) {
@@ -1058,7 +1058,7 @@ zap_join(objset_t *os, uint64_t fromobj, uint64_t intoobj, dmu_tx_t *tx)
 			break;
 	}
 	zap_cursor_fini(&zc);
-	kmem_free(za, sizeof (*za));
+	zap_attribute_free(za);
 	return (err);
 }
 
@@ -1069,7 +1069,7 @@ zap_join_key(objset_t *os, uint64_t fromobj, uint64_t intoobj,
 	zap_cursor_t zc;
 	int err = 0;
 
-	zap_attribute_t *za = kmem_alloc(sizeof (*za), KM_SLEEP);
+	zap_attribute_t *za = zap_attribute_alloc();
 	for (zap_cursor_init(&zc, os, fromobj);
 	    zap_cursor_retrieve(&zc, za) == 0;
 	    (void) zap_cursor_advance(&zc)) {
@@ -1083,7 +1083,7 @@ zap_join_key(objset_t *os, uint64_t fromobj, uint64_t intoobj,
 			break;
 	}
 	zap_cursor_fini(&zc);
-	kmem_free(za, sizeof (*za));
+	zap_attribute_free(za);
 	return (err);
 }
 
@@ -1094,7 +1094,7 @@ zap_join_increment(objset_t *os, uint64_t fromobj, uint64_t intoobj,
 	zap_cursor_t zc;
 	int err = 0;
 
-	zap_attribute_t *za = kmem_alloc(sizeof (*za), KM_SLEEP);
+	zap_attribute_t *za = zap_attribute_alloc();
 	for (zap_cursor_init(&zc, os, fromobj);
 	    zap_cursor_retrieve(&zc, za) == 0;
 	    (void) zap_cursor_advance(&zc)) {
@@ -1114,7 +1114,7 @@ zap_join_increment(objset_t *os, uint64_t fromobj, uint64_t intoobj,
 			break;
 	}
 	zap_cursor_fini(&zc);
-	kmem_free(za, sizeof (*za));
+	zap_attribute_free(za);
 	return (err);
 }
 
@@ -1288,7 +1288,7 @@ again:
 			ASSERT(err == 0 || err == EOVERFLOW);
 		}
 		err = zap_entry_read_name(zap, &zeh,
-		    sizeof (za->za_name), za->za_name);
+		    za->za_name_len, za->za_name);
 		ASSERT(err == 0);
 
 		za->za_normalization_conflict =

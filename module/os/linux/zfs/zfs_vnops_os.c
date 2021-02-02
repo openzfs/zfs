@@ -1512,7 +1512,7 @@ zfs_readdir(struct inode *ip, zpl_dir_context_t *ctx, cred_t *cr)
 	zfsvfs_t	*zfsvfs = ITOZSB(ip);
 	objset_t	*os;
 	zap_cursor_t	zc;
-	zap_attribute_t	zap;
+	zap_attribute_t	*zap;
 	int		error;
 	uint8_t		prefetch;
 	uint8_t		type;
@@ -1537,6 +1537,7 @@ zfs_readdir(struct inode *ip, zpl_dir_context_t *ctx, cred_t *cr)
 	os = zfsvfs->z_os;
 	offset = ctx->pos;
 	prefetch = zp->z_zn_prefetch;
+	zap = zap_attribute_alloc();
 
 	/*
 	 * Initialize the iterator cursor.
@@ -1562,25 +1563,25 @@ zfs_readdir(struct inode *ip, zpl_dir_context_t *ctx, cred_t *cr)
 		 * Special case `.', `..', and `.zfs'.
 		 */
 		if (offset == 0) {
-			(void) strcpy(zap.za_name, ".");
-			zap.za_normalization_conflict = 0;
+			(void) strcpy(zap->za_name, ".");
+			zap->za_normalization_conflict = 0;
 			objnum = zp->z_id;
 			type = DT_DIR;
 		} else if (offset == 1) {
-			(void) strcpy(zap.za_name, "..");
-			zap.za_normalization_conflict = 0;
+			(void) strcpy(zap->za_name, "..");
+			zap->za_normalization_conflict = 0;
 			objnum = parent;
 			type = DT_DIR;
 		} else if (offset == 2 && zfs_show_ctldir(zp)) {
-			(void) strcpy(zap.za_name, ZFS_CTLDIR_NAME);
-			zap.za_normalization_conflict = 0;
+			(void) strcpy(zap->za_name, ZFS_CTLDIR_NAME);
+			zap->za_normalization_conflict = 0;
 			objnum = ZFSCTL_INO_ROOT;
 			type = DT_DIR;
 		} else {
 			/*
 			 * Grab next entry.
 			 */
-			if ((error = zap_cursor_retrieve(&zc, &zap))) {
+			if ((error = zap_cursor_retrieve(&zc, zap))) {
 				if (error == ENOENT)
 					break;
 				else
@@ -1594,24 +1595,24 @@ zfs_readdir(struct inode *ip, zpl_dir_context_t *ctx, cred_t *cr)
 			 *
 			 * XXX: This should be a feature flag for compatibility
 			 */
-			if (zap.za_integer_length != 8 ||
-			    zap.za_num_integers == 0) {
+			if (zap->za_integer_length != 8 ||
+			    zap->za_num_integers == 0) {
 				cmn_err(CE_WARN, "zap_readdir: bad directory "
 				    "entry, obj = %lld, offset = %lld, "
 				    "length = %d, num = %lld\n",
 				    (u_longlong_t)zp->z_id,
 				    (u_longlong_t)offset,
-				    zap.za_integer_length,
-				    (u_longlong_t)zap.za_num_integers);
+				    zap->za_integer_length,
+				    (u_longlong_t)zap->za_num_integers);
 				error = SET_ERROR(ENXIO);
 				goto update;
 			}
 
-			objnum = ZFS_DIRENT_OBJ(zap.za_first_integer);
-			type = ZFS_DIRENT_TYPE(zap.za_first_integer);
+			objnum = ZFS_DIRENT_OBJ(zap->za_first_integer);
+			type = ZFS_DIRENT_TYPE(zap->za_first_integer);
 		}
 
-		done = !zpl_dir_emit(ctx, zap.za_name, strlen(zap.za_name),
+		done = !zpl_dir_emit(ctx, zap->za_name, strlen(zap->za_name),
 		    objnum, type);
 		if (done)
 			break;
@@ -1634,6 +1635,7 @@ zfs_readdir(struct inode *ip, zpl_dir_context_t *ctx, cred_t *cr)
 
 update:
 	zap_cursor_fini(&zc);
+	zap_attribute_free(zap);
 	if (error == ENOENT)
 		error = 0;
 out:
@@ -1732,7 +1734,7 @@ zfs_setattr_dir(znode_t *dzp)
 	zfsvfs_t	*zfsvfs = ZTOZSB(dzp);
 	objset_t	*os = zfsvfs->z_os;
 	zap_cursor_t	zc;
-	zap_attribute_t	zap;
+	zap_attribute_t	*zap;
 	zfs_dirlock_t	*dl;
 	znode_t		*zp = NULL;
 	dmu_tx_t	*tx = NULL;
@@ -1741,15 +1743,16 @@ zfs_setattr_dir(znode_t *dzp)
 	int		count;
 	int		err;
 
+	zap = zap_attribute_alloc();
 	zap_cursor_init(&zc, os, dzp->z_id);
-	while ((err = zap_cursor_retrieve(&zc, &zap)) == 0) {
+	while ((err = zap_cursor_retrieve(&zc, zap)) == 0) {
 		count = 0;
-		if (zap.za_integer_length != 8 || zap.za_num_integers != 1) {
+		if (zap->za_integer_length != 8 || zap->za_num_integers != 1) {
 			err = ENXIO;
 			break;
 		}
 
-		err = zfs_dirent_lock(&dl, dzp, (char *)zap.za_name, &zp,
+		err = zfs_dirent_lock(&dl, dzp, (char *)zap->za_name, &zp,
 		    ZEXISTS, NULL, NULL);
 		if (err == ENOENT)
 			goto next;
@@ -1829,6 +1832,7 @@ next:
 		zfs_dirent_unlock(dl);
 	}
 	zap_cursor_fini(&zc);
+	zap_attribute_free(zap);
 
 	return (err == ENOENT ? 0 : err);
 }
