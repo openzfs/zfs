@@ -1568,7 +1568,7 @@ zfs_readdir(vnode_t *vp, zfs_uio_t *uio, cred_t *cr, int *eofp,
 	caddr_t		outbuf;
 	size_t		bufsize;
 	zap_cursor_t	zc;
-	zap_attribute_t	zap;
+	zap_attribute_t	*zap;
 	uint_t		bytes_wanted;
 	uint64_t	offset; /* must be unsigned; checks for < 1 */
 	uint64_t	parent;
@@ -1616,6 +1616,7 @@ zfs_readdir(vnode_t *vp, zfs_uio_t *uio, cred_t *cr, int *eofp,
 	os = zfsvfs->z_os;
 	offset = zfs_uio_offset(uio);
 	prefetch = zp->z_zn_prefetch;
+	zap = zap_attribute_alloc();
 
 	/*
 	 * Initialize the iterator cursor.
@@ -1671,33 +1672,33 @@ zfs_readdir(vnode_t *vp, zfs_uio_t *uio, cred_t *cr, int *eofp,
 		 * Special case `.', `..', and `.zfs'.
 		 */
 		if (offset == 0) {
-			(void) strcpy(zap.za_name, ".");
-			zap.za_normalization_conflict = 0;
+			(void) strcpy(zap->za_name, ".");
+			zap->za_normalization_conflict = 0;
 			objnum = zp->z_id;
 			type = DT_DIR;
 		} else if (offset == 1) {
-			(void) strcpy(zap.za_name, "..");
-			zap.za_normalization_conflict = 0;
+			(void) strcpy(zap->za_name, "..");
+			zap->za_normalization_conflict = 0;
 			objnum = parent;
 			type = DT_DIR;
 		} else if (offset == 2 && zfs_show_ctldir(zp)) {
-			(void) strcpy(zap.za_name, ZFS_CTLDIR_NAME);
-			zap.za_normalization_conflict = 0;
+			(void) strcpy(zap->za_name, ZFS_CTLDIR_NAME);
+			zap->za_normalization_conflict = 0;
 			objnum = ZFSCTL_INO_ROOT;
 			type = DT_DIR;
 		} else {
 			/*
 			 * Grab next entry.
 			 */
-			if ((error = zap_cursor_retrieve(&zc, &zap))) {
+			if ((error = zap_cursor_retrieve(&zc, zap))) {
 				if ((*eofp = (error == ENOENT)) != 0)
 					break;
 				else
 					goto update;
 			}
 
-			if (zap.za_integer_length != 8 ||
-			    zap.za_num_integers != 1) {
+			if (zap->za_integer_length != 8 ||
+			    zap->za_num_integers != 1) {
 				cmn_err(CE_WARN, "zap_readdir: bad directory "
 				    "entry, obj = %lld, offset = %lld\n",
 				    (u_longlong_t)zp->z_id,
@@ -1706,15 +1707,15 @@ zfs_readdir(vnode_t *vp, zfs_uio_t *uio, cred_t *cr, int *eofp,
 				goto update;
 			}
 
-			objnum = ZFS_DIRENT_OBJ(zap.za_first_integer);
+			objnum = ZFS_DIRENT_OBJ(zap->za_first_integer);
 			/*
 			 * MacOS X can extract the object type here such as:
 			 * uint8_t type = ZFS_DIRENT_TYPE(zap.za_first_integer);
 			 */
-			type = ZFS_DIRENT_TYPE(zap.za_first_integer);
+			type = ZFS_DIRENT_TYPE(zap->za_first_integer);
 		}
 
-		reclen = DIRENT64_RECLEN(strlen(zap.za_name));
+		reclen = DIRENT64_RECLEN(strlen(zap->za_name));
 
 		/*
 		 * Will this entry fit in the buffer?
@@ -1734,10 +1735,10 @@ zfs_readdir(vnode_t *vp, zfs_uio_t *uio, cred_t *cr, int *eofp,
 		 */
 		odp->d_ino = objnum;
 		odp->d_reclen = reclen;
-		odp->d_namlen = strlen(zap.za_name);
+		odp->d_namlen = strlen(zap->za_name);
 		/* NOTE: d_off is the offset for the *next* entry. */
 		next = &odp->d_off;
-		strlcpy(odp->d_name, zap.za_name, odp->d_namlen + 1);
+		strlcpy(odp->d_name, zap->za_name, odp->d_namlen + 1);
 		odp->d_type = type;
 		dirent_terminate(odp);
 		odp = (dirent64_t *)((intptr_t)odp + reclen);
@@ -1788,6 +1789,7 @@ zfs_readdir(vnode_t *vp, zfs_uio_t *uio, cred_t *cr, int *eofp,
 
 update:
 	zap_cursor_fini(&zc);
+	zap_attribute_free(zap);
 	if (zfs_uio_segflg(uio) != UIO_SYSSPACE || zfs_uio_iovcnt(uio) != 1)
 		kmem_free(outbuf, bufsize);
 

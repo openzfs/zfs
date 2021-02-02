@@ -6452,33 +6452,33 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 		 * Get all properties from the MOS vdev property object.
 		 */
 		zap_cursor_t zc;
-		zap_attribute_t za;
+		zap_attribute_t *za = zap_attribute_alloc();
 		for (zap_cursor_init(&zc, mos, objid);
-		    (err = zap_cursor_retrieve(&zc, &za)) == 0;
+		    (err = zap_cursor_retrieve(&zc, za)) == 0;
 		    zap_cursor_advance(&zc)) {
 			intval = 0;
 			strval = NULL;
 			zprop_source_t src = ZPROP_SRC_DEFAULT;
-			propname = za.za_name;
+			propname = za->za_name;
 
-			switch (za.za_integer_length) {
+			switch (za->za_integer_length) {
 			case 8:
 				/* We do not allow integer user properties */
 				/* This is likely an internal value */
 				break;
 			case 1:
 				/* string property */
-				strval = kmem_alloc(za.za_num_integers,
+				strval = kmem_alloc(za->za_num_integers,
 				    KM_SLEEP);
-				err = zap_lookup(mos, objid, za.za_name, 1,
-				    za.za_num_integers, strval);
+				err = zap_lookup(mos, objid, za->za_name, 1,
+				    za->za_num_integers, strval);
 				if (err) {
-					kmem_free(strval, za.za_num_integers);
+					kmem_free(strval, za->za_num_integers);
 					break;
 				}
 				vdev_prop_add_list(outnvl, propname, strval, 0,
 				    src);
-				kmem_free(strval, za.za_num_integers);
+				kmem_free(strval, za->za_num_integers);
 				break;
 
 			default:
@@ -6486,6 +6486,7 @@ vdev_prop_get(vdev_t *vd, nvlist_t *innvl, nvlist_t *outnvl)
 			}
 		}
 		zap_cursor_fini(&zc);
+		zap_attribute_free(za);
 	}
 
 	mutex_exit(&spa->spa_props_lock);

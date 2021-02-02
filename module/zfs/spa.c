@@ -542,12 +542,13 @@ spa_prop_get(spa_t *spa, nvlist_t *nv)
 {
 	objset_t *mos = spa->spa_meta_objset;
 	zap_cursor_t zc;
-	zap_attribute_t za;
+	zap_attribute_t *za;
 	dsl_pool_t *dp;
 	int err = 0;
 
 	dp = spa_get_dsl(spa);
 	dsl_pool_config_enter(dp, FTAG);
+	za = zap_attribute_alloc();
 	mutex_enter(&spa->spa_props_lock);
 
 	/*
@@ -563,21 +564,21 @@ spa_prop_get(spa_t *spa, nvlist_t *nv)
 	 * Get properties from the MOS pool property object.
 	 */
 	for (zap_cursor_init(&zc, mos, spa->spa_pool_props_object);
-	    (err = zap_cursor_retrieve(&zc, &za)) == 0;
+	    (err = zap_cursor_retrieve(&zc, za)) == 0;
 	    zap_cursor_advance(&zc)) {
 		uint64_t intval = 0;
 		char *strval = NULL;
 		zprop_source_t src = ZPROP_SRC_DEFAULT;
 		zpool_prop_t prop;
 
-		if ((prop = zpool_name_to_prop(za.za_name)) ==
-		    ZPOOL_PROP_INVAL && !zfs_prop_user(za.za_name))
+		if ((prop = zpool_name_to_prop(za->za_name)) ==
+		    ZPOOL_PROP_INVAL && !zfs_prop_user(za->za_name))
 			continue;
 
-		switch (za.za_integer_length) {
+		switch (za->za_integer_length) {
 		case 8:
 			/* integer property */
-			if (za.za_first_integer !=
+			if (za->za_first_integer !=
 			    zpool_prop_default_numeric(prop))
 				src = ZPROP_SRC_LOCAL;
 
@@ -585,7 +586,7 @@ spa_prop_get(spa_t *spa, nvlist_t *nv)
 				dsl_dataset_t *ds = NULL;
 
 				err = dsl_dataset_hold_obj(dp,
-				    za.za_first_integer, FTAG, &ds);
+				    za->za_first_integer, FTAG, &ds);
 				if (err != 0)
 					break;
 
@@ -595,7 +596,7 @@ spa_prop_get(spa_t *spa, nvlist_t *nv)
 				dsl_dataset_rele(ds, FTAG);
 			} else {
 				strval = NULL;
-				intval = za.za_first_integer;
+				intval = za->za_first_integer;
 			}
 
 			spa_prop_add_list(nv, prop, strval, intval, src);
@@ -607,21 +608,21 @@ spa_prop_get(spa_t *spa, nvlist_t *nv)
 
 		case 1:
 			/* string property */
-			strval = kmem_alloc(za.za_num_integers, KM_SLEEP);
+			strval = kmem_alloc(za->za_num_integers, KM_SLEEP);
 			err = zap_lookup(mos, spa->spa_pool_props_object,
-			    za.za_name, 1, za.za_num_integers, strval);
+			    za->za_name, 1, za->za_num_integers, strval);
 			if (err) {
-				kmem_free(strval, za.za_num_integers);
+				kmem_free(strval, za->za_num_integers);
 				break;
 			}
 			if (prop != ZPOOL_PROP_INVAL) {
 				spa_prop_add_list(nv, prop, strval, 0, src);
 			} else {
 				src = ZPROP_SRC_LOCAL;
-				spa_prop_add_user(nv, za.za_name, strval,
+				spa_prop_add_user(nv, za->za_name, strval,
 				    src);
 			}
-			kmem_free(strval, za.za_num_integers);
+			kmem_free(strval, za->za_num_integers);
 			break;
 
 		default:
@@ -632,6 +633,7 @@ spa_prop_get(spa_t *spa, nvlist_t *nv)
 out:
 	mutex_exit(&spa->spa_props_lock);
 	dsl_pool_config_exit(dp, FTAG);
+	zap_attribute_free(za);
 
 	if (err && err != ENOENT)
 		return (err);
@@ -2972,12 +2974,13 @@ dsl_get_next_livelist_obj(objset_t *os, uint64_t zap_obj, uint64_t *llp)
 {
 	int err;
 	zap_cursor_t zc;
-	zap_attribute_t za;
+	zap_attribute_t *za = zap_attribute_alloc();
 	zap_cursor_init(&zc, os, zap_obj);
-	err = zap_cursor_retrieve(&zc, &za);
+	err = zap_cursor_retrieve(&zc, za);
 	zap_cursor_fini(&zc);
 	if (err == 0)
-		*llp = za.za_first_integer;
+		*llp = za->za_first_integer;
+	zap_attribute_free(za);
 	return (err);
 }
 
@@ -6048,17 +6051,17 @@ static void
 spa_feature_stats_from_disk(spa_t *spa, nvlist_t *features)
 {
 	zap_cursor_t zc;
-	zap_attribute_t za;
+	zap_attribute_t *za = zap_attribute_alloc();
 
 	if (spa->spa_feat_for_read_obj != 0) {
 		for (zap_cursor_init(&zc, spa->spa_meta_objset,
 		    spa->spa_feat_for_read_obj);
-		    zap_cursor_retrieve(&zc, &za) == 0;
+		    zap_cursor_retrieve(&zc, za) == 0;
 		    zap_cursor_advance(&zc)) {
-			ASSERT(za.za_integer_length == sizeof (uint64_t) &&
-			    za.za_num_integers == 1);
-			VERIFY0(nvlist_add_uint64(features, za.za_name,
-			    za.za_first_integer));
+			ASSERT(za->za_integer_length == sizeof (uint64_t) &&
+			    za->za_num_integers == 1);
+			VERIFY0(nvlist_add_uint64(features, za->za_name,
+			    za->za_first_integer));
 		}
 		zap_cursor_fini(&zc);
 	}
@@ -6066,15 +6069,16 @@ spa_feature_stats_from_disk(spa_t *spa, nvlist_t *features)
 	if (spa->spa_feat_for_write_obj != 0) {
 		for (zap_cursor_init(&zc, spa->spa_meta_objset,
 		    spa->spa_feat_for_write_obj);
-		    zap_cursor_retrieve(&zc, &za) == 0;
+		    zap_cursor_retrieve(&zc, za) == 0;
 		    zap_cursor_advance(&zc)) {
-			ASSERT(za.za_integer_length == sizeof (uint64_t) &&
-			    za.za_num_integers == 1);
-			VERIFY0(nvlist_add_uint64(features, za.za_name,
-			    za.za_first_integer));
+			ASSERT(za->za_integer_length == sizeof (uint64_t) &&
+			    za->za_num_integers == 1);
+			VERIFY0(nvlist_add_uint64(features, za->za_name,
+			    za->za_first_integer));
 		}
 		zap_cursor_fini(&zc);
 	}
+	zap_attribute_free(za);
 }
 
 static void
@@ -9434,13 +9438,13 @@ spa_sync_config_object(spa_t *spa, dmu_tx_t *tx)
 
 		/* Diff old AVZ with new one */
 		zap_cursor_t zc;
-		zap_attribute_t za;
+		zap_attribute_t *za = zap_attribute_alloc();
 
 		for (zap_cursor_init(&zc, spa->spa_meta_objset,
 		    spa->spa_all_vdev_zaps);
-		    zap_cursor_retrieve(&zc, &za) == 0;
+		    zap_cursor_retrieve(&zc, za) == 0;
 		    zap_cursor_advance(&zc)) {
-			uint64_t vdzap = za.za_first_integer;
+			uint64_t vdzap = za->za_first_integer;
 			if (zap_lookup_int(spa->spa_meta_objset, new_avz,
 			    vdzap) == ENOENT) {
 				/*
@@ -9453,6 +9457,7 @@ spa_sync_config_object(spa_t *spa, dmu_tx_t *tx)
 		}
 
 		zap_cursor_fini(&zc);
+		zap_attribute_free(za);
 
 		/* Destroy the old AVZ */
 		VERIFY0(zap_destroy(spa->spa_meta_objset,
@@ -9466,18 +9471,19 @@ spa_sync_config_object(spa_t *spa, dmu_tx_t *tx)
 		spa->spa_all_vdev_zaps = new_avz;
 	} else if (spa->spa_avz_action == AVZ_ACTION_DESTROY) {
 		zap_cursor_t zc;
-		zap_attribute_t za;
+		zap_attribute_t *za = zap_attribute_alloc();
 
 		/* Walk through the AVZ and destroy all listed ZAPs */
 		for (zap_cursor_init(&zc, spa->spa_meta_objset,
 		    spa->spa_all_vdev_zaps);
-		    zap_cursor_retrieve(&zc, &za) == 0;
+		    zap_cursor_retrieve(&zc, za) == 0;
 		    zap_cursor_advance(&zc)) {
-			uint64_t zap = za.za_first_integer;
+			uint64_t zap = za->za_first_integer;
 			VERIFY0(zap_destroy(spa->spa_meta_objset, zap, tx));
 		}
 
 		zap_cursor_fini(&zc);
+		zap_attribute_free(za);
 
 		/* Destroy and unlink the AVZ itself */
 		VERIFY0(zap_destroy(spa->spa_meta_objset,

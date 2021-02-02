@@ -54,7 +54,7 @@ zcp_clones_iter(lua_State *state)
 	uint64_t cursor = lua_tonumber(state, lua_upvalueindex(2));
 	dsl_pool_t *dp = zcp_run_info(state)->zri_pool;
 	dsl_dataset_t *ds, *clone;
-	zap_attribute_t za;
+	zap_attribute_t *za;
 	zap_cursor_t zc;
 
 	err = dsl_dataset_hold_obj(dp, dsobj, FTAG, &ds);
@@ -75,9 +75,11 @@ zcp_clones_iter(lua_State *state)
 	    dsl_dataset_phys(ds)->ds_next_clones_obj, cursor);
 	dsl_dataset_rele(ds, FTAG);
 
-	err = zap_cursor_retrieve(&zc, &za);
+	za = zap_attribute_alloc();
+	err = zap_cursor_retrieve(&zc, za);
 	if (err != 0) {
 		zap_cursor_fini(&zc);
+		zap_attribute_free(za);
 		if (err != ENOENT) {
 			return (luaL_error(state,
 			    "unexpected error %d from zap_cursor_retrieve()",
@@ -89,7 +91,8 @@ zcp_clones_iter(lua_State *state)
 	cursor = zap_cursor_serialize(&zc);
 	zap_cursor_fini(&zc);
 
-	err = dsl_dataset_hold_obj(dp, za.za_first_integer, FTAG, &clone);
+	err = dsl_dataset_hold_obj(dp, za->za_first_integer, FTAG, &clone);
+	zap_attribute_free(za);
 	if (err != 0) {
 		return (luaL_error(state,
 		    "unexpected error %d from "
@@ -499,7 +502,7 @@ zcp_bookmarks_iter(lua_State *state)
 	uint64_t cursor = lua_tonumber(state, lua_upvalueindex(2));
 	dsl_pool_t *dp = zcp_run_info(state)->zri_pool;
 	dsl_dataset_t *ds;
-	zap_attribute_t za;
+	zap_attribute_t *za;
 	zap_cursor_t zc;
 
 	int err = dsl_dataset_hold_obj(dp, dsobj, FTAG, &ds);
@@ -536,9 +539,11 @@ zcp_bookmarks_iter(lua_State *state)
 	    ds->ds_bookmarks_obj, cursor);
 	dsl_dataset_rele(ds, FTAG);
 
-	err = zap_cursor_retrieve(&zc, &za);
+	za = zap_attribute_alloc();
+	err = zap_cursor_retrieve(&zc, za);
 	if (err != 0) {
 		zap_cursor_fini(&zc);
+		zap_attribute_free(za);
 		if (err != ENOENT) {
 			return (luaL_error(state,
 			    "unexpected error %d from zap_cursor_retrieve()",
@@ -552,7 +557,8 @@ zcp_bookmarks_iter(lua_State *state)
 
 	/* Create the full "pool/fs#bookmark" string to return */
 	int n = snprintf(bookmark_name, ZFS_MAX_DATASET_NAME_LEN, "%s#%s",
-	    ds_name, za.za_name);
+	    ds_name, za->za_name);
+	zap_attribute_free(za);
 	if (n >= ZFS_MAX_DATASET_NAME_LEN) {
 		return (luaL_error(state,
 		    "unexpected error %d from snprintf()", ENAMETOOLONG));
@@ -610,7 +616,7 @@ zcp_holds_iter(lua_State *state)
 	uint64_t cursor = lua_tonumber(state, lua_upvalueindex(2));
 	dsl_pool_t *dp = zcp_run_info(state)->zri_pool;
 	dsl_dataset_t *ds;
-	zap_attribute_t za;
+	zap_attribute_t *za;
 	zap_cursor_t zc;
 
 	int err = dsl_dataset_hold_obj(dp, dsobj, FTAG, &ds);
@@ -631,9 +637,11 @@ zcp_holds_iter(lua_State *state)
 	    dsl_dataset_phys(ds)->ds_userrefs_obj, cursor);
 	dsl_dataset_rele(ds, FTAG);
 
-	err = zap_cursor_retrieve(&zc, &za);
+	za = zap_attribute_alloc();
+	err = zap_cursor_retrieve(&zc, za);
 	if (err != 0) {
 		zap_cursor_fini(&zc);
+		zap_attribute_free(za);
 		if (err != ENOENT) {
 			return (luaL_error(state,
 			    "unexpected error %d from zap_cursor_retrieve()",
@@ -648,8 +656,9 @@ zcp_holds_iter(lua_State *state)
 	lua_pushnumber(state, cursor);
 	lua_replace(state, lua_upvalueindex(2));
 
-	(void) lua_pushstring(state, za.za_name);
-	(void) lua_pushnumber(state, za.za_first_integer);
+	(void) lua_pushstring(state, za->za_name);
+	(void) lua_pushnumber(state, za->za_first_integer);
+	zap_attribute_free(za);
 	return (2);
 }
 

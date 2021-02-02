@@ -617,17 +617,18 @@ dsl_scan_init(dsl_pool_t *dp, uint64_t txg)
 	/* reload the queue into the in-core state */
 	if (scn->scn_phys.scn_queue_obj != 0) {
 		zap_cursor_t zc;
-		zap_attribute_t za;
+		zap_attribute_t *za = zap_attribute_alloc();
 
 		for (zap_cursor_init(&zc, dp->dp_meta_objset,
 		    scn->scn_phys.scn_queue_obj);
-		    zap_cursor_retrieve(&zc, &za) == 0;
+		    zap_cursor_retrieve(&zc, za) == 0;
 		    (void) zap_cursor_advance(&zc)) {
 			scan_ds_queue_insert(scn,
-			    zfs_strtonum(za.za_name, NULL),
-			    za.za_first_integer);
+			    zfs_strtonum(za->za_name, NULL),
+			    za->za_first_integer);
 		}
 		zap_cursor_fini(&zc);
+		zap_attribute_free(za);
 	}
 
 	ddt_walk_init(spa, scn->scn_phys.scn_max_txg);
@@ -2870,16 +2871,17 @@ dsl_scan_visitds(dsl_scan_t *scn, uint64_t dsobj, dmu_tx_t *tx)
 
 		if (usenext) {
 			zap_cursor_t zc;
-			zap_attribute_t za;
+			zap_attribute_t *za = zap_attribute_alloc();
 			for (zap_cursor_init(&zc, dp->dp_meta_objset,
 			    dsl_dataset_phys(ds)->ds_next_clones_obj);
-			    zap_cursor_retrieve(&zc, &za) == 0;
+			    zap_cursor_retrieve(&zc, za) == 0;
 			    (void) zap_cursor_advance(&zc)) {
 				scan_ds_queue_insert(scn,
-				    zfs_strtonum(za.za_name, NULL),
+				    zfs_strtonum(za->za_name, NULL),
 				    dsl_dataset_phys(ds)->ds_creation_txg);
 			}
 			zap_cursor_fini(&zc);
+			zap_attribute_free(za);
 		} else {
 			VERIFY0(dmu_objset_find_dp(dp, dp->dp_root_dir_obj,
 			    enqueue_clones_cb, &ds->ds_object,
@@ -4174,7 +4176,7 @@ dsl_errorscrub_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 	zbookmark_phys_t *zb;
 	boolean_t limit_exceeded = B_FALSE;
 
-	za = kmem_zalloc(sizeof (zap_attribute_t), KM_SLEEP);
+	za = zap_attribute_alloc();
 	zb = kmem_zalloc(sizeof (zbookmark_phys_t), KM_SLEEP);
 
 	if (!spa_feature_is_enabled(spa, SPA_FEATURE_HEAD_ERRLOG)) {
@@ -4205,7 +4207,7 @@ dsl_errorscrub_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 			dsl_errorscrub_done(scn, B_TRUE, tx);
 
 		dsl_errorscrub_sync_state(scn, tx);
-		kmem_free(za, sizeof (*za));
+		zap_attribute_free(za);
 		kmem_free(zb, sizeof (*zb));
 		return;
 	}
@@ -4219,7 +4221,7 @@ dsl_errorscrub_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 		zbookmark_err_phys_t head_ds_block;
 
 		head_ds_cursor = kmem_zalloc(sizeof (zap_cursor_t), KM_SLEEP);
-		head_ds_attr = kmem_zalloc(sizeof (zap_attribute_t), KM_SLEEP);
+		head_ds_attr = zap_attribute_alloc();
 
 		uint64_t head_ds_err_obj = za->za_first_integer;
 		uint64_t head_ds;
@@ -4258,13 +4260,13 @@ dsl_errorscrub_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 
 		zap_cursor_fini(head_ds_cursor);
 		kmem_free(head_ds_cursor, sizeof (*head_ds_cursor));
-		kmem_free(head_ds_attr, sizeof (*head_ds_attr));
+		zap_attribute_free(head_ds_attr);
 
 		if (config_held)
 			dsl_pool_config_exit(dp, FTAG);
 	}
 
-	kmem_free(za, sizeof (*za));
+	zap_attribute_free(za);
 	kmem_free(zb, sizeof (*zb));
 	if (!limit_exceeded)
 		dsl_errorscrub_done(scn, B_TRUE, tx);

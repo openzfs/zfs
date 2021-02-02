@@ -287,7 +287,7 @@ void
 zfs_unlinked_drain(zfsvfs_t *zfsvfs)
 {
 	zap_cursor_t	zc;
-	zap_attribute_t zap;
+	zap_attribute_t *zap;
 	dmu_object_info_t doi;
 	znode_t		*zp;
 	dmu_tx_t	*tx;
@@ -296,8 +296,9 @@ zfs_unlinked_drain(zfsvfs_t *zfsvfs)
 	/*
 	 * Iterate over the contents of the unlinked set.
 	 */
+	zap = zap_attribute_alloc();
 	for (zap_cursor_init(&zc, zfsvfs->z_os, zfsvfs->z_unlinkedobj);
-	    zap_cursor_retrieve(&zc, &zap) == 0;
+	    zap_cursor_retrieve(&zc, zap) == 0;
 	    zap_cursor_advance(&zc)) {
 
 		/*
@@ -305,7 +306,7 @@ zfs_unlinked_drain(zfsvfs_t *zfsvfs)
 		 */
 
 		error = dmu_object_info(zfsvfs->z_os,
-		    zap.za_first_integer, &doi);
+		    zap->za_first_integer, &doi);
 		if (error != 0)
 			continue;
 
@@ -315,7 +316,7 @@ zfs_unlinked_drain(zfsvfs_t *zfsvfs)
 		 * We need to re-mark these list entries for deletion,
 		 * so we pull them back into core and set zp->z_unlinked.
 		 */
-		error = zfs_zget(zfsvfs, zap.za_first_integer, &zp);
+		error = zfs_zget(zfsvfs, zap->za_first_integer, &zp);
 
 		/*
 		 * We may pick up znodes that are already marked for deletion.
@@ -351,6 +352,7 @@ zfs_unlinked_drain(zfsvfs_t *zfsvfs)
 		vput(ZTOV(zp));
 	}
 	zap_cursor_fini(&zc);
+	zap_attribute_free(zap);
 }
 
 /*
@@ -368,18 +370,19 @@ static int
 zfs_purgedir(znode_t *dzp)
 {
 	zap_cursor_t	zc;
-	zap_attribute_t	zap;
+	zap_attribute_t	*zap;
 	znode_t		*xzp;
 	dmu_tx_t	*tx;
 	zfsvfs_t	*zfsvfs = dzp->z_zfsvfs;
 	int skipped = 0;
 	int error;
 
+	zap = zap_attribute_alloc();
 	for (zap_cursor_init(&zc, zfsvfs->z_os, dzp->z_id);
-	    (error = zap_cursor_retrieve(&zc, &zap)) == 0;
+	    (error = zap_cursor_retrieve(&zc, zap)) == 0;
 	    zap_cursor_advance(&zc)) {
 		error = zfs_zget(zfsvfs,
-		    ZFS_DIRENT_OBJ(zap.za_first_integer), &xzp);
+		    ZFS_DIRENT_OBJ(zap->za_first_integer), &xzp);
 		if (error) {
 			skipped += 1;
 			continue;
@@ -391,7 +394,7 @@ zfs_purgedir(znode_t *dzp)
 
 		tx = dmu_tx_create(zfsvfs->z_os);
 		dmu_tx_hold_sa(tx, dzp->z_sa_hdl, B_FALSE);
-		dmu_tx_hold_zap(tx, dzp->z_id, FALSE, zap.za_name);
+		dmu_tx_hold_zap(tx, dzp->z_id, FALSE, zap->za_name);
 		dmu_tx_hold_sa(tx, xzp->z_sa_hdl, B_FALSE);
 		dmu_tx_hold_zap(tx, zfsvfs->z_unlinkedobj, FALSE, NULL);
 		/* Is this really needed ? */
@@ -405,7 +408,7 @@ zfs_purgedir(znode_t *dzp)
 			continue;
 		}
 
-		error = zfs_link_destroy(dzp, zap.za_name, xzp, tx, 0, NULL);
+		error = zfs_link_destroy(dzp, zap->za_name, xzp, tx, 0, NULL);
 		if (error)
 			skipped += 1;
 		dmu_tx_commit(tx);
@@ -413,6 +416,7 @@ zfs_purgedir(znode_t *dzp)
 		vput(ZTOV(xzp));
 	}
 	zap_cursor_fini(&zc);
+	zap_attribute_free(zap);
 	if (error != ENOENT)
 		skipped += 1;
 	return (skipped);

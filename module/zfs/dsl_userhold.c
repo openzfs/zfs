@@ -674,7 +674,7 @@ dsl_dataset_get_holds(const char *dsname, nvlist_t *nvl)
 		zap_attribute_t *za;
 		zap_cursor_t zc;
 
-		za = kmem_alloc(sizeof (zap_attribute_t), KM_SLEEP);
+		za = zap_attribute_alloc();
 		for (zap_cursor_init(&zc, ds->ds_dir->dd_pool->dp_meta_objset,
 		    dsl_dataset_phys(ds)->ds_userrefs_obj);
 		    zap_cursor_retrieve(&zc, za) == 0;
@@ -683,7 +683,7 @@ dsl_dataset_get_holds(const char *dsname, nvlist_t *nvl)
 			    za->za_first_integer);
 		}
 		zap_cursor_fini(&zc);
-		kmem_free(za, sizeof (zap_attribute_t));
+		zap_attribute_free(za);
 	}
 	dsl_dataset_rele(ds, FTAG);
 	dsl_pool_rele(dp, FTAG);

@@ -191,7 +191,8 @@ typedef struct zap_name {
 	uint64_t zn_hash;
 	matchtype_t zn_matchtype;
 	int zn_normflags;
-	char zn_normbuf[ZAP_MAXNAMELEN];
+	int zn_normbuf_len;
+	char zn_normbuf[];
 } zap_name_t;
 
 #define	zap_f	zap_u.zap_fat

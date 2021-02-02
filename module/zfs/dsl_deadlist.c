@@ -133,7 +133,7 @@ static void
 dsl_deadlist_load_tree(dsl_deadlist_t *dl)
 {
 	zap_cursor_t zc;
-	zap_attribute_t za;
+	zap_attribute_t *za;
 	int error;
 
 	ASSERT(MUTEX_HELD(&dl->dl_lock));
@@ -159,20 +159,21 @@ dsl_deadlist_load_tree(dsl_deadlist_t *dl)
 	if (dl->dl_havetree)
 		return;
 
+	za = zap_attribute_alloc();
 	avl_create(&dl->dl_tree, dsl_deadlist_compare,
 	    sizeof (dsl_deadlist_entry_t),
 	    offsetof(dsl_deadlist_entry_t, dle_node));
 	for (zap_cursor_init(&zc, dl->dl_os, dl->dl_object);
-	    (error = zap_cursor_retrieve(&zc, &za)) == 0;
+	    (error = zap_cursor_retrieve(&zc, za)) == 0;
 	    zap_cursor_advance(&zc)) {
 		dsl_deadlist_entry_t *dle = kmem_alloc(sizeof (*dle), KM_SLEEP);
-		dle->dle_mintxg = zfs_strtonum(za.za_name, NULL);
+		dle->dle_mintxg = zfs_strtonum(za->za_name, NULL);
 
 		/*
 		 * Prefetch all the bpobj's so that we do that i/o
 		 * in parallel.  Then open them all in a second pass.
 		 */
-		dle->dle_bpobj.bpo_object = za.za_first_integer;
+		dle->dle_bpobj.bpo_object = za->za_first_integer;
 		dmu_prefetch_dnode(dl->dl_os, dle->dle_bpobj.bpo_object,
 		    ZIO_PRIORITY_SYNC_READ);
 
@@ -180,6 +181,7 @@ dsl_deadlist_load_tree(dsl_deadlist_t *dl)
 	}
 	VERIFY3U(error, ==, ENOENT);
 	zap_cursor_fini(&zc);
+	zap_attribute_free(za);
 
 	for (dsl_deadlist_entry_t *dle = avl_first(&dl->dl_tree);
 	    dle != NULL; dle = AVL_NEXT(&dl->dl_tree, dle)) {
@@ -207,7 +209,7 @@ static void
 dsl_deadlist_load_cache(dsl_deadlist_t *dl)
 {
 	zap_cursor_t zc;
-	zap_attribute_t za;
+	zap_attribute_t *za;
 	int error;
 
 	ASSERT(MUTEX_HELD(&dl->dl_lock));
@@ -221,26 +223,28 @@ dsl_deadlist_load_cache(dsl_deadlist_t *dl)
 	avl_create(&dl->dl_cache, dsl_deadlist_cache_compare,
 	    sizeof (dsl_deadlist_cache_entry_t),
 	    offsetof(dsl_deadlist_cache_entry_t, dlce_node));
+	za = zap_attribute_alloc();
 	for (zap_cursor_init(&zc, dl->dl_os, dl->dl_object);
-	    (error = zap_cursor_retrieve(&zc, &za)) == 0;
+	    (error = zap_cursor_retrieve(&zc, za)) == 0;
 	    zap_cursor_advance(&zc)) {
-		if (za.za_first_integer == empty_bpobj)
+		if (za->za_first_integer == empty_bpobj)
 			continue;
 		dsl_deadlist_cache_entry_t *dlce =
 		    kmem_zalloc(sizeof (*dlce), KM_SLEEP);
-		dlce->dlce_mintxg = zfs_strtonum(za.za_name, NULL);
+		dlce->dlce_mintxg = zfs_strtonum(za->za_name, NULL);
 
 		/*
 		 * Prefetch all the bpobj's so that we do that i/o
 		 * in parallel.  Then open them all in a second pass.
 		 */
-		dlce->dlce_bpobj = za.za_first_integer;
+		dlce->dlce_bpobj = za->za_first_integer;
 		dmu_prefetch_dnode(dl->dl_os, dlce->dlce_bpobj,
 		    ZIO_PRIORITY_SYNC_READ);
 		avl_add(&dl->dl_cache, dlce);
 	}
 	VERIFY3U(error, ==, ENOENT);
 	zap_cursor_fini(&zc);
+	zap_attribute_free(za);
 
 	for (dsl_deadlist_cache_entry_t *dlce = avl_first(&dl->dl_cache);
 	    dlce != NULL; dlce = AVL_NEXT(&dl->dl_cache, dlce)) {
@@ -381,7 +385,7 @@ dsl_deadlist_free(objset_t *os, uint64_t dlobj, dmu_tx_t *tx)
 {
 	dmu_object_info_t doi;
 	zap_cursor_t zc;
-	zap_attribute_t za;
+	zap_attribute_t *za;
 	int error;
 
 	VERIFY0(dmu_object_info(os, dlobj, &doi));
@@ -390,10 +394,11 @@ dsl_deadlist_free(objset_t *os, uint64_t dlobj, dmu_tx_t *tx)
 		return;
 	}
 
+	za = zap_attribute_alloc();
 	for (zap_cursor_init(&zc, os, dlobj);
-	    (error = zap_cursor_retrieve(&zc, &za)) == 0;
+	    (error = zap_cursor_retrieve(&zc, za)) == 0;
 	    zap_cursor_advance(&zc)) {
-		uint64_t obj = za.za_first_integer;
+		uint64_t obj = za->za_first_integer;
 		if (obj == dmu_objset_pool(os)->dp_empty_bpobj)
 			bpobj_decr_empty(os, tx);
 		else
@@ -401,6 +406,7 @@ dsl_deadlist_free(objset_t *os, uint64_t dlobj, dmu_tx_t *tx)
 	}
 	VERIFY3U(error, ==, ENOENT);
 	zap_cursor_fini(&zc);
+	zap_attribute_free(za);
 	VERIFY0(dmu_object_free(os, dlobj, tx));
 }
 
@@ -875,8 +881,8 @@ dsl_deadlist_merge(dsl_deadlist_t *dl, uint64_t obj, dmu_tx_t *tx)
 		return;
 	}
 
-	za = kmem_alloc(sizeof (*za), KM_SLEEP);
-	pza = kmem_alloc(sizeof (*pza), KM_SLEEP);
+	za = zap_attribute_alloc();
+	pza = zap_attribute_alloc();
 
 	mutex_enter(&dl->dl_lock);
 	/*
@@ -913,8 +919,8 @@ dsl_deadlist_merge(dsl_deadlist_t *dl, uint64_t obj, dmu_tx_t *tx)
 	dmu_buf_rele(bonus, FTAG);
 	mutex_exit(&dl->dl_lock);
 
-	kmem_free(za, sizeof (*za));
-	kmem_free(pza, sizeof (*pza));
+	zap_attribute_free(za);
+	zap_attribute_free(pza);
 }
 
 /*

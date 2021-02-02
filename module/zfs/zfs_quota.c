@@ -165,7 +165,7 @@ zfs_userspace_many(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
 {
 	int error;
 	zap_cursor_t zc;
-	zap_attribute_t za;
+	zap_attribute_t *za;
 	zfs_useracct_t *buf = vbuf;
 	uint64_t obj;
 	int offset = 0;
@@ -196,8 +196,9 @@ zfs_userspace_many(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
 	    type == ZFS_PROP_PROJECTOBJUSED)
 		offset = DMU_OBJACCT_PREFIX_LEN;
 
+	za = zap_attribute_alloc();
 	for (zap_cursor_init_serialized(&zc, zfsvfs->z_os, obj, *cookiep);
-	    (error = zap_cursor_retrieve(&zc, &za)) == 0;
+	    (error = zap_cursor_retrieve(&zc, za)) == 0;
 	    zap_cursor_advance(&zc)) {
 		if ((uintptr_t)buf - (uintptr_t)vbuf + sizeof (zfs_useracct_t) >
 		    *bufsizep)
@@ -207,14 +208,14 @@ zfs_userspace_many(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
 		 * skip object quota (with zap name prefix DMU_OBJACCT_PREFIX)
 		 * when dealing with block quota and vice versa.
 		 */
-		if ((offset > 0) != (strncmp(za.za_name, DMU_OBJACCT_PREFIX,
+		if ((offset > 0) != (strncmp(za->za_name, DMU_OBJACCT_PREFIX,
 		    DMU_OBJACCT_PREFIX_LEN) == 0))
 			continue;
 
-		fuidstr_to_sid(zfsvfs, za.za_name + offset,
+		fuidstr_to_sid(zfsvfs, za->za_name + offset,
 		    buf->zu_domain, sizeof (buf->zu_domain), &buf->zu_rid);
 
-		buf->zu_space = za.za_first_integer;
+		buf->zu_space = za->za_first_integer;
 		buf++;
 	}
 	if (error == ENOENT)
@@ -224,6 +225,7 @@ zfs_userspace_many(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
 	*bufsizep = (uintptr_t)buf - (uintptr_t)vbuf;
 	*cookiep = zap_cursor_serialize(&zc);
 	zap_cursor_fini(&zc);
+	zap_attribute_free(za);
 	return (error);
 }
 

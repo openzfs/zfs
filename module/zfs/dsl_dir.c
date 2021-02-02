@@ -586,7 +586,7 @@ dsl_dir_init_fs_ss_count(dsl_dir_t *dd, dmu_tx_t *tx)
 		return;
 
 	zc = kmem_alloc(sizeof (zap_cursor_t), KM_SLEEP);
-	za = kmem_alloc(sizeof (zap_attribute_t), KM_SLEEP);
+	za = zap_attribute_alloc();
 
 	/* Iterate my child dirs */
 	for (zap_cursor_init(zc, os, dsl_dir_phys(dd)->dd_child_dir_zapobj);
@@ -635,7 +635,7 @@ dsl_dir_init_fs_ss_count(dsl_dir_t *dd, dmu_tx_t *tx)
 	dsl_dataset_rele(ds, FTAG);
 
 	kmem_free(zc, sizeof (zap_cursor_t));
-	kmem_free(za, sizeof (zap_attribute_t));
+	zap_attribute_free(za);
 
 	/* we're in a sync task, update counts */
 	dmu_buf_will_dirty(dd->dd_dbuf, tx);
