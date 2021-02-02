@@ -1,12 +1,16 @@
-name: zfs-tests-sanity
+name: zfs-tests-functional
 
 on:
   push:
   pull_request:
 
 jobs:
-  tests:
-    runs-on: ubuntu-latest
+  tests-functional-ubuntu:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [18.04, 20.04]
+    runs-on: ubuntu-${{ matrix.os }}
     steps:
     - uses: actions/checkout@v2
       with:
@@ -42,7 +46,7 @@ jobs:
         sudo modprobe zfs
     - name: Tests
       run: |
-        /usr/share/zfs/zfs-tests.sh -v -s 3G -r sanity
+        /usr/share/zfs/zfs-tests.sh -v -s 3G
     - name: Prepare artifacts
       if: failure()
       run: |
@@ -50,9 +54,11 @@ jobs:
         sudo dmesg > $RESULTS_PATH/dmesg
         sudo cp /var/log/syslog $RESULTS_PATH/
         sudo chmod +r $RESULTS_PATH/*
+        # Replace ':' in dir names, actions/upload-artifact doesn't support it
+        for f in $(find $RESULTS_PATH -name '*:*'); do mv "$f" "${f//:/__}"; done
     - uses: actions/upload-artifact@v2
       if: failure()
       with:
-        name: Test logs
+        name: Test logs Ubuntu-${{ matrix.os }}
         path: /var/tmp/test_results/20*/
         if-no-files-found: ignore
