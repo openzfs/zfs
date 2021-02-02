@@ -292,6 +292,27 @@ txg_sync_stop(dsl_pool_t *dp)
 	mutex_exit(&tx->tx_sync_lock);
 }
 
+/*
+ * Get a handle on the currently open txg and keep it open.
+ *
+ * The txg is guaranteed to stay open until txg_rele_to_quiesce() is called for
+ * the handle. Once txg_rele_to_quiesce() has been called, the txg stays
+ * in quiescing state until txg_rele_to_sync() is called for the handle.
+ *
+ * It is guaranteed that subsequent calls return monotonically increasing
+ * txgs for the same dsl_pool_t. Of course this is not strong monotonicity,
+ * because the same txg can be returned multiple times in a row. This
+ * guarantee holds both for subsequent calls from one thread and for multiple
+ * threads. For example, it is impossible to observe the following sequence
+ * of events:
+ *
+ *           Thread 1                            Thread 2
+ *
+ *   1 <- txg_hold_open(P, ...)
+ *                                       2 <- txg_hold_open(P, ...)
+ *   1 <- txg_hold_open(P, ...)
+ *
+ */
 uint64_t
 txg_hold_open(dsl_pool_t *dp, txg_handle_t *th)
 {
@@ -393,7 +414,8 @@ txg_quiesce(dsl_pool_t *dp, uint64_t txg)
 	spa_txg_history_add(dp->dp_spa, txg + 1, tx_open_time);
 
 	/*
-	 * Quiesce the transaction group by waiting for everyone to txg_exit().
+	 * Quiesce the transaction group by waiting for everyone to
+	 * call txg_rele_to_sync() for their open transaction handles.
 	 */
 	for (c = 0; c < max_ncpus; c++) {
 		tx_cpu_t *tc = &tx->tx_cpu[c];
