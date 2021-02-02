@@ -164,10 +164,32 @@ zap_match(zap_name_t *zn, const char *matchname)
 	}
 }
 
+static kmem_cache_t *zap_name_cache;
+static kmem_cache_t *zap_attr_cache;
+
+void
+zap_init(void)
+{
+	zap_name_cache = kmem_cache_create("zap_name",
+	    sizeof (zap_name_t) + ZAP_MAXNAMELEN, 0, NULL, NULL,
+	    NULL, NULL, NULL, 0);
+
+	zap_attr_cache = kmem_cache_create("zap_attr_cache",
+	    sizeof (zap_attribute_t) + ZAP_MAXNAMELEN,  0, NULL,
+	    NULL, NULL, NULL, NULL, 0);
+}
+
+void
+zap_fini(void)
+{
+	kmem_cache_destroy(zap_name_cache);
+	kmem_cache_destroy(zap_attr_cache);
+}
+
 static zap_name_t *
 zap_name_alloc(zap_t *zap)
 {
-	zap_name_t *zn = kmem_alloc(sizeof (zap_name_t), KM_SLEEP);
+	zap_name_t *zn = kmem_cache_alloc(zap_name_cache, KM_SLEEP);
 	zn->zn_zap = zap;
 	return (zn);
 }
@@ -175,7 +197,7 @@ zap_name_alloc(zap_t *zap)
 void
 zap_name_free(zap_name_t *zn)
 {
-	kmem_free(zn, sizeof (zap_name_t));
+	kmem_cache_free(zap_name_cache, zn);
 }
 
 static int
@@ -188,6 +210,7 @@ zap_name_init_str(zap_name_t *zn, const char *key, matchtype_t mt)
 	zn->zn_key_orig_numints = strlen(zn->zn_key_orig) + 1;
 	zn->zn_matchtype = mt;
 	zn->zn_normflags = zap->zap_normflags;
+	zn->zn_normbuf_len = ZAP_MAXNAMELEN;
 
 	/*
 	 * If we're dealing with a case sensitive lookup on a mixed or
@@ -244,7 +267,7 @@ zap_name_alloc_str(zap_t *zap, const char *key, matchtype_t mt)
 static zap_name_t *
 zap_name_alloc_uint64(zap_t *zap, const uint64_t *key, int numints)
 {
-	zap_name_t *zn = kmem_alloc(sizeof (zap_name_t), KM_SLEEP);
+	zap_name_t *zn = kmem_cache_alloc(zap_name_cache, KM_SLEEP);
 
 	ASSERT(zap->zap_normflags == 0);
 	zn->zn_zap = zap;
@@ -252,6 +275,7 @@ zap_name_alloc_uint64(zap_t *zap, const uint64_t *key, int numints)
 	zn->zn_key_orig = zn->zn_key_norm = key;
 	zn->zn_key_orig_numints = zn->zn_key_norm_numints = numints;
 	zn->zn_matchtype = 0;
+	zn->zn_normbuf_len = ZAP_MAXNAMELEN;
 
 	zn->zn_hash = zap_hash(zn);
 	return (zn);
@@ -1600,6 +1624,24 @@ zap_remove_uint64_by_dnode(dnode_t *dn, const uint64_t *key, int key_numints,
 	return (err);
 }
 
+
+zap_attribute_t *
+zap_attribute_alloc(void)
+{
+	uint32_t len = ZAP_MAXNAMELEN;
+	zap_attribute_t *za;
+
+	za = kmem_cache_alloc(zap_attr_cache, KM_SLEEP);
+	za->za_name_len = len;
+	return (za);
+}
+
+void
+zap_attribute_free(zap_attribute_t *za)
+{
+	kmem_cache_free(zap_attr_cache, za);
+}
+
 /*
  * Routines for iterating over the attributes.
  */
@@ -1736,7 +1778,7 @@ zap_cursor_retrieve(zap_cursor_t *zc, zap_attribute_t *za)
 			za->za_num_integers = 1;
 			za->za_first_integer = mzep->mze_value;
 			(void) strlcpy(za->za_name, mzep->mze_name,
-			    sizeof (za->za_name));
+			    za->za_name_len);
 			zc->zc_hash = (uint64_t)mze->mze_hash << 32;
 			zc->zc_cd = mze->mze_cd;
 			err = 0;

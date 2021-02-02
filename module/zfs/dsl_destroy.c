@@ -216,7 +216,7 @@ dsl_dir_remove_clones_key_impl(dsl_dir_t *dd, uint64_t mintxg, dmu_tx_t *tx,
 		return;
 
 	zap_cursor_t *zc = kmem_alloc(sizeof (zap_cursor_t), KM_SLEEP);
-	zap_attribute_t *za = kmem_alloc(sizeof (zap_attribute_t), KM_SLEEP);
+	zap_attribute_t *za = zap_attribute_alloc();
 
 	for (zap_cursor_init(zc, mos, dsl_dir_phys(dd)->dd_clones);
 	    zap_cursor_retrieve(zc, za) == 0;
@@ -242,7 +242,7 @@ dsl_dir_remove_clones_key_impl(dsl_dir_t *dd, uint64_t mintxg, dmu_tx_t *tx,
 	}
 	zap_cursor_fini(zc);
 
-	kmem_free(za, sizeof (zap_attribute_t));
+	zap_attribute_free(za);
 	kmem_free(zc, sizeof (zap_cursor_t));
 }
 

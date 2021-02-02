@@ -376,8 +376,18 @@ typedef struct {
 	boolean_t za_normalization_conflict;
 	uint64_t za_num_integers;
 	uint64_t za_first_integer;	/* no sign extension for <8byte ints */
-	char za_name[ZAP_MAXNAMELEN];
+	uint32_t za_name_len;
+	char za_name[];
 } zap_attribute_t;
+
+void zap_init(void);
+void zap_fini(void);
+
+/*
+ * Alloc and free zap_attribute_t.
+ */
+zap_attribute_t *zap_attribute_alloc(void);
+void zap_attribute_free(zap_attribute_t *attrp);
 
 /*
  * The interface for listing all the attributes of a zapobj can be

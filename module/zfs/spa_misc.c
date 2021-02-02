@@ -2590,6 +2590,7 @@ spa_init(spa_mode_t mode)
 	scan_init();
 	qat_init();
 	spa_import_progress_init();
+	zap_init();
 }
 
 void
@@ -2616,6 +2617,7 @@ spa_fini(void)
 	scan_fini();
 	qat_fini();
 	spa_import_progress_destroy();
+	zap_fini();
 
 	avl_destroy(&spa_namespace_avl);
 	avl_destroy(&spa_spare_avl);
