@@ -57,6 +57,8 @@ dist_noinst_DATA += module/os/linux/spl/THIRDPARTYLICENSE.gplv2
 dist_noinst_DATA += module/os/linux/spl/THIRDPARTYLICENSE.gplv2.descrip
 dist_noinst_DATA += module/zfs/THIRDPARTYLICENSE.cityhash
 dist_noinst_DATA += module/zfs/THIRDPARTYLICENSE.cityhash.descrip
+dist_noinst_DATA += module/zfs/THIRDPARTYLICENSE.zia
+dist_noinst_DATA += module/zfs/THIRDPARTYLICENSE.zia.descrip
 
 @CODE_COVERAGE_RULES@
 
