@@ -80,7 +80,7 @@ clean: clean-@ac_system@
 
 .PHONY: modules_uninstall-Linux-legacy
 modules_uninstall-Linux-legacy:
-	$(RM) -r $(addprefix $(KMODDIR)/$(INSTALL_MOD_DIR)/,spl/ avl/ icp/ lua/ nvpair/ unicode/ zcommon/ zfs/ zstd/)
+	$(RM) -r $(addprefix $(KMODDIR)/$(INSTALL_MOD_DIR)/,spl/ avl/ icp/ lua/ nvpair/ unicode/ zcommon/ zfs/ zstd/ zia-software-provider)
 
 KMODDIR := $(INSTALL_MOD_PATH)/lib/modules/@LINUX_VERSION@
 modules_install-Linux: modules_uninstall-Linux-legacy
@@ -123,7 +123,7 @@ data_install: data_install-@ac_system@
 
 modules_uninstall-Linux: modules_uninstall-Linux-legacy
 	@# Uninstall the kernel modules
-	$(RM) $(addprefix $(KMODDIR)/$(INSTALL_MOD_DIR)/,zfs.ko spl.ko)
+	$(RM) $(addprefix $(KMODDIR)/$(INSTALL_MOD_DIR)/,zfs.ko spl.ko zia-software-provider)
 
 modules_uninstall-FreeBSD:
 	@false
@@ -153,7 +153,7 @@ cppcheck-Linux:
 		-I @top_srcdir@/include/os/linux/spl \
 		-I @top_srcdir@/include/os/linux/zfs \
 		-I @top_srcdir@/include \
-		avl icp lua nvpair unicode zcommon zfs zstd os/linux
+		avl icp lua nvpair unicode zcommon zfs zstd os/linux zia-software-provider
 
 cppcheck-FreeBSD:
 	@true

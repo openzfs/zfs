@@ -52,6 +52,7 @@
 #include <sys/zfeature.h>
 #include <sys/zthr.h>
 #include <sys/dsl_deadlist.h>
+#include <sys/zia.h>
 #include <zfeature_common.h>
 
 #ifdef	__cplusplus
@@ -474,6 +475,8 @@ struct spa {
 	 */
 	spa_config_lock_t spa_config_lock[SCL_LOCKS]; /* config changes */
 	zfs_refcount_t	spa_refcount;		/* number of opens */
+
+    zia_props_t	spa_zia_props;
 };
 
 extern char *spa_config_path;
