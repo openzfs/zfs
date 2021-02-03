@@ -31,6 +31,7 @@
 #include <sys/zio_checksum.h>
 #include <sys/zil.h>
 #include <sys/abd.h>
+#include <sys/zia.h>
 #include <zfs_fletcher.h>
 
 /*
@@ -363,6 +364,13 @@ zio_checksum_compute(zio_t *zio, enum zio_checksum checksum,
 		zio_eck_t eck;
 		size_t eck_offset;
 
+		/* not handling embedded checksums, so bring back data */
+		const int zia_rc = zia_cleanup_abd(abd, size, B_FALSE, B_FALSE);
+		if (zia_rc == ZIA_ACCELERATOR_DOWN) {
+			zia_restart_before_vdev(zio);
+			return;
+		}
+
 		memset(&saved, 0, sizeof (zio_cksum_t));
 
 		if (checksum == ZIO_CHECKSUM_ZILOG2) {
@@ -409,8 +417,31 @@ zio_checksum_compute(zio_t *zio, enum zio_checksum checksum,
 		    sizeof (zio_cksum_t));
 	} else {
 		saved = bp->blk_cksum;
+
+		int zia_rc = ZIA_FALLBACK;
+
+		/* only offload non-embedded checksums */
+		boolean_t local_offload = B_FALSE;
+		zia_props_t *zia_props = zia_get_props(spa);
+		if ((zia_props->checksum == 1) &&
+		    (zio->io_can_offload == B_TRUE)) {
+			zia_rc = zia_checksum_compute(zia_props->provider,
+			    &cksum, checksum, zio, size, &local_offload);
+		}
+
+		/* fall back to ZFS implementation */
+		if (zia_rc != ZIA_OK) {
+			zia_rc = zia_cleanup_abd(abd, size, local_offload,
+			    B_FALSE);
+			if (zia_rc == ZIA_ACCELERATOR_DOWN) {
+				zia_restart_before_vdev(zio);
+				return;
+			}
 		ci->ci_func[0](abd, size, spa->spa_cksum_tmpls[checksum],
 		    &cksum);
+		} else {
+			zio->io_flags |= ZIO_FLAG_DONT_AGGREGATE;
+		}
 		if (BP_USES_CRYPT(bp) && BP_GET_TYPE(bp) != DMU_OT_OBJSET)
 			zio_checksum_handle_crypt(&cksum, &saved, insecure);
 		bp->blk_cksum = cksum;
@@ -438,6 +469,12 @@ zio_checksum_error_impl(spa_t *spa, const blkptr_t *bp,
 	if (ci->ci_flags & ZCHECKSUM_FLAG_EMBEDDED) {
 		zio_cksum_t verifier;
 		size_t eck_offset;
+
+		/* not handling embedded checksums, so bring back data */
+		const int zia_rc = zia_cleanup_abd(abd, size, B_FALSE, B_FALSE);
+		if (zia_rc == ZIA_ACCELERATOR_DOWN) {
+			return (zia_rc);
+		}
 
 		if (checksum == ZIO_CHECKSUM_ZILOG2) {
 			zil_chain_t zilc;
@@ -500,8 +537,25 @@ zio_checksum_error_impl(spa_t *spa, const blkptr_t *bp,
 	} else {
 		byteswap = BP_SHOULD_BYTESWAP(bp);
 		expected_cksum = bp->blk_cksum;
-		ci->ci_func[byteswap](abd, size,
-		    spa->spa_cksum_tmpls[checksum], &actual_cksum);
+
+		zia_props_t *zia_props = zia_get_props(spa);
+		int error = ZIA_FALLBACK;
+		if ((zia_props->can_offload == B_TRUE) &&
+		    (zia_props->checksum == 1)) {
+			error = zia_checksum_error(checksum, abd, size,
+			    byteswap, &actual_cksum);
+		}
+
+		/* fall back to ZFS implementation */
+		if ((error != ZIA_OK) && (error != ECKSUM)) {
+			/* data was modified by reconstruction */
+			error = zia_onload_abd(abd, size, B_FALSE);
+			if (error == ZIA_ACCELERATOR_DOWN) {
+				return (error);
+			}
+			ci->ci_func[byteswap](abd, size,
+			    spa->spa_cksum_tmpls[checksum], &actual_cksum);
+		}
 	}
 
 	/*
