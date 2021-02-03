@@ -39,6 +39,11 @@
 #ifdef _KERNEL
 #include <linux/falloc.h>
 #endif
+
+#ifdef ZIA
+#include <sys/zia.h>
+#endif
+
 /*
  * Virtual device vector for files.
  */
@@ -161,6 +166,14 @@ vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 	}
 #endif
 
+#ifdef ZIA
+	zia_get_props(vd->vdev_spa)->min_offload_size = 2 << *physical_ashift;
+
+	/* try to open the file; ignore errors - will fall back to ZFS */
+	zia_file_open(vd, vd->vdev_path,
+	    vdev_file_open_mode(spa_mode(vd->vdev_spa)), 0);
+#endif
+
 skip_open:
 
 	error =  zfs_file_getattr(vf->vf_file, &zfa);
@@ -184,6 +197,10 @@ vdev_file_close(vdev_t *vd)
 	if (vd->vdev_reopening || vf == NULL)
 		return;
 
+#ifdef ZIA
+	zia_file_close(vd);
+#endif
+
 	if (vf->vf_file != NULL) {
 		(void) zfs_file_close(vf->vf_file);
 	}
@@ -203,18 +220,49 @@ vdev_file_io_strategy(void *arg)
 	void *buf;
 	loff_t off;
 	ssize_t size;
-	int err;
+	int err = 0;
 
 	off = zio->io_offset;
 	size = zio->io_size;
 	resid = 0;
 
 	if (zio->io_type == ZIO_TYPE_READ) {
-		buf = abd_borrow_buf(zio->io_abd, zio->io_size);
+		buf = abd_borrow_buf(zio->io_abd, size);
 		err = zfs_file_pread(vf->vf_file, buf, size, off, &resid);
 		abd_return_buf_copy(zio->io_abd, buf, size);
 	} else {
-		buf = abd_borrow_buf_copy(zio->io_abd, zio->io_size);
+#ifdef ZIA
+		err = EIO;
+
+		boolean_t local_offload = B_FALSE;
+		zia_props_t *zia_props = zia_get_props(zio->io_spa);
+		if ((zia_props->file_write == 1) &&
+		    (zio->io_can_offload == B_TRUE)) {
+			if (zia_offload_abd(zia_props->provider,
+			    zio->io_abd, size, zia_props->min_offload_size,
+			    &local_offload) == ZIA_OK) {
+				err = zia_file_write(vd, zio->io_abd,
+				    size, off, &resid, &err);
+			}
+		}
+
+		if (err == 0) {
+			zio->io_error = err;
+			if (resid != 0 && zio->io_error == 0)
+				zio->io_error = SET_ERROR(ENOSPC);
+
+			zio_delay_interrupt(zio);
+			return;
+		}
+
+		err = zia_cleanup_abd(zio->io_abd, size, local_offload);
+		if (err == ZIA_ACCELERATOR_DOWN) {
+			zia_disable_offloading(zio, B_TRUE);
+			zio_delay_interrupt(zio);
+			return;
+		}
+#endif
+		buf = abd_borrow_buf_copy(zio->io_abd, size);
 		err = zfs_file_pwrite(vf->vf_file, buf, size, off, &resid);
 		abd_return_buf(zio->io_abd, buf, size);
 	}

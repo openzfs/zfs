@@ -1033,6 +1033,9 @@ vdev_draid_map_alloc_row(zio_t *zio, raidz_row_t **rrp, uint64_t io_offset,
 	rr->rr_offset = io_offset;
 	rr->rr_size = io_size;
 #endif
+#ifdef ZIA
+	rr->rr_zia_handle = NULL;
+#endif
 	*rrp = rr;
 
 	uint8_t *base;

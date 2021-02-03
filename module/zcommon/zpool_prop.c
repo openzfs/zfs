@@ -178,6 +178,45 @@ zpool_prop_init(void)
 	    PROP_TYPE_NUMBER, PROP_DEFAULT, ZFS_TYPE_POOL, "DEDUPDITTO",
 	    B_FALSE, sfeatures);
 
+#ifdef ZIA
+	zprop_register_string(ZPOOL_PROP_ZIA_PROVIDER, "zia_provider", NULL,
+	    PROP_DEFAULT, ZFS_TYPE_POOL, "<Z.I.A. Provider Name>", "PROVIDER",
+	    sfeatures);
+	zprop_register_index(ZPOOL_PROP_ZIA_COMPRESS, "zia_compress",
+	    1, PROP_DEFAULT, ZFS_TYPE_POOL, "on | off",
+	    "zia_compress", boolean_table, sfeatures);
+	zprop_register_index(ZPOOL_PROP_ZIA_DECOMPRESS, "zia_decompress",
+	    1, PROP_DEFAULT, ZFS_TYPE_POOL, "on | off",
+	    "zia_decompress", boolean_table, sfeatures);
+	zprop_register_index(ZPOOL_PROP_ZIA_CHECKSUM,
+	    "zia_checksum", 1, PROP_DEFAULT, ZFS_TYPE_POOL,
+	    "on | off", "zia_checksum", boolean_table, sfeatures);
+	zprop_register_index(ZPOOL_PROP_ZIA_RAIDZ1_GEN, "zia_raidz1_gen",
+	    1, PROP_DEFAULT, ZFS_TYPE_POOL, "on | off",
+	    "zia_raidz1_gen", boolean_table, sfeatures);
+	zprop_register_index(ZPOOL_PROP_ZIA_RAIDZ2_GEN, "zia_raidz2_gen",
+	    1, PROP_DEFAULT, ZFS_TYPE_POOL, "on | off",
+	    "zia_raidz2_gen", boolean_table, sfeatures);
+	zprop_register_index(ZPOOL_PROP_ZIA_RAIDZ3_GEN, "zia_raidz3_gen",
+	    1, PROP_DEFAULT, ZFS_TYPE_POOL, "on | off",
+	    "zia_raidz3_gen", boolean_table, sfeatures);
+	zprop_register_index(ZPOOL_PROP_ZIA_RAIDZ1_REC, "zia_raidz1_rec",
+	    1, PROP_DEFAULT, ZFS_TYPE_POOL, "on | off",
+	    "zia_raidz1_rec", boolean_table, sfeatures);
+	zprop_register_index(ZPOOL_PROP_ZIA_RAIDZ2_REC, "zia_raidz2_rec",
+	    1, PROP_DEFAULT, ZFS_TYPE_POOL, "on | off",
+	    "zia_raidz2_rec", boolean_table, sfeatures);
+	zprop_register_index(ZPOOL_PROP_ZIA_RAIDZ3_REC, "zia_raidz3_rec",
+	    1, PROP_DEFAULT, ZFS_TYPE_POOL, "on | off",
+	    "zia_raidz3_rec", boolean_table, sfeatures);
+	zprop_register_index(ZPOOL_PROP_ZIA_FILE_WRITE, "zia_file_write",
+	    1, PROP_DEFAULT, ZFS_TYPE_POOL, "on | off",
+	    "zia_file_write", boolean_table, sfeatures);
+	zprop_register_index(ZPOOL_PROP_ZIA_DISK_WRITE, "zia_disk_write",
+	    1, PROP_DEFAULT, ZFS_TYPE_POOL, "on | off",
+	    "zia_disk_write", boolean_table, sfeatures);
+#endif
+
 	zfs_mod_list_supported_free(sfeatures);
 }
 

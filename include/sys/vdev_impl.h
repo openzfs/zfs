@@ -463,6 +463,9 @@ struct vdev {
 	uint64_t	vdev_io_t;
 	uint64_t	vdev_slow_io_n;
 	uint64_t	vdev_slow_io_t;
+#ifdef ZIA
+	void *vdev_zia_handle;
+#endif
 };
 
 #define	VDEV_PAD_SIZE		(8 << 10)

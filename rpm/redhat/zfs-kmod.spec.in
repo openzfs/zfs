@@ -59,6 +59,12 @@ fi
 %define debuginfo --disable-debuginfo
 %endif
 
+%if %{with zia}
+%define zia --with-zia="%{?DPUSM_ROOT}"
+%else
+%define zia --without-zia
+%endif
+
 %setup -n %{kmod_name}-%{version}
 %build
 %configure \
@@ -69,7 +75,8 @@ fi
         %{debuginfo} \
         %{?kernel_cc} \
         %{?kernel_ld} \
-        %{?kernel_llvm}
+        %{?kernel_llvm} \
+        %{zia}
 make %{?_smp_mflags}
 
 # Module signing (modsign)

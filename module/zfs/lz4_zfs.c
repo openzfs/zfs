@@ -80,6 +80,10 @@ lz4_compress_zfs(void *s_start, void *d_start, size_t s_len,
 	return (bufsiz + sizeof (bufsiz));
 }
 
+#ifdef ZIA
+EXPORT_SYMBOL(lz4_compress_zfs);
+#endif
+
 int
 lz4_decompress_zfs(void *s_start, void *d_start, size_t s_len,
     size_t d_len, int n)
@@ -99,6 +103,10 @@ lz4_decompress_zfs(void *s_start, void *d_start, size_t s_len,
 	return (LZ4_uncompress_unknownOutputSize(&src[sizeof (bufsiz)],
 	    d_start, bufsiz, d_len) < 0);
 }
+
+#ifdef ZIA
+EXPORT_SYMBOL(lz4_decompress_zfs);
+#endif
 
 /*
  * LZ4 API Description:
