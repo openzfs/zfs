@@ -320,15 +320,23 @@ DWORD zfs_install(char *inf_path) {
 
 	DWORD error = 0;
 	// 128+4	If a reboot of the computer is necessary, ask the user for permission before rebooting.
-	
-	error = executeInfSection("ZFSin_Install 128 ", inf_path);
+
+	if (_access(inf_path, F_OK) != 0) {
+		char cwd[1024];
+		_getcwd(cwd, sizeof(cwd));
+		fprintf(stderr, "Unable to locate '%s' we are at '%s'\r\n", inf_path,
+			cwd);
+		return -1;
+	}
+
+	error = executeInfSection("OpenZFS_Install 128 ", inf_path);
 	
 	// Start driver service if not already running
-	char serviceName[] = "ZFSin";
+	char serviceName[] = "OpenZFS";
 	if (!error)
 		error = startService(serviceName);
 	else
-		fprintf(stderr, "Installation failed, skip starting the service");
+		fprintf(stderr, "Installation failed, skip starting the service\r\n");
 
 	if (!error)
 		error = installRootDevice(inf_path);
@@ -452,7 +460,7 @@ DWORD startService(char* serviceName)
 			fprintf(stderr, "Service is already running\n");
 		} else {
 			fprintf(stderr, "StartServiceA failed, error %d\n", GetLastError());
-			error = GetLastError();
+			// error = GetLastError();
 			goto CloseServ;
 		}
 	}
@@ -507,7 +515,7 @@ DWORD send_zfs_ioc_unregister_fs(void)
 #include <cfgmgr32.h>
 #include <newdev.h>
 
-#define ZFS_ROOTDEV "Root\\ZFSin"
+#define ZFS_ROOTDEV "Root\\OpenZFS"
 // DevCon uses LoadLib() - but lets just static link
 #pragma comment(lib, "Newdev.lib")
 
