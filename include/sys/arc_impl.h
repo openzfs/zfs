@@ -560,7 +560,8 @@ struct arc_buf_hdr {
 	 * Encryption parameters. Defined only when ARC_FLAG_ENCRYPTED
 	 * is set and the L1 header exists.
 	 */
-	arc_buf_hdr_crypt_t b_crypt_hdr;
+	arc_buf_hdr_crypt_t 	b_crypt_hdr;
+	boolean_t 		b_can_offload;
 };
 
 typedef struct arc_stats {

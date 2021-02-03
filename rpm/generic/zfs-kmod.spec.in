@@ -42,6 +42,7 @@
 %bcond_with     debug
 %bcond_with     debuginfo
 %bcond_with     devel
+%bcond_with     zia
 
 
 Name:           %{module}-kmod
@@ -139,6 +140,12 @@ bash %{SOURCE10}  --target %{_target_cpu} %{?repo:--repo %{?repo}} --kmodname %{
     %define debuginfo --disable-debuginfo
 %endif
 
+%if %{with zia}
+    %define zia --with-zia="%{?DPUSM_ROOT}"
+%else
+    %define zia --without-zia
+%endif
+
 # Leverage VPATH from configure to avoid making multiple copies.
 %define _configure ../%{module}-%{version}/configure
 
@@ -168,7 +175,8 @@ for kernel_version in %{?kernel_versions}; do
         %{?kernel_ld} \
         %{?kernel_llvm} \
         %{?kernel_cross_compile} \
-        %{?kernel_arch}
+        %{?kernel_arch} \
+        %{zia}
 
     make %{?_smp_mflags}
     cd ..
