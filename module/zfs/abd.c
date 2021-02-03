@@ -102,6 +102,7 @@
 #include <sys/zio.h>
 #include <sys/zfs_context.h>
 #include <sys/zfs_znode.h>
+#include <sys/zia.h>
 
 /* see block comment above for description */
 int zfs_abd_scatter_enabled = B_TRUE;
@@ -152,11 +153,15 @@ abd_init_struct(abd_t *abd)
 	abd->abd_parent = NULL;
 #endif
 	abd->abd_size = 0;
+
+	abd->abd_zia_handle = NULL;
 }
 
 static void
 abd_fini_struct(abd_t *abd)
 {
+	zia_free_abd(abd, B_TRUE);
+
 	mutex_destroy(&abd->abd_mtx);
 	ASSERT(!list_link_active(&abd->abd_gang_link));
 #ifdef ZFS_DEBUG
@@ -693,7 +698,6 @@ abd_release_ownership_of_buf(abd_t *abd)
 	abd_update_linear_stats(abd, ABDSTAT_DECR);
 }
 
-
 /*
  * Give this ABD ownership of the buffer that it's storing. Can only be used on
  * linear ABDs which were allocated via abd_get_from_buf(), or ones allocated
@@ -1212,3 +1216,4 @@ abd_raidz_rec_iterate(abd_t **cabds, abd_t **tabds,
 }
 
 EXPORT_SYMBOL(abd_free);
+EXPORT_SYMBOL(abd_get_from_buf);
