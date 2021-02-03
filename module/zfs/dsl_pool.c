@@ -399,10 +399,14 @@ dsl_pool_close(dsl_pool_t *dp)
 	taskq_destroy(dp->dp_zil_clean_taskq);
 	spa_sync_tq_destroy(dp->dp_spa);
 
-	if (dp->dp_spa->spa_state == POOL_STATE_EXPORTED ||
-	    dp->dp_spa->spa_state == POOL_STATE_DESTROYED) {
+	if ((dp->dp_spa->spa_state == POOL_STATE_EXPORTED ||
+	    dp->dp_spa->spa_state == POOL_STATE_DESTROYED) &&
+	    zia_get_props(dp->dp_spa)->provider == NULL) {
 		/*
 		 * On export/destroy perform the ARC flush asynchronously.
+		 * Not done with a Z.I.A. provider, because ARC buffers can
+		 * hold provider handles, so they must be freed before
+		 * spa_unload() returns the provider.
 		 */
 		arc_flush_async(dp->dp_spa);
 	} else {
