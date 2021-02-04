@@ -63,12 +63,17 @@ If specified, you can list property information by the absolute pathname or the
 relative pathname.
 By default, all file systems and volumes are displayed.
 Snapshots are displayed if the
-.Sy listsnaps
-property is
+.Sy listsnapshots
+pool property is
 .Sy on
 .Po the default is
 .Sy off
-.Pc .
+.Pc ,
+or if the
+.Fl t Sy snapshot
+or
+.Fl t Sy all
+options are specified.
 The following fields are displayed:
 .Sy name Ns \&, Sy used Ns \&, Sy available Ns \&, Sy referenced Ns \&, Sy mountpoint Ns .
 .Bl -tag -width "-H"
