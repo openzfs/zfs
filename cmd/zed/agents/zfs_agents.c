@@ -13,6 +13,7 @@
 /*
  * Copyright (c) 2016, Intel Corporation.
  * Copyright (c) 2018, loli10K <ezomori.nozomu@gmail.com>
+ * Copyright (c) 2021 Hewlett Packard Enterprise Development LP
  */
 
 #include <libnvpair.h>
@@ -211,12 +212,18 @@ zfs_agent_post_event(const char *class, const char *subclass, nvlist_t *nvl)
 		 * For multipath, spare and l2arc devices ZFS_EV_VDEV_GUID or
 		 * ZFS_EV_POOL_GUID may be missing so find them.
 		 */
-		(void) nvlist_lookup_string(nvl, DEV_IDENTIFIER,
-		    &search.gs_devid);
-		(void) zpool_iter(g_zfs_hdl, zfs_agent_iter_pool, &search);
-		pool_guid = search.gs_pool_guid;
-		vdev_guid = search.gs_vdev_guid;
-		devtype = search.gs_vdev_type;
+		if (pool_guid == 0 || vdev_guid == 0) {
+			if ((nvlist_lookup_string(nvl, DEV_IDENTIFIER,
+			    &search.gs_devid) == 0) &&
+			    (zpool_iter(g_zfs_hdl, zfs_agent_iter_pool, &search)
+			    == 1)) {
+				if (pool_guid == 0)
+					pool_guid = search.gs_pool_guid;
+				if (vdev_guid == 0)
+					vdev_guid = search.gs_vdev_guid;
+				devtype = search.gs_vdev_type;
+			}
+		}
 
 		/*
 		 * We want to avoid reporting "remove" events coming from
