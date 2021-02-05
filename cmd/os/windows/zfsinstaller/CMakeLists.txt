@@ -1,3 +1,6 @@
+
+use_clang()
+
 um_add_executable(zfsinstaller
 	zfsinstaller.cpp
 	zfsinstaller.h

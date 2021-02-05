@@ -1,6 +1,4 @@
 
-add_subdirectory(spl)
-add_subdirectory(zfs)
 #include(ExternalProject)
 
 #ExternalProject_Add ( spl
@@ -15,6 +13,9 @@ add_subdirectory(zfs)
 #    SOURCE_DIR "zfs" # Tell CMake to use subdirectory as source.
 #)
 
+
+add_subdirectory(spl)
+add_subdirectory(zfs)
 
 wdk_add_driver(OpenZFS
   debug.c
