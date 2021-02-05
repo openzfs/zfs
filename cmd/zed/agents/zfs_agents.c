@@ -13,6 +13,7 @@
 /*
  * Copyright (c) 2016, Intel Corporation.
  * Copyright (c) 2018, loli10K <ezomori.nozomu@gmail.com>
+ * Copyright (c) 2021 Hewlett Packard Enterprise Development LP
  */
 
 #include <libnvpair.h>
