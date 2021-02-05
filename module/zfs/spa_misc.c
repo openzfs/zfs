@@ -1278,9 +1278,9 @@ spa_vdev_config_exit(spa_t *spa, vdev_t *vd, uint64_t txg, int error, char *tag)
 		 */
 		vdev_autotrim_stop_wait(vd);
 
-		spa_config_enter(spa, SCL_ALL, spa, RW_WRITER);
+		spa_config_enter(spa, SCL_STATE_ALL, spa, RW_WRITER);
 		vdev_free(vd);
-		spa_config_exit(spa, SCL_ALL, spa);
+		spa_config_exit(spa, SCL_STATE_ALL, spa);
 	}
 
 	/*
