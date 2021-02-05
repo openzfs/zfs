@@ -23,6 +23,12 @@ function(use_clang)
 add_definitions("/FI ${CMAKE_SOURCE_DIR}/include/os/windows/zfs/zfs_config.h")
 set(CMAKE_C_COMPILER clang-cl.exe PARENT_SCOPE)
 set(CMAKE_CXX_COMPILER clang-cl.exe PARENT_SCOPE)
+if(CMAKE_SIZEOF_VOID_P EQUAL 4)
+	add_compile_options(-m32)
+else()
+	add_compile_options(-m64)
+endif()
+
 add_compile_options(
 	# These are all MS headers
 	-Wno-nonportable-include-path
@@ -37,7 +43,7 @@ add_compile_options(
 	-Wno-unused-local-typedef
 	-Wno-int-to-void-pointer-cast
 	# ZFS related
-	#-Wno-misleading-indentation
+	-Wno-misleading-indentation
 	-Wno-dangling-else
 	-Wno-missing-field-initializers
 	#-fms-extensions
