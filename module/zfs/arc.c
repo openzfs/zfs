@@ -443,12 +443,12 @@ int zfs_compressed_arc_enabled = B_TRUE;
  * ARC will evict meta buffers that exceed arc_meta_limit. This
  * tunable make arc_meta_limit adjustable for different workloads.
  */
-unsigned long zfs_arc_meta_limit_percent = 75;
+unsigned long zfs_arc_meta_limit_percent = 100;
 
 /*
  * Percentage that can be consumed by dnodes of ARC meta buffers.
  */
-unsigned long zfs_arc_dnode_limit_percent = 10;
+unsigned long zfs_arc_dnode_limit_percent = 75;
 
 /*
  * These tunables are Linux specific
@@ -7661,9 +7661,8 @@ arc_init(void)
 	    offsetof(arc_prune_t, p_node));
 	mutex_init(&arc_prune_mtx, NULL, MUTEX_DEFAULT, NULL);
 
-	arc_prune_taskq = taskq_create("arc_prune", 100, defclsyspri,
-	    boot_ncpus, INT_MAX, TASKQ_PREPOPULATE | TASKQ_DYNAMIC |
-	    TASKQ_THREADS_CPU_PCT);
+	arc_prune_taskq = taskq_create("arc_prune", 1, defclsyspri,
+	    1, INT_MAX, TASKQ_PREPOPULATE | TASKQ_DYNAMIC);
 
 	arc_ksp = kstat_create("zfs", 0, "arcstats", "misc", KSTAT_TYPE_NAMED,
 	    sizeof (arc_stats) / sizeof (kstat_named_t), KSTAT_FLAG_VIRTUAL);
