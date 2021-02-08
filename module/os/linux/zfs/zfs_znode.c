@@ -479,11 +479,7 @@ zfs_set_inode_flags(znode_t *zp, struct inode *ip)
 }
 
 /*
- * Update the embedded inode given the znode.  We should work toward
- * eliminating this function as soon as possible by removing values
- * which are duplicated between the znode and inode.  If the generic
- * inode has the correct field it should be used, and the ZFS code
- * updated to access the inode.  This can be done incrementally.
+ * Update the embedded inode given the znode.
  */
 void
 zfs_znode_update_vfs(znode_t *zp)
