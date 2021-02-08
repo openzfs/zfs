@@ -28,6 +28,12 @@ extern "C" {
 	#include <unistd.h>
 	extern char* optarg;
 	extern int optind;
+
+	#include <sys/fs/zfs.h>
+	// kernel header'
+	// #include <sys/zfs_ioctl_compat.h>
+	#define ZFSIOCTL_BASE 0x800
+
 }
 
 #include "zfsinstaller.h"
@@ -490,7 +496,7 @@ DWORD send_zfs_ioc_unregister_fs(void)
 	// We use bytesReturned to hold "zfs_module_busy".
 	BOOL ret = DeviceIoControl(
 		g_fd,
-		CTL_CODE(ZFSIOCTL_TYPE, 0x8E2, METHOD_NEITHER, FILE_ANY_ACCESS),
+		CTL_CODE(ZFSIOCTL_TYPE, ZFSIOCTL_BASE + ZFS_IOC_UNREGISTER_FS, METHOD_NEITHER, FILE_ANY_ACCESS),
 		NULL,
 		0,
 		NULL,

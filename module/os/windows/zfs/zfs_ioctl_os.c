@@ -363,6 +363,9 @@ zfs_ioc_unregister_fs(void)
 		IoUnregisterFsRegistrationChange(WIN_DriverObject, DriverNotificationRoutine);
 		IoUnregisterFileSystem(fsDiskDeviceObject);
 		ObDereferenceObject(fsDiskDeviceObject);
+		UNICODE_STRING ntWin32NameString;
+		RtlInitUnicodeString(&ntWin32NameString, ZFS_DEV_DOS);
+		IoDeleteSymbolicLink(&ntWin32NameString);
 		IoDeleteDevice(fsDiskDeviceObject);
 		fsDiskDeviceObject = NULL;
 		ObDereferenceObject(ioctlDeviceObject);
