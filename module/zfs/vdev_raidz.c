@@ -3660,23 +3660,28 @@ raidz_reflow_scratch_sync(void *arg, dmu_tx_t *tx)
 	spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
 	vdev_t *raidvd = vdev_lookup_top(spa, vre->vre_vdev_id);
 	int ashift = raidvd->vdev_ashift;
-	uint64_t scratch_size_per_child = raidvd->vdev_children << ashift;
-	uint64_t scratch_logical_size =
-	    scratch_size_per_child * (raidvd->vdev_children - 1);
+	uint64_t write_size = P2ALIGN(VDEV_BOOT_SIZE, 1 << ashift);
+	uint64_t logical_size = write_size * raidvd->vdev_children;
+	uint64_t read_size =
+	    P2ROUNDUP(DIV_ROUND_UP(logical_size, (raidvd->vdev_children - 1)),
+	    1 << ashift);
 
 	/*
-	 * XXX need to check this first.
-	 * XXX for performance, may want to use the whole BOOT_SIZE
+	 * The scratch space much be large enough to get us to the point
+	 * that one row does not overlap itself when moved.  This is checked
+	 * by vdev_raidz_attach_check().
 	 */
-	ASSERT3U(scratch_size_per_child, <=, VDEV_BOOT_SIZE);
+	VERIFY3U(write_size, >=, (raidvd->vdev_children - 1) << ashift);
+	VERIFY3U(write_size, <=, VDEV_BOOT_SIZE);
+	VERIFY3U(write_size, <=, read_size);
 
 	zfs_locked_range_t *lr = zfs_rangelock_enter(&vre->vre_rangelock,
-	    0, scratch_logical_size, RL_WRITER);
+	    0, logical_size, RL_WRITER);
 
 	abd_t **abds = kmem_alloc(raidvd->vdev_children * sizeof (abd_t *),
 	    KM_SLEEP);
 	for (int i = 0; i < raidvd->vdev_children; i++) {
-		abds[i] = abd_alloc_linear(scratch_size_per_child, B_FALSE);
+		abds[i] = abd_alloc_linear(read_size, B_FALSE);
 	}
 
 	raidz_expand_pause(spa, 1);
@@ -3687,7 +3692,7 @@ raidz_reflow_scratch_sync(void *arg, dmu_tx_t *tx)
 	pio = zio_root(spa, NULL, NULL, 0);
 	for (int i = 0; i < raidvd->vdev_children - 1; i++) {
 		zio_nowait(zio_read_phys(pio, raidvd->vdev_child[i],
-		    VDEV_LABEL_START_SIZE, scratch_size_per_child, abds[i],
+		    VDEV_LABEL_START_SIZE, read_size, abds[i],
 		    ZIO_CHECKSUM_OFF, NULL, NULL, ZIO_PRIORITY_ASYNC_READ,
 		    0, B_FALSE));
 	}
@@ -3697,17 +3702,28 @@ raidz_reflow_scratch_sync(void *arg, dmu_tx_t *tx)
 	 * Reflow in memory.
 	 */
 	raidz_expand_pause(spa, 2);
-	for (int i = raidvd->vdev_children - 1;
-	    i < scratch_logical_size >> ashift; i++) {
+	uint64_t logical_sectors = logical_size >> ashift;
+	for (int i = raidvd->vdev_children - 1; i < logical_sectors; i++) {
 		int oldchild = i % (raidvd->vdev_children - 1);
 		uint64_t oldoff = (i / (raidvd->vdev_children - 1)) << ashift;
 
 		int newchild = i % raidvd->vdev_children;
 		uint64_t newoff = (i / raidvd->vdev_children) << ashift;
 
+		/* a single sector should not be copying over itself */
+		ASSERT(!(newchild == oldchild && newoff == oldoff));
+
 		abd_copy_off(abds[newchild], abds[oldchild],
 		    newoff, oldoff, 1 << ashift);
 	}
+
+	/*
+	 * Verify that we filled in everything we intended to (write_size on
+	 * each child).
+	 */
+	VERIFY0(logical_sectors % raidvd->vdev_children);
+	VERIFY3U((logical_sectors / raidvd->vdev_children) << ashift, ==,
+	    write_size);
 
 	/*
 	 * Write to scratch location (boot area).
@@ -3715,7 +3731,7 @@ raidz_reflow_scratch_sync(void *arg, dmu_tx_t *tx)
 	pio = zio_root(spa, NULL, NULL, 0);
 	for (int i = 0; i < raidvd->vdev_children; i++) {
 		zio_nowait(zio_write_phys(pio, raidvd->vdev_child[i],
-		    VDEV_BOOT_OFFSET, scratch_size_per_child, abds[i],
+		    VDEV_BOOT_OFFSET, write_size, abds[i],
 		    ZIO_CHECKSUM_OFF, NULL, NULL, ZIO_PRIORITY_ASYNC_WRITE,
 		    0, B_TRUE));
 	}
@@ -3725,7 +3741,7 @@ raidz_reflow_scratch_sync(void *arg, dmu_tx_t *tx)
 	zio_wait(pio);
 
 	zfs_dbgmsg("raidz reflow: wrote %llu bytes (logical) to scratch area",
-	    scratch_logical_size);
+	    logical_size);
 
 	raidz_expand_pause(spa, 3);
 
@@ -3739,26 +3755,23 @@ raidz_reflow_scratch_sync(void *arg, dmu_tx_t *tx)
 	 * will prefer this uberblock.
 	 */
 	RAIDZ_REFLOW_SET(&spa->spa_ubsync,
-	    RRSS_SCRATCH_VALID, scratch_logical_size);
+	    RRSS_SCRATCH_VALID, logical_size);
 	spa->spa_ubsync.ub_timestamp++;
 	ASSERT0(vdev_uberblock_sync_list(&spa->spa_root_vdev, 1,
 	    &spa->spa_ubsync, ZIO_FLAG_CONFIG_WRITER));
 
 	zfs_dbgmsg("raidz reflow: uberblock updated (txg %llu, SCRATCH_VALID, size %llu, ts %llu)",
-	    spa->spa_ubsync.ub_txg, scratch_logical_size, spa->spa_ubsync.ub_timestamp);
+	    spa->spa_ubsync.ub_txg, logical_size, spa->spa_ubsync.ub_timestamp);
 
 	raidz_expand_pause(spa, 4);
 
 	/*
 	 * Overwrite with reflow'ed data.
-	 *
-	 * Overwrite the whole thing even though some of it is unchanged.
-	 * Harmless and easier than calculating the new size for each child.
 	 */
 	pio = zio_root(spa, NULL, NULL, 0);
 	for (int i = 0; i < raidvd->vdev_children; i++) {
 		zio_nowait(zio_write_phys(pio, raidvd->vdev_child[i],
-		    VDEV_LABEL_START_SIZE, scratch_size_per_child, abds[i],
+		    VDEV_LABEL_START_SIZE, write_size, abds[i],
 		    ZIO_CHECKSUM_OFF, NULL, NULL, ZIO_PRIORITY_ASYNC_WRITE,
 		    0, B_FALSE));
 	}
@@ -3768,7 +3781,7 @@ raidz_reflow_scratch_sync(void *arg, dmu_tx_t *tx)
 	zio_wait(pio);
 
 	zfs_dbgmsg("raidz reflow: overwrote %llu bytes (logical) to real location",
-	    scratch_logical_size);
+	    logical_size);
 
 	for (int i = 0; i < raidvd->vdev_children; i++)
 		abd_free(abds[i]);
@@ -3785,23 +3798,28 @@ raidz_reflow_scratch_sync(void *arg, dmu_tx_t *tx)
 	 * space, we would lose the regular writes.
 	 */
 	RAIDZ_REFLOW_SET(&spa->spa_ubsync,
-	    RRSS_SCRATCH_NOT_IN_USE, scratch_logical_size);
+	    RRSS_SCRATCH_NOT_IN_USE, logical_size);
 	spa->spa_ubsync.ub_timestamp++;
 	ASSERT0(vdev_uberblock_sync_list(&spa->spa_root_vdev, 1,
 	    &spa->spa_ubsync, ZIO_FLAG_CONFIG_WRITER));
 
 	zfs_dbgmsg("raidz reflow: uberblock updated (txg %llu, SCRATCH_NOT_IN_USE, size %llu, ts %llu)",
-	    spa->spa_ubsync.ub_txg, scratch_logical_size, spa->spa_ubsync.ub_timestamp);
+	    spa->spa_ubsync.ub_txg, logical_size, spa->spa_ubsync.ub_timestamp);
 
 	raidz_expand_pause(spa, 6);
 
 	/*
 	 * Update progress.
 	 */
-	vre->vre_offset = vre->vre_offset_phys = scratch_logical_size;
+	vre->vre_bytes_copied = vre->vre_offset = vre->vre_offset_phys =
+	    logical_size;
 	zfs_rangelock_exit(lr);
 	//vdev_config_dirty(raidvd);
 	spa_config_exit(spa, SCL_STATE, FTAG);
+
+	VERIFY0(zap_update(spa->spa_meta_objset,
+	    raidvd->vdev_top_zap, VDEV_TOP_ZAP_RAIDZ_EXPAND_BYTES_COPIED,
+	    sizeof (vre->vre_bytes_copied), 1, &vre->vre_bytes_copied, tx));
 
 	raidz_expand_pause(spa, 7);
 }
@@ -3815,16 +3833,15 @@ void
 vdev_raidz_reflow_copy_scratch(spa_t *spa)
 {
 	vdev_raidz_expand_t *vre = spa->spa_raidz_expand;
-	uint64_t scratch_logical_size = vre->vre_offset;
-	ASSERT3U(scratch_logical_size, ==, RRSS_GET_OFFSET(&spa->spa_uberblock));
-	ASSERT3U(scratch_logical_size, ==, vre->vre_offset_phys);
+	uint64_t logical_size = vre->vre_offset;
+	ASSERT3U(logical_size, ==, RRSS_GET_OFFSET(&spa->spa_uberblock));
+	ASSERT3U(logical_size, ==, vre->vre_offset_phys);
 	ASSERT3U(RRSS_GET_STATE(&spa->spa_uberblock), ==, RRSS_SCRATCH_VALID);
 
 	spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
 	vdev_t *raidvd = vdev_lookup_top(spa, vre->vre_vdev_id);
-	ASSERT0(scratch_logical_size % raidvd->vdev_children);
-	uint64_t scratch_size_per_child =
-	    scratch_logical_size / raidvd->vdev_children;
+	ASSERT0(logical_size % raidvd->vdev_children);
+	uint64_t write_size = logical_size / raidvd->vdev_children;
 
 	zio_t *pio;
 
@@ -3834,14 +3851,14 @@ vdev_raidz_reflow_copy_scratch(spa_t *spa)
 	abd_t **abds = kmem_alloc(raidvd->vdev_children * sizeof (abd_t *),
 	    KM_SLEEP);
 	for (int i = 0; i < raidvd->vdev_children; i++) {
-		abds[i] = abd_alloc_linear(scratch_size_per_child, B_FALSE);
+		abds[i] = abd_alloc_linear(write_size, B_FALSE);
 	}
 
 	raidz_expand_pause(spa, 8);
 	pio = zio_root(spa, NULL, NULL, 0);
 	for (int i = 0; i < raidvd->vdev_children; i++) {
 		zio_nowait(zio_read_phys(pio, raidvd->vdev_child[i],
-		    VDEV_BOOT_OFFSET, scratch_size_per_child, abds[i],
+		    VDEV_BOOT_OFFSET, write_size, abds[i],
 		    ZIO_CHECKSUM_OFF, NULL, NULL, ZIO_PRIORITY_ASYNC_READ,
 		    0, B_TRUE));
 	}
@@ -3854,7 +3871,7 @@ vdev_raidz_reflow_copy_scratch(spa_t *spa)
 	pio = zio_root(spa, NULL, NULL, 0);
 	for (int i = 0; i < raidvd->vdev_children; i++) {
 		zio_nowait(zio_write_phys(pio, raidvd->vdev_child[i],
-		    VDEV_LABEL_START_SIZE, scratch_size_per_child, abds[i],
+		    VDEV_LABEL_START_SIZE, write_size, abds[i],
 		    ZIO_CHECKSUM_OFF, NULL, NULL, ZIO_PRIORITY_ASYNC_WRITE,
 		    0, B_FALSE));
 	}
@@ -3864,7 +3881,7 @@ vdev_raidz_reflow_copy_scratch(spa_t *spa)
 	zio_wait(pio);
 
 	zfs_dbgmsg("raidz reflow recovery: overwrote %llu bytes (logical) to real location",
-	    scratch_logical_size);
+	    logical_size);
 
 	for (int i = 0; i < raidvd->vdev_children; i++)
 		abd_free(abds[i]);
@@ -3875,15 +3892,16 @@ vdev_raidz_reflow_copy_scratch(spa_t *spa)
 	 * Update uberblock.
 	 */
 	RAIDZ_REFLOW_SET(&spa->spa_ubsync,
-	    RRSS_SCRATCH_NOT_IN_USE, scratch_logical_size);
+	    RRSS_SCRATCH_NOT_IN_USE, logical_size);
 	spa->spa_ubsync.ub_timestamp++;
 	VERIFY0(vdev_uberblock_sync_list(&spa->spa_root_vdev, 1,
 	    &spa->spa_ubsync, ZIO_FLAG_CONFIG_WRITER));
 
 	zfs_dbgmsg("raidz reflow recovery: uberblock updated (txg %llu, SCRATCH_NOT_IN_USE, size %llu, ts %llu)",
-	    spa->spa_ubsync.ub_txg, scratch_logical_size, spa->spa_ubsync.ub_timestamp);
+	    spa->spa_ubsync.ub_txg, logical_size, spa->spa_ubsync.ub_timestamp);
 
-	vre->vre_offset = vre->vre_offset_phys = scratch_logical_size;
+	vre->vre_bytes_copied = vre->vre_offset = vre->vre_offset_phys =
+	    logical_size;
 	//vdev_config_dirty(raidvd);
 	spa_config_exit(spa, SCL_STATE, FTAG);
 	raidz_expand_pause(spa, 11);
@@ -4064,6 +4082,24 @@ spa_start_raidz_expansion_thread(spa_t *spa)
 	ASSERT3P(spa->spa_raidz_expand_zthr, ==, NULL);
 	spa->spa_raidz_expand_zthr = zthr_create("raidz_expand",
 	    spa_raidz_expand_cb_check, spa_raidz_expand_cb, spa);
+}
+
+int
+vdev_raidz_attach_check(vdev_t *new_child)
+{
+	vdev_t *raidvd = new_child->vdev_parent;
+	uint64_t new_children = raidvd->vdev_children;
+
+	/*
+	 * We use the "boot" space as scratch space to handle overwriting the
+	 * initial part of the vdev.  If it is too small, then this expansion
+	 * is not allowed.  This would be very unusual (e.g. ashift > 13 and
+	 * >200 children).
+	 */
+	if ((new_children - 1) << raidvd->vdev_ashift > VDEV_BOOT_SIZE) {
+		return (EINVAL);
+	}
+	return (0);
 }
 
 void

@@ -6775,7 +6775,19 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 	if (newvd->vdev_ashift > oldvd->vdev_top->vdev_ashift)
 		return (spa_vdev_exit(spa, newrootvd, txg, ENOTSUP));
 
+	/*
+	 * RAIDZ-expansion-specific checks.
+	 */
+	if (raidz && vdev_raidz_attach_check(newvd) != 0) {
+		return (spa_vdev_exit(spa, newrootvd, txg, ENOTSUP));
+	}
+
 	if (raidz) {
+		/*
+		 * Note: oldvdpath is freed by spa_strfree(),  but
+		 * kmem_asprintf() is freed by kmem_strfree(), so we have to
+		 * move it to a spa_strdup-ed string.
+		 */
 		char *tmp = kmem_asprintf("raidz%u-%u",
 		    vdev_get_nparity(oldvd), oldvd->vdev_id);
 		oldvdpath = spa_strdup(tmp);
