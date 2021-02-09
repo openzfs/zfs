@@ -479,14 +479,10 @@ zfs_set_inode_flags(znode_t *zp, struct inode *ip)
 }
 
 /*
- * Update the embedded inode given the znode.  We should work toward
- * eliminating this function as soon as possible by removing values
- * which are duplicated between the znode and inode.  If the generic
- * inode has the correct field it should be used, and the ZFS code
- * updated to access the inode.  This can be done incrementally.
+ * Update the embedded inode given the znode.
  */
 void
-zfs_inode_update(znode_t *zp)
+zfs_znode_update_vfs(znode_t *zp)
 {
 	zfsvfs_t	*zfsvfs;
 	struct inode	*ip;
@@ -602,7 +598,7 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	ZFS_TIME_DECODE(&ip->i_ctime, ctime);
 
 	ip->i_ino = zp->z_id;
-	zfs_inode_update(zp);
+	zfs_znode_update_vfs(zp);
 	zfs_inode_set_ops(zfsvfs, ip);
 
 	/*
@@ -1278,7 +1274,7 @@ zfs_rezget(znode_t *zp)
 
 	zp->z_blksz = doi.doi_data_block_size;
 	zp->z_atime_dirty = B_FALSE;
-	zfs_inode_update(zp);
+	zfs_znode_update_vfs(zp);
 
 	/*
 	 * If the file has zero links, then it has been unlinked on the send
@@ -1796,7 +1792,7 @@ log:
 
 	dmu_tx_commit(tx);
 
-	zfs_inode_update(zp);
+	zfs_znode_update_vfs(zp);
 	error = 0;
 
 out:
