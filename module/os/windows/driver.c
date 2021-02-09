@@ -39,11 +39,12 @@ DRIVER_UNLOAD OpenZFS_Fini;
 void OpenZFS_Fini(PDRIVER_OBJECT  DriverObject)
 {
 	KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_INFO_LEVEL, "OpenZFS_Fini\n"));
-	system_taskq_fini();
 
 	zfs_vfsops_fini();
 
 	zfs_kmod_fini();
+
+	system_taskq_fini();
 
 	if (STOR_DriverUnload != NULL) {
 		STOR_DriverUnload(DriverObject);
@@ -89,6 +90,8 @@ NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT  DriverObject, _In_ PUNICODE_STRING pRe
 
 	kstat_windows_init(pRegistryPath);
 
+        system_taskq_init();
+
 	/*
 	 * Initialise storport for the ZVOL virtual disks. This also
 	 * sets the Driver Callbacks, so we make a copy of them, so
@@ -116,7 +119,6 @@ NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT  DriverObject, _In_ PUNICODE_STRING pRe
         /* Register fs with Win */
         zfs_vfsops_init();
 
-        system_taskq_init();
 
 	KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "OpenZFS: Started\n"));
 	return STATUS_SUCCESS;
