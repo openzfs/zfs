@@ -1772,7 +1772,7 @@ zfs_vget(struct super_block *sb, struct inode **ipp, fid_t *fidp)
 
 	*ipp = ZTOI(zp);
 	if (*ipp)
-		zfs_inode_update(ITOZ(*ipp));
+		zfs_znode_update_vfs(ITOZ(*ipp));
 
 	ZFS_EXIT(zfsvfs);
 	return (0);
