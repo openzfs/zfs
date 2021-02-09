@@ -7782,7 +7782,7 @@ print_raidz_expand_status(zpool_handle_t *zhp, pool_raidz_expand_stat_t *pres)
 	    &child, &children) == 0);
 	assert(pres->pres_expanding_vdev < children);
 
-	(void) printf(gettext("raidz expand: "));
+	printf_color(ANSI_BOLD, gettext("raidz expand: "));
 
 	start = pres->pres_start_time;
 	end = pres->pres_end_time;
