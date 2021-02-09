@@ -603,13 +603,6 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 	asize = 0;
 
 	raidz_reflow_scratch_state_t rrss = RRSS_GET_STATE(ub);
-#if 0
-	if (rrss != RRSS_SCRATCH_NOT_IN_USE) {
-		ASSERT0(reflow_offset_phys);
-		ASSERT0(reflow_offset_next);
-		reflow_offset_phys = reflow_offset_next = RRSS_GET_OFFSET(ub);
-	}
-#endif
 
 	/*
 	 * If the block crosses the reflow progress boundary
@@ -695,11 +688,11 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 			/*
 			 * Get this from the scratch space if appropriate. We
 			 * should only be doing reads if this is the case.
-			 * This only happens when in the middle of pool
-			 * import if we crashed in the middle of
+			 * This only happens if we crashed in the middle of
 			 * raidz_reflow_scratch_sync() (while it's running,
 			 * the rangelock prevents us from doing concurrent
-			 * io).
+			 * io), and even then only during zpool import or
+			 * when the pool is imported readonly.
 			 */
 			if (rrss == RRSS_SCRATCH_VALID &&
 			    (b + c) << ashift < RRSS_GET_OFFSET(ub)) {
@@ -4288,26 +4281,12 @@ vdev_raidz_init(spa_t *spa, nvlist_t *nv, void **tsd)
 	(void) nvlist_lookup_uint64(nv, ZPOOL_CONFIG_ID,
 	    &vdrz->vn_vre.vre_vdev_id);
 
-#if 0
-	boolean_t reflow_in_progress = B_FALSE;
-	if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_RAIDZ_EXPAND_OFFSET,
-	    &vdrz->vn_vre.vre_offset_phys) == 0) {
-		vdrz->vn_vre.vre_offset = vdrz->vn_vre.vre_offset_phys;
-		ASSERT3U(vdrz->vn_vre.vre_offset, !=, UINT64_MAX);
-		reflow_in_progress = B_TRUE;
-
-		/*
-		 * vdev_load()->vdev_raidz_load() will set spa_raidz_expand.
-		 */
-	}
-#else
 	boolean_t reflow_in_progress =
 	    nvlist_exists(nv, ZPOOL_CONFIG_RAIDZ_EXPANDING);
 	if (reflow_in_progress) {
 		vdrz->vn_vre.vre_offset = vdrz->vn_vre.vre_offset_phys =
 		    RRSS_GET_OFFSET(&spa->spa_uberblock);
 	}
-#endif
 
 	vdrz->vd_original_width = children;
 	uint64_t *txgs;
@@ -4380,12 +4359,7 @@ vdev_raidz_config_generate(vdev_t *vd, nvlist_t *nv)
 	fnvlist_add_uint64(nv, ZPOOL_CONFIG_NPARITY, vdrz->vd_nparity);
 
 	if (vdrz->vn_vre.vre_offset_phys != UINT64_MAX) {
-#if 0
-		fnvlist_add_uint64(nv, ZPOOL_CONFIG_RAIDZ_EXPAND_OFFSET,
-		    vdrz->vn_vre.vre_offset_phys);
-#else
 		fnvlist_add_boolean(nv, ZPOOL_CONFIG_RAIDZ_EXPANDING);
-#endif
 	}
 
 	mutex_enter(&vdrz->vd_expand_lock);
