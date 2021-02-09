@@ -1905,8 +1905,10 @@ zfs_obj_to_path_impl(objset_t *osp, uint64_t obj, sa_handle_t *hdl,
 		size_t complen;
 		int is_xattrdir;
 
-		if (prevdb)
+		if (prevdb) {
+			ASSERT(prevhdl != NULL);
 			zfs_release_sa_handle(prevhdl, prevdb, FTAG);
+		}
 
 		if ((error = zfs_obj_to_pobj(osp, sa_hdl, sa_table, &pobj,
 		    &is_xattrdir)) != 0)
