@@ -3411,18 +3411,15 @@ raidz_reflow_sync(void *arg, dmu_tx_t *tx)
 	vre->vre_offset_pertxg[txgoff] = 0;
 	zfs_rangelock_exit(lr);
 
-#if 0
-	/*
-	 * vre_offset_phys will be added to the on-disk config by
-	 * vdev_raidz_config_generate().
-	 * XXX updating the label config every txg, and relying on it
-	 * to be able to read from this RAIDZ, seems not great.  Should
-	 * we just try both old and new locations until we can read the
-	 * real offset from the MOS?  Or rely on ditto blocks?
-	 */
+	mutex_enter(&vre->vre_lock);
+	vre->vre_bytes_copied += vre->vre_bytes_copied_pertxg[txgoff];
+	vre->vre_bytes_copied_pertxg[txgoff] = 0;
+	mutex_exit(&vre->vre_lock);
+
 	vdev_t *vd = vdev_lookup_top(spa, vre->vre_vdev_id);
-	vdev_config_dirty(vd);
-#endif
+	VERIFY0(zap_update(spa->spa_meta_objset,
+	    vd->vdev_top_zap, VDEV_TOP_ZAP_RAIDZ_EXPAND_BYTES_COPIED,
+	    sizeof (vre->vre_bytes_copied), 1, &vre->vre_bytes_copied, tx));
 }
 
 static void
@@ -3479,6 +3476,7 @@ raidz_reflow_complete_sync(void *arg, dmu_tx_t *tx)
 typedef struct raidz_reflow_arg {
 	vdev_raidz_expand_t *rra_vre;
 	zfs_locked_range_t *rra_lr;
+	uint64_t rra_txg;
 } raidz_reflow_arg_t;
 
 /*
@@ -3492,13 +3490,15 @@ raidz_reflow_write_done(zio_t *zio)
 
 	abd_free(zio->io_abd);
 
-	zfs_dbgmsg("completed reflow offset=%llu size=%llu",
+	zfs_dbgmsg("completed reflow offset=%llu size=%llu txg=%llu",
 	    rra->rra_lr->lr_offset,
-	    rra->rra_lr->lr_length);
+	    rra->rra_lr->lr_length,
+	    rra->rra_txg);
 
 	mutex_enter(&vre->vre_lock);
 	ASSERT3U(vre->vre_outstanding_bytes, >=, zio->io_size);
 	vre->vre_outstanding_bytes -= zio->io_size;
+	vre->vre_bytes_copied_pertxg[rra->rra_txg & TXG_MASK] += zio->io_size;
 	cv_signal(&vre->vre_cv);
 	mutex_exit(&vre->vre_lock);
 
@@ -3608,6 +3608,7 @@ raidz_reflow_impl(vdev_t *vd, vdev_raidz_expand_t *vre, range_tree_t *rt,
 	rra->rra_vre = vre;
 	rra->rra_lr = zfs_rangelock_enter(&vre->vre_rangelock,
 	    offset, length, RL_WRITER);
+	rra->rra_txg = dmu_tx_get_txg(tx);
 
 	zfs_dbgmsg("initiating reflow write offset=%llu length=%llu",
 	    offset, length);
@@ -4102,6 +4103,7 @@ vdev_raidz_attach_sync(void *arg, dmu_tx_t *tx)
 	vdrz->vn_vre.vre_start_time = gethrestime_sec();
 	vdrz->vn_vre.vre_end_time = 0;
 	vdrz->vn_vre.vre_state = DSS_SCANNING;
+	vdrz->vn_vre.vre_bytes_copied = 0;
 
 	uint64_t state = vdrz->vn_vre.vre_state;
 	VERIFY0(zap_update(spa->spa_meta_objset,
@@ -4115,6 +4117,8 @@ vdev_raidz_attach_sync(void *arg, dmu_tx_t *tx)
 
 	(void) zap_remove(spa->spa_meta_objset,
 	    raidvd->vdev_top_zap, VDEV_TOP_ZAP_RAIDZ_EXPAND_END_TIME, tx);
+	(void) zap_remove(spa->spa_meta_objset,
+	    raidvd->vdev_top_zap, VDEV_TOP_ZAP_RAIDZ_EXPAND_BYTES_COPIED, tx);
 
 	spa_history_log_internal(spa, "raidz vdev expansion started",  tx,
 	    "%s vdev %llu new width %llu", spa_name(spa),
@@ -4146,6 +4150,7 @@ vdev_raidz_load(vdev_t *vd)
 	uint64_t state = DSS_NONE;
 	uint64_t start_time = 0;
 	uint64_t end_time = 0;
+	uint64_t bytes_copied = 0;
 
 	if (vd->vdev_top_zap != 0) {
 		err = zap_lookup(vd->vdev_spa->spa_meta_objset,
@@ -4165,11 +4170,18 @@ vdev_raidz_load(vdev_t *vd)
 		    sizeof (end_time), 1, &end_time);
 		if (err != 0 && err != ENOENT)
 			return (err);
+
+		err = zap_lookup(vd->vdev_spa->spa_meta_objset,
+		    vd->vdev_top_zap, VDEV_TOP_ZAP_RAIDZ_EXPAND_BYTES_COPIED,
+		    sizeof (bytes_copied), 1, &bytes_copied);
+		if (err != 0 && err != ENOENT)
+			return (err);
 	}
 
 	vdrz->vn_vre.vre_state = (dsl_scan_state_t)state;
 	vdrz->vn_vre.vre_start_time = (time_t)start_time;
 	vdrz->vn_vre.vre_end_time = (time_t)end_time;
+	vdrz->vn_vre.vre_bytes_copied = bytes_copied;
 
 	return (0);
 }
@@ -4203,15 +4215,14 @@ spa_raidz_expand_get_stats(spa_t *spa, pool_raidz_expand_stat_t *pres)
 	pres->pres_state = vre->vre_state;
 	pres->pres_expanding_vdev = vre->vre_vdev_id;
 
-	/* XXX convert this to be bytes copied rather than offset reached */
 	vdev_t *vd = vdev_lookup_top(spa, vre->vre_vdev_id);
-	pres->pres_to_reflow = vd->vdev_asize;
-	if (pres->pres_state == DSS_FINISHED) {
-		/* XXX store bytes copied on disk? */
-		pres->pres_reflowed = vd->vdev_asize;
-	} else {
-		pres->pres_reflowed = vre->vre_offset;
-	}
+	pres->pres_to_reflow = vd->vdev_stat.vs_alloc;
+
+	mutex_enter(&vre->vre_lock);
+	pres->pres_reflowed = vre->vre_bytes_copied;
+	for (int i = 0; i < TXG_SIZE; i++)
+		pres->pres_reflowed += vre->vre_bytes_copied_pertxg[i];
+	mutex_exit(&vre->vre_lock);
 
 	pres->pres_start_time = vre->vre_start_time;
 	pres->pres_end_time = vre->vre_end_time;

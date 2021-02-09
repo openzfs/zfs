@@ -809,6 +809,8 @@ typedef struct zpool_load_policy {
 	"org.freebsd:raidz_expand_start_time"
 #define	VDEV_TOP_ZAP_RAIDZ_EXPAND_END_TIME \
 	"org.freebsd:raidz_expand_end_time"
+#define	VDEV_TOP_ZAP_RAIDZ_EXPAND_BYTES_COPIED \
+	"org.freebsd:raidz_expand_bytes_copied"
 
 /* vdev metaslab allocation bias */
 #define	VDEV_ALLOC_BIAS_LOG		"log"

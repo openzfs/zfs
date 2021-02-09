@@ -93,11 +93,17 @@ typedef struct vdev_raidz_expand {
 
 	uint64_t vre_offset_pertxg[TXG_SIZE];
 
+	uint64_t vre_bytes_copied_pertxg[TXG_SIZE];
+
+	zfs_rangelock_t vre_rangelock;
+
+	/*
+	 * These fields are stored on-disk in the vdev_top_zap:
+	 */
 	dsl_scan_state_t vre_state;
 	time_t vre_start_time;
 	time_t vre_end_time;
-
-	zfs_rangelock_t vre_rangelock;
+	uint64_t vre_bytes_copied;
 } vdev_raidz_expand_t;
 
 typedef struct vdev_raidz {
