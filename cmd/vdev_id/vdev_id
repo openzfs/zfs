@@ -80,6 +80,34 @@
 # channel 86:00.0 0         B
 
 # #
+# # Example vdev_id.conf - multipath / multijbod-daisychaining
+# #
+#
+# multipath yes
+# multijbod yes
+#
+# #       PCI_ID  HBA PORT  CHANNEL NAME
+# channel 85:00.0 1         A
+# channel 85:00.0 0         B
+# channel 86:00.0 1         A
+# channel 86:00.0 0         B
+
+# #
+# # Example vdev_id.conf - multipath / mixed
+# #
+#
+# multipath yes
+# slot mix
+#
+# #       PCI_ID  HBA PORT  CHANNEL NAME
+# channel 85:00.0 3         A
+# channel 85:00.0 2         B
+# channel 86:00.0 3         A
+# channel 86:00.0 2         B
+# channel af:00.0 0         C
+# channel af:00.0 1         C
+
+# #
 # # Example vdev_id.conf - alias
 # #
 #
@@ -92,9 +120,10 @@ PATH=/bin:/sbin:/usr/bin:/usr/sbin
 CONFIG=/etc/zfs/vdev_id.conf
 PHYS_PER_PORT=
 DEV=
-MULTIPATH=
 TOPOLOGY=
 BAY=
+ENCL_ID=""
+UNIQ_ENCL_ID=""
 
 usage() {
 	cat << EOF
@@ -107,6 +136,7 @@ Usage: vdev_id [-h]
   -e    Create enclose device symlinks only (/dev/by-enclosure)
   -g    Storage network topology [default="$TOPOLOGY"]
   -m    Run in multipath mode
+  -j    Run in multijbod mode
   -p    number of phy's per switch port [default=$PHYS_PER_PORT]
   -h    show this summary
 EOF
@@ -117,12 +147,12 @@ map_slot() {
 	LINUX_SLOT=$1
 	CHANNEL=$2
 
-	MAPPED_SLOT=`awk "\\$1 == \"slot\" && \\$2 == ${LINUX_SLOT} && \
-			\\$4 ~ /^${CHANNEL}$|^$/ { print \\$3; exit }" $CONFIG`
+	MAPPED_SLOT=$(awk '$1 == "slot" && $2 == "${LINUX_SLOT}" && \
+			$4 ~ /^${CHANNEL}$|^$/ { print $3; exit}' $CONFIG)
 	if [ -z "$MAPPED_SLOT" ] ; then
 		MAPPED_SLOT=$LINUX_SLOT
 	fi
-	printf "%d" ${MAPPED_SLOT}
+	printf "%d" "${MAPPED_SLOT}"
 }
 
 map_channel() {
@@ -132,40 +162,120 @@ map_channel() {
 
 	case $TOPOLOGY in
 		"sas_switch")
-		MAPPED_CHAN=`awk "\\$1 == \"channel\" && \\$2 == ${PORT} \
-			{ print \\$3; exit }" $CONFIG`
+		MAPPED_CHAN=$(awk -v port="$PORT" \
+			'$1 == "channel" && $2 == ${PORT} \
+			{ print $3; exit }' $CONFIG)
 		;;
 		"sas_direct"|"scsi")
-		MAPPED_CHAN=`awk "\\$1 == \"channel\" && \
-			\\$2 == \"${PCI_ID}\" && \\$3 == ${PORT} \
-			{ print \\$4; exit }" $CONFIG`
+		MAPPED_CHAN=$(awk -v pciID="$PCI_ID" -v port="$PORT" \
+			'$1 == "channel" && $2 == pciID && $3 == port \
+			{print $4}' $CONFIG)
 		;;
 	esac
-	printf "%s" ${MAPPED_CHAN}
+	printf "%s" "${MAPPED_CHAN}"
+}
+
+get_encl_id() {
+	set -- $(echo $1)
+	count=$#
+
+	i=1
+	while [ $i -le $count ] ; do
+		d=$(eval echo '$'{$i})
+		id=$(cat "/sys/class/enclosure/${d}/id")
+		ENCL_ID="${ENCL_ID} $id"
+		i=$((i + 1))
+	done
+}
+
+get_uniq_encl_id() {
+	for uuid in ${ENCL_ID}; do
+		found=0
+
+		for count in ${UNIQ_ENCL_ID}; do
+			if [ $count = $uuid ]; then
+				found=1
+				break
+			fi
+		done
+
+		if [ $found -eq 0 ]; then
+			UNIQ_ENCL_ID="${UNIQ_ENCL_ID} $uuid"
+		fi
+	done
+}
+
+# map_jbod explainer: The bsg driver knows the difference between a SAS
+# expander and fanout expander. Use hostX instance along with top-level
+# (whole enclosure) expander instances in /sys/class/enclosure and
+# matching a field in an array of expanders, using the index of the
+# matched array field as the enclosure instance, thereby making jbod IDs
+# dynamic. Avoids reliance on high overhead userspace commands like
+# multipath and lsscsi and instead uses existing sysfs data.  $HOSTCHAN
+# variable derived from devpath gymnastics in sas_handler() function.
+map_jbod() {
+	DEVEXP=$(ls -l "/sys/block/$DEV/device/" | grep enclos | awk -F/ '{print $(NF-1) }')
+	DEV=$1
+
+	# Use "set --" to create index values (Arrays)
+	set -- $(ls -l /sys/class/enclosure | grep -v "^total" | awk '{print $9}')
+	# Get count of total elements
+	JBOD_COUNT=$#
+	JBOD_ITEM=$*
+
+	# Build JBODs (enclosure)  id from sys/class/enclosure/<dev>/id
+	get_encl_id "$JBOD_ITEM"
+	# Different expander instances for each paths.
+	# Filter out and keep only unique id.
+	get_uniq_encl_id
+
+	# Identify final 'mapped jbod'
+	j=0
+	for count in ${UNIQ_ENCL_ID}; do
+		i=1
+		j=$((j + 1))
+		while [ $i -le $JBOD_COUNT ] ; do
+			d=$(eval echo '$'{$i})
+			id=$(cat "/sys/class/enclosure/${d}/id")
+			if [ "$d" = "$DEVEXP" ] && [ $id = $count ] ; then
+				MAPPED_JBOD=$j
+				break
+			fi
+			i=$((i + 1))
+		done
+	done
+
+	printf "%d" "${MAPPED_JBOD}"
 }
 
 sas_handler() {
 	if [ -z "$PHYS_PER_PORT" ] ; then
-		PHYS_PER_PORT=`awk "\\$1 == \"phys_per_port\" \
-			{print \\$2; exit}" $CONFIG`
+		PHYS_PER_PORT=$(awk '$1 == "phys_per_port" \
+			{print $2; exit}' $CONFIG)
 	fi
 	PHYS_PER_PORT=${PHYS_PER_PORT:-4}
-	if ! echo $PHYS_PER_PORT | grep -q -E '^[0-9]+$' ; then
+
+	if ! echo "$PHYS_PER_PORT" | grep -q -E '^[0-9]+$' ; then
 		echo "Error: phys_per_port value $PHYS_PER_PORT is non-numeric"
 		exit 1
 	fi
 
 	if [ -z "$MULTIPATH_MODE" ] ; then
-		MULTIPATH_MODE=`awk "\\$1 == \"multipath\" \
-			{print \\$2; exit}" $CONFIG`
+		MULTIPATH_MODE=$(awk '$1 == "multipath" \
+			{print $2; exit}' $CONFIG)
+	fi
+
+	if [ -z "$MULTIJBOD_MODE" ] ; then
+		MULTIJBOD_MODE=$(awk '$1 == "multijbod" \
+			{print $2; exit}' $CONFIG)
 	fi
 
 	# Use first running component device if we're handling a dm-mpath device
 	if [ "$MULTIPATH_MODE" = "yes" ] ; then
 		# If udev didn't tell us the UUID via DM_NAME, check /dev/mapper
 		if [ -z "$DM_NAME" ] ; then
-			DM_NAME=`ls -l --full-time /dev/mapper |
-				awk "/\/$DEV$/{print \\$9}"`
+			DM_NAME=$(ls -l --full-time /dev/mapper |
+				grep "$DEV"$ | awk '{print $9}')
 		fi
 
 		# For raw disks udev exports DEVTYPE=partition when
@@ -175,28 +285,41 @@ sas_handler() {
 		# we have to append the -part suffix directly in the
 		# helper.
 		if [ "$DEVTYPE" != "partition" ] ; then
-			PART=`echo $DM_NAME | awk -Fp '/p/{print "-part"$2}'`
+			PART=$(echo "$DM_NAME" | awk -Fp '/p/{print "-part"$2}')
 		fi
 
 		# Strip off partition information.
-		DM_NAME=`echo $DM_NAME | sed 's/p[0-9][0-9]*$//'`
+		DM_NAME=$(echo "$DM_NAME" | sed 's/p[0-9][0-9]*$//')
 		if [ -z "$DM_NAME" ] ; then
 			return
 		fi
 
-		# Get the raw scsi device name from multipath -ll. Strip off
-		# leading pipe symbols to make field numbering consistent.
-		DEV=`multipath -ll $DM_NAME |
-			awk '/running/{gsub("^[|]"," "); print $3 ; exit}'`
+		# Utilize DM device name to gather subordinate block devices
+		# using sysfs to avoid userspace utilities
+		DMDEV=$(ls -l --full-time /dev/mapper | grep $DM_NAME |
+			awk '{gsub("../", " "); print $NF}')
+
+		# Use sysfs pointers in /sys/block/dm-X/slaves because using
+		# userspace tools creates lots of overhead and should be avoided
+		# whenever possible. Use awk to isolate lowest instance of
+		# sd device member in dm device group regardless of string
+		# length.
+		DEV=$(ls "/sys/block/$DMDEV/slaves" | awk '
+			{ len=sprintf ("%20s",length($0)); gsub(/ /,0,str); a[NR]=len "_" $0; }
+			END {
+				asort(a)
+				print substr(a[1],22)
+			}')
+
 		if [ -z "$DEV" ] ; then
 			return
 		fi
 	fi
 
-	if echo $DEV | grep -q ^/devices/ ; then
+	if echo "$DEV" | grep -q ^/devices/ ; then
 		sys_path=$DEV
 	else
-		sys_path=`udevadm info -q path -p /sys/block/$DEV 2>/dev/null`
+		sys_path=$(udevadm info -q path -p "/sys/block/$DEV" 2>/dev/null)
 	fi
 
 	# Use positional parameters as an ad-hoc array
@@ -206,84 +329,104 @@ sas_handler() {
 
 	# Get path up to /sys/.../hostX
 	i=1
-	while [ $i -le $num_dirs ] ; do
-		d=$(eval echo \${$i})
+
+	while [ $i -le "$num_dirs" ] ; do
+		d=$(eval echo '$'{$i})
 		scsi_host_dir="$scsi_host_dir/$d"
-		echo $d | grep -q -E '^host[0-9]+$' && break
-		i=$(($i + 1))
+		echo "$d" | grep -q -E '^host[0-9]+$' && break
+		i=$((i + 1))
 	done
 
-	if [ $i = $num_dirs ] ; then
+	# Lets grab the SAS host channel number and save it for JBOD sorting later
+	HOSTCHAN=$(echo "$d" | awk -F/ '{ gsub("host","",$NF); print $NF}')
+
+	if [ $i = "$num_dirs" ] ; then
 		return
 	fi
 
-	PCI_ID=$(eval echo \${$(($i -1))} | awk -F: '{print $2":"$3}')
+	PCI_ID=$(eval echo '$'{$((i -1))} | awk -F: '{print $2":"$3}')
 
 	# In sas_switch mode, the directory four levels beneath
 	# /sys/.../hostX contains symlinks to phy devices that reveal
 	# the switch port number.  In sas_direct mode, the phy links one
 	# directory down reveal the HBA port.
 	port_dir=$scsi_host_dir
+
 	case $TOPOLOGY in
-		"sas_switch") j=$(($i + 4)) ;;
-		"sas_direct") j=$(($i + 1)) ;;
+		"sas_switch") j=$((i + 4)) ;;
+		"sas_direct") j=$((i + 1)) ;;
 	esac
 
-	i=$(($i + 1))
+	i=$((i + 1))
+
 	while [ $i -le $j ] ; do
-		port_dir="$port_dir/$(eval echo \${$i})"
-		i=$(($i + 1))
+		port_dir="$port_dir/$(eval echo '$'{$i})"
+		i=$((i + 1))
 	done
 
-	PHY=`ls -d $port_dir/phy* 2>/dev/null | head -1 | awk -F: '{print $NF}'`
+	PHY=$(ls -d "$port_dir"/phy* 2>/dev/null | head -1 | awk -F: '{print $NF}')
 	if [ -z "$PHY" ] ; then
 		PHY=0
 	fi
-	PORT=$(( $PHY / $PHYS_PER_PORT ))
+	PORT=$((PHY / PHYS_PER_PORT))
 
 	# Look in /sys/.../sas_device/end_device-X for the bay_identifier
 	# attribute.
 	end_device_dir=$port_dir
-	while [ $i -lt $num_dirs ] ; do
-		d=$(eval echo \${$i})
+
+	while [ $i -lt "$num_dirs" ] ; do
+		d=$(eval echo '$'{$i})
 		end_device_dir="$end_device_dir/$d"
-		if echo $d | grep -q '^end_device' ; then
+		if echo "$d" | grep -q '^end_device' ; then
 			end_device_dir="$end_device_dir/sas_device/$d"
 			break
 		fi
-		i=$(($i + 1))
+		i=$((i + 1))
 	done
 
+	# Add 'mix' slot type for environments where dm-multipath devices
+	# include end-devices connected via SAS expanders or direct connection
+	# to SAS HBA. A mixed connectivity environment such as pool devices
+	# contained in a SAS JBOD and spare drives or log devices directly
+	# connected in a server backplane without expanders in the I/O path.
 	SLOT=
+
 	case $BAY in
 	"bay")
-		SLOT=`cat $end_device_dir/bay_identifier 2>/dev/null`
+		SLOT=$(cat "$end_device_dir/bay_identifier" 2>/dev/null)
+		;;
+	"mix")
+		if [ $(cat "$end_device_dir/bay_identifier" 2>/dev/null) ] ; then
+			SLOT=$(cat "$end_device_dir/bay_identifier" 2>/dev/null)
+		else
+			SLOT=$(cat "$end_device_dir/phy_identifier" 2>/dev/null)
+		fi
 		;;
 	"phy")
-		SLOT=`cat $end_device_dir/phy_identifier 2>/dev/null`
+		SLOT=$(cat "$end_device_dir/phy_identifier" 2>/dev/null)
 		;;
 	"port")
-		d=$(eval echo \${$i})
-		SLOT=`echo $d | sed -e 's/^.*://'`
+		d=$(eval echo '$'{$i})
+		SLOT=$(echo "$d" | sed -e 's/^.*://')
 		;;
 	"id")
-		i=$(($i + 1))
-		d=$(eval echo \${$i})
-		SLOT=`echo $d | sed -e 's/^.*://'`
+		i=$((i + 1))
+		d=$(eval echo '$'{$i})
+		SLOT=$(echo "$d" | sed -e 's/^.*://')
 		;;
 	"lun")
-		i=$(($i + 2))
-		d=$(eval echo \${$i})
-		SLOT=`echo $d | sed -e 's/^.*://'`
+		i=$((i + 2))
+		d=$(eval echo '$'{$i})
+		SLOT=$(echo "$d" | sed -e 's/^.*://')
 		;;
 	"ses")
 		# look for this SAS path in all SCSI Enclosure Services
 		# (SES) enclosures
-		sas_address=`cat $end_device_dir/sas_address 2>/dev/null`
-		enclosures=`lsscsi -g | \
-			sed -n -e '/enclosu/s/^.* \([^ ][^ ]*\) *$/\1/p'`
+		sas_address=$(cat "$end_device_dir/sas_address" 2>/dev/null)
+		enclosures=$(lsscsi -g | \
+			sed -n -e '/enclosu/s/^.* \([^ ][^ ]*\) *$/\1/p')
 		for enclosure in $enclosures; do
-			set -- $(sg_ses -p aes $enclosure | \
+			set -- $(sg_ses -p aes "$enclosure" | \
 				awk "/device slot number:/{slot=\$12} \
 					/SAS address: $sas_address/\
 					{print slot}")
@@ -298,42 +441,55 @@ sas_handler() {
 		return
 	fi
 
-	CHAN=`map_channel $PCI_ID $PORT`
-	SLOT=`map_slot $SLOT $CHAN`
-	if [ -z "$CHAN" ] ; then
-		return
+	if [ "$MULTIJBOD_MODE" = "yes" ] ; then
+		CHAN=$(map_channel "$PCI_ID" "$PORT")
+		SLOT=$(map_slot "$SLOT" "$CHAN")
+		JBOD=$(map_jbod "$DEV")
+
+		if [ -z "$CHAN" ] ; then
+			return
+		fi
+		echo "${CHAN}"-"${JBOD}"-"${SLOT}${PART}"
+	else
+		CHAN=$(map_channel "$PCI_ID" "$PORT")
+		SLOT=$(map_slot "$SLOT" "$CHAN")
+
+		if [ -z "$CHAN" ] ; then
+			return
+		fi
+		echo "${CHAN}${SLOT}${PART}"
 	fi
-	echo ${CHAN}${SLOT}${PART}
 }
 
 scsi_handler() {
 	if [ -z "$FIRST_BAY_NUMBER" ] ; then
-		FIRST_BAY_NUMBER=`awk "\\$1 == \"first_bay_number\" \
-			{print \\$2; exit}" $CONFIG`
+		FIRST_BAY_NUMBER=$(awk '$1 == "first_bay_number" \
+			{print $2; exit}' $CONFIG)
 	fi
 	FIRST_BAY_NUMBER=${FIRST_BAY_NUMBER:-0}
 
 	if [ -z "$PHYS_PER_PORT" ] ; then
-		PHYS_PER_PORT=`awk "\\$1 == \"phys_per_port\" \
-			{print \\$2; exit}" $CONFIG`
+		PHYS_PER_PORT=$(awk '$1 == "phys_per_port" \
+			{print $2; exit}' $CONFIG)
 	fi
 	PHYS_PER_PORT=${PHYS_PER_PORT:-4}
-	if ! echo $PHYS_PER_PORT | grep -q -E '^[0-9]+$' ; then
+
+	if ! echo "$PHYS_PER_PORT" | grep -q -E '^[0-9]+$' ; then
 		echo "Error: phys_per_port value $PHYS_PER_PORT is non-numeric"
 		exit 1
 	fi
 
 	if [ -z "$MULTIPATH_MODE" ] ; then
-		MULTIPATH_MODE=`awk "\\$1 == \"multipath\" \
-			{print \\$2; exit}" $CONFIG`
+		MULTIPATH_MODE=$(awk '$1 == "multipath" \
+			{print $2; exit}' $CONFIG)
 	fi
 
 	# Use first running component device if we're handling a dm-mpath device
 	if [ "$MULTIPATH_MODE" = "yes" ] ; then
 		# If udev didn't tell us the UUID via DM_NAME, check /dev/mapper
 		if [ -z "$DM_NAME" ] ; then
-			DM_NAME=`ls -l --full-time /dev/mapper |
-				awk "/\/$DEV$/{print \\$9}"`
+			DM_NAME=$(ls -l --full-time /dev/mapper |
+				grep "$DEV"$ | awk '{print $9}')
 		fi
 
 		# For raw disks udev exports DEVTYPE=partition when
@@ -343,28 +499,28 @@ scsi_handler() {
 		# we have to append the -part suffix directly in the
 		# helper.
 		if [ "$DEVTYPE" != "partition" ] ; then
-			PART=`echo $DM_NAME | awk -Fp '/p/{print "-part"$2}'`
+			PART=$(echo "$DM_NAME" | awk -Fp '/p/{print "-part"$2}')
 		fi
 
 		# Strip off partition information.
-		DM_NAME=`echo $DM_NAME | sed 's/p[0-9][0-9]*$//'`
+		DM_NAME=$(echo "$DM_NAME" | sed 's/p[0-9][0-9]*$//')
 		if [ -z "$DM_NAME" ] ; then
 			return
 		fi
 
 		# Get the raw scsi device name from multipath -ll. Strip off
 		# leading pipe symbols to make field numbering consistent.
-		DEV=`multipath -ll $DM_NAME |
-			awk '/running/{gsub("^[|]"," "); print $3 ; exit}'`
+		DEV=$(multipath -ll "$DM_NAME" |
+			awk '/running/{gsub("^[|]"," "); print $3 ; exit}')
 		if [ -z "$DEV" ] ; then
 			return
 		fi
 	fi
 
-	if echo $DEV | grep -q ^/devices/ ; then
+	if echo "$DEV" | grep -q ^/devices/ ; then
 		sys_path=$DEV
 	else
-		sys_path=`udevadm info -q path -p /sys/block/$DEV 2>/dev/null`
+		sys_path=$(udevadm info -q path -p "/sys/block/$DEV" 2>/dev/null)
 	fi
 
 	# expect sys_path like this, for example:
@@ -377,44 +533,47 @@ scsi_handler() {
 
 	# Get path up to /sys/.../hostX
 	i=1
-	while [ $i -le $num_dirs ] ; do
-		d=$(eval echo \${$i})
+
+	while [ $i -le "$num_dirs" ] ; do
+		d=$(eval echo '$'{$i})
 		scsi_host_dir="$scsi_host_dir/$d"
-		echo $d | grep -q -E '^host[0-9]+$' && break
-		i=$(($i + 1))
+
+		echo "$d" | grep -q -E '^host[0-9]+$' && break
+		i=$((i + 1))
 	done
 
-	if [ $i = $num_dirs ] ; then
+	if [ $i = "$num_dirs" ] ; then
 		return
 	fi
 
-	PCI_ID=$(eval echo \${$(($i -1))} | awk -F: '{print $2":"$3}')
+	PCI_ID=$(eval echo '$'{$((i -1))} | awk -F: '{print $2":"$3}')
 
 	# In scsi mode, the directory two levels beneath
 	# /sys/.../hostX reveals the port and slot.
 	port_dir=$scsi_host_dir
-	j=$(($i + 2))
+	j=$((i + 2))
 
-	i=$(($i + 1))
+	i=$((i + 1))
 	while [ $i -le $j ] ; do
-		port_dir="$port_dir/$(eval echo \${$i})"
-		i=$(($i + 1))
+		port_dir="$port_dir/$(eval echo '$'{$i})"
+		i=$((i + 1))
 	done
 
-	set -- $(echo $port_dir | sed -e 's/^.*:\([^:]*\):\([^:]*\)$/\1 \2/')
+	set -- $(echo "$port_dir" | sed -e 's/^.*:\([^:]*\):\([^:]*\)$/\1 \2/')
 	PORT=$1
-	SLOT=$(($2 + $FIRST_BAY_NUMBER))
+	SLOT=$(($2 + FIRST_BAY_NUMBER))
 
 	if [ -z "$SLOT" ] ; then
 		return
 	fi
 
-	CHAN=`map_channel $PCI_ID $PORT`
-	SLOT=`map_slot $SLOT $CHAN`
+	CHAN=$(map_channel "$PCI_ID" "$PORT")
+	SLOT=$(map_slot "$SLOT" "$CHAN")
+
 	if [ -z "$CHAN" ] ; then
 		return
 	fi
-	echo ${CHAN}${SLOT}${PART}
+	echo "${CHAN}${SLOT}${PART}"
 }
 
 # Figure out the name for the enclosure symlink
@@ -425,7 +584,7 @@ enclosure_handler () {
 
 	# Get the enclosure ID ("0:0:0:0")
 	ENC=$(basename $(readlink -m "/sys/$DEVPATH/../.."))
-	if [ ! -d /sys/class/enclosure/$ENC ] ; then
+	if [ ! -d "/sys/class/enclosure/$ENC" ] ; then
 		# Not an enclosure, bail out
 		return
 	fi
@@ -433,14 +592,14 @@ enclosure_handler () {
 	# Get the long sysfs device path to our enclosure. Looks like:
 	# /devices/pci0000:00/0000:00:03.0/0000:05:00.0/host0/port-0:0/ ... /enclosure/0:0:0:0
 
-	ENC_DEVICE=$(readlink /sys/class/enclosure/$ENC)
+	ENC_DEVICE=$(readlink "/sys/class/enclosure/$ENC")
 
 	# Grab the full path to the hosts port dir:
 	# /devices/pci0000:00/0000:00:03.0/0000:05:00.0/host0/port-0:0
-	PORT_DIR=$(echo $ENC_DEVICE | grep -Eo '.+host[0-9]+/port-[0-9]+:[0-9]+')
+	PORT_DIR=$(echo "$ENC_DEVICE" | grep -Eo '.+host[0-9]+/port-[0-9]+:[0-9]+')
 
 	# Get the port number
-	PORT_ID=$(echo $PORT_DIR | grep -Eo "[0-9]+$")
+	PORT_ID=$(echo "$PORT_DIR" | grep -Eo "[0-9]+$")
 
 	# The PCI directory is two directories up from the port directory
 	# /sys/devices/pci0000:00/0000:00:03.0/0000:05:00.0
@@ -450,8 +609,8 @@ enclosure_handler () {
 	PCI_ID=$(echo "$PCI_ID_LONG" | sed -r 's/^[0-9]+://g')
 
 	# Name our device according to vdev_id.conf (like "L0" or "U1").
-	NAME=$(awk "/channel/{if (\$1 == \"channel\" && \$2 == \"$PCI_ID\" && \
-		\$3 == \"$PORT_ID\") {print \$4int(count[\$4])}; count[\$4]++}" $CONFIG)
+	NAME=$(awk '/channel/{if ($1 == "channel" && $2 == "$PCI_ID" && \
+		$3 == "$PORT_ID") {print ${4}int(count[$4])}; count[$4]++}' $CONFIG)
 
 	echo "${NAME}"
 }
@@ -487,9 +646,9 @@ alias_handler () {
 	#          ambiguity seems unavoidable, so devices using this facility
 	#          must not use such names.
 	DM_PART=
-	if echo $DM_NAME | grep -q -E 'p[0-9][0-9]*$' ; then
+	if echo "$DM_NAME" | grep -q -E 'p[0-9][0-9]*$' ; then
 		if [ "$DEVTYPE" != "partition" ] ; then
-			DM_PART=`echo $DM_NAME | awk -Fp '/p/{print "-part"$2}'`
+			DM_PART=$(echo "$DM_NAME" | awk -Fp '/p/{print "-part"$2}')
 		fi
 	fi
 
@@ -497,21 +656,25 @@ alias_handler () {
 	for link in $DEVLINKS ; do
 		# Remove partition information to match key of top-level device.
 		if [ -n "$DM_PART" ] ; then
-			link=`echo $link | sed 's/p[0-9][0-9]*$//'`
+			link=$(echo "$link" | sed 's/p[0-9][0-9]*$//')
 		fi
 		# Check both the fully qualified and the base name of link.
-		for l in $link `basename $link` ; do
-			alias=`awk "\\$1 == \"alias\" && \\$3 == \"${l}\" \
-					{ print \\$2; exit }" $CONFIG`
-			if [ -n "$alias" ] ; then
-				echo ${alias}${DM_PART}
-				return
+		for l in $link $(basename "$link") ; do
+			if [ ! -z "$l" ]; then
+				alias=$(awk -v var="$l" '($1 == "alias") && \
+					($3 == var) \
+					{ print $2; exit }' $CONFIG)
+				if [ -n "$alias" ] ; then
+					echo "${alias}${DM_PART}"
+					return
+				fi
 			fi
 		done
 	done
 }
 
-while getopts 'c:d:eg:mp:h' OPTION; do
+# main
+while getopts 'c:d:eg:jmp:h' OPTION; do
 	case ${OPTION} in
 	c)
 		CONFIG=${OPTARG}
@@ -524,7 +687,9 @@ while getopts 'c:d:eg:mp:h' OPTION; do
 	# create the enclosure device symlinks only.  We also need
 	# "enclosure_symlinks yes" set in vdev_id.config to actually create the
 	# symlink.
-	ENCLOSURE_MODE=$(awk '{if ($1 == "enclosure_symlinks") print $2}' $CONFIG)
+	ENCLOSURE_MODE=$(awk '{if ($1 == "enclosure_symlinks") \
+		print $2}' "$CONFIG")
+
 	if [ "$ENCLOSURE_MODE" != "yes" ] ; then
 		exit 0
 	fi
@@ -535,6 +700,9 @@ while getopts 'c:d:eg:mp:h' OPTION; do
 	p)
 		PHYS_PER_PORT=${OPTARG}
 		;;
+	j)
+		MULTIJBOD_MODE=yes
+		;;
 	m)
 		MULTIPATH_MODE=yes
 		;;
@@ -544,7 +712,7 @@ while getopts 'c:d:eg:mp:h' OPTION; do
 	esac
 done
 
-if [ ! -r $CONFIG ] ; then
+if [ ! -r "$CONFIG" ] ; then
 	echo "Error: Config file \"$CONFIG\" not found"
 	exit 0
 fi
@@ -555,11 +723,11 @@ if [ -z "$DEV" ] && [ -z "$ENCLOSURE_MODE" ] ; then
 fi
 
 if [ -z "$TOPOLOGY" ] ; then
-	TOPOLOGY=`awk "\\$1 == \"topology\" {print \\$2; exit}" $CONFIG`
+	TOPOLOGY=$(awk '($1 == "topology") {print $2; exit}' "$CONFIG")
 fi
 
 if [ -z "$BAY" ] ; then
-	BAY=`awk "\\$1 == \"slot\" {print \\$2; exit}" $CONFIG`
+	BAY=$(awk '($1 == "slot") {print $2; exit}' "$CONFIG")
 fi
 
 TOPOLOGY=${TOPOLOGY:-sas_direct}
@@ -572,7 +740,7 @@ if [ "$ENCLOSURE_MODE" = "yes" ] && [ "$TOPOLOGY" = "sas_direct" ] ; then
 	fi
 
 	# Just create the symlinks to the enclosure devices and then exit.
-	ENCLOSURE_PREFIX=$(awk '/enclosure_symlinks_prefix/{print $2}' $CONFIG)
+	ENCLOSURE_PREFIX=$(awk '/enclosure_symlinks_prefix/{print $2}' "$CONFIG")
 	if [ -z "$ENCLOSURE_PREFIX" ] ; then
 		ENCLOSURE_PREFIX="enc"
 	fi
@@ -582,16 +750,16 @@ if [ "$ENCLOSURE_MODE" = "yes" ] && [ "$TOPOLOGY" = "sas_direct" ] ; then
 fi
 
 # First check if an alias was defined for this device.
-ID_VDEV=`alias_handler`
+ID_VDEV=$(alias_handler)
 
 if [ -z "$ID_VDEV" ] ; then
 	BAY=${BAY:-bay}
 	case $TOPOLOGY in
 		sas_direct|sas_switch)
-			ID_VDEV=`sas_handler`
+			ID_VDEV=$(sas_handler)
 			;;
 		scsi)
-			ID_VDEV=`scsi_handler`
+			ID_VDEV=$(scsi_handler)
 			;;
 		*)
 			echo "Error: unknown topology $TOPOLOGY"
