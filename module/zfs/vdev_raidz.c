@@ -3298,6 +3298,14 @@ vdev_raidz_need_resilver(vdev_t *vd, const dva_t *dva, size_t psize,
     uint64_t phys_birth)
 {
 	vdev_raidz_t *vdrz = vd->vdev_tsd;
+
+	/*
+	 * If we're in the middle of a RAIDZ expansion, this block may be in
+	 * the old and/or new location.  For simplicity, always resilver it.
+	 */
+	if (vdrz->vn_vre.vre_state == DSS_SCANNING)
+		return (B_TRUE);
+
 	uint64_t dcols = vd->vdev_children;
 	uint64_t nparity = vdrz->vd_nparity;
 	uint64_t ashift = vd->vdev_top->vdev_ashift;
