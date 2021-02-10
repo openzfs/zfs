@@ -30,8 +30,4 @@
 
 DISK=${DISKS%% *}
 
-if ! is_physical_device $DISK; then
-	log_unsupported "Only partitionable physical disks can be used"
-fi
-
 default_setup $DISK

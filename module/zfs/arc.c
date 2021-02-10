@@ -9068,6 +9068,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 	l2arc_write_callback_t	*cb = NULL;
 	zio_t 			*pio, *wzio;
 	uint64_t 		guid = spa_load_guid(spa);
+	l2arc_dev_hdr_phys_t	*l2dhdr = dev->l2ad_dev_hdr;
 
 	ASSERT3P(dev->l2ad_vdev, !=, NULL);
 
@@ -9080,17 +9081,17 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 	/*
 	 * Copy buffers for L2ARC writing.
 	 */
-	for (int try = 0; try < L2ARC_FEED_TYPES; try++) {
+	for (int pass = 0; pass < L2ARC_FEED_TYPES; pass++) {
 		/*
-		 * If try == 1 or 3, we cache MRU metadata and data
+		 * If pass == 1 or 3, we cache MRU metadata and data
 		 * respectively.
 		 */
 		if (l2arc_mfuonly) {
-			if (try == 1 || try == 3)
+			if (pass == 1 || pass == 3)
 				continue;
 		}
 
-		multilist_sublist_t *mls = l2arc_sublist_lock(try);
+		multilist_sublist_t *mls = l2arc_sublist_lock(pass);
 		uint64_t passed_sz = 0;
 
 		VERIFY3P(mls, !=, NULL);
@@ -9299,7 +9300,8 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 		 * Although we did not write any buffers l2ad_evict may
 		 * have advanced.
 		 */
-		l2arc_dev_hdr_update(dev);
+		if (dev->l2ad_evict != l2dhdr->dh_evict)
+			l2arc_dev_hdr_update(dev);
 
 		return (0);
 	}

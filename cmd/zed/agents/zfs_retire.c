@@ -334,7 +334,7 @@ zfs_retire_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl,
 	 */
 	if (strcmp(class, "resource.fs.zfs.removed") == 0 ||
 	    (strcmp(class, "resource.fs.zfs.statechange") == 0 &&
-	    state == VDEV_STATE_REMOVED)) {
+	    (state == VDEV_STATE_REMOVED || state == VDEV_STATE_FAULTED))) {
 		char *devtype;
 		char *devname;
 

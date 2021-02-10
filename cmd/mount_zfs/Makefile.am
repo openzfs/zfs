@@ -18,3 +18,5 @@ mount_zfs_LDADD = \
 	$(abs_top_builddir)/lib/libnvpair/libnvpair.la
 
 mount_zfs_LDADD += $(LTLIBINTL)
+
+include $(top_srcdir)/config/CppCheck.am

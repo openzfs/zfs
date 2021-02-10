@@ -114,7 +114,9 @@ abd_verify(abd_t *abd)
 	    ABD_FLAG_OWNER | ABD_FLAG_META | ABD_FLAG_MULTI_ZONE |
 	    ABD_FLAG_MULTI_CHUNK | ABD_FLAG_LINEAR_PAGE | ABD_FLAG_GANG |
 	    ABD_FLAG_GANG_FREE | ABD_FLAG_ZEROS | ABD_FLAG_ALLOCD));
+#ifdef ZFS_DEBUG
 	IMPLY(abd->abd_parent != NULL, !(abd->abd_flags & ABD_FLAG_OWNER));
+#endif
 	IMPLY(abd->abd_flags & ABD_FLAG_META, abd->abd_flags & ABD_FLAG_OWNER);
 	if (abd_is_linear(abd)) {
 		ASSERT3P(ABD_LINEAR_BUF(abd), !=, NULL);
@@ -138,9 +140,11 @@ abd_init_struct(abd_t *abd)
 {
 	list_link_init(&abd->abd_gang_link);
 	mutex_init(&abd->abd_mtx, NULL, MUTEX_DEFAULT, NULL);
-	zfs_refcount_create(&abd->abd_children);
 	abd->abd_flags = 0;
+#ifdef ZFS_DEBUG
+	zfs_refcount_create(&abd->abd_children);
 	abd->abd_parent = NULL;
+#endif
 	abd->abd_size = 0;
 }
 
@@ -149,7 +153,9 @@ abd_fini_struct(abd_t *abd)
 {
 	mutex_destroy(&abd->abd_mtx);
 	ASSERT(!list_link_active(&abd->abd_gang_link));
+#ifdef ZFS_DEBUG
 	zfs_refcount_destroy(&abd->abd_children);
+#endif
 }
 
 abd_t *
@@ -241,7 +247,7 @@ abd_free_linear(abd_t *abd)
 }
 
 static void
-abd_free_gang_abd(abd_t *abd)
+abd_free_gang(abd_t *abd)
 {
 	ASSERT(abd_is_gang(abd));
 	abd_t *cabd;
@@ -257,11 +263,9 @@ abd_free_gang_abd(abd_t *abd)
 		ASSERT(list_link_active(&cabd->abd_gang_link));
 		list_remove(&ABD_GANG(abd).abd_gang_chain, cabd);
 		mutex_exit(&cabd->abd_mtx);
-		abd->abd_size -= cabd->abd_size;
 		if (cabd->abd_flags & ABD_FLAG_GANG_FREE)
 			abd_free(cabd);
 	}
-	ASSERT0(abd->abd_size);
 	list_destroy(&ABD_GANG(abd).abd_gang_chain);
 }
 
@@ -290,10 +294,12 @@ abd_free(abd_t *abd)
 		return;
 
 	abd_verify(abd);
+#ifdef ZFS_DEBUG
 	IMPLY(abd->abd_flags & ABD_FLAG_OWNER, abd->abd_parent == NULL);
+#endif
 
 	if (abd_is_gang(abd)) {
-		abd_free_gang_abd(abd);
+		abd_free_gang(abd);
 	} else if (abd_is_linear(abd)) {
 		if (abd->abd_flags & ABD_FLAG_OWNER)
 			abd_free_linear(abd);
@@ -302,10 +308,12 @@ abd_free(abd_t *abd)
 			abd_free_scatter(abd);
 	}
 
+#ifdef ZFS_DEBUG
 	if (abd->abd_parent != NULL) {
 		(void) zfs_refcount_remove_many(&abd->abd_parent->abd_children,
 		    abd->abd_size, abd);
 	}
+#endif
 
 	abd_fini_struct(abd);
 	if (abd->abd_flags & ABD_FLAG_ALLOCD)
@@ -366,7 +374,7 @@ abd_gang_add_gang(abd_t *pabd, abd_t *cabd, boolean_t free_on_free)
 		    &ABD_GANG(cabd).abd_gang_chain);
 		ASSERT(list_is_empty(&ABD_GANG(cabd).abd_gang_chain));
 		abd_verify(pabd);
-		abd_free_struct(cabd);
+		abd_free(cabd);
 	} else {
 		for (abd_t *child = list_head(&ABD_GANG(cabd).abd_gang_chain);
 		    child != NULL;
@@ -421,7 +429,7 @@ abd_gang_add(abd_t *pabd, abd_t *cabd, boolean_t free_on_free)
 		 * allocated ABD with ABD_FLAG_GANG_FREE, before
 		 * adding it to the gang ABD's list, to make the
 		 * gang ABD aware that it is responsible to call
-		 * abd_put(). We use abd_get_offset() in order
+		 * abd_free(). We use abd_get_offset() in order
 		 * to just allocate a new ABD but avoid copying the
 		 * data over into the newly allocated ABD.
 		 *
@@ -526,9 +534,12 @@ abd_get_offset_impl(abd_t *abd, abd_t *sabd, size_t off, size_t size)
 		abd = abd_get_offset_scatter(abd, sabd, off);
 	}
 
+	ASSERT3P(abd, !=, NULL);
 	abd->abd_size = size;
+#ifdef ZFS_DEBUG
 	abd->abd_parent = sabd;
 	(void) zfs_refcount_add_many(&sabd->abd_children, abd->abd_size, abd);
+#endif
 	return (abd);
 }
 
@@ -564,8 +575,7 @@ abd_get_offset_size(abd_t *sabd, size_t off, size_t size)
 }
 
 /*
- * Return a size scatter ABD. In order to free the returned
- * ABD abd_put() must be called.
+ * Return a size scatter ABD containing only zeros.
  */
 abd_t *
 abd_get_zeros(size_t size)
@@ -576,8 +586,7 @@ abd_get_zeros(size_t size)
 }
 
 /*
- * Allocate a linear ABD structure for buf. You must free this with abd_put()
- * since the resulting ABD doesn't own its own buffer.
+ * Allocate a linear ABD structure for buf.
  */
 abd_t *
 abd_get_from_buf(void *buf, size_t size)
@@ -627,7 +636,9 @@ abd_borrow_buf(abd_t *abd, size_t n)
 	} else {
 		buf = zio_buf_alloc(n);
 	}
+#ifdef ZFS_DEBUG
 	(void) zfs_refcount_add_many(&abd->abd_children, n, buf);
+#endif
 	return (buf);
 }
 
@@ -658,7 +669,9 @@ abd_return_buf(abd_t *abd, void *buf, size_t n)
 		ASSERT0(abd_cmp_buf(abd, buf, n));
 		zio_buf_free(buf, n);
 	}
+#ifdef ZFS_DEBUG
 	(void) zfs_refcount_remove_many(&abd->abd_children, n, buf);
+#endif
 }
 
 void

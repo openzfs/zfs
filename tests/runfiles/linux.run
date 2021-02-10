@@ -115,7 +115,7 @@ tests = ['large_dnode_002_pos', 'large_dnode_006_pos', 'large_dnode_008_pos']
 tags = ['functional', 'features', 'large_dnode']
 
 [tests/functional/io:Linux]
-tests = ['libaio']
+tests = ['libaio', 'io_uring']
 tags = ['functional', 'io']
 
 [tests/functional/mmap:Linux]

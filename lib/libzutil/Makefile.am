@@ -45,7 +45,10 @@ libzutil_la_LIBADD = \
 
 if BUILD_LINUX
 libzutil_la_LIBADD += \
-        $(abs_top_builddir)/lib/libefi/libefi.la
+	$(abs_top_builddir)/lib/libefi/libefi.la \
+	-lrt
 endif
 
 libzutil_la_LIBADD += -lm $(LIBBLKID_LIBS) $(LIBUDEV_LIBS)
+
+include $(top_srcdir)/config/CppCheck.am

@@ -127,6 +127,11 @@ trim_reason = 'DISKS must support discard (TRIM/UNMAP)'
 #
 na_reason = "Not applicable"
 
+#
+# Some test cases doesn't have all requirements to run on Github actions CI.
+#
+ci_reason = 'CI runner doesn\'t have all requirements'
+
 summary = {
     'total': float(0),
     'passed': float(0),
@@ -263,6 +268,7 @@ elif sys.platform.startswith('linux'):
         'cli_root/zpool_expand/zpool_expand_001_pos': ['FAIL', known_reason],
         'cli_root/zpool_expand/zpool_expand_005_pos': ['FAIL', known_reason],
         'cli_root/zpool_reopen/zpool_reopen_003_pos': ['FAIL', known_reason],
+        'io/io_uring': ['SKIP', 'io_uring support required'],
         'limits/filesystem_limit': ['SKIP', known_reason],
         'limits/snapshot_limit': ['SKIP', known_reason],
         'mmp/mmp_exported_import': ['FAIL', known_reason],
@@ -272,6 +278,35 @@ elif sys.platform.startswith('linux'):
         'rsend/rsend_010_pos': ['FAIL', known_reason],
         'rsend/rsend_011_pos': ['FAIL', known_reason],
         'snapshot/rollback_003_pos': ['FAIL', known_reason],
+    })
+
+
+# Not all Github actions runners have scsi_debug module, so we may skip
+#   some tests which use it.
+if os.environ.get('CI') == 'true':
+    known.update({
+        'cli_root/zpool_expand/zpool_expand_001_pos': ['SKIP', ci_reason],
+        'cli_root/zpool_expand/zpool_expand_003_neg': ['SKIP', ci_reason],
+        'cli_root/zpool_expand/zpool_expand_005_pos': ['SKIP', ci_reason],
+        'cli_root/zpool_reopen/setup': ['SKIP', ci_reason],
+        'cli_root/zpool_reopen/zpool_reopen_001_pos': ['SKIP', ci_reason],
+        'cli_root/zpool_reopen/zpool_reopen_002_pos': ['SKIP', ci_reason],
+        'cli_root/zpool_reopen/zpool_reopen_003_pos': ['SKIP', ci_reason],
+        'cli_root/zpool_reopen/zpool_reopen_004_pos': ['SKIP', ci_reason],
+        'cli_root/zpool_reopen/zpool_reopen_005_pos': ['SKIP', ci_reason],
+        'cli_root/zpool_reopen/zpool_reopen_006_neg': ['SKIP', ci_reason],
+        'cli_root/zpool_reopen/zpool_reopen_007_pos': ['SKIP', ci_reason],
+        'cli_root/zpool_split/zpool_split_wholedisk': ['SKIP', ci_reason],
+        'fault/auto_offline_001_pos': ['SKIP', ci_reason],
+        'fault/auto_online_001_pos': ['SKIP', ci_reason],
+        'fault/auto_replace_001_pos': ['SKIP', ci_reason],
+        'fault/auto_spare_ashift': ['SKIP', ci_reason],
+        'fault/auto_spare_shared': ['SKIP', ci_reason],
+        'procfs/pool_state': ['SKIP', ci_reason],
+    })
+
+    maybe.update({
+        'events/events_002_pos': ['FAIL', '11546'],
     })
 
 

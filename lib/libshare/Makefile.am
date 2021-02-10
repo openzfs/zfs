@@ -23,3 +23,5 @@ USER_C += \
 endif
 
 libshare_la_SOURCES = $(USER_C)
+
+include $(top_srcdir)/config/CppCheck.am

@@ -522,9 +522,10 @@ metaslab_class_histogram_verify(metaslab_class_t *mc)
 	mc_hist = kmem_zalloc(sizeof (uint64_t) * RANGE_TREE_HISTOGRAM_SIZE,
 	    KM_SLEEP);
 
+	mutex_enter(&mc->mc_lock);
 	for (int c = 0; c < rvd->vdev_children; c++) {
 		vdev_t *tvd = rvd->vdev_child[c];
-		metaslab_group_t *mg = tvd->vdev_mg;
+		metaslab_group_t *mg = vdev_get_mg(tvd, mc);
 
 		/*
 		 * Skip any holes, uninitialized top-levels, or
@@ -535,13 +536,18 @@ metaslab_class_histogram_verify(metaslab_class_t *mc)
 			continue;
 		}
 
+		IMPLY(mg == mg->mg_vd->vdev_log_mg,
+		    mc == spa_embedded_log_class(mg->mg_vd->vdev_spa));
+
 		for (i = 0; i < RANGE_TREE_HISTOGRAM_SIZE; i++)
 			mc_hist[i] += mg->mg_histogram[i];
 	}
 
-	for (i = 0; i < RANGE_TREE_HISTOGRAM_SIZE; i++)
+	for (i = 0; i < RANGE_TREE_HISTOGRAM_SIZE; i++) {
 		VERIFY3U(mc_hist[i], ==, mc->mc_histogram[i]);
+	}
 
+	mutex_exit(&mc->mc_lock);
 	kmem_free(mc_hist, sizeof (uint64_t) * RANGE_TREE_HISTOGRAM_SIZE);
 }
 
@@ -1004,16 +1010,22 @@ metaslab_group_initialized(metaslab_group_t *mg)
 uint64_t
 metaslab_group_get_space(metaslab_group_t *mg)
 {
-	return ((1ULL << mg->mg_vd->vdev_ms_shift) * mg->mg_vd->vdev_ms_count);
+	/*
+	 * Note that the number of nodes in mg_metaslab_tree may be one less
+	 * than vdev_ms_count, due to the embedded log metaslab.
+	 */
+	mutex_enter(&mg->mg_lock);
+	uint64_t ms_count = avl_numnodes(&mg->mg_metaslab_tree);
+	mutex_exit(&mg->mg_lock);
+	return ((1ULL << mg->mg_vd->vdev_ms_shift) * ms_count);
 }
 
 void
 metaslab_group_histogram_verify(metaslab_group_t *mg)
 {
 	uint64_t *mg_hist;
-	vdev_t *vd = mg->mg_vd;
-	uint64_t ashift = vd->vdev_ashift;
-	int i;
+	avl_tree_t *t = &mg->mg_metaslab_tree;
+	uint64_t ashift = mg->mg_vd->vdev_ashift;
 
 	if ((zfs_flags & ZFS_DEBUG_HISTOGRAM_VERIFY) == 0)
 		return;
@@ -1024,20 +1036,24 @@ metaslab_group_histogram_verify(metaslab_group_t *mg)
 	ASSERT3U(RANGE_TREE_HISTOGRAM_SIZE, >=,
 	    SPACE_MAP_HISTOGRAM_SIZE + ashift);
 
-	for (int m = 0; m < vd->vdev_ms_count; m++) {
-		metaslab_t *msp = vd->vdev_ms[m];
-
-		/* skip if not active or not a member */
-		if (msp->ms_sm == NULL || msp->ms_group != mg)
+	mutex_enter(&mg->mg_lock);
+	for (metaslab_t *msp = avl_first(t);
+	    msp != NULL; msp = AVL_NEXT(t, msp)) {
+		VERIFY3P(msp->ms_group, ==, mg);
+		/* skip if not active */
+		if (msp->ms_sm == NULL)
 			continue;
 
-		for (i = 0; i < SPACE_MAP_HISTOGRAM_SIZE; i++)
+		for (int i = 0; i < SPACE_MAP_HISTOGRAM_SIZE; i++) {
 			mg_hist[i + ashift] +=
 			    msp->ms_sm->sm_phys->smp_histogram[i];
+		}
 	}
 
-	for (i = 0; i < RANGE_TREE_HISTOGRAM_SIZE; i ++)
+	for (int i = 0; i < RANGE_TREE_HISTOGRAM_SIZE; i ++)
 		VERIFY3U(mg_hist[i], ==, mg->mg_histogram[i]);
+
+	mutex_exit(&mg->mg_lock);
 
 	kmem_free(mg_hist, sizeof (uint64_t) * RANGE_TREE_HISTOGRAM_SIZE);
 }
@@ -1053,12 +1069,16 @@ metaslab_group_histogram_add(metaslab_group_t *mg, metaslab_t *msp)
 		return;
 
 	mutex_enter(&mg->mg_lock);
+	mutex_enter(&mc->mc_lock);
 	for (int i = 0; i < SPACE_MAP_HISTOGRAM_SIZE; i++) {
+		IMPLY(mg == mg->mg_vd->vdev_log_mg,
+		    mc == spa_embedded_log_class(mg->mg_vd->vdev_spa));
 		mg->mg_histogram[i + ashift] +=
 		    msp->ms_sm->sm_phys->smp_histogram[i];
 		mc->mc_histogram[i + ashift] +=
 		    msp->ms_sm->sm_phys->smp_histogram[i];
 	}
+	mutex_exit(&mc->mc_lock);
 	mutex_exit(&mg->mg_lock);
 }
 
@@ -1073,17 +1093,21 @@ metaslab_group_histogram_remove(metaslab_group_t *mg, metaslab_t *msp)
 		return;
 
 	mutex_enter(&mg->mg_lock);
+	mutex_enter(&mc->mc_lock);
 	for (int i = 0; i < SPACE_MAP_HISTOGRAM_SIZE; i++) {
 		ASSERT3U(mg->mg_histogram[i + ashift], >=,
 		    msp->ms_sm->sm_phys->smp_histogram[i]);
 		ASSERT3U(mc->mc_histogram[i + ashift], >=,
 		    msp->ms_sm->sm_phys->smp_histogram[i]);
+		IMPLY(mg == mg->mg_vd->vdev_log_mg,
+		    mc == spa_embedded_log_class(mg->mg_vd->vdev_spa));
 
 		mg->mg_histogram[i + ashift] -=
 		    msp->ms_sm->sm_phys->smp_histogram[i];
 		mc->mc_histogram[i + ashift] -=
 		    msp->ms_sm->sm_phys->smp_histogram[i];
 	}
+	mutex_exit(&mc->mc_lock);
 	mutex_exit(&mg->mg_lock);
 }
 
@@ -2741,36 +2765,46 @@ metaslab_fini(metaslab_t *msp)
 
 	mutex_enter(&msp->ms_lock);
 	VERIFY(msp->ms_group == NULL);
-	metaslab_space_update(vd, mg->mg_class,
-	    -metaslab_allocated_space(msp), 0, -msp->ms_size);
+	/*
+	 * If the range trees haven't been allocated, this metaslab hasn't
+	 * been through metaslab_sync_done() for the first time yet, so its
+	 * space hasn't been accounted for in its vdev and doesn't need to be
+	 * subtracted.
+	 */
+	if (msp->ms_freed != NULL) {
+		metaslab_space_update(vd, mg->mg_class,
+		    -metaslab_allocated_space(msp), 0, -msp->ms_size);
 
+	}
 	space_map_close(msp->ms_sm);
 	msp->ms_sm = NULL;
 
 	metaslab_unload(msp);
+
 	range_tree_destroy(msp->ms_allocatable);
-	range_tree_destroy(msp->ms_freeing);
-	range_tree_destroy(msp->ms_freed);
 
-	ASSERT3U(spa->spa_unflushed_stats.sus_memused, >=,
-	    metaslab_unflushed_changes_memused(msp));
-	spa->spa_unflushed_stats.sus_memused -=
-	    metaslab_unflushed_changes_memused(msp);
-	range_tree_vacate(msp->ms_unflushed_allocs, NULL, NULL);
-	range_tree_destroy(msp->ms_unflushed_allocs);
-	range_tree_vacate(msp->ms_unflushed_frees, NULL, NULL);
-	range_tree_destroy(msp->ms_unflushed_frees);
+	if (msp->ms_freed != NULL) {
+		range_tree_destroy(msp->ms_freeing);
+		range_tree_destroy(msp->ms_freed);
 
-	for (int t = 0; t < TXG_SIZE; t++) {
-		range_tree_destroy(msp->ms_allocating[t]);
-	}
+		ASSERT3U(spa->spa_unflushed_stats.sus_memused, >=,
+		    metaslab_unflushed_changes_memused(msp));
+		spa->spa_unflushed_stats.sus_memused -=
+		    metaslab_unflushed_changes_memused(msp);
+		range_tree_vacate(msp->ms_unflushed_allocs, NULL, NULL);
+		range_tree_destroy(msp->ms_unflushed_allocs);
+		range_tree_destroy(msp->ms_checkpointing);
+		range_tree_vacate(msp->ms_unflushed_frees, NULL, NULL);
+		range_tree_destroy(msp->ms_unflushed_frees);
 
-	for (int t = 0; t < TXG_DEFER_SIZE; t++) {
-		range_tree_destroy(msp->ms_defer[t]);
+		for (int t = 0; t < TXG_SIZE; t++) {
+			range_tree_destroy(msp->ms_allocating[t]);
+		}
+		for (int t = 0; t < TXG_DEFER_SIZE; t++) {
+			range_tree_destroy(msp->ms_defer[t]);
+		}
 	}
 	ASSERT0(msp->ms_deferspace);
-
-	range_tree_destroy(msp->ms_checkpointing);
 
 	for (int t = 0; t < TXG_SIZE; t++)
 		ASSERT(!txg_list_member(&vd->vdev_ms_list, msp, t));
@@ -5113,7 +5147,7 @@ metaslab_alloc_dva(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
 		 * all else fails.
 		 */
 		if (vd != NULL && vd->vdev_mg != NULL) {
-			mg = vd->vdev_mg;
+			mg = vdev_get_mg(vd, mc);
 
 			if (flags & METASLAB_HINTBP_AVOID &&
 			    mg->mg_next != NULL)

@@ -29,7 +29,7 @@
 # Copyright (c) 2016 by Delphix. All rights reserved.
 #
 
-. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/cli_root/zpool_export/zpool_export.kshlib
 
 #
 # DESCRIPTION:
@@ -45,19 +45,10 @@ verify_runnable "global"
 
 function cleanup
 {
-	typeset dir=$(get_device_dir $DISKS)
 	cd $olddir || \
 	    log_fail "Couldn't cd back to $olddir"
 
-	datasetexists "$TESTPOOL/$TESTFS" || \
-	    log_must zpool import -d $dir $TESTPOOL
-
-	ismounted "$TESTPOOL/$TESTFS"
-	(( $? != 0 )) && \
-	    log_must zfs mount $TESTPOOL/$TESTFS
-
-	[[ -e $TESTDIR/$TESTFILE0 ]] && \
-	    log_must rm -rf $TESTDIR/$TESTFILE0
+	zpool_export_cleanup
 }
 
 olddir=$PWD

@@ -269,8 +269,11 @@ struct vdev {
 	boolean_t	vdev_expanding;	/* expand the vdev?		*/
 	boolean_t	vdev_reopening;	/* reopen in progress?		*/
 	boolean_t	vdev_nonrot;	/* true if solid state		*/
+	int		vdev_load_error; /* error on last load		*/
 	int		vdev_open_error; /* error on last open		*/
+	int		vdev_validate_error; /* error on last validate	*/
 	kthread_t	*vdev_open_thread; /* thread opening children	*/
+	kthread_t	*vdev_validate_thread; /* thread validating children */
 	uint64_t	vdev_crtxg;	/* txg when top-level was added */
 
 	/*
@@ -280,6 +283,7 @@ struct vdev {
 	uint64_t	vdev_ms_shift;	/* metaslab size shift		*/
 	uint64_t	vdev_ms_count;	/* number of metaslabs		*/
 	metaslab_group_t *vdev_mg;	/* metaslab group		*/
+	metaslab_group_t *vdev_log_mg;	/* embedded slog metaslab group	*/
 	metaslab_t	**vdev_ms;	/* metaslab array		*/
 	uint64_t	vdev_pending_fastwrite; /* allocated fastwrites */
 	txg_list_t	vdev_ms_list;	/* per-txg dirty metaslab lists	*/
@@ -636,6 +640,7 @@ extern int vdev_obsolete_counts_are_precise(vdev_t *vd, boolean_t *are_precise);
  * Other miscellaneous functions
  */
 int vdev_checkpoint_sm_object(vdev_t *vd, uint64_t *sm_obj);
+void vdev_metaslab_group_create(vdev_t *vd);
 
 /*
  * Vdev ashift optimization tunables
