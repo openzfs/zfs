@@ -2593,6 +2593,40 @@ vdev_raidz_io_done_verified(zio_t *zio, raidz_row_t *rr)
 			    ZIO_FLAG_SELF_HEAL : 0), NULL, NULL));
 		}
 	}
+
+	/*
+	 * Scrub or resilver i/o's: overwrite any shadow locations with the
+	 * good data.  This ensures that if we've already copied this sector,
+	 * it'll be corrected if it was damaged.  This writes more than is
+	 * necessary, but since expansion is paused during scrub/resilver, at
+	 * most a single row will have a shadow location.
+	 */
+	if (zio->io_error == 0 && spa_writeable(zio->io_spa) &&
+	    (zio->io_flags & (ZIO_FLAG_RESILVER | ZIO_FLAG_SCRUB))) {
+		for (int c = 0; c < rr->rr_cols; c++) {
+			raidz_col_t *rc = &rr->rr_col[c];
+			vdev_t *vd = zio->io_vd;
+
+			if (rc->rc_shadow_devidx == INT_MAX)
+				continue;
+			vdev_t *cvd2 = vd->vdev_child[rc->rc_shadow_devidx];
+
+			/*
+			 * Note: We don't want to update the repair stats
+			 * because that would incorrectly indicate that there
+			 * was bad data to repair. By clearing the
+			 * SCAN_THREAD flag, we prevent this from happening,
+			 * despite having the REPAIR flag set.
+			 */
+			zio_t *cio = zio_vdev_child_io(zio, NULL, cvd2,
+			    rc->rc_shadow_offset, rc->rc_abd, rc->rc_size,
+			    ZIO_TYPE_WRITE, ZIO_PRIORITY_ASYNC_WRITE,
+			    ZIO_FLAG_IO_REPAIR, NULL, NULL);
+			    //vdev_raidz_shadow_child_done, rc);
+			cio->io_flags &= ~ZIO_FLAG_SCAN_THREAD;
+			zio_nowait(cio);
+		}
+	}
 }
 
 static void
