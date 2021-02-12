@@ -310,8 +310,9 @@ zfsctl_destroy(zfsvfs_t *zfsvfs)
 		if (VN_HOLD(zfsvfs->z_ctldir) == 0) {
 			vnode_rele(zfsvfs->z_ctldir);
 			/* Because tagged VSYSTEM, we manually call recycle */
-			vnode_recycle(zfsvfs->z_ctldir);
+			zfsvfs->z_ctldir->v_flags &= ~VNODE_MARKROOT; // Hack
 			VN_RELE(zfsvfs->z_ctldir);
+			vnode_recycle(zfsvfs->z_ctldir);
 		}
 		zfsvfs->z_ctldir = NULL;
 	}
