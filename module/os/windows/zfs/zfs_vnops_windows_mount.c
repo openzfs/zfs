@@ -580,7 +580,7 @@ int zfs_windows_mount(zfs_cmd_t *zc)
 
 	ANSI_STRING pants;
 	ULONG				deviceCharacteristics;
-	deviceCharacteristics = FILE_DEVICE_IS_MOUNTED;
+	deviceCharacteristics = 0; // FILE_DEVICE_IS_MOUNTED;
 	/* Allow $recycle.bin - don't set removable. */
 	if (!zfs_disable_removablemedia)
 		deviceCharacteristics |= FILE_REMOVABLE_MEDIA;
@@ -607,6 +607,9 @@ int zfs_windows_mount(zfs_cmd_t *zc)
 		dprintf("IoCreateDeviceSecure returned %08x\n", status);
 		return status;
 	}
+
+	diskDeviceObject->Flags |= DO_BUS_ENUMERATED_DEVICE;
+
 	mount_t *zmo_dcb = diskDeviceObject->DeviceExtension;
 	zmo_dcb->type = MOUNT_TYPE_DCB;
 	zmo_dcb->size = sizeof(mount_t);
@@ -1010,7 +1013,7 @@ int zfs_vnop_mount(PDEVICE_OBJECT DiskDevice, PIRP Irp, PIO_STACK_LOCATION IrpSp
 
 	// We created a DISK before, now we create a VOLUME
 	ULONG				deviceCharacteristics;
-	deviceCharacteristics = FILE_DEVICE_IS_MOUNTED;
+	deviceCharacteristics = 0; // FILE_DEVICE_IS_MOUNTED;
 	/* Allow $recycle.bin - don't set removable. */
 	if (!zfs_disable_removablemedia)
 		deviceCharacteristics |= FILE_REMOVABLE_MEDIA;
@@ -1031,6 +1034,8 @@ int zfs_vnop_mount(PDEVICE_OBJECT DiskDevice, PIRP Irp, PIO_STACK_LOCATION IrpSp
 	mount_t *vcb = volDeviceObject->DeviceExtension;
 	vcb->type = MOUNT_TYPE_VCB;
 	vcb->size = sizeof(mount_t);
+
+	volDeviceObject->Flags |= DO_BUS_ENUMERATED_DEVICE;
 
 	// FIXME for proper sync
 	if (vfs_fsprivate(dcb) == NULL) delay(hz);
@@ -1396,17 +1401,39 @@ int zfs_windows_unmount(zfs_cmd_t *zc)
 
 		// DbgBreakPoint();
 
+#if 0
 		// Try issuing DISMOUNT ... this wont work unless "attached" in RegisterDeviceInterface()
 		FILE_OBJECT *root_file;
 		root_file = IoCreateStreamFileObject(NULL, zmo->deviceObject);
 		ntstatus = FsRtlNotifyVolumeEvent(root_file, FSRTL_VOLUME_DISMOUNT);
 		ObDereferenceObject(root_file);
-
+#endif
 		// Try other desperate things
 		// test(zmo, zc);
 
+		zmo->deviceObject->Vpb->Flags &= ~VPB_MOUNTED;
+
 		// Carry on like ZFSin
 		zfs_remove_driveletter(zmo);
+
+#if 1
+		// Try issuing DISMOUNT ... this wont work unless "attached" in RegisterDeviceInterface()
+		FILE_OBJECT *root_file;
+		root_file = IoCreateStreamFileObject(NULL, zmo->deviceObject);
+		ntstatus = FsRtlNotifyVolumeEvent(root_file, FSRTL_VOLUME_DISMOUNT);
+		ObDereferenceObject(root_file);
+#endif
+
+		UNICODE_STRING	name;
+		PFILE_OBJECT	fileObject;
+		PDEVICE_OBJECT	mountmgr;
+
+		// Query MntMgr for points, just informative
+		RtlInitUnicodeString(&name, MOUNTMGR_DEVICE_NAME);
+		NTSTATUS status = IoGetDeviceObjectPointer(&name, FILE_READ_ATTRIBUTES,
+			&fileObject, &mountmgr);
+		char namex[PATH_MAX] = "";
+		status = mountmgr_get_drive_letter(mountmgr, &zmo->device_name, namex);
 
 #if 0
 		error = kernel_ioctl(zmo->deviceObject, FSCTL_LOCK_VOLUME, NULL, 0, NULL, 0);
@@ -1430,16 +1457,6 @@ int zfs_windows_unmount(zfs_cmd_t *zc)
 		// But as long as we recheck that in mount and create points manually (if necessary),
 		// that should be ok hopefully
 
-		UNICODE_STRING	name;
-		PFILE_OBJECT	fileObject;
-		PDEVICE_OBJECT	mountmgr;
-
-		// Query MntMgr for points, just informative
-		RtlInitUnicodeString(&name, MOUNTMGR_DEVICE_NAME);
-		NTSTATUS status = IoGetDeviceObjectPointer(&name, FILE_READ_ATTRIBUTES,
-			&fileObject, &mountmgr);
-		char namex[PATH_MAX] = "";
-		status = mountmgr_get_drive_letter(mountmgr, &zmo->device_name, namex);
 
 		// We used to loop here and keep deleting anything we find, but we
 		// are only allowed to remove symlinks, anything else and MountMgr

@@ -1592,7 +1592,26 @@ restart:
 		// We can get stuck here forever. What can we do if Windows
 		// doesn't release the files?
 
-		goto repeat;
+		/* Until we can fix it, let it pass through and linger vnode */
+		// goto repeat;
+		// GROSS HACK
+		mutex_enter(&vnode_all_list_lock);
+		for (rvp = list_head(&vnode_all_list);
+			rvp;
+			rvp = list_next(&vnode_all_list, rvp)) {
+			if (rvp->v_data && rvp->v_mount == mp) {
+				//mutex_exit(&vnode_all_list_lock);
+				zfs_vnop_reclaim(rvp);
+				//mutex_enter(&vnode_all_list_lock);
+				// Also empty fileobjects
+				while (node = avl_first(&rvp->v_fileobjects)) {
+					avl_remove(&rvp->v_fileobjects, node);
+					kmem_free(node, sizeof(*node));
+				}
+
+			}
+		}
+		mutex_exit(&vnode_all_list_lock);
 	}
 
 	dprintf("vflush end\n");

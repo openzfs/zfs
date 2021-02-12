@@ -1431,9 +1431,6 @@ int zfs_vnop_reclaim(struct vnode *vp)
 	zp->z_name_cache = NULL;
 	zp->z_name_len = 0x12345678; // DBG: show we have been reclaimed
 
-	fastpath = zp->z_fastpath;
-	zp->z_fastpath = B_FALSE;
-
 	// Release znode
 	/*
 	* This will release as much as it can, based on reclaim_reentry,
@@ -1441,16 +1438,14 @@ int zfs_vnop_reclaim(struct vnode *vp)
 	* calls zfs_znode_delete() directly.
 	* zfs_zinactive() will leave earlier if z_reclaim_reentry is true.
 	*/
-	if (fastpath == B_FALSE) {
-		rw_enter(&zfsvfs->z_teardown_inactive_lock, RW_READER);
-		if (zp->z_sa_hdl == NULL) {
-			zfs_znode_free(zp);
-		} else {
-			zfs_zinactive(zp);
-			zfs_znode_free(zp);
-		}
-		rw_exit(&zfsvfs->z_teardown_inactive_lock);
+	rw_enter(&zfsvfs->z_teardown_inactive_lock, RW_READER);
+	if (zp->z_sa_hdl == NULL) {
+		zfs_znode_free(zp);
+	} else {
+		zfs_zinactive(zp);
+		zfs_znode_free(zp);
 	}
+	rw_exit(&zfsvfs->z_teardown_inactive_lock);
 
 	atomic_dec_64(&vnop_num_vnodes);
 	atomic_inc_64(&vnop_num_reclaims);
@@ -2480,6 +2475,13 @@ NTSTATUS user_fs_request(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATI
 	case FSCTL_IS_VOLUME_MOUNTED:
 		dprintf("    FSCTL_IS_VOLUME_MOUNTED\n");
 		Status = STATUS_SUCCESS;
+		{
+			mount_t *zmo;
+			zmo = DeviceObject->DeviceExtension;
+			zfsvfs_t *zfsvfs = vfs_fsprivate(zmo);
+			if (zfsvfs->z_unmounted)
+				Status = STATUS_VERIFY_REQUIRED;
+		}
 		break;
 	case FSCTL_SET_COMPRESSION:
 		dprintf("    FSCTL_SET_COMPRESSION\n");
@@ -4266,6 +4268,9 @@ diskDispatcher(
 			dprintf("IRP_MN_USER_FS_REQUEST: FsControlCode 0x%x\n",
 				IrpSp->Parameters.FileSystemControl.FsControlCode);
 			Status = user_fs_request(DeviceObject, Irp, IrpSp);
+			break;
+		default:
+			dprintf("IRP_MN_unknown: 0x%x\n", IrpSp->MinorFunction);
 			break;
 		}
 		break;
