@@ -878,7 +878,32 @@ int wosix_open(const char *path, int oflag, ...)
 	if (!oflag&O_EXLOCK) share |= FILE_SHARE_WRITE;
 #endif
 
+	// Try to open verbatim, but if that fail, check if it is the
+	// "#offset#length#name" style, and try again. We let it fail first
+	// just in case someone names their file with a starting '#'.
+
 	h = CreateFile(path, mode, share, NULL, how, FILE_ATTRIBUTE_NORMAL, NULL);
+
+	if (h == INVALID_HANDLE_VALUE && path[0] == '#') {
+		char *end = NULL;
+		off_t offset;
+		size_t len;
+		offset = strtoull(&path[1], &end, 10);
+		while (end && *end == '#') end++;
+		len = strtoull(end, &end, 10);
+		while (end && *end == '#') end++;
+
+		h = CreateFile(end, mode, share, NULL, how, FILE_ATTRIBUTE_NORMAL, NULL);
+		if (h != INVALID_HANDLE_VALUE) {
+			// Upper layer probably handles this, but let's help
+			LARGE_INTEGER place;
+			place.QuadPart = offset;
+			SetFilePointerEx(h, place, NULL, FILE_BEGIN);
+		}
+
+	}
+
+	// If we failed, translate error to posix
 	if (h == INVALID_HANDLE_VALUE) {
 		errno = EINVAL;
 		switch (GetLastError()) {
