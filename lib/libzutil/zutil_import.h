@@ -67,6 +67,10 @@ typedef struct rdsk_node {
 	avl_node_t rn_node;
 	pthread_mutex_t *rn_lock;
 	boolean_t rn_labelpaths;
+#ifdef _WIN32
+	off_t rn_offset;
+	size_t rn_length;
+#endif
 } rdsk_node_t;
 
 int slice_cache_compare(const void *, const void *);
