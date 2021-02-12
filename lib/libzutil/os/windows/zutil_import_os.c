@@ -120,6 +120,158 @@ zfs_dev_flush(int fd)
 	return (0);
 }
 
+void
+zpool_open_funcXX(void *arg)
+{
+	rdsk_node_t *rn = arg;
+	libpc_handle_t *hdl = rn->rn_hdl;
+	struct stat64 statbuf;
+	nvlist_t *config;
+	char *bname, *dupname;
+	uint64_t vdev_guid = 0;
+	int error;
+	int num_labels = 0;
+	int fd;
+
+	/*
+	 * Skip devices with well known prefixes there can be side effects
+	 * when opening devices which need to be avoided.
+	 *
+	 * hpet     - High Precision Event Timer
+	 * watchdog - Watchdog must be closed in a special way.
+	 */
+	dupname = zutil_strdup(hdl, rn->rn_name);
+	bname = basename(dupname);
+	error = ((strcmp(bname, "hpet") == 0) || is_watchdog_dev(bname));
+	free(dupname);
+	if (error)
+		return;
+
+	/*
+	 * Ignore failed stats.  We only want regular files and block devices.
+	 */
+	if (stat64(rn->rn_name, &statbuf) != 0 ||
+	    (!S_ISREG(statbuf.st_mode) && !S_ISBLK(statbuf.st_mode)))
+		return;
+
+	fd = open(rn->rn_name, O_RDONLY);
+	if ((fd < 0) && (errno == EINVAL))
+		fd = open(rn->rn_name, O_RDONLY);
+	if ((fd < 0) && (errno == EACCES))
+		hdl->lpc_open_access_error = B_TRUE;
+	if (fd < 0)
+		return;
+
+	/*
+	 * This file is too small to hold a zpool
+	 */
+	if (S_ISREG(statbuf.st_mode) && statbuf.st_size < SPA_MINDEVSIZE) {
+		(void) close(fd);
+		return;
+	}
+
+	error = zpool_read_label(fd, &config, &num_labels);
+	if (error != 0) {
+		(void) close(fd);
+		return;
+	}
+
+	if (num_labels == 0) {
+		(void) close(fd);
+		nvlist_free(config);
+		return;
+	}
+
+	/*
+	 * Check that the vdev is for the expected guid.  Additional entries
+	 * are speculatively added based on the paths stored in the labels.
+	 * Entries with valid paths but incorrect guids must be removed.
+	 */
+	error = nvlist_lookup_uint64(config, ZPOOL_CONFIG_GUID, &vdev_guid);
+	if (error || (rn->rn_vdev_guid && rn->rn_vdev_guid != vdev_guid)) {
+		(void) close(fd);
+		nvlist_free(config);
+		return;
+	}
+
+	(void) close(fd);
+
+	rn->rn_config = config;
+	rn->rn_num_labels = num_labels;
+
+	/*
+	 * Add additional entries for paths described by this label.
+	 */
+	if (rn->rn_labelpaths) {
+		char *path = NULL;
+		char *devid = NULL;
+		char *env = NULL;
+		rdsk_node_t *slice;
+		avl_index_t where;
+		int timeout;
+		int error;
+
+		if (label_paths(rn->rn_hdl, rn->rn_config, &path, &devid))
+			return;
+
+		env = getenv("ZPOOL_IMPORT_UDEV_TIMEOUT_MS");
+		if ((env == NULL) || sscanf(env, "%d", &timeout) != 1 ||
+		    timeout < 0) {
+			timeout = DISK_LABEL_WAIT;
+		}
+
+		/*
+		 * Allow devlinks to stabilize so all paths are available.
+		 */
+		zpool_label_disk_wait(rn->rn_name, timeout);
+
+		if (path != NULL) {
+			slice = zutil_alloc(hdl, sizeof (rdsk_node_t));
+			slice->rn_name = zutil_strdup(hdl, path);
+			slice->rn_vdev_guid = vdev_guid;
+			slice->rn_avl = rn->rn_avl;
+			slice->rn_hdl = hdl;
+			slice->rn_order = IMPORT_ORDER_PREFERRED_1;
+			slice->rn_labelpaths = B_FALSE;
+			pthread_mutex_lock(rn->rn_lock);
+			if (avl_find(rn->rn_avl, slice, &where)) {
+			pthread_mutex_unlock(rn->rn_lock);
+				free(slice->rn_name);
+				free(slice);
+			} else {
+				avl_insert(rn->rn_avl, slice, where);
+				pthread_mutex_unlock(rn->rn_lock);
+				zpool_open_func(slice);
+			}
+		}
+
+		if (devid != NULL) {
+			slice = zutil_alloc(hdl, sizeof (rdsk_node_t));
+			error = asprintf(&slice->rn_name, "%s%s",
+			    DEV_BYID_PATH, devid);
+			if (error == -1) {
+				free(slice);
+				return;
+			}
+
+			slice->rn_vdev_guid = vdev_guid;
+			slice->rn_avl = rn->rn_avl;
+			slice->rn_hdl = hdl;
+			slice->rn_order = IMPORT_ORDER_PREFERRED_2;
+			slice->rn_labelpaths = B_FALSE;
+			pthread_mutex_lock(rn->rn_lock);
+			if (avl_find(rn->rn_avl, slice, &where)) {
+				pthread_mutex_unlock(rn->rn_lock);
+				free(slice->rn_name);
+				free(slice);
+			} else {
+				avl_insert(rn->rn_avl, slice, where);
+				pthread_mutex_unlock(rn->rn_lock);
+				zpool_open_func(slice);
+			}
+		}
+	}
+}
 /*
  * Return the offset of the given label.
  */
@@ -229,30 +381,51 @@ zpool_open_func(void *arg)
 	uint64_t len = 0;
 	uint64_t drive_len;
 
-	zfs_backslashes(rn->rn_name);
-	fd = CreateFile(rn->rn_name,
-		GENERIC_READ,
-		FILE_SHARE_READ /*| FILE_SHARE_WRITE*/,
-		NULL,
-		OPEN_EXISTING,
-		FILE_ATTRIBUTE_NORMAL /*| FILE_FLAG_OVERLAPPED*/,
-		NULL);
-	if (fd == INVALID_HANDLE_VALUE) {
-		int error = GetLastError();
-		return;
-	}
+	// Check if this filename is encoded with "#start#len#name"
+	if (rn->rn_name[0] == '#') {
+		char *end = NULL;
 
-	// If we are a disk partition, we will be given offset + length.
-	if (rn->rn_offset > 0ULL) {
+		offset = strtoull(&rn->rn_name[1], &end, 10);
+		while (end && *end == '#') end++;
+		len = strtoull(end, &end, 10);
+		while (end && *end == '#') end++;
+		fd = CreateFile(end,
+			GENERIC_READ,
+			FILE_SHARE_READ /*| FILE_SHARE_WRITE*/,
+			NULL,
+			OPEN_EXISTING,
+			FILE_ATTRIBUTE_NORMAL /*| FILE_FLAG_OVERLAPPED*/,
+			NULL);
+		if (fd == INVALID_HANDLE_VALUE) {
+			int error = GetLastError();
+			return;
+		}
 		LARGE_INTEGER place;
 		place.QuadPart = offset;
 		SetFilePointerEx(fd, place, NULL, FILE_BEGIN); // If it fails, we cant read label
-	}
+		drive_len = len;
 
-	if (rn->rn_length > 0ULL)
-		drive_len = rn->rn_length;
-	else
+
+	} else {
+		// We have no openat() - so stitch paths togther.
+		// char fullpath[MAX_PATH];
+		// snprintf(fullpath, sizeof(fullpath), "%s%s", 
+		// 	"", rn->rn_name);
+		zfs_backslashes(rn->rn_name);
+		fd = CreateFile(rn->rn_name,
+			GENERIC_READ,
+			FILE_SHARE_READ /*| FILE_SHARE_WRITE*/,
+			NULL,
+			OPEN_EXISTING,
+			FILE_ATTRIBUTE_NORMAL /*| FILE_FLAG_OVERLAPPED*/,
+			NULL);
+		if (fd == INVALID_HANDLE_VALUE) {
+			int error = GetLastError();
+			return;
+		}
+
 		drive_len = GetFileDriveSize(fd);
+	}
 
 	DWORD type = GetFileType(fd);
 	//fprintf(stderr, "device '%s' filetype %d 0x%x\n", rn->rn_name, type, type);
@@ -308,7 +481,6 @@ zpool_open_func(void *arg)
 	/*
 	 * Add additional entries for paths described by this label.
 	 */
-	// This code is perhaps not used with Windows? If it is, check rn_offset+rn_length
 	if (rn->rn_labelpaths) {
 		char *path = NULL;
 		char *devid = NULL;
@@ -644,15 +816,13 @@ zpool_find_import_blkid(libpc_handle_t *hdl, pthread_mutex_t *lock,
 
 				slice = zutil_alloc(hdl, sizeof (rdsk_node_t));
 
-				error = asprintf(&slice->rn_name, "%s",
+				error = asprintf(&slice->rn_name, "#%llu#%llu#%s",
 				    0ULL, GetFileDriveSize(disk), deviceInterfaceDetailData->DevicePath);
 				if (error == -1) {
 					free(slice);
 					continue;
 				}
 
-				slice->rn_length = GetFileDriveSize(disk);
-				slice->rn_offset = 0ULL;
 				slice->rn_vdev_guid = 0;
 				slice->rn_lock = lock;
 				slice->rn_avl = *slice_cache;
@@ -712,15 +882,13 @@ zpool_find_import_blkid(libpc_handle_t *hdl, pthread_mutex_t *lock,
 
 					slice = zutil_alloc(hdl, sizeof (rdsk_node_t));
 
-					error = asprintf(&slice->rn_name, "%s",
-					    deviceInterfaceDetailData->DevicePath);
+					error = asprintf(&slice->rn_name, "#%llu#%llu#%s",
+					    vtoc->efi_parts[i].p_start * vtoc->efi_lbasize, vtoc->efi_parts[i].p_size * vtoc->efi_lbasize, deviceInterfaceDetailData->DevicePath);
 					if (error == -1) {
 						free(slice);
 						continue;
 					}
 
-					slice->rn_length = vtoc->efi_parts[i].p_size  * vtoc->efi_lbasize;
-					slice->rn_offset = vtoc->efi_parts[i].p_start * vtoc->efi_lbasize;
 					slice->rn_vdev_guid = 0;
 					slice->rn_lock = lock;
 					slice->rn_avl = *slice_cache;
@@ -904,64 +1072,30 @@ update_vdev_config_dev_strs(nvlist_t *nv)
 
 	fprintf(stderr, "working on dev '%s'\n", path); fflush(stderr);
 
-	// Check if we need to encode offset+length due to fake partition..
-	// It would probably be easier if we could pass the rn_offset + rn_length
-	// along in the nvlist "nv" given to us here.
-	// So for now, open the device, and check if we can read the EFI label
-	// if so, look for partition where GUIDs match.
-	uint64_t match_guid = 0ULL;
-	nvlist_lookup_uint64(nv, ZPOOL_CONFIG_GUID, &match_guid);
 
 	HANDLE h;
 	h = CreateFile(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
 	if (h != INVALID_HANDLE_VALUE) {
-		struct dk_gpt* vtoc;
+	    struct dk_gpt* vtoc;
+	    if ((efi_alloc_and_read(h, &vtoc)) == 0) {
+		// Slice 1 should be ZFS
+		snprintf(udevpath, MAXPATHLEN, "#%llu#%llu#%s",
+		    vtoc->efi_parts[0].p_start * (uint64_t)vtoc->efi_lbasize,
+		    vtoc->efi_parts[0].p_size * (uint64_t)vtoc->efi_lbasize,
+		    path);
+		efi_free(vtoc);
+		path = udevpath;
+	    }
+	    CloseHandle(h);
+	}
 
-		if ((efi_alloc_and_read(h, &vtoc)) == 0) {
 
-			for (int i = 0; i < vtoc->efi_nparts; i++) {
 
-				if (vtoc->efi_parts[i].p_start == 0 &&
-					vtoc->efi_parts[i].p_size == 0) continue;
-
-				size_t length = vtoc->efi_parts[i].p_size  * vtoc->efi_lbasize;
-				off_t  offset = vtoc->efi_parts[i].p_start * vtoc->efi_lbasize;
-				nvlist_t *config;
-				int num_labels = 0;
-
-				if ((zpool_read_label_win(h, offset, length, &config, NULL)) != 0) {
-					if (num_labels > 0) {
-						uint64_t guid = 0;
-
-						// Finally, is it the partition we want?
-						if (nvlist_lookup_uint64(config, ZPOOL_CONFIG_GUID,
-						    &guid) != 0 && guid == match_guid) {
-
-							snprintf(udevpath, MAXPATHLEN, "#%llu#%llu#%s",
-							    vtoc->efi_parts[0].p_start * (uint64_t)vtoc->efi_lbasize,
-							    vtoc->efi_parts[0].p_size  * (uint64_t)vtoc->efi_lbasize,
-							    path);
-							path = udevpath;
-							nvlist_free(config);
-							break;
-						} // guid match
-					} // num_labels
-
-					nvlist_free(config);
-				} // read_label
-			} // for all efi nparts
-			efi_free(vtoc);
-		} // efi_read
-		 CloseHandle(h);
-	} // open disk
-
-#if 0
 	ret = remove_partition_offset_hack(path, &end);
 	if (ret) {
 		fprintf(stderr, "remove_partition_offset_hack failed, return\n"); fflush(stderr);
 		return;
 	}
-#endif
 
 	// If it is a device, clean that up - otherwise it is a filename pool
 	ret = get_device_number(end, &deviceNumber);
@@ -981,6 +1115,62 @@ update_vdev_config_dev_strs(nvlist_t *nv)
 	}
 
 	return;
+
+#if 0
+
+	/*
+	 * For the benefit of legacy ZFS implementations, allow
+	 * for opting out of devid strings in the vdev label.
+	 *
+	 * example use:
+	 *	env ZFS_VDEV_DEVID_OPT_OUT=YES zpool import dozer
+	 *
+	 * explanation:
+	 * Older ZFS on Linux implementations had issues when attempting to
+	 * display pool config VDEV names if a "devid" NVP value is present
+	 * in the pool's config.
+	 *
+	 * For example, a pool that originated on illumos platform would
+	 * have a devid value in the config and "zpool status" would fail
+	 * when listing the config.
+	 *
+	 * A pool can be stripped of any "devid" values on import or
+	 * prevented from adding them on zpool create|add by setting
+	 * ZFS_VDEV_DEVID_OPT_OUT.
+	 */
+	env = getenv("ZFS_VDEV_DEVID_OPT_OUT");
+	if (env && (strtoul(env, NULL, 0) > 0 ||
+	    !strncasecmp(env, "YES", 3) || !strncasecmp(env, "ON", 2))) {
+		(void) nvlist_remove_all(nv, ZPOOL_CONFIG_DEVID);
+		(void) nvlist_remove_all(nv, ZPOOL_CONFIG_PHYS_PATH);
+		return;
+	}
+
+	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE, &type) != 0 ||
+	    strcmp(type, VDEV_TYPE_DISK) != 0) {
+		return;
+	}
+	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &path) != 0)
+		return;
+	(void) nvlist_lookup_uint64(nv, ZPOOL_CONFIG_WHOLE_DISK, &wholedisk);
+
+	/*
+	 * Update device string values in the config nvlist.
+	 */
+	if (encode_device_strings(path, &vds, (boolean_t)wholedisk) == 0) {
+		(void) nvlist_add_string(nv, ZPOOL_CONFIG_DEVID, vds.vds_devid);
+		if (vds.vds_devphys[0] != '\0') {
+			(void) nvlist_add_string(nv, ZPOOL_CONFIG_PHYS_PATH,
+			    vds.vds_devphys);
+		}
+
+	} else {
+		/* Clear out any stale entries. */
+		(void) nvlist_remove_all(nv, ZPOOL_CONFIG_DEVID);
+		(void) nvlist_remove_all(nv, ZPOOL_CONFIG_PHYS_PATH);
+		(void) nvlist_remove_all(nv, ZPOOL_CONFIG_VDEV_ENC_SYSFS_PATH);
+	}
+#endif
 }
 
 /*
@@ -989,7 +1179,7 @@ update_vdev_config_dev_strs(nvlist_t *nv)
  * store is not opendir()able.
  */
 int
-zfs_resolve_shortname_os(const char *name, char *path, size_t len)
+zfs_resolve_shortname_os(const char* name, char* path, size_t len)
 {
 	/* Ok lets let them say just "PHYSICALDRIVEx" */
 	if (!strncmp("PHYSICALDRIVE", name, 13)) {
