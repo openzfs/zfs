@@ -8492,6 +8492,8 @@ main(int argc, char **argv)
 		    kills, iters - kills, (100.0 * kills) / MAX(1, iters));
 	}
 
+	dump_debug_buffer();
+
 	umem_free(cmd, MAXNAMELEN);
 
 	return (0);

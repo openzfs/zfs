@@ -4203,21 +4203,6 @@ vdev_raidz_load(vdev_t *vd)
 	vdev_raidz_t *vdrz = vd->vdev_tsd;
 	int err;
 
-	/*
-	 * XXX is it possible for the expansion to have started but
-	 * offset==0 because we haven't made any progress yet?
-	 *
-	 * The offset is stored in the config, so we already have it from
-	 * vdev_raidz_get_tsd().
-	 */
-	if (vdrz->vn_vre.vre_offset != UINT64_MAX) {
-		ASSERT3U(vdrz->vn_vre.vre_vdev_id, ==, vd->vdev_id);
-		/* There can only be one expansion at a time. */
-		ASSERT3P(vd->vdev_spa->spa_raidz_expand, ==, NULL);
-
-		vd->vdev_spa->spa_raidz_expand = &vdrz->vn_vre;
-	}
-
 	uint64_t state = DSS_NONE;
 	uint64_t start_time = 0;
 	uint64_t end_time = 0;
@@ -4361,9 +4346,22 @@ vdev_raidz_init(spa_t *spa, nvlist_t *nv, void **tsd)
 
 	boolean_t reflow_in_progress =
 	    nvlist_exists(nv, ZPOOL_CONFIG_RAIDZ_EXPANDING);
+	zfs_dbgmsg("reflow_in_progress=%u", (int)reflow_in_progress);
 	if (reflow_in_progress) {
-		vdrz->vn_vre.vre_offset = vdrz->vn_vre.vre_offset_phys =
-		    RRSS_GET_OFFSET(&spa->spa_uberblock);
+		/*
+		 * spa_ld_mos_init() depends on having spa_raidz_expand
+		 * set so that it can fill in vre_offset_phys before any
+		 * blkptr's are read.  So we have to set it here rather
+		 * than in vdev_raidz_load().
+		 */
+		/*
+		 * XXX we parse the mos config while the vdevs for the
+		 * label config still exist, so spa_raidz_expand will be
+		 * set to the label config vdev.  we just overwrite it here.
+		 * should find a cleaner way to do this.
+		 */
+		//ASSERT3P(spa->spa_raidz_expand, ==, NULL);
+		spa->spa_raidz_expand = &vdrz->vn_vre;
 	}
 
 	vdrz->vd_original_width = children;
@@ -4397,6 +4395,8 @@ static void
 vdev_raidz_fini(vdev_t *vd)
 {
 	vdev_raidz_t *vdrz = vd->vdev_tsd;
+	if (vd->vdev_spa->spa_raidz_expand == &vdrz->vn_vre)
+		vd->vdev_spa->spa_raidz_expand = NULL;
 	reflow_node_t *re;
 	void *cookie = NULL;
 	avl_tree_t *tree = &vdrz->vd_expand_txgs;

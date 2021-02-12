@@ -3513,6 +3513,14 @@ spa_ld_select_uberblock(spa_t *spa, spa_import_type_t type)
 	}
 	spa_load_note(spa, "using uberblock with txg=%llu",
 	    (u_longlong_t)ub->ub_txg);
+	if (ub->ub_raidz_reflow_info != 0) {
+		spa_load_note(spa, "uberblock raidz_reflow_info: "
+		    "state=%s offset=%llu",
+		    RRSS_GET_STATE(ub) == RRSS_SCRATCH_NOT_IN_USE ? "SCRATCH_NOT_IN_USE" :
+		    RRSS_GET_STATE(ub) == RRSS_SCRATCH_VALID ? "SCRATCH_VALID" :
+		    "UNKNOWN VALUE",
+		    (u_longlong_t)RRSS_GET_OFFSET(ub));
+	}
 
 
 	/*
@@ -4497,6 +4505,14 @@ spa_ld_mos_init(spa_t *spa, spa_import_type_t type)
 	error = spa_ld_select_uberblock(spa, type);
 	if (error != 0)
 		return (error);
+
+	if (spa->spa_raidz_expand != NULL) {
+		zfs_dbgmsg("setting vre_offset_phys to %llu",
+		    (long long)RRSS_GET_OFFSET(&spa->spa_uberblock));
+		spa->spa_raidz_expand->vre_offset =
+		    spa->spa_raidz_expand->vre_offset_phys =
+		    RRSS_GET_OFFSET(&spa->spa_uberblock);
+	}
 
 	/*
 	 * Pass that uberblock to the dsl_pool layer which will open the root

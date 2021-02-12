@@ -3853,7 +3853,6 @@ dump_uberblock(uberblock_t *ub, const char *header, const char *footer)
 	const char *reflow_names[] = {
 		"NOT_IN_USE",
 		"VALID",
-		"COPIED",
 	};
 	if (RRSS_GET_STATE(ub) < sizeof (reflow_names) / sizeof (*reflow_names)) {
 		(void) printf("\traidz_reflow = %s %llu\n",
