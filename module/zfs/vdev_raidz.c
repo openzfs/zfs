@@ -41,6 +41,7 @@
 #include <sys/vdev_raidz.h>
 #include <sys/vdev_raidz_impl.h>
 #include <sys/vdev_draid.h>
+#include <sys/uberblock_impl.h>
 
 #ifdef ZFS_DEBUG
 #include <sys/vdev.h>	/* For vdev_xlate() in vdev_raidz_io_verify() */
@@ -206,7 +207,7 @@ vdev_raidz_map_free_vsd(zio_t *zio)
 }
 
 static int
-vedv_raidz_reflow_compare(const void *x1, const void *x2)
+vdev_raidz_reflow_compare(const void *x1, const void *x2)
 {
 	const reflow_node_t *l = (reflow_node_t *)x1;
 	const reflow_node_t *r = (reflow_node_t *)x2;
@@ -2359,24 +2360,44 @@ vdev_raidz_io_start(zio_t *zio)
 	    BP_PHYSICAL_BIRTH(zio->io_bp),
 	    logical_width);
 	if (logical_width != vdrz->vd_physical_width) {
-		/* XXX rangelock not needed after expansion completes */
-		zfs_locked_range_t *lr =
-		    zfs_rangelock_enter(&vdrz->vn_vre.vre_rangelock,
-		    zio->io_offset, zio->io_size, RL_READER);
-		zfs_dbgmsg("zio=%llx %s io_offset=%llu vre_offset_phys=%llu "
-		    "vre_offset=%llu",
+		zfs_locked_range_t *lr = NULL;
+		uint64_t synced_offset = UINT64_MAX;
+		uint64_t next_offset = UINT64_MAX;
+		/*
+		 * XXX race condition with changing vre_state before ubsync,
+		 * in which case synced_offset is not the end?
+		 */
+		if (vdrz->vn_vre.vre_state == DSS_SCANNING) {
+			ASSERT3P(vd->vdev_spa->spa_raidz_expand, ==,
+			    &vdrz->vn_vre);
+			lr = zfs_rangelock_enter(&vdrz->vn_vre.vre_rangelock,
+			    zio->io_offset, zio->io_size, RL_READER);
+			synced_offset = RRSS_GET_OFFSET(&vd->vdev_spa->spa_ubsync);
+			next_offset = vdrz->vn_vre.vre_offset;
+			/*
+			 * If we haven't resumed expanding since importing the
+			 * pool, vre_offset won't have been set yet.  In
+			 * this case the next offset to be copied is the same
+			 * as what was synced.
+			 */
+			if (next_offset == UINT64_MAX) {
+				next_offset = synced_offset;
+			}
+		}
+		zfs_dbgmsg("zio=%llx %s io_offset=%llu vre_offset_phys=%lld "
+		    "vre_offset=%lld",
 		    zio,
 		    zio->io_type == ZIO_TYPE_WRITE ? "WRITE" : "READ",
 		    zio->io_offset,
-		    vdrz->vn_vre.vre_offset_phys,
-		    vdrz->vn_vre.vre_offset);
+		    synced_offset,
+		    next_offset);
 
 		rm = vdev_raidz_map_alloc_expanded(zio->io_abd,
 		    zio->io_size, zio->io_offset,
 		    tvd->vdev_ashift, vdrz->vd_physical_width,
 		    logical_width, vdrz->vd_nparity,
-		    vdrz->vn_vre.vre_offset_phys,
-		    vdrz->vn_vre.vre_offset,
+		    synced_offset,
+		    next_offset,
 		    &zio->io_spa->spa_uberblock);
 		rm->rm_lr = lr;
 	} else {
@@ -3384,6 +3405,7 @@ vdev_raidz_xlate(vdev_t *cvd, const range_seg64_t *logical_rs,
 
 	vdev_raidz_t *vdrz = raidvd->vdev_tsd;
 	uint64_t children = vdrz->vd_physical_width;
+#if 0
 	/*
 	 * XXX this seems wrong. we need to look at each row individually to see
 	 * if it's before or after the expansion progress.  However, we can't
@@ -3394,6 +3416,7 @@ vdev_raidz_xlate(vdev_t *cvd, const range_seg64_t *logical_rs,
 	 */
 	if (logical_rs->rs_start > vdrz->vn_vre.vre_offset_phys)
 		children--;
+#endif
 
 	uint64_t width = children;
 	uint64_t tgt_col = cvd->vdev_id;
@@ -3427,22 +3450,22 @@ raidz_reflow_sync(void *arg, dmu_tx_t *tx)
 	spa_t *spa = arg;
 	int txgoff = dmu_tx_get_txg(tx) & TXG_MASK;
 	vdev_raidz_expand_t *vre = spa->spa_raidz_expand;
-	ASSERT3U(vre->vre_offset_pertxg[txgoff], >=, vre->vre_offset_phys);
 
 	/*
 	 * Ensure there are no i/os to the range that is being committed.
 	 * XXX This might be overkill?
 	 */
+	uint64_t old_offset = RRSS_GET_OFFSET(&spa->spa_uberblock);
+	ASSERT3U(vre->vre_offset_pertxg[txgoff], >=, old_offset);
 	zfs_locked_range_t *lr = zfs_rangelock_enter(&vre->vre_rangelock,
-	    vre->vre_offset_phys,
-	    vre->vre_offset_pertxg[txgoff] - vre->vre_offset_phys,
+	    old_offset, vre->vre_offset_pertxg[txgoff] - old_offset,
 	    RL_WRITER);
 
 	/*
-	 * When we write the uberblock, it will be updated based on
-	 * vre_offset_phys(). (see uberblock_update()).
+	 * Update the uberblock that will be written when this txg completes.
 	 */
-	vre->vre_offset_phys = vre->vre_offset_pertxg[txgoff];
+	RAIDZ_REFLOW_SET(&spa->spa_uberblock, RRSS_SCRATCH_NOT_IN_USE,
+	    vre->vre_offset_pertxg[txgoff]);
 	vre->vre_offset_pertxg[txgoff] = 0;
 	zfs_rangelock_exit(lr);
 
@@ -3467,8 +3490,6 @@ raidz_reflow_complete_sync(void *arg, dmu_tx_t *tx)
 
 	for (int i = 0; i < TXG_SIZE; i++)
 		ASSERT0(vre->vre_offset_pertxg[i]);
-
-	vre->vre_offset_phys = UINT64_MAX;
 
 	reflow_node_t *re = kmem_zalloc(sizeof (*re), KM_SLEEP);
 	re->re_txg = tx->tx_txg + 1;
@@ -3496,6 +3517,8 @@ raidz_reflow_complete_sync(void *arg, dmu_tx_t *tx)
 	VERIFY0(zap_update(spa->spa_meta_objset,
 	    vd->vdev_top_zap, VDEV_TOP_ZAP_RAIDZ_EXPAND_END_TIME,
 	    sizeof (end_time), 1, &end_time, tx));
+
+	spa->spa_uberblock.ub_raidz_reflow_info = 0;
 
 	spa_history_log_internal(spa, "raidz vdev expansion completed",  tx,
 	    "%s vdev %llu new width %llu", spa_name(spa),
@@ -3853,8 +3876,7 @@ raidz_reflow_scratch_sync(void *arg, dmu_tx_t *tx)
 	/*
 	 * Update progress.
 	 */
-	vre->vre_bytes_copied = vre->vre_offset = vre->vre_offset_phys =
-	    logical_size;
+	vre->vre_bytes_copied = vre->vre_offset = logical_size;
 	zfs_rangelock_exit(lr);
 	//vdev_config_dirty(raidvd);
 	spa_config_exit(spa, SCL_STATE, FTAG);
@@ -3875,9 +3897,7 @@ void
 vdev_raidz_reflow_copy_scratch(spa_t *spa)
 {
 	vdev_raidz_expand_t *vre = spa->spa_raidz_expand;
-	uint64_t logical_size = vre->vre_offset;
-	ASSERT3U(logical_size, ==, RRSS_GET_OFFSET(&spa->spa_uberblock));
-	ASSERT3U(logical_size, ==, vre->vre_offset_phys);
+	uint64_t logical_size = RRSS_GET_OFFSET(&spa->spa_uberblock);
 	ASSERT3U(RRSS_GET_STATE(&spa->spa_uberblock), ==, RRSS_SCRATCH_VALID);
 
 	spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
@@ -3942,9 +3962,16 @@ vdev_raidz_reflow_copy_scratch(spa_t *spa)
 	zfs_dbgmsg("raidz reflow recovery: uberblock updated (txg %llu, SCRATCH_NOT_IN_USE, size %llu, ts %llu)",
 	    spa->spa_ubsync.ub_txg, logical_size, spa->spa_ubsync.ub_timestamp);
 
-	vre->vre_bytes_copied = vre->vre_offset = vre->vre_offset_phys =
-	    logical_size;
-	//vdev_config_dirty(raidvd);
+	RAIDZ_REFLOW_SET(&spa->spa_uberblock,
+	    RRSS_SCRATCH_NOT_IN_USE, logical_size);
+	vre->vre_bytes_copied = logical_size;
+	vdev_t *vd = vdev_lookup_top(spa, vre->vre_vdev_id);
+	dmu_tx_t *tx = dmu_tx_create_assigned(spa->spa_dsl_pool,
+	    spa_first_txg(spa));
+	VERIFY0(zap_update(spa->spa_meta_objset,
+	    vd->vdev_top_zap, VDEV_TOP_ZAP_RAIDZ_EXPAND_BYTES_COPIED,
+	    sizeof (vre->vre_bytes_copied), 1, &vre->vre_bytes_copied, tx));
+	dmu_tx_commit(tx);
 	spa_config_exit(spa, SCL_STATE, FTAG);
 	raidz_expand_pause(spa, 11);
 }
@@ -3965,8 +3992,11 @@ spa_raidz_expand_cb(void *arg, zthr_t *zthr)
 	spa_t *spa = arg;
 	vdev_raidz_expand_t *vre = spa->spa_raidz_expand;
 
+	ASSERT(vre->vre_offset == UINT64_MAX ||
+	    vre->vre_offset == RRSS_GET_OFFSET(&spa->spa_ubsync));
+	vre->vre_offset = RRSS_GET_OFFSET(&spa->spa_ubsync);
+
 	if (vre->vre_offset == 0) {
-		ASSERT0(vre->vre_offset_phys);
 		VERIFY0(dsl_sync_task(spa_name(spa),
 		    NULL, raidz_reflow_scratch_sync,
 		    vre, 0, ZFS_SPACE_CHECK_NONE));
@@ -4162,9 +4192,9 @@ vdev_raidz_attach_sync(void *arg, dmu_tx_t *tx)
 
 	vdrz->vd_physical_width++;
 
+	VERIFY0(spa->spa_uberblock.ub_raidz_reflow_info);
 	vdrz->vn_vre.vre_vdev_id = raidvd->vdev_id;
 	vdrz->vn_vre.vre_offset = 0;
-	vdrz->vn_vre.vre_offset_phys = 0;
 	spa->spa_raidz_expand = &vdrz->vn_vre;
 	zthr_wakeup(spa->spa_raidz_expand_zthr);
 
@@ -4234,6 +4264,11 @@ vdev_raidz_load(vdev_t *vd)
 			return (err);
 	}
 
+	/*
+	 * If we are in the middle of expansion, vre_state should have
+	 * already been set by vdev_raidz_init().
+	 */
+	EQUIV(vdrz->vn_vre.vre_state == DSS_SCANNING, state == DSS_SCANNING);
 	vdrz->vn_vre.vre_state = (dsl_scan_state_t)state;
 	vdrz->vn_vre.vre_start_time = (time_t)start_time;
 	vdrz->vn_vre.vre_end_time = (time_t)end_time;
@@ -4329,12 +4364,11 @@ vdev_raidz_init(spa_t *spa, nvlist_t *nv, void **tsd)
 	vdev_raidz_t *vdrz = kmem_zalloc(sizeof (*vdrz), KM_SLEEP);
 	vdrz->vn_vre.vre_vdev_id = -1;
 	vdrz->vn_vre.vre_offset = UINT64_MAX;
-	vdrz->vn_vre.vre_offset_phys = UINT64_MAX;
 	mutex_init(&vdrz->vn_vre.vre_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&vdrz->vn_vre.vre_cv, NULL, CV_DEFAULT, NULL);
 	zfs_rangelock_init(&vdrz->vn_vre.vre_rangelock, NULL, NULL);
 	mutex_init(&vdrz->vd_expand_lock, NULL, MUTEX_DEFAULT, NULL);
-	avl_create(&vdrz->vd_expand_txgs, vedv_raidz_reflow_compare,
+	avl_create(&vdrz->vd_expand_txgs, vdev_raidz_reflow_compare,
 	    sizeof (reflow_node_t), offsetof(reflow_node_t, re_link));
 
 	vdrz->vd_physical_width = children;
@@ -4362,6 +4396,7 @@ vdev_raidz_init(spa_t *spa, nvlist_t *nv, void **tsd)
 		 */
 		//ASSERT3P(spa->spa_raidz_expand, ==, NULL);
 		spa->spa_raidz_expand = &vdrz->vn_vre;
+		vdrz->vn_vre.vre_state = DSS_SCANNING;
 	}
 
 	vdrz->vd_original_width = children;
@@ -4436,7 +4471,7 @@ vdev_raidz_config_generate(vdev_t *vd, nvlist_t *nv)
 	 */
 	fnvlist_add_uint64(nv, ZPOOL_CONFIG_NPARITY, vdrz->vd_nparity);
 
-	if (vdrz->vn_vre.vre_offset_phys != UINT64_MAX) {
+	if (vdrz->vn_vre.vre_state == DSS_SCANNING) {
 		fnvlist_add_boolean(nv, ZPOOL_CONFIG_RAIDZ_EXPANDING);
 	}
 

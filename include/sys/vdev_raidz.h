@@ -87,12 +87,9 @@ typedef struct vdev_raidz_expand {
 	uint64_t vre_offset;
 
 	/*
-	 * The offset that will be synced this txg.
+	 * Offset that is completing each txg
 	 */
-	uint64_t vre_offset_phys;
-
 	uint64_t vre_offset_pertxg[TXG_SIZE];
-
 	uint64_t vre_bytes_copied_pertxg[TXG_SIZE];
 
 	zfs_rangelock_t vre_rangelock;

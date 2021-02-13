@@ -4506,14 +4506,6 @@ spa_ld_mos_init(spa_t *spa, spa_import_type_t type)
 	if (error != 0)
 		return (error);
 
-	if (spa->spa_raidz_expand != NULL) {
-		zfs_dbgmsg("setting vre_offset_phys to %llu",
-		    (long long)RRSS_GET_OFFSET(&spa->spa_uberblock));
-		spa->spa_raidz_expand->vre_offset =
-		    spa->spa_raidz_expand->vre_offset_phys =
-		    RRSS_GET_OFFSET(&spa->spa_uberblock);
-	}
-
 	/*
 	 * Pass that uberblock to the dsl_pool layer which will open the root
 	 * blkptr. This blkptr points to the latest version of the MOS and will
