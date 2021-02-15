@@ -159,7 +159,7 @@ set_global_var(char *arg)
 	char *varname = arg, *varval;
 	u_longlong_t val;
 
-#ifndef _LITTLE_ENDIAN
+#ifndef _ZFS_LITTLE_ENDIAN
 	/*
 	 * On big endian systems changing a 64-bit variable would set the high
 	 * 32 bits instead of the low 32 bits, which could cause unexpected
