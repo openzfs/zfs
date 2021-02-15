@@ -985,12 +985,18 @@ zfs_device_get_physical(struct udev_device *dev, char *bufptr, size_t buflen)
 }
 
 /* Given a "#1234#1234#/path/part" - find the path part only */ 
-static int
+static void
 remove_partition_offset_hack(char *hacked_path, char **out_dev_path)
 {
 	uint64_t offset;
 	uint64_t len;
 	char *end = NULL;
+
+	if (hacked_path[0] != '#') {
+		*out_dev_path = hacked_path;
+		return;
+	}
+
 	end = hacked_path;
 	for (int i = 0; i < 3; i++) {
 		while (*end && *end != '#') {
@@ -1001,7 +1007,6 @@ remove_partition_offset_hack(char *hacked_path, char **out_dev_path)
 		end++;
 	}
 	*out_dev_path = end;
-	return (0);
 }
 
 static int
@@ -1091,14 +1096,10 @@ update_vdev_config_dev_strs(nvlist_t *nv)
 	    CloseHandle(h);
 	}
 
-	ret = remove_partition_offset_hack(devid, &end);
-	if (ret) {
-		fprintf(stderr, "remove_partition_offset_hack failed, return\n"); fflush(stderr);
-		return;
-	}
+	remove_partition_offset_hack(devid, &end);
 
 	// If it is a device, clean that up - otherwise it is a filename pool
-	ret = get_device_number(end == NULL ? devid : end, &deviceNumber);
+	ret = get_device_number(end, &deviceNumber);
 	if (ret == 0) {
 		char *vdev_path;
 		asprintf(&vdev_path, "/dev/physicaldrive%lu", deviceNumber.DeviceNumber);
@@ -1129,7 +1130,7 @@ int
 zfs_resolve_shortname_os(const char* name, char* path, size_t len)
 {
 	/* Ok lets let them say just "PHYSICALDRIVEx" */
-	if (!strncmp("PHYSICALDRIVE", name, 13)) {
+	if (!strncasecmp("PHYSICALDRIVE", name, 13)) {
 		// Convert to "\\?\PHYSICALDRIVEx"
 		snprintf(path, len, "\\\\?\\%s", name);
 		printf("Expanded path to '%s'\n", path);
