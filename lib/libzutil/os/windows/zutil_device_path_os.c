@@ -58,11 +58,53 @@ zfs_strip_partition(char *dev)
 	return (partless);
 }
 
+/*
+ * When given PHYSICALDRIVE1 and we partition it for ZFS
+ * change the name to the partition, ie
+ * #offset#size#PHYSICALDRIVE1
+ */
 int
 zfs_append_partition(char *path, size_t max_len)
 {
 	int len = strlen(path);
+	int fd;
+	struct dk_gpt *vtoc;
 
+	// Already expanded, nothing to do
+	if (path[0] == '#')
+		return (len);
+
+	fd = open(path, O_RDONLY);
+	if (fd < 0)
+		return (len);
+
+	if ((efi_alloc_and_read(fd, &vtoc)) == 0) {
+		for (int i = 0; i < vtoc->efi_nparts; i++) {
+
+		    if (vtoc->efi_parts[i].p_start == 0 &&
+			    vtoc->efi_parts[i].p_size == 0)
+				continue;
+
+			if (tolower(vtoc->efi_parts[i].p_name[0]) == 'z' &&
+			    tolower(vtoc->efi_parts[i].p_name[1]) == 'f' &&
+			    tolower(vtoc->efi_parts[i].p_name[2]) == 's') {
+				size_t length = vtoc->efi_parts[i].p_size * vtoc->efi_lbasize;
+				off_t  offset = vtoc->efi_parts[i].p_start * vtoc->efi_lbasize;
+				char *copypath = strdup(path);
+				snprintf(path, max_len, "#%llu#%llu#%s",
+				    offset, length, copypath);
+				free(copypath);
+				len = strlen(path);
+				break;
+			}
+
+		}
+	} else {
+		// If we can't read the partition, we are most likely creating a pool,
+		// and it will be slice 1, alas, we do not know the size/offset here, yet.
+		// which is why we call this function again after zpool_label_disk.
+	}
+	close(fd);
 	return (len);
 }
 
