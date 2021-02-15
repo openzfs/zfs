@@ -1136,5 +1136,11 @@ zfs_resolve_shortname_os(const char* name, char* path, size_t len)
 		printf("Expanded path to '%s'\n", path);
 		return (0);
 	}
+	if (!strncasecmp("Harddisk", name, 8)) {
+	    // Convert to "\\?\HarddiskXPartitionY"
+	    snprintf(path, len, "\\\\?\\%s", name);
+	    printf("Expanded path to '%s'\n", path);
+	    return (0);
+	}
 	return (ENOENT);
 }
