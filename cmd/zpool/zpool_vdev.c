@@ -190,7 +190,8 @@ is_shorthand_path(const char *arg, char *path, size_t path_size,
 	error = zfs_resolve_shortname(arg, path, path_size);
 	if (error == 0) {
 		*wholedisk = zfs_dev_is_whole_disk(path);
-		if (*wholedisk || (stat64(path, statbuf) == 0))
+		error = stat64(path, statbuf);
+		if (*wholedisk || (error == 0))
 			return (0);
 	}
 
