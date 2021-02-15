@@ -36,12 +36,6 @@ extern "C" {
 #include <sys/types.h>
 #include <sys/stat.h>
 
-//#include <Windows.h>
-
-#define S_IFBLK   -1                            /* block device */
-#define S_IFLNK   -2                            /* link */
-//#define S_IFSOCK  0                            /* socket */
-
 #if defined(_MSC_VER)
 # define S_IRUSR  S_IREAD                      /* read, user */
 # define S_IWUSR  S_IWRITE                     /* write, user */

@@ -1143,6 +1143,8 @@ int wosix_lstat(char *path, struct _stat64 *st)
 // Only fill in what we actually use in ZFS
 // Mostly used to test for existance, st_mode, st_size
 // also FIFO and BLK (fixme)
+// Remember to convert between POSIX (S_IFDIR) and WINDOWS (_S_IFDIR) when required.
+// Not that we call Windows _stat() in here.
 int wosix_fstat(int fd, struct _stat64 *st)
 {
 	HANDLE h = ITOH(fd);
@@ -1154,7 +1156,7 @@ int wosix_fstat(int fd, struct _stat64 *st)
 	st->st_dev = 0;
 	st->st_ino = 0;
 	st->st_mode = (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ?
-		_S_IFDIR : _S_IFREG;
+		S_IFDIR : S_IFREG;
 	st->st_nlink = (info.nNumberOfLinks > SHRT_MAX ? SHRT_MAX : info.nNumberOfLinks);
 	st->st_uid = 0;
 	st->st_gid = 0;
@@ -1178,10 +1180,7 @@ int wosix_fstat_blk(int fd, struct _stat64 *st)
 		return -1; // errno?
 
 	st->st_size = (diskaddr_t)geometry_ex.DiskSize.QuadPart;
-#ifndef _S_IFBLK
-#define	_S_IFBLK	0x3000
-#endif
-	st->st_mode = _S_IFBLK;
+	st->st_mode = S_IFBLK;
 
 	return (0);
 }
