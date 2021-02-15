@@ -177,19 +177,19 @@ abd_zero(abd_t *abd, size_t size)
 static inline boolean_t
 abd_is_linear(abd_t *abd)
 {
-	return ((abd->abd_flags & ABD_FLAG_LINEAR) != 0);
+	return ((abd->abd_flags & ABD_FLAG_LINEAR) ? B_TRUE : B_FALSE);
 }
 
 static inline boolean_t
 abd_is_linear_page(abd_t *abd)
 {
-	return ((abd->abd_flags & ABD_FLAG_LINEAR_PAGE) != 0);
+	return ((abd->abd_flags & ABD_FLAG_LINEAR_PAGE) ? B_TRUE : B_FALSE);
 }
 
 static inline boolean_t
 abd_is_gang(abd_t *abd)
 {
-	return ((abd->abd_flags & ABD_FLAG_GANG) != 0);
+	return ((abd->abd_flags & ABD_FLAG_GANG) ? B_TRUE : B_FALSE);
 }
 
 static inline uint_t
