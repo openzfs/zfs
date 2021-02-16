@@ -23,15 +23,16 @@
 #define	_ZFS_VDEV_DISK_OS_H
 
 typedef struct vdev_disk {
-        ddi_devid_t     vd_devid;
-        char            *vd_minor;
-        list_t          vd_ldi_cbs;
-        boolean_t       vd_ldi_offline;
-        HANDLE vd_lh;
-        PFILE_OBJECT vd_FileObject;
-        PDEVICE_OBJECT vd_DeviceObject;
-        uint64_t vdev_win_offset; /* soft partition start */
-        uint64_t vdev_win_length; /* soft partition length */
+	ddi_devid_t	vd_devid;
+	char		*vd_minor;
+	list_t		vd_ldi_cbs;
+	boolean_t	vd_ldi_offline;
+	HANDLE		vd_lh;
+	PFILE_OBJECT	vd_FileObject;
+	PDEVICE_OBJECT	vd_DeviceObject;
+	PDEVICE_OBJECT	vd_ExclusiveObject;
+	uint64_t	vdev_win_offset; /* soft partition start */
+	uint64_t	vdev_win_length; /* soft partition length */
 } vdev_disk_t;
 
 #endif

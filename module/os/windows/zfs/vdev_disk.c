@@ -81,14 +81,14 @@ static void disk_exclusive(DEVICE_OBJECT *device, boolean_t excl)
 	diskAttrs.Attributes = excl ? DISK_ATTRIBUTE_OFFLINE | DISK_ATTRIBUTE_READ_ONLY : 0;
 	diskAttrs.Persist = FALSE;
 
-	if (kernel_ioctl(device, IOCTL_DISK_SET_DISK_ATTRIBUTES,
+	if (kernel_ioctl(device, NULL, IOCTL_DISK_SET_DISK_ATTRIBUTES,
 		&diskAttrs, sizeof(diskAttrs), NULL, 0) != 0) {
 		dprintf("IOCTL_DISK_SET_DISK_ATTRIBUTES");
 		return;
 	}
 
 	// Tell the system that the disk was changed.
-	if (kernel_ioctl(device, IOCTL_DISK_UPDATE_PROPERTIES, NULL, 0, NULL, 0) != 0)
+	if (kernel_ioctl(device, NULL, IOCTL_DISK_UPDATE_PROPERTIES, NULL, 0, NULL, 0) != 0)
 		dprintf("IOCTL_DISK_UPDATE_PROPERTIES");
 
 }
@@ -122,7 +122,8 @@ vdev_disk_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 	 * We must have a pathname, and it must be absolute.
 	 * It can also start with # for partition encoded paths
 	 */
-	if (vd->vdev_path == NULL || (vd->vdev_path[0] != '/' && vd->vdev_path[0] != '#')) {
+	if (vd->vdev_path == NULL || (vd->vdev_path[0] != '/' && vd->vdev_path[0] != '#' &&
+	    vd->vdev_path[0] != '\\')) {
 		vd->vdev_stat.vs_aux = VDEV_AUX_BAD_LABEL;
 		return (SET_ERROR(EINVAL));
 	}
@@ -156,7 +157,7 @@ vdev_disk_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 	 * If we have not yet opened the device, try to open it by the
 	 * specified path.
 	 */
-	NTSTATUS            ntstatus;
+	NTSTATUS ntstatus;
 	uint8_t *FileName = NULL;
 	uint32_t FileLength;
 
@@ -300,6 +301,64 @@ vdev_disk_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 	RtlInitUnicodeString(&defaultFilterName, L"\\Driver\\partmgr"); // default
 
 	DeviceObject = FileObject->DeviceObject; // bottom of stack
+	ObReferenceObject(DeviceObject);
+	dvd->vd_DeviceObject = DeviceObject;
+
+	/*
+	 * Determine the actual size of the device.
+	 */
+
+	// If we are given the size in "#offset#size#path"
+	capacity = dvd->vdev_win_length;
+
+	// STORAGE_DEVICE_NUMBER sdn = { 0 };
+	// kernel_ioctl(DeviceObject, FileObject, IOCTL_STORAGE_GET_DEVICE_NUMBER,
+	//	    NULL, 0, &sdn, sizeof(sdn));
+
+	if (capacity == 0ULL) {
+		PARTITION_INFORMATION_EX pix = {0};
+		if (kernel_ioctl(DeviceObject, FileObject, IOCTL_DISK_GET_PARTITION_INFO_EX,
+		    NULL, 0, &pix, sizeof(pix)) == 0)
+			capacity = pix.PartitionLength.QuadPart;
+	}
+
+	if (capacity == 0ULL) {
+		PARTITION_INFORMATION pi = {0};
+		if (kernel_ioctl(DeviceObject, FileObject, IOCTL_DISK_GET_PARTITION_INFO,
+		    NULL, 0, &pi, sizeof(pi)) == 0)
+			capacity = pi.PartitionLength.QuadPart;
+	}
+
+	if (capacity == 0ULL) {
+		GET_LENGTH_INFORMATION len;
+
+		if (kernel_ioctl(DeviceObject, FileObject, IOCTL_DISK_GET_LENGTH_INFO,
+		    NULL, 0, &len, sizeof(len)) == 0)
+			capacity = len.Length.QuadPart;
+	}
+
+	if (capacity == 0ULL && vd->vdev_wholedisk) {
+		DISK_GEOMETRY_EX geometry_ex = {0};
+		DWORD len;
+
+		if (kernel_ioctl(DeviceObject, FileObject, IOCTL_DISK_GET_DRIVE_GEOMETRY_EX,
+		    NULL, 0, &geometry_ex, sizeof(geometry_ex)) == 0)
+			capacity = geometry_ex.DiskSize.QuadPart;
+	}
+
+	if (capacity == 0ULL && vd->vdev_wholedisk) {
+		STORAGE_READ_CAPACITY cap = {0};
+		cap.Version = sizeof(STORAGE_READ_CAPACITY);
+		if (kernel_ioctl(DeviceObject, FileObject, IOCTL_STORAGE_READ_CAPACITY,
+		    NULL, 0, &cap, sizeof(cap)) == 0)
+			capacity = cap.DiskLength.QuadPart;
+	}
+
+	// Remember the size for when we skip_open
+	dvd->vdev_win_length = capacity;
+
+
+	// Now walk up the stack locating the device to lock
 	while (DeviceObject) {
 		if ((zfs_vdev_protection_filter[0] != L'\0' ? !RtlCompareUnicodeString(&DeviceObject->DriverObject->DriverName, &customFilterName, TRUE) : FALSE) ||
 			!RtlCompareUnicodeString(&DeviceObject->DriverObject->DriverName, &defaultFilterName, TRUE)) {
@@ -316,28 +375,17 @@ vdev_disk_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 	ObReferenceObject(DeviceObject);
 
 	dvd->vd_FileObject = FileObject;
-	dvd->vd_DeviceObject = DeviceObject;
+	dvd->vd_ExclusiveObject = DeviceObject;
 
 	// Make disk readonly and offline, so that users can't partition/format it.
-	disk_exclusive(pTopDevice, TRUE);
+	if (vd->vdev_wholedisk)
+		disk_exclusive(dvd->vd_ExclusiveObject, TRUE);
 	spa_strfree(vdev_path);
 
 skip_open:
 
-	/*
-	* Determine the actual size of the device.
-	*/
-	if (dvd->vdev_win_length != 0) {
-		*psize = dvd->vdev_win_length;
-	} else {
-		DISK_GEOMETRY_EX geometry_ex;
-		DWORD len;
-		error = kernel_ioctl(dvd->vd_DeviceObject, IOCTL_DISK_GET_DRIVE_GEOMETRY_EX,
-			NULL, 0,
-			&geometry_ex, sizeof(geometry_ex));
-		if (error == 0)
-			capacity = geometry_ex.DiskSize.QuadPart;
-	}
+	capacity = dvd->vdev_win_length;
+
 	/*
 	* Determine the device's minimum transfer size.
 	* If the ioctl isn't supported, assume DEV_BSIZE.
@@ -352,27 +400,23 @@ skip_open:
 	memset(&diskAlignment, 0, sizeof(STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR));
 	DWORD outsize;
 
-	error = kernel_ioctl(dvd->vd_DeviceObject, IOCTL_STORAGE_QUERY_PROPERTY,
+	error = kernel_ioctl(dvd->vd_DeviceObject, dvd->vd_FileObject, IOCTL_STORAGE_QUERY_PROPERTY,
 		&storageQuery, sizeof(STORAGE_PROPERTY_QUERY),
 		&diskAlignment, sizeof(STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR));
 
 	if (error == 0) {
 		blksz = diskAlignment.BytesPerLogicalSector;
 		pbsize = diskAlignment.BytesPerPhysicalSector;
-		if (!blksz) blksz = DEV_BSIZE;
-		if (!pbsize) pbsize = DEV_BSIZE;
 	} else {
 		blksz = pbsize = DEV_BSIZE;
 	}
 
 	// Set psize to the size of the partition. For now, assume virtual
 	// since ioctls do not seem to work.
-	if (dvd->vdev_win_length != 0) 
-		*psize = dvd->vdev_win_length;
+	*psize = capacity;
 
 	// Set max_psize to the biggest it can be, expanding..
 	*max_psize = *psize;
-
 
 	if (!blksz) blksz = DEV_BSIZE;
 	if (!pbsize) pbsize = DEV_BSIZE;
@@ -424,11 +468,13 @@ vdev_disk_close(vdev_t *vd)
 		dprintf("%s: \n", __func__);
 
 		// Undo disk readonly and offline.
-		disk_exclusive(IoGetRelatedDeviceObject(dvd->vd_FileObject), FALSE);
+		if (vd->vdev_wholedisk)
+			disk_exclusive(dvd->vd_ExclusiveObject, FALSE);
 
 		// Release our holds
 		ObDereferenceObject(dvd->vd_FileObject);
 		ObDereferenceObject(dvd->vd_DeviceObject);
+		ObDereferenceObject(dvd->vd_ExclusiveObject);
 		// Close file
 		ZwClose(dvd->vd_lh);
 	}
@@ -436,6 +482,7 @@ vdev_disk_close(vdev_t *vd)
 	dvd->vd_lh = NULL;
 	dvd->vd_FileObject = NULL;
 	dvd->vd_DeviceObject = NULL;
+	dvd->vd_ExclusiveObject = NULL;
 
 	vdev_disk_free(vd);
 }
