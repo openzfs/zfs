@@ -979,9 +979,11 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 			/*
 			 * Update device id string for mpath nodes (Linux only)
 			 */
-			if (is_mpath_whole_disk(path))
+			if (is_mpath_whole_disk(path)) {
 				update_vdev_config_dev_strs(nv);
-
+				/* update might change path, so fetch it again */
+				verify(!nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &path));
+			}
 			if (!is_spare(NULL, path))
 				(void) zero_label(path);
 			return (0);
