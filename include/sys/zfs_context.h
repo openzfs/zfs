@@ -652,7 +652,7 @@ extern void random_fini(void);
 
 struct spa;
 extern void show_pool_stats(struct spa *);
-extern int set_global_var(char *arg);
+extern int set_global_var(char const *arg);
 
 typedef struct callb_cpr {
 	kmutex_t	*cc_lockp;
