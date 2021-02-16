@@ -158,6 +158,9 @@ enum ztest_class_state {
 	ZTEST_VDEV_CLASS_RND
 };
 
+#define	ZO_GVARS_MAX_ARGLEN	((size_t)64)
+#define	ZO_GVARS_MAX_COUNT	((size_t)10)
+
 typedef struct ztest_shared_opts {
 	char zo_pool[ZFS_MAX_DATASET_NAME_LEN];
 	char zo_dir[ZFS_MAX_DATASET_NAME_LEN];
@@ -185,6 +188,8 @@ typedef struct ztest_shared_opts {
 	int zo_mmp_test;
 	int zo_special_vdevs;
 	int zo_dump_dbgmsg;
+	int zo_gvars_count;
+	char zo_gvars[ZO_GVARS_MAX_COUNT][ZO_GVARS_MAX_ARGLEN];
 } ztest_shared_opts_t;
 
 static const ztest_shared_opts_t ztest_opts_defaults = {
@@ -212,6 +217,7 @@ static const ztest_shared_opts_t ztest_opts_defaults = {
 	.zo_maxloops = 50,		/* max loops during spa_freeze() */
 	.zo_metaslab_force_ganging = 64 << 10,
 	.zo_special_vdevs = ZTEST_VDEV_CLASS_RND,
+	.zo_gvars_count = 0,
 };
 
 extern uint64_t metaslab_force_ganging;
@@ -918,8 +924,21 @@ process_options(int argc, char **argv)
 			ztest_parse_name_value(optarg, zo);
 			break;
 		case 'o':
-			if (set_global_var(optarg) != 0)
+			if (zo->zo_gvars_count >= ZO_GVARS_MAX_COUNT) {
+				(void) fprintf(stderr,
+				    "max global var count (%zu) exceeded\n",
+				    ZO_GVARS_MAX_COUNT);
 				usage(B_FALSE);
+			}
+			char *v = zo->zo_gvars[zo->zo_gvars_count];
+			if (strlcpy(v, optarg, ZO_GVARS_MAX_ARGLEN) >=
+			    ZO_GVARS_MAX_ARGLEN) {
+				(void) fprintf(stderr,
+				    "global var option '%s' is too long\n",
+				    optarg);
+				usage(B_FALSE);
+			}
+			zo->zo_gvars_count++;
 			break;
 		case 'G':
 			zo->zo_dump_dbgmsg = 1;
@@ -7611,6 +7630,27 @@ setup_data(void)
 	ztest_shared_ds = (void *)&buf[offset];
 }
 
+static int
+ztest_set_global_vars(void)
+{
+	for (size_t i = 0; i < ztest_opts.zo_gvars_count; i++) {
+		char *kv = ztest_opts.zo_gvars[i];
+		VERIFY3U(strlen(kv), <=, ZO_GVARS_MAX_ARGLEN);
+		VERIFY3U(strlen(kv), >, 0);
+		int err = set_global_var(kv);
+		if (ztest_opts.zo_verbose > 0) {
+			(void) printf("setting global var %s ... %s\n", kv,
+			    err ? "failed" : "ok");
+		}
+		if (err != 0) {
+			(void) fprintf(stderr,
+			    "failed to set global var '%s'\n", kv);
+			return (err);
+		}
+	}
+	return (0);
+}
+
 static boolean_t
 exec_child(char *cmd, char *libpath, boolean_t ignorekill, int *statusp)
 {
@@ -7727,7 +7767,7 @@ main(int argc, char **argv)
 	char numbuf[NN_NUMBUF_SZ];
 	char *cmd;
 	boolean_t hasalt;
-	int f;
+	int f, err;
 	char *fd_data_str = getenv("ZTEST_FD_DATA");
 	struct sigaction action;
 
@@ -7793,6 +7833,15 @@ main(int argc, char **argv)
 		bcopy(ztest_shared_opts, &ztest_opts, sizeof (ztest_opts));
 	}
 	ASSERT3U(ztest_opts.zo_datasets, ==, ztest_shared_hdr->zh_ds_count);
+
+	err = ztest_set_global_vars();
+	if (err != 0 && !fd_data_str) {
+		/* error message done by ztest_set_global_vars */
+		exit(EXIT_FAILURE);
+	} else {
+		/* children should not be spawned if setting gvars fails */
+		VERIFY3S(err, ==, 0);
+	}
 
 	/* Override location of zpool.cache */
 	VERIFY3S(asprintf((char **)&spa_config_path, "%s/zpool.cache",
