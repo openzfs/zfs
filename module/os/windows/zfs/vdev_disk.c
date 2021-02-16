@@ -163,7 +163,7 @@ vdev_disk_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 
 	// Use vd->vdev_physpath first, if set, otherwise
 	// usual vd->vdev_path
-	if (vd->vdev_physpath)
+	if (vd->vdev_physpath) 
 		vdev_path = spa_strdup(vd->vdev_physpath);
 	else
 		vdev_path = spa_strdup(vd->vdev_path);
@@ -182,6 +182,17 @@ vdev_disk_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 	}
 	else {
 		FileName = vdev_path;
+
+		// Sometimes only vdev_path is set, with "/dev/physicaldrive"
+		// make it be " \??\physicaldrive" space skipped over.
+		if (!strncmp("/dev/", FileName, 5)) {
+			FileName[0] = ' ';
+			FileName[1] = '\\';
+			FileName[2] = '?';
+			FileName[3] = '?';
+			FileName[4] = '\\';
+			FileName++;
+		}
 	}
 
 	// Apparently in Userland it is "\\?\" but in

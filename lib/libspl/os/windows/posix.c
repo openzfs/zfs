@@ -903,6 +903,13 @@ int wosix_open(const char *path, int oflag, ...)
 
 	}
 
+	// Also handle "/dev/"
+	if (strncmp("/dev/", path, 5) == 0) {
+		char tmp[PATH_MAX];
+		snprintf(tmp, sizeof(tmp), "\\\\?\\%s", &path[5]);
+		h = CreateFile(tmp, mode, share, NULL, how, FILE_ATTRIBUTE_NORMAL, NULL);
+	}
+
 	// If we failed, translate error to posix
 	if (h == INVALID_HANDLE_VALUE) {
 		errno = EINVAL;

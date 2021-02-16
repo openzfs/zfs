@@ -795,20 +795,51 @@ zpool_find_import_blkid(libpc_handle_t *hdl, pthread_mutex_t *lock,
 			fprintf(stderr, "read partitions ok %d\n", partitions->PartitionCount); fflush(stderr);
 
 			for (int i = 0; i < partitions->PartitionCount; i++) {
+				int add = 0;
 				switch (partitions->PartitionEntry[i].PartitionStyle) {
 				case PARTITION_STYLE_MBR:
 					fprintf(stderr, "    mbr %d: type %x off 0x%llx len 0x%llx\n", i, 
 						partitions->PartitionEntry[i].Mbr.PartitionType,
 						partitions->PartitionEntry[i].StartingOffset.QuadPart,
 						partitions->PartitionEntry[i].PartitionLength.QuadPart); fflush(stderr);
+					add = 1;
 					break;
 				case PARTITION_STYLE_GPT:
 					fprintf(stderr, "    gpt %d: type %x off 0x%llx len 0x%llx\n", i,
 						partitions->PartitionEntry[i].Gpt.PartitionType,
 						partitions->PartitionEntry[i].StartingOffset.QuadPart,
 						partitions->PartitionEntry[i].PartitionLength.QuadPart); fflush(stderr);
+					add = 1;
 					break;
 				}
+
+				if (add && partitions->PartitionEntry[i].PartitionLength.QuadPart > SPA_MINDEVSIZE) {
+					slice = zutil_alloc(hdl, sizeof(rdsk_node_t));
+
+					error = asprintf(&slice->rn_name, "\\\\?\\Harddisk%uPartition%u",
+					    diskNumber.DeviceNumber, i);
+					if (error == -1) {
+					    free(slice);
+					    continue;
+					}
+
+					slice->rn_vdev_guid = 0;
+					slice->rn_lock = lock;
+					slice->rn_avl = *slice_cache;
+					slice->rn_hdl = hdl;
+					slice->rn_labelpaths = B_FALSE;
+					slice->rn_order = IMPORT_ORDER_PREFERRED_2;
+
+					pthread_mutex_lock(lock);
+					if (avl_find(*slice_cache, slice, &where)) {
+					    free(slice->rn_name);
+					    free(slice);
+					} else {
+					    avl_insert(*slice_cache, slice, where);
+					}
+					pthread_mutex_unlock(lock);
+				}
+
 			}
 			// in case we have a disk without partition, it would be possible that the
 			// disk itself contains a pool, so let's check that
@@ -846,7 +877,7 @@ zpool_find_import_blkid(libpc_handle_t *hdl, pthread_mutex_t *lock,
 		}
 
 		CloseHandle(disk);
-
+#if 1 // efi
 		// Add the whole physical device, but lets also try to read EFI off it.
 		disk = CreateFile(deviceInterfaceDetailData->DevicePath,
 			GENERIC_READ,
@@ -913,9 +944,11 @@ zpool_find_import_blkid(libpc_handle_t *hdl, pthread_mutex_t *lock,
 		} else { // Unable to open handle
 			fprintf(stderr, "Unable to open disk, are we Administrator? GetLastError() is 0x%x\n", GetLastError()); fflush(stderr);
 		}
+
+#endif
 	} // while SetupDiEnumDeviceInterfaces
 
-
+#if 1
 	/* Now lets iterate the partitions (volumes) */
 	HANDLE vol;
 	vol = FindFirstVolume(rdsk, sizeof(rdsk));
@@ -954,7 +987,7 @@ zpool_find_import_blkid(libpc_handle_t *hdl, pthread_mutex_t *lock,
 			vol = INVALID_HANDLE_VALUE;
 		}
 	}
-
+#endif
 	return (0);
 }
 
@@ -1074,6 +1107,7 @@ update_vdev_config_dev_strs(nvlist_t *nv)
 
 	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &path) != 0)
 		return;
+	nvlist_lookup_uint64(nv, ZPOOL_CONFIG_WHOLE_DISK, &wholedisk);
 
 	fprintf(stderr, "working on dev '%s'\n", path); fflush(stderr);
 
@@ -1102,7 +1136,12 @@ update_vdev_config_dev_strs(nvlist_t *nv)
 	ret = get_device_number(end, &deviceNumber);
 	if (ret == 0) {
 		char *vdev_path;
-		asprintf(&vdev_path, "/dev/physicaldrive%lu", deviceNumber.DeviceNumber);
+
+		if (wholedisk)
+			asprintf(&vdev_path, "/dev/physicaldrive%lu", deviceNumber.DeviceNumber);
+		else
+			asprintf(&vdev_path, "/dev/Harddisk%luPartition%lu", deviceNumber.DeviceNumber,
+			    deviceNumber.PartitionNumber);
 
 		fprintf(stderr, "setting path here '%s'\r\n", vdev_path); fflush(stderr);
 		fprintf(stderr, "setting physpath here '%s'\r\n", path); fflush(stderr);
@@ -1112,6 +1151,8 @@ update_vdev_config_dev_strs(nvlist_t *nv)
 		if (nvlist_add_string(nv, ZPOOL_CONFIG_PATH, vdev_path) != 0)
 			return;
 	} else {
+	    fprintf(stderr, "not setting physpath \r\n", path); fflush(stderr);
+
 //		if (nvlist_add_string(nv, ZPOOL_CONFIG_PATH, path) != 0)
 //			return;
 	}

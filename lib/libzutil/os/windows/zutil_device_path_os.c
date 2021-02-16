@@ -198,7 +198,8 @@ zpool_label_disk_wait(const char *path, int timeout_ms)
 boolean_t
 is_mpath_whole_disk(const char *path)
 {
-	return (B_FALSE);
+	// Return TRUE here to have make_disks() call update_vdev_config_dev_strs() 
+	return (B_TRUE);
 }
 
 /*
