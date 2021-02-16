@@ -220,7 +220,7 @@ int zfs_vn_rdwr(enum uio_rw rw, struct vnode *vp, caddr_t base, ssize_t len,
     return (error);
 }
 
-int kernel_ioctl(PDEVICE_OBJECT DeviceObject, long cmd, void *inbuf, uint32_t inlen,
+int kernel_ioctl(PDEVICE_OBJECT DeviceObject, FILE_OBJECT *FileObject, long cmd, void *inbuf, uint32_t inlen,
 	void *outbuf, uint32_t outlen)
 {
 	// NTSTATUS status;
@@ -251,6 +251,9 @@ int kernel_ioctl(PDEVICE_OBJECT DeviceObject, long cmd, void *inbuf, uint32_t in
 	/* Override verification */
 	IoGetNextIrpStackLocation(Irp)->Flags |= SL_OVERRIDE_VERIFY_VOLUME;
 
+	if (FileObject != NULL)
+		IoGetNextIrpStackLocation(Irp)->FileObject = FileObject;
+
 	/* Do the request */
 	Status = IoCallDriver(DeviceObject, Irp);
 	if (Status == STATUS_PENDING) {
@@ -276,7 +279,7 @@ int blk_queue_discard(PDEVICE_OBJECT dev)
 	// DWORD bytesReturned = 0;
 	DEVICE_TRIM_DESCRIPTOR dtd = { 0 };
 
-	if (kernel_ioctl(dev, IOCTL_STORAGE_QUERY_PROPERTY,
+	if (kernel_ioctl(dev, NULL, IOCTL_STORAGE_QUERY_PROPERTY,
 		&spqTrim, sizeof(spqTrim), &dtd, sizeof(dtd)) == 0) {
 		return dtd.TrimEnabled;
 	}
@@ -295,7 +298,7 @@ int blk_queue_nonrot(PDEVICE_OBJECT dev)
 	spqSeekP.QueryType = PropertyStandardQuery;
 	// DWORD bytesReturned = 0;
 	DEVICE_SEEK_PENALTY_DESCRIPTOR dspd = { 0 };
-	if (kernel_ioctl(dev, IOCTL_STORAGE_QUERY_PROPERTY,
+	if (kernel_ioctl(dev, NULL, IOCTL_STORAGE_QUERY_PROPERTY,
 		&spqSeekP, sizeof(spqSeekP), &dspd, sizeof(dspd)) == 0) {
 		return !dspd.IncursSeekPenalty;
 	}
@@ -321,7 +324,7 @@ int blkdev_issue_discard_bytes(PDEVICE_OBJECT dev, uint64_t offset, uint64_t siz
 	set.range.LengthInBytes = size;
 	set.range.StartingOffset = offset;
 
-	Status = kernel_ioctl(dev, IOCTL_STORAGE_MANAGE_DATA_SET_ATTRIBUTES,
+	Status = kernel_ioctl(dev, NULL, IOCTL_STORAGE_MANAGE_DATA_SET_ATTRIBUTES,
 		&set, sizeof(set), NULL, 0);
 
 	if (Status == 0) {

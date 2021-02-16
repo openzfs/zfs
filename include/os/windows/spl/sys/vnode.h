@@ -580,7 +580,7 @@ void vnode_set_easize(struct vnode *vp, uint64_t size);
 void vnode_clear_easize(struct vnode *vp);
 int vnode_flushcache(vnode_t *vp, FILE_OBJECT *fileobject, boolean_t );
 
-int kernel_ioctl(PDEVICE_OBJECT DeviceObject, long cmd, void *inbuf, uint32_t inlen,
+int kernel_ioctl(PDEVICE_OBJECT DeviceObject, PFILE_OBJECT, long cmd, void *inbuf, uint32_t inlen,
 	void *outbuf, uint32_t outlen);
 
 /* Linux TRIM API */
