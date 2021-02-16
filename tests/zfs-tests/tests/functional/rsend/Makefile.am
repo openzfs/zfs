@@ -1,3 +1,5 @@
+include $(top_srcdir)/config/Rules.am
+
 pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/rsend
 dist_pkgdata_SCRIPTS = \
 	setup.ksh \
@@ -53,7 +55,8 @@ dist_pkgdata_SCRIPTS = \
 	send_hole_birth.ksh \
 	send_invalid.ksh \
 	send_mixed_raw.ksh \
-	send-wR_encrypted_zvol.ksh
+	send-wR_encrypted_zvol.ksh \
+	send_doall.ksh
 
 dist_pkgdata_DATA = \
 	dedup.zsend.bz2 \
@@ -62,3 +65,12 @@ dist_pkgdata_DATA = \
 	fs.tar.gz \
 	rsend.cfg \
 	rsend.kshlib
+
+pkgexec_PROGRAMS = send_doall
+
+send_doall_SOURCES = send_doall.c
+send_doall_LDADD = \
+        $(abs_top_builddir)/lib/libzfs_core/libzfs_core.la \
+        $(abs_top_builddir)/lib/libzfs/libzfs.la \
+        $(abs_top_builddir)/lib/libnvpair/libnvpair.la
+

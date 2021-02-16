@@ -72,8 +72,8 @@ main(int argc, char const * const argv[])
 	zhp = zfs_open(zhdl, fsname, ZFS_TYPE_FILESYSTEM);
 	if (zhp == NULL)
 		err(EX_OSERR, "zfs_open(\"%s\")", fsname);
-        
-        flags.doall = B_TRUE;
+
+	flags.doall = B_TRUE;
 
 	error = zfs_send(zhp, NULL, tosnap, &flags, stdout, NULL, NULL, NULL);
 
