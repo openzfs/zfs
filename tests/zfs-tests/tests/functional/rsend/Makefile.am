@@ -66,6 +66,8 @@ dist_pkgdata_DATA = \
 	rsend.cfg \
 	rsend.kshlib
 
+pkgexecdir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/rsend
+
 pkgexec_PROGRAMS = send_doall
 
 send_doall_SOURCES = send_doall.c
