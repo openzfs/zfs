@@ -49,7 +49,7 @@ for i in {1..3}; do
 	file="/$POOL/fs/file$i"
 
 	log_must mkfile 16384 $file
-        log_must zfs snapshot $POOL/fs@snap$i
+	log_must zfs snapshot $POOL/fs@snap$i
 done
 
 # Snapshot the pool and send it to the new dataset.
