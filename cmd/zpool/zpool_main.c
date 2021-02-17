@@ -8629,6 +8629,10 @@ upgrade_enable_all(zpool_handle_t *zhp, int *countp)
 	for (i = 0; i < SPA_FEATURES; i++) {
 		const char *fname = spa_feature_table[i].fi_uname;
 		const char *fguid = spa_feature_table[i].fi_guid;
+
+		if (!spa_feature_table[i].fi_zfs_mod_supported)
+			continue;
+
 		if (!nvlist_exists(enabled, fguid)) {
 			char *propname;
 			verify(-1 != asprintf(&propname, "feature@%s", fname));
@@ -8759,6 +8763,10 @@ upgrade_list_disabled_cb(zpool_handle_t *zhp, void *arg)
 		for (i = 0; i < SPA_FEATURES; i++) {
 			const char *fguid = spa_feature_table[i].fi_guid;
 			const char *fname = spa_feature_table[i].fi_uname;
+
+			if (!spa_feature_table[i].fi_zfs_mod_supported)
+				continue;
+
 			if (!nvlist_exists(enabled, fguid)) {
 				if (cbp->cb_first) {
 					(void) printf(gettext("\nSome "
