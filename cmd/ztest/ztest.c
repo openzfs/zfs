@@ -133,7 +133,7 @@
 #include <libnvpair.h>
 #include <libzutil.h>
 #include <sys/crypto/icp.h>
-#ifdef __GLIBC__
+#if (__GLIBC__ && !__UCLIBC__)
 #include <execinfo.h> /* for backtrace() */
 #endif
 
@@ -563,7 +563,7 @@ dump_debug_buffer(void)
 static void sig_handler(int signo)
 {
 	struct sigaction action;
-#ifdef __GLIBC__ /* backtrace() is a GNU extension */
+#if (__GLIBC__ && !__UCLIBC__) /* backtrace() is a GNU extension */
 	int nptrs;
 	void *buffer[BACKTRACE_SZ];
 
