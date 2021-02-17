@@ -19,19 +19,19 @@ add_library(libzfs
 	os/windows/libzfs_util_os.c
 )
 
-variable_watch(CRYPTO_STATIC)
+#variable_watch(CRYPTO_STATIC)
 # set(CRYPTO_STATIC "notset")
 set(CMAKE_FIND_DEBUG_MODE TRUE)
-find_library(CRYPTO_STATIC
+find_library(CRYPTO_STATIC_TEST
     NAMES
-      libcrypto_static
+      libcrypto64MTd
     NAMES_PER_DIR
-    ${_OPENSSL_ROOT_HINTS_AND_PATHS}
-    HINTS
-      ${OPENSSL_ROOT_DIR}/lib
+	HINTS
+	  "C:/Program Files/OpenSSL-Win64/lib/VC/static"
     PATH_SUFFIXES
       lib
 	REQUIRED
   )
 
-target_link_libraries(libzfs PUBLIC libpthread zlib libzutil libshare libzfs_core libnvpair libuutil ${CRYPTO_STATIC})
+target_link_libraries(libzfs PUBLIC libpthread zlib libzutil libshare libzfs_core libnvpair libuutil)
+target_link_libraries(libzfs PRIVATE Crypt32.lib ${CRYPTO_STATIC_TEST})

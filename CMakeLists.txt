@@ -6,11 +6,19 @@ include(GNUInstallDirs)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/contrib/windows/cmake")
 find_package(WDK REQUIRED)
 
-set(OPENSSL_USE_STATIC_LIBS TRUE)
-variable_watch(OPENSSL_CRYPTO_STATIC)
-find_package(OpenSSL REQUIRED)
-
 option(BUILD_SHARED_LIBS "Build Shared Libraries" OFF)
+
+set(OPENSSL_USE_STATIC_LIBS TRUE)
+set(OPENSSL_MSVC_STATIC_RT TRUE)
+find_package(OpenSSL REQUIRED)
+# message(STATUS "OpenSSL libs: " ${OPENSSL_LIBRARIES})
+# Seriously, why does it pick MD versions and not MT like requested?
+# string(REGEX REPLACE "64MD" "64MT" INTERNAL_OPENSSL_LIBRARIES ${OPENSSL_LIBRARIES})
+#message(STATUS "OpenSSL libs: " ${OPENSSL_CRYPTO_LIBRARY})
+#cmake_path(GET ${OPENSSL_LIBRARIES} ROOT_PATH rootPath)
+#get_filename_component(rootPath "${OPENSSL_CRYPTO_LIBRARY}" DIRECTORY)
+#message(STATUS "OpenSSL root: " ${rootPath})
+
 
 # Attempt to simulate scripts/make-gitrev.h and zfs_gitrev.h
 include(GetGitRevisionDescription)
@@ -64,9 +72,9 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 endif()
 
 # Avoid dependency add_compile_definitions vcruntime140.dll
+set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /MT")
+set(CMAKE_C_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MTd")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /MT")
-set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /MT")
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MTd")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MTd")
 
 # Let's try to emulate gitrev
