@@ -43,8 +43,7 @@ log_onexit cleanup
 
 log_must zfs create $POOL/fs
 
-# Create 40 files each with a spill block containing xattrs.  Each file
-# will be modified in a different way to validate the incremental receive.
+# Create 3 files and a snapshot between each file creation.
 for i in {1..3}; do
 	file="/$POOL/fs/file$i"
 
@@ -53,7 +52,7 @@ for i in {1..3}; do
 done
 
 # Snapshot the pool and send it to the new dataset.
-log_must eval "$STF_SUITE/tests/functional/rsend/send_doall $POOL/fs@snap3 >$BACKDIR/fs@snap3"
+log_must eval "send_doall $POOL/fs@snap3 >$BACKDIR/fs@snap3"
 log_must eval "zfs recv $POOL/newfs < $BACKDIR/fs@snap3"
 
 log_pass "Verify send_doall stream is correct"

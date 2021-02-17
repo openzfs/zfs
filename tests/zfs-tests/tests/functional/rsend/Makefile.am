@@ -1,5 +1,3 @@
-include $(top_srcdir)/config/Rules.am
-
 pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/rsend
 dist_pkgdata_SCRIPTS = \
 	setup.ksh \
@@ -65,14 +63,4 @@ dist_pkgdata_DATA = \
 	fs.tar.gz \
 	rsend.cfg \
 	rsend.kshlib
-
-pkgexecdir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/rsend
-
-pkgexec_PROGRAMS = send_doall
-
-send_doall_SOURCES = send_doall.c
-send_doall_LDADD = \
-	$(abs_top_builddir)/lib/libzfs_core/libzfs_core.la \
-	$(abs_top_builddir)/lib/libzfs/libzfs.la \
-	$(abs_top_builddir)/lib/libnvpair/libnvpair.la
 
