@@ -52,6 +52,7 @@
 #include <sys/zfeature.h>
 #include <sys/abd.h>
 #include <sys/trace_zfs.h>
+#include <sys/zfs_racct.h>
 #include <sys/zfs_rlock.h>
 #ifdef _KERNEL
 #include <sys/vmsystm.h>
@@ -550,6 +551,9 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 			(void) dbuf_read(db, zio, dbuf_flags);
 		dbp[i] = &db->db;
 	}
+
+	if (!read)
+		zfs_racct_write(length, nblks);
 
 	if ((flags & DMU_READ_NO_PREFETCH) == 0 &&
 	    DNODE_META_IS_CACHEABLE(dn) && length <= zfetch_array_rd_sz) {
@@ -1440,6 +1444,7 @@ dmu_assign_arcbuf_by_dnode(dnode_t *dn, uint64_t offset, arc_buf_t *buf,
 	 * same size as the dbuf.
 	 */
 	if (offset == db->db.db_offset && blksz == db->db.db_size) {
+		zfs_racct_write(blksz, 1);
 		dbuf_assign_arcbuf(db, buf, tx);
 		dbuf_rele(db, FTAG);
 	} else {
