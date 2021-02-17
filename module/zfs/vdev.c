@@ -4171,8 +4171,8 @@ vdev_clear(spa_t *spa, vdev_t *vd)
 	    vd->vdev_parent->vdev_child[0] == vd)
 		vd->vdev_unspare = B_TRUE;
 
-	/* Clear recent events cache (i.e. duplicate events tracking) */
-	zfs_ereport_clear(spa, vd == spa->spa_root_vdev ? NULL : vd);
+	/* Clear recent error events cache (i.e. duplicate events tracking) */
+	zfs_ereport_clear(spa, vd);
 }
 
 boolean_t

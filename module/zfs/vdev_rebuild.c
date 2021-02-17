@@ -338,6 +338,9 @@ vdev_rebuild_complete_sync(void *arg, dmu_tx_t *tx)
 	}
 
 	cv_broadcast(&vd->vdev_rebuild_cv);
+
+	/* Clear recent error events (i.e. duplicate events tracking) */
+	zfs_ereport_clear(spa, NULL);
 }
 
 /*

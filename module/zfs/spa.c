@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2021 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
  * Copyright (c) 2018, Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  * Copyright 2013 Saso Kiselkov. All rights reserved.
@@ -9759,12 +9759,6 @@ void
 spa_event_notify(spa_t *spa, vdev_t *vd, nvlist_t *hist_nvl, const char *name)
 {
 	spa_event_post(spa_event_create(spa, vd, hist_nvl, name));
-
-	if (strcmp(name, ESC_ZFS_SCRUB_FINISH) == 0 ||
-	    strcmp(name, ESC_ZFS_RESILVER_FINISH) == 0) {
-		/* Clear recent events (i.e. duplicate events tracking) */
-		zfs_ereport_clear(spa, vd == spa->spa_root_vdev ? NULL : vd);
-	}
 }
 
 /* state manipulation functions */
