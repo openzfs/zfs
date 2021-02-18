@@ -822,8 +822,10 @@ int zfs_vnop_lookup_impl(PIRP Irp, PIO_STACK_LOCATION IrpSp, mount_t *zmo, char 
 		// in xattrdir, and assign vp.
 		if (dvp_no_rele)
 			VN_RELE(dvp);
+
 		// Create the xattrdir only if we are to create a new entry
-		if (error = zfs_get_xattrdir(VTOZ(vp), &dzp, cr, CreateFile ? CREATE_XATTR_DIR : 0)) {
+		zp = VTOZ(vp);
+		if (error = zfs_get_xattrdir(zp, &dzp, cr, CreateFile ? CREATE_XATTR_DIR : 0)) {
 			VN_RELE(vp);
 			Irp->IoStatus.Information = FILE_DOES_NOT_EXIST;
 			return STATUS_OBJECT_NAME_NOT_FOUND;
@@ -833,6 +835,11 @@ int zfs_vnop_lookup_impl(PIRP Irp, PIO_STACK_LOCATION IrpSp, mount_t *zmo, char 
 		dvp = ZTOV(dzp);
 		int direntflags = 0; // To detect ED_CASE_CONFLICT
 		error = zfs_dirlook(dzp, stream_name, &zp, 0 /*FIGNORECASE*/, &direntflags, NULL);
+		if (error) {
+			Irp->IoStatus.Information = FILE_DOES_NOT_EXIST;
+			return STATUS_OBJECT_NAME_NOT_FOUND;
+		}
+
 		// Here, it may not exist, as we are to create it.
 		finalname = stream_name;
 		vp = ZTOV(zp);
