@@ -6393,6 +6393,75 @@ ztest_fletcher_incr(ztest_ds_t *zd, uint64_t id)
 }
 
 static int
+ztest_set_global_vars(void)
+{
+	for (size_t i = 0; i < ztest_opts.zo_gvars_count; i++) {
+		char *kv = ztest_opts.zo_gvars[i];
+		VERIFY3U(strlen(kv), <=, ZO_GVARS_MAX_ARGLEN);
+		VERIFY3U(strlen(kv), >, 0);
+		int err = set_global_var(kv);
+		if (ztest_opts.zo_verbose > 0) {
+			(void) printf("setting global var %s ... %s\n", kv,
+			    err ? "failed" : "ok");
+		}
+		if (err != 0) {
+			(void) fprintf(stderr,
+			    "failed to set global var '%s'\n", kv);
+			return (err);
+		}
+	}
+	return (0);
+}
+
+static char **
+ztest_global_vars_to_zdb_args(void)
+{
+	char **args = calloc(2*ztest_opts.zo_gvars_count + 1, sizeof (char *));
+	char **cur = args;
+	for (size_t i = 0; i < ztest_opts.zo_gvars_count; i++) {
+		char *kv = ztest_opts.zo_gvars[i];
+		*cur = "-o";
+		cur++;
+		*cur = strdup(kv);
+		cur++;
+	}
+	ASSERT3P(cur, ==, &args[2*ztest_opts.zo_gvars_count]);
+	*cur = NULL;
+	return (args);
+}
+
+/* The end of strings is indicated by a NULL element */
+static char *
+join_strings(char **strings, const char *sep)
+{
+	size_t totallen = 0;
+	for (char **sp = strings; *sp != NULL; sp++) {
+		totallen += strlen(*sp);
+		totallen += strlen(sep);
+	}
+	if (totallen > 0) {
+		ASSERT(totallen >= strlen(sep));
+		totallen -= strlen(sep);
+	}
+
+	size_t buflen = totallen + 1;
+	char *o = malloc(buflen); /* trailing 0 byte */
+	o[0] = '\0';
+	for (char **sp = strings; *sp != NULL; sp++) {
+		size_t would;
+		would = strlcat(o, *sp, buflen);
+		VERIFY3U(would, <, buflen);
+		if (*(sp+1) == NULL) {
+			break;
+		}
+		would = strlcat(o, sep, buflen);
+		VERIFY3U(would, <, buflen);
+	}
+	ASSERT3S(strlen(o), ==, totallen);
+	return (o);
+}
+
+static int
 ztest_check_path(char *path)
 {
 	struct stat s;
@@ -6620,13 +6689,21 @@ ztest_run_zdb(char *pool)
 
 	ztest_get_zdb_bin(bin, len);
 
-	(void) sprintf(zdb,
-	    "%s -bcc%s%s -G -d -Y -e -y -p %s %s",
+	char **set_gvars_args = ztest_global_vars_to_zdb_args();
+	char *set_gvars_args_joined = join_strings(set_gvars_args, " ");
+	free(set_gvars_args);
+
+	size_t would = snprintf(zdb, len,
+	    "%s -bcc%s%s -G -d -Y -e -y %s -p %s %s",
 	    bin,
 	    ztest_opts.zo_verbose >= 3 ? "s" : "",
 	    ztest_opts.zo_verbose >= 4 ? "v" : "",
+	    set_gvars_args_joined,
 	    ztest_opts.zo_dir,
 	    pool);
+	ASSERT3U(would, <, len);
+
+	free(set_gvars_args_joined);
 
 	if (ztest_opts.zo_verbose >= 5)
 		(void) printf("Executing %s\n", strstr(zdb, "zdb "));
@@ -7628,27 +7705,6 @@ setup_data(void)
 	ztest_shared_callstate = (void *)&buf[offset];
 	offset += hdr->zh_stats_size * hdr->zh_stats_count;
 	ztest_shared_ds = (void *)&buf[offset];
-}
-
-static int
-ztest_set_global_vars(void)
-{
-	for (size_t i = 0; i < ztest_opts.zo_gvars_count; i++) {
-		char *kv = ztest_opts.zo_gvars[i];
-		VERIFY3U(strlen(kv), <=, ZO_GVARS_MAX_ARGLEN);
-		VERIFY3U(strlen(kv), >, 0);
-		int err = set_global_var(kv);
-		if (ztest_opts.zo_verbose > 0) {
-			(void) printf("setting global var %s ... %s\n", kv,
-			    err ? "failed" : "ok");
-		}
-		if (err != 0) {
-			(void) fprintf(stderr,
-			    "failed to set global var '%s'\n", kv);
-			return (err);
-		}
-	}
-	return (0);
 }
 
 static boolean_t
