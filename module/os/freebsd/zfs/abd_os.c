@@ -328,25 +328,6 @@ abd_alloc_for_io(size_t size, boolean_t is_metadata)
 	return (abd_alloc_linear(size, is_metadata));
 }
 
-/*
- * This is just a helper function to abd_get_offset_scatter() to alloc a
- * scatter ABD using the calculated chunkcnt based on the offset within the
- * parent ABD.
- */
-static abd_t *
-abd_alloc_scatter_offset_chunkcnt(size_t chunkcnt)
-{
-	size_t abd_size = offsetof(abd_t,
-	    abd_u.abd_scatter.abd_chunks[chunkcnt]);
-	abd_t *abd = kmem_alloc(abd_size, KM_PUSHPAGE);
-	ASSERT3P(abd, !=, NULL);
-	list_link_init(&abd->abd_gang_link);
-	mutex_init(&abd->abd_mtx, NULL, MUTEX_DEFAULT, NULL);
-	ABDSTAT_INCR(abdstat_struct_size, abd_size);
-
-	return (abd);
-}
-
 abd_t *
 abd_get_offset_scatter(abd_t *abd, abd_t *sabd, size_t off)
 {
