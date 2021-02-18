@@ -37,6 +37,7 @@
 export ZEDLET_ETC_DIR=${ZEDLET_ETC_DIR:-@sysconfdir@/zfs/zed.d}
 export ZEDLET_LIBEXEC_DIR=${ZEDLET_LIBEXEC_DIR:-@zfsexecdir@/zed.d}
 export ZPOOL_SCRIPT_DIR=${ZPOOL_SCRIPT_DIR:-@sysconfdir@/zfs/zpool.d}
+export ZPOOL_COMPAT_DIR=${ZPOOL_COMPAT_DIR:-@datadir@/zfs/compatibility.d}
 
 # Define run length constants
 export RT_LONG="3"

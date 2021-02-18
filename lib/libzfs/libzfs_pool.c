@@ -28,6 +28,7 @@
  * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
  * Copyright (c) 2017, Intel Corporation.
  * Copyright (c) 2018, loli10K <ezomori.nozomu@gmail.com>
+ * Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
  */
 
 #include <errno.h>
@@ -44,8 +45,12 @@
 #include <sys/zfs_ioctl.h>
 #include <sys/zfs_sysfs.h>
 #include <sys/vdev_disk.h>
+#include <sys/types.h>
 #include <dlfcn.h>
 #include <libzutil.h>
+#include <fcntl.h>
+#include <unistd.h>
+
 #include "zfs_namecheck.h"
 #include "zfs_prop.h"
 #include "libzfs_impl.h"
@@ -302,6 +307,7 @@ zpool_get_prop(zpool_handle_t *zhp, zpool_prop_t prop, char *buf,
 		case ZPOOL_PROP_ALTROOT:
 		case ZPOOL_PROP_CACHEFILE:
 		case ZPOOL_PROP_COMMENT:
+		case ZPOOL_PROP_COMPATIBILITY:
 			if (zhp->zpool_props != NULL ||
 			    zpool_get_all_props(zhp) == 0) {
 				(void) strlcpy(buf,
@@ -462,6 +468,8 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 	char *slash, *check;
 	struct stat64 statbuf;
 	zpool_handle_t *zhp;
+	char badword[ZFS_MAXPROPLEN];
+	char badfile[MAXPATHLEN];
 
 	if (nvlist_alloc(&retprops, NV_UNIQUE_NAME, 0) != 0) {
 		(void) no_memory(hdl);
@@ -669,6 +677,39 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 			}
 
 			*slash = '/';
+			break;
+
+		case ZPOOL_PROP_COMPATIBILITY:
+			switch (zpool_load_compat(strval, NULL,
+			    badword, badfile)) {
+			case ZPOOL_COMPATIBILITY_OK:
+				break;
+			case ZPOOL_COMPATIBILITY_READERR:
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "error reading feature file '%s'"),
+				    badfile);
+				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
+				goto error;
+			case ZPOOL_COMPATIBILITY_BADFILE:
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "feature file '%s' too large or not "
+				    "newline-terminated"),
+				    badfile);
+				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
+				goto error;
+			case ZPOOL_COMPATIBILITY_BADWORD:
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "unknown feature '%s' in feature "
+				    "file '%s'"),
+				    badword, badfile);
+				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
+				goto error;
+			case ZPOOL_COMPATIBILITY_NOFILES:
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "no feature files specified"));
+				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
+				goto error;
+			}
 			break;
 
 		case ZPOOL_PROP_COMMENT:
@@ -4662,4 +4703,191 @@ zpool_get_bootenv(zpool_handle_t *zhp, nvlist_t **nvlp)
 	}
 
 	return (error);
+}
+
+/*
+ * Attempt to read and parse feature file(s) (from "compatibility" property).
+ * Files contain zpool feature names, comma or whitespace-separated.
+ * Comments (# character to next newline) are discarded.
+ *
+ * Arguments:
+ *  compatibility : string containing feature filenames
+ *  features : either NULL or pointer to array of boolean
+ *  badtoken : either NULL or pointer to char[ZFS_MAXPROPLEN]
+ *  badfile : either NULL or pointer to char[MAXPATHLEN]
+ *
+ * compatibility is NULL (unset), "", "off", "legacy", or list of
+ * comma-separated filenames. filenames should either be absolute,
+ * or relative to:
+ *   1) ZPOOL_SYSCONF_COMPAT_D (eg: /etc/zfs/compatibility.d) or
+ *   2) ZPOOL_DATA_COMPAT_D (eg: /usr/share/zfs/compatibility.d).
+ * (Unset), "" or "off" => enable all features
+ * "legacy" => disable all features
+ * Any feature names read from files which match unames in spa_feature_table
+ * will have the corresponding boolean set in the features array (if non-NULL).
+ * If more than one feature set specified, only features present in *all* of
+ * them will be set.
+ *
+ * An unreadable filename will be strlcpy'd to badfile (if non-NULL).
+ * An unrecognized feature will be strlcpy'd to badtoken (if non-NULL).
+ *
+ * Return values:
+ *   ZPOOL_COMPATIBILITY_OK : files read and parsed ok
+ *   ZPOOL_COMPATIBILITY_READERR : file could not be opened / mmap'd
+ *   ZPOOL_COMPATIBILITY_BADFILE : file too big or not a text file
+ *   ZPOOL_COMPATIBILITY_BADWORD : file contains invalid feature name
+ *   ZPOOL_COMPATIBILITY_NOFILES  : no file names found
+ */
+zpool_compat_status_t
+zpool_load_compat(const char *compatibility,
+    boolean_t *features, char *badtoken, char *badfile)
+{
+	int sdirfd, ddirfd, featfd;
+	int i;
+	struct stat fs;
+	char *fc;			/* mmap of file */
+	char *ps, *ls, *ws;		/* strtok state */
+	char *file, *line, *word;
+	char filenames[ZFS_MAXPROPLEN];
+	int filecount = 0;
+
+	/* special cases (unset), "" and "off" => enable all features */
+	if (compatibility == NULL || compatibility[0] == '\0' ||
+	    strcmp(compatibility, ZPOOL_COMPAT_OFF) == 0) {
+		if (features != NULL)
+			for (i = 0; i < SPA_FEATURES; i++)
+				features[i] = B_TRUE;
+		return (ZPOOL_COMPATIBILITY_OK);
+	}
+
+	/* Final special case "legacy" => disable all features */
+	if (strcmp(compatibility, ZPOOL_COMPAT_LEGACY) == 0) {
+		if (features != NULL)
+			for (i = 0; i < SPA_FEATURES; i++)
+				features[i] = B_FALSE;
+		return (ZPOOL_COMPATIBILITY_OK);
+	}
+
+	/*
+	 * Start with all true; will be ANDed with results from each file
+	 */
+	if (features != NULL)
+		for (i = 0; i < SPA_FEATURES; i++)
+			features[i] = B_TRUE;
+
+	/*
+	 * We ignore errors from the directory open()
+	 * as they're only needed if the filename is relative
+	 * which will be checked during the openat().
+	 */
+#ifdef O_PATH
+	sdirfd = open(ZPOOL_SYSCONF_COMPAT_D, O_DIRECTORY | O_PATH);
+	ddirfd = open(ZPOOL_DATA_COMPAT_D, O_DIRECTORY | O_PATH);
+#else
+	sdirfd = open(ZPOOL_SYSCONF_COMPAT_D, O_DIRECTORY | O_RDONLY);
+	ddirfd = open(ZPOOL_DATA_COMPAT_D, O_DIRECTORY | O_RDONLY);
+#endif
+
+	(void) strlcpy(filenames, compatibility, ZFS_MAXPROPLEN);
+	file = strtok_r(filenames, ",", &ps);
+	while (file != NULL) {
+		boolean_t features_local[SPA_FEATURES];
+
+		/* try sysconfdir first, then datadir */
+		if ((featfd = openat(sdirfd, file, 0, O_RDONLY)) < 0)
+			featfd = openat(ddirfd, file, 0, O_RDONLY);
+
+		if (featfd < 0 || fstat(featfd, &fs) < 0) {
+			(void) close(featfd);
+			(void) close(sdirfd);
+			(void) close(ddirfd);
+			if (badfile != NULL)
+				(void) strlcpy(badfile, file, MAXPATHLEN);
+			return (ZPOOL_COMPATIBILITY_READERR);
+		}
+
+		/* Too big or too small */
+		if (fs.st_size < 1 || fs.st_size > ZPOOL_COMPAT_MAXSIZE) {
+			(void) close(featfd);
+			(void) close(sdirfd);
+			(void) close(ddirfd);
+			if (badfile != NULL)
+				(void) strlcpy(badfile, file, MAXPATHLEN);
+			return (ZPOOL_COMPATIBILITY_BADFILE);
+		}
+
+		/* private mmap() so we can strtok safely */
+		fc = (char *)mmap(NULL, fs.st_size,
+		    PROT_READ|PROT_WRITE, MAP_PRIVATE, featfd, 0);
+		(void) close(featfd);
+
+		if (fc < 0) {
+			(void) close(sdirfd);
+			(void) close(ddirfd);
+			if (badfile != NULL)
+				(void) strlcpy(badfile, file, MAXPATHLEN);
+			return (ZPOOL_COMPATIBILITY_READERR);
+		}
+
+		/* Text file sanity check - last char should be newline */
+		if (fc[fs.st_size - 1] != '\n') {
+			(void) munmap((void *) fc, fs.st_size);
+			(void) close(sdirfd);
+			(void) close(ddirfd);
+			if (badfile != NULL)
+				(void) strlcpy(badfile, file, MAXPATHLEN);
+			return (ZPOOL_COMPATIBILITY_BADFILE);
+		}
+
+		/* replace with NUL to ensure we have a delimiter */
+		fc[fs.st_size - 1] = '\0';
+
+		for (i = 0; i < SPA_FEATURES; i++)
+			features_local[i] = B_FALSE;
+
+		line = strtok_r(fc, "\n", &ls);
+		while (line != NULL) {
+			/* discard comments */
+			*(strchrnul(line, '#')) = '\0';
+
+			word = strtok_r(line, ", \t", &ws);
+			while (word != NULL) {
+				/* Find matching feature name */
+				for (i = 0; i < SPA_FEATURES; i++) {
+					zfeature_info_t *fi =
+					    &spa_feature_table[i];
+					if (strcmp(word, fi->fi_uname) == 0) {
+						features_local[i] = B_TRUE;
+						break;
+					}
+				}
+				if (i == SPA_FEATURES) {
+					if (badtoken != NULL)
+						(void) strlcpy(badtoken, word,
+						    ZFS_MAXPROPLEN);
+					if (badfile != NULL)
+						(void) strlcpy(badfile, file,
+						    MAXPATHLEN);
+					(void) munmap((void *) fc, fs.st_size);
+					(void) close(sdirfd);
+					(void) close(ddirfd);
+					return (ZPOOL_COMPATIBILITY_BADWORD);
+				}
+				word = strtok_r(NULL, ", \t", &ws);
+			}
+			line = strtok_r(NULL, "\n", &ls);
+		}
+		(void) munmap((void *) fc, fs.st_size);
+		if (features != NULL) {
+			for (i = 0; i < SPA_FEATURES; i++)
+				features[i] &= features_local[i];
+		}
+		filecount++;
+		file = strtok_r(NULL, ",", &ps);
+	}
+	(void) close(sdirfd);
+	(void) close(ddirfd);
+	if (filecount == 0)
+		return (ZPOOL_COMPATIBILITY_NOFILES);
+	return (ZPOOL_COMPATIBILITY_OK);
 }

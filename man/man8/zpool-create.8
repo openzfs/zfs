@@ -26,6 +26,7 @@
 .\" Copyright (c) 2018 George Melikov. All Rights Reserved.
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+.\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
 .\"
 .Dd August 9, 2019
 .Dt ZPOOL-CREATE 8
@@ -40,6 +41,7 @@
 .Op Fl m Ar mountpoint
 .Oo Fl o Ar property Ns = Ns Ar value Oc Ns ...
 .Oo Fl o Ar feature@feature Ns = Ns Ar value Oc
+.Op Fl o Ar compatibility Ns = Ns Ar off | legacy | file Bq , Ns Ar file Ns ...
 .Oo Fl O Ar file-system-property Ns = Ns Ar value Oc Ns ...
 .Op Fl R Ar root
 .Ar pool vdev Ns ...
@@ -52,6 +54,7 @@
 .Op Fl m Ar mountpoint
 .Oo Fl o Ar property Ns = Ns Ar value Oc Ns ...
 .Oo Fl o Ar feature@feature Ns = Ns Ar value Oc Ns ...
+.Op Fl o Ar compatibility Ns = Ns Ar off | legacy | file Bq , Ns Ar file Ns ...
 .Oo Fl O Ar file-system-property Ns = Ns Ar value Oc Ns ...
 .Op Fl R Ar root
 .Op Fl t Ar tname
@@ -135,9 +138,14 @@ This can be overridden with the
 .Fl m
 option.
 .Pp
-By default all supported features are enabled on the new pool unless the
+By default all supported features are enabled on the new pool. The
 .Fl d
-option is specified.
+option or the
+.Fl o Ar compatibility
+property (eg:
+.Fl o Ar compatibility=2020
+) can be used to restrict the features that are enabled, so that the
+pool can be imported on other releases of the ZFS software.
 .Bl -tag -width Ds
 .It Fl d
 Do not enable any features on the new pool.
@@ -179,6 +187,10 @@ Sets the given pool properties.
 See the
 .Xr zpoolprops
 manual page for a list of valid properties that can be set.
+.It Fl o Ar compatibility Ns = Ns Ar off | legacy | file Bq , Ns Ar file Ns ...
+Specifies compatibility feature sets. See
+.Xr zpool-features 5
+for more information about compatibility feature sets.
 .It Fl o Ar feature@feature Ns = Ns Ar value
 Sets the given pool feature. See the
 .Xr zpool-features 5
