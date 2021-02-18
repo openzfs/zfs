@@ -546,25 +546,25 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t ashift, uint64_t dcols,
 }
 
 /*
- * Everything before reflow_offset_phys should have been moved to the new
- * location (read and write completed).  However, this may not yet be
- * reflected in the on-disk format (e.g. raidz_reflow_sync() has been called
- * but the uberblock has not yet been written). If reflow is not in progress,
- * reflow_offset_phys should be UINT64_MAX. For each row, if the row is
- * entirely before reflow_offset_phys, it will come from the new location.
+ * Everything before reflow_offset_synced should have been moved to the new
+ * location (read and write completed).  However, this may not yet be reflected
+ * in the on-disk format (e.g. raidz_reflow_sync() has been called but the
+ * uberblock has not yet been written). If reflow is not in progress,
+ * reflow_offset_synced should be UINT64_MAX. For each row, if the row is
+ * entirely before reflow_offset_synced, it will come from the new location.
  * Otherwise this row will come from the old location.  Therefore, rows that
- * straddle the reflow_offset_phys will come from the old location.
+ * straddle the reflow_offset_synced will come from the old location.
  *
  * For writes, reflow_offset_next is the next offset to copy.  If a sector has
  * been copied, but not yet reflected in the on-disk progress
- * (reflow_offset_phys), it will also be written to the new (already copied)
+ * (reflow_offset_synced), it will also be written to the new (already copied)
  * offset.
  */
 noinline raidz_map_t *
 vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
     uint64_t ashift, uint64_t physical_cols, uint64_t logical_cols,
-    uint64_t nparity, uint64_t reflow_offset_phys, uint64_t reflow_offset_next,
-    const uberblock_t *ub)
+    uint64_t nparity, uint64_t reflow_offset_synced,
+    uint64_t reflow_offset_next, boolean_t use_scratch)
 {
 	/* The zio's size in units of the vdev's minimum sector size. */
 	uint64_t s = size >> ashift;
@@ -603,19 +603,17 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 	rm->rm_nskip = roundup(tot, nparity + 1) - tot;
 	asize = 0;
 
-	raidz_reflow_scratch_state_t rrss = RRSS_GET_STATE(ub);
-
 	/*
 	 * If the block crosses the reflow progress boundary
-	 * (reflow_offset_phys), the physical location is disjoint (some rows
-	 * in the old location and some in the new location).  Since
-	 * aggregation assumes that the block is contiguous, it can't be used
-	 * with these blocks.
+	 * (reflow_offset_synced), the physical location is disjoint (some rows
+	 * in the old location and some in the new location).  Since aggregation
+	 * assumes that the block is contiguous, it can't be used with these
+	 * blocks.
 	 */
 	if (rows >= raidz_io_aggregate_rows &&
-	    (offset + (tot << ashift) <= reflow_offset_phys ||
-	    offset >= reflow_offset_phys) &&
-	    rrss != RRSS_SCRATCH_VALID) {
+	    (offset + (tot << ashift) <= reflow_offset_synced ||
+	    offset >= reflow_offset_synced) &&
+	    !use_scratch) {
 		rm->rm_io_aggregation = B_TRUE;
 		rm->rm_nphys_cols = physical_cols;
 		rm->rm_phys_col =
@@ -626,7 +624,7 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 #if 1
 	zfs_dbgmsg("rm=%llx s=%d q=%d r=%d bc=%d nrows=%d cols=%d rfo=%llx",
 	    rm, (int)s, (int)q, (int)r, (int)bc, (int)rows, (int)cols,
-	    (long long)reflow_offset_phys);
+	    (long long)reflow_offset_synced);
 #endif
 
 	for (uint64_t row = 0; row < rows; row++) {
@@ -637,17 +635,16 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 		uint64_t b = (offset >> ashift) + row * logical_cols;
 
 		/*
-		 * If we are in the middle of a reflow, and the copying has
-		 * not yet completed for any part of this row, then use the
-		 * old location of this row.  Note that
-		 * reflow_offset_phys==vre_offset_phys reflects the i/o
-		 * that's been completed, because it's updated by a synctask,
-		 * after zio_wait(spa_txg_zio[]).  This is sufficient for our
-		 * check, even if that progress has not yet been recorded to
-		 * disk (reflected in spa_ubsync).
+		 * If we are in the middle of a reflow, and the copying has not
+		 * yet completed for any part of this row, then use the old
+		 * location of this row.  Note that reflow_offset_synced
+		 * reflects the i/o that's been completed, because it's updated
+		 * by a synctask, after zio_wait(spa_txg_zio[]).  This is
+		 * sufficient for our check, even if that progress has not yet
+		 * been recorded to disk (reflected in spa_ubsync).
 		 */
 		int row_phys_cols = physical_cols;
-		if (b + cols > reflow_offset_phys >> ashift)
+		if (b + cols > reflow_offset_synced >> ashift)
 			row_phys_cols--;
 
 		/* starting child of this row */
@@ -695,8 +692,8 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 			 * io), and even then only during zpool import or
 			 * when the pool is imported readonly.
 			 */
-			if (rrss == RRSS_SCRATCH_VALID &&
-			    (b + c) << ashift < RRSS_GET_OFFSET(ub)) {
+			if (use_scratch &&
+			    (b + c) << ashift < reflow_offset_synced) {
 				rc->rc_offset -= VDEV_BOOT_SIZE;
 			}
 
@@ -2363,15 +2360,25 @@ vdev_raidz_io_start(zio_t *zio)
 		zfs_locked_range_t *lr = NULL;
 		uint64_t synced_offset = UINT64_MAX;
 		uint64_t next_offset = UINT64_MAX;
+		boolean_t use_scratch = B_FALSE;
 		/*
-		 * XXX race condition with changing vre_state before ubsync,
-		 * in which case synced_offset is not the end?
+		 * Note: when the expansion is completing, we set
+		 * vre_state=DSS_FINISHED (in raidz_reflow_complete_sync())
+		 * in a later txg than when we last update spa_ubsync's state
+		 * (see the end of spa_raidz_expand_cb()).  Therefore we may
+		 * see vre_state!=SCANNING before
+		 * VDEV_TOP_ZAP_RAIDZ_EXPAND_STATE=DSS_FINISHED is reflected
+		 * on disk, but the copying progress has been synced to disk
+		 * (and reflected in spa_ubsync).  In this case it's fine to
+		 * treat the expansion as completed, since if we crash there's
+		 * no additional copying to do.
 		 */
 		if (vdrz->vn_vre.vre_state == DSS_SCANNING) {
 			ASSERT3P(vd->vdev_spa->spa_raidz_expand, ==,
 			    &vdrz->vn_vre);
 			lr = zfs_rangelock_enter(&vdrz->vn_vre.vre_rangelock,
 			    zio->io_offset, zio->io_size, RL_READER);
+			use_scratch = (RRSS_GET_STATE(&vd->vdev_spa->spa_ubsync) == RRSS_SCRATCH_VALID);
 			synced_offset = RRSS_GET_OFFSET(&vd->vdev_spa->spa_ubsync);
 			next_offset = vdrz->vn_vre.vre_offset;
 			/*
@@ -2384,21 +2391,20 @@ vdev_raidz_io_start(zio_t *zio)
 				next_offset = synced_offset;
 			}
 		}
-		zfs_dbgmsg("zio=%llx %s io_offset=%llu vre_offset_phys=%lld "
-		    "vre_offset=%lld",
+		zfs_dbgmsg("zio=%llx %s io_offset=%llu offset_synced=%lld "
+		    "next_offset=%lld use_scratch=%u",
 		    zio,
 		    zio->io_type == ZIO_TYPE_WRITE ? "WRITE" : "READ",
 		    zio->io_offset,
 		    synced_offset,
-		    next_offset);
+		    next_offset,
+		    use_scratch);
 
 		rm = vdev_raidz_map_alloc_expanded(zio->io_abd,
 		    zio->io_size, zio->io_offset,
 		    tvd->vdev_ashift, vdrz->vd_physical_width,
 		    logical_width, vdrz->vd_nparity,
-		    synced_offset,
-		    next_offset,
-		    &zio->io_spa->spa_uberblock);
+		    synced_offset, next_offset, use_scratch);
 		rm->rm_lr = lr;
 	} else {
 		rm = vdev_raidz_map_alloc(zio,
@@ -3464,6 +3470,9 @@ raidz_reflow_sync(void *arg, dmu_tx_t *tx)
 	/*
 	 * Update the uberblock that will be written when this txg completes.
 	 */
+	zfs_dbgmsg("raidz reflow syncing txg=%llu offset=%llu",
+	    (long long)dmu_tx_get_txg(tx),
+	    (long long)vre->vre_offset_pertxg[txgoff]);
 	RAIDZ_REFLOW_SET(&spa->spa_uberblock, RRSS_SCRATCH_NOT_IN_USE,
 	    vre->vre_offset_pertxg[txgoff]);
 	vre->vre_offset_pertxg[txgoff] = 0;
@@ -3489,7 +3498,7 @@ raidz_reflow_complete_sync(void *arg, dmu_tx_t *tx)
 	vdev_raidz_t *vdrz = raidvd->vdev_tsd;
 
 	for (int i = 0; i < TXG_SIZE; i++)
-		ASSERT0(vre->vre_offset_pertxg[i]);
+		VERIFY0(vre->vre_offset_pertxg[i]);
 
 	reflow_node_t *re = kmem_zalloc(sizeof (*re), KM_SLEEP);
 	re->re_txg = tx->tx_txg + 1;
@@ -3498,12 +3507,17 @@ raidz_reflow_complete_sync(void *arg, dmu_tx_t *tx)
 	avl_add(&vdrz->vd_expand_txgs, re);
 	mutex_exit(&vdrz->vd_expand_lock);
 
-	/*
-	 * vre_offset_phys will be removed from the on-disk config by
-	 * vdev_raidz_config_generate().
-	 */
 	vdev_t *vd = vdev_lookup_top(spa, vre->vre_vdev_id);
 	vdev_config_dirty(vd);
+
+	/*
+	 * Before we change vre_state, the on-disk state must reflect that we
+	 * have completed all copying, so that vdev_raidz_io_start() can use
+	 * vre_state to determine if the reflow is in progress.  See also the
+	 * end of spa_raidz_expand_cb().
+	 */
+	VERIFY3U(RRSS_GET_OFFSET(&spa->spa_ubsync), ==,
+	    raidvd->vdev_ms_count << raidvd->vdev_ms_shift);
 
 	vre->vre_end_time = gethrestime_sec();
 	vre->vre_state = DSS_FINISHED;
@@ -3622,9 +3636,6 @@ raidz_reflow_impl(vdev_t *vd, vdev_raidz_expand_t *vre, range_tree_t *rt,
 	/*
 	 * We can only progress to the point that writes will not overlap
 	 * with blocks whose progress has not yet been recorded on disk.
-	 * Note that vre_offset_phys may not have been recorded on disk,
-	 * because it's set in a synctask and we need to know what's actually
-	 * been persisted to disk.
 	 *
 	 * Note that even if we are skipping over a large unallocated region,
 	 * we can't move the on-disk progress to `offset`, because concurrent
@@ -3642,7 +3653,7 @@ raidz_reflow_impl(vdev_t *vd, vdev_raidz_expand_t *vre, range_tree_t *rt,
 	 * data.  raidz_reflow_scratch_sync() ensures that we have already
 	 * copied enough that a row does not overwrite itself.
 	 */
-	ASSERT3U(next_overwrite_blkid - ubsync_blkid, >=, old_children);
+	VERIFY3U(next_overwrite_blkid - ubsync_blkid, >=, old_children);
 #else // XXX for testing
 	uint64_t next_overwrite_blkid = ubsync_blkid + 1;
 #endif
@@ -3652,7 +3663,7 @@ raidz_reflow_impl(vdev_t *vd, vdev_raidz_expand_t *vre, range_tree_t *rt,
 		    next_overwrite_blkid << ashift, tx);
 
 		zfs_dbgmsg("copying offset %llu, ubsync offset = %llu, "
-		    "max_overwrite = %llu wait for txg %llu",
+		    "max_overwrite = %llu wait for txg %llu to sync",
 		    (long long)offset,
 		    (long long)ubsync_blkid << ashift,
 		    (long long)next_overwrite_blkid << ashift,
@@ -3858,9 +3869,9 @@ raidz_reflow_scratch_sync(void *arg, dmu_tx_t *tx)
 	 * Update uberblock to indicate that the initial part has been
 	 * reflow'ed.  This is needed because after this point (when we exit
 	 * the rangelock), we allow regular writes to this region, which will
-	 * be written to the new location only (because vre_offset ==
-	 * vre_offset_phys).  If we crashed and re-copied from the scratch
-	 * space, we would lose the regular writes.
+	 * be written to the new location only (because reflow_offset_next ==
+	 * reflow_offset_synced).  If we crashed and re-copied from the
+	 * scratch space, we would lose the regular writes.
 	 */
 	RAIDZ_REFLOW_SET(&spa->spa_ubsync,
 	    RRSS_SCRATCH_NOT_IN_USE, logical_size);
@@ -3876,14 +3887,14 @@ raidz_reflow_scratch_sync(void *arg, dmu_tx_t *tx)
 	/*
 	 * Update progress.
 	 */
-	vre->vre_bytes_copied = vre->vre_offset = logical_size;
+	vre->vre_offset = logical_size;
 	zfs_rangelock_exit(lr);
-	//vdev_config_dirty(raidvd);
 	spa_config_exit(spa, SCL_STATE, FTAG);
 
-	VERIFY0(zap_update(spa->spa_meta_objset,
-	    raidvd->vdev_top_zap, VDEV_TOP_ZAP_RAIDZ_EXPAND_BYTES_COPIED,
-	    sizeof (vre->vre_bytes_copied), 1, &vre->vre_bytes_copied, tx));
+	int txgoff = dmu_tx_get_txg(tx) & TXG_MASK;
+	vre->vre_offset_pertxg[txgoff] = vre->vre_offset;
+	vre->vre_bytes_copied_pertxg[txgoff] = vre->vre_bytes_copied;
+	raidz_reflow_sync(spa, tx);
 
 	raidz_expand_pause(spa, 7);
 }
@@ -3962,17 +3973,17 @@ vdev_raidz_reflow_copy_scratch(spa_t *spa)
 	zfs_dbgmsg("raidz reflow recovery: uberblock updated (txg %llu, SCRATCH_NOT_IN_USE, size %llu, ts %llu)",
 	    spa->spa_ubsync.ub_txg, logical_size, spa->spa_ubsync.ub_timestamp);
 
-	RAIDZ_REFLOW_SET(&spa->spa_uberblock,
-	    RRSS_SCRATCH_NOT_IN_USE, logical_size);
-	vre->vre_bytes_copied = logical_size;
-	vdev_t *vd = vdev_lookup_top(spa, vre->vre_vdev_id);
+	spa_config_exit(spa, SCL_STATE, FTAG);
+
 	dmu_tx_t *tx = dmu_tx_create_assigned(spa->spa_dsl_pool,
 	    spa_first_txg(spa));
-	VERIFY0(zap_update(spa->spa_meta_objset,
-	    vd->vdev_top_zap, VDEV_TOP_ZAP_RAIDZ_EXPAND_BYTES_COPIED,
-	    sizeof (vre->vre_bytes_copied), 1, &vre->vre_bytes_copied, tx));
+	int txgoff = dmu_tx_get_txg(tx) & TXG_MASK;
+	vre->vre_offset_pertxg[txgoff] = vre->vre_offset;
+	vre->vre_bytes_copied_pertxg[txgoff] = vre->vre_bytes_copied;
+	raidz_reflow_sync(spa, tx);
+
 	dmu_tx_commit(tx);
-	spa_config_exit(spa, SCL_STATE, FTAG);
+
 	raidz_expand_pause(spa, 11);
 }
 
@@ -4131,20 +4142,35 @@ spa_raidz_expand_cb(void *arg, zthr_t *zthr)
 
 	spa_config_exit(spa, SCL_CONFIG, FTAG);
 
-	/*
-	 * Wait for all copy zio's to complete and for all the
-	 * raidz_reflow_sync() synctasks to be run.  If we are not being
-	 * canceled, then the reflow must be complete.  In that case also
-	 * mark it as completed on disk.
-	 */
+
 	if (!zthr_iscancelled(spa->spa_raidz_expand_zthr)) {
+		/*
+		 * We are not being canceled, so the reflow must be
+		 * complete. In that case also mark it as completed on disk.
+		 *
+		 * The txg_wait_synced() here ensures that the progress of
+		 * the last raidz_reflow_sync() is written to disk before
+		 * raidz_reflow_complete_sync() changes the in-memory
+		 * vre_state.  vdev_raidz_io_start() uses vre_state to
+		 * determine if a reflow is in progress, in which case we may
+		 * need to write to both old and new locations.  Therefore we
+		 * can only change vre_state once this is not necessary,
+		 * which is once the on-disk progress (in spa_ubsync) has
+		 * been set past any possible writes (to the end of the last
+		 * metaslab).
+		 */
+		txg_wait_synced(spa->spa_dsl_pool, 0);
+
 		VERIFY0(dsl_sync_task(spa_name(spa), NULL,
 		    raidz_reflow_complete_sync, spa,
 		    0, ZFS_SPACE_CHECK_NONE));
 		(void) vdev_online(spa, guid, ZFS_ONLINE_EXPAND, NULL);
 	} else {
+		/*
+		 * Wait for all copy zio's to complete and for all the
+		 * raidz_reflow_sync() synctasks to be run.
+		 */
 		txg_wait_synced(spa->spa_dsl_pool, 0);
-		//spa->spa_raidz_expand = NULL;
 	}
 }
 
@@ -4382,12 +4408,6 @@ vdev_raidz_init(spa_t *spa, nvlist_t *nv, void **tsd)
 	    nvlist_exists(nv, ZPOOL_CONFIG_RAIDZ_EXPANDING);
 	zfs_dbgmsg("reflow_in_progress=%u", (int)reflow_in_progress);
 	if (reflow_in_progress) {
-		/*
-		 * spa_ld_mos_init() depends on having spa_raidz_expand
-		 * set so that it can fill in vre_offset_phys before any
-		 * blkptr's are read.  So we have to set it here rather
-		 * than in vdev_raidz_load().
-		 */
 		/*
 		 * XXX we parse the mos config while the vdevs for the
 		 * label config still exist, so spa_raidz_expand will be
