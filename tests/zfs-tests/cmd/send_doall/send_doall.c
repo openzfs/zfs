@@ -53,7 +53,7 @@ main(int argc, char const * const argv[])
 	const char *tofull, *fsname, *tosnap, *p;
 	int error;
 
-	if (argc != 1)
+	if (argc != 2)
 		usage(argv[0]);
 
 	tofull = argv[1];
