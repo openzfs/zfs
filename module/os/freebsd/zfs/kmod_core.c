@@ -182,17 +182,11 @@ out:
 static void
 zfsdev_close(void *data)
 {
-	zfsdev_state_t *zs, *zsp = data;
+	zfsdev_state_t *zs = data;
+
+	ASSERT(zs != NULL);
 
 	mutex_enter(&zfsdev_state_lock);
-	for (zs = zfsdev_state_list; zs != NULL; zs = zs->zs_next) {
-		if (zs == zsp)
-			break;
-	}
-	if (zs == NULL || zs->zs_minor <= 0) {
-		mutex_exit(&zfsdev_state_lock);
-		return;
-	}
 	zs->zs_minor = -1;
 	zfs_onexit_destroy(zs->zs_onexit);
 	zfs_zevent_destroy(zs->zs_zevent);
