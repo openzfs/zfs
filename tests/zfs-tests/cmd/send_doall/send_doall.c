@@ -75,7 +75,8 @@ main(int argc, char const * const argv[])
 
 	flags.doall = B_TRUE;
 
-	error = zfs_send(zhp, NULL, tosnap, &flags, STDOUT_FILENO, NULL, NULL, NULL);
+	error = zfs_send(zhp, NULL, tosnap, &flags,
+			STDOUT_FILENO, NULL, NULL, NULL);
 
 	zfs_close(zhp);
 
