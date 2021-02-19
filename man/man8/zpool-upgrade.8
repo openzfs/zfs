@@ -55,11 +55,9 @@ formatted using a legacy ZFS version number.
 These pools can continue to be used, but some features may not be available.
 Use
 .Nm zpool Cm upgrade Fl a
-to enable all features on all pools. (If a pool has specified compatibility
-feature sets using the
+to enable all features on all pools (subject to the
 .Fl o Ar compatibility
-property, only the features present in all requested compatibility sets will
-be enabled on that pool.)
+property).
 .It Xo
 .Nm zpool
 .Cm upgrade
@@ -75,11 +73,15 @@ for a description of feature flags features supported by the current software.
 .Op Fl V Ar version
 .Fl a Ns | Ns Ar pool Ns ...
 .Xc
-Enables all supported features on the given pool. (If the pool has specified
-compatibility feature sets using the
+Enables all supported features on the given pool.
+.Pp
+If the pool has specified compatibility feature sets using the
 .Fl o Ar compatibility
 property, only the features present in all requested compatibility sets will be
-enabled.)
+enabled. If this property is set to 
+.Ar legacy
+then no upgrade will take place.
+.Pp
 Once this is done, the pool will no longer be accessible on systems that do not
 support feature flags.
 See
