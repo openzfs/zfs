@@ -362,7 +362,8 @@ tags = ['functional', 'cli_root', 'zpool_detach']
 
 [tests/functional/cli_root/zpool_events]
 tests = ['zpool_events_clear', 'zpool_events_cliargs', 'zpool_events_follow',
-    'zpool_events_poolname', 'zpool_events_errors', 'zpool_events_duplicates']
+    'zpool_events_poolname', 'zpool_events_errors', 'zpool_events_duplicates',
+    'zpool_events_clear_retained']
 tags = ['functional', 'cli_root', 'zpool_events']
 
 [tests/functional/cli_root/zpool_export]

@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2021 by Delphix. All rights reserved.
  * Copyright 2017 Nexenta Systems, Inc.
  * Copyright (c) 2014 Integros [integros.com]
  * Copyright 2016 Toomas Soome <tsoome@me.com>
@@ -4170,6 +4170,9 @@ vdev_clear(spa_t *spa, vdev_t *vd)
 	    vd->vdev_parent->vdev_ops == &vdev_spare_ops &&
 	    vd->vdev_parent->vdev_child[0] == vd)
 		vd->vdev_unspare = B_TRUE;
+
+	/* Clear recent error events cache (i.e. duplicate events tracking) */
+	zfs_ereport_clear(spa, vd);
 }
 
 boolean_t

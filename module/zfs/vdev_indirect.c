@@ -1485,14 +1485,12 @@ vdev_indirect_all_checksum_errors(zio_t *zio)
 
 			vdev_t *vd = ic->ic_vdev;
 
-			int ret = zfs_ereport_post_checksum(zio->io_spa, vd,
+			(void) zfs_ereport_post_checksum(zio->io_spa, vd,
 			    NULL, zio, is->is_target_offset, is->is_size,
 			    NULL, NULL, NULL);
-			if (ret != EALREADY) {
-				mutex_enter(&vd->vdev_stat_lock);
-				vd->vdev_stat.vs_checksum_errors++;
-				mutex_exit(&vd->vdev_stat_lock);
-			}
+			mutex_enter(&vd->vdev_stat_lock);
+			vd->vdev_stat.vs_checksum_errors++;
+			mutex_exit(&vd->vdev_stat_lock);
 		}
 	}
 }
