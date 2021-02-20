@@ -153,6 +153,7 @@ SRCS+=	abd_os.c \
 	zfs_dir.c \
 	zfs_ioctl_compat.c \
 	zfs_ioctl_os.c \
+	zfs_racct.c \
 	zfs_vfsops.c \
 	zfs_vnops_os.c \
 	zfs_znode.c \

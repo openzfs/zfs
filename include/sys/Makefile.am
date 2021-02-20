@@ -110,6 +110,7 @@ COMMON_H = \
 	zfs_fuid.h \
 	zfs_project.h \
 	zfs_quota.h \
+	zfs_racct.h \
 	zfs_ratelimit.h \
 	zfs_refcount.h \
 	zfs_rlock.h \
