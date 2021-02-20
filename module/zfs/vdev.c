@@ -2527,7 +2527,7 @@ vdev_hold(vdev_t *vd)
 	for (int c = 0; c < vd->vdev_children; c++)
 		vdev_hold(vd->vdev_child[c]);
 
-	if (vd->vdev_ops->vdev_op_leaf)
+	if (vd->vdev_ops->vdev_op_leaf && vd->vdev_ops->vdev_op_hold != NULL)
 		vd->vdev_ops->vdev_op_hold(vd);
 }
 
@@ -2538,7 +2538,7 @@ vdev_rele(vdev_t *vd)
 	for (int c = 0; c < vd->vdev_children; c++)
 		vdev_rele(vd->vdev_child[c]);
 
-	if (vd->vdev_ops->vdev_op_leaf)
+	if (vd->vdev_ops->vdev_op_leaf && vd->vdev_ops->vdev_op_rele != NULL)
 		vd->vdev_ops->vdev_op_rele(vd);
 }
 
