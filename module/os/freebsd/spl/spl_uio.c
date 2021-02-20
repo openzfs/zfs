@@ -41,9 +41,16 @@
  */
 
 #include <sys/param.h>
-#include <sys/uio.h>
+#include <sys/uio_impl.h>
 #include <sys/vnode.h>
 #include <sys/zfs_znode.h>
+
+int
+zfs_uiomove(void *cp, size_t n, zfs_uio_rw_t dir, zfs_uio_t *uio)
+{
+	ASSERT(zfs_uio_rw(uio) == dir);
+	return (uiomove(cp, (int)n, GET_UIO_STRUCT(uio)));
+}
 
 /*
  * same as zfs_uiomove() but doesn't modify uio structure.
