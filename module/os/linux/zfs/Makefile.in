@@ -22,6 +22,7 @@ $(MODULE)-objs += ../os/linux/zfs/zfs_debug.o
 $(MODULE)-objs += ../os/linux/zfs/zfs_dir.o
 $(MODULE)-objs += ../os/linux/zfs/zfs_file_os.o
 $(MODULE)-objs += ../os/linux/zfs/zfs_ioctl_os.o
+$(MODULE)-objs += ../os/linux/zfs/zfs_racct.o
 $(MODULE)-objs += ../os/linux/zfs/zfs_sysfs.o
 $(MODULE)-objs += ../os/linux/zfs/zfs_uio.o
 $(MODULE)-objs += ../os/linux/zfs/zfs_vfsops.o
