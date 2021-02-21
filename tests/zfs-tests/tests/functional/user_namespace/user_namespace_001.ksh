@@ -47,6 +47,11 @@ function cleanup
 	done
 }
 
+unshare -Urm echo test
+if [ "$?" -ne "0" ]; then
+	log_unsupported "Failed to create user namespace"
+fi
+
 log_onexit cleanup
 
 log_assert "Check root in user namespaces"

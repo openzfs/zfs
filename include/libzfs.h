@@ -150,6 +150,7 @@ typedef enum zfs_error {
 	EZFS_EXPORT_IN_PROGRESS,	/* currently exporting the pool */
 	EZFS_REBUILDING,	/* resilvering (sequential reconstrution) */
 	EZFS_VDEV_NOTSUP,	/* ops not supported for this type of vdev */
+	EZFS_NOT_USER_NAMESPACE,	/* a file is not a user namespace */
 	EZFS_UNKNOWN
 } zfs_error_t;
 
@@ -978,6 +979,15 @@ _LIBZFS_H int zpool_nextboot(libzfs_handle_t *, uint64_t, uint64_t,
     const char *);
 
 #endif /* __FreeBSD__ */
+
+#ifdef __linux__
+
+/*
+ * Add or delete the given filesystem to/from the given user namespace.
+ */
+_LIBZFS_H int zfs_userns(zfs_handle_t *zhp, const char *nspath, int attach);
+
+#endif
 
 #ifdef	__cplusplus
 }

@@ -65,7 +65,8 @@ SPL_OBJS := \
 	spl-tsd.o \
 	spl-vmem.o \
 	spl-xdr.o \
-	spl-zlib.o
+	spl-zlib.o \
+	spl-zone.o
 
 spl-objs += $(addprefix os/linux/spl/,$(SPL_OBJS))
 

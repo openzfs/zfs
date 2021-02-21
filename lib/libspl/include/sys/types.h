@@ -44,7 +44,7 @@
 #include <inttypes.h>
 #endif /* HAVE_INTTYPES */
 
-typedef int		zoneid_t;
+typedef uint_t		zoneid_t;
 typedef int		projid_t;
 
 /*

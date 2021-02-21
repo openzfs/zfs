@@ -1450,7 +1450,9 @@ typedef enum zfs_ioc {
 	ZFS_IOC_EVENTS_SEEK,			/* 0x83 (Linux) */
 	ZFS_IOC_NEXTBOOT,			/* 0x84 (FreeBSD) */
 	ZFS_IOC_JAIL,				/* 0x85 (FreeBSD) */
+	ZFS_IOC_USERNS_ATTACH = ZFS_IOC_JAIL,	/* 0x85 (Linux) */
 	ZFS_IOC_UNJAIL,				/* 0x86 (FreeBSD) */
+	ZFS_IOC_USERNS_DETACH = ZFS_IOC_UNJAIL,	/* 0x86 (Linux) */
 	ZFS_IOC_SET_BOOTENV,			/* 0x87 */
 	ZFS_IOC_GET_BOOTENV,			/* 0x88 */
 	ZFS_IOC_LAST
@@ -1531,6 +1533,7 @@ typedef enum {
 	ZFS_ERR_REBUILD_IN_PROGRESS,
 	ZFS_ERR_BADPROP,
 	ZFS_ERR_VDEV_NOTSUP,
+	ZFS_ERR_NOT_USER_NAMESPACE,
 } zfs_errno_t;
 
 /*

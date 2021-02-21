@@ -433,6 +433,7 @@
     <elf-symbol name='zfs_unmountall' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_unshare' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_unshareall' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zfs_userns' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_userspace' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_valid_proplist' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_version_kernel' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -1537,7 +1538,7 @@
     </function-decl>
   </abi-instr>
   <abi-instr address-size='64' path='lib/libspl/os/linux/zone.c' language='LANG_C99'>
-    <typedef-decl name='zoneid_t' type-id='95e97e5e' id='4da03624'/>
+    <typedef-decl name='zoneid_t' type-id='3502e3ff' id='4da03624'/>
     <function-decl name='getzoneid' mangled-name='getzoneid' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='getzoneid'>
       <return type-id='4da03624'/>
     </function-decl>
@@ -4413,6 +4414,12 @@
     </function-decl>
     <function-decl name='zfs_version_kernel' mangled-name='zfs_version_kernel' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_version_kernel'>
       <return type-id='26a90f95'/>
+    </function-decl>
+    <function-decl name='zfs_userns' mangled-name='zfs_userns' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_userns'>
+      <parameter type-id='9200a744' name='zhp'/>
+      <parameter type-id='80f4b756' name='nspath'/>
+      <parameter type-id='95e97e5e' name='attach'/>
+      <return type-id='95e97e5e'/>
     </function-decl>
   </abi-instr>
   <abi-instr address-size='64' path='lib/libzutil/os/linux/zutil_device_path_os.c' language='LANG_C99'>

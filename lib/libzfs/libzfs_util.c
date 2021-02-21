@@ -299,6 +299,9 @@ libzfs_error_description(libzfs_handle_t *hdl)
 	case EZFS_VDEV_NOTSUP:
 		return (dgettext(TEXT_DOMAIN, "operation not supported "
 		    "on this type of vdev"));
+	case EZFS_NOT_USER_NAMESPACE:
+		return (dgettext(TEXT_DOMAIN, "the provided file "
+		    "was not a user namespace file"));
 	case EZFS_UNKNOWN:
 		return (dgettext(TEXT_DOMAIN, "unknown error"));
 	default:
@@ -484,6 +487,9 @@ zfs_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 		break;
 	case ZFS_ERR_BADPROP:
 		zfs_verror(hdl, EZFS_BADPROP, fmt, ap);
+		break;
+	case ZFS_ERR_NOT_USER_NAMESPACE:
+		zfs_verror(hdl, EZFS_NOT_USER_NAMESPACE, fmt, ap);
 		break;
 	default:
 		zfs_error_aux(hdl, "%s", strerror(error));
