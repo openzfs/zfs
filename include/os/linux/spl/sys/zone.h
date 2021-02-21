@@ -25,11 +25,34 @@
 #define	_SPL_ZONE_H
 
 #include <sys/byteorder.h>
+#include <sys/cred.h>
 
-#define	GLOBAL_ZONEID			0
+#include <linux/cred.h>
+#include <linux/user_namespace.h>
 
-#define	zone_dataset_visible(x, y)	(1)
-#define	crgetzoneid(x)			(GLOBAL_ZONEID)
-#define	INGLOBALZONE(z)			(1)
+/*
+ * Attach the given dataset to the given user namespace.
+ */
+extern int zone_dataset_attach(cred_t *, const char *, int);
+
+/*
+ * Detach the given dataset from the given user namespace.
+ */
+extern int zone_dataset_detach(cred_t *, const char *, int);
+
+/*
+ * Returns true if the named pool/dataset is visible in the current zone.
+ */
+extern int zone_dataset_visible(const char *dataset, int *write);
+
+int spl_zone_init(void);
+void spl_zone_fini(void);
+
+extern unsigned int crgetzoneid(const cred_t *);
+extern unsigned int global_zoneid(void);
+extern boolean_t inglobalzone(proc_t *);
+
+#define	INGLOBALZONE(x) inglobalzone(x)
+#define	GLOBAL_ZONEID	global_zoneid()
 
 #endif /* SPL_ZONE_H */

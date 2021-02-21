@@ -61,7 +61,7 @@ priv_policy_ns(const cred_t *cr, int capability, int err,
 static int
 priv_policy(const cred_t *cr, int capability, int err)
 {
-	return (priv_policy_ns(cr, capability, err, NULL));
+	return (priv_policy_ns(cr, capability, err, cr->user_ns));
 }
 
 static int

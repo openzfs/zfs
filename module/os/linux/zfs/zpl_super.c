@@ -360,6 +360,7 @@ const struct super_operations zpl_super_operations = {
 struct file_system_type zpl_fs_type = {
 	.owner			= THIS_MODULE,
 	.name			= ZFS_DRIVER,
+	.fs_flags		= FS_USERNS_MOUNT,
 	.mount			= zpl_mount,
 	.kill_sb		= zpl_kill_sb,
 };
