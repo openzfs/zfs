@@ -795,12 +795,6 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 		 * padding we must make sure to note this swap. We will never
 		 * intend to skip the first column since at least one data and
 		 * one parity column must appear in each row.
-		 *
-		 * XXX this is checking the 1MB-ness of the offset of each
-		 * row, but the non-expanded algorithm checks the 1MB-ness
-		 * of the entire block.  So if the block crosses a 1MB boundary,
-		 * we'll handle it differently for the second part of the block.
-		 * That said, I think we can
 		 */
 		if (rr->rr_firstdatacol == 1 && rr->rr_cols > 1 &&
 		    (offset & (1ULL << 20))) {
