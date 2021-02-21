@@ -78,6 +78,8 @@ typedef struct zfs_uio {
 #define	zfs_uio_rlimit_fsize(z, u)	(0)
 #define	zfs_uio_fault_move(p, n, rw, u)	zfs_uiomove((p), (n), (rw), (u))
 
+extern int zfs_uio_prefaultpages(ssize_t, zfs_uio_t *);
+
 static inline void
 zfs_uio_setoffset(zfs_uio_t *uio, offset_t off)
 {
@@ -85,30 +87,10 @@ zfs_uio_setoffset(zfs_uio_t *uio, offset_t off)
 }
 
 static inline void
-zfs_uio_iov_at_index(zfs_uio_t *uio, uint_t idx, void **base, uint64_t *len)
-{
-	*base = zfs_uio_iovbase(uio, idx);
-	*len = zfs_uio_iovlen(uio, idx);
-}
-
-static inline void
 zfs_uio_advance(zfs_uio_t *uio, size_t size)
 {
 	uio->uio_resid -= size;
 	uio->uio_loffset += size;
-}
-
-static inline offset_t
-zfs_uio_index_at_offset(zfs_uio_t *uio, offset_t off, uint_t *vec_idx)
-{
-	*vec_idx = 0;
-	while (*vec_idx < zfs_uio_iovcnt(uio) &&
-	    off >= zfs_uio_iovlen(uio, *vec_idx)) {
-		off -= zfs_uio_iovlen(uio, *vec_idx);
-		(*vec_idx)++;
-	}
-
-	return (off);
 }
 
 static inline void
