@@ -1081,7 +1081,7 @@
     </function-decl>
   </abi-instr>
   <abi-instr address-size='64' path='os/linux/zone.c' language='LANG_C99'>
-    <typedef-decl name='zoneid_t' type-id='95e97e5e' id='4da03624'/>
+    <typedef-decl name='zoneid_t' type-id='3502e3ff' id='4da03624'/>
     <function-decl name='getzoneid' mangled-name='getzoneid' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='getzoneid'>
       <return type-id='4da03624'/>
     </function-decl>

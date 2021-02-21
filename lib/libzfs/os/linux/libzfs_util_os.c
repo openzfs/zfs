@@ -19,6 +19,9 @@
  * CDDL HEADER END
  */
 
+/*
+ * Copyright (c) 2021 Klara, Inc.
+ */
 
 #include <alloca.h>
 #include <errno.h>
@@ -205,5 +208,71 @@ zfs_version_kernel(void)
 	fclose(f);
 	if (ret[read - 1] == '\n')
 		ret[read - 1] = '\0';
+	return (ret);
+}
+
+/*
+ * Add or delete the given filesystem to/from the given user namespace.
+ */
+int
+zfs_userns(zfs_handle_t *zhp, const char *nspath, int attach)
+{
+	libzfs_handle_t *hdl = zhp->zfs_hdl;
+	zfs_cmd_t zc = {"\0"};
+	char errbuf[1024];
+	unsigned long cmd;
+	int ret;
+
+	if (attach) {
+		(void) snprintf(errbuf, sizeof (errbuf),
+		    dgettext(TEXT_DOMAIN, "cannot add '%s' to namespace"),
+		    zhp->zfs_name);
+	} else {
+		(void) snprintf(errbuf, sizeof (errbuf),
+		    dgettext(TEXT_DOMAIN, "cannot remove '%s' from namespace"),
+		    zhp->zfs_name);
+	}
+
+	switch (zhp->zfs_type) {
+	case ZFS_TYPE_VOLUME:
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "volumes can not be namespaced"));
+		return (zfs_error(hdl, EZFS_BADTYPE, errbuf));
+	case ZFS_TYPE_SNAPSHOT:
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "snapshots can not be namespaced"));
+		return (zfs_error(hdl, EZFS_BADTYPE, errbuf));
+	case ZFS_TYPE_BOOKMARK:
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "bookmarks can not be namespaced"));
+		return (zfs_error(hdl, EZFS_BADTYPE, errbuf));
+	case ZFS_TYPE_VDEV:
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "vdevs can not be namespaced"));
+		return (zfs_error(hdl, EZFS_BADTYPE, errbuf));
+	case ZFS_TYPE_INVALID:
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "invalid zfs_type_t: ZFS_TYPE_INVALID"));
+		return (zfs_error(hdl, EZFS_BADTYPE, errbuf));
+	case ZFS_TYPE_POOL:
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "pools can not be namespaced"));
+		return (zfs_error(hdl, EZFS_BADTYPE, errbuf));
+	case ZFS_TYPE_FILESYSTEM:
+		zfs_fallthrough;
+	}
+	assert(zhp->zfs_type == ZFS_TYPE_FILESYSTEM);
+
+	(void) strlcpy(zc.zc_name, zhp->zfs_name, sizeof (zc.zc_name));
+	zc.zc_objset_type = DMU_OST_ZFS;
+	zc.zc_cleanup_fd = open(nspath, O_RDONLY);
+	if (zc.zc_cleanup_fd < 0) {
+		return (zfs_error(hdl, EZFS_NOT_USER_NAMESPACE, errbuf));
+	}
+
+	cmd = attach ? ZFS_IOC_USERNS_ATTACH : ZFS_IOC_USERNS_DETACH;
+	if ((ret = zfs_ioctl(hdl, cmd, &zc)) != 0)
+		zfs_standard_error(hdl, errno, errbuf);
+
 	return (ret);
 }
