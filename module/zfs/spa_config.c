@@ -32,7 +32,6 @@
 #include <sys/fm/fs/zfs.h>
 #include <sys/spa_impl.h>
 #include <sys/nvpair.h>
-#include <sys/uio.h>
 #include <sys/fs/zfs.h>
 #include <sys/vdev_impl.h>
 #include <sys/zfs_ioctl.h>
@@ -40,6 +39,7 @@
 #include <sys/sunddi.h>
 #include <sys/zfeature.h>
 #include <sys/zfs_file.h>
+#include <sys/zfs_context.h>
 #ifdef _KERNEL
 #include <sys/zone.h>
 #endif

@@ -34,7 +34,7 @@
 #include <sys/time.h>
 #include <sys/sysmacros.h>
 #include <sys/vfs.h>
-#include <sys/uio.h>
+#include <sys/uio_impl.h>
 #include <sys/file.h>
 #include <sys/stat.h>
 #include <sys/kmem.h>
