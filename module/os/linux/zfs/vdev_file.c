@@ -215,6 +215,12 @@ vdev_file_io_strategy(void *arg)
 		abd_return_buf_copy(zio->io_abd, buf, size);
 	} else {
 		buf = abd_borrow_buf_copy(zio->io_abd, zio->io_size);
+		for (uint64_t i = 0; i < size; i += 1 << vd->vdev_ashift) {
+			zfs_dbgmsg("writing to %s offset=%llu data=0x%llx",
+			    vd->vdev_path,
+			    off + i,
+			    *(uint64_t*)(((char*)buf) + i));
+		}
 		err = zfs_file_pwrite(vf->vf_file, buf, size, off, &resid);
 		abd_return_buf(zio->io_abd, buf, size);
 	}
