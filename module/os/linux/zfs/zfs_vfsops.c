@@ -1453,13 +1453,33 @@ zfs_domount(struct super_block *sb, zfs_mnt_t *zm, int silent)
 	int error = 0;
 	zfsvfs_t *zfsvfs = NULL;
 	vfs_t *vfs = NULL;
+	int canwrite;
+	int dataset_visible_zone;
 
 	ASSERT(zm);
 	ASSERT(osname);
 
+	dataset_visible_zone = zone_dataset_visible(osname, &canwrite);
+
+	/*
+	 * Refuse to mount a filesystem if we are in a namespace and the
+	 * dataset is not visible or writable in that namespace.
+	 */
+	if (!INGLOBALZONE(curproc) &&
+	    (!dataset_visible_zone || !canwrite)) {
+		return (SET_ERROR(EPERM));
+	}
+
 	error = zfsvfs_parse_options(zm->mnt_data, &vfs);
 	if (error)
 		return (error);
+
+	/*
+	 * If a non-writable filesystem is being mounted without the
+	 * read-only flag, pretend it was set, as done for snapshots.
+	 */
+	if (!canwrite)
+		vfs->vfs_readonly = true;
 
 	error = zfsvfs_create(osname, vfs->vfs_readonly, &zfsvfs);
 	if (error) {
