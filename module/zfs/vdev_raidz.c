@@ -603,24 +603,6 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 	rm->rm_nskip = roundup(tot, nparity + 1) - tot;
 	asize = 0;
 
-	/*
-	 * If the block crosses the reflow progress boundary
-	 * (reflow_offset_synced), the physical location is disjoint (some rows
-	 * in the old location and some in the new location).  Since aggregation
-	 * assumes that the block is contiguous, it can't be used with these
-	 * blocks.
-	 */
-	if (rows >= raidz_io_aggregate_rows &&
-	    (offset + (tot << ashift) <= reflow_offset_synced ||
-	    offset >= reflow_offset_synced) &&
-	    !use_scratch) {
-		rm->rm_io_aggregation = B_TRUE;
-		rm->rm_nphys_cols = physical_cols;
-		rm->rm_phys_col =
-		    kmem_zalloc(sizeof (raidz_col_t) * rm->rm_nphys_cols,
-		    KM_SLEEP);
-	}
-
 #if 1
 	zfs_dbgmsg("rm=%llx s=%d q=%d r=%d bc=%d nrows=%d cols=%d rfo=%llx",
 	    rm, (int)s, (int)q, (int)r, (int)bc, (int)rows, (int)cols,
@@ -635,13 +617,17 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 		uint64_t b = (offset >> ashift) + row * logical_cols;
 
 		/*
-		 * If we are in the middle of a reflow, and the copying has not
-		 * yet completed for any part of this row, then use the old
-		 * location of this row.  Note that reflow_offset_synced
-		 * reflects the i/o that's been completed, because it's updated
-		 * by a synctask, after zio_wait(spa_txg_zio[]).  This is
-		 * sufficient for our check, even if that progress has not yet
-		 * been recorded to disk (reflected in spa_ubsync).
+		 * If we are in the middle of a reflow, and the copying has
+		 * not yet completed for any part of this row, then use the
+		 * old location of this row.  Note that reflow_offset_synced
+		 * reflects the i/o that's been completed, because it's
+		 * updated by a synctask, after zio_wait(spa_txg_zio[]).
+		 * This is sufficient for our check, even if that progress
+		 * has not yet been recorded to disk (reflected in
+		 * spa_ubsync).  Also note that we consider the last row to
+		 * be "full width" (`cols`-wide rather than `bc`-wide) for
+		 * this calculation. This causes a tiny bit of unnecessary
+		 * double-writes but is safe and simpler to calculate.
 		 */
 		int row_phys_cols = physical_cols;
 		if (b + cols > reflow_offset_synced >> ashift)
@@ -702,14 +688,10 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 				rc->rc_size = 1ULL << ashift;
 
 				/*
-				 * Aggregations set their abd to point into the
-				 * aggregate abd, below.
+				 * Parity sectors' rc_abd's  and are set
+				 * below after determining if this is an
+				 * aggregation.
 				 */
-				if (!rm->rm_io_aggregation) {
-					rc->rc_abd =
-					    abd_alloc_linear(rc->rc_size,
-					    B_TRUE);
-				}
 			} else if (row == rows - 1 && bc != 0 && c >= bc) {
 				/*
 				 * Past the end of the block (even including
@@ -816,19 +798,31 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 			rr->rr_col[1].rc_shadow_devidx = shadow_devidx0;
 			rr->rr_col[1].rc_shadow_offset = shadow_offset0;
 		}
-
 	}
 	ASSERT3U(asize, ==, tot << ashift);
 
-	if (rm->rm_io_aggregation) {
+	/*
+	 * Determine if the block is contiguous, in which case we can use
+	 * an aggregation.
+	 */
+	if (rows >= raidz_io_aggregate_rows) {
+		rm->rm_io_aggregation = B_TRUE;
+		rm->rm_nphys_cols = physical_cols;
+		rm->rm_phys_col =
+		    kmem_zalloc(sizeof (raidz_col_t) * rm->rm_nphys_cols,
+		    KM_SLEEP);
+
 		/*
-		 * Determine the aggregate io's offset and size.
+		 * Determine the aggregate io's offset and size, and check
+		 * that the io is contiguous.
 		 */
-		for (int i = 0; i < rm->rm_nrows; i++) {
+		for (int i = 0;
+		    i < rm->rm_nrows && rm->rm_io_aggregation; i++) {
 			raidz_row_t *rr = rm->rm_row[i];
 			for (int c = 0; c < rr->rr_cols; c++) {
 				raidz_col_t *rc = &rr->rr_col[c];
-				raidz_col_t *prc = &rm->rm_phys_col[rc->rc_devidx];
+				raidz_col_t *prc =
+				    &rm->rm_phys_col[rc->rc_devidx];
 
 				if (rc->rc_size == 0)
 					continue;
@@ -836,18 +830,29 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 				if (prc->rc_size == 0) {
 					ASSERT0(prc->rc_offset);
 					prc->rc_offset = rc->rc_offset;
-				} else {
+				} else if (prc->rc_offset + prc->rc_size !=
+				    rc->rc_offset) {
 					/*
-					 * The block must be contiguous to
-					 * use aggregation.
+					 * This block is not contiguous and
+					 * therefore can't be aggregated.
+					 * This is expected to be rare, so
+					 * the cost of allocating and then
+					 * freeing rm_phys_col is not
+					 * significant.
 					 */
-					VERIFY3U(prc->rc_offset + prc->rc_size,
-					    ==, rc->rc_offset);
+					kmem_free(rm->rm_phys_col,
+					    sizeof (raidz_col_t) *
+					    rm->rm_nphys_cols);
+					rm->rm_phys_col = NULL;
+					rm->rm_nphys_cols = 0;
+					rm->rm_io_aggregation = B_FALSE;
+					break;
 				}
 				prc->rc_size += rc->rc_size;
 			}
 		}
-
+	}
+	if (rm->rm_io_aggregation) {
 		/*
 		 * Allocate aggregate ABD's.
 		 */
@@ -875,6 +880,19 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 				    prc->rc_abd,
 				    rc->rc_offset - prc->rc_offset,
 				    rc->rc_size);
+			}
+		}
+	} else {
+		/*
+		 * Allocate new abd's for the parity sectors.
+		 */
+		for (int i = 0; i < rm->rm_nrows; i++) {
+			raidz_row_t *rr = rm->rm_row[i];
+			for (int c = 0; c < rr->rr_firstdatacol; c++) {
+				raidz_col_t *rc = &rr->rr_col[c];
+				rc->rc_abd =
+				    abd_alloc_linear(rc->rc_size,
+				    B_TRUE);
 			}
 		}
 	}
