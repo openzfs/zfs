@@ -187,6 +187,9 @@ zfsdev_close(void *data)
 	ASSERT(zs != NULL);
 
 	mutex_enter(&zfsdev_state_lock);
+
+	ASSERT(zs->zs_minor != 0);
+
 	zs->zs_minor = -1;
 	zfs_onexit_destroy(zs->zs_onexit);
 	zfs_zevent_destroy(zs->zs_zevent);
