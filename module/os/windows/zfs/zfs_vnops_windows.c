@@ -736,7 +736,7 @@ int zfs_vnop_lookup_impl(PIRP Irp, PIO_STACK_LOCATION IrpSp, mount_t *zmo, char 
 
 			// The RelatedFileObject conditional above will assign "dvp" - but
 			// the stream_name check below will expect it in "vp". dvp_no_rele is already set.
-			ASSERT(dvp_no_rele == 1);
+			dvp_no_rele = 1;
 			vp = FileObject->RelatedFileObject->FsContext;
 			dvp = NULL;
 			VERIFY0(VN_HOLD(vp));
@@ -820,17 +820,19 @@ int zfs_vnop_lookup_impl(PIRP Irp, PIO_STACK_LOCATION IrpSp, mount_t *zmo, char 
 		// Here, we will release dvp, and attempt to open the xattr dir.
 		// xattr dir will be the new dvp. Then we will look for streamname
 		// in xattrdir, and assign vp.
-		if (dvp_no_rele)
-			VN_RELE(dvp);
+
+		VERIFY3P(dvp, !=, vp);
 
 		// Create the xattrdir only if we are to create a new entry
 		zp = VTOZ(vp);
 		if (error = zfs_get_xattrdir(zp, &dzp, cr, CreateFile ? CREATE_XATTR_DIR : 0)) {
-			VN_RELE(vp);
 			Irp->IoStatus.Information = FILE_DOES_NOT_EXIST;
+			VN_RELE(vp);
 			return STATUS_OBJECT_NAME_NOT_FOUND;
 		}
 		VN_RELE(vp);
+		if (dvp_no_rele)
+			VN_RELE(dvp);
 		vp = NULL;
 		dvp = ZTOV(dzp);
 		int direntflags = 0; // To detect ED_CASE_CONFLICT
