@@ -1533,7 +1533,7 @@ vdev_uberblock_load(vdev_t *rvd, uberblock_t *ub, nvlist_t **config)
 {
 	zio_t *zio;
 	spa_t *spa = rvd->vdev_spa;
-	struct ubl_cbdata cb = { 0 };
+	struct ubl_cbdata cb;
 	int flags = ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL |
 	    ZIO_FLAG_SPECULATIVE | ZIO_FLAG_TRYHARD;
 
@@ -1541,10 +1541,10 @@ vdev_uberblock_load(vdev_t *rvd, uberblock_t *ub, nvlist_t **config)
 	ASSERT(config);
 
 	bzero(ub, sizeof (uberblock_t));
+	bzero(&cb, sizeof (cb));
 	*config = NULL;
 
 	cb.ubl_ubbest = ub;
-	cb.ubl_vd = NULL;
 
 	spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
 	zio = zio_root(spa, NULL, &cb, flags);

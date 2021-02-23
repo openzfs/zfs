@@ -141,7 +141,7 @@
 	VDEV_RAIDZ_64MUL_2((x), mask); \
 }
 
-unsigned long raidz_expand_max_offset_pause = UINT64_MAX;
+unsigned long raidz_expand_max_offset_pause = 0;
 unsigned long raidz_expand_max_copy_bytes = 10 * SPA_MAXBLOCKSIZE;
 
 /*
@@ -3748,7 +3748,8 @@ raidz_reflow_impl(vdev_t *vd, vdev_raidz_expand_t *vre, range_tree_t *rt,
 static void
 raidz_expand_pause(spa_t *spa, uint64_t progress)
 {
-	while (raidz_expand_max_offset_pause <= progress)
+	while (raidz_expand_max_offset_pause != 0 &&
+	    raidz_expand_max_offset_pause <= progress)
 		delay(hz);
 }
 
@@ -4118,8 +4119,8 @@ spa_raidz_expand_cb(void *arg, zthr_t *zthr)
 			 * specified by zfs_remove_max_bytes_pause. We do this
 			 * solely from the test suite or during debugging.
 			 */
-			while (raidz_expand_max_offset_pause <=
-			    vre->vre_offset &&
+			while (raidz_expand_max_offset_pause != 0 &&
+			    raidz_expand_max_offset_pause <= vre->vre_offset &&
 			    !zthr_iscancelled(spa->spa_raidz_expand_zthr))
 				delay(hz);
 
@@ -4323,8 +4324,8 @@ vdev_raidz_load(vdev_t *vd)
 	 */
 	EQUIV(vdrz->vn_vre.vre_state == DSS_SCANNING, state == DSS_SCANNING);
 	vdrz->vn_vre.vre_state = (dsl_scan_state_t)state;
-	vdrz->vn_vre.vre_start_time = (time_t)start_time;
-	vdrz->vn_vre.vre_end_time = (time_t)end_time;
+	vdrz->vn_vre.vre_start_time = start_time;
+	vdrz->vn_vre.vre_end_time = end_time;
 	vdrz->vn_vre.vre_bytes_copied = bytes_copied;
 
 	return (0);

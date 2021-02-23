@@ -97,8 +97,8 @@ typedef struct vdev_raidz_expand {
 	 * These fields are stored on-disk in the vdev_top_zap:
 	 */
 	dsl_scan_state_t vre_state;
-	time_t vre_start_time;
-	time_t vre_end_time;
+	uint64_t vre_start_time;
+	uint64_t vre_end_time;
 	uint64_t vre_bytes_copied;
 } vdev_raidz_expand_t;
 
