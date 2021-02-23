@@ -5410,6 +5410,9 @@ spa_get_stats(const char *name, nvlist_t **config,
 
 	*config = NULL;
 	error = spa_open_common(name, &spa, FTAG, NULL, config);
+	if(error == ENOENT) {
+		return (error);
+	}
 
 	if (spa != NULL) {
 		/*
@@ -5454,7 +5457,7 @@ spa_get_stats(const char *name, nvlist_t **config,
 		if (spa == NULL) {
 			mutex_enter(&spa_namespace_lock);
 			spa = spa_lookup(name);
-			if (spa)
+			if (spa != NULL)
 				spa_altroot(spa, altroot, buflen);
 			else
 				altroot[0] = '\0';
