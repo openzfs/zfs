@@ -307,7 +307,11 @@ zvol_request(struct request_queue *q, struct bio *bio)
 #endif
 {
 #ifdef HAVE_SUBMIT_BIO_IN_BLOCK_DEVICE_OPERATIONS
+#if defined(HAVE_BIO_BDEV_DISK)
+	struct request_queue *q = bio->bi_bdev->bd_disk->queue;
+#else
 	struct request_queue *q = bio->bi_disk->queue;
+#endif
 #endif
 	zvol_state_t *zv = q->queuedata;
 	fstrans_cookie_t cookie = spl_fstrans_mark();
