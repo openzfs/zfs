@@ -287,6 +287,8 @@ extern void zfs_log_acl(zilog_t *zilog, dmu_tx_t *tx, znode_t *zp,
 extern void zfs_xvattr_set(znode_t *zp, xvattr_t *xvap, dmu_tx_t *tx);
 extern void zfs_upgrade(zfsvfs_t *zfsvfs, dmu_tx_t *tx);
 
+extern void zfs_znode_update_vfs(struct znode *);
+
 #endif
 #ifdef	__cplusplus
 }

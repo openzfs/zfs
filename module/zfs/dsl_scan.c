@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2008, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2021 by Delphix. All rights reserved.
  * Copyright 2016 Gary Mills
  * Copyright (c) 2017, 2019, Datto Inc. All rights reserved.
  * Copyright (c) 2015, Nexenta Systems, Inc. All rights reserved.
@@ -987,6 +987,10 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 			    (u_longlong_t)spa_get_errlog_size(spa));
 			spa_async_request(spa, SPA_ASYNC_RESILVER);
 		}
+
+		/* Clear recent error events (i.e. duplicate events tracking) */
+		if (complete)
+			zfs_ereport_clear(spa, NULL);
 	}
 
 	scn->scn_phys.scn_end_time = gethrestime_sec();

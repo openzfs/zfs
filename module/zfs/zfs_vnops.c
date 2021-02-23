@@ -34,7 +34,7 @@
 #include <sys/time.h>
 #include <sys/sysmacros.h>
 #include <sys/vfs.h>
-#include <sys/uio.h>
+#include <sys/uio_impl.h>
 #include <sys/file.h>
 #include <sys/stat.h>
 #include <sys/kmem.h>
@@ -621,6 +621,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		    ((zp->z_mode & S_ISUID) != 0 && uid == 0)) != 0) {
 			uint64_t newmode;
 			zp->z_mode &= ~(S_ISUID | S_ISGID);
+			newmode = zp->z_mode;
 			(void) sa_update(zp->z_sa_hdl, SA_ZPL_MODE(zfsvfs),
 			    (void *)&newmode, sizeof (uint64_t), tx);
 		}
@@ -664,7 +665,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		}
 	}
 
-	zfs_inode_update(zp);
+	zfs_znode_update_vfs(zp);
 	zfs_rangelock_exit(lr);
 
 	/*

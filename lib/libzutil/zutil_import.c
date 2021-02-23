@@ -24,6 +24,7 @@
  * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  * Copyright 2015 RackTop Systems.
  * Copyright (c) 2016, Intel Corporation.
+ * Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
  */
 
 /*
@@ -552,12 +553,14 @@ get_configs(libpc_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 				 *	pool guid
 				 *	name
 				 *	comment (if available)
+				 *	compatibility features (if available)
 				 *	pool state
 				 *	hostid (if available)
 				 *	hostname (if available)
 				 */
 				uint64_t state, version;
 				char *comment = NULL;
+				char *compatibility = NULL;
 
 				version = fnvlist_lookup_uint64(tmp,
 				    ZPOOL_CONFIG_VERSION);
@@ -576,6 +579,13 @@ get_configs(libpc_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 				    ZPOOL_CONFIG_COMMENT, &comment) == 0)
 					fnvlist_add_string(config,
 					    ZPOOL_CONFIG_COMMENT, comment);
+
+				if (nvlist_lookup_string(tmp,
+				    ZPOOL_CONFIG_COMPATIBILITY,
+				    &compatibility) == 0)
+					fnvlist_add_string(config,
+					    ZPOOL_CONFIG_COMPATIBILITY,
+					    compatibility);
 
 				state = fnvlist_lookup_uint64(tmp,
 				    ZPOOL_CONFIG_POOL_STATE);

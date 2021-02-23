@@ -114,20 +114,9 @@ function do_dup_test
 	if [ "$RW" == "write" ] ; then
 		log_must mkfile $FILESIZE $FILEPATH
 		log_must zpool sync $POOL
-	else
-		# scrub twice to generate some duplicates
-		log_must zpool scrub $POOL
-		log_must zpool wait -t scrub $POOL
-		log_must zpool scrub $POOL
-		log_must zpool wait -t scrub $POOL
 	fi
 
 	log_must zinject -c all
-
-	# Wait for the pool to settle down and finish resilvering (if
-	# necessary).  We want the errors to stop incrementing before we
-	# check for duplicates.
-	zpool wait -t resilver $POOL
 
 	ereports="$($EREPORTS | sort)"
 	actual=$(echo "$ereports" | wc -l)

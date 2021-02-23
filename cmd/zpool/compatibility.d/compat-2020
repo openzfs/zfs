@@ -1,0 +1,15 @@
+# Features supported by all Tier 1 platforms as of 2020
+async_destroy
+bookmarks
+embedded_data
+empty_bpobj
+enabled_txg
+extensible_dataset
+filesystem_limits
+hole_birth
+large_blocks
+lz4_compress
+multi_vdev_crash_dump
+sha512
+skein
+spacemap_histogram

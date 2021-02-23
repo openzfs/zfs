@@ -457,6 +457,7 @@ systemctl --system daemon-reload >/dev/null || true
 %{_udevdir}/vdev_id
 %{_udevdir}/zvol_id
 %{_udevdir}/rules.d/*
+%{_datadir}/%{name}/compatibility.d
 %if ! 0%{?_systemd} || 0%{?_initramfs}
 # Files needed for sysvinit and initramfs-tools
 %{_sysconfdir}/%{name}/zfs-functions
@@ -503,7 +504,10 @@ systemctl --system daemon-reload >/dev/null || true
 %doc AUTHORS COPYRIGHT LICENSE NOTICE README.md
 
 %files test
-%{_datadir}/%{name}
+%{_datadir}/%{name}/zfs-tests
+%{_datadir}/%{name}/test-runner
+%{_datadir}/%{name}/runfiles
+%{_datadir}/%{name}/*.sh
 
 %files dracut
 %doc contrib/dracut/README.dracut.markdown

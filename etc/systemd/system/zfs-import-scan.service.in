@@ -7,7 +7,7 @@ After=systemd-udev-settle.service
 After=cryptsetup.target
 After=multipathd.target
 Before=zfs-import.target
-ConditionPathExists=!@sysconfdir@/zfs/zpool.cache
+ConditionFileNotEmpty=!@sysconfdir@/zfs/zpool.cache
 ConditionPathIsDirectory=/sys/module/zfs
 
 [Service]

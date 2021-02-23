@@ -198,7 +198,7 @@ unload_modules_linux() {
 
 		if [ "$USE_COUNT" = "0" ] ; then
 			unload_module_linux "$KMOD" || return 1
-		else
+		elif [ "$USE_COUNT" != "" ] ; then
 			echo "Module ${NAME} is still in use!"
 			return 1
 		fi

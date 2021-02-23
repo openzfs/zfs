@@ -26,6 +26,7 @@
 .\" Copyright (c) 2018 George Melikov. All Rights Reserved.
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+.\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
 .\"
 .Dd August 9, 2019
 .Dt ZPOOLPROPS 8
@@ -285,6 +286,24 @@ A text string consisting of printable ASCII characters that will be stored
 such that it is available even if the pool becomes faulted.
 An administrator can provide additional information about a pool using this
 property.
+.It Sy compatibility Ns = Ns Ar off | legacy | file Bq , Ns Ar file Ns ...
+Specifies that the pool maintain compatibility with specific feature sets.
+When set to
+.Sy off
+(or unset); compatibility is disabled (all features are enabled); when set to
+.Sy legacy Ns ;
+no features are enabled. When set to a comma-separated list of
+filenames (each filename may either be an absolute path, or relative to
+.Pa /etc/zfs/compatibility.d or Pa /usr/share/zfs/compatibility.d Ns )
+the lists of requested features are read from those files, separated by
+whitespace and/or commas. Only features present in all files are enabled.
+
+See
+.Xr zpool-features 5 Ns ,
+.Xr zpool-create 8
+and
+.Xr zpool-upgrade 8
+for more information on the operation of compatibility feature sets.
 .It Sy dedupditto Ns = Ns Ar number
 This property is deprecated and no longer has any effect.
 .It Sy delegation Ns = Ns Sy on Ns | Ns Sy off

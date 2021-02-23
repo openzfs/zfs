@@ -11,7 +11,8 @@ dist_pkgdata_SCRIPTS = \
 	zpool_events_follow.ksh \
 	zpool_events_poolname.ksh \
 	zpool_events_errors.ksh \
-	zpool_events_duplicates.ksh
+	zpool_events_duplicates.ksh \
+	zpool_events_clear_retained.ksh
 
 dist_pkgdata_DATA = \
 	zpool_events.cfg \

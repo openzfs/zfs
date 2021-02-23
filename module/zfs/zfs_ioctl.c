@@ -159,7 +159,7 @@
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/errno.h>
-#include <sys/uio.h>
+#include <sys/uio_impl.h>
 #include <sys/file.h>
 #include <sys/kmem.h>
 #include <sys/cmn_err.h>
