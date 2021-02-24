@@ -499,4 +499,6 @@ zfs_altivec_available(void)
 
 #endif
 
+#include <zfs_kfpu_ctx.h>
+
 #endif /* _LIBSPL_SYS_SIMD_H */

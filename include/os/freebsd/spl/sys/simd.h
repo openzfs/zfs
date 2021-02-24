@@ -40,4 +40,7 @@
 #define	kfpu_init()		(0)
 #define	kfpu_fini()		do {} while (0)
 #endif
+
+#include <zfs_kfpu_ctx.h>
+
 #endif
