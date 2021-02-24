@@ -314,17 +314,17 @@ fletcher_4_scalar_fini(fletcher_4_ctx_t *ctx, zio_cksum_t *zcp)
 }
 
 static void
-fletcher_4_scalar_native(fletcher_4_ctx_t *ctx, const void *buf,
-    uint64_t size)
+fletcher_4_scalar_native_impl(const void *buf,
+    uint64_t size, zio_cksum_t *zcp)
 {
 	const uint32_t *ip = buf;
 	const uint32_t *ipend = ip + (size / sizeof (uint32_t));
 	uint64_t a, b, c, d;
 
-	a = ctx->scalar.zc_word[0];
-	b = ctx->scalar.zc_word[1];
-	c = ctx->scalar.zc_word[2];
-	d = ctx->scalar.zc_word[3];
+	a = zcp->zc_word[0];
+	b = zcp->zc_word[1];
+	c = zcp->zc_word[2];
+	d = zcp->zc_word[3];
 
 	for (; ip < ipend; ip++) {
 		a += ip[0];
@@ -333,21 +333,28 @@ fletcher_4_scalar_native(fletcher_4_ctx_t *ctx, const void *buf,
 		d += c;
 	}
 
-	ZIO_SET_CHECKSUM(&ctx->scalar, a, b, c, d);
+	ZIO_SET_CHECKSUM(zcp, a, b, c, d);
 }
 
 static void
-fletcher_4_scalar_byteswap(fletcher_4_ctx_t *ctx, const void *buf,
+fletcher_4_scalar_native(fletcher_4_ctx_t *ctx, const void *buf,
     uint64_t size)
+{
+	fletcher_4_scalar_native_impl(buf, size, &ctx->scalar);
+}
+
+static void
+fletcher_4_scalar_byteswap_impl(const void *buf,
+    uint64_t size, zio_cksum_t *zcp)
 {
 	const uint32_t *ip = buf;
 	const uint32_t *ipend = ip + (size / sizeof (uint32_t));
 	uint64_t a, b, c, d;
 
-	a = ctx->scalar.zc_word[0];
-	b = ctx->scalar.zc_word[1];
-	c = ctx->scalar.zc_word[2];
-	d = ctx->scalar.zc_word[3];
+	a = zcp->zc_word[0];
+	b = zcp->zc_word[1];
+	c = zcp->zc_word[2];
+	d = zcp->zc_word[3];
 
 	for (; ip < ipend; ip++) {
 		a += BSWAP_32(ip[0]);
@@ -356,7 +363,14 @@ fletcher_4_scalar_byteswap(fletcher_4_ctx_t *ctx, const void *buf,
 		d += c;
 	}
 
-	ZIO_SET_CHECKSUM(&ctx->scalar, a, b, c, d);
+	ZIO_SET_CHECKSUM(zcp, a, b, c, d);
+}
+
+static void
+fletcher_4_scalar_byteswap(fletcher_4_ctx_t *ctx, const void *buf,
+    uint64_t size)
+{
+	fletcher_4_scalar_byteswap_impl(buf, size, &ctx->scalar);
 }
 
 static boolean_t
@@ -473,14 +487,13 @@ fletcher_4_native(const void *buf, uint64_t size,
 		ZIO_SET_CHECKSUM(zcp, 0, 0, 0, 0);
 
 		if (size > 0)
-			fletcher_4_scalar_native((fletcher_4_ctx_t *)zcp,
-			    buf, size);
+			fletcher_4_scalar_native_impl(buf, size, zcp);
 	} else {
 		fletcher_4_native_impl(buf, p2size, zcp);
 
 		if (p2size < size)
-			fletcher_4_scalar_native((fletcher_4_ctx_t *)zcp,
-			    (char *)buf + p2size, size - p2size);
+			fletcher_4_scalar_native_impl((char *)buf + p2size,
+			    size - p2size, zcp);
 	}
 }
 
@@ -488,7 +501,7 @@ void
 fletcher_4_native_varsize(const void *buf, uint64_t size, zio_cksum_t *zcp)
 {
 	ZIO_SET_CHECKSUM(zcp, 0, 0, 0, 0);
-	fletcher_4_scalar_native((fletcher_4_ctx_t *)zcp, buf, size);
+	fletcher_4_scalar_native_impl(buf, size, zcp);
 }
 
 static inline void
@@ -515,14 +528,13 @@ fletcher_4_byteswap(const void *buf, uint64_t size,
 		ZIO_SET_CHECKSUM(zcp, 0, 0, 0, 0);
 
 		if (size > 0)
-			fletcher_4_scalar_byteswap((fletcher_4_ctx_t *)zcp,
-			    buf, size);
+			fletcher_4_scalar_byteswap_impl(buf, size, zcp);
 	} else {
 		fletcher_4_byteswap_impl(buf, p2size, zcp);
 
 		if (p2size < size)
-			fletcher_4_scalar_byteswap((fletcher_4_ctx_t *)zcp,
-			    (char *)buf + p2size, size - p2size);
+			fletcher_4_scalar_byteswap_impl((char *)buf + p2size,
+			   size - p2size, zcp);
 	}
 }
 
@@ -579,7 +591,7 @@ fletcher_4_incremental_native(void *buf, size_t size, void *data)
 	zio_cksum_t *zcp = data;
 	/* Use scalar impl to directly update cksum of small blocks */
 	if (size < SPA_MINBLOCKSIZE)
-		fletcher_4_scalar_native((fletcher_4_ctx_t *)zcp, buf, size);
+		fletcher_4_scalar_native_impl(buf, size, zcp);
 	else
 		fletcher_4_incremental_impl(B_TRUE, buf, size, zcp);
 	return (0);
@@ -591,7 +603,7 @@ fletcher_4_incremental_byteswap(void *buf, size_t size, void *data)
 	zio_cksum_t *zcp = data;
 	/* Use scalar impl to directly update cksum of small blocks */
 	if (size < SPA_MINBLOCKSIZE)
-		fletcher_4_scalar_byteswap((fletcher_4_ctx_t *)zcp, buf, size);
+		fletcher_4_scalar_byteswap_impl(buf, size, zcp);
 	else
 		fletcher_4_incremental_impl(B_FALSE, buf, size, zcp);
 	return (0);
