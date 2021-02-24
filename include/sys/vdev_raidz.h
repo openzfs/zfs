@@ -85,6 +85,9 @@ typedef struct vdev_raidz_expand {
 	 */
 	uint64_t vre_offset;
 
+	uint64_t vre_failed_offset;
+	boolean_t vre_waiting_for_resilver;
+
 	/*
 	 * Offset that is completing each txg
 	 */

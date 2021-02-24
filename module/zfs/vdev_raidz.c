@@ -3489,18 +3489,29 @@ raidz_reflow_sync(void *arg, dmu_tx_t *tx)
 	 */
 	uint64_t old_offset = RRSS_GET_OFFSET(&spa->spa_uberblock);
 	ASSERT3U(vre->vre_offset_pertxg[txgoff], >=, old_offset);
+
+	mutex_enter(&vre->vre_lock);
+	uint64_t new_offset =
+	    MIN(vre->vre_offset_pertxg[txgoff], vre->vre_failed_offset);
+	/*
+	 * We should not have committed anything that failed.
+	 */
+	VERIFY3U(vre->vre_failed_offset, >=, old_offset);
+	mutex_exit(&vre->vre_lock);
+
 	zfs_locked_range_t *lr = zfs_rangelock_enter(&vre->vre_rangelock,
-	    old_offset, vre->vre_offset_pertxg[txgoff] - old_offset,
+	    old_offset, new_offset - old_offset,
 	    RL_WRITER);
 
 	/*
 	 * Update the uberblock that will be written when this txg completes.
 	 */
-	zfs_dbgmsg("raidz reflow syncing txg=%llu offset=%llu",
+	zfs_dbgmsg("raidz reflow syncing txg=%llu offset_pertxg=%llu failed_offset=%llu",
 	    (long long)dmu_tx_get_txg(tx),
-	    (long long)vre->vre_offset_pertxg[txgoff]);
-	RAIDZ_REFLOW_SET(&spa->spa_uberblock, RRSS_SCRATCH_NOT_IN_USE,
-	    vre->vre_offset_pertxg[txgoff]);
+	    (long long)vre->vre_offset_pertxg[txgoff],
+	    (long long)vre->vre_failed_offset);
+	RAIDZ_REFLOW_SET(&spa->spa_uberblock,
+	    RRSS_SCRATCH_NOT_IN_USE, new_offset);
 	vre->vre_offset_pertxg[txgoff] = 0;
 	zfs_rangelock_exit(lr);
 
@@ -3588,15 +3599,23 @@ raidz_reflow_write_done(zio_t *zio)
 
 	abd_free(zio->io_abd);
 
-	zfs_dbgmsg("completed reflow offset=%llu size=%llu txg=%llu",
+	zfs_dbgmsg("completed reflow offset=%llu size=%llu txg=%llu err=%u",
 	    rra->rra_lr->lr_offset,
 	    rra->rra_lr->lr_length,
-	    rra->rra_txg);
+	    rra->rra_txg,
+	    zio->io_error);
 
 	mutex_enter(&vre->vre_lock);
+	if (zio->io_error != 0) {
+		vre->vre_failed_offset =
+		    MIN(vre->vre_failed_offset, rra->rra_lr->lr_offset);
+	}
 	ASSERT3U(vre->vre_outstanding_bytes, >=, zio->io_size);
 	vre->vre_outstanding_bytes -= zio->io_size;
-	vre->vre_bytes_copied_pertxg[rra->rra_txg & TXG_MASK] += zio->io_size;
+	if (rra->rra_lr->lr_offset + rra->rra_lr->lr_length <
+	    vre->vre_failed_offset) {
+		vre->vre_bytes_copied_pertxg[rra->rra_txg & TXG_MASK] += zio->io_size;
+	}
 	cv_signal(&vre->vre_cv);
 	mutex_exit(&vre->vre_lock);
 
@@ -3613,6 +3632,29 @@ raidz_reflow_write_done(zio_t *zio)
 static void
 raidz_reflow_read_done(zio_t *zio)
 {
+	raidz_reflow_arg_t *rra = zio->io_private;
+	vdev_raidz_expand_t *vre = rra->rra_vre;
+
+	/*
+	 * If the read failed, or if it was done on a vdev that is not fully
+	 * healthy (e.g. a child that has a resilver in progress), we may not
+	 * have the correct data.  Note that it's OK if the write proceeds.
+	 * It may write garbage but the location is otherwise unused and we
+	 * will retry later due to vre_failed_offset.
+	 */
+	if (zio->io_error != 0 || !vdev_dtl_empty(zio->io_vd, DTL_PARTIAL)) {
+		zfs_dbgmsg("reflow read failed offset=%llu size=%llu txg=%llu err=%u dtl_empty=%u",
+		    rra->rra_lr->lr_offset,
+		    rra->rra_lr->lr_length,
+		    rra->rra_txg,
+		    zio->io_error,
+		    vdev_dtl_empty(zio->io_vd, DTL_PARTIAL));
+		mutex_enter(&vre->vre_lock);
+		vre->vre_failed_offset =
+		    MIN(vre->vre_failed_offset, rra->rra_lr->lr_offset);
+		mutex_exit(&vre->vre_lock);
+	}
+
 	zio_nowait(zio_unique_parent(zio));
 }
 
@@ -4020,7 +4062,8 @@ spa_raidz_expand_cb_check(void *arg, zthr_t *zthr)
 {
 	spa_t *spa = arg;
 
-	return (spa->spa_raidz_expand != NULL);
+	return (spa->spa_raidz_expand != NULL &&
+	    !spa->spa_raidz_expand->vre_waiting_for_resilver);
 }
 
 /* ARGSUSED */
@@ -4047,7 +4090,8 @@ spa_raidz_expand_cb(void *arg, zthr_t *zthr)
 
 	for (uint64_t i = vre->vre_offset >> raidvd->vdev_ms_shift;
 	    i < raidvd->vdev_ms_count &&
-	    !zthr_iscancelled(spa->spa_raidz_expand_zthr); i++) {
+	    !zthr_iscancelled(spa->spa_raidz_expand_zthr) &&
+	    vre->vre_failed_offset == UINT64_MAX; i++) {
 		metaslab_t *msp = raidvd->vdev_ms[i];
 
 		metaslab_disable(msp);
@@ -4100,7 +4144,8 @@ spa_raidz_expand_cb(void *arg, zthr_t *zthr)
 		range_tree_clear(rt, 0, vre->vre_offset);
 
 		while (!zthr_iscancelled(spa->spa_raidz_expand_zthr) &&
-		    !range_tree_is_empty(rt)) {
+		    !range_tree_is_empty(rt) &&
+		    vre->vre_failed_offset == UINT64_MAX) {
 
 			/*
 			 * We need to periodically drop the config lock so that
@@ -4128,7 +4173,6 @@ spa_raidz_expand_cb(void *arg, zthr_t *zthr)
 			    raidz_expand_max_copy_bytes) {
 				cv_wait(&vre->vre_cv, &vre->vre_lock);
 			}
-
 			mutex_exit(&vre->vre_lock);
 
 			dmu_tx_t *tx =
@@ -4169,8 +4213,8 @@ spa_raidz_expand_cb(void *arg, zthr_t *zthr)
 
 	spa_config_exit(spa, SCL_CONFIG, FTAG);
 
-
-	if (!zthr_iscancelled(spa->spa_raidz_expand_zthr)) {
+	if (!zthr_iscancelled(spa->spa_raidz_expand_zthr) &&
+	    vre->vre_failed_offset == UINT64_MAX) {
 		/*
 		 * We are not being canceled, so the reflow must be
 		 * complete. In that case also mark it as completed on disk.
@@ -4197,7 +4241,22 @@ spa_raidz_expand_cb(void *arg, zthr_t *zthr)
 		 * Wait for all copy zio's to complete and for all the
 		 * raidz_reflow_sync() synctasks to be run.
 		 */
+		spa_history_log_internal(spa, "raidz reflow pause",
+		    NULL, "offset=%llu failed_offset=%lld",
+		    (long long)vre->vre_offset,
+		    (long long)vre->vre_failed_offset);
 		txg_wait_synced(spa->spa_dsl_pool, 0);
+		mutex_enter(&vre->vre_lock);
+		if (vre->vre_failed_offset != UINT64_MAX) {
+			/*
+			 * Reset progress so that we will retry everything
+			 * after the point that something failed.
+			 */
+			vre->vre_offset = vre->vre_failed_offset;
+			vre->vre_failed_offset = UINT64_MAX;
+			vre->vre_waiting_for_resilver = B_TRUE;
+		}
+		mutex_exit(&vre->vre_lock);
 	}
 }
 
@@ -4248,6 +4307,7 @@ vdev_raidz_attach_sync(void *arg, dmu_tx_t *tx)
 	VERIFY0(spa->spa_uberblock.ub_raidz_reflow_info);
 	vdrz->vn_vre.vre_vdev_id = raidvd->vdev_id;
 	vdrz->vn_vre.vre_offset = 0;
+	vdrz->vn_vre.vre_failed_offset = UINT64_MAX;
 	spa->spa_raidz_expand = &vdrz->vn_vre;
 	zthr_wakeup(spa->spa_raidz_expand_zthr);
 
@@ -4417,6 +4477,7 @@ vdev_raidz_init(spa_t *spa, nvlist_t *nv, void **tsd)
 	vdev_raidz_t *vdrz = kmem_zalloc(sizeof (*vdrz), KM_SLEEP);
 	vdrz->vn_vre.vre_vdev_id = -1;
 	vdrz->vn_vre.vre_offset = UINT64_MAX;
+	vdrz->vn_vre.vre_failed_offset = UINT64_MAX;
 	mutex_init(&vdrz->vn_vre.vre_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&vdrz->vn_vre.vre_cv, NULL, CV_DEFAULT, NULL);
 	zfs_rangelock_init(&vdrz->vn_vre.vre_rangelock, NULL, NULL);
