@@ -321,6 +321,15 @@ send_iterate_snap(zfs_handle_t *zhp, void *arg)
 	}
 
 	if (!sd->recursive) {
+
+		/*
+		 * To allow a doall stream to work properly
+		 * with a NULL fromsnap
+		 */
+		if (sd->doall && sd->fromsnap == NULL && !sd->seenfrom) {
+			sd->seenfrom = B_TRUE;
+		}
+
 		if (!sd->seenfrom && isfromsnap) {
 			sd->seenfrom = B_TRUE;
 			zfs_close(zhp);
