@@ -859,6 +859,8 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 		for (int i = 0; i < rm->rm_nphys_cols; i++) {
 			raidz_col_t *prc = &rm->rm_phys_col[i];
 
+			prc->rc_devidx = i;
+
 			if (prc->rc_size == 0)
 				continue;
 
@@ -2307,6 +2309,7 @@ vdev_raidz_io_start_read_phys_cols(zio_t *zio, raidz_map_t *rm)
 		if (prc->rc_size == 0)
 			continue;
 
+		ASSERT3U(prc->rc_devidx, ==, i);
 		vdev_t *cvd = vd->vdev_child[i];
 		if (!vdev_readable(cvd)) {
 			prc->rc_error = SET_ERROR(ENXIO);
@@ -3141,7 +3144,6 @@ vdev_raidz_read_all(zio_t *zio, raidz_row_t *rr)
 
 	rr->rr_missingdata = 0;
 	rr->rr_missingparity = 0;
-
 
 	/*
 	 * If this rows contains empty sectors which are not required
