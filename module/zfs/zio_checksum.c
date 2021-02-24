@@ -31,7 +31,7 @@
 #include <sys/zio_checksum.h>
 #include <sys/zil_lwb.h>
 #include <sys/abd.h>
-#include <zfs_fletcher.h>
+#include <zfs_fletcher_impl.h>
 
 /*
  * Checksum vectors.
@@ -133,6 +133,9 @@ abd_fletcher_4_native(abd_t *abd, uint64_t size,
     const void *ctx_template, zio_cksum_t *zcp)
 {
 	fletcher_4_ctx_t ctx;
+	zfs_kfpu_ctx_t kfpu_ctx;
+	zfs_kfpu_ctx_init(&kfpu_ctx);
+	fletcher_4_ctx_init(&ctx, &kfpu_ctx);
 
 	zio_abd_checksum_data_t acd = {
 		.acd_byteorder	= ZIO_CHECKSUM_NATIVE,
@@ -150,6 +153,9 @@ abd_fletcher_4_byteswap(abd_t *abd, uint64_t size,
     const void *ctx_template, zio_cksum_t *zcp)
 {
 	fletcher_4_ctx_t ctx;
+	zfs_kfpu_ctx_t kfpu_ctx;
+	zfs_kfpu_ctx_init(&kfpu_ctx);
+	fletcher_4_ctx_init(&ctx, &kfpu_ctx);
 
 	zio_abd_checksum_data_t acd = {
 		.acd_byteorder	= ZIO_CHECKSUM_BYTESWAP,

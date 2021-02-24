@@ -45,7 +45,7 @@
 #include <sys/byteorder.h>
 #include <sys/spa_checksum.h>
 #include <sys/strings.h>
-#include <zfs_fletcher.h>
+#include <zfs_fletcher_impl.h>
 
 static void
 fletcher_4_superscalar_init(fletcher_4_ctx_t *ctx)

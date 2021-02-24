@@ -140,7 +140,7 @@
 #include <sys/simd.h>
 #include <sys/zio_checksum.h>
 #include <sys/zfs_context.h>
-#include <zfs_fletcher.h>
+#include <zfs_fletcher_impl.h>
 
 #define	FLETCHER_MIN_SIMD_SIZE	64
 
@@ -464,9 +464,12 @@ fletcher_4_impl_get(void)
 }
 
 static inline void
-fletcher_4_native_impl(const void *buf, uint64_t size, zio_cksum_t *zcp)
+fletcher_4_native_impl(const void *buf, uint64_t size, zio_cksum_t *zcp,
+    zfs_kfpu_ctx_t *kfpu_ctx)
 {
 	fletcher_4_ctx_t ctx;
+	fletcher_4_ctx_init(&ctx, kfpu_ctx);
+
 	const fletcher_4_ops_t *ops = fletcher_4_impl_get();
 
 	ops->init_native(&ctx);
@@ -474,10 +477,9 @@ fletcher_4_native_impl(const void *buf, uint64_t size, zio_cksum_t *zcp)
 	ops->fini_native(&ctx, zcp);
 }
 
-/*ARGSUSED*/
 void
-fletcher_4_native(const void *buf, uint64_t size,
-    const void *ctx_template, zio_cksum_t *zcp)
+fletcher_4_native_kfpu_ctx(const void *buf, uint64_t size, zio_cksum_t *zcp,
+    zfs_kfpu_ctx_t *kfpu_ctx)
 {
 	const uint64_t p2size = P2ALIGN(size, FLETCHER_MIN_SIMD_SIZE);
 
@@ -489,12 +491,22 @@ fletcher_4_native(const void *buf, uint64_t size,
 		if (size > 0)
 			fletcher_4_scalar_native_impl(buf, size, zcp);
 	} else {
-		fletcher_4_native_impl(buf, p2size, zcp);
+		fletcher_4_native_impl(buf, p2size, zcp, kfpu_ctx);
 
 		if (p2size < size)
 			fletcher_4_scalar_native_impl((char *)buf + p2size,
 			    size - p2size, zcp);
 	}
+}
+
+/*ARGSUSED*/
+void
+fletcher_4_native(const void *buf, uint64_t size,
+    const void *ctx_template, zio_cksum_t *zcp)
+{
+	zfs_kfpu_ctx_t kfpu_ctx;
+	zfs_kfpu_ctx_init(&kfpu_ctx);
+	fletcher_4_native_kfpu_ctx(buf, size, zcp, &kfpu_ctx);
 }
 
 void
@@ -508,6 +520,10 @@ static inline void
 fletcher_4_byteswap_impl(const void *buf, uint64_t size, zio_cksum_t *zcp)
 {
 	fletcher_4_ctx_t ctx;
+	zfs_kfpu_ctx_t kfpu_ctx;
+	zfs_kfpu_ctx_init(&kfpu_ctx);
+	fletcher_4_ctx_init(&ctx, &kfpu_ctx);
+
 	const fletcher_4_ops_t *ops = fletcher_4_impl_get();
 
 	ops->init_byteswap(&ctx);
@@ -534,7 +550,7 @@ fletcher_4_byteswap(const void *buf, uint64_t size,
 
 		if (p2size < size)
 			fletcher_4_scalar_byteswap_impl((char *)buf + p2size,
-			   size - p2size, zcp);
+			    size - p2size, zcp);
 	}
 }
 
@@ -995,6 +1011,7 @@ EXPORT_SYMBOL(fletcher_4_fini);
 EXPORT_SYMBOL(fletcher_2_native);
 EXPORT_SYMBOL(fletcher_2_byteswap);
 EXPORT_SYMBOL(fletcher_4_native);
+EXPORT_SYMBOL(fletcher_4_native_kfpu_ctx);
 EXPORT_SYMBOL(fletcher_4_native_varsize);
 EXPORT_SYMBOL(fletcher_4_byteswap);
 EXPORT_SYMBOL(fletcher_4_incremental_native);
