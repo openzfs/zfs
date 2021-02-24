@@ -3609,7 +3609,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 
 	err = sa_bulk_update(zp->z_sa_hdl, bulk, cnt, tx);
 
-	zfs_log_write(zfsvfs->z_log, tx, TX_WRITE, zp, pgoff, pglen, 0,
+	zfs_log_write(zfsvfs->z_log, tx, zp, pgoff, pglen, 0,
 	    zfs_putpage_commit_cb, pp);
 	dmu_tx_commit(tx);
 

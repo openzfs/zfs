@@ -4267,7 +4267,7 @@ zfs_putpages(struct vnode *vp, vm_page_t *ma, size_t len, int flags,
 		 * XXX we should be passing a callback to undirty
 		 * but that would make the locking messier
 		 */
-		zfs_log_write(zfsvfs->z_log, tx, TX_WRITE, zp, off,
+		zfs_log_write(zfsvfs->z_log, tx, zp, off,
 		    len, 0, NULL, NULL);
 
 		zfs_vmobject_wlock(object);

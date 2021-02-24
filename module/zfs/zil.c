@@ -1803,6 +1803,12 @@ zil_itx_create(uint64_t txtype, size_t lrsize)
 }
 
 void
+zil_itx_free_do_not_run_callback(itx_t *itx)
+{
+	zio_data_buf_free(itx, itx->itx_size);
+}
+
+void
 zil_itx_destroy(itx_t *itx)
 {
 	IMPLY(itx->itx_lr.lrc_txtype == TX_COMMIT, itx->itx_callback == NULL);
@@ -1811,7 +1817,7 @@ zil_itx_destroy(itx_t *itx)
 	if (itx->itx_callback != NULL)
 		itx->itx_callback(itx->itx_callback_data);
 
-	zio_data_buf_free(itx, itx->itx_size);
+	zil_itx_free_do_not_run_callback(itx);
 }
 
 /*
