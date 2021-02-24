@@ -179,5 +179,5 @@ install-data-hook:
 	    ln -s "$(zpoolexecdir)/$${f}" "$(DESTDIR)$(zpoolconfdir)"; \
 	done
 	for l in $(zpoolcompatlinks); do \
-		(cd "$(DESTDIR)$(zpoolcompatdir)"; ln -s $${l} ); \
+		(cd "$(DESTDIR)$(zpoolcompatdir)"; ln -sf $${l} ); \
 	done
