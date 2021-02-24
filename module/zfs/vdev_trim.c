@@ -936,7 +936,7 @@ vdev_trim_thread(void *arg)
 			vdev_trim_change_state(vd, VDEV_TRIM_COMPLETE,
 			    vd->vdev_trim_rate, vd->vdev_trim_partial,
 			    vd->vdev_trim_secure);
-		} else {
+		} else if (vd->vdev_faulted) {
 			vdev_trim_change_state(vd, VDEV_TRIM_CANCELED,
 			    vd->vdev_trim_rate, vd->vdev_trim_partial,
 			    vd->vdev_trim_secure);

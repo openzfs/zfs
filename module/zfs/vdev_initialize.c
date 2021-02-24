@@ -553,8 +553,14 @@ vdev_initialize_thread(void *arg)
 	vd->vdev_initialize_tree = NULL;
 
 	mutex_enter(&vd->vdev_initialize_lock);
-	if (!vd->vdev_initialize_exit_wanted && vdev_writeable(vd)) {
-		vdev_initialize_change_state(vd, VDEV_INITIALIZE_COMPLETE);
+	if (!vd->vdev_initialize_exit_wanted) {
+		if (vdev_writeable(vd)) {
+			vdev_initialize_change_state(vd,
+			    VDEV_INITIALIZE_COMPLETE);
+		} else if (vd->vdev_faulted) {
+			vdev_initialize_change_state(vd,
+			    VDEV_INITIALIZE_CANCELED);
+		}
 	}
 	ASSERT(vd->vdev_initialize_thread != NULL ||
 	    vd->vdev_initialize_inflight == 0);

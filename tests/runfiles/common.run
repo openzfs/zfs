@@ -413,6 +413,7 @@ tags = ['functional', 'cli_root', 'zpool_labelclear']
 
 [tests/functional/cli_root/zpool_initialize]
 tests = ['zpool_initialize_attach_detach_add_remove',
+    'zpool_initialize_fault_export_import_online',
     'zpool_initialize_import_export',
     'zpool_initialize_offline_export_import_online',
     'zpool_initialize_online_offline',
@@ -477,6 +478,7 @@ tags = ['functional', 'cli_root', 'zpool_sync']
 
 [tests/functional/cli_root/zpool_trim]
 tests = ['zpool_trim_attach_detach_add_remove',
+    'zpool_trim_fault_export_import_online',
     'zpool_trim_import_export', 'zpool_trim_multiple', 'zpool_trim_neg',
     'zpool_trim_offline_export_import_online', 'zpool_trim_online_offline',
     'zpool_trim_partial', 'zpool_trim_rate', 'zpool_trim_rate_neg',
