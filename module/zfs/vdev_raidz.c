@@ -740,7 +740,8 @@ vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
 			 * rangelock, which is held exclusively while the
 			 * copy is in progress.
 			 */
-			if (row_phys_cols != physical_cols &&
+			if (rc->rc_size != 0 &&
+			    row_phys_cols != physical_cols &&
 			    b + c < reflow_offset_next >> ashift) {
 				ASSERT3U(row_phys_cols, ==, physical_cols - 1);
 				rc->rc_shadow_devidx = (b + c) % physical_cols;
@@ -2662,7 +2663,7 @@ vdev_raidz_io_done_verified(zio_t *zio, raidz_row_t *rr)
 			raidz_col_t *rc = &rr->rr_col[c];
 			vdev_t *vd = zio->io_vd;
 
-			if (rc->rc_shadow_devidx == INT_MAX)
+			if (rc->rc_shadow_devidx == INT_MAX || rc->rc_size == 0)
 				continue;
 			vdev_t *cvd2 = vd->vdev_child[rc->rc_shadow_devidx];
 
