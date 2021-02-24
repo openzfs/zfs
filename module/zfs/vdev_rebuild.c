@@ -807,8 +807,8 @@ vdev_rebuild_thread(void *arg)
 		ASSERT0(range_tree_space(vr->vr_scan_tree));
 
 		/* Disable any new allocations to this metaslab */
-		metaslab_disable(msp);
 		spa_config_exit(spa, SCL_CONFIG, FTAG);
+		metaslab_disable(msp);
 
 		mutex_enter(&msp->ms_sync_lock);
 		mutex_enter(&msp->ms_lock);
