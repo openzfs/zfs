@@ -294,6 +294,7 @@ vdev_file_io_start(zio_t *zio)
 
 	zio->io_target_timestamp = zio_handle_io_delay(zio);
 
+#if 0
 	if (zio->io_type == ZIO_TYPE_WRITE) {
 		char *buf = abd_borrow_buf_copy(zio->io_abd, zio->io_size);
 
@@ -306,6 +307,7 @@ vdev_file_io_start(zio_t *zio)
 		}
 		abd_return_buf(zio->io_abd, buf, zio->io_size);
 	}
+#endif
 
 	VERIFY3U(taskq_dispatch(vdev_file_taskq, vdev_file_io_strategy, zio,
 	    TQ_SLEEP), !=, TASKQID_INVALID);

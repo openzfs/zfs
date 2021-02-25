@@ -3704,6 +3704,9 @@ raidz_reflow_impl(vdev_t *vd, vdev_raidz_expand_t *vre, range_tree_t *rt,
 	/*
 	 * We can only progress to the point that writes will not overlap
 	 * with blocks whose progress has not yet been recorded on disk.
+	 * Since partially-copied rows are still read from the old location,
+	 * we need to stop one row before the sector-wise overlap, to prevent
+	 * row-wise overlap.
 	 *
 	 * Note that even if we are skipping over a large unallocated region,
 	 * we can't move the on-disk progress to `offset`, because concurrent
@@ -3714,14 +3717,8 @@ raidz_reflow_impl(vdev_t *vd, vdev_raidz_expand_t *vre, range_tree_t *rt,
 	    RRSS_GET_OFFSET(&spa->spa_ubsync) >> ashift;
 #if 1
 	uint64_t next_overwrite_blkid = ubsync_blkid +
-	    ubsync_blkid / old_children;
-	/*
-	 * The separation must be at least one row, so that a row does not
-	 * overwrite itself.  If it did, and a device fails, we could lose
-	 * data.  raidz_reflow_scratch_sync() ensures that we have already
-	 * copied enough that a row does not overwrite itself.
-	 */
-	VERIFY3U(next_overwrite_blkid - ubsync_blkid, >=, old_children);
+	    ubsync_blkid / old_children - old_children;
+	VERIFY3U(next_overwrite_blkid, >, ubsync_blkid);
 #else // XXX for testing
 	uint64_t next_overwrite_blkid = ubsync_blkid + 1;
 #endif
@@ -3816,7 +3813,7 @@ raidz_reflow_scratch_sync(void *arg, dmu_tx_t *tx)
 	 * that one row does not overlap itself when moved.  This is checked
 	 * by vdev_raidz_attach_check().
 	 */
-	VERIFY3U(write_size, >=, (raidvd->vdev_children - 1) << ashift);
+	VERIFY3U(write_size, >=, raidvd->vdev_children << ashift);
 	VERIFY3U(write_size, <=, VDEV_BOOT_SIZE);
 	VERIFY3U(write_size, <=, read_size);
 
@@ -4280,7 +4277,7 @@ vdev_raidz_attach_check(vdev_t *new_child)
 	 * is not allowed.  This would be very unusual (e.g. ashift > 13 and
 	 * >200 children).
 	 */
-	if ((new_children - 1) << raidvd->vdev_ashift > VDEV_BOOT_SIZE) {
+	if (new_children << raidvd->vdev_ashift > VDEV_BOOT_SIZE) {
 		return (EINVAL);
 	}
 	return (0);
