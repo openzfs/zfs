@@ -87,8 +87,51 @@ void zvol_last_close(zvol_state_t *zv);
 void zvol_insert(zvol_state_t *zv);
 void zvol_log_truncate(zvol_state_t *zv, dmu_tx_t *tx, uint64_t off,
     uint64_t len, boolean_t sync);
-void zvol_log_write(zvol_state_t *zv, dmu_tx_t *tx, uint64_t offset,
-    uint64_t size, int sync);
+
+typedef enum {
+	ZVOL_LOG_WRITE_UNLINKED = 1,
+	ZVOL_LOG_WRITE_NOPRECOPY = 2,
+	ZVOL_LOG_WRITE_PRECOPY_WAITING_TO_FILL = 3,
+	ZVOL_LOG_WRITE_PRECOPY_FILLED = 4,
+	ZVOL_LOG_WRITE_CANCELLED = 5,
+	ZVOL_LOG_WRITE_FINISHED = 6,
+} zvol_log_write_precopy_state_t;
+
+typedef struct zvol_log_write {
+	zvol_log_write_precopy_state_t st;
+
+	/* all states */
+
+	zilog_t *zilog;
+	dmu_tx_t *tx;
+	offset_t off;
+	size_t nbytes;
+	boolean_t sync;
+	uint32_t blocksize;
+	zvol_state_t *zv;
+
+	union {
+		itx_t *precopy;
+		itx_wr_state_t noprecopy;
+	} u;
+
+} zvol_log_write_t;
+
+void
+zvol_log_write_begin(zilog_t *zilog, dmu_tx_t *tx,
+    zvol_state_t *zv,
+    uint32_t blocksize,
+    offset_t off, ssize_t nbytes, boolean_t sync,
+     zvol_log_write_t *pc);
+void
+zvol_log_write_cancel(zvol_log_write_t *pc);
+uint8_t *
+zvol_log_write_get_prefill_buf(zvol_log_write_t *pc, size_t *buf_size);
+void
+zvol_log_write_prefilled(zvol_log_write_t *pc, uint64_t tx_bytes);
+void
+zvol_log_write_finish(zvol_log_write_t *pc, uint64_t tx_bytes);
+
 int zvol_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,
     struct lwb *lwb, zio_t *zio);
 int zvol_init_impl(void);

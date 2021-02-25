@@ -275,9 +275,54 @@ extern void zfs_log_symlink(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
 extern void zfs_log_rename(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
     znode_t *sdzp, const char *sname, znode_t *tdzp, const char *dname,
     znode_t *szp);
-extern void zfs_log_write(zilog_t *zilog, dmu_tx_t *tx,
-    znode_t *zp, offset_t off, ssize_t len, int ioflag,
-    zil_callback_t callback, void *callback_data);
+
+
+typedef enum {
+	ZFS_LOG_WRITE_UNLINKED = 1,
+	ZFS_LOG_WRITE_NOPRECOPY = 2,
+	ZFS_LOG_WRITE_PRECOPY_WAITING_TO_FILL = 3,
+	ZFS_LOG_WRITE_PRECOPY_FILLED = 4,
+	ZFS_LOG_WRITE_CANCELLED = 5,
+	ZFS_LOG_WRITE_FINISHED = 6,
+} zfs_log_write_precopy_state_t;
+
+typedef struct zfs_log_write {
+	zfs_log_write_precopy_state_t st;
+
+	/* all states */
+
+	zilog_t *zilog;
+	dmu_tx_t *tx;
+	znode_t *zp;
+	uint64_t gen;
+	offset_t off;
+	size_t nbytes;
+	zil_callback_t callback;
+	void *callback_data;
+	boolean_t sync;
+
+	union {
+		itx_t *precopy;
+		itx_wr_state_t noprecopy;
+	} u;
+
+} zfs_log_write_t;
+
+void
+zfs_log_write_begin(zilog_t *zilog, dmu_tx_t *tx, int ioflag, znode_t *zp,
+    offset_t off, ssize_t nbytes,
+    zil_callback_t callback, void *callback_data,
+    zfs_log_write_t *out
+    );
+void
+zfs_log_write_cancel(zfs_log_write_t *pc);
+uint8_t *
+zfs_log_write_get_prefill_buf(zfs_log_write_t *pc, size_t *buf_size);
+void
+zfs_log_write_prefilled(zfs_log_write_t *pc, uint64_t tx_bytes);
+void
+zfs_log_write_finish(zfs_log_write_t *pc, uint64_t tx_bytes);
+
 extern void zfs_log_truncate(zilog_t *zilog, dmu_tx_t *tx, int txtype,
     znode_t *zp, uint64_t off, uint64_t len);
 extern void zfs_log_setattr(zilog_t *zilog, dmu_tx_t *tx, int txtype,

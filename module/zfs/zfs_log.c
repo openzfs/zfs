@@ -533,74 +533,76 @@ zfs_log_rename(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype, znode_t *sdzp,
  */
 long zfs_immediate_write_sz = 32768;
 
+
 static inline itx_t *
 zfs_log_write_itx_create(size_t copied_len,
-    size_t __maybe_unused max_wr_copied_lr_length,
     itx_wr_state_t write_state,
     znode_t *zp, uint64_t gen, offset_t off, ssize_t len, boolean_t sync,
-    zil_callback_t callback, void *callback_data, void **copied_start)
+    zil_callback_t callback, void *callback_data)
 {
-	itx_t *itx;
-	lr_write_t *lr;
+        itx_t *itx;
+        lr_write_t *lr;
 
-	itx = zil_itx_create(TX_WRITE, sizeof (*lr) + copied_len);
-	lr = (lr_write_t *)&itx->itx_lr;
-	itx->itx_wr_state = write_state;
-	lr->lr_foid = zp->z_id;
-	lr->lr_offset = off;
-	lr->lr_length = len;
-	lr->lr_blkoff = 0;
-	BP_ZERO(&lr->lr_blkptr);
+        itx = zil_itx_create(TX_WRITE, sizeof (*lr) + copied_len);
+        lr = (lr_write_t *)&itx->itx_lr;
+        itx->itx_wr_state = write_state;
+        lr->lr_foid = zp->z_id;
+        lr->lr_offset = off;
+        lr->lr_length = len;
+        lr->lr_blkoff = 0;
+        BP_ZERO(&lr->lr_blkptr);
 
 	itx->itx_private = ZTOZSB(zp);
 	itx->itx_gen = gen;
 	itx->itx_sync = sync;
 
-	itx->itx_callback = callback;
-	itx->itx_callback_data = callback_data;
+        itx->itx_callback = callback;
+        itx->itx_callback_data = callback_data;
 
-	switch (write_state) {
-	case WR_COPIED:
-		ASSERT3U(copied_len, <=, max_wr_copied_lr_length);
-		ASSERT(copied_start);
-		*copied_start = (uint8_t *)(lr + 1);
-		break;
-	case WR_NEED_COPY:
-		/* fallthrough */
-	case WR_INDIRECT:
-		ASSERT3U(copied_len, ==, 0);
-		ASSERT3P(copied_start, ==, NULL);
-		break;
-	default:
-		panic("unexpected write_state %d", write_state);
-	}
-
-	return (itx);
+        return (itx);
 }
 
 void
-zfs_log_write(zilog_t *zilog, dmu_tx_t *tx,
-    znode_t *zp, offset_t off, ssize_t resid, int ioflag,
-    zil_callback_t callback, void *callback_data)
+zfs_log_write_begin(zilog_t *zilog, dmu_tx_t *tx, int ioflag, znode_t *zp,
+    offset_t off, ssize_t nbytes,
+    zil_callback_t callback, void *callback_data, zfs_log_write_t *pc)
 {
-	dmu_buf_impl_t *db = (dmu_buf_impl_t *)sa_get_db(zp->z_sa_hdl);
-	uint32_t blocksize = zp->z_blksz;
-	itx_wr_state_t write_state;
-	uintptr_t fsync_cnt;
-	uint64_t gen = 0;
-	ssize_t size = resid;
+	pc->zilog = zilog;
+	pc->tx = tx;
+	pc->zp = zp;
+	pc->off = off;
+	pc->nbytes = nbytes;
+	pc->callback = callback;
+	pc->callback_data = callback_data;
 
-	if (zil_replaying(zilog, tx) || zp->z_unlinked ||
-	    zfs_xattr_owner_unlinked(zp)) {
-		if (callback != NULL)
-			callback(callback_data);
+	(void) sa_lookup(zp->z_sa_hdl, SA_ZPL_GEN(ZTOZSB(zp)), &pc->gen,
+	    sizeof (pc->gen));
+
+	uintptr_t fsync_cnt;
+	if ((fsync_cnt = (uintptr_t)tsd_get(zfs_fsyncer_key)) != 0) {
+		(void) tsd_set(zfs_fsyncer_key, (void *)(fsync_cnt - 1));
+	}
+	boolean_t sync = B_TRUE;
+	if (!(ioflag & (O_SYNC | O_DSYNC)) && (zp->z_sync_cnt == 0) &&
+	    (fsync_cnt == 0))
+		sync = B_FALSE;
+	pc->sync = sync;
+
+	/*
+	 * zil_replaying() is side-effectful so we musn't call it twice.
+	 * => record it in a state so we can check for it later.
+	 */
+	if (zp->z_unlinked || zfs_xattr_owner_unlinked(zp)) {
+		pc->st = ZFS_LOG_WRITE_UNLINKED;
 		return;
 	}
+
+	itx_wr_state_t write_state;
 
 	if (zilog->zl_logbias == ZFS_LOGBIAS_THROUGHPUT)
 		write_state = WR_INDIRECT;
 	else if (!spa_has_slogs(zilog->zl_spa) &&
-	    resid >= zfs_immediate_write_sz)
+	    nbytes >= zfs_immediate_write_sz)
 		write_state = WR_INDIRECT;
 	else if (ioflag & (O_SYNC | O_DSYNC))
 		write_state = WR_COPIED;
@@ -608,105 +610,291 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx,
 		write_state = WR_NEED_COPY;
 
 	uint64_t max_wr_copied_lr_length = zil_max_copied_data(zilog);
-	if (write_state == WR_COPIED && resid > max_wr_copied_lr_length)
+	if (write_state == WR_COPIED && nbytes > max_wr_copied_lr_length)
 		write_state = WR_NEED_COPY;
 
 	if (write_state == WR_INDIRECT && !zil_supports_wr_indirect(zilog))
 		write_state = WR_NEED_COPY;
 
-	if ((fsync_cnt = (uintptr_t)tsd_get(zfs_fsyncer_key)) != 0) {
-		(void) tsd_set(zfs_fsyncer_key, (void *)(fsync_cnt - 1));
+	switch (write_state) {
+	case WR_COPIED:
+		pc->u.precopy = zfs_log_write_itx_create(
+		    pc->nbytes,
+		    write_state,
+		    pc->zp,
+		    pc->gen,
+		    pc->off,
+		    pc->nbytes,
+		    pc->sync,
+		    pc->callback,
+		    pc->callback_data);
+
+		pc->st = ZFS_LOG_WRITE_PRECOPY_WAITING_TO_FILL;
+		return;
+
+	case WR_NEED_COPY:
+	case WR_INDIRECT:
+		pc->u.noprecopy = write_state;
+		pc->st = ZFS_LOG_WRITE_NOPRECOPY;
+		return;
+
+	default:
+		panic("unexpected itx_wr_state_t %d", write_state);
+	}
+}
+
+void
+zfs_log_write_cancel(zfs_log_write_t *pc)
+{
+	uintptr_t fsync_cnt;
+	fsync_cnt = (uintptr_t)tsd_get(zfs_fsyncer_key);
+	(void) tsd_set(zfs_fsyncer_key, (void *)(fsync_cnt +1));
+
+	switch (pc->st) {
+	case ZFS_LOG_WRITE_UNLINKED:
+		/* fallthrough */
+	case ZFS_LOG_WRITE_NOPRECOPY:
+		/* fallthrough */
+	case ZFS_LOG_WRITE_CANCELLED:
+		pc->st = ZFS_LOG_WRITE_CANCELLED;
+		return;
+
+	case ZFS_LOG_WRITE_PRECOPY_WAITING_TO_FILL:
+		/* fallthrough */
+	case ZFS_LOG_WRITE_PRECOPY_FILLED:
+		zil_itx_free_do_not_run_callback(pc->u.precopy);
+		pc->st = ZFS_LOG_WRITE_CANCELLED;
+		return;
+
+	case ZFS_LOG_WRITE_FINISHED:
+		/* fallthrough */
+	default:
+		panic("unexpected zfs_log_write state %d", pc->st);
+	}
+}
+
+uint8_t *
+zfs_log_write_get_prefill_buf(zfs_log_write_t *pc, size_t *buf_size)
+{
+	switch (pc->st) {
+	case ZFS_LOG_WRITE_UNLINKED:
+		/* fallthrough */
+	case ZFS_LOG_WRITE_NOPRECOPY:
+		*buf_size = 0;
+		return NULL;
+
+	case ZFS_LOG_WRITE_PRECOPY_WAITING_TO_FILL:
+		*buf_size = pc->nbytes;
+		return ((void *)(&pc->u.precopy->itx_lr)) + sizeof(lr_write_t);
+
+	case ZFS_LOG_WRITE_CANCELLED:
+		/* fallthrough */
+	case ZFS_LOG_WRITE_PRECOPY_FILLED:
+		/* fallthrough */
+	case ZFS_LOG_WRITE_FINISHED:
+		/* fallthrough */
+	default:
+		panic("unexpected zfs_log_write state %d", pc->st);
+	}
+}
+
+void
+zfs_log_write_prefilled(zfs_log_write_t *pc, uint64_t tx_bytes)
+{
+	switch (pc->st) {
+	case ZFS_LOG_WRITE_PRECOPY_WAITING_TO_FILL:
+		break;
+	case ZFS_LOG_WRITE_UNLINKED:
+		/* fallthrough */
+	case ZFS_LOG_WRITE_NOPRECOPY:
+		/* fallthrough */
+	case ZFS_LOG_WRITE_CANCELLED:
+		/* fallthrough */
+	case ZFS_LOG_WRITE_PRECOPY_FILLED:
+		/* fallthrough */
+	case ZFS_LOG_WRITE_FINISHED:
+		/* fallthrough */
+	default:
+		panic("unexpected zfs_log_write state %d", pc->st);
+	}
+	ASSERT3S(pc->st, ==, ZFS_LOG_WRITE_PRECOPY_WAITING_TO_FILL);
+
+	if (tx_bytes != pc->nbytes) {
+#ifdef __KERNEL__
+		pr_debug("zfs_log_write_prefilled: discarding pre-filled state due to tx_bytes=%llu != %zu=pc->nbytes\n", tx_bytes, pc->nbytes);
+#endif
+		/* XXX keep code in sync with zfs_log_write_finished() */
+		ASSERT3S(pc->u.precopy->itx_wr_state, ==, WR_COPIED);
+		zil_itx_free_do_not_run_callback(pc->u.precopy);
+		pc->u.precopy = NULL;
+		pc->st = ZFS_LOG_WRITE_NOPRECOPY;
+		pc->u.noprecopy = WR_COPIED;
+	} else {
+		pc->st = ZFS_LOG_WRITE_PRECOPY_FILLED;
+	}
+}
+
+void
+zfs_log_write_finish(zfs_log_write_t *pc, uint64_t tx_bytes)
+{
+	VERIFY3U(tx_bytes, ==, pc->nbytes); /* if this holds we can avoid the need to fill late using dmu_read_by_dnode if we require filling before finish */
+
+	/*
+	 * zil_replaying() is side-effectful: it indicates to the ZIL that the
+	 * replay of a log entry has been done => cannot call it earlier.
+	 */
+	boolean_t replaying = zil_replaying(pc->zilog, pc->tx);
+
+	if (replaying) {
+		switch (pc->st) {
+		case ZFS_LOG_WRITE_PRECOPY_WAITING_TO_FILL:
+			/* fallthrough */
+		case ZFS_LOG_WRITE_PRECOPY_FILLED:
+			zil_itx_free_do_not_run_callback(pc->u.precopy);
+			/* fallthrough */
+		case ZFS_LOG_WRITE_UNLINKED:
+			/* fallthrough */
+		case ZFS_LOG_WRITE_NOPRECOPY:
+			/* fallthrough */
+			if (pc->callback != NULL)
+				pc->callback(pc->callback_data);
+			pc->st = ZFS_LOG_WRITE_FINISHED;
+			goto out;
+
+		case ZFS_LOG_WRITE_CANCELLED:
+			/* fallthrough */
+		case ZFS_LOG_WRITE_FINISHED:
+			/* fallthrough */
+		default:
+			panic("unexpected zfs_log_write state %d", pc->st);
+		}
+	}
+	ASSERT(!replaying);
+
+
+examine:
+	switch (pc->st) {
+	case ZFS_LOG_WRITE_UNLINKED:
+		if (pc->callback)
+			pc->callback(pc->callback_data);
+		goto out;
+
+	case ZFS_LOG_WRITE_PRECOPY_FILLED:
+		if (tx_bytes == pc->nbytes) {
+			itx_t *itx = pc->u.precopy;
+			ASSERT3S(itx->itx_wr_state, ==, WR_COPIED);
+			zil_itx_assign(pc->zilog, itx, pc->tx);
+			goto out_wrlog_count;
+		}
+		/* fallthrough */
+	case ZFS_LOG_WRITE_PRECOPY_WAITING_TO_FILL:
+		/* XXX keep code in sync with zfs_log_write_prefill() */
+		ASSERT3S(pc->u.precopy->itx_wr_state, ==, WR_COPIED);
+		zil_itx_free_do_not_run_callback(pc->u.precopy);
+		pc->u.precopy = NULL;
+		pc->st = ZFS_LOG_WRITE_NOPRECOPY;
+		pc->u.noprecopy = WR_COPIED;
+		goto examine;
+
+	case ZFS_LOG_WRITE_NOPRECOPY:
+		break;
+
+	case ZFS_LOG_WRITE_CANCELLED:
+		/* fallthrough */
+	case ZFS_LOG_WRITE_FINISHED:
+		/* fallthrough */
+	default:
+		panic("unexpected zfs_log_write state %d", pc->st);
 	}
 
-	(void) sa_lookup(zp->z_sa_hdl, SA_ZPL_GEN(ZTOZSB(zp)), &gen,
-	    sizeof (gen));
-
-	boolean_t sync = B_TRUE;
-	if (!(ioflag & (O_SYNC | O_DSYNC)) && (zp->z_sync_cnt == 0) &&
-	    (fsync_cnt == 0))
-		sync = B_FALSE;
-
+	VERIFY3S(pc->st, ==, ZFS_LOG_WRITE_NOPRECOPY);
+	itx_wr_state_t write_state = pc->u.noprecopy;
 	itx_t *itx;
+
 	if (write_state == WR_NEED_COPY) {
 		itx = zfs_log_write_itx_create(
 		    0,
-		    max_wr_copied_lr_length,
 		    write_state,
-		    zp,
-		    gen,
-		    off,
-		    resid,
-		    sync,
-		    callback,
-		    callback_data,
-		    NULL);
-		zil_itx_assign(zilog, itx, tx);
+		    pc->zp,
+		    pc->gen,
+		    pc->off,
+		    pc->nbytes,
+		    pc->sync,
+		    pc->callback,
+		    pc->callback_data);
+		zil_itx_assign(pc->zilog, itx, pc->tx);
 	} else if (write_state == WR_INDIRECT) {
+		const uint32_t blocksize = pc->zp->z_blksz;
+		uint64_t resid = pc->nbytes;
+		uint64_t off = pc->off;
 		while (resid) {
 			ssize_t len =
 			    MIN(blocksize - P2PHASE(off, blocksize), resid);
 			itx = zfs_log_write_itx_create(
 			    0,
-			    max_wr_copied_lr_length,
 			    write_state,
-			    zp,
-			    gen,
+			    pc->zp,
+			    pc->gen,
 			    off,
 			    len,
-			    sync,
-			    callback,
-			    callback_data,
-			    NULL);
-			zil_itx_assign(zilog, itx, tx);
+			    pc->sync,
+			    pc->callback,
+			    pc->callback_data);
+
+			zil_itx_assign(pc->zilog, itx, pc->tx);
+
 			off += len;
 			resid -= len;
 		}
 	} else {
 		ASSERT3S(write_state, ==, WR_COPIED);
 
-		ASSERT3U(resid, <=, max_wr_copied_lr_length);
-
-		void *copied_start;
 		itx = zfs_log_write_itx_create(
-		    resid,
-		    max_wr_copied_lr_length,
+		    pc->nbytes,
 		    write_state,
-		    zp,
-		    gen,
-		    off,
-		    resid,
-		    sync,
-		    callback,
-		    callback_data,
-		    &copied_start);
+		    pc->zp,
+		    pc->gen,
+		    pc->off,
+		    pc->nbytes,
+		    pc->sync,
+		    pc->callback,
+		    pc->callback_data);
+
+#ifdef __KERNEL__
+		pr_debug("filling itx using dmu_read_by_dnode\n");
+		zfs_dbgmsg("filling itx using dmu_read_by_dnode");
+#endif
+
+		dmu_buf_impl_t *db = (dmu_buf_impl_t *)sa_get_db(pc->zp->z_sa_hdl);
 
 		int err;
 		DB_DNODE_ENTER(db);
-		err = dmu_read_by_dnode(DB_DNODE(db), off, resid, copied_start,
-		    DMU_READ_NO_PREFETCH);
+		lr_write_t *lrw = (lr_write_t *)&itx->itx_lr;
+		err = dmu_read_by_dnode(DB_DNODE(db), pc->off, pc->nbytes, lrw + 1, DMU_READ_NO_PREFETCH);
 		if (err != 0) {
+			/* convert it to WR_NEED_COPY and let zil_commit() worry about it */
 			zil_itx_free_do_not_run_callback(itx);
 			itx = zfs_log_write_itx_create(
 			    0,
-			    max_wr_copied_lr_length,
 			    WR_NEED_COPY,
-			    zp,
-			    gen,
-			    off,
-			    resid,
-			    sync,
-			    callback,
-			    callback_data,
-			    &copied_start);
+			    pc->zp,
+			    pc->gen,
+			    pc->off,
+			    pc->nbytes,
+			    pc->sync,
+			    pc->callback,
+			    pc->callback_data);
 		}
 		DB_DNODE_EXIT(db);
-
-		zil_itx_assign(zilog, itx, tx);
+		zil_itx_assign(pc->zilog, itx, pc->tx);
 	}
 
+out_wrlog_count:
 	if (write_state == WR_COPIED || write_state == WR_NEED_COPY) {
-		dsl_pool_wrlog_count(zilog->zl_dmu_pool, size, tx->tx_txg);
+		dsl_pool_wrlog_count(pc->zilog->zl_dmu_pool, pc->nbytes, pc->tx->tx_txg);
 	}
+out:
+	return;
 }
 
 /*

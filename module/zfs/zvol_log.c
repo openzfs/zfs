@@ -14,22 +14,53 @@
  */
 ssize_t zvol_immediate_write_sz = 32768;
 
-void
-zvol_log_write(zvol_state_t *zv, dmu_tx_t *tx, uint64_t offset,
-    uint64_t size, int sync)
+static inline itx_t *
+zvol_log_write_itx_create(size_t copied_len,
+    itx_wr_state_t write_state,
+    offset_t off, ssize_t len, boolean_t sync, zvol_state_t *zv)
 {
-	uint32_t blocksize = zv->zv_volblocksize;
-	zilog_t *zilog = zv->zv_zilog;
-	itx_wr_state_t write_state;
-	uint64_t sz = size;
+        itx_t *itx;
+        lr_write_t *lr;
 
-	if (zil_replaying(zilog, tx))
-		return;
+        itx = zil_itx_create(TX_WRITE, sizeof (*lr) + copied_len);
+        lr = (lr_write_t *)&itx->itx_lr;
+        itx->itx_wr_state = write_state;
+        lr->lr_foid = ZVOL_OBJ;
+        lr->lr_offset = off;
+        lr->lr_length = len;
+        lr->lr_blkoff = 0;
+        BP_ZERO(&lr->lr_blkptr);
+
+        itx->itx_private = zv;
+        itx->itx_sync = sync;
+
+        itx->itx_callback = NULL;
+        itx->itx_callback_data = NULL;
+
+        return (itx);
+}
+
+void
+zvol_log_write_begin(zilog_t *zilog, dmu_tx_t *tx,
+    zvol_state_t *zv,
+    uint32_t blocksize,
+    offset_t off, ssize_t nbytes, boolean_t sync,
+     zvol_log_write_t *pc)
+{
+	pc->zilog = zilog;
+	pc->tx = tx;
+	pc->off = off;
+	pc->nbytes = nbytes;
+	pc->sync = sync;
+	pc->zv = zv;
+	pc->blocksize = blocksize;
+
+	itx_wr_state_t write_state;
 
 	if (zilog->zl_logbias == ZFS_LOGBIAS_THROUGHPUT)
 		write_state = WR_INDIRECT;
 	else if (!spa_has_slogs(zilog->zl_spa) &&
-	    size >= blocksize && blocksize > zvol_immediate_write_sz)
+	    nbytes >= blocksize && blocksize > zvol_immediate_write_sz)
 		write_state = WR_INDIRECT;
 	else if (sync)
 		write_state = WR_COPIED;
@@ -39,49 +70,235 @@ zvol_log_write(zvol_state_t *zv, dmu_tx_t *tx, uint64_t offset,
 	if (write_state == WR_INDIRECT && !zil_supports_wr_indirect(zilog))
 		write_state = WR_NEED_COPY;
 
-	while (size) {
-		itx_t *itx;
-		lr_write_t *lr;
-		itx_wr_state_t wr_state = write_state;
-		ssize_t len = size;
+	uint64_t max_wr_copied_lr_length = zil_max_copied_data(zilog);
+	if (write_state == WR_COPIED && nbytes > max_wr_copied_lr_length)
+		write_state = WR_NEED_COPY;
 
-		if (wr_state == WR_COPIED && size > zil_max_copied_data(zilog))
-			wr_state = WR_NEED_COPY;
-		else if (wr_state == WR_INDIRECT)
-			len = MIN(blocksize - P2PHASE(offset, blocksize), size);
+	switch (write_state) {
+	case WR_COPIED:
+		pc->u.precopy = zvol_log_write_itx_create(
+		    pc->nbytes,
+		    write_state,
+		    pc->off,
+		    pc->nbytes,
+		    pc->sync,
+		    pc->zv);
 
-		itx = zil_itx_create(TX_WRITE, sizeof (*lr) +
-		    (wr_state == WR_COPIED ? len : 0));
-		lr = (lr_write_t *)&itx->itx_lr;
-		if (wr_state == WR_COPIED && dmu_read_by_dnode(zv->zv_dn,
-		    offset, len, lr+1, DMU_READ_NO_PREFETCH) != 0) {
-			zil_itx_destroy(itx);
-			itx = zil_itx_create(TX_WRITE, sizeof (*lr));
-			lr = (lr_write_t *)&itx->itx_lr;
-			wr_state = WR_NEED_COPY;
-		}
+		pc->st = ZVOL_LOG_WRITE_PRECOPY_WAITING_TO_FILL;
+		return;
 
-		itx->itx_wr_state = wr_state;
-		lr->lr_foid = ZVOL_OBJ;
-		lr->lr_offset = offset;
-		lr->lr_length = len;
-		lr->lr_blkoff = 0;
-		BP_ZERO(&lr->lr_blkptr);
+	case WR_NEED_COPY:
+	case WR_INDIRECT:
+		pc->u.noprecopy = write_state;
+		pc->st = ZVOL_LOG_WRITE_NOPRECOPY;
+		return;
 
-		itx->itx_private = zv;
-		itx->itx_sync = sync;
-
-		(void) zil_itx_assign(zilog, itx, tx);
-
-		offset += len;
-		size -= len;
-	}
-
-	if (write_state == WR_COPIED || write_state == WR_NEED_COPY) {
-		dsl_pool_wrlog_count(zilog->zl_dmu_pool, sz, tx->tx_txg);
+	default:
+		panic("unexpected itx_wr_state_t %d", write_state);
 	}
 }
 
+void
+zvol_log_write_cancel(zvol_log_write_t *pc)
+{
+	switch (pc->st) {
+	case ZVOL_LOG_WRITE_UNLINKED:
+		/* fallthrough */
+	case ZVOL_LOG_WRITE_NOPRECOPY:
+		/* fallthrough */
+	case ZVOL_LOG_WRITE_CANCELLED:
+		pc->st = ZVOL_LOG_WRITE_CANCELLED;
+		return;
+
+	case ZVOL_LOG_WRITE_PRECOPY_WAITING_TO_FILL:
+		/* fallthrough */
+	case ZVOL_LOG_WRITE_PRECOPY_FILLED:
+		zil_itx_free_do_not_run_callback(pc->u.precopy);
+		pc->st = ZVOL_LOG_WRITE_CANCELLED;
+		return;
+
+	case ZVOL_LOG_WRITE_FINISHED:
+		/* fallthrough */
+	default:
+		panic("unexpected zvol_log_write state %d", pc->st);
+	}
+}
+
+uint8_t *
+zvol_log_write_get_prefill_buf(zvol_log_write_t *pc, size_t *buf_size)
+{
+	switch (pc->st) {
+	case ZVOL_LOG_WRITE_UNLINKED:
+		/* fallthrough */
+	case ZVOL_LOG_WRITE_NOPRECOPY:
+		*buf_size = 0;
+		return NULL;
+
+	case ZVOL_LOG_WRITE_PRECOPY_WAITING_TO_FILL:
+		*buf_size = pc->nbytes;
+		return ((void *)(&pc->u.precopy->itx_lr)) + sizeof(lr_write_t);
+
+	case ZVOL_LOG_WRITE_CANCELLED:
+		/* fallthrough */
+	case ZVOL_LOG_WRITE_PRECOPY_FILLED:
+		/* fallthrough */
+	case ZVOL_LOG_WRITE_FINISHED:
+		/* fallthrough */
+	default:
+		panic("unexpected zvol_log_write state %d", pc->st);
+	}
+}
+
+void
+zvol_log_write_prefilled(zvol_log_write_t *pc, uint64_t tx_bytes)
+{
+	switch (pc->st) {
+	case ZVOL_LOG_WRITE_PRECOPY_WAITING_TO_FILL:
+		break;
+	case ZVOL_LOG_WRITE_UNLINKED:
+		/* fallthrough */
+	case ZVOL_LOG_WRITE_NOPRECOPY:
+		/* fallthrough */
+	case ZVOL_LOG_WRITE_CANCELLED:
+		/* fallthrough */
+	case ZVOL_LOG_WRITE_PRECOPY_FILLED:
+		/* fallthrough */
+	case ZVOL_LOG_WRITE_FINISHED:
+		/* fallthrough */
+	default:
+		panic("unexpected zvol_log_write state %d", pc->st);
+	}
+	ASSERT3S(pc->st, ==, ZVOL_LOG_WRITE_PRECOPY_WAITING_TO_FILL);
+
+	if (tx_bytes != pc->nbytes) {
+#ifdef __KERNEL__
+		pr_debug("zvol_log_write_prefilled: discarding pre-filled state due to tx_bytes=%llu != %zu=pc->nbytes\n", tx_bytes, pc->nbytes);
+#endif
+		/* XXX keep code in sync with zvol_log_write_finished() */
+		ASSERT3S(pc->u.precopy->itx_wr_state, ==, WR_COPIED);
+		zil_itx_free_do_not_run_callback(pc->u.precopy);
+		pc->u.precopy = NULL;
+		pc->st = ZVOL_LOG_WRITE_NOPRECOPY;
+		pc->u.noprecopy = WR_COPIED;
+	} else {
+		pc->st = ZVOL_LOG_WRITE_PRECOPY_FILLED;
+	}
+}
+
+void
+zvol_log_write_finish(zvol_log_write_t *pc, uint64_t tx_bytes)
+{
+	VERIFY3U(tx_bytes, ==, pc->nbytes); /* if this holds we can avoid the need to fill late using dmu_read_by_dnode if we require filling before finish */
+
+	/*
+	 * zil_replaying() is side-effectful: it indicates to the ZIL that the
+	 * replay of a log entry has been done => cannot call it earlier.
+	 */
+	boolean_t replaying = zil_replaying(pc->zilog, pc->tx);
+
+	if (replaying) {
+		switch (pc->st) {
+		case ZVOL_LOG_WRITE_PRECOPY_WAITING_TO_FILL:
+			/* fallthrough */
+		case ZVOL_LOG_WRITE_PRECOPY_FILLED:
+			zil_itx_free_do_not_run_callback(pc->u.precopy);
+			/* fallthrough */
+		case ZVOL_LOG_WRITE_UNLINKED:
+			/* fallthrough */
+		case ZVOL_LOG_WRITE_NOPRECOPY:
+			/* fallthrough */
+			pc->st = ZVOL_LOG_WRITE_FINISHED;
+			goto out;
+
+		case ZVOL_LOG_WRITE_CANCELLED:
+			/* fallthrough */
+		case ZVOL_LOG_WRITE_FINISHED:
+			/* fallthrough */
+		default:
+			panic("unexpected zvol_log_write state %d", pc->st);
+		}
+	}
+	ASSERT(!replaying);
+
+
+examine:
+	switch (pc->st) {
+	case ZVOL_LOG_WRITE_UNLINKED:
+		goto out;
+
+	case ZVOL_LOG_WRITE_PRECOPY_FILLED:
+		if (tx_bytes == pc->nbytes) {
+			itx_t *itx = pc->u.precopy;
+			ASSERT3S(itx->itx_wr_state, ==, WR_COPIED);
+			zil_itx_assign(pc->zilog, itx, pc->tx);
+			goto out_wrlog_count;
+		}
+		/* fallthrough */
+	case ZVOL_LOG_WRITE_PRECOPY_WAITING_TO_FILL:
+		/* XXX keep code in sync with zvol_log_write_prefill() */
+		ASSERT3S(pc->u.precopy->itx_wr_state, ==, WR_COPIED);
+		zil_itx_free_do_not_run_callback(pc->u.precopy);
+		pc->u.precopy = NULL;
+		pc->st = ZVOL_LOG_WRITE_NOPRECOPY;
+		pc->u.noprecopy = WR_COPIED;
+		goto examine;
+
+	case ZVOL_LOG_WRITE_NOPRECOPY:
+		break;
+
+	case ZVOL_LOG_WRITE_CANCELLED:
+		/* fallthrough */
+	case ZVOL_LOG_WRITE_FINISHED:
+		/* fallthrough */
+	default:
+		panic("unexpected zvol_log_write state %d", pc->st);
+	}
+
+	VERIFY3S(pc->st, ==, ZVOL_LOG_WRITE_NOPRECOPY);
+	itx_wr_state_t write_state = pc->u.noprecopy;
+	itx_t *itx;
+
+	if (write_state == WR_NEED_COPY) {
+		itx = zvol_log_write_itx_create(
+		    0,
+		    write_state,
+		    pc->off,
+		    pc->nbytes,
+		    pc->sync,
+		    pc->zv);
+		zil_itx_assign(pc->zilog, itx, pc->tx);
+	} else if (write_state == WR_INDIRECT) {
+		const uint32_t blocksize = pc->blocksize;
+		uint64_t resid = pc->nbytes;
+		uint64_t off = pc->off;
+		while (resid) {
+			ssize_t len =
+			    MIN(blocksize - P2PHASE(off, blocksize), resid);
+			itx = zvol_log_write_itx_create(
+			    0,
+			    write_state,
+			    off,
+			    len,
+			    pc->sync,
+			    pc->zv);
+
+			zil_itx_assign(pc->zilog, itx, pc->tx);
+
+			off += len;
+			resid -= len;
+		}
+	} else {
+		ASSERT3S(write_state, ==, WR_COPIED);
+		panic("unreachable, zvol can always prefill");
+	}
+
+out_wrlog_count:
+	if (write_state == WR_COPIED || write_state == WR_NEED_COPY) {
+		dsl_pool_wrlog_count(pc->zilog->zl_dmu_pool, pc->nbytes, pc->tx->tx_txg);
+	}
+out:
+	return;
+}
 
 /*
  * Log a DKIOCFREE/free-long-range to the ZIL with TX_TRUNCATE.

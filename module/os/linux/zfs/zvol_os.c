@@ -158,10 +158,26 @@ zvol_write(zv_request_t *zvr)
 			dmu_tx_abort(tx);
 			break;
 		}
-		error = dmu_write_uio_dnode(zv->zv_dn, &uio, bytes, tx);
-		if (error == 0) {
-			zvol_log_write(zv, tx, off, bytes, sync);
+
+		zvol_log_write_t log_write;
+		zvol_log_write_begin(zv->zv_zilog, tx, zv, zv->zv_volblocksize, off, bytes, sync, &log_write);
+		uint8_t *log_write_buf;
+		size_t log_write_buf_size;
+		log_write_buf =
+		    zvol_log_write_get_prefill_buf(&log_write, &log_write_buf_size);
+		if (log_write_buf != 0) {
+			ASSERT3U(log_write_buf_size, ==, bytes);
 		}
+		error = dmu_write_uioandcc_dnode(zv->zv_dn, &uio, log_write_buf, bytes, tx);
+		if (error == 0) {
+			if (log_write_buf != NULL) {
+				zvol_log_write_prefilled(&log_write, bytes);
+			}
+			zvol_log_write_finish(&log_write, bytes);
+		} else {
+			zvol_log_write_cancel(&log_write);
+		}
+
 		dmu_tx_commit(tx);
 
 		if (error)

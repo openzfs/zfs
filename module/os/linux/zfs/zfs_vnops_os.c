@@ -3599,8 +3599,11 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc)
 
 	err = sa_bulk_update(zp->z_sa_hdl, bulk, cnt, tx);
 
-	zfs_log_write(zfsvfs->z_log, tx, zp, pgoff, pglen, 0,
-	    zfs_putpage_commit_cb, pp);
+	zfs_log_write_t log_write;
+
+	zfs_log_write_begin(zfsvfs->z_log, tx, 0, zp, pgoff, pglen,
+	    zfs_putpage_commit_cb, pp, &log_write);
+	zfs_log_write_finish(&log_write, pglen);
 	dmu_tx_commit(tx);
 
 	zfs_rangelock_exit(lr);

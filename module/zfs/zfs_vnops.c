@@ -543,15 +543,28 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		const ssize_t nbytes =
 		    MIN(n, max_blksz - P2PHASE(woff, max_blksz));
 
+		zfs_log_write_t log_precopy;
+		zfs_log_write_begin(zilog, tx, ioflag, zp, woff, nbytes,
+		    NULL, NULL, &log_precopy);
+
 		ssize_t tx_bytes;
 		if (abuf == NULL) {
+			uint8_t *precopy_buf = NULL;
+			size_t precopy_buf_size;
+			precopy_buf = zfs_log_write_get_prefill_buf(
+			    &log_precopy, &precopy_buf_size);
+			if (precopy_buf != NULL) {
+				ASSERT3S(precopy_buf_size, ==, nbytes);
+			}
+
 			tx_bytes = zfs_uio_resid(uio);
 			zfs_uio_fault_disable(uio, B_TRUE);
-			error = dmu_write_uio_dbuf(sa_get_db(zp->z_sa_hdl),
-			    uio, nbytes, tx);
+			error = dmu_write_uioandcc_dbuf(sa_get_db(zp->z_sa_hdl),
+			    uio, precopy_buf, nbytes, tx);
 			zfs_uio_fault_disable(uio, B_FALSE);
 #ifdef __linux__
 			if (error == EFAULT) {
+				zfs_log_write_cancel(&log_precopy);
 				dmu_tx_commit(tx);
 				/*
 				 * Account for partial writes before
@@ -570,10 +583,13 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 			}
 #endif
 			if (error != 0) {
+				zfs_log_write_cancel(&log_precopy);
 				dmu_tx_commit(tx);
 				break;
 			}
 			tx_bytes -= zfs_uio_resid(uio);
+			if (precopy_buf != NULL)
+				zfs_log_write_prefilled(&log_precopy, tx_bytes);
 		} else {
 			/* Implied by abuf != NULL: */
 			ASSERT3S(n, >=, max_blksz);
@@ -614,6 +630,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		if (tx_bytes == 0) {
 			(void) sa_update(zp->z_sa_hdl, SA_ZPL_SIZE(zfsvfs),
 			    (void *)&zp->z_size, sizeof (uint64_t), tx);
+			zfs_log_write_cancel(&log_precopy); /* TODO correct? */
 			dmu_tx_commit(tx);
 			ASSERT(error != 0);
 			break;
@@ -665,8 +682,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 
 		error = sa_bulk_update(zp->z_sa_hdl, bulk, count, tx);
 
-		zfs_log_write(zilog, tx, zp, woff, tx_bytes, ioflag,
-		    NULL, NULL);
+		zfs_log_write_finish(&log_precopy, tx_bytes);
 		dmu_tx_commit(tx);
 
 		if (error != 0)
