@@ -497,10 +497,12 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
     boolean_t read, void *tag, int *numbufsp, dmu_buf_t ***dbpp, uint32_t flags)
 {
 	dmu_buf_t **dbp;
+	zstream_t *zs = NULL;
 	uint64_t blkid, nblks, i;
 	uint32_t dbuf_flags;
 	int err;
 	zio_t *zio = NULL;
+	boolean_t missed = B_FALSE;
 
 	ASSERT(length <= DMU_MAX_ACCESS);
 
@@ -536,9 +538,21 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 		zio = zio_root(dn->dn_objset->os_spa, NULL, NULL,
 		    ZIO_FLAG_CANFAIL);
 	blkid = dbuf_whichblock(dn, 0, offset);
+	if ((flags & DMU_READ_NO_PREFETCH) == 0 &&
+	    DNODE_META_IS_CACHEABLE(dn) && length <= zfetch_array_rd_sz) {
+		/*
+		 * Prepare the zfetch before initiating the demand reads, so
+		 * that if multiple threads block on same indirect block, we
+		 * base predictions on the original less racy request order.
+		 */
+		zs = dmu_zfetch_prepare(&dn->dn_zfetch, blkid, nblks,
+		    read && DNODE_IS_CACHEABLE(dn), B_TRUE);
+	}
 	for (i = 0; i < nblks; i++) {
 		dmu_buf_impl_t *db = dbuf_hold(dn, blkid + i, tag);
 		if (db == NULL) {
+			if (zs)
+				dmu_zfetch_run(zs, missed, B_TRUE);
 			rw_exit(&dn->dn_struct_rwlock);
 			dmu_buf_rele_array(dbp, nblks, tag);
 			if (read)
@@ -546,20 +560,27 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 			return (SET_ERROR(EIO));
 		}
 
-		/* initiate async i/o */
-		if (read)
+		/*
+		 * Initiate async demand data read.
+		 * We check the db_state after calling dbuf_read() because
+		 * (1) dbuf_read() may change the state to CACHED due to a
+		 * hit in the ARC, and (2) on a cache miss, a child will
+		 * have been added to "zio" but not yet completed, so the
+		 * state will not yet be CACHED.
+		 */
+		if (read) {
 			(void) dbuf_read(db, zio, dbuf_flags);
+			if (db->db_state != DB_CACHED)
+				missed = B_TRUE;
+		}
 		dbp[i] = &db->db;
 	}
 
 	if (!read)
 		zfs_racct_write(length, nblks);
 
-	if ((flags & DMU_READ_NO_PREFETCH) == 0 &&
-	    DNODE_META_IS_CACHEABLE(dn) && length <= zfetch_array_rd_sz) {
-		dmu_zfetch(&dn->dn_zfetch, blkid, nblks,
-		    read && DNODE_IS_CACHEABLE(dn), B_TRUE);
-	}
+	if (zs)
+		dmu_zfetch_run(zs, missed, B_TRUE);
 	rw_exit(&dn->dn_struct_rwlock);
 
 	if (read) {

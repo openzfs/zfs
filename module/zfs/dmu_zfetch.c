@@ -129,7 +129,6 @@ dmu_zfetch_init(zfetch_t *zf, dnode_t *dno)
 static void
 dmu_zfetch_stream_fini(zstream_t *zs)
 {
-	mutex_destroy(&zs->zs_lock);
 	kmem_free(zs, sizeof (*zs));
 }
 
@@ -138,17 +137,9 @@ dmu_zfetch_stream_remove(zfetch_t *zf, zstream_t *zs)
 {
 	ASSERT(MUTEX_HELD(&zf->zf_lock));
 	list_remove(&zf->zf_stream, zs);
-	dmu_zfetch_stream_fini(zs);
 	zf->zf_numstreams--;
-}
-
-static void
-dmu_zfetch_stream_orphan(zfetch_t *zf, zstream_t *zs)
-{
-	ASSERT(MUTEX_HELD(&zf->zf_lock));
-	list_remove(&zf->zf_stream, zs);
-	zs->zs_fetch = NULL;
-	zf->zf_numstreams--;
+	if (zfs_refcount_remove(&zs->zs_refs, NULL) == 0)
+		dmu_zfetch_stream_fini(zs);
 }
 
 /*
@@ -161,12 +152,8 @@ dmu_zfetch_fini(zfetch_t *zf)
 	zstream_t *zs;
 
 	mutex_enter(&zf->zf_lock);
-	while ((zs = list_head(&zf->zf_stream)) != NULL) {
-		if (zfs_refcount_count(&zs->zs_blocks) != 0)
-			dmu_zfetch_stream_orphan(zf, zs);
-		else
-			dmu_zfetch_stream_remove(zf, zs);
-	}
+	while ((zs = list_head(&zf->zf_stream)) != NULL)
+		dmu_zfetch_stream_remove(zf, zs);
 	mutex_exit(&zf->zf_lock);
 	list_destroy(&zf->zf_stream);
 	mutex_destroy(&zf->zf_lock);
@@ -195,9 +182,9 @@ dmu_zfetch_stream_create(zfetch_t *zf, uint64_t blkid)
 	    zs != NULL; zs = zs_next) {
 		zs_next = list_next(&zf->zf_stream, zs);
 		/*
-		 * Skip gethrtime() call if there are still references
+		 * Skip if still active.  1 -- zf_stream reference.
 		 */
-		if (zfs_refcount_count(&zs->zs_blocks) != 0)
+		if (zfs_refcount_count(&zs->zs_refs) != 1)
 			continue;
 		if (((now - zs->zs_atime) / NANOSEC) >
 		    zfetch_min_sec_reap)
@@ -222,12 +209,17 @@ dmu_zfetch_stream_create(zfetch_t *zf, uint64_t blkid)
 
 	zstream_t *zs = kmem_zalloc(sizeof (*zs), KM_SLEEP);
 	zs->zs_blkid = blkid;
+	zs->zs_pf_blkid1 = blkid;
 	zs->zs_pf_blkid = blkid;
+	zs->zs_ipf_blkid1 = blkid;
 	zs->zs_ipf_blkid = blkid;
 	zs->zs_atime = now;
 	zs->zs_fetch = zf;
-	zfs_refcount_create(&zs->zs_blocks);
-	mutex_init(&zs->zs_lock, NULL, MUTEX_DEFAULT, NULL);
+	zs->zs_missed = B_FALSE;
+	zfs_refcount_create(&zs->zs_callers);
+	zfs_refcount_create(&zs->zs_refs);
+	/* One reference for zf_stream. */
+	zfs_refcount_add(&zs->zs_refs, NULL);
 	zf->zf_numstreams++;
 	list_insert_head(&zf->zf_stream, zs);
 }
@@ -247,38 +239,36 @@ dmu_zfetch_stream_done(void *arg, boolean_t io_issued)
 			ZFETCHSTAT_SET(zfetchstat_max_completion_us, delta);
 	}
 
-	if (zfs_refcount_remove(&zs->zs_blocks, NULL) != 0)
-		return;
-
-	/*
-	 * The parent fetch structure has gone away
-	 */
-	if (zs->zs_fetch == NULL)
+	if (zfs_refcount_remove(&zs->zs_refs, NULL) == 0)
 		dmu_zfetch_stream_fini(zs);
 }
 
 /*
- * This is the predictive prefetch entry point.  It associates dnode access
- * specified with blkid and nblks arguments with prefetch stream, predicts
- * further accesses based on that stats and initiates speculative prefetch.
+ * This is the predictive prefetch entry point.  dmu_zfetch_prepare()
+ * associates dnode access specified with blkid and nblks arguments with
+ * prefetch stream, predicts further accesses based on that stats and returns
+ * the stream pointer on success.  That pointer must later be passed to
+ * dmu_zfetch_run() to initiate the speculative prefetch for the stream and
+ * release it.  dmu_zfetch() is a wrapper for simple cases when window between
+ * prediction and prefetch initiation is not needed.
  * fetch_data argument specifies whether actual data blocks should be fetched:
  *   FALSE -- prefetch only indirect blocks for predicted data blocks;
  *   TRUE -- prefetch predicted data blocks plus following indirect blocks.
  */
-void
-dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data,
-    boolean_t have_lock)
+zstream_t *
+dmu_zfetch_prepare(zfetch_t *zf, uint64_t blkid, uint64_t nblks,
+    boolean_t fetch_data, boolean_t have_lock)
 {
 	zstream_t *zs;
-	int64_t pf_start, ipf_start, ipf_istart, ipf_iend;
+	int64_t pf_start, ipf_start;
 	int64_t pf_ahead_blks, max_blks;
-	int epbs, max_dist_blks, pf_nblks, ipf_nblks, issued;
-	uint64_t end_of_access_blkid;
+	int max_dist_blks, pf_nblks, ipf_nblks;
+	uint64_t end_of_access_blkid, maxblkid;
 	end_of_access_blkid = blkid + nblks;
 	spa_t *spa = zf->zf_dnode->dn_objset->os_spa;
 
 	if (zfs_prefetch_disable)
-		return;
+		return (NULL);
 	/*
 	 * If we haven't yet loaded the indirect vdevs' mappings, we
 	 * can only read from blocks that we carefully ensure are on
@@ -287,14 +277,14 @@ dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data,
 	 * blocks (e.g. of the MOS's dnode object).
 	 */
 	if (!spa_indirect_vdevs_loaded(spa))
-		return;
+		return (NULL);
 
 	/*
 	 * As a fast path for small (single-block) files, ignore access
 	 * to the first block.
 	 */
 	if (!have_lock && blkid == 0)
-		return;
+		return (NULL);
 
 	if (!have_lock)
 		rw_enter(&zf->zf_dnode->dn_struct_rwlock, RW_READER);
@@ -303,10 +293,11 @@ dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data,
 	 * A fast path for small files for which no prefetch will
 	 * happen.
 	 */
-	if (zf->zf_dnode->dn_maxblkid < 2) {
+	maxblkid = zf->zf_dnode->dn_maxblkid;
+	if (maxblkid < 2) {
 		if (!have_lock)
 			rw_exit(&zf->zf_dnode->dn_struct_rwlock);
-		return;
+		return (NULL);
 	}
 	mutex_enter(&zf->zf_lock);
 
@@ -317,31 +308,34 @@ dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data,
 	 */
 	for (zs = list_head(&zf->zf_stream); zs != NULL;
 	    zs = list_next(&zf->zf_stream, zs)) {
-		if (blkid == zs->zs_blkid || blkid + 1 == zs->zs_blkid) {
-			mutex_enter(&zs->zs_lock);
-			/*
-			 * zs_blkid could have changed before we
-			 * acquired zs_lock; re-check them here.
-			 */
-			if (blkid == zs->zs_blkid) {
-				break;
-			} else if (blkid + 1 == zs->zs_blkid) {
-				blkid++;
-				nblks--;
-				if (nblks == 0) {
-					/* Already prefetched this before. */
-					mutex_exit(&zs->zs_lock);
-					mutex_exit(&zf->zf_lock);
-					if (!have_lock) {
-						rw_exit(&zf->zf_dnode->
-						    dn_struct_rwlock);
-					}
-					return;
-				}
-				break;
-			}
-			mutex_exit(&zs->zs_lock);
+		if (blkid == zs->zs_blkid) {
+			break;
+		} else if (blkid + 1 == zs->zs_blkid) {
+			blkid++;
+			nblks--;
+			break;
 		}
+	}
+
+	/*
+	 * If the file is ending, remove the matching stream if found.
+	 * If not found then it is too late to create a new one now.
+	 */
+	if (end_of_access_blkid >= maxblkid) {
+		if (zs != NULL)
+			dmu_zfetch_stream_remove(zf, zs);
+		mutex_exit(&zf->zf_lock);
+		if (!have_lock)
+			rw_exit(&zf->zf_dnode->dn_struct_rwlock);
+		return (NULL);
+	}
+
+	/* Exit if we already prefetched this block before. */
+	if (nblks == 0) {
+		mutex_exit(&zf->zf_lock);
+		if (!have_lock)
+			rw_exit(&zf->zf_dnode->dn_struct_rwlock);
+		return (NULL);
 	}
 
 	if (zs == NULL) {
@@ -349,13 +343,12 @@ dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data,
 		 * This access is not part of any existing stream.  Create
 		 * a new stream for it.
 		 */
-		ZFETCHSTAT_BUMP(zfetchstat_misses);
-
 		dmu_zfetch_stream_create(zf, end_of_access_blkid);
 		mutex_exit(&zf->zf_lock);
 		if (!have_lock)
 			rw_exit(&zf->zf_dnode->dn_struct_rwlock);
-		return;
+		ZFETCHSTAT_BUMP(zfetchstat_misses);
+		return (NULL);
 	}
 
 	/*
@@ -369,6 +362,10 @@ dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data,
 	 * start just after the block we just accessed.
 	 */
 	pf_start = MAX(zs->zs_pf_blkid, end_of_access_blkid);
+	if (zs->zs_pf_blkid1 < end_of_access_blkid)
+		zs->zs_pf_blkid1 = end_of_access_blkid;
+	if (zs->zs_ipf_blkid1 < end_of_access_blkid)
+		zs->zs_ipf_blkid1 = end_of_access_blkid;
 
 	/*
 	 * Double our amount of prefetched data, but don't let the
@@ -411,43 +408,100 @@ dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data,
 	ipf_nblks = MIN(pf_ahead_blks, max_blks);
 	zs->zs_ipf_blkid = ipf_start + ipf_nblks;
 
-	epbs = zf->zf_dnode->dn_indblkshift - SPA_BLKPTRSHIFT;
-	ipf_istart = P2ROUNDUP(ipf_start, 1 << epbs) >> epbs;
-	ipf_iend = P2ROUNDUP(zs->zs_ipf_blkid, 1 << epbs) >> epbs;
-
 	zs->zs_atime = gethrtime();
-	/* no prior reads in progress */
-	if (zfs_refcount_count(&zs->zs_blocks) == 0)
+	/* Protect the stream from reclamation.  2 -- zf_stream + us. */
+	if (zfs_refcount_add(&zs->zs_refs, NULL) == 2)
 		zs->zs_start_time = zs->zs_atime;
+	/* Count concurrent callers. */
+	zfs_refcount_add(&zs->zs_callers, NULL);
 	zs->zs_blkid = end_of_access_blkid;
-	zfs_refcount_add_many(&zs->zs_blocks, pf_nblks + ipf_iend - ipf_istart,
-	    NULL);
-	mutex_exit(&zs->zs_lock);
 	mutex_exit(&zf->zf_lock);
-	issued = 0;
+
+	if (!have_lock)
+		rw_exit(&zf->zf_dnode->dn_struct_rwlock);
+
+	ZFETCHSTAT_BUMP(zfetchstat_hits);
+	return (zs);
+}
+
+void
+dmu_zfetch_run(zstream_t *zs, boolean_t missed, boolean_t have_lock)
+{
+	zfetch_t *zf = zs->zs_fetch;
+	int64_t pf_start, pf_end, ipf_start, ipf_end;
+	int epbs, issued;
+
+	if (missed)
+		zs->zs_missed = missed;
 
 	/*
-	 * dbuf_prefetch() is asynchronous (even when it needs to read
-	 * indirect blocks), but we still prefer to drop our locks before
-	 * calling it to reduce the time we hold them.
+	 * Postpone the prefetch if there are more concurrent callers.
+	 * It happens when multiple requests are waiting for the same
+	 * indirect block.  The last one will run the prefetch for all.
 	 */
+	if (zfs_refcount_remove(&zs->zs_callers, NULL) != 0) {
+		/* Drop reference taken in dmu_zfetch_prepare(). */
+		if (zfs_refcount_remove(&zs->zs_refs, NULL) == 0)
+			dmu_zfetch_stream_fini(zs);
+		return;
+	}
 
-	for (int i = 0; i < pf_nblks; i++) {
-		issued += dbuf_prefetch_impl(zf->zf_dnode, 0, pf_start + i,
+	mutex_enter(&zf->zf_lock);
+	if (zs->zs_missed) {
+		pf_start = zs->zs_pf_blkid1;
+		pf_end = zs->zs_pf_blkid1 = zs->zs_pf_blkid;
+	} else {
+		pf_start = pf_end = 0;
+	}
+	ipf_start = MAX(zs->zs_pf_blkid1, zs->zs_ipf_blkid1);
+	ipf_end = zs->zs_ipf_blkid1 = zs->zs_ipf_blkid;
+	mutex_exit(&zf->zf_lock);
+
+	epbs = zf->zf_dnode->dn_indblkshift - SPA_BLKPTRSHIFT;
+	ipf_start = P2ROUNDUP(ipf_start, 1 << epbs) >> epbs;
+	ipf_end = P2ROUNDUP(ipf_end, 1 << epbs) >> epbs;
+	issued = pf_end - pf_start + ipf_end - ipf_start;
+	if (issued > 1) {
+		/* More references on top of taken in dmu_zfetch_prepare(). */
+		zfs_refcount_add_many(&zs->zs_refs, issued - 1, NULL);
+	} else if (issued == 0) {
+		/* Some other thread has done our work, so drop the ref. */
+		if (zfs_refcount_remove(&zs->zs_refs, NULL) == 0)
+			dmu_zfetch_stream_fini(zs);
+		return;
+	}
+
+	if (!have_lock)
+		rw_enter(&zf->zf_dnode->dn_struct_rwlock, RW_READER);
+
+	issued = 0;
+	for (int64_t blk = pf_start; blk < pf_end; blk++) {
+		issued += dbuf_prefetch_impl(zf->zf_dnode, 0, blk,
 		    ZIO_PRIORITY_ASYNC_READ, ARC_FLAG_PREDICTIVE_PREFETCH,
 		    dmu_zfetch_stream_done, zs);
 	}
-	for (int64_t iblk = ipf_istart; iblk < ipf_iend; iblk++) {
+	for (int64_t iblk = ipf_start; iblk < ipf_end; iblk++) {
 		issued += dbuf_prefetch_impl(zf->zf_dnode, 1, iblk,
 		    ZIO_PRIORITY_ASYNC_READ, ARC_FLAG_PREDICTIVE_PREFETCH,
 		    dmu_zfetch_stream_done, zs);
 	}
+
 	if (!have_lock)
 		rw_exit(&zf->zf_dnode->dn_struct_rwlock);
-	ZFETCHSTAT_BUMP(zfetchstat_hits);
 
 	if (issued)
 		ZFETCHSTAT_ADD(zfetchstat_io_issued, issued);
+}
+
+void
+dmu_zfetch(zfetch_t *zf, uint64_t blkid, uint64_t nblks, boolean_t fetch_data,
+    boolean_t missed, boolean_t have_lock)
+{
+	zstream_t *zs;
+
+	zs = dmu_zfetch_prepare(zf, blkid, nblks, fetch_data, have_lock);
+	if (zs)
+		dmu_zfetch_run(zs, missed, have_lock);
 }
 
 /* BEGIN CSTYLED */
