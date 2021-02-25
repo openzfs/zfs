@@ -1602,6 +1602,8 @@ vdev_probe_done(zio_t *zio)
 
 		vd->vdev_cant_read |= !vps->vps_readable;
 		vd->vdev_cant_write |= !vps->vps_writeable;
+		vdev_dbgmsg(vd, "probe done, cant_read=%u cant_write=%u",
+		    vd->vdev_cant_read, vd->vdev_cant_write);
 
 		if (vdev_readable(vd) &&
 		    (vdev_writeable(vd) || !spa_writeable(spa))) {

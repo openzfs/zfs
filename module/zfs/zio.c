@@ -3985,6 +3985,9 @@ zio_vdev_io_assess(zio_t *zio)
 	 */
 	if (zio->io_error == ENXIO && zio->io_type == ZIO_TYPE_WRITE &&
 	    vd != NULL && !vd->vdev_ops->vdev_op_leaf) {
+		vdev_dbgmsg(vd, "zio_vdev_io_assess(zio=%llx) setting "
+		    "cant_write=TRUE due to write failure with ENXIO",
+		    zio);
 		vd->vdev_cant_write = B_TRUE;
 	}
 
