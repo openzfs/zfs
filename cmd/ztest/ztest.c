@@ -7592,6 +7592,9 @@ ztest_init(ztest_shared_t *zs)
 	for (i = 0; i < SPA_FEATURES; i++) {
 		char *buf;
 
+		if (!spa_feature_table[i].fi_zfs_mod_supported)
+			continue;
+
 		/*
 		 * 75% chance of using the log space map feature. We want ztest
 		 * to exercise both the code paths that use the log space map

@@ -482,6 +482,8 @@ check_status(nvlist_t *config, boolean_t isimport,
 			return (ZPOOL_STATUS_COMPATIBILITY_ERR);
 		for (i = 0; i < SPA_FEATURES; i++) {
 			zfeature_info_t *fi = &spa_feature_table[i];
+			if (!fi->fi_zfs_mod_supported)
+				continue;
 			if (pool_features[i] &&
 			    !nvlist_exists(feat, fi->fi_guid))
 				return (ZPOOL_STATUS_FEAT_DISABLED);
