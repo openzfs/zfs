@@ -3081,32 +3081,51 @@ vdev_dtl_reassess(vdev_t *vd, uint64_t txg, uint64_t scrub_txg,
 
 		if (txg != 0)
 			vdev_dirty(vd->vdev_top, VDD_DTL, vd, txg);
-		return;
+	} else {
+		mutex_enter(&vd->vdev_dtl_lock);
+		for (int t = 0; t < DTL_TYPES; t++) {
+			/* account for child's outage in parent's missing map */
+			int s = (t == DTL_MISSING) ? DTL_OUTAGE: t;
+			if (t == DTL_SCRUB)
+				continue;			/* leaf vdevs only */
+			if (t == DTL_PARTIAL)
+				minref = 1;			/* i.e. non-zero */
+			else if (vdev_get_nparity(vd) != 0)
+				minref = vdev_get_nparity(vd) + 1; /* RAID-Z, dRAID */
+			else
+				minref = vd->vdev_children;	/* any kind of mirror */
+			space_reftree_create(&reftree);
+			for (int c = 0; c < vd->vdev_children; c++) {
+				vdev_t *cvd = vd->vdev_child[c];
+				mutex_enter(&cvd->vdev_dtl_lock);
+				space_reftree_add_map(&reftree, cvd->vdev_dtl[s], 1);
+				mutex_exit(&cvd->vdev_dtl_lock);
+			}
+			space_reftree_generate_map(&reftree, vd->vdev_dtl[t], minref);
+			space_reftree_destroy(&reftree);
+		}
+		mutex_exit(&vd->vdev_dtl_lock);
 	}
 
-	mutex_enter(&vd->vdev_dtl_lock);
-	for (int t = 0; t < DTL_TYPES; t++) {
-		/* account for child's outage in parent's missing map */
-		int s = (t == DTL_MISSING) ? DTL_OUTAGE: t;
-		if (t == DTL_SCRUB)
-			continue;			/* leaf vdevs only */
-		if (t == DTL_PARTIAL)
-			minref = 1;			/* i.e. non-zero */
-		else if (vdev_get_nparity(vd) != 0)
-			minref = vdev_get_nparity(vd) + 1; /* RAID-Z, dRAID */
-		else
-			minref = vd->vdev_children;	/* any kind of mirror */
-		space_reftree_create(&reftree);
-		for (int c = 0; c < vd->vdev_children; c++) {
-			vdev_t *cvd = vd->vdev_child[c];
-			mutex_enter(&cvd->vdev_dtl_lock);
-			space_reftree_add_map(&reftree, cvd->vdev_dtl[s], 1);
-			mutex_exit(&cvd->vdev_dtl_lock);
+	/*
+	 * XXX make this a function in vdev_raidz.c
+	 * XXX seems prone to race conditions, e.g. we haven't yet
+	 * returned from spa_raidz_expand_cb().
+	 */
+	if (spa->spa_raidz_expand != NULL) {
+		vdev_raidz_expand_t *vre = spa->spa_raidz_expand;
+		if (vd->vdev_top->vdev_id == vre->vre_vdev_id) {
+			mutex_enter(&vre->vre_lock);
+			if (vre->vre_waiting_for_resilver) {
+				vdev_dbgmsg(vd, "DTL reassessed, "
+				    "continuing raidz expansion");
+				vre->vre_waiting_for_resilver = B_FALSE;
+				zthr_wakeup(spa->spa_raidz_expand_zthr);
+			}
+			mutex_exit(&vre->vre_lock);
 		}
-		space_reftree_generate_map(&reftree, vd->vdev_dtl[t], minref);
-		space_reftree_destroy(&reftree);
 	}
-	mutex_exit(&vd->vdev_dtl_lock);
+
 }
 
 int

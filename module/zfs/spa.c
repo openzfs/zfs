@@ -7954,22 +7954,6 @@ spa_vdev_resilver_done(spa_t *spa)
 	spa_config_exit(spa, SCL_ALL, FTAG);
 
 	/*
-	 * XXX make this a function in vdev_raidz.c
-	 * XXX seems prone to race conditions, e.g. we haven't yet
-	 * returned from spa_raidz_expand_cb().
-	 * XXX maybe we should be doing this from vdev_dtl_reassess()?
-	 */
-	if (spa->spa_raidz_expand != NULL) {
-		vdev_raidz_expand_t *vre = spa->spa_raidz_expand;
-		mutex_enter(&vre->vre_lock);
-		if (vre->vre_waiting_for_resilver) {
-			vre->vre_waiting_for_resilver = B_FALSE;
-			zthr_wakeup(spa->spa_raidz_expand_zthr);
-		}
-		mutex_exit(&vre->vre_lock);
-	}
-
-	/*
 	 * If a detach was not performed above replace waiters will not have
 	 * been notified.  In which case we must do so now.
 	 */

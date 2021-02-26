@@ -3655,13 +3655,14 @@ raidz_reflow_read_done(zio_t *zio)
 	 * It may write garbage but the location is otherwise unused and we
 	 * will retry later due to vre_failed_offset.
 	 */
-	if (zio->io_error != 0 || !vdev_dtl_empty(zio->io_vd, DTL_PARTIAL)) {
-		zfs_dbgmsg("reflow read failed offset=%llu size=%llu txg=%llu err=%u dtl_empty=%u",
+	if (zio->io_error != 0 || !vdev_dtl_empty(zio->io_vd, DTL_MISSING)) {
+		zfs_dbgmsg("reflow read failed offset=%llu size=%llu txg=%llu err=%u partial_dtl_empty=%u missing_dtl_empty=%u",
 		    rra->rra_lr->lr_offset,
 		    rra->rra_lr->lr_length,
 		    rra->rra_txg,
 		    zio->io_error,
-		    vdev_dtl_empty(zio->io_vd, DTL_PARTIAL));
+		    vdev_dtl_empty(zio->io_vd, DTL_PARTIAL),
+		    vdev_dtl_empty(zio->io_vd, DTL_MISSING));
 		mutex_enter(&vre->vre_lock);
 		vre->vre_failed_offset =
 		    MIN(vre->vre_failed_offset, rra->rra_lr->lr_offset);
