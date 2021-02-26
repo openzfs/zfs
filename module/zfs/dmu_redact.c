@@ -825,6 +825,12 @@ perform_thread_merge(bqueue_t *q, uint32_t num_threads,
 	kmem_free(redact_nodes, num_threads * sizeof (*redact_nodes));
 	if (current_record != NULL)
 		bqueue_enqueue(q, current_record, sizeof (current_record));
+
+	for (int i = 0; i < num_threads; i++) {
+		struct redact_thread_arg *targ = &thread_args[i];
+		bqueue_destroy(&targ->q);
+	}
+
 	return (err);
 }
 
