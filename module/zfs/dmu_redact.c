@@ -823,6 +823,12 @@ perform_thread_merge(bqueue_t *q, uint32_t num_threads,
 	kmem_free(redact_nodes, num_threads * sizeof (*redact_nodes));
 	if (current_record != NULL)
 		bqueue_enqueue(q, current_record, sizeof (current_record));
+
+	for (int i = 0; i < num_threads; i++) {
+		struct redact_thread_arg *targ = &thread_args[i];
+		bqueue_destroy(&targ->q);
+	}
+
 	return (err);
 }
 
@@ -1164,6 +1170,7 @@ dmu_redact_snap(const char *snapname, nvlist_t *redactnvl,
 	(void) thread_create(NULL, 0, redact_merge_thread, rmta, 0, curproc,
 	    TS_RUN, minclsyspri);
 	err = perform_redaction(os, new_rl, rmta);
+	bqueue_destroy(&rmta->q);
 	kmem_free(rmta, sizeof (struct redact_merge_thread_arg));
 
 out:
