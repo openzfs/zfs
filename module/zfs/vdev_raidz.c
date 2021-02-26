@@ -3030,7 +3030,8 @@ vdev_raidz_reconstruct(raidz_map_t *rm, const int *t, int nt)
 static void
 vdev_raidz_io_done_write_impl(zio_t *zio, raidz_row_t *rr)
 {
-	int total_errors = 0;
+	int normal_errors = 0;
+	int shadow_errors = 0;
 
 	ASSERT3U(rr->rr_missingparity, <=, rr->rr_firstdatacol);
 	ASSERT3U(rr->rr_missingdata, <=, rr->rr_cols - rr->rr_firstdatacol);
@@ -3039,24 +3040,31 @@ vdev_raidz_io_done_write_impl(zio_t *zio, raidz_row_t *rr)
 	for (int c = 0; c < rr->rr_cols; c++) {
 		raidz_col_t *rc = &rr->rr_col[c];
 
-		if (rc->rc_error || rc->rc_shadow_error) {
+		if (rc->rc_error != 0) {
 			ASSERT(rc->rc_error != ECKSUM);	/* child has no bp */
-
-			total_errors++;
+			normal_errors++;
+		}
+		if (rc->rc_shadow_error != 0) {
+			ASSERT(rc->rc_shadow_error != ECKSUM);
+			shadow_errors++;
 		}
 	}
 
 	/*
 	 * Treat partial writes as a success. If we couldn't write enough
-	 * columns to reconstruct the data, the I/O failed.  Otherwise,
-	 * good enough.
+	 * columns to reconstruct the data, the I/O failed.  Otherwise, good
+	 * enough.  Note that in the case of a shadow write (during raidz
+	 * expansion), depending on if we crash, either the normal (old) or
+	 * shadow (new) location may become the "real" version of the block,
+	 * so both locations must have sufficient redundancy.
 	 *
 	 * Now that we support write reallocation, it would be better
 	 * to treat partial failure as real failure unless there are
 	 * no non-degraded top-level vdevs left, and not update DTLs
 	 * if we intend to reallocate.
 	 */
-	if (total_errors > rr->rr_firstdatacol) {
+	if (normal_errors > rr->rr_firstdatacol ||
+	    shadow_errors > rr->rr_firstdatacol) {
 		zio->io_error = zio_worst_error(zio->io_error,
 		    vdev_raidz_worst_error(rr));
 	}
