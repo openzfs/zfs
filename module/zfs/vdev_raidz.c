@@ -3585,6 +3585,8 @@ raidz_reflow_complete_sync(void *arg, dmu_tx_t *tx)
 	    (unsigned long long)vd->vdev_children);
 
 	spa->spa_raidz_expand = NULL;
+
+	spa_notify_waiters(spa);
 }
 
 /*

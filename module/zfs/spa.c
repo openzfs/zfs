@@ -9776,7 +9776,8 @@ spa_activity_in_progress(spa_t *spa, zpool_wait_activity_t activity,
 		    DSS_SCANNING);
 		break;
 	case ZPOOL_WAIT_RESILVER:
-		if ((*in_progress = vdev_rebuild_active(spa->spa_root_vdev)))
+		*in_progress = vdev_rebuild_active(spa->spa_root_vdev);
+		if (*in_progress)
 			break;
 		/* fall through */
 	case ZPOOL_WAIT_SCRUB:
@@ -9789,6 +9790,12 @@ spa_activity_in_progress(spa_t *spa, zpool_wait_activity_t activity,
 		paused = dsl_scan_is_paused_scrub(scn);
 		*in_progress = (scanning && !paused &&
 		    is_scrub == (activity == ZPOOL_WAIT_SCRUB));
+		break;
+	}
+	case ZPOOL_WAIT_RAIDZ_EXPAND:
+	{
+		vdev_raidz_expand_t *vre = spa->spa_raidz_expand;
+		*in_progress = (vre != NULL && vre->vre_state == DSS_SCANNING);
 		break;
 	}
 	default:
