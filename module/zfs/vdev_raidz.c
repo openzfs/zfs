@@ -4435,6 +4435,7 @@ spa_raidz_expand_get_stats(spa_t *spa, pool_raidz_expand_stat_t *pres)
 
 	pres->pres_start_time = vre->vre_start_time;
 	pres->pres_end_time = vre->vre_end_time;
+	pres->pres_waiting_for_resilver = vre->vre_waiting_for_resilver;
 
 	return (0);
 }

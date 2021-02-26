@@ -1037,6 +1037,7 @@ typedef struct pool_raidz_expand_stat {
 	uint64_t pres_end_time;
 	uint64_t pres_to_reflow; /* bytes that need to be moved */
 	uint64_t pres_reflowed; /* bytes moved so far */
+	uint64_t pres_waiting_for_resilver;
 } pool_raidz_expand_stat_t;
 
 typedef enum dsl_scan_state {

@@ -7891,7 +7891,10 @@ print_raidz_expand_status(zpool_handle_t *zhp, pool_raidz_expand_stat_t *pres)
 		(void) printf(gettext("    %s copied out of %s at %s/s, "
 		    "%.2f%% done"),
 		    examined_buf, total_buf, rate_buf, 100 * fraction_done);
-		if (hours_left < (30 * 24)) {
+		if (pres->pres_waiting_for_resilver) {
+			(void) printf(gettext(", paused due to io errors, "
+			    "waiting for resilver or clear\n"));
+		} else if (hours_left < (30 * 24)) {
 			(void) printf(gettext(", %lluh%um to go\n"),
 			    (u_longlong_t)hours_left, (uint_t)(mins_left % 60));
 		} else {
