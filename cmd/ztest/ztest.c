@@ -3061,6 +3061,7 @@ ztest_spa_checkpoint(spa_t *spa)
 	case ZFS_ERR_DEVRM_IN_PROGRESS:
 	case ZFS_ERR_DISCARDING_CHECKPOINT:
 	case ZFS_ERR_CHECKPOINT_EXISTS:
+	case ZFS_ERR_RAIDZ_EXPAND_IN_PROGRESS:
 		break;
 	case ENOSPC:
 		ztest_record_enospc(FTAG);
