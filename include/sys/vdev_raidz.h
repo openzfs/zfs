@@ -46,7 +46,7 @@ struct kernel_param {};
  */
 struct raidz_map *vdev_raidz_map_alloc(struct zio *, uint64_t, uint64_t,
     uint64_t);
-struct raidz_map *vdev_raidz_map_alloc_expanded(abd_t *, uint64_t, uint64_t,
+struct raidz_map *vdev_raidz_map_alloc_expanded(struct zio *,
     uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, boolean_t);
 void vdev_raidz_map_free(struct raidz_map *);
 void vdev_raidz_free(struct vdev_raidz *);

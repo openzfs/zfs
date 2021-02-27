@@ -324,12 +324,10 @@ init_raidz_golden_map(raidz_test_opts_t *opts, const int parity)
 
 	if (opts->rto_expand) {
 		opts->rm_golden =
-		    vdev_raidz_map_alloc_expanded(opts->zio_golden->io_abd,
-		    opts->zio_golden->io_size, opts->zio_golden->io_offset,
+		    vdev_raidz_map_alloc_expanded(opts->zio_golden,
 		    opts->rto_ashift, total_ncols+1, total_ncols,
 		    parity, opts->rto_expand_offset, 0, B_FALSE);
-		rm_test = vdev_raidz_map_alloc_expanded(zio_test->io_abd,
-		    zio_test->io_size, zio_test->io_offset,
+		rm_test = vdev_raidz_map_alloc_expanded(zio_test,
 		    opts->rto_ashift, total_ncols+1, total_ncols,
 		    parity, opts->rto_expand_offset, 0, B_FALSE);
 	} else {
@@ -377,8 +375,7 @@ init_raidz_map(raidz_test_opts_t *opts, zio_t **zio, const int parity)
 	init_zio_abd(*zio);
 
 	if (opts->rto_expand) {
-		rm = vdev_raidz_map_alloc_expanded((*zio)->io_abd,
-		    (*zio)->io_size, (*zio)->io_offset,
+		rm = vdev_raidz_map_alloc_expanded(*zio,
 		    opts->rto_ashift, total_ncols+1, total_ncols,
 		    parity, opts->rto_expand_offset, 0, B_FALSE);
 	} else {

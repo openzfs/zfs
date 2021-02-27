@@ -561,11 +561,15 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t ashift, uint64_t dcols,
  * offset.
  */
 noinline raidz_map_t *
-vdev_raidz_map_alloc_expanded(abd_t *abd, uint64_t size, uint64_t offset,
+vdev_raidz_map_alloc_expanded(zio_t *zio,
     uint64_t ashift, uint64_t physical_cols, uint64_t logical_cols,
     uint64_t nparity, uint64_t reflow_offset_synced,
     uint64_t reflow_offset_next, boolean_t use_scratch)
 {
+	abd_t *abd = zio->io_abd;
+	uint64_t offset = zio->io_offset;
+	uint64_t size = zio->io_size;
+
 	/* The zio's size in units of the vdev's minimum sector size. */
 	uint64_t s = size >> ashift;
 	uint64_t q, r, bc, asize, tot;
@@ -2431,8 +2435,7 @@ vdev_raidz_io_start(zio_t *zio)
 		    next_offset,
 		    use_scratch);
 
-		rm = vdev_raidz_map_alloc_expanded(zio->io_abd,
-		    zio->io_size, zio->io_offset,
+		rm = vdev_raidz_map_alloc_expanded(zio,
 		    tvd->vdev_ashift, vdrz->vd_physical_width,
 		    logical_width, vdrz->vd_nparity,
 		    synced_offset, next_offset, use_scratch);
