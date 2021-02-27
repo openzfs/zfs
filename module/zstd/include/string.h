@@ -55,6 +55,27 @@ extern "C" {
 #include_next <string.h>
 #endif /* _KERNEL */
 
+/*
+ * GCC/Clang doesn't know that the kernel's memcpy (etc)
+ * are standards-compliant so it can't be sure that it
+ * can inline its own optimized copies without altering
+ * behavior.  This is particularly significant for
+ * zstd which, for example, expects a fast inline memcpy
+ * in its inner loops.  Explicitly using the __builtin
+ * versions permits the compiler to inline where it
+ * considers this profitable, falling back to the
+ * kernel's memcpy (etc) otherwise.
+ */
+#if defined(_KERNEL) && defined(__GNUC__) && __GNUC__ >= 4
+#define	ZSTD_memcpy(d, s, l) __builtin_memcpy((d), (s), (l))
+#define	ZSTD_memmove(d, s, l) __builtin_memmove((d), (s), (l))
+#define	ZSTD_memset(p, v, l) __builtin_memset((p), (v), (l))
+#else
+#define	ZSTD_memcpy(d, s, l) memcpy((d), (s), (l))
+#define	ZSTD_memmove(d, s, l) memmove((d), (s), (l))
+#define	ZSTD_memset(p, v, l) memset((p), (v), (l))
+#endif
+
 #ifdef __cplusplus
 }
 #endif
