@@ -319,7 +319,7 @@ dmu_read_pages(objset_t *os, uint64_t object, vm_page_t *ma, int count,
 			break;
 		}
 		ASSERT(m->dirty == 0);
-		ASSERT(!pmap_page_is_mapped(m));
+		ASSERT(!pmap_page_is_write_mapped(m));
 
 		ASSERT(db->db_size > PAGE_SIZE);
 		bufoff = IDX_TO_OFF(m->pindex) % db->db_size;
