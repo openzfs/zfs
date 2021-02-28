@@ -100,6 +100,8 @@ zfeature_is_supported(const char *guid)
 
 	for (spa_feature_t i = 0; i < SPA_FEATURES; i++) {
 		zfeature_info_t *feature = &spa_feature_table[i];
+		if (!feature->fi_zfs_mod_supported)
+			continue;
 		if (strcmp(guid, feature->fi_guid) == 0)
 			return (B_TRUE);
 	}
