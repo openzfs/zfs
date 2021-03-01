@@ -22,5 +22,6 @@
 #ifndef _SPL_STRINGS_H
 #define	_SPL_STRINGS_H
 
+int kstrtoul(const char *s, unsigned int base, unsigned long *res);
 
 #endif
