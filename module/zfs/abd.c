@@ -139,6 +139,16 @@ static void
 abd_init_struct(abd_t *abd)
 {
 	list_link_init(&abd->abd_gang_link);
+	// HACK HACK
+#ifdef _KERNEL
+	kmutex_t *mp = &abd->abd_mtx;
+	if (mp->m_initialised == MUTEX_INIT) {
+		printf("%s: avoiding panic for abd %p\n", __func__,
+		    abd->abd_mtx);
+		return;
+	}
+#endif
+	// ^^ HACK END
 	mutex_init(&abd->abd_mtx, NULL, MUTEX_DEFAULT, NULL);
 	abd->abd_flags = 0;
 #ifdef ZFS_DEBUG
