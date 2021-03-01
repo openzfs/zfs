@@ -204,8 +204,6 @@ abd_alloc_struct_impl(size_t size)
 	ASSERT3P(abd, !=, NULL);
 	ABDSTAT_INCR(abdstat_struct_size, abd_size);
 
-	abd->abd_orig_size = abd_size;
-
 	return (abd);
 }
 
@@ -216,7 +214,6 @@ abd_free_struct_impl(abd_t *abd)
 	    abd_scatter_chunkcnt(abd);
 	ssize_t size = MAX(sizeof (abd_t),
 	    offsetof(abd_t, abd_u.abd_scatter.abd_chunks[chunkcnt]));
-	VERIFY3U(size, ==, abd->abd_orig_size);
 	kmem_free(abd, size);
 	ABDSTAT_INCR(abdstat_struct_size, -size);
 }
