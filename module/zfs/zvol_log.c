@@ -103,10 +103,29 @@ zvol_log_truncate(zvol_state_t *zv, dmu_tx_t *tx, uint64_t off, uint64_t len,
 	zil_itx_assign(zilog, itx, tx);
 }
 
+static int
+zvol_get_data_wr_need_copy(void *arg, lr_write_t *lr, char *buf, size_t buf_len)
+{
+	zvol_state_t *zv = arg;
+	uint64_t offset = lr->lr_offset;
+	uint64_t size = lr->lr_length;
+	int error;
+
+	ASSERT3U(size, ==, buf_len);
+
+	zfs_locked_range_t *rl_lr;
+	rl_lr = zfs_rangelock_enter(&zv->zv_rangelock, offset,
+	    size, RL_READER);
+	error = dmu_read_by_dnode(zv->zv_dn, offset, size, buf,
+	    DMU_READ_NO_PREFETCH);
+	zfs_rangelock_exit(rl_lr);
+
+	return (SET_ERROR(error));
+}
 
 /* ARGSUSED */
 static void
-zvol_get_done(zgd_t *zgd, int error)
+zvol_get_data_wr_indirect_done(zgd_t *zgd, int error)
 {
 	if (zgd->zgd_db)
 		dmu_buf_rele(zgd->zgd_db, zgd);
@@ -116,12 +135,9 @@ zvol_get_done(zgd_t *zgd, int error)
 	kmem_free(zgd, sizeof (zgd_t));
 }
 
-/*
- * Get data to generate a TX_WRITE intent log record.
- */
-int
-zvol_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,
-    struct lwb *lwb, zio_t *zio)
+
+static int
+zvol_get_data_wr_indirect(void *arg, lr_write_t *lr, struct lwb *lwb, zio_t *zio)
 {
 	zvol_state_t *zv = arg;
 	uint64_t offset = lr->lr_offset;
@@ -138,49 +154,50 @@ zvol_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,
 	zgd->zgd_lwb = lwb;
 
 	/*
-	 * Write records come in two flavors: immediate and indirect.
-	 * For small writes it's cheaper to store the data with the
-	 * log record (immediate); for large writes it's cheaper to
-	 * sync the data and get a pointer to it (indirect) so that
-	 * we don't have to write the data twice.
+	 * Have to lock the whole block to ensure when it's written out
+	 * and its checksum is being calculated that no one can change
+	 * the data. Contrarily to zfs_get_data we need not re-check
+	 * blocksize after we get the lock because it cannot be changed.
 	 */
-	if (buf != NULL) { /* immediate write */
-		zgd->zgd_lr = zfs_rangelock_enter(&zv->zv_rangelock, offset,
-		    size, RL_READER);
-		error = dmu_read_by_dnode(zv->zv_dn, offset, size, buf,
-		    DMU_READ_NO_PREFETCH);
-	} else { /* indirect write */
-		/*
-		 * Have to lock the whole block to ensure when it's written out
-		 * and its checksum is being calculated that no one can change
-		 * the data. Contrarily to zfs_get_data we need not re-check
-		 * blocksize after we get the lock because it cannot be changed.
-		 */
-		size = zv->zv_volblocksize;
-		offset = P2ALIGN_TYPED(offset, size, uint64_t);
-		zgd->zgd_lr = zfs_rangelock_enter(&zv->zv_rangelock, offset,
-		    size, RL_READER);
-		error = dmu_buf_hold_by_dnode(zv->zv_dn, offset, zgd, &db,
-		    DMU_READ_NO_PREFETCH);
-		if (error == 0) {
-			blkptr_t *bp = &lr->lr_blkptr;
+	size = zv->zv_volblocksize;
+	offset = P2ALIGN_TYPED(offset, size, uint64_t);
+	zgd->zgd_lr = zfs_rangelock_enter(&zv->zv_rangelock, offset,
+	    size, RL_READER);
+	error = dmu_buf_hold_by_dnode(zv->zv_dn, offset, zgd, &db,
+		DMU_READ_NO_PREFETCH);
+	if (error == 0) {
+		blkptr_t *bp = &lr->lr_blkptr;
 
-			zgd->zgd_db = db;
-			zgd->zgd_bp = bp;
+		zgd->zgd_db = db;
+		zgd->zgd_bp = bp;
 
-			ASSERT(db != NULL);
-			ASSERT(db->db_offset == offset);
-			ASSERT(db->db_size == size);
+		ASSERT(db != NULL);
+		ASSERT(db->db_offset == offset);
+		ASSERT(db->db_size == size);
 
-			error = dmu_sync(zio, lr->lr_common.lrc_txg,
-			    zvol_get_done, zgd);
+		error = dmu_sync(zio, lr->lr_common.lrc_txg,
+		    zvol_get_data_wr_indirect_done, zgd);
 
-			if (error == 0)
-				return (0);
-		}
+		if (error == 0)
+			return (0);
 	}
 
-	zvol_get_done(zgd, error);
+	zvol_get_data_wr_indirect_done(zgd, error);
 
 	return (SET_ERROR(error));
+}
+
+
+/*
+ * Get data to generate a TX_WRITE intent log record.
+ */
+int
+zvol_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,
+    struct lwb *lwb, zio_t *zio)
+{
+	if (buf != NULL) {
+		return (zvol_get_data_wr_need_copy(arg, lr, buf, lr->lr_length));
+	} else {
+		return (zvol_get_data_wr_indirect(arg, lr, lwb, zio));
+	}
 }
