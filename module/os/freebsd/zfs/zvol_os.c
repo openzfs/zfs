@@ -1170,9 +1170,12 @@ zvol_ensure_zilog(zvol_state_t *zv)
 			zv->zv_zilog = zil_open(zv->zv_objset,
 			    zvol_get_data);
 			zv->zv_flags |= ZVOL_WRITTEN_TO;
-			/* replay / destroy done in zvol_create_minor_impl() */
-			VERIFY0(zv->zv_zilog->zl_header->zh_lwb.zh_flags &
-			    ZILLWB_REPLAY_NEEDED);
+			/*
+			 * Replay / destroy done in zvol_create_minor_impl()
+			 * but we need to adhere to ZIL's lifecycle
+			 * rules.
+			 */
+			zil_replay(zv->zv_objset, zv, zvol_replay_vector);
 		}
 		rw_downgrade(&zv->zv_suspend_lock);
 	}
