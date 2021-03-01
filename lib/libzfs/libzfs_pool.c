@@ -4848,7 +4848,9 @@ zpool_load_compat(const char *compatibility,
 		line = strtok_r(fc, "\n", &ls);
 		while (line != NULL) {
 			/* discard comments */
-			*(strchrnul(line, '#')) = '\0';
+			char *r = strchr(line, '#');
+			if (r != NULL)
+				*r = '\0';
 
 			word = strtok_r(line, ", \t", &ws);
 			while (word != NULL) {
