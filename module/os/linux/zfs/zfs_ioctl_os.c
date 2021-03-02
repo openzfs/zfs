@@ -209,7 +209,7 @@ zfs_max_nvlist_src_size_os(void)
 	if (zfs_max_nvlist_src_size != 0)
 		return (zfs_max_nvlist_src_size);
 
-	return (KMALLOC_MAX_SIZE);
+	return (MIN(ptob(zfs_totalram_pages) / 4, 128 * 1024 * 1024));
 }
 
 void

@@ -27,9 +27,9 @@
  * Copyright (c) 2014 Integros [integros.com]
  * Copyright (c) 2017, Intel Corporation.
  * Copyright (c) 2019 Datto Inc.
+ * Portions Copyright 2010 Robert Milkowski
+ * Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
  */
-
-/* Portions Copyright 2010 Robert Milkowski */
 
 #ifndef	_SYS_FS_ZFS_H
 #define	_SYS_FS_ZFS_H
@@ -246,6 +246,7 @@ typedef enum {
 	ZPOOL_PROP_CHECKPOINT,
 	ZPOOL_PROP_LOAD_GUID,
 	ZPOOL_PROP_AUTOTRIM,
+	ZPOOL_PROP_COMPATIBILITY,
 	ZPOOL_NUM_PROPS
 } zpool_prop_t;
 
@@ -733,6 +734,7 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_ALLOCATION_BIAS	"alloc_bias"	/* not stored on disk */
 #define	ZPOOL_CONFIG_EXPANSION_TIME	"expansion_time"	/* not stored */
 #define	ZPOOL_CONFIG_REBUILD_STATS	"org.openzfs:rebuild_stats"
+#define	ZPOOL_CONFIG_COMPATIBILITY	"compatibility"
 
 /*
  * The persistent vdev state is stored as separate values rather than a single
@@ -845,6 +847,19 @@ typedef struct zpool_load_policy {
  */
 #define	ZPOOL_CACHE_BOOT	"/boot/zfs/zpool.cache"
 #define	ZPOOL_CACHE		"/etc/zfs/zpool.cache"
+/*
+ * Settings for zpool compatibility features files
+ */
+#define	ZPOOL_SYSCONF_COMPAT_D	SYSCONFDIR "/zfs/compatibility.d"
+#define	ZPOOL_DATA_COMPAT_D	PKGDATADIR "/compatibility.d"
+#define	ZPOOL_COMPAT_MAXSIZE	16384
+
+/*
+ * Hard-wired compatibility settings
+ */
+#define	ZPOOL_COMPAT_LEGACY	"legacy"
+#define	ZPOOL_COMPAT_OFF	"off"
+
 /*
  * vdev states are ordered from least to most healthy.
  * A vdev that's CANT_OPEN or below is considered unusable.

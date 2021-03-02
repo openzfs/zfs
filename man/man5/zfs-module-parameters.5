@@ -1238,7 +1238,7 @@ amount of memory. When the limit is exceeded, the ioctl fails with EINVAL and a
 description of the error is sent to the zfs-dbgmsg log. This parameter should
 not need to be touched under normal circumstances. On FreeBSD, the default is
 based on the system limit on user wired memory. On Linux, the default is
-\fBKMALLOC_MAX_SIZE\fR .
+\fB128MB\fR.
 .sp
 Default value: \fB0\fR (kernel decides)
 .RE

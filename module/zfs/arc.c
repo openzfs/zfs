@@ -308,6 +308,7 @@
 #include <sys/aggsum.h>
 #include <cityhash.h>
 #include <sys/vdev_trim.h>
+#include <sys/zfs_racct.h>
 #include <sys/zstd/zstd.h>
 
 #ifndef _KERNEL
@@ -6302,6 +6303,7 @@ top:
 			ARCSTAT_CONDSTAT(!HDR_PREFETCH(hdr),
 			    demand, prefetch, !HDR_ISTYPE_METADATA(hdr), data,
 			    metadata, misses);
+			zfs_racct_read(size, 1);
 		}
 
 		/* Check if the spa even has l2 configured */

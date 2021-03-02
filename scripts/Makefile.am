@@ -34,6 +34,7 @@ export ZEDLET_ETC_DIR=$$CMD_DIR/zed/zed.d
 export ZEDLET_LIBEXEC_DIR=$$CMD_DIR/zed/zed.d
 export ZPOOL_SCRIPT_DIR=$$CMD_DIR/zpool/zpool.d
 export ZPOOL_SCRIPTS_PATH=$$CMD_DIR/zpool/zpool.d
+export ZPOOL_COMPAT_DIR=$$CMD_DIR/zpool/compatibility.d
 export CONTRIB_DIR=@abs_top_builddir@/contrib
 export LIB_DIR=@abs_top_builddir@/lib
 export SYSCONF_DIR=@abs_top_builddir@/etc

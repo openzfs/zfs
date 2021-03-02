@@ -1852,14 +1852,12 @@ raidz_checksum_error(zio_t *zio, raidz_col_t *rc, abd_t *bad_data)
 		zbc.zbc_has_cksum = 0;
 		zbc.zbc_injected = rm->rm_ecksuminjected;
 
-		int ret = zfs_ereport_post_checksum(zio->io_spa, vd,
+		(void) zfs_ereport_post_checksum(zio->io_spa, vd,
 		    &zio->io_bookmark, zio, rc->rc_offset, rc->rc_size,
 		    rc->rc_abd, bad_data, &zbc);
-		if (ret != EALREADY) {
-			mutex_enter(&vd->vdev_stat_lock);
-			vd->vdev_stat.vs_checksum_errors++;
-			mutex_exit(&vd->vdev_stat_lock);
-		}
+		mutex_enter(&vd->vdev_stat_lock);
+		vd->vdev_stat.vs_checksum_errors++;
+		mutex_exit(&vd->vdev_stat_lock);
 	}
 }
 
@@ -2453,14 +2451,12 @@ vdev_raidz_io_done_unrecoverable(zio_t *zio)
 			zbc.zbc_has_cksum = 0;
 			zbc.zbc_injected = rm->rm_ecksuminjected;
 
-			int ret = zfs_ereport_start_checksum(zio->io_spa,
+			(void) zfs_ereport_start_checksum(zio->io_spa,
 			    cvd, &zio->io_bookmark, zio, rc->rc_offset,
 			    rc->rc_size, (void *)(uintptr_t)c, &zbc);
-			if (ret != EALREADY) {
-				mutex_enter(&cvd->vdev_stat_lock);
-				cvd->vdev_stat.vs_checksum_errors++;
-				mutex_exit(&cvd->vdev_stat_lock);
-			}
+			mutex_enter(&cvd->vdev_stat_lock);
+			cvd->vdev_stat.vs_checksum_errors++;
+			mutex_exit(&cvd->vdev_stat_lock);
 		}
 	}
 }

@@ -32,6 +32,7 @@
  * Copyright (c) 2017, 2019, Datto Inc. All rights reserved.
  * Copyright 2017 Joyent, Inc.
  * Copyright (c) 2017, Intel Corporation.
+ * Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
  */
 
 /*
@@ -375,6 +376,11 @@ spa_prop_get_config(spa_t *spa, nvlist_t **nvp)
 	if (spa->spa_comment != NULL) {
 		spa_prop_add_list(*nvp, ZPOOL_PROP_COMMENT, spa->spa_comment,
 		    0, ZPROP_SRC_LOCAL);
+	}
+
+	if (spa->spa_compatibility != NULL) {
+		spa_prop_add_list(*nvp, ZPOOL_PROP_COMPATIBILITY,
+		    spa->spa_compatibility, 0, ZPROP_SRC_LOCAL);
 	}
 
 	if (spa->spa_root != NULL)
@@ -1668,6 +1674,10 @@ spa_unload(spa_t *spa)
 	if (spa->spa_comment != NULL) {
 		spa_strfree(spa->spa_comment);
 		spa->spa_comment = NULL;
+	}
+	if (spa->spa_compatibility != NULL) {
+		spa_strfree(spa->spa_compatibility);
+		spa->spa_compatibility = NULL;
 	}
 
 	spa_config_exit(spa, SCL_ALL, spa);
@@ -3249,6 +3259,7 @@ spa_ld_parse_config(spa_t *spa, spa_import_type_t type)
 	vdev_t *rvd;
 	uint64_t pool_guid;
 	char *comment;
+	char *compatibility;
 
 	/*
 	 * Versioning wasn't explicitly added to the label until later, so if
@@ -3296,6 +3307,11 @@ spa_ld_parse_config(spa_t *spa, spa_import_type_t type)
 	ASSERT(spa->spa_comment == NULL);
 	if (nvlist_lookup_string(config, ZPOOL_CONFIG_COMMENT, &comment) == 0)
 		spa->spa_comment = spa_strdup(comment);
+
+	ASSERT(spa->spa_compatibility == NULL);
+	if (nvlist_lookup_string(config, ZPOOL_CONFIG_COMPATIBILITY,
+	    &compatibility) == 0)
+		spa->spa_compatibility = spa_strdup(compatibility);
 
 	(void) nvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_TXG,
 	    &spa->spa_config_txg);
@@ -8668,6 +8684,20 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 			spa_history_log_internal(spa, "set", tx,
 			    "%s=%s", nvpair_name(elem), strval);
 			break;
+		case ZPOOL_PROP_COMPATIBILITY:
+			strval = fnvpair_value_string(elem);
+			if (spa->spa_compatibility != NULL)
+				spa_strfree(spa->spa_compatibility);
+			spa->spa_compatibility = spa_strdup(strval);
+			/*
+			 * Dirty the configuration on vdevs as above.
+			 */
+			if (tx->tx_txg != TXG_INITIAL)
+				vdev_config_dirty(spa->spa_root_vdev);
+			spa_history_log_internal(spa, "set", tx,
+			    "%s=%s", nvpair_name(elem), strval);
+			break;
+
 		default:
 			/*
 			 * Set pool property values in the poolprops mos object.

@@ -26,6 +26,7 @@
 .\" Copyright (c) 2018 George Melikov. All Rights Reserved.
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+.\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
 .\"
 .Dd August 9, 2019
 .Dt ZPOOL-UPGRADE 8
@@ -54,7 +55,11 @@ formatted using a legacy ZFS version number.
 These pools can continue to be used, but some features may not be available.
 Use
 .Nm zpool Cm upgrade Fl a
-to enable all features on all pools.
+to enable all features on all pools. (If a pool has specified compatibility
+feature sets using the
+.Fl o Ar compatibility
+property, only the features present in all requested compatibility sets will
+be enabled on that pool.)
 .It Xo
 .Nm zpool
 .Cm upgrade
@@ -70,7 +75,11 @@ for a description of feature flags features supported by the current software.
 .Op Fl V Ar version
 .Fl a Ns | Ns Ar pool Ns ...
 .Xc
-Enables all supported features on the given pool.
+Enables all supported features on the given pool. (If the pool has specified
+compatibility feature sets using the
+.Fl o Ar compatibility
+property, only the features present in all requested compatibility sets will be
+enabled.)
 Once this is done, the pool will no longer be accessible on systems that do not
 support feature flags.
 See
@@ -79,7 +88,8 @@ for details on compatibility with systems that support feature flags, but do not
 support all features enabled on the pool.
 .Bl -tag -width Ds
 .It Fl a
-Enables all supported features on all pools.
+Enables all supported features (from specified compatibility sets, if any) on all
+pools.
 .It Fl V Ar version
 Upgrade to the specified legacy version.
 If the

@@ -148,18 +148,54 @@ show_pool_stats(spa_t *spa)
 	nvlist_free(config);
 }
 
+/* *k_out must be freed by the caller */
+static int
+set_global_var_parse_kv(const char *arg, char **k_out, u_longlong_t *v_out)
+{
+	int err;
+	VERIFY(arg);
+	char *d = strdup(arg);
+
+	char *save = NULL;
+	char *k = strtok_r(d, "=", &save);
+	char *v_str = strtok_r(NULL, "=", &save);
+	char *follow = strtok_r(NULL, "=", &save);
+	if (k == NULL || v_str == NULL || follow != NULL) {
+		err = EINVAL;
+		goto err_free;
+	}
+
+	u_longlong_t val = strtoull(v_str, NULL, 0);
+	if (val > UINT32_MAX) {
+		fprintf(stderr, "Value for global variable '%s' must "
+		    "be a 32-bit unsigned integer, got '%s'\n", k, v_str);
+		err = EOVERFLOW;
+		goto err_free;
+	}
+
+	*k_out = k;
+	*v_out = val;
+	return (0);
+
+err_free:
+	free(k);
+
+	return (err);
+}
+
 /*
  * Sets given global variable in libzpool to given unsigned 32-bit value.
  * arg: "<variable>=<value>"
  */
 int
-set_global_var(char *arg)
+set_global_var(char const *arg)
 {
 	void *zpoolhdl;
-	char *varname = arg, *varval;
+	char *varname;
 	u_longlong_t val;
+	int ret;
 
-#ifndef _LITTLE_ENDIAN
+#ifndef _ZFS_LITTLE_ENDIAN
 	/*
 	 * On big endian systems changing a 64-bit variable would set the high
 	 * 32 bits instead of the low 32 bits, which could cause unexpected
@@ -167,19 +203,12 @@ set_global_var(char *arg)
 	 */
 	fprintf(stderr, "Setting global variables is only supported on "
 	    "little-endian systems\n");
-	return (ENOTSUP);
+	ret = ENOTSUP;
+	goto out_ret;
 #endif
-	if (arg != NULL && (varval = strchr(arg, '=')) != NULL) {
-		*varval = '\0';
-		varval++;
-		val = strtoull(varval, NULL, 0);
-		if (val > UINT32_MAX) {
-			fprintf(stderr, "Value for global variable '%s' must "
-			    "be a 32-bit unsigned integer\n", varname);
-			return (EOVERFLOW);
-		}
-	} else {
-		return (EINVAL);
+
+	if ((ret = set_global_var_parse_kv(arg, &varname, &val)) != 0) {
+		goto out_ret;
 	}
 
 	zpoolhdl = dlopen("libzpool.so", RTLD_LAZY);
@@ -189,18 +218,25 @@ set_global_var(char *arg)
 		if (var == NULL) {
 			fprintf(stderr, "Global variable '%s' does not exist "
 			    "in libzpool.so\n", varname);
-			return (EINVAL);
+			ret = EINVAL;
+			goto out_dlclose;
 		}
 		*var = (uint32_t)val;
 
-		dlclose(zpoolhdl);
 	} else {
 		fprintf(stderr, "Failed to open libzpool.so to set global "
 		    "variable\n");
-		return (EIO);
+		ret = EIO;
+		goto out_dlclose;
 	}
 
-	return (0);
+	ret = 0;
+
+out_dlclose:
+	dlclose(zpoolhdl);
+	free(varname);
+out_ret:
+	return (ret);
 }
 
 static nvlist_t *

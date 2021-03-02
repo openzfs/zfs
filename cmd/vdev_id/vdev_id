@@ -285,7 +285,9 @@ sas_handler() {
 		# we have to append the -part suffix directly in the
 		# helper.
 		if [ "$DEVTYPE" != "partition" ] ; then
-			PART=$(echo "$DM_NAME" | awk -Fp '/p/{print "-part"$2}')
+			# Match p[number], remove the 'p' and prepend "-part"
+			PART=$(echo "$DM_NAME" |
+				awk 'match($0,/p[0-9]+$/) {print "-part"substr($0,RSTART+1,RLENGTH-1)}')
 		fi
 
 		# Strip off partition information.
@@ -499,7 +501,9 @@ scsi_handler() {
 		# we have to append the -part suffix directly in the
 		# helper.
 		if [ "$DEVTYPE" != "partition" ] ; then
-			PART=$(echo "$DM_NAME" | awk -Fp '/p/{print "-part"$2}')
+			# Match p[number], remove the 'p' and prepend "-part"
+			PART=$(echo "$DM_NAME" |
+			    awk 'match($0,/p[0-9]+$/) {print "-part"substr($0,RSTART+1,RLENGTH-1)}')
 		fi
 
 		# Strip off partition information.
@@ -648,7 +652,9 @@ alias_handler () {
 	DM_PART=
 	if echo "$DM_NAME" | grep -q -E 'p[0-9][0-9]*$' ; then
 		if [ "$DEVTYPE" != "partition" ] ; then
-			DM_PART=$(echo "$DM_NAME" | awk -Fp '/p/{print "-part"$2}')
+			# Match p[number], remove the 'p' and prepend "-part"
+			DM_PART=$(echo "$DM_NAME" |
+			    awk 'match($0,/p[0-9]+$/) {print "-part"substr($0,RSTART+1,RLENGTH-1)}')
 		fi
 	fi
 

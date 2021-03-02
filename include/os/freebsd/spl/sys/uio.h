@@ -55,36 +55,10 @@ typedef struct zfs_uio {
 #define	zfs_uio_fault_disable(u, set)
 #define	zfs_uio_prefaultpages(size, u)	(0)
 
-
-static __inline void
-zfs_uio_init(zfs_uio_t *uio, struct uio *uio_s)
-{
-	GET_UIO_STRUCT(uio) = uio_s;
-}
-
-static __inline void
+static inline void
 zfs_uio_setoffset(zfs_uio_t *uio, offset_t off)
 {
 	zfs_uio_offset(uio) = off;
-}
-
-static __inline int
-zfs_uiomove(void *cp, size_t n, zfs_uio_rw_t dir, zfs_uio_t *uio)
-{
-	ASSERT(zfs_uio_rw(uio) == dir);
-	return (uiomove(cp, (int)n, GET_UIO_STRUCT(uio)));
-}
-
-int zfs_uiocopy(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio,
-    size_t *cbytes);
-void zfs_uioskip(zfs_uio_t *uiop, size_t n);
-int zfs_uio_fault_move(void *p, size_t n, zfs_uio_rw_t dir, zfs_uio_t *uio);
-
-static inline void
-zfs_uio_iov_at_index(zfs_uio_t *uio, uint_t idx, void **base, uint64_t *len)
-{
-	*base = zfs_uio_iovbase(uio, idx);
-	*len = zfs_uio_iovlen(uio, idx);
 }
 
 static inline void
@@ -94,18 +68,13 @@ zfs_uio_advance(zfs_uio_t *uio, size_t size)
 	zfs_uio_offset(uio) += size;
 }
 
-static inline offset_t
-zfs_uio_index_at_offset(zfs_uio_t *uio, offset_t off, uint_t *vec_idx)
+static __inline void
+zfs_uio_init(zfs_uio_t *uio, struct uio *uio_s)
 {
-	*vec_idx = 0;
-	while (*vec_idx < zfs_uio_iovcnt(uio) &&
-	    off >= zfs_uio_iovlen(uio, *vec_idx)) {
-		off -= zfs_uio_iovlen(uio, *vec_idx);
-		(*vec_idx)++;
-	}
-
-	return (off);
+	GET_UIO_STRUCT(uio) = uio_s;
 }
+
+int zfs_uio_fault_move(void *p, size_t n, zfs_uio_rw_t dir, zfs_uio_t *uio);
 
 #endif /* !_STANDALONE */
 

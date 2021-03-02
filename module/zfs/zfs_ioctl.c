@@ -159,7 +159,7 @@
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/errno.h>
-#include <sys/uio.h>
+#include <sys/uio_impl.h>
 #include <sys/file.h>
 #include <sys/kmem.h>
 #include <sys/cmn_err.h>
@@ -3987,7 +3987,7 @@ zfs_ioc_pool_initialize(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 	fnvlist_free(vdev_errlist);
 
 	spa_close(spa, FTAG);
-	return (total_errors > 0 ? EINVAL : 0);
+	return (total_errors > 0 ? SET_ERROR(EINVAL) : 0);
 }
 
 /*
@@ -4072,7 +4072,7 @@ zfs_ioc_pool_trim(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 	fnvlist_free(vdev_errlist);
 
 	spa_close(spa, FTAG);
-	return (total_errors > 0 ? EINVAL : 0);
+	return (total_errors > 0 ? SET_ERROR(EINVAL) : 0);
 }
 
 /*

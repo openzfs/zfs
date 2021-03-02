@@ -28,6 +28,7 @@
  * Copyright 2016 Nexenta Systems, Inc.
  * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
  * Copyright (c) 2019 Datto Inc.
+ * Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
  */
 
 #ifndef	_LIBZFS_H
@@ -391,6 +392,7 @@ typedef enum {
 	ZPOOL_STATUS_REBUILDING,	/* device being rebuilt */
 	ZPOOL_STATUS_REBUILD_SCRUB,	/* recommend scrubbing the pool */
 	ZPOOL_STATUS_NON_NATIVE_ASHIFT,	/* (e.g. 512e dev with ashift of 9) */
+	ZPOOL_STATUS_COMPATIBILITY_ERR,	/* bad 'compatibility' property */
 
 	/*
 	 * Finally, the following indicates a healthy pool.
@@ -914,6 +916,20 @@ extern int zpool_disable_datasets(zpool_handle_t *, boolean_t);
 
 extern int zfs_get_hole_count(const char *, uint64_t *, uint64_t *);
 extern int zfs_get_access_info(const char *, zfs_access_info_t *);
+
+/*
+ * Parse a features file for -o compatibility
+ */
+typedef enum {
+	ZPOOL_COMPATIBILITY_OK,
+	ZPOOL_COMPATIBILITY_READERR,
+	ZPOOL_COMPATIBILITY_BADFILE,
+	ZPOOL_COMPATIBILITY_BADWORD,
+	ZPOOL_COMPATIBILITY_NOFILES
+} zpool_compat_status_t;
+
+extern zpool_compat_status_t zpool_load_compat(const char *,
+    boolean_t *, char *, char *);
 
 #ifdef __FreeBSD__
 

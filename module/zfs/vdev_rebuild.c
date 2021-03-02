@@ -338,6 +338,9 @@ vdev_rebuild_complete_sync(void *arg, dmu_tx_t *tx)
 	}
 
 	cv_broadcast(&vd->vdev_rebuild_cv);
+
+	/* Clear recent error events (i.e. duplicate events tracking) */
+	zfs_ereport_clear(spa, NULL);
 }
 
 /*
@@ -804,8 +807,8 @@ vdev_rebuild_thread(void *arg)
 		ASSERT0(range_tree_space(vr->vr_scan_tree));
 
 		/* Disable any new allocations to this metaslab */
-		metaslab_disable(msp);
 		spa_config_exit(spa, SCL_CONFIG, FTAG);
+		metaslab_disable(msp);
 
 		mutex_enter(&msp->ms_sync_lock);
 		mutex_enter(&msp->ms_lock);

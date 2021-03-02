@@ -107,3 +107,84 @@ function save_dump_dev
 	fi
 	echo $dumpdev
 }
+
+#
+# Verify a pools enabled features match the provided feature set.
+# $1, pool name
+# $2, feature set(s)
+#
+# check_feature_set $TESTPOOL set1 set2 set3 ...
+#
+function check_feature_set
+{
+	typeset pool=$1
+	typeset feature_set=$2
+	shift
+
+	for set in "$@"; do
+		if test -e "$ZPOOL_COMPAT_DIR/$set"; then
+			file="$ZPOOL_COMPAT_DIR/$set"
+		else
+			log_fail "Missing feature file: $ZPOOL_COMPAT_DIR/$set"
+		fi
+	done
+
+	#
+	# Create a temporary file which contains all features which are
+	# common to the listed feature sets.  This is used for comparison
+	# below to determine which features should be enabled.
+	#
+	typeset tmpfile=$(mktemp)
+
+	while read line; do
+		typeset flag=1
+
+		if [[ "$line" == "#*" ]]; then
+			continue
+		fi
+
+		for set in "$@"; do
+			if ! grep -q "$line" $ZPOOL_COMPAT_DIR/$set; then
+				flag=0
+				break;
+			fi
+		done
+
+		if [[ $flag -eq 1 ]]; then
+			echo "$line" >>$tmpfile
+		fi
+	done <"$file"
+
+	#
+	# Verify every enabled feature appears in the merged feature set.
+	# Verify every disabled feature does not.
+	#
+	for feature in $(zpool get all $pool | \
+	    awk '$2 ~ /feature@/ { print $2 }'); do
+		state=$(get_pool_prop $feature $pool)
+		name=$(cut -d'@' -f2 <<<"$feature")
+
+		if [[ "$state" = "enabled" || "$state" = "active" ]]; then
+			if ! grep -q $name $tmpfile; then
+				cat $tmpfile
+				rm -f $tmpfile
+				log_fail "Enabled feature $name not " \
+				    "in feature set file"
+			fi
+		elif [[ "$state" = "disabled" ]]; then
+			if grep -q $name $tmpfile; then
+				cat $tmpfile
+				rm -f $tmpfile
+				log_fail "Disabled feature $name is " \
+				    "in feature set file"
+			fi
+		else
+			rm -f $tmpfile
+			log_fail "Feature $name in unknown state $state"
+		fi
+	done
+
+	log_note "Checked all features"
+
+	rm -f $tmpfile
+}

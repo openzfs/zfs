@@ -120,3 +120,4 @@ usr/share/man/man8/fsck.zfs.8
 usr/share/man/man8/zfs-program.8
 usr/share/man/man8/zgenhostid.8
 usr/share/man/man8/zfs-mount-generator.8
+usr/share/zfs/compatibility.d/

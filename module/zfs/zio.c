@@ -4255,15 +4255,12 @@ zio_checksum_verify(zio_t *zio)
 		zio->io_error = error;
 		if (error == ECKSUM &&
 		    !(zio->io_flags & ZIO_FLAG_SPECULATIVE)) {
-			int ret = zfs_ereport_start_checksum(zio->io_spa,
+			(void) zfs_ereport_start_checksum(zio->io_spa,
 			    zio->io_vd, &zio->io_bookmark, zio,
 			    zio->io_offset, zio->io_size, NULL, &info);
-
-			if (ret != EALREADY) {
-				mutex_enter(&zio->io_vd->vdev_stat_lock);
-				zio->io_vd->vdev_stat.vs_checksum_errors++;
-				mutex_exit(&zio->io_vd->vdev_stat_lock);
-			}
+			mutex_enter(&zio->io_vd->vdev_stat_lock);
+			zio->io_vd->vdev_stat.vs_checksum_errors++;
+			mutex_exit(&zio->io_vd->vdev_stat_lock);
 		}
 	}
 

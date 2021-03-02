@@ -6912,9 +6912,6 @@ report_mount_progress(int current, int total)
 	time_t now = time(NULL);
 	char info[32];
 
-	/* report 1..n instead of 0..n-1 */
-	++current;
-
 	/* display header if we're here for the first time */
 	if (current == 1) {
 		set_progress_header(gettext("Mounting ZFS filesystems"));
