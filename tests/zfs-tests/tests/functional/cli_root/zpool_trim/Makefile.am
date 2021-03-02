@@ -3,6 +3,7 @@ dist_pkgdata_SCRIPTS = \
 	setup.ksh \
 	cleanup.ksh \
 	zpool_trim_attach_detach_add_remove.ksh \
+	zpool_trim_fault_export_import_online.ksh \
 	zpool_trim_import_export.ksh \
 	zpool_trim_multiple.ksh \
 	zpool_trim_neg.ksh \
