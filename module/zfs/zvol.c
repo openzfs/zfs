@@ -456,6 +456,71 @@ zvol_set_volblocksize(const char *name, uint64_t volblocksize)
 	return (SET_ERROR(error));
 }
 
+int
+zvol_read(zvol_state_t *zv, zfs_uio_t *uio)
+{
+	int error = 0;
+	const uint64_t volsize = zv->zv_volsize;
+	const ssize_t start_resid = zfs_uio_resid(uio);
+
+	lr = zfs_rangelock_enter(&zv->zv_rangelock, zfs_uio_offset(uio),
+	    zfs_uio_resid(uio), RL_READER);
+	while (zfs_uio_resid(uio) > 0 && zfs_uio_offset(uio) < volsize) {
+		uint64_t bytes = MIN(zfs_uio_resid(uio), DMU_MAX_ACCESS >> 1);
+
+		/* don't read past the end */
+		if (bytes > volsize - zfs_uio_offset(uio))
+			bytes = volsize - zfs_uio_offset(uio);
+
+		error =  dmu_read_uio_dnode(zv->zv_dn, uio, bytes);
+		if (error) {
+			/* convert checksum errors into IO errors */
+			if (error == ECKSUM)
+				error = SET_ERROR(EIO);
+			break;
+		}
+	}
+	zfs_rangelock_exit(lr);
+
+	int64_t nread = start_resid - uio.uio_resid;
+	dataset_kstats_update_read_kstats(&zv->zv_kstat, nread);
+	task_io_account_read(nread); /* XXX should this be zfs_raact_read? */
+
+	return (error);
+}
+
+/*
+ * Returns non-zero to indicate an error. If an error occurs, an UNSPECIFIED
+ * amount of truncation has happened.
+ */
+int
+zvol_truncate(zvol_state_t *zv, uint64_t offset, uint64_t length, boolean_t sync)
+{
+	zfs_locked_range_t *lr = zfs_rangelock_enter(&zv->zv_rangelock,
+	    offset, length, RL_WRITER);
+
+	tx = dmu_tx_create(zv->zv_objset);
+	dmu_tx_mark_netfree(tx);
+	error = dmu_tx_assign(tx, TXG_WAIT);
+	if (error != 0) {
+		dmu_tx_abort(tx);
+	} else {
+		zvol_log_truncate(zv, tx, offset, length, sync);
+		dmu_tx_commit(tx);
+		error = dmu_free_long_range(zv->zv_objset, ZVOL_OBJ, offset,
+		    length);
+	}
+
+	zfs_rangelock_exit(lr);
+
+	/* XXX kstat for truncates? */
+
+	if (error == 0 && sync)
+		zil_commit(zv->zv_zilog, ZVOL_OBJ);
+
+	return (error);
+}
+
 /*
  * Replay a TX_TRUNCATE ZIL transaction if asked.  TX_TRUNCATE is how we
  * implement DKIOCFREE/free-long-range.
@@ -475,6 +540,53 @@ zvol_replay_truncate(void *arg1, void *arg2, boolean_t byteswap)
 
 	return (dmu_free_long_range(zv->zv_objset, ZVOL_OBJ, offset, length));
 }
+
+int
+zvol_write(zvol_state_t *zv, zfs_uio_t *uio, boolean_t sync)
+{
+	int error;
+
+	zfs_locked_range_t *lr = zfs_rangelock_enter(&zv->zv_rangelock,
+	    zfs_uio_offset(uio), zfs_uio_resid(uio), RL_WRITER);
+
+	uint64_t volsize = zv->zv_volsize;
+	while (zfs_uio_resid(uio) > 0 && zfs_uio_offset(uio) < volsize) {
+		uint64_t bytes = MIN(zfs_uio_resid(uio), DMU_MAX_ACCESS >> 1);
+		uint64_t off = zfs_uio_offset(uio);
+		dmu_tx_t *tx = dmu_tx_create(zv->zv_objset);
+
+		if (bytes > volsize - off)	/* don't write past the end */
+			bytes = volsize - off;
+
+		dmu_tx_hold_write_by_dnode(tx, zv->zv_dn, off, bytes);
+
+		/* This will only fail for ENOSPC */
+		error = dmu_tx_assign(tx, TXG_WAIT);
+		if (error) {
+			dmu_tx_abort(tx);
+			break;
+		}
+		error = dmu_write_uio_dnode(zv->zv_dn, uio, bytes, tx);
+		if (error == 0) {
+			zvol_log_write(zv, tx, off, bytes, sync);
+		}
+		dmu_tx_commit(tx);
+
+		if (error)
+			break;
+	}
+	zfs_rangelock_exit(lr);
+
+	int64_t nwritten = start_resid - zfs_uio_resid(uio);
+	dataset_kstats_update_write_kstats(&zv->zv_kstat, nwritten);
+	task_io_account_write(nwritten);
+
+	if (sync)
+		zil_commit(zv->zv_zilog, ZVOL_OBJ);
+
+	return (error);
+}
+
 
 /*
  * Replay a TX_WRITE ZIL transaction that didn't get committed
