@@ -154,11 +154,6 @@ boolean_t zvol_unmap_enabled = B_TRUE;
 SYSCTL_INT(_vfs_zfs_vol, OID_AUTO, unmap_enabled, CTLFLAG_RWTUN,
 	&zvol_unmap_enabled, 0, "Enable UNMAP functionality");
 
-/*
- * zvol maximum transfer in one DMU tx.
- */
-int zvol_maxphys = DMU_MAX_ACCESS / 2;
-
 static void zvol_ensure_zilog(zvol_state_t *zv);
 
 static d_open_t		zvol_cdev_open;
@@ -596,15 +591,7 @@ static void
 zvol_geom_bio_strategy(struct bio *bp)
 {
 	zvol_state_t *zv;
-	uint64_t off, volsize;
-	size_t resid;
-	char *addr;
-	objset_t *os;
-	zfs_locked_range_t *lr;
 	int error = 0;
-	boolean_t doread = B_FALSE;
-	boolean_t is_dumpified;
-	boolean_t sync;
 
 	if (bp->bio_to)
 		zv = bp->bio_to->private;
@@ -618,6 +605,7 @@ zvol_geom_bio_strategy(struct bio *bp)
 
 	rw_enter(&zv->zv_suspend_lock, ZVOL_RW_READER);
 
+	boolean_t doread = B_FALSE;
 	switch (bp->bio_cmd) {
 	case BIO_READ:
 		doread = B_TRUE;
@@ -630,59 +618,56 @@ zvol_geom_bio_strategy(struct bio *bp)
 			goto resume;
 		}
 		zvol_ensure_zilog(zv);
-		if (bp->bio_cmd == BIO_FLUSH)
-			goto sync;
 		break;
 	default:
 		error = SET_ERROR(EOPNOTSUPP);
 		goto resume;
 	}
 
-	off = bp->bio_offset;
-	volsize = zv->zv_volsize;
-
-	os = zv->zv_objset;
+	const uint64_t volsize = zv->zv_volsize;
+	objset_t *os = zv->zv_objset;
 	ASSERT3P(os, !=, NULL);
 
-	addr = bp->bio_data;
-	resid = bp->bio_length;
-
-	if (resid > 0 && off >= volsize) {
-		error = SET_ERROR(EIO);
-		goto resume;
-	}
-
-	is_dumpified = B_FALSE;
-	sync = !doread && !is_dumpified &&
+	const boolean_t is_dumpified = B_FALSE;
+	const boolean_t sync = !doread && !is_dumpified &&
 	    zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS;
 
-	/*
-	 * There must be no buffer changes when doing a dmu_sync() because
-	 * we can't change the data whilst calculating the checksum.
-	 */
-	lr = zfs_rangelock_enter(&zv->zv_rangelock, off, resid,
-	    doread ? RL_READER : RL_WRITER);
-
 	if (bp->bio_cmd == BIO_DELETE) {
-		dmu_tx_t *tx = dmu_tx_create(zv->zv_objset);
-		error = dmu_tx_assign(tx, TXG_WAIT);
-		if (error != 0) {
-			dmu_tx_abort(tx);
-		} else {
-			zvol_log_truncate(zv, tx, off, resid, sync);
-			dmu_tx_commit(tx);
-			error = dmu_free_long_range(zv->zv_objset, ZVOL_OBJ,
-			    off, resid);
-			resid = 0;
+		uint64_t off = bp->bio_offset;
+		size_t resid = bp->bio_length;
+		if (resid > 0 && off >= volsize) {
+			error = SET_ERROR(EIO);
+			goto resume;
 		}
-		goto unlock;
-	}
-	while (resid != 0 && off < volsize) {
-		size_t size = MIN(resid, zvol_maxphys);
-		if (doread) {
-			error = dmu_read(os, ZVOL_OBJ, off, size, addr,
-			    DMU_READ_PREFETCH);
+
+		error = zvol_truncate(zv, off, resid, sync);
+		if (error == 0) {
+		    resid = 0;
 		} else {
+			/* XXX if dmu_free_long_range in zvol_truncate fails this is incorrect */
+		}
+
+		bp->bio_completed = bp->bio_length - resid;
+		if (bp->bio_completed < bp->bio_length && off > volsize)
+			error = SET_ERROR(EINVAL);
+
+	} else if (bp->bio_cmd == BIO_WRITE) {
+		/*
+		 * XXX this should use the common zvol_write() code but that requires a zfs_uio_t
+		 * => need support for `struct bio` in zfs_uio_t, similar to how we do it on Linux
+		 *    with the `struct bvec`
+		 */
+		uint64_t off = bp->bio_offset;
+		char *addr = bp->bio_data;
+		size_t resid = bp->bio_length;
+		if (resid > 0 && off >= volsize) {
+			error = SET_ERROR(EIO);
+			goto resume;
+		}
+		zfs_locked_range_t *lr;
+		lr = zfs_rangelock_enter(&zv->zv_rangelock, off, resid, RL_WRITER);
+		while (resid != 0 && off < volsize) {
+			size_t size = MIN(resid, DMU_MAX_ACCESS >> 1);
 			dmu_tx_t *tx = dmu_tx_create(os);
 			dmu_tx_hold_write_by_dnode(tx, zv->zv_dn, off, size);
 			error = dmu_tx_assign(tx, TXG_WAIT);
@@ -693,45 +678,77 @@ zvol_geom_bio_strategy(struct bio *bp)
 				zvol_log_write(zv, tx, off, size, sync);
 				dmu_tx_commit(tx);
 			}
+			/* XXX this error handling is (and has been!) different than on the cdev_write code path */
+			if (error) {
+				/* convert checksum errors into IO errors */
+				if (error == ECKSUM)
+					error = SET_ERROR(EIO);
+				break;
+			}
+			off += size;
+			addr += size;
+			resid -= size;
 		}
-		if (error) {
-			/* convert checksum errors into IO errors */
-			if (error == ECKSUM)
-				error = SET_ERROR(EIO);
-			break;
-		}
-		off += size;
-		addr += size;
-		resid -= size;
-	}
-unlock:
-	zfs_rangelock_exit(lr);
+		zfs_rangelock_exit(lr);
 
-	bp->bio_completed = bp->bio_length - resid;
-	if (bp->bio_completed < bp->bio_length && off > volsize)
-		error = SET_ERROR(EINVAL);
 
-	switch (bp->bio_cmd) {
-	case BIO_FLUSH:
-		break;
-	case BIO_READ:
-		dataset_kstats_update_read_kstats(&zv->zv_kstat,
-		    bp->bio_completed);
-		break;
-	case BIO_WRITE:
+		bp->bio_completed = bp->bio_length - resid;
+		if (bp->bio_completed < bp->bio_length && off > volsize)
+			error = SET_ERROR(EINVAL);
+
 		dataset_kstats_update_write_kstats(&zv->zv_kstat,
 		    bp->bio_completed);
-		break;
-	case BIO_DELETE:
-		break;
-	default:
-		break;
+
+		if (sync) {
+			zil_commit(zv->zv_zilog, ZVOL_OBJ);
+		}
+	} else if (bp->bio_cmd == BIO_READ) {
+		/*
+		 * XXX this should use the common zvol_read() code but that requires a zfs_uio_t
+		 * => need support for `struct bio` in zfs_uio_t, similar to how we do it on Linux
+		 *    with the `struct bvec`
+		 */
+		uint64_t off = bp->bio_offset;
+		char *addr = bp->bio_data;
+		size_t resid = bp->bio_length;
+		if (resid > 0 && off >= volsize) {
+			error = SET_ERROR(EIO);
+			goto resume;
+		}
+		zfs_locked_range_t *lr;
+		lr = zfs_rangelock_enter(&zv->zv_rangelock, off, resid, RL_READER);
+		while (resid != 0 && off < volsize) {
+			size_t size = MIN(resid, DMU_MAX_ACCESS >> 1);
+			error = dmu_read(os, ZVOL_OBJ, off, size, addr,
+			    DMU_READ_PREFETCH);
+			if (error) {
+				/* convert checksum errors into IO errors */
+				if (error == ECKSUM)
+					error = SET_ERROR(EIO);
+				break;
+			}
+			off += size;
+			addr += size;
+			resid -= size;
+		}
+		zfs_rangelock_exit(lr);
+
+		bp->bio_completed = bp->bio_length - resid;
+		if (bp->bio_completed < bp->bio_length && off > volsize)
+			error = SET_ERROR(EINVAL);
+
+		dataset_kstats_update_read_kstats(&zv->zv_kstat,
+		    bp->bio_completed);
+
+		if (sync) {
+			zil_commit(zv->zv_zilog, ZVOL_OBJ);
+		}
+	} else if (bp->bio_cmd == BIO_FLUSH) {
+		zil_commit(zv->zv_zilog, ZVOL_OBJ);
+	} else {
+		panic("unreachable; bio_cmd=%d", bp->bio_cmd);
 	}
 
-	if (sync) {
-sync:
-		zil_commit(zv->zv_zilog, ZVOL_OBJ);
-	}
 resume:
 	rw_exit(&zv->zv_suspend_lock);
 out:
@@ -759,7 +776,10 @@ zvol_cdev_read(struct cdev *dev, struct uio *uio_s, int ioflag)
 	zv = dev->si_drv2;
 
 	volsize = zv->zv_volsize;
+
 	/*
+	 * XXX should this be shared code?
+	 *
 	 * uio_loffset == volsize isn't an error as
 	 * its required for EOF processing.
 	 */
@@ -767,24 +787,11 @@ zvol_cdev_read(struct cdev *dev, struct uio *uio_s, int ioflag)
 	    (zfs_uio_offset(&uio) < 0 || zfs_uio_offset(&uio) > volsize))
 		return (SET_ERROR(EIO));
 
-	lr = zfs_rangelock_enter(&zv->zv_rangelock, zfs_uio_offset(&uio),
-	    zfs_uio_resid(&uio), RL_READER);
-	while (zfs_uio_resid(&uio) > 0 && zfs_uio_offset(&uio) < volsize) {
-		uint64_t bytes = MIN(zfs_uio_resid(&uio), DMU_MAX_ACCESS >> 1);
+	error = zvol_read(zv, uio);
 
-		/* don't read past the end */
-		if (bytes > volsize - zfs_uio_offset(&uio))
-			bytes = volsize - zfs_uio_offset(&uio);
-
-		error =  dmu_read_uio_dnode(zv->zv_dn, &uio, bytes);
-		if (error) {
-			/* convert checksum errors into IO errors */
-			if (error == ECKSUM)
-				error = SET_ERROR(EIO);
-			break;
-		}
-	}
-	zfs_rangelock_exit(lr);
+	/* XXX the shared code updates dataset_kstats_update_read_kstats and
+	 *     calls task_io_account_read, is this correct?
+	 */
 
 	return (error);
 }
@@ -814,34 +821,10 @@ zvol_cdev_write(struct cdev *dev, struct uio *uio_s, int ioflag)
 
 	rw_enter(&zv->zv_suspend_lock, ZVOL_RW_READER);
 	zvol_ensure_zilog(zv);
-
-	lr = zfs_rangelock_enter(&zv->zv_rangelock, zfs_uio_offset(&uio),
-	    zfs_uio_resid(&uio), RL_WRITER);
-	while (zfs_uio_resid(&uio) > 0 && zfs_uio_offset(&uio) < volsize) {
-		uint64_t bytes = MIN(zfs_uio_resid(&uio), DMU_MAX_ACCESS >> 1);
-		uint64_t off = zfs_uio_offset(&uio);
-		dmu_tx_t *tx = dmu_tx_create(zv->zv_objset);
-
-		if (bytes > volsize - off)	/* don't write past the end */
-			bytes = volsize - off;
-
-		dmu_tx_hold_write_by_dnode(tx, zv->zv_dn, off, bytes);
-		error = dmu_tx_assign(tx, TXG_WAIT);
-		if (error) {
-			dmu_tx_abort(tx);
-			break;
-		}
-		error = dmu_write_uio_dnode(zv->zv_dn, &uio, bytes, tx);
-		if (error == 0)
-			zvol_log_write(zv, tx, off, bytes, sync);
-		dmu_tx_commit(tx);
-
-		if (error)
-			break;
-	}
-	zfs_rangelock_exit(lr);
-	if (sync)
-		zil_commit(zv->zv_zilog, ZVOL_OBJ);
+	error = zvol_write(zv, uio);
+	/* XXX the shared code calls dataset_kstats_update_write_kstats and
+	 *     task_io_account_write, is this correct?
+	 */
 	rw_exit(&zv->zv_suspend_lock);
 	return (error);
 }
@@ -1068,23 +1051,7 @@ zvol_cdev_ioctl(struct cdev *dev, ulong_t cmd, caddr_t data,
 		}
 		rw_enter(&zv->zv_suspend_lock, ZVOL_RW_READER);
 		zvol_ensure_zilog(zv);
-		lr = zfs_rangelock_enter(&zv->zv_rangelock, offset, length,
-		    RL_WRITER);
-		dmu_tx_t *tx = dmu_tx_create(zv->zv_objset);
-		error = dmu_tx_assign(tx, TXG_WAIT);
-		if (error != 0) {
-			sync = FALSE;
-			dmu_tx_abort(tx);
-		} else {
-			sync = (zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS);
-			zvol_log_truncate(zv, tx, offset, length, sync);
-			dmu_tx_commit(tx);
-			error = dmu_free_long_range(zv->zv_objset, ZVOL_OBJ,
-			    offset, length);
-		}
-		zfs_rangelock_exit(lr);
-		if (sync)
-			zil_commit(zv->zv_zilog, ZVOL_OBJ);
+		error = zvol_truncate(zv, offset, length, sync);
 		rw_exit(&zv->zv_suspend_lock);
 		break;
 	case DIOCGSTRIPESIZE:

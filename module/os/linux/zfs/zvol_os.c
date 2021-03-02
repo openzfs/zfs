@@ -80,7 +80,7 @@ zvol_is_zvol_impl(const char *path)
 }
 
 static void
-zvol_write(void *arg)
+zvol_write_os(void *arg)
 {
 	zv_request_t *zvr = arg;
 	struct bio *bio = zvr->bio;
@@ -118,43 +118,7 @@ zvol_write(void *arg)
 	boolean_t sync =
 	    bio_is_fua(bio) || zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS;
 
-	zfs_locked_range_t *lr = zfs_rangelock_enter(&zv->zv_rangelock,
-	    uio.uio_loffset, uio.uio_resid, RL_WRITER);
-
-	uint64_t volsize = zv->zv_volsize;
-	while (uio.uio_resid > 0 && uio.uio_loffset < volsize) {
-		uint64_t bytes = MIN(uio.uio_resid, DMU_MAX_ACCESS >> 1);
-		uint64_t off = uio.uio_loffset;
-		dmu_tx_t *tx = dmu_tx_create(zv->zv_objset);
-
-		if (bytes > volsize - off)	/* don't write past the end */
-			bytes = volsize - off;
-
-		dmu_tx_hold_write_by_dnode(tx, zv->zv_dn, off, bytes);
-
-		/* This will only fail for ENOSPC */
-		error = dmu_tx_assign(tx, TXG_WAIT);
-		if (error) {
-			dmu_tx_abort(tx);
-			break;
-		}
-		error = dmu_write_uio_dnode(zv->zv_dn, &uio, bytes, tx);
-		if (error == 0) {
-			zvol_log_write(zv, tx, off, bytes, sync);
-		}
-		dmu_tx_commit(tx);
-
-		if (error)
-			break;
-	}
-	zfs_rangelock_exit(lr);
-
-	int64_t nwritten = start_resid - uio.uio_resid;
-	dataset_kstats_update_write_kstats(&zv->zv_kstat, nwritten);
-	task_io_account_write(nwritten);
-
-	if (sync)
-		zil_commit(zv->zv_zilog, ZVOL_OBJ);
+	error = zvol_write(zv, &uio, sync);
 
 	rw_exit(&zv->zv_suspend_lock);
 
@@ -166,7 +130,7 @@ zvol_write(void *arg)
 }
 
 static void
-zvol_discard(void *arg)
+zvol_discard_os(void *arg)
 {
 	zv_request_t *zvr = arg;
 	struct bio *bio = zvr->bio;
@@ -212,24 +176,7 @@ zvol_discard(void *arg)
 	if (start >= end)
 		goto unlock;
 
-	zfs_locked_range_t *lr = zfs_rangelock_enter(&zv->zv_rangelock,
-	    start, size, RL_WRITER);
-
-	tx = dmu_tx_create(zv->zv_objset);
-	dmu_tx_mark_netfree(tx);
-	error = dmu_tx_assign(tx, TXG_WAIT);
-	if (error != 0) {
-		dmu_tx_abort(tx);
-	} else {
-		zvol_log_truncate(zv, tx, start, size, B_TRUE);
-		dmu_tx_commit(tx);
-		error = dmu_free_long_range(zv->zv_objset,
-		    ZVOL_OBJ, start, size);
-	}
-	zfs_rangelock_exit(lr);
-
-	if (error == 0 && sync)
-		zil_commit(zv->zv_zilog, ZVOL_OBJ);
+	error = zvol_truncate(zv, start, size, sync);
 
 unlock:
 	rw_exit(&zv->zv_suspend_lock);
@@ -242,7 +189,7 @@ unlock:
 }
 
 static void
-zvol_read(void *arg)
+zvol_read_os(void *arg)
 {
 	zv_request_t *zvr = arg;
 	struct bio *bio = zvr->bio;
@@ -264,30 +211,7 @@ zvol_read(void *arg)
 	if (acct)
 		start_time = blk_generic_start_io_acct(q, disk, READ, bio);
 
-	zfs_locked_range_t *lr = zfs_rangelock_enter(&zv->zv_rangelock,
-	    uio.uio_loffset, uio.uio_resid, RL_READER);
-
-	uint64_t volsize = zv->zv_volsize;
-	while (uio.uio_resid > 0 && uio.uio_loffset < volsize) {
-		uint64_t bytes = MIN(uio.uio_resid, DMU_MAX_ACCESS >> 1);
-
-		/* don't read past the end */
-		if (bytes > volsize - uio.uio_loffset)
-			bytes = volsize - uio.uio_loffset;
-
-		error = dmu_read_uio_dnode(zv->zv_dn, &uio, bytes);
-		if (error) {
-			/* convert checksum errors into IO errors */
-			if (error == ECKSUM)
-				error = SET_ERROR(EIO);
-			break;
-		}
-	}
-	zfs_rangelock_exit(lr);
-
-	int64_t nread = start_resid - uio.uio_resid;
-	dataset_kstats_update_read_kstats(&zv->zv_kstat, nread);
-	task_io_account_read(nread);
+	error = zvol_read(zv, uio);
 
 	rw_exit(&zv->zv_suspend_lock);
 
@@ -398,17 +322,17 @@ zvol_request(struct request_queue *q, struct bio *bio)
 		 */
 		if (bio_is_discard(bio) || bio_is_secure_erase(bio)) {
 			if (zvol_request_sync) {
-				zvol_discard(zvr);
+				zvol_discard_os(zvr);
 			} else {
 				taskq_dispatch_ent(zvol_taskq,
-				    zvol_discard, zvr, 0, &zvr->ent);
+				    zvol_discard_os, zvr, 0, &zvr->ent);
 			}
 		} else {
 			if (zvol_request_sync) {
-				zvol_write(zvr);
+				zvol_write_os(zvr);
 			} else {
 				taskq_dispatch_ent(zvol_taskq,
-				    zvol_write, zvr, 0, &zvr->ent);
+				    zvol_write_os, zvr, 0, &zvr->ent);
 			}
 		}
 	} else {
@@ -431,10 +355,10 @@ zvol_request(struct request_queue *q, struct bio *bio)
 
 		/* See comment in WRITE case above. */
 		if (zvol_request_sync) {
-			zvol_read(zvr);
+			zvol_read_os(zvr);
 		} else {
 			taskq_dispatch_ent(zvol_taskq,
-			    zvol_read, zvr, 0, &zvr->ent);
+			    zvol_read_os, zvr, 0, &zvr->ent);
 		}
 	}
 
