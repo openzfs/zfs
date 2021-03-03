@@ -3457,6 +3457,9 @@ vdev_raidz_xlate(vdev_t *cvd, const range_seg64_t *logical_rs,
 		children--;
 #endif
 
+	ASSERT(raidvd->vdev_rz_expanding == B_FALSE);
+	ASSERT(raidvd->vdev_spa->spa_raidz_expand == NULL);
+
 	uint64_t width = children;
 	uint64_t tgt_col = cvd->vdev_id;
 	uint64_t ashift = raidvd->vdev_top->vdev_ashift;
@@ -3589,6 +3592,11 @@ raidz_reflow_complete_sync(void *arg, dmu_tx_t *tx)
 	    (unsigned long long)vd->vdev_children);
 
 	spa->spa_raidz_expand = NULL;
+	raidvd->vdev_rz_expanding = B_FALSE;
+
+	spa_async_request(spa, SPA_ASYNC_INITIALIZE_RESTART);
+	spa_async_request(spa, SPA_ASYNC_TRIM_RESTART);
+	spa_async_request(spa, SPA_ASYNC_AUTOTRIM_RESTART);
 
 	spa_notify_waiters(spa);
 }
