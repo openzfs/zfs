@@ -33,12 +33,13 @@ struct iomem;
 #define	ZVOL_WRITE_SYNC 0x10
 
 struct zvol_state_os {
-	dev_t		zvo_dev;	/* device id */
+	dev_t		zso_dev;	/* device id */
 
-	uint64_t	zvo_openflags;	/* Remember flags used at open */
-	uint8_t		zv_target_id;
-	uint8_t		zv_lun_id;
-	void		*zv_target_context; // for I/O drainage (see assign_targetid, clear_targetid)
+	uint32_t	zso_open_count;	/* open counts */
+	uint64_t	zso_openflags;	/* Remember flags used at open */
+	uint8_t		zso_target_id;
+	uint8_t		zso_lun_id;
+	void		*zso_target_context; // for I/O drainage (see assign_targetid, clear_targetid)
 };
 
 extern int zvol_os_ioctl(dev_t, unsigned long, caddr_t,
