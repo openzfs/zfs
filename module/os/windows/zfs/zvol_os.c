@@ -196,7 +196,7 @@ zvol_os_read_zv(zvol_state_t *zv, uio_t *uio, int flags)
 		if (error) {
 			/* convert checksum errors into IO errors */
 			if (error == ECKSUM)
-			error = EIO;
+				error = EIO;
 			break;
 		 }
 	}
@@ -397,11 +397,12 @@ zvol_os_update_volsize(zvol_state_t *zv, uint64_t volsize)
 static void
 zvol_os_clear_private(zvol_state_t *zv)
 {
-	// Close the Storport open
-	if (zv->zv_open_count == 1) {
-		wzvol_clear_targetid(zv->zv_zso->zv_target_id, zv->zv_zso->zv_lun_id, zv);
-		zvol_os_close_zv(zv, FWRITE, 0, NULL);
-                wzvol_announce_buschange();
+
+	// Close the Storport half open
+	if (zv->zv_open_count == 0) {
+
+		wzvol_clear_targetid(zv->zv_zso->zso_target_id, zv->zv_zso->zso_lun_id, zv);
+		wzvol_announce_buschange();
 	}
 }
 
@@ -421,7 +422,7 @@ zvol_os_find_by_dev(dev_t dev)
 	for (zv = list_head(&zvol_state_list); zv != NULL;
 	    zv = list_next(&zvol_state_list, zv)) {
 		mutex_enter(&zv->zv_state_lock);
-		if (zv->zv_zso->zvo_dev == dev) {
+		if (zv->zv_zso->zso_dev == dev) {
 			rw_exit(&zvol_state_lock);
 			return (zv);
 		}
@@ -443,7 +444,7 @@ zvol_os_targetlun_lookup(uint8_t target, uint8_t lun)
 	for (zv = list_head(&zvol_state_list); zv != NULL;
 	    zv = list_next(&zvol_state_list, zv)) {
 		mutex_enter(&zv->zv_state_lock);
-                if (zv->zv_zso->zv_target_id == target && zv->zv_zso->zv_lun_id == lun) {
+                if (zv->zv_zso->zso_target_id == target && zv->zv_zso->zso_lun_id == lun) {
 			rw_exit(&zvol_state_lock);
 			return (zv);
 		}
@@ -457,7 +458,7 @@ zvol_os_targetlun_lookup(uint8_t target, uint8_t lun)
 void
 zvol_os_validate_dev(zvol_state_t *zv)
 {
-	ASSERT3U(minor(zv->zv_zso->zvo_dev) & ZVOL_MINOR_MASK, ==, 0);
+	ASSERT3U(minor(zv->zv_zso->zso_dev) & ZVOL_MINOR_MASK, ==, 0);
 }
 
 /*
@@ -471,19 +472,15 @@ zvol_os_alloc(dev_t dev, const char *name)
 	struct zvol_state_os *zso;
 	uint64_t volmode;
 
-	dprintf("%s\n", __func__);
 	if (dsl_prop_get_integer(name, "volmode", &volmode, NULL) != 0)
 		return (NULL);
 
-	dprintf("%s 2\n", __func__);
 	if (volmode == ZFS_VOLMODE_DEFAULT)
 		volmode = zvol_volmode;
 
-	dprintf("%s 3\n", __func__);
 	if (volmode == ZFS_VOLMODE_NONE)
 		return (NULL);
 
-	dprintf("%s 4\n", __func__);
 	zv = kmem_zalloc(sizeof (zvol_state_t), KM_SLEEP);
 	zso = kmem_zalloc(sizeof (struct zvol_state_os), KM_SLEEP);
 	zv->zv_zso = zso;
@@ -517,6 +514,15 @@ static void
 zvol_os_free(zvol_state_t *zv)
 {
 	dprintf("%s\n", __func__);
+
+	rw_enter(&zv->zv_suspend_lock, RW_READER);
+	mutex_enter(&zv->zv_state_lock);
+	zv->zv_zso->zso_open_count--;
+	zv->zv_open_count++;
+	zvol_last_close(zv);
+	zv->zv_open_count--;
+	mutex_exit(&zv->zv_state_lock);
+	rw_exit(&zv->zv_suspend_lock);
 
 	ASSERT(!RW_LOCK_HELD(&zv->zv_suspend_lock));
 	ASSERT(!MUTEX_HELD(&zv->zv_state_lock));
@@ -602,6 +608,42 @@ zvol_os_create_minor(const char *name)
         // Assign new TargetId and Lun
         wzvol_assign_targetid(zv);
 
+
+	rw_enter(&zvol_state_lock, RW_WRITER);
+	zvol_insert(zv);
+	rw_exit(&zvol_state_lock);
+
+	/*
+	 * Here is where we differ to upstream. They will call open and close, as userland
+	 * opens the /dev/disk node. Once opened, it has the open_count, and long_holds held,
+	 * which is used in read/write. Once closed, everything is released.
+	 * So when it comes to export/unmount/destroy of the ZVOL, it checks for opencount==0
+	 * and longholds==0. They should allow for == 1 for Windows.
+	 * However, in Windows there is no open/close devnode, but rather, we assign the zvol
+	 * to the storport API, to expose the device. Really, the zvol needs to be "open" the
+	 * entire time that storport has it. If we leave zvol "open" it will fail the checks
+	 * for "==0". So we steal an opencount, and remember it privately. We could also
+	 * change zvol.c to special-case it for Windows.
+	 */ 
+	//error = zvol_os_open_zv(zv, FWRITE, 0, NULL);
+#if 0
+	if (error == 0) {
+		error = dnode_hold(os, ZVOL_OBJ, FTAG, &zv->zv_zso->zso_dn);
+		if (error == 0) {
+			zfs_rangelock_init(&zv->zv_zso->zso_rangelock, NULL, NULL);
+			wzvol_announce_buschange();
+		}
+	//	zvol_os_close_zv(zv, FWRITE, 0, NULL);
+	}
+//	error = dmu_objset_own(zv->zv_name, DMU_OST_ZVOL, ro, B_TRUE, zv, &os);
+
+	if (error == 0) {
+		// We keep zv_objset / dmu_objset_own() open for storport
+		goto out_doi;
+	}
+#endif
+
+	// About to disown
 	zv->zv_objset = NULL;
 out_dmu_objset_disown:
 	dmu_objset_disown(os, B_TRUE, FTAG);
@@ -609,19 +651,16 @@ out_doi:
 	kmem_free(doi, sizeof (dmu_object_info_t));
 
 	if (error == 0) {
-		rw_enter(&zvol_state_lock, RW_WRITER);
-		zvol_insert(zv);
-		rw_exit(&zvol_state_lock);
-
-		 // Announcing new DISK - we hold the zvol open the entire time storport has it.
 		error = zvol_os_open_zv(zv, FWRITE, 0, NULL);
+		
+		if (error == 0) {
+			// Steal this open_count; or we can't export/destroy (EBUSY)
+			zv->zv_zso->zso_open_count++;
+			zv->zv_open_count--;
 
-                wzvol_announce_buschange();
-
-	} else {
-
+			wzvol_announce_buschange();
+		}
 	}
-
 	dprintf("%s complete\n", __func__);
 	return (error);
 }

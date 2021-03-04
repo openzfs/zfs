@@ -114,7 +114,7 @@ static inline void wzvol_decref_target(wzvolContext* zvc)
 /* not used now but left for completeness in case we need to have an extra reference after calling find_targetid */
 static inline BOOLEAN wzvol_lock_target(zvol_state_t* zv)
 {
-	wzvolContext* zvc = (pwzvolContext)zv->zv_zso->zv_target_context;
+	wzvolContext* zvc = (pwzvolContext)zv->zv_zso->zso_target_context;
 	if (zvc) {
 		if (atomic_inc_64_nv(&zvc->refCnt) > 1) {
 			// safe to access the remove lock. Make sure we are on the same zv.
@@ -135,7 +135,7 @@ static inline BOOLEAN wzvol_lock_target(zvol_state_t* zv)
 }
 static inline void wzvol_unlock_target(zvol_state_t *zv)
 {		
-	wzvolContext* zvc = (pwzvolContext)zv->zv_zso->zv_target_context;
+	wzvolContext* zvc = (pwzvolContext)zv->zv_zso->zso_target_context;
 	IoReleaseRemoveLock(zvc->pIoRemLock, zv);	
 	wzvol_decref_target(zvc);
 }
@@ -143,7 +143,7 @@ static inline void wzvol_unlock_target(zvol_state_t *zv)
 int wzvol_assign_targetid(zvol_state_t *zv)
 {
 	wzvolContext* zv_targets = STOR_wzvolDriverInfo.zvContextArray;
-	ASSERT(zv->zv_zso->zv_target_context == NULL);
+	ASSERT(zv->zv_zso->zso_target_context == NULL);
 	PIO_REMOVE_LOCK pIoRemLock = kmem_zalloc(sizeof(*pIoRemLock), KM_SLEEP);
 	if (!pIoRemLock) {
 		dprintf("ZFS: Unable to assign targetid - out of memory.\n");
@@ -163,9 +163,9 @@ int wzvol_assign_targetid(zvol_state_t *zv)
 					if (atomic_inc_64_nv(&zv_targets[zvidx].refCnt) == 1) {
 						// brand new entry - got it. 
 						ASSERT(zv_targets[zvidx].pIoRemLock == NULL);
-						zv->zv_zso->zv_target_id = t;
-						zv->zv_zso->zv_lun_id = l;
-						zv->zv_zso->zv_target_context = &zv_targets[zvidx];
+						zv->zv_zso->zso_target_id = t;
+						zv->zv_zso->zso_lun_id = l;
+						zv->zv_zso->zso_target_context = &zv_targets[zvidx];
 						zv_targets[zvidx].pIoRemLock = pIoRemLock;
 						atomic_cas_ptr(&zv_targets[zvidx].zv, NULL, zv); // zv is now searchable
 						return 1;
@@ -214,7 +214,7 @@ static inline zvol_state_t *wzvol_find_target(uint8_t targetid, uint8_t lun)
 
 void wzvol_clear_targetid(uint8_t targetid, uint8_t lun, zvol_state_t* zv)
 {
-	wzvolContext* zvc = (pwzvolContext)zv->zv_zso->zv_target_context;
+	wzvolContext* zvc = (pwzvolContext)zv->zv_zso->zso_target_context;
 
 	ASSERT(KeGetCurrentIrql() < DISPATCH_LEVEL);
 	ASSERT(targetid < STOR_wzvolDriverInfo.MaximumNumberOfTargets);
