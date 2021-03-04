@@ -191,10 +191,10 @@ option is not supplied in conjunction with
 then the data will be decompressed before sending so it can be split into
 smaller block sizes. Streams sent with 
 .Fl c
-cannot have their compression overwritten on the receiver using 
-.Fl o compress=.
-The compression property will be set on the receiver but the compression used
-will be the one that was set on the sender. 
+will not have their data recompressed on the receiver side using
+.Fl o compress=value.
+The data will stay compressed as it was from the sender. The new compression
+property will be set for future data. 
 .It Fl w, -raw
 For encrypted datasets, send data exactly as it exists on disk. This allows
 backups to be taken even if encryption keys are not currently loaded. The
