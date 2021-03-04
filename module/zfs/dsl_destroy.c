@@ -769,6 +769,11 @@ dsl_destroy_head_check_impl(dsl_dataset_t *ds, int expected_holds)
 	if (ds->ds_is_snapshot)
 		return (SET_ERROR(EINVAL));
 
+#ifdef _WIN32
+	if (ds->ds_objset->os_phys->os_type == DMU_OST_ZVOL)
+		expected_holds = 1;
+#endif
+
 	if (zfs_refcount_count(&ds->ds_longholds) != expected_holds)
 		return (SET_ERROR(EBUSY));
 
@@ -812,12 +817,12 @@ dsl_destroy_head_check(void *arg, dmu_tx_t *tx)
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	dsl_dataset_t *ds;
 	int error;
+	int expected_holds = 0;
 
 	error = dsl_dataset_hold(dp, ddha->ddha_name, FTAG, &ds);
 	if (error != 0)
 		return (error);
-
-	error = dsl_destroy_head_check_impl(ds, 0);
+	error = dsl_destroy_head_check_impl(ds, expected_holds);
 	dsl_dataset_rele(ds, FTAG);
 	return (error);
 }
