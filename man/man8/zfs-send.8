@@ -189,7 +189,12 @@ feature is enabled on the sending system but the
 option is not supplied in conjunction with
 .Fl c ,
 then the data will be decompressed before sending so it can be split into
-smaller block sizes.
+smaller block sizes. Streams sent with 
+.Fl c
+cannot have their compression overwritten on the receiver using 
+.Fl o compress=.
+The compression property will be set on the receiver but the compression used
+will be the one that was set on the sender. 
 .It Fl w, -raw
 For encrypted datasets, send data exactly as it exists on disk. This allows
 backups to be taken even if encryption keys are not currently loaded. The
