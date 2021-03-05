@@ -2214,13 +2214,11 @@ zfs_zaccess_dataset_check(znode_t *zp, uint32_t v4_mode)
 	}
 
 	/*
-	 * Only check for READONLY on non-directories.
+	 * Intentionally allow ZFS_READONLY through here.
+	 * See zfs_zaccess_common().
 	 */
 	if ((v4_mode & WRITE_MASK_DATA) &&
-	    ((!S_ISDIR(ZTOI(zp)->i_mode) &&
-	    (zp->z_pflags & (ZFS_READONLY | ZFS_IMMUTABLE))) ||
-	    (S_ISDIR(ZTOI(zp)->i_mode) &&
-	    (zp->z_pflags & ZFS_IMMUTABLE)))) {
+	    (zp->z_pflags & ZFS_IMMUTABLE)) {
 		return (SET_ERROR(EPERM));
 	}
 
@@ -2432,6 +2430,24 @@ zfs_zaccess_common(znode_t *zp, uint32_t v4_mode, uint32_t *working_mode,
 	if (skipaclchk) {
 		*working_mode = 0;
 		return (0);
+	}
+
+	/*
+	 * Note: ZFS_READONLY represents the "DOS R/O" attribute.
+	 * When that flag is set, we should behave as if write access
+	 * were not granted by anything in the ACL.  In particular:
+	 * We _must_ allow writes after opening the file r/w, then
+	 * setting the DOS R/O attribute, and writing some more.
+	 * (Similar to how you can write after fchmod(fd, 0444).)
+	 *
+	 * Therefore ZFS_READONLY is ignored in the dataset check
+	 * above, and checked here as if part of the ACL check.
+	 * Also note: DOS R/O is ignored for directories.
+	 */
+	if ((v4_mode & WRITE_MASK_DATA) &&
+	    S_ISDIR(ZTOI(zp)->i_mode) &&
+	    (zp->z_pflags & ZFS_READONLY)) {
+		return (SET_ERROR(EPERM));
 	}
 
 	return (zfs_zaccess_aces_check(zp, working_mode, B_FALSE, cr));
