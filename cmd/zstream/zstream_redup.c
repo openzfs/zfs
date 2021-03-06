@@ -248,6 +248,7 @@ zfs_redup_stream(int infd, int outfd, boolean_t verbose)
 			fflags = DMU_GET_FEATUREFLAGS(drrb->drr_versioninfo);
 			fflags &= ~(DMU_BACKUP_FEATURE_DEDUP |
 			    DMU_BACKUP_FEATURE_DEDUPPROPS);
+			/* cppcheck-suppress syntaxError */
 			DMU_SET_FEATUREFLAGS(drrb->drr_versioninfo, fflags);
 
 			int sz = drr->drr_payloadlen;
