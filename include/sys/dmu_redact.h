@@ -39,6 +39,7 @@ redact_block_get_size(redact_block_phys_t *rbp)
 static inline void
 redact_block_set_size(redact_block_phys_t *rbp, uint64_t size)
 {
+	/* cppcheck-suppress syntaxError */
 	BF64_SET_SB((rbp)->rbp_size_count, 48, 16, SPA_MINBLOCKSHIFT, 0, size);
 }
 
@@ -51,6 +52,7 @@ redact_block_get_count(redact_block_phys_t *rbp)
 static inline void
 redact_block_set_count(redact_block_phys_t *rbp, uint64_t count)
 {
+	/* cppcheck-suppress syntaxError */
 	BF64_SET_SB((rbp)->rbp_size_count, 0, 48, 0, 1, count);
 }
 
