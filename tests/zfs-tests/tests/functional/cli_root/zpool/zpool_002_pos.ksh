@@ -47,31 +47,32 @@ function cleanup
 {
 	unset ZFS_ABORT
 
-	if [[ -d $corepath ]]; then
-		rm -rf $corepath
+	if is_freebsd && [ -n "$old_corefile" ]; then
+		sysctl kern.corefile=$old_corefile
 	fi
 
-	if poolexists $pool; then
-		log_must zpool destroy -f $pool
-	fi
+	# Clean up the pool created if we failed to abort.
+	poolexists $pool && destroy_pool $pool
+
+	rm -rf $corepath $vdev1 $vdev2 $vdev3
 }
 
 log_assert "With ZFS_ABORT set, all zpool commands can abort and generate a core file."
 log_onexit cleanup
 
-#preparation work for testing
 corepath=$TESTDIR/core
+corefile=$corepath/zpool.core
 if [[ -d $corepath ]]; then
-	rm -rf $corepath
+	log_must rm -rf $corepath
 fi
-mkdir $corepath
+log_must mkdir $corepath
 
 pool=pool.$$
 vdev1=$TESTDIR/file1
 vdev2=$TESTDIR/file2
 vdev3=$TESTDIR/file3
 for vdev in $vdev1 $vdev2 $vdev3; do
-	mkfile $MINVDEVSIZE $vdev
+	log_must mkfile $MINVDEVSIZE $vdev
 done
 
 set -A cmds "create $pool mirror $vdev1 $vdev2" "list $pool" "iostat $pool" \
@@ -86,27 +87,25 @@ set -A badparams "" "create" "destroy" "add" "remove" "list *" "iostat" "status"
 		"import" "export" "upgrade" "history -?" "get" "set"
 
 if is_linux; then
-	ulimit -c unlimited
-	echo "$corepath/core.zpool" >/proc/sys/kernel/core_pattern
+	echo $corefile >/proc/sys/kernel/core_pattern
 	echo 0 >/proc/sys/kernel/core_uses_pid
-	export ASAN_OPTIONS="abort_on_error=1:disable_coredump=0"
 elif is_freebsd; then
-	ulimit -c unlimited
-	log_must sysctl kern.corefile=$corepath/core.zpool
-	export ASAN_OPTIONS="abort_on_error=1:disable_coredump=0"
-else
-	coreadm -p ${corepath}/core.%f
+	old_corefile=$(sysctl -n kern.corefile)
+	log_must sysctl kern.corefile=$corefile
 fi
+ulimit -c unlimited
 
+export ASAN_OPTIONS="abort_on_error=1:disable_coredump=0"
 export ZFS_ABORT=yes
 
 for subcmd in "${cmds[@]}" "${badparams[@]}"; do
-	corefile=${corepath}/core.zpool
 	zpool $subcmd >/dev/null 2>&1
 	if [[ ! -e $corefile ]]; then
-		log_fail "zpool $subcmd cannot generate core file  with ZFS_ABORT set."
+		log_fail "zpool $subcmd cannot generate core file with ZFS_ABORT set."
 	fi
 	rm -f $corefile
 done
+
+unset ZFS_ABORT
 
 log_pass "With ZFS_ABORT set, zpool command can abort and generate core file as expected."
