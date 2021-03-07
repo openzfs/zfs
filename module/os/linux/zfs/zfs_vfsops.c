@@ -1734,7 +1734,11 @@ zfs_vget(struct super_block *sb, struct inode **ipp, fid_t *fidp)
 			VERIFY(zfsctl_root_lookup(*ipp, "snapshot", ipp,
 			    0, kcred, NULL, NULL) == 0);
 		} else {
-			igrab(*ipp);
+			/*
+			 * Must have an existing ref, so igrab()
+			 * cannot return NULL
+			 */
+			VERIFY3P(igrab(*ipp), !=, NULL);
 		}
 		ZFS_EXIT(zfsvfs);
 		return (0);
