@@ -46,6 +46,9 @@ FMAKEFLAGS = -C @abs_srcdir@ -f Makefile.bsd $(shell $(getflags))
 ifneq (@abs_srcdir@,@abs_builddir@)
 FMAKEFLAGS += MAKEOBJDIR=@abs_builddir@
 endif
+ifeq (@DEBUG_ZFS@,_with_debug)
+FMAKEFLAGS += WITH_DEBUG=true
+endif
 
 FMAKE = env -u MAKEFLAGS make $(FMAKEFLAGS)
 
