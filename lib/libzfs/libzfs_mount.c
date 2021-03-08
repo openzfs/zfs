@@ -22,7 +22,7 @@
 /*
  * Copyright 2015 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2014, 2020 by Delphix. All rights reserved.
+ * Copyright (c) 2014, 2021 by Delphix. All rights reserved.
  * Copyright 2016 Igor Kozhukhov <ikozhukhov@gmail.com>
  * Copyright 2017 RackTop Systems.
  * Copyright (c) 2018 Datto Inc.
@@ -553,7 +553,28 @@ unmount_one(libzfs_handle_t *hdl, const char *mountpoint, int flags)
 
 	error = do_unmount(mountpoint, flags);
 	if (error != 0) {
-		return (zfs_error_fmt(hdl, EZFS_UMOUNTFAILED,
+		int libzfs_err;
+
+		switch (error) {
+		case EBUSY:
+			libzfs_err = EZFS_BUSY;
+			break;
+		case EIO:
+			libzfs_err = EZFS_IO;
+			break;
+		case ENOENT:
+			libzfs_err = EZFS_NOENT;
+			break;
+		case ENOMEM:
+			libzfs_err = EZFS_NOMEM;
+			break;
+		case EPERM:
+			libzfs_err = EZFS_PERM;
+			break;
+		default:
+			libzfs_err = EZFS_UMOUNTFAILED;
+		}
+		return (zfs_error_fmt(hdl, libzfs_err,
 		    dgettext(TEXT_DOMAIN, "cannot unmount '%s'"),
 		    mountpoint));
 	}
