@@ -66,7 +66,7 @@ log_must zpool create $MPOOL mirror $VDEV1 $VDEV2
 
 # 2. Start the ZED and verify it handles missed events.
 log_must zed_start
-log_must file_wait $ZED_DEBUG_LOG
+log_must file_wait_event $ZED_DEBUG_LOG 'sysevent\.fs\.zfs\.config_sync' 150
 log_must cp $ZED_DEBUG_LOG $TMP_EVENTS_ZED
 
 awk -v event="sysevent.fs.zfs.pool_create" \
@@ -92,12 +92,11 @@ done
 
 # 5. Start the ZED and verify it only handled the new missed events.
 log_must zed_start
-log_must file_wait $ZED_DEBUG_LOG 35
+log_must file_wait_event $ZED_DEBUG_LOG 'sysevent\.fs\.zfs\.resilver_finish' 150
 log_must cp $ZED_DEBUG_LOG $TMP_EVENTS_ZED
 
-log_mustnot grep -q "sysevent.fs.zfs.pool_create" $TMP_EVENTS_ZED
+log_mustnot file_wait_event $ZED_DEBUG_LOG 'sysevent\.fs\.zfs\.pool_create' 30
 log_must grep -q "sysevent.fs.zfs.vdev_online" $TMP_EVENTS_ZED
 log_must grep -q "sysevent.fs.zfs.resilver_start" $TMP_EVENTS_ZED
-log_must grep -q "sysevent.fs.zfs.resilver_finish" $TMP_EVENTS_ZED
 
 log_pass "Verify ZED handles missed events on when starting"
