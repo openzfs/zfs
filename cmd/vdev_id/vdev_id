@@ -298,8 +298,15 @@ sas_handler() {
 
 		# Utilize DM device name to gather subordinate block devices
 		# using sysfs to avoid userspace utilities
-		DMDEV=$(ls -l --full-time /dev/mapper | grep $DM_NAME |
+
+		# If our DEVNAME is something like /dev/dm-177, then we may be
+		# able to get our DMDEV from it.
+		DMDEV=$(echo $DEVNAME | sed 's;/dev/;;g')
+		if [ ! -e /sys/block/$DMDEV/slaves/* ] ; then
+			# It's not there, try looking in /dev/mapper
+			DMDEV=$(ls -l --full-time /dev/mapper | grep $DM_NAME |
 			awk '{gsub("../", " "); print $NF}')
+		fi
 
 		# Use sysfs pointers in /sys/block/dm-X/slaves because using
 		# userspace tools creates lots of overhead and should be avoided
