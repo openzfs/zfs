@@ -4378,6 +4378,7 @@ zfs_do_send(int argc, char **argv)
 
 	struct option long_options[] = {
 		{"replicate",	no_argument,		NULL, 'R'},
+		{"skip-missing",	no_argument,		NULL, 's'},
 		{"redact",	required_argument,	NULL, 'd'},
 		{"props",	no_argument,		NULL, 'p'},
 		{"parsable",	no_argument,		NULL, 'P'},
@@ -4396,7 +4397,7 @@ zfs_do_send(int argc, char **argv)
 	};
 
 	/* check options */
-	while ((c = getopt_long(argc, argv, ":i:I:RDpvnPLeht:cwbd:S",
+	while ((c = getopt_long(argc, argv, ":i:I:RsDpvnPLeht:cwbd:S",
 	    long_options, NULL)) != -1) {
 		switch (c) {
 		case 'i':
@@ -4412,6 +4413,9 @@ zfs_do_send(int argc, char **argv)
 			break;
 		case 'R':
 			flags.replicate = B_TRUE;
+			break;
+		case 's':
+			flags.skipmissing = B_TRUE;
 			break;
 		case 'd':
 			redactbook = optarg;
@@ -4575,6 +4579,13 @@ zfs_do_send(int argc, char **argv)
 	} else if (resume_token != NULL) {
 		return (zfs_send_resume(g_zfs, &flags, STDOUT_FILENO,
 		    resume_token));
+	}
+
+	if (flags.skipmissing && !flags.replicate) {
+		(void) fprintf(stderr,
+		    gettext("skip-missing flag can only be used in "
+		    "conjunction with replicate\n"));
+		usage(B_FALSE);
 	}
 
 	/*
