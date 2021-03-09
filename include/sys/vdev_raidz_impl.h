@@ -118,18 +118,18 @@ typedef struct raidz_col {
 	uint8_t rc_skipped;		/* Did we skip this I/O column? */
 	uint8_t rc_need_orig_restore;	/* need to restore from orig_data? */
 	uint8_t rc_repair;		/* Write good data to this column */
-	int rc_shadow_devidx;		/* for double write */
-	int rc_shadow_error;		/* for double write */
-	uint64_t rc_shadow_offset;	/* for double write */
+	int rc_shadow_devidx;		/* for double write during expansion */
+	int rc_shadow_error;		/* for double write during expansion */
+	uint64_t rc_shadow_offset;	/* for double write during expansion */
 } raidz_col_t;
 
 typedef struct raidz_row {
-	int rr_cols;		/* Regular column count */
-	int rr_scols;		/* Count including skipped columns */
-	int rr_bigcols;		/* Remainder data column count */
-	int rr_missingdata;	/* Count of missing data devices */
-	int rr_missingparity;	/* Count of missing parity devices */
-	int rr_firstdatacol;	/* First data column/parity count */
+	int rr_cols;			/* Regular column count */
+	int rr_scols;			/* Count including skipped columns */
+	int rr_bigcols;			/* Remainder data column count */
+	int rr_missingdata;		/* Count of missing data devices */
+	int rr_missingparity;		/* Count of missing parity devices */
+	int rr_firstdatacol;		/* First data column/parity count */
 	abd_t *rr_abd_copy;		/* rm_asize-buffer of copied data */
 	abd_t *rr_abd_empty;		/* dRAID empty sector buffer */
 	int rr_nempty;			/* empty sectors included in parity */
@@ -145,15 +145,14 @@ typedef struct raidz_map {
 	uintptr_t rm_reports;		/* # of referencing checksum reports */
 	boolean_t rm_freed;		/* map no longer has referencing ZIO */
 	boolean_t rm_ecksuminjected;	/* checksum error was injected */
-	boolean_t rm_io_aggregation;
 	int rm_nrows;			/* Regular row count */
 	int rm_nskip;			/* RAIDZ sectors skipped for padding */
 	int rm_skipstart;		/* Column index of padding start */
 	int rm_original_width;		/* pre-expansion width of raidz vdev */
-	int rm_nphys_cols;		/* Number of leaf devices */
+	int rm_nphys_cols;		/* num entries in rm_phys_col[] */
 	zfs_locked_range_t *rm_lr;
 	const raidz_impl_ops_t *rm_ops;	/* RAIDZ math operations */
-	raidz_col_t *rm_phys_col;	/* leaf devices array */
+	raidz_col_t *rm_phys_col;	/* if non-NULL, read i/o aggregation */
 	raidz_row_t *rm_row[0];		/* flexible array of rows */
 } raidz_map_t;
 

@@ -85,6 +85,12 @@ typedef struct vdev_raidz_expand {
 	 */
 	uint64_t vre_offset;
 
+	/*
+	 * Lowest offset of a failed expansion i/o.  The expansion will retry
+	 * from here.  Once the expansion thread notices the failure and exits,
+	 * vre_failed_offset is reset back to UINT64_MAX, and
+	 * vre_waiting_for_resilver will be set.
+	 */
 	uint64_t vre_failed_offset;
 	boolean_t vre_waiting_for_resilver;
 
@@ -92,8 +98,16 @@ typedef struct vdev_raidz_expand {
 	 * Offset that is completing each txg
 	 */
 	uint64_t vre_offset_pertxg[TXG_SIZE];
+
+	/*
+	 * Bytes copied in each txg.
+	 */
 	uint64_t vre_bytes_copied_pertxg[TXG_SIZE];
 
+	/*
+	 * The rangelock prevents normal read/write zio's from happening while
+	 * there are expansion (reflow) i/os in progress to the same offsets.
+	 */
 	zfs_rangelock_t vre_rangelock;
 
 	/*
@@ -106,28 +120,33 @@ typedef struct vdev_raidz_expand {
 } vdev_raidz_expand_t;
 
 typedef struct vdev_raidz {
+	/*
+	 * Number of child vdevs when this raidz vdev was created (i.e. before
+	 * any raidz expansions).
+	 */
 	int vd_original_width;
+
+	/*
+	 * The current number of child vdevs, which may be more than the
+	 * original width if an expansion is in progress or has completed.
+	 */
 	int vd_physical_width;
+
 	int vd_nparity;
 
 	/*
-	 * tree of reflow_node_t's.  The lock protects the avl tree only.
+	 * Tree of reflow_node_t's.  The lock protects the avl tree only.
+	 * The reflow_node_t's describe completed expansions, and are used
+	 * to determine the logical width given a block's birth time.
 	 */
-	kmutex_t vd_expand_lock;
 	avl_tree_t vd_expand_txgs;
+	kmutex_t vd_expand_lock;
 
 	/*
 	 * If this vdev is being expanded, spa_raidz_expand is set to this
 	 */
 	vdev_raidz_expand_t vn_vre;
 } vdev_raidz_t;
-
-typedef struct vdev_raidz_scratch_phys {
-	uint64_t vrsp_txg; // must match uberblock txg
-	uint64_t vrsp_size; // logical size of entire scratch space across all children
-	uint64_t vrsp_overwrite_complete; // real location has new layout; just need to set vre_offset_phys=vrsp_size
-	// pad out to 1<<ashift
-} vdev_raidz_scratch_phys_t;
 
 extern int vdev_raidz_attach_check(vdev_t *);
 extern void vdev_raidz_attach_sync(void *, dmu_tx_t *);

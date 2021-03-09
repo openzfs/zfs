@@ -811,7 +811,6 @@ vdev_raidz_map_alloc_expanded(zio_t *zio,
 	 * an aggregation.
 	 */
 	if (rows >= raidz_io_aggregate_rows) {
-		rm->rm_io_aggregation = B_TRUE;
 		rm->rm_nphys_cols = physical_cols;
 		rm->rm_phys_col =
 		    kmem_zalloc(sizeof (raidz_col_t) * rm->rm_nphys_cols,
@@ -822,7 +821,7 @@ vdev_raidz_map_alloc_expanded(zio_t *zio,
 		 * that the io is contiguous.
 		 */
 		for (int i = 0;
-		    i < rm->rm_nrows && rm->rm_io_aggregation; i++) {
+		    i < rm->rm_nrows && rm->rm_phys_col != NULL; i++) {
 			raidz_row_t *rr = rm->rm_row[i];
 			for (int c = 0; c < rr->rr_cols; c++) {
 				raidz_col_t *rc = &rr->rr_col[c];
@@ -850,14 +849,13 @@ vdev_raidz_map_alloc_expanded(zio_t *zio,
 					    rm->rm_nphys_cols);
 					rm->rm_phys_col = NULL;
 					rm->rm_nphys_cols = 0;
-					rm->rm_io_aggregation = B_FALSE;
 					break;
 				}
 				prc->rc_size += rc->rc_size;
 			}
 		}
 	}
-	if (rm->rm_io_aggregation) {
+	if (rm->rm_phys_col != NULL) {
 		/*
 		 * Allocate aggregate ABD's.
 		 */
@@ -2345,7 +2343,7 @@ vdev_raidz_io_start_read(zio_t *zio, raidz_map_t *rm)
 	 */
 	boolean_t forceparity = rm->rm_nrows > 1;
 
-	if (rm->rm_io_aggregation) {
+	if (rm->rm_phys_col) {
 		vdev_raidz_io_start_read_phys_cols(zio, rm);
 	} else {
 		for (int i = 0; i < rm->rm_nrows; i++) {
@@ -3226,7 +3224,7 @@ vdev_raidz_io_done(zio_t *zio)
 			vdev_raidz_io_done_write_impl(zio, rm->rm_row[i]);
 		}
 	} else {
-		if (rm->rm_io_aggregation) {
+		if (rm->rm_phys_col) {
 			for (int i = 0; i < rm->rm_nrows; i++) {
 				raidz_row_t *rr = rm->rm_row[i];
 
@@ -3291,10 +3289,8 @@ vdev_raidz_io_done(zio_t *zio)
 			 * data and parity as we can track down. If we've
 			 * already been through once before, all children will
 			 * be marked as tried so we'll proceed to combinatorial
-			 * reconstruction.  If we need to read again,
-			 * do so without aggregation.
+			 * reconstruction.
 			 */
-			rm->rm_io_aggregation = B_FALSE;
 			int nread = 0;
 			for (int i = 0; i < rm->rm_nrows; i++) {
 				nread += vdev_raidz_read_all(zio,

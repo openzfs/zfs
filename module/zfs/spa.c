@@ -6689,8 +6689,10 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 			    ZFS_ERR_REBUILD_IN_PROGRESS));
 	}
 
-	if (spa->spa_vdev_removal != NULL)
-		return (spa_vdev_exit(spa, NULL, txg, EBUSY));
+	if (spa->spa_vdev_removal != NULL) {
+		return (spa_vdev_exit(spa, NULL, txg,
+		    ZFS_ERR_DEVRM_IN_PROGRESS));
+	}
 
 	if (oldvd == NULL)
 		return (spa_vdev_exit(spa, NULL, txg, ENODEV));
@@ -6700,8 +6702,10 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 		/*
 		 * Can't expand a raidz while prior expand is in progress.
 		 */
-		if (spa->spa_raidz_expand != NULL)
-			return (spa_vdev_exit(spa, NULL, txg, EBUSY));
+		if (spa->spa_raidz_expand != NULL) {
+			return (spa_vdev_exit(spa, NULL, txg,
+			    ZFS_ERR_RAIDZ_EXPAND_IN_PROGRESS));
+		}
 	} else if (!oldvd->vdev_ops->vdev_op_leaf) {
 		return (spa_vdev_exit(spa, NULL, txg, ENOTSUP));
 	}

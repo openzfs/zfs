@@ -96,7 +96,7 @@ for nparity in 1 2 3; do
 
 	typeset pool_size=$(get_pool_prop size $pool)
 
-	for disk in ${disks[$(($nparity+1))+1..$devs]}; do
+	for disk in ${disks[$(($nparity+2))..$devs]}; do
 		log_must dd if=/dev/urandom of=/${pool}/FILE-$RANDOM bs=1M \
 		    count=128
 
