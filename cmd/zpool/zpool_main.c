@@ -2623,8 +2623,8 @@ print_class_vdevs(zpool_handle_t *zhp, status_cbdata_t *cb, nvlist_t *nv,
 /*
  * Display the status for the given pool.
  */
-static void
-show_import(nvlist_t *config)
+static int
+show_import(nvlist_t *config, boolean_t report_error)
 {
 	uint64_t pool_state;
 	vdev_stat_t *vs;
@@ -2655,6 +2655,13 @@ show_import(nvlist_t *config)
 	health = zpool_state_to_name(vs->vs_state, vs->vs_aux);
 
 	reason = zpool_import_status(config, &msgid, &errata);
+
+	/*
+	 * If we're importing using a cachefile, then we won't report any
+	 * errors unless we are in the scan phase of the import.
+	 */
+	if (reason != ZPOOL_STATUS_OK && !report_error)
+		return (reason);
 
 	(void) printf(gettext("   pool: %s\n"), name);
 	(void) printf(gettext("     id: %llu\n"), (u_longlong_t)guid);
@@ -2983,6 +2990,7 @@ show_import(nvlist_t *config)
 		    "be part of this pool, though their\n\texact "
 		    "configuration cannot be determined.\n"));
 	}
+	return (0);
 }
 
 static boolean_t
@@ -3121,6 +3129,121 @@ do_import(nvlist_t *config, const char *newname, const char *mntopts,
 	return (ret);
 }
 
+static int
+import_pools(nvlist_t *pools, nvlist_t *props, char *mntopts, int flags,
+    char *orig_name, char *new_name,
+    boolean_t do_destroyed, boolean_t pool_specified, boolean_t do_all,
+    importargs_t *import)
+{
+	nvlist_t *config = NULL;
+	nvlist_t *found_config = NULL;
+	uint64_t pool_state;
+
+	/*
+	 * At this point we have a list of import candidate configs. Even if
+	 * we were searching by pool name or guid, we still need to
+	 * post-process the list to deal with pool state and possible
+	 * duplicate names.
+	 */
+	int err = 0;
+	nvpair_t *elem = NULL;
+	boolean_t first = B_TRUE;
+	while ((elem = nvlist_next_nvpair(pools, elem)) != NULL) {
+
+		verify(nvpair_value_nvlist(elem, &config) == 0);
+
+		verify(nvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_STATE,
+		    &pool_state) == 0);
+		if (!do_destroyed && pool_state == POOL_STATE_DESTROYED)
+			continue;
+		if (do_destroyed && pool_state != POOL_STATE_DESTROYED)
+			continue;
+
+		verify(nvlist_add_nvlist(config, ZPOOL_LOAD_POLICY,
+		    import->policy) == 0);
+
+		if (!pool_specified) {
+			if (first)
+				first = B_FALSE;
+			else if (!do_all)
+				(void) printf("\n");
+
+			if (do_all) {
+				err |= do_import(config, NULL, mntopts,
+				    props, flags);
+			} else {
+				/*
+				 * If we're importing from cachefile, then
+				 * we don't want to report errors until we
+				 * are in the scan phase of the import. If
+				 * we get an error, then we return that error
+				 * to invoke the scan phase.
+				 */
+				if (import->cachefile && !import->scan)
+					err = show_import(config, B_FALSE);
+				else
+					(void) show_import(config, B_TRUE);
+			}
+		} else if (import->poolname != NULL) {
+			char *name;
+
+			/*
+			 * We are searching for a pool based on name.
+			 */
+			verify(nvlist_lookup_string(config,
+			    ZPOOL_CONFIG_POOL_NAME, &name) == 0);
+
+			if (strcmp(name, import->poolname) == 0) {
+				if (found_config != NULL) {
+					(void) fprintf(stderr, gettext(
+					    "cannot import '%s': more than "
+					    "one matching pool\n"),
+					    import->poolname);
+					(void) fprintf(stderr, gettext(
+					    "import by numeric ID instead\n"));
+					err = B_TRUE;
+				}
+				found_config = config;
+			}
+		} else {
+			uint64_t guid;
+
+			/*
+			 * Search for a pool by guid.
+			 */
+			verify(nvlist_lookup_uint64(config,
+			    ZPOOL_CONFIG_POOL_GUID, &guid) == 0);
+
+			if (guid == import->guid)
+				found_config = config;
+		}
+	}
+
+	/*
+	 * If we were searching for a specific pool, verify that we found a
+	 * pool, and then do the import.
+	 */
+	if (pool_specified && err == 0) {
+		if (found_config == NULL) {
+			(void) fprintf(stderr, gettext("cannot import '%s': "
+			    "no such pool available\n"), orig_name);
+			err = B_TRUE;
+		} else {
+			err |= do_import(found_config, new_name,
+			    mntopts, props, flags);
+		}
+	}
+
+	/*
+	 * If we were just looking for pools, report an error if none were
+	 * found.
+	 */
+	if (!pool_specified && first)
+		(void) fprintf(stderr,
+		    gettext("no pools available to import\n"));
+	return (err);
+}
+
 typedef struct target_exists_args {
 	const char	*poolname;
 	uint64_t	poolguid;
@@ -3248,51 +3371,54 @@ zpool_do_checkpoint(int argc, char **argv)
 /*
  * zpool import [-d dir] [-D]
  *       import [-o mntopts] [-o prop=value] ... [-R root] [-D] [-l]
- *              [-d dir | -c cachefile] [-f] -a
+ *              [-d dir | -c cachefile | -s] [-f] -a
  *       import [-o mntopts] [-o prop=value] ... [-R root] [-D] [-l]
- *              [-d dir | -c cachefile] [-f] [-n] [-F] <pool | id> [newpool]
+ *              [-d dir | -c cachefile | -s] [-f] [-n] [-F] <pool | id>
+ *              [newpool]
  *
- *	 -c	Read pool information from a cachefile instead of searching
- *		devices.
+ *	-c	Read pool information from a cachefile instead of searching
+ *		devices. If importing from a cachefile config fails, then
+ *		fallback to searching for devices only in the directories that
+ *		exist in the cachefile.
  *
- *       -d	Scan in a specific directory, other than /dev/.  More than
+ *	-d	Scan in a specific directory, other than /dev/.  More than
  *		one directory can be specified using multiple '-d' options.
  *
- *       -D     Scan for previously destroyed pools or import all or only
- *              specified destroyed pools.
+ *	-D	Scan for previously destroyed pools or import all or only
+ *		specified destroyed pools.
  *
- *       -R	Temporarily import the pool, with all mountpoints relative to
+ *	-R	Temporarily import the pool, with all mountpoints relative to
  *		the given root.  The pool will remain exported when the machine
  *		is rebooted.
  *
- *       -V	Import even in the presence of faulted vdevs.  This is an
- *       	intentionally undocumented option for testing purposes, and
- *       	treats the pool configuration as complete, leaving any bad
+ *	-V	Import even in the presence of faulted vdevs.  This is an
+ *		intentionally undocumented option for testing purposes, and
+ *		treats the pool configuration as complete, leaving any bad
  *		vdevs in the FAULTED state. In other words, it does verbatim
  *		import.
  *
- *       -f	Force import, even if it appears that the pool is active.
+ *	-f	Force import, even if it appears that the pool is active.
  *
- *       -F     Attempt rewind if necessary.
+ *	-F	Attempt rewind if necessary.
  *
- *       -n     See if rewind would work, but don't actually rewind.
+ *	-n	See if rewind would work, but don't actually rewind.
  *
- *       -N     Import the pool but don't mount datasets.
+ *	-N	Import the pool but don't mount datasets.
  *
- *       -T     Specify a starting txg to use for import. This option is
- *       	intentionally undocumented option for testing purposes.
+ *	-T	Specify a starting txg to use for import. This option is
+ *		intentionally undocumented option for testing purposes.
  *
- *       -a	Import all pools found.
+ *	-a	Import all pools found.
  *
- *       -l	Load encryption keys while importing.
+ *	-l	Load encryption keys while importing.
  *
- *       -o	Set property=value and/or temporary mount options (without '=').
+ *	-o	Set property=value and/or temporary mount options (without '=').
  *
- *	 -s	Scan using the default search path, the libblkid cache will
- *	        not be consulted.
+ *	-s	Scan using the default search path, the libblkid cache will
+ *		not be consulted.
  *
- *       --rewind-to-checkpoint
- *       	Import the pool and revert back to the checkpoint.
+ *	--rewind-to-checkpoint
+ *		Import the pool and revert back to the checkpoint.
  *
  * The import command scans for pools to import, and import pools based on pool
  * name and GUID.  The pool can also be renamed as part of the import process.
@@ -3309,15 +3435,11 @@ zpool_do_import(int argc, char **argv)
 	boolean_t do_all = B_FALSE;
 	boolean_t do_destroyed = B_FALSE;
 	char *mntopts = NULL;
-	nvpair_t *elem;
-	nvlist_t *config;
 	uint64_t searchguid = 0;
 	char *searchname = NULL;
 	char *propval;
-	nvlist_t *found_config;
 	nvlist_t *policy = NULL;
 	nvlist_t *props = NULL;
-	boolean_t first;
 	int flags = ZFS_IMPORT_NORMAL;
 	uint32_t rewind_policy = ZPOOL_NO_REWIND;
 	boolean_t dryrun = B_FALSE;
@@ -3325,7 +3447,8 @@ zpool_do_import(int argc, char **argv)
 	boolean_t xtreme_rewind = B_FALSE;
 	boolean_t do_scan = B_FALSE;
 	boolean_t pool_exists = B_FALSE;
-	uint64_t pool_state, txg = -1ULL;
+	boolean_t pool_specified = B_FALSE;
+	uint64_t txg = -1ULL;
 	char *cachefile = NULL;
 	importargs_t idata = { 0 };
 	char *endptr;
@@ -3447,6 +3570,11 @@ zpool_do_import(int argc, char **argv)
 		usage(B_FALSE);
 	}
 
+	if (cachefile && do_scan) {
+		(void) fprintf(stderr, gettext("-c is incompatible with -s\n"));
+		usage(B_FALSE);
+	}
+
 	if ((flags & ZFS_IMPORT_LOAD_KEYS) && (flags & ZFS_IMPORT_ONLY)) {
 		(void) fprintf(stderr, gettext("-l is incompatible with -N\n"));
 		usage(B_FALSE);
@@ -3527,7 +3655,7 @@ zpool_do_import(int argc, char **argv)
 			searchname = argv[0];
 			searchguid = 0;
 		}
-		found_config = NULL;
+		pool_specified = B_TRUE;
 
 		/*
 		 * User specified a name or guid.  Ensure it's unique.
@@ -3606,97 +3734,32 @@ zpool_do_import(int argc, char **argv)
 		return (1);
 	}
 
+	err = import_pools(pools, props, mntopts, flags, argv[0],
+	    argc == 1 ? NULL : argv[1], do_destroyed, pool_specified,
+	    do_all, &idata);
+
 	/*
-	 * At this point we have a list of import candidate configs. Even if
-	 * we were searching by pool name or guid, we still need to
-	 * post-process the list to deal with pool state and possible
-	 * duplicate names.
+	 * If we're using the cachefile and we failed to import, then
+	 * fallback to scanning the directory for pools that match
+	 * those in the cachefile.
 	 */
-	err = 0;
-	elem = NULL;
-	first = B_TRUE;
-	while ((elem = nvlist_next_nvpair(pools, elem)) != NULL) {
+	if (err != 0 && cachefile != NULL) {
+		(void) printf(gettext("cachefile import failed, retrying\n"));
 
-		verify(nvpair_value_nvlist(elem, &config) == 0);
+		/*
+		 * We use the scan flag to gather the directories that exist
+		 * in the cachefile. If we need to fallback to searching for
+		 * the pool config, we will only search devices in these
+		 * directories.
+		 */
+		idata.scan = B_TRUE;
+		nvlist_free(pools);
+		pools = zpool_search_import(g_zfs, &idata, &libzfs_config_ops);
 
-		verify(nvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_STATE,
-		    &pool_state) == 0);
-		if (!do_destroyed && pool_state == POOL_STATE_DESTROYED)
-			continue;
-		if (do_destroyed && pool_state != POOL_STATE_DESTROYED)
-			continue;
-
-		verify(nvlist_add_nvlist(config, ZPOOL_LOAD_POLICY,
-		    policy) == 0);
-
-		if (argc == 0) {
-			if (first)
-				first = B_FALSE;
-			else if (!do_all)
-				(void) printf("\n");
-
-			if (do_all) {
-				err |= do_import(config, NULL, mntopts,
-				    props, flags);
-			} else {
-				show_import(config);
-			}
-		} else if (searchname != NULL) {
-			char *name;
-
-			/*
-			 * We are searching for a pool based on name.
-			 */
-			verify(nvlist_lookup_string(config,
-			    ZPOOL_CONFIG_POOL_NAME, &name) == 0);
-
-			if (strcmp(name, searchname) == 0) {
-				if (found_config != NULL) {
-					(void) fprintf(stderr, gettext(
-					    "cannot import '%s': more than "
-					    "one matching pool\n"), searchname);
-					(void) fprintf(stderr, gettext(
-					    "import by numeric ID instead\n"));
-					err = B_TRUE;
-				}
-				found_config = config;
-			}
-		} else {
-			uint64_t guid;
-
-			/*
-			 * Search for a pool by guid.
-			 */
-			verify(nvlist_lookup_uint64(config,
-			    ZPOOL_CONFIG_POOL_GUID, &guid) == 0);
-
-			if (guid == searchguid)
-				found_config = config;
-		}
+		err = import_pools(pools, props, mntopts, flags, argv[0],
+		    argc == 1 ? NULL : argv[1], do_destroyed, pool_specified,
+		    do_all, &idata);
 	}
-
-	/*
-	 * If we were searching for a specific pool, verify that we found a
-	 * pool, and then do the import.
-	 */
-	if (argc != 0 && err == 0) {
-		if (found_config == NULL) {
-			(void) fprintf(stderr, gettext("cannot import '%s': "
-			    "no such pool available\n"), argv[0]);
-			err = B_TRUE;
-		} else {
-			err |= do_import(found_config, argc == 1 ? NULL :
-			    argv[1], mntopts, props, flags);
-		}
-	}
-
-	/*
-	 * If we were just looking for pools, report an error if none were
-	 * found.
-	 */
-	if (argc == 0 && first)
-		(void) fprintf(stderr,
-		    gettext("no pools available to import\n"));
 
 error:
 	nvlist_free(props);
