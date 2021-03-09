@@ -3531,10 +3531,8 @@ spa_ld_select_uberblock(spa_t *spa, spa_import_type_t type)
 	    (u_longlong_t)ub->ub_txg);
 	if (ub->ub_raidz_reflow_info != 0) {
 		spa_load_note(spa, "uberblock raidz_reflow_info: "
-		    "state=%s offset=%llu",
-		    RRSS_GET_STATE(ub) == RRSS_SCRATCH_NOT_IN_USE ? "SCRATCH_NOT_IN_USE" :
-		    RRSS_GET_STATE(ub) == RRSS_SCRATCH_VALID ? "SCRATCH_VALID" :
-		    "UNKNOWN VALUE",
+		    "state=%u offset=%llu",
+		    (int)RRSS_GET_STATE(ub),
 		    (u_longlong_t)RRSS_GET_OFFSET(ub));
 	}
 
@@ -4842,9 +4840,9 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, char **ereport)
 		 * Before we do any zio_write's, complete the raidz expansion
 		 * scratch space copying, if necessary.
 		 */
-		if (RRSS_GET_STATE(&spa->spa_uberblock) != RRSS_SCRATCH_NOT_IN_USE) {
+		if (RRSS_GET_STATE(&spa->spa_uberblock) !=
+		    RRSS_SCRATCH_NOT_IN_USE) {
 			vdev_raidz_reflow_copy_scratch(spa);
-			spa->spa_uberblock.ub_raidz_reflow_info = 0;
 		}
 
 		/*
@@ -6862,14 +6860,13 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 	 * If the parent is not a mirror, or if we're replacing, insert the new
 	 * mirror/replacing/spare vdev above oldvd.
 	 */
-	if (!raidz && pvd->vdev_ops != pvops)
+	if (!raidz && pvd->vdev_ops != pvops) {
 		pvd = vdev_add_parent(oldvd, pvops);
+		ASSERT(pvd->vdev_ops == pvops);
+		ASSERT(oldvd->vdev_parent == pvd);
+	}
 
 	ASSERT(pvd->vdev_top->vdev_parent == rvd);
-#if 0
-	ASSERT(pvd->vdev_ops == pvops);
-	ASSERT(oldvd->vdev_parent == pvd);
-#endif
 
 	/*
 	 * Extract the new device from its root and add it to pvd.
@@ -6950,20 +6947,6 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 	 * Commit the config
 	 */
 	(void) spa_vdev_exit(spa, newrootvd, dtl_max_txg, 0);
-
-	/*
-	 * XXX since we only initiated the expand, this should be done
-	 * when it finishes, instead
-	 * XXX this seems to work before the expansion completes,
-	 * but shit will probably break if we try to write to the new
-	 * space.  Need to modify vdev_online() / size-calculating code
-	 * to ignore new device if expansion not yet completed.
-	 */
-#if 0
-	if (raidz) {
-		error = vdev_online(spa, guid, ZFS_ONLINE_EXPAND, NULL);
-	}
-#endif
 
 	spa_history_log_internal(spa, "vdev attach", NULL,
 	    "%s vdev=%s %s vdev=%s",

@@ -3552,6 +3552,11 @@ raidz_reflow_complete_sync(void *arg, dmu_tx_t *tx)
 	mutex_exit(&vdrz->vd_expand_lock);
 
 	vdev_t *vd = vdev_lookup_top(spa, vre->vre_vdev_id);
+
+	/*
+	 * Dirty the config so that the updated ZPOOL_CONFIG_RAIDZ_EXPAND_TXGS
+	 * will get written (based on vd_expand_txgs).
+	 */
 	vdev_config_dirty(vd);
 
 	/*
@@ -4318,7 +4323,10 @@ vdev_raidz_attach_sync(void *arg, dmu_tx_t *tx)
 	spa->spa_raidz_expand = &vdrz->vn_vre;
 	zthr_wakeup(spa->spa_raidz_expand_zthr);
 
-	/* Ensure that widths get written to label config */
+	/*
+	 * Dirty the config so that ZPOOL_CONFIG_RAIDZ_EXPANDING will get
+	 * written to the config.
+	 */
 	vdev_config_dirty(raidvd);
 
 	vdrz->vn_vre.vre_start_time = gethrestime_sec();

@@ -24,7 +24,6 @@
  */
 
 #include <sys/zfs_context.h>
-#include <sys/spa_impl.h>
 #include <sys/uberblock_impl.h>
 #include <sys/vdev_impl.h>
 #include <sys/mmp.h>
