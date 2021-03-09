@@ -785,7 +785,6 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 
 	if (top_level && alloc_bias != VDEV_BIAS_NONE)
 		vd->vdev_alloc_bias = alloc_bias;
-	vd->vdev_tsd = tsd;
 
 	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &vd->vdev_path) == 0)
 		vd->vdev_path = spa_strdup(vd->vdev_path);
@@ -3086,22 +3085,30 @@ vdev_dtl_reassess(vdev_t *vd, uint64_t txg, uint64_t scrub_txg,
 		for (int t = 0; t < DTL_TYPES; t++) {
 			/* account for child's outage in parent's missing map */
 			int s = (t == DTL_MISSING) ? DTL_OUTAGE: t;
-			if (t == DTL_SCRUB)
-				continue;			/* leaf vdevs only */
-			if (t == DTL_PARTIAL)
-				minref = 1;			/* i.e. non-zero */
-			else if (vdev_get_nparity(vd) != 0)
-				minref = vdev_get_nparity(vd) + 1; /* RAID-Z, dRAID */
-			else
-				minref = vd->vdev_children;	/* any kind of mirror */
+			if (t == DTL_SCRUB) {
+				/* leaf vdevs only */
+				continue;
+			}
+			if (t == DTL_PARTIAL) {
+				/* i.e. non-zero */
+				minref = 1;
+			} else if (vdev_get_nparity(vd) != 0) {
+				/* RAIDZ, DRAID */
+				minref = vdev_get_nparity(vd) + 1;
+			} else {
+				/* any kind of mirror */
+				minref = vd->vdev_children;
+			}
 			space_reftree_create(&reftree);
 			for (int c = 0; c < vd->vdev_children; c++) {
 				vdev_t *cvd = vd->vdev_child[c];
 				mutex_enter(&cvd->vdev_dtl_lock);
-				space_reftree_add_map(&reftree, cvd->vdev_dtl[s], 1);
+				space_reftree_add_map(&reftree,
+				    cvd->vdev_dtl[s], 1);
 				mutex_exit(&cvd->vdev_dtl_lock);
 			}
-			space_reftree_generate_map(&reftree, vd->vdev_dtl[t], minref);
+			space_reftree_generate_map(&reftree,
+			    vd->vdev_dtl[t], minref);
 			space_reftree_destroy(&reftree);
 		}
 		mutex_exit(&vd->vdev_dtl_lock);
@@ -3125,7 +3132,6 @@ vdev_dtl_reassess(vdev_t *vd, uint64_t txg, uint64_t scrub_txg,
 			mutex_exit(&vre->vre_lock);
 		}
 	}
-
 }
 
 int
