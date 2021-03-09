@@ -1517,7 +1517,7 @@ zpool_disable_datasets(zpool_handle_t *zhp, boolean_t force)
 	namelen = strlen(zhp->zpool_name);
 
 	/* Reopen MNTTAB to prevent reading stale data from open file */
-	if (freopen(MNTTAB, "r", hdl->libzfs_mnttab) == NULL)
+	if (freopen(MNTTAB, "re", hdl->libzfs_mnttab) == NULL)
 		return (ENOENT);
 
 	used = alloc = 0;
