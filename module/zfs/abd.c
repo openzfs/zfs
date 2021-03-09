@@ -555,8 +555,12 @@ abd_get_offset_impl(abd_t *abd, abd_t *sabd, size_t off, size_t size)
 abd_t *
 abd_get_offset_struct(abd_t *abd, abd_t *sabd, size_t off, size_t size)
 {
+	abd_t *result;
 	abd_init_struct(abd);
-	return (abd_get_offset_impl(abd, sabd, off, size));
+	result = abd_get_offset_impl(abd, sabd, off, size);
+	if (result != abd)
+		abd_fini_struct(abd);
+	return (result);
 }
 
 abd_t *

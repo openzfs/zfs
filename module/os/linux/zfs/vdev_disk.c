@@ -494,7 +494,11 @@ vdev_blkg_tryget(struct blkcg_gq *blkg)
 static inline void
 vdev_bio_associate_blkg(struct bio *bio)
 {
+#if defined(HAVE_BIO_BDEV_DISK)
+	struct request_queue *q = bio->bi_bdev->bd_disk->queue;
+#else
 	struct request_queue *q = bio->bi_disk->queue;
+#endif
 
 	ASSERT3P(q, !=, NULL);
 	ASSERT3P(bio->bi_blkg, ==, NULL);

@@ -1412,6 +1412,7 @@ zio_crypt_init_uios_zil(boolean_t encrypt, uint8_t *plainbuf,
 		nr_src = 1;
 		nr_dst = 0;
 	}
+	bzero(dst, datalen);
 
 	/* find the start and end record of the log block */
 	zilc = (zil_chain_t *)src;

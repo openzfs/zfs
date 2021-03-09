@@ -61,6 +61,7 @@ ZFS_AC_DEBUG
 ZFS_AC_DEBUGINFO
 ZFS_AC_DEBUG_KMEM
 ZFS_AC_DEBUG_KMEM_TRACKING
+ZFS_AC_DEBUG_INVARIANTS
 
 AC_CONFIG_FILES([
 	Makefile
@@ -230,6 +231,7 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/cmd/readmmap/Makefile
 	tests/zfs-tests/cmd/rename_dir/Makefile
 	tests/zfs-tests/cmd/rm_lnkcnt_zero_file/Makefile
+	tests/zfs-tests/cmd/send_doall/Makefile
 	tests/zfs-tests/cmd/stride_dd/Makefile
 	tests/zfs-tests/cmd/threadsappend/Makefile
 	tests/zfs-tests/cmd/user_ns_exec/Makefile

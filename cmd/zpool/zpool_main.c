@@ -7793,8 +7793,8 @@ print_removal_status(zpool_handle_t *zhp, pool_removal_stat_t *prs)
 		 * do not print estimated time if hours_left is more than
 		 * 30 days
 		 */
-		(void) printf(gettext("    %s copied out of %s at %s/s, "
-		    "%.2f%% done"),
+		(void) printf(gettext(
+		    "\t%s copied out of %s at %s/s, %.2f%% done"),
 		    examined_buf, total_buf, rate_buf, 100 * fraction_done);
 		if (hours_left < (30 * 24)) {
 			(void) printf(gettext(", %lluh%um to go\n"),
@@ -7809,8 +7809,8 @@ print_removal_status(zpool_handle_t *zhp, pool_removal_stat_t *prs)
 	if (prs->prs_mapping_memory > 0) {
 		char mem_buf[7];
 		zfs_nicenum(prs->prs_mapping_memory, mem_buf, sizeof (mem_buf));
-		(void) printf(gettext("    %s memory used for "
-		    "removed device mappings\n"),
+		(void) printf(gettext(
+		    "\t%s memory used for removed device mappings\n"),
 		    mem_buf);
 	}
 }
@@ -9139,6 +9139,8 @@ zpool_do_upgrade(int argc, char **argv)
 		    "---------------\n");
 		for (i = 0; i < SPA_FEATURES; i++) {
 			zfeature_info_t *fi = &spa_feature_table[i];
+			if (!fi->fi_zfs_mod_supported)
+				continue;
 			const char *ro =
 			    (fi->fi_flags & ZFEATURE_FLAG_READONLY_COMPAT) ?
 			    " (read-only compatible)" : "";

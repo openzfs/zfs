@@ -41,10 +41,11 @@ typedef void (dsl_sigfunc_t)(void *, dmu_tx_t *);
 
 typedef enum zfs_space_check {
 	/*
-	 * Normal space check: if there is less than 3.2% free space,
-	 * the operation will fail.  Operations which are logically
-	 * creating things should use this (e.g. "zfs create", "zfs snapshot").
-	 * User writes (via the ZPL / ZVOL) also fail at this point.
+	 * Normal space check: if there is less than 3.2% free space (bounded
+	 * by spa_max_slop), the operation will fail.  Operations which are
+	 * logically creating things should use this (e.g. "zfs create", "zfs
+	 * snapshot").  User writes (via the ZPL / ZVOL) also fail at this
+	 * point.
 	 */
 	ZFS_SPACE_CHECK_NORMAL,
 

@@ -44,9 +44,17 @@
 
 function cleanup
 {
+	unset ZFS_ABORT
+
 	if is_freebsd && [ -n "$old_corefile" ]; then
 		sysctl kern.corefile=$old_corefile
 	fi
+
+	rm -rf $corepath
+
+	# Don't leave the pool frozen.
+	destroy_pool $TESTPOOL
+	default_mirror_setup $DISKS
 }
 
 verify_runnable "both"
@@ -54,7 +62,14 @@ verify_runnable "both"
 log_assert "Debugging features of zpool should succeed."
 log_onexit cleanup
 
-log_must zpool -? > /dev/null 2>&1
+corepath=$TESTDIR/core
+corefile=$corepath/zpool.core
+if [[ -d $corepath ]]; then
+	log_must rm -rf $corepath
+fi
+log_must mkdir $corepath
+
+log_must eval "zpool -? >/dev/null 2>&1"
 
 if is_global_zone ; then
 	log_must zpool freeze $TESTPOOL
@@ -65,26 +80,22 @@ fi
 
 log_mustnot zpool freeze fakepool
 
-# Remove corefile possibly left by previous failing run of this test.
-[[ -f core ]] && log_must rm -f core
-
 if is_linux; then
-	ulimit -c unlimited
-	echo "core" >/proc/sys/kernel/core_pattern
+	echo $corefile >/proc/sys/kernel/core_pattern
 	echo 0 >/proc/sys/kernel/core_uses_pid
-	export ASAN_OPTIONS="abort_on_error=1:disable_coredump=0"
 elif is_freebsd; then
-	ulimit -c unlimited
 	old_corefile=$(sysctl -n kern.corefile)
-	log_must sysctl kern.corefile=core
-	export ASAN_OPTIONS="abort_on_error=1:disable_coredump=0"
+	log_must sysctl kern.corefile=$corefile
 fi
+ulimit -c unlimited
 
-ZFS_ABORT=1; export ZFS_ABORT
-zpool > /dev/null 2>&1
+export ASAN_OPTIONS="abort_on_error=1:disable_coredump=0"
+export ZFS_ABORT=yes
+
+zpool >/dev/null 2>&1
+
 unset ZFS_ABORT
 
-[[ -f core ]] || log_fail "zpool did not dump core by request."
-[[ -f core ]] && log_must rm -f core
+[[ -f $corefile ]] || log_fail "zpool did not dump core by request."
 
 log_pass "Debugging features of zpool succeed."

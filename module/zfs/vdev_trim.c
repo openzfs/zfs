@@ -22,6 +22,7 @@
 /*
  * Copyright (c) 2016 by Delphix. All rights reserved.
  * Copyright (c) 2019 by Lawrence Livermore National Security, LLC.
+ * Copyright (c) 2021 Hewlett Packard Enterprise Development LP
  */
 
 #include <sys/spa.h>
@@ -930,10 +931,16 @@ vdev_trim_thread(void *arg)
 	range_tree_destroy(ta.trim_tree);
 
 	mutex_enter(&vd->vdev_trim_lock);
-	if (!vd->vdev_trim_exit_wanted && vdev_writeable(vd)) {
-		vdev_trim_change_state(vd, VDEV_TRIM_COMPLETE,
-		    vd->vdev_trim_rate, vd->vdev_trim_partial,
-		    vd->vdev_trim_secure);
+	if (!vd->vdev_trim_exit_wanted) {
+		if (vdev_writeable(vd)) {
+			vdev_trim_change_state(vd, VDEV_TRIM_COMPLETE,
+			    vd->vdev_trim_rate, vd->vdev_trim_partial,
+			    vd->vdev_trim_secure);
+		} else if (vd->vdev_faulted) {
+			vdev_trim_change_state(vd, VDEV_TRIM_CANCELED,
+			    vd->vdev_trim_rate, vd->vdev_trim_partial,
+			    vd->vdev_trim_secure);
+		}
 	}
 	ASSERT(vd->vdev_trim_thread != NULL || vd->vdev_trim_inflight[0] == 0);
 

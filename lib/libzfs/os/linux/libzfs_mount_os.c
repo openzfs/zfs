@@ -22,7 +22,7 @@
 /*
  * Copyright 2015 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2014, 2020 by Delphix. All rights reserved.
+ * Copyright (c) 2014, 2021 by Delphix. All rights reserved.
  * Copyright 2016 Igor Kozhukhov <ikozhukhov@gmail.com>
  * Copyright 2017 RackTop Systems.
  * Copyright (c) 2018 Datto Inc.
@@ -377,7 +377,9 @@ int
 do_unmount(const char *mntpt, int flags)
 {
 	if (!libzfs_envvar_is_set("ZFS_MOUNT_HELPER")) {
-		return (umount2(mntpt, flags));
+		int rv = umount2(mntpt, flags);
+
+		return (rv < 0 ? errno : 0);
 	}
 
 	char force_opt[] = "-f";
