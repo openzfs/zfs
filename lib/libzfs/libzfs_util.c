@@ -1024,15 +1024,15 @@ libzfs_init(void)
 		return (NULL);
 	}
 
-	if ((hdl->libzfs_fd = open(ZFS_DEV, O_RDWR|O_EXCL)) < 0) {
+	if ((hdl->libzfs_fd = open(ZFS_DEV, O_RDWR|O_EXCL|O_CLOEXEC)) < 0) {
 		free(hdl);
 		return (NULL);
 	}
 
 #ifdef HAVE_SETMNTENT
-	if ((hdl->libzfs_mnttab = setmntent(MNTTAB, "r")) == NULL) {
+	if ((hdl->libzfs_mnttab = setmntent(MNTTAB, "re")) == NULL) {
 #else
-	if ((hdl->libzfs_mnttab = fopen(MNTTAB, "r")) == NULL) {
+	if ((hdl->libzfs_mnttab = fopen(MNTTAB, "re")) == NULL) {
 #endif
 		(void) close(hdl->libzfs_fd);
 		free(hdl);
