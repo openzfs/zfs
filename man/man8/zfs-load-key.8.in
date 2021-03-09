@@ -30,7 +30,7 @@
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
 .\"
-.Dd January 13, 2020
+.Dd May 8, 2021
 .Dt ZFS-LOAD-KEY 8
 .Os
 .Sh NAME
@@ -289,6 +289,269 @@ would normally be. Since compression is applied before encryption datasets may
 be vulnerable to a CRIME-like attack if applications accessing the data allow
 for it. Deduplication with encryption will leak information about which blocks
 are equivalent in a dataset and will incur an extra CPU cost per block written.
+.Ss Key providers
+A provider is an abstract machine that behaves as-if it had the following
+properties (see sections below for how these are realised):
+.Bl -bullet -offset -indent
+.It
+a way to communicate with the user
+.It
+a channel for the returning key
+.It
+a way to signal errors to libzfs
+.It
+two key slots, herein denoted by
+.Sy "[a _]" ,
+where a number indicates an allocated key, an
+.Sy _
+indicates lack of one, and a number is a slot identifier.
+.It
+support for five operations on those key slots (see below)
+.El
+.Pp
+The operations are as follows:
+.Bl -tag -width "UNSHIFT"
+.It Sy LOAD
+Load the currently selected key, i.e., for
+.Sy "[a _]"
+return
+.Fn decode a .
+.Pp
+If called with
+.Sy "[_ a]" ,
+it's advised to start by shifting to
+.Sy "[a _]"
+first.
+.Pp
+The key should exist beforehand. Being called on
+.Sy "[_ _]"
+shouldn't happen and is an obvious error.
+.Pp
+If called with
+.Sy "[a b]" ,
+the user should be presented with a choice of which one to pick,
+and how to remediate this situation.
+.It Sy NEW
+Allocate a new key into the second key slot, i.e. turn
+.Sy "[1 _]"
+into
+.Fn generate
+=
+.Va a ,
+.Sy "[1 a]"
+and
+return
+.Va a .
+.Pp
+If the second slot is already occupied, which shouldn't happen,
+error with instructions.
+.It Sy SHIFT
+Shift the keys leftward, i.e. turn
+.Sy "[1 2]"
+into
+.Fn free 1 ,
+.Sy "[2 _]" .
+.It Sy UNSHIFT
+Shift the keys rightward, i.e. turn
+.Sy "[1 2]"
+into
+.Fn free 2 ,
+.Sy "[_ 1]" .
+.\" TODO: or not! this could mask errors. maybe disallow if 2 is occupied?
+.It Sy CANCEL
+Free the second slot, i.e. turn
+.Sy "[1 2]"
+into
+.Fn free 2 ,
+.Sy "[1 _]" .
+.El
+.Pp
+It's important to stress that these error states should be exceedingly rare
+and happen only in exceptional circumstances (like
+.Nm zfs change-key
+being killed in the middle of performing the key change).
+Care should be taken that if a similar thing happens to the provider,
+its temporary, inconsistent, state is nondestructive.
+.Pp
+Each operation is invoked alongside the dataset name (if available,
+which it is in every scenario except when running
+.Xr zfs-create 8
+on a new encryption root).
+.Pp
+For example, a simple password-based provider may alias
+.Sy LOAD
+to
+.Sy NEW
+and blindly succeed for other ops, as it stores no state
+(and the state is instead stored within the brain of the human operator).
+.Pp
+If the provider doesn't allow or cannot handle more than one key at a time,
+it can just return an error during
+.Sy NEW
+if the primary slot is already occupied, but this will prevent plain
+.Nm zfs change-key
+.Va pool/dataset
+on datasets already handled by this provider (and the operator will first
+need to change to a different provider, like
+.Nm prompt ,
+then set it back to achieve a long-term-homomorphic result).
+.Ss EXEC://
+In order:
+.Bl -bullet -offset -indent
+.It
+File descriptors corresponding to the standard input, output, and error streams
+inherited.
+.It
+File descriptor 3 is the write-end of a pipe in non-blocking mode,
+whose contents are used directly as the key material.
+.It
+Standard exit code semantics apply.
+.It
+Implementation-defined.
+.It
+The provider is invoked with its basename as its zeroeth argument,
+the operation (lower-case) as its first argument,
+and the dataset name, if any, as its third argument.
+.El
+.Pp
+The specified provider name is searched for in $ZFS_PROVIDER_DIR, if set,
+then @sysconfdir@/zfs/providers.d/, then @zfsexecdir@/providers.d/.
+.Pp
+Example of a trivial provider:
+.Bd -literal -offset indent
+#!/bin/sh
+echo "$0" "$@"
+exec sh
+.Ed
+.Pp
+This will simply drop down into a shell, allowing the user to do whatever,
+for example running
+.Bd -literal -offset indent
+echo 'inheriting homomorphic to switc' >&3
+^D
+.Ed
+with
+.Sy keyformat
+set to
+.Sy raw
+will change the wrapping key to
+696E6865726974696E6720686F6D6F6D6F727068696320746F2073776974630A.
+.Pp
+As a more contrived alternative, consider this provider:
+.Bd -literal -offset indent
+#!/bin/sh -ue
+
+if [ -z "$2" ]; then
+	echo "No dataset name (zfs-create?)" >&2
+	exit 2
+fi
+
+first="$(zfs get -Hpo value -s local 'xyz.nabijaczleweli:bad-provider.salt' "$2")"
+second="$(zfs get -Hpo value -s local 'xyz.nabijaczleweli:bad-provider.saltmp' "$2")"
+
+
+hash() {
+	pass=""
+	while [ -z "$pass" ]; do
+		read -rp "Passphrase: " pass
+	done
+
+	if command -v sha256 >/dev/null; then
+		sha256 -qs "$pass$1"
+	else
+		echo -n "$pass$1" | sha256sum | awk '{print $1}'
+	fi
+}
+
+zset() {
+	[ -n "$2" ] &&
+		zfs set "$1"="$2" "$3" ||
+		zfs inherit "$1" "$3"
+}
+
+
+case "$1" in
+	load)
+		if [ -z "$first" ] && [ -n "$second" ]; then
+			zset 'xyz.nabijaczleweli:bad-provider.salt' "$first" "$2"
+			zfs inherit 'xyz.nabijaczleweli:bad-provider.saltmp' "$2"
+			first="$second"
+			second=""
+		elif [ -z "$first" ] && [ -z "$second" ]; then
+			echo "No state?" >&2
+			exit 3
+		elif [ -n "$first" ] && [ -n "$second" ]; then
+			which=""
+			while [ "$which" != "f" ] && [ "$which" != "s" ]; do
+				read -rp "Both states present! Select which one to use [fs]: " which
+			done
+			if [ "$which" = "f" ]; then
+				echo "If this is the right key, run '$0 shift $2' afterward"
+			else
+				echo "If this is the right key, run '$0 cancel $2' afterward"
+				first="$second"
+			fi
+			second=""
+		fi
+
+		hash "$first" >&3
+		;;
+	new)
+		if [ -n "$second" ]; then
+			echo "Second slot occupied? Run 'zfs load-key [-n] $2' to resolve this." >&2
+			exit 4
+		fi
+
+		second="$(tr -cd '[:alnum:]' < /dev/urandom | dd bs=128 count=1 status=none)"
+		zfs set 'xyz.nabijaczleweli:bad-provider.saltmp'="$second" "$2"
+
+		hash "$second" >&3
+		;;
+	shift)
+		if [ -n "$first" ]; then
+			zfs inherit 'xyz.nabijaczleweli:bad-provider.salt' "$2"
+			first=""
+		fi
+
+		zset 'xyz.nabijaczleweli:bad-provider.salt' "$second" "$2"
+		zfs inherit 'xyz.nabijaczleweli:bad-provider.saltmp' "$2"
+		first="$second"
+		second=""
+		;;
+	unshift)
+		if [ -n "$second" ]; then
+			zfs inherit 'xyz.nabijaczleweli:bad-provider.saltmp' "$2"
+			second=""
+		fi
+
+		zset 'xyz.nabijaczleweli:bad-provider.saltmp' "$first" "$2"
+		zfs inherit 'xyz.nabijaczleweli:bad-provider.salt' "$2"
+		second="$first"
+		first=""
+		;;
+	cancel)
+		if [ -n "$second" ]; then
+			zfs inherit 'xyz.nabijaczleweli:bad-provider.saltmp' "$2"
+			second=""
+		fi
+		;;
+	*)
+		echo "Unknown op $1" >&2
+		exit 5
+		;;
+esac
+.Ed
+.Pp
+Which works with
+.Sy keyformat
+set to
+.Sy hex
+(or
+.Sy passphrase )
+and demonstrates a fully-featured provider; it should then be trivial to derive
+how a single-concurrent-key provider would behave.
+In this case, a random salt added to a user-provided password is the state,
+but realistically it would be some (set of) hardware handles, or equivalent.
 .Sh SEE ALSO
 .Xr zfs-create 8 ,
 .Xr zfs-set 8 ,

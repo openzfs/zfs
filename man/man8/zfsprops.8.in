@@ -1085,7 +1085,7 @@ encryption suite cannot be changed after dataset creation, the keyformat can be
 with
 .Nm zfs Cm change-key .
 .It Xo
-.Sy keylocation Ns = Ns Sy prompt Ns | Ns Sy file:// Ns Em </absolute/file/path> Ns | Ns Sy https:// Ns Em <address> | Ns Sy http:// Ns Em <address>
+.Sy keylocation Ns = Ns Sy prompt Ns | Ns Sy file:// Ns Em </absolute/file/path> Ns | Ns Sy https:// Ns Em <address> | Ns Sy http:// Ns Em <address> | Ns Sy exec:// Ns Em <provider>
 .Xc
 Controls where the user's encryption key will be loaded from by default for
 commands such as
@@ -1124,7 +1124,12 @@ of the directory containing the certificate authority bundle. The
 and
 .Ev SSL_CLIENT_KEY_FILE
 environment variables can be set to configure the path
-to the client certificate and its key.
+to the client certificate and its key. If an exec URI is selected,
+the key will be acquired from the specified executable under
+$ZFS_PROVIDER_DIR, @sysconfdir@/zfs/providers.d/, or @zfsexecdir@/providers.d/
+(see EXEC:// in
+.Xr zfs-load-key 8 )
+for details.
 .It Sy pbkdf2iters Ns = Ns Ar iterations
 Controls the number of PBKDF2 iterations that a
 .Sy passphrase
