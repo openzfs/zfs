@@ -7821,11 +7821,7 @@ print_removal_status(zpool_handle_t *zhp, pool_removal_stat_t *prs)
 static void
 print_raidz_expand_status(zpool_handle_t *zhp, pool_raidz_expand_stat_t *pres)
 {
-	char copied_buf[7], examined_buf[7], total_buf[7], rate_buf[7];
-	time_t start, end;
-	nvlist_t *config, *nvroot;
-	nvlist_t **child;
-	uint_t children;
+	char copied_buf[7];
 
 	if (pres == NULL || pres->pres_state == DSS_NONE)
 		return;
@@ -7833,17 +7829,19 @@ print_raidz_expand_status(zpool_handle_t *zhp, pool_raidz_expand_stat_t *pres)
 	/*
 	 * Determine name of vdev.
 	 */
-	config = zpool_get_config(zhp, NULL);
-	nvroot = fnvlist_lookup_nvlist(config,
+	nvlist_t *config = zpool_get_config(zhp, NULL);
+	nvlist_t *nvroot = fnvlist_lookup_nvlist(config,
 	    ZPOOL_CONFIG_VDEV_TREE);
+	nvlist_t **child;
+	uint_t children;
 	verify(nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN,
 	    &child, &children) == 0);
 	assert(pres->pres_expanding_vdev < children);
 
 	printf_color(ANSI_BOLD, gettext("raidz expand: "));
 
-	start = pres->pres_start_time;
-	end = pres->pres_end_time;
+	time_t start = pres->pres_start_time;
+	time_t end = pres->pres_end_time;
 	zfs_nicenum(pres->pres_reflowed, copied_buf, sizeof (copied_buf));
 
 	/*
@@ -7859,10 +7857,8 @@ print_raidz_expand_status(zpool_handle_t *zhp, pool_raidz_expand_stat_t *pres)
 		    (u_longlong_t)(minutes_taken / 60),
 		    (uint_t)(minutes_taken % 60),
 		    ctime((time_t *)&end));
-	} else if (pres->pres_state == DSS_CANCELED) {
-		(void) printf(gettext("Expansion of vdev %u canceled on %s"),
-		    (int)pres->pres_expanding_vdev, ctime(&end));
 	} else {
+		char examined_buf[7], total_buf[7], rate_buf[7];
 		uint64_t copied, total, elapsed, mins_left, hours_left;
 		double fraction_done;
 		uint_t rate;
@@ -8475,22 +8471,22 @@ status_callback(zpool_handle_t *zhp, void *data)
 		uint64_t nerr;
 		nvlist_t **spares, **l2cache;
 		uint_t nspares, nl2cache;
-		pool_checkpoint_stat_t *pcs = NULL;
-		pool_removal_stat_t *prs = NULL;
-		pool_raidz_expand_stat_t *pres = NULL;
 
 		print_scan_status(zhp, nvroot);
 
+		pool_removal_stat_t *prs = NULL;
 		(void) nvlist_lookup_uint64_array(nvroot,
 		    ZPOOL_CONFIG_REMOVAL_STATS, (uint64_t **)&prs, &c);
-		(void) nvlist_lookup_uint64_array(nvroot,
-		    ZPOOL_CONFIG_RAIDZ_EXPAND_STATS, (uint64_t **)&pres, &c);
-
 		print_removal_status(zhp, prs);
 
+		pool_checkpoint_stat_t *pcs = NULL;
 		(void) nvlist_lookup_uint64_array(nvroot,
 		    ZPOOL_CONFIG_CHECKPOINT_STATS, (uint64_t **)&pcs, &c);
 		print_checkpoint_status(pcs);
+
+		pool_raidz_expand_stat_t *pres = NULL;
+		(void) nvlist_lookup_uint64_array(nvroot,
+		    ZPOOL_CONFIG_RAIDZ_EXPAND_STATS, (uint64_t **)&pres, &c);
 		print_raidz_expand_status(zhp, pres);
 
 		cbp->cb_namewidth = max_width(zhp, nvroot, 0, 0,
