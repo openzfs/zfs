@@ -811,7 +811,7 @@ libzfs_mnttab_update(libzfs_handle_t *hdl)
 	struct mnttab entry;
 
 	/* Reopen MNTTAB to prevent reading stale data from open file */
-	if (freopen(MNTTAB, "r", hdl->libzfs_mnttab) == NULL)
+	if (freopen(MNTTAB, "re", hdl->libzfs_mnttab) == NULL)
 		return (ENOENT);
 
 	while (getmntent(hdl->libzfs_mnttab, &entry) == 0) {
@@ -882,7 +882,7 @@ libzfs_mnttab_find(libzfs_handle_t *hdl, const char *fsname,
 			libzfs_mnttab_fini(hdl);
 
 		/* Reopen MNTTAB to prevent reading stale data from open file */
-		if (freopen(MNTTAB, "r", hdl->libzfs_mnttab) == NULL)
+		if (freopen(MNTTAB, "re", hdl->libzfs_mnttab) == NULL)
 			return (ENOENT);
 
 		srch.mnt_special = (char *)fsname;
