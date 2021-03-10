@@ -1125,8 +1125,7 @@ zfs_ereport_post(const char *subclass, spa_t *spa, vdev_t *vd,
  */
 int
 zfs_ereport_start_checksum(spa_t *spa, vdev_t *vd, const zbookmark_phys_t *zb,
-    struct zio *zio, uint64_t offset, uint64_t length, void *arg,
-    zio_bad_cksum_t *info)
+    struct zio *zio, uint64_t offset, uint64_t length, zio_bad_cksum_t *info)
 {
 	zio_cksum_report_t *report;
 
@@ -1144,10 +1143,7 @@ zfs_ereport_start_checksum(spa_t *spa, vdev_t *vd, const zbookmark_phys_t *zb,
 
 	report = kmem_zalloc(sizeof (*report), KM_SLEEP);
 
-	if (zio->io_vsd != NULL)
-		zio->io_vsd_ops->vsd_cksum_report(zio, report, arg);
-	else
-		zio_vsd_default_cksum_report(zio, report, arg);
+	zio_vsd_default_cksum_report(zio, report);
 
 	/* copy the checksum failure information if it was provided */
 	if (info != NULL) {
