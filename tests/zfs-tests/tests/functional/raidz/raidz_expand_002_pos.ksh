@@ -57,14 +57,6 @@ function cleanup
 	log_must set_tunable32 PREFETCH_DISABLE $prefetch_disable
 }
 
-function wait_expand_completion
-{
-	while zpool status $TESTPOOL | grep 'raidz expand:' | \
-	    grep 'in progress'; do
-		sleep 1
-	done
-}
-
 log_onexit cleanup
 
 log_must set_tunable32 PREFETCH_DISABLE 1
@@ -100,9 +92,7 @@ for nparity in 1 2 3; do
 		log_must dd if=/dev/urandom of=/${pool}/FILE-$RANDOM bs=1M \
 		    count=128
 
-		log_must zpool attach $pool ${raid}-0 $disk
-
-		wait_expand_completion
+		log_must zpool attach -w $pool ${raid}-0 $disk
 
 		# Wait some time for pool size increase
 		sleep 5

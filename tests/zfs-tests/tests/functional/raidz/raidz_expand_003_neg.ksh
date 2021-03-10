@@ -28,9 +28,9 @@
 
 #
 # DESCRIPTION:
-#	'zpool attach poolname raidz ...' should reject device attach if pool is
-#	in checkpointed state. If checkpoint creation requested on expanding pool,
-#	the request should be rejected.
+#	'zpool attach poolname raidz ...' should reject device attach if pool
+#	is in checkpointed state. If checkpoint creation requested on
+#	expanding pool, the request should be rejected.
 
 #
 # STRATEGY:

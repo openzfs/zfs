@@ -62,14 +62,6 @@ function cleanup
 	log_must set_tunable32 PREFETCH_DISABLE $prefetch_disable
 }
 
-function wait_expand_completion
-{
-	while zpool status $TESTPOOL | grep 'raidz expand:' | \
-	    grep 'in progress'; do
-		sleep 1
-	done
-}
-
 function test_resilver # <pool> <parity> <dir>
 {
 	typeset pool=$1
@@ -201,9 +193,7 @@ for nparity in 1 2 3; do
 
 	typeset pool_size=$(get_pool_prop size $TESTPOOL)
 
-	log_must zpool attach $TESTPOOL ${raid}-0 $dir/dev-$devs
-
-	wait_expand_completion
+	log_must zpool attach -w $TESTPOOL ${raid}-0 $dir/dev-$devs
 
 	log_must zpool export $TESTPOOL
 	log_must zpool import -o cachefile=none -d $dir $TESTPOOL
