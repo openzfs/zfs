@@ -141,7 +141,14 @@
 	VDEV_RAIDZ_64MUL_2((x), mask); \
 }
 
+/*
+ * For testing only: logical offset at which to pause the expansion.
+ */
 unsigned long raidz_expand_max_offset_pause = 0;
+
+/*
+ * Maximum amount of copy io's outstanding at once.
+ */
 unsigned long raidz_expand_max_copy_bytes = 10 * SPA_MAXBLOCKSIZE;
 
 /*
@@ -209,8 +216,8 @@ vdev_raidz_map_free_vsd(zio_t *zio)
 static int
 vdev_raidz_reflow_compare(const void *x1, const void *x2)
 {
-	const reflow_node_t *l = (reflow_node_t *)x1;
-	const reflow_node_t *r = (reflow_node_t *)x2;
+	const reflow_node_t *l = x1;
+	const reflow_node_t *r = x2;
 
 	return (TREE_CMP(l->re_txg, r->re_txg));
 }
@@ -4662,4 +4669,4 @@ ZFS_MODULE_PARAM(zfs_vdev, raidz_, expand_max_offset_pause, ULONG, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs_vdev, raidz_, expand_max_copy_bytes, ULONG, ZMOD_RW,
     "Max amount of concurrent i/o for RAIDZ expansion");
 ZFS_MODULE_PARAM(zfs_vdev, raidz_, io_aggregate_rows, ULONG, ZMOD_RW,
-    "Apply raidz map abds aggregation if the map contain more rows than value");
+    "For expanded RAIDZ, aggregate reads that have more rows than this");

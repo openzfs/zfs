@@ -3407,12 +3407,12 @@ zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
 		(void) zfs_error(hdl, EZFS_INVALCONFIG, msg);
 		break;
 
-	case EBUSY: {
+	case EBUSY:
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 		    "%s is busy"), new_disk);
 		(void) zfs_error(hdl, EZFS_BADDEV, msg);
 		break;
-	}
+
 	case EOVERFLOW:
 		/*
 		 * The new device is too small.
