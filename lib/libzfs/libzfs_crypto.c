@@ -51,12 +51,6 @@
  * technically ok if the salt is known to the attacker).
  */
 
-typedef enum key_locator {
-	KEY_LOCATOR_NONE,
-	KEY_LOCATOR_PROMPT,
-	KEY_LOCATOR_URI
-} key_locator_t;
-
 #define	MIN_PASSPHRASE_LEN 8
 #define	MAX_PASSPHRASE_LEN 512
 #define	MAX_KEY_PROMPT_ATTEMPTS 3
