@@ -41,7 +41,7 @@
 # PATH may have been modified by sudo's secure_path behavior.
 #
 if [ -n "$STF_PATH" ]; then
-	PATH="$STF_PATH"
+	export PATH="$STF_PATH"
 fi
 
 #
@@ -2766,10 +2766,6 @@ function add_user #<group_name> <user_name> <basedir>
 		;;
 	esac
 
-	echo "export PATH=\"$STF_PATH\"" >>$basedir/$user/.profile
-	echo "export PATH=\"$STF_PATH\"" >>$basedir/$user/.bash_profile
-	echo "export PATH=\"$STF_PATH\"" >>$basedir/$user/.login
-
 	return 0
 }
 
@@ -3393,8 +3389,17 @@ function user_run
 	typeset user=$1
 	shift
 
-	log_note "user:$user $@"
-	eval su - \$user -c \"$@\" > $TEST_BASE_DIR/out 2>$TEST_BASE_DIR/err
+	log_note "user: $user"
+	log_note "cmd: $*"
+
+	typeset out=$TEST_BASE_DIR/out
+	typeset err=$TEST_BASE_DIR/err
+
+	sudo -Eu $user env PATH="$PATH" ksh <<<"$*" >$out 2>$err
+	typeset res=$?
+	log_note "out: $(<$out)"
+	log_note "err: $(<$err)"
+	return $res
 }
 
 #
