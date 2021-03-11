@@ -954,7 +954,7 @@ zfs_crypto_create(libzfs_handle_t *hdl, char *parent_name, nvlist_t *props,
 		}
 
 		ret = populate_create_encryption_params_nvlists(hdl, NULL,
-		    B_FALSE, keyformat, keylocation, props, &wkeydata,
+		    B_TRUE, keyformat, keylocation, props, &wkeydata,
 		    &wkeylen);
 		if (ret != 0)
 			goto out;
