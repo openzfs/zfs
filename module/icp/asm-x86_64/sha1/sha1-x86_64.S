@@ -69,16 +69,27 @@ sha1_block_data_order(SHA1_CTX *ctx, const void *inpp, size_t blocks)
 #define _ASM
 #include <sys/asm_linkage.h>
 ENTRY_NP(sha1_block_data_order)
-	push	%rbx
-	push	%rbp
-	push	%r12
+.cfi_startproc
 	mov	%rsp,%rax
+.cfi_def_cfa_register %rax
+	push	%rbx
+.cfi_offset	%rbx,-16
+	push	%rbp
+.cfi_offset	%rbp,-24
+	push	%r12
+.cfi_offset	%r12,-32
 	mov	%rdi,%r8	# reassigned argument
+.cfi_register	%rdi, %r8
 	sub	$72,%rsp
 	mov	%rsi,%r9	# reassigned argument
+.cfi_register	%rsi, %r9
 	and	$-64,%rsp
 	mov	%rdx,%r10	# reassigned argument
+.cfi_register	%rdx, %r10
 	mov	%rax,64(%rsp)
+# echo ".cfi_cfa_expression %rsp+64,deref,+8" |
+#	openssl/crypto/perlasm/x86_64-xlate.pl
+.cfi_escape	0x0f,0x06,0x77,0xc0,0x00,0x06,0x23,0x08
 
 	mov	0(%r8),%edx
 	mov	4(%r8),%esi
@@ -1337,10 +1348,15 @@ ENTRY_NP(sha1_block_data_order)
 	sub	$1,%r10
 	jnz	.Lloop
 	mov	64(%rsp),%rsp
-	pop	%r12
-	pop	%rbp
-	pop	%rbx
+.cfi_def_cfa	%rsp,8
+	movq	-24(%rsp),%r12
+.cfi_restore	%r12
+	movq	-16(%rsp),%rbp
+.cfi_restore	%rbp
+	movq	-8(%rsp),%rbx
+.cfi_restore	%rbx
 	ret
+.cfi_endproc
 SET_SIZE(sha1_block_data_order)
 
 .data
