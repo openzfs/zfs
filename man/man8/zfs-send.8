@@ -189,12 +189,12 @@ feature is enabled on the sending system but the
 option is not supplied in conjunction with
 .Fl c ,
 then the data will be decompressed before sending so it can be split into
-smaller block sizes. Streams sent with 
+smaller block sizes. Streams sent with
 .Fl c
 will not have their data recompressed on the receiver side using
 .Fl o compress=value.
 The data will stay compressed as it was from the sender. The new compression
-property will be set for future data. 
+property will be set for future data.
 .It Fl w, -raw
 For encrypted datasets, send data exactly as it exists on disk. This allows
 backups to be taken even if encryption keys are not currently loaded. The
