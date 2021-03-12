@@ -9,6 +9,7 @@ dist_pkgdata_SCRIPTS = \
 	import_cachefile_device_replaced.ksh \
 	import_cachefile_mirror_attached.ksh \
 	import_cachefile_mirror_detached.ksh \
+	import_cachefile_paths_changed.ksh \
 	import_cachefile_shared_device.ksh \
 	import_devices_missing.ksh \
 	import_paths_changed.ksh \
