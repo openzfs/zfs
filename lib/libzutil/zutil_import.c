@@ -1269,7 +1269,8 @@ error:
  * to import a specific pool.
  */
 static nvlist_t *
-zpool_find_import_impl(libpc_handle_t *hdl, importargs_t *iarg)
+zpool_find_import_impl(libpc_handle_t *hdl, importargs_t *iarg,
+    pthread_mutex_t *lock, avl_tree_t *cache)
 {
 	nvlist_t *ret = NULL;
 	pool_list_t pools = { 0 };
@@ -1277,34 +1278,11 @@ zpool_find_import_impl(libpc_handle_t *hdl, importargs_t *iarg)
 	vdev_entry_t *ve, *venext;
 	config_entry_t *ce, *cenext;
 	name_entry_t *ne, *nenext;
-	pthread_mutex_t lock;
-	avl_tree_t *cache;
 	rdsk_node_t *slice;
 	void *cookie;
 	tpool_t *t;
 
 	verify(iarg->poolname == NULL || iarg->guid == 0);
-	pthread_mutex_init(&lock, NULL);
-
-	/*
-	 * Locate pool member vdevs by blkid or by directory scanning.
-	 * On success a newly allocated AVL tree which is populated with an
-	 * entry for each discovered vdev will be returned in the cache.
-	 * It's the caller's responsibility to consume and destroy this tree.
-	 */
-	if (iarg->scan || iarg->paths != 0) {
-		size_t dirs = iarg->paths;
-		const char * const *dir = (const char * const *)iarg->path;
-
-		if (dirs == 0)
-			dir = zpool_default_search_paths(&dirs);
-
-		if (zpool_find_import_scan(hdl, &lock, &cache, dir, dirs) != 0)
-			return (NULL);
-	} else {
-		if (zpool_find_import_blkid(hdl, &lock, &cache) != 0)
-			return (NULL);
-	}
 
 	/*
 	 * Create a thread pool to parallelize the process of reading and
@@ -1384,7 +1362,6 @@ zpool_find_import_impl(libpc_handle_t *hdl, importargs_t *iarg)
 	}
 	avl_destroy(cache);
 	free(cache);
-	pthread_mutex_destroy(&lock);
 
 	ret = get_configs(hdl, &pools, iarg->can_be_active, iarg->policy);
 
@@ -1412,13 +1389,42 @@ zpool_find_import_impl(libpc_handle_t *hdl, importargs_t *iarg)
 }
 
 /*
+ * Given a config, discover the paths for the devices which
+ * exist in the config.
+ */
+static int
+discover_cached_paths(libpc_handle_t *hdl, nvlist_t *nv,
+    avl_tree_t *cache, pthread_mutex_t *lock)
+{
+	char *path = NULL;
+	uint_t children;
+	nvlist_t **child;
+
+	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
+	    &child, &children) == 0) {
+		for (int c = 0; c < children; c++) {
+			discover_cached_paths(hdl, child[c], cache, lock);
+		}
+	}
+
+	/*
+	 * Once we have the path, we need to add the directory to
+	 * our directoy cache.
+	 */
+	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &path) == 0) {
+		return (zpool_find_import_scan_dir(hdl, lock, cache,
+		    dirname(path), 0));
+	}
+	return (0);
+}
+
+/*
  * Given a cache file, return the contents as a list of importable pools.
  * poolname or guid (but not both) are provided by the caller when trying
  * to import a specific pool.
  */
 static nvlist_t *
-zpool_find_import_cached(libpc_handle_t *hdl, const char *cachefile,
-    const char *poolname, uint64_t guid)
+zpool_find_import_cached(libpc_handle_t *hdl, importargs_t *iarg)
 {
 	char *buf;
 	int fd;
@@ -1430,9 +1436,9 @@ zpool_find_import_cached(libpc_handle_t *hdl, const char *cachefile,
 	uint64_t this_guid;
 	boolean_t active;
 
-	verify(poolname == NULL || guid == 0);
+	verify(iarg->poolname == NULL || iarg->guid == 0);
 
-	if ((fd = open(cachefile, O_RDONLY)) < 0) {
+	if ((fd = open(iarg->cachefile, O_RDONLY)) < 0) {
 		zutil_error_aux(hdl, "%s", strerror(errno));
 		(void) zutil_error(hdl, EZFS_BADCACHE,
 		    dgettext(TEXT_DOMAIN, "failed to open cache file"));
@@ -1488,11 +1494,11 @@ zpool_find_import_cached(libpc_handle_t *hdl, const char *cachefile,
 		src = fnvpair_value_nvlist(elem);
 
 		name = fnvlist_lookup_string(src, ZPOOL_CONFIG_POOL_NAME);
-		if (poolname != NULL && strcmp(poolname, name) != 0)
+		if (iarg->poolname != NULL && strcmp(iarg->poolname, name) != 0)
 			continue;
 
 		this_guid = fnvlist_lookup_uint64(src, ZPOOL_CONFIG_POOL_GUID);
-		if (guid != 0 && guid != this_guid)
+		if (iarg->guid != 0 && iarg->guid != this_guid)
 			continue;
 
 		if (zutil_pool_active(hdl, name, this_guid, &active) != 0) {
@@ -1504,8 +1510,68 @@ zpool_find_import_cached(libpc_handle_t *hdl, const char *cachefile,
 		if (active)
 			continue;
 
+		if (iarg->scan) {
+			uint64_t saved_guid = iarg->guid;
+			const char *saved_poolname = iarg->poolname;
+			pthread_mutex_t lock;
+
+			/*
+			 * Create the device cache that will hold the
+			 * devices we will scan based on the cachefile.
+			 * This will get destroyed and freed by
+			 * zpool_find_import_impl.
+			 */
+			avl_tree_t *cache = zutil_alloc(hdl,
+			    sizeof (avl_tree_t));
+			avl_create(cache, slice_cache_compare,
+			    sizeof (rdsk_node_t),
+			    offsetof(rdsk_node_t, rn_node));
+			nvlist_t *nvroot = fnvlist_lookup_nvlist(src,
+			    ZPOOL_CONFIG_VDEV_TREE);
+
+			/*
+			 * We only want to find the pool with this_guid.
+			 * We will reset these values back later.
+			 */
+			iarg->guid = this_guid;
+			iarg->poolname = NULL;
+
+			/*
+			 * We need to build up a cache of devices that exists
+			 * in the paths pointed to by the cachefile. This allows
+			 * us to preserve the device namespace that was
+			 * originally specified by the user but also lets us
+			 * scan devices in those directories in case they had
+			 * been renamed.
+			 */
+			pthread_mutex_init(&lock, NULL);
+			discover_cached_paths(hdl, nvroot, cache, &lock);
+			nvlist_t *nv = zpool_find_import_impl(hdl, iarg,
+			    &lock, cache);
+			pthread_mutex_destroy(&lock);
+
+			/*
+			 * zpool_find_import_impl will return back
+			 * a list of pools that it found based on the
+			 * device cache. There should only be one pool
+			 * since we're looking for a specific guid.
+			 * We will use that pool to build up the final
+			 * pool nvlist which is returned back to the
+			 * caller.
+			 */
+			nvpair_t *pair = nvlist_next_nvpair(nv, NULL);
+			fnvlist_add_nvlist(pools, nvpair_name(pair),
+			    fnvpair_value_nvlist(pair));
+
+			VERIFY3P(nvlist_next_nvpair(nv, pair), ==, NULL);
+
+			iarg->guid = saved_guid;
+			iarg->poolname = saved_poolname;
+			continue;
+		}
+
 		if (nvlist_add_string(src, ZPOOL_CONFIG_CACHEFILE,
-		    cachefile) != 0) {
+		    iarg->cachefile) != 0) {
 			(void) zutil_no_memory(hdl);
 			nvlist_free(raw);
 			nvlist_free(pools);
@@ -1527,10 +1593,50 @@ zpool_find_import_cached(libpc_handle_t *hdl, const char *cachefile,
 		}
 		nvlist_free(dst);
 	}
-
 	nvlist_free(raw);
 	return (pools);
 }
+
+static nvlist_t *
+zpool_find_import(libpc_handle_t *hdl, importargs_t *iarg)
+{
+	pthread_mutex_t lock;
+	avl_tree_t *cache;
+	nvlist_t *pools = NULL;
+
+	verify(iarg->poolname == NULL || iarg->guid == 0);
+	pthread_mutex_init(&lock, NULL);
+
+	/*
+	 * Locate pool member vdevs by blkid or by directory scanning.
+	 * On success a newly allocated AVL tree which is populated with an
+	 * entry for each discovered vdev will be returned in the cache.
+	 * It's the caller's responsibility to consume and destroy this tree.
+	 */
+	if (iarg->scan || iarg->paths != 0) {
+		size_t dirs = iarg->paths;
+		const char * const *dir = (const char * const *)iarg->path;
+
+		if (dirs == 0)
+			dir = zpool_default_search_paths(&dirs);
+
+		if (zpool_find_import_scan(hdl, &lock, &cache,
+		    dir, dirs) != 0) {
+			pthread_mutex_destroy(&lock);
+			return (NULL);
+		}
+	} else {
+		if (zpool_find_import_blkid(hdl, &lock, &cache) != 0) {
+			pthread_mutex_destroy(&lock);
+			return (NULL);
+		}
+	}
+
+	pools = zpool_find_import_impl(hdl, iarg, &lock, cache);
+	pthread_mutex_destroy(&lock);
+	return (pools);
+}
+
 
 nvlist_t *
 zpool_search_import(void *hdl, importargs_t *import,
@@ -1546,10 +1652,9 @@ zpool_search_import(void *hdl, importargs_t *import,
 	verify(import->poolname == NULL || import->guid == 0);
 
 	if (import->cachefile != NULL)
-		pools = zpool_find_import_cached(&handle, import->cachefile,
-		    import->poolname, import->guid);
+		pools = zpool_find_import_cached(&handle, import);
 	else
-		pools = zpool_find_import_impl(&handle, import);
+		pools = zpool_find_import(&handle, import);
 
 	if ((pools == NULL || nvlist_empty(pools)) &&
 	    handle.lpc_open_access_error && geteuid() != 0) {
