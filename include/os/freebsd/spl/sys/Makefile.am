@@ -4,6 +4,7 @@ KERNEL_H = \
 	atomic.h \
 	byteorder.h \
 	callb.h \
+	ccompat.h \
 	ccompile.h \
 	cmn_err.h \
 	condvar.h \
@@ -18,9 +19,11 @@ KERNEL_H = \
 	fcntl.h \
 	file.h \
 	freebsd_rwlock.h \
+	idmap.h \
 	inttypes.h \
 	isa_defs.h \
 	kmem_cache.h \
+	kidmap.h \
 	kmem.h \
 	kstat.h \
 	list_impl.h \
