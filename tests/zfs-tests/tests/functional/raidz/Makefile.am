@@ -8,4 +8,7 @@ dist_pkgdata_SCRIPTS = \
 	raidz_004_pos.ksh \
 	raidz_expand_001_pos.ksh \
 	raidz_expand_002_pos.ksh \
-	raidz_expand_003_neg.ksh
+	raidz_expand_003_neg.ksh \
+	raidz_expand_003_pos.ksh \
+	raidz_expand_004_pos.ksh \
+	raidz_expand_005_pos.ksh
