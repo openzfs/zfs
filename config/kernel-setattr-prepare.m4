@@ -37,6 +37,8 @@ AC_DEFUN([ZFS_AC_KERNEL_SETATTR_PREPARE], [
 		AC_DEFINE(HAVE_SETATTR_PREPARE_USERNS, 1,
 		    [setattr_prepare() accepts user_namespace])
 	], [
+		AC_MSG_RESULT(no)
+
 		AC_MSG_CHECKING([whether setattr_prepare() is available, doesn't accept user_namespace])
 		ZFS_LINUX_TEST_RESULT_SYMBOL([setattr_prepare],
 			[setattr_prepare], [fs/attr.c], [
