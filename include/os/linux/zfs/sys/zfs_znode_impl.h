@@ -79,9 +79,9 @@ extern "C" {
 /* Called on entry to each ZFS inode and vfs operation. */
 #define	ZFS_ENTER_ERROR(zfsvfs, error)				\
 do {								\
-	rrm_enter_read(&(zfsvfs)->z_teardown_lock, FTAG);	\
-	if ((zfsvfs)->z_unmounted) {				\
-		ZFS_EXIT(zfsvfs);				\
+	ZFS_TEARDOWN_ENTER_READ(zfsvfs, FTAG);			\
+	if (unlikely((zfsvfs)->z_unmounted)) {			\
+		ZFS_TEARDOWN_EXIT_READ(zfsvfs, FTAG);		\
 		return (error);					\
 	}							\
 } while (0)
@@ -92,7 +92,7 @@ do {								\
 #define	ZFS_EXIT(zfsvfs)					\
 do {								\
 	zfs_exit_fs(zfsvfs);					\
-	rrm_exit(&(zfsvfs)->z_teardown_lock, FTAG);		\
+	ZFS_TEARDOWN_EXIT_READ(zfsvfs, FTAG);			\
 } while (0)
 
 #define	ZPL_EXIT(zfsvfs)					\
@@ -103,7 +103,7 @@ do {								\
 /* Verifies the znode is valid. */
 #define	ZFS_VERIFY_ZP_ERROR(zp, error)				\
 do {								\
-	if ((zp)->z_sa_hdl == NULL) {				\
+	if (unlikely((zp)->z_sa_hdl == NULL)) {			\
 		ZFS_EXIT(ZTOZSB(zp));				\
 		return (error);					\
 	}							\

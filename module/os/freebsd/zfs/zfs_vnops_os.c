@@ -701,10 +701,6 @@ zfs_lookup_lock(vnode_t *dvp, vnode_t *vp, const char *name, int lkflags)
 
 	if (zfsvfs->z_replay == B_FALSE)
 		ASSERT_VOP_LOCKED(dvp, __func__);
-#ifdef DIAGNOSTIC
-	if ((zdp->z_pflags & ZFS_XATTR) == 0)
-		VERIFY(!RRM_LOCK_HELD(&zfsvfs->z_teardown_lock));
-#endif
 
 	if (name[0] == 0 || (name[0] == '.' && name[1] == 0)) {
 		ASSERT3P(dvp, ==, vp);
@@ -3879,13 +3875,13 @@ zfs_inactive(vnode_t *vp, cred_t *cr, caller_context_t *ct)
 	zfsvfs_t *zfsvfs = zp->z_zfsvfs;
 	int error;
 
-	ZFS_RLOCK_TEARDOWN_INACTIVE(zfsvfs);
+	ZFS_TEARDOWN_INACTIVE_ENTER_READ(zfsvfs);
 	if (zp->z_sa_hdl == NULL) {
 		/*
 		 * The fs has been unmounted, or we did a
 		 * suspend/resume and this file no longer exists.
 		 */
-		ZFS_RUNLOCK_TEARDOWN_INACTIVE(zfsvfs);
+		ZFS_TEARDOWN_INACTIVE_EXIT_READ(zfsvfs);
 		vrecycle(vp);
 		return;
 	}
@@ -3894,7 +3890,7 @@ zfs_inactive(vnode_t *vp, cred_t *cr, caller_context_t *ct)
 		/*
 		 * Fast path to recycle a vnode of a removed file.
 		 */
-		ZFS_RUNLOCK_TEARDOWN_INACTIVE(zfsvfs);
+		ZFS_TEARDOWN_INACTIVE_EXIT_READ(zfsvfs);
 		vrecycle(vp);
 		return;
 	}
@@ -3914,7 +3910,7 @@ zfs_inactive(vnode_t *vp, cred_t *cr, caller_context_t *ct)
 			dmu_tx_commit(tx);
 		}
 	}
-	ZFS_RUNLOCK_TEARDOWN_INACTIVE(zfsvfs);
+	ZFS_TEARDOWN_INACTIVE_EXIT_READ(zfsvfs);
 }
 
 
@@ -5051,10 +5047,10 @@ zfs_freebsd_need_inactive(struct vop_need_inactive_args *ap)
 	if (vn_need_pageq_flush(vp))
 		return (1);
 
-	if (!ZFS_TRYRLOCK_TEARDOWN_INACTIVE(zfsvfs))
+	if (!ZFS_TEARDOWN_INACTIVE_TRY_ENTER_READ(zfsvfs))
 		return (1);
 	need = (zp->z_sa_hdl == NULL || zp->z_unlinked || zp->z_atime_dirty);
-	ZFS_RUNLOCK_TEARDOWN_INACTIVE(zfsvfs);
+	ZFS_TEARDOWN_INACTIVE_EXIT_READ(zfsvfs);
 
 	return (need);
 }
@@ -5085,12 +5081,12 @@ zfs_freebsd_reclaim(struct vop_reclaim_args *ap)
 	 * zfs_znode_dmu_fini in zfsvfs_teardown during
 	 * force unmount.
 	 */
-	ZFS_RLOCK_TEARDOWN_INACTIVE(zfsvfs);
+	ZFS_TEARDOWN_INACTIVE_ENTER_READ(zfsvfs);
 	if (zp->z_sa_hdl == NULL)
 		zfs_znode_free(zp);
 	else
 		zfs_zinactive(zp);
-	ZFS_RUNLOCK_TEARDOWN_INACTIVE(zfsvfs);
+	ZFS_TEARDOWN_INACTIVE_EXIT_READ(zfsvfs);
 
 	vp->v_data = NULL;
 	return (0);
@@ -5734,39 +5730,6 @@ zfs_vptocnp(struct vop_vptocnp_args *ap)
 	return (error);
 }
 
-#ifdef DIAGNOSTIC
-#ifndef _SYS_SYSPROTO_H_
-struct vop_lock1_args {
-	struct vnode *a_vp;
-	int a_flags;
-	char *file;
-	int line;
-};
-#endif
-
-static int
-zfs_lock(struct vop_lock1_args *ap)
-{
-	vnode_t *vp;
-	znode_t *zp;
-	int err;
-
-#if __FreeBSD_version >= 1300064
-	err = vop_lock(ap);
-#else
-	err = vop_stdlock(ap);
-#endif
-	if (err == 0 && (ap->a_flags & LK_NOWAIT) == 0) {
-		vp = ap->a_vp;
-		zp = vp->v_data;
-		if (vp->v_mount != NULL && !VN_IS_DOOMED(vp) &&
-		    zp != NULL && (zp->z_pflags & ZFS_XATTR) == 0)
-			VERIFY(!RRM_LOCK_HELD(&zp->z_zfsvfs->z_teardown_lock));
-	}
-	return (err);
-}
-#endif
-
 struct vop_vector zfs_vnodeops;
 struct vop_vector zfs_fifoops;
 struct vop_vector zfs_shareops;
@@ -5817,17 +5780,9 @@ struct vop_vector zfs_vnodeops = {
 	.vop_putpages =		zfs_freebsd_putpages,
 	.vop_vptocnp =		zfs_vptocnp,
 #if __FreeBSD_version >= 1300064
-#ifdef DIAGNOSTIC
-	.vop_lock1 =		zfs_lock,
-#else
 	.vop_lock1 =		vop_lock,
-#endif
 	.vop_unlock =		vop_unlock,
 	.vop_islocked =		vop_islocked,
-#else
-#ifdef DIAGNOSTIC
-	.vop_lock1 =		zfs_lock,
-#endif
 #endif
 };
 VFS_VOP_VECTOR_REGISTER(zfs_vnodeops);
