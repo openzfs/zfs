@@ -525,7 +525,6 @@ typedef struct zfs_useracct {
 } zfs_useracct_t;
 
 #define	ZFSDEV_MAX_MINOR	(1 << 16)
-#define	ZFS_MIN_MINOR	(ZFSDEV_MAX_MINOR + 1)
 
 #define	ZPOOL_EXPORT_AFTER_SPLIT 0x1
 
