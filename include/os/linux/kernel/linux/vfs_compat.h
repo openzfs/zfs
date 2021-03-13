@@ -389,6 +389,14 @@ func(const struct path *path, struct kstat *stat, u32 request_mask,	\
 {									\
 	return (func##_impl(path, stat, request_mask, query_flags));	\
 }
+#elif defined(HAVE_USERNS_IOPS_GETATTR)
+#define	ZPL_GETATTR_WRAPPER(func)					\
+static int								\
+func(struct user_namespace *user_ns,const struct path *path,	\
+	struct kstat *stat, u32 request_mask, unsigned int query_flags)	\
+{									\
+	return (func##_impl(user_ns, path, stat, request_mask, query_flags));	\
+}
 #else
 #error
 #endif
