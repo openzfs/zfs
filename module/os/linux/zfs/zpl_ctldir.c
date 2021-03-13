@@ -112,7 +112,11 @@ zpl_root_getattr_impl(const struct path *path, struct kstat *stat,
 {
 	struct inode *ip = path->dentry->d_inode;
 
+#if defined(HAVE_GENERIC_FILLATTR_USERNS) && defined(HAVE_USERNS_IOPS_GETATTR)
+	generic_fillattr(user_ns, ip, stat);
+#else
 	generic_fillattr(ip, stat);
+#endif
 	stat->atime = current_time(ip);
 
 	return (0);
@@ -382,7 +386,11 @@ zpl_snapdir_getattr_impl(const struct path *path, struct kstat *stat,
 	zfsvfs_t *zfsvfs = ITOZSB(ip);
 
 	ZPL_ENTER(zfsvfs);
+#if defined(HAVE_GENERIC_FILLATTR_USERNS) && defined(HAVE_USERNS_IOPS_GETATTR)
+	generic_fillattr(user_ns, ip, stat);
+#else
 	generic_fillattr(ip, stat);
+#endif
 
 	stat->nlink = stat->size = 2;
 	stat->ctime = stat->mtime = dmu_objset_snap_cmtime(zfsvfs->z_os);
@@ -524,7 +532,11 @@ zpl_shares_getattr_impl(const struct path *path, struct kstat *stat,
 	ZPL_ENTER(zfsvfs);
 
 	if (zfsvfs->z_shares_dir == 0) {
+#if defined(HAVE_GENERIC_FILLATTR_USERNS) && defined(HAVE_USERNS_IOPS_GETATTR)
+		generic_fillattr(user_ns, path->dentry->d_inode, stat);
+#else
 		generic_fillattr(path->dentry->d_inode, stat);
+#endif
 		stat->nlink = stat->size = 2;
 		stat->atime = current_time(ip);
 		ZPL_EXIT(zfsvfs);
@@ -533,7 +545,11 @@ zpl_shares_getattr_impl(const struct path *path, struct kstat *stat,
 
 	error = -zfs_zget(zfsvfs, zfsvfs->z_shares_dir, &dzp);
 	if (error == 0) {
+#if defined(HAVE_GENERIC_FILLATTR_USERNS) && defined(HAVE_USERNS_IOPS_GETATTR)
+		error = -zfs_getattr_fast(user_ns, ZTOI(dzp), stat);
+#else
 		error = -zfs_getattr_fast(ZTOI(dzp), stat);
+#endif
 		iput(ZTOI(dzp));
 	}
 
