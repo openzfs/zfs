@@ -172,7 +172,7 @@ vdev_raidz_row_free(raidz_row_t *rr)
 	if (rr->rr_abd_empty != NULL)
 		abd_free(rr->rr_abd_empty);
 
-	kmem_free(rr, offsetof(raidz_row_t, rr_col[rr->rr_cols]));
+	kmem_free(rr, offsetof(raidz_row_t, rr_col[rr->rr_scols]));
 }
 
 void
@@ -223,6 +223,7 @@ vdev_raidz_row_alloc(int cols)
 	    kmem_zalloc(offsetof(raidz_row_t, rr_col[cols]), KM_SLEEP);
 
 	rr->rr_cols = cols;
+	rr->rr_scols = cols;
 
 	for (int c = 0; c < cols; c++) {
 		raidz_col_t *rc = &rr->rr_col[c];
@@ -252,7 +253,7 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t ashift, uint64_t dcols,
 	uint64_t f = b % dcols;
 	/* The starting byte offset on each child vdev. */
 	uint64_t o = (b / dcols) << ashift;
-	uint64_t q, r, c, bc, col, acols, coff, devidx, asize, tot;
+	uint64_t q, r, c, bc, col, acols, scols, coff, devidx, asize, tot;
 
 	raidz_map_t *rm =
 	    kmem_zalloc(offsetof(raidz_map_t, rm_row[1]), KM_SLEEP);
@@ -281,16 +282,21 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t ashift, uint64_t dcols,
 
 	/*
 	 * acols: The columns that will be accessed.
+	 * scols: The columns that will be accessed or skipped.
 	 */
 	if (q == 0) {
 		/* Our I/O request doesn't span all child vdevs. */
 		acols = bc;
+		scols = MIN(dcols, roundup(bc, nparity + 1));
 	} else {
 		acols = dcols;
+		scols = dcols;
 	}
 
-	rr = vdev_raidz_row_alloc(acols);
+	ASSERT3U(acols, <=, scols);
+	rr = vdev_raidz_row_alloc(scols);
 	rm->rm_row[0] = rr;
+	rr->rr_cols = acols;
 	rr->rr_firstdatacol = nparity;
 #ifdef ZFS_DEBUG
 	rr->rr_offset = zio->io_offset;
@@ -299,7 +305,7 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t ashift, uint64_t dcols,
 
 	asize = 0;
 
-	for (c = 0; c < acols; c++) {
+	for (c = 0; c < scols; c++) {
 		raidz_col_t *rc = &rr->rr_col[c];
 		col = f + c;
 		coff = o;
@@ -310,7 +316,9 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t ashift, uint64_t dcols,
 		rc->rc_devidx = col;
 		rc->rc_offset = coff;
 
-		if (c < bc)
+		if (c >= acols)
+			rc->rc_size = 0;
+		else if (c < bc)
 			rc->rc_size = (q + 1) << ashift;
 		else
 			rc->rc_size = q << ashift;
@@ -321,6 +329,7 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t ashift, uint64_t dcols,
 	ASSERT3U(asize, ==, tot << ashift);
 	rm->rm_nskip = roundup(tot, nparity + 1) - tot;
 	rm->rm_skipstart = bc;
+
 	for (c = 0; c < rr->rr_firstdatacol; c++)
 		rr->rr_col[c].rc_abd =
 		    abd_alloc_linear(rr->rr_col[c].rc_size, B_FALSE);
@@ -362,6 +371,8 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t ashift, uint64_t dcols,
 		rr->rr_col[0].rc_offset = rr->rr_col[1].rc_offset;
 		rr->rr_col[1].rc_devidx = devidx;
 		rr->rr_col[1].rc_offset = o;
+		if (rm->rm_skipstart == 0)
+			rm->rm_skipstart = 1;
 	}
 
 	/* init RAIDZ parity ops */
@@ -430,6 +441,7 @@ vdev_raidz_map_alloc_expanded(zio_t *zio,
 	    KM_SLEEP);
 	rm->rm_nrows = rows;
 	rm->rm_nskip = roundup(tot, nparity + 1) - tot;
+	rm->rm_skipstart = bc;
 	asize = 0;
 
 #if 1
@@ -616,12 +628,15 @@ vdev_raidz_map_alloc_expanded(zio_t *zio,
 			int devidx0 = rr->rr_col[0].rc_devidx;
 			uint64_t offset0 = rr->rr_col[0].rc_offset;
 			int shadow_devidx0 = rr->rr_col[0].rc_shadow_devidx;
-			uint64_t shadow_offset0 = rr->rr_col[0].rc_shadow_offset;
+			uint64_t shadow_offset0 =
+			    rr->rr_col[0].rc_shadow_offset;
 
 			rr->rr_col[0].rc_devidx = rr->rr_col[1].rc_devidx;
 			rr->rr_col[0].rc_offset = rr->rr_col[1].rc_offset;
-			rr->rr_col[0].rc_shadow_devidx = rr->rr_col[1].rc_shadow_devidx;
-			rr->rr_col[0].rc_shadow_offset = rr->rr_col[1].rc_shadow_offset;
+			rr->rr_col[0].rc_shadow_devidx =
+			    rr->rr_col[1].rc_shadow_devidx;
+			rr->rr_col[0].rc_shadow_offset =
+			    rr->rr_col[1].rc_shadow_offset;
 
 			rr->rr_col[1].rc_devidx = devidx0;
 			rr->rr_col[1].rc_offset = offset0;
@@ -704,7 +719,8 @@ vdev_raidz_map_alloc_expanded(zio_t *zio,
 			raidz_row_t *rr = rm->rm_row[i];
 			for (int c = 0; c < rr->rr_firstdatacol; c++) {
 				raidz_col_t *rc = &rr->rr_col[c];
-				raidz_col_t *prc = &rm->rm_phys_col[rc->rc_devidx];
+				raidz_col_t *prc =
+				    &rm->rm_phys_col[rc->rc_devidx];
 				rc->rc_abd =
 				    abd_get_offset_struct(&rc->rc_abdstruct,
 				    prc->rc_abd,
@@ -878,11 +894,6 @@ vdev_raidz_generate_parity_pqr(raidz_row_t *rr)
 			(void) memcpy(r, p, rr->rr_col[c].rc_size);
 
 			for (uint64_t i = ccnt; i < pcnt; i++) {
-				/*
-				 * XXX does this really happen?
-				 * firstdatacol should be the same size as
-				 * the parity cols
-				 */
 				p[i] = 0;
 				q[i] = 0;
 				r[i] = 0;
@@ -1903,7 +1914,6 @@ vdev_raidz_close(vdev_t *vd)
 static uint64_t
 vdev_raidz_get_logical_width(vdev_raidz_t *vdrz, uint64_t txg)
 {
-#if 1
 	reflow_node_t lookup = {
 		.re_txg = txg,
 	};
@@ -1923,10 +1933,6 @@ vdev_raidz_get_logical_width(vdev_raidz_t *vdrz, uint64_t txg)
 	}
 	mutex_exit(&vdrz->vd_expand_lock);
 	return (width);
-
-#else
-	return (vdrz->vd_original_width);
-#endif
 }
 
 /*
@@ -1955,7 +1961,8 @@ vdev_raidz_asize(vdev_t *vd, uint64_t psize, uint64_t txg)
 #ifdef ZFS_DEBUG
 	uint64_t asize_new = ((psize - 1) >> ashift) + 1;
 	uint64_t ncols_new = vdrz->vd_physical_width;
-	asize_new += nparity * ((asize_new + ncols_new - nparity - 1) / (ncols_new - nparity));
+	asize_new += nparity * ((asize_new + ncols_new - nparity - 1) /
+	    (ncols_new - nparity));
 	asize_new = roundup(asize_new, nparity + 1) << ashift;
 	VERIFY3U(asize_new, <=, asize);
 #endif
@@ -2029,7 +2036,7 @@ vdev_raidz_io_verify(zio_t *zio, raidz_map_t *rm, raidz_row_t *rr, int col)
 }
 
 static void
-vdev_raidz_io_start_write(zio_t *zio, raidz_row_t *rr, uint64_t ashift)
+vdev_raidz_io_start_write(zio_t *zio, raidz_row_t *rr)
 {
 	vdev_t *vd = zio->io_vd;
 	raidz_map_t *rm = zio->io_vsd;
@@ -2059,16 +2066,23 @@ vdev_raidz_io_start_write(zio_t *zio, raidz_row_t *rr, uint64_t ashift)
 			    vdev_raidz_shadow_child_done, rc));
 		}
 	}
+}
 
-	// XXX do this in vdev_raidz_io_start, based on rm->nskip
-#if 0
+/*
+ * Generate optional I/Os for skip sectors to improve aggregation contiguity.
+ * This only works for vdev_raidz_map_alloc() (not _expanded()).
+ */
+static void
+raidz_start_skip_writes(zio_t *zio)
+{
+	vdev_t *vd = zio->io_vd;
+	uint64_t ashift = vd->vdev_top->vdev_ashift;
+	raidz_map_t *rm = zio->io_vsd;
 	int c, i;
-	/*
-	 * Generate optional I/Os for skip sectors to improve aggregation
-	 * contiguity.
-	 */
+	ASSERT3U(rm->rm_nrows, ==, 1);
+	raidz_row_t *rr = rm->rm_row[0];
 	for (c = rm->rm_skipstart, i = 0; i < rm->rm_nskip; c++, i++) {
-		ASSERT(c <= rr->rr_scols);
+		ASSERT3U(c, <=, rr->rr_scols);
 		if (c == rr->rr_scols)
 			c = 0;
 
@@ -2080,8 +2094,8 @@ vdev_raidz_io_start_write(zio_t *zio, raidz_row_t *rr, uint64_t ashift)
 		    zio->io_type, zio->io_priority,
 		    ZIO_FLAG_NODATA | ZIO_FLAG_OPTIONAL, NULL, NULL));
 	}
-#endif
 }
+
 
 static void
 vdev_raidz_io_start_read_row(zio_t *zio, raidz_row_t *rr, boolean_t forceparity)
@@ -2273,8 +2287,11 @@ vdev_raidz_io_start(zio_t *zio)
 	zio->io_vsd_ops = &vdev_raidz_vsd_ops;
 	if (zio->io_type == ZIO_TYPE_WRITE) {
 		for (int i = 0; i < rm->rm_nrows; i++) {
-			vdev_raidz_io_start_write(zio,
-			    rm->rm_row[i], tvd->vdev_ashift);
+			vdev_raidz_io_start_write(zio, rm->rm_row[i]);
+		}
+
+		if (logical_width == vdrz->vd_physical_width) {
+			raidz_start_skip_writes(zio);
 		}
 	} else {
 		ASSERT(zio->io_type == ZIO_TYPE_READ);
@@ -2901,8 +2918,7 @@ vdev_raidz_io_done_write_impl(zio_t *zio, raidz_row_t *rr)
  * vdev_raidz_reconstruct().
  */
 static int
-vdev_raidz_io_done_reconstruct_known_missing(raidz_map_t *rm,
-    raidz_row_t *rr)
+vdev_raidz_io_done_reconstruct_known_missing(raidz_map_t *rm, raidz_row_t *rr)
 {
 	int parity_errors = 0;
 	int parity_untried = 0;
@@ -3114,8 +3130,14 @@ vdev_raidz_io_done(zio_t *zio)
 			 * data and parity as we can track down. If we've
 			 * already been through once before, all children will
 			 * be marked as tried so we'll proceed to combinatorial
-			 * reconstruction.
+			 * reconstruction.  We also disable aggregation.
 			 */
+			if (rm->rm_phys_col != NULL) {
+				kmem_free(rm->rm_phys_col,
+				    sizeof (raidz_col_t) * rm->rm_nphys_cols);
+				rm->rm_phys_col = NULL;
+				rm->rm_nphys_cols = 0;
+			}
 			int nread = 0;
 			for (int i = 0; i < rm->rm_nrows; i++) {
 				nread += vdev_raidz_read_all(zio,

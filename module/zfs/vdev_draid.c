@@ -972,7 +972,6 @@ vdev_draid_map_alloc_row(zio_t *zio, raidz_row_t **rrp, uint64_t io_offset,
 
 	raidz_row_t *rr = vdev_raidz_row_alloc(groupwidth);
 	rr->rr_scols = groupwidth;
-	rr->rr_bigcols = bc;
 	rr->rr_firstdatacol = vdc->vdc_nparity;
 #ifdef ZFS_DEBUG
 	rr->rr_offset = io_offset;

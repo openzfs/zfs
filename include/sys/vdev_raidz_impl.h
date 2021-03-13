@@ -125,7 +125,6 @@ typedef struct raidz_col {
 typedef struct raidz_row {
 	int rr_cols;			/* Regular column count */
 	int rr_scols;			/* Count including skipped columns */
-	int rr_bigcols;			/* Remainder data column count */
 	int rr_missingdata;		/* Count of missing data devices */
 	int rr_missingparity;		/* Count of missing parity devices */
 	int rr_firstdatacol;		/* First data column/parity count */
