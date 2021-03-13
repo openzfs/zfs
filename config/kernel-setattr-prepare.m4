@@ -32,7 +32,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_SETATTR_PREPARE], [
 AC_DEFUN([ZFS_AC_KERNEL_SETATTR_PREPARE], [
 	AC_MSG_CHECKING([whether setattr_prepare() is available and accepts struct user_namespace*])
 	ZFS_LINUX_TEST_RESULT_SYMBOL([setattr_prepare_userns],
-	    [setattr_prepare_userns], [fs/attr.c], [
+	    [setattr_prepare], [fs/attr.c], [
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_SETATTR_PREPARE_USERNS, 1,
 		    [setattr_prepare() accepts user_namespace])
