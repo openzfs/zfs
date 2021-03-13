@@ -101,8 +101,14 @@ zpl_root_readdir(struct file *filp, void *dirent, filldir_t filldir)
  */
 /* ARGSUSED */
 static int
+#ifdef HAVE_USERNS_IOPS_GETATTR
+zpl_root_getattr_impl(struct user_namespace *user_ns,
+	const struct path *path, struct kstat *stat, u32 request_mask,
+	unsigned int query_flags)
+#else
 zpl_root_getattr_impl(const struct path *path, struct kstat *stat,
-    u32 request_mask, unsigned int query_flags)
+	u32 request_mask, unsigned int query_flags)
+#endif
 {
 	struct inode *ip = path->dentry->d_inode;
 
@@ -363,8 +369,14 @@ zpl_snapdir_mkdir(struct inode *dip, struct dentry *dentry, umode_t mode)
  */
 /* ARGSUSED */
 static int
+#ifdef HAVE_USERNS_IOPS_GETATTR
+zpl_snapdir_getattr_impl(struct user_namespace *user_ns,
+	const struct path *path, struct kstat *stat, u32 request_mask,
+	unsigned int query_flags)
+#else
 zpl_snapdir_getattr_impl(const struct path *path, struct kstat *stat,
-    u32 request_mask, unsigned int query_flags)
+	u32 request_mask, unsigned int query_flags)
+#endif
 {
 	struct inode *ip = path->dentry->d_inode;
 	zfsvfs_t *zfsvfs = ITOZSB(ip);
@@ -495,8 +507,14 @@ zpl_shares_readdir(struct file *filp, void *dirent, filldir_t filldir)
 
 /* ARGSUSED */
 static int
+#ifdef HAVE_USERNS_IOPS_GETATTR
+zpl_shares_getattr_impl(struct user_namespace *user_ns,
+	const struct path *path, struct kstat *stat, u32 request_mask,
+	unsigned int query_flags)
+#else
 zpl_shares_getattr_impl(const struct path *path, struct kstat *stat,
-    u32 request_mask, unsigned int query_flags)
+	u32 request_mask, unsigned int query_flags)
+#endif
 {
 	struct inode *ip = path->dentry->d_inode;
 	zfsvfs_t *zfsvfs = ITOZSB(ip);
