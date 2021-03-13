@@ -382,14 +382,8 @@ struct zio_cksum_report {
 	struct zio_bad_cksum	*zcr_ckinfo;	/* information from failure */
 };
 
-typedef void zio_vsd_cksum_report_f(zio_t *zio, zio_cksum_report_t *zcr,
-    void *arg);
-
-zio_vsd_cksum_report_f	zio_vsd_default_cksum_report;
-
 typedef struct zio_vsd_ops {
 	zio_done_func_t		*vsd_free;
-	zio_vsd_cksum_report_f	*vsd_cksum_report;
 } zio_vsd_ops_t;
 
 typedef struct zio_gang_node {
@@ -683,7 +677,7 @@ extern hrtime_t zio_handle_io_delay(zio_t *zio);
  */
 extern int zfs_ereport_start_checksum(spa_t *spa, vdev_t *vd,
     const zbookmark_phys_t *zb, struct zio *zio, uint64_t offset,
-    uint64_t length, void *arg, struct zio_bad_cksum *info);
+    uint64_t length, struct zio_bad_cksum *info);
 extern void zfs_ereport_finish_checksum(zio_cksum_report_t *report,
     const abd_t *good_data, const abd_t *bad_data, boolean_t drop_if_identical);
 
@@ -694,6 +688,8 @@ extern int zfs_ereport_post_checksum(spa_t *spa, vdev_t *vd,
     const zbookmark_phys_t *zb, struct zio *zio, uint64_t offset,
     uint64_t length, const abd_t *good_data, const abd_t *bad_data,
     struct zio_bad_cksum *info);
+
+void zio_vsd_default_cksum_report(zio_t *zio, zio_cksum_report_t *zcr);
 
 /* Called from spa_sync(), but primarily an injection handler */
 extern void spa_handle_ignored_writes(spa_t *spa);
