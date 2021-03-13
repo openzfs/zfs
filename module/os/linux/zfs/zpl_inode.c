@@ -367,7 +367,7 @@ zpl_setattr(struct dentry *dentry, struct iattr *ia)
 	int error;
 	fstrans_cookie_t cookie;
 
-	error = setattr_prepare(dentry, ia);
+	error = zpl_setattr_prepare(kcred->user_ns, dentry, ia);
 	if (error)
 		return (error);
 

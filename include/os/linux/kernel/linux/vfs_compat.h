@@ -343,7 +343,7 @@ static inline void zfs_gid_write(struct inode *ip, gid_t gid)
 /*
  * 4.9 API change
  */
-#ifndef HAVE_SETATTR_PREPARE
+#if !(defined(HAVE_SETATTR_PREPARE_NO_USERNS) || defined(HAVE_SETATTR_PREPARE_USERNS))
 static inline int
 setattr_prepare(struct dentry *dentry, struct iattr *ia)
 {

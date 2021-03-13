@@ -179,4 +179,11 @@ zpl_dir_emit_dots(struct file *file, zpl_dir_context_t *ctx)
 #error "Unsupported kernel"
 #endif
 
+#if defined(HAVE_SETATTR_PREPARE_USERNS)
+#define zpl_setattr_prepare(ns, dentry, ia) setattr_prepare(ns, dentry, ia)
+#else
+		/* Use kernel-provided version, or our own from linux/vfs_compat.h */
+#define zpl_setattr_prepare(ns, dentry, ia) setattr_prepare(dentry, ia)
+#endif
+
 #endif	/* _SYS_ZPL_H */
