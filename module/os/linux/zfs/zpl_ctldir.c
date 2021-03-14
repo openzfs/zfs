@@ -343,7 +343,12 @@ zpl_snapdir_rmdir(struct inode *dip, struct dentry *dentry)
 }
 
 static int
+#ifdef HAVE_IOPS_MKDIR_USERNS
+zpl_snapdir_mkdir(struct user_namespace *user_ns, struct inode *dip,
+	struct dentry *dentry, umode_t mode)
+#else
 zpl_snapdir_mkdir(struct inode *dip, struct dentry *dentry, umode_t mode)
+#endif
 {
 	cred_t *cr = CRED();
 	vattr_t *vap;
