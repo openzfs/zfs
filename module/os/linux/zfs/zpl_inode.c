@@ -356,7 +356,11 @@ zpl_getattr_impl(const struct path *path, struct kstat *stat, u32 request_mask,
 	 * XXX request_mask and query_flags currently ignored.
 	 */
 
+#ifdef HAVE_USERNS_IOPS_GETATTR
+	error = -zfs_getattr_fast(user_ns, path->dentry->d_inode, stat);
+#else
 	error = -zfs_getattr_fast(path->dentry->d_inode, stat);
+#endif
 	spl_fstrans_unmark(cookie);
 	ASSERT3S(error, <=, 0);
 
