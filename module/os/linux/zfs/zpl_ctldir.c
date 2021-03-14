@@ -103,11 +103,11 @@ zpl_root_readdir(struct file *filp, void *dirent, filldir_t filldir)
 static int
 #ifdef HAVE_USERNS_IOPS_GETATTR
 zpl_root_getattr_impl(struct user_namespace *user_ns,
-	const struct path *path, struct kstat *stat, u32 request_mask,
-	unsigned int query_flags)
+    const struct path *path, struct kstat *stat, u32 request_mask,
+    unsigned int query_flags)
 #else
 zpl_root_getattr_impl(const struct path *path, struct kstat *stat,
-	u32 request_mask, unsigned int query_flags)
+    u32 request_mask, unsigned int query_flags)
 #endif
 {
 	struct inode *ip = path->dentry->d_inode;
@@ -345,7 +345,7 @@ zpl_snapdir_rmdir(struct inode *dip, struct dentry *dentry)
 static int
 #ifdef HAVE_IOPS_MKDIR_USERNS
 zpl_snapdir_mkdir(struct user_namespace *user_ns, struct inode *dip,
-	struct dentry *dentry, umode_t mode)
+    struct dentry *dentry, umode_t mode)
 #else
 zpl_snapdir_mkdir(struct inode *dip, struct dentry *dentry, umode_t mode)
 #endif
@@ -380,11 +380,11 @@ zpl_snapdir_mkdir(struct inode *dip, struct dentry *dentry, umode_t mode)
 static int
 #ifdef HAVE_USERNS_IOPS_GETATTR
 zpl_snapdir_getattr_impl(struct user_namespace *user_ns,
-	const struct path *path, struct kstat *stat, u32 request_mask,
-	unsigned int query_flags)
+    const struct path *path, struct kstat *stat, u32 request_mask,
+    unsigned int query_flags)
 #else
 zpl_snapdir_getattr_impl(const struct path *path, struct kstat *stat,
-	u32 request_mask, unsigned int query_flags)
+    u32 request_mask, unsigned int query_flags)
 #endif
 {
 	struct inode *ip = path->dentry->d_inode;
@@ -522,11 +522,11 @@ zpl_shares_readdir(struct file *filp, void *dirent, filldir_t filldir)
 static int
 #ifdef HAVE_USERNS_IOPS_GETATTR
 zpl_shares_getattr_impl(struct user_namespace *user_ns,
-	const struct path *path, struct kstat *stat, u32 request_mask,
-	unsigned int query_flags)
+    const struct path *path, struct kstat *stat, u32 request_mask,
+    unsigned int query_flags)
 #else
 zpl_shares_getattr_impl(const struct path *path, struct kstat *stat,
-	u32 request_mask, unsigned int query_flags)
+    u32 request_mask, unsigned int query_flags)
 #endif
 {
 	struct inode *ip = path->dentry->d_inode;

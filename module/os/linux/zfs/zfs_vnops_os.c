@@ -1658,7 +1658,7 @@ out:
 int
 #ifdef HAVE_GENERIC_FILLATTR_USERNS
 zfs_getattr_fast(struct user_namespace *user_ns, struct inode *ip,
-	struct kstat *sp)
+    struct kstat *sp)
 #else
 zfs_getattr_fast(struct inode *ip, struct kstat *sp)
 #endif
