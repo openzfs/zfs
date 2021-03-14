@@ -133,6 +133,15 @@ extern int64_t vdev_deflated_space(vdev_t *vd, int64_t space);
 
 extern uint64_t vdev_psize_to_asize(vdev_t *vd, uint64_t psize);
 
+/*
+ * Return the amount of space allocated for a gang block header.
+ */
+static inline uint64_t
+vdev_gang_header_asize(vdev_t *vd)
+{
+	return (vdev_psize_to_asize(vd, SPA_GANGBLOCKSIZE));
+}
+
 extern int vdev_fault(spa_t *spa, uint64_t guid, vdev_aux_t aux);
 extern int vdev_degrade(spa_t *spa, uint64_t guid, vdev_aux_t aux);
 extern int vdev_online(spa_t *spa, uint64_t guid, uint64_t flags,
