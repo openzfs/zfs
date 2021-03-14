@@ -67,7 +67,7 @@ log_must zpool create spool $TESTDIR/sfile
 # Test out of space on sub-filesystem
 #
 log_must zfs create bpool/fs
-log_must mkfile 30M /bpool/fs/file
+log_must mkfile $((SPA_MINDEVSIZE * 1.1)) /bpool/fs/file
 
 log_must zfs snapshot bpool/fs@snap
 log_must eval "zfs send -R bpool/fs@snap > $BACKDIR/fs-R"
