@@ -152,7 +152,7 @@ dnl #
 dnl # Supported xattr handler set() interfaces checked newest to oldest.
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_XATTR_HANDLER_SET], [
-	ZFS_LINUX_TEST_SRC([xattr_handler_set_dentry_inode_user_ns], [
+	ZFS_LINUX_TEST_SRC([xattr_handler_set_userns], [
 		#include <linux/xattr.h>
 
 		int set(const struct xattr_handler *handler,
@@ -214,16 +214,17 @@ AC_DEFUN([ZFS_AC_KERNEL_XATTR_HANDLER_SET], [
 	dnl # struct user_namespace* was inserted as arg #2
 	dnl #
 	AC_MSG_CHECKING([whether xattr_handler->set() wants dentry, inode, and user_namespace])
-	ZFS_LINUX_TEST_RESULT([xattr_handler_set_dentry_inode_user_ns], [
+	ZFS_LINUX_TEST_RESULT([xattr_handler_set_userns], [
 		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_XATTR_SET_DENTRY_INODE_USER_NS, 1,
-		    [xattr_handler->set() wants dentry, inode, and user_namespace])
+		AC_DEFINE(HAVE_XATTR_SET_USERNS, 1,
+		    [xattr_handler->set() takes user_namespace])
 	],[
 		dnl #
 		dnl # 4.7 API change,
 		dnl # The xattr_handler->set() callback was changed to take both
 		dnl # dentry and inode.
 		dnl #
+		AC_MSG_RESULT(no)
 		AC_MSG_CHECKING([whether xattr_handler->set() wants dentry and inode])
 		ZFS_LINUX_TEST_RESULT([xattr_handler_set_dentry_inode], [
 			AC_MSG_RESULT(yes)
