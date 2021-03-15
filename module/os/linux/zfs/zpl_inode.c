@@ -429,8 +429,14 @@ zpl_setattr(struct dentry *dentry, struct iattr *ia)
 }
 
 static int
+#ifdef HAVE_IOPS_RENAME_USERNS
+zpl_rename2(struct user_namespace *user_ns, struct inode *sdip,
+    struct dentry *sdentry, struct inode *tdip, struct dentry *tdentry,
+    unsigned int flags)
+#else
 zpl_rename2(struct inode *sdip, struct dentry *sdentry,
     struct inode *tdip, struct dentry *tdentry, unsigned int flags)
+#endif
 {
 	cred_t *cr = CRED();
 	int error;
@@ -451,7 +457,7 @@ zpl_rename2(struct inode *sdip, struct dentry *sdentry,
 	return (error);
 }
 
-#ifndef HAVE_RENAME_WANTS_FLAGS
+#if !defined(HAVE_RENAME_WANTS_FLAGS) && !defined(HAVE_IOPS_RENAME_USERNS)
 static int
 zpl_rename(struct inode *sdip, struct dentry *sdentry,
     struct inode *tdip, struct dentry *tdentry)
@@ -712,7 +718,7 @@ const struct inode_operations zpl_dir_inode_operations = {
 	.mkdir		= zpl_mkdir,
 	.rmdir		= zpl_rmdir,
 	.mknod		= zpl_mknod,
-#ifdef HAVE_RENAME_WANTS_FLAGS
+#if defined(HAVE_RENAME_WANTS_FLAGS) || defined(HAVE_IOPS_RENAME_USERNS)
 	.rename		= zpl_rename2,
 #else
 	.rename		= zpl_rename,

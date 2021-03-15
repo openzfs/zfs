@@ -300,8 +300,14 @@ zpl_snapdir_readdir(struct file *filp, void *dirent, filldir_t filldir)
 #endif /* !HAVE_VFS_ITERATE && !HAVE_VFS_ITERATE_SHARED */
 
 static int
+#ifdef HAVE_IOPS_RENAME_USERNS
+zpl_snapdir_rename2(struct user_namespace *user_ns, struct inode *sdip,
+    struct dentry *sdentry, struct inode *tdip, struct dentry *tdentry,
+    unsigned int flags)
+#else
 zpl_snapdir_rename2(struct inode *sdip, struct dentry *sdentry,
     struct inode *tdip, struct dentry *tdentry, unsigned int flags)
+#endif
 {
 	cred_t *cr = CRED();
 	int error;
@@ -319,7 +325,7 @@ zpl_snapdir_rename2(struct inode *sdip, struct dentry *sdentry,
 	return (error);
 }
 
-#ifndef HAVE_RENAME_WANTS_FLAGS
+#if !defined(HAVE_RENAME_WANTS_FLAGS) && !defined(HAVE_IOPS_RENAME_USERNS)
 static int
 zpl_snapdir_rename(struct inode *sdip, struct dentry *sdentry,
     struct inode *tdip, struct dentry *tdentry)
@@ -433,7 +439,7 @@ const struct file_operations zpl_fops_snapdir = {
 const struct inode_operations zpl_ops_snapdir = {
 	.lookup		= zpl_snapdir_lookup,
 	.getattr	= zpl_snapdir_getattr,
-#ifdef HAVE_RENAME_WANTS_FLAGS
+#if defined(HAVE_RENAME_WANTS_FLAGS) || defined(HAVE_IOPS_RENAME_USERNS)
 	.rename		= zpl_snapdir_rename2,
 #else
 	.rename		= zpl_snapdir_rename,
