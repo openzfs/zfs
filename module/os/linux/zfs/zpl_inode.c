@@ -163,7 +163,12 @@ zpl_create(struct inode *dir, struct dentry *dentry, umode_t mode, bool flag)
 }
 
 static int
+#ifdef HAVE_IOPS_MKNOD_USERNS
+zpl_mknod(struct user_namespace *user_ns, struct inode *dir,
+    struct dentry *dentry, umode_t mode,
+#else
 zpl_mknod(struct inode *dir, struct dentry *dentry, umode_t mode,
+#endif
     dev_t rdev)
 {
 	cred_t *cr = CRED();
@@ -451,7 +456,12 @@ zpl_rename(struct inode *sdip, struct dentry *sdentry,
 #endif
 
 static int
+#ifdef HAVE_IOPS_SYMLINK_USERNS
+zpl_symlink(struct user_namespace *user_ns, struct inode *dir,
+    struct dentry *dentry, const char *name)
+#else
 zpl_symlink(struct inode *dir, struct dentry *dentry, const char *name)
+#endif
 {
 	cred_t *cr = CRED();
 	vattr_t *vap;
