@@ -179,7 +179,7 @@ zpl_dir_emit_dots(struct file *file, zpl_dir_context_t *ctx)
 #error "Unsupported kernel"
 #endif
 
-#if defined(HAVE_SETATTR_PREPARE_USERNS)
+#ifdef HAVE_SETATTR_PREPARE_USERNS
 #define	zpl_setattr_prepare(ns, dentry, ia)	setattr_prepare(ns, dentry, ia)
 #else
 /*

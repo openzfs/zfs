@@ -374,7 +374,12 @@ zpl_getattr_impl(const struct path *path, struct kstat *stat, u32 request_mask,
 ZPL_GETATTR_WRAPPER(zpl_getattr);
 
 static int
+#ifdef HAVE_SETATTR_PREPARE_USERNS
+zpl_setattr(struct user_namespace *user_ns, struct dentry *dentry,
+    struct iattr *ia)
+#else
 zpl_setattr(struct dentry *dentry, struct iattr *ia)
+#endif
 {
 	struct inode *ip = dentry->d_inode;
 	cred_t *cr = CRED();
