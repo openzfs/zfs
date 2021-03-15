@@ -128,7 +128,12 @@ zpl_vap_init(vattr_t *vap, struct inode *dir, umode_t mode, cred_t *cr)
 }
 
 static int
+#ifdef HAVE_IOPS_CREATE_USERNS
+zpl_create(struct user_namespace *user_ns, struct inode *dir,
+    struct dentry *dentry, umode_t mode, bool flag)
+#else
 zpl_create(struct inode *dir, struct dentry *dentry, umode_t mode, bool flag)
+#endif
 {
 	cred_t *cr = CRED();
 	znode_t *zp;
