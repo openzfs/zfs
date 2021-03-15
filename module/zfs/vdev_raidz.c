@@ -4054,14 +4054,15 @@ vdev_raidz_reflow_copy_scratch(spa_t *spa)
 	zfs_dbgmsg("raidz reflow recovery: uberblock updated (txg %llu, SCRATCH_NOT_IN_USE, size %llu, ts %llu)",
 	    spa->spa_ubsync.ub_txg, logical_size, spa->spa_ubsync.ub_timestamp);
 
-	spa_config_exit(spa, SCL_STATE, FTAG);
-
 	dmu_tx_t *tx = dmu_tx_create_assigned(spa->spa_dsl_pool,
 	    spa_first_txg(spa));
 	int txgoff = dmu_tx_get_txg(tx) & TXG_MASK;
+	vre->vre_offset = vre->vre_bytes_copied = logical_size;
 	vre->vre_offset_pertxg[txgoff] = vre->vre_offset;
 	vre->vre_bytes_copied_pertxg[txgoff] = vre->vre_bytes_copied;
 	raidz_reflow_sync(spa, tx);
+
+	spa_config_exit(spa, SCL_STATE, FTAG);
 
 	dmu_tx_commit(tx);
 
