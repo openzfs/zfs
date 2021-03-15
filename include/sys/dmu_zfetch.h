@@ -61,7 +61,6 @@ typedef struct zstream {
 
 	list_node_t	zs_node;	/* link for zf_stream */
 	hrtime_t	zs_atime;	/* time last prefetch issued */
-	hrtime_t	zs_start_time;	/* start of last prefetch */
 	zfetch_t	*zs_fetch;	/* parent fetch */
 	boolean_t	zs_missed;	/* stream saw cache misses */
 	zfs_refcount_t	zs_callers;	/* number of pending callers */

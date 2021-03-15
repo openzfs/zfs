@@ -59,8 +59,6 @@ typedef struct zfetch_stats {
 	kstat_named_t zfetchstat_hits;
 	kstat_named_t zfetchstat_misses;
 	kstat_named_t zfetchstat_max_streams;
-	kstat_named_t zfetchstat_max_completion_us;
-	kstat_named_t zfetchstat_last_completion_us;
 	kstat_named_t zfetchstat_io_issued;
 } zfetch_stats_t;
 
@@ -68,8 +66,6 @@ static zfetch_stats_t zfetch_stats = {
 	{ "hits",			KSTAT_DATA_UINT64 },
 	{ "misses",			KSTAT_DATA_UINT64 },
 	{ "max_streams",		KSTAT_DATA_UINT64 },
-	{ "max_completion_us",		KSTAT_DATA_UINT64 },
-	{ "last_completion_us",		KSTAT_DATA_UINT64 },
 	{ "io_issued",		KSTAT_DATA_UINT64 },
 };
 
@@ -129,6 +125,7 @@ dmu_zfetch_init(zfetch_t *zf, dnode_t *dno)
 static void
 dmu_zfetch_stream_fini(zstream_t *zs)
 {
+	ASSERT(!list_link_active(&zs->zs_node));
 	kmem_free(zs, sizeof (*zs));
 }
 
@@ -138,6 +135,7 @@ dmu_zfetch_stream_remove(zfetch_t *zf, zstream_t *zs)
 	ASSERT(MUTEX_HELD(&zf->zf_lock));
 	list_remove(&zf->zf_stream, zs);
 	zf->zf_numstreams--;
+	membar_producer();
 	if (zfs_refcount_remove(&zs->zs_refs, NULL) == 0)
 		dmu_zfetch_stream_fini(zs);
 }
@@ -228,16 +226,6 @@ static void
 dmu_zfetch_stream_done(void *arg, boolean_t io_issued)
 {
 	zstream_t *zs = arg;
-
-	if (zs->zs_start_time && io_issued) {
-		hrtime_t now = gethrtime();
-		hrtime_t delta = NSEC2USEC(now - zs->zs_start_time);
-
-		zs->zs_start_time = 0;
-		ZFETCHSTAT_SET(zfetchstat_last_completion_us, delta);
-		if (delta > ZFETCHSTAT_GET(zfetchstat_max_completion_us))
-			ZFETCHSTAT_SET(zfetchstat_max_completion_us, delta);
-	}
 
 	if (zfs_refcount_remove(&zs->zs_refs, NULL) == 0)
 		dmu_zfetch_stream_fini(zs);
@@ -408,13 +396,12 @@ dmu_zfetch_prepare(zfetch_t *zf, uint64_t blkid, uint64_t nblks,
 	ipf_nblks = MIN(pf_ahead_blks, max_blks);
 	zs->zs_ipf_blkid = ipf_start + ipf_nblks;
 
+	zs->zs_blkid = end_of_access_blkid;
+	/* Protect the stream from reclamation. */
 	zs->zs_atime = gethrtime();
-	/* Protect the stream from reclamation.  2 -- zf_stream + us. */
-	if (zfs_refcount_add(&zs->zs_refs, NULL) == 2)
-		zs->zs_start_time = zs->zs_atime;
+	zfs_refcount_add(&zs->zs_refs, NULL);
 	/* Count concurrent callers. */
 	zfs_refcount_add(&zs->zs_callers, NULL);
-	zs->zs_blkid = end_of_access_blkid;
 	mutex_exit(&zf->zf_lock);
 
 	if (!have_lock)
@@ -456,10 +443,13 @@ dmu_zfetch_run(zstream_t *zs, boolean_t missed, boolean_t have_lock)
 	ipf_start = MAX(zs->zs_pf_blkid1, zs->zs_ipf_blkid1);
 	ipf_end = zs->zs_ipf_blkid1 = zs->zs_ipf_blkid;
 	mutex_exit(&zf->zf_lock);
+	ASSERT3S(pf_start, <=, pf_end);
+	ASSERT3S(ipf_start, <=, ipf_end);
 
 	epbs = zf->zf_dnode->dn_indblkshift - SPA_BLKPTRSHIFT;
 	ipf_start = P2ROUNDUP(ipf_start, 1 << epbs) >> epbs;
 	ipf_end = P2ROUNDUP(ipf_end, 1 << epbs) >> epbs;
+	ASSERT3S(ipf_start, <=, ipf_end);
 	issued = pf_end - pf_start + ipf_end - ipf_start;
 	if (issued > 1) {
 		/* More references on top of taken in dmu_zfetch_prepare(). */
