@@ -1941,8 +1941,6 @@ vdev_draid_io_start_read(zio_t *zio, raidz_row_t *rr)
 	}
 }
 
-extern const zio_vsd_ops_t vdev_raidz_vsd_ops;
-
 /*
  * Start an IO operation to a dRAID vdev.
  */
