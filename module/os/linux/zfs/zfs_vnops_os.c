@@ -1656,12 +1656,8 @@ out:
  */
 /* ARGSUSED */
 int
-#ifdef HAVE_GENERIC_FILLATTR_USERNS
 zfs_getattr_fast(struct user_namespace *user_ns, struct inode *ip,
     struct kstat *sp)
-#else
-zfs_getattr_fast(struct inode *ip, struct kstat *sp)
-#endif
 {
 	znode_t *zp = ITOZ(ip);
 	zfsvfs_t *zfsvfs = ITOZSB(ip);
@@ -1673,11 +1669,7 @@ zfs_getattr_fast(struct inode *ip, struct kstat *sp)
 
 	mutex_enter(&zp->z_lock);
 
-#ifdef HAVE_GENERIC_FILLATTR_USERNS
-	generic_fillattr(user_ns, ip, sp);
-#else
-	generic_fillattr(ip, sp);
-#endif
+	zpl_generic_fillattr(user_ns, ip, sp);
 	/*
 	 * +1 link count for root inode with visible '.zfs' directory.
 	 */

@@ -446,4 +446,16 @@ zpl_is_32bit_api(void)
 #endif
 }
 
+/*
+ * 5.12 API change
+ * To support id-mapped mounts, generic_fillattr() was modified to
+ * accept a new struct user_namespace* as its first arg.
+ */
+#ifdef HAVE_GENERIC_FILLATTR_USERNS
+#define	zpl_generic_fillattr(user_ns, ip, sp)	\
+    generic_fillattr(user_ns, ip, sp)
+#else
+#define	zpl_generic_fillattr(user_ns, ip, sp)	generic_fillattr(ip, sp)
+#endif
+
 #endif /* _ZFS_VFS_H */

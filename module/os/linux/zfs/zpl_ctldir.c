@@ -559,7 +559,7 @@ zpl_shares_getattr_impl(const struct path *path, struct kstat *stat,
 #if defined(HAVE_GENERIC_FILLATTR_USERNS) && defined(HAVE_USERNS_IOPS_GETATTR)
 		error = -zfs_getattr_fast(user_ns, ZTOI(dzp), stat);
 #else
-		error = -zfs_getattr_fast(ZTOI(dzp), stat);
+		error = -zfs_getattr_fast(kcred->user_ns, ZTOI(dzp), stat);
 #endif
 		iput(ZTOI(dzp));
 	}
