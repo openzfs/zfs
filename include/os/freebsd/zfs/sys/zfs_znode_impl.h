@@ -77,8 +77,6 @@ typedef struct zfs_soft_state {
 	void *zss_data;
 } zfs_soft_state_t;
 
-extern minor_t zfsdev_minor_alloc(void);
-
 /*
  * Range locking rules
  * --------------------
