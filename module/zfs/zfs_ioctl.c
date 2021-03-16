@@ -7352,8 +7352,8 @@ zfsdev_getminor(int fd, minor_t *minorp)
 	return (SET_ERROR(EBADF));
 }
 
-static void *
-zfsdev_get_state_impl(minor_t minor, enum zfsdev_state_type which)
+void *
+zfsdev_get_state(minor_t minor, enum zfsdev_state_type which)
 {
 	zfsdev_state_t *zs;
 
@@ -7374,16 +7374,6 @@ zfsdev_get_state_impl(minor_t minor, enum zfsdev_state_type which)
 	return (NULL);
 }
 
-void *
-zfsdev_get_state(minor_t minor, enum zfsdev_state_type which)
-{
-	void *ptr;
-
-	ptr = zfsdev_get_state_impl(minor, which);
-
-	return (ptr);
-}
-
 /*
  * Find a free minor number.  The zfsdev_state_list is expected to
  * be short since it is only a list of currently open file handles.
@@ -7399,7 +7389,7 @@ zfsdev_minor_alloc(void)
 	for (m = last_minor + 1; m != last_minor; m++) {
 		if (m > ZFSDEV_MAX_MINOR)
 			m = 1;
-		if (zfsdev_get_state_impl(m, ZST_ALL) == NULL) {
+		if (zfsdev_get_state(m, ZST_ALL) == NULL) {
 			last_minor = m;
 			return (m);
 		}
