@@ -2483,7 +2483,7 @@ vdev_raidz_io_done_verified(zio_t *zio, raidz_row_t *rr)
 	/*
 	 * Scrub or resilver i/o's: overwrite any shadow locations with the
 	 * good data.  This ensures that if we've already copied this sector,
-	 * it'll be corrected if it was damaged.  This writes more than is
+	 * it will be corrected if it was damaged.  This writes more than is
 	 * necessary, but since expansion is paused during scrub/resilver, at
 	 * most a single row will have a shadow location.
 	 */
@@ -2508,7 +2508,6 @@ vdev_raidz_io_done_verified(zio_t *zio, raidz_row_t *rr)
 			    rc->rc_shadow_offset, rc->rc_abd, rc->rc_size,
 			    ZIO_TYPE_WRITE, ZIO_PRIORITY_ASYNC_WRITE,
 			    ZIO_FLAG_IO_REPAIR, NULL, NULL);
-			    //vdev_raidz_shadow_child_done, rc);
 			cio->io_flags &= ~ZIO_FLAG_SCAN_THREAD;
 			zio_nowait(cio);
 		}
@@ -3036,13 +3035,17 @@ vdev_raidz_io_done(zio_t *zio)
 {
 	raidz_map_t *rm = zio->io_vsd;
 
-	ASSERT(zio->io_bp != NULL);  /* XXX need to add code to enforce this */
+	ASSERT(zio->io_bp != NULL);
 	if (zio->io_type == ZIO_TYPE_WRITE) {
 		for (int i = 0; i < rm->rm_nrows; i++) {
 			vdev_raidz_io_done_write_impl(zio, rm->rm_row[i]);
 		}
 	} else {
 		if (rm->rm_phys_col) {
+			/*
+			 * This is an aggregated read.  Copy the data and status
+			 * from the aggregate abd's to the individual rows.
+			 */
 			for (int i = 0; i < rm->rm_nrows; i++) {
 				raidz_row_t *rr = rm->rm_row[i];
 
@@ -3057,7 +3060,10 @@ vdev_raidz_io_done(zio_t *zio)
 					rc->rc_tried = prc->rc_tried;
 					rc->rc_skipped = prc->rc_skipped;
 					if (c >= rr->rr_firstdatacol) {
-#if 1 // XXX evaluate perf impact. if it matters then make a fast-path in abd_copy_off where one of the abd's is linear?
+						/*
+						 * Note: this is slightly faster
+						 * than using abd_copy_off().
+						 */
 						char *physbuf = abd_to_buf(
 						    prc->rc_abd);
 						void *physloc = physbuf +
@@ -3066,13 +3072,6 @@ vdev_raidz_io_done(zio_t *zio)
 
 						abd_copy_from_buf(rc->rc_abd,
 						    physloc, rc->rc_size);
-#else
-						abd_copy_off(rc->rc_abd,
-						    prc->rc_abd, 0,
-						    rc->rc_offset -
-						    prc->rc_offset,
-						    rc->rc_size);
-#endif
 					}
 				}
 			}
