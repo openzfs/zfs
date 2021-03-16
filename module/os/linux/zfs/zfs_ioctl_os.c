@@ -118,7 +118,7 @@ zfsdev_state_init(struct file *filp)
 
 	/*
 	 * In order to provide for lock-free concurrent read access
-	 * to the minor list in zfsdev_get_state_impl(), new entries
+	 * to the minor list in zfsdev_get_state(), new entries
 	 * must be completely written before linking them into the
 	 * list whereas existing entries are already linked; the last
 	 * operation must be updating zs_minor (from -1 to the new
