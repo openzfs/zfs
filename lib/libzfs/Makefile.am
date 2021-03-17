@@ -38,11 +38,19 @@ USER_C += \
 endif
 
 if BUILD_LINUX
+
 USER_C += \
 	os/linux/libzfs_mount_os.c \
 	os/linux/libzfs_pool_os.c \
 	os/linux/libzfs_sendrecv_os.c \
 	os/linux/libzfs_util_os.c
+
+if ENABLE_UZFS
+USER_C += libuzfs_handle.c
+
+VPATH += $(top_srcdir)/module/os/linux/zfs
+endif
+
 endif
 
 KERNEL_C = \
@@ -63,6 +71,14 @@ KERNEL_C = \
 	zpool_prop.c \
 	zprop_common.c
 
+if ENABLE_UZFS
+KERNEL_C += \
+	zfs_ioctl.c \
+	zfs_vfsops.c
+
+VPATH += $(top_srcdir)/module/zfs
+endif
+
 dist_libzfs_la_SOURCES = \
 	$(USER_C)
 
@@ -74,6 +90,10 @@ libzfs_la_LIBADD = \
 	$(abs_top_builddir)/lib/libzfs_core/libzfs_core.la \
 	$(abs_top_builddir)/lib/libnvpair/libnvpair.la \
 	$(abs_top_builddir)/lib/libuutil/libuutil.la
+
+if ENABLE_UZFS
+libzfs_la_LIBADD += $(abs_top_builddir)/lib/libzpool/libzpool.la
+endif
 
 libzfs_la_LIBADD += -lm $(LIBCRYPTO_LIBS) $(ZLIB_LIBS) $(LTLIBINTL)
 

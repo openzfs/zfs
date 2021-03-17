@@ -2,7 +2,7 @@
 # These nine libraries are intermediary build components.
 SUBDIRS = libavl libicp libshare libspl libtpool libzstd
 CPPCHECKDIRS  = libavl libicp libnvpair libshare libspl libtpool libunicode
-CPPCHECKDIRS += libuutil libzfs libzfs_core libzfsbootenv libzpool libzutil
+CPPCHECKDIRS += libuutil libzfs_core libzpool libzfs libzfsbootenv libzutil
 
 if BUILD_LINUX
 SUBDIRS += libefi
@@ -18,7 +18,7 @@ SUBDIRS += libzutil libunicode
 
 # These five libraries, which are installed as the final build product,
 # incorporate the eight convenience libraries given above.
-DISTLIBS = libuutil libzfs_core libzfs libzpool libzfsbootenv
+DISTLIBS = libuutil libzfs_core libzpool libzfs libzfsbootenv
 SUBDIRS += $(DISTLIBS)
 DISTLIBS += libnvpair
 

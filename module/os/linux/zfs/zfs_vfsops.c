@@ -26,6 +26,10 @@
 /* Portions Copyright 2010 Robert Milkowski */
 
 #include <sys/types.h>
+#include <sys/dmu_objset.h>
+#include <sys/zfs_znode.h>
+#include <sys/zap.h>
+#if defined(_KERNEL)
 #include <sys/param.h>
 #include <sys/sysmacros.h>
 #include <sys/kmem.h>
@@ -44,7 +48,6 @@
 #include <sys/dsl_dataset.h>
 #include <sys/dsl_deleg.h>
 #include <sys/spa.h>
-#include <sys/zap.h>
 #include <sys/sa.h>
 #include <sys/sa_impl.h>
 #include <sys/policy.h>
@@ -54,7 +57,6 @@
 #include <sys/zfs_fuid.h>
 #include <sys/zfs_quota.h>
 #include <sys/sunddi.h>
-#include <sys/dmu_objset.h>
 #include <sys/dsl_dir.h>
 #include <sys/spa_boot.h>
 #include <sys/objlist.h>
@@ -2019,6 +2021,7 @@ zfs_set_version(zfsvfs_t *zfsvfs, uint64_t newvers)
 
 	return (0);
 }
+#endif /* _KERNEL */
 
 /*
  * Read a property stored within the master node.
@@ -2105,6 +2108,7 @@ zfs_get_zplprop(objset_t *os, zfs_prop_t prop, uint64_t *value)
 	return (error);
 }
 
+#if defined(_KERNEL)
 /*
  * Return true if the corresponding vfs's unmounted flag is set.
  * Otherwise return false.
@@ -2158,6 +2162,7 @@ zfs_fini(void)
 	zfs_znode_fini();
 	zfsctl_fini();
 }
+#endif /* _KERNEL */
 
 #if defined(_KERNEL)
 EXPORT_SYMBOL(zfs_suspend_fs);

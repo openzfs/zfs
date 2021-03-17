@@ -156,6 +156,7 @@
  *   ZFS_ERR_IOC_ARG_BADTYPE	an input argument has an invalid type
  */
 
+#if defined(_KERNEL)
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/errno.h>
@@ -279,11 +280,113 @@ static int zfs_check_settable(const char *name, nvpair_t *property,
     cred_t *cr);
 static int zfs_check_clearable(const char *dataset, nvlist_t *props,
     nvlist_t **errors);
+static int get_nvlist(uint64_t nvl, uint64_t size, int iflag, nvlist_t **nvp);
+#else
+#include <libuzfs.h>
+#include <sys/spa_impl.h>
+#include <sys/dsl_prop.h>
+#include <sys/zvol.h>
+#include <sys/zap.h>
+#include <sys/dmu_objset.h>
+#include <sys/dsl_dataset.h>
+#include <sys/dsl_bookmark.h>
+#include <sys/dsl_dir.h>
+#include <sys/dmu_send.h>
+#include <sys/dsl_destroy.h>
+#include <sys/zfs_acl.h>
+#include <sys/zio_checksum.h>
+#include <sys/zfs_znode.h>
+#include <sys/file.h>
+#include <sys/stat.h>
+#include <sys/dmu_impl.h>
+#include "libuzfs.h"
+
+#include "zfs_fletcher.h"
+#include "zfs_namecheck.h"
+#include "zfs_comutil.h"
+#include "zfs_prop.h"
+#include "zfeature_common.h"
+
+int zfs_set_prop_nvlist(const char *, zprop_source_t, nvlist_t *, nvlist_t *);
+
+static int
+zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
+{
+	return (0);
+}
+
+/*
+ * Returns the nvlist as specified by the user in the zfs_cmd_t.
+ */
+static int
+get_nvlist(uint64_t nvl, uint64_t size, int iflag, nvlist_t **nvp)
+{
+	char *packed;
+	int error;
+	nvlist_t *list = NULL;
+
+	/*
+	 * Read in and unpack the user-supplied nvlist.
+	 */
+	if (size == 0)
+		return (EINVAL);
+
+	packed = (void *)(uintptr_t)nvl;
+
+	if ((error = nvlist_unpack(packed, size, &list, 0)) != 0)
+		return (error);
+
+	*nvp = list;
+	return (0);
+}
+
+/*
+ * Copy nvlist to zc->zc_nvlist_dst_filled
+ */
+static int
+put_nvlist(zfs_cmd_t *zc, nvlist_t *nvl)
+{
+	char *packed = NULL;
+	int error = 0;
+	size_t size;
+
+	size = fnvlist_size(nvl);
+	zc->zc_nvlist_dst_filled = B_FALSE;
+
+	if (size > zc->zc_nvlist_dst_size) {
+		error = SET_ERROR(ENOMEM);
+	} else {
+		packed = fnvlist_pack(nvl, &size);
+		memcpy((void *)(uintptr_t)zc->zc_nvlist_dst, packed, size);
+		fnvlist_pack_free(packed, size);
+		zc->zc_nvlist_dst_filled = B_TRUE;
+	}
+
+	zc->zc_nvlist_dst_size = size;
+	return (error);
+}
+
+/*
+ * Write out a history event.
+ */
+int
+spa_history_log(spa_t *spa, const char *msg)
+{
+	int err;
+	nvlist_t *nvl = fnvlist_alloc();
+
+	fnvlist_add_string(nvl, ZPOOL_HIST_CMD, msg);
+	err = spa_history_log_nvl(spa, nvl);
+	fnvlist_free(nvl);
+	return (err);
+}
+#endif /* _KERNEL */
+
 static int zfs_fill_zplprops_root(uint64_t, nvlist_t *, nvlist_t *,
     boolean_t *);
 int zfs_set_prop_nvlist(const char *, zprop_source_t, nvlist_t *, nvlist_t *);
-static int get_nvlist(uint64_t nvl, uint64_t size, int iflag, nvlist_t **nvp);
 
+#if defined(_KERNEL)
 static void
 history_str_free(char *buf)
 {
@@ -1305,6 +1408,7 @@ get_nvlist(uint64_t nvl, uint64_t size, int iflag, nvlist_t **nvp)
 	*nvp = list;
 	return (0);
 }
+#endif /* _KERNEL */
 
 /*
  * Reduce the size of this nvlist until it can be serialized in 'max' bytes.
@@ -1345,6 +1449,7 @@ nvlist_smush(nvlist_t *errors, size_t max)
 	return (0);
 }
 
+#if defined(_KERNEL)
 static int
 put_nvlist(zfs_cmd_t *zc, nvlist_t *nvl)
 {
@@ -1441,6 +1546,7 @@ zfsvfs_rele(zfsvfs_t *zfsvfs, void *tag)
 		zfsvfs_free(zfsvfs);
 	}
 }
+#endif /* _KERNEL */
 
 static int
 zfs_ioc_pool_create(zfs_cmd_t *zc)
@@ -1524,6 +1630,7 @@ pool_props_bad:
 	return (error);
 }
 
+#if defined(_KERNEL)
 static int
 zfs_ioc_pool_destroy(zfs_cmd_t *zc)
 {
@@ -1583,6 +1690,7 @@ zfs_ioc_pool_export(zfs_cmd_t *zc)
 
 	return (error);
 }
+#endif /* _KERNEL */
 
 static int
 zfs_ioc_pool_configs(zfs_cmd_t *zc)
@@ -1636,6 +1744,7 @@ zfs_ioc_pool_stats(zfs_cmd_t *zc)
 	return (ret);
 }
 
+#ifdef _KERNEL
 /*
  * Try to import the given pool, returning pool stats as appropriate so that
  * user land knows which devices are available and overall pool health.
@@ -2033,6 +2142,7 @@ zfs_ioc_vdev_setfru(zfs_cmd_t *zc)
 	spa_close(spa, FTAG);
 	return (error);
 }
+#endif /* _KERNEL */
 
 static int
 zfs_ioc_objset_stats_impl(zfs_cmd_t *zc, objset_t *os)
@@ -2045,6 +2155,13 @@ zfs_ioc_objset_stats_impl(zfs_cmd_t *zc, objset_t *os)
 	if (zc->zc_nvlist_dst != 0 &&
 	    (error = dsl_prop_get_all(os, &nv)) == 0) {
 		dmu_objset_stats(os, nv);
+#ifndef _UZFS
+		/*
+		 * _UZFS
+		 * After enabling zvol in uzfs, we can remove this
+		 * macro protection
+		 */
+
 		/*
 		 * NB: zvol_get_stats() will read the objset contents,
 		 * which we aren't supposed to do with a
@@ -2061,6 +2178,7 @@ zfs_ioc_objset_stats_impl(zfs_cmd_t *zc, objset_t *os)
 			}
 			VERIFY0(error);
 		}
+#endif
 		if (error == 0)
 			error = put_nvlist(zc, nv);
 		nvlist_free(nv);
@@ -2094,6 +2212,7 @@ zfs_ioc_objset_stats(zfs_cmd_t *zc)
 	return (error);
 }
 
+#ifdef _KERNEL
 /*
  * inputs:
  * zc_name		name of filesystem
@@ -2395,6 +2514,7 @@ zfs_prop_set_userquota(const char *dsname, nvpair_t *pair)
 
 	return (err);
 }
+#endif /* _KERNEL */
 
 /*
  * If the named property is one that has a special function to set its value,
@@ -2415,8 +2535,10 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 	int err = -1;
 
 	if (prop == ZPROP_INVAL) {
+#ifdef _KERNEL
 		if (zfs_prop_userquota(propname))
 			return (zfs_prop_set_userquota(dsname, pair));
+#endif
 		return (-1);
 	}
 
@@ -2481,6 +2603,7 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 		if (err == 0)
 			err = -1;
 		break;
+#ifdef _KERNEL
 	case ZFS_PROP_VOLSIZE:
 		err = zvol_set_volsize(dsname, intval);
 		break;
@@ -2512,6 +2635,7 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 		}
 		break;
 	}
+#endif
 	default:
 		err = -1;
 	}
@@ -2689,6 +2813,7 @@ retry:
 	return (rv);
 }
 
+#if defined(_KERNEL)
 /*
  * Check that all the properties are valid user properties.
  */
@@ -2920,6 +3045,7 @@ zfs_ioc_pool_set_props(zfs_cmd_t *zc)
 
 	return (error);
 }
+#endif /* _KERNEL */
 
 static int
 zfs_ioc_pool_get_props(zfs_cmd_t *zc)
@@ -2952,6 +3078,7 @@ zfs_ioc_pool_get_props(zfs_cmd_t *zc)
 	return (error);
 }
 
+#ifdef _KERNEL
 /*
  * inputs:
  * zc_name		name of filesystem
@@ -3031,6 +3158,7 @@ zfs_create_cb(objset_t *os, void *arg, cred_t *cr, dmu_tx_t *tx)
 
 	zfs_create_fs(os, cr, zct->zct_zplprops, tx);
 }
+#endif /* _KERNEL */
 
 #define	ZFS_PROP_UNDEFINED	((uint64_t)-1)
 
@@ -3139,6 +3267,7 @@ zfs_fill_zplprops_impl(objset_t *os, uint64_t zplver,
 	return (0);
 }
 
+#if defined(_KERNEL)
 static int
 zfs_fill_zplprops(const char *dataset, nvlist_t *createprops,
     nvlist_t *zplprops, boolean_t *is_ci)
@@ -3174,6 +3303,7 @@ zfs_fill_zplprops(const char *dataset, nvlist_t *createprops,
 	dmu_objset_rele(os, FTAG);
 	return (error);
 }
+#endif /* _KERNEL */
 
 static int
 zfs_fill_zplprops_root(uint64_t spa_vers, nvlist_t *createprops,
@@ -3193,6 +3323,7 @@ zfs_fill_zplprops_root(uint64_t spa_vers, nvlist_t *createprops,
 	return (error);
 }
 
+#if defined(_KERNEL)
 /*
  * innvl: {
  *     "type" -> dmu_objset_type_t (int32)
@@ -3476,15 +3607,21 @@ zfs_ioc_snapshot(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 static const zfs_ioc_key_t zfs_keys_log_history[] = {
 	{"message",	DATA_TYPE_STRING,	0},
 };
+#endif /* _KERNEL */
 
 /* ARGSUSED */
 static int
+#if defined(_KERNEL)
 zfs_ioc_log_history(const char *unused, nvlist_t *innvl, nvlist_t *outnvl)
+#else
+zfs_ioc_log_history(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
+#endif
 {
 	const char *message;
-	char *poolname;
 	spa_t *spa;
 	int error;
+#ifdef _KERNEL
+	char *poolname;
 
 	/*
 	 * The poolname in the ioctl is not set, we get it from the TSD,
@@ -3494,11 +3631,14 @@ zfs_ioc_log_history(const char *unused, nvlist_t *innvl, nvlist_t *outnvl)
 	 * we clear the TSD here.
 	 */
 	poolname = tsd_get(zfs_allow_log_key);
+#endif
 	if (poolname == NULL)
 		return (SET_ERROR(EINVAL));
-	(void) tsd_set(zfs_allow_log_key, NULL);
 	error = spa_open(poolname, &spa, FTAG);
+#ifdef _KERNEL
+	(void) tsd_set(zfs_allow_log_key, NULL);
 	kmem_strfree(poolname);
+#endif
 	if (error != 0)
 		return (error);
 
@@ -3514,6 +3654,7 @@ zfs_ioc_log_history(const char *unused, nvlist_t *innvl, nvlist_t *outnvl)
 	return (error);
 }
 
+#if defined(_KERNEL)
 /*
  * This ioctl is used to set the bootenv configuration on the current
  * pool. This configuration is stored in the second padding area of the label,
@@ -7684,3 +7825,86 @@ ZFS_MODULE_PARAM(zfs, zfs_, max_nvlist_src_size, ULONG, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs, zfs_, history_output_max, ULONG, ZMOD_RW,
     "Maximum size in bytes of ZFS ioctl output that will be logged");
 /* END CSTYLED */
+
+#elif defined(_UZFS)
+
+/*
+ * execute ioctl command in userspace
+ */
+int
+uzfs_handle_ioctl(const char *pool, zfs_cmd_t *zc, uzfs_info_t *ucmd_info)
+{
+	int err;
+	int puterror = 0;
+	nvlist_t *innvl = NULL;
+	uzfs_ioctl_t *uzfs_cmd = &ucmd_info->uzfs_cmd;
+
+	if (zc->zc_nvlist_src_size > MAX_NVLIST_SRC_SIZE) {
+		/*
+		 * Make sure the user doesn't pass in an insane value for
+		 * zc_nvlist_src_size.  We have to check, since we will end
+		 * up allocating that much memory inside of get_nvlist().  This
+		 * prevents a nefarious user from allocating tons of kernel
+		 * memory.
+		 *
+		 * Also, we return EINVAL instead of ENOMEM here.  The reason
+		 * being that returning ENOMEM from an ioctl() has a special
+		 * connotation; that the user's size value is too small and
+		 * needs to be expanded to hold the nvlist.  See
+		 * zcmd_expand_dst_nvlist() for details.
+		 */
+		return (EINVAL); /* User's size too big */
+	} else if (zc->zc_nvlist_src_size != 0) {
+		err = get_nvlist(zc->zc_nvlist_src, zc->zc_nvlist_src_size, 0,
+		    &innvl);
+		if (err != 0)
+			return (err);
+	}
+	err = ENOTSUP;
+	switch (uzfs_cmd->ioc_num) {
+	case ZFS_IOC_POOL_CREATE:
+		err = zfs_ioc_pool_create(zc);
+		break;
+	case ZFS_IOC_OBJSET_STATS:
+		err = zfs_ioc_objset_stats(zc);
+		break;
+	case ZFS_IOC_POOL_STATS:
+		err = zfs_ioc_pool_stats(zc);
+		break;
+	case ZFS_IOC_POOL_GET_PROPS:
+		err = zfs_ioc_pool_get_props(zc);
+		break;
+	case ZFS_IOC_POOL_CONFIGS:
+		err = zfs_ioc_pool_configs(zc);
+		break;
+	case ZFS_IOC_LOG_HISTORY: {
+		nvlist_t *outnvl = fnvlist_alloc();
+
+		err = zfs_ioc_log_history(pool, innvl, outnvl);
+		if (!nvlist_empty(outnvl) || zc->zc_nvlist_dst_size != 0) {
+			int smusherror = 0;
+			if (should_smush_nvlist(uzfs_cmd->ioc_num)) {
+				smusherror = nvlist_smush(outnvl,
+				    zc->zc_nvlist_dst_size);
+			}
+			if (smusherror == 0)
+				puterror = put_nvlist(zc, outnvl);
+		}
+		if (puterror != 0)
+			err = puterror;
+
+		nvlist_free(outnvl);
+		break;
+	}
+	default:
+		fprintf(stderr, "ioctl(0x%lx) not supported!\n",
+		    uzfs_cmd->ioc_num);
+		break;
+	}
+
+	nvlist_free(innvl);
+
+	return (err);
+}
+
+#endif

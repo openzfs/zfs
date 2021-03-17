@@ -28,7 +28,7 @@ AM_CFLAGS += -fno-strict-aliasing
 AM_CFLAGS += $(NO_OMIT_FRAME_POINTER)
 AM_CFLAGS += $(DEBUG_CFLAGS)
 AM_CFLAGS += $(ASAN_CFLAGS)
-AM_CFLAGS += $(CODE_COVERAGE_CFLAGS) $(NO_FORMAT_ZERO_LENGTH)
+AM_CFLAGS += $(CODE_COVERAGE_CFLAGS) $(NO_FORMAT_ZERO_LENGTH) $(UZFS_CFLAGS)
 if BUILD_FREEBSD
 AM_CFLAGS += -fPIC -Werror -Wno-unknown-pragmas -Wno-enum-conversion
 AM_CFLAGS += -include $(top_srcdir)/include/os/freebsd/spl/sys/ccompile.h
@@ -45,7 +45,7 @@ AM_CPPFLAGS += -DRUNSTATEDIR=\"$(runstatedir)\"
 AM_CPPFLAGS += -DSBINDIR=\"$(sbindir)\"
 AM_CPPFLAGS += -DSYSCONFDIR=\"$(sysconfdir)\"
 AM_CPPFLAGS += $(DEBUG_CPPFLAGS)
-AM_CPPFLAGS += $(CODE_COVERAGE_CPPFLAGS)
+AM_CPPFLAGS += $(CODE_COVERAGE_CPPFLAGS) $(UZFS_CFLAGS)
 if BUILD_LINUX
 AM_CPPFLAGS += -DTEXT_DOMAIN=\"zfs-linux-user\"
 endif
