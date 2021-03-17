@@ -2,7 +2,7 @@
 # These nine libraries are intermediary build components.
 SUBDIRS = libavl libicp libshare libspl libtpool libzstd
 CPPCHECKDIRS  = libavl libicp libnvpair libshare libspl libtpool libunicode
-CPPCHECKDIRS += libuutil libzfs libzfs_core libzpool libzutil
+CPPCHECKDIRS += libuutil libzfs libzfs_core libzfsbootenv libzpool libzutil
 
 if BUILD_LINUX
 SUBDIRS += libefi
@@ -16,15 +16,15 @@ SUBDIRS += libnvpair
 # libzutil depends on libefi if present
 SUBDIRS += libzutil libunicode
 
-# These four libraries, which are installed as the final build product,
+# These five libraries, which are installed as the final build product,
 # incorporate the eight convenience libraries given above.
-DISTLIBS = libuutil libzfs_core libzfs libzpool
+DISTLIBS = libuutil libzfs_core libzfs libzpool libzfsbootenv
 SUBDIRS += $(DISTLIBS)
 DISTLIBS += libnvpair
 
 # An ABI is stored for each of these libraries.  Note that libzpool.so
 # is only linked against by ztest and zdb and no stable ABI is provided.
-ABILIBS = libnvpair libuutil libzfs_core libzfs
+ABILIBS = libnvpair libuutil libzfs_core libzfs libzfsbootenv
 
 PHONY = checkabi storeabi cppcheck
 checkabi: $(ABILIBS)

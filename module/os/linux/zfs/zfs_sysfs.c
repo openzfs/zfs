@@ -361,6 +361,7 @@ static const char *zfs_kernel_features[] = {
 	"com.delphix:vdev_initialize",
 	"org.zfsonlinux:vdev_trim",
 	"org.openzfs:l2arc_persistent",
+	"com.delphix:nvlist_bootenv",
 };
 
 #define	KERNEL_FEATURE_COUNT	ARRAY_SIZE(zfs_kernel_features)

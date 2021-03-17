@@ -1638,17 +1638,22 @@ lzc_wait_fs(const char *fs, zfs_wait_activity_t activity, boolean_t *waited)
 	return (error);
 }
 
+static boolean_t
+supports_nvl_bootenv(void)
+{
+	return (access("/sys/module/zfs/features.kernel/"
+	    "com.delphix:nvlist_bootenv/supported", F_OK) == 0);
+}
+
 /*
  * Set the bootenv contents for the given pool.
  */
 int
-lzc_set_bootenv(const char *pool, const char *env)
+lzc_set_bootenv(const char *pool, const nvlist_t *env)
 {
-	nvlist_t *args = fnvlist_alloc();
-	fnvlist_add_string(args, "envmap", env);
-	int error = lzc_ioctl(ZFS_IOC_SET_BOOTENV, pool, args, NULL);
-	fnvlist_free(args);
-	return (error);
+	if (!supports_nvl_bootenv())
+		return (ENOTSUP);
+	return (lzc_ioctl(ZFS_IOC_SET_BOOTENV, pool, (nvlist_t *)env, NULL));
 }
 
 /*
@@ -1657,5 +1662,7 @@ lzc_set_bootenv(const char *pool, const char *env)
 int
 lzc_get_bootenv(const char *pool, nvlist_t **outnvl)
 {
+	if (!supports_nvl_bootenv())
+		return (ENOTSUP);
 	return (lzc_ioctl(ZFS_IOC_GET_BOOTENV, pool, NULL, outnvl));
 }

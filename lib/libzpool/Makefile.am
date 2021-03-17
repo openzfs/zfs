@@ -7,6 +7,13 @@ VPATH = \
 	$(top_srcdir)/module/os/linux/zfs \
 	$(top_srcdir)/lib/libzpool
 
+if BUILD_FREEBSD
+DEFAULT_INCLUDES += -I$(top_srcdir)/include/os/freebsd/zfs
+endif
+if BUILD_LINUX
+DEFAULT_INCLUDES += -I$(top_srcdir)/include/os/linux/zfs
+endif
+
 # Unconditionally enable debugging for libzpool
 AM_CPPFLAGS += -DDEBUG -UNDEBUG -DZFS_DEBUG
 
