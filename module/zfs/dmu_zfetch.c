@@ -392,7 +392,7 @@ dmu_zfetch_prepare(zfetch_t *zf, uint64_t blkid, uint64_t nblks,
 	 * (i.e. the amount read now + the amount of data prefetched now).
 	 */
 	pf_ahead_blks = zs->zs_ipf_blkid - blkid + nblks + pf_nblks;
-	max_blks = max_dist_blks - (ipf_start - end_of_access_blkid);
+	max_blks = max_dist_blks - (ipf_start - zs->zs_pf_blkid);
 	ipf_nblks = MIN(pf_ahead_blks, max_blks);
 	zs->zs_ipf_blkid = ipf_start + ipf_nblks;
 
