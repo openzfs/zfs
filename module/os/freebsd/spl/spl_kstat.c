@@ -299,15 +299,10 @@ __kstat_create(const char *module, int instance, const char *name,
 		panic("Undefined kstat type %d\n", ksp->ks_type);
 	}
 
-	if (ksp->ks_flags & KSTAT_FLAG_VIRTUAL) {
+	if (ksp->ks_flags & KSTAT_FLAG_VIRTUAL)
 		ksp->ks_data = NULL;
-	} else {
+	else
 		ksp->ks_data = kmem_zalloc(ksp->ks_data_size, KM_SLEEP);
-		if (ksp->ks_data == NULL) {
-			kmem_free(ksp, sizeof (*ksp));
-			ksp = NULL;
-		}
-	}
 
 	/*
 	 * Some kstats use a module name like "zfs/poolname" to distinguish a
@@ -509,6 +504,8 @@ kstat_delete(kstat_t *ksp)
 	sysctl_ctx_free(&ksp->ks_sysctl_ctx);
 	ksp->ks_lock = NULL;
 	mutex_destroy(&ksp->ks_private_lock);
+	if (!(ksp->ks_flags & KSTAT_FLAG_VIRTUAL))
+		kmem_free(ksp->ks_data, ksp->ks_data_size);
 	free(ksp, M_KSTAT);
 }
 
