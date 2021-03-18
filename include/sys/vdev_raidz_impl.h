@@ -127,7 +127,6 @@ typedef struct raidz_row {
 	abd_t *rr_abd_copy;		/* rm_asize-buffer of copied data */
 	abd_t *rr_abd_empty;		/* dRAID empty sector buffer */
 	int rr_nempty;			/* empty sectors included in parity */
-	int rr_code;			/* reconstruction code (unused) */
 #ifdef ZFS_DEBUG
 	uint64_t rr_offset;		/* Logical offset for *_io_verify() */
 	uint64_t rr_size;		/* Physical size for *_io_verify() */
