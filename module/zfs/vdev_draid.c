@@ -632,236 +632,6 @@ vdev_draid_group_to_offset(vdev_t *vd, uint64_t group)
 	return (group * vdc->vdc_groupsz);
 }
 
-
-static void
-vdev_draid_map_free_vsd(zio_t *zio)
-{
-	raidz_map_t *rm = zio->io_vsd;
-
-	ASSERT0(rm->rm_freed);
-	rm->rm_freed = B_TRUE;
-
-	if (rm->rm_reports == 0) {
-		vdev_raidz_map_free(rm);
-	}
-}
-
-/*ARGSUSED*/
-static void
-vdev_draid_cksum_free(void *arg, size_t ignored)
-{
-	raidz_map_t *rm = arg;
-
-	ASSERT3U(rm->rm_reports, >, 0);
-
-	if (--rm->rm_reports == 0 && rm->rm_freed)
-		vdev_raidz_map_free(rm);
-}
-
-static void
-vdev_draid_cksum_finish(zio_cksum_report_t *zcr, const abd_t *good_data)
-{
-	raidz_map_t *rm = zcr->zcr_cbdata;
-	const size_t c = zcr->zcr_cbinfo;
-	uint64_t skip_size = zcr->zcr_sector;
-	uint64_t parity_size;
-	size_t x, offset, size;
-
-	if (good_data == NULL) {
-		zfs_ereport_finish_checksum(zcr, NULL, NULL, B_FALSE);
-		return;
-	}
-
-	/*
-	 * Detailed cksum reporting is currently only supported for single
-	 * row draid mappings, this covers the vast majority of zios. Only
-	 * a dRAID zio which spans groups will have multiple rows.
-	 */
-	if (rm->rm_nrows != 1) {
-		zfs_ereport_finish_checksum(zcr, NULL, NULL, B_FALSE);
-		return;
-	}
-
-	raidz_row_t *rr = rm->rm_row[0];
-	const abd_t *good = NULL;
-	const abd_t *bad = rr->rr_col[c].rc_abd;
-
-	if (c < rr->rr_firstdatacol) {
-		/*
-		 * The first time through, calculate the parity blocks for
-		 * the good data (this relies on the fact that the good
-		 * data never changes for a given logical zio)
-		 */
-		if (rr->rr_col[0].rc_gdata == NULL) {
-			abd_t *bad_parity[VDEV_DRAID_MAXPARITY];
-
-			/*
-			 * Set up the rr_col[]s to generate the parity for
-			 * good_data, first saving the parity bufs and
-			 * replacing them with buffers to hold the result.
-			 */
-			for (x = 0; x < rr->rr_firstdatacol; x++) {
-				bad_parity[x] = rr->rr_col[x].rc_abd;
-				rr->rr_col[x].rc_abd = rr->rr_col[x].rc_gdata =
-				    abd_alloc_sametype(rr->rr_col[x].rc_abd,
-				    rr->rr_col[x].rc_size);
-			}
-
-			/*
-			 * Fill in the data columns from good_data being
-			 * careful to pad short columns and empty columns
-			 * with a skip sector.
-			 */
-			uint64_t good_size = abd_get_size((abd_t *)good_data);
-
-			offset = 0;
-			for (; x < rr->rr_cols; x++) {
-				abd_free(rr->rr_col[x].rc_abd);
-
-				if (offset == good_size) {
-					/* empty data column (small write) */
-					rr->rr_col[x].rc_abd =
-					    abd_get_zeros(skip_size);
-				} else if (x < rr->rr_bigcols) {
-					/* this is a "big column" */
-					size = rr->rr_col[x].rc_size;
-					rr->rr_col[x].rc_abd =
-					    abd_get_offset_size(
-					    (abd_t *)good_data, offset, size);
-					offset += size;
-				} else {
-					/* short data column, add skip sector */
-					size = rr->rr_col[x].rc_size -skip_size;
-					rr->rr_col[x].rc_abd = abd_alloc(
-					    rr->rr_col[x].rc_size, B_TRUE);
-					abd_copy_off(rr->rr_col[x].rc_abd,
-					    (abd_t *)good_data, 0, offset,
-					    size);
-					abd_zero_off(rr->rr_col[x].rc_abd,
-					    size, skip_size);
-					offset += size;
-				}
-			}
-
-			/*
-			 * Construct the parity from the good data.
-			 */
-			vdev_raidz_generate_parity_row(rm, rr);
-
-			/* restore everything back to its original state */
-			for (x = 0; x < rr->rr_firstdatacol; x++)
-				rr->rr_col[x].rc_abd = bad_parity[x];
-
-			offset = 0;
-			for (x = rr->rr_firstdatacol; x < rr->rr_cols; x++) {
-				abd_free(rr->rr_col[x].rc_abd);
-				rr->rr_col[x].rc_abd = abd_get_offset_size(
-				    rr->rr_abd_copy, offset,
-				    rr->rr_col[x].rc_size);
-				offset += rr->rr_col[x].rc_size;
-			}
-		}
-
-		ASSERT3P(rr->rr_col[c].rc_gdata, !=, NULL);
-		good = abd_get_offset_size(rr->rr_col[c].rc_gdata, 0,
-		    rr->rr_col[c].rc_size);
-	} else {
-		/* adjust good_data to point at the start of our column */
-		parity_size = size = rr->rr_col[0].rc_size;
-		if (c >= rr->rr_bigcols) {
-			size -= skip_size;
-			zcr->zcr_length = size;
-		}
-
-		/* empty column */
-		if (size == 0) {
-			zfs_ereport_finish_checksum(zcr, NULL, NULL, B_TRUE);
-			return;
-		}
-
-		offset = 0;
-		for (x = rr->rr_firstdatacol; x < c; x++) {
-			if (x < rr->rr_bigcols) {
-				offset += parity_size;
-			} else {
-				offset += parity_size - skip_size;
-			}
-		}
-
-		good = abd_get_offset_size((abd_t *)good_data, offset, size);
-	}
-
-	/* we drop the ereport if it ends up that the data was good */
-	zfs_ereport_finish_checksum(zcr, good, bad, B_TRUE);
-	abd_free((abd_t *)good);
-}
-
-/*
- * Invoked indirectly by zfs_ereport_start_checksum(), called
- * below when our read operation fails completely.  The main point
- * is to keep a copy of everything we read from disk, so that at
- * vdev_draid_cksum_finish() time we can compare it with the good data.
- */
-static void
-vdev_draid_cksum_report(zio_t *zio, zio_cksum_report_t *zcr, void *arg)
-{
-	size_t c = (size_t)(uintptr_t)arg;
-	raidz_map_t *rm = zio->io_vsd;
-
-	/* set up the report and bump the refcount  */
-	zcr->zcr_cbdata = rm;
-	zcr->zcr_cbinfo = c;
-	zcr->zcr_finish = vdev_draid_cksum_finish;
-	zcr->zcr_free = vdev_draid_cksum_free;
-
-	rm->rm_reports++;
-	ASSERT3U(rm->rm_reports, >, 0);
-
-	if (rm->rm_row[0]->rr_abd_copy != NULL)
-		return;
-
-	/*
-	 * It's the first time we're called for this raidz_map_t, so we need
-	 * to copy the data aside; there's no guarantee that our zio's buffer
-	 * won't be re-used for something else.
-	 *
-	 * Our parity data is already in separate buffers, so there's no need
-	 * to copy them.  Furthermore, all columns should have been expanded
-	 * by vdev_draid_map_alloc_empty() when attempting reconstruction.
-	 */
-	for (int i = 0; i < rm->rm_nrows; i++) {
-		raidz_row_t *rr = rm->rm_row[i];
-		size_t offset = 0;
-		size_t size = 0;
-
-		for (c = rr->rr_firstdatacol; c < rr->rr_cols; c++) {
-			ASSERT3U(rr->rr_col[c].rc_size, ==,
-			    rr->rr_col[0].rc_size);
-			size += rr->rr_col[c].rc_size;
-		}
-
-		rr->rr_abd_copy = abd_alloc_for_io(size, B_FALSE);
-
-		for (c = rr->rr_firstdatacol; c < rr->rr_cols; c++) {
-			raidz_col_t *col = &rr->rr_col[c];
-			abd_t *tmp = abd_get_offset_size(rr->rr_abd_copy,
-			    offset, col->rc_size);
-
-			abd_copy(tmp, col->rc_abd, col->rc_size);
-			abd_free(col->rc_abd);
-
-			col->rc_abd = tmp;
-			offset += col->rc_size;
-		}
-		ASSERT3U(offset, ==, size);
-	}
-}
-
-const zio_vsd_ops_t vdev_draid_vsd_ops = {
-	.vsd_free = vdev_draid_map_free_vsd,
-	.vsd_cksum_report = vdev_draid_cksum_report
-};
-
 /*
  * Full stripe writes.  When writing, all columns (D+P) are required.  Parity
  * is calculated over all the columns, including empty zero filled sectors,
@@ -1208,7 +978,6 @@ vdev_draid_map_alloc_row(zio_t *zio, raidz_row_t **rrp, uint64_t io_offset,
 	rr->rr_missingdata = 0;
 	rr->rr_missingparity = 0;
 	rr->rr_firstdatacol = vdc->vdc_nparity;
-	rr->rr_abd_copy = NULL;
 	rr->rr_abd_empty = NULL;
 #ifdef ZFS_DEBUG
 	rr->rr_offset = io_offset;
@@ -1230,7 +999,6 @@ vdev_draid_map_alloc_row(zio_t *zio, raidz_row_t **rrp, uint64_t io_offset,
 		rc->rc_devidx = vdev_draid_permute_id(vdc, base, iter, c);
 		rc->rc_offset = physical_offset;
 		rc->rc_abd = NULL;
-		rc->rc_gdata = NULL;
 		rc->rc_orig_data = NULL;
 		rc->rc_error = 0;
 		rc->rc_tried = 0;
@@ -1327,9 +1095,6 @@ vdev_draid_map_alloc(zio_t *zio)
 	rm->rm_row[0] = rr[0];
 	if (nrows == 2)
 		rm->rm_row[1] = rr[1];
-
-	zio->io_vsd = rm;
-	zio->io_vsd_ops = &vdev_draid_vsd_ops;
 
 	return (rm);
 }
@@ -2183,12 +1948,13 @@ static void
 vdev_draid_io_start(zio_t *zio)
 {
 	vdev_t *vd __maybe_unused = zio->io_vd;
-	raidz_map_t *rm;
 
 	ASSERT3P(vd->vdev_ops, ==, &vdev_draid_ops);
 	ASSERT3U(zio->io_offset, ==, vdev_draid_get_astart(vd, zio->io_offset));
 
-	rm = vdev_draid_map_alloc(zio);
+	raidz_map_t *rm = vdev_draid_map_alloc(zio);
+	zio->io_vsd = rm;
+	zio->io_vsd_ops = &vdev_raidz_vsd_ops;
 
 	if (zio->io_type == ZIO_TYPE_WRITE) {
 		for (int i = 0; i < rm->rm_nrows; i++) {

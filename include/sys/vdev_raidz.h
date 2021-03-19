@@ -50,6 +50,8 @@ void vdev_raidz_reconstruct(struct raidz_map *, const int *, int);
 void vdev_raidz_child_done(zio_t *);
 void vdev_raidz_io_done(zio_t *);
 
+extern const zio_vsd_ops_t vdev_raidz_vsd_ops;
+
 /*
  * vdev_raidz_math interface
  */
