@@ -108,8 +108,7 @@ typedef struct raidz_col {
 	uint64_t rc_size;		/* I/O size */
 	abd_t rc_abdstruct;		/* rc_abd probably points here */
 	abd_t *rc_abd;			/* I/O data */
-	void *rc_orig_data;		/* pre-reconstruction */
-	abd_t *rc_gdata;		/* used to store the "good" version */
+	abd_t *rc_orig_data;		/* pre-reconstruction */
 	int rc_error;			/* I/O error for this device */
 	uint8_t rc_tried;		/* Did we attempt this I/O column? */
 	uint8_t rc_skipped;		/* Did we skip this I/O column? */
@@ -124,7 +123,6 @@ typedef struct raidz_row {
 	uint64_t rr_missingdata;	/* Count of missing data devices */
 	uint64_t rr_missingparity;	/* Count of missing parity devices */
 	uint64_t rr_firstdatacol;	/* First data column/parity count */
-	abd_t *rr_abd_copy;		/* rm_asize-buffer of copied data */
 	abd_t *rr_abd_empty;		/* dRAID empty sector buffer */
 	int rr_nempty;			/* empty sectors included in parity */
 #ifdef ZFS_DEBUG
@@ -135,8 +133,6 @@ typedef struct raidz_row {
 } raidz_row_t;
 
 typedef struct raidz_map {
-	uintptr_t rm_reports;		/* # of referencing checksum reports */
-	boolean_t rm_freed;		/* map no longer has referencing ZIO */
 	boolean_t rm_ecksuminjected;	/* checksum error was injected */
 	int rm_nrows;			/* Regular row count */
 	int rm_nskip;			/* RAIDZ sectors skipped for padding */
