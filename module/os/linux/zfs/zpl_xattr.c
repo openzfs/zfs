@@ -1233,7 +1233,7 @@ __zpl_xattr_acl_set_access(struct inode *ip, const char *name,
 	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_POSIX)
 		return (-EOPNOTSUPP);
 
-	if (!inode_owner_or_capable(ip))
+	if (!zpl_inode_owner_or_capable(kcred->user_ns, ip))
 		return (-EPERM);
 
 	if (value) {
@@ -1273,7 +1273,7 @@ __zpl_xattr_acl_set_default(struct inode *ip, const char *name,
 	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_POSIX)
 		return (-EOPNOTSUPP);
 
-	if (!inode_owner_or_capable(ip))
+	if (!zpl_inode_owner_or_capable(kcred->user_ns, ip))
 		return (-EPERM);
 
 	if (value) {
