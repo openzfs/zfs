@@ -540,6 +540,7 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 	uint32_t blocksize = zp->z_blksz;
 	itx_wr_state_t write_state;
 	uintptr_t fsync_cnt;
+	uint64_t gen = 0;
 
 	if (zil_replaying(zilog, tx) || zp->z_unlinked ||
 	    zfs_xattr_owner_unlinked(zp)) {
@@ -561,6 +562,9 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 	if ((fsync_cnt = (uintptr_t)tsd_get(zfs_fsyncer_key)) != 0) {
 		(void) tsd_set(zfs_fsyncer_key, (void *)(fsync_cnt - 1));
 	}
+
+	(void) sa_lookup(zp->z_sa_hdl, SA_ZPL_GEN(ZTOZSB(zp)), &gen,
+	    sizeof (gen));
 
 	while (resid) {
 		itx_t *itx;
@@ -609,6 +613,7 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 		BP_ZERO(&lr->lr_blkptr);
 
 		itx->itx_private = ZTOZSB(zp);
+		itx->itx_gen = gen;
 
 		if (!(ioflag & (O_SYNC | O_DSYNC)) && (zp->z_sync_cnt == 0) &&
 		    (fsync_cnt == 0))
