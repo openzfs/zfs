@@ -261,7 +261,7 @@ bio_set_bi_error(struct bio *bio, int error)
  * For older kernels trigger a re-reading of the partition table by calling
  * check_disk_change() which calls flush_disk() to invalidate the device.
  *
- * For newer kernels (as of 5.10), bdev_check_media_chage is used, in favor of
+ * For newer kernels (as of 5.10), bdev_check_media_change is used, in favor of
  * check_disk_change(), with the modification that invalidation is no longer
  * forced.
  */

@@ -16,7 +16,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_GENERIC_FILLATTR_USERNS], [
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_GENERIC_FILLATTR_USERNS], [
-	AC_MSG_CHECKING([whether generic_fillattr requres struct user_namespace*])
+	AC_MSG_CHECKING([whether generic_fillattr requires struct user_namespace*])
 	ZFS_LINUX_TEST_RESULT([generic_fillattr_userns], [
 		AC_MSG_RESULT([yes])
 		AC_DEFINE(HAVE_GENERIC_FILLATTR_USERNS, 1,

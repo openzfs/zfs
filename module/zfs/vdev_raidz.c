@@ -1984,7 +1984,7 @@ raidz_reconstruct(zio_t *zio, int *ltgts, int ntgts, int nparity)
  *      2   4 5  first: increment to 3
  *        3 4 5  done
  *
- * This strategy works for dRAID but is less effecient when there are a large
+ * This strategy works for dRAID but is less efficient when there are a large
  * number of child vdevs and therefore permutations to check. Furthermore,
  * since the raidz_map_t rows likely do not overlap reconstruction would be
  * possible as long as there are no more than nparity data errors per row.

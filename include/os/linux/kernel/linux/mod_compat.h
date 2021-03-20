@@ -83,7 +83,7 @@ enum scope_prefix_types {
 /*
  * Declare a module parameter / sysctl node
  *
- * "scope_prefix" the part of the the sysctl / sysfs tree the node resides under
+ * "scope_prefix" the part of the sysctl / sysfs tree the node resides under
  *   (currently a no-op on Linux)
  * "name_prefix" the part of the variable name that will be excluded from the
  *   exported names on platforms with a hierarchical namespace

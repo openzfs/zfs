@@ -233,7 +233,7 @@ unsigned long zfs_max_nvlist_src_size = 0;
 
 /*
  * When logging the output nvlist of an ioctl in the on-disk history, limit
- * the logged size to this many bytes.  This must be less then DMU_MAX_ACCESS.
+ * the logged size to this many bytes.  This must be less than DMU_MAX_ACCESS.
  * This applies primarily to zfs_ioc_channel_program().
  */
 unsigned long zfs_history_output_max = 1024 * 1024;

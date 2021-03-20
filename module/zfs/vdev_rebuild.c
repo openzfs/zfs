@@ -81,7 +81,7 @@
  * Advantages:
  *
  *   - Sequential reconstruction is performed in LBA order which may be faster
- *     than healing reconstruction particularly when using using HDDs (or
+ *     than healing reconstruction particularly when using HDDs (or
  *     especially with SMR devices).  Only allocated capacity is resilvered.
  *
  *   - Sequential reconstruction is not constrained by ZFS block boundaries.

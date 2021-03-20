@@ -234,7 +234,7 @@ Use \fB0\fR for no (default) and \fB1\fR for yes.
 .RS 12n
 Percent of ARC size allowed for L2ARC-only headers.
 Since L2ARC buffers are not evicted on memory pressure, too large amount of
-headers on system with irrationaly large L2ARC can render it slow or unusable.
+headers on system with irrationally large L2ARC can render it slow or unusable.
 This parameter limits L2ARC writes and rebuild to achieve it.
 .sp
 Default value: \fB33\fR%.
@@ -387,7 +387,7 @@ Default value: \fB16,777,217\fR.
 .RS 12n
 When attempting to log the output nvlist of an ioctl in the on-disk history, the
 output will not be stored if it is larger than size (in bytes). This must be
-less then DMU_MAX_ACCESS (64MB). This applies primarily to
+less than DMU_MAX_ACCESS (64MB). This applies primarily to
 zfs_ioc_channel_program().
 .sp
 Default value: \fB1MB\fR.
@@ -911,7 +911,7 @@ Default value: \fB8,388,608\fR (8MB).
 .RS 12n
 Max bytes to prefetch indirects for per stream.
 .sp
-Default vaule: \fB67,108,864\fR (64MB).
+Default value: \fB67,108,864\fR (64MB).
 .RE
 
 .sp
