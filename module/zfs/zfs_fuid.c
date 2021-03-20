@@ -728,7 +728,6 @@ zfs_fuid_info_free(zfs_fuid_info_t *fuidp)
 boolean_t
 zfs_groupmember(zfsvfs_t *zfsvfs, uint64_t id, cred_t *cr)
 {
-#ifdef HAVE_KSID
 	uid_t		gid;
 
 #ifdef illumos
@@ -773,9 +772,6 @@ zfs_groupmember(zfsvfs_t *zfsvfs, uint64_t id, cred_t *cr)
 	 */
 	gid = zfs_fuid_map_id(zfsvfs, id, cr, ZFS_GROUP);
 	return (groupmember(gid, cr));
-#else
-	return (B_TRUE);
-#endif
 }
 
 void
