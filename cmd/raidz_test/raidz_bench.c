@@ -31,8 +31,6 @@
 #include <sys/vdev_raidz_impl.h>
 #include <stdio.h>
 
-#include <sys/time.h>
-
 #include "raidz_test.h"
 
 #define	GEN_BENCH_MEMORY	(((uint64_t)1ULL)<<32)

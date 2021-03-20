@@ -53,7 +53,6 @@
 #include <sys/avl.h>
 #include <sys/ddt.h>
 #include <sys/zfs_onexit.h>
-#include <sys/dmu_send.h>
 #include <sys/dsl_destroy.h>
 #include <sys/blkptr.h>
 #include <sys/dsl_bookmark.h>

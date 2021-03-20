@@ -48,7 +48,6 @@
 #include <sys/avl.h>
 #include <sys/debug.h>
 #include <sys/stat.h>
-#include <stddef.h>
 #include <pthread.h>
 #include <umem.h>
 #include <time.h>
