@@ -128,7 +128,12 @@ zpl_vap_init(vattr_t *vap, struct inode *dir, umode_t mode, cred_t *cr)
 }
 
 static int
+#ifdef HAVE_IOPS_CREATE_USERNS
+zpl_create(struct user_namespace *user_ns, struct inode *dir,
+    struct dentry *dentry, umode_t mode, bool flag)
+#else
 zpl_create(struct inode *dir, struct dentry *dentry, umode_t mode, bool flag)
+#endif
 {
 	cred_t *cr = CRED();
 	znode_t *zp;
@@ -163,7 +168,12 @@ zpl_create(struct inode *dir, struct dentry *dentry, umode_t mode, bool flag)
 }
 
 static int
+#ifdef HAVE_IOPS_MKNOD_USERNS
+zpl_mknod(struct user_namespace *user_ns, struct inode *dir,
+    struct dentry *dentry, umode_t mode,
+#else
 zpl_mknod(struct inode *dir, struct dentry *dentry, umode_t mode,
+#endif
     dev_t rdev)
 {
 	cred_t *cr = CRED();
@@ -278,7 +288,12 @@ zpl_unlink(struct inode *dir, struct dentry *dentry)
 }
 
 static int
+#ifdef HAVE_IOPS_MKDIR_USERNS
+zpl_mkdir(struct user_namespace *user_ns, struct inode *dir,
+    struct dentry *dentry, umode_t mode)
+#else
 zpl_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
+#endif
 {
 	cred_t *cr = CRED();
 	vattr_t *vap;
@@ -338,8 +353,14 @@ zpl_rmdir(struct inode *dir, struct dentry *dentry)
 }
 
 static int
+#ifdef HAVE_USERNS_IOPS_GETATTR
+zpl_getattr_impl(struct user_namespace *user_ns,
+    const struct path *path, struct kstat *stat, u32 request_mask,
+    unsigned int query_flags)
+#else
 zpl_getattr_impl(const struct path *path, struct kstat *stat, u32 request_mask,
     unsigned int query_flags)
+#endif
 {
 	int error;
 	fstrans_cookie_t cookie;
@@ -350,7 +371,11 @@ zpl_getattr_impl(const struct path *path, struct kstat *stat, u32 request_mask,
 	 * XXX request_mask and query_flags currently ignored.
 	 */
 
-	error = -zfs_getattr_fast(path->dentry->d_inode, stat);
+#ifdef HAVE_USERNS_IOPS_GETATTR
+	error = -zfs_getattr_fast(user_ns, path->dentry->d_inode, stat);
+#else
+	error = -zfs_getattr_fast(kcred->user_ns, path->dentry->d_inode, stat);
+#endif
 	spl_fstrans_unmark(cookie);
 	ASSERT3S(error, <=, 0);
 
@@ -359,7 +384,12 @@ zpl_getattr_impl(const struct path *path, struct kstat *stat, u32 request_mask,
 ZPL_GETATTR_WRAPPER(zpl_getattr);
 
 static int
+#ifdef HAVE_SETATTR_PREPARE_USERNS
+zpl_setattr(struct user_namespace *user_ns, struct dentry *dentry,
+    struct iattr *ia)
+#else
 zpl_setattr(struct dentry *dentry, struct iattr *ia)
+#endif
 {
 	struct inode *ip = dentry->d_inode;
 	cred_t *cr = CRED();
@@ -367,7 +397,7 @@ zpl_setattr(struct dentry *dentry, struct iattr *ia)
 	int error;
 	fstrans_cookie_t cookie;
 
-	error = setattr_prepare(dentry, ia);
+	error = zpl_setattr_prepare(kcred->user_ns, dentry, ia);
 	if (error)
 		return (error);
 
@@ -399,8 +429,14 @@ zpl_setattr(struct dentry *dentry, struct iattr *ia)
 }
 
 static int
+#ifdef HAVE_IOPS_RENAME_USERNS
+zpl_rename2(struct user_namespace *user_ns, struct inode *sdip,
+    struct dentry *sdentry, struct inode *tdip, struct dentry *tdentry,
+    unsigned int flags)
+#else
 zpl_rename2(struct inode *sdip, struct dentry *sdentry,
     struct inode *tdip, struct dentry *tdentry, unsigned int flags)
+#endif
 {
 	cred_t *cr = CRED();
 	int error;
@@ -421,7 +457,7 @@ zpl_rename2(struct inode *sdip, struct dentry *sdentry,
 	return (error);
 }
 
-#ifndef HAVE_RENAME_WANTS_FLAGS
+#if !defined(HAVE_RENAME_WANTS_FLAGS) && !defined(HAVE_IOPS_RENAME_USERNS)
 static int
 zpl_rename(struct inode *sdip, struct dentry *sdentry,
     struct inode *tdip, struct dentry *tdentry)
@@ -431,7 +467,12 @@ zpl_rename(struct inode *sdip, struct dentry *sdentry,
 #endif
 
 static int
+#ifdef HAVE_IOPS_SYMLINK_USERNS
+zpl_symlink(struct user_namespace *user_ns, struct inode *dir,
+    struct dentry *dentry, const char *name)
+#else
 zpl_symlink(struct inode *dir, struct dentry *dentry, const char *name)
+#endif
 {
 	cred_t *cr = CRED();
 	vattr_t *vap;
@@ -677,7 +718,7 @@ const struct inode_operations zpl_dir_inode_operations = {
 	.mkdir		= zpl_mkdir,
 	.rmdir		= zpl_rmdir,
 	.mknod		= zpl_mknod,
-#ifdef HAVE_RENAME_WANTS_FLAGS
+#if defined(HAVE_RENAME_WANTS_FLAGS) || defined(HAVE_IOPS_RENAME_USERNS)
 	.rename		= zpl_rename2,
 #else
 	.rename		= zpl_rename,
