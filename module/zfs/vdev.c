@@ -5105,10 +5105,8 @@ vdev_is_bootable(vdev_t *vd)
 	if (!vd->vdev_ops->vdev_op_leaf) {
 		const char *vdev_type = vd->vdev_ops->vdev_op_type;
 
-		if (strcmp(vdev_type, VDEV_TYPE_MISSING) == 0 ||
-		    strcmp(vdev_type, VDEV_TYPE_INDIRECT) == 0) {
+		if (strcmp(vdev_type, VDEV_TYPE_MISSING) == 0)
 			return (B_FALSE);
-		}
 	}
 
 	for (int c = 0; c < vd->vdev_children; c++) {
