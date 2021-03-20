@@ -30,6 +30,10 @@ failsafe = callbacks/zfs_failsafe
 outputdir = /var/tmp/test_results
 tags = ['functional']
 
+[tests/functional/acl/off]
+tests = ['posixmode']
+tags = ['functional', 'acl']
+
 [tests/functional/alloc_class]
 tests = ['alloc_class_003_pos', 'alloc_class_004_pos', 'alloc_class_005_pos',
     'alloc_class_006_pos', 'alloc_class_008_pos', 'alloc_class_010_pos',
