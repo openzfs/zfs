@@ -1656,7 +1656,8 @@ out:
  */
 /* ARGSUSED */
 int
-zfs_getattr_fast(struct inode *ip, struct kstat *sp)
+zfs_getattr_fast(struct user_namespace *user_ns, struct inode *ip,
+    struct kstat *sp)
 {
 	znode_t *zp = ITOZ(ip);
 	zfsvfs_t *zfsvfs = ITOZSB(ip);
@@ -1668,7 +1669,7 @@ zfs_getattr_fast(struct inode *ip, struct kstat *sp)
 
 	mutex_enter(&zp->z_lock);
 
-	generic_fillattr(ip, sp);
+	zpl_generic_fillattr(user_ns, ip, sp);
 	/*
 	 * +1 link count for root inode with visible '.zfs' directory.
 	 */

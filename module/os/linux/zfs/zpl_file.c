@@ -869,7 +869,7 @@ __zpl_ioctl_setflags(struct inode *ip, uint32_t ioctl_flags, xvattr_t *xva)
 	    !capable(CAP_LINUX_IMMUTABLE))
 		return (-EACCES);
 
-	if (!inode_owner_or_capable(ip))
+	if (!zpl_inode_owner_or_capable(kcred->user_ns, ip))
 		return (-EACCES);
 
 	xva_init(xva);
