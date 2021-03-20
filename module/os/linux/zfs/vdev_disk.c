@@ -589,9 +589,14 @@ retry:
 		}
 
 		/* bio_alloc() with __GFP_WAIT never returns NULL */
+#ifdef HAVE_BIO_MAX_SEGS
+		dr->dr_bio[i] = bio_alloc(GFP_NOIO, bio_max_segs(
+		    abd_nr_pages_off(zio->io_abd, bio_size, abd_offset)));
+#else
 		dr->dr_bio[i] = bio_alloc(GFP_NOIO,
 		    MIN(abd_nr_pages_off(zio->io_abd, bio_size, abd_offset),
 		    BIO_MAX_PAGES));
+#endif
 		if (unlikely(dr->dr_bio[i] == NULL)) {
 			vdev_disk_dio_free(dr);
 			return (SET_ERROR(ENOMEM));

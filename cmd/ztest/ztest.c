@@ -2287,8 +2287,8 @@ ztest_get_done(zgd_t *zgd, int error)
 }
 
 static int
-ztest_get_data(void *arg, lr_write_t *lr, char *buf, struct lwb *lwb,
-    zio_t *zio)
+ztest_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,
+    struct lwb *lwb, zio_t *zio)
 {
 	ztest_ds_t *zd = arg;
 	objset_t *os = zd->zd_os;
