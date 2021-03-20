@@ -120,11 +120,26 @@ fn(struct dentry *dentry, const char *name, void *buffer, size_t size,	\
 #endif
 
 /*
+ * 5.12 API change,
+ * The xattr_handler->set() callback was changed to take the
+ * struct user_namespace* as the first arg, to support idmapped
+ * mounts.
+ */
+#if defined(HAVE_XATTR_SET_USERNS)
+#define	ZPL_XATTR_SET_WRAPPER(fn)					\
+static int								\
+fn(const struct xattr_handler *handler, struct user_namespace *user_ns, \
+    struct dentry *dentry, struct inode *inode, const char *name,	\
+    const void *buffer, size_t size, int flags)	\
+{									\
+	return (__ ## fn(inode, name, buffer, size, flags));		\
+}
+/*
  * 4.7 API change,
  * The xattr_handler->set() callback was changed to take a both dentry and
  * inode, because the dentry might not be attached to an inode yet.
  */
-#if defined(HAVE_XATTR_SET_DENTRY_INODE)
+#elif defined(HAVE_XATTR_SET_DENTRY_INODE)
 #define	ZPL_XATTR_SET_WRAPPER(fn)					\
 static int								\
 fn(const struct xattr_handler *handler, struct dentry *dentry,		\

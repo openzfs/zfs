@@ -171,4 +171,22 @@ zpl_dir_emit_dots(struct file *file, zpl_dir_context_t *ctx)
 	timespec_trunc(ts, (ip)->i_sb->s_time_gran)
 #endif
 
+#if defined(HAVE_INODE_OWNER_OR_CAPABLE)
+#define	zpl_inode_owner_or_capable(ns, ip)	inode_owner_or_capable(ip)
+#elif defined(HAVE_INODE_OWNER_OR_CAPABLE_IDMAPPED)
+#define	zpl_inode_owner_or_capable(ns, ip)	inode_owner_or_capable(ns, ip)
+#else
+#error "Unsupported kernel"
+#endif
+
+#ifdef HAVE_SETATTR_PREPARE_USERNS
+#define	zpl_setattr_prepare(ns, dentry, ia)	setattr_prepare(ns, dentry, ia)
+#else
+/*
+ * Use kernel-provided version, or our own from
+ * linux/vfs_compat.h
+ */
+#define	zpl_setattr_prepare(ns, dentry, ia)	setattr_prepare(dentry, ia)
+#endif
+
 #endif	/* _SYS_ZPL_H */
