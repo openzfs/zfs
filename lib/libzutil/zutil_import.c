@@ -62,7 +62,6 @@
 #include <sys/dktp/fdisk.h>
 #include <sys/vdev_impl.h>
 #include <sys/fs/zfs.h>
-#include <sys/vdev_impl.h>
 
 #include <thread_pool.h>
 #include <libzutil.h>

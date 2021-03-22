@@ -49,7 +49,6 @@
 #include <dlfcn.h>
 #include <libzutil.h>
 #include <fcntl.h>
-#include <unistd.h>
 
 #include "zfs_namecheck.h"
 #include "zfs_prop.h"

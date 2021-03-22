@@ -79,9 +79,6 @@
 
 #include <scsi/scsi.h>
 #include <scsi/sg.h>
-#include <stdio.h>
-#include <string.h>
-#include <unistd.h>
 #include <sys/efi_partition.h>
 #include <sys/stat.h>
 #include <sys/vtoc.h>
