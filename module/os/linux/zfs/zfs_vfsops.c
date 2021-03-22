@@ -336,9 +336,15 @@ xattr_changed_cb(void *arg, uint64_t newval)
 	zfsvfs_t *zfsvfs = arg;
 
 	if (newval == ZFS_XATTR_OFF) {
+#ifdef SB_LARGEXATTR
+		zfsvfs->z_sb->s_flags &= ~SB_LARGEXATTR;
+#endif
 		zfsvfs->z_flags &= ~ZSB_XATTR;
 	} else {
 		zfsvfs->z_flags |= ZSB_XATTR;
+#ifdef SB_LARGEXATTR
+		zfsvfs->z_sb->s_flags |= SB_LARGEXATTR;
+#endif
 
 		if (newval == ZFS_XATTR_SA)
 			zfsvfs->z_xattr_sa = B_TRUE;
