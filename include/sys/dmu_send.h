@@ -34,7 +34,6 @@
 #include <sys/dsl_bookmark.h>
 #include <sys/spa.h>
 #include <sys/objlist.h>
-#include <sys/dsl_bookmark.h>
 #include <sys/dmu_redact.h>
 
 #define	BEGINNV_REDACT_SNAPS		"redact_snaps"

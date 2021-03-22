@@ -294,7 +294,6 @@
 #include <sys/vdev.h>
 #include <sys/vdev_impl.h>
 #include <sys/dsl_pool.h>
-#include <sys/zio_checksum.h>
 #include <sys/multilist.h>
 #include <sys/abd.h>
 #include <sys/zil.h>

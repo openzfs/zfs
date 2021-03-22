@@ -67,7 +67,6 @@
 #include <sys/atomic.h>
 #include <sys/condvar.h>
 #include <sys/console.h>
-#include <sys/time.h>
 #include <sys/zfs_ioctl.h>
 
 int zfs_zevent_len_max = 0;

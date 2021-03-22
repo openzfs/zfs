@@ -48,7 +48,6 @@
 #include <sys/mount.h>
 #include <pwd.h>
 #include <grp.h>
-#include <stddef.h>
 #include <ucred.h>
 #ifdef HAVE_IDMAP
 #include <idmap.h>
@@ -66,7 +65,6 @@
 #include "zfs_namecheck.h"
 #include "zfs_prop.h"
 #include "libzfs_impl.h"
-#include "libzfs.h"
 #include "zfs_deleg.h"
 
 static int userquota_propname_decode(const char *propname, boolean_t zoned,
