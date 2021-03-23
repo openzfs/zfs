@@ -578,7 +578,7 @@ tests = ['ctime_001_pos' ]
 tags = ['functional', 'ctime']
 
 [tests/functional/deadman]
-tests = ['deadman_sync', 'deadman_zio']
+tests = ['deadman_ratelimit', 'deadman_sync', 'deadman_zio']
 pre =
 post =
 tags = ['functional', 'deadman']
