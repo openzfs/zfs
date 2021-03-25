@@ -173,6 +173,7 @@ _zed_exec_fork_child(uint64_t eid, const char *dir, const char *prog,
 		zed_log_msg(LOG_WARNING, "Killing hung \"%s\" pid=%d",
 		    prog, pid);
 		(void) kill(pid, SIGKILL);
+		(void) waitpid(pid, &status, 0);
 	}
 }
 
