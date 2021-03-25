@@ -20,7 +20,7 @@
  * CDDL HEADER END
  */
 
-#define _WINDOWS_MEAN_AND_LEAN
+#define	_WINDOWS_MEAN_AND_LEAN
 #include <Windows.h>
 
 size_t pagesize = 0;

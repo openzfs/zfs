@@ -32,11 +32,11 @@
 #ifdef _MSC_VER
 
 #ifndef	__printflike
-#define	__printflike(x, y) 
+#define	__printflike(x, y)
 #endif
 
 #ifndef __maybe_unused
-#define	__maybe_unused 
+#define	__maybe_unused
 #endif
 
 #else

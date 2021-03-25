@@ -36,12 +36,12 @@
  * Force inclusion of SVID stuff since we need it if we're compiling in
  * gcc-wall wall mode
  */
-#define _SVID_SOURCE
+#define	_SVID_SOURCE
 
 #ifdef _WIN32
-#define _WIN32_WINNT 0x0500
+#define	_WIN32_WINNT 0x0500
 #include <windows.h>
-#define UUID MYUUID
+#define	UUID MYUUID
 #endif
 #include <stdio.h>
 #ifdef HAVE_UNISTD_H
@@ -96,51 +96,51 @@
 #include "c.h"
 
 #ifdef HAVE_TLS
-#define THREAD_LOCAL static __thread
+#define	THREAD_LOCAL static __thread
 #else
-#define THREAD_LOCAL static
+#define	THREAD_LOCAL static
 #endif
 
 #ifndef LOCK_EX
 /* flock() replacement */
-#define LOCK_EX 1
-#define LOCK_SH 2
-#define LOCK_UN 3
-#define LOCK_NB 4
+#define	LOCK_EX 1
+#define	LOCK_SH 2
+#define	LOCK_UN 3
+#define	LOCK_NB 4
 
 static int flock(int fd, int op)
 {
-    int rc = 0;
+	int rc = 0;
 
 #if defined(F_SETLK) && defined(F_SETLKW)
-    struct flock fl = {0};
+	struct flock fl = {0};
 
-    switch (op & (LOCK_EX|LOCK_SH|LOCK_UN)) {
-    case LOCK_EX:
-        fl.l_type = F_WRLCK;
-        break;
+	switch (op & (LOCK_EX|LOCK_SH|LOCK_UN)) {
+		case LOCK_EX:
+			fl.l_type = F_WRLCK;
+			break;
 
-    case LOCK_SH:
-        fl.l_type = F_RDLCK;
-        break;
+		case LOCK_SH:
+			fl.l_type = F_RDLCK;
+			break;
 
-    case LOCK_UN:
-        fl.l_type = F_UNLCK;
-        break;
+		case LOCK_UN:
+			fl.l_type = F_UNLCK;
+			break;
 
-    default:
-        errno = EINVAL;
-        return -1;
-    }
+		default:
+			errno = EINVAL;
+			return (-1);
+	}
 
-    fl.l_whence = SEEK_SET;
-    rc = fcntl (fd, op & LOCK_NB ? F_SETLK : F_SETLKW, &fl);
+	fl.l_whence = SEEK_SET;
+	rc = fcntl(fd, op & LOCK_NB ? F_SETLK : F_SETLKW, &fl);
 
-    if (rc && (errno == EAGAIN))
-        errno = EWOULDBLOCK;
+	if (rc && (errno == EAGAIN))
+		errno = EWOULDBLOCK;
 #endif /* defined(F_SETLK) && defined(F_SETLKW)  */
 
-    return rc;
+	return (rc);
 }
 
 #endif /* LOCK_EX */
@@ -173,26 +173,26 @@ static int get_node_id(unsigned char *node_id)
  * just sizeof(struct ifreq)
  */
 #ifdef HAVE_SA_LEN
-#define ifreq_size(i) max(sizeof(struct ifreq),\
-     sizeof((i).ifr_name)+(i).ifr_addr.sa_len)
+#define	ifreq_size(i) max(sizeof (struct ifreq),\
+		sizeof ((i).ifr_name)+(i).ifr_addr.sa_len)
 #else
-#define ifreq_size(i) sizeof(struct ifreq)
+#define	ifreq_size(i) sizeof (struct ifreq)
 #endif /* HAVE_SA_LEN */
 
 	sd = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
 	if (sd < 0) {
-		return -1;
+		return (-1);
 	}
-	memset(buf, 0, sizeof(buf));
-	ifc.ifc_len = sizeof(buf);
+	memset(buf, 0, sizeof (buf));
+	ifc.ifc_len = sizeof (buf);
 	ifc.ifc_buf = buf;
-	if (ioctl (sd, SIOCGIFCONF, (char *)&ifc) < 0) {
+	if (ioctl(sd, SIOCGIFCONF, (char *)&ifc) < 0) {
 		close(sd);
-		return -1;
+		return (-1);
 	}
 	n = ifc.ifc_len;
-	for (i = 0; i < n; i+= ifreq_size(*ifrp) ) {
-		ifrp = (struct ifreq *)((char *) ifc.ifc_buf+i);
+	for (i = 0; i < n; i += ifreq_size(*ifrp)) {
+		ifrp = (struct ifreq *)((char *)ifc.ifc_buf+i);
 		strncpy(ifr.ifr_name, ifrp->ifr_name, IFNAMSIZ);
 #ifdef SIOCGIFHWADDR
 		if (ioctl(sd, SIOCGIFHWADDR, &ifr) < 0)
@@ -205,17 +205,17 @@ static int get_node_id(unsigned char *node_id)
 		a = (unsigned char *) ifr.ifr_enaddr;
 #else
 #ifdef HAVE_NET_IF_DL_H
-		sdlp = (struct sockaddr_dl *) &ifrp->ifr_addr;
+		sdlp = (struct sockaddr_dl *)&ifrp->ifr_addr;
 		if ((sdlp->sdl_family != AF_LINK) || (sdlp->sdl_alen != 6))
 			continue;
-		a = (unsigned char *) &sdlp->sdl_data[sdlp->sdl_nlen];
+		a = (unsigned char *)&sdlp->sdl_data[sdlp->sdl_nlen];
 #else
 		/*
 		 * XXX we don't have a way of getting the hardware
 		 * address
 		 */
 		close(sd);
-		return 0;
+		return (0);
 #endif /* HAVE_NET_IF_DL_H */
 #endif /* SIOCGENADDR */
 #endif /* SIOCGIFHWADDR */
@@ -224,16 +224,16 @@ static int get_node_id(unsigned char *node_id)
 		if (node_id) {
 			memcpy(node_id, a, 6);
 			close(sd);
-			return 1;
+			return (1);
 		}
 	}
 	close(sd);
 #endif
-	return 0;
+	return (0);
 }
 
 /* Assume that the gettimeofday() has microsecond granularity */
-#define MAX_ADJUSTMENT 10
+#define	MAX_ADJUSTMENT 10
 
 /*
  * Get clock from global sequence clock counter.
@@ -241,8 +241,9 @@ static int get_node_id(unsigned char *node_id)
  * Return -1 if the clock counter could not be opened/locked (in this case
  * pseudorandom value is returned in @ret_clock_seq), otherwise return 0.
  */
-static int get_clock(uint32_t *clock_high, uint32_t *clock_low,
-		     uint16_t *ret_clock_seq, int *num)
+static int
+get_clock(uint32_t *clock_high, uint32_t *clock_low,
+    uint16_t *ret_clock_seq, int *num)
 {
 	THREAD_LOCAL int		adjustment = 0;
 	THREAD_LOCAL struct timeval	last = {0, 0};
@@ -257,7 +258,8 @@ static int get_clock(uint32_t *clock_high, uint32_t *clock_low,
 
 	if (state_fd == -2) {
 		save_umask = _umask(0);
-		state_fd = open(LIBUUID_CLOCK_FILE, O_RDWR|O_CREAT|O_CLOEXEC, 0660);
+		state_fd = open(LIBUUID_CLOCK_FILE, O_RDWR|O_CREAT|O_CLOEXEC,
+		    0660);
 		(void) _umask(save_umask);
 		if (state_fd != -1) {
 			state_f = fdopen(state_fd, "r+" UL_CLOEXECSTR);
@@ -266,8 +268,7 @@ static int get_clock(uint32_t *clock_high, uint32_t *clock_low,
 				state_fd = -1;
 				ret = -1;
 			}
-		}
-		else
+		} else
 			ret = -1;
 	}
 	if (state_fd >= 0) {
@@ -288,7 +289,7 @@ static int get_clock(uint32_t *clock_high, uint32_t *clock_low,
 		int a;
 
 		if (fscanf(state_f, "clock: %04x tv: %lu %lu adj: %d\n",
-			   &cl, &tv1, &tv2, &a) == 4) {
+		    &cl, &tv1, &tv2, &a) == 4) {
 			clock_seq = cl & 0x3FFF;
 			last.tv_sec = tv1;
 			last.tv_usec = tv2;
@@ -297,7 +298,7 @@ static int get_clock(uint32_t *clock_high, uint32_t *clock_low,
 	}
 
 	if ((last.tv_sec == 0) && (last.tv_usec == 0)) {
-		random_get_bytes(&clock_seq, sizeof(clock_seq));
+		random_get_bytes(&clock_seq, sizeof (clock_seq));
 		clock_seq &= 0x3FFF;
 		gettimeofday(&last, 0);
 		last.tv_sec--;
@@ -307,7 +308,7 @@ try_again:
 	gettimeofday(&tv, 0);
 	if ((tv.tv_sec < last.tv_sec) ||
 	    ((tv.tv_sec == last.tv_sec) &&
-	     (tv.tv_usec < last.tv_usec))) {
+	    (tv.tv_usec < last.tv_usec))) {
 		clock_seq = (clock_seq+1) & 0x3FFF;
 		adjustment = 0;
 		last = tv;
@@ -322,8 +323,8 @@ try_again:
 	}
 
 	clock_reg = tv.tv_usec*10 + adjustment;
-	clock_reg += ((uint64_t) tv.tv_sec)*10000000;
-	clock_reg += (((uint64_t) 0x01B21DD2) << 32) + 0x13814000;
+	clock_reg += ((uint64_t)tv.tv_sec)*10000000;
+	clock_reg += (((uint64_t)0x01B21DD2) << 32) + 0x13814000;
 
 	if (num && (*num > 1)) {
 		adjustment += *num - 1;
@@ -336,8 +337,8 @@ try_again:
 	if (state_fd >= 0) {
 		rewind(state_f);
 		len = fprintf(state_f,
-			      "clock: %04x tv: %016lu %08lu adj: %08d\n",
-			      clock_seq, last.tv_sec, last.tv_usec, adjustment);
+		    "clock: %04x tv: %016lu %08lu adj: %08d\n",
+		    clock_seq, last.tv_sec, last.tv_usec, adjustment);
 		fflush(state_f);
 		if (ftruncate(state_fd, len) < 0) {
 			fprintf(state_f, "                   \n");
@@ -350,7 +351,7 @@ try_again:
 	*clock_high = clock_reg >> 32;
 	*clock_low = clock_reg;
 	*ret_clock_seq = clock_seq;
-	return ret;
+	return (ret);
 }
 
 #if defined(HAVE_UUIDD) && defined(HAVE_SYS_UN_H)
@@ -359,7 +360,8 @@ try_again:
  *
  * Returns 0 on success, non-zero on failure.
  */
-static int get_uuid_via_daemon(int op, uuid_t out, int *num)
+static int
+get_uuid_via_daemon(int op, uuid_t out, int *num)
 {
 	char op_buf[64];
 	int op_len;
@@ -369,28 +371,28 @@ static int get_uuid_via_daemon(int op, uuid_t out, int *num)
 	struct sockaddr_un srv_addr;
 
 	if ((s = socket(AF_UNIX, SOCK_STREAM, 0)) < 0)
-		return -1;
+		return (-1);
 
 	srv_addr.sun_family = AF_UNIX;
 	strcpy(srv_addr.sun_path, UUIDD_SOCKET_PATH);
 
-	if (connect(s, (const struct sockaddr *) &srv_addr,
-		    sizeof(struct sockaddr_un)) < 0)
+	if (connect(s, (const struct sockaddr *)&srv_addr,
+	    sizeof (struct sockaddr_un)) < 0)
 		goto fail;
 
 	op_buf[0] = op;
 	op_len = 1;
 	if (op == UUIDD_OP_BULK_TIME_UUID) {
-		memcpy(op_buf+1, num, sizeof(*num));
-		op_len += sizeof(*num);
-		expected += sizeof(*num);
+		memcpy(op_buf+1, num, sizeof (*num));
+		op_len += sizeof (*num);
+		expected += sizeof (*num);
 	}
 
 	ret = write(s, op_buf, op_len);
 	if (ret < 1)
 		goto fail;
 
-	ret = read_all(s, (char *) &reply_len, sizeof(reply_len));
+	ret = read_all(s, (char *)&reply_len, sizeof (reply_len));
 	if (ret < 0)
 		goto fail;
 
@@ -400,7 +402,7 @@ static int get_uuid_via_daemon(int op, uuid_t out, int *num)
 	ret = read_all(s, op_buf, reply_len);
 
 	if (op == UUIDD_OP_BULK_TIME_UUID)
-		memcpy(op_buf+16, num, sizeof(int));
+		memcpy(op_buf+16, num, sizeof (int));
 
 	memcpy(out, op_buf, 16);
 
@@ -409,17 +411,19 @@ static int get_uuid_via_daemon(int op, uuid_t out, int *num)
 
 fail:
 	close(s);
-	return -1;
+	return (-1);
 }
 
 #else /* !defined(HAVE_UUIDD) && defined(HAVE_SYS_UN_H) */
-static int get_uuid_via_daemon(int op, uuid_t out, int *num)
+static int
+get_uuid_via_daemon(int op, uuid_t out, int *num)
 {
-	return -1;
+	return (-1);
 }
 #endif
 
-int __uuid_generate_time(uuid_t out, int *num)
+int
+__uuid_generate_time(uuid_t out, int *num)
 {
 	static unsigned char node_id[6];
 	static int has_init = 0;
@@ -441,22 +445,25 @@ int __uuid_generate_time(uuid_t out, int *num)
 	}
 	ret = get_clock(&clock_mid, &uu.time_low, &uu.clock_seq, num);
 	uu.clock_seq |= 0x8000;
-	uu.time_mid = (uint16_t) clock_mid;
+	uu.time_mid = (uint16_t)clock_mid;
 	uu.time_hi_and_version = ((clock_mid >> 16) & 0x0FFF) | 0x1000;
 	memcpy(uu.node, node_id, 6);
 	uuid_pack(&uu, out);
-	return ret;
+	return (ret);
 }
 
 /*
  * Generate time-based UUID and store it to @out
  *
- * Tries to guarantee uniqueness of the generated UUIDs by obtaining them from the uuidd daemon,
- * or, if uuidd is not usable, by using the global clock state counter (see get_clock()).
- * If neither of these is possible (e.g. because of insufficient permissions), it generates
+ * Tries to guarantee uniqueness of the generated UUIDs by obtaining
+ * them from the uuidd daemon, or, if uuidd is not usable, by using
+ * the global clock state counter (see get_clock()). If neither of
+ * these is possible (e.g. because of insufficient permissions), it generates
  * the UUID anyway, but returns -1. Otherwise, returns 0.
  */
-static int uuid_generate_time_generic(uuid_t out) {
+static int
+uuid_generate_time_generic(uuid_t out)
+{
 #ifdef HAVE_TLS
 	THREAD_LOCAL int		num = 0;
 	THREAD_LOCAL struct uuid	uu;
@@ -471,11 +478,11 @@ static int uuid_generate_time_generic(uuid_t out) {
 	if (num <= 0) {
 		num = 1000;
 		if (get_uuid_via_daemon(UUIDD_OP_BULK_TIME_UUID,
-					out, &num) == 0) {
+		    out, &num) == 0) {
 			last_time = time(0);
 			uuid_unpack(out, &uu);
 			num--;
-			return 0;
+			return (0);
 		}
 		num = 0;
 	}
@@ -488,14 +495,14 @@ static int uuid_generate_time_generic(uuid_t out) {
 		}
 		num--;
 		uuid_pack(&uu, out);
-		return 0;
+		return (0);
 	}
 #else
 	if (get_uuid_via_daemon(UUIDD_OP_TIME_UUID, out, 0) == 0)
-		return 0;
+		return (0);
 #endif
 
-	return __uuid_generate_time(out, 0);
+	return (__uuid_generate_time(out, 0));
 }
 
 /*
@@ -503,19 +510,20 @@ static int uuid_generate_time_generic(uuid_t out) {
  *
  * Discards return value from uuid_generate_time_generic()
  */
-void uuid_generate_time(uuid_t out)
+void
+uuid_generate_time(uuid_t out)
 {
-	(void)uuid_generate_time_generic(out);
+	(void) uuid_generate_time_generic(out);
 }
 
-
-int uuid_generate_time_safe(uuid_t out)
+int
+uuid_generate_time_safe(uuid_t out)
 {
-	return uuid_generate_time_generic(out);
+	return (uuid_generate_time_generic(out));
 }
 
-
-void __uuid_generate_random(uuid_t out, int *num)
+void
+__uuid_generate_random(uuid_t out, int *num)
 {
 	uuid_t	buf;
 	struct uuid uu;
@@ -527,18 +535,19 @@ void __uuid_generate_random(uuid_t out, int *num)
 		n = *num;
 
 	for (i = 0; i < n; i++) {
-		random_get_bytes(buf, sizeof(buf));
+		random_get_bytes(buf, sizeof (buf));
 		uuid_unpack(buf, &uu);
 
 		uu.clock_seq = (uu.clock_seq & 0x3FFF) | 0x8000;
 		uu.time_hi_and_version = (uu.time_hi_and_version & 0x0FFF)
-			| 0x4000;
+		    | 0x4000;
 		uuid_pack(&uu, out);
-		out += sizeof(uuid_t);
+		out += sizeof (uuid_t);
 	}
 }
 
-void uuid_generate_random(uuid_t out)
+void
+uuid_generate_random(uuid_t out)
 {
 	int	num = 1;
 	/* No real reason to use the daemon for random uuid's -- yet */
@@ -550,7 +559,8 @@ void uuid_generate_random(uuid_t out)
  * Check whether good random source (/dev/random or /dev/urandom)
  * is available.
  */
-static int have_random_source(void)
+static int
+have_random_source(void)
 {
 	struct stat s;
 
@@ -564,7 +574,8 @@ static int have_random_source(void)
  * /dev/urandom is available, since otherwise we won't have
  * high-quality randomness.
  */
-void uuid_generate(uuid_t out)
+void
+uuid_generate(uuid_t out)
 {
 	if (have_random_source())
 		uuid_generate_random(out);

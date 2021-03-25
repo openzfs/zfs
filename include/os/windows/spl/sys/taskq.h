@@ -67,7 +67,7 @@ struct proc;
 #define	TQ_NOALLOC	0x04	/* cannot allocate memory; may fail */
 #define	TQ_FRONT	0x08	/* Put task at the front of the queue */
 
-#define TASKQID_INVALID ((taskqid_t)0)
+#define	TASKQID_INVALID ((taskqid_t)0)
 
 #ifdef _KERNEL
 
@@ -90,7 +90,7 @@ extern taskqid_t taskq_dispatch(taskq_t *, task_func_t, void *, uint_t);
 extern void	nulltask(void *);
 extern void	taskq_destroy(taskq_t *);
 extern void	taskq_wait(taskq_t *);
-#define HAVE_TASKQ_WAIT_ID
+#define	HAVE_TASKQ_WAIT_ID
 extern void taskq_wait_id(taskq_t *, taskqid_t);
 extern void	taskq_suspend(taskq_t *);
 extern int	taskq_suspended(taskq_t *);
@@ -101,7 +101,7 @@ extern int taskq_cancel_id(taskq_t *, taskqid_t);
 extern taskq_t *taskq_of_curthread(void);
 extern int taskq_empty_ent(struct taskq_ent *);
 
-#define taskq_wait_outstanding(T, D) taskq_wait((T))
+#define	taskq_wait_outstanding(T, D) taskq_wait((T))
 
 extern void system_taskq_init(void);
 extern void system_taskq_fini(void);

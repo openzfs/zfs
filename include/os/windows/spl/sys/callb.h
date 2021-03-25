@@ -24,44 +24,44 @@
  */
 
 #ifndef _SPL_CALLB_H
-#define _SPL_CALLB_H
+#define	_SPL_CALLB_H
 
 #include <sys/mutex.h>
 
-#define CALLB_CPR_ASSERT(cp)		ASSERT(MUTEX_HELD((cp)->cc_lockp));
+#define	CALLB_CPR_ASSERT(cp)		ASSERT(MUTEX_HELD((cp)->cc_lockp));
 
 typedef struct callb_cpr {
-        kmutex_t        *cc_lockp;
+	kmutex_t	*cc_lockp;
 } callb_cpr_t;
 
-#define CALLB_CPR_INIT(cp, lockp, func, name)   {               \
-        (cp)->cc_lockp = lockp;                                 \
+#define	CALLB_CPR_INIT(cp, lockp, func, name)   { \
+		(cp)->cc_lockp = lockp; \
 }
 
-#define CALLB_CPR_SAFE_BEGIN(cp) {                              \
-	CALLB_CPR_ASSERT(cp);					\
+#define	CALLB_CPR_SAFE_BEGIN(cp) { \
+	CALLB_CPR_ASSERT(cp); \
 }
 
-#define CALLB_CPR_SAFE_END(cp, lockp) {                         \
-	CALLB_CPR_ASSERT(cp);					\
+#define	CALLB_CPR_SAFE_END(cp, lockp) { \
+	CALLB_CPR_ASSERT(cp); \
 }
 
-#define CALLB_CPR_EXIT(cp) {                                    \
-        ASSERT(MUTEX_HELD((cp)->cc_lockp));                     \
-        mutex_exit((cp)->cc_lockp);                             \
+#define	CALLB_CPR_EXIT(cp) { \
+	ASSERT(MUTEX_HELD((cp)->cc_lockp)); \
+	mutex_exit((cp)->cc_lockp); \
 }
 
 
-#define CALLOUT_FLAG_ROUNDUP            0x1
-#define CALLOUT_FLAG_ABSOLUTE           0x2
-#define CALLOUT_FLAG_HRESTIME           0x4
-#define CALLOUT_FLAG_32BIT              0x8
+#define	CALLOUT_FLAG_ROUNDUP	0x1
+#define	CALLOUT_FLAG_ABSOLUTE	0x2
+#define	CALLOUT_FLAG_HRESTIME	0x4
+#define	CALLOUT_FLAG_32BIT	0x8
 
 /* Move me to more correct "sys/callo.h" file when convenient. */
-#define CALLOUT_NORMAL 1
+#define	CALLOUT_NORMAL 1
 typedef uint64_t callout_id_t;
 callout_id_t timeout_generic(int, void (*)(void *), void *, hrtime_t, hrtime_t,
-							 int);
+    int);
 
 
 #endif  /* _SPL_CALLB_H */

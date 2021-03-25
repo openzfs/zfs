@@ -1203,7 +1203,7 @@ zfs_vfs_mount(struct mount *vfsp, vnode_t *mvp /* devvp */,
     user_addr_t data, vfs_context_t context)
 {
 	int		error = 0;
-	cred_t		*cr = NULL;//(cred_t *)vfs_context_ucred(context);
+	cred_t		*cr = NULL; // (cred_t *)vfs_context_ucred(context);
 	char		*osname = NULL;
 	char		*options = NULL;
 	uint64_t	flags = vfs_flags(vfsp);
@@ -1215,14 +1215,14 @@ zfs_vfs_mount(struct mount *vfsp, vnode_t *mvp /* devvp */,
 	size_t		osnamelen = 0;
 	uint32_t	cmdflags = 0;
 
-dprintf("%s\n", __func__);
-	cmdflags = (uint32_t) vfs_flags(vfsp) & MNT_CMDFLAGS;
+	dprintf("%s\n", __func__);
+	cmdflags = (uint32_t)vfs_flags(vfsp) & MNT_CMDFLAGS;
 	rdonly = vfs_isrdonly(vfsp);
-dprintf("%s cmdflags %u rdonly %d\n", __func__, cmdflags, rdonly);
+	dprintf("%s cmdflags %u rdonly %d\n", __func__, cmdflags, rdonly);
 
 	/*
-	* Get the objset name (the "special" mount argument).
-	*/
+	 * Get the objset name (the "special" mount argument).
+	 */
 	if (data) {
 
 		// Allocate string area
@@ -1232,7 +1232,7 @@ dprintf("%s cmdflags %u rdonly %d\n", __func__, cmdflags, rdonly);
 
 	}
 
-	if (mnt_args->struct_size == sizeof(*mnt_args)) {
+	if (mnt_args->struct_size == sizeof (*mnt_args)) {
 
 		mflag = mnt_args->mflag;
 
@@ -1240,14 +1240,14 @@ dprintf("%s cmdflags %u rdonly %d\n", __func__, cmdflags, rdonly);
 			options = kmem_alloc(mnt_args->optlen, KM_SLEEP);
 			strlcpy(options, mnt_args->optptr, mnt_args->optlen);
 		}
-			//dprintf("vfs_mount: fspec '%s' : mflag %04llx : optptr %p : optlen %d :"
+
 		dprintf("%s: fspec '%s' : mflag %04x : optptr %p : optlen %d :"
 		    " options %s\n", __func__,
-			osname,
-			mnt_args->mflag,
-			mnt_args->optptr,
-			mnt_args->optlen,
-			options);
+		    osname,
+		    mnt_args->mflag,
+		    mnt_args->optptr,
+		    mnt_args->optlen,
+		    options);
 	}
 
 	if (mflag & MS_RDONLY) {

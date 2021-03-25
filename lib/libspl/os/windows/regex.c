@@ -25,21 +25,20 @@
 /* Fill me in when we want regex support */
 
 int
-regexec(const regex_t* restrict preg, const char* restrict string,
+regexec(const regex_t *restrict preg, const char *restrict string,
     size_t nmatch, regmatch_t pmatch[restrict], int eflags)
 {
-  return (0);
+	return (0);
 }
 
 int
-regcomp(regex_t* restrict preg, const char* restrict pattern,
+regcomp(regex_t *restrict preg, const char *restrict pattern,
     int cflags)
 {
 	return (0);
 }
 
 void
-regfree(regex_t* preg)
+regfree(regex_t *preg)
 {
-
 }

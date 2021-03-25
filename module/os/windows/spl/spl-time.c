@@ -23,7 +23,7 @@
  *
  * Copyright (C) 2017 Jorgen Lundman <lundman@lundman.net>
  *
-*/
+ */
 #define	_KERNEL_MODE
 #include <ntifs.h>
 #include <wdm.h>
@@ -32,20 +32,15 @@
 #include <sys/time.h>
 #include <sys/timer.h>
 
-
-//#include <kern/clock.h>
-
-
 /*
- * gethrtime() provides high-resolution timestamps with machine-dependent origin
-.
- * Hence its primary use is to specify intervals.
+ * gethrtime() provides high-resolution timestamps with machine-dependent
+ * origin. Hence its primary use is to specify intervals.
  */
 
 static hrtime_t
 zfs_abs_to_nano(uint64_t elapsed)
 {
-	return elapsed * KeQueryTimeIncrement() * 100;
+	return (elapsed * KeQueryTimeIncrement() * 100);
 }
 
 /* Open Solaris lbolt is in hz */
@@ -60,9 +55,9 @@ zfs_lbolt(void)
 	return (lbolt_hz);
 }
 
-hrtime_t gethrtime(void)
+hrtime_t
+gethrtime(void)
 {
-    //static uint64_t start = 0;
 	static LARGE_INTEGER start = { 0 };
 	LARGE_INTEGER now;
 	if (start.QuadPart == 0) {
@@ -71,7 +66,7 @@ hrtime_t gethrtime(void)
 	}
 	KeQueryTickCount(&now);
 	ASSERT((now.QuadPart != start.QuadPart));
-    return zfs_abs_to_nano(now.QuadPart - start.QuadPart);
+	return (zfs_abs_to_nano(now.QuadPart - start.QuadPart));
 }
 
 /*
@@ -81,7 +76,6 @@ hrtime_t gethrtime(void)
 int
 random_get_bytes(uint8_t *ptr, uint32_t len)
 {
-	//read_random(ptr, len);
 	LARGE_INTEGER TickCount;
 	ULONG r;
 	PULONG b;
@@ -91,12 +85,12 @@ random_get_bytes(uint8_t *ptr, uint32_t len)
 
 	b = (PULONG) ptr;
 
-	for (i = 0; i < len / sizeof(ULONG); i++)
-        b[i] = RtlRandomEx(&TickCount.LowPart);
+	for (i = 0; i < len / sizeof (ULONG); i++)
+		b[i] = RtlRandomEx(&TickCount.LowPart);
 
-	len &= (sizeof(ULONG) - 1);
-    if (len > 0) {
-        r = RtlRandomEx(&TickCount.LowPart);
+	len &= (sizeof (ULONG) - 1);
+	if (len > 0) {
+		r = RtlRandomEx(&TickCount.LowPart);
 		RtlCopyMemory(&b[i], &r, len);
 	}
 	return (0);
@@ -113,7 +107,7 @@ gethrestime(struct timespec *ts)
 #else
 	KeQuerySystemTime(&now);
 #endif
-	TIME_WINDOWS_TO_UNIX(now.QuadPart, tv); 
+	TIME_WINDOWS_TO_UNIX(now.QuadPart, tv);
 	// change macro to take 2 dst args, "sec and nsec" to avoid this step?
 	ts->tv_sec = tv[0];
 	ts->tv_nsec = tv[1];
@@ -131,26 +125,26 @@ gethrestime_sec(void)
 void
 hrt2ts(hrtime_t hrt, struct timespec *tsp)
 {
-    uint32_t sec, nsec, tmp;
+	uint32_t sec, nsec, tmp;
 
-    tmp = (uint32_t)(hrt >> 30);
-    sec = tmp - (tmp >> 2);
-    sec = tmp - (sec >> 5);
-    sec = tmp + (sec >> 1);
-    sec = tmp - (sec >> 6) + 7;
-    sec = tmp - (sec >> 3);
-    sec = tmp + (sec >> 1);
-    sec = tmp + (sec >> 3);
-    sec = tmp + (sec >> 4);
-    tmp = (sec << 7) - sec - sec - sec;
-    tmp = (tmp << 7) - tmp - tmp - tmp;
-    tmp = (tmp << 7) - tmp - tmp - tmp;
-    nsec = (uint32_t)hrt - (tmp << 9);
-    while (nsec >= NANOSEC) {
-        nsec -= NANOSEC;
-        sec++;
-    }
-    tsp->tv_sec = (time_t)sec;
-    tsp->tv_nsec = nsec;
+	tmp = (uint32_t)(hrt >> 30);
+	sec = tmp - (tmp >> 2);
+	sec = tmp - (sec >> 5);
+	sec = tmp + (sec >> 1);
+	sec = tmp - (sec >> 6) + 7;
+	sec = tmp - (sec >> 3);
+	sec = tmp + (sec >> 1);
+	sec = tmp + (sec >> 3);
+	sec = tmp + (sec >> 4);
+	tmp = (sec << 7) - sec - sec - sec;
+	tmp = (tmp << 7) - tmp - tmp - tmp;
+	tmp = (tmp << 7) - tmp - tmp - tmp;
+	nsec = (uint32_t)hrt - (tmp << 9);
+	while (nsec >= NANOSEC) {
+		nsec -= NANOSEC;
+		sec++;
+	}
+	tsp->tv_sec = (time_t)sec;
+	tsp->tv_nsec = nsec;
 }
 #endif

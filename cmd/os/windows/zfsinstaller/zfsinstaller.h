@@ -18,12 +18,11 @@
  *
  * CDDL HEADER END
  */
- /*
-  * Copyright (c) 2018 Julian Heuking <J.Heuking@beckhoff.com>
-  */
+/*
+ * Copyright (c) 2018 Julian Heuking <J.Heuking@beckhoff.com>
+ */
 
 #pragma once
-
 
 #include <windows.h>
 #include <SetupAPI.h>
@@ -33,7 +32,7 @@
 DWORD zfs_install(char *);
 DWORD zfs_uninstall(char *);
 DWORD executeInfSection(const char *, char *);
-DWORD startService(char*);
+DWORD startService(char *);
 void printUsage();
 DWORD send_zfs_ioc_unregister_fs();
 DWORD installRootDevice(char *inf_path);

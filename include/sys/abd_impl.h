@@ -52,7 +52,7 @@ typedef enum abd_stats_op {
 struct abd {
 	abd_flags_t	abd_flags;
 	uint_t		abd_size;	/* excludes scattered abd_offset */
-	uint_t          abd_orig_size;
+	uint_t	abd_orig_size;
 	list_node_t	abd_gang_link;
 	struct abd	*abd_parent;
 	zfs_refcount_t	abd_children;
@@ -60,7 +60,8 @@ struct abd {
 	union {
 		struct abd_scatter {
 			uint_t		abd_offset;
-#if defined(_KERNEL) && (defined(__FreeBSD__) || defined(__APPLE__) || defined(_WIN32))
+#if defined(_KERNEL) && (defined(__FreeBSD__) || \
+	defined(__APPLE__) || defined(_WIN32))
 			uint_t  abd_chunk_size;
 			void    *abd_chunks[];
 #else
@@ -136,8 +137,8 @@ void abd_iter_unmap(struct abd_iter *);
 #define	abd_enter_critical(flags)	critical_enter()
 #define	abd_exit_critical(flags)	critical_exit()
 #elif defined(_WIN32)
-#define	abd_enter_critical(flags)	
-#define	abd_exit_critical(flags)	
+#define	abd_enter_critical(flags)
+#define	abd_exit_critical(flags)
 #else
 #define	abd_enter_critical(flags)	local_irq_save(flags)
 #define	abd_exit_critical(flags)	local_irq_restore(flags)

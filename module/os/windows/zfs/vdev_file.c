@@ -59,23 +59,23 @@ vdev_file_rele(vdev_t *vd)
 }
 
 #ifdef _KERNEL
-extern int VOP_GETATTR(struct vnode *vp, vattr_t *vap, int flags, void *x3, void *x4);
+extern int VOP_GETATTR(struct vnode *vp, vattr_t *vap, int flags,
+    void *x3, void *x4);
 #endif
 
-static mode_t vdev_file_open_mode(spa_mode_t spa_mode)
+static mode_t
+vdev_file_open_mode(spa_mode_t spa_mode)
 {
 	mode_t mode = 0;
 	// TODO :- Add flags
 	if ((spa_mode & SPA_MODE_READ) && (spa_mode & SPA_MODE_WRITE)) {
 		mode = O_RDWR;
-	}
-	else if (spa_mode & SPA_MODE_READ) {
+	} else if (spa_mode & SPA_MODE_READ) {
 		mode = O_RDONLY;
-	}
-	else if (spa_mode & SPA_MODE_WRITE) {
+	} else if (spa_mode & SPA_MODE_WRITE) {
 		mode = O_WRONLY;
 	}
-	return mode;
+	return (mode);
 }
 
 static int
@@ -108,7 +108,7 @@ vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 	 * We must have a pathname, and it must be absolute.
 	 */
 	if (vd->vdev_path == NULL || (vd->vdev_path[0] != '/' &&
-		vd->vdev_path[0] != '\\')) {
+	    vd->vdev_path[0] != '\\')) {
 		vd->vdev_stat.vs_aux = VDEV_AUX_BAD_LABEL;
 		return (SET_ERROR(EINVAL));
 	}
@@ -125,9 +125,9 @@ vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 	}
 #endif
 
-	vf = vd->vdev_tsd = kmem_zalloc(sizeof(vdev_file_t), KM_SLEEP);
+	vf = vd->vdev_tsd = kmem_zalloc(sizeof (vdev_file_t), KM_SLEEP);
 
-	/* Make sure to change //?/ into kernel /??/ */
+	/* Make sure to change / /?/ into kernel /??/ */
 	if (vd->vdev_path[0] == '\\' &&
 	    vd->vdev_path[1] == '\\' &&
 	    vd->vdev_path[2] == '?' &&
@@ -154,17 +154,16 @@ vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 #ifdef _KERNEL
 	// Change it to SPARSE, so TRIM might work
 	error = ZwFsControlFile(
-		fp->f_handle,
-		NULL,
-		NULL,
-		NULL,
-		NULL,
-		FSCTL_SET_SPARSE,
-		NULL,
-		0,
-		NULL,
-		0
-	);
+	    fp->f_handle,
+	    NULL,
+	    NULL,
+	    NULL,
+	    NULL,
+	    FSCTL_SET_SPARSE,
+	    NULL,
+	    0,
+	    NULL,
+	    0);
 	dprintf("%s: set Sparse 0x%x.\n", __func__, error);
 #else
 	// Userland?
@@ -230,24 +229,22 @@ vdev_file_io_start_done(void *param)
 	// Return abd buf
 	if (zio->io_type == ZIO_TYPE_READ) {
 		abd_return_buf_copy(zio->io_abd, vb->b_data,
-			zio->io_size);
+		    zio->io_size);
 	} else {
 		abd_return_buf(zio->io_abd, vb->b_data,
-			zio->io_size);
+		    zio->io_size);
 	}
 
 	UnlockAndFreeMdl(vb->irp->MdlAddress);
 	IoFreeIrp(vb->irp);
-	kmem_free(vb, sizeof(vf_callback_t) + IoSizeofWorkItem());
+	kmem_free(vb, sizeof (vf_callback_t) + IoSizeofWorkItem());
 	vb = NULL;
 	zio_delay_interrupt(zio);
 }
 
-static VOID
-FileIoWkRtn(
-	__in PVOID           pDummy,           // Not used.
-	__in PVOID           pWkParms          // Parm list pointer.
-)
+static void
+FileIoWkRtn(__in PVOID pDummy,
+    __in PVOID pWkParms)
 {
 	vf_callback_t *vb = (vf_callback_t *)pWkParms;
 
@@ -263,19 +260,22 @@ vdev_file_io_intr(PDEVICE_OBJECT DeviceObject, PIRP irp, PVOID Context)
 
 	ASSERT(vb != NULL);
 
-	/* If IRQL is below DIPATCH_LEVEL then there is no issue in calling
+	/*
+	 * If IRQL is below DIPATCH_LEVEL then there is no issue in calling
 	 * vdev_file_io_start_done() directly; otherwise queue a new Work Item
-	*/
-	if (KeGetCurrentIrql() < DISPATCH_LEVEL)
+	 */
+	if (KeGetCurrentIrql() < DISPATCH_LEVEL) {
 		vdev_file_io_start_done(vb);
-	else {
+	} else {
 		vdev_file_t *vf = vb->zio->io_vd->vdev_tsd;
 		zfs_file_t *fp = vf->vf_file;
-		IoInitializeWorkItem(fp->f_deviceobject, (PIO_WORKITEM)vb->work_item);
-		IoQueueWorkItem((PIO_WORKITEM)vb->work_item, FileIoWkRtn, DelayedWorkQueue, vb);
+		IoInitializeWorkItem(fp->f_deviceobject,
+		    (PIO_WORKITEM)vb->work_item);
+		IoQueueWorkItem((PIO_WORKITEM)vb->work_item, FileIoWkRtn,
+		    DelayedWorkQueue, vb);
 	}
 
-	return STATUS_MORE_PROCESSING_REQUIRED;
+	return (STATUS_MORE_PROCESSING_REQUIRED);
 }
 #endif
 
@@ -321,7 +321,7 @@ vdev_file_io_start(zio_t *zio)
 {
 	vdev_t *vd = zio->io_vd;
 	ssize_t resid = 0;
-	vdev_file_t* vf = vd->vdev_tsd;
+	vdev_file_t *vf = vd->vdev_tsd;
 	zfs_file_t *fp = vf->vf_file;
 
 	if (zio->io_type == ZIO_TYPE_IOCTL) {
@@ -330,18 +330,18 @@ vdev_file_io_start(zio_t *zio)
 			zio->io_error = SET_ERROR(ENXIO);
 			zio_interrupt(zio);
 			return;
-	        }
+		}
 
-	        switch (zio->io_cmd) {
-	        case DKIOCFLUSHWRITECACHE:
-			zio->io_error = zfs_file_fsync(fp, 0); 
-			break;
-	        default:
-			zio->io_error = SET_ERROR(ENOTSUP);
+		switch (zio->io_cmd) {
+			case DKIOCFLUSHWRITECACHE:
+				zio->io_error = zfs_file_fsync(fp, 0);
+				break;
+			default:
+				zio->io_error = SET_ERROR(ENOTSUP);
 		}
 
 		zio_execute(zio);
-	        return;
+		return;
 
 	} else if (zio->io_type == ZIO_TYPE_TRIM) {
 		int mode = 0;
@@ -357,7 +357,7 @@ vdev_file_io_start(zio_t *zio)
 
 	ASSERT(zio->io_size != 0);
 	LARGE_INTEGER offset;
-	offset.QuadPart = zio->io_offset /*+ vd->vdev_win_offset */;
+	offset.QuadPart = zio->io_offset; /* + vd->vdev_win_offset */
 
 	VERIFY3U(taskq_dispatch(system_taskq, vdev_file_io_strategy, zio,
 	    TQ_SLEEP), !=, 0);

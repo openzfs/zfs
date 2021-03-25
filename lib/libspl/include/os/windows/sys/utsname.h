@@ -27,7 +27,7 @@
 #ifndef _LIBSPL_UTSNAME_H
 #define	_LIBSPL_UTSNAME_H
 
-#define      _SYS_NMLN       257
+#define	_SYS_NMLN 257
 struct utsname {
 	char    sysname[_SYS_NMLN];
 	char    nodename[_SYS_NMLN];

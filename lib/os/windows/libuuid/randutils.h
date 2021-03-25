@@ -1,9 +1,10 @@
+
 #ifndef UTIL_LINUX_RANDUTILS
-#define UTIL_LINUX_RANDUTILS
+#define	UTIL_LINUX_RANDUTILS
 
 #ifdef HAVE_SRANDOM
-#define srand(x)	srandom(x)
-#define rand()		random()
+#define	srand(x)	srandom(x)
+#define	rand()		random()
 #endif
 
 extern int random_get_fd(void);

@@ -36,16 +36,16 @@ sigfillset(sigset_t *set)
 }
 
 int
-sigaddset(sigset_t *set, int sig) 
+sigaddset(sigset_t *set, int sig)
 {
-	// *set |= (1<<(sig-1)); 
+	// *set |= (1<<(sig-1));
 	return (0);
 }
 
 int
-sigdelset(sigset_t *set, int sig) 
+sigdelset(sigset_t *set, int sig)
 {
-	// *set &= ~(1<<(sig-1)); 
+	// *set &= ~(1<<(sig-1));
 	return (0);
 }
 
@@ -60,7 +60,8 @@ int
 sigaction(int sig, struct sigaction *sa, struct sigaction *osa)
 {
 	if (osa)
-		osa->sa_handler = signal(sig, (void(__cdecl*)(int))sa->sa_handler);
+		osa->sa_handler = signal(sig,
+		    (void(__cdecl*)(int))sa->sa_handler);
 	else
 		signal(sig, (void(__cdecl*)(int))sa->sa_handler);
 	return (0);

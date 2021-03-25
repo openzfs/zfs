@@ -139,12 +139,12 @@ struct zfsvfs {
 #define	ZFS_OBJ_MTX_SZ	64
 
 struct hardlinks_struct {
-        avl_node_t hl_node;
-        avl_node_t hl_node_linkid;
-        uint64_t hl_parent;     // parentid of entry
-        uint64_t hl_fileid;     // the fileid (z_id) for vget
-        uint32_t hl_linkid;     // the linkid, persistent over renames
-        char hl_name[PATH_MAX]; // cached name for vget
+	avl_node_t hl_node;
+	avl_node_t hl_node_linkid;
+	uint64_t hl_parent;	// parentid of entry
+	uint64_t hl_fileid;	// the fileid (z_id) for vget
+	uint32_t hl_linkid;	// the linkid, persistent over renames
+	char hl_name[PATH_MAX];	// cached name for vget
 };
 typedef struct hardlinks_struct hardlinks_t;
 

@@ -33,7 +33,7 @@
  */
 
 #ifndef _UUID_UUID_H
-#define _UUID_UUID_H
+#define	_UUID_UUID_H
 
 #include <sys/types.h>
 #ifndef _WIN32
@@ -44,22 +44,26 @@
 typedef unsigned char uuid_t[16];
 
 /* UUID Variant definitions */
-#define UUID_VARIANT_NCS	0
-#define UUID_VARIANT_DCE	1
-#define UUID_VARIANT_MICROSOFT	2
-#define UUID_VARIANT_OTHER	3
+#define	UUID_VARIANT_NCS	0
+#define	UUID_VARIANT_DCE	1
+#define	UUID_VARIANT_MICROSOFT	2
+#define	UUID_VARIANT_OTHER	3
 
 /* UUID Type definitions */
-#define UUID_TYPE_DCE_TIME   1
-#define UUID_TYPE_DCE_RANDOM 4
+#define	UUID_TYPE_DCE_TIME   1
+#define	UUID_TYPE_DCE_RANDOM 4
 
 /* Allow UUID constants to be defined */
 #ifdef __GNUC__
-#define UUID_DEFINE(name,u0,u1,u2,u3,u4,u5,u6,u7,u8,u9,u10,u11,u12,u13,u14,u15) \
-	static const uuid_t name __attribute__ ((unused)) = {u0,u1,u2,u3,u4,u5,u6,u7,u8,u9,u10,u11,u12,u13,u14,u15}
+#define	UUID_DEFINE(name, u0, u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, \
+	u11, u12, u13, u14, u15) \
+	static const uuid_t name __attribute__((unused)) = {u0, u1, u2, u3, \
+	    u4, u5, u6, u7, u8, u9, u10, u11, u12, u13, u14, u15}
 #else
-#define UUID_DEFINE(name,u0,u1,u2,u3,u4,u5,u6,u7,u8,u9,u10,u11,u12,u13,u14,u15) \
-	static const uuid_t name = {u0,u1,u2,u3,u4,u5,u6,u7,u8,u9,u10,u11,u12,u13,u14,u15}
+#define	UUID_DEFINE(name, u0, u1, u2, u3, u4, u5, u6, u7, u8, u9, u10, \
+	u11, u12, u13, u14, u15) \
+	static const uuid_t name = {u0, u1, u2, u3, u4, u5, u6, u7, u8, u9, \
+	    u10, u11, u12, u13, u14, u15}
 #endif
 
 #ifdef __cplusplus

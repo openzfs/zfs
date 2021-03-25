@@ -28,7 +28,7 @@
 #define	_SYS_FEATURE_TESTS_H
 
 #ifdef _MSC_VER
-#define __NORETURN
+#define	__NORETURN
 #else
 #define	__NORETURN	__attribute__((__noreturn__))
 #endif

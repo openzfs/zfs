@@ -33,7 +33,7 @@
  * California.
  */
 
-//#pragma ident	"%Z%%M%	%I%	%E% SMI"
+// #pragma ident	"%Z%%M%	%I%	%E% SMI"
 
 /*
  * Generic XDR routines implementation.
@@ -42,11 +42,9 @@
  * most common data items.  See xdr.h for more info on the interface to
  * xdr.
  */
-//#include "mt.h"
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/isa_defs.h>
-//#include <syslog.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -59,7 +57,7 @@
 #include <sys/types.h>
 
 // warning C4133 : 'function' : incompatible types - from 'XDR *' to 'XDR *'
-#pragma warning( disable: 4133 )
+#pragma warning(disable: 4133)
 
 #ifndef _WIN32
 #pragma weak xdr_int64_t = xdr_hyper
@@ -496,7 +494,7 @@ xdr_netobj(XDR *xdrs, struct netobj *np)
  */
 bool_t
 xdr_union(XDR *xdrs, int *dscmp, char *unp,
-		const struct xdr_discrim *choices, const xdrproc_t dfault)
+    const struct xdr_discrim *choices, const xdrproc_t dfault)
 {
 	int dscm;
 
@@ -630,11 +628,11 @@ xdr_hyper(XDR *xdrs, longlong_t *hp)
 		if (XDR_PUTINT32(xdrs, (int *)hp) == TRUE)
 			/* LINTED pointer cast */
 			return (XDR_PUTINT32(xdrs, (int *)((char *)hp +
-				BYTES_PER_XDR_UNIT)));
+			    BYTES_PER_XDR_UNIT)));
 #else
 		/* LINTED pointer cast */
 		if (XDR_PUTINT32(xdrs, (int *)((char *)hp +
-				BYTES_PER_XDR_UNIT)) == TRUE)
+		    BYTES_PER_XDR_UNIT)) == TRUE)
 			return (XDR_PUTINT32(xdrs, (int32_t *)hp));
 #endif
 		return (FALSE);
@@ -645,13 +643,13 @@ xdr_hyper(XDR *xdrs, longlong_t *hp)
 		if (XDR_GETINT32(xdrs, (int *)hp) == FALSE ||
 		    /* LINTED pointer cast */
 		    (XDR_GETINT32(xdrs, (int *)((char *)hp +
-				BYTES_PER_XDR_UNIT)) == FALSE))
+		    BYTES_PER_XDR_UNIT)) == FALSE))
 			return (FALSE);
 #else
 		/* LINTED pointer cast */
 		if ((XDR_GETINT32(xdrs, (int *)((char *)hp +
-				BYTES_PER_XDR_UNIT)) == FALSE) ||
-				(XDR_GETINT32(xdrs, (int *)hp) == FALSE))
+		    BYTES_PER_XDR_UNIT)) == FALSE) ||
+		    (XDR_GETINT32(xdrs, (int *)hp) == FALSE))
 			return (FALSE);
 #endif
 		return (TRUE);
@@ -704,19 +702,19 @@ xdr_control(XDR *xdrs, int request, void *info)
 
 	case XDR_PEEK:
 		/*
-		* Return the next 4 byte unit in the XDR stream.
-		*/
-		if (xdrs->x_handy < sizeof(int32_t))
+		 * Return the next 4 byte unit in the XDR stream.
+		 */
+		if (xdrs->x_handy < sizeof (int32_t))
 			return (FALSE);
 		int32p = (int32_t *)info;
 		*int32p = (int32_t)ntohl((uint32_t)
-			(*((int32_t *)(xdrs->x_private))));
+		    (*((int32_t *)(xdrs->x_private))));
 		return (TRUE);
 
 	case XDR_SKIPBYTES:
 		/*
-		* Skip the next N bytes in the XDR stream.
-		*/
+		 * Skip the next N bytes in the XDR stream.
+		 */
 		int32p = (int32_t *)info;
 		len = RNDUP((int)(*int32p));
 		if (xdrs->x_handy < len)

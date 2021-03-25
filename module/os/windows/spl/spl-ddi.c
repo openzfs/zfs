@@ -23,7 +23,6 @@
 #include <sys/kmem.h>
 #include <sys/sunddi.h>
 #include <sys/cmn_err.h>
-//#include <miscfs/devfs/devfs.h>
 
 /*
  * Allocate a set of pointers to 'n_items' objects of size 'size'
@@ -277,8 +276,6 @@ ddi_soft_state_fini(void **state_p)
 	static char msg[] = "ddi_soft_state_fini:";
 
 	if (state_p == NULL || (ss = *state_p) == NULL) {
-		//cmn_err(CE_WARN, "%s null handle",
-		//  msg);
 		return;
 	}
 
@@ -314,67 +311,41 @@ ddi_create_minor_node(dev_info_t *dip, char *name, int spec_type,
     minor_t minor_num, char *node_type, int flag)
 {
 	dev_t dev;
-	int error=0;
-    char *r, *dup;
+	int error = 0;
+	char *r, *dup;
 
-	//printf("ddi_create_minor_node: name %s: %d,%d\n", name, flag, minor_num);
-
-	//dev = makedev(flag, minor_num);
 	dev = minor_num;
 	dip->dev = dev;
 
-    /*
-     * http://lists.apple.com/archives/darwin-kernel/2007/Nov/msg00038.html
-     *
-     * devfs_make_name() has an off-by-one error when using directories
-     * and it appears Apple does not want to fix it.
-     *
-     * We then change "/" to "_" and create more Apple-like /dev names
-     *
-     */
-    MALLOC(dup, char *, strlen(name)+1, M_TEMP, M_WAITOK);
-    if (dup == NULL) return ENOMEM;
-    bcopy(name, dup, strlen(name));
+	MALLOC(dup, char *, strlen(name)+1, M_TEMP, M_WAITOK);
+	if (dup == NULL)
+		return (ENOMEM);
+	bcopy(name, dup, strlen(name));
 	dup[strlen(name)] = '\0';
 
-    for (r = dup;
-         (r=strchr(r, '/'));
-         *r = '_') /* empty */ ;
+	for (r = dup;
+	    (r = strchr(r, '/'));
+	    *r = '_')
+		/* empty */;
 
-    dip->devc = NULL;
-    dip->devb = NULL;
-#if 0
-	if (spec_type == S_IFCHR)
-        dip->devc = devfs_make_node(dev, DEVFS_CHAR,   /* Make the node */
-                                    UID_ROOT, GID_OPERATOR,
-                                    0600, "rdisk_%s", dup);
-    //0600, "rdisk3", dup);
-	else
-        dip->devb = devfs_make_node(dev, DEVFS_BLOCK,  /* Make the node */
-                                    UID_ROOT, GID_OPERATOR,
-                                    0600, "disk_%s", dup);
-    //0600, "disk3", dup);
-#endif
-    //printf("ddi_create_minor: devfs_make_name '%s'\n", dup );
+	dip->devc = NULL;
+	dip->devb = NULL;
 
-    FREE(dup, M_TEMP);
+	FREE(dup, M_TEMP);
 
-	return error;
+	return (error);
 }
 
 
 void
 ddi_remove_minor_node(dev_info_t *dip, char *name)
 {
-    //printf("zvol: remove minor: '%s'\n", name ? name : "");
-    if (dip->devc) {
-//        devfs_remove(dip->devc);
-        dip->devc = NULL;
-    }
-    if (dip->devb) {
-  //      devfs_remove(dip->devb);
-        dip->devb = NULL;
-    }
+	if (dip->devc) {
+		dip->devc = NULL;
+	}
+	if (dip->devb) {
+		dip->devb = NULL;
+	}
 }
 
 
@@ -416,18 +387,18 @@ ddi_strtol(const char *str, char **nptr, int base, long *result)
 		else
 			base = 8;
 	/*
-	* for any base > 10, the digits incrementally following
-	*	9 are assumed to be "abc...z" or "ABC...Z"
-	*/
+	 * for any base > 10, the digits incrementally following
+	 *	9 are assumed to be "abc...z" or "ABC...Z"
+	 */
 	if (!lisalnum(c) || (xx = DIGIT(c)) >= base) {
 		/* no number formed */
 		return (EINVAL);
 	}
 	if (base == 16 && c == '0' && (ustr[1] == 'x' || ustr[1] == 'X') &&
-		isxdigit(ustr[2]))
+	    isxdigit(ustr[2]))
 		c = *(ustr += 2); /* skip over leading "0x" or "0X" */
 
-						  /* this code assumes that abs(LONG_MIN) >= abs(LONG_MAX) */
+		/* this code assumes that abs(LONG_MIN) >= abs(LONG_MAX) */
 	if (neg)
 		limit = LONG_MIN;
 	else
@@ -457,7 +428,7 @@ overflow:
 	return (ERANGE);
 }
 
-char * __cdecl
+char *__cdecl
 strpbrk(const char *s, const char *b)
 {
 	const char *p;
@@ -530,18 +501,18 @@ ddi_strtoll(const char *str, char **nptr, int base, long long *result)
 		else
 			base = 8;
 	/*
-	* for any base > 10, the digits incrementally following
-	*	9 are assumed to be "abc...z" or "ABC...Z"
-	*/
+	 * for any base > 10, the digits incrementally following
+	 *	9 are assumed to be "abc...z" or "ABC...Z"
+	 */
 	if (!lisalnum(c) || (xx = DIGIT(c)) >= base) {
 		/* no number formed */
 		return (EINVAL);
 	}
 	if (base == 16 && c == '0' && (ustr[1] == 'x' || ustr[1] == 'X') &&
-		isxdigit(ustr[2]))
+	    isxdigit(ustr[2]))
 		c = *(ustr += 2); /* skip over leading "0x" or "0X" */
 
-						  /* this code assumes that abs(LONG_MIN) >= abs(LONG_MAX) */
+		/* this code assumes that abs(LONG_MIN) >= abs(LONG_MAX) */
 	if (neg)
 		limit = LONGLONG_MIN;
 	else
@@ -572,15 +543,15 @@ overflow:
 }
 
 uint32_t
-ddi_strcspn(const char * __restrict s, const char * __restrict charset)
+ddi_strcspn(const char *__restrict s, const char *__restrict charset)
 {
 	/*
 	 * NB: idx and bit are temporaries whose use causes gcc 3.4.2 to
 	 * generate better code.  Without them, gcc gets a little confused.
 	 */
 	const char *s1;
-	u_long bit;
-	u_long tbl[(255 + 1) / LONG_BIT];
+	ulong_t bit;
+	ulong_t tbl[(255 + 1) / LONG_BIT];
 	int idx;
 	if (*s == '\0')
 		return (0);
@@ -588,7 +559,7 @@ ddi_strcspn(const char * __restrict s, const char * __restrict charset)
 	// 64bit code
 	tbl[0] = 1;
 	tbl[3] = tbl[2] = tbl[1] = 0;
-    for (; *charset != '\0'; charset++) {
+	for (; *charset != '\0'; charset++) {
 		idx = IDX(*charset);
 		bit = BIT(*charset);
 		tbl[idx] |= bit;
@@ -604,45 +575,39 @@ ddi_strcspn(const char * __restrict s, const char * __restrict charset)
 	return (uint32_t)(s1 - s);
 }
 
-#ifndef __clong__
 extern size_t
 strlcpy(char *s, const char *t, size_t n)
 {
-	const char*     o = t;
+	const char *o = t;
 
 	if (n)
-		do
-		{
-			if (!--n)
-			{
+		do {
+			if (!--n) {
 				*s = 0;
 				break;
 			}
 		} while (*s++ = *t++);
-		if (!n)
-			while (*t++);
-		return (uint32_t)(t - o - 1);
+	if (!n)
+		while (*t++)
+			;
+	return (uint32_t)(t - o - 1);
 }
 
 extern size_t
 strlcat(char *s, const char *t, size_t n)
 {
 	register size_t m;
-	const char*     o = t;
+	const char *o = t;
 
-	if (m = n)
-	{
-		while (n && *s)
-		{
+	if (m = n) {
+		while (n && *s) {
 			n--;
 			s++;
 		}
 		m -= n;
 		if (n)
-			do
-			{
-				if (!--n)
-				{
+			do {
+				if (!--n) {
 					*s = 0;
 					break;
 				}
@@ -651,7 +616,7 @@ strlcat(char *s, const char *t, size_t n)
 			*s = 0;
 	}
 	if (!n)
-		while (*t++);
-	return (t - o) + m - 1;
+		while (*t++)
+			;
+	return ((t - o) + m - 1);
 }
-#endif

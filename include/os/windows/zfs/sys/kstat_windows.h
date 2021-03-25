@@ -23,7 +23,7 @@
  */
 
 #ifndef KSTAT_WINDOWS_INCLUDED
-#define KSTAT_WINDOWS_INCLUDED
+#define	KSTAT_WINDOWS_INCLUDED
 
 typedef struct windows_kstat {
 	kstat_named_t spa_version;
@@ -31,7 +31,7 @@ typedef struct windows_kstat {
 
 	kstat_named_t win32_active_vnodes;
 	kstat_named_t win32_debug;
-        kstat_named_t win32_reclaim_nodes;
+	kstat_named_t win32_reclaim_nodes;
 	kstat_named_t win32_ignore_negatives;
 	kstat_named_t win32_ignore_positives;
 	kstat_named_t win32_create_negatives;
@@ -255,8 +255,8 @@ extern uint64_t zfs_disable_removablemedia;
 extern uint64_t zfs_initialize_value;
 extern int zfs_autoimport_disable;
 
-int        kstat_windows_init(void *);
-void       kstat_windows_fini(void);
+int  kstat_windows_init(void *);
+void kstat_windows_fini(void);
 
 int arc_kstat_update(kstat_t *ksp, int rw);
 int arc_kstat_update_windows(kstat_t *ksp, int rw);

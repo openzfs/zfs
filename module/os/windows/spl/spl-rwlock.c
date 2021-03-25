@@ -26,40 +26,41 @@
  */
 
 #include <sys/rwlock.h>
-//#include <kern/debug.h>
 #include <sys/atomic.h>
 #include <sys/mutex.h>
 
 uint64_t zfs_active_rwlock = 0;
 
-/* We run rwlock with DEBUG on for now, as it protects against
+/*
+ * We run rwlock with DEBUG on for now, as it protects against
  * uninitialised access etc, and almost no cost.
  */
 #ifndef DEBUG
-#define DEBUG
+#define	DEBUG
 #endif
 
 #ifdef DEBUG
-int rw_isinit(krwlock_t *rwlp)
+int
+rw_isinit(krwlock_t *rwlp)
 {
 	if (rwlp->rw_pad != 0x012345678)
-		return 0;
-	return 1;
+		return (0);
+	return (1);
 }
 #endif
 
 
 void
-rw_init(krwlock_t *rwlp, char *name, krw_type_t type, /*__unused*/ void *arg)
+rw_init(krwlock_t *rwlp, char *name, krw_type_t type, __unused void *arg)
 {
-    ASSERT(type != RW_DRIVER);
+	ASSERT(type != RW_DRIVER);
 
 #ifdef DEBUG
-	VERIFY3U(rwlp->rw_pad, != , 0x012345678);
+	VERIFY3U(rwlp->rw_pad, !=, 0x012345678);
 #endif
 	ExInitializeResourceLite(&rwlp->rw_lock);
-    rwlp->rw_owner = NULL;
-    rwlp->rw_readers = 0;
+	rwlp->rw_owner = NULL;
+	rwlp->rw_readers = 0;
 #ifdef DEBUG
 	rwlp->rw_pad = 0x012345678;
 #endif
@@ -69,14 +70,16 @@ rw_init(krwlock_t *rwlp, char *name, krw_type_t type, /*__unused*/ void *arg)
 void
 rw_destroy(krwlock_t *rwlp)
 {
-	// Confirm it was initialised, and is unlocked, and not already destroyed.
+	// Confirm it was initialised, and is unlocked,
+	// and not already destroyed.
 #ifdef DEBUG
-	VERIFY3U(rwlp->rw_pad, == , 0x012345678);
+	VERIFY3U(rwlp->rw_pad, ==, 0x012345678);
 #endif
 	VERIFY3U(rwlp->rw_owner, ==, 0);
 	VERIFY3U(rwlp->rw_readers, ==, 0);
 
-	// This has caused panic due to IRQL panic, from taskq->zap_evict->rw_destroy
+	// This has caused panic due to IRQL panic, from
+	// taskq->zap_evict->rw_destroy
 	ExDeleteResourceLite(&rwlp->rw_lock);
 #ifdef DEBUG
 	rwlp->rw_pad = 0x99;
@@ -92,18 +95,18 @@ rw_enter(krwlock_t *rwlp, krw_t rw)
 		panic("rwlock %p not initialised\n", rwlp);
 #endif
 
-    if (rw == RW_READER) {
+	if (rw == RW_READER) {
 		ExAcquireResourceSharedLite(&rwlp->rw_lock, TRUE);
-        atomic_inc_32((volatile uint32_t *)&rwlp->rw_readers);
-        ASSERT(rwlp->rw_owner == 0);
-    } else {
-        if (rwlp->rw_owner == current_thread())
-            panic("rw_enter: locking against myself!");
+		atomic_inc_32((volatile uint32_t *)&rwlp->rw_readers);
+		ASSERT(rwlp->rw_owner == 0);
+	} else {
+		if (rwlp->rw_owner == current_thread())
+			panic("rw_enter: locking against myself!");
 		ExAcquireResourceExclusiveLite(&rwlp->rw_lock, TRUE);
-        ASSERT(rwlp->rw_owner == 0);
-        ASSERT(rwlp->rw_readers == 0);
-        rwlp->rw_owner = current_thread();
-    }
+		ASSERT(rwlp->rw_owner == 0);
+		ASSERT(rwlp->rw_readers == 0);
+		rwlp->rw_owner = current_thread();
+	}
 }
 
 /*
@@ -113,30 +116,28 @@ rw_enter(krwlock_t *rwlp, krw_t rw)
 int
 rw_tryenter(krwlock_t *rwlp, krw_t rw)
 {
-    int held = 0;
+	int held = 0;
 
 #ifdef DEBUG
 	if (rwlp->rw_pad != 0x012345678)
 		panic("rwlock %p not initialised\n", rwlp);
 #endif
 
-    if (rw == RW_READER) {
+	if (rw == RW_READER) {
 		held = ExAcquireResourceSharedLite(&rwlp->rw_lock, FALSE);
-        if (held)
-            atomic_inc_32((volatile uint32_t *)&rwlp->rw_readers);
-    } else {
-        if (rwlp->rw_owner == current_thread())
-            panic("rw_tryenter: locking against myself!");
+		if (held)
+			atomic_inc_32((volatile uint32_t *)&rwlp->rw_readers);
+	} else {
+		if (rwlp->rw_owner == current_thread())
+			panic("rw_tryenter: locking against myself!");
 
 		held = ExAcquireResourceExclusiveLite(&rwlp->rw_lock, FALSE);
-        if (held)
-            rwlp->rw_owner = current_thread();
-    }
+		if (held)
+			rwlp->rw_owner = current_thread();
+	}
 
-    return (held);
+	return (held);
 }
-
-
 
 /*
  * It appears a difference between Darwin's
@@ -152,13 +153,14 @@ rw_tryenter(krwlock_t *rwlp, krw_t rw)
 int
 rw_tryupgrade(krwlock_t *rwlp)
 {
-    int held = 0;
+	int held = 0;
 
 	if (rwlp->rw_owner == current_thread())
 		panic("rw_enter: locking against myself!");
 
 	/* More readers than us? give up */
-	if (rwlp->rw_readers != 1) return 0;
+	if (rwlp->rw_readers != 1)
+		return (0);
 
 	/*
 	 * It is ON. We need to drop our READER lock, and try to
@@ -173,8 +175,8 @@ rw_tryupgrade(krwlock_t *rwlp)
 	if (held) {
 		/* Looks like we won */
 		rwlp->rw_owner = current_thread();
-        ASSERT(rwlp->rw_readers == 0);
-		return 1;
+		ASSERT(rwlp->rw_readers == 0);
+		return (1);
 	}
 
 	/*
@@ -184,22 +186,21 @@ rw_tryupgrade(krwlock_t *rwlp)
 	 * so we need to grab it.
 	 */
 	rw_enter(rwlp, RW_READER);
-	return 0;
-
+	return (0);
 }
 
 void
 rw_exit(krwlock_t *rwlp)
 {
-    if (rwlp->rw_owner == current_thread()) {
-        rwlp->rw_owner = NULL;
-        ASSERT(rwlp->rw_readers == 0);
+	if (rwlp->rw_owner == current_thread()) {
+		rwlp->rw_owner = NULL;
+		ASSERT(rwlp->rw_readers == 0);
 		ExReleaseResourceLite(&rwlp->rw_lock);
-    } else {
-        atomic_dec_32((volatile uint32_t *)&rwlp->rw_readers);
-        ASSERT(rwlp->rw_owner == 0);
+	} else {
+		atomic_dec_32((volatile uint32_t *)&rwlp->rw_readers);
+		ASSERT(rwlp->rw_owner == 0);
 		ExReleaseResourceLite(&rwlp->rw_lock);
-    }
+	}
 }
 
 int
@@ -211,16 +212,16 @@ rw_read_held(krwlock_t *rwlp)
 int
 rw_lock_held(krwlock_t *rwlp)
 {
-    /*
-     * ### not sure about this one ###
-     */
-    return (rwlp->rw_owner == current_thread() || rwlp->rw_readers > 0);
+	/*
+	 * ### not sure about this one ###
+	 */
+	return (rwlp->rw_owner == current_thread() || rwlp->rw_readers > 0);
 }
 
 int
 rw_write_held(krwlock_t *rwlp)
 {
-    return (rwlp->rw_owner == current_thread());
+	return (rwlp->rw_owner == current_thread());
 }
 
 void
@@ -232,12 +233,14 @@ rw_downgrade(krwlock_t *rwlp)
 	rw_enter(rwlp, RW_READER);
 }
 
-int spl_rwlock_init(void)
+int
+spl_rwlock_init(void)
 {
-    return 0;
+	return (0);
 }
 
-void spl_rwlock_fini(void)
+void
+spl_rwlock_fini(void)
 {
 	ASSERT(zfs_active_rwlock == 0);
 }

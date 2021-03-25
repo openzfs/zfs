@@ -40,8 +40,6 @@
 #ifndef _SYS_BYTEORDER_H
 #define	_SYS_BYTEORDER_H
 
-
-
 #include <sys/isa_defs.h>
 #include <sys/int_types.h>
 #include <sys/types.h>
@@ -122,25 +120,29 @@ typedef uint32_t in_addr_t;
 
 #ifdef _BIG_ENDIAN
 static __inline__ uint64_t
-htonll(uint64_t n) {
+htonll(uint64_t n)
+{
 	return (n);
 }
 
 static __inline__ uint64_t
-ntohll(uint64_t n) {
+ntohll(uint64_t n)
+{
 	return (n);
 }
 
 #else
 #if 0
 static __inline__ uint64_t
-htonll(uint64_t n) {
-	return _OSSwapInt64(n);
+htonll(uint64_t n)
+{
+	return (_OSSwapInt64(n));
 }
 
 static __inline__ uint64_t
-ntohll(uint64_t n) {
-	return _OSSwapInt64(n);
+ntohll(uint64_t n)
+{
+	return (_OSSwapInt64(n));
 }
 #endif
 

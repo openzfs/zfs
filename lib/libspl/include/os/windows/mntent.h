@@ -133,24 +133,24 @@ extern "C" {
 #define	MNTOPT_RESTRICT	"restrict"	/* restricted autofs mount */
 #define	MNTOPT_BROWSE	"browse"	/* browsable autofs mount */
 #define	MNTOPT_NOBROWSE	"nobrowse"	/* non-browsable autofs mount */
-#define MNTOPT_OWNERS	"owners"	/* VFS will not ignore ownership information on filesystem objects */
-#define MNTOPT_NOOWNERS	"noowners"	/* VFS will ignore ownership information on filesystem objects */
+#define	MNTOPT_OWNERS	"owners"	/* not ignore ownership */
+#define	MNTOPT_NOOWNERS	"noowners"	/* ignore ownership */
 
-#define MNT_RDONLY      0x00000001      /* read only filesystem */
-#define MNT_NOEXEC      0x00000004      /* can't exec from filesystem */
-#define MNT_NOSUID      0x00000008      /* don't honor setuid bits on fs */
-#define MNT_NODEV       0x00000010      /* don't interpret special files */
-#define MNT_UNION       0x00000020      /* union with underlying filesystem */
-#define MNT_ASYNC       0x00000040      /* file system written asynchronously */
+#define	MNT_RDONLY	0x00000001 /* read only filesystem */
+#define	MNT_NOEXEC	0x00000004 /* can't exec from filesystem */
+#define	MNT_NOSUID	0x00000008 /* don't honor setuid bits on fs */
+#define	MNT_NODEV	0x00000010 /* don't interpret special files */
+#define	MNT_UNION	0x00000020 /* union with underlying filesystem */
+#define	MNT_ASYNC	0x00000040 /* file system written asynchronously */
 
-#define MNT_NOATIME     0x10000000      /* disable update of file access time */
+#define	MNT_NOATIME	0x10000000 /* disable update of file access time */
 
-#define MNT_UPDATE      0x00010000      /* not a real mount, just an update */
-#define MNT_RELOAD      0x00040000      /* reload filesystem data */
-#define MNT_FORCE       0x00080000      /* force unmount or readonly change */
+#define	MNT_UPDATE	0x00010000 /* not a real mount, just an update */
+#define	MNT_RELOAD	0x00040000 /* reload filesystem data */
+#define	MNT_FORCE	0x00080000 /* force unmount or readonly change */
 
-#define MNT_WAIT        1       /* synchronized I/O file integrity completion */
-#define MNT_NOWAIT      2       /* start all I/O, but do not wait for it */
+#define	MNT_WAIT	1 /* synchronized I/O file integrity completion */
+#define	MNT_NOWAIT	2 /* start all I/O, but do not wait for it */
 
 #ifdef	__cplusplus
 }

@@ -750,17 +750,17 @@ random_fini(void)
 
 #ifdef _WIN32
 static int
-random_get_bytes_common(uint8_t* ptr, size_t len, int fd)
+random_get_bytes_common(uint8_t *ptr, size_t len, int fd)
 {
 	size_t resid = len;
 	ssize_t bytes;
-	unsigned int number;	
+	unsigned int number;
 
 	while (resid != 0) {
 		rand_s(&number);
 		bytes = MIN(resid, sizeof (number));
 		memcpy(ptr, &number, bytes);
-		ASSERT3S(bytes, >= , 0);
+		ASSERT3S(bytes, >=, 0);
 		ptr += bytes;
 		resid -= bytes;
 	}

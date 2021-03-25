@@ -38,102 +38,94 @@
 /* kstat_fr.c */
 
 /*
-* Copyright (c) 1992, 2010, Oracle and/or its affiliates. All rights reserved.
-* Copyright 2014, Joyent, Inc. All rights reserved.
-* Copyright 2015 Nexenta Systems, Inc. All rights reserved.
-*/
+ * Copyright (c) 1992, 2010, Oracle and/or its affiliates. All rights reserved.
+ * Copyright 2014, Joyent, Inc. All rights reserved.
+ * Copyright 2015 Nexenta Systems, Inc. All rights reserved.
+ */
 
 /*
-* Kernel statistics framework
-*/
+ * Kernel statistics framework
+ */
 
 #include <sys/types.h>
 #include <sys/time.h>
 #include <sys/systm.h>
 #include <sys/vmsystm.h>
-#include <sys/t_lock.h>
 #include <sys/param.h>
 #include <sys/errno.h>
 #include <sys/vmem.h>
 #include <sys/sysmacros.h>
 #include <sys/cmn_err.h>
 #include <sys/kstat.h>
-//#include <sys/sysinfo.h>
 #include <sys/cpuvar.h>
 #include <sys/fcntl.h>
-//#include <sys/flock.h>
 #include <sys/vnode.h>
 #include <sys/vfs.h>
 #include <sys/dnlc.h>
-//#include <sys/var.h>
 #include <sys/debug.h>
 #include <sys/avl.h>
-//#include <sys/pool_pset.h>
 #include <sys/cpupart.h>
 #include <sys/zone.h>
-//#include <sys/loadavg.h>
-//#include <vm/page.h>
-//#include <vm/anon.h>
 #include <sys/seg_kmem.h>
 
 #include <Trace.h>
 
 /*
-* Global lock to protect the AVL trees and kstat_chain_id.
-*/
+ * Global lock to protect the AVL trees and kstat_chain_id.
+ */
 static kmutex_t kstat_chain_lock;
 
 /*
-* Every install/delete kstat bumps kstat_chain_id.  This is used by:
-*
-* (1)	/dev/kstat, to detect changes in the kstat chain across ioctls;
-*
-* (2)	kstat_create(), to assign a KID (kstat ID) to each new kstat.
-*	/dev/kstat uses the KID as a cookie for kstat lookups.
-*
-* We reserve the first two IDs because some kstats are created before
-* the well-known ones (kstat_headers = 0, kstat_types = 1).
-*
-* We also bump the kstat_chain_id if a zone is gaining or losing visibility
-* into a particular kstat, which is logically equivalent to a kstat being
-* installed/deleted.
-*/
+ * Every install/delete kstat bumps kstat_chain_id.  This is used by:
+ *
+ * (1)	/dev/kstat, to detect changes in the kstat chain across ioctls;
+ *
+ * (2)	kstat_create(), to assign a KID (kstat ID) to each new kstat.
+ *	/dev/kstat uses the KID as a cookie for kstat lookups.
+ *
+ * We reserve the first two IDs because some kstats are created before
+ * the well-known ones (kstat_headers = 0, kstat_types = 1).
+ *
+ * We also bump the kstat_chain_id if a zone is gaining or losing visibility
+ * into a particular kstat, which is logically equivalent to a kstat being
+ * installed/deleted.
+ */
 
 kid_t kstat_chain_id = 2;
 
 /*
-* As far as zones are concerned, there are 3 types of kstat:
-*
-* 1) Those which have a well-known name, and which should return per-zone data
-* depending on which zone is doing the kstat_read().  sockfs:0:sock_unix_list
-* is an example of this type of kstat.
-*
-* 2) Those which should only be exported to a particular list of zones.
-* For example, in the case of nfs:*:mntinfo, we don't want zone A to be
-* able to see NFS mounts associated with zone B, while we want the
-* global zone to be able to see all mounts on the system.
-*
-* 3) Those that can be exported to all zones.  Most system-related
-* kstats fall within this category.
-*
-* An ekstat_t thus contains a list of kstats that the zone is to be
-* exported to.  The lookup of a name:instance:module thus translates to a
-* lookup of name:instance:module:myzone; if the kstat is not exported
-* to all zones, and does not have the caller's zoneid explicitly
-* enumerated in the list of zones to be exported to, it is the same as
-* if the kstat didn't exist.
-*
-* Writing to kstats is currently disallowed from within a non-global
-* zone, although this restriction could be removed in the future.
-*/
+ * As far as zones are concerned, there are 3 types of kstat:
+ *
+ * 1) Those which have a well-known name, and which should return per-zone data
+ * depending on which zone is doing the kstat_read().  sockfs:0:sock_unix_list
+ * is an example of this type of kstat.
+ *
+ * 2) Those which should only be exported to a particular list of zones.
+ * For example, in the case of nfs:*:mntinfo, we don't want zone A to be
+ * able to see NFS mounts associated with zone B, while we want the
+ * global zone to be able to see all mounts on the system.
+ *
+ * 3) Those that can be exported to all zones.  Most system-related
+ * kstats fall within this category.
+ *
+ * An ekstat_t thus contains a list of kstats that the zone is to be
+ * exported to.  The lookup of a name:instance:module thus translates to a
+ * lookup of name:instance:module:myzone; if the kstat is not exported
+ * to all zones, and does not have the caller's zoneid explicitly
+ * enumerated in the list of zones to be exported to, it is the same as
+ * if the kstat didn't exist.
+ *
+ * Writing to kstats is currently disallowed from within a non-global
+ * zone, although this restriction could be removed in the future.
+ */
 typedef struct kstat_zone {
 	zoneid_t zoneid;
 	struct kstat_zone *next;
 } kstat_zone_t;
 
 /*
-* Extended kstat structure -- for internal use only.
-*/
+ * Extended kstat structure -- for internal use only.
+ */
 typedef struct ekstat {
 	kstat_t		e_ks;		/* the kstat itself */
 	size_t		e_size;		/* total allocation size */
@@ -145,290 +137,292 @@ typedef struct ekstat {
 } ekstat_t;
 
 struct sbuf {
-        char            *s_buf;         /* storage buffer */
-        void            *s_unused;      /* binary compatibility. */
-        int              s_size;        /* size of storage buffer */
-        int              s_len;         /* current length of string */
-#define SBUF_FIXEDLEN   0x00000000      /* fixed length buffer (default) */
-#define SBUF_AUTOEXTEND 0x00000001      /* automatically extend buffer */
-#define SBUF_USRFLAGMSK 0x0000ffff      /* mask of flags the user may specify */
-#define SBUF_DYNAMIC    0x00010000      /* s_buf must be freed */
-#define SBUF_FINISHED   0x00020000      /* set by sbuf_finish() */
-#define SBUF_OVERFLOWED 0x00040000      /* sbuf overflowed */
-#define SBUF_DYNSTRUCT  0x00080000      /* sbuf must be freed */
-        int              s_flags;       /* flags */
+	char *s_buf;	/* storage buffer */
+	void *s_unused;	/* binary compatibility. */
+	int   s_size;	/* size of storage buffer */
+	int   s_len;	/* current length of string */
+#define	SBUF_FIXEDLEN   0x00000000 /* fixed length buffer (default) */
+#define	SBUF_AUTOEXTEND 0x00000001 /* automatically extend buffer */
+#define	SBUF_USRFLAGMSK 0x0000ffff /* mask of flags the user may specify */
+#define	SBUF_DYNAMIC    0x00010000 /* s_buf must be freed */
+#define	SBUF_FINISHED   0x00020000 /* set by sbuf_finish() */
+#define	SBUF_OVERFLOWED 0x00040000 /* sbuf overflowed */
+#define	SBUF_DYNSTRUCT  0x00080000 /* sbuf must be freed */
+	int   s_flags;  /* flags */
 };
 
 /* sbuf_new() and family does exist in XNU, but Apple wont let us call them */
-#define M_SBUF          105 /* string buffers */
-#define SBMALLOC(size)  (struct sbuf *)ExAllocatePoolWithTag(NonPagedPoolNx, (size), '!SFZ')
-#define SBFREE(buf)     ExFreePoolWithTag((buf), '!SFZ')
+#define	M_SBUF	105 /* string buffers */
+#define	SBMALLOC(size)  \
+	(struct sbuf *)ExAllocatePoolWithTag(NonPagedPoolNx, (size), '!SFZ')
+#define	SBFREE(buf)	ExFreePoolWithTag((buf), '!SFZ')
 
-#define SBUF_SETFLAG(s, f)      do { (s)->s_flags |= (f); } while (0)
-#define SBUF_CLEARFLAG(s, f)    do { (s)->s_flags &= ~(f); } while (0)
-#define SBUF_ISDYNAMIC(s)       ((s)->s_flags & SBUF_DYNAMIC)
-#define SBUF_ISDYNSTRUCT(s)     ((s)->s_flags & SBUF_DYNSTRUCT)
-#define SBUF_HASOVERFLOWED(s)   ((s)->s_flags & SBUF_OVERFLOWED)
-#define SBUF_HASROOM(s)         ((s)->s_len < (s)->s_size - 1)
-#define SBUF_FREESPACE(s)       ((s)->s_size - (s)->s_len - 1)
-#define SBUF_CANEXTEND(s)       ((s)->s_flags & SBUF_AUTOEXTEND)
+#define	SBUF_SETFLAG(s, f)	do { (s)->s_flags |= (f); } while (0)
+#define	SBUF_CLEARFLAG(s, f)	do { (s)->s_flags &= ~(f); } while (0)
+#define	SBUF_ISDYNAMIC(s)	((s)->s_flags & SBUF_DYNAMIC)
+#define	SBUF_ISDYNSTRUCT(s)	((s)->s_flags & SBUF_DYNSTRUCT)
+#define	SBUF_HASOVERFLOWED(s)	((s)->s_flags & SBUF_OVERFLOWED)
+#define	SBUF_HASROOM(s)	((s)->s_len < (s)->s_size - 1)
+#define	SBUF_FREESPACE(s)	((s)->s_size - (s)->s_len - 1)
+#define	SBUF_CANEXTEND(s)	((s)->s_flags & SBUF_AUTOEXTEND)
 
-#define SBUF_MINEXTENDSIZE      16      /* Should be power of 2. */
-#define SBUF_MAXEXTENDSIZE      PAGE_SIZE
-#define SBUF_MAXEXTENDINCR      PAGE_SIZE
+#define	SBUF_MINEXTENDSIZE	16 /* Should be power of 2. */
+#define	SBUF_MAXEXTENDSIZE	PAGE_SIZE
+#define	SBUF_MAXEXTENDINCR	PAGE_SIZE
 
 void
 sbuf_finish(struct sbuf *s)
 {
-        s->s_buf[s->s_len] = '\0';
-        SBUF_CLEARFLAG(s, SBUF_OVERFLOWED);
-        SBUF_SETFLAG(s, SBUF_FINISHED);
+	s->s_buf[s->s_len] = '\0';
+	SBUF_CLEARFLAG(s, SBUF_OVERFLOWED);
+	SBUF_SETFLAG(s, SBUF_FINISHED);
 }
 
 char *
 sbuf_data(struct sbuf *s)
 {
-        return (s->s_buf);
+	return (s->s_buf);
 }
 
 int
 sbuf_len(struct sbuf *s)
 {
-        if (SBUF_HASOVERFLOWED(s)) {
-                return (-1);
-        }
-        return (s->s_len);
+	if (SBUF_HASOVERFLOWED(s)) {
+		return (-1);
+	}
+	return (s->s_len);
 }
 
 void
 sbuf_delete(struct sbuf *s)
 {
-        int isdyn;
-        if (SBUF_ISDYNAMIC(s)) {
-                SBFREE(s->s_buf);
-        }
-        isdyn = SBUF_ISDYNSTRUCT(s);
-        bzero(s, sizeof (*s));
-        if (isdyn) {
-                SBFREE(s);
-        }
+	int isdyn;
+	if (SBUF_ISDYNAMIC(s)) {
+		SBFREE(s->s_buf);
+	}
+	isdyn = SBUF_ISDYNSTRUCT(s);
+	bzero(s, sizeof (*s));
+	if (isdyn) {
+		SBFREE(s);
+	}
 }
 
 static int
 sbuf_extendsize(int size)
 {
-        int newsize;
+	int newsize;
 
-        newsize = SBUF_MINEXTENDSIZE;
-        while (newsize < size) {
-                if (newsize < (int)SBUF_MAXEXTENDSIZE) {
-                        newsize *= 2;
-                } else {
-                        newsize += SBUF_MAXEXTENDINCR;
-                }
-        }
+	newsize = SBUF_MINEXTENDSIZE;
+	while (newsize < size) {
+		if (newsize < (int)SBUF_MAXEXTENDSIZE) {
+			newsize *= 2;
+		} else {
+			newsize += SBUF_MAXEXTENDINCR;
+		}
+	}
 
-        return (newsize);
+	return (newsize);
 }
 
 static int
 sbuf_extend(struct sbuf *s, int addlen)
 {
-        char *newbuf;
-        int newsize;
+	char *newbuf;
+	int newsize;
 
-        if (!SBUF_CANEXTEND(s)) {
-                return (-1);
-        }
+	if (!SBUF_CANEXTEND(s)) {
+		return (-1);
+	}
 
-        newsize = sbuf_extendsize(s->s_size + addlen);
-        newbuf = (char *)SBMALLOC(newsize);
-        if (newbuf == NULL) {
-                return (-1);
-        }
-        bcopy(s->s_buf, newbuf, s->s_size);
-        if (SBUF_ISDYNAMIC(s)) {
-                SBFREE(s->s_buf);
-        } else {
-                SBUF_SETFLAG(s, SBUF_DYNAMIC);
-        }
-        s->s_buf = newbuf;
-        s->s_size = newsize;
-        return (0);
+	newsize = sbuf_extendsize(s->s_size + addlen);
+	newbuf = (char *)SBMALLOC(newsize);
+	if (newbuf == NULL) {
+		return (-1);
+	}
+	bcopy(s->s_buf, newbuf, s->s_size);
+	if (SBUF_ISDYNAMIC(s)) {
+		SBFREE(s->s_buf);
+	} else {
+		SBUF_SETFLAG(s, SBUF_DYNAMIC);
+	}
+	s->s_buf = newbuf;
+	s->s_size = newsize;
+	return (0);
 }
 
 struct sbuf *
 sbuf_new(struct sbuf *s, char *buf, int length, int flags)
 {
-        flags &= SBUF_USRFLAGMSK;
-        if (s == NULL) {
-                s = (struct sbuf *)SBMALLOC(sizeof (*s));
-                if (s == NULL) {
-                        return (NULL);
-                }
-                bzero(s, sizeof (*s));
-                s->s_flags = flags;
-                SBUF_SETFLAG(s, SBUF_DYNSTRUCT);
-        } else {
-                bzero(s, sizeof (*s));
-                s->s_flags = flags;
-        }
-        s->s_size = length;
-        if (buf) {
-                s->s_buf = buf;
-                return (s);
-        }
-        if (flags & SBUF_AUTOEXTEND) {
-                s->s_size = sbuf_extendsize(s->s_size);
-        }
-        s->s_buf = (char *)SBMALLOC(s->s_size);
-        if (s->s_buf == NULL) {
-                if (SBUF_ISDYNSTRUCT(s)) {
-                        SBFREE(s);
-                }
-                return (NULL);
-        }
-        SBUF_SETFLAG(s, SBUF_DYNAMIC);
-        return (s);
+	flags &= SBUF_USRFLAGMSK;
+	if (s == NULL) {
+		s = (struct sbuf *)SBMALLOC(sizeof (*s));
+		if (s == NULL) {
+			return (NULL);
+		}
+		bzero(s, sizeof (*s));
+		s->s_flags = flags;
+		SBUF_SETFLAG(s, SBUF_DYNSTRUCT);
+	} else {
+		bzero(s, sizeof (*s));
+		s->s_flags = flags;
+	}
+	s->s_size = length;
+	if (buf) {
+		s->s_buf = buf;
+		return (s);
+	}
+	if (flags & SBUF_AUTOEXTEND) {
+		s->s_size = sbuf_extendsize(s->s_size);
+	}
+	s->s_buf = (char *)SBMALLOC(s->s_size);
+	if (s->s_buf == NULL) {
+		if (SBUF_ISDYNSTRUCT(s)) {
+			SBFREE(s);
+		}
+		return (NULL);
+	}
+	SBUF_SETFLAG(s, SBUF_DYNAMIC);
+	return (s);
 }
 
-#define va_copy(A,B)	A = B
+#define	va_copy(A, B) A = B
 
 int
 sbuf_vprintf(struct sbuf *s, const char *fmt, va_list ap)
 {
-        __builtin_va_list ap_copy; 
-        int len;
+	__builtin_va_list ap_copy;
+	int len;
 
-        if (SBUF_HASOVERFLOWED(s)) {
-                return (-1);
-        }
+	if (SBUF_HASOVERFLOWED(s)) {
+		return (-1);
+	}
 
-        do {
-                va_copy(ap_copy, ap);
-                len = vsnprintf(&s->s_buf[s->s_len], SBUF_FREESPACE(s) + 1,
-                    fmt, ap_copy);
-                // va_end(ap_copy); // left-side must be assignable. Win tries to set to 0.
-        } while (len > SBUF_FREESPACE(s) &&
-            sbuf_extend(s, len - SBUF_FREESPACE(s)) == 0);
-        s->s_len += min(len, SBUF_FREESPACE(s));
-        if (!SBUF_HASROOM(s) && !SBUF_CANEXTEND(s)) {
-                SBUF_SETFLAG(s, SBUF_OVERFLOWED);
-        }
+	do {
+		va_copy(ap_copy, ap);
+		len = vsnprintf(&s->s_buf[s->s_len], SBUF_FREESPACE(s) + 1,
+		    fmt, ap_copy);
+		// left-side must be assignable. Win tries to set to 0.
+		// va_end(ap_copy);
+	} while (len > SBUF_FREESPACE(s) &&
+	    sbuf_extend(s, len - SBUF_FREESPACE(s)) == 0);
+	s->s_len += min(len, SBUF_FREESPACE(s));
+	if (!SBUF_HASROOM(s) && !SBUF_CANEXTEND(s)) {
+		SBUF_SETFLAG(s, SBUF_OVERFLOWED);
+	}
 
-        if (SBUF_HASOVERFLOWED(s)) {
-                return (-1);
-        }
-        return (0);
+	if (SBUF_HASOVERFLOWED(s)) {
+		return (-1);
+	}
+	return (0);
 }
 
 int
 sbuf_printf(struct sbuf *s, const char *fmt, ...)
 {
-        va_list ap;
-        int result;
+	va_list ap;
+	int result;
 
-        va_start(ap, fmt);
-        result = sbuf_vprintf(s, fmt, ap);
-        va_end(ap);
-        return (result);
+	va_start(ap, fmt);
+	result = sbuf_vprintf(s, fmt, ap);
+	va_end(ap);
+	return (result);
 }
 
 static int
 kstat_default_update(kstat_t *ksp, int rw)
 {
-        ASSERT(ksp != NULL);
+	ASSERT(ksp != NULL);
 
-        if (rw == KSTAT_WRITE)
-                return (EACCES);
+	if (rw == KSTAT_WRITE)
+		return (EACCES);
 
-        return (0);
+	return (0);
 }
 
 static int
 kstat_resize_raw(kstat_t *ksp)
 {
-        if (ksp->ks_raw_bufsize == KSTAT_RAW_MAX)
-                return (ENOMEM);
+	if (ksp->ks_raw_bufsize == KSTAT_RAW_MAX)
+		return (ENOMEM);
 
-        SBMFREE(ksp->ks_raw_buf, ksp->ks_raw_bufsize);
-        ksp->ks_raw_bufsize = MIN(ksp->ks_raw_bufsize * 2, KSTAT_RAW_MAX);
-        ksp->ks_raw_buf = SBMALLOC(ksp->ks_raw_bufsize);
+	SBMFREE(ksp->ks_raw_buf, ksp->ks_raw_bufsize);
+	ksp->ks_raw_bufsize = MIN(ksp->ks_raw_bufsize * 2, KSTAT_RAW_MAX);
+	ksp->ks_raw_buf = SBMALLOC(ksp->ks_raw_bufsize);
 
-        return (0);
+	return (0);
 }
 
 static void *
 kstat_raw_default_addr(kstat_t *ksp, loff_t n)
 {
-        if (n == 0)
-                return (ksp->ks_data);
-        return (NULL);
+	if (n == 0)
+		return (ksp->ks_data);
+	return (NULL);
 }
 
-#define HD_COLUMN_MASK  0xff
-#define HD_DELIM_MASK   0xff00
-#define HD_OMIT_COUNT   (1 << 16)
-#define HD_OMIT_HEX     (1 << 17)
-#define HD_OMIT_CHARS   (1 << 18)
+#define	HD_COLUMN_MASK	0xff
+#define	HD_DELIM_MASK	0xff00
+#define	HD_OMIT_COUNT	(1 << 16)
+#define	HD_OMIT_HEX	(1 << 17)
+#define	HD_OMIT_CHARS	(1 << 18)
 
 void
 sbuf_hexdump(struct sbuf *sb, const void *ptr, int length, const char *hdr,
     int flags)
 {
-        int i, j, k;
-        int cols;
-        const unsigned char *cp;
-        char delim;
+	int i, j, k;
+	int cols;
+	const unsigned char *cp;
+	char delim;
 
-        if ((flags & HD_DELIM_MASK) != 0)
-                delim = (flags & HD_DELIM_MASK) >> 8;
-        else
-                delim = ' ';
+	if ((flags & HD_DELIM_MASK) != 0)
+		delim = (flags & HD_DELIM_MASK) >> 8;
+	else
+		delim = ' ';
 
-        if ((flags & HD_COLUMN_MASK) != 0)
-                cols = flags & HD_COLUMN_MASK;
-        else
-                cols = 16;
+	if ((flags & HD_COLUMN_MASK) != 0)
+		cols = flags & HD_COLUMN_MASK;
+	else
+		cols = 16;
 
-        cp = ptr;
-        for (i = 0; i < length; i += cols) {
-                if (hdr != NULL)
-                        sbuf_printf(sb, "%s", hdr);
+	cp = ptr;
+	for (i = 0; i < length; i += cols) {
+		if (hdr != NULL)
+			sbuf_printf(sb, "%s", hdr);
 
-                if ((flags & HD_OMIT_COUNT) == 0)
-                        sbuf_printf(sb, "%04x  ", i);
+		if ((flags & HD_OMIT_COUNT) == 0)
+			sbuf_printf(sb, "%04x  ", i);
 
-                if ((flags & HD_OMIT_HEX) == 0) {
-                        for (j = 0; j < cols; j++) {
-                                k = i + j;
-                                if (k < length)
-                                        sbuf_printf(sb, "%c%02x", delim, cp[k]);
-                                else
-                                        sbuf_printf(sb, "   ");
-                        }
-                }
+		if ((flags & HD_OMIT_HEX) == 0) {
+			for (j = 0; j < cols; j++) {
+				k = i + j;
+				if (k < length)
+					sbuf_printf(sb, "%c%02x", delim, cp[k]);
+				else
+					sbuf_printf(sb, "   ");
+			}
+		}
 
-                if ((flags & HD_OMIT_CHARS) == 0) {
-                        sbuf_printf(sb, "  |");
-                        for (j = 0; j < cols; j++) {
-                                k = i + j;
-                                if (k >= length)
-                                        sbuf_printf(sb, " ");
-                                else if (cp[k] >= ' ' && cp[k] <= '~')
-                                        sbuf_printf(sb, "%c", cp[k]);
-                                else
-                                        sbuf_printf(sb, ".");
-                        }
-                        sbuf_printf(sb, "|");
-                }
-                sbuf_printf(sb, "\n");
-        }
+		if ((flags & HD_OMIT_CHARS) == 0) {
+			sbuf_printf(sb, "  |");
+			for (j = 0; j < cols; j++) {
+				k = i + j;
+				if (k >= length)
+					sbuf_printf(sb, " ");
+				else if (cp[k] >= ' ' && cp[k] <= '~')
+					sbuf_printf(sb, "%c", cp[k]);
+				else
+					sbuf_printf(sb, ".");
+			}
+			sbuf_printf(sb, "|");
+		}
+		sbuf_printf(sb, "\n");
+	}
 }
 
 static uint64_t kstat_initial[8192];
 static void *kstat_initial_ptr = kstat_initial;
-static size_t kstat_initial_avail = sizeof(kstat_initial);
+static size_t kstat_initial_avail = sizeof (kstat_initial);
 static vmem_t *kstat_arena;
 
 #define	KSTAT_ALIGN	(sizeof (uint64_t))
@@ -437,8 +431,8 @@ static avl_tree_t kstat_avl_bykid;
 static avl_tree_t kstat_avl_byname;
 
 /*
-* Various pointers we need to create kstats at boot time in kstat_init()
-*/
+ * Various pointers we need to create kstats at boot time in kstat_init()
+ */
 extern	kstat_named_t	*segmapcnt_ptr;
 extern	uint_t		segmapcnt_ndata;
 extern	int		segmap_kstat_update(kstat_t *, int);
@@ -457,18 +451,15 @@ static struct {
 	uint_t  min_ndata;
 	uint_t  max_ndata;
 } kstat_data_type[KSTAT_NUM_TYPES] = {
-	{ "raw",                1,                      0,      INT_MAX },
-	{ "name=value",         sizeof(kstat_named_t), 0,      INT_MAX },
-	{ "interrupt",          sizeof(kstat_intr_t),  1,      1 },
-	{ "i/o",                sizeof(kstat_io_t),    1,      1 },
-	{ "event_timer",        sizeof(kstat_timer_t), 0,      INT_MAX },
+	{ "raw",		1,			0,	INT_MAX },
+	{ "name=value",		sizeof (kstat_named_t),	0,	INT_MAX },
+	{ "interrupt",		sizeof (kstat_intr_t),	1,	1 },
+	{ "i/o",		sizeof (kstat_io_t),	1,	1 },
+	{ "event_timer",	sizeof (kstat_timer_t),	0,	INT_MAX },
 };
 
 static int header_kstat_update(kstat_t *, int);
 static int header_kstat_snapshot(kstat_t *, void *, int);
-
-
-
 
 int
 kstat_zone_find(kstat_t *k, zoneid_t zoneid)
@@ -512,7 +503,7 @@ kstat_zone_remove(kstat_t *k, zoneid_t zoneid)
 out:
 	kstat_chain_id++;
 	mutex_exit(&kstat_chain_lock);
-	kmem_free(kz, sizeof(*kz));
+	kmem_free(kz, sizeof (*kz));
 }
 
 void
@@ -521,7 +512,7 @@ kstat_zone_add(kstat_t *k, zoneid_t zoneid)
 	ekstat_t *e = (ekstat_t *)k;
 	kstat_zone_t *kz;
 
-	kz = kmem_alloc(sizeof(*kz), KM_NOSLEEP);
+	kz = kmem_alloc(sizeof (*kz), KM_NOSLEEP);
 	if (kz == NULL)
 		return;
 	mutex_enter(&kstat_chain_lock);
@@ -533,12 +524,12 @@ kstat_zone_add(kstat_t *k, zoneid_t zoneid)
 }
 
 /*
-* Compare the list of zones for the given kstats, returning 0 if they match
-* (ie, one list contains ALL_ZONES or both lists contain the same zoneid).
-* In practice, this is called indirectly by kstat_hold_byname(), so one of the
-* two lists always has one element, and this is an O(n) operation rather than
-* O(n^2).
-*/
+ * Compare the list of zones for the given kstats, returning 0 if they match
+ * (ie, one list contains ALL_ZONES or both lists contain the same zoneid).
+ * In practice, this is called indirectly by kstat_hold_byname(), so one of the
+ * two lists always has one element, and this is an O(n) operation rather than
+ * O(n^2).
+ */
 static int
 kstat_zone_compare(ekstat_t *e1, ekstat_t *e2)
 {
@@ -548,7 +539,7 @@ kstat_zone_compare(ekstat_t *e1, ekstat_t *e2)
 	for (kz1 = &e1->e_zone; kz1 != NULL; kz1 = kz1->next) {
 		for (kz2 = &e2->e_zone; kz2 != NULL; kz2 = kz2->next) {
 			if (kz1->zoneid == ALL_ZONES ||
-				kz2->zoneid == ALL_ZONES)
+			    kz2->zoneid == ALL_ZONES)
 				return (0);
 			if (kz1->zoneid == kz2->zoneid)
 				return (0);
@@ -558,8 +549,8 @@ kstat_zone_compare(ekstat_t *e1, ekstat_t *e2)
 }
 
 /*
-* Support for keeping kstats sorted in AVL trees for fast lookups.
-*/
+ * Support for keeping kstats sorted in AVL trees for fast lookups.
+ */
 static int
 kstat_compare_bykid(const void *a1, const void *a2)
 {
@@ -648,7 +639,7 @@ kstat_hold_bykid(kid_t kid, zoneid_t zoneid)
 
 kstat_t *
 kstat_hold_byname(const char *ks_module, int ks_instance, const char *ks_name,
-	zoneid_t ks_zoneid)
+    zoneid_t ks_zoneid)
 {
 	ekstat_t e;
 
@@ -665,7 +656,7 @@ kstat_alloc(size_t size)
 {
 	ekstat_t *e = NULL;
 
-	size = P2ROUNDUP(sizeof(ekstat_t) + size, KSTAT_ALIGN);
+	size = P2ROUNDUP(sizeof (ekstat_t) + size, KSTAT_ALIGN);
 
 	if (kstat_arena == NULL) {
 		if (size <= kstat_initial_avail) {
@@ -698,8 +689,8 @@ void *segkmem_alloc(vmem_t *vmp, uint32_t size, int vmflag);
 void segkmem_free(vmem_t *vmp, void *inaddr, uint32_t size);
 
 /*
-* Create various system kstats.
-*/
+ * Create various system kstats.
+ */
 void
 kstat_init(void)
 {
@@ -708,29 +699,29 @@ kstat_init(void)
 	avl_tree_t *t = &kstat_avl_bykid;
 
 	/*
-	* Set up the kstat vmem arena.
-	*/
+	 * Set up the kstat vmem arena.
+	 */
 	kstat_arena = vmem_create("kstat",
-		(void *)kstat_initial, sizeof(kstat_initial), KSTAT_ALIGN,
-		segkmem_alloc, segkmem_free, heap_arena, 0, VM_SLEEP);
+	    (void *)kstat_initial, sizeof (kstat_initial), KSTAT_ALIGN,
+	    segkmem_alloc, segkmem_free, heap_arena, 0, VM_SLEEP);
 
 	/*
-	* Make initial kstats appear as though they were allocated.
-	*/
+	 * Make initial kstats appear as though they were allocated.
+	 */
 	for (e = avl_first(t); e != NULL; e = avl_walk(t, e, AVL_AFTER))
 		(void) vmem_xalloc(kstat_arena, e->e_size, KSTAT_ALIGN,
-			0, 0, e, (char *)e + e->e_size,
-			VM_NOSLEEP | VM_BESTFIT | VM_PANIC);
+		    0, 0, e, (char *)e + e->e_size,
+		    VM_NOSLEEP | VM_BESTFIT | VM_PANIC);
 
 	/*
-	* The mother of all kstats.  The first kstat in the system, which
-	* always has KID 0, has the headers for all kstats (including itself)
-	* as its data.  Thus, the kstat driver does not need any special
-	* interface to extract the kstat chain.
-	*/
+	 * The mother of all kstats.  The first kstat in the system, which
+	 * always has KID 0, has the headers for all kstats (including itself)
+	 * as its data.  Thus, the kstat driver does not need any special
+	 * interface to extract the kstat chain.
+	 */
 	kstat_chain_id = 0;
 	ksp = kstat_create("unix", 0, "kstat_headers", "kstat", KSTAT_TYPE_RAW,
-		0, KSTAT_FLAG_VIRTUAL | KSTAT_FLAG_VAR_SIZE);
+	    0, KSTAT_FLAG_VIRTUAL | KSTAT_FLAG_VAR_SIZE);
 	if (ksp) {
 		ksp->ks_lock = &kstat_chain_lock;
 		ksp->ks_update = header_kstat_update;
@@ -741,14 +732,14 @@ kstat_init(void)
 	}
 
 	ksp = kstat_create("unix", 0, "kstat_types", "kstat",
-		KSTAT_TYPE_NAMED, KSTAT_NUM_TYPES, 0);
+	    KSTAT_TYPE_NAMED, KSTAT_NUM_TYPES, 0);
 	if (ksp) {
 		int i;
 		kstat_named_t *kn = KSTAT_NAMED_PTR(ksp);
 
 		for (i = 0; i < KSTAT_NUM_TYPES; i++) {
 			kstat_named_init(&kn[i], kstat_data_type[i].name,
-				KSTAT_DATA_ULONG);
+			    KSTAT_DATA_ULONG);
 			kn[i].value.ul = i;
 		}
 		kstat_install(ksp);
@@ -757,17 +748,17 @@ kstat_init(void)
 }
 
 /*
-* Caller of this should ensure that the string pointed by src
-* doesn't change while kstat's lock is held. Not doing so defeats
-* kstat's snapshot strategy as explained in <sys/kstat.h>
-*/
+ * Caller of this should ensure that the string pointed by src
+ * doesn't change while kstat's lock is held. Not doing so defeats
+ * kstat's snapshot strategy as explained in <sys/kstat.h>
+ */
 void
 kstat_named_setstr(kstat_named_t *knp, const char *src)
 {
 	if (knp->data_type != KSTAT_DATA_STRING)
 		panic("kstat_named_setstr('%p', '%p'): "
-			"named kstat is not of type KSTAT_DATA_STRING",
-			(void *)knp, (void *)src);
+		    "named kstat is not of type KSTAT_DATA_STRING",
+		    (void *)knp, (void *)src);
 
 	KSTAT_NAMED_STR_PTR(knp) = (char *)src;
 	if (src != NULL)
@@ -780,7 +771,7 @@ void
 kstat_set_string(char *dst, const char *src)
 {
 	bzero(dst, KSTAT_STRLEN);
-	(void)strncpy(dst, src, KSTAT_STRLEN - 1);
+	(void) strncpy(dst, src, KSTAT_STRLEN - 1);
 }
 
 void
@@ -808,22 +799,22 @@ default_kstat_update(kstat_t *ksp, int rw)
 	kstat_named_t *knp;
 
 	/*
-	* Named kstats with variable-length long strings have a standard
-	* way of determining how much space is needed to hold the snapshot:
-	*/
+	 * Named kstats with variable-length long strings have a standard
+	 * way of determining how much space is needed to hold the snapshot:
+	 */
 	if (ksp->ks_data != NULL && ksp->ks_type == KSTAT_TYPE_NAMED &&
-		(ksp->ks_flags & (KSTAT_FLAG_VAR_SIZE | KSTAT_FLAG_LONGSTRINGS))) {
+	    (ksp->ks_flags & (KSTAT_FLAG_VAR_SIZE | KSTAT_FLAG_LONGSTRINGS))) {
 
 		/*
-		* Add in the space required for the strings
-		*/
+		 * Add in the space required for the strings
+		 */
 		knp = KSTAT_NAMED_PTR(ksp);
 		for (i = 0; i < ksp->ks_ndata; i++, knp++) {
 			if (knp->data_type == KSTAT_DATA_STRING)
 				len += KSTAT_NAMED_STR_BUFLEN(knp);
 		}
 		ksp->ks_data_size =
-			ksp->ks_ndata * sizeof(kstat_named_t) + len;
+		    ksp->ks_ndata * sizeof (kstat_named_t) + len;
 	}
 	return (0);
 }
@@ -845,29 +836,29 @@ default_kstat_snapshot(kstat_t *ksp, void *buf, int rw)
 	}
 
 	/*
-	* KSTAT_TYPE_NAMED kstats are defined to have ks_ndata
-	* number of kstat_named_t structures, followed by an optional
-	* string segment. The ks_data generally holds only the
-	* kstat_named_t structures. So we copy it first. The strings,
-	* if any, are copied below. For other kstat types, ks_data holds the
-	* entire buffer.
-	*/
+	 * KSTAT_TYPE_NAMED kstats are defined to have ks_ndata
+	 * number of kstat_named_t structures, followed by an optional
+	 * string segment. The ks_data generally holds only the
+	 * kstat_named_t structures. So we copy it first. The strings,
+	 * if any, are copied below. For other kstat types, ks_data holds the
+	 * entire buffer.
+	 */
 
-	namedsz = sizeof(kstat_named_t) * ksp->ks_ndata;
+	namedsz = sizeof (kstat_named_t) * ksp->ks_ndata;
 	if (ksp->ks_type == KSTAT_TYPE_NAMED && ksp->ks_data_size > namedsz)
 		bcopy(ksp->ks_data, buf, namedsz);
 	else
 		bcopy(ksp->ks_data, buf, ksp->ks_data_size);
 
 	/*
-	* Apply kstat type-specific data massaging
-	*/
+	 * Apply kstat type-specific data massaging
+	 */
 	switch (ksp->ks_type) {
 
 	case KSTAT_TYPE_IO:
 		/*
-		* Normalize time units and deal with incomplete transactions
-		*/
+		 * Normalize time units and deal with incomplete transactions
+		 */
 #if 0
 		kiop = (kstat_io_t *)buf;
 
@@ -898,20 +889,20 @@ default_kstat_snapshot(kstat_t *ksp, void *buf, int rw)
 
 	case KSTAT_TYPE_NAMED:
 		/*
-		* Massage any long strings in at the end of the buffer
-		*/
+		 * Massage any long strings in at the end of the buffer
+		 */
 		if (ksp->ks_data_size > namedsz) {
 			uint_t i;
 			kstat_named_t *knp = buf;
 			char *dst = (char *)(knp + ksp->ks_ndata);
 			/*
-			* Copy strings and update pointers
-			*/
+			 * Copy strings and update pointers
+			 */
 			for (i = 0; i < ksp->ks_ndata; i++, knp++) {
 				if (knp->data_type == KSTAT_DATA_STRING &&
-					KSTAT_NAMED_STR_PTR(knp) != NULL) {
+				    KSTAT_NAMED_STR_PTR(knp) != NULL) {
 					bcopy(KSTAT_NAMED_STR_PTR(knp), dst,
-						KSTAT_NAMED_STR_BUFLEN(knp));
+					    KSTAT_NAMED_STR_BUFLEN(knp));
 					KSTAT_NAMED_STR_PTR(knp) = dst;
 					dst += KSTAT_NAMED_STR_BUFLEN(knp);
 				}
@@ -939,20 +930,20 @@ header_kstat_update(kstat_t *header_ksp, int rw)
 	zoneid = crgetzoneid();
 	for (e = avl_first(t); e != NULL; e = avl_walk(t, e, AVL_AFTER)) {
 		if (kstat_zone_find((kstat_t *)e, zoneid) &&
-			(e->e_ks.ks_flags & KSTAT_FLAG_INVALID) == 0) {
+		    (e->e_ks.ks_flags & KSTAT_FLAG_INVALID) == 0) {
 			nkstats++;
 		}
 	}
 	header_ksp->ks_ndata = nkstats;
-	header_ksp->ks_data_size = nkstats * sizeof(kstat_t);
+	header_ksp->ks_data_size = nkstats * sizeof (kstat_t);
 	return (0);
 }
 
 /*
-* Copy out the data section of kstat 0, which consists of the list
-* of all kstat headers.  By specification, these headers must be
-* copied out in order of increasing KID.
-*/
+ * Copy out the data section of kstat 0, which consists of the list
+ * of all kstat headers.  By specification, these headers must be
+ * copied out in order of increasing KID.
+ */
 static int
 header_kstat_snapshot(kstat_t *header_ksp, void *buf, int rw)
 {
@@ -970,9 +961,9 @@ header_kstat_snapshot(kstat_t *header_ksp, void *buf, int rw)
 	zoneid = crgetzoneid();
 	for (e = avl_first(t); e != NULL; e = avl_walk(t, e, AVL_AFTER)) {
 		if (kstat_zone_find((kstat_t *)e, zoneid) &&
-			(e->e_ks.ks_flags & KSTAT_FLAG_INVALID) == 0) {
-			bcopy(&e->e_ks, buf, sizeof(kstat_t));
-			buf = (char *)buf + sizeof(kstat_t);
+		    (e->e_ks.ks_flags & KSTAT_FLAG_INVALID) == 0) {
+			bcopy(&e->e_ks, buf, sizeof (kstat_t));
+			buf = (char *)buf + sizeof (kstat_t);
 		}
 	}
 
@@ -981,22 +972,22 @@ header_kstat_snapshot(kstat_t *header_ksp, void *buf, int rw)
 
 kstat_t *
 kstat_create(const char *ks_module, int ks_instance, const char *ks_name,
-	const char *ks_class, uchar_t ks_type, uint_t ks_ndata, uchar_t ks_flags)
+    const char *ks_class, uchar_t ks_type, uint_t ks_ndata, uchar_t ks_flags)
 {
 	return (kstat_create_zone(ks_module, ks_instance, ks_name, ks_class,
-		ks_type, ks_ndata, ks_flags, ALL_ZONES));
+	    ks_type, ks_ndata, ks_flags, ALL_ZONES));
 }
 
 /*
-* Allocate and initialize a kstat structure.  Or, if a dormant kstat with
-* the specified name exists, reactivate it.  Returns a pointer to the kstat
-* on success, NULL on failure.  The kstat will not be visible to the
-* kstat driver until kstat_install().
-*/
+ * Allocate and initialize a kstat structure.  Or, if a dormant kstat with
+ * the specified name exists, reactivate it.  Returns a pointer to the kstat
+ * on success, NULL on failure.  The kstat will not be visible to the
+ * kstat driver until kstat_install().
+ */
 kstat_t *
 kstat_create_zone(const char *ks_module, int ks_instance, const char *ks_name,
-	const char *ks_class, uchar_t ks_type, uint_t ks_ndata, uchar_t ks_flags,
-	zoneid_t ks_zoneid)
+    const char *ks_class, uchar_t ks_type, uint_t ks_ndata, uchar_t ks_flags,
+    zoneid_t ks_zoneid)
 {
 	size_t ks_data_size;
 	kstat_t *ksp;
@@ -1009,130 +1000,130 @@ kstat_create_zone(const char *ks_module, int ks_instance, const char *ks_name,
 
 	if (avl_numnodes(&kstat_avl_bykid) == 0) {
 		avl_create(&kstat_avl_bykid, kstat_compare_bykid,
-			sizeof(ekstat_t), offsetof(struct ekstat, e_avl_bykid));
+		    sizeof (ekstat_t), offsetof(struct ekstat, e_avl_bykid));
 
 		avl_create(&kstat_avl_byname, kstat_compare_byname,
-			sizeof(ekstat_t), offsetof(struct ekstat, e_avl_byname));
+		    sizeof (ekstat_t), offsetof(struct ekstat, e_avl_byname));
 	}
 
 	/*
-	* If ks_name == NULL, set the ks_name to <module><instance>.
-	*/
+	 * If ks_name == NULL, set the ks_name to <module><instance>.
+	 */
 	if (ks_name == NULL) {
 		char buf[KSTAT_STRLEN];
 		kstat_set_string(buf, ks_module);
-		(void)sprintf(namebuf, "%s%d", buf, ks_instance);
+		(void) sprintf(namebuf, "%s%d", buf, ks_instance);
 		ks_name = namebuf;
 	}
 
 	/*
-	* Make sure it's a valid kstat data type
-	*/
+	 * Make sure it's a valid kstat data type
+	 */
 	if (ks_type >= KSTAT_NUM_TYPES) {
 		cmn_err(CE_WARN, "kstat_create('%s', %d, '%s'): "
-			"invalid kstat type %d",
-			ks_module, ks_instance, ks_name, ks_type);
+		    "invalid kstat type %d",
+		    ks_module, ks_instance, ks_name, ks_type);
 		return (NULL);
 	}
 
 	/*
-	* Don't allow persistent virtual kstats -- it makes no sense.
-	* ks_data points to garbage when the client goes away.
-	*/
+	 * Don't allow persistent virtual kstats -- it makes no sense.
+	 * ks_data points to garbage when the client goes away.
+	 */
 	if ((ks_flags & KSTAT_FLAG_PERSISTENT) &&
-		(ks_flags & KSTAT_FLAG_VIRTUAL)) {
+	    (ks_flags & KSTAT_FLAG_VIRTUAL)) {
 		cmn_err(CE_WARN, "kstat_create('%s', %d, '%s'): "
-			"cannot create persistent virtual kstat",
-			ks_module, ks_instance, ks_name);
+		    "cannot create persistent virtual kstat",
+		    ks_module, ks_instance, ks_name);
 		return (NULL);
 	}
 
 	/*
-	* Don't allow variable-size physical kstats, since the framework's
-	* memory allocation for physical kstat data is fixed at creation time.
-	*/
+	 * Don't allow variable-size physical kstats, since the framework's
+	 * memory allocation for physical kstat data is fixed at creation time.
+	 */
 	if ((ks_flags & KSTAT_FLAG_VAR_SIZE) &&
-		!(ks_flags & KSTAT_FLAG_VIRTUAL)) {
+	    !(ks_flags & KSTAT_FLAG_VIRTUAL)) {
 		cmn_err(CE_WARN, "kstat_create('%s', %d, '%s'): "
-			"cannot create variable-size physical kstat",
-			ks_module, ks_instance, ks_name);
+		    "cannot create variable-size physical kstat",
+		    ks_module, ks_instance, ks_name);
 		return (NULL);
 	}
 
 	/*
-	* Make sure the number of data fields is within legal range
-	*/
+	 * Make sure the number of data fields is within legal range
+	 */
 	if (ks_ndata < kstat_data_type[ks_type].min_ndata ||
-		ks_ndata > kstat_data_type[ks_type].max_ndata) {
+	    ks_ndata > kstat_data_type[ks_type].max_ndata) {
 		cmn_err(CE_WARN, "kstat_create('%s', %d, '%s'): "
-			"ks_ndata=%d out of range [%d, %d]",
-			ks_module, ks_instance, ks_name, (int)ks_ndata,
-			kstat_data_type[ks_type].min_ndata,
-			kstat_data_type[ks_type].max_ndata);
+		    "ks_ndata=%d out of range [%d, %d]",
+		    ks_module, ks_instance, ks_name, (int)ks_ndata,
+		    kstat_data_type[ks_type].min_ndata,
+		    kstat_data_type[ks_type].max_ndata);
 		return (NULL);
 	}
 
 	ks_data_size = kstat_data_type[ks_type].size * ks_ndata;
 
 	/*
-	* If the named kstat already exists and is dormant, reactivate it.
-	*/
+	 * If the named kstat already exists and is dormant, reactivate it.
+	 */
 	ksp = kstat_hold_byname(ks_module, ks_instance, ks_name, ks_zoneid);
 	if (ksp != NULL) {
 		if (!(ksp->ks_flags & KSTAT_FLAG_DORMANT)) {
 			/*
-			* The named kstat exists but is not dormant --
-			* this is a kstat namespace collision.
-			*/
+			 * The named kstat exists but is not dormant --
+			 * this is a kstat namespace collision.
+			 */
 			kstat_rele(ksp);
 			cmn_err(CE_WARN,
-				"kstat_create('%s', %d, '%s'): namespace collision",
-				ks_module, ks_instance, ks_name);
+			    "kstat_create('%s', %d, '%s'): namespace collision",
+			    ks_module, ks_instance, ks_name);
 			return (NULL);
 		}
 		if ((strcmp(ksp->ks_class, ks_class) != 0) ||
-			(ksp->ks_type != ks_type) ||
-			(ksp->ks_ndata != ks_ndata) ||
-			(ks_flags & KSTAT_FLAG_VIRTUAL)) {
+		    (ksp->ks_type != ks_type) ||
+		    (ksp->ks_ndata != ks_ndata) ||
+		    (ks_flags & KSTAT_FLAG_VIRTUAL)) {
 			/*
-			* The name is the same, but the other key parameters
-			* differ from those of the dormant kstat -- bogus.
-			*/
+			 * The name is the same, but the other key parameters
+			 * differ from those of the dormant kstat -- bogus.
+			 */
 			kstat_rele(ksp);
 			cmn_err(CE_WARN, "kstat_create('%s', %d, '%s'): "
-				"invalid reactivation of dormant kstat",
-				ks_module, ks_instance, ks_name);
+			    "invalid reactivation of dormant kstat",
+			    ks_module, ks_instance, ks_name);
 			return (NULL);
 		}
 		/*
-		* Return dormant kstat pointer to caller.  As usual,
-		* the kstat is marked invalid until kstat_install().
-		*/
+		 * Return dormant kstat pointer to caller.  As usual,
+		 * the kstat is marked invalid until kstat_install().
+		 */
 		ksp->ks_flags |= KSTAT_FLAG_INVALID;
 		kstat_rele(ksp);
 		return (ksp);
 	}
 
 	/*
-	* Allocate memory for the new kstat header and, if this is a physical
-	* kstat, the data section.
-	*/
+	 * Allocate memory for the new kstat header and, if this is a physical
+	 * kstat, the data section.
+	 */
 	e = kstat_alloc(ks_flags & KSTAT_FLAG_VIRTUAL ? 0 : ks_data_size);
 	if (e == NULL) {
 		cmn_err(CE_NOTE, "kstat_create('%s', %d, '%s'): "
-			"insufficient kernel memory",
-			ks_module, ks_instance, ks_name);
+		    "insufficient kernel memory",
+		    ks_module, ks_instance, ks_name);
 		return (NULL);
 	}
 
 	/*
-	* Initialize as many fields as we can.  The caller may reset
-	* ks_lock, ks_update, ks_private, and ks_snapshot as necessary.
-	* Creators of virtual kstats may also reset ks_data.  It is
-	* also up to the caller to initialize the kstat data section,
-	* if necessary.  All initialization must be complete before
-	* calling kstat_install().
-	*/
+	 * Initialize as many fields as we can.  The caller may reset
+	 * ks_lock, ks_update, ks_private, and ks_snapshot as necessary.
+	 * Creators of virtual kstats may also reset ks_data.  It is
+	 * also up to the caller to initialize the kstat data section,
+	 * if necessary.  All initialization must be complete before
+	 * calling kstat_install().
+	 */
 	e->e_zone.zoneid = ks_zoneid;
 	e->e_zone.next = NULL;
 
@@ -1159,21 +1150,21 @@ kstat_create_zone(const char *ks_module, int ks_instance, const char *ks_name,
 	mutex_enter(&kstat_chain_lock);
 
 	/*
-	* Add our kstat to the AVL trees.
-	*/
+	 * Add our kstat to the AVL trees.
+	 */
 	if (avl_find(&kstat_avl_byname, e, &where) != NULL) {
 		mutex_exit(&kstat_chain_lock);
 		cmn_err(CE_WARN,
-			"kstat_create('%s', %d, '%s'): namespace collision",
-			ks_module, ks_instance, ks_name);
+		    "kstat_create('%s', %d, '%s'): namespace collision",
+		    ks_module, ks_instance, ks_name);
 		kstat_free(e);
 		return (NULL);
 	}
 	avl_insert(&kstat_avl_byname, e, where);
 
 	/*
-	* Loop around until we find an unused KID.
-	*/
+	 * Loop around until we find an unused KID.
+	 */
 	do {
 		ksp->ks_kid = kstat_chain_id++;
 	} while (avl_find(&kstat_avl_bykid, e, &where) != NULL);
@@ -1185,26 +1176,26 @@ kstat_create_zone(const char *ks_module, int ks_instance, const char *ks_name,
 }
 
 /*
-* Activate a fully initialized kstat and make it visible to /dev/kstat.
-*/
+ * Activate a fully initialized kstat and make it visible to /dev/kstat.
+ */
 void
 kstat_install(kstat_t *ksp)
 {
 	zoneid_t zoneid = ((ekstat_t *)ksp)->e_zone.zoneid;
 
 	/*
-	* If this is a variable-size kstat, it MUST provide kstat data locking
-	* to prevent data-size races with kstat readers.
-	*/
+	 * If this is a variable-size kstat, it MUST provide kstat data locking
+	 * to prevent data-size races with kstat readers.
+	 */
 	if ((ksp->ks_flags & KSTAT_FLAG_VAR_SIZE) && ksp->ks_lock == NULL) {
 		panic("kstat_install('%s', %d, '%s'): "
-			"cannot create variable-size kstat without data lock",
-			ksp->ks_module, ksp->ks_instance, ksp->ks_name);
+		    "cannot create variable-size kstat without data lock",
+		    ksp->ks_module, ksp->ks_instance, ksp->ks_name);
 	}
 
 	if (kstat_hold_bykid(ksp->ks_kid, zoneid) != ksp) {
 		cmn_err(CE_WARN, "kstat_install(%p): does not exist",
-			(void *)ksp);
+		    (void *)ksp);
 		return;
 	}
 
@@ -1219,47 +1210,47 @@ kstat_install(kstat_t *ksp)
 			}
 		}
 		/*
-		* The default snapshot routine does not handle KSTAT_WRITE
-		* for long strings.
-		*/
+		 * The default snapshot routine does not handle KSTAT_WRITE
+		 * for long strings.
+		 */
 		if ((ksp->ks_flags & KSTAT_FLAG_LONGSTRINGS) &&
-			(ksp->ks_flags & KSTAT_FLAG_WRITABLE) &&
-			(ksp->ks_snapshot == default_kstat_snapshot)) {
+		    (ksp->ks_flags & KSTAT_FLAG_WRITABLE) &&
+		    (ksp->ks_snapshot == default_kstat_snapshot)) {
 			panic("kstat_install('%s', %d, '%s'): "
-				"named kstat containing KSTAT_DATA_STRING "
-				"is writable but uses default snapshot routine",
-				ksp->ks_module, ksp->ks_instance, ksp->ks_name);
+			    "named kstat containing KSTAT_DATA_STRING "
+			    "is writable but uses default snapshot routine",
+			    ksp->ks_module, ksp->ks_instance, ksp->ks_name);
 		}
 	}
 
 	if (ksp->ks_flags & KSTAT_FLAG_DORMANT) {
 
 		/*
-		* We are reactivating a dormant kstat.  Initialize the
-		* caller's underlying data to the value it had when the
-		* kstat went dormant, and mark the kstat as active.
-		* Grab the provider's kstat lock if it's not already held.
-		*/
+		 * We are reactivating a dormant kstat.  Initialize the
+		 * caller's underlying data to the value it had when the
+		 * kstat went dormant, and mark the kstat as active.
+		 * Grab the provider's kstat lock if it's not already held.
+		 */
 		kmutex_t *lp = ksp->ks_lock;
 		if (lp != NULL && MUTEX_NOT_HELD(lp)) {
 			mutex_enter(lp);
-			(void)KSTAT_UPDATE(ksp, KSTAT_WRITE);
+			(void) KSTAT_UPDATE(ksp, KSTAT_WRITE);
 			mutex_exit(lp);
 		} else {
-			(void)KSTAT_UPDATE(ksp, KSTAT_WRITE);
+			(void) KSTAT_UPDATE(ksp, KSTAT_WRITE);
 		}
 		ksp->ks_flags &= ~KSTAT_FLAG_DORMANT;
 	}
 
 	/*
-	* Now that the kstat is active, make it visible to the kstat driver.
-	* When copying out kstats the count is determined in
-	* header_kstat_update() and actually copied into kbuf in
-	* header_kstat_snapshot(). kstat_chain_lock is held across the two
-	* calls to ensure that this list doesn't change. Thus, we need to
-	* also take the lock to ensure that the we don't copy the new kstat
-	* in the 2nd pass and overrun the buf.
-	*/
+	 * Now that the kstat is active, make it visible to the kstat driver.
+	 * When copying out kstats the count is determined in
+	 * header_kstat_update() and actually copied into kbuf in
+	 * header_kstat_snapshot(). kstat_chain_lock is held across the two
+	 * calls to ensure that this list doesn't change. Thus, we need to
+	 * also take the lock to ensure that the we don't copy the new kstat
+	 * in the 2nd pass and overrun the buf.
+	 */
 	mutex_enter(&kstat_chain_lock);
 	ksp->ks_flags &= ~KSTAT_FLAG_INVALID;
 	mutex_exit(&kstat_chain_lock);
@@ -1267,9 +1258,9 @@ kstat_install(kstat_t *ksp)
 }
 
 /*
-* Remove a kstat from the system.  Or, if it's a persistent kstat,
-* just update the data and mark it as dormant.
-*/
+ * Remove a kstat from the system.  Or, if it's a persistent kstat,
+ * just update the data and mark it as dormant.
+ */
 void
 kstat_delete(kstat_t *ksp)
 {
@@ -1289,29 +1280,29 @@ kstat_delete(kstat_t *ksp)
 
 	if (lp != NULL && MUTEX_HELD(lp)) {
 		panic("kstat_delete(%p): caller holds data lock %p",
-			(void *)ksp, (void *)lp);
+		    (void *)ksp, (void *)lp);
 	}
 
 	if (kstat_hold_bykid(ksp->ks_kid, zoneid) != ksp) {
 		cmn_err(CE_WARN, "kstat_delete(%p): does not exist",
-			(void *)ksp);
+		    (void *)ksp);
 		return;
 	}
 
 	if (ksp->ks_flags & KSTAT_FLAG_PERSISTENT) {
 		/*
-		* Update the data one last time, so that all activity
-		* prior to going dormant has been accounted for.
-		*/
+		 * Update the data one last time, so that all activity
+		 * prior to going dormant has been accounted for.
+		 */
 		KSTAT_ENTER(ksp);
-		(void)KSTAT_UPDATE(ksp, KSTAT_READ);
+		(void) KSTAT_UPDATE(ksp, KSTAT_READ);
 		KSTAT_EXIT(ksp);
 
 		/*
-		* Mark the kstat as dormant and restore caller-modifiable
-		* fields to default values, so the kstat is readable during
-		* the dormant phase.
-		*/
+		 * Mark the kstat as dormant and restore caller-modifiable
+		 * fields to default values, so the kstat is readable during
+		 * the dormant phase.
+		 */
 		ksp->ks_flags |= KSTAT_FLAG_DORMANT;
 		ksp->ks_lock = NULL;
 		ksp->ks_update = default_kstat_update;
@@ -1322,10 +1313,10 @@ kstat_delete(kstat_t *ksp)
 	}
 
 	/*
-	* Remove the kstat from the framework's AVL trees,
-	* free the allocated memory, and increment kstat_chain_id so
-	* /dev/kstat clients can detect the event.
-	*/
+	 * Remove the kstat from the framework's AVL trees,
+	 * free the allocated memory, and increment kstat_chain_id so
+	 * /dev/kstat clients can detect the event.
+	 */
 	mutex_enter(&kstat_chain_lock);
 	avl_remove(&kstat_avl_bykid, e);
 	avl_remove(&kstat_avl_byname, e);
@@ -1337,7 +1328,7 @@ kstat_delete(kstat_t *ksp)
 		kstat_zone_t *t = kz;
 
 		kz = kz->next;
-		kmem_free(t, sizeof(*t));
+		kmem_free(t, sizeof (*t));
 	}
 	kstat_rele(ksp);
 	kstat_free(e);
@@ -1345,7 +1336,7 @@ kstat_delete(kstat_t *ksp)
 
 void
 kstat_delete_byname_zone(const char *ks_module, int ks_instance,
-	const char *ks_name, zoneid_t ks_zoneid)
+    const char *ks_name, zoneid_t ks_zoneid)
 {
 	kstat_t *ksp;
 
@@ -1363,10 +1354,10 @@ kstat_delete_byname(const char *ks_module, int ks_instance, const char *ks_name)
 }
 
 /*
-* The sparc V9 versions of these routines can be much cheaper than
-* the poor 32-bit compiler can comprehend, so they're in sparcv9_subr.s.
-* For simplicity, however, we always feed the C versions to lint.
-*/
+ * The sparc V9 versions of these routines can be much cheaper than
+ * the poor 32-bit compiler can comprehend, so they're in sparcv9_subr.s.
+ * For simplicity, however, we always feed the C versions to lint.
+ */
 #if !defined(__sparc) || defined(lint) || defined(__lint)
 
 void
@@ -1516,21 +1507,17 @@ kstat_timer_stop(kstat_timer_t *ktp)
 #include <sys/sysmacros.h>
 #include <sys/file.h>
 #include <sys/cmn_err.h>
-#include <sys/t_lock.h>
 #include <sys/proc.h>
 #include <sys/fcntl.h>
 #include <sys/uio.h>
 #include <sys/kmem.h>
 #include <sys/cred.h>
-//#include <sys/mman.h>
 #include <sys/errno.h>
-//#include <sys/ioccom.h>
 #include <sys/cpuvar.h>
 #include <sys/stat.h>
 #include <sys/conf.h>
 #include <sys/ddi.h>
 #include <sys/sunddi.h>
-//#include <sys/modctl.h>
 #include <sys/kstat.h>
 #include <sys/atomic.h>
 #include <sys/policy.h>
@@ -1550,12 +1537,11 @@ read_kstat_data(int *rvalp, void *user_ksp, int flag)
 	int error = 0;
 	uint_t model;
 
-#define DDI_MODEL_NONE 0
-//	switch (model = ddi_model_convert_from(flag & FMODELS)) {
+#define	DDI_MODEL_NONE 0
 	switch (model = DDI_MODEL_NONE) {
 #ifdef _MULTI_DATAMODEL
 	case DDI_MODEL_ILP32:
-		if (copyin(user_ksp, &user_kstat32, sizeof(kstat32_t)) != 0)
+		if (copyin(user_ksp, &user_kstat32, sizeof (kstat32_t)) != 0)
 			return (EFAULT);
 		user_kstat.ks_kid = user_kstat32.ks_kid;
 		user_kstat.ks_data = (void *)(uintptr_t)user_kstat32.ks_data;
@@ -1564,38 +1550,38 @@ read_kstat_data(int *rvalp, void *user_ksp, int flag)
 #endif
 	default:
 	case DDI_MODEL_NONE:
-		if (ddi_copyin(user_ksp, &user_kstat, sizeof(kstat_t), 0) != 0)
+		if (ddi_copyin(user_ksp, &user_kstat, sizeof (kstat_t), 0) != 0)
 			return (EFAULT);
 	}
 
 	ksp = kstat_hold_bykid(user_kstat.ks_kid, crgetzoneid());
 	if (ksp == NULL) {
 		/*
-		* There is no kstat with the specified KID
-		*/
+		 * There is no kstat with the specified KID
+		 */
 		return (ENXIO);
 	}
 	if (ksp->ks_flags & KSTAT_FLAG_INVALID) {
 		/*
-		* The kstat exists, but is momentarily in some
-		* indeterminate state (e.g. the data section is not
-		* yet initialized).  Try again in a few milliseconds.
-		*/
+		 * The kstat exists, but is momentarily in some
+		 * indeterminate state (e.g. the data section is not
+		 * yet initialized).  Try again in a few milliseconds.
+		 */
 		kstat_rele(ksp);
 		return (EAGAIN);
 	}
 
 	/*
-	* If it's a fixed-size kstat, allocate the buffer now, so we
-	* don't have to do it under the kstat's data lock.  (If it's a
-	* var-size kstat or one with long strings, we don't know the size
-	* until after the update routine is called, so we can't do this
-	* optimization.)
-	* The allocator relies on this behavior to prevent recursive
-	* mutex_enter in its (fixed-size) kstat update routine.
-	* It's a zalloc to prevent unintentional exposure of random
-	* juicy morsels of (old) kernel data.
-	*/
+	 * If it's a fixed-size kstat, allocate the buffer now, so we
+	 * don't have to do it under the kstat's data lock.  (If it's a
+	 * var-size kstat or one with long strings, we don't know the size
+	 * until after the update routine is called, so we can't do this
+	 * optimization.)
+	 * The allocator relies on this behavior to prevent recursive
+	 * mutex_enter in its (fixed-size) kstat update routine.
+	 * It's a zalloc to prevent unintentional exposure of random
+	 * juicy morsels of (old) kernel data.
+	 */
 	if (!(ksp->ks_flags & (KSTAT_FLAG_VAR_SIZE | KSTAT_FLAG_LONGSTRINGS))) {
 		kbufsize = ksp->ks_data_size;
 		allocsize = kbufsize + 1;
@@ -1632,11 +1618,11 @@ read_kstat_data(int *rvalp, void *user_ksp, int flag)
 	}
 
 	/*
-	* The following info must be returned to user level,
-	* even if the the update or snapshot failed.  This allows
-	* kstat readers to get a handle on variable-size kstats,
-	* detect dormant kstats, etc.
-	*/
+	 * The following info must be returned to user level,
+	 * even if the the update or snapshot failed.  This allows
+	 * kstat readers to get a handle on variable-size kstats,
+	 * detect dormant kstats, etc.
+	 */
 	user_kstat.ks_ndata = ksp->ks_ndata;
 	user_kstat.ks_data_size = kbufsize;
 	user_kstat.ks_flags = ksp->ks_flags;
@@ -1644,8 +1630,8 @@ read_kstat_data(int *rvalp, void *user_ksp, int flag)
 #ifndef _WIN32
 	*rvalp = kstat_chain_id;
 #else
-	// The above doesn't work, as rvalp refers to the userland struct, before copyin()
-	// and we need to write value to kernel version.
+	// The above doesn't work, as rvalp refers to the userland struct,
+	// before copyin() and we need to write value to kernel version.
 	user_kstat.ks_returnvalue = kstat_chain_id;
 #endif
 	KSTAT_EXIT(ksp);
@@ -1655,8 +1641,8 @@ read_kstat_data(int *rvalp, void *user_ksp, int flag)
 		goto out;
 
 	/*
-	* Copy the buffer containing the kstat back to userland.
-	*/
+	 * Copy the buffer containing the kstat back to userland.
+	 */
 	copysize = kbufsize;
 
 	switch (model) {
@@ -1670,16 +1656,16 @@ read_kstat_data(int *rvalp, void *user_ksp, int flag)
 		if (ksp->ks_type == KSTAT_TYPE_NAMED) {
 			kstat_named_t *kn = kbuf;
 			char *strbuf = (char *)((kstat_named_t *)kn +
-				ksp->ks_ndata);
+			    ksp->ks_ndata);
 
 			for (i = 0; i < user_kstat.ks_ndata; kn++, i++)
 				switch (kn->data_type) {
-					/*
-					* Named statistics have fields of type 'long'.
-					* For a 32-bit application looking at a 64-bit
-					* kernel, forcibly truncate these 64-bit
-					* quantities to 32-bit values.
-					*/
+				/*
+				 * Named statistics have fields of type 'long'.
+				 * For a 32-bit application looking at a 64-bit
+				 * kernel, forcibly truncate these 64-bit
+				 * quantities to 32-bit values.
+				 */
 				case KSTAT_DATA_LONG:
 					kn->value.i32 = (int32_t)kn->value.l;
 					kn->data_type = KSTAT_DATA_INT32;
@@ -1688,62 +1674,62 @@ read_kstat_data(int *rvalp, void *user_ksp, int flag)
 					kn->value.ui32 = (uint32_t)kn->value.ul;
 					kn->data_type = KSTAT_DATA_UINT32;
 					break;
-					/*
-					* Long strings must be massaged before being
-					* copied out to userland.  Do that here.
-					*/
+				/*
+				 * Long strings must be massaged before being
+				 * copied out to userland.  Do that here.
+				 */
 				case KSTAT_DATA_STRING:
 					if (KSTAT_NAMED_STR_PTR(kn) == NULL)
 						break;
 					/*
-					* If the string lies outside of kbuf
-					* copy it there and update the pointer.
-					*/
+					 * If the string lies outside of kbuf
+					 * copy it there and update the pointer.
+					 */
 					if (KSTAT_NAMED_STR_PTR(kn) <
-						(char *)kbuf ||
-						KSTAT_NAMED_STR_PTR(kn) +
-						KSTAT_NAMED_STR_BUFLEN(kn) >
-						(char *)kbuf + kbufsize + 1) {
+					    (char *)kbuf ||
+					    KSTAT_NAMED_STR_PTR(kn) +
+					    KSTAT_NAMED_STR_BUFLEN(kn) >
+					    (char *)kbuf + kbufsize + 1) {
 						bcopy(KSTAT_NAMED_STR_PTR(kn),
-							strbuf,
-							KSTAT_NAMED_STR_BUFLEN(kn));
+						    strbuf,
+						    KSTAT_NAMED_STR_BUFLEN(kn));
 
 						KSTAT_NAMED_STR_PTR(kn) =
-							strbuf;
+						    strbuf;
 						strbuf +=
-							KSTAT_NAMED_STR_BUFLEN(kn);
+						    KSTAT_NAMED_STR_BUFLEN(kn);
 						ASSERT(strbuf <=
-							(char *)kbuf +
-							kbufsize + 1);
+						    (char *)kbuf +
+						    kbufsize + 1);
 					}
 					/*
-					* The offsets within the buffers are
-					* the same, so add the offset to the
-					* beginning of the new buffer to fix
-					* the pointer.
-					*/
+					 * The offsets within the buffers are
+					 * the same, so add the offset to the
+					 * beginning of the new buffer to fix
+					 * the pointer.
+					 */
 					KSTAT_NAMED_STR_PTR(kn) =
-						(char *)user_kstat.ks_data +
-						(KSTAT_NAMED_STR_PTR(kn) -
-						(char *)kbuf);
+					    (char *)user_kstat.ks_data +
+					    (KSTAT_NAMED_STR_PTR(kn) -
+					    (char *)kbuf);
 					/*
-					* Make sure the string pointer lies
-					* within the allocated buffer.
-					*/
+					 * Make sure the string pointer lies
+					 * within the allocated buffer.
+					 */
 					ASSERT(KSTAT_NAMED_STR_PTR(kn) +
-						KSTAT_NAMED_STR_BUFLEN(kn) <=
-						((char *)user_kstat.ks_data +
-							ubufsize));
+					    KSTAT_NAMED_STR_BUFLEN(kn) <=
+					    ((char *)user_kstat.ks_data +
+					    ubufsize));
 					ASSERT(KSTAT_NAMED_STR_PTR(kn) >=
-						(char *)((kstat_named_t *)
-							user_kstat.ks_data +
-							user_kstat.ks_ndata));
+					    (char *)((kstat_named_t *)
+					    user_kstat.ks_data +
+					    user_kstat.ks_ndata));
 					/*
-					* Cast 64-bit ptr to 32-bit.
-					*/
+					 * Cast 64-bit ptr to 32-bit.
+					 */
 					kn->value.str.addr.ptr32 =
-						(caddr32_t)(uintptr_t)
-						KSTAT_NAMED_STR_PTR(kn);
+					    (caddr32_t)(uintptr_t)
+					    KSTAT_NAMED_STR_PTR(kn);
 					break;
 				default:
 					break;
@@ -1754,22 +1740,22 @@ read_kstat_data(int *rvalp, void *user_ksp, int flag)
 			break;
 
 		/*
-		* This is the special case of the kstat header
-		* list for the entire system.  Reshape the
-		* array in place, then copy it out.
-		*/
+		 * This is the special case of the kstat header
+		 * list for the entire system.  Reshape the
+		 * array in place, then copy it out.
+		 */
 		k32 = kbuf;
 		k = kbuf;
 		for (i = 0; i < user_kstat.ks_ndata; k32++, k++, i++) {
 			k32->ks_crtime = k->ks_crtime;
 			k32->ks_next = 0;
 			k32->ks_kid = k->ks_kid;
-			(void)strcpy(k32->ks_module, k->ks_module);
+			(void) strcpy(k32->ks_module, k->ks_module);
 			k32->ks_resv = k->ks_resv;
 			k32->ks_instance = k->ks_instance;
-			(void)strcpy(k32->ks_name, k->ks_name);
+			(void) strcpy(k32->ks_name, k->ks_name);
 			k32->ks_type = k->ks_type;
-			(void)strcpy(k32->ks_class, k->ks_class);
+			(void) strcpy(k32->ks_class, k->ks_class);
 			k32->ks_flags = k->ks_flags;
 			k32->ks_data = 0;
 			k32->ks_ndata = k->ks_ndata;
@@ -1782,10 +1768,10 @@ read_kstat_data(int *rvalp, void *user_ksp, int flag)
 		}
 
 		/*
-		* XXX	In this case we copy less data than is
-		*	claimed in the header.
-		*/
-		copysize = user_kstat.ks_ndata * sizeof(kstat32_t);
+		 * XXX	In this case we copy less data than is
+		 *	claimed in the header.
+		 */
+		copysize = user_kstat.ks_ndata * sizeof (kstat32_t);
 		break;
 #endif	/* _MULTI_DATAMODEL */
 	default:
@@ -1793,57 +1779,57 @@ read_kstat_data(int *rvalp, void *user_ksp, int flag)
 		if (ksp->ks_type == KSTAT_TYPE_NAMED) {
 			kstat_named_t *kn = kbuf;
 			char *strbuf = (char *)((kstat_named_t *)kn +
-				ksp->ks_ndata);
+			    ksp->ks_ndata);
 
 			for (i = 0; i < user_kstat.ks_ndata; kn++, i++)
 				switch (kn->data_type) {
 #ifdef _LP64
 				case KSTAT_DATA_LONG:
 					kn->data_type =
-						KSTAT_DATA_INT64;
+					    KSTAT_DATA_INT64;
 					break;
 				case KSTAT_DATA_ULONG:
 					kn->data_type =
-						KSTAT_DATA_UINT64;
+					    KSTAT_DATA_UINT64;
 					break;
 #endif	/* _LP64 */
 				case KSTAT_DATA_STRING:
 					if (KSTAT_NAMED_STR_PTR(kn) == NULL)
 						break;
 					/*
-					* If the string lies outside of kbuf
-					* copy it there and update the pointer.
-					*/
+					 * If the string lies outside of kbuf
+					 * copy it there and update the pointer.
+					 */
 					if (KSTAT_NAMED_STR_PTR(kn) <
-						(char *)kbuf ||
-						KSTAT_NAMED_STR_PTR(kn) +
-						KSTAT_NAMED_STR_BUFLEN(kn) >
-						(char *)kbuf + kbufsize + 1) {
+					    (char *)kbuf ||
+					    KSTAT_NAMED_STR_PTR(kn) +
+					    KSTAT_NAMED_STR_BUFLEN(kn) >
+					    (char *)kbuf + kbufsize + 1) {
 						bcopy(KSTAT_NAMED_STR_PTR(kn),
-							strbuf,
-							KSTAT_NAMED_STR_BUFLEN(kn));
+						    strbuf,
+						    KSTAT_NAMED_STR_BUFLEN(kn));
 
 						KSTAT_NAMED_STR_PTR(kn) =
-							strbuf;
+						    strbuf;
 						strbuf +=
-							KSTAT_NAMED_STR_BUFLEN(kn);
+						    KSTAT_NAMED_STR_BUFLEN(kn);
 						ASSERT(strbuf <=
-							(char *)kbuf +
-							kbufsize + 1);
+						    (char *)kbuf +
+						    kbufsize + 1);
 					}
 
 					KSTAT_NAMED_STR_PTR(kn) =
-						(char *)user_kstat.ks_data +
-						(KSTAT_NAMED_STR_PTR(kn) -
-						(char *)kbuf);
+					    (char *)user_kstat.ks_data +
+					    (KSTAT_NAMED_STR_PTR(kn) -
+					    (char *)kbuf);
 					ASSERT(KSTAT_NAMED_STR_PTR(kn) +
-						KSTAT_NAMED_STR_BUFLEN(kn) <=
-						((char *)user_kstat.ks_data +
-							ubufsize));
+					    KSTAT_NAMED_STR_BUFLEN(kn) <=
+					    ((char *)user_kstat.ks_data +
+					    ubufsize));
 					ASSERT(KSTAT_NAMED_STR_PTR(kn) >=
-						(char *)((kstat_named_t *)
-							user_kstat.ks_data +
-							user_kstat.ks_ndata));
+					    (char *)((kstat_named_t *)
+					    user_kstat.ks_data +
+					    user_kstat.ks_ndata));
 					break;
 				default:
 					break;
@@ -1853,15 +1839,15 @@ read_kstat_data(int *rvalp, void *user_ksp, int flag)
 	}
 
 	if (error == 0 &&
-		ddi_copyout(kbuf, user_kstat.ks_data, copysize, 0))
+	    ddi_copyout(kbuf, user_kstat.ks_data, copysize, 0))
 		error = EFAULT;
 	kmem_free(kbuf, allocsize);
 
 out:
 	/*
-	* We have modified the ks_ndata, ks_data_size, ks_flags, and
-	* ks_snaptime fields of the user kstat; now copy it back to userland.
-	*/
+	 * We have modified the ks_ndata, ks_data_size, ks_flags, and
+	 * ks_snaptime fields of the user kstat; now copy it back to userland.
+	 */
 	switch (model) {
 #ifdef _MULTI_DATAMODEL
 	case DDI_MODEL_ILP32:
@@ -1873,8 +1859,8 @@ out:
 		user_kstat32.ks_data_size = (size32_t)kbufsize;
 		user_kstat32.ks_flags = user_kstat.ks_flags;
 		user_kstat32.ks_snaptime = user_kstat.ks_snaptime;
-		if (copyout(&user_kstat32, user_ksp, sizeof(kstat32_t)) &&
-			error == 0)
+		if (copyout(&user_kstat32, user_ksp, sizeof (kstat32_t)) &&
+		    error == 0)
 			error = EFAULT;
 		break;
 #endif
@@ -1887,9 +1873,9 @@ out:
 		if (error) {
 			user_kstat.ks_errnovalue = error;
 			user_kstat.ks_returnvalue = -1;
-		} 
-		if (ddi_copyout(&user_kstat, user_ksp, sizeof(kstat_t), 0) &&
-			error == 0)
+		}
+		if (ddi_copyout(&user_kstat, user_ksp, sizeof (kstat_t), 0) &&
+		    error == 0)
 			error = EFAULT;
 		break;
 	}
@@ -1908,17 +1894,16 @@ write_kstat_data(int *rvalp, void *user_ksp, int flag, cred_t *cred)
 	if (secpolicy_sys_config(cred, B_FALSE) != 0)
 		return (EPERM);
 
-//	switch (ddi_model_convert_from(flag & FMODELS)) {
 	switch (DDI_MODEL_NONE) {
 #ifdef _MULTI_DATAMODEL
 		kstat32_t user_kstat32;
 
 	case DDI_MODEL_ILP32:
-		if (copyin(user_ksp, &user_kstat32, sizeof(kstat32_t)))
+		if (copyin(user_ksp, &user_kstat32, sizeof (kstat32_t)))
 			return (EFAULT);
 		/*
-		* These are the only fields we actually look at.
-		*/
+		 * These are the only fields we actually look at.
+		 */
 		user_kstat.ks_kid = user_kstat32.ks_kid;
 		user_kstat.ks_data = (void *)(uintptr_t)user_kstat32.ks_data;
 		user_kstat.ks_data_size = (size_t)user_kstat32.ks_data_size;
@@ -1927,7 +1912,7 @@ write_kstat_data(int *rvalp, void *user_ksp, int flag, cred_t *cred)
 #endif
 	default:
 	case DDI_MODEL_NONE:
-		if (ddi_copyin(user_ksp, &user_kstat, sizeof(kstat_t), 0))
+		if (ddi_copyin(user_ksp, &user_kstat, sizeof (kstat_t), 0))
 			return (EFAULT);
 	}
 
@@ -1958,15 +1943,15 @@ write_kstat_data(int *rvalp, void *user_ksp, int flag, cred_t *cred)
 	}
 
 	/*
-	* With KSTAT_FLAG_VAR_SIZE, one must call the kstat's update callback
-	* routine to ensure ks_data_size is up to date.
-	* In this case it makes sense to do it anyhow, as it will be shortly
-	* followed by a KSTAT_SNAPSHOT().
-	*/
+	 * With KSTAT_FLAG_VAR_SIZE, one must call the kstat's update callback
+	 * routine to ensure ks_data_size is up to date.
+	 * In this case it makes sense to do it anyhow, as it will be shortly
+	 * followed by a KSTAT_SNAPSHOT().
+	 */
 	KSTAT_ENTER(ksp);
 	error = KSTAT_UPDATE(ksp, KSTAT_READ);
 	if (error || user_kstat.ks_data_size != ksp->ks_data_size ||
-		user_kstat.ks_ndata != ksp->ks_ndata) {
+	    user_kstat.ks_ndata != ksp->ks_ndata) {
 		KSTAT_EXIT(ksp);
 		kstat_rele(ksp);
 		kmem_free(buf, bufsize + 1);
@@ -1974,11 +1959,11 @@ write_kstat_data(int *rvalp, void *user_ksp, int flag, cred_t *cred)
 	}
 
 	/*
-	* We have to ensure that we don't accidentally change the type of
-	* existing kstat_named statistics when writing over them.
-	* Since read_kstat_data() modifies some of the types on their way
-	* out, we need to be sure to handle these types seperately.
-	*/
+	 * We have to ensure that we don't accidentally change the type of
+	 * existing kstat_named statistics when writing over them.
+	 * Since read_kstat_data() modifies some of the types on their way
+	 * out, we need to be sure to handle these types seperately.
+	 */
 	if (ksp->ks_type == KSTAT_TYPE_NAMED) {
 		void *kbuf;
 		kstat_named_t *kold;
@@ -1990,9 +1975,9 @@ write_kstat_data(int *rvalp, void *user_ksp, int flag, cred_t *cred)
 #endif
 
 		/*
-		* Since ksp->ks_data may be NULL, we need to take a snapshot
-		* of the published data to look at the types.
-		*/
+		 * Since ksp->ks_data may be NULL, we need to take a snapshot
+		 * of the published data to look at the types.
+		 */
 		kbuf = kmem_alloc(bufsize + 1, KM_NOSLEEP);
 		if (kbuf == NULL) {
 			KSTAT_EXIT(ksp);
@@ -2011,11 +1996,11 @@ write_kstat_data(int *rvalp, void *user_ksp, int flag, cred_t *cred)
 		kold = kbuf;
 
 		/*
-		* read_kstat_data() changes the types of
-		* KSTAT_DATA_LONG / KSTAT_DATA_ULONG, so we need to
-		* make sure that these (modified) types are considered
-		* valid.
-		*/
+		 * read_kstat_data() changes the types of
+		 * KSTAT_DATA_LONG / KSTAT_DATA_ULONG, so we need to
+		 * make sure that these (modified) types are considered
+		 * valid.
+		 */
 		for (i = 0; i < ksp->ks_ndata; i++, kold++, knew++) {
 			switch (kold->data_type) {
 #ifdef	_MULTI_DATAMODEL
@@ -2023,22 +2008,22 @@ write_kstat_data(int *rvalp, void *user_ksp, int flag, cred_t *cred)
 				switch (model) {
 				case DDI_MODEL_ILP32:
 					if (knew->data_type ==
-						KSTAT_DATA_INT32) {
+					    KSTAT_DATA_INT32) {
 						knew->value.l =
-							(long)knew->value.i32;
+						    (long)knew->value.i32;
 						knew->data_type =
-							KSTAT_DATA_LONG;
+						    KSTAT_DATA_LONG;
 					}
 					break;
 				default:
 				case DDI_MODEL_NONE:
 #ifdef _LP64
 					if (knew->data_type ==
-						KSTAT_DATA_INT64) {
+					    KSTAT_DATA_INT64) {
 						knew->value.l =
-							(long)knew->value.i64;
+						    (long)knew->value.i64;
 						knew->data_type =
-							KSTAT_DATA_LONG;
+						    KSTAT_DATA_LONG;
 					}
 #endif /* _LP64 */
 					break;
@@ -2048,22 +2033,22 @@ write_kstat_data(int *rvalp, void *user_ksp, int flag, cred_t *cred)
 				switch (model) {
 				case DDI_MODEL_ILP32:
 					if (knew->data_type ==
-						KSTAT_DATA_UINT32) {
+					    KSTAT_DATA_UINT32) {
 						knew->value.ul =
-							(ulong_t)knew->value.ui32;
+						    (ulong_t)knew->value.ui32;
 						knew->data_type =
-							KSTAT_DATA_ULONG;
+						    KSTAT_DATA_ULONG;
 					}
 					break;
 				default:
 				case DDI_MODEL_NONE:
 #ifdef _LP64
 					if (knew->data_type ==
-						KSTAT_DATA_UINT64) {
+					    KSTAT_DATA_UINT64) {
 						knew->value.ul =
-							(ulong_t)knew->value.ui64;
+						    (ulong_t)knew->value.ui64;
 						knew->data_type =
-							KSTAT_DATA_ULONG;
+						    KSTAT_DATA_ULONG;
 					}
 #endif /* _LP64 */
 					break;
@@ -2082,24 +2067,24 @@ write_kstat_data(int *rvalp, void *user_ksp, int flag, cred_t *cred)
 #ifdef _MULTI_DATAMODEL
 				if (model == DDI_MODEL_ILP32)
 					KSTAT_NAMED_STR_PTR(knew) =
-					(char *)(uintptr_t)
+					    (char *)(uintptr_t)
 					knew->value.str.addr.ptr32;
 #endif
 				/*
-				* Nothing special for NULL
-				*/
+				 * Nothing special for NULL
+				 */
 				if (KSTAT_NAMED_STR_PTR(knew) == NULL)
 					break;
 
 				/*
-				* Check to see that the pointers all point
-				* to within the buffer and after the array
-				* of kstat_named_t's.
-				*/
+				 * Check to see that the pointers all point
+				 * to within the buffer and after the array
+				 * of kstat_named_t's.
+				 */
 				if (KSTAT_NAMED_STR_PTR(knew) <
-					(char *)
-					((kstat_named_t *)user_kstat.ks_data +
-						ksp->ks_ndata)) {
+				    (char *)
+				    ((kstat_named_t *)user_kstat.ks_data +
+				    ksp->ks_ndata)) {
 					KSTAT_EXIT(ksp);
 					kstat_rele(ksp);
 					kmem_free(kbuf, bufsize + 1);
@@ -2107,9 +2092,9 @@ write_kstat_data(int *rvalp, void *user_ksp, int flag, cred_t *cred)
 					return (EINVAL);
 				}
 				if (KSTAT_NAMED_STR_PTR(knew) +
-					KSTAT_NAMED_STR_BUFLEN(knew) >
-					((char *)user_kstat.ks_data +
-						ksp->ks_data_size)) {
+				    KSTAT_NAMED_STR_BUFLEN(knew) >
+				    ((char *)user_kstat.ks_data +
+				    ksp->ks_data_size)) {
 					KSTAT_EXIT(ksp);
 					kstat_rele(ksp);
 					kmem_free(kbuf, bufsize + 1);
@@ -2118,12 +2103,12 @@ write_kstat_data(int *rvalp, void *user_ksp, int flag, cred_t *cred)
 				}
 
 				/*
-				* Update the pointers within the buffer
-				*/
+				 * Update the pointers within the buffer
+				 */
 				KSTAT_NAMED_STR_PTR(knew) =
-					(char *)buf +
-					(KSTAT_NAMED_STR_PTR(knew) -
-					(char *)user_kstat.ks_data);
+				    (char *)buf +
+				    (KSTAT_NAMED_STR_PTR(knew) -
+				    (char *)user_kstat.ks_data);
 				break;
 			default:
 				break;
@@ -2134,8 +2119,8 @@ write_kstat_data(int *rvalp, void *user_ksp, int flag, cred_t *cred)
 		knew = buf;
 
 		/*
-		* Now make sure the types are what we expected them to be.
-		*/
+		 * Now make sure the types are what we expected them to be.
+		 */
 		for (i = 0; i < ksp->ks_ndata; i++, kold++, knew++)
 			if (kold->data_type != knew->data_type) {
 				KSTAT_EXIT(ksp);
@@ -2154,8 +2139,8 @@ write_kstat_data(int *rvalp, void *user_ksp, int flag, cred_t *cred)
 #ifndef _WIN32
 	*rvalp = kstat_chain_id;
 #else
-	// The above doesn't work, as rvalp refers to the userland struct, before copyin()
-	// and we need to write value to kernel version.
+	// The above doesn't work, as rvalp refers to the userland struct,
+	// before copyin() and we need to write value to kernel version.
 	user_kstat.ks_returnvalue = kstat_chain_id;
 	// We need to copyout() so userland will get the return values.
 #endif
@@ -2171,7 +2156,7 @@ write_kstat_data(int *rvalp, void *user_ksp, int flag, cred_t *cred)
 void
 spl_kstat_init()
 {
-    /*
+	/*
 	 * Create the kstat root OID
 	 */
 	mutex_init(&kstat_chain_lock, NULL, MUTEX_DEFAULT, NULL);
@@ -2186,7 +2171,7 @@ spl_kstat_fini()
 	 * Done in two passes, first unregisters all
 	 * of the oids, second releases all the memory.
 	 */
-	
+
 	vmem_fini(kstat_arena);
 	mutex_destroy(&kstat_chain_lock);
 }
@@ -2213,31 +2198,35 @@ __kstat_set_seq_raw_ops(kstat_t *ksp,
 	ksp->ks_raw_ops.addr = addr;
 }
 
-int spl_kstat_chain_id(PDEVICE_OBJECT DiskDevice, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+int spl_kstat_chain_id(PDEVICE_OBJECT DiskDevice, PIRP Irp,
+    PIO_STACK_LOCATION IrpSp)
 {
 	kstat_t ksp = { 0 };
 	ksp.ks_returnvalue = kstat_chain_id;
-	ASSERT3U(IrpSp->Parameters.DeviceIoControl.OutputBufferLength, >=, sizeof(ksp));
+	ASSERT3U(IrpSp->Parameters.DeviceIoControl.OutputBufferLength, >=,
+	    sizeof (ksp));
 	ddi_copyout(&ksp, IrpSp->Parameters.DeviceIoControl.Type3InputBuffer,
-		sizeof(ksp), 0);
+	    sizeof (ksp), 0);
 	dprintf("%s: returning kstat_chain_id %d\n", __func__, kstat_chain_id);
-	return 0;
+	return (0);
 }
 
-int spl_kstat_read(PDEVICE_OBJECT DiskDevice, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+int spl_kstat_read(PDEVICE_OBJECT DiskDevice, PIRP Irp,
+    PIO_STACK_LOCATION IrpSp)
 {
 	int rc;
 	kstat_t *ksp;
 	ksp = (kstat_t *)IrpSp->Parameters.DeviceIoControl.Type3InputBuffer;
 	rc = read_kstat_data(&ksp->ks_returnvalue, (void *)ksp, 0);
-	return 0;
+	return (0);
 }
 
-int spl_kstat_write(PDEVICE_OBJECT DiskDevice, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+int spl_kstat_write(PDEVICE_OBJECT DiskDevice, PIRP Irp,
+    PIO_STACK_LOCATION IrpSp)
 {
 	int rc;
 	kstat_t *ksp;
 	ksp = (kstat_t *)IrpSp->Parameters.DeviceIoControl.Type3InputBuffer;
 	rc = write_kstat_data(&ksp->ks_returnvalue, (void *)ksp, 0, NULL);
-	return 0;
+	return (0);
 }

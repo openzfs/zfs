@@ -30,14 +30,8 @@
 /*
  * Structures needed by the kstat reader functions.
  */
-//#include <sys/var.h>
 #include <sys/utsname.h>
-//#include <sys/sysinfo.h>
-//#include <sys/flock.h>
-//#include <sys/dnlc.h>
 #include <regex.h>
-//#include <nfs/nfs.h>
-//#include <nfs/nfs_clnt.h>
 
 #ifdef __sparc
 #include <vm/hat_sfmmu.h>
@@ -107,7 +101,7 @@ typedef union ks_value {
 {							\
 	ks_value_t v;					\
 	v.str.addr.ptr = _strdup(S->N);		\
-	v.str.len = (uint32_t) strlen(S->N);			\
+	v.str.len = (uint32_t)strlen(S->N);			\
 	nvpair_insert(I, #N, &v, KSTAT_DATA_STRING);	\
 }
 
@@ -143,7 +137,7 @@ typedef union ks_value {
 {							\
 	ks_value_t v;					\
 	v.str.addr.ptr = _strdup(V);		\
-	v.str.len = (uint32_t)( (V) ? strlen(V) : 0 );		\
+	v.str.len = (uint32_t)((V) ? strlen(V) : 0);		\
 	nvpair_insert(I, N, &v, KSTAT_DATA_STRING);	\
 }
 

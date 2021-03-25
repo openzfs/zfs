@@ -37,30 +37,30 @@ zcmd_ioctl_compat(int fd, int request, zfs_cmd_t *zc, const int cflag)
 
 	switch (cflag) {
 	case ZFS_CMD_COMPAT_NONE:
-		ncmd = CTL_CODE(ZFSIOCTL_TYPE, ZFSIOCTL_BASE + request, METHOD_NEITHER, FILE_ANY_ACCESS);
+		ncmd = CTL_CODE(ZFSIOCTL_TYPE, ZFSIOCTL_BASE + request,
+		    METHOD_NEITHER, FILE_ANY_ACCESS);
 
-		zip = malloc(sizeof(zfs_iocparm_t));
+		zip = malloc(sizeof (zfs_iocparm_t));
 		zip->zfs_cmd = (uint64_t)zc;
 		zip->zfs_cmd_size = sizeof (zfs_cmd_t);
 		zip->zfs_ioctl_version = ZFS_IOCVER_ZOF;
 		zip->zfs_ioc_error = 0;
-		bytesReturned = sizeof(zfs_iocparm_t);
+		bytesReturned = sizeof (zfs_iocparm_t);
 
 		// ret = ioctl(fd, ncmd, &zp);
 		ret = DeviceIoControl(ITOH(fd),
 		    (DWORD)ncmd,
 		    zip,
-		    (DWORD)sizeof(zfs_iocparm_t),
+		    (DWORD)sizeof (zfs_iocparm_t),
 		    zc,
-		    (DWORD)sizeof(zfs_cmd_t),
+		    (DWORD)sizeof (zfs_cmd_t),
 		    &bytesReturned,
-		    NULL
-		);
+		    NULL);
 
 		if (ret == 0)
-		    ret = GetLastError();
+			ret = GetLastError();
 		else
-		    ret = 0;
+			ret = 0;
 
 
 		/*

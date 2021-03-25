@@ -27,7 +27,7 @@
 #ifndef _LIBSPL_SYS_SYSMACROS_H
 #define	_LIBSPL_SYS_SYSMACROS_H
 
-//#include_next <sys/sysmacros.h>
+// #include_next <sys/sysmacros.h>
 
 /* common macros */
 #ifndef MIN
@@ -43,17 +43,18 @@
 #define	ARRAY_SIZE(a) (sizeof (a) / sizeof (a[0]))
 #endif
 #ifndef DIV_ROUND_UP
-#define DIV_ROUND_UP(n, d)      (((n) + (d) - 1) / (d))
+#define	DIV_ROUND_UP(n, d) (((n) + (d) - 1) / (d))
 #endif
 
 #define	makedevice(maj, min)	makedev(maj, min)
 #define	_sysconf(a)		sysconf(a)
-//#define	__NORETURN		__attribute__((noreturn))
+// #define	__NORETURN		__attribute__((noreturn))
 
 /*
- * Compatibility macros/typedefs needed for Solaris -> Linux port
+ * Compatibility macros/typedefs needed for Solaris -> Windows port
  */
-#pragma warning( disable: 4146 ) // unary minus operator applied to unsigned type
+// unary minus operator applied to unsigned type
+#pragma warning(disable: 4146)
 #define	P2ALIGN(x, align)	((x) & -(align))
 #define	P2CROSS(x, y, align)	(((x) ^ (y)) > (align) - 1)
 #define	P2ROUNDUP(x, align)	(-(-(x) & -(align)))
@@ -67,7 +68,7 @@
 				(-(type)(x) & ((type)(align) - 1))
 #define	ISP2(x)			(((x) & ((x) - 1)) == 0)
 #define	IS_P2ALIGNED(v, a)	((((uintptr_t)(v)) & ((uintptr_t)(a) - 1)) == 0)
-#pragma warning( default: 4146 )
+#pragma warning(default: 4146)
 
 /*
  * Typed version of the P2* macros.  These macros should be used to ensure
@@ -104,9 +105,9 @@
 #endif
 
 #ifndef RLIM64_INFINITY
-#define RLIM64_INFINITY			(~0ULL)
+#define	RLIM64_INFINITY			(~0ULL)
 #endif
 
-#define _LITTLE_ENDIAN
+#define	_LITTLE_ENDIAN
 
 #endif /* _LIBSPL_SYS_SYSMACROS_H */

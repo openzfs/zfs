@@ -22,13 +22,11 @@
  * Copyright (c) 1994, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
-
-
 #ifndef _SPL_SUNLDI_H
-#define _SPL_SUNLDI_H
+#define	_SPL_SUNLDI_H
 
 #include <sys/types.h>
 
-#define SECTOR_SIZE 512
+#define	SECTOR_SIZE 512
 
 #endif /* SPL_SUNLDI_H */

@@ -54,20 +54,20 @@ extern char	*optarg;
 
 #define	X_OK	1
 
-size_t strlcpy(register char* s, register const char* t, register size_t n);
+size_t strlcpy(register char *s, register const char *t, register size_t n);
 
-size_t strlcat(register char* s, register const char* t, register size_t n);
+size_t strlcat(register char *s, register const char *t, register size_t n);
 
-ssize_t getline(char** linep, size_t *linecapp, FILE* stream);
+ssize_t getline(char **linep, size_t *linecapp, FILE *stream);
 
-//int pread_win(HANDLE h, void *buf, size_t nbyte, off_t offset);
+// int pread_win(HANDLE h, void *buf, size_t nbyte, off_t offset);
 int pipe(int fildes[2]);
-char* realpath(const char* file_name, char* resolved_name);
+char *realpath(const char *file_name, char *resolved_name);
 int usleep(__int64 usec);
-int vasprintf(char** strp, const char* fmt, va_list ap);
-int asprintf(char** strp, const char* fmt, ...);
+int vasprintf(char **strp, const char *fmt, va_list ap);
+int asprintf(char **strp, const char *fmt, ...);
 int strncasecmp(const char *s1, const char *s2, size_t n);
-int readlink(const char *path, char* buf, size_t bufsize);
+int readlink(const char *path, char *buf, size_t bufsize);
 const char *getexecname(void);
 uint64_t geteuid(void);
 

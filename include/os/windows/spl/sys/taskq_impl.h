@@ -60,8 +60,8 @@ typedef struct taskq_ent {
 	kcondvar_t		tqent_delay_cv;
 	clock_t			tqent_delay_time;
 	/* Used to simulate TS_STOPPED */
-	kmutex_t                tqent_thread_lock;
-	kcondvar_t              tqent_thread_cv;
+	kmutex_t		tqent_thread_lock;
+	kcondvar_t	tqent_thread_cv;
 } taskq_ent_t;
 
 #define	TQENT_FLAG_PREALLOC	0x1
@@ -162,7 +162,6 @@ struct taskq {
 /* Special form of taskq dispatch that uses preallocated entries. */
 void taskq_dispatch_ent(taskq_t *, task_func_t, void *, uint_t, taskq_ent_t *);
 
-
 #define	tq_thread tq_thr._tq_thread
 #define	tq_threadlist tq_thr._tq_threadlist
 
@@ -172,8 +171,7 @@ void taskq_dispatch_ent(taskq_t *, task_func_t, void *, uint_t, taskq_ent_t *);
 /* Extra ZOL / Apple */
 extern void taskq_init_ent(taskq_ent_t *t);
 extern taskqid_t taskq_dispatch_delay(taskq_t *tq, task_func_t func, void *arg,
-									  uint_t flags, clock_t expire_time);
-
+	uint_t flags, clock_t expire_time);
 
 #ifdef	__cplusplus
 }

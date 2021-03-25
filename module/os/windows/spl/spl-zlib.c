@@ -1,4 +1,4 @@
-/*****************************************************************************\
+/*
  *
  *  zlib.h -- interface of the 'zlib' general purpose compression library
  *  version 1.2.5, April 19th, 2010
@@ -23,8 +23,7 @@
  *
  *  Jean-loup Gailly
  *  Mark Adler
-\*****************************************************************************/
-
+ */
 
 #include <sys/kmem.h>
 #include <sys/zmod.h>
@@ -35,7 +34,7 @@
 #undef DEBUG_SUBSYSTEM
 #endif
 
-#define DEBUG_SUBSYSTEM SS_ZLIB
+#define	DEBUG_SUBSYSTEM SS_ZLIB
 
 static spl_kmem_cache_t *zlib_workspace_cache;
 
@@ -51,7 +50,7 @@ static spl_kmem_cache_t *zlib_workspace_cache;
 static void *
 zlib_workspace_alloc(int flags)
 {
-	return kmem_cache_alloc(zlib_workspace_cache, flags & ~(__GFP_FS));
+	return (kmem_cache_alloc(zlib_workspace_cache, flags & ~(__GFP_FS)));
 }
 
 static void
@@ -73,7 +72,7 @@ zlib_workspace_free(void *workspace)
  */
 int
 z_compress_level(void *dest, size_t *destLen, const void *source,
-                 size_t sourceLen, int level)
+    size_t sourceLen, int level)
 {
 	z_stream stream;
 	int err;
@@ -84,30 +83,30 @@ z_compress_level(void *dest, size_t *destLen, const void *source,
 	stream.avail_out = (uInt)*destLen;
 
 	if ((size_t)stream.avail_out != *destLen)
-		return Z_BUF_ERROR;
+		return (Z_BUF_ERROR);
 
 	stream.workspace = zlib_workspace_alloc(KM_SLEEP);
 	if (!stream.workspace)
-		return Z_MEM_ERROR;
+		return (Z_MEM_ERROR);
 
 	err = zlib_deflateInit(&stream, level);
 	if (err != Z_OK) {
 		zlib_workspace_free(stream.workspace);
-		return err;
+		return (err);
 	}
 
 	err = zlib_deflate(&stream, Z_FINISH);
 	if (err != Z_STREAM_END) {
 		zlib_deflateEnd(&stream);
 		zlib_workspace_free(stream.workspace);
-		return err == Z_OK ? Z_BUF_ERROR : err;
+		return (err == Z_OK ? Z_BUF_ERROR : err);
 	}
 	*destLen = stream.total_out;
 
 	err = zlib_deflateEnd(&stream);
 	zlib_workspace_free(stream.workspace);
 
-	return err;
+	return (err);
 }
 EXPORT_SYMBOL(z_compress_level);
 
@@ -138,16 +137,16 @@ z_uncompress(void *dest, size_t *destLen, const void *source, size_t sourceLen)
 	stream.avail_out = (uInt)*destLen;
 
 	if ((size_t)stream.avail_out != *destLen)
-		return Z_BUF_ERROR;
+		return (Z_BUF_ERROR);
 
 	stream.workspace = zlib_workspace_alloc(KM_SLEEP);
 	if (!stream.workspace)
-		return Z_MEM_ERROR;
+		return (Z_MEM_ERROR);
 
 	err = zlib_inflateInit(&stream);
 	if (err != Z_OK) {
 		zlib_workspace_free(stream.workspace);
-		return err;
+		return (err);
 	}
 
 	err = zlib_inflate(&stream, Z_FINISH);
@@ -156,17 +155,17 @@ z_uncompress(void *dest, size_t *destLen, const void *source, size_t sourceLen)
 		zlib_workspace_free(stream.workspace);
 
 		if (err == Z_NEED_DICT ||
-		   (err == Z_BUF_ERROR && stream.avail_in == 0))
-			return Z_DATA_ERROR;
+		    (err == Z_BUF_ERROR && stream.avail_in == 0))
+			return (Z_DATA_ERROR);
 
-		return err;
+		return (err);
 	}
 	*destLen = stream.total_out;
 
 	err = zlib_inflateEnd(&stream);
 	zlib_workspace_free(stream.workspace);
 
-	return err;
+	return (err);
 }
 EXPORT_SYMBOL(z_uncompress);
 
@@ -174,7 +173,7 @@ int
 spl_zlib_init(void)
 {
 	int size;
-        SENTRY;
+	SENTRY;
 
 	size = MAX(spl_zlib_deflate_workspacesize(MAX_WBITS, MAX_MEM_LEVEL),
 	    zlib_inflate_workspacesize());
@@ -183,17 +182,17 @@ spl_zlib_init(void)
 	    "spl_zlib_workspace_cache",
 	    size, 0, NULL, NULL, NULL, NULL, NULL,
 	    KMC_VMEM | KMC_NOEMERGENCY);
-        if (!zlib_workspace_cache)
+	if (!zlib_workspace_cache)
 		SRETURN(1);
 
-        SRETURN(0);
+	SRETURN(0);
 }
 
 void
 spl_zlib_fini(void)
 {
-        SENTRY;
+	SENTRY;
 	kmem_cache_destroy(zlib_workspace_cache);
-        zlib_workspace_cache = NULL;
-        SEXIT;
+	zlib_workspace_cache = NULL;
+	SEXIT;
 }

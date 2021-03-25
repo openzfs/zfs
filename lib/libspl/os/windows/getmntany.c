@@ -44,8 +44,8 @@
 #include <io.h>
 #endif
 
-#define DIFF(xx) ((mrefp->xx != NULL) && \
-		  (mgetp->xx == NULL || strcmp(mrefp->xx, mgetp->xx) != 0))
+#define	DIFF(xx) ((mrefp->xx != NULL) && \
+	    (mgetp->xx == NULL || strcmp(mrefp->xx, mgetp->xx) != 0))
 
 static struct statfs *gsfs = NULL;
 static int allfs = 0;
@@ -55,22 +55,12 @@ static int allfs = 0;
  * option due to VFS rejecting with EACCESS.
  */
 
-//#include <sys/attr.h>
-//typedef struct attrlist attrlist_t;
-
-//struct attrBufS {
-//	u_int32_t       length;
-//	vol_capabilities_set_t caps;
-//} __attribute__((aligned(4), packed));
-
-
-
 static int
 chdir_block_begin(int newroot_fd)
 {
 	int cwdfd, error;
 
-	cwdfd = open(".", O_RDONLY /*| O_DIRECTORY*/);
+	cwdfd = open(".", O_RDONLY /* | O_DIRECTORY */);
 	if (cwdfd == -1)
 		return (-1);
 
@@ -124,10 +114,10 @@ fstatat64(int dirfd, const char *path, struct _stat64 *statbuf, int flag)
 	if ((cwdfd = chdir_block_begin(dirfd)) == -1)
 		return (-1);
 
-	//if (flag == AT_SYMLINK_NOFOLLOW)
+	// if (flag == AT_SYMLINK_NOFOLLOW)
 	//	error = lstat(path, statbuf);
-	//else
-		error = _stat64(path, statbuf);
+	// else
+	error = _stat64(path, statbuf);
 
 	chdir_block_end(cwdfd);
 	return (error);
@@ -191,7 +181,7 @@ statfs2mnttab(struct statfs *sfs, struct mnttab *mp)
 	mntopts[0] = '\0';
 
 	flags = sfs->f_flags;
-#define	OPTADD(opt)	optadd(mntopts, sizeof(mntopts), (opt))
+#define	OPTADD(opt)	optadd(mntopts, sizeof (mntopts), (opt))
 	if (flags & MNT_RDONLY)
 		OPTADD(MNTOPT_RO);
 	else
@@ -206,17 +196,17 @@ statfs2mnttab(struct statfs *sfs, struct mnttab *mp)
 #if 0
 	{
 			struct attrBufS attrBuf;
-			attrlist_t      attrList;
+			attrlist_t attrList;
 
-			memset(&attrList, 0, sizeof(attrList));
+			memset(&attrList, 0, sizeof (attrList));
 			attrList.bitmapcount = ATTR_BIT_MAP_COUNT;
 			attrList.volattr = ATTR_VOL_INFO|ATTR_VOL_CAPABILITIES;
 
 			if (getattrlist(sfs->f_mntonname, &attrList, &attrBuf,
-							sizeof(attrBuf), 0) == 0)  {
+			    sizeof (attrBuf), 0) == 0)  {
 
 				if (attrBuf.caps[VOL_CAPABILITIES_INTERFACES] &
-					VOL_CAP_INT_EXTENDED_ATTR) {
+				    VOL_CAP_INT_EXTENDED_ATTR) {
 					OPTADD(MNTOPT_XATTR);
 				} else {
 					OPTADD(MNTOPT_NOXATTR);
@@ -250,7 +240,8 @@ statfs2mnttab(struct statfs *sfs, struct mnttab *mp)
 	mp->mnt_fssubtype = sfs->f_fssubtype;
 }
 
-void DisplayVolumePaths(char *VolumeName, char *out, int len)
+void
+DisplayVolumePaths(char *VolumeName, char *out, int len)
 {
 	DWORD  CharCount = MAX_PATH + 1;
 	char *Names = NULL;
@@ -260,16 +251,16 @@ void DisplayVolumePaths(char *VolumeName, char *out, int len)
 	for (;;) {
 		//
 		//  Allocate a buffer to hold the paths.
-		Names = (char *) malloc(CharCount);
+		Names = (char *)malloc(CharCount);
 
-		if (!Names)	return;
+		if (!Names)
+			return;
 
 		//
 		//  Obtain all of the paths
 		//  for this volume.
 		Success = GetVolumePathNamesForVolumeName(
-			VolumeName, Names, CharCount, &CharCount
-		);
+		    VolumeName, Names, CharCount, &CharCount);
 
 		if (Success) break;
 
@@ -286,35 +277,34 @@ void DisplayVolumePaths(char *VolumeName, char *out, int len)
 		//
 		//  Display the various paths.
 		for (NameIdx = Names;
-			NameIdx[0] != '\0';
-			NameIdx += strlen(NameIdx) + 1) {
-			//printf("  %s", NameIdx);
+		    NameIdx[0] != '\0';
+		    NameIdx += strlen(NameIdx) + 1) {
+			// printf("  %s", NameIdx);
 			snprintf(out, len, "%s%s ", out, NameIdx);
 		}
-		//printf("\n");
+		// printf("\n");
 	}
 
 	if (Names != NULL) {
 		free(Names);
 		Names = NULL;
 	}
-
-	return;
 }
 
 typedef struct _MOUNTDEV_NAME {
 	USHORT NameLength;
 	WCHAR  Name[1];
 } MOUNTDEV_NAME, *PMOUNTDEV_NAME;
-#define IOCTL_MOUNTDEV_QUERY_DEVICE_NAME 0x004d0008
+#define	IOCTL_MOUNTDEV_QUERY_DEVICE_NAME 0x004d0008
 typedef struct _MOUNTDEV_UNIQUE_ID {
 	USHORT  UniqueIdLength;
 	UCHAR   UniqueId[1];
 } MOUNTDEV_UNIQUE_ID;
 typedef MOUNTDEV_UNIQUE_ID *PMOUNTDEV_UNIQUE_ID;
-#define IOCTL_MOUNTDEV_QUERY_UNIQUE_ID 0x4d0000
+#define	IOCTL_MOUNTDEV_QUERY_UNIQUE_ID 0x4d0000
 
-int getfsstat(struct statfs *buf, int bufsize, int flags)
+int
+getfsstat(struct statfs *buf, int bufsize, int flags)
 {
 	char name[256];
 	HANDLE vh;
@@ -322,21 +312,23 @@ int getfsstat(struct statfs *buf, int bufsize, int flags)
 	MOUNTDEV_UNIQUE_ID *UID = NULL;
 
 	// If buf is NULL, return number of entries
-	vh = FindFirstVolume(name, sizeof(name));
-	if (vh == INVALID_HANDLE_VALUE) return -1;
+	vh = FindFirstVolume(name, sizeof (name));
+	if (vh == INVALID_HANDLE_VALUE)
+		return (-1);
 
 	do {
 		char *s = name;
 
 		// Still room in out buffer?
-		if (buf && (bufsize < sizeof(struct statfs))) break;
+		if (buf && (bufsize < sizeof (struct statfs)))
+			break;
 
 
 		// We must skip the "\\?\" start
 		if (s[0] == '\\' &&
-			s[1] == '\\' &&
-			s[2] == '?' &&
-			s[3] == '\\')
+		    s[1] == '\\' &&
+		    s[2] == '?' &&
+		    s[3] == '\\')
 			s = &s[4];
 		// We must eat the final "\\"
 		int trail = strlen(name) - 1;
@@ -346,26 +338,26 @@ int getfsstat(struct statfs *buf, int bufsize, int flags)
 		// Query DOS
 		char DeviceName[256], driveletter[256] = "";
 		int CharCount;
-		CharCount = QueryDosDevice(s, DeviceName, sizeof(DeviceName));
+		CharCount = QueryDosDevice(s, DeviceName, sizeof (DeviceName));
 
 		// Restore trailing "\\"
 		if (name[trail] == 0)
 			name[trail] = '\\';
 
-		//printf("%s: volume '%s' device '%s'\n", __func__, name, DeviceName);
-		DisplayVolumePaths(name, driveletter, sizeof(driveletter));
+		DisplayVolumePaths(name, driveletter, sizeof (driveletter));
 
 		// Open DeviceName, and query it for dataset name
 		HANDLE h;
 
-		name[2] = '.'; // "\\?\" -> "\\.\" 
+		name[2] = '.'; // "\\?\" -> "\\.\"
 
-		// We open the devices returned; like "'\\.\Volume{0b1bb601-af0b-32e8-a1d2-54c167af6277}'" and
+		// We open the devices returned; like
+		// "'\\.\Volume{0b1bb601-af0b-32e8-a1d2-54c167af6277}'" and
 		// query its Unique ID, where we return the dataset name. "BOOM"
 
-		h = CreateFile(name, 0, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
-//		printf("Open '%s': %d : getlast %d\n", name, h, GetLastError());
-	//	fflush(stdout);
+		h = CreateFile(name, 0, FILE_SHARE_READ | FILE_SHARE_WRITE,
+		    NULL, OPEN_EXISTING, 0, NULL);
+
 		if (h != INVALID_HANDLE_VALUE) {
 			char *dataset;
 			char cheat[1024];
@@ -373,11 +365,14 @@ int getfsstat(struct statfs *buf, int bufsize, int flags)
 			DWORD Size;
 			BOOL gotname = FALSE;
 
-			gotname = DeviceIoControl(h, IOCTL_MOUNTDEV_QUERY_UNIQUE_ID, NULL, 0, UID, sizeof(cheat) - 1, &Size, NULL);
-			//printf("deviocon %d: namelen %d\n", status, UID->UniqueIdLength);
+			gotname = DeviceIoControl(h,
+			    IOCTL_MOUNTDEV_QUERY_UNIQUE_ID,
+			    NULL, 0, UID, sizeof (cheat) - 1, &Size, NULL);
+			// printf("deviocon %d: namelen %d\n", status,
+			//  UID->UniqueIdLength);
 			if (gotname) {
-				UID->UniqueId[UID->UniqueIdLength] = 0; // Kernel doesn't null terminate
-				//printf("'%s' ==> '%s'\n", name, UID->UniqueId);
+				// Kernel doesn't null terminate
+				UID->UniqueId[UID->UniqueIdLength] = 0;
 			} else
 				UID = NULL;
 			CloseHandle(h);
@@ -385,38 +380,39 @@ int getfsstat(struct statfs *buf, int bufsize, int flags)
 
 		// We found a mount here, add it.
 		if (buf) {
-			memset(buf, 0, sizeof(*buf));
+			memset(buf, 0, sizeof (*buf));
 			if (UID) {
 				// Look up mountpoint
-				strlcpy(buf->f_mntfromname, UID->UniqueId, sizeof(buf->f_mntfromname));
-				strlcpy(buf->f_fstypename, MNTTYPE_ZFS, sizeof(buf->f_fstypename));
+				strlcpy(buf->f_mntfromname, UID->UniqueId,
+				    sizeof (buf->f_mntfromname));
+				strlcpy(buf->f_fstypename, MNTTYPE_ZFS,
+				    sizeof (buf->f_fstypename));
+				// FIXME, should be mountpoint!
 				if (strlen(driveletter) > 2)
-					strlcpy(buf->f_mntonname, driveletter, sizeof(buf->f_mntonname)); // FIXME, should be mountpoint!
+					strlcpy(buf->f_mntonname, driveletter,
+					    sizeof (buf->f_mntonname));
 				else
-					strlcpy(buf->f_mntonname, UID->UniqueId, sizeof(buf->f_mntonname)); // FIXME, should be mountpoint!
+					strlcpy(buf->f_mntonname, UID->UniqueId,
+					    sizeof (buf->f_mntonname));
 			} else {
-				strlcpy(buf->f_mntfromname, DeviceName, sizeof(buf->f_mntfromname));
-				strlcpy(buf->f_fstypename, "UKN", sizeof(buf->f_fstypename));
-				strlcpy(buf->f_mntonname, name, sizeof(buf->f_mntonname));
+				strlcpy(buf->f_mntfromname, DeviceName,
+				    sizeof (buf->f_mntfromname));
+				strlcpy(buf->f_fstypename, "UKN",
+				    sizeof (buf->f_fstypename));
+				strlcpy(buf->f_mntonname, name,
+				    sizeof (buf->f_mntonname));
 			}
 			UID = NULL;
 
-			/*
-			printf("  entry '%s' '%s' '%s'\n",
-				buf->f_mntfromname,
-				buf->f_mntonname,
-				name);
-			*/
 			buf++; // Go to next struct.
-			bufsize -= sizeof(*buf);
+			bufsize -= sizeof (*buf);
 		}
 
 		count++;
 
-	} while (FindNextVolume(vh, name, sizeof(name)) != 0);
+	} while (FindNextVolume(vh, name, sizeof (name)) != 0);
 	FindVolumeClose(vh);
-	//printf("%s: returning %d structures\n", __func__, count);
-	return count;
+	return (count);
 }
 
 
@@ -434,14 +430,14 @@ statfs_init(void)
 	allfs = getfsstat(NULL, 0, MNT_NOWAIT);
 	if (allfs == -1)
 		goto fail;
-	gsfs = malloc(sizeof(gsfs[0]) * allfs * 2);
+	gsfs = malloc(sizeof (gsfs[0]) * allfs * 2);
 	if (gsfs == NULL)
 		goto fail;
-	allfs = getfsstat(gsfs, (long)(sizeof(gsfs[0]) * allfs * 2),
-		MNT_NOWAIT);
+	allfs = getfsstat(gsfs, (long)(sizeof (gsfs[0]) * allfs * 2),
+	    MNT_NOWAIT);
 	if (allfs == -1)
 		goto fail;
-	sfs = realloc(gsfs, allfs * sizeof(gsfs[0]));
+	sfs = realloc(gsfs, allfs * sizeof (gsfs[0]));
 	if (sfs != NULL)
 		gsfs = sfs;
 	return (0);
@@ -501,7 +497,7 @@ getmntent(FILE *fp, struct mnttab *mp)
 	// start from the beginning, and return EOF.
 	if (index >= allfs) {
 		index = -1;
-		return -1;
+		return (-1);
 	}
 
 	statfs2mnttab(&gsfs[index], mp);
@@ -526,7 +522,7 @@ getextmntent(const char *path, struct extmnttab *entry, struct stat64 *statbuf)
 
 	if (statfs(path, &sfs) != 0) {
 	(void) fprintf(stderr, "%s: %s\n", path,
-		    strerror(errno));
+	    strerror(errno));
 		return (-1);
 	}
 	statfs2mnttab(&sfs, (struct mnttab *)entry);
@@ -546,5 +542,5 @@ setmntent(const char *filename, const char *type)
 void
 endmntent(FILE *fd)
 {
-    fclose(fd);
+	fclose(fd);
 }

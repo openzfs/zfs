@@ -31,7 +31,7 @@
  */
 
 #ifndef _SPL_ZFS_H
-#define _SPL_ZFS_H
+#define	_SPL_ZFS_H
 
 #include <sys/attr.h>
 #include <sys/mount.h>
@@ -40,13 +40,10 @@
 
 typedef struct mount vfs_t;
 
-//#define LK_NOWAIT       0x00000010      /* do not sleep to await lock */
-#define vn_vfswlock(vp)   (0)
-#define vn_vfsunlock(vp)
-#define VFS_HOLD(vfsp)
-#define VFS_RELE(vfsp)
-
-
+#define	vn_vfswlock(vp)   (0)
+#define	vn_vfsunlock(vp)
+#define	VFS_HOLD(vfsp)
+#define	VFS_RELE(vfsp)
 
 /*
  * File identifier.  Should be unique per filesystem on a single
@@ -66,19 +63,19 @@ typedef struct mount vfs_t;
  * Because a fid starts with a short it may not be 4 byte aligned, the
  * fid_pad will force the alignment.
  */
-#define MAXFIDSZ        64
-#define OLD_MAXFIDSZ    16
+
+#define	MAXFIDSZ		64
+#define	OLD_MAXFIDSZ	16
 
 typedef struct fid {
-    union {
-        long fid_pad;
-        struct {
-            ushort_t len;   /* length of data in bytes */
-            char    data[MAXFIDSZ]; /* data (variable len) */
-        } _fid;
-    } un;
+	union {
+		long fid_pad;
+		struct {
+			ushort_t len;   /* length of data in bytes */
+			char    data[MAXFIDSZ]; /* data (variable len) */
+		} _fid;
+	} un;
 } fid_t;
-
 
 extern void (*mountroot_post_hook)(void);
 

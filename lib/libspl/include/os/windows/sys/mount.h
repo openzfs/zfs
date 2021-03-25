@@ -29,7 +29,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include <sys/types.h>
-//#include_next <sys/mount.h>
 
 /*
  * Some old glibc headers don't define BLKGETSIZE64
@@ -104,18 +103,18 @@
 #define	MFSTYPENAMELEN	16
 
 struct statfs {
-	uint32_t	f_bsize;	/* fundamental file system block size */ 
-	uint64_t	f_blocks;	/* total data blocks in file system */ 
-	uint64_t	f_bfree;	/* free blocks in fs */ 
-	uint64_t	f_bavail;	/* free blocks avail to non-superuser */ 
-	uint64_t	f_files;	/* total file nodes in file system */ 
-	uint64_t	f_ffree;	/* free file nodes in fs */ 
-	uint32_t	f_type;		/* type of filesystem */ 
-	uint32_t	f_flags;	/* copy of mount exported flags */ 
-	uint32_t	f_fssubtype;	/* fs sub-type (flavor) */ 
-	char		f_fstypename[MFSTYPENAMELEN];	/* fs type name */ 
-	char		f_mntonname[MAXPATHLEN];	/* directory on which mounted */ 
-	char		f_mntfromname[MAXPATHLEN];	/* mounted filesystem */ 
+	uint32_t	f_bsize;	/* fundamental file system block size */
+	uint64_t	f_blocks;	/* total data blocks in file system */
+	uint64_t	f_bfree;	/* free blocks in fs */
+	uint64_t	f_bavail;	/* free blocks avail to non-superuser */
+	uint64_t	f_files;	/* total file nodes in file system */
+	uint64_t	f_ffree;	/* free file nodes in fs */
+	uint32_t	f_type;		/* type of filesystem */
+	uint32_t	f_flags;	/* copy of mount exported flags */
+	uint32_t	f_fssubtype;	/* fs sub-type (flavor) */
+	char		f_fstypename[MFSTYPENAMELEN];	/* fs type name */
+	char		f_mntonname[MAXPATHLEN]; /* dir on which mounted */
+	char		f_mntfromname[MAXPATHLEN];	/* mounted filesystem */
 };
 
 int statfs(const char *path, struct statfs *buf);

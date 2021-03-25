@@ -74,9 +74,10 @@ kstat_open(void)
 	kstat_ctl_t *kc;
 	HANDLE h;
 
-	h = CreateFile("\\\\.\\ZFS", GENERIC_READ | GENERIC_WRITE, // ZFSDEV - no includes
-		0, NULL, OPEN_EXISTING, 0, NULL);
-	if (h == INVALID_HANDLE_VALUE) 
+	// ZFSDEV - no includes
+	h = CreateFile("\\\\.\\ZFS", GENERIC_READ | GENERIC_WRITE,
+	    0, NULL, OPEN_EXISTING, 0, NULL);
+	if (h == INVALID_HANDLE_VALUE)
 		return (NULL);
 
 	kstat_zalloc((void **)&kc, sizeof (kstat_ctl_t), 0);
@@ -106,20 +107,20 @@ kstat_close(kstat_ctl_t *kc)
 	return (rc);
 }
 
-int kstat_ioctl(HANDLE hDevice, int request, kstat_t *ksp)
+int
+kstat_ioctl(HANDLE hDevice, int request, kstat_t *ksp)
 {
 	int error;
 	ULONG bytesReturned;
 
 	error = DeviceIoControl(hDevice,
-		(DWORD)request,
-		ksp,
-		(DWORD)sizeof(kstat_t),
-		ksp,
-		(DWORD)sizeof(kstat_t),
-		&bytesReturned,
-		NULL
-	);
+	    (DWORD)request,
+	    ksp,
+	    (DWORD)sizeof (kstat_t),
+	    ksp,
+	    (DWORD)sizeof (kstat_t),
+	    &bytesReturned,
+	    NULL);
 
 	// Windows: error from DeviceIoControl() is unlikely
 	if (error == 0) {
@@ -131,7 +132,7 @@ int kstat_ioctl(HANDLE hDevice, int request, kstat_t *ksp)
 		error = ksp->ks_returnvalue;
 	}
 
-	return error;
+	return (error);
 }
 
 kid_t
@@ -144,7 +145,8 @@ kstat_read(kstat_ctl_t *kc, kstat_t *ksp, void *data)
 		if (ksp->ks_data == NULL)
 			return (-1);
 	}
-	while ((kcid = (kid_t)kstat_ioctl(kc->kc_kd, KSTAT_IOC_READ, ksp)) == -1) {
+	while ((kcid =
+	    (kid_t)kstat_ioctl(kc->kc_kd, KSTAT_IOC_READ, ksp)) == -1) {
 			if (errno == EAGAIN) {
 			(void) usleep(100);	/* back off a moment */
 			continue;			/* and try again */
@@ -234,7 +236,8 @@ kstat_write(kstat_ctl_t *kc, kstat_t *ksp, void *data)
 		}
 
 	}
-	while ((kcid = (kid_t)kstat_ioctl(kc->kc_kd, KSTAT_IOC_WRITE, ksp)) == -1) {
+	while ((kcid =
+	    (kid_t)kstat_ioctl(kc->kc_kd, KSTAT_IOC_WRITE, ksp)) == -1) {
 		if (errno == EAGAIN) {
 			(void) usleep(100);	/* back off a moment */
 			continue;			/* and try again */

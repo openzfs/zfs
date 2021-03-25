@@ -1,29 +1,29 @@
 /*
-* CDDL HEADER START
-*
-* The contents of this file are subject to the terms of the
-* Common Development and Distribution License (the "License").
-* You may not use this file except in compliance with the License.
-*
-* You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
-* or http://www.opensolaris.org/os/licensing.
-* See the License for the specific language governing permissions
-* and limitations under the License.
-*
-* When distributing Covered Code, include this CDDL HEADER in each
-* file and include the License file at usr/src/OPENSOLARIS.LICENSE.
-* If applicable, add the following below this CDDL HEADER, with the
-* fields enclosed by brackets "[]" replaced with your own identifying
-* information: Portions Copyright [yyyy] [name of copyright owner]
-*
-* CDDL HEADER END
-*/
+ * CDDL HEADER START
+ *
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ */
 
 /*
-*
-* Copyright (C) 2017 Jorgen Lundman <lundman@lundman.net>
-*
-*/
+ *
+ * Copyright (C) 2017 Jorgen Lundman <lundman@lundman.net>
+ *
+ */
 
 #ifndef WINDOWS_MUTEX_H
 #define	WINDOWS_MUTEX_H
@@ -51,10 +51,10 @@
 
 
 typedef enum {
-    MUTEX_ADAPTIVE = 0,     /* spin if owner is running, otherwise block */
-    MUTEX_SPIN = 1,         /* block interrupts and spin */
-    MUTEX_DRIVER = 4,       /* driver (DDI) mutex */
-    MUTEX_DEFAULT = 6       /* kernel default mutex */
+	MUTEX_ADAPTIVE = 0,	/* spin if owner is running, otherwise block */
+	MUTEX_SPIN = 1,		/* block interrupts and spin */
+	MUTEX_DRIVER = 4,	/* driver (DDI) mutex */
+	MUTEX_DEFAULT = 6	/* kernel default mutex */
 } kmutex_type_t;
 
 typedef struct {
@@ -70,23 +70,22 @@ typedef struct {
  */
 
 typedef struct kmutex {
-	mutex_t m_lock;
-	void           *m_owner;
-	unsigned int initialised;
-	unsigned int set_event_guard;
+	mutex_t		m_lock;
+	void		*m_owner;
+	unsigned int	m_set_event_guard;
+	unsigned int	m_initialised;
 } kmutex_t;
 
+#define	MUTEX_HELD(x)		(mutex_owned(x))
+#define	MUTEX_NOT_HELD(x)	(!mutex_owned(x))
 
-#define MUTEX_HELD(x)           (mutex_owned(x))
-#define MUTEX_NOT_HELD(x)       (!mutex_owned(x))
-
-#define mutex_init spl_mutex_init
+#define	mutex_init spl_mutex_init
 void spl_mutex_init(kmutex_t *mp, char *name, kmutex_type_t type, void *ibc);
 
-#define mutex_enter spl_mutex_enter
+#define	mutex_enter spl_mutex_enter
 void spl_mutex_enter(kmutex_t *mp);
 
-#define mutex_enter_nested(A, B)        mutex_enter(A)
+#define	mutex_enter_nested(A, B)	mutex_enter(A)
 #define	MUTEX_NOLOCKDEP	0
 
 #define	mutex_destroy spl_mutex_destroy

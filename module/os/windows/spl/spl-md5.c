@@ -43,7 +43,6 @@
 #include <sys/types.h>
 #include <sys/md5.h>
 #include <sys/md5_consts.h>	/* MD5_CONST() optimization */
-//#include "md5_byteswap.h"
 #if	!defined(_KERNEL) || defined(_BOOT)
 #include <strings.h>
 #endif /* !_KERNEL || _BOOT */
@@ -521,7 +520,7 @@ MD5Transform(uint32_t a, uint32_t b, uint32_t c, uint32_t d,
 		/* LINTED E_BAD_PTR_CAST_ALIGN */
 		x_0  = LOAD_LITTLE_32_0(block);
 #else
-#define LOAD_LITTLE_32(addr)    (*(uint32_t *)(void *)(addr))
+#define	LOAD_LITTLE_32(addr)    (*(uint32_t *)(void *)(addr))
 		x_15 = LOAD_LITTLE_32(block + 60);
 		x_14 = LOAD_LITTLE_32(block + 56);
 		x_13 = LOAD_LITTLE_32(block + 52);
@@ -638,7 +637,7 @@ MD5Transform(uint32_t a, uint32_t b, uint32_t c, uint32_t d,
  */
 
 static void
-Encode(uint8_t * output, const uint32_t * input,
+Encode(uint8_t *output, const uint32_t *input,
     size_t input_len)
 {
 	size_t		i, j;

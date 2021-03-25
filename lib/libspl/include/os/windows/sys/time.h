@@ -77,27 +77,27 @@ typedef struct timespec	inode_timespec_t;
 #if 0
 #ifndef _WINSOCK2API_
 struct timeval {
-	long	tv_sec;         /* seconds */
-	long	tv_usec;        /* and microseconds */
+	long	tv_sec;		/* seconds */
+	long	tv_usec;	/* and microseconds */
 };
 #endif
 #endif
 
 typedef enum clock_type {
-	__CLOCK_REALTIME0 =     0,      /* obsolete; same as CLOCK_REALTIME */
-	CLOCK_VIRTUAL =         1,      /* thread's user-level CPU clock */
-	CLOCK_THREAD_CPUTIME_ID = 2,    /* thread's user+system CPU clock */
-	CLOCK_REALTIME =        3,      /* wall clock */
-	CLOCK_MONOTONIC =       4,      /* high resolution monotonic clock */
-	CLOCK_PROCESS_CPUTIME_ID = 5,   /* process's user+system CPU clock */
-	CLOCK_HIGHRES =         CLOCK_MONOTONIC,         /* alternate name */
-	CLOCK_PROF =            CLOCK_THREAD_CPUTIME_ID, /* alternate name */
+	__CLOCK_REALTIME0 =	0, /* obsolete; same as CLOCK_REALTIME */
+	CLOCK_VIRTUAL =		1, /* thread's user-level CPU clock */
+	CLOCK_THREAD_CPUTIME_ID = 2, /* thread's user+system CPU clock */
+	CLOCK_REALTIME =	3, /* wall clock */
+	CLOCK_MONOTONIC =	4, /* high resolution monotonic clock */
+	CLOCK_PROCESS_CPUTIME_ID = 5, /* process's user+system CPU clock */
+	CLOCK_HIGHRES =		CLOCK_MONOTONIC, /* alternate name */
+	CLOCK_PROF = 		CLOCK_THREAD_CPUTIME_ID, /* alternate name */
 } clock_type_t;
 
 extern void gethrestime(timestruc_t *);
 
 const char *win_ctime_r(char *buffer, size_t bufsize, time_t cur_time);
-#define ctime_r(CLOCK, STR) win_ctime_r((STR), sizeof((STR)), (CLOCK))
+#define	ctime_r(CLOCK, STR) win_ctime_r((STR), sizeof ((STR)), (CLOCK))
 
 struct tm *localtime_r(const time_t *clock, struct tm *result);
 

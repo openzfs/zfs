@@ -50,7 +50,6 @@ typedef unsigned long long u_longlong_t;
 typedef signed char int8_t;
 typedef unsigned char uint8_t;
 typedef unsigned char uchar_t;
-typedef unsigned int u_int;
 
 typedef longlong_t	offset_t;
 typedef u_longlong_t	u_offset_t;
@@ -96,15 +95,15 @@ typedef uint32_t dev_t;
 
 typedef int64_t ssize_t;
 
-#define F_OK 0
-#define W_OK 2
-#define R_OK 4
+#define	F_OK 0
+#define	W_OK 2
+#define	R_OK 4
 
 
 /* MAXPATHLEN need to match between kernel and userland. MAX_PATH is only 260 */
-//#define MAXPATHLEN MAX_PATH
-#define MAXPATHLEN      1024
-#define PATH_MAX  MAX_PATH
+// #define	MAXPATHLEN MAX_PATH
+#define	MAXPATHLEN 1024
+#define	PATH_MAX MAX_PATH
 
 typedef struct timespec			timestruc_t; /* definition per SVr4 */
 typedef struct timespec			timespec_t;
@@ -138,20 +137,20 @@ typedef union {
 #define	ENOTBLK	15	/* Block device required		*/
 #define	EDQUOT	49	/* Disc quota exceeded			*/
 #define	EBADE	50	/* invalid exchange			*/
-#define ESHUTDOWN       58              /* Can't send after socket shutdown */
-#define ESTALE          70              /* Stale NFS file handle */
+#define	ESHUTDOWN 58 /* Can't send after socket shutdown */
+#define	ESTALE 70   /* Stale NFS file handle */
 
-#define ENOTACTIVE 142
-#define ECHRNG 143
-#define EREMOTEIO 144
+#define	ENOTACTIVE 142
+#define	ECHRNG 143
+#define	EREMOTEIO 144
 
-#define O_SHLOCK 0
+#define	O_SHLOCK 0
 
 
 // #ifdef _MSC_VER
 #ifndef __clang__
 
-#define INT_MAX 2147483647
+#define	INT_MAX 2147483647
 
 #define	DBL_DIG		15
 #define	DBL_MAX		1.7976931348623157081452E+308
@@ -162,49 +161,49 @@ typedef union {
 #define	FLT_MIN		1.1754943508222875079688E-38F
 #endif
 
-#define STDIN_FILENO  HTOI(GetStdHandle(STD_INPUT_HANDLE))
-#define STDOUT_FILENO HTOI(GetStdHandle(STD_OUTPUT_HANDLE))
-#define STDERR_FILENO HTOI(GetStdHandle(STD_ERROR_HANDLE))
-#define O_EXLOCK 0
+#define	STDIN_FILENO  HTOI(GetStdHandle(STD_INPUT_HANDLE))
+#define	STDOUT_FILENO HTOI(GetStdHandle(STD_OUTPUT_HANDLE))
+#define	STDERR_FILENO HTOI(GetStdHandle(STD_ERROR_HANDLE))
+#define	O_EXLOCK 0
 
-#define bzero(b,len) (memset((b), '\0', (len)))
-#define bcopy(b1,b2,len) (memmove((b2), (b1), (len)))
-#define bcmp(b1, b2, len) (memcmp((b2), (b1), (len)))
+#define	bzero(b, len) (memset((b), '\0', (len)))
+#define	bcopy(b1, b2, len) (memmove((b2), (b1), (len)))
+#define	bcmp(b1, b2, len) (memcmp((b2), (b1), (len)))
 
-#define alloca _alloca
-#define posix_memalign_free _aligned_free
+#define	alloca _alloca
+#define	posix_memalign_free _aligned_free
 int posix_memalign(void **memptr, size_t alignment, size_t size);
 
 #ifndef MIN
-#define MIN(a, b)  (((a) < (b)) ? (a) : (b)) 
+#define	MIN(a, b)  (((a) < (b)) ? (a) : (b))
 #endif
 
-#define sleep(x) Sleep(x * 1000)
+#define	sleep(x) Sleep(x * 1000)
 
-#define lstat _stat64
-#define unlink _unlink
-#define strdup _strdup
+#define	lstat _stat64
+#define	unlink _unlink
+#define	strdup _strdup
 
-#define MFSTYPENAMELEN  16
-#define MNAMELEN        MAXPATHLEN
+#define	MFSTYPENAMELEN  16
+#define	MNAMELEN MAXPATHLEN
 
-#define roundup(x, y)         ((((x) + ((y) - 1)) / (y)) * (y))
-#define howmany(x, y)   ((((x) % (y)) == 0) ? ((x) / (y)) : (((x) / (y)) + 1))
+#define	roundup(x, y) ((((x) + ((y) - 1)) / (y)) * (y))
+#define	howmany(x, y) ((((x) % (y)) == 0) ? ((x) / (y)) : (((x) / (y)) + 1))
 
-#define RLIMIT_NOFILE   8               /* number of open files */
+#define	RLIMIT_NOFILE 8 /* number of open files */
 typedef uint64_t	rlim_t;
 struct rlimit {
-	rlim_t  rlim_cur;       /* current (soft) limit */
-	rlim_t  rlim_max;       /* hard limit */
+	rlim_t  rlim_cur; /* current (soft) limit */
+	rlim_t  rlim_max; /* hard limit */
 };
 
-#define _Atomic
+#define	_Atomic
 
 #ifndef SIGTSTP
-#define SIGTSTP 0
+#define	SIGTSTP 0
 #endif
 
-#define strcasecmp _stricmp
+#define	strcasecmp _stricmp
 
 int nanosleep(const struct timespec *rqtp, struct timespec *rmtp);
 
@@ -222,7 +221,7 @@ int nanosleep(const struct timespec *rqtp, struct timespec *rmtp);
 /* Windows defines off_t as "long" and functions take it as parameter. */
 #include <sys/stat.h>
 typedef uint64_t zoff_t;
-#define off_t zoff_t
+#define	off_t zoff_t
 
 
 /* Now replace POSIX calls with our versions. */

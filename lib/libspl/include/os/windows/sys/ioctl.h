@@ -26,4 +26,3 @@
 #include <termios.h>
 
 #endif /* _LIBSPL_SYS_STAT_H */
-

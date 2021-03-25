@@ -124,7 +124,8 @@ int
 zfs_version_kernel(char *version, int len)
 {
 	HKEY hKey; // SYSTEM\ControlSet001\Services\ZFSin
-	LSTATUS status = RegOpenKeyExA(HKEY_LOCAL_MACHINE, "SYSTEM\\ControlSet001\\Services\\ZFSin", 0, KEY_READ, &hKey);
+	LSTATUS status = RegOpenKeyExA(HKEY_LOCAL_MACHINE,
+	    "SYSTEM\\ControlSet001\\Services\\ZFSin", 0, KEY_READ, &hKey);
 
 	if (status != ERROR_SUCCESS)
 		return (-1);
@@ -277,8 +278,8 @@ libzfs_set_pipe_max(int infd)
 }
 
 int
-libzfs_run_process_impl(const char* path, char* argv[], char* env[], int flags,
-    char** lines[], int* lines_cnt)
+libzfs_run_process_impl(const char *path, char *argv[], char *env[],
+    int flags, char **lines[], int *lines_cnt)
 {
 	return (0);
 }

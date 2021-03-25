@@ -18,9 +18,9 @@
  *
  * CDDL HEADER END
  *
- *****************************************************************************
+ * ***************************************************************************
  *  Solaris Porting Layer (SPL) Atomic Implementation.
- *****************************************************************************
+ * ***************************************************************************
  */
 
 /*
@@ -30,24 +30,17 @@
  */
 
 #include <sys/atomic.h>
-//#include <sys/kernel.h>
-
-
-//#include <sys/cdefs.h>
 #include <sys/param.h>
-//#include <sys/lock.h>
 #include <sys/mutex.h>
 
 
 #ifdef _KERNEL
 
-/* nothing */
-
-
-void *atomic_cas_ptr(volatile void *_target, void *_cmp, void *_new)
+void *
+atomic_cas_ptr(volatile void *_target, void *_cmp, void *_new)
 {
-	return InterlockedCompareExchangePointer((volatile PVOID *)_target, _new, _cmp);
+	return (InterlockedCompareExchangePointer((volatile PVOID *)_target,
+	    _new, _cmp));
 }
-
 
 #endif

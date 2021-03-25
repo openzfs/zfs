@@ -24,7 +24,7 @@
 #ifndef	_SPL_CONSOLE_H
 #define	_SPL_CONSOLE_H
 
-#define	console_vprintf(...)	
+#define	console_vprintf(...)
 #define	console_printf(...)
 
 #endif /* _SPL_CONSOLE_H */

@@ -1,29 +1,29 @@
 /*
-* CDDL HEADER START
-*
-* The contents of this file are subject to the terms of the
-* Common Development and Distribution License, Version 1.0 only
-* (the "License").  You may not use this file except in compliance
-* with the License.
-*
-* You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
-* or http://www.opensolaris.org/os/licensing.
-* See the License for the specific language governing permissions
-* and limitations under the License.
-*
-* When distributing Covered Code, include this CDDL HEADER in each
-* file and include the License file at usr/src/OPENSOLARIS.LICENSE.
-* If applicable, add the following below this CDDL HEADER, with the
-* fields enclosed by brackets "[]" replaced with your own identifying
-* information: Portions Copyright [yyyy] [name of copyright owner]
-*
-* CDDL HEADER END
-*/
+ * CDDL HEADER START
+ *
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License, Version 1.0 only
+ * (the "License").  You may not use this file except in compliance
+ * with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ */
 /*
-* Copyright (c) 2017 Jorgen Lundman <lundman@lundman.net.  All rights reserved.
-*/
-#define _LARGEFILE64_SOURCE
-#define _FILE_OFFSET_BITS 64
+ * Copyright (c) 2017 Jorgen Lundman <lundman@lundman.net.
+ */
+#define	_LARGEFILE64_SOURCE
+#define	_FILE_OFFSET_BITS 64
 #include <WinSock2.h>
 #include <sys/types.h>
 #include <sys/types32.h>
@@ -43,7 +43,8 @@
 
 #pragma comment(lib, "ws2_32.lib")
 
-void clock_gettime(clock_type_t t, struct timespec *ts)
+void
+clock_gettime(clock_type_t t, struct timespec *ts)
 {
 	LARGE_INTEGER time;
 	LARGE_INTEGER frequency;
@@ -62,7 +63,7 @@ void clock_gettime(clock_type_t t, struct timespec *ts)
 		GetSystemTimeAsFileTime(&ft);
 		time.LowPart = ft.dwLowDateTime;
 		time.HighPart = ft.dwHighDateTime;
-		time.QuadPart -= 116444736000000000; 
+		time.QuadPart -= 116444736000000000;
 		ts->tv_sec = (long)(time.QuadPart / 10000000UL);
 		ts->tv_nsec = 100*(long)(time.QuadPart % 10000000UL);
 		break;
@@ -96,45 +97,50 @@ gethrtime(void)
 	return ((((uint64_t)ts.tv_sec) * NANOSEC) + ts.tv_nsec);
 }
 
-int posix_memalign(void **memptr, size_t alignment, size_t size)
+int
+posix_memalign(void **memptr, size_t alignment, size_t size)
 {
 	void *ptr;
 	ptr = _aligned_malloc(size, alignment);
 	if (ptr == NULL)
-		return ENOMEM;
+		return (ENOMEM);
 	*memptr = ptr;
-	return 0;
+	return (0);
 }
 
-const char *getexecname(void)
+const char *
+getexecname(void)
 {
 	__declspec(thread) static char execname[32767 + 1];
-	GetModuleFileNameA(NULL, execname, sizeof(execname));
-	return execname;
+	GetModuleFileNameA(NULL, execname, sizeof (execname));
+	return (execname);
 }
 
-struct passwd *getpwnam(const char *login)
+struct passwd *
+getpwnam(const char *login)
 {
-	return NULL;
+	return (NULL);
 }
 
-struct passwd *getgrnam(const char *group)
+struct passwd *
+getgrnam(const char *group)
 {
-	return NULL;
+	return (NULL);
 }
 
-struct tm *localtime_r(const time_t *clock, struct tm *result)
+struct tm *
+localtime_r(const time_t *clock, struct tm *result)
 {
 	if (localtime_s(result, clock) == 0)
-		return result;
+		return (result);
 	// To avoid the ASSERT and abort(), make tm be something valid
-	memset(result, 0, sizeof(*result));
+	memset(result, 0, sizeof (*result));
 	result->tm_mday = 1;
-	return NULL;
+	return (NULL);
 }
 
 char *
-strsep(char **stringp, const char *delim) 
+strsep(char **stringp, const char *delim)
 {
 	char *s;
 	const char *spanp;
@@ -143,7 +149,7 @@ strsep(char **stringp, const char *delim)
 
 	if ((s = *stringp) == NULL)
 		return (NULL);
-	for (tok = s;;) {
+	for (tok = s; /* empty */; ) {
 		c = *s++;
 		spanp = delim;
 		do {
@@ -160,7 +166,8 @@ strsep(char **stringp, const char *delim)
 	/* NOTREACHED */
 }
 
-char *realpath(const char *file_name, char *resolved_name)
+char *
+realpath(const char *file_name, char *resolved_name)
 {
 	DWORD ret;
 	// If resolved_name is NULL, we allocate space. Otherwise we assume
@@ -168,15 +175,16 @@ char *realpath(const char *file_name, char *resolved_name)
 	if (resolved_name == NULL)
 		resolved_name = malloc(PATH_MAX);
 	if (resolved_name == NULL)
-		return NULL;
+		return (NULL);
 	ret = GetFullPathName(file_name, PATH_MAX, resolved_name, NULL);
 	if (ret == 0)
-		return NULL;
+		return (NULL);
 
-	return resolved_name;
+	return (resolved_name);
 }
 
-int statfs(const char *path, struct statfs *buf)
+int
+statfs(const char *path, struct statfs *buf)
 {
 	ULARGE_INTEGER lpFreeBytesAvailable;
 	ULARGE_INTEGER lpTotalNumberOfBytes;
@@ -185,10 +193,10 @@ int statfs(const char *path, struct statfs *buf)
 
 #if 1
 	if (GetDiskFreeSpaceEx(path,
-		&lpFreeBytesAvailable,
-		&lpTotalNumberOfBytes,
-		&lpTotalNumberOfFreeBytes))
-		return -1;
+	    &lpFreeBytesAvailable,
+	    &lpTotalNumberOfBytes,
+	    &lpTotalNumberOfFreeBytes))
+		return (-1);
 #endif
 
 	DISK_GEOMETRY_EX geometry_ex;
@@ -198,8 +206,8 @@ int statfs(const char *path, struct statfs *buf)
 	int fd = open(path, O_RDONLY | O_BINARY);
 	handle = (HANDLE) _get_osfhandle(fd);
 	if (!DeviceIoControl(handle, IOCTL_DISK_GET_DRIVE_GEOMETRY_EX, NULL, 0,
-		&geometry_ex, sizeof(geometry_ex), &len, NULL))
-		return -1;
+	    &geometry_ex, sizeof (geometry_ex), &len, NULL))
+		return (-1);
 	close(fd);
 	lbsize = (uint_t)geometry_ex.Geometry.BytesPerSector;
 
@@ -212,7 +220,7 @@ int statfs(const char *path, struct statfs *buf)
 	strcpy(buf->f_mntonname, "fixme_to");
 	strcpy(buf->f_mntfromname, "fixme_from");
 
-	return 0;
+	return (0);
 }
 
 
@@ -229,7 +237,7 @@ mkstemp(char *tmpl)
 	int fd = -1;
 	int save_errno = errno;
 
-#define ATTEMPTS_MIN (62 * 62 * 62)
+#define	ATTEMPTS_MIN (62 * 62 * 62)
 
 #if ATTEMPTS_MIN < TMP_MAX
 	unsigned int attempts = TMP_MAX;
@@ -238,34 +246,32 @@ mkstemp(char *tmpl)
 #endif
 
 	len = strlen(tmpl);
-	if (len < 6 || strcmp(&tmpl[len - 6], "XXXXXX"))
-	{
+	if (len < 6 || strcmp(&tmpl[len - 6], "XXXXXX")) {
 		errno = EINVAL;
-		return -1;
+		return (-1);
 	}
 
 	XXXXXX = &tmpl[len - 6];
 
 	{
-		SYSTEMTIME      stNow;
+		SYSTEMTIME stNow;
 		FILETIME ftNow;
 
 		// get system time
 		GetSystemTime(&stNow);
 		stNow.wMilliseconds = 500;
-		if (!SystemTimeToFileTime(&stNow, &ftNow))
-		{
+		if (!SystemTimeToFileTime(&stNow, &ftNow)) {
 			errno = -1;
-			return -1;
+			return (-1);
 		}
 
-		random_time_bits = (((unsigned long long)ftNow.dwHighDateTime << 32)
-			| (unsigned long long)ftNow.dwLowDateTime);
+		random_time_bits =
+		    (((unsigned long long)ftNow.dwHighDateTime << 32) |
+		    (unsigned long long)ftNow.dwLowDateTime);
 	}
 	value += random_time_bits ^ (unsigned long long)GetCurrentThreadId();
 
-	for (count = 0; count < attempts; value += 7777, ++count)
-	{
+	for (count = 0; count < attempts; value += 7777, ++count) {
 		unsigned long long v = value;
 
 		/* Fill in the random bits.  */
@@ -281,38 +287,39 @@ mkstemp(char *tmpl)
 		v /= 62;
 		XXXXXX[5] = letters[v % 62];
 
-		fd = open(tmpl, O_RDWR | O_CREAT | O_EXCL, _S_IREAD | _S_IWRITE);
-		if (fd >= 0)
-		{
+		fd = open(tmpl,
+		    O_RDWR | O_CREAT | O_EXCL, _S_IREAD | _S_IWRITE);
+		if (fd >= 0) {
 			errno = save_errno;
-			return fd;
-		}
-		else if (errno != EEXIST)
-			return -1;
+			return (fd);
+		} else if (errno != EEXIST)
+			return (-1);
 	}
 
 	/* We got out of the loop because we ran out of combinations to try.  */
 	errno = EEXIST;
-	return -1;
+	return (-1);
 }
 
-int readlink(const char *path, char *buf, size_t bufsize)
+int
+readlink(const char *path, char *buf, size_t bufsize)
 {
-	return -1;
+	return (-1);
 }
 
-int usleep(__int64 usec)
+int
+usleep(__int64 usec)
 {
 	HANDLE timer;
 	LARGE_INTEGER ft;
 
-	ft.QuadPart = -(10 * usec); // Convert to 100 nanosecond interval, negative value indicates relative time
+	ft.QuadPart = -(10 * usec);
 
 	timer = CreateWaitableTimer(NULL, TRUE, NULL);
 	SetWaitableTimer(timer, &ft, 0, NULL, NULL, 0);
 	WaitForSingleObject(timer, INFINITE);
 	CloseHandle(timer);
-	return 0;
+	return (0);
 }
 
 int
@@ -327,42 +334,42 @@ nanosleep(const struct timespec *rqtp, struct timespec *rmtp)
 	li.QuadPart = -((SEC2NSEC(rqtp->tv_sec) + rqtp->tv_nsec) / 100ULL);
 
 	if (!(timer = CreateWaitableTimer(NULL, TRUE, NULL)))
-		return FALSE;
+		return (FALSE);
 
 	/* Set timer properties */
 	if (!SetWaitableTimer(timer, &li, 0, NULL, NULL, FALSE)) {
 		CloseHandle(timer);
-		return FALSE;
+		return (FALSE);
 	}
 	/* Start & wait for timer */
 	WaitForSingleObject(timer, INFINITE);
 	/* Clean resources */
 	CloseHandle(timer);
 	/* Slept without problems */
-	return 0;
+	return (0);
 }
 
-int strncasecmp(const char *s1, const char *s2, size_t n)
+int
+strncasecmp(const char *s1, const char *s2, size_t n)
 {
 	if (n == 0)
-		return 0;
+		return (0);
 
-	while (n-- != 0 && tolower(*s1) == tolower(*s2))
-	{
+	while (n-- != 0 && tolower(*s1) == tolower(*s2)) {
 		if (n == 0 || *s1 == '\0' || *s2 == '\0')
 			break;
 		s1++;
 		s2++;
 	}
 
-	return tolower(*(unsigned char *)s1) - tolower(*(unsigned char *)s2);
+	return (tolower(*(unsigned char *)s1) - tolower(*(unsigned char *)s2));
 }
 
-#define DIRNAME         0
-#define BASENAME        1
+#define	DIRNAME		0
+#define	BASENAME	1
 
-#define M_FSDELIM(c)    ((c)=='/'||(c)=='\\')
-#define M_DRDELIM(c)    (0)
+#define	M_FSDELIM(c)	((c) == '/' || (c) == '\\')
+#define	M_DRDELIM(c)	(0)
 
 static char curdir[] = ".";
 static char *
@@ -371,10 +378,9 @@ basedir(char *arg, int type)
 	register char *cp, *path;
 
 	if (arg == (char *)0 || *arg == '\0' ||
-		(*arg == '.' && (arg[1] == '\0' ||
-		(type == DIRNAME && arg[1] == '.' && arg[2] == '\0'))))
-
-		return curdir;  /* arg NULL, empty, ".", or ".." in DIRNAME */
+	    (*arg == '.' && (arg[1] == '\0' ||
+	    (type == DIRNAME && arg[1] == '.' && arg[2] == '\0'))))
+		return (curdir);  /* arg NULL, empty, ".", or ".." in DIRNAME */
 
 	if (M_DRDELIM(arg[1]))  /* drive-specified pathnames */
 		path = arg + 2;
@@ -382,7 +388,7 @@ basedir(char *arg, int type)
 		path = arg;
 
 	if (path[1] == '\0'&&M_FSDELIM(*path))    /* "/", or drive analog */
-		return arg;
+		return (arg);
 
 	cp = strchr(path, '\0');
 	cp--;
@@ -390,41 +396,40 @@ basedir(char *arg, int type)
 	while (cp != path && M_FSDELIM(*cp))
 		*(cp--) = '\0';
 
-	for (;cp>path && !M_FSDELIM(*cp); cp--)
+	for (; cp > path && !M_FSDELIM(*cp); cp--)
 		;
 
 	if (!M_FSDELIM(*cp))
 		if (type == DIRNAME && path != arg) {
 			*path = '\0';
-			return arg;     /* curdir on the specified drive */
-		}
-		else
-			return (type == DIRNAME) ? curdir : path;
+			return (arg); /* curdir on the specified drive */
+		} else
+			return ((type == DIRNAME) ? curdir : path);
 	else if (cp == path && type == DIRNAME) {
 		cp[1] = '\0';
-		return arg;             /* root directory involved */
-	}
-	else if (cp == path && cp[1] == '\0')
-		return(arg);
+		return (arg); /* root directory involved */
+	} else if (cp == path && cp[1] == '\0')
+		return (arg);
 	else if (type == BASENAME)
-		return ++cp;
+		return (++cp);
 	*cp = '\0';
-	return arg;
+	return (arg);
 }
 
 char *
 dirname(char *arg)
 {
-	return(basedir(arg, DIRNAME));
+	return (basedir(arg, DIRNAME));
 }
 
 char *
 basename(char *arg)
 {
-	return(basedir(arg, BASENAME));
+	return (basedir(arg, BASENAME));
 }
 
-char* getIoctlAsString(int cmdNo) 
+char *
+getIoctlAsString(int cmdNo)
 {
 	switch (cmdNo) {
 		case 0x800: return "ZFS_IOC_FIRST";
@@ -522,7 +527,8 @@ char* getIoctlAsString(int cmdNo)
 }
 
 
-int vasprintf(char **strp, const char *fmt, va_list ap)
+int
+vasprintf(char **strp, const char *fmt, va_list ap)
 {
 	int r = -1, size;
 
@@ -541,24 +547,27 @@ int vasprintf(char **strp, const char *fmt, va_list ap)
 		*strp = 0;
 	}
 
-	return(r);
+	return (r);
 }
 
 
-int asprintf(char **strp, const char *fmt, ...)
+int
+asprintf(char **strp, const char *fmt, ...)
 {
 	int r;
 	va_list ap;
 	va_start(ap, fmt);
 	r = vasprintf(strp, fmt, ap);
 	va_end(ap);
-	return(r);
+	return (r);
 }
 
 
-int gettimeofday(struct timeval *tp, struct timezone *tzp)
+int
+gettimeofday(struct timeval *tp, struct timezone *tzp)
 {
-	// Note: some broken versions only have 8 trailing zero's, the correct epoch has 9 trailing zero's
+	// Note: some broken versions only have 8 trailing zero's,
+	// the correct epoch has 9 trailing zero's
 	static const uint64_t EPOCH = ((uint64_t)116444736000000000ULL);
 
 	SYSTEMTIME  system_time;
@@ -572,19 +581,22 @@ int gettimeofday(struct timeval *tp, struct timezone *tzp)
 
 	tp->tv_sec = (long)((time - EPOCH) / 10000000L);
 	tp->tv_usec = (long)(system_time.wMilliseconds * 1000);
-	return 0;
+	return (0);
 }
 
 
-void flockfile(FILE *file)
+void
+flockfile(FILE *file)
 {
 }
 
-void funlockfile(FILE *file)
+void
+funlockfile(FILE *file)
 {
 }
 
-unsigned long gethostid(void)
+unsigned long
+gethostid(void)
 {
 	LSTATUS Status;
 	unsigned long hostid = 0UL;
@@ -592,13 +604,15 @@ unsigned long gethostid(void)
 	DWORD type;
 	DWORD len;
 
-	Status = RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SYSTEM\\ControlSet001\\Services\\ZFSin",
-		0, KEY_READ, &key);
+	Status = RegOpenKeyEx(HKEY_LOCAL_MACHINE,
+	    "SYSTEM\\ControlSet001\\Services\\ZFSin",
+	    0, KEY_READ, &key);
 	if (Status != ERROR_SUCCESS)
-		return 0UL;
+		return (0UL);
 
-	len = sizeof(hostid);
-	Status = RegQueryValueEx(key, "hostid", NULL, &type, (LPBYTE)&hostid, &len);
+	len = sizeof (hostid);
+	Status = RegQueryValueEx(key, "hostid", NULL, &type,
+	    (LPBYTE)&hostid, &len);
 	if (Status != ERROR_SUCCESS)
 		hostid = 0;
 
@@ -609,51 +623,55 @@ unsigned long gethostid(void)
 	return (hostid & 0xffffffff);
 }
 
-uid_t geteuid(void)
+uid_t
+geteuid(void)
 {
-	return 0; // woah, root?
+	return (0); // woah, root?
 }
 
-struct passwd *getpwuid(uid_t uid)
+struct passwd *
+getpwuid(uid_t uid)
 {
-	return NULL;
+	return (NULL);
 }
 
-const char *win_ctime_r(char *buffer, size_t bufsize, time_t cur_time)
+const char *
+win_ctime_r(char *buffer, size_t bufsize, time_t cur_time)
 {
 	errno_t e = ctime_s(buffer, bufsize, &cur_time);
-	return buffer;
+	return (buffer);
 }
 
-uint64_t GetFileDriveSize(HANDLE h)
+uint64_t
+GetFileDriveSize(HANDLE h)
 {
 	LARGE_INTEGER large;
 
 	if (GetFileSizeEx(h, &large))
-		return large.QuadPart;
+		return (large.QuadPart);
 
 	PARTITION_INFORMATION_EX partInfo;
 	DWORD retcount = 0;
 
 	if (DeviceIoControl(h,
-		IOCTL_DISK_GET_PARTITION_INFO_EX,
-		(LPVOID)NULL,
-		(DWORD)0,
-		(LPVOID)&partInfo,
-		sizeof(partInfo),
-		&retcount,
-		(LPOVERLAPPED)NULL)) {
-		return partInfo.PartitionLength.QuadPart;
+	    IOCTL_DISK_GET_PARTITION_INFO_EX,
+	    (LPVOID)NULL,
+	    (DWORD)0,
+	    (LPVOID)&partInfo,
+	    sizeof (partInfo),
+	    &retcount,
+	    (LPOVERLAPPED)NULL)) {
+		return (partInfo.PartitionLength.QuadPart);
 	}
 
 
 	DISK_GEOMETRY_EX geometry_ex;
 	DWORD len;
 	if (DeviceIoControl(h, IOCTL_DISK_GET_DRIVE_GEOMETRY_EX, NULL, 0,
-		&geometry_ex, sizeof(geometry_ex), &len, NULL))
-		return geometry_ex.DiskSize.QuadPart;
+	    &geometry_ex, sizeof (geometry_ex), &len, NULL))
+		return (geometry_ex.DiskSize.QuadPart);
 
-	return 0;
+	return (0);
 }
 
 
@@ -678,59 +696,54 @@ closelog(void)
 int
 pipe(int fildes[2])
 {
-	return wosix_socketpair(AF_UNIX, SOCK_STREAM, 0, fildes);
+	return (wosix_socketpair(AF_UNIX, SOCK_STREAM, 0, fildes));
 }
 
 struct group *
-	getgrgid(gid_t gid)
+getgrgid(gid_t gid)
 {
-	return NULL;
+	return (NULL);
 }
 
 int
 unmount(const char *dir, int flags)
 {
-	return -1;
+	return (-1);
 }
 
 extern size_t
-strlcpy(register char* s, register const char* t, register size_t n)
+strlcpy(register char *s, register const char *t, register size_t n)
 {
-	const char*     o = t;
+	const char *o = t;
 
 	if (n)
-		do
-		{
-			if (!--n)
-			{
+		do {
+			if (!--n) {
 				*s = 0;
 				break;
 			}
 		} while (*s++ = *t++);
 		if (!n)
-			while (*t++);
-		return t - o - 1;
+			while (*t++)
+				;
+		return (t - o - 1);
 }
 
 extern size_t
-strlcat(register char* s, register const char* t, register size_t n)
+strlcat(register char *s, register const char *t, register size_t n)
 {
 	register size_t m;
-	const char*     o = t;
+	const char *o = t;
 
-	if (m = n)
-	{
-		while (n && *s)
-		{
+	if (m = n) {
+		while (n && *s)	{
 			n--;
 			s++;
 		}
 		m -= n;
 		if (n)
-			do
-			{
-				if (!--n)
-				{
+			do {
+				if (!--n) {
 					*s = 0;
 					break;
 				}
@@ -739,37 +752,43 @@ strlcat(register char* s, register const char* t, register size_t n)
 			*s = 0;
 	}
 	if (!n)
-		while (*t++);
-	return (t - o) + m - 1;
+		while (*t++)
+			;
+	return ((t - o) + m - 1);
 }
 
-char *strndup(const char *src, size_t size)
+char *
+strndup(const char *src, size_t size)
 {
 	char *r = _strdup(src);
 	if (r) {
 		r[size] = 0;
 	}
-	return r;
+	return (r);
 }
 
-int setrlimit(int resource, const struct rlimit *rlp)
+int
+setrlimit(int resource, const struct rlimit *rlp)
 {
-	return 0;
+	return (0);
 }
 
-int tcgetattr(int fildes, struct termios *termios_p)
+int
+tcgetattr(int fildes, struct termios *termios_p)
 {
-	return 0;
+	return (0);
 }
 
-int tcsetattr(int fildes, int optional_actions,
-	const struct termios *termios_p)
+int
+tcsetattr(int fildes, int optional_actions,
+    const struct termios *termios_p)
 {
-	return 0;
+	return (0);
 }
 
 
-void console_echo(boolean_t willecho)
+void
+console_echo(boolean_t willecho)
 {
 	HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
 	int constype = isatty(hStdin);
@@ -795,9 +814,10 @@ void console_echo(boolean_t willecho)
 }
 
 // Not really getline, just used for password input in libzfs_crypto.c
-#define MAX_GETLINE 128
-ssize_t getline(char **linep, size_t* linecapp,
-	FILE *stream)
+#define	MAX_GETLINE 128
+ssize_t
+getline(char **linep, size_t *linecapp,
+    FILE *stream)
 {
 	static char getpassbuf[MAX_GETLINE + 1];
 	size_t i = 0;
@@ -805,20 +825,15 @@ ssize_t getline(char **linep, size_t* linecapp,
 	console_echo(FALSE);
 
 	int c;
-	for (;;)
-	{
+	for (;;) {
 		c = getc(stream);
-		if ((c == '\r') || (c == '\n'))
-		{
+		if ((c == '\r') || (c == '\n')) {
 			getpassbuf[i] = '\0';
 			break;
-		}
-		else if (i < MAX_GETLINE)
-		{
+		} else if (i < MAX_GETLINE) {
 			getpassbuf[i++] = c;
 		}
-		if (i >= MAX_GETLINE)
-		{
+		if (i >= MAX_GETLINE) {
 			getpassbuf[i] = '\0';
 			break;
 		}
@@ -829,21 +844,23 @@ ssize_t getline(char **linep, size_t* linecapp,
 
 	console_echo(TRUE);
 
-	return i;
+	return (i);
 }
 
 
 /* Windows POSIX wrappers */
 
 
-int wosix_fsync(int fd)
+int
+wosix_fsync(int fd)
 {
 	if (!FlushFileBuffers(ITOH(fd)))
-		return EIO;
-	return 0;
+		return (EIO);
+	return (0);
 }
 
-int wosix_open(const char *path, int oflag, ...)
+int
+wosix_open(const char *path, int oflag, ...)
 {
 	HANDLE h;
 	DWORD mode = GENERIC_READ; // RDONLY=0, WRONLY=1, RDWR=2;
@@ -861,7 +878,8 @@ int wosix_open(const char *path, int oflag, ...)
 		how = TRUNCATE_EXISTING;
 		break;
 	case (O_CREAT | O_EXCL):
-	case (O_CREAT | O_EXCL | O_TRUNC): // Only creating new implies starting from 0
+	case (O_CREAT | O_EXCL | O_TRUNC):
+		// Only creating new implies starting from 0
 		how = CREATE_NEW;
 		break;
 	case (O_CREAT | O_TRUNC):
@@ -882,7 +900,8 @@ int wosix_open(const char *path, int oflag, ...)
 	// "#offset#length#name" style, and try again. We let it fail first
 	// just in case someone names their file with a starting '#'.
 
-	h = CreateFile(path, mode, share, NULL, how, FILE_ATTRIBUTE_NORMAL, NULL);
+	h = CreateFile(path, mode, share, NULL, how, FILE_ATTRIBUTE_NORMAL,
+	    NULL);
 
 	if (h == INVALID_HANDLE_VALUE && path[0] == '#') {
 		char *end = NULL;
@@ -893,21 +912,22 @@ int wosix_open(const char *path, int oflag, ...)
 		len = strtoull(end, &end, 10);
 		while (end && *end == '#') end++;
 
-		h = CreateFile(end, mode, share, NULL, how, FILE_ATTRIBUTE_NORMAL, NULL);
+		h = CreateFile(end, mode, share, NULL, how,
+		    FILE_ATTRIBUTE_NORMAL, NULL);
 		if (h != INVALID_HANDLE_VALUE) {
 			// Upper layer probably handles this, but let's help
 			LARGE_INTEGER place;
 			place.QuadPart = offset;
 			SetFilePointerEx(h, place, NULL, FILE_BEGIN);
 		}
-
 	}
 
 	// Also handle "/dev/"
 	if (strncmp("/dev/", path, 5) == 0) {
 		char tmp[PATH_MAX];
-		snprintf(tmp, sizeof(tmp), "\\\\?\\%s", &path[5]);
-		h = CreateFile(tmp, mode, share, NULL, how, FILE_ATTRIBUTE_NORMAL, NULL);
+		snprintf(tmp, sizeof (tmp), "\\\\?\\%s", &path[5]);
+		h = CreateFile(tmp, mode, share, NULL, how,
+		    FILE_ATTRIBUTE_NORMAL, NULL);
 	}
 
 	// If we failed, translate error to posix
@@ -925,7 +945,7 @@ int wosix_open(const char *path, int oflag, ...)
 			errno = EEXIST;
 			break;
 		}
-		return -1;
+		return (-1);
 	}
 	return (HTOI(h));
 }
@@ -933,63 +953,72 @@ int wosix_open(const char *path, int oflag, ...)
 // Figure out when to call WSAStartup();
 static int posix_init_winsock = 0;
 
-int wosix_close(int fd)
+int
+wosix_close(int fd)
 {
 	HANDLE h = ITOH(fd);
 
 	// Use CloseHandle() for everything except sockets.
 	if ((GetFileType(h) == FILE_TYPE_REMOTE) &&
-		!GetNamedPipeInfo(h, NULL, NULL, NULL, NULL)) {
+	    !GetNamedPipeInfo(h, NULL, NULL, NULL, NULL)) {
 		int err;
 		err = closesocket((SOCKET)h);
-		return err;
+		return (err);
 	}
 
 	if (CloseHandle(h))
-		return 0;
-	return -1;
+		return (0);
+	return (-1);
 }
 
-int wosix_ioctl(int fd, unsigned long request, zfs_iocparm_t *wrap)
+int
+wosix_ioctl(int fd, unsigned long request, zfs_iocparm_t *wrap)
 {
 	int error;
 	ULONG bytesReturned;
 
 	error = DeviceIoControl(ITOH(fd),
-		(DWORD)request,
-		wrap,
-		(DWORD)sizeof(zfs_iocparm_t),
-		wrap,
-		(DWORD)sizeof(zfs_iocparm_t),
-		&bytesReturned,
-		NULL
-	);
+	    (DWORD)request,
+	    wrap,
+	    (DWORD)sizeof (zfs_iocparm_t),
+	    wrap,
+	    (DWORD)sizeof (zfs_iocparm_t),
+	    &bytesReturned,
+	    NULL);
 
 	if (error == 0)
 		error = GetLastError();
 	else
 		error = 0;
-	
+
 #ifdef DEBUG
-	fprintf(stderr, "    (ioctl 0x%x (%s) status %d bytes %ld)\n", (request & 0x2ffc) >> 2, getIoctlAsString((request & 0x2ffc) >> 2), error, bytesReturned); fflush(stderr);
+	fprintf(stderr,
+	    "    (ioctl 0x%x (%s) status %d bytes %ld)\n",
+	    (request & 0x2ffc) >> 2,
+	    getIoctlAsString((request & 0x2ffc) >> 2), error,
+	    bytesReturned);
+	fflush(stderr);
 #endif
 #if 0
 	for (int x = 0; x < 16; x++)
 		fprintf(stderr, "%02x ", ((unsigned char *)zc)[x]);
 	fprintf(stderr, "\n");
 	fflush(stderr);
-	fprintf(stderr, "returned ioctl on 0x%x (raw 0x%x) struct size %d in %p:%d out %p:%d\n",
-		(request & 0x2ffc) >> 2, request,
-		sizeof(zfs_cmd_t),
-		zc->zc_nvlist_src, zc->zc_nvlist_src_size,
-		zc->zc_nvlist_dst, zc->zc_nvlist_dst_size
-	); fflush(stderr);
+	fprintf(stderr,
+	    "returned ioctl on 0x%x (raw 0x%x) struct size %d in "
+	    "%p:%d out %p:%d\n",
+	    (request & 0x2ffc) >> 2, request,
+	    sizeof (zfs_cmd_t),
+	    zc->zc_nvlist_src, zc->zc_nvlist_src_size,
+	    zc->zc_nvlist_dst, zc->zc_nvlist_dst_size);
+	fflush(stderr);
 #endif
 	errno = error;
-	return error;
+	return (error);
 }
 
-uint64_t wosix_lseek(int fd, uint64_t offset, int seek)
+uint64_t
+wosix_lseek(int fd, uint64_t offset, int seek)
 {
 	LARGE_INTEGER LOFF, LNEW;
 	int type = FILE_BEGIN;
@@ -1007,43 +1036,45 @@ uint64_t wosix_lseek(int fd, uint64_t offset, int seek)
 		break;
 	}
 	if (!SetFilePointerEx(ITOH(fd), LOFF, &LNEW, type))
-		return -1;
-	return LNEW.QuadPart;
+		return (-1);
+	return (LNEW.QuadPart);
 }
 
-int wosix_read(int fd, void *data, uint32_t len)
+int
+wosix_read(int fd, void *data, uint32_t len)
 {
 	DWORD red;
 	OVERLAPPED ow = {0};
 
 	if (GetFileType(ITOH(fd)) == FILE_TYPE_PIPE) {
 		if (!ReadFile(ITOH(fd), data, len, &red, &ow))
-			return -1;
+			return (-1);
 	} else {
 		if (!ReadFile(ITOH(fd), data, len, &red, NULL))
-			return -1;
+			return (-1);
 	}
 
-	return red;
+	return (red);
 }
 
-int wosix_write(int fd, const void *data, uint32_t len)
+int
+wosix_write(int fd, const void *data, uint32_t len)
 {
 	DWORD wrote;
 	OVERLAPPED ow = { 0 };
 
 	if (GetFileType(ITOH(fd)) == FILE_TYPE_PIPE) {
 		if (!WriteFile(ITOH(fd), data, len, &wrote, &ow))
-			return -1;
+			return (-1);
 	} else {
 		if (!WriteFile(ITOH(fd), data, len, &wrote, NULL))
-			return -1;
+			return (-1);
 	}
-	return wrote;
+	return (wrote);
 }
 
-#define is_wprefix(s, prefix) \
-	(wcsncmp((s), (prefix), sizeof(prefix) / sizeof(WCHAR) - 1) == 0)
+#define	is_wprefix(s, prefix) \
+	(wcsncmp((s), (prefix), sizeof (prefix) / sizeof (WCHAR) - 1) == 0)
 
 // Parts by:
 // * Copyright(c) 2015 - 2017 K.Takata
@@ -1053,7 +1084,8 @@ int wosix_write(int fd, const void *data, uint32_t len)
 // Extend isatty() slightly to return 1 for DOS Console, or
 // 2 for cygwin/mingw - as we will have to do different things
 // for NOECHO etc.
-int wosix_isatty(int fd)
+int
+wosix_isatty(int fd)
 {
 	DWORD mode;
 	HANDLE h = ITOH(fd);
@@ -1063,29 +1095,33 @@ int wosix_isatty(int fd)
 	// If not, check for cygwin ...
 	// check for mingw ...
 	// check for powershell ...
-	if (GetConsoleMode(h, &mode)) return 1;
+	if (GetConsoleMode(h, &mode))
+		return (1);
 
 	// Not CMDbox, check mingw
 	if (GetFileType(h) == FILE_TYPE_PIPE) {
 
-		int size = sizeof(FILE_NAME_INFO) + sizeof(WCHAR) * (MAX_PATH - 1);
+		int size = sizeof (FILE_NAME_INFO) +
+		    sizeof (WCHAR) * (MAX_PATH - 1);
 		FILE_NAME_INFO* nameinfo;
 		WCHAR* p = NULL;
 
-		nameinfo = malloc(size + sizeof(WCHAR));
+		nameinfo = malloc(size + sizeof (WCHAR));
 		if (nameinfo != NULL) {
-			if (GetFileInformationByHandleEx(h, FileNameInfo, nameinfo, size)) {
-				nameinfo->FileName[nameinfo->FileNameLength / sizeof(WCHAR)] = L'\0';
+			if (GetFileInformationByHandleEx(h, FileNameInfo,
+			    nameinfo, size)) {
+				nameinfo->FileName[nameinfo->FileNameLength /
+				    sizeof (WCHAR)] = L'\0';
 				p = nameinfo->FileName;
-				if (is_wprefix(p, L"\\cygwin-")) {      /* Cygwin */
+				if (is_wprefix(p, L"\\cygwin-")) {
 					p += 8;
-				} else if (is_wprefix(p, L"\\msys-")) { /* MSYS and MSYS2 */
+				} else if (is_wprefix(p, L"\\msys-")) {
 					p += 6;
 				} else {
 					p = NULL;
 				}
 				if (p != NULL) {
-					while (*p && isxdigit(*p))  /* Skip 16-digit hexadecimal. */
+					while (*p && isxdigit(*p))
 						++p;
 					if (is_wprefix(p, L"-pty")) {
 						p += 4;
@@ -1094,12 +1130,13 @@ int wosix_isatty(int fd)
 					}
 				}
 				if (p != NULL) {
-					while (*p && isdigit(*p))   /* Skip pty number. */
+					while (*p && isdigit(*p))
 						++p;
 					if (is_wprefix(p, L"-from-master")) {
-						//p += 12;
-					} else if (is_wprefix(p, L"-to-master")) {
-						//p += 10;
+						// p += 12;
+					} else if (is_wprefix(p,
+					    L"-to-master")) {
+						// p += 10;
 					} else {
 						p = NULL;
 					}
@@ -1107,41 +1144,44 @@ int wosix_isatty(int fd)
 			}
 			free(nameinfo);
 			if (p != NULL)
-				return 2;
+				return (2);
 		}
 	}
 
 	// Give up, it's not a TTY
-	return 0;
+	return (0);
 }
 
 // A bit different, just to wrap away the second argument
 // Presumably _mkdir() sets errno, as EEXIST is tested.
-int wosix_mkdir(const char *path, mode_t mode)
+int
+wosix_mkdir(const char *path, mode_t mode)
 {
-	return _mkdir(path);
+	return (_mkdir(path));
 }
 
-int wosix_stat(char *path, struct _stat64 *st)
+int
+wosix_stat(char *path, struct _stat64 *st)
 {
 	int fd;
 	int ret;
 	fd = open(path, O_RDONLY);
 	if (fd == -1)
-		return -1;
+		return (-1);
 	ret = wosix_fstat(fd, st);
-        close(fd);
-        return (ret);
+	close(fd);
+	return (ret);
 }
 
-int wosix_lstat(char *path, struct _stat64 *st)
+int
+wosix_lstat(char *path, struct _stat64 *st)
 {
 	int fd;
 	int ret;
 
 	fd = open(path, O_RDONLY);
 	if (fd == -1)
-		return -1;
+		return (-1);
 	ret = wosix_fstat(fd, st); // Fix me? Symlinks
 	close(fd);
 	return (ret);
@@ -1150,41 +1190,47 @@ int wosix_lstat(char *path, struct _stat64 *st)
 // Only fill in what we actually use in ZFS
 // Mostly used to test for existance, st_mode, st_size
 // also FIFO and BLK (fixme)
-// Remember to convert between POSIX (S_IFDIR) and WINDOWS (_S_IFDIR) when required.
+// Remember to convert between POSIX (S_IFDIR) and WINDOWS
+// (_S_IFDIR) when required.
 // Not that we call Windows _stat() in here.
-int wosix_fstat(int fd, struct _stat64 *st)
+int
+wosix_fstat(int fd, struct _stat64 *st)
 {
 	HANDLE h = ITOH(fd);
 	BY_HANDLE_FILE_INFORMATION info;
 
 	if (!GetFileInformationByHandle(h, &info))
-		return wosix_fstat_blk(fd, st); 
+		return (wosix_fstat_blk(fd, st));
 
 	st->st_dev = 0;
 	st->st_ino = 0;
 	st->st_mode = (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ?
-		S_IFDIR : S_IFREG;
-	st->st_nlink = (info.nNumberOfLinks > SHRT_MAX ? SHRT_MAX : info.nNumberOfLinks);
+	    S_IFDIR : S_IFREG;
+	st->st_nlink =
+	    (info.nNumberOfLinks > SHRT_MAX ? SHRT_MAX : info.nNumberOfLinks);
 	st->st_uid = 0;
 	st->st_gid = 0;
 	st->st_rdev = 0;
-	st->st_size = ((long long)info.nFileSizeHigh << 32ULL) | (long long)info.nFileSizeLow;
+	st->st_size =
+	    ((long long)info.nFileSizeHigh << 32ULL) |
+	    (long long)info.nFileSizeLow;
 	st->st_atime = 0;
 	st->st_mtime = 0;
 	st->st_ctime = 0;
 
-	return 0;
+	return (0);
 }
 
-int wosix_fstat_blk(int fd, struct _stat64 *st)
+int
+wosix_fstat_blk(int fd, struct _stat64 *st)
 {
 	DISK_GEOMETRY_EX geometry_ex;
 	HANDLE handle = ITOH(fd);
 	DWORD len;
 
 	if (!DeviceIoControl(handle, IOCTL_DISK_GET_DRIVE_GEOMETRY_EX, NULL, 0,
-		&geometry_ex, sizeof(geometry_ex), &len, NULL))
-		return -1; // errno?
+	    &geometry_ex, sizeof (geometry_ex), &len, NULL))
+		return (-1); // errno?
 
 	st->st_size = (diskaddr_t)geometry_ex.DiskSize.QuadPart;
 	st->st_mode = S_IFBLK;
@@ -1193,13 +1239,15 @@ int wosix_fstat_blk(int fd, struct _stat64 *st)
 }
 
 // os specific files can call this directly.
-int pread_win(HANDLE h, void *buf, size_t nbyte, off_t offset)
+int
+pread_win(HANDLE h, void *buf, size_t nbyte, off_t offset)
 {
 	uint64_t off;
 	DWORD red;
 	LARGE_INTEGER large;
 	LARGE_INTEGER lnew;
-	// This code does all seeks based on "current" so we can pre-seek to offset start
+	// This code does all seeks based on "current" so we can
+	// pre-seek to offset start
 
 	// Find current position
 	large.QuadPart = 0;
@@ -1224,12 +1272,14 @@ int pread_win(HANDLE h, void *buf, size_t nbyte, off_t offset)
 	return (red);
 }
 
-int wosix_pread(int fd, void *buf, size_t nbyte, off_t offset)
+int
+wosix_pread(int fd, void *buf, size_t nbyte, off_t offset)
 {
-	return pread_win(ITOH(fd), buf, nbyte, offset);
+	return (pread_win(ITOH(fd), buf, nbyte, offset));
 }
 
-int wosix_pwrite(int fd, const void *buf, size_t nbyte, off_t offset)
+int
+wosix_pwrite(int fd, const void *buf, size_t nbyte, off_t offset)
 {
 	HANDLE h = ITOH(fd);
 	uint64_t off;
@@ -1237,7 +1287,8 @@ int wosix_pwrite(int fd, const void *buf, size_t nbyte, off_t offset)
 	LARGE_INTEGER large;
 	LARGE_INTEGER lnew;
 
-	// This code does all seeks based on "current" so we can pre-seek to offset start
+	// This code does all seeks based on "current" so we can
+	// pre-seek to offset start
 
 	// Find current position
 	large.QuadPart = 0;
@@ -1254,36 +1305,39 @@ int wosix_pwrite(int fd, const void *buf, size_t nbyte, off_t offset)
 	// Restore position
 	SetFilePointerEx(h, lnew, NULL, FILE_BEGIN);
 
-	return wrote;
+	return (wrote);
 }
 
-int wosix_fdatasync(int fd)
+int
+wosix_fdatasync(int fd)
 {
-	//if (fcntl(fd, F_FULLFSYNC) == -1)
+	// if (fcntl(fd, F_FULLFSYNC) == -1)
 	//	return -1;
-	return 0;
+	return (0);
 }
 
-int wosix_ftruncate(int fd, off_t length)
+int
+wosix_ftruncate(int fd, off_t length)
 {
 	HANDLE h = ITOH(fd);
 	LARGE_INTEGER lnew;
 
 	lnew.QuadPart = length;
 	if (SetFilePointerEx(h, lnew, NULL, FILE_BEGIN) &&
-		SetEndOfFile(h))
-		return 0; // Success
+	    SetEndOfFile(h))
+		return (0); // Success
 	// errno?
-	return -1;
+	return (-1);
 }
 
-FILE *wosix_fdopen(int fd, const char *mode)
+FILE *
+wosix_fdopen(int fd, const char *mode)
 {
 	// Convert HANDLE to int
 	int temp = _open_osfhandle((intptr_t)ITOH(fd), _O_APPEND | _O_RDONLY);
 
 	if (temp == -1) {
-		return NULL;
+		return (NULL);
 	}
 
 	// Convert int to FILE*
@@ -1291,7 +1345,7 @@ FILE *wosix_fdopen(int fd, const char *mode)
 
 	if (f == NULL) {
 		_close(temp);
-		return NULL;
+		return (NULL);
 	}
 
 	// Why is this print required?
@@ -1301,7 +1355,8 @@ FILE *wosix_fdopen(int fd, const char *mode)
 	return (f);
 }
 
-int wosix_socketpair(int domain, int type, int protocol, int sv[2])
+int
+wosix_socketpair(int domain, int type, int protocol, int sv[2])
 {
 	int temp, s1, s2, result;
 	struct sockaddr_in saddr;
@@ -1318,26 +1373,28 @@ int wosix_socketpair(int domain, int type, int protocol, int sv[2])
 		err = WSAStartup(MAKEWORD(2, 2), &wsaData);
 		if (err != 0) {
 			errno = err;
-			return -1;
+			return (-1);
 		}
 	}
 
-	nameLen = sizeof(saddr);
+	nameLen = sizeof (saddr);
 
 	/* ignore address family for now; just stay with AF_INET */
 	temp = socket(AF_INET, SOCK_STREAM, 0);
 	if (temp == INVALID_SOCKET) {
 		int err = WSAGetLastError();
 		errno = err;
-		return -1;
+		return (-1);
 	}
 
 	setsockopt(temp, SOL_SOCKET, SO_REUSEADDR, (void *)&option_arg,
-		sizeof(option_arg));
+	    sizeof (option_arg));
 
-	/* We *SHOULD* choose the correct sockaddr structure based
-	on the address family requested... */
-	memset(&saddr, 0, sizeof(saddr));
+	/*
+	 * We *SHOULD* choose the correct sockaddr structure based
+	 * on the address family requested...
+	 */
+	memset(&saddr, 0, sizeof (saddr));
 
 	saddr.sin_family = AF_INET;
 	saddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
@@ -1347,36 +1404,36 @@ int wosix_socketpair(int domain, int type, int protocol, int sv[2])
 	if (result == SOCKET_ERROR) {
 		errno = WSAGetLastError();
 		closesocket(temp);
-		return -2;
+		return (-2);
 	}
 
 	// Don't care about error here, the connect will fail instead
 	listen(temp, 1);
 
 	// Fetch out the port that was given to us.
-	nameLen = sizeof(struct sockaddr_in);
+	nameLen = sizeof (struct sockaddr_in);
 
 	result = getsockname(temp, (struct sockaddr *)&saddr, &nameLen);
 
 	if (result == INVALID_SOCKET) {
 		closesocket(temp);
-		return -4; /* error case */
+		return (-4); /* error case */
 	}
 
 	s1 = socket(AF_INET, SOCK_STREAM, 0);
 	if (s1 == INVALID_SOCKET) {
 		closesocket(temp);
-		return -5;
+		return (-5);
 	}
 
-	nameLen = sizeof(struct sockaddr_in);
+	nameLen = sizeof (struct sockaddr_in);
 
 	result = connect(s1, (struct sockaddr *)&saddr, nameLen);
 
 	if (result == INVALID_SOCKET) {
 		closesocket(temp);
 		closesocket(s1);
-		return -6; /* error case */
+		return (-6); /* error case */
 	}
 
 	s2 = accept(temp, NULL, NULL);
@@ -1385,19 +1442,21 @@ int wosix_socketpair(int domain, int type, int protocol, int sv[2])
 
 	if (s2 == INVALID_SOCKET) {
 		closesocket(s1);
-		return -7;
+		return (-7);
 	}
 
 	sv[0] = s1; sv[1] = s2;
 
-	if ((sv[0] < 0) || (sv[1] < 0)) return -8;
+	if ((sv[0] < 0) || (sv[1] < 0))
+		return (-8);
 
-	return 0;  /* normal case */
+	return (0);  /* normal case */
 }
 
-int wosix_dup2(int fildes, int fildes2)
+int
+wosix_dup2(int fildes, int fildes2)
 {
-	return -1;
+	return (-1);
 }
 
 static long GetLogicalProcessors(void);
@@ -1407,44 +1466,43 @@ sysconf(int name)
 {
 	SYSTEM_INFO info;
 	MEMORYSTATUSEX status;
- 
+
 	switch (name) {
 
 	case _SC_NPROCESSORS_ONLN:
-		return GetLogicalProcessors();
+		return (GetLogicalProcessors());
 	case _SC_PHYS_PAGES:
 	case _SC_PAGE_SIZE:
 		GetSystemInfo(&info);
 		if (name == _SC_PAGE_SIZE)
-			return info.dwPageSize;
-		status.dwLength = sizeof(status);
-		GlobalMemoryStatusEx( &status );
-		return (long)(status.ullTotalPhys / info.dwPageSize);
+			return (info.dwPageSize);
+		status.dwLength = sizeof (status);
+		GlobalMemoryStatusEx(&status);
+		return ((long)(status.ullTotalPhys / info.dwPageSize));
 	default:
 		return (-1);
 	}
 }
 
 
-typedef BOOL (WINAPI *LPFN_GLPI)(
-    PSYSTEM_LOGICAL_PROCESSOR_INFORMATION, 
+typedef BOOL(WINAPI *LPFN_GLPI)(PSYSTEM_LOGICAL_PROCESSOR_INFORMATION,
     PDWORD);
 
 // Helper function to count set bits in the processor mask.
-static DWORD CountSetBits(ULONG_PTR bitMask)
+static DWORD
+CountSetBits(ULONG_PTR bitMask)
 {
-    DWORD LSHIFT = sizeof(ULONG_PTR)*8 - 1;
-    DWORD bitSetCount = 0;
-    ULONG_PTR bitTest = (ULONG_PTR)1 << LSHIFT;    
-    DWORD i;
-    
-    for (i = 0; i <= LSHIFT; ++i)
-    {
-        bitSetCount += ((bitMask & bitTest)?1:0);
-        bitTest/=2;
-    }
+	DWORD LSHIFT = sizeof (ULONG_PTR)*8 - 1;
+	DWORD bitSetCount = 0;
+	ULONG_PTR bitTest = (ULONG_PTR)1 << LSHIFT;
+	DWORD i;
 
-    return bitSetCount;
+	for (i = 0; i <= LSHIFT; ++i) {
+		bitSetCount += ((bitMask & bitTest)?1:0);
+		bitTest /= 2;
+	}
+
+	return (bitSetCount);
 }
 
 static long
@@ -1466,9 +1524,9 @@ GetLogicalProcessors(void)
 	PCACHE_DESCRIPTOR Cache;
 
 	glpi = (LPFN_GLPI) GetProcAddress(
-		GetModuleHandle(TEXT("kernel32")),
-		"GetLogicalProcessorInformation");
-	if (NULL == glpi) 
+	    GetModuleHandle(TEXT("kernel32")),
+	    "GetLogicalProcessorInformation");
+	if (NULL == glpi)
 		return (-1);
 
 	while (!done) {
@@ -1476,13 +1534,13 @@ GetLogicalProcessors(void)
 
 		if (FALSE == rc) {
 			if (GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
-				if (buffer) 
+				if (buffer)
 					free(buffer);
 
-				buffer = (PSYSTEM_LOGICAL_PROCESSOR_INFORMATION)malloc(
-				    returnLength);
+				buffer = (PSYSTEM_LOGICAL_PROCESSOR_INFORMATION)
+				    malloc(returnLength);
 
-				if (NULL == buffer) 
+				if (NULL == buffer)
 					return (-1);
 			} else {
 				return (-1);
@@ -1494,7 +1552,8 @@ GetLogicalProcessors(void)
 
 	ptr = buffer;
 
-	while (byteOffset + sizeof(SYSTEM_LOGICAL_PROCESSOR_INFORMATION) <= returnLength) {
+	while (byteOffset + sizeof (SYSTEM_LOGICAL_PROCESSOR_INFORMATION) <=
+	    returnLength) {
 		switch (ptr->Relationship) {
 			case RelationNumaNode:
 			// Non-NUMA systems report a single record of this type.
@@ -1504,12 +1563,15 @@ GetLogicalProcessors(void)
 		case RelationProcessorCore:
 			processorCoreCount++;
 
-			// A hyperthreaded core supplies more than one logical processor.
-			logicalProcessorCount += CountSetBits(ptr->ProcessorMask);
+			// A hyperthreaded core supplies more than one
+			// logical processor.
+			logicalProcessorCount +=
+			    CountSetBits(ptr->ProcessorMask);
 			break;
 
 		case RelationCache:
-			// Cache data is in ptr->Cache, one CACHE_DESCRIPTOR structure for each cache. 
+			// Cache data is in ptr->Cache, one CACHE_DESCRIPTOR
+			// structure for each cache.
 			Cache = &ptr->Cache;
 			if (Cache->Level == 1)
 				processorL1CacheCount++;
@@ -1527,7 +1589,7 @@ GetLogicalProcessors(void)
 		default:
 			break;
 		}
-	byteOffset += sizeof(SYSTEM_LOGICAL_PROCESSOR_INFORMATION);
+	byteOffset += sizeof (SYSTEM_LOGICAL_PROCESSOR_INFORMATION);
 	ptr++;
 	}
 
@@ -1535,22 +1597,24 @@ GetLogicalProcessors(void)
 	return (logicalProcessorCount);
 }
 
-int mprotect(void *addr, size_t len, int prot)
+int
+mprotect(void *addr, size_t len, int prot)
 {
 	// We can probably implement something using VirtualProtect() here.
 	return (0);
 }
 
-int getuid (void)
+int
+getuid(void)
 {
-	return 1;
+	return (1);
 }
 
 
 int
 fcntl(int fildes, int cmd, /* arg */ ...)
 {
-    return (0);
+	return (0);
 }
 
 int
@@ -1578,7 +1642,7 @@ uname(struct utsname *buf)
 
 	GetSystemInfo(&info);
 
-	switch(info.wProcessorArchitecture) {
+	switch (info.wProcessorArchitecture) {
 	case PROCESSOR_ARCHITECTURE_AMD64:
 		strcpy(buf->machine, "x86_64");
 		break;
@@ -1599,26 +1663,25 @@ uname(struct utsname *buf)
 char *
 nl_langinfo(nl_item item)
 {
-	switch (item)
-	{
+	switch (item) {
 	/* nl_langinfo items of the LC_CTYPE category */
 	case _DATE_FMT:
-		 "%y/%m/%d";
+		return ("%y/%m/%d");
 	}
-	return "";
+	return ("");
 }
 
 /*
  * The port of openat() is quite half-hearted. But it is currently
  * only used with opendir(), and not used to create "..." nor with "fd".
- */ 
+ */
 int
-wosix_openat(int fd, const char* path, int oflag, ...)
+wosix_openat(int fd, const char *path, int oflag, ...)
 {
-    if (fd == AT_FDCWD)
-	return wosix_open(path, oflag);
-    ASSERT("openat() implementation lacking support");
-    return (-1);
+	if (fd == AT_FDCWD)
+		return (wosix_open(path, oflag));
+	ASSERT("openat() implementation lacking support");
+	return (-1);
 }
 
 /*
@@ -1626,7 +1689,8 @@ wosix_openat(int fd, const char* path, int oflag, ...)
  * used to re-open the MNTTAB, of which we have none, and the return
  * code is never used.
  */
-FILE *wosix_freopen(const char *path, const char *mode, FILE *stream)
+FILE *
+wosix_freopen(const char *path, const char *mode, FILE *stream)
 {
 	return ((FILE *)path); // Anything not NULL
 }

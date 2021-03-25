@@ -23,9 +23,8 @@
  * Use is subject to license terms.
  */
 
-
 #ifndef _SPL_LIST_H
-#define _SPL_LIST_H
+#define	_SPL_LIST_H
 
 #include <sys/types.h>
 
@@ -46,21 +45,16 @@
  *    of the list_link_init() and list_link_active() functions.
  */
 
-//typedef struct list_head list_node_t;
-//#pragma pack(4)
 typedef struct list_node {
     struct list_node *list_next;
     struct list_node *list_prev;
 } list_node_t;
-
-
 
 typedef struct list {
 	size_t list_size;
 	size_t list_offset;
 	list_node_t list_head;
 } list_t;
-//#pragma pack()
 
 void list_create(list_t *, size_t, size_t);
 void list_destroy(list_t *);
@@ -80,70 +74,70 @@ void *list_prev(list_t *, void *);
 int list_link_active(list_node_t *);
 int list_is_empty(list_t *);
 
-#define LIST_POISON1 NULL
-#define LIST_POISON2 NULL
+#define	LIST_POISON1 NULL
+#define	LIST_POISON2 NULL
 
-//#define	list_d2l(a, obj) ((list_node_t *)(((char *)obj) + (a)->list_offset))
-//#define	list_object(a, node) ((void *)(((char *)node) - (a)->list_offset))
-#define	list_d2l(a, obj) ((list_node_t *)(((uint64_t)obj) + (uint64_t)(a)->list_offset))
-#define	list_object(a, node) ((void *)(((uint64_t)node) - (uint64_t)(a)->list_offset))
+#define	list_d2l(a, obj) \
+	((list_node_t *)(((uint64_t)obj) + (uint64_t)(a)->list_offset))
+#define	list_object(a, node) \
+	((void *)(((uint64_t)node) - (uint64_t)(a)->list_offset))
 #define	list_empty(a) ((a)->list_head.list_next == &(a)->list_head)
 
 
 static inline void
 list_link_init(list_node_t *node)
 {
-        node->list_next = LIST_POISON1;
-        node->list_prev = LIST_POISON2;
+	node->list_next = LIST_POISON1;
+	node->list_prev = LIST_POISON2;
 }
 
 static inline void
-__list_del(list_node_t * prev, list_node_t * next)
+__list_del(list_node_t *prev, list_node_t *next)
 {
-    next->list_prev = prev;
-    prev->list_next = next;
+	next->list_prev = prev;
+	prev->list_next = next;
 }
 
 static inline void list_del(list_node_t *entry)
 {
-    __list_del(entry->list_prev, entry->list_next);
-    entry->list_next = LIST_POISON1;
-    entry->list_prev = LIST_POISON2;
+	__list_del(entry->list_prev, entry->list_next);
+	entry->list_next = LIST_POISON1;
+	entry->list_prev = LIST_POISON2;
 }
 
 static inline void *
 list_remove_head(list_t *list)
 {
-        list_node_t *head = list->list_head.list_next;
-        if (head == &list->list_head)
-                return NULL;
+	list_node_t *head = list->list_head.list_next;
+	if (head == &list->list_head)
+		return (NULL);
 
-        list_del(head);
-        return list_object(list, head);
+	list_del(head);
+	return (list_object(list, head));
 }
 
 static inline void *
 list_remove_tail(list_t *list)
 {
-        list_node_t *tail = list->list_head.list_prev;
-        if (tail == &list->list_head)
-                return NULL;
+	list_node_t *tail = list->list_head.list_prev;
+	if (tail == &list->list_head)
+		return (NULL);
 
-        list_del(tail);
-        return list_object(list, tail);
+	list_del(tail);
+	return (list_object(list, tail));
 }
 
 static inline void
 list_link_replace(list_node_t *old_node, list_node_t *new_node)
 {
-        ASSERT(list_link_active(old_node));
-        ASSERT(!list_link_active(new_node));
+	ASSERT(list_link_active(old_node));
+	ASSERT(!list_link_active(new_node));
 
-        new_node->list_next = old_node->list_next;
-        new_node->list_prev = old_node->list_prev;
-        old_node->list_prev->list_next = new_node;
-        old_node->list_next->list_prev = new_node;
-        list_link_init(old_node);
+	new_node->list_next = old_node->list_next;
+	new_node->list_prev = old_node->list_prev;
+	old_node->list_prev->list_next = new_node;
+	old_node->list_next->list_prev = new_node;
+	list_link_init(old_node);
 }
 
 #endif /* SPL_LIST_H */
