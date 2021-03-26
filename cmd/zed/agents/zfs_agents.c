@@ -392,6 +392,7 @@ zfs_agent_init(libzfs_handle_t *zfs_hdl)
 		list_destroy(&agent_events);
 		zed_log_die("Failed to initialize agents");
 	}
+	pthread_setname_np(g_agents_tid, "agents");
 }
 
 void
