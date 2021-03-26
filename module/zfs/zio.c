@@ -995,7 +995,8 @@ zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp, boolean_t config_held,
 	 * that are in the log) to be arbitrarily large.
 	 */
 	for (int i = 0; i < BP_GET_NDVAS(bp); i++) {
-		uint64_t vdevid = DVA_GET_VDEV(&bp->blk_dva[i]);
+		const dva_t *dva = &bp->blk_dva[i];
+		uint64_t vdevid = DVA_GET_VDEV(dva);
 
 		if (vdevid >= spa->spa_root_vdev->vdev_children) {
 			errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
@@ -1024,10 +1025,10 @@ zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp, boolean_t config_held,
 			 */
 			continue;
 		}
-		uint64_t offset = DVA_GET_OFFSET(&bp->blk_dva[i]);
-		uint64_t asize = DVA_GET_ASIZE(&bp->blk_dva[i]);
-		if (BP_IS_GANG(bp))
-			asize = vdev_psize_to_asize(vd, SPA_GANGBLOCKSIZE);
+		uint64_t offset = DVA_GET_OFFSET(dva);
+		uint64_t asize = DVA_GET_ASIZE(dva);
+		if (DVA_GET_GANG(dva))
+			asize = vdev_gang_header_asize(vd);
 		if (offset + asize > vd->vdev_asize) {
 			errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
 			    "blkptr at %p DVA %u has invalid OFFSET %llu",
@@ -1064,8 +1065,8 @@ zfs_dva_valid(spa_t *spa, const dva_t *dva, const blkptr_t *bp)
 	uint64_t offset = DVA_GET_OFFSET(dva);
 	uint64_t asize = DVA_GET_ASIZE(dva);
 
-	if (BP_IS_GANG(bp))
-		asize = vdev_psize_to_asize(vd, SPA_GANGBLOCKSIZE);
+	if (DVA_GET_GANG(dva))
+		asize = vdev_gang_header_asize(vd);
 	if (offset + asize > vd->vdev_asize)
 		return (B_FALSE);
 
@@ -3984,6 +3985,9 @@ zio_vdev_io_assess(zio_t *zio)
 	 */
 	if (zio->io_error == ENXIO && zio->io_type == ZIO_TYPE_WRITE &&
 	    vd != NULL && !vd->vdev_ops->vdev_op_leaf) {
+		vdev_dbgmsg(vd, "zio_vdev_io_assess(zio=%px) setting "
+		    "cant_write=TRUE due to write failure with ENXIO",
+		    zio);
 		vd->vdev_cant_write = B_TRUE;
 	}
 
