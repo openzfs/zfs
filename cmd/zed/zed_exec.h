@@ -18,6 +18,8 @@
 #include <stdint.h>
 #include "zed_strings.h"
 
+void zed_exec_fini(void);
+
 int zed_exec_process(uint64_t eid, const char *class, const char *subclass,
     const char *dir, zed_strings_t *zedlets, zed_strings_t *envs,
     int zevent_fd);

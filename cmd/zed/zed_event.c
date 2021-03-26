@@ -15,7 +15,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <libzfs.h>			/* FIXME: Replace with libzfs_core. */
+#include <libzfs_core.h>
 #include <paths.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -96,6 +96,8 @@ zed_event_fini(struct zed_conf *zcp)
 		libzfs_fini(zcp->zfs_hdl);
 		zcp->zfs_hdl = NULL;
 	}
+
+	zed_exec_fini();
 }
 
 /*
