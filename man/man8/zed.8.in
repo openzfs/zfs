@@ -231,12 +231,6 @@ Terminate the daemon.
 
 .SH BUGS
 .PP
-Events are processed synchronously by a single thread.  This can delay the
-processing of simultaneous zevents.
-.PP
-ZEDLETs are killed after a maximum of ten seconds.
-This can lead to a violation of a ZEDLET's atomicity assumptions.
-.PP
 The ownership and permissions of the \fIenabled-zedlets\fR directory (along
 with all parent directories) are not checked.  If any of these directories
 are improperly owned or permissioned, an unprivileged user could insert a
