@@ -29,6 +29,7 @@
 #include_next <sys/stat.h>
 
 /* Note: this file can be used on linux/macOS when bootstrapping tools. */
+
 #if defined(__FreeBSD__)
 #include <sys/mount.h> /* for BLKGETSIZE64 */
 
@@ -71,4 +72,14 @@ fstat64_blk(int fd, struct stat64 *st)
 	return (0);
 }
 #endif /* defined(__FreeBSD__) */
+
+/*
+ * Only Intel-based Macs have a separate stat64; Arm-based Macs are like
+ * FreeBSD and have a full 64-bit stat from the start.
+ */
+#if defined(__APPLE__) && !(defined(__i386__) || defined(__x86_64__))
+#define	stat64	stat
+#define	fstat64	fstat
+#endif
+
 #endif /* _LIBSPL_SYS_STAT_H */
