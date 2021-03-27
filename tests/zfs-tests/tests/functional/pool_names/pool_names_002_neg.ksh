@@ -107,6 +107,9 @@ done
 
 log_note "Verify invalid pool names fail"
 set -A POOLNAME "c0t0d0s0" "c0t0d0" "c0t0d19" "c0t50000E0108D279d0" \
+    "da0" "md1" "ada2" "nda3" "nvd4" "mfid5" "vtbd6" \
+    "sda" "sdb1" "sddd32" "sdzz" "nvme0n1" "nvme1n2p3" \
+    "dk7" "sd8" "wd9" "disk10" "rdisk11" \
     "mirror" "raidz" ",," ",,,,,,,,,,,,,,,,,,,,,,,,," \
     "2222222222222222222" "mirror_pool" "raidz_pool" \
     "mirror-pool" "raidz-pool" "spare" "spare_pool" \

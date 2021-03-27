@@ -54,13 +54,92 @@
  */
 int zfs_max_dataset_nesting = 50;
 
-static int
-valid_char(char c)
+/*
+ * Define our own character classes to avoid mistakes with locale.
+ */
+static inline int
+valid_lower(const char c)
 {
-	return ((c >= 'a' && c <= 'z') ||
-	    (c >= 'A' && c <= 'Z') ||
-	    (c >= '0' && c <= '9') ||
+	return (c >= 'a' && c <= 'z');
+}
+
+static inline int
+valid_upper(const char c)
+{
+	return (c >= 'A' && c <= 'Z');
+}
+
+static inline int
+valid_alpha(const char c)
+{
+	return (valid_lower(c) || valid_upper(c));
+}
+
+static inline int
+valid_digit(const char c)
+{
+	return (c >= '0' && c <= '9');
+}
+
+static inline int
+valid_char(const char c)
+{
+	return (valid_alpha(c) || valid_digit(c) ||
 	    c == '-' || c == '_' || c == '.' || c == ':' || c == ' ');
+}
+
+static int
+disklike(const char *s)
+{
+	/*
+	 * Non-exhaustive disk name patterns for various platforms with ZFS
+	 *
+	 * dilos/illumos/Solaris: c#t#d#
+	 * FreeBSD: da# md# ada# nda# nvd# mfid# vtbd#
+	 * Linux: sdA# nvme#n# nvme#n#p#
+	 * NetBSD: dk# sd# wd#
+	 * XNU: disk# rdisk#
+	 */
+	if (valid_digit(s[1]))
+		return (s[0] == 'c');
+
+	if (valid_digit(s[2]))
+		return (strncmp(s, "da", 2) == 0 ||
+		    strncmp(s, "dk", 2) == 0 ||
+		    strncmp(s, "md", 2) == 0 ||
+		    strncmp(s, "sd", 2) == 0 ||
+		    strncmp(s, "wd", 2) == 0);
+
+	if (valid_digit(s[3]))
+		return (strncmp(s, "ada", 3) == 0 ||
+		    strncmp(s, "nda", 3) == 0 ||
+		    strncmp(s, "nvd", 3) == 0);
+
+	if (valid_digit(s[4]))
+		return (strncmp(s, "disk", 4)  == 0 ||
+		    strncmp(s, "mfid", 4) == 0 ||
+		    strncmp(s, "nvme", 4) == 0 ||
+		    strncmp(s, "vtbd", 4) == 0);
+
+	if (valid_digit(s[5]))
+		return (strncmp(s, "rdisk", 5) == 0);
+
+	if (strncmp(s, "sd", 2 == 0)) {
+		/* Linux: sdA# */
+		size_t i = strlen(s);
+		/* Consume optional partition number digits at the end. */
+		while (--i > 2)
+			if (!valid_digit(s[i]))
+				break;
+		/* Consume mandatory disk id characters in the middle. */
+		while (--i > 1)
+			if (!valid_lower(s[i]))
+				return (0);
+		/* Check all characters after "sd" were consumed. */
+		return (i == 1);
+	}
+
+	return (0);
 }
 
 /*
@@ -450,7 +529,7 @@ pool_namecheck(const char *pool, namecheck_err_t *why, char *what)
 		return (-1);
 	}
 
-	if (pool[0] == 'c' && (pool[1] >= '0' && pool[1] <= '9')) {
+	if (disklike(pool)) {
 		if (why)
 			*why = NAME_ERR_DISKLIKE;
 		return (-1);
