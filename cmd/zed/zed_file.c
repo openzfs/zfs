@@ -187,31 +187,3 @@ zed_file_close_from(int lowfd)
 
 	errno = errno_bak;
 }
-
-/*
- * Set the CLOEXEC flag on file descriptor [fd] so it will be automatically
- * closed upon successful execution of one of the exec functions.
- * Return 0 on success, or -1 on error.
- *
- * FIXME: No longer needed?
- */
-int
-zed_file_close_on_exec(int fd)
-{
-	int flags;
-
-	if (fd < 0) {
-		errno = EBADF;
-		return (-1);
-	}
-	flags = fcntl(fd, F_GETFD);
-	if (flags == -1)
-		return (-1);
-
-	flags |= FD_CLOEXEC;
-
-	if (fcntl(fd, F_SETFD, flags) == -1)
-		return (-1);
-
-	return (0);
-}
