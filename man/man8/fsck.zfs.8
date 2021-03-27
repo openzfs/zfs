@@ -22,24 +22,27 @@
 .\"
 .\" Copyright 2013 Darik Horn <dajhorn@vanadac.com>. All rights reserved.
 .\"
-.TH FSCK.ZFS 8 "Aug 24, 2020" OpenZFS
+.TH FSCK.ZFS 8 "Mar 27, 2021" OpenZFS
 
 .SH NAME
 fsck.zfs \- Dummy ZFS filesystem checker.
 
 .SH SYNOPSIS
 .LP
-.BI "fsck.zfs [" "options" "] <" "dataset" ">"
+.BI "fsck.zfs [" "options" "] <" "dataset" ">…"
 
 .SH DESCRIPTION
 .LP
-\fBfsck.zfs\fR is a shell stub that does nothing and always returns
-true. It is installed by ZoL because some Linux distributions expect
-a fsck helper for all filesystems.
+\fBfsck.zfs\fR is a thin shell wrapper that at most checks the status of a
+dataset's container pool. It is installed by OpenZFS because some Linux
+distributions expect a fsck helper for all filesystems.
+.LP
+If more than one \fIdataset\fR is specified, each is checked in turn
+and results binary ored.
 
 .SH OPTIONS
 .HP
-All \fIoptions\fR and the \fIdataset\fR are ignored.
+All \fIoptions\fR are ignored.
 
 .SH "NOTES"
 .LP
@@ -47,14 +50,15 @@ ZFS datasets are checked by running \fBzpool scrub\fR on the
 containing pool. An individual ZFS dataset is never checked
 independently of its pool, which is unlike a regular filesystem.
 
-.SH "BUGS"
 .LP
-On some systems, if the \fIdataset\fR is in a degraded pool, then it
-might be appropriate for \fBfsck.zfs\fR to return exit code 4 to
-indicate an uncorrected filesystem error.
+However, the
+.BR fsck (8)
+interface still allows it to communicate some errors:
+if the \fIdataset\fR is in a degraded pool, then \fBfsck.zfs\fR will
+return exit code 4 to indicate an uncorrected filesystem error.
 .LP
 Similarly, if the \fIdataset\fR is in a faulted pool and has a legacy
-/etc/fstab record, then \fBfsck.zfs\fR should return exit code 8 to
+/etc/fstab record, then \fBfsck.zfs\fR will return exit code 8 to
 indicate a fatal operational error.
 
 .SH "AUTHORS"
