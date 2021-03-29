@@ -955,8 +955,7 @@ zed_event_service(struct zed_conf *zcp)
 
 		_zed_event_add_time_strings(eid, zsp, etime);
 
-		zed_exec_process(eid, class, subclass,
-		    zcp->zedlet_dir, zcp->zedlets, zsp, zcp->zevent_fd);
+		zed_exec_process(eid, class, subclass, zcp, zsp);
 
 		zed_conf_write_state(zcp, eid, etime);
 

@@ -3705,8 +3705,8 @@ function zed_start
 		# run ZED in the background and redirect foreground logging
 		# output to $ZED_LOG.
 		log_must truncate -s 0 $ZED_DEBUG_LOG
-		log_must eval "zed -vF -d $ZEDLET_DIR -p $ZEDLET_DIR/zed.pid -P $PATH" \
-		    "-s $ZEDLET_DIR/state 2>$ZED_LOG &"
+		log_must eval "zed -vF -d $ZEDLET_DIR -P $PATH" \
+		    "-s $ZEDLET_DIR/state -j 1 2>$ZED_LOG &"
 	fi
 
 	return 0
@@ -3722,14 +3722,13 @@ function zed_stop
 	fi
 
 	log_note "Stopping ZED"
-	if [[ -f ${ZEDLET_DIR}/zed.pid ]]; then
-		zedpid=$(<${ZEDLET_DIR}/zed.pid)
-		kill $zedpid
-		while ps -p $zedpid > /dev/null; do
-			sleep 1
-		done
-		rm -f ${ZEDLET_DIR}/zed.pid
-	fi
+	while true; do
+		zedpids="$(pgrep -x zed)"
+		[ "$?" -ne 0 ] && break
+
+		log_must kill $zedpids
+		sleep 1
+	done
 	return 0
 }
 

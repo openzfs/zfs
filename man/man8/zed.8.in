@@ -29,6 +29,7 @@ ZED \- ZFS Event Daemon
 [\fB\-p\fR \fIpidfile\fR]
 [\fB\-P\fR \fIpath\fR]
 [\fB\-s\fR \fIstatefile\fR]
+[\fB\-j\fR \fIjobs\fR]
 [\fB\-v\fR]
 [\fB\-V\fR]
 [\fB\-Z\fR]
@@ -95,6 +96,11 @@ it in production!
 .TP
 .BI \-s\  statefile
 Write the daemon's state to the specified file.
+.TP
+.BI \-j\  jobs
+Allow at most \fIjobs\fR ZEDLETs to run concurrently,
+delaying execution of new ones until they finish.
+Defaults to 16.
 .SH ZEVENTS
 .PP
 A zevent is comprised of a list of nvpairs (name/value pairs).  Each zevent
