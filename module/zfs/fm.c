@@ -657,8 +657,7 @@ zfs_zevent_next(zfs_zevent_t *ze, nvlist_t **event, uint64_t *event_size,
 
 #ifdef _KERNEL
 	/* Include events dropped due to rate limiting */
-	*dropped += ratelimit_dropped;
-	ratelimit_dropped = 0;
+	*dropped += atomic_swap_64(&ratelimit_dropped, 0);
 #endif
 	ze->ze_dropped = 0;
 out:
