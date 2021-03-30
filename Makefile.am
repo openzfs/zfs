@@ -26,8 +26,8 @@ endif
 AUTOMAKE_OPTIONS = foreign
 EXTRA_DIST  = autogen.sh copy-builtin
 EXTRA_DIST += config/config.awk config/rpm.am config/deb.am config/tgz.am
-EXTRA_DIST += META AUTHORS COPYRIGHT LICENSE NEWS NOTICE README.md
-EXTRA_DIST += CODE_OF_CONDUCT.md
+EXTRA_DIST += AUTHORS CODE_OF_CONDUCT.md COPYRIGHT LICENSE META NEWS NOTICE
+EXTRA_DIST += README.md RELEASES.md
 EXTRA_DIST += module/lua/README.zfs module/os/linux/spl/README.md
 
 # Include all the extra licensing information for modules
