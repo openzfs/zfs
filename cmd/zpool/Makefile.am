@@ -146,6 +146,10 @@ dist_zpoolcompat_DATA = \
 	compatibility.d/openzfsonosx-1.9.3 \
 	compatibility.d/openzfs-2.0-freebsd \
 	compatibility.d/openzfs-2.0-linux \
+	compatibility.d/openzfs-2.1-freebsd \
+	compatibility.d/openzfs-2.1-linux \
+	compatibility.d/zol-0.6.1 \
+	compatibility.d/zol-0.6.4 \
 	compatibility.d/zol-0.6.5 \
 	compatibility.d/zol-0.7 \
 	compatibility.d/zol-0.8
