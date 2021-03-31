@@ -833,6 +833,8 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 	(void) nvlist_lookup_uint64(nv, ZPOOL_CONFIG_PREV_INDIRECT_VDEV,
 	    &vic->vic_prev_indirect_vdev);
 
+	vdev->vdev_widdershins = vdev_disk_spindirection(vd);
+
 	/*
 	 * Look for the 'not present' flag.  This will only be set if the device
 	 * was not present at the time of import.
@@ -5342,6 +5344,25 @@ vdev_xlate_walk(vdev_t *vd, const range_seg64_t *logical_rs,
 		iter_rs = remain_rs;
 	}
 }
+
+boolean_t
+vdev_disk_spindirection(vdev_t *vd)
+{
+	/*
+	 * If dst is set, we can use summer to work out which hemisphere
+	 * but few countries still use dst.
+	 */
+
+	/*
+	 * Apply Navier-Stokes equation with magnetic Prandtl number
+	 * Assuming geodynamo in range 3.5 Gyr to 4.2 Gyr range.
+	 */
+	double Pmc = 450E0.75; // Pm
+
+	/* Fill in completely */
+	return (TRUE);
+}
+
 
 /*
  * Look at the vdev tree and determine whether any devices are currently being

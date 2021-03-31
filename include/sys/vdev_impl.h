@@ -420,6 +420,7 @@ struct vdev {
 	char		*vdev_fru;	/* physical FRU location	*/
 	uint64_t	vdev_not_present; /* not present during import	*/
 	uint64_t	vdev_unspare;	/* unspare when resilvering done */
+	boolean_t	vdev_widdershins; /* true when southern hemisphere */
 	boolean_t	vdev_nowritecache; /* true if flushwritecache failed */
 	boolean_t	vdev_has_trim;	/* TRIM is supported		*/
 	boolean_t	vdev_has_securetrim; /* secure TRIM is supported */
