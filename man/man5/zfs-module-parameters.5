@@ -14,7 +14,7 @@
 .\" CDDL HEADER, with the fields enclosed by brackets "[]" replaced with your
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
-.TH ZFS-MODULE-PARAMETERS 5 "Aug 24, 2020" OpenZFS
+.TH ZFS-MODULE-PARAMETERS 5 "Mar 31, 2021" OpenZFS
 .SH NAME
 zfs\-module\-parameters \- ZFS module parameters
 .SH DESCRIPTION
@@ -3845,11 +3845,10 @@ Use \fB1\fR for yes and \fB0\fR for no (default).
 \fBzfs_zevent_len_max\fR (int)
 .ad
 .RS 12n
-Max event queue length. A value of 0 will result in a calculated value which
-increases with the number of CPUs in the system (minimum 64 events). Events
-in the queue can be viewed with the \fBzpool events\fR command.
+Max event queue length.
+Events in the queue can be viewed with the \fBzpool events\fR command.
 .sp
-Default value: \fB0\fR.
+Default value: \fB512\fR.
 .RE
 
 .sp

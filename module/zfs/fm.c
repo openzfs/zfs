@@ -69,7 +69,7 @@
 #include <sys/console.h>
 #include <sys/zfs_ioctl.h>
 
-int zfs_zevent_len_max = 0;
+int zfs_zevent_len_max = 512;
 int zfs_zevent_cols = 80;
 int zfs_zevent_console = 0;
 
@@ -1619,9 +1619,6 @@ fm_init(void)
 {
 	zevent_len_cur = 0;
 	zevent_flags = 0;
-
-	if (zfs_zevent_len_max == 0)
-		zfs_zevent_len_max = ERPT_MAX_ERRS * MAX(max_ncpus, 4);
 
 	/* Initialize zevent allocation and generation kstats */
 	fm_ksp = kstat_create("zfs", 0, "fm", "misc", KSTAT_TYPE_NAMED,
