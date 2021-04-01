@@ -106,7 +106,7 @@ do
 done
 
 log_note "Verify invalid pool names fail"
-set -A POOLNAME "c0t0d0s0" "c0t0d0" "c0t0d19" "c0t50000E0108D279d0" \
+set -A POOLNAME \
     "mirror" "raidz" ",," ",,,,,,,,,,,,,,,,,,,,,,,,," \
     "2222222222222222222" "mirror_pool" "raidz_pool" \
     "mirror-pool" "raidz-pool" "spare" "spare_pool" \
