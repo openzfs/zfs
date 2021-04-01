@@ -44,6 +44,7 @@ AC_DEFUN([ZFS_AC_KERNEL_RENAME], [
 	],[
 		AC_MSG_RESULT(no)
 
+		AC_MSG_CHECKING([whether iop->rename() wants flags])
 		ZFS_LINUX_TEST_RESULT([inode_operations_rename_flags], [
 			AC_MSG_RESULT(yes)
 			AC_DEFINE(HAVE_RENAME_WANTS_FLAGS, 1,
