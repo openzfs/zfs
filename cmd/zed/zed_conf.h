@@ -39,6 +39,7 @@ struct zed_conf {
 	libzfs_handle_t	*zfs_hdl;		/* handle to libzfs */
 	int		zevent_fd;		/* fd for access to zevents */
 	char		*path;		/* custom $PATH for zedlets to use */
+	int16_t max_jobs;		/* max zedlets to run at one time */
 };
 
 struct zed_conf *zed_conf_create(void);

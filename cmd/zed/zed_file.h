@@ -30,6 +30,4 @@ pid_t zed_file_is_locked(int fd);
 
 void zed_file_close_from(int fd);
 
-int zed_file_close_on_exec(int fd);
-
 #endif	/* !ZED_FILE_H */

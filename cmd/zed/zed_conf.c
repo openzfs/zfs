@@ -51,6 +51,7 @@ zed_conf_create(void)
 	zcp->state_fd = -1;		/* opened via zed_conf_open_state() */
 	zcp->zfs_hdl = NULL;		/* opened via zed_event_init() */
 	zcp->zevent_fd = -1;		/* opened via zed_event_init() */
+	zcp->max_jobs = 16;
 
 	if (!(zcp->conf_file = strdup(ZED_CONF_FILE)))
 		goto nomem;
@@ -172,6 +173,8 @@ _zed_conf_display_help(const char *prog, int got_err)
 	    "Write daemon's PID to FILE.", ZED_PID_FILE);
 	fprintf(fp, "%*c%*s %s [%s]\n", w1, 0x20, -w2, "-s FILE",
 	    "Write daemon's state to FILE.", ZED_STATE_FILE);
+	fprintf(fp, "%*c%*s %s [%d]\n", w1, 0x20, -w2, "-j JOBS",
+	    "Start at most JOBS at once.", 16);
 	fprintf(fp, "\n");
 
 	exit(got_err ? EXIT_FAILURE : EXIT_SUCCESS);
@@ -251,8 +254,9 @@ _zed_conf_parse_path(char **resultp, const char *path)
 void
 zed_conf_parse_opts(struct zed_conf *zcp, int argc, char **argv)
 {
-	const char * const opts = ":hLVc:d:p:P:s:vfFMZI";
+	const char * const opts = ":hLVc:d:p:P:s:vfFMZIj:";
 	int opt;
+	unsigned long raw;
 
 	if (!zcp || !argv || !argv[0])
 		zed_log_die("Failed to parse options: Internal error");
@@ -302,6 +306,17 @@ zed_conf_parse_opts(struct zed_conf *zcp, int argc, char **argv)
 			break;
 		case 'Z':
 			zcp->do_zero = 1;
+			break;
+		case 'j':
+			errno = 0;
+			raw = strtoul(optarg, NULL, 0);
+			if (errno == ERANGE || raw > INT16_MAX) {
+				zed_log_die("%lu is too many jobs", raw);
+			} if (raw == 0) {
+				zed_log_die("0 jobs makes no sense");
+			} else {
+				zcp->max_jobs = raw;
+			}
 			break;
 		case '?':
 		default:

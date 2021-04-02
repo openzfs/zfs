@@ -379,6 +379,7 @@ zed_disk_event_init()
 		return (-1);
 	}
 
+	pthread_setname_np(g_mon_tid, "udev monitor");
 	zed_log_msg(LOG_INFO, "zed_disk_event_init");
 
 	return (0);
