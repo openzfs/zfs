@@ -20,6 +20,7 @@
 #include <string.h>
 #include <stddef.h>
 #include <sys/avl.h>
+#include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <time.h>
@@ -175,6 +176,7 @@ _zed_exec_fork_child(uint64_t eid, const char *dir, const char *prog,
 		node->pid = pid;
 		node->eid = eid;
 		node->name = strdup(prog);
+
 		(void) pthread_mutex_lock(&_launched_processes_lock);
 		avl_add(&_launched_processes, node);
 		(void) pthread_mutex_unlock(&_launched_processes_lock);
@@ -191,6 +193,7 @@ _reap_children(void *arg)
 	struct launched_process_node node, *pnode;
 	pid_t pid;
 	int status;
+	struct rusage usage;
 	struct sigaction sa = {};
 
 	(void) sigfillset(&sa.sa_mask);
@@ -203,7 +206,7 @@ _reap_children(void *arg)
 	(void) sigaction(SIGCHLD, &sa, NULL);
 
 	for (_reap_children_stop = B_FALSE; !_reap_children_stop; ) {
-		pid = waitpid(0, &status, 0);
+		pid = wait4(0, &status, 0, &usage);
 
 		if (pid == (pid_t)-1) {
 			if (errno == ECHILD)
@@ -227,21 +230,37 @@ _reap_children(void *arg)
 			__atomic_add_fetch(&_launched_processes_limit, 1,
 			    __ATOMIC_SEQ_CST);
 
+			usage.ru_utime.tv_sec += usage.ru_stime.tv_sec;
+			usage.ru_utime.tv_usec += usage.ru_stime.tv_usec;
+			usage.ru_utime.tv_sec +=
+			    usage.ru_utime.tv_usec / (1000 * 1000);
+			usage.ru_utime.tv_usec %= 1000 * 1000;
+
 			if (WIFEXITED(status)) {
 				zed_log_msg(LOG_INFO,
-				    "Finished \"%s\" eid=%llu pid=%d exit=%d",
+				    "Finished \"%s\" eid=%llu pid=%d "
+				    "time=%llu.%06us exit=%d",
 				    node.name, node.eid, pid,
+				    (unsigned long long) usage.ru_utime.tv_sec,
+				    (unsigned int) usage.ru_utime.tv_usec,
 				    WEXITSTATUS(status));
 			} else if (WIFSIGNALED(status)) {
 				zed_log_msg(LOG_INFO,
-				    "Finished \"%s\" eid=%llu pid=%d sig=%d/%s",
-				    node.name, node.eid, pid, WTERMSIG(status),
+				    "Finished \"%s\" eid=%llu pid=%d "
+				    "time=%llu.%06us sig=%d/%s",
+				    node.name, node.eid, pid,
+				    (unsigned long long) usage.ru_utime.tv_sec,
+				    (unsigned int) usage.ru_utime.tv_usec,
+				    WTERMSIG(status),
 				    strsignal(WTERMSIG(status)));
 			} else {
 				zed_log_msg(LOG_INFO,
 				    "Finished \"%s\" eid=%llu pid=%d "
-				    "status=0x%X",
-				    node.name, node.eid, (unsigned int) status);
+				    "time=%llu.%06us status=0x%X",
+				    node.name, node.eid,
+				    (unsigned long long) usage.ru_utime.tv_sec,
+				    (unsigned int) usage.ru_utime.tv_usec,
+				    (unsigned int) status);
 			}
 
 			free(node.name);
