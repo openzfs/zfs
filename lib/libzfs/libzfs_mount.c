@@ -672,6 +672,8 @@ zfs_unmount(zfs_handle_t *zhp, const char *mountpoint, int flags)
 		}
 	}
 
+	zpool_disable_volume_os(zhp->zfs_name);
+
 	return (0);
 }
 
@@ -1636,6 +1638,8 @@ zpool_disable_datasets(zpool_handle_t *zhp, boolean_t force)
 		if (sets[i].dataset)
 			remove_mountpoint(sets[i].dataset);
 	}
+
+	zpool_disable_datasets_os(zhp, force);
 
 	ret = 0;
 out:

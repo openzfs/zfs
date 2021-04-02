@@ -411,3 +411,15 @@ zfs_mount_delegation_check(void)
 {
 	return ((geteuid() != 0) ? EACCES : 0);
 }
+
+/* Called from the tail end of zpool_disable_datasets() */
+void
+zpool_disable_datasets_os(zpool_handle_t *zhp, boolean_t force)
+{
+}
+
+/* Called from the tail end of zfs_unmount() */
+void
+zpool_disable_volume_os(const char *name)
+{
+}
