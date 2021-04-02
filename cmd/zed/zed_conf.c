@@ -324,8 +324,6 @@ zed_conf_parse_opts(struct zed_conf *zcp, int argc, char **argv)
  *
  * Return 0 on success with an updated set of zedlets,
  * or -1 on error with errno set.
- *
- * FIXME: Check if zedlet_dir and all parent dirs are secure.
  */
 int
 zed_conf_scan_dir(struct zed_conf *zcp)

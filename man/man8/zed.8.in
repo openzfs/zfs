@@ -117,9 +117,10 @@ ZEDLETs to be invoked in response to zevents are located in the
 \fIenabled-zedlets\fR directory.  These can be symlinked or copied from the
 \fIinstalled-zedlets\fR directory; symlinks allow for automatic updates
 from the installed ZEDLETs, whereas copies preserve local modifications.
-As a security measure, ZEDLETs must be owned by root.  They must have
-execute permissions for the user, but they must not have write permissions
-for group or other.  Dotfiles are ignored.
+As a security measure, since ownership change is a privileged operation,
+ZEDLETs must be owned by root.  They must have execute permissions for the user,
+but they must not have write permissions for group or other.
+Dotfiles are ignored.
 .PP
 ZEDLETs are named after the zevent class for which they should be invoked.
 In particular, a ZEDLET will be invoked for a given zevent if either its
@@ -230,12 +231,6 @@ Terminate the daemon.
 .\" Do not taunt zed.
 
 .SH BUGS
-.PP
-The ownership and permissions of the \fIenabled-zedlets\fR directory (along
-with all parent directories) are not checked.  If any of these directories
-are improperly owned or permissioned, an unprivileged user could insert a
-ZEDLET to be executed as root.  The requirement that ZEDLETs be owned by
-root mitigates this to some extent.
 .PP
 ZEDLETs are unable to return state/status information to the kernel.
 .PP
