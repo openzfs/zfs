@@ -25,35 +25,6 @@
 #include "zed_log.h"
 
 /*
- * Read up to [n] bytes from [fd] into [buf].
- * Return the number of bytes read, 0 on EOF, or -1 on error.
- */
-ssize_t
-zed_file_read_n(int fd, void *buf, size_t n)
-{
-	unsigned char *p;
-	size_t n_left;
-	ssize_t n_read;
-
-	p = buf;
-	n_left = n;
-	while (n_left > 0) {
-		if ((n_read = read(fd, p, n_left)) < 0) {
-			if (errno == EINTR)
-				continue;
-			else
-				return (-1);
-
-		} else if (n_read == 0) {
-			break;
-		}
-		n_left -= n_read;
-		p += n_read;
-	}
-	return (n - n_left);
-}
-
-/*
  * Write [n] bytes from [buf] out to [fd].
  * Return the number of bytes written, or -1 on error.
  */
