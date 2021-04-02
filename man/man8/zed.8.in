@@ -235,8 +235,6 @@ Terminate the daemon.
 ZEDLETs are unable to return state/status information to the kernel.
 .PP
 Internationalization support via gettext has not been added.
-.PP
-The diagnosis engine is not yet implemented.
 
 .SH LICENSE
 .PP
