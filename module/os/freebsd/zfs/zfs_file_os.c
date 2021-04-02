@@ -295,14 +295,12 @@ zfs_file_unlink(const char *fnamep)
 
 #if __FreeBSD_version >= 1300018
 	rc = kern_funlinkat(curthread, AT_FDCWD, fnamep, FD_NONE, seg, 0, 0);
-#else
-#ifdef AT_BENEATH
+#elif __FreeBSD_version >= 1202504 || defined(AT_BENEATH)
 	rc = kern_unlinkat(curthread, AT_FDCWD, __DECONST(char *, fnamep),
 	    seg, 0, 0);
 #else
 	rc = kern_unlinkat(curthread, AT_FDCWD, __DECONST(char *, fnamep),
 	    seg, 0);
-#endif
 #endif
 	return (SET_ERROR(rc));
 }
