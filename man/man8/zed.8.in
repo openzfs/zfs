@@ -234,9 +234,6 @@ Terminate the daemon.
 .PP
 ZEDLETs are unable to return state/status information to the kernel.
 .PP
-Some zevent nvpair types are not handled.  These are denoted by zevent
-environment variables having a "_NOT_IMPLEMENTED_" value.
-.PP
 Internationalization support via gettext has not been added.
 .PP
 The diagnosis engine is not yet implemented.

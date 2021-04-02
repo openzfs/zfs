@@ -249,7 +249,7 @@ _zed_event_value_is_hex(const char *name)
  *
  * All environment variables in [zsp] should be added through this function.
  */
-static int
+static __attribute__((format(printf, 5, 6))) int
 _zed_event_add_var(uint64_t eid, zed_strings_t *zsp,
     const char *prefix, const char *name, const char *fmt, ...)
 {
@@ -624,8 +624,6 @@ _zed_event_add_string_array(uint64_t eid, zed_strings_t *zsp,
  * Convert the nvpair [nvp] to a string which is added to the environment
  * of the child process.
  * Return 0 on success, -1 on error.
- *
- * FIXME: Refactor with cmd/zpool/zpool_main.c:zpool_do_events_nvprint()?
  */
 static void
 _zed_event_add_nvpair(uint64_t eid, zed_strings_t *zsp, nvpair_t *nvp)
@@ -724,22 +722,10 @@ _zed_event_add_nvpair(uint64_t eid, zed_strings_t *zsp, nvpair_t *nvp)
 		_zed_event_add_var(eid, zsp, prefix, name,
 		    "%llu", (u_longlong_t)i64);
 		break;
-	case DATA_TYPE_NVLIST:
-		_zed_event_add_var(eid, zsp, prefix, name,
-		    "%s", "_NOT_IMPLEMENTED_");			/* FIXME */
-		break;
 	case DATA_TYPE_STRING:
 		(void) nvpair_value_string(nvp, &str);
 		_zed_event_add_var(eid, zsp, prefix, name,
 		    "%s", (str ? str : "<NULL>"));
-		break;
-	case DATA_TYPE_BOOLEAN_ARRAY:
-		_zed_event_add_var(eid, zsp, prefix, name,
-		    "%s", "_NOT_IMPLEMENTED_");			/* FIXME */
-		break;
-	case DATA_TYPE_BYTE_ARRAY:
-		_zed_event_add_var(eid, zsp, prefix, name,
-		    "%s", "_NOT_IMPLEMENTED_");			/* FIXME */
 		break;
 	case DATA_TYPE_INT8_ARRAY:
 		_zed_event_add_int8_array(eid, zsp, prefix, nvp);
@@ -768,9 +754,11 @@ _zed_event_add_nvpair(uint64_t eid, zed_strings_t *zsp, nvpair_t *nvp)
 	case DATA_TYPE_STRING_ARRAY:
 		_zed_event_add_string_array(eid, zsp, prefix, nvp);
 		break;
+	case DATA_TYPE_NVLIST:
+	case DATA_TYPE_BOOLEAN_ARRAY:
+	case DATA_TYPE_BYTE_ARRAY:
 	case DATA_TYPE_NVLIST_ARRAY:
-		_zed_event_add_var(eid, zsp, prefix, name,
-		    "%s", "_NOT_IMPLEMENTED_");			/* FIXME */
+		_zed_event_add_var(eid, zsp, prefix, name, "_NOT_IMPLEMENTED_");
 		break;
 	default:
 		errno = EINVAL;
