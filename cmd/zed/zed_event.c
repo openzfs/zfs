@@ -100,6 +100,45 @@ zed_event_fini(struct zed_conf *zcp)
 	zed_exec_fini();
 }
 
+static void
+_bump_event_queue_length(void)
+{
+	int zzlm = -1, wr;
+	char qlen_buf[12] = {0}; /* parameter is int => max "-2147483647\n" */
+	long int qlen;
+
+	zzlm = open("/sys/module/zfs/parameters/zfs_zevent_len_max", O_RDWR);
+	if (zzlm < 0)
+		goto done;
+
+	if (read(zzlm, qlen_buf, sizeof (qlen_buf)) < 0)
+		goto done;
+	qlen_buf[sizeof (qlen_buf) - 1] = '\0';
+
+	errno = 0;
+	qlen = strtol(qlen_buf, NULL, 10);
+	if (errno == ERANGE)
+		goto done;
+
+	if (qlen <= 0)
+		qlen = 512; /* default zfs_zevent_len_max value */
+	else
+		qlen *= 2;
+
+	if (qlen > INT_MAX)
+		qlen = INT_MAX;
+	wr = snprintf(qlen_buf, sizeof (qlen_buf), "%ld", qlen);
+
+	if (pwrite(zzlm, qlen_buf, wr, 0) < 0)
+		goto done;
+
+	zed_log_msg(LOG_WARNING, "Bumping queue length to %ld", qlen);
+
+done:
+	if (zzlm > -1)
+		(void) close(zzlm);
+}
+
 /*
  * Seek to the event specified by [saved_eid] and [saved_etime].
  * This protects against processing a given event more than once.
@@ -138,10 +177,7 @@ zed_event_seek(struct zed_conf *zcp, uint64_t saved_eid, int64_t saved_etime[])
 
 		if (n_dropped > 0) {
 			zed_log_msg(LOG_WARNING, "Missed %d events", n_dropped);
-			/*
-			 * FIXME: Increase max size of event nvlist in
-			 *   /sys/module/zfs/parameters/zfs_zevent_len_max ?
-			 */
+			_bump_event_queue_length();
 		}
 		if (nvlist_lookup_uint64(nvl, "eid", &eid) != 0) {
 			zed_log_msg(LOG_WARNING, "Failed to lookup zevent eid");
@@ -914,10 +950,7 @@ zed_event_service(struct zed_conf *zcp)
 
 	if (n_dropped > 0) {
 		zed_log_msg(LOG_WARNING, "Missed %d events", n_dropped);
-		/*
-		 * FIXME: Increase max size of event nvlist in
-		 * /sys/module/zfs/parameters/zfs_zevent_len_max ?
-		 */
+		_bump_event_queue_length();
 	}
 	if (nvlist_lookup_uint64(nvl, "eid", &eid) != 0) {
 		zed_log_msg(LOG_WARNING, "Failed to lookup zevent eid");
