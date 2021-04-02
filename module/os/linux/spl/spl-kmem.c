@@ -256,7 +256,7 @@ spl_kmem_alloc_impl(size_t size, int flags, int node)
 			 * vmalloc).
 			 */
 #ifdef CONFIG_HIGHMEM
-			if (flags & KM_VMEM)) {
+			if (flags & KM_VMEM) {
 #else
 			if ((flags & KM_VMEM) || !(flags & KM_NOSLEEP)) {
 #endif
