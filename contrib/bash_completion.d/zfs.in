@@ -21,13 +21,8 @@
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-if [[ -w /dev/zfs ]]; then
-    __ZFS_CMD="zfs"
-    __ZPOOL_CMD="zpool"
-else
-    __ZFS_CMD="sudo zfs"
-    __ZPOOL_CMD="sudo zpool"
-fi
+__ZFS_CMD="@sbindir@/zfs"
+__ZPOOL_CMD="@sbindir@/zpool"
 
 # Disable bash's built-in hostname completion, as this makes it impossible to
 # provide completions containing an @-sign, which is necessary for completing
@@ -198,7 +193,7 @@ __zfs_complete_multiple_options()
 
     COMPREPLY=($(compgen -W "$options" -- "${cur##*,}"))
     local existing_opts=$(expr "$cur" : '\(.*,\)')
-    if [[ $existing_opts ]] 
+    if [[ $existing_opts ]]
     then
         COMPREPLY=( "${COMPREPLY[@]/#/${existing_opts}}" )
     fi
