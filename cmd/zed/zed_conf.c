@@ -515,7 +515,7 @@ zed_conf_write_pid(struct zed_conf *zcp)
 		errno = ERANGE;
 		zed_log_msg(LOG_ERR, "Failed to write PID file \"%s\": %s",
 		    zcp->pid_file, strerror(errno));
-	} else if (zed_file_write_n(zcp->pid_fd, buf, n) != n) {
+	} else if (write(zcp->pid_fd, buf, n) != n) {
 		zed_log_msg(LOG_ERR, "Failed to write PID file \"%s\": %s",
 		    zcp->pid_file, strerror(errno));
 	} else if (fdatasync(zcp->pid_fd) < 0) {
