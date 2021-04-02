@@ -25,33 +25,6 @@
 #include "zed_log.h"
 
 /*
- * Write [n] bytes from [buf] out to [fd].
- * Return the number of bytes written, or -1 on error.
- */
-ssize_t
-zed_file_write_n(int fd, void *buf, size_t n)
-{
-	const unsigned char *p;
-	size_t n_left;
-	ssize_t n_written;
-
-	p = buf;
-	n_left = n;
-	while (n_left > 0) {
-		if ((n_written = write(fd, p, n_left)) < 0) {
-			if (errno == EINTR)
-				continue;
-			else
-				return (-1);
-
-		}
-		n_left -= n_written;
-		p += n_written;
-	}
-	return (n);
-}
-
-/*
  * Set an exclusive advisory lock on the open file descriptor [fd].
  * Return 0 on success, 1 if a conflicting lock is held by another process,
  * or -1 on error (with errno set).
