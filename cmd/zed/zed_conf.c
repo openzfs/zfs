@@ -53,9 +53,6 @@ zed_conf_create(void)
 	zcp->zevent_fd = -1;		/* opened via zed_event_init() */
 	zcp->max_jobs = 16;
 
-	if (!(zcp->conf_file = strdup(ZED_CONF_FILE)))
-		goto nomem;
-
 	if (!(zcp->pid_file = strdup(ZED_PID_FILE)))
 		goto nomem;
 
@@ -102,10 +99,6 @@ zed_conf_destroy(struct zed_conf *zcp)
 			    "Failed to close PID file \"%s\": %s",
 			    zcp->pid_file, strerror(errno));
 		zcp->pid_fd = -1;
-	}
-	if (zcp->conf_file) {
-		free(zcp->conf_file);
-		zcp->conf_file = NULL;
 	}
 	if (zcp->pid_file) {
 		free(zcp->pid_file);
@@ -163,10 +156,6 @@ _zed_conf_display_help(const char *prog, int got_err)
 	fprintf(fp, "%*c%*s %s\n", w1, 0x20, -w2, "-Z",
 	    "Zero state file.");
 	fprintf(fp, "\n");
-#if 0
-	fprintf(fp, "%*c%*s %s [%s]\n", w1, 0x20, -w2, "-c FILE",
-	    "Read configuration from FILE.", ZED_CONF_FILE);
-#endif
 	fprintf(fp, "%*c%*s %s [%s]\n", w1, 0x20, -w2, "-d DIR",
 	    "Read enabled ZEDLETs from DIR.", ZED_ZEDLET_DIR);
 	fprintf(fp, "%*c%*s %s [%s]\n", w1, 0x20, -w2, "-p FILE",
@@ -254,7 +243,7 @@ _zed_conf_parse_path(char **resultp, const char *path)
 void
 zed_conf_parse_opts(struct zed_conf *zcp, int argc, char **argv)
 {
-	const char * const opts = ":hLVc:d:p:P:s:vfFMZIj:";
+	const char * const opts = ":hLVd:p:P:s:vfFMZIj:";
 	int opt;
 	unsigned long raw;
 
@@ -273,9 +262,6 @@ zed_conf_parse_opts(struct zed_conf *zcp, int argc, char **argv)
 			break;
 		case 'V':
 			_zed_conf_display_version();
-			break;
-		case 'c':
-			_zed_conf_parse_path(&zcp->conf_file, optarg);
 			break;
 		case 'd':
 			_zed_conf_parse_path(&zcp->zedlet_dir, optarg);
@@ -329,18 +315,6 @@ zed_conf_parse_opts(struct zed_conf *zcp, int argc, char **argv)
 			break;
 		}
 	}
-}
-
-/*
- * Parse the configuration file into the configuration [zcp].
- *
- * FIXME: Not yet implemented.
- */
-void
-zed_conf_parse_file(struct zed_conf *zcp)
-{
-	if (!zcp)
-		zed_log_die("Failed to parse config: %s", strerror(EINVAL));
 }
 
 /*

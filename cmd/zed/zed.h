@@ -16,11 +16,6 @@
 #define	ZED_H
 
 /*
- * Absolute path for the default zed configuration file.
- */
-#define	ZED_CONF_FILE		SYSCONFDIR "/zfs/zed.conf"
-
-/*
  * Absolute path for the default zed pid file.
  */
 #define	ZED_PID_FILE		RUNSTATEDIR "/zed.pid"

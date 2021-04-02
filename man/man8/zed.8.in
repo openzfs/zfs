@@ -76,9 +76,6 @@ while the daemon is running.
 .BI \-Z
 Zero the daemon's state, thereby allowing zevents still within the kernel
 to be reprocessed.
-.\" .TP
-.\" .BI \-c\  configfile
-.\" Read the configuration from the specified file.
 .TP
 .BI \-d\  zedletdir
 Read the enabled ZEDLETs from the specified directory.
@@ -203,9 +200,6 @@ the following executables are defined: \fBZDB\fR, \fBZED\fR, \fBZFS\fR,
 rc file if needed.
 
 .SH FILES
-.\" .TP
-.\" @sysconfdir@/zfs/zed.conf
-.\" The default configuration file for the daemon.
 .TP
 .I @sysconfdir@/zfs/zed.d
 The default directory for enabled ZEDLETs.
@@ -249,8 +243,6 @@ Some zevent nvpair types are not handled.  These are denoted by zevent
 environment variables having a "_NOT_IMPLEMENTED_" value.
 .PP
 Internationalization support via gettext has not been added.
-.PP
-The configuration file is not yet implemented.
 .PP
 The diagnosis engine is not yet implemented.
 
