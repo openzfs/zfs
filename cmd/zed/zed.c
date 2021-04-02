@@ -230,8 +230,6 @@ main(int argc, char *argv[])
 	if (geteuid() != 0)
 		zed_log_die("Must be run as root");
 
-	zed_conf_parse_file(zcp);
-
 	zed_file_close_from(STDERR_FILENO + 1);
 
 	(void) umask(0);
