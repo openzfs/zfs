@@ -136,22 +136,20 @@ zfsdev_state_init(struct file *filp)
 	return (0);
 }
 
-static int
+static void
 zfsdev_state_destroy(struct file *filp)
 {
-	zfsdev_state_t *zs;
+	zfsdev_state_t *zs = filp->private_data;
 
-	ASSERT(MUTEX_HELD(&zfsdev_state_lock));
-	ASSERT(filp->private_data != NULL);
+	ASSERT(zs != NULL);
+	ASSERT3S(zs->zs_minor, >, 0);
 
-	zs = filp->private_data;
-	zs->zs_minor = -1;
 	zfs_onexit_destroy(zs->zs_onexit);
 	zfs_zevent_destroy(zs->zs_zevent);
 	zs->zs_onexit = NULL;
 	zs->zs_zevent = NULL;
-
-	return (0);
+	membar_producer();
+	zs->zs_minor = -1;
 }
 
 static int
@@ -169,13 +167,9 @@ zfsdev_open(struct inode *ino, struct file *filp)
 static int
 zfsdev_release(struct inode *ino, struct file *filp)
 {
-	int error;
+	zfsdev_state_destroy(filp);
 
-	mutex_enter(&zfsdev_state_lock);
-	error = zfsdev_state_destroy(filp);
-	mutex_exit(&zfsdev_state_lock);
-
-	return (-error);
+	return (0);
 }
 
 static long

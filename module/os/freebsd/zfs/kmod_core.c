@@ -185,18 +185,14 @@ zfsdev_close(void *data)
 	zfsdev_state_t *zs = data;
 
 	ASSERT(zs != NULL);
+	ASSERT3S(zs->zs_minor, >, 0);
 
-	mutex_enter(&zfsdev_state_lock);
-
-	ASSERT(zs->zs_minor != 0);
-
-	zs->zs_minor = -1;
 	zfs_onexit_destroy(zs->zs_onexit);
 	zfs_zevent_destroy(zs->zs_zevent);
 	zs->zs_onexit = NULL;
 	zs->zs_zevent = NULL;
-
-	mutex_exit(&zfsdev_state_lock);
+	membar_producer();
+	zs->zs_minor = -1;
 }
 
 static int
