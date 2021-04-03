@@ -52,6 +52,7 @@ fragment_after_checkpoint_and_verify
 log_must zpool export $NESTEDPOOL
 log_must zpool import -d $FILEDISKDIR --rewind-to-checkpoint $NESTEDPOOL
 
-log_must zdb $NESTEDPOOL
+log_must zpool export $NESTEDPOOL
+log_must zdb -e -p $FILEDISKDIR $NESTEDPOOL
 
 log_pass "Rewind to checkpoint on a stressed pool."
