@@ -217,7 +217,7 @@ zfs_znode_fini(void)
  * created or destroyed.  This kind of locking would normally reside in the
  * znode itself but in this case that's impossible because the znode and SA
  * buffer may not yet exist.  Therefore the locking is handled externally
- * with an array of mutexs and AVLs trees which contain per-object locks.
+ * with an array of mutexes and AVLs trees which contain per-object locks.
  *
  * In zfs_znode_hold_enter() a per-object lock is created as needed, inserted
  * in to the correct AVL tree and finally the per-object lock is held.  In

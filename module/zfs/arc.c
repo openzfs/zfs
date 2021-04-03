@@ -5036,7 +5036,7 @@ arc_reap_cb(void *arg, zthr_t *zthr)
 	 * memory in the system at a fraction of the arc_size (1/128th by
 	 * default).  If oversubscribed (free_memory < 0) then reduce the
 	 * target arc_size by the deficit amount plus the fractional
-	 * amount.  If free memory is positive but less then the fractional
+	 * amount.  If free memory is positive but less than the fractional
 	 * amount, reduce by what is needed to hit the fractional amount.
 	 */
 	free_memory = arc_available_memory();

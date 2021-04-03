@@ -258,7 +258,7 @@ zstd_mempool_alloc(struct zstd_pool *zstd_mempool, size_t size)
 	for (int i = 0; i < ZSTD_POOL_MAX; i++) {
 		pool = &zstd_mempool[i];
 		/*
-		 * This lock is simply a marker for a pool object beeing in use.
+		 * This lock is simply a marker for a pool object being in use.
 		 * If it's already hold, it will be skipped.
 		 *
 		 * We need to create it before checking it to avoid race
@@ -488,7 +488,7 @@ zfs_zstd_decompress_level(void *s_start, void *d_start, size_t s_len,
 
 	/*
 	 * NOTE: We ignore the ZSTD version for now. As soon as any
-	 * incompatibility occurrs, it has to be handled accordingly.
+	 * incompatibility occurs, it has to be handled accordingly.
 	 * The version can be accessed via `hdr_copy.version`.
 	 */
 

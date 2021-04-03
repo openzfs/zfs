@@ -14,13 +14,13 @@ PATH=/sbin:/bin:/usr/bin:/usr/sbin
 
 # Source function library
 if [ -f /etc/rc.d/init.d/functions ]; then
-	# RedHat and derivates
+	# RedHat and derivatives
 	. /etc/rc.d/init.d/functions
 elif [ -L /etc/init.d/functions.sh ]; then
 	# Gentoo
 	. /etc/init.d/functions.sh
 elif [ -f /lib/lsb/init-functions ]; then
-	# LSB, Debian GNU/Linux and derivates
+	# LSB, Debian GNU/Linux and derivatives
 	. /lib/lsb/init-functions
 fi
 

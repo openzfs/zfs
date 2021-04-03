@@ -1,5 +1,5 @@
 #
-# Default rules for running cppcheck against the the user space components.
+# Default rules for running cppcheck against the user space components.
 #
 
 PHONY += cppcheck

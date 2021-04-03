@@ -83,7 +83,7 @@ lzbe_set_boot_device(const char *pool, lzbe_flags_t flag, const char *device)
 	} else {
 		/*
 		 * Use device name directly if it does start with
-		 * prefix "zfs:". Otherwise, add prefix and sufix.
+		 * prefix "zfs:". Otherwise, add prefix and suffix.
 		 */
 		if (strncmp(device, "zfs:", 4) == 0) {
 			fnvlist_add_string(nv, OS_BOOTONCE, device);
