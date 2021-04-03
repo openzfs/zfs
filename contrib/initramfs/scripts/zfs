@@ -94,8 +94,8 @@ find_rootfs()
 
 	# Not boot fs here, export it and later try again..
 	"${ZPOOL}" export "$pool"
-	POOL_IMPORTED=""
-
+	POOL_IMPORTED=
+	ZFS_BOOTFS=
 	return 1
 }
 
@@ -815,6 +815,11 @@ mountroot()
 	then
 		# Try to detect both pool and root fs.
 
+		# If we got here, that means we don't have a hint so as to
+		# the root dataset, but with root=zfs:AUTO on cmdline,
+		# this says "zfs:AUTO" here and interferes with checks later
+		ZFS_BOOTFS=
+
 		[ "$quiet" != "y" ] && \
 		    zfs_log_begin_msg "Attempting to import additional pools."
 
@@ -832,8 +837,8 @@ mountroot()
 		do
 			[ -z "$pool" ] && continue
 
-			import_pool "$pool"
-			find_rootfs "$pool"
+			IFS="$OLD_IFS" import_pool "$pool"
+			IFS="$OLD_IFS" find_rootfs "$pool" && break
 		done
 		IFS="$OLD_IFS"
 
