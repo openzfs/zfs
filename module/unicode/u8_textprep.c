@@ -884,7 +884,7 @@ do_decomp(size_t uv, uchar_t *u8s, uchar_t *s, int sz,
 	 *	| B0| B1| ... | Bm|
 	 *	+---+---+-...-+---+
 	 *
-	 *	The first byte, B0, is always less then 0xF5 (U8_DECOMP_BOTH).
+	 *	The first byte, B0, is always less than 0xF5 (U8_DECOMP_BOTH).
 	 *
 	 * (2) Canonical decomposition mappings:
 	 *

@@ -51,7 +51,7 @@ extern "C" {
  * dRAID permutation map.
  */
 typedef struct draid_map {
-	uint64_t dm_children;	/* # of permuation columns */
+	uint64_t dm_children;	/* # of permutation columns */
 	uint64_t dm_nperms;	/* # of permutation rows */
 	uint64_t dm_seed;	/* dRAID map seed */
 	uint64_t dm_checksum;	/* Checksum of generated map */

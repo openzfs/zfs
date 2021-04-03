@@ -501,7 +501,7 @@ typedef enum vbe_vers {
 	 * and is protected by an embedded checksum. By default, GRUB will
 	 * check if the boot filesystem supports storing the environment data
 	 * in a special location, and if so, will invoke filesystem specific
-	 * logic to retrieve it. This can be overriden by a variable, should
+	 * logic to retrieve it. This can be overridden by a variable, should
 	 * the user so desire.
 	 */
 	VB_RAW = 0,

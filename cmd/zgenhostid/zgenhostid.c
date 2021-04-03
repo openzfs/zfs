@@ -137,7 +137,7 @@ main(int argc, char **argv)
 	}
 
 	/*
-	 * we need just 4 bytes in native endianess
+	 * we need just 4 bytes in native endianness
 	 * not using sethostid() because it may be missing or just a stub
 	 */
 	uint32_t hostid = input_i;

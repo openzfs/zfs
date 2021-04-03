@@ -306,7 +306,7 @@ void
 abd_free_linear_page(abd_t *abd)
 {
 	/*
-	 * FreeBSD does not have have scatter linear pages
+	 * FreeBSD does not have scatter linear pages
 	 * so there is an error.
 	 */
 	VERIFY(0);

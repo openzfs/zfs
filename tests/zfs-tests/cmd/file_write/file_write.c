@@ -44,7 +44,7 @@ static unsigned char bigbuffer[BIGBUFFERSIZE];
 static void usage(char *);
 
 /*
- * psudo-randomize the buffer
+ * pseudo-randomize the buffer
  */
 static void randomize_buffer(int block_size) {
 	int i;

@@ -1399,7 +1399,7 @@ gcm_decrypt_final_avx(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size)
 		}
 		datap += done;
 	}
-	/* Decrypt remainder, which is less then chunk size, in one go. */
+	/* Decrypt remainder, which is less than chunk size, in one go. */
 	kfpu_begin();
 	if (bleft >= GCM_AVX_MIN_DECRYPT_BYTES) {
 		done = aesni_gcm_decrypt(datap, datap, bleft,
@@ -1415,7 +1415,7 @@ gcm_decrypt_final_avx(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size)
 	ASSERT(bleft < GCM_AVX_MIN_DECRYPT_BYTES);
 
 	/*
-	 * Now less then GCM_AVX_MIN_DECRYPT_BYTES bytes remain,
+	 * Now less than GCM_AVX_MIN_DECRYPT_BYTES bytes remain,
 	 * decrypt them block by block.
 	 */
 	while (bleft > 0) {

@@ -74,7 +74,7 @@ else
 fi
 
 #
-# datsets ordered by checksum options (note, Orange, Carrot & Banana have the
+# datasets ordered by checksum options (note, Orange, Carrot & Banana have the
 # same checksum options, so ZFS should revert to sorting them alphabetically by
 # name)
 #
