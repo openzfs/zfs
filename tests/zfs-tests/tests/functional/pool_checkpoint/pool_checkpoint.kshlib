@@ -154,13 +154,18 @@ function setup_nested_pools
 
 function cleanup_nested_pool
 {
-	log_must zpool destroy $NESTEDPOOL
+	if poolexists $NESTEDPOOL; then
+		log_must zpool destroy $NESTEDPOOL
+	fi
+
 	log_must rm -f $FILEDISKS
 }
 
 function cleanup_test_pool
 {
-	log_must zpool destroy $TESTPOOL
+	if poolexists $TESTPOOL; then
+		log_must zpool destroy $TESTPOOL
+	fi
 
 	#
 	# We always clear the labels of all disks
