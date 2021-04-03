@@ -36,7 +36,7 @@
 #    a. Replace a vdev with a spare & suspend resilver immediately
 #    b. Verify resilver starts properly
 #    c. Offline / online another vdev to introduce a new DTL range
-#    d. Verify resilver restart restart or defer
+#    d. Verify resilver restart or defer
 #    e. Inject read errors on vdev that was offlined / onlned
 #    f. Verify that resilver did not restart
 #    g. Unsuspend resilver and wait for it to finish

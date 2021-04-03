@@ -6496,7 +6496,7 @@ spa_vdev_add(spa_t *spa, nvlist_t *nvroot)
 
 	/*
 	 * The virtual dRAID spares must be added after vdev tree is created
-	 * and the vdev guids are generated.  The guid of their assoicated
+	 * and the vdev guids are generated.  The guid of their associated
 	 * dRAID is stored in the config and used when opening the spare.
 	 */
 	if ((error = vdev_draid_spare_create(nvroot, vd, &ndraid,

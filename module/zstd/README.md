@@ -10,7 +10,7 @@ library, besides upgrading to a newer ZSTD release.
 Tree structure:
 
 * `zfs_zstd.c` is the actual `zzstd` kernel module.
-* `lib/` contains the the unmodified, [_"amalgamated"_](https://github.com/facebook/zstd/blob/dev/contrib/single_file_libs/README.md)
+* `lib/` contains the unmodified, [_"amalgamated"_](https://github.com/facebook/zstd/blob/dev/contrib/single_file_libs/README.md)
   version of the `Zstandard` library, generated from our template file
 * `zstd-in.c` is our template file for generating the library
 * `include/`: This directory contains supplemental includes for platform

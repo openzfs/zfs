@@ -1408,7 +1408,7 @@ discover_cached_paths(libpc_handle_t *hdl, nvlist_t *nv,
 
 	/*
 	 * Once we have the path, we need to add the directory to
-	 * our directoy cache.
+	 * our directory cache.
 	 */
 	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &path) == 0) {
 		return (zpool_find_import_scan_dir(hdl, lock, cache,

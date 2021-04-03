@@ -1372,7 +1372,7 @@ vdev_metaslab_group_create(vdev_t *vd)
 
 		/*
 		 * The spa ashift min/max only apply for the normal metaslab
-		 * class. Class destination is late binding so ashift boundry
+		 * class. Class destination is late binding so ashift boundary
 		 * setting had to wait until now.
 		 */
 		if (vd->vdev_top == vd && vd->vdev_ashift != 0 &&
@@ -2046,7 +2046,7 @@ vdev_open(vdev_t *vd)
 		vd->vdev_max_asize = max_asize;
 
 		/*
-		 * If the vdev_ashift was not overriden at creation time,
+		 * If the vdev_ashift was not overridden at creation time,
 		 * then set it the logical ashift and optimize the ashift.
 		 */
 		if (vd->vdev_ashift == 0) {
@@ -2116,7 +2116,7 @@ vdev_open(vdev_t *vd)
 	}
 
 	/*
-	 * Track the the minimum allocation size.
+	 * Track the minimum allocation size.
 	 */
 	if (vd->vdev_top == vd && vd->vdev_ashift != 0 &&
 	    vd->vdev_islog == 0 && vd->vdev_aux == NULL) {
@@ -4570,7 +4570,7 @@ vdev_stat_update(zio_t *zio, uint64_t psize)
 
 			/*
 			 * Solely for the purposes of 'zpool iostat -lqrw'
-			 * reporting use the priority to catagorize the IO.
+			 * reporting use the priority to categorize the IO.
 			 * Only the following are reported to user space:
 			 *
 			 *   ZIO_PRIORITY_SYNC_READ,

@@ -39,7 +39,7 @@ list_zvols() {
 		[ "$volmode" = "none" ] && continue
 		[ "$redacted" = "-" ] || continue
 		#
-		# We also also ignore partially received zvols if it is
+		# We also ignore partially received zvols if it is
 		# not an incremental receive, as those won't even have a block
 		# device minor node created yet.
 		#
