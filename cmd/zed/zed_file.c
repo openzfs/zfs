@@ -17,7 +17,6 @@
 #include <fcntl.h>
 #include <limits.h>
 #include <string.h>
-#include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -119,9 +118,7 @@ zed_file_is_locked(int fd)
 void
 zed_file_close_from(int lowfd)
 {
-	static const int maxfd_def = 256;
 	int errno_bak = errno;
-	struct rlimit rl;
 	int maxfd = 0;
 	int fd;
 	DIR *fddir;
@@ -134,11 +131,8 @@ zed_file_close_from(int lowfd)
 				maxfd = fd;
 		}
 		(void) closedir(fddir);
-	} else if (getrlimit(RLIMIT_NOFILE, &rl) < 0 ||
-	    rl.rlim_max == RLIM_INFINITY) {
-		maxfd = maxfd_def;
 	} else {
-		maxfd = rl.rlim_max;
+		maxfd = sysconf(_SC_OPEN_MAX);
 	}
 	for (fd = lowfd; fd < maxfd; fd++)
 		(void) close(fd);
