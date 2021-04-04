@@ -417,3 +417,9 @@ check_file(const char *file, boolean_t force, boolean_t isspare)
 {
 	return (check_file_generic(file, force, isspare));
 }
+
+int
+check_file(const char *file, boolean_t force, boolean_t isspare)
+{
+	return (check_file_generic(file, force, isspare));
+}
