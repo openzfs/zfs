@@ -113,7 +113,7 @@ vdev_error(const char *fmt, ...)
  * not in use by another pool, and not in use by swap.
  */
 int
-check_file(const char *file, boolean_t force, boolean_t isspare)
+check_file_generic(const char *file, boolean_t force, boolean_t isspare)
 {
 	char  *name;
 	int fd;

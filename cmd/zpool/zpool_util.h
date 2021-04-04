@@ -131,6 +131,7 @@ boolean_t check_sector_size_database(char *path, int *sector_size);
 void vdev_error(const char *fmt, ...);
 int check_file(const char *file, boolean_t force, boolean_t isspare);
 void after_zpool_upgrade(zpool_handle_t *zhp);
+int check_file_generic(const char *file, boolean_t force, boolean_t isspare);
 
 #ifdef	__cplusplus
 }
