@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright (c) 2017, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2017, 2021 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -27,6 +27,7 @@
 #include <sys/dmu_objset.h>
 #include <sys/dmu_traverse.h>
 #include <sys/dmu_redact.h>
+#include <sys/dsl_dir.h>
 #include <sys/bqueue.h>
 #include <sys/objlist.h>
 #include <sys/dmu_tx.h>
@@ -526,6 +527,7 @@ redaction_list_update_sync(void *arg, dmu_tx_t *tx)
 	redact_block_phys_t *buf = kmem_alloc(bufsize * sizeof (*buf),
 	    KM_SLEEP);
 	int index = 0;
+	uint64_t start_entry = rl->rl_phys->rlp_num_entries;
 
 	dmu_buf_will_dirty(rl->rl_dbuf, tx);
 
@@ -556,6 +558,14 @@ redaction_list_update_sync(void *arg, dmu_tx_t *tx)
 	md->md_synctask_txg[txg & TXG_MASK] = B_FALSE;
 	rl->rl_phys->rlp_last_object = furthest_visited->rbp_object;
 	rl->rl_phys->rlp_last_blkid = furthest_visited->rbp_blkid;
+
+	spa_history_log_internal(tx->tx_pool->dp_spa,
+	    "update redaction list", tx,
+	    "redact_obj=%llu start_entry=%llu end_entry=%llu state=%s",
+	    (longlong_t)rl->rl_object, (longlong_t)start_entry,
+	    (longlong_t)rl->rl_phys->rlp_num_entries,
+	    (furthest_visited->rbp_object == UINT64_MAX ? "complete" :
+	    "progress"));
 }
 
 static void
@@ -980,6 +990,7 @@ perform_redaction(objset_t *os, redaction_list_t *rl,
 	dsl_pool_t *dp = spa_get_dsl(os->os_spa);
 	if (md.md_latest_synctask_txg != 0)
 		txg_wait_synced(dp, md.md_latest_synctask_txg);
+
 	for (int i = 0; i < TXG_SIZE; i++)
 		list_destroy(&md.md_blocks[i]);
 	return (err);
@@ -1090,7 +1101,7 @@ dmu_redact_snap(const char *snapname, nvlist_t *redactnvl,
 			goto out;
 		}
 		err = dsl_redaction_list_hold_obj(dp,
-		    bookmark.zbm_redaction_obj, FTAG, &new_rl);
+		    bookmark.zbm_redaction_obj, FTAG, NULL, &new_rl);
 		if (err != 0) {
 			err = EIO;
 			goto out;
@@ -1114,10 +1125,15 @@ dmu_redact_snap(const char *snapname, nvlist_t *redactnvl,
 			err = EEXIST;
 			goto out;
 		}
+		spa_t *spa = dp->dp_spa;
 		dsl_pool_rele(dp, FTAG);
 		dp = NULL;
+		spa_history_log_internal(spa, "resuming redaction", NULL,
+		    "redact_obj=%llu name=%s",
+		    (longlong_t)bookmark.zbm_redaction_obj, newredactbook);
 	} else {
 		uint64_t *guids = NULL;
+		spa_t *spa = dp->dp_spa;
 		if (numsnaps > 0) {
 			guids = kmem_zalloc(numsnaps * sizeof (uint64_t),
 			    KM_SLEEP);
@@ -1135,6 +1151,10 @@ dmu_redact_snap(const char *snapname, nvlist_t *redactnvl,
 		if (err != 0) {
 			goto out;
 		}
+
+		spa_history_log_internal(spa, "new redaction", NULL,
+		    "redact_obj=%llu name=%s", (longlong_t)new_rl->rl_object,
+		    newredactbook);
 	}
 
 	for (int i = 0; i < numsnaps; i++) {
@@ -1164,6 +1184,53 @@ dmu_redact_snap(const char *snapname, nvlist_t *redactnvl,
 	(void) thread_create(NULL, 0, redact_merge_thread, rmta, 0, curproc,
 	    TS_RUN, minclsyspri);
 	err = perform_redaction(os, new_rl, rmta);
+	if (err == 0) {
+		spa_t *spa = ds->ds_objset->os_spa;
+		dnode_t *dn;
+		VERIFY0(dnode_hold(spa_meta_objset(spa), new_rl->rl_object,
+		    FTAG, &dn));
+		char *buf = kmem_alloc(128 * dn->dn_nblkptr, KM_SLEEP);
+		char *buf2 = kmem_alloc(128, KM_SLEEP);
+		for (int i = 0; i < dn->dn_nblkptr; i++) {
+			zio_cksum_t *zc = &dn->dn_phys->dn_blkptr[i].blk_cksum;
+			uint64_t birth = dn->dn_phys->dn_blkptr[i].blk_birth;
+			snprintf(buf2, 128, "root_birth=%llu "
+			    "root_cksum=%llx/%llx/%llx/%llx ",
+			    (u_longlong_t)birth, (u_longlong_t)zc->zc_word[0],
+			    (u_longlong_t)zc->zc_word[1],
+			    (u_longlong_t)zc->zc_word[2],
+			    (u_longlong_t)zc->zc_word[3]);
+			strncat(buf, buf2, 128);
+		}
+		spa_history_log_internal(spa, "finish redaction", NULL,
+		    "name=%s redact_obj=%llu num_entries=%llu %s",
+		    newredactbook, (longlong_t)new_rl->rl_object,
+		    (longlong_t)new_rl->rl_phys->rlp_num_entries, buf);
+		kmem_free(buf, 128 * dn->dn_nblkptr);
+		kmem_free(buf2, 128);
+
+		VERIFY0(dsl_pool_hold(snapname, FTAG, &dp));
+		VERIFY0(dsl_bookmark_lookup(dp, newredactbook, NULL,
+		    &bookmark));
+		dsl_bookmark_node_t search = { 0 };
+		search.dbn_phys = bookmark;
+		search.dbn_name = spa_strdup(redactbook);
+		*strchr(newredactbook, '#') = '\0';
+		dsl_dataset_t *head;
+		VERIFY0(dsl_dataset_hold(dp, newredactbook, FTAG, &head));
+		dsl_bookmark_node_t *dbn = avl_find(&head->ds_bookmarks,
+		    &search, NULL);
+		ASSERT3P(dbn, !=, NULL);
+		for (int i = 0; i < dn->dn_nblkptr; i++) {
+			dbn->dbn_redaction_birth_txg[i] =
+			    dn->dn_phys->dn_blkptr[i].blk_birth;
+		}
+		dsl_dataset_rele(head, FTAG);
+		dsl_pool_rele(dp, FTAG);
+		dp = NULL;
+		spa_strfree(search.dbn_name);
+		dnode_rele(dn, FTAG);
+	}
 	kmem_free(rmta, sizeof (struct redact_merge_thread_arg));
 
 out:

@@ -14,7 +14,7 @@
  */
 
 /*
- * Copyright (c) 2013, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2013, 2021 by Delphix. All rights reserved.
  * Copyright 2017 Nexenta Systems, Inc.
  * Copyright 2019, 2020 by Christian Schwarz. All rights reserved.
  */
@@ -334,6 +334,7 @@ dsl_bookmark_node_alloc(char *shortname)
 	dsl_bookmark_node_t *dbn = kmem_alloc(sizeof (*dbn), KM_SLEEP);
 	dbn->dbn_name = spa_strdup(shortname);
 	dbn->dbn_dirty = B_FALSE;
+	bzero(dbn->dbn_redaction_birth_txg, DN_MAX_NBLKPTR * sizeof (uint64_t));
 	mutex_init(&dbn->dbn_lock, NULL, MUTEX_DEFAULT, NULL);
 	return (dbn);
 }
@@ -475,7 +476,7 @@ dsl_bookmark_create_sync_impl_snap(const char *bookmark, const char *snapshot,
 		    SPA_FEATURE_REDACTION_BOOKMARKS, tx);
 
 		VERIFY0(dsl_redaction_list_hold_obj(dp,
-		    dbn->dbn_phys.zbm_redaction_obj, tag, &local_rl));
+		    dbn->dbn_phys.zbm_redaction_obj, tag, tx, &local_rl));
 		dsl_redaction_list_long_hold(dp, local_rl, tag);
 
 		ASSERT3U((local_rl)->rl_dbuf->db_size, >=,
@@ -745,7 +746,7 @@ dsl_bookmark_fetch_props(dsl_pool_t *dp, zfs_bookmark_phys_t *bmark_phys,
 	    bmark_phys->zbm_redaction_obj != 0) {
 		redaction_list_t *rl;
 		int err = dsl_redaction_list_hold_obj(dp,
-		    bmark_phys->zbm_redaction_obj, FTAG, &rl);
+		    bmark_phys->zbm_redaction_obj, FTAG, NULL, &rl);
 		if (err == 0) {
 			if (nvlist_exists(props, "redact_snaps")) {
 				nvlist_t *nvl;
@@ -1043,6 +1044,47 @@ dsl_bookmark_destroy_sync_impl(dsl_dataset_t *ds, const char *name,
 	}
 
 	if (dbn->dbn_phys.zbm_redaction_obj != 0) {
+		redaction_list_t *local_rl;
+		dnode_t *dn;
+		VERIFY0(dsl_redaction_list_hold_obj(ds->ds_dir->dd_pool,
+		    dbn->dbn_phys.zbm_redaction_obj, FTAG, tx, &local_rl));
+		VERIFY0(dnode_hold(ds->ds_dir->dd_pool->dp_meta_objset,
+		    dbn->dbn_phys.zbm_redaction_obj, FTAG, &dn));
+		char *buf = kmem_alloc(128 * dn->dn_nblkptr, KM_SLEEP);
+		char *buf2 = kmem_alloc(128, KM_SLEEP);
+		for (int i = 0; i < dn->dn_nblkptr; i++) {
+			zio_cksum_t *zc = &dn->dn_phys->dn_blkptr[i].blk_cksum;
+			uint64_t birth = dn->dn_phys->dn_blkptr[i].blk_birth;
+			snprintf(buf2, 128, "root_birth=%llu "
+			    "root_cksum=%llx/%llx/%llx/%llx ",
+			    (u_longlong_t)birth, (u_longlong_t)zc->zc_word[0],
+			    (u_longlong_t)zc->zc_word[1],
+			    (u_longlong_t)zc->zc_word[2],
+			    (u_longlong_t)zc->zc_word[3]);
+			strncat(buf, buf2, 128);
+		}
+		spa_history_log_internal_ds(ds, "remove redaction list", tx,
+		    "name=%s redact_obj=%llu num_entries=%llu %s", name,
+		    (longlong_t)dbn->dbn_phys.zbm_redaction_obj,
+		    (longlong_t)local_rl->rl_phys->rlp_num_entries, buf);
+		kmem_free(buf, 128 * dn->dn_nblkptr);
+		kmem_free(buf2, 128);
+		for (int i = 0; i < dn->dn_nblkptr; i++) {
+			uint64_t birth = dn->dn_phys->dn_blkptr[i].blk_birth;
+			if (dbn->dbn_redaction_birth_txg[i] != 0 &&
+			    dbn->dbn_redaction_birth_txg[i] != birth) {
+				spa_history_log_internal_ds(ds,
+				    "redaction birth mismatch", tx,
+				    "name=%s redact_obj=%llu root_birth=%llu "
+				    "orig_root_birth=%llu", name,
+				    (longlong_t)dbn->dbn_phys.zbm_redaction_obj,
+				    (u_longlong_t)birth,
+				    (u_longlong_t)
+				    dbn->dbn_redaction_birth_txg[i]);
+			}
+		}
+		dnode_rele(dn, FTAG);
+		dsl_redaction_list_rele(local_rl, FTAG);
 		VERIFY0(dmu_object_free(mos,
 		    dbn->dbn_phys.zbm_redaction_obj, tx));
 		spa_feature_decr(dmu_objset_spa(mos),
@@ -1097,7 +1139,7 @@ dsl_bookmark_destroy_check(void *arg, dmu_tx_t *tx)
 			if (error == 0 && bm.zbm_redaction_obj != 0) {
 				redaction_list_t *rl = NULL;
 				error = dsl_redaction_list_hold_obj(tx->tx_pool,
-				    bm.zbm_redaction_obj, FTAG, &rl);
+				    bm.zbm_redaction_obj, FTAG, tx, &rl);
 				if (error == ENOENT) {
 					error = 0;
 				} else if (error == 0 &&
@@ -1221,7 +1263,7 @@ dsl_redaction_list_rele(redaction_list_t *rl, void *tag)
 
 int
 dsl_redaction_list_hold_obj(dsl_pool_t *dp, uint64_t rlobj, void *tag,
-    redaction_list_t **rlp)
+    dmu_tx_t *tx, redaction_list_t **rlp)
 {
 	objset_t *mos = dp->dp_meta_objset;
 	dmu_buf_t *dbuf;
@@ -1250,7 +1292,17 @@ dsl_redaction_list_hold_obj(dsl_pool_t *dp, uint64_t rlobj, void *tag,
 			kmem_free(rl, sizeof (*rl));
 			rl = winner;
 		}
+		if (tx != NULL) {
+			spa_history_log_internal(dp->dp_spa,
+			    "holding new redaction", tx, "redact_obj=%llu",
+			    (u_longlong_t)rlobj);
+		}
+	} else if (tx != NULL) {
+		spa_history_log_internal(dp->dp_spa,
+		    "holding existing redaction", tx, "redact_obj=%llu",
+		    (u_longlong_t)rlobj);
 	}
+	VERIFY3U(rlobj, ==, rl->rl_object);
 	*rlp = rl;
 	return (0);
 }

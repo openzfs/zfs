@@ -21,7 +21,7 @@
 
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2019 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2021 by Delphix. All rights reserved.
  * Copyright (c) 2014 Integros [integros.com]
  * Copyright 2016 Nexenta Systems, Inc.
  * Copyright (c) 2017, 2018 Lawrence Livermore National Security, LLC.
@@ -2669,7 +2669,7 @@ dump_bookmark(dsl_pool_t *dp, char *name, boolean_t print_redact,
 
 	redaction_list_t *rl;
 	VERIFY0(dsl_redaction_list_hold_obj(dp,
-	    prop.zbm_redaction_obj, FTAG, &rl));
+	    prop.zbm_redaction_obj, FTAG, NULL, &rl));
 
 	redaction_list_phys_t *rlp = rl->rl_phys;
 	(void) printf("\tRedacted:\n\t\tProgress: ");

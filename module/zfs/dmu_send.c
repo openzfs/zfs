@@ -21,7 +21,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
- * Copyright (c) 2011, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2021 by Delphix. All rights reserved.
  * Copyright (c) 2014, Joyent, Inc. All rights reserved.
  * Copyright 2014 HybridCluster. All rights reserved.
  * Copyright 2016 RackTop Systems.
@@ -1753,6 +1753,7 @@ send_reader_thread(void *arg)
 	 */
 	uint64_t last_obj = UINT64_MAX;
 	uint64_t last_obj_exists = B_TRUE;
+	uint64_t last_maxblkid = UINT64_MAX;
 	while (!range->eos_marker && !srta->cancel && smta->error == 0 &&
 	    err == 0) {
 		switch (range->type) {
@@ -1764,7 +1765,28 @@ send_reader_thread(void *arg)
 		case HOLE:
 		case OBJECT:
 		case OBJECT_RANGE:
-		case REDACT: // Redacted blocks must exist
+			bqueue_enqueue(outq, range, sizeof (*range));
+			range = get_next_range_nofree(inq, range);
+			break;
+		case REDACT:
+			// Verify that range->object actually exists
+			if (range->object != last_obj) {
+				dnode_t *dn;
+				/*
+				 * There is a cost to doing dnode_hold here,
+				 * but we want to try to catch bugs with the
+				 * redaction list as early as possible.
+				 */
+				VERIFY0(dnode_hold(os, range->object, FTAG,
+				    &dn));
+				last_maxblkid = dn->dn_maxblkid;
+				dnode_rele(dn, FTAG);
+				last_obj = range->object;
+				last_obj_exists = B_TRUE;
+			}
+			VERIFY(last_obj_exists);
+			VERIFY3U(range->end_blkid, <=, last_maxblkid + 1);
+
 			bqueue_enqueue(outq, range, sizeof (*range));
 			range = get_next_range_nofree(inq, range);
 			break;
@@ -1808,6 +1830,8 @@ send_reader_thread(void *arg)
 				}
 				last_obj = range->object;
 				last_obj_exists = object_exists;
+				last_maxblkid = (object_exists ?
+				    dn->dn_maxblkid : 0);
 			}
 
 			if (err != 0) {
@@ -2387,7 +2411,7 @@ dmu_send_impl(struct dmu_send_params *dspp)
 	if (dspp->redactbook != NULL) {
 		err = dsl_redaction_list_hold_obj(dp,
 		    dspp->redactbook->zbm_redaction_obj, FTAG,
-		    &redact_rl);
+		    NULL, &redact_rl);
 		if (err != 0) {
 			dsl_pool_rele(dp, tag);
 			return (SET_ERROR(EINVAL));
@@ -2401,7 +2425,7 @@ dmu_send_impl(struct dmu_send_params *dspp)
 	 */
 	if (ancestor_zb->zbm_redaction_obj != 0) {
 		err = dsl_redaction_list_hold_obj(dp,
-		    ancestor_zb->zbm_redaction_obj, FTAG, &from_rl);
+		    ancestor_zb->zbm_redaction_obj, FTAG, NULL, &from_rl);
 		if (err != 0) {
 			if (redact_rl != NULL) {
 				dsl_redaction_list_long_rele(redact_rl, FTAG);

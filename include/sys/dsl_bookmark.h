@@ -13,7 +13,7 @@
  * CDDL HEADER END
  */
 /*
- * Copyright (c) 2013, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2013, 2021 by Delphix. All rights reserved.
  */
 
 #ifndef	_SYS_DSL_BOOKMARK_H
@@ -23,6 +23,7 @@
 #include <sys/zfs_refcount.h>
 #include <sys/dsl_dataset.h>
 #include <sys/dsl_pool.h>
+#include <sys/dnode.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -84,6 +85,7 @@ typedef struct dsl_bookmark_node {
 	kmutex_t dbn_lock; /* protects dirty/phys in block_killed */
 	boolean_t dbn_dirty; /* in currently syncing txg */
 	zfs_bookmark_phys_t dbn_phys;
+	uint64_t dbn_redaction_birth_txg[DN_MAX_NBLKPTR];
 	avl_node_t dbn_node;
 } dsl_bookmark_node_t;
 
@@ -131,7 +133,7 @@ int dsl_bookmark_lookup(struct dsl_pool *, const char *,
     struct dsl_dataset *, zfs_bookmark_phys_t *);
 int dsl_bookmark_lookup_impl(dsl_dataset_t *, const char *,
     zfs_bookmark_phys_t *);
-int dsl_redaction_list_hold_obj(struct dsl_pool *, uint64_t, void *,
+int dsl_redaction_list_hold_obj(struct dsl_pool *, uint64_t, void *, dmu_tx_t *,
     redaction_list_t **);
 void dsl_redaction_list_rele(redaction_list_t *, void *);
 void dsl_redaction_list_long_hold(struct dsl_pool *, redaction_list_t *,
