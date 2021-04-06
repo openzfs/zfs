@@ -35,6 +35,9 @@
 boolean_t
 zfs_isnumber(const char *str)
 {
+	if (!*str)
+		return (B_FALSE);
+
 	for (; *str; str++)
 		if (!(isdigit(*str) || (*str == '.')))
 			return (B_FALSE);
