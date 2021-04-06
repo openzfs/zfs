@@ -114,8 +114,10 @@ zk_thread_create(void (*func)(void *), void *arg, size_t stksize, int state)
 	 * If this ever fails, it may be because the stack size is not a
 	 * multiple of system page size.
 	 */
+#ifndef _WIN32
 	VERIFY0(pthread_attr_setstacksize(&attr, stksize));
 	VERIFY0(pthread_attr_setguardsize(&attr, PAGESIZE));
+#endif
 
 	VERIFY0(pthread_create(&tid, &attr, (void *(*)(void *))func, arg));
 	VERIFY0(pthread_attr_destroy(&attr));
@@ -704,24 +706,19 @@ const char *random_path = "/dev/random";
 const char *urandom_path = "/dev/urandom";
 static int random_fd = -1, urandom_fd = -1;
 
+
+#ifdef _WIN32
+
 void
 random_init(void)
 {
-	VERIFY((random_fd = open(random_path, O_RDONLY | O_CLOEXEC)) != -1);
-	VERIFY((urandom_fd = open(urandom_path, O_RDONLY | O_CLOEXEC)) != -1);
 }
 
 void
 random_fini(void)
 {
-	close(random_fd);
-	close(urandom_fd);
-
-	random_fd = -1;
-	urandom_fd = -1;
 }
 
-#ifdef _WIN32
 static int
 random_get_bytes_common(uint8_t *ptr, size_t len, int fd)
 {
@@ -740,7 +737,26 @@ random_get_bytes_common(uint8_t *ptr, size_t len, int fd)
 
 	return (0);
 }
-#else
+
+#else /* Windows */
+
+void
+random_init(void)
+{
+	VERIFY((random_fd = open(random_path, O_RDONLY | O_CLOEXEC)) != -1);
+	VERIFY((urandom_fd = open(urandom_path, O_RDONLY | O_CLOEXEC)) != -1);
+}
+
+void
+random_fini(void)
+{
+	close(random_fd);
+	close(urandom_fd);
+
+	random_fd = -1;
+	urandom_fd = -1;
+}
+
 static int
 random_get_bytes_common(uint8_t *ptr, size_t len, int fd)
 {
