@@ -649,8 +649,6 @@ will be compressed with \fBlz4\fR algorithm. Since this feature is not
 read-only compatible, this operation will render the pool unimportable
 on systems without support for the \fBlz4_compress\fR feature.
 
-Booting off of \fBlz4\fR-compressed root pools is supported.
-
 This feature becomes \fBactive\fR as soon as it is enabled and will
 never return to being \fBenabled\fB.
 .RE
@@ -977,8 +975,6 @@ on \fBzstd\fR compression of any dataset by running
 This feature becomes \fBactive\fR once a \fBcompress\fR property has been set to
 \fBzstd\fR, and will return to being \fBenabled\fR once all filesystems that
 have ever had their compress property set to \fBzstd\fR are destroyed.
-
-Booting off of \fBzstd\fR-compressed root pools is not yet supported.
 .RE
 
 .SH "SEE ALSO"
