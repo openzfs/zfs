@@ -981,8 +981,9 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 			 */
 			if (is_mpath_whole_disk(path)) {
 				update_vdev_config_dev_strs(nv);
-				/* update might change path, so fetch it again */
-				verify(!nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &path));
+				/* update might change path, so fetch again */
+				verify(!nvlist_lookup_string(nv,
+				    ZPOOL_CONFIG_PATH, &path));
 			}
 			if (!is_spare(NULL, path))
 				(void) zero_label(path);
@@ -1033,7 +1034,7 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 #ifdef _WIN32
 			char *backslash = strrchr(devpath, '\\');
 			if (devnode == NULL || backslash > devnode)
-			    devnode = backslash;
+				devnode = backslash;
 #endif
 			devnode = &devnode[1];
 
@@ -1068,8 +1069,11 @@ make_disks(zpool_handle_t *zhp, nvlist_t *nv)
 			if (ret)
 				return (ret);
 #ifdef _WIN32
-			// Append_partition will only work once label_disk has been called
-			// (To find offset+length). Call it again to get correct path.
+			/*
+			 * Append_partition will only work once label_disk has
+			 * been called (To find offset+length).
+			 * Call it again to get correct path.
+			 */
 			(void) zfs_append_partition(udevpath, MAXPATHLEN);
 #endif
 		}

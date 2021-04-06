@@ -25,22 +25,22 @@
 
 #include_next <fcntl.h>
 
-#define O_LARGEFILE             0
-#define O_RSYNC                 0
-#define O_DIRECT                0
-#define O_SYNC                0
-#define	O_DSYNC 0
-#define	O_CLOEXEC 0
-#define	O_NDELAY 0
-#define	O_NOCTTY 0
+#define	O_LARGEFILE	0
+#define	O_RSYNC		0
+#define	O_DIRECT	0
+#define	O_SYNC		0
+#define	O_DSYNC		0
+#define	O_CLOEXEC	0
+#define	O_NDELAY	0
+#define	O_NOCTTY	0
 
 #define	F_SETFD		2
 #define	FD_CLOEXEC	1
 
 /*
  * Special value used to indicate openat should use the current
- * working directory. 
+ * working directory.
  */
-#define AT_FDCWD		-100
+#define	AT_FDCWD		-100
 
 #endif /* _LIBSPL_SYS_FCNTL_H */

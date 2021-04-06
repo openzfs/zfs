@@ -31,8 +31,8 @@
 #include <libgen.h>
 #include <stdlib.h>
 #include <limits.h>
-//#include <widec.h>
-//#include "_range.h"
+// #include <widec.h>
+// #include "_range.h"
 
 #define	multibyte	(0)
 
@@ -44,10 +44,10 @@
 	p += n
 
 #define	WCHAR_CSMASK	0x30000000
-#define valid_range(c1, c2) \
-        (((c1) & WCHAR_CSMASK) == ((c2) & WCHAR_CSMASK) && \
-        ((c1) > 0xff || !iscntrl((int)c1)) && ((c2) > 0xff || \
-        !iscntrl((int)c2)))
+#define	valid_range(c1, c2) \
+	(((c1) & WCHAR_CSMASK) == ((c2) & WCHAR_CSMASK) && \
+	((c1) > 0xff || !iscntrl((int)c1)) && ((c2) > 0xff || \
+	!iscntrl((int)c2)))
 
 int
 gmatch(const char *s, const char *p)

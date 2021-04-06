@@ -37,13 +37,13 @@
 
 #include "uuid.h"
 
-#define LIBUUID_CLOCK_FILE	"/var/lib/libuuid/clock.txt"
+#define	LIBUUID_CLOCK_FILE	"/var/lib/libuuid/clock.txt"
 
 /*
  * Offset between 15-Oct-1582 and 1-Jan-70
  */
-#define TIME_OFFSET_HIGH 0x01B21DD2
-#define TIME_OFFSET_LOW  0x13814000
+#define	TIME_OFFSET_HIGH 0x01B21DD2
+#define	TIME_OFFSET_LOW  0x13814000
 
 struct uuid {
 	uint32_t	time_low;

@@ -29,7 +29,7 @@
  * space, just "an address". It should be a "proc_t *".
  */
 
-struct _KPROCESS{
+struct _KPROCESS {
     void *something;
 };
 

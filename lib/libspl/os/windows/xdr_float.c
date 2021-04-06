@@ -43,19 +43,17 @@
  * xdr.
  */
 
-//#include "mt.h"
 #include <sys/types.h>
 #include <stdio.h>
 #include <sys/debug.h>
-//#include <values.h>
 #include <rpc/types.h>
 #include <rpc/xdr.h>
 #include <sys/byteorder.h>
 
 // incompatible types - from 'XDR *' to 'XDR *'
-#pragma warning (disable: 4133)
+#pragma warning(disable: 4133)
 
-#define _IEEE_754
+#define	_IEEE_754
 #ifdef _IEEE_754
 
 /*

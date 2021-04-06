@@ -40,8 +40,6 @@
  * then this is the package for you.
  */
 
-//#include "mt.h"
-//#include "rpc_mt.h"
 #include <sys/types.h>
 #include <sys/debug.h>
 #include <rpc/types.h>
@@ -52,7 +50,7 @@
 static struct xdr_ops *xdrmem_ops(void);
 
 // formal parameter 1 different from declaration (XDR* != struct XDR *)?
-#pragma warning (disable: 4028)
+#pragma warning(disable: 4028)
 
 /*
  * Meaning of the private areas of the xdr struct for xdr_mem
@@ -67,7 +65,7 @@ static struct xdr_ops *xdrmem_ops(void);
  */
 void
 xdrmem_create(XDR *xdrs, const caddr_t addr, const uint_t size,
-							const enum xdr_op op)
+    const enum xdr_op op)
 {
 	caddr_t eaddr = addr;
 
@@ -230,7 +228,7 @@ xdrmem_control(XDR *xdrs, int request, void *info)
 
 	switch (request) {
 	case XDR_GET_BYTES_AVAIL:
-		xptr = (struct xdr_bytesrec *) info;
+		xptr = (struct xdr_bytesrec *)info;
 		xptr->xc_is_last_record = TRUE;
 		xptr->xc_num_avail = xdrs->x_handy;
 		return (TRUE);

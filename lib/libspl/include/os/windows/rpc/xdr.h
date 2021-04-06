@@ -27,8 +27,6 @@
 #ifndef _rpc_windows_xdr_h
 #define	_rpc_windows_xdr_h
 
-//#pragma ident	"%Z%%M%	%I%	%E% SMI"
-
 /*
  * xdr.h, External Data Representation Serialization Routines.
  */
@@ -39,7 +37,7 @@
 #include <sys/time.h>
 
 
- /*
+/*
  * XDR provides a conventional way for converting between C data
  * types and an external bit-string representation.  Library supplied
  * routines provide for the conversion on built-in C data types.  These
@@ -75,12 +73,12 @@
  * request.
  */
 enum xdr_op {
-	XDR_ENCODE=0,
-	XDR_DECODE=1,
-	XDR_FREE=2
+	XDR_ENCODE = 0,
+	XDR_DECODE = 1,
+	XDR_FREE = 2
 };
 
-#define XDR_GET_BYTES_AVAIL 1
+#define	XDR_GET_BYTES_AVAIL 1
 
 /*
  * This is the number of bytes per unit of external data.
@@ -120,9 +118,9 @@ typedef struct {
 		bool_t	(*x_putlong)();	/* put a long to " */
 		bool_t	(*x_getbytes)(); /* get some bytes from " */
 		bool_t	(*x_putbytes)(); /* put some bytes to " */
-		u_int	(*x_getpostn)(); /* returns bytes off from beginning */
+		uint_t	(*x_getpostn)(); /* returns bytes off from beginning */
 		bool_t	(*x_setpostn)(); /* lets you reposition the stream */
-		long *	(*x_inline)();	/* buf quick ptr to buffered data */
+		long	*(*x_inline)();	/* buf quick ptr to buffered data */
 		void	(*x_destroy)();	/* free privates of this xdr_stream */
 		bool_t(*x_control)(struct XDR *, int, void *);
 		bool_t(*x_getint32)(struct XDR *, int32_t *);
@@ -184,15 +182,15 @@ typedef struct {
 	(*(xdrs)->x_ops->x_destroy)(xdrs)
 #define	xdr_destroy(xdrs) XDR_DESTROY(xdrs)
 
-#define XDR_GETINT32(xdrs, int32p)                      \
-        (*(xdrs)->x_ops->x_getint32)(xdrs, int32p)
-#define xdr_getint32(xdrs, int32p)                      \
-        (*(xdrs)->x_ops->x_getint32)(xdrs, int32p)
+#define	XDR_GETINT32(xdrs, int32p)                      \
+	(*(xdrs)->x_ops->x_getint32)(xdrs, int32p)
+#define	xdr_getint32(xdrs, int32p)                      \
+	(*(xdrs)->x_ops->x_getint32)(xdrs, int32p)
 
-#define XDR_PUTINT32(xdrs, int32p)                      \
-        (*(xdrs)->x_ops->x_putint32)(xdrs, int32p)
-#define xdr_putint32(xdrs, int32p)                      \
-        (*(xdrs)->x_ops->x_putint32)(xdrs, int32p)
+#define	XDR_PUTINT32(xdrs, int32p)                      \
+	(*(xdrs)->x_ops->x_putint32)(xdrs, int32p)
+#define	xdr_putint32(xdrs, int32p)                      \
+	(*(xdrs)->x_ops->x_putint32)(xdrs, int32p)
 
 /*
  * Support struct for discriminated unions.
@@ -225,14 +223,14 @@ struct xdr_discrim {
  * N.B. and frozen for all time: each data type here uses 4 bytes
  * of external representation.
  */
-#define	IXDR_GET_LONG(buf)		((long)ntohl((u_long)*(buf)++))
-#define	IXDR_PUT_LONG(buf, v)		(*(buf)++ = (long)htonl((u_long)v))
+#define	IXDR_GET_LONG(buf)		((long)ntohl((ulong_t)*(buf)++))
+#define	IXDR_PUT_LONG(buf, v)		(*(buf)++ = (long)htonl((ulong_t)v))
 
 #define	IXDR_GET_BOOL(buf)		((bool_t)IXDR_GET_LONG(buf))
 #define	IXDR_GET_ENUM(buf, t)		((t)IXDR_GET_LONG(buf))
-#define	IXDR_GET_U_LONG(buf)		((u_long)IXDR_GET_LONG(buf))
+#define	IXDR_GET_U_LONG(buf)		((ulong_t)IXDR_GET_LONG(buf))
 #define	IXDR_GET_SHORT(buf)		((short)IXDR_GET_LONG(buf))
-#define	IXDR_GET_U_SHORT(buf)		((u_short)IXDR_GET_LONG(buf))
+#define	IXDR_GET_U_SHORT(buf)		((ushort_t)IXDR_GET_LONG(buf))
 
 #define	IXDR_PUT_BOOL(buf, v)		IXDR_PUT_LONG((buf), ((long)(v)))
 #define	IXDR_PUT_ENUM(buf, v)		IXDR_PUT_LONG((buf), ((long)(v)))
@@ -266,9 +264,9 @@ extern bool_t	xdr_double();
 extern bool_t	xdr_reference();
 extern bool_t	xdr_pointer();
 extern bool_t	xdr_wrapstring();
-extern bool_t   xdr_longlong_t(XDR* xdrs, longlong_t* hp);
-extern bool_t xdr_u_longlong_t(XDR* xdrs, u_longlong_t* hp);
-extern bool_t xdr_control(XDR* xdrs, int request, void* info);
+extern bool_t   xdr_longlong_t(XDR *xdrs, longlong_t *hp);
+extern bool_t xdr_u_longlong_t(XDR *xdrs, u_longlong_t *hp);
+extern bool_t xdr_control(XDR *xdrs, int request, void *info);
 
 /*
  * Common opaque bytes objects used by many rpc protocols;
@@ -276,7 +274,7 @@ extern bool_t xdr_control(XDR* xdrs, int request, void* info);
  */
 #define	MAX_NETOBJ_SZ 1024
 struct netobj {
-	u_int	n_len;
+	uint_t	n_len;
 	char	*n_bytes;
 };
 typedef struct netobj netobj;
@@ -294,9 +292,9 @@ extern int	xdrrec_readbytes();	/* like a read on a pipe */
 extern bool_t	xdrrec_skiprecord();	/* move to beginning of next record */
 extern bool_t	xdrrec_eof();		/* true if no more input */
 
-#define XDR_PEEK        2
-#define XDR_SKIPBYTES   3
-#define XDR_RDMAGET     4
-#define XDR_RDMASET     5
+#define	XDR_PEEK	2
+#define	XDR_SKIPBYTES	3
+#define	XDR_RDMAGET	4
+#define	XDR_RDMASET	5
 
 #endif /* !_rpc_xdr_h */

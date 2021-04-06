@@ -1315,6 +1315,10 @@ spa_activate(spa_t *spa, spa_mode_t mode)
 	    spa_error_entry_compare, sizeof (spa_error_entry_t),
 	    offsetof(spa_error_entry_t, se_avl));
 
+#if defined(_KERNEL) && defined(_WIN32)
+	spa_activate_os(spa);
+#endif
+
 	spa_keystore_init(&spa->spa_keystore);
 
 	/*

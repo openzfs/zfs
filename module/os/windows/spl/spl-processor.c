@@ -32,9 +32,7 @@ cpu_number(void)
 {
 	uint32_t cpuid;
 	cpuid = (uint32_t)KeGetCurrentProcessorIndex();
-	return cpuid % max_ncpus;
-	return 0;
-	return cpuid >= max_ncpus ? 0 : cpuid;
+	return (cpuid % max_ncpus);
 }
 
 uint32_t
@@ -42,7 +40,5 @@ getcpuid()
 {
 	uint32_t cpuid;
 	cpuid = (uint32_t)KeGetCurrentProcessorIndex();
-	return cpuid % max_ncpus;
-	return 0;
-	return cpuid >= max_ncpus ? 0 : cpuid;
+	return (cpuid % max_ncpus);
 }

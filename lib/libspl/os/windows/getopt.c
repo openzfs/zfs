@@ -49,15 +49,15 @@ __RCSID("$NetBSD: getopt.c,v 1.10 1997/07/21 14:08:51 jtc Exp $");
 #include <string.h>
 
 #ifdef __weak_alias
-__weak_alias(getopt,_getopt);
+__weak_alias(getopt, _getopt);
 #endif
 
 
 int	opterr = 1,		/* if error message should be printed */
-	optind = 1,		/* index into parent argv vector */
-	optopt,			/* character checked for validity */
-	optreset;		/* reset getopt */
-char	*optarg;		/* argument associated with option */
+    optind = 1,		/* index into parent argv vector */
+    optopt,			/* character checked for validity */
+    optreset;		/* reset getopt */
+char *optarg;		/* argument associated with option */
 
 #define	BADCH	(int)'?'
 #define	BADARG	(int)':'
@@ -68,15 +68,15 @@ char	*optarg;		/* argument associated with option */
  *	Parse argc/argv argument vector.
  */
 int
-getopt(nargc, nargv, ostr)
-	int nargc;
-	char * const *nargv;
-	const char *ostr;
+getopt(
+    int nargc,
+    char *const *nargv,
+    const char *ostr)
 {
 	static char *place = EMSG;		/* option letter processing */
-	char *oli;				/* option letter list index */
+	char *oli;	/* option letter list index */
 
-	if (optreset || !*place) {		/* update scanning pointer */
+	if (optreset || !*place) {	/* update scanning pointer */
 		optreset = 0;
 		if (optind >= nargc || *(place = nargv[optind]) != '-') {
 			place = EMSG;
@@ -99,16 +99,15 @@ getopt(nargc, nargv, ostr)
 		if (!*place)
 			++optind;
 		if (opterr && *ostr != ':')
-			(void)fprintf(stderr,
-                            ": illegal option -- %c\n", optopt);
+			(void) fprintf(stderr,
+			    ": illegal option -- %c\n", optopt);
 		return (BADCH);
 	}
 	if (*++oli != ':') {			/* don't need argument */
 		optarg = NULL;
 		if (!*place)
 			++optind;
-	}
-	else {					/* need an argument */
+	} else {					/* need an argument */
 		if (*place)			/* no white space */
 			optarg = place;
 		else if (nargc <= ++optind) {	/* no arg */
@@ -116,12 +115,11 @@ getopt(nargc, nargv, ostr)
 			if (*ostr == ':')
 				return (BADARG);
 			if (opterr)
-				(void)fprintf(stderr,
-                                    ": option requires an argument -- %c\n",
-                                    optopt);
+				(void) fprintf(stderr,
+				    ": option requires an argument -- %c\n",
+				    optopt);
 			return (BADCH);
-		}
-	 	else				/* white space */
+		} else				/* white space */
 			optarg = nargv[optind];
 		place = EMSG;
 		++optind;
@@ -130,10 +128,10 @@ getopt(nargc, nargv, ostr)
 }
 
 int
-getsubopt(optionsp, tokens, valuep)
-char **optionsp;
-char *tokens[];
-char **valuep;
+getsubopt(
+    char **optionsp,
+    char *tokens[],
+    char **valuep)
 {
 	register char *s = *optionsp, *p;
 	register int i, optlen;
@@ -141,26 +139,24 @@ char **valuep;
 	*valuep = NULL;
 	if (*s == '\0')
 		return (-1);
-	p = strchr(s, ',');             /* find next option */
+	p = strchr(s, ',');		/* find next option */
 	if (p == NULL) {
 		p = s + strlen(s);
+	} else {
+		*p++ = '\0';	/* mark end and point to next */
 	}
-	else {
-		*p++ = '\0';            /* mark end and point to next */
-	}
-	*optionsp = p;                  /* point to next option */
-	p = strchr(s, '=');             /* find value */
+	*optionsp = p;		/* point to next option */
+	p = strchr(s, '=');	/* find value */
 	if (p == NULL) {
 		optlen = strlen(s);
 		*valuep = NULL;
-	}
-	else {
+	} else {
 		optlen = p - s;
 		*valuep = ++p;
 	}
 	for (i = 0; tokens[i] != NULL; i++) {
 		if ((optlen == strlen(tokens[i])) &&
-			(strncmp(s, tokens[i], optlen) == 0))
+		    (strncmp(s, tokens[i], optlen) == 0))
 			return (i);
 	}
 	/* no match, point value at option and return error */

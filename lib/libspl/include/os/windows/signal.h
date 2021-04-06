@@ -20,7 +20,7 @@
  */
 
 #ifndef _SPL_SIGNAL_H
-#define _SPL_SIGNAL_H
+#define	_SPL_SIGNAL_H
 
 // #include <sys/sched.h>
 // #include <sys/vm.h>
@@ -36,8 +36,8 @@
 
 struct proc;
 
-//extern int
-//thread_issignal(struct proc *, thread_t, sigset_t);
+// extern int
+// thread_issignal(struct proc *, thread_t, sigset_t);
 #define	SA_SIGINFO	0x00000008
 
 typedef struct __siginfo {
@@ -64,7 +64,8 @@ struct sigaction {
 	int sa_flags;
 };
 
-/* The "why" argument indicates the allowable side-effects of the call:
+/*
+ * The "why" argument indicates the allowable side-effects of the call:
  *
  * FORREAL:  Extract the next pending signal from p_sig into p_cursig;
  * stop the process if a stop has been requested or if a traced signal
@@ -73,19 +74,20 @@ struct sigaction {
  * JUSTLOOKING:  Don't stop the process, just indicate whether or not
  * a signal might be pending (FORREAL is needed to tell for sure).
  */
-#define threadmask (sigmask(SIGILL)|sigmask(SIGTRAP)|\
-                    sigmask(SIGIOT)|sigmask(SIGEMT)|\
-                    sigmask(SIGFPE)|sigmask(SIGBUS)|\
-                    sigmask(SIGSEGV)|sigmask(SIGSYS)|\
-                    sigmask(SIGPIPE)|sigmask(SIGKILL)|\
-                    sigmask(SIGTERM)|sigmask(SIGINT))
+#define	threadmask \
+	(sigmask(SIGILL)|sigmask(SIGTRAP)|				 \
+	    sigmask(SIGIOT)|sigmask(SIGEMT)|			 \
+	    sigmask(SIGFPE)|sigmask(SIGBUS)|			 \
+	    sigmask(SIGSEGV)|sigmask(SIGSYS)|			 \
+	    sigmask(SIGPIPE)|sigmask(SIGKILL)|			 \
+	    sigmask(SIGTERM)|sigmask(SIGINT))
 
 static inline int
 issig(int why)
 {
-	return 0;
+	return (0);
 }
 
-#define signal_pending(p) issig(0)
+#define	signal_pending(p) issig(0)
 
 #endif /* SPL_SIGNAL_H */

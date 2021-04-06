@@ -66,7 +66,7 @@ spa_export_os(void *arg)
 void
 spa_activate_os(void *arg)
 {
-	 atomic_inc_64(&zfs_module_busy);
+	atomic_inc_64(&zfs_module_busy);
 }
 
 void

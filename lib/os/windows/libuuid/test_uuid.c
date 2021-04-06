@@ -33,9 +33,9 @@
  */
 
 #ifdef _WIN32
-#define _WIN32_WINNT 0x0500
+#define	_WIN32_WINNT 0x0500
 #include <windows.h>
-#define UUID MYUUID
+#define	UUID MYUUID
 #endif
 
 #include <stdio.h>
@@ -43,9 +43,10 @@
 
 #include "uuid.h"
 
-static int test_uuid(const char * uuid, int isValid)
+static int
+test_uuid(const char *uuid, int isValid)
 {
-	static const char * validStr[2] = {"invalid", "valid"};
+	static const char *validStr[2] = {"invalid", "valid"};
 	uuid_t uuidBits;
 	int parsedOk;
 
@@ -54,20 +55,20 @@ static int test_uuid(const char * uuid, int isValid)
 	printf("%s is %s", uuid, validStr[isValid]);
 	if (parsedOk != isValid) {
 		printf(" but uuid_parse says %s\n", validStr[parsedOk]);
-		return 1;
+		return (1);
 	}
 	printf(", OK\n");
-	return 0;
+	return (0);
 }
 
 #ifdef __GNUC__
-#define ATTR(x) __attribute__(x)
+#define	ATTR(x) __attribute__(x)
 #else
-#define ATTR(x)
+#define	ATTR(x)
 #endif
 
 int
-main(int argc ATTR((unused)) , char **argv ATTR((unused)))
+main(int argc ATTR((unused)), char **argv ATTR((unused)))
 {
 	uuid_t		buf, tst;
 	char		str[100];
@@ -82,7 +83,7 @@ main(int argc ATTR((unused)) , char **argv ATTR((unused)))
 	uuid_unparse(buf, str);
 	printf("UUID generate = %s\n", str);
 	printf("UUID: ");
-	for (i=0, cp = (unsigned char *) &buf; i < 16; i++) {
+	for (i = 0, cp = (unsigned char *) &buf; i < 16; i++) {
 		printf("%02x", *cp++);
 	}
 	printf("\n");
@@ -98,7 +99,7 @@ main(int argc ATTR((unused)) , char **argv ATTR((unused)))
 	uuid_unparse(buf, str);
 	printf("UUID random string = %s\n", str);
 	printf("UUID: ");
-	for (i=0, cp = (unsigned char *) &buf; i < 16; i++) {
+	for (i = 0, cp = (unsigned char *) &buf; i < 16; i++) {
 		printf("%02x", *cp++);
 	}
 	printf("\n");
@@ -110,7 +111,7 @@ main(int argc ATTR((unused)) , char **argv ATTR((unused)))
 	}
 	if (type != 4) {
 		printf("Incorrect UUID type; was expecting "
-		       "4 (random type)!\n");
+		    "4 (random type)!\n");
 		failed++;
 	}
 	printf("\n");
@@ -119,7 +120,7 @@ main(int argc ATTR((unused)) , char **argv ATTR((unused)))
 	uuid_unparse(buf, str);
 	printf("UUID string = %s\n", str);
 	printf("UUID time: ");
-	for (i=0, cp = (unsigned char *) &buf; i < 16; i++) {
+	for (i = 0, cp = (unsigned char *)&buf; i < 16; i++) {
 		printf("%02x", *cp++);
 	}
 	printf("\n");
@@ -131,14 +132,14 @@ main(int argc ATTR((unused)) , char **argv ATTR((unused)))
 	}
 	if (type != 1) {
 		printf("Incorrect UUID type; was expecting "
-		       "1 (time-based type)!\\n");
+		    "1 (time-based type)!\\n");
 		failed++;
 	}
 	tv.tv_sec = 0;
 	tv.tv_usec = 0;
 	time_reg = uuid_time(buf, &tv);
 	printf("UUID time is: (%ld, %ld): %s\n", tv.tv_sec, tv.tv_usec,
-	       ctime(&time_reg));
+	    ctime(&time_reg));
 	uuid_parse(str, tst);
 	if (!uuid_compare(buf, tst))
 		printf("UUID parse and compare succeeded.\n");
@@ -176,5 +177,5 @@ main(int argc ATTR((unused)) , char **argv ATTR((unused)))
 		printf("%d failures.\n", failed);
 		exit(1);
 	}
-	return 0;
+	return (0);
 }

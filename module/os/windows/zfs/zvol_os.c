@@ -49,7 +49,7 @@ unsigned int zvol_threads = 8;
 taskq_t *zvol_taskq;
 
 typedef struct zv_request {
-	zvol_state_t	*zv;
+	zvol_state_t *zv;
 
 	void (*zv_func)(void *);
 	void *zv_arg;
@@ -198,7 +198,7 @@ zvol_os_read_zv(zvol_state_t *zv, uio_t *uio, int flags)
 			if (error == ECKSUM)
 				error = EIO;
 			break;
-		 }
+		}
 	}
 	zfs_rangelock_exit(lr);
 
@@ -253,18 +253,18 @@ zvol_os_write_zv(zvol_state_t *zv, uio_t *uio, int flags)
 	sync = (zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS);
 
 	/* Lock the entire range */
-	lr = zfs_rangelock_enter(&zv->zv_rangelock, uio_offset(uio), uio_resid(uio),
-	    RL_WRITER);
+	lr = zfs_rangelock_enter(&zv->zv_rangelock, uio_offset(uio),
+	    uio_resid(uio), RL_WRITER);
 
 	/* Iterate over (DMU_MAX_ACCESS/2) segments */
-        while (uio_resid(uio) > 0 && uio_offset(uio) < volsize) {
-                uint64_t bytes = MIN(uio_resid(uio), DMU_MAX_ACCESS >> 1);
-                uint64_t off = uio_offset(uio);
+	while (uio_resid(uio) > 0 && uio_offset(uio) < volsize) {
+		uint64_t bytes = MIN(uio_resid(uio), DMU_MAX_ACCESS >> 1);
+		uint64_t off = uio_offset(uio);
 		dmu_tx_t *tx = dmu_tx_create(zv->zv_objset);
 
 		/* don't write past the end */
-                if (bytes > volsize - off)
-                        bytes = volsize - off;
+		if (bytes > volsize - off)
+			bytes = volsize - off;
 
 		dmu_tx_hold_write_by_dnode(tx, zv->zv_dn, off, bytes);
 		error = dmu_tx_assign(tx, TXG_WAIT);
@@ -397,11 +397,10 @@ zvol_os_update_volsize(zvol_state_t *zv, uint64_t volsize)
 static void
 zvol_os_clear_private(zvol_state_t *zv)
 {
-
 	// Close the Storport half open
 	if (zv->zv_open_count == 0) {
-
-		wzvol_clear_targetid(zv->zv_zso->zso_target_id, zv->zv_zso->zso_lun_id, zv);
+		wzvol_clear_targetid(zv->zv_zso->zso_target_id,
+		    zv->zv_zso->zso_lun_id, zv);
 		wzvol_announce_buschange();
 	}
 }
@@ -436,7 +435,7 @@ zvol_os_find_by_dev(dev_t dev)
 zvol_state_t *
 zvol_os_targetlun_lookup(uint8_t target, uint8_t lun)
 {
-        zvol_state_t *zv;
+	zvol_state_t *zv;
 
 	dprintf("%s\n", __func__);
 
@@ -444,7 +443,8 @@ zvol_os_targetlun_lookup(uint8_t target, uint8_t lun)
 	for (zv = list_head(&zvol_state_list); zv != NULL;
 	    zv = list_next(&zvol_state_list, zv)) {
 		mutex_enter(&zv->zv_state_lock);
-                if (zv->zv_zso->zso_target_id == target && zv->zv_zso->zso_lun_id == lun) {
+		if (zv->zv_zso->zso_target_id == target &&
+		    zv->zv_zso->zso_lun_id == lun) {
 			rw_exit(&zvol_state_lock);
 			return (zv);
 		}
@@ -605,32 +605,34 @@ zvol_os_create_minor(const char *name)
 			zil_replay(os, zv, zvol_replay_vector);
 	}
 
-        // Assign new TargetId and Lun
-        wzvol_assign_targetid(zv);
-
+	// Assign new TargetId and Lun
+	wzvol_assign_targetid(zv);
 
 	rw_enter(&zvol_state_lock, RW_WRITER);
 	zvol_insert(zv);
 	rw_exit(&zvol_state_lock);
 
 	/*
-	 * Here is where we differ to upstream. They will call open and close, as userland
-	 * opens the /dev/disk node. Once opened, it has the open_count, and long_holds held,
-	 * which is used in read/write. Once closed, everything is released.
-	 * So when it comes to export/unmount/destroy of the ZVOL, it checks for opencount==0
-	 * and longholds==0. They should allow for == 1 for Windows.
-	 * However, in Windows there is no open/close devnode, but rather, we assign the zvol
-	 * to the storport API, to expose the device. Really, the zvol needs to be "open" the
-	 * entire time that storport has it. If we leave zvol "open" it will fail the checks
-	 * for "==0". So we steal an opencount, and remember it privately. We could also
+	 * Here is where we differ to upstream. They will call open and
+	 * close, as userland opens the /dev/disk node. Once opened, it
+	 * has the open_count, and long_holds held, which is used in
+	 * read/write. Once closed, everything is released. So when it
+	 * comes to export/unmount/destroy of the ZVOL, it checks for
+	 * opencount==0 and longholds==0. They should allow for == 1
+	 * for Windows.
+	 * However, in Windows there is no open/close devnode, but rather,
+	 * we assign the zvol to the storport API, to expose the device.
+	 * Really, the zvol needs to be "open" the entire time that storport
+	 * has it. If we leave zvol "open" it will fail the checks for "==0".
+	 * So we steal an opencount, and remember it privately. We could also
 	 * change zvol.c to special-case it for Windows.
-	 */ 
-	//error = zvol_os_open_zv(zv, FWRITE, 0, NULL);
+	 */
 #if 0
 	if (error == 0) {
 		error = dnode_hold(os, ZVOL_OBJ, FTAG, &zv->zv_zso->zso_dn);
 		if (error == 0) {
-			zfs_rangelock_init(&zv->zv_zso->zso_rangelock, NULL, NULL);
+			zfs_rangelock_init(&zv->zv_zso->zso_rangelock, NULL,
+			    NULL);
 			wzvol_announce_buschange();
 		}
 	//	zvol_os_close_zv(zv, FWRITE, 0, NULL);
@@ -652,9 +654,10 @@ out_doi:
 
 	if (error == 0) {
 		error = zvol_os_open_zv(zv, FWRITE, 0, NULL);
-		
+
 		if (error == 0) {
-			// Steal this open_count; or we can't export/destroy (EBUSY)
+			// Steal this open_count; or we can't
+			// export/destroy (EBUSY)
 			zv->zv_zso->zso_open_count++;
 			zv->zv_open_count--;
 
@@ -869,7 +872,7 @@ zvol_os_ioctl(dev_t dev, unsigned long cmd, caddr_t data, int isblk,
 		return (ENXIO);
 	}
 
-	// 
+	//
 
 	mutex_exit(&zv->zv_state_lock);
 

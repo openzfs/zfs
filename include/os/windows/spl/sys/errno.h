@@ -46,8 +46,8 @@ extern "C" {
 #endif
 
 #ifdef _KERNEL
-#define ERESTART        (-1)            /* restart syscall */
-#define EJUSTRETURN (-2)            /* don't modify regs, just return */
+#define	ERESTART	(-1) /* restart syscall */
+#define	EJUSTRETURN	(-2) /* don't modify regs, just return */
 #endif
 
 
@@ -89,69 +89,69 @@ extern "C" {
 #define	EDOM	33	/* Math arg out of domain of func	*/
 #define	ERANGE	34	/* Math result not representable	*/
 
-#define EDEADLK	36
-#define ENAMETOOLONG	38
-#define ENOLCK	39
-#define ENOSYS	40
-#define ENOTEMPTY	41
-#define EILSEQ	42              /* Illegal byte sequence */
+#define	EDEADLK	36
+#define	ENAMETOOLONG	38
+#define	ENOLCK	39
+#define	ENOSYS	40
+#define	ENOTEMPTY	41
+#define	EILSEQ	42 /* Illegal byte sequence */
 
-#define EDQUOT	49      /* Disc quota exceeded                  */
-#define EBADE	50      /* invalid exchange                     */
+#define	EDQUOT	49 /* Disc quota exceeded */
+#define	EBADE	50 /* invalid exchange */
 #define	ECKSUM  EBADE
 
-#define ESHUTDOWN	58              /* Can't send after socket shutdown */
-#define ESTALE	70              /* Stale NFS file handle */
+#define	ESHUTDOWN 58 /* Can't send after socket shutdown */
+#define	ESTALE 70 /* Stale NFS file handle */
 
 #ifndef _KERNEL
-#define ERESTART	85  /* Interrupted system call should be restarted */
+#define	ERESTART 85 /* Interrupted system call should be restarted */
 #endif
 
-#define EADDRINUSE      100
-#define EADDRNOTAVAIL   101
-#define EAFNOSUPPORT    102
-#define EALREADY        103
-#define EBADMSG         104
-#define ECANCELED       105
-#define ECONNABORTED    106
-#define ECONNREFUSED    107
-#define ECONNRESET      108
-#define EDESTADDRREQ    109
-#define EHOSTUNREACH    110
-#define EIDRM           111
-#define EINPROGRESS     112
-#define EISCONN         113
-#define ELOOP           114
-#define EMSGSIZE        115
-#define ENETDOWN        116
-#define ENETRESET       117
-#define ENETUNREACH     118
-#define ENOBUFS         119
-#define ENODATA         120
-#define ENOLINK         121
-#define ENOMSG          122
-#define ENOPROTOOPT     123
-#define ENOSR           124
-#define ENOSTR          125
-#define ENOTCONN        126
-#define ENOTRECOVERABLE 127
-#define ENOTSOCK        128
-#define ENOTSUP         129
-#define EOPNOTSUPP      130
-#define EOTHER          131
-#define EOVERFLOW       132
-#define EOWNERDEAD      133
-#define EPROTO          134
-#define EPROTONOSUPPORT 135
-#define EPROTOTYPE      136
-#define ETIME           137
-#define ETIMEDOUT       138
-#define ETXTBSY         139
-#define EWOULDBLOCK     140
+#define	EADDRINUSE	100
+#define	EADDRNOTAVAIL	101
+#define	EAFNOSUPPORT	102
+#define	EALREADY	103
+#define	EBADMSG		104
+#define	ECANCELED	105
+#define	ECONNABORTED	106
+#define	ECONNREFUSED	107
+#define	ECONNRESET	108
+#define	EDESTADDRREQ	109
+#define	EHOSTUNREACH	110
+#define	EIDRM		111
+#define	EINPROGRESS	112
+#define	EISCONN		113
+#define	ELOOP		114
+#define	EMSGSIZE	115
+#define	ENETDOWN	116
+#define	ENETRESET	117
+#define	ENETUNREACH	118
+#define	ENOBUFS		119
+#define	ENODATA		120
+#define	ENOLINK		121
+#define	ENOMSG		122
+#define	ENOPROTOOPT	123
+#define	ENOSR		124
+#define	ENOSTR		125
+#define	ENOTCONN	126
+#define	ENOTRECOVERABLE	127
+#define	ENOTSOCK	128
+#define	ENOTSUP		129
+#define	EOPNOTSUPP	130
+#define	EOTHER		131
+#define	EOVERFLOW	132
+#define	EOWNERDEAD	133
+#define	EPROTO		134
+#define	EPROTONOSUPPORT	135
+#define	EPROTOTYPE	136
+#define	ETIME		137
+#define	ETIMEDOUT	138
+#define	ETXTBSY		139
+#define	EWOULDBLOCK	140
 
-#define ENOTACTIVE 142
-#define ECHRNG 143
-#define EREMOTEIO 144
+#define	ENOTACTIVE	142
+#define	ECHRNG		143
+#define	EREMOTEIO	144
 
 #ifdef	__cplusplus
 }

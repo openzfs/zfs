@@ -52,10 +52,10 @@
 static sa_fstype_t *nfs_fstype;
 
 static int nfs_lock_fd = -1;
-#define LOCK_EX 1
-#define LOCK_SH 2
-#define LOCK_UN 3
-#define LOCK_NB 4
+#define	LOCK_EX 1
+#define	LOCK_SH 2
+#define	LOCK_UN 3
+#define	LOCK_NB 4
 
 /*
  * The nfs_exports_[lock|unlock] is used to guard against conconcurrent

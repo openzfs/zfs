@@ -27,7 +27,6 @@
 #ifndef _LIBSPL_WINDOWS_SYS_PARAM_H
 #define	_LIBSPL_WINDOWS_SYS_PARAM_H
 
-//#include_next <sys/param.h>
 #include <unistd.h>
 #include <limits.h>
 
@@ -44,9 +43,9 @@
  * Note that the blocked devices are assumed to have DEV_BSIZE
  * "sectors" and that fragments must be some multiple of this size.
  */
-//#define MAXBSIZE   8192
-#define DEV_BSIZE  512
-#define DEV_BSHIFT 9     /* log2(DEV_BSIZE) */
+// #define	MAXBSIZE   8192
+#define	DEV_BSIZE  512
+#define	DEV_BSHIFT 9  /* log2(DEV_BSIZE) */
 
 #define	MAXNAMELEN	256
 #define	MAXOFFSET_T	_I64_MAX
@@ -62,6 +61,6 @@
 #define	PAGESIZE	(8192) // SYSTEM_INFO.dwPageSize;
 #endif /* PAGESIZE */
 
-#define NBBY				8
+#define	NBBY				8
 
 #endif

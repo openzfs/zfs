@@ -27,32 +27,30 @@
  */
 
 #ifndef _SPL_TIME_H
-#define _SPL_TIME_H
+#define	_SPL_TIME_H
 
 typedef long long	hrtime_t;
 
 #include <sys/types.h>
-//#include_next <sys/time.h>
 #include <sys/timer.h>
-//#include <mach/mach_time.h>
 #include <crt/time.h>
 struct timespec;
 
 #if defined(CONFIG_64BIT)
-#define TIME_MAX			INT64_MAX
-#define TIME_MIN			INT64_MIN
+#define	TIME_MAX			INT64_MAX
+#define	TIME_MIN			INT64_MIN
 #else
-#define TIME_MAX			INT32_MAX
-#define TIME_MIN			INT32_MIN
+#define	TIME_MAX			INT32_MAX
+#define	TIME_MIN			INT32_MIN
 #endif
 
-#define SEC				1
-#define MILLISEC			1000
-#define MICROSEC			1000000
-#define NANOSEC				1000000000
+#define	SEC				1
+#define	MILLISEC			1000
+#define	MICROSEC			1000000
+#define	NANOSEC				1000000000
 
-#define        NSEC2SEC(n)     ((n) / (NANOSEC / SEC))
-#define        SEC2NSEC(m)     ((hrtime_t)(m) * (NANOSEC / SEC))
+#define	NSEC2SEC(n) ((n) / (NANOSEC / SEC))
+#define	SEC2NSEC(m) ((hrtime_t)(m) * (NANOSEC / SEC))
 
 /* Already defined in include/linux/time.h */
 #undef CLOCK_THREAD_CPUTIME_ID
@@ -61,27 +59,18 @@ struct timespec;
 #undef CLOCK_PROCESS_CPUTIME_ID
 
 typedef enum clock_type {
-	__CLOCK_REALTIME0 =		0,	/* obsolete; same as CLOCK_REALTIME */
-	CLOCK_VIRTUAL =			1,	/* thread's user-level CPU clock */
-	CLOCK_THREAD_CPUTIME_ID	=	2,	/* thread's user+system CPU clock */
-	CLOCK_REALTIME =		3,	/* wall clock */
-	CLOCK_MONOTONIC =		4,	/* high resolution monotonic clock */
-	CLOCK_PROCESS_CPUTIME_ID =	5,	/* process's user+system CPU clock */
-	CLOCK_HIGHRES =			CLOCK_MONOTONIC,	/* alternate name */
-	CLOCK_PROF =			CLOCK_THREAD_CPUTIME_ID,/* alternate name */
+	__CLOCK_REALTIME0 =	0,	/* obsolete; same as CLOCK_REALTIME */
+	CLOCK_VIRTUAL =		1,	/* thread's user-level CPU clock */
+	CLOCK_THREAD_CPUTIME_ID	= 2, 	/* thread's user+system CPU clock */
+	CLOCK_REALTIME =	3,	/* wall clock */
+	CLOCK_MONOTONIC =	4,	/* high resolution monotonic clock */
+	CLOCK_PROCESS_CPUTIME_ID = 5,	/* process's user+system CPU clock */
+	CLOCK_HIGHRES =		CLOCK_MONOTONIC,	 /* alternate name */
+	CLOCK_PROF =		CLOCK_THREAD_CPUTIME_ID, /* alternate name */
 } clock_type_t;
 
-#if 0
-#define hz					\
-({						\
-        ASSERT(HZ >= 100 && HZ <= MICROSEC);	\
-        HZ;					\
-})
-#endif
-
-#define TIMESPEC_OVERFLOW(ts)		\
+#define	TIMESPEC_OVERFLOW(ts)		\
 	((ts)->tv_sec < TIME_MIN || (ts)->tv_sec > TIME_MAX)
-
 
 extern hrtime_t gethrtime(void);
 extern void gethrestime(struct timespec *);
@@ -93,7 +82,7 @@ extern void hrt2ts(hrtime_t hrt, struct timespec *tsp);
 #define	NSEC2MSEC(n)    ((n) / (NANOSEC / MILLISEC))
 #define	NSEC2USEC(n)	((n) / (NANOSEC / MICROSEC))
 
-// Windows 100NS 
+// Windows 100NS
 #define	SEC2NSEC100(n) ((n) * 10000000ULL)
 #define	NSEC2NSEC100(n) ((n) / 100ULL)
 
@@ -102,25 +91,26 @@ extern void hrt2ts(hrtime_t hrt, struct timespec *tsp);
 
 #define	NSEC2USEC(n)    ((n) / (NANOSEC / MICROSEC))
 
+/*
+ * ZFS time is 2* 64bit values, which are seconds, and nanoseconds since 1970
+ * Windows time is 1 64bit value; representing the number of
+ * 100-nanosecond intervals since January 1, 1601 (UTC).
+ * There's 116444736000000000 100ns between 1601 and 1970
+ */
 
-
-// ZFS time is 2* 64bit values, which are seconds, and nanoseconds since 1970
-// Windows time is 1 64bit value; representing the number of 100-nanosecond intervals since January 1, 1601 (UTC).
-// There's 116444736000000000 100ns between 1601 and 1970
-
-// I think these functions handle sec correctly, but nsec should be */100 
-#define TIME_WINDOWS_TO_UNIX(WT, UT) do { \
+// I think these functions handle sec correctly, but nsec should be */100
+#define	TIME_WINDOWS_TO_UNIX(WT, UT) do { \
 	uint64_t unixepoch = (WT) - 116444736000000000ULL; \
 	(UT)[0] = /* seconds */ unixepoch / 10000000ULL; \
 	(UT)[1] = /* remainding nsec */ unixepoch - ((UT)[0] * 10000000ULL); \
-	} while(0)
+	} while (0)
 
-#define TIME_UNIX_TO_WINDOWS(UT, WT) do { \
+#define	TIME_UNIX_TO_WINDOWS(UT, WT) do { \
 	(WT) = ((UT)[1]) + ((UT)[0] * 10000000ULL) + 116444736000000000ULL; \
-	} while(0)
+	} while (0)
 
-#define TIME_UNIX_TO_WINDOWS_EX(SEC, USEC, WT) do { \
+#define	TIME_UNIX_TO_WINDOWS_EX(SEC, USEC, WT) do { \
 	(WT) = (USEC) + ((SEC) * 10000000ULL) + 116444736000000000ULL; \
-	} while(0)
+	} while (0)
 
 #endif  /* _SPL_TIME_H */

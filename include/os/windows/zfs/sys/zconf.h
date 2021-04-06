@@ -90,8 +90,8 @@ extern "C" {
 #define	inflateBack		z_inflateBack
 #define	inflateBackEnd		z_inflateBackEnd
 #define	compress		zz_compress
-//#define	compress2		zz_compress2
-//#define	uncompress		zz_uncompress
+// #define	compress2		zz_compress2
+// #define	uncompress		zz_uncompress
 #define	adler32			z_adler32
 #define	crc32			z_crc32
 #define	get_crc_table		z_get_crc_table

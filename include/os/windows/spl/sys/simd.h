@@ -79,7 +79,6 @@
 #ifndef __clang__
 #include <intrin.h>
 #endif
-//#include <i386/proc_reg.h>
 
 #ifdef _WIN32
 // XNU fpu.h
@@ -727,4 +726,3 @@ zfs_avx512vbmi_available(void)
 #endif /* defined(__x86) */
 
 #endif /* _SIMD_X86_H */
-

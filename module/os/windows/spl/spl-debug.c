@@ -21,10 +21,9 @@
 
 #include <sys/sysmacros.h>
 #include <spl-debug.h>
-#include <spl-trace.h>
-#include <spl-ctl.h>
 
-void panic(const char *fmt, ...) __attribute__((__noreturn__))
+void
+panic(const char *fmt, ...) __attribute__((__noreturn__))
 {
 	va_list ap;
 	va_start(ap, fmt);
@@ -33,7 +32,7 @@ void panic(const char *fmt, ...) __attribute__((__noreturn__))
 		DbgBreakPoint();
 		windows_delay(hz);
 	} while (1);
-	 va_end(ap);
+	va_end(ap);
 }
 
 

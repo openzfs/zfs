@@ -36,13 +36,11 @@
 /*
  * Generic XDR routines impelmentation.
  *
- * These are the "non-trivial" xdr primitives used to serialize and de-serialize
- * arrays.  See xdr.h for more info on the interface to xdr.
+ * These are the "non-trivial" xdr primitives used to serialize and
+ * de-serialize arrays.  See xdr.h for more info on the interface to xdr.
  */
 
-//#include "mt.h"
 #include <sys/types.h>
-//#include <syslog.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -64,7 +62,7 @@ char mem_err_msg_arr[] = "xdr_array: out of memory";
  */
 bool_t
 xdr_array(XDR *xdrs, caddr_t *addrp, uint_t *sizep, const uint_t maxsize,
-	const uint_t elsize, const xdrproc_t elproc)
+    const uint_t elsize, const xdrproc_t elproc)
 {
 	uint_t i;
 	caddr_t target = *addrp;
@@ -92,7 +90,7 @@ xdr_array(XDR *xdrs, caddr_t *addrp, uint_t *sizep, const uint_t maxsize,
 				return (TRUE);
 			*addrp = target = malloc(nodesize);
 			if (target == NULL) {
-				//(void) syslog(LOG_ERR, mem_err_msg_arr);
+				// (void) syslog(LOG_ERR, mem_err_msg_arr);
 				return (FALSE);
 			}
 			(void) memset(target, 0, nodesize);
@@ -132,7 +130,7 @@ xdr_array(XDR *xdrs, caddr_t *addrp, uint_t *sizep, const uint_t maxsize,
  */
 bool_t
 xdr_vector(XDR *xdrs, char *basep, const uint_t nelem,
-	const uint_t elemsize, const xdrproc_t xdr_elem)
+    const uint_t elemsize, const xdrproc_t xdr_elem)
 {
 	uint_t i;
 	char *elptr;

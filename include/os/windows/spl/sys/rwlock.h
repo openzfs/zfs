@@ -23,27 +23,26 @@
  */
 
 #ifndef _SPL_RWLOCK_H
-#define _SPL_RWLOCK_H
+#define	_SPL_RWLOCK_H
 
 #include <sys/types.h>
-//#include <kern/locks.h>
 
 typedef enum {
-        RW_DRIVER  = 2,
-        RW_DEFAULT = 4
+	RW_DRIVER  = 2,
+	RW_DEFAULT = 4
 } krw_type_t;
 
 typedef enum {
-        RW_NONE   = 0,
-        RW_WRITER = 1,
-        RW_READER = 2
+	RW_NONE   = 0,
+	RW_WRITER = 1,
+	RW_READER = 2
 } krw_t;
 
 struct krwlock {
-	ERESOURCE	rw_lock; /* opaque data */
-    void       *rw_owner;    /* writer (exclusive) lock only */
-    int        rw_readers;   /* reader lock only */
-    int        rw_pad;       /* */
+	ERESOURCE	rw_lock;	/* opaque data */
+	void		*rw_owner;	/* writer (exclusive) lock only */
+	int		rw_readers;	/* reader lock only */
+	int		rw_pad;
 };
 typedef struct krwlock  krwlock_t;
 

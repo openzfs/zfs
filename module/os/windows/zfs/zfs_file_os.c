@@ -65,7 +65,8 @@ zfs_file_open(const char *path, int flags, int mode, zfs_file_t **fpp)
 		dwCreationDisposition = FILE_SUPERSEDE;
 		break;
 	case (O_CREAT | O_EXCL):
-	case (O_CREAT | O_EXCL | O_TRUNC): // Only creating new implies starting from 0
+		// Only creating new implies starting from 0
+	case (O_CREAT | O_EXCL | O_TRUNC):
 		dwCreationDisposition = FILE_CREATE;
 		break;
 	case (O_CREAT | O_TRUNC):
@@ -85,44 +86,42 @@ zfs_file_open(const char *path, int flags, int mode, zfs_file_t **fpp)
 
 	RtlInitUnicodeString(&uniName, buf);
 	InitializeObjectAttributes(&objAttr, &uniName,
-			OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE,
-			NULL, NULL);
+	    OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE,
+	    NULL, NULL);
 
-	if(KeGetCurrentIrql() != PASSIVE_LEVEL)
-		return -1;
+	if (KeGetCurrentIrql() != PASSIVE_LEVEL)
+		return (-1);
 
 	ntstatus = ZwCreateFile(&handle,
-			desiredAccess,
-			&objAttr, &ioStatusBlock, NULL,
-			FILE_ATTRIBUTE_NORMAL,
-			0,
-			dwCreationDisposition,
-			FILE_SYNCHRONOUS_IO_NONALERT,
-			NULL, 0);
+	    desiredAccess,
+	    &objAttr, &ioStatusBlock, NULL,
+	    FILE_ATTRIBUTE_NORMAL,
+	    0,
+	    dwCreationDisposition,
+	    FILE_SYNCHRONOUS_IO_NONALERT,
+	    NULL, 0);
 
-	if (ntstatus != STATUS_SUCCESS) {
-		return -1;
-	}
+	if (ntstatus != STATUS_SUCCESS)
+		return (-1);
 
 	// Since we will use DeviceObject and FileObject to do ioctl and IO
 	// we grab them now and lock them in place.
 	// Convert HANDLE to FileObject
-	PFILE_OBJECT        FileObject;
-	PDEVICE_OBJECT      DeviceObject;
+	PFILE_OBJECT FileObject;
+	PDEVICE_OBJECT DeviceObject;
 	NTSTATUS status;
 
 	// This adds a reference to FileObject
 	status = ObReferenceObjectByHandle(
-		handle,
-		0,
-		*IoFileObjectType,
-		KernelMode,
-		&FileObject,
-		NULL
-	);
+	    handle,
+	    0,
+	    *IoFileObjectType,
+	    KernelMode,
+	    &FileObject,
+	    NULL);
 	if (status != STATUS_SUCCESS) {
 		ZwClose(handle);
-                return (EIO);
+		return (EIO);
 	}
 
 	// Convert FileObject to DeviceObject
@@ -140,7 +139,7 @@ zfs_file_open(const char *path, int flags, int mode, zfs_file_t **fpp)
 
 	*fpp = fp;
 
-	return 0;
+	return (0);
 }
 
 void
@@ -174,7 +173,7 @@ zfs_file_write(zfs_file_t *fp, const void *buf, size_t count, ssize_t *resid)
 	IO_STATUS_BLOCK ioStatusBlock;
 
 	ntstatus = ZwWriteFile(fp->f_handle, NULL, NULL, NULL,
-			&ioStatusBlock, buf, count, NULL, NULL);
+	    &ioStatusBlock, buf, count, NULL, NULL);
 
 	if (resid)
 		*resid = 0;
@@ -195,11 +194,13 @@ zfs_file_write(zfs_file_t *fp, const void *buf, size_t count, ssize_t *resid)
  *
  * Returns 0 on success errno on failure.
  */
-int zfs_file_read(zfs_file_t *fp, /* const */void *buf, size_t count, ssize_t *resid)
+int
+zfs_file_read(zfs_file_t *fp, void *buf, size_t count, ssize_t *resid)
 {
 	NTSTATUS ntstatus;
 	IO_STATUS_BLOCK ioStatusBlock;
-	ntstatus = ZwReadFile(fp->f_handle, NULL, NULL, NULL, &ioStatusBlock, buf, count, NULL, NULL);
+	ntstatus = ZwReadFile(fp->f_handle, NULL, NULL, NULL,
+	    &ioStatusBlock, buf, count, NULL, NULL);
 	if (STATUS_SUCCESS != ntstatus)
 		return (EIO);
 	if (resid)
@@ -220,13 +221,14 @@ int zfs_file_read(zfs_file_t *fp, /* const */void *buf, size_t count, ssize_t *r
  */
 int
 zfs_file_pwrite(zfs_file_t *fp, const void *buf, size_t count, loff_t off,
-	ssize_t *resid)
+    ssize_t *resid)
 {
 	NTSTATUS ntstatus;
 	IO_STATUS_BLOCK ioStatusBlock;
 	LARGE_INTEGER offset = { 0 };
 	offset.QuadPart = off;
-	ntstatus = ZwWriteFile(fp->f_handle, NULL, NULL, NULL, &ioStatusBlock, buf, count, &offset, NULL);
+	ntstatus = ZwWriteFile(fp->f_handle, NULL, NULL, NULL,
+	    &ioStatusBlock, buf, count, &offset, NULL);
 	// reset fp to its original position
 	if (STATUS_SUCCESS != ntstatus)
 		return (EIO);
@@ -254,7 +256,8 @@ zfs_file_pread(zfs_file_t *fp, void *buf, size_t count, loff_t off,
 	IO_STATUS_BLOCK ioStatusBlock;
 	LARGE_INTEGER offset = { 0 };
 	offset.QuadPart = off;
-	ntstatus = ZwReadFile(fp->f_handle, NULL, NULL, NULL, &ioStatusBlock, buf, count, &offset, NULL);
+	ntstatus = ZwReadFile(fp->f_handle, NULL, NULL, NULL,
+	    &ioStatusBlock, buf, count, &offset, NULL);
 	if (STATUS_SUCCESS != ntstatus)
 		return (EIO);
 	if (resid)
@@ -273,17 +276,16 @@ int
 zfs_file_fsync(zfs_file_t *fp, int flags)
 {
 	if (KeGetCurrentIrql() != PASSIVE_LEVEL)
-		return -1;
+		return (-1);
 	IO_STATUS_BLOCK	ioStatusBlock;
 	NTSTATUS ntStatus;
 	ntStatus = ZwFlushBuffersFile(
-		fp->f_handle,
-		&ioStatusBlock
-	);
+	    fp->f_handle,
+	    &ioStatusBlock);
 	if (ntStatus != STATUS_SUCCESS) {
-		return -1;
+		return (-1);
 	}
-	return 0;
+	return (0);
 }
 /*
  * fallocate - allocate or free space on disk
@@ -301,7 +303,7 @@ zfs_file_fallocate(zfs_file_t *fp, int mode, loff_t offset, loff_t len)
 	int error;
 	struct flock flck;
 
-	bzero(&flck, sizeof(flck));
+	bzero(&flck, sizeof (flck));
 	flck.l_type = F_FREESP;
 	flck.l_start = offset;
 	flck.l_len = len;
@@ -330,12 +332,11 @@ zfs_file_getattr(zfs_file_t *fp, zfs_file_attr_t *zfattr)
 	IO_STATUS_BLOCK ioStatusBlock;
 	NTSTATUS ntStatus;
 	ntStatus = ZwQueryInformationFile(
-		fp->f_handle,
-		&ioStatusBlock,
-		&fileInfo,
-		sizeof(fileInfo),
-		FileStandardInformation
-	);
+	    fp->f_handle,
+	    &ioStatusBlock,
+	    &fileInfo,
+	    sizeof (fileInfo),
+	    FileStandardInformation);
 	if (ntStatus != STATUS_SUCCESS) {
 		return (-1);
 	}
@@ -395,7 +396,7 @@ zfs_file_private(zfs_file_t *fp)
  * OPTIONAL
  */
 int
-zfs_file_unlink(const char* path)
+zfs_file_unlink(const char *path)
 {
 	return (EOPNOTSUPP);
 }

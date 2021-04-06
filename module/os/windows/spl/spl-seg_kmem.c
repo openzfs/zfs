@@ -26,17 +26,10 @@
 
 #include <sys/vmem.h>
 #include <sys/vmem_impl.h>
-// ugly: smd
-#ifdef kmem_free
-#undef kmem_free
-#endif
-//#include <vm/seg_kmem.h>
 
 #include <sys/time.h>
 #include <sys/timer.h>
 #include <sys/condvar.h>
-
-//#include <stdbool.h>
 
 /*
  * seg_kmem is the primary kernel memory segment driver.  It
@@ -92,12 +85,9 @@
 
 
 #ifdef _KERNEL
-#define XNU_KERNEL_PRIVATE
-//#include <mach/vm_types.h>
+#define	XNU_KERNEL_PRIVATE
 
 #include <Trace.h>
-
-//extern vm_map_t kernel_map;
 
 /*
  * These extern prototypes has to be carefully checked against XNU source
@@ -111,7 +101,7 @@ typedef uint8_t vm_tag_t;
  *
  * (VM_KERN_MEMORY_KEXT - mach_vm_statistics.h)
  */
-#define SPL_TAG 6
+#define	SPL_TAG 6
 
 /*
  * In kernel lowlevel form of malloc.
@@ -128,12 +118,16 @@ typedef int page_t;
 void *segkmem_alloc(vmem_t *vmp, size_t size, int vmflag);
 void segkmem_free(vmem_t *vmp, void *inaddr, size_t size);
 
-
-uint64_t segkmem_total_mem_allocated = 0;	/* Total memory held allocated */
-vmem_t *heap_arena;							/* primary kernel heap arena */
-vmem_t *zio_arena_parent;                       /* qcaches for zio and abd arenas */
-vmem_t *zio_arena;							/* arena for allocating file data */
-vmem_t *zio_metadata_arena;                                             /* and for allocation of zfs metadata */
+/* Total memory held allocated */
+uint64_t segkmem_total_mem_allocated = 0;
+/* primary kernel heap arena */
+vmem_t *heap_arena;
+/* qcaches for zio and abd arenas */
+vmem_t *zio_arena_parent;
+/* arena for allocating file data */
+vmem_t *zio_arena;
+/* and for allocation of zfs metadata */
+vmem_t *zio_metadata_arena;
 
 #ifdef _KERNEL
 extern uint64_t total_memory;
@@ -149,26 +143,25 @@ osif_malloc(uint64_t size)
 #ifdef _KERNEL
 
 	void *tr;
-	//kern_return_t kr = kernel_memory_allocate(kernel_map,
-	//    &tr, size, PAGESIZE, 0, SPL_TAG);
 	tr = ExAllocatePoolWithTag(NonPagedPoolNx, size, '!SFZ');
 	ASSERT(P2PHASE(tr, PAGE_SIZE) == 0);
 	if (tr != NULL) {
 		atomic_inc_64(&stat_osif_malloc_success);
 		atomic_add_64(&segkmem_total_mem_allocated, size);
 		atomic_add_64(&stat_osif_malloc_bytes, size);
-		return(tr);
+		return (tr);
 	} else {
-		dprintf("%s: ExAllocatePoolWithTag failed (memusage: %llu)\n", __func__, segkmem_total_mem_allocated);
+		dprintf("%s: ExAllocatePoolWithTag failed (memusage: %llu)\n",
+		    __func__, segkmem_total_mem_allocated);
 		ASSERT(0);
 		extern volatile unsigned int vm_page_free_wanted;
 		extern volatile unsigned int vm_page_free_min;
 		spl_free_set_pressure(vm_page_free_min);
 		vm_page_free_wanted = vm_page_free_min;
-		return(NULL);
+		return (NULL);
 	}
 #else
-	return(malloc(size));
+	return (malloc(size));
 #endif
 }
 
@@ -176,13 +169,12 @@ void
 osif_free(void* buf, uint64_t size)
 {
 #ifdef _KERNEL
-    //kmem_free(kernel_map, buf, size);
 	ExFreePoolWithTag(buf, '!SFZ');
-    atomic_inc_64(&stat_osif_free);
-    atomic_sub_64(&segkmem_total_mem_allocated, size);
-    atomic_add_64(&stat_osif_free_bytes, size);
+	atomic_inc_64(&stat_osif_free);
+	atomic_sub_64(&segkmem_total_mem_allocated, size);
+	atomic_add_64(&stat_osif_free_bytes, size);
 #else
-    free(buf);
+	free(buf);
 #endif /* _KERNEL */
 }
 
@@ -190,39 +182,39 @@ osif_free(void* buf, uint64_t size)
  * Configure vmem, such that the heap arena is fed,
  * and drains to the kernel low level allocator.
  */
-	extern vmem_t *vmem_init(const char *, void *, uint32_t, uint32_t,
-							 vmem_alloc_t *, vmem_free_t *);
+extern vmem_t *vmem_init(const char *, void *, uint32_t, uint32_t,
+    vmem_alloc_t *, vmem_free_t *);
 
 void
 kernelheap_init()
 {
 	heap_arena = vmem_init("heap", NULL, 0, PAGESIZE,
-		(vmem_alloc_t *)segkmem_alloc, (vmem_free_t *)segkmem_free);
+	    (vmem_alloc_t *)segkmem_alloc, (vmem_free_t *)segkmem_free);
 }
 
-
-void kernelheap_fini(void)
+void
+kernelheap_fini(void)
 {
 	vmem_fini(heap_arena);
 }
 
 void *
-segkmem_alloc(vmem_t * vmp, size_t size, int maybe_unmasked_vmflag)
+segkmem_alloc(vmem_t *vmp, size_t size, int maybe_unmasked_vmflag)
 {
-	return(osif_malloc(size));
+	return (osif_malloc(size));
 }
 
 void
 segkmem_free(vmem_t *vmp, void *inaddr, size_t size)
 {
 	osif_free(inaddr, size);
-	//since this is mainly called by spl_root_arena and free_arena,
-	//do we really want to wake up a waiter, just because we have
-	//transferred from one to the other?
-	//we already have vmem_add_a_gibibyte waking up waiters
-	//so specializing here seems wasteful
-	//(originally included in vmem_experiments)
-	//cv_signal(&vmp->vm_cv);
+	// since this is mainly called by spl_root_arena and free_arena,
+	// do we really want to wake up a waiter, just because we have
+	// transferred from one to the other?
+	// we already have vmem_add_a_gibibyte waking up waiters
+	// so specializing here seems wasteful
+	// (originally included in vmem_experiments)
+	// cv_signal(&vmp->vm_cv);
 }
 
 /*
@@ -232,7 +224,7 @@ segkmem_free(vmem_t *vmp, void *inaddr, size_t size)
  * as all the other caches.
  */
 // smd: we nevertheless plumb in an arena with heap as parent, so that
-//      we can track stats and maintain the VM_ / qc settings differently
+// we can track stats and maintain the VM_ / qc settings differently
 void
 segkmem_zio_init()
 {
@@ -243,7 +235,7 @@ segkmem_zio_init()
 
 	// Illumos does not segregate zio_metadata_arena out of heap,
 	// almost exclusively for reasons involving panic dump data
-	// retention.     However, parenting zio_metadata_arena to
+	// retention. However, parenting zio_metadata_arena to
 	// spl_root_arena and giving it its own qcaches provides better
 	// kstat observability *and* noticeably better performance in
 	// realworld (zfs/dmu) metadata-heavy activity.    Additionally,

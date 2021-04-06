@@ -30,15 +30,15 @@
 
 
 #ifndef _SPL_UTSNAME_H
-#define _SPL_UTSNAME_H
+#define	_SPL_UTSNAME_H
 
-#define      _SYS_NMLN       257
+#define	_SYS_NMLN 257
 struct opensolaris_utsname {
-        char    sysname[_SYS_NMLN];
-        char    nodename[_SYS_NMLN];
-        char    release[_SYS_NMLN];
-        char    version[_SYS_NMLN];
-        char    machine[_SYS_NMLN];
+	char sysname[_SYS_NMLN];
+	char nodename[_SYS_NMLN];
+	char release[_SYS_NMLN];
+	char version[_SYS_NMLN];
+	char machine[_SYS_NMLN];
 };
 
 typedef struct opensolaris_utsname utsname_t;

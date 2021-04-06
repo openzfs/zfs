@@ -18,7 +18,7 @@
  *
  * CDDL HEADER END
  */
- /*
+/*
  * Copyright (c) 2017 Jorgen Lundman <lundman@lundman.net>
  */
 
@@ -76,19 +76,22 @@ static void disk_exclusive(DEVICE_OBJECT *device, boolean_t excl)
 	DWORD returnedSize;
 
 	// Set disk attributes.
-	diskAttrs.Version = sizeof(diskAttrs);
-	diskAttrs.AttributesMask = DISK_ATTRIBUTE_OFFLINE | DISK_ATTRIBUTE_READ_ONLY;
-	diskAttrs.Attributes = excl ? DISK_ATTRIBUTE_OFFLINE | DISK_ATTRIBUTE_READ_ONLY : 0;
+	diskAttrs.Version = sizeof (diskAttrs);
+	diskAttrs.AttributesMask =
+	    DISK_ATTRIBUTE_OFFLINE | DISK_ATTRIBUTE_READ_ONLY;
+	diskAttrs.Attributes =
+	    excl ? DISK_ATTRIBUTE_OFFLINE | DISK_ATTRIBUTE_READ_ONLY : 0;
 	diskAttrs.Persist = FALSE;
 
 	if (kernel_ioctl(device, NULL, IOCTL_DISK_SET_DISK_ATTRIBUTES,
-		&diskAttrs, sizeof(diskAttrs), NULL, 0) != 0) {
+	    &diskAttrs, sizeof (diskAttrs), NULL, 0) != 0) {
 		dprintf("IOCTL_DISK_SET_DISK_ATTRIBUTES");
 		return;
 	}
 
 	// Tell the system that the disk was changed.
-	if (kernel_ioctl(device, NULL, IOCTL_DISK_UPDATE_PROPERTIES, NULL, 0, NULL, 0) != 0)
+	if (kernel_ioctl(device, NULL, IOCTL_DISK_UPDATE_PROPERTIES, NULL,
+	    0, NULL, 0) != 0)
 		dprintf("IOCTL_DISK_UPDATE_PROPERTIES");
 
 }
@@ -99,14 +102,14 @@ static void disk_exclusive(DEVICE_OBJECT *device, boolean_t excl)
  * even a fallback to DKIOCGMEDIAINFO fails.
  */
 #ifdef DEBUG
-#define        VDEV_DEBUG(...) cmn_err(CE_NOTE, __VA_ARGS__)
+#define	VDEV_DEBUG(...) cmn_err(CE_NOTE, __VA_ARGS__)
 #else
-#define        VDEV_DEBUG(...) /* Nothing... */
+#define	VDEV_DEBUG(...) /* Nothing... */
 #endif
 
 static int
 vdev_disk_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
-	uint64_t *ashift, uint64_t *physical_ashif)
+    uint64_t *ashift, uint64_t *physical_ashif)
 {
 	spa_t *spa = vd->vdev_spa;
 	vdev_disk_t *dvd = vd->vdev_tsd;
@@ -117,12 +120,14 @@ vdev_disk_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 
 	PAGED_CODE();
 
-	dprintf("%s: open of '%s' (physpath '%s')\n", __func__, vd->vdev_path, vd->vdev_physpath ? vd->vdev_physpath : "");
+	dprintf("%s: open of '%s' (physpath '%s')\n", __func__,
+	    vd->vdev_path, vd->vdev_physpath ? vd->vdev_physpath : "");
 	/*
 	 * We must have a pathname, and it must be absolute.
 	 * It can also start with # for partition encoded paths
 	 */
-	if (vd->vdev_path == NULL || (vd->vdev_path[0] != '/' && vd->vdev_path[0] != '#' &&
+	if (vd->vdev_path == NULL ||
+	    (vd->vdev_path[0] != '/' && vd->vdev_path[0] != '#' &&
 	    vd->vdev_path[0] != '\\')) {
 		vd->vdev_stat.vs_aux = VDEV_AUX_BAD_LABEL;
 		return (SET_ERROR(EINVAL));
@@ -140,16 +145,15 @@ vdev_disk_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 			 * up the LDI event callbacks and free vd->vdev_tsd.
 			 */
 			vdev_disk_free(vd);
-		}
-		else {
+		} else {
 			ASSERT(vd->vdev_reopening);
 			goto skip_open;
 		}
 	}
 
 	/*
-	* Create vd->vdev_tsd.
-	*/
+	 * Create vd->vdev_tsd.
+	 */
 	vdev_disk_alloc(vd);
 	dvd = vd->vdev_tsd;
 
@@ -163,7 +167,7 @@ vdev_disk_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 
 	// Use vd->vdev_physpath first, if set, otherwise
 	// usual vd->vdev_path
-	if (vd->vdev_physpath) 
+	if (vd->vdev_physpath)
 		vdev_path = spa_strdup(vd->vdev_physpath);
 	else
 		vdev_path = spa_strdup(vd->vdev_path);
@@ -179,13 +183,12 @@ vdev_disk_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 		while (end && end[0] == '#') end++;
 
 		FileName = end;
-	}
-	else {
+	} else {
 		FileName = vdev_path;
 
 		// Sometimes only vdev_path is set, with "/dev/physicaldrive"
 		// make it be " \??\physicaldrive" space skipped over.
-		if (!strncmp("/dev/", FileName, 5)) {
+		if (strncmp("/dev/", FileName, 5) == 0) {
 			FileName[0] = ' ';
 			FileName[1] = '\\';
 			FileName[2] = '?';
@@ -197,22 +200,22 @@ vdev_disk_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 
 	// Apparently in Userland it is "\\?\" but in
 	// kernel has to be "\??\" - is there not a name that works in both?
-	if (!strncmp("\\\\?\\", FileName, 4)) {
+	if (strncmp("\\\\?\\", FileName, 4) == 0) {
 		FileName[1] = '?';
 	}
 
 	dprintf("%s: opening '%s'\n", __func__, FileName);
 
-	ANSI_STRING         AnsiFilespec;
-	UNICODE_STRING      UnicodeFilespec;
-	OBJECT_ATTRIBUTES   ObjectAttributes;
+	ANSI_STRING AnsiFilespec;
+	UNICODE_STRING UnicodeFilespec;
+	OBJECT_ATTRIBUTES ObjectAttributes;
 
-	SHORT                   UnicodeName[PATH_MAX];
-	CHAR                    AnsiName[PATH_MAX];
-	USHORT                  NameLength = 0;
+	SHORT UnicodeName[PATH_MAX];
+	CHAR AnsiName[PATH_MAX];
+	USHORT NameLength = 0;
 
-	memset(UnicodeName, 0, sizeof(SHORT) * PATH_MAX);
-	memset(AnsiName, 0, sizeof(UCHAR) * PATH_MAX);
+	memset(UnicodeName, 0, sizeof (SHORT) * PATH_MAX);
+	memset(AnsiName, 0, sizeof (UCHAR) * PATH_MAX);
 
 	NameLength = strlen(FileName);
 	ASSERT(NameLength < PATH_MAX);
@@ -228,25 +231,28 @@ vdev_disk_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 
 	RtlAnsiStringToUnicodeString(&UnicodeFilespec, &AnsiFilespec, FALSE);
 
-	ObjectAttributes.Length = sizeof(OBJECT_ATTRIBUTES);
+	ObjectAttributes.Length = sizeof (OBJECT_ATTRIBUTES);
 	ObjectAttributes.RootDirectory = NULL;
-	ObjectAttributes.Attributes = /*OBJ_CASE_INSENSITIVE |*/ OBJ_KERNEL_HANDLE; 
+	ObjectAttributes.Attributes = OBJ_KERNEL_HANDLE;
 	ObjectAttributes.ObjectName = &UnicodeFilespec;
 	ObjectAttributes.SecurityDescriptor = NULL;
 	ObjectAttributes.SecurityQualityOfService = NULL;
 	IO_STATUS_BLOCK iostatus;
 
 	ntstatus = ZwCreateFile(&dvd->vd_lh,
-		spa_mode(spa) == SPA_MODE_READ ? GENERIC_READ | SYNCHRONIZE : GENERIC_READ | GENERIC_WRITE | SYNCHRONIZE,
-		&ObjectAttributes,
-		&iostatus,
-		0,
-		FILE_ATTRIBUTE_NORMAL,
-		/* FILE_SHARE_WRITE | */ FILE_SHARE_READ,
-		FILE_OPEN,
-		FILE_SYNCHRONOUS_IO_NONALERT | (spa_mode(spa) == SPA_MODE_READ ? 0 : FILE_NO_INTERMEDIATE_BUFFERING),
-		NULL,
-		0);
+	    spa_mode(spa) == SPA_MODE_READ ? GENERIC_READ | SYNCHRONIZE :
+	    GENERIC_READ | GENERIC_WRITE | SYNCHRONIZE,
+	    &ObjectAttributes,
+	    &iostatus,
+	    0,
+	    FILE_ATTRIBUTE_NORMAL,
+	    /* FILE_SHARE_WRITE | */ FILE_SHARE_READ,
+	    FILE_OPEN,
+	    FILE_SYNCHRONOUS_IO_NONALERT |
+	    (spa_mode(spa) == SPA_MODE_READ ? 0 :
+	    FILE_NO_INTERMEDIATE_BUFFERING),
+	    NULL,
+	    0);
 
 	if (ntstatus == STATUS_SUCCESS) {
 		error = 0;
@@ -256,9 +262,9 @@ vdev_disk_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 	}
 
 	/*
-	* If we succeeded in opening the device, but 'vdev_wholedisk'
-	* is not yet set, then this must be a slice.
-	*/
+	 * If we succeeded in opening the device, but 'vdev_wholedisk'
+	 * is not yet set, then this must be a slice.
+	 */
 	if (error == 0 && vd->vdev_wholedisk == -1ULL)
 		vd->vdev_wholedisk = 0;
 
@@ -271,25 +277,24 @@ vdev_disk_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 	// Since we will use DeviceObject and FileObject to do ioctl and IO
 	// we grab them now and lock them in place.
 	// Convert HANDLE to FileObject
-	PFILE_OBJECT        FileObject;
-	PDEVICE_OBJECT      DeviceObject;
+	PFILE_OBJECT FileObject;
+	PDEVICE_OBJECT DeviceObject;
 	NTSTATUS status;
 
 	// This adds a reference to FileObject
 	status = ObReferenceObjectByHandle(
-		dvd->vd_lh,  // fixme, keep this in dvd
-		0,
-		*IoFileObjectType,
-		KernelMode,
-		&FileObject,
-		NULL
-	);
+	    dvd->vd_lh,  // fixme, keep this in dvd
+	    0,
+	    *IoFileObjectType,
+	    KernelMode,
+	    &FileObject,
+	    NULL);
 	if (status != STATUS_SUCCESS) {
 		ZwClose(dvd->vd_lh);
 		dvd->vd_lh = NULL;
 		vd->vdev_stat.vs_aux = VDEV_AUX_OPEN_FAILED;
 		spa_strfree(vdev_path);
-		return EIO;
+		return (EIO);
 	}
 
 
@@ -297,19 +302,20 @@ vdev_disk_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 	PDEVICE_OBJECT pTopDevice = IoGetRelatedDeviceObject(FileObject);
 	PDEVICE_OBJECT pSendToDevice = pTopDevice; // default
 
-	/*
-		Move to the top of the device stack or until we find the protection filter driver.
-		We need to stay under that driver so we can still access the disk
-		after protecting it.
-		The custom protection filter is optional: if none set we stay under the default "partmgr" driver;
-		otherwise we will stay under the first one found.
-		By default the disk gets minimal protection being set offline and read only through "partmgr". 
-		A custom filter driver can provide enhanced protection for the vdev disk.
-	*/
+/*
+ * Move to the top of the device stack or until we find the protection
+ * filter driver. We need to stay under that driver so we can still
+ * access the disk after protecting it.
+ * The custom protection filter is optional: if none set we stay under
+ * the default "partmgr" driver; otherwise we will stay under the first
+ * one found. By default the disk gets minimal protection being set offline
+ * and read only through "partmgr". A custom filter driver can provide
+ * enhanced protection for the vdev disk.
+ */
 	UNICODE_STRING customFilterName;
 	UNICODE_STRING defaultFilterName;
 	RtlInitUnicodeString(&customFilterName, zfs_vdev_protection_filter);
-	RtlInitUnicodeString(&defaultFilterName, L"\\Driver\\partmgr"); // default
+	RtlInitUnicodeString(&defaultFilterName, L"\\Driver\\partmgr");
 
 	DeviceObject = FileObject->DeviceObject; // bottom of stack
 	ObReferenceObject(DeviceObject);
@@ -323,28 +329,32 @@ vdev_disk_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 	capacity = dvd->vdev_win_length;
 
 	// STORAGE_DEVICE_NUMBER sdn = { 0 };
-	// kernel_ioctl(DeviceObject, FileObject, IOCTL_STORAGE_GET_DEVICE_NUMBER,
-	//	    NULL, 0, &sdn, sizeof(sdn));
+	// kernel_ioctl(DeviceObject, FileObject,
+	// IOCTL_STORAGE_GET_DEVICE_NUMBER,
+	//	NULL, 0, &sdn, sizeof(sdn));
 
 	if (capacity == 0ULL) {
 		PARTITION_INFORMATION_EX pix = {0};
-		if (kernel_ioctl(DeviceObject, FileObject, IOCTL_DISK_GET_PARTITION_INFO_EX,
-		    NULL, 0, &pix, sizeof(pix)) == 0)
+		if (kernel_ioctl(DeviceObject, FileObject,
+		    IOCTL_DISK_GET_PARTITION_INFO_EX,
+		    NULL, 0, &pix, sizeof (pix)) == 0)
 			capacity = pix.PartitionLength.QuadPart;
 	}
 
 	if (capacity == 0ULL) {
 		PARTITION_INFORMATION pi = {0};
-		if (kernel_ioctl(DeviceObject, FileObject, IOCTL_DISK_GET_PARTITION_INFO,
-		    NULL, 0, &pi, sizeof(pi)) == 0)
+		if (kernel_ioctl(DeviceObject, FileObject,
+		    IOCTL_DISK_GET_PARTITION_INFO,
+		    NULL, 0, &pi, sizeof (pi)) == 0)
 			capacity = pi.PartitionLength.QuadPart;
 	}
 
 	if (capacity == 0ULL) {
 		GET_LENGTH_INFORMATION len;
 
-		if (kernel_ioctl(DeviceObject, FileObject, IOCTL_DISK_GET_LENGTH_INFO,
-		    NULL, 0, &len, sizeof(len)) == 0)
+		if (kernel_ioctl(DeviceObject, FileObject,
+		    IOCTL_DISK_GET_LENGTH_INFO,
+		    NULL, 0, &len, sizeof (len)) == 0)
 			capacity = len.Length.QuadPart;
 	}
 
@@ -352,29 +362,37 @@ vdev_disk_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 		DISK_GEOMETRY_EX geometry_ex = {0};
 		DWORD len;
 
-		if (kernel_ioctl(DeviceObject, FileObject, IOCTL_DISK_GET_DRIVE_GEOMETRY_EX,
-		    NULL, 0, &geometry_ex, sizeof(geometry_ex)) == 0)
+		if (kernel_ioctl(DeviceObject, FileObject,
+		    IOCTL_DISK_GET_DRIVE_GEOMETRY_EX,
+		    NULL, 0, &geometry_ex, sizeof (geometry_ex)) == 0)
 			capacity = geometry_ex.DiskSize.QuadPart;
 	}
 
 	if (capacity == 0ULL && vd->vdev_wholedisk) {
 		STORAGE_READ_CAPACITY cap = {0};
-		cap.Version = sizeof(STORAGE_READ_CAPACITY);
-		if (kernel_ioctl(DeviceObject, FileObject, IOCTL_STORAGE_READ_CAPACITY,
-		    NULL, 0, &cap, sizeof(cap)) == 0)
+		cap.Version = sizeof (STORAGE_READ_CAPACITY);
+		if (kernel_ioctl(DeviceObject, FileObject,
+		    IOCTL_STORAGE_READ_CAPACITY,
+		    NULL, 0, &cap, sizeof (cap)) == 0)
 			capacity = cap.DiskLength.QuadPart;
 	}
 
 	// Remember the size for when we skip_open
 	dvd->vdev_win_length = capacity;
 
-
 	// Now walk up the stack locating the device to lock
 	while (DeviceObject) {
-		if ((zfs_vdev_protection_filter[0] != L'\0' ? !RtlCompareUnicodeString(&DeviceObject->DriverObject->DriverName, &customFilterName, TRUE) : FALSE) ||
-			!RtlCompareUnicodeString(&DeviceObject->DriverObject->DriverName, &defaultFilterName, TRUE)) {
-			dprintf("%s: disk %s : vdev protection filter set to %S\n", __func__,
-				FileName, DeviceObject->DriverObject->DriverName.Buffer);
+		if ((zfs_vdev_protection_filter[0] != L'\0' ?
+		    !RtlCompareUnicodeString(
+		    &DeviceObject->DriverObject->DriverName,
+		    &customFilterName, TRUE) : FALSE) ||
+		    !RtlCompareUnicodeString(
+		    &DeviceObject->DriverObject->DriverName,
+		    &defaultFilterName, TRUE)) {
+			dprintf("%s: disk %s : vdev protection "
+			    "filter set to %S\n",
+			    __func__, FileName,
+			    DeviceObject->DriverObject->DriverName.Buffer);
 			break;
 		}
 		pSendToDevice = DeviceObject;
@@ -388,7 +406,8 @@ vdev_disk_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 	dvd->vd_FileObject = FileObject;
 	dvd->vd_ExclusiveObject = DeviceObject;
 
-	// Make disk readonly and offline, so that users can't partition/format it.
+	// Make disk readonly and offline, so that users can't
+	// partition/format it.
 	if (vd->vdev_wholedisk)
 		disk_exclusive(dvd->vd_ExclusiveObject, TRUE);
 	spa_strfree(vdev_path);
@@ -398,22 +417,23 @@ skip_open:
 	capacity = dvd->vdev_win_length;
 
 	/*
-	* Determine the device's minimum transfer size.
-	* If the ioctl isn't supported, assume DEV_BSIZE.
-	*/
+	 * Determine the device's minimum transfer size.
+	 * If the ioctl isn't supported, assume DEV_BSIZE.
+	 */
 	// fill in capacity, blksz, pbsize
 	STORAGE_PROPERTY_QUERY storageQuery;
-	memset(&storageQuery, 0, sizeof(STORAGE_PROPERTY_QUERY));
+	memset(&storageQuery, 0, sizeof (STORAGE_PROPERTY_QUERY));
 	storageQuery.PropertyId = StorageAccessAlignmentProperty;
 	storageQuery.QueryType = PropertyStandardQuery;
 
 	STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR diskAlignment = { 0 };
-	memset(&diskAlignment, 0, sizeof(STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR));
+	memset(&diskAlignment, 0, sizeof (STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR));
 	DWORD outsize;
 
-	error = kernel_ioctl(dvd->vd_DeviceObject, dvd->vd_FileObject, IOCTL_STORAGE_QUERY_PROPERTY,
-		&storageQuery, sizeof(STORAGE_PROPERTY_QUERY),
-		&diskAlignment, sizeof(STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR));
+	error = kernel_ioctl(dvd->vd_DeviceObject, dvd->vd_FileObject,
+	    IOCTL_STORAGE_QUERY_PROPERTY,
+	    &storageQuery, sizeof (STORAGE_PROPERTY_QUERY),
+	    &diskAlignment, sizeof (STORAGE_ACCESS_ALIGNMENT_DESCRIPTOR));
 
 	if (error == 0) {
 		blksz = diskAlignment.BytesPerLogicalSector;
@@ -436,23 +456,25 @@ skip_open:
 	dprintf("%s: picked ashift %llu for device\n", __func__, *ashift);
 
 	/*
-	* Clear the nowritecache bit, so that on a vdev_reopen() we will
-	* try again.
-	*/
+	 * Clear the nowritecache bit, so that on a vdev_reopen() we will
+	 * try again.
+	 */
 	vd->vdev_nowritecache = B_FALSE;
 
 	/* Set when device reports it supports TRIM. */
 	vd->vdev_has_trim = !!blk_queue_discard(dvd->vd_DeviceObject);
 
 	/* Set when device reports it supports secure TRIM. */
-	vd->vdev_has_securetrim = !!blk_queue_discard_secure(dvd->vd_DeviceObject);
+	vd->vdev_has_securetrim =
+	    !!blk_queue_discard_secure(dvd->vd_DeviceObject);
 
 	/* Inform the ZIO pipeline that we are non-rotational */
 	/* Best choice seems to be either TRIM, or SeekPenalty */
-	vd->vdev_nonrot = vd->vdev_has_trim || blk_queue_nonrot(dvd->vd_DeviceObject);
+	vd->vdev_nonrot =
+	    vd->vdev_has_trim || blk_queue_nonrot(dvd->vd_DeviceObject);
 
 	dprintf("%s: nonrot %d, trim %d, securetrim %d\n", __func__,
-		vd->vdev_nonrot, vd->vdev_has_trim, vd->vdev_has_securetrim);
+	    vd->vdev_nonrot, vd->vdev_has_trim, vd->vdev_has_securetrim);
 
 	return (0);
 }
@@ -515,7 +537,7 @@ vdev_disk_physio(vdev_t *vd, caddr_t data,
 
 	ASSERT(vd->vdev_ops == &vdev_disk_ops);
 
-	return EIO;
+	return (EIO);
 }
 
 static void
@@ -555,13 +577,13 @@ vdev_disk_io_start_done(__in PVOID pDummy, __in PVOID pWkParms)
 
 	// Return abd buf
 	if (zio->io_type == ZIO_TYPE_READ) {
-		VERIFY3S(zio->io_abd->abd_size, >= , zio->io_size);
+		VERIFY3S(zio->io_abd->abd_size, >=, zio->io_size);
 		abd_return_buf_copy(zio->io_abd, zio->windows.b_addr,
-			zio->io_size);
+		    zio->io_size);
 	} else {
-		VERIFY3S(zio->io_abd->abd_size, >= , zio->io_size);
+		VERIFY3S(zio->io_abd->abd_size, >=, zio->io_size);
 		abd_return_buf(zio->io_abd, zio->windows.b_addr,
-			zio->io_size);
+		    zio->io_size);
 	}
 
 	UnlockAndFreeMdl(zio->windows.irp->MdlAddress);
@@ -583,25 +605,26 @@ vdev_disk_io_intr(PDEVICE_OBJECT DeviceObject, PIRP irp, PVOID Context)
 
 	ASSERT(zio != NULL);
 
-	/*
-	 * Unfortunately:
-	 * Whatever thread happened to be running is "borrowed" to handle
-	 * the completion.
-	 * As about DPCs - in Windows, they are not bound to a thread, KeGetCurrentThread
-	 * is just nonsense in them.
-	 *
-	 * So, the whole Windows kernel framework just does not support the notion of
-	 * "current thread" in DPCs and thus completion routines.
-	 *
-	 * This means our call to "mutex_enter()" will "panic: lock against myself" if that
-	 * thread it "borrowed" is the actual owner thread.
-	 *
-	 * So schedule IoQueueWorkItem() to call the done function in a real context.  
-	 */ 
+/*
+ * Unfortunately:
+ * Whatever thread happened to be running is "borrowed" to handle
+ * the completion.
+ * As about DPCs - in Windows, they are not bound to a thread,
+ * KeGetCurrentThread is just nonsense in them.
+ *
+ * So, the whole Windows kernel framework just does not support the notion of
+ * "current thread" in DPCs and thus completion routines.
+ *
+ * This means our call to "mutex_enter()" will "panic: lock against myself"
+ * if that thread it "borrowed" is the actual owner thread.
+ *
+ * So schedule IoQueueWorkItem() to call the done function in a real context.
+ */
 
 	VERIFY3P(zio->windows.work_item, !=, NULL);
-	IoQueueWorkItem(zio->windows.work_item, vdev_disk_io_start_done, DelayedWorkQueue, zio);
-	return STATUS_MORE_PROCESSING_REQUIRED;
+	IoQueueWorkItem(zio->windows.work_item, vdev_disk_io_start_done,
+	    DelayedWorkQueue, zio);
+	return (STATUS_MORE_PROCESSING_REQUIRED);
 }
 
 static void
@@ -614,7 +637,8 @@ vdev_disk_io_start(zio_t *zio)
 	unsigned long trim_flags = 0;
 	int flags, error = 0;
 
-	// dprintf("%s: type 0x%x offset 0x%llx len 0x%llx \n", __func__, zio->io_type, zio->io_offset, zio->io_size);
+	// dprintf("%s: type 0x%x offset 0x%llx len 0x%llx \n",
+	// __func__, zio->io_type, zio->io_offset, zio->io_size);
 
 	/*
 	 * If the vdev is closed, it's likely in the REMOVED or FAULTED state.
@@ -693,8 +717,9 @@ vdev_disk_io_start(zio_t *zio)
 		if (zio->io_trim_flags & ZIO_TRIM_SECURE)
 			trim_flags |= BLKDEV_DISCARD_SECURE;
 #endif
-		zio->io_error = -blkdev_issue_discard_bytes(dvd->vd_DeviceObject,
-			zio->io_offset, zio->io_size, trim_flags);
+		zio->io_error = -blkdev_issue_discard_bytes(
+		    dvd->vd_DeviceObject,
+		    zio->io_offset, zio->io_size, trim_flags);
 		zio_interrupt(zio);
 		return;
 
@@ -717,7 +742,7 @@ vdev_disk_io_start(zio_t *zio)
 	offset.QuadPart = zio->io_offset + dvd->vdev_win_offset;
 
 	/*
-	 * Start IO -> IOCompletion callback 'vdev_disk_io_intr()' 
+	 * Start IO -> IOCompletion callback 'vdev_disk_io_intr()'
 	 *  -> IoQueueWorkItem(DelayedWorkQueue) -> callback vdev_disk_io_done()
 	 */
 
@@ -731,27 +756,27 @@ vdev_disk_io_start(zio_t *zio)
 	if (zio->io_type == ZIO_TYPE_READ) {
 
 		zio->windows.b_addr =
-			abd_borrow_buf(zio->io_abd, zio->io_size);
+		    abd_borrow_buf(zio->io_abd, zio->io_size);
 
 		irp = IoBuildAsynchronousFsdRequest(IRP_MJ_READ,
-			dvd->vd_DeviceObject,
-			zio->windows.b_addr,
-			(ULONG)zio->io_size,
-			&offset,
-			&zio->windows.IoStatus);
+		    dvd->vd_DeviceObject,
+		    zio->windows.b_addr,
+		    (ULONG)zio->io_size,
+		    &offset,
+		    &zio->windows.IoStatus);
 
 	} else {
 		zio->windows.b_addr =
-			abd_borrow_buf_copy(zio->io_abd, zio->io_size);
+		    abd_borrow_buf_copy(zio->io_abd, zio->io_size);
 
 		irp = IoBuildAsynchronousFsdRequest(IRP_MJ_WRITE,
-			dvd->vd_DeviceObject,
-			zio->windows.b_addr,
-			(ULONG)zio->io_size,
-			&offset,
-			&zio->windows.IoStatus);
+		    dvd->vd_DeviceObject,
+		    zio->windows.b_addr,
+		    (ULONG)zio->io_size,
+		    &offset,
+		    &zio->windows.IoStatus);
 	}
-	
+
 	if (!irp) {
 
 		if (zio->io_type == ZIO_TYPE_READ) {
@@ -776,15 +801,14 @@ vdev_disk_io_start(zio_t *zio)
 	irpStack->FileObject = dvd->vd_FileObject;
 
 	IoSetCompletionRoutine(irp,
-		vdev_disk_io_intr,
-		zio, // "Context" in vdev_disk_io_intr()
-		TRUE, // On Success
-		TRUE, // On Error
-		TRUE);// On Cancel
+	    vdev_disk_io_intr,
+	    zio,   // "Context" in vdev_disk_io_intr()
+	    TRUE,  // On Success
+	    TRUE,  // On Error
+	    TRUE); // On Cancel
 
 	IoCallDriver(dvd->vd_DeviceObject, irp);
 
-	return;
 }
 
 static void
@@ -828,7 +852,7 @@ static void
 vdev_disk_rele(vdev_t *vd)
 {
 	ASSERT(spa_config_held(vd->vdev_spa, SCL_STATE, RW_WRITER));
-	
+
 	/* XXX: Implement me as a vnode rele for the device */
 }
 
@@ -855,5 +879,5 @@ vdev_ops_t vdev_disk_ops = {
 int
 vdev_disk_read_rootlabel(char *devpath, char *devid, nvlist_t **config)
 {
-	return -1;
+	return (-1);
 }

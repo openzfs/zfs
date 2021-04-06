@@ -20,9 +20,8 @@
  * CDDL HEADER END
  */
 #ifndef _SPL_CTYPE_H
-#define _SPL_CTYPE_H
+#define	_SPL_CTYPE_H
 
-//#include_next <sys/ctype.h>
-#define	iscntrl(C)      (uchar(C) <= 0x1f || uchar(C) == 0x7f)
+#define	iscntrl(C)	(uchar(C) <= 0x1f || uchar(C) == 0x7f)
 
 #endif /* SPL_CTYPE_H */

@@ -45,8 +45,6 @@
 #include <assert.h>
 #include <ctype.h>
 #include <errno.h>
-//#include <sys/kstat.h>
- //#include <langinfo.h>
 #include <libgen.h>
 #include <limits.h>
 #include <locale.h>
@@ -118,7 +116,7 @@ main(int argc, char **argv)
 #if !defined(TEXT_DOMAIN)		/* Should be defined by cc -D */
 #define	TEXT_DOMAIN "SYS_TEST"		/* Use this only if it wasn't */
 #endif
-	//(void) textdomain(TEXT_DOMAIN);
+	// (void) textdomain(TEXT_DOMAIN);
 
 	/*
 	 * Create the selector list and a dummy default selector to match
@@ -222,7 +220,8 @@ main(int argc, char **argv)
 	argv += optind;
 
 	if (g_wflg) {
-		/* kstat_write mode: consume commandline arguments:
+		/*
+		 * kstat_write mode: consume commandline arguments:
 		 * kstat -w module:instance:name:statistic_name=value
 		 */
 		n = write_mode(argc, argv);
@@ -383,15 +382,15 @@ main(int argc, char **argv)
 static void
 usage(void)
 {
-	(void)fprintf(stderr, gettext(
-		"Usage:\n"
-		"kstat [ -Cjlpq ] [ -T d|u ] [ -c class ]\n"
-		"      [ -m module ] [ -i instance ] [ -n name ] [ -s statistic ]\n"
-		"      [ interval [ count ] ]\n"
-		"kstat [ -Cjlpq ] [ -T d|u ] [ -c class ]\n"
-		"      [ module[:instance[:name[:statistic]]] ... ]\n"
-		"      [ interval [ count ] ]\n"
-		"kstat -w module:instance:name:statistic=value [ ... ] \n"));
+	(void) fprintf(stderr, gettext(
+	    "Usage:\n"
+	    "kstat [ -Cjlpq ] [ -T d|u ] [ -c class ]\n"
+	    "      [ -m module ] [ -i instance ] [ -n name ] [ -s statistic ]\n"
+	    "      [ interval [ count ] ]\n"
+	    "kstat [ -Cjlpq ] [ -T d|u ] [ -c class ]\n"
+	    "      [ module[:instance[:name[:statistic]]] ... ]\n"
+	    "      [ interval [ count ] ]\n"
+	    "kstat -w module:instance:name:statistic=value [ ... ] \n"));
 }
 
 /*
@@ -427,7 +426,7 @@ ks_safe_strdup(char *str)
 
 	while ((ret = _strdup(str)) == NULL) {
 		if (errno == EAGAIN) {
-			(void)usleep(200);
+			(void) usleep(200);
 		} else {
 			perror("strdup");
 			exit(3);
@@ -1045,7 +1044,8 @@ ks_instances_print(void)
  * e.g. "kstat -w zfs:0:tunable:zfs_arc_mac=1234567890
  *
  */
-int write_mode(int argc, char **argv)
+int
+write_mode(int argc, char **argv)
 {
 	char *arg;
 	int instance, rc = 0;
@@ -1055,14 +1055,15 @@ int write_mode(int argc, char **argv)
 
 	if (argc == 0) {
 		usage();
-		(void)fprintf(stderr, "-w takes at least one argument\n");
-		(void)fprintf(stderr, "\te.g. kstat -w zfs:0:tunable:zfs_arc_max=1200000\n");
-		return -1;
+		(void) fprintf(stderr, "-w takes at least one argument\n");
+		(void) fprintf(stderr,
+		    "\te.g. kstat -w zfs:0:tunable:zfs_arc_max=1200000\n");
+		return (-1);
 	}
 
 	while ((kc = kstat_open()) == NULL) {
 		if (errno == EAGAIN) {
-			(void)usleep(200);
+			(void) usleep(200);
 		} else {
 			perror("kstat_open");
 			exit(3);
@@ -1070,37 +1071,48 @@ int write_mode(int argc, char **argv)
 	}
 
 	while (argc--) {
-		char mod[KSTAT_STRLEN + 1], name[KSTAT_STRLEN + 1], stat[KSTAT_STRLEN + 1];
+		char mod[KSTAT_STRLEN + 1], name[KSTAT_STRLEN + 1],
+		    stat[KSTAT_STRLEN + 1];
 
 		arg = *argv;
 
-		// TODO: make this more flexible. Spaces, and other types than uint64.
+		// TODO: make this more flexible. Spaces, and other types than
+		// uint64.
 		// Call C11 sscanf_s which takes string-width following ptr.
-		if ((rc = sscanf_s(arg, "%[^:]:%d:%[^:]:%[^=]=%llu",
-			mod, KSTAT_STRLEN, 
-			&instance, 
-			name, KSTAT_STRLEN,
-			stat, KSTAT_STRLEN,
-			&value)) != 5) {
-			(void)fprintf(stderr, "Unable to parse '%s'\n input not in 'module:instance:name:statisticname=value' format. %d\n", arg, rc);
+		if ((rc = sscanf_s(arg,
+		    "%[^:]:%d:%[^:]:%[^=]=%llu",
+		    mod, KSTAT_STRLEN,
+		    &instance,
+		    name, KSTAT_STRLEN,
+		    stat, KSTAT_STRLEN,
+		    &value)) != 5) {
+			(void) fprintf(stderr, "Unable to parse '%s'\n input "
+			    "not in 'module:instance:name:statisticname=value' "
+			    "format. %d\n", arg, rc);
 			failure++;
 		} else {
 			kstat_t *ks;
 			ks = kstat_lookup(kc, mod, instance, name);
 			if (ks == NULL) {
-				(void)fprintf(stderr, "Unable to lookup '%s:%d:%s': %d\n",
-					mod, instance, name, errno);
+				(void) fprintf(stderr,
+				    "Unable to lookup '%s:%d:%s': %d\n",
+				    mod, instance, name, errno);
 				failure++;
 			} else {
 				if (kstat_read(kc, ks, NULL) == -1) {
-					(void)fprintf(stderr, "Unable to read '%s:%d:%s': %d\n",
-						mod, instance, name, errno);
+					(void) fprintf(stderr,
+					    "Unable to read '%s:%d:%s': %d\n",
+					    mod, instance, name, errno);
 					failure++;
 				} else {
-					kstat_named_t *kn = kstat_data_lookup(ks, stat);
+					kstat_named_t *kn =
+					    kstat_data_lookup(ks, stat);
 					if (kn == NULL) {
-						(void)fprintf(stderr, "Unable to find '%s' in '%s:%d:%s': %d\n",
-							stat, mod, instance, name, errno);
+						(void) fprintf(stderr,
+						    "Unable to find '%s' in "
+						    "'%s:%d:%s': %d\n",
+						    stat, mod, instance,
+						    name, errno);
 						failure++;
 					} else {
 						before_value = kn->value.ui64;
@@ -1110,12 +1122,22 @@ int write_mode(int argc, char **argv)
 						rc = kstat_write(kc, ks, NULL);
 
 						if (rc == -1) {
-							(void)fprintf(stderr, "Unable to write '%s:%d:%s:%s': %d\n",
-								mod, instance, name, stat, errno);
+							(void) fprintf(stderr,
+							    "Unable to write "
+							    "'%s:%d:%s:%s': "
+							    "%d\n",
+							    mod, instance,
+							    name,
+							    stat, errno);
 							failure++;
 						} else {
-							(void)fprintf(stderr, "%s:%d:%s:%s: %llu -> %llu\n",
-								mod, instance, name, stat, before_value, value);
+							(void) fprintf(stderr,
+							    "%s:%d:%s:%s: %llu "
+							    "-> %llu\n",
+							    mod, instance,
+							    name, stat,
+							    before_value,
+							    value);
 						} // rc
 					} // kstat_data_lookup
 				} // kstat_read
@@ -1125,9 +1147,8 @@ int write_mode(int argc, char **argv)
 	}
 
 	kstat_close(kc);
-	return failure;
+	return (failure);
 }
-
 
 
 #ifndef WIN32
@@ -1607,7 +1628,7 @@ save_fault_list(kstat_t *kp, ks_instance_t *ksi)
 	}
 }
 #endif
-#endif 
+#endif
 
 static void
 save_named(kstat_t *kp, ks_instance_t *ksi)

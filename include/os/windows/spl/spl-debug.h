@@ -1,4 +1,4 @@
-/*****************************************************************************\
+/*
  *  Copyright (C) 2007-2010 Lawrence Livermore National Security, LLC.
  *  Copyright (C) 2007 The Regents of the University of California.
  *  Produced at Lawrence Livermore National Laboratory (cf, DISCLAIMER).
@@ -20,7 +20,7 @@
  *
  *  You should have received a copy of the GNU General Public License along
  *  with the SPL.  If not, see <http://www.gnu.org/licenses/>.
-\*****************************************************************************/
+ */
 
 /*
  * Available debug functions.  These function should be used by any
@@ -40,11 +40,8 @@
  */
 
 #ifndef _SPL_DEBUG_INTERNAL_H
-#define _SPL_DEBUG_INTERNAL_H
+#define	_SPL_DEBUG_INTERNAL_H
 
-//#include <linux/limits.h>
-//#include <machine/limits.h>
-//#include <linux/sched.h>
 #include <sys/sched.h>
 #ifdef  __cplusplus
 // To make C++ happier about strnlen in kcdata.h

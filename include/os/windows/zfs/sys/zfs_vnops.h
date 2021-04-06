@@ -101,7 +101,7 @@ typedef struct attrinfo {
 	void **ai_attrbufpp;
 	void **ai_varbufpp;
 	void *ai_varbufend;
-	//vfs_context_t ai_context;
+	// vfs_context_t ai_context;
 } attrinfo_t;
 
 /*
@@ -170,7 +170,8 @@ extern int zfs_lookup(znode_t *dzp, char *nm, znode_t **zpp,
     int flags, cred_t *cr, int *direntflags, struct componentname *realpnp);
 extern int zfs_ioctl(vnode_t *vp, ulong_t com, intptr_t data, int flag,
     cred_t *cred, int *rvalp, caller_context_t *ct);
-extern int zfs_readdir(vnode_t *vp, uio_t *uio, cred_t *cr, zfs_dirlist_t *zccb, int flags, int dirlisttype, int *a_numdirent);
+extern int zfs_readdir(vnode_t *vp, uio_t *uio, cred_t *cr,
+	zfs_dirlist_t *zccb, int flags, int dirlisttype, int *a_numdirent);
 
 extern int zfs_fsync(znode_t *zp, int syncflag, cred_t *cr);
 extern int zfs_getattr(vnode_t *vp, vattr_t *vap, int flags,
@@ -196,9 +197,8 @@ extern int    zfs_ioflags(int ap_ioflag);
 extern int    zfs_getattr_znode_unlocked(struct vnode *vp, vattr_t *vap);
 extern int    ace_trivial_common(void *acep, int aclcnt,
     uint64_t (*walk)(void *, uint64_t, int aclcnt,
-	    uint16_t *, uint16_t *, uint32_t *));
-//extern void   acl_trivial_access_masks(mode_t mode, boolean_t isdir,
-//    trivial_acl_t *masks);
+    uint16_t *, uint16_t *, uint32_t *));
+
 extern int    zpl_obtain_xattr(struct znode *, const char *name, mode_t mode,
     cred_t *cr, struct vnode **vpp, int flag);
 

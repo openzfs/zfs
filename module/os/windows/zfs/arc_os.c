@@ -879,4 +879,3 @@ arc_prune_async(int64_t adjust)
 	}
 	mutex_exit(&arc_prune_mtx);
 }
-

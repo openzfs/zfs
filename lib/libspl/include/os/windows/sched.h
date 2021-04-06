@@ -20,21 +20,21 @@
  */
 
 #ifndef _SPL_SCHED_H
-#define _SPL_SCHED_H
+#define	_SPL_SCHED_H
 
 
-struct sched_param { 
-    int32_t  sched_priority; 
-    int32_t  sched_curpriority; 
-    union { 
-        int32_t  reserved[8]; 
-        struct {    
-            int32_t  __ss_low_priority;  
-            int32_t  __ss_max_repl;  
-            struct timespec     __ss_repl_period;   
-            struct timespec     __ss_init_budget;   
-        }           __ss;   
-    }           __ss_un;    
+struct sched_param {
+	int32_t  sched_priority;
+	int32_t  sched_curpriority;
+	union {
+		int32_t  reserved[8];
+		struct {
+			int32_t  __ss_low_priority;
+			int32_t  __ss_max_repl;
+			struct timespec __ss_repl_period;
+			struct timespec __ss_init_budget;
+		} __ss;
+	} __ss_un;
 };
 
 #endif

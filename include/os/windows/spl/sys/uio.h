@@ -42,10 +42,9 @@
  * contributors.
  */
 
- /*
+/*
  * Copyright (c) 2017 Jorgen Lundman <lundman@lundman.net>
  */
-
 
 #ifndef _SYS_UIO_H
 #define	_SYS_UIO_H
@@ -70,8 +69,8 @@ typedef struct iovec {
 
 
 /*
-* I/O direction.
-*/
+ * I/O direction.
+ */
 typedef enum uio_rw { UIO_READ, UIO_WRITE } uio_rw_t;
 
 /*
@@ -87,9 +86,9 @@ typedef struct uio {
 	uio_seg_t	uio_segflg;	/* address space (kernel or user) */
 	loff_t		uio_limit;	/* u-limit (maximum byte offset) */
 	ssize_t		uio_resid;	/* residual count */
-	enum uio_rw     uio_rw;
-	int         uio_max_iovs;   /* max number of iovecs this uio_t can hold */
-	uint32_t    uio_index;      /* Current index */
+	enum uio_rw	uio_rw;
+	int		uio_max_iovs;   /* max # of iovecs uio_t can hold */
+	uint32_t	uio_index;	/* Current index */
 } uio_t;
 
 
@@ -99,7 +98,8 @@ uio_t *uio_create(int iovcount, off_t offset, int spacetype, int iodirection);
 void uio_free(uio_t *uio);
 int uio_addiov(uio_t *uio, user_addr_t baseaddr, user_size_t length);
 int uio_isuserspace(uio_t *uio);
-int uio_getiov(uio_t *uio, int index, user_addr_t *baseaddr, user_size_t *length);
+int uio_getiov(uio_t *uio, int index, user_addr_t *baseaddr,
+	user_size_t *length);
 int uio_iovcnt(uio_t *uio);
 off_t uio_offset(uio_t *uio);
 void uio_update(uio_t *uio, user_size_t count);
@@ -127,13 +127,13 @@ typedef enum xuio_type {
 } xuio_type_t;
 
 
-#define UIOA_IOV_MAX    16
+#define	UIOA_IOV_MAX    16
 
 typedef struct uioa_page_s {
-	int     uioa_pfncnt;
-	void    **uioa_ppp;
-	caddr_t uioa_base;
-	size_t  uioa_len;
+	int		uioa_pfncnt;
+	void	**uioa_ppp;
+	caddr_t	uioa_base;
+	size_t	uioa_len;
 } uioa_page_t;
 
 typedef struct xuio {
@@ -155,12 +155,12 @@ typedef struct xuio {
 	} xu_ext;
 } xuio_t;
 
-#define XUIO_XUZC_PRIV(xuio)    xuio->xu_ext.xu_zc.xu_zc_priv
-#define XUIO_XUZC_RW(xuio)      xuio->xu_ext.xu_zc.xu_zc_rw
+#define	XUIO_XUZC_PRIV(xuio)	xuio->xu_ext.xu_zc.xu_zc_priv
+#define	XUIO_XUZC_RW(xuio)		xuio->xu_ext.xu_zc.xu_zc_rw
 
 #define	uio_segflg(U) \
 	(uio_isuserspace((struct uio *)(U))?UIO_USERSPACE:UIO_SYSSPACE)
-#define	uio_advance(U, N)       uio_update((struct uio *)(U), (N))
+#define	uio_advance(U, N)	uio_update((struct uio *)(U), (N))
 
 static inline uint64_t
 uio_iovlen(const struct uio *u, unsigned int i)
@@ -198,28 +198,28 @@ uio_index_at_offset(struct uio *uio, long long off, unsigned int *vec_idx)
 }
 
 /*
-* same as uiomove() but doesn't modify uio structure.
-* return in cbytes how many bytes were copied.
-*/
-static inline int uiocopy(const uint8_t *p, uint32_t n, enum uio_rw rw, struct uio *uio, uint64_t *cbytes) \
-{                                                                       \
-	int result;                                                         \
-	struct uio *nuio = uio_duplicate(uio);                              \
-	unsigned long long x = uio_resid(uio);                              \
-	if (!nuio) \
-		return (ENOMEM);                                           \
-	uio_setrw(nuio, rw);	\
-	result = spl_uiomove(p, n, nuio);                                         \
-	*cbytes = (x - uio_resid(nuio));                                        \
-	uio_free(nuio);                                                     \
-	return result;                                                      \
+ * same as uiomove() but doesn't modify uio structure.
+ * return in cbytes how many bytes were copied.
+ */
+static inline int
+uiocopy(const uint8_t *p, uint32_t n, enum uio_rw rw,
+    struct uio *uio, uint64_t *cbytes)
+{
+	int result;
+	struct uio *nuio = uio_duplicate(uio);
+	unsigned long long x = uio_resid(uio);
+	if (!nuio)
+		return (ENOMEM);
+	uio_setrw(nuio, rw);
+	result = spl_uiomove(p, n, nuio);
+	*cbytes = (x - uio_resid(nuio));
+	uio_free(nuio);
+	return (result);
 }
 
 // Apple's uiomove puts the uio_rw in uio_create
-#define uiomove(A,B,C,D) spl_uiomove((const uint8_t *)(A),(B),(D))
-#define uioskip(A,B)     uio_update((A), (B))
-
-
+#define	uiomove(A, B, C, D) spl_uiomove((const uint8_t *)(A), (B), (D))
+#define	uioskip(A, B)	uio_update((A), (B))
 
 #ifdef	__cplusplus
 }

@@ -51,63 +51,63 @@ struct path;
 
 extern int zfs_expire_snapshot;
 
-	// Fix me Windows. - we don't want these, remove them
-	// once we Windowsify this file.
-        struct vnop_readdir_args {
-                struct vnode    *a_vp;
-                struct uio      *a_uio;
-                int             a_flags;
-                int             *a_eofflag;
-                int             *a_numdirent;
-        };
+// Fix me Windows. - we don't want these, remove them
+// once we Windowsify this file.
+struct vnop_readdir_args {
+	struct vnode	*a_vp;
+	struct uio	*a_uio;
+	int		a_flags;
+	int		*a_eofflag;
+	int		*a_numdirent;
+};
 
-	struct vnop_getattr_args {
-		struct vnode	*a_vp;
-		struct vnode_vattr *a_vap;
-	};
+struct vnop_getattr_args {
+	struct vnode *a_vp;
+	struct vnode_vattr *a_vap;
+};
 
-	struct vnop_open_args {
-		struct vnode	*a_vp;
-		int		a_mode;
-	};
+struct vnop_open_args {
+	struct vnode *a_vp;
+	int a_mode;
+};
 
-	struct vnop_close_args {
-		struct vnode	*a_vp;
-		int		a_fflag;
-	};
+struct vnop_close_args {
+	struct vnode	*a_vp;
+	int		a_fflag;
+};
 
-	struct vnop_access_args {
-		struct vnodeop_desc *a_desc;
-		struct vnode	a_vp;
-		int		a_action;
-	};
+struct vnop_access_args {
+	struct vnodeop_desc *a_desc;
+	struct vnode	a_vp;
+	int		a_action;
+};
 
-	struct vnop_lookup_args {
-		struct vnode	*a_dvp;
-		struct vnode	**a_vpp;
-		struct componentname *a_cnp;
-        };
+struct vnop_lookup_args {
+	struct vnode	*a_dvp;
+	struct vnode	**a_vpp;
+	struct componentname *a_cnp;
+};
 
-	struct vnop_mkdir_args {
-		struct vnode	*a_dvp;
-		struct vnode	**a_vpp;
-		struct componentname *a_cnp;
-		struct vnode_vattr *a_vap;
-	};
+struct vnop_mkdir_args {
+	struct vnode	*a_dvp;
+	struct vnode	**a_vpp;
+	struct componentname *a_cnp;
+	struct vnode_vattr *a_vap;
+};
 
-	struct vnop_rmdir_args {
-		struct vnode	*a_dvp;
-		struct vnode	*a_vp;
-		struct componentname *a_cnp;
-	};
+struct vnop_rmdir_args {
+	struct vnode	*a_dvp;
+	struct vnode	*a_vp;
+	struct componentname *a_cnp;
+};
 
-	struct vnop_reclaim_args {
-		struct vnode	*a_vp;
-	};
+struct vnop_reclaim_args {
+	struct vnode	*a_vp;
+};
 
-	struct vnop_inactive_args {
-		struct vnode	*a_vp;
-	};
+struct vnop_inactive_args {
+	struct vnode	*a_vp;
+};
 
 
 /* zfsctl generic functions */

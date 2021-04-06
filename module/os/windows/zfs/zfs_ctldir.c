@@ -100,7 +100,6 @@ extern uint64_t vnop_num_vnodes;
  *
  * We don't have 'shares' directory, so only 'snapshot' is relevant.
  *
- * // perhaps we can in windows: We can not issue mount from kernel, so involve zed.
  * - see zfs_ctldir_snapdir.c
  *
  * All vnodes point to znode_t, no special case nodes.
@@ -227,8 +226,9 @@ zfsctl_vnode_alloc(zfsvfs_t *zfsvfs, uint64_t id,
 	zp->z_vid = vnode_vid(vp);
 	zp->z_vnode = vp;
 
-	// Build a fullpath string here, for Notifications and set_name_information
-	if (zfs_build_path(zp, NULL, &zp->z_name_cache, &zp->z_name_len, &zp->z_name_offset) == -1)
+	// Build fullpath string here, for Notifications & set_name_information
+	if (zfs_build_path(zp, NULL, &zp->z_name_cache,
+	    &zp->z_name_len, &zp->z_name_offset) == -1)
 		dprintf("%s: failed to build fullpath\n", __func__);
 
 	zfs_set_security(vp, NULL);
@@ -940,7 +940,6 @@ zfsctl_vnop_open(struct vnop_open_args *ap)
 	if (flags & FWRITE)
 		return (EACCES);
 	return (zfsctl_snapshot_mount(ap->a_vp, 0));
-	return -1;
 }
 
 int

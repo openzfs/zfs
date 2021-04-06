@@ -81,15 +81,19 @@ zfs_append_partition(char *path, size_t max_len)
 	if ((efi_alloc_and_read(fd, &vtoc)) == 0) {
 		for (int i = 0; i < vtoc->efi_nparts; i++) {
 
-		    if (vtoc->efi_parts[i].p_start == 0 &&
+			if (vtoc->efi_parts[i].p_start == 0 &&
 			    vtoc->efi_parts[i].p_size == 0)
 				continue;
 
 			if (tolower(vtoc->efi_parts[i].p_name[0]) == 'z' &&
 			    tolower(vtoc->efi_parts[i].p_name[1]) == 'f' &&
 			    tolower(vtoc->efi_parts[i].p_name[2]) == 's') {
-				size_t length = vtoc->efi_parts[i].p_size * vtoc->efi_lbasize;
-				off_t  offset = vtoc->efi_parts[i].p_start * vtoc->efi_lbasize;
+				size_t length =
+				    vtoc->efi_parts[i].p_size *
+				    vtoc->efi_lbasize;
+				off_t  offset =
+				    vtoc->efi_parts[i].p_start *
+				    vtoc->efi_lbasize;
 				char *copypath = strdup(path);
 				snprintf(path, max_len, "#%llu#%llu#%s",
 				    offset, length, copypath);
@@ -100,9 +104,11 @@ zfs_append_partition(char *path, size_t max_len)
 
 		}
 	} else {
-		// If we can't read the partition, we are most likely creating a pool,
-		// and it will be slice 1, alas, we do not know the size/offset here, yet.
-		// which is why we call this function again after zpool_label_disk.
+		// If we can't read the partition, we are most likely
+		// creating a pool, and it will be slice 1, alas, we
+		// do not know the size/offset here, yet.
+		// which is why we call this function again after
+		// zpool_label_disk.
 	}
 	close(fd);
 	return (len);
@@ -122,7 +128,7 @@ zfs_strip_path(char *path)
 		return (&r[1]);
 	r = strrchr(path, '\\');
 	if (r != NULL)
-	    return (&r[1]);
+		return (&r[1]);
 	return (path);
 }
 
@@ -198,7 +204,8 @@ zpool_label_disk_wait(const char *path, int timeout_ms)
 boolean_t
 is_mpath_whole_disk(const char *path)
 {
-	// Return TRUE here to have make_disks() call update_vdev_config_dev_strs() 
+	// Return TRUE here to have make_disks() call
+	// update_vdev_config_dev_strs()
 	return (B_TRUE);
 }
 

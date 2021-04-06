@@ -33,7 +33,6 @@
 #include <sys/dsl_pool.h>
 #ifdef _KERNEL
 #include <sys/vmsystm.h>
-#include <sys/fs/swapnode.h>
 #include <sys/dnlc.h>
 #endif
 #include <sys/callb.h>
@@ -48,12 +47,8 @@
  * In Solaris the tunable are set via /etc/system. Until we have a load
  * time configuration, we add them to writable kstat tunables.
  *
- * This table is more or less populated from IllumOS mdb zfs_params sources
- * https://github.com/illumos/illumos-gate/blob/master/usr/src/cmd/mdb/common/modules/zfs/zfs.c#L336-L392
  *
  */
-
-
 
 windows_kstat_t windows_kstat = {
 	{ "spa_version",				KSTAT_DATA_UINT64 },
@@ -114,7 +109,7 @@ windows_kstat_t windows_kstat = {
 	{"zfs_default_bs",				KSTAT_DATA_INT64  },
 	{"zfs_default_ibs",				KSTAT_DATA_INT64  },
 	{"metaslab_aliquot",			KSTAT_DATA_INT64  },
-	{"spa_max_replication_override",KSTAT_DATA_INT64  },
+	{"spa_max_replication_override", KSTAT_DATA_INT64  },
 	{"spa_mode_global",				KSTAT_DATA_INT64  },
 	{"zfs_flags",					KSTAT_DATA_INT64  },
 	{"zfs_txg_timeout",				KSTAT_DATA_INT64  },
@@ -148,10 +143,10 @@ windows_kstat_t windows_kstat = {
 	{"zfs_recv_queue_length",		KSTAT_DATA_UINT64  },
 
 	{"zvol_inhibit_dev",			KSTAT_DATA_UINT64  },
-	{"zfs_send_set_freerecords_bit",KSTAT_DATA_UINT64  },
+	{"zfs_send_set_freerecords_bit", KSTAT_DATA_UINT64  },
 
-	{"zfs_write_implies_delete_child",KSTAT_DATA_UINT64  },
-	{"zfs_send_holes_without_brth_tme",KSTAT_DATA_UINT64  },
+	{"zfs_write_implies_delete_child", KSTAT_DATA_UINT64  },
+	{"zfs_send_holes_without_brth_tme", KSTAT_DATA_UINT64  },
 
 	{"dbuf_cache_max_bytes",		KSTAT_DATA_UINT64  },
 
@@ -175,7 +170,7 @@ windows_kstat_t windows_kstat = {
 	{ "zfs_disable_removablemedia",		KSTAT_DATA_UINT64 },
 	{ "zfs_vdev_initialize_value",		KSTAT_DATA_UINT64 },
 	{ "zfs_autoimport_disable",		KSTAT_DATA_UINT64 },
-		
+
 };
 
 
@@ -183,11 +178,12 @@ windows_kstat_t windows_kstat = {
 
 static kstat_t		*windows_kstat_ksp;
 
-#if !defined (__OPTIMIZE__)
+#if !defined(__OPTIMIZE__)
 #pragma GCC diagnostic ignored "-Wframe-larger-than="
 #endif
 
-static int windows_kstat_update(kstat_t *ksp, int rw)
+static int
+windows_kstat_update(kstat_t *ksp, int rw)
 {
 	windows_kstat_t *ks = ksp->ks_data;
 
@@ -200,10 +196,14 @@ static int windows_kstat_update(kstat_t *ksp, int rw)
 			saveBuffer();
 		if (ks->win32_debug.value.ui64 == 9119)
 			panic("ZFS: User requested panic\n");
-		zfs_vnop_ignore_negatives = ks->win32_ignore_negatives.value.ui64;
-		zfs_vnop_ignore_positives = ks->win32_ignore_positives.value.ui64;
-		zfs_vnop_create_negatives = ks->win32_create_negatives.value.ui64;
-		zfs_vnop_skip_unlinked_drain = ks->win32_skip_unlinked_drain.value.ui64;
+		zfs_vnop_ignore_negatives =
+		    ks->win32_ignore_negatives.value.ui64;
+		zfs_vnop_ignore_positives =
+		    ks->win32_ignore_positives.value.ui64;
+		zfs_vnop_create_negatives =
+		    ks->win32_create_negatives.value.ui64;
+		zfs_vnop_skip_unlinked_drain =
+		    ks->win32_skip_unlinked_drain.value.ui64;
 		zfs_vfs_sync_paranoia = ks->win32_use_system_sync.value.ui64;
 
 		/* L2ARC */
@@ -221,121 +221,121 @@ static int windows_kstat_update(kstat_t *ksp, int rw)
 		/* vdev_queue */
 
 		zfs_vdev_max_active =
-			ks->zfs_vdev_max_active.value.ui64;
+		    ks->zfs_vdev_max_active.value.ui64;
 		zfs_vdev_sync_read_min_active =
-			ks->zfs_vdev_sync_read_min_active.value.ui64;
+		    ks->zfs_vdev_sync_read_min_active.value.ui64;
 		zfs_vdev_sync_read_max_active =
-			ks->zfs_vdev_sync_read_max_active.value.ui64;
+		    ks->zfs_vdev_sync_read_max_active.value.ui64;
 		zfs_vdev_sync_write_min_active =
-			ks->zfs_vdev_sync_write_min_active.value.ui64;
+		    ks->zfs_vdev_sync_write_min_active.value.ui64;
 		zfs_vdev_sync_write_max_active =
-			ks->zfs_vdev_sync_write_max_active.value.ui64;
+		    ks->zfs_vdev_sync_write_max_active.value.ui64;
 		zfs_vdev_async_read_min_active =
-			ks->zfs_vdev_async_read_min_active.value.ui64;
+		    ks->zfs_vdev_async_read_min_active.value.ui64;
 		zfs_vdev_async_read_max_active =
-			ks->zfs_vdev_async_read_max_active.value.ui64;
+		    ks->zfs_vdev_async_read_max_active.value.ui64;
 		zfs_vdev_async_write_min_active =
-			ks->zfs_vdev_async_write_min_active.value.ui64;
+		    ks->zfs_vdev_async_write_min_active.value.ui64;
 		zfs_vdev_async_write_max_active =
-			ks->zfs_vdev_async_write_max_active.value.ui64;
+		    ks->zfs_vdev_async_write_max_active.value.ui64;
 		zfs_vdev_scrub_min_active =
-			ks->zfs_vdev_scrub_min_active.value.ui64;
+		    ks->zfs_vdev_scrub_min_active.value.ui64;
 		zfs_vdev_scrub_max_active =
-			ks->zfs_vdev_scrub_max_active.value.ui64;
+		    ks->zfs_vdev_scrub_max_active.value.ui64;
 		zfs_vdev_async_write_active_min_dirty_percent =
-			ks->zfs_vdev_async_write_active_min_dirty_percent.value.i64;
+		    ks->zfs_vdev_async_write_active_min_dirty_percent.value.i64;
 		zfs_vdev_async_write_active_max_dirty_percent =
-			ks->zfs_vdev_async_write_active_max_dirty_percent.value.i64;
+		    ks->zfs_vdev_async_write_active_max_dirty_percent.value.i64;
 		zfs_vdev_aggregation_limit =
-			ks->zfs_vdev_aggregation_limit.value.i64;
+		    ks->zfs_vdev_aggregation_limit.value.i64;
 		zfs_vdev_read_gap_limit =
-			ks->zfs_vdev_read_gap_limit.value.i64;
+		    ks->zfs_vdev_read_gap_limit.value.i64;
 		zfs_vdev_write_gap_limit =
-			ks->zfs_vdev_write_gap_limit.value.i64;
+		    ks->zfs_vdev_write_gap_limit.value.i64;
 
 		arc_lotsfree_percent =
-			ks->arc_lotsfree_percent.value.i64;
+		    ks->arc_lotsfree_percent.value.i64;
 		zfs_dirty_data_max =
-			ks->zfs_dirty_data_max.value.i64;
+		    ks->zfs_dirty_data_max.value.i64;
 		zfs_delay_max_ns =
-			ks->zfs_delay_max_ns.value.i64;
+		    ks->zfs_delay_max_ns.value.i64;
 		zfs_delay_min_dirty_percent =
-			ks->zfs_delay_min_dirty_percent.value.i64;
+		    ks->zfs_delay_min_dirty_percent.value.i64;
 		zfs_delay_scale =
-			ks->zfs_delay_scale.value.i64;
+		    ks->zfs_delay_scale.value.i64;
 		spa_asize_inflation =
-			ks->spa_asize_inflation.value.i64;
+		    ks->spa_asize_inflation.value.i64;
 		zfs_prefetch_disable =
-			ks->zfs_prefetch_disable.value.i64;
+		    ks->zfs_prefetch_disable.value.i64;
 		zfetch_max_streams =
-			ks->zfetch_max_streams.value.i64;
+		    ks->zfetch_max_streams.value.i64;
 		zfetch_min_sec_reap =
-			ks->zfetch_min_sec_reap.value.i64;
+		    ks->zfetch_min_sec_reap.value.i64;
 		zfetch_array_rd_sz =
-			ks->zfetch_array_rd_sz.value.i64;
+		    ks->zfetch_array_rd_sz.value.i64;
 		zfs_default_bs =
-			ks->zfs_default_bs.value.i64;
+		    ks->zfs_default_bs.value.i64;
 		zfs_default_ibs =
-			ks->zfs_default_ibs.value.i64;
+		    ks->zfs_default_ibs.value.i64;
 		metaslab_aliquot =
-			ks->metaslab_aliquot.value.i64;
+		    ks->metaslab_aliquot.value.i64;
 		spa_max_replication_override =
-			ks->spa_max_replication_override.value.i64;
+		    ks->spa_max_replication_override.value.i64;
 		spa_mode_global =
-			ks->spa_mode_global.value.i64;
+		    ks->spa_mode_global.value.i64;
 		zfs_flags =
-			ks->zfs_flags.value.i64;
+		    ks->zfs_flags.value.i64;
 		zfs_txg_timeout =
-			ks->zfs_txg_timeout.value.i64;
+		    ks->zfs_txg_timeout.value.i64;
 		zfs_vdev_cache_max =
-			ks->zfs_vdev_cache_max.value.i64;
+		    ks->zfs_vdev_cache_max.value.i64;
 		zfs_vdev_cache_size =
-			ks->zfs_vdev_cache_size.value.i64;
+		    ks->zfs_vdev_cache_size.value.i64;
 		zfs_no_scrub_io =
-			ks->zfs_no_scrub_io.value.i64;
+		    ks->zfs_no_scrub_io.value.i64;
 		zfs_no_scrub_prefetch =
-			ks->zfs_no_scrub_prefetch.value.i64;
+		    ks->zfs_no_scrub_prefetch.value.i64;
 		fzap_default_block_shift =
-			ks->fzap_default_block_shift.value.i64;
+		    ks->fzap_default_block_shift.value.i64;
 		zfs_immediate_write_sz =
-			ks->zfs_immediate_write_sz.value.i64;
+		    ks->zfs_immediate_write_sz.value.i64;
 		zfs_read_chunk_size =
-			ks->zfs_read_chunk_size.value.i64;
+		    ks->zfs_read_chunk_size.value.i64;
 		zfs_nocacheflush =
-			ks->zfs_nocacheflush.value.i64;
+		    ks->zfs_nocacheflush.value.i64;
 		zil_replay_disable =
-			ks->zil_replay_disable.value.i64;
+		    ks->zil_replay_disable.value.i64;
 		metaslab_df_alloc_threshold =
-			ks->metaslab_df_alloc_threshold.value.i64;
+		    ks->metaslab_df_alloc_threshold.value.i64;
 		metaslab_df_free_pct =
-			ks->metaslab_df_free_pct.value.i64;
+		    ks->metaslab_df_free_pct.value.i64;
 		zio_injection_enabled =
-			ks->zio_injection_enabled.value.i64;
+		    ks->zio_injection_enabled.value.i64;
 		zvol_immediate_write_sz =
-			ks->zvol_immediate_write_sz.value.i64;
+		    ks->zvol_immediate_write_sz.value.i64;
 
 		zfs_recover =
-			ks->zfs_recover.value.i64;
+		    ks->zfs_recover.value.i64;
 
 		zfs_free_bpobj_enabled	 =
-			ks->zfs_free_bpobj_enabled.value.i64;
+		    ks->zfs_free_bpobj_enabled.value.i64;
 
 		zfs_send_corrupt_data =
-			ks->zfs_send_corrupt_data.value.ui64;
+		    ks->zfs_send_corrupt_data.value.ui64;
 		zfs_send_queue_length =
-			ks->zfs_send_queue_length.value.ui64;
+		    ks->zfs_send_queue_length.value.ui64;
 		zfs_recv_queue_length =
-			ks->zfs_recv_queue_length.value.ui64;
+		    ks->zfs_recv_queue_length.value.ui64;
 
 		zvol_inhibit_dev =
-			ks->zvol_inhibit_dev.value.ui64;
+		    ks->zvol_inhibit_dev.value.ui64;
 		zfs_send_set_freerecords_bit =
-			ks->zfs_send_set_freerecords_bit.value.ui64;
+		    ks->zfs_send_set_freerecords_bit.value.ui64;
 
 		zfs_write_implies_delete_child =
-			ks->zfs_write_implies_delete_child.value.ui64;
+		    ks->zfs_write_implies_delete_child.value.ui64;
 		send_holes_without_birth_time =
-			ks->zfs_send_holes_without_birth_time.value.ui64;
+		    ks->zfs_send_holes_without_birth_time.value.ui64;
 
 		dbuf_cache_max_bytes =
 		    ks->dbuf_cache_max_bytes.value.ui64;
@@ -344,7 +344,7 @@ static int windows_kstat_update(kstat_t *ksp, int rw)
 		    ks->zfs_vdev_queue_depth_pct.value.ui64;
 
 		zio_dva_throttle_enabled =
-		    (boolean_t) ks->zio_dva_throttle_enabled.value.ui64;
+		    (boolean_t)ks->zio_dva_throttle_enabled.value.ui64;
 
 		zfs_lua_max_instrlimit =
 		    ks->zfs_lua_max_instrlimit.value.ui64;
@@ -352,215 +352,222 @@ static int windows_kstat_update(kstat_t *ksp, int rw)
 		    ks->zfs_lua_max_memlimit.value.ui64;
 
 		zfs_trim_extent_bytes_max =
-			ks->zfs_trim_extent_bytes_max.value.ui64;
+		    ks->zfs_trim_extent_bytes_max.value.ui64;
 		zfs_trim_extent_bytes_min =
-			ks->zfs_trim_extent_bytes_min.value.ui64;
+		    ks->zfs_trim_extent_bytes_min.value.ui64;
 		zfs_trim_metaslab_skip =
-			ks->zfs_trim_metaslab_skip.value.ui64;
+		    ks->zfs_trim_metaslab_skip.value.ui64;
 		zfs_trim_txg_batch =
-			ks->zfs_trim_txg_batch.value.ui64;
+		    ks->zfs_trim_txg_batch.value.ui64;
 		zfs_trim_queue_limit =
-			ks->zfs_trim_queue_limit.value.ui64;
+		    ks->zfs_trim_queue_limit.value.ui64;
 
 		spl_hostid = ks->win32_hw_hostid.value.ui32;
 		zfs_send_unmodified_spill_blocks =
-			ks->zfs_send_unmodified_spill_blocks.value.ui64;
+		    ks->zfs_send_unmodified_spill_blocks.value.ui64;
 		zfs_special_class_metadata_reserve_pct =
-			ks->zfs_special_class_metadata_reserve_pct.value.ui64;
+		    ks->zfs_special_class_metadata_reserve_pct.value.ui64;
 
 		zfs_disable_wincache =
-			ks->zfs_disable_wincache.value.ui64;
+		    ks->zfs_disable_wincache.value.ui64;
 		zfs_disable_removablemedia =
-			ks->zfs_disable_removablemedia.value.ui64;
+		    ks->zfs_disable_removablemedia.value.ui64;
 		zfs_initialize_value =
-			ks->zfs_vdev_initialize_value.value.ui64;
+		    ks->zfs_vdev_initialize_value.value.ui64;
 		zfs_autoimport_disable =
-			ks->zfs_autoimport_disable.value.ui64;
+		    ks->zfs_autoimport_disable.value.ui64;
 
 	} else {
 
 		/* kstat READ */
-		ks->spa_version.value.ui64                   = SPA_VERSION;
-		ks->zpl_version.value.ui64                   = ZPL_VERSION;
+		ks->spa_version.value.ui64 = SPA_VERSION;
+		ks->zpl_version.value.ui64 = ZPL_VERSION;
 
 		/* win32 */
-		ks->win32_active_vnodes.value.ui64          = vnop_num_vnodes;
-		ks->win32_reclaim_nodes.value.ui64          = vnop_num_reclaims;
-		ks->win32_ignore_negatives.value.ui64       = zfs_vnop_ignore_negatives;
-		ks->win32_ignore_positives.value.ui64       = zfs_vnop_ignore_positives;
-		ks->win32_create_negatives.value.ui64       = zfs_vnop_create_negatives;
-		ks->win32_skip_unlinked_drain.value.ui64    = zfs_vnop_skip_unlinked_drain;
+		ks->win32_active_vnodes.value.ui64 = vnop_num_vnodes;
+		ks->win32_reclaim_nodes.value.ui64 = vnop_num_reclaims;
+		ks->win32_ignore_negatives.value.ui64 =
+		    zfs_vnop_ignore_negatives;
+		ks->win32_ignore_positives.value.ui64 =
+		    zfs_vnop_ignore_positives;
+		ks->win32_create_negatives.value.ui64 =
+		    zfs_vnop_create_negatives;
+		ks->win32_skip_unlinked_drain.value.ui64 =
+		    zfs_vnop_skip_unlinked_drain;
 		ks->win32_use_system_sync.value.ui64 = zfs_vfs_sync_paranoia;
 
 		/* L2ARC */
-		ks->l2arc_write_max.value.ui64               = l2arc_write_max;
-		ks->l2arc_write_boost.value.ui64             = l2arc_write_boost;
-		ks->l2arc_headroom.value.ui64                = l2arc_headroom;
-		ks->l2arc_headroom_boost.value.ui64          = l2arc_headroom_boost;
-		ks->l2arc_feed_secs.value.ui64               = l2arc_feed_secs;
-		ks->l2arc_feed_min_ms.value.ui64             = l2arc_feed_min_ms;
+		ks->l2arc_write_max.value.ui64 = l2arc_write_max;
+		ks->l2arc_write_boost.value.ui64 = l2arc_write_boost;
+		ks->l2arc_headroom.value.ui64 = l2arc_headroom;
+		ks->l2arc_headroom_boost.value.ui64 = l2arc_headroom_boost;
+		ks->l2arc_feed_secs.value.ui64 = l2arc_feed_secs;
+		ks->l2arc_feed_min_ms.value.ui64 = l2arc_feed_min_ms;
 
-		ks->l2arc_noprefetch.value.i64               = l2arc_noprefetch;
-		ks->l2arc_feed_again.value.i64               = l2arc_feed_again;
-		ks->l2arc_norw.value.i64                     = l2arc_norw;
+		ks->l2arc_noprefetch.value.i64 = l2arc_noprefetch;
+		ks->l2arc_feed_again.value.i64 = l2arc_feed_again;
+		ks->l2arc_norw.value.i64 = l2arc_norw;
 
 		/* vdev_queue */
 		ks->zfs_vdev_max_active.value.ui64 =
-			zfs_vdev_max_active ;
+		    zfs_vdev_max_active;
 		ks->zfs_vdev_sync_read_min_active.value.ui64 =
-			zfs_vdev_sync_read_min_active ;
+		    zfs_vdev_sync_read_min_active;
 		ks->zfs_vdev_sync_read_max_active.value.ui64 =
-			zfs_vdev_sync_read_max_active ;
+		    zfs_vdev_sync_read_max_active;
 		ks->zfs_vdev_sync_write_min_active.value.ui64 =
-			zfs_vdev_sync_write_min_active ;
+		    zfs_vdev_sync_write_min_active;
 		ks->zfs_vdev_sync_write_max_active.value.ui64 =
-			zfs_vdev_sync_write_max_active ;
+		    zfs_vdev_sync_write_max_active;
 		ks->zfs_vdev_async_read_min_active.value.ui64 =
-			zfs_vdev_async_read_min_active ;
+		    zfs_vdev_async_read_min_active;
 		ks->zfs_vdev_async_read_max_active.value.ui64 =
-			zfs_vdev_async_read_max_active ;
+		    zfs_vdev_async_read_max_active;
 		ks->zfs_vdev_async_write_min_active.value.ui64 =
-			zfs_vdev_async_write_min_active ;
+		    zfs_vdev_async_write_min_active;
 		ks->zfs_vdev_async_write_max_active.value.ui64 =
-			zfs_vdev_async_write_max_active ;
+		    zfs_vdev_async_write_max_active;
 		ks->zfs_vdev_scrub_min_active.value.ui64 =
-			zfs_vdev_scrub_min_active ;
+		    zfs_vdev_scrub_min_active;
 		ks->zfs_vdev_scrub_max_active.value.ui64 =
-			zfs_vdev_scrub_max_active ;
+		    zfs_vdev_scrub_max_active;
 		ks->zfs_vdev_async_write_active_min_dirty_percent.value.i64 =
-			zfs_vdev_async_write_active_min_dirty_percent ;
+		    zfs_vdev_async_write_active_min_dirty_percent;
 		ks->zfs_vdev_async_write_active_max_dirty_percent.value.i64 =
-			zfs_vdev_async_write_active_max_dirty_percent ;
+		    zfs_vdev_async_write_active_max_dirty_percent;
 		ks->zfs_vdev_aggregation_limit.value.i64 =
-			zfs_vdev_aggregation_limit ;
+		    zfs_vdev_aggregation_limit;
 		ks->zfs_vdev_read_gap_limit.value.i64 =
-			zfs_vdev_read_gap_limit ;
+		    zfs_vdev_read_gap_limit;
 		ks->zfs_vdev_write_gap_limit.value.i64 =
-			zfs_vdev_write_gap_limit;
+		    zfs_vdev_write_gap_limit;
 
 		ks->arc_lotsfree_percent.value.i64 =
-			arc_lotsfree_percent;
+		    arc_lotsfree_percent;
 		ks->zfs_dirty_data_max.value.i64 =
-			zfs_dirty_data_max;
+		    zfs_dirty_data_max;
 		ks->zfs_delay_max_ns.value.i64 =
-			zfs_delay_max_ns;
+		    zfs_delay_max_ns;
 		ks->zfs_delay_min_dirty_percent.value.i64 =
-			zfs_delay_min_dirty_percent;
+		    zfs_delay_min_dirty_percent;
 		ks->zfs_delay_scale.value.i64 =
-			zfs_delay_scale;
+		    zfs_delay_scale;
 		ks->spa_asize_inflation.value.i64 =
-			spa_asize_inflation;
+		    spa_asize_inflation;
 		ks->zfs_prefetch_disable.value.i64 =
-			zfs_prefetch_disable;
+		    zfs_prefetch_disable;
 		ks->zfetch_max_streams.value.i64 =
-			zfetch_max_streams;
+		    zfetch_max_streams;
 		ks->zfetch_min_sec_reap.value.i64 =
-			zfetch_min_sec_reap;
+		    zfetch_min_sec_reap;
 		ks->zfetch_array_rd_sz.value.i64 =
-			zfetch_array_rd_sz;
+		    zfetch_array_rd_sz;
 		ks->zfs_default_bs.value.i64 =
-			zfs_default_bs;
+		    zfs_default_bs;
 		ks->zfs_default_ibs.value.i64 =
-			zfs_default_ibs;
+		    zfs_default_ibs;
 		ks->metaslab_aliquot.value.i64 =
-			metaslab_aliquot;
+		    metaslab_aliquot;
 		ks->spa_max_replication_override.value.i64 =
-			spa_max_replication_override;
+		    spa_max_replication_override;
 		ks->spa_mode_global.value.i64 =
-			spa_mode_global;
+		    spa_mode_global;
 		ks->zfs_flags.value.i64 =
-			zfs_flags;
+		    zfs_flags;
 		ks->zfs_txg_timeout.value.i64 =
-			zfs_txg_timeout;
+		    zfs_txg_timeout;
 		ks->zfs_vdev_cache_max.value.i64 =
-			zfs_vdev_cache_max;
+		    zfs_vdev_cache_max;
 		ks->zfs_vdev_cache_size.value.i64 =
-			zfs_vdev_cache_size;
+		    zfs_vdev_cache_size;
 		ks->zfs_no_scrub_io.value.i64 =
-			zfs_no_scrub_io;
+		    zfs_no_scrub_io;
 		ks->zfs_no_scrub_prefetch.value.i64 =
-			zfs_no_scrub_prefetch;
+		    zfs_no_scrub_prefetch;
 		ks->fzap_default_block_shift.value.i64 =
-			fzap_default_block_shift;
+		    fzap_default_block_shift;
 		ks->zfs_immediate_write_sz.value.i64 =
-			zfs_immediate_write_sz;
+		    zfs_immediate_write_sz;
 		ks->zfs_read_chunk_size.value.i64 =
-			zfs_read_chunk_size;
+		    zfs_read_chunk_size;
 		ks->zfs_nocacheflush.value.i64 =
-			zfs_nocacheflush;
+		    zfs_nocacheflush;
 		ks->zil_replay_disable.value.i64 =
-			zil_replay_disable;
+		    zil_replay_disable;
 		ks->metaslab_df_alloc_threshold.value.i64 =
-			metaslab_df_alloc_threshold;
+		    metaslab_df_alloc_threshold;
 		ks->metaslab_df_free_pct.value.i64 =
-			metaslab_df_free_pct;
+		    metaslab_df_free_pct;
 		ks->zio_injection_enabled.value.i64 =
-			zio_injection_enabled;
+		    zio_injection_enabled;
 		ks->zvol_immediate_write_sz.value.i64 =
-			zvol_immediate_write_sz;
+		    zvol_immediate_write_sz;
 
 		ks->zfs_recover.value.i64 =
-			zfs_recover;
+		    zfs_recover;
 
 		ks->zfs_free_bpobj_enabled.value.i64 =
-			zfs_free_bpobj_enabled;
+		    zfs_free_bpobj_enabled;
 
 		ks->zfs_send_corrupt_data.value.ui64 =
-			zfs_send_corrupt_data;
+		    zfs_send_corrupt_data;
 		ks->zfs_send_queue_length.value.ui64 =
-			zfs_send_queue_length;
+		    zfs_send_queue_length;
 		ks->zfs_recv_queue_length.value.ui64 =
-			zfs_recv_queue_length;
+		    zfs_recv_queue_length;
 
 		ks->zvol_inhibit_dev.value.ui64 =
-			zvol_inhibit_dev;
+		    zvol_inhibit_dev;
 		ks->zfs_send_set_freerecords_bit.value.ui64 =
-			zfs_send_set_freerecords_bit;
+		    zfs_send_set_freerecords_bit;
 
 		ks->zfs_write_implies_delete_child.value.ui64 =
-			zfs_write_implies_delete_child;
+		    zfs_write_implies_delete_child;
 		ks->zfs_send_holes_without_birth_time.value.ui64 =
-			send_holes_without_birth_time;
+		    send_holes_without_birth_time;
 
 		ks->dbuf_cache_max_bytes.value.ui64 = dbuf_cache_max_bytes;
 
-		ks->zfs_vdev_queue_depth_pct.value.ui64 = zfs_vdev_queue_depth_pct;
-		ks->zio_dva_throttle_enabled.value.ui64 = (uint64_t) zio_dva_throttle_enabled;
+		ks->zfs_vdev_queue_depth_pct.value.ui64 =
+		    zfs_vdev_queue_depth_pct;
+		ks->zio_dva_throttle_enabled.value.ui64 =
+		    (uint64_t)zio_dva_throttle_enabled;
 
 		ks->zfs_lua_max_instrlimit.value.ui64 = zfs_lua_max_instrlimit;
 		ks->zfs_lua_max_memlimit.value.ui64 = zfs_lua_max_memlimit;
 
 		ks->zfs_trim_extent_bytes_max.value.ui64 =
-			zfs_trim_extent_bytes_max;
+		    zfs_trim_extent_bytes_max;
 		ks->zfs_trim_extent_bytes_min.value.ui64 =
-			zfs_trim_extent_bytes_min;
+		    zfs_trim_extent_bytes_min;
 		ks->zfs_trim_metaslab_skip.value.ui64 =
-			zfs_trim_metaslab_skip;
+		    zfs_trim_metaslab_skip;
 		ks->zfs_trim_txg_batch.value.ui64 =
-			zfs_trim_txg_batch;
+		    zfs_trim_txg_batch;
 		ks->zfs_trim_queue_limit.value.ui64 =
-			zfs_trim_queue_limit;
+		    zfs_trim_queue_limit;
 
 		ks->win32_hw_hostid.value.ui32 = spl_hostid;
 		ks->zfs_send_unmodified_spill_blocks.value.ui64 =
-			zfs_send_unmodified_spill_blocks;
+		    zfs_send_unmodified_spill_blocks;
 		ks->zfs_special_class_metadata_reserve_pct.value.ui64 =
-			zfs_special_class_metadata_reserve_pct;
+		    zfs_special_class_metadata_reserve_pct;
 
 		ks->zfs_disable_wincache.value.ui64 =
-			zfs_disable_wincache;
+		    zfs_disable_wincache;
 		ks->zfs_disable_removablemedia.value.ui64 =
-			zfs_disable_removablemedia;
+		    zfs_disable_removablemedia;
 		ks->zfs_vdev_initialize_value.value.ui64 =
-			zfs_initialize_value;
+		    zfs_initialize_value;
 		ks->zfs_autoimport_disable.value.ui64 =
-			zfs_autoimport_disable;
+		    zfs_autoimport_disable;
 	}
 
-	return 0;
+	return (0);
 }
 
-int kstat_windows_init(void *arg)
+int
+kstat_windows_init(void *arg)
 {
 	int error = 0;
 	PUNICODE_STRING RegistryPath = arg;
@@ -590,13 +597,14 @@ int kstat_windows_init(void *arg)
 		KSTAT_EXIT(windows_kstat_ksp);
 	}
 
-	return 0;
+	return (0);
 }
 
-void kstat_windows_fini(void)
+void
+kstat_windows_fini(void)
 {
-    if (windows_kstat_ksp != NULL) {
-        kstat_delete(windows_kstat_ksp);
-        windows_kstat_ksp = NULL;
-    }
+	if (windows_kstat_ksp != NULL) {
+		kstat_delete(windows_kstat_ksp);
+		windows_kstat_ksp = NULL;
+	}
 }

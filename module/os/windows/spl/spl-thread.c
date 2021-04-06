@@ -26,7 +26,6 @@
  */
 
 #include <sys/thread.h>
-//#include <mach/thread_act.h>
 #include <sys/kmem.h>
 #include <sys/tsd.h>
 #include <spl-debug.h>
@@ -42,84 +41,83 @@ uint64_t zfs_threads = 0;
 
 kthread_t *
 spl_thread_create(
-        caddr_t         stk,
-        size_t          stksize,
-        void            (*proc)(void *),
-        void            *arg,
-        size_t          len,
-        /*struct proc     *pp,*/
-        int             state,
+    caddr_t	stk,
+    size_t	stksize,
+    void	(*proc)(void *),
+    void	*arg,
+    size_t	len,
+    int	state,
 #ifdef SPL_DEBUG_THREAD
-		char *filename,
-		int line,
+    char	*filename,
+    int	line,
 #endif
-        pri_t           pri)
+    pri_t	pri)
 {
-        NTSTATUS   result;
-        struct _KTHREAD        *thread;
+	NTSTATUS result;
+	struct _KTHREAD *thread;
 
 #ifdef SPL_DEBUG_THREAD
-		dprintf("Start thread pri %d by '%s':%d\n", pri,
-			   filename, line);
+	dprintf("Start thread pri %d by '%s':%d\n", pri,
+	    filename, line);
 #endif
-		result = PsCreateSystemThread(
-			(void **)&thread,
-			0,    // DesiredAccess,
-			NULL, // ObjectAttributes,
-			NULL, // ProcessHandle,
-			0,    // ClientId,
-			proc, // StartRoutine,
-			arg   // StartContext
-			);
+	result = PsCreateSystemThread(
+	    (void **)&thread,
+	    0,    // DesiredAccess,
+	    NULL, // ObjectAttributes,
+	    NULL, // ProcessHandle,
+	    0,    // ClientId,
+	    proc, // StartRoutine,
+	    arg); // StartContext
 
+	if (result != STATUS_SUCCESS)
+		return (NULL);
 
-        if (result != STATUS_SUCCESS)
-			return (NULL);
+	/*
+	 * Improve the priority when asked to do so
+	 * Thread priorities range from 0 to 31, where 0 is the lowest
+	 * priority and 31 is the highest
+	 */
 
-		/* Improve the priority when asked to do so */
-		/* Thread priorities range from 0 to 31, where 0 is the lowest
-		 * priority and 31 is the highest*/
+	if (pri > minclsyspri) {
+		// thread_precedence_policy_data_t policy;
+		// policy.importance = pri - minclsyspri;
 
-		if (pri > minclsyspri) {
-			//thread_precedence_policy_data_t policy;
-			//policy.importance = pri - minclsyspri;
+		// thread_policy_set(thread,
+		//  THREAD_PRECEDENCE_POLICY,
+		//  (thread_policy_t)&policy,
+		//  THREAD_PRECEDENCE_POLICY_COUNT);
 
-			//thread_policy_set(thread,
-			//				  THREAD_PRECEDENCE_POLICY,
-			//				  (thread_policy_t)&policy,
-			//				  THREAD_PRECEDENCE_POLICY_COUNT);
+		// TODO: Windows thread priority?
 
+		// why is this call missing?
+		// KeSetBasePriorityThread(thread, 1);
+	}
 
-			// TODO: Windows thread priority?
-
-			// why is this call missing?
-			//KeSetBasePriorityThread(thread, 1);
-		}
-        //thread_deallocate(thread);
-
-        atomic_inc_64(&zfs_threads);
+	atomic_inc_64(&zfs_threads);
 
 	// Convert thread handle to pethread, so it matches current_thread()
 	PETHREAD eThread;
-	ObReferenceObjectByHandle(thread, THREAD_ALL_ACCESS, 0, KernelMode, (void **)&eThread, 0);
+	ObReferenceObjectByHandle(thread, THREAD_ALL_ACCESS, 0,
+	    KernelMode, (void **)&eThread, 0);
 	ObDereferenceObject(eThread);
 	ZwClose(thread);
-        return ((kthread_t *)eThread);
+	return ((kthread_t *)eThread);
 }
 
 kthread_t *
 spl_current_thread(void)
 {
-    thread_t *cur_thread = current_thread();
-    return ((kthread_t *)cur_thread);
+	thread_t *cur_thread = current_thread();
+	return ((kthread_t *)cur_thread);
 }
 
-void spl_thread_exit(void)
+void
+spl_thread_exit(void)
 {
-        atomic_dec_64(&zfs_threads);
+	atomic_dec_64(&zfs_threads);
 
-		tsd_thread_exit();
-        (void) PsTerminateSystemThread(0);
+	tsd_thread_exit();
+	(void) PsTerminateSystemThread(0);
 }
 
 
@@ -128,14 +126,15 @@ void spl_thread_exit(void)
  */
 callout_id_t
 timeout_generic(int type, void (*func)(void *), void *arg,
-				hrtime_t expiration, hrtime_t resolution, int flags)
+    hrtime_t expiration, hrtime_t resolution, int flags)
 {
-//	struct timespec ts;
+	//	struct timespec ts;
 	//	hrt2ts(expiration, &ts);
-	//bsd_timeout(func, arg, &ts);
-	/* bsd_untimeout() requires func and arg to cancel the timeout, so
+	// bsd_timeout(func, arg, &ts);
+	/*
+	 * bsd_untimeout() requires func and arg to cancel the timeout, so
 	 * pass it back as the callout_id. If we one day were to implement
 	 * untimeout_generic() they would pass it back to us
 	 */
-	return (callout_id_t)arg;
+	return ((callout_id_t)arg);
 }

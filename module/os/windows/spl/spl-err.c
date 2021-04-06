@@ -41,16 +41,16 @@ vcmn_err(int ce, const char *fmt, va_list ap)
 	switch (ce) {
 		case CE_IGNORE:
 			break;
-        case CE_CONT:
+		case CE_CONT:
 			dprintf("%s", msg);
 			break;
-        case CE_NOTE:
+		case CE_NOTE:
 			dprintf("SPL: Notice: %s\n", msg);
 			break;
-        case CE_WARN:
+		case CE_WARN:
 			TraceEvent(TRACE_WARNING, "SPL: Warning: %s\n", msg);
 			break;
-        case CE_PANIC:
+		case CE_PANIC:
 			PANIC("%s", msg);
 			break;
 	}
@@ -59,9 +59,9 @@ vcmn_err(int ce, const char *fmt, va_list ap)
 void
 cmn_err(int ce, const char *fmt, ...)
 {
-        va_list ap;
+	va_list ap;
 
-        va_start(ap, fmt);
-        vcmn_err(ce, fmt, ap);
-        va_end(ap);
+	va_start(ap, fmt);
+	vcmn_err(ce, fmt, ap);
+	va_end(ap);
 } /* cmn_err() */

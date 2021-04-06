@@ -69,7 +69,7 @@ extern PDRIVER_OBJECT WIN_DriverObject;
  * Ok this is pretty gross - until we can get rid of it from lua -
  * it works as long as it doesn't parse strings
  */
-#define sscanf sscanf_s
+#define	sscanf sscanf_s
 
 #define	DIRENT_RECLEN(namelen)  (((namelen) + 7) & ~7)
 

@@ -19,14 +19,15 @@
  *
  * CDDL HEADER END
  */
- /*
-  * Copyright(c) 2019 Jorgen Lundman <lundman@lundman.net>
-  */
+/*
+ * Copyright(c) 2019 Jorgen Lundman <lundman@lundman.net>
+ */
 
 #ifndef WOSIX_HEADER
-#define WOSIX_HEADER
+#define	WOSIX_HEADER
 
-/* Replace all the normal POSIX calls; open, read, write, close, lseek, fstat
+/*
+ * Replace all the normal POSIX calls; open, read, write, close, lseek, fstat
  * As we have to use HANDLEs to open devices, we add a shim-layer to handle
  * int fd and the change in underlying API calls.
  * First, include the header that defines them in Windows.
@@ -36,10 +37,10 @@
 #include <sys/stat.h>
 #include <corecrt_io.h>
 
-#define HTOI(H) ((int)(unsigned __int64)(H))
-#define ITOH(I) ((HANDLE)(unsigned __int64)(I))
+#define	HTOI(H) ((int)(unsigned __int64)(H))
+#define	ITOH(I) ((HANDLE)(unsigned __int64)(I))
 
-/* keep the struct type before we #define */
+/* keep the struct type before we #define	*/
 struct wosix_stat {
 	union {
 		struct stat;
@@ -68,88 +69,89 @@ extern int wosix_isatty(int fd);
 extern int wosix_mkdir(const char *path, mode_t mode);
 extern int wosix_pwrite(int fd, const void *buf, size_t nbyte, off_t offset);
 extern int wosix_pread(int fd, void *buf, size_t nbyte, off_t offset);
-extern int wosix_stat(char* path, struct _stat64* st);
+extern int wosix_stat(char *path, struct _stat64 *st);
 extern int wosix_fstat(int fd, struct _stat64 *st);
 extern int wosix_fstat_blk(int fd, struct _stat64 *st);
 extern uint64_t wosix_lseek(int fd, uint64_t offset, int seek);
 extern int wosix_fdatasync(int fd);
 extern int wosix_ftruncate(int fd, off_t length);
-extern int wosix_socketpair(int domain, int type, int protocol, int socket_vector[2]);
+extern int wosix_socketpair(int domain, int type, int protocol,
+    int socket_vector[2]);
 extern int wosix_dup2(int fildes, int fildes2);
 extern int wosix_pipe(int fildes[2]);
 
-#define wosix_fileno(X) (_get_osfhandle(_fileno((X))))
+#define	wosix_fileno(X) (_get_osfhandle(_fileno((X))))
 
 extern FILE *wosix_fdopen(int fildes, const char *mode);
 extern FILE *wosix_freopen(const char *path, const char *mode, FILE *stream);
 
- /*
+/*
  * Thin wrapper for the POSIX IO calls, to translate to HANDLEs
  *
  * Currently it "hopes" that HANDLE value will fit in type "int".
  * This could be improved in future.
  */
 #undef  open
-#define open	wosix_open
+#define	open	wosix_open
 #undef  openat
-#define openat	wosix_openat
+#define	openat	wosix_openat
 #undef  open64
-#define open64	wosix_open
+#define	open64	wosix_open
 #undef  close
-#define close	wosix_close
+#define	close	wosix_close
 #undef  ioctl
-#define ioctl	wosix_ioctl
+#define	ioctl	wosix_ioctl
 #undef  lseek
-#define lseek	wosix_lseek
+#define	lseek	wosix_lseek
 #undef  fsync
-#define fsync	wosix_fsync
+#define	fsync	wosix_fsync
 #undef  read
-#define read	wosix_read
+#define	read	wosix_read
 #undef  write
-#define write	wosix_write
+#define	write	wosix_write
 #undef  fileno
-#define fileno	wosix_fileno
+#define	fileno	wosix_fileno
 #undef  isatty
-#define isatty	wosix_isatty
+#define	isatty	wosix_isatty
 #undef  mkdir
-#define mkdir	wosix_mkdir
+#define	mkdir	wosix_mkdir
 #undef  pread
-#define pread	wosix_pread
-#define pread64	wosix_pread
+#define	pread	wosix_pread
+#define	pread64	wosix_pread
 #undef  pwrite
-#define pwrite	wosix_pwrite
-#define pwrite64	wosix_pwrite
+#define	pwrite	wosix_pwrite
+#define	pwrite64	wosix_pwrite
 #undef  fstat
-#define fstat	wosix_fstat
+#define	fstat	wosix_fstat
 #undef  lstat
-#define lstat	wosix_lstat
+#define	lstat	wosix_lstat
 #undef  lstat64
-#define lstat64	wosix_lstat
+#define	lstat64	wosix_lstat
 #undef  _fstat64
-#define _fstat64	wosix_fstat
+#define	_fstat64	wosix_fstat
 #undef  fstat64
-#define fstat64	wosix_fstat
+#define	fstat64	wosix_fstat
 #undef  fstat_blk
-#define fstat_blk	wosix_fstat_blk
+#define	fstat_blk	wosix_fstat_blk
 #undef  fstat64_blk
-#define fstat64_blk	wosix_fstat_blk
+#define	fstat64_blk	wosix_fstat_blk
 #undef  stat
-#define stat	wosix_stat
+#define	stat	wosix_stat
 #undef  stat
-#define stat64	wosix_stat
+#define	stat64	wosix_stat
 #undef  fdatasync
-#define fdatasync	wosix_fdatasync
+#define	fdatasync	wosix_fdatasync
 #undef  ftruncate
-#define ftruncate	wosix_ftruncate
+#define	ftruncate	wosix_ftruncate
 #undef  socketpair
-#define socketpair	wosix_socketpair
+#define	socketpair	wosix_socketpair
 #undef  fdopen
-#define fdopen	wosix_fdopen
+#define	fdopen	wosix_fdopen
 #undef  freopen
-#define freopen	wosix_freopen
- // Alas, edonr.c has a member named "pipe".
+#define	freopen	wosix_freopen
+// Alas, edonr.c has a member named "pipe".
 #ifndef _SYS_EDONR_H_
 #undef  pipe
-#define pipe	wosix_pipe
+#define	pipe	wosix_pipe
 #endif
 #endif /* WOSIX_HEADER */

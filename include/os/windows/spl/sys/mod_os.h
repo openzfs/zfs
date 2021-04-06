@@ -40,7 +40,7 @@ extern "C" {
 
 #ifdef _MSC_VER
 #define	__init
-#define	__exit 
+#define	__exit
 #else
 #define	__init __attribute__((unused))
 #define	__exit __attribute__((unused))

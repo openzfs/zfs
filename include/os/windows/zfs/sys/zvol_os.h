@@ -39,7 +39,8 @@ struct zvol_state_os {
 	uint64_t	zso_openflags;	/* Remember flags used at open */
 	uint8_t		zso_target_id;
 	uint8_t		zso_lun_id;
-	void		*zso_target_context; // for I/O drainage (see assign_targetid, clear_targetid)
+	// for I/O drainage (see assign_targetid, clear_targetid)
+	void		*zso_target_context;
 };
 
 extern int zvol_os_ioctl(dev_t, unsigned long, caddr_t,

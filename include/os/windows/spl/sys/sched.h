@@ -1,37 +1,27 @@
-#ifndef OSX_SCHED_H
-#define OSX_SCHED_H
+/*
+ * CDDL HEADER START
+ *
+ * The contents of this file are subject to the terms of the
+ * Common Development and Distribution License (the "License").
+ * You may not use this file except in compliance with the License.
+ *
+ * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+ * or http://www.opensolaris.org/os/licensing.
+ * See the License for the specific language governing permissions
+ * and limitations under the License.
+ *
+ * When distributing Covered Code, include this CDDL HEADER in each
+ * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+ * If applicable, add the following below this CDDL HEADER, with the
+ * fields enclosed by brackets "[]" replaced with your own identifying
+ * information: Portions Copyright [yyyy] [name of copyright owner]
+ *
+ * CDDL HEADER END
+ */
+
+#ifndef WINDOWS_SCHED_H
+#define	WINDOWS_SCHED_H
 
 #include <sys/mutex.h>
-
-
-#if 0
-typedef void (task_func_t)(void *);
-
-typedef struct task {
-        struct task     *task_next;
-        struct task     *task_prev;
-        task_func_t     *task_func;
-        void            *task_arg;
-} task_t;
-
-#define TASKQ_ACTIVE    0x00010000
-
-struct taskq {
-        kmutex_t        tq_lock;
-        krwlock_t       tq_threadlock;
-        kcondvar_t      tq_dispatch_cv;
-        kcondvar_t      tq_wait_cv;
-        thread_t        *tq_threadlist;
-        int             tq_flags;
-        int             tq_active;
-        int             tq_nthreads;
-        int             tq_nalloc;
-        int             tq_minalloc;
-        int             tq_maxalloc;
-        task_t          *tq_freelist;
-        task_t          tq_task;
-};
-
-#endif
 
 #endif

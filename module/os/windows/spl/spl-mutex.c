@@ -25,17 +25,17 @@
  *
  */
 
- /*
-  * Implementation details. 
-  * Using SynchronizationEvent that autoresets. When in 'Signaled' 
-  * state the mutex is considered FREE/Available to be locked.
-  * Call KeWaitForSingleObject() to wait for it to be made
-  * 'available' (either blocking, or polling for *Try method)
-  * Calling KeSetEvent() sets event to Signaled, and wakes 'one'
-  * waiter, before Clearing it again.
-  * We attempt to avoid calling KeWaitForSingleObject() by
-  * using atomic CAS on m_owner, in the simple cases.
-  */
+/*
+ * Implementation details.
+ * Using SynchronizationEvent that autoresets. When in 'Signaled'
+ * state the mutex is considered FREE/Available to be locked.
+ * Call KeWaitForSingleObject() to wait for it to be made
+ * 'available' (either blocking, or polling for *Try method)
+ * Calling KeSetEvent() sets event to Signaled, and wakes 'one'
+ * waiter, before Clearing it again.
+ * We attempt to avoid calling KeWaitForSingleObject() by
+ * using atomic CAS on m_owner, in the simple cases.
+ */
 
 #include <sys/atomic.h>
 #include <sys/mutex.h>
@@ -47,52 +47,57 @@
 
 uint64_t zfs_active_mutex = 0;
 
-#define MUTEX_INITIALISED 0x23456789
-#define MUTEX_DESTROYED 0x98765432
+#define	MUTEX_INITIALISED 0x23456789
+#define	MUTEX_DESTROYED 0x98765432
 
-int spl_mutex_subsystem_init(void)
+int
+spl_mutex_subsystem_init(void)
 {
-	return 0;
+	return (0);
 }
 
-void spl_mutex_subsystem_fini(void)
+void
+spl_mutex_subsystem_fini(void)
 {
 
 }
 
-void spl_mutex_init(kmutex_t *mp, char *name, kmutex_type_t type, void *ibc)
+void
+spl_mutex_init(kmutex_t *mp, char *name, kmutex_type_t type, void *ibc)
 {
-	(void)name;
+	(void) name;
 	ASSERT(type != MUTEX_SPIN);
 	ASSERT(ibc == NULL);
 
-	if (mp->initialised == MUTEX_INITIALISED)
-		panic("%s: mutex already initialised\n", __func__);
-	mp->initialised = MUTEX_INITIALISED;
-	mp->set_event_guard = 0;
+	if (mp->m_initialised == MUTEX_INITIALISED)
+		panic("%s: mutex already m_initialised\n", __func__);
+	mp->m_initialised = MUTEX_INITIALISED;
+	mp->m_set_event_guard = 0;
 
 	mp->m_owner = NULL;
 
 	// Initialise it to 'Signaled' as mutex is 'free'.
-	KeInitializeEvent((PRKEVENT)&mp->m_lock, SynchronizationEvent, TRUE); 
+	KeInitializeEvent((PRKEVENT)&mp->m_lock, SynchronizationEvent, TRUE);
 	atomic_inc_64(&zfs_active_mutex);
 }
 
-void spl_mutex_destroy(kmutex_t *mp)
+void
+spl_mutex_destroy(kmutex_t *mp)
 {
-	if (!mp) return;
+	if (!mp)
+		return;
 
-	if (mp->initialised != MUTEX_INITIALISED) 
-		panic("%s: mutex not initialised\n", __func__);
+	if (mp->m_initialised != MUTEX_INITIALISED)
+		panic("%s: mutex not m_initialised\n", __func__);
 
 	// Make sure any call to KeSetEvent() has completed.
-	while (mp->set_event_guard != 0) {
+	while (mp->m_set_event_guard != 0) {
 		kpreempt(KPREEMPT_SYNC);
 	}
 
-	mp->initialised = MUTEX_DESTROYED;
+	mp->m_initialised = MUTEX_DESTROYED;
 
-	if (mp->m_owner != 0) 
+	if (mp->m_owner != 0)
 		panic("SPL: releasing held mutex");
 
 	// There is no FREE member for events
@@ -101,34 +106,34 @@ void spl_mutex_destroy(kmutex_t *mp)
 	atomic_dec_64(&zfs_active_mutex);
 }
 
-void spl_mutex_enter(kmutex_t *mp)
+void
+spl_mutex_enter(kmutex_t *mp)
 {
 	NTSTATUS Status;
 	kthread_t *thisthread = current_thread();
 
-	if (mp->initialised != MUTEX_INITIALISED)
-		panic("%s: mutex not initialised\n", __func__);
-	
+	if (mp->m_initialised != MUTEX_INITIALISED)
+		panic("%s: mutex not m_initialised\n", __func__);
+
 	if (mp->m_owner == thisthread)
 		panic("mutex_enter: locking against myself!");
 
-	VERIFY3P(mp->m_owner, != , 0xdeadbeefdeadbeef);
+	VERIFY3P(mp->m_owner, !=, 0xdeadbeefdeadbeef);
 
 	// Test if "m_owner" is NULL, if so, set it to "thisthread".
 	// Returns original value, so if NULL, it succeeded.
 again:
-	if (InterlockedCompareExchangePointer(&mp->m_owner, 
-		thisthread, NULL) != NULL) {
+	if (InterlockedCompareExchangePointer(&mp->m_owner,
+	    thisthread, NULL) != NULL) {
 
 		// Failed to CAS-in 'thisthread', as owner was not NULL
 		// Wait forever for event to be signaled.
 		Status = KeWaitForSingleObject(
-			(PRKEVENT)&mp->m_lock,
-			Executive,
-			KernelMode,
-			FALSE,
-			NULL
-		);
+		    (PRKEVENT)&mp->m_lock,
+		    Executive,
+		    KernelMode,
+		    FALSE,
+		    NULL);
 
 		// We waited, but someone else may have beaten us to it
 		// so we need to attempt CAS again
@@ -138,32 +143,34 @@ again:
 	ASSERT(mp->m_owner == thisthread);
 }
 
-void spl_mutex_exit(kmutex_t *mp)
+void
+spl_mutex_exit(kmutex_t *mp)
 {
 	if (mp->m_owner != current_thread())
 		panic("%s: releasing not held/not our lock?\n", __func__);
 
-	VERIFY3P(mp->m_owner, != , 0xdeadbeefdeadbeef);
+	VERIFY3P(mp->m_owner, !=, 0xdeadbeefdeadbeef);
 
-	atomic_inc_32(&mp->set_event_guard);
+	atomic_inc_32(&mp->m_set_event_guard);
 
 	mp->m_owner = NULL;
 
-	VERIFY3U(KeGetCurrentIrql(), <= , DISPATCH_LEVEL);
+	VERIFY3U(KeGetCurrentIrql(), <=, DISPATCH_LEVEL);
 
 	// Wake up one waiter now that it is available.
 	KeSetEvent((PRKEVENT)&mp->m_lock, SEMAPHORE_INCREMENT, FALSE);
-	atomic_dec_32(&mp->set_event_guard);
+	atomic_dec_32(&mp->m_set_event_guard);
 }
 
-int spl_mutex_tryenter(kmutex_t *mp)
+int
+spl_mutex_tryenter(kmutex_t *mp)
 {
 	// LARGE_INTEGER timeout;
 	// NTSTATUS Status;
 	kthread_t *thisthread = current_thread();
 
-	if (mp->initialised != MUTEX_INITIALISED)
-		panic("%s: mutex not initialised\n", __func__);
+	if (mp->m_initialised != MUTEX_INITIALISED)
+		panic("%s: mutex not m_initialised\n", __func__);
 
 	if (mp->m_owner == thisthread)
 		panic("mutex_tryenter: locking against myself!");
@@ -171,8 +178,8 @@ int spl_mutex_tryenter(kmutex_t *mp)
 	// Test if "m_owner" is NULL, if so, set it to "thisthread".
 	// Returns original value, so if NULL, it succeeded.
 	if (InterlockedCompareExchangePointer(&mp->m_owner,
-		thisthread, NULL) != NULL) {
-		return 0; // Not held.
+	    thisthread, NULL) != NULL) {
+		return (0); // Not held.
 	}
 
 	ASSERT(mp->m_owner == thisthread);
@@ -181,12 +188,14 @@ int spl_mutex_tryenter(kmutex_t *mp)
 	return (1);
 }
 
-int spl_mutex_owned(kmutex_t *mp)
+int
+spl_mutex_owned(kmutex_t *mp)
 {
 	return (mp->m_owner == current_thread());
 }
 
-struct kthread *spl_mutex_owner(kmutex_t *mp)
+struct kthread *
+spl_mutex_owner(kmutex_t *mp)
 {
 	return (mp->m_owner);
 }

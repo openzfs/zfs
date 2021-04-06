@@ -27,11 +27,6 @@ spl_priv_check_cred(const cred_t *cred, int priv, int flags)
 {
 	int error = 0;
 
-// apple	if (kauth_cred_getuid(cred) == 0) {
-//		error = 0;
-//		goto out;
-//	}
-
 	/*
 	 * The default is deny, so if no policies have granted it, reject
 	 * with a privilege error here.
@@ -46,7 +41,7 @@ spl_priv_check_cred(const cred_t *cred, int priv, int flags)
 	//   CloseServiceHandle(SCM);
 	// }
 	// error = EPERM;
-//out:
+// out:
 	return (error);
 }
 

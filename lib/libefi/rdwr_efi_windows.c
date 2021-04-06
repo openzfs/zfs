@@ -142,19 +142,19 @@ static int
 read_disk_info(int fd, diskaddr_t *capacity, uint_t *lbsize)
 {
 	DISK_GEOMETRY_EX geometry_ex;
-	DWORD len; 
+	DWORD len;
 
 	LARGE_INTEGER large;
 	if (DeviceIoControl(ITOH(fd), IOCTL_DISK_GET_DRIVE_GEOMETRY_EX, NULL, 0,
-		&geometry_ex, sizeof(geometry_ex), &len, NULL)) {
+	    &geometry_ex, sizeof (geometry_ex), &len, NULL)) {
 
 		*lbsize = (uint_t)geometry_ex.Geometry.BytesPerSector;
 		*capacity = (diskaddr_t)geometry_ex.DiskSize.QuadPart;
 		*capacity /= *lbsize; // Capacity is in # blocks
-		return 0;
+		return (0);
 	}
 
-	return 0;
+	return (0);
 }
 
 static int
@@ -286,7 +286,7 @@ efi_get_info(int fd, struct dk_cinfo *dki_info)
 			}
 			strlcpy(dki_info->dki_dname,
 			    &pathbuf[5],
-			    sizeof(dki_info->dki_dname));
+			    sizeof (dki_info->dki_dname));
 		}
 
 		/*
@@ -329,21 +329,20 @@ efi_get_info(int fd, struct dk_cinfo *dki_info)
 	DWORD retcount = 0;
 	int err;
 	err = DeviceIoControl(ITOH(fd),
-		IOCTL_DISK_GET_PARTITION_INFO,
-		(LPVOID)NULL,
-		(DWORD)0,
-		(LPVOID)&partInfo,
-		sizeof(partInfo),
-		&retcount,
-		(LPOVERLAPPED)NULL);
+	    IOCTL_DISK_GET_PARTITION_INFO,
+	    (LPVOID)NULL,
+	    (DWORD)0,
+	    (LPVOID)&partInfo,
+	    sizeof (partInfo),
+	    &retcount,
+	    (LPOVERLAPPED)NULL);
 	if (err) {
 		dki_info->dki_partition = 0;
 		dki_info->dki_ctype = DKC_DIRECT;
 		strlcpy(dki_info->dki_dname,
 		"getnamehere",
-		sizeof(dki_info->dki_dname));
-	}
-	else {
+		    sizeof (dki_info->dki_dname));
+	} else {
 		err = GetLastError();
 	}
 
@@ -399,7 +398,7 @@ efi_alloc_and_init(int fd, uint32_t nparts, struct dk_gpt **vtoc)
 		return (-1);
 
 	if (lbsize == 0)
-	    return (-1);
+		return (-1);
 
 	nblocks = NBLOCKS(nparts, lbsize);
 	if ((nblocks * lbsize) < EFI_MIN_ARRAY_SIZE + lbsize) {
@@ -588,7 +587,7 @@ efi_ioctl(int fd, int cmd, dk_efi_t *dk_ioc)
 			return (error);
 
 		/* Ensure any local disk cache is also flushed */
-#if defined (__linux__)
+#if defined(__linux__)
 		if (ioctl(fd, BLKFLSBUF, 0) == -1)
 			return (error);
 #endif
@@ -666,8 +665,8 @@ check_label(int fd, dk_efi_t *dk_ioc)
 	if (headerSize < EFI_MIN_LABEL_SIZE || headerSize > EFI_LABEL_SIZE) {
 		if (efi_debug)
 			(void) fprintf(stderr,
-				"Invalid EFI HeaderSize %llu.  Assuming %d.\n",
-				headerSize, EFI_MIN_LABEL_SIZE);
+			    "Invalid EFI HeaderSize %llu.  Assuming %d.\n",
+			    headerSize, EFI_MIN_LABEL_SIZE);
 	}
 
 	if ((headerSize > dk_ioc->dki_length) ||
@@ -1601,124 +1600,3 @@ efi_auto_sense(int fd, struct dk_gpt **vtoc)
 	(*vtoc)->efi_parts[8].p_tag = V_RESERVED;
 	return (0);
 }
-
-#ifdef __APPLE__
-#include <DiskArbitration/DiskArbitration.h>
-#include <IOKit/storage/IOStorageProtocolCharacteristics.h>
-
-static const CFStringRef CoreStorageLogicalVolumeMediaPathSubstring =
-    CFSTR("/CoreStoragePhysical/");
-static const CFStringRef VirtualInterfaceDeviceProtocolSubstring =
-    CFSTR(kIOPropertyPhysicalInterconnectTypeVirtual);
-
-typedef struct {
-	DASessionRef session;
-	DADiskRef disk;
-} DADiskSession;
-
-Boolean
-CFDictionaryValueIfPresentMatchesSubstring(CFDictionaryRef dict,
-    CFStringRef key, CFStringRef substr)
-{
-	Boolean ret = false;
-	CFStringRef existing;
-	if (dict &&
-	    CFDictionaryGetValueIfPresent(dict, key,
-	        (const void **)&existing)) {
-		CFRange range = CFStringFind(existing, substr,
-		    kCFCompareCaseInsensitive);
-		if (range.location != kCFNotFound)
-			ret = true;
-	}
-	return (ret);
-}
-
-int
-setupDADiskSession(DADiskSession *ds, const char *bsdName)
-{
-	int err = 0;
-
-	ds->session = DASessionCreate(NULL);
-	if (ds->session == NULL) {
-		err = EINVAL;
-	}
-
-	if (err == 0) {
-		ds->disk = DADiskCreateFromBSDName(NULL, ds->session, bsdName);
-		if (ds->disk == NULL)
-			err = EINVAL;
-	}
-	return (err);
-}
-
-void
-teardownDADiskSession(DADiskSession *ds)
-{
-	if (ds->session != NULL)
-		CFRelease(ds->session);
-	if (ds->disk != NULL)
-		CFRelease(ds->disk);
-}
-
-
-int
-isDeviceMatchForKeyAndSubstr(char *device, CFStringRef key, CFStringRef substr,
-    Boolean *isMatch)
-{
-	int error;
-	DADiskSession ds = { 0 };
-
-	if (!isMatch)
-		return (-1);
-
-	if ((error = setupDADiskSession(&ds, device)) == 0) {
-		CFDictionaryRef descDict = NULL;
-		if((descDict = DADiskCopyDescription(ds.disk)) != NULL) {
-			*isMatch =
-			    CFDictionaryValueIfPresentMatchesSubstring(descDict,
-			        key, substr);
-		} else {
-			error = -1;
-			(void) fprintf(stderr,
-			    "no DADiskCopyDescription for device %s\n",
-			    device);
-			*isMatch = false;
-		}
-	}
-
-	teardownDADiskSession(&ds);
-	return (error);
-}
-
-/*
- * Caller is responsible for supplying a /dev/disk* block device path
- * or the BSD name (disk*).
- */
-int
-osx_device_isvirtual(char *device)
-{
-	Boolean isCoreStorageLV = false;
-	Boolean isVirtualInterface = false;
-
-	if (efi_debug)
-		(void) fprintf(stderr, "Checking if '%s' is virtual\n", device);
-
-	isDeviceMatchForKeyAndSubstr(device,
-	    kDADiskDescriptionMediaPathKey,
-	    CoreStorageLogicalVolumeMediaPathSubstring,
-	    &isCoreStorageLV);
-
-	isDeviceMatchForKeyAndSubstr(device,
-	    kDADiskDescriptionDeviceProtocolKey,
-	    VirtualInterfaceDeviceProtocolSubstring,
-	    &isVirtualInterface);
-
-	if (efi_debug)
-		(void) fprintf(stderr,
-		    "Is CoreStorage LV %d : is virtual interface %d\n",
-		    isCoreStorageLV,
-		    isVirtualInterface);
-
-	return (isCoreStorageLV || isVirtualInterface);
-}
-#endif

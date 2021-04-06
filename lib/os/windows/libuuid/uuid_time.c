@@ -35,9 +35,9 @@
  */
 
 #ifdef _WIN32
-#define _WIN32_WINNT 0x0500
+#define	_WIN32_WINNT 0x0500
 #include <windows.h>
-#define UUID MYUUID
+#define	UUID MYUUID
 #endif
 
 #include <stdio.h>
@@ -53,7 +53,8 @@
 
 #include "uuidP.h"
 
-time_t uuid_time(const uuid_t uu, struct timeval *ret_tv)
+time_t
+uuid_time(const uuid_t uu, struct timeval *ret_tv)
 {
 	struct timeval		tv;
 	struct uuid		uuid;
@@ -63,19 +64,20 @@ time_t uuid_time(const uuid_t uu, struct timeval *ret_tv)
 	uuid_unpack(uu, &uuid);
 
 	high = uuid.time_mid | ((uuid.time_hi_and_version & 0xFFF) << 16);
-	clock_reg = uuid.time_low | ((uint64_t) high << 32);
+	clock_reg = uuid.time_low | ((uint64_t)high << 32);
 
-	clock_reg -= (((uint64_t) 0x01B21DD2) << 32) + 0x13814000;
+	clock_reg -= (((uint64_t)0x01B21DD2) << 32) + 0x13814000;
 	tv.tv_sec = clock_reg / 10000000;
 	tv.tv_usec = (clock_reg % 10000000) / 10;
 
 	if (ret_tv)
 		*ret_tv = tv;
 
-	return tv.tv_sec;
+	return (tv.tv_sec);
 }
 
-int uuid_type(const uuid_t uu)
+int
+uuid_type(const uuid_t uu)
 {
 	struct uuid		uuid;
 
@@ -83,7 +85,8 @@ int uuid_type(const uuid_t uu)
 	return ((uuid.time_hi_and_version >> 12) & 0xF);
 }
 
-int uuid_variant(const uuid_t uu)
+int
+uuid_variant(const uuid_t uu)
 {
 	struct uuid		uuid;
 	int			var;
@@ -92,26 +95,27 @@ int uuid_variant(const uuid_t uu)
 	var = uuid.clock_seq;
 
 	if ((var & 0x8000) == 0)
-		return UUID_VARIANT_NCS;
+		return (UUID_VARIANT_NCS);
 	if ((var & 0x4000) == 0)
-		return UUID_VARIANT_DCE;
+		return (UUID_VARIANT_DCE);
 	if ((var & 0x2000) == 0)
-		return UUID_VARIANT_MICROSOFT;
-	return UUID_VARIANT_OTHER;
+		return (UUID_VARIANT_MICROSOFT);
+	return (UUID_VARIANT_OTHER);
 }
 
 #ifdef DEBUG
-static const char *variant_string(int variant)
+static const char *
+variant_string(int variant)
 {
 	switch (variant) {
 	case UUID_VARIANT_NCS:
-		return "NCS";
+		return ("NCS");
 	case UUID_VARIANT_DCE:
-		return "DCE";
+		return ("DCE");
 	case UUID_VARIANT_MICROSOFT:
-		return "Microsoft";
+		return ("Microsoft");
 	default:
-		return "Other";
+		return ("Other");
 	}
 }
 
@@ -139,8 +143,8 @@ main(int argc, char **argv)
 	printf("UUID variant is %d (%s)\n", variant, variant_string(variant));
 	if (variant != UUID_VARIANT_DCE) {
 		printf("Warning: This program only knows how to interpret "
-		       "DCE UUIDs.\n\tThe rest of the output is likely "
-		       "to be incorrect!!\n");
+		    "DCE UUIDs.\n\tThe rest of the output is likely "
+		    "to be incorrect!!\n");
 	}
 	printf("UUID type is %d", type);
 	switch (type) {
@@ -161,11 +165,11 @@ main(int argc, char **argv)
 	}
 	if (type != 1) {
 		printf("Warning: not a time-based UUID, so UUID time "
-		       "decoding will likely not work!\n");
+		    "decoding will likely not work!\n");
 	}
 	printf("UUID time is: (%ld, %ld): %s\n", tv.tv_sec, tv.tv_usec,
-	       ctime(&time_reg));
+	    ctime(&time_reg));
 
-	return 0;
+	return (0);
 }
 #endif

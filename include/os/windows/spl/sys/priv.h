@@ -1,4 +1,4 @@
-/*-
+/*
  * Copyright (c) 2006 nCircle Network Security, Inc.
  * All rights reserved.
  *
@@ -33,7 +33,7 @@
  * Privilege checking interface for BSD kernel.
  */
 #ifndef _SPL_PRIV_H
-#define _SPL_PRIV_H
+#define	_SPL_PRIV_H
 
 /*
  * Privilege list, sorted loosely by kernel subsystem.
@@ -231,10 +231,8 @@
  * ZFS-specific privileges.
  */
 #define	PRIV_ZFS_POOL_CONFIG	280	/* Can configure ZFS pools. */
-#define	PRIV_ZFS_INJECT		281	/* Can inject faults in the ZFS fault
-					   injection framework. */
-#define	PRIV_ZFS_JAIL		282	/* Can attach/detach ZFS file systems
-					   to/from jails. */
+#define	PRIV_ZFS_INJECT		281	/* Can inject faults to framework. */
+#define	PRIV_ZFS_JAIL		282	/* Can attach/detach to/from jails. */
 
 /*
  * NFS-specific privileges.
@@ -269,7 +267,7 @@
 #define	PRIV_VFS_MKNOD_DEV	331	/* Can mknod() to create dev nodes. */
 #define	PRIV_VFS_MKNOD_WHT	332	/* Can mknod() to create whiteout. */
 #define	PRIV_VFS_MOUNT		333	/* Can mount(). */
-#define	PRIV_VFS_MOUNT_OWNER	334	/* Can manage other users' file systems. */
+#define	PRIV_VFS_MOUNT_OWNER	334	/* Can manage other users' fs. */
 #define	PRIV_VFS_MOUNT_EXPORTED	335	/* Can set MNT_EXPORTED on mount. */
 #define	PRIV_VFS_MOUNT_PERM	336	/* Override dev node perms at mount. */
 #define	PRIV_VFS_MOUNT_SUIDDIR	337	/* Can set MNT_SUIDDIR on mount. */
@@ -287,14 +285,8 @@
 #define	PRIV_VM_MADV_PROTECT	360	/* Can set MADV_PROTECT. */
 #define	PRIV_VM_MLOCK		361	/* Can mlock(), mlockall(). */
 #define	PRIV_VM_MUNLOCK		362	/* Can munlock(), munlockall(). */
-#define	PRIV_VM_SWAP_NOQUOTA	363	/*
-					 * Can override the global
-					 * swap reservation limits.
-					 */
-#define	PRIV_VM_SWAP_NORLIMIT	364	/*
-					 * Can override the per-uid
-					 * swap reservation limits.
-					 */
+#define	PRIV_VM_SWAP_NOQUOTA	363
+#define	PRIV_VM_SWAP_NORLIMIT	364
 
 /*
  * Device file system privileges.
@@ -473,8 +465,8 @@
 /*
  * cpuctl(4) privileges.
  */
-#define PRIV_CPUCTL_WRMSR	640	/* Write model-specific register. */
-#define PRIV_CPUCTL_UPDATE	641	/* Update cpu microcode. */
+#define	PRIV_CPUCTL_WRMSR	640	/* Write model-specific register. */
+#define	PRIV_CPUCTL_UPDATE	641	/* Update cpu microcode. */
 
 /*
  * Capi4BSD privileges.

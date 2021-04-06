@@ -7,7 +7,7 @@
  */
 
 #ifndef UTIL_LINUX_ALL_IO_H
-#define UTIL_LINUX_ALL_IO_H
+#define	UTIL_LINUX_ALL_IO_H
 
 #include <string.h>
 #include <unistd.h>
@@ -26,17 +26,17 @@ static inline int write_all(int fd, const void *buf, size_t count)
 		if (tmp > 0) {
 			count -= tmp;
 			if (count)
-				buf = (void *) ((char *) buf + tmp);
+				buf = (void *)((char *)buf + tmp);
 		} else if (errno != EINTR && errno != EAGAIN)
-			return -1;
+			return (-1);
 		if (errno == EAGAIN)	/* Try later, *sigh* */
 			usleep(10000);
 	}
-	return 0;
+	return (0);
 }
 
 static inline int fwrite_all(const void *ptr, size_t size,
-			     size_t nmemb, FILE *stream)
+    size_t nmemb, FILE *stream)
 {
 	while (nmemb) {
 		size_t tmp;
@@ -46,13 +46,13 @@ static inline int fwrite_all(const void *ptr, size_t size,
 		if (tmp > 0) {
 			nmemb -= tmp;
 			if (nmemb)
-				ptr = (void *) ((char *) ptr + (tmp * size));
+				ptr = (void *)((char *)ptr + (tmp * size));
 		} else if (errno != EINTR && errno != EAGAIN)
-			return -1;
+			return (-1);
 		if (errno == EAGAIN)	/* Try later, *sigh* */
 			usleep(10000);
 	}
-	return 0;
+	return (0);
 }
 
 static inline ssize_t read_all(int fd, char *buf, size_t count)
@@ -68,7 +68,7 @@ static inline ssize_t read_all(int fd, char *buf, size_t count)
 			if ((errno == EAGAIN || errno == EINTR || ret == 0) &&
 			    (tries++ < 5))
 				continue;
-			return c ? c : -1;
+			return (c ? c : -1);
 		}
 		if (ret > 0)
 			tries = 0;
@@ -76,7 +76,7 @@ static inline ssize_t read_all(int fd, char *buf, size_t count)
 		buf += ret;
 		c += ret;
 	}
-	return c;
+	return (c);
 }
 
 

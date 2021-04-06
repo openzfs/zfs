@@ -41,8 +41,8 @@
 #define	_LIBSPL_WINDOWS_SYS_UIO_H
 
 struct iovec {
-	void    *iov_base;      /* Base address. */
-	uint32_t   iov_len;       /* Length. */
+	void *iov_base; /* Base address. */
+	uint32_t iov_len; /* Length. */
 };
 
 typedef struct iovec iovec_t;

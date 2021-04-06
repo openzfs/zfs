@@ -34,7 +34,6 @@
 #include <sys/types.h>
 #include <sys/vmsystm.h>
 #include <sys/kstat.h>
-//#include <sys/malloc.h>
 #include <sys/list.h>
 #include <sys/vmem.h>
 
@@ -49,9 +48,9 @@ extern uint64_t physmem;
 #define	KM_NOSLEEP	0x0001	/* cannot block for memory; may fail */
 #define	KM_PANIC	0x0002	/* if memory cannot be allocated, panic */
 #define	KM_PUSHPAGE	0x0004	/* can block for memory; may use reserve */
-#define	KM_NORMALPRI 0x0008  /* with KM_NOSLEEP, lower priority allocation */
-#define KM_NODEBUG  0x0010  /* NOT IMPLEMENTED ON OSX */
-#define KM_NO_VBA   0x0020  /* OSX: don't descend to the bucket layer */
+#define	KM_NORMALPRI	0x0008  /* with KM_NOSLEEP, lower priority allocation */
+#define	KM_NODEBUG	0x0010  /* NOT IMPLEMENTED ON OSX */
+#define	KM_NO_VBA	0x0020  /* OSX: don't descend to the bucket layer */
 #define	KM_VMFLAGS	0x00ff	/* flags that must match VM_* flags */
 
 #define	KM_FLAGS	0xffff	/* all settable kmem flags */
@@ -60,86 +59,85 @@ extern uint64_t physmem;
 	 * Kernel memory allocator: DDI interfaces.
 	 * See kmem_alloc(9F) for details.
 	 */
-	//MALLOC(fs, struct free_slab *, sizeof(struct free_slab),
-	//	   M_TEMP, M_WAITOK);
-#define MALLOC(A,C,S,T,F) \
+
+#define	MALLOC(A, C, S, T, F) \
 	(A) = (C)ExAllocatePoolWithTag(NonPagedPoolNx, (S), '!SFZ')
-#define FREE(A,T) \
+#define	FREE(A, T) \
 	ExFreePoolWithTag((A), '!SFZ')
 
 // Work around symbol collisions in XNU
-#define kmem_alloc(size, kmflags)   zfs_kmem_alloc((size), (kmflags))
-#define kmem_zalloc(size, kmflags)  zfs_kmem_zalloc((size), (kmflags))
-#define kmem_free(buf, size)        zfs_kmem_free((buf), (size))
+#define	kmem_alloc(size, kmflags) zfs_kmem_alloc((size), (kmflags))
+#define	kmem_zalloc(size, kmflags) zfs_kmem_zalloc((size), (kmflags))
+#define	kmem_free(buf, size) zfs_kmem_free((buf), (size))
 
-    void* zfs_kmem_alloc(size_t size, int kmflags);
-    void* zfs_kmem_zalloc(size_t size, int kmflags);
-    void zfs_kmem_free(void *buf, size_t size);
+void *zfs_kmem_alloc(size_t size, int kmflags);
+void *zfs_kmem_zalloc(size_t size, int kmflags);
+void zfs_kmem_free(void *buf, size_t size);
 
-    void spl_kmem_init(uint64_t);
-    void spl_kmem_thread_init();
-	void spl_kmem_mp_init();
-	void spl_kmem_thread_fini();
-	void spl_kmem_fini();
+void spl_kmem_init(uint64_t);
+void spl_kmem_thread_init();
+void spl_kmem_mp_init();
+void spl_kmem_thread_fini();
+void spl_kmem_fini();
 
-    uint64_t kmem_size(void);
-    uint64_t kmem_used(void);
-    int64_t kmem_avail(void);
-    uint64_t kmem_num_pages_wanted();
-	int	spl_vm_pool_low(void);
-  int64_t spl_minimal_physmem_p(void);
-  int64_t spl_adjust_pressure(int64_t);
-  int64_t spl_free_wrapper(void);
-  int64_t spl_free_manual_pressure_wrapper(void);
-  boolean_t spl_free_fast_pressure_wrapper(void);
-  void spl_free_set_pressure(int64_t);
-	void spl_free_set_fast_pressure(boolean_t);
-	uint64_t spl_free_last_pressure_wrapper(void);
+uint64_t kmem_size(void);
+uint64_t kmem_used(void);
+int64_t kmem_avail(void);
+uint64_t kmem_num_pages_wanted();
+int	spl_vm_pool_low(void);
+int64_t spl_minimal_physmem_p(void);
+int64_t spl_adjust_pressure(int64_t);
+int64_t spl_free_wrapper(void);
+int64_t spl_free_manual_pressure_wrapper(void);
+boolean_t spl_free_fast_pressure_wrapper(void);
+void spl_free_set_pressure(int64_t);
+void spl_free_set_fast_pressure(boolean_t);
+uint64_t spl_free_last_pressure_wrapper(void);
 
-#define KMC_NOTOUCH     0x00010000
-#define KMC_NODEBUG     0x00020000
-#define KMC_NOMAGAZINE  0x00040000
-#define KMC_NOHASH      0x00080000
-#define KMC_QCACHE      0x00100000
-#define KMC_KMEM_ALLOC  0x00200000      /* internal use only */
-#define KMC_IDENTIFIER  0x00400000      /* internal use only */
-#define KMC_PREFILL     0x00800000
-#define KMC_ARENA_SLAB  0x01000000      /* use a bigger kmem cache */
+#define	KMC_NOTOUCH	0x00010000
+#define	KMC_NODEBUG	0x00020000
+#define	KMC_NOMAGAZINE	0x00040000
+#define	KMC_NOHASH	0x00080000
+#define	KMC_QCACHE	0x00100000
+#define	KMC_KMEM_ALLOC	0x00200000	/* internal use only */
+#define	KMC_IDENTIFIER	0x00400000	/* internal use only */
+#define	KMC_PREFILL	0x00800000
+#define	KMC_ARENA_SLAB	0x01000000	/* use a bigger kmem cache */
 
-	struct kmem_cache;
+struct kmem_cache;
 
-	typedef struct kmem_cache kmem_cache_t;
+typedef struct kmem_cache kmem_cache_t;
 
-	/* Client response to kmem move callback */
-	typedef enum kmem_cbrc {
-		KMEM_CBRC_YES,
-		KMEM_CBRC_NO,
-		KMEM_CBRC_LATER,
-		KMEM_CBRC_DONT_NEED,
-		KMEM_CBRC_DONT_KNOW
-	} kmem_cbrc_t;
+/* Client response to kmem move callback */
+typedef enum kmem_cbrc {
+	KMEM_CBRC_YES,
+	KMEM_CBRC_NO,
+	KMEM_CBRC_LATER,
+	KMEM_CBRC_DONT_NEED,
+	KMEM_CBRC_DONT_KNOW
+} kmem_cbrc_t;
 
-#define POINTER_IS_VALID(p)     (!((uintptr_t)(p) & 0x3))
-#define POINTER_INVALIDATE(pp)  (*(pp) = (void *)((uintptr_t)(*(pp)) | 0x1))
+#define	POINTER_IS_VALID(p) (!((uintptr_t)(p) & 0x3))
+#define	POINTER_INVALIDATE(pp) (*(pp) = (void *)((uintptr_t)(*(pp)) | 0x1))
 
-    kmem_cache_t *kmem_cache_create(char *name, uint32_t bufsize, uint32_t align,
-                                    int (*constructor)(void *, void *, int),
-									void (*destructor)(void *, void *),
-                                    void (*reclaim)(void *),
-									void *_private, struct vmem *vmp, int cflags);
-    void kmem_cache_destroy(kmem_cache_t *cache);
-    void *kmem_cache_alloc(kmem_cache_t *cache, int flags);
-    void kmem_cache_free(kmem_cache_t *cache, void *buf);
-    void kmem_cache_free_to_slab(kmem_cache_t *cache, void *buf);
-    void kmem_cache_reap_now(kmem_cache_t *cache);
-	void kmem_depot_ws_zero(kmem_cache_t *cache);
-    void kmem_reap(void);
-	void kmem_reap_idspace(void);
-	kmem_cache_t *kmem_cache_buf_in_cache(kmem_cache_t *, void *);
+kmem_cache_t *kmem_cache_create(char *name, uint32_t bufsize, uint32_t align,
+    int (*constructor)(void *, void *, int),
+    void (*destructor)(void *, void *),
+    void (*reclaim)(void *),
+    void *_private, struct vmem *vmp, int cflags);
+void kmem_cache_destroy(kmem_cache_t *cache);
+void *kmem_cache_alloc(kmem_cache_t *cache, int flags);
+void kmem_cache_free(kmem_cache_t *cache, void *buf);
+void kmem_cache_free_to_slab(kmem_cache_t *cache, void *buf);
+void kmem_cache_reap_now(kmem_cache_t *cache);
+void kmem_depot_ws_zero(kmem_cache_t *cache);
+void kmem_reap(void);
+void kmem_reap_idspace(void);
+kmem_cache_t *kmem_cache_buf_in_cache(kmem_cache_t *, void *);
 
-    int kmem_debugging(void);
-    void kmem_cache_set_move(kmem_cache_t *,
-                             kmem_cbrc_t (*)(void *, void *, uint32_t, void *));
+int kmem_debugging(void);
+void kmem_cache_set_move(kmem_cache_t *,
+    kmem_cbrc_t (*)(void *, void *, uint32_t, void *));
 
 extern char *kmem_asprintf(const char *fmt, ...);
 extern char *kmem_strdup(const char *str);
