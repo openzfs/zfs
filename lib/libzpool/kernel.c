@@ -797,6 +797,8 @@ ddi_strtoul(const char *hw_serial, char **nptr, int base, unsigned long *result)
 	*result = strtoul(hw_serial, &end, base);
 	if (*result == 0)
 		return (errno);
+	if (nptr != NULL)
+	    *nptr = end;
 	return (0);
 }
 
@@ -809,6 +811,8 @@ ddi_strtoull(const char *str, char **nptr, int base, u_longlong_t *result)
 	*result = strtoull(str, &end, base);
 	if (*result == 0)
 		return (errno);
+	if (nptr != NULL)
+	    *nptr = end;
 	return (0);
 }
 
