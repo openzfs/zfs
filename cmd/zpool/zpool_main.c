@@ -4915,8 +4915,8 @@ get_interval_count(int *argcp, char **argv, float *iv,
 
 		if (*end == '\0' && errno == 0) {
 			if (interval == 0) {
-				(void) fprintf(stderr, gettext("interval "
-				    "cannot be zero\n"));
+				(void) fprintf(stderr, gettext(
+				    "interval cannot be zero\n"));
 				usage(B_FALSE);
 			}
 			/*
@@ -4946,8 +4946,8 @@ get_interval_count(int *argcp, char **argv, float *iv,
 
 		if (*end == '\0' && errno == 0) {
 			if (interval == 0) {
-				(void) fprintf(stderr, gettext("interval "
-				    "cannot be zero\n"));
+				(void) fprintf(stderr, gettext(
+				    "interval cannot be zero\n"));
 				usage(B_FALSE);
 			}
 
