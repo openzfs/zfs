@@ -35,6 +35,8 @@ extern "C" {
 
 typedef struct vdev_file {
 	zfs_file_t	*vf_file;
+	uint64_t	vdev_win_offset; /* soft partition start */
+	uint64_t	vdev_win_length; /* soft partition length */
 } vdev_file_t;
 
 extern void vdev_file_init(void);

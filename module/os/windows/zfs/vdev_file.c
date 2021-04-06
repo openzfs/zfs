@@ -86,6 +86,8 @@ vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 	zfs_file_t *fp;
 	zfs_file_attr_t zfa;
 	int error = 0;
+	char *vdev_path = NULL;
+	uint8_t *FileName = NULL;
 
 	dprintf("vdev_file_open %p\n", vd->vdev_tsd);
 	/* Rotational optimizations only make sense on block devices */
@@ -127,18 +129,52 @@ vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 
 	vf = vd->vdev_tsd = kmem_zalloc(sizeof (vdev_file_t), KM_SLEEP);
 
-	/* Make sure to change / /?/ into kernel /??/ */
-	if (vd->vdev_path[0] == '\\' &&
-	    vd->vdev_path[1] == '\\' &&
-	    vd->vdev_path[2] == '?' &&
-	    vd->vdev_path[3] == '\\')
-		vd->vdev_path[1] = '?';
+	/*
+	 * We have to do the same checks as vdev_disk.c, since this is run
+	 * in userland as zdb. Use physpath if given, with offset and size
+	 */
+	if (vd->vdev_physpath)
+	    vdev_path = spa_strdup(vd->vdev_physpath);
+	else
+	    vdev_path = spa_strdup(vd->vdev_path);
 
-	error = zfs_file_open(vd->vdev_path,
+	if (vdev_path[0] == '#') {
+	    uint8_t* end;
+	    end = &vdev_path[0];
+	    while (end && end[0] == '#') end++;
+	    ddi_strtoull(end, &end, 10, &vf->vdev_win_offset);
+	    while (end && end[0] == '#') end++;
+	    ddi_strtoull(end, &end, 10, &vf->vdev_win_length);
+	    while (end && end[0] == '#') end++;
+
+	    FileName = end;
+	} else {
+	    FileName = vdev_path;
+
+	    // Sometimes only vdev_path is set, with "/dev/physicaldrive"
+	    // make it be " \??\physicaldrive" space skipped over.
+	    if (strncmp("/dev/", FileName, 5) == 0) {
+		FileName[0] = ' ';
+		FileName[1] = '\\';
+		FileName[2] = '?';
+		FileName[3] = '?';
+		FileName[4] = '\\';
+		FileName++;
+	    }
+	}
+
+#ifdef _KERNEL
+	if (strncmp("\\\\?\\", FileName, 4) == 0) {
+	    FileName[1] = '?';
+	}
+#endif
+
+	error = zfs_file_open(FileName,
 	    vdev_file_open_mode(spa_mode(vd->vdev_spa)), 0, &fp);
 
 	if (error) {
 		vd->vdev_stat.vs_aux = VDEV_AUX_OPEN_FAILED;
+		spa_strfree(vdev_path);
 		return (error);
 	}
 
@@ -148,6 +184,7 @@ vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 	 * Make sure it's a regular file.
 	 */
 	if (zfs_file_getattr(fp, &zfa)) {
+		spa_strfree(vdev_path);
 		return (SET_ERROR(ENODEV));
 	}
 
@@ -173,17 +210,21 @@ skip_open:
 	/*
 	 * Determine the physical size of the file.
 	 */
-	error = zfs_file_getattr(vf->vf_file, &zfa);
+	if (vf->vdev_win_length != 0)
+		zfa.zfa_size = vf->vdev_win_length;
+	else
+		error = zfs_file_getattr(vf->vf_file, &zfa);
 
 	if (error) {
 		vd->vdev_stat.vs_aux = VDEV_AUX_OPEN_FAILED;
+		spa_strfree(vdev_path);
 		return (error);
 	}
 
 	*max_psize = *psize = zfa.zfa_size;
 	*ashift = SPA_MINBLOCKSHIFT;
 	*physical_ashift = SPA_MINBLOCKSHIFT;
-
+	spa_strfree(vdev_path);
 	return (0);
 }
 
@@ -357,7 +398,7 @@ vdev_file_io_start(zio_t *zio)
 
 	ASSERT(zio->io_size != 0);
 	LARGE_INTEGER offset;
-	offset.QuadPart = zio->io_offset; /* + vd->vdev_win_offset */
+	offset.QuadPart = zio->io_offset + vf->vdev_win_offset;
 
 	VERIFY3U(taskq_dispatch(system_taskq, vdev_file_io_strategy, zio,
 	    TQ_SLEEP), !=, 0);
