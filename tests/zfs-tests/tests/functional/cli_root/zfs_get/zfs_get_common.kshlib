@@ -26,6 +26,7 @@
 
 #
 # Copyright (c) 2016 by Delphix. All rights reserved.
+# Copyright (c) 2021 Matt Fiddaman
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -87,8 +88,8 @@ function gen_option_str # $elements $prefix $separator $counter
 }
 
 #
-# Cleanup the volume snapshot, filesystem snapshot, volume bookmark, and
-# filesystem bookmark that were created for this test case.
+# Cleanup the volume snapshot, filesystem snapshots, clone, volume bookmark,
+# and filesystem bookmark that were created for this test case.
 #
 function cleanup
 {
@@ -96,6 +97,11 @@ function cleanup
 		destroy_snapshot $TESTPOOL/$TESTVOL@$TESTSNAP
 	datasetexists $TESTPOOL/$TESTFS@$TESTSNAP && \
 		destroy_snapshot $TESTPOOL/$TESTFS@$TESTSNAP
+
+	datasetexists $TESTPOOL/$TESTCLONE && \
+		destroy_clone $TESTPOOL/$TESTCLONE
+	datasetexists $TESTPOOL/$TESTFS@$TESTSNAP1 && \
+		destroy_snapshot $TESTPOOL/$TESTFS@$TESTSNAP1
 
 	bkmarkexists $TESTPOOL/$TESTVOL#$TESTBKMARK && \
 		destroy_bookmark $TESTPOOL/$TESTVOL#$TESTBKMARK
