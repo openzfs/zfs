@@ -3539,6 +3539,7 @@ zfs_setattr(znode_t *zp, vattr_t *vap, int flags, cred_t *cr)
 
 	if (mask & (ATTR_UID|ATTR_GID|ATTR_MODE))
 		mutex_enter(&zp->z_acl_lock);
+	mutex_enter(&zp->z_lock);
 
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_FLAGS(zfsvfs), NULL,
 	    &zp->z_pflags, sizeof (zp->z_pflags));
@@ -3702,6 +3703,7 @@ zfs_setattr(znode_t *zp, vattr_t *vap, int flags, cred_t *cr)
 	if (mask != 0)
 		zfs_log_setattr(zilog, tx, TX_SETATTR, zp, vap, mask, fuidp);
 
+	mutex_exit(&zp->z_lock);
 	if (mask & (ATTR_UID|ATTR_GID|ATTR_MODE))
 		mutex_exit(&zp->z_acl_lock);
 

@@ -452,13 +452,12 @@ zfs_find_dvp_vp(zfsvfs_t *zfsvfs, char *filename, int finalpartmaynotexist,
 	} // for word
 	// dprintf("\n");
 
-	if (dvp) {
+	if (dvp != NULL) {
 		// We return with dvp HELD
 		// VN_RELE(dvp);
 	} else {
 		dprintf("%s: failed to find dvp for '%s' word '%s' err %d\n",
 		    __func__, filename, word?word:"(null)", error);
-		VN_RELE(dvp);
 		return (error);
 	}
 
