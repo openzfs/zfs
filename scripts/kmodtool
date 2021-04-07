@@ -182,9 +182,21 @@ BuildRequires:	  kernel-devel-uname-r = ${kernel_uname_r}
 %{?KmodsRequires:Requires: %{KmodsRequires}-uname-r = ${kernel_uname_r}}
 %{?KmodsRequires:BuildRequires: %{KmodsRequires}-uname-r = ${kernel_uname_r}}
 %post          -n kmod-${kmodname}-${kernel_uname_r}
-${prefix}${depmod_path} -aeF /boot/System.map-${kernel_uname_r} ${kernel_uname_r} > /dev/null || :
+if [[ -f "/boot/System.map-${kernel_uname_r}" ]]; then
+	${prefix}${depmod_path} -aeF /boot/System.map-${kernel_uname_r} ${kernel_uname_r} > /dev/null || :
+elif [[ -f "/lib/modules/${kernel_uname_r}/System.map" ]]; then
+	${prefix}${depmod_path} -aeF /lib/modules/${kernel_uname_r}/System.map ${kernel_uname_r} > /dev/null || :
+else
+	${prefix}${depmod_path} -ae ${kernel_uname_r} &> /dev/null || :
+fi
 %postun        -n kmod-${kmodname}-${kernel_uname_r}
-${prefix}${depmod_path} -aF /boot/System.map-${kernel_uname_r} ${kernel_uname_r} &> /dev/null || :
+if [[ -f "/boot/System.map-${kernel_uname_r}" ]]; then
+	${prefix}${depmod_path} -aF /boot/System.map-${kernel_uname_r} ${kernel_uname_r} &> /dev/null || :
+elif [[ -f "/lib/modules/${kernel_uname_r}/System.map" ]]; then
+	${prefix}${depmod_path} -aF /lib/modules/${kernel_uname_r}/System.map ${kernel_uname_r} &> /dev/null || :
+else
+	${prefix}${depmod_path} -a ${kernel_uname_r} &> /dev/null || :
+fi
 
 EOF
 	else
