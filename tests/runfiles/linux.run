@@ -85,12 +85,6 @@ tags = ['functional', 'cli_root', 'zpool_split']
 tests = ['compress_004_pos']
 tags = ['functional', 'compression']
 
-[tests/functional/deadman:Linux]
-tests = ['deadman_sync', 'deadman_zio']
-pre =
-post =
-tags = ['functional', 'deadman']
-
 [tests/functional/devices:Linux]
 tests = ['devices_001_pos', 'devices_002_neg', 'devices_003_pos']
 tags = ['functional', 'devices']
