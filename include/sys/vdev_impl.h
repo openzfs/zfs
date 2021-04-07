@@ -441,10 +441,11 @@ struct vdev {
 	kmutex_t	vdev_probe_lock; /* protects vdev_probe_zio	*/
 
 	/*
-	 * We rate limit ZIO delay and ZIO checksum events, since they
+	 * We rate limit ZIO delay, deadman, and checksum events, since they
 	 * can flood ZED with tons of events when a drive is acting up.
 	 */
 	zfs_ratelimit_t vdev_delay_rl;
+	zfs_ratelimit_t vdev_deadman_rl;
 	zfs_ratelimit_t vdev_checksum_rl;
 };
 
