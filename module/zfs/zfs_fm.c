@@ -357,8 +357,8 @@ zfs_zevent_post_cb(nvlist_t *nvl, nvlist_t *detector)
 }
 
 /*
- * We want to rate limit ZIO delay and checksum events so as to not
- * flood ZED when a disk is acting up.
+ * We want to rate limit ZIO delay, deadman, and checksum events so as to not
+ * flood zevent consumers when a disk is acting up.
  *
  * Returns 1 if we're ratelimiting, 0 if not.
  */
@@ -367,11 +367,13 @@ zfs_is_ratelimiting_event(const char *subclass, vdev_t *vd)
 {
 	int rc = 0;
 	/*
-	 * __ratelimit() returns 1 if we're *not* ratelimiting and 0 if we
+	 * zfs_ratelimit() returns 1 if we're *not* ratelimiting and 0 if we
 	 * are.  Invert it to get our return value.
 	 */
 	if (strcmp(subclass, FM_EREPORT_ZFS_DELAY) == 0) {
 		rc = !zfs_ratelimit(&vd->vdev_delay_rl);
+	} else if (strcmp(subclass, FM_EREPORT_ZFS_DEADMAN) == 0) {
+		rc = !zfs_ratelimit(&vd->vdev_deadman_rl);
 	} else if (strcmp(subclass, FM_EREPORT_ZFS_CHECKSUM) == 0) {
 		rc = !zfs_ratelimit(&vd->vdev_checksum_rl);
 	}

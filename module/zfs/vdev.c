@@ -543,6 +543,8 @@ vdev_alloc_common(spa_t *spa, uint_t id, uint64_t guid, vdev_ops_t *ops)
 	 */
 	zfs_ratelimit_init(&vd->vdev_delay_rl, &zfs_slow_io_events_per_second,
 	    1);
+	zfs_ratelimit_init(&vd->vdev_deadman_rl, &zfs_slow_io_events_per_second,
+	    1);
 	zfs_ratelimit_init(&vd->vdev_checksum_rl,
 	    &zfs_checksum_events_per_second, 1);
 
@@ -1033,6 +1035,7 @@ vdev_free(vdev_t *vd)
 	cv_destroy(&vd->vdev_rebuild_io_cv);
 
 	zfs_ratelimit_fini(&vd->vdev_delay_rl);
+	zfs_ratelimit_fini(&vd->vdev_deadman_rl);
 	zfs_ratelimit_fini(&vd->vdev_checksum_rl);
 
 	if (vd == spa->spa_root_vdev)
