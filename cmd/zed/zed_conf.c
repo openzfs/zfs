@@ -126,7 +126,7 @@ zed_conf_destroy(struct zed_conf *zcp)
  * otherwise, output to stderr and exit with a failure status.
  */
 static void
-_zed_conf_display_help(const char *prog, int got_err)
+_zed_conf_display_help(const char *prog, boolean_t got_err)
 {
 	struct opt { const char *o, *d, *v; };
 
@@ -257,7 +257,7 @@ zed_conf_parse_opts(struct zed_conf *zcp, int argc, char **argv)
 	while ((opt = getopt(argc, argv, opts)) != -1) {
 		switch (opt) {
 		case 'h':
-			_zed_conf_display_help(argv[0], EXIT_SUCCESS);
+			_zed_conf_display_help(argv[0], B_FALSE);
 			break;
 		case 'L':
 			_zed_conf_display_license();
@@ -309,11 +309,11 @@ zed_conf_parse_opts(struct zed_conf *zcp, int argc, char **argv)
 		case '?':
 		default:
 			if (optopt == '?')
-				_zed_conf_display_help(argv[0], EXIT_SUCCESS);
+				_zed_conf_display_help(argv[0], B_FALSE);
 
 			fprintf(stderr, "%s: Invalid option '-%c'\n\n",
 			    argv[0], optopt);
-			_zed_conf_display_help(argv[0], EXIT_FAILURE);
+			_zed_conf_display_help(argv[0], B_TRUE);
 			break;
 		}
 	}
