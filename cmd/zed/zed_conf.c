@@ -32,38 +32,26 @@
 #include "zed_strings.h"
 
 /*
- * Return a new configuration with default values.
+ * Initialise the configuration with default values.
  */
-struct zed_conf *
-zed_conf_create(void)
+void
+zed_conf_init(struct zed_conf *zcp)
 {
-	struct zed_conf *zcp;
+	memset(zcp, 0, sizeof (*zcp));
 
-	zcp = calloc(1, sizeof (*zcp));
-	if (!zcp)
-		goto nomem;
+	/* zcp->zfs_hdl opened in zed_event_init() */
+	/* zcp->zedlets created in zed_conf_scan_dir() */
 
-	zcp->pid_fd = -1;
-	zcp->zedlets = NULL;		/* created via zed_conf_scan_dir() */
-	zcp->state_fd = -1;		/* opened via zed_conf_open_state() */
-	zcp->zfs_hdl = NULL;		/* opened via zed_event_init() */
-	zcp->zevent_fd = -1;		/* opened via zed_event_init() */
+	zcp->pid_fd = -1;		/* opened in zed_conf_write_pid() */
+	zcp->state_fd = -1;		/* opened in zed_conf_open_state() */
+	zcp->zevent_fd = -1;		/* opened in zed_event_init() */
+
 	zcp->max_jobs = 16;
 
-	if (!(zcp->pid_file = strdup(ZED_PID_FILE)))
-		goto nomem;
-
-	if (!(zcp->zedlet_dir = strdup(ZED_ZEDLET_DIR)))
-		goto nomem;
-
-	if (!(zcp->state_file = strdup(ZED_STATE_FILE)))
-		goto nomem;
-
-	return (zcp);
-
-nomem:
-	zed_log_die("Failed to create conf: %s", strerror(errno));
-	return (NULL);
+	if (!(zcp->pid_file = strdup(ZED_PID_FILE)) ||
+	    !(zcp->zedlet_dir = strdup(ZED_ZEDLET_DIR)) ||
+	    !(zcp->state_file = strdup(ZED_STATE_FILE)))
+		zed_log_die("Failed to create conf: %s", strerror(errno));
 }
 
 /*
@@ -74,9 +62,6 @@ nomem:
 void
 zed_conf_destroy(struct zed_conf *zcp)
 {
-	if (!zcp)
-		return;
-
 	if (zcp->state_fd >= 0) {
 		if (close(zcp->state_fd) < 0)
 			zed_log_msg(LOG_WARNING,
@@ -113,7 +98,6 @@ zed_conf_destroy(struct zed_conf *zcp)
 		zed_strings_destroy(zcp->zedlets);
 		zcp->zedlets = NULL;
 	}
-	free(zcp);
 }
 
 /*
