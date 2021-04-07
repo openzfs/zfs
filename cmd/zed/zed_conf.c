@@ -43,7 +43,6 @@ zed_conf_create(void)
 	if (!zcp)
 		goto nomem;
 
-	zcp->syslog_facility = LOG_DAEMON;
 	zcp->min_events = ZED_MIN_EVENTS;
 	zcp->max_events = ZED_MAX_EVENTS;
 	zcp->pid_fd = -1;
