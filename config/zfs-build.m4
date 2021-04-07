@@ -437,6 +437,9 @@ AC_DEFUN([ZFS_AC_ALIEN], [
 	AC_MSG_CHECKING([whether $ALIEN is available])
 	AS_IF([tmp=$($ALIEN --version 2>/dev/null)], [
 		ALIEN_VERSION=$(echo $tmp | $AWK '{ print $[3] }')
+		ALIEN_MAJOR=$(echo ${ALIEN_VERSION} | $AWK -F'.' '{ print $[1] }')
+		ALIEN_MINOR=$(echo ${ALIEN_VERSION} | $AWK -F'.' '{ print $[2] }')
+		ALIEN_POINT=$(echo ${ALIEN_VERSION} | $AWK -F'.' '{ print $[3] }')
 		HAVE_ALIEN=yes
 		AC_MSG_RESULT([$HAVE_ALIEN ($ALIEN_VERSION)])
 	],[
@@ -447,6 +450,9 @@ AC_DEFUN([ZFS_AC_ALIEN], [
 	AC_SUBST(HAVE_ALIEN)
 	AC_SUBST(ALIEN)
 	AC_SUBST(ALIEN_VERSION)
+	AC_SUBST(ALIEN_MAJOR)
+	AC_SUBST(ALIEN_MINOR)
+	AC_SUBST(ALIEN_POINT)
 ])
 
 dnl #
