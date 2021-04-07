@@ -31,16 +31,6 @@
 #define	ZED_ZEDLET_DIR		SYSCONFDIR "/zfs/zed.d"
 
 /*
- * Reserved for future use.
- */
-#define	ZED_MAX_EVENTS		0
-
-/*
- * Reserved for future use.
- */
-#define	ZED_MIN_EVENTS		0
-
-/*
  * String prefix for ZED variables passed via environment variables.
  */
 #define	ZED_VAR_PREFIX		"ZED_"

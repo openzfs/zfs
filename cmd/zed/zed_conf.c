@@ -43,8 +43,6 @@ zed_conf_create(void)
 	if (!zcp)
 		goto nomem;
 
-	zcp->min_events = ZED_MIN_EVENTS;
-	zcp->max_events = ZED_MAX_EVENTS;
 	zcp->pid_fd = -1;
 	zcp->zedlets = NULL;		/* created via zed_conf_scan_dir() */
 	zcp->state_fd = -1;		/* opened via zed_conf_open_state() */
