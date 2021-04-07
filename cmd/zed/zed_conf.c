@@ -175,20 +175,14 @@ _zed_conf_display_help(const char *prog, int got_err)
 static void
 _zed_conf_display_license(void)
 {
-	const char **pp;
-	const char *text[] = {
-	    "The ZFS Event Daemon (ZED) is distributed under the terms of the",
-	    "  Common Development and Distribution License (CDDL-1.0)",
-	    "  <http://opensource.org/licenses/CDDL-1.0>.",
-	    "",
+	printf(
+	    "The ZFS Event Daemon (ZED) is distributed under the terms of the\n"
+	    "  Common Development and Distribution License (CDDL-1.0)\n"
+	    "  <http://opensource.org/licenses/CDDL-1.0>.\n"
+	    "\n"
 	    "Developed at Lawrence Livermore National Laboratory"
-	    " (LLNL-CODE-403049).",
-	    "",
-	    NULL
-	};
-
-	for (pp = text; *pp; pp++)
-		printf("%s\n", *pp);
+	    " (LLNL-CODE-403049).\n"
+	    "\n");
 
 	exit(EXIT_SUCCESS);
 }
