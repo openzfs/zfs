@@ -166,6 +166,7 @@ This package contains the core ZFS command line utilities.
 Summary:        Native ZFS pool library for Linux
 Group:          System Environment/Kernel
 Obsoletes:      libzpool2
+Obsoletes:      libzpool4
 
 %description -n libzpool5
 This package contains the zpool library, which provides support
@@ -211,6 +212,7 @@ This library provides a variety of compatibility functions for OpenZFS:
 Summary:        Native ZFS filesystem library for Linux
 Group:          System Environment/Kernel
 Obsoletes:      libzfs2
+Obsoletes:      libzfs4
 
 %description -n libzfs5
 This package provides support for managing ZFS filesystems
