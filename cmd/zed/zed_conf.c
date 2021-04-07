@@ -128,42 +128,50 @@ zed_conf_destroy(struct zed_conf *zcp)
 static void
 _zed_conf_display_help(const char *prog, int got_err)
 {
+	struct opt { const char *o, *d, *v; };
+
 	FILE *fp = got_err ? stderr : stdout;
-	int w1 = 4;			/* width of leading whitespace */
-	int w2 = 8;			/* width of L-justified option field */
+
+	struct opt *oo;
+	struct opt iopts[] = {
+		{ .o = "-h", .d = "Display help" },
+		{ .o = "-L", .d = "Display license information" },
+		{ .o = "-V", .d = "Display version information" },
+		{},
+	};
+	struct opt nopts[] = {
+		{ .o = "-v", .d = "Be verbose" },
+		{ .o = "-f", .d = "Force daemon to run" },
+		{ .o = "-F", .d = "Run daemon in the foreground" },
+		{ .o = "-I",
+		    .d = "Idle daemon until kernel module is (re)loaded" },
+		{ .o = "-M", .d = "Lock all pages in memory" },
+		{ .o = "-P", .d = "$PATH for ZED to use (only used by ZTS)" },
+		{ .o = "-Z", .d = "Zero state file" },
+		{},
+	};
+	struct opt vopts[] = {
+		{ .o = "-d DIR", .d = "Read enabled ZEDLETs from DIR.",
+		    .v = ZED_ZEDLET_DIR },
+		{ .o = "-p FILE", .d = "Write daemon's PID to FILE.",
+		    .v = ZED_PID_FILE },
+		{ .o = "-s FILE", .d = "Write daemon's state to FILE.",
+		    .v = ZED_STATE_FILE },
+		{ .o = "-j JOBS", .d = "Start at most JOBS at once.",
+		    .v = "16" },
+		{},
+	};
 
 	fprintf(fp, "Usage: %s [OPTION]...\n", (prog ? prog : "zed"));
 	fprintf(fp, "\n");
-	fprintf(fp, "%*c%*s %s\n", w1, 0x20, -w2, "-h",
-	    "Display help.");
-	fprintf(fp, "%*c%*s %s\n", w1, 0x20, -w2, "-L",
-	    "Display license information.");
-	fprintf(fp, "%*c%*s %s\n", w1, 0x20, -w2, "-V",
-	    "Display version information.");
+	for (oo = iopts; oo->o; ++oo)
+		fprintf(fp, "    %*s %s\n", -8, oo->o, oo->d);
 	fprintf(fp, "\n");
-	fprintf(fp, "%*c%*s %s\n", w1, 0x20, -w2, "-v",
-	    "Be verbose.");
-	fprintf(fp, "%*c%*s %s\n", w1, 0x20, -w2, "-f",
-	    "Force daemon to run.");
-	fprintf(fp, "%*c%*s %s\n", w1, 0x20, -w2, "-F",
-	    "Run daemon in the foreground.");
-	fprintf(fp, "%*c%*s %s\n", w1, 0x20, -w2, "-I",
-	    "Idle daemon until kernel module is (re)loaded.");
-	fprintf(fp, "%*c%*s %s\n", w1, 0x20, -w2, "-M",
-	    "Lock all pages in memory.");
-	fprintf(fp, "%*c%*s %s\n", w1, 0x20, -w2, "-P",
-	    "$PATH for ZED to use (only used by ZTS).");
-	fprintf(fp, "%*c%*s %s\n", w1, 0x20, -w2, "-Z",
-	    "Zero state file.");
+	for (oo = nopts; oo->o; ++oo)
+		fprintf(fp, "    %*s %s\n", -8, oo->o, oo->d);
 	fprintf(fp, "\n");
-	fprintf(fp, "%*c%*s %s [%s]\n", w1, 0x20, -w2, "-d DIR",
-	    "Read enabled ZEDLETs from DIR.", ZED_ZEDLET_DIR);
-	fprintf(fp, "%*c%*s %s [%s]\n", w1, 0x20, -w2, "-p FILE",
-	    "Write daemon's PID to FILE.", ZED_PID_FILE);
-	fprintf(fp, "%*c%*s %s [%s]\n", w1, 0x20, -w2, "-s FILE",
-	    "Write daemon's state to FILE.", ZED_STATE_FILE);
-	fprintf(fp, "%*c%*s %s [%d]\n", w1, 0x20, -w2, "-j JOBS",
-	    "Start at most JOBS at once.", 16);
+	for (oo = vopts; oo->o; ++oo)
+		fprintf(fp, "    %*s %s [%s]\n", -8, oo->o, oo->d, oo->v);
 	fprintf(fp, "\n");
 
 	exit(got_err ? EXIT_FAILURE : EXIT_SUCCESS);
@@ -303,8 +311,8 @@ zed_conf_parse_opts(struct zed_conf *zcp, int argc, char **argv)
 			if (optopt == '?')
 				_zed_conf_display_help(argv[0], EXIT_SUCCESS);
 
-			fprintf(stderr, "%s: %s '-%c'\n\n", argv[0],
-			    "Invalid option", optopt);
+			fprintf(stderr, "%s: Invalid option '-%c'\n\n",
+			    argv[0], optopt);
 			_zed_conf_display_help(argv[0], EXIT_FAILURE);
 			break;
 		}
