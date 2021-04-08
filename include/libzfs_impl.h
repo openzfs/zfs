@@ -48,7 +48,6 @@ extern "C" {
 struct libzfs_handle {
 	int libzfs_error;
 	int libzfs_fd;
-	FILE *libzfs_mnttab;
 	zpool_handle_t *libzfs_pool_handles;
 	uu_avl_pool_t *libzfs_ns_avlpool;
 	uu_avl_t *libzfs_ns_avl;
