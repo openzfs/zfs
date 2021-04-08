@@ -259,7 +259,7 @@ pool_active(void *unused, const char *name, uint64_t guid,
 	 * Use ZFS_IOC_POOL_SYNC to confirm if a pool is active
 	 */
 
-	fd = open(ZFS_DEV, O_RDWR);
+	fd = open(ZFS_DEV, O_RDWR | O_CLOEXEC);
 	if (fd < 0)
 		return (-1);
 

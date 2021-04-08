@@ -4809,13 +4809,11 @@ zpool_load_compat(const char *compatibility,
 	 * as they're only needed if the filename is relative
 	 * which will be checked during the openat().
 	 */
-#ifdef O_PATH
-	sdirfd = open(ZPOOL_SYSCONF_COMPAT_D, O_DIRECTORY | O_PATH);
-	ddirfd = open(ZPOOL_DATA_COMPAT_D, O_DIRECTORY | O_PATH);
-#else
-	sdirfd = open(ZPOOL_SYSCONF_COMPAT_D, O_DIRECTORY | O_RDONLY);
-	ddirfd = open(ZPOOL_DATA_COMPAT_D, O_DIRECTORY | O_RDONLY);
+#ifndef O_PATH
+#define	O_PATH O_RDONLY
 #endif
+	sdirfd = open(ZPOOL_SYSCONF_COMPAT_D, O_DIRECTORY | O_PATH | O_CLOEXEC);
+	ddirfd = open(ZPOOL_DATA_COMPAT_D, O_DIRECTORY | O_PATH | O_CLOEXEC);
 
 	(void) strlcpy(filenames, compatibility, ZFS_MAXPROPLEN);
 	file = strtok_r(filenames, ",", &ps);
