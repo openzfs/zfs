@@ -1776,7 +1776,7 @@ vdev_raidz_matrix_reconstruct(raidz_row_t *rr, int n, int nmissing,
 	kmem_free(p, psize);
 }
 
-static int
+static void
 vdev_raidz_reconstruct_general(raidz_row_t *rr, int *tgts, int ntgts)
 {
 	int n, i, c, t, tt;
@@ -1792,8 +1792,6 @@ vdev_raidz_reconstruct_general(raidz_row_t *rr, int *tgts, int ntgts)
 	uint8_t *used;
 
 	abd_t **bufs = NULL;
-
-	int code = 0;
 
 	/*
 	 * Matrix reconstruction can't use scatter ABDs yet, so we allocate
@@ -1849,14 +1847,9 @@ vdev_raidz_reconstruct_general(raidz_row_t *rr, int *tgts, int ntgts)
 			continue;
 		}
 
-		code |= 1 << c;
-
 		parity_map[i] = c;
 		i++;
 	}
-
-	ASSERT(code != 0);
-	ASSERT3U(code, <, 1 << VDEV_RAIDZ_MAXPARITY);
 
 	psize = (sizeof (rows[0][0]) + sizeof (invrows[0][0])) *
 	    nmissing_rows * n + sizeof (used[0]) * n;
@@ -1920,18 +1913,15 @@ vdev_raidz_reconstruct_general(raidz_row_t *rr, int *tgts, int ntgts)
 		}
 		kmem_free(bufs, rr->rr_cols * sizeof (abd_t *));
 	}
-
-	return (code);
 }
 
-static int
+static void
 vdev_raidz_reconstruct_row(raidz_map_t *rm, raidz_row_t *rr,
     const int *t, int nt)
 {
 	int tgts[VDEV_RAIDZ_MAXPARITY], *dt;
 	int ntgts;
 	int i, c, ret;
-	int code;
 	int nbadparity, nbaddata;
 	int parity_valid[VDEV_RAIDZ_MAXPARITY];
 
@@ -1974,20 +1964,24 @@ vdev_raidz_reconstruct_row(raidz_map_t *rm, raidz_row_t *rr,
 	/* Reconstruct using the new math implementation */
 	ret = vdev_raidz_math_reconstruct(rm, rr, parity_valid, dt, nbaddata);
 	if (ret != RAIDZ_ORIGINAL_IMPL)
-		return (ret);
+		return;
 
 	/*
 	 * See if we can use any of our optimized reconstruction routines.
 	 */
 	switch (nbaddata) {
 	case 1:
-		if (parity_valid[VDEV_RAIDZ_P])
-			return (vdev_raidz_reconstruct_p(rr, dt, 1));
+		if (parity_valid[VDEV_RAIDZ_P]) {
+			vdev_raidz_reconstruct_p(rr, dt, 1);
+			return;
+		}
 
 		ASSERT(rr->rr_firstdatacol > 1);
 
-		if (parity_valid[VDEV_RAIDZ_Q])
-			return (vdev_raidz_reconstruct_q(rr, dt, 1));
+		if (parity_valid[VDEV_RAIDZ_Q]) {
+			vdev_raidz_reconstruct_q(rr, dt, 1);
+			return;
+		}
 
 		ASSERT(rr->rr_firstdatacol > 2);
 		break;
@@ -1996,18 +1990,17 @@ vdev_raidz_reconstruct_row(raidz_map_t *rm, raidz_row_t *rr,
 		ASSERT(rr->rr_firstdatacol > 1);
 
 		if (parity_valid[VDEV_RAIDZ_P] &&
-		    parity_valid[VDEV_RAIDZ_Q])
-			return (vdev_raidz_reconstruct_pq(rr, dt, 2));
+		    parity_valid[VDEV_RAIDZ_Q]) {
+			vdev_raidz_reconstruct_pq(rr, dt, 2);
+			return;
+		}
 
 		ASSERT(rr->rr_firstdatacol > 2);
 
 		break;
 	}
 
-	code = vdev_raidz_reconstruct_general(rr, tgts, ntgts);
-	ASSERT(code < (1 << VDEV_RAIDZ_MAXPARITY));
-	ASSERT(code > 0);
-	return (code);
+	vdev_raidz_reconstruct_general(rr, tgts, ntgts);
 }
 
 static int
@@ -2804,11 +2797,9 @@ raidz_reconstruct(zio_t *zio, int *ltgts, int ntgts, int nparity)
 			raidz_restore_orig_data(rm);
 			return (EINVAL);
 		}
-		/* XXX is rr_code used anywhere? */
-		rr->rr_code = 0;
+
 		if (dead_data > 0)
-			rr->rr_code = vdev_raidz_reconstruct_row(rm, rr,
-			    my_tgts, t);
+			vdev_raidz_reconstruct_row(rm, rr, my_tgts, t);
 	}
 
 	/* Check for success */
@@ -3071,11 +3062,7 @@ vdev_raidz_io_done_write_impl(zio_t *zio, raidz_row_t *rr)
 	}
 }
 
-/*
- * return 0 if no reconstruction occurred, otherwise the "code" from
- * vdev_raidz_reconstruct().
- */
-static int
+static void
 vdev_raidz_io_done_reconstruct_known_missing(raidz_map_t *rm,
     raidz_row_t *rr)
 {
@@ -3083,7 +3070,6 @@ vdev_raidz_io_done_reconstruct_known_missing(raidz_map_t *rm,
 	int parity_untried = 0;
 	int data_errors = 0;
 	int total_errors = 0;
-	int code = 0;
 
 	ASSERT3U(rr->rr_missingparity, <=, rr->rr_firstdatacol);
 	ASSERT3U(rr->rr_missingdata, <=, rr->rr_cols - rr->rr_firstdatacol);
@@ -3137,10 +3123,8 @@ vdev_raidz_io_done_reconstruct_known_missing(raidz_map_t *rm,
 
 		ASSERT(rr->rr_firstdatacol >= n);
 
-		code = vdev_raidz_reconstruct_row(rm, rr, tgts, n);
+		vdev_raidz_reconstruct_row(rm, rr, tgts, n);
 	}
-
-	return (code);
 }
 
 /*
@@ -3262,9 +3246,7 @@ vdev_raidz_io_done(zio_t *zio)
 
 		for (int i = 0; i < rm->rm_nrows; i++) {
 			raidz_row_t *rr = rm->rm_row[i];
-			rr->rr_code =
-			    vdev_raidz_io_done_reconstruct_known_missing(rm,
-			    rr);
+			vdev_raidz_io_done_reconstruct_known_missing(rm, rr);
 		}
 
 		if (raidz_checksum_verify(zio) == 0) {
