@@ -148,6 +148,7 @@ getextmntent(const char *path, struct extmnttab *entry, struct stat64 *statbuf)
 			break;
 		}
 	}
+	(void) fclose(fp);
 
 	if (!match) {
 		(void) fprintf(stderr, "cannot find mountpoint for '%s'\n",
