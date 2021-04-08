@@ -83,7 +83,6 @@
 
 libzfs_handle_t *g_zfs;
 
-static FILE *mnttab_file;
 static char history_str[HIS_MAX_RECORD_LEN];
 static boolean_t log_history = B_TRUE;
 
@@ -7063,8 +7062,7 @@ share_mount(int op, int argc, char **argv)
 		get_all_datasets(&cb, verbose);
 
 		if (cb.cb_used == 0) {
-			if (options != NULL)
-				free(options);
+			free(options);
 			return (0);
 		}
 
@@ -7094,6 +7092,7 @@ share_mount(int op, int argc, char **argv)
 			zfs_close(cb.cb_handles[i]);
 		free(cb.cb_handles);
 	} else if (argc == 0) {
+		FILE *mnttab;
 		struct mnttab entry;
 
 		if ((op == OP_SHARE) || (options != NULL)) {
@@ -7109,14 +7108,12 @@ share_mount(int op, int argc, char **argv)
 		 * automatically.
 		 */
 
-		/* Reopen MNTTAB to prevent reading stale data from open file */
-		if (freopen(MNTTAB, "r", mnttab_file) == NULL) {
-			if (options != NULL)
-				free(options);
+		if ((mnttab = fopen(MNTTAB, "re")) == NULL) {
+			free(options);
 			return (ENOENT);
 		}
 
-		while (getmntent(mnttab_file, &entry) == 0) {
+		while (getmntent(mnttab, &entry) == 0) {
 			if (strcmp(entry.mnt_fstype, MNTTYPE_ZFS) != 0 ||
 			    strchr(entry.mnt_special, '@') != NULL)
 				continue;
@@ -7125,6 +7122,7 @@ share_mount(int op, int argc, char **argv)
 			    entry.mnt_mountp);
 		}
 
+		(void) fclose(mnttab);
 	} else {
 		zfs_handle_t *zhp;
 
@@ -7145,9 +7143,7 @@ share_mount(int op, int argc, char **argv)
 		}
 	}
 
-	if (options != NULL)
-		free(options);
-
+	free(options);
 	return (ret);
 }
 
@@ -7209,10 +7205,6 @@ unshare_unmount_path(int op, char *path, int flags, boolean_t is_manual)
 	/*
 	 * Search for the given (major,minor) pair in the mount table.
 	 */
-
-	/* Reopen MNTTAB to prevent reading stale data from open file */
-	if (freopen(MNTTAB, "r", mnttab_file) == NULL)
-		return (ENOENT);
 
 	if (getextmntent(path, &entry, &statbuf) != 0) {
 		if (op == OP_SHARE) {
@@ -7353,6 +7345,7 @@ unshare_unmount(int op, int argc, char **argv)
 		 * the special type (dataset name), and walk the result in
 		 * reverse to make sure to get any snapshots first.
 		 */
+		FILE *mnttab;
 		struct mnttab entry;
 		uu_avl_pool_t *pool;
 		uu_avl_t *tree = NULL;
@@ -7385,11 +7378,10 @@ unshare_unmount(int op, int argc, char **argv)
 		    ((tree = uu_avl_create(pool, NULL, UU_DEFAULT)) == NULL))
 			nomem();
 
-		/* Reopen MNTTAB to prevent reading stale data from open file */
-		if (freopen(MNTTAB, "r", mnttab_file) == NULL)
+		if ((mnttab = fopen(MNTTAB, "re")) == NULL)
 			return (ENOENT);
 
-		while (getmntent(mnttab_file, &entry) == 0) {
+		while (getmntent(mnttab, &entry) == 0) {
 
 			/* ignore non-ZFS entries */
 			if (strcmp(entry.mnt_fstype, MNTTYPE_ZFS) != 0)
@@ -7459,6 +7451,7 @@ unshare_unmount(int op, int argc, char **argv)
 				free(node);
 			}
 		}
+		(void) fclose(mnttab);
 
 		/*
 		 * Walk the AVL tree in reverse, unmounting each filesystem and
@@ -8648,8 +8641,6 @@ main(int argc, char **argv)
 		(void) fprintf(stderr, "%s\n", libzfs_error_init(errno));
 		return (1);
 	}
-
-	mnttab_file = g_zfs->libzfs_mnttab;
 
 	zfs_save_arguments(argc, argv, history_str, sizeof (history_str));
 

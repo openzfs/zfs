@@ -1528,6 +1528,7 @@ int
 zpool_disable_datasets(zpool_handle_t *zhp, boolean_t force)
 {
 	int used, alloc;
+	FILE *mnttab;
 	struct mnttab entry;
 	size_t namelen;
 	char **mountpoints = NULL;
@@ -1539,12 +1540,11 @@ zpool_disable_datasets(zpool_handle_t *zhp, boolean_t force)
 
 	namelen = strlen(zhp->zpool_name);
 
-	/* Reopen MNTTAB to prevent reading stale data from open file */
-	if (freopen(MNTTAB, "re", hdl->libzfs_mnttab) == NULL)
+	if ((mnttab = fopen(MNTTAB, "re")) == NULL)
 		return (ENOENT);
 
 	used = alloc = 0;
-	while (getmntent(hdl->libzfs_mnttab, &entry) == 0) {
+	while (getmntent(mnttab, &entry) == 0) {
 		/*
 		 * Ignore non-ZFS entries.
 		 */
@@ -1646,6 +1646,7 @@ zpool_disable_datasets(zpool_handle_t *zhp, boolean_t force)
 
 	ret = 0;
 out:
+	(void) fclose(mnttab);
 	for (i = 0; i < used; i++) {
 		if (datasets[i])
 			zfs_close(datasets[i]);
