@@ -35,7 +35,7 @@
 void
 libzfs_set_pipe_max(int infd)
 {
-	FILE *procf = fopen("/proc/sys/fs/pipe-max-size", "r");
+	FILE *procf = fopen("/proc/sys/fs/pipe-max-size", "re");
 
 	if (procf != NULL) {
 		unsigned long max_psize;

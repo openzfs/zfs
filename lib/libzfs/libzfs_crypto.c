@@ -71,7 +71,7 @@ pkcs11_get_urandom(uint8_t *buf, size_t bytes)
 	int rand;
 	ssize_t bytes_read = 0;
 
-	rand = open("/dev/urandom", O_RDONLY);
+	rand = open("/dev/urandom", O_RDONLY | O_CLOEXEC);
 
 	if (rand < 0)
 		return (rand);
@@ -468,7 +468,7 @@ get_key_material_file(libzfs_handle_t *hdl, const char *uri,
 	if (strlen(uri) < 7)
 		return (EINVAL);
 
-	if ((f = fopen(uri + 7, "r")) == NULL) {
+	if ((f = fopen(uri + 7, "re")) == NULL) {
 		ret = errno;
 		errno = 0;
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
