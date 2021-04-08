@@ -2207,7 +2207,7 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 		++holdseq;
 		(void) snprintf(sdd.holdtag, sizeof (sdd.holdtag),
 		    ".send-%d-%llu", getpid(), (u_longlong_t)holdseq);
-		sdd.cleanup_fd = open(ZFS_DEV, O_RDWR);
+		sdd.cleanup_fd = open(ZFS_DEV, O_RDWR | O_CLOEXEC);
 		if (sdd.cleanup_fd < 0) {
 			err = errno;
 			goto stderr_out;

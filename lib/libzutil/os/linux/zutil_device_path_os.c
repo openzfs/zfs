@@ -390,7 +390,7 @@ zfs_dev_is_whole_disk(const char *dev_name)
 	struct dk_gpt *label;
 	int fd;
 
-	if ((fd = open(dev_name, O_RDONLY | O_DIRECT)) < 0)
+	if ((fd = open(dev_name, O_RDONLY | O_DIRECT | O_CLOEXEC)) < 0)
 		return (B_FALSE);
 
 	if (efi_alloc_and_init(fd, EFI_NUMPAR, &label) != 0) {

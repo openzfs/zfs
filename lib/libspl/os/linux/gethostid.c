@@ -45,7 +45,7 @@ get_spl_hostid(void)
 		return (hostid & HOSTID_MASK);
 	}
 
-	f = fopen("/sys/module/spl/parameters/spl_hostid", "r");
+	f = fopen("/sys/module/spl/parameters/spl_hostid", "re");
 	if (!f)
 		return (0);
 
@@ -74,7 +74,7 @@ get_system_hostid(void)
 		unsigned long hostid;
 		int hostid_size = 4;  /* 4 bytes regardless of arch */
 
-		fd = open("/etc/hostid", O_RDONLY);
+		fd = open("/etc/hostid", O_RDONLY | O_CLOEXEC);
 		if (fd >= 0) {
 			rc = read(fd, &hostid, hostid_size);
 			if (rc > 0)

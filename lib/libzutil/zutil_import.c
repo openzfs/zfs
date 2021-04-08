@@ -1345,7 +1345,8 @@ zpool_find_import_impl(libpc_handle_t *hdl, importargs_t *iarg,
 				 * would prevent a zdb -e of active pools with
 				 * no cachefile.
 				 */
-				fd = open(slice->rn_name, O_RDONLY | O_EXCL);
+				fd = open(slice->rn_name,
+				    O_RDONLY | O_EXCL | O_CLOEXEC);
 				if (fd >= 0 || iarg->can_be_active) {
 					if (fd >= 0)
 						close(fd);
@@ -1437,7 +1438,7 @@ zpool_find_import_cached(libpc_handle_t *hdl, importargs_t *iarg)
 
 	verify(iarg->poolname == NULL || iarg->guid == 0);
 
-	if ((fd = open(iarg->cachefile, O_RDONLY)) < 0) {
+	if ((fd = open(iarg->cachefile, O_RDONLY | O_CLOEXEC)) < 0) {
 		zutil_error_aux(hdl, "%s", strerror(errno));
 		(void) zutil_error(hdl, EZFS_BADCACHE,
 		    dgettext(TEXT_DOMAIN, "failed to open cache file"));
