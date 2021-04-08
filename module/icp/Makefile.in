@@ -45,7 +45,6 @@ $(MODULE)-objs += algs/aes/aes_modes.o
 $(MODULE)-objs += algs/edonr/edonr.o
 $(MODULE)-objs += algs/sha1/sha1.o
 $(MODULE)-objs += algs/sha2/sha2.o
-$(MODULE)-objs += algs/sha1/sha1.o
 $(MODULE)-objs += algs/skein/skein.o
 $(MODULE)-objs += algs/skein/skein_block.o
 $(MODULE)-objs += algs/skein/skein_iv.o
