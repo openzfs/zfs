@@ -25,25 +25,25 @@ filter_out_deleted_zvols() {
 }
 
 list_zvols() {
+	read -r default_volmode < /sys/module/zfs/parameters/zvol_volmode
 	zfs list -t volume -H -o \
 	    name,volmode,receive_resume_token,redact_snaps |
 	    while IFS="	" read -r name volmode token redacted; do # IFS=\t here!
-		#
+
 		# /dev links are not created for zvols with volmode = "none"
 		# or for redacted zvols.
-		#
 		[ "$volmode" = "none" ] && continue
+		[ "$volmode" = "default" ] && [ "$default_volmode" = "3" ] &&
+		    continue
 		[ "$redacted" = "-" ] || continue
-		#
+
 		# We also ignore partially received zvols if it is
 		# not an incremental receive, as those won't even have a block
 		# device minor node created yet.
-		#
 		if [ "$token" != "-" ]; then
-			#
+
 			# Incremental receives create an invisible clone that
 			# is not automatically displayed by zfs list.
-			#
 			if ! zfs list "$name/%recv" >/dev/null 2>&1; then
 				continue
 			fi
