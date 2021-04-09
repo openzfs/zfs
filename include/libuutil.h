@@ -122,7 +122,6 @@ extern boolean_t uu_streq(const char *a, const char *b);
 extern char *uu_strndup(const char *s, size_t n);
 extern boolean_t uu_strbw(const char *a, const char *b);
 extern void *uu_memdup(const void *buf, size_t sz);
-extern void uu_dump(FILE *out, const char *prefix, const void *buf, size_t len);
 
 /*
  * Comparison function type definition.
