@@ -11,7 +11,6 @@ USER_C = \
 	uu_ident.c \
 	uu_list.c \
 	uu_misc.c \
-	uu_open.c \
 	uu_pname.c \
 	uu_string.c
 

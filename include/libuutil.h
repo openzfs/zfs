@@ -129,11 +129,6 @@ extern const char *uu_dprintf_getname(uu_dprintf_t *);
 int uu_check_name(const char *, uint_t);
 
 /*
- * File creation functions.
- */
-extern int uu_open_tmp(const char *dir, uint_t uflags);
-
-/*
  * Convenience functions.
  */
 #define	UU_NELEM(a)	(sizeof (a) / sizeof ((a)[0]))
