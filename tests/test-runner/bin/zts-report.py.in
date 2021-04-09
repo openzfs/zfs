@@ -263,7 +263,6 @@ if sys.platform.startswith('freebsd'):
         'inheritance/inherit_001_pos': ['FAIL', '11829'],
         'pool_checkpoint/checkpoint_zhack_feat': ['FAIL', '11854'],
         'removal/removal_condense_export': ['FAIL', known_reason],
-        'removal/removal_with_export': ['FAIL', known_reason],
         'resilver/resilver_restart_001': ['FAIL', known_reason],
         'zvol/zvol_misc/zvol_misc_volmode': ['FAIL', known_reason],
     })
