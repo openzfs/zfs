@@ -203,10 +203,6 @@
     <elf-symbol name='uu_avl_walk_start' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='uu_check_name' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='uu_die' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='uu_dprintf' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='uu_dprintf_create' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='uu_dprintf_destroy' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='uu_dprintf_getname' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='uu_dump' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='uu_error' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='uu_exit_fatal' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -313,39 +309,39 @@
     </function-decl>
   </abi-instr>
   <abi-instr version='1.0' address-size='64' path='uu_avl.c' comp-dir-path='/home/fedora/zfs/lib/libuutil' language='LANG_C99'>
-    <class-decl name='uu_avl_pool' size-in-bits='2176' is-struct='yes' visibility='default' filepath='../../include/libuutil_impl.h' line='154' column='1' id='type-id-10'>
+    <class-decl name='uu_avl_pool' size-in-bits='2176' is-struct='yes' visibility='default' filepath='../../include/libuutil_impl.h' line='148' column='1' id='type-id-10'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='uap_next' type-id='type-id-11' visibility='default' filepath='../../include/libuutil_impl.h' line='155' column='1'/>
+        <var-decl name='uap_next' type-id='type-id-11' visibility='default' filepath='../../include/libuutil_impl.h' line='149' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='uap_prev' type-id='type-id-11' visibility='default' filepath='../../include/libuutil_impl.h' line='156' column='1'/>
+        <var-decl name='uap_prev' type-id='type-id-11' visibility='default' filepath='../../include/libuutil_impl.h' line='150' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='128'>
-        <var-decl name='uap_name' type-id='type-id-12' visibility='default' filepath='../../include/libuutil_impl.h' line='158' column='1'/>
+        <var-decl name='uap_name' type-id='type-id-12' visibility='default' filepath='../../include/libuutil_impl.h' line='152' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='640'>
-        <var-decl name='uap_nodeoffset' type-id='type-id-4' visibility='default' filepath='../../include/libuutil_impl.h' line='159' column='1'/>
+        <var-decl name='uap_nodeoffset' type-id='type-id-4' visibility='default' filepath='../../include/libuutil_impl.h' line='153' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='704'>
-        <var-decl name='uap_objsize' type-id='type-id-4' visibility='default' filepath='../../include/libuutil_impl.h' line='160' column='1'/>
+        <var-decl name='uap_objsize' type-id='type-id-4' visibility='default' filepath='../../include/libuutil_impl.h' line='154' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='768'>
-        <var-decl name='uap_cmp' type-id='type-id-13' visibility='default' filepath='../../include/libuutil_impl.h' line='161' column='1'/>
+        <var-decl name='uap_cmp' type-id='type-id-13' visibility='default' filepath='../../include/libuutil_impl.h' line='155' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='832'>
-        <var-decl name='uap_debug' type-id='type-id-14' visibility='default' filepath='../../include/libuutil_impl.h' line='162' column='1'/>
+        <var-decl name='uap_debug' type-id='type-id-14' visibility='default' filepath='../../include/libuutil_impl.h' line='156' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='840'>
-        <var-decl name='uap_last_index' type-id='type-id-14' visibility='default' filepath='../../include/libuutil_impl.h' line='163' column='1'/>
+        <var-decl name='uap_last_index' type-id='type-id-14' visibility='default' filepath='../../include/libuutil_impl.h' line='157' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='896'>
-        <var-decl name='uap_lock' type-id='type-id-15' visibility='default' filepath='../../include/libuutil_impl.h' line='164' column='1'/>
+        <var-decl name='uap_lock' type-id='type-id-15' visibility='default' filepath='../../include/libuutil_impl.h' line='158' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='1216'>
-        <var-decl name='uap_null_avl' type-id='type-id-16' visibility='default' filepath='../../include/libuutil_impl.h' line='165' column='1'/>
+        <var-decl name='uap_null_avl' type-id='type-id-16' visibility='default' filepath='../../include/libuutil_impl.h' line='159' column='1'/>
       </data-member>
     </class-decl>
-    <typedef-decl name='uu_avl_pool_t' type-id='type-id-10' filepath='../../include/libuutil.h' line='282' column='1' id='type-id-17'/>
+    <typedef-decl name='uu_avl_pool_t' type-id='type-id-10' filepath='../../include/libuutil.h' line='260' column='1' id='type-id-17'/>
     <pointer-type-def type-id='type-id-17' size-in-bits='64' id='type-id-11'/>
     <type-decl name='__ARRAY_SIZE_TYPE__' size-in-bits='64' id='type-id-18'/>
 
@@ -354,7 +350,7 @@
 
     </array-type-def>
     <type-decl name='int' size-in-bits='32' id='type-id-20'/>
-    <typedef-decl name='uu_compare_fn_t' type-id='type-id-21' filepath='../../include/libuutil.h' line='154' column='1' id='type-id-22'/>
+    <typedef-decl name='uu_compare_fn_t' type-id='type-id-21' filepath='../../include/libuutil.h' line='132' column='1' id='type-id-22'/>
     <pointer-type-def type-id='type-id-22' size-in-bits='64' id='type-id-13'/>
     <type-decl name='unsigned char' size-in-bits='8' id='type-id-23'/>
     <typedef-decl name='__uint8_t' type-id='type-id-23' filepath='/usr/include/bits/types.h' line='37' column='1' id='type-id-24'/>
@@ -414,30 +410,30 @@
     </array-type-def>
     <type-decl name='long int' size-in-bits='64' id='type-id-28'/>
     <typedef-decl name='pthread_mutex_t' type-id='type-id-25' filepath='/usr/include/bits/pthreadtypes.h' line='72' column='1' id='type-id-15'/>
-    <class-decl name='uu_avl' size-in-bits='960' is-struct='yes' visibility='default' filepath='../../include/libuutil_impl.h' line='137' column='1' id='type-id-34'>
+    <class-decl name='uu_avl' size-in-bits='960' is-struct='yes' visibility='default' filepath='../../include/libuutil_impl.h' line='131' column='1' id='type-id-34'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='ua_next_enc' type-id='type-id-35' visibility='default' filepath='../../include/libuutil_impl.h' line='138' column='1'/>
+        <var-decl name='ua_next_enc' type-id='type-id-35' visibility='default' filepath='../../include/libuutil_impl.h' line='132' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='ua_prev_enc' type-id='type-id-35' visibility='default' filepath='../../include/libuutil_impl.h' line='139' column='1'/>
+        <var-decl name='ua_prev_enc' type-id='type-id-35' visibility='default' filepath='../../include/libuutil_impl.h' line='133' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='128'>
-        <var-decl name='ua_pool' type-id='type-id-11' visibility='default' filepath='../../include/libuutil_impl.h' line='141' column='1'/>
+        <var-decl name='ua_pool' type-id='type-id-11' visibility='default' filepath='../../include/libuutil_impl.h' line='135' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='192'>
-        <var-decl name='ua_parent_enc' type-id='type-id-35' visibility='default' filepath='../../include/libuutil_impl.h' line='142' column='1'/>
+        <var-decl name='ua_parent_enc' type-id='type-id-35' visibility='default' filepath='../../include/libuutil_impl.h' line='136' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='256'>
-        <var-decl name='ua_debug' type-id='type-id-14' visibility='default' filepath='../../include/libuutil_impl.h' line='143' column='1'/>
+        <var-decl name='ua_debug' type-id='type-id-14' visibility='default' filepath='../../include/libuutil_impl.h' line='137' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='264'>
-        <var-decl name='ua_index' type-id='type-id-14' visibility='default' filepath='../../include/libuutil_impl.h' line='144' column='1'/>
+        <var-decl name='ua_index' type-id='type-id-14' visibility='default' filepath='../../include/libuutil_impl.h' line='138' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='320'>
-        <var-decl name='ua_tree' type-id='type-id-36' visibility='default' filepath='../../include/libuutil_impl.h' line='146' column='1'/>
+        <var-decl name='ua_tree' type-id='type-id-36' visibility='default' filepath='../../include/libuutil_impl.h' line='140' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='640'>
-        <var-decl name='ua_null_walk' type-id='type-id-37' visibility='default' filepath='../../include/libuutil_impl.h' line='147' column='1'/>
+        <var-decl name='ua_null_walk' type-id='type-id-37' visibility='default' filepath='../../include/libuutil_impl.h' line='141' column='1'/>
       </data-member>
     </class-decl>
     <typedef-decl name='uintptr_t' type-id='type-id-3' filepath='/usr/include/stdint.h' line='90' column='1' id='type-id-35'/>
@@ -474,29 +470,29 @@
     </array-type-def>
     <pointer-type-def type-id='type-id-44' size-in-bits='64' id='type-id-39'/>
     <typedef-decl name='ulong_t' type-id='type-id-3' filepath='../../lib/libspl/include/sys/stdtypes.h' line='34' column='1' id='type-id-40'/>
-    <class-decl name='uu_avl_walk' size-in-bits='320' is-struct='yes' visibility='default' filepath='../../include/libuutil_impl.h' line='127' column='1' id='type-id-45'>
+    <class-decl name='uu_avl_walk' size-in-bits='320' is-struct='yes' visibility='default' filepath='../../include/libuutil_impl.h' line='121' column='1' id='type-id-45'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='uaw_next' type-id='type-id-46' visibility='default' filepath='../../include/libuutil_impl.h' line='128' column='1'/>
+        <var-decl name='uaw_next' type-id='type-id-46' visibility='default' filepath='../../include/libuutil_impl.h' line='122' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='uaw_prev' type-id='type-id-46' visibility='default' filepath='../../include/libuutil_impl.h' line='129' column='1'/>
+        <var-decl name='uaw_prev' type-id='type-id-46' visibility='default' filepath='../../include/libuutil_impl.h' line='123' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='128'>
-        <var-decl name='uaw_avl' type-id='type-id-47' visibility='default' filepath='../../include/libuutil_impl.h' line='131' column='1'/>
+        <var-decl name='uaw_avl' type-id='type-id-47' visibility='default' filepath='../../include/libuutil_impl.h' line='125' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='192'>
-        <var-decl name='uaw_next_result' type-id='type-id-2' visibility='default' filepath='../../include/libuutil_impl.h' line='132' column='1'/>
+        <var-decl name='uaw_next_result' type-id='type-id-2' visibility='default' filepath='../../include/libuutil_impl.h' line='126' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='256'>
-        <var-decl name='uaw_dir' type-id='type-id-48' visibility='default' filepath='../../include/libuutil_impl.h' line='133' column='1'/>
+        <var-decl name='uaw_dir' type-id='type-id-48' visibility='default' filepath='../../include/libuutil_impl.h' line='127' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='264'>
-        <var-decl name='uaw_robust' type-id='type-id-14' visibility='default' filepath='../../include/libuutil_impl.h' line='134' column='1'/>
+        <var-decl name='uaw_robust' type-id='type-id-14' visibility='default' filepath='../../include/libuutil_impl.h' line='128' column='1'/>
       </data-member>
     </class-decl>
-    <typedef-decl name='uu_avl_walk_t' type-id='type-id-45' filepath='../../include/libuutil.h' line='293' column='1' id='type-id-37'/>
+    <typedef-decl name='uu_avl_walk_t' type-id='type-id-45' filepath='../../include/libuutil.h' line='271' column='1' id='type-id-37'/>
     <pointer-type-def type-id='type-id-37' size-in-bits='64' id='type-id-46'/>
-    <typedef-decl name='uu_avl_t' type-id='type-id-34' filepath='../../include/libuutil.h' line='283' column='1' id='type-id-16'/>
+    <typedef-decl name='uu_avl_t' type-id='type-id-34' filepath='../../include/libuutil.h' line='261' column='1' id='type-id-16'/>
     <pointer-type-def type-id='type-id-16' size-in-bits='64' id='type-id-47'/>
     <type-decl name='signed char' size-in-bits='8' id='type-id-49'/>
     <typedef-decl name='__int8_t' type-id='type-id-49' filepath='/usr/include/bits/types.h' line='36' column='1' id='type-id-50'/>
@@ -511,12 +507,12 @@
       <parameter type-id='type-id-52' name='flags' filepath='/home/fedora/zfs/lib/libuutil/uu_avl.c' line='67' column='1'/>
       <return type-id='type-id-11'/>
     </function-decl>
-    <function-decl name='uu_check_name' filepath='../../include/libuutil.h' line='129' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='uu_check_name' filepath='../../include/libuutil.h' line='107' column='1' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='type-id-9'/>
       <parameter type-id='type-id-5'/>
       <return type-id='type-id-20'/>
     </function-decl>
-    <function-decl name='uu_zalloc' filepath='../../include/libuutil.h' line='138' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='uu_zalloc' filepath='../../include/libuutil.h' line='116' column='1' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='type-id-3'/>
       <return type-id='type-id-2'/>
     </function-decl>
@@ -568,9 +564,9 @@
       <parameter type-id='type-id-53'/>
       <return type-id='type-id-20'/>
     </function-decl>
-    <class-decl name='uu_avl_node' size-in-bits='192' is-struct='yes' visibility='default' filepath='../../include/libuutil.h' line='285' column='1' id='type-id-59'>
+    <class-decl name='uu_avl_node' size-in-bits='192' is-struct='yes' visibility='default' filepath='../../include/libuutil.h' line='263' column='1' id='type-id-59'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='uan_opaque' type-id='type-id-60' visibility='default' filepath='../../include/libuutil.h' line='287' column='1'/>
+        <var-decl name='uan_opaque' type-id='type-id-60' visibility='default' filepath='../../include/libuutil.h' line='265' column='1'/>
       </data-member>
     </class-decl>
 
@@ -578,7 +574,7 @@
       <subrange length='3' type-id='type-id-18' id='type-id-61'/>
 
     </array-type-def>
-    <typedef-decl name='uu_avl_node_t' type-id='type-id-59' filepath='../../include/libuutil.h' line='291' column='1' id='type-id-62'/>
+    <typedef-decl name='uu_avl_node_t' type-id='type-id-59' filepath='../../include/libuutil.h' line='269' column='1' id='type-id-62'/>
     <pointer-type-def type-id='type-id-62' size-in-bits='64' id='type-id-63'/>
     <function-decl name='uu_avl_node_init' mangled-name='uu_avl_node_init' filepath='/home/fedora/zfs/lib/libuutil/uu_avl.c' line='138' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_node_init'>
       <parameter type-id='type-id-2' name='base' filepath='/home/fedora/zfs/lib/libuutil/uu_avl.c' line='138' column='1'/>
@@ -667,7 +663,7 @@
       <parameter type-id='type-id-46' name='wp' filepath='/home/fedora/zfs/lib/libuutil/uu_avl.c' line='390' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <typedef-decl name='uu_walk_fn_t' type-id='type-id-44' filepath='../../include/libuutil.h' line='178' column='1' id='type-id-65'/>
+    <typedef-decl name='uu_walk_fn_t' type-id='type-id-44' filepath='../../include/libuutil.h' line='156' column='1' id='type-id-65'/>
     <pointer-type-def type-id='type-id-65' size-in-bits='64' id='type-id-66'/>
     <function-decl name='uu_avl_walk' mangled-name='uu_avl_walk' filepath='/home/fedora/zfs/lib/libuutil/uu_avl.c' line='397' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_walk'>
       <parameter type-id='type-id-47' name='ap' filepath='/home/fedora/zfs/lib/libuutil/uu_avl.c' line='397' column='1'/>
@@ -697,7 +693,7 @@
       <parameter type-id='type-id-67'/>
       <return type-id='type-id-2'/>
     </function-decl>
-    <typedef-decl name='uu_avl_index_t' type-id='type-id-35' filepath='../../include/libuutil.h' line='295' column='1' id='type-id-68'/>
+    <typedef-decl name='uu_avl_index_t' type-id='type-id-35' filepath='../../include/libuutil.h' line='273' column='1' id='type-id-68'/>
     <pointer-type-def type-id='type-id-68' size-in-bits='64' id='type-id-69'/>
     <function-decl name='uu_avl_find' mangled-name='uu_avl_find' filepath='/home/fedora/zfs/lib/libuutil/uu_avl.c' line='473' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_find'>
       <parameter type-id='type-id-47' name='ap' filepath='/home/fedora/zfs/lib/libuutil/uu_avl.c' line='473' column='1'/>
@@ -759,304 +755,251 @@
       <return type-id='type-id-20'/>
     </function-type>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='uu_dprintf.c' comp-dir-path='/home/fedora/zfs/lib/libuutil' language='LANG_C99'>
-    <class-decl name='uu_dprintf' size-in-bits='128' is-struct='yes' visibility='default' filepath='../../include/libuutil_impl.h' line='49' column='1' id='type-id-71'>
-      <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='uud_name' type-id='type-id-7' visibility='default' filepath='../../include/libuutil_impl.h' line='50' column='1'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='uud_severity' type-id='type-id-72' visibility='default' filepath='../../include/libuutil_impl.h' line='51' column='1'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='96'>
-        <var-decl name='uud_flags' type-id='type-id-73' visibility='default' filepath='../../include/libuutil_impl.h' line='52' column='1'/>
-      </data-member>
-    </class-decl>
-    <type-decl name='unnamed-enum-underlying-type' is-anonymous='yes' size-in-bits='32' alignment-in-bits='32' id='type-id-74'/>
-    <enum-decl name='__anonymous_enum__' is-anonymous='yes' filepath='../../include/libuutil.h' line='106' column='1' id='type-id-75'>
-      <underlying-type type-id='type-id-74'/>
-      <enumerator name='UU_DPRINTF_SILENT' value='0'/>
-      <enumerator name='UU_DPRINTF_FATAL' value='1'/>
-      <enumerator name='UU_DPRINTF_WARNING' value='2'/>
-      <enumerator name='UU_DPRINTF_NOTICE' value='3'/>
-      <enumerator name='UU_DPRINTF_INFO' value='4'/>
-      <enumerator name='UU_DPRINTF_DEBUG' value='5'/>
-    </enum-decl>
-    <typedef-decl name='uu_dprintf_severity_t' type-id='type-id-75' filepath='../../include/libuutil.h' line='113' column='1' id='type-id-72'/>
-    <typedef-decl name='uint_t' type-id='type-id-5' filepath='../../lib/libspl/include/sys/stdtypes.h' line='33' column='1' id='type-id-73'/>
-    <typedef-decl name='uu_dprintf_t' type-id='type-id-71' filepath='../../include/libuutil.h' line='104' column='1' id='type-id-76'/>
-    <pointer-type-def type-id='type-id-76' size-in-bits='64' id='type-id-77'/>
-    <function-decl name='uu_dprintf_create' mangled-name='uu_dprintf_create' filepath='/home/fedora/zfs/lib/libuutil/uu_dprintf.c' line='67' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_dprintf_create'>
-      <parameter type-id='type-id-9' name='name' filepath='/home/fedora/zfs/lib/libuutil/uu_dprintf.c' line='67' column='1'/>
-      <parameter type-id='type-id-72' name='severity' filepath='/home/fedora/zfs/lib/libuutil/uu_dprintf.c' line='67' column='1'/>
-      <parameter type-id='type-id-73' name='flags' filepath='/home/fedora/zfs/lib/libuutil/uu_dprintf.c' line='68' column='1'/>
-      <return type-id='type-id-77'/>
-    </function-decl>
-    <function-decl name='uu_dprintf' mangled-name='uu_dprintf' filepath='/home/fedora/zfs/lib/libuutil/uu_dprintf.c' line='99' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_dprintf'>
-      <parameter type-id='type-id-77' name='D' filepath='/home/fedora/zfs/lib/libuutil/uu_dprintf.c' line='99' column='1'/>
-      <parameter type-id='type-id-72' name='severity' filepath='/home/fedora/zfs/lib/libuutil/uu_dprintf.c' line='99' column='1'/>
-      <parameter type-id='type-id-9' name='format' filepath='/home/fedora/zfs/lib/libuutil/uu_dprintf.c' line='100' column='1'/>
-      <parameter is-variadic='yes'/>
-      <return type-id='type-id-1'/>
-    </function-decl>
-    <function-decl name='dcgettext' filepath='/usr/include/libintl.h' line='51' column='1' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='type-id-9'/>
-      <parameter type-id='type-id-9'/>
-      <parameter type-id='type-id-20'/>
-      <return type-id='type-id-7'/>
-    </function-decl>
-    <function-decl name='uu_dprintf_destroy' mangled-name='uu_dprintf_destroy' filepath='/home/fedora/zfs/lib/libuutil/uu_dprintf.c' line='118' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_dprintf_destroy'>
-      <parameter type-id='type-id-77' name='D' filepath='/home/fedora/zfs/lib/libuutil/uu_dprintf.c' line='118' column='1'/>
-      <return type-id='type-id-1'/>
-    </function-decl>
-    <function-decl name='uu_dprintf_getname' mangled-name='uu_dprintf_getname' filepath='/home/fedora/zfs/lib/libuutil/uu_dprintf.c' line='127' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_dprintf_getname'>
-      <parameter type-id='type-id-77' name='D' filepath='/home/fedora/zfs/lib/libuutil/uu_dprintf.c' line='127' column='1'/>
-      <return type-id='type-id-9'/>
-    </function-decl>
-  </abi-instr>
   <abi-instr version='1.0' address-size='64' path='uu_ident.c' comp-dir-path='/home/fedora/zfs/lib/libuutil' language='LANG_C99'>
+    <typedef-decl name='uint_t' type-id='type-id-5' filepath='../../lib/libspl/include/sys/stdtypes.h' line='33' column='1' id='type-id-71'/>
     <function-decl name='uu_check_name' mangled-name='uu_check_name' filepath='/home/fedora/zfs/lib/libuutil/uu_ident.c' line='93' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_check_name'>
       <parameter type-id='type-id-9' name='name' filepath='/home/fedora/zfs/lib/libuutil/uu_ident.c' line='93' column='1'/>
-      <parameter type-id='type-id-73' name='flags' filepath='/home/fedora/zfs/lib/libuutil/uu_ident.c' line='93' column='1'/>
+      <parameter type-id='type-id-71' name='flags' filepath='/home/fedora/zfs/lib/libuutil/uu_ident.c' line='93' column='1'/>
       <return type-id='type-id-20'/>
     </function-decl>
   </abi-instr>
   <abi-instr version='1.0' address-size='64' path='uu_list.c' comp-dir-path='/home/fedora/zfs/lib/libuutil' language='LANG_C99'>
-    <class-decl name='uu_list_pool' size-in-bits='2112' is-struct='yes' visibility='default' filepath='../../include/libuutil_impl.h' line='108' column='1' id='type-id-78'>
+    <class-decl name='uu_list_pool' size-in-bits='2112' is-struct='yes' visibility='default' filepath='../../include/libuutil_impl.h' line='102' column='1' id='type-id-72'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='ulp_next' type-id='type-id-79' visibility='default' filepath='../../include/libuutil_impl.h' line='109' column='1'/>
+        <var-decl name='ulp_next' type-id='type-id-73' visibility='default' filepath='../../include/libuutil_impl.h' line='103' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='ulp_prev' type-id='type-id-79' visibility='default' filepath='../../include/libuutil_impl.h' line='110' column='1'/>
+        <var-decl name='ulp_prev' type-id='type-id-73' visibility='default' filepath='../../include/libuutil_impl.h' line='104' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='128'>
-        <var-decl name='ulp_name' type-id='type-id-12' visibility='default' filepath='../../include/libuutil_impl.h' line='112' column='1'/>
+        <var-decl name='ulp_name' type-id='type-id-12' visibility='default' filepath='../../include/libuutil_impl.h' line='106' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='640'>
-        <var-decl name='ulp_nodeoffset' type-id='type-id-4' visibility='default' filepath='../../include/libuutil_impl.h' line='113' column='1'/>
+        <var-decl name='ulp_nodeoffset' type-id='type-id-4' visibility='default' filepath='../../include/libuutil_impl.h' line='107' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='704'>
-        <var-decl name='ulp_objsize' type-id='type-id-4' visibility='default' filepath='../../include/libuutil_impl.h' line='114' column='1'/>
+        <var-decl name='ulp_objsize' type-id='type-id-4' visibility='default' filepath='../../include/libuutil_impl.h' line='108' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='768'>
-        <var-decl name='ulp_cmp' type-id='type-id-13' visibility='default' filepath='../../include/libuutil_impl.h' line='115' column='1'/>
+        <var-decl name='ulp_cmp' type-id='type-id-13' visibility='default' filepath='../../include/libuutil_impl.h' line='109' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='832'>
-        <var-decl name='ulp_debug' type-id='type-id-14' visibility='default' filepath='../../include/libuutil_impl.h' line='116' column='1'/>
+        <var-decl name='ulp_debug' type-id='type-id-14' visibility='default' filepath='../../include/libuutil_impl.h' line='110' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='840'>
-        <var-decl name='ulp_last_index' type-id='type-id-14' visibility='default' filepath='../../include/libuutil_impl.h' line='117' column='1'/>
+        <var-decl name='ulp_last_index' type-id='type-id-14' visibility='default' filepath='../../include/libuutil_impl.h' line='111' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='896'>
-        <var-decl name='ulp_lock' type-id='type-id-15' visibility='default' filepath='../../include/libuutil_impl.h' line='118' column='1'/>
+        <var-decl name='ulp_lock' type-id='type-id-15' visibility='default' filepath='../../include/libuutil_impl.h' line='112' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='1216'>
-        <var-decl name='ulp_null_list' type-id='type-id-80' visibility='default' filepath='../../include/libuutil_impl.h' line='119' column='1'/>
+        <var-decl name='ulp_null_list' type-id='type-id-74' visibility='default' filepath='../../include/libuutil_impl.h' line='113' column='1'/>
       </data-member>
     </class-decl>
-    <typedef-decl name='uu_list_pool_t' type-id='type-id-78' filepath='../../include/libuutil.h' line='183' column='1' id='type-id-81'/>
-    <pointer-type-def type-id='type-id-81' size-in-bits='64' id='type-id-79'/>
-    <class-decl name='uu_list' size-in-bits='896' is-struct='yes' visibility='default' filepath='../../include/libuutil_impl.h' line='88' column='1' id='type-id-82'>
+    <typedef-decl name='uu_list_pool_t' type-id='type-id-72' filepath='../../include/libuutil.h' line='161' column='1' id='type-id-75'/>
+    <pointer-type-def type-id='type-id-75' size-in-bits='64' id='type-id-73'/>
+    <class-decl name='uu_list' size-in-bits='896' is-struct='yes' visibility='default' filepath='../../include/libuutil_impl.h' line='82' column='1' id='type-id-76'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='ul_next_enc' type-id='type-id-35' visibility='default' filepath='../../include/libuutil_impl.h' line='89' column='1'/>
+        <var-decl name='ul_next_enc' type-id='type-id-35' visibility='default' filepath='../../include/libuutil_impl.h' line='83' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='ul_prev_enc' type-id='type-id-35' visibility='default' filepath='../../include/libuutil_impl.h' line='90' column='1'/>
+        <var-decl name='ul_prev_enc' type-id='type-id-35' visibility='default' filepath='../../include/libuutil_impl.h' line='84' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='128'>
-        <var-decl name='ul_pool' type-id='type-id-79' visibility='default' filepath='../../include/libuutil_impl.h' line='92' column='1'/>
+        <var-decl name='ul_pool' type-id='type-id-73' visibility='default' filepath='../../include/libuutil_impl.h' line='86' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='192'>
-        <var-decl name='ul_parent_enc' type-id='type-id-35' visibility='default' filepath='../../include/libuutil_impl.h' line='93' column='1'/>
+        <var-decl name='ul_parent_enc' type-id='type-id-35' visibility='default' filepath='../../include/libuutil_impl.h' line='87' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='256'>
-        <var-decl name='ul_offset' type-id='type-id-4' visibility='default' filepath='../../include/libuutil_impl.h' line='94' column='1'/>
+        <var-decl name='ul_offset' type-id='type-id-4' visibility='default' filepath='../../include/libuutil_impl.h' line='88' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='320'>
-        <var-decl name='ul_numnodes' type-id='type-id-4' visibility='default' filepath='../../include/libuutil_impl.h' line='95' column='1'/>
+        <var-decl name='ul_numnodes' type-id='type-id-4' visibility='default' filepath='../../include/libuutil_impl.h' line='89' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='384'>
-        <var-decl name='ul_debug' type-id='type-id-14' visibility='default' filepath='../../include/libuutil_impl.h' line='96' column='1'/>
+        <var-decl name='ul_debug' type-id='type-id-14' visibility='default' filepath='../../include/libuutil_impl.h' line='90' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='392'>
-        <var-decl name='ul_sorted' type-id='type-id-14' visibility='default' filepath='../../include/libuutil_impl.h' line='97' column='1'/>
+        <var-decl name='ul_sorted' type-id='type-id-14' visibility='default' filepath='../../include/libuutil_impl.h' line='91' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='400'>
-        <var-decl name='ul_index' type-id='type-id-14' visibility='default' filepath='../../include/libuutil_impl.h' line='98' column='1'/>
+        <var-decl name='ul_index' type-id='type-id-14' visibility='default' filepath='../../include/libuutil_impl.h' line='92' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='448'>
-        <var-decl name='ul_null_node' type-id='type-id-83' visibility='default' filepath='../../include/libuutil_impl.h' line='100' column='1'/>
+        <var-decl name='ul_null_node' type-id='type-id-77' visibility='default' filepath='../../include/libuutil_impl.h' line='94' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='576'>
-        <var-decl name='ul_null_walk' type-id='type-id-84' visibility='default' filepath='../../include/libuutil_impl.h' line='101' column='1'/>
+        <var-decl name='ul_null_walk' type-id='type-id-78' visibility='default' filepath='../../include/libuutil_impl.h' line='95' column='1'/>
       </data-member>
     </class-decl>
-    <class-decl name='uu_list_node_impl' size-in-bits='128' is-struct='yes' visibility='default' filepath='../../include/libuutil_impl.h' line='73' column='1' id='type-id-85'>
+    <class-decl name='uu_list_node_impl' size-in-bits='128' is-struct='yes' visibility='default' filepath='../../include/libuutil_impl.h' line='67' column='1' id='type-id-79'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='uln_next' type-id='type-id-86' visibility='default' filepath='../../include/libuutil_impl.h' line='74' column='1'/>
+        <var-decl name='uln_next' type-id='type-id-80' visibility='default' filepath='../../include/libuutil_impl.h' line='68' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='uln_prev' type-id='type-id-86' visibility='default' filepath='../../include/libuutil_impl.h' line='75' column='1'/>
+        <var-decl name='uln_prev' type-id='type-id-80' visibility='default' filepath='../../include/libuutil_impl.h' line='69' column='1'/>
       </data-member>
     </class-decl>
-    <pointer-type-def type-id='type-id-85' size-in-bits='64' id='type-id-86'/>
-    <typedef-decl name='uu_list_node_impl_t' type-id='type-id-85' filepath='../../include/libuutil_impl.h' line='76' column='1' id='type-id-83'/>
-    <class-decl name='uu_list_walk' size-in-bits='320' is-struct='yes' visibility='default' filepath='../../include/libuutil_impl.h' line='78' column='1' id='type-id-87'>
+    <pointer-type-def type-id='type-id-79' size-in-bits='64' id='type-id-80'/>
+    <typedef-decl name='uu_list_node_impl_t' type-id='type-id-79' filepath='../../include/libuutil_impl.h' line='70' column='1' id='type-id-77'/>
+    <class-decl name='uu_list_walk' size-in-bits='320' is-struct='yes' visibility='default' filepath='../../include/libuutil_impl.h' line='72' column='1' id='type-id-81'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='ulw_next' type-id='type-id-88' visibility='default' filepath='../../include/libuutil_impl.h' line='79' column='1'/>
+        <var-decl name='ulw_next' type-id='type-id-82' visibility='default' filepath='../../include/libuutil_impl.h' line='73' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='ulw_prev' type-id='type-id-88' visibility='default' filepath='../../include/libuutil_impl.h' line='80' column='1'/>
+        <var-decl name='ulw_prev' type-id='type-id-82' visibility='default' filepath='../../include/libuutil_impl.h' line='74' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='128'>
-        <var-decl name='ulw_list' type-id='type-id-89' visibility='default' filepath='../../include/libuutil_impl.h' line='82' column='1'/>
+        <var-decl name='ulw_list' type-id='type-id-83' visibility='default' filepath='../../include/libuutil_impl.h' line='76' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='192'>
-        <var-decl name='ulw_dir' type-id='type-id-48' visibility='default' filepath='../../include/libuutil_impl.h' line='83' column='1'/>
+        <var-decl name='ulw_dir' type-id='type-id-48' visibility='default' filepath='../../include/libuutil_impl.h' line='77' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='200'>
-        <var-decl name='ulw_robust' type-id='type-id-14' visibility='default' filepath='../../include/libuutil_impl.h' line='84' column='1'/>
+        <var-decl name='ulw_robust' type-id='type-id-14' visibility='default' filepath='../../include/libuutil_impl.h' line='78' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='256'>
-        <var-decl name='ulw_next_result' type-id='type-id-90' visibility='default' filepath='../../include/libuutil_impl.h' line='85' column='1'/>
+        <var-decl name='ulw_next_result' type-id='type-id-84' visibility='default' filepath='../../include/libuutil_impl.h' line='79' column='1'/>
       </data-member>
     </class-decl>
-    <typedef-decl name='uu_list_walk_t' type-id='type-id-87' filepath='../../include/libuutil.h' line='190' column='1' id='type-id-84'/>
-    <pointer-type-def type-id='type-id-84' size-in-bits='64' id='type-id-88'/>
-    <typedef-decl name='uu_list_t' type-id='type-id-82' filepath='../../include/libuutil.h' line='184' column='1' id='type-id-80'/>
-    <pointer-type-def type-id='type-id-80' size-in-bits='64' id='type-id-89'/>
-    <pointer-type-def type-id='type-id-83' size-in-bits='64' id='type-id-90'/>
+    <typedef-decl name='uu_list_walk_t' type-id='type-id-81' filepath='../../include/libuutil.h' line='168' column='1' id='type-id-78'/>
+    <pointer-type-def type-id='type-id-78' size-in-bits='64' id='type-id-82'/>
+    <typedef-decl name='uu_list_t' type-id='type-id-76' filepath='../../include/libuutil.h' line='162' column='1' id='type-id-74'/>
+    <pointer-type-def type-id='type-id-74' size-in-bits='64' id='type-id-83'/>
+    <pointer-type-def type-id='type-id-77' size-in-bits='64' id='type-id-84'/>
     <function-decl name='uu_list_pool_create' mangled-name='uu_list_pool_create' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='63' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_pool_create'>
       <parameter type-id='type-id-9' name='name' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='63' column='1'/>
       <parameter type-id='type-id-4' name='objsize' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='63' column='1'/>
       <parameter type-id='type-id-4' name='nodeoffset' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='64' column='1'/>
       <parameter type-id='type-id-13' name='compare_func' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='64' column='1'/>
       <parameter type-id='type-id-52' name='flags' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='64' column='1'/>
-      <return type-id='type-id-79'/>
+      <return type-id='type-id-73'/>
     </function-decl>
     <function-decl name='uu_list_pool_destroy' mangled-name='uu_list_pool_destroy' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='110' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_pool_destroy'>
-      <parameter type-id='type-id-79' name='pp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='110' column='1'/>
+      <parameter type-id='type-id-73' name='pp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='110' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <class-decl name='uu_list_node' size-in-bits='128' is-struct='yes' visibility='default' filepath='../../include/libuutil.h' line='186' column='1' id='type-id-91'>
+    <class-decl name='uu_list_node' size-in-bits='128' is-struct='yes' visibility='default' filepath='../../include/libuutil.h' line='164' column='1' id='type-id-85'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='uln_opaque' type-id='type-id-92' visibility='default' filepath='../../include/libuutil.h' line='187' column='1'/>
+        <var-decl name='uln_opaque' type-id='type-id-86' visibility='default' filepath='../../include/libuutil.h' line='165' column='1'/>
       </data-member>
     </class-decl>
 
-    <array-type-def dimensions='1' type-id='type-id-35' size-in-bits='128' id='type-id-92'>
+    <array-type-def dimensions='1' type-id='type-id-35' size-in-bits='128' id='type-id-86'>
       <subrange length='2' type-id='type-id-18' id='type-id-43'/>
 
     </array-type-def>
-    <typedef-decl name='uu_list_node_t' type-id='type-id-91' filepath='../../include/libuutil.h' line='188' column='1' id='type-id-93'/>
-    <pointer-type-def type-id='type-id-93' size-in-bits='64' id='type-id-94'/>
+    <typedef-decl name='uu_list_node_t' type-id='type-id-85' filepath='../../include/libuutil.h' line='166' column='1' id='type-id-87'/>
+    <pointer-type-def type-id='type-id-87' size-in-bits='64' id='type-id-88'/>
     <function-decl name='uu_list_node_init' mangled-name='uu_list_node_init' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='133' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_node_init'>
       <parameter type-id='type-id-2' name='base' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='133' column='1'/>
-      <parameter type-id='type-id-94' name='np_arg' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='133' column='1'/>
-      <parameter type-id='type-id-79' name='pp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='133' column='1'/>
+      <parameter type-id='type-id-88' name='np_arg' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='133' column='1'/>
+      <parameter type-id='type-id-73' name='pp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='133' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='uu_list_node_fini' mangled-name='uu_list_node_fini' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='157' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_node_fini'>
       <parameter type-id='type-id-2' name='base' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='157' column='1'/>
-      <parameter type-id='type-id-94' name='np_arg' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='157' column='1'/>
-      <parameter type-id='type-id-79' name='pp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='157' column='1'/>
+      <parameter type-id='type-id-88' name='np_arg' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='157' column='1'/>
+      <parameter type-id='type-id-73' name='pp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='157' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='uu_list_create' mangled-name='uu_list_create' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='180' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_create'>
-      <parameter type-id='type-id-79' name='pp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='180' column='1'/>
+      <parameter type-id='type-id-73' name='pp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='180' column='1'/>
       <parameter type-id='type-id-2' name='parent' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='180' column='1'/>
       <parameter type-id='type-id-52' name='flags' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='180' column='1'/>
-      <return type-id='type-id-89'/>
+      <return type-id='type-id-83'/>
     </function-decl>
     <function-decl name='uu_list_destroy' mangled-name='uu_list_destroy' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='231' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_destroy'>
-      <parameter type-id='type-id-89' name='lp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='231' column='1'/>
+      <parameter type-id='type-id-83' name='lp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='231' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <typedef-decl name='uu_list_index_t' type-id='type-id-35' filepath='../../include/libuutil.h' line='192' column='1' id='type-id-95'/>
+    <typedef-decl name='uu_list_index_t' type-id='type-id-35' filepath='../../include/libuutil.h' line='170' column='1' id='type-id-89'/>
     <function-decl name='uu_list_insert' mangled-name='uu_list_insert' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='292' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_insert'>
-      <parameter type-id='type-id-89' name='lp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='292' column='1'/>
+      <parameter type-id='type-id-83' name='lp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='292' column='1'/>
       <parameter type-id='type-id-2' name='elem' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='292' column='1'/>
-      <parameter type-id='type-id-95' name='idx' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='292' column='1'/>
+      <parameter type-id='type-id-89' name='idx' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='292' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <pointer-type-def type-id='type-id-95' size-in-bits='64' id='type-id-96'/>
+    <pointer-type-def type-id='type-id-89' size-in-bits='64' id='type-id-90'/>
     <function-decl name='uu_list_find' mangled-name='uu_list_find' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='315' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_find'>
-      <parameter type-id='type-id-89' name='lp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='315' column='1'/>
+      <parameter type-id='type-id-83' name='lp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='315' column='1'/>
       <parameter type-id='type-id-2' name='elem' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='315' column='1'/>
       <parameter type-id='type-id-2' name='private' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='315' column='1'/>
-      <parameter type-id='type-id-96' name='out' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='315' column='1'/>
+      <parameter type-id='type-id-90' name='out' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='315' column='1'/>
       <return type-id='type-id-2'/>
     </function-decl>
     <function-decl name='uu_list_nearest_next' mangled-name='uu_list_nearest_next' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='348' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_nearest_next'>
-      <parameter type-id='type-id-89' name='lp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='348' column='1'/>
-      <parameter type-id='type-id-95' name='idx' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='348' column='1'/>
+      <parameter type-id='type-id-83' name='lp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='348' column='1'/>
+      <parameter type-id='type-id-89' name='idx' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='348' column='1'/>
       <return type-id='type-id-2'/>
     </function-decl>
     <function-decl name='uu_list_nearest_prev' mangled-name='uu_list_nearest_prev' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='373' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_nearest_prev'>
-      <parameter type-id='type-id-89' name='lp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='348' column='1'/>
-      <parameter type-id='type-id-95' name='idx' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='348' column='1'/>
+      <parameter type-id='type-id-83' name='lp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='348' column='1'/>
+      <parameter type-id='type-id-89' name='idx' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='348' column='1'/>
       <return type-id='type-id-2'/>
     </function-decl>
     <function-decl name='uu_list_walk_start' mangled-name='uu_list_walk_start' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='456' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_walk_start'>
-      <parameter type-id='type-id-89' name='lp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='456' column='1'/>
+      <parameter type-id='type-id-83' name='lp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='456' column='1'/>
       <parameter type-id='type-id-52' name='flags' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='456' column='1'/>
-      <return type-id='type-id-88'/>
+      <return type-id='type-id-82'/>
     </function-decl>
     <function-decl name='uu_list_walk_next' mangled-name='uu_list_walk_next' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='476' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_walk_next'>
-      <parameter type-id='type-id-88' name='wp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='476' column='1'/>
+      <parameter type-id='type-id-82' name='wp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='476' column='1'/>
       <return type-id='type-id-2'/>
     </function-decl>
     <function-decl name='uu_list_walk_end' mangled-name='uu_list_walk_end' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='488' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_walk_end'>
-      <parameter type-id='type-id-88' name='wp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='488' column='1'/>
+      <parameter type-id='type-id-82' name='wp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='488' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='uu_list_walk' mangled-name='uu_list_walk' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='495' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_walk'>
-      <parameter type-id='type-id-89' name='lp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='495' column='1'/>
+      <parameter type-id='type-id-83' name='lp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='495' column='1'/>
       <parameter type-id='type-id-66' name='func' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='495' column='1'/>
       <parameter type-id='type-id-2' name='private' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='495' column='1'/>
       <parameter type-id='type-id-52' name='flags' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='495' column='1'/>
       <return type-id='type-id-20'/>
     </function-decl>
     <function-decl name='uu_list_remove' mangled-name='uu_list_remove' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='540' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_remove'>
-      <parameter type-id='type-id-89' name='lp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='540' column='1'/>
+      <parameter type-id='type-id-83' name='lp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='540' column='1'/>
       <parameter type-id='type-id-2' name='elem' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='540' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='uu_list_teardown' mangled-name='uu_list_teardown' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='580' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_teardown'>
-      <parameter type-id='type-id-89' name='lp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='580' column='1'/>
+      <parameter type-id='type-id-83' name='lp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='580' column='1'/>
       <parameter type-id='type-id-67' name='cookie' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='580' column='1'/>
       <return type-id='type-id-2'/>
     </function-decl>
     <function-decl name='uu_list_first' mangled-name='uu_list_first' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='656' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_first'>
-      <parameter type-id='type-id-89' name='lp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='656' column='1'/>
+      <parameter type-id='type-id-83' name='lp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='656' column='1'/>
       <return type-id='type-id-2'/>
     </function-decl>
     <function-decl name='uu_list_insert_before' mangled-name='uu_list_insert_before' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='598' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_insert_before'>
-      <parameter type-id='type-id-89' name='lp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='598' column='1'/>
+      <parameter type-id='type-id-83' name='lp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='598' column='1'/>
       <parameter type-id='type-id-2' name='target' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='598' column='1'/>
       <parameter type-id='type-id-2' name='elem' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='598' column='1'/>
       <return type-id='type-id-20'/>
     </function-decl>
     <function-decl name='uu_list_insert_after' mangled-name='uu_list_insert_after' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='624' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_insert_after'>
-      <parameter type-id='type-id-89' name='lp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='598' column='1'/>
+      <parameter type-id='type-id-83' name='lp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='598' column='1'/>
       <parameter type-id='type-id-2' name='target' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='598' column='1'/>
       <parameter type-id='type-id-2' name='elem' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='598' column='1'/>
       <return type-id='type-id-20'/>
     </function-decl>
     <function-decl name='uu_list_numnodes' mangled-name='uu_list_numnodes' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='650' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_numnodes'>
-      <parameter type-id='type-id-89' name='lp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='650' column='1'/>
+      <parameter type-id='type-id-83' name='lp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='650' column='1'/>
       <return type-id='type-id-4'/>
     </function-decl>
     <function-decl name='uu_list_last' mangled-name='uu_list_last' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='665' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_last'>
-      <parameter type-id='type-id-89' name='lp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='656' column='1'/>
+      <parameter type-id='type-id-83' name='lp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='656' column='1'/>
       <return type-id='type-id-2'/>
     </function-decl>
     <function-decl name='uu_list_next' mangled-name='uu_list_next' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='674' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_next'>
-      <parameter type-id='type-id-89' name='lp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='674' column='1'/>
+      <parameter type-id='type-id-83' name='lp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='674' column='1'/>
       <parameter type-id='type-id-2' name='elem' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='674' column='1'/>
       <return type-id='type-id-2'/>
     </function-decl>
     <function-decl name='uu_list_prev' mangled-name='uu_list_prev' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='685' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_prev'>
-      <parameter type-id='type-id-89' name='lp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='674' column='1'/>
+      <parameter type-id='type-id-83' name='lp' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='674' column='1'/>
       <parameter type-id='type-id-2' name='elem' filepath='/home/fedora/zfs/lib/libuutil/uu_list.c' line='674' column='1'/>
       <return type-id='type-id-2'/>
     </function-decl>
@@ -1069,7 +1012,7 @@
   </abi-instr>
   <abi-instr version='1.0' address-size='64' path='uu_misc.c' comp-dir-path='/home/fedora/zfs/lib/libuutil' language='LANG_C99'>
     <function-decl name='uu_set_error' mangled-name='uu_set_error' filepath='/home/fedora/zfs/lib/libuutil/uu_misc.c' line='73' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_set_error'>
-      <parameter type-id='type-id-73' name='code' filepath='/home/fedora/zfs/lib/libuutil/uu_misc.c' line='73' column='1'/>
+      <parameter type-id='type-id-71' name='code' filepath='/home/fedora/zfs/lib/libuutil/uu_misc.c' line='73' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='pthread_setspecific' filepath='/usr/include/pthread.h' line='1123' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -1077,11 +1020,11 @@
       <parameter type-id='type-id-2'/>
       <return type-id='type-id-20'/>
     </function-decl>
-    <pointer-type-def type-id='type-id-5' size-in-bits='64' id='type-id-97'/>
-    <pointer-type-def type-id='type-id-98' size-in-bits='64' id='type-id-99'/>
+    <pointer-type-def type-id='type-id-5' size-in-bits='64' id='type-id-91'/>
+    <pointer-type-def type-id='type-id-92' size-in-bits='64' id='type-id-93'/>
     <function-decl name='pthread_key_create' filepath='/usr/include/pthread.h' line='1112' column='1' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='type-id-97'/>
-      <parameter type-id='type-id-99'/>
+      <parameter type-id='type-id-91'/>
+      <parameter type-id='type-id-93'/>
       <return type-id='type-id-20'/>
     </function-decl>
     <function-decl name='uu_error' mangled-name='uu_error' filepath='/home/fedora/zfs/lib/libuutil/uu_misc.c' line='102' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_error'>
@@ -1095,20 +1038,26 @@
       <parameter type-id='type-id-52' name='code' filepath='/home/fedora/zfs/lib/libuutil/uu_misc.c' line='118' column='1'/>
       <return type-id='type-id-9'/>
     </function-decl>
+    <function-decl name='dcgettext' filepath='/usr/include/libintl.h' line='51' column='1' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='type-id-9'/>
+      <parameter type-id='type-id-9'/>
+      <parameter type-id='type-id-20'/>
+      <return type-id='type-id-7'/>
+    </function-decl>
     <function-decl name='pthread_self' filepath='/usr/include/pthread.h' line='276' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-3'/>
     </function-decl>
     <function-decl name='pause' filepath='/usr/include/unistd.h' line='469' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-20'/>
     </function-decl>
-    <pointer-type-def type-id='type-id-100' size-in-bits='64' id='type-id-101'/>
+    <pointer-type-def type-id='type-id-94' size-in-bits='64' id='type-id-95'/>
     <function-decl name='pthread_atfork' filepath='/usr/include/pthread.h' line='1146' column='1' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='type-id-101'/>
-      <parameter type-id='type-id-101'/>
-      <parameter type-id='type-id-101'/>
+      <parameter type-id='type-id-95'/>
+      <parameter type-id='type-id-95'/>
+      <parameter type-id='type-id-95'/>
       <return type-id='type-id-20'/>
     </function-decl>
-    <class-decl name='_IO_FILE' size-in-bits='1728' is-struct='yes' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='49' column='1' id='type-id-102'>
+    <class-decl name='_IO_FILE' size-in-bits='1728' is-struct='yes' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='49' column='1' id='type-id-96'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='_flags' type-id='type-id-20' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='51' column='1'/>
       </data-member>
@@ -1146,10 +1095,10 @@
         <var-decl name='_IO_save_end' type-id='type-id-7' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='66' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='768'>
-        <var-decl name='_markers' type-id='type-id-103' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='68' column='1'/>
+        <var-decl name='_markers' type-id='type-id-97' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='68' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='832'>
-        <var-decl name='_chain' type-id='type-id-104' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='70' column='1'/>
+        <var-decl name='_chain' type-id='type-id-98' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='70' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='896'>
         <var-decl name='_fileno' type-id='type-id-20' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='72' column='1'/>
@@ -1158,28 +1107,28 @@
         <var-decl name='_flags2' type-id='type-id-20' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='73' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='960'>
-        <var-decl name='_old_offset' type-id='type-id-105' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='74' column='1'/>
+        <var-decl name='_old_offset' type-id='type-id-99' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='74' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='1024'>
-        <var-decl name='_cur_column' type-id='type-id-106' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='77' column='1'/>
+        <var-decl name='_cur_column' type-id='type-id-100' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='77' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='1040'>
         <var-decl name='_vtable_offset' type-id='type-id-49' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='78' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='1048'>
-        <var-decl name='_shortbuf' type-id='type-id-107' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='79' column='1'/>
+        <var-decl name='_shortbuf' type-id='type-id-101' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='79' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='1152'>
-        <var-decl name='_offset' type-id='type-id-108' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='89' column='1'/>
+        <var-decl name='_offset' type-id='type-id-102' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='89' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='1216'>
-        <var-decl name='_codecvt' type-id='type-id-109' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='91' column='1'/>
+        <var-decl name='_codecvt' type-id='type-id-103' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='91' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='1280'>
-        <var-decl name='_wide_data' type-id='type-id-110' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='92' column='1'/>
+        <var-decl name='_wide_data' type-id='type-id-104' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='92' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='1344'>
-        <var-decl name='_freeres_list' type-id='type-id-104' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='93' column='1'/>
+        <var-decl name='_freeres_list' type-id='type-id-98' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='93' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='1408'>
         <var-decl name='_freeres_buf' type-id='type-id-2' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='94' column='1'/>
@@ -1191,42 +1140,42 @@
         <var-decl name='_mode' type-id='type-id-20' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='96' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='1568'>
-        <var-decl name='_unused2' type-id='type-id-111' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='98' column='1'/>
+        <var-decl name='_unused2' type-id='type-id-105' visibility='default' filepath='/usr/include/bits/types/struct_FILE.h' line='98' column='1'/>
       </data-member>
     </class-decl>
-    <class-decl name='_IO_marker' is-struct='yes' visibility='default' is-declaration-only='yes' id='type-id-112'/>
-    <pointer-type-def type-id='type-id-112' size-in-bits='64' id='type-id-103'/>
-    <pointer-type-def type-id='type-id-102' size-in-bits='64' id='type-id-104'/>
-    <typedef-decl name='__off_t' type-id='type-id-28' filepath='/usr/include/bits/types.h' line='150' column='1' id='type-id-105'/>
-    <type-decl name='unsigned short int' size-in-bits='16' id='type-id-106'/>
+    <class-decl name='_IO_marker' is-struct='yes' visibility='default' is-declaration-only='yes' id='type-id-106'/>
+    <pointer-type-def type-id='type-id-106' size-in-bits='64' id='type-id-97'/>
+    <pointer-type-def type-id='type-id-96' size-in-bits='64' id='type-id-98'/>
+    <typedef-decl name='__off_t' type-id='type-id-28' filepath='/usr/include/bits/types.h' line='150' column='1' id='type-id-99'/>
+    <type-decl name='unsigned short int' size-in-bits='16' id='type-id-100'/>
 
-    <array-type-def dimensions='1' type-id='type-id-6' size-in-bits='8' id='type-id-107'>
-      <subrange length='1' type-id='type-id-18' id='type-id-113'/>
-
-    </array-type-def>
-    <typedef-decl name='__off64_t' type-id='type-id-28' filepath='/usr/include/bits/types.h' line='151' column='1' id='type-id-108'/>
-    <class-decl name='_IO_codecvt' is-struct='yes' visibility='default' is-declaration-only='yes' id='type-id-114'/>
-    <pointer-type-def type-id='type-id-114' size-in-bits='64' id='type-id-109'/>
-    <class-decl name='_IO_wide_data' is-struct='yes' visibility='default' is-declaration-only='yes' id='type-id-115'/>
-    <pointer-type-def type-id='type-id-115' size-in-bits='64' id='type-id-110'/>
-
-    <array-type-def dimensions='1' type-id='type-id-6' size-in-bits='160' id='type-id-111'>
-      <subrange length='20' type-id='type-id-18' id='type-id-116'/>
+    <array-type-def dimensions='1' type-id='type-id-6' size-in-bits='8' id='type-id-101'>
+      <subrange length='1' type-id='type-id-18' id='type-id-107'/>
 
     </array-type-def>
-    <typedef-decl name='FILE' type-id='type-id-102' filepath='/usr/include/bits/types/FILE.h' line='7' column='1' id='type-id-117'/>
-    <pointer-type-def type-id='type-id-117' size-in-bits='64' id='type-id-118'/>
+    <typedef-decl name='__off64_t' type-id='type-id-28' filepath='/usr/include/bits/types.h' line='151' column='1' id='type-id-102'/>
+    <class-decl name='_IO_codecvt' is-struct='yes' visibility='default' is-declaration-only='yes' id='type-id-108'/>
+    <pointer-type-def type-id='type-id-108' size-in-bits='64' id='type-id-103'/>
+    <class-decl name='_IO_wide_data' is-struct='yes' visibility='default' is-declaration-only='yes' id='type-id-109'/>
+    <pointer-type-def type-id='type-id-109' size-in-bits='64' id='type-id-104'/>
+
+    <array-type-def dimensions='1' type-id='type-id-6' size-in-bits='160' id='type-id-105'>
+      <subrange length='20' type-id='type-id-18' id='type-id-110'/>
+
+    </array-type-def>
+    <typedef-decl name='FILE' type-id='type-id-96' filepath='/usr/include/bits/types/FILE.h' line='7' column='1' id='type-id-111'/>
+    <pointer-type-def type-id='type-id-111' size-in-bits='64' id='type-id-112'/>
     <function-decl name='uu_dump' mangled-name='uu_dump' filepath='/home/fedora/zfs/lib/libuutil/uu_misc.c' line='260' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_dump'>
-      <parameter type-id='type-id-118' name='out' filepath='/home/fedora/zfs/lib/libuutil/uu_misc.c' line='260' column='1'/>
+      <parameter type-id='type-id-112' name='out' filepath='/home/fedora/zfs/lib/libuutil/uu_misc.c' line='260' column='1'/>
       <parameter type-id='type-id-9' name='prefix' filepath='/home/fedora/zfs/lib/libuutil/uu_misc.c' line='260' column='1'/>
       <parameter type-id='type-id-2' name='buf' filepath='/home/fedora/zfs/lib/libuutil/uu_misc.c' line='260' column='1'/>
       <parameter type-id='type-id-4' name='len' filepath='/home/fedora/zfs/lib/libuutil/uu_misc.c' line='260' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-type size-in-bits='64' id='type-id-100'>
+    <function-type size-in-bits='64' id='type-id-94'>
       <return type-id='type-id-1'/>
     </function-type>
-    <function-type size-in-bits='64' id='type-id-98'>
+    <function-type size-in-bits='64' id='type-id-92'>
       <parameter type-id='type-id-2'/>
       <return type-id='type-id-1'/>
     </function-type>
@@ -1235,21 +1184,21 @@
     <var-decl name='uu_exit_ok_value' type-id='type-id-20' mangled-name='uu_exit_ok_value' visibility='default' filepath='/home/fedora/zfs/lib/libuutil/uu_pname.c' line='49' column='1' elf-symbol-id='uu_exit_ok_value'/>
     <var-decl name='uu_exit_fatal_value' type-id='type-id-20' mangled-name='uu_exit_fatal_value' visibility='default' filepath='/home/fedora/zfs/lib/libuutil/uu_pname.c' line='50' column='1' elf-symbol-id='uu_exit_fatal_value'/>
     <var-decl name='uu_exit_usage_value' type-id='type-id-20' mangled-name='uu_exit_usage_value' visibility='default' filepath='/home/fedora/zfs/lib/libuutil/uu_pname.c' line='51' column='1' elf-symbol-id='uu_exit_usage_value'/>
-    <pointer-type-def type-id='type-id-20' size-in-bits='64' id='type-id-119'/>
+    <pointer-type-def type-id='type-id-20' size-in-bits='64' id='type-id-113'/>
     <function-decl name='uu_exit_ok' mangled-name='uu_exit_ok' filepath='/home/fedora/zfs/lib/libuutil/uu_pname.c' line='54' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_exit_ok'>
-      <return type-id='type-id-119'/>
+      <return type-id='type-id-113'/>
     </function-decl>
     <function-decl name='uu_exit_fatal' mangled-name='uu_exit_fatal' filepath='/home/fedora/zfs/lib/libuutil/uu_pname.c' line='60' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_exit_fatal'>
-      <return type-id='type-id-119'/>
+      <return type-id='type-id-113'/>
     </function-decl>
     <function-decl name='uu_exit_usage' mangled-name='uu_exit_usage' filepath='/home/fedora/zfs/lib/libuutil/uu_pname.c' line='66' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_exit_usage'>
-      <return type-id='type-id-119'/>
+      <return type-id='type-id-113'/>
     </function-decl>
     <function-decl name='uu_alt_exit' mangled-name='uu_alt_exit' filepath='/home/fedora/zfs/lib/libuutil/uu_pname.c' line='72' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_alt_exit'>
       <parameter type-id='type-id-20' name='profile' filepath='/home/fedora/zfs/lib/libuutil/uu_pname.c' line='72' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <class-decl name='__va_list_tag' size-in-bits='192' is-struct='yes' visibility='default' id='type-id-120'>
+    <class-decl name='__va_list_tag' size-in-bits='192' is-struct='yes' visibility='default' id='type-id-114'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='gp_offset' type-id='type-id-5' visibility='default' filepath='/home/fedora/zfs/lib/libuutil/uu_pname.c' line='86' column='1'/>
       </data-member>
@@ -1263,10 +1212,10 @@
         <var-decl name='reg_save_area' type-id='type-id-2' visibility='default' filepath='/home/fedora/zfs/lib/libuutil/uu_pname.c' line='86' column='1'/>
       </data-member>
     </class-decl>
-    <pointer-type-def type-id='type-id-120' size-in-bits='64' id='type-id-121'/>
+    <pointer-type-def type-id='type-id-114' size-in-bits='64' id='type-id-115'/>
     <function-decl name='uu_vwarn' mangled-name='uu_vwarn' filepath='/home/fedora/zfs/lib/libuutil/uu_pname.c' line='101' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_vwarn'>
       <parameter type-id='type-id-9' name='format' filepath='/home/fedora/zfs/lib/libuutil/uu_pname.c' line='101' column='1'/>
-      <parameter type-id='type-id-121' name='alist' filepath='/home/fedora/zfs/lib/libuutil/uu_pname.c' line='101' column='1'/>
+      <parameter type-id='type-id-115' name='alist' filepath='/home/fedora/zfs/lib/libuutil/uu_pname.c' line='101' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='uu_warn' mangled-name='uu_warn' filepath='/home/fedora/zfs/lib/libuutil/uu_pname.c' line='108' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_warn'>
@@ -1276,7 +1225,7 @@
     </function-decl>
     <function-decl name='uu_vdie' mangled-name='uu_vdie' filepath='/home/fedora/zfs/lib/libuutil/uu_pname.c' line='135' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_vdie'>
       <parameter type-id='type-id-9' name='format' filepath='/home/fedora/zfs/lib/libuutil/uu_pname.c' line='135' column='1'/>
-      <parameter type-id='type-id-121' name='alist' filepath='/home/fedora/zfs/lib/libuutil/uu_pname.c' line='135' column='1'/>
+      <parameter type-id='type-id-115' name='alist' filepath='/home/fedora/zfs/lib/libuutil/uu_pname.c' line='135' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='uu_die' mangled-name='uu_die' filepath='/home/fedora/zfs/lib/libuutil/uu_pname.c' line='142' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_die'>
@@ -1287,7 +1236,7 @@
     <function-decl name='uu_vxdie' mangled-name='uu_vxdie' filepath='/home/fedora/zfs/lib/libuutil/uu_pname.c' line='151' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_vxdie'>
       <parameter type-id='type-id-20' name='status' filepath='/home/fedora/zfs/lib/libuutil/uu_pname.c' line='151' column='1'/>
       <parameter type-id='type-id-9' name='format' filepath='/home/fedora/zfs/lib/libuutil/uu_pname.c' line='151' column='1'/>
-      <parameter type-id='type-id-121' name='alist' filepath='/home/fedora/zfs/lib/libuutil/uu_pname.c' line='151' column='1'/>
+      <parameter type-id='type-id-115' name='alist' filepath='/home/fedora/zfs/lib/libuutil/uu_pname.c' line='151' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='uu_xdie' mangled-name='uu_xdie' filepath='/home/fedora/zfs/lib/libuutil/uu_pname.c' line='158' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_xdie'>
@@ -1308,123 +1257,124 @@
     </function-decl>
   </abi-instr>
   <abi-instr version='1.0' address-size='64' path='uu_string.c' comp-dir-path='/home/fedora/zfs/lib/libuutil' language='LANG_C99'>
-    <enum-decl name='__anonymous_enum__' is-anonymous='yes' filepath='../../lib/libspl/include/sys/stdtypes.h' line='26' column='1' id='type-id-122'>
-      <underlying-type type-id='type-id-74'/>
+    <type-decl name='unnamed-enum-underlying-type' is-anonymous='yes' size-in-bits='32' alignment-in-bits='32' id='type-id-116'/>
+    <enum-decl name='__anonymous_enum__' is-anonymous='yes' filepath='../../lib/libspl/include/sys/stdtypes.h' line='26' column='1' id='type-id-117'>
+      <underlying-type type-id='type-id-116'/>
       <enumerator name='B_FALSE' value='0'/>
       <enumerator name='B_TRUE' value='1'/>
     </enum-decl>
-    <typedef-decl name='boolean_t' type-id='type-id-122' filepath='../../lib/libspl/include/sys/stdtypes.h' line='29' column='1' id='type-id-123'/>
+    <typedef-decl name='boolean_t' type-id='type-id-117' filepath='../../lib/libspl/include/sys/stdtypes.h' line='29' column='1' id='type-id-118'/>
     <function-decl name='uu_streq' mangled-name='uu_streq' filepath='/home/fedora/zfs/lib/libuutil/uu_string.c' line='37' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_streq'>
       <parameter type-id='type-id-9' name='a' filepath='/home/fedora/zfs/lib/libuutil/uu_string.c' line='37' column='1'/>
       <parameter type-id='type-id-9' name='b' filepath='/home/fedora/zfs/lib/libuutil/uu_string.c' line='37' column='1'/>
-      <return type-id='type-id-123'/>
+      <return type-id='type-id-118'/>
     </function-decl>
     <function-decl name='uu_strcaseeq' mangled-name='uu_strcaseeq' filepath='/home/fedora/zfs/lib/libuutil/uu_string.c' line='44' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_strcaseeq'>
       <parameter type-id='type-id-9' name='a' filepath='/home/fedora/zfs/lib/libuutil/uu_string.c' line='37' column='1'/>
       <parameter type-id='type-id-9' name='b' filepath='/home/fedora/zfs/lib/libuutil/uu_string.c' line='37' column='1'/>
-      <return type-id='type-id-123'/>
+      <return type-id='type-id-118'/>
     </function-decl>
     <function-decl name='uu_strbw' mangled-name='uu_strbw' filepath='/home/fedora/zfs/lib/libuutil/uu_string.c' line='51' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_strbw'>
       <parameter type-id='type-id-9' name='a' filepath='/home/fedora/zfs/lib/libuutil/uu_string.c' line='37' column='1'/>
       <parameter type-id='type-id-9' name='b' filepath='/home/fedora/zfs/lib/libuutil/uu_string.c' line='37' column='1'/>
-      <return type-id='type-id-123'/>
+      <return type-id='type-id-118'/>
     </function-decl>
   </abi-instr>
   <abi-instr version='1.0' address-size='64' path='../../module/avl/avl.c' comp-dir-path='/home/fedora/zfs/lib/libavl' language='LANG_C99'>
 
-    <typedef-decl name='avl_tree_t' type-id='type-id-36' filepath='../../include/sys/avl.h' line='119' column='1' id='type-id-124'/>
-    <pointer-type-def type-id='type-id-124' size-in-bits='64' id='type-id-125'/>
+    <typedef-decl name='avl_tree_t' type-id='type-id-36' filepath='../../include/sys/avl.h' line='119' column='1' id='type-id-119'/>
+    <pointer-type-def type-id='type-id-119' size-in-bits='64' id='type-id-120'/>
     <function-decl name='avl_destroy_nodes' mangled-name='avl_destroy_nodes' filepath='../../module/avl/avl.c' line='962' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='avl_destroy_nodes'>
-      <parameter type-id='type-id-125' name='tree' filepath='../../module/avl/avl.c' line='962' column='1'/>
+      <parameter type-id='type-id-120' name='tree' filepath='../../module/avl/avl.c' line='962' column='1'/>
       <parameter type-id='type-id-67' name='cookie' filepath='../../module/avl/avl.c' line='962' column='1'/>
       <return type-id='type-id-2'/>
     </function-decl>
     <function-decl name='avl_is_empty' mangled-name='avl_is_empty' filepath='../../module/avl/avl.c' line='934' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='avl_is_empty'>
-      <parameter type-id='type-id-125' name='tree' filepath='../../module/avl/avl.c' line='934' column='1'/>
-      <return type-id='type-id-123'/>
+      <parameter type-id='type-id-120' name='tree' filepath='../../module/avl/avl.c' line='934' column='1'/>
+      <return type-id='type-id-118'/>
     </function-decl>
     <function-decl name='avl_numnodes' mangled-name='avl_numnodes' filepath='../../module/avl/avl.c' line='927' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='avl_numnodes'>
-      <parameter type-id='type-id-125' name='tree' filepath='../../module/avl/avl.c' line='927' column='1'/>
+      <parameter type-id='type-id-120' name='tree' filepath='../../module/avl/avl.c' line='927' column='1'/>
       <return type-id='type-id-40'/>
     </function-decl>
     <function-decl name='avl_destroy' mangled-name='avl_destroy' filepath='../../module/avl/avl.c' line='915' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='avl_destroy'>
-      <parameter type-id='type-id-125' name='tree' filepath='../../module/avl/avl.c' line='915' column='1'/>
+      <parameter type-id='type-id-120' name='tree' filepath='../../module/avl/avl.c' line='915' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='avl_create' mangled-name='avl_create' filepath='../../module/avl/avl.c' line='892' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='avl_create'>
-      <parameter type-id='type-id-125' name='tree' filepath='../../module/avl/avl.c' line='892' column='1'/>
+      <parameter type-id='type-id-120' name='tree' filepath='../../module/avl/avl.c' line='892' column='1'/>
       <parameter type-id='type-id-39' name='compar' filepath='../../module/avl/avl.c' line='892' column='1'/>
       <parameter type-id='type-id-4' name='size' filepath='../../module/avl/avl.c' line='893' column='1'/>
       <parameter type-id='type-id-4' name='offset' filepath='../../module/avl/avl.c' line='893' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='avl_swap' mangled-name='avl_swap' filepath='../../module/avl/avl.c' line='871' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='avl_swap'>
-      <parameter type-id='type-id-125' name='tree1' filepath='../../module/avl/avl.c' line='871' column='1'/>
-      <parameter type-id='type-id-125' name='tree2' filepath='../../module/avl/avl.c' line='871' column='1'/>
+      <parameter type-id='type-id-120' name='tree1' filepath='../../module/avl/avl.c' line='871' column='1'/>
+      <parameter type-id='type-id-120' name='tree2' filepath='../../module/avl/avl.c' line='871' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='avl_update' mangled-name='avl_update' filepath='../../module/avl/avl.c' line='851' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='avl_update'>
-      <parameter type-id='type-id-125' name='t' filepath='../../module/avl/avl.c' line='851' column='1'/>
+      <parameter type-id='type-id-120' name='t' filepath='../../module/avl/avl.c' line='851' column='1'/>
       <parameter type-id='type-id-2' name='obj' filepath='../../module/avl/avl.c' line='851' column='1'/>
-      <return type-id='type-id-123'/>
+      <return type-id='type-id-118'/>
     </function-decl>
     <function-decl name='avl_update_gt' mangled-name='avl_update_gt' filepath='../../module/avl/avl.c' line='834' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='avl_update_gt'>
-      <parameter type-id='type-id-125' name='t' filepath='../../module/avl/avl.c' line='834' column='1'/>
+      <parameter type-id='type-id-120' name='t' filepath='../../module/avl/avl.c' line='834' column='1'/>
       <parameter type-id='type-id-2' name='obj' filepath='../../module/avl/avl.c' line='834' column='1'/>
-      <return type-id='type-id-123'/>
+      <return type-id='type-id-118'/>
     </function-decl>
     <function-decl name='avl_update_lt' mangled-name='avl_update_lt' filepath='../../module/avl/avl.c' line='817' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='avl_update_lt'>
-      <parameter type-id='type-id-125' name='t' filepath='../../module/avl/avl.c' line='834' column='1'/>
+      <parameter type-id='type-id-120' name='t' filepath='../../module/avl/avl.c' line='834' column='1'/>
       <parameter type-id='type-id-2' name='obj' filepath='../../module/avl/avl.c' line='834' column='1'/>
-      <return type-id='type-id-123'/>
+      <return type-id='type-id-118'/>
     </function-decl>
     <function-decl name='avl_remove' mangled-name='avl_remove' filepath='../../module/avl/avl.c' line='669' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='avl_remove'>
-      <parameter type-id='type-id-125' name='tree' filepath='../../module/avl/avl.c' line='669' column='1'/>
+      <parameter type-id='type-id-120' name='tree' filepath='../../module/avl/avl.c' line='669' column='1'/>
       <parameter type-id='type-id-2' name='data' filepath='../../module/avl/avl.c' line='669' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='avl_add' mangled-name='avl_add' filepath='../../module/avl/avl.c' line='636' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='avl_add'>
-      <parameter type-id='type-id-125' name='tree' filepath='../../module/avl/avl.c' line='636' column='1'/>
+      <parameter type-id='type-id-120' name='tree' filepath='../../module/avl/avl.c' line='636' column='1'/>
       <parameter type-id='type-id-2' name='new_node' filepath='../../module/avl/avl.c' line='636' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='avl_insert_here' mangled-name='avl_insert_here' filepath='../../module/avl/avl.c' line='575' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='avl_insert_here'>
-      <parameter type-id='type-id-125' name='tree' filepath='../../module/avl/avl.c' line='576' column='1'/>
+      <parameter type-id='type-id-120' name='tree' filepath='../../module/avl/avl.c' line='576' column='1'/>
       <parameter type-id='type-id-2' name='new_data' filepath='../../module/avl/avl.c' line='577' column='1'/>
       <parameter type-id='type-id-2' name='here' filepath='../../module/avl/avl.c' line='578' column='1'/>
       <parameter type-id='type-id-20' name='direction' filepath='../../module/avl/avl.c' line='579' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <typedef-decl name='avl_index_t' type-id='type-id-35' filepath='../../include/sys/avl.h' line='130' column='1' id='type-id-126'/>
+    <typedef-decl name='avl_index_t' type-id='type-id-35' filepath='../../include/sys/avl.h' line='130' column='1' id='type-id-121'/>
     <function-decl name='avl_insert' mangled-name='avl_insert' filepath='../../module/avl/avl.c' line='486' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='avl_insert'>
-      <parameter type-id='type-id-125' name='tree' filepath='../../module/avl/avl.c' line='486' column='1'/>
+      <parameter type-id='type-id-120' name='tree' filepath='../../module/avl/avl.c' line='486' column='1'/>
       <parameter type-id='type-id-2' name='new_data' filepath='../../module/avl/avl.c' line='486' column='1'/>
-      <parameter type-id='type-id-126' name='where' filepath='../../module/avl/avl.c' line='486' column='1'/>
+      <parameter type-id='type-id-121' name='where' filepath='../../module/avl/avl.c' line='486' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <pointer-type-def type-id='type-id-126' size-in-bits='64' id='type-id-127'/>
+    <pointer-type-def type-id='type-id-121' size-in-bits='64' id='type-id-122'/>
     <function-decl name='avl_find' mangled-name='avl_find' filepath='../../module/avl/avl.c' line='259' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='avl_find'>
-      <parameter type-id='type-id-125' name='tree' filepath='../../module/avl/avl.c' line='259' column='1'/>
+      <parameter type-id='type-id-120' name='tree' filepath='../../module/avl/avl.c' line='259' column='1'/>
       <parameter type-id='type-id-2' name='value' filepath='../../module/avl/avl.c' line='259' column='1'/>
-      <parameter type-id='type-id-127' name='where' filepath='../../module/avl/avl.c' line='259' column='1'/>
+      <parameter type-id='type-id-122' name='where' filepath='../../module/avl/avl.c' line='259' column='1'/>
       <return type-id='type-id-2'/>
     </function-decl>
     <function-decl name='avl_nearest' mangled-name='avl_nearest' filepath='../../module/avl/avl.c' line='230' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='avl_nearest'>
-      <parameter type-id='type-id-125' name='tree' filepath='../../module/avl/avl.c' line='230' column='1'/>
-      <parameter type-id='type-id-126' name='where' filepath='../../module/avl/avl.c' line='230' column='1'/>
+      <parameter type-id='type-id-120' name='tree' filepath='../../module/avl/avl.c' line='230' column='1'/>
+      <parameter type-id='type-id-121' name='where' filepath='../../module/avl/avl.c' line='230' column='1'/>
       <parameter type-id='type-id-20' name='direction' filepath='../../module/avl/avl.c' line='230' column='1'/>
       <return type-id='type-id-2'/>
     </function-decl>
     <function-decl name='avl_last' mangled-name='avl_last' filepath='../../module/avl/avl.c' line='206' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='avl_last'>
-      <parameter type-id='type-id-125' name='tree' filepath='../../module/avl/avl.c' line='206' column='1'/>
+      <parameter type-id='type-id-120' name='tree' filepath='../../module/avl/avl.c' line='206' column='1'/>
       <return type-id='type-id-2'/>
     </function-decl>
     <function-decl name='avl_first' mangled-name='avl_first' filepath='../../module/avl/avl.c' line='187' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='avl_first'>
-      <parameter type-id='type-id-125' name='tree' filepath='../../module/avl/avl.c' line='206' column='1'/>
+      <parameter type-id='type-id-120' name='tree' filepath='../../module/avl/avl.c' line='206' column='1'/>
       <return type-id='type-id-2'/>
     </function-decl>
     <function-decl name='avl_walk' mangled-name='avl_walk' filepath='../../module/avl/avl.c' line='140' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='avl_walk'>
-      <parameter type-id='type-id-125' name='tree' filepath='../../module/avl/avl.c' line='140' column='1'/>
+      <parameter type-id='type-id-120' name='tree' filepath='../../module/avl/avl.c' line='140' column='1'/>
       <parameter type-id='type-id-2' name='oldnode' filepath='../../module/avl/avl.c' line='140' column='1'/>
       <parameter type-id='type-id-20' name='left' filepath='../../module/avl/avl.c' line='140' column='1'/>
       <return type-id='type-id-2'/>
@@ -1434,7 +1384,7 @@
     </function-decl>
   </abi-instr>
   <abi-instr version='1.0' address-size='64' path='list.c' comp-dir-path='/home/fedora/zfs/lib/libspl' language='LANG_C99'>
-    <class-decl name='list' size-in-bits='256' is-struct='yes' visibility='default' filepath='../../lib/libspl/include/sys/list_impl.h' line='41' column='1' id='type-id-128'>
+    <class-decl name='list' size-in-bits='256' is-struct='yes' visibility='default' filepath='../../lib/libspl/include/sys/list_impl.h' line='41' column='1' id='type-id-123'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='list_size' type-id='type-id-4' visibility='default' filepath='../../lib/libspl/include/sys/list_impl.h' line='42' column='1'/>
       </data-member>
@@ -1442,114 +1392,114 @@
         <var-decl name='list_offset' type-id='type-id-4' visibility='default' filepath='../../lib/libspl/include/sys/list_impl.h' line='43' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='128'>
-        <var-decl name='list_head' type-id='type-id-129' visibility='default' filepath='../../lib/libspl/include/sys/list_impl.h' line='44' column='1'/>
+        <var-decl name='list_head' type-id='type-id-124' visibility='default' filepath='../../lib/libspl/include/sys/list_impl.h' line='44' column='1'/>
       </data-member>
     </class-decl>
-    <class-decl name='list_node' size-in-bits='128' is-struct='yes' visibility='default' filepath='../../lib/libspl/include/sys/list_impl.h' line='36' column='1' id='type-id-129'>
+    <class-decl name='list_node' size-in-bits='128' is-struct='yes' visibility='default' filepath='../../lib/libspl/include/sys/list_impl.h' line='36' column='1' id='type-id-124'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='next' type-id='type-id-130' visibility='default' filepath='../../lib/libspl/include/sys/list_impl.h' line='37' column='1'/>
+        <var-decl name='next' type-id='type-id-125' visibility='default' filepath='../../lib/libspl/include/sys/list_impl.h' line='37' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='prev' type-id='type-id-130' visibility='default' filepath='../../lib/libspl/include/sys/list_impl.h' line='38' column='1'/>
+        <var-decl name='prev' type-id='type-id-125' visibility='default' filepath='../../lib/libspl/include/sys/list_impl.h' line='38' column='1'/>
       </data-member>
     </class-decl>
-    <pointer-type-def type-id='type-id-129' size-in-bits='64' id='type-id-130'/>
-    <typedef-decl name='list_t' type-id='type-id-128' filepath='../../lib/libspl/include/sys/list.h' line='36' column='1' id='type-id-131'/>
-    <pointer-type-def type-id='type-id-131' size-in-bits='64' id='type-id-132'/>
+    <pointer-type-def type-id='type-id-124' size-in-bits='64' id='type-id-125'/>
+    <typedef-decl name='list_t' type-id='type-id-123' filepath='../../lib/libspl/include/sys/list.h' line='36' column='1' id='type-id-126'/>
+    <pointer-type-def type-id='type-id-126' size-in-bits='64' id='type-id-127'/>
     <function-decl name='list_is_empty' mangled-name='list_is_empty' filepath='/home/fedora/zfs/lib/libspl/list.c' line='240' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_is_empty'>
-      <parameter type-id='type-id-132' name='list' filepath='/home/fedora/zfs/lib/libspl/list.c' line='240' column='1'/>
+      <parameter type-id='type-id-127' name='list' filepath='/home/fedora/zfs/lib/libspl/list.c' line='240' column='1'/>
       <return type-id='type-id-20'/>
     </function-decl>
-    <typedef-decl name='list_node_t' type-id='type-id-129' filepath='../../lib/libspl/include/sys/list.h' line='35' column='1' id='type-id-133'/>
-    <pointer-type-def type-id='type-id-133' size-in-bits='64' id='type-id-134'/>
+    <typedef-decl name='list_node_t' type-id='type-id-124' filepath='../../lib/libspl/include/sys/list.h' line='35' column='1' id='type-id-128'/>
+    <pointer-type-def type-id='type-id-128' size-in-bits='64' id='type-id-129'/>
     <function-decl name='list_link_active' mangled-name='list_link_active' filepath='/home/fedora/zfs/lib/libspl/list.c' line='233' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_link_active'>
-      <parameter type-id='type-id-134' name='ln' filepath='/home/fedora/zfs/lib/libspl/list.c' line='233' column='1'/>
+      <parameter type-id='type-id-129' name='ln' filepath='/home/fedora/zfs/lib/libspl/list.c' line='233' column='1'/>
       <return type-id='type-id-20'/>
     </function-decl>
     <function-decl name='list_link_init' mangled-name='list_link_init' filepath='/home/fedora/zfs/lib/libspl/list.c' line='226' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_link_init'>
-      <parameter type-id='type-id-134' name='ln' filepath='/home/fedora/zfs/lib/libspl/list.c' line='226' column='1'/>
+      <parameter type-id='type-id-129' name='ln' filepath='/home/fedora/zfs/lib/libspl/list.c' line='226' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='list_link_replace' mangled-name='list_link_replace' filepath='/home/fedora/zfs/lib/libspl/list.c' line='213' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_link_replace'>
-      <parameter type-id='type-id-134' name='lold' filepath='/home/fedora/zfs/lib/libspl/list.c' line='213' column='1'/>
-      <parameter type-id='type-id-134' name='lnew' filepath='/home/fedora/zfs/lib/libspl/list.c' line='213' column='1'/>
+      <parameter type-id='type-id-129' name='lold' filepath='/home/fedora/zfs/lib/libspl/list.c' line='213' column='1'/>
+      <parameter type-id='type-id-129' name='lnew' filepath='/home/fedora/zfs/lib/libspl/list.c' line='213' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='list_move_tail' mangled-name='list_move_tail' filepath='/home/fedora/zfs/lib/libspl/list.c' line='192' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_move_tail'>
-      <parameter type-id='type-id-132' name='dst' filepath='/home/fedora/zfs/lib/libspl/list.c' line='192' column='1'/>
-      <parameter type-id='type-id-132' name='src' filepath='/home/fedora/zfs/lib/libspl/list.c' line='192' column='1'/>
+      <parameter type-id='type-id-127' name='dst' filepath='/home/fedora/zfs/lib/libspl/list.c' line='192' column='1'/>
+      <parameter type-id='type-id-127' name='src' filepath='/home/fedora/zfs/lib/libspl/list.c' line='192' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='list_prev' mangled-name='list_prev' filepath='/home/fedora/zfs/lib/libspl/list.c' line='178' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_prev'>
-      <parameter type-id='type-id-132' name='list' filepath='/home/fedora/zfs/lib/libspl/list.c' line='178' column='1'/>
+      <parameter type-id='type-id-127' name='list' filepath='/home/fedora/zfs/lib/libspl/list.c' line='178' column='1'/>
       <parameter type-id='type-id-2' name='object' filepath='/home/fedora/zfs/lib/libspl/list.c' line='178' column='1'/>
       <return type-id='type-id-2'/>
     </function-decl>
     <function-decl name='list_next' mangled-name='list_next' filepath='/home/fedora/zfs/lib/libspl/list.c' line='167' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_next'>
-      <parameter type-id='type-id-132' name='list' filepath='/home/fedora/zfs/lib/libspl/list.c' line='178' column='1'/>
+      <parameter type-id='type-id-127' name='list' filepath='/home/fedora/zfs/lib/libspl/list.c' line='178' column='1'/>
       <parameter type-id='type-id-2' name='object' filepath='/home/fedora/zfs/lib/libspl/list.c' line='178' column='1'/>
       <return type-id='type-id-2'/>
     </function-decl>
     <function-decl name='list_tail' mangled-name='list_tail' filepath='/home/fedora/zfs/lib/libspl/list.c' line='159' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_tail'>
-      <parameter type-id='type-id-132' name='list' filepath='/home/fedora/zfs/lib/libspl/list.c' line='159' column='1'/>
+      <parameter type-id='type-id-127' name='list' filepath='/home/fedora/zfs/lib/libspl/list.c' line='159' column='1'/>
       <return type-id='type-id-2'/>
     </function-decl>
     <function-decl name='list_head' mangled-name='list_head' filepath='/home/fedora/zfs/lib/libspl/list.c' line='151' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_head'>
-      <parameter type-id='type-id-132' name='list' filepath='/home/fedora/zfs/lib/libspl/list.c' line='159' column='1'/>
+      <parameter type-id='type-id-127' name='list' filepath='/home/fedora/zfs/lib/libspl/list.c' line='159' column='1'/>
       <return type-id='type-id-2'/>
     </function-decl>
     <function-decl name='list_remove_tail' mangled-name='list_remove_tail' filepath='/home/fedora/zfs/lib/libspl/list.c' line='141' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_remove_tail'>
-      <parameter type-id='type-id-132' name='list' filepath='/home/fedora/zfs/lib/libspl/list.c' line='141' column='1'/>
+      <parameter type-id='type-id-127' name='list' filepath='/home/fedora/zfs/lib/libspl/list.c' line='141' column='1'/>
       <return type-id='type-id-2'/>
     </function-decl>
     <function-decl name='list_remove_head' mangled-name='list_remove_head' filepath='/home/fedora/zfs/lib/libspl/list.c' line='131' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_remove_head'>
-      <parameter type-id='type-id-132' name='list' filepath='/home/fedora/zfs/lib/libspl/list.c' line='141' column='1'/>
+      <parameter type-id='type-id-127' name='list' filepath='/home/fedora/zfs/lib/libspl/list.c' line='141' column='1'/>
       <return type-id='type-id-2'/>
     </function-decl>
     <function-decl name='list_remove' mangled-name='list_remove' filepath='/home/fedora/zfs/lib/libspl/list.c' line='122' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_remove'>
-      <parameter type-id='type-id-132' name='list' filepath='/home/fedora/zfs/lib/libspl/list.c' line='122' column='1'/>
+      <parameter type-id='type-id-127' name='list' filepath='/home/fedora/zfs/lib/libspl/list.c' line='122' column='1'/>
       <parameter type-id='type-id-2' name='object' filepath='/home/fedora/zfs/lib/libspl/list.c' line='122' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='list_insert_tail' mangled-name='list_insert_tail' filepath='/home/fedora/zfs/lib/libspl/list.c' line='115' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_insert_tail'>
-      <parameter type-id='type-id-132' name='list' filepath='/home/fedora/zfs/lib/libspl/list.c' line='115' column='1'/>
+      <parameter type-id='type-id-127' name='list' filepath='/home/fedora/zfs/lib/libspl/list.c' line='115' column='1'/>
       <parameter type-id='type-id-2' name='object' filepath='/home/fedora/zfs/lib/libspl/list.c' line='115' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='list_insert_head' mangled-name='list_insert_head' filepath='/home/fedora/zfs/lib/libspl/list.c' line='108' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_insert_head'>
-      <parameter type-id='type-id-132' name='list' filepath='/home/fedora/zfs/lib/libspl/list.c' line='115' column='1'/>
+      <parameter type-id='type-id-127' name='list' filepath='/home/fedora/zfs/lib/libspl/list.c' line='115' column='1'/>
       <parameter type-id='type-id-2' name='object' filepath='/home/fedora/zfs/lib/libspl/list.c' line='115' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='list_insert_before' mangled-name='list_insert_before' filepath='/home/fedora/zfs/lib/libspl/list.c' line='97' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_insert_before'>
-      <parameter type-id='type-id-132' name='list' filepath='/home/fedora/zfs/lib/libspl/list.c' line='97' column='1'/>
+      <parameter type-id='type-id-127' name='list' filepath='/home/fedora/zfs/lib/libspl/list.c' line='97' column='1'/>
       <parameter type-id='type-id-2' name='object' filepath='/home/fedora/zfs/lib/libspl/list.c' line='97' column='1'/>
       <parameter type-id='type-id-2' name='nobject' filepath='/home/fedora/zfs/lib/libspl/list.c' line='97' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='list_insert_after' mangled-name='list_insert_after' filepath='/home/fedora/zfs/lib/libspl/list.c' line='86' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_insert_after'>
-      <parameter type-id='type-id-132' name='list' filepath='/home/fedora/zfs/lib/libspl/list.c' line='97' column='1'/>
+      <parameter type-id='type-id-127' name='list' filepath='/home/fedora/zfs/lib/libspl/list.c' line='97' column='1'/>
       <parameter type-id='type-id-2' name='object' filepath='/home/fedora/zfs/lib/libspl/list.c' line='97' column='1'/>
       <parameter type-id='type-id-2' name='nobject' filepath='/home/fedora/zfs/lib/libspl/list.c' line='97' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='list_destroy' mangled-name='list_destroy' filepath='/home/fedora/zfs/lib/libspl/list.c' line='74' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_destroy'>
-      <parameter type-id='type-id-132' name='list' filepath='/home/fedora/zfs/lib/libspl/list.c' line='74' column='1'/>
+      <parameter type-id='type-id-127' name='list' filepath='/home/fedora/zfs/lib/libspl/list.c' line='74' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='list_create' mangled-name='list_create' filepath='/home/fedora/zfs/lib/libspl/list.c' line='62' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_create'>
-      <parameter type-id='type-id-132' name='list' filepath='/home/fedora/zfs/lib/libspl/list.c' line='62' column='1'/>
+      <parameter type-id='type-id-127' name='list' filepath='/home/fedora/zfs/lib/libspl/list.c' line='62' column='1'/>
       <parameter type-id='type-id-4' name='size' filepath='/home/fedora/zfs/lib/libspl/list.c' line='62' column='1'/>
       <parameter type-id='type-id-4' name='offset' filepath='/home/fedora/zfs/lib/libspl/list.c' line='62' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
   </abi-instr>
   <abi-instr version='1.0' address-size='64' path='mkdirp.c' comp-dir-path='/home/fedora/zfs/lib/libspl' language='LANG_C99'>
-    <typedef-decl name='__mode_t' type-id='type-id-5' filepath='/usr/include/bits/types.h' line='148' column='1' id='type-id-135'/>
-    <typedef-decl name='mode_t' type-id='type-id-135' filepath='/usr/include/x86_64-linux-gnu/sys/types.h' line='69' column='1' id='type-id-136'/>
+    <typedef-decl name='__mode_t' type-id='type-id-5' filepath='/usr/include/bits/types.h' line='148' column='1' id='type-id-130'/>
+    <typedef-decl name='mode_t' type-id='type-id-130' filepath='/usr/include/x86_64-linux-gnu/sys/types.h' line='69' column='1' id='type-id-131'/>
     <function-decl name='mkdirp' mangled-name='mkdirp' filepath='/home/fedora/zfs/lib/libspl/mkdirp.c' line='50' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='mkdirp'>
       <parameter type-id='type-id-9' name='d' filepath='/home/fedora/zfs/lib/libspl/mkdirp.c' line='50' column='1'/>
-      <parameter type-id='type-id-136' name='mode' filepath='/home/fedora/zfs/lib/libspl/mkdirp.c' line='50' column='1'/>
+      <parameter type-id='type-id-131' name='mode' filepath='/home/fedora/zfs/lib/libspl/mkdirp.c' line='50' column='1'/>
       <return type-id='type-id-20'/>
     </function-decl>
     <function-decl name='strdup' mangled-name='strdup' filepath='/usr/include/string.h' line='166' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -1613,7 +1563,7 @@
   </abi-instr>
   <abi-instr version='1.0' address-size='64' path='timestamp.c' comp-dir-path='/home/fedora/zfs/lib/libspl' language='LANG_C99'>
     <function-decl name='print_timestamp' mangled-name='print_timestamp' filepath='/home/fedora/zfs/lib/libspl/timestamp.c' line='44' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='print_timestamp'>
-      <parameter type-id='type-id-73' name='timestamp_fmt' filepath='/home/fedora/zfs/lib/libspl/timestamp.c' line='44' column='1'/>
+      <parameter type-id='type-id-71' name='timestamp_fmt' filepath='/home/fedora/zfs/lib/libspl/timestamp.c' line='44' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='localtime' mangled-name='localtime' filepath='/usr/include/time.h' line='123' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -1677,12 +1627,12 @@
   </abi-instr>
   <abi-instr version='1.0' address-size='64' path='os/linux/getmntany.c' comp-dir-path='/home/fedora/zfs/lib/libspl' language='LANG_C99'>
 
-    <array-type-def dimensions='1' type-id='type-id-6' size-in-bits='32880' id='type-id-137'>
-      <subrange length='4110' type-id='type-id-3' id='type-id-138'/>
+    <array-type-def dimensions='1' type-id='type-id-6' size-in-bits='32880' id='type-id-132'>
+      <subrange length='4110' type-id='type-id-3' id='type-id-133'/>
 
     </array-type-def>
-    <var-decl name='buf' type-id='type-id-137' mangled-name='buf' visibility='default' filepath='os/linux/getmntany.c' line='44' column='1' elf-symbol-id='buf'/>
-    <class-decl name='extmnttab' size-in-bits='320' is-struct='yes' visibility='default' filepath='../../lib/libspl/include/os/linux/sys/mnttab.h' line='62' column='1' id='type-id-139'>
+    <var-decl name='buf' type-id='type-id-132' mangled-name='buf' visibility='default' filepath='os/linux/getmntany.c' line='44' column='1' elf-symbol-id='buf'/>
+    <class-decl name='extmnttab' size-in-bits='320' is-struct='yes' visibility='default' filepath='../../lib/libspl/include/os/linux/sys/mnttab.h' line='62' column='1' id='type-id-134'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='mnt_special' type-id='type-id-7' visibility='default' filepath='../../lib/libspl/include/os/linux/sys/mnttab.h' line='63' column='1'/>
       </data-member>
@@ -1696,91 +1646,91 @@
         <var-decl name='mnt_mntopts' type-id='type-id-7' visibility='default' filepath='../../lib/libspl/include/os/linux/sys/mnttab.h' line='66' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='256'>
-        <var-decl name='mnt_major' type-id='type-id-73' visibility='default' filepath='../../lib/libspl/include/os/linux/sys/mnttab.h' line='67' column='1'/>
+        <var-decl name='mnt_major' type-id='type-id-71' visibility='default' filepath='../../lib/libspl/include/os/linux/sys/mnttab.h' line='67' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='288'>
-        <var-decl name='mnt_minor' type-id='type-id-73' visibility='default' filepath='../../lib/libspl/include/os/linux/sys/mnttab.h' line='68' column='1'/>
+        <var-decl name='mnt_minor' type-id='type-id-71' visibility='default' filepath='../../lib/libspl/include/os/linux/sys/mnttab.h' line='68' column='1'/>
       </data-member>
     </class-decl>
-    <pointer-type-def type-id='type-id-139' size-in-bits='64' id='type-id-140'/>
-    <class-decl name='stat64' size-in-bits='1152' is-struct='yes' visibility='default' filepath='/usr/include/bits/stat.h' line='119' column='1' id='type-id-141'>
+    <pointer-type-def type-id='type-id-134' size-in-bits='64' id='type-id-135'/>
+    <class-decl name='stat64' size-in-bits='1152' is-struct='yes' visibility='default' filepath='/usr/include/bits/stat.h' line='119' column='1' id='type-id-136'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='st_dev' type-id='type-id-142' visibility='default' filepath='/usr/include/bits/stat.h' line='121' column='1'/>
+        <var-decl name='st_dev' type-id='type-id-137' visibility='default' filepath='/usr/include/bits/stat.h' line='121' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='st_ino' type-id='type-id-143' visibility='default' filepath='/usr/include/bits/stat.h' line='123' column='1'/>
+        <var-decl name='st_ino' type-id='type-id-138' visibility='default' filepath='/usr/include/bits/stat.h' line='123' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='128'>
-        <var-decl name='st_nlink' type-id='type-id-144' visibility='default' filepath='/usr/include/bits/stat.h' line='124' column='1'/>
+        <var-decl name='st_nlink' type-id='type-id-139' visibility='default' filepath='/usr/include/bits/stat.h' line='124' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='192'>
-        <var-decl name='st_mode' type-id='type-id-135' visibility='default' filepath='/usr/include/bits/stat.h' line='125' column='1'/>
+        <var-decl name='st_mode' type-id='type-id-130' visibility='default' filepath='/usr/include/bits/stat.h' line='125' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='224'>
-        <var-decl name='st_uid' type-id='type-id-145' visibility='default' filepath='/usr/include/bits/stat.h' line='132' column='1'/>
+        <var-decl name='st_uid' type-id='type-id-140' visibility='default' filepath='/usr/include/bits/stat.h' line='132' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='256'>
-        <var-decl name='st_gid' type-id='type-id-146' visibility='default' filepath='/usr/include/bits/stat.h' line='133' column='1'/>
+        <var-decl name='st_gid' type-id='type-id-141' visibility='default' filepath='/usr/include/bits/stat.h' line='133' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='288'>
         <var-decl name='__pad0' type-id='type-id-20' visibility='default' filepath='/usr/include/bits/stat.h' line='135' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='320'>
-        <var-decl name='st_rdev' type-id='type-id-142' visibility='default' filepath='/usr/include/bits/stat.h' line='136' column='1'/>
+        <var-decl name='st_rdev' type-id='type-id-137' visibility='default' filepath='/usr/include/bits/stat.h' line='136' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='384'>
-        <var-decl name='st_size' type-id='type-id-105' visibility='default' filepath='/usr/include/bits/stat.h' line='137' column='1'/>
+        <var-decl name='st_size' type-id='type-id-99' visibility='default' filepath='/usr/include/bits/stat.h' line='137' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='448'>
-        <var-decl name='st_blksize' type-id='type-id-147' visibility='default' filepath='/usr/include/bits/stat.h' line='143' column='1'/>
+        <var-decl name='st_blksize' type-id='type-id-142' visibility='default' filepath='/usr/include/bits/stat.h' line='143' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='512'>
-        <var-decl name='st_blocks' type-id='type-id-148' visibility='default' filepath='/usr/include/bits/stat.h' line='144' column='1'/>
+        <var-decl name='st_blocks' type-id='type-id-143' visibility='default' filepath='/usr/include/bits/stat.h' line='144' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='576'>
-        <var-decl name='st_atim' type-id='type-id-149' visibility='default' filepath='/usr/include/bits/stat.h' line='152' column='1'/>
+        <var-decl name='st_atim' type-id='type-id-144' visibility='default' filepath='/usr/include/bits/stat.h' line='152' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='704'>
-        <var-decl name='st_mtim' type-id='type-id-149' visibility='default' filepath='/usr/include/bits/stat.h' line='153' column='1'/>
+        <var-decl name='st_mtim' type-id='type-id-144' visibility='default' filepath='/usr/include/bits/stat.h' line='153' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='832'>
-        <var-decl name='st_ctim' type-id='type-id-149' visibility='default' filepath='/usr/include/bits/stat.h' line='154' column='1'/>
+        <var-decl name='st_ctim' type-id='type-id-144' visibility='default' filepath='/usr/include/bits/stat.h' line='154' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='960'>
-        <var-decl name='__glibc_reserved' type-id='type-id-150' visibility='default' filepath='/usr/include/bits/stat.h' line='164' column='1'/>
+        <var-decl name='__glibc_reserved' type-id='type-id-145' visibility='default' filepath='/usr/include/bits/stat.h' line='164' column='1'/>
       </data-member>
     </class-decl>
-    <typedef-decl name='__dev_t' type-id='type-id-3' filepath='/usr/include/bits/types.h' line='143' column='1' id='type-id-142'/>
-    <typedef-decl name='__ino64_t' type-id='type-id-3' filepath='/usr/include/bits/types.h' line='147' column='1' id='type-id-143'/>
-    <typedef-decl name='__nlink_t' type-id='type-id-3' filepath='/usr/include/bits/types.h' line='149' column='1' id='type-id-144'/>
-    <typedef-decl name='__uid_t' type-id='type-id-5' filepath='/usr/include/bits/types.h' line='144' column='1' id='type-id-145'/>
-    <typedef-decl name='__gid_t' type-id='type-id-5' filepath='/usr/include/bits/types.h' line='145' column='1' id='type-id-146'/>
-    <typedef-decl name='__blksize_t' type-id='type-id-28' filepath='/usr/include/bits/types.h' line='172' column='1' id='type-id-147'/>
-    <typedef-decl name='__blkcnt64_t' type-id='type-id-28' filepath='/usr/include/bits/types.h' line='178' column='1' id='type-id-148'/>
-    <class-decl name='timespec' size-in-bits='128' is-struct='yes' visibility='default' filepath='/usr/include/bits/types/struct_timespec.h' line='9' column='1' id='type-id-149'>
+    <typedef-decl name='__dev_t' type-id='type-id-3' filepath='/usr/include/bits/types.h' line='143' column='1' id='type-id-137'/>
+    <typedef-decl name='__ino64_t' type-id='type-id-3' filepath='/usr/include/bits/types.h' line='147' column='1' id='type-id-138'/>
+    <typedef-decl name='__nlink_t' type-id='type-id-3' filepath='/usr/include/bits/types.h' line='149' column='1' id='type-id-139'/>
+    <typedef-decl name='__uid_t' type-id='type-id-5' filepath='/usr/include/bits/types.h' line='144' column='1' id='type-id-140'/>
+    <typedef-decl name='__gid_t' type-id='type-id-5' filepath='/usr/include/bits/types.h' line='145' column='1' id='type-id-141'/>
+    <typedef-decl name='__blksize_t' type-id='type-id-28' filepath='/usr/include/bits/types.h' line='172' column='1' id='type-id-142'/>
+    <typedef-decl name='__blkcnt64_t' type-id='type-id-28' filepath='/usr/include/bits/types.h' line='178' column='1' id='type-id-143'/>
+    <class-decl name='timespec' size-in-bits='128' is-struct='yes' visibility='default' filepath='/usr/include/bits/types/struct_timespec.h' line='9' column='1' id='type-id-144'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='tv_sec' type-id='type-id-151' visibility='default' filepath='/usr/include/bits/types/struct_timespec.h' line='11' column='1'/>
+        <var-decl name='tv_sec' type-id='type-id-146' visibility='default' filepath='/usr/include/bits/types/struct_timespec.h' line='11' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='tv_nsec' type-id='type-id-152' visibility='default' filepath='/usr/include/bits/types/struct_timespec.h' line='12' column='1'/>
+        <var-decl name='tv_nsec' type-id='type-id-147' visibility='default' filepath='/usr/include/bits/types/struct_timespec.h' line='12' column='1'/>
       </data-member>
     </class-decl>
-    <typedef-decl name='__time_t' type-id='type-id-28' filepath='/usr/include/bits/types.h' line='158' column='1' id='type-id-151'/>
-    <typedef-decl name='__syscall_slong_t' type-id='type-id-28' filepath='/usr/include/bits/types.h' line='194' column='1' id='type-id-152'/>
+    <typedef-decl name='__time_t' type-id='type-id-28' filepath='/usr/include/bits/types.h' line='158' column='1' id='type-id-146'/>
+    <typedef-decl name='__syscall_slong_t' type-id='type-id-28' filepath='/usr/include/bits/types.h' line='194' column='1' id='type-id-147'/>
 
-    <array-type-def dimensions='1' type-id='type-id-152' size-in-bits='192' id='type-id-150'>
+    <array-type-def dimensions='1' type-id='type-id-147' size-in-bits='192' id='type-id-145'>
       <subrange length='3' type-id='type-id-3' id='type-id-61'/>
 
     </array-type-def>
-    <pointer-type-def type-id='type-id-141' size-in-bits='64' id='type-id-153'/>
+    <pointer-type-def type-id='type-id-136' size-in-bits='64' id='type-id-148'/>
     <function-decl name='getextmntent' mangled-name='getextmntent' filepath='os/linux/getmntany.c' line='106' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='getextmntent'>
       <parameter type-id='type-id-9' name='path' filepath='os/linux/getmntany.c' line='106' column='1'/>
-      <parameter type-id='type-id-140' name='entry' filepath='os/linux/getmntany.c' line='106' column='1'/>
-      <parameter type-id='type-id-153' name='statbuf' filepath='os/linux/getmntany.c' line='106' column='1'/>
+      <parameter type-id='type-id-135' name='entry' filepath='os/linux/getmntany.c' line='106' column='1'/>
+      <parameter type-id='type-id-148' name='statbuf' filepath='os/linux/getmntany.c' line='106' column='1'/>
       <return type-id='type-id-20'/>
     </function-decl>
 
-    <class-decl name='mnttab' size-in-bits='256' is-struct='yes' visibility='default' filepath='../../lib/libspl/include/os/linux/sys/mnttab.h' line='49' column='1' id='type-id-154'>
+    <class-decl name='mnttab' size-in-bits='256' is-struct='yes' visibility='default' filepath='../../lib/libspl/include/os/linux/sys/mnttab.h' line='49' column='1' id='type-id-149'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='mnt_special' type-id='type-id-7' visibility='default' filepath='../../lib/libspl/include/os/linux/sys/mnttab.h' line='50' column='1'/>
       </data-member>
@@ -1794,16 +1744,16 @@
         <var-decl name='mnt_mntopts' type-id='type-id-7' visibility='default' filepath='../../lib/libspl/include/os/linux/sys/mnttab.h' line='53' column='1'/>
       </data-member>
     </class-decl>
-    <pointer-type-def type-id='type-id-154' size-in-bits='64' id='type-id-155'/>
+    <pointer-type-def type-id='type-id-149' size-in-bits='64' id='type-id-150'/>
     <function-decl name='getmntany' mangled-name='getmntany' filepath='os/linux/getmntany.c' line='51' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='getmntany'>
-      <parameter type-id='type-id-118' name='fp' filepath='os/linux/getmntany.c' line='51' column='1'/>
-      <parameter type-id='type-id-155' name='mgetp' filepath='os/linux/getmntany.c' line='51' column='1'/>
-      <parameter type-id='type-id-155' name='mrefp' filepath='os/linux/getmntany.c' line='51' column='1'/>
+      <parameter type-id='type-id-112' name='fp' filepath='os/linux/getmntany.c' line='51' column='1'/>
+      <parameter type-id='type-id-150' name='mgetp' filepath='os/linux/getmntany.c' line='51' column='1'/>
+      <parameter type-id='type-id-150' name='mrefp' filepath='os/linux/getmntany.c' line='51' column='1'/>
       <return type-id='type-id-20'/>
     </function-decl>
     <function-decl name='_sol_getmntent' mangled-name='_sol_getmntent' filepath='os/linux/getmntany.c' line='64' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='_sol_getmntent'>
-      <parameter type-id='type-id-118' name='fp' filepath='os/linux/getmntany.c' line='64' column='1'/>
-      <parameter type-id='type-id-155' name='mgetp' filepath='os/linux/getmntany.c' line='64' column='1'/>
+      <parameter type-id='type-id-112' name='fp' filepath='os/linux/getmntany.c' line='64' column='1'/>
+      <parameter type-id='type-id-150' name='mgetp' filepath='os/linux/getmntany.c' line='64' column='1'/>
       <return type-id='type-id-20'/>
     </function-decl>
     <function-decl name='__xstat64' mangled-name='__xstat64' filepath='/usr/include/x86_64-linux-gnu/sys/stat.h' line='430' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -1829,9 +1779,9 @@
     </function-decl>
   </abi-instr>
   <abi-instr version='1.0' address-size='64' path='os/linux/zone.c' comp-dir-path='/home/fedora/zfs/lib/libspl' language='LANG_C99'>
-    <typedef-decl name='zoneid_t' type-id='type-id-20' filepath='../../lib/libspl/include/sys/types.h' line='47' column='1' id='type-id-156'/>
+    <typedef-decl name='zoneid_t' type-id='type-id-20' filepath='../../lib/libspl/include/sys/types.h' line='47' column='1' id='type-id-151'/>
     <function-decl name='getzoneid' mangled-name='getzoneid' filepath='os/linux/zone.c' line='29' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='getzoneid'>
-      <return type-id='type-id-156'/>
+      <return type-id='type-id-151'/>
     </function-decl>
   </abi-instr>
   <abi-instr version='1.0' address-size='64' path='assert.c' comp-dir-path='/home/fedora/zfs/lib/libspl' language='LANG_C99'>

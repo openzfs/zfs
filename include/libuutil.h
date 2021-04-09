@@ -99,28 +99,6 @@ extern int *uu_exit_fatal(void);
 extern int *uu_exit_usage(void);
 
 /*
- * Debug print facility functions.
- */
-typedef struct uu_dprintf uu_dprintf_t;
-
-typedef enum {
-	UU_DPRINTF_SILENT,
-	UU_DPRINTF_FATAL,
-	UU_DPRINTF_WARNING,
-	UU_DPRINTF_NOTICE,
-	UU_DPRINTF_INFO,
-	UU_DPRINTF_DEBUG
-} uu_dprintf_severity_t;
-
-extern uu_dprintf_t *uu_dprintf_create(const char *, uu_dprintf_severity_t,
-    uint_t);
-/*PRINTFLIKE3*/
-extern void uu_dprintf(uu_dprintf_t *, uu_dprintf_severity_t,
-    const char *, ...);
-extern void uu_dprintf_destroy(uu_dprintf_t *);
-extern const char *uu_dprintf_getname(uu_dprintf_t *);
-
-/*
  * Identifier test flags and function.
  */
 #define	UU_NAME_DOMAIN		0x1	/* allow SUNW, or com.sun, prefix */

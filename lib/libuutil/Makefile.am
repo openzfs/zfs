@@ -7,7 +7,6 @@ include $(top_srcdir)/config/Abigail.am
 USER_C = \
 	uu_alloc.c \
 	uu_avl.c \
-	uu_dprintf.c \
 	uu_ident.c \
 	uu_list.c \
 	uu_misc.c \
