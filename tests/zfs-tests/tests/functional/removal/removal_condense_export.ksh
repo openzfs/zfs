@@ -24,6 +24,7 @@
 function reset
 {
 	log_must set_tunable64 CONDENSE_INDIRECT_COMMIT_ENTRY_DELAY_MS 0
+	log_must set_tunable64 CONDENSE_INDIRECT_OBSOLETE_PCT 25
 	log_must set_tunable64 CONDENSE_MIN_MAPPING_BYTES 131072
 	default_cleanup_noexit
 }
@@ -31,6 +32,7 @@ function reset
 default_setup_noexit "$DISKS" "true"
 log_onexit reset
 log_must set_tunable64 CONDENSE_INDIRECT_COMMIT_ENTRY_DELAY_MS 5000
+log_must set_tunable64 CONDENSE_INDIRECT_OBSOLETE_PCT 5
 log_must set_tunable64 CONDENSE_MIN_MAPPING_BYTES 1
 
 log_must zfs set recordsize=512 $TESTPOOL/$TESTFS
