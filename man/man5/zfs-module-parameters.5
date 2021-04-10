@@ -1448,6 +1448,19 @@ Default value: \fB0\fR (no throttle).
 .sp
 .ne 2
 .na
+\fBzfs_condense_indirect_obsolete_pct\fR (int)
+.ad
+.RS 12n
+Minimum percent of obsolete bytes in vdev mapping required to attempt to
+condense (see \fBzfs_condense_indirect_vdevs_enable\fR). Intended for use
+with the test suite to facilitate triggering condensing as needed.
+.sp
+Default value: \fB25\fR%.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_condense_indirect_vdevs_enable\fR (int)
 .ad
 .RS 12n
@@ -1887,6 +1900,28 @@ as a percentage of \fBzfs_dirty_data_max\fR.  This should be less than
 \fBzfs_vdev_async_write_active_min_dirty_percent\fR.
 .sp
 Default value: \fB20\fR% of \fBzfs_dirty_data_max\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_wrlog_data_max\fR (ulong)
+.ad
+.RS 12n
+The upper limit of write-transaction zil log data size in bytes. Once it is reached, write operation is blocked, until log data is cleared out after transaction group sync. It should be set larger than \fBzfs_dirty_data_max\fR to prevent harming write throughput. It also should be smaller than the size of the slog device if slog is present.
+.sp
+Default value: \fB120\fR% of \fBzfs_dirty_data_max\fR in bytes.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_wrlog_data_sync_percent\fR (int)
+.ad
+.RS 12n
+The least write-transaction zil log data (as a percentage of \fBzfs_wrlog_data_max\fR) to trigger a transaction group sync. The calculated size in bytes should be greater than \fBzfs_dirty_data_max\fR * \fBzfs_dirty_data_sync_percent\fR, to prevent harming write throughput.
+.sp
+Default value: \fB30\fR% of \fBzfs_wrlog_data_max\fR.
 .RE
 
 .sp
@@ -2894,6 +2929,19 @@ The number of bytes which should be prefetched during a pool traversal
 (eg: \fBzfs send\fR or other data crawling operations)
 .sp
 Default value: \fB52,428,800\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_traverse_indirect_prefetch_limit\fR (int)
+.ad
+.RS 12n
+The number of blocks pointed by indirect (non-L0) block, which should be
+prefetched during a pool traversal (eg: \fBzfs send\fR or other data
+crawling operations)
+.sp
+Default value: \fB32\fR.
 .RE
 
 .sp

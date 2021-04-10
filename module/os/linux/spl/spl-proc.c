@@ -53,73 +53,19 @@ static struct proc_dir_entry *proc_spl_taskq_all = NULL;
 static struct proc_dir_entry *proc_spl_taskq = NULL;
 struct proc_dir_entry *proc_spl_kstat = NULL;
 
-static int
-proc_copyin_string(char *kbuffer, int kbuffer_size, const char *ubuffer,
-    int ubuffer_size)
-{
-	int size;
-
-	if (ubuffer_size > kbuffer_size)
-		return (-EOVERFLOW);
-
-	if (copy_from_user((void *)kbuffer, (void *)ubuffer, ubuffer_size))
-		return (-EFAULT);
-
-	/* strip trailing whitespace */
-	size = strnlen(kbuffer, ubuffer_size);
-	while (size-- >= 0)
-		if (!isspace(kbuffer[size]))
-			break;
-
-	/* empty string */
-	if (size < 0)
-		return (-EINVAL);
-
-	/* no space to terminate */
-	if (size == kbuffer_size)
-		return (-EOVERFLOW);
-
-	kbuffer[size + 1] = 0;
-	return (0);
-}
-
-static int
-proc_copyout_string(char *ubuffer, int ubuffer_size, const char *kbuffer,
-    char *append)
-{
-	/*
-	 * NB if 'append' != NULL, it's a single character to append to the
-	 * copied out string - usually "\n", for /proc entries and
-	 * (i.e. a terminating zero byte) for sysctl entries
-	 */
-	int size = MIN(strlen(kbuffer), ubuffer_size);
-
-	if (copy_to_user(ubuffer, kbuffer, size))
-		return (-EFAULT);
-
-	if (append != NULL && size < ubuffer_size) {
-		if (copy_to_user(ubuffer + size, append, 1))
-			return (-EFAULT);
-
-		size++;
-	}
-
-	return (size);
-}
-
 #ifdef DEBUG_KMEM
 static int
 proc_domemused(struct ctl_table *table, int write,
     void __user *buffer, size_t *lenp, loff_t *ppos)
 {
 	int rc = 0;
-	unsigned long min = 0, max = ~0, val;
+	unsigned long val;
 	spl_ctl_table dummy = *table;
 
 	dummy.data = &val;
 	dummy.proc_handler = &proc_dointvec;
-	dummy.extra1 = &min;
-	dummy.extra2 = &max;
+	dummy.extra1 = &table_min;
+	dummy.extra2 = &table_max;
 
 	if (write) {
 		*ppos += *lenp;
@@ -141,14 +87,14 @@ proc_doslab(struct ctl_table *table, int write,
     void __user *buffer, size_t *lenp, loff_t *ppos)
 {
 	int rc = 0;
-	unsigned long min = 0, max = ~0, val = 0, mask;
+	unsigned long val = 0, mask;
 	spl_ctl_table dummy = *table;
 	spl_kmem_cache_t *skc = NULL;
 
 	dummy.data = &val;
 	dummy.proc_handler = &proc_dointvec;
-	dummy.extra1 = &min;
-	dummy.extra2 = &max;
+	dummy.extra1 = &table_min;
+	dummy.extra2 = &table_max;
 
 	if (write) {
 		*ppos += *lenp;
@@ -187,39 +133,34 @@ static int
 proc_dohostid(struct ctl_table *table, int write,
     void __user *buffer, size_t *lenp, loff_t *ppos)
 {
-	int len, rc = 0;
 	char *end, str[32];
+	unsigned long hid;
+	spl_ctl_table dummy = *table;
+
+	dummy.data = str;
+	dummy.maxlen = sizeof (str) - 1;
+
+	if (!write)
+		snprintf(str, sizeof (str), "%lx",
+		    (unsigned long) zone_get_hostid(NULL));
+
+	/* always returns 0 */
+	proc_dostring(&dummy, write, buffer, lenp, ppos);
 
 	if (write) {
 		/*
 		 * We can't use proc_doulongvec_minmax() in the write
-		 * case here because hostid while a hex value has no
-		 * leading 0x which confuses the helper function.
+		 * case here because hostid, while a hex value, has no
+		 * leading 0x, which confuses the helper function.
 		 */
-		rc = proc_copyin_string(str, sizeof (str), buffer, *lenp);
-		if (rc < 0)
-			return (rc);
 
-		spl_hostid = simple_strtoul(str, &end, 16);
+		hid = simple_strtoul(str, &end, 16);
 		if (str == end)
 			return (-EINVAL);
-
-	} else {
-		len = snprintf(str, sizeof (str), "%lx",
-		    (unsigned long) zone_get_hostid(NULL));
-		if (*ppos >= len)
-			rc = 0;
-		else
-			rc = proc_copyout_string(buffer,
-			    *lenp, str + *ppos, "\n");
-
-		if (rc >= 0) {
-			*lenp = rc;
-			*ppos += rc;
-		}
+		spl_hostid = hid;
 	}
 
-	return (rc);
+	return (0);
 }
 
 static void

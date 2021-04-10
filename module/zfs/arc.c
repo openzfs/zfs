@@ -7706,6 +7706,11 @@ arc_init(void)
 		zfs_dirty_data_max = MIN(zfs_dirty_data_max,
 		    zfs_dirty_data_max_max);
 	}
+
+	if (zfs_wrlog_data_max == 0) {
+		/* default to 120% of zfs_dirty_data_max */
+		zfs_wrlog_data_max = zfs_dirty_data_max * 120 / 100;
+	}
 }
 
 void
