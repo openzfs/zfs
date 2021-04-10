@@ -19,22 +19,41 @@
  *
  * CDDL HEADER END
  */
+/*
+ * Copyright 2007 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
+ */
 
-#include <stdint.h>
+
 #include <limits.h>
-#include <sys/param.h>
-#include <sys/sysctl.h>
-#include <sys/types.h>
-#include "../../libspl_impl.h"
+#include <pthread.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include "libspl_impl.h"
 
-__attribute__((visibility("hidden"))) ssize_t
-getexecname_impl(char *execname)
+
+const char *
+getexecname(void)
 {
-	size_t len = PATH_MAX;
-	int name[4] = {CTL_KERN, KERN_PROC, KERN_PROC_PATHNAME, -1};
+	static char execname[PATH_MAX + 1] = "";
+	static pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
 
-	if (sysctl(name, nitems(name), execname, &len, NULL, 0) != 0)
-		return (-1);
+	char *ptr = execname;
+	ssize_t rc;
 
-	return (len);
+	(void) pthread_mutex_lock(&mtx);
+
+	if (strlen(execname) == 0) {
+		rc = getexecname_impl(execname);
+		if (rc == -1) {
+			execname[0] = '\0';
+			ptr = NULL;
+		} else {
+			execname[rc] = '\0';
+		}
+	}
+
+	(void) pthread_mutex_unlock(&mtx);
+	return (ptr);
 }
