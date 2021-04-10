@@ -1383,10 +1383,6 @@ zvol_set_snapdev_impl(char *name, uint64_t snapdev)
 	spl_fstrans_unmark(cookie);
 }
 
-typedef struct zvol_volmode_cb_arg {
-	uint64_t volmode;
-} zvol_volmode_cb_arg_t;
-
 static void
 zvol_set_volmode_impl(char *name, uint64_t volmode)
 {
