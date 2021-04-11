@@ -143,47 +143,11 @@ translate_opts(const char *shareopts)
 	return (newopts);
 }
 
-static char *
-nfs_init_tmpfile(void)
-{
-	char *tmpfile = NULL;
-
-	if (asprintf(&tmpfile, "%s%s", ZFS_EXPORTS_FILE, ".XXXXXXXX") == -1) {
-		fprintf(stderr, "Unable to allocate buffer for temporary "
-		    "file name\n");
-		return (NULL);
-	}
-
-	int fd = mkstemp(tmpfile);
-	if (fd == -1) {
-		fprintf(stderr, "Unable to create temporary file: %s",
-		    strerror(errno));
-		free(tmpfile);
-		return (NULL);
-	}
-	close(fd);
-	return (tmpfile);
-}
-
-static int
-nfs_fini_tmpfile(char *tmpfile)
-{
-	if (rename(tmpfile, ZFS_EXPORTS_FILE) == -1) {
-		fprintf(stderr, "Unable to rename %s: %s\n", tmpfile,
-		    strerror(errno));
-		unlink(tmpfile);
-		free(tmpfile);
-		return (SA_SYSTEM_ERR);
-	}
-	free(tmpfile);
-	return (SA_OK);
-}
-
 /*
  * This function copies all entries from the exports file to "filename",
  * omitting any entries for the specified mountpoint.
  */
-static int
+__attribute__((visibility("hidden"))) int
 nfs_copy_entries(char *filename, const char *mountpoint)
 {
 	int error = SA_OK;
@@ -234,7 +198,7 @@ nfs_enable_share(sa_share_impl_t impl_share)
 	char *filename = NULL;
 	int error;
 
-	if ((filename = nfs_init_tmpfile()) == NULL)
+	if ((filename = nfs_init_tmpfile(ZFS_EXPORTS_FILE, NULL)) == NULL)
 		return (SA_SYSTEM_ERR);
 
 	error = nfs_exports_lock(ZFS_EXPORTS_LOCK);
@@ -283,7 +247,7 @@ nfs_enable_share(sa_share_impl_t impl_share)
 		nfs_exports_unlock(ZFS_EXPORTS_LOCK);
 		return (SA_SYSTEM_ERR);
 	}
-	error = nfs_fini_tmpfile(filename);
+	error = nfs_fini_tmpfile(ZFS_EXPORTS_FILE, filename);
 	nfs_exports_unlock(ZFS_EXPORTS_LOCK);
 	return (error);
 }
@@ -291,30 +255,8 @@ nfs_enable_share(sa_share_impl_t impl_share)
 static int
 nfs_disable_share(sa_share_impl_t impl_share)
 {
-	int error;
-	char *filename = NULL;
-
-	if ((filename = nfs_init_tmpfile()) == NULL)
-		return (SA_SYSTEM_ERR);
-
-	error = nfs_exports_lock(ZFS_EXPORTS_LOCK);
-	if (error != 0) {
-		unlink(filename);
-		free(filename);
-		return (error);
-	}
-
-	error = nfs_copy_entries(filename, impl_share->sa_mountpoint);
-	if (error != SA_OK) {
-		unlink(filename);
-		free(filename);
-		nfs_exports_unlock(ZFS_EXPORTS_LOCK);
-		return (error);
-	}
-
-	error = nfs_fini_tmpfile(filename);
-	nfs_exports_unlock(ZFS_EXPORTS_LOCK);
-	return (error);
+	return (nfs_disable_share_impl(
+	    ZFS_EXPORTS_LOCK, ZFS_EXPORTS_FILE, NULL, impl_share));
 }
 
 /*
