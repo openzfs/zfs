@@ -65,17 +65,22 @@ static int nfs_lock_fd = -1;
 static int
 nfs_exports_lock(void)
 {
+	int err;
+
 	nfs_lock_fd = open(ZFS_EXPORTS_LOCK,
 	    O_RDWR | O_CREAT, 0600);
 	if (nfs_lock_fd == -1) {
+		err = errno;
 		fprintf(stderr, "failed to lock %s: %s\n",
-		    ZFS_EXPORTS_LOCK, strerror(errno));
-		return (errno);
+		    ZFS_EXPORTS_LOCK, strerror(err));
+		return (err);
 	}
 	if (flock(nfs_lock_fd, LOCK_EX) != 0) {
+		err = errno;
 		fprintf(stderr, "failed to lock %s: %s\n",
-		    ZFS_EXPORTS_LOCK, strerror(errno));
-		return (errno);
+		    ZFS_EXPORTS_LOCK, strerror(err));
+		(void) close(nfs_lock_fd);
+		return (err);
 	}
 	return (0);
 }
