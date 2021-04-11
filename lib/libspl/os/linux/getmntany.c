@@ -128,9 +128,9 @@ getextmntent(const char *path, struct extmnttab *entry, struct stat64 *statbuf)
 
 
 #ifdef HAVE_SETMNTENT
-	if ((fp = setmntent(MNTTAB, "r")) == NULL) {
+	if ((fp = setmntent(MNTTAB, "re")) == NULL) {
 #else
-	if ((fp = fopen(MNTTAB, "r")) == NULL) {
+	if ((fp = fopen(MNTTAB, "re")) == NULL) {
 #endif
 		(void) fprintf(stderr, "cannot open %s\n", MNTTAB);
 		return (-1);

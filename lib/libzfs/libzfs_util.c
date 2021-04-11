@@ -884,13 +884,13 @@ libzfs_run_process_impl(const char *path, char *argv[], char *env[], int flags,
 	 * Setup a pipe between our child and parent process if we're
 	 * reading stdout.
 	 */
-	if ((lines != NULL) && pipe(link) == -1)
+	if ((lines != NULL) && pipe2(link, O_CLOEXEC) == -1)
 		return (-EPIPE);
 
 	pid = vfork();
 	if (pid == 0) {
 		/* Child process */
-		devnull_fd = open("/dev/null", O_WRONLY);
+		devnull_fd = open("/dev/null", O_WRONLY | O_CLOEXEC);
 
 		if (devnull_fd < 0)
 			_exit(-1);
@@ -900,14 +900,10 @@ libzfs_run_process_impl(const char *path, char *argv[], char *env[], int flags,
 		else if (lines != NULL) {
 			/* Save the output to lines[] */
 			dup2(link[1], STDOUT_FILENO);
-			close(link[0]);
-			close(link[1]);
 		}
 
 		if (!(flags & STDERR_VERBOSE))
 			(void) dup2(devnull_fd, STDERR_FILENO);
-
-		close(devnull_fd);
 
 		if (flags & NO_DEFAULT_PATH) {
 			if (env == NULL)
@@ -1024,15 +1020,15 @@ libzfs_init(void)
 		return (NULL);
 	}
 
-	if ((hdl->libzfs_fd = open(ZFS_DEV, O_RDWR|O_EXCL)) < 0) {
+	if ((hdl->libzfs_fd = open(ZFS_DEV, O_RDWR|O_EXCL|O_CLOEXEC)) < 0) {
 		free(hdl);
 		return (NULL);
 	}
 
 #ifdef HAVE_SETMNTENT
-	if ((hdl->libzfs_mnttab = setmntent(MNTTAB, "r")) == NULL) {
+	if ((hdl->libzfs_mnttab = setmntent(MNTTAB, "re")) == NULL) {
 #else
-	if ((hdl->libzfs_mnttab = fopen(MNTTAB, "r")) == NULL) {
+	if ((hdl->libzfs_mnttab = fopen(MNTTAB, "re")) == NULL) {
 #endif
 		(void) close(hdl->libzfs_fd);
 		free(hdl);
@@ -1144,7 +1140,7 @@ zfs_path_to_zhandle(libzfs_handle_t *hdl, const char *path, zfs_type_t argtype)
 	}
 
 	/* Reopen MNTTAB to prevent reading stale data from open file */
-	if (freopen(MNTTAB, "r", hdl->libzfs_mnttab) == NULL)
+	if (freopen(MNTTAB, "re", hdl->libzfs_mnttab) == NULL)
 		return (NULL);
 
 	if (getextmntent(path, &entry, &statbuf) != 0)

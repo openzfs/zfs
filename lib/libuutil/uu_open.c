@@ -36,12 +36,6 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#ifdef _LP64
-#define	TMPPATHFMT	"%s/uu%ld"
-#else /* _LP64 */
-#define	TMPPATHFMT	"%s/uu%lld"
-#endif /* _LP64 */
-
 /*ARGSUSED*/
 int
 uu_open_tmp(const char *dir, uint_t uflags)
@@ -55,7 +49,7 @@ uu_open_tmp(const char *dir, uint_t uflags)
 	for (;;) {
 		(void) snprintf(fname, PATH_MAX, "%s/uu%lld", dir, gethrtime());
 
-		f = open(fname, O_CREAT | O_EXCL | O_RDWR, 0600);
+		f = open(fname, O_CREAT | O_EXCL | O_RDWR | O_CLOEXEC, 0600);
 
 		if (f >= 0 || errno != EEXIST)
 			break;

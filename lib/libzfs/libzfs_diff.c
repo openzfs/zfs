@@ -697,7 +697,7 @@ setup_differ_info(zfs_handle_t *zhp, const char *fromsnap,
 {
 	di->zhp = zhp;
 
-	di->cleanupfd = open(ZFS_DEV, O_RDWR);
+	di->cleanupfd = open(ZFS_DEV, O_RDWR | O_CLOEXEC);
 	VERIFY(di->cleanupfd >= 0);
 
 	if (get_snapshot_names(di, fromsnap, tosnap) != 0)
@@ -731,7 +731,7 @@ zfs_show_diffs(zfs_handle_t *zhp, int outfd, const char *fromsnap,
 		return (-1);
 	}
 
-	if (pipe(pipefd)) {
+	if (pipe2(pipefd, O_CLOEXEC)) {
 		zfs_error_aux(zhp->zfs_hdl, strerror(errno));
 		teardown_differ_info(&di);
 		return (zfs_error(zhp->zfs_hdl, EZFS_PIPEFAILED, errbuf));

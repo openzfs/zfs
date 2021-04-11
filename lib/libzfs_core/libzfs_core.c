@@ -137,7 +137,7 @@ libzfs_core_init(void)
 {
 	(void) pthread_mutex_lock(&g_lock);
 	if (g_refcount == 0) {
-		g_fd = open(ZFS_DEV, O_RDWR);
+		g_fd = open(ZFS_DEV, O_RDWR|O_CLOEXEC);
 		if (g_fd < 0) {
 			(void) pthread_mutex_unlock(&g_lock);
 			return (errno);

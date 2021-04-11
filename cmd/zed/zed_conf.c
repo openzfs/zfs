@@ -32,41 +32,26 @@
 #include "zed_strings.h"
 
 /*
- * Return a new configuration with default values.
+ * Initialise the configuration with default values.
  */
-struct zed_conf *
-zed_conf_create(void)
+void
+zed_conf_init(struct zed_conf *zcp)
 {
-	struct zed_conf *zcp;
+	memset(zcp, 0, sizeof (*zcp));
 
-	zcp = calloc(1, sizeof (*zcp));
-	if (!zcp)
-		goto nomem;
+	/* zcp->zfs_hdl opened in zed_event_init() */
+	/* zcp->zedlets created in zed_conf_scan_dir() */
 
-	zcp->syslog_facility = LOG_DAEMON;
-	zcp->min_events = ZED_MIN_EVENTS;
-	zcp->max_events = ZED_MAX_EVENTS;
-	zcp->pid_fd = -1;
-	zcp->zedlets = NULL;		/* created via zed_conf_scan_dir() */
-	zcp->state_fd = -1;		/* opened via zed_conf_open_state() */
-	zcp->zfs_hdl = NULL;		/* opened via zed_event_init() */
-	zcp->zevent_fd = -1;		/* opened via zed_event_init() */
+	zcp->pid_fd = -1;		/* opened in zed_conf_write_pid() */
+	zcp->state_fd = -1;		/* opened in zed_conf_open_state() */
+	zcp->zevent_fd = -1;		/* opened in zed_event_init() */
+
 	zcp->max_jobs = 16;
 
-	if (!(zcp->pid_file = strdup(ZED_PID_FILE)))
-		goto nomem;
-
-	if (!(zcp->zedlet_dir = strdup(ZED_ZEDLET_DIR)))
-		goto nomem;
-
-	if (!(zcp->state_file = strdup(ZED_STATE_FILE)))
-		goto nomem;
-
-	return (zcp);
-
-nomem:
-	zed_log_die("Failed to create conf: %s", strerror(errno));
-	return (NULL);
+	if (!(zcp->pid_file = strdup(ZED_PID_FILE)) ||
+	    !(zcp->zedlet_dir = strdup(ZED_ZEDLET_DIR)) ||
+	    !(zcp->state_file = strdup(ZED_STATE_FILE)))
+		zed_log_die("Failed to create conf: %s", strerror(errno));
 }
 
 /*
@@ -77,9 +62,6 @@ nomem:
 void
 zed_conf_destroy(struct zed_conf *zcp)
 {
-	if (!zcp)
-		return;
-
 	if (zcp->state_fd >= 0) {
 		if (close(zcp->state_fd) < 0)
 			zed_log_msg(LOG_WARNING,
@@ -116,7 +98,6 @@ zed_conf_destroy(struct zed_conf *zcp)
 		zed_strings_destroy(zcp->zedlets);
 		zcp->zedlets = NULL;
 	}
-	free(zcp);
 }
 
 /*
@@ -126,44 +107,52 @@ zed_conf_destroy(struct zed_conf *zcp)
  * otherwise, output to stderr and exit with a failure status.
  */
 static void
-_zed_conf_display_help(const char *prog, int got_err)
+_zed_conf_display_help(const char *prog, boolean_t got_err)
 {
+	struct opt { const char *o, *d, *v; };
+
 	FILE *fp = got_err ? stderr : stdout;
-	int w1 = 4;			/* width of leading whitespace */
-	int w2 = 8;			/* width of L-justified option field */
+
+	struct opt *oo;
+	struct opt iopts[] = {
+		{ .o = "-h", .d = "Display help" },
+		{ .o = "-L", .d = "Display license information" },
+		{ .o = "-V", .d = "Display version information" },
+		{},
+	};
+	struct opt nopts[] = {
+		{ .o = "-v", .d = "Be verbose" },
+		{ .o = "-f", .d = "Force daemon to run" },
+		{ .o = "-F", .d = "Run daemon in the foreground" },
+		{ .o = "-I",
+		    .d = "Idle daemon until kernel module is (re)loaded" },
+		{ .o = "-M", .d = "Lock all pages in memory" },
+		{ .o = "-P", .d = "$PATH for ZED to use (only used by ZTS)" },
+		{ .o = "-Z", .d = "Zero state file" },
+		{},
+	};
+	struct opt vopts[] = {
+		{ .o = "-d DIR", .d = "Read enabled ZEDLETs from DIR.",
+		    .v = ZED_ZEDLET_DIR },
+		{ .o = "-p FILE", .d = "Write daemon's PID to FILE.",
+		    .v = ZED_PID_FILE },
+		{ .o = "-s FILE", .d = "Write daemon's state to FILE.",
+		    .v = ZED_STATE_FILE },
+		{ .o = "-j JOBS", .d = "Start at most JOBS at once.",
+		    .v = "16" },
+		{},
+	};
 
 	fprintf(fp, "Usage: %s [OPTION]...\n", (prog ? prog : "zed"));
 	fprintf(fp, "\n");
-	fprintf(fp, "%*c%*s %s\n", w1, 0x20, -w2, "-h",
-	    "Display help.");
-	fprintf(fp, "%*c%*s %s\n", w1, 0x20, -w2, "-L",
-	    "Display license information.");
-	fprintf(fp, "%*c%*s %s\n", w1, 0x20, -w2, "-V",
-	    "Display version information.");
+	for (oo = iopts; oo->o; ++oo)
+		fprintf(fp, "    %*s %s\n", -8, oo->o, oo->d);
 	fprintf(fp, "\n");
-	fprintf(fp, "%*c%*s %s\n", w1, 0x20, -w2, "-v",
-	    "Be verbose.");
-	fprintf(fp, "%*c%*s %s\n", w1, 0x20, -w2, "-f",
-	    "Force daemon to run.");
-	fprintf(fp, "%*c%*s %s\n", w1, 0x20, -w2, "-F",
-	    "Run daemon in the foreground.");
-	fprintf(fp, "%*c%*s %s\n", w1, 0x20, -w2, "-I",
-	    "Idle daemon until kernel module is (re)loaded.");
-	fprintf(fp, "%*c%*s %s\n", w1, 0x20, -w2, "-M",
-	    "Lock all pages in memory.");
-	fprintf(fp, "%*c%*s %s\n", w1, 0x20, -w2, "-P",
-	    "$PATH for ZED to use (only used by ZTS).");
-	fprintf(fp, "%*c%*s %s\n", w1, 0x20, -w2, "-Z",
-	    "Zero state file.");
+	for (oo = nopts; oo->o; ++oo)
+		fprintf(fp, "    %*s %s\n", -8, oo->o, oo->d);
 	fprintf(fp, "\n");
-	fprintf(fp, "%*c%*s %s [%s]\n", w1, 0x20, -w2, "-d DIR",
-	    "Read enabled ZEDLETs from DIR.", ZED_ZEDLET_DIR);
-	fprintf(fp, "%*c%*s %s [%s]\n", w1, 0x20, -w2, "-p FILE",
-	    "Write daemon's PID to FILE.", ZED_PID_FILE);
-	fprintf(fp, "%*c%*s %s [%s]\n", w1, 0x20, -w2, "-s FILE",
-	    "Write daemon's state to FILE.", ZED_STATE_FILE);
-	fprintf(fp, "%*c%*s %s [%d]\n", w1, 0x20, -w2, "-j JOBS",
-	    "Start at most JOBS at once.", 16);
+	for (oo = vopts; oo->o; ++oo)
+		fprintf(fp, "    %*s %s [%s]\n", -8, oo->o, oo->d, oo->v);
 	fprintf(fp, "\n");
 
 	exit(got_err ? EXIT_FAILURE : EXIT_SUCCESS);
@@ -175,20 +164,14 @@ _zed_conf_display_help(const char *prog, int got_err)
 static void
 _zed_conf_display_license(void)
 {
-	const char **pp;
-	const char *text[] = {
-	    "The ZFS Event Daemon (ZED) is distributed under the terms of the",
-	    "  Common Development and Distribution License (CDDL-1.0)",
-	    "  <http://opensource.org/licenses/CDDL-1.0>.",
-	    "",
+	printf(
+	    "The ZFS Event Daemon (ZED) is distributed under the terms of the\n"
+	    "  Common Development and Distribution License (CDDL-1.0)\n"
+	    "  <http://opensource.org/licenses/CDDL-1.0>.\n"
+	    "\n"
 	    "Developed at Lawrence Livermore National Laboratory"
-	    " (LLNL-CODE-403049).",
-	    "",
-	    NULL
-	};
-
-	for (pp = text; *pp; pp++)
-		printf("%s\n", *pp);
+	    " (LLNL-CODE-403049).\n"
+	    "\n");
 
 	exit(EXIT_SUCCESS);
 }
@@ -223,16 +206,19 @@ _zed_conf_parse_path(char **resultp, const char *path)
 
 	if (path[0] == '/') {
 		*resultp = strdup(path);
-	} else if (!getcwd(buf, sizeof (buf))) {
-		zed_log_die("Failed to get current working dir: %s",
-		    strerror(errno));
-	} else if (strlcat(buf, "/", sizeof (buf)) >= sizeof (buf)) {
-		zed_log_die("Failed to copy path: %s", strerror(ENAMETOOLONG));
-	} else if (strlcat(buf, path, sizeof (buf)) >= sizeof (buf)) {
-		zed_log_die("Failed to copy path: %s", strerror(ENAMETOOLONG));
 	} else {
+		if (!getcwd(buf, sizeof (buf)))
+			zed_log_die("Failed to get current working dir: %s",
+			    strerror(errno));
+
+		if (strlcat(buf, "/", sizeof (buf)) >= sizeof (buf) ||
+		    strlcat(buf, path, sizeof (buf)) >= sizeof (buf))
+			zed_log_die("Failed to copy path: %s",
+			    strerror(ENAMETOOLONG));
+
 		*resultp = strdup(buf);
 	}
+
 	if (!*resultp)
 		zed_log_die("Failed to copy path: %s", strerror(ENOMEM));
 }
@@ -255,7 +241,7 @@ zed_conf_parse_opts(struct zed_conf *zcp, int argc, char **argv)
 	while ((opt = getopt(argc, argv, opts)) != -1) {
 		switch (opt) {
 		case 'h':
-			_zed_conf_display_help(argv[0], EXIT_SUCCESS);
+			_zed_conf_display_help(argv[0], B_FALSE);
 			break;
 		case 'L':
 			_zed_conf_display_license();
@@ -307,11 +293,11 @@ zed_conf_parse_opts(struct zed_conf *zcp, int argc, char **argv)
 		case '?':
 		default:
 			if (optopt == '?')
-				_zed_conf_display_help(argv[0], EXIT_SUCCESS);
+				_zed_conf_display_help(argv[0], B_FALSE);
 
-			fprintf(stderr, "%s: %s '-%c'\n\n", argv[0],
-			    "Invalid option", optopt);
-			_zed_conf_display_help(argv[0], EXIT_FAILURE);
+			fprintf(stderr, "%s: Invalid option '-%c'\n\n",
+			    argv[0], optopt);
+			_zed_conf_display_help(argv[0], B_TRUE);
 			break;
 		}
 	}
