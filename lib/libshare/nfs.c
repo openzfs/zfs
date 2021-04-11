@@ -22,8 +22,11 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/file.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <errno.h>
+#include <libshare.h>
 #include "nfs.h"
 
 
@@ -70,4 +73,78 @@ nfs_exports_unlock(const char *name)
 
 	(void) close(nfs_lock_fd);
 	nfs_lock_fd = -1;
+}
+
+__attribute__((visibility("hidden"))) char *
+nfs_init_tmpfile(const char *prefix, const char *mdir)
+{
+	char *tmpfile = NULL;
+	struct stat sb;
+
+	if (mdir != NULL &&
+	    stat(mdir, &sb) < 0 &&
+	    mkdir(mdir, 0755) < 0) {
+		fprintf(stderr, "failed to create %s: %s\n",
+		    mdir, strerror(errno));
+		return (NULL);
+	}
+
+	if (asprintf(&tmpfile, "%s.XXXXXXXX", prefix) == -1) {
+		fprintf(stderr, "Unable to allocate temporary file\n");
+		return (NULL);
+	}
+
+	int fd = mkostemp(tmpfile, O_CLOEXEC);
+	if (fd == -1) {
+		fprintf(stderr, "Unable to create temporary file: %s",
+		    strerror(errno));
+		free(tmpfile);
+		return (NULL);
+	}
+	close(fd);
+	return (tmpfile);
+}
+
+__attribute__((visibility("hidden"))) int
+nfs_fini_tmpfile(const char *exports, char *tmpfile)
+{
+	if (rename(tmpfile, exports) == -1) {
+		fprintf(stderr, "Unable to rename %s: %s\n", tmpfile,
+		    strerror(errno));
+		unlink(tmpfile);
+		free(tmpfile);
+		return (SA_SYSTEM_ERR);
+	}
+	free(tmpfile);
+	return (SA_OK);
+}
+
+__attribute__((visibility("hidden"))) int
+nfs_disable_share_impl(const char *lockfile, const char *exports,
+    const char *expdir, sa_share_impl_t impl_share)
+{
+	int error;
+	char *filename;
+
+	if ((filename = nfs_init_tmpfile(exports, expdir)) == NULL)
+		return (SA_SYSTEM_ERR);
+
+	error = nfs_exports_lock(lockfile);
+	if (error != 0) {
+		unlink(filename);
+		free(filename);
+		return (error);
+	}
+
+	error = nfs_copy_entries(filename, impl_share->sa_mountpoint);
+	if (error != SA_OK) {
+		unlink(filename);
+		free(filename);
+		nfs_exports_unlock(lockfile);
+		return (error);
+	}
+
+	error = nfs_fini_tmpfile(exports, filename);
+	nfs_exports_unlock(lockfile);
+	return (error);
 }
