@@ -59,13 +59,13 @@ proc_domemused(struct ctl_table *table, int write,
     void __user *buffer, size_t *lenp, loff_t *ppos)
 {
 	int rc = 0;
-	unsigned long min = 0, max = ~0, val;
+	unsigned long val;
 	spl_ctl_table dummy = *table;
 
 	dummy.data = &val;
 	dummy.proc_handler = &proc_dointvec;
-	dummy.extra1 = &min;
-	dummy.extra2 = &max;
+	dummy.extra1 = &table_min;
+	dummy.extra2 = &table_max;
 
 	if (write) {
 		*ppos += *lenp;
@@ -87,14 +87,14 @@ proc_doslab(struct ctl_table *table, int write,
     void __user *buffer, size_t *lenp, loff_t *ppos)
 {
 	int rc = 0;
-	unsigned long min = 0, max = ~0, val = 0, mask;
+	unsigned long val = 0, mask;
 	spl_ctl_table dummy = *table;
 	spl_kmem_cache_t *skc = NULL;
 
 	dummy.data = &val;
 	dummy.proc_handler = &proc_dointvec;
-	dummy.extra1 = &min;
-	dummy.extra2 = &max;
+	dummy.extra1 = &table_min;
+	dummy.extra2 = &table_max;
 
 	if (write) {
 		*ppos += *lenp;
