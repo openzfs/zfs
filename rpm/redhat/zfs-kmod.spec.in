@@ -18,6 +18,7 @@ BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 %(/bin/echo -e "\
 Requires:       @PACKAGE@ = %{version}\n\
 Conflicts:      @PACKAGE@-dkms\n\
+Obsoletes:      kmod-spl\n\
 Obsoletes:      spl-kmod\n\n" > %{_sourcedir}/kmod-preamble)
 
 # LDFLAGS are not sanitized by arch/*/Makefile for these architectures.

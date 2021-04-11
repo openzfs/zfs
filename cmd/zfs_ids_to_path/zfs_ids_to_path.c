@@ -35,7 +35,7 @@ libzfs_handle_t *g_zfs;
 static void
 usage(int err)
 {
-	fprintf(stderr, "Usage: [-v] zfs_ids_to_path <pool> <objset id> "
+	fprintf(stderr, "Usage: zfs_ids_to_path [-v] <pool> <objset id> "
 	    "<object id>\n");
 	exit(err);
 }
@@ -63,11 +63,11 @@ main(int argc, char **argv)
 
 	uint64_t objset, object;
 	if (sscanf(argv[1], "%llu", (u_longlong_t *)&objset) != 1) {
-		(void) fprintf(stderr, "Invalid objset id: %s\n", argv[2]);
+		(void) fprintf(stderr, "Invalid objset id: %s\n", argv[1]);
 		usage(2);
 	}
 	if (sscanf(argv[2], "%llu", (u_longlong_t *)&object) != 1) {
-		(void) fprintf(stderr, "Invalid object id: %s\n", argv[3]);
+		(void) fprintf(stderr, "Invalid object id: %s\n", argv[2]);
 		usage(3);
 	}
 	if ((g_zfs = libzfs_init()) == NULL) {
@@ -76,7 +76,7 @@ main(int argc, char **argv)
 	}
 	zpool_handle_t *pool = zpool_open(g_zfs, argv[0]);
 	if (pool == NULL) {
-		fprintf(stderr, "Could not open pool %s\n", argv[1]);
+		fprintf(stderr, "Could not open pool %s\n", argv[0]);
 		libzfs_fini(g_zfs);
 		return (5);
 	}

@@ -666,6 +666,9 @@ typedef struct sendflags {
 	/* recursive send  (ie, -R) */
 	boolean_t replicate;
 
+	/* for recursive send, skip sending missing snapshots */
+	boolean_t skipmissing;
+
 	/* for incrementals, do all intermediate snapshots */
 	boolean_t doall;
 
