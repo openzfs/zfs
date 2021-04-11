@@ -39,12 +39,12 @@
 .Sh SYNOPSIS
 .Nm zfs
 .Cm send
-.Op Fl DLPRbcehnpvw
+.Op Fl DLPRsbcehnpvw
 .Op Oo Fl I Ns | Ns Fl i Oc Ar snapshot
 .Ar snapshot
 .Nm zfs
 .Cm send
-.Op Fl DLPRcenpvw
+.Op Fl DLPRscenpvw
 .Op Fl i Ar snapshot Ns | Ns Ar bookmark
 .Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot
 .Nm zfs
@@ -139,6 +139,12 @@ do not exist on the sending side are destroyed. If the
 flag is used to send encrypted datasets, then
 .Fl w
 must also be specified.
+.It Fl s, -skip-missing
+Allows sending a replication stream even when there are snapshots missing in the
+hierarchy. When a snapshot is missing, instead of throwing an error and aborting
+the send, a warning is printed to STDERR and the dataset to which it belongs
+and its descendents are skipped. This flag can only be used in conjunction with
+.Fl R .
 .It Fl e, -embed
 Generate a more compact stream by using
 .Sy WRITE_EMBEDDED

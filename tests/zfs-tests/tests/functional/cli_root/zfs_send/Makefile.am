@@ -13,7 +13,8 @@ dist_pkgdata_SCRIPTS = \
 	zfs_send_encrypted_unloaded.ksh \
 	zfs_send_raw.ksh \
 	zfs_send_sparse.ksh \
-	zfs_send-b.ksh
+	zfs_send-b.ksh \
+	zfs_send_skip_missing.ksh
 
 dist_pkgdata_DATA = \
 	zfs_send.cfg
