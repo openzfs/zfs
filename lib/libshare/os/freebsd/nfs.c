@@ -361,14 +361,10 @@ nfs_disable_share(sa_share_impl_t impl_share)
 	return (error);
 }
 
-/*
- * NOTE: This function returns a static buffer and thus is not thread-safe.
- */
 static boolean_t
 nfs_is_shared(sa_share_impl_t impl_share)
 {
-	static char line[MAXLINESIZE];
-	char *s, last;
+	char *s, last, line[MAXLINESIZE];
 	size_t len;
 	char *mntpoint = impl_share->sa_mountpoint;
 	size_t mntlen = strlen(mntpoint);
