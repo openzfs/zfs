@@ -4586,26 +4586,6 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		(void) fflush(stdout);
 	}
 
-	if (flags->dryrun) {
-		void *buf = zfs_alloc(hdl, SPA_MAXBLOCKSIZE);
-
-		/*
-		 * We have read the DRR_BEGIN record, but we have
-		 * not yet read the payload. For non-dryrun sends
-		 * this will be done by the kernel, so we must
-		 * emulate that here, before attempting to read
-		 * more records.
-		 */
-		err = recv_read(hdl, infd, buf, drr->drr_payloadlen,
-		    flags->byteswap, NULL);
-		free(buf);
-		if (err != 0)
-			goto out;
-
-		err = recv_skip(hdl, infd, flags->byteswap);
-		goto out;
-	}
-
 	/*
 	 * If this is the top-level dataset, record it so we can use it
 	 * for recursive operations later.
@@ -4648,6 +4628,26 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			oxprops = fnvlist_alloc();
 		fnvlist_add_uint64(oxprops,
 		    zfs_prop_to_name(ZFS_PROP_ENCRYPTION), ZIO_CRYPT_OFF);
+	}
+
+	if (flags->dryrun) {
+		void *buf = zfs_alloc(hdl, SPA_MAXBLOCKSIZE);
+
+		/*
+		 * We have read the DRR_BEGIN record, but we have
+		 * not yet read the payload. For non-dryrun sends
+		 * this will be done by the kernel, so we must
+		 * emulate that here, before attempting to read
+		 * more records.
+		 */
+		err = recv_read(hdl, infd, buf, drr->drr_payloadlen,
+		    flags->byteswap, NULL);
+		free(buf);
+		if (err != 0)
+			goto out;
+
+		err = recv_skip(hdl, infd, flags->byteswap);
+		goto out;
 	}
 
 	err = ioctl_err = lzc_receive_with_cmdprops(destsnap, rcvprops,
