@@ -4,7 +4,8 @@ dist_pkgdata_SCRIPTS = \
 	cleanup.ksh \
 	events_001_pos.ksh \
 	events_002_pos.ksh \
-	zed_rc_filter.ksh
+	zed_rc_filter.ksh \
+	zed_fd_spill.ksh
 
 dist_pkgdata_DATA = \
 	events.cfg \
