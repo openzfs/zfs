@@ -2756,7 +2756,9 @@ zfs_setattr(znode_t *zp, vattr_t *vap, int flags, cred_t *cr)
 		err = zfs_acl_chown_setattr(zp);
 		ASSERT(err == 0);
 		if (attrzp) {
+			vn_seqc_write_begin(ZTOV(attrzp));
 			err = zfs_acl_chown_setattr(attrzp);
+			vn_seqc_write_end(ZTOV(attrzp));
 			ASSERT(err == 0);
 		}
 	}
