@@ -444,6 +444,9 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	zp->z_blksz = blksz;
 	zp->z_seq = 0x7A4653;
 	zp->z_sync_cnt = 0;
+#if __FreeBSD_version >= 1300139
+	atomic_store_ptr(&zp->z_cached_symlink, NULL);
+#endif
 
 	vp = ZTOV(zp);
 
@@ -1237,6 +1240,9 @@ void
 zfs_znode_free(znode_t *zp)
 {
 	zfsvfs_t *zfsvfs = zp->z_zfsvfs;
+#if __FreeBSD_version >= 1300139
+	char *symlink;
+#endif
 
 	ASSERT(zp->z_sa_hdl == NULL);
 	zp->z_vnode = NULL;
@@ -1245,6 +1251,15 @@ zfs_znode_free(znode_t *zp)
 	list_remove(&zfsvfs->z_all_znodes, zp);
 	zfsvfs->z_nr_znodes--;
 	mutex_exit(&zfsvfs->z_znodes_lock);
+
+#if __FreeBSD_version >= 1300139
+	symlink = atomic_load_ptr(&zp->z_cached_symlink);
+	if (symlink != NULL) {
+		atomic_store_rel_ptr((uintptr_t *)&zp->z_cached_symlink,
+		    (uintptr_t)NULL);
+		cache_symlink_free(symlink, strlen(symlink) + 1);
+	}
+#endif
 
 	if (zp->z_acl_cached) {
 		zfs_acl_free(zp->z_acl_cached);
