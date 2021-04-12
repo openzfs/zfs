@@ -27,7 +27,6 @@
 #include <unistd.h>
 #include <pthread.h>
 #include "zed_exec.h"
-#include "zed_file.h"
 #include "zed_log.h"
 #include "zed_strings.h"
 
@@ -116,7 +115,7 @@ _zed_exec_create_env(zed_strings_t *zsp)
  */
 static void
 _zed_exec_fork_child(uint64_t eid, const char *dir, const char *prog,
-    char *env[], int zfd)
+    char *env[], int zfd, boolean_t in_foreground)
 {
 	char path[PATH_MAX];
 	int n;
@@ -154,13 +153,13 @@ _zed_exec_fork_child(uint64_t eid, const char *dir, const char *prog,
 		(void) sigprocmask(SIG_SETMASK, &mask, NULL);
 
 		(void) umask(022);
-		if ((fd = open("/dev/null", O_RDWR)) != -1) {
+		if (in_foreground && /* we're already devnulled if daemonised */
+		    (fd = open("/dev/null", O_RDWR | O_CLOEXEC)) != -1) {
 			(void) dup2(fd, STDIN_FILENO);
 			(void) dup2(fd, STDOUT_FILENO);
 			(void) dup2(fd, STDERR_FILENO);
 		}
 		(void) dup2(zfd, ZEVENT_FILENO);
-		zed_file_close_from(ZEVENT_FILENO + 1);
 		execle(path, prog, NULL, env);
 		_exit(127);
 	}
@@ -359,7 +358,7 @@ zed_exec_process(uint64_t eid, const char *class, const char *subclass,
 			n = strlen(*csp);
 			if ((strncmp(z, *csp, n) == 0) && !isalpha(z[n]))
 				_zed_exec_fork_child(eid, zcp->zedlet_dir,
-				    z, e, zcp->zevent_fd);
+				    z, e, zcp->zevent_fd, zcp->do_foreground);
 		}
 	}
 	free(e);

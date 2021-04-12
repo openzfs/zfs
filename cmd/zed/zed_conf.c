@@ -425,8 +425,6 @@ zed_conf_scan_dir(struct zed_conf *zcp)
 int
 zed_conf_write_pid(struct zed_conf *zcp)
 {
-	const mode_t dirmode = S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH;
-	const mode_t filemode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
 	char buf[PATH_MAX];
 	int n;
 	char *p;
@@ -454,7 +452,7 @@ zed_conf_write_pid(struct zed_conf *zcp)
 	if (p)
 		*p = '\0';
 
-	if ((mkdirp(buf, dirmode) < 0) && (errno != EEXIST)) {
+	if ((mkdirp(buf, 0755) < 0) && (errno != EEXIST)) {
 		zed_log_msg(LOG_ERR, "Failed to create directory \"%s\": %s",
 		    buf, strerror(errno));
 		goto err;
@@ -464,7 +462,7 @@ zed_conf_write_pid(struct zed_conf *zcp)
 	 */
 	mask = umask(0);
 	umask(mask | 022);
-	zcp->pid_fd = open(zcp->pid_file, (O_RDWR | O_CREAT), filemode);
+	zcp->pid_fd = open(zcp->pid_file, O_RDWR | O_CREAT | O_CLOEXEC, 0644);
 	umask(mask);
 	if (zcp->pid_fd < 0) {
 		zed_log_msg(LOG_ERR, "Failed to open PID file \"%s\": %s",
@@ -529,7 +527,6 @@ int
 zed_conf_open_state(struct zed_conf *zcp)
 {
 	char dirbuf[PATH_MAX];
-	mode_t dirmode = S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH;
 	int n;
 	char *p;
 	int rv;
@@ -551,7 +548,7 @@ zed_conf_open_state(struct zed_conf *zcp)
 	if (p)
 		*p = '\0';
 
-	if ((mkdirp(dirbuf, dirmode) < 0) && (errno != EEXIST)) {
+	if ((mkdirp(dirbuf, 0755) < 0) && (errno != EEXIST)) {
 		zed_log_msg(LOG_WARNING,
 		    "Failed to create directory \"%s\": %s",
 		    dirbuf, strerror(errno));
@@ -569,7 +566,7 @@ zed_conf_open_state(struct zed_conf *zcp)
 		(void) unlink(zcp->state_file);
 
 	zcp->state_fd = open(zcp->state_file,
-	    (O_RDWR | O_CREAT), (S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH));
+	    O_RDWR | O_CREAT | O_CLOEXEC, 0644);
 	if (zcp->state_fd < 0) {
 		zed_log_msg(LOG_WARNING, "Failed to open state file \"%s\": %s",
 		    zcp->state_file, strerror(errno));

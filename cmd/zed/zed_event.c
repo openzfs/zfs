@@ -54,7 +54,7 @@ zed_event_init(struct zed_conf *zcp)
 		zed_log_die("Failed to initialize libzfs");
 	}
 
-	zcp->zevent_fd = open(ZFS_DEV, O_RDWR);
+	zcp->zevent_fd = open(ZFS_DEV, O_RDWR | O_CLOEXEC);
 	if (zcp->zevent_fd < 0) {
 		if (zcp->do_idle)
 			return (-1);
