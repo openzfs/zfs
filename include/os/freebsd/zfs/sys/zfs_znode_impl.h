@@ -54,6 +54,7 @@ extern "C" {
 #define	ZNODE_OS_FIELDS                 \
 	struct zfsvfs	*z_zfsvfs;      \
 	vnode_t		*z_vnode;       \
+	char		*z_cached_symlink;	\
 	uint64_t		z_uid;          \
 	uint64_t		z_gid;          \
 	uint64_t		z_gen;          \
