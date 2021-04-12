@@ -50,11 +50,11 @@ function cleanup
 		[[ -f $file ]] && rm -f $file
 	done
 
-	log_must rm -f $TMP_EVENTS_ZED $TMP_EVENTS_ZED
+	log_must rm -f $TMP_EVENTS_ZED
 	log_must zed_stop
 }
 
-log_assert "Verify ZED handles missed events on when starting"
+log_assert "Verify ZED handles missed events when starting"
 log_onexit cleanup
 
 log_must truncate -s $MINVDEVSIZE $VDEV1 $VDEV2
