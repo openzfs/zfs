@@ -166,12 +166,27 @@ enabled when using \fBzpool upgrade\fR. \fBzpool status\fR
 will not show a warning about disabled features which are not part
 of the requested feature set.
 .LP
+The special value \fBlegacy\fR prevents any features from being enabled,
+either via \fBzpool upgrade\fR or via \fBzpool set feature@XX=enabled\fR.
+This setting also prevents pools from being upgraded to newer on-disk
+versions. This is a safety measure to prevent new features from being
+accidentally enabled, breaking compatibility.
+.LP
 By convention, compatibility files in \fB/usr/share/zfs/compatibility.d\fR
 are provided by the distribution package, and include feature sets
 supported by important versions of popular distributions, and feature
 sets commonly supported at the start of each year.  Compatibility files
 in \fB/etc/zfs/compatibility.d\fR, if present, will take precedence over
 files with the same name in \fB/usr/share/zfs/compatibility.d\fR.
+.LP
+If an unrecognized feature is found in these files, an error message will
+be shown. If the unrecognized feature is in a file in
+\fB/etc/zfs/compatibility.d\fR, this is treated as an error and processing
+will stop. If the unrecognized feature is under
+\fB/usr/share/zfs/compatibility.d\fR, this is treated as a warning and
+processing will continue. This difference is to allow distributions to
+include features which might not be recognized by the currently-installed
+binaries.
 .LP
 Compatibility files may include comments; any text from \fB#\fR to the end
 of the line is ignored.
