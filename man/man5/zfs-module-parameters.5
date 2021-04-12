@@ -1448,6 +1448,19 @@ Default value: \fB0\fR (no throttle).
 .sp
 .ne 2
 .na
+\fBzfs_condense_indirect_obsolete_pct\fR (int)
+.ad
+.RS 12n
+Minimum percent of obsolete bytes in vdev mapping required to attempt to
+condense (see \fBzfs_condense_indirect_vdevs_enable\fR). Intended for use
+with the test suite to facilitate triggering condensing as needed.
+.sp
+Default value: \fB25\fR%.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_condense_indirect_vdevs_enable\fR (int)
 .ad
 .RS 12n
