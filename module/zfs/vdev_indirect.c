@@ -181,7 +181,7 @@ int zfs_condense_indirect_vdevs_enable = B_TRUE;
  * condenses.  Higher values will condense less often (causing less
  * i/o); lower values will reduce the mapping size more quickly.
  */
-int zfs_indirect_condense_obsolete_pct = 25;
+int zfs_condense_indirect_obsolete_pct = 25;
 
 /*
  * Condense if the obsolete space map takes up more than this amount of
@@ -446,7 +446,7 @@ vdev_indirect_should_condense(vdev_t *vd)
 	 * by the mapping.
 	 */
 	if (bytes_obsolete * 100 / bytes_mapped >=
-	    zfs_indirect_condense_obsolete_pct &&
+	    zfs_condense_indirect_obsolete_pct &&
 	    mapping_size > zfs_condense_min_mapping_bytes) {
 		zfs_dbgmsg("should condense vdev %llu because obsolete "
 		    "spacemap covers %d%% of %lluMB mapping",
@@ -1885,6 +1885,9 @@ EXPORT_SYMBOL(vdev_obsolete_sm_object);
 /* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs_condense, zfs_condense_, indirect_vdevs_enable, INT, ZMOD_RW,
 	"Whether to attempt condensing indirect vdev mappings");
+
+ZFS_MODULE_PARAM(zfs_condense, zfs_condense_, indirect_obsolete_pct, INT, ZMOD_RW,
+	"Minimum obsolete percent of bytes in the mapping to attempt condensing");
 
 ZFS_MODULE_PARAM(zfs_condense, zfs_condense_, min_mapping_bytes, ULONG, ZMOD_RW,
 	"Don't bother condensing if the mapping uses less than this amount of "
