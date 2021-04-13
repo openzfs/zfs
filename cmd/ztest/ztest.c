@@ -514,6 +514,7 @@ typedef struct ztest_shared {
 	uint64_t	zs_space;
 	uint64_t	zs_splits;
 	uint64_t	zs_mirrors;
+	uint64_t	zs_raidzs_attached;
 	uint64_t	zs_metaslab_sz;
 	uint64_t	zs_metaslab_df_alloc_threshold;
 	uint64_t	zs_guid;
@@ -2976,6 +2977,8 @@ ztest_spa_upgrade(ztest_ds_t *zd, uint64_t id)
 {
 	spa_t *spa;
 	uint64_t initial_version = SPA_VERSION_INITIAL;
+	uint64_t raidz_children = ztest_opts.zo_raid_children +
+	    ztest_shared->zs_raidzs_attached;
 	uint64_t version, newversion;
 	nvlist_t *nvroot, *props;
 	char *name;
@@ -2996,7 +2999,7 @@ ztest_spa_upgrade(ztest_ds_t *zd, uint64_t id)
 	(void) spa_destroy(name);
 
 	nvroot = make_vdev_root(NULL, NULL, name, ztest_opts.zo_vdev_size, 0,
-	    NULL, ztest_opts.zo_raid_children, ztest_opts.zo_mirrors, 1);
+	    NULL, raidz_children, ztest_opts.zo_mirrors, 1);
 
 	/*
 	 * If we're configuring a RAIDZ device then make sure that the
@@ -3142,6 +3145,9 @@ ztest_vdev_add_remove(ztest_ds_t *zd, uint64_t id)
 	spa_t *spa = ztest_spa;
 	uint64_t leaves;
 	uint64_t guid;
+	uint64_t raidz_children = ztest_opts.zo_raid_children +
+	    ztest_shared->zs_raidzs_attached;
+
 	nvlist_t *nvroot;
 	int error;
 
@@ -3149,8 +3155,7 @@ ztest_vdev_add_remove(ztest_ds_t *zd, uint64_t id)
 		return;
 
 	mutex_enter(&ztest_vdev_lock);
-	leaves = MAX(zs->zs_mirrors + zs->zs_splits, 1) *
-	    ztest_opts.zo_raid_children;
+	leaves = MAX(zs->zs_mirrors + zs->zs_splits, 1) * raidz_children;
 
 	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
 
@@ -3204,7 +3209,7 @@ ztest_vdev_add_remove(ztest_ds_t *zd, uint64_t id)
 		 */
 		nvroot = make_vdev_root(NULL, NULL, NULL,
 		    ztest_opts.zo_vdev_size, 0, (ztest_random(4) == 0) ?
-		    "log" : NULL, ztest_opts.zo_raid_children, zs->zs_mirrors,
+		    "log" : NULL, raidz_children, zs->zs_mirrors,
 		    1);
 
 		error = spa_vdev_add(spa, nvroot);
@@ -3232,6 +3237,8 @@ ztest_vdev_class_add(ztest_ds_t *zd, uint64_t id)
 	spa_t *spa = ztest_spa;
 	uint64_t leaves;
 	nvlist_t *nvroot;
+	uint64_t raidz_children = ztest_opts.zo_raid_children +
+	    ztest_shared->zs_raidzs_attached;
 	const char *class = (ztest_random(2) == 0) ?
 	    VDEV_ALLOC_BIAS_SPECIAL : VDEV_ALLOC_BIAS_DEDUP;
 	int error;
@@ -3259,15 +3266,14 @@ ztest_vdev_class_add(ztest_ds_t *zd, uint64_t id)
 		return;
 	}
 
-	leaves = MAX(zs->zs_mirrors + zs->zs_splits, 1) *
-	    ztest_opts.zo_raid_children;
+	leaves = MAX(zs->zs_mirrors + zs->zs_splits, 1) * raidz_children;
 
 	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
 	ztest_shared->zs_vdev_next_leaf = spa_num_top_vdevs(spa) * leaves;
 	spa_config_exit(spa, SCL_VDEV, FTAG);
 
 	nvroot = make_vdev_root(NULL, NULL, NULL, ztest_opts.zo_vdev_size, 0,
-	    class, ztest_opts.zo_raid_children, zs->zs_mirrors, 1);
+	    class, raidz_children, zs->zs_mirrors, 1);
 
 	error = spa_vdev_add(spa, nvroot);
 	fnvlist_free(nvroot);
@@ -3526,6 +3532,8 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	uint64_t ashift = ztest_get_ashift();
 	uint64_t oldguid, pguid;
 	uint64_t oldsize, newsize;
+	uint64_t raidz_children = ztest_opts.zo_raid_children +
+	    ztest_shared->zs_raidzs_attached;
 	char *oldpath, *newpath;
 	int replacing;
 	int oldvd_has_siblings = B_FALSE;
@@ -3541,7 +3549,7 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	newpath = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
 
 	mutex_enter(&ztest_vdev_lock);
-	leaves = MAX(zs->zs_mirrors, 1) * ztest_opts.zo_raid_children;
+	leaves = MAX(zs->zs_mirrors, 1) * raidz_children;
 
 	spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
 
@@ -3580,7 +3588,7 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	if (zs->zs_mirrors >= 1) {
 		ASSERT3P(oldvd->vdev_ops, ==, &vdev_mirror_ops);
 		ASSERT3U(oldvd->vdev_children, >=, zs->zs_mirrors);
-		oldvd = oldvd->vdev_child[leaf / ztest_opts.zo_raid_children];
+		oldvd = oldvd->vdev_child[leaf / raidz_children];
 	}
 
 	/* pick a child out of the raidz group */
@@ -3589,7 +3597,7 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 			ASSERT3P(oldvd->vdev_ops, ==, &vdev_raidz_ops);
 		else
 			ASSERT3P(oldvd->vdev_ops, ==, &vdev_draid_ops);
-		oldvd = oldvd->vdev_child[leaf % ztest_opts.zo_raid_children];
+		oldvd = oldvd->vdev_child[leaf % raidz_children];
 	}
 
 	/*
@@ -3811,7 +3819,7 @@ ztest_vdev_raidz_attach(ztest_ds_t *zd, uint64_t id)
 	csize += csize / 10;
 
 	if (spa->spa_raidz_expand)
-		expected_error = EBUSY;
+		expected_error = ZFS_ERR_RAIDZ_EXPAND_IN_PROGRESS;
 
 	spa_config_exit(spa, SCL_ALL, FTAG);
 
@@ -3831,7 +3839,9 @@ ztest_vdev_raidz_attach(ztest_ds_t *zd, uint64_t id)
 
 	nvlist_free(root);
 
-	if (error != 0 && error != expected_error) {
+	if (error == 0) {
+		ztest_shared->zs_raidzs_attached++;
+	} else if (error != 0 && error != expected_error) {
 		fatal(0, "raidz attach (%s %llu) returned %d, expected %d",
 		    newpath, csize, error, expected_error);
 	}
@@ -6021,6 +6031,8 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 	uint64_t leaves;
 	uint64_t bad = 0x1990c0ffeedecadeull;
 	uint64_t top, leaf;
+	uint64_t raidz_children = ztest_opts.zo_raid_children +
+	    ztest_shared->zs_raidzs_attached;
 	char *path0;
 	char *pathrand;
 	size_t fsize;
@@ -6049,7 +6061,7 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 	}
 
 	maxfaults = MAXFAULTS(zs);
-	leaves = MAX(zs->zs_mirrors, 1) * ztest_opts.zo_raid_children;
+	leaves = MAX(zs->zs_mirrors, 1) * raidz_children;
 	mirror_save = zs->zs_mirrors;
 	mutex_exit(&ztest_vdev_lock);
 
