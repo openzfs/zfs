@@ -181,7 +181,11 @@ issig(int why)
 		return (1);
 
 	struct task_struct *task = current;
+#ifdef HAVE_SIGINFO
 	kernel_siginfo_t __info;
+#else
+	siginfo_t __info;
+#endif
 	sigset_t set;
 	siginitsetinv(&set, 1ULL << (SIGSTOP - 1) | 1ULL << (SIGTSTP - 1));
 	sigorsets(&set, &task->blocked, &set);
@@ -193,8 +197,14 @@ issig(int why)
 		spin_unlock_irq(&task->sighand->siglock);
 		kernel_signal_stop();
 #else
-		if (current->jobctl & JOBCTL_STOP_DEQUEUED)
+		if (current->jobctl & JOBCTL_STOP_DEQUEUED) {
+#ifdef HAVE_SET_SPECIAL_STATE
 			set_special_state(TASK_STOPPED);
+#else
+			__set_current_state(TASK_STOPPED);
+#endif
+		}
+		
 		spin_unlock_irq(&current->sighand->siglock);
 
 		schedule();
