@@ -935,9 +935,14 @@ mountroot()
 
 	# Go through the complete list (recursively) of all filesystems below
 	# the real root dataset
-	filesystems=$("${ZFS}" list -oname -tfilesystem -H -r "${ZFS_BOOTFS}")
-	for fs in $filesystems $ZFS_INITRD_ADDITIONAL_DATASETS
-	do
+	filesystems="$("${ZFS}" list -oname -tfilesystem -H -r "${ZFS_BOOTFS}")"
+	OLD_IFS="$IFS" ; IFS="
+"
+	for fs in $filesystems; do
+		IFS="$OLD_IFS" mount_fs "$fs"
+	done
+	IFS="$OLD_IFS"
+	for fs in $ZFS_INITRD_ADDITIONAL_DATASETS; do
 		mount_fs "$fs"
 	done
 
