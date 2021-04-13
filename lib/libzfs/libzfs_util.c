@@ -1025,19 +1025,8 @@ libzfs_init(void)
 		return (NULL);
 	}
 
-#ifdef HAVE_SETMNTENT
-	if ((hdl->libzfs_mnttab = setmntent(MNTTAB, "re")) == NULL) {
-#else
-	if ((hdl->libzfs_mnttab = fopen(MNTTAB, "re")) == NULL) {
-#endif
-		(void) close(hdl->libzfs_fd);
-		free(hdl);
-		return (NULL);
-	}
-
 	if (libzfs_core_init() != 0) {
 		(void) close(hdl->libzfs_fd);
-		(void) fclose(hdl->libzfs_mnttab);
 		free(hdl);
 		return (NULL);
 	}
@@ -1056,7 +1045,6 @@ libzfs_init(void)
 		    &hdl->libzfs_max_nvlist))) {
 			errno = error;
 			(void) close(hdl->libzfs_fd);
-			(void) fclose(hdl->libzfs_mnttab);
 			free(hdl);
 			return (NULL);
 		}
@@ -1087,12 +1075,6 @@ void
 libzfs_fini(libzfs_handle_t *hdl)
 {
 	(void) close(hdl->libzfs_fd);
-	if (hdl->libzfs_mnttab)
-#ifdef HAVE_SETMNTENT
-		(void) endmntent(hdl->libzfs_mnttab);
-#else
-		(void) fclose(hdl->libzfs_mnttab);
-#endif
 	zpool_free_handles(hdl);
 	namespace_clear(hdl);
 	libzfs_mnttab_fini(hdl);
@@ -1138,10 +1120,6 @@ zfs_path_to_zhandle(libzfs_handle_t *hdl, const char *path, zfs_type_t argtype)
 		 */
 		return (zfs_open(hdl, path, argtype));
 	}
-
-	/* Reopen MNTTAB to prevent reading stale data from open file */
-	if (freopen(MNTTAB, "re", hdl->libzfs_mnttab) == NULL)
-		return (NULL);
 
 	if (getextmntent(path, &entry, &statbuf) != 0)
 		return (NULL);
