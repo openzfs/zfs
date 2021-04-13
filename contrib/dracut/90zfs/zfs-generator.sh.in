@@ -1,6 +1,7 @@
 #!/bin/sh
 
-echo "zfs-generator: starting" >> /dev/kmsg
+grep -wq debug /proc/cmdline && debug=1
+[ -n "$debug" ] && echo "zfs-generator: starting" >> /dev/kmsg
 
 GENERATOR_DIR="$1"
 [ -n "$GENERATOR_DIR" ] || {
@@ -12,7 +13,7 @@ GENERATOR_DIR="$1"
 [ -f /usr/lib/dracut/modules.d/99base/dracut-lib.sh ] && dracutlib=/usr/lib/dracut/modules.d/99base/dracut-lib.sh
 
 command -v getarg >/dev/null 2>&1 || {
-    echo "zfs-generator: loading Dracut library from $dracutlib" >> /dev/kmsg
+    [ -n "$debug" ] && echo "zfs-generator: loading Dracut library from $dracutlib" >> /dev/kmsg
     . "$dracutlib"
 }
 
@@ -34,7 +35,7 @@ case ",${rootflags}," in
 	*)	rootflags="zfsutil,${rootflags}" ;;
 esac
 
-echo "zfs-generator: writing extension for sysroot.mount to $GENERATOR_DIR"/sysroot.mount.d/zfs-enhancement.conf >> /dev/kmsg
+[ -n "$debug" ] && echo "zfs-generator: writing extension for sysroot.mount to $GENERATOR_DIR/sysroot.mount.d/zfs-enhancement.conf" >> /dev/kmsg
 
 [ -d "$GENERATOR_DIR" ] || mkdir "$GENERATOR_DIR"
 [ -d "$GENERATOR_DIR"/sysroot.mount.d ] || mkdir "$GENERATOR_DIR"/sysroot.mount.d
@@ -67,4 +68,6 @@ ln -s ../sysroot.mount "$GENERATOR_DIR"/initrd-root-fs.target.requires/sysroot.m
     echo "After=zfs-import.target"
 } > "$GENERATOR_DIR"/dracut-pre-mount.service.d/zfs-enhancement.conf
 
-echo "zfs-generator: finished" >> /dev/kmsg
+[ -n "$debug" ] && echo "zfs-generator: finished" >> /dev/kmsg
+
+exit 0
