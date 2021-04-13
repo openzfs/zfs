@@ -6021,7 +6021,7 @@ print_one_column(zpool_prop_t prop, uint64_t value, const char *str,
 		break;
 	case ZPOOL_PROP_HEALTH:
 		width = 8;
-		snprintf(propval, sizeof (propval), "%-*s", (int)width, str);
+		(void) strlcpy(propval, str, sizeof (propval));
 		break;
 	default:
 		zfs_nicenum_format(value, propval, sizeof (propval), format);
