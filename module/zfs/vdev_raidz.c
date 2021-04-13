@@ -2179,8 +2179,12 @@ vdev_raidz_shadow_child_done(zio_t *zio)
 static void
 vdev_raidz_io_verify(zio_t *zio, raidz_map_t *rm, raidz_row_t *rr, int col)
 {
-// XXX vdev_xlate doesn't work right when block straddles the expansion progress
+	/*
+	 * XXX vdev_xlate doesn't work right when block
+	 * straddles the expansion progress
+	 */
 #if 0
+
 //#ifdef ZFS_DEBUG
 	vdev_t *tvd = vd->vdev_top;
 
@@ -3648,7 +3652,8 @@ raidz_reflow_write_done(zio_t *zio)
 	vre->vre_outstanding_bytes -= zio->io_size;
 	if (rra->rra_lr->lr_offset + rra->rra_lr->lr_length <
 	    vre->vre_failed_offset) {
-		vre->vre_bytes_copied_pertxg[rra->rra_txg & TXG_MASK] += zio->io_size;
+		vre->vre_bytes_copied_pertxg[rra->rra_txg & TXG_MASK] +=
+		    zio->io_size;
 	}
 	cv_signal(&vre->vre_cv);
 	mutex_exit(&vre->vre_lock);
@@ -4543,6 +4548,7 @@ vdev_raidz_init(spa_t *spa, nvlist_t *nv, void **tsd)
 		 * set to the label config vdev.  we just overwrite it here.
 		 * should find a cleaner way to do this.
 		 */
+
 		//ASSERT3P(spa->spa_raidz_expand, ==, NULL);
 		spa->spa_raidz_expand = &vdrz->vn_vre;
 		vdrz->vn_vre.vre_state = DSS_SCANNING;
@@ -4683,8 +4689,8 @@ vdev_ops_t vdev_raidz_ops = {
 };
 
 ZFS_MODULE_PARAM(zfs_vdev, raidz_, expand_max_offset_pause, ULONG, ZMOD_RW,
-    "For testing, pause RAIDZ expansion at this offset");
+	"For testing, pause RAIDZ expansion at this offset");
 ZFS_MODULE_PARAM(zfs_vdev, raidz_, expand_max_copy_bytes, ULONG, ZMOD_RW,
-    "Max amount of concurrent i/o for RAIDZ expansion");
+	"Max amount of concurrent i/o for RAIDZ expansion");
 ZFS_MODULE_PARAM(zfs_vdev, raidz_, io_aggregate_rows, ULONG, ZMOD_RW,
-    "Apply raidz map abds aggregation if the map contain more rows than value");
+	"Apply raidz map abds aggregation if the map contain more rows than value");
