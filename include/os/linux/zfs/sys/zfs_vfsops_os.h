@@ -171,7 +171,8 @@ struct zfsvfs {
 #define	ZFS_TEARDOWN_HELD(zfsvfs)		\
 	RRM_LOCK_HELD(&(zfsvfs)->z_teardown_lock)
 
-#define	ZSB_XATTR	0x0001		/* Enable user xattrs */
+#define	ZSB_XATTR		0x0001	/* Enable user xattrs */
+#define	ZSB_XATTR_COMPAT	0x0002	/* Enable cross-platform user xattrs */
 
 /*
  * Allow a maximum number of links.  While ZFS does not internally limit

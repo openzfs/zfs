@@ -1024,6 +1024,27 @@ files.
 .sp
 .ne 2
 .na
+\fBxattr_compat\fR
+.ad
+.RS 4n
+.TS
+l l .
+GUID	com.ixsystems:xattr_compat
+READ\-ONLY COMPATIBLE	yes
+DEPENDENCIES	extensible_dataset
+.TE
+
+This feature enables the use of a cross-platform compatible encoding for xattrs
+in the user namespace on Linux.
+
+This feature becomes \fBactive\fR on a filesystem when an xattr is written to
+the user namespace on Linux after the feature has been enabled, and returns to
+\fBenabled\fR after all filesystems with the feature active have been destroyed.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzpool_checkpoint\fR
 .ad
 .RS 4n

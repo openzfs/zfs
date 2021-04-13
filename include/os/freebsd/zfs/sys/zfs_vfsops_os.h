@@ -240,7 +240,9 @@ struct zfsvfs {
 	RW_WRITE_HELD(&(zfsvfs)->z_teardown_inactive_lock)
 #endif
 
-#define	ZSB_XATTR	0x0001		/* Enable user xattrs */
+#define	ZSB_XATTR		0x0001	/* Enable user xattrs */
+#define	ZSB_XATTR_COMPAT	0x0002	/* Enable cross-platform user xattrs */
+
 /*
  * Normal filesystems (those not under .zfs/snapshot) have a total
  * file ID size limited to 12 bytes (including the length field) due to

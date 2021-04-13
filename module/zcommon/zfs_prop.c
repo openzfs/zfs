@@ -357,6 +357,12 @@ zfs_prop_init(void)
 		{ NULL }
 	};
 
+	static zprop_index_t xattr_compat_table[] = {
+		{ "linux",	ZFS_XATTR_COMPAT_LINUX },
+		{ "all",	ZFS_XATTR_COMPAT_ALL },
+		{ NULL }
+	};
+
 	static zprop_index_t dnsize_table[] = {
 		{ "legacy",	ZFS_DNSIZE_LEGACY },
 		{ "auto",	ZFS_DNSIZE_AUTO },
@@ -459,6 +465,10 @@ zfs_prop_init(void)
 	zprop_register_index(ZFS_PROP_XATTR, "xattr", ZFS_XATTR_DIR,
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT,
 	    "on | off | dir | sa", "XATTR", xattr_table);
+	zprop_register_index(ZFS_PROP_XATTR_COMPAT, "xattr_compat",
+	    ZFS_XATTR_COMPAT_ALL, PROP_INHERIT,
+	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT,
+	    "all | linux", "XATTR_COMPAT", xattr_compat_table);
 	zprop_register_index(ZFS_PROP_DNODESIZE, "dnodesize",
 	    ZFS_DNSIZE_LEGACY, PROP_INHERIT, ZFS_TYPE_FILESYSTEM,
 	    "legacy | auto | 1k | 2k | 4k | 8k | 16k", "DNSIZE", dnsize_table);
