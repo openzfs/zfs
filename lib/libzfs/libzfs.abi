@@ -573,47 +573,47 @@
     </enum-decl>
     <typedef-decl name='boolean_t' type-id='type-id-13' filepath='../../lib/libspl/include/sys/stdtypes.h' line='29' column='1' id='type-id-5'/>
     <type-decl name='int' size-in-bits='32' id='type-id-6'/>
-    <typedef-decl name='prop_changelist_t' type-id='type-id-1' filepath='../../include/libzfs_impl.h' line='173' column='1' id='type-id-14'/>
+    <typedef-decl name='prop_changelist_t' type-id='type-id-1' filepath='../../include/libzfs_impl.h' line='171' column='1' id='type-id-14'/>
     <pointer-type-def type-id='type-id-14' size-in-bits='64' id='type-id-15'/>
-    <class-decl name='zfs_handle' size-in-bits='4928' is-struct='yes' visibility='default' filepath='../../include/libzfs_impl.h' line='76' column='1' id='type-id-16'>
+    <class-decl name='zfs_handle' size-in-bits='4928' is-struct='yes' visibility='default' filepath='../../include/libzfs_impl.h' line='74' column='1' id='type-id-16'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='zfs_hdl' type-id='type-id-17' visibility='default' filepath='../../include/libzfs_impl.h' line='77' column='1'/>
+        <var-decl name='zfs_hdl' type-id='type-id-17' visibility='default' filepath='../../include/libzfs_impl.h' line='75' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='zpool_hdl' type-id='type-id-18' visibility='default' filepath='../../include/libzfs_impl.h' line='78' column='1'/>
+        <var-decl name='zpool_hdl' type-id='type-id-18' visibility='default' filepath='../../include/libzfs_impl.h' line='76' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='128'>
-        <var-decl name='zfs_name' type-id='type-id-19' visibility='default' filepath='../../include/libzfs_impl.h' line='79' column='1'/>
+        <var-decl name='zfs_name' type-id='type-id-19' visibility='default' filepath='../../include/libzfs_impl.h' line='77' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='2176'>
-        <var-decl name='zfs_type' type-id='type-id-20' visibility='default' filepath='../../include/libzfs_impl.h' line='80' column='1'/>
+        <var-decl name='zfs_type' type-id='type-id-20' visibility='default' filepath='../../include/libzfs_impl.h' line='78' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='2208'>
-        <var-decl name='zfs_head_type' type-id='type-id-20' visibility='default' filepath='../../include/libzfs_impl.h' line='81' column='1'/>
+        <var-decl name='zfs_head_type' type-id='type-id-20' visibility='default' filepath='../../include/libzfs_impl.h' line='79' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='2240'>
-        <var-decl name='zfs_dmustats' type-id='type-id-21' visibility='default' filepath='../../include/libzfs_impl.h' line='82' column='1'/>
+        <var-decl name='zfs_dmustats' type-id='type-id-21' visibility='default' filepath='../../include/libzfs_impl.h' line='80' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='4544'>
-        <var-decl name='zfs_props' type-id='type-id-22' visibility='default' filepath='../../include/libzfs_impl.h' line='83' column='1'/>
+        <var-decl name='zfs_props' type-id='type-id-22' visibility='default' filepath='../../include/libzfs_impl.h' line='81' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='4608'>
-        <var-decl name='zfs_user_props' type-id='type-id-22' visibility='default' filepath='../../include/libzfs_impl.h' line='84' column='1'/>
+        <var-decl name='zfs_user_props' type-id='type-id-22' visibility='default' filepath='../../include/libzfs_impl.h' line='82' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='4672'>
-        <var-decl name='zfs_recvd_props' type-id='type-id-22' visibility='default' filepath='../../include/libzfs_impl.h' line='85' column='1'/>
+        <var-decl name='zfs_recvd_props' type-id='type-id-22' visibility='default' filepath='../../include/libzfs_impl.h' line='83' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='4736'>
-        <var-decl name='zfs_mntcheck' type-id='type-id-5' visibility='default' filepath='../../include/libzfs_impl.h' line='86' column='1'/>
+        <var-decl name='zfs_mntcheck' type-id='type-id-5' visibility='default' filepath='../../include/libzfs_impl.h' line='84' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='4800'>
-        <var-decl name='zfs_mntopts' type-id='type-id-23' visibility='default' filepath='../../include/libzfs_impl.h' line='87' column='1'/>
+        <var-decl name='zfs_mntopts' type-id='type-id-23' visibility='default' filepath='../../include/libzfs_impl.h' line='85' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='4864'>
-        <var-decl name='zfs_props_table' type-id='type-id-24' visibility='default' filepath='../../include/libzfs_impl.h' line='88' column='1'/>
+        <var-decl name='zfs_props_table' type-id='type-id-24' visibility='default' filepath='../../include/libzfs_impl.h' line='86' column='1'/>
       </data-member>
     </class-decl>
-    <class-decl name='libzfs_handle' size-in-bits='20160' is-struct='yes' visibility='default' filepath='../../include/libzfs_impl.h' line='48' column='1' id='type-id-25'>
+    <class-decl name='libzfs_handle' size-in-bits='18112' is-struct='yes' visibility='default' filepath='../../include/libzfs_impl.h' line='48' column='1' id='type-id-25'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='libzfs_error' type-id='type-id-6' visibility='default' filepath='../../include/libzfs_impl.h' line='49' column='1'/>
       </data-member>
@@ -645,60 +645,54 @@
         <var-decl name='libzfs_printerr' type-id='type-id-6' visibility='default' filepath='../../include/libzfs_impl.h' line='58' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='16768'>
-        <var-decl name='libzfs_storeerr' type-id='type-id-6' visibility='default' filepath='../../include/libzfs_impl.h' line='59' column='1'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='16800'>
-        <var-decl name='libzfs_mnttab_enable' type-id='type-id-5' visibility='default' filepath='../../include/libzfs_impl.h' line='60' column='1'/>
+        <var-decl name='libzfs_mnttab_enable' type-id='type-id-5' visibility='default' filepath='../../include/libzfs_impl.h' line='59' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='16832'>
-        <var-decl name='libzfs_mnttab_cache_lock' type-id='type-id-28' visibility='default' filepath='../../include/libzfs_impl.h' line='67' column='1'/>
+        <var-decl name='libzfs_mnttab_cache_lock' type-id='type-id-28' visibility='default' filepath='../../include/libzfs_impl.h' line='66' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='17152'>
-        <var-decl name='libzfs_mnttab_cache' type-id='type-id-29' visibility='default' filepath='../../include/libzfs_impl.h' line='68' column='1'/>
+        <var-decl name='libzfs_mnttab_cache' type-id='type-id-29' visibility='default' filepath='../../include/libzfs_impl.h' line='67' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='17472'>
-        <var-decl name='libzfs_pool_iter' type-id='type-id-6' visibility='default' filepath='../../include/libzfs_impl.h' line='69' column='1'/>
+        <var-decl name='libzfs_pool_iter' type-id='type-id-6' visibility='default' filepath='../../include/libzfs_impl.h' line='68' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='17504'>
-        <var-decl name='libzfs_chassis_id' type-id='type-id-19' visibility='default' filepath='../../include/libzfs_impl.h' line='70' column='1'/>
+        <var-decl name='libzfs_prop_debug' type-id='type-id-5' visibility='default' filepath='../../include/libzfs_impl.h' line='69' column='1'/>
       </data-member>
-      <data-member access='public' layout-offset-in-bits='19552'>
-        <var-decl name='libzfs_prop_debug' type-id='type-id-5' visibility='default' filepath='../../include/libzfs_impl.h' line='71' column='1'/>
+      <data-member access='public' layout-offset-in-bits='17536'>
+        <var-decl name='libzfs_urire' type-id='type-id-30' visibility='default' filepath='../../include/libzfs_impl.h' line='70' column='1'/>
       </data-member>
-      <data-member access='public' layout-offset-in-bits='19584'>
-        <var-decl name='libzfs_urire' type-id='type-id-30' visibility='default' filepath='../../include/libzfs_impl.h' line='72' column='1'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='20096'>
-        <var-decl name='libzfs_max_nvlist' type-id='type-id-26' visibility='default' filepath='../../include/libzfs_impl.h' line='73' column='1'/>
+      <data-member access='public' layout-offset-in-bits='18048'>
+        <var-decl name='libzfs_max_nvlist' type-id='type-id-26' visibility='default' filepath='../../include/libzfs_impl.h' line='71' column='1'/>
       </data-member>
     </class-decl>
-    <class-decl name='zpool_handle' size-in-bits='2560' is-struct='yes' visibility='default' filepath='../../include/libzfs_impl.h' line='97' column='1' id='type-id-31'>
+    <class-decl name='zpool_handle' size-in-bits='2560' is-struct='yes' visibility='default' filepath='../../include/libzfs_impl.h' line='95' column='1' id='type-id-31'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='zpool_hdl' type-id='type-id-17' visibility='default' filepath='../../include/libzfs_impl.h' line='98' column='1'/>
+        <var-decl name='zpool_hdl' type-id='type-id-17' visibility='default' filepath='../../include/libzfs_impl.h' line='96' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='zpool_next' type-id='type-id-18' visibility='default' filepath='../../include/libzfs_impl.h' line='99' column='1'/>
+        <var-decl name='zpool_next' type-id='type-id-18' visibility='default' filepath='../../include/libzfs_impl.h' line='97' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='128'>
-        <var-decl name='zpool_name' type-id='type-id-19' visibility='default' filepath='../../include/libzfs_impl.h' line='100' column='1'/>
+        <var-decl name='zpool_name' type-id='type-id-19' visibility='default' filepath='../../include/libzfs_impl.h' line='98' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='2176'>
-        <var-decl name='zpool_state' type-id='type-id-6' visibility='default' filepath='../../include/libzfs_impl.h' line='101' column='1'/>
+        <var-decl name='zpool_state' type-id='type-id-6' visibility='default' filepath='../../include/libzfs_impl.h' line='99' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='2240'>
-        <var-decl name='zpool_config_size' type-id='type-id-32' visibility='default' filepath='../../include/libzfs_impl.h' line='102' column='1'/>
+        <var-decl name='zpool_config_size' type-id='type-id-32' visibility='default' filepath='../../include/libzfs_impl.h' line='100' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='2304'>
-        <var-decl name='zpool_config' type-id='type-id-22' visibility='default' filepath='../../include/libzfs_impl.h' line='103' column='1'/>
+        <var-decl name='zpool_config' type-id='type-id-22' visibility='default' filepath='../../include/libzfs_impl.h' line='101' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='2368'>
-        <var-decl name='zpool_old_config' type-id='type-id-22' visibility='default' filepath='../../include/libzfs_impl.h' line='104' column='1'/>
+        <var-decl name='zpool_old_config' type-id='type-id-22' visibility='default' filepath='../../include/libzfs_impl.h' line='102' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='2432'>
-        <var-decl name='zpool_props' type-id='type-id-22' visibility='default' filepath='../../include/libzfs_impl.h' line='105' column='1'/>
+        <var-decl name='zpool_props' type-id='type-id-22' visibility='default' filepath='../../include/libzfs_impl.h' line='103' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='2496'>
-        <var-decl name='zpool_start_block' type-id='type-id-33' visibility='default' filepath='../../include/libzfs_impl.h' line='106' column='1'/>
+        <var-decl name='zpool_start_block' type-id='type-id-33' visibility='default' filepath='../../include/libzfs_impl.h' line='104' column='1'/>
       </data-member>
     </class-decl>
     <typedef-decl name='libzfs_handle_t' type-id='type-id-25' filepath='../../include/libzfs.h' line='197' column='1' id='type-id-34'/>
@@ -965,13 +959,13 @@
       <parameter type-id='type-id-15' name='clp' filepath='/home/nabijaczleweli/store/code/zfs/lib/libzfs/libzfs_changelist.c' line='378' column='1'/>
       <return type-id='type-id-6'/>
     </function-decl>
-    <enum-decl name='__anonymous_enum__' is-anonymous='yes' filepath='../../include/libzfs_impl.h' line='109' column='1' id='type-id-87'>
+    <enum-decl name='__anonymous_enum__' is-anonymous='yes' filepath='../../include/libzfs_impl.h' line='107' column='1' id='type-id-87'>
       <underlying-type type-id='type-id-7'/>
       <enumerator name='PROTO_NFS' value='0'/>
       <enumerator name='PROTO_SMB' value='1'/>
       <enumerator name='PROTO_END' value='2'/>
     </enum-decl>
-    <typedef-decl name='zfs_share_proto_t' type-id='type-id-87' filepath='../../include/libzfs_impl.h' line='113' column='1' id='type-id-88'/>
+    <typedef-decl name='zfs_share_proto_t' type-id='type-id-87' filepath='../../include/libzfs_impl.h' line='111' column='1' id='type-id-88'/>
     <pointer-type-def type-id='type-id-88' size-in-bits='64' id='type-id-89'/>
     <function-decl name='changelist_unshare' mangled-name='changelist_unshare' filepath='/home/nabijaczleweli/store/code/zfs/lib/libzfs/libzfs_changelist.c' line='348' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='changelist_unshare'>
       <parameter type-id='type-id-15' name='clp' filepath='/home/nabijaczleweli/store/code/zfs/lib/libzfs/libzfs_changelist.c' line='348' column='1'/>
@@ -997,7 +991,7 @@
       <parameter type-id='type-id-15' name='clp' filepath='/home/nabijaczleweli/store/code/zfs/lib/libzfs/libzfs_changelist.c' line='96' column='1'/>
       <return type-id='type-id-6'/>
     </function-decl>
-    <function-decl name='zfs_alloc' mangled-name='zfs_alloc' filepath='../../include/libzfs_impl.h' line='138' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='zfs_alloc' mangled-name='zfs_alloc' filepath='../../include/libzfs_impl.h' line='136' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
     <function-decl name='uu_avl_pool_create' mangled-name='uu_avl_pool_create' filepath='../../include/libuutil.h' line='304' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -1048,7 +1042,7 @@
     <function-decl name='uu_avl_insert' mangled-name='uu_avl_insert' filepath='../../include/libuutil.h' line='343' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='zfs_error' mangled-name='zfs_error' filepath='../../include/libzfs_impl.h' line='135' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='zfs_error' mangled-name='zfs_error' filepath='../../include/libzfs_impl.h' line='133' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
     <function-decl name='strcmp' mangled-name='strcmp' filepath='/usr/include/string.h' line='136' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -1078,13 +1072,13 @@
     <function-decl name='uu_avl_pool_destroy' mangled-name='uu_avl_pool_destroy' filepath='../../include/libuutil.h' line='308' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='zfs_unshare_proto' mangled-name='zfs_unshare_proto' filepath='../../include/libzfs_impl.h' line='210' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='zfs_unshare_proto' mangled-name='zfs_unshare_proto' filepath='../../include/libzfs_impl.h' line='208' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='zfs_commit_proto' mangled-name='zfs_commit_proto' filepath='../../include/libzfs_impl.h' line='259' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='zfs_commit_proto' mangled-name='zfs_commit_proto' filepath='../../include/libzfs_impl.h' line='257' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='remove_mountpoint' mangled-name='remove_mountpoint' filepath='../../include/libzfs_impl.h' line='191' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='remove_mountpoint' mangled-name='remove_mountpoint' filepath='../../include/libzfs_impl.h' line='189' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
     <function-decl name='strlcpy' mangled-name='strlcpy' filepath='../../lib/libspl/include/string.h' line='37' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -1179,13 +1173,13 @@
     <function-decl name='uu_avl_first' mangled-name='uu_avl_first' filepath='../../include/libuutil.h' line='330' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='make_dataset_handle' mangled-name='make_dataset_handle' filepath='../../include/libzfs_impl.h' line='195' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='make_dataset_handle' mangled-name='make_dataset_handle' filepath='../../include/libzfs_impl.h' line='193' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
     <function-decl name='uu_avl_next' mangled-name='uu_avl_next' filepath='../../include/libuutil.h' line='333' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='zpool_open_silent' mangled-name='zpool_open_silent' filepath='../../include/libzfs_impl.h' line='199' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='zpool_open_silent' mangled-name='zpool_open_silent' filepath='../../include/libzfs_impl.h' line='197' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
     <function-decl name='strchr' mangled-name='strchr' filepath='/usr/include/string.h' line='225' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -1200,22 +1194,22 @@
     <function-decl name='strcpy' mangled-name='strcpy' filepath='/usr/include/string.h' line='121' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='zcmd_alloc_dst_nvlist' mangled-name='zcmd_alloc_dst_nvlist' filepath='../../include/libzfs_impl.h' line='175' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='zcmd_alloc_dst_nvlist' mangled-name='zcmd_alloc_dst_nvlist' filepath='../../include/libzfs_impl.h' line='173' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
     <function-decl name='__errno_location' mangled-name='__errno_location' filepath='/usr/include/errno.h' line='37' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='zcmd_expand_dst_nvlist' mangled-name='zcmd_expand_dst_nvlist' filepath='../../include/libzfs_impl.h' line='178' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='zcmd_expand_dst_nvlist' mangled-name='zcmd_expand_dst_nvlist' filepath='../../include/libzfs_impl.h' line='176' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
     <function-decl name='zfs_ioctl' mangled-name='zfs_ioctl' filepath='../../include/libzfs.h' line='455' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='zcmd_read_dst_nvlist' mangled-name='zcmd_read_dst_nvlist' filepath='../../include/libzfs_impl.h' line='179' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='zcmd_read_dst_nvlist' mangled-name='zcmd_read_dst_nvlist' filepath='../../include/libzfs_impl.h' line='177' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='zcmd_free_nvlists' mangled-name='zcmd_free_nvlists' filepath='../../include/libzfs_impl.h' line='180' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='zcmd_free_nvlists' mangled-name='zcmd_free_nvlists' filepath='../../include/libzfs_impl.h' line='178' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
     <function-decl name='nvlist_free' mangled-name='nvlist_free' filepath='../../include/sys/nvpair.h' line='152' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -1230,7 +1224,7 @@
     <function-decl name='libspl_assertf' mangled-name='libspl_assertf' filepath='../../lib/libspl/include/assert.h' line='40' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='no_memory' mangled-name='no_memory' filepath='../../include/libzfs_impl.h' line='142' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='no_memory' mangled-name='no_memory' filepath='../../include/libzfs_impl.h' line='140' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
     <function-decl name='nvlist_dup' mangled-name='nvlist_dup' filepath='../../include/sys/nvpair.h' line='156' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -1239,7 +1233,7 @@
     <function-decl name='nvpair_name' mangled-name='nvpair_name' filepath='../../include/sys/nvpair.h' line='244' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='zfs_strdup' mangled-name='zfs_strdup' filepath='../../include/libzfs_impl.h' line='141' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='zfs_strdup' mangled-name='zfs_strdup' filepath='../../include/libzfs_impl.h' line='139' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
     <function-decl name='nvpair_value_nvlist' mangled-name='nvpair_value_nvlist' filepath='../../include/sys/nvpair.h' line='258' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -1248,7 +1242,7 @@
     <function-decl name='dcgettext' mangled-name='dcgettext' filepath='/usr/include/libintl.h' line='51' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='zfs_standard_error' mangled-name='zfs_standard_error' filepath='../../include/libzfs_impl.h' line='144' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='zfs_standard_error' mangled-name='zfs_standard_error' filepath='../../include/libzfs_impl.h' line='142' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
     <function-decl name='uu_avl_teardown' mangled-name='uu_avl_teardown' filepath='../../include/libuutil.h' line='348' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -1319,7 +1313,7 @@
     <function-decl name='zfs_name_to_prop' mangled-name='zfs_name_to_prop' filepath='../../include/sys/fs/zfs.h' line='313' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='zfs_error_aux' mangled-name='zfs_error_aux' filepath='../../include/libzfs_impl.h' line='137' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='zfs_error_aux' mangled-name='zfs_error_aux' filepath='../../include/libzfs_impl.h' line='135' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
     <function-decl name='fnvlist_alloc' mangled-name='fnvlist_alloc' filepath='../../include/sys/nvpair.h' line='276' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -2196,7 +2190,7 @@
     <function-decl name='lzc_wait_fs' mangled-name='lzc_wait_fs' filepath='../../include/libzfs_core.h' line='136' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='zfs_standard_error_fmt' mangled-name='zfs_standard_error_fmt' filepath='../../include/libzfs_impl.h' line='145' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='zfs_standard_error_fmt' mangled-name='zfs_standard_error_fmt' filepath='../../include/libzfs_impl.h' line='143' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
     <function-decl name='nvlist_lookup_nvlist_array' mangled-name='nvlist_lookup_nvlist_array' filepath='../../include/sys/nvpair.h' line='227' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -2250,7 +2244,7 @@
     <function-decl name='nvlist_alloc' mangled-name='nvlist_alloc' filepath='../../include/sys/nvpair.h' line='151' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='zcmd_write_src_nvlist' mangled-name='zcmd_write_src_nvlist' filepath='../../include/libzfs_impl.h' line='176' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='zcmd_write_src_nvlist' mangled-name='zcmd_write_src_nvlist' filepath='../../include/libzfs_impl.h' line='174' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
     <function-decl name='nvpair_type' mangled-name='nvpair_type' filepath='../../include/sys/nvpair.h' line='245' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -2259,25 +2253,25 @@
     <function-decl name='nvlist_remove' mangled-name='nvlist_remove' filepath='../../include/sys/nvpair.h' line='198' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='zprop_expand_list' mangled-name='zprop_expand_list' filepath='../../include/libzfs_impl.h' line='155' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='zprop_expand_list' mangled-name='zprop_expand_list' filepath='../../include/libzfs_impl.h' line='153' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='changelist_gather' mangled-name='changelist_gather' filepath='../../include/libzfs_impl.h' line='187' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='changelist_gather' mangled-name='changelist_gather' filepath='../../include/libzfs_impl.h' line='185' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='changelist_haszonedchild' mangled-name='changelist_haszonedchild' filepath='../../include/libzfs_impl.h' line='189' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='changelist_haszonedchild' mangled-name='changelist_haszonedchild' filepath='../../include/libzfs_impl.h' line='187' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='changelist_prefix' mangled-name='changelist_prefix' filepath='../../include/libzfs_impl.h' line='182' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='changelist_prefix' mangled-name='changelist_prefix' filepath='../../include/libzfs_impl.h' line='180' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='changelist_rename' mangled-name='changelist_rename' filepath='../../include/libzfs_impl.h' line='184' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='changelist_rename' mangled-name='changelist_rename' filepath='../../include/libzfs_impl.h' line='182' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='changelist_postfix' mangled-name='changelist_postfix' filepath='../../include/libzfs_impl.h' line='183' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='changelist_postfix' mangled-name='changelist_postfix' filepath='../../include/libzfs_impl.h' line='181' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='changelist_free' mangled-name='changelist_free' filepath='../../include/libzfs_impl.h' line='186' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='changelist_free' mangled-name='changelist_free' filepath='../../include/libzfs_impl.h' line='184' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
     <function-decl name='zfs_iter_snapshots' mangled-name='zfs_iter_snapshots' filepath='../../include/libzfs.h' line='617' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -2289,7 +2283,7 @@
     <function-decl name='lzc_rollback_to' mangled-name='lzc_rollback_to' filepath='../../include/libzfs_core.h' line='118' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='changelist_remove' mangled-name='changelist_remove' filepath='../../include/libzfs_impl.h' line='185' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='changelist_remove' mangled-name='changelist_remove' filepath='../../include/libzfs_impl.h' line='183' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
     <function-decl name='strcspn' mangled-name='strcspn' filepath='/usr/include/string.h' line='272' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -2358,7 +2352,7 @@
     <function-decl name='zfs_prop_valid_for_type' mangled-name='zfs_prop_valid_for_type' filepath='../../include/sys/fs/zfs.h' line='320' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='zfs_error_fmt' mangled-name='zfs_error_fmt' filepath='../../include/libzfs_impl.h' line='136' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='zfs_error_fmt' mangled-name='zfs_error_fmt' filepath='../../include/libzfs_impl.h' line='134' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
     <function-decl name='localtime_r' mangled-name='localtime_r' filepath='/usr/include/time.h' line='133' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -2418,7 +2412,7 @@
     <function-decl name='zfs_prop_user' mangled-name='zfs_prop_user' filepath='../../include/sys/fs/zfs.h' line='314' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='zfs_setprop_error' mangled-name='zfs_setprop_error' filepath='../../include/libzfs_impl.h' line='146' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='zfs_setprop_error' mangled-name='zfs_setprop_error' filepath='../../include/libzfs_impl.h' line='144' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
     <function-decl name='fnvlist_add_uint64' mangled-name='fnvlist_add_uint64' filepath='../../include/sys/nvpair.h' line='296' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -2448,13 +2442,13 @@
     <function-decl name='mountpoint_namecheck' mangled-name='mountpoint_namecheck' filepath='../../include/zfs_namecheck.h' line='63' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='zfs_parse_options' mangled-name='zfs_parse_options' filepath='../../include/libzfs_impl.h' line='208' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='zfs_parse_options' mangled-name='zfs_parse_options' filepath='../../include/libzfs_impl.h' line='206' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
     <function-decl name='zfs_prop_encryption_key_param' mangled-name='zfs_prop_encryption_key_param' filepath='../../include/sys/fs/zfs.h' line='310' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='zprop_parse_value' mangled-name='zprop_parse_value' filepath='../../include/libzfs_impl.h' line='153' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='zprop_parse_value' mangled-name='zprop_parse_value' filepath='../../include/libzfs_impl.h' line='151' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
     <function-decl name='zfs_prop_userquota' mangled-name='zfs_prop_userquota' filepath='../../include/sys/fs/zfs.h' line='315' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -2508,7 +2502,7 @@
     <function-decl name='zpool_open_canfail' mangled-name='zpool_open_canfail' filepath='../../include/libzfs.h' line='235' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='zpool_name_valid' mangled-name='zpool_name_valid' filepath='../../include/libzfs_impl.h' line='201' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='zpool_name_valid' mangled-name='zpool_name_valid' filepath='../../include/libzfs_impl.h' line='199' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
     <function-decl name='entity_namecheck' mangled-name='entity_namecheck' filepath='../../include/zfs_namecheck.h' line='58' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -2564,13 +2558,13 @@
       <parameter type-id='type-id-6' name='flags' filepath='/home/nabijaczleweli/store/code/zfs/lib/libzfs/libzfs_diff.c' line='717' column='1'/>
       <return type-id='type-id-6'/>
     </function-decl>
-    <function-decl name='zfs_asprintf' mangled-name='zfs_asprintf' filepath='../../include/libzfs_impl.h' line='140' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='zfs_asprintf' mangled-name='zfs_asprintf' filepath='../../include/libzfs_impl.h' line='138' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='zfs_validate_name' mangled-name='zfs_validate_name' filepath='../../include/libzfs_impl.h' line='203' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='zfs_validate_name' mangled-name='zfs_validate_name' filepath='../../include/libzfs_impl.h' line='201' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='find_shares_object' mangled-name='find_shares_object' filepath='../../include/libzfs_impl.h' line='257' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='find_shares_object' mangled-name='find_shares_object' filepath='../../include/libzfs_impl.h' line='255' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
     <function-decl name='pipe2' mangled-name='pipe2' filepath='/usr/include/unistd.h' line='422' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -2651,7 +2645,7 @@
     <function-decl name='__fxstat64' mangled-name='__fxstat64' filepath='/usr/include/x86_64-linux-gnu/sys/stat.h' line='428' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='zcmd_write_conf_nvlist' mangled-name='zcmd_write_conf_nvlist' filepath='../../include/libzfs_impl.h' line='177' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='zcmd_write_conf_nvlist' mangled-name='zcmd_write_conf_nvlist' filepath='../../include/libzfs_impl.h' line='175' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
     <function-type size-in-bits='64' id='type-id-149'>
@@ -2735,7 +2729,7 @@
     <function-decl name='avl_walk' mangled-name='avl_walk' filepath='../../include/sys/avl_impl.h' line='158' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='make_bookmark_handle' mangled-name='make_bookmark_handle' filepath='../../include/libzfs_impl.h' line='196' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='make_bookmark_handle' mangled-name='make_bookmark_handle' filepath='../../include/libzfs_impl.h' line='194' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
     <function-decl name='fnvpair_value_nvlist' mangled-name='fnvpair_value_nvlist' filepath='../../include/sys/nvpair.h' line='352' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -2744,35 +2738,35 @@
     <function-decl name='zfs_get_type' mangled-name='zfs_get_type' filepath='../../include/libzfs.h' line='470' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='make_dataset_simple_handle_zc' mangled-name='make_dataset_simple_handle_zc' filepath='../../include/libzfs_impl.h' line='151' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='make_dataset_simple_handle_zc' mangled-name='make_dataset_simple_handle_zc' filepath='../../include/libzfs_impl.h' line='149' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='make_dataset_handle_zc' mangled-name='make_dataset_handle_zc' filepath='../../include/libzfs_impl.h' line='150' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='make_dataset_handle_zc' mangled-name='make_dataset_handle_zc' filepath='../../include/libzfs_impl.h' line='148' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
   </abi-instr>
   <abi-instr version='1.0' address-size='64' path='libzfs_mount.c' comp-dir-path='/home/nabijaczleweli/store/code/zfs/lib/libzfs' language='LANG_C99'>
-    <class-decl name='__anonymous_struct__' size-in-bits='192' is-struct='yes' is-anonymous='yes' naming-typedef-id='type-id-156' visibility='default' filepath='../../include/libzfs_impl.h' line='213' column='1' id='type-id-157'>
+    <class-decl name='__anonymous_struct__' size-in-bits='192' is-struct='yes' is-anonymous='yes' naming-typedef-id='type-id-156' visibility='default' filepath='../../include/libzfs_impl.h' line='211' column='1' id='type-id-157'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='p_prop' type-id='type-id-2' visibility='default' filepath='../../include/libzfs_impl.h' line='214' column='1'/>
+        <var-decl name='p_prop' type-id='type-id-2' visibility='default' filepath='../../include/libzfs_impl.h' line='212' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='p_name' type-id='type-id-23' visibility='default' filepath='../../include/libzfs_impl.h' line='215' column='1'/>
+        <var-decl name='p_name' type-id='type-id-23' visibility='default' filepath='../../include/libzfs_impl.h' line='213' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='128'>
-        <var-decl name='p_share_err' type-id='type-id-6' visibility='default' filepath='../../include/libzfs_impl.h' line='216' column='1'/>
+        <var-decl name='p_share_err' type-id='type-id-6' visibility='default' filepath='../../include/libzfs_impl.h' line='214' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='160'>
-        <var-decl name='p_unshare_err' type-id='type-id-6' visibility='default' filepath='../../include/libzfs_impl.h' line='217' column='1'/>
+        <var-decl name='p_unshare_err' type-id='type-id-6' visibility='default' filepath='../../include/libzfs_impl.h' line='215' column='1'/>
       </data-member>
     </class-decl>
-    <typedef-decl name='proto_table_t' type-id='type-id-157' filepath='../../include/libzfs_impl.h' line='218' column='1' id='type-id-156'/>
+    <typedef-decl name='proto_table_t' type-id='type-id-157' filepath='../../include/libzfs_impl.h' line='216' column='1' id='type-id-156'/>
 
     <array-type-def dimensions='1' type-id='type-id-156' size-in-bits='384' id='type-id-158'>
       <subrange length='2' type-id='type-id-37' id='type-id-66'/>
 
     </array-type-def>
-    <var-decl name='proto_table' type-id='type-id-158' mangled-name='proto_table' visibility='default' filepath='../../include/libzfs_impl.h' line='241' column='1' elf-symbol-id='proto_table'/>
+    <var-decl name='proto_table' type-id='type-id-158' mangled-name='proto_table' visibility='default' filepath='../../include/libzfs_impl.h' line='239' column='1' elf-symbol-id='proto_table'/>
 
     <array-type-def dimensions='1' type-id='type-id-88' size-in-bits='64' alignment-in-bits='32' id='type-id-159'>
       <subrange length='2' type-id='type-id-37' id='type-id-66'/>
@@ -2899,13 +2893,13 @@
       <parameter type-id='type-id-143' name='where' filepath='/home/nabijaczleweli/store/code/zfs/lib/libzfs/libzfs_mount.c' line='830' column='1'/>
       <return type-id='type-id-5'/>
     </function-decl>
-    <enum-decl name='__anonymous_enum__' is-anonymous='yes' filepath='../../include/libzfs_impl.h' line='119' column='1' id='type-id-165'>
+    <enum-decl name='__anonymous_enum__' is-anonymous='yes' filepath='../../include/libzfs_impl.h' line='117' column='1' id='type-id-165'>
       <underlying-type type-id='type-id-7'/>
       <enumerator name='SHARED_NOT_SHARED' value='0'/>
       <enumerator name='SHARED_NFS' value='2'/>
       <enumerator name='SHARED_SMB' value='4'/>
     </enum-decl>
-    <typedef-decl name='zfs_share_type_t' type-id='type-id-165' filepath='../../include/libzfs_impl.h' line='123' column='1' id='type-id-166'/>
+    <typedef-decl name='zfs_share_type_t' type-id='type-id-165' filepath='../../include/libzfs_impl.h' line='121' column='1' id='type-id-166'/>
     <function-decl name='zfs_is_shared_proto' mangled-name='zfs_is_shared_proto' filepath='/home/nabijaczleweli/store/code/zfs/lib/libzfs/libzfs_mount.c' line='801' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_is_shared_proto'>
       <parameter type-id='type-id-84' name='zhp' filepath='/home/nabijaczleweli/store/code/zfs/lib/libzfs/libzfs_mount.c' line='801' column='1'/>
       <parameter type-id='type-id-143' name='where' filepath='/home/nabijaczleweli/store/code/zfs/lib/libzfs/libzfs_mount.c' line='801' column='1'/>
@@ -2984,7 +2978,7 @@
       <parameter type-id='type-id-88' name='proto' filepath='/home/nabijaczleweli/store/code/zfs/lib/libzfs/libzfs_mount.c' line='718' column='1'/>
       <return type-id='type-id-166'/>
     </function-decl>
-    <function-decl name='zfs_realloc' mangled-name='zfs_realloc' filepath='../../include/libzfs_impl.h' line='139' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='zfs_realloc' mangled-name='zfs_realloc' filepath='../../include/libzfs_impl.h' line='137' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
     <function-decl name='qsort' mangled-name='qsort' filepath='/usr/include/stdlib.h' line='827' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -3005,7 +2999,7 @@
     <function-decl name='rmdir' mangled-name='rmdir' filepath='/usr/include/unistd.h' line='834' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='changelist_unshare' mangled-name='changelist_unshare' filepath='../../include/libzfs_impl.h' line='188' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='changelist_unshare' mangled-name='changelist_unshare' filepath='../../include/libzfs_impl.h' line='186' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
     <function-decl name='libzfs_mnttab_find' mangled-name='libzfs_mnttab_find' filepath='../../include/libzfs.h' line='225' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -3035,7 +3029,7 @@
     <function-decl name='zfs_crypto_unload_key' mangled-name='zfs_crypto_unload_key' filepath='../../include/libzfs.h' line='533' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='do_unmount' mangled-name='do_unmount' filepath='../../include/libzfs_impl.h' line='245' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='do_unmount' mangled-name='do_unmount' filepath='../../include/libzfs_impl.h' line='243' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
     <function-decl name='zfs_spa_version' mangled-name='zfs_spa_version' filepath='../../include/libzfs.h' line='817' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -3062,7 +3056,7 @@
     <function-decl name='statfs64' mangled-name='statfs64' filepath='/usr/include/x86_64-linux-gnu/sys/statfs.h' line='43' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='do_mount' mangled-name='do_mount' filepath='../../include/libzfs_impl.h' line='243' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='do_mount' mangled-name='do_mount' filepath='../../include/libzfs_impl.h' line='241' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
     <function-decl name='libzfs_mnttab_add' mangled-name='libzfs_mnttab_add' filepath='../../include/libzfs.h' line='227' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -3637,7 +3631,7 @@
     <function-decl name='lzc_get_bootenv' mangled-name='lzc_get_bootenv' filepath='../../include/libzfs_core.h' line='139' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='zpool_standard_error_fmt' mangled-name='zpool_standard_error_fmt' filepath='../../include/libzfs_impl.h' line='148' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='zpool_standard_error_fmt' mangled-name='zpool_standard_error_fmt' filepath='../../include/libzfs_impl.h' line='146' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
     <function-decl name='lzc_set_bootenv' mangled-name='lzc_set_bootenv' filepath='../../include/libzfs_core.h' line='138' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -3682,7 +3676,7 @@
     <function-decl name='lzc_reopen' mangled-name='lzc_reopen' filepath='../../include/libzfs_core.h' line='129' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='zpool_standard_error' mangled-name='zpool_standard_error' filepath='../../include/libzfs_impl.h' line='147' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='zpool_standard_error' mangled-name='zpool_standard_error' filepath='../../include/libzfs_impl.h' line='145' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
     <function-decl name='zpool_get_load_policy' mangled-name='zpool_get_load_policy' filepath='../../include/zfs_comutil.h' line='38' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -3700,7 +3694,7 @@
     <function-decl name='zfs_resolve_shortname' mangled-name='zfs_resolve_shortname' filepath='../../include/libzutil.h' line='97' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='zpool_relabel_disk' mangled-name='zpool_relabel_disk' filepath='../../include/libzfs_impl.h' line='255' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='zpool_relabel_disk' mangled-name='zpool_relabel_disk' filepath='../../include/libzfs_impl.h' line='253' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
     <function-decl name='strtoull' mangled-name='strtoull' filepath='/usr/include/stdlib.h' line='205' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -3947,7 +3941,7 @@
       <parameter type-id='type-id-119' name='blocks_visited' filepath='/home/nabijaczleweli/store/code/zfs/lib/libzfs/libzfs_sendrecv.c' line='884' column='1'/>
       <return type-id='type-id-6'/>
     </function-decl>
-    <function-decl name='libzfs_set_pipe_max' mangled-name='libzfs_set_pipe_max' filepath='../../include/libzfs_impl.h' line='258' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='libzfs_set_pipe_max' mangled-name='libzfs_set_pipe_max' filepath='../../include/libzfs_impl.h' line='256' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
     <function-decl name='perror' mangled-name='perror' filepath='/usr/include/stdio.h' line='781' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -3968,7 +3962,7 @@
     <function-decl name='fnvlist_merge' mangled-name='fnvlist_merge' filepath='../../include/sys/nvpair.h' line='283' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='create_parents' mangled-name='create_parents' filepath='../../include/libzfs_impl.h' line='192' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='create_parents' mangled-name='create_parents' filepath='../../include/libzfs_impl.h' line='190' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
     <function-decl name='nvpair_value_int32' mangled-name='nvpair_value_int32' filepath='../../include/sys/nvpair.h' line='253' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -4528,7 +4522,7 @@
     <function-decl name='zpool_free_handles' mangled-name='zpool_free_handles' filepath='../../include/libzfs.h' line='241' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='namespace_clear' mangled-name='namespace_clear' filepath='../../include/libzfs_impl.h' line='206' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='namespace_clear' mangled-name='namespace_clear' filepath='../../include/libzfs_impl.h' line='204' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
     <function-decl name='libzfs_mnttab_fini' mangled-name='libzfs_mnttab_fini' filepath='../../include/libzfs.h' line='223' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -4549,7 +4543,7 @@
     <function-decl name='zfs_prop_get_table' mangled-name='zfs_prop_get_table' filepath='../../include/zfs_prop.h' line='93' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
-    <function-decl name='libzfs_load_module' mangled-name='libzfs_load_module' filepath='../../include/libzfs_impl.h' line='254' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='libzfs_load_module' mangled-name='libzfs_load_module' filepath='../../include/libzfs_impl.h' line='252' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-67'/>
     </function-decl>
     <function-decl name='regcomp' mangled-name='regcomp' filepath='/usr/include/regex.h' line='639' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -4729,63 +4723,63 @@
       <parameter type-id='type-id-6' name='len' filepath='os/linux/libzfs_util_os.c' line='192' column='1'/>
       <return type-id='type-id-6'/>
     </function-decl>
-    <class-decl name='differ_info' size-in-bits='9024' is-struct='yes' visibility='default' filepath='../../include/libzfs_impl.h' line='220' column='1' id='type-id-230'>
+    <class-decl name='differ_info' size-in-bits='9024' is-struct='yes' visibility='default' filepath='../../include/libzfs_impl.h' line='218' column='1' id='type-id-230'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='zhp' type-id='type-id-84' visibility='default' filepath='../../include/libzfs_impl.h' line='221' column='1'/>
+        <var-decl name='zhp' type-id='type-id-84' visibility='default' filepath='../../include/libzfs_impl.h' line='219' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='fromsnap' type-id='type-id-23' visibility='default' filepath='../../include/libzfs_impl.h' line='222' column='1'/>
+        <var-decl name='fromsnap' type-id='type-id-23' visibility='default' filepath='../../include/libzfs_impl.h' line='220' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='128'>
-        <var-decl name='frommnt' type-id='type-id-23' visibility='default' filepath='../../include/libzfs_impl.h' line='223' column='1'/>
+        <var-decl name='frommnt' type-id='type-id-23' visibility='default' filepath='../../include/libzfs_impl.h' line='221' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='192'>
-        <var-decl name='tosnap' type-id='type-id-23' visibility='default' filepath='../../include/libzfs_impl.h' line='224' column='1'/>
+        <var-decl name='tosnap' type-id='type-id-23' visibility='default' filepath='../../include/libzfs_impl.h' line='222' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='256'>
-        <var-decl name='tomnt' type-id='type-id-23' visibility='default' filepath='../../include/libzfs_impl.h' line='225' column='1'/>
+        <var-decl name='tomnt' type-id='type-id-23' visibility='default' filepath='../../include/libzfs_impl.h' line='223' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='320'>
-        <var-decl name='ds' type-id='type-id-23' visibility='default' filepath='../../include/libzfs_impl.h' line='226' column='1'/>
+        <var-decl name='ds' type-id='type-id-23' visibility='default' filepath='../../include/libzfs_impl.h' line='224' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='384'>
-        <var-decl name='dsmnt' type-id='type-id-23' visibility='default' filepath='../../include/libzfs_impl.h' line='227' column='1'/>
+        <var-decl name='dsmnt' type-id='type-id-23' visibility='default' filepath='../../include/libzfs_impl.h' line='225' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='448'>
-        <var-decl name='tmpsnap' type-id='type-id-23' visibility='default' filepath='../../include/libzfs_impl.h' line='228' column='1'/>
+        <var-decl name='tmpsnap' type-id='type-id-23' visibility='default' filepath='../../include/libzfs_impl.h' line='226' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='512'>
-        <var-decl name='errbuf' type-id='type-id-27' visibility='default' filepath='../../include/libzfs_impl.h' line='229' column='1'/>
+        <var-decl name='errbuf' type-id='type-id-27' visibility='default' filepath='../../include/libzfs_impl.h' line='227' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='8704'>
-        <var-decl name='isclone' type-id='type-id-5' visibility='default' filepath='../../include/libzfs_impl.h' line='230' column='1'/>
+        <var-decl name='isclone' type-id='type-id-5' visibility='default' filepath='../../include/libzfs_impl.h' line='228' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='8736'>
-        <var-decl name='scripted' type-id='type-id-5' visibility='default' filepath='../../include/libzfs_impl.h' line='231' column='1'/>
+        <var-decl name='scripted' type-id='type-id-5' visibility='default' filepath='../../include/libzfs_impl.h' line='229' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='8768'>
-        <var-decl name='classify' type-id='type-id-5' visibility='default' filepath='../../include/libzfs_impl.h' line='232' column='1'/>
+        <var-decl name='classify' type-id='type-id-5' visibility='default' filepath='../../include/libzfs_impl.h' line='230' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='8800'>
-        <var-decl name='timestamped' type-id='type-id-5' visibility='default' filepath='../../include/libzfs_impl.h' line='233' column='1'/>
+        <var-decl name='timestamped' type-id='type-id-5' visibility='default' filepath='../../include/libzfs_impl.h' line='231' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='8832'>
-        <var-decl name='shares' type-id='type-id-26' visibility='default' filepath='../../include/libzfs_impl.h' line='234' column='1'/>
+        <var-decl name='shares' type-id='type-id-26' visibility='default' filepath='../../include/libzfs_impl.h' line='232' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='8896'>
-        <var-decl name='zerr' type-id='type-id-6' visibility='default' filepath='../../include/libzfs_impl.h' line='235' column='1'/>
+        <var-decl name='zerr' type-id='type-id-6' visibility='default' filepath='../../include/libzfs_impl.h' line='233' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='8928'>
-        <var-decl name='cleanupfd' type-id='type-id-6' visibility='default' filepath='../../include/libzfs_impl.h' line='236' column='1'/>
+        <var-decl name='cleanupfd' type-id='type-id-6' visibility='default' filepath='../../include/libzfs_impl.h' line='234' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='8960'>
-        <var-decl name='outputfd' type-id='type-id-6' visibility='default' filepath='../../include/libzfs_impl.h' line='237' column='1'/>
+        <var-decl name='outputfd' type-id='type-id-6' visibility='default' filepath='../../include/libzfs_impl.h' line='235' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='8992'>
-        <var-decl name='datafd' type-id='type-id-6' visibility='default' filepath='../../include/libzfs_impl.h' line='238' column='1'/>
+        <var-decl name='datafd' type-id='type-id-6' visibility='default' filepath='../../include/libzfs_impl.h' line='236' column='1'/>
       </data-member>
     </class-decl>
-    <typedef-decl name='differ_info_t' type-id='type-id-230' filepath='../../include/libzfs_impl.h' line='239' column='1' id='type-id-231'/>
+    <typedef-decl name='differ_info_t' type-id='type-id-230' filepath='../../include/libzfs_impl.h' line='237' column='1' id='type-id-231'/>
     <pointer-type-def type-id='type-id-231' size-in-bits='64' id='type-id-232'/>
     <function-decl name='find_shares_object' mangled-name='find_shares_object' filepath='os/linux/libzfs_util_os.c' line='169' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='find_shares_object'>
       <parameter type-id='type-id-232' name='di' filepath='os/linux/libzfs_util_os.c' line='169' column='1'/>

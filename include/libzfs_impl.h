@@ -56,7 +56,6 @@ struct libzfs_handle {
 	char libzfs_action[1024];
 	char libzfs_desc[1024];
 	int libzfs_printerr;
-	int libzfs_storeerr; /* stuff error messages into buffer */
 	boolean_t libzfs_mnttab_enable;
 	/*
 	 * We need a lock to handle the case where parallel mount
@@ -67,7 +66,6 @@ struct libzfs_handle {
 	pthread_mutex_t libzfs_mnttab_cache_lock;
 	avl_tree_t libzfs_mnttab_cache;
 	int libzfs_pool_iter;
-	char libzfs_chassis_id[256];
 	boolean_t libzfs_prop_debug;
 	regex_t libzfs_urire;
 	uint64_t libzfs_max_nvlist;
