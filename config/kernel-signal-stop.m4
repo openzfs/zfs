@@ -11,7 +11,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_SIGNAL_STOP], [
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_SIGNAL_STOP], [
-	AC_MSG_CHECKING([whether signal_stop() API exists])
+	AC_MSG_CHECKING([whether signal_stop() exists])
 	ZFS_LINUX_TEST_RESULT([signal_stop], [
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_SIGNAL_STOP, 1, [signal_stop() exists])
