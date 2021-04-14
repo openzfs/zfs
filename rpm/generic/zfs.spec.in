@@ -208,6 +208,9 @@ This library provides a variety of compatibility functions for OpenZFS:
 %post -n libuutil3 -p /sbin/ldconfig
 %postun -n libuutil3 -p /sbin/ldconfig
 
+# The library version is encoded in the package name.  When updating the
+# version information it is important to add an obsoletes line below for
+# the previous version of the package.
 %package -n libzfs5
 Summary:        Native ZFS filesystem library for Linux
 Group:          System Environment/Kernel
@@ -232,6 +235,7 @@ Provides:       libnvpair3-devel
 Provides:       libuutil3-devel
 Obsoletes:      zfs-devel
 Obsoletes:      libzfs2-devel
+Obsoletes:      libzfs4-devel
 
 %description -n libzfs5-devel
 This package contains the header files needed for building additional
