@@ -48,6 +48,10 @@ unsigned int zvol_threads = 8;
 
 taskq_t *zvol_taskq;
 
+extern void wzvol_clear_targetid(uint8_t targetid, uint8_t lun, zvol_state_t *zv);
+extern void wzvol_announce_buschange(void);
+extern int wzvol_assign_targetid(zvol_state_t *zv);
+
 typedef struct zv_request {
 	zvol_state_t *zv;
 
@@ -214,7 +218,7 @@ zvol_os_write_zv(zvol_state_t *zv, zfs_uio_t *uio, int flags)
 	int error = 0;
 	boolean_t sync;
 	uint64_t offset = 0;
-	uint64_t bytes;
+	uint64_t bytes = 0;
 	uint64_t off;
 
 	if (zv == NULL)
@@ -312,6 +316,7 @@ zvol_os_unmap(zvol_state_t *zv, uint64_t off, uint64_t bytes)
 	 * zvolIO doDiscard calling zvol_unmap with offset, bytes (0, 858992)
 	 * Which will both take too long, and is uneccessary. We will ignore
 	 * any unmaps deemed "too large".
+	 * This is APPLE, check if Windows does the same.
 	 */
 	if ((off == 0ULL) &&
 	    (zv->zv_volsize > (1ULL << 24)) && /* 16Mb slop */
@@ -859,8 +864,6 @@ zvol_os_ioctl(dev_t dev, unsigned long cmd, caddr_t data, int isblk,
     cred_t *cr, int *rvalp)
 {
 	int error = 0;
-	uint32_t *f;
-	uint64_t *o;
 	zvol_state_t *zv = NULL;
 
 	dprintf("%s\n", __func__);

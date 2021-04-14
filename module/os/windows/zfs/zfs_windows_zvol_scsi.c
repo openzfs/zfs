@@ -343,6 +343,11 @@ ScsiExecuteMain(
 			status = ScsiOpReportLuns(pHBAExt, pSrb);
 			break;
 
+		case SCSIOP_UNMAP:
+			DbgBreakPoint();
+			status = ScsiOpUnmap(pHBAExt, pSrb, pResult);
+			break;
+
 		default:
 			status = SRB_STATUS_INVALID_REQUEST;
 			break;
@@ -716,17 +721,82 @@ ScsiOpWrite(
 }
 
 UCHAR
+ScsiOpUnmap(
+	__in pHW_HBA_EXT pHBAExt,
+	__in PSCSI_REQUEST_BLOCK pSrb,
+	__in PUCHAR pResult)
+{
+	UCHAR status;
+
+	status = ScsiReadWriteSetup(pHBAExt, pSrb, ActionUnmap, pResult);
+
+	return (status);
+}
+
+UCHAR
+ScsiOpUnmap_impl(
+	__in pHW_HBA_EXT pHBAExt,
+	__in PSCSI_REQUEST_BLOCK pSrb,
+	__in zvol_state_t *zv)
+{
+	PUNMAP_LIST_HEADER DataBuffer = pSrb->DataBuffer;
+	ULONG DataTransferLength = pSrb->DataTransferLength;
+	ULONG DataLength;
+	int ret;
+
+	if (0 == DataBuffer ||
+	    DataTransferLength < sizeof (UNMAP_LIST_HEADER) ||
+	    DataTransferLength < sizeof (UNMAP_LIST_HEADER) + (DataLength =
+	    ((ULONG)DataBuffer->BlockDescrDataLength[0] << 8) |
+	    (ULONG)DataBuffer->BlockDescrDataLength[1]))
+		return (SRB_STATUS_INTERNAL_ERROR);
+
+	// Test for DataLength > MaxTransferLength ?
+
+	// Fasttrack 0 length
+	if (DataLength == 0)
+		return (SRB_STATUS_SUCCESS);
+
+	// Loop all the unmap ranges
+	for (ULONG i = 0, n = DataLength / sizeof (UNMAP_BLOCK_DESCRIPTOR);
+	    n > i; i++)	{
+		PUNMAP_BLOCK_DESCRIPTOR Src = &DataBuffer->Descriptors[i];
+		UINT64 BlockAddress =
+		    ((UINT64)Src->StartingLba[0] << 56) |
+		    ((UINT64)Src->StartingLba[1] << 48) |
+		    ((UINT64)Src->StartingLba[2] << 40) |
+		    ((UINT64)Src->StartingLba[3] << 32) |
+		    ((UINT64)Src->StartingLba[4] << 24) |
+		    ((UINT64)Src->StartingLba[5] << 16) |
+		    ((UINT64)Src->StartingLba[6] << 8) |
+		    ((UINT64)Src->StartingLba[7]);
+		UINT32 BlockCount =
+		    ((UINT32)Src->LbaCount[0] << 24) |
+		    ((UINT32)Src->LbaCount[1] << 16) |
+		    ((UINT32)Src->LbaCount[2] << 8) |
+		    ((UINT32)Src->LbaCount[3]);
+
+		ret = zvol_os_unmap(zv,
+			BlockAddress * zv->zv_volblocksize,
+			BlockCount * zv->zv_volblocksize);
+		if (ret != 0)
+			break;
+	}
+
+	if (ret != 0)
+		return (SCSI_SENSE_ILLEGAL_REQUEST);
+
+	return (SRB_STATUS_SUCCESS);
+}
+
+UCHAR
 ScsiReadWriteSetup(
 	__in pHW_HBA_EXT pHBAExt,
 	__in PSCSI_REQUEST_BLOCK pSrb,
 	__in MpWkRtnAction WkRtnAction,
 	__in PUCHAR pResult)
 {
-	PCDB pCdb = (PCDB)pSrb->Cdb;
 	PHW_SRB_EXTENSION pSrbExt = pSrb->SrbExtension;
-	ULONG startingSector,
-	    sectorOffset;
-	USHORT numBlocks;
 	pMP_WorkRtnParms pWkRtnParms = &pSrbExt->WkRtnParms;
 
 	ASSERT(pSrb->DataBuffer != NULL);
@@ -737,8 +807,7 @@ ScsiReadWriteSetup(
 
 	pWkRtnParms->pHBAExt = pHBAExt;
 	pWkRtnParms->pSrb = pSrb;
-	pWkRtnParms->Action = ActionRead ==
-	    WkRtnAction ? ActionRead : ActionWrite;
+	pWkRtnParms->Action = WkRtnAction;
 
 	IoInitializeWorkItem((PDEVICE_OBJECT)pHBAExt->pDrvObj,
 	    (PIO_WORKITEM)pWkRtnParms->pQueueWorkItem);
@@ -830,7 +899,6 @@ wzvol_WkRtn(__in PVOID pWkParms)
 	PCDB pCdb = (PCDB)pSrb->Cdb;
 	PHW_SRB_EXTENSION pSrbExt = (PHW_SRB_EXTENSION)pSrb->SrbExtension;
 	ULONGLONG startingSector = 0ULL, sectorOffset = 0ULL;
-	ULONG lclStatus;
 	UCHAR status;
 	int flags = 0;
 	zvol_state_t *zv = NULL;
@@ -849,6 +917,11 @@ wzvol_WkRtn(__in PVOID pWkParms)
 	zv = wzvol_find_target(pSrb->TargetId, pSrb->Lun);
 	if (zv == NULL) {
 		status = SRB_STATUS_NO_DEVICE;
+		goto Done;
+	}
+
+	if (ActionUnmap == pWkRtnParms->Action) {
+		status = ScsiOpUnmap_impl(pHBAExt, pSrb, zv);
 		goto Done;
 	}
 

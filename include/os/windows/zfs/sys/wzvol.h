@@ -215,7 +215,8 @@ typedef struct _HW_LU_EXTENSION {
 
 typedef enum {
 	ActionRead,
-	ActionWrite
+	ActionWrite,
+	ActionUnmap
 } MpWkRtnAction;
 
 typedef struct _MP_WorkRtnParms {
@@ -348,6 +349,13 @@ ScsiOpRead(
 
 UCHAR
 ScsiOpWrite(
+	IN pHW_HBA_EXT		DevExt,
+	IN PSCSI_REQUEST_BLOCK	Srb,
+	IN PUCHAR		Action
+);
+
+UCHAR
+ScsiOpUnmap(
 	IN pHW_HBA_EXT		DevExt,
 	IN PSCSI_REQUEST_BLOCK	Srb,
 	IN PUCHAR		Action
