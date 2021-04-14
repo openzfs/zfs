@@ -37,6 +37,7 @@ verify_runnable "both"
 function cleanup
 {
 	log_must rm -rf "$logdir"
+	log_must rm "/tmp/zts-zed_fd_spill-logdir"
 	log_must zed_stop
 }
 
@@ -44,55 +45,33 @@ log_assert "Verify ZEDLETs inherit only the fds specified"
 log_onexit cleanup
 
 logdir="$(mktemp -d)"
-log_must cc -xc -o${ZEDLET_DIR}/all-dumpfds << EOF
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <stdio.h>
+log_must ln -s "$logdir" /tmp/zts-zed_fd_spill-logdir
 
-int main() {
-	if(fork()) {
-		int err;
-		wait(&err);
-		return err;
-	}
-
-	char buf[4096];
-	snprintf(buf, sizeof (buf), "$logdir/%d", getppid());
-	dup2(creat(buf, 0644), STDOUT_FILENO);
-
-	// Fault injexion!
-	snprintf(buf, sizeof (buf), "%d", (getppid() % 20) + 4);
-	puts(buf);
-
-	snprintf(buf, sizeof (buf), "/proc/%d/fd", getppid());
-	execlp("ls", "ls", buf, NULL);
-	_exit(127);
-}
-EOF
+self="$(readlink -f "$0")"
+log_must ln -s "${self%/*}/zed_fd_spill-zedlet" "${ZEDLET_DIR}/all-dumpfds"
 
 log_must zpool events -c
 log_must zed_stop
 log_must zed_start
 
-truncate -s 0 $ZED_DEBUG_LOG
-log_must zpool scrub $testpool
+log_must truncate -s 0 $ZED_DEBUG_LOG
+log_must zpool scrub $TESTPOOL
 log_must zfs set compression=off $TESTPOOL/$TESTFS
-wait_scrubbed $TESTPOOL
+log_must wait_scrubbed $TESTPOOL
 log_must file_wait $ZED_DEBUG_LOG 3
 
-log_must ls -l "$logdir"
+if [ -n "$(find "$logdir" -maxdepth 0 -empty)" ]; then
+	log_fail "Our ZEDLET didn't run!"
+fi
 log_must awk '
-!/^[0123]$/ {
-	print FILENAME ": " $0 >"/dev/stderr"
-	err=1
-}
-END {
-	exit err
-}
+	!/^[0123]$/ {
+		print FILENAME ": " $0
+		err=1
+	}
+	END {
+		exit err
+	}
 ' "$logdir"/*
-wc -l "$logdir"/* | log_must awk '$1 != "3" && $2 != "total" {print; exit 1}'
+wc -l "$logdir"/* | log_must awk '$1 != "4" && $2 != "total" {print; exit 1}'
 
 log_pass "ZED doesn't leak fds to ZEDLETs"
