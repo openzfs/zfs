@@ -193,38 +193,15 @@ nfs_copy_entries(char *filename, const char *mountpoint)
 }
 
 static int
-nfs_enable_share(sa_share_impl_t impl_share)
+nfs_enable_share_impl(sa_share_impl_t impl_share, char *filename)
 {
-	char *filename = NULL;
-	int error;
-
-	if ((filename = nfs_init_tmpfile(ZFS_EXPORTS_FILE, NULL)) == NULL)
-		return (SA_SYSTEM_ERR);
-
-	error = nfs_exports_lock(ZFS_EXPORTS_LOCK);
-	if (error != 0) {
-		unlink(filename);
-		free(filename);
-		return (error);
-	}
-
-	error = nfs_copy_entries(filename, impl_share->sa_mountpoint);
-	if (error != SA_OK) {
-		unlink(filename);
-		free(filename);
-		nfs_exports_unlock(ZFS_EXPORTS_LOCK);
-		return (error);
-	}
-
 	FILE *fp = fopen(filename, "a+e");
 	if (fp == NULL) {
 		fprintf(stderr, "failed to open %s file: %s", filename,
 		    strerror(errno));
-		unlink(filename);
-		free(filename);
-		nfs_exports_unlock(ZFS_EXPORTS_LOCK);
 		return (SA_SYSTEM_ERR);
 	}
+
 	char *shareopts = FSINFO(impl_share, nfs_fstype)->shareopts;
 	if (strcmp(shareopts, "on") == 0)
 		shareopts = "";
@@ -233,30 +210,38 @@ nfs_enable_share(sa_share_impl_t impl_share)
 	    translate_opts(shareopts)) < 0) {
 		fprintf(stderr, "failed to write to %s\n", filename);
 		fclose(fp);
-		unlink(filename);
-		free(filename);
-		nfs_exports_unlock(ZFS_EXPORTS_LOCK);
 		return (SA_SYSTEM_ERR);
 	}
 
 	if (fclose(fp) != 0) {
 		fprintf(stderr, "Unable to close file %s: %s\n",
 		    filename, strerror(errno));
-		unlink(filename);
-		free(filename);
-		nfs_exports_unlock(ZFS_EXPORTS_LOCK);
 		return (SA_SYSTEM_ERR);
 	}
-	error = nfs_fini_tmpfile(ZFS_EXPORTS_FILE, filename);
-	nfs_exports_unlock(ZFS_EXPORTS_LOCK);
-	return (error);
+
+	return (SA_OK);
+}
+
+static int
+nfs_enable_share(sa_share_impl_t impl_share)
+{
+	return (nfs_toggle_share(
+	    ZFS_EXPORTS_LOCK, ZFS_EXPORTS_FILE, NULL, impl_share,
+	    nfs_enable_share_impl));
+}
+
+static int
+nfs_disable_share_impl(sa_share_impl_t impl_share, char *filename)
+{
+	return (SA_OK);
 }
 
 static int
 nfs_disable_share(sa_share_impl_t impl_share)
 {
-	return (nfs_disable_share_impl(
-	    ZFS_EXPORTS_LOCK, ZFS_EXPORTS_FILE, NULL, impl_share));
+	return (nfs_toggle_share(
+	    ZFS_EXPORTS_LOCK, ZFS_EXPORTS_FILE, NULL, impl_share,
+	    nfs_disable_share_impl));
 }
 
 static boolean_t
