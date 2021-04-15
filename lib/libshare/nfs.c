@@ -38,7 +38,7 @@ static int nfs_lock_fd = -1;
  * updates to the exports file. Each protocol is responsible for
  * providing the necessary locking to ensure consistency.
  */
-__attribute__((visibility("hidden"))) int
+static int
 nfs_exports_lock(const char *name)
 {
 	int err;
@@ -61,7 +61,7 @@ nfs_exports_lock(const char *name)
 	return (0);
 }
 
-__attribute__((visibility("hidden"))) void
+static void
 nfs_exports_unlock(const char *name)
 {
 	verify(nfs_lock_fd > 0);
@@ -75,7 +75,7 @@ nfs_exports_unlock(const char *name)
 	nfs_lock_fd = -1;
 }
 
-__attribute__((visibility("hidden"))) char *
+static char *
 nfs_init_tmpfile(const char *prefix, const char *mdir)
 {
 	char *tmpfile = NULL;
@@ -105,7 +105,7 @@ nfs_init_tmpfile(const char *prefix, const char *mdir)
 	return (tmpfile);
 }
 
-__attribute__((visibility("hidden"))) int
+static int
 nfs_fini_tmpfile(const char *exports, char *tmpfile)
 {
 	if (rename(tmpfile, exports) == -1) {
@@ -120,8 +120,9 @@ nfs_fini_tmpfile(const char *exports, char *tmpfile)
 }
 
 __attribute__((visibility("hidden"))) int
-nfs_disable_share_impl(const char *lockfile, const char *exports,
-    const char *expdir, sa_share_impl_t impl_share)
+nfs_toggle_share(const char *lockfile, const char *exports,
+    const char *expdir, sa_share_impl_t impl_share,
+    int(*cbk)(sa_share_impl_t impl_share, char *filename))
 {
 	int error;
 	char *filename;
@@ -137,14 +138,20 @@ nfs_disable_share_impl(const char *lockfile, const char *exports,
 	}
 
 	error = nfs_copy_entries(filename, impl_share->sa_mountpoint);
-	if (error != SA_OK) {
-		unlink(filename);
-		free(filename);
-		nfs_exports_unlock(lockfile);
-		return (error);
-	}
+	if (error != SA_OK)
+		goto fullerr;
+
+	error = cbk(impl_share, filename);
+	if (error != SA_OK)
+		goto fullerr;
 
 	error = nfs_fini_tmpfile(exports, filename);
+	nfs_exports_unlock(lockfile);
+	return (error);
+
+fullerr:
+	unlink(filename);
+	free(filename);
 	nfs_exports_unlock(lockfile);
 	return (error);
 }

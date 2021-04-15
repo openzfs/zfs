@@ -30,12 +30,7 @@
 
 void libshare_nfs_init(void);
 
-int nfs_exports_lock(const char *name);
-void nfs_exports_unlock(const char *name);
-
-char *nfs_init_tmpfile(const char *prefix, const char *mdir);
-int nfs_fini_tmpfile(const char *exports, char *tmpfile);
-
 int nfs_copy_entries(char *filename, const char *mountpoint);
-int nfs_disable_share_impl(const char *lockfile, const char *exports,
-    const char *expdir, sa_share_impl_t impl_share);
+int nfs_toggle_share(const char *lockfile, const char *exports,
+    const char *expdir, sa_share_impl_t impl_share,
+    int(*cbk)(sa_share_impl_t impl_share, char *filename));

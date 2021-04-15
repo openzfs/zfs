@@ -467,61 +467,45 @@ nfs_copy_entries(char *filename, const char *mountpoint)
  * Enables NFS sharing for the specified share.
  */
 static int
-nfs_enable_share(sa_share_impl_t impl_share)
+nfs_enable_share_impl(sa_share_impl_t impl_share, char *filename)
 {
 	char *shareopts, *linux_opts;
-	char *filename = NULL;
 	int error;
-
-	if ((filename =
-	    nfs_init_tmpfile(ZFS_EXPORTS_FILE, ZFS_EXPORTS_DIR)) == NULL)
-		return (SA_SYSTEM_ERR);
-
-	error = nfs_exports_lock(ZFS_EXPORTS_LOCK);
-	if (error != 0) {
-		unlink(filename);
-		free(filename);
-		return (error);
-	}
-
-	error = nfs_copy_entries(filename, impl_share->sa_mountpoint);
-	if (error != SA_OK) {
-		unlink(filename);
-		free(filename);
-		nfs_exports_unlock(ZFS_EXPORTS_LOCK);
-		return (error);
-	}
 
 	shareopts = FSINFO(impl_share, nfs_fstype)->shareopts;
 	error = get_linux_shareopts(shareopts, &linux_opts);
-	if (error != SA_OK) {
-		unlink(filename);
-		free(filename);
-		nfs_exports_unlock(ZFS_EXPORTS_LOCK);
+	if (error != SA_OK)
 		return (error);
-	}
 
 	error = foreach_nfs_host(impl_share, filename, nfs_add_entry,
 	    linux_opts);
 	free(linux_opts);
-	if (error == 0) {
-		error = nfs_fini_tmpfile(ZFS_EXPORTS_FILE, filename);
-	} else {
-		unlink(filename);
-		free(filename);
-	}
-	nfs_exports_unlock(ZFS_EXPORTS_LOCK);
 	return (error);
+}
+
+static int
+nfs_enable_share(sa_share_impl_t impl_share)
+{
+	return (nfs_toggle_share(
+	    ZFS_EXPORTS_LOCK, ZFS_EXPORTS_FILE, ZFS_EXPORTS_DIR, impl_share,
+	    nfs_enable_share_impl));
 }
 
 /*
  * Disables NFS sharing for the specified share.
  */
 static int
+nfs_disable_share_impl(sa_share_impl_t impl_share, char *filename)
+{
+	return (SA_OK);
+}
+
+static int
 nfs_disable_share(sa_share_impl_t impl_share)
 {
-	return (nfs_disable_share_impl(
-	    ZFS_EXPORTS_LOCK, ZFS_EXPORTS_FILE, ZFS_EXPORTS_DIR, impl_share));
+	return (nfs_toggle_share(
+	    ZFS_EXPORTS_LOCK, ZFS_EXPORTS_FILE, ZFS_EXPORTS_DIR, impl_share,
+	    nfs_disable_share_impl));
 }
 
 static boolean_t
