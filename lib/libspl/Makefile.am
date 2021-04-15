@@ -7,6 +7,7 @@ if TARGET_CPU_X86_64
 TARGET_CPU_ATOMIC_SOURCE = asm-x86_64/atomic.S
 else
 TARGET_CPU_ATOMIC_SOURCE = asm-generic/atomic.c
+LIBATOMIC = $(LIBATOMIC_LIBS)
 endif
 endif
 
@@ -56,7 +57,7 @@ libspl_la_SOURCES = \
 libspl_la_LIBADD = \
 	libspl_assert.la
 
-libspl_la_LIBADD += $(LIBCLOCK_GETTIME)
+libspl_la_LIBADD += $(LIBATOMIC) $(LIBCLOCK_GETTIME)
 
 include $(top_srcdir)/config/CppCheck.am
 
