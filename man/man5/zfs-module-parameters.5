@@ -2912,6 +2912,19 @@ Default value: \fB52,428,800\fR.
 .sp
 .ne 2
 .na
+\fBzfs_traverse_indirect_prefetch_limit\fR (int)
+.ad
+.RS 12n
+The number of blocks pointed by indirect (non-L0) block, which should be
+prefetched during a pool traversal (eg: \fBzfs send\fR or other data
+crawling operations)
+.sp
+Default value: \fB32\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_per_txg_dirty_frees_percent \fR (ulong)
 .ad
 .RS 12n
