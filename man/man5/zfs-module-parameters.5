@@ -1905,6 +1905,28 @@ Default value: \fB20\fR% of \fBzfs_dirty_data_max\fR.
 .sp
 .ne 2
 .na
+\fBzfs_wrlog_data_max\fR (ulong)
+.ad
+.RS 12n
+The upper limit of write-transaction zil log data size in bytes. Once it is reached, write operation is blocked, until log data is cleared out after transaction group sync. It should be set larger than \fBzfs_dirty_data_max\fR to prevent harming write throughput. It also should be smaller than the size of the slog device if slog is present.
+.sp
+Default value: \fB120\fR% of \fBzfs_dirty_data_max\fR in bytes.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzfs_wrlog_data_sync_percent\fR (int)
+.ad
+.RS 12n
+The least write-transaction zil log data (as a percentage of \fBzfs_wrlog_data_max\fR) to trigger a transaction group sync. The calculated size in bytes should be greater than \fBzfs_dirty_data_max\fR * \fBzfs_dirty_data_sync_percent\fR, to prevent harming write throughput.
+.sp
+Default value: \fB30\fR% of \fBzfs_wrlog_data_max\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_fallocate_reserve_percent\fR (uint)
 .ad
 .RS 12n
