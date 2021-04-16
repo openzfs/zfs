@@ -84,12 +84,21 @@ SHA512TransformBlocks(SHA2_CTX *ctx, const void *in, size_t num)
 #include <sys/asm_linkage.h>
 
 ENTRY_NP(SHA512TransformBlocks)
+.cfi_startproc
+	movq	%rsp, %rax
+.cfi_def_cfa_register %rax
 	push	%rbx
+.cfi_offset	%rbx,-16
 	push	%rbp
+.cfi_offset	%rbp,-24
 	push	%r12
+.cfi_offset	%r12,-32
 	push	%r13
+.cfi_offset	%r13,-40
 	push	%r14
+.cfi_offset	%r14,-48
 	push	%r15
+.cfi_offset	%r15,-56
 	mov	%rsp,%rbp		# copy %rsp
 	shl	$4,%rdx		# num*16
 	sub	$16*8+4*8,%rsp
@@ -100,6 +109,9 @@ ENTRY_NP(SHA512TransformBlocks)
 	mov	%rsi,16*8+1*8(%rsp)		# save inp, 2nd arg
 	mov	%rdx,16*8+2*8(%rsp)		# save end pointer, "3rd" arg
 	mov	%rbp,16*8+3*8(%rsp)		# save copy of %rsp
+# echo ".cfi_cfa_expression %rsp+152,deref,+56" |
+#	openssl/crypto/perlasm/x86_64-xlate.pl
+.cfi_escape	0x0f,0x06,0x77,0x98,0x01,0x06,0x23,0x38
 
 	#.picmeup %rbp
 	# The .picmeup pseudo-directive, from perlasm/x86_64_xlate.pl, puts
@@ -2027,14 +2039,28 @@ ENTRY_NP(SHA512TransformBlocks)
 	jb	.Lloop
 
 	mov	16*8+3*8(%rsp),%rsp
+.cfi_def_cfa	%rsp,56
 	pop	%r15
+.cfi_adjust_cfa_offset -8
+.cfi_restore	%r15
 	pop	%r14
+.cfi_adjust_cfa_offset -8
+.cfi_restore	%r14
 	pop	%r13
+.cfi_adjust_cfa_offset -8
+.cfi_restore	%r13
 	pop	%r12
+.cfi_adjust_cfa_offset -8
+.cfi_restore	%r12
 	pop	%rbp
+.cfi_adjust_cfa_offset -8
+.cfi_restore	%rbp
 	pop	%rbx
+.cfi_adjust_cfa_offset -8
+.cfi_restore	%rbx
 
 	ret
+.cfi_endproc
 SET_SIZE(SHA512TransformBlocks)
 
 .data
