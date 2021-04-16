@@ -512,7 +512,7 @@ get_key_material(libzfs_handle_t *hdl, boolean_t do_verify, boolean_t newkey,
 	switch (keyloc) {
 	case ZFS_KEYLOCATION_PROMPT:
 		if (isatty(fileno(stdin))) {
-			can_retry = B_TRUE;
+			can_retry = keyformat != ZFS_KEYFORMAT_RAW;
 			ret = get_key_interactive(hdl, fsname, keyformat,
 			    do_verify, newkey, &km, &kmlen);
 		} else {
