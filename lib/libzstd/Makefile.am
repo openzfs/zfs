@@ -3,7 +3,7 @@ include $(top_srcdir)/config/Rules.am
 VPATH = $(top_srcdir)/module/zstd
 
 # -fno-tree-vectorize is set for gcc in zstd/common/compiler.h
-# Set it for other compilers, too.
+# Set it for other compilers, too. 
 AM_CFLAGS += -fno-tree-vectorize
 
 noinst_LTLIBRARIES = libzstd.la
