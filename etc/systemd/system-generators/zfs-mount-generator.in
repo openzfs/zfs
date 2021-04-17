@@ -28,6 +28,7 @@ set -e
 FSLIST="@sysconfdir@/zfs/zfs-list.cache"
 
 [ -d "${FSLIST}" ] || exit 0
+[ "$(echo "${FSLIST}"/*)" = "${FSLIST}/*" ] && exit 0
 
 do_fail() {
   printf 'zfs-mount-generator: %s\n' "$*" > /dev/kmsg
