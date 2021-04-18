@@ -251,6 +251,8 @@ objpool_destroy(objpool_t *const objpool)
 static void*
 obj_grab(objpool_t *const objpool)
 {
+	return objpool->obj_alloc(); // TESTING - DO NOT MERGE
+
 	void* grabbed_obj = NULL;
 	mutex_enter(&objpool->listlock);
 	const int objcount = objpool->count;
@@ -303,6 +305,9 @@ obj_grab(objpool_t *const objpool)
 static void
 obj_ungrab(objpool_t *const objpool, void* const obj)
 {
+	objpool->obj_free(); // TESTING - DO NOT MERGE
+	return; // TESTING - DO NOT MERGE
+
 	ASSERT3P(obj, !=, NULL);
 	mutex_enter(&objpool->listlock);
 	int const objcount = objpool->count;
