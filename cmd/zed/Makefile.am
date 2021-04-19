@@ -45,7 +45,7 @@ zed_LDADD = \
 	$(abs_top_builddir)/lib/libnvpair/libnvpair.la \
 	$(abs_top_builddir)/lib/libuutil/libuutil.la
 
-zed_LDADD += -lrt $(LIBUDEV_LIBS) $(LIBUUID_LIBS)
+zed_LDADD += -lrt $(LIBATOMIC_LIBS) $(LIBUDEV_LIBS) $(LIBUUID_LIBS)
 zed_LDFLAGS = -pthread
 
 EXTRA_DIST = agents/README.md
