@@ -1051,6 +1051,7 @@ dsl_bookmark_destroy_sync_impl(dsl_dataset_t *ds, const char *name,
 		VERIFY0(dnode_hold(ds->ds_dir->dd_pool->dp_meta_objset,
 		    dbn->dbn_phys.zbm_redaction_obj, FTAG, &dn));
 		char *buf = kmem_alloc(128 * dn->dn_nblkptr, KM_SLEEP);
+		buf[0] = '\0';
 		char *buf2 = kmem_alloc(128, KM_SLEEP);
 		for (int i = 0; i < dn->dn_nblkptr; i++) {
 			zio_cksum_t *zc = &dn->dn_phys->dn_blkptr[i].blk_cksum;
