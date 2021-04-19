@@ -305,7 +305,7 @@ obj_grab(objpool_t *const objpool)
 static void
 obj_ungrab(objpool_t *const objpool, void* const obj)
 {
-	objpool->obj_free(); // TESTING - DO NOT MERGE
+	objpool->obj_free(obj); // TESTING - DO NOT MERGE
 	return; // TESTING - DO NOT MERGE
 
 	ASSERT3P(obj, !=, NULL);
