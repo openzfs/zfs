@@ -658,8 +658,12 @@ vdev_raidz_map_alloc_expanded(zio_t *zio,
 		 */
 		rr->rr_firstdatacol = nparity;
 #ifdef ZFS_DEBUG
-		/* XXX offset and size here are for the whole i/o, not this row */
-		/* XXX note: size is PSIZE, not ASIZE */
+		/*
+		 * XXX offset and size here are for the whole i/o, not this row
+		 */
+		/*
+		 * XXX note: size is PSIZE, not ASIZE
+		 */
 		rr->rr_offset = offset;
 		rr->rr_size = size;
 #endif
@@ -791,12 +795,15 @@ vdev_raidz_map_alloc_expanded(zio_t *zio,
 			int devidx0 = rr->rr_col[0].rc_devidx;
 			uint64_t offset0 = rr->rr_col[0].rc_offset;
 			int shadow_devidx0 = rr->rr_col[0].rc_shadow_devidx;
-			uint64_t shadow_offset0 = rr->rr_col[0].rc_shadow_offset;
+			uint64_t shadow_offset0 =
+			    rr->rr_col[0].rc_shadow_offset;
 
 			rr->rr_col[0].rc_devidx = rr->rr_col[1].rc_devidx;
 			rr->rr_col[0].rc_offset = rr->rr_col[1].rc_offset;
-			rr->rr_col[0].rc_shadow_devidx = rr->rr_col[1].rc_shadow_devidx;
-			rr->rr_col[0].rc_shadow_offset = rr->rr_col[1].rc_shadow_offset;
+			rr->rr_col[0].rc_shadow_devidx =
+			    rr->rr_col[1].rc_shadow_devidx;
+			rr->rr_col[0].rc_shadow_offset =
+			    rr->rr_col[1].rc_shadow_offset;
 
 			rr->rr_col[1].rc_devidx = devidx0;
 			rr->rr_col[1].rc_offset = offset0;
@@ -879,7 +886,8 @@ vdev_raidz_map_alloc_expanded(zio_t *zio,
 			raidz_row_t *rr = rm->rm_row[i];
 			for (int c = 0; c < rr->rr_firstdatacol; c++) {
 				raidz_col_t *rc = &rr->rr_col[c];
-				raidz_col_t *prc = &rm->rm_phys_col[rc->rc_devidx];
+				raidz_col_t *prc =
+				    &rm->rm_phys_col[rc->rc_devidx];
 				rc->rc_abd =
 				    abd_get_offset_struct(&rc->rc_abdstruct,
 				    prc->rc_abd,
@@ -2130,7 +2138,8 @@ vdev_raidz_asize(vdev_t *vd, uint64_t psize, uint64_t txg)
 #ifdef ZFS_DEBUG
 	uint64_t asize_new = ((psize - 1) >> ashift) + 1;
 	uint64_t ncols_new = vdrz->vd_physical_width;
-	asize_new += nparity * ((asize_new + ncols_new - nparity - 1) / (ncols_new - nparity));
+	asize_new += nparity * ((asize_new + ncols_new - nparity - 1) /
+	    (ncols_new - nparity));
 	asize_new = roundup(asize_new, nparity + 1) << ashift;
 	VERIFY3U(asize_new, <=, asize);
 #endif
@@ -2170,7 +2179,12 @@ vdev_raidz_shadow_child_done(zio_t *zio)
 static void
 vdev_raidz_io_verify(zio_t *zio, raidz_map_t *rm, raidz_row_t *rr, int col)
 {
-#if 0 // XXX vdev_xlate doesn't work right when block straddles the expansion progress
+	/*
+	 * XXX vdev_xlate doesn't work right when block
+	 * straddles the expansion progress
+	 */
+#if 0
+
 //#ifdef ZFS_DEBUG
 	vdev_t *tvd = vd->vdev_top;
 
@@ -2411,8 +2425,11 @@ vdev_raidz_io_start(zio_t *zio)
 			    &vdrz->vn_vre);
 			lr = zfs_rangelock_enter(&vdrz->vn_vre.vre_rangelock,
 			    zio->io_offset, zio->io_size, RL_READER);
-			use_scratch = (RRSS_GET_STATE(&vd->vdev_spa->spa_ubsync) == RRSS_SCRATCH_VALID);
-			synced_offset = RRSS_GET_OFFSET(&vd->vdev_spa->spa_ubsync);
+			use_scratch =
+			    (RRSS_GET_STATE(&vd->vdev_spa->spa_ubsync) ==
+			    RRSS_SCRATCH_VALID);
+			synced_offset =
+			    RRSS_GET_OFFSET(&vd->vdev_spa->spa_ubsync);
 			next_offset = vdrz->vn_vre.vre_offset;
 			/*
 			 * If we haven't resumed expanding since importing the
@@ -3239,7 +3256,14 @@ vdev_raidz_io_done(zio_t *zio)
 					rc->rc_tried = prc->rc_tried;
 					rc->rc_skipped = prc->rc_skipped;
 					if (c >= rr->rr_firstdatacol) {
-#if 1 // XXX evaluate perf impact. if it matters then make a fast-path in abd_copy_off where one of the abd's is linear?
+						/*
+						 * XXX evaluate perf impact.
+						 * If it matters then make a
+						 * fast-path in abd_copy_off
+						 * where one of the abd's
+						 * is linear?
+						 */
+#if 1
 						char *physbuf = abd_to_buf(
 						    prc->rc_abd);
 						void *physloc = physbuf +
@@ -3513,7 +3537,7 @@ raidz_reflow_sync(void *arg, dmu_tx_t *tx)
 	/*
 	 * Update the uberblock that will be written when this txg completes.
 	 */
-	zfs_dbgmsg("raidz reflow syncing txg=%llu offset_pertxg=%llu failed_offset=%llu",
+	zfs_dbgmsg("reflow syncing txg=%llu off_pertxg=%llu failed_off=%llu",
 	    (long long)dmu_tx_get_txg(tx),
 	    (long long)vre->vre_offset_pertxg[txgoff],
 	    (long long)vre->vre_failed_offset);
@@ -3628,7 +3652,8 @@ raidz_reflow_write_done(zio_t *zio)
 	vre->vre_outstanding_bytes -= zio->io_size;
 	if (rra->rra_lr->lr_offset + rra->rra_lr->lr_length <
 	    vre->vre_failed_offset) {
-		vre->vre_bytes_copied_pertxg[rra->rra_txg & TXG_MASK] += zio->io_size;
+		vre->vre_bytes_copied_pertxg[rra->rra_txg & TXG_MASK] +=
+		    zio->io_size;
 	}
 	cv_signal(&vre->vre_cv);
 	mutex_exit(&vre->vre_lock);
@@ -3657,7 +3682,8 @@ raidz_reflow_read_done(zio_t *zio)
 	 * will retry later due to vre_failed_offset.
 	 */
 	if (zio->io_error != 0 || !vdev_dtl_empty(zio->io_vd, DTL_MISSING)) {
-		zfs_dbgmsg("reflow read failed offset=%llu size=%llu txg=%llu err=%u partial_dtl_empty=%u missing_dtl_empty=%u",
+		zfs_dbgmsg("reflow read failed off=%llu size=%llu txg=%llu \
+err=%u partial_dtl_empty=%u missing_dtl_empty=%u",
 		    rra->rra_lr->lr_offset,
 		    rra->rra_lr->lr_length,
 		    rra->rra_txg,
@@ -3897,7 +3923,7 @@ raidz_reflow_scratch_sync(void *arg, dmu_tx_t *tx)
 	zio_flush(pio, raidvd);
 	zio_wait(pio);
 
-	zfs_dbgmsg("raidz reflow: wrote %llu bytes (logical) to scratch area",
+	zfs_dbgmsg("reflow: wrote %llu bytes (logical) to scratch area",
 	    logical_size);
 
 	raidz_expand_pause(spa, 3);
@@ -3917,7 +3943,8 @@ raidz_reflow_scratch_sync(void *arg, dmu_tx_t *tx)
 	ASSERT0(vdev_uberblock_sync_list(&spa->spa_root_vdev, 1,
 	    &spa->spa_ubsync, ZIO_FLAG_CONFIG_WRITER));
 
-	zfs_dbgmsg("raidz reflow: uberblock updated (txg %llu, SCRATCH_VALID, size %llu, ts %llu)",
+	zfs_dbgmsg("reflow: uberblock updated \
+(txg %llu, SCRATCH_VALID, size %llu, ts %llu)",
 	    spa->spa_ubsync.ub_txg, logical_size, spa->spa_ubsync.ub_timestamp);
 
 	raidz_expand_pause(spa, 4);
@@ -3937,7 +3964,7 @@ raidz_reflow_scratch_sync(void *arg, dmu_tx_t *tx)
 	zio_flush(pio, raidvd);
 	zio_wait(pio);
 
-	zfs_dbgmsg("raidz reflow: overwrote %llu bytes (logical) to real location",
+	zfs_dbgmsg("reflow: overwrote %llu bytes (logical) to real location",
 	    logical_size);
 
 	for (int i = 0; i < raidvd->vdev_children; i++)
@@ -3960,7 +3987,8 @@ raidz_reflow_scratch_sync(void *arg, dmu_tx_t *tx)
 	ASSERT0(vdev_uberblock_sync_list(&spa->spa_root_vdev, 1,
 	    &spa->spa_ubsync, ZIO_FLAG_CONFIG_WRITER));
 
-	zfs_dbgmsg("raidz reflow: uberblock updated (txg %llu, SCRATCH_NOT_IN_USE, size %llu, ts %llu)",
+	zfs_dbgmsg("reflow: uberblock updated \
+(txg %llu, SCRATCH_NOT_IN_USE, size %llu, ts %llu)",
 	    spa->spa_ubsync.ub_txg, logical_size, spa->spa_ubsync.ub_timestamp);
 
 	raidz_expand_pause(spa, 6);
@@ -4034,7 +4062,8 @@ vdev_raidz_reflow_copy_scratch(spa_t *spa)
 	zio_flush(pio, raidvd);
 	zio_wait(pio);
 
-	zfs_dbgmsg("raidz reflow recovery: overwrote %llu bytes (logical) to real location",
+	zfs_dbgmsg("reflow recovery: overwrote %llu bytes (logical) \
+to real location",
 	    logical_size);
 
 	for (int i = 0; i < raidvd->vdev_children; i++)
@@ -4051,7 +4080,8 @@ vdev_raidz_reflow_copy_scratch(spa_t *spa)
 	VERIFY0(vdev_uberblock_sync_list(&spa->spa_root_vdev, 1,
 	    &spa->spa_ubsync, ZIO_FLAG_CONFIG_WRITER));
 
-	zfs_dbgmsg("raidz reflow recovery: uberblock updated (txg %llu, SCRATCH_NOT_IN_USE, size %llu, ts %llu)",
+	zfs_dbgmsg("reflow recovery: uberblock updated \
+(txg %llu, SCRATCH_NOT_IN_USE, size %llu, ts %llu)",
 	    spa->spa_ubsync.ub_txg, logical_size, spa->spa_ubsync.ub_timestamp);
 
 	spa_config_exit(spa, SCL_STATE, FTAG);
@@ -4253,7 +4283,7 @@ spa_raidz_expand_cb(void *arg, zthr_t *zthr)
 		 * Wait for all copy zio's to complete and for all the
 		 * raidz_reflow_sync() synctasks to be run.
 		 */
-		spa_history_log_internal(spa, "raidz reflow pause",
+		spa_history_log_internal(spa, "reflow pause",
 		    NULL, "offset=%llu failed_offset=%lld",
 		    (long long)vre->vre_offset,
 		    (long long)vre->vre_failed_offset);
@@ -4518,6 +4548,7 @@ vdev_raidz_init(spa_t *spa, nvlist_t *nv, void **tsd)
 		 * set to the label config vdev.  we just overwrite it here.
 		 * should find a cleaner way to do this.
 		 */
+
 		//ASSERT3P(spa->spa_raidz_expand, ==, NULL);
 		spa->spa_raidz_expand = &vdrz->vn_vre;
 		vdrz->vn_vre.vre_state = DSS_SCANNING;
@@ -4658,8 +4689,8 @@ vdev_ops_t vdev_raidz_ops = {
 };
 
 ZFS_MODULE_PARAM(zfs_vdev, raidz_, expand_max_offset_pause, ULONG, ZMOD_RW,
-    "For testing, pause RAIDZ expansion at this offset");
+	"For testing, pause RAIDZ expansion at this offset");
 ZFS_MODULE_PARAM(zfs_vdev, raidz_, expand_max_copy_bytes, ULONG, ZMOD_RW,
-    "Max amount of concurrent i/o for RAIDZ expansion");
+	"Max amount of concurrent i/o for RAIDZ expansion");
 ZFS_MODULE_PARAM(zfs_vdev, raidz_, io_aggregate_rows, ULONG, ZMOD_RW,
-    "Apply raidz map abds aggregation if the map contain more rows than value");
+	"Apply raidz map abds aggregation if the map contain more rows than value");
