@@ -565,7 +565,7 @@ zfs_iter_mounted(zfs_handle_t *zhp, zfs_iter_f func, void *data)
 	FILE *mnttab;
 	int err = 0;
 
-	if ((mnttab = fopen(MNTTAB, "r")) == NULL)
+	if ((mnttab = fopen(MNTTAB, "re")) == NULL)
 		return (ENOENT);
 
 	while (err == 0 && getmntent(mnttab, &entry) == 0) {

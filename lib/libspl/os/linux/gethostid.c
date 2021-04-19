@@ -40,47 +40,40 @@ get_spl_hostid(void)
 	 * Allow the hostid to be subverted for testing.
 	 */
 	env = getenv("ZFS_HOSTID");
-	if (env) {
-		hostid = strtoull(env, NULL, 0);
-		return (hostid & HOSTID_MASK);
-	}
+	if (env)
+		return (strtoull(env, NULL, 0));
 
-	f = fopen("/sys/module/spl/parameters/spl_hostid", "r");
+	f = fopen("/proc/sys/kernel/spl/hostid", "re");
 	if (!f)
 		return (0);
 
-	if (fscanf(f, "%lu", &hostid) != 1)
+	if (fscanf(f, "%lx", &hostid) != 1)
 		hostid = 0;
 
 	fclose(f);
 
-	return (hostid & HOSTID_MASK);
+	return (hostid);
 }
 
 unsigned long
 get_system_hostid(void)
 {
-	unsigned long system_hostid = get_spl_hostid();
+	unsigned long hostid = get_spl_hostid();
+
 	/*
-	 * We do not use the library call gethostid() because
-	 * it generates a hostid value that the kernel is
-	 * unaware of, if the spl_hostid module parameter has not
-	 * been set and there is no system hostid file (e.g.
-	 * /etc/hostid).  The kernel and userspace must agree.
+	 * We do not use gethostid(3) because it can return a bogus ID,
+	 * depending on the libc and /etc/hostid presence,
+	 * and the kernel and userspace must agree.
 	 * See comments above hostid_read() in the SPL.
 	 */
-	if (system_hostid == 0) {
-		int fd, rc;
-		unsigned long hostid;
-		int hostid_size = 4;  /* 4 bytes regardless of arch */
-
-		fd = open("/etc/hostid", O_RDONLY);
+	if (hostid == 0) {
+		int fd = open("/etc/hostid", O_RDONLY | O_CLOEXEC);
 		if (fd >= 0) {
-			rc = read(fd, &hostid, hostid_size);
-			if (rc > 0)
-				system_hostid = (hostid & HOSTID_MASK);
-			close(fd);
+			if (read(fd, &hostid, 4) < 0)
+				hostid = 0;
+			(void) close(fd);
 		}
 	}
-	return (system_hostid);
+
+	return (hostid & HOSTID_MASK);
 }

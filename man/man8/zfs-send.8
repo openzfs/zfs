@@ -30,7 +30,7 @@
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
 .\"
-.Dd June 30, 2019
+.Dd April 15, 2021
 .Dt ZFS-SEND 8
 .Os
 .Sh NAME
@@ -39,12 +39,12 @@
 .Sh SYNOPSIS
 .Nm zfs
 .Cm send
-.Op Fl DLPRbcehnpvw
+.Op Fl DLPRbcehnpsvw
 .Op Oo Fl I Ns | Ns Fl i Oc Ar snapshot
 .Ar snapshot
 .Nm zfs
 .Cm send
-.Op Fl DLPRcenpvw
+.Op Fl DLPRcenpsvw
 .Op Fl i Ar snapshot Ns | Ns Ar bookmark
 .Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot
 .Nm zfs
@@ -263,6 +263,12 @@ The receiving system must also support this feature. Sends of encrypted datasets
 must use
 .Fl w
 when using this flag.
+.It Fl s, -skip-missing
+Allows sending a replication stream even when there are snapshots missing in the
+hierarchy. When a snapshot is missing, instead of throwing an error and aborting
+the send, a warning is printed to STDERR and the dataset to which it belongs
+and its descendents are skipped. This flag can only be used in conjunction with
+.Fl R .
 .It Fl v, -verbose
 Print verbose information about the stream package generated.
 This information includes a per-second report of how much data has been sent.

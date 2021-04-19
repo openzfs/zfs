@@ -247,6 +247,7 @@ typedef struct send_data {
 	boolean_t raw;
 	boolean_t doall;
 	boolean_t replicate;
+	boolean_t skipmissing;
 	boolean_t verbose;
 	boolean_t backup;
 	boolean_t seenfrom;
@@ -497,7 +498,8 @@ send_iterate_fs(zfs_handle_t *zhp, void *arg)
 	 * - skip sending the current dataset if it was created later than
 	 *   the parent tosnap
 	 * - return error if the current dataset was created earlier than
-	 *   the parent tosnap
+	 *   the parent tosnap, unless --skip-missing specified. Then
+	 *   just print a warning
 	 */
 	if (sd->tosnap != NULL && tosnap_txg == 0) {
 		if (sd->tosnap_txg != 0 && txg > sd->tosnap_txg) {
@@ -506,6 +508,11 @@ send_iterate_fs(zfs_handle_t *zhp, void *arg)
 				    "skipping dataset %s: snapshot %s does "
 				    "not exist\n"), zhp->zfs_name, sd->tosnap);
 			}
+		} else if (sd->skipmissing) {
+			(void) fprintf(stderr, dgettext(TEXT_DOMAIN,
+			    "WARNING: skipping dataset %s and its children:"
+			    " snapshot %s does not exist\n"),
+			    zhp->zfs_name, sd->tosnap);
 		} else {
 			(void) fprintf(stderr, dgettext(TEXT_DOMAIN,
 			    "cannot send %s@%s%s: snapshot %s@%s does not "
@@ -649,8 +656,9 @@ out:
 static int
 gather_nvlist(libzfs_handle_t *hdl, const char *fsname, const char *fromsnap,
     const char *tosnap, boolean_t recursive, boolean_t raw, boolean_t doall,
-    boolean_t replicate, boolean_t verbose, boolean_t backup, boolean_t holds,
-    boolean_t props, nvlist_t **nvlp, avl_tree_t **avlp)
+    boolean_t replicate, boolean_t skipmissing, boolean_t verbose,
+    boolean_t backup, boolean_t holds, boolean_t props, nvlist_t **nvlp,
+    avl_tree_t **avlp)
 {
 	zfs_handle_t *zhp;
 	send_data_t sd = { 0 };
@@ -668,6 +676,7 @@ gather_nvlist(libzfs_handle_t *hdl, const char *fsname, const char *fromsnap,
 	sd.raw = raw;
 	sd.doall = doall;
 	sd.replicate = replicate;
+	sd.skipmissing = skipmissing;
 	sd.verbose = verbose;
 	sd.backup = backup;
 	sd.holds = holds;
@@ -1975,8 +1984,8 @@ send_conclusion_record(int fd, zio_cksum_t *zc)
 static int
 send_prelim_records(zfs_handle_t *zhp, const char *from, int fd,
     boolean_t gather_props, boolean_t recursive, boolean_t verbose,
-    boolean_t dryrun, boolean_t raw, boolean_t replicate, boolean_t backup,
-    boolean_t holds, boolean_t props, boolean_t doall,
+    boolean_t dryrun, boolean_t raw, boolean_t replicate, boolean_t skipmissing,
+    boolean_t backup, boolean_t holds, boolean_t props, boolean_t doall,
     nvlist_t **fssp, avl_tree_t **fsavlp)
 {
 	int err = 0;
@@ -2022,8 +2031,8 @@ send_prelim_records(zfs_handle_t *zhp, const char *from, int fd,
 		}
 
 		if ((err = gather_nvlist(zhp->zfs_hdl, tofs,
-		    from, tosnap, recursive, raw, doall, replicate, verbose,
-		    backup, holds, props, &fss, fsavlp)) != 0) {
+		    from, tosnap, recursive, raw, doall, replicate, skipmissing,
+		    verbose, backup, holds, props, &fss, fsavlp)) != 0) {
 			return (zfs_error(zhp->zfs_hdl, EZFS_BADBACKUP,
 			    errbuf));
 		}
@@ -2160,8 +2169,9 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 		err = send_prelim_records(tosnap, fromsnap, outfd,
 		    flags->replicate || flags->props || flags->holds,
 		    flags->replicate, flags->verbosity > 0, flags->dryrun,
-		    flags->raw, flags->replicate, flags->backup, flags->holds,
-		    flags->props, flags->doall, &fss, &fsavl);
+		    flags->raw, flags->replicate, flags->skipmissing,
+		    flags->backup, flags->holds, flags->props, flags->doall,
+		    &fss, &fsavl);
 		zfs_close(tosnap);
 		if (err != 0)
 			goto err_out;
@@ -2207,7 +2217,7 @@ zfs_send(zfs_handle_t *zhp, const char *fromsnap, const char *tosnap,
 		++holdseq;
 		(void) snprintf(sdd.holdtag, sizeof (sdd.holdtag),
 		    ".send-%d-%llu", getpid(), (u_longlong_t)holdseq);
-		sdd.cleanup_fd = open(ZFS_DEV, O_RDWR);
+		sdd.cleanup_fd = open(ZFS_DEV, O_RDWR | O_CLOEXEC);
 		if (sdd.cleanup_fd < 0) {
 			err = errno;
 			goto stderr_out;
@@ -2464,7 +2474,7 @@ zfs_send_one(zfs_handle_t *zhp, const char *from, int fd, sendflags_t *flags,
 		 */
 		err = send_prelim_records(zhp, NULL, fd, B_TRUE, B_FALSE,
 		    flags->verbosity > 0, flags->dryrun, flags->raw,
-		    flags->replicate, flags->backup, flags->holds,
+		    flags->replicate, B_FALSE, flags->backup, flags->holds,
 		    flags->props, flags->doall, NULL, NULL);
 		if (err != 0)
 			return (err);
@@ -3236,7 +3246,7 @@ again:
 	deleted = fnvlist_alloc();
 
 	if ((error = gather_nvlist(hdl, tofs, fromsnap, NULL,
-	    recursive, B_TRUE, B_FALSE, recursive, B_FALSE, B_FALSE,
+	    recursive, B_TRUE, B_FALSE, recursive, B_FALSE, B_FALSE, B_FALSE,
 	    B_FALSE, B_TRUE, &local_nv, &local_avl)) != 0)
 		return (error);
 
@@ -4576,26 +4586,6 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		(void) fflush(stdout);
 	}
 
-	if (flags->dryrun) {
-		void *buf = zfs_alloc(hdl, SPA_MAXBLOCKSIZE);
-
-		/*
-		 * We have read the DRR_BEGIN record, but we have
-		 * not yet read the payload. For non-dryrun sends
-		 * this will be done by the kernel, so we must
-		 * emulate that here, before attempting to read
-		 * more records.
-		 */
-		err = recv_read(hdl, infd, buf, drr->drr_payloadlen,
-		    flags->byteswap, NULL);
-		free(buf);
-		if (err != 0)
-			goto out;
-
-		err = recv_skip(hdl, infd, flags->byteswap);
-		goto out;
-	}
-
 	/*
 	 * If this is the top-level dataset, record it so we can use it
 	 * for recursive operations later.
@@ -4638,6 +4628,26 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			oxprops = fnvlist_alloc();
 		fnvlist_add_uint64(oxprops,
 		    zfs_prop_to_name(ZFS_PROP_ENCRYPTION), ZIO_CRYPT_OFF);
+	}
+
+	if (flags->dryrun) {
+		void *buf = zfs_alloc(hdl, SPA_MAXBLOCKSIZE);
+
+		/*
+		 * We have read the DRR_BEGIN record, but we have
+		 * not yet read the payload. For non-dryrun sends
+		 * this will be done by the kernel, so we must
+		 * emulate that here, before attempting to read
+		 * more records.
+		 */
+		err = recv_read(hdl, infd, buf, drr->drr_payloadlen,
+		    flags->byteswap, NULL);
+		free(buf);
+		if (err != 0)
+			goto out;
+
+		err = recv_skip(hdl, infd, flags->byteswap);
+		goto out;
 	}
 
 	err = ioctl_err = lzc_receive_with_cmdprops(destsnap, rcvprops,
@@ -4729,8 +4739,8 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		 */
 		*cp = '\0';
 		if (gather_nvlist(hdl, destsnap, NULL, NULL, B_FALSE, B_TRUE,
-		    B_FALSE, B_FALSE, B_FALSE, B_FALSE, B_FALSE, B_TRUE,
-		    &local_nv, &local_avl) == 0) {
+		    B_FALSE, B_FALSE, B_FALSE, B_FALSE, B_FALSE, B_FALSE,
+		    B_TRUE, &local_nv, &local_avl) == 0) {
 			*cp = '@';
 			fs = fsavl_find(local_avl, drrb->drr_toguid, NULL);
 			fsavl_destroy(local_avl);

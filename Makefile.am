@@ -161,7 +161,7 @@ checkbashisms:
 				-o -name '90zfs' -prune \
 				-o -type f ! -name 'config*' \
 				! -name 'libtool' \
-			-exec sh -c 'awk "NR==1 && /\#\!.*bin\/sh.*/ {print FILENAME;}" "{}"' \;); \
+			-exec sh -c 'awk "NR==1 && /#!.*bin\/sh.*/ {print FILENAME;}" "{}"' \;); \
 	else \
 		echo "skipping checkbashisms because checkbashisms is not installed"; \
 	fi

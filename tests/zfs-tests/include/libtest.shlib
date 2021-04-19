@@ -3577,16 +3577,11 @@ function wait_replacing #pool
 # Wait for a pool to be scrubbed
 #
 # $1 pool name
-# $2 number of seconds to wait (optional)
-#
-# Returns true when pool has been scrubbed, or false if there's a timeout or if
-# no scrub was done.
 #
 function wait_scrubbed
 {
 	typeset pool=${1:-$TESTPOOL}
-	while true ; do
-		is_pool_scrubbed $pool && break
+	while ! is_pool_scrubbed $pool ; do
 		sleep 1
 	done
 }

@@ -467,8 +467,7 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 	char *slash, *check;
 	struct stat64 statbuf;
 	zpool_handle_t *zhp;
-	char badword[ZFS_MAXPROPLEN];
-	char badfile[MAXPATHLEN];
+	char report[1024];
 
 	if (nvlist_alloc(&retprops, NV_UNIQUE_NAME, 0) != 0) {
 		(void) no_memory(hdl);
@@ -679,33 +678,14 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 			break;
 
 		case ZPOOL_PROP_COMPATIBILITY:
-			switch (zpool_load_compat(strval, NULL,
-			    badword, badfile)) {
+			switch (zpool_load_compat(strval, NULL, report, 1024)) {
 			case ZPOOL_COMPATIBILITY_OK:
+			case ZPOOL_COMPATIBILITY_WARNTOKEN:
 				break;
-			case ZPOOL_COMPATIBILITY_READERR:
-				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-				    "error reading feature file '%s'"),
-				    badfile);
-				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
-				goto error;
 			case ZPOOL_COMPATIBILITY_BADFILE:
-				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-				    "feature file '%s' too large or not "
-				    "newline-terminated"),
-				    badfile);
-				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
-				goto error;
-			case ZPOOL_COMPATIBILITY_BADWORD:
-				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-				    "unknown feature '%s' in feature "
-				    "file '%s'"),
-				    badword, badfile);
-				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
-				goto error;
+			case ZPOOL_COMPATIBILITY_BADTOKEN:
 			case ZPOOL_COMPATIBILITY_NOFILES:
-				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-				    "no feature files specified"));
+				zfs_error_aux(hdl, report);
 				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
 				goto error;
 			}
@@ -4742,8 +4722,8 @@ zpool_get_bootenv(zpool_handle_t *zhp, nvlist_t **nvlp)
  * Arguments:
  *  compatibility : string containing feature filenames
  *  features : either NULL or pointer to array of boolean
- *  badtoken : either NULL or pointer to char[ZFS_MAXPROPLEN]
- *  badfile : either NULL or pointer to char[MAXPATHLEN]
+ *  report : either NULL or pointer to string buffer
+ *  rlen : length of "report" buffer
  *
  * compatibility is NULL (unset), "", "off", "legacy", or list of
  * comma-separated filenames. filenames should either be absolute,
@@ -4752,48 +4732,56 @@ zpool_get_bootenv(zpool_handle_t *zhp, nvlist_t **nvlp)
  *   2) ZPOOL_DATA_COMPAT_D (eg: /usr/share/zfs/compatibility.d).
  * (Unset), "" or "off" => enable all features
  * "legacy" => disable all features
+ *
  * Any feature names read from files which match unames in spa_feature_table
  * will have the corresponding boolean set in the features array (if non-NULL).
  * If more than one feature set specified, only features present in *all* of
  * them will be set.
  *
- * An unreadable filename will be strlcpy'd to badfile (if non-NULL).
- * An unrecognized feature will be strlcpy'd to badtoken (if non-NULL).
+ * "report" if not NULL will be populated with a suitable status message.
  *
  * Return values:
  *   ZPOOL_COMPATIBILITY_OK : files read and parsed ok
- *   ZPOOL_COMPATIBILITY_READERR : file could not be opened / mmap'd
  *   ZPOOL_COMPATIBILITY_BADFILE : file too big or not a text file
- *   ZPOOL_COMPATIBILITY_BADWORD : file contains invalid feature name
- *   ZPOOL_COMPATIBILITY_NOFILES  : no file names found
+ *   ZPOOL_COMPATIBILITY_BADTOKEN : SYSCONF file contains invalid feature name
+ *   ZPOOL_COMPATIBILITY_WARNTOKEN : DATA file contains invalid feature name
+ *   ZPOOL_COMPATIBILITY_NOFILES : no feature files found
  */
 zpool_compat_status_t
-zpool_load_compat(const char *compatibility,
-    boolean_t *features, char *badtoken, char *badfile)
+zpool_load_compat(const char *compat, boolean_t *features, char *report,
+    size_t rlen)
 {
 	int sdirfd, ddirfd, featfd;
-	int i;
 	struct stat fs;
-	char *fc;			/* mmap of file */
-	char *ps, *ls, *ws;		/* strtok state */
+	char *fc;
+	char *ps, *ls, *ws;
 	char *file, *line, *word;
-	char filenames[ZFS_MAXPROPLEN];
-	int filecount = 0;
+
+	char l_compat[ZFS_MAXPROPLEN];
+
+	boolean_t ret_nofiles = B_TRUE;
+	boolean_t ret_badfile = B_FALSE;
+	boolean_t ret_badtoken = B_FALSE;
+	boolean_t ret_warntoken = B_FALSE;
 
 	/* special cases (unset), "" and "off" => enable all features */
-	if (compatibility == NULL || compatibility[0] == '\0' ||
-	    strcmp(compatibility, ZPOOL_COMPAT_OFF) == 0) {
+	if (compat == NULL || compat[0] == '\0' ||
+	    strcmp(compat, ZPOOL_COMPAT_OFF) == 0) {
 		if (features != NULL)
-			for (i = 0; i < SPA_FEATURES; i++)
+			for (uint_t i = 0; i < SPA_FEATURES; i++)
 				features[i] = B_TRUE;
+		if (report != NULL)
+			strlcpy(report, gettext("all features enabled"), rlen);
 		return (ZPOOL_COMPATIBILITY_OK);
 	}
 
 	/* Final special case "legacy" => disable all features */
-	if (strcmp(compatibility, ZPOOL_COMPAT_LEGACY) == 0) {
+	if (strcmp(compat, ZPOOL_COMPAT_LEGACY) == 0) {
 		if (features != NULL)
-			for (i = 0; i < SPA_FEATURES; i++)
+			for (uint_t i = 0; i < SPA_FEATURES; i++)
 				features[i] = B_FALSE;
+		if (report != NULL)
+			strlcpy(report, gettext("all features disabled"), rlen);
 		return (ZPOOL_COMPATIBILITY_OK);
 	}
 
@@ -4801,48 +4789,50 @@ zpool_load_compat(const char *compatibility,
 	 * Start with all true; will be ANDed with results from each file
 	 */
 	if (features != NULL)
-		for (i = 0; i < SPA_FEATURES; i++)
+		for (uint_t i = 0; i < SPA_FEATURES; i++)
 			features[i] = B_TRUE;
+
+	char err_badfile[1024] = "";
+	char err_badtoken[1024] = "";
 
 	/*
 	 * We ignore errors from the directory open()
 	 * as they're only needed if the filename is relative
 	 * which will be checked during the openat().
 	 */
-#ifdef O_PATH
-	sdirfd = open(ZPOOL_SYSCONF_COMPAT_D, O_DIRECTORY | O_PATH);
-	ddirfd = open(ZPOOL_DATA_COMPAT_D, O_DIRECTORY | O_PATH);
-#else
-	sdirfd = open(ZPOOL_SYSCONF_COMPAT_D, O_DIRECTORY | O_RDONLY);
-	ddirfd = open(ZPOOL_DATA_COMPAT_D, O_DIRECTORY | O_RDONLY);
+#ifndef O_PATH
+#define	O_PATH O_RDONLY
 #endif
+	sdirfd = open(ZPOOL_SYSCONF_COMPAT_D, O_DIRECTORY | O_PATH | O_CLOEXEC);
+	ddirfd = open(ZPOOL_DATA_COMPAT_D, O_DIRECTORY | O_PATH | O_CLOEXEC);
 
-	(void) strlcpy(filenames, compatibility, ZFS_MAXPROPLEN);
-	file = strtok_r(filenames, ",", &ps);
-	while (file != NULL) {
-		boolean_t features_local[SPA_FEATURES];
+	(void) strlcpy(l_compat, compat, ZFS_MAXPROPLEN);
+
+	for (file = strtok_r(l_compat, ",", &ps);
+	    file != NULL;
+	    file = strtok_r(NULL, ",", &ps)) {
+
+		boolean_t l_features[SPA_FEATURES];
+
+		enum { Z_SYSCONF, Z_DATA } source;
 
 		/* try sysconfdir first, then datadir */
-		if ((featfd = openat(sdirfd, file, 0, O_RDONLY)) < 0)
+		source = Z_SYSCONF;
+		if ((featfd = openat(sdirfd, file, 0, O_RDONLY)) < 0) {
 			featfd = openat(ddirfd, file, 0, O_RDONLY);
-
-		if (featfd < 0 || fstat(featfd, &fs) < 0) {
-			(void) close(featfd);
-			(void) close(sdirfd);
-			(void) close(ddirfd);
-			if (badfile != NULL)
-				(void) strlcpy(badfile, file, MAXPATHLEN);
-			return (ZPOOL_COMPATIBILITY_READERR);
+			source = Z_DATA;
 		}
 
-		/* Too big or too small */
-		if (fs.st_size < 1 || fs.st_size > ZPOOL_COMPAT_MAXSIZE) {
+		/* File readable and correct size? */
+		if (featfd < 0 ||
+		    fstat(featfd, &fs) < 0 ||
+		    fs.st_size < 1 ||
+		    fs.st_size > ZPOOL_COMPAT_MAXSIZE) {
 			(void) close(featfd);
-			(void) close(sdirfd);
-			(void) close(ddirfd);
-			if (badfile != NULL)
-				(void) strlcpy(badfile, file, MAXPATHLEN);
-			return (ZPOOL_COMPATIBILITY_BADFILE);
+			strlcat(err_badfile, file, ZFS_MAXPROPLEN);
+			strlcat(err_badfile, " ", ZFS_MAXPROPLEN);
+			ret_badfile = B_TRUE;
+			continue;
 		}
 
 		/* private mmap() so we can strtok safely */
@@ -4850,73 +4840,99 @@ zpool_load_compat(const char *compatibility,
 		    PROT_READ|PROT_WRITE, MAP_PRIVATE, featfd, 0);
 		(void) close(featfd);
 
-		if (fc < 0) {
-			(void) close(sdirfd);
-			(void) close(ddirfd);
-			if (badfile != NULL)
-				(void) strlcpy(badfile, file, MAXPATHLEN);
-			return (ZPOOL_COMPATIBILITY_READERR);
-		}
-
-		/* Text file sanity check - last char should be newline */
-		if (fc[fs.st_size - 1] != '\n') {
+		/* map ok, and last character == newline? */
+		if (fc < 0 || fc[fs.st_size - 1] != '\n') {
 			(void) munmap((void *) fc, fs.st_size);
-			(void) close(sdirfd);
-			(void) close(ddirfd);
-			if (badfile != NULL)
-				(void) strlcpy(badfile, file, MAXPATHLEN);
-			return (ZPOOL_COMPATIBILITY_BADFILE);
+			strlcat(err_badfile, file, ZFS_MAXPROPLEN);
+			strlcat(err_badfile, " ", ZFS_MAXPROPLEN);
+			ret_badfile = B_TRUE;
+			continue;
 		}
 
-		/* replace with NUL to ensure we have a delimiter */
+		ret_nofiles = B_FALSE;
+
+		for (uint_t i = 0; i < SPA_FEATURES; i++)
+			l_features[i] = B_FALSE;
+
+		/* replace last char with NUL to ensure we have a delimiter */
 		fc[fs.st_size - 1] = '\0';
 
-		for (i = 0; i < SPA_FEATURES; i++)
-			features_local[i] = B_FALSE;
-
-		line = strtok_r(fc, "\n", &ls);
-		while (line != NULL) {
+		for (line = strtok_r(fc, "\n", &ls);
+		    line != NULL;
+		    line = strtok_r(NULL, "\n", &ls)) {
 			/* discard comments */
 			*(strchrnul(line, '#')) = '\0';
 
-			word = strtok_r(line, ", \t", &ws);
-			while (word != NULL) {
+			for (word = strtok_r(line, ", \t", &ws);
+			    word != NULL;
+			    word = strtok_r(NULL, ", \t", &ws)) {
 				/* Find matching feature name */
-				for (i = 0; i < SPA_FEATURES; i++) {
+				uint_t f;
+				for (f = 0; f < SPA_FEATURES; f++) {
 					zfeature_info_t *fi =
-					    &spa_feature_table[i];
+					    &spa_feature_table[f];
 					if (strcmp(word, fi->fi_uname) == 0) {
-						features_local[i] = B_TRUE;
+						l_features[f] = B_TRUE;
 						break;
 					}
 				}
-				if (i == SPA_FEATURES) {
-					if (badtoken != NULL)
-						(void) strlcpy(badtoken, word,
-						    ZFS_MAXPROPLEN);
-					if (badfile != NULL)
-						(void) strlcpy(badfile, file,
-						    MAXPATHLEN);
-					(void) munmap((void *) fc, fs.st_size);
-					(void) close(sdirfd);
-					(void) close(ddirfd);
-					return (ZPOOL_COMPATIBILITY_BADWORD);
-				}
-				word = strtok_r(NULL, ", \t", &ws);
+				if (f < SPA_FEATURES)
+					continue;
+
+				/* found an unrecognized word */
+				/* lightly sanitize it */
+				if (strlen(word) > 32)
+					word[32] = '\0';
+				for (char *c = word; *c != '\0'; c++)
+					if (!isprint(*c))
+						*c = '?';
+
+				strlcat(err_badtoken, word, ZFS_MAXPROPLEN);
+				strlcat(err_badtoken, " ", ZFS_MAXPROPLEN);
+				if (source == Z_SYSCONF)
+					ret_badtoken = B_TRUE;
+				else
+					ret_warntoken = B_TRUE;
 			}
-			line = strtok_r(NULL, "\n", &ls);
 		}
 		(void) munmap((void *) fc, fs.st_size);
-		if (features != NULL) {
-			for (i = 0; i < SPA_FEATURES; i++)
-				features[i] &= features_local[i];
-		}
-		filecount++;
-		file = strtok_r(NULL, ",", &ps);
+
+		if (features != NULL)
+			for (uint_t i = 0; i < SPA_FEATURES; i++)
+				features[i] &= l_features[i];
 	}
 	(void) close(sdirfd);
 	(void) close(ddirfd);
-	if (filecount == 0)
+
+	/* Return the most serious error */
+	if (ret_badfile) {
+		if (report != NULL)
+			snprintf(report, rlen, gettext("could not read/"
+			    "parse feature file(s): %s"), err_badfile);
+		return (ZPOOL_COMPATIBILITY_BADFILE);
+	}
+	if (ret_nofiles) {
+		if (report != NULL)
+			strlcpy(report,
+			    gettext("no valid compatibility files specified"),
+			    rlen);
 		return (ZPOOL_COMPATIBILITY_NOFILES);
+	}
+	if (ret_badtoken) {
+		if (report != NULL)
+			snprintf(report, rlen, gettext("invalid feature "
+			    "name(s) in local compatibility files: %s"),
+			    err_badtoken);
+		return (ZPOOL_COMPATIBILITY_BADTOKEN);
+	}
+	if (ret_warntoken) {
+		if (report != NULL)
+			snprintf(report, rlen, gettext("unrecognized feature "
+			    "name(s) in distribution compatibility files: %s"),
+			    err_badtoken);
+		return (ZPOOL_COMPATIBILITY_WARNTOKEN);
+	}
+	if (report != NULL)
+		strlcpy(report, gettext("compatibility set ok"), rlen);
 	return (ZPOOL_COMPATIBILITY_OK);
 }

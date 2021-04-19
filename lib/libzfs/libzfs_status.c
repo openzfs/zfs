@@ -89,6 +89,7 @@ static char *zfs_msgid_table[] = {
 	 *	ZPOOL_STATUS_REBUILDING
 	 *	ZPOOL_STATUS_REBUILD_SCRUB
 	 *	ZPOOL_STATUS_COMPATIBILITY_ERR
+	 *	ZPOOL_STATUS_INCOMPATIBLE_FEAT
 	 *	ZPOOL_STATUS_OK
 	 */
 };
@@ -453,11 +454,17 @@ check_status(nvlist_t *config, boolean_t isimport,
 	/*
 	 * Outdated, but usable, version
 	 */
-	if (SPA_VERSION_IS_SUPPORTED(version) && version != SPA_VERSION)
-		return (ZPOOL_STATUS_VERSION_OLDER);
+	if (SPA_VERSION_IS_SUPPORTED(version) && version != SPA_VERSION) {
+		/* "legacy" compatibility disables old version reporting */
+		if (compat != NULL && strcmp(compat, ZPOOL_COMPAT_LEGACY) == 0)
+			return (ZPOOL_STATUS_OK);
+		else
+			return (ZPOOL_STATUS_VERSION_OLDER);
+	}
 
 	/*
-	 * Usable pool with disabled features
+	 * Usable pool with disabled or superfluous features
+	 * (superfluous = beyond what's requested by 'compatibility')
 	 */
 	if (version >= SPA_VERSION_FEATURES) {
 		int i;
@@ -475,18 +482,23 @@ check_status(nvlist_t *config, boolean_t isimport,
 		}
 
 		/* check against all features, or limited set? */
-		boolean_t pool_features[SPA_FEATURES];
+		boolean_t c_features[SPA_FEATURES];
 
-		if (zpool_load_compat(compat, pool_features, NULL, NULL) !=
-		    ZPOOL_COMPATIBILITY_OK)
+		switch (zpool_load_compat(compat, c_features, NULL, 0)) {
+		case ZPOOL_COMPATIBILITY_OK:
+		case ZPOOL_COMPATIBILITY_WARNTOKEN:
+			break;
+		default:
 			return (ZPOOL_STATUS_COMPATIBILITY_ERR);
+		}
 		for (i = 0; i < SPA_FEATURES; i++) {
 			zfeature_info_t *fi = &spa_feature_table[i];
 			if (!fi->fi_zfs_mod_supported)
 				continue;
-			if (pool_features[i] &&
-			    !nvlist_exists(feat, fi->fi_guid))
+			if (c_features[i] && !nvlist_exists(feat, fi->fi_guid))
 				return (ZPOOL_STATUS_FEAT_DISABLED);
+			if (!c_features[i] && nvlist_exists(feat, fi->fi_guid))
+				return (ZPOOL_STATUS_INCOMPATIBLE_FEAT);
 		}
 	}
 

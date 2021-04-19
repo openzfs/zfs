@@ -107,7 +107,7 @@ smb_retrieve_shares(void)
 		if (!S_ISREG(eStat.st_mode))
 			continue;
 
-		if ((share_file_fp = fopen(file_path, "r")) == NULL) {
+		if ((share_file_fp = fopen(file_path, "re")) == NULL) {
 			rc = SA_SYSTEM_ERR;
 			goto out;
 		}
