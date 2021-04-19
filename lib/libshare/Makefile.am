@@ -7,6 +7,7 @@ noinst_LTLIBRARIES = libshare.la
 USER_C = \
 	libshare_impl.h \
 	libshare.c \
+	nfs.c \
 	nfs.h \
 	smb.h
 
