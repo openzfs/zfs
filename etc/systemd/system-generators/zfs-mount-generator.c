@@ -281,7 +281,7 @@ line_worker(char *line, const char *cachefile)
 
 	if (strcmp(p_encroot, "-") != 0) {
 		char *keyloadunit =
-		    systemd_escape(p_encroot, "zfs-load-key-", ".service");
+		    systemd_escape(p_encroot, "zfs-load-key@", ".service");
 
 		if (strcmp(dataset, p_encroot) == 0) {
 			const char *keymountdep = NULL;
@@ -360,33 +360,27 @@ line_worker(char *line, const char *cachefile)
 			    "# dataset is a parent of the root filesystem.\n"
 			    "StandardOutput=null\n"
 			    "StandardError=null\n"
-			    "ExecStart=/bin/sh -c '"
-			        "set -eu;"
-			        "keystatus=\"$$(" ZFS " get -H -o value keystatus \"%s\")\";"
-			        "[ \"$$keystatus\" = \"unavailable\" ] || exit 0;",
+			    "ExecStart=/bin/sh -euc '"
+			        "[ \"$$(" ZFS " get -H -o value keystatus \"%s\")\" = \"unavailable\" ] || exit 0;",
 			    dataset);
 			if (is_prompt)
 				fprintf(keyloadunit_f,
-				    "count=0;"
-				    "while [ $$count -lt 3 ]; do "
+				    "for i in 1 2 3; do "
 				        "systemd-ask-password --id=\"zfs:%s\" \"Enter passphrase for %s:\" |"
 				        "" ZFS " load-key \"%s\" && exit 0;"
-				        "count=$$((count + 1));"
 				    "done;"
 				    "exit 1",
 				    dataset, dataset, dataset);
 			else
 				fprintf(keyloadunit_f,
-				    "" ZFS " load-key \"%s\"",
+				    "exec " ZFS " load-key \"%s\"",
 				    dataset);
 
 			fprintf(keyloadunit_f,
 				"'\n"
-				"ExecStop=/bin/sh -c '"
-				    "set -eu;"
-				    "keystatus=\"$$(" ZFS " get -H -o value keystatus \"%s\")\";"
-				    "[ \"$$keystatus\" = \"available\" ] || exit 0;"
-				    "" ZFS " unload-key \"%s\""
+				"ExecStop=/bin/sh -euc '"
+				    "[ \"$$(" ZFS " get -H -o value keystatus \"%s\")\" = \"available\" ] || exit 0;"
+				    "exec " ZFS " unload-key \"%s\""
 				"'\n",
 				dataset, dataset);
 			/* END CSTYLED */
