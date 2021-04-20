@@ -116,7 +116,8 @@ typedef struct zfs_soft_state {
 #define	Z_ISLNK(type) ((type) == VLNK)
 #define	Z_ISDIR(type) ((type) == VDIR)
 
-#define	zn_has_cached_data(zp)	vn_has_cached_data(ZTOV(zp))
+#define	zn_has_cached_data(zp)		vn_has_cached_data(ZTOV(zp))
+#define	zn_flush_cached_data(zp, sync)	vn_flush_cached_data(ZTOV(zp), sync)
 #define	zn_rlimit_fsize(zp, uio) \
     vn_rlimit_fsize(ZTOV(zp), GET_UIO_STRUCT(uio), zfs_uio_td(uio))
 
