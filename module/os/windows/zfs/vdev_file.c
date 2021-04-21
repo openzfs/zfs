@@ -333,7 +333,7 @@ vdev_file_io_strategy(void *arg)
 	ssize_t size;
 	int err;
 
-	off = zio->io_offset;
+	off = zio->io_offset + vf->vdev_win_offset;
 	size = zio->io_size;
 	resid = 0;
 

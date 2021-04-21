@@ -19,10 +19,6 @@
  *
  * CDDL HEADER END
  */
-/*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
- */
 
 #ifndef _SYS_VDEV_FILE_H
 #define	_SYS_VDEV_FILE_H
@@ -33,11 +29,13 @@
 extern "C" {
 #endif
 
+#ifdef _WIN32
 typedef struct vdev_file {
 	zfs_file_t	*vf_file;
 	uint64_t	vdev_win_offset; /* soft partition start */
 	uint64_t	vdev_win_length; /* soft partition length */
 } vdev_file_t;
+#endif
 
 extern void vdev_file_init(void);
 extern void vdev_file_fini(void);

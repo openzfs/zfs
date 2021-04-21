@@ -47,6 +47,9 @@
 #include <sys/zvol.h>
 #include <zfs_fletcher.h>
 #include <zlib.h>
+#ifdef _WIN32
+#include <wosix.h>
+#endif
 
 /*
  * Emulation of kernel services in userland.
