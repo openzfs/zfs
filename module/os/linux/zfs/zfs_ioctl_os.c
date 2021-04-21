@@ -87,71 +87,20 @@ zfs_vfs_rele(zfsvfs_t *zfsvfs)
 	deactivate_super(zfsvfs->z_sb);
 }
 
-static int
-zfsdev_state_init(struct file *filp)
+void
+zfsdev_private_set_state(void *priv, zfsdev_state_t *zs)
 {
-	zfsdev_state_t *zs, *zsprev = NULL;
-	minor_t minor;
-	boolean_t newzs = B_FALSE;
-
-	ASSERT(MUTEX_HELD(&zfsdev_state_lock));
-
-	minor = zfsdev_minor_alloc();
-	if (minor == 0)
-		return (SET_ERROR(ENXIO));
-
-	for (zs = zfsdev_state_list; zs != NULL; zs = zs->zs_next) {
-		if (zs->zs_minor == -1)
-			break;
-		zsprev = zs;
-	}
-
-	if (!zs) {
-		zs = kmem_zalloc(sizeof (zfsdev_state_t), KM_SLEEP);
-		newzs = B_TRUE;
-	}
+	struct file *filp = priv;
 
 	filp->private_data = zs;
-
-	zfs_onexit_init((zfs_onexit_t **)&zs->zs_onexit);
-	zfs_zevent_init((zfs_zevent_t **)&zs->zs_zevent);
-
-	/*
-	 * In order to provide for lock-free concurrent read access
-	 * to the minor list in zfsdev_get_state_impl(), new entries
-	 * must be completely written before linking them into the
-	 * list whereas existing entries are already linked; the last
-	 * operation must be updating zs_minor (from -1 to the new
-	 * value).
-	 */
-	if (newzs) {
-		zs->zs_minor = minor;
-		smp_wmb();
-		zsprev->zs_next = zs;
-	} else {
-		smp_wmb();
-		zs->zs_minor = minor;
-	}
-
-	return (0);
 }
 
-static int
-zfsdev_state_destroy(struct file *filp)
+zfsdev_state_t *
+zfsdev_private_get_state(void *priv)
 {
-	zfsdev_state_t *zs;
+	struct file *filp = priv;
 
-	ASSERT(MUTEX_HELD(&zfsdev_state_lock));
-	ASSERT(filp->private_data != NULL);
-
-	zs = filp->private_data;
-	zs->zs_minor = -1;
-	zfs_onexit_destroy(zs->zs_onexit);
-	zfs_zevent_destroy(zs->zs_zevent);
-	zs->zs_onexit = NULL;
-	zs->zs_zevent = NULL;
-
-	return (0);
+	return (filp->private_data);
 }
 
 static int
@@ -169,13 +118,9 @@ zfsdev_open(struct inode *ino, struct file *filp)
 static int
 zfsdev_release(struct inode *ino, struct file *filp)
 {
-	int error;
+	zfsdev_state_destroy(filp);
 
-	mutex_enter(&zfsdev_state_lock);
-	error = zfsdev_state_destroy(filp);
-	mutex_exit(&zfsdev_state_lock);
-
-	return (-error);
+	return (0);
 }
 
 static long

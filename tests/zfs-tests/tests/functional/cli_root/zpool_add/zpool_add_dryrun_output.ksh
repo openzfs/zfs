@@ -36,7 +36,7 @@ typeset VDEV_PREFIX="$TEST_BASE_DIR/filedev"
 # STRATEGY:
 # 1. Create different storage pools, use -n to add devices to the pool and
 #    verify the output is as expected.
-# 2. Create a pool whith a hole vdev and verify it's not listed with add -n.
+# 2. Create a pool with a hole vdev and verify it's not listed with add -n.
 #
 
 typeset -a dev=(
@@ -163,7 +163,7 @@ for (( i=0; i < ${#tests[@]}; i+=1 )); do
 	log_must destroy_pool "$TESTPOOL"
 done
 
-# Make sure hole vdevs are skiped in output.
+# Make sure hole vdevs are skipped in output.
 log_must eval "zpool create '$TESTPOOL' '${dev[0]}' log '${dev[1]}' \
     cache '${dev[2]}'"
 

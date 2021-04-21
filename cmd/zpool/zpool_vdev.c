@@ -445,7 +445,7 @@ typedef struct replication_level {
 
 /*
  * N.B. For the purposes of comparing replication levels dRAID can be
- * considered functionally equivilant to raidz.
+ * considered functionally equivalent to raidz.
  */
 static boolean_t
 is_raidz_mirror(replication_level_t *a, replication_level_t *b,

@@ -113,7 +113,6 @@ static int zfs__fini(void);
 static void zfs_shutdown(void *, int);
 
 static eventhandler_tag zfs_shutdown_event_tag;
-extern zfsdev_state_t *zfsdev_state_list;
 
 #define	ZFS_MIN_KSTACK_PAGES 4
 
@@ -182,72 +181,29 @@ out:
 static void
 zfsdev_close(void *data)
 {
-	zfsdev_state_t *zs, *zsp = data;
-
-	mutex_enter(&zfsdev_state_lock);
-	for (zs = zfsdev_state_list; zs != NULL; zs = zs->zs_next) {
-		if (zs == zsp)
-			break;
-	}
-	if (zs == NULL || zs->zs_minor <= 0) {
-		mutex_exit(&zfsdev_state_lock);
-		return;
-	}
-	zs->zs_minor = -1;
-	zfs_onexit_destroy(zs->zs_onexit);
-	zfs_zevent_destroy(zs->zs_zevent);
-	mutex_exit(&zfsdev_state_lock);
-	zs->zs_onexit = NULL;
-	zs->zs_zevent = NULL;
+	zfsdev_state_destroy(data);
 }
 
-static int
-zfs_ctldev_init(struct cdev *devp)
+void
+zfsdev_private_set_state(void *priv __unused, zfsdev_state_t *zs)
 {
-	boolean_t newzs = B_FALSE;
-	minor_t minor;
-	zfsdev_state_t *zs, *zsprev = NULL;
-
-	ASSERT(MUTEX_HELD(&zfsdev_state_lock));
-
-	minor = zfsdev_minor_alloc();
-	if (minor == 0)
-		return (SET_ERROR(ENXIO));
-
-	for (zs = zfsdev_state_list; zs != NULL; zs = zs->zs_next) {
-		if (zs->zs_minor == -1)
-			break;
-		zsprev = zs;
-	}
-
-	if (!zs) {
-		zs = kmem_zalloc(sizeof (zfsdev_state_t), KM_SLEEP);
-		newzs = B_TRUE;
-	}
-
 	devfs_set_cdevpriv(zs, zfsdev_close);
+}
 
-	zfs_onexit_init((zfs_onexit_t **)&zs->zs_onexit);
-	zfs_zevent_init((zfs_zevent_t **)&zs->zs_zevent);
-
-	if (newzs) {
-		zs->zs_minor = minor;
-		wmb();
-		zsprev->zs_next = zs;
-	} else {
-		wmb();
-		zs->zs_minor = minor;
-	}
-	return (0);
+zfsdev_state_t *
+zfsdev_private_get_state(void *priv)
+{
+	return (priv);
 }
 
 static int
-zfsdev_open(struct cdev *devp, int flag, int mode, struct thread *td)
+zfsdev_open(struct cdev *devp __unused, int flag __unused, int mode __unused,
+    struct thread *td __unused)
 {
 	int error;
 
 	mutex_enter(&zfsdev_state_lock);
-	error = zfs_ctldev_init(devp);
+	error = zfsdev_state_init(NULL);
 	mutex_exit(&zfsdev_state_lock);
 
 	return (error);

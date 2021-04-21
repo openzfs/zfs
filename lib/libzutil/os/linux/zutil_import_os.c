@@ -61,7 +61,6 @@
 #include <sys/dktp/fdisk.h>
 #include <sys/vdev_impl.h>
 #include <sys/fs/zfs.h>
-#include <sys/vdev_impl.h>
 
 #include <thread_pool.h>
 #include <libzutil.h>
@@ -137,9 +136,9 @@ zpool_open_func(void *arg)
 	 * cache which may be stale for multipath devices.  An EINVAL errno
 	 * indicates O_DIRECT is unsupported so fallback to just O_RDONLY.
 	 */
-	fd = open(rn->rn_name, O_RDONLY | O_DIRECT);
+	fd = open(rn->rn_name, O_RDONLY | O_DIRECT | O_CLOEXEC);
 	if ((fd < 0) && (errno == EINVAL))
-		fd = open(rn->rn_name, O_RDONLY);
+		fd = open(rn->rn_name, O_RDONLY | O_CLOEXEC);
 	if ((fd < 0) && (errno == EACCES))
 		hdl->lpc_open_access_error = B_TRUE;
 	if (fd < 0)

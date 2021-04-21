@@ -174,7 +174,6 @@ vdev_mirror_map_free(zio_t *zio)
 
 static const zio_vsd_ops_t vdev_mirror_vsd_ops = {
 	.vsd_free = vdev_mirror_map_free,
-	.vsd_cksum_report = zio_vsd_default_cksum_report
 };
 
 static int
@@ -379,8 +378,6 @@ vdev_mirror_map_init(zio_t *zio)
 		}
 	}
 
-	zio->io_vsd = mm;
-	zio->io_vsd_ops = &vdev_mirror_vsd_ops;
 	return (mm);
 }
 
@@ -629,6 +626,8 @@ vdev_mirror_io_start(zio_t *zio)
 	int c, children;
 
 	mm = vdev_mirror_map_init(zio);
+	zio->io_vsd = mm;
+	zio->io_vsd_ops = &vdev_mirror_vsd_ops;
 
 	if (mm == NULL) {
 		ASSERT(!spa_trust_config(zio->io_spa));

@@ -24,6 +24,8 @@
  * Copyright (c) 2011 Gunnar Beutner
  * Copyright (c) 2019, 2020 by Delphix. All rights reserved.
  */
+#ifndef _LIBSPL_LIBSHARE_IMPL_H
+#define	_LIBSPL_LIBSHARE_IMPL_H
 
 typedef struct sa_share_fsinfo {
 	char *shareopts;
@@ -59,3 +61,5 @@ typedef struct sa_fstype {
 } sa_fstype_t;
 
 sa_fstype_t *register_fstype(const char *name, const sa_share_ops_t *ops);
+
+#endif /* _LIBSPL_LIBSHARE_IMPL_H */

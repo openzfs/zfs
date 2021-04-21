@@ -57,6 +57,8 @@ setup_test_env $TESTPOOL "" $cnt
 damage_devs $TESTPOOL 1 "keep_label"
 log_must zpool scrub -w $TESTPOOL
 
-log_mustnot is_healthy $TESTPOOL
+if is_healthy $TESTPOOL ; then
+	log_fail "$pool should not be healthy."
+fi
 
 log_pass "Striped pool has no data redundancy as expected."

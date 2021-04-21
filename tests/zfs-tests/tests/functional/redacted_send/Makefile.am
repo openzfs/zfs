@@ -15,6 +15,7 @@ dist_pkgdata_SCRIPTS = \
 	redacted_mounts.ksh \
 	redacted_negative.ksh \
 	redacted_origin.ksh \
+	redacted_panic.ksh \
 	redacted_props.ksh \
 	redacted_resume.ksh \
 	redacted_size.ksh \

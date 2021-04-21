@@ -458,10 +458,11 @@ struct vdev {
 	kmutex_t	vdev_probe_lock; /* protects vdev_probe_zio	*/
 
 	/*
-	 * We rate limit ZIO delay and ZIO checksum events, since they
+	 * We rate limit ZIO delay, deadman, and checksum events, since they
 	 * can flood ZED with tons of events when a drive is acting up.
 	 */
 	zfs_ratelimit_t vdev_delay_rl;
+	zfs_ratelimit_t vdev_deadman_rl;
 	zfs_ratelimit_t vdev_checksum_rl;
 };
 
@@ -501,7 +502,7 @@ typedef enum vbe_vers {
 	 * and is protected by an embedded checksum. By default, GRUB will
 	 * check if the boot filesystem supports storing the environment data
 	 * in a special location, and if so, will invoke filesystem specific
-	 * logic to retrieve it. This can be overriden by a variable, should
+	 * logic to retrieve it. This can be overridden by a variable, should
 	 * the user so desire.
 	 */
 	VB_RAW = 0,

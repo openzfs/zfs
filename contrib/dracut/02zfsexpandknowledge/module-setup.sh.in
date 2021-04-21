@@ -100,7 +100,7 @@ if [[ $hostonly ]]; then
         mountpoint "$mp" >/dev/null 2>&1 || continue
         blockdevs=$(find_zfs_block_devices "$mp")
         if [ -z "$blockdevs" ] ; then continue ; fi
-        dinfo "zfsexpandknowledge: block devices backing ZFS dataset $mp: $blockdevs"
+        dinfo "zfsexpandknowledge: block devices backing ZFS dataset $mp: ${blockdevs//$'\n'/ }"
         for dev in $blockdevs
         do
             array_contains "$dev" "${host_devs[@]}" || host_devs+=("$dev")
@@ -114,7 +114,7 @@ if [[ $hostonly ]]; then
                     _depdevname=$(udevadm info --query=property --name="$_depdev" | grep "^DEVNAME=" | sed 's|^DEVNAME=||')
                     _depdevtype=$(get_devtype "$_depdevname")
                     _depmajmin=$(get_maj_min "$_depdevname")
-                    dinfo "zfsexpandknowledge: underlying block device backing ZFS dataset $mp: $_depdevname"
+                    dinfo "zfsexpandknowledge: underlying block device backing ZFS dataset $mp: ${_depdevname//$'\n'/ }"
                     array_contains "$_depdevname" "${host_devs[@]}" || host_devs+=("$_depdevname")
                     host_fs_types["$_depdevname"]="$_depdevtype"
                 done

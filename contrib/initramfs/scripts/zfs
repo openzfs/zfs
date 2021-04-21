@@ -94,8 +94,8 @@ find_rootfs()
 
 	# Not boot fs here, export it and later try again..
 	"${ZPOOL}" export "$pool"
-	POOL_IMPORTED=""
-
+	POOL_IMPORTED=
+	ZFS_BOOTFS=
 	return 1
 }
 
@@ -815,6 +815,11 @@ mountroot()
 	then
 		# Try to detect both pool and root fs.
 
+		# If we got here, that means we don't have a hint so as to
+		# the root dataset, but with root=zfs:AUTO on cmdline,
+		# this says "zfs:AUTO" here and interferes with checks later
+		ZFS_BOOTFS=
+
 		[ "$quiet" != "y" ] && \
 		    zfs_log_begin_msg "Attempting to import additional pools."
 
@@ -832,8 +837,8 @@ mountroot()
 		do
 			[ -z "$pool" ] && continue
 
-			import_pool "$pool"
-			find_rootfs "$pool"
+			IFS="$OLD_IFS" import_pool "$pool"
+			IFS="$OLD_IFS" find_rootfs "$pool" && break
 		done
 		IFS="$OLD_IFS"
 
@@ -885,30 +890,6 @@ mountroot()
 		ZFS_RPOOL="${pool}"
 	fi
 
-	# Set the no-op scheduler on the disks containing the vdevs of
-	# the root pool. For single-queue devices, this scheduler is
-	# "noop", for multi-queue devices, it is "none".
-	# ZFS already does this for wholedisk vdevs (for all pools), so this
-	# is only important for partitions.
-	"${ZPOOL}" status -L "${ZFS_RPOOL}" 2> /dev/null |
-	    awk '/^\t / && !/(mirror|raidz)/ {
-	        dev=$1;
-	        sub(/[0-9]+$/, "", dev);
-	        print dev
-	    }' |
-	while read -r i
-	do
-		SCHEDULER=/sys/block/$i/queue/scheduler
-		if [ -e "${SCHEDULER}" ]
-		then
-			# Query to see what schedulers are available
-			case "$(cat "${SCHEDULER}")" in
-				*noop*) echo noop > "${SCHEDULER}" ;;
-				*none*) echo none > "${SCHEDULER}" ;;
-			esac
-		fi
-	done
-
 
 	# ----------------------------------------------------------------
 	# P R E P A R E   R O O T   F I L E S Y S T E M
@@ -954,9 +935,14 @@ mountroot()
 
 	# Go through the complete list (recursively) of all filesystems below
 	# the real root dataset
-	filesystems=$("${ZFS}" list -oname -tfilesystem -H -r "${ZFS_BOOTFS}")
-	for fs in $filesystems $ZFS_INITRD_ADDITIONAL_DATASETS
-	do
+	filesystems="$("${ZFS}" list -oname -tfilesystem -H -r "${ZFS_BOOTFS}")"
+	OLD_IFS="$IFS" ; IFS="
+"
+	for fs in $filesystems; do
+		IFS="$OLD_IFS" mount_fs "$fs"
+	done
+	IFS="$OLD_IFS"
+	for fs in $ZFS_INITRD_ADDITIONAL_DATASETS; do
 		mount_fs "$fs"
 	done
 

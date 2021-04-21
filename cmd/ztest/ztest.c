@@ -2333,8 +2333,8 @@ ztest_get_done(zgd_t *zgd, int error)
 }
 
 static int
-ztest_get_data(void *arg, lr_write_t *lr, char *buf, struct lwb *lwb,
-    zio_t *zio)
+ztest_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,
+    struct lwb *lwb, zio_t *zio)
 {
 	ztest_ds_t *zd = arg;
 	objset_t *os = zd->zd_os;
@@ -6115,7 +6115,7 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 		    vd0->vdev_resilver_txg != 0)) {
 			/*
 			 * Make vd0 explicitly claim to be unreadable,
-			 * or unwriteable, or reach behind its back
+			 * or unwritable, or reach behind its back
 			 * and close the underlying fd.  We can do this if
 			 * maxfaults == 0 because we'll fail and reexecute,
 			 * and we can do it if maxfaults >= 2 because we'll

@@ -138,6 +138,39 @@ struct zfsvfs {
 	taskqid_t	z_drain_task;	/* task id for the unlink drain task */
 };
 
+#define	ZFS_TEARDOWN_INIT(zfsvfs)		\
+	rrm_init(&(zfsvfs)->z_teardown_lock, B_FALSE)
+
+#define	ZFS_TEARDOWN_DESTROY(zfsvfs)		\
+	rrm_destroy(&(zfsvfs)->z_teardown_lock)
+
+#define	ZFS_TEARDOWN_TRY_ENTER_READ(zfsvfs)	\
+	rw_tryenter(&(zfsvfs)->z_teardown_lock, RW_READER)
+
+#define	ZFS_TEARDOWN_ENTER_READ(zfsvfs, tag)	\
+	rrm_enter_read(&(zfsvfs)->z_teardown_lock, tag);
+
+#define	ZFS_TEARDOWN_EXIT_READ(zfsvfs, tag)	\
+	rrm_exit(&(zfsvfs)->z_teardown_lock, tag)
+
+#define	ZFS_TEARDOWN_ENTER_WRITE(zfsvfs, tag)	\
+	rrm_enter(&(zfsvfs)->z_teardown_lock, RW_WRITER, tag)
+
+#define	ZFS_TEARDOWN_EXIT_WRITE(zfsvfs)		\
+	rrm_exit(&(zfsvfs)->z_teardown_lock, tag)
+
+#define	ZFS_TEARDOWN_EXIT(zfsvfs, tag)		\
+	rrm_exit(&(zfsvfs)->z_teardown_lock, tag)
+
+#define	ZFS_TEARDOWN_READ_HELD(zfsvfs)		\
+	RRM_READ_HELD(&(zfsvfs)->z_teardown_lock)
+
+#define	ZFS_TEARDOWN_WRITE_HELD(zfsvfs)		\
+	RRM_WRITE_HELD(&(zfsvfs)->z_teardown_lock)
+
+#define	ZFS_TEARDOWN_HELD(zfsvfs)		\
+	RRM_LOCK_HELD(&(zfsvfs)->z_teardown_lock)
+
 #define	ZSB_XATTR	0x0001		/* Enable user xattrs */
 
 /*

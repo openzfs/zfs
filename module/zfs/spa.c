@@ -6519,7 +6519,7 @@ spa_vdev_add(spa_t *spa, nvlist_t *nvroot)
 
 	/*
 	 * The virtual dRAID spares must be added after vdev tree is created
-	 * and the vdev guids are generated.  The guid of their assoicated
+	 * and the vdev guids are generated.  The guid of their associated
 	 * dRAID is stored in the config and used when opening the spare.
 	 */
 	if ((error = vdev_draid_spare_create(nvroot, vd, &ndraid,
@@ -9957,7 +9957,7 @@ EXPORT_SYMBOL(spa_event_notify);
 
 /* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs_spa, spa_, load_verify_shift, INT, ZMOD_RW,
-	"log2(fraction of arc that can be used by inflight I/Os when "
+	"log2 fraction of arc that can be used by inflight I/Os when "
 	"verifying pool during import");
 
 ZFS_MODULE_PARAM(zfs_spa, spa_, load_verify_metadata, INT, ZMOD_RW,

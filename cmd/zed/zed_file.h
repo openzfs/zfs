@@ -18,10 +18,6 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-ssize_t zed_file_read_n(int fd, void *buf, size_t n);
-
-ssize_t zed_file_write_n(int fd, void *buf, size_t n);
-
 int zed_file_lock(int fd);
 
 int zed_file_unlock(int fd);
@@ -29,7 +25,5 @@ int zed_file_unlock(int fd);
 pid_t zed_file_is_locked(int fd);
 
 void zed_file_close_from(int fd);
-
-int zed_file_close_on_exec(int fd);
 
 #endif	/* !ZED_FILE_H */

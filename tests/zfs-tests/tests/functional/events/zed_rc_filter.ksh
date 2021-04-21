@@ -49,6 +49,7 @@ log_assert "Verify zpool sub-commands generate expected events"
 log_onexit cleanup
 
 log_must zpool events -c
+log_must zed_stop
 log_must zed_start
 
 # Backup our zed.rc
