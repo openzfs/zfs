@@ -62,6 +62,21 @@ function cleanup
 	log_must set_tunable32 PREFETCH_DISABLE $prefetch_disable
 }
 
+function wait_expand_paused
+{
+	oldcopied='0'
+	newcopied='1'
+	while [[ $oldcopied != $newcopied ]]; do
+		oldcopied=$newcopied
+		sleep 5
+		newcopied=$(zpool status $TESTPOOL | \
+		    grep 'copied out of' | \
+		    awk '{print $1}')
+		log_note "newcopied=$newcopied"
+	done
+	log_note "paused at $newcopied"
+}
+
 function test_resilver # <pool> <parity> <dir>
 {
 	typeset pool=$1
@@ -123,6 +138,11 @@ function test_scrub # <pool> <parity> <dir>
 	typeset nparity=$2
 	typeset dir=$3
 	typeset combrec=$4
+
+	randbyte=$(( ((RANDOM<<15) + RANDOM) % (dev_size_mb * (devs-1) * 1024 * 1024) ))
+	log_must set_tunable64 RAIDZ_EXPAND_MAX_OFFSET_PAUSE $randbyte
+	log_must zpool attach $TESTPOOL ${raid}-0 $dir/dev-$devs
+	wait_expand_paused
 
 	log_must zpool export $pool
 
@@ -191,30 +211,10 @@ for nparity in 1 2 3; do
 	log_must zfs create -o compress=on -o recordsize=8k $TESTPOOL/fs3
 	log_must fill_fs /$TESTPOOL/fs3 1 512 100 1024 R
 
-	typeset pool_size=$(get_pool_prop size $TESTPOOL)
-
-	log_must zpool attach -w $TESTPOOL ${raid}-0 $dir/dev-$devs
-
-	log_must zpool export $TESTPOOL
-	log_must zpool import -o cachefile=none -d $dir $TESTPOOL
-
-	typeset disk_attached=$(get_disklist $TESTPOOL | grep dev-$devs)
-	if [[ -z $disk_attached ]]; then
-		log_fail "pool $TESTPOOL attached disk not found"
-	fi
-
-	typeset expand_size=$(get_pool_prop size $TESTPOOL)
-	if [[ "$expand_size" -le "$pool_size" ]]; then
-		log_fail "pool $TESTPOOL not expanded"
-	fi
-
-	log_must zpool export $TESTPOOL
-	log_must zpool import -o cachefile=none -d $dir $TESTPOOL
-
 	log_must check_pool_status $TESTPOOL "errors" "No known data errors"
 
-	test_resilver $TESTPOOL $nparity $dir
 	test_scrub $TESTPOOL $nparity $dir
+	#test_resilver $TESTPOOL $nparity $dir
 
 	zpool destroy "$TESTPOOL"
 done
