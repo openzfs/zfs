@@ -592,7 +592,7 @@ abd_free_chunks(abd_t *abd)
 	abd_for_each_sg(abd, sg, n, i) {
 		for (int j = 0; j < sg->length; j += PAGESIZE) {
 			struct page *p = nth_page(sg_page(sg), j >> PAGE_SHIFT);
-			umem_free(p, PAGESIZE);
+			umem_free_aligned(p, PAGESIZE);
 		}
 	}
 	abd_free_sg_table(abd);
@@ -698,7 +698,7 @@ abd_free_zero_scatter(void)
 	abd_unmark_zfs_page(abd_zero_page);
 	__free_page(abd_zero_page);
 #else
-	umem_free(abd_zero_page, PAGESIZE);
+	umem_free_aligned(abd_zero_page, PAGESIZE);
 #endif /* _KERNEL */
 }
 
