@@ -1656,7 +1656,8 @@ out:
  */
 /* ARGSUSED */
 int
-zfs_getattr_fast(struct inode *ip, struct kstat *sp)
+zfs_getattr_fast(struct user_namespace *user_ns, struct inode *ip,
+    struct kstat *sp)
 {
 	znode_t *zp = ITOZ(ip);
 	zfsvfs_t *zfsvfs = ITOZSB(ip);
@@ -1668,7 +1669,7 @@ zfs_getattr_fast(struct inode *ip, struct kstat *sp)
 
 	mutex_enter(&zp->z_lock);
 
-	generic_fillattr(ip, sp);
+	zpl_generic_fillattr(user_ns, ip, sp);
 	/*
 	 * +1 link count for root inode with visible '.zfs' directory.
 	 */
@@ -3139,7 +3140,7 @@ top:
 
 	/*
 	 * Create a new object for the symlink.
-	 * for version 4 ZPL datsets the symlink will be an SA attribute
+	 * for version 4 ZPL datasets the symlink will be an SA attribute
 	 */
 	zfs_mknode(dzp, vap, tx, cr, 0, &zp, &acl_ids);
 

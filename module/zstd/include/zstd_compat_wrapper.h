@@ -34,7 +34,7 @@
 
 /*
  * This wrapper fixes a problem, in case the ZFS filesystem driver, is compiled
- * staticly into the kernel.
+ * statically into the kernel.
  * This will cause a symbol collision with the older in-kernel zstd library.
  * The following macros will simply rename all local zstd symbols and references
  *

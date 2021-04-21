@@ -12,7 +12,7 @@
 # as much functionality as possible while still executing relatively
 # quickly.  The included tests should take no more than a few seconds
 # each to run at most.  This provides a convenient way to sanity test a
-# change before commiting to a full test run which takes several hours.
+# change before committing to a full test run which takes several hours.
 #
 # Approximate run time: 15 minutes
 #
@@ -29,6 +29,10 @@ failsafe_user = root
 failsafe = callbacks/zfs_failsafe
 outputdir = /var/tmp/test_results
 tags = ['functional']
+
+[tests/functional/acl/off]
+tests = ['posixmode']
+tags = ['functional', 'acl']
 
 [tests/functional/alloc_class]
 tests = ['alloc_class_003_pos', 'alloc_class_004_pos', 'alloc_class_005_pos',

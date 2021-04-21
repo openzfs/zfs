@@ -14,7 +14,19 @@ deb-local:
 	"*** package for your distribution which provides ${ALIEN},\n" \
 	"*** re-run configure, and try again.\n"; \
 		exit 1; \
-	fi)
+	fi; \
+        if test "${ALIEN_MAJOR}" = "8" && \
+           test "${ALIEN_MINOR}" = "95"; then \
+        if test "${ALIEN_POINT}" = "1" || \
+           test "${ALIEN_POINT}" = "2" || \
+           test "${ALIEN_POINT}" = "3"; then \
+                /bin/echo -e "\n" \
+        "*** Installed version of ${ALIEN} is known to be broken;\n" \
+        "*** attempting to generate debs will fail! See\n" \
+        "*** https://github.com/openzfs/zfs/issues/11650 for details.\n"; \
+                exit 1; \
+        fi; \
+        fi)
 
 deb-kmod: deb-local rpm-kmod
 	name=${PACKAGE}; \
@@ -43,9 +55,9 @@ deb-utils: deb-local rpm-utils-initramfs
 	pkg1=$${name}-$${version}.$${arch}.rpm; \
 	pkg2=libnvpair3-$${version}.$${arch}.rpm; \
 	pkg3=libuutil3-$${version}.$${arch}.rpm; \
-	pkg4=libzfs4-$${version}.$${arch}.rpm; \
-	pkg5=libzpool4-$${version}.$${arch}.rpm; \
-	pkg6=libzfs4-devel-$${version}.$${arch}.rpm; \
+	pkg4=libzfs5-$${version}.$${arch}.rpm; \
+	pkg5=libzpool5-$${version}.$${arch}.rpm; \
+	pkg6=libzfs5-devel-$${version}.$${arch}.rpm; \
 	pkg7=$${name}-test-$${version}.$${arch}.rpm; \
 	pkg8=$${name}-dracut-$${version}.noarch.rpm; \
 	pkg9=$${name}-initramfs-$${version}.$${arch}.rpm; \
@@ -56,7 +68,7 @@ deb-utils: deb-local rpm-utils-initramfs
 	path_prepend=`mktemp -d /tmp/intercept.XXXXXX`; \
 	echo "#$(SHELL)" > $${path_prepend}/dh_shlibdeps; \
 	echo "`which dh_shlibdeps` -- \
-	 -xlibuutil3linux -xlibnvpair3linux -xlibzfs4linux -xlibzpool4linux" \
+	 -xlibuutil3linux -xlibnvpair3linux -xlibzfs5linux -xlibzpool5linux" \
 	 >> $${path_prepend}/dh_shlibdeps; \
 ## These -x arguments are passed to dpkg-shlibdeps, which exclude the
 ## Debianized packages from the auto-generated dependencies of the new debs,

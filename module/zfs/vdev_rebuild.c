@@ -81,7 +81,7 @@
  * Advantages:
  *
  *   - Sequential reconstruction is performed in LBA order which may be faster
- *     than healing reconstruction particularly when using using HDDs (or
+ *     than healing reconstruction particularly when using HDDs (or
  *     especially with SMR devices).  Only allocated capacity is resilvered.
  *
  *   - Sequential reconstruction is not constrained by ZFS block boundaries.
@@ -331,9 +331,9 @@ vdev_rebuild_complete_sync(void *arg, dmu_tx_t *tx)
 	 * While we're in syncing context take the opportunity to
 	 * setup the scrub when there are no more active rebuilds.
 	 */
-	if (!vdev_rebuild_active(spa->spa_root_vdev) &&
+	pool_scan_func_t func = POOL_SCAN_SCRUB;
+	if (dsl_scan_setup_check(&func, tx) == 0 &&
 	    zfs_rebuild_scrub_enabled) {
-		pool_scan_func_t func = POOL_SCAN_SCRUB;
 		dsl_scan_setup_sync(&func, tx);
 	}
 

@@ -60,7 +60,7 @@ typedef struct vdev_rebuild_phys {
 /*
  * The vdev_rebuild_t describes the current state and how a top-level vdev
  * should be rebuilt.  The core elements are the top-vdev, the metaslab being
- * rebuilt, range tree containing the allocted extents and the on-disk state.
+ * rebuilt, range tree containing the allocated extents and the on-disk state.
  */
 typedef struct vdev_rebuild {
 	vdev_t		*vr_top_vdev;		/* top-level vdev to rebuild */

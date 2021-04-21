@@ -20,52 +20,21 @@
  * CDDL HEADER END
  */
 
-
-#include <errno.h>
+#include <stdint.h>
 #include <limits.h>
-#include <pthread.h>
-#include <stdlib.h>
-#include <string.h>
 #include <sys/param.h>
 #include <sys/sysctl.h>
 #include <sys/types.h>
-#include <unistd.h>
+#include "../../libspl_impl.h"
 
-const char *
-getexecname(void)
+__attribute__((visibility("hidden"))) ssize_t
+getexecname_impl(char *execname)
 {
-	static char execname[PATH_MAX + 1] = "";
-	static pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
-	char *ptr = NULL;
-	ssize_t rc;
+	size_t len = PATH_MAX;
+	int name[4] = {CTL_KERN, KERN_PROC, KERN_PROC_PATHNAME, -1};
 
-	(void) pthread_mutex_lock(&mtx);
+	if (sysctl(name, nitems(name), execname, &len, NULL, 0) != 0)
+		return (-1);
 
-	if (strlen(execname) == 0) {
-		int error, name[4];
-		size_t len;
-
-		name[0] = CTL_KERN;
-		name[1] = KERN_PROC;
-		name[2] = KERN_PROC_PATHNAME;
-		name[3] = -1;
-		len = PATH_MAX;
-		error = sysctl(name, nitems(name), execname, &len, NULL, 0);
-		if (error != 0) {
-			rc = -1;
-		} else {
-			rc = len;
-		}
-		if (rc == -1) {
-			execname[0] = '\0';
-		} else {
-			execname[rc] = '\0';
-			ptr = execname;
-		}
-	} else {
-		ptr = execname;
-	}
-
-	(void) pthread_mutex_unlock(&mtx);
-	return (ptr);
+	return (len);
 }

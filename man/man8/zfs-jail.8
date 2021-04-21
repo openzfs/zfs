@@ -45,7 +45,7 @@
 .Nd Attaches and detaches ZFS filesystems from FreeBSD jails.
 .No A Tn ZFS
 dataset can be attached to a jail by using the
-.Qq Nm Cm jail
+.Qq Nm zfs jail
 subcommand. You cannot attach a dataset to one jail and the children of the
 same dataset to another jail. You can also not attach the root file system
 of the jail or any dataset which needs to be mounted before the zfs rc script
@@ -65,7 +65,7 @@ datasets from within a jail.
 .Pp
 .No A Tn ZFS
 dataset can be detached from a jail using the
-.Qq Nm Cm unjail
+.Qq Nm zfs unjail
 subcommand.
 .Pp
 After a dataset is attached to a jail and the jailed property is set, a jailed

@@ -29,6 +29,7 @@ ZED \- ZFS Event Daemon
 [\fB\-p\fR \fIpidfile\fR]
 [\fB\-P\fR \fIpath\fR]
 [\fB\-s\fR \fIstatefile\fR]
+[\fB\-j\fR \fIjobs\fR]
 [\fB\-v\fR]
 [\fB\-V\fR]
 [\fB\-Z\fR]
@@ -75,9 +76,6 @@ while the daemon is running.
 .BI \-Z
 Zero the daemon's state, thereby allowing zevents still within the kernel
 to be reprocessed.
-.\" .TP
-.\" .BI \-c\  configfile
-.\" Read the configuration from the specified file.
 .TP
 .BI \-d\  zedletdir
 Read the enabled ZEDLETs from the specified directory.
@@ -95,6 +93,11 @@ it in production!
 .TP
 .BI \-s\  statefile
 Write the daemon's state to the specified file.
+.TP
+.BI \-j\  jobs
+Allow at most \fIjobs\fR ZEDLETs to run concurrently,
+delaying execution of new ones until they finish.
+Defaults to 16.
 .SH ZEVENTS
 .PP
 A zevent is comprised of a list of nvpairs (name/value pairs).  Each zevent
@@ -114,9 +117,10 @@ ZEDLETs to be invoked in response to zevents are located in the
 \fIenabled-zedlets\fR directory.  These can be symlinked or copied from the
 \fIinstalled-zedlets\fR directory; symlinks allow for automatic updates
 from the installed ZEDLETs, whereas copies preserve local modifications.
-As a security measure, ZEDLETs must be owned by root.  They must have
-execute permissions for the user, but they must not have write permissions
-for group or other.  Dotfiles are ignored.
+As a security measure, since ownership change is a privileged operation,
+ZEDLETs must be owned by root.  They must have execute permissions for the user,
+but they must not have write permissions for group or other.
+Dotfiles are ignored.
 .PP
 ZEDLETs are named after the zevent class for which they should be invoked.
 In particular, a ZEDLET will be invoked for a given zevent if either its
@@ -197,9 +201,6 @@ the following executables are defined: \fBZDB\fR, \fBZED\fR, \fBZFS\fR,
 rc file if needed.
 
 .SH FILES
-.\" .TP
-.\" @sysconfdir@/zfs/zed.conf
-.\" The default configuration file for the daemon.
 .TP
 .I @sysconfdir@/zfs/zed.d
 The default directory for enabled ZEDLETs.
@@ -231,28 +232,9 @@ Terminate the daemon.
 
 .SH BUGS
 .PP
-Events are processed synchronously by a single thread.  This can delay the
-processing of simultaneous zevents.
-.PP
-There is no maximum timeout for ZEDLET execution.  Consequently, a misbehaving
-ZEDLET can delay the processing of subsequent zevents.
-.PP
-The ownership and permissions of the \fIenabled-zedlets\fR directory (along
-with all parent directories) are not checked.  If any of these directories
-are improperly owned or permissioned, an unprivileged user could insert a
-ZEDLET to be executed as root.  The requirement that ZEDLETs be owned by
-root mitigates this to some extent.
-.PP
 ZEDLETs are unable to return state/status information to the kernel.
 .PP
-Some zevent nvpair types are not handled.  These are denoted by zevent
-environment variables having a "_NOT_IMPLEMENTED_" value.
-.PP
 Internationalization support via gettext has not been added.
-.PP
-The configuration file is not yet implemented.
-.PP
-The diagnosis engine is not yet implemented.
 
 .SH LICENSE
 .PP

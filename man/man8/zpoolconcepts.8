@@ -295,6 +295,23 @@ identified by a unique identifier instead of its path since the path was never
 correct in the first place.
 .El
 .Pp
+Checksum errors represent events where a disk returned data that was expected
+to be correct, but was not.
+In other words, these are instances of silent data corruption.
+The checksum errors are reported in
+.Nm zpool Cm status
+and
+.Nm zpool Cm events .
+When a block is stored redundantly, a damaged block may be reconstructed
+(e.g. from RAIDZ parity or a mirrored copy).
+In this case, ZFS reports the checksum error against the disks that contained
+damaged data.
+If a block is unable to be reconstructed (e.g. due to 3 disks being damaged
+in a RAIDZ2 group), it is not possible to determine which disks were silently
+corrupted.
+In this case, checksum errors are reported for all disks on which the block
+is stored.
+.Pp
 If a device is removed and later re-attached to the system, ZFS attempts
 to put the device online automatically.
 Device attach detection is hardware-dependent and might not be supported on all

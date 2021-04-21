@@ -17,9 +17,11 @@
 
 #include <stdint.h>
 #include "zed_strings.h"
+#include "zed_conf.h"
+
+void zed_exec_fini(void);
 
 int zed_exec_process(uint64_t eid, const char *class, const char *subclass,
-    const char *dir, zed_strings_t *zedlets, zed_strings_t *envs,
-    int zevent_fd);
+    struct zed_conf *zcp, zed_strings_t *envs);
 
 #endif	/* !ZED_EXEC_H */

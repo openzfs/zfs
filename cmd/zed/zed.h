@@ -16,11 +16,6 @@
 #define	ZED_H
 
 /*
- * Absolute path for the default zed configuration file.
- */
-#define	ZED_CONF_FILE		SYSCONFDIR "/zfs/zed.conf"
-
-/*
  * Absolute path for the default zed pid file.
  */
 #define	ZED_PID_FILE		RUNSTATEDIR "/zed.pid"
@@ -34,16 +29,6 @@
  * Absolute path for the default zed zedlet directory.
  */
 #define	ZED_ZEDLET_DIR		SYSCONFDIR "/zfs/zed.d"
-
-/*
- * Reserved for future use.
- */
-#define	ZED_MAX_EVENTS		0
-
-/*
- * Reserved for future use.
- */
-#define	ZED_MIN_EVENTS		0
 
 /*
  * String prefix for ZED variables passed via environment variables.

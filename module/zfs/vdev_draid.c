@@ -1082,7 +1082,6 @@ vdev_draid_map_alloc(zio_t *zio)
 	rm->rm_row[0] = rr[0];
 	if (nrows == 2)
 		rm->rm_row[1] = rr[1];
-
 	return (rm);
 }
 
