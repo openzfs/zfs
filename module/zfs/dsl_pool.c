@@ -899,16 +899,27 @@ dsl_pool_need_dirty_delay(dsl_pool_t *dp)
 {
 	uint64_t delay_min_bytes =
 	    zfs_dirty_data_max * zfs_delay_min_dirty_percent / 100;
-	uint64_t dirty_min_bytes =
-	    zfs_dirty_data_max * zfs_dirty_data_sync_percent / 100;
 	uint64_t dirty;
 
 	mutex_enter(&dp->dp_lock);
 	dirty = dp->dp_dirty_total;
 	mutex_exit(&dp->dp_lock);
-	if (dirty > dirty_min_bytes)
-		txg_kick(dp);
+
 	return (dirty > delay_min_bytes);
+}
+
+boolean_t
+dsl_pool_need_dirty_sync(dsl_pool_t *dp, uint64_t txg)
+{
+	uint64_t dirty;
+	uint64_t dirty_min_bytes =
+	    zfs_dirty_data_max * zfs_dirty_data_sync_percent / 100;
+
+	mutex_enter(&dp->dp_lock);
+	dirty = dp->dp_dirty_pertxg[txg & TXG_MASK];
+	mutex_exit(&dp->dp_lock);
+
+	return (dirty > dirty_min_bytes);
 }
 
 void

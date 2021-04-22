@@ -499,14 +499,6 @@ txg_wait_callbacks(dsl_pool_t *dp)
 }
 
 static boolean_t
-txg_is_syncing(dsl_pool_t *dp)
-{
-	tx_state_t *tx = &dp->dp_tx;
-	ASSERT(MUTEX_HELD(&tx->tx_sync_lock));
-	return (tx->tx_syncing_txg != 0);
-}
-
-static boolean_t
 txg_is_quiescing(dsl_pool_t *dp)
 {
 	tx_state_t *tx = &dp->dp_tx;
@@ -784,22 +776,23 @@ txg_wait_open(dsl_pool_t *dp, uint64_t txg, boolean_t should_quiesce)
 }
 
 /*
- * If there isn't a txg syncing or in the pipeline, push another txg through
- * the pipeline by quiescing the open txg.
+ * If there isn't a txg quiescing in the pipeline, push the txg
+ * through the pipeline by quiescing the open txg.
+ * It is fine there is a txg still syncing.
  */
 void
-txg_kick(dsl_pool_t *dp)
+txg_kick(dsl_pool_t *dp, uint64_t txg)
 {
 	tx_state_t *tx = &dp->dp_tx;
 
 	ASSERT(!dsl_pool_config_held(dp));
 
 	mutex_enter(&tx->tx_sync_lock);
-	if (!txg_is_syncing(dp) &&
+	txg = txg == 0 ? tx->tx_open_txg : txg;
+	if (txg == tx->tx_open_txg &&
 	    !txg_is_quiescing(dp) &&
 	    tx->tx_quiesce_txg_waiting <= tx->tx_open_txg &&
-	    tx->tx_sync_txg_waiting <= tx->tx_synced_txg &&
-	    tx->tx_quiesced_txg <= tx->tx_synced_txg) {
+	    tx->tx_sync_txg_waiting <= tx->tx_synced_txg) {
 		tx->tx_quiesce_txg_waiting = tx->tx_open_txg + 1;
 		cv_broadcast(&tx->tx_quiesce_more_cv);
 	}
