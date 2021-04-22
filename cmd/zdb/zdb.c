@@ -6422,9 +6422,7 @@ dump_block_stats(spa_t *spa)
 	int e, c, err;
 	bp_embedded_type_t i;
 
-	zcb = zalloc(sizeof(zdb_cb_t));
-	if (zcb == NULL)
-	    return (ENOMEM);
+	zcb = umem_zalloc(sizeof (zdb_cb_t), UMEM_NOFAIL);
 
 	(void) printf("\nTraversing all blocks %s%s%s%s%s...\n\n",
 	    (dump_opt['c'] || !dump_opt['L']) ? "to verify " : "",
@@ -6754,11 +6752,11 @@ dump_block_stats(spa_t *spa)
 		return (2);
 
 	if (zcb->zcb_haderrors) {
-		free(zcb);
+		umem_free(zcb, sizeof (zdb_cb_t));
 		return (3);
 	}
 
-	free(zcb);
+	umem_free(zcb, sizeof (zdb_cb_t));
 	return (0);
 }
 
