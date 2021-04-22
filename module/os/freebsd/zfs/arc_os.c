@@ -158,10 +158,13 @@ arc_default_max(uint64_t min, uint64_t allmem)
 static void
 arc_prune_task(void *arg)
 {
-	int64_t nr_scan = *(int64_t *)arg;
+#ifdef __LP64__
+	int64_t nr_scan = (int64_t)arg;
+#else
+	int64_t nr_scan = (int32_t)arg;
+#endif
 
 	arc_reduce_target_size(ptob(nr_scan));
-	free(arg, M_TEMP);
 #if __FreeBSD_version >= 1300139
 	sx_xlock(&arc_vnlru_lock);
 	vnlru_free_vfsops(nr_scan, &zfs_vfsops, arc_vnlru_marker);
@@ -185,13 +188,14 @@ arc_prune_task(void *arg)
 void
 arc_prune_async(int64_t adjust)
 {
-
 	int64_t *adjustptr;
 
-	if ((adjustptr = malloc(sizeof (int64_t), M_TEMP, M_NOWAIT)) == NULL)
-		return;
+#ifndef __LP64__
+	if (adjust > __LONG_MAX)
+		adjust = __LONG_MAX;
+#endif
 
-	*adjustptr = adjust;
+	adjustptr = (void *)adjust;
 	taskq_dispatch(arc_prune_taskq, arc_prune_task, adjustptr, TQ_SLEEP);
 	ARCSTAT_BUMP(arcstat_prune);
 }
