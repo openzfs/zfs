@@ -41,9 +41,10 @@
 #define	ITOH(I) ((HANDLE)(unsigned __int64)(I))
 
 /* keep the struct type before we #define	*/
+/* We only use _stat64 in Windows, no reason to mix */
 struct wosix_stat {
 	union {
-		struct stat;
+		struct _stat64;
 	};
 };
 

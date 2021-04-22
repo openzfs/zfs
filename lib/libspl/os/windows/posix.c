@@ -605,7 +605,7 @@ gethostid(void)
 	DWORD len;
 
 	Status = RegOpenKeyEx(HKEY_LOCAL_MACHINE,
-	    "SYSTEM\\ControlSet001\\Services\\ZFSin",
+	    "SYSTEM\\ControlSet001\\Services\\OpenZFS",
 	    0, KEY_READ, &key);
 	if (Status != ERROR_SUCCESS)
 		return (0UL);
@@ -860,12 +860,15 @@ wosix_fsync(int fd)
 }
 
 int
-wosix_open(const char *path, int oflag, ...)
+wosix_open(const char *inpath, int oflag, ...)
 {
 	HANDLE h;
 	DWORD mode = GENERIC_READ; // RDONLY=0, WRONLY=1, RDWR=2;
 	DWORD how = OPEN_EXISTING;
 	DWORD share = FILE_SHARE_READ;
+	char otherpath[MAXPATHLEN];
+	char *path = inpath;
+
 	// This is wrong, not all bitfields
 	if (oflag&O_WRONLY) mode = GENERIC_WRITE;
 	if (oflag&O_RDWR)   mode = GENERIC_READ | GENERIC_WRITE;
@@ -895,6 +898,13 @@ wosix_open(const char *path, int oflag, ...)
 #ifdef O_EXLOCK
 	if (!oflag&O_EXLOCK) share |= FILE_SHARE_WRITE;
 #endif
+
+	// Support expansion of "SystemRoot"
+	if (strncmp(path, "\\SystemRoot\\", 12) == 0) {
+		snprintf(otherpath, MAXPATHLEN, "%s\\%s",
+		    getenv("SystemRoot"), &path[12]);
+		path = otherpath;
+	}
 
 	// Try to open verbatim, but if that fail, check if it is the
 	// "#offset#length#name" style, and try again. We let it fail first
@@ -944,6 +954,12 @@ wosix_open(const char *path, int oflag, ...)
 		case ERROR_FILE_EXISTS:
 			errno = EEXIST;
 			break;
+		case ERROR_SHARING_VIOLATION:
+			errno = EBUSY; // BSD: EWOULDBLOCK
+			// fall through
+		default:
+			fprintf(stderr, "wosix_open(%s): error %d / 0x%x\n",
+			    path, GetLastError(), GetLastError());
 		}
 		return (-1);
 	}
@@ -1165,7 +1181,7 @@ wosix_stat(char *path, struct _stat64 *st)
 {
 	int fd;
 	int ret;
-	fd = open(path, O_RDONLY);
+	fd = wosix_open(path, O_RDONLY);
 	if (fd == -1)
 		return (-1);
 	ret = wosix_fstat(fd, st);
@@ -1179,7 +1195,7 @@ wosix_lstat(char *path, struct _stat64 *st)
 	int fd;
 	int ret;
 
-	fd = open(path, O_RDONLY);
+	fd = wosix_open(path, O_RDONLY);
 	if (fd == -1)
 		return (-1);
 	ret = wosix_fstat(fd, st); // Fix me? Symlinks
@@ -1227,15 +1243,24 @@ wosix_fstat_blk(int fd, struct _stat64 *st)
 	DISK_GEOMETRY_EX geometry_ex;
 	HANDLE handle = ITOH(fd);
 	DWORD len;
+	LARGE_INTEGER size;
 
-	if (!DeviceIoControl(handle, IOCTL_DISK_GET_DRIVE_GEOMETRY_EX, NULL, 0,
-	    &geometry_ex, sizeof (geometry_ex), &len, NULL))
-		return (-1); // errno?
+	// Try device first
+	if (DeviceIoControl(handle, IOCTL_DISK_GET_DRIVE_GEOMETRY_EX, NULL, 0,
+	    &geometry_ex, sizeof (geometry_ex), &len, NULL)) {
+	    st->st_size = (diskaddr_t)geometry_ex.DiskSize.QuadPart;
+	    st->st_mode = S_IFBLK;
+	    return (0);
+	}
 
-	st->st_size = (diskaddr_t)geometry_ex.DiskSize.QuadPart;
-	st->st_mode = S_IFBLK;
+	// Try regular file
+	if (GetFileSizeEx(handle, &size)) {
+	    st->st_size = (diskaddr_t)size.QuadPart;
+	    st->st_mode = S_IFREG;
+	    return (0);
+	}
 
-	return (0);
+	return (-1); // errno?
 }
 
 // os specific files can call this directly.
