@@ -172,8 +172,12 @@ Obsoletes:      libzpool4
 This package contains the zpool library, which provides support
 for managing zpools
 
+%if %{defined ldconfig_scriptlets}
+%ldconfig_scriptlets -n libzpool5
+%else
 %post -n libzpool5 -p /sbin/ldconfig
 %postun -n libzpool5 -p /sbin/ldconfig
+%endif
 
 %package -n libnvpair3
 Summary:        Solaris name-value library for Linux
@@ -186,8 +190,12 @@ pairs.  This functionality is used to portably transport data across
 process boundaries, between kernel and user space, and can be used
 to write self describing data structures on disk.
 
+%if %{defined ldconfig_scriptlets}
+%ldconfig_scriptlets -n libnvpair3
+%else
 %post -n libnvpair3 -p /sbin/ldconfig
 %postun -n libnvpair3 -p /sbin/ldconfig
+%endif
 
 %package -n libuutil3
 Summary:        Solaris userland utility library for Linux
@@ -205,8 +213,12 @@ This library provides a variety of compatibility functions for OpenZFS:
    partitioning.
  * libshare: NFS, SMB, and iSCSI service integration for ZFS.
 
+%if %{defined ldconfig_scriptlets}
+%ldconfig_scriptlets -n libuutil3
+%else
 %post -n libuutil3 -p /sbin/ldconfig
 %postun -n libuutil3 -p /sbin/ldconfig
+%endif
 
 # The library version is encoded in the package name.  When updating the
 # version information it is important to add an obsoletes line below for
@@ -220,8 +232,12 @@ Obsoletes:      libzfs4
 %description -n libzfs5
 This package provides support for managing ZFS filesystems
 
+%if %{defined ldconfig_scriptlets}
+%ldconfig_scriptlets -n libzfs5
+%else
 %post -n libzfs5 -p /sbin/ldconfig
 %postun -n libzfs5 -p /sbin/ldconfig
+%endif
 
 %package -n libzfs5-devel
 Summary:        Development headers
