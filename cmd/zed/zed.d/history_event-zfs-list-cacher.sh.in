@@ -14,10 +14,10 @@ FSLIST="${FSLIST_DIR}/${ZEVENT_POOL}"
 . "${ZED_ZEDLET_DIR}/zed-functions.sh"
 
 [ "$ZEVENT_SUBCLASS" != "history_event" ] && exit 0
-zed_check_cmd "${ZFS}" sort diff grep
+zed_check_cmd "${ZFS}" sort diff
 
 # If we are acting on a snapshot, we have nothing to do
-printf '%s' "${ZEVENT_HISTORY_DSNAME}" | grep '@' && exit 0
+[ "${ZEVENT_HISTORY_DSNAME%@*}" = "${ZEVENT_HISTORY_DSNAME}" ] || exit 0
 
 # We obtain a lock on zfs-list to avoid any simultaneous writes.
 # If we run into trouble, log and drop the lock
