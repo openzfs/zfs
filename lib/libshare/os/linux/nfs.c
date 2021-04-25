@@ -136,8 +136,9 @@ foreach_nfs_host_cb(const char *opt, const char *value, void *pcookie)
 {
 	int error;
 	const char *access;
-	char *host_dup, *host, *next;
+	char *host_dup, *host, *next, *v6Literal;
 	nfs_host_cookie_t *udata = (nfs_host_cookie_t *)pcookie;
+	int cidr_len;
 
 #ifdef DEBUG
 	fprintf(stderr, "foreach_nfs_host_cb: key=%s, value=%s\n", opt, value);
@@ -160,10 +161,46 @@ foreach_nfs_host_cb(const char *opt, const char *value, void *pcookie)
 		host = host_dup;
 
 		do {
-			next = strchr(host, ':');
-			if (next != NULL) {
-				*next = '\0';
-				next++;
+			if (*host == '[') {
+				host++;
+				v6Literal = strchr(host, ']');
+				if (v6Literal == NULL) {
+					free(host_dup);
+					return (SA_SYNTAX_ERR);
+				}
+				if (v6Literal[1] == '\0') {
+					*v6Literal = '\0';
+					next = NULL;
+				} else if (v6Literal[1] == '/') {
+					next = strchr(v6Literal + 2, ':');
+					if (next == NULL) {
+						cidr_len =
+						    strlen(v6Literal + 1);
+						memmove(v6Literal,
+						    v6Literal + 1,
+						    cidr_len);
+						v6Literal[cidr_len] = '\0';
+					} else {
+						cidr_len = next - v6Literal - 1;
+						memmove(v6Literal,
+						    v6Literal + 1,
+						    cidr_len);
+						v6Literal[cidr_len] = '\0';
+						next++;
+					}
+				} else if (v6Literal[1] == ':') {
+					*v6Literal = '\0';
+					next = v6Literal + 2;
+				} else {
+					free(host_dup);
+					return (SA_SYNTAX_ERR);
+				}
+			} else {
+				next = strchr(host, ':');
+				if (next != NULL) {
+					*next = '\0';
+					next++;
+				}
 			}
 
 			error = udata->callback(udata->filename,
