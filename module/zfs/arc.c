@@ -432,7 +432,6 @@ int zfs_arc_average_blocksize = 8 * 1024; /* 8KB */
  * ARC dirty data constraints for arc_tempreserve_space() throttle.
  */
 unsigned long zfs_arc_dirty_limit_percent = 50;	/* total dirty data limit */
-unsigned long zfs_arc_anon_limit_percent = 25;	/* anon block dirty limit */
 unsigned long zfs_arc_pool_dirty_percent = 20;	/* each pool's anon allowance */
 
 /*
@@ -7170,7 +7169,6 @@ arc_tempreserve_space(spa_t *spa, uint64_t reserve, uint64_t txg)
 	uint64_t spa_dirty_anon = spa_dirty_data(spa);
 	uint64_t rarc_c = arc_warm ? arc_c : arc_c_max;
 	if (total_dirty > rarc_c * zfs_arc_dirty_limit_percent / 100 &&
-	    anon_size > rarc_c * zfs_arc_anon_limit_percent / 100 &&
 	    spa_dirty_anon > anon_size * zfs_arc_pool_dirty_percent / 100) {
 #ifdef ZFS_DEBUG
 		uint64_t meta_esize = zfs_refcount_count(
@@ -11038,6 +11036,9 @@ ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, dnode_limit_percent,
 
 ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, dnode_reduce_percent, ULONG, ZMOD_RW,
 	"Percentage of excess dnodes to try to unpin");
+
+ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, dirty_limit_percent, ULONG, ZMOD_RW,
+	"Percentage of total dirty data limit in arc");
 
 ZFS_MODULE_PARAM(zfs_arc, zfs_arc_, eviction_pct, INT, ZMOD_RW,
 	"When full, ARC allocation waits for eviction of this % of alloc size");

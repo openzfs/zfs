@@ -980,6 +980,7 @@ extern uint_t zfs_arc_pc_percent;
 extern int arc_lotsfree_percent;
 extern unsigned long zfs_arc_min;
 extern unsigned long zfs_arc_max;
+extern unsigned long zfs_arc_dirty_limit_percent;
 
 extern void arc_reduce_target_size(int64_t to_free);
 extern boolean_t arc_reclaim_needed(void);
