@@ -32,6 +32,7 @@
  * [1] Portions of this software were developed by Allan Jude
  *     under sponsorship from the FreeBSD Foundation.
  * Copyright (c) 2021 Allan Jude
+ * Copyright (c) 2021 Toomas Soome <tsoome@me.com>
  */
 
 #include <stdio.h>
@@ -2066,10 +2067,7 @@ dump_history(spa_t *spa)
 	uint64_t resid, len, off = 0;
 	uint_t num = 0;
 	int error;
-	time_t tsec;
-	struct tm t;
 	char tbuf[30];
-	char internalstr[MAXPATHLEN];
 
 	if ((buf = malloc(SPA_OLD_MAXBLOCKSIZE)) == NULL) {
 		(void) fprintf(stderr, "%s: unable to allocate I/O buffer\n",
@@ -2095,38 +2093,81 @@ dump_history(spa_t *spa)
 
 	(void) printf("\nHistory:\n");
 	for (unsigned i = 0; i < num; i++) {
-		uint64_t time, txg, ievent;
-		char *cmd, *intstr;
 		boolean_t printed = B_FALSE;
 
-		if (nvlist_lookup_uint64(events[i], ZPOOL_HIST_TIME,
-		    &time) != 0)
-			goto next;
-		if (nvlist_lookup_string(events[i], ZPOOL_HIST_CMD,
-		    &cmd) != 0) {
-			if (nvlist_lookup_uint64(events[i],
-			    ZPOOL_HIST_INT_EVENT, &ievent) != 0)
-				goto next;
-			verify(nvlist_lookup_uint64(events[i],
-			    ZPOOL_HIST_TXG, &txg) == 0);
-			verify(nvlist_lookup_string(events[i],
-			    ZPOOL_HIST_INT_STR, &intstr) == 0);
+		if (nvlist_exists(events[i], ZPOOL_HIST_TIME)) {
+			time_t tsec;
+			struct tm t;
+
+			tsec = fnvlist_lookup_uint64(events[i],
+			    ZPOOL_HIST_TIME);
+			(void) localtime_r(&tsec, &t);
+			(void) strftime(tbuf, sizeof (tbuf), "%F.%T", &t);
+		} else {
+			tbuf[0] = '\0';
+		}
+
+		if (nvlist_exists(events[i], ZPOOL_HIST_CMD)) {
+			(void) printf("%s %s\n", tbuf,
+			    fnvlist_lookup_string(events[i], ZPOOL_HIST_CMD));
+		} else if (nvlist_exists(events[i], ZPOOL_HIST_INT_EVENT)) {
+			uint64_t ievent;
+
+			ievent = fnvlist_lookup_uint64(events[i],
+			    ZPOOL_HIST_INT_EVENT);
 			if (ievent >= ZFS_NUM_LEGACY_HISTORY_EVENTS)
 				goto next;
 
-			(void) snprintf(internalstr,
-			    sizeof (internalstr),
-			    "[internal %s txg:%lld] %s",
+			(void) printf(" %s [internal %s txg:%ju] %s\n",
+			    tbuf,
 			    zfs_history_event_names[ievent],
-			    (longlong_t)txg, intstr);
-			cmd = internalstr;
-		}
-		tsec = time;
-		(void) localtime_r(&tsec, &t);
-		(void) strftime(tbuf, sizeof (tbuf), "%F.%T", &t);
-		(void) printf("%s %s\n", tbuf, cmd);
-		printed = B_TRUE;
+			    fnvlist_lookup_uint64(events[i],
+			    ZPOOL_HIST_TXG),
+			    fnvlist_lookup_string(events[i],
+			    ZPOOL_HIST_INT_STR));
+		} else if (nvlist_exists(events[i], ZPOOL_HIST_INT_NAME)) {
+			(void) printf("%s [txg:%ju] %s", tbuf,
+			    fnvlist_lookup_uint64(events[i],
+			    ZPOOL_HIST_TXG),
+			    fnvlist_lookup_string(events[i],
+			    ZPOOL_HIST_INT_NAME));
 
+			if (nvlist_exists(events[i], ZPOOL_HIST_DSNAME)) {
+				(void) printf("%s (%llu)",
+				    fnvlist_lookup_string(events[i],
+				    ZPOOL_HIST_DSNAME),
+				    (u_longlong_t)fnvlist_lookup_uint64(
+				    events[i],
+				    ZPOOL_HIST_DSID));
+			}
+
+			(void) printf(" %s\n", fnvlist_lookup_string(events[i],
+			    ZPOOL_HIST_INT_STR));
+		} else if (nvlist_exists(events[i], ZPOOL_HIST_IOCTL)) {
+			(void) printf("%s ioctl %s\n", tbuf,
+			    fnvlist_lookup_string(events[i],
+			    ZPOOL_HIST_IOCTL));
+
+			if (nvlist_exists(events[i], ZPOOL_HIST_INPUT_NVL)) {
+				(void) printf("    input:\n");
+				dump_nvlist(fnvlist_lookup_nvlist(events[i],
+				    ZPOOL_HIST_INPUT_NVL), 8);
+			}
+			if (nvlist_exists(events[i], ZPOOL_HIST_OUTPUT_NVL)) {
+				(void) printf("    output:\n");
+				dump_nvlist(fnvlist_lookup_nvlist(events[i],
+				    ZPOOL_HIST_OUTPUT_NVL), 8);
+			}
+			if (nvlist_exists(events[i], ZPOOL_HIST_ERRNO)) {
+				(void) printf("    errno: %lld\n",
+				    (longlong_t)fnvlist_lookup_int64(events[i],
+				    ZPOOL_HIST_ERRNO));
+			}
+		} else {
+			goto next;
+		}
+
+		printed = B_TRUE;
 next:
 		if (dump_opt['h'] > 1) {
 			if (!printed)
