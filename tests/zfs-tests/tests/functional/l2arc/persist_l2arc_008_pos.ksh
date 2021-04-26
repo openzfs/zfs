@@ -16,10 +16,12 @@
 
 #
 # Copyright (c) 2020, George Amanakis. All rights reserved.
+# Copyright (c) 2021, DilOS
 #
 
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/l2arc/l2arc.cfg
+. $STF_SUITE/tests/functional/l2arc/l2arc_common.shlib
 
 #
 # DESCRIPTION:
@@ -57,13 +59,13 @@ log_assert "Off/onlining an L2ARC device restores all written blocks , vdev pres
 
 function cleanup
 {
-	if poolexists $TESTPOOL ; then
-		destroy_pool $TESTPOOL
-	fi
+	rm_devs
 
 	log_must set_tunable32 L2ARC_NOPREFETCH $noprefetch
 }
 log_onexit cleanup
+
+mk_devs
 
 # L2ARC_NOPREFETCH is set to 0 to let L2ARC handle prefetches
 typeset noprefetch=$(get_tunable L2ARC_NOPREFETCH)
@@ -133,7 +135,7 @@ log_must test $l2_dh_log_blk3 -eq $(( $l2_rebuild_log_blk_end - \
 	$l2_rebuild_log_blk_start ))
 log_must test $l2_dh_log_blk3 -gt 0
 
-log must zpool offline $TESTPOOL $VDEV_CACHE
+log_must zpool offline $TESTPOOL $VDEV_CACHE
 arcstat_quiescence_noecho l2_size
 
 log_must zdb -lq $VDEV_CACHE

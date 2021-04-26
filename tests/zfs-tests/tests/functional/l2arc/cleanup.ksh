@@ -19,13 +19,12 @@
 #
 
 . $STF_SUITE/tests/functional/l2arc/l2arc.cfg
+. $STF_SUITE/tests/functional/l2arc/l2arc_common.shlib
 
 verify_runnable "global"
 
-if poolexists $TESTPOOL ; then
-	log_must destroy_pool $TESTPOOL
-fi
+rm_devs
 
-log_must rm -rf $VDIR
+[[ -e $TESTDIR ]] && log_must rm -rf $TESTDIR
 
 log_pass

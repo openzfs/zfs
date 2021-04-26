@@ -16,10 +16,12 @@
 
 #
 # Copyright (c) 2020, Adam Moss. All rights reserved.
+# Copyright (c) 2021, DilOS
 #
 
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/l2arc/l2arc.cfg
+. $STF_SUITE/tests/functional/l2arc/l2arc_common.shlib
 
 #
 # DESCRIPTION:
@@ -42,14 +44,11 @@ log_assert "l2arc_misses does not increment upon reads from a pool without l2arc
 
 function cleanup
 {
-	if poolexists $TESTPOOL ; then
-		destroy_pool $TESTPOOL
-	fi
-	if poolexists $TESTPOOL1 ; then
-		destroy_pool $TESTPOOL1
-	fi
+	rm_devs
 }
 log_onexit cleanup
+
+mk_devs
 
 typeset fill_mb=800
 typeset cache_sz=$(( 1.4 * $fill_mb ))
@@ -67,7 +66,7 @@ log_must fio $FIO_SCRIPTS/random_reads.fio
 # attempt to remove entries for pool from ARC so we would try
 #    to hit the nonexistent L2ARC for subsequent reads
 log_must zpool export $TESTPOOL1
-log_must zpool import $TESTPOOL1 -d $VDEV1
+log_must zpool import $TESTPOOL1 -d $VDIR
 
 typeset starting_miss_count=$(get_arcstat l2_misses)
 
@@ -83,7 +82,7 @@ arcstat_quiescence_noecho l2_size
 # attempt to remove entries for pool from ARC so we would try
 #    to hit L2ARC for subsequent reads
 log_must zpool export $TESTPOOL
-log_must zpool import $TESTPOOL -d $VDEV
+log_must zpool import $TESTPOOL -d $VDIR
 
 log_must fio $FIO_SCRIPTS/random_reads.fio
 log_must test $(get_arcstat l2_misses) -gt $starting_miss_count

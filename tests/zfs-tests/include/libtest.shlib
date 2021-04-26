@@ -134,6 +134,19 @@ function is_dilos
 	fi
 }
 
+# Determine platform name
+#
+# Return platform name
+
+function platform_name
+{
+	if is_dilos; then
+		echo "dilos"
+	else
+		echo $(uname)
+	fi
+}
+
 # Determine if this is a 32-bit system
 #
 # Return 0 if platform is 32-bit, 1 if otherwise
@@ -3608,7 +3621,7 @@ function zed_rc_restore
 function zed_setup
 {
 	if ! is_linux; then
-		log_unsupported "No zed on $(uname)"
+		log_unsupported "No zed on $(platform_name)"
 	fi
 
 	if [[ ! -d $ZEDLET_DIR ]]; then
@@ -3849,7 +3862,7 @@ function set_tunable_impl
 	eval "typeset tunable=\$$name"
 	case "$tunable" in
 	UNSUPPORTED)
-		log_unsupported "Tunable '$name' is unsupported on $(uname)"
+		log_unsupported "Tunable '$name' is unsupported on $(platform_name)"
 		;;
 	"")
 		log_fail "Tunable '$name' must be added to tunables.cfg"
@@ -3861,7 +3874,7 @@ function set_tunable_impl
 	[[ -z "$value" ]] && return 1
 	[[ -z "$mdb_cmd" ]] && return 1
 
-	case "$(uname)" in
+	case "$(platform_name)" in
 	Linux)
 		typeset zfs_tunables="/sys/module/$module/parameters"
 		[[ -w "$zfs_tunables/$tunable" ]] || return 1
@@ -3872,9 +3885,12 @@ function set_tunable_impl
 		sysctl vfs.zfs.$tunable=$value
 		return "$?"
 		;;
-	SunOS)
+	dilos)
 		[[ "$module" -eq "zfs" ]] || return 1
-		echo "${tunable}/${mdb_cmd}0t${value}" | mdb -kw
+		typeset svalue=""
+		svalue=$(printf "0x%llx" "${value}")
+#		echo "mdb set: ${tunable}/${mdb_cmd} ${svalue}"
+		mdb -kwe "${tunable}/${mdb_cmd} ${svalue}"
 		return $?
 		;;
 	esac
@@ -3898,7 +3914,7 @@ function get_tunable_impl
 	eval "typeset tunable=\$$name"
 	case "$tunable" in
 	UNSUPPORTED)
-		log_unsupported "Tunable '$name' is unsupported on $(uname)"
+		log_unsupported "Tunable '$name' is unsupported on $(platform_name)"
 		;;
 	"")
 		log_fail "Tunable '$name' must be added to tunables.cfg"
@@ -3907,7 +3923,7 @@ function get_tunable_impl
 		;;
 	esac
 
-	case "$(uname)" in
+	case "$(platform_name)" in
 	Linux)
 		typeset zfs_tunables="/sys/module/$module/parameters"
 		[[ -f "$zfs_tunables/$tunable" ]] || return 1
@@ -3917,8 +3933,18 @@ function get_tunable_impl
 	FreeBSD)
 		sysctl -n vfs.zfs.$tunable
 		;;
-	SunOS)
+	dilos)
 		[[ "$module" -eq "zfs" ]] || return 1
+		typeset -li value=0
+		# value=$(mdb -k -e "$tunable/X | ::eval .=U" | sed -e 's/^[[:space:]]*//')
+		value=$(mdb -ke "$tunable::print")
+		if [[ $? -ne 0 ]]; then
+#			log_fail "Failed to get value of '$tunable' from mdb."
+			return 1
+		fi
+		echo "$value"
+		return 0
+
 		;;
 	esac
 
@@ -4083,7 +4109,7 @@ function get_xattr # name path
 	typeset name=$1
 	typeset path=$2
 
-	case $(uname) in
+	case $(platform_name) in
 	FreeBSD)
 		getextattr -qq user "${name}" "${path}"
 		;;
@@ -4099,7 +4125,7 @@ function set_xattr # name value path
 	typeset value=$2
 	typeset path=$3
 
-	case $(uname) in
+	case $(platform_name) in
 	FreeBSD)
 		setextattr user "${name}" "${value}" "${path}"
 		;;
@@ -4114,7 +4140,7 @@ function set_xattr_stdin # name value
 	typeset name=$1
 	typeset path=$2
 
-	case $(uname) in
+	case $(platform_name) in
 	FreeBSD)
 		setextattr -i user "${name}" "${path}"
 		;;
@@ -4129,7 +4155,7 @@ function rm_xattr # name path
 	typeset name=$1
 	typeset path=$2
 
-	case $(uname) in
+	case $(platform_name) in
 	FreeBSD)
 		rmextattr -q user "${name}" "${path}"
 		;;
@@ -4143,7 +4169,7 @@ function ls_xattr # path
 {
 	typeset path=$1
 
-	case $(uname) in
+	case $(platform_name) in
 	FreeBSD)
 		lsextattr -qq user "${path}"
 		;;
@@ -4158,7 +4184,7 @@ function kstat # stat flags?
 	typeset stat=$1
 	typeset flags=${2-"-n"}
 
-	case $(uname) in
+	case $(platform_name) in
 	FreeBSD)
 		sysctl $flags kstat.zfs.misc.$stat
 		;;
@@ -4166,6 +4192,9 @@ function kstat # stat flags?
 		typeset zfs_kstat="/proc/spl/kstat/zfs/$stat"
 		[[ -f "$zfs_kstat" ]] || return 1
 		cat $zfs_kstat
+		;;
+	dilos)
+		/usr/bin/kstat -pC $stat
 		;;
 	*)
 		false
@@ -4177,12 +4206,15 @@ function get_arcstat # stat
 {
 	typeset stat=$1
 
-	case $(uname) in
+	case $(platform_name) in
 	FreeBSD)
 		kstat arcstats.$stat
 		;;
 	Linux)
 		kstat arcstats | awk "/$stat/ { print \$3 }"
+		;;
+	dilos)
+		kstat zfs:0:arcstats:$stat | cut -d ':' -f 5
 		;;
 	*)
 		false
@@ -4206,9 +4238,9 @@ function arcstat_quiescence # stat echo
 	fi
 
 	while $do_once || [ $stat1 -ne $stat2 ] || [ $stat2 -eq 0 ]; do
-		typeset stat1=$(get_arcstat $stat)
+		typeset -li stat1=$(get_arcstat $stat)
 		sleep 2
-		typeset stat2=$(get_arcstat $stat)
+		typeset -li stat2=$(get_arcstat $stat)
 		do_once=false
 	done
 

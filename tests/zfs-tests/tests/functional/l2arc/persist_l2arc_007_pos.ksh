@@ -16,10 +16,12 @@
 
 #
 # Copyright (c) 2020, George Amanakis. All rights reserved.
+# Copyright (c) 2021, DilOS
 #
 
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/l2arc/l2arc.cfg
+. $STF_SUITE/tests/functional/l2arc/l2arc_common.shlib
 
 #
 # DESCRIPTION:
@@ -43,15 +45,15 @@ log_assert "Off/onlining an L2ARC device results in rebuilding L2ARC, vdev prese
 
 function cleanup
 {
-	if poolexists $TESTPOOL ; then
-		destroy_pool $TESTPOOL
-	fi
+	rm_devs
 
 	log_must set_tunable32 L2ARC_NOPREFETCH $noprefetch
 	log_must set_tunable32 L2ARC_REBUILD_BLOCKS_MIN_L2SIZE \
 		$rebuild_blocks_min_l2size
 }
 log_onexit cleanup
+
+mk_devs
 
 # L2ARC_NOPREFETCH is set to 0 to let L2ARC handle prefetches
 typeset noprefetch=$(get_tunable L2ARC_NOPREFETCH)

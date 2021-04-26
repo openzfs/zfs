@@ -15,4 +15,5 @@ dist_pkgdata_SCRIPTS = \
 	persist_l2arc_008_pos.ksh
 
 dist_pkgdata_DATA = \
-	l2arc.cfg
+	l2arc.cfg \
+	l2arc_common.shlib

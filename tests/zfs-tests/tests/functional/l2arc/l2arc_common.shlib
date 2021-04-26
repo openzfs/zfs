@@ -15,11 +15,29 @@
 #
 
 #
-# Copyright (c) 2020, George Amanakis. All rights reserved.
+# Copyright (c) 2021, DilOS
 #
 
 . $STF_SUITE/tests/functional/l2arc/l2arc.cfg
 
 verify_runnable "global"
 
-log_pass
+function mk_devs
+{
+	rm -rf $VDIR
+	log_must mkdir -p $VDIR
+	log_must mkfile -n $SIZE $VDEV
+	log_must mkfile -n $SIZE $VDEV1
+}
+
+function rm_devs
+{
+	if poolexists $TESTPOOL ; then
+		log_must destroy_pool $TESTPOOL
+	fi
+	if poolexists $TESTPOOL1 ; then
+		log_must destroy_pool $TESTPOOL1
+	fi
+
+	rm -rf $VDIR
+}
