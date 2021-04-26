@@ -781,6 +781,9 @@ zfs_lookup(vnode_t *dvp, const char *nm, vnode_t **vpp,
 	znode_t *zdp = VTOZ(dvp);
 	znode_t *zp;
 	zfsvfs_t *zfsvfs = zdp->z_zfsvfs;
+#if	__FreeBSD_version > 1300124
+	seqc_t dvp_seqc;
+#endif
 	int	error = 0;
 
 	/*
@@ -805,6 +808,10 @@ zfs_lookup(vnode_t *dvp, const char *nm, vnode_t **vpp,
 
 	ZFS_ENTER(zfsvfs);
 	ZFS_VERIFY_ZP(zdp);
+
+#if	__FreeBSD_version > 1300124
+	dvp_seqc = vn_seqc_read_notmodify(dvp);
+#endif
 
 	*vpp = NULL;
 
@@ -974,6 +981,26 @@ zfs_lookup(vnode_t *dvp, const char *nm, vnode_t **vpp,
 			break;
 		}
 	}
+
+#if	__FreeBSD_version > 1300124
+	if ((cnp->cn_flags & ISDOTDOT) != 0) {
+		/*
+		 * FIXME: zfs_lookup_lock relocks vnodes and does nothing to
+		 * handle races. In particular different callers may end up
+		 * with different vnodes and will try to add conflicting
+		 * entries to the namecache.
+		 *
+		 * While finding different result may be acceptable in face
+		 * of concurrent modification, adding conflicting entries
+		 * trips over an assert in the namecache.
+		 *
+		 * Ultimately let an entry through once everything settles.
+		 */
+		if (!vn_seqc_consistent(dvp, dvp_seqc)) {
+			cnp->cn_flags &= ~MAKEENTRY;
+		}
+	}
+#endif
 
 	/* Insert name into cache (as non-existent) if appropriate. */
 	if (zfsvfs->z_use_namecache && !zfsvfs->z_replay &&
