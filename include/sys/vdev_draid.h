@@ -88,6 +88,7 @@ typedef struct vdev_draid_config {
 extern uint64_t vdev_draid_rand(uint64_t *);
 extern int vdev_draid_lookup_map(uint64_t, const draid_map_t **);
 extern int vdev_draid_generate_perms(const draid_map_t *, uint8_t **);
+extern void vdev_draid_free_perms(draid_map_t *);
 
 /*
  * General dRAID support functions.

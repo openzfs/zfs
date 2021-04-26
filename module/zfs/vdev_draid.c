@@ -493,7 +493,11 @@ vdev_draid_generate_perms(const draid_map_t *map, uint8_t **permsp)
 	uint8_t *perms;
 
 	/* Allocate the permutation array */
+#ifdef	__dilos__
+	perms = kmem_alloc(permssz, KM_SLEEP);
+#else
 	perms = vmem_alloc(permssz, KM_SLEEP);
+#endif
 
 	/* Setup an initial row with a known pattern */
 	uint8_t *initial_row = kmem_alloc(rowsz, KM_SLEEP);
@@ -526,13 +530,38 @@ vdev_draid_generate_perms(const draid_map_t *map, uint8_t **permsp)
 
 	int error = verify_perms(perms, children, nperms, map->dm_checksum);
 	if (error) {
+#ifdef	__dilos__
+		kmem_free(perms, permssz);
+#else
 		vmem_free(perms, permssz);
+#endif
 		return (error);
 	}
 
 	*permsp = perms;
 
 	return (0);
+}
+
+/*
+ * Free the permutation array for the draid_map_t.
+ */
+void
+vdev_draid_free_perms(draid_map_t *map)
+{
+	VERIFY3U(map->dm_children, >=, VDEV_DRAID_MIN_CHILDREN);
+	VERIFY3U(map->dm_children, <=, VDEV_DRAID_MAX_CHILDREN);
+	VERIFY3U(map->dm_seed, !=, 0);
+	VERIFY3U(map->dm_nperms, !=, 0);
+	VERIFY3P(map->dm_perms, !=, NULL);
+
+	uint64_t children = map->dm_children;
+	uint64_t nperms = map->dm_nperms;
+	int rowsz = sizeof (uint8_t) * children;
+	int permssz = rowsz * nperms;
+
+	kmem_free(map->dm_perms, permssz);
+	map->dm_perms = NULL;
 }
 
 /*
@@ -2200,8 +2229,13 @@ vdev_draid_fini(vdev_t *vd)
 {
 	vdev_draid_config_t *vdc = vd->vdev_tsd;
 
+#ifdef	__dilos__
+	kmem_free(vdc->vdc_perms, sizeof (uint8_t) *
+	    vdc->vdc_children * vdc->vdc_nperms);
+#else
 	vmem_free(vdc->vdc_perms, sizeof (uint8_t) *
 	    vdc->vdc_children * vdc->vdc_nperms);
+#endif
 	kmem_free(vdc, sizeof (*vdc));
 }
 

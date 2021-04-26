@@ -24,6 +24,13 @@
  */
 
 #include <stdio.h>
+#ifdef	__dilos__
+#include <errno.h>
+#include <stdlib.h>
+#include <strings.h>
+#include <sys/types.h>
+#include <fcntl.h>
+#endif
 #include <zlib.h>
 #include <zfs_fletcher.h>
 #include <sys/vdev_draid.h>
@@ -417,6 +424,7 @@ alloc_new_map(uint64_t children, uint64_t nperms, uint64_t seed,
 	map->dm_nperms = nperms;
 	map->dm_seed = seed;
 	map->dm_checksum = 0;
+	map->dm_perms = NULL;
 
 	error = vdev_draid_generate_perms(map, &map->dm_perms);
 	if (error) {
@@ -467,7 +475,7 @@ alloc_fixed_map(uint64_t children, draid_map_t **mapp)
 static void
 free_map(draid_map_t *map)
 {
-	free(map->dm_perms);
+	vdev_draid_free_perms(map);
 	free(map);
 }
 
