@@ -63,6 +63,14 @@ mkdir -p "$DESTDIR/etc/"
 # multi-arch installations.
 cp --target-directory="$DESTDIR" --parents $(find /lib/ -type f -name libgcc_s.so.1)
 
+if [ @LIBFETCH_DYNAMIC@ != 0 ]
+then
+	for l in $(find /lib/ -name @LIBFETCH_SONAME@)
+	do
+		copy_exec "$l"
+	done
+fi
+
 for ii in $COPY_EXEC_LIST
 do
 	copy_exec "$ii"

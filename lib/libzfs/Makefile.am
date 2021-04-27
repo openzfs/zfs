@@ -75,7 +75,7 @@ libzfs_la_LIBADD = \
 	$(abs_top_builddir)/lib/libnvpair/libnvpair.la \
 	$(abs_top_builddir)/lib/libuutil/libuutil.la
 
-libzfs_la_LIBADD += -lm $(LIBCRYPTO_LIBS) $(ZLIB_LIBS) $(LTLIBINTL)
+libzfs_la_LIBADD += -lm $(LIBCRYPTO_LIBS) $(ZLIB_LIBS) $(LIBFETCH_LIBS) $(LTLIBINTL)
 
 libzfs_la_LDFLAGS = -pthread
 
