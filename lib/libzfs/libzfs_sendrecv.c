@@ -3956,24 +3956,6 @@ zfs_setup_cmdline_props(libzfs_handle_t *hdl, zfs_type_t type,
 		if (prop == ZFS_PROP_ORIGIN)
 			continue;
 
-		/*
-		 * we're trying to override or exclude a property that does not
-		 * make sense for this type of dataset, but we don't want to
-		 * fail if the receive is recursive: this comes in handy when
-		 * the send stream contains, for instance, a child ZVOL and
-		 * we're trying to receive it with "-o atime=on"
-		 */
-		if (!zfs_prop_valid_for_type(prop, type, B_FALSE) &&
-		    !zfs_prop_user(name)) {
-			if (recursive)
-				continue;
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "property '%s' does not apply to datasets of this "
-			    "type"), name);
-			ret = zfs_error(hdl, EZFS_BADPROP, errbuf);
-			goto error;
-		}
-
 		/* raw streams can't override encryption properties */
 		if ((zfs_prop_encryption_key_param(prop) ||
 		    prop == ZFS_PROP_ENCRYPTION) && raw) {
@@ -4002,6 +3984,16 @@ zfs_setup_cmdline_props(libzfs_handle_t *hdl, zfs_type_t type,
 			 * a property: this is done by forcing an explicit
 			 * inherit on the destination so the effective value is
 			 * not the one we received from the send stream.
+			 */
+			if (!zfs_prop_valid_for_type(prop, type, B_FALSE) &&
+			    !zfs_prop_user(name)) {
+				(void) fprintf(stderr, dgettext(TEXT_DOMAIN,
+				    "Warning: %s: property '%s' does not "
+				    "apply to datasets of this type\n"),
+				    fsname, name);
+				continue;
+			}
+			/*
 			 * We do this only if the property is not already
 			 * locally-set, in which case its value will take
 			 * priority over the received anyway.
@@ -4029,6 +4021,24 @@ zfs_setup_cmdline_props(libzfs_handle_t *hdl, zfs_type_t type,
 				fnvlist_add_nvpair(*oxprops, nvp);
 			break;
 		case DATA_TYPE_STRING: /* -o property=value */
+			/*
+			 * we're trying to override a property that does not
+			 * make sense for this type of dataset, but we don't
+			 * want to fail if the receive is recursive: this comes
+			 * in handy when the send stream contains, for
+			 * instance, a child ZVOL and we're trying to receive
+			 * it with "-o atime=on"
+			 */
+			if (!zfs_prop_valid_for_type(prop, type, B_FALSE) &&
+			    !zfs_prop_user(name)) {
+				if (recursive)
+					continue;
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "property '%s' does not apply to datasets "
+				    "of this type"), name);
+				ret = zfs_error(hdl, EZFS_BADPROP, errbuf);
+				goto error;
+			}
 			fnvlist_add_nvpair(oprops, nvp);
 			break;
 		default:
