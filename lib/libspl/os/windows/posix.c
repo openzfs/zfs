@@ -865,7 +865,7 @@ wosix_open(const char *inpath, int oflag, ...)
 	HANDLE h;
 	DWORD mode = GENERIC_READ; // RDONLY=0, WRONLY=1, RDWR=2;
 	DWORD how = OPEN_EXISTING;
-	DWORD share = FILE_SHARE_READ;
+	DWORD share = FILE_SHARE_READ | FILE_SHARE_WRITE;
 	char otherpath[MAXPATHLEN];
 	char *path = inpath;
 
