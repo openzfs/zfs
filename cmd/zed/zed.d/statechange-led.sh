@@ -37,6 +37,11 @@ if [ "${ZED_USE_ENCLOSURE_LEDS}" != "1" ] ; then
 	exit 2
 fi
 
+if [ -z "$ZEVENT_VDEV_ENC_SYSFS_PATH" ] || [ -z "$ZEVENT_VDEV_STATE_STR" ] ; then
+	# Something odd is going on, these vars should be set by ZED
+	exit 3
+fi
+
 zed_check_cmd "$ZPOOL" || exit 4
 zed_check_cmd awk || exit 5
 
@@ -99,79 +104,7 @@ state_to_val()
 	fi
 }
 
-# process_pool ([pool])
-#
-# Iterate through a pool (or pools) and set the VDEV's enclosure slot LEDs to
-# the VDEV's state.
-#
-# Arguments
-#   pool:	Optional pool name.  If not specified, iterate though all pools.
-#
-# Return
-#  0 on success, 3 on missing sysfs path
-#
-process_pool()
-{
-	pool="$1"
-	rc=0
-
-	# Lookup all the current LED values and paths in parallel
-	#shellcheck disable=SC2016
-	cmd='echo led_token=$(cat "$VDEV_ENC_SYSFS_PATH/fault"),"$VDEV_ENC_SYSFS_PATH",'
-	out=$($ZPOOL status -vc "$cmd" "$pool" | grep 'led_token=')
-
-	#shellcheck disable=SC2034
-	echo "$out" | while read -r vdev state read write chksum therest; do
-		# Read out current LED value and path
-		tmp=$(echo "$therest" | sed 's/^.*led_token=//g')
-		vdev_enc_sysfs_path=$(echo "$tmp" | awk -F ',' '{print $2}')
-		current_val=$(echo "$tmp" | awk -F ',' '{print $1}')
-
-		if [ "$current_val" != "0" ] ; then
-			current_val=1
-		fi
-
-		if [ -z "$vdev_enc_sysfs_path" ] ; then
-			# Skip anything with no sysfs LED entries
-			continue
-		fi
-
-		if [ ! -e "$vdev_enc_sysfs_path/fault" ] ; then
-			#shellcheck disable=SC2030
-			rc=1
-			zed_log_msg "vdev $vdev '$file/fault' doesn't exist"
-			continue;
-		fi
-
-		val=$(state_to_val "$state")
-
-		if [ "$current_val" = "$val" ] ; then
-			# LED is already set correctly
-			continue;
-		fi
-
-		if ! check_and_set_led "$vdev_enc_sysfs_path/fault" "$val"; then
-			rc=1
-		fi
-
-	done
-
-	#shellcheck disable=SC2031
-	if [ "$rc" = "0" ] ; then
-		return 0
-	else
-		# We didn't see a sysfs entry that we wanted to set
-		return 3
-	fi
-}
-
-if [ -n "$ZEVENT_VDEV_ENC_SYSFS_PATH" ] && [ -n "$ZEVENT_VDEV_STATE_STR" ] ; then
-	# Got a statechange for an individual VDEV
-	val=$(state_to_val "$ZEVENT_VDEV_STATE_STR")
-	vdev=$(basename "$ZEVENT_VDEV_PATH")
-	check_and_set_led "$ZEVENT_VDEV_ENC_SYSFS_PATH/fault" "$val"
-else
-	# Process the entire pool
-	poolname=$(zed_guid_to_pool "$ZEVENT_POOL_GUID")
-	process_pool "$poolname"
-fi
+# Got a statechange for an individual VDEV
+val=$(state_to_val "$ZEVENT_VDEV_STATE_STR")
+vdev=$(basename "$ZEVENT_VDEV_PATH")
+check_and_set_led "$ZEVENT_VDEV_ENC_SYSFS_PATH/fault" "$val"
