@@ -265,7 +265,7 @@ zfs_close(vnode_t *vp, int flag, int count, offset_t offset, cred_t *cr)
 	if (!zfs_has_ctldir(zp) && zp->z_zfsvfs->z_vscan &&
 	    ZTOV(zp)->v_type == VREG &&
 	    !(zp->z_pflags & ZFS_AV_QUARANTINED) && zp->z_size > 0)
-		VERIFY(fs_vscan(vp, cr, 1) == 0);
+		VERIFY0(fs_vscan(vp, cr, 1));
 
 	ZFS_EXIT(zfsvfs);
 	return (0);
@@ -473,9 +473,9 @@ update_pages(znode_t *zp, int64_t start, int len, objset_t *os)
 	caddr_t va;
 	int off;
 
-	ASSERT(vp->v_mount != NULL);
+	ASSERT3P(vp->v_mount, !=, NULL);
 	obj = vp->v_object;
-	ASSERT(obj != NULL);
+	ASSERT3P(obj, !=, NULL);
 
 	off = start & PAGEOFFSET;
 	zfs_vmobject_wlock_12(obj);
@@ -530,11 +530,11 @@ mappedread_sf(znode_t *zp, int nbytes, zfs_uio_t *uio)
 	int len = nbytes;
 	int error = 0;
 
-	ASSERT(zfs_uio_segflg(uio) == UIO_NOCOPY);
-	ASSERT(vp->v_mount != NULL);
+	ASSERT3U(zfs_uio_segflg(uio), ==, UIO_NOCOPY);
+	ASSERT3P(vp->v_mount, !=, NULL);
 	obj = vp->v_object;
-	ASSERT(obj != NULL);
-	ASSERT((zfs_uio_offset(uio) & PAGEOFFSET) == 0);
+	ASSERT3P(obj, !=, NULL);
+	ASSERT0(zfs_uio_offset(uio) & PAGEOFFSET);
 
 	zfs_vmobject_wlock_12(obj);
 	for (start = zfs_uio_offset(uio); len > 0; start += PAGESIZE) {
@@ -611,9 +611,9 @@ mappedread(znode_t *zp, int nbytes, zfs_uio_t *uio)
 	int off;
 	int error = 0;
 
-	ASSERT(vp->v_mount != NULL);
+	ASSERT3P(vp->v_mount, !=, NULL);
 	obj = vp->v_object;
-	ASSERT(obj != NULL);
+	ASSERT3P(obj, !=, NULL);
 
 	start = zfs_uio_offset(uio);
 	off = start & PAGEOFFSET;
@@ -1413,7 +1413,7 @@ zfs_mkdir(znode_t *dzp, const char *dirname, vattr_t *vap, znode_t **zpp,
 	zfs_acl_ids_t   acl_ids;
 	boolean_t	fuid_dirtied;
 
-	ASSERT(vap->va_type == VDIR);
+	ASSERT3U(vap->va_type, ==, VDIR);
 
 	/*
 	 * If we have an ephemeral id, ACL, or XVATTR then
@@ -1921,7 +1921,7 @@ zfs_readdir(vnode_t *vp, zfs_uio_t *uio, cred_t *cr, int *eofp,
 		}
 		outcount += reclen;
 
-		ASSERT(outcount <= bufsize);
+		ASSERT3S(outcount, <=, bufsize);
 
 		/* Prefetch znode */
 		if (prefetch)
@@ -2781,12 +2781,12 @@ zfs_setattr(znode_t *zp, vattr_t *vap, int flags, cred_t *cr)
 			new_mode = zp->z_mode;
 		}
 		err = zfs_acl_chown_setattr(zp);
-		ASSERT(err == 0);
+		ASSERT0(err);
 		if (attrzp) {
 			vn_seqc_write_begin(ZTOV(attrzp));
 			err = zfs_acl_chown_setattr(attrzp);
 			vn_seqc_write_end(ZTOV(attrzp));
-			ASSERT(err == 0);
+			ASSERT0(err);
 		}
 	}
 
@@ -2794,7 +2794,7 @@ zfs_setattr(znode_t *zp, vattr_t *vap, int flags, cred_t *cr)
 		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_MODE(zfsvfs), NULL,
 		    &new_mode, sizeof (new_mode));
 		zp->z_mode = new_mode;
-		ASSERT3U((uintptr_t)aclp, !=, 0);
+		ASSERT3P(aclp, !=, NULL);
 		err = zfs_aclset_common(zp, aclp, cr, tx);
 		ASSERT0(err);
 		if (zp->z_acl_cached)
@@ -2880,7 +2880,7 @@ zfs_setattr(znode_t *zp, vattr_t *vap, int flags, cred_t *cr)
 		}
 
 		if (XVA_ISSET_REQ(xvap, XAT_AV_SCANSTAMP))
-			ASSERT(vp->v_type == VREG);
+			ASSERT3S(vp->v_type, ==, VREG);
 
 		zfs_xvattr_set(zp, xvap, tx);
 	}
@@ -2902,7 +2902,7 @@ out:
 	if (err == 0 && attrzp) {
 		err2 = sa_bulk_update(attrzp->z_sa_hdl, xattr_bulk,
 		    xattr_count, tx);
-		ASSERT(err2 == 0);
+		ASSERT0(err2);
 	}
 
 	if (attrzp)
@@ -3430,8 +3430,8 @@ zfs_rename_(vnode_t *sdvp, vnode_t **svpp, struct componentname *scnp,
 				 * succeed; fortunately, it is very unlikely to
 				 * fail, since we just created it.
 				 */
-				VERIFY3U(zfs_link_destroy(tdzp, tnm, szp, tx,
-				    ZRENAMING, NULL), ==, 0);
+				VERIFY0(zfs_link_destroy(tdzp, tnm, szp, tx,
+				    ZRENAMING, NULL));
 			}
 		}
 		if (error == 0) {
@@ -3535,7 +3535,7 @@ zfs_symlink(znode_t *dzp, const char *name, vattr_t *vap,
 	boolean_t	fuid_dirtied;
 	uint64_t	txtype = TX_SYMLINK;
 
-	ASSERT(vap->va_type == VLNK);
+	ASSERT3S(vap->va_type, ==, VLNK);
 
 	ZFS_ENTER(zfsvfs);
 	ZFS_VERIFY_ZP(dzp);
@@ -3709,7 +3709,7 @@ zfs_link(znode_t *tdzp, znode_t *szp, const char *name, cred_t *cr,
 	uint64_t	parent;
 	uid_t		owner;
 
-	ASSERT(ZTOV(tdzp)->v_type == VDIR);
+	ASSERT3S(ZTOV(tdzp)->v_type, ==, VDIR);
 
 	ZFS_ENTER(zfsvfs);
 	ZFS_VERIFY_ZP(tdzp);
@@ -4589,7 +4589,7 @@ zfs_freebsd_lookup(struct vop_lookup_args *ap, boolean_t cached)
 	struct componentname *cnp = ap->a_cnp;
 	char nm[NAME_MAX + 1];
 
-	ASSERT(cnp->cn_namelen < sizeof (nm));
+	ASSERT3U(cnp->cn_namelen, <, sizeof (nm));
 	strlcpy(nm, cnp->cn_nameptr, MIN(cnp->cn_namelen + 1, sizeof (nm)));
 
 	return (zfs_lookup(ap->a_dvp, nm, ap->a_vpp, cnp, cnp->cn_nameiop,
@@ -5172,7 +5172,7 @@ zfs_freebsd_reclaim(struct vop_reclaim_args *ap)
 	znode_t	*zp = VTOZ(vp);
 	zfsvfs_t *zfsvfs = zp->z_zfsvfs;
 
-	ASSERT(zp != NULL);
+	ASSERT3P(zp, !=, NULL);
 
 #if __FreeBSD_version < 1300042
 	/* Destroy the vm object and flush associated pages. */

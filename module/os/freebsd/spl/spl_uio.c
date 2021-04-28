@@ -48,7 +48,7 @@
 int
 zfs_uiomove(void *cp, size_t n, zfs_uio_rw_t dir, zfs_uio_t *uio)
 {
-	ASSERT(zfs_uio_rw(uio) == dir);
+	ASSERT3U(zfs_uio_rw(uio), ==, dir);
 	return (uiomove(cp, (int)n, GET_UIO_STRUCT(uio)));
 }
 
@@ -102,6 +102,6 @@ zfs_uioskip(zfs_uio_t *uio, size_t n)
 int
 zfs_uio_fault_move(void *p, size_t n, zfs_uio_rw_t dir, zfs_uio_t *uio)
 {
-	ASSERT(zfs_uio_rw(uio) == dir);
+	ASSERT3U(zfs_uio_rw(uio), ==, dir);
 	return (vn_io_fault_uiomove(p, n, GET_UIO_STRUCT(uio)));
 }

@@ -420,7 +420,7 @@ zvol_geom_destroy(zvol_state_t *zv)
 	g_topology_assert();
 
 	mutex_enter(&zv->zv_state_lock);
-	VERIFY(zsg->zsg_state == ZVOL_GEOM_RUNNING);
+	VERIFY3S(zsg->zsg_state, ==, ZVOL_GEOM_RUNNING);
 	mutex_exit(&zv->zv_state_lock);
 	zsg->zsg_provider = NULL;
 	g_wither_geom(pp->geom, ENXIO);
@@ -1164,8 +1164,8 @@ zvol_ensure_zilog(zvol_state_t *zv)
 			    zvol_get_data);
 			zv->zv_flags |= ZVOL_WRITTEN_TO;
 			/* replay / destroy done in zvol_create_minor_impl() */
-			VERIFY0((zv->zv_zilog->zl_header->zh_flags &
-			    ZIL_REPLAY_NEEDED));
+			VERIFY0(zv->zv_zilog->zl_header->zh_flags &
+			    ZIL_REPLAY_NEEDED);
 		}
 		rw_downgrade(&zv->zv_suspend_lock);
 	}

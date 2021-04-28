@@ -168,8 +168,7 @@ abd_verify_scatter(abd_t *abd)
 	 * if an error if the ABD has been marked as a linear page.
 	 */
 	ASSERT(!abd_is_linear_page(abd));
-	ASSERT3U(ABD_SCATTER(abd).abd_offset, <,
-	    zfs_abd_chunk_size);
+	ASSERT3U(ABD_SCATTER(abd).abd_offset, <, zfs_abd_chunk_size);
 	n = abd_scatter_chunkcnt(abd);
 	for (i = 0; i < n; i++) {
 		ASSERT3P(ABD_SCATTER(abd).abd_chunks[i], !=, NULL);
