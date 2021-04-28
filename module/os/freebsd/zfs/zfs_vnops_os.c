@@ -5264,10 +5264,10 @@ zfs_create_attrname(int attrnamespace, const char *name, char *attrname,
 
 	/* We don't allow '/' character in attribute name. */
 	if (strchr(name, '/') != NULL)
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 	/* We don't allow attribute names that start with "freebsd:" string. */
 	if (strncmp(name, "freebsd:", 8) == 0)
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 
 	bzero(attrname, size);
 
@@ -5292,11 +5292,11 @@ zfs_create_attrname(int attrnamespace, const char *name, char *attrname,
 		break;
 	case EXTATTR_NAMESPACE_EMPTY:
 	default:
-		return (EINVAL);
+		return (SET_ERROR(EINVAL));
 	}
 	if (snprintf(attrname, size, "%s%s%s%s", prefix, namespace, suffix,
 	    name) >= size) {
-		return (ENAMETOOLONG);
+		return (SET_ERROR(ENAMETOOLONG));
 	}
 	return (0);
 }
