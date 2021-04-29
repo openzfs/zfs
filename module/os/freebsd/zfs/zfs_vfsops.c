@@ -831,6 +831,10 @@ zfsvfs_init(zfsvfs_t *zfsvfs, objset_t *os)
 		    &sa_obj);
 		if (error != 0)
 			return (error);
+
+		error = zfs_get_zplprop(os, ZFS_PROP_XATTR, &val);
+		if (error == 0 && val == ZFS_XATTR_SA)
+			zfsvfs->z_xattr_sa = B_TRUE;
 	}
 
 	error = sa_setup(os, sa_obj, zfs_attr_table, ZPL_END,
