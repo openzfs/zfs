@@ -38,7 +38,7 @@
 .\" Copyright 2019 Joyent, Inc.
 .\" Copyright (c) 2019, Kjeld Schouten-Lebbing
 .\"
-.Dd September 1, 2020
+.Dd May 5, 2021
 .Dt ZFSPROPS 8
 .Os
 .Sh NAME
@@ -1778,7 +1778,7 @@ The default value is
 This property is not used on Linux.
 .It Sy xattr Ns = Ns Sy on Ns | Ns Sy off Ns | Ns Sy sa
 Controls whether extended attributes are enabled for this file system. Two
-styles of extended attributes are supported either directory based or system
+styles of extended attributes are supported: either directory based or system
 attribute based.
 .Pp
 The default value of
@@ -1790,7 +1790,7 @@ can be set on a file. Although under Linux the
 and
 .Xr setxattr 2
 system calls limit the maximum size to 64K. This is the most compatible
-style of extended attribute and is supported by all OpenZFS implementations.
+style of extended attribute and is supported by all ZFS implementations.
 .Pp
 System attribute based xattrs can be enabled by setting the value to
 .Sy sa .
@@ -1803,6 +1803,9 @@ based xattr. System attribute based extended attributes are not accessible
 on platforms which do not support the
 .Sy xattr=sa
 feature.
+OpenZFS supports
+.Sy xattr=sa
+on both FreeBSD and Linux.
 .Pp
 The use of system attribute based xattrs is strongly encouraged for users of
 SELinux or POSIX ACLs. Both of these features heavily rely on extended
