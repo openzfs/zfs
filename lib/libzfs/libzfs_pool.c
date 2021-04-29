@@ -4812,14 +4812,14 @@ zpool_load_compat(const char *compat, boolean_t *features, char *report,
 	    file != NULL;
 	    file = strtok_r(NULL, ",", &ps)) {
 
-		boolean_t l_features[SPA_FEATURES];
+		boolean_t l_features[SPA_FEATURES] = {B_FALSE};
 
 		enum { Z_SYSCONF, Z_DATA } source;
 
 		/* try sysconfdir first, then datadir */
 		source = Z_SYSCONF;
-		if ((featfd = openat(sdirfd, file, 0, O_RDONLY)) < 0) {
-			featfd = openat(ddirfd, file, 0, O_RDONLY);
+		if ((featfd = openat(sdirfd, file, O_RDONLY | O_CLOEXEC)) < 0) {
+			featfd = openat(ddirfd, file, O_RDONLY | O_CLOEXEC);
 			source = Z_DATA;
 		}
 
@@ -4835,13 +4835,18 @@ zpool_load_compat(const char *compat, boolean_t *features, char *report,
 			continue;
 		}
 
+#if !defined(MAP_POPULATE) && defined(MAP_PREFAULT_READ)
+#define	MAP_POPULATE MAP_PREFAULT_READ
+#elif !defined(MAP_POPULATE)
+#define	MAP_POPULATE 0
+#endif
 		/* private mmap() so we can strtok safely */
 		fc = (char *)mmap(NULL, fs.st_size,
-		    PROT_READ|PROT_WRITE, MAP_PRIVATE, featfd, 0);
+		    PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_POPULATE, featfd, 0);
 		(void) close(featfd);
 
 		/* map ok, and last character == newline? */
-		if (fc < 0 || fc[fs.st_size - 1] != '\n') {
+		if (fc == MAP_FAILED || fc[fs.st_size - 1] != '\n') {
 			(void) munmap((void *) fc, fs.st_size);
 			strlcat(err_badfile, file, ZFS_MAXPROPLEN);
 			strlcat(err_badfile, " ", ZFS_MAXPROPLEN);
@@ -4850,9 +4855,6 @@ zpool_load_compat(const char *compat, boolean_t *features, char *report,
 		}
 
 		ret_nofiles = B_FALSE;
-
-		for (uint_t i = 0; i < SPA_FEATURES; i++)
-			l_features[i] = B_FALSE;
 
 		/* replace last char with NUL to ensure we have a delimiter */
 		fc[fs.st_size - 1] = '\0';
