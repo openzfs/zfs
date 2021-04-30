@@ -151,9 +151,9 @@ zfs_znode_cache_destructor(void *buf, void *arg)
 	rw_destroy(&zp->z_xattr_lock);
 	zfs_rangelock_fini(&zp->z_rangelock);
 
-	ASSERT(zp->z_dirlocks == NULL);
-	ASSERT(zp->z_acl_cached == NULL);
-	ASSERT(zp->z_xattr_cached == NULL);
+	ASSERT3P(zp->z_dirlocks, ==, NULL);
+	ASSERT3P(zp->z_acl_cached, ==, NULL);
+	ASSERT3P(zp->z_xattr_cached, ==, NULL);
 }
 
 static int

@@ -102,6 +102,6 @@ kmem_asprintf(const char *fmt, ...)
 void
 kmem_strfree(char *str)
 {
-	ASSERT(str != NULL);
+	ASSERT3P(str, !=, NULL);
 	kmem_free(str, strlen(str) + 1);
 }

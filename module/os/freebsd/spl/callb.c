@@ -75,7 +75,7 @@ typedef struct callb {
 typedef struct callb_table {
 	kmutex_t ct_lock;		/* protect all callb states */
 	callb_t	*ct_freelist; 		/* free callb structures */
-	int	ct_busy;		/* != 0 prevents additions */
+	boolean_t ct_busy;		/* B_TRUE prevents additions */
 	kcondvar_t ct_busy_cv;		/* to wait for not busy    */
 	int	ct_ncallb; 		/* num of callbs allocated */
 	callb_t	*ct_first_cb[NCBCLASS];	/* ptr to 1st callb in a class */
@@ -98,7 +98,7 @@ callb_cpr_t	callb_cprinfo_safe = {
 static void
 callb_init(void *dummy __unused)
 {
-	callb_table.ct_busy = 0;	/* mark table open for additions */
+	callb_table.ct_busy = B_FALSE;	/* mark table open for additions */
 	mutex_init(&callb_safe_mutex, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&callb_table.ct_lock, NULL, MUTEX_DEFAULT, NULL);
 }
@@ -139,7 +139,7 @@ callb_add_common(boolean_t (*func)(void *arg, int code),
 {
 	callb_t *cp;
 
-	ASSERT(class < NCBCLASS);
+	ASSERT3S(class, <, NCBCLASS);
 
 	mutex_enter(&ct->ct_lock);
 	while (ct->ct_busy)
@@ -259,7 +259,7 @@ callb_execute_class(int class, int code)
 	callb_t *cp;
 	void *ret = NULL;
 
-	ASSERT(class < NCBCLASS);
+	ASSERT3S(class, <, NCBCLASS);
 
 	mutex_enter(&ct->ct_lock);
 
@@ -351,8 +351,8 @@ void
 callb_lock_table(void)
 {
 	mutex_enter(&ct->ct_lock);
-	ASSERT(ct->ct_busy == 0);
-	ct->ct_busy = 1;
+	ASSERT(!ct->ct_busy);
+	ct->ct_busy = B_TRUE;
 	mutex_exit(&ct->ct_lock);
 }
 
@@ -363,8 +363,8 @@ void
 callb_unlock_table(void)
 {
 	mutex_enter(&ct->ct_lock);
-	ASSERT(ct->ct_busy != 0);
-	ct->ct_busy = 0;
+	ASSERT(ct->ct_busy);
+	ct->ct_busy = B_FALSE;
 	cv_broadcast(&ct->ct_busy_cv);
 	mutex_exit(&ct->ct_lock);
 }
