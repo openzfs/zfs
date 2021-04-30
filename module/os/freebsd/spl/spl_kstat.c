@@ -69,7 +69,7 @@ __kstat_set_seq_raw_ops(kstat_t *ksp,
 static int
 kstat_default_update(kstat_t *ksp, int rw)
 {
-	ASSERT(ksp != NULL);
+	ASSERT3P(ksp, !=, NULL);
 
 	if (rw == KSTAT_WRITE)
 		return (EACCES);
@@ -223,7 +223,7 @@ restart:
 				sbuf_printf(sb, "%s", ksp->ks_raw_buf);
 
 		} else {
-			ASSERT(ksp->ks_ndata == 1);
+			ASSERT3U(ksp->ks_ndata, ==, 1);
 			sbuf_hexdump(sb, ksp->ks_data,
 			    ksp->ks_data_size, NULL, 0);
 		}
@@ -250,7 +250,7 @@ __kstat_create(const char *module, int instance, const char *name,
 
 	KASSERT(instance == 0, ("instance=%d", instance));
 	if ((ks_type == KSTAT_TYPE_INTR) || (ks_type == KSTAT_TYPE_IO))
-		ASSERT(ks_ndata == 1);
+		ASSERT3U(ks_ndata, ==, 1);
 
 	if (class == NULL)
 		class = "misc";
@@ -461,7 +461,7 @@ kstat_install(kstat_t *ksp)
 	struct sysctl_oid *root;
 
 	if (ksp->ks_ndata == UINT32_MAX)
-		VERIFY(ksp->ks_type == KSTAT_TYPE_RAW);
+		VERIFY3U(ksp->ks_type, ==, KSTAT_TYPE_RAW);
 
 	switch (ksp->ks_type) {
 	case KSTAT_TYPE_NAMED:
@@ -493,7 +493,7 @@ kstat_install(kstat_t *ksp)
 	default:
 		panic("unsupported kstat type %d\n", ksp->ks_type);
 	}
-	VERIFY(root != NULL);
+	VERIFY3P(root, !=, NULL);
 	ksp->ks_sysctl_root = root;
 }
 
