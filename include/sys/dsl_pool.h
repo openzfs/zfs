@@ -59,6 +59,7 @@ struct dsl_deadlist;
 extern unsigned long zfs_dirty_data_max;
 extern unsigned long zfs_dirty_data_max_max;
 extern int zfs_dirty_data_sync_percent;
+extern unsigned long zfs_txg_quiesce_advance;
 extern int zfs_dirty_data_max_percent;
 extern int zfs_dirty_data_max_max_percent;
 extern int zfs_delay_min_dirty_percent;
@@ -171,7 +172,6 @@ void dsl_pool_mos_diduse_space(dsl_pool_t *dp,
 void dsl_pool_ckpoint_diduse_space(dsl_pool_t *dp,
     int64_t used, int64_t comp, int64_t uncomp);
 boolean_t dsl_pool_need_dirty_delay(dsl_pool_t *dp);
-boolean_t dsl_pool_need_dirty_sync(dsl_pool_t *dp, uint64_t txg);
 void dsl_pool_config_enter(dsl_pool_t *dp, void *tag);
 void dsl_pool_config_enter_prio(dsl_pool_t *dp, void *tag);
 void dsl_pool_config_exit(dsl_pool_t *dp, void *tag);

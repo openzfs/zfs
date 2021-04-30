@@ -112,6 +112,16 @@ int zfs_dirty_data_max_max_percent = 25;
 int zfs_dirty_data_sync_percent = 20;
 
 /*
+ * The open txg can be quiesced into the pipeline even there is a txg still
+ * syncing. When the dirty data in syncing txg is below
+ * zfs_txg_quiesce_advance, which also measns the sync is about to complete,
+ * quiesce the open txg into the pipeline.
+ * 0 means only quiesce the open txg when all the data in the previous txg
+ * is synced.
+ */
+unsigned long zfs_txg_quiesce_advance = 0;
+
+/*
  * Once there is this amount of dirty data, the dmu_tx_delay() will kick in
  * and delay each transaction.
  * This value should be >= zfs_vdev_async_write_active_max_dirty_percent.
@@ -899,27 +909,32 @@ dsl_pool_need_dirty_delay(dsl_pool_t *dp)
 {
 	uint64_t delay_min_bytes =
 	    zfs_dirty_data_max * zfs_delay_min_dirty_percent / 100;
-	uint64_t dirty;
 
 	mutex_enter(&dp->dp_lock);
-	dirty = dp->dp_dirty_total;
+	uint64_t dirty = dp->dp_dirty_total;
 	mutex_exit(&dp->dp_lock);
 
 	return (dirty > delay_min_bytes);
 }
 
-boolean_t
+static boolean_t
 dsl_pool_need_dirty_sync(dsl_pool_t *dp, uint64_t txg)
 {
-	uint64_t dirty;
+	ASSERT(MUTEX_HELD(&dp->dp_lock));
+
 	uint64_t dirty_min_bytes =
 	    zfs_dirty_data_max * zfs_dirty_data_sync_percent / 100;
+	uint64_t dirty = dp->dp_dirty_pertxg[txg & TXG_MASK];
+	uint64_t total = dp->dp_dirty_total;
 
-	mutex_enter(&dp->dp_lock);
-	dirty = dp->dp_dirty_pertxg[txg & TXG_MASK];
-	mutex_exit(&dp->dp_lock);
-
-	return (dirty > dirty_min_bytes);
+	/*
+	 * Only quiesce new transaction group when previous syncing is
+	 * getting close to completion, so that quiescing completed just
+	 * in time for it. That's the time when the dirty data in
+	 * syncing txg shrinks below zfs_txg_quiesce_advance.
+	 */
+	return (dirty > dirty_min_bytes &&
+	    total - dirty <= zfs_txg_quiesce_advance);
 }
 
 void
@@ -929,7 +944,11 @@ dsl_pool_dirty_space(dsl_pool_t *dp, int64_t space, dmu_tx_t *tx)
 		mutex_enter(&dp->dp_lock);
 		dp->dp_dirty_pertxg[tx->tx_txg & TXG_MASK] += space;
 		dsl_pool_dirty_delta(dp, space);
+		boolean_t needsync = dsl_pool_need_dirty_sync(dp, tx->tx_txg);
 		mutex_exit(&dp->dp_lock);
+
+		if (needsync)
+			txg_kick(dp, tx->tx_txg);
 	}
 }
 
@@ -949,7 +968,16 @@ dsl_pool_undirty_space(dsl_pool_t *dp, int64_t space, uint64_t txg)
 	dp->dp_dirty_pertxg[txg & TXG_MASK] -= space;
 	ASSERT3U(dp->dp_dirty_total, >=, space);
 	dsl_pool_dirty_delta(dp, -space);
+
+	/* Assuming txg + 1 is in open stage, check if it needs to be synced. */
+	boolean_t needsync = dsl_pool_need_dirty_sync(dp, txg + 1);
 	mutex_exit(&dp->dp_lock);
+	/*
+	 * Pass txg + 1 into txg_kick. Inside txg_kick(), it will kick only
+	 * if txg + 1 is actually in open stage.
+	 */
+	if (needsync)
+		txg_kick(dp, txg + 1);
 }
 
 /* ARGSUSED */
@@ -1410,6 +1438,9 @@ ZFS_MODULE_PARAM(zfs, zfs_, dirty_data_max_max, ULONG, ZMOD_RD,
 
 ZFS_MODULE_PARAM(zfs, zfs_, dirty_data_sync_percent, INT, ZMOD_RW,
 	"Dirty data txg sync threshold as a percentage of zfs_dirty_data_max");
+
+ZFS_MODULE_PARAM(zfs, zfs_, txg_quiesce_advance, ULONG, ZMOD_RW,
+	"Threshold of the dirty data in syncing txg to quiesce open txg");
 
 ZFS_MODULE_PARAM(zfs, zfs_, delay_scale, ULONG, ZMOD_RW,
 	"How quickly delay approaches infinity");

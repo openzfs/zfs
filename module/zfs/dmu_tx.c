@@ -38,7 +38,6 @@
 #include <sys/sa_impl.h>
 #include <sys/zfs_context.h>
 #include <sys/trace_zfs.h>
-#include <sys/txg.h>
 
 typedef void (*dmu_tx_hold_func_t)(dmu_tx_t *tx, struct dnode *dn,
     uint64_t arg1, uint64_t arg2);
@@ -1056,9 +1055,6 @@ dmu_tx_assign(dmu_tx_t *tx, uint64_t txg_how)
 
 	txg_rele_to_quiesce(&tx->tx_txgh);
 
-	if (dsl_pool_need_dirty_sync(tx->tx_pool, tx->tx_txg)) {
-		txg_kick(tx->tx_pool, tx->tx_txg);
-	}
 	return (0);
 }
 
