@@ -112,7 +112,7 @@ zfs_kmem_free(void *buf, size_t size __unused)
 		if (i == buf)
 			break;
 	}
-	ASSERT(i != NULL);
+	ASSERT3P(i, !=, NULL);
 	LIST_REMOVE(i, next);
 	mtx_unlock(&kmem_items_mtx);
 	memset(buf, 0xDC, MAX(size, 16));
@@ -162,7 +162,7 @@ kmem_cache_create(char *name, size_t bufsize, size_t align,
 {
 	kmem_cache_t *cache;
 
-	ASSERT(vmp == NULL);
+	ASSERT3P(vmp, ==, NULL);
 
 	cache = kmem_alloc(sizeof (*cache), KM_SLEEP);
 	strlcpy(cache->kc_name, name, sizeof (cache->kc_name));
@@ -324,7 +324,7 @@ void
 spl_kmem_cache_set_move(kmem_cache_t *skc,
     kmem_cbrc_t (move)(void *, void *, size_t, void *))
 {
-	ASSERT(move != NULL);
+	ASSERT3P(move, !=, NULL);
 }
 
 #ifdef KMEM_DEBUG
