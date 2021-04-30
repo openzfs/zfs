@@ -31,7 +31,7 @@ umask 077
 pool_str="${ZEVENT_POOL:+" for ${ZEVENT_POOL}"}"
 host_str=" on $(hostname)"
 note_subject="ZFS ${ZEVENT_SUBCLASS} event${pool_str}${host_str}"
-note_pathname="${TMPDIR:="/tmp"}/$(basename -- "$0").${ZEVENT_EID}.$$"
+note_pathname="$(mktemp)"
 {
     echo "ZFS has posted the following event:"
     echo

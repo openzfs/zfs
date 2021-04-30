@@ -367,7 +367,7 @@ zed_notify_pushbullet()
 #
 # Notification via Slack Webhook <https://api.slack.com/incoming-webhooks>.
 # The Webhook URL (ZED_SLACK_WEBHOOK_URL) identifies this client to the
-# Slack channel. 
+# Slack channel.
 #
 # Requires awk, curl, and sed executables to be installed in the standard PATH.
 #
@@ -511,10 +511,8 @@ zed_guid_to_pool()
 		return
 	fi
 
-	guid=$(printf "%llu" "$1")
-	if [ -n "$guid" ] ; then
-		$ZPOOL get -H -ovalue,name guid | awk '$1=='"$guid"' {print $2}'
-	fi
+	guid="$(printf "%u" "$1")"
+	$ZPOOL get -H -ovalue,name guid | awk '$1 == '"$guid"' {print $2; exit}'
 }
 
 # zed_exit_if_ignoring_this_event
