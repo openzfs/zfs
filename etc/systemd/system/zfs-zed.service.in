@@ -4,7 +4,8 @@ Documentation=man:zed(8)
 ConditionPathIsDirectory=/sys/module/zfs
 
 [Service]
-ExecStart=/usr/sbin/zed -F
+# DLPX-75168 -- to avoid zed crashes we run with jobs set to 1
+ExecStart=/usr/sbin/zed -F -j 1
 Restart=on-abort
 
 [Install]
