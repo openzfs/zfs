@@ -275,7 +275,7 @@ mount_snapshot(kthread_t *td, vnode_t **vpp, const char *fstype, char *fspath,
 void
 vn_rele_async(vnode_t *vp, taskq_t *taskq)
 {
-	VERIFY(vp->v_count > 0);
+	VERIFY(vp->v_usecount > 0);
 	if (refcount_release_if_not_last(&vp->v_usecount)) {
 #if __FreeBSD_version < 1300045
 		vdrop(vp);

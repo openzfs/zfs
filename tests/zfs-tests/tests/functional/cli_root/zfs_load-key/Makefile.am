@@ -11,4 +11,7 @@ dist_pkgdata_SCRIPTS = \
 
 dist_pkgdata_DATA = \
 	zfs_load-key.cfg \
-	zfs_load-key_common.kshlib
+	zfs_load-key_common.kshlib \
+	PASSPHRASE \
+	HEXKEY \
+	RAWKEY
