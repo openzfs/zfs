@@ -95,8 +95,7 @@ spa_generate_rootconf(const char *name)
 	for (i = 0; i < count; i++) {
 		uint64_t txg;
 
-		VERIFY(nvlist_lookup_uint64(configs[i], ZPOOL_CONFIG_POOL_TXG,
-		    &txg) == 0);
+		txg = fnvlist_lookup_uint64(configs[i], ZPOOL_CONFIG_POOL_TXG);
 		if (txg > best_txg) {
 			best_txg = txg;
 			best_cfg = configs[i];
@@ -115,72 +114,66 @@ spa_generate_rootconf(const char *name)
 			break;
 		if (configs[i] == NULL)
 			continue;
-		VERIFY(nvlist_lookup_nvlist(configs[i], ZPOOL_CONFIG_VDEV_TREE,
-		    &nvtop) == 0);
-		nvlist_dup(nvtop, &tops[i], KM_SLEEP);
+		nvtop = fnvlist_lookup_nvlist(configs[i],
+		    ZPOOL_CONFIG_VDEV_TREE);
+		tops[i] = fnvlist_dup(nvtop);
 	}
 	for (i = 0; holes != NULL && i < nholes; i++) {
 		if (i >= nchildren)
 			continue;
 		if (tops[holes[i]] != NULL)
 			continue;
-		nvlist_alloc(&tops[holes[i]], NV_UNIQUE_NAME, KM_SLEEP);
-		VERIFY(nvlist_add_string(tops[holes[i]], ZPOOL_CONFIG_TYPE,
-		    VDEV_TYPE_HOLE) == 0);
-		VERIFY(nvlist_add_uint64(tops[holes[i]], ZPOOL_CONFIG_ID,
-		    holes[i]) == 0);
-		VERIFY(nvlist_add_uint64(tops[holes[i]], ZPOOL_CONFIG_GUID,
-		    0) == 0);
+		tops[holes[i]] = fnvlist_alloc();
+		fnvlist_add_string(tops[holes[i]], ZPOOL_CONFIG_TYPE,
+		    VDEV_TYPE_HOLE);
+		fnvlist_add_uint64(tops[holes[i]], ZPOOL_CONFIG_ID, holes[i]);
+		fnvlist_add_uint64(tops[holes[i]], ZPOOL_CONFIG_GUID, 0);
 	}
 	for (i = 0; i < nchildren; i++) {
 		if (tops[i] != NULL)
 			continue;
-		nvlist_alloc(&tops[i], NV_UNIQUE_NAME, KM_SLEEP);
-		VERIFY(nvlist_add_string(tops[i], ZPOOL_CONFIG_TYPE,
-		    VDEV_TYPE_MISSING) == 0);
-		VERIFY(nvlist_add_uint64(tops[i], ZPOOL_CONFIG_ID,
-		    i) == 0);
-		VERIFY(nvlist_add_uint64(tops[i], ZPOOL_CONFIG_GUID,
-		    0) == 0);
+		tops[i] = fnvlist_alloc();
+		fnvlist_add_string(tops[i], ZPOOL_CONFIG_TYPE,
+		    VDEV_TYPE_MISSING);
+		fnvlist_add_uint64(tops[i], ZPOOL_CONFIG_ID, i);
+		fnvlist_add_uint64(tops[i], ZPOOL_CONFIG_GUID, 0);
 	}
 
 	/*
 	 * Create pool config based on the best vdev config.
 	 */
-	nvlist_dup(best_cfg, &config, KM_SLEEP);
+	config = fnvlist_dup(best_cfg);
 
 	/*
 	 * Put this pool's top-level vdevs into a root vdev.
 	 */
-	VERIFY(nvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_GUID,
-	    &pgid) == 0);
-	VERIFY(nvlist_alloc(&nvroot, NV_UNIQUE_NAME, KM_SLEEP) == 0);
-	VERIFY(nvlist_add_string(nvroot, ZPOOL_CONFIG_TYPE,
-	    VDEV_TYPE_ROOT) == 0);
-	VERIFY(nvlist_add_uint64(nvroot, ZPOOL_CONFIG_ID, 0ULL) == 0);
-	VERIFY(nvlist_add_uint64(nvroot, ZPOOL_CONFIG_GUID, pgid) == 0);
-	VERIFY(nvlist_add_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN,
-	    tops, nchildren) == 0);
+	pgid = fnvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_GUID);
+	nvroot = fnvlist_alloc();
+	fnvlist_add_string(nvroot, ZPOOL_CONFIG_TYPE, VDEV_TYPE_ROOT);
+	fnvlist_add_uint64(nvroot, ZPOOL_CONFIG_ID, 0ULL);
+	fnvlist_add_uint64(nvroot, ZPOOL_CONFIG_GUID, pgid);
+	fnvlist_add_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN, tops,
+	    nchildren);
 
 	/*
 	 * Replace the existing vdev_tree with the new root vdev in
 	 * this pool's configuration (remove the old, add the new).
 	 */
-	VERIFY(nvlist_add_nvlist(config, ZPOOL_CONFIG_VDEV_TREE, nvroot) == 0);
+	fnvlist_add_nvlist(config, ZPOOL_CONFIG_VDEV_TREE, nvroot);
 
 	/*
 	 * Drop vdev config elements that should not be present at pool level.
 	 */
-	nvlist_remove(config, ZPOOL_CONFIG_GUID, DATA_TYPE_UINT64);
-	nvlist_remove(config, ZPOOL_CONFIG_TOP_GUID, DATA_TYPE_UINT64);
+	fnvlist_remove(config, ZPOOL_CONFIG_GUID);
+	fnvlist_remove(config, ZPOOL_CONFIG_TOP_GUID);
 
 	for (i = 0; i < count; i++)
-		nvlist_free(configs[i]);
+		fnvlist_free(configs[i]);
 	kmem_free(configs, count * sizeof (void *));
 	for (i = 0; i < nchildren; i++)
-		nvlist_free(tops[i]);
+		fnvlist_free(tops[i]);
 	kmem_free(tops, nchildren * sizeof (void *));
-	nvlist_free(nvroot);
+	fnvlist_free(nvroot);
 	return (config);
 }
 
@@ -201,10 +194,9 @@ spa_import_rootpool(const char *name, bool checkpointrewind)
 
 	mutex_enter(&spa_namespace_lock);
 	if (config != NULL) {
-		VERIFY(nvlist_lookup_string(config, ZPOOL_CONFIG_POOL_NAME,
-		    &pname) == 0 && strcmp(name, pname) == 0);
-		VERIFY(nvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_TXG, &txg)
-		    == 0);
+		pname = fnvlist_lookup_string(config, ZPOOL_CONFIG_POOL_NAME);
+		VERIFY0(strcmp(name, pname));
+		txg = fnvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_TXG);
 
 		if ((spa = spa_lookup(pname)) != NULL) {
 			/*
@@ -213,7 +205,7 @@ spa_import_rootpool(const char *name, bool checkpointrewind)
 			 */
 			if (spa->spa_state == POOL_STATE_ACTIVE) {
 				mutex_exit(&spa_namespace_lock);
-				nvlist_free(config);
+				fnvlist_free(config);
 				return (0);
 			}
 
@@ -235,12 +227,12 @@ spa_import_rootpool(const char *name, bool checkpointrewind)
 			spa->spa_ubsync.ub_version = SPA_VERSION_INITIAL;
 	} else if ((spa = spa_lookup(name)) == NULL) {
 		mutex_exit(&spa_namespace_lock);
-		nvlist_free(config);
+		fnvlist_free(config);
 		cmn_err(CE_NOTE, "Cannot find the pool label for '%s'",
 		    name);
 		return (EIO);
 	} else {
-		VERIFY(nvlist_dup(spa->spa_config, &config, KM_SLEEP) == 0);
+		config = fnvlist_dup(spa->spa_config);
 	}
 	spa->spa_is_root = B_TRUE;
 	spa->spa_import_flags = ZFS_IMPORT_VERBATIM;
@@ -251,15 +243,14 @@ spa_import_rootpool(const char *name, bool checkpointrewind)
 	/*
 	 * Build up a vdev tree based on the boot device's label config.
 	 */
-	VERIFY(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE,
-	    &nvtop) == 0);
+	nvtop = fnvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE);
 	spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
 	error = spa_config_parse(spa, &rvd, nvtop, NULL, 0,
 	    VDEV_ALLOC_ROOTPOOL);
 	spa_config_exit(spa, SCL_ALL, FTAG);
 	if (error) {
 		mutex_exit(&spa_namespace_lock);
-		nvlist_free(config);
+		fnvlist_free(config);
 		cmn_err(CE_NOTE, "Can not parse the config for pool '%s'",
 		    pname);
 		return (error);
@@ -270,7 +261,7 @@ spa_import_rootpool(const char *name, bool checkpointrewind)
 	spa_config_exit(spa, SCL_ALL, FTAG);
 	mutex_exit(&spa_namespace_lock);
 
-	nvlist_free(config);
+	fnvlist_free(config);
 	return (0);
 }
 

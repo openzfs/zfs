@@ -59,13 +59,13 @@ vdev_file_fini(void)
 static void
 vdev_file_hold(vdev_t *vd)
 {
-	ASSERT(vd->vdev_path != NULL);
+	ASSERT3P(vd->vdev_path, !=, NULL);
 }
 
 static void
 vdev_file_rele(vdev_t *vd)
 {
-	ASSERT(vd->vdev_path != NULL);
+	ASSERT3P(vd->vdev_path, !=, NULL);
 }
 
 static mode_t
@@ -137,7 +137,8 @@ vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 	 * administrator has already decided that the pool should be available
 	 * to local zone users, so the underlying devices should be as well.
 	 */
-	ASSERT(vd->vdev_path != NULL && vd->vdev_path[0] == '/');
+	ASSERT3P(vd->vdev_path, !=, NULL);
+	ASSERT(vd->vdev_path[0] == '/');
 
 	error = zfs_file_open(vd->vdev_path,
 	    vdev_file_open_mode(spa_mode(vd->vdev_spa)), 0, &fp);

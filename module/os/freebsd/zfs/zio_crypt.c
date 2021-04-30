@@ -239,7 +239,7 @@ zio_crypt_key_init(uint64_t crypt, zio_crypt_key_t *key)
 	uint_t keydata_len;
 	zio_crypt_info_t *ci = NULL;
 
-	ASSERT(key != NULL);
+	ASSERT3P(key, !=, NULL);
 	ASSERT3U(crypt, <, ZIO_CRYPT_FUNCTIONS);
 
 	ci = &zio_crypt_table[crypt];
