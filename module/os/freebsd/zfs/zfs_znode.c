@@ -175,14 +175,12 @@ static int
 zfs_znode_cache_constructor_smr(void *mem, int size __unused, void *private,
     int flags)
 {
-
 	return (zfs_znode_cache_constructor(mem, private, flags));
 }
 
 static void
 zfs_znode_cache_destructor_smr(void *mem, int size __unused, void *private)
 {
-
 	zfs_znode_cache_destructor(mem, private);
 }
 
@@ -202,7 +200,6 @@ zfs_znode_init(void)
 static znode_t *
 zfs_znode_alloc_kmem(int flags)
 {
-
 	return (uma_zalloc_smr(znode_uma_zone, flags));
 }
 
@@ -228,7 +225,6 @@ zfs_znode_init(void)
 static znode_t *
 zfs_znode_alloc_kmem(int flags)
 {
-
 	return (kmem_cache_alloc(znode_cache, flags));
 }
 
