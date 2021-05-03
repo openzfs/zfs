@@ -8,8 +8,6 @@ check() {
 	for tool in "@sbindir@/zgenhostid" "@sbindir@/zpool" "@sbindir@/zfs" "@mounthelperdir@/mount.zfs" ; do
 		test -x "$tool" || return 1
 	done
-	# Verify grep exists
-	which grep >/dev/null 2>&1 || return 1
 
 	return 0
 }
@@ -43,14 +41,15 @@ install() {
 	dracut_install @sbindir@/zpool
 	# Workaround for https://github.com/openzfs/zfs/issues/4749 by
 	# ensuring libgcc_s.so(.1) is included
-	if [[ -n "$(ldd @sbindir@/zpool | grep -F 'libgcc_s.so')" ]]; then
+	if ldd @sbindir@/zpool | grep -qF 'libgcc_s.so'; then
 		# Dracut will have already tracked and included it
 		:;
-	elif command -v gcc-config 2>&1 1>/dev/null; then
+	elif command -v gcc-config >/dev/null 2>&1; then
 		# On systems with gcc-config (Gentoo, Funtoo, etc.):
 		# Use the current profile to resolve the appropriate path
-		dracut_install "/usr/lib/gcc/$(s=$(gcc-config -c); echo ${s%-*}/${s##*-})/libgcc_s.so.1"
-	elif [[ -n "$(ls /usr/lib/libgcc_s.so* 2>/dev/null)" ]]; then
+		s="$(gcc-config -c)"
+		dracut_install "/usr/lib/gcc/${s%-*}/${s##*-}/libgcc_s.so.1"
+	elif ls /usr/lib/libgcc_s.so* >/dev/null 2>&1; then
 		# Try a simple path first
 		dracut_install /usr/lib/libgcc_s.so*
 	else
