@@ -205,10 +205,12 @@ _reap_children(void *arg)
 	(void) sigaction(SIGCHLD, &sa, NULL);
 
 	for (_reap_children_stop = B_FALSE; !_reap_children_stop; ) {
-		pid = wait4(0, &status, 0, &usage);
+		(void) pthread_mutex_lock(&_launched_processes_lock);
+		pid = wait4(0, &status, WNOHANG, &usage);
 
-		if (pid == (pid_t)-1) {
-			if (errno == ECHILD)
+		if (pid == 0 || pid == (pid_t)-1) {
+			(void) pthread_mutex_unlock(&_launched_processes_lock);
+			if (pid == 0 || errno == ECHILD)
 				pause();
 			else if (errno != EINTR)
 				zed_log_msg(LOG_WARNING,
@@ -217,7 +219,6 @@ _reap_children(void *arg)
 		} else {
 			memset(&node, 0, sizeof (node));
 			node.pid = pid;
-			(void) pthread_mutex_lock(&_launched_processes_lock);
 			pnode = avl_find(&_launched_processes, &node, NULL);
 			if (pnode) {
 				memcpy(&node, pnode, sizeof (node));

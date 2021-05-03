@@ -206,6 +206,8 @@ maybe = {
     'cli_root/zpool_import/import_rewind_config_changed':
         ['FAIL', rewind_reason],
     'cli_root/zpool_import/zpool_import_missing_003_pos': ['SKIP', '6839'],
+    'cli_root/zpool_initialize/zpool_initialize_import_export':
+        ['FAIL', '11948'],
     'cli_root/zpool_trim/setup': ['SKIP', trim_reason],
     'cli_root/zpool_upgrade/zpool_upgrade_004_pos': ['FAIL', '6141'],
     'delegate/setup': ['SKIP', exec_reason],
@@ -220,6 +222,7 @@ maybe = {
     'mmp/mmp_on_uberblocks': ['FAIL', known_reason],
     'pyzfs/pyzfs_unittest': ['SKIP', python_deps_reason],
     'no_space/enospc_002_pos': ['FAIL', enospc_reason],
+    'pool_checkpoint/checkpoint_discard_busy': ['FAIL', '11946'],
     'projectquota/setup': ['SKIP', exec_reason],
     'redundancy/redundancy_004_neg': ['FAIL', '7290'],
     'redundancy/redundancy_draid_spare3': ['SKIP', known_reason],

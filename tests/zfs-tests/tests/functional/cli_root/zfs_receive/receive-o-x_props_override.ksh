@@ -259,16 +259,21 @@ log_must zfs destroy -r -f $orig
 log_must zfs destroy -r -f $dest
 
 #
-# 3.7 Verify we can't receive a send stream overriding or excluding properties
-#     invalid for the dataset type unless the stream it's recursive, in which
-#     case only the appropriate properties are set on the destination.
-#
+# 3.7 Verify we can receive a send stream excluding but not overriding
+#     properties invalid for the dataset type, in which case only the
+#     appropriate properties are set on the destination.
 log_must zfs create -V 128K -s $orig
 log_must zfs snapshot $orig@snap1
 log_must eval "zfs send $orig@snap1 > $streamfile_full"
-log_mustnot eval "zfs receive -x atime $dest < $streamfile_full"
 log_mustnot eval "zfs receive -o atime=off $dest < $streamfile_full"
+log_mustnot eval "zfs receive -o atime=off -x canmount $dest < $streamfile_full"
+log_must eval "zfs receive -x atime -x canmount $dest < $streamfile_full"
+log_must eval "check_prop_source $dest type volume -"
+log_must eval "check_prop_source $dest atime - -"
+log_must eval "check_prop_source $dest canmount - -"
 log_must_busy zfs destroy -r -f $orig
+log_must_busy zfs destroy -r -f $dest
+# Recursive sends also accept (and ignore) such overrides
 log_must zfs create $orig
 log_must zfs create -V 128K -s $origsub
 log_must zfs snapshot -r $orig@snap1

@@ -210,6 +210,12 @@ fletcher_4_avx512bw_byteswap(fletcher_4_ctx_t *ctx, const void *buf,
 }
 STACK_FRAME_NON_STANDARD(fletcher_4_avx512bw_byteswap);
 
+static boolean_t
+fletcher_4_avx512bw_valid(void)
+{
+	return (fletcher_4_avx512f_valid() && zfs_avx512bw_available());
+}
+
 const fletcher_4_ops_t fletcher_4_avx512bw_ops = {
 	.init_native = fletcher_4_avx512f_init,
 	.fini_native = fletcher_4_avx512f_fini,
@@ -217,7 +223,7 @@ const fletcher_4_ops_t fletcher_4_avx512bw_ops = {
 	.init_byteswap = fletcher_4_avx512f_init,
 	.fini_byteswap = fletcher_4_avx512f_fini,
 	.compute_byteswap = fletcher_4_avx512bw_byteswap,
-	.valid = fletcher_4_avx512f_valid,
+	.valid = fletcher_4_avx512bw_valid,
 	.name = "avx512bw"
 };
 #endif

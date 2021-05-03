@@ -43,7 +43,6 @@
 #include <grp.h>
 #include <pwd.h>
 #include <acl_common.h>
-#define	ASSERT	assert
 #endif
 
 #define	ACE_POSIX_SUPPORTED_BITS (ACE_READ_DATA | \
@@ -170,8 +169,9 @@ ksort(caddr_t v, int n, int s, int (*f)(void *, void *))
 		return;
 
 	/* Sanity check on arguments */
-	ASSERT(((uintptr_t)v & 0x3) == 0 && (s & 0x3) == 0);
-	ASSERT(s > 0);
+	ASSERT3U(((uintptr_t)v & 0x3), ==, 0);
+	ASSERT3S((s & 0x3), ==, 0);
+	ASSERT3S(s, >, 0);
 	for (g = n / 2; g > 0; g /= 2) {
 		for (i = g; i < n; i++) {
 			for (j = i - g; j >= 0 &&

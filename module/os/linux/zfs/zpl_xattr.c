@@ -605,7 +605,7 @@ zpl_xattr_set(struct inode *ip, const char *name, const void *value,
 	cookie = spl_fstrans_mark();
 	ZPL_ENTER(zfsvfs);
 	ZPL_VERIFY_ZP(zp);
-	rw_enter(&ITOZ(ip)->z_xattr_lock, RW_WRITER);
+	rw_enter(&zp->z_xattr_lock, RW_WRITER);
 
 	/*
 	 * Before setting the xattr check to see if it already exists.
@@ -656,7 +656,7 @@ zpl_xattr_set(struct inode *ip, const char *name, const void *value,
 	if (error == 0 && (where & XATTR_IN_SA))
 		zpl_xattr_set_sa(ip, name, NULL, 0, 0, cr);
 out:
-	rw_exit(&ITOZ(ip)->z_xattr_lock);
+	rw_exit(&zp->z_xattr_lock);
 	ZPL_EXIT(zfsvfs);
 	spl_fstrans_unmark(cookie);
 	crfree(cr);

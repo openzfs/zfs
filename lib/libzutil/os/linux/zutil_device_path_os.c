@@ -346,7 +346,7 @@ end:
 	free(tmp);
 	free(realp);
 
-	if (!path) {
+	if (!path && first_path) {
 		/*
 		 * None of the underlying paths had a link back to their
 		 * enclosure devices.  Throw up out hands and return the first
