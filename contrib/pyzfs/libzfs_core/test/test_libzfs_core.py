@@ -252,9 +252,9 @@ def skipUnlessBookmarksSupported(f):
 
 
 def snap_always_unmounted_before_destruction():
-    # Apparently ZoL automatically unmounts the snapshot
+    # Apparently OpenZFS automatically unmounts the snapshot
     # only if it is mounted at its default .zfs/snapshot
-    # mountpoint.
+    # mountpoint under Linux.
     return (
         platform.system() != 'Linux', 'snapshot is not auto-unmounted')
 

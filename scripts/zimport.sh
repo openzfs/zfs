@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 #
 # Verify that an assortment of known good reference pools can be imported
-# using different versions of the ZoL code.
+# using different versions of OpenZFS code.
 #
 # By default references pools for the major ZFS implementation will be
-# checked against the most recent ZoL tags and the master development branch.
+# checked against the most recent OpenZFS tags and the master development branch.
 # Alternate tags or branches may be verified with the '-s <src-tag> option.
 # Passing the keyword "installed" will instruct the script to test whatever
 # version is installed.
@@ -98,7 +98,7 @@ OPTIONS:
 	-c                No color
 	-k                Keep temporary directory
 	-r <repo>         Source repository ($REPO)
-	-s <src-tag>...   Verify ZoL versions with the listed tags
+	-s <src-tag>...   Verify OpenZFS versions with the listed tags
 	-i <pool-dir>     Pool image directory
 	-p <pool-tag>...  Verify pools created with the listed tags
 	-f <path>         Temporary directory to use
