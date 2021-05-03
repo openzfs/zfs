@@ -366,7 +366,7 @@ bio_set_op_attrs(struct bio *bio, unsigned rw, unsigned flags)
  *
  * 4.8 - 4.9 API,
  *   REQ_FLUSH was renamed to REQ_PREFLUSH.  For consistency with previous
- *   ZoL releases, prefer the WRITE_FLUSH_FUA flag set if it's available.
+ *   OpenZFS releases, prefer the WRITE_FLUSH_FUA flag set if it's available.
  *
  * 4.10 API,
  *   The read/write flags and their modifiers, including WRITE_FLUSH,

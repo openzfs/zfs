@@ -1,9 +1,9 @@
 #!/bin/sh
 #
-# Add ZoL filesystem capabilities to an initrd, usually for a native ZFS root.
+# Add OpenZFS filesystem capabilities to an initrd, usually for a native ZFS root.
 #
 
-# This hook installs udev rules for ZoL.
+# This hook installs udev rules for OpenZFS.
 PREREQ="udev"
 
 # These prerequisites are provided by the zfsutils package. The zdb utility is

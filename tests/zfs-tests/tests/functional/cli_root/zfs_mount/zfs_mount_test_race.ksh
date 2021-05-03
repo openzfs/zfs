@@ -87,10 +87,11 @@ log_must zfs set mountpoint=$MNTPT $TESTPOOL2
 
 # At this point, layout of datasets in two pools will look like below.
 # Previously, on next `zfs mount -a`, pthreads assigned to TESTFS1 and TESTFS2
-# could race, and TESTFS2 usually (actually always) won in ZoL.  Note that the
-# problem is how two or more threads could initially be assigned to the same
-# top level directory, not this specific layout.  This layout is just an example
-# that can reproduce race, and is also the layout reported in #8833.
+# could race, and TESTFS2 usually (actually always) won in OpenZFS.
+# Note that the problem is how two or more threads could initially be assigned
+# to the same top level directory, not this specific layout.
+# This layout is just an example that can reproduce race,
+# and is also the layout reported in #8833.
 #
 # NAME                  MOUNTED  MOUNTPOINT
 # ----------------------------------------------
