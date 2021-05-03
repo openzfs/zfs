@@ -195,10 +195,8 @@ zfs_get_enclosure_sysfs_path(const char *dev_name)
 	}
 
 	dp = opendir(tmp1);
-	if (dp == NULL) {
-		tmp1 = NULL;	/* To make free() at the end a NOP */
+	if (dp == NULL)
 		goto end;
-	}
 
 	/*
 	 * Look though all sysfs entries in /sys/block/<dev>/device for
@@ -216,11 +214,8 @@ zfs_get_enclosure_sysfs_path(const char *dev_name)
 		size = readlink(tmp2, buf, sizeof (buf));
 
 		/* Did readlink fail or crop the link name? */
-		if (size == -1 || size >= sizeof (buf)) {
-			free(tmp2);
-			tmp2 = NULL;	/* To make free() at the end a NOP */
+		if (size == -1 || size >= sizeof (buf))
 			break;
-		}
 
 		/*
 		 * We got a valid link.  readlink() doesn't terminate strings
