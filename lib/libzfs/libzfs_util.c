@@ -782,8 +782,10 @@ zfs_asprintf(libzfs_handle_t *hdl, const char *fmt, ...)
 
 	va_end(ap);
 
-	if (err < 0)
+	if (err < 0) {
 		(void) no_memory(hdl);
+		ret = NULL;
+	}
 
 	return (ret);
 }
