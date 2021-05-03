@@ -207,9 +207,10 @@ zfs_get_enclosure_sysfs_path(const char *dev_name)
 		if (strstr(ep->d_name, "enclosure_device") == NULL)
 			continue;
 
-		if (asprintf(&tmp2, "%s/%s", tmp1, ep->d_name) == -1 ||
-		    tmp2 == NULL)
+		if (asprintf(&tmp2, "%s/%s", tmp1, ep->d_name) == -1) {
+			tmp2 = NULL;
 			break;
+		}
 
 		size = readlink(tmp2, buf, sizeof (buf));
 
