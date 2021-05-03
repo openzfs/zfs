@@ -1106,8 +1106,8 @@ zfs_make_xattrdir(znode_t *zp, vattr_t *vap, znode_t **xzpp, cred_t *cr)
 	    sizeof (xzp->z_id), tx));
 
 	if (!zp->z_unlinked)
-		(void) zfs_log_create(zfsvfs->z_log, tx, TX_MKXATTR, zp,
-		    xzp, "", NULL, acl_ids.z_fuidp, vap);
+		zfs_log_create(zfsvfs->z_log, tx, TX_MKXATTR, zp, xzp, "", NULL,
+		    acl_ids.z_fuidp, vap);
 
 	zfs_acl_ids_free(&acl_ids);
 	dmu_tx_commit(tx);
