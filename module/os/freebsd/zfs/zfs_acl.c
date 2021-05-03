@@ -2349,7 +2349,6 @@ zfs_zaccess(znode_t *zp, int mode, int flags, boolean_t skipaclchk, cred_t *cr)
 
 	is_attr = ((zp->z_pflags & ZFS_XATTR) && (ZTOV(zp)->v_type == VDIR));
 
-#ifdef __FreeBSD_kernel__
 	/*
 	 * In FreeBSD, we don't care about permissions of individual ADS.
 	 * Note that not checking them is not just an optimization - without
@@ -2357,42 +2356,9 @@ zfs_zaccess(znode_t *zp, int mode, int flags, boolean_t skipaclchk, cred_t *cr)
 	 */
 	if (zp->z_pflags & ZFS_XATTR)
 		return (0);
-#else
-	/*
-	 * If attribute then validate against base file
-	 */
-	if (is_attr) {
-		uint64_t	parent;
-
-		if ((error = sa_lookup(zp->z_sa_hdl,
-		    SA_ZPL_PARENT(zp->z_zfsvfs), &parent,
-		    sizeof (parent))) != 0)
-			return (error);
-
-		if ((error = zfs_zget(zp->z_zfsvfs,
-		    parent, &xzp)) != 0)	{
-			return (error);
-		}
-
-		check_zp = xzp;
-
-		/*
-		 * fixup mode to map to xattr perms
-		 */
-
-		if (mode & (ACE_WRITE_DATA|ACE_APPEND_DATA)) {
-			mode &= ~(ACE_WRITE_DATA|ACE_APPEND_DATA);
-			mode |= ACE_WRITE_NAMED_ATTRS;
-		}
-
-		if (mode & (ACE_READ_DATA|ACE_EXECUTE)) {
-			mode &= ~(ACE_READ_DATA|ACE_EXECUTE);
-			mode |= ACE_READ_NAMED_ATTRS;
-		}
-	}
-#endif
 
 	owner = zfs_fuid_map_id(zp->z_zfsvfs, zp->z_uid, cr, ZFS_OWNER);
+
 	/*
 	 * Map the bits required to the standard vnode flags VREAD|VWRITE|VEXEC
 	 * in needed_bits.  Map the bits mapped by working_mode (currently
