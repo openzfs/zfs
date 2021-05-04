@@ -1882,6 +1882,7 @@ get_callback(zfs_handle_t *zhp, void *data)
 {
 	char buf[ZFS_MAXPROPLEN];
 	char rbuf[ZFS_MAXPROPLEN];
+	zprop_source_t sourcetype;
 	char source[ZFS_MAX_DATASET_NAME_LEN];
 	zprop_get_cbdata_t *cbp = data;
 	nvlist_t *user_props = zfs_get_user_props(zhp);
@@ -1892,7 +1893,6 @@ get_callback(zfs_handle_t *zhp, void *data)
 	boolean_t received = is_recvd_column(cbp);
 
 	for (; pl != NULL; pl = pl->pl_next) {
-		zprop_source_t sourcetype = cbp->cb_sources;
 		char *recvdval = NULL;
 		/*
 		 * Skip the special fake placeholder.  This will also skip over
@@ -4660,7 +4660,7 @@ zfs_do_send(int argc, char **argv)
 	 */
 	if (fromname && (cp = strchr(fromname, '@')) != NULL) {
 		char origin[ZFS_MAX_DATASET_NAME_LEN];
-		zprop_source_t src = ZPROP_SRC_NONE;
+		zprop_source_t src;
 
 		(void) zfs_prop_get(zhp, ZFS_PROP_ORIGIN,
 		    origin, sizeof (origin), &src, NULL, 0, B_FALSE);

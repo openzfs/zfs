@@ -2662,7 +2662,7 @@ static zfs_handle_t *
 recv_open_grand_origin(zfs_handle_t *zhp)
 {
 	char origin[ZFS_MAX_DATASET_NAME_LEN];
-	zprop_source_t src = ZPROP_SRC_NONE;
+	zprop_source_t src;
 	zfs_handle_t *ozhp = zfs_handle_dup(zhp);
 
 	while (ozhp != NULL) {

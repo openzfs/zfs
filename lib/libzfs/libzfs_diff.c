@@ -575,7 +575,7 @@ get_snapshot_names(differ_info_t *di, const char *fromsnap,
 		 * tosnap is a clone of a fromsnap descendant.
 		 */
 		char origin[ZFS_MAX_DATASET_NAME_LEN];
-		zprop_source_t src = ZPROP_SRC_NONE;
+		zprop_source_t src;
 		zfs_handle_t *zhp;
 
 		di->ds = zfs_alloc(di->zhp->zfs_hdl, tdslen + 1);
