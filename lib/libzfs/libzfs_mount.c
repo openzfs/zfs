@@ -266,7 +266,7 @@ zfs_is_mountable(zfs_handle_t *zhp, char *buf, size_t buflen,
     zprop_source_t *source, int flags)
 {
 	char sourceloc[MAXNAMELEN];
-	zprop_source_t sourcetype = ZPROP_SRC_NONE;
+	zprop_source_t sourcetype;
 
 	if (!zfs_prop_valid_for_type(ZFS_PROP_MOUNTPOINT, zhp->zfs_type,
 	    B_FALSE))
@@ -765,7 +765,7 @@ zfs_share_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto)
 	char shareopts[ZFS_MAXPROPLEN];
 	char sourcestr[ZFS_MAXPROPLEN];
 	zfs_share_proto_t *curr_proto;
-	zprop_source_t sourcetype = ZPROP_SRC_NONE;
+	zprop_source_t sourcetype;
 	int err = 0;
 
 	if (!zfs_is_mountable(zhp, mountpoint, sizeof (mountpoint), NULL, 0))

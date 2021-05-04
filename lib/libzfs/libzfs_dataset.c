@@ -2180,8 +2180,7 @@ get_numeric_property(zfs_handle_t *zhp, zfs_prop_t prop, zprop_source_t *src,
 	 * its presence.
 	 */
 	if (!zhp->zfs_mntcheck &&
-	    (mntopt_on != NULL || prop == ZFS_PROP_MOUNTED) &&
-	    (src && (*src & ZPROP_SRC_TEMPORARY))) {
+	    (mntopt_on != NULL || prop == ZFS_PROP_MOUNTED)) {
 		libzfs_handle_t *hdl = zhp->zfs_hdl;
 		struct mnttab entry;
 
@@ -2596,16 +2595,9 @@ zcp_check(zfs_handle_t *zhp, zfs_prop_t prop, uint64_t intval,
 }
 
 /*
- * Retrieve a property from the given object.
- *
- * Arguments:
- *  src :	On call, this must contain the bitmap of ZPROP_SRC_* types to
- * 		query.  Properties whose values come from a different source
- * 		may not be returned. NULL will be treated as ZPROP_SRC_ALL.  On
- * 		return, if not NULL, this variable will contain the source for
- * 		the queried property.
- *  literal :	If specified, then numbers are left as exact values.  Otherwise,
- *		they are converted to a human-readable form.
+ * Retrieve a property from the given object.  If 'literal' is specified, then
+ * numbers are left as exact values.  Otherwise, numbers are converted to a
+ * human-readable form.
  *
  * Returns 0 on success, or -1 on error.
  */
@@ -2627,6 +2619,9 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 
 	if (received && zfs_prop_readonly(prop))
 		return (-1);
+
+	if (src)
+		*src = ZPROP_SRC_NONE;
 
 	switch (prop) {
 	case ZFS_PROP_CREATION:
