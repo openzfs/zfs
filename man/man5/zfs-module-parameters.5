@@ -14,7 +14,7 @@
 .\" CDDL HEADER, with the fields enclosed by brackets "[]" replaced with your
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
-.TH ZFS-MODULE-PARAMETERS 5 "Mar 31, 2021" OpenZFS
+.TH ZFS-MODULE-PARAMETERS 5 "May 5, 2021" OpenZFS
 .SH NAME
 zfs\-module\-parameters \- ZFS module parameters
 .SH DESCRIPTION
@@ -1506,11 +1506,14 @@ Default value: \fB131,072\fR.
 .ad
 .RS 12n
 Internally ZFS keeps a small log to facilitate debugging.  By default the log
-is disabled, to enable it set this option to 1.  The contents of the log can
+is enabled, to disable it set this option to 0.  The contents of the log can
 be accessed by reading the /proc/spl/kstat/zfs/dbgmsg file.  Writing 0 to
 this proc file clears the log.
 .sp
-Default value: \fB0\fR.
+This setting does not influence debug prints due to \fBzfs_flags\fR
+settings.
+.sp
+Default value: \fB1\fR.
 .RE
 
 .sp
