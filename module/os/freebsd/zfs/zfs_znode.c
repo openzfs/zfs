@@ -143,6 +143,7 @@ zfs_znode_cache_constructor(void *buf, void *arg, int kmflags)
 
 	list_link_init(&zp->z_link_node);
 
+	mutex_init(&zp->z_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&zp->z_acl_lock, NULL, MUTEX_DEFAULT, NULL);
 
 	zfs_rangelock_init(&zp->z_rangelock, zfs_rangelock_cb, zp);
@@ -161,6 +162,7 @@ zfs_znode_cache_destructor(void *buf, void *arg)
 	ASSERT(!POINTER_IS_VALID(zp->z_zfsvfs));
 	ASSERT3P(zp->z_vnode, ==, NULL);
 	ASSERT(!list_link_active(&zp->z_link_node));
+	mutex_destroy(&zp->z_lock);
 	mutex_destroy(&zp->z_acl_lock);
 	zfs_rangelock_fini(&zp->z_rangelock);
 
