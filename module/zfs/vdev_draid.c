@@ -812,7 +812,12 @@ vdev_draid_map_alloc_empty(zio_t *zio, raidz_row_t *rr)
 			/* this is a "big column", nothing to add */
 			ASSERT3P(rc->rc_abd, !=, NULL);
 		} else {
-			/* short data column, add a skip sector */
+			/*
+			 * short data column, add a skip sector and clear
+			 * rc_tried to force the entire column to be re-read
+			 * thereby including the missing skip sector data
+			 * which is needed for reconstruction.
+			 */
 			ASSERT3U(rc->rc_size + skip_size, ==, parity_size);
 			ASSERT3U(rr->rr_nempty, !=, 0);
 			ASSERT3P(rc->rc_abd, !=, NULL);
@@ -823,6 +828,7 @@ vdev_draid_map_alloc_empty(zio_t *zio, raidz_row_t *rr)
 			abd_gang_add(rc->rc_abd, abd_get_offset_size(
 			    rr->rr_abd_empty, skip_off, skip_size), B_TRUE);
 			skip_off += skip_size;
+			rc->rc_tried = 0;
 		}
 
 		/*

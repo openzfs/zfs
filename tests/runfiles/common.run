@@ -741,8 +741,8 @@ tests = ['raidz_001_neg', 'raidz_002_pos', 'raidz_003_pos', 'raidz_004_pos']
 tags = ['functional', 'raidz']
 
 [tests/functional/redundancy]
-tests = ['redundancy_draid1', 'redundancy_draid2', 'redundancy_draid3',
-    'redundancy_draid_spare1', 'redundancy_draid_spare2',
+tests = ['redundancy_draid', 'redundancy_draid1', 'redundancy_draid2',
+    'redundancy_draid3', 'redundancy_draid_spare1', 'redundancy_draid_spare2',
     'redundancy_draid_spare3', 'redundancy_mirror', 'redundancy_raidz',
     'redundancy_raidz1', 'redundancy_raidz2', 'redundancy_raidz3',
     'redundancy_stripe']
