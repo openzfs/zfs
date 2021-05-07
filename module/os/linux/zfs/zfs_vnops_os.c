@@ -3950,6 +3950,13 @@ zfs_fid(struct inode *ip, fid_t *fidp)
 	int		size, i, error;
 
 	ZFS_ENTER(zfsvfs);
+
+	if (fidp->fid_len < SHORT_FID_LEN) {
+		fidp->fid_len = SHORT_FID_LEN;
+		ZFS_EXIT(zfsvfs);
+		return (SET_ERROR(ENOSPC));
+	}
+
 	ZFS_VERIFY_ZP(zp);
 
 	if ((error = sa_lookup(zp->z_sa_hdl, SA_ZPL_GEN(zfsvfs),
