@@ -41,15 +41,19 @@ zpl_encode_fh(struct dentry *dentry, __u32 *fh, int *max_len, int connectable)
 	struct inode *ip = dentry->d_inode;
 #endif /* HAVE_ENCODE_FH_WITH_INODE */
 	fstrans_cookie_t cookie;
-	fid_t *fid = (fid_t *)fh;
+	ushort_t empty_fid = 0;
+	fid_t *fid;
 	int len_bytes, rc;
 
 	len_bytes = *max_len * sizeof (__u32);
 
-	if (len_bytes < offsetof(fid_t, fid_data))
-		return (255);
+	if (len_bytes < offsetof(fid_t, fid_data)) {
+		fid = (fid_t *)&empty_fid;
+	} else {
+		fid = (fid_t *)fh;
+		fid->fid_len = len_bytes - offsetof(fid_t, fid_data);
+	}
 
-	fid->fid_len = len_bytes - offsetof(fid_t, fid_data);
 	cookie = spl_fstrans_mark();
 
 	if (zfsctl_is_node(ip))
