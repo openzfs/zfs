@@ -31,17 +31,17 @@
 
 #
 # DESCRIPTION:
-#	RAIDZ should provide redundancy
+#	dRAID should provide redundancy
 #
 # STRATEGY:
-#	1. Create block device files for the test raidz pool
+#	1. Create block device files for the test draid pool
 #	2. For each parity value [1..3]
-#	    - create raidz pool
+#	    - create draid pool
 #	    - fill it with some directories/files
 #	    - verify self-healing by overwriting devices
 #	    - verify resilver by replacing devices
 #	    - verify scrub by zeroing devices
-#	    - destroy the raidz pool
+#	    - destroy the draid pool
 
 typeset -r devs=6
 typeset -r dev_size_mb=512
@@ -216,7 +216,7 @@ done
 log_must truncate -s 512M $TEST_BASE_DIR/dev-$devs
 
 for nparity in 1 2 3; do
-	raid=raidz$nparity
+	raid=draid$nparity
 	dir=$TEST_BASE_DIR
 
 	log_must zpool create -f -o cachefile=none $TESTPOOL $raid ${disks[@]}
@@ -245,4 +245,4 @@ for nparity in 1 2 3; do
 	log_must zpool destroy "$TESTPOOL"
 done
 
-log_pass "raidz redundancy test succeeded."
+log_pass "draid redundancy test succeeded."
