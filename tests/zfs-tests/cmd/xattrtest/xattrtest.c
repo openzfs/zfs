@@ -262,7 +262,7 @@ run_process(const char *path, char *argv[])
 	pid_t pid;
 	int rc, devnull_fd;
 
-	pid = vfork();
+	pid = fork();
 	if (pid == 0) {
 		devnull_fd = open("/dev/null", O_WRONLY);
 
