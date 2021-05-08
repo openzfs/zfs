@@ -159,9 +159,10 @@ checkbashisms:
 				-o -name 'paxcheck.sh' -prune \
 				-o -name 'make_gitrev.sh' -prune \
 				-o -name '90zfs' -prune \
+				-o -path '*initramfs/hooks' -prune \
 				-o -type f ! -name 'config*' \
 				! -name 'libtool' \
-			-exec sh -c 'awk "NR==1 && /#!.*bin\/sh.*/ {print FILENAME;}" "{}"' \;); \
+			-exec awk 'FNR==1 && /^#!.*bin\/sh/ {print FILENAME}' {} \+); \
 	else \
 		echo "skipping checkbashisms because checkbashisms is not installed"; \
 	fi
