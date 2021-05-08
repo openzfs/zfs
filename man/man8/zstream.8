@@ -20,7 +20,7 @@
 .\"
 .\"
 .\" Copyright (c) 2020 by Delphix. All rights reserved.
-.Dd March 25, 2020
+.Dd May 8, 2021
 .Dt ZSTREAM 8
 .Os
 .Sh NAME
@@ -67,6 +67,12 @@ Print metadata for each record.
 Dump data contained in each record.
 Implies verbose.
 .El
+.Pp
+The
+.Nm zstreamdump
+alias is provided for compatibility and is equivalent to running
+.Nm
+.Cm dump .
 .It Xo
 .Nm
 .Cm token
