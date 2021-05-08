@@ -889,7 +889,7 @@ libzfs_run_process_impl(const char *path, char *argv[], char *env[], int flags,
 	if ((lines != NULL) && pipe2(link, O_CLOEXEC) == -1)
 		return (-EPIPE);
 
-	pid = vfork();
+	pid = fork();
 	if (pid == 0) {
 		/* Child process */
 		devnull_fd = open("/dev/null", O_WRONLY | O_CLOEXEC);
