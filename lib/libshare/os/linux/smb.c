@@ -308,7 +308,7 @@ smb_disable_share_one(const char *sharename)
 	argv[2] = NET_CMD_ARG_HOST;
 	argv[3] = (char *)"usershare";
 	argv[4] = (char *)"delete";
-	argv[5] = strdup(sharename);
+	argv[5] = (char *)sharename;
 	argv[6] = NULL;
 
 	rc = libzfs_run_process(argv[0], argv, 0);
