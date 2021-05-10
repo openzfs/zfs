@@ -185,7 +185,6 @@ If set to
 .BR on ,
 do not generate a mount unit for this dataset.
 
-.RE
 See also
 .BR systemd.mount (5)
 

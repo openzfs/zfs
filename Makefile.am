@@ -169,10 +169,8 @@ checkbashisms:
 PHONY += mancheck
 mancheck:
 	@if type mandoc > /dev/null 2>&1; then \
-		find ${top_srcdir}/man/man8 -type f -name 'zfs.8' \
-			-o -name 'zpool.8' -o -name 'zdb.8' \
-			-o -name 'zgenhostid.8' | \
-			xargs mandoc -Tlint -Werror; \
+		find ${top_srcdir}/man/man8 -type f -name '*[1-9]*' \
+			-exec mandoc -Tlint -Werror {} \+; \
 	else \
 		echo "skipping mancheck because mandoc is not installed"; \
 	fi
