@@ -380,6 +380,7 @@ zstd_enum_to_level(enum zio_zstd_levels level, int16_t *zstd_level)
 	return (1);
 }
 
+
 /* Compress block using zstd */
 size_t
 zfs_zstd_compress(void *s_start, void *d_start, size_t s_len, size_t d_len,
@@ -477,8 +478,8 @@ zfs_zstd_compress(void *s_start, void *d_start, size_t s_len, size_t d_len,
 	 * As soon as such incompatibility occurs, handling code needs to be
 	 * added, differentiating between the versions.
 	 */
-	hdr->version = ZSTD_VERSION_NUMBER;
-	hdr->level = level;
+	zfs_set_hdrversion(hdr, ZSTD_VERSION_NUMBER);
+	zfs_set_hdrlevel(hdr, level);
 	hdr->raw_version_level = BE_32(hdr->raw_version_level);
 
 	return (c_len + sizeof (*hdr));
@@ -504,6 +505,7 @@ zfs_zstd_decompress_level(void *s_start, void *d_start, size_t s_len,
 	 * not modify the original data that may be used again later.
 	 */
 	hdr_copy.raw_version_level = BE_32(hdr->raw_version_level);
+	uint8_t curlevel = zfs_get_hdrlevel(&hdr_copy);
 
 	/*
 	 * NOTE: We ignore the ZSTD version for now. As soon as any
@@ -516,13 +518,13 @@ zfs_zstd_decompress_level(void *s_start, void *d_start, size_t s_len,
 	 * An invalid level is a strong indicator for data corruption! In such
 	 * case return an error so the upper layers can try to fix it.
 	 */
-	if (zstd_enum_to_level(hdr_copy.level, &zstd_level)) {
+	if (zstd_enum_to_level(curlevel, &zstd_level)) {
 		ZSTDSTAT_BUMP(zstd_stat_dec_inval);
 		return (1);
 	}
 
 	ASSERT3U(d_len, >=, s_len);
-	ASSERT3U(hdr_copy.level, !=, ZIO_COMPLEVEL_INHERIT);
+	ASSERT3U(curlevel, !=, ZIO_COMPLEVEL_INHERIT);
 
 	/* Invalid compressed buffer size encoded at start */
 	if (c_len + sizeof (*hdr) > s_len) {
@@ -553,7 +555,7 @@ zfs_zstd_decompress_level(void *s_start, void *d_start, size_t s_len,
 	}
 
 	if (level) {
-		*level = hdr_copy.level;
+		*level = curlevel;
 	}
 
 	return (0);
@@ -783,7 +785,7 @@ module_exit(zstd_fini);
 
 ZFS_MODULE_DESCRIPTION("ZSTD Compression for ZFS");
 ZFS_MODULE_LICENSE("Dual BSD/GPL");
-ZFS_MODULE_VERSION(ZSTD_VERSION_STRING);
+ZFS_MODULE_VERSION(ZSTD_VERSION_STRING "a");
 
 EXPORT_SYMBOL(zfs_zstd_compress);
 EXPORT_SYMBOL(zfs_zstd_decompress_level);
