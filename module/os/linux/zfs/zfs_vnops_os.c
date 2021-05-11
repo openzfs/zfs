@@ -175,18 +175,6 @@
  *	return (error);			// done, report error
  */
 
-/*
- * Virus scanning is unsupported.  It would be possible to add a hook
- * here to performance the required virus scan.  This could be done
- * entirely in the kernel or potentially as an update to invoke a
- * scanning utility.
- */
-static int
-zfs_vscan(struct inode *ip, cred_t *cr, int async)
-{
-	return (0);
-}
-
 /* ARGSUSED */
 int
 zfs_open(struct inode *ip, int mode, int flag, cred_t *cr)
@@ -202,15 +190,6 @@ zfs_open(struct inode *ip, int mode, int flag, cred_t *cr)
 	    ((flag & O_APPEND) == 0)) {
 		ZFS_EXIT(zfsvfs);
 		return (SET_ERROR(EPERM));
-	}
-
-	/* Virus scan eligible files on open */
-	if (!zfs_has_ctldir(zp) && zfsvfs->z_vscan && S_ISREG(ip->i_mode) &&
-	    !(zp->z_pflags & ZFS_AV_QUARANTINED) && zp->z_size > 0) {
-		if (zfs_vscan(ip, cr, 0) != 0) {
-			ZFS_EXIT(zfsvfs);
-			return (SET_ERROR(EACCES));
-		}
 	}
 
 	/* Keep a count of the synchronous opens in the znode */
@@ -234,10 +213,6 @@ zfs_close(struct inode *ip, int flag, cred_t *cr)
 	/* Decrement the synchronous opens in the znode */
 	if (flag & O_SYNC)
 		atomic_dec_32(&zp->z_sync_cnt);
-
-	if (!zfs_has_ctldir(zp) && zfsvfs->z_vscan && S_ISREG(ip->i_mode) &&
-	    !(zp->z_pflags & ZFS_AV_QUARANTINED) && zp->z_size > 0)
-		VERIFY(zfs_vscan(ip, cr, 1) == 0);
 
 	ZFS_EXIT(zfsvfs);
 	return (0);
