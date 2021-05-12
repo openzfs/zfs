@@ -75,6 +75,7 @@ static int get_key_material_https(libzfs_handle_t *, const char *, const char *,
 static zfs_uri_handler_t uri_handlers[] = {
 	{ "file", get_key_material_file },
 	{ "https", get_key_material_https },
+	{ "http", get_key_material_https },
 	{ NULL, NULL }
 };
 
@@ -503,8 +504,9 @@ get_key_material_https(libzfs_handle_t *hdl, const char *uri,
 {
 	int ret = 0;
 	FILE *key = NULL;
+	boolean_t is_http = strncmp(uri, "http:", strlen("http:")) == 0;
 
-	if (strlen(uri) < 8) {
+	if (strlen(uri) < (is_http ? 7 : 8)) {
 		ret = EINVAL;
 		goto end;
 	}
@@ -550,8 +552,8 @@ get_key_material_https(libzfs_handle_t *hdl, const char *uri,
 #endif
 	if (!ok) {
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "keylocation=https:// back-end %s missing symbols."),
-		    LIBFETCH_SONAME);
+		    "keylocation=%s back-end %s missing symbols."),
+		    is_http ? "http://" : "https://", LIBFETCH_SONAME);
 		ret = ENOSYS;
 		goto end;
 	}
@@ -653,7 +655,7 @@ kfdok:
 	curl_easy_cleanup(curl);
 #else
 	zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-	    "No keylocation=https:// back-end."));
+	    "No keylocation=%s back-end."), is_http ? "http://" : "https://");
 	ret = ENOSYS;
 #endif
 

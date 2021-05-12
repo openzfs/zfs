@@ -1085,7 +1085,7 @@ encryption suite cannot be changed after dataset creation, the keyformat can be
 with
 .Nm zfs Cm change-key .
 .It Xo
-.Sy keylocation Ns = Ns Sy prompt Ns | Ns Sy file:// Ns Em </absolute/file/path> Ns | Ns Sy https:// Ns Em <address>
+.Sy keylocation Ns = Ns Sy prompt Ns | Ns Sy file:// Ns Em </absolute/file/path> Ns | Ns Sy https:// Ns Em <address> | Ns Sy http:// Ns Em <address>
 .Xc
 Controls where the user's encryption key will be loaded from by default for
 commands such as
@@ -1109,8 +1109,8 @@ to access the encrypted data (see
 for details). This setting will also allow the key to be passed in via STDIN,
 but users should be careful not to place keys which should be kept secret on
 the command line. If a file URI is selected, the key will be loaded from the
-specified absolute file path. If an HTTPS URL is selected, it will be GETted
-using
+specified absolute file path. If an HTTPS or HTTP URL is selected,
+it will be GETted using
 .Xr fetch 3 ,
 libcurl, or nothing, depending on compile-time configuration and run-time
 availability. The

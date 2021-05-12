@@ -43,7 +43,7 @@ if [ "$(zpool list -H -o feature@encryption "$(echo "${BOOTFS}" | awk -F/ '{prin
         [ "$KEYSTATUS" = "unavailable" ] || exit 0
         # if key is stored in a file, do not prompt
         if ! [ "${KEYLOCATION}" = "prompt" ]; then
-            if ! [ "${KEYLOCATION#https://}" = "${KEYLOCATION}" ]; then
+            if ! [ "${KEYLOCATION#http}" = "${KEYLOCATION}" ]; then
                 systemctl start network-online.target
             fi
             zfs load-key "${ENCRYPTIONROOT}"
