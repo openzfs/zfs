@@ -889,6 +889,83 @@ label_offset(uint64_t size, int l)
 }
 
 /*
+ * The same description applies as to zpool_read_label below,
+ * except here we do it without aio, presumably because an aio call
+ * errored out in a way we think not using it could circumvent.
+ */
+static int
+zpool_read_label_slow(int fd, nvlist_t **config, int *num_labels)
+{
+	struct stat64 statbuf;
+	int l, count = 0;
+	vdev_phys_t *label;
+	nvlist_t *expected_config = NULL;
+	uint64_t expected_guid = 0, size;
+	int error;
+
+	*config = NULL;
+
+	if (fstat64_blk(fd, &statbuf) == -1)
+		return (0);
+	size = P2ALIGN_TYPED(statbuf.st_size, sizeof (vdev_label_t), uint64_t);
+
+	error = posix_memalign((void **)&label, PAGESIZE, sizeof (*label));
+	if (error)
+		return (-1);
+
+	for (l = 0; l < VDEV_LABELS; l++) {
+		uint64_t state, guid, txg;
+		off_t offset = label_offset(size, l) + VDEV_SKIP_SIZE;
+
+		if (pread64(fd, label, sizeof (vdev_phys_t),
+		    offset) != sizeof (vdev_phys_t))
+			continue;
+
+		if (nvlist_unpack(label->vp_nvlist,
+		    sizeof (label->vp_nvlist), config, 0) != 0)
+			continue;
+
+		if (nvlist_lookup_uint64(*config, ZPOOL_CONFIG_GUID,
+		    &guid) != 0 || guid == 0) {
+			nvlist_free(*config);
+			continue;
+		}
+
+		if (nvlist_lookup_uint64(*config, ZPOOL_CONFIG_POOL_STATE,
+		    &state) != 0 || state > POOL_STATE_L2CACHE) {
+			nvlist_free(*config);
+			continue;
+		}
+
+		if (state != POOL_STATE_SPARE && state != POOL_STATE_L2CACHE &&
+		    (nvlist_lookup_uint64(*config, ZPOOL_CONFIG_POOL_TXG,
+		    &txg) != 0 || txg == 0)) {
+			nvlist_free(*config);
+			continue;
+		}
+
+		if (expected_guid) {
+			if (expected_guid == guid)
+				count++;
+
+			nvlist_free(*config);
+		} else {
+			expected_config = *config;
+			expected_guid = guid;
+			count++;
+		}
+	}
+
+	if (num_labels != NULL)
+		*num_labels = count;
+
+	free(label);
+	*config = expected_config;
+
+	return (0);
+}
+
+/*
  * Given a file descriptor, read the label information and return an nvlist
  * describing the configuration, if there is one.  The number of valid
  * labels found will be returned in num_labels when non-NULL.
@@ -929,6 +1006,8 @@ zpool_read_label(int fd, nvlist_t **config, int *num_labels)
 
 	if (lio_listio(LIO_WAIT, aiocbps, VDEV_LABELS, NULL) != 0) {
 		int saved_errno = errno;
+		boolean_t do_slow = B_FALSE;
+		error = -1;
 
 		if (errno == EAGAIN || errno == EINTR || errno == EIO) {
 			/*
@@ -937,14 +1016,33 @@ zpool_read_label(int fd, nvlist_t **config, int *num_labels)
 			 */
 			for (l = 0; l < VDEV_LABELS; l++) {
 				errno = 0;
-				int r = aio_error(&aiocbs[l]);
-				if (r != EINVAL)
+				switch (aio_error(&aiocbs[l])) {
+				case EINVAL:
+					break;
+				case EINPROGRESS:
+					// This shouldn't be possible to
+					// encounter, die if we do.
+					ASSERT(B_FALSE);
+				case EOPNOTSUPP:
+				case ENOSYS:
+					do_slow = B_TRUE;
+				case 0:
+				default:
 					(void) aio_return(&aiocbs[l]);
+				}
 			}
+		}
+		if (do_slow) {
+			/*
+			 * At least some IO involved access unsafe-for-AIO
+			 * files. Let's try again, without AIO this time.
+			 */
+			error = zpool_read_label_slow(fd, config, num_labels);
+			saved_errno = errno;
 		}
 		free(labels);
 		errno = saved_errno;
-		return (-1);
+		return (error);
 	}
 
 	for (l = 0; l < VDEV_LABELS; l++) {
