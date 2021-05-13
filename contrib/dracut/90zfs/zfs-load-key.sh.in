@@ -43,13 +43,14 @@ if [ "$(zpool list -H -o feature@encryption "${BOOTFS%%/*}")" = 'active' ]; then
 
         KEYLOCATION="$(zfs get -H -o value keylocation "${ENCRYPTIONROOT}")"
         if ! [ "${KEYLOCATION}" = "prompt" ]; then
+            if ! [ "${KEYLOCATION#http}" = "${KEYLOCATION}" ]; then
+                systemctl start network-online.target
+            fi
             zfs load-key "${ENCRYPTIONROOT}"
         else
             # decrypt them
-            TRY_COUNT=5
-            while [ $TRY_COUNT -gt 0 ]; do
+            for _ in 1 2 3 4 5; do
                 systemd-ask-password "Encrypted ZFS password for ${BOOTFS}" --no-tty | zfs load-key "${ENCRYPTIONROOT}" && break
-                TRY_COUNT=$((TRY_COUNT - 1))
             done
         fi
     fi

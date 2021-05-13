@@ -551,10 +551,6 @@
       <parameter type-id='e1c52942'/>
       <return type-id='95e97e5e'/>
     </function-decl>
-    <function-decl name='unlink' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='80f4b756'/>
-      <return type-id='95e97e5e'/>
-    </function-decl>
   </abi-instr>
   <abi-instr address-size='64' path='os/linux/smb.c' language='LANG_C99'>
     <array-type-def dimensions='1' type-id='a84c031d' size-in-bits='2040' id='11641789'>
@@ -1373,7 +1369,7 @@
     <typedef-decl name='zpool_handle_t' type-id='67002a8a' id='b1efc708'/>
     <typedef-decl name='libzfs_handle_t' type-id='c8a9d9d8' id='95942d0c'/>
     <typedef-decl name='zfs_iter_f' type-id='5571cde4' id='d8e49ab9'/>
-    <class-decl name='libzfs_handle' size-in-bits='20224' is-struct='yes' visibility='default' id='c8a9d9d8'>
+    <class-decl name='libzfs_handle' size-in-bits='20352' is-struct='yes' visibility='default' id='c8a9d9d8'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='libzfs_error' type-id='95e97e5e' visibility='default'/>
       </data-member>
@@ -1433,6 +1429,12 @@
       </data-member>
       <data-member access='public' layout-offset-in-bits='20160'>
         <var-decl name='libzfs_max_nvlist' type-id='9c313c2d' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='20224'>
+        <var-decl name='libfetch' type-id='eaa32e2f' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='20288'>
+        <var-decl name='libfetch_load_error' type-id='26a90f95' visibility='default'/>
       </data-member>
     </class-decl>
     <class-decl name='zfs_handle' size-in-bits='4928' is-struct='yes' visibility='default' id='f6ee4445'>
@@ -3190,6 +3192,19 @@
     <function-decl name='__ctype_b_loc' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='c59e1ef0'/>
     </function-decl>
+    <function-decl name='dlopen' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='80f4b756'/>
+      <parameter type-id='95e97e5e'/>
+      <return type-id='eaa32e2f'/>
+    </function-decl>
+    <function-decl name='dlsym' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='1b7446cd'/>
+      <parameter type-id='9d26089a'/>
+      <return type-id='eaa32e2f'/>
+    </function-decl>
+    <function-decl name='dlerror' visibility='default' binding='global' size-in-bits='64'>
+      <return type-id='26a90f95'/>
+    </function-decl>
     <function-decl name='PKCS5_PBKDF2_HMAC_SHA1' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='80f4b756'/>
       <parameter type-id='95e97e5e'/>
@@ -3231,6 +3246,11 @@
       <parameter type-id='822cd80b'/>
       <return type-id='95e97e5e'/>
     </function-decl>
+    <function-decl name='fdopen' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='95e97e5e'/>
+      <parameter type-id='80f4b756'/>
+      <return type-id='822cd80b'/>
+    </function-decl>
     <function-decl name='printf' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='80f4b756'/>
       <parameter is-variadic='yes'/>
@@ -3240,6 +3260,12 @@
       <parameter type-id='26a90f95'/>
       <parameter type-id='b59d7dce'/>
       <parameter type-id='80f4b756'/>
+      <parameter is-variadic='yes'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='asprintf' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='8c85230f'/>
+      <parameter type-id='9d26089a'/>
       <parameter is-variadic='yes'/>
       <return type-id='95e97e5e'/>
     </function-decl>
@@ -3261,6 +3287,10 @@
       <parameter type-id='b59d7dce'/>
       <parameter type-id='e75a27e9'/>
       <return type-id='b59d7dce'/>
+    </function-decl>
+    <function-decl name='rewind' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='822cd80b'/>
+      <return type-id='48b5725f'/>
     </function-decl>
     <function-decl name='ferror' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='822cd80b'/>
@@ -3284,6 +3314,10 @@
       <parameter type-id='eaa32e2f'/>
       <parameter type-id='b59d7dce'/>
       <return type-id='eaa32e2f'/>
+    </function-decl>
+    <function-decl name='strdup' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='80f4b756'/>
+      <return type-id='26a90f95'/>
     </function-decl>
     <function-decl name='strerror' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='95e97e5e'/>
@@ -3315,6 +3349,10 @@
     </function-decl>
     <function-decl name='isatty' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='95e97e5e'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='unlink' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='80f4b756'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-type size-in-bits='64' id='ee076206'>
@@ -4425,12 +4463,6 @@
       <parameter is-variadic='yes'/>
       <return type-id='95e97e5e'/>
     </function-decl>
-    <function-decl name='asprintf' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='8c85230f'/>
-      <parameter type-id='9d26089a'/>
-      <parameter is-variadic='yes'/>
-      <return type-id='95e97e5e'/>
-    </function-decl>
     <function-decl name='strtol' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='9d26089a'/>
       <parameter type-id='8c85230f'/>
@@ -4450,10 +4482,6 @@
       <parameter type-id='26a90f95'/>
       <parameter type-id='80f4b756'/>
       <parameter type-id='b59d7dce'/>
-      <return type-id='26a90f95'/>
-    </function-decl>
-    <function-decl name='strdup' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='80f4b756'/>
       <return type-id='26a90f95'/>
     </function-decl>
     <function-decl name='strrchr' visibility='default' binding='global' size-in-bits='64'>
@@ -4619,11 +4647,6 @@
     <function-decl name='pthread_cancel' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='4051f5e7'/>
       <return type-id='95e97e5e'/>
-    </function-decl>
-    <function-decl name='fdopen' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='95e97e5e'/>
-      <parameter type-id='80f4b756'/>
-      <return type-id='822cd80b'/>
     </function-decl>
     <function-decl name='pipe2' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='7292109c'/>
@@ -6705,6 +6728,12 @@
       <parameter type-id='95e97e5e'/>
       <return type-id='48b5725f'/>
     </function-decl>
+    <function-decl name='avl_insert' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='a3681dea'/>
+      <parameter type-id='eaa32e2f'/>
+      <parameter type-id='fba6cb51'/>
+      <return type-id='48b5725f'/>
+    </function-decl>
     <function-decl name='nvlist_lookup_boolean' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='5ce45b60'/>
       <parameter type-id='80f4b756'/>
@@ -7234,6 +7263,10 @@
     </function-decl>
     <function-decl name='__ctype_toupper_loc' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='24f95ba5'/>
+    </function-decl>
+    <function-decl name='dlclose' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='eaa32e2f'/>
+      <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='regcomp' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='5c53ba29'/>

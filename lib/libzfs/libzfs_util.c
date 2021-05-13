@@ -44,6 +44,9 @@
 #include <strings.h>
 #include <unistd.h>
 #include <math.h>
+#if LIBFETCH_DYNAMIC
+#include <dlfcn.h>
+#endif
 #include <sys/stat.h>
 #include <sys/mnttab.h>
 #include <sys/mntent.h>
@@ -1101,6 +1104,11 @@ libzfs_fini(libzfs_handle_t *hdl)
 	libzfs_core_fini();
 	regfree(&hdl->libzfs_urire);
 	fletcher_4_fini();
+#if LIBFETCH_DYNAMIC
+	if (hdl->libfetch != (void *)-1 && hdl->libfetch != NULL)
+		(void) dlclose(hdl->libfetch);
+	free(hdl->libfetch_load_error);
+#endif
 	free(hdl);
 }
 

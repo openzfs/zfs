@@ -72,6 +72,8 @@ struct libzfs_handle {
 	boolean_t libzfs_prop_debug;
 	regex_t libzfs_urire;
 	uint64_t libzfs_max_nvlist;
+	void *libfetch;
+	char *libfetch_load_error;
 };
 
 struct zfs_handle {
