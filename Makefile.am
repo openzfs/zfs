@@ -126,9 +126,9 @@ filter_executable = -exec test -x '{}' \; -print
 PHONY += shellcheck
 shellcheck:
 	@if type shellcheck > /dev/null 2>&1; then \
-		shellcheck --exclude=SC1090 --exclude=SC1117 --format=gcc \
-			$$(find ${top_srcdir}/scripts/*.sh -type f) \
-			$$(find ${top_srcdir}/cmd/zed/zed.d/*.sh -type f) \
+		shellcheck --exclude=SC1090,SC1117,SC1091 --format=gcc \
+			$$(find ${top_srcdir} -name "config*" -prune -name tests -prune \
+				-o -name "*.sh" -o -name "*.sh.in" -type f) \
 			$$(find ${top_srcdir}/cmd/zpool/zpool.d/* \
 			-type f ${filter_executable}); \
 	else \
