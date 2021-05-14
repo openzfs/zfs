@@ -26,7 +26,7 @@ fi
 
 # We use pthreads, but i-t from buster doesn't automatically
 # copy this indirect dependency: this can be removed when buster finally dies.
-for libgcc in $(find /lib/ -type f -name libgcc_s.so.[1-9]); do
+find /lib/ -type f -name "libgcc_s.so.[1-9]" | while read -r libgcc; do
 	copy_exec "$libgcc"
 done
 

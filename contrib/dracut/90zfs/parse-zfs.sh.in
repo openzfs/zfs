@@ -1,4 +1,5 @@
 #!/bin/sh
+# shellcheck disable=SC2034,SC2154
 
 . /lib/dracut-lib.sh
 
@@ -28,7 +29,7 @@ case "${root}" in
 		info "ZFS: Enabling autodetection of bootfs after udev settles."
 		;;
 
-	ZFS\=*|zfs:*|zfs:FILESYSTEM\=*|FILESYSTEM\=*)
+	ZFS=*|zfs:*|FILESYSTEM=*)
 		# root is explicit ZFS root.  Parse it now.  We can handle
 		# a root=... param in any of the following formats:
 		# root=ZFS=rpool/ROOT

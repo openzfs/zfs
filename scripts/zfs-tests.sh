@@ -355,7 +355,6 @@ while getopts 'hvqxkfScn:d:s:r:?t:T:u:I:' OPTION; do
 		exit 1
 		;;
 	v)
-		# shellcheck disable=SC2034
 		VERBOSE="yes"
 		;;
 	q)

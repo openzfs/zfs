@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2154
 
 check() {
 	# We depend on udev-rules being loaded

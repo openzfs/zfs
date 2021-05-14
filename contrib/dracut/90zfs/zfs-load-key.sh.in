@@ -1,4 +1,5 @@
 #!/bin/sh
+# shellcheck disable=SC2154
 
 # only run this on systemd systems, we handle the decrypt in mount-zfs.sh in the mount hook otherwise
 [ -e /bin/systemctl ] || [ -e /usr/bin/systemctl ] || return 0
