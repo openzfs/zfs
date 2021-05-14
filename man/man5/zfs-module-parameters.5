@@ -4060,11 +4060,25 @@ Percentage of online CPUs (or CPU cores, etc) which will run a worker thread
 for I/O. These workers are responsible for I/O work such as compression and
 checksum calculations. Fractional number of CPUs will be rounded down.
 .sp
-The default value of 75 was chosen to avoid using all CPUs which can result in
-latency issues and inconsistent application performance, especially when high
-compression is enabled.
+The default value of 80 was chosen to avoid using all CPUs which can result in
+latency issues and inconsistent application performance, especially when slower
+compression and/or checksumming is enabled.
 .sp
-Default value: \fB75\fR.
+Default value: \fB80\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzio_taskq_batch_tpq\fR (uint)
+.ad
+.RS 12n
+Number of worker threads per taskq.  Lower value improves I/O ordering and
+CPU utilization, while higher reduces lock contention.
+.sp
+By default about 6 worker threads per taskq, depending on system size.
+.sp
+Default value: \fB0\fR.
 .RE
 
 .sp
