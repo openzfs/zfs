@@ -747,6 +747,7 @@ tests = ['redundancy_draid', 'redundancy_draid1', 'redundancy_draid2',
     'redundancy_raidz1', 'redundancy_raidz2', 'redundancy_raidz3',
     'redundancy_stripe']
 tags = ['functional', 'redundancy']
+timeout = 1200
 
 [tests/functional/refquota]
 tests = ['refquota_001_pos', 'refquota_002_pos', 'refquota_003_pos',
