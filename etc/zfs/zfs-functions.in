@@ -182,15 +182,17 @@ zfs_daemon_stop()
 		# LSB functions
 		start-stop-daemon --stop --quiet --retry=TERM/30/KILL/5 \
 		    --pidfile "$PIDFILE" --name "$DAEMON_NAME"
-		[ "$?" = 0 ] && rm -f "$PIDFILE"
+		ret="$?"
+		[ "$ret" = 0 ] && rm -f "$PIDFILE"
 
-		return $?
+		return "$ret"
 	elif type killproc > /dev/null 2>&1 ; then
 		# Fedora/RedHat functions
 		killproc -p "$PIDFILE" "$DAEMON_NAME"
-		[ "$?" = 0 ] && rm -f "$PIDFILE"
+		ret="$?"
+		[ "$ret" = 0 ] && rm -f "$PIDFILE"
 
-		return $?
+		return "$ret"
 	else
 		# Unsupported
 		return 3
@@ -371,7 +373,7 @@ in_mtab()
 	local mntpnt="$1"
 	# Remove 'unwanted' characters.
 	mntpnt=$(printf '%b\n' "$mntpnt" | sed -e 's,/,,g' \
-	    -e 's,-,,g' -e 's,\.,,g' -e 's, ,,g')   
+	    -e 's,-,,g' -e 's,\.,,g' -e 's, ,,g')
 	local var
 
 	var="$(eval echo MTAB_$mntpnt)"
