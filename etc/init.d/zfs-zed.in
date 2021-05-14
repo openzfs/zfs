@@ -61,20 +61,16 @@ do_stop()
 	check_module_loaded "zfs" || exit 0
 
 	zfs_action "Stopping ZFS Event Daemon" zfs_daemon_stop \
-	   "$ZED_PIDFILE" "$ZED" "$ZED_NAME"
-	if [ "$?" -eq "0" ]
+	   "$ZED_PIDFILE" "$ZED" "$ZED_NAME" || return "$?"
+
+	# Let's see if we have any pools imported
+	pools=$("$ZPOOL" list -H -oname)
+	if [ -z "$pools" ]
 	then
-		# Let's see if we have any pools imported
-		pools=$("$ZPOOL" list -H -oname)
-		if [ -z "$pools" ]
-		then
-			# No pools imported, it is/should be safe/possible to
-			# unload modules.
-			zfs_action "Unloading modules" rmmod zfs zunicode \
-			    zavl zcommon znvpair zlua spl
-			return "$?"
-		fi
-	else
+		# No pools imported, it is/should be safe/possible to
+		# unload modules.
+		zfs_action "Unloading modules" rmmod zfs zunicode \
+		    zavl zcommon znvpair zlua spl
 		return "$?"
 	fi
 }

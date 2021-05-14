@@ -5,12 +5,8 @@ command -v getargbool >/dev/null || {
     # Compatibility with older Dracut versions.
     # With apologies to the Dracut developers.
     getargbool() {
-        if ! [ -z "$_b" ]; then
-                unset _b
-        fi
         _default="$1"; shift
-        _b=$(getarg "$@")
-        [ $? -ne 0 ] &&  [ -z "$_b" ] && _b="$_default"
+        ! _b=$(getarg "$@") && [ -z "$_b" ] && _b="$_default"
         if [ -n "$_b" ]; then
             [ "$_b" = "0" ] && return 1
             [ "$_b" = "no" ] && return 1
