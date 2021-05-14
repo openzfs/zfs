@@ -127,9 +127,7 @@ zed_lock()
     # Obtain a lock on the file bound to the given file descriptor.
     #
     eval "exec ${fd}> '${lockfile}'"
-    err="$(flock --exclusive "${fd}" 2>&1)"
-    # shellcheck disable=SC2181
-    if [ $? -ne 0 ]; then
+    if ! err="$(flock --exclusive "${fd}" 2>&1)"; then
         zed_log_err "failed to lock \"${lockfile}\": ${err}"
     fi
 
@@ -165,9 +163,7 @@ zed_unlock()
     fi
 
     # Release the lock and close the file descriptor.
-    err="$(flock --unlock "${fd}" 2>&1)"
-    # shellcheck disable=SC2181
-    if [ $? -ne 0 ]; then
+    if ! err="$(flock --unlock "${fd}" 2>&1)"; then
         zed_log_err "failed to unlock \"${lockfile}\": ${err}"
     fi
     eval "exec ${fd}>&-"

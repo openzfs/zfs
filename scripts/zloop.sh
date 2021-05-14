@@ -62,11 +62,8 @@ function usage
 function or_die
 {
 	# shellcheck disable=SC2068
-	$@
-	# shellcheck disable=SC2181
-	if [[ $? -ne 0 ]]; then
-		# shellcheck disable=SC2145
-		echo "Command failed: $@"
+	if ! $@; then
+		echo "Command failed: $*"
 		exit 1
 	fi
 }
