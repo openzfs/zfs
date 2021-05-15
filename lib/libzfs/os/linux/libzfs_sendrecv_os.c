@@ -22,7 +22,7 @@
 
 #include <libzfs.h>
 
-#include "libzfs_impl.h"
+#include "../../libzfs_impl.h"
 
 #ifndef F_SETPIPE_SZ
 #define	F_SETPIPE_SZ (F_SETLEASE + 7)

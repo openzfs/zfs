@@ -42,7 +42,7 @@ __FBSDID("$FreeBSD$");
 #include <unistd.h>
 #include <libintl.h>
 
-#include "libzfs_impl.h"
+#include <libshare.h>
 #include "libshare_impl.h"
 #include "nfs.h"
 

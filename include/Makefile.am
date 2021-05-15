@@ -17,7 +17,6 @@ USER_H = \
 	libzfs.h \
 	libzfsbootenv.h \
 	libzfs_core.h \
-	libzfs_impl.h \
 	libzutil.h \
 	thread_pool.h
 
