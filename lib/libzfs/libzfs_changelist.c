@@ -284,7 +284,7 @@ changelist_postfix(prop_changelist_t *clp)
 /*
  * Is this "dataset" a child of "parent"?
  */
-boolean_t
+static boolean_t
 isa_child_of(const char *dataset, const char *parent)
 {
 	int len;
