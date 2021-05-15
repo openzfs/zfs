@@ -71,7 +71,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <inttypes.h>
-#include <libzfs_impl.h>
+#include <libzfs.h>
 
 #define	POOL_MEASUREMENT	"zpool_stats"
 #define	SCAN_MEASUREMENT	"zpool_scan_stats"
@@ -101,9 +101,10 @@ typedef int (*stat_printer_f)(nvlist_t *, const char *, const char *);
  * caller is responsible for freeing result
  */
 static char *
-escape_string(char *s)
+escape_string(const char *s)
 {
-	char *c, *d;
+	const char *c;
+	char *d;
 	char *t = (char *)malloc(ZFS_MAX_DATASET_NAME_LEN * 2);
 	if (t == NULL) {
 		fprintf(stderr, "error: cannot allocate memory\n");
@@ -714,7 +715,7 @@ print_stats(zpool_handle_t *zhp, void *data)
 
 	/* if not this pool return quickly */
 	if (data &&
-	    strncmp(data, zhp->zpool_name, ZFS_MAX_DATASET_NAME_LEN) != 0) {
+	    strncmp(data, zpool_get_name(zhp), ZFS_MAX_DATASET_NAME_LEN) != 0) {
 		zpool_close(zhp);
 		return (0);
 	}
@@ -742,7 +743,7 @@ print_stats(zpool_handle_t *zhp, void *data)
 		return (3);
 	}
 
-	pool_name = escape_string(zhp->zpool_name);
+	pool_name = escape_string(zpool_get_name(zhp));
 	err = print_recursive_stats(print_summary_stats, nvroot,
 	    pool_name, NULL, 1);
 	/* if any of these return an error, skip the rest */
