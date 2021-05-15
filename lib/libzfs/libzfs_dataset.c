@@ -3334,6 +3334,16 @@ zfs_get_type(const zfs_handle_t *zhp)
 }
 
 /*
+ * Returns the type of the given zfs handle,
+ * or, if a snapshot, the type of the snapshotted dataset.
+ */
+zfs_type_t
+zfs_get_underlying_type(const zfs_handle_t *zhp)
+{
+	return (zhp->zfs_head_type);
+}
+
+/*
  * Is one dataset name a child dataset of another?
  *
  * Needs to handle these cases:

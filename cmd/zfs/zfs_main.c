@@ -52,6 +52,8 @@
 #include <zone.h>
 #include <grp.h>
 #include <pwd.h>
+#include <umem.h>
+#include <pthread.h>
 #include <signal.h>
 #include <sys/list.h>
 #include <sys/mkdev.h>
@@ -78,7 +80,6 @@
 #include "zfs_iter.h"
 #include "zfs_util.h"
 #include "zfs_comutil.h"
-#include "libzfs_impl.h"
 #include "zfs_projectutil.h"
 
 libzfs_handle_t *g_zfs;
@@ -3315,7 +3316,7 @@ zfs_do_userspace(int argc, char **argv)
 	if ((zhp = zfs_path_to_zhandle(g_zfs, argv[0], ZFS_TYPE_FILESYSTEM |
 	    ZFS_TYPE_SNAPSHOT)) == NULL)
 		return (1);
-	if (zhp->zfs_head_type != ZFS_TYPE_FILESYSTEM) {
+	if (zfs_get_underlying_type(zhp) != ZFS_TYPE_FILESYSTEM) {
 		(void) fprintf(stderr, gettext("operation is only applicable "
 		    "to filesystems and their snapshots\n"));
 		zfs_close(zhp);
