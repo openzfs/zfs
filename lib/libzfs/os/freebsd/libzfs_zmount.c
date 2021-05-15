@@ -43,7 +43,7 @@ __FBSDID("$FreeBSD$");
 #include <sys/errno.h>
 #include <libzfs.h>
 
-#include "libzfs_impl.h"
+#include "../../libzfs_impl.h"
 
 static void
 build_iovec(struct iovec **iov, int *iovlen, const char *name, void *val,

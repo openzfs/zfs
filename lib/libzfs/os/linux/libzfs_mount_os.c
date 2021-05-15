@@ -47,7 +47,7 @@
 #include <sys/dsl_crypt.h>
 #include <libzfs.h>
 
-#include "libzfs_impl.h"
+#include "../../libzfs_impl.h"
 #include <thread_pool.h>
 
 #define	ZS_COMMENT	0x00000000	/* comment */

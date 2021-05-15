@@ -16,6 +16,7 @@ lib_LTLIBRARIES = libzfs.la
 include $(top_srcdir)/config/Abigail.am
 
 USER_C = \
+	libzfs_impl.h \
 	libzfs_changelist.c \
 	libzfs_config.c \
 	libzfs_crypto.c \
