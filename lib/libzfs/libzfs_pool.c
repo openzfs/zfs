@@ -563,8 +563,8 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 			if (intval < version ||
 			    !SPA_VERSION_IS_SUPPORTED(intval)) {
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-				    "property '%s' number %d is invalid."),
-				    propname, intval);
+				    "property '%s' number %llu is invalid."),
+				    propname, (unsigned long long)intval);
 				(void) zfs_error(hdl, EZFS_BADVERSION, errbuf);
 				goto error;
 			}
@@ -574,10 +574,11 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 			if (intval != 0 &&
 			    (intval < ASHIFT_MIN || intval > ASHIFT_MAX)) {
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-				    "property '%s' number %d is invalid, only "
-				    "values between %" PRId32 " and "
-				    "%" PRId32 " are allowed."),
-				    propname, intval, ASHIFT_MIN, ASHIFT_MAX);
+				    "property '%s' number %llu is invalid, "
+				    "only values between %" PRId32 " and %"
+				    PRId32 " are allowed."),
+				    propname, (unsigned long long)intval,
+				    ASHIFT_MIN, ASHIFT_MAX);
 				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
 				goto error;
 			}
@@ -685,7 +686,7 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 			case ZPOOL_COMPATIBILITY_BADFILE:
 			case ZPOOL_COMPATIBILITY_BADTOKEN:
 			case ZPOOL_COMPATIBILITY_NOFILES:
-				zfs_error_aux(hdl, report);
+				zfs_error_aux(hdl, "%s", report);
 				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
 				goto error;
 			}
@@ -1648,10 +1649,6 @@ zpool_export_common(zpool_handle_t *zhp, boolean_t force, boolean_t hardforce,
     const char *log_str)
 {
 	zfs_cmd_t zc = {"\0"};
-	char msg[1024];
-
-	(void) snprintf(msg, sizeof (msg), dgettext(TEXT_DOMAIN,
-	    "cannot export '%s'"), zhp->zpool_name);
 
 	(void) strlcpy(zc.zc_name, zhp->zpool_name, sizeof (zc.zc_name));
 	zc.zc_cookie = force;
@@ -1666,11 +1663,13 @@ zpool_export_common(zpool_handle_t *zhp, boolean_t force, boolean_t hardforce,
 			    "'%s' has an active shared spare which could be"
 			    " used by other pools once '%s' is exported."),
 			    zhp->zpool_name, zhp->zpool_name);
-			return (zfs_error(zhp->zpool_hdl, EZFS_ACTIVE_SPARE,
-			    msg));
+			return (zfs_error_fmt(zhp->zpool_hdl, EZFS_ACTIVE_SPARE,
+			    dgettext(TEXT_DOMAIN, "cannot export '%s'"),
+			    zhp->zpool_name));
 		default:
 			return (zpool_standard_error_fmt(zhp->zpool_hdl, errno,
-			    msg));
+			    dgettext(TEXT_DOMAIN, "cannot export '%s'"),
+			    zhp->zpool_name));
 		}
 	}
 
@@ -2080,7 +2079,7 @@ zpool_import_props(libzfs_handle_t *hdl, nvlist_t *config, const char *newname,
 					    "the zgenhostid(8) command.\n"));
 				}
 
-				(void) zfs_error_aux(hdl, aux);
+				(void) zfs_error_aux(hdl, "%s", aux);
 			}
 			(void) zfs_error(hdl, EZFS_ACTIVE_POOL, desc);
 			break;
@@ -4520,13 +4519,10 @@ int
 zpool_events_clear(libzfs_handle_t *hdl, int *count)
 {
 	zfs_cmd_t zc = {"\0"};
-	char msg[1024];
-
-	(void) snprintf(msg, sizeof (msg), dgettext(TEXT_DOMAIN,
-	    "cannot clear events"));
 
 	if (zfs_ioctl(hdl, ZFS_IOC_EVENTS_CLEAR, &zc) != 0)
-		return (zpool_standard_error_fmt(hdl, errno, msg));
+		return (zpool_standard_error(hdl, errno,
+		    dgettext(TEXT_DOMAIN, "cannot clear events")));
 
 	if (count != NULL)
 		*count = (int)zc.zc_cookie; /* # of events cleared */

@@ -1261,9 +1261,9 @@ zfs_valid_proplist(libzfs_handle_t *hdl, zfs_type_t type, nvlist_t *nvl,
 			    intval > maxbs || !ISP2(intval))) {
 				zfs_nicebytes(maxbs, buf, sizeof (buf));
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-				    "invalid '%s=%d' property: must be zero or "
-				    "a power of 2 from 512B to %s"), propname,
-				    intval, buf);
+				    "invalid '%s=%llu' property: must be zero "
+				    "or a power of 2 from 512B to %s"),
+				    propname, (unsigned long long)intval, buf);
 				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
 				goto error;
 			}
@@ -4835,8 +4835,6 @@ zfs_userspace(zfs_handle_t *zhp, zfs_userquota_prop_t type,
 
 		zc.zc_nvlist_dst_size = sizeof (buf);
 		if (zfs_ioctl(hdl, ZFS_IOC_USERSPACE_MANY, &zc) != 0) {
-			char errbuf[1024];
-
 			if ((errno == ENOTSUP &&
 			    (type == ZFS_PROP_USEROBJUSED ||
 			    type == ZFS_PROP_GROUPOBJUSED ||
@@ -4848,10 +4846,9 @@ zfs_userspace(zfs_handle_t *zhp, zfs_userquota_prop_t type,
 			    type == ZFS_PROP_PROJECTQUOTA)))
 				break;
 
-			(void) snprintf(errbuf, sizeof (errbuf),
+			return (zfs_standard_error_fmt(hdl, errno,
 			    dgettext(TEXT_DOMAIN,
-			    "cannot get used/quota for %s"), zc.zc_name);
-			return (zfs_standard_error_fmt(hdl, errno, errbuf));
+			    "cannot get used/quota for %s"), zc.zc_name));
 		}
 		if (zc.zc_nvlist_dst_size == 0)
 			break;
@@ -5080,7 +5077,7 @@ zfs_release(zfs_handle_t *zhp, const char *snapname, const char *tag,
 			(void) zfs_error(hdl, EZFS_BADVERSION, errbuf);
 			break;
 		default:
-			(void) zfs_standard_error_fmt(hdl, errno, errbuf);
+			(void) zfs_standard_error(hdl, errno, errbuf);
 		}
 	}
 
@@ -5099,7 +5096,7 @@ zfs_release(zfs_handle_t *zhp, const char *snapname, const char *tag,
 			(void) zfs_error(hdl, EZFS_BADTYPE, errbuf);
 			break;
 		default:
-			(void) zfs_standard_error_fmt(hdl,
+			(void) zfs_standard_error(hdl,
 			    fnvpair_value_int32(elem), errbuf);
 		}
 	}
@@ -5156,17 +5153,16 @@ tryagain:
 			err = zfs_error(hdl, EZFS_NOENT, errbuf);
 			break;
 		default:
-			err = zfs_standard_error_fmt(hdl, errno, errbuf);
+			err = zfs_standard_error(hdl, errno, errbuf);
 			break;
 		}
 	} else {
 		/* success */
 		int rc = nvlist_unpack(nvbuf, zc.zc_nvlist_dst_size, nvl, 0);
 		if (rc) {
-			(void) snprintf(errbuf, sizeof (errbuf), dgettext(
+			err = zfs_standard_error_fmt(hdl, rc, dgettext(
 			    TEXT_DOMAIN, "cannot get permissions on '%s'"),
 			    zc.zc_name);
-			err = zfs_standard_error_fmt(hdl, rc, errbuf);
 		}
 	}
 
@@ -5219,7 +5215,7 @@ zfs_set_fsacl(zfs_handle_t *zhp, boolean_t un, nvlist_t *nvl)
 			err = zfs_error(hdl, EZFS_NOENT, errbuf);
 			break;
 		default:
-			err = zfs_standard_error_fmt(hdl, errno, errbuf);
+			err = zfs_standard_error(hdl, errno, errbuf);
 			break;
 		}
 	}
@@ -5256,7 +5252,7 @@ zfs_get_holds(zfs_handle_t *zhp, nvlist_t **nvl)
 			err = zfs_error(hdl, EZFS_NOENT, errbuf);
 			break;
 		default:
-			err = zfs_standard_error_fmt(hdl, errno, errbuf);
+			err = zfs_standard_error(hdl, errno, errbuf);
 			break;
 		}
 	}
