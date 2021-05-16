@@ -62,24 +62,25 @@ __zfs_list_filesystems()
 
 __zfs_match_snapshot()
 {
-    local base_dataset=${cur%@*}
-    if [[ $base_dataset != $cur ]]
+    local base_dataset="${cur%@*}"
+    if [ "$base_dataset" != "$cur" ]
     then
-        $__ZFS_CMD list -H -o name -s name -t snapshot -d 1 $base_dataset
+        $__ZFS_CMD list -H -o name -s name -t snapshot -d 1 "$base_dataset"
     else
-        if [[ $cur != "" ]] && __zfs_list_datasets $cur &> /dev/null
+        if [ "$cur" != "" ] && __zfs_list_datasets "$cur" &> /dev/null
         then
-            $__ZFS_CMD list -H -o name -s name -t filesystem -r $cur | tail -n +2
+            $__ZFS_CMD list -H -o name -s name -t filesystem -r "$cur" | tail -n +2
             # We output the base dataset name even though we might be
             # completing a command that can only take a snapshot, because it
             # prevents bash from considering the completion finished when it
             # ends in the bare @.
-            echo $cur
-            echo $cur@
+            echo "$cur"
+            echo "$cur@"
         else
-            local datasets=$(__zfs_list_datasets)
+            local datasets
+            datasets="$(__zfs_list_datasets)"
             # As above
-            echo $datasets
+            echo "$datasets"
             if [[ "$cur" == */ ]]
             then
                 # If the current command ends with a slash, then the only way
@@ -89,54 +90,56 @@ __zfs_match_snapshot()
                 local num_children
                 # This is actually off by one as zfs list includes the named
                 # dataset in addition to its children
-                num_children=$(__zfs_list_datasets -d 1 ${cur%/} 2> /dev/null | wc -l)
+                num_children=$(__zfs_list_datasets -d 1 "${cur%/}" 2> /dev/null | wc -l)
                 if [[ $num_children != 2 ]]
                 then
                     return 0
                 fi
             fi
-            echo "$datasets" | awk '{print $1"@"}'
+            echo "$datasets" | awk '{print $1 "@"}'
         fi
     fi
 }
 
 __zfs_match_snapshot_or_bookmark()
 {
-    local base_dataset=${cur%[#@]*}
-    if [[ $base_dataset != $cur ]]
+    local base_dataset="${cur%[#@]*}"
+    if [ "$base_dataset" != "$cur" ]
     then
         if [[ $cur == *@* ]]
         then
-            $__ZFS_CMD list -H -o name -s name -t snapshot -d 1 $base_dataset
+            $__ZFS_CMD list -H -o name -s name -t snapshot -d 1 "$base_dataset"
         else
-            $__ZFS_CMD list -H -o name -s name -t bookmark -d 1 $base_dataset
+            $__ZFS_CMD list -H -o name -s name -t bookmark -d 1 "$base_dataset"
         fi
     else
         $__ZFS_CMD list -H -o name -s name -t filesystem,volume
-        if [[ $cur != "" ]] && $__ZFS_CMD list -H -o name -s name -t filesystem,volume $cur &> /dev/null
+        if [ -e "$cur" ] && $__ZFS_CMD list -H -o name -s name -t filesystem,volume "$cur" &> /dev/null
         then
-            echo $cur@
-            echo $cur#
+            echo "$cur@"
+            echo "$cur#"
         fi
     fi
 }
 
 __zfs_match_multiple_snapshots()
 {
-    local existing_opts=$(expr "$cur" : '\(.*\)[%,]')
-    if [[ $existing_opts ]]
+    local existing_opts
+    existing_opts="$(expr "$cur" : '\(.*\)[%,]')"
+    if [ -e "$existing_opts" ]
     then
-        local base_dataset=${cur%@*}
-        if [[ $base_dataset != $cur ]]
+        local base_dataset="${cur%@*}"
+        if [ "$base_dataset" != "$cur" ]
         then
-            local cur=${cur##*,}
+            local cur="${cur##*,}"
             if [[ $cur =~ ^%|%.*% ]]
             then
                 # correct range syntax is start%end
                 return 1
             fi
-            local range_start=$(expr "$cur" : '\(.*%\)')
-            $__ZFS_CMD list -H -o name -s name -t snapshot -d 1 $base_dataset | sed 's$.*@$'$range_start'$g'
+            local range_start
+            range_start="$(expr "$cur" : '\(.*%\)')"
+            $__ZFS_CMD list -H -o name -s name -t snapshot -d 1 "$base_dataset" | sed 's$.*@$'"$range_start"'$g'
         fi
     else
         __zfs_match_snapshot_or_bookmark
