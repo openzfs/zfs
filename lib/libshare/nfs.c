@@ -144,6 +144,7 @@ nfs_fini_tmpfile(const char *exports, struct tmpfile *tmpf)
 		return (SA_SYSTEM_ERR);
 	}
 
+	(void) fchmod(fileno(tmpf->fp), 0644);
 	fclose(tmpf->fp);
 	return (SA_OK);
 }
