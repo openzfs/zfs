@@ -148,35 +148,7 @@ nfs_disable_share(sa_share_impl_t impl_share)
 static boolean_t
 nfs_is_shared(sa_share_impl_t impl_share)
 {
-	char *s, last, line[MAXLINESIZE];
-	size_t len;
-	char *mntpoint = impl_share->sa_mountpoint;
-	size_t mntlen = strlen(mntpoint);
-
-	FILE *fp = fopen(ZFS_EXPORTS_FILE, "re");
-	if (fp == NULL)
-		return (B_FALSE);
-
-	for (;;) {
-		s = fgets(line, sizeof (line), fp);
-		if (s == NULL)
-			return (B_FALSE);
-		/* Skip empty lines and comments. */
-		if (line[0] == '\n' || line[0] == '#')
-			continue;
-		len = strlen(line);
-		if (line[len - 1] == '\n')
-			line[len - 1] = '\0';
-		last = line[mntlen];
-		/* Skip the given mountpoint. */
-		if (strncmp(mntpoint, line, mntlen) == 0 &&
-		    (last == '\t' || last == ' ' || last == '\0')) {
-			fclose(fp);
-			return (B_TRUE);
-		}
-	}
-	fclose(fp);
-	return (B_FALSE);
+	return (nfs_is_shared_impl(ZFS_EXPORTS_FILE, impl_share));
 }
 
 static int

@@ -148,38 +148,29 @@ nfs_fini_tmpfile(const char *exports, struct tmpfile *tmpf)
 	return (SA_OK);
 }
 
-/*
- * Copy all entries from the exports file to newfp,
- * omitting any entries for the specified mountpoint.
- */
 static int
-nfs_copy_entries(FILE *newfp, const char *exports, const char *mountpoint)
+nfs_process_exports(const char *exports, const char *mountpoint,
+    boolean_t (*cbk)(void *userdata, char *line, boolean_t found_mountpoint),
+    void *userdata)
 {
 	int error = SA_OK;
+	boolean_t cont = B_TRUE;
 
-	fputs(FILE_HEADER, newfp);
-
-	/*
-	 * ZFS_EXPORTS_FILE may not exist yet.
-	 * If that's the case, then just write out the new file.
-	 */
 	FILE *oldfp = fopen(exports, "re");
 	if (oldfp != NULL) {
 		char *buf = NULL, *sep;
 		size_t buflen = 0, mplen = strlen(mountpoint);
 
-		while (getline(&buf, &buflen, oldfp) != -1) {
-
+		while (cont && getline(&buf, &buflen, oldfp) != -1) {
 			if (buf[0] == '\n' || buf[0] == '#')
 				continue;
 
-			if ((sep = strpbrk(buf, "\t \n")) != NULL &&
+			cont = cbk(userdata, buf,
+			    (sep = strpbrk(buf, "\t \n")) != NULL &&
 			    sep - buf == mplen &&
-			    strncmp(buf, mountpoint, mplen) == 0)
-					continue;
-
-			fputs(buf, newfp);
+			    strncmp(buf, mountpoint, mplen) == 0);
 		}
+		free(buf);
 
 		if (ferror(oldfp) != 0)
 			error = ferror(oldfp);
@@ -189,9 +180,31 @@ nfs_copy_entries(FILE *newfp, const char *exports, const char *mountpoint)
 			    exports, strerror(errno));
 			error = error != SA_OK ? error : SA_SYSTEM_ERR;
 		}
-
-		free(buf);
 	}
+
+	return (error);
+}
+
+static boolean_t
+nfs_copy_entries_cb(void *userdata, char *line, boolean_t found_mountpoint)
+{
+	FILE *newfp = userdata;
+	if (!found_mountpoint)
+		fputs(line, newfp);
+	return (B_TRUE);
+}
+
+/*
+ * Copy all entries from the exports file (if it exists) to newfp,
+ * omitting any entries for the specified mountpoint.
+ */
+static int
+nfs_copy_entries(FILE *newfp, const char *exports, const char *mountpoint)
+{
+	fputs(FILE_HEADER, newfp);
+
+	int error = nfs_process_exports(
+	    exports, mountpoint, nfs_copy_entries_cb, newfp);
 
 	if (error == SA_OK && ferror(newfp) != 0)
 		error = ferror(newfp);
@@ -232,4 +245,21 @@ fullerr:
 	nfs_abort_tmpfile(&tmpf);
 	nfs_exports_unlock(lockfile);
 	return (error);
+}
+
+static boolean_t
+nfs_is_shared_cb(void *userdata, char *line, boolean_t found_mountpoint)
+{
+	boolean_t *found = userdata;
+	*found = found_mountpoint;
+	return (!found_mountpoint);
+}
+
+boolean_t
+nfs_is_shared_impl(const char *exports, sa_share_impl_t impl_share)
+{
+	boolean_t found = B_FALSE;
+	nfs_process_exports(exports, impl_share->sa_mountpoint,
+	    nfs_is_shared_cb, &found);
+	return (found);
 }
