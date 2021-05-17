@@ -50,7 +50,9 @@ nfs_exports_lock(const char *name)
 		return (err);
 	}
 
-	if (flock(nfs_lock_fd, LOCK_EX) != 0) {
+	while ((err = flock(nfs_lock_fd, LOCK_EX)) != 0 && errno == EINTR)
+		;
+	if (err != 0) {
 		err = errno;
 		fprintf(stderr, "failed to lock %s: %s\n", name, strerror(err));
 		(void) close(nfs_lock_fd);
