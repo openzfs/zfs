@@ -29,7 +29,7 @@
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
 .\"
-.Dd June 30, 2019
+.Dd May 17, 2021
 .Dt ZFS-SHARE 8
 .Os
 .
@@ -39,6 +39,7 @@
 .Sh SYNOPSIS
 .Nm zfs
 .Cm share
+.Op Fl l
 .Fl a Ns | Ns Ar filesystem
 .Nm zfs
 .Cm unshare
@@ -49,10 +50,19 @@
 .It Xo
 .Nm zfs
 .Cm share
+.Op Fl l
 .Fl a Ns | Ns Ar filesystem
 .Xc
 Shares available ZFS file systems.
 .Bl -tag -width "-a"
+.It Fl l
+Load keys for encrypted filesystems as they are being mounted.
+This is equivalent to executing
+.Nm zfs Cm load-key
+on each encryption root before mounting it.
+Note that if a filesystem has
+.Sy keylocation Ns = Ns Sy prompt ,
+this will cause the terminal to interactively block after asking for the key.
 .It Fl a
 Share all available ZFS file systems.
 Invoked automatically as part of the boot process.
