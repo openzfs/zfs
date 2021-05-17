@@ -55,42 +55,6 @@ __FBSDID("$FreeBSD$");
 static sa_fstype_t *nfs_fstype;
 
 /*
- * Read one line from a file. Skip comments, empty lines and a line with a
- * mountpoint specified in the 'skip' argument.
- *
- * NOTE: This function returns a static buffer and thus is not thread-safe.
- */
-static char *
-zgetline(FILE *fd, const char *skip)
-{
-	static char line[MAXLINESIZE];
-	size_t len, skiplen = 0;
-	char *s, last;
-
-	if (skip != NULL)
-		skiplen = strlen(skip);
-	for (;;) {
-		s = fgets(line, sizeof (line), fd);
-		if (s == NULL)
-			return (NULL);
-		/* Skip empty lines and comments. */
-		if (line[0] == '\n' || line[0] == '#')
-			continue;
-		len = strlen(line);
-		if (line[len - 1] == '\n')
-			line[len - 1] = '\0';
-		last = line[skiplen];
-		/* Skip the given mountpoint. */
-		if (skip != NULL && strncmp(skip, line, skiplen) == 0 &&
-		    (last == '\t' || last == ' ' || last == '\0')) {
-			continue;
-		}
-		break;
-	}
-	return (line);
-}
-
-/*
  * This function translate options to a format acceptable by exports(5), eg.
  *
  *	-ro -network=192.168.0.0 -mask=255.255.255.0 -maproot=0 \
@@ -141,42 +105,6 @@ translate_opts(const char *shareopts)
 		strlcat(newopts, " ", sizeof (newopts));
 	}
 	return (newopts);
-}
-
-/*
- * This function copies all entries from the exports file to newfp,
- * omitting any entries for the specified mountpoint.
- */
-int
-nfs_copy_entries(FILE *newfp, const char *mountpoint)
-{
-	int error = SA_OK;
-	char *line;
-
-	FILE *oldfp = fopen(ZFS_EXPORTS_FILE, "re");
-	fputs(FILE_HEADER, newfp);
-
-	/*
-	 * The ZFS_EXPORTS_FILE may not exist yet. If that's the
-	 * case then just write out the new file.
-	 */
-	if (oldfp != NULL) {
-		while ((line = zgetline(oldfp, mountpoint)) != NULL)
-			fprintf(newfp, "%s\n", line);
-		if (ferror(oldfp) != 0) {
-			error = ferror(oldfp);
-		}
-		if (fclose(oldfp) != 0) {
-			fprintf(stderr, "Unable to close file %s: %s\n",
-			    ZFS_EXPORTS_FILE, strerror(errno));
-			error = error != 0 ? error : SA_SYSTEM_ERR;
-		}
-	}
-
-	if (error == SA_OK && ferror(newfp) != 0)
-		error = ferror(newfp);
-
-	return (error);
 }
 
 static int

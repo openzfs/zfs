@@ -420,60 +420,6 @@ nfs_add_entry(FILE *tmpfile, const char *sharepath,
 }
 
 /*
- * This function copies all entries from the exports file to newfp,
- * omitting any entries for the specified mountpoint.
- */
-int
-nfs_copy_entries(FILE *newfp, const char *mountpoint)
-{
-	char *buf = NULL;
-	size_t buflen = 0;
-	int error = SA_OK;
-
-	FILE *oldfp = fopen(ZFS_EXPORTS_FILE, "re");
-	fputs(FILE_HEADER, newfp);
-
-	/*
-	 * The ZFS_EXPORTS_FILE may not exist yet. If that's the
-	 * case then just write out the new file.
-	 */
-	if (oldfp != NULL) {
-		while (getline(&buf, &buflen, oldfp) != -1) {
-			char *space = NULL;
-
-			if (buf[0] == '\n' || buf[0] == '#')
-				continue;
-
-			if ((space = strchr(buf, ' ')) != NULL) {
-				int mountpoint_len = strlen(mountpoint);
-
-				if (space - buf == mountpoint_len &&
-				    strncmp(mountpoint, buf,
-				    mountpoint_len) == 0) {
-					continue;
-				}
-			}
-			fputs(buf, newfp);
-		}
-
-		if (ferror(oldfp) != 0) {
-			error = ferror(oldfp);
-		}
-		if (fclose(oldfp) != 0) {
-			fprintf(stderr, "Unable to close file %s: %s\n",
-			    ZFS_EXPORTS_FILE, strerror(errno));
-			error = error != 0 ? error : SA_SYSTEM_ERR;
-		}
-	}
-
-	if (error == SA_OK && ferror(newfp) != 0)
-		error = ferror(newfp);
-
-	free(buf);
-	return (error);
-}
-
-/*
  * Enables NFS sharing for the specified share.
  */
 static int
