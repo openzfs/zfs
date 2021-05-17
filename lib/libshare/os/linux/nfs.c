@@ -51,7 +51,7 @@ static sa_fstype_t *nfs_fstype;
 typedef int (*nfs_shareopt_callback_t)(const char *opt, const char *value,
     void *cookie);
 
-typedef int (*nfs_host_callback_t)(const char *sharepath, const char *filename,
+typedef int (*nfs_host_callback_t)(FILE *tmpfile, const char *sharepath,
     const char *host, const char *security, const char *access, void *cookie);
 
 /*
@@ -122,7 +122,7 @@ typedef struct nfs_host_cookie_s {
 	nfs_host_callback_t callback;
 	const char *sharepath;
 	void *cookie;
-	const char *filename;
+	FILE *tmpfile;
 	const char *security;
 } nfs_host_cookie_t;
 
@@ -203,7 +203,7 @@ foreach_nfs_host_cb(const char *opt, const char *value, void *pcookie)
 				}
 			}
 
-			error = udata->callback(udata->filename,
+			error = udata->callback(udata->tmpfile,
 			    udata->sharepath, host, udata->security,
 			    access, udata->cookie);
 
@@ -226,7 +226,7 @@ foreach_nfs_host_cb(const char *opt, const char *value, void *pcookie)
  * Invokes a callback function for all NFS hosts that are set for a share.
  */
 static int
-foreach_nfs_host(sa_share_impl_t impl_share, char *filename,
+foreach_nfs_host(sa_share_impl_t impl_share, FILE *tmpfile,
     nfs_host_callback_t callback, void *cookie)
 {
 	nfs_host_cookie_t udata;
@@ -235,7 +235,7 @@ foreach_nfs_host(sa_share_impl_t impl_share, char *filename,
 	udata.callback = callback;
 	udata.sharepath = impl_share->sa_mountpoint;
 	udata.cookie = cookie;
-	udata.filename = filename;
+	udata.tmpfile = tmpfile;
 	udata.security = "sys";
 
 	shareopts = FSINFO(impl_share, nfs_fstype)->shareopts;
@@ -393,7 +393,7 @@ get_linux_shareopts(const char *shareopts, char **plinux_opts)
  * automatically exported upon boot or whenever the nfs server restarts.
  */
 static int
-nfs_add_entry(const char *filename, const char *sharepath,
+nfs_add_entry(FILE *tmpfile, const char *sharepath,
     const char *host, const char *security, const char *access_opts,
     void *pcookie)
 {
@@ -408,50 +408,29 @@ nfs_add_entry(const char *filename, const char *sharepath,
 	if (linux_opts == NULL)
 		linux_opts = "";
 
-	FILE *fp = fopen(filename, "a+e");
-	if (fp == NULL) {
-		fprintf(stderr, "failed to open %s file: %s", filename,
-		    strerror(errno));
-		free(linuxhost);
-		return (SA_SYSTEM_ERR);
-	}
-
-	if (fprintf(fp, "%s %s(sec=%s,%s,%s)\n", sharepath, linuxhost,
+	if (fprintf(tmpfile, "%s %s(sec=%s,%s,%s)\n", sharepath, linuxhost,
 	    security, access_opts, linux_opts) < 0) {
-		fprintf(stderr, "failed to write to %s\n", filename);
+		fprintf(stderr, "failed to write to temporary file\n");
 		free(linuxhost);
-		fclose(fp);
 		return (SA_SYSTEM_ERR);
 	}
 
 	free(linuxhost);
-	if (fclose(fp) != 0) {
-		fprintf(stderr, "Unable to close file %s: %s\n",
-		    filename, strerror(errno));
-		return (SA_SYSTEM_ERR);
-	}
 	return (SA_OK);
 }
 
 /*
- * This function copies all entries from the exports file to "filename",
+ * This function copies all entries from the exports file to newfp,
  * omitting any entries for the specified mountpoint.
  */
 int
-nfs_copy_entries(char *filename, const char *mountpoint)
+nfs_copy_entries(FILE *newfp, const char *mountpoint)
 {
 	char *buf = NULL;
 	size_t buflen = 0;
 	int error = SA_OK;
 
 	FILE *oldfp = fopen(ZFS_EXPORTS_FILE, "re");
-	FILE *newfp = fopen(filename, "w+e");
-	if (newfp == NULL) {
-		fprintf(stderr, "failed to open %s file: %s", filename,
-		    strerror(errno));
-		fclose(oldfp);
-		return (SA_SYSTEM_ERR);
-	}
 	fputs(FILE_HEADER, newfp);
 
 	/*
@@ -482,21 +461,15 @@ nfs_copy_entries(char *filename, const char *mountpoint)
 		}
 		if (fclose(oldfp) != 0) {
 			fprintf(stderr, "Unable to close file %s: %s\n",
-			    filename, strerror(errno));
+			    ZFS_EXPORTS_FILE, strerror(errno));
 			error = error != 0 ? error : SA_SYSTEM_ERR;
 		}
 	}
 
-	if (error == 0 && ferror(newfp) != 0) {
+	if (error == SA_OK && ferror(newfp) != 0)
 		error = ferror(newfp);
-	}
 
 	free(buf);
-	if (fclose(newfp) != 0) {
-		fprintf(stderr, "Unable to close file %s: %s\n",
-		    filename, strerror(errno));
-		error = error != 0 ? error : SA_SYSTEM_ERR;
-	}
 	return (error);
 }
 
@@ -504,7 +477,7 @@ nfs_copy_entries(char *filename, const char *mountpoint)
  * Enables NFS sharing for the specified share.
  */
 static int
-nfs_enable_share_impl(sa_share_impl_t impl_share, char *filename)
+nfs_enable_share_impl(sa_share_impl_t impl_share, FILE *tmpfile)
 {
 	char *shareopts, *linux_opts;
 	int error;
@@ -514,7 +487,7 @@ nfs_enable_share_impl(sa_share_impl_t impl_share, char *filename)
 	if (error != SA_OK)
 		return (error);
 
-	error = foreach_nfs_host(impl_share, filename, nfs_add_entry,
+	error = foreach_nfs_host(impl_share, tmpfile, nfs_add_entry,
 	    linux_opts);
 	free(linux_opts);
 	return (error);
@@ -532,7 +505,7 @@ nfs_enable_share(sa_share_impl_t impl_share)
  * Disables NFS sharing for the specified share.
  */
 static int
-nfs_disable_share_impl(sa_share_impl_t impl_share, char *filename)
+nfs_disable_share_impl(sa_share_impl_t impl_share, FILE *tmpfile)
 {
 	return (SA_OK);
 }

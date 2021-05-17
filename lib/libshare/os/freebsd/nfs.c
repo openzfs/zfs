@@ -144,23 +144,16 @@ translate_opts(const char *shareopts)
 }
 
 /*
- * This function copies all entries from the exports file to "filename",
+ * This function copies all entries from the exports file to newfp,
  * omitting any entries for the specified mountpoint.
  */
 int
-nfs_copy_entries(char *filename, const char *mountpoint)
+nfs_copy_entries(FILE *newfp, const char *mountpoint)
 {
 	int error = SA_OK;
 	char *line;
 
 	FILE *oldfp = fopen(ZFS_EXPORTS_FILE, "re");
-	FILE *newfp = fopen(filename, "w+e");
-	if (newfp == NULL) {
-		fprintf(stderr, "failed to open %s file: %s", filename,
-		    strerror(errno));
-		fclose(oldfp);
-		return (SA_SYSTEM_ERR);
-	}
 	fputs(FILE_HEADER, newfp);
 
 	/*
@@ -175,47 +168,27 @@ nfs_copy_entries(char *filename, const char *mountpoint)
 		}
 		if (fclose(oldfp) != 0) {
 			fprintf(stderr, "Unable to close file %s: %s\n",
-			    filename, strerror(errno));
+			    ZFS_EXPORTS_FILE, strerror(errno));
 			error = error != 0 ? error : SA_SYSTEM_ERR;
 		}
 	}
 
-	if (error == 0 && ferror(newfp) != 0) {
+	if (error == SA_OK && ferror(newfp) != 0)
 		error = ferror(newfp);
-	}
 
-	if (fclose(newfp) != 0) {
-		fprintf(stderr, "Unable to close file %s: %s\n",
-		    filename, strerror(errno));
-		error = error != 0 ? error : SA_SYSTEM_ERR;
-	}
 	return (error);
 }
 
 static int
-nfs_enable_share_impl(sa_share_impl_t impl_share, char *filename)
+nfs_enable_share_impl(sa_share_impl_t impl_share, FILE *tmpfile)
 {
-	FILE *fp = fopen(filename, "a+e");
-	if (fp == NULL) {
-		fprintf(stderr, "failed to open %s file: %s", filename,
-		    strerror(errno));
-		return (SA_SYSTEM_ERR);
-	}
-
 	char *shareopts = FSINFO(impl_share, nfs_fstype)->shareopts;
 	if (strcmp(shareopts, "on") == 0)
 		shareopts = "";
 
-	if (fprintf(fp, "%s\t%s\n", impl_share->sa_mountpoint,
+	if (fprintf(tmpfile, "%s\t%s\n", impl_share->sa_mountpoint,
 	    translate_opts(shareopts)) < 0) {
-		fprintf(stderr, "failed to write to %s\n", filename);
-		fclose(fp);
-		return (SA_SYSTEM_ERR);
-	}
-
-	if (fclose(fp) != 0) {
-		fprintf(stderr, "Unable to close file %s: %s\n",
-		    filename, strerror(errno));
+		fprintf(stderr, "failed to write to temporary file\n");
 		return (SA_SYSTEM_ERR);
 	}
 
@@ -231,7 +204,7 @@ nfs_enable_share(sa_share_impl_t impl_share)
 }
 
 static int
-nfs_disable_share_impl(sa_share_impl_t impl_share, char *filename)
+nfs_disable_share_impl(sa_share_impl_t impl_share, FILE *tmpfile)
 {
 	return (SA_OK);
 }
