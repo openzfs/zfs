@@ -247,8 +247,8 @@ foreach_nfs_host(sa_share_impl_t impl_share, FILE *tmpfile,
 /*
  * Converts a Solaris NFS host specification to its Linux equivalent.
  */
-static int
-get_linux_hostspec(const char *solaris_hostspec, char **plinux_hostspec)
+static const char *
+get_linux_hostspec(const char *solaris_hostspec)
 {
 	/*
 	 * For now we just support CIDR masks (e.g. @192.168.0.0/16) and host
@@ -259,16 +259,10 @@ get_linux_hostspec(const char *solaris_hostspec, char **plinux_hostspec)
 		 * Solaris host specifier, e.g. @192.168.0.0/16; we just need
 		 * to skip the @ in this case
 		 */
-		*plinux_hostspec = strdup(solaris_hostspec + 1);
+		return (solaris_hostspec + 1);
 	} else {
-		*plinux_hostspec = strdup(solaris_hostspec);
+		return (solaris_hostspec);
 	}
-
-	if (*plinux_hostspec == NULL) {
-		return (SA_NO_MEMORY);
-	}
-
-	return (SA_OK);
 }
 
 /*
@@ -397,25 +391,18 @@ nfs_add_entry(FILE *tmpfile, const char *sharepath,
     const char *host, const char *security, const char *access_opts,
     void *pcookie)
 {
-	int error;
-	char *linuxhost;
 	const char *linux_opts = (const char *)pcookie;
-
-	error = get_linux_hostspec(host, &linuxhost);
-	if (error != SA_OK)
-		return (error);
 
 	if (linux_opts == NULL)
 		linux_opts = "";
 
-	if (fprintf(tmpfile, "%s %s(sec=%s,%s,%s)\n", sharepath, linuxhost,
-	    security, access_opts, linux_opts) < 0) {
+	if (fprintf(tmpfile, "%s %s(sec=%s,%s,%s)\n", sharepath,
+	    get_linux_hostspec(host), security, access_opts,
+	    linux_opts) < 0) {
 		fprintf(stderr, "failed to write to temporary file\n");
-		free(linuxhost);
 		return (SA_SYSTEM_ERR);
 	}
 
-	free(linuxhost);
 	return (SA_OK);
 }
 
