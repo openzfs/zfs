@@ -30,6 +30,7 @@
 
 void libshare_nfs_init(void);
 
+boolean_t nfs_is_shared_impl(const char *exports, sa_share_impl_t impl_share);
 int nfs_toggle_share(const char *lockfile, const char *exports,
     const char *expdir, sa_share_impl_t impl_share,
     int(*cbk)(sa_share_impl_t impl_share, FILE *tmpfile));
