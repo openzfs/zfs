@@ -77,10 +77,18 @@ nfs_exports_unlock(const char *name)
 	nfs_lock_fd = -1;
 }
 
-static char *
-nfs_init_tmpfile(const char *prefix, const char *mdir)
+struct tmpfile {
+	/*
+	 * This only needs to be as wide as ZFS_EXPORTS_FILE and mktemp suffix,
+	 * 64 is more than enough.
+	 */
+	char name[64];
+	FILE *fp;
+};
+
+static boolean_t
+nfs_init_tmpfile(const char *prefix, const char *mdir, struct tmpfile *tmpf)
 {
-	char *tmpfile = NULL;
 	struct stat sb;
 
 	if (mdir != NULL &&
@@ -88,72 +96,89 @@ nfs_init_tmpfile(const char *prefix, const char *mdir)
 	    mkdir(mdir, 0755) < 0) {
 		fprintf(stderr, "failed to create %s: %s\n",
 		    mdir, strerror(errno));
-		return (NULL);
+		return (B_FALSE);
 	}
 
-	if (asprintf(&tmpfile, "%s.XXXXXXXX", prefix) == -1) {
-		fprintf(stderr, "Unable to allocate temporary file\n");
-		return (NULL);
-	}
+	strcpy(tmpf->name, prefix);
+	strcat(tmpf->name, ".XXXXXXXX");
 
-	int fd = mkostemp(tmpfile, O_CLOEXEC);
+	int fd = mkostemp(tmpf->name, O_CLOEXEC);
 	if (fd == -1) {
 		fprintf(stderr, "Unable to create temporary file: %s",
 		    strerror(errno));
-		free(tmpfile);
-		return (NULL);
+		return (B_FALSE);
 	}
-	close(fd);
-	return (tmpfile);
+
+	tmpf->fp = fdopen(fd, "w+");
+	if (tmpf->fp == NULL) {
+		fprintf(stderr, "Unable to reopen temporary file: %s",
+		    strerror(errno));
+		close(fd);
+		return (B_FALSE);
+	}
+
+	return (B_TRUE);
+}
+
+static void
+nfs_abort_tmpfile(struct tmpfile *tmpf)
+{
+	unlink(tmpf->name);
+	fclose(tmpf->fp);
 }
 
 static int
-nfs_fini_tmpfile(const char *exports, char *tmpfile)
+nfs_fini_tmpfile(const char *exports, struct tmpfile *tmpf)
 {
-	if (rename(tmpfile, exports) == -1) {
-		fprintf(stderr, "Unable to rename %s: %s\n", tmpfile,
+	if (fflush(tmpf->fp) != 0) {
+		fprintf(stderr, "Failed to write to temporary file: %s\n",
 		    strerror(errno));
-		unlink(tmpfile);
-		free(tmpfile);
+		nfs_abort_tmpfile(tmpf);
 		return (SA_SYSTEM_ERR);
 	}
-	free(tmpfile);
+
+	if (rename(tmpf->name, exports) == -1) {
+		fprintf(stderr, "Unable to rename %s -> %s: %s\n",
+		    tmpf->name, exports, strerror(errno));
+		nfs_abort_tmpfile(tmpf);
+		return (SA_SYSTEM_ERR);
+	}
+
+	fclose(tmpf->fp);
 	return (SA_OK);
 }
 
 int
 nfs_toggle_share(const char *lockfile, const char *exports,
     const char *expdir, sa_share_impl_t impl_share,
-    int(*cbk)(sa_share_impl_t impl_share, char *filename))
+    int(*cbk)(sa_share_impl_t impl_share, FILE *tmpfile))
 {
 	int error;
-	char *filename;
+	struct tmpfile tmpf;
 
-	if ((filename = nfs_init_tmpfile(exports, expdir)) == NULL)
+	if (!nfs_init_tmpfile(exports, expdir, &tmpf))
 		return (SA_SYSTEM_ERR);
 
 	error = nfs_exports_lock(lockfile);
 	if (error != 0) {
-		unlink(filename);
-		free(filename);
+		nfs_abort_tmpfile(&tmpf);
 		return (error);
 	}
 
-	error = nfs_copy_entries(filename, impl_share->sa_mountpoint);
+	error = nfs_copy_entries(tmpf.fp, impl_share->sa_mountpoint);
 	if (error != SA_OK)
 		goto fullerr;
 
-	error = cbk(impl_share, filename);
+	error = cbk(impl_share, tmpf.fp);
 	if (error != SA_OK)
 		goto fullerr;
 
-	error = nfs_fini_tmpfile(exports, filename);
+	error = nfs_fini_tmpfile(exports, &tmpf);
 	nfs_exports_unlock(lockfile);
 	return (error);
 
 fullerr:
-	unlink(filename);
-	free(filename);
+	nfs_abort_tmpfile(&tmpf);
 	nfs_exports_unlock(lockfile);
 	return (error);
 }
