@@ -148,6 +148,57 @@ nfs_fini_tmpfile(const char *exports, struct tmpfile *tmpf)
 	return (SA_OK);
 }
 
+/*
+ * Copy all entries from the exports file to newfp,
+ * omitting any entries for the specified mountpoint.
+ */
+static int
+nfs_copy_entries(FILE *newfp, const char *exports, const char *mountpoint)
+{
+	int error = SA_OK;
+
+	fputs(FILE_HEADER, newfp);
+
+	/*
+	 * ZFS_EXPORTS_FILE may not exist yet.
+	 * If that's the case, then just write out the new file.
+	 */
+	FILE *oldfp = fopen(exports, "re");
+	if (oldfp != NULL) {
+		char *buf = NULL, *sep;
+		size_t buflen = 0, mplen = strlen(mountpoint);
+
+		while (getline(&buf, &buflen, oldfp) != -1) {
+
+			if (buf[0] == '\n' || buf[0] == '#')
+				continue;
+
+			if ((sep = strpbrk(buf, "\t \n")) != NULL &&
+			    sep - buf == mplen &&
+			    strncmp(buf, mountpoint, mplen) == 0)
+					continue;
+
+			fputs(buf, newfp);
+		}
+
+		if (ferror(oldfp) != 0)
+			error = ferror(oldfp);
+
+		if (fclose(oldfp) != 0) {
+			fprintf(stderr, "Unable to close file %s: %s\n",
+			    exports, strerror(errno));
+			error = error != SA_OK ? error : SA_SYSTEM_ERR;
+		}
+
+		free(buf);
+	}
+
+	if (error == SA_OK && ferror(newfp) != 0)
+		error = ferror(newfp);
+
+	return (error);
+}
+
 int
 nfs_toggle_share(const char *lockfile, const char *exports,
     const char *expdir, sa_share_impl_t impl_share,
@@ -165,7 +216,7 @@ nfs_toggle_share(const char *lockfile, const char *exports,
 		return (error);
 	}
 
-	error = nfs_copy_entries(tmpf.fp, impl_share->sa_mountpoint);
+	error = nfs_copy_entries(tmpf.fp, exports, impl_share->sa_mountpoint);
 	if (error != SA_OK)
 		goto fullerr;
 
