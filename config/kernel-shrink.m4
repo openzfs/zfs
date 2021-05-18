@@ -1,34 +1,4 @@
 dnl #
-dnl # 3.1 API change
-dnl # The super_block structure now stores a per-filesystem shrinker.
-dnl # This interface is preferable because it can be used to specifically
-dnl # target only the zfs filesystem for pruning.
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_SUPER_BLOCK_S_SHRINK], [
-	ZFS_LINUX_TEST_SRC([super_block_s_shrink], [
-		#include <linux/fs.h>
-
-		int shrink(struct shrinker *s, struct shrink_control *sc)
-		    { return 0; }
-
-		static const struct super_block
-		    sb __attribute__ ((unused)) = {
-			.s_shrink.seeks = DEFAULT_SEEKS,
-			.s_shrink.batch = 0,
-		};
-	],[])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_SUPER_BLOCK_S_SHRINK], [
-	AC_MSG_CHECKING([whether super_block has s_shrink])
-	ZFS_LINUX_TEST_RESULT([super_block_s_shrink], [
-		AC_MSG_RESULT(yes)
-	],[
-		ZFS_LINUX_TEST_ERROR([sb->s_shrink()])
-	])
-])
-
-dnl #
 dnl # 3.12 API change
 dnl # The nid member was added to struct shrink_control to support
 dnl # NUMA-aware shrinkers.
@@ -110,42 +80,12 @@ AC_DEFUN([ZFS_AC_KERNEL_SHRINKER_CALLBACK],[
 	])
 ])
 
-dnl #
-dnl # 2.6.39 API change,
-dnl # Shrinker adjust to use common shrink_control structure.
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_SHRINK_CONTROL_STRUCT], [
-	ZFS_LINUX_TEST_SRC([shrink_control_struct], [
-		#include <linux/mm.h>
-	],[
-		struct shrink_control sc __attribute__ ((unused));
-
-		sc.nr_to_scan = 0;
-		sc.gfp_mask = GFP_KERNEL;
-	])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_SHRINK_CONTROL_STRUCT], [
-	AC_MSG_CHECKING([whether struct shrink_control exists])
-	ZFS_LINUX_TEST_RESULT([shrink_control_struct], [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_SHRINK_CONTROL_STRUCT, 1,
-		    [struct shrink_control exists])
-	],[
-		ZFS_LINUX_TEST_ERROR([shrink_control])
-	])
-])
-
 AC_DEFUN([ZFS_AC_KERNEL_SRC_SHRINKER], [
-	ZFS_AC_KERNEL_SRC_SUPER_BLOCK_S_SHRINK
 	ZFS_AC_KERNEL_SRC_SHRINK_CONTROL_HAS_NID
 	ZFS_AC_KERNEL_SRC_SHRINKER_CALLBACK
-	ZFS_AC_KERNEL_SRC_SHRINK_CONTROL_STRUCT
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_SHRINKER], [
-	ZFS_AC_KERNEL_SUPER_BLOCK_S_SHRINK
 	ZFS_AC_KERNEL_SHRINK_CONTROL_HAS_NID
 	ZFS_AC_KERNEL_SHRINKER_CALLBACK
-	ZFS_AC_KERNEL_SHRINK_CONTROL_STRUCT
 ])
