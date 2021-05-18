@@ -239,12 +239,8 @@ zpl_forget_cached_acl(struct inode *ip, int type)
  * posix_acl_chmod() was changed to __posix_acl_chmod()
  */
 #ifndef HAVE___POSIX_ACL_CHMOD
-#ifdef HAVE_POSIX_ACL_CHMOD
 #define	__posix_acl_chmod(acl, gfp, mode)	posix_acl_chmod(acl, gfp, mode)
 #define	__posix_acl_create(acl, gfp, mode)	posix_acl_create(acl, gfp, mode)
-#else
-#error "Unsupported kernel"
-#endif /* HAVE_POSIX_ACL_CHMOD */
 #endif /* HAVE___POSIX_ACL_CHMOD */
 
 /*
