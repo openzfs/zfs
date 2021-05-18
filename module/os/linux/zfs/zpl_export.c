@@ -31,15 +31,8 @@
 
 
 static int
-#ifdef HAVE_ENCODE_FH_WITH_INODE
 zpl_encode_fh(struct inode *ip, __u32 *fh, int *max_len, struct inode *parent)
 {
-#else
-zpl_encode_fh(struct dentry *dentry, __u32 *fh, int *max_len, int connectable)
-{
-	/* CSTYLED */
-	struct inode *ip = dentry->d_inode;
-#endif /* HAVE_ENCODE_FH_WITH_INODE */
 	fstrans_cookie_t cookie;
 	ushort_t empty_fid = 0;
 	fid_t *fid;
