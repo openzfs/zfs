@@ -587,7 +587,7 @@ spl_getattr(struct file *filp, struct kstat *stat)
 #elif defined(HAVE_2ARGS_VFS_GETATTR)
 	rc = vfs_getattr(&filp->f_path, stat);
 #else
-	rc = vfs_getattr(filp->f_path.mnt, filp->f_dentry, stat);
+#error "No available vfs_getattr()"
 #endif
 	if (rc)
 		return (-rc);

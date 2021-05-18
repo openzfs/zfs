@@ -280,7 +280,7 @@ zfs_file_getattr(zfs_file_t *filp, zfs_file_attr_t *zfattr)
 #elif defined(HAVE_2ARGS_VFS_GETATTR)
 	rc = vfs_getattr(&filp->f_path, &stat);
 #else
-	rc = vfs_getattr(filp->f_path.mnt, filp->f_dentry, &stat);
+#error "No available vfs_getattr()"
 #endif
 	if (rc)
 		return (-rc);
