@@ -171,12 +171,10 @@ zpl_dir_emit_dots(struct file *file, zpl_dir_context_t *ctx)
 	timespec_trunc(ts, (ip)->i_sb->s_time_gran)
 #endif
 
-#if defined(HAVE_INODE_OWNER_OR_CAPABLE)
-#define	zpl_inode_owner_or_capable(ns, ip)	inode_owner_or_capable(ip)
-#elif defined(HAVE_INODE_OWNER_OR_CAPABLE_IDMAPPED)
+#if defined(HAVE_INODE_OWNER_OR_CAPABLE_IDMAPPED)
 #define	zpl_inode_owner_or_capable(ns, ip)	inode_owner_or_capable(ns, ip)
 #else
-#error "Unsupported kernel"
+#define	zpl_inode_owner_or_capable(ns, ip)	inode_owner_or_capable(ip)
 #endif
 
 #ifdef HAVE_SETATTR_PREPARE_USERNS
