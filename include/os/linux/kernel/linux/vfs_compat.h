@@ -142,9 +142,9 @@ zpl_bdi_destroy(struct super_block *sb)
  * ordering change regarding when the inode_sync_wait() occurs.  See the
  * configure check in config/kernel-clear-inode.m4 for full details.
  */
-#if defined(HAVE_EVICT_INODE) && !defined(HAVE_CLEAR_INODE)
+#if !defined(HAVE_CLEAR_INODE)
 #define	clear_inode(ip)		end_writeback(ip)
-#endif /* HAVE_EVICT_INODE && !HAVE_CLEAR_INODE */
+#endif /* !HAVE_CLEAR_INODE */
 
 #if defined(SEEK_HOLE) && defined(SEEK_DATA) && !defined(HAVE_LSEEK_EXECUTE)
 static inline loff_t
