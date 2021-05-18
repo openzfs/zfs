@@ -1,56 +1,4 @@
 dnl #
-dnl # 2.6.38 API change,
-dnl # Added blkdev_get_by_path()
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV_GET_BY_PATH], [
-	ZFS_LINUX_TEST_SRC([blkdev_get_by_path], [
-		#include <linux/fs.h>
-		#include <linux/blkdev.h>
-	], [
-		struct block_device *bdev __attribute__ ((unused)) = NULL;
-		const char *path = "path";
-		fmode_t mode = 0;
-		void *holder = NULL;
-
-		bdev = blkdev_get_by_path(path, mode, holder);
-	])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_BLKDEV_GET_BY_PATH], [
-	AC_MSG_CHECKING([whether blkdev_get_by_path() exists])
-	ZFS_LINUX_TEST_RESULT([blkdev_get_by_path], [
-		AC_MSG_RESULT(yes)
-	], [
-		ZFS_LINUX_TEST_ERROR([blkdev_get_by_path()])
-	])
-])
-
-dnl #
-dnl # 2.6.38 API change,
-dnl # Added blkdev_put()
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV_PUT], [
-	ZFS_LINUX_TEST_SRC([blkdev_put], [
-		#include <linux/fs.h>
-		#include <linux/blkdev.h>
-	], [
-		struct block_device *bdev = NULL;
-		fmode_t mode = 0;
-
-		blkdev_put(bdev, mode);
-	])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_BLKDEV_PUT], [
-	AC_MSG_CHECKING([whether blkdev_put() exists])
-	ZFS_LINUX_TEST_RESULT([blkdev_put], [
-		AC_MSG_RESULT(yes)
-	], [
-		ZFS_LINUX_TEST_ERROR([blkdev_put()])
-	])
-])
-
-dnl #
 dnl # 4.1 API, exported blkdev_reread_part() symbol, back ported to the
 dnl # 3.10.0 CentOS 7.x enterprise kernels.
 dnl #
@@ -131,32 +79,9 @@ AC_DEFUN([ZFS_AC_KERNEL_BLKDEV_BDEV_CHECK_MEDIA_CHANGE], [
 ])
 
 dnl #
-dnl # 2.6.22 API change
-dnl # Single argument invalidate_bdev()
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV_INVALIDATE_BDEV], [
-	ZFS_LINUX_TEST_SRC([invalidate_bdev], [
-		#include <linux/buffer_head.h>
-		#include <linux/blkdev.h>
-	],[
-		struct block_device *bdev = NULL;
-		invalidate_bdev(bdev);
-	])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_BLKDEV_INVALIDATE_BDEV], [
-	AC_MSG_CHECKING([whether invalidate_bdev() exists])
-	ZFS_LINUX_TEST_RESULT([invalidate_bdev], [
-		AC_MSG_RESULT(yes)
-	],[
-		ZFS_LINUX_TEST_ERROR([invalidate_bdev()])
-	])
-])
-
-dnl #
 dnl # 5.11 API, lookup_bdev() takes dev_t argument.
-dnl # 2.6.27 API, lookup_bdev() was first exported.
 dnl # 4.4.0-6.21 API, lookup_bdev() on Ubuntu takes mode argument.
+dnl # 2.6.27 API, lookup_bdev() was first exported.
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV_LOOKUP_BDEV], [
 	ZFS_LINUX_TEST_SRC([lookup_bdev_devt], [
@@ -177,15 +102,6 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV_LOOKUP_BDEV], [
 		const char path[] = "/example/path";
 
 		bdev = lookup_bdev(path);
-	])
-
-	ZFS_LINUX_TEST_SRC([lookup_bdev_mode], [
-		#include <linux/fs.h>
-	], [
-		struct block_device *bdev __attribute__ ((unused));
-		const char path[] = "/example/path";
-
-		bdev = lookup_bdev(path, FMODE_READ);
 	])
 ])
 
@@ -208,66 +124,9 @@ AC_DEFUN([ZFS_AC_KERNEL_BLKDEV_LOOKUP_BDEV], [
 		], [
 			AC_MSG_RESULT(no)
 
-			AC_MSG_CHECKING([whether lookup_bdev() wants mode arg])
-			ZFS_LINUX_TEST_RESULT_SYMBOL([lookup_bdev_mode],
-			    [lookup_bdev], [fs/block_dev.c], [
-				AC_MSG_RESULT(yes)
-				AC_DEFINE(HAVE_MODE_LOOKUP_BDEV, 1,
-				    [lookup_bdev() wants mode arg])
-			], [
-				ZFS_LINUX_TEST_ERROR([lookup_bdev()])
-			])
+			AC_DEFINE(HAVE_MODE_LOOKUP_BDEV, 1,
+			    [lookup_bdev() wants mode arg])
 		])
-	])
-])
-
-dnl #
-dnl # 2.6.30 API change
-dnl #
-dnl # The bdev_physical_block_size() interface was added to provide a way
-dnl # to determine the smallest write which can be performed without a
-dnl # read-modify-write operation.
-dnl #
-dnl # Unfortunately, this interface isn't entirely reliable because
-dnl # drives are sometimes known to misreport this value.
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV_BDEV_PHYSICAL_BLOCK_SIZE], [
-	ZFS_LINUX_TEST_SRC([bdev_physical_block_size], [
-		#include <linux/blkdev.h>
-	],[
-		struct block_device *bdev __attribute__ ((unused)) = NULL;
-		bdev_physical_block_size(bdev);
-	])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_BLKDEV_BDEV_PHYSICAL_BLOCK_SIZE], [
-	AC_MSG_CHECKING([whether bdev_physical_block_size() is available])
-	ZFS_LINUX_TEST_RESULT([bdev_physical_block_size], [
-		AC_MSG_RESULT(yes)
-	],[
-		ZFS_LINUX_TEST_ERROR([bdev_physical_block_size()])
-	])
-])
-
-dnl #
-dnl # 2.6.30 API change
-dnl # Added bdev_logical_block_size().
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV_BDEV_LOGICAL_BLOCK_SIZE], [
-	ZFS_LINUX_TEST_SRC([bdev_logical_block_size], [
-		#include <linux/blkdev.h>
-	],[
-		struct block_device *bdev __attribute__ ((unused)) = NULL;
-		bdev_logical_block_size(bdev);
-	])
-])
-
-AC_DEFUN([ZFS_AC_KERNEL_BLKDEV_BDEV_LOGICAL_BLOCK_SIZE], [
-	AC_MSG_CHECKING([whether bdev_logical_block_size() is available])
-	ZFS_LINUX_TEST_RESULT([bdev_logical_block_size], [
-		AC_MSG_RESULT(yes)
-	],[
-		ZFS_LINUX_TEST_ERROR([bdev_logical_block_size()])
 	])
 ])
 
@@ -295,26 +154,16 @@ AC_DEFUN([ZFS_AC_KERNEL_BLKDEV_BDEV_WHOLE], [
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV], [
-	ZFS_AC_KERNEL_SRC_BLKDEV_GET_BY_PATH
-	ZFS_AC_KERNEL_SRC_BLKDEV_PUT
 	ZFS_AC_KERNEL_SRC_BLKDEV_REREAD_PART
-	ZFS_AC_KERNEL_SRC_BLKDEV_INVALIDATE_BDEV
 	ZFS_AC_KERNEL_SRC_BLKDEV_LOOKUP_BDEV
-	ZFS_AC_KERNEL_SRC_BLKDEV_BDEV_LOGICAL_BLOCK_SIZE
-	ZFS_AC_KERNEL_SRC_BLKDEV_BDEV_PHYSICAL_BLOCK_SIZE
 	ZFS_AC_KERNEL_SRC_BLKDEV_CHECK_DISK_CHANGE
 	ZFS_AC_KERNEL_SRC_BLKDEV_BDEV_CHECK_MEDIA_CHANGE
 	ZFS_AC_KERNEL_SRC_BLKDEV_BDEV_WHOLE
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_BLKDEV], [
-	ZFS_AC_KERNEL_BLKDEV_GET_BY_PATH
-	ZFS_AC_KERNEL_BLKDEV_PUT
 	ZFS_AC_KERNEL_BLKDEV_REREAD_PART
-	ZFS_AC_KERNEL_BLKDEV_INVALIDATE_BDEV
 	ZFS_AC_KERNEL_BLKDEV_LOOKUP_BDEV
-	ZFS_AC_KERNEL_BLKDEV_BDEV_LOGICAL_BLOCK_SIZE
-	ZFS_AC_KERNEL_BLKDEV_BDEV_PHYSICAL_BLOCK_SIZE
 	ZFS_AC_KERNEL_BLKDEV_CHECK_DISK_CHANGE
 	ZFS_AC_KERNEL_BLKDEV_BDEV_CHECK_MEDIA_CHANGE
 	ZFS_AC_KERNEL_BLKDEV_BDEV_WHOLE
