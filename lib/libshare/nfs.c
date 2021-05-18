@@ -89,11 +89,9 @@ struct tmpfile {
 static boolean_t
 nfs_init_tmpfile(const char *prefix, const char *mdir, struct tmpfile *tmpf)
 {
-	struct stat sb;
-
 	if (mdir != NULL &&
-	    stat(mdir, &sb) < 0 &&
-	    mkdir(mdir, 0755) < 0) {
+	    mkdir(mdir, 0755) < 0 &&
+	    errno != EEXIST) {
 		fprintf(stderr, "failed to create %s: %s\n",
 		    mdir, strerror(errno));
 		return (B_FALSE);
