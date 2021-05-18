@@ -666,14 +666,8 @@ out:
 }
 
 static int
-#ifdef HAVE_D_REVALIDATE_NAMEIDATA
-zpl_revalidate(struct dentry *dentry, struct nameidata *nd)
-{
-	unsigned int flags = (nd ? nd->flags : 0);
-#else
 zpl_revalidate(struct dentry *dentry, unsigned int flags)
 {
-#endif /* HAVE_D_REVALIDATE_NAMEIDATA */
 	/* CSTYLED */
 	zfsvfs_t *zfsvfs = dentry->d_sb->s_fs_info;
 	int error;
