@@ -492,7 +492,7 @@ blk_queue_discard_granularity(struct request_queue *q, unsigned int dg)
 }
 
 /*
- * 4.8 - 4.x API,
+ * 4.8 API,
  *   blk_queue_secure_erase()
  *
  * 2.6.36 - 4.7 API,
@@ -503,10 +503,8 @@ blk_queue_discard_secure(struct request_queue *q)
 {
 #if defined(HAVE_BLK_QUEUE_SECURE_ERASE)
 	return (blk_queue_secure_erase(q));
-#elif defined(HAVE_BLK_QUEUE_SECDISCARD)
-	return (blk_queue_secdiscard(q));
 #else
-	return (0);
+	return (blk_queue_secdiscard(q));
 #endif
 }
 
