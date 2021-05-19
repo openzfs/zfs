@@ -849,8 +849,10 @@ libzfs_read_stdout_from_fd(int fd, char **lines[])
 	char **tmp_lines = NULL, **tmp;
 
 	fp = fdopen(fd, "r");
-	if (fp == NULL)
+	if (fp == NULL) {
+		close(fd);
 		return (0);
+	}
 	while (getline(&line, &len, fp) != -1) {
 		tmp = realloc(tmp_lines, sizeof (*tmp_lines) * (lines_cnt + 1));
 		if (tmp == NULL) {
