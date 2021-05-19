@@ -847,17 +847,11 @@ libzfs_read_stdout_from_fd(int fd, char **lines[])
 	size_t len = 0;
 	char *line = NULL;
 	char **tmp_lines = NULL, **tmp;
-	char *nl = NULL;
-	int rc;
 
 	fp = fdopen(fd, "r");
 	if (fp == NULL)
 		return (0);
-	while (1) {
-		rc = getline(&line, &len, fp);
-		if (rc == -1)
-			break;
-
+	while (getline(&line, &len, fp) != -1) {
 		tmp = realloc(tmp_lines, sizeof (*tmp_lines) * (lines_cnt + 1));
 		if (tmp == NULL) {
 			/* Return the lines we were able to process */
@@ -865,13 +859,16 @@ libzfs_read_stdout_from_fd(int fd, char **lines[])
 		}
 		tmp_lines = tmp;
 
-		/* Terminate newlines */
-		if ((nl = strchr(line, '\n')) != NULL)
-			*nl = '\0';
-		tmp_lines[lines_cnt] = line;
-		lines_cnt++;
-		line = NULL;
+		/* Remove newline if not EOF */
+		if (line[strlen(line) - 1] == '\n')
+			line[strlen(line) - 1] = '\0';
+
+		tmp_lines[lines_cnt] = strdup(line);
+		if (tmp_lines[lines_cnt] == NULL)
+			break;
+		++lines_cnt;
 	}
+	free(line);
 	fclose(fp);
 	*lines = tmp_lines;
 	return (lines_cnt);
