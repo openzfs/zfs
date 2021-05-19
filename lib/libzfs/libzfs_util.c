@@ -889,7 +889,7 @@ libzfs_run_process_impl(const char *path, char *argv[], char *env[], int flags,
 	 * Setup a pipe between our child and parent process if we're
 	 * reading stdout.
 	 */
-	if ((lines != NULL) && pipe2(link, O_CLOEXEC) == -1)
+	if (lines != NULL && pipe2(link, O_NONBLOCK | O_CLOEXEC) == -1)
 		return (-EPIPE);
 
 	pid = vfork();
@@ -928,7 +928,8 @@ libzfs_run_process_impl(const char *path, char *argv[], char *env[], int flags,
 		int status;
 
 		while ((error = waitpid(pid, &status, 0)) == -1 &&
-		    errno == EINTR) { }
+		    errno == EINTR)
+			;
 		if (error < 0 || !WIFEXITED(status))
 			return (-1);
 
