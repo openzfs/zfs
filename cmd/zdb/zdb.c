@@ -3591,7 +3591,7 @@ static int
 parse_object_range(char *range, zopt_object_range_t *zor, char **msg)
 {
 	uint64_t flags = 0;
-	char *p, *s, *dup, *flagstr;
+	char *p, *s, *dup, *flagstr, *tmp = NULL;
 	size_t len;
 	int i;
 	int rc = 0;
@@ -3620,7 +3620,7 @@ parse_object_range(char *range, zopt_object_range_t *zor, char **msg)
 	}
 
 	dup = strdup(range);
-	s = strtok(dup, ":");
+	s = strtok_r(dup, ":", &tmp);
 	zor->zor_obj_start = strtoull(s, &p, 0);
 
 	if (*p != '\0') {
@@ -3629,7 +3629,7 @@ parse_object_range(char *range, zopt_object_range_t *zor, char **msg)
 		goto out;
 	}
 
-	s = strtok(NULL, ":");
+	s = strtok_r(NULL, ":", &tmp);
 	zor->zor_obj_end = strtoull(s, &p, 0);
 
 	if (*p != '\0') {
@@ -3644,11 +3644,11 @@ parse_object_range(char *range, zopt_object_range_t *zor, char **msg)
 		goto out;
 	}
 
-	s = strtok(NULL, ":");
+	s = strtok_r(NULL, ":", &tmp);
 	if (s == NULL) {
 		zor->zor_flags = ZOR_FLAG_ALL_TYPES;
 		goto out;
-	} else if (strtok(NULL, ":") != NULL) {
+	} else if (strtok_r(NULL, ":", &tmp) != NULL) {
 		*msg = "Invalid colon-delimited field after flags";
 		rc = 1;
 		goto out;
@@ -7859,15 +7859,15 @@ name_from_objset_id(spa_t *spa, uint64_t objset_id, char *outstr)
 static boolean_t
 zdb_parse_block_sizes(char *sizes, uint64_t *lsize, uint64_t *psize)
 {
-	char *s0, *s1;
+	char *s0, *s1, *tmp = NULL;
 
 	if (sizes == NULL)
 		return (B_FALSE);
 
-	s0 = strtok(sizes, "/");
+	s0 = strtok_r(sizes, "/", &tmp);
 	if (s0 == NULL)
 		return (B_FALSE);
-	s1 = strtok(NULL, "/");
+	s1 = strtok_r(NULL, "/", &tmp);
 	*lsize = strtoull(s0, NULL, 16);
 	*psize = s1 ? strtoull(s1, NULL, 16) : *lsize;
 	return (*lsize >= *psize && *psize > 0);
@@ -7984,20 +7984,21 @@ zdb_read_block(char *thing, spa_t *spa)
 	vdev_t *vd;
 	abd_t *pabd;
 	void *lbuf, *buf;
-	char *s, *p, *dup, *vdev, *flagstr, *sizes;
+	char *s, *p, *dup, *vdev, *flagstr, *sizes, *tmp = NULL;
 	int i, error;
 	boolean_t borrowed = B_FALSE, found = B_FALSE;
 
 	dup = strdup(thing);
-	s = strtok(dup, ":");
+	s = strtok_r(dup, ":", &tmp);
 	vdev = s ? s : "";
-	s = strtok(NULL, ":");
+	s = strtok_r(NULL, ":", &tmp);
 	offset = strtoull(s ? s : "", NULL, 16);
-	sizes = strtok(NULL, ":");
-	s = strtok(NULL, ":");
+	sizes = strtok_r(NULL, ":", &tmp);
+	s = strtok_r(NULL, ":", &tmp);
 	flagstr = strdup(s ? s : "");
 
 	s = NULL;
+	tmp = NULL;
 	if (!zdb_parse_block_sizes(sizes, &lsize, &psize))
 		s = "invalid size(s)";
 	if (!IS_P2ALIGNED(psize, DEV_BSIZE) || !IS_P2ALIGNED(lsize, DEV_BSIZE))
@@ -8009,7 +8010,9 @@ zdb_read_block(char *thing, spa_t *spa)
 		goto done;
 	}
 
-	for (s = strtok(flagstr, ":"); s; s = strtok(NULL, ":")) {
+	for (s = strtok_r(flagstr, ":", &tmp);
+	    s != NULL;
+	    s = strtok_r(NULL, ":", &tmp)) {
 		for (i = 0; i < strlen(flagstr); i++) {
 			int bit = flagbits[(uchar_t)flagstr[i]];
 
