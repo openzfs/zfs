@@ -40,7 +40,15 @@
 
 log_assert "Verify resilver to dRAID distributed spares"
 
-log_onexit cleanup
+function cleanup_tunable
+{
+	log_must set_tunable32 REBUILD_SCRUB_ENABLED 1
+	cleanup
+}
+
+log_onexit cleanup_tunable
+
+log_must set_tunable32 REBUILD_SCRUB_ENABLED 0
 
 for replace_mode in "healing" "sequential"; do
 
@@ -74,32 +82,15 @@ for replace_mode in "healing" "sequential"; do
 		log_must check_vdev_state $spare_vdev "ONLINE"
 		log_must check_hotspare_state $TESTPOOL $spare_vdev "INUSE"
 		log_must zpool detach $TESTPOOL $fault_vdev
-
-		resilver_cksum=$(cksum_pool $TESTPOOL)
-		if [[ $resilver_cksum != 0 ]]; then
-			log_must zpool status -v $TESTPOOL
-			log_fail "$replace_mode resilver "
-			    "cksum errors: $resilver_cksum"
-		fi
-
-		if [[ "$replace_mode" = "healing" ]]; then
-			log_must zpool scrub $TESTPOOL
-		fi
-
-		log_must wait_scrubbed $TESTPOOL
+		log_must verify_pool $TESTPOOL
 		log_must check_pool_status $TESTPOOL "scan" "repaired 0B"
 		log_must check_pool_status $TESTPOOL "scan" "with 0 errors"
-
-		scrub_cksum=$(cksum_pool $TESTPOOL)
-		if [[ $scrub_cksum != 0 ]]; then
-			log_must zpool status -v $TESTPOOL
-			log_fail "scrub cksum errors: $scrub_cksum"
-		fi
 
 		(( i += 1 ))
 	done
 
 	log_must is_data_valid $TESTPOOL
+	log_must check_pool_status $TESTPOOL "errors" "No known data errors"
 
 	cleanup
 done

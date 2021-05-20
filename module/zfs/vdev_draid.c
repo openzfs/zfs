@@ -1009,7 +1009,8 @@ vdev_draid_map_alloc_row(zio_t *zio, raidz_row_t **rrp, uint64_t io_offset,
 		rc->rc_error = 0;
 		rc->rc_tried = 0;
 		rc->rc_skipped = 0;
-		rc->rc_repair = 0;
+		rc->rc_force_repair = 0;
+		rc->rc_allow_repair = 1;
 		rc->rc_need_orig_restore = B_FALSE;
 
 		if (q == 0 && i >= bc)
@@ -1891,6 +1892,36 @@ vdev_draid_io_start_read(zio_t *zio, raidz_row_t *rr)
 			vdev_t *svd;
 
 			/*
+			 * Sequential rebuilds need to always consider the data
+			 * on the child being rebuilt to be stale.  This is
+			 * important when all columns are available to aid
+			 * known reconstruction in identifing which columns
+			 * contain incorrect data.
+			 *
+			 * Furthermore, all repairs need to be constrained to
+			 * the devices being rebuilt because without a checksum
+			 * we cannot verify the data is actually correct and
+			 * performing an incorrect repair could result in
+			 * locking in damage and making the data unrecoverable.
+			 */
+			if (zio->io_priority == ZIO_PRIORITY_REBUILD) {
+				if (vdev_draid_rebuilding(cvd)) {
+					if (c >= rr->rr_firstdatacol)
+						rr->rr_missingdata++;
+					else
+						rr->rr_missingparity++;
+					rc->rc_error = SET_ERROR(ESTALE);
+					rc->rc_skipped = 1;
+					rc->rc_allow_repair = 1;
+					continue;
+				} else {
+					rc->rc_allow_repair = 0;
+				}
+			} else {
+				rc->rc_allow_repair = 1;
+			}
+
+			/*
 			 * If this child is a distributed spare then the
 			 * offset might reside on the vdev being replaced.
 			 * In which case this data must be written to the
@@ -1903,7 +1934,10 @@ vdev_draid_io_start_read(zio_t *zio, raidz_row_t *rr)
 				    rc->rc_offset);
 				if (svd && (svd->vdev_ops == &vdev_spare_ops ||
 				    svd->vdev_ops == &vdev_replacing_ops)) {
-					rc->rc_repair = 1;
+					rc->rc_force_repair = 1;
+
+					if (vdev_draid_rebuilding(svd))
+						rc->rc_allow_repair = 1;
 				}
 			}
 
@@ -1914,7 +1948,8 @@ vdev_draid_io_start_read(zio_t *zio, raidz_row_t *rr)
 			if ((cvd->vdev_ops == &vdev_spare_ops ||
 			    cvd->vdev_ops == &vdev_replacing_ops) &&
 			    vdev_draid_rebuilding(cvd)) {
-				rc->rc_repair = 1;
+				rc->rc_force_repair = 1;
+				rc->rc_allow_repair = 1;
 			}
 		}
 	}
