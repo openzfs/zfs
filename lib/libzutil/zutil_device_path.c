@@ -82,21 +82,20 @@ static int
 zfs_strcmp_shortname(const char *name, const char *cmp_name, int wholedisk)
 {
 	int path_len, cmp_len, i = 0, error = ENOENT;
-	char *dir, *env, *envdup = NULL;
+	char *dir, *env, *envdup = NULL, *tmp = NULL;
 	char path_name[MAXPATHLEN];
-	const char * const *zpool_default_import_path;
+	const char * const *zpool_default_import_path = NULL;
 	size_t count;
-
-	zpool_default_import_path = zpool_default_search_paths(&count);
 
 	cmp_len = strlen(cmp_name);
 	env = getenv("ZPOOL_IMPORT_PATH");
 
 	if (env) {
 		envdup = strdup(env);
-		dir = strtok(envdup, ":");
+		dir = strtok_r(envdup, ":", &tmp);
 	} else {
-		dir =  (char *)zpool_default_import_path[i];
+		zpool_default_import_path = zpool_default_search_paths(&count);
+		dir = (char *)zpool_default_import_path[i];
 	}
 
 	while (dir) {
@@ -116,7 +115,7 @@ zfs_strcmp_shortname(const char *name, const char *cmp_name, int wholedisk)
 		}
 
 		if (env) {
-			dir = strtok(NULL, ":");
+			dir = strtok_r(NULL, ":", &tmp);
 		} else if (++i < count) {
 			dir = (char *)zpool_default_import_path[i];
 		} else {
