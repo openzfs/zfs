@@ -52,6 +52,14 @@ zpool_prop_get_table(void)
 void
 zpool_prop_init(void)
 {
+	struct zfs_mod_supported_features *sfeatures =
+	    zfs_mod_list_supported(ZFS_SYSFS_POOL_PROPERTIES);
+#define	zprop_register_impl(...) zprop_register_impl(__VA_ARGS__, sfeatures)
+#define	zprop_register_string(...) zprop_register_string(__VA_ARGS__, sfeatures)
+#define	zprop_register_number(...) zprop_register_number(__VA_ARGS__, sfeatures)
+#define	zprop_register_index(...) zprop_register_index(__VA_ARGS__, sfeatures)
+#define	zprop_register_hidden(...) zprop_register_hidden(__VA_ARGS__, sfeatures)
+
 	static zprop_index_t boolean_table[] = {
 		{ "off",	0},
 		{ "on",		1},
@@ -149,6 +157,8 @@ zpool_prop_init(void)
 	    PROP_TYPE_NUMBER, PROP_READONLY, ZFS_TYPE_POOL, "MAXDNODESIZE");
 	zprop_register_hidden(ZPOOL_PROP_DEDUPDITTO, "dedupditto",
 	    PROP_TYPE_NUMBER, PROP_DEFAULT, ZFS_TYPE_POOL, "DEDUPDITTO");
+
+	zfs_mod_list_supported_free(sfeatures);
 }
 
 /*
@@ -271,6 +281,9 @@ vdev_prop_get_table(void)
 void
 vdev_prop_init(void)
 {
+	struct zfs_mod_supported_features *sfeatures =
+	    zfs_mod_list_supported(ZFS_SYSFS_VDEV_PROPERTIES);
+
 	static zprop_index_t boolean_table[] = {
 		{ "off",	0},
 		{ "on",		1},
@@ -379,6 +392,8 @@ vdev_prop_init(void)
 	/* hidden properties */
 	zprop_register_hidden(VDEV_PROP_NAME, "name", PROP_TYPE_STRING,
 	    PROP_READONLY, ZFS_TYPE_VDEV, "NAME");
+
+	zfs_mod_list_supported_free(sfeatures);
 }
 
 /*

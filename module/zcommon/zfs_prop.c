@@ -74,6 +74,14 @@ zfs_prop_get_table(void)
 void
 zfs_prop_init(void)
 {
+	struct zfs_mod_supported_features *sfeatures =
+	    zfs_mod_list_supported(ZFS_SYSFS_DATASET_PROPERTIES);
+#define	zprop_register_impl(...) zprop_register_impl(__VA_ARGS__, sfeatures)
+#define	zprop_register_string(...) zprop_register_string(__VA_ARGS__, sfeatures)
+#define	zprop_register_number(...) zprop_register_number(__VA_ARGS__, sfeatures)
+#define	zprop_register_index(...) zprop_register_index(__VA_ARGS__, sfeatures)
+#define	zprop_register_hidden(...) zprop_register_hidden(__VA_ARGS__, sfeatures)
+
 	static zprop_index_t checksum_table[] = {
 		{ "on",		ZIO_CHECKSUM_ON },
 		{ "off",	ZIO_CHECKSUM_OFF },
@@ -700,6 +708,8 @@ zfs_prop_init(void)
 	zprop_register_impl(ZFS_PROP_CREATION, "creation", PROP_TYPE_NUMBER, 0,
 	    NULL, PROP_READONLY, ZFS_TYPE_DATASET | ZFS_TYPE_BOOKMARK,
 	    "<date>", "CREATION", B_FALSE, B_TRUE, NULL);
+
+	zfs_mod_list_supported_free(sfeatures);
 }
 
 boolean_t

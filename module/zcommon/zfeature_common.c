@@ -32,6 +32,8 @@
 #ifndef _KERNEL
 #include <errno.h>
 #include <string.h>
+#include <dirent.h>
+#include <search.h>
 #include <sys/stat.h>
 #endif
 #include <sys/debug.h>
@@ -164,29 +166,108 @@ deps_contains_feature(const spa_feature_t *deps, const spa_feature_t feature)
 	return (B_FALSE);
 }
 
+#define	STRCMP ((int(*)(const void *, const void *))&strcmp)
+struct zfs_mod_supported_features {
+	void *tree;
+	boolean_t all_features;
+};
+
+struct zfs_mod_supported_features *
+zfs_mod_list_supported(const char *scope)
+{
+#if defined(__FreeBSD__) || defined(_KERNEL) || defined(LIB_ZPOOL_BUILD)
+	(void) scope;
+	return (NULL);
+#else
+	struct zfs_mod_supported_features *ret = calloc(1, sizeof (*ret));
+	if (ret == NULL)
+		return (NULL);
+
+	DIR *sysfs_dir = NULL;
+	char path[128];
+
+	if (snprintf(path, sizeof (path), "%s/%s",
+	    ZFS_SYSFS_DIR, scope) < sizeof (path))
+		sysfs_dir = opendir(path);
+	if (sysfs_dir == NULL && errno == ENOENT) {
+		if (snprintf(path, sizeof (path), "%s/%s",
+		    ZFS_SYSFS_ALT_DIR, scope) < sizeof (path))
+			sysfs_dir = opendir(path);
+	}
+	if (sysfs_dir == NULL) {
+		ret->all_features = errno == ENOENT &&
+		    (access(ZFS_SYSFS_DIR, F_OK) == 0 ||
+		    access(ZFS_SYSFS_ALT_DIR, F_OK) == 0);
+		return (ret);
+	}
+
+	struct dirent *node;
+	while ((node = readdir(sysfs_dir)) != NULL) {
+		if (strcmp(node->d_name, ".") == 0 ||
+		    strcmp(node->d_name, "..") == 0)
+			continue;
+
+		char *name = strdup(node->d_name);
+		if (name == NULL) {
+			goto nomem;
+		}
+
+		if (tsearch(name, &ret->tree, STRCMP) == NULL) {
+			/*
+			 * Don't bother checking for duplicate entries:
+			 * we're iterating a single directory.
+			 */
+			free(name);
+			goto nomem;
+		}
+	}
+
+end:
+	closedir(sysfs_dir);
+	return (ret);
+
+nomem:
+	zfs_mod_list_supported_free(ret);
+	ret = NULL;
+	goto end;
+#endif
+}
+
+void
+zfs_mod_list_supported_free(struct zfs_mod_supported_features *list)
+{
+#if !defined(__FreeBSD__) && !defined(_KERNEL) && !defined(LIB_ZPOOL_BUILD)
+	if (list) {
+		tdestroy(list->tree, free);
+		free(list);
+	}
+#else
+	(void) list;
+#endif
+}
+
 #if !defined(_KERNEL) && !defined(LIB_ZPOOL_BUILD)
 static boolean_t
 zfs_mod_supported_impl(const char *scope, const char *name, const char *sysfs)
 {
-	boolean_t supported = B_FALSE;
-	char *path;
-
-	int len = asprintf(&path, "%s%s%s%s%s", sysfs,
-	    scope == NULL ? "" : "/", scope == NULL ? "" : scope,
-	    name == NULL ? "" : "/", name == NULL ? "" : name);
-	if (len > 0) {
-		struct stat64 statbuf;
-		supported = !!(stat64(path, &statbuf) == 0);
-		free(path);
-	}
-
-	return (supported);
+	char path[128];
+	if (snprintf(path, sizeof (path), "%s%s%s%s%s", sysfs,
+	    scope == NULL ? "" : "/", scope ?: "",
+	    name == NULL ? "" : "/", name ?: "") < sizeof (path))
+		return (access(path, F_OK) == 0);
+	else
+		return (B_FALSE);
 }
 
 boolean_t
-zfs_mod_supported(const char *scope, const char *name)
+zfs_mod_supported(const char *scope, const char *name,
+    const struct zfs_mod_supported_features *sfeatures)
 {
 	boolean_t supported;
+
+	if (sfeatures != NULL)
+		return (sfeatures->all_features ||
+		    tfind(name, &sfeatures->tree, STRCMP));
 
 	/*
 	 * Check both the primary and alternate sysfs locations to determine
@@ -202,10 +283,10 @@ zfs_mod_supported(const char *scope, const char *name)
 	 * scope directory does not exist.
 	 */
 	if (supported == B_FALSE) {
-		struct stat64 statbuf;
-		if ((stat64(ZFS_SYSFS_DIR, &statbuf) == 0) &&
-		    !zfs_mod_supported_impl(scope, NULL, ZFS_SYSFS_DIR) &&
-		    !zfs_mod_supported_impl(scope, NULL, ZFS_SYSFS_ALT_DIR)) {
+		if ((access(ZFS_SYSFS_DIR, F_OK) == 0 &&
+		    !zfs_mod_supported_impl(scope, NULL, ZFS_SYSFS_DIR)) ||
+		    (access(ZFS_SYSFS_ALT_DIR, F_OK) == 0 &&
+		    !zfs_mod_supported_impl(scope, NULL, ZFS_SYSFS_ALT_DIR))) {
 			supported = B_TRUE;
 		}
 	}
@@ -215,7 +296,8 @@ zfs_mod_supported(const char *scope, const char *name)
 #endif
 
 static boolean_t
-zfs_mod_supported_feature(const char *name)
+zfs_mod_supported_feature(const char *name,
+    const struct zfs_mod_supported_features *sfeatures)
 {
 	/*
 	 * The zfs module spa_feature_table[], whether in-kernel or in
@@ -229,17 +311,18 @@ zfs_mod_supported_feature(const char *name)
 	 */
 
 #if defined(_KERNEL) || defined(LIB_ZPOOL_BUILD) || defined(__FreeBSD__)
-	(void) name;
+	(void) name, (void) sfeatures;
 	return (B_TRUE);
 #else
-	return (zfs_mod_supported(ZFS_SYSFS_POOL_FEATURES, name));
+	return (zfs_mod_supported(ZFS_SYSFS_POOL_FEATURES, name, sfeatures));
 #endif
 }
 
 static void
 zfeature_register(spa_feature_t fid, const char *guid, const char *name,
     const char *desc, zfeature_flags_t flags, zfeature_type_t type,
-    const spa_feature_t *deps)
+    const spa_feature_t *deps,
+    const struct zfs_mod_supported_features *sfeatures)
 {
 	zfeature_info_t *feature = &spa_feature_table[fid];
 	static spa_feature_t nodeps[] = { SPA_FEATURE_NONE };
@@ -264,7 +347,8 @@ zfeature_register(spa_feature_t fid, const char *guid, const char *name,
 	feature->fi_flags = flags;
 	feature->fi_type = type;
 	feature->fi_depends = deps;
-	feature->fi_zfs_mod_supported = zfs_mod_supported_feature(guid);
+	feature->fi_zfs_mod_supported =
+	    zfs_mod_supported_feature(guid, sfeatures);
 }
 
 /*
@@ -283,6 +367,10 @@ zfeature_register(spa_feature_t fid, const char *guid, const char *name,
 void
 zpool_feature_init(void)
 {
+	struct zfs_mod_supported_features *sfeatures =
+	    zfs_mod_list_supported(ZFS_SYSFS_POOL_FEATURES);
+#define	zfeature_register(...) zfeature_register(__VA_ARGS__, sfeatures)
+
 	zfeature_register(SPA_FEATURE_ASYNC_DESTROY,
 	    "com.delphix:async_destroy", "async_destroy",
 	    "Destroy filesystems asynchronously.",
@@ -595,6 +683,8 @@ zpool_feature_init(void)
 	zfeature_register(SPA_FEATURE_DRAID,
 	    "org.openzfs:draid", "draid", "Support for distributed spare RAID",
 	    ZFEATURE_FLAG_MOS, ZFEATURE_TYPE_BOOLEAN, NULL);
+
+	zfs_mod_list_supported_free(sfeatures);
 }
 
 #if defined(_KERNEL)

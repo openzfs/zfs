@@ -71,7 +71,8 @@ zprop_get_numprops(zfs_type_t type)
 }
 
 static boolean_t
-zfs_mod_supported_prop(const char *name, zfs_type_t type)
+zfs_mod_supported_prop(const char *name, zfs_type_t type,
+    const struct zfs_mod_supported_features *sfeatures)
 {
 /*
  * The zfs module spa_feature_table[], whether in-kernel or in libzpool,
@@ -86,7 +87,8 @@ zfs_mod_supported_prop(const char *name, zfs_type_t type)
 #else
 	return (zfs_mod_supported(type == ZFS_TYPE_POOL ?
 	    ZFS_SYSFS_POOL_PROPERTIES : (type == ZFS_TYPE_VDEV ?
-	    ZFS_SYSFS_VDEV_PROPERTIES : ZFS_SYSFS_DATASET_PROPERTIES), name));
+	    ZFS_SYSFS_VDEV_PROPERTIES : ZFS_SYSFS_DATASET_PROPERTIES),
+	    name, sfeatures));
 #endif
 }
 
@@ -94,7 +96,8 @@ void
 zprop_register_impl(int prop, const char *name, zprop_type_t type,
     uint64_t numdefault, const char *strdefault, zprop_attr_t attr,
     int objset_types, const char *values, const char *colname,
-    boolean_t rightalign, boolean_t visible, const zprop_index_t *idx_tbl)
+    boolean_t rightalign, boolean_t visible, const zprop_index_t *idx_tbl,
+    const struct zfs_mod_supported_features *sfeatures)
 {
 	zprop_desc_t *prop_tbl = zprop_get_proptable(objset_types);
 	zprop_desc_t *pd;
@@ -116,7 +119,8 @@ zprop_register_impl(int prop, const char *name, zprop_type_t type,
 	pd->pd_colname = colname;
 	pd->pd_rightalign = rightalign;
 	pd->pd_visible = visible;
-	pd->pd_zfs_mod_supported = zfs_mod_supported_prop(name, objset_types);
+	pd->pd_zfs_mod_supported =
+	    zfs_mod_supported_prop(name, objset_types, sfeatures);
 	pd->pd_table = idx_tbl;
 	pd->pd_table_size = 0;
 	while (idx_tbl && (idx_tbl++)->pi_name != NULL)
@@ -126,38 +130,40 @@ zprop_register_impl(int prop, const char *name, zprop_type_t type,
 void
 zprop_register_string(int prop, const char *name, const char *def,
     zprop_attr_t attr, int objset_types, const char *values,
-    const char *colname)
+    const char *colname, const struct zfs_mod_supported_features *sfeatures)
 {
 	zprop_register_impl(prop, name, PROP_TYPE_STRING, 0, def, attr,
-	    objset_types, values, colname, B_FALSE, B_TRUE, NULL);
+	    objset_types, values, colname, B_FALSE, B_TRUE, NULL, sfeatures);
 
 }
 
 void
 zprop_register_number(int prop, const char *name, uint64_t def,
     zprop_attr_t attr, int objset_types, const char *values,
-    const char *colname)
+    const char *colname, const struct zfs_mod_supported_features *sfeatures)
 {
 	zprop_register_impl(prop, name, PROP_TYPE_NUMBER, def, NULL, attr,
-	    objset_types, values, colname, B_TRUE, B_TRUE, NULL);
+	    objset_types, values, colname, B_TRUE, B_TRUE, NULL, sfeatures);
 }
 
 void
 zprop_register_index(int prop, const char *name, uint64_t def,
     zprop_attr_t attr, int objset_types, const char *values,
-    const char *colname, const zprop_index_t *idx_tbl)
+    const char *colname, const zprop_index_t *idx_tbl,
+    const struct zfs_mod_supported_features *sfeatures)
 {
 	zprop_register_impl(prop, name, PROP_TYPE_INDEX, def, NULL, attr,
-	    objset_types, values, colname, B_FALSE, B_TRUE, idx_tbl);
+	    objset_types, values, colname, B_FALSE, B_TRUE, idx_tbl, sfeatures);
 }
 
 void
 zprop_register_hidden(int prop, const char *name, zprop_type_t type,
-    zprop_attr_t attr, int objset_types, const char *colname)
+    zprop_attr_t attr, int objset_types, const char *colname,
+    const struct zfs_mod_supported_features *sfeatures)
 {
 	zprop_register_impl(prop, name, type, 0, NULL, attr,
 	    objset_types, NULL, colname,
-	    type == PROP_TYPE_NUMBER, B_FALSE, NULL);
+	    type == PROP_TYPE_NUMBER, B_FALSE, NULL, sfeatures);
 }
 
 
