@@ -41,18 +41,18 @@ int
 zfs_resolve_shortname(const char *name, char *path, size_t len)
 {
 	int i, error = -1;
-	char *dir, *env, *envdup;
+	char *dir, *env, *envdup, *tmp = NULL;
 
 	env = getenv("ZPOOL_IMPORT_PATH");
 	errno = ENOENT;
 
 	if (env) {
 		envdup = strdup(env);
-		dir = strtok(envdup, ":");
-		while (dir && error) {
+		for (dir = strtok_r(envdup, ":", &tmp);
+		    dir != NULL && error != 0;
+		    dir = strtok_r(NULL, ":", &tmp)) {
 			(void) snprintf(path, len, "%s/%s", dir, name);
 			error = access(path, F_OK);
-			dir = strtok(NULL, ":");
 		}
 		free(envdup);
 	} else {
