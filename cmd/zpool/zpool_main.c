@@ -3499,16 +3499,8 @@ zpool_do_import(int argc, char **argv)
 			cachefile = optarg;
 			break;
 		case 'd':
-			if (searchdirs == NULL) {
-				searchdirs = safe_malloc(sizeof (char *));
-			} else {
-				char **tmp = safe_malloc((nsearch + 1) *
-				    sizeof (char *));
-				bcopy(searchdirs, tmp, nsearch *
-				    sizeof (char *));
-				free(searchdirs);
-				searchdirs = tmp;
-			}
+			searchdirs = safe_realloc(searchdirs,
+			    (nsearch + 1) * sizeof (char *));
 			searchdirs[nsearch++] = optarg;
 			break;
 		case 'D':
@@ -3698,24 +3690,16 @@ zpool_do_import(int argc, char **argv)
 	 * Check the environment for the preferred search path.
 	 */
 	if ((searchdirs == NULL) && (env = getenv("ZPOOL_IMPORT_PATH"))) {
-		char *dir;
+		char *dir, *tmp = NULL;
 
 		envdup = strdup(env);
 
-		dir = strtok(envdup, ":");
-		while (dir != NULL) {
-			if (searchdirs == NULL) {
-				searchdirs = safe_malloc(sizeof (char *));
-			} else {
-				char **tmp = safe_malloc((nsearch + 1) *
-				    sizeof (char *));
-				bcopy(searchdirs, tmp, nsearch *
-				    sizeof (char *));
-				free(searchdirs);
-				searchdirs = tmp;
-			}
+		for (dir = strtok_r(envdup, ":", &tmp);
+		    dir != NULL;
+		    dir = strtok_r(NULL, ":", &tmp)) {
+			searchdirs = safe_realloc(searchdirs,
+			    (nsearch + 1) * sizeof (char *));
 			searchdirs[nsearch++] = dir;
-			dir = strtok(NULL, ":");
 		}
 	}
 
@@ -3754,10 +3738,8 @@ zpool_do_import(int argc, char **argv)
 	}
 
 	if (err == 1) {
-		if (searchdirs != NULL)
-			free(searchdirs);
-		if (envdup != NULL)
-			free(envdup);
+		free(searchdirs);
+		free(envdup);
 		nvlist_free(policy);
 		nvlist_free(pools);
 		nvlist_free(props);
@@ -3795,10 +3777,8 @@ error:
 	nvlist_free(props);
 	nvlist_free(pools);
 	nvlist_free(policy);
-	if (searchdirs != NULL)
-		free(searchdirs);
-	if (envdup != NULL)
-		free(envdup);
+	free(searchdirs);
+	free(envdup);
 
 	return (err ? 1 : 0);
 }
