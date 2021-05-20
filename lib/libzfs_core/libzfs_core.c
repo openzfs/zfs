@@ -158,8 +158,7 @@ libzfs_core_fini(void)
 	(void) pthread_mutex_lock(&g_lock);
 	ASSERT3S(g_refcount, >, 0);
 
-	if (g_refcount > 0)
-		g_refcount--;
+	g_refcount--;
 
 	if (g_refcount == 0 && g_fd != -1) {
 		(void) close(g_fd);
