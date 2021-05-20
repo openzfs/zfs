@@ -5360,7 +5360,7 @@ print_zpool_dir_scripts(char *dirpath)
 static void
 print_zpool_script_list(char *subcommand)
 {
-	char *dir, *sp;
+	char *dir, *sp, *tmp;
 
 	printf(gettext("Available 'zpool %s -c' commands:\n"), subcommand);
 
@@ -5368,11 +5368,10 @@ print_zpool_script_list(char *subcommand)
 	if (sp == NULL)
 		return;
 
-	dir = strtok(sp, ":");
-	while (dir != NULL) {
+	for (dir = strtok_r(sp, ":", &tmp);
+	    dir != NULL;
+	    dir = strtok_r(NULL, ":", &tmp))
 		print_zpool_dir_scripts(dir);
-		dir = strtok(NULL, ":");
-	}
 
 	free(sp);
 }
