@@ -32,6 +32,7 @@
  * Copyright (c) 2017, Intel Corporation.
  * Copyright (c) 2019, loli10K <ezomori.nozomu@gmail.com>
  * Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
+ * Copyright [2021] Hewlett Packard Enterprise Development LP
  */
 
 #include <assert.h>
@@ -2377,6 +2378,10 @@ print_status_config(zpool_handle_t *zhp, status_cbdata_t *cb, const char *name,
 
 		case VDEV_AUX_CHILDREN_OFFLINE:
 			(void) printf(gettext("all children offline"));
+			break;
+
+		case VDEV_AUX_BAD_LABEL:
+			(void) printf(gettext("invalid label"));
 			break;
 
 		default:
