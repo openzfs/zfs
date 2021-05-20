@@ -277,7 +277,7 @@ zfsdev_detach(void)
 #endif
 
 static int __init
-_init(void)
+openzfs_init(void)
 {
 	int error;
 
@@ -303,7 +303,7 @@ _init(void)
 }
 
 static void __exit
-_fini(void)
+openzfs_fini(void)
 {
 	zfs_sysfs_fini();
 	zfs_kmod_fini();
@@ -313,8 +313,8 @@ _fini(void)
 }
 
 #if defined(_KERNEL)
-module_init(_init);
-module_exit(_fini);
+module_init(openzfs_init);
+module_exit(openzfs_fini);
 #endif
 
 ZFS_MODULE_DESCRIPTION("ZFS");
