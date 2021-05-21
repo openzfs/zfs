@@ -38,7 +38,7 @@
 .\" Copyright 2019 Joyent, Inc.
 .\" Copyright (c) 2019, Kjeld Schouten-Lebbing
 .\"
-.Dd September 1, 2020
+.Dd May 5, 2021
 .Dt ZFSPROPS 8
 .Os
 .Sh NAME
@@ -1085,7 +1085,7 @@ encryption suite cannot be changed after dataset creation, the keyformat can be
 with
 .Nm zfs Cm change-key .
 .It Xo
-.Sy keylocation Ns = Ns Sy prompt Ns | Ns Sy file:// Ns Em </absolute/file/path>
+.Sy keylocation Ns = Ns Sy prompt Ns | Ns Sy file:// Ns Em </absolute/file/path> Ns | Ns Sy https:// Ns Em <address> | Ns Sy http:// Ns Em <address>
 .Xc
 Controls where the user's encryption key will be loaded from by default for
 commands such as
@@ -1109,7 +1109,22 @@ to access the encrypted data (see
 for details). This setting will also allow the key to be passed in via STDIN,
 but users should be careful not to place keys which should be kept secret on
 the command line. If a file URI is selected, the key will be loaded from the
-specified absolute file path.
+specified absolute file path. If an HTTPS or HTTP URL is selected,
+it will be GETted using
+.Xr fetch 3 ,
+libcurl, or nothing, depending on compile-time configuration and run-time
+availability. The
+.Ev SSL_CA_CERT_FILE
+environment variable can be set to set the location
+of the concatenated certificate store. The
+.Ev SSL_CA_CERT_PATH
+environment variable can be set to override the location
+of the directory containing the certificate authority bundle. The
+.Ev SSL_CLIENT_CERT_FILE
+and
+.Ev SSL_CLIENT_KEY_FILE
+environment variables can be set to configure the path
+to the client certificate and its key.
 .It Sy pbkdf2iters Ns = Ns Ar iterations
 Controls the number of PBKDF2 iterations that a
 .Sy passphrase
@@ -1775,10 +1790,10 @@ In addition to enabling this property, the virus scan service must also be
 enabled for virus scanning to occur.
 The default value is
 .Sy off .
-This property is not used on Linux.
+This property is not used by OpenZFS.
 .It Sy xattr Ns = Ns Sy on Ns | Ns Sy off Ns | Ns Sy sa
 Controls whether extended attributes are enabled for this file system. Two
-styles of extended attributes are supported either directory based or system
+styles of extended attributes are supported: either directory based or system
 attribute based.
 .Pp
 The default value of
@@ -1790,7 +1805,7 @@ can be set on a file. Although under Linux the
 and
 .Xr setxattr 2
 system calls limit the maximum size to 64K. This is the most compatible
-style of extended attribute and is supported by all OpenZFS implementations.
+style of extended attribute and is supported by all ZFS implementations.
 .Pp
 System attribute based xattrs can be enabled by setting the value to
 .Sy sa .
@@ -1803,6 +1818,9 @@ based xattr. System attribute based extended attributes are not accessible
 on platforms which do not support the
 .Sy xattr=sa
 feature.
+OpenZFS supports
+.Sy xattr=sa
+on both FreeBSD and Linux.
 .Pp
 The use of system attribute based xattrs is strongly encouraged for users of
 SELinux or POSIX ACLs. Both of these features heavily rely on extended

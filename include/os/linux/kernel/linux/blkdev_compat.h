@@ -277,18 +277,22 @@ bio_set_bi_error(struct bio *bio, int error)
 static inline int
 zfs_check_media_change(struct block_device *bdev)
 {
+#ifdef HAVE_BLOCK_DEVICE_OPERATIONS_REVALIDATE_DISK
 	struct gendisk *gd = bdev->bd_disk;
 	const struct block_device_operations *bdo = gd->fops;
+#endif
 
 	if (!bdev_check_media_change(bdev))
 		return (0);
 
+#ifdef HAVE_BLOCK_DEVICE_OPERATIONS_REVALIDATE_DISK
 	/*
 	 * Force revalidation, to mimic the old behavior of
 	 * check_disk_change()
 	 */
 	if (bdo->revalidate_disk)
 		bdo->revalidate_disk(gd);
+#endif
 
 	return (0);
 }
@@ -366,7 +370,7 @@ bio_set_op_attrs(struct bio *bio, unsigned rw, unsigned flags)
  *
  * 4.8 - 4.9 API,
  *   REQ_FLUSH was renamed to REQ_PREFLUSH.  For consistency with previous
- *   ZoL releases, prefer the WRITE_FLUSH_FUA flag set if it's available.
+ *   OpenZFS releases, prefer the WRITE_FLUSH_FUA flag set if it's available.
  *
  * 4.10 API,
  *   The read/write flags and their modifiers, including WRITE_FLUSH,

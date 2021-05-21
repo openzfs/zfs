@@ -198,7 +198,8 @@ tags = ['functional', 'cli_root', 'zfs_inherit']
 
 [tests/functional/cli_root/zfs_load-key]
 tests = ['zfs_load-key', 'zfs_load-key_all', 'zfs_load-key_file',
-    'zfs_load-key_location', 'zfs_load-key_noop', 'zfs_load-key_recursive']
+    'zfs_load-key_https', 'zfs_load-key_location', 'zfs_load-key_noop',
+    'zfs_load-key_recursive']
 tags = ['functional', 'cli_root', 'zfs_load-key']
 
 [tests/functional/cli_root/zfs_mount]
@@ -741,12 +742,13 @@ tests = ['raidz_001_neg', 'raidz_002_pos', 'raidz_003_pos', 'raidz_004_pos']
 tags = ['functional', 'raidz']
 
 [tests/functional/redundancy]
-tests = ['redundancy_draid1', 'redundancy_draid2', 'redundancy_draid3',
-    'redundancy_draid_spare1', 'redundancy_draid_spare2',
-    'redundancy_draid_spare3', 'redundancy_mirror', 'redundancy_raidz',
-    'redundancy_raidz1', 'redundancy_raidz2', 'redundancy_raidz3',
-    'redundancy_stripe']
+tests = ['redundancy_draid', 'redundancy_draid1', 'redundancy_draid2',
+    'redundancy_draid3', 'redundancy_draid_damaged', 'redundancy_draid_spare1',
+    'redundancy_draid_spare2', 'redundancy_draid_spare3', 'redundancy_mirror',
+    'redundancy_raidz', 'redundancy_raidz1', 'redundancy_raidz2',
+    'redundancy_raidz3', 'redundancy_stripe']
 tags = ['functional', 'redundancy']
+timeout = 1200
 
 [tests/functional/refquota]
 tests = ['refquota_001_pos', 'refquota_002_pos', 'refquota_003_pos',
@@ -883,8 +885,7 @@ tests = [
     'userquota_004_pos', 'userquota_005_neg', 'userquota_006_pos',
     'userquota_007_pos', 'userquota_008_pos', 'userquota_009_pos',
     'userquota_010_pos', 'userquota_011_pos', 'userquota_012_neg',
-    'userspace_001_pos', 'userspace_002_pos', 'userspace_encrypted',
-    'userspace_send_encrypted']
+    'userspace_001_pos', 'userspace_002_pos', 'userspace_encrypted']
 tags = ['functional', 'userquota']
 
 [tests/functional/vdev_zaps]

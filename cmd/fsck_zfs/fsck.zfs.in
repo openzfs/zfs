@@ -26,15 +26,15 @@ for dataset in "$@"; do
 
 	case "$(@sbindir@/zpool list -Ho health "$pool")" in
 		DEGRADED)
-			ret=$(( $ret | 4 ))
+			ret=$(( ret | 4 ))
 			;;
 		FAULTED)
 			awk '!/^([[:space:]]*#.*)?$/ && $1 == "'"$dataset"'" && $3 == "zfs" {exit 1}' /etc/fstab || \
-				ret=$(( $ret | 8 ))
+				ret=$(( ret | 8 ))
 			;;
 		"")
 			# Pool not found, error printed by zpool(8)
-			ret=$(( $ret | 8 ))
+			ret=$(( ret | 8 ))
 			;;
 		*)
 			;;

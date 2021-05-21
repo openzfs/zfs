@@ -97,11 +97,6 @@ do_mount_(const char *spec, const char *dir, int mflag, char *fstype,
 	iovlen = 0;
 	if (strstr(optstr, MNTOPT_REMOUNT) != NULL)
 		build_iovec(&iov, &iovlen, "update", NULL, 0);
-	if (strstr(optstr, MNTOPT_NOXATTR) == NULL &&
-	    strstr(optstr, MNTOPT_XATTR) == NULL &&
-	    strstr(optstr, MNTOPT_SAXATTR) == NULL &&
-	    strstr(optstr, MNTOPT_DIRXATTR) == NULL)
-		build_iovec(&iov, &iovlen, "xattr", NULL, 0);
 	if (mflag & MS_RDONLY)
 		build_iovec(&iov, &iovlen, "ro", NULL, 0);
 	build_iovec(&iov, &iovlen, "fstype", fstype, (size_t)-1);

@@ -6,7 +6,6 @@ KERNEL_H = \
 	callo.h \
 	cmn_err.h \
 	condvar.h \
-	console.h \
 	cred.h \
 	ctype.h \
 	debug.h \

@@ -83,6 +83,23 @@
 #ZED_SLACK_WEBHOOK_URL=""
 
 ##
+# Pushover token.
+# This defines the application from which the notification will be sent.
+#   <https://pushover.net/api#registration>
+# Disabled by default; uncomment to enable.
+# ZED_PUSHOVER_USER, below, must also be configured.
+#
+#ZED_PUSHOVER_TOKEN=""
+
+##
+# Pushover user key.
+# This defines which user or group will receive Pushover notifications.
+#  <https://pushover.net/api#identifiers>
+# Disabled by default; uncomment to enable.
+# ZED_PUSHOVER_TOKEN, above, must also be configured.
+#ZED_PUSHOVER_USER=""
+
+##
 # Default directory for zed state files.
 #
 #ZED_RUNDIR="/var/run"

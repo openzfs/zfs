@@ -224,7 +224,12 @@ zpl_mknod(struct inode *dir, struct dentry *dentry, umode_t mode,
 
 #ifdef HAVE_TMPFILE
 static int
+#ifdef HAVE_TMPFILE_USERNS
+zpl_tmpfile(struct user_namespace *userns, struct inode *dir,
+    struct dentry *dentry, umode_t mode)
+#else
 zpl_tmpfile(struct inode *dir, struct dentry *dentry, umode_t mode)
+#endif
 {
 	cred_t *cr = CRED();
 	struct inode *ip;

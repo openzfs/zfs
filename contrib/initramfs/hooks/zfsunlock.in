@@ -1,17 +1,9 @@
 #!/bin/sh
 
-PREREQ="dropbear"
-
-prereqs() {
-    echo "$PREREQ"
-}
-
-case "$1" in
-    prereqs)
-        prereqs
-        exit 0
-    ;;
-esac
+if [ "$1" = "prereqs" ]; then
+	echo "dropbear"
+	exit
+fi
 
 . /usr/share/initramfs-tools/hook-functions
 
