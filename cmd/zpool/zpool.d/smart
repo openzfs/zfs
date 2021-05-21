@@ -53,7 +53,7 @@ get_filename_from_dir()
 	num_files=$(find "$dir" -maxdepth 1 -type f | wc -l)
 	mod=$((pid % num_files))
 	i=0
-	find "$dir" -type f -printf "%f\n" | while read -r file ; do
+	find "$dir" -type f -printf '%f\n' | while read -r file ; do
 		if [ "$mod" = "$i" ] ; then
 			echo "$file"
 			break
@@ -231,11 +231,11 @@ esac
 with_vals=$(echo "$out" | grep -E "$scripts")
 if [ -n "$with_vals" ]; then
 	echo "$with_vals"
-	without_vals=$(echo "$scripts" | tr "|" "\n" |
+	without_vals=$(echo "$scripts" | tr '|' '\n' |
 		grep -v -E "$(echo "$with_vals" |
 		awk -F "=" '{print $1}')" | awk '{print $0"="}')
 else
-	without_vals=$(echo "$scripts" | tr "|" "\n" | awk '{print $0"="}')
+	without_vals=$(echo "$scripts" | tr '|' '\n' | awk '{print $0"="}')
 fi
 
 if [ -n "$without_vals" ]; then

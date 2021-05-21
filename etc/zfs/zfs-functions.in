@@ -44,7 +44,7 @@ elif type success > /dev/null 2>&1 ; then
 		fi
 	}
 
-	zfs_log_begin_msg() { echo -n "$1 "; }
+	zfs_log_begin_msg() { printf "%s" "$1 "; }
 	zfs_log_end_msg() {
 		zfs_set_ifs "$OLD_IFS"
 		if [ "$1" -eq 0 ]; then
@@ -61,17 +61,17 @@ elif type success > /dev/null 2>&1 ; then
 		echo
 		zfs_set_ifs "$TMP_IFS"
 	}
-	zfs_log_progress_msg() { echo -n "$""$1"; }
+	zfs_log_progress_msg() { printf "%s" "$""$1"; }
 elif type einfo > /dev/null 2>&1 ; then
 	# Gentoo functions
 	zfs_log_begin_msg() { ebegin "$1"; }
 	zfs_log_end_msg() { eend "$1"; }
 	zfs_log_failure_msg() { eend "$1"; }
-#	zfs_log_progress_msg() { echo -n "$1"; }
-	zfs_log_progress_msg() { echo -n; }
+#	zfs_log_progress_msg() { printf "%s" "$1"; }
+	zfs_log_progress_msg() { :; }
 else
 	# Unknown - simple substitutes.
-	zfs_log_begin_msg() { echo -n "$1"; }
+	zfs_log_begin_msg() { printf "%s" "$1"; }
 	zfs_log_end_msg() {
 		ret=$1
 		if [ "$ret" -ge 1 ]; then
@@ -82,7 +82,7 @@ else
 		return "$ret"
 	}
 	zfs_log_failure_msg() { echo "$1"; }
-	zfs_log_progress_msg() { echo -n "$1"; }
+	zfs_log_progress_msg() { printf "%s" "$1"; }
 fi
 
 # Paths to what we need
@@ -134,15 +134,15 @@ zfs_daemon_start()
 {
 	local PIDFILE="$1";	shift
 	local DAEMON_BIN="$1";	shift
-	local DAEMON_ARGS="$*"
 
 	if type start-stop-daemon > /dev/null 2>&1 ; then
 		# LSB functions
 		start-stop-daemon --start --quiet --pidfile "$PIDFILE" \
 		    --exec "$DAEMON_BIN" --test > /dev/null || return 1
 
-	        start-stop-daemon --start --quiet --exec "$DAEMON_BIN" -- \
-		    $DAEMON_ARGS || return 2
+		# shellcheck disable=SC2086
+		start-stop-daemon --start --quiet --exec "$DAEMON_BIN" -- \
+		    "$@" || return 2
 
 		# On Debian, there's a 'sendsigs' script that will
 		# kill basically everything quite early and zed is stopped
@@ -153,8 +153,9 @@ zfs_daemon_start()
 			ln -sf "$PIDFILE" /run/sendsigs.omit.d/zed
 		fi
 	elif type daemon > /dev/null 2>&1 ; then
-	        # Fedora/RedHat functions
-		daemon --pidfile "$PIDFILE" "$DAEMON_BIN" $DAEMON_ARGS
+		# Fedora/RedHat functions
+		# shellcheck disable=SC2086
+		daemon --pidfile "$PIDFILE" "$DAEMON_BIN" "$@"
 		return $?
 	else
 		# Unsupported
@@ -234,7 +235,7 @@ zfs_daemon_reload()
 		return $?
 	elif type killproc > /dev/null 2>&1 ; then
 		# Fedora/RedHat functions
-                killproc -p "$PIDFILE" "$DAEMON_NAME" -HUP
+		killproc -p "$PIDFILE" "$DAEMON_NAME" -HUP
 		return $?
 	else
 		# Unsupported
@@ -287,6 +288,7 @@ checksystem()
 		# HOWEVER, only do this if we're called at the boot up
 		# (from init), not if we're running interactively (as in
 		# from the shell - we know what we're doing).
+		# shellcheck disable=SC2154
 		[ -n "$init" ] && exit 3
 	fi
 
@@ -301,6 +303,7 @@ checksystem()
 
 get_root_pool()
 {
+	# shellcheck disable=SC2046
 	set -- $(mount | grep ' on / ')
 	[ "$5" = "zfs" ] && echo "${1%%/*}"
 }
@@ -338,9 +341,10 @@ load_module()
 read_mtab()
 {
 	local match="$1"
-	local fs mntpnt fstype opts rest TMPFILE
+	local fs mntpnt fstype opts rest
 
 	# Unset all MTAB_* variables
+	# shellcheck disable=SC2046
 	unset $(env | grep ^MTAB_ | sed 's,=.*,,')
 
 	while read -r fs mntpnt fstype opts rest; do
@@ -352,8 +356,8 @@ read_mtab()
 			# * We need to use the external echo, because the
 			#   internal one would interpret the backslash code
 			#   (incorrectly), giving us a  instead.
-			mntpnt=$(/bin/echo "$mntpnt" | sed "s,\\\0,\\\00,g")
-			fs=$(/bin/echo "$fs" | sed "s,\\\0,\\\00,")
+			mntpnt=$(/bin/echo "$mntpnt" | sed 's,\\0,\\00,g')
+			fs=$(/bin/echo "$fs" | sed 's,\\0,\\00,')
 
 			# Remove 'unwanted' characters.
 			mntpnt=$(printf '%b\n' "$mntpnt" | sed -e 's,/,,g' \
@@ -386,6 +390,7 @@ read_fstab()
 	local i var
 
 	# Unset all FSTAB_* variables
+	# shellcheck disable=SC2046
 	unset $(env | grep ^FSTAB_ | sed 's,=.*,,')
 
 	i=0

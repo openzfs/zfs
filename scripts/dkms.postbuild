@@ -9,16 +9,17 @@ while getopts "a:k:n:t:v:" opt; do
 		n) pkgname=$OPTARG ;;
 		t) tree=$OPTARG    ;;
 		v) pkgver=$OPTARG  ;;
+		*) err=1           ;;
 	esac
 done
 
 if [ -z "${arch}" ] || [ -z "${kver}" ] || [ -z "${pkgname}" ] || \
-    [ -z "${tree}" ] || [ -z "${pkgver}" ]; then
+    [ -z "${tree}" ] || [ -z "${pkgver}" ] || [ -n "${err}" ]; then
 	echo "Usage: $PROG -a <arch> -k <kver> -n <pkgname>" \
-	     "-t <tree> -v <pkgver>"
+	    "-t <tree> -v <pkgver>"
 	exit 1
 fi
 
-cp "${tree}/${pkgname}/${pkgver}/build/zfs_config.h"          \
+exec cp "${tree}/${pkgname}/${pkgver}/build/zfs_config.h"     \
    "${tree}/${pkgname}/${pkgver}/build/module/Module.symvers" \
    "${tree}/${pkgname}/${pkgver}/${kver}/${arch}/"
