@@ -885,3 +885,24 @@ AC_DEFUN([ZFS_LINUX_TRY_COMPILE_HEADER], [
 	    [test -f build/conftest/conftest.ko],
 	    [$3], [$4], [$5])
 ])
+
+dnl #
+dnl # ZFS_LINUX_TEST_KERNEL
+dnl # Test whether the target Linux version falls in an expected range
+dnl # intended for catching Linux interfaces breaking unexpectedly
+dnl # if $1 <= $LINUX_VERSION < $2, error out reporting missing interface $3
+dnl # Note: if you don't specify $1, it will compare 0 < ...
+dnl # If don't specify $2, it will compare ... < 9999
+dnl #
+AC_DEFUN([ZFS_LINUX_TEST_KERNEL], [
+	if [test "x$2" = "x"]; then
+		max=9999
+	else
+		max=$2
+	fi
+	AX_COMPARE_VERSION($LINUX_VERSION, [ge], [$max], [], [
+		AX_COMPARE_VERSION($LINUX_VERSION, [ge], [$1], [
+			ZFS_LINUX_TEST_ERROR([$3])
+		],[])
+	])
+])

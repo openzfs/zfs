@@ -209,6 +209,7 @@ AC_DEFUN([ZFS_AC_KERNEL_INODE_OPERATIONS_SET_ACL], [
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_SET_ACL, 1, [iops->set_acl() exists])
 	],[
+		ZFS_LINUX_TEST_KERNEL(3.14, 5.12, [set_acl()])
 		AC_MSG_RESULT(no)
 	])
 ])
