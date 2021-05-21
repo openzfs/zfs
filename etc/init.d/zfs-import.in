@@ -72,6 +72,7 @@ do_import_all_visible()
 	local exception dir ZPOOL_IMPORT_PATH RET=0 r=1
 
 	# In case not shutdown cleanly.
+	# shellcheck disable=SC2154
 	[ -n "$init" ] && rm -f /etc/dfs/sharetab
 
 	# Just simplify code later on.
@@ -157,7 +158,7 @@ do_import_all_visible()
 			echo "$dir" | grep -q /by-vdev && continue
 			[ ! -d "$dir" ] && continue
 
-			echo -n "$dir:"
+			printf "%s" "$dir:"
 		done | sed 's,:$,,g')"
 
 		if [ -d "/dev/disk/by-vdev" ]
@@ -214,6 +215,7 @@ do_import_all_visible()
 		# Import by using ZPOOL_IMPORT_PATH (either set above or in
 		# the config file) _or_ with the 'built in' default search
 		# paths. This is the preferred way.
+		# shellcheck disable=SC2086
 		"$ZPOOL" import -N ${ZPOOL_IMPORT_OPTS} "$pool" 2> /dev/null
 		r="$?" ; RET=$((RET + r))
 		if [ "$r" -eq 0 ]
@@ -235,6 +237,7 @@ do_import_all_visible()
 				zfs_log_progress_msg " using cache file"
 			fi
 
+			# shellcheck disable=SC2086
 			"$ZPOOL" import -c "$ZPOOL_CACHE" -N ${ZPOOL_IMPORT_OPTS} \
 				"$pool" 2> /dev/null
 			r="$?" ; RET=$((RET + r))

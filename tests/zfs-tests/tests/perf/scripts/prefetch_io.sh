@@ -64,17 +64,17 @@ async_upgrade_sync=$(get_async_upgrade_sync)
 while true
 do
 	new_prefetch_ios=$(get_prefetch_ios)
-	printf "%u\n%-24s\t%u\n" "$(date +%s)" "prefetch_ios" \
+	printf '%u\n%-24s\t%u\n' "$(date +%s)" "prefetch_ios" \
 	    $(( new_prefetch_ios - prefetch_ios ))
 	prefetch_ios=$new_prefetch_ios
 
 	new_prefetched_demand_reads=$(get_prefetched_demand_reads)
-	printf "%-24s\t%u\n" "prefetched_demand_reads" \
+	printf '%-24s\t%u\n' "prefetched_demand_reads" \
 	    $(( new_prefetched_demand_reads - prefetched_demand_reads ))
 	prefetched_demand_reads=$new_prefetched_demand_reads
 
 	new_async_upgrade_sync=$(get_async_upgrade_sync)
-	printf "%-24s\t%u\n" "async_upgrade_sync" \
+	printf '%-24s\t%u\n' "async_upgrade_sync" \
 	    $(( new_async_upgrade_sync - async_upgrade_sync ))
 	async_upgrade_sync=$new_async_upgrade_sync
 

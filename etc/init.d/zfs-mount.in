@@ -80,11 +80,11 @@ do_mount()
 
 	read_mtab  "^/dev/(zd|zvol)"
 	read_fstab "^/dev/(zd|zvol)"
-	i=0; var=$(eval echo "FSTAB_$i")
-	while [ -n "$(eval echo "$""$var")" ]
+	i=0; var="FSTAB_0"
+	while [ -n "$(eval echo "\$$var")" ]
 	do
-		mntpt=$(eval echo "$""$var")
-		dev=$(eval echo "$"FSTAB_dev_$i)
+		mntpt=$(eval echo "\$$var")
+		dev=$(eval echo "\$FSTAB_dev_$i")
 		if ! in_mtab "$mntpt" && ! is_mounted "$mntpt" && [ -e "$dev" ]
 		then
 			check_boolean "$VERBOSE_MOUNT" && \
@@ -93,15 +93,15 @@ do_mount()
 		fi
 
 		i=$((i + 1))
-		var=$(eval echo FSTAB_$i)
+		var=$(eval echo "FSTAB_$i")
 	done
 
 	read_mtab  "[[:space:]]zfs[[:space:]]"
 	read_fstab "[[:space:]]zfs[[:space:]]"
-	i=0; var=$(eval echo FSTAB_$i)
-	while [ -n "$(eval echo "$""$var")" ]
+	i=0; var=$(eval echo "FSTAB_$i")
+	while [ -n "$(eval echo "\$$var")" ]
 	do
-		mntpt=$(eval echo "$""$var")
+		mntpt=$(eval echo "\$$var")
 		if ! in_mtab "$mntpt" && ! is_mounted "$mntpt"
 		then
 			check_boolean "$VERBOSE_MOUNT" && \
@@ -110,7 +110,7 @@ do_mount()
 		fi
 
 		i=$((i + 1))
-		var=$(eval echo FSTAB_$i)
+		var=$(eval echo "FSTAB_$i")
 	done
 	check_boolean "$VERBOSE_MOUNT" && zfs_log_end_msg 0
 
@@ -133,11 +133,11 @@ do_unmount()
 
 	read_mtab  "^/dev/(zd|zvol)"
 	read_fstab "^/dev/(zd|zvol)"
-	i=0; var=$(eval echo FSTAB_$i)
-	while [ -n "$(eval echo "$""$var")" ]
+	i=0; var="FSTAB_0"
+	while [ -n "$(eval echo "\$$var")" ]
 	do
-		mntpt=$(eval echo "$""$var")
-		dev=$(eval echo "$"FSTAB_dev_$i)
+		mntpt=$(eval echo "\$$var")
+		dev=$(eval echo "\$FSTAB_dev_$i")
 		if in_mtab "$mntpt"
 		then
 			check_boolean "$VERBOSE_MOUNT" && \
@@ -146,15 +146,15 @@ do_unmount()
 		fi
 
 		i=$((i + 1))
-		var=$(eval echo FSTAB_$i)
+		var=$(eval echo "FSTAB_$i")
 	done
 
 	read_mtab  "[[:space:]]zfs[[:space:]]"
 	read_fstab "[[:space:]]zfs[[:space:]]"
-	i=0; var=$(eval echo FSTAB_$i)
-	while [ -n "$(eval echo "$""$var")" ]
+	i=0; var="FSTAB_0"
+	while [ -n "$(eval echo "\$$var")" ]
 	do
-		mntpt=$(eval echo "$""$var")
+		mntpt=$(eval echo "\$$var")
 		if in_mtab "$mntpt"; then
 			check_boolean "$VERBOSE_MOUNT" && \
 			    zfs_log_progress_msg "$mntpt "
@@ -162,7 +162,7 @@ do_unmount()
 		fi
 
 		i=$((i + 1))
-		var=$(eval echo FSTAB_$i)
+		var=$(eval echo "FSTAB_$i")
 	done
 	check_boolean "$VERBOSE_MOUNT" && zfs_log_end_msg 0
 

@@ -30,6 +30,7 @@
 ZED_NAME="zed"
 ZED_PIDFILE="@runstatedir@/$ZED_NAME.pid"
 
+# shellcheck disable=SC2034
 extra_started_commands="reload"
 
 # Exit if the package is not installed

@@ -60,7 +60,7 @@ install() {
 	# shellcheck disable=SC2050
 	if [ @LIBFETCH_DYNAMIC@ != 0 ]; then
 		for d in $libdirs; do
-			[ -e "$d"/@LIBFETCH_SONAME@ ] && dracut_install "$d"/@LIBFETCH_SONAME@
+			[ -e "$d/"@LIBFETCH_SONAME@ ] && dracut_install "$d/"@LIBFETCH_SONAME@
 		done
 	fi
 	dracut_install @mounthelperdir@/mount.zfs

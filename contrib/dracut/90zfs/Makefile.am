@@ -1,4 +1,5 @@
 include $(top_srcdir)/config/Substfiles.am
+include $(top_srcdir)/config/Shellcheck.am
 
 pkgdracutdir = $(dracutdir)/modules.d/90zfs
 pkgdracut_SCRIPTS = \

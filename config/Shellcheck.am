@@ -1,0 +1,8 @@
+.PHONY: shellcheck
+shellcheck: $(SCRIPTS) $(SHELLCHECKSCRIPTS)
+if HAVE_SHELLCHECK
+	[ -z "$(SCRIPTS)$(SHELLCHECKSCRIPTS)" ] && exit; shellcheck $$([ -n "$(SHELLCHECK_SHELL)" ] && echo "--shell=$(SHELLCHECK_SHELL)") --exclude=SC1090,SC1091$(SHELLCHECK_IGNORE) --format=gcc $(SCRIPTS) $(SHELLCHECKSCRIPTS)
+else
+	@[ -z "$(SCRIPTS)$(SHELLCHECKSCRIPTS)" ] && exit; echo "skipping shellcheck of" $(SCRIPTS) $(SHELLCHECKSCRIPTS) "because shellcheck is not installed"
+endif
+	@set -e; for dir in $(SHELLCHECKDIRS); do $(MAKE) -C $$dir shellcheck; done
