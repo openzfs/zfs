@@ -2133,7 +2133,7 @@ dump_history(spa_t *spa)
 			    ZPOOL_HIST_INT_NAME));
 
 			if (nvlist_exists(events[i], ZPOOL_HIST_DSNAME)) {
-				(void) printf("%s (%llu)",
+				(void) printf(" %s (%llu)",
 				    fnvlist_lookup_string(events[i],
 				    ZPOOL_HIST_DSNAME),
 				    (u_longlong_t)fnvlist_lookup_uint64(
