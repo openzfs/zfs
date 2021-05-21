@@ -135,31 +135,6 @@ checkabi: lib
 storeabi: lib
 	$(MAKE) -C lib storeabi
 
-PHONY += checkbashisms
-checkbashisms:
-	@if type checkbashisms > /dev/null 2>&1; then \
-		checkbashisms -n -p -x \
-			$$(find ${top_srcdir} \
-				-name '.git' -prune \
-				-o -name 'build' -prune \
-				-o -name 'tests' -prune \
-				-o -name 'config' -prune \
-				-o -name 'zed-functions.sh*' -prune \
-				-o -name 'zfs-import*' -prune \
-				-o -name 'zfs-mount*' -prune \
-				-o -name 'zfs-zed*' -prune \
-				-o -name 'smart' -prune \
-				-o -name 'paxcheck.sh' -prune \
-				-o -name 'make_gitrev.sh' -prune \
-				-o -name '90zfs' -prune \
-				-o -path '*initramfs/hooks' -prune \
-				-o -type f ! -name 'config*' \
-				! -name 'libtool' \
-			-exec awk 'FNR==1 && /^#!.*bin\/sh/ {print FILENAME}' {} \+); \
-	else \
-		echo "skipping checkbashisms because checkbashisms is not installed"; \
-	fi
-
 PHONY += mancheck
 mancheck:
 	@if type mandoc > /dev/null 2>&1; then \
