@@ -1,3 +1,5 @@
+include $(top_srcdir)/config/Shellcheck.am
+
 ACLOCAL_AMFLAGS = -I config
 
 SUBDIRS = include
@@ -123,17 +125,8 @@ cstyle:
 
 filter_executable = -exec test -x '{}' \; -print
 
-PHONY += shellcheck
-shellcheck:
-	@if type shellcheck > /dev/null 2>&1; then \
-		shellcheck --exclude=SC1090,SC1117,SC1091 --format=gcc \
-			$$(find ${top_srcdir} -name "config*" -prune -name tests -prune \
-				-o -name "*.sh" -o -name "*.sh.in" -type f) \
-			$$(find ${top_srcdir}/cmd/zpool/zpool.d/* \
-			-type f ${filter_executable}); \
-	else \
-		echo "skipping shellcheck because shellcheck is not installed"; \
-	fi
+SHELLCHECKDIRS = cmd contrib etc scripts tests
+SHELLCHECKSCRIPTS = autogen.sh
 
 PHONY += checkabi storeabi
 checkabi: lib
