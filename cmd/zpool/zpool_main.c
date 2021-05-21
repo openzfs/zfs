@@ -2526,6 +2526,10 @@ print_import_config(status_cbdata_t *cb, const char *name, nvlist_t *nv,
 			(void) printf(gettext("all children offline"));
 			break;
 
+		case VDEV_AUX_BAD_LABEL:
+			(void) printf(gettext("invalid label"));
+			break;
+
 		default:
 			(void) printf(gettext("corrupted data"));
 			break;
