@@ -1243,9 +1243,20 @@ zpool_find_import_scan_dir(libpc_handle_t *hdl, pthread_mutex_t *lock,
 
 	while ((dp = readdir64(dirp)) != NULL) {
 		const char *name = dp->d_name;
-		if (name[0] == '.' &&
-		    (name[1] == 0 || (name[1] == '.' && name[2] == 0)))
+		if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0)
 			continue;
+
+		switch (dp->d_type) {
+		case DT_UNKNOWN:
+		case DT_BLK:
+#ifdef __FreeBSD__
+		case DT_CHR:
+#endif
+		case DT_REG:
+			break;
+		default:
+			continue;
+		}
 
 		zpool_find_import_scan_add_slice(hdl, lock, cache, path, name,
 		    order);

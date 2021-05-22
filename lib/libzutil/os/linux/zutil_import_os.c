@@ -114,9 +114,11 @@ zpool_open_func(void *arg)
 
 	/*
 	 * Ignore failed stats.  We only want regular files and block devices.
+	 * Ignore files that are too small to hold a zpool.
 	 */
 	if (stat64(rn->rn_name, &statbuf) != 0 ||
-	    (!S_ISREG(statbuf.st_mode) && !S_ISBLK(statbuf.st_mode)))
+	    (!S_ISREG(statbuf.st_mode) && !S_ISBLK(statbuf.st_mode)) ||
+	    (S_ISREG(statbuf.st_mode) && statbuf.st_size < SPA_MINDEVSIZE))
 		return;
 
 	/*
@@ -131,14 +133,6 @@ zpool_open_func(void *arg)
 		hdl->lpc_open_access_error = B_TRUE;
 	if (fd < 0)
 		return;
-
-	/*
-	 * This file is too small to hold a zpool
-	 */
-	if (S_ISREG(statbuf.st_mode) && statbuf.st_size < SPA_MINDEVSIZE) {
-		(void) close(fd);
-		return;
-	}
 
 	error = zpool_read_label(fd, &config, &num_labels);
 	if (error != 0) {
