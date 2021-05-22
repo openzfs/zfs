@@ -31,6 +31,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <libzutil.h>
 #include <sys/crypto/icp.h>
 #include <sys/processor.h>
 #include <sys/rrwlock.h>
@@ -541,19 +542,10 @@ void
 __dprintf(boolean_t dprint, const char *file, const char *func,
     int line, const char *fmt, ...)
 {
-	const char *newfile;
+	/* Get rid of annoying "../common/" prefix to filename. */
+	const char *newfile = zfs_basename(file);
+
 	va_list adx;
-
-	/*
-	 * Get rid of annoying "../common/" prefix to filename.
-	 */
-	newfile = strrchr(file, '/');
-	if (newfile != NULL) {
-		newfile = newfile + 1; /* Get rid of leading / */
-	} else {
-		newfile = file;
-	}
-
 	if (dprint) {
 		/* dprintf messages are printed immediately */
 
@@ -1040,7 +1032,7 @@ zfs_file_open(const char *path, int flags, int mode, zfs_file_t **fpp)
 
 	if (vn_dumpdir != NULL) {
 		char *dumppath = umem_zalloc(MAXPATHLEN, UMEM_NOFAIL);
-		char *inpath = basename((char *)(uintptr_t)path);
+		const char *inpath = zfs_basename(path);
 
 		(void) snprintf(dumppath, MAXPATHLEN,
 		    "%s/%s", vn_dumpdir, inpath);

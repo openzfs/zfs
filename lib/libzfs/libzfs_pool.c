@@ -4309,7 +4309,7 @@ zfs_save_arguments(int argc, char **argv, char *string, int len)
 {
 	int i;
 
-	(void) strlcpy(string, basename(argv[0]), len);
+	(void) strlcpy(string, zfs_basename(argv[0]), len);
 	for (i = 1; i < argc; i++) {
 		(void) strlcat(string, " ", len);
 		(void) strlcat(string, argv[i], len);
