@@ -74,7 +74,6 @@
 #endif
 #include <blkid/blkid.h>
 
-#define	DEFAULT_IMPORT_PATH_SIZE	9
 #define	DEV_BYID_PATH	"/dev/disk/by-id/"
 
 static boolean_t
@@ -255,8 +254,8 @@ zpool_open_func(void *arg)
 	}
 }
 
-static char *
-zpool_default_import_path[DEFAULT_IMPORT_PATH_SIZE] = {
+static const char * const
+zpool_default_import_path[] = {
 	"/dev/disk/by-vdev",	/* Custom rules, use first if they exist */
 	"/dev/mapper",		/* Use multipath devices before components */
 	"/dev/disk/by-partlabel", /* Single unique entry set by user */
@@ -271,8 +270,8 @@ zpool_default_import_path[DEFAULT_IMPORT_PATH_SIZE] = {
 const char * const *
 zpool_default_search_paths(size_t *count)
 {
-	*count = DEFAULT_IMPORT_PATH_SIZE;
-	return ((const char * const *)zpool_default_import_path);
+	*count = ARRAY_SIZE(zpool_default_import_path);
+	return (zpool_default_import_path);
 }
 
 /*
@@ -300,7 +299,7 @@ zfs_path_order(char *name, int *order)
 		}
 		free(envdup);
 	} else {
-		for (i = 0; i < DEFAULT_IMPORT_PATH_SIZE; i++) {
+		for (i = 0; i < ARRAY_SIZE(zpool_default_import_path); i++) {
 			if (strncmp(name, zpool_default_import_path[i],
 			    strlen(zpool_default_import_path[i])) == 0) {
 				*order = i;
