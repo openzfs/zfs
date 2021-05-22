@@ -27,7 +27,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd May 15, 2020
+.Dd May 22, 2021
 .Dt ZPOOL-STATUS 8
 .Os
 .Sh NAME
@@ -126,6 +126,7 @@ data errors since the last complete pool scrub.
 Only display status for pools that are exhibiting errors or are otherwise
 unavailable.
 Warnings about pools not using the latest on-disk format will not be included.
+The exit code will be equal to the amount of pools that match these criteria.
 .El
 .El
 .Sh SEE ALSO

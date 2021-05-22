@@ -2001,6 +2001,7 @@ typedef struct status_cbdata {
 	int		cb_count;
 	int		cb_name_flags;
 	int		cb_namewidth;
+	int		cb_problematic;
 	boolean_t	cb_allpools;
 	boolean_t	cb_verbose;
 	boolean_t	cb_literal;
@@ -8072,19 +8073,24 @@ status_callback(zpool_handle_t *zhp, void *data)
 	 * If we were given 'zpool status -x', only report those pools with
 	 * problems.
 	 */
-	if (cbp->cb_explain &&
-	    (reason == ZPOOL_STATUS_OK ||
-	    reason == ZPOOL_STATUS_VERSION_OLDER ||
-	    reason == ZPOOL_STATUS_FEAT_DISABLED ||
-	    reason == ZPOOL_STATUS_COMPATIBILITY_ERR ||
-	    reason == ZPOOL_STATUS_INCOMPATIBLE_FEAT)) {
-		if (!cbp->cb_allpools) {
-			(void) printf(gettext("pool '%s' is healthy\n"),
-			    zpool_get_name(zhp));
-			if (cbp->cb_first)
-				cbp->cb_first = B_FALSE;
+	if (cbp->cb_explain) {
+		switch (reason) {
+		case ZPOOL_STATUS_OK:
+		case ZPOOL_STATUS_VERSION_OLDER:
+		case ZPOOL_STATUS_FEAT_DISABLED:
+		case ZPOOL_STATUS_COMPATIBILITY_ERR:
+		case ZPOOL_STATUS_INCOMPATIBLE_FEAT:
+			if (!cbp->cb_allpools) {
+				(void) printf(gettext("pool '%s' is healthy\n"),
+				    zpool_get_name(zhp));
+				if (cbp->cb_first)
+					cbp->cb_first = B_FALSE;
+			}
+			return (0);
+		default:
+			cbp->cb_problematic += 1;
+			break;
 		}
-		return (0);
 	}
 
 	if (cbp->cb_first)
@@ -8705,7 +8711,7 @@ zpool_do_status(int argc, char **argv)
 		(void) fsleep(interval);
 	}
 
-	return (0);
+	return (cb.cb_problematic);
 }
 
 typedef struct upgrade_cbdata {
