@@ -48,6 +48,9 @@ else
 	set -A args  "" "-a" "-d" "-p 1"
 fi
 
+# Without this, the below checks aren't going to work the way we hope...
+set -o pipefail
+
 typeset -i i=0
 while [[ $i -lt ${#args[*]} ]]; do
 	log_must eval "arc_summary ${args[i]} > /dev/null"

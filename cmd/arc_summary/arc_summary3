@@ -43,6 +43,12 @@ import subprocess
 import sys
 import time
 
+# We can't use env -S portably, and we need python3 -u to handle pipes in
+# the shell abruptly closing the way we want to, so...
+import io
+if isinstance(sys.__stderr__.buffer, io.BufferedWriter):
+    os.execv(sys.executable, [sys.executable, "-u"] + sys.argv)
+
 DESCRIPTION = 'Print ARC and other statistics for OpenZFS'
 INDENT = ' '*8
 LINE_LENGTH = 72
@@ -220,6 +226,24 @@ elif sys.platform.startswith('linux'):
             descs[name.strip()] = desc.strip()
 
         return descs
+
+def handle_unraisableException(exc_type, exc_value=None, exc_traceback=None,
+                               err_msg=None, object=None):
+   handle_Exception(exc_type, object, exc_traceback)
+
+def handle_Exception(ex_cls, ex, tb):
+    if ex_cls is KeyboardInterrupt:
+        sys.exit()
+
+    if ex_cls is BrokenPipeError:
+        # It turns out that while sys.exit() triggers an exception
+        # not handled message on Python 3.8+, os._exit() does not.
+        os._exit(0)
+    raise ex
+
+if hasattr(sys,'unraisablehook'): # Python 3.8+
+    sys.unraisablehook = handle_unraisableException
+sys.excepthook = handle_Exception
 
 
 def cleanup_line(single_line):
