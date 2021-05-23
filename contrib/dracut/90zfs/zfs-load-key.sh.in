@@ -36,13 +36,12 @@ fi
 if [ "$(zpool list -H -o feature@encryption "$(echo "${BOOTFS}" | awk -F/ '{print $1}')")" = 'active' ]; then
     # if the root dataset has encryption enabled
     ENCRYPTIONROOT="$(zfs get -H -o value encryptionroot "${BOOTFS}")"
-    # where the key is stored (in a file or loaded via prompt)
-    KEYLOCATION="$(zfs get -H -o value keylocation "${ENCRYPTIONROOT}")"
     if ! [ "${ENCRYPTIONROOT}" = "-" ]; then
         KEYSTATUS="$(zfs get -H -o value keystatus "${ENCRYPTIONROOT}")"
         # continue only if the key needs to be loaded
         [ "$KEYSTATUS" = "unavailable" ] || exit 0
-        # if key is stored in a file, do not prompt
+
+        KEYLOCATION="$(zfs get -H -o value keylocation "${ENCRYPTIONROOT}")"
         if ! [ "${KEYLOCATION}" = "prompt" ]; then
             if ! [ "${KEYLOCATION#http}" = "${KEYLOCATION}" ]; then
                 systemctl start network-online.target
