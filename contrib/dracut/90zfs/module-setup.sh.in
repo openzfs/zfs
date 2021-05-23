@@ -49,13 +49,16 @@ install() {
 		# On systems with gcc-config (Gentoo, Funtoo, etc.):
 		# Use the current profile to resolve the appropriate path
 		s="$(gcc-config -c)"
-		dracut_install "/usr/lib/gcc/${s%-*}/${s##*-}/libgcc_s.so.1"
-	elif ls /usr/lib/libgcc_s.so* >/dev/null 2>&1; then
+		dracut_install "/usr/lib/gcc/${s%-*}/${s##*-}/libgcc_s.so"*
+	elif [ "$(echo /usr/lib/libgcc_s.so*)" != "/usr/lib/libgcc_s.so*" ]; then
 		# Try a simple path first
 		dracut_install /usr/lib/libgcc_s.so*
+	elif [ "$(echo /lib*/libgcc_s.so*)" != "/lib*/libgcc_s.so*" ]; then
+		# SUSE
+		dracut_install /lib*/libgcc_s.so*
 	else
 		# Fallback: Guess the path and include all matches
-		dracut_install /usr/lib/gcc/*/*/libgcc_s.so*
+		dracut_install /usr/lib*/gcc/**/libgcc_s.so*
 	fi
 	# shellcheck disable=SC2050
 	if [ @LIBFETCH_DYNAMIC@ != 0 ]; then
