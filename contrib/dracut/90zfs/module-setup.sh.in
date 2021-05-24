@@ -104,29 +104,40 @@ install() {
 
 	if dracut_module_included "systemd"; then
 		mkdir -p "${initdir}/$systemdsystemunitdir/zfs-import.target.wants"
-		for _item in scan cache ; do
-			dracut_install @systemdunitdir@/zfs-import-$_item.service
-			if ! [ -L "${initdir}/$systemdsystemunitdir/zfs-import.target.wants"/zfs-import-$_item.service ]; then
-				ln -s ../zfs-import-$_item.service "${initdir}/$systemdsystemunitdir/zfs-import.target.wants"/zfs-import-$_item.service
-				type mark_hostonly >/dev/null 2>&1 && mark_hostonly @systemdunitdir@/zfs-import-$_item.service
+		for _service in "zfs-import-scan.service" "zfs-import-cache.service" ; do
+			dracut_install "@systemdunitdir@/$_service"
+			if ! [ -L "${initdir}/$systemdsystemunitdir/zfs-import.target.wants/$_service" ]; then
+				ln -sf ../$_service "${initdir}/$systemdsystemunitdir/zfs-import.target.wants/$_service"
+				type mark_hostonly >/dev/null 2>&1 && mark_hostonly "@systemdunitdir@/$_service"
 			fi
 		done
+
 		inst "${moddir}"/zfs-env-bootfs.service "${systemdsystemunitdir}"/zfs-env-bootfs.service
 		ln -s ../zfs-env-bootfs.service "${initdir}/${systemdsystemunitdir}/zfs-import.target.wants"/zfs-env-bootfs.service
 		type mark_hostonly >/dev/null 2>&1 && mark_hostonly @systemdunitdir@/zfs-env-bootfs.service
+
 		dracut_install systemd-ask-password
 		dracut_install systemd-tty-ask-password-agent
+
 		mkdir -p "${initdir}/$systemdsystemunitdir/initrd.target.wants"
 		dracut_install @systemdunitdir@/zfs-import.target
 		if ! [ -L "${initdir}/$systemdsystemunitdir/initrd.target.wants"/zfs-import.target ]; then
 			ln -s ../zfs-import.target "${initdir}/$systemdsystemunitdir/initrd.target.wants"/zfs-import.target
 			type mark_hostonly >/dev/null 2>&1 && mark_hostonly @systemdunitdir@/zfs-import.target
 		fi
+
 		for _service in zfs-snapshot-bootfs.service zfs-rollback-bootfs.service ; do
-			inst "${moddir}"/$_service "${systemdsystemunitdir}"/$_service
-			if ! [ -L "${initdir}/$systemdsystemunitdir/initrd.target.wants"/$_service ]; then
-				ln -s ../$_service "${initdir}/$systemdsystemunitdir/initrd.target.wants"/$_service
+			inst "${moddir}/$_service" "${systemdsystemunitdir}/$_service"
+			if ! [ -L "${initdir}/$systemdsystemunitdir/initrd.target.wants/$_service" ]; then
+				ln -s "../$_service" "${initdir}/$systemdsystemunitdir/initrd.target.wants/$_service"
 			fi
 		done
+
+		# There isn't a pkg-config variable for this,
+		# and dracut doesn't automatically resolve anything this'd be next to
+		local systemdsystemenvironmentgeneratordir
+		systemdsystemenvironmentgeneratordir="$(pkg-config --variable=prefix systemd || echo "/usr")/lib/systemd/system-environment-generators"
+		mkdir -p "${initdir}/${systemdsystemenvironmentgeneratordir}"
+		inst "${moddir}"/import-opts-generator.sh "${systemdsystemenvironmentgeneratordir}"/zfs-import-opts.sh
 	fi
 }
