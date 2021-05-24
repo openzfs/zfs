@@ -22,123 +22,117 @@
 .\"
 .\" Copyright 2013 Darik Horn <dajhorn@vanadac.com>. All rights reserved.
 .\"
-.TH MOUNT.ZFS 8 "Aug 24, 2020" OpenZFS
-
-.SH NAME
-mount.zfs \- mount a ZFS filesystem
-.SH SYNOPSIS
-.LP
-.BI "mount.zfs [\-sfnvh] [\-o " options "]" " dataset mountpoint
-
-.SH DESCRIPTION
-.BR mount.zfs
+.Dd May 24, 2021
+.Dt MOUNT.ZFS 8
+.Os
+.
+.Sh NAME
+.Nm mount.zfs
+.Nd mount a ZFS filesystem
+.Sh SYNOPSIS
+.Nm
+.Op Fl sfnvh
+.Op Fl o Ar options
+.Ar dataset
+.Ar mountpoint
+.
+.Sh DESCRIPTION
+.Nm
 is part of the zfsutils package for Linux. It is a helper program that
 is usually invoked by the
-.BR mount (8)
+.Xr mount 8
 or
-.BR zfs (8)
+.Xr zfs 8
 commands to mount a ZFS dataset.
-
+.Pp
 All
-.I options
+.Ar options
 are handled according to the FILESYSTEM INDEPENDENT MOUNT OPTIONS
 section in the
-.BR mount (8)
+.Xr mount 8
 manual, except for those described below.
-
+.Pp
 The
-.I dataset
+.Ar dataset
 parameter is a ZFS filesystem name, as output by the
-.B "zfs list -H -o name
+.Nm zfs Cm load-key Fl h Fl o Ar name
 command. This parameter never has a leading slash character and is
 not a device name.
-
+.Pp
 The
-.I mountpoint
+.Ar mountpoint
 parameter is the path name of a directory.
-
-
-.SH OPTIONS
-.TP
-.BI "\-s"
+.
+.Sh OPTIONS
+.Bl -tag -width "-o xa"
+.It Fl s
 Ignore bad or sloppy mount options.
-.TP
-.BI "\-f"
+.It Fl f
 Do a fake mount; do not perform the mount operation.
-.TP
-.BI "\-n"
+.It Fl n
 Do not update the /etc/mtab file.
-.TP
-.BI "\-v"
+.It Fl v
 Increase verbosity.
-.TP
-.BI "\-h"
+.It Fl h
 Print the usage message.
-.TP
-.BI "\-o context"
+.It Fl o Ar context
 This flag sets the SELinux context for all files in the filesystem
 under that mountpoint.
-.TP
-.BI "\-o fscontext"
+.It Fl o Ar fscontext
 This flag sets the SELinux context for the filesystem being mounted.
-.TP
-.BI "\-o defcontext"
+.It Fl o Ar defcontext
 This flag sets the SELinux context for unlabeled files.
-.TP
-.BI "\-o rootcontext"
+.It Fl o Ar rootcontext
 This flag sets the SELinux context for the root inode of the filesystem.
-.TP
-.BI "\-o legacy"
+.It Fl o Ar legacy
 This private flag indicates that the
-.I dataset
+.Ar dataset
 has an entry in the /etc/fstab file.
-.TP
-.BI "\-o noxattr"
+.It Fl o Ar noxattr
 This private flag disables extended attributes.
-.TP
-.BI "\-o xattr
+.It Fl o Ar xattr
 This private flag enables directory-based extended attributes and, if
 appropriate, adds a ZFS context to the selinux system policy.
-.TP
-.BI "\-o saxattr
+.It Fl o Ar saxattr
 This private flag enables system attributed-based extended attributes and, if
 appropriate, adds a ZFS context to the selinux system policy.
-.TP
-.BI "\-o dirxattr
+.It Fl o Ar dirxattr
 Equivalent to
-.BR xattr .
-.TP
-.BI "\-o zfsutil"
+.Ar xattr .
+.It Fl o Ar zfsutil
 This private flag indicates that
-.BR mount (8)
+.Xr mount 8
 is being called by the
-.BR zfs (8)
+.Xr zfs 8
 command.
-
-.SH NOTES
+.El
+.
+.Sh NOTES
 ZFS conventionally requires that the
-.I mountpoint
+.Ar mountpoint
 be an empty directory, but the Linux implementation inconsistently
 enforces the requirement.
-
+.Pp
 The
-.BR mount.zfs
+.Nm
 helper does not mount the contents of zvols.
-
-.SH FILES
-.TP 18n
-.I /etc/fstab
+.
+.Sh FILES
+.Bl -tag -width "/etc/fstab"
+.It Pa /etc/fstab
 The static filesystem table.
-.TP
-.I /etc/mtab
+.It Pa /etc/mtab
 The mounted filesystem table.
-.SH "AUTHORS"
+.El
+.
+.Sh AUTHORS
 The primary author of
-.BR mount.zfs
+.Nm
 is Brian Behlendorf <behlendorf1@llnl.gov>.
-
+.Pp
 This man page was written by Darik Horn <dajhorn@vanadac.com>.
-.SH "SEE ALSO"
-.BR fstab (5),
-.BR mount (8),
-.BR zfs (8)
+.
+.Sh SEE ALSO
+.Xr fstab 5 ,
+.Xr mount 8 ,
+.Xr zfs 8
