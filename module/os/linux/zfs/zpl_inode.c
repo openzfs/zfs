@@ -753,6 +753,7 @@ const struct inode_operations zpl_inode_operations = {
 #endif /* HAVE_SET_ACL */
 	.get_acl	= zpl_get_acl,
 #endif /* CONFIG_FS_POSIX_ACL */
+	.permission	= zpl_permission,
 };
 
 const struct inode_operations zpl_dir_inode_operations = {
@@ -786,6 +787,7 @@ const struct inode_operations zpl_dir_inode_operations = {
 #endif /* HAVE_SET_ACL */
 	.get_acl	= zpl_get_acl,
 #endif /* CONFIG_FS_POSIX_ACL */
+	.permission	= zpl_permission,
 };
 
 const struct inode_operations zpl_symlink_inode_operations = {
@@ -825,6 +827,7 @@ const struct inode_operations zpl_special_inode_operations = {
 #endif /* HAVE_SET_ACL */
 	.get_acl	= zpl_get_acl,
 #endif /* CONFIG_FS_POSIX_ACL */
+	.permission	= zpl_permission,
 };
 
 dentry_operations_t zpl_dentry_operations = {
