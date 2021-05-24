@@ -1,5 +1,5 @@
 #!/bin/sh
-# shellcheck disable=SC2039
+# shellcheck disable=SC2039,SC3043
 # zed-functions.sh
 #
 # ZED helper functions for use in ZEDLETs
