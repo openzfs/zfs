@@ -106,6 +106,8 @@ zpl_chmod_acl(struct inode *ip)
 }
 #endif /* CONFIG_FS_POSIX_ACL */
 
+extern int zpl_permission(struct inode *ip, int mask);
+
 extern xattr_handler_t *zpl_xattr_handlers[];
 
 /* zpl_ctldir.c */

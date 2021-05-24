@@ -53,6 +53,16 @@ FMAKE = env -u MAKEFLAGS make $(FMAKEFLAGS)
 modules-Linux:
 	mkdir -p $(sort $(dir $(spl-objs) $(spl-)))
 	mkdir -p $(sort $(dir $(zfs-objs) $(zfs-)))
+	@# Generate the nfs41acl XDR header.
+	rpcgen -h "@abs_srcdir@/os/linux/zfs/nfs41acl.x" > "@abs_srcdir@/os/linux/zfs/nfs41acl.h"
+	sed -i "/\<rpc\/rpc.h\>/c\\#include \<rpc\/xdr.h\>" "@abs_srcdir@/os/linux/zfs/nfs41acl.h"
+	sed -i "9i #include <sys/sysmacros.h>" "@abs_srcdir@/os/linux/zfs/nfs41acl.h"
+	@# Generate the nfs41acl XDR code.
+	rpcgen -c "@abs_srcdir@/os/linux/zfs/nfs41acl.x" > "@abs_srcdir@/os/linux/zfs/nfs41acl_xdr.c"
+	sed -i "5i #pragma GCC diagnostic push" "@abs_srcdir@/os/linux/zfs/nfs41acl_xdr.c"
+	sed -i "6i #pragma GCC diagnostic ignored \"-Wunused-variable\"" "@abs_srcdir@/os/linux/zfs/nfs41acl_xdr.c"
+	echo "#pragma GCC diagnostic pop" >> "@abs_srcdir@/os/linux/zfs/nfs41acl_xdr.c"
+	@# Build the kernel modules.
 	$(MAKE) -C @LINUX_OBJ@ $(if @KERNEL_CC@,CC=@KERNEL_CC@) \
 		$(if @KERNEL_LD@,LD=@KERNEL_LD@) $(if @KERNEL_LLVM@,LLVM=@KERNEL_LLVM@) \
 		M="$$PWD" @KERNEL_MAKE@ CONFIG_ZFS=m modules
@@ -161,7 +171,7 @@ cppcheck-FreeBSD:
 cppcheck: cppcheck-@ac_system@
 
 distdir:
-	cd @srcdir@ && find . -name '*.[chS]' -exec sh -c 'for f; do mkdir -p $$distdir/$${f%/*}; cp @srcdir@/$$f $$distdir/$$f; done' _ {} +
+	cd @srcdir@ && find . -name '*.[chxS]' -exec sh -c 'for f; do mkdir -p $$distdir/$${f%/*}; cp @srcdir@/$$f $$distdir/$$f; done' _ {} +
 	cp @srcdir@/Makefile.bsd $$distdir/Makefile.bsd
 
 gen-zstd-symbols:

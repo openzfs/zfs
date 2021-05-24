@@ -122,6 +122,7 @@ cstyle:
 	$(AM_V_at)find $(top_srcdir) -name build -prune \
 		-o -type f -name '*.[hc]' \
 		! -name 'zfs_config.*' ! -name '*.mod.c' \
+		! -name 'nfs41acl_xdr.c' ! -name 'nfs41acl.h' \
 		! -name 'opt_global.h' ! -name '*_if*.h' \
 		! -name 'zstd_compat_wrapper.h' \
 		! -path './module/zstd/lib/*' \
