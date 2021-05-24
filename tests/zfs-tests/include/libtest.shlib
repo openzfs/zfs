@@ -1897,13 +1897,11 @@ function zfs_zones_setup #zone_name zone_root zone_ip
 	block_device_wait
 
 	#
-	# If current system support slog, add slog device for pool
+	# Add slog device for pool
 	#
-	if verify_slog_support ; then
-		typeset sdevs="$TEST_BASE_DIR/sdev1 $TEST_BASE_DIR/sdev2"
-		log_must mkfile $MINVDEVSIZE $sdevs
-		log_must zpool add $pool_name log mirror $sdevs
-	fi
+	typeset sdevs="$TEST_BASE_DIR/sdev1 $TEST_BASE_DIR/sdev2"
+	log_must mkfile $MINVDEVSIZE $sdevs
+	log_must zpool add $pool_name log mirror $sdevs
 
 	# this isn't supported just yet.
 	# Create a filesystem. In order to add this to
@@ -3065,28 +3063,6 @@ function random_get_with_non
 function random_get
 {
 	_random_get "$#" "$@"
-}
-
-#
-# Detect if the current system support slog
-#
-function verify_slog_support
-{
-	typeset dir=$TEST_BASE_DIR/disk.$$
-	typeset pool=foo.$$
-	typeset vdev=$dir/a
-	typeset sdev=$dir/b
-
-	mkdir -p $dir
-	mkfile $MINVDEVSIZE $vdev $sdev
-
-	typeset -i ret=0
-	if ! zpool create -n $pool $vdev log $sdev > /dev/null 2>&1; then
-		ret=1
-	fi
-	rm -r $dir
-
-	return $ret
 }
 
 #
