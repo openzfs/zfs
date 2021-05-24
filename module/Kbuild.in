@@ -437,6 +437,7 @@ ZFS_OBJS_OS := \
 	abd_os.o \
 	arc_os.o \
 	mmp_os.o \
+	nfs41acl_xdr.o \
 	policy.o \
 	qat.o \
 	qat_compress.o \
