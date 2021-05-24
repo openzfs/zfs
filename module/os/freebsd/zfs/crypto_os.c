@@ -172,11 +172,13 @@ zfs_crypto_dispatch(freebsd_crypt_session_t *session, 	struct cryptop *crp)
 			break;
 		mtx_lock(&session->fs_lock);
 		while (session->fs_done == false)
-			msleep(crp, &session->fs_lock, PRIBIO,
-			    "zfs_crypto", hz/5);
+			msleep(crp, &session->fs_lock, 0,
+			    "zfs_crypto", 0);
 		mtx_unlock(&session->fs_lock);
 
-		if (crp->crp_etype != EAGAIN) {
+		if (crp->crp_etype == ENOMEM) {
+			pause("zcrnomem", 1);
+		} else if (crp->crp_etype != EAGAIN) {
 			error = crp->crp_etype;
 			break;
 		}
