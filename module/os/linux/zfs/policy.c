@@ -33,6 +33,7 @@
 #include <sys/policy.h>
 #include <linux/security.h>
 #include <linux/vfs_compat.h>
+#include <sys/zfs_znode.h>
 
 /*
  * The passed credentials cannot be directly verified because Linux only
@@ -103,13 +104,52 @@ secpolicy_sys_config(const cred_t *cr, boolean_t checkonly)
  * Like secpolicy_vnode_access() but we get the actual wanted mode and the
  * current mode of the file, not the missing bits.
  *
- * Enforced in the Linux VFS.
+ * If filesystem is using NFSv4 ACLs, validate the current mode
+ * and the wanted mode are the same, otherwise access fails.
+ *
+ * If using POSIX ACLs or no ACLs, enforced in the Linux VFS.
  */
 int
 secpolicy_vnode_access2(const cred_t *cr, struct inode *ip, uid_t owner,
     mode_t curmode, mode_t wantmode)
 {
-	return (0);
+	mode_t remainder = ~curmode & wantmode;
+	if ((ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_NFSV4) ||
+	    (remainder == 0)) {
+		return (0);
+	}
+
+	/*
+	 * short-circuit if root
+	 */
+	if (capable(CAP_SYS_ADMIN)) {
+		return (0);
+	}
+
+	/*
+	 * There are some situations in which capabilities
+	 * may allow overriding the DACL.
+	 */
+	if (S_ISDIR(ip->i_mode)) {
+		if (!(wantmode & S_IWUSR) &&
+		    capable(CAP_DAC_READ_SEARCH)) {
+			return (0);
+		}
+		if (capable(CAP_DAC_OVERRIDE)) {
+			return (0);
+		}
+		return (EACCES);
+	}
+
+	if ((wantmode == S_IRUSR) && capable(CAP_DAC_READ_SEARCH)) {
+		return (0);
+	}
+
+	if (!(remainder & S_IXUSR) && capable(CAP_DAC_OVERRIDE)) {
+		return (0);
+	}
+
+	return (EACCES);
 }
 
 /*

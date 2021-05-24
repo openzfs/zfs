@@ -117,6 +117,7 @@ cstyle:
 	@find ${top_srcdir} -name build -prune -o -name zfsd -prune \
 		-o -type f -name '*.[hc]' \
 		! -name 'zfs_config.*' ! -name '*.mod.c' \
+		! -name 'nfs41acl_xdr.c' ! -name 'nfs41acl.h' \
 		! -name 'opt_global.h' ! -name '*_if*.h' \
 		! -path './module/zstd/lib/*' \
 		-exec ${top_srcdir}/scripts/cstyle.pl -cpP {} \+

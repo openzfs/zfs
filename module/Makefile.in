@@ -50,6 +50,14 @@ endif
 FMAKE = env -u MAKEFLAGS make $(FMAKEFLAGS)
 
 modules-Linux:
+	rpcgen -h "@abs_srcdir@/os/linux/zfs/nfs41acl.x" > "@abs_srcdir@/os/linux/zfs/nfs41acl.h"
+	sed -i "/\<rpc\/rpc.h\>/c\\#include \<rpc\/xdr.h\>" "@abs_srcdir@/os/linux/zfs/nfs41acl.h"
+	sed -i "9i #include <sys/sysmacros.h>" "@abs_srcdir@/os/linux/zfs/nfs41acl.h"
+
+	rpcgen -c "@abs_srcdir@/os/linux/zfs/nfs41acl.x" > "@abs_srcdir@/os/linux/zfs/nfs41acl_xdr.c"
+	sed -i "5i #pragma GCC diagnostic push" "@abs_srcdir@/os/linux/zfs/nfs41acl_xdr.c"
+	sed -i "6i #pragma GCC diagnostic ignored \"-Wunused-variable\"" "@abs_srcdir@/os/linux/zfs/nfs41acl_xdr.c"
+	echo "#pragma GCC diagnostic pop" >> "@abs_srcdir@/os/linux/zfs/nfs41acl_xdr.c"
 	list='$(SUBDIR_TARGETS)'; for targetdir in $$list; do \
 		$(MAKE) -C $$targetdir; \
 	done
@@ -132,7 +140,7 @@ cppcheck-FreeBSD:
 cppcheck: cppcheck-@ac_system@
 
 distdir:
-	(cd @srcdir@ && find $(ZFS_MODULES) os -name '*.[chS]') | \
+	(cd @srcdir@ && find $(ZFS_MODULES) os -name '*.[chxS]') | \
 	while read path; do \
 		mkdir -p $$distdir/$${path%/*}; \
 		cp @srcdir@/$$path $$distdir/$$path; \

@@ -8,6 +8,7 @@ ccflags-$(CONFIG_SPARC64) += -Wno-unused-value
 $(MODULE)-objs += ../os/linux/zfs/abd_os.o
 $(MODULE)-objs += ../os/linux/zfs/arc_os.o
 $(MODULE)-objs += ../os/linux/zfs/mmp_os.o
+$(MODULE)-objs += ../os/linux/zfs/nfs41acl_xdr.o
 $(MODULE)-objs += ../os/linux/zfs/policy.o
 $(MODULE)-objs += ../os/linux/zfs/trace.o
 $(MODULE)-objs += ../os/linux/zfs/qat.o

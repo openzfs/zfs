@@ -31,6 +31,8 @@
 modules.order
 Makefile
 Makefile.in
+nfs41acl.h
+nfs41acl_xdr.c
 
 #
 # Top level generated files specific to this top level dir
