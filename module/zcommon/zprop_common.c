@@ -114,6 +114,7 @@ zprop_register_impl(int prop, const char *name, zprop_type_t type,
 	pd->pd_zfs_mod_supported = zfs_mod_supported_prop(name, objset_types);
 	pd->pd_table = idx_tbl;
 	pd->pd_table_size = 0;
+
 	while (idx_tbl && (idx_tbl++)->pi_name != NULL)
 		pd->pd_table_size++;
 }
@@ -155,6 +156,16 @@ zprop_register_hidden(int prop, const char *name, zprop_type_t type,
 	    type == PROP_TYPE_NUMBER, B_FALSE, NULL);
 }
 
+void
+zprop_register_alias(int prop, const char *name, zprop_attr_t attr,
+    int objset_types, const char *colname)
+{
+	zprop_desc_t *prop_tbl = zprop_get_proptable(objset_types);
+
+	zprop_register_impl(prop, name, PROP_TYPE_STRING, 0, "",
+	    attr, objset_types, NULL, colname, B_FALSE, B_FALSE, NULL);
+	prop_tbl[prop].pd_alias = B_TRUE;
+}
 
 /*
  * A comparison function we can use to order indexes into property tables.

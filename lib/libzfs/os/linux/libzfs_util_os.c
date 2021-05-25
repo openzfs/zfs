@@ -213,3 +213,97 @@ zfs_version_kernel(char *version, int len)
 
 	return (0);
 }
+
+static const struct system_property_map {
+	zfs_prop_t prop;
+	const char *system_name;
+	const char *os_name;
+} system_property_map[] = {
+	{ ZFS_PROP_MOUNT_OPTIONS, "mount_options", "org.openzfs.linux:mount_options" },
+	{ ZFS_PROP_TYPE, NULL, NULL },
+};
+
+boolean_t
+zfs_prop_os_alias(zfs_prop_t prop)
+{
+	const struct system_property_map *ptr;
+
+	for (ptr = system_property_map;
+	    ptr->system_name != NULL;
+	    ptr++)
+		if (ptr->prop == prop)
+			return (B_TRUE);
+	return (B_FALSE);
+}
+
+const char *
+zfs_prop_os_alias_name(zfs_prop_t prop)
+{
+	const struct system_property_map *ptr;
+
+	for (ptr = system_property_map;
+	    ptr->system_name != NULL;
+	    ptr++)
+		if (ptr->prop == prop)
+			return (ptr->os_name);
+	return (NULL);
+}
+
+/*
+ * Set a system options, replacing it in the OS-supplied one.
+ */
+int
+zfs_os_set_system_property(libzfs_handle_t *hdl, nvlist_t *dest, nvpair_t *elem)
+{
+	const struct system_property_map *ptr;
+	char *elem_name;
+	char *elem_value;
+
+	assert(nvpair_type(elem) == DATA_TYPE_STRING);
+
+	elem_name = nvpair_name(elem);
+	(void) nvpair_value_string(elem, &elem_value);
+
+	for (ptr = system_property_map;
+	    ptr && ptr->system_name;
+	    ptr++) {
+		if (strcmp(ptr->system_name, elem_name) != 0)
+			continue;
+
+		(void) nvlist_remove(dest, ptr->system_name, DATA_TYPE_STRING);
+		(void) nvlist_remove(dest, ptr->os_name, DATA_TYPE_STRING);
+		return (nvlist_add_string(dest, ptr->os_name, elem_value));
+	}
+	return (ENOENT);
+}
+
+int
+zfs_os_get_system_property(zfs_handle_t *zhp, zfs_prop_t prop,
+    char *propbuf, size_t proplen)
+{
+	nvlist_t *user_props = zfs_get_user_props(zhp);
+	nvlist_t *os_nvlist = NULL;
+	const struct system_property_map *ptr;
+	char *elem_value;
+
+	if (user_props == NULL)
+		return (ENOENT);
+
+	for (ptr = system_property_map;
+	    ptr && ptr->system_name;
+	    ptr++) {
+		if (ptr->prop != prop)
+			continue;
+		if (nvlist_exists(user_props, ptr->os_name) == B_FALSE)
+			return (ENOENT);
+		os_nvlist = fnvlist_lookup_nvlist(user_props, ptr->os_name);
+		elem_value = fnvlist_lookup_string(os_nvlist, "value");
+		if (elem_value && elem_value[0] != '\0' &&
+		    strcmp(elem_value, "none") != 0)
+			strlcpy(propbuf, elem_value, proplen);
+		else
+			*propbuf = '\0';
+		return (0);
+	}
+	return (ENOENT);
+}
