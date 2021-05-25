@@ -218,22 +218,15 @@ read_disk_info(int fd, diskaddr_t *capacity, uint_t *lbsize)
 static char *
 efi_get_devname(int fd)
 {
-	char *path;
-	char *dev_name;
-
-	path = calloc(1, PATH_MAX);
-	if (path == NULL)
-		return (NULL);
+	char path[32];
 
 	/*
 	 * The libefi API only provides the open fd and not the file path.
 	 * To handle this realpath(3) is used to resolve the block device
 	 * name from /proc/self/fd/<fd>.
 	 */
-	(void) sprintf(path, "/proc/self/fd/%d", fd);
-	dev_name = realpath(path, NULL);
-	free(path);
-	return (dev_name);
+	(void) snprintf(path, sizeof (path), "/proc/self/fd/%d", fd);
+	return (realpath(path, NULL));
 }
 
 static int
