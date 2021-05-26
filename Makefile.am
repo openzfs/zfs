@@ -137,12 +137,7 @@ storeabi: lib
 
 PHONY += mancheck
 mancheck:
-	@if type mandoc > /dev/null 2>&1; then \
-		find ${top_srcdir}/man ${top_srcdir}/tests/test-runner/man -type f -name '*[1-9]*' \
-			-exec mandoc -Tlint -Werror {} \+; \
-	else \
-		echo "skipping mancheck because mandoc is not installed"; \
-	fi
+	${top_srcdir}/scripts/mancheck.sh ${top_srcdir}/man ${top_srcdir}/tests/test-runner/man
 
 if BUILD_LINUX
 stat_fmt = -c '%A %n'
