@@ -767,6 +767,7 @@ zvol_cdev_read(struct cdev *dev, struct uio *uio_s, int ioflag)
 	    (zfs_uio_offset(&uio) < 0 || zfs_uio_offset(&uio) > volsize))
 		return (SET_ERROR(EIO));
 
+	ssize_t start_resid = zfs_uio_resid(&uio);
 	lr = zfs_rangelock_enter(&zv->zv_rangelock, zfs_uio_offset(&uio),
 	    zfs_uio_resid(&uio), RL_READER);
 	while (zfs_uio_resid(&uio) > 0 && zfs_uio_offset(&uio) < volsize) {
@@ -785,6 +786,8 @@ zvol_cdev_read(struct cdev *dev, struct uio *uio_s, int ioflag)
 		}
 	}
 	zfs_rangelock_exit(lr);
+	int64_t nread = start_resid - zfs_uio_resid(&uio);
+	dataset_kstats_update_read_kstats(&zv->zv_kstat, nread);
 
 	return (error);
 }
@@ -809,6 +812,7 @@ zvol_cdev_write(struct cdev *dev, struct uio *uio_s, int ioflag)
 	    (zfs_uio_offset(&uio) < 0 || zfs_uio_offset(&uio) > volsize))
 		return (SET_ERROR(EIO));
 
+	ssize_t start_resid = zfs_uio_resid(&uio);
 	sync = (ioflag & IO_SYNC) ||
 	    (zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS);
 
@@ -840,6 +844,8 @@ zvol_cdev_write(struct cdev *dev, struct uio *uio_s, int ioflag)
 			break;
 	}
 	zfs_rangelock_exit(lr);
+	int64_t nwritten = start_resid - zfs_uio_resid(&uio);
+	dataset_kstats_update_write_kstats(&zv->zv_kstat, nwritten);
 	if (sync)
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
 	rw_exit(&zv->zv_suspend_lock);
