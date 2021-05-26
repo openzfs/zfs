@@ -8,10 +8,9 @@
 .\" source.  A copy of the CDDL is also available via the Internet at
 .\" http://www.illumos.org/license/CDDL.
 .\"
-.\"
 .\" Copyright (c) 2012 by Delphix. All rights reserved.
 .\"
-.Dd March 10, 2020
+.Dd May 26, 2021
 .Dt RUN 1
 .Os
 .
@@ -45,24 +44,28 @@
 .
 .Sh DESCRIPTION
 .Nm
-command has three basic modes of operation. With neither
+command has three basic modes of operation.
+With neither
 .Fl c
 nor
 .Fl w ,
 .Nm
 processes the arguments provided on
-the command line, adding them to the list for this run. If a specified
+the command line, adding them to the list for this run.
+If a specified
 .Ar pathname
-is an executable file, it is added as a test. If a specified
+is an executable file, it is added as a test.
+If a specified
 .Ar pathname
 is a directory, the behavior depends upon the presence of
 .Fl g .
 If
 .Fl g
-is specified, the directory is treated as a test group. See the
-section on
+is specified, the directory is treated as a test group.
+See the section on
 .Sy Test Groups
-below. Without
+below.
+Without
 .Fl g ,
 .Nm
 simply descends into the directory looking for executable files.
@@ -76,8 +79,8 @@ Rather than executing the tests and logging the results, the test configuration
 is stored in a
 .Ar runfile ,
 which can be used in future invocations, or edited
-to modify which tests are executed and which options are applied. Options
-included on the command line with
+to modify which tests are executed and which options are applied.
+Options included on the command line with
 .Fl w
 become defaults in the
 .Ar runfile .
@@ -92,20 +95,23 @@ The tests are then executed, and the results are logged.
 .
 .Ss Test Groups
 A test group is comprised of a set of executable files, all of which exist in
-one directory. The options specified on the command line or in a
+one directory.
+The options specified on the command line or in a
 .Ar runfile
-apply to individual tests in the group. The exception is options pertaining to
-pre and post scripts, which act on all tests as a group. Rather than running
-before and after each test, these scripts are run only once each at the start
-and end of the test group.
+apply to individual tests in the group.
+The exception is options pertaining to pre and post scripts, which act on all tests as a group.
+Rather than running before and after each test,
+these scripts are run only once each at the start and end of the test group.
 .Ss Test Execution
 The specified tests run serially, and are typically assigned results according
-to exit values. Tests that exit zero and non-zero are marked
+to exit values.
+Tests that exit zero and non-zero are marked
 .Sy PASS
 and
 .Sy FAIL ,
-respectively. When a pre script fails for a test group, only the post script is
-executed, and the remaining tests are marked
+respectively.
+When a pre script fails for a test group, only the post script is executed,
+and the remaining tests are marked
 .Sy SKIPPED .
 Any test that exceeds
 its
@@ -114,30 +120,31 @@ is terminated, and marked
 .Sy KILLED .
 .Pp
 By default, tests are executed with the credentials of the
-.Sy
+.Nm
 script.
 Executing tests with other credentials is done via
 .Xr sudo 1m ,
 which must
-be configured to allow execution without prompting for a password. Environment
-variables from the calling shell are available to individual tests. During test
-execution, the working directory is changed to
+be configured to allow execution without prompting for a password.
+Environment variables from the calling shell are available to individual tests.
+During test execution, the working directory is changed to
 .Ar outputdir .
 .
 .Ss Output Logging
 By default,
 .Nm
 will print one line on standard output at the conclusion
-of each test indicating the test name, result and elapsed time. Additionally,
-for each invocation of
+of each test indicating the test name, result and elapsed time.
+Additionally, for each invocation of
 .Nm ,
-a directory is created using the ISO 8601
-date format. Within this directory is a file named
+a directory is created using the ISO 8601 date format.
+Within this directory is a file named
 .Sy log
 containing all the
-test output with timestamps, and a directory for each test. Within the test
-directories, there is one file each for standard output, standard error and
-merged output. The default location for the
+test output with timestamps, and a directory for each test.
+Within the test directories, there is one file each for standard output,
+standard error and merged output.
+The default location for the
 .Ar outputdir
 is
 .Pa /var/tmp/test_results .
@@ -150,11 +157,12 @@ The file has one section named
 which contains configuration option
 names and their values in
 .Sy name No = Ar value
-format. The values in this section
-apply to all the subsequent sections, unless they are also specified there, in
-which case the default is overridden. The remaining section names are the
-absolute pathnames of files and directories, describing tests and test groups
-respectively. The legal option names are:
+format.
+The values in this section apply to all the subsequent sections,
+unless they are also specified there, in which case the default is overridden.
+The remaining section names are the absolute pathnames of files and directories,
+describing tests and test groups respectively.
+The legal option names are:
 .Bl -tag -width "tests = ['filename', …]"
 .It Sy outputdir No = Ar pathname
 The name of the directory that holds test logs.
@@ -176,11 +184,12 @@ Execute the post script as
 If
 .Sy True ,
 only the results summary is printed to standard out.
-.It Sy tests No = [ Ns Ar 'filename' Ns , …]
+.It Sy tests No = [ Ns Ar 'filename' , No … ]
 Specify a list of
 .Ar filenames
-for this test group. Only the basename of the
-absolute path is required. This option is only valid for test groups, and each
+for this test group.
+Only the basename of the absolute path is required.
+This option is only valid for test groups, and each
 .Ar filename
 must be single quoted.
 .It Sy timeout No = Ar n
@@ -199,8 +208,8 @@ Specify a
 .Ar runfile
 to be consumed by the run command.
 .It Fl d
-Dry run mode. Execute no tests, but print a description of each test that would
-have been run.
+Dry run mode.
+Execute no tests, but print a description of each test that would have been run.
 .It Fl g
 Create test groups from any directories found while searching for tests.
 .It Fl o Ar outputdir
@@ -217,13 +226,15 @@ after any test or test group.
 Print only the results summary to the standard output.
 .It Fl s Ar script
 Run
-.Ar script as a failsafe after any test is killed.
+.Ar script
+as a failsafe after any test is killed.
 .It Fl S Ar username
 Execute the failsafe script as
 .Ar username .
 .It Fl t Ar n
 Specify a timeout value of
-.Ar n seconds per test.
+.Ar n
+seconds per test.
 .It Fl u Ar username
 Execute tests or test groups as
 .Ar username .
@@ -241,7 +252,7 @@ Execute the post script as
 .
 .Sh EXAMPLES
 .Bl -tag -width "-h"
-.It Sy Example 1 Ns : Running ad-hoc tests.
+.It Sy Example 1 : No Running ad-hoc tests.
 This example demonstrates the simplest invocation of
 .Nm .
 .Bd -literal
@@ -257,7 +268,7 @@ Running Time:   00:00:07
 Percent passed: 100.0%
 Log directory:  /var/tmp/test_results/20120923T180654
 .Ed
-.It Sy Example 2 Ns : Creating a Ar runfile No for future use.
+.It Sy Example 2 : No Creating a Ar runfile No for future use.
 This example demonstrates creating a
 .Ar runfile
 with non-default options.
