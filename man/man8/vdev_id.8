@@ -1,77 +1,93 @@
-.TH VDEV_ID 8 "Aug 24, 2020" OpenZFS
-.SH NAME
-vdev_id \- generate user-friendly names for JBOD disks
-.SH SYNOPSIS
-.LP
-.nf
-\fBvdev_id\fR <-d dev> [-c config_file] [-g sas_direct|sas_switch]
-                 [-m] [-p phys_per_port]
-\fBvdev_id\fR -h
-.fi
-.SH DESCRIPTION
-The \fBvdev_id\fR command is a udev helper which parses the file
-.BR /etc/zfs/vdev_id.conf (5)
-to map a physical path in a storage topology to a channel name.  The
-channel name is combined with a disk enclosure slot number to create an
-alias that reflects the physical location of the drive.  This is
-particularly helpful when it comes to tasks like replacing failed
-drives.  Slot numbers may also be re-mapped in case the default
-numbering is unsatisfactory.  The drive aliases will be created as
-symbolic links in /dev/disk/by-vdev.
-
-The currently supported topologies are sas_direct and sas_switch.  A
-multipath mode is supported in which dm-mpath devices are handled by
-examining the first-listed running component disk as reported by the
-.BR multipath (8)
-command.  In multipath mode the configuration file should contain a
+.\"
+.\" This file and its contents are supplied under the terms of the
+.\" Common Development and Distribution License ("CDDL"), version 1.0.
+.\" You may only use this file in accordance with the terms of version
+.\" 1.0 of the CDDL.
+.\"
+.\" A full copy of the text of the CDDL should have accompanied this
+.\" source.  A copy of the CDDL is also available via the Internet at
+.\" http://www.illumos.org/license/CDDL.
+.\"
+.Dd May 26, 2021
+.Dt VDEV_ID 8
+.Os
+.
+.Sh NAME
+.Nm vdev_id
+.Nd generate user-friendly names for JBOD disks
+.Sh SYNOPSIS
+.Nm
+.Fl d Ar dev
+.Fl c Ar config_file
+.Fl g Sy sas_direct Ns | Ns Sy sas_switch Ns | Ns Sy scsi
+.Fl m
+.Fl p Ar phys_per_port
+.
+.Sh DESCRIPTION
+.Nm
+is an udev helper which parses
+.Xr vdev_id.conf 5
+to map a physical path in a storage topology to a channel name.
+The channel name is combined with a disk enclosure slot number to create
+an alias that reflects the physical location of the drive.
+This is particularly helpful when it comes to tasks like replacing failed drives.
+Slot numbers may also be remapped in case the default numbering is unsatisfactory.
+The drive aliases will be created as symbolic links in
+.Pa /dev/disk/by-vdev .
+.Pp
+The currently supported topologies are
+.Sy sas_direct ,
+.Sy sas_switch ,
+and
+.Sy scsi .
+A multipath mode is supported in which dm-mpath devices are handled by
+examining the first running component disk as reported by the driver.
+In multipath mode the configuration file should contain a
 channel definition with the same name for each path to a given
 enclosure.
-
-.BR vdev_id
+.Pp
+.Nm
 also supports creating aliases based on existing udev links in the /dev
-hierarchy using the \fIalias\fR configuration file keyword.  See the
-.BR vdev_id.conf (5)
-man page for details.
-
-.SH OPTIONS
-.TP
-\fB\-c\fR <config_file>
-Specifies the path to an alternate configuration file.  The default is
-/etc/zfs/vdev_id.conf.
-.TP
-\fB\-d\fR <device>
-This is the only mandatory argument.  Specifies the name of a device
-in /dev, i.e. "sda".
-.TP
-\fB\-g\fR <sas_direct|sas_switch>
+hierarchy using the
+.Sy alias
+configuration file keyword.
+See
+.Xr vdev_id.conf 5
+for details.
+.
+.Sh OPTIONS
+.Bl -tag -width "-m"
+.It Fl d Ar device
+The device node to classify, like
+.Pa /dev/sda .
+.It Fl c Ar config_file
+Specifies the path to an alternate configuration file.
+The default is
+.Pa /etc/zfs/vdev_id.conf .
+.It Fl g Sy sas_direct Ns | Ns Sy sas_switch Ns | Ns Sy scsi
 Identifies a physical topology that governs how physical paths are
-mapped to channels.
-
-\fIsas_direct\fR - in this mode a channel is uniquely identified by
-a PCI slot and a HBA port number
-
-\fIsas_switch\fR - in this mode a channel is uniquely identified by
-a SAS switch port number
-.TP
-\fB\-m\fR
-Specifies that
-.BR vdev_id (8)
-will handle only dm-multipath devices.  If set to "yes" then
-.BR vdev_id (8)
-will examine the first running component disk of a dm-multipath
-device as listed by the
-.BR multipath (8)
-command to determine the physical path.
-.TP
-\fB\-p\fR <phys_per_port>
+mapped to channels:
+.Bl -tag -compact -width "sas_direct and scsi"
+.It Sy sas_direct No and Sy scsi
+channels are uniquely identified by a PCI slot and HBA port number
+.It Sy sas_switch
+channels are uniquely identified by a SAS switch port number
+.El
+.It Fl m
+Only handle dm-multipath devices.
+If specified, examine the first running component disk of a dm-multipath
+device as provided by the driver to determine the physical path.
+.It Fl p Ar phys_per_port
 Specifies the number of PHY devices associated with a SAS HBA port or SAS
 switch port.
-.BR vdev_id (8)
+.Nm
 internally uses this value to determine which HBA or switch port a
-device is connected to.  The default is 4.
-.TP
-\fB\-h\fR
+device is connected to.
+The default is
+.Sy 4 .
+.It Fl h
 Print a usage summary.
-.SH SEE ALSO
-.LP
-\fBvdev_id.conf\fR(5)
+.El
+.
+.Sh SEE ALSO
+.Xr vdev_id.conf 5
