@@ -706,7 +706,8 @@ mountroot()
 
 	# ------------
 	# Look for the cache file (if any).
-	[ ! -f "${ZPOOL_CACHE}" ] && unset ZPOOL_CACHE
+	[ -f "${ZPOOL_CACHE}" ] || unset ZPOOL_CACHE
+	[ -s "${ZPOOL_CACHE}" ] || unset ZPOOL_CACHE
 
 	# ------------
 	# Compatibility: 'ROOT' is for Debian GNU/Linux (etc),
