@@ -247,11 +247,11 @@ See also the
 property.
 .It Sy receive_resume_token
 For filesystems or volumes which have saved partially-completed state from
-.Sy zfs receive -s ,
+.Nm zfs Cm receive Fl s ,
 this opaque token can be provided to
-.Sy zfs send -t
+.Nm zfs Cm send Fl t
 to resume and complete the
-.Sy zfs receive .
+.Nm zfs Cm receive .
 .It Sy redact_snaps
 For bookmarks, this is the list of snapshot guids the bookmark contains a redaction
 list for.
@@ -1091,7 +1091,7 @@ Controls where the user's encryption key will be loaded from by default for
 commands such as
 .Nm zfs Cm load-key
 and
-.Nm zfs Cm mount Cm -l .
+.Nm zfs Cm mount Fl l .
 This property is only set for encrypted datasets which are encryption roots. If
 unspecified, the default is
 .Sy prompt.
