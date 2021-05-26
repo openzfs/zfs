@@ -102,18 +102,6 @@ show_tunable_descriptions = False
 alternate_tunable_layout = False
 
 
-def handle_Exception(ex_cls, ex, tb):
-    if ex is IOError:
-        if ex.errno == errno.EPIPE:
-            sys.exit()
-
-    if ex is KeyboardInterrupt:
-        sys.exit()
-
-
-sys.excepthook = handle_Exception
-
-
 def get_Kstat():
     """Collect information on the ZFS subsystem from the /proc virtual
     file system. The name "kstat" is a holdover from the Solaris utility
@@ -1137,48 +1125,55 @@ def main():
     global alternate_tunable_layout
 
     try:
-        opts, args = getopt.getopt(
-            sys.argv[1:],
-            "adp:h", ["alternate", "description", "page=", "help"]
-        )
-    except getopt.error as e:
-        sys.stderr.write("Error: %s\n" % e.msg)
-        usage()
-        sys.exit(1)
-
-    args = {}
-    for opt, arg in opts:
-        if opt in ('-a', '--alternate'):
-            args['a'] = True
-        if opt in ('-d', '--description'):
-            args['d'] = True
-        if opt in ('-p', '--page'):
-            args['p'] = arg
-        if opt in ('-h', '--help'):
-            usage()
-            sys.exit(0)
-
-    Kstat = get_Kstat()
-
-    alternate_tunable_layout = 'a' in args
-    show_tunable_descriptions = 'd' in args
-
-    pages = []
-
-    if 'p' in args:
         try:
-            pages.append(unSub[int(args['p']) - 1])
-        except IndexError:
-            sys.stderr.write('the argument to -p must be between 1 and ' +
-                             str(len(unSub)) + '\n')
+            opts, args = getopt.getopt(
+                sys.argv[1:],
+                "adp:h", ["alternate", "description", "page=", "help"]
+            )
+        except getopt.error as e:
+            sys.stderr.write("Error: %s\n" % e.msg)
+            usage()
             sys.exit(1)
-    else:
-        pages = unSub
 
-    zfs_header()
-    for page in pages:
-        page(Kstat)
-        sys.stdout.write("\n")
+        args = {}
+        for opt, arg in opts:
+            if opt in ('-a', '--alternate'):
+                args['a'] = True
+            if opt in ('-d', '--description'):
+                args['d'] = True
+            if opt in ('-p', '--page'):
+                args['p'] = arg
+            if opt in ('-h', '--help'):
+                usage()
+                sys.exit(0)
+
+        Kstat = get_Kstat()
+
+        alternate_tunable_layout = 'a' in args
+        show_tunable_descriptions = 'd' in args
+
+        pages = []
+
+        if 'p' in args:
+            try:
+                pages.append(unSub[int(args['p']) - 1])
+            except IndexError:
+                sys.stderr.write('the argument to -p must be between 1 and ' +
+                                 str(len(unSub)) + '\n')
+                sys.exit(1)
+        else:
+            pages = unSub
+
+        zfs_header()
+        for page in pages:
+            page(Kstat)
+            sys.stdout.write("\n")
+    except IOError as ex:
+        if (ex.errno == errno.EPIPE):
+            sys.exit(0)
+        raise
+    except KeyboardInterrupt:
+        sys.exit(0)
 
 
 if __name__ == '__main__':
