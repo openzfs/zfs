@@ -21,7 +21,7 @@
 .\"
 .\" Copyright (c) 2017 by Lawrence Livermore National Security, LLC.
 .\"
-.Dd March 18, 2021
+.Dd May 26, 2021
 .Dt ZGENHOSTID 8 SMM
 .Os
 .Sh NAME
@@ -71,22 +71,13 @@ digits long, optionally prefixed by
 .Sh EXAMPLES
 .Bl -tag -width Bd
 .It Generate a random hostid and store it
-.Bd -literal
-# zgenhostid
-.Ed
+.Dl # zgenhostid
 .It Record the libc-generated hostid in Pa /etc/hostid
-.Bd -literal
-# zgenhostid "$(hostid)"
-.Ed
+.Dl # zgenhostid "$(hostid)"
 .It Record a custom hostid (0xdeadbeef) in Pa /etc/hostid
-.Bd -literal
-# zgenhostid deadbeef
-.Ed
-.It Record a custom hostid (0x01234567) in Pa /tmp/hostid
-and ovewrite the file if it exists
-.Bd -literal
-# zgenhostid -f -o /tmp/hostid 0x01234567
-.Ed
+.Dl # zgenhostid deadbeef
+.It Record a custom hostid (0x01234567) in Pa /tmp/hostid No and ovewrite the file if it exists
+.Dl # zgenhostid -f -o /tmp/hostid 0x01234567
 .El
 .Sh SEE ALSO
 .Xr genhostid 1 ,
@@ -98,6 +89,6 @@ and ovewrite the file if it exists
 emulates the
 .Xr genhostid 1
 utility and is provided for use on systems which
-do not include the utility or do not provide
+do not include the utility or do not provide the
 .Xr sethostid 3
 call.
