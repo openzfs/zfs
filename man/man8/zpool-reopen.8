@@ -18,7 +18,6 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
 .\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
@@ -27,29 +26,27 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd August 9, 2019
+.Dd June 2, 2021
 .Dt ZPOOL-REOPEN 8
 .Os
+.
 .Sh NAME
 .Nm zpool-reopen
-.Nd Reopen all virtual devices (vdevs) associated with a ZFS storage pool
+.Nd reopen vdevs associated with ZFS storage pools
 .Sh SYNOPSIS
 .Nm zpool
 .Cm reopen
 .Op Fl n
-.Ar pool
+.Oo Ar pool Oc Ns …
+.
 .Sh DESCRIPTION
-.Bl -tag -width Ds
-.It Xo
-.Nm zpool
-.Cm reopen
-.Op Fl n
-.Ar pool
-.Xc
-Reopen all the vdevs associated with the pool.
-.Bl -tag -width Ds
+Reopen all vdevs associated with the specified pools,
+or all pools if none specified.
+.
+.Sh OPTIONS
+.Bl -tag -width "-n"
 .It Fl n
-Do not restart an in-progress scrub operation. This is not recommended and can
+Do not restart an in-progress scrub operation.
+This is not recommended and can
 result in partially resilvered devices unless a second scrub is performed.
-.El
 .El
