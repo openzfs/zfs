@@ -18,7 +18,6 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
 .\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
@@ -27,29 +26,27 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd August 9, 2019
+.Dd May 27, 2021
 .Dt ZPOOL-RESILVER 8
 .Os
+.
 .Sh NAME
 .Nm zpool-resilver
-.Nd Start a resilver of a device in a ZFS storage pool
+.Nd resilver devices in ZFS storage pools
 .Sh SYNOPSIS
 .Nm zpool
 .Cm resilver
-.Ar pool Ns ...
+.Ar pool Ns …
+.
 .Sh DESCRIPTION
-.Bl -tag -width Ds
-.It Xo
-.Nm zpool
-.Cm resilver
-.Ar pool Ns ...
-.Xc
-Starts a resilver. If an existing resilver is already running it will be
-restarted from the beginning. Any drives that were scheduled for a deferred
-resilver will be added to the new one. This requires the
+Starts a resilver of the specified pools.
+If an existing resilver is already running it will be restarted from the beginning.
+Any drives that were scheduled for a deferred
+resilver will be added to the new one.
+This requires the
 .Sy resilver_defer
-feature.
-.El
+pool feature.
+.
 .Sh SEE ALSO
 .Xr zpool-iostat 8 ,
 .Xr zpool-online 8 ,
