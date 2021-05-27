@@ -6553,7 +6553,7 @@ ztest_global_vars_to_zdb_args(void)
 	char **cur = args;
 	for (size_t i = 0; i < ztest_opts.zo_gvars_count; i++) {
 		char *kv = ztest_opts.zo_gvars[i];
-		*cur = "-o";
+		*cur = strdup("-o");
 		cur++;
 		*cur = strdup(kv);
 		cur++;
@@ -6824,6 +6824,8 @@ ztest_run_zdb(char *pool)
 
 	char **set_gvars_args = ztest_global_vars_to_zdb_args();
 	char *set_gvars_args_joined = join_strings(set_gvars_args, " ");
+	for (char **i = set_gvars_args; *i != NULL; i++)
+		free(*i);
 	free(set_gvars_args);
 
 	size_t would = snprintf(zdb, len,
