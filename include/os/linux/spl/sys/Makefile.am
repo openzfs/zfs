@@ -54,6 +54,7 @@ KERNEL_H = \
 	vmsystm.h \
 	vnode.h \
 	wait.h \
+	wmsum.h \
 	zmod.h \
 	zone.h
 

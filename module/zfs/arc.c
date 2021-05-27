@@ -305,6 +305,7 @@
 #include <sys/arc_impl.h>
 #include <sys/trace_zfs.h>
 #include <sys/aggsum.h>
+#include <sys/wmsum.h>
 #include <cityhash.h>
 #include <sys/vdev_trim.h>
 #include <sys/zfs_racct.h>
@@ -692,14 +693,14 @@ arc_state_t	*arc_mfu;
  */
 aggsum_t arc_size;
 aggsum_t arc_meta_used;
-aggsum_t astat_data_size;
-aggsum_t astat_metadata_size;
-aggsum_t astat_dbuf_size;
+wmsum_t astat_data_size;
+wmsum_t astat_metadata_size;
+wmsum_t astat_dbuf_size;
 aggsum_t astat_dnode_size;
-aggsum_t astat_bonus_size;
-aggsum_t astat_hdr_size;
+wmsum_t astat_bonus_size;
+wmsum_t astat_hdr_size;
 aggsum_t astat_l2_hdr_size;
-aggsum_t astat_abd_chunk_waste_size;
+wmsum_t astat_abd_chunk_waste_size;
 
 hrtime_t arc_growtime;
 list_t arc_prune_list;
@@ -2645,22 +2646,22 @@ arc_space_consume(uint64_t space, arc_space_type_t type)
 	default:
 		break;
 	case ARC_SPACE_DATA:
-		aggsum_add(&astat_data_size, space);
+		wmsum_add(&astat_data_size, space);
 		break;
 	case ARC_SPACE_META:
-		aggsum_add(&astat_metadata_size, space);
+		wmsum_add(&astat_metadata_size, space);
 		break;
 	case ARC_SPACE_BONUS:
-		aggsum_add(&astat_bonus_size, space);
+		wmsum_add(&astat_bonus_size, space);
 		break;
 	case ARC_SPACE_DNODE:
 		aggsum_add(&astat_dnode_size, space);
 		break;
 	case ARC_SPACE_DBUF:
-		aggsum_add(&astat_dbuf_size, space);
+		wmsum_add(&astat_dbuf_size, space);
 		break;
 	case ARC_SPACE_HDRS:
-		aggsum_add(&astat_hdr_size, space);
+		wmsum_add(&astat_hdr_size, space);
 		break;
 	case ARC_SPACE_L2HDRS:
 		aggsum_add(&astat_l2_hdr_size, space);
@@ -2672,7 +2673,7 @@ arc_space_consume(uint64_t space, arc_space_type_t type)
 		 * scatter ABD's come from the ARC, because other users are
 		 * very short-lived.
 		 */
-		aggsum_add(&astat_abd_chunk_waste_size, space);
+		wmsum_add(&astat_abd_chunk_waste_size, space);
 		break;
 	}
 
@@ -2691,28 +2692,28 @@ arc_space_return(uint64_t space, arc_space_type_t type)
 	default:
 		break;
 	case ARC_SPACE_DATA:
-		aggsum_add(&astat_data_size, -space);
+		wmsum_add(&astat_data_size, -space);
 		break;
 	case ARC_SPACE_META:
-		aggsum_add(&astat_metadata_size, -space);
+		wmsum_add(&astat_metadata_size, -space);
 		break;
 	case ARC_SPACE_BONUS:
-		aggsum_add(&astat_bonus_size, -space);
+		wmsum_add(&astat_bonus_size, -space);
 		break;
 	case ARC_SPACE_DNODE:
 		aggsum_add(&astat_dnode_size, -space);
 		break;
 	case ARC_SPACE_DBUF:
-		aggsum_add(&astat_dbuf_size, -space);
+		wmsum_add(&astat_dbuf_size, -space);
 		break;
 	case ARC_SPACE_HDRS:
-		aggsum_add(&astat_hdr_size, -space);
+		wmsum_add(&astat_hdr_size, -space);
 		break;
 	case ARC_SPACE_L2HDRS:
 		aggsum_add(&astat_l2_hdr_size, -space);
 		break;
 	case ARC_SPACE_ABD_CHUNK_WASTE:
-		aggsum_add(&astat_abd_chunk_waste_size, -space);
+		wmsum_add(&astat_abd_chunk_waste_size, -space);
 		break;
 	}
 
@@ -7275,21 +7276,21 @@ arc_kstat_update(kstat_t *ksp, int rw)
 
 		ARCSTAT(arcstat_size) = aggsum_value(&arc_size);
 		ARCSTAT(arcstat_meta_used) = aggsum_value(&arc_meta_used);
-		ARCSTAT(arcstat_data_size) = aggsum_value(&astat_data_size);
+		ARCSTAT(arcstat_data_size) = wmsum_value(&astat_data_size);
 		ARCSTAT(arcstat_metadata_size) =
-		    aggsum_value(&astat_metadata_size);
-		ARCSTAT(arcstat_hdr_size) = aggsum_value(&astat_hdr_size);
+		    wmsum_value(&astat_metadata_size);
+		ARCSTAT(arcstat_hdr_size) = wmsum_value(&astat_hdr_size);
 		ARCSTAT(arcstat_l2_hdr_size) = aggsum_value(&astat_l2_hdr_size);
-		ARCSTAT(arcstat_dbuf_size) = aggsum_value(&astat_dbuf_size);
+		ARCSTAT(arcstat_dbuf_size) = wmsum_value(&astat_dbuf_size);
 #if defined(COMPAT_FREEBSD11)
-		ARCSTAT(arcstat_other_size) = aggsum_value(&astat_bonus_size) +
+		ARCSTAT(arcstat_other_size) = wmsum_value(&astat_bonus_size) +
 		    aggsum_value(&astat_dnode_size) +
-		    aggsum_value(&astat_dbuf_size);
+		    wmsum_value(&astat_dbuf_size);
 #endif
 		ARCSTAT(arcstat_dnode_size) = aggsum_value(&astat_dnode_size);
-		ARCSTAT(arcstat_bonus_size) = aggsum_value(&astat_bonus_size);
+		ARCSTAT(arcstat_bonus_size) = wmsum_value(&astat_bonus_size);
 		ARCSTAT(arcstat_abd_chunk_waste_size) =
-		    aggsum_value(&astat_abd_chunk_waste_size);
+		    wmsum_value(&astat_abd_chunk_waste_size);
 
 		as->arcstat_memory_all_bytes.value.ui64 =
 		    arc_all_memory();
@@ -7522,14 +7523,14 @@ arc_state_init(void)
 
 	aggsum_init(&arc_meta_used, 0);
 	aggsum_init(&arc_size, 0);
-	aggsum_init(&astat_data_size, 0);
-	aggsum_init(&astat_metadata_size, 0);
-	aggsum_init(&astat_hdr_size, 0);
+	wmsum_init(&astat_data_size, 0);
+	wmsum_init(&astat_metadata_size, 0);
+	wmsum_init(&astat_hdr_size, 0);
 	aggsum_init(&astat_l2_hdr_size, 0);
-	aggsum_init(&astat_bonus_size, 0);
+	wmsum_init(&astat_bonus_size, 0);
 	aggsum_init(&astat_dnode_size, 0);
-	aggsum_init(&astat_dbuf_size, 0);
-	aggsum_init(&astat_abd_chunk_waste_size, 0);
+	wmsum_init(&astat_dbuf_size, 0);
+	wmsum_init(&astat_abd_chunk_waste_size, 0);
 
 	arc_anon->arcs_state = ARC_STATE_ANON;
 	arc_mru->arcs_state = ARC_STATE_MRU;
@@ -7575,14 +7576,14 @@ arc_state_fini(void)
 
 	aggsum_fini(&arc_meta_used);
 	aggsum_fini(&arc_size);
-	aggsum_fini(&astat_data_size);
-	aggsum_fini(&astat_metadata_size);
-	aggsum_fini(&astat_hdr_size);
+	wmsum_fini(&astat_data_size);
+	wmsum_fini(&astat_metadata_size);
+	wmsum_fini(&astat_hdr_size);
 	aggsum_fini(&astat_l2_hdr_size);
-	aggsum_fini(&astat_bonus_size);
+	wmsum_fini(&astat_bonus_size);
 	aggsum_fini(&astat_dnode_size);
-	aggsum_fini(&astat_dbuf_size);
-	aggsum_fini(&astat_abd_chunk_waste_size);
+	wmsum_fini(&astat_dbuf_size);
+	wmsum_fini(&astat_abd_chunk_waste_size);
 }
 
 uint64_t

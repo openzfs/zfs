@@ -68,6 +68,7 @@ KERNEL_H = \
 	vmsystm.h \
 	vnode_impl.h \
 	vnode.h \
+	wmsum.h \
 	zmod.h \
 	zone.h
 
