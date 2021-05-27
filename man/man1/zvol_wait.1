@@ -1,21 +1,32 @@
-.Dd July 5, 2019
-.Dt ZVOL_WAIT 1 SMM
+.\"
+.\" This file and its contents are supplied under the terms of the
+.\" Common Development and Distribution License ("CDDL"), version 1.0.
+.\" You may only use this file in accordance with the terms of version
+.\" 1.0 of the CDDL.
+.\"
+.\" A full copy of the text of the CDDL should have accompanied this
+.\" source.  A copy of the CDDL is also available via the Internet at
+.\" http://www.illumos.org/license/CDDL.
+.\"
+.Dd May 27, 2021
+.Dt ZVOL_WAIT 1
 .Os
+.
 .Sh NAME
 .Nm zvol_wait
-.Nd Wait for ZFS volume links in
-.Em /dev
-to be created.
+.Nd wait for ZFS volume links to appear in /dev
 .Sh SYNOPSIS
 .Nm
+.
 .Sh DESCRIPTION
-When a ZFS pool is imported, ZFS will register each ZFS volume
-(zvol) as a disk device with the system. As the disks are registered,
-.Xr \fBudev 7\fR
-will asynchronously create symlinks under
-.Em /dev/zvol
-using the zvol's name.
+When a ZFS pool is imported, the volumes within it will appear as block devices.
+As they're registered,
+.Xr udev 7
+asynchronously creates symlinks under
+.Pa /dev/zvol
+using the volumes' names.
 .Nm
-will wait for all those symlinks to be created before returning.
+will wait for all those symlinks to be created before exiting.
+.
 .Sh SEE ALSO
-.Xr \fBudev 7\fR
+.Xr udev 7

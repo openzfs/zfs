@@ -18,7 +18,6 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
 .\" Copyright (c) 2011, 2019 by Delphix. All rights reserved.
@@ -30,25 +29,20 @@
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
 .\"
-.Dd June 30, 2019
+.Dd May 27, 2021
 .Dt ZFS-ROLLBACK 8
 .Os
+.
 .Sh NAME
 .Nm zfs-rollback
-.Nd Roll back the given dataset to a previous snapshot.
+.Nd roll ZFS dataset back to snapshot
 .Sh SYNOPSIS
 .Nm zfs
 .Cm rollback
 .Op Fl Rfr
 .Ar snapshot
+.
 .Sh DESCRIPTION
-.Bl -tag -width ""
-.It Xo
-.Nm zfs
-.Cm rollback
-.Op Fl Rfr
-.Ar snapshot
-.Xc
 When a dataset is rolled back, all data that has changed since the snapshot is
 discarded, and the dataset reverts to the state at the time of the snapshot.
 By default, the command refuses to roll back to a snapshot other than the most
@@ -63,7 +57,7 @@ The
 options do not recursively destroy the child snapshots of a recursive snapshot.
 Only direct snapshots of the specified filesystem are destroyed by either of
 these options.
-To completely roll back a recursive snapshot, you must rollback the individual
+To completely roll back a recursive snapshot, you must roll back the individual
 child snapshots.
 .Bl -tag -width "-R"
 .It Fl R
@@ -76,6 +70,6 @@ option to force an unmount of any clone file systems that are to be destroyed.
 .It Fl r
 Destroy any snapshots and bookmarks more recent than the one specified.
 .El
-.El
+.
 .Sh SEE ALSO
 .Xr zfs-snapshot 8
