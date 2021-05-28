@@ -85,13 +85,13 @@ get_random_buffer(size_t len)
 static void
 push_segment(list_t *seg_list, seg_type_t seg_type, char *optarg)
 {
-	char		*off_str, *len_str;
+	char		*off_str, *len_str, *tmp = NULL;
 	static off_t	file_size = 0;
 	off_t		off, len;
 	seg_t		*seg;
 
-	off_str = strtok(optarg, ":");
-	len_str = strtok(NULL, ":");
+	off_str = strtok_r(optarg, ":", &tmp);
+	len_str = strtok_r(NULL, ":", &tmp);
 
 	if (off_str == NULL || len_str == NULL)
 		usage("Bad offset or length", 1);
