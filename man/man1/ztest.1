@@ -63,93 +63,113 @@ can re-use these files in your next \fBztest\fR run by using the -E
 option.
 .SH OPTIONS
 .HP
-.BI "\-?" ""
+.BR "\-h, -?, --help"
 .IP
 Print a help summary.
 .HP
-.BI "\-v" " vdevs" " (default: 5)
+.BR "\-v, --vdevs=" " (default: 5)
 .IP
 Number of vdevs.
 .HP
-.BI "\-s" " size_of_each_vdev" " (default: 64M)"
+.BR "\-s, --vdev-size=" " (default: 64M)"
 .IP
 Size of each vdev.
 .HP
-.BI "\-a" " alignment_shift" " (default: 9) (use 0 for random)"
+.BR "\-a, --alignment-shift=" " (default: 9) (use 0 for random)"
 .IP
-Used alignment in test.
+Alignment shift used in test.
 .HP
-.BI "\-m" " mirror_copies" " (default: 2)"
+.BR "\-m, --mirror-copies=" " (default: 2)"
 .IP
 Number of mirror copies.
 .HP
-.BI "\-r" " raidz_disks / draid_disks" " (default: 4 / 16)"
+.BR "\-r, --raid-disks=" " (default: 4 for raidz/ 16 for draid)"
 .IP
-Number of raidz disks.
+Number of raidz/draid disks.
 .HP
-.BI "\-R" " raid_parity" " (default: 1)"
+.BR "\-R, --raid-parity=" " (default: 1)"
 .IP
 Raid parity (raidz & draid).
 .HP
-.BI "\-K" " raid_kind" " (default: 'random') raidz|draid|random"
+.BR "\-K, --raid-kind=" " (default: 'random') raidz|draid|random"
 .IP
 The kind of RAID config to use. With 'random' the kind alternates between raidz and draid.
 .HP
-.BI "\-D" " draid_data" " (default: 4)"
+.BR "\-D, --draid-data=" " (default: 4)"
 .IP
 Number of data disks in a dRAID redundancy group.
 .HP
-.BI "\-S" " draid_spares" " (default: 1)"
+.BR "\-S, --draid-spares=" " (default: 1)"
 .IP
 Number of dRAID distributed spare disks.
 .HP
-.BI "\-C" " vdev_class_state" " (default: random)"
-.IP
-The vdev allocation class state: special=on|off|random.
-.HP
-.BI "\-d" " datasets" " (default: 7)"
+.BR "\-d, --datasets=" " (default: 7)"
 .IP
 Number of datasets.
 .HP
-.BI "\-t" " threads" " (default: 23)"
+.BR "\-t, --threads=" " (default: 23)"
 .IP
 Number of threads.
 .HP
-.BI "\-g" " gang_block_threshold" " (default: 32K)"
+.BR "\-g, --gang-block-threshold=" " (default: 32K)"
 .IP
 Gang block threshold.
 .HP
-.BI "\-i" " initialize_pool_i_times" " (default: 1)"
+.BR "\-i, --init-count=" " (default: 1)"
 .IP
-Number of pool initialisations.
+Number of pool initializations.
 .HP
-.BI "\-k" " kill_percentage" " (default: 70%)"
+.BR "\-k, --kill-percentage=" " (default: 70%)"
 .IP
 Kill percentage.
 .HP
-.BI "\-p" " pool_name" " (default: ztest)"
+.BR "\-p, --pool-name=" " (default: ztest)"
 .IP
 Pool name.
 .HP
-.BI "\-V(erbose)"
+.BR "\-f, --vdev-file-directory=" " (default: /tmp)"
 .IP
-Verbose (use multiple times for ever more blather).
+File directory for vdev files.
 .HP
-.BI "\-E(xisting)"
+.BR "\-M, --multi-host"
+.IP
+Multi-host; simulate pool imported on remote host.
+.HP
+.BR "\-E, --use-existing-pool"
 .IP
 Use existing pool (use existing pool instead of creating new one).
 .HP
-.BI "\-T" " time" " (default: 300 sec)"
+.BR "\-T, --run-time=" " (default: 300 sec)"
 .IP
 Total test run time.
 .HP
-.BI "\-z" " zil_failure_rate" " (default: fail every 2^5 allocs)
+.BR "\-P, --pass-time=" " (default: 60 sec)"
 .IP
-Injected failure rate.
+Time per pass.
 .HP
-.BI "\-G"
+.BR "\-F, --freeze-loops=" " (default: 50)"
 .IP
-Dump zfs_dbgmsg buffer before exiting.
+Max loops in spa_freeze().
+.HP
+.BR "\-B, --alt-ztest="
+.IP
+Alternate ztest path.
+.HP
+.BR "\-C, --vdev-class-state=on|off|random" " (default: random)"
+.IP
+The vdev allocation class state.
+.HP
+.BR "\-o, --option="
+.IP
+Set global variable to an unsigned 32-bit integer value.
+.HP
+.BR "\-G, --dump-debug"
+.IP
+Dump zfs_dbgmsg buffer before exiting due to an error.
+.HP
+.BR "\-V, --verbose"
+.IP
+Verbose (use multiple times for ever more verbosity).
 .SH "EXAMPLES"
 .LP
 To override /tmp as your location for block files, you can use the -f
