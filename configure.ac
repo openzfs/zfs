@@ -174,6 +174,7 @@ AC_CONFIG_FILES([
 	man/man1/Makefile
 	man/man5/Makefile
 	man/man8/Makefile
+	man/man7/Makefile
 	module/Kbuild
 	module/Makefile
 	module/avl/Makefile
