@@ -1,5 +1,5 @@
 dist_man_MANS = \
-	vdev_id.conf.5 \
+	vdev_id.conf.5
 
 if BUILD_LINUX
 # The man pager in most Linux distros defaults to BSD instead of Linux
