@@ -4,7 +4,7 @@ dist_man_MANS = \
         zfsprops.7 \
         zfs-events.7 \
         zfs-module-parameters.7 \
-        zpoolconcepts.7
+        zpoolconcepts.7 \
         zpoolprops.7 \
         zpool-features.7
 
