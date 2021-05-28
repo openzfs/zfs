@@ -13,7 +13,7 @@ if BUILD_LINUX
 # when .Os is blank, but leaving it blank makes things a lot easier on
 # FreeBSD when OpenZFS is vendored in the base system.
 install-data-hook:
-	cd $(DESTDIR)$(mandir)/man5; \
+	cd $(DESTDIR)$(mandir)/man7; \
 	$(SED) ${ac_inplace} -e 's/^\.Os$$/.Os Linux/' \
 	    $(dist_man_MANS)
 endif
