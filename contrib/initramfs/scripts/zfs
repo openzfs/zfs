@@ -273,6 +273,8 @@ import_pool()
 # with more logging etc.
 load_module_initrd()
 {
+	[ -n "$ROOTDELAY" ] && ZFS_INITRD_PRE_MOUNTROOT_SLEEP="$ROOTDELAY"
+
 	if [ "$ZFS_INITRD_PRE_MOUNTROOT_SLEEP" -gt 0 ] 2>/dev/null
 	then
 		if [ "$quiet" != "y" ]; then
