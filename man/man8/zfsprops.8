@@ -38,7 +38,7 @@
 .\" Copyright 2019 Joyent, Inc.
 .\" Copyright (c) 2019, Kjeld Schouten-Lebbing
 .\"
-.Dd May 5, 2021
+.Dd May 24, 2021
 .Dt ZFSPROPS 8
 .Os
 .Sh NAME
@@ -1212,15 +1212,10 @@ location.
 .It Sy nbmand Ns = Ns Sy on Ns | Ns Sy off
 Controls whether the file system should be mounted with
 .Sy nbmand
-.Pq Non Blocking mandatory locks .
+.Pq Non-blocking mandatory locks .
 This is used for SMB clients.
 Changes to this property only take effect when the file system is umounted and
-remounted.
-See
-.Xr mount 8
-for more information on
-.Sy nbmand
-mounts. This property is not used on Linux.
+remounted. Support for these locks is scarce and not described by POSIX.
 .It Sy overlay Ns = Ns Sy on Ns | Ns Sy off
 Allow mounting on a busy directory or a directory which already contains
 files or directories.
@@ -1952,6 +1947,11 @@ The correlation between properties and mount options is as follows:
     relatime                relatime/norelatime
     setuid                  suid/nosuid
     xattr                   xattr/noxattr
+    nbmand                  mand/nomand
+    context                 context=
+    fscontext               fscontext=
+    defcontext              defcontext=
+    rootcontext             rootcontext=
 .Ed
 .Pp
 In addition, these options can be set on a per-mount basis using the

@@ -283,21 +283,20 @@ zpool_default_search_paths(size_t *count)
 static int
 zfs_path_order(char *name, int *order)
 {
-	int i = 0, error = ENOENT;
-	char *dir, *env, *envdup;
+	int i, error = ENOENT;
+	char *dir, *env, *envdup, *tmp = NULL;
 
 	env = getenv("ZPOOL_IMPORT_PATH");
 	if (env) {
 		envdup = strdup(env);
-		dir = strtok(envdup, ":");
-		while (dir) {
+		for (dir = strtok_r(envdup, ":", &tmp), i = 0;
+		    dir != NULL;
+		    dir = strtok_r(NULL, ":", &tmp), i++) {
 			if (strncmp(name, dir, strlen(dir)) == 0) {
 				*order = i;
 				error = 0;
 				break;
 			}
-			dir = strtok(NULL, ":");
-			i++;
 		}
 		free(envdup);
 	} else {

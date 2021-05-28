@@ -847,17 +847,13 @@ libzfs_read_stdout_from_fd(int fd, char **lines[])
 	size_t len = 0;
 	char *line = NULL;
 	char **tmp_lines = NULL, **tmp;
-	char *nl = NULL;
-	int rc;
 
 	fp = fdopen(fd, "r");
-	if (fp == NULL)
+	if (fp == NULL) {
+		close(fd);
 		return (0);
-	while (1) {
-		rc = getline(&line, &len, fp);
-		if (rc == -1)
-			break;
-
+	}
+	while (getline(&line, &len, fp) != -1) {
 		tmp = realloc(tmp_lines, sizeof (*tmp_lines) * (lines_cnt + 1));
 		if (tmp == NULL) {
 			/* Return the lines we were able to process */
@@ -865,13 +861,16 @@ libzfs_read_stdout_from_fd(int fd, char **lines[])
 		}
 		tmp_lines = tmp;
 
-		/* Terminate newlines */
-		if ((nl = strchr(line, '\n')) != NULL)
-			*nl = '\0';
-		tmp_lines[lines_cnt] = line;
-		lines_cnt++;
-		line = NULL;
+		/* Remove newline if not EOF */
+		if (line[strlen(line) - 1] == '\n')
+			line[strlen(line) - 1] = '\0';
+
+		tmp_lines[lines_cnt] = strdup(line);
+		if (tmp_lines[lines_cnt] == NULL)
+			break;
+		++lines_cnt;
 	}
+	free(line);
 	fclose(fp);
 	*lines = tmp_lines;
 	return (lines_cnt);
@@ -889,10 +888,10 @@ libzfs_run_process_impl(const char *path, char *argv[], char *env[], int flags,
 	 * Setup a pipe between our child and parent process if we're
 	 * reading stdout.
 	 */
-	if ((lines != NULL) && pipe2(link, O_CLOEXEC) == -1)
+	if (lines != NULL && pipe2(link, O_NONBLOCK | O_CLOEXEC) == -1)
 		return (-EPIPE);
 
-	pid = vfork();
+	pid = fork();
 	if (pid == 0) {
 		/* Child process */
 		devnull_fd = open("/dev/null", O_WRONLY | O_CLOEXEC);
@@ -928,7 +927,8 @@ libzfs_run_process_impl(const char *path, char *argv[], char *env[], int flags,
 		int status;
 
 		while ((error = waitpid(pid, &status, 0)) == -1 &&
-		    errno == EINTR) { }
+		    errno == EINTR)
+			;
 		if (error < 0 || !WIFEXITED(status))
 			return (-1);
 

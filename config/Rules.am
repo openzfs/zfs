@@ -53,6 +53,7 @@ endif
 if BUILD_FREEBSD
 AM_CPPFLAGS += -DTEXT_DOMAIN=\"zfs-freebsd-user\"
 endif
+AM_CPPFLAGS += -D"strtok(...)=strtok(__VA_ARGS__) __attribute__((deprecated(\"Use strtok_r(3) instead!\")))"
 
 AM_LDFLAGS  = $(DEBUG_LDFLAGS)
 AM_LDFLAGS += $(ASAN_LDFLAGS)

@@ -22,7 +22,7 @@
 .\" OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 .\" WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-.TH ZFS-MOUNT-GENERATOR 8 "Aug 24, 2020" OpenZFS
+.TH ZFS-MOUNT-GENERATOR 8 "Apr 19, 2021" OpenZFS
 
 .SH "NAME"
 zfs\-mount\-generator \- generates systemd mount units for ZFS
@@ -83,19 +83,13 @@ zfs list -H -o name,mountpoint,canmount,atime,relatime,devices,exec,readonly,set
 .RE
 .PP
 for datasets that should be mounted by systemd, should be kept
-separate from the pool, at
-.PP
-.RS 4
-.RI @sysconfdir@/zfs/zfs-list.cache/ POOLNAME
-.
-.RE
+separate from the pool at
+.RI @sysconfdir@/zfs/zfs-list.cache/ POOLNAME .
 .PP
 The cache file, if writeable, will be kept synchronized with the pool
-state by the ZEDLET
-.PP
-.RS 4
-history_event-zfs-list-cacher.sh .
-.RE
+state by the
+.I history_event-zfs-list-cacher.sh
+ZEDLET.
 .PP
 .sp
 .SS PROPERTIES
@@ -189,6 +183,17 @@ See also
 .BR systemd.mount (5)
 
 .PP
+.SH ENVIRONMENT
+The
+.BR $ZFS_DEBUG
+environment variable, which can either be 0 (default),
+1 (print summary accounting information at the end),
+or at least 2 (print accounting information for each subprocess as it finishes).
+
+If not present, /proc/cmdline is additionally checked for
+.BR debug ,
+in which case the debug level is set to 2.
+
 .SH EXAMPLE
 To begin, enable tracking for the pool:
 .PP
@@ -221,7 +226,7 @@ This forces an update to the stale cache file.
 To test the generator output, run
 .PP
 .RS 4
-@systemdgeneratordir@/zfs-mount-generator /tmp/zfs-mount-generator . .
+@systemdgeneratordir@/zfs-mount-generator /tmp/zfs-mount-generator
 .RE
 .PP
 This will generate units and dependencies in

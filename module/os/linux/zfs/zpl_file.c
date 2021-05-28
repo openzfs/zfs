@@ -148,7 +148,7 @@ zpl_aio_fsync(struct kiocb *kiocb, int datasync)
 
 #elif defined(HAVE_FSYNC_RANGE)
 /*
- * Linux 3.1 - 3.x API,
+ * Linux 3.1 API,
  * As of 3.1 the responsibility to call filemap_write_and_wait_range() has
  * been pushed down in to the .fsync() vfs hook.  Additionally, the i_mutex
  * lock is no longer held by the caller, for zfs we don't require the lock

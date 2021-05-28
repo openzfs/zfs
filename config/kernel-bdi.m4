@@ -8,7 +8,9 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BDI], [
 	], [
 		char *name = "bdi";
 		atomic_long_t zfs_bdi_seq;
-		int error __attribute__((unused)) =
+		int error __attribute__((unused));
+		atomic_long_set(&zfs_bdi_seq, 0);
+		error =
 		    super_setup_bdi_name(&sb, "%.28s-%ld", name,
 		    atomic_long_inc_return(&zfs_bdi_seq));
 	])
