@@ -878,7 +878,7 @@ mountroot()
 		echo ""
 		echo "No pool imported. Manually import the root pool"
 		echo "at the command prompt and then exit."
-		echo "Hint: Try:  zpool import -R ${rootmnt} -N ${ZFS_RPOOL}"
+		echo "Hint: Try:  zpool import -N ${ZFS_RPOOL}"
 		shell
 	fi
 
