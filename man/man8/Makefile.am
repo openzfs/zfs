@@ -6,8 +6,6 @@ dist_man_MANS = \
 	vdev_id.8 \
 	zdb.8 \
 	zfs.8 \
-	zfsconcepts.8 \
-	zfsprops.8 \
 	zfs-allow.8 \
 	zfs-bookmark.8 \
 	zfs-change-key.8 \
@@ -48,8 +46,6 @@ dist_man_MANS = \
 	zgenhostid.8 \
 	zinject.8 \
 	zpool.8 \
-	zpoolconcepts.8 \
-	zpoolprops.8 \
 	zpool-add.8 \
 	zpool-attach.8 \
 	zpool-checkpoint.8 \

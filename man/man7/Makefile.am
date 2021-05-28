@@ -1,5 +1,12 @@
 dist_man_MANS = \
-	vdev_id.conf.5 \
+        spl-module-parameters.7 \
+        zfsconcepts.7 \
+        zfsprops.7 \
+        zfs-events.7 \
+        zfs-module-parameters.7 \
+        zpoolconcepts.7
+        zpoolprops.7 \
+        zpool-features.7
 
 if BUILD_LINUX
 # The man pager in most Linux distros defaults to BSD instead of Linux
