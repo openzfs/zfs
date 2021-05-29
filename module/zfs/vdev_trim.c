@@ -1398,7 +1398,7 @@ vdev_autotrim_thread(void *arg)
 		 * zfs_trim_txg_batch txgs will occur before these metaslabs
 		 * are trimmed again.
 		 */
-		txg_wait_open(spa_get_dsl(spa), 0, issued_trim);
+		txg_wait_open(spa_get_dsl(spa), 0, B_FALSE);
 
 		shift++;
 		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
