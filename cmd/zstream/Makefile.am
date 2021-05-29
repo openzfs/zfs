@@ -17,4 +17,4 @@ zstream_LDADD = \
 include $(top_srcdir)/config/CppCheck.am
 
 install-exec-hook:
-	$(LN_S) zstream $(DESTDIR)$(sbindir)/zstreamdump
+	ln -sf zstream $(DESTDIR)$(sbindir)/zstreamdump
