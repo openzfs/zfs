@@ -62,6 +62,12 @@
 #define	param_set_arc_long_args(var) \
     CTLTYPE_ULONG, &var, 0, param_set_arc_long, "LU"
 
+#define	param_set_arc_min_args(var) \
+    CTLTYPE_ULONG, &var, 0, param_set_arc_min, "LU"
+
+#define	param_set_arc_max_args(var) \
+    CTLTYPE_ULONG, &var, 0, param_set_arc_max, "LU"
+
 #define	param_set_arc_int_args(var) \
     CTLTYPE_INT, &var, 0, param_set_arc_int, "I"
 

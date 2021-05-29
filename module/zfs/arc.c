@@ -7498,7 +7498,7 @@ arc_tuning_update(boolean_t verbose)
 
 	/* Valid range: 64M - <all physical memory> */
 	if ((zfs_arc_max) && (zfs_arc_max != arc_c_max) &&
-	    (zfs_arc_max >= 64 << 20) && (zfs_arc_max < allmem) &&
+	    (zfs_arc_max >= MIN_ARC_MAX) && (zfs_arc_max < allmem) &&
 	    (zfs_arc_max > arc_c_min)) {
 		arc_c_max = zfs_arc_max;
 		arc_c = MIN(arc_c, arc_c_max);
@@ -7893,7 +7893,23 @@ arc_init(void)
 
 	arc_set_limits(allmem);
 
-#ifndef _KERNEL
+#ifdef _KERNEL
+	/*
+	 * If zfs_arc_max is non-zero at init, meaning it was set in the kernel
+	 * environment before the module was loaded, don't block setting the
+	 * maximum because it is less than arc_c_min, instead, reset arc_c_min
+	 * to a lower value.
+	 * zfs_arc_min will be handled by arc_tuning_update().
+	 */
+	if (zfs_arc_max != 0 && zfs_arc_max >= MIN_ARC_MAX &&
+	    zfs_arc_max < allmem) {
+		arc_c_max = zfs_arc_max;
+		if (arc_c_min >= arc_c_max) {
+			arc_c_min = MAX(zfs_arc_max / 2,
+			    2ULL << SPA_MAXBLOCKSHIFT);
+		}
+	}
+#else
 	/*
 	 * In userland, there's only the memory pressure that we artificially
 	 * create (see arc_available_memory()).  Don't let arc_c get too
@@ -10965,10 +10981,10 @@ EXPORT_SYMBOL(arc_add_prune_callback);
 EXPORT_SYMBOL(arc_remove_prune_callback);
 
 /* BEGIN CSTYLED */
-ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, min, param_set_arc_long,
+ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, min, param_set_arc_min,
 	param_get_long, ZMOD_RW, "Min arc size");
 
-ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, max, param_set_arc_long,
+ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, max, param_set_arc_max,
 	param_get_long, ZMOD_RW, "Max arc size");
 
 ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, meta_limit, param_set_arc_long,
