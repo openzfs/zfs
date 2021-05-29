@@ -583,7 +583,8 @@ zfs_prop_init(void)
 	    "ENCROOT");
 	zprop_register_string(ZFS_PROP_KEYLOCATION, "keylocation",
 	    "none", PROP_DEFAULT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
-	    "prompt | <file URI> | <https URL> | <http URL>", "KEYLOCATION");
+	    "prompt | <file URI> | <https URL> | <http URL> | <exec URI>",
+	    "KEYLOCATION");
 	zprop_register_string(ZFS_PROP_REDACT_SNAPS,
 	    "redact_snaps", NULL, PROP_READONLY,
 	    ZFS_TYPE_DATASET | ZFS_TYPE_BOOKMARK, "<snapshot>[,...]",
@@ -932,16 +933,13 @@ zfs_prop_valid_keylocation(const char *str, boolean_t encrypted)
 {
 	if (strcmp("none", str) == 0)
 		return (!encrypted);
-	else if (strcmp("prompt", str) == 0)
-		return (B_TRUE);
-	else if (strlen(str) > 8 && strncmp("file:///", str, 8) == 0)
-		return (B_TRUE);
-	else if (strlen(str) > 8 && strncmp("https://", str, 8) == 0)
-		return (B_TRUE);
-	else if (strlen(str) > 7 && strncmp("http://", str, 7) == 0)
-		return (B_TRUE);
 
-	return (B_FALSE);
+	return ((strcmp("prompt", str) == 0) ||
+	    (strlen(str) > 8 && strncmp("file:///", str, 8) == 0) ||
+	    (strlen(str) > 8 && strncmp("https://", str, 8) == 0) ||
+	    (strlen(str) > 7 && strncmp("http://", str, 7) == 0) ||
+	    (strlen(str) > 7 && strncmp("exec://", str, 7) == 0 &&
+	    strchr(str + 7, '/') == NULL));
 }
 
 

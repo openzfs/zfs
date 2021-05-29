@@ -3775,6 +3775,33 @@ zfs_create(libzfs_handle_t *hdl, const char *path, zfs_type_t type,
 	return (0);
 }
 
+static int
+zfs_destroy_notification_applicable(zfs_handle_t *zhp, char *keylocation,
+    size_t keylocation_len, boolean_t *notify)
+{
+	boolean_t is_encroot;
+
+	*notify = B_FALSE;
+
+	if ((zhp->zfs_type & ZFS_TYPE_DATASET) == 0 ||
+	    zfs_prop_get_int(zhp, ZFS_PROP_KEYFORMAT) == ZFS_KEYFORMAT_NONE)
+		return (0);
+
+	zfs_crypto_get_encryption_root(zhp, &is_encroot, NULL);
+	if (!is_encroot)
+		return (0);
+
+	if (zfs_prop_get(zhp, ZFS_PROP_KEYLOCATION,
+	    keylocation, keylocation_len,
+	    NULL, NULL, 0, B_TRUE) != 0)
+		return (zfs_standard_error_fmt(zhp->zfs_hdl, EZFS_BADPROP,
+		    dgettext(TEXT_DOMAIN, "couldn't get keylocation for '%s'"),
+		    zhp->zfs_name));
+
+	*notify = B_TRUE;
+	return (0);
+}
+
 /*
  * Destroys the given dataset.  The caller must make sure that the filesystem
  * isn't mounted, and that there are no active dependents. If the file system
@@ -3784,6 +3811,8 @@ int
 zfs_destroy(zfs_handle_t *zhp, boolean_t defer)
 {
 	int error;
+	char keylocation[MAXNAMELEN];
+	boolean_t notify = B_FALSE;
 
 	if (zhp->zfs_type != ZFS_TYPE_SNAPSHOT && defer)
 		return (EINVAL);
@@ -3807,15 +3836,34 @@ zfs_destroy(zfs_handle_t *zhp, boolean_t defer)
 		error = lzc_destroy_snaps(nv, defer, NULL);
 		fnvlist_free(nv);
 	} else {
+		if ((error = zfs_destroy_notification_applicable(zhp,
+		    keylocation, sizeof (keylocation), &notify)) != 0)
+			return (error);
+
+		if (notify) {
+			error = notify_encryption_backend(zhp, keylocation,
+			    BACK_OP_UNSHIFT);
+			if (error)
+				return (zfs_standard_error_fmt(zhp->zfs_hdl,
+				    error, dgettext(TEXT_DOMAIN,
+				    "couldn't notify encryption back-end "
+				    "about destruction of '%s'"),
+				    zhp->zfs_name));
+		}
+
 		error = lzc_destroy(zhp->zfs_name);
 	}
 
 	if (error != 0 && error != ENOENT) {
-		return (zfs_standard_error_fmt(zhp->zfs_hdl, errno,
+		error = errno;
+
+		notify_encryption_backend(zhp, keylocation, BACK_OP_SHIFT);
+		return (zfs_standard_error_fmt(zhp->zfs_hdl, error,
 		    dgettext(TEXT_DOMAIN, "cannot destroy '%s'"),
 		    zhp->zfs_name));
 	}
 
+	notify_encryption_backend(zhp, keylocation, BACK_OP_CANCEL);
 	remove_mountpoint(zhp);
 
 	return (0);

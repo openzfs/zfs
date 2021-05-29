@@ -258,6 +258,17 @@ extern int find_shares_object(differ_info_t *di);
 extern void libzfs_set_pipe_max(int infd);
 extern void zfs_commit_proto(zfs_share_proto_t *);
 
+typedef enum {
+	BACK_OP_LOAD,
+	BACK_OP_NEW,
+	BACK_OP_SHIFT,
+	BACK_OP_UNSHIFT,
+	BACK_OP_CANCEL,
+} encryption_backend_op_t;
+
+extern int notify_encryption_backend(zfs_handle_t *zhp,
+    const char *keylocation, encryption_backend_op_t what_of);
+
 #ifdef	__cplusplus
 }
 #endif

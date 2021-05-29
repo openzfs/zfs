@@ -1,6 +1,8 @@
 include $(top_srcdir)/config/Substfiles.am
 
+# zfs-load-key.8 must come before any of its linkees
 dist_man_MANS = \
+	zfs-load-key.8 \
 	fsck.zfs.8 \
 	mount.zfs.8 \
 	vdev_id.8 \
@@ -21,7 +23,6 @@ dist_man_MANS = \
 	zfs-inherit.8 \
 	zfs-jail.8 \
 	zfs-list.8 \
-	zfs-load-key.8 \
 	zfs-mount.8 \
 	zfs-program.8 \
 	zfs-project.8 \
@@ -89,7 +90,9 @@ nodist_man_MANS = \
 	zed.8 \
 	zfs-mount-generator.8
 
-SUBSTFILES += $(nodist_man_MANS)
+SUBSTFILES += $(nodist_man_MANS) \
+	zfsprops.8 \
+	zfs-load-key.8
 
 if BUILD_LINUX
 # The man pager in most Linux distros defaults to BSD instead of Linux
