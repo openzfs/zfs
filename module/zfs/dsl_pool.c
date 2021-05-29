@@ -568,8 +568,7 @@ dsl_pool_sync_mos(dsl_pool_t *dp, dmu_tx_t *tx)
 	VERIFY0(zio_wait(zio));
 	dmu_objset_sync_done(dp->dp_meta_objset, tx);
 	taskq_wait(dp->dp_sync_taskq);
-	multilist_destroy(dp->dp_meta_objset->os_synced_dnodes);
-	dp->dp_meta_objset->os_synced_dnodes = NULL;
+	multilist_destroy(&dp->dp_meta_objset->os_synced_dnodes);
 
 	dprintf_bp(&dp->dp_meta_rootbp, "meta objset rootbp is %s", "");
 	spa_set_rootblkptr(dp->dp_spa, &dp->dp_meta_rootbp);

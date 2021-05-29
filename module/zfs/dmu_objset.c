@@ -601,7 +601,7 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 	os->os_zil = zil_alloc(os, &os->os_zil_header);
 
 	for (i = 0; i < TXG_SIZE; i++) {
-		os->os_dirty_dnodes[i] = multilist_create(sizeof (dnode_t),
+		multilist_create(&os->os_dirty_dnodes[i], sizeof (dnode_t),
 		    offsetof(dnode_t, dn_dirty_link[i]),
 		    dnode_multilist_index_func);
 	}
@@ -995,9 +995,8 @@ dmu_objset_evict_done(objset_t *os)
 	mutex_destroy(&os->os_obj_lock);
 	mutex_destroy(&os->os_user_ptr_lock);
 	mutex_destroy(&os->os_upgrade_lock);
-	for (int i = 0; i < TXG_SIZE; i++) {
-		multilist_destroy(os->os_dirty_dnodes[i]);
-	}
+	for (int i = 0; i < TXG_SIZE; i++)
+		multilist_destroy(&os->os_dirty_dnodes[i]);
 	spa_evicting_os_deregister(os->os_spa, os);
 	kmem_free(os, sizeof (objset_t));
 }
@@ -1520,7 +1519,7 @@ dmu_objset_sync_dnodes(multilist_sublist_t *list, dmu_tx_t *tx)
 		 * of why this dnode hold is always needed (even when not
 		 * doing user accounting).
 		 */
-		multilist_t *newlist = dn->dn_objset->os_synced_dnodes;
+		multilist_t *newlist = &dn->dn_objset->os_synced_dnodes;
 		(void) dnode_add_ref(dn, newlist);
 		multilist_insert(newlist, dn);
 
@@ -1689,17 +1688,16 @@ dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 	 * dn_dirty_link[] of this txg.  But it may already
 	 * exist because we call dsl_dataset_sync() twice per txg.
 	 */
-	if (os->os_synced_dnodes == NULL) {
-		os->os_synced_dnodes =
-		    multilist_create(sizeof (dnode_t),
+	if (os->os_synced_dnodes.ml_sublists == NULL) {
+		multilist_create(&os->os_synced_dnodes, sizeof (dnode_t),
 		    offsetof(dnode_t, dn_dirty_link[txgoff]),
 		    dnode_multilist_index_func);
 	} else {
-		ASSERT3U(os->os_synced_dnodes->ml_offset, ==,
+		ASSERT3U(os->os_synced_dnodes.ml_offset, ==,
 		    offsetof(dnode_t, dn_dirty_link[txgoff]));
 	}
 
-	ml = os->os_dirty_dnodes[txgoff];
+	ml = &os->os_dirty_dnodes[txgoff];
 	num_sublists = multilist_get_num_sublists(ml);
 	for (int i = 0; i < num_sublists; i++) {
 		if (multilist_sublist_is_empty_idx(ml, i))
@@ -1738,7 +1736,7 @@ dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 boolean_t
 dmu_objset_is_dirty(objset_t *os, uint64_t txg)
 {
-	return (!multilist_is_empty(os->os_dirty_dnodes[txg & TXG_MASK]));
+	return (!multilist_is_empty(&os->os_dirty_dnodes[txg & TXG_MASK]));
 }
 
 static file_info_cb_t *file_cbs[DMU_OST_NUMTYPES];
@@ -1949,7 +1947,7 @@ userquota_updates_task(void *arg)
 	userquota_cache_t cache = { { 0 } };
 
 	multilist_sublist_t *list =
-	    multilist_sublist_lock(os->os_synced_dnodes, uua->uua_sublist_idx);
+	    multilist_sublist_lock(&os->os_synced_dnodes, uua->uua_sublist_idx);
 
 	ASSERT(multilist_sublist_head(list) == NULL ||
 	    dmu_objset_userused_enabled(os));
@@ -2006,7 +2004,7 @@ userquota_updates_task(void *arg)
 		mutex_exit(&dn->dn_mtx);
 
 		multilist_sublist_remove(list, dn);
-		dnode_rele(dn, os->os_synced_dnodes);
+		dnode_rele(dn, &os->os_synced_dnodes);
 	}
 	do_userquota_cacheflush(os, &cache, tx);
 	multilist_sublist_unlock(list);
@@ -2032,12 +2030,12 @@ dnode_rele_task(void *arg)
 	objset_t *os = uua->uua_os;
 
 	multilist_sublist_t *list =
-	    multilist_sublist_lock(os->os_synced_dnodes, uua->uua_sublist_idx);
+	    multilist_sublist_lock(&os->os_synced_dnodes, uua->uua_sublist_idx);
 
 	dnode_t *dn;
 	while ((dn = multilist_sublist_head(list)) != NULL) {
 		multilist_sublist_remove(list, dn);
-		dnode_rele(dn, os->os_synced_dnodes);
+		dnode_rele(dn, &os->os_synced_dnodes);
 	}
 	multilist_sublist_unlock(list);
 	kmem_free(uua, sizeof (*uua));
@@ -2093,7 +2091,7 @@ dmu_objset_sync_done(objset_t *os, dmu_tx_t *tx)
 {
 	boolean_t need_userquota = dmu_objset_do_userquota_updates_prep(os, tx);
 
-	int num_sublists = multilist_get_num_sublists(os->os_synced_dnodes);
+	int num_sublists = multilist_get_num_sublists(&os->os_synced_dnodes);
 	for (int i = 0; i < num_sublists; i++) {
 		userquota_updates_arg_t *uua =
 		    kmem_alloc(sizeof (*uua), KM_SLEEP);

@@ -153,7 +153,7 @@ struct objset {
 	/* no lock needed: */
 	struct dmu_tx *os_synctx; /* XXX sketchy */
 	zil_header_t os_zil_header;
-	multilist_t *os_synced_dnodes;
+	multilist_t os_synced_dnodes;
 	uint64_t os_flags;
 	uint64_t os_freed_dnodes;
 	boolean_t os_rescan_dnodes;
@@ -172,7 +172,7 @@ struct objset {
 
 	/* Protected by os_lock */
 	kmutex_t os_lock;
-	multilist_t *os_dirty_dnodes[TXG_SIZE];
+	multilist_t os_dirty_dnodes[TXG_SIZE];
 	list_t os_dnodes;
 	list_t os_downgraded_dbufs;
 
