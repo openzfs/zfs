@@ -2995,7 +2995,7 @@ Use \fB1\fR for yes and \fB0\fR for no (default).
 .sp
 .ne 2
 .na
-\fBzfs_read_chunk_size\fR (long)
+\fBzfs_vnops_read_chunk_size\fR (long)
 .ad
 .RS 12n
 Bytes to read per chunk
@@ -3994,19 +3994,6 @@ zios possessing a vdev. This is meant to be used by developers to gain
 diagnostic information for hang conditions which don't involve a mutex
 or other locking primitive; typically conditions in which a thread in
 the zio pipeline is looping indefinitely.
-.sp
-Default value: \fB0\fR.
-.RE
-
-.sp
-.ne 2
-.na
-\fBzio_decompress_fail_fraction\fR (int)
-.ad
-.RS 12n
-If non-zero, this value represents the denominator of the probability that zfs
-should induce a decompression failure. For instance, for a 5% decompression
-failure rate, this value should be set to 20.
 .sp
 Default value: \fB0\fR.
 .RE
