@@ -527,9 +527,7 @@ spl_cache_flush(spl_kmem_cache_t *skc, spl_kmem_magazine_t *skm, int flush)
  * Size a slab based on the size of each aligned object plus spl_kmem_obj_t.
  * When on-slab we want to target spl_kmem_cache_obj_per_slab.  However,
  * for very small objects we may end up with more than this so as not
- * to waste space in the minimal allocation of a single page.  Also for
- * very large objects we may use as few as spl_kmem_cache_obj_per_slab_min,
- * lower than this and we will fail.
+ * to waste space in the minimal allocation of a single page.
  */
 static int
 spl_slab_size(spl_kmem_cache_t *skc, uint32_t *objs, uint32_t *size)
