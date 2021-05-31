@@ -171,9 +171,6 @@ AC_CONFIG_FILES([
 	lib/libzstd/Makefile
 	lib/libzutil/Makefile
 	man/Makefile
-	man/man1/Makefile
-	man/man5/Makefile
-	man/man8/Makefile
 	module/Kbuild
 	module/Makefile
 	module/avl/Makefile
