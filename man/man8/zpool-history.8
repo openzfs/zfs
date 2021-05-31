@@ -18,7 +18,6 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
 .\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
@@ -30,22 +29,17 @@
 .Dd August 9, 2019
 .Dt ZPOOL-HISTORY 8
 .Os
+.
 .Sh NAME
 .Nm zpool-history
-.Nd Displays the command history of the specified ZFS storage pool(s)
+.Nd inspect command history of ZFS storage pools
 .Sh SYNOPSIS
 .Nm zpool
 .Cm history
 .Op Fl il
-.Oo Ar pool Oc Ns ...
+.Oo Ar pool Oc Ns …
+.
 .Sh DESCRIPTION
-.Bl -tag -width Ds
-.It Xo
-.Nm zpool
-.Cm history
-.Op Fl il
-.Oo Ar pool Oc Ns ...
-.Xc
 Displays the command history of the specified pool(s) or all pools if no pool is
 specified.
 .Bl -tag -width Ds
@@ -56,7 +50,7 @@ Displays log records in long format, which in addition to standard format
 includes, the user name, the hostname, and the zone in which the operation was
 performed.
 .El
-.El
+.
 .Sh SEE ALSO
 .Xr zpool-checkpoint 8 ,
 .Xr zpool-events 8 ,
