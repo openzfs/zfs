@@ -749,23 +749,43 @@ txg_wait_synced_sig(dsl_pool_t *dp, uint64_t txg)
 /*
  * Wait for the specified open transaction group.  Set should_quiesce
  * when the current open txg should be quiesced immediately.
+ * Pass in non-zero time to do timed-wait.
+ * If the wait is timed out, this function returns true.
+ * If should_quiesce equals true, implies the time has to be 0.
  */
-void
-txg_wait_open(dsl_pool_t *dp, uint64_t txg, boolean_t should_quiesce)
+static boolean_t
+txg_wait_open_impl(dsl_pool_t *dp, uint64_t txg, boolean_t should_quiesce,
+    clock_t time)
 {
 	tx_state_t *tx = &dp->dp_tx;
 
+	IMPLY(should_quiesce, time == 0);
 	ASSERT(!dsl_pool_config_held(dp));
 
 	mutex_enter(&tx->tx_sync_lock);
 	ASSERT3U(tx->tx_threads, ==, 2);
-	if (txg == 0)
-		txg = tx->tx_open_txg + 1;
-	if (tx->tx_quiesce_txg_waiting < txg && should_quiesce)
-		tx->tx_quiesce_txg_waiting = txg;
-	dprintf("txg=%llu quiesce_txg=%llu sync_txg=%llu\n",
-	    txg, tx->tx_quiesce_txg_waiting, tx->tx_sync_txg_waiting);
-	while (tx->tx_open_txg < txg) {
+
+	clock_t start = 0;
+	if (time > 0) /* need to log the start time */
+		start = ddi_get_lbolt();
+	while (B_TRUE) {
+
+		/*
+		 * It may be a race condition to read tx_open_txg during
+		 * quiescing. Wait until txg is quiesced.
+		 */
+		while (txg_is_quiescing(dp))
+			cv_wait_io(&tx->tx_quiesce_done_cv, &tx->tx_sync_lock);
+
+		if (txg > 0 && tx->tx_open_txg >= txg)
+			break;
+
+		if (txg == 0)
+			txg = tx->tx_open_txg + 1;
+
+		if (tx->tx_quiesce_txg_waiting < txg && should_quiesce)
+			tx->tx_quiesce_txg_waiting = txg;
+
 		cv_broadcast(&tx->tx_quiesce_more_cv);
 		/*
 		 * Callers setting should_quiesce will use cv_wait_io() and
@@ -773,14 +793,48 @@ txg_wait_open(dsl_pool_t *dp, uint64_t txg, boolean_t should_quiesce)
 		 * understood to be idle and cv_wait_sig() is used to prevent
 		 * incorrectly inflating the system load average.
 		 */
-		if (should_quiesce == B_TRUE) {
+		if (should_quiesce == B_TRUE)
 			cv_wait_io(&tx->tx_quiesce_done_cv, &tx->tx_sync_lock);
-		} else {
+		else if (time == 0)
 			cv_wait_idle(&tx->tx_quiesce_done_cv,
 			    &tx->tx_sync_lock);
+		else if (ddi_get_lbolt() - start < time)
+			(void) cv_timedwait_idle(&tx->tx_quiesce_done_cv,
+			    &tx->tx_sync_lock, start + time);
+		else {
+			mutex_exit(&tx->tx_sync_lock);
+			return (B_TRUE);
 		}
 	}
 	mutex_exit(&tx->tx_sync_lock);
+	return (B_FALSE);
+}
+
+/*
+ * Wait for the specified open transaction group.  Set should_quiesce
+ * when the current open txg should be quiesced immediately.
+ */
+void
+txg_wait_open(dsl_pool_t *dp, uint64_t txg, boolean_t should_quiesce)
+{
+	tx_state_t *tx = &dp->dp_tx;
+	dprintf("txg=%llu open_txg=%llu should_quiesce=%s\n",
+	    txg, tx->tx_open_txg, should_quiesce?"true":"false");
+	txg_wait_open_impl(dp, txg, should_quiesce, 0);
+}
+
+/*
+ * See comments of txg_wait_open_impl(), caller may call this function
+ * repeatedly until the waited txg is open. Return true if timed out.
+ */
+boolean_t
+txg_timedwait_open(dsl_pool_t *dp, uint64_t txg, clock_t time)
+{
+	tx_state_t *tx = &dp->dp_tx;
+	ASSERT(time > 0);
+	dprintf("txg=%llu open_txg=%llu wait_ticks=%llu\n",
+	    txg, tx->tx_open_txg, (uint64_t)time);
+	return (txg_wait_open_impl(dp, txg, B_FALSE, time));
 }
 
 /*

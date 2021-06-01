@@ -101,6 +101,13 @@ extern boolean_t txg_wait_synced_sig(struct dsl_pool *dp, uint64_t txg);
  */
 extern void txg_wait_open(struct dsl_pool *dp, uint64_t txg,
     boolean_t should_quiesce);
+/*
+ * Wait as above with should_quiesce as false.
+ * Return true the wait was timed out.
+ */
+extern boolean_t txg_timedwait_open(struct dsl_pool *dp, uint64_t txg,
+    clock_t time);
+
 
 /*
  * Returns TRUE if we are "backed up" waiting for the syncing
