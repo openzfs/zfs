@@ -40,6 +40,8 @@ extern const int zfs_vm_pagerput_inval;
 void	zfs_vmobject_assert_wlocked(vm_object_t object);
 void	zfs_vmobject_wlock(vm_object_t object);
 void	zfs_vmobject_wunlock(vm_object_t object);
+void	zfs_vmobject_rlock(vm_object_t object);
+void	zfs_vmobject_runlock(vm_object_t object);
 
 #if __FreeBSD_version >= 1300081
 #define	zfs_vmobject_assert_wlocked_12(x)

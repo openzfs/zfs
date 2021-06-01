@@ -245,6 +245,8 @@ typedef struct dmu_sendstatus {
 	uint64_t dss_blocks; /* blocks visited during the sending process */
 } dmu_sendstatus_t;
 
+extern list_t *dmu_contexts_list;
+extern kmutex_t dmu_contexts_lock;
 void dmu_object_zapify(objset_t *, uint64_t, dmu_object_type_t, dmu_tx_t *);
 void dmu_object_free_zapified(objset_t *, uint64_t, dmu_tx_t *);
 int dmu_buf_hold_noread(objset_t *, uint64_t, uint64_t,

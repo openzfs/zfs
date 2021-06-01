@@ -32,6 +32,10 @@
 #include <sys/types.h>
 #include <asm/uaccess.h>
 
+#define	PAGESIZE	PAGE_SIZE
+#define	PAGEOFFSET	(PAGESIZE - 1)
+#define	PAGEMASK	(~PAGEOFFSET)
+
 #ifdef HAVE_TOTALRAM_PAGES_FUNC
 #define	zfs_totalram_pages	totalram_pages()
 #else

@@ -141,6 +141,7 @@
 #include <sys/dsl_dir.h>
 #include <sys/dsl_synctask.h>
 #include <sys/metaslab_impl.h>
+#include <sys/dbuf.h>
 #include <sys/spa.h>
 #include <sys/spa_impl.h>
 #include <sys/spa_checkpoint.h>
@@ -394,19 +395,41 @@ spa_checkpoint_discard_thread_check(void *arg, zthr_t *zthr)
 	return (B_TRUE);
 }
 
+typedef struct spa_discard_cb_ctx {
+	dmu_ctx_t dc;
+	spa_t *spa;
+	vdev_t *vd;
+	dmu_buf_impl_t *db;
+} spa_discard_cb_ctx_t;
+
+static void
+spa_discard_cb(dmu_buf_set_t *dbs)
+{
+	spa_discard_cb_ctx_t *ctx;
+
+	ctx = (spa_discard_cb_ctx_t *)dbs->dbs_dc;
+	DB_DNODE_EXIT(ctx->db);
+
+	VERIFY0(dsl_sync_task(ctx->spa->spa_name, NULL,
+	    spa_checkpoint_discard_thread_sync, ctx->vd,
+	    0, ZFS_SPACE_CHECK_NONE));
+}
+
 void
 spa_checkpoint_discard_thread(void *arg, zthr_t *zthr)
 {
 	spa_t *spa = arg;
 	vdev_t *rvd = spa->spa_root_vdev;
+	dmu_ctx_flag_t dmu_flags = DMU_CTX_FLAG_READ |
+	    DMU_CTX_FLAG_NO_HOLD | DMU_CTX_FLAG_NOFILL;
+	spa_discard_cb_ctx_t ctx;
 
 	for (uint64_t c = 0; c < rvd->vdev_children; c++) {
 		vdev_t *vd = rvd->vdev_child[c];
 
 		while (vd->vdev_checkpoint_sm != NULL) {
 			space_map_t *checkpoint_sm = vd->vdev_checkpoint_sm;
-			int numbufs;
-			dmu_buf_t **dbp;
+			dnode_t *dn;
 
 			if (zthr_iscancelled(zthr))
 				return;
@@ -423,21 +446,25 @@ spa_checkpoint_discard_thread(void *arg, zthr_t *zthr)
 			 * be destroyed by the synctask, is prefetched in
 			 * memory before the synctask runs.
 			 */
-			int error = dmu_buf_hold_array_by_bonus(
-			    checkpoint_sm->sm_dbuf, offset, size,
-			    B_TRUE, FTAG, &numbufs, &dbp);
-			if (error != 0) {
+			ctx.vd = vd;
+			ctx.spa = spa;
+			ctx.db = (dmu_buf_impl_t *)checkpoint_sm->sm_dbuf;
+
+			DB_DNODE_ENTER(ctx.db);
+			dn = DB_DNODE(ctx.db);
+			VERIFY0(dmu_ctx_init(&ctx.dc, dn, dn->dn_objset,
+			    dn->dn_object, offset, size, NULL,
+			    FTAG, dmu_flags));
+			dmu_ctx_set_buf_set_transfer_cb(&ctx.dc,
+			    spa_discard_cb);
+			dmu_issue(&ctx.dc);
+			dmu_ctx_rele(&ctx.dc);
+			if (ctx.dc.dc_err != 0) {
 				zfs_panic_recover("zfs: error %d was returned "
 				    "while prefetching checkpoint space map "
 				    "entries of vdev %llu\n",
-				    error, vd->vdev_id);
+				    ctx.dc.dc_err, vd->vdev_id);
 			}
-
-			VERIFY0(dsl_sync_task(spa->spa_name, NULL,
-			    spa_checkpoint_discard_thread_sync, vd,
-			    0, ZFS_SPACE_CHECK_NONE));
-
-			dmu_buf_rele_array(dbp, numbufs, FTAG);
 		}
 	}
 

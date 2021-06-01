@@ -63,6 +63,9 @@ typedef enum zfs_uio_seg {
 
 #elif defined(__FreeBSD__)
 typedef enum uio_seg  zfs_uio_seg_t;
+#if !defined(_KERNEL)
+typedef enum uio_rw zfs_uio_rw_t;
+#endif
 #endif
 
 typedef struct zfs_uio {

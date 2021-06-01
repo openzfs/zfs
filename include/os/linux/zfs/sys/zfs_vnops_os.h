@@ -33,6 +33,12 @@
 #include <sys/pathname.h>
 #include <sys/zpl.h>
 #include <sys/zfs_file.h>
+#include <linux/version.h>
+#include <linux/kmap_compat.h>
+
+#if defined(zfs_get_user_pages) && defined(HAVE_KI_COMPLETE)
+#define	WANT_ASYNC
+#endif
 
 #ifdef	__cplusplus
 extern "C" {

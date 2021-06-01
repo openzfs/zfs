@@ -197,7 +197,7 @@ taskq_remove(taskq_ent_t *ent)
 }
 
 static void
-taskq_tsd_set(void *context)
+taskq_ctor(void *context)
 {
 	taskq_t *tq = context;
 
@@ -206,11 +206,24 @@ taskq_tsd_set(void *context)
 		fpu_kern_thread(FPU_KERN_NORMAL);
 #endif
 	tsd_set(taskq_tsd, tq);
+	if (tq->tq_ctor)
+		tq->tq_ctor(tq);
+}
+
+static void
+taskq_dtor(void *context)
+{
+	taskq_t *tq = context;
+
+	tsd_set(taskq_tsd, NULL);
+	if (tq->tq_dtor)
+		tq->tq_dtor(tq);
 }
 
 static taskq_t *
-taskq_create_impl(const char *name, int nthreads, pri_t pri,
-    proc_t *proc __maybe_unused, uint_t flags)
+taskq_create_with_init(const char *name, int nthreads, pri_t pri,
+    proc_t *proc __maybe_unused, uint_t flags,
+    taskq_callback_fn ctor, taskq_callback_fn dtor)
 {
 	taskq_t *tq;
 
@@ -220,10 +233,12 @@ taskq_create_impl(const char *name, int nthreads, pri_t pri,
 	tq = kmem_alloc(sizeof (*tq), KM_SLEEP);
 	tq->tq_queue = taskqueue_create(name, M_WAITOK,
 	    taskqueue_thread_enqueue, &tq->tq_queue);
+	tq->tq_ctor = ctor;
+	tq->tq_dtor = dtor;
 	taskqueue_set_callback(tq->tq_queue, TASKQUEUE_CALLBACK_TYPE_INIT,
-	    taskq_tsd_set, tq);
+	    taskq_ctor, tq);
 	taskqueue_set_callback(tq->tq_queue, TASKQUEUE_CALLBACK_TYPE_SHUTDOWN,
-	    taskq_tsd_set, NULL);
+	    taskq_dtor, tq);
 	(void) taskqueue_start_threads_in_proc(&tq->tq_queue, nthreads, pri,
 	    proc, "%s", name);
 
@@ -234,14 +249,19 @@ taskq_t *
 taskq_create(const char *name, int nthreads, pri_t pri, int minalloc __unused,
     int maxalloc __unused, uint_t flags)
 {
-	return (taskq_create_impl(name, nthreads, pri, system_proc, flags));
+
+	return (taskq_create_with_init(name, nthreads, pri,
+	    system_proc, flags, NULL, NULL));
 }
 
 taskq_t *
-taskq_create_proc(const char *name, int nthreads, pri_t pri,
-    int minalloc __unused, int maxalloc __unused, proc_t *proc, uint_t flags)
+taskq_create_proc(const char *name, int nthreads, pri_t pri, int minalloc,
+    int maxalloc, proc_t *proc __unused, uint_t flags,
+    taskq_callback_fn ctor, taskq_callback_fn dtor)
 {
-	return (taskq_create_impl(name, nthreads, pri, proc, flags));
+
+	return (taskq_create_with_init(name, nthreads, pri, proc,
+	    flags, ctor, dtor));
 }
 
 void

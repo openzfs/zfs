@@ -85,7 +85,7 @@ zfs_sa_readlink(znode_t *zp, zfs_uio_t *uio)
 	} else {
 		dmu_buf_t *dbp;
 		if ((error = dmu_buf_hold(ZTOZSB(zp)->z_os, zp->z_id,
-		    0, FTAG, &dbp, DMU_READ_NO_PREFETCH)) == 0) {
+		    0, FTAG, &dbp, /* flags */ 0)) == 0) {
 			error = zfs_uiomove(dbp->db_data,
 			    MIN((size_t)bufsz, zfs_uio_resid(uio)), UIO_READ,
 			    uio);
@@ -111,7 +111,7 @@ zfs_sa_symlink(znode_t *zp, char *link, int len, dmu_tx_t *tx)
 
 		zfs_grow_blocksize(zp, len, tx);
 		VERIFY0(dmu_buf_hold(ZTOZSB(zp)->z_os, zp->z_id, 0, FTAG, &dbp,
-		    DMU_READ_NO_PREFETCH));
+		    /* flags */ 0));
 
 		dmu_buf_will_dirty(dbp, tx);
 

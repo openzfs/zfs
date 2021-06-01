@@ -29,6 +29,8 @@
 #ifndef	_SYS_FS_ZFS_VNOPS_OS_H
 #define	_SYS_FS_ZFS_VNOPS_OS_H
 
+#include <sys/resourcevar.h>
+
 int dmu_write_pages(objset_t *os, uint64_t object, uint64_t offset,
     uint64_t size, struct vm_page **ppa, dmu_tx_t *tx);
 int dmu_read_pages(objset_t *os, uint64_t object, vm_page_t *ma, int count,

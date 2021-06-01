@@ -70,6 +70,10 @@
 #endif
 #endif
 
+#ifdef HAVE_UBOP
+#define	WANT_ASYNC
+#endif
+
 struct hlist_node {
 	struct hlist_node *next, **pprev;
 };

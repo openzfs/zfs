@@ -888,7 +888,7 @@ dump_packed_nvlist(objset_t *os, uint64_t object, void *data, size_t size)
 	size_t nvsize = *(uint64_t *)data;
 	char *packed = umem_alloc(nvsize, UMEM_NOFAIL);
 
-	VERIFY(0 == dmu_read(os, object, 0, nvsize, packed, DMU_READ_PREFETCH));
+	VERIFY0(dmu_read(os, object, 0, nvsize, packed, DMU_CTX_FLAG_PREFETCH));
 
 	VERIFY(nvlist_unpack(packed, nvsize, &nv, 0) == 0);
 
@@ -1514,7 +1514,7 @@ dump_spacemap(objset_t *os, space_map_t *sm)
 	    offset += sizeof (word)) {
 
 		VERIFY0(dmu_read(os, space_map_object(sm), offset,
-		    sizeof (word), &word, DMU_READ_PREFETCH));
+		    sizeof (word), &word, DMU_CTX_FLAG_PREFETCH));
 
 		if (sm_entry_is_debug(word)) {
 			uint64_t de_txg = SM_DEBUG_TXG_DECODE(word);
@@ -1554,7 +1554,7 @@ dump_spacemap(objset_t *os, space_map_t *sm)
 			offset += sizeof (extra_word);
 			VERIFY0(dmu_read(os, space_map_object(sm), offset,
 			    sizeof (extra_word), &extra_word,
-			    DMU_READ_PREFETCH));
+			    DMU_CTX_FLAG_PREFETCH));
 
 			ASSERT3U(offset, <=, space_map_length(sm));
 

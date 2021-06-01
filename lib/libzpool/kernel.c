@@ -44,6 +44,7 @@
 #include <sys/zfs_vfsops.h>
 #include <sys/zstd/zstd.h>
 #include <sys/zvol.h>
+#include <sys/zfs_rlock.h>
 #include <zfs_fletcher.h>
 #include <zlib.h>
 
@@ -821,6 +822,7 @@ void
 kernel_init(int mode)
 {
 	extern uint_t rrw_tsd_key;
+	extern uint_t zfs_async_io_key;
 
 	umem_nofail_callback(umem_out_of_memory);
 
@@ -836,13 +838,17 @@ kernel_init(int mode)
 
 	VERIFY0(uname(&hw_utsname));
 
+	tsd_create(&zfs_async_io_key, dmu_thread_context_destroy);
+
+	dmu_contexts_init();
+
 	system_taskq_init();
 	icp_init();
 
 	zstd_init();
 
 	spa_init((spa_mode_t)mode);
-
+	zfs_rangelock_debug_init();
 	fletcher_4_init();
 
 	tsd_create(&rrw_tsd_key, rrw_tsd_destroy);
@@ -1411,7 +1417,41 @@ zfs_file_put(int fd)
 	abort();
 }
 
+
 void
 zfsvfs_update_fromname(const char *oldname, const char *newname)
 {
+
+}
+
+static int
+uiomove_iov(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio)
+{
+	const struct iovec *iov = uio->uio_iov;
+	ulong_t cnt;
+
+	while (n && uio->uio_resid) {
+		cnt = MIN(iov->iov_len, n);
+		switch (uio->uio_segflg) {
+		case UIO_SYSSPACE:
+			if (rw == UIO_READ)
+				bcopy(p, iov->iov_base, cnt);
+			else
+				bcopy(iov->iov_base, p, cnt);
+			break;
+		default:
+			ASSERT(0);
+		}
+		uio->uio_resid -= cnt;
+		uio->uio_loffset += cnt;
+		p = (caddr_t)p + cnt;
+		n -= cnt;
+	}
+	return (0);
+}
+
+int
+zfs_uiomove(void *p, size_t n, zfs_uio_rw_t rw, struct zfs_uio *uio)
+{
+	return (uiomove_iov(p, n, rw, uio));
 }

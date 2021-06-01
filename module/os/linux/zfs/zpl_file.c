@@ -27,12 +27,31 @@
 #ifdef CONFIG_COMPAT
 #include <linux/compat.h>
 #endif
+#include <linux/mm.h>
+#include <linux/kmap_compat.h>
 #include <sys/file.h>
 #include <sys/dmu_objset.h>
 #include <sys/zfs_znode.h>
 #include <sys/zfs_vfsops.h>
 #include <sys/zfs_vnops.h>
 #include <sys/zfs_project.h>
+
+
+#ifdef DEBUG_AIO
+/* BEGIN CSTYLED */
+#define	DEBUG_REFCOUNT_ADD(b) atomic_inc_32(&(b))
+#define	DEBUG_REFCOUNT_DEC(b) atomic_dec_32(&(b))
+#define	DEBUG_REFCOUNT(a)				\
+	static uint32_t a;				    \
+	ZFS_MODULE_PARAM(zfs_dmu, , a, UINT, ZMOD_RD, #a)
+
+DEBUG_REFCOUNT(async_iter_outstanding);
+DEBUG_REFCOUNT(kiocb_outstanding);
+/* END CSTYLED */
+#else
+#define	DEBUG_REFCOUNT_ADD(b)
+#define	DEBUG_REFCOUNT_DEC(b)
+#endif
 
 /*
  * When using fallocate(2) to preallocate space, inflate the requested
@@ -255,7 +274,7 @@ zpl_uio_init(zfs_uio_t *uio, struct kiocb *kiocb, struct iov_iter *to,
 }
 
 static ssize_t
-zpl_iter_read(struct kiocb *kiocb, struct iov_iter *to)
+zpl_iter_read_sync(struct kiocb *kiocb, struct iov_iter *to)
 {
 	cred_t *cr = CRED();
 	fstrans_cookie_t cookie;
@@ -311,7 +330,7 @@ zpl_generic_write_checks(struct kiocb *kiocb, struct iov_iter *from,
 }
 
 static ssize_t
-zpl_iter_write(struct kiocb *kiocb, struct iov_iter *from)
+zpl_iter_write_sync(struct kiocb *kiocb, struct iov_iter *from)
 {
 	cred_t *cr = CRED();
 	fstrans_cookie_t cookie;
@@ -347,6 +366,337 @@ zpl_iter_write(struct kiocb *kiocb, struct iov_iter *from)
 
 	return (wrote);
 }
+
+#ifdef WANT_ASYNC
+static void *
+zpl_alloc(size_t size, int flags)
+{
+	if (size > 64*1024)
+		return (vmem_alloc(size, flags));
+	return (kmem_alloc(size, flags));
+}
+
+static void *
+zpl_zalloc(size_t size, int flags)
+{
+	if (size > 64*1024)
+		return (vmem_zalloc(size, flags));
+	return (kmem_zalloc(size, flags));
+}
+
+static void
+zpl_free(void *p, size_t size)
+{
+	if (size > 64*1024)
+		return (vmem_free(p, size));
+	kmem_free(p, size);
+}
+
+
+struct zpl_page_alloc {
+	struct bio_vec *zpa_bvec;
+	struct page **zpa_pages;
+	int zpa_bv_count;
+	int zpa_page_count;
+};
+
+static int
+zpl_alloc_bvec_pages(struct iov_iter *to, struct zpl_page_alloc *zpa, int user)
+{
+	int maxcount, count;
+	/*
+	 * Count the number of entries
+	 */
+	maxcount = count = 0;
+	for (int i = 0; i < to->nr_segs; i++) {
+		uintptr_t addr = (uintptr_t)to->iov[i].iov_base;
+		int len = to->iov[i].iov_len;
+		int curcount = 0;
+
+		while (len > 0) {
+			int next = MIN(len, PAGE_SIZE - (addr & PAGEOFFSET));
+			curcount++;
+			len -= next;
+			addr += next;
+		}
+		maxcount = MAX(curcount, maxcount);
+		count += curcount;
+	}
+	if (count == 0)
+		return (-ENOENT);
+	zpa->zpa_bvec = zpl_zalloc(sizeof (struct bio_vec) * count, KM_SLEEP);
+	zpa->zpa_bv_count = count;
+	if (user) {
+		zpa->zpa_pages = zpl_alloc(sizeof (struct page *) * maxcount,
+		    KM_SLEEP);
+		zpa->zpa_page_count = maxcount;
+	}
+	return (0);
+}
+
+/* BEGIN CSTYLED */
+#define	pagecnt(addr, len)									\
+	((len) + ((addr) & PAGEOFFSET) + PAGEOFFSET) >> PAGE_SHIFT
+/* END CSTYLED */
+
+static int
+zpl_get_user_bvec(struct iov_iter *to, struct zpl_page_alloc *zpa, int write)
+{
+	struct page **pages = zpa->zpa_pages;
+	struct bio_vec *bvec = zpa->zpa_bvec;
+	int error, i, bv_idx;
+	for (bv_idx = i = 0; i < to->nr_segs; i++) {
+		uintptr_t addr = (uintptr_t)to->iov[i].iov_base;
+		int len = to->iov[i].iov_len;
+		int pages_done, nr_pages = pagecnt(addr, len);
+
+		int off = addr & PAGEOFFSET;
+		addr &= PAGEMASK;
+		pages_done = zfs_get_user_pages(addr,
+		    nr_pages, write, pages);
+		if (pages_done != nr_pages) {
+			for (int j = 0; i < pages_done; i++)
+				put_page(pages[j]);
+			error = -EFAULT;
+			goto fail;
+		}
+		int curlen;
+		for (int pidx = 0; pidx < nr_pages; pidx++, bv_idx++) {
+			ASSERT3S(len, >, 0);
+			bvec[bv_idx].bv_page = pages[pidx];
+			bvec[bv_idx].bv_offset = off;
+			curlen = MIN(len, PAGE_SIZE-off);
+			bvec[bv_idx].bv_len = curlen;
+			len -= curlen;
+			off = 0;
+		}
+	}
+	return (0);
+
+fail:
+	for (i = 0; i < bv_idx; i++) {
+		put_page(bvec[i].bv_page);
+	}
+	return (error);
+}
+
+static int
+zpl_get_kernel_bvec(struct iov_iter *to, struct zpl_page_alloc *zpa)
+{
+	struct bio_vec *bv = zpa->zpa_bvec;
+
+	for (int i = 0; i < to->nr_segs; i++) {
+		uintptr_t addr = (uintptr_t)to->iov[i].iov_base;
+		int len = to->iov[i].iov_len;
+		int nr_pages = pagecnt(addr, len);
+		int curlen, off = addr & PAGEOFFSET;
+
+		for (int j = 0; j < nr_pages; j++, bv++) {
+			ASSERT(len > 0);
+			bv->bv_page = vmalloc_to_page(
+			    (void *)((addr + j*PAGE_SIZE) & PAGEMASK));
+			if (bv->bv_page == NULL)
+				return (-EFAULT);
+			bv->bv_offset = off;
+			curlen = MIN(len, PAGE_SIZE-off);
+			bv->bv_len = curlen;
+			len -= curlen;
+			off = 0;
+		}
+	}
+	return (0);
+}
+
+static struct bio_vec *
+iovec_to_bvec(struct iov_iter *iter, int *count, int write, int *issg)
+{
+	struct bio_vec *bvec;
+	struct zpl_page_alloc zpa;
+	int type = iter->type & (ITER_IOVEC|ITER_KVEC|ITER_BVEC);
+	int rc = 0;
+
+	switch (type) {
+		case ITER_IOVEC:
+		case ITER_KVEC:
+			*issg = (iter->nr_segs > 1);
+			zpl_alloc_bvec_pages(iter, &zpa, type == ITER_IOVEC);
+			break;
+		case ITER_BVEC:
+			bvec = zpl_zalloc(sizeof (*bvec) * iter->nr_segs,
+			    KM_SLEEP);
+			memcpy(bvec, iter->bvec,
+			    sizeof (*bvec) * iter->nr_segs);
+			*count = iter->nr_segs;
+			return (bvec);
+			break;
+		default:
+			spl_panic(__FILE__, __FUNCTION__, __LINE__,
+			    "unrecognized iov_iter type %u", iter->type);
+	}
+
+	switch (type) {
+		case ITER_KVEC:
+			rc = zpl_get_kernel_bvec(iter, &zpa);
+			break;
+		case ITER_IOVEC:
+			rc = zpl_get_user_bvec(iter, &zpa, write);
+			zpl_free(zpa.zpa_pages, zpa.zpa_page_count *
+			    sizeof (struct page *));
+			break;
+	}
+	if (rc < 0) {
+		zpl_free(zpa.zpa_bvec, zpa.zpa_bv_count *
+		    sizeof (*bvec));
+		zpa.zpa_bv_count = 0;
+		zpa.zpa_bvec = NULL;
+	}
+	*count = zpa.zpa_bv_count;
+	return (zpa.zpa_bvec);
+}
+
+static void
+zpl_iter_done(struct uio_bio *ubio)
+{
+	struct bio_vec *bvec = ubio->uio_bvec;
+	struct kiocb *kiocb = ubio->uio_arg;
+	cred_t *cr = ubio->uio_cred;
+	int count = ubio->uio_bv_cnt;
+
+	if (ubio->uio_flags & UIO_BIO_USER) {
+		for (int i = 0; i < count; i++)
+			put_page(bvec[i].bv_page);
+	}
+
+	if ((ubio->uio_flags & UIO_BIO_SKIP_DONE) == 0) {
+		int ret = ubio->uio_error;
+
+		ASSERT(ret >= 0);
+		ASSERT(ubio->uio_resid_start >= ubio->uio_resid);
+		if (ret == 0 || ret == EINPROGRESS) {
+			ret = ubio->uio_resid_start - ubio->uio_resid;
+			kiocb->ki_pos += ret;
+		} else
+			ret = -ret;
+		kiocb->ki_complete(kiocb, ret, 0);
+		DEBUG_REFCOUNT_DEC(kiocb_outstanding);
+	}
+	DEBUG_REFCOUNT_DEC(async_iter_outstanding);
+	zpl_free(ubio, sizeof (*ubio));
+	zpl_free(bvec, sizeof (*bvec)*count);
+	crfree(cr);
+}
+
+static ssize_t
+zpl_iter_async(struct kiocb *kiocb, struct iov_iter *iter, int write)
+{
+	cred_t *cr = CRED();
+	struct file *filp = kiocb->ki_filp;
+	struct inode *ip = filp->f_mapping->host;
+	fstrans_cookie_t cookie;
+	struct uio_bio *ubio;
+	struct bio_vec *bvec;
+	int rc, f_flags, count, issg = 0;
+	ssize_t len, transferred;
+
+	if (write) {
+		rc = zpl_generic_write_checks(kiocb, iter, &len);
+		if (rc)
+			return (rc);
+	} else
+		len = iov_iter_count(iter);
+
+	bvec = iovec_to_bvec(iter, &count, !write /* write to mem */, &issg);
+	if (bvec == NULL) {
+		return (-EOPNOTSUPP);
+	}
+	crhold(cr);
+	f_flags = filp->f_flags | zfs_io_flags(kiocb);
+	ubio = kmem_zalloc(sizeof (*ubio), KM_SLEEP);
+	ubio->uio_cmd = write ? UIO_BIO_WRITE : UIO_BIO_READ;
+	ubio->uio_bvec = bvec;
+	ubio->uio_bv_cnt = count;
+	ubio->uio_flags = issg ? UIO_BIO_SG : 0;
+	ubio->uio_offset = kiocb->ki_pos;
+	ubio->uio_resid = len;
+	ubio->uio_resid_start = len;
+	ubio->uio_bv_offset = iter->iov_offset;
+	ubio->uio_bio_done = zpl_iter_done;
+	ubio->uio_arg = kiocb;
+	ubio->uio_cred = cr;
+	if (iter->type & ITER_IOVEC)
+		ubio->uio_flags = UIO_BIO_USER;
+	cookie = spl_fstrans_mark();
+	DEBUG_REFCOUNT_ADD(kiocb_outstanding);
+	DEBUG_REFCOUNT_ADD(async_iter_outstanding);
+	rc = zfs_ubop(ITOZ(ip), ubio, f_flags);
+	spl_fstrans_unmark(cookie);
+	ASSERT(len >= ubio->uio_resid);
+	transferred = len - ubio->uio_resid;
+	if (rc == EINPROGRESS)
+		return (-EIOCBQUEUED);
+	DEBUG_REFCOUNT_DEC(kiocb_outstanding);
+	if (rc == 0) {
+		kiocb->ki_pos += transferred;
+
+		/*
+		 * New voodoo expected by io_uring to
+		 * indicate that this was not a short
+		 * transfer.
+		 */
+		if (transferred == len)
+			iter->count = 0;
+	}
+	return (rc ? (-rc) : transferred);
+}
+
+static ssize_t
+zpl_iter_read(struct kiocb *kiocb, struct iov_iter *to)
+{
+	ssize_t ret = -EOPNOTSUPP;
+	struct file *filp = kiocb->ki_filp;
+	znode_t *zp = ITOZ(filp->f_mapping->host);
+	ssize_t count = iov_iter_count(to);
+
+	if (!is_sync_kiocb(kiocb) && count <= DMU_MAX_ACCESS / 2 &&
+	    !zn_has_cached_data(zp))
+		ret = zpl_iter_async(kiocb, to, B_FALSE /* write */);
+	else if (ret == -EOPNOTSUPP)
+		ret = zpl_iter_read_sync(kiocb, to);
+	return (ret);
+}
+
+static ssize_t
+zpl_iter_write(struct kiocb *kiocb, struct iov_iter *from)
+{
+	ssize_t ret = -EOPNOTSUPP;
+	struct file *filp = kiocb->ki_filp;
+	znode_t *zp = ITOZ(filp->f_mapping->host);
+	ssize_t count = iov_iter_count(from);
+
+	if (!is_sync_kiocb(kiocb) && count <= DMU_MAX_ACCESS / 2 &&
+	    !zn_has_cached_data(zp))
+		ret = zpl_iter_async(kiocb, from, B_TRUE /* write */);
+	else if (ret == -EOPNOTSUPP)
+		ret = zpl_iter_write_sync(kiocb, from);
+	return (ret);
+}
+
+#else
+
+static ssize_t
+zpl_iter_read(struct kiocb *kiocb, struct iov_iter *to)
+{
+	return (zpl_iter_read_sync(kiocb, to));
+}
+
+static ssize_t
+zpl_iter_write(struct kiocb *kiocb, struct iov_iter *from)
+{
+	return (zpl_iter_write_sync(kiocb, from));
+}
+
+#endif /* WANT_ASYNC */
+
 
 #else /* !HAVE_VFS_RW_ITERATE */
 
