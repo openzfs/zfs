@@ -101,3 +101,18 @@ check_sector_size_database(char *path, int *sector_size)
 {
 	return (0);
 }
+
+void
+after_zpool_upgrade(zpool_handle_t *zhp)
+{
+	char bootfs[ZPOOL_MAXPROPLEN];
+
+	if (zpool_get_prop(zhp, ZPOOL_PROP_BOOTFS, bootfs,
+	    sizeof (bootfs), NULL, B_FALSE) == 0 &&
+	    strcmp(bootfs, "-") != 0) {
+		(void) printf(gettext("Pool '%s' has the bootfs "
+		    "property set, you might need to update\nthe boot "
+		    "code. See gptzfsboot(8) and loader.efi(8) for "
+		    "details.\n"), zpool_get_name(zhp));
+	}
+}
