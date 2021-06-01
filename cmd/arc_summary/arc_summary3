@@ -42,6 +42,7 @@ import os
 import subprocess
 import sys
 import time
+import errno
 
 # We can't use env -S portably, and we need python3 -u to handle pipes in
 # the shell abruptly closing the way we want to, so...
@@ -239,6 +240,11 @@ def handle_Exception(ex_cls, ex, tb):
         # It turns out that while sys.exit() triggers an exception
         # not handled message on Python 3.8+, os._exit() does not.
         os._exit(0)
+
+    if ex_cls is OSError:
+      if ex.errno == errno.ENOTCONN:
+        sys.exit()
+
     raise ex
 
 if hasattr(sys,'unraisablehook'): # Python 3.8+
