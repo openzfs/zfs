@@ -57,6 +57,7 @@ listing=$(ls -i $init_data)
 set -A array $listing
 obj=${array[0]}
 log_note "file $init_data has object number $obj"
+sync_pool $TESTPOOL
 
 output=$(zdb -d $TESTPOOL/$TESTFS)
 objset_id=$(echo $output | awk '{split($0,array,",")} END{print array[2]}' |
