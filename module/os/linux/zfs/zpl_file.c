@@ -342,9 +342,6 @@ zpl_iter_write(struct kiocb *kiocb, struct iov_iter *from)
 	ssize_t wrote = count - uio.uio_resid;
 	kiocb->ki_pos += wrote;
 
-	if (wrote > 0)
-		iov_iter_advance(from, wrote);
-
 	return (wrote);
 }
 
