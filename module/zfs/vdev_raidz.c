@@ -229,6 +229,7 @@ vdev_raidz_row_alloc(int cols)
 		raidz_col_t *rc = &rr->rr_col[c];
 		rc->rc_shadow_devidx = INT_MAX;
 		rc->rc_shadow_offset = UINT64_MAX;
+		rc->rc_allow_repair = 1;
 	}
 	return (rr);
 }
@@ -2477,8 +2478,10 @@ vdev_raidz_io_done_verified(zio_t *zio, raidz_row_t *rr)
 			vdev_t *vd = zio->io_vd;
 			vdev_t *cvd = vd->vdev_child[rc->rc_devidx];
 
-			if ((rc->rc_error == 0 || rc->rc_size == 0) &&
-			    (rc->rc_repair == 0)) {
+			if (!rc->rc_allow_repair) {
+				continue;
+			} else if (!rc->rc_force_repair &&
+			    (rc->rc_error == 0 || rc->rc_size == 0)) {
 				continue;
 			}
 

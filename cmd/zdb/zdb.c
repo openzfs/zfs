@@ -32,6 +32,7 @@
  * [1] Portions of this software were developed by Allan Jude
  *     under sponsorship from the FreeBSD Foundation.
  * Copyright (c) 2021 Allan Jude
+ * Copyright (c) 2021 Toomas Soome <tsoome@me.com>
  */
 
 #include <stdio.h>
@@ -2066,10 +2067,7 @@ dump_history(spa_t *spa)
 	uint64_t resid, len, off = 0;
 	uint_t num = 0;
 	int error;
-	time_t tsec;
-	struct tm t;
 	char tbuf[30];
-	char internalstr[MAXPATHLEN];
 
 	if ((buf = malloc(SPA_OLD_MAXBLOCKSIZE)) == NULL) {
 		(void) fprintf(stderr, "%s: unable to allocate I/O buffer\n",
@@ -2095,38 +2093,81 @@ dump_history(spa_t *spa)
 
 	(void) printf("\nHistory:\n");
 	for (unsigned i = 0; i < num; i++) {
-		uint64_t time, txg, ievent;
-		char *cmd, *intstr;
 		boolean_t printed = B_FALSE;
 
-		if (nvlist_lookup_uint64(events[i], ZPOOL_HIST_TIME,
-		    &time) != 0)
-			goto next;
-		if (nvlist_lookup_string(events[i], ZPOOL_HIST_CMD,
-		    &cmd) != 0) {
-			if (nvlist_lookup_uint64(events[i],
-			    ZPOOL_HIST_INT_EVENT, &ievent) != 0)
-				goto next;
-			verify(nvlist_lookup_uint64(events[i],
-			    ZPOOL_HIST_TXG, &txg) == 0);
-			verify(nvlist_lookup_string(events[i],
-			    ZPOOL_HIST_INT_STR, &intstr) == 0);
+		if (nvlist_exists(events[i], ZPOOL_HIST_TIME)) {
+			time_t tsec;
+			struct tm t;
+
+			tsec = fnvlist_lookup_uint64(events[i],
+			    ZPOOL_HIST_TIME);
+			(void) localtime_r(&tsec, &t);
+			(void) strftime(tbuf, sizeof (tbuf), "%F.%T", &t);
+		} else {
+			tbuf[0] = '\0';
+		}
+
+		if (nvlist_exists(events[i], ZPOOL_HIST_CMD)) {
+			(void) printf("%s %s\n", tbuf,
+			    fnvlist_lookup_string(events[i], ZPOOL_HIST_CMD));
+		} else if (nvlist_exists(events[i], ZPOOL_HIST_INT_EVENT)) {
+			uint64_t ievent;
+
+			ievent = fnvlist_lookup_uint64(events[i],
+			    ZPOOL_HIST_INT_EVENT);
 			if (ievent >= ZFS_NUM_LEGACY_HISTORY_EVENTS)
 				goto next;
 
-			(void) snprintf(internalstr,
-			    sizeof (internalstr),
-			    "[internal %s txg:%lld] %s",
+			(void) printf(" %s [internal %s txg:%ju] %s\n",
+			    tbuf,
 			    zfs_history_event_names[ievent],
-			    (longlong_t)txg, intstr);
-			cmd = internalstr;
-		}
-		tsec = time;
-		(void) localtime_r(&tsec, &t);
-		(void) strftime(tbuf, sizeof (tbuf), "%F.%T", &t);
-		(void) printf("%s %s\n", tbuf, cmd);
-		printed = B_TRUE;
+			    fnvlist_lookup_uint64(events[i],
+			    ZPOOL_HIST_TXG),
+			    fnvlist_lookup_string(events[i],
+			    ZPOOL_HIST_INT_STR));
+		} else if (nvlist_exists(events[i], ZPOOL_HIST_INT_NAME)) {
+			(void) printf("%s [txg:%ju] %s", tbuf,
+			    fnvlist_lookup_uint64(events[i],
+			    ZPOOL_HIST_TXG),
+			    fnvlist_lookup_string(events[i],
+			    ZPOOL_HIST_INT_NAME));
 
+			if (nvlist_exists(events[i], ZPOOL_HIST_DSNAME)) {
+				(void) printf(" %s (%llu)",
+				    fnvlist_lookup_string(events[i],
+				    ZPOOL_HIST_DSNAME),
+				    (u_longlong_t)fnvlist_lookup_uint64(
+				    events[i],
+				    ZPOOL_HIST_DSID));
+			}
+
+			(void) printf(" %s\n", fnvlist_lookup_string(events[i],
+			    ZPOOL_HIST_INT_STR));
+		} else if (nvlist_exists(events[i], ZPOOL_HIST_IOCTL)) {
+			(void) printf("%s ioctl %s\n", tbuf,
+			    fnvlist_lookup_string(events[i],
+			    ZPOOL_HIST_IOCTL));
+
+			if (nvlist_exists(events[i], ZPOOL_HIST_INPUT_NVL)) {
+				(void) printf("    input:\n");
+				dump_nvlist(fnvlist_lookup_nvlist(events[i],
+				    ZPOOL_HIST_INPUT_NVL), 8);
+			}
+			if (nvlist_exists(events[i], ZPOOL_HIST_OUTPUT_NVL)) {
+				(void) printf("    output:\n");
+				dump_nvlist(fnvlist_lookup_nvlist(events[i],
+				    ZPOOL_HIST_OUTPUT_NVL), 8);
+			}
+			if (nvlist_exists(events[i], ZPOOL_HIST_ERRNO)) {
+				(void) printf("    errno: %lld\n",
+				    (longlong_t)fnvlist_lookup_int64(events[i],
+				    ZPOOL_HIST_ERRNO));
+			}
+		} else {
+			goto next;
+		}
+
+		printed = B_TRUE;
 next:
 		if (dump_opt['h'] > 1) {
 			if (!printed)
@@ -3550,7 +3591,7 @@ static int
 parse_object_range(char *range, zopt_object_range_t *zor, char **msg)
 {
 	uint64_t flags = 0;
-	char *p, *s, *dup, *flagstr;
+	char *p, *s, *dup, *flagstr, *tmp = NULL;
 	size_t len;
 	int i;
 	int rc = 0;
@@ -3579,7 +3620,7 @@ parse_object_range(char *range, zopt_object_range_t *zor, char **msg)
 	}
 
 	dup = strdup(range);
-	s = strtok(dup, ":");
+	s = strtok_r(dup, ":", &tmp);
 	zor->zor_obj_start = strtoull(s, &p, 0);
 
 	if (*p != '\0') {
@@ -3588,7 +3629,7 @@ parse_object_range(char *range, zopt_object_range_t *zor, char **msg)
 		goto out;
 	}
 
-	s = strtok(NULL, ":");
+	s = strtok_r(NULL, ":", &tmp);
 	zor->zor_obj_end = strtoull(s, &p, 0);
 
 	if (*p != '\0') {
@@ -3603,11 +3644,11 @@ parse_object_range(char *range, zopt_object_range_t *zor, char **msg)
 		goto out;
 	}
 
-	s = strtok(NULL, ":");
+	s = strtok_r(NULL, ":", &tmp);
 	if (s == NULL) {
 		zor->zor_flags = ZOR_FLAG_ALL_TYPES;
 		goto out;
-	} else if (strtok(NULL, ":") != NULL) {
+	} else if (strtok_r(NULL, ":", &tmp) != NULL) {
 		*msg = "Invalid colon-delimited field after flags";
 		rc = 1;
 		goto out;
@@ -5937,7 +5978,8 @@ zdb_leak_init_prepare_indirect_vdevs(spa_t *spa, zdb_cb_t *zcb)
 		vdev_metaslab_group_create(vd);
 		VERIFY0(vdev_metaslab_init(vd, 0));
 
-		vdev_indirect_mapping_t *vim = vd->vdev_indirect_mapping;
+		vdev_indirect_mapping_t *vim __maybe_unused =
+		    vd->vdev_indirect_mapping;
 		uint64_t vim_idx = 0;
 		for (uint64_t m = 0; m < vd->vdev_ms_count; m++) {
 
@@ -7046,7 +7088,7 @@ verify_checkpoint_vdev_spacemaps(spa_t *checkpoint, spa_t *current)
 		for (uint64_t c = ckpoint_rvd->vdev_children;
 		    c < current_rvd->vdev_children; c++) {
 			vdev_t *current_vd = current_rvd->vdev_child[c];
-			ASSERT3P(current_vd->vdev_checkpoint_sm, ==, NULL);
+			VERIFY3P(current_vd->vdev_checkpoint_sm, ==, NULL);
 		}
 	}
 
@@ -7822,15 +7864,15 @@ name_from_objset_id(spa_t *spa, uint64_t objset_id, char *outstr)
 static boolean_t
 zdb_parse_block_sizes(char *sizes, uint64_t *lsize, uint64_t *psize)
 {
-	char *s0, *s1;
+	char *s0, *s1, *tmp = NULL;
 
 	if (sizes == NULL)
 		return (B_FALSE);
 
-	s0 = strtok(sizes, "/");
+	s0 = strtok_r(sizes, "/", &tmp);
 	if (s0 == NULL)
 		return (B_FALSE);
-	s1 = strtok(NULL, "/");
+	s1 = strtok_r(NULL, "/", &tmp);
 	*lsize = strtoull(s0, NULL, 16);
 	*psize = s1 ? strtoull(s1, NULL, 16) : *lsize;
 	return (*lsize >= *psize && *psize > 0);
@@ -7947,20 +7989,21 @@ zdb_read_block(char *thing, spa_t *spa)
 	vdev_t *vd;
 	abd_t *pabd;
 	void *lbuf, *buf;
-	char *s, *p, *dup, *vdev, *flagstr, *sizes;
+	char *s, *p, *dup, *vdev, *flagstr, *sizes, *tmp = NULL;
 	int i, error;
 	boolean_t borrowed = B_FALSE, found = B_FALSE;
 
 	dup = strdup(thing);
-	s = strtok(dup, ":");
+	s = strtok_r(dup, ":", &tmp);
 	vdev = s ? s : "";
-	s = strtok(NULL, ":");
+	s = strtok_r(NULL, ":", &tmp);
 	offset = strtoull(s ? s : "", NULL, 16);
-	sizes = strtok(NULL, ":");
-	s = strtok(NULL, ":");
+	sizes = strtok_r(NULL, ":", &tmp);
+	s = strtok_r(NULL, ":", &tmp);
 	flagstr = strdup(s ? s : "");
 
 	s = NULL;
+	tmp = NULL;
 	if (!zdb_parse_block_sizes(sizes, &lsize, &psize))
 		s = "invalid size(s)";
 	if (!IS_P2ALIGNED(psize, DEV_BSIZE) || !IS_P2ALIGNED(lsize, DEV_BSIZE))
@@ -7972,7 +8015,9 @@ zdb_read_block(char *thing, spa_t *spa)
 		goto done;
 	}
 
-	for (s = strtok(flagstr, ":"); s; s = strtok(NULL, ":")) {
+	for (s = strtok_r(flagstr, ":", &tmp);
+	    s != NULL;
+	    s = strtok_r(NULL, ":", &tmp)) {
 		for (i = 0; i < strlen(flagstr); i++) {
 			int bit = flagbits[(uchar_t)flagstr[i]];
 

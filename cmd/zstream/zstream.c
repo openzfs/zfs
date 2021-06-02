@@ -49,6 +49,11 @@ zstream_usage(void)
 int
 main(int argc, char *argv[])
 {
+	char *basename = strrchr(argv[0], '/');
+	basename = basename ? (basename + 1) : argv[0];
+	if (argc >= 1 && strcmp(basename, "zstreamdump") == 0)
+		return (zstream_do_dump(argc, argv));
+
 	if (argc < 2)
 		zstream_usage();
 

@@ -26,6 +26,31 @@ AC_DEFUN([ZFS_AC_KERNEL_PERCPU_COUNTER_INIT], [
 ])
 
 dnl #
+dnl # 4.13 API change,
+dnl # __percpu_counter_add() was renamed to percpu_counter_add_batch().
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_SRC_PERCPU_COUNTER_ADD_BATCH], [
+	ZFS_LINUX_TEST_SRC([percpu_counter_add_batch], [
+		#include <linux/percpu_counter.h>
+	],[
+		struct percpu_counter counter;
+
+		percpu_counter_add_batch(&counter, 1, 1);
+	])
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_PERCPU_COUNTER_ADD_BATCH], [
+	AC_MSG_CHECKING([whether percpu_counter_add_batch() is defined])
+	ZFS_LINUX_TEST_RESULT([percpu_counter_add_batch], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_PERCPU_COUNTER_ADD_BATCH, 1,
+		    [percpu_counter_add_batch() is defined])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
+dnl #
 dnl # 5.10 API change,
 dnl # The "count" was moved into ref->data, from ref
 dnl #
@@ -51,10 +76,12 @@ AC_DEFUN([ZFS_AC_KERNEL_PERCPU_REF_COUNT_IN_DATA], [
 ])
 AC_DEFUN([ZFS_AC_KERNEL_SRC_PERCPU], [
 	ZFS_AC_KERNEL_SRC_PERCPU_COUNTER_INIT
+	ZFS_AC_KERNEL_SRC_PERCPU_COUNTER_ADD_BATCH
 	ZFS_AC_KERNEL_SRC_PERCPU_REF_COUNT_IN_DATA
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_PERCPU], [
 	ZFS_AC_KERNEL_PERCPU_COUNTER_INIT
+	ZFS_AC_KERNEL_PERCPU_COUNTER_ADD_BATCH
 	ZFS_AC_KERNEL_PERCPU_REF_COUNT_IN_DATA
 ])

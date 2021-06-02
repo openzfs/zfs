@@ -5,12 +5,8 @@ command -v getargbool >/dev/null || {
     # Compatibility with older Dracut versions.
     # With apologies to the Dracut developers.
     getargbool() {
-        if ! [ -z "$_b" ]; then
-                unset _b
-        fi
         _default="$1"; shift
-        _b=$(getarg "$@")
-        [ $? -ne 0 ] &&  [ -z "$_b" ] && _b="$_default"
+        ! _b=$(getarg "$@") && [ -z "$_b" ] && _b="$_default"
         if [ -n "$_b" ]; then
             [ "$_b" = "0" ] && return 1
             [ "$_b" = "no" ] && return 1
@@ -63,6 +59,7 @@ import_pool() {
 
     if ! zpool list -H "${pool}" > /dev/null 2>&1; then
         info "ZFS: Importing pool ${pool}..."
+        # shellcheck disable=SC2086
         if ! zpool import -N ${ZPOOL_IMPORT_OPTS} "${pool}" ; then
             warn "ZFS: Unable to import pool ${pool}"
             return 1
@@ -127,13 +124,12 @@ for_relevant_root_children() {
 # export_all OPTS
 #   exports all imported zfs pools.
 export_all() {
-    opts="${@}"
     ret=0
 
     IFS="${NEWLINE}"
     for pool in $(zpool list -H -o name) ; do
         if zpool list -H "${pool}" > /dev/null 2>&1; then
-            zpool export "${pool}" ${opts} || ret=$?
+            zpool export "${pool}" "$@" || ret=$?
         fi
     done
     IFS="${OLDIFS}"

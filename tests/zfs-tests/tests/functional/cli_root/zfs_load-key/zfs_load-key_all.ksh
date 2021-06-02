@@ -39,6 +39,8 @@ function cleanup
 {
 	datasetexists $TESTPOOL/$TESTFS1 && \
 		log_must zfs destroy $TESTPOOL/$TESTFS1
+	datasetexists $TESTPOOL/$TESTFS2 && \
+		log_must zfs destroy $TESTPOOL/$TESTFS2
 	datasetexists $TESTPOOL/zvol && log_must zfs destroy $TESTPOOL/zvol
 	poolexists $TESTPOOL1 && log_must destroy_pool $TESTPOOL1
 }
@@ -50,6 +52,9 @@ log_must eval "echo $PASSPHRASE1 > /$TESTPOOL/pkey"
 log_must zfs create -o encryption=on -o keyformat=passphrase \
 	-o keylocation=file:///$TESTPOOL/pkey $TESTPOOL/$TESTFS1
 
+log_must zfs create -o encryption=on -o keyformat=passphrase \
+	-o keylocation=$(get_https_base_url)/PASSPHRASE $TESTPOOL/$TESTFS2
+
 log_must zfs create -V 64M -o encryption=on -o keyformat=passphrase \
 	-o keylocation=file:///$TESTPOOL/pkey $TESTPOOL/zvol
 
@@ -59,6 +64,9 @@ log_must zpool create -O encryption=on -O keyformat=passphrase \
 
 log_must zfs unmount $TESTPOOL/$TESTFS1
 log_must zfs unload-key $TESTPOOL/$TESTFS1
+
+log_must zfs unmount $TESTPOOL/$TESTFS2
+log_must zfs unload-key $TESTPOOL/$TESTFS2
 
 log_must zfs unload-key $TESTPOOL/zvol
 
@@ -70,8 +78,10 @@ log_must zfs load-key -a
 log_must key_available $TESTPOOL1
 log_must key_available $TESTPOOL/zvol
 log_must key_available $TESTPOOL/$TESTFS1
+log_must key_available $TESTPOOL/$TESTFS2
 
 log_must zfs mount $TESTPOOL1
 log_must zfs mount $TESTPOOL/$TESTFS1
+log_must zfs mount $TESTPOOL/$TESTFS2
 
 log_pass "'zfs load-key -a' loads keys for all datasets"

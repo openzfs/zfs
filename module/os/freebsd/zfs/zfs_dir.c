@@ -273,10 +273,9 @@ zfs_unlinked_add(znode_t *zp, dmu_tx_t *tx)
 	zfsvfs_t *zfsvfs = zp->z_zfsvfs;
 
 	ASSERT(zp->z_unlinked);
-	ASSERT(zp->z_links == 0);
+	ASSERT3U(zp->z_links, ==, 0);
 
-	VERIFY3U(0, ==,
-	    zap_add_int(zfsvfs->z_os, zfsvfs->z_unlinkedobj, zp->z_id, tx));
+	VERIFY0(zap_add_int(zfsvfs->z_os, zfsvfs->z_unlinkedobj, zp->z_id, tx));
 
 	dataset_kstats_update_nunlinks_kstat(&zfsvfs->z_kstat, 1);
 }
@@ -433,7 +432,7 @@ zfs_rmnode(znode_t *zp)
 	uint64_t	count;
 	int		error;
 
-	ASSERT(zp->z_links == 0);
+	ASSERT3U(zp->z_links, ==, 0);
 	if (zfsvfs->z_replay == B_FALSE)
 		ASSERT_VOP_ELOCKED(ZTOV(zp), __func__);
 
@@ -599,7 +598,7 @@ zfs_link_create(znode_t *dzp, const char *name, znode_t *zp, dmu_tx_t *tx,
 		    &zp->z_links, sizeof (zp->z_links));
 
 	} else {
-		ASSERT(zp->z_unlinked == 0);
+		ASSERT(!zp->z_unlinked);
 	}
 	value = zfs_dirent(zp, zp->z_mode);
 	error = zap_add(zp->z_zfsvfs->z_os, dzp->z_id, name,
@@ -758,7 +757,7 @@ zfs_link_destroy(znode_t *dzp, const char *name, znode_t *zp, dmu_tx_t *tx,
 		count = 0;
 		ASSERT0(error);
 	} else {
-		ASSERT(zp->z_unlinked == 0);
+		ASSERT(!zp->z_unlinked);
 		error = zfs_dropname(dzp, name, zp, tx, flag);
 		if (error != 0)
 			return (error);
@@ -806,7 +805,7 @@ zfs_make_xattrdir(znode_t *zp, vattr_t *vap, znode_t **xvpp, cred_t *cr)
 	int error;
 	zfs_acl_ids_t acl_ids;
 	boolean_t fuid_dirtied;
-	uint64_t parent __unused;
+	uint64_t parent __maybe_unused;
 
 	*xvpp = NULL;
 
@@ -840,17 +839,15 @@ zfs_make_xattrdir(znode_t *zp, vattr_t *vap, znode_t **xvpp, cred_t *cr)
 	if (fuid_dirtied)
 		zfs_fuid_sync(zfsvfs, tx);
 
-#ifdef ZFS_DEBUG
-	error = sa_lookup(xzp->z_sa_hdl, SA_ZPL_PARENT(zfsvfs),
-	    &parent, sizeof (parent));
-	ASSERT(error == 0 && parent == zp->z_id);
-#endif
+	ASSERT0(sa_lookup(xzp->z_sa_hdl, SA_ZPL_PARENT(zfsvfs), &parent,
+	    sizeof (parent)));
+	ASSERT3U(parent, ==, zp->z_id);
 
-	VERIFY(0 == sa_update(zp->z_sa_hdl, SA_ZPL_XATTR(zfsvfs), &xzp->z_id,
+	VERIFY0(sa_update(zp->z_sa_hdl, SA_ZPL_XATTR(zfsvfs), &xzp->z_id,
 	    sizeof (xzp->z_id), tx));
 
-	(void) zfs_log_create(zfsvfs->z_log, tx, TX_MKXATTR, zp,
-	    xzp, "", NULL, acl_ids.z_fuidp, vap);
+	zfs_log_create(zfsvfs->z_log, tx, TX_MKXATTR, zp, xzp, "", NULL,
+	    acl_ids.z_fuidp, vap);
 
 	zfs_acl_ids_free(&acl_ids);
 	dmu_tx_commit(tx);

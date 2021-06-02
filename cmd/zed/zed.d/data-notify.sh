@@ -25,7 +25,7 @@ zed_rate_limit "${rate_limit_tag}" || exit 3
 
 umask 077
 note_subject="ZFS ${ZEVENT_SUBCLASS} error for ${ZEVENT_POOL} on $(hostname)"
-note_pathname="${TMPDIR:="/tmp"}/$(basename -- "$0").${ZEVENT_EID}.$$"
+note_pathname="$(mktemp)"
 {
     echo "ZFS has detected a data error:"
     echo

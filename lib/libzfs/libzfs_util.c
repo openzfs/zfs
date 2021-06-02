@@ -44,6 +44,9 @@
 #include <strings.h>
 #include <unistd.h>
 #include <math.h>
+#if LIBFETCH_DYNAMIC
+#include <dlfcn.h>
+#endif
 #include <sys/stat.h>
 #include <sys/mnttab.h>
 #include <sys/mntent.h>
@@ -485,7 +488,7 @@ zfs_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 		zfs_verror(hdl, EZFS_BADPROP, fmt, ap);
 		break;
 	default:
-		zfs_error_aux(hdl, strerror(error));
+		zfs_error_aux(hdl, "%s", strerror(error));
 		zfs_verror(hdl, EZFS_UNKNOWN, fmt, ap);
 		break;
 	}
@@ -739,7 +742,7 @@ zpool_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 		zfs_verror(hdl, EZFS_RAIDZ_EXPAND_IN_PROGRESS, fmt, ap);
 		break;
 	default:
-		zfs_error_aux(hdl, strerror(error));
+		zfs_error_aux(hdl, "%s", strerror(error));
 		zfs_verror(hdl, EZFS_UNKNOWN, fmt, ap);
 	}
 
@@ -787,8 +790,10 @@ zfs_asprintf(libzfs_handle_t *hdl, const char *fmt, ...)
 
 	va_end(ap);
 
-	if (err < 0)
+	if (err < 0) {
 		(void) no_memory(hdl);
+		ret = NULL;
+	}
 
 	return (ret);
 }
@@ -847,17 +852,13 @@ libzfs_read_stdout_from_fd(int fd, char **lines[])
 	size_t len = 0;
 	char *line = NULL;
 	char **tmp_lines = NULL, **tmp;
-	char *nl = NULL;
-	int rc;
 
 	fp = fdopen(fd, "r");
-	if (fp == NULL)
+	if (fp == NULL) {
+		close(fd);
 		return (0);
-	while (1) {
-		rc = getline(&line, &len, fp);
-		if (rc == -1)
-			break;
-
+	}
+	while (getline(&line, &len, fp) != -1) {
 		tmp = realloc(tmp_lines, sizeof (*tmp_lines) * (lines_cnt + 1));
 		if (tmp == NULL) {
 			/* Return the lines we were able to process */
@@ -865,13 +866,16 @@ libzfs_read_stdout_from_fd(int fd, char **lines[])
 		}
 		tmp_lines = tmp;
 
-		/* Terminate newlines */
-		if ((nl = strchr(line, '\n')) != NULL)
-			*nl = '\0';
-		tmp_lines[lines_cnt] = line;
-		lines_cnt++;
-		line = NULL;
+		/* Remove newline if not EOF */
+		if (line[strlen(line) - 1] == '\n')
+			line[strlen(line) - 1] = '\0';
+
+		tmp_lines[lines_cnt] = strdup(line);
+		if (tmp_lines[lines_cnt] == NULL)
+			break;
+		++lines_cnt;
 	}
+	free(line);
 	fclose(fp);
 	*lines = tmp_lines;
 	return (lines_cnt);
@@ -889,10 +893,10 @@ libzfs_run_process_impl(const char *path, char *argv[], char *env[], int flags,
 	 * Setup a pipe between our child and parent process if we're
 	 * reading stdout.
 	 */
-	if ((lines != NULL) && pipe2(link, O_CLOEXEC) == -1)
+	if (lines != NULL && pipe2(link, O_NONBLOCK | O_CLOEXEC) == -1)
 		return (-EPIPE);
 
-	pid = vfork();
+	pid = fork();
 	if (pid == 0) {
 		/* Child process */
 		devnull_fd = open("/dev/null", O_WRONLY | O_CLOEXEC);
@@ -928,7 +932,8 @@ libzfs_run_process_impl(const char *path, char *argv[], char *env[], int flags,
 		int status;
 
 		while ((error = waitpid(pid, &status, 0)) == -1 &&
-		    errno == EINTR) { }
+		    errno == EINTR)
+			;
 		if (error < 0 || !WIFEXITED(status))
 			return (-1);
 
@@ -1086,6 +1091,11 @@ libzfs_fini(libzfs_handle_t *hdl)
 	libzfs_core_fini();
 	regfree(&hdl->libzfs_urire);
 	fletcher_4_fini();
+#if LIBFETCH_DYNAMIC
+	if (hdl->libfetch != (void *)-1 && hdl->libfetch != NULL)
+		(void) dlclose(hdl->libfetch);
+	free(hdl->libfetch_load_error);
+#endif
 	free(hdl);
 }
 

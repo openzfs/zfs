@@ -34,8 +34,4 @@
 
 verify_runnable "global"
 
-if ! verify_slog_support ; then
-	log_unsupported "This system doesn't support separate intent logs"
-fi
-
 log_pass

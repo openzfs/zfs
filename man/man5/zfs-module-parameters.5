@@ -14,7 +14,7 @@
 .\" CDDL HEADER, with the fields enclosed by brackets "[]" replaced with your
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
-.TH ZFS-MODULE-PARAMETERS 5 "Mar 31, 2021" OpenZFS
+.TH ZFS-MODULE-PARAMETERS 5 "May 5, 2021" OpenZFS
 .SH NAME
 zfs\-module\-parameters \- ZFS module parameters
 .SH DESCRIPTION
@@ -1506,11 +1506,14 @@ Default value: \fB131,072\fR.
 .ad
 .RS 12n
 Internally ZFS keeps a small log to facilitate debugging.  By default the log
-is disabled, to enable it set this option to 1.  The contents of the log can
+is enabled, to disable it set this option to 0.  The contents of the log can
 be accessed by reading the /proc/spl/kstat/zfs/dbgmsg file.  Writing 0 to
 this proc file clears the log.
 .sp
-Default value: \fB0\fR.
+This setting does not influence debug prints due to \fBzfs_flags\fR
+settings.
+.sp
+Default value: \fB1\fR.
 .RE
 
 .sp
@@ -3323,7 +3326,7 @@ Default value: \fB0\fR.
 Maximum amount of data that can be concurrently issued at once for scrubs and
 resilvers per leaf device, given in bytes.
 .sp
-Default value: \fB41943040\fR.
+Default value: \fB4194304\fR.
 .RE
 
 .sp
@@ -3847,28 +3850,6 @@ set.
 .sp
 .ne 2
 .na
-\fBzfs_zevent_cols\fR (int)
-.ad
-.RS 12n
-When zevents are logged to the console use this as the word wrap width.
-.sp
-Default value: \fB80\fR.
-.RE
-
-.sp
-.ne 2
-.na
-\fBzfs_zevent_console\fR (int)
-.ad
-.RS 12n
-Log events to the console
-.sp
-Use \fB1\fR for yes and \fB0\fR for no (default).
-.RE
-
-.sp
-.ne 2
-.na
 \fBzfs_zevent_len_max\fR (int)
 .ad
 .RS 12n
@@ -4079,11 +4060,25 @@ Percentage of online CPUs (or CPU cores, etc) which will run a worker thread
 for I/O. These workers are responsible for I/O work such as compression and
 checksum calculations. Fractional number of CPUs will be rounded down.
 .sp
-The default value of 75 was chosen to avoid using all CPUs which can result in
-latency issues and inconsistent application performance, especially when high
-compression is enabled.
+The default value of 80 was chosen to avoid using all CPUs which can result in
+latency issues and inconsistent application performance, especially when slower
+compression and/or checksumming is enabled.
 .sp
-Default value: \fB75\fR.
+Default value: \fB80\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzio_taskq_batch_tpq\fR (uint)
+.ad
+.RS 12n
+Number of worker threads per taskq.  Lower value improves I/O ordering and
+CPU utilization, while higher reduces lock contention.
+.sp
+By default about 6 worker threads per taskq, depending on system size.
+.sp
+Default value: \fB0\fR.
 .RE
 
 .sp

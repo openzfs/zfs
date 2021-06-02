@@ -1,5 +1,6 @@
 include $(top_srcdir)/config/Rules.am
 include $(top_srcdir)/config/Substfiles.am
+include $(top_srcdir)/config/Shellcheck.am
 
 EXTRA_DIST += README
 

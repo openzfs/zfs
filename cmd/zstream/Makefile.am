@@ -15,3 +15,6 @@ zstream_LDADD = \
 	$(abs_top_builddir)/lib/libnvpair/libnvpair.la
 
 include $(top_srcdir)/config/CppCheck.am
+
+install-exec-hook:
+	cd $(DESTDIR)$(sbindir) && $(LN_S) -f zstream zstreamdump

@@ -147,8 +147,9 @@ map_slot() {
 	LINUX_SLOT=$1
 	CHANNEL=$2
 
-	MAPPED_SLOT=$(awk '$1 == "slot" && $2 == "${LINUX_SLOT}" && \
-			$4 ~ /^${CHANNEL}$|^$/ { print $3; exit}' $CONFIG)
+	MAPPED_SLOT=$(awk -v linux_slot="$LINUX_SLOT" -v channel="$CHANNEL" \
+			'$1 == "slot" && $2 == linux_slot && \
+			($4 ~ "^"channel"$" || $4 ~ /^$/) { print $3; exit}' $CONFIG)
 	if [ -z "$MAPPED_SLOT" ] ; then
 		MAPPED_SLOT=$LINUX_SLOT
 	fi
@@ -163,7 +164,7 @@ map_channel() {
 	case $TOPOLOGY in
 		"sas_switch")
 		MAPPED_CHAN=$(awk -v port="$PORT" \
-			'$1 == "channel" && $2 == ${PORT} \
+			'$1 == "channel" && $2 == port \
 			{ print $3; exit }' $CONFIG)
 		;;
 		"sas_direct"|"scsi")

@@ -3,7 +3,7 @@
  *
  * Developed at Lawrence Livermore National Laboratory (LLNL-CODE-403049).
  * Copyright (C) 2013-2014 Lawrence Livermore National Security, LLC.
- * Refer to the ZoL git commit log for authoritative copyright attribution.
+ * Refer to the OpenZFS git commit log for authoritative copyright attribution.
  *
  * The contents of this file are subject to the terms of the
  * Common Development and Distribution License Version 1.0 (CDDL-1.0).

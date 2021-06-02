@@ -570,14 +570,6 @@ snapdir_changed_cb(void *arg, uint64_t newval)
 }
 
 static void
-vscan_changed_cb(void *arg, uint64_t newval)
-{
-	zfsvfs_t *zfsvfs = arg;
-
-	zfsvfs->z_vscan = newval;
-}
-
-static void
 acl_mode_changed_cb(void *arg, uint64_t newval)
 {
 	zfsvfs_t *zfsvfs = arg;
@@ -620,9 +612,9 @@ zfs_register_callbacks(vfs_t *vfsp)
 	boolean_t do_xattr = B_FALSE;
 	int error = 0;
 
-	ASSERT(vfsp);
+	ASSERT3P(vfsp, !=, NULL);
 	zfsvfs = vfsp->vfs_data;
-	ASSERT(zfsvfs);
+	ASSERT3P(zfsvfs, !=, NULL);
 	os = zfsvfs->z_os;
 
 	/*
@@ -738,8 +730,6 @@ zfs_register_callbacks(vfs_t *vfsp)
 	error = error ? error : dsl_prop_register(ds,
 	    zfs_prop_to_name(ZFS_PROP_ACLINHERIT), acl_inherit_changed_cb,
 	    zfsvfs);
-	error = error ? error : dsl_prop_register(ds,
-	    zfs_prop_to_name(ZFS_PROP_VSCAN), vscan_changed_cb, zfsvfs);
 	dsl_pool_config_exit(dmu_objset_pool(os), FTAG);
 	if (error)
 		goto unregister;
@@ -831,6 +821,10 @@ zfsvfs_init(zfsvfs_t *zfsvfs, objset_t *os)
 		    &sa_obj);
 		if (error != 0)
 			return (error);
+
+		error = zfs_get_zplprop(os, ZFS_PROP_XATTR, &val);
+		if (error == 0 && val == ZFS_XATTR_SA)
+			zfsvfs->z_xattr_sa = B_TRUE;
 	}
 
 	error = sa_setup(os, sa_obj, zfs_attr_table, ZPL_END,
@@ -845,7 +839,7 @@ zfsvfs_init(zfsvfs_t *zfsvfs, objset_t *os)
 	    &zfsvfs->z_root);
 	if (error != 0)
 		return (error);
-	ASSERT(zfsvfs->z_root != 0);
+	ASSERT3U(zfsvfs->z_root, !=, 0);
 
 	error = zap_lookup(os, MASTER_NODE_OBJ, ZFS_UNLINKED_SET, 8, 1,
 	    &zfsvfs->z_unlinkedobj);
@@ -1124,7 +1118,7 @@ zfsvfs_free(zfsvfs_t *zfsvfs)
 
 	mutex_destroy(&zfsvfs->z_znodes_lock);
 	mutex_destroy(&zfsvfs->z_lock);
-	ASSERT(zfsvfs->z_nr_znodes == 0);
+	ASSERT3U(zfsvfs->z_nr_znodes, ==, 0);
 	list_destroy(&zfsvfs->z_all_znodes);
 	ZFS_TEARDOWN_DESTROY(zfsvfs);
 	ZFS_TEARDOWN_INACTIVE_DESTROY(zfsvfs);
@@ -1166,8 +1160,8 @@ zfs_domount(vfs_t *vfsp, char *osname)
 	int error = 0;
 	zfsvfs_t *zfsvfs;
 
-	ASSERT(vfsp);
-	ASSERT(osname);
+	ASSERT3P(vfsp, !=, NULL);
+	ASSERT3P(osname, !=, NULL);
 
 	error = zfsvfs_create(osname, vfsp->mnt_flag & MNT_RDONLY, &zfsvfs);
 	if (error)
@@ -1205,9 +1199,9 @@ zfs_domount(vfs_t *vfsp, char *osname)
 	 * because that's where other Solaris filesystems put it.
 	 */
 	fsid_guid = dmu_objset_fsid_guid(zfsvfs->z_os);
-	ASSERT((fsid_guid & ~((1ULL<<56)-1)) == 0);
+	ASSERT3U((fsid_guid & ~((1ULL << 56) - 1)), ==, 0);
 	vfsp->vfs_fsid.val[0] = fsid_guid;
-	vfsp->vfs_fsid.val[1] = ((fsid_guid>>32) << 8) |
+	vfsp->vfs_fsid.val[1] = ((fsid_guid >> 32) << 8) |
 	    (vfsp->mnt_vfc->vfc_typenum & 0xFF);
 
 	/*
@@ -1591,11 +1585,11 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 	 */
 	mutex_enter(&zfsvfs->z_znodes_lock);
 	for (zp = list_head(&zfsvfs->z_all_znodes); zp != NULL;
-	    zp = list_next(&zfsvfs->z_all_znodes, zp))
-		if (zp->z_sa_hdl) {
-			ASSERT(ZTOV(zp)->v_count >= 0);
+	    zp = list_next(&zfsvfs->z_all_znodes, zp)) {
+		if (zp->z_sa_hdl != NULL) {
 			zfs_znode_dmu_fini(zp);
 		}
+	}
 	mutex_exit(&zfsvfs->z_znodes_lock);
 
 	/*
@@ -1682,7 +1676,7 @@ zfs_umount(vfs_t *vfsp, int fflag)
 		taskqueue_drain(zfsvfs_taskq->tq_queue,
 		    &zfsvfs->z_unlinked_drain_task);
 
-	VERIFY(zfsvfs_teardown(zfsvfs, B_TRUE) == 0);
+	VERIFY0(zfsvfs_teardown(zfsvfs, B_TRUE));
 	os = zfsvfs->z_os;
 
 	/*
@@ -1944,7 +1938,7 @@ zfs_resume_fs(zfsvfs_t *zfsvfs, dsl_dataset_t *ds)
 		goto bail;
 
 	ds->ds_dir->dd_activity_cancelled = B_FALSE;
-	VERIFY(zfsvfs_setup(zfsvfs, B_FALSE) == 0);
+	VERIFY0(zfsvfs_setup(zfsvfs, B_FALSE));
 
 	zfs_set_fuid_feature(zfsvfs);
 
@@ -2157,7 +2151,7 @@ zfs_set_version(zfsvfs_t *zfsvfs, uint64_t newvers)
 		    ZFS_SA_ATTRS, 8, 1, &sa_obj, tx);
 		ASSERT0(error);
 
-		VERIFY(0 == sa_set_sa_object(os, sa_obj));
+		VERIFY0(sa_set_sa_object(os, sa_obj));
 		sa_register_update_callback(os, zfs_sa_upgrade);
 	}
 
@@ -2271,7 +2265,7 @@ zfs_get_vfs_flag_unmounted(objset_t *os)
 	zfsvfs_t *zfvp;
 	boolean_t unmounted = B_FALSE;
 
-	ASSERT(dmu_objset_type(os) == DMU_OST_ZFS);
+	ASSERT3U(dmu_objset_type(os), ==, DMU_OST_ZFS);
 
 	mutex_enter(&os->os_user_ptr_lock);
 	zfvp = dmu_objset_get_user(os);

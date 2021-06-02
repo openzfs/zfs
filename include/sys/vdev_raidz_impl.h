@@ -116,7 +116,9 @@ typedef struct raidz_col {
 	uint8_t rc_tried;		/* Did we attempt this I/O column? */
 	uint8_t rc_skipped;		/* Did we skip this I/O column? */
 	uint8_t rc_need_orig_restore;	/* need to restore from orig_data? */
-	uint8_t rc_repair;		/* Write good data to this column */
+	uint8_t rc_force_repair;	/* Write good data to this column */
+	uint8_t rc_allow_repair;	/* Allow repair I/O to this column */
+	// XXX change above to 'int flags' to save 8 bytes
 	int rc_shadow_devidx;		/* for double write during expansion */
 	int rc_shadow_error;		/* for double write during expansion */
 	uint64_t rc_shadow_offset;	/* for double write during expansion */
