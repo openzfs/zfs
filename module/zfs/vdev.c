@@ -5215,7 +5215,9 @@ vdev_expand(vdev_t *vd, uint64_t txg)
 
 	vdev_set_deflate_ratio(vd);
 
-	if ((vd->vdev_asize >> vd->vdev_ms_shift) > vd->vdev_ms_count &&
+	if ((vd->vdev_spa->spa_raidz_expand == NULL ||
+	    vd->vdev_spa->spa_raidz_expand->vre_vdev_id != vd->vdev_id) &&
+	    (vd->vdev_asize >> vd->vdev_ms_shift) > vd->vdev_ms_count &&
 	    vdev_is_concrete(vd)) {
 		vdev_metaslab_group_create(vd);
 		VERIFY(vdev_metaslab_init(vd, txg) == 0);
