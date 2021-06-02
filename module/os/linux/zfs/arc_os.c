@@ -437,7 +437,7 @@ arc_available_memory(void)
 	int64_t lowest = INT64_MAX;
 
 	/* Every 100 calls, free a small amount */
-	if (spa_get_random(100) == 0)
+	if (random_in_range(100) == 0)
 		lowest = -1024;
 
 	return (lowest);
@@ -458,7 +458,7 @@ arc_all_memory(void)
 uint64_t
 arc_free_memory(void)
 {
-	return (spa_get_random(arc_all_memory() * 20 / 100));
+	return (random_in_range(arc_all_memory() * 20 / 100));
 }
 
 void
