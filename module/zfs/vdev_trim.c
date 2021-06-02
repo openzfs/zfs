@@ -159,6 +159,8 @@ typedef struct trim_args {
 	 */
 	hrtime_t	trim_start_time;	/* Start time */
 	uint64_t	trim_bytes_done;	/* Bytes trimmed */
+
+	zio_t *pio;				/* Parent zio for autotrim */
 } trim_args_t;
 
 /*
@@ -476,6 +478,7 @@ vdev_trim_range(trim_args_t *ta, uint64_t start, uint64_t size)
 	vdev_t *vd = ta->trim_vdev;
 	spa_t *spa = vd->vdev_spa;
 	void *cb;
+	zio_t *pio;
 
 	mutex_enter(&vd->vdev_trim_io_lock);
 
@@ -540,14 +543,17 @@ vdev_trim_range(trim_args_t *ta, uint64_t start, uint64_t size)
 		vd->vdev_trim_offset[txg & TXG_MASK] = start + size;
 
 	if (ta->trim_type == TRIM_TYPE_MANUAL) {
+		pio = spa->spa_txg_zio[txg & TXG_MASK];
 		cb = vdev_trim_cb;
 	} else if (ta->trim_type == TRIM_TYPE_AUTO) {
+		pio = ta->pio;
 		cb = vdev_autotrim_cb;
 	} else {
+		pio = spa->spa_txg_zio[txg & TXG_MASK];
 		cb = vdev_trim_simple_cb;
 	}
 
-	zio_nowait(zio_trim(spa->spa_txg_zio[txg & TXG_MASK], vd,
+	zio_nowait(zio_trim(pio, vd,
 	    start, size, cb, NULL, ZIO_PRIORITY_TRIM, ZIO_FLAG_CANFAIL,
 	    ta->trim_flags));
 	/* vdev_trim_cb and vdev_autotrim_cb release SCL_STATE_ALL */
@@ -1353,7 +1359,11 @@ vdev_autotrim_thread(void *arg)
 				 */
 				issued_trim = B_TRUE;
 
+				ta->pio = zio_root(spa, NULL, NULL,
+				    ZIO_FLAG_CANFAIL);
 				int error = vdev_trim_ranges(ta);
+				zio_wait(ta->pio);
+
 				if (error)
 					break;
 			}
@@ -1374,7 +1384,7 @@ vdev_autotrim_thread(void *arg)
 			range_tree_vacate(trim_tree, NULL, NULL);
 			range_tree_destroy(trim_tree);
 
-			metaslab_enable(msp, issued_trim, B_FALSE);
+			metaslab_enable(msp, B_FALSE, B_FALSE);
 			spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 
 			for (uint64_t c = 0; c < children; c++) {
@@ -1398,7 +1408,7 @@ vdev_autotrim_thread(void *arg)
 		 * zfs_trim_txg_batch txgs will occur before these metaslabs
 		 * are trimmed again.
 		 */
-		txg_wait_open(spa_get_dsl(spa), 0, issued_trim);
+		txg_wait_open(spa_get_dsl(spa), 0, B_FALSE);
 
 		shift++;
 		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
