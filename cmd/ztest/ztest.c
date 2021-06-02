@@ -979,7 +979,7 @@ process_options(int argc, char **argv)
 	init_options();
 
 	while ((opt = getopt_long(argc, argv, short_opts, long_opts,
-	    "v:s:a:m:r:R:K:D:S:d:t:g:i:k:p:f:MVET:P:hF:B:C:o:G")) != EOF) {
+	    NULL)) != EOF) {
 		value = 0;
 		switch (opt) {
 		case 'v':
