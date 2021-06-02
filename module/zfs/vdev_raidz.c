@@ -4067,25 +4067,26 @@ spa_raidz_expand_cb(void *arg, zthr_t *zthr)
 
 	spa_config_exit(spa, SCL_CONFIG, FTAG);
 
+	/*
+	 * The txg_wait_synced() here ensures that all reflow zio's have
+	 * completed, and vre_failed_offset has been set if necessary.  It
+	 * also ensures that the progress of the last raidz_reflow_sync() is
+	 * written to disk before raidz_reflow_complete_sync() changes the
+	 * in-memory vre_state.  vdev_raidz_io_start() uses vre_state to
+	 * determine if a reflow is in progress, in which case we may need to
+	 * write to both old and new locations.  Therefore we can only change
+	 * vre_state once this is not necessary, which is once the on-disk
+	 * progress (in spa_ubsync) has been set past any possible writes (to
+	 * the end of the last metaslab).
+	 */
+	txg_wait_synced(spa->spa_dsl_pool, 0);
+
 	if (!zthr_iscancelled(spa->spa_raidz_expand_zthr) &&
 	    vre->vre_failed_offset == UINT64_MAX) {
 		/*
 		 * We are not being canceled, so the reflow must be
 		 * complete. In that case also mark it as completed on disk.
-		 *
-		 * The txg_wait_synced() here ensures that the progress of
-		 * the last raidz_reflow_sync() is written to disk before
-		 * raidz_reflow_complete_sync() changes the in-memory
-		 * vre_state.  vdev_raidz_io_start() uses vre_state to
-		 * determine if a reflow is in progress, in which case we may
-		 * need to write to both old and new locations.  Therefore we
-		 * can only change vre_state once this is not necessary,
-		 * which is once the on-disk progress (in spa_ubsync) has
-		 * been set past any possible writes (to the end of the last
-		 * metaslab).
 		 */
-		txg_wait_synced(spa->spa_dsl_pool, 0);
-
 		VERIFY0(dsl_sync_task(spa_name(spa), NULL,
 		    raidz_reflow_complete_sync, spa,
 		    0, ZFS_SPACE_CHECK_NONE));
@@ -4099,7 +4100,6 @@ spa_raidz_expand_cb(void *arg, zthr_t *zthr)
 		    NULL, "offset=%llu failed_offset=%lld",
 		    (long long)vre->vre_offset,
 		    (long long)vre->vre_failed_offset);
-		txg_wait_synced(spa->spa_dsl_pool, 0);
 		mutex_enter(&vre->vre_lock);
 		if (vre->vre_failed_offset != UINT64_MAX) {
 			/*
