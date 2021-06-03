@@ -3932,7 +3932,7 @@ ztest_vdev_raidz_attach(ztest_ds_t *zd, uint64_t id)
 	csize += csize / 10;
 
 	if (spa->spa_raidz_expand)
-		expected_error = EBUSY;
+		expected_error = ZFS_ERR_RAIDZ_EXPAND_IN_PROGRESS;
 
 	spa_config_exit(spa, SCL_ALL, FTAG);
 
