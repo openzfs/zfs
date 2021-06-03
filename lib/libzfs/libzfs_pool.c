@@ -3265,7 +3265,6 @@ zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
 	uint_t children;
 	nvlist_t *config_root;
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
-	boolean_t raidz = B_FALSE;
 
 	if (replacing)
 		(void) snprintf(msg, sizeof (msg), dgettext(TEXT_DOMAIN,
@@ -3294,12 +3293,6 @@ zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 		    "the loaded zfs module doesn't support device rebuilds"));
 		return (zfs_error(hdl, EZFS_POOL_NOTSUP, msg));
-	}
-
-	char *typestr;
-	if (nvlist_lookup_string(tgt, ZPOOL_CONFIG_TYPE, &typestr) == 0 &&
-	    strcmp(typestr, "raidz") == 0) {
-		raidz = B_TRUE;
 	}
 
 	if (nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN,
