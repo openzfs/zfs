@@ -497,13 +497,10 @@ vdev_raidz_map_alloc_expanded(zio_t *zio,
 		rr->rr_firstdatacol = nparity;
 #ifdef ZFS_DEBUG
 		/*
-		 * XXX offset and size here are for the whole i/o, not this row
+		 * note: rr_size is PSIZE, not ASIZE
 		 */
-		/*
-		 * XXX note: size is PSIZE, not ASIZE
-		 */
-		rr->rr_offset = offset;
-		rr->rr_size = size;
+		rr->rr_offset = b << ashift;
+		rr->rr_size = (rr->rr_cols - rr->rr_firstdatacol) << ashift;
 #endif
 
 		for (int c = 0; c < rr->rr_cols; c++, child_id++) {
@@ -1994,26 +1991,28 @@ vdev_raidz_shadow_child_done(zio_t *zio)
 static void
 vdev_raidz_io_verify(zio_t *zio, raidz_map_t *rm, raidz_row_t *rr, int col)
 {
-	/*
-	 * XXX vdev_xlate doesn't work right when block
-	 * straddles the expansion progress
-	 */
-#if 0
-
-//#ifdef ZFS_DEBUG
-	vdev_t *tvd = vd->vdev_top;
+#ifdef ZFS_DEBUG
+	vdev_t *tvd = zio->io_vd->vdev_top;
 
 	range_seg64_t logical_rs, physical_rs, remain_rs;
 	logical_rs.rs_start = rr->rr_offset;
 	logical_rs.rs_end = logical_rs.rs_start +
-	    vdev_raidz_asize(zio->io_vd, rr->rr_size),
+	    vdev_raidz_asize(zio->io_vd, rr->rr_size,
 	    BP_PHYSICAL_BIRTH(zio->io_bp));
 
 	raidz_col_t *rc = &rr->rr_col[col];
-	vdev_t *cvd = vd->vdev_child[rc->rc_devidx];
+	vdev_t *cvd = tvd->vdev_child[rc->rc_devidx];
 
 	vdev_xlate(cvd, &logical_rs, &physical_rs, &remain_rs);
 	ASSERT(vdev_xlate_is_empty(&remain_rs));
+	if (vdev_xlate_is_empty(&physical_rs)) {
+		/*
+		 * If we are in the middle of expansion, the
+		 * physical->logical mapping is changing so vdev_xlate()
+		 * can't give us a reliable answer.
+		 */
+		return;
+	}
 	ASSERT3U(rc->rc_offset, ==, physical_rs.rs_start);
 	ASSERT3U(rc->rc_offset, <, physical_rs.rs_end);
 	/*
@@ -2023,9 +2022,8 @@ vdev_raidz_io_verify(zio_t *zio, raidz_map_t *rm, raidz_row_t *rr, int col)
 	 * rc_size.
 	 */
 	if (physical_rs.rs_end > rc->rc_offset + rc->rc_size) {
-		if (rm->rm_nrows == 1)
-			ASSERT3U(physical_rs.rs_end, ==, rc->rc_offset +
-			    rc->rc_size + (1 << tvd->vdev_ashift));
+		ASSERT3U(physical_rs.rs_end, ==, rc->rc_offset +
+		    rc->rc_size + (1 << tvd->vdev_ashift));
 	} else {
 		ASSERT3U(physical_rs.rs_end, ==, rc->rc_offset + rc->rc_size);
 	}
@@ -3279,21 +3277,23 @@ vdev_raidz_xlate(vdev_t *cvd, const range_seg64_t *logical_rs,
 	ASSERT(raidvd->vdev_ops == &vdev_raidz_ops);
 
 	vdev_raidz_t *vdrz = raidvd->vdev_tsd;
-	uint64_t children = vdrz->vd_physical_width;
-#if 0
-	/*
-	 * XXX this seems wrong. we need to look at each row individually to see
-	 * if it's before or after the expansion progress.  However, we can't
-	 * really know where each row begins.  We could look at each sector
-	 * individually, but then the mapped range will be disjoint.  But the
-	 * reality is we probably shouldn't be using this function while
-	 * expansion is in progress.
-	 */
-	if (logical_rs->rs_start > vdrz->vn_vre.vre_offset_phys)
-		children--;
-#endif
 
-	uint64_t width = children;
+	if (vdrz->vn_vre.vre_state == DSS_SCANNING) {
+		/*
+		 * We're in the middle of expansion, in which case the
+		 * translation is in flux.  Any answer we give may be wrong
+		 * by the time we return, so it isn't safe for the caller to
+		 * act on it.  Therefore we say that this range isn't present
+		 * on any children.  The only consumers of this are "zpool
+		 * initialize" and trimming, both of which are "best effort"
+		 * anyway.
+		 */
+		physical_rs->rs_start = physical_rs->rs_end = 0;
+		remain_rs->rs_start = remain_rs->rs_end = 0;
+		return;
+	}
+
+	uint64_t width = vdrz->vd_physical_width;
 	uint64_t tgt_col = cvd->vdev_id;
 	uint64_t ashift = raidvd->vdev_top->vdev_ashift;
 
