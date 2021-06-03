@@ -40,7 +40,6 @@ main(int argc, char **argv)
 	long		i, n;
 	unsigned char	fillchar = DATA;
 	int		bigbuffersize = BIGBUFFERSIZE;
-	int64_t		read_count = 0;
 
 	/*
 	 * Validate arguments
@@ -78,8 +77,6 @@ main(int argc, char **argv)
 				exit(1);
 			}
 		}
-
-		read_count += n;
 	} while (n == bigbuffersize);
 
 	return (0);
