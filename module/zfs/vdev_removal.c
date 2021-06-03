@@ -1517,10 +1517,6 @@ spa_vdev_remove_thread(void *arg)
 			 * specified by zfs_removal_suspend_progress. We do this
 			 * solely from the test suite or during debugging.
 			 */
-			uint64_t bytes_copied =
-			    spa->spa_removing_phys.sr_copied;
-			for (int i = 0; i < TXG_SIZE; i++)
-				bytes_copied += svr->svr_bytes_done[i];
 			while (zfs_removal_suspend_progress &&
 			    !svr->svr_thread_exit)
 				delay(hz);
