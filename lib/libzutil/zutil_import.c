@@ -1791,16 +1791,13 @@ zpool_find_config(void *hdl, const char *target, nvlist_t **configp,
 	nvlist_t *match = NULL;
 	nvlist_t *config = NULL;
 	char *sepp = NULL;
-	char sep = '\0';
 	int count = 0;
 	char *targetdup = strdup(target);
 
 	*configp = NULL;
 
-	if ((sepp = strpbrk(targetdup, "/@")) != NULL) {
-		sep = *sepp;
+	if ((sepp = strpbrk(targetdup, "/@")) != NULL)
 		*sepp = '\0';
-	}
 
 	pools = zpool_search_import(hdl, args, pco);
 
