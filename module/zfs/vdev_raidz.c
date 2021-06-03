@@ -3929,9 +3929,8 @@ vdev_raidz_reflow_copy_scratch(spa_t *spa)
 	zio_flush(pio, raidvd);
 	zio_wait(pio);
 
-	zfs_dbgmsg("reflow recovery: overwrote %llu bytes (logical) \
-to real location",
-	    logical_size);
+	zfs_dbgmsg("reflow recovery: overwrote %llu bytes (logical) "
+	    "to real location", logical_size);
 
 	for (int i = 0; i < raidvd->vdev_children; i++)
 		abd_free(abds[i]);
@@ -3947,8 +3946,8 @@ to real location",
 	VERIFY0(vdev_uberblock_sync_list(&spa->spa_root_vdev, 1,
 	    &spa->spa_ubsync, ZIO_FLAG_CONFIG_WRITER));
 
-	zfs_dbgmsg("reflow recovery: uberblock updated \
-(txg %llu, SCRATCH_NOT_IN_USE, size %llu, ts %llu)",
+	zfs_dbgmsg("reflow recovery: uberblock updated "
+	    "(txg %llu, SCRATCH_NOT_IN_USE, size %llu, ts %llu)",
 	    spa->spa_ubsync.ub_txg, logical_size, spa->spa_ubsync.ub_timestamp);
 
 	spa_config_exit(spa, SCL_STATE, FTAG);
