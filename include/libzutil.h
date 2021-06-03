@@ -160,6 +160,9 @@ _LIBZUTIL_H void color_start(char *color);
 _LIBZUTIL_H void color_end(void);
 _LIBZUTIL_H int printf_color(char *color, char *format, ...);
 
+_LIBZUTIL_H const char *zfs_basename(const char *path);
+_LIBZUTIL_H ssize_t zfs_dirnamelen(const char *path);
+
 #ifdef	__cplusplus
 }
 #endif
