@@ -3644,6 +3644,15 @@ raidz_expand_pause(spa_t *spa, uint64_t progress)
 		delay(hz);
 }
 
+static void
+raidz_scratch_child_done(zio_t *zio)
+{
+	zio_t *pio = zio->io_private;
+
+	mutex_enter(&pio->io_lock);
+	pio->io_error = zio_worst_error(pio->io_error, zio->io_error);
+	mutex_exit(&pio->io_lock);
+}
 
 static void
 raidz_reflow_scratch_sync(void *arg, dmu_tx_t *tx)
@@ -3686,10 +3695,16 @@ raidz_reflow_scratch_sync(void *arg, dmu_tx_t *tx)
 	 */
 	pio = zio_root(spa, NULL, NULL, 0);
 	for (int i = 0; i < raidvd->vdev_children - 1; i++) {
+#if 0
 		zio_nowait(zio_read_phys(pio, raidvd->vdev_child[i],
 		    VDEV_LABEL_START_SIZE, read_size, abds[i],
 		    ZIO_CHECKSUM_OFF, NULL, NULL, ZIO_PRIORITY_ASYNC_READ,
 		    0, B_FALSE));
+#else
+		zio_nowait(zio_vdev_child_io(pio, NULL, raidvd->vdev_child[i],
+		    0, abds[i], read_size, ZIO_TYPE_READ,
+		    ZIO_PRIORITY_ASYNC_READ, 0, raidz_scratch_child_done, pio));
+#endif
 	}
 	zio_wait(pio);
 
@@ -3725,11 +3740,24 @@ raidz_reflow_scratch_sync(void *arg, dmu_tx_t *tx)
 	 */
 	pio = zio_root(spa, NULL, NULL, 0);
 	for (int i = 0; i < raidvd->vdev_children; i++) {
+#if 0
 		zio_nowait(zio_write_phys(pio, raidvd->vdev_child[i],
 		    VDEV_BOOT_OFFSET, write_size, abds[i],
 		    ZIO_CHECKSUM_OFF, NULL, NULL, ZIO_PRIORITY_ASYNC_WRITE,
 		    0, B_TRUE));
+#else
+		/*
+		 * Note: zio_vdev_child_io() adds VDEV_LABEL_START_SIZE to
+		 * the offset to calculate the physical offset to write to.
+		 * Passing in a negative offset lets us access to boot area.
+		 */
+		zio_nowait(zio_vdev_child_io(pio, NULL, raidvd->vdev_child[i],
+		    VDEV_BOOT_OFFSET - VDEV_LABEL_START_SIZE, abds[i],
+		    write_size, ZIO_TYPE_WRITE,
+		    ZIO_PRIORITY_ASYNC_WRITE, 0,
+		    raidz_scratch_child_done, pio));
 	}
+#endif
 	zio_wait(pio);
 	pio = zio_root(spa, NULL, NULL, 0);
 	zio_flush(pio, raidvd);
@@ -3766,10 +3794,17 @@ raidz_reflow_scratch_sync(void *arg, dmu_tx_t *tx)
 	 */
 	pio = zio_root(spa, NULL, NULL, 0);
 	for (int i = 0; i < raidvd->vdev_children; i++) {
+#if 0
 		zio_nowait(zio_write_phys(pio, raidvd->vdev_child[i],
 		    VDEV_LABEL_START_SIZE, write_size, abds[i],
 		    ZIO_CHECKSUM_OFF, NULL, NULL, ZIO_PRIORITY_ASYNC_WRITE,
 		    0, B_FALSE));
+#else
+		zio_nowait(zio_vdev_child_io(pio, NULL, raidvd->vdev_child[i],
+		    0, abds[i], write_size, ZIO_TYPE_WRITE,
+		    ZIO_PRIORITY_ASYNC_WRITE, 0,
+		    raidz_scratch_child_done, pio));
+#endif
 	}
 	zio_wait(pio);
 	pio = zio_root(spa, NULL, NULL, 0);
@@ -3851,10 +3886,23 @@ vdev_raidz_reflow_copy_scratch(spa_t *spa)
 	raidz_expand_pause(spa, 8);
 	pio = zio_root(spa, NULL, NULL, 0);
 	for (int i = 0; i < raidvd->vdev_children; i++) {
+#if 0
 		zio_nowait(zio_read_phys(pio, raidvd->vdev_child[i],
 		    VDEV_BOOT_OFFSET, write_size, abds[i],
 		    ZIO_CHECKSUM_OFF, NULL, NULL, ZIO_PRIORITY_ASYNC_READ,
 		    0, B_TRUE));
+#else
+		/*
+		 * Note: zio_vdev_child_io() adds VDEV_LABEL_START_SIZE to
+		 * the offset to calculate the physical offset to write to.
+		 * Passing in a negative offset lets us access to boot area.
+		 */
+		zio_nowait(zio_vdev_child_io(pio, NULL, raidvd->vdev_child[i],
+		    VDEV_BOOT_OFFSET - VDEV_LABEL_START_SIZE, abds[i],
+		    write_size, ZIO_TYPE_READ,
+		    ZIO_PRIORITY_ASYNC_READ, 0,
+		    raidz_scratch_child_done, pio));
+#endif
 	}
 	zio_wait(pio);
 	raidz_expand_pause(spa, 9);
@@ -3864,10 +3912,17 @@ vdev_raidz_reflow_copy_scratch(spa_t *spa)
 	 */
 	pio = zio_root(spa, NULL, NULL, 0);
 	for (int i = 0; i < raidvd->vdev_children; i++) {
+#if 0
 		zio_nowait(zio_write_phys(pio, raidvd->vdev_child[i],
 		    VDEV_LABEL_START_SIZE, write_size, abds[i],
 		    ZIO_CHECKSUM_OFF, NULL, NULL, ZIO_PRIORITY_ASYNC_WRITE,
 		    0, B_FALSE));
+#else
+		zio_nowait(zio_vdev_child_io(pio, NULL, raidvd->vdev_child[i],
+		    0, abds[i], write_size, ZIO_TYPE_WRITE,
+		    ZIO_PRIORITY_ASYNC_WRITE, 0,
+		    raidz_scratch_child_done, pio));
+#endif
 	}
 	zio_wait(pio);
 	pio = zio_root(spa, NULL, NULL, 0);
