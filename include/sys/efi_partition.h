@@ -370,7 +370,6 @@ extern	int	efi_rescan(int);
 extern	void	efi_free(struct dk_gpt *);
 extern	int	efi_type(int);
 extern	void	efi_err_check(struct dk_gpt *);
-extern	int	efi_auto_sense(int fd, struct dk_gpt **);
 extern	int	efi_use_whole_disk(int fd);
 #endif
 
