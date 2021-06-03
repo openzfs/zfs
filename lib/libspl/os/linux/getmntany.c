@@ -41,7 +41,7 @@
 
 #define	BUFSIZE	(MNT_LINE_MAX + 2)
 
-__thread char buf[BUFSIZE];
+static __thread char buf[BUFSIZE];
 
 #define	DIFF(xx)	( \
 	    (mrefp->xx != NULL) && \
