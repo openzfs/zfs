@@ -140,40 +140,6 @@ static struct uuid_to_ptag {
 	{ EFI_FREEDESKTOP_BOOT }
 };
 
-/*
- * Default vtoc information for non-SVr4 partitions
- */
-struct dk_map2  default_vtoc_map[NDKMAP] = {
-	{	V_ROOT,		0	},		/* a - 0 */
-	{	V_SWAP,		V_UNMNT	},		/* b - 1 */
-	{	V_BACKUP,	V_UNMNT	},		/* c - 2 */
-	{	V_UNASSIGNED,	0	},		/* d - 3 */
-	{	V_UNASSIGNED,	0	},		/* e - 4 */
-	{	V_UNASSIGNED,	0	},		/* f - 5 */
-	{	V_USR,		0	},		/* g - 6 */
-	{	V_UNASSIGNED,	0	},		/* h - 7 */
-
-#if defined(_SUNOS_VTOC_16)
-
-#if defined(i386) || defined(__amd64) || defined(__arm) || \
-    defined(__powerpc) || defined(__sparc) || defined(__s390__) || \
-    defined(__mips__) || defined(__rv64g__)
-	{	V_BOOT,		V_UNMNT	},		/* i - 8 */
-	{	V_ALTSCTR,	0	},		/* j - 9 */
-
-#else
-#error No VTOC format defined.
-#endif			/* defined(i386) */
-
-	{	V_UNASSIGNED,	0	},		/* k - 10 */
-	{	V_UNASSIGNED,	0	},		/* l - 11 */
-	{	V_UNASSIGNED,	0	},		/* m - 12 */
-	{	V_UNASSIGNED,	0	},		/* n - 13 */
-	{	V_UNASSIGNED,	0	},		/* o - 14 */
-	{	V_UNASSIGNED,	0	},		/* p - 15 */
-#endif			/* defined(_SUNOS_VTOC_16) */
-};
-
 int efi_debug = 0;
 
 static int efi_read(int, struct dk_gpt *);

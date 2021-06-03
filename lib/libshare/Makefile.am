@@ -2,6 +2,8 @@ include $(top_srcdir)/config/Rules.am
 
 DEFAULT_INCLUDES += -I$(srcdir)
 
+AM_CFLAGS += -fvisibility=hidden
+
 noinst_LTLIBRARIES = libshare.la
 
 USER_C = \

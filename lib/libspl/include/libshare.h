@@ -25,7 +25,7 @@
  * Copyright (c) 2019, 2020 by Delphix. All rights reserved.
  */
 #ifndef _LIBSPL_LIBSHARE_H
-#define	_LIBSPL_LIBSHARE_H
+#define	_LIBSPL_LIBSHARE_H extern __attribute__((visibility("default")))
 
 /* API Initialization */
 #define	SA_INIT_SHARE_API	0x0001	/* init share specific interface */
@@ -71,16 +71,16 @@
 #define	SA_SHARE_EXISTS		33	/* path or file is already shared */
 
 /* initialization */
-extern char *sa_errorstr(int);
+_LIBSPL_LIBSHARE_H char *sa_errorstr(int);
 
 /* share control */
-extern int sa_enable_share(const char *, const char *, const char *,
+_LIBSPL_LIBSHARE_H int sa_enable_share(const char *, const char *, const char *,
     char *);
-extern int sa_disable_share(const char *, char *);
-extern boolean_t sa_is_shared(const char *, char *);
-extern void sa_commit_shares(const char *);
+_LIBSPL_LIBSHARE_H int sa_disable_share(const char *, char *);
+_LIBSPL_LIBSHARE_H boolean_t sa_is_shared(const char *, char *);
+_LIBSPL_LIBSHARE_H void sa_commit_shares(const char *);
 
 /* protocol specific interfaces */
-extern int sa_validate_shareopts(char *, char *);
+_LIBSPL_LIBSHARE_H int sa_validate_shareopts(char *, char *);
 
 #endif /* _LIBSPL_LIBSHARE_H */

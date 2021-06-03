@@ -2,6 +2,8 @@ include $(top_srcdir)/config/Rules.am
 
 pkgconfig_DATA = libzfsbootenv.pc
 
+AM_CFLAGS += -fvisibility=hidden
+
 lib_LTLIBRARIES = libzfsbootenv.la
 
 include $(top_srcdir)/config/Abigail.am

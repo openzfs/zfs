@@ -400,7 +400,7 @@ nfs_add_entry(const char *filename, const char *sharepath,
  * This function copies all entries from the exports file to "filename",
  * omitting any entries for the specified mountpoint.
  */
-__attribute__((visibility("hidden"))) int
+int
 nfs_copy_entries(char *filename, const char *mountpoint)
 {
 	char *buf = NULL;
