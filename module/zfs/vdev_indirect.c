@@ -1423,11 +1423,6 @@ vdev_indirect_repair(zio_t *zio)
 {
 	indirect_vsd_t *iv = zio->io_vsd;
 
-	enum zio_flag flags = ZIO_FLAG_IO_REPAIR;
-
-	if (!(zio->io_flags & (ZIO_FLAG_SCRUB | ZIO_FLAG_RESILVER)))
-		flags |= ZIO_FLAG_SELF_HEAL;
-
 	if (!spa_writeable(zio->io_spa))
 		return;
 
