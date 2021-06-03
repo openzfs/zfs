@@ -4796,11 +4796,16 @@ zpool_load_compat(const char *compat, boolean_t *features, char *report,
 	 * as they're only needed if the filename is relative
 	 * which will be checked during the openat().
 	 */
-#ifndef O_PATH
-#define	O_PATH O_RDONLY
+
+/* O_PATH safer than O_RDONLY if system allows it */
+#if defined(O_PATH)
+#define	ZC_DIR_FLAGS (O_DIRECTORY | O_CLOEXEC | O_PATH)
+#else
+#define	ZC_DIR_FLAGS (O_DIRECTORY | O_CLOEXEC | O_RDONLY)
 #endif
-	sdirfd = open(ZPOOL_SYSCONF_COMPAT_D, O_DIRECTORY | O_PATH | O_CLOEXEC);
-	ddirfd = open(ZPOOL_DATA_COMPAT_D, O_DIRECTORY | O_PATH | O_CLOEXEC);
+
+	sdirfd = open(ZPOOL_SYSCONF_COMPAT_D, ZC_DIR_FLAGS);
+	ddirfd = open(ZPOOL_DATA_COMPAT_D, ZC_DIR_FLAGS);
 
 	(void) strlcpy(l_compat, compat, ZFS_MAXPROPLEN);
 
@@ -4808,7 +4813,7 @@ zpool_load_compat(const char *compat, boolean_t *features, char *report,
 	    file != NULL;
 	    file = strtok_r(NULL, ",", &ps)) {
 
-		boolean_t l_features[SPA_FEATURES] = {B_FALSE};
+		boolean_t l_features[SPA_FEATURES];
 
 		enum { Z_SYSCONF, Z_DATA } source;
 
@@ -4831,14 +4836,18 @@ zpool_load_compat(const char *compat, boolean_t *features, char *report,
 			continue;
 		}
 
-#if !defined(MAP_POPULATE) && defined(MAP_PREFAULT_READ)
-#define	MAP_POPULATE MAP_PREFAULT_READ
-#elif !defined(MAP_POPULATE)
-#define	MAP_POPULATE 0
+/* Prefault the file if system allows */
+#if defined(MAP_POPULATE)
+#define	ZC_MMAP_FLAGS (MAP_PRIVATE | MAP_POPULATE)
+#elif defined(MAP_PREFAULT_READ)
+#define	ZC_MMAP_FLAGS (MAP_PRIVATE | MAP_PREFAULT_READ)
+#else
+#define	ZC_MMAP_FLAGS (MAP_PRIVATE)
 #endif
+
 		/* private mmap() so we can strtok safely */
-		fc = (char *)mmap(NULL, fs.st_size,
-		    PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_POPULATE, featfd, 0);
+		fc = (char *)mmap(NULL, fs.st_size, PROT_READ | PROT_WRITE,
+		    ZC_MMAP_FLAGS, featfd, 0);
 		(void) close(featfd);
 
 		/* map ok, and last character == newline? */
@@ -4852,7 +4861,10 @@ zpool_load_compat(const char *compat, boolean_t *features, char *report,
 
 		ret_nofiles = B_FALSE;
 
-		/* replace last char with NUL to ensure we have a delimiter */
+		for (uint_t i = 0; i < SPA_FEATURES; i++)
+			l_features[i] = B_FALSE;
+
+		/* replace final newline with NULL to ensure string ends */
 		fc[fs.st_size - 1] = '\0';
 
 		for (line = strtok_r(fc, "\n", &ls);
