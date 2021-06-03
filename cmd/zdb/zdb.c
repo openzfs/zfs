@@ -7969,7 +7969,6 @@ zdb_decompress_block(abd_t *pabd, void *buf, void *lbuf, uint64_t lsize,
 	if (lsize > maxlsize) {
 		exceeded = B_TRUE;
 	}
-	buf = lbuf;
 	if (*cfuncp == ZIO_COMPRESS_ZLE) {
 		printf("\nZLE decompression was selected. If you "
 		    "suspect the results are wrong,\ntry avoiding ZLE "
