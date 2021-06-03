@@ -50,6 +50,7 @@ typeset -r dev_size_mb=512
 typeset -a disks
 
 prefetch_disable=$(get_tunable PREFETCH_DISABLE)
+max_offset=$(get_tunable RAIDZ_EXPAND_MAX_OFFSET_PAUSE)
 
 function cleanup
 {
@@ -60,6 +61,7 @@ function cleanup
 	done
 
 	log_must set_tunable32 PREFETCH_DISABLE $prefetch_disable
+	log_must set_tunable64 RAIDZ_EXPAND_MAX_OFFSET_PAUSE $max_offset
 }
 
 function wait_expand_paused
@@ -179,6 +181,8 @@ function test_scrub # <pool> <parity> <dir>
 	log_must check_pool_status $pool "errors" "No known data errors"
 
 	log_must zpool clear $pool
+	log_must set_tunable64 RAIDZ_EXPAND_MAX_OFFSET_PAUSE $max_offset
+	log_must zpool wait -t raidz_expand $TESTPOOL
 }
 
 log_onexit cleanup
