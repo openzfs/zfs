@@ -538,19 +538,17 @@ zfs_mount_at(zfs_handle_t *zhp, const char *options, int flags,
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "Insufficient privileges"));
 		} else if (rc == ENOTSUP) {
-			char buf[256];
 			int spa_version;
 
 			VERIFY(zfs_spa_version(zhp, &spa_version) == 0);
-			(void) snprintf(buf, sizeof (buf),
-			    dgettext(TEXT_DOMAIN, "Can't mount a version %lld "
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "Can't mount a version %llu "
 			    "file system on a version %d pool. Pool must be"
 			    " upgraded to mount this file system."),
 			    (u_longlong_t)zfs_prop_get_int(zhp,
 			    ZFS_PROP_VERSION), spa_version);
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, buf));
 		} else {
-			zfs_error_aux(hdl, strerror(rc));
+			zfs_error_aux(hdl, "%s", strerror(rc));
 		}
 		return (zfs_error_fmt(hdl, EZFS_MOUNTFAILED,
 		    dgettext(TEXT_DOMAIN, "cannot mount '%s'"),

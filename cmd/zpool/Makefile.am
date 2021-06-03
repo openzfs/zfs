@@ -1,4 +1,5 @@
 include $(top_srcdir)/config/Rules.am
+include $(top_srcdir)/config/Shellcheck.am
 
 AM_CFLAGS += $(LIBBLKID_CFLAGS) $(LIBUUID_CFLAGS)
 

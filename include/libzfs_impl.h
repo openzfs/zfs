@@ -30,7 +30,6 @@
 #define	_LIBZFS_IMPL_H
 
 #include <sys/fs/zfs.h>
-#include <sys/spa.h>
 #include <sys/nvpair.h>
 #include <sys/dmu.h>
 #include <sys/zfs_ioctl.h>
@@ -243,7 +242,6 @@ extern proto_table_t proto_table[PROTO_END];
 extern int do_mount(zfs_handle_t *zhp, const char *mntpt, char *opts,
     int flags);
 extern int do_unmount(const char *mntpt, int flags);
-extern int zfs_mount_delegation_check(void);
 extern int zfs_share_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto);
 extern int unshare_one(libzfs_handle_t *hdl, const char *name,
     const char *mountpoint, zfs_share_proto_t proto);

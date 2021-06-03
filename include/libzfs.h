@@ -468,6 +468,7 @@ extern zfs_handle_t *zfs_open(libzfs_handle_t *, const char *, int);
 extern zfs_handle_t *zfs_handle_dup(zfs_handle_t *);
 extern void zfs_close(zfs_handle_t *);
 extern zfs_type_t zfs_get_type(const zfs_handle_t *);
+extern zfs_type_t zfs_get_underlying_type(const zfs_handle_t *);
 extern const char *zfs_get_name(const zfs_handle_t *);
 extern zpool_handle_t *zfs_get_pool_handle(const zfs_handle_t *);
 extern const char *zfs_get_pool_name(const zfs_handle_t *);
@@ -826,6 +827,7 @@ extern int zfs_mount(zfs_handle_t *, const char *, int);
 extern int zfs_mount_at(zfs_handle_t *, const char *, int, const char *);
 extern int zfs_unmount(zfs_handle_t *, const char *, int);
 extern int zfs_unmountall(zfs_handle_t *, int);
+extern int zfs_mount_delegation_check(void);
 
 #if defined(__linux__)
 extern int zfs_parse_mount_options(char *mntopts, unsigned long *mntflags,
