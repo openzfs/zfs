@@ -24,7 +24,7 @@
  */
 
 #ifndef	_LIBNVPAIR_H
-#define	_LIBNVPAIR_H
+#define	_LIBNVPAIR_H extern __attribute__((visibility("default")))
 
 #include <sys/nvpair.h>
 #include <stdlib.h>
@@ -42,13 +42,13 @@ extern "C" {
  * are all imported from <sys/nvpair.h> included above.
  */
 
-extern int nvpair_value_match(nvpair_t *, int, char *, char **);
-extern int nvpair_value_match_regex(nvpair_t *, int, char *, regex_t *,
+_LIBNVPAIR_H int nvpair_value_match(nvpair_t *, int, char *, char **);
+_LIBNVPAIR_H int nvpair_value_match_regex(nvpair_t *, int, char *, regex_t *,
     char **);
 
-extern void nvlist_print(FILE *, nvlist_t *);
-int nvlist_print_json(FILE *, nvlist_t *);
-extern void dump_nvlist(nvlist_t *, int);
+_LIBNVPAIR_H void nvlist_print(FILE *, nvlist_t *);
+_LIBNVPAIR_H int nvlist_print_json(FILE *, nvlist_t *);
+_LIBNVPAIR_H void dump_nvlist(nvlist_t *, int);
 
 /*
  * Private nvlist printing interface that allows the caller some control
@@ -88,18 +88,18 @@ enum nvlist_indent_mode {
 	NVLIST_INDENT_TABBED	/* Indent with tabstops */
 };
 
-extern nvlist_prtctl_t nvlist_prtctl_alloc(void);
-extern void nvlist_prtctl_free(nvlist_prtctl_t);
-extern void nvlist_prt(nvlist_t *, nvlist_prtctl_t);
+_LIBNVPAIR_H nvlist_prtctl_t nvlist_prtctl_alloc(void);
+_LIBNVPAIR_H void nvlist_prtctl_free(nvlist_prtctl_t);
+_LIBNVPAIR_H void nvlist_prt(nvlist_t *, nvlist_prtctl_t);
 
 /* Output stream */
-extern void nvlist_prtctl_setdest(nvlist_prtctl_t, FILE *);
-extern FILE *nvlist_prtctl_getdest(nvlist_prtctl_t);
+_LIBNVPAIR_H void nvlist_prtctl_setdest(nvlist_prtctl_t, FILE *);
+_LIBNVPAIR_H FILE *nvlist_prtctl_getdest(nvlist_prtctl_t);
 
 /* Indentation mode, start indent, indent increment; default tabbed/0/1 */
-extern void nvlist_prtctl_setindent(nvlist_prtctl_t, enum nvlist_indent_mode,
-    int, int);
-extern void nvlist_prtctl_doindent(nvlist_prtctl_t, int);
+_LIBNVPAIR_H void nvlist_prtctl_setindent(nvlist_prtctl_t,
+    enum nvlist_indent_mode, int, int);
+_LIBNVPAIR_H void nvlist_prtctl_doindent(nvlist_prtctl_t, int);
 
 enum nvlist_prtctl_fmt {
 	NVLIST_FMT_MEMBER_NAME,		/* name fmt; default "%s = " */
@@ -107,9 +107,10 @@ enum nvlist_prtctl_fmt {
 	NVLIST_FMT_BTWN_ARRAY		/* between array members; default " " */
 };
 
-extern void nvlist_prtctl_setfmt(nvlist_prtctl_t, enum nvlist_prtctl_fmt,
+_LIBNVPAIR_H void nvlist_prtctl_setfmt(nvlist_prtctl_t, enum nvlist_prtctl_fmt,
     const char *);
-extern void nvlist_prtctl_dofmt(nvlist_prtctl_t, enum nvlist_prtctl_fmt, ...);
+_LIBNVPAIR_H void nvlist_prtctl_dofmt(nvlist_prtctl_t, enum nvlist_prtctl_fmt,
+    ...);
 
 /*
  * Function prototypes for interfaces that appoint a new rendering function
@@ -139,7 +140,7 @@ extern void nvlist_prtctl_dofmt(nvlist_prtctl_t, enum nvlist_prtctl_fmt, ...);
  */
 
 #define	NVLIST_PRINTCTL_SVDECL(funcname, valtype) \
-    extern void funcname(nvlist_prtctl_t, \
+    _LIBNVPAIR_H void funcname(nvlist_prtctl_t, \
     int (*)(nvlist_prtctl_t, void *, nvlist_t *, const char *, valtype), \
     void *)
 
@@ -170,7 +171,7 @@ NVLIST_PRINTCTL_SVDECL(nvlist_prtctlop_nvlist, nvlist_t *);
  * Return values as above.
  */
 #define	NVLIST_PRINTCTL_AVDECL(funcname, vtype) \
-    extern void funcname(nvlist_prtctl_t, \
+    _LIBNVPAIR_H void funcname(nvlist_prtctl_t, \
     int (*)(nvlist_prtctl_t, void *, nvlist_t *, const char *, vtype, uint_t), \
     void *)
 

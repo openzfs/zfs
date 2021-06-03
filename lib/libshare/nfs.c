@@ -119,7 +119,7 @@ nfs_fini_tmpfile(const char *exports, char *tmpfile)
 	return (SA_OK);
 }
 
-__attribute__((visibility("hidden"))) int
+int
 nfs_toggle_share(const char *lockfile, const char *exports,
     const char *expdir, sa_share_impl_t impl_share,
     int(*cbk)(sa_share_impl_t impl_share, char *filename))

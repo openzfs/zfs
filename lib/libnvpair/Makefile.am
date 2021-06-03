@@ -7,6 +7,7 @@ VPATH = \
 # Includes kernel code, generate warnings for large stack frames
 # and required CFLAGS for libtirpc
 AM_CFLAGS += $(FRAME_LARGER_THAN) $(LIBTIRPC_CFLAGS)
+AM_CFLAGS += -fvisibility=hidden
 
 lib_LTLIBRARIES = libnvpair.la
 
