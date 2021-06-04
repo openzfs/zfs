@@ -237,7 +237,6 @@ Terminate the daemon.
 .El
 .
 .Sh SEE ALSO
-.Xr zfs-events 5 ,
 .Xr zfs 8 ,
 .Xr zpool 8 ,
 .Xr zpool-events 8
