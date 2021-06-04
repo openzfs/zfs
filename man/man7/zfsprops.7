@@ -38,7 +38,7 @@
 .\" Copyright (c) 2019, Kjeld Schouten-Lebbing
 .\"
 .Dd May 24, 2021
-.Dt ZFSPROPS 8
+.Dt ZFSPROPS 7
 .Os
 .
 .Sh NAME
@@ -304,7 +304,7 @@ The used space of a snapshot
 .Po see the
 .Sx Snapshots
 section of
-.Xr zfsconcepts 8
+.Xr zfsconcepts 7
 .Pc
 is space that is referenced exclusively by this snapshot.
 If this snapshot is destroyed, the amount of
@@ -777,7 +777,7 @@ does not support the
 algorithm.
 .Pp
 Please see
-.Xr zpool-features 5
+.Xr zpool-features 7
 for more information on these algorithms.
 .Pp
 Changing this property affects only newly-written data.
@@ -818,7 +818,7 @@ but can only be used on pools with the
 feature set to
 .Sy enabled .
 See
-.Xr zpool-features 5
+.Xr zpool-features 7
 for details on ZFS feature flags and the
 .Sy lz4_compress
 feature.
@@ -1019,7 +1019,7 @@ be enabled on a system.
 See the
 .Sx Deduplication
 section of
-.Xr zfsconcepts 8 .
+.Xr zfsconcepts 7 .
 .It Xo
 .Sy dnodesize Ns = Ns Sy legacy Ns | Ns Sy auto Ns | Ns Sy 1k Ns | Ns
 .Sy 2k Ns | Ns Sy 4k Ns | Ns Sy 8k Ns | Ns Sy 16k
@@ -1192,7 +1192,7 @@ does not override the ancestor's
 but rather imposes an additional limit.
 This feature must be enabled to be used
 .Po see
-.Xr zpool-features 5
+.Xr zpool-features 7
 .Pc .
 .It Sy special_small_blocks Ns = Ns Ar size
 This value represents the threshold block size for including small file
@@ -1207,14 +1207,14 @@ will be allocated in the special class.
 Before setting this property, a special class vdev must be added to the
 pool.
 See
-.Xr zpoolconcepts 8
+.Xr zpoolconcepts 7
 for more details on the special allocation class.
 .It Sy mountpoint Ns = Ns Pa path Ns | Ns Sy none Ns | Ns Sy legacy
 Controls the mount point used for this file system.
 See the
 .Sx Mount Points
 section of
-.Xr zfsconcepts 8
+.Xr zfsconcepts 7
 for more information on how this property is used.
 .Pp
 When the
@@ -1292,7 +1292,7 @@ For example, this means that recursive snapshots taken from the global zone are
 counted against each delegated dataset within a zone.
 This feature must be enabled to be used
 .Po see
-.Xr zpool-features 5
+.Xr zpool-features 7
 .Pc .
 .It Sy userquota@ Ns Ar user Ns = Ns Ar size Ns | Ns Sy none
 Limits the amount of space consumed by the specified user.
@@ -1435,7 +1435,7 @@ If the
 feature is enabled on the pool, the size may be up to
 .Ar 1MB .
 See
-.Xr zpool-features 5
+.Xr zpool-features 7
 for details on ZFS feature flags.
 .Pp
 Changing the file system's
@@ -1686,7 +1686,7 @@ directory is hidden or visible in the root of the file system as discussed in
 the
 .Sx Snapshots
 section of
-.Xr zfsconcepts 8 .
+.Xr zfsconcepts 7 .
 The default value is
 .Sy hidden .
 .It Sy sync Ns = Ns Sy standard Ns | Ns Sy always Ns | Ns Sy disabled

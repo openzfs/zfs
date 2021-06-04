@@ -11,18 +11,21 @@ dist_man_MANS = \
 	man1/arcstat.1 \
 	\
 	man5/vdev_id.conf.5 \
-	man5/zpool-features.5 \
-	man5/spl-module-parameters.5 \
-	man5/zfs-module-parameters.5 \
-	man5/zfs-events.5 \
+	\
+	man4/spl.4 \
+	man4/zfs.4 \
+	\
+	man7/zpool-features.7 \
+	man7/zfsconcepts.7 \
+	man7/zfsprops.7 \
+	man7/zpoolconcepts.7 \
+	man7/zpoolprops.7 \
 	\
 	man8/fsck.zfs.8 \
 	man8/mount.zfs.8 \
 	man8/vdev_id.8 \
 	man8/zdb.8 \
 	man8/zfs.8 \
-	man8/zfsconcepts.8 \
-	man8/zfsprops.8 \
 	man8/zfs-allow.8 \
 	man8/zfs-bookmark.8 \
 	man8/zfs-change-key.8 \
@@ -63,8 +66,6 @@ dist_man_MANS = \
 	man8/zgenhostid.8 \
 	man8/zinject.8 \
 	man8/zpool.8 \
-	man8/zpoolconcepts.8 \
-	man8/zpoolprops.8 \
 	man8/zpool-add.8 \
 	man8/zpool-attach.8 \
 	man8/zpool-checkpoint.8 \

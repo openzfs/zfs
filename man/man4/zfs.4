@@ -16,14 +16,15 @@
 .\" Portions Copyright [yyyy] [name of copyright owner]
 .\"
 .Dd June 1, 2021
-.Dt ZFS-MODULE-PARAMETERS 5
+.Dt ZFS 4
 .Os
 .
 .Sh NAME
-.Nm zfs-module-parameters
-.Nd parameters of the ZFS kernel module
+.Nm zfs
+.Nd tuning of the ZFS kernel module
 .
 .Sh DESCRIPTION
+The ZFS module supports these parameters:
 .Bl -tag -width Ds
 .It Sy dbuf_cache_max_bytes Ns = Ns Sy ULONG_MAX Ns B Pq ulong
 Maximum size in bytes of the dbuf cache.
