@@ -3275,6 +3275,7 @@ vdev_raidz_xlate(vdev_t *cvd, const range_seg64_t *logical_rs,
 
 	vdev_raidz_t *vdrz = raidvd->vdev_tsd;
 
+	ASSERT(raidvd->vdev_rz_expanding == B_FALSE);
 	if (vdrz->vn_vre.vre_state == DSS_SCANNING) {
 		/*
 		 * We're in the middle of expansion, in which case the
@@ -3422,6 +3423,11 @@ raidz_reflow_complete_sync(void *arg, dmu_tx_t *tx)
 	    (unsigned long long)vd->vdev_children);
 
 	spa->spa_raidz_expand = NULL;
+	raidvd->vdev_rz_expanding = B_FALSE;
+
+	spa_async_request(spa, SPA_ASYNC_INITIALIZE_RESTART);
+	spa_async_request(spa, SPA_ASYNC_TRIM_RESTART);
+	spa_async_request(spa, SPA_ASYNC_AUTOTRIM_RESTART);
 
 	spa_notify_waiters(spa);
 }

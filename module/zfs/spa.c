@@ -6936,7 +6936,25 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 	dtl_max_txg = txg + TXG_CONCURRENT_STATES;
 
 	if (raidz) {
-		dmu_tx_t *tx = dmu_tx_create_assigned(spa->spa_dsl_pool, txg);
+		/*
+		 * Wait for the youngest allocations and frees to sync,
+		 * and then wait for the deferral of those frees to finish.
+		 */
+		spa_vdev_config_exit(spa, NULL,
+		    txg + TXG_CONCURRENT_STATES + TXG_DEFER_SIZE, 0, FTAG);
+
+		vdev_initialize_stop_all(tvd, VDEV_INITIALIZE_ACTIVE);
+		vdev_trim_stop_all(tvd, VDEV_TRIM_ACTIVE);
+		vdev_autotrim_stop_wait(tvd);
+
+		dtl_max_txg = spa_vdev_config_enter(spa);
+
+		tvd->vdev_rz_expanding = B_TRUE;
+
+		vdev_dirty_leaves(tvd, VDD_DTL, dtl_max_txg);
+		vdev_config_dirty(tvd);
+
+		dmu_tx_t *tx = dmu_tx_create_assigned(spa->spa_dsl_pool, dtl_max_txg);
 		dsl_sync_task_nowait(spa->spa_dsl_pool, vdev_raidz_attach_sync,
 		    newvd, tx);
 		dmu_tx_commit(tx);
@@ -7300,7 +7318,7 @@ spa_vdev_initialize_impl(spa_t *spa, uint64_t guid, uint64_t cmd_type,
 	 */
 	if (cmd_type == POOL_INITIALIZE_START &&
 	    (vd->vdev_initialize_thread != NULL ||
-	    vd->vdev_top->vdev_removing)) {
+	    vd->vdev_top->vdev_removing || vd->vdev_top->vdev_rz_expanding)) {
 		mutex_exit(&vd->vdev_initialize_lock);
 		return (SET_ERROR(EBUSY));
 	} else if (cmd_type == POOL_INITIALIZE_CANCEL &&
@@ -7415,7 +7433,8 @@ spa_vdev_trim_impl(spa_t *spa, uint64_t guid, uint64_t cmd_type,
 	 * which has completed but the thread is not exited.
 	 */
 	if (cmd_type == POOL_TRIM_START &&
-	    (vd->vdev_trim_thread != NULL || vd->vdev_top->vdev_removing)) {
+	    (vd->vdev_trim_thread != NULL || vd->vdev_top->vdev_removing ||
+	    vd->vdev_top->vdev_rz_expanding)) {
 		mutex_exit(&vd->vdev_trim_lock);
 		return (SET_ERROR(EBUSY));
 	} else if (cmd_type == POOL_TRIM_CANCEL &&

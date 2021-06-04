@@ -4256,7 +4256,8 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 
 	uint64_t free_space = metaslab_class_get_space(spa_normal_class(spa)) -
 	    metaslab_class_get_alloc(spa_normal_class(spa));
-	if (free_space <= spa_get_slop_space(spa) || vd->vdev_removing) {
+	if (free_space <= spa_get_slop_space(spa) || vd->vdev_removing ||
+	    vd->vdev_rz_expanding) {
 		defer_allowed = B_FALSE;
 	}
 
