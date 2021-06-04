@@ -1392,13 +1392,12 @@ vdev_autotrim_thread(void *arg)
 
 		spa_config_exit(spa, SCL_CONFIG, FTAG);
 
-		/*
-		 * After completing the group of metaslabs wait for the next
-		 * open txg.  This is done to make sure that a minimum of
-		 * zfs_trim_txg_batch txgs will occur before these metaslabs
-		 * are trimmed again.
-		 */
-		txg_wait_open(spa_get_dsl(spa), 0, issued_trim);
+		mutex_enter(&vd->vdev_autotrim_lock);
+		if (!vd->vdev_autotrim_exit_wanted) {
+			cv_wait(&vd->vdev_autotrim_kick_cv,
+			    &vd->vdev_autotrim_lock);
+		}
+		mutex_exit(&vd->vdev_autotrim_lock);
 
 		shift++;
 		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
@@ -1476,16 +1475,32 @@ vdev_autotrim_stop_wait(vdev_t *tvd)
 	mutex_enter(&tvd->vdev_autotrim_lock);
 	if (tvd->vdev_autotrim_thread != NULL) {
 		tvd->vdev_autotrim_exit_wanted = B_TRUE;
-
-		while (tvd->vdev_autotrim_thread != NULL) {
-			cv_wait(&tvd->vdev_autotrim_cv,
-			    &tvd->vdev_autotrim_lock);
-		}
+		cv_broadcast(&tvd->vdev_autotrim_kick_cv);
+		cv_wait(&tvd->vdev_autotrim_cv,
+		    &tvd->vdev_autotrim_lock);
 
 		ASSERT3P(tvd->vdev_autotrim_thread, ==, NULL);
 		tvd->vdev_autotrim_exit_wanted = B_FALSE;
 	}
 	mutex_exit(&tvd->vdev_autotrim_lock);
+}
+
+void
+vdev_autotrim_kick(spa_t *spa)
+{
+	ASSERT(spa_config_held(spa, SCL_CONFIG, RW_READER));
+
+	vdev_t *root_vd = spa->spa_root_vdev;
+	vdev_t *tvd;
+
+	for (uint64_t i = 0; i < root_vd->vdev_children; i++) {
+		tvd = root_vd->vdev_child[i];
+
+		mutex_enter(&tvd->vdev_autotrim_lock);
+		if (tvd->vdev_autotrim_thread != NULL)
+			cv_broadcast(&tvd->vdev_autotrim_kick_cv);
+		mutex_exit(&tvd->vdev_autotrim_lock);
+	}
 }
 
 /*

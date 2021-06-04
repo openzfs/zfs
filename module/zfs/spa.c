@@ -9449,6 +9449,9 @@ spa_sync(spa_t *spa, uint64_t txg)
 
 	spa_update_dspace(spa);
 
+	if (spa_get_autotrim(spa) == SPA_AUTOTRIM_ON)
+		vdev_autotrim_kick(spa);
+
 	/*
 	 * It had better be the case that we didn't dirty anything
 	 * since vdev_config_sync().
