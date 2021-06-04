@@ -10,7 +10,8 @@ dist_pkgdata_SCRIPTS = \
 	zfs_snapshot_006_pos.ksh \
 	zfs_snapshot_007_neg.ksh \
 	zfs_snapshot_008_neg.ksh \
-	zfs_snapshot_009_pos.ksh
+	zfs_snapshot_009_pos.ksh \
+	zfs_snapshot_010_pos.ksh
 
 dist_pkgdata_DATA = \
 	zfs_snapshot.cfg
