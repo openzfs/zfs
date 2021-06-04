@@ -472,7 +472,9 @@ systemctl --system daemon-reload >/dev/null || true
 %{_bindir}/dbufstat
 # Man pages
 %{_mandir}/man1/*
+%{_mandir}/man4/*
 %{_mandir}/man5/*
+%{_mandir}/man7/*
 %{_mandir}/man8/*
 # Configuration files and scripts
 %{_libexecdir}/%{name}

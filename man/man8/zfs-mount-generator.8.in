@@ -186,7 +186,7 @@ to re-run all generators:
 .Xr systemd.mount 5 ,
 .Xr systemd.target 5 ,
 .Xr zfs 5 ,
-.Xr zfs-events 5 ,
 .Xr systemd.generator 7 ,
 .Xr systemd.special 7 ,
-.Xr zed 8
+.Xr zed 8 ,
+.Xr zpool-events 8
