@@ -2173,7 +2173,6 @@ vdev_raidz_io_start_read(zio_t *zio, raidz_map_t *rm)
 	 * If there are multiple rows, we will be hitting
 	 * all disks, so go ahead and read the parity so
 	 * that we are reading in decent size chunks.
-	 * XXX maybe doesn't really matter?
 	 */
 	boolean_t forceparity = rm->rm_nrows > 1;
 
@@ -3568,13 +3567,9 @@ raidz_reflow_impl(vdev_t *vd, vdev_raidz_expand_t *vre, range_tree_t *rt,
 	 */
 	uint64_t ubsync_blkid =
 	    RRSS_GET_OFFSET(&spa->spa_ubsync) >> ashift;
-#if 1
 	uint64_t next_overwrite_blkid = ubsync_blkid +
 	    ubsync_blkid / old_children - old_children;
 	VERIFY3U(next_overwrite_blkid, >, ubsync_blkid);
-#else // XXX for testing
-	uint64_t next_overwrite_blkid = ubsync_blkid + 1;
-#endif
 
 	if (blkid >= next_overwrite_blkid) {
 		raidz_reflow_record_progress(vre,
@@ -4408,14 +4403,6 @@ vdev_raidz_init(spa_t *spa, nvlist_t *nv, void **tsd)
 	    nvlist_exists(nv, ZPOOL_CONFIG_RAIDZ_EXPANDING);
 	zfs_dbgmsg("reflow_in_progress=%u", (int)reflow_in_progress);
 	if (reflow_in_progress) {
-		/*
-		 * XXX we parse the mos config while the vdevs for the
-		 * label config still exist, so spa_raidz_expand will be
-		 * set to the label config vdev.  we just overwrite it here.
-		 * should find a cleaner way to do this.
-		 */
-
-		//ASSERT3P(spa->spa_raidz_expand, ==, NULL);
 		spa->spa_raidz_expand = &vdrz->vn_vre;
 		vdrz->vn_vre.vre_state = DSS_SCANNING;
 	}
