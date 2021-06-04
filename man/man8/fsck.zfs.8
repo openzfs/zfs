@@ -58,7 +58,9 @@ interface still allows it to communicate some errors: if the
 .Ar dataset
 is in a degraded pool, then
 .Nm
-will return exit code 4 to indicate an uncorrected filesystem error.
+will return exit code
+.Sy 4
+to indicate an uncorrected filesystem error.
 .Pp
 Similarly, if the
 .Ar dataset
@@ -66,7 +68,9 @@ is in a faulted pool and has a legacy
 .Pa /etc/fstab
 record, then
 .Nm
-will return exit code 8 to indicate a fatal operational error.
+will return exit code
+.Sy 8
+to indicate a fatal operational error.
 .Sh SEE ALSO
 .Xr fstab 5 ,
 .Xr fsck 8 ,
