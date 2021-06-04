@@ -102,7 +102,7 @@ for nparity in 1 2 3; do
 	for disk in ${disks[$(($nparity+2))..$devs]}; do
 		pool_size=$(get_pool_prop size $pool)
 		pause=$((((RANDOM << 15) + RANDOM) % pool_size))
-		log_must set_tunable64 RAIDZ_EXPAND_OFFSET_PAUSE $pause
+		log_must set_tunable64 RAIDZ_EXPAND_MAX_OFFSET_PAUSE $pause
 
 		log_bkgrnd randwritecomp /$pool/fs/file
 		pid0=$!
@@ -123,7 +123,7 @@ for nparity in 1 2 3; do
 		log_must check_pool_status $pool "scan" "repaired 0B"
 
 		pause=$((devs*dev_size_mb*1024*1024))
-		log_must set_tunable64 RAIDZ_EXPAND_OFFSET_PAUSE $pause
+		log_must set_tunable64 RAIDZ_EXPAND_MAX_OFFSET_PAUSE $pause
 
 		log_must zpool wait -t raidz_expand $pool
 	done

@@ -140,7 +140,7 @@ for nparity in 1 2 3; do
 	for disk in ${disks[$(($nparity+2))..$devs]}; do
 		pool_size=$(get_pool_prop size $pool)
 		pause=$((((RANDOM << 15) + RANDOM) % pool_size / 2))
-		log_must set_tunable64 RAIDZ_EXPAND_OFFSET_PAUSE $pause
+		log_must set_tunable64 RAIDZ_EXPAND_MAX_OFFSET_PAUSE $pause
 
 		log_must zpool attach $pool ${raid}-0 $disk
 		devices="$devices $disk"
@@ -152,13 +152,13 @@ for nparity in 1 2 3; do
 
 			pause=$((pause + (((RANDOM << 15) + RANDOM) % \
 			    pool_size) / 4))
-			log_must set_tunable64 RAIDZ_EXPAND_OFFSET_PAUSE $pause
+			log_must set_tunable64 RAIDZ_EXPAND_MAX_OFFSET_PAUSE $pause
 
 			wait_expand_paused
 		done
 
 		pause=$((devs*dev_size_mb*1024*1024))
-		log_must set_tunable64 RAIDZ_EXPAND_OFFSET_PAUSE $pause
+		log_must set_tunable64 RAIDZ_EXPAND_MAX_OFFSET_PAUSE $pause
 
 		log_must zpool wait -t raidz_expand $pool
 	done
