@@ -48,9 +48,8 @@
 #include <sys/zio_compress.h>
 #include <sys/zfeature.h>
 #include <sys/dmu_tx.h>
+#include <zfeature_common.h>
 #include <libzutil.h>
-
-extern boolean_t zfeature_checks_disable;
 
 const char cmdname[] = "zhack";
 static importargs_t g_importargs;

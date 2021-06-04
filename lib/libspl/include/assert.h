@@ -34,7 +34,7 @@
 #include <stdarg.h>
 
 /* Set to non-zero to avoid abort()ing on an assertion failure */
-extern int aok;
+extern int libspl_assert_ok;
 
 /* printf version of libspl_assert */
 extern void libspl_assertf(const char *file, const char *func, int line,

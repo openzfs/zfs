@@ -18,7 +18,6 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
 .\" Copyright (c) 2011, 2019 by Delphix. All rights reserved.
@@ -33,9 +32,10 @@
 .Dd June 30, 2019
 .Dt ZFS-DESTROY 8
 .Os
+.
 .Sh NAME
 .Nm zfs-destroy
-.Nd Destroys the given dataset(s), snapshot(s), or bookmark.
+.Nd destroy ZFS dataset, snapshots, or bookmark
 .Sh SYNOPSIS
 .Nm zfs
 .Cm destroy
@@ -45,10 +45,11 @@
 .Cm destroy
 .Op Fl Rdnprv
 .Ar filesystem Ns | Ns Ar volume Ns @ Ns Ar snap Ns
-.Oo % Ns Ar snap Ns Oo , Ns Ar snap Ns Oo % Ns Ar snap Oc Oc Oc Ns ...
+.Oo % Ns Ar snap Ns Oo , Ns Ar snap Ns Oo % Ns Ar snap Oc Oc Oc Ns …
 .Nm zfs
 .Cm destroy
 .Ar filesystem Ns | Ns Ar volume Ns # Ns Ar bookmark
+.
 .Sh DESCRIPTION
 .Bl -tag -width ""
 .It Xo
@@ -67,9 +68,7 @@ dataset that has active dependents
 Recursively destroy all dependents, including cloned file systems outside the
 target hierarchy.
 .It Fl f
-Force an unmount of any file systems using the
-.Nm unmount Fl f
-command.
+Forcibly unmount file systems.
 This option has no effect on non-file systems or unmounted file systems.
 .It Fl n
 Do a dry-run
@@ -100,10 +99,10 @@ behavior for mounted file systems in use.
 .Cm destroy
 .Op Fl Rdnprv
 .Ar filesystem Ns | Ns Ar volume Ns @ Ns Ar snap Ns
-.Oo % Ns Ar snap Ns Oo , Ns Ar snap Ns Oo % Ns Ar snap Oc Oc Oc Ns ...
+.Oo % Ns Ar snap Ns Oo , Ns Ar snap Ns Oo % Ns Ar snap Oc Oc Oc Ns …
 .Xc
 The given snapshots are destroyed immediately if and only if the
-.Ql zfs destroy
+.Nm zfs Cm destroy
 command without the
 .Fl d
 option would have destroyed it.
@@ -138,8 +137,8 @@ If this flag is specified, the
 .Fl d
 flag will have no effect.
 .It Fl d
-Destroy immediately. If a snapshot cannot be destroyed now, mark it for
-deferred destruction.
+Destroy immediately.
+If a snapshot cannot be destroyed now, mark it for deferred destruction.
 .It Fl n
 Do a dry-run
 .Pq Qq No-op
@@ -173,6 +172,7 @@ behavior for mounted file systems in use.
 .Xc
 The given bookmark is destroyed.
 .El
+.
 .Sh SEE ALSO
 .Xr zfs-create 8 ,
 .Xr zfs-hold 8

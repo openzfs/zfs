@@ -18,7 +18,6 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
 .\" Copyright (c) 2011, 2019 by Delphix. All rights reserved.
@@ -33,9 +32,11 @@
 .Dd June 30, 2019
 .Dt ZFSCONCEPTS 8
 .Os
+.
 .Sh NAME
 .Nm zfsconcepts
-.Nd An overview of ZFS concepts.
+.Nd overview of ZFS concepts
+.
 .Sh DESCRIPTION
 .Ss ZFS File System Hierarchy
 A ZFS storage pool is a logical collection of devices that provide space for
@@ -77,15 +78,15 @@ property.
 .Ss Bookmarks
 A bookmark is like a snapshot, a read-only copy of a file system or volume.
 Bookmarks can be created extremely quickly, compared to snapshots, and they
-consume no additional space within the pool. Bookmarks can also have arbitrary
-names, much like snapshots.
+consume no additional space within the pool.
+Bookmarks can also have arbitrary names, much like snapshots.
 .Pp
-Unlike snapshots, bookmarks can not be accessed through the filesystem in any
-way. From a storage standpoint a bookmark just provides a way to reference
-when a snapshot was created as a distinct object. Bookmarks are initially
-tied to a snapshot, not the filesystem or volume, and they will survive if the
-snapshot itself is destroyed. Since they are very light weight there's little
-incentive to destroy them.
+Unlike snapshots, bookmarks can not be accessed through the filesystem in any way.
+From a storage standpoint a bookmark just provides a way to reference
+when a snapshot was created as a distinct object.
+Bookmarks are initially tied to a snapshot, not the filesystem or volume,
+and they will survive if the snapshot itself is destroyed.
+Since they are very light weight there's little incentive to destroy them.
 .Ss Clones
 A clone is a writable volume or file system whose initial contents are the same
 as another dataset.
@@ -162,37 +163,44 @@ If needed, ZFS file systems can also be managed with traditional tools
 If a file system's mount point is set to
 .Sy legacy ,
 ZFS makes no attempt to manage the file system, and the administrator is
-responsible for mounting and unmounting the file system. Because pools must
+responsible for mounting and unmounting the file system.
+Because pools must
 be imported before a legacy mount can succeed, administrators should ensure
 that legacy mounts are only attempted after the zpool import process
-finishes at boot time. For example, on machines using systemd, the mount
-option
+finishes at boot time.
+For example, on machines using systemd, the mount option
 .Pp
 .Nm x-systemd.requires=zfs-import.target
 .Pp
 will ensure that the zfs-import completes before systemd attempts mounting
-the filesystem. See systemd.mount(5) for details.
+the filesystem.
+See
+.Xr systemd.mount 5
+for details.
 .Ss Deduplication
 Deduplication is the process for removing redundant data at the block level,
-reducing the total amount of data stored. If a file system has the
+reducing the total amount of data stored.
+If a file system has the
 .Sy dedup
-property enabled, duplicate data blocks are removed synchronously. The result
+property enabled, duplicate data blocks are removed synchronously.
+The result
 is that only unique data is stored and common components are shared among files.
 .Pp
-Deduplicating data is a very resource-intensive operation. It is generally
-recommended that you have at least 1.25 GiB of RAM per 1 TiB of storage when
-you enable deduplication. Calculating the exact requirement depends heavily
+Deduplicating data is a very resource-intensive operation.
+It is generally recommended that you have at least 1.25 GiB of RAM
+per 1 TiB of storage when you enable deduplication.
+Calculating the exact requirement depends heavily
 on the type of data stored in the pool.
 .Pp
 Enabling deduplication on an improperly-designed system can result in
-performance issues (slow IO and administrative operations). It can potentially
-lead to problems importing a pool due to memory exhaustion. Deduplication
-can consume significant processing power (CPU) and memory as well as generate
-additional disk IO.
+performance issues (slow IO and administrative operations).
+It can potentially lead to problems importing a pool due to memory exhaustion.
+Deduplication can consume significant processing power (CPU) and memory as well
+as generate additional disk IO.
 .Pp
 Before creating a pool with deduplication enabled, ensure that you have planned
 your hardware requirements appropriately and implemented appropriate recovery
-practices, such as regular backups. As an alternative to deduplication
-consider using
-.Sy compression=on ,
-as a less resource-intensive alternative.
+practices, such as regular backups.
+Consider using the
+.Sy compression
+property as a less resource-intensive alternative.

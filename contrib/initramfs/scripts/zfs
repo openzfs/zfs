@@ -390,7 +390,7 @@ decrypt_fs()
 	fs="$1"
 
 	# If pool encryption is active and the zfs command understands '-o encryption'
-	if [ "$(zpool list -H -o feature@encryption "$(echo "${fs}" | awk -F/ '{print $1}')")" = 'active' ]; then
+	if [ "$(zpool list -H -o feature@encryption "${fs%%/*}")" = 'active' ]; then
 
 		# Determine dataset that holds key for root dataset
 		ENCRYPTIONROOT="$(get_fs_value "${fs}" encryptionroot)"
@@ -706,7 +706,8 @@ mountroot()
 
 	# ------------
 	# Look for the cache file (if any).
-	[ ! -f "${ZPOOL_CACHE}" ] && unset ZPOOL_CACHE
+	[ -f "${ZPOOL_CACHE}" ] || unset ZPOOL_CACHE
+	[ -s "${ZPOOL_CACHE}" ] || unset ZPOOL_CACHE
 
 	# ------------
 	# Compatibility: 'ROOT' is for Debian GNU/Linux (etc),

@@ -131,27 +131,31 @@ typedef struct zfs_uri_handler {
 
 #define	CONFIG_BUF_MINSIZE	262144
 
-int zfs_error(libzfs_handle_t *, int, const char *);
-int zfs_error_fmt(libzfs_handle_t *, int, const char *, ...);
-void zfs_error_aux(libzfs_handle_t *, const char *, ...);
-void *zfs_alloc(libzfs_handle_t *, size_t);
-void *zfs_realloc(libzfs_handle_t *, void *, size_t, size_t);
-char *zfs_asprintf(libzfs_handle_t *, const char *, ...);
-char *zfs_strdup(libzfs_handle_t *, const char *);
-int no_memory(libzfs_handle_t *);
+extern int zfs_error(libzfs_handle_t *, int, const char *);
+extern int zfs_error_fmt(libzfs_handle_t *, int, const char *, ...)
+    __attribute__((format(printf, 3, 4)));
+extern void zfs_error_aux(libzfs_handle_t *, const char *, ...)
+    __attribute__((format(printf, 2, 3)));
+extern void *zfs_alloc(libzfs_handle_t *, size_t);
+extern void *zfs_realloc(libzfs_handle_t *, void *, size_t, size_t);
+extern char *zfs_asprintf(libzfs_handle_t *, const char *, ...)
+    __attribute__((format(printf, 2, 3)));
+extern char *zfs_strdup(libzfs_handle_t *, const char *);
+extern int no_memory(libzfs_handle_t *);
 
-int zfs_standard_error(libzfs_handle_t *, int, const char *);
-int zfs_standard_error_fmt(libzfs_handle_t *, int, const char *, ...);
-void zfs_setprop_error(libzfs_handle_t *, zfs_prop_t, int, char *);
-int zpool_standard_error(libzfs_handle_t *, int, const char *);
-int zpool_standard_error_fmt(libzfs_handle_t *, int, const char *, ...);
+extern int zfs_standard_error_fmt(libzfs_handle_t *, int, const char *, ...)
+    __attribute__((format(printf, 3, 4)));
+extern void zfs_setprop_error(libzfs_handle_t *, zfs_prop_t, int, char *);
+extern int zpool_standard_error(libzfs_handle_t *, int, const char *);
+extern int zpool_standard_error_fmt(libzfs_handle_t *, int, const char *, ...)
+    __attribute__((format(printf, 3, 4)));
 
-zfs_handle_t *make_dataset_handle_zc(libzfs_handle_t *, zfs_cmd_t *);
-zfs_handle_t *make_dataset_simple_handle_zc(zfs_handle_t *, zfs_cmd_t *);
+extern zfs_handle_t *make_dataset_handle_zc(libzfs_handle_t *, zfs_cmd_t *);
+extern zfs_handle_t *make_dataset_simple_handle_zc(zfs_handle_t *, zfs_cmd_t *);
 
-int zprop_parse_value(libzfs_handle_t *, nvpair_t *, int, zfs_type_t,
+extern int zprop_parse_value(libzfs_handle_t *, nvpair_t *, int, zfs_type_t,
     nvlist_t *, char **, uint64_t *, const char *);
-int zprop_expand_list(libzfs_handle_t *hdl, zprop_list_t **plp,
+extern int zprop_expand_list(libzfs_handle_t *hdl, zprop_list_t **plp,
     zfs_type_t type);
 
 /*
@@ -171,43 +175,41 @@ int zprop_expand_list(libzfs_handle_t *hdl, zprop_list_t **plp,
 
 typedef struct prop_changelist prop_changelist_t;
 
-int zcmd_alloc_dst_nvlist(libzfs_handle_t *, zfs_cmd_t *, size_t);
-int zcmd_write_src_nvlist(libzfs_handle_t *, zfs_cmd_t *, nvlist_t *);
-int zcmd_write_conf_nvlist(libzfs_handle_t *, zfs_cmd_t *, nvlist_t *);
-int zcmd_expand_dst_nvlist(libzfs_handle_t *, zfs_cmd_t *);
-int zcmd_read_dst_nvlist(libzfs_handle_t *, zfs_cmd_t *, nvlist_t **);
-void zcmd_free_nvlists(zfs_cmd_t *);
+extern int zcmd_alloc_dst_nvlist(libzfs_handle_t *, zfs_cmd_t *, size_t);
+extern int zcmd_write_src_nvlist(libzfs_handle_t *, zfs_cmd_t *, nvlist_t *);
+extern int zcmd_write_conf_nvlist(libzfs_handle_t *, zfs_cmd_t *, nvlist_t *);
+extern int zcmd_expand_dst_nvlist(libzfs_handle_t *, zfs_cmd_t *);
+extern int zcmd_read_dst_nvlist(libzfs_handle_t *, zfs_cmd_t *, nvlist_t **);
+extern void zcmd_free_nvlists(zfs_cmd_t *);
 
-int changelist_prefix(prop_changelist_t *);
-int changelist_postfix(prop_changelist_t *);
-void changelist_rename(prop_changelist_t *, const char *, const char *);
-void changelist_remove(prop_changelist_t *, const char *);
-void changelist_free(prop_changelist_t *);
-prop_changelist_t *changelist_gather(zfs_handle_t *, zfs_prop_t, int, int);
-int changelist_unshare(prop_changelist_t *, zfs_share_proto_t *);
-int changelist_haszonedchild(prop_changelist_t *);
+extern int changelist_prefix(prop_changelist_t *);
+extern int changelist_postfix(prop_changelist_t *);
+extern void changelist_rename(prop_changelist_t *, const char *, const char *);
+extern void changelist_remove(prop_changelist_t *, const char *);
+extern void changelist_free(prop_changelist_t *);
+extern prop_changelist_t *changelist_gather(zfs_handle_t *, zfs_prop_t, int,
+    int);
+extern int changelist_unshare(prop_changelist_t *, zfs_share_proto_t *);
+extern int changelist_haszonedchild(prop_changelist_t *);
 
-void remove_mountpoint(zfs_handle_t *);
-int create_parents(libzfs_handle_t *, char *, int);
-boolean_t isa_child_of(const char *dataset, const char *parent);
+extern void remove_mountpoint(zfs_handle_t *);
+extern int create_parents(libzfs_handle_t *, char *, int);
 
-zfs_handle_t *make_dataset_handle(libzfs_handle_t *, const char *);
-zfs_handle_t *make_bookmark_handle(zfs_handle_t *, const char *,
+extern zfs_handle_t *make_dataset_handle(libzfs_handle_t *, const char *);
+extern zfs_handle_t *make_bookmark_handle(zfs_handle_t *, const char *,
     nvlist_t *props);
 
-int zpool_open_silent(libzfs_handle_t *, const char *, zpool_handle_t **);
+extern int zpool_open_silent(libzfs_handle_t *, const char *,
+    zpool_handle_t **);
 
-boolean_t zpool_name_valid(libzfs_handle_t *, boolean_t, const char *);
+extern boolean_t zpool_name_valid(libzfs_handle_t *, boolean_t, const char *);
 
-int zfs_validate_name(libzfs_handle_t *hdl, const char *path, int type,
+extern int zfs_validate_name(libzfs_handle_t *hdl, const char *path, int type,
     boolean_t modifying);
 
-void namespace_clear(libzfs_handle_t *);
+extern void namespace_clear(libzfs_handle_t *);
 
 extern int zfs_parse_options(char *, zfs_share_proto_t);
-
-extern int zfs_unshare_proto(zfs_handle_t *,
-    const char *, zfs_share_proto_t *);
 
 typedef struct {
 	zfs_prop_t p_prop;
@@ -243,6 +245,7 @@ extern int do_mount(zfs_handle_t *zhp, const char *mntpt, char *opts,
     int flags);
 extern int do_unmount(const char *mntpt, int flags);
 extern int zfs_share_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto);
+extern int zfs_unshare_proto(zfs_handle_t *, const char *, zfs_share_proto_t *);
 extern int unshare_one(libzfs_handle_t *hdl, const char *name,
     const char *mountpoint, zfs_share_proto_t proto);
 extern boolean_t zfs_is_mountable(zfs_handle_t *zhp, char *buf, size_t buflen,

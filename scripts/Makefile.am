@@ -17,7 +17,8 @@ EXTRA_SCRIPTS = \
 	kmodtool \
 	make_gitrev.sh \
 	man-dates.sh \
-	paxcheck.sh
+	paxcheck.sh \
+	mancheck.sh
 
 EXTRA_DIST = \
 	cstyle.pl \

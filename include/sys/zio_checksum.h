@@ -25,7 +25,7 @@
  */
 
 #ifndef _SYS_ZIO_CHECKSUM_H
-#define	_SYS_ZIO_CHECKSUM_H
+#define	_SYS_ZIO_CHECKSUM_H extern __attribute__((visibility("default")))
 
 #include <sys/zio.h>
 #include <zfeature_common.h>
@@ -101,7 +101,8 @@ typedef struct zio_bad_cksum {
 	uint8_t			zbc_has_cksum;	/* expected/actual valid */
 } zio_bad_cksum_t;
 
-extern zio_checksum_info_t zio_checksum_table[ZIO_CHECKSUM_FUNCTIONS];
+_SYS_ZIO_CHECKSUM_H zio_checksum_info_t
+    zio_checksum_table[ZIO_CHECKSUM_FUNCTIONS];
 
 /*
  * Checksum routines.
@@ -122,7 +123,7 @@ extern zio_checksum_t abd_checksum_edonr_byteswap;
 extern zio_checksum_tmpl_init_t abd_checksum_edonr_tmpl_init;
 extern zio_checksum_tmpl_free_t abd_checksum_edonr_tmpl_free;
 
-extern zio_abd_checksum_func_t fletcher_4_abd_ops;
+_SYS_ZIO_CHECKSUM_H zio_abd_checksum_func_t fletcher_4_abd_ops;
 extern zio_checksum_t abd_fletcher_4_native;
 extern zio_checksum_t abd_fletcher_4_byteswap;
 

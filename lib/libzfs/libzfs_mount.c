@@ -95,7 +95,7 @@
 static int mount_tp_nthr = 512;	/* tpool threads for multi-threaded mounting */
 
 static void zfs_mount_task(void *);
-zfs_share_type_t zfs_is_shared_proto(zfs_handle_t *, char **,
+static zfs_share_type_t zfs_is_shared_proto(zfs_handle_t *, char **,
     zfs_share_proto_t);
 
 /*
@@ -107,16 +107,16 @@ proto_table_t proto_table[PROTO_END] = {
 	{ZFS_PROP_SHARESMB, "smb", EZFS_SHARESMBFAILED, EZFS_UNSHARESMBFAILED},
 };
 
-zfs_share_proto_t nfs_only[] = {
+static zfs_share_proto_t nfs_only[] = {
 	PROTO_NFS,
 	PROTO_END
 };
 
-zfs_share_proto_t smb_only[] = {
+static zfs_share_proto_t smb_only[] = {
 	PROTO_SMB,
 	PROTO_END
 };
-zfs_share_proto_t share_all_proto[] = {
+static zfs_share_proto_t share_all_proto[] = {
 	PROTO_NFS,
 	PROTO_SMB,
 	PROTO_END
@@ -818,7 +818,7 @@ zfs_unshare(zfs_handle_t *zhp)
 /*
  * Check to see if the filesystem is currently shared.
  */
-zfs_share_type_t
+static zfs_share_type_t
 zfs_is_shared_proto(zfs_handle_t *zhp, char **where, zfs_share_proto_t proto)
 {
 	char *mountpoint;
@@ -1451,7 +1451,6 @@ zfs_foreach_mountpoint(libzfs_handle_t *hdl, zfs_handle_t **handles,
  * Mount and share all datasets within the given pool.  This assumes that no
  * datasets within the pool are currently mounted.
  */
-#pragma weak zpool_mount_datasets = zpool_enable_datasets
 int
 zpool_enable_datasets(zpool_handle_t *zhp, const char *mntopts, int flags)
 {
@@ -1513,8 +1512,6 @@ mountpoint_compare(const void *a, const void *b)
 	return (strcmp(mountb, mounta));
 }
 
-/* alias for 2002/240 */
-#pragma weak zpool_unmount_datasets = zpool_disable_datasets
 /*
  * Unshare and unmount all datasets within the given pool.  We don't want to
  * rely on traversing the DSL to discover the filesystems within the pool,

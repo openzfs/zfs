@@ -17,33 +17,6 @@ Description of the different parameters to the SPL module.
 .sp
 .ne 2
 .na
-\fBspl_kmem_cache_expire\fR (uint)
-.ad
-.RS 12n
-Cache expiration is part of default Illumos cache behavior.  The idea is
-that objects in magazines which have not been recently accessed should be
-returned to the slabs periodically.  This is known as cache aging and
-when enabled objects will be typically returned after 15 seconds.
-.sp
-On the other hand Linux slabs are designed to never move objects back to
-the slabs unless there is memory pressure.  This is possible because under
-Linux the cache will be notified when memory is low and objects can be
-released.
-.sp
-By default only the Linux method is enabled.  It has been shown to improve
-responsiveness on low memory systems and not negatively impact the performance
-of systems with more memory.  This policy may be changed by setting the
-\fBspl_kmem_cache_expire\fR bit mask as follows, both policies may be enabled
-concurrently.
-.sp
-0x01 - Aging (Illumos), 0x02 - Low memory (Linux)
-.sp
-Default value: \fB0x02\fR
-.RE
-
-.sp
-.ne 2
-.na
 \fBspl_kmem_cache_kmem_threads\fR (uint)
 .ad
 .RS 12n
@@ -83,20 +56,6 @@ the footprint and improve cache reclaim time but individual allocations may
 take longer.
 .sp
 Default value: \fB8\fR
-.RE
-
-.sp
-.ne 2
-.na
-\fBspl_kmem_cache_obj_per_slab_min\fR (uint)
-.ad
-.RS 12n
-The minimum number of objects allowed per slab.  Normally slabs will contain
-\fBspl_kmem_cache_obj_per_slab\fR objects but for caches that contain very
-large objects it's desirable to only have a few, or even just one, object per
-slab.
-.sp
-Default value: \fB1\fR
 .RE
 
 .sp

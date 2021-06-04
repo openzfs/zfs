@@ -32,7 +32,7 @@
  */
 
 #ifndef	_SYS_FS_ZFS_H
-#define	_SYS_FS_ZFS_H
+#define	_SYS_FS_ZFS_H extern __attribute__((visibility("default")))
 
 #include <sys/time.h>
 #include <sys/zio_priority.h>
@@ -205,7 +205,7 @@ typedef enum {
 	ZFS_NUM_USERQUOTA_PROPS
 } zfs_userquota_prop_t;
 
-extern const char *zfs_userquota_prop_prefixes[ZFS_NUM_USERQUOTA_PROPS];
+_SYS_FS_ZFS_H const char *zfs_userquota_prop_prefixes[ZFS_NUM_USERQUOTA_PROPS];
 
 /*
  * Pool properties are identified by these constants and must be added to the
@@ -301,38 +301,41 @@ typedef int (*zprop_func)(int, void *);
 /*
  * Dataset property functions shared between libzfs and kernel.
  */
-const char *zfs_prop_default_string(zfs_prop_t);
-uint64_t zfs_prop_default_numeric(zfs_prop_t);
-boolean_t zfs_prop_readonly(zfs_prop_t);
-boolean_t zfs_prop_visible(zfs_prop_t prop);
-boolean_t zfs_prop_inheritable(zfs_prop_t);
-boolean_t zfs_prop_setonce(zfs_prop_t);
-boolean_t zfs_prop_encryption_key_param(zfs_prop_t);
-boolean_t zfs_prop_valid_keylocation(const char *, boolean_t);
-const char *zfs_prop_to_name(zfs_prop_t);
-zfs_prop_t zfs_name_to_prop(const char *);
-boolean_t zfs_prop_user(const char *);
-boolean_t zfs_prop_userquota(const char *);
-boolean_t zfs_prop_written(const char *);
-int zfs_prop_index_to_string(zfs_prop_t, uint64_t, const char **);
-int zfs_prop_string_to_index(zfs_prop_t, const char *, uint64_t *);
-uint64_t zfs_prop_random_value(zfs_prop_t, uint64_t seed);
-boolean_t zfs_prop_valid_for_type(int, zfs_type_t, boolean_t);
+_SYS_FS_ZFS_H const char *zfs_prop_default_string(zfs_prop_t);
+_SYS_FS_ZFS_H uint64_t zfs_prop_default_numeric(zfs_prop_t);
+_SYS_FS_ZFS_H boolean_t zfs_prop_readonly(zfs_prop_t);
+_SYS_FS_ZFS_H boolean_t zfs_prop_visible(zfs_prop_t prop);
+_SYS_FS_ZFS_H boolean_t zfs_prop_inheritable(zfs_prop_t);
+_SYS_FS_ZFS_H boolean_t zfs_prop_setonce(zfs_prop_t);
+_SYS_FS_ZFS_H boolean_t zfs_prop_encryption_key_param(zfs_prop_t);
+_SYS_FS_ZFS_H boolean_t zfs_prop_valid_keylocation(const char *, boolean_t);
+_SYS_FS_ZFS_H const char *zfs_prop_to_name(zfs_prop_t);
+_SYS_FS_ZFS_H zfs_prop_t zfs_name_to_prop(const char *);
+_SYS_FS_ZFS_H boolean_t zfs_prop_user(const char *);
+_SYS_FS_ZFS_H boolean_t zfs_prop_userquota(const char *);
+_SYS_FS_ZFS_H boolean_t zfs_prop_written(const char *);
+_SYS_FS_ZFS_H int zfs_prop_index_to_string(zfs_prop_t, uint64_t, const char **);
+_SYS_FS_ZFS_H int zfs_prop_string_to_index(zfs_prop_t, const char *,
+    uint64_t *);
+_SYS_FS_ZFS_H uint64_t zfs_prop_random_value(zfs_prop_t, uint64_t seed);
+_SYS_FS_ZFS_H boolean_t zfs_prop_valid_for_type(int, zfs_type_t, boolean_t);
 
 /*
  * Pool property functions shared between libzfs and kernel.
  */
-zpool_prop_t zpool_name_to_prop(const char *);
-const char *zpool_prop_to_name(zpool_prop_t);
-const char *zpool_prop_default_string(zpool_prop_t);
-uint64_t zpool_prop_default_numeric(zpool_prop_t);
-boolean_t zpool_prop_readonly(zpool_prop_t);
-boolean_t zpool_prop_setonce(zpool_prop_t);
-boolean_t zpool_prop_feature(const char *);
-boolean_t zpool_prop_unsupported(const char *);
-int zpool_prop_index_to_string(zpool_prop_t, uint64_t, const char **);
-int zpool_prop_string_to_index(zpool_prop_t, const char *, uint64_t *);
-uint64_t zpool_prop_random_value(zpool_prop_t, uint64_t seed);
+_SYS_FS_ZFS_H zpool_prop_t zpool_name_to_prop(const char *);
+_SYS_FS_ZFS_H const char *zpool_prop_to_name(zpool_prop_t);
+_SYS_FS_ZFS_H const char *zpool_prop_default_string(zpool_prop_t);
+_SYS_FS_ZFS_H uint64_t zpool_prop_default_numeric(zpool_prop_t);
+_SYS_FS_ZFS_H boolean_t zpool_prop_readonly(zpool_prop_t);
+_SYS_FS_ZFS_H boolean_t zpool_prop_setonce(zpool_prop_t);
+_SYS_FS_ZFS_H boolean_t zpool_prop_feature(const char *);
+_SYS_FS_ZFS_H boolean_t zpool_prop_unsupported(const char *);
+_SYS_FS_ZFS_H int zpool_prop_index_to_string(zpool_prop_t, uint64_t,
+    const char **);
+_SYS_FS_ZFS_H int zpool_prop_string_to_index(zpool_prop_t, const char *,
+    uint64_t *);
+_SYS_FS_ZFS_H uint64_t zpool_prop_random_value(zpool_prop_t, uint64_t seed);
 
 /*
  * Definitions for the Delegation.

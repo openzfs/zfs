@@ -18,7 +18,6 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
 .\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
@@ -27,56 +26,47 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd August 9, 2019
+.Dd May 27, 2021
 .Dt ZPOOL-CHECKPOINT 8
 .Os
+.
 .Sh NAME
 .Nm zpool-checkpoint
-.Nd Checkpoints the current state of a ZFS storage pool
+.Nd check-point current ZFS storage pool state
 .Sh SYNOPSIS
 .Nm zpool
 .Cm checkpoint
-.Op Fl d, -discard Oo Fl w, -wait Oc
+.Op Fl d Op Fl w
 .Ar pool
+.
 .Sh DESCRIPTION
-.Bl -tag -width Ds
-.It Xo
-.Nm zpool
-.Cm checkpoint
-.Op Fl d, -discard Oo Fl w, -wait Oc
-.Ar pool
-.Xc
 Checkpoints the current state of
 .Ar pool
 , which can be later restored by
 .Nm zpool Cm import --rewind-to-checkpoint .
 The existence of a checkpoint in a pool prohibits the following
 .Nm zpool
-commands:
-.Cm remove ,
-.Cm attach ,
-.Cm detach ,
-.Cm split ,
-and
-.Cm reguid .
+subcommands:
+.Cm remove , attach , detach , split , No and Cm reguid .
 In addition, it may break reservation boundaries if the pool lacks free
 space.
 The
 .Nm zpool Cm status
 command indicates the existence of a checkpoint or the progress of discarding a
 checkpoint from a pool.
-The
 .Nm zpool Cm list
-command reports how much space the checkpoint takes from the pool.
+can be used to check how much space the checkpoint takes from the pool.
+.
+.Sh OPTIONS
 .Bl -tag -width Ds
-.It Fl d, -discard
+.It Fl d , -discard
 Discards an existing checkpoint from
 .Ar pool .
-.It Fl w, -wait
+.It Fl w , -wait
 Waits until the checkpoint has finished being discarded before returning.
 .El
-.El
+.
 .Sh SEE ALSO
+.Xr zfs-snapshot 8 ,
 .Xr zpool-import 8 ,
-.Xr zpool-status 8 ,
-.Xr zfs-snapshot 8
+.Xr zpool-status 8

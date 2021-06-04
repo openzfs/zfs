@@ -18,7 +18,6 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
 .\" Copyright (c) 2011, 2019 by Delphix. All rights reserved.
@@ -41,9 +40,11 @@
 .Dd May 24, 2021
 .Dt ZFSPROPS 8
 .Os
+.
 .Sh NAME
 .Nm zfsprops
-.Nd Native properties and user-defined of ZFS datasets.
+.Nd native and user-defined properties of ZFS datasets
+.
 .Sh DESCRIPTION
 Properties are divided into two types, native properties and user-defined
 .Po or
@@ -57,6 +58,7 @@ datasets in a way that is meaningful in your environment.
 For more information about user properties, see the
 .Sx User Properties
 section, below.
+.
 .Ss Native Properties
 Every dataset has a set of properties that export statistics about the dataset
 as well as control various behaviors.
@@ -118,11 +120,12 @@ Compression can be turned on by running:
 The default value is
 .Sy off .
 .It Sy createtxg
-The transaction group (txg) in which the dataset was created. Bookmarks have
-the same
+The transaction group (txg) in which the dataset was created.
+Bookmarks have the same
 .Sy createtxg
-as the snapshot they are initially tied to. This property is suitable for
-ordering a list of snapshots, e.g. for incremental send and receive.
+as the snapshot they are initially tied to.
+This property is suitable for ordering a list of snapshots,
+e.g. for incremental send and receive.
 .It Sy creation
 The time this dataset was created.
 .It Sy clones
@@ -153,7 +156,8 @@ Otherwise, the property is
 .Sy off .
 .It Sy encryptionroot
 For encrypted datasets, indicates where the dataset is currently inheriting its
-encryption key from. Loading or unloading a key for the
+encryption key from.
+Loading or unloading a key for the
 .Sy encryptionroot
 will implicitly load / unload the key for any inheriting datasets (see
 .Nm zfs Cm load-key
@@ -161,8 +165,9 @@ and
 .Nm zfs Cm unload-key
 for details).
 Clones will always share an
-encryption key with their origin. See the
-.Em Encryption
+encryption key with their origin.
+See the
+.Sx Encryption
 section of
 .Xr zfs-load-key 8
 for details.
@@ -173,8 +178,8 @@ This value is only available when a
 .Sy filesystem_limit
 has been set somewhere in the tree under which the dataset resides.
 .It Sy keystatus
-Indicates if an encryption key is currently loaded into ZFS. The possible
-values are
+Indicates if an encryption key is currently loaded into ZFS.
+The possible values are
 .Sy none ,
 .Sy available ,
 and
@@ -185,8 +190,9 @@ and
 .Nm zfs Cm unload-key .
 .It Sy guid
 The 64 bit GUID of this dataset or bookmark which does not change over its
-entire lifetime. When a snapshot is sent to another pool, the received
-snapshot has the same GUID. Thus, the
+entire lifetime.
+When a snapshot is sent to another pool, the received snapshot has the same GUID.
+Thus, the
 .Sy guid
 is suitable to identify a snapshot across pools.
 .It Sy logicalreferenced
@@ -230,10 +236,9 @@ This property can be either
 or
 .Sy no .
 .It Sy objsetid
-A unique identifier for this dataset within the pool. Unlike the dataset's
-.Sy guid
-, the
-.Sy objsetid
+A unique identifier for this dataset within the pool.
+Unlike the dataset's
+.Sy guid , No the Sy objsetid
 of a dataset is not transferred to other pools when the snapshot is copied
 with a send/receive operation.
 The
@@ -297,7 +302,7 @@ greater of its space used and its reservation.
 .Pp
 The used space of a snapshot
 .Po see the
-.Em Snapshots
+.Sx Snapshots
 section of
 .Xr zfsconcepts 8
 .Pc
@@ -323,7 +328,7 @@ Pending changes are generally accounted for within a few seconds.
 Committing a change to a disk using
 .Xr fsync 2
 or
-.Dv O_SYNC
+.Sy O_SYNC
 does not necessarily guarantee that the space usage information is updated
 immediately.
 .It Sy usedby*
@@ -365,17 +370,15 @@ dataset's snapshots were destroyed.
 Note that this is not simply the sum of the snapshots'
 .Sy used
 properties because space can be shared by multiple snapshots.
-.It Sy userused Ns @ Ns Em user
+.It Sy userused Ns @ Ns Ar user
 The amount of space consumed by the specified user in this dataset.
 Space is charged to the owner of each file, as displayed by
 .Nm ls Fl l .
 The amount of space charged is displayed by
-.Nm du
-and
-.Nm ls Fl s .
+.Nm du No and Nm ls Fl s .
 See the
 .Nm zfs Cm userspace
-subcommand for more information.
+command for more information.
 .Pp
 Unprivileged users can access only their own space usage.
 The root user, or a user who has been granted the
@@ -385,66 +388,60 @@ privilege with
 can access everyone's usage.
 .Pp
 The
-.Sy userused Ns @ Ns Em ...
+.Sy userused Ns @ Ns Ar ...
 properties are not displayed by
 .Nm zfs Cm get Sy all .
-The user's name must be appended after the @ symbol, using one of the following
-forms:
-.Bl -bullet -width ""
+The user's name must be appended after the
+.Sy @
+symbol, using one of the following forms:
+.Bl -bullet -compact -offset 4n
 .It
-.Em POSIX name
-.Po for example,
-.Sy joe
-.Pc
+POSIX name
+.Pq Qq joe
 .It
-.Em POSIX numeric ID
-.Po for example,
-.Sy 789
-.Pc
+POSIX numeric ID
+.Pq Qq 789
 .It
-.Em SID name
-.Po for example,
-.Sy joe.smith@mydomain
-.Pc
+SID name
+.Pq Qq joe.smith@mydomain
 .It
-.Em SID numeric ID
-.Po for example,
-.Sy S-1-123-456-789
-.Pc
+SID numeric ID
+.Pq Qq S-1-123-456-789
 .El
 .Pp
 Files created on Linux always have POSIX owners.
-.It Sy userobjused Ns @ Ns Em user
+.It Sy userobjused Ns @ Ns Ar user
 The
 .Sy userobjused
 property is similar to
 .Sy userused
-but instead it counts the number of objects consumed by a user. This property
-counts all objects allocated on behalf of the user, it may differ from the
-results of system tools such as
+but instead it counts the number of objects consumed by a user.
+This property counts all objects allocated on behalf of the user,
+it may differ from the results of system tools such as
 .Nm df Fl i .
 .Pp
 When the property
-.Sy xattr=on
+.Sy xattr Ns = Ns Sy on
 is set on a file system additional objects will be created per-file to store
-extended attributes. These additional objects are reflected in the
+extended attributes.
+These additional objects are reflected in the
 .Sy userobjused
 value and are counted against the user's
 .Sy userobjquota .
 When a file system is configured to use
-.Sy xattr=sa
+.Sy xattr Ns = Ns Sy sa
 no additional internal objects are normally required.
 .It Sy userrefs
 This property is set to the number of user holds on this snapshot.
 User holds are set by using the
 .Nm zfs Cm hold
 command.
-.It Sy groupused Ns @ Ns Em group
+.It Sy groupused Ns @ Ns Ar group
 The amount of space consumed by the specified group in this dataset.
 Space is charged to the group of each file, as displayed by
 .Nm ls Fl l .
 See the
-.Sy userused Ns @ Ns Em user
+.Sy userused Ns @ Ns Ar user
 property for more information.
 .Pp
 Unprivileged users can only access their own groups' space usage.
@@ -453,11 +450,12 @@ The root user, or a user who has been granted the
 privilege with
 .Nm zfs Cm allow ,
 can access all groups' usage.
-.It Sy groupobjused Ns @ Ns Em group
+.It Sy groupobjused Ns @ Ns Ar group
 The number of objects consumed by the specified group in this dataset.
 Multiple objects may be charged to the group for each file when extended
-attributes are in use. See the
-.Sy userobjused Ns @ Ns Em user
+attributes are in use.
+See the
+.Sy userobjused Ns @ Ns Ar user
 property for more information.
 .Pp
 Unprivileged users can only access their own groups' space usage.
@@ -466,25 +464,28 @@ The root user, or a user who has been granted the
 privilege with
 .Nm zfs Cm allow ,
 can access all groups' usage.
-.It Sy projectused Ns @ Ns Em project
-The amount of space consumed by the specified project in this dataset. Project
-is identified via the project identifier (ID) that is object-based numeral
-attribute. An object can inherit the project ID from its parent object (if the
+.It Sy projectused Ns @ Ns Ar project
+The amount of space consumed by the specified project in this dataset.
+Project is identified via the project identifier (ID) that is object-based
+numeral attribute.
+An object can inherit the project ID from its parent object (if the
 parent has the flag of inherit project ID that can be set and changed via
 .Nm chattr Fl /+P
 or
 .Nm zfs project Fl s )
-when being created. The privileged user can set and change object's project
+when being created.
+The privileged user can set and change object's project
 ID via
 .Nm chattr Fl p
 or
 .Nm zfs project Fl s
-anytime. Space is charged to the project of each file, as displayed by
+anytime.
+Space is charged to the project of each file, as displayed by
 .Nm lsattr Fl p
 or
 .Nm zfs project .
 See the
-.Sy userused Ns @ Ns Em user
+.Sy userused Ns @ Ns Ar user
 property for more information.
 .Pp
 The root user, or a user who has been granted the
@@ -492,23 +493,25 @@ The root user, or a user who has been granted the
 privilege with
 .Nm zfs allow ,
 can access all projects' usage.
-.It Sy projectobjused Ns @ Ns Em project
+.It Sy projectobjused Ns @ Ns Ar project
 The
 .Sy projectobjused
 is similar to
 .Sy projectused
-but instead it counts the number of objects consumed by project. When the
-property
-.Sy xattr=on
+but instead it counts the number of objects consumed by project.
+When the property
+.Sy xattr Ns = Ns Sy on
 is set on a fileset, ZFS will create additional objects per-file to store
-extended attributes. These additional objects are reflected in the
+extended attributes.
+These additional objects are reflected in the
 .Sy projectobjused
 value and are counted against the project's
 .Sy projectobjquota .
 When a filesystem is configured to use
-.Sy xattr=sa
-no additional internal objects are required. See the
-.Sy userobjused Ns @ Ns Em user
+.Sy xattr Ns = Ns Sy sa
+no additional internal objects are required.
+See the
+.Sy userobjused Ns @ Ns Ar user
 property for more information.
 .Pp
 The root user, or a user who has been granted the
@@ -534,7 +537,7 @@ The amount of space
 .Sy referenced
 by this dataset, that was written since the previous snapshot
 .Pq i.e. that is not referenced by the previous snapshot .
-.It Sy written Ns @ Ns Em snapshot
+.It Sy written Ns @ Ns Ar snapshot
 The amount of
 .Sy referenced
 space written to this dataset since the specified snapshot.
@@ -542,17 +545,15 @@ This is the space that is referenced by this dataset but was not referenced by
 the specified snapshot.
 .Pp
 The
-.Em snapshot
+.Ar snapshot
 may be specified as a short snapshot name
-.Po just the part after the
-.Sy @
-.Pc ,
+.Pq just the part after the Sy @ ,
 in which case it will be interpreted as a snapshot in the same filesystem as
 this dataset.
 The
-.Em snapshot
+.Ar snapshot
 may be a full snapshot name
-.Po Em filesystem Ns @ Ns Em snapshot Pc ,
+.Pq Ar filesystem Ns @ Ns Ar snapshot ,
 which for clones may be a snapshot in the origin's filesystem
 .Pq or the origin of the origin's filesystem, etc.
 .El
@@ -565,7 +566,7 @@ dataset.
 .Sy restricted Ns | Ns Sy passthrough Ns | Ns Sy passthrough-x
 .Xc
 Controls how ACEs are inherited when files and directories are created.
-.Bl -tag -width "passthrough-x"
+.Bl -tag -compact -offset 4n -width "passthrough-x"
 .It Sy discard
 does not inherit any ACEs.
 .It Sy noallow
@@ -584,10 +585,7 @@ inherits all inheritable ACEs without any modifications.
 same meaning as
 .Sy passthrough ,
 except that the
-.Sy owner@ ,
-.Sy group@ ,
-and
-.Sy everyone@
+.Sy owner@ , group@ , No and Sy everyone@
 ACEs inherit the execute permission only if the file creation mode also requests
 the execute bit.
 .El
@@ -606,8 +604,8 @@ property does not apply to POSIX ACLs.
 .Sy passthrough Ns | Ns Sy restricted Ns
 .Xc
 Controls how an ACL is modified during chmod(2) and how inherited ACEs
-are modified by the file creation mode.
-.Bl -tag -width "passthrough"
+are modified by the file creation mode:
+.Bl -tag -compact -offset 4n -width "passthrough"
 .It Sy discard
 default, deletes all
 .Sy ACEs
@@ -622,41 +620,30 @@ entries found in the
 such that they are no greater than the group permissions specified by
 .Xr chmod 2 .
 .It Sy passthrough
-indicates that no changes are made to the
-.Tn ACL
-other than creating or updating the necessary
-.Tn ACL
-entries to represent the new mode of the file or directory.
+indicates that no changes are made to the ACL other than creating or updating
+the necessary ACL entries to represent the new mode of the file or directory.
 .It Sy restricted
 will cause the
 .Xr chmod 2
 operation to return an error when used on any file or directory which has
-a non-trivial
-.Tn ACL
-whose entries can not be represented by a mode.
+a non-trivial ACL whose entries can not be represented by a mode.
 .Xr chmod 2
 is required to change the set user ID, set group ID, or sticky bits on a file
-or directory, as they do not have equivalent
-.Tn ACL
-entries.
+or directory, as they do not have equivalent ACL entries.
 In order to use
 .Xr chmod 2
-on a file or directory with a non-trivial
-.Tn ACL
-when
+on a file or directory with a non-trivial ACL when
 .Sy aclmode
 is set to
 .Sy restricted ,
-you must first remove all
-.Tn ACL
-entries which do not represent the current mode.
+you must first remove all ACL entries which do not represent the current mode.
 .El
 .It Sy acltype Ns = Ns Sy off Ns | Ns Sy nfsv4 Ns | Ns Sy posix
 Controls whether ACLs are enabled and if so what type of ACL to use.
 When this property is set to a type of ACL not supported by the current
 platform, the behavior is the same as if it were set to
 .Sy off .
-.Bl -tag -width "posixacl"
+.Bl -tag -compact -offset 4n -width "posixacl"
 .It Sy off
 default on Linux, when a file system has the
 .Sy acltype
@@ -665,17 +652,20 @@ property set to off then ACLs are disabled.
 an alias for
 .Sy off
 .It Sy nfsv4
-default on FreeBSD, indicates that NFSv4-style ZFS ACLs should be used.
+default on
+.Fx ,
+indicates that NFSv4-style ZFS ACLs should be used.
 These ACLs can be managed with the
 .Xr getfacl 1
 and
-.Xr setfacl 1
-commands on FreeBSD. The
+.Xr setfacl 1 .
+The
 .Sy nfsv4
 ZFS ACL type is not yet supported on Linux.
 .It Sy posix
-indicates POSIX ACLs should be used. POSIX ACLs are specific to Linux and are
-not functional on other platforms. POSIX ACLs are stored as an extended
+indicates POSIX ACLs should be used.
+POSIX ACLs are specific to Linux and are not functional on other platforms.
+POSIX ACLs are stored as an extended
 attribute and therefore will not overwrite any existing NFSv4 ACLs which
 may be set.
 .It Sy posixacl
@@ -686,19 +676,22 @@ an alias for
 To obtain the best performance when setting
 .Sy posix
 users are strongly encouraged to set the
-.Sy xattr=sa
-property. This will result in the POSIX ACL being stored more efficiently on
-disk. But as a consequence, all new extended attributes will only be
+.Sy xattr Ns = Ns Sy sa
+property.
+This will result in the POSIX ACL being stored more efficiently on disk.
+But as a consequence, all new extended attributes will only be
 accessible from OpenZFS implementations which support the
-.Sy xattr=sa
-property. See the
+.Sy xattr Ns = Ns Sy sa
+property.
+See the
 .Sy xattr
 property for more details.
 .It Sy atime Ns = Ns Sy on Ns | Ns Sy off
 Controls whether the access time for files is updated when they are read.
 Turning this property off avoids producing write traffic when reading files and
 can result in significant performance gains, though it might confuse mailers
-and other similar utilities. The values
+and other similar utilities.
+The values
 .Sy on
 and
 .Sy off
@@ -706,7 +699,8 @@ are equivalent to the
 .Sy atime
 and
 .Sy noatime
-mount options. The default value is
+mount options.
+The default value is
 .Sy on .
 See also
 .Sy relatime
@@ -768,7 +762,7 @@ not only disables integrity but also disables maintaining parity for user data.
 This setting is used internally by a dump device residing on a RAID-Z pool and
 should not be used by any other dataset.
 Disabling checksums is
-.Sy NOT
+.Em NOT
 a recommended practice.
 .Pp
 The
@@ -777,7 +771,8 @@ The
 and
 .Sy edonr
 checksum algorithms require enabling the appropriate features on the pool.
-FreeBSD does not support the
+.Fx
+does not support the
 .Sy edonr
 algorithm.
 .Pp
@@ -788,8 +783,8 @@ for more information on these algorithms.
 Changing this property affects only newly-written data.
 .It Xo
 .Sy compression Ns = Ns Sy on Ns | Ns Sy off Ns | Ns Sy gzip Ns | Ns
-.Sy gzip- Ns Em N Ns | Ns Sy lz4 Ns | Ns Sy lzjb Ns | Ns Sy zle Ns | Ns Sy zstd Ns | Ns
-.Sy zstd- Ns Em N Ns | Ns Sy zstd-fast Ns | Ns Sy zstd-fast- Ns Em N
+.Sy gzip- Ns Ar N Ns | Ns Sy lz4 Ns | Ns Sy lzjb Ns | Ns Sy zle Ns | Ns Sy zstd Ns | Ns
+.Sy zstd- Ns Ar N Ns | Ns Sy zstd-fast Ns | Ns Sy zstd-fast- Ns Ar N
 .Xc
 Controls the compression algorithm used for this dataset.
 .Pp
@@ -841,9 +836,9 @@ command.
 You can specify the
 .Sy gzip
 level by using the value
-.Sy gzip- Ns Em N ,
+.Sy gzip- Ns Ar N ,
 where
-.Em N
+.Ar N
 is an integer from 1
 .Pq fastest
 to 9
@@ -858,13 +853,13 @@ is equivalent to
 .Pp
 The
 .Sy zstd
-compression algorithm provides both high compression ratios and good
-performance. You can specify the
+compression algorithm provides both high compression ratios and good performance.
+You can specify the
 .Sy zstd
 level by using the value
-.Sy zstd- Ns Em N ,
+.Sy zstd- Ns Ar N ,
 where
-.Em N
+.Ar N
 is an integer from 1
 .Pq fastest
 to 19
@@ -876,14 +871,16 @@ is equivalent to
 Faster speeds at the cost of the compression ratio can be requested by
 setting a negative
 .Sy zstd
-level.  This is done using
-.Sy zstd-fast- Ns Em N ,
+level.
+This is done using
+.Sy zstd-fast- Ns Ar N ,
 where
-.Em N
+.Ar N
 is an integer in [1-9,10,20,30,...,100,500,1000] which maps to a negative
 .Sy zstd
-level. The lower the level the faster the compression - 1000 provides
-the fastest compression and lowest compression ratio.
+level.
+The lower the level the faster the compression -
+.Ar 1000 No provides the fastest compression and lowest compression ratio.
 .Sy zstd-fast
 is equivalent to
 .Sy zstd-fast-1 .
@@ -899,43 +896,49 @@ Changing this property affects only newly-written data.
 When any setting except
 .Sy off
 is selected, compression will explicitly check for blocks consisting of only
-zeroes (the NUL byte).  When a zero-filled block is detected, it is stored as
+zeroes (the NUL byte).
+When a zero-filled block is detected, it is stored as
 a hole and not compressed using the indicated compression algorithm.
 .Pp
 Any block being compressed must be no larger than 7/8 of its original size
 after compression, otherwise the compression will not be considered worthwhile
-and the block saved uncompressed. Note that when the logical block is less than
+and the block saved uncompressed.
+Note that when the logical block is less than
 8 times the disk sector size this effectively reduces the necessary compression
-ratio; for example 8k blocks on disks with 4k disk sectors must compress to 1/2
+ratio; for example, 8kB blocks on disks with 4kB disk sectors must compress to 1/2
 or less of their original size.
 .It Xo
 .Sy context Ns = Ns Sy none Ns | Ns
-.Em SELinux_User:SElinux_Role:Selinux_Type:Sensitivity_Level
+.Ar SELinux-User : Ns Ar SElinux-Role : Ns Ar Selinux-Type : Ns Ar Sensitivity-Level
 .Xc
 This flag sets the SELinux context for all files in the file system under
-a mount point for that file system. See
+a mount point for that file system.
+See
 .Xr selinux 8
 for more information.
 .It Xo
 .Sy fscontext Ns = Ns Sy none Ns | Ns
-.Em SELinux_User:SElinux_Role:Selinux_Type:Sensitivity_Level
+.Ar SELinux-User : Ns Ar SElinux-Role : Ns Ar Selinux-Type : Ns Ar Sensitivity-Level
 .Xc
 This flag sets the SELinux context for the file system file system being
-mounted. See
+mounted.
+See
 .Xr selinux 8
 for more information.
 .It Xo
 .Sy defcontext Ns = Ns Sy none Ns | Ns
-.Em SELinux_User:SElinux_Role:Selinux_Type:Sensitivity_Level
+.Ar SELinux-User : Ns Ar SElinux-Role : Ns Ar Selinux-Type : Ns Ar Sensitivity-Level
 .Xc
-This flag sets the SELinux default context for unlabeled files. See
+This flag sets the SELinux default context for unlabeled files.
+See
 .Xr selinux 8
 for more information.
 .It Xo
 .Sy rootcontext Ns = Ns Sy none Ns | Ns
-.Em SELinux_User:SElinux_Role:Selinux_Type:Sensitivity_Level
+.Ar SELinux-User : Ns Ar SElinux-Role : Ns Ar Selinux-Type : Ns Ar Sensitivity-Level
 .Xc
-This flag sets the SELinux context for the root inode of the file system. See
+This flag sets the SELinux context for the root inode of the file system.
+See
 .Xr selinux 8
 for more information.
 .It Sy copies Ns = Ns Sy 1 Ns | Ns Sy 2 Ns | Ns Sy 3
@@ -953,16 +956,17 @@ Therefore, set this property at file system creation time by using the
 .Fl o Sy copies Ns = Ns Ar N
 option.
 .Pp
-Remember that ZFS will not import a pool with a missing top-level vdev. Do
-.Sy NOT
+Remember that ZFS will not import a pool with a missing top-level vdev.
+Do
+.Em NOT
 create, for example a two-disk striped pool and set
-.Sy copies=2
-on some datasets thinking you have setup redundancy for them. When a disk
-fails you will not be able to import the pool and will have lost all of your
-data.
+.Sy copies Ns = Ns Ar 2
+on some datasets thinking you have setup redundancy for them.
+When a disk fails you will not be able to import the pool
+and will have lost all of your data.
 .Pp
 Encrypted datasets may not have
-.Sy copies Ns = Ns Em 3
+.Sy copies Ns = Ns Ar 3
 since the implementation stores some encryption metadata where the third copy
 would normally be.
 .It Sy devices Ns = Ns Sy on Ns | Ns Sy off
@@ -980,33 +984,40 @@ and
 mount options.
 .It Xo
 .Sy dedup Ns = Ns Sy off Ns | Ns Sy on Ns | Ns Sy verify Ns | Ns
-.Sy sha256[,verify] Ns | Ns Sy sha512[,verify] Ns | Ns Sy skein[,verify] Ns | Ns
-.Sy edonr,verify
+.Sy sha256 Ns Oo , Ns Sy verify Oc Ns | Ns Sy sha512 Ns Oo , Ns Sy verify Oc Ns | Ns Sy skein Ns Oo , Ns Sy verify Oc Ns | Ns
+.Sy edonr , Ns Sy verify
 .Xc
-Configures deduplication for a dataset. The default value is
+Configures deduplication for a dataset.
+The default value is
 .Sy off .
 The default deduplication checksum is
 .Sy sha256
-(this may change in the future). When
+(this may change in the future).
+When
 .Sy dedup
 is enabled, the checksum defined here overrides the
 .Sy checksum
-property. Setting the value to
+property.
+Setting the value to
 .Sy verify
 has the same effect as the setting
-.Sy sha256,verify.
+.Sy sha256 , Ns Sy verify .
 .Pp
 If set to
 .Sy verify ,
 ZFS will do a byte-to-byte comparison in case of two blocks having the same
-signature to make sure the block contents are identical. Specifying
+signature to make sure the block contents are identical.
+Specifying
 .Sy verify
 is mandatory for the
 .Sy edonr
 algorithm.
 .Pp
-Unless necessary, deduplication should NOT be enabled on a system. See the
-.Em Deduplication
+Unless necessary, deduplication should
+.Em not
+be enabled on a system.
+See the
+.Sx Deduplication
 section of
 .Xr zfsconcepts 8 .
 .It Xo
@@ -1014,21 +1025,23 @@ section of
 .Sy 2k Ns | Ns Sy 4k Ns | Ns Sy 8k Ns | Ns Sy 16k
 .Xc
 Specifies a compatibility mode or literal value for the size of dnodes in the
-file system. The default value is
+file system.
+The default value is
 .Sy legacy .
 Setting this property to a value other than
-.Sy legacy
-requires the large_dnode pool feature to be enabled.
+.Sy legacy No requires the Sy large_dnode No pool feature to be enabled.
 .Pp
 Consider setting
 .Sy dnodesize
 to
 .Sy auto
 if the dataset uses the
-.Sy xattr=sa
-property setting and the workload makes heavy use of extended attributes. This
+.Sy xattr Ns = Ns Sy sa
+property setting and the workload makes heavy use of extended attributes.
+This
 may be applicable to SELinux-enabled systems, Lustre servers, and Samba
-servers, for example. Literal values are supported for cases where the optimal
+servers, for example.
+Literal values are supported for cases where the optimal
 size is known in advance and for performance testing.
 .Pp
 Leave
@@ -1036,8 +1049,10 @@ Leave
 set to
 .Sy legacy
 if you need to receive a send stream of this dataset on a pool that doesn't
-enable the large_dnode feature, or if you need to import this pool on a system
-that doesn't support the large_dnode feature.
+enable the
+.Sy large_dnode
+feature, or if you need to import this pool on a system that doesn't support the
+.Sy large_dnode No feature.
 .Pp
 This property can also be referred to by its shortened column name,
 .Sy dnsize .
@@ -1047,7 +1062,8 @@ This property can also be referred to by its shortened column name,
 .Sy aes-192-gcm Ns | Ns Sy aes-256-gcm
 .Xc
 Controls the encryption cipher suite (block cipher, key length, and mode) used
-for this dataset. Requires the
+for this dataset.
+Requires the
 .Sy encryption
 feature to be enabled on the pool.
 Requires a
@@ -1063,38 +1079,36 @@ In order to provide consistent data protection, encryption must be specified at
 dataset creation time and it cannot be changed afterwards.
 .Pp
 For more details and caveats about encryption see the
-.Em Encryption
+.Sx Encryption
 section of
 .Xr zfs-load-key 8 .
 .It Sy keyformat Ns = Ns Sy raw Ns | Ns Sy hex Ns | Ns Sy passphrase
-Controls what format the user's encryption key will be provided as. This
-property is only set when the dataset is encrypted.
+Controls what format the user's encryption key will be provided as.
+This property is only set when the dataset is encrypted.
 .Pp
 Raw keys and hex keys must be 32 bytes long (regardless of the chosen
-encryption suite) and must be randomly generated. A raw key can be generated
-with the following command:
-.Bd -literal
-# dd if=/dev/urandom of=/path/to/output/key bs=32 count=1
-.Ed
+encryption suite) and must be randomly generated.
+A raw key can be generated with the following command:
+.Dl # Nm dd Sy if=/dev/urandom bs=32 count=1 Sy of= Ns Pa /path/to/output/key
 .Pp
 Passphrases must be between 8 and 512 bytes long and will be processed through
 PBKDF2 before being used (see the
 .Sy pbkdf2iters
-property). Even though the
-encryption suite cannot be changed after dataset creation, the keyformat can be
-with
+property).
+Even though the encryption suite cannot be changed after dataset creation,
+the keyformat can be with
 .Nm zfs Cm change-key .
 .It Xo
-.Sy keylocation Ns = Ns Sy prompt Ns | Ns Sy file:// Ns Em </absolute/file/path> Ns | Ns Sy https:// Ns Em <address> | Ns Sy http:// Ns Em <address>
+.Sy keylocation Ns = Ns Sy prompt Ns | Ns Sy file:// Ns Ar /absolute/file/path Ns | Ns Sy https:// Ns Ar address Ns | Ns Sy http:// Ns Ar address
 .Xc
 Controls where the user's encryption key will be loaded from by default for
 commands such as
 .Nm zfs Cm load-key
 and
 .Nm zfs Cm mount Fl l .
-This property is only set for encrypted datasets which are encryption roots. If
-unspecified, the default is
-.Sy prompt.
+This property is only set for encrypted datasets which are encryption roots.
+If unspecified, the default is
+.Sy prompt .
 .Pp
 Even though the encryption suite cannot be changed after dataset creation, the
 keylocation can be with either
@@ -1106,23 +1120,27 @@ If
 is selected ZFS will ask for the key at the command prompt when it is required
 to access the encrypted data (see
 .Nm zfs Cm load-key
-for details). This setting will also allow the key to be passed in via STDIN,
+for details).
+This setting will also allow the key to be passed in via the standard input stream,
 but users should be careful not to place keys which should be kept secret on
-the command line. If a file URI is selected, the key will be loaded from the
-specified absolute file path. If an HTTPS or HTTP URL is selected,
-it will be GETted using
+the command line.
+If a file URI is selected, the key will be loaded from the
+specified absolute file path.
+If an HTTPS or HTTP URL is selected, it will be GETted using
 .Xr fetch 3 ,
-libcurl, or nothing, depending on compile-time configuration and run-time
-availability. The
-.Ev SSL_CA_CERT_FILE
+libcurl, or nothing, depending on compile-time configuration and run-time availability.
+The
+.Sy SSL_CA_CERT_FILE
 environment variable can be set to set the location
-of the concatenated certificate store. The
-.Ev SSL_CA_CERT_PATH
+of the concatenated certificate store.
+The
+.Sy SSL_CA_CERT_PATH
 environment variable can be set to override the location
-of the directory containing the certificate authority bundle. The
-.Ev SSL_CLIENT_CERT_FILE
+of the directory containing the certificate authority bundle.
+The
+.Sy SSL_CLIENT_CERT_FILE
 and
-.Ev SSL_CLIENT_KEY_FILE
+.Sy SSL_CLIENT_KEY_FILE
 environment variables can be set to configure the path
 to the client certificate and its key.
 .It Sy pbkdf2iters Ns = Ns Ar iterations
@@ -1131,14 +1149,16 @@ Controls the number of PBKDF2 iterations that a
 encryption key should be run through when processing it into an encryption key.
 This property is only defined when encryption is enabled and a keyformat of
 .Sy passphrase
-is selected. The goal of PBKDF2 is to significantly increase the
-computational difficulty needed to brute force a user's passphrase. This is
-accomplished by forcing the attacker to run each passphrase through a
+is selected.
+The goal of PBKDF2 is to significantly increase the
+computational difficulty needed to brute force a user's passphrase.
+This is accomplished by forcing the attacker to run each passphrase through a
 computationally expensive hashing function many times before they arrive at the
-resulting key. A user who actually knows the passphrase will only have to pay
-this cost once. As CPUs become better at processing, this number should be
-raised to ensure that a brute force attack is still not possible. The current
-default is
+resulting key.
+A user who actually knows the passphrase will only have to pay this cost once.
+As CPUs become better at processing, this number should be
+raised to ensure that a brute force attack is still not possible.
+The current default is
 .Sy 350000
 and the minimum is
 .Sy 100000 .
@@ -1157,7 +1177,7 @@ are equivalent to the
 and
 .Sy noexec
 mount options.
-.It Sy filesystem_limit Ns = Ns Em count Ns | Ns Sy none
+.It Sy filesystem_limit Ns = Ns Ar count Ns | Ns Sy none
 Limits the number of filesystems and volumes that can exist under this point in
 the dataset tree.
 The limit is not enforced if the user is allowed to change the limit.
@@ -1174,22 +1194,25 @@ This feature must be enabled to be used
 .Po see
 .Xr zpool-features 5
 .Pc .
-.It Sy special_small_blocks Ns = Ns Em size
+.It Sy special_small_blocks Ns = Ns Ar size
 This value represents the threshold block size for including small file
-blocks into the special allocation class. Blocks smaller than or equal to this
+blocks into the special allocation class.
+Blocks smaller than or equal to this
 value will be assigned to the special allocation class while greater blocks
-will be assigned to the regular class. Valid values are zero or a power of two
-from 512B up to 1M. The default size is 0 which means no small file blocks
+will be assigned to the regular class.
+Valid values are zero or a power of two from 512B up to 1M.
+The default size is 0 which means no small file blocks
 will be allocated in the special class.
 .Pp
 Before setting this property, a special class vdev must be added to the
-pool. See
+pool.
+See
 .Xr zpoolconcepts 8
 for more details on the special allocation class.
 .It Sy mountpoint Ns = Ns Pa path Ns | Ns Sy none Ns | Ns Sy legacy
 Controls the mount point used for this file system.
 See the
-.Em Mount Points
+.Sx Mount Points
 section of
 .Xr zfsconcepts 8
 for more information on how this property is used.
@@ -1215,11 +1238,14 @@ Controls whether the file system should be mounted with
 .Pq Non-blocking mandatory locks .
 This is used for SMB clients.
 Changes to this property only take effect when the file system is umounted and
-remounted. Support for these locks is scarce and not described by POSIX.
+remounted.
+Support for these locks is scarce and not described by POSIX.
 .It Sy overlay Ns = Ns Sy on Ns | Ns Sy off
 Allow mounting on a busy directory or a directory which already contains
 files or directories.
-This is the default mount behavior for Linux and FreeBSD file systems.
+This is the default mount behavior for Linux and
+.Fx
+file systems.
 On these platforms the property is
 .Sy on
 by default.
@@ -1240,7 +1266,7 @@ If this property is set to
 then only metadata is cached.
 The default value is
 .Sy all .
-.It Sy quota Ns = Ns Em size Ns | Ns Sy none
+.It Sy quota Ns = Ns Ar size Ns | Ns Sy none
 Limits the amount of space a dataset and its descendents can consume.
 This property enforces a hard limit on the amount of space used.
 This includes all space consumed by descendents, including file systems and
@@ -1251,7 +1277,7 @@ override the ancestor's quota, but rather imposes an additional limit.
 Quotas cannot be set on volumes, as the
 .Sy volsize
 property acts as an implicit quota.
-.It Sy snapshot_limit Ns = Ns Em count Ns | Ns Sy none
+.It Sy snapshot_limit Ns = Ns Ar count Ns | Ns Sy none
 Limits the number of snapshots that can be created on a dataset and its
 descendents.
 Setting a
@@ -1268,10 +1294,10 @@ This feature must be enabled to be used
 .Po see
 .Xr zpool-features 5
 .Pc .
-.It Sy userquota@ Ns Em user Ns = Ns Em size Ns | Ns Sy none
+.It Sy userquota@ Ns Ar user Ns = Ns Ar size Ns | Ns Sy none
 Limits the amount of space consumed by the specified user.
 User space consumption is identified by the
-.Sy userspace@ Ns Em user
+.Sy userspace@ Ns Ar user
 property.
 .Pp
 Enforcement of user quotas may be delayed by several seconds.
@@ -1281,7 +1307,7 @@ that they are over quota and begins to refuse additional writes with the
 error message.
 See the
 .Nm zfs Cm userspace
-subcommand for more information.
+command for more information.
 .Pp
 Unprivileged users can only access their own groups' space usage.
 The root user, or a user who has been granted the
@@ -1293,48 +1319,41 @@ can get and set everyone's quota.
 This property is not available on volumes, on file systems before version 4, or
 on pools before version 15.
 The
-.Sy userquota@ Ns Em ...
+.Sy userquota@ Ns Ar ...
 properties are not displayed by
 .Nm zfs Cm get Sy all .
 The user's name must be appended after the
 .Sy @
 symbol, using one of the following forms:
-.Bl -bullet
+.Bl -bullet -compact -offset 4n
 .It
-.Em POSIX name
-.Po for example,
-.Sy joe
-.Pc
+POSIX name
+.Pq Qq joe
 .It
-.Em POSIX numeric ID
-.Po for example,
-.Sy 789
-.Pc
+POSIX numeric ID
+.Pq Qq 789
 .It
-.Em SID name
-.Po for example,
-.Sy joe.smith@mydomain
-.Pc
+SID name
+.Pq Qq joe.smith@mydomain
 .It
-.Em SID numeric ID
-.Po for example,
-.Sy S-1-123-456-789
-.Pc
+SID numeric ID
+.Pq Qq S-1-123-456-789
 .El
 .Pp
 Files created on Linux always have POSIX owners.
-.It Sy userobjquota@ Ns Em user Ns = Ns Em size Ns | Ns Sy none
+.It Sy userobjquota@ Ns Ar user Ns = Ns Ar size Ns | Ns Sy none
 The
 .Sy userobjquota
 is similar to
 .Sy userquota
-but it limits the number of objects a user can create. Please refer to
+but it limits the number of objects a user can create.
+Please refer to
 .Sy userobjused
 for more information about how objects are counted.
-.It Sy groupquota@ Ns Em group Ns = Ns Em size Ns | Ns Sy none
+.It Sy groupquota@ Ns Ar group Ns = Ns Ar size Ns | Ns Sy none
 Limits the amount of space consumed by the specified group.
 Group space consumption is identified by the
-.Sy groupused@ Ns Em group
+.Sy groupused@ Ns Ar group
 property.
 .Pp
 Unprivileged users can access only their own groups' space usage.
@@ -1343,19 +1362,21 @@ The root user, or a user who has been granted the
 privilege with
 .Nm zfs Cm allow ,
 can get and set all groups' quotas.
-.It Sy groupobjquota@ Ns Em group Ns = Ns Em size Ns | Ns Sy none
+.It Sy groupobjquota@ Ns Ar group Ns = Ns Ar size Ns | Ns Sy none
 The
 .Sy groupobjquota
 is similar to
 .Sy groupquota
-but it limits number of objects a group can consume. Please refer to
+but it limits number of objects a group can consume.
+Please refer to
 .Sy userobjused
 for more information about how objects are counted.
-.It Sy projectquota@ Ns Em project Ns = Ns Em size Ns | Ns Sy none
-Limits the amount of space consumed by the specified project. Project
-space consumption is identified by the
-.Sy projectused@ Ns Em project
-property. Please refer to
+.It Sy projectquota@ Ns Ar project Ns = Ns Ar size Ns | Ns Sy none
+Limits the amount of space consumed by the specified project.
+Project space consumption is identified by the
+.Sy projectused@ Ns Ar project
+property.
+Please refer to
 .Sy projectused
 for more information about how project is identified and set/changed.
 .Pp
@@ -1364,12 +1385,13 @@ The root user, or a user who has been granted the
 privilege with
 .Nm zfs allow ,
 can access all projects' quota.
-.It Sy projectobjquota@ Ns Em project Ns = Ns Em size Ns | Ns Sy none
+.It Sy projectobjquota@ Ns Ar project Ns = Ns Ar size Ns | Ns Sy none
 The
 .Sy projectobjquota
 is similar to
 .Sy projectquota
-but it limits number of objects a project can consume. Please refer to
+but it limits number of objects a project can consume.
+Please refer to
 .Sy userobjused
 for more information about how objects are counted.
 .It Sy readonly Ns = Ns Sy on Ns | Ns Sy off
@@ -1388,7 +1410,7 @@ mount options.
 .Pp
 This property can also be referred to by its shortened column name,
 .Sy rdonly .
-.It Sy recordsize Ns = Ns Em size
+.It Sy recordsize Ns = Ns Ar size
 Specifies a suggested block size for files in the file system.
 This property is designed solely for use with database workloads that access
 files in fixed-size records.
@@ -1404,11 +1426,14 @@ significant performance gains.
 Use of this property for general purpose file systems is strongly discouraged,
 and may adversely affect performance.
 .Pp
-The size specified must be a power of two greater than or equal to 512 and less
-than or equal to 128 Kbytes.
+The size specified must be a power of two greater than or equal to
+.Ar 512B
+and less than or equal to
+.Ar 128kB .
 If the
 .Sy large_blocks
-feature is enabled on the pool, the size may be up to 1 Mbyte.
+feature is enabled on the pool, the size may be up to
+.Ar 1MB .
 See
 .Xr zpool-features 5
 for details on ZFS feature flags.
@@ -1462,12 +1487,12 @@ future releases.
 .Pp
 The default value is
 .Sy all .
-.It Sy refquota Ns = Ns Em size Ns | Ns Sy none
+.It Sy refquota Ns = Ns Ar size Ns | Ns Sy none
 Limits the amount of space a dataset can consume.
 This property enforces a hard limit on the amount of space used.
 This hard limit does not include space used by descendents, including file
 systems and snapshots.
-.It Sy refreservation Ns = Ns Em size Ns | Ns Sy none Ns | Ns Sy auto
+.It Sy refreservation Ns = Ns Ar size Ns | Ns Sy none Ns | Ns Sy auto
 The minimum amount of space guaranteed to a dataset, not including its
 descendents.
 When the amount of space used is below this value, the dataset is treated as if
@@ -1505,12 +1530,14 @@ This property can also be referred to by its shortened column name,
 .Sy refreserv .
 .It Sy relatime Ns = Ns Sy on Ns | Ns Sy off
 Controls the manner in which the access time is updated when
-.Sy atime=on
-is set. Turning this property on causes the access time to be updated relative
-to the modify or change time. Access time is only updated if the previous
+.Sy atime Ns = Ns Sy on
+is set.
+Turning this property on causes the access time to be updated relative
+to the modify or change time.
+Access time is only updated if the previous
 access time was earlier than the current modify or change time or if the
-existing access time hasn't been updated within the past 24 hours. The default
-value is
+existing access time hasn't been updated within the past 24 hours.
+The default value is
 .Sy off .
 The values
 .Sy on
@@ -1521,7 +1548,7 @@ are equivalent to the
 and
 .Sy norelatime
 mount options.
-.It Sy reservation Ns = Ns Em size Ns | Ns Sy none
+.It Sy reservation Ns = Ns Ar size Ns | Ns Sy none
 The minimum amount of space guaranteed to a dataset and its descendants.
 When the amount of space used is below this value, the dataset is treated as if
 it were taking up the amount of space specified by its reservation.
@@ -1557,21 +1584,23 @@ are equivalent to the
 and
 .Sy nosuid
 mount options.
-.It Sy sharesmb Ns = Ns Sy on Ns | Ns Sy off Ns | Ns Em opts
+.It Sy sharesmb Ns = Ns Sy on Ns | Ns Sy off Ns | Ns Ar opts
 Controls whether the file system is shared by using
 .Sy Samba USERSHARES
-and what options are to be used. Otherwise, the file system is automatically
-shared and unshared with the
+and what options are to be used.
+Otherwise, the file system is automatically shared and unshared with the
 .Nm zfs Cm share
 and
 .Nm zfs Cm unshare
-commands. If the property is set to on, the
+commands.
+If the property is set to on, the
 .Xr net 8
 command is invoked to create a
 .Sy USERSHARE .
 .Pp
 Because SMB shares requires a resource name, a unique resource name is
-constructed from the dataset name. The constructed name is a copy of the
+constructed from the dataset name.
+The constructed name is a copy of the
 dataset name except that the characters in the dataset name, which would be
 invalid in the resource name, are replaced with underscore (_) characters.
 Linux does not currently support additional options which might be available
@@ -1584,12 +1613,12 @@ property is set to
 the file systems are unshared.
 .Pp
 The share is created with the ACL (Access Control List) "Everyone:F" ("F"
-stands for "full permissions", ie. read and write permissions) and no guest
+stands for "full permissions", i.e. read and write permissions) and no guest
 access (which means Samba must be able to authenticate a real user, system
-passwd/shadow, LDAP or smbpasswd based) by default. This means that any
-additional access control (disallow specific user specific access etc) must
-be done on the underlying file system.
-.It Sy sharenfs Ns = Ns Sy on Ns | Ns Sy off Ns | Ns Em opts
+passwd/shadow, LDAP or smbpasswd based) by default.
+This means that any additional access control
+(disallow specific user specific access etc) must be done on the underlying file system.
+.It Sy sharenfs Ns = Ns Sy on Ns | Ns Sy off Ns | Ns Ar opts
 Controls whether the file system is shared via NFS, and what options are to be
 used.
 A file system with a
@@ -1599,7 +1628,7 @@ property of
 is managed with the
 .Xr exportfs 8
 command and entries in the
-.Em /etc/exports
+.Pa /etc/exports
 file.
 Otherwise, the file system is automatically shared and unshared with the
 .Nm zfs Cm share
@@ -1609,12 +1638,12 @@ commands.
 If the property is set to
 .Sy on ,
 the dataset is shared using the default options:
-.Pp
-.Em sec=sys,rw,crossmnt,no_subtree_check
+.Dl sec=sys,rw,crossmnt,no_subtree_check
 .Pp
 See
 .Xr exports 5
-for the meaning of the default options. Otherwise, the
+for the meaning of the default options.
+Otherwise, the
 .Xr exportfs 8
 command is invoked with options equivalent to the contents of this property.
 .Pp
@@ -1646,15 +1675,16 @@ ZFS will instead optimize synchronous operations for global pool throughput and
 efficient use of resources.
 .It Sy snapdev Ns = Ns Sy hidden Ns | Ns Sy visible
 Controls whether the volume snapshot devices under
-.Em /dev/zvol/<pool>
-are hidden or visible. The default value is
+.Pa /dev/zvol/ Ns Aq Ar pool
+are hidden or visible.
+The default value is
 .Sy hidden .
 .It Sy snapdir Ns = Ns Sy hidden Ns | Ns Sy visible
 Controls whether the
 .Pa .zfs
 directory is hidden or visible in the root of the file system as discussed in
 the
-.Em Snapshots
+.Sx Snapshots
 section of
 .Xr zfsconcepts 8 .
 The default value is
@@ -1663,11 +1693,9 @@ The default value is
 Controls the behavior of synchronous requests
 .Pq e.g. fsync, O_DSYNC .
 .Sy standard
-is the
-.Tn POSIX
-specified behavior of ensuring all synchronous requests are written to stable
-storage and all devices are flushed to ensure data is not cached by device
-controllers
+is the POSIX-specified behavior of ensuring all synchronous requests
+are written to stable storage and all devices are flushed to ensure
+data is not cached by device controllers
 .Pq this is the default .
 .Sy always
 causes every file system transaction to be written and flushed before its
@@ -1680,14 +1708,14 @@ This option will give the highest performance.
 However, it is very dangerous as ZFS would be ignoring the synchronous
 transaction demands of applications such as databases or NFS.
 Administrators should only use this option when the risks are understood.
-.It Sy version Ns = Ns Em N Ns | Ns Sy current
+.It Sy version Ns = Ns Ar N Ns | Ns Sy current
 The on-disk version of this file system, which is independent of the pool
 version.
 This property can only be set to later supported versions.
 See the
 .Nm zfs Cm upgrade
 command.
-.It Sy volsize Ns = Ns Em size
+.It Sy volsize Ns = Ns Ar size
 For volumes, specifies the logical size of the volume.
 By default, creating a volume establishes a reservation of equal size.
 For storage pools with a version number of 9 or higher, a
@@ -1696,9 +1724,7 @@ is set instead.
 Any changes to
 .Sy volsize
 are reflected in an equivalent change to the reservation
-.Po or
-.Sy refreservation
-.Pc .
+.Pq or Sy refreservation .
 The
 .Sy volsize
 can only be set to a multiple of
@@ -1742,19 +1768,20 @@ when the pool is low on space.
 For a sparse volume, changes to
 .Sy volsize
 are not reflected in the
-.Sy refreservation.
+.Sy refreservation .
 A volume that is not sparse is said to be
 .Qq thick provisioned .
 A sparse volume can become thick provisioned by setting
 .Sy refreservation
 to
 .Sy auto .
-.It Sy volmode Ns = Ns Cm default | full | geom | dev | none
+.It Sy volmode Ns = Ns Sy default Ns | Ns Sy full Ns | Ns Sy geom Ns | Ns Sy dev Ns | Ns Sy none
 This property specifies how volumes should be exposed to the OS.
 Setting it to
 .Sy full
 exposes volumes as fully fledged block devices, providing maximal
-functionality. The value
+functionality.
+The value
 .Sy geom
 is just an alias for
 .Sy full
@@ -1769,7 +1796,7 @@ that can be suitable for backup purposes.
 Value
 .Sy default
 means that volumes exposition is controlled by system-wide tunable
-.Va zvol_volmode ,
+.Sy zvol_volmode ,
 where
 .Sy full ,
 .Sy dev
@@ -1787,38 +1814,44 @@ The default value is
 .Sy off .
 This property is not used by OpenZFS.
 .It Sy xattr Ns = Ns Sy on Ns | Ns Sy off Ns | Ns Sy sa
-Controls whether extended attributes are enabled for this file system. Two
-styles of extended attributes are supported: either directory based or system
-attribute based.
+Controls whether extended attributes are enabled for this file system.
+Two styles of extended attributes are supported: either directory based
+or system attribute based.
 .Pp
 The default value of
 .Sy on
-enables directory based extended attributes. This style of extended attribute
-imposes no practical limit on either the size or number of attributes which
-can be set on a file. Although under Linux the
+enables directory based extended attributes.
+This style of extended attribute imposes no practical limit
+on either the size or number of attributes which can be set on a file.
+Although under Linux the
 .Xr getxattr 2
 and
 .Xr setxattr 2
-system calls limit the maximum size to 64K. This is the most compatible
+system calls limit the maximum size to 64K.
+This is the most compatible
 style of extended attribute and is supported by all ZFS implementations.
 .Pp
 System attribute based xattrs can be enabled by setting the value to
 .Sy sa .
-The key advantage of this type of xattr is improved performance. Storing
-extended attributes as system attributes significantly decreases the amount of
-disk IO required. Up to 64K of data may be stored per-file in the space
-reserved for system attributes. If there is not enough space available for
-an extended attribute then it will be automatically written as a directory
-based xattr. System attribute based extended attributes are not accessible
+The key advantage of this type of xattr is improved performance.
+Storing extended attributes as system attributes
+significantly decreases the amount of disk IO required.
+Up to 64K of data may be stored per-file in the space reserved for system attributes.
+If there is not enough space available for an extended attribute
+then it will be automatically written as a directory based xattr.
+System attribute based extended attributes are not accessible
 on platforms which do not support the
-.Sy xattr=sa
+.Sy xattr Ns = Ns Sy sa
 feature.
 OpenZFS supports
-.Sy xattr=sa
-on both FreeBSD and Linux.
+.Sy xattr Ns = Ns Sy sa
+on both
+.Fx
+and Linux.
 .Pp
 The use of system attribute based xattrs is strongly encouraged for users of
-SELinux or POSIX ACLs. Both of these features heavily rely on extended
+SELinux or POSIX ACLs.
+Both of these features heavily rely on extended
 attributes and benefit significantly from the reduced access time.
 .Pp
 The values
@@ -1831,16 +1864,19 @@ and
 .Sy noxattr
 mount options.
 .It Sy jailed Ns = Ns Sy off Ns | Ns Sy on
-Controls whether the dataset is managed from a jail. See the
-.Qq Sx Jails
-section in
-.Xr zfs 8
-for more information. Jails are a FreeBSD feature and are not relevant on
-other platforms. The default value is
-.Cm off .
+Controls whether the dataset is managed from a jail.
+See
+.Xr zfs-jail 8
+for more information.
+Jails are a
+.Fx
+feature and are not relevant on other platforms.
+The default value is
+.Sy off .
 .It Sy zoned Ns = Ns Sy on Ns | Ns Sy off
-Controls whether the dataset is managed from a non-global zone. Zones are a
-Solaris feature and are not relevant on other platforms. The default value is
+Controls whether the dataset is managed from a non-global zone.
+Zones are a Solaris feature and are not relevant on other platforms.
+The default value is
 .Sy off .
 .El
 .Pp
@@ -1868,9 +1904,7 @@ property is
 .Sy sensitive .
 Traditionally,
 .Ux
-and
-.Tn POSIX
-file systems have case-sensitive file names.
+and POSIX file systems have case-sensitive file names.
 .Pp
 The
 .Sy mixed
@@ -1929,7 +1963,8 @@ and
 .Sy utf8only
 properties are also new permissions that can be assigned to non-privileged users
 by using the ZFS delegated administration feature.
-.Ss "Temporary Mount Point Properties"
+.
+.Ss Temporary Mount Point Properties
 When a file system is mounted, either through
 .Xr mount 8
 for legacy mounts or the
@@ -1937,22 +1972,34 @@ for legacy mounts or the
 command for normal file systems, its mount options are set according to its
 properties.
 The correlation between properties and mount options is as follows:
-.Bd -literal
-    PROPERTY                MOUNT OPTION
-    atime                   atime/noatime
-    canmount                auto/noauto
-    devices                 dev/nodev
-    exec                    exec/noexec
-    readonly                ro/rw
-    relatime                relatime/norelatime
-    setuid                  suid/nosuid
-    xattr                   xattr/noxattr
-    nbmand                  mand/nomand
-    context                 context=
-    fscontext               fscontext=
-    defcontext              defcontext=
-    rootcontext             rootcontext=
-.Ed
+.Bl -tag -compact -offset Ds -width "rootcontext="
+.It Sy atime
+atime/noatime
+.It Sy canmount
+auto/noauto
+.It Sy devices
+dev/nodev
+.It Sy exec
+exec/noexec
+.It Sy readonly
+ro/rw
+.It Sy relatime
+relatime/norelatime
+.It Sy setuid
+suid/nosuid
+.It Sy xattr
+xattr/noxattr
+.It Sy nbmand
+mand/nomand
+.It Sy context Ns =
+context=
+.It Sy fscontext Ns =
+fscontext=
+.It Sy defcontext Ns =
+defcontext=
+.It Sy rootcontext Ns =
+rootcontext=
+.El
 .Pp
 In addition, these options can be set on a per-mount basis using the
 .Fl o
@@ -1962,7 +2009,7 @@ dataset.
 The
 .Sy nosuid
 option is an alias for
-.Sy nodevices Ns \&, Ns Sy nosetuid .
+.Sy nodevices , Ns Sy nosetuid .
 These properties are reported as
 .Qq temporary
 by the
@@ -1970,7 +2017,8 @@ by the
 command.
 If the properties are changed while the dataset is mounted, the new setting
 overrides any temporary settings.
-.Ss "User Properties"
+.
+.Ss User Properties
 In addition to the standard native properties, ZFS supports arbitrary user
 properties.
 User properties have no effect on ZFS behavior, but applications or
@@ -1991,16 +2039,14 @@ and underscore
 .Pq Qq Sy _ .
 The expected convention is that the property name is divided into two portions
 such as
-.Em module Ns \&: Ns Em property ,
+.Ar module : Ns Ar property ,
 but this namespace is not enforced by ZFS.
 User property names can be at most 256 characters, and cannot begin with a dash
 .Pq Qq Sy - .
 .Pp
 When making programmatic use of user properties, it is strongly suggested to use
-a reversed
-.Sy DNS
-domain name for the
-.Em module
+a reversed DNS domain name for the
+.Ar module
 component of property names to reduce the chance that two
 independently-developed packages use the same property name for different
 purposes.
