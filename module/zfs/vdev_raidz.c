@@ -1990,8 +1990,6 @@ static void
 vdev_raidz_io_verify(zio_t *zio, raidz_map_t *rm, raidz_row_t *rr, int col)
 {
 #ifdef ZFS_DEBUG
-	vdev_t *tvd = zio->io_vd->vdev_top;
-
 	range_seg64_t logical_rs, physical_rs, remain_rs;
 	logical_rs.rs_start = rr->rr_offset;
 	logical_rs.rs_end = logical_rs.rs_start +
@@ -1999,7 +1997,7 @@ vdev_raidz_io_verify(zio_t *zio, raidz_map_t *rm, raidz_row_t *rr, int col)
 	    BP_PHYSICAL_BIRTH(zio->io_bp));
 
 	raidz_col_t *rc = &rr->rr_col[col];
-	vdev_t *cvd = tvd->vdev_child[rc->rc_devidx];
+	vdev_t *cvd = zio->io_vd->vdev_child[rc->rc_devidx];
 
 	vdev_xlate(cvd, &logical_rs, &physical_rs, &remain_rs);
 	ASSERT(vdev_xlate_is_empty(&remain_rs));
@@ -2021,7 +2019,7 @@ vdev_raidz_io_verify(zio_t *zio, raidz_map_t *rm, raidz_row_t *rr, int col)
 	 */
 	if (physical_rs.rs_end > rc->rc_offset + rc->rc_size) {
 		ASSERT3U(physical_rs.rs_end, ==, rc->rc_offset +
-		    rc->rc_size + (1 << tvd->vdev_ashift));
+		    rc->rc_size + (1 << zio->io_vd->vdev_top->vdev_ashift));
 	} else {
 		ASSERT3U(physical_rs.rs_end, ==, rc->rc_offset + rc->rc_size);
 	}
@@ -3275,7 +3273,6 @@ vdev_raidz_xlate(vdev_t *cvd, const range_seg64_t *logical_rs,
 
 	vdev_raidz_t *vdrz = raidvd->vdev_tsd;
 
-	ASSERT(raidvd->vdev_rz_expanding == B_FALSE);
 	if (vdrz->vn_vre.vre_state == DSS_SCANNING) {
 		/*
 		 * We're in the middle of expansion, in which case the
@@ -3952,14 +3949,14 @@ vdev_raidz_reflow_copy_scratch(spa_t *spa)
 	dmu_tx_t *tx = dmu_tx_create_assigned(spa->spa_dsl_pool,
 	    spa_first_txg(spa));
 	int txgoff = dmu_tx_get_txg(tx) & TXG_MASK;
-	vre->vre_offset = vre->vre_bytes_copied = logical_size;
+	vre->vre_offset = logical_size;
 	vre->vre_offset_pertxg[txgoff] = vre->vre_offset;
 	vre->vre_bytes_copied_pertxg[txgoff] = vre->vre_bytes_copied;
 	raidz_reflow_sync(spa, tx);
 
-	spa_config_exit(spa, SCL_STATE, FTAG);
-
 	dmu_tx_commit(tx);
+
+	spa_config_exit(spa, SCL_STATE, FTAG);
 
 	raidz_expand_pause(spa, 11);
 }
