@@ -261,6 +261,7 @@ extern int dmu_object_alloc_chunk_shift;
 extern boolean_t zfs_force_some_double_word_sm_entries;
 extern unsigned long zio_decompress_fail_fraction;
 extern unsigned long zfs_reconstruct_indirect_damage_fraction;
+extern uint64_t raidz_expand_max_offset_pause;
 
 
 static ztest_shared_opts_t *ztest_shared_opts;
@@ -531,6 +532,7 @@ typedef struct ztest_cb_list {
  */
 typedef struct ztest_shared {
 	boolean_t	zs_do_init;
+	boolean_t	zs_do_raidz_scratch_verify;
 	hrtime_t	zs_proc_start;
 	hrtime_t	zs_proc_stop;
 	hrtime_t	zs_thread_start;
@@ -3881,6 +3883,30 @@ out:
 	umem_free(newpath, MAXPATHLEN);
 }
 
+#define	RAIDZ_REFLOW_OFFSET_PAUSE	4
+
+static void
+raidz_scratch_verify(void)
+{
+	spa_t *spa;
+
+	if (ztest_shared->zs_do_raidz_scratch_verify == B_FALSE)
+		return;
+
+	kernel_init(SPA_MODE_READ);
+	VERIFY0(spa_open(ztest_opts.zo_pool, &spa, FTAG));
+
+	ASSERT3U(RRSS_GET_OFFSET(&spa->spa_uberblock), !=, UINT64_MAX);
+	ASSERT3U(RRSS_GET_OFFSET(&spa->spa_uberblock), >=,
+	    RAIDZ_REFLOW_OFFSET_PAUSE);
+	ASSERT3U(RRSS_GET_STATE(&spa->spa_uberblock), ==, RRSS_SCRATCH_VALID);
+
+	ztest_shared->zs_do_raidz_scratch_verify = B_FALSE;
+
+	spa_close(spa, FTAG);
+	kernel_fini();
+}
+
 static boolean_t
 ztest_vdev_raidz_attach_possible(spa_t *spa)
 {
@@ -3956,6 +3982,11 @@ ztest_vdev_raidz_attach(ztest_ds_t *zd, uint64_t id)
 	root = make_vdev_root(newpath, NULL, NULL, csize, ashift, NULL,
 	    0, 0, 1);
 
+	if (ztest_random(2) == 0 && expected_error == 0) {
+		raidz_expand_max_offset_pause = RAIDZ_REFLOW_OFFSET_PAUSE;
+		ztest_shared->zs_do_raidz_scratch_verify = B_TRUE;
+	}
+
 	error = spa_vdev_attach(spa, pvd->vdev_guid, root, B_FALSE, B_FALSE);
 
 	nvlist_free(root);
@@ -3965,6 +3996,12 @@ ztest_vdev_raidz_attach(ztest_ds_t *zd, uint64_t id)
 	} else if (error != 0 && error != expected_error) {
 		fatal(0, "raidz attach (%s %llu) returned %d, expected %d",
 		    newpath, csize, error, expected_error);
+	} else if (error == 0 && ztest_shared->zs_do_raidz_scratch_verify) {
+		/*
+		 * Wait raidz expansion thread starting and kill it.
+		 */
+		sleep(10);
+		ztest_kill(ztest_shared);
 	}
 
 out:
@@ -7456,6 +7493,7 @@ ztest_freeze(void)
 	if (ztest_opts.zo_verbose >= 3)
 		(void) printf("testing spa_freeze()...\n");
 
+	raidz_scratch_verify();
 	kernel_init(SPA_MODE_READ | SPA_MODE_WRITE);
 	VERIFY0(spa_open(ztest_opts.zo_pool, &spa, FTAG));
 	VERIFY0(ztest_dataset_open(0));
@@ -7523,6 +7561,7 @@ ztest_freeze(void)
 	/*
 	 * Open and close the pool and dataset to induce log replay.
 	 */
+	raidz_scratch_verify();
 	kernel_init(SPA_MODE_READ | SPA_MODE_WRITE);
 	VERIFY0(spa_open(ztest_opts.zo_pool, &spa, FTAG));
 	ASSERT3U(spa_freeze_txg(spa), ==, UINT64_MAX);
@@ -7568,6 +7607,7 @@ ztest_import(ztest_shared_t *zs)
 	mutex_init(&ztest_checkpoint_lock, NULL, MUTEX_DEFAULT, NULL);
 	VERIFY0(pthread_rwlock_init(&ztest_name_lock, NULL));
 
+	raidz_scratch_verify();
 	kernel_init(SPA_MODE_READ | SPA_MODE_WRITE);
 
 	ztest_import_impl(zs);
@@ -7616,7 +7656,6 @@ ztest_raidz_expand_run(ztest_shared_t *zs)
 	char *newpath;
 	pool_raidz_expand_stat_t rzx_stats;
 	pool_raidz_expand_stat_t *pres = &rzx_stats;
-	extern uint64_t raidz_expand_max_offset_pause;
 
 	newpath = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
 	ztest_exiting = B_FALSE;
@@ -7647,6 +7686,7 @@ ztest_raidz_expand_run(ztest_shared_t *zs)
 	 * Open our pool.  It may need to be imported first depending on
 	 * what tests were running when the previous pass was terminated.
 	 */
+	raidz_scratch_verify();
 	kernel_init(SPA_MODE_READ | SPA_MODE_WRITE);
 	error = spa_open(ztest_opts.zo_pool, &spa, FTAG);
 	if (error) {
@@ -7989,6 +8029,7 @@ ztest_run(ztest_shared_t *zs)
 	 * Open our pool.  It may need to be imported first depending on
 	 * what tests were running when the previous pass was terminated.
 	 */
+	raidz_scratch_verify();
 	kernel_init(SPA_MODE_READ | SPA_MODE_WRITE);
 	error = spa_open(ztest_opts.zo_pool, &spa, FTAG);
 	if (error) {
@@ -8237,6 +8278,7 @@ ztest_init(ztest_shared_t *zs)
 	mutex_init(&ztest_checkpoint_lock, NULL, MUTEX_DEFAULT, NULL);
 	VERIFY0(pthread_rwlock_init(&ztest_name_lock, NULL));
 
+	raidz_scratch_verify();
 	kernel_init(SPA_MODE_READ | SPA_MODE_WRITE);
 
 	/*
