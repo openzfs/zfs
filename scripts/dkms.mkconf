@@ -6,19 +6,21 @@ pkgcfg=/etc/sysconfig/zfs
 
 while getopts "n:v:c:f:" opt; do
 	case $opt in
-		n) pkgname=$OPTARG ;;
-		v) pkgver=$OPTARG  ;;
-		c) pkgcfg=$OPTARG ;;
+		n) pkgname=$OPTARG  ;;
+		v) pkgver=$OPTARG   ;;
+		c) pkgcfg=$OPTARG   ;;
 		f) filename=$OPTARG ;;
+    *) err=1            ;;
 	esac
 done
 
-if [ -z "${pkgname}" ] || [ -z "${pkgver}" ] || [ -z "${filename}" ]; then
+if [ -z "${pkgname}" ] || [ -z "${pkgver}" ] || [ -z "${filename}" ] ||
+    [ -n "${err}" ]; then
 	echo "Usage: $PROG -n <pkgname> -v <pkgver> -c <pkgcfg> -f <filename>"
 	exit 1
 fi
 
-cat >${filename} <<EOF
+exec cat >"${filename}" <<EOF
 PACKAGE_NAME="${pkgname}"
 PACKAGE_VERSION="${pkgver}"
 PACKAGE_CONFIG="${pkgcfg}"

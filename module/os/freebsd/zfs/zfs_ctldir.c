@@ -352,7 +352,7 @@ zfsctl_create(zfsvfs_t *zfsvfs)
 	vnode_t *rvp;
 	uint64_t crtime[2];
 
-	ASSERT(zfsvfs->z_ctldir == NULL);
+	ASSERT3P(zfsvfs->z_ctldir, ==, NULL);
 
 	snapdir = sfs_alloc_node(sizeof (*snapdir), "snapshot", ZFSCTL_INO_ROOT,
 	    ZFSCTL_INO_SNAPDIR);
@@ -360,8 +360,8 @@ zfsctl_create(zfsvfs_t *zfsvfs)
 	    ZFSCTL_INO_ROOT);
 	dot_zfs->snapdir = snapdir;
 
-	VERIFY(VFS_ROOT(zfsvfs->z_vfs, LK_EXCLUSIVE, &rvp) == 0);
-	VERIFY(0 == sa_lookup(VTOZ(rvp)->z_sa_hdl, SA_ZPL_CRTIME(zfsvfs),
+	VERIFY0(VFS_ROOT(zfsvfs->z_vfs, LK_EXCLUSIVE, &rvp));
+	VERIFY0(sa_lookup(VTOZ(rvp)->z_sa_hdl, SA_ZPL_CRTIME(zfsvfs),
 	    &crtime, sizeof (crtime)));
 	ZFS_TIME_DECODE(&dot_zfs->cmtime, crtime);
 	vput(rvp);
@@ -637,7 +637,7 @@ zfsctl_root_lookup(struct vop_lookup_args *ap)
 	int nameiop = ap->a_cnp->cn_nameiop;
 	int err;
 
-	ASSERT(dvp->v_type == VDIR);
+	ASSERT3S(dvp->v_type, ==, VDIR);
 
 	if ((flags & ISLASTCN) != 0 && nameiop != LOOKUP)
 		return (SET_ERROR(ENOTSUP));
@@ -673,7 +673,7 @@ zfsctl_root_readdir(struct vop_readdir_args *ap)
 
 	zfs_uio_init(&uio, ap->a_uio);
 
-	ASSERT(vp->v_type == VDIR);
+	ASSERT3S(vp->v_type, ==, VDIR);
 
 	error = sfs_readdir_common(zfsvfs->z_root, ZFSCTL_INO_ROOT, ap, &uio,
 	    &dots_offset);
@@ -918,7 +918,7 @@ zfsctl_snapdir_lookup(struct vop_lookup_args *ap)
 	int flags = cnp->cn_flags;
 	int err;
 
-	ASSERT(dvp->v_type == VDIR);
+	ASSERT3S(dvp->v_type, ==, VDIR);
 
 	if ((flags & ISLASTCN) != 0 && nameiop != LOOKUP)
 		return (SET_ERROR(ENOTSUP));
@@ -1013,7 +1013,7 @@ zfsctl_snapdir_lookup(struct vop_lookup_args *ap)
 		 * make .zfs/snapshot/<snapname> accessible over NFS
 		 * without requiring manual mounts of <snapname>.
 		 */
-		ASSERT(VTOZ(*vpp)->z_zfsvfs != zfsvfs);
+		ASSERT3P(VTOZ(*vpp)->z_zfsvfs, !=, zfsvfs);
 		VTOZ(*vpp)->z_zfsvfs->z_parent = zfsvfs;
 
 		/* Clear the root flag (set via VFS_ROOT) as well. */
@@ -1039,7 +1039,7 @@ zfsctl_snapdir_readdir(struct vop_readdir_args *ap)
 
 	zfs_uio_init(&uio, ap->a_uio);
 
-	ASSERT(vp->v_type == VDIR);
+	ASSERT3S(vp->v_type, ==, VDIR);
 
 	error = sfs_readdir_common(ZFSCTL_INO_ROOT, ZFSCTL_INO_SNAPDIR, ap,
 	    &uio, &dots_offset);
@@ -1143,7 +1143,7 @@ zfsctl_snapshot_inactive(struct vop_inactive_args *ap)
 {
 	vnode_t *vp = ap->a_vp;
 
-	VERIFY(vrecycle(vp) == 1);
+	VERIFY3S(vrecycle(vp), ==, 1);
 	return (0);
 }
 
@@ -1248,7 +1248,7 @@ zfsctl_lookup_objset(vfs_t *vfsp, uint64_t objsetid, zfsvfs_t **zfsvfsp)
 	vnode_t *vp;
 	int error;
 
-	ASSERT(zfsvfs->z_ctldir != NULL);
+	ASSERT3P(zfsvfs->z_ctldir, !=, NULL);
 	*zfsvfsp = NULL;
 	error = sfs_vnode_get(vfsp, LK_EXCLUSIVE,
 	    ZFSCTL_INO_SNAPDIR, objsetid, &vp);
@@ -1280,7 +1280,7 @@ zfsctl_umount_snapshots(vfs_t *vfsp, int fflags, cred_t *cr)
 	uint64_t cookie;
 	int error;
 
-	ASSERT(zfsvfs->z_ctldir != NULL);
+	ASSERT3P(zfsvfs->z_ctldir, !=, NULL);
 
 	cookie = 0;
 	for (;;) {

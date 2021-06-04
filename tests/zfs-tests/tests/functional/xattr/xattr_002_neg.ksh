@@ -57,6 +57,6 @@ for arg in ${args[*]}; do
 	# create a file
 	log_must touch $TESTDIR/myfile.$$
 	log_mustnot eval "cat $TESTDIR/myfile.$$ not-here.txt > /dev/null 2>&1"
-
-	log_pass "A read of a non-existent xattr fails"
 done
+
+log_pass "A read of a non-existent xattr fails"

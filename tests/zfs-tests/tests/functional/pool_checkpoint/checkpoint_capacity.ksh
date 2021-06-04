@@ -80,13 +80,14 @@ log_mustnot dd if=/dev/urandom of=$NESTEDFS0FILE bs=1M count=300
 #
 log_must zpool list $NESTEDPOOL
 
-log_must zdb -kc $NESTEDPOOL
-
 log_must zpool export $NESTEDPOOL
+log_must zdb -e -p $FILEDISKDIR -kc $NESTEDPOOL
+
 log_must zpool import -d $FILEDISKDIR --rewind-to-checkpoint $NESTEDPOOL
 
 log_must [ "$(head -c 100 $NESTEDFS0FILE)" = "$FILE0INTRO" ]
 
-log_must zdb $NESTEDPOOL
+log_must zpool export $NESTEDPOOL
+log_must zdb -e -p $FILEDISKDIR $NESTEDPOOL
 
 log_pass "Do not reuse checkpointed space at low capacity."

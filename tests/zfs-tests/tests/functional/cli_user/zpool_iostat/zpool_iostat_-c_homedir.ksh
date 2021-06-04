@@ -30,7 +30,7 @@
 #
 # STRATEGY:
 #	1. Change HOME to /var/tmp
-#	2. Make a simple script that echos a key value pair
+#	2. Make a simple script that echoes a key value pair
 #	   in /var/tmp/.zpool.d
 #	3. Make sure it can be run with -c
 #	4. Remove the script we created

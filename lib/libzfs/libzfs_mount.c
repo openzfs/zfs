@@ -385,6 +385,9 @@ zfs_mount_at(zfs_handle_t *zhp, const char *options, int flags,
 	struct stat buf;
 	char mntopts[MNT_LINE_MAX];
 	char overlay[ZFS_MAXPROPLEN];
+	char prop_encroot[MAXNAMELEN];
+	boolean_t is_encroot;
+	zfs_handle_t *encroot_hp = zhp;
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
 	uint64_t keystatus;
 	int remount = 0, rc;
@@ -443,7 +446,27 @@ zfs_mount_at(zfs_handle_t *zhp, const char *options, int flags,
 		 */
 		if (keystatus == ZFS_KEYSTATUS_UNAVAILABLE) {
 			if (flags & MS_CRYPT) {
-				rc = zfs_crypto_load_key(zhp, B_FALSE, NULL);
+				rc = zfs_crypto_get_encryption_root(zhp,
+				    &is_encroot, prop_encroot);
+				if (rc) {
+					zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+					    "Failed to get encryption root for "
+					    "'%s'."), zfs_get_name(zhp));
+					return (rc);
+				}
+
+				if (!is_encroot) {
+					encroot_hp = zfs_open(hdl, prop_encroot,
+					    ZFS_TYPE_DATASET);
+					if (encroot_hp == NULL)
+						return (hdl->libzfs_error);
+				}
+
+				rc = zfs_crypto_load_key(encroot_hp,
+				    B_FALSE, NULL);
+
+				if (!is_encroot)
+					zfs_close(encroot_hp);
 				if (rc)
 					return (rc);
 			} else {
@@ -515,19 +538,17 @@ zfs_mount_at(zfs_handle_t *zhp, const char *options, int flags,
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "Insufficient privileges"));
 		} else if (rc == ENOTSUP) {
-			char buf[256];
 			int spa_version;
 
 			VERIFY(zfs_spa_version(zhp, &spa_version) == 0);
-			(void) snprintf(buf, sizeof (buf),
-			    dgettext(TEXT_DOMAIN, "Can't mount a version %lld "
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "Can't mount a version %llu "
 			    "file system on a version %d pool. Pool must be"
 			    " upgraded to mount this file system."),
 			    (u_longlong_t)zfs_prop_get_int(zhp,
 			    ZFS_PROP_VERSION), spa_version);
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, buf));
 		} else {
-			zfs_error_aux(hdl, strerror(rc));
+			zfs_error_aux(hdl, "%s", strerror(rc));
 		}
 		return (zfs_error_fmt(hdl, EZFS_MOUNTFAILED,
 		    dgettext(TEXT_DOMAIN, "cannot mount '%s'"),
@@ -1505,6 +1526,7 @@ int
 zpool_disable_datasets(zpool_handle_t *zhp, boolean_t force)
 {
 	int used, alloc;
+	FILE *mnttab;
 	struct mnttab entry;
 	size_t namelen;
 	char **mountpoints = NULL;
@@ -1516,12 +1538,11 @@ zpool_disable_datasets(zpool_handle_t *zhp, boolean_t force)
 
 	namelen = strlen(zhp->zpool_name);
 
-	/* Reopen MNTTAB to prevent reading stale data from open file */
-	if (freopen(MNTTAB, "r", hdl->libzfs_mnttab) == NULL)
+	if ((mnttab = fopen(MNTTAB, "re")) == NULL)
 		return (ENOENT);
 
 	used = alloc = 0;
-	while (getmntent(hdl->libzfs_mnttab, &entry) == 0) {
+	while (getmntent(mnttab, &entry) == 0) {
 		/*
 		 * Ignore non-ZFS entries.
 		 */
@@ -1623,6 +1644,7 @@ zpool_disable_datasets(zpool_handle_t *zhp, boolean_t force)
 
 	ret = 0;
 out:
+	(void) fclose(mnttab);
 	for (i = 0; i < used; i++) {
 		if (datasets[i])
 			zfs_close(datasets[i]);

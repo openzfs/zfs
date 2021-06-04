@@ -62,63 +62,63 @@ void spl_dumpstack(void);
 #define	PANIC(fmt, a...)						\
 	spl_panic(__FILE__, __FUNCTION__, __LINE__, fmt, ## a)
 
-#define	VERIFY(cond)							\
-	(void) (unlikely(!(cond)) &&					\
+#define	VERIFY(cond)										\
+	(void) (unlikely(!(cond)) &&							\
 	    spl_panic(__FILE__, __FUNCTION__, __LINE__,			\
 	    "%s", "VERIFY(" #cond ") failed\n"))
 
-#define	VERIFY3B(LEFT, OP, RIGHT)	do {				\
-		boolean_t _verify3_left = (boolean_t)(LEFT);		\
-		boolean_t _verify3_right = (boolean_t)(RIGHT);		\
-		if (!(_verify3_left OP _verify3_right))			\
+#define	VERIFY3B(LEFT, OP, RIGHT)	do {					\
+		const boolean_t _verify3_left = (boolean_t)(LEFT);	\
+		const boolean_t _verify3_right = (boolean_t)(RIGHT);\
+		if (unlikely(!(_verify3_left OP _verify3_right)))	\
 		    spl_panic(__FILE__, __FUNCTION__, __LINE__,		\
 		    "VERIFY3(" #LEFT " "  #OP " "  #RIGHT ") "		\
-		    "failed (%d " #OP " %d)\n",				\
-		    (boolean_t) (_verify3_left),			\
-		    (boolean_t) (_verify3_right));			\
+		    "failed (%d " #OP " %d)\n",						\
+		    (boolean_t) (_verify3_left),					\
+		    (boolean_t) (_verify3_right));					\
 	} while (0)
 
-#define	VERIFY3S(LEFT, OP, RIGHT)	do {				\
-		int64_t _verify3_left = (int64_t)(LEFT);		\
-		int64_t _verify3_right = (int64_t)(RIGHT);		\
-		if (!(_verify3_left OP _verify3_right))			\
+#define	VERIFY3S(LEFT, OP, RIGHT)	do {					\
+		const int64_t _verify3_left = (int64_t)(LEFT);		\
+		const int64_t _verify3_right = (int64_t)(RIGHT);	\
+		if (unlikely(!(_verify3_left OP _verify3_right)))	\
 		    spl_panic(__FILE__, __FUNCTION__, __LINE__,		\
 		    "VERIFY3(" #LEFT " "  #OP " "  #RIGHT ") "		\
-		    "failed (%lld " #OP " %lld)\n",			\
-		    (long long) (_verify3_left),			\
-		    (long long) (_verify3_right));			\
+		    "failed (%lld " #OP " %lld)\n",					\
+		    (long long) (_verify3_left),					\
+		    (long long) (_verify3_right));					\
 	} while (0)
 
-#define	VERIFY3U(LEFT, OP, RIGHT)	do {				\
-		uint64_t _verify3_left = (uint64_t)(LEFT);		\
-		uint64_t _verify3_right = (uint64_t)(RIGHT);		\
-		if (!(_verify3_left OP _verify3_right))			\
+#define	VERIFY3U(LEFT, OP, RIGHT)	do {					\
+		const uint64_t _verify3_left = (uint64_t)(LEFT);	\
+		const uint64_t _verify3_right = (uint64_t)(RIGHT);	\
+		if (unlikely(!(_verify3_left OP _verify3_right)))	\
 		    spl_panic(__FILE__, __FUNCTION__, __LINE__,		\
 		    "VERIFY3(" #LEFT " "  #OP " "  #RIGHT ") "		\
-		    "failed (%llu " #OP " %llu)\n",			\
-		    (unsigned long long) (_verify3_left),		\
-		    (unsigned long long) (_verify3_right));		\
+		    "failed (%llu " #OP " %llu)\n",					\
+		    (unsigned long long) (_verify3_left),			\
+		    (unsigned long long) (_verify3_right));			\
 	} while (0)
 
-#define	VERIFY3P(LEFT, OP, RIGHT)	do {				\
-		uintptr_t _verify3_left = (uintptr_t)(LEFT);		\
-		uintptr_t _verify3_right = (uintptr_t)(RIGHT);		\
-		if (!(_verify3_left OP _verify3_right))			\
+#define	VERIFY3P(LEFT, OP, RIGHT)	do {					\
+		const uintptr_t _verify3_left = (uintptr_t)(LEFT);	\
+		const uintptr_t _verify3_right = (uintptr_t)(RIGHT);\
+		if (unlikely(!(_verify3_left OP _verify3_right)))	\
 		    spl_panic(__FILE__, __FUNCTION__, __LINE__,		\
 		    "VERIFY3(" #LEFT " "  #OP " "  #RIGHT ") "		\
-		    "failed (%px " #OP " %px)\n",			\
-		    (void *) (_verify3_left),				\
-		    (void *) (_verify3_right));				\
+		    "failed (%px " #OP " %px)\n",					\
+		    (void *) (_verify3_left),						\
+		    (void *) (_verify3_right));						\
 	} while (0)
 
-#define	VERIFY0(RIGHT)	do {				\
-		int64_t _verify3_left = (int64_t)(0);		\
-		int64_t _verify3_right = (int64_t)(RIGHT);		\
-		if (!(_verify3_left == _verify3_right))			\
+#define	VERIFY0(RIGHT)	do {								\
+		const int64_t _verify3_left = (int64_t)(0);			\
+		const int64_t _verify3_right = (int64_t)(RIGHT);	\
+		if (unlikely(!(_verify3_left == _verify3_right)))	\
 		    spl_panic(__FILE__, __FUNCTION__, __LINE__,		\
-		    "VERIFY3(0 == " #RIGHT ") "				\
-		    "failed (0 == %lld)\n",				\
-		    (long long) (_verify3_right));			\
+		    "VERIFY3(0 == " #RIGHT ") "						\
+		    "failed (0 == %lld)\n",							\
+		    (long long) (_verify3_right));					\
 	} while (0)
 
 #define	CTASSERT_GLOBAL(x)		_CTASSERT(x, __LINE__)
@@ -154,11 +154,11 @@ void spl_dumpstack(void);
 #define	ASSERT0		VERIFY0
 #define	ASSERT		VERIFY
 #define	IMPLY(A, B) \
-	((void)(((!(A)) || (B)) || \
+	((void)(likely((!(A)) || (B)) || \
 	    spl_panic(__FILE__, __FUNCTION__, __LINE__, \
 	    "(" #A ") implies (" #B ")")))
 #define	EQUIV(A, B) \
-	((void)((!!(A) == !!(B)) || \
+	((void)(likely(!!(A) == !!(B)) || \
 	    spl_panic(__FILE__, __FUNCTION__, __LINE__, \
 	    "(" #A ") is equivalent to (" #B ")")))
 /* END CSTYLED */

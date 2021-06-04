@@ -166,12 +166,27 @@ enabled when using \fBzpool upgrade\fR. \fBzpool status\fR
 will not show a warning about disabled features which are not part
 of the requested feature set.
 .LP
+The special value \fBlegacy\fR prevents any features from being enabled,
+either via \fBzpool upgrade\fR or via \fBzpool set feature@XX=enabled\fR.
+This setting also prevents pools from being upgraded to newer on-disk
+versions. This is a safety measure to prevent new features from being
+accidentally enabled, breaking compatibility.
+.LP
 By convention, compatibility files in \fB/usr/share/zfs/compatibility.d\fR
 are provided by the distribution package, and include feature sets
-supported by important versions of popular distribtions, and feature
+supported by important versions of popular distributions, and feature
 sets commonly supported at the start of each year.  Compatibility files
 in \fB/etc/zfs/compatibility.d\fR, if present, will take precedence over
 files with the same name in \fB/usr/share/zfs/compatibility.d\fR.
+.LP
+If an unrecognized feature is found in these files, an error message will
+be shown. If the unrecognized feature is in a file in
+\fB/etc/zfs/compatibility.d\fR, this is treated as an error and processing
+will stop. If the unrecognized feature is under
+\fB/usr/share/zfs/compatibility.d\fR, this is treated as a warning and
+processing will continue. This difference is to allow distributions to
+include features which might not be recognized by the currently-installed
+binaries.
 .LP
 Compatibility files may include comments; any text from \fB#\fR to the end
 of the line is ignored.
@@ -730,8 +745,6 @@ will be compressed with \fBlz4\fR algorithm. Since this feature is not
 read-only compatible, this operation will render the pool unimportable
 on systems without support for the \fBlz4_compress\fR feature.
 
-Booting off of \fBlz4\fR-compressed root pools is supported.
-
 This feature becomes \fBactive\fR as soon as it is enabled and will
 never return to being \fBenabled\fB.
 .RE
@@ -1046,7 +1059,7 @@ DEPENDENCIES	extensible_dataset
 
 \fBzstd\fR is a high-performance compression algorithm that features a
 combination of high compression ratios and high speed. Compared to \fBgzip\fR,
-\fBzstd\fR offers slighty better compression at much higher speeds. Compared
+\fBzstd\fR offers slightly better compression at much higher speeds. Compared
 to \fBlz4\fR, \fBzstd\fR offers much better compression while being only
 modestly slower. Typically, \fBzstd\fR compression speed ranges from 250 to 500
 MB/s per thread and decompression speed is over 1 GB/s per thread.
@@ -1058,8 +1071,6 @@ on \fBzstd\fR compression of any dataset by running
 This feature becomes \fBactive\fR once a \fBcompress\fR property has been set to
 \fBzstd\fR, and will return to being \fBenabled\fR once all filesystems that
 have ever had their compress property set to \fBzstd\fR are destroyed.
-
-Booting off of \fBzstd\fR-compressed root pools is not yet supported.
 .RE
 
 .SH "SEE ALSO"

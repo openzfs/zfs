@@ -5,22 +5,20 @@
 #
 # Released under the 2-clause BSD license.
 #
-# The original script that acted as a template for this script came from
-# the Debian GNU/Linux kFreeBSD ZFS packages (which did not include a
-# licensing stansa) in the commit dated Mar 24, 2011:
-#   https://github.com/zfsonlinux/pkg-zfs/commit/80a3ae582b59c0250d7912ba794dca9e669e605a
+# This script is based on debian/zfsutils.zfs.init from the
+# Debian GNU/kFreeBSD zfsutils 8.1-3 package, written by Aurelien Jarno.
 
 PATH=/sbin:/bin:/usr/bin:/usr/sbin
 
 # Source function library
 if [ -f /etc/rc.d/init.d/functions ]; then
-	# RedHat and derivates
+	# RedHat and derivatives
 	. /etc/rc.d/init.d/functions
 elif [ -L /etc/init.d/functions.sh ]; then
 	# Gentoo
 	. /etc/init.d/functions.sh
 elif [ -f /lib/lsb/init-functions ]; then
-	# LSB, Debian GNU/Linux and derivates
+	# LSB, Debian, and derivatives
 	. /lib/lsb/init-functions
 fi
 
@@ -46,7 +44,7 @@ elif type success > /dev/null 2>&1 ; then
 		fi
 	}
 
-	zfs_log_begin_msg() { echo -n "$1 "; }
+	zfs_log_begin_msg() { printf "%s" "$1 "; }
 	zfs_log_end_msg() {
 		zfs_set_ifs "$OLD_IFS"
 		if [ "$1" -eq 0 ]; then
@@ -63,17 +61,17 @@ elif type success > /dev/null 2>&1 ; then
 		echo
 		zfs_set_ifs "$TMP_IFS"
 	}
-	zfs_log_progress_msg() { echo -n $"$1"; }
+	zfs_log_progress_msg() { printf "%s" "$""$1"; }
 elif type einfo > /dev/null 2>&1 ; then
 	# Gentoo functions
 	zfs_log_begin_msg() { ebegin "$1"; }
 	zfs_log_end_msg() { eend "$1"; }
 	zfs_log_failure_msg() { eend "$1"; }
-#	zfs_log_progress_msg() { echo -n "$1"; }
-	zfs_log_progress_msg() { echo -n; }
+#	zfs_log_progress_msg() { printf "%s" "$1"; }
+	zfs_log_progress_msg() { :; }
 else
 	# Unknown - simple substitutes.
-	zfs_log_begin_msg() { echo -n "$1"; }
+	zfs_log_begin_msg() { printf "%s" "$1"; }
 	zfs_log_end_msg() {
 		ret=$1
 		if [ "$ret" -ge 1 ]; then
@@ -84,7 +82,7 @@ else
 		return "$ret"
 	}
 	zfs_log_failure_msg() { echo "$1"; }
-	zfs_log_progress_msg() { echo -n "$1"; }
+	zfs_log_progress_msg() { printf "%s" "$1"; }
 fi
 
 # Paths to what we need
@@ -136,27 +134,28 @@ zfs_daemon_start()
 {
 	local PIDFILE="$1";	shift
 	local DAEMON_BIN="$1";	shift
-	local DAEMON_ARGS="$*"
 
 	if type start-stop-daemon > /dev/null 2>&1 ; then
 		# LSB functions
 		start-stop-daemon --start --quiet --pidfile "$PIDFILE" \
 		    --exec "$DAEMON_BIN" --test > /dev/null || return 1
 
-	        start-stop-daemon --start --quiet --exec "$DAEMON_BIN" -- \
-		    $DAEMON_ARGS || return 2
+		# shellcheck disable=SC2086
+		start-stop-daemon --start --quiet --exec "$DAEMON_BIN" -- \
+		    "$@" || return 2
 
-		# On Debian GNU/Linux, there's a 'sendsigs' script that will
+		# On Debian, there's a 'sendsigs' script that will
 		# kill basically everything quite early and zed is stopped
 		# much later than that. We don't want zed to be among them,
 		# so add the zed pid to list of pids to ignore.
-		if [ -f "$PIDFILE" -a -d /run/sendsigs.omit.d ]
+		if [ -f "$PIDFILE" ] && [ -d /run/sendsigs.omit.d ]
 		then
 			ln -sf "$PIDFILE" /run/sendsigs.omit.d/zed
 		fi
 	elif type daemon > /dev/null 2>&1 ; then
-	        # Fedora/RedHat functions
-		daemon --pidfile "$PIDFILE" "$DAEMON_BIN" $DAEMON_ARGS
+		# Fedora/RedHat functions
+		# shellcheck disable=SC2086
+		daemon --pidfile "$PIDFILE" "$DAEMON_BIN" "$@"
 		return $?
 	else
 		# Unsupported
@@ -182,15 +181,17 @@ zfs_daemon_stop()
 		# LSB functions
 		start-stop-daemon --stop --quiet --retry=TERM/30/KILL/5 \
 		    --pidfile "$PIDFILE" --name "$DAEMON_NAME"
-		[ "$?" = 0 ] && rm -f "$PIDFILE"
+		ret="$?"
+		[ "$ret" = 0 ] && rm -f "$PIDFILE"
 
-		return $?
+		return "$ret"
 	elif type killproc > /dev/null 2>&1 ; then
 		# Fedora/RedHat functions
 		killproc -p "$PIDFILE" "$DAEMON_NAME"
-		[ "$?" = 0 ] && rm -f "$PIDFILE"
+		ret="$?"
+		[ "$ret" = 0 ] && rm -f "$PIDFILE"
 
-		return $?
+		return "$ret"
 	else
 		# Unsupported
 		return 3
@@ -234,7 +235,7 @@ zfs_daemon_reload()
 		return $?
 	elif type killproc > /dev/null 2>&1 ; then
 		# Fedora/RedHat functions
-                killproc -p "$PIDFILE" "$DAEMON_NAME" -HUP
+		killproc -p "$PIDFILE" "$DAEMON_NAME" -HUP
 		return $?
 	else
 		# Unsupported
@@ -287,6 +288,7 @@ checksystem()
 		# HOWEVER, only do this if we're called at the boot up
 		# (from init), not if we're running interactively (as in
 		# from the shell - we know what we're doing).
+		# shellcheck disable=SC2154
 		[ -n "$init" ] && exit 3
 	fi
 
@@ -301,6 +303,7 @@ checksystem()
 
 get_root_pool()
 {
+	# shellcheck disable=SC2046
 	set -- $(mount | grep ' on / ')
 	[ "$5" = "zfs" ] && echo "${1%%/*}"
 }
@@ -338,9 +341,10 @@ load_module()
 read_mtab()
 {
 	local match="$1"
-	local fs mntpnt fstype opts rest TMPFILE
+	local fs mntpnt fstype opts rest
 
 	# Unset all MTAB_* variables
+	# shellcheck disable=SC2046
 	unset $(env | grep ^MTAB_ | sed 's,=.*,,')
 
 	while read -r fs mntpnt fstype opts rest; do
@@ -352,8 +356,8 @@ read_mtab()
 			# * We need to use the external echo, because the
 			#   internal one would interpret the backslash code
 			#   (incorrectly), giving us a  instead.
-			mntpnt=$(/bin/echo "$mntpnt" | sed "s,\\\0,\\\00,g")
-			fs=$(/bin/echo "$fs" | sed "s,\\\0,\\\00,")
+			mntpnt=$(/bin/echo "$mntpnt" | sed 's,\\0,\\00,g')
+			fs=$(/bin/echo "$fs" | sed 's,\\0,\\00,')
 
 			# Remove 'unwanted' characters.
 			mntpnt=$(printf '%b\n' "$mntpnt" | sed -e 's,/,,g' \
@@ -361,7 +365,7 @@ read_mtab()
 			fs=$(printf '%b\n' "$fs")
 
 			# Set the variable.
-			eval export MTAB_$mntpnt=\"$fs\"
+			eval export "MTAB_$mntpnt=\"$fs\""
 		fi
 	done < /proc/self/mounts
 }
@@ -371,10 +375,10 @@ in_mtab()
 	local mntpnt="$1"
 	# Remove 'unwanted' characters.
 	mntpnt=$(printf '%b\n' "$mntpnt" | sed -e 's,/,,g' \
-	    -e 's,-,,g' -e 's,\.,,g' -e 's, ,,g')   
+	    -e 's,-,,g' -e 's,\.,,g' -e 's, ,,g')
 	local var
 
-	var="$(eval echo MTAB_$mntpnt)"
+	var="$(eval echo "MTAB_$mntpnt")"
 	[ "$(eval echo "$""$var")" != "" ]
 	return "$?"
 }
@@ -383,21 +387,22 @@ in_mtab()
 read_fstab()
 {
 	local match="$1"
-	local i var TMPFILE
+	local i var
 
 	# Unset all FSTAB_* variables
+	# shellcheck disable=SC2046
 	unset $(env | grep ^FSTAB_ | sed 's,=.*,,')
 
 	i=0
 	while read -r fs mntpnt fstype opts; do
-		echo "$fs" | egrep -qE '^#|^$' && continue
-		echo "$mntpnt" | egrep -qE '^none|^swap' && continue
-		echo "$fstype" | egrep -qE '^swap' && continue
+		echo "$fs" | grep -qE '^#|^$' && continue
+		echo "$mntpnt" | grep -qE '^none|^swap' && continue
+		echo "$fstype" | grep -qE '^swap' && continue
 
 		if echo "$fs $mntpnt $fstype $opts" | grep -qE "$match"; then
-			eval export FSTAB_dev_$i="$fs"
+			eval export "FSTAB_dev_$i=$fs"
 			fs=$(printf '%b\n' "$fs" | sed 's,/,_,g')
-			eval export FSTAB_$i="$mntpnt"
+			eval export "FSTAB_$i=$mntpnt"
 
 			i=$((i + 1))
 		fi
@@ -408,7 +413,7 @@ in_fstab()
 {
 	local var
 
-	var="$(eval echo FSTAB_$1)"
+	var="$(eval echo "FSTAB_$1")"
 	[ "${var}" != "" ]
 	return $?
 }
@@ -416,19 +421,11 @@ in_fstab()
 is_mounted()
 {
 	local mntpt="$1"
-	local line
+	local mp
 
-	mount | \
-	    while read line; do
-		if echo "$line" | grep -q " on $mntpt "; then
-		    # returns:
-		    #   0 on unsuccessful match
-		    #   1 on a successful match
-		    return 1
-		fi
-	    done
+	while read -r _ mp _; do
+		[ "$mp" = "$mntpt" ] && return 0
+	done < /proc/self/mounts
 
-	# The negation will flip the subshell return result where the default
-	# return value is 0 when a match is not found.
-	return $(( !$? ))
+	return 1
 }

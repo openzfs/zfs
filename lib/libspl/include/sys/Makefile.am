@@ -44,4 +44,5 @@ libspl_HEADERS = \
 	varargs.h \
 	vnode.h \
 	vtoc.h \
+	wmsum.h \
 	zone.h

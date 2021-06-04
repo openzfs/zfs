@@ -3,7 +3,7 @@
  *
  * Developed at Lawrence Livermore National Laboratory (LLNL-CODE-403049).
  * Copyright (C) 2013-2014 Lawrence Livermore National Security, LLC.
- * Refer to the ZoL git commit log for authoritative copyright attribution.
+ * Refer to the OpenZFS git commit log for authoritative copyright attribution.
  *
  * The contents of this file are subject to the terms of the
  * Common Development and Distribution License Version 1.0 (CDDL-1.0).
@@ -60,8 +60,8 @@ _setup_sig_handlers(void)
 		zed_log_die("Failed to initialize sigset");
 
 	sa.sa_flags = SA_RESTART;
-	sa.sa_handler = SIG_IGN;
 
+	sa.sa_handler = SIG_IGN;
 	if (sigaction(SIGPIPE, &sa, NULL) < 0)
 		zed_log_die("Failed to ignore SIGPIPE");
 
@@ -75,6 +75,10 @@ _setup_sig_handlers(void)
 	sa.sa_handler = _hup_handler;
 	if (sigaction(SIGHUP, &sa, NULL) < 0)
 		zed_log_die("Failed to register SIGHUP handler");
+
+	(void) sigaddset(&sa.sa_mask, SIGCHLD);
+	if (pthread_sigmask(SIG_BLOCK, &sa.sa_mask, NULL) < 0)
+		zed_log_die("Failed to block SIGCHLD");
 }
 
 /*
@@ -212,21 +216,19 @@ _finish_daemonize(void)
 int
 main(int argc, char *argv[])
 {
-	struct zed_conf *zcp;
+	struct zed_conf zcp;
 	uint64_t saved_eid;
 	int64_t saved_etime[2];
 
 	zed_log_init(argv[0]);
 	zed_log_stderr_open(LOG_NOTICE);
-	zcp = zed_conf_create();
-	zed_conf_parse_opts(zcp, argc, argv);
-	if (zcp->do_verbose)
+	zed_conf_init(&zcp);
+	zed_conf_parse_opts(&zcp, argc, argv);
+	if (zcp.do_verbose)
 		zed_log_stderr_open(LOG_INFO);
 
 	if (geteuid() != 0)
 		zed_log_die("Must be run as root");
-
-	zed_conf_parse_file(zcp);
 
 	zed_file_close_from(STDERR_FILENO + 1);
 
@@ -235,32 +237,32 @@ main(int argc, char *argv[])
 	if (chdir("/") < 0)
 		zed_log_die("Failed to change to root directory");
 
-	if (zed_conf_scan_dir(zcp) < 0)
+	if (zed_conf_scan_dir(&zcp) < 0)
 		exit(EXIT_FAILURE);
 
-	if (!zcp->do_foreground) {
+	if (!zcp.do_foreground) {
 		_start_daemonize();
 		zed_log_syslog_open(LOG_DAEMON);
 	}
 	_setup_sig_handlers();
 
-	if (zcp->do_memlock)
+	if (zcp.do_memlock)
 		_lock_memory();
 
-	if ((zed_conf_write_pid(zcp) < 0) && (!zcp->do_force))
+	if ((zed_conf_write_pid(&zcp) < 0) && (!zcp.do_force))
 		exit(EXIT_FAILURE);
 
-	if (!zcp->do_foreground)
+	if (!zcp.do_foreground)
 		_finish_daemonize();
 
 	zed_log_msg(LOG_NOTICE,
 	    "ZFS Event Daemon %s-%s (PID %d)",
 	    ZFS_META_VERSION, ZFS_META_RELEASE, (int)getpid());
 
-	if (zed_conf_open_state(zcp) < 0)
+	if (zed_conf_open_state(&zcp) < 0)
 		exit(EXIT_FAILURE);
 
-	if (zed_conf_read_state(zcp, &saved_eid, saved_etime) < 0)
+	if (zed_conf_read_state(&zcp, &saved_eid, saved_etime) < 0)
 		exit(EXIT_FAILURE);
 
 idle:
@@ -269,24 +271,24 @@ idle:
 	 * successful.
 	 */
 	do {
-		if (!zed_event_init(zcp))
+		if (!zed_event_init(&zcp))
 			break;
 		/* Wait for some time and try again. tunable? */
 		sleep(30);
-	} while (!_got_exit && zcp->do_idle);
+	} while (!_got_exit && zcp.do_idle);
 
 	if (_got_exit)
 		goto out;
 
-	zed_event_seek(zcp, saved_eid, saved_etime);
+	zed_event_seek(&zcp, saved_eid, saved_etime);
 
 	while (!_got_exit) {
 		int rv;
 		if (_got_hup) {
 			_got_hup = 0;
-			(void) zed_conf_scan_dir(zcp);
+			(void) zed_conf_scan_dir(&zcp);
 		}
-		rv = zed_event_service(zcp);
+		rv = zed_event_service(&zcp);
 
 		/* ENODEV: When kernel module is unloaded (osx) */
 		if (rv == ENODEV)
@@ -294,13 +296,13 @@ idle:
 	}
 
 	zed_log_msg(LOG_NOTICE, "Exiting");
-	zed_event_fini(zcp);
+	zed_event_fini(&zcp);
 
-	if (zcp->do_idle && !_got_exit)
+	if (zcp.do_idle && !_got_exit)
 		goto idle;
 
 out:
-	zed_conf_destroy(zcp);
+	zed_conf_destroy(&zcp);
 	zed_log_fini();
 	exit(EXIT_SUCCESS);
 }

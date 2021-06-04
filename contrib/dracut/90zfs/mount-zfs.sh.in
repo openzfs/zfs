@@ -1,4 +1,5 @@
 #!/bin/sh
+# shellcheck disable=SC2034,SC2154
 
 . /lib/dracut-zfs-lib.sh
 
@@ -38,11 +39,10 @@ modprobe zfs 2>/dev/null
 udevadm settle
 
 if [ "${root}" = "zfs:AUTO" ] ; then
-	ZFS_DATASET="$(find_bootfs)"
-	if [ $? -ne 0 ] ; then
+	if ! ZFS_DATASET="$(find_bootfs)" ; then
+		# shellcheck disable=SC2086
 		zpool import -N -a ${ZPOOL_IMPORT_OPTS}
-		ZFS_DATASET="$(find_bootfs)"
-		if [ $? -ne 0 ] ; then
+		if ! ZFS_DATASET="$(find_bootfs)" ; then
 			warn "ZFS: No bootfs attribute found in importable pools."
 			export_all -F
 

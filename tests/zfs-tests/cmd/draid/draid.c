@@ -626,7 +626,7 @@ eval_decluster(draid_map_t *map, double *worst_ratiop, double *avg_ratiop)
 		uint64_t faults = nspares;
 
 		/*
-		 * Score groupwidths up to 19.  This value was choosen as the
+		 * Score groupwidths up to 19.  This value was chosen as the
 		 * largest reasonable width (16d+3p).  dRAID pools may be still
 		 * be created with wider stripes but they are not considered in
 		 * this analysis in order to optimize for the most common cases.
@@ -727,7 +727,7 @@ eval_maps(uint64_t children, int passes, uint64_t *map_seed,
 		 * Consider maps with a lower worst_ratio to be of higher
 		 * quality.  Some maps may have a lower avg_ratio but they
 		 * are discarded since they might include some particularly
-		 * imbalanced permuations.  The average is tracked to in
+		 * imbalanced permutations.  The average is tracked to in
 		 * order to get a sense of the average permutation quality.
 		 */
 		eval_decluster(map, &worst_ratio, &avg_ratio);
@@ -1194,8 +1194,8 @@ draid_dump(int argc, char *argv[])
 }
 
 /*
- * Print all of the mappings as a C formated draid_map_t array.  This table
- * is found in the module/zcommon/zfs_draid.c file and is the definative
+ * Print all of the mappings as a C formatted draid_map_t array.  This table
+ * is found in the module/zcommon/zfs_draid.c file and is the definitive
  * source for all mapping used by dRAID.  It cannot be updated without
  * changing the dRAID on disk format.
  */

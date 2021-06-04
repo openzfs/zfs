@@ -46,12 +46,6 @@ void uu_set_error(uint_t);
 void uu_panic(const char *format, ...);
 
 
-struct uu_dprintf {
-	char	*uud_name;
-	uu_dprintf_severity_t uud_severity;
-	uint_t	uud_flags;
-};
-
 /*
  * For debugging purposes, libuutil keeps around linked lists of all uu_lists
  * and uu_avls, along with pointers to their parents.  These can cause false

@@ -3,7 +3,7 @@
  *
  * Developed at Lawrence Livermore National Laboratory (LLNL-CODE-403049).
  * Copyright (C) 2013-2014 Lawrence Livermore National Security, LLC.
- * Refer to the ZoL git commit log for authoritative copyright attribution.
+ * Refer to the OpenZFS git commit log for authoritative copyright attribution.
  *
  * The contents of this file are subject to the terms of the
  * Common Development and Distribution License Version 1.0 (CDDL-1.0).
@@ -18,16 +18,52 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stddef.h>
+#include <sys/avl.h>
+#include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
+#include <pthread.h>
 #include "zed_exec.h"
-#include "zed_file.h"
 #include "zed_log.h"
 #include "zed_strings.h"
 
 #define	ZEVENT_FILENO	3
+
+struct launched_process_node {
+	avl_node_t node;
+	pid_t pid;
+	uint64_t eid;
+	char *name;
+};
+
+static int
+_launched_process_node_compare(const void *x1, const void *x2)
+{
+	pid_t p1;
+	pid_t p2;
+
+	assert(x1 != NULL);
+	assert(x2 != NULL);
+
+	p1 = ((const struct launched_process_node *) x1)->pid;
+	p2 = ((const struct launched_process_node *) x2)->pid;
+
+	if (p1 < p2)
+		return (-1);
+	else if (p1 == p2)
+		return (0);
+	else
+		return (1);
+}
+
+static pthread_t _reap_children_tid = (pthread_t)-1;
+static volatile boolean_t _reap_children_stop;
+static avl_tree_t _launched_processes;
+static pthread_mutex_t _launched_processes_lock = PTHREAD_MUTEX_INITIALIZER;
+static int16_t _launched_processes_limit;
 
 /*
  * Create an environment string array for passing to execve() using the
@@ -79,19 +115,25 @@ _zed_exec_create_env(zed_strings_t *zsp)
  */
 static void
 _zed_exec_fork_child(uint64_t eid, const char *dir, const char *prog,
-    char *env[], int zfd)
+    char *env[], int zfd, boolean_t in_foreground)
 {
 	char path[PATH_MAX];
 	int n;
 	pid_t pid;
 	int fd;
-	pid_t wpid;
-	int status;
+	struct launched_process_node *node;
+	sigset_t mask;
+	struct timespec launch_timeout =
+		{ .tv_sec = 0, .tv_nsec = 200 * 1000 * 1000, };
 
 	assert(dir != NULL);
 	assert(prog != NULL);
 	assert(env != NULL);
 	assert(zfd >= 0);
+
+	while (__atomic_load_n(&_launched_processes_limit,
+	    __ATOMIC_SEQ_CST) <= 0)
+		(void) nanosleep(&launch_timeout, NULL);
 
 	n = snprintf(path, sizeof (path), "%s/%s", dir, prog);
 	if ((n < 0) || (n >= sizeof (path))) {
@@ -100,100 +142,179 @@ _zed_exec_fork_child(uint64_t eid, const char *dir, const char *prog,
 		    prog, eid, strerror(ENAMETOOLONG));
 		return;
 	}
+	(void) pthread_mutex_lock(&_launched_processes_lock);
 	pid = fork();
 	if (pid < 0) {
+		(void) pthread_mutex_unlock(&_launched_processes_lock);
 		zed_log_msg(LOG_WARNING,
 		    "Failed to fork \"%s\" for eid=%llu: %s",
 		    prog, eid, strerror(errno));
 		return;
 	} else if (pid == 0) {
+		(void) sigemptyset(&mask);
+		(void) sigprocmask(SIG_SETMASK, &mask, NULL);
+
 		(void) umask(022);
-		if ((fd = open("/dev/null", O_RDWR)) != -1) {
+		if (in_foreground && /* we're already devnulled if daemonised */
+		    (fd = open("/dev/null", O_RDWR | O_CLOEXEC)) != -1) {
 			(void) dup2(fd, STDIN_FILENO);
 			(void) dup2(fd, STDOUT_FILENO);
 			(void) dup2(fd, STDERR_FILENO);
 		}
 		(void) dup2(zfd, ZEVENT_FILENO);
-		zed_file_close_from(ZEVENT_FILENO + 1);
 		execle(path, prog, NULL, env);
 		_exit(127);
 	}
 
 	/* parent process */
 
+	node = calloc(1, sizeof (*node));
+	if (node) {
+		node->pid = pid;
+		node->eid = eid;
+		node->name = strdup(prog);
+
+		avl_add(&_launched_processes, node);
+	}
+	(void) pthread_mutex_unlock(&_launched_processes_lock);
+
+	__atomic_sub_fetch(&_launched_processes_limit, 1, __ATOMIC_SEQ_CST);
 	zed_log_msg(LOG_INFO, "Invoking \"%s\" eid=%llu pid=%d",
 	    prog, eid, pid);
+}
 
-	/* FIXME: Timeout rogue child processes with sigalarm? */
+static void
+_nop(int sig)
+{}
 
-	/*
-	 * Wait for child process using WNOHANG to limit
-	 * the time spent waiting to 10 seconds (10,000ms).
-	 */
-	for (n = 0; n < 1000; n++) {
-		wpid = waitpid(pid, &status, WNOHANG);
-		if (wpid == (pid_t)-1) {
-			if (errno == EINTR)
-				continue;
-			zed_log_msg(LOG_WARNING,
-			    "Failed to wait for \"%s\" eid=%llu pid=%d",
-			    prog, eid, pid);
-			break;
-		} else if (wpid == 0) {
-			struct timespec t;
+static void *
+_reap_children(void *arg)
+{
+	struct launched_process_node node, *pnode;
+	pid_t pid;
+	int status;
+	struct rusage usage;
+	struct sigaction sa = {};
 
-			/* child still running */
-			t.tv_sec = 0;
-			t.tv_nsec = 10000000;	/* 10ms */
-			(void) nanosleep(&t, NULL);
-			continue;
-		}
+	(void) sigfillset(&sa.sa_mask);
+	(void) sigdelset(&sa.sa_mask, SIGCHLD);
+	(void) pthread_sigmask(SIG_SETMASK, &sa.sa_mask, NULL);
 
-		if (WIFEXITED(status)) {
-			zed_log_msg(LOG_INFO,
-			    "Finished \"%s\" eid=%llu pid=%d exit=%d",
-			    prog, eid, pid, WEXITSTATUS(status));
-		} else if (WIFSIGNALED(status)) {
-			zed_log_msg(LOG_INFO,
-			    "Finished \"%s\" eid=%llu pid=%d sig=%d/%s",
-			    prog, eid, pid, WTERMSIG(status),
-			    strsignal(WTERMSIG(status)));
+	(void) sigemptyset(&sa.sa_mask);
+	sa.sa_handler = _nop;
+	sa.sa_flags = SA_NOCLDSTOP;
+	(void) sigaction(SIGCHLD, &sa, NULL);
+
+	for (_reap_children_stop = B_FALSE; !_reap_children_stop; ) {
+		(void) pthread_mutex_lock(&_launched_processes_lock);
+		pid = wait4(0, &status, WNOHANG, &usage);
+
+		if (pid == 0 || pid == (pid_t)-1) {
+			(void) pthread_mutex_unlock(&_launched_processes_lock);
+			if (pid == 0 || errno == ECHILD)
+				pause();
+			else if (errno != EINTR)
+				zed_log_msg(LOG_WARNING,
+				    "Failed to wait for children: %s",
+				    strerror(errno));
 		} else {
-			zed_log_msg(LOG_INFO,
-			    "Finished \"%s\" eid=%llu pid=%d status=0x%X",
-			    prog, eid, (unsigned int) status);
+			memset(&node, 0, sizeof (node));
+			node.pid = pid;
+			pnode = avl_find(&_launched_processes, &node, NULL);
+			if (pnode) {
+				memcpy(&node, pnode, sizeof (node));
+
+				avl_remove(&_launched_processes, pnode);
+				free(pnode);
+			}
+			(void) pthread_mutex_unlock(&_launched_processes_lock);
+			__atomic_add_fetch(&_launched_processes_limit, 1,
+			    __ATOMIC_SEQ_CST);
+
+			usage.ru_utime.tv_sec += usage.ru_stime.tv_sec;
+			usage.ru_utime.tv_usec += usage.ru_stime.tv_usec;
+			usage.ru_utime.tv_sec +=
+			    usage.ru_utime.tv_usec / (1000 * 1000);
+			usage.ru_utime.tv_usec %= 1000 * 1000;
+
+			if (WIFEXITED(status)) {
+				zed_log_msg(LOG_INFO,
+				    "Finished \"%s\" eid=%llu pid=%d "
+				    "time=%llu.%06us exit=%d",
+				    node.name, node.eid, pid,
+				    (unsigned long long) usage.ru_utime.tv_sec,
+				    (unsigned int) usage.ru_utime.tv_usec,
+				    WEXITSTATUS(status));
+			} else if (WIFSIGNALED(status)) {
+				zed_log_msg(LOG_INFO,
+				    "Finished \"%s\" eid=%llu pid=%d "
+				    "time=%llu.%06us sig=%d/%s",
+				    node.name, node.eid, pid,
+				    (unsigned long long) usage.ru_utime.tv_sec,
+				    (unsigned int) usage.ru_utime.tv_usec,
+				    WTERMSIG(status),
+				    strsignal(WTERMSIG(status)));
+			} else {
+				zed_log_msg(LOG_INFO,
+				    "Finished \"%s\" eid=%llu pid=%d "
+				    "time=%llu.%06us status=0x%X",
+				    node.name, node.eid,
+				    (unsigned long long) usage.ru_utime.tv_sec,
+				    (unsigned int) usage.ru_utime.tv_usec,
+				    (unsigned int) status);
+			}
+
+			free(node.name);
 		}
-		break;
 	}
 
-	/*
-	 * kill child process after 10 seconds
-	 */
-	if (wpid == 0) {
-		zed_log_msg(LOG_WARNING, "Killing hung \"%s\" pid=%d",
-		    prog, pid);
-		(void) kill(pid, SIGKILL);
+	return (NULL);
+}
+
+void
+zed_exec_fini(void)
+{
+	struct launched_process_node *node;
+	void *ck = NULL;
+
+	if (_reap_children_tid == (pthread_t)-1)
+		return;
+
+	_reap_children_stop = B_TRUE;
+	(void) pthread_kill(_reap_children_tid, SIGCHLD);
+	(void) pthread_join(_reap_children_tid, NULL);
+
+	while ((node = avl_destroy_nodes(&_launched_processes, &ck)) != NULL) {
+		free(node->name);
+		free(node);
 	}
+	avl_destroy(&_launched_processes);
+
+	(void) pthread_mutex_destroy(&_launched_processes_lock);
+	(void) pthread_mutex_init(&_launched_processes_lock, NULL);
+
+	_reap_children_tid = (pthread_t)-1;
 }
 
 /*
  * Process the event [eid] by synchronously invoking all zedlets with a
  * matching class prefix.
  *
- * Each executable in [zedlets] from the directory [dir] is matched against
- * the event's [class], [subclass], and the "all" class (which matches
- * all events).  Every zedlet with a matching class prefix is invoked.
+ * Each executable in [zcp->zedlets] from the directory [zcp->zedlet_dir]
+ * is matched against the event's [class], [subclass], and the "all" class
+ * (which matches all events).
+ * Every zedlet with a matching class prefix is invoked.
  * The NAME=VALUE strings in [envs] will be passed to the zedlet as
  * environment variables.
  *
- * The file descriptor [zfd] is the zevent_fd used to track the
+ * The file descriptor [zcp->zevent_fd] is the zevent_fd used to track the
  * current cursor location within the zevent nvlist.
  *
  * Return 0 on success, -1 on error.
  */
 int
 zed_exec_process(uint64_t eid, const char *class, const char *subclass,
-    const char *dir, zed_strings_t *zedlets, zed_strings_t *envs, int zfd)
+    struct zed_conf *zcp, zed_strings_t *envs)
 {
 	const char *class_strings[4];
 	const char *allclass = "all";
@@ -202,8 +323,21 @@ zed_exec_process(uint64_t eid, const char *class, const char *subclass,
 	char **e;
 	int n;
 
-	if (!dir || !zedlets || !envs || zfd < 0)
+	if (!zcp->zedlet_dir || !zcp->zedlets || !envs || zcp->zevent_fd < 0)
 		return (-1);
+
+	if (_reap_children_tid == (pthread_t)-1) {
+		_launched_processes_limit = zcp->max_jobs;
+
+		if (pthread_create(&_reap_children_tid, NULL,
+		    _reap_children, NULL) != 0)
+			return (-1);
+		pthread_setname_np(_reap_children_tid, "reap ZEDLETs");
+
+		avl_create(&_launched_processes, _launched_process_node_compare,
+		    sizeof (struct launched_process_node),
+		    offsetof(struct launched_process_node, node));
+	}
 
 	csp = class_strings;
 
@@ -220,11 +354,13 @@ zed_exec_process(uint64_t eid, const char *class, const char *subclass,
 
 	e = _zed_exec_create_env(envs);
 
-	for (z = zed_strings_first(zedlets); z; z = zed_strings_next(zedlets)) {
+	for (z = zed_strings_first(zcp->zedlets); z;
+	    z = zed_strings_next(zcp->zedlets)) {
 		for (csp = class_strings; *csp; csp++) {
 			n = strlen(*csp);
 			if ((strncmp(z, *csp, n) == 0) && !isalpha(z[n]))
-				_zed_exec_fork_child(eid, dir, z, e, zfd);
+				_zed_exec_fork_child(eid, zcp->zedlet_dir,
+				    z, e, zcp->zevent_fd, zcp->do_foreground);
 		}
 	}
 	free(e);

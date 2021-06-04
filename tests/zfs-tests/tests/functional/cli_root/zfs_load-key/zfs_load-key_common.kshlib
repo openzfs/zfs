@@ -99,3 +99,66 @@ function verify_origin
 
 	return 0
 }
+
+function setup_https
+{
+	log_must openssl req -x509 -newkey rsa:4096 -sha256 -days 1 -nodes -keyout "/$TESTPOOL/snakeoil.key" -out "$SSL_CA_CERT_FILE" -subj "/CN=$HTTPS_HOSTNAME"
+
+	python3 -uc "
+import http.server, ssl, sys, os, time, random
+
+sys.stdin.close()
+
+httpd, err, port = None, None, None
+for i in range(1, 100):
+	port = random.randint(0xC000, 0xFFFF) # ephemeral range
+	try:
+		httpd = http.server.HTTPServer(('$HTTPS_HOSTNAME', port), http.server.SimpleHTTPRequestHandler)
+		break
+	except:
+		err = sys.exc_info()[1]
+		time.sleep(i / 100)
+if not httpd:
+	raise err
+
+with open('$HTTPS_PORT_FILE', 'w') as portf:
+	print(port, file=portf)
+
+httpd.socket = ssl.wrap_socket(httpd.socket, server_side=True, keyfile='/$TESTPOOL/snakeoil.key', certfile='$SSL_CA_CERT_FILE', ssl_version=ssl.PROTOCOL_TLS)
+
+os.chdir('$STF_SUITE/tests/functional/cli_root/zfs_load-key')
+
+with open('/$TESTPOOL/snakeoil.pid', 'w') as pidf:
+	if os.fork() != 0:
+	  os._exit(0)
+	print(os.getpid(), file=pidf)
+
+sys.stdout.close()
+sys.stderr.close()
+try:
+	sys.stdout = sys.stderr = open('/tmp/ZTS-snakeoil.log', 'w', buffering=1) # line
+except:
+	sys.stdout = sys.stderr = open('/dev/null', 'w')
+
+print('{} start on {}'.format(os.getpid(), port))
+httpd.serve_forever()
+" || log_fail
+
+	typeset https_pid=
+	for d in $(seq 0 0.1 5); do
+		read -r https_pid 2>/dev/null < "/$TESTPOOL/snakeoil.pid" && [ -n "$https_pid" ] && break
+		sleep "$d"
+	done
+	[ -z "$https_pid" ] && log_fail "Couldn't start HTTPS server"
+	log_note "Started HTTPS server as $https_pid on port $(get_https_port)"
+}
+
+function cleanup_https
+{
+	typeset https_pid=
+	read -r https_pid 2>/dev/null < "/$TESTPOOL/snakeoil.pid" || return 0
+
+	log_must kill "$https_pid"
+	cat /tmp/ZTS-snakeoil.log
+	rm -f "/$TESTPOOL/snakeoil.pid" "/tmp/ZTS-snakeoil.log"
+}

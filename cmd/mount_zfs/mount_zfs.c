@@ -185,10 +185,11 @@ main(int argc, char **argv)
 			break;
 		case 'h':
 		case '?':
-			(void) fprintf(stderr, gettext("Invalid option '%c'\n"),
-			    optopt);
+			if (optopt)
+				(void) fprintf(stderr,
+				    gettext("Invalid option '%c'\n"), optopt);
 			(void) fprintf(stderr, gettext("Usage: mount.zfs "
-			    "[-sfnv] [-o options] <dataset> <mountpoint>\n"));
+			    "[-sfnvh] [-o options] <dataset> <mountpoint>\n"));
 			return (MOUNT_USAGE);
 		}
 	}

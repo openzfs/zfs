@@ -28,6 +28,10 @@ failsafe = callbacks/zfs_failsafe
 outputdir = /var/tmp/test_results
 tags = ['functional']
 
+[tests/functional/acl/off]
+tests = ['posixmode']
+tags = ['functional', 'acl']
+
 [tests/functional/alloc_class]
 tests = ['alloc_class_001_pos', 'alloc_class_002_neg', 'alloc_class_003_pos',
     'alloc_class_004_pos', 'alloc_class_005_pos', 'alloc_class_006_pos',
@@ -194,7 +198,8 @@ tags = ['functional', 'cli_root', 'zfs_inherit']
 
 [tests/functional/cli_root/zfs_load-key]
 tests = ['zfs_load-key', 'zfs_load-key_all', 'zfs_load-key_file',
-    'zfs_load-key_location', 'zfs_load-key_noop', 'zfs_load-key_recursive']
+    'zfs_load-key_https', 'zfs_load-key_location', 'zfs_load-key_noop',
+    'zfs_load-key_recursive']
 tags = ['functional', 'cli_root', 'zfs_load-key']
 
 [tests/functional/cli_root/zfs_mount]
@@ -254,7 +259,7 @@ tags = ['functional', 'cli_root', 'zfs_rollback']
 tests = ['zfs_send_001_pos', 'zfs_send_002_pos', 'zfs_send_003_pos',
     'zfs_send_004_neg', 'zfs_send_005_pos', 'zfs_send_006_pos',
     'zfs_send_007_pos', 'zfs_send_encrypted', 'zfs_send_raw',
-    'zfs_send_sparse', 'zfs_send-b']
+    'zfs_send_sparse', 'zfs_send-b', 'zfs_send_skip_missing']
 tags = ['functional', 'cli_root', 'zfs_send']
 
 [tests/functional/cli_root/zfs_set]
@@ -398,6 +403,7 @@ tests = ['zpool_import_001_pos', 'zpool_import_002_pos',
     'import_cachefile_device_replaced',
     'import_cachefile_mirror_attached',
     'import_cachefile_mirror_detached',
+    'import_cachefile_paths_changed',
     'import_cachefile_shared_device',
     'import_devices_missing',
     'import_paths_changed',
@@ -572,6 +578,12 @@ tags = ['functional', 'cp_files']
 tests = ['ctime_001_pos' ]
 tags = ['functional', 'ctime']
 
+[tests/functional/deadman]
+tests = ['deadman_ratelimit', 'deadman_sync', 'deadman_zio']
+pre =
+post =
+tags = ['functional', 'deadman']
+
 [tests/functional/delegate]
 tests = ['zfs_allow_001_pos', 'zfs_allow_002_pos', 'zfs_allow_003_pos',
     'zfs_allow_004_pos', 'zfs_allow_005_pos', 'zfs_allow_006_pos',
@@ -721,8 +733,8 @@ tests = ['redacted_compressed', 'redacted_contents', 'redacted_deleted',
     'redacted_disabled_feature', 'redacted_embedded', 'redacted_holes',
     'redacted_incrementals', 'redacted_largeblocks', 'redacted_many_clones',
     'redacted_mixed_recsize', 'redacted_mounts', 'redacted_negative',
-    'redacted_origin', 'redacted_props', 'redacted_resume', 'redacted_size',
-    'redacted_volume']
+    'redacted_origin', 'redacted_panic', 'redacted_props', 'redacted_resume',
+    'redacted_size', 'redacted_volume']
 tags = ['functional', 'redacted_send']
 
 [tests/functional/raidz]
@@ -732,12 +744,13 @@ tags = ['functional', 'raidz']
 timeout = 1200
 
 [tests/functional/redundancy]
-tests = ['redundancy_draid1', 'redundancy_draid2', 'redundancy_draid3',
-    'redundancy_draid_spare1', 'redundancy_draid_spare2',
-    'redundancy_draid_spare3', 'redundancy_mirror', 'redundancy_raidz',
-    'redundancy_raidz1', 'redundancy_raidz2', 'redundancy_raidz3',
-    'redundancy_stripe']
+tests = ['redundancy_draid', 'redundancy_draid1', 'redundancy_draid2',
+    'redundancy_draid3', 'redundancy_draid_damaged', 'redundancy_draid_spare1',
+    'redundancy_draid_spare2', 'redundancy_draid_spare3', 'redundancy_mirror',
+    'redundancy_raidz', 'redundancy_raidz1', 'redundancy_raidz2',
+    'redundancy_raidz3', 'redundancy_stripe']
 tags = ['functional', 'redundancy']
+timeout = 1200
 
 [tests/functional/refquota]
 tests = ['refquota_001_pos', 'refquota_002_pos', 'refquota_003_pos',
@@ -874,8 +887,7 @@ tests = [
     'userquota_004_pos', 'userquota_005_neg', 'userquota_006_pos',
     'userquota_007_pos', 'userquota_008_pos', 'userquota_009_pos',
     'userquota_010_pos', 'userquota_011_pos', 'userquota_012_neg',
-    'userspace_001_pos', 'userspace_002_pos', 'userspace_encrypted',
-    'userspace_send_encrypted']
+    'userspace_001_pos', 'userspace_002_pos', 'userspace_encrypted']
 tags = ['functional', 'userquota']
 
 [tests/functional/vdev_zaps]

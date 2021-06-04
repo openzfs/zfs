@@ -420,7 +420,7 @@ zvol_geom_destroy(zvol_state_t *zv)
 	g_topology_assert();
 
 	mutex_enter(&zv->zv_state_lock);
-	VERIFY(zsg->zsg_state == ZVOL_GEOM_RUNNING);
+	VERIFY3S(zsg->zsg_state, ==, ZVOL_GEOM_RUNNING);
 	mutex_exit(&zv->zv_state_lock);
 	zsg->zsg_provider = NULL;
 	g_wither_geom(pp->geom, ENXIO);
@@ -761,12 +761,13 @@ zvol_cdev_read(struct cdev *dev, struct uio *uio_s, int ioflag)
 	volsize = zv->zv_volsize;
 	/*
 	 * uio_loffset == volsize isn't an error as
-	 * its required for EOF processing.
+	 * it's required for EOF processing.
 	 */
 	if (zfs_uio_resid(&uio) > 0 &&
 	    (zfs_uio_offset(&uio) < 0 || zfs_uio_offset(&uio) > volsize))
 		return (SET_ERROR(EIO));
 
+	ssize_t start_resid = zfs_uio_resid(&uio);
 	lr = zfs_rangelock_enter(&zv->zv_rangelock, zfs_uio_offset(&uio),
 	    zfs_uio_resid(&uio), RL_READER);
 	while (zfs_uio_resid(&uio) > 0 && zfs_uio_offset(&uio) < volsize) {
@@ -785,6 +786,8 @@ zvol_cdev_read(struct cdev *dev, struct uio *uio_s, int ioflag)
 		}
 	}
 	zfs_rangelock_exit(lr);
+	int64_t nread = start_resid - zfs_uio_resid(&uio);
+	dataset_kstats_update_read_kstats(&zv->zv_kstat, nread);
 
 	return (error);
 }
@@ -809,6 +812,7 @@ zvol_cdev_write(struct cdev *dev, struct uio *uio_s, int ioflag)
 	    (zfs_uio_offset(&uio) < 0 || zfs_uio_offset(&uio) > volsize))
 		return (SET_ERROR(EIO));
 
+	ssize_t start_resid = zfs_uio_resid(&uio);
 	sync = (ioflag & IO_SYNC) ||
 	    (zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS);
 
@@ -840,6 +844,8 @@ zvol_cdev_write(struct cdev *dev, struct uio *uio_s, int ioflag)
 			break;
 	}
 	zfs_rangelock_exit(lr);
+	int64_t nwritten = start_resid - zfs_uio_resid(&uio);
+	dataset_kstats_update_write_kstats(&zv->zv_kstat, nwritten);
 	if (sync)
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);
 	rw_exit(&zv->zv_suspend_lock);
@@ -1164,8 +1170,8 @@ zvol_ensure_zilog(zvol_state_t *zv)
 			    zvol_get_data);
 			zv->zv_flags |= ZVOL_WRITTEN_TO;
 			/* replay / destroy done in zvol_create_minor_impl() */
-			VERIFY0((zv->zv_zilog->zl_header->zh_flags &
-			    ZIL_REPLAY_NEEDED));
+			VERIFY0(zv->zv_zilog->zl_header->zh_flags &
+			    ZIL_REPLAY_NEEDED);
 		}
 		rw_downgrade(&zv->zv_suspend_lock);
 	}

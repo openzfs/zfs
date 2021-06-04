@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2012, 2021 by Delphix. All rights reserved.
  */
 
 #include <sys/zfs_context.h>
@@ -122,7 +122,7 @@ zfs_refcount_count(zfs_refcount_t *rc)
 }
 
 int64_t
-zfs_refcount_add_many_nv(zfs_refcount_t *rc, uint64_t number, const void *holder)
+zfs_refcount_add_many(zfs_refcount_t *rc, uint64_t number, const void *holder)
 {
 	reference_t *ref = NULL;
 	int64_t count;
@@ -143,16 +143,10 @@ zfs_refcount_add_many_nv(zfs_refcount_t *rc, uint64_t number, const void *holder
 	return (count);
 }
 
-void
-zfs_refcount_add_many(zfs_refcount_t *rc, uint64_t number, const void *holder)
-{
-	(void)zfs_refcount_add_many_nv(rc, number, holder);
-}
-
 int64_t
 zfs_refcount_add(zfs_refcount_t *rc, const void *holder)
 {
-	return (zfs_refcount_add_many_nv(rc, 1, holder));
+	return (zfs_refcount_add_many(rc, 1, holder));
 }
 
 int64_t
@@ -330,4 +324,12 @@ zfs_refcount_not_held(zfs_refcount_t *rc, const void *holder)
 	mutex_exit(&rc->rc_mtx);
 	return (B_TRUE);
 }
+
+/* BEGIN CSTYLED */
+ZFS_MODULE_PARAM(zfs, ,reference_tracking_enable, INT, ZMOD_RW,
+	"Track reference holders to refcount_t objects");
+
+ZFS_MODULE_PARAM(zfs, ,reference_history, INT, ZMOD_RW,
+	"Maximum reference holders being tracked");
+/* END CSTYLED */
 #endif	/* ZFS_DEBUG */

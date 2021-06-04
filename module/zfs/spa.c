@@ -109,6 +109,7 @@ int zfs_ccw_retry_interval = 300;
 typedef enum zti_modes {
 	ZTI_MODE_FIXED,			/* value is # of threads (min 1) */
 	ZTI_MODE_BATCH,			/* cpu-intensive; value is ignored */
+	ZTI_MODE_SCALE,			/* Taskqs scale with CPUs. */
 	ZTI_MODE_NULL,			/* don't create a taskq */
 	ZTI_NMODES
 } zti_modes_t;
@@ -116,6 +117,7 @@ typedef enum zti_modes {
 #define	ZTI_P(n, q)	{ ZTI_MODE_FIXED, (n), (q) }
 #define	ZTI_PCT(n)	{ ZTI_MODE_ONLINE_PERCENT, (n), 1 }
 #define	ZTI_BATCH	{ ZTI_MODE_BATCH, 0, 1 }
+#define	ZTI_SCALE	{ ZTI_MODE_SCALE, 0, 1 }
 #define	ZTI_NULL	{ ZTI_MODE_NULL, 0, 0 }
 
 #define	ZTI_N(n)	ZTI_P(n, 1)
@@ -142,7 +144,8 @@ static const char *const zio_taskq_types[ZIO_TASKQ_TYPES] = {
  * point of lock contention. The ZTI_P(#, #) macro indicates that we need an
  * additional degree of parallelism specified by the number of threads per-
  * taskq and the number of taskqs; when dispatching an event in this case, the
- * particular taskq is chosen at random.
+ * particular taskq is chosen at random. ZTI_SCALE is similar to ZTI_BATCH,
+ * but with number of taskqs also scaling with number of CPUs.
  *
  * The different taskq priorities are to handle the different contexts (issue
  * and interrupt) and then to reserve threads for ZIO_PRIORITY_NOW I/Os that
@@ -151,9 +154,9 @@ static const char *const zio_taskq_types[ZIO_TASKQ_TYPES] = {
 const zio_taskq_info_t zio_taskqs[ZIO_TYPES][ZIO_TASKQ_TYPES] = {
 	/* ISSUE	ISSUE_HIGH	INTR		INTR_HIGH */
 	{ ZTI_ONE,	ZTI_NULL,	ZTI_ONE,	ZTI_NULL }, /* NULL */
-	{ ZTI_N(8),	ZTI_NULL,	ZTI_P(12, 8),	ZTI_NULL }, /* READ */
-	{ ZTI_BATCH,	ZTI_N(5),	ZTI_P(12, 8),	ZTI_N(5) }, /* WRITE */
-	{ ZTI_P(12, 8),	ZTI_NULL,	ZTI_ONE,	ZTI_NULL }, /* FREE */
+	{ ZTI_N(8),	ZTI_NULL,	ZTI_SCALE,	ZTI_NULL }, /* READ */
+	{ ZTI_BATCH,	ZTI_N(5),	ZTI_SCALE,	ZTI_N(5) }, /* WRITE */
+	{ ZTI_SCALE,	ZTI_NULL,	ZTI_ONE,	ZTI_NULL }, /* FREE */
 	{ ZTI_ONE,	ZTI_NULL,	ZTI_ONE,	ZTI_NULL }, /* CLAIM */
 	{ ZTI_ONE,	ZTI_NULL,	ZTI_ONE,	ZTI_NULL }, /* IOCTL */
 	{ ZTI_N(4),	ZTI_NULL,	ZTI_ONE,	ZTI_NULL }, /* TRIM */
@@ -165,7 +168,8 @@ static boolean_t spa_has_active_shared_spare(spa_t *spa);
 static int spa_load_impl(spa_t *spa, spa_import_type_t type, char **ereport);
 static void spa_vdev_resilver_done(spa_t *spa);
 
-uint_t		zio_taskq_batch_pct = 75;	/* 1 thread per cpu in pset */
+uint_t		zio_taskq_batch_pct = 80;	/* 1 thread per cpu in pset */
+uint_t		zio_taskq_batch_tpq;		/* threads per taskq */
 boolean_t	zio_taskq_sysdc = B_TRUE;	/* use SDC scheduling class */
 uint_t		zio_taskq_basedc = 80;		/* base duty cycle */
 
@@ -958,25 +962,12 @@ spa_taskqs_init(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
 	uint_t value = ztip->zti_value;
 	uint_t count = ztip->zti_count;
 	spa_taskqs_t *tqs = &spa->spa_zio_taskq[t][q];
-	uint_t flags = 0;
+	uint_t cpus, flags = TASKQ_DYNAMIC;
 	boolean_t batch = B_FALSE;
-
-	if (mode == ZTI_MODE_NULL) {
-		tqs->stqs_count = 0;
-		tqs->stqs_taskq = NULL;
-		return;
-	}
-
-	ASSERT3U(count, >, 0);
-
-	tqs->stqs_count = count;
-	tqs->stqs_taskq = kmem_alloc(count * sizeof (taskq_t *), KM_SLEEP);
 
 	switch (mode) {
 	case ZTI_MODE_FIXED:
-		ASSERT3U(value, >=, 1);
-		value = MAX(value, 1);
-		flags |= TASKQ_DYNAMIC;
+		ASSERT3U(value, >, 0);
 		break;
 
 	case ZTI_MODE_BATCH:
@@ -985,6 +976,48 @@ spa_taskqs_init(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
 		value = MIN(zio_taskq_batch_pct, 100);
 		break;
 
+	case ZTI_MODE_SCALE:
+		flags |= TASKQ_THREADS_CPU_PCT;
+		/*
+		 * We want more taskqs to reduce lock contention, but we want
+		 * less for better request ordering and CPU utilization.
+		 */
+		cpus = MAX(1, boot_ncpus * zio_taskq_batch_pct / 100);
+		if (zio_taskq_batch_tpq > 0) {
+			count = MAX(1, (cpus + zio_taskq_batch_tpq / 2) /
+			    zio_taskq_batch_tpq);
+		} else {
+			/*
+			 * Prefer 6 threads per taskq, but no more taskqs
+			 * than threads in them on large systems. For 80%:
+			 *
+			 *                 taskq   taskq   total
+			 * cpus    taskqs  percent threads threads
+			 * ------- ------- ------- ------- -------
+			 * 1       1       80%     1       1
+			 * 2       1       80%     1       1
+			 * 4       1       80%     3       3
+			 * 8       2       40%     3       6
+			 * 16      3       27%     4       12
+			 * 32      5       16%     5       25
+			 * 64      7       11%     7       49
+			 * 128     10      8%      10      100
+			 * 256     14      6%      15      210
+			 */
+			count = 1 + cpus / 6;
+			while (count * count > cpus)
+				count--;
+		}
+		/* Limit each taskq within 100% to not trigger assertion. */
+		count = MAX(count, (zio_taskq_batch_pct + 99) / 100);
+		value = (zio_taskq_batch_pct + count / 2) / count;
+		break;
+
+	case ZTI_MODE_NULL:
+		tqs->stqs_count = 0;
+		tqs->stqs_taskq = NULL;
+		return;
+
 	default:
 		panic("unrecognized mode for %s_%s taskq (%u:%u) in "
 		    "spa_activate()",
@@ -992,12 +1025,20 @@ spa_taskqs_init(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
 		break;
 	}
 
+	ASSERT3U(count, >, 0);
+	tqs->stqs_count = count;
+	tqs->stqs_taskq = kmem_alloc(count * sizeof (taskq_t *), KM_SLEEP);
+
 	for (uint_t i = 0; i < count; i++) {
 		taskq_t *tq;
 		char name[32];
 
-		(void) snprintf(name, sizeof (name), "%s_%s",
-		    zio_type_name[t], zio_taskq_types[q]);
+		if (count > 1)
+			(void) snprintf(name, sizeof (name), "%s_%s_%u",
+			    zio_type_name[t], zio_taskq_types[q], i);
+		else
+			(void) snprintf(name, sizeof (name), "%s_%s",
+			    zio_type_name[t], zio_taskq_types[q]);
 
 		if (zio_taskq_sysdc && spa->spa_proc != &p0) {
 			if (batch)
@@ -6519,7 +6560,7 @@ spa_vdev_add(spa_t *spa, nvlist_t *nvroot)
 
 	/*
 	 * The virtual dRAID spares must be added after vdev tree is created
-	 * and the vdev guids are generated.  The guid of their assoicated
+	 * and the vdev guids are generated.  The guid of their associated
 	 * dRAID is stored in the config and used when opening the spare.
 	 */
 	if ((error = vdev_draid_spare_create(nvroot, vd, &ndraid,
@@ -6895,7 +6936,25 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 	dtl_max_txg = txg + TXG_CONCURRENT_STATES;
 
 	if (raidz) {
-		dmu_tx_t *tx = dmu_tx_create_assigned(spa->spa_dsl_pool, txg);
+		/*
+		 * Wait for the youngest allocations and frees to sync,
+		 * and then wait for the deferral of those frees to finish.
+		 */
+		spa_vdev_config_exit(spa, NULL,
+		    txg + TXG_CONCURRENT_STATES + TXG_DEFER_SIZE, 0, FTAG);
+
+		vdev_initialize_stop_all(tvd, VDEV_INITIALIZE_ACTIVE);
+		vdev_trim_stop_all(tvd, VDEV_TRIM_ACTIVE);
+		vdev_autotrim_stop_wait(tvd);
+
+		dtl_max_txg = spa_vdev_config_enter(spa);
+
+		tvd->vdev_rz_expanding = B_TRUE;
+
+		vdev_dirty_leaves(tvd, VDD_DTL, dtl_max_txg);
+		vdev_config_dirty(tvd);
+
+		dmu_tx_t *tx = dmu_tx_create_assigned(spa->spa_dsl_pool, dtl_max_txg);
 		dsl_sync_task_nowait(spa->spa_dsl_pool, vdev_raidz_attach_sync,
 		    newvd, tx);
 		dmu_tx_commit(tx);
@@ -7259,7 +7318,7 @@ spa_vdev_initialize_impl(spa_t *spa, uint64_t guid, uint64_t cmd_type,
 	 */
 	if (cmd_type == POOL_INITIALIZE_START &&
 	    (vd->vdev_initialize_thread != NULL ||
-	    vd->vdev_top->vdev_removing)) {
+	    vd->vdev_top->vdev_removing || vd->vdev_top->vdev_rz_expanding)) {
 		mutex_exit(&vd->vdev_initialize_lock);
 		return (SET_ERROR(EBUSY));
 	} else if (cmd_type == POOL_INITIALIZE_CANCEL &&
@@ -7374,7 +7433,8 @@ spa_vdev_trim_impl(spa_t *spa, uint64_t guid, uint64_t cmd_type,
 	 * which has completed but the thread is not exited.
 	 */
 	if (cmd_type == POOL_TRIM_START &&
-	    (vd->vdev_trim_thread != NULL || vd->vdev_top->vdev_removing)) {
+	    (vd->vdev_trim_thread != NULL || vd->vdev_top->vdev_removing ||
+	    vd->vdev_top->vdev_rz_expanding)) {
 		mutex_exit(&vd->vdev_trim_lock);
 		return (SET_ERROR(EBUSY));
 	} else if (cmd_type == POOL_TRIM_CANCEL &&
@@ -9957,7 +10017,7 @@ EXPORT_SYMBOL(spa_event_notify);
 
 /* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs_spa, spa_, load_verify_shift, INT, ZMOD_RW,
-	"log2(fraction of arc that can be used by inflight I/Os when "
+	"log2 fraction of arc that can be used by inflight I/Os when "
 	"verifying pool during import");
 
 ZFS_MODULE_PARAM(zfs_spa, spa_, load_verify_metadata, INT, ZMOD_RW,
@@ -9971,6 +10031,9 @@ ZFS_MODULE_PARAM(zfs_spa, spa_, load_print_vdev_tree, INT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_zio, zio_, taskq_batch_pct, UINT, ZMOD_RD,
 	"Percentage of CPUs to run an IO worker thread");
+
+ZFS_MODULE_PARAM(zfs_zio, zio_, taskq_batch_tpq, UINT, ZMOD_RD,
+	"Number of threads per IO worker taskqueue");
 
 ZFS_MODULE_PARAM(zfs, zfs_, max_missing_tvds, ULONG, ZMOD_RW,
 	"Allow importing pool with up to this number of missing top-level "

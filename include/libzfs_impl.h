@@ -30,7 +30,6 @@
 #define	_LIBZFS_IMPL_H
 
 #include <sys/fs/zfs.h>
-#include <sys/spa.h>
 #include <sys/nvpair.h>
 #include <sys/dmu.h>
 #include <sys/zfs_ioctl.h>
@@ -48,7 +47,6 @@ extern "C" {
 struct libzfs_handle {
 	int libzfs_error;
 	int libzfs_fd;
-	FILE *libzfs_mnttab;
 	zpool_handle_t *libzfs_pool_handles;
 	uu_avl_pool_t *libzfs_ns_avlpool;
 	uu_avl_t *libzfs_ns_avl;
@@ -57,7 +55,6 @@ struct libzfs_handle {
 	char libzfs_action[1024];
 	char libzfs_desc[1024];
 	int libzfs_printerr;
-	int libzfs_storeerr; /* stuff error messages into buffer */
 	boolean_t libzfs_mnttab_enable;
 	/*
 	 * We need a lock to handle the case where parallel mount
@@ -68,10 +65,11 @@ struct libzfs_handle {
 	pthread_mutex_t libzfs_mnttab_cache_lock;
 	avl_tree_t libzfs_mnttab_cache;
 	int libzfs_pool_iter;
-	char libzfs_chassis_id[256];
 	boolean_t libzfs_prop_debug;
 	regex_t libzfs_urire;
 	uint64_t libzfs_max_nvlist;
+	void *libfetch;
+	char *libfetch_load_error;
 };
 
 struct zfs_handle {
@@ -244,7 +242,6 @@ extern proto_table_t proto_table[PROTO_END];
 extern int do_mount(zfs_handle_t *zhp, const char *mntpt, char *opts,
     int flags);
 extern int do_unmount(const char *mntpt, int flags);
-extern int zfs_mount_delegation_check(void);
 extern int zfs_share_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto);
 extern int unshare_one(libzfs_handle_t *hdl, const char *name,
     const char *mountpoint, zfs_share_proto_t proto);

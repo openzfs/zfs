@@ -32,6 +32,7 @@
  * Copyright 2017-2018 RackTop Systems.
  * Copyright (c) 2019 Datto Inc.
  * Copyright (c) 2019, loli10K <ezomori.nozomu@gmail.com>
+ * Copyright (c) 2021 Matt Fiddaman
  */
 
 #include <ctype.h>
@@ -48,7 +49,6 @@
 #include <sys/mount.h>
 #include <pwd.h>
 #include <grp.h>
-#include <stddef.h>
 #include <ucred.h>
 #ifdef HAVE_IDMAP
 #include <idmap.h>
@@ -66,7 +66,6 @@
 #include "zfs_namecheck.h"
 #include "zfs_prop.h"
 #include "libzfs_impl.h"
-#include "libzfs.h"
 #include "zfs_deleg.h"
 
 static int userquota_propname_decode(const char *propname, boolean_t zoned,
@@ -809,13 +808,13 @@ libzfs_mnttab_init(libzfs_handle_t *hdl)
 static int
 libzfs_mnttab_update(libzfs_handle_t *hdl)
 {
+	FILE *mnttab;
 	struct mnttab entry;
 
-	/* Reopen MNTTAB to prevent reading stale data from open file */
-	if (freopen(MNTTAB, "r", hdl->libzfs_mnttab) == NULL)
+	if ((mnttab = fopen(MNTTAB, "re")) == NULL)
 		return (ENOENT);
 
-	while (getmntent(hdl->libzfs_mnttab, &entry) == 0) {
+	while (getmntent(mnttab, &entry) == 0) {
 		mnttab_node_t *mtn;
 		avl_index_t where;
 
@@ -841,6 +840,7 @@ libzfs_mnttab_update(libzfs_handle_t *hdl)
 		avl_add(&hdl->libzfs_mnttab_cache, mtn);
 	}
 
+	(void) fclose(mnttab);
 	return (0);
 }
 
@@ -872,6 +872,7 @@ int
 libzfs_mnttab_find(libzfs_handle_t *hdl, const char *fsname,
     struct mnttab *entry)
 {
+	FILE *mnttab;
 	mnttab_node_t find;
 	mnttab_node_t *mtn;
 	int ret = ENOENT;
@@ -882,16 +883,14 @@ libzfs_mnttab_find(libzfs_handle_t *hdl, const char *fsname,
 		if (avl_numnodes(&hdl->libzfs_mnttab_cache))
 			libzfs_mnttab_fini(hdl);
 
-		/* Reopen MNTTAB to prevent reading stale data from open file */
-		if (freopen(MNTTAB, "r", hdl->libzfs_mnttab) == NULL)
+		if ((mnttab = fopen(MNTTAB, "re")) == NULL)
 			return (ENOENT);
 
 		srch.mnt_special = (char *)fsname;
 		srch.mnt_fstype = MNTTYPE_ZFS;
-		if (getmntany(hdl->libzfs_mnttab, entry, &srch) == 0)
-			return (0);
-		else
-			return (ENOENT);
+		ret = getmntany(mnttab, entry, &srch) ? ENOENT : 0;
+		(void) fclose(mnttab);
+		return (ret);
 	}
 
 	pthread_mutex_lock(&hdl->libzfs_mnttab_cache_lock);
@@ -1262,9 +1261,9 @@ zfs_valid_proplist(libzfs_handle_t *hdl, zfs_type_t type, nvlist_t *nvl,
 			    intval > maxbs || !ISP2(intval))) {
 				zfs_nicebytes(maxbs, buf, sizeof (buf));
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-				    "invalid '%s=%d' property: must be zero or "
-				    "a power of 2 from 512B to %s"), propname,
-				    intval, buf);
+				    "invalid '%s=%llu' property: must be zero "
+				    "or a power of 2 from 512B to %s"),
+				    propname, (unsigned long long)intval, buf);
 				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
 				goto error;
 			}
@@ -1954,6 +1953,7 @@ zfs_prop_inherit(zfs_handle_t *zhp, const char *propname, boolean_t received)
 		if (zfs_ioctl(zhp->zfs_hdl, ZFS_IOC_INHERIT_PROP, &zc) != 0)
 			return (zfs_standard_error(hdl, errno, errbuf));
 
+		(void) get_stats(zhp);
 		return (0);
 	}
 
@@ -2387,7 +2387,7 @@ get_clones_string(zfs_handle_t *zhp, char *propbuf, size_t proplen)
 	nvpair_t *pair;
 
 	value = zfs_get_clones_nvl(zhp);
-	if (value == NULL)
+	if (value == NULL || nvlist_empty(value))
 		return (-1);
 
 	propbuf[0] = '\0';
@@ -3331,6 +3331,16 @@ zfs_type_t
 zfs_get_type(const zfs_handle_t *zhp)
 {
 	return (zhp->zfs_type);
+}
+
+/*
+ * Returns the type of the given zfs handle,
+ * or, if a snapshot, the type of the snapshotted dataset.
+ */
+zfs_type_t
+zfs_get_underlying_type(const zfs_handle_t *zhp)
+{
+	return (zhp->zfs_head_type);
 }
 
 /*
@@ -4835,8 +4845,6 @@ zfs_userspace(zfs_handle_t *zhp, zfs_userquota_prop_t type,
 
 		zc.zc_nvlist_dst_size = sizeof (buf);
 		if (zfs_ioctl(hdl, ZFS_IOC_USERSPACE_MANY, &zc) != 0) {
-			char errbuf[1024];
-
 			if ((errno == ENOTSUP &&
 			    (type == ZFS_PROP_USEROBJUSED ||
 			    type == ZFS_PROP_GROUPOBJUSED ||
@@ -4848,10 +4856,9 @@ zfs_userspace(zfs_handle_t *zhp, zfs_userquota_prop_t type,
 			    type == ZFS_PROP_PROJECTQUOTA)))
 				break;
 
-			(void) snprintf(errbuf, sizeof (errbuf),
+			return (zfs_standard_error_fmt(hdl, errno,
 			    dgettext(TEXT_DOMAIN,
-			    "cannot get used/quota for %s"), zc.zc_name);
-			return (zfs_standard_error_fmt(hdl, errno, errbuf));
+			    "cannot get used/quota for %s"), zc.zc_name));
 		}
 		if (zc.zc_nvlist_dst_size == 0)
 			break;
@@ -5080,7 +5087,7 @@ zfs_release(zfs_handle_t *zhp, const char *snapname, const char *tag,
 			(void) zfs_error(hdl, EZFS_BADVERSION, errbuf);
 			break;
 		default:
-			(void) zfs_standard_error_fmt(hdl, errno, errbuf);
+			(void) zfs_standard_error(hdl, errno, errbuf);
 		}
 	}
 
@@ -5099,7 +5106,7 @@ zfs_release(zfs_handle_t *zhp, const char *snapname, const char *tag,
 			(void) zfs_error(hdl, EZFS_BADTYPE, errbuf);
 			break;
 		default:
-			(void) zfs_standard_error_fmt(hdl,
+			(void) zfs_standard_error(hdl,
 			    fnvpair_value_int32(elem), errbuf);
 		}
 	}
@@ -5156,17 +5163,16 @@ tryagain:
 			err = zfs_error(hdl, EZFS_NOENT, errbuf);
 			break;
 		default:
-			err = zfs_standard_error_fmt(hdl, errno, errbuf);
+			err = zfs_standard_error(hdl, errno, errbuf);
 			break;
 		}
 	} else {
 		/* success */
 		int rc = nvlist_unpack(nvbuf, zc.zc_nvlist_dst_size, nvl, 0);
 		if (rc) {
-			(void) snprintf(errbuf, sizeof (errbuf), dgettext(
+			err = zfs_standard_error_fmt(hdl, rc, dgettext(
 			    TEXT_DOMAIN, "cannot get permissions on '%s'"),
 			    zc.zc_name);
-			err = zfs_standard_error_fmt(hdl, rc, errbuf);
 		}
 	}
 
@@ -5219,7 +5225,7 @@ zfs_set_fsacl(zfs_handle_t *zhp, boolean_t un, nvlist_t *nvl)
 			err = zfs_error(hdl, EZFS_NOENT, errbuf);
 			break;
 		default:
-			err = zfs_standard_error_fmt(hdl, errno, errbuf);
+			err = zfs_standard_error(hdl, errno, errbuf);
 			break;
 		}
 	}
@@ -5256,7 +5262,7 @@ zfs_get_holds(zfs_handle_t *zhp, nvlist_t **nvl)
 			err = zfs_error(hdl, EZFS_NOENT, errbuf);
 			break;
 		default:
-			err = zfs_standard_error_fmt(hdl, errno, errbuf);
+			err = zfs_standard_error(hdl, errno, errbuf);
 			break;
 		}
 	}
@@ -5336,7 +5342,7 @@ zfs_get_holds(zfs_handle_t *zhp, nvlist_t **nvl)
  * 160k.  Again, 128k is from SPA_OLD_MAXBLOCKSIZE and 160k is as calculated in
  * the 128k block example above.
  *
- * The situtation is slightly different for dRAID since the minimum allocation
+ * The situation is slightly different for dRAID since the minimum allocation
  * size is the full group width.  The same 8K block above would be written as
  * follows in a dRAID group:
  *

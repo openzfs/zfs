@@ -73,27 +73,6 @@ struct dsl_dataset;
 struct dsl_crypto_params;
 
 /*
- * We currently support block sizes from 512 bytes to 16MB.
- * The benefits of larger blocks, and thus larger IO, need to be weighed
- * against the cost of COWing a giant block to modify one byte, and the
- * large latency of reading or writing a large block.
- *
- * Note that although blocks up to 16MB are supported, the recordsize
- * property can not be set larger than zfs_max_recordsize (default 1MB).
- * See the comment near zfs_max_recordsize in dsl_dataset.c for details.
- *
- * Note that although the LSIZE field of the blkptr_t can store sizes up
- * to 32MB, the dnode's dn_datablkszsec can only store sizes up to
- * 32MB - 512 bytes.  Therefore, we limit SPA_MAXBLOCKSIZE to 16MB.
- */
-#define	SPA_MINBLOCKSHIFT	9
-#define	SPA_OLD_MAXBLOCKSHIFT	17
-#define	SPA_MAXBLOCKSHIFT	24
-#define	SPA_MINBLOCKSIZE	(1ULL << SPA_MINBLOCKSHIFT)
-#define	SPA_OLD_MAXBLOCKSIZE	(1ULL << SPA_OLD_MAXBLOCKSHIFT)
-#define	SPA_MAXBLOCKSIZE	(1ULL << SPA_MAXBLOCKSHIFT)
-
-/*
  * Alignment Shift (ashift) is an immutable, internal top-level vdev property
  * which can only be set at vdev creation time. Physical writes are always done
  * according to it, which makes 2^ashift the smallest possible IO on a vdev.

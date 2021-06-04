@@ -918,6 +918,7 @@ zfs_slm_init()
 		return (-1);
 	}
 
+	pthread_setname_np(g_zfs_tid, "enum-pools");
 	list_create(&g_device_list, sizeof (struct pendingdev),
 	    offsetof(struct pendingdev, pd_node));
 

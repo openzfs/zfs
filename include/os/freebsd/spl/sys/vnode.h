@@ -66,12 +66,7 @@ typedef	struct vop_vector	vnodeops_t;
 #define	vop_fid_args	vop_vptofh_args
 #define	a_fid		a_fhp
 
-#define	IS_XATTRDIR(dvp)	(0)
-
-#define	v_count	v_usecount
-
 #define	rootvfs		(rootvnode == NULL ? NULL : rootvnode->v_mount)
-
 
 #ifndef IN_BASE
 static __inline int

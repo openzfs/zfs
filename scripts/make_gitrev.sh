@@ -56,9 +56,9 @@ then
 	# already exists (in the source)
 	if [ -f "${top_srcdir}/${GITREV}" ]
 	then
-		ZFS_GITREV="$(sed -n \
+		ZFS_GITREV=$(sed -n \
 			'1s/^#define[[:blank:]]ZFS_META_GITREV "\([^"]*\)"$/\1/p' \
-			"${top_srcdir}/${GITREV}")"
+			"${top_srcdir}/${GITREV}")
 	fi
 elif [ ${dist} = yes ]
 then

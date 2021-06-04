@@ -9,45 +9,42 @@ count_zvols() {
 }
 
 filter_out_zvols_with_links() {
-	while read -r zvol; do
-		if [ ! -L "/dev/zvol/$zvol" ]; then
+	echo "$zvols" | tr ' ' '+' | while read -r zvol; do
+		if ! [ -L "/dev/zvol/$zvol" ]; then
 			echo "$zvol"
 		fi
-	done
+	done | tr '+' ' '
 }
 
 filter_out_deleted_zvols() {
-	while read -r zvol; do
-		if zfs list "$zvol" >/dev/null 2>&1; then
-			echo "$zvol"
-		fi
-	done
+	OIFS="$IFS"
+	IFS="
+"
+	# shellcheck disable=SC2086
+	zfs list -H -o name $zvols 2>/dev/null
+	IFS="$OIFS"
 }
 
 list_zvols() {
+	read -r default_volmode < /sys/module/zfs/parameters/zvol_volmode
 	zfs list -t volume -H -o \
-		name,volmode,receive_resume_token,redact_snaps |
-		while read -r zvol_line; do
-		name=$(echo "$zvol_line" | awk '{print $1}')
-		volmode=$(echo "$zvol_line" | awk '{print $2}')
-		token=$(echo "$zvol_line" | awk '{print $3}')
-		redacted=$(echo "$zvol_line" | awk '{print $4}')
-		#
+	    name,volmode,receive_resume_token,redact_snaps |
+	    while IFS="	" read -r name volmode token redacted; do # IFS=\t here!
+
 		# /dev links are not created for zvols with volmode = "none"
 		# or for redacted zvols.
-		#
 		[ "$volmode" = "none" ] && continue
+		[ "$volmode" = "default" ] && [ "$default_volmode" = "3" ] &&
+		    continue
 		[ "$redacted" = "-" ] || continue
-		#
-		# We also also ignore partially received zvols if it is
+
+		# We also ignore partially received zvols if it is
 		# not an incremental receive, as those won't even have a block
 		# device minor node created yet.
-		#
 		if [ "$token" != "-" ]; then
-			#
+
 			# Incremental receives create an invisible clone that
 			# is not automatically displayed by zfs list.
-			#
 			if ! zfs list "$name/%recv" >/dev/null 2>&1; then
 				continue
 			fi
@@ -75,7 +72,7 @@ while [ "$outer_loop" -lt 20 ]; do
 	while [ "$inner_loop" -lt 30 ]; do
 		inner_loop=$((inner_loop + 1))
 
-		zvols="$(echo "$zvols" | filter_out_zvols_with_links)"
+		zvols="$(filter_out_zvols_with_links)"
 
 		zvols_count=$(count_zvols)
 		if [ "$zvols_count" -eq 0 ]; then
@@ -95,7 +92,7 @@ while [ "$outer_loop" -lt 20 ]; do
 		echo "No progress since last loop."
 		echo "Checking if any zvols were deleted."
 
-		zvols=$(echo "$zvols" | filter_out_deleted_zvols)
+		zvols=$(filter_out_deleted_zvols)
 		zvols_count=$(count_zvols)
 
 		if [ "$old_zvols_count" -ne "$zvols_count" ]; then

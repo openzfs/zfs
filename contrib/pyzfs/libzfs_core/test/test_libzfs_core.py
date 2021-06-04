@@ -252,9 +252,9 @@ def skipUnlessBookmarksSupported(f):
 
 
 def snap_always_unmounted_before_destruction():
-    # Apparently ZoL automatically unmounts the snapshot
+    # Apparently OpenZFS automatically unmounts the snapshot
     # only if it is mounted at its default .zfs/snapshot
-    # mountpoint.
+    # mountpoint under Linux.
     return (
         platform.system() != 'Linux', 'snapshot is not auto-unmounted')
 
@@ -1062,7 +1062,7 @@ class ZFSTest(unittest.TestCase):
         lzc.lzc_bookmark({})
 
     @skipUnlessBookmarksSupported
-    def test_bookmarks_foregin_source(self):
+    def test_bookmarks_foreign_source(self):
         snaps = [ZFSTest.pool.makeName(b'fs1@snap1')]
         bmarks = [ZFSTest.pool.makeName(b'fs2#bmark1')]
         bmark_dict = {x: y for x, y in zip(bmarks, snaps)}

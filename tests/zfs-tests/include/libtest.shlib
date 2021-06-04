@@ -41,7 +41,7 @@
 # PATH may have been modified by sudo's secure_path behavior.
 #
 if [ -n "$STF_PATH" ]; then
-	PATH="$STF_PATH"
+	export PATH="$STF_PATH"
 fi
 
 #
@@ -1897,13 +1897,11 @@ function zfs_zones_setup #zone_name zone_root zone_ip
 	block_device_wait
 
 	#
-	# If current system support slog, add slog device for pool
+	# Add slog device for pool
 	#
-	if verify_slog_support ; then
-		typeset sdevs="$TEST_BASE_DIR/sdev1 $TEST_BASE_DIR/sdev2"
-		log_must mkfile $MINVDEVSIZE $sdevs
-		log_must zpool add $pool_name log mirror $sdevs
-	fi
+	typeset sdevs="$TEST_BASE_DIR/sdev1 $TEST_BASE_DIR/sdev2"
+	log_must mkfile $MINVDEVSIZE $sdevs
+	log_must zpool add $pool_name log mirror $sdevs
 
 	# this isn't supported just yet.
 	# Create a filesystem. In order to add this to
@@ -2766,10 +2764,6 @@ function add_user #<group_name> <user_name> <basedir>
 		;;
 	esac
 
-	echo "export PATH=\"$STF_PATH\"" >>$basedir/$user/.profile
-	echo "export PATH=\"$STF_PATH\"" >>$basedir/$user/.bash_profile
-	echo "export PATH=\"$STF_PATH\"" >>$basedir/$user/.login
-
 	return 0
 }
 
@@ -3072,28 +3066,6 @@ function random_get
 }
 
 #
-# Detect if the current system support slog
-#
-function verify_slog_support
-{
-	typeset dir=$TEST_BASE_DIR/disk.$$
-	typeset pool=foo.$$
-	typeset vdev=$dir/a
-	typeset sdev=$dir/b
-
-	mkdir -p $dir
-	mkfile $MINVDEVSIZE $vdev $sdev
-
-	typeset -i ret=0
-	if ! zpool create -n $pool $vdev log $sdev > /dev/null 2>&1; then
-		ret=1
-	fi
-	rm -r $dir
-
-	return $ret
-}
-
-#
 # The function will generate a dataset name with specific length
 # $1, the length of the name
 # $2, the base string to construct the name
@@ -3393,8 +3365,17 @@ function user_run
 	typeset user=$1
 	shift
 
-	log_note "user:$user $@"
-	eval su - \$user -c \"$@\" > $TEST_BASE_DIR/out 2>$TEST_BASE_DIR/err
+	log_note "user: $user"
+	log_note "cmd: $*"
+
+	typeset out=$TEST_BASE_DIR/out
+	typeset err=$TEST_BASE_DIR/err
+
+	sudo -Eu $user env PATH="$PATH" ksh <<<"$*" >$out 2>$err
+	typeset res=$?
+	log_note "out: $(<$out)"
+	log_note "err: $(<$err)"
+	return $res
 }
 
 #
@@ -3572,16 +3553,11 @@ function wait_replacing #pool
 # Wait for a pool to be scrubbed
 #
 # $1 pool name
-# $2 number of seconds to wait (optional)
-#
-# Returns true when pool has been scrubbed, or false if there's a timeout or if
-# no scrub was done.
 #
 function wait_scrubbed
 {
 	typeset pool=${1:-$TESTPOOL}
-	while true ; do
-		is_pool_scrubbed $pool && break
+	while ! is_pool_scrubbed $pool ; do
 		sleep 1
 	done
 }
@@ -3700,8 +3676,8 @@ function zed_start
 		# run ZED in the background and redirect foreground logging
 		# output to $ZED_LOG.
 		log_must truncate -s 0 $ZED_DEBUG_LOG
-		log_must eval "zed -vF -d $ZEDLET_DIR -p $ZEDLET_DIR/zed.pid -P $PATH" \
-		    "-s $ZEDLET_DIR/state 2>$ZED_LOG &"
+		log_must eval "zed -vF -d $ZEDLET_DIR -P $PATH" \
+		    "-s $ZEDLET_DIR/state -j 1 2>$ZED_LOG &"
 	fi
 
 	return 0
@@ -3717,14 +3693,13 @@ function zed_stop
 	fi
 
 	log_note "Stopping ZED"
-	if [[ -f ${ZEDLET_DIR}/zed.pid ]]; then
-		zedpid=$(<${ZEDLET_DIR}/zed.pid)
-		kill $zedpid
-		while ps -p $zedpid > /dev/null; do
-			sleep 1
-		done
-		rm -f ${ZEDLET_DIR}/zed.pid
-	fi
+	while true; do
+		zedpids="$(pgrep -x zed)"
+		[ "$?" -ne 0 ] && break
+
+		log_must kill $zedpids
+		sleep 1
+	done
 	return 0
 }
 

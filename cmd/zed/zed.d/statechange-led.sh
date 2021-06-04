@@ -1,21 +1,21 @@
 #!/bin/sh
 #
-# Turn off/on the VDEV's enclosure fault LEDs when the pool's state changes.
+# Turn off/on vdevs' enclosure fault LEDs when their pool's state changes.
 #
-# Turn the VDEV's fault LED on if it becomes FAULTED, DEGRADED or UNAVAIL.
-# Turn the LED off when it's back ONLINE again.
+# Turn a vdev's fault LED on if it becomes FAULTED, DEGRADED or UNAVAIL.
+# Turn its LED off when it's back ONLINE again.
 #
 # This script run in two basic modes:
 #
 # 1. If $ZEVENT_VDEV_ENC_SYSFS_PATH and $ZEVENT_VDEV_STATE_STR are set, then
-# only set the LED for that particular VDEV. This is the case for statechange
+# only set the LED for that particular vdev. This is the case for statechange
 # events and some vdev_* events.
 #
-# 2. If those vars are not set, then check the state of all VDEVs in the pool
+# 2. If those vars are not set, then check the state of all vdevs in the pool
 # and set the LEDs accordingly.  This is the case for pool_import events.
 #
 # Note that this script requires that your enclosure be supported by the
-# Linux SCSI enclosure services (ses) driver.  The script will do nothing
+# Linux SCSI Enclosure services (SES) driver.  The script will do nothing
 # if you have no enclosure, or if your enclosure isn't supported.
 #
 # Exit codes:
@@ -59,6 +59,10 @@ check_and_set_led()
 	file="$1"
 	val="$2"
 
+	if [ -z "$val" ]; then
+		return 0
+	fi
+
 	if [ ! -e "$file" ] ; then
 		return 3
 	fi
@@ -66,11 +70,11 @@ check_and_set_led()
 	# If another process is accessing the LED when we attempt to update it,
 	# the update will be lost so retry until the LED actually changes or we
 	# timeout.
-	for _ in $(seq 1 5); do
+	for _ in 1 2 3 4 5; do
 		# We want to check the current state first, since writing to the
 		# 'fault' entry always causes a SES command, even if the
 		# current state is already what you want.
-		current=$(cat "${file}")
+		read -r current < "${file}"
 
 		# On some enclosures if you write 1 to fault, and read it back,
 		# it will return 2.  Treat all non-zero values as 1 for
@@ -85,27 +89,29 @@ check_and_set_led()
 		else
 			break
 		fi
-        done
+	done
 }
 
 state_to_val()
 {
 	state="$1"
-	if [ "$state" = "FAULTED" ] || [ "$state" = "DEGRADED" ] || \
-	   [ "$state" = "UNAVAIL" ] ; then
-		echo 1
-	elif [ "$state" = "ONLINE" ] ; then
-		echo 0
-	fi
+	case "$state" in
+		FAULTED|DEGRADED|UNAVAIL)
+			echo 1
+			;;
+		ONLINE)
+			echo 0
+			;;
+	esac
 }
 
-# process_pool ([pool])
+# process_pool (pool)
 #
-# Iterate through a pool (or pools) and set the VDEV's enclosure slot LEDs to
-# the VDEV's state.
+# Iterate through a pool and set the vdevs' enclosure slot LEDs to
+# those vdevs' state.
 #
 # Arguments
-#   pool:	Optional pool name.  If not specified, iterate though all pools.
+#   pool:	Pool name.
 #
 # Return
 #  0 on success, 3 on missing sysfs path
@@ -113,19 +119,22 @@ state_to_val()
 process_pool()
 {
 	pool="$1"
+
+	# The output will be the vdevs only (from "grep '/dev/'"):
+	#
+	#    U45     ONLINE       0     0     0   /dev/sdk          0
+	#    U46     ONLINE       0     0     0   /dev/sdm          0
+	#    U47     ONLINE       0     0     0   /dev/sdn          0
+	#    U50     ONLINE       0     0     0  /dev/sdbn          0
+	#
+	ZPOOL_SCRIPTS_AS_ROOT=1 $ZPOOL status -c upath,fault_led "$pool" | grep '/dev/' | (
 	rc=0
-
-	# Lookup all the current LED values and paths in parallel
-	#shellcheck disable=SC2016
-	cmd='echo led_token=$(cat "$VDEV_ENC_SYSFS_PATH/fault"),"$VDEV_ENC_SYSFS_PATH",'
-	out=$($ZPOOL status -vc "$cmd" "$pool" | grep 'led_token=')
-
-	#shellcheck disable=SC2034
-	echo "$out" | while read -r vdev state read write chksum therest; do
+	while read -r vdev state _ _ _ therest; do
 		# Read out current LED value and path
-		tmp=$(echo "$therest" | sed 's/^.*led_token=//g')
-		vdev_enc_sysfs_path=$(echo "$tmp" | awk -F ',' '{print $2}')
-		current_val=$(echo "$tmp" | awk -F ',' '{print $1}')
+		# Get dev name (like 'sda')
+		dev=$(basename "$(echo "$therest" | awk '{print $(NF-1)}')")
+		vdev_enc_sysfs_path=$(realpath "/sys/class/block/$dev/device/enclosure_device"*)
+		current_val=$(echo "$therest" | awk '{print $NF}')
 
 		if [ "$current_val" != "0" ] ; then
 			current_val=1
@@ -137,36 +146,27 @@ process_pool()
 		fi
 
 		if [ ! -e "$vdev_enc_sysfs_path/fault" ] ; then
-			#shellcheck disable=SC2030
-			rc=1
+			rc=3
 			zed_log_msg "vdev $vdev '$file/fault' doesn't exist"
-			continue;
+			continue
 		fi
 
 		val=$(state_to_val "$state")
 
 		if [ "$current_val" = "$val" ] ; then
 			# LED is already set correctly
-			continue;
+			continue
 		fi
 
 		if ! check_and_set_led "$vdev_enc_sysfs_path/fault" "$val"; then
-			rc=1
+			rc=3
 		fi
-
 	done
-
-	#shellcheck disable=SC2031
-	if [ "$rc" = "0" ] ; then
-		return 0
-	else
-		# We didn't see a sysfs entry that we wanted to set
-		return 3
-	fi
+	exit "$rc"; )
 }
 
 if [ -n "$ZEVENT_VDEV_ENC_SYSFS_PATH" ] && [ -n "$ZEVENT_VDEV_STATE_STR" ] ; then
-	# Got a statechange for an individual VDEV
+	# Got a statechange for an individual vdev
 	val=$(state_to_val "$ZEVENT_VDEV_STATE_STR")
 	vdev=$(basename "$ZEVENT_VDEV_PATH")
 	check_and_set_led "$ZEVENT_VDEV_ENC_SYSFS_PATH/fault" "$val"

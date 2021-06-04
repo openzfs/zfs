@@ -55,8 +55,6 @@ typedef	int	umode_t;
 #define	VFS_NOSETUID	MNT_NOSUID
 #define	VFS_NOEXEC	MNT_NOEXEC
 
-#define	fs_vscan(vp, cr, async)	(0)
-
 #define	VROOT		VV_ROOT
 
 #define	XU_NGROUPS	16
