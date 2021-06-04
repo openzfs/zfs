@@ -32,7 +32,7 @@
 .Op Fl e Ns | Ns Fl -execd
 .Op Fl n Ns | Ns Fl -no-histogram
 .Op Fl s Ns | Ns Fl -sum-histogram-buckets
-.Op Fl t Ns | Ns Fl -tags Ar key Ns = Ns Ar value Ns Op , Ns Ar key Ns = Ns Ar value Ns …
+.Op Fl t Ns | Ns Fl -tags Ar key Ns = Ns Ar value Ns Oo , Ns Ar key Ns = Ns Ar value Oc Ns …
 .Op Ar pool
 .
 .Sh DESCRIPTION
@@ -80,7 +80,7 @@ By default, the values are not accumulated and the raw data appears as shown by
 .Nm zpool Cm iostat .
 This works well for Grafana's heatmap plugin.
 Summing the buckets produces output similar to Prometheus histograms.
-.It Fl t , Fl -tags Ar key Ns = Ns Ar value Ns Op , Ns Ar key Ns = Ns Ar value Ns …
+.It Fl t , Fl -tags Ar key Ns = Ns Ar value Ns Oo , Ns Ar key Ns = Ns Ar value Oc Ns …
 Adds specified tags to the tag set.
 No sanity checking is performed.
 See the InfluxDB Line Protocol format documentation for details on escaping

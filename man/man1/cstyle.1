@@ -31,7 +31,7 @@
 .Nm
 .Op Fl chpvCP
 .Op Fl o Ar construct Ns Op , Ns Ar construct Ns …
-.Op Ar file…
+.Oo Ar file Oc Ns …
 .Sh DESCRIPTION
 .Nm
 inspects C source files (*.c and *.h) for common stylistic errors.
@@ -99,7 +99,7 @@ Allow doxygen-style block comments
 .Pq Sy /** No and Sy /*!\& .
 .It Sy splint
 Allow splint-style lint comments
-.Pq Sy /*@...@*/ .
+.Pq Sy /*@ Ns ... Ns Sy @*/ .
 .El
 .El
 .
@@ -118,29 +118,28 @@ statement has balanced parenthesis.
 .It
 Some
 .Xr cpp 1
-macros do not require \fB;\fPs after them.
+macros do not require
+.Sy ;\& Ns s after them.
 Any such macros
 .Em must
 be ALL_CAPS; any lower case letters will cause bad output.
 .Pp
-The bad output will generally be corrected after the next \fB;\fP,
-.Sy { ,
-or
-.Sy } .
+The bad output will generally be corrected after the next
+.Sy ;\& , { , No or Sy } .
 .El
 Some continuation error messages deserve some additional explanation:
 .Bl -tag -width Ds
 .It Sy multiple statements continued over multiple lines
 A multi-line statement which is not broken at statement boundaries.
 For example:
-.Bd -literal
+.Bd -literal -compact -offset Ds
 if (this_is_a_long_variable == another_variable) a =
     b + c;
 .Ed
 .Pp
 Will trigger this error.
 Instead, do:
-.Bd -literal
+.Bd -literal -compact -offset Ds
 if (this_is_a_long_variable == another_variable)
     a = b + c;
 .Ed
@@ -148,13 +147,13 @@ if (this_is_a_long_variable == another_variable)
 For visibility, empty bodies for if, for, and while statements should be
 on their own line.
 For example:
-.Bd -literal
+.Bd -literal -compact -offset Ds
 while (do_something(&x) == 0);
 .Ed
 .Pp
 Will trigger this error.
 Instead, do:
-.Bd -literal
+.Bd -literal -compact -offset Ds
 while (do_something(&x) == 0)
     ;
 .Ed

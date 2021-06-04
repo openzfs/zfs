@@ -14,13 +14,13 @@
 .
 .Sh NAME
 .Nm vdev_id.conf
-.Nd Configuration file for vdev_id
+.Nd configuration file for vdev_id(8)
 .Sh DESCRIPTION
 .Nm
 is the configuration file for
-.Nm vdev_id Ns Sy (8) .
+.Xr vdev_id 8 .
 It controls the default behavior of
-.Nm vdev_id Ns Sy (8)
+.Xr vdev_id 8
 while it is mapping a disk device name to an alias.
 .Pp
 The
@@ -37,7 +37,7 @@ Maps a device link in the
 .Pa /dev
 directory hierarchy to a new device name.
 The udev rule defining the device link must have run prior to
-.Nm vdev_id Ns Sy (8) .
+.Xr vdev_id 8 .
 A defined alias takes precedence over a topology-derived name, but the
 two naming methods can otherwise coexist.
 For example, one might name drives in a JBOD with the
@@ -94,12 +94,12 @@ and a default mapping applied to the others.
 .
 .It Sy multipath Sy yes Ns | Ns Sy no
 Specifies whether
-.Nm vdev_id Ns Sy (8)
+.Xr vdev_id 8
 will handle only dm-multipath devices.
 If set to
 .Sy yes
 then
-.Nm vdev_id Ns Sy (8)
+.Xr vdev_id 8
 will examine the first running component disk of a dm-multipath
 device as provided by the driver command to determine the physical path.
 .
@@ -116,7 +116,7 @@ channels are uniquely identified by a SAS switch port number
 .It Sy phys_per_port Ar num
 Specifies the number of PHY devices associated with a SAS HBA port or SAS
 switch port.
-.Nm vdev_id Ns Sy (8)
+.Xr vdev_id 8
 internally uses this value to determine which HBA or switch port a
 device is connected to.
 The default is
@@ -157,13 +157,13 @@ may be unstable across disk replacement.
 .Bl -tag -width "-v v"
 .It Pa /etc/zfs/vdev_id.conf
 The configuration file for
-.Nm vdev_id Ns Sy (8) .
+.Xr vdev_id 8 .
 .El
 .
 .Sh EXAMPLES
 A non-multipath configuration with direct-attached SAS enclosures and an
 arbitrary slot re-mapping:
-.Bd -literal -offset Ds
+.Bd -literal -compact -offset Ds
 multipath     no
 topology      sas_direct
 phys_per_port 4
@@ -195,8 +195,8 @@ slot 4          3
 A SAS-switch topology.
 Note, that the
 .Ar channel
-keyword takes only two arguments in this example.
-.Bd -literal -offset Ds
+keyword takes only two arguments in this example:
+.Bd -literal -compact -offset Ds
 topology      sas_switch
 
 #       SWITCH PORT  CHANNEL NAME
@@ -207,9 +207,8 @@ channel 4            D
 .Ed
 .Pp
 A multipath configuration.
-Note that channel names have multiple
-definitions - one per physical path.
-.Bd -literal -offset Ds
+Note that channel names have multiple definitions - one per physical path:
+.Bd -literal -compact -offset Ds
 multipath yes
 
 #       PCI_SLOT HBA PORT  CHANNEL NAME
@@ -219,8 +218,8 @@ channel 86:00.0  1         A
 channel 86:00.0  0         B
 .Ed
 .Pp
-A configuration with enclosure_symlinks enabled.
-.Bd -literal -offset Ds
+A configuration with enclosure_symlinks enabled:
+.Bd -literal -compact -offset Ds
 multipath yes
 enclosure_symlinks yes
 
@@ -230,17 +229,16 @@ channel    05:00.0     0            L
 channel    06:00.0     1            U
 channel    06:00.0     0            L
 .Ed
-.Pp
 In addition to the disks symlinks, this configuration will create:
-.Bd -literal -offset Ds
+.Bd -literal -compact -offset Ds
 /dev/by-enclosure/enc-L0
 /dev/by-enclosure/enc-L1
 /dev/by-enclosure/enc-U0
 /dev/by-enclosure/enc-U1
 .Ed
 .Pp
-A configuration using device link aliases.
-.Bd -literal -offset Ds
+A configuration using device link aliases:
+.Bd -literal -compact -offset Ds
 #     by-vdev
 #     name     fully qualified or base name of device link
 alias d1       /dev/disk/by-id/wwn-0x5000c5002de3b9ca
