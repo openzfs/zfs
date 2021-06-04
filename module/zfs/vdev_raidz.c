@@ -317,9 +317,7 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t ashift, uint64_t dcols,
 		rc->rc_devidx = col;
 		rc->rc_offset = coff;
 
-		if (c >= acols)
-			rc->rc_size = 0;
-		else if (c < bc)
+		if (c < bc)
 			rc->rc_size = (q + 1) << ashift;
 		else
 			rc->rc_size = q << ashift;
