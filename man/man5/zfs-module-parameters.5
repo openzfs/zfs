@@ -1,6 +1,6 @@
 '\" te
 .\" Copyright (c) 2013 by Turbo Fredriksson <turbo@bayour.com>. All rights reserved.
-.\" Copyright (c) 2019, 2020 by Delphix. All rights reserved.
+.\" Copyright (c) 2019, 2021 by Delphix. All rights reserved.
 .\" Copyright (c) 2019 Datto Inc.
 .\" The contents of this file are subject to the terms of the Common Development
 .\" and Distribution License (the "License").  You may not use this file except
@@ -14,7 +14,7 @@
 .\" CDDL HEADER, with the fields enclosed by brackets "[]" replaced with your
 .\" own identifying information:
 .\" Portions Copyright [yyyy] [name of copyright owner]
-.TH ZFS-MODULE-PARAMETERS 5 "Aug 24, 2020" OpenZFS
+.TH ZFS-MODULE-PARAMETERS 5 "May 5, 2021" OpenZFS
 .SH NAME
 zfs\-module\-parameters \- ZFS module parameters
 .SH DESCRIPTION
@@ -234,7 +234,7 @@ Use \fB0\fR for no (default) and \fB1\fR for yes.
 .RS 12n
 Percent of ARC size allowed for L2ARC-only headers.
 Since L2ARC buffers are not evicted on memory pressure, too large amount of
-headers on system with irrationaly large L2ARC can render it slow or unusable.
+headers on system with irrationally large L2ARC can render it slow or unusable.
 This parameter limits L2ARC writes and rebuild to achieve it.
 .sp
 Default value: \fB33\fR%.
@@ -387,7 +387,7 @@ Default value: \fB16,777,217\fR.
 .RS 12n
 When attempting to log the output nvlist of an ioctl in the on-disk history, the
 output will not be stored if it is larger than size (in bytes). This must be
-less then DMU_MAX_ACCESS (64MB). This applies primarily to
+less than DMU_MAX_ACCESS (64MB). This applies primarily to
 zfs_ioc_channel_program().
 .sp
 Default value: \fB1MB\fR.
@@ -694,6 +694,29 @@ Default value: \fB600000\fR (ten minutes).
 .sp
 .ne 2
 .na
+\fBreference_history\fR (int)
+.ad
+.RS 12n
+Maximum reference holders being tracked when reference_tracking_enable is
+active.
+.sp
+Default value: \fB3\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBreference_tracking_enable\fR (int)
+.ad
+.RS 12n
+Track reference holders to refcount_t objects (debug builds only).
+.sp
+Use \fB1\fR for yes and \fB0\fR for no (default).
+.RE
+
+.sp
+.ne 2
+.na
 \fBsend_holes_without_birth_time\fR (int)
 .ad
 .RS 12n
@@ -888,7 +911,7 @@ Default value: \fB8,388,608\fR (8MB).
 .RS 12n
 Max bytes to prefetch indirects for per stream.
 .sp
-Default vaule: \fB67,108,864\fR (64MB).
+Default value: \fB67,108,864\fR (64MB).
 .RE
 
 .sp
@@ -1425,6 +1448,19 @@ Default value: \fB0\fR (no throttle).
 .sp
 .ne 2
 .na
+\fBzfs_condense_indirect_obsolete_pct\fR (int)
+.ad
+.RS 12n
+Minimum percent of obsolete bytes in vdev mapping required to attempt to
+condense (see \fBzfs_condense_indirect_vdevs_enable\fR). Intended for use
+with the test suite to facilitate triggering condensing as needed.
+.sp
+Default value: \fB25\fR%.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_condense_indirect_vdevs_enable\fR (int)
 .ad
 .RS 12n
@@ -1470,11 +1506,14 @@ Default value: \fB131,072\fR.
 .ad
 .RS 12n
 Internally ZFS keeps a small log to facilitate debugging.  By default the log
-is disabled, to enable it set this option to 1.  The contents of the log can
+is enabled, to disable it set this option to 0.  The contents of the log can
 be accessed by reading the /proc/spl/kstat/zfs/dbgmsg file.  Writing 0 to
 this proc file clears the log.
 .sp
-Default value: \fB0\fR.
+This setting does not influence debug prints due to \fBzfs_flags\fR
+settings.
+.sp
+Default value: \fB1\fR.
 .RE
 
 .sp
@@ -1672,7 +1711,8 @@ Default value: \fB64\fR.
 \fBzfs_slow_io_events_per_second\fR (int)
 .ad
 .RS 12n
-Rate limit delay zevents (which report slow I/Os) to this many per second.
+Rate limit delay and deadman zevents (which report slow I/Os) to this many per
+second.
 .sp
 Default value: 20
 .RE
@@ -2875,6 +2915,19 @@ Default value: \fB52,428,800\fR.
 .sp
 .ne 2
 .na
+\fBzfs_traverse_indirect_prefetch_limit\fR (int)
+.ad
+.RS 12n
+The number of blocks pointed by indirect (non-L0) block, which should be
+prefetched during a pool traversal (eg: \fBzfs send\fR or other data
+crawling operations)
+.sp
+Default value: \fB32\fR.
+.RE
+
+.sp
+.ne 2
+.na
 \fBzfs_per_txg_dirty_frees_percent \fR (ulong)
 .ad
 .RS 12n
@@ -3273,7 +3326,7 @@ Default value: \fB0\fR.
 Maximum amount of data that can be concurrently issued at once for scrubs and
 resilvers per leaf device, given in bytes.
 .sp
-Default value: \fB41943040\fR.
+Default value: \fB4194304\fR.
 .RE
 
 .sp
@@ -3797,36 +3850,13 @@ set.
 .sp
 .ne 2
 .na
-\fBzfs_zevent_cols\fR (int)
-.ad
-.RS 12n
-When zevents are logged to the console use this as the word wrap width.
-.sp
-Default value: \fB80\fR.
-.RE
-
-.sp
-.ne 2
-.na
-\fBzfs_zevent_console\fR (int)
-.ad
-.RS 12n
-Log events to the console
-.sp
-Use \fB1\fR for yes and \fB0\fR for no (default).
-.RE
-
-.sp
-.ne 2
-.na
 \fBzfs_zevent_len_max\fR (int)
 .ad
 .RS 12n
-Max event queue length. A value of 0 will result in a calculated value which
-increases with the number of CPUs in the system (minimum 64 events). Events
-in the queue can be viewed with the \fBzpool events\fR command.
+Max event queue length.
+Events in the queue can be viewed with the \fBzpool events\fR command.
 .sp
-Default value: \fB0\fR.
+Default value: \fB512\fR.
 .RE
 
 .sp
@@ -4030,11 +4060,25 @@ Percentage of online CPUs (or CPU cores, etc) which will run a worker thread
 for I/O. These workers are responsible for I/O work such as compression and
 checksum calculations. Fractional number of CPUs will be rounded down.
 .sp
-The default value of 75 was chosen to avoid using all CPUs which can result in
-latency issues and inconsistent application performance, especially when high
-compression is enabled.
+The default value of 80 was chosen to avoid using all CPUs which can result in
+latency issues and inconsistent application performance, especially when slower
+compression and/or checksumming is enabled.
 .sp
-Default value: \fB75\fR.
+Default value: \fB80\fR.
+.RE
+
+.sp
+.ne 2
+.na
+\fBzio_taskq_batch_tpq\fR (uint)
+.ad
+.RS 12n
+Number of worker threads per taskq.  Lower value improves I/O ordering and
+CPU utilization, while higher reduces lock contention.
+.sp
+By default about 6 worker threads per taskq, depending on system size.
+.sp
+Default value: \fB0\fR.
 .RE
 
 .sp

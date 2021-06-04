@@ -1008,7 +1008,7 @@ avl_destroy_nodes(avl_tree_t *tree, void **cookie)
 	--tree->avl_numnodes;
 
 	/*
-	 * If we just did a right child or there isn't one, go up to parent.
+	 * If we just removed a right child or there isn't one, go up to parent.
 	 */
 	if (child == 1 || parent->avl_child[1] == NULL) {
 		node = parent;

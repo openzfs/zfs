@@ -1290,7 +1290,7 @@ ZFS_MODULE_PARAM(zfs, zfs_, unflushed_max_mem_amt, ULONG, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs, zfs_, unflushed_max_mem_ppm, ULONG, ZMOD_RW,
     "Percentage of the overall system memory that ZFS allows to be "
     "used for unflushed changes (value is calculated over 1000000 for "
-    "finer granularity");
+    "finer granularity)");
 
 ZFS_MODULE_PARAM(zfs, zfs_, unflushed_log_block_max, ULONG, ZMOD_RW,
     "Hard limit (upper-bound) in the size of the space map log "

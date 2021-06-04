@@ -146,7 +146,7 @@ function setup_test_env
 	typeset -i i=0
 	typeset file=$TESTDIR/file
 	typeset -i limit
-	(( limit = $(get_prop available $pool) / 4 ))
+	(( limit = $(get_prop available $pool) / 2 ))
 
 	while true ; do
 		[[ $(get_prop available $pool) -lt $limit ]] && break
@@ -162,6 +162,7 @@ function setup_test_env
 function refill_test_env
 {
 	log_note "Re-filling the filesystem ..."
+	typeset pool=$1
 	typeset -i ret=0
 	typeset -i i=0
 	typeset mntpnt
@@ -217,8 +218,13 @@ function is_data_valid
 {
 	typeset pool=$1
 
+	log_must zpool scrub -w $pool
+
 	record_data $pool $PST_RECORD_FILE
 	if ! diff $PRE_RECORD_FILE $PST_RECORD_FILE > /dev/null 2>&1; then
+		log_must cat $PRE_RECORD_FILE
+		log_must cat $PST_RECORD_FILE
+		diff -u $PRE_RECORD_FILE $PST_RECORD_FILE
 		return 1
 	fi
 
@@ -237,7 +243,7 @@ function get_vdevs #pool cnt
 	typeset -i cnt=$2
 
 	typeset all_devs=$(zpool iostat -v $pool | awk '{print $1}'| \
-		egrep -v "^pool$|^capacity$|^mirror$|^raidz1$|^raidz2$|---" | \
+		egrep -v "^pool$|^capacity$|^mirror$|^raidz1$|^raidz2$|^raidz3$|^draid1.*|^draid2.*|^draid3.*|---" | \
 		egrep -v "/old$|^$pool$")
 	typeset -i i=0
 	typeset vdevs
@@ -265,9 +271,9 @@ function replace_missing_devs
 
 	typeset vdev
 	for vdev in $@; do
-		log_must gnudd if=/dev/zero of=$vdev \
-		    bs=1024k count=$(($MINDEVSIZE / (1024 * 1024))) \
-		    oflag=fdatasync
+		log_must dd if=/dev/zero of=$vdev \
+		    bs=1024k count=$((MINVDEVSIZE / (1024 * 1024))) \
+		    conv=fdatasync
 		log_must zpool replace -wf $pool $vdev $vdev
 	done
 }
@@ -286,19 +292,19 @@ function damage_devs
 	typeset -i cnt=$2
 	typeset label="$3"
 	typeset vdevs
-	typeset -i bs_count=$((64 * 1024))
+	typeset -i bs_count=$(((MINVDEVSIZE / 1024) - 4096))
 
 	vdevs=$(get_vdevs $pool $cnt)
 	typeset dev
 	if [[ -n $label ]]; then
 		for dev in $vdevs; do
-			dd if=/dev/zero of=$dev seek=512 bs=1024 \
+			log_must dd if=/dev/zero of=$dev seek=512 bs=1024 \
 			    count=$bs_count conv=notrunc >/dev/null 2>&1
 		done
 	else
 		for dev in $vdevs; do
-			dd if=/dev/zero of=$dev bs=1024 count=$bs_count \
-			    conv=notrunc >/dev/null 2>&1
+			log_must dd if=/dev/zero of=$dev bs=1024 \
+			    count=$bs_count conv=notrunc >/dev/null 2>&1
 		done
 	fi
 

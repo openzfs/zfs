@@ -23,6 +23,7 @@
 #
 # Copyright (c) 2020 by vStack. All rights reserved.
 # Copyright (c) 2021 by Delphix. All rights reserved.
+# Copyright (c) 2021 by Lawrence Livermore National Security, LLC.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -37,6 +38,7 @@
 #	2. For each parity value [1..3]
 #	    - create raidz pool
 #	    - fill it with some directories/files
+#	    - verify self-healing by overwriting devices
 #	    - verify resilver by replacing devices
 #	    - verify scrub by zeroing devices
 #	    - destroy the raidz pool
@@ -57,6 +59,54 @@ function cleanup
 	done
 
 	set_tunable32 PREFETCH_DISABLE $prefetch_disable
+}
+
+function test_selfheal # <pool> <parity> <dir>
+{
+	typeset pool=$1
+	typeset nparity=$2
+	typeset dir=$3
+
+	log_must zpool export $pool
+
+	for (( i=0; i<$nparity; i=i+1 )); do
+		log_must dd conv=notrunc if=/dev/zero of=$dir/dev-$i \
+		    bs=1M seek=4 count=$(($dev_size_mb-4))
+	done
+
+	log_must zpool import -o cachefile=none -d $dir $pool
+
+	typeset mntpnt=$(get_prop mountpoint $pool/fs)
+	log_must find $mntpnt -type f -exec cksum {} + >> /dev/null 2>&1
+	log_must check_pool_status $pool "errors" "No known data errors"
+
+	#
+	# Scrub the pool because the find command will only self-heal blocks
+	# from the files which were read.  Before overwriting additional
+	# devices we need to repair all of the blocks in the pool.
+	#
+	log_must zpool scrub -w $pool
+	log_must check_pool_status $pool "errors" "No known data errors"
+
+	log_must zpool clear $pool
+
+	log_must zpool export $pool
+
+	for (( i=$nparity; i<$nparity*2; i=i+1 )); do
+		log_must dd conv=notrunc if=/dev/zero of=$dir/dev-$i \
+		    bs=1M seek=4 count=$(($dev_size_mb-4))
+	done
+
+	log_must zpool import -o cachefile=none -d $dir $pool
+
+	typeset mntpnt=$(get_prop mountpoint $pool/fs)
+	log_must find $mntpnt -type f -exec cksum {} + >> /dev/null 2>&1
+	log_must check_pool_status $pool "errors" "No known data errors"
+
+	log_must zpool scrub -w $pool
+	log_must check_pool_status $pool "errors" "No known data errors"
+
+	log_must zpool clear $pool
 }
 
 function test_resilver # <pool> <parity> <dir>
@@ -121,7 +171,6 @@ function test_scrub # <pool> <parity> <dir>
 	typeset pool=$1
 	typeset nparity=$2
 	typeset dir=$3
-	typeset combrec=$4
 
 	log_must zpool export $pool
 
@@ -189,6 +238,7 @@ for nparity in 1 2 3; do
 
 	log_must check_pool_status $TESTPOOL "errors" "No known data errors"
 
+	test_selfheal $TESTPOOL $nparity $dir
 	test_resilver $TESTPOOL $nparity $dir
 	test_scrub $TESTPOOL $nparity $dir
 

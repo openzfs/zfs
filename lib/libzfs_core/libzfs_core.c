@@ -137,7 +137,7 @@ libzfs_core_init(void)
 {
 	(void) pthread_mutex_lock(&g_lock);
 	if (g_refcount == 0) {
-		g_fd = open(ZFS_DEV, O_RDWR);
+		g_fd = open(ZFS_DEV, O_RDWR|O_CLOEXEC);
 		if (g_fd < 0) {
 			(void) pthread_mutex_unlock(&g_lock);
 			return (errno);
@@ -158,8 +158,7 @@ libzfs_core_fini(void)
 	(void) pthread_mutex_lock(&g_lock);
 	ASSERT3S(g_refcount, >, 0);
 
-	if (g_refcount > 0)
-		g_refcount--;
+	g_refcount--;
 
 	if (g_refcount == 0 && g_fd != -1) {
 		(void) close(g_fd);
@@ -323,6 +322,7 @@ lzc_rename(const char *source, const char *target)
 		error = errno;
 	return (error);
 }
+
 int
 lzc_destroy(const char *fsname)
 {
@@ -1025,7 +1025,8 @@ lzc_receive_with_header(const char *snapname, nvlist_t *props,
  * The 'errors' nvlist contains an entry for each unapplied received
  * property.  Callers are responsible for freeing this nvlist.
  */
-int lzc_receive_one(const char *snapname, nvlist_t *props,
+int
+lzc_receive_one(const char *snapname, nvlist_t *props,
     const char *origin, boolean_t force, boolean_t resumable, boolean_t raw,
     int input_fd, const dmu_replay_record_t *begin_record, int cleanup_fd,
     uint64_t *read_bytes, uint64_t *errflags, uint64_t *action_handle,
@@ -1044,7 +1045,8 @@ int lzc_receive_one(const char *snapname, nvlist_t *props,
  * exclude ('zfs receive -x') properties. Callers are responsible for freeing
  * this nvlist
  */
-int lzc_receive_with_cmdprops(const char *snapname, nvlist_t *props,
+int
+lzc_receive_with_cmdprops(const char *snapname, nvlist_t *props,
     nvlist_t *cmdprops, uint8_t *wkeydata, uint_t wkeylen, const char *origin,
     boolean_t force, boolean_t resumable, boolean_t raw, int input_fd,
     const dmu_replay_record_t *begin_record, int cleanup_fd,

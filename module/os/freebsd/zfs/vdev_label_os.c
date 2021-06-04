@@ -52,7 +52,7 @@ vdev_label_write_pad2(vdev_t *vd, const char *buf, size_t size)
 	if (vdev_is_dead(vd))
 		return (ENXIO);
 
-	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == SCL_ALL);
+	ASSERT3U(spa_config_held(spa, SCL_ALL, RW_WRITER), ==, SCL_ALL);
 
 	pad2 = abd_alloc_for_io(VDEV_PAD_SIZE, B_TRUE);
 	abd_zero(pad2, VDEV_PAD_SIZE);

@@ -141,7 +141,14 @@
 	VDEV_RAIDZ_64MUL_2((x), mask); \
 }
 
+/*
+ * For testing only: logical offset at which to pause the expansion.
+ */
 unsigned long raidz_expand_max_offset_pause = 0;
+
+/*
+ * Maximum amount of copy io's outstanding at once.
+ */
 unsigned long raidz_expand_max_copy_bytes = 10 * SPA_MAXBLOCKSIZE;
 
 /*
@@ -158,19 +165,14 @@ vdev_raidz_row_free(raidz_row_t *rr)
 
 		if (rc->rc_size != 0)
 			abd_free(rc->rc_abd);
-		if (rc->rc_gdata != NULL)
-			abd_free(rc->rc_gdata);
 		if (rc->rc_orig_data != NULL)
-			zio_buf_free(rc->rc_orig_data, rc->rc_size);
+			abd_free(rc->rc_orig_data);
 	}
-
-	if (rr->rr_abd_copy != NULL)
-		abd_free(rr->rr_abd_copy);
 
 	if (rr->rr_abd_empty != NULL)
 		abd_free(rr->rr_abd_empty);
 
-	kmem_free(rr, offsetof(raidz_row_t, rr_col[rr->rr_cols]));
+	kmem_free(rr, offsetof(raidz_row_t, rr_col[rr->rr_scols]));
 }
 
 void
@@ -198,197 +200,20 @@ vdev_raidz_map_free_vsd(zio_t *zio)
 {
 	raidz_map_t *rm = zio->io_vsd;
 
-	ASSERT0(rm->rm_freed);
-	rm->rm_freed = B_TRUE;
-
-	if (rm->rm_reports == 0) {
-		vdev_raidz_map_free(rm);
-	}
+	vdev_raidz_map_free(rm);
 }
 
 static int
 vdev_raidz_reflow_compare(const void *x1, const void *x2)
 {
-	const reflow_node_t *l = (reflow_node_t *)x1;
-	const reflow_node_t *r = (reflow_node_t *)x2;
+	const reflow_node_t *l = x1;
+	const reflow_node_t *r = x2;
 
 	return (TREE_CMP(l->re_txg, r->re_txg));
 }
 
-/*ARGSUSED*/
-static void
-vdev_raidz_cksum_free(void *arg, size_t ignored)
-{
-	raidz_map_t *rm = arg;
-
-	ASSERT3U(rm->rm_reports, >, 0);
-
-	if (--rm->rm_reports == 0 && rm->rm_freed)
-		vdev_raidz_map_free(rm);
-}
-
-static void
-vdev_raidz_cksum_finish(zio_cksum_report_t *zcr, const abd_t *good_data)
-{
-	raidz_map_t *rm = zcr->zcr_cbdata;
-	zfs_dbgmsg("checksum error on rm=%llx", rm);
-
-	if (good_data == NULL) {
-		zfs_ereport_finish_checksum(zcr, NULL, NULL, B_FALSE);
-		return;
-	}
-
-	zfs_ereport_finish_checksum(zcr, NULL, NULL, B_FALSE);
-#if 0
-	const size_t c = zcr->zcr_cbinfo;
-	size_t x, offset;
-
-	if (good_data == NULL) {
-		zfs_ereport_finish_checksum(zcr, NULL, NULL, B_FALSE);
-		return;
-	}
-
-	ASSERT3U(rm->rm_nrows, ==, 1);
-	raidz_row_t *rr = rm->rm_row[0];
-
-	const abd_t *good = NULL;
-	const abd_t *bad = rr->rr_col[c].rc_abd;
-
-	if (c < rr->rr_firstdatacol) {
-		/*
-		 * The first time through, calculate the parity blocks for
-		 * the good data (this relies on the fact that the good
-		 * data never changes for a given logical ZIO)
-		 */
-		if (rr->rr_col[0].rc_gdata == NULL) {
-			abd_t *bad_parity[VDEV_RAIDZ_MAXPARITY];
-
-			/*
-			 * Set up the rr_col[]s to generate the parity for
-			 * good_data, first saving the parity bufs and
-			 * replacing them with buffers to hold the result.
-			 */
-			for (x = 0; x < rr->rr_firstdatacol; x++) {
-				bad_parity[x] = rr->rr_col[x].rc_abd;
-				rr->rr_col[x].rc_abd = rr->rr_col[x].rc_gdata =
-				    abd_alloc_sametype(rr->rr_col[x].rc_abd,
-				    rr->rr_col[x].rc_size);
-			}
-
-			/* fill in the data columns from good_data */
-			offset = 0;
-			for (; x < rr->rr_cols; x++) {
-				abd_free(rr->rr_col[x].rc_abd);
-
-				rr->rr_col[x].rc_abd =
-				    abd_get_offset_size((abd_t *)good_data,
-				    offset, rr->rr_col[x].rc_size);
-				offset += rr->rr_col[x].rc_size;
-			}
-
-			/*
-			 * Construct the parity from the good data.
-			 */
-			vdev_raidz_generate_parity_row(rm, rr);
-
-			/* restore everything back to its original state */
-			for (x = 0; x < rr->rr_firstdatacol; x++)
-				rr->rr_col[x].rc_abd = bad_parity[x];
-
-			offset = 0;
-			for (x = rr->rr_firstdatacol; x < rr->rr_cols; x++) {
-				abd_free(rr->rr_col[x].rc_abd);
-				rr->rr_col[x].rc_abd = abd_get_offset_size(
-				    rr->rr_abd_copy, offset,
-				    rr->rr_col[x].rc_size);
-				offset += rr->rr_col[x].rc_size;
-			}
-		}
-
-		ASSERT3P(rr->rr_col[c].rc_gdata, !=, NULL);
-		good = abd_get_offset_size(rr->rr_col[c].rc_gdata, 0,
-		    rr->rr_col[c].rc_size);
-	} else {
-		/* adjust good_data to point at the start of our column */
-		offset = 0;
-		for (x = rr->rr_firstdatacol; x < c; x++)
-			offset += rr->rr_col[x].rc_size;
-
-		good = abd_get_offset_size((abd_t *)good_data, offset,
-		    rr->rr_col[c].rc_size);
-	}
-
-	/* we drop the ereport if it ends up that the data was good */
-	zfs_ereport_finish_checksum(zcr, good, bad, B_TRUE);
-	abd_free((abd_t *)good);
-#endif
-}
-
-/*
- * Invoked indirectly by zfs_ereport_start_checksum(), called
- * below when our read operation fails completely.  The main point
- * is to keep a copy of everything we read from disk, so that at
- * vdev_raidz_cksum_finish() time we can compare it with the good data.
- */
-static void
-vdev_raidz_cksum_report(zio_t *zio, zio_cksum_report_t *zcr, void *arg)
-{
-	size_t c = (size_t)(uintptr_t)arg;
-	raidz_map_t *rm = zio->io_vsd;
-
-	/* set up the report and bump the refcount  */
-	zcr->zcr_cbdata = rm;
-	zcr->zcr_cbinfo = c;
-	zcr->zcr_finish = vdev_raidz_cksum_finish;
-	zcr->zcr_free = vdev_raidz_cksum_free;
-
-	rm->rm_reports++;
-	ASSERT3U(rm->rm_reports, >, 0);
-
-	if (rm->rm_row[0]->rr_abd_copy != NULL)
-		return;
-
-	/*
-	 * It's the first time we're called for this raidz_map_t, so we need
-	 * to copy the data aside; there's no guarantee that our zio's buffer
-	 * won't be re-used for something else.
-	 *
-	 * Our parity data is already in separate buffers, so there's no need
-	 * to copy them.
-	 */
-	for (int i = 0; i < rm->rm_nrows; i++) {
-		raidz_row_t *rr = rm->rm_row[i];
-		size_t offset = 0;
-		size_t size = 0;
-
-		for (c = rr->rr_firstdatacol; c < rr->rr_cols; c++)
-			size += rr->rr_col[c].rc_size;
-
-		rr->rr_abd_copy = abd_alloc_for_io(size, B_FALSE);
-
-		for (c = rr->rr_firstdatacol; c < rr->rr_cols; c++) {
-			raidz_col_t *col = &rr->rr_col[c];
-
-			if (col->rc_size == 0)
-				continue;
-
-			abd_t *tmp = abd_get_offset_size(rr->rr_abd_copy,
-			    offset, col->rc_size);
-
-			abd_copy(tmp, col->rc_abd, col->rc_size);
-
-			abd_free(col->rc_abd);
-			col->rc_abd = tmp;
-
-			offset += col->rc_size;
-		}
-		ASSERT3U(offset, ==, size);
-	}
-}
-
-static const zio_vsd_ops_t vdev_raidz_vsd_ops = {
+const zio_vsd_ops_t vdev_raidz_vsd_ops = {
 	.vsd_free = vdev_raidz_map_free_vsd,
-	.vsd_cksum_report = vdev_raidz_cksum_report
 };
 
 raidz_row_t *
@@ -398,11 +223,13 @@ vdev_raidz_row_alloc(int cols)
 	    kmem_zalloc(offsetof(raidz_row_t, rr_col[cols]), KM_SLEEP);
 
 	rr->rr_cols = cols;
+	rr->rr_scols = cols;
 
 	for (int c = 0; c < cols; c++) {
 		raidz_col_t *rc = &rr->rr_col[c];
 		rc->rc_shadow_devidx = INT_MAX;
 		rc->rc_shadow_offset = UINT64_MAX;
+		rc->rc_allow_repair = 1;
 	}
 	return (rr);
 }
@@ -427,7 +254,7 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t ashift, uint64_t dcols,
 	uint64_t f = b % dcols;
 	/* The starting byte offset on each child vdev. */
 	uint64_t o = (b / dcols) << ashift;
-	uint64_t q, r, c, bc, col, acols, coff, devidx, asize, tot;
+	uint64_t q, r, c, bc, col, acols, scols, coff, devidx, asize, tot;
 
 	raidz_map_t *rm =
 	    kmem_zalloc(offsetof(raidz_map_t, rm_row[1]), KM_SLEEP);
@@ -456,16 +283,21 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t ashift, uint64_t dcols,
 
 	/*
 	 * acols: The columns that will be accessed.
+	 * scols: The columns that will be accessed or skipped.
 	 */
 	if (q == 0) {
 		/* Our I/O request doesn't span all child vdevs. */
 		acols = bc;
+		scols = MIN(dcols, roundup(bc, nparity + 1));
 	} else {
 		acols = dcols;
+		scols = dcols;
 	}
 
-	rr = vdev_raidz_row_alloc(acols);
+	ASSERT3U(acols, <=, scols);
+	rr = vdev_raidz_row_alloc(scols);
 	rm->rm_row[0] = rr;
+	rr->rr_cols = acols;
 	rr->rr_firstdatacol = nparity;
 #ifdef ZFS_DEBUG
 	rr->rr_offset = zio->io_offset;
@@ -474,7 +306,7 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t ashift, uint64_t dcols,
 
 	asize = 0;
 
-	for (c = 0; c < acols; c++) {
+	for (c = 0; c < scols; c++) {
 		raidz_col_t *rc = &rr->rr_col[c];
 		col = f + c;
 		coff = o;
@@ -496,6 +328,7 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t ashift, uint64_t dcols,
 	ASSERT3U(asize, ==, tot << ashift);
 	rm->rm_nskip = roundup(tot, nparity + 1) - tot;
 	rm->rm_skipstart = bc;
+
 	for (c = 0; c < rr->rr_firstdatacol; c++)
 		rr->rr_col[c].rc_abd =
 		    abd_alloc_linear(rr->rr_col[c].rc_size, B_FALSE);
@@ -537,6 +370,8 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t ashift, uint64_t dcols,
 		rr->rr_col[0].rc_offset = rr->rr_col[1].rc_offset;
 		rr->rr_col[1].rc_devidx = devidx;
 		rr->rr_col[1].rc_offset = o;
+		if (rm->rm_skipstart == 0)
+			rm->rm_skipstart = 1;
 	}
 
 	/* init RAIDZ parity ops */
@@ -605,6 +440,7 @@ vdev_raidz_map_alloc_expanded(zio_t *zio,
 	    KM_SLEEP);
 	rm->rm_nrows = rows;
 	rm->rm_nskip = roundup(tot, nparity + 1) - tot;
+	rm->rm_skipstart = bc;
 	asize = 0;
 
 #if 1
@@ -658,10 +494,11 @@ vdev_raidz_map_alloc_expanded(zio_t *zio,
 		 */
 		rr->rr_firstdatacol = nparity;
 #ifdef ZFS_DEBUG
-		/* XXX offset and size here are for the whole i/o, not this row */
-		/* XXX note: size is PSIZE, not ASIZE */
-		rr->rr_offset = offset;
-		rr->rr_size = size;
+		/*
+		 * note: rr_size is PSIZE, not ASIZE
+		 */
+		rr->rr_offset = b << ashift;
+		rr->rr_size = (rr->rr_cols - rr->rr_firstdatacol) << ashift;
 #endif
 
 		for (int c = 0; c < rr->rr_cols; c++, child_id++) {
@@ -791,12 +628,15 @@ vdev_raidz_map_alloc_expanded(zio_t *zio,
 			int devidx0 = rr->rr_col[0].rc_devidx;
 			uint64_t offset0 = rr->rr_col[0].rc_offset;
 			int shadow_devidx0 = rr->rr_col[0].rc_shadow_devidx;
-			uint64_t shadow_offset0 = rr->rr_col[0].rc_shadow_offset;
+			uint64_t shadow_offset0 =
+			    rr->rr_col[0].rc_shadow_offset;
 
 			rr->rr_col[0].rc_devidx = rr->rr_col[1].rc_devidx;
 			rr->rr_col[0].rc_offset = rr->rr_col[1].rc_offset;
-			rr->rr_col[0].rc_shadow_devidx = rr->rr_col[1].rc_shadow_devidx;
-			rr->rr_col[0].rc_shadow_offset = rr->rr_col[1].rc_shadow_offset;
+			rr->rr_col[0].rc_shadow_devidx =
+			    rr->rr_col[1].rc_shadow_devidx;
+			rr->rr_col[0].rc_shadow_offset =
+			    rr->rr_col[1].rc_shadow_offset;
 
 			rr->rr_col[1].rc_devidx = devidx0;
 			rr->rr_col[1].rc_offset = offset0;
@@ -879,7 +719,8 @@ vdev_raidz_map_alloc_expanded(zio_t *zio,
 			raidz_row_t *rr = rm->rm_row[i];
 			for (int c = 0; c < rr->rr_firstdatacol; c++) {
 				raidz_col_t *rc = &rr->rr_col[c];
-				raidz_col_t *prc = &rm->rm_phys_col[rc->rc_devidx];
+				raidz_col_t *prc =
+				    &rm->rm_phys_col[rc->rc_devidx];
 				rc->rc_abd =
 				    abd_get_offset_struct(&rc->rc_abdstruct,
 				    prc->rc_abd,
@@ -1053,11 +894,6 @@ vdev_raidz_generate_parity_pqr(raidz_row_t *rr)
 			(void) memcpy(r, p, rr->rr_col[c].rc_size);
 
 			for (uint64_t i = ccnt; i < pcnt; i++) {
-				/*
-				 * XXX does this really happen?
-				 * firstdatacol should be the same size as
-				 * the parity cols
-				 */
 				p[i] = 0;
 				q[i] = 0;
 				r[i] = 0;
@@ -1243,7 +1079,7 @@ vdev_raidz_reconst_pq_tail_func(void *xbuf, size_t size, void *private)
 	return (0);
 }
 
-static int
+static void
 vdev_raidz_reconstruct_p(raidz_row_t *rr, int *tgts, int ntgts)
 {
 	int x = tgts[0];
@@ -1275,11 +1111,9 @@ vdev_raidz_reconstruct_p(raidz_row_t *rr, int *tgts, int ntgts)
 		(void) abd_iterate_func2(dst, src, 0, 0, size,
 		    vdev_raidz_reconst_p_func, NULL);
 	}
-
-	return (1 << VDEV_RAIDZ_P);
 }
 
-static int
+static void
 vdev_raidz_reconstruct_q(raidz_row_t *rr, int *tgts, int ntgts)
 {
 	int x = tgts[0];
@@ -1323,11 +1157,9 @@ vdev_raidz_reconstruct_q(raidz_row_t *rr, int *tgts, int ntgts)
 	struct reconst_q_struct rq = { abd_to_buf(src), exp };
 	(void) abd_iterate_func(dst, 0, rr->rr_col[x].rc_size,
 	    vdev_raidz_reconst_q_post_func, &rq);
-
-	return (1 << VDEV_RAIDZ_Q);
 }
 
-static int
+static void
 vdev_raidz_reconstruct_pq(raidz_row_t *rr, int *tgts, int ntgts)
 {
 	uint8_t *p, *q, *pxy, *qxy, tmp, a, b, aexp, bexp;
@@ -1416,8 +1248,6 @@ vdev_raidz_reconstruct_pq(raidz_row_t *rr, int *tgts, int ntgts)
 	 */
 	rr->rr_col[VDEV_RAIDZ_P].rc_abd = pdata;
 	rr->rr_col[VDEV_RAIDZ_Q].rc_abd = qdata;
-
-	return ((1 << VDEV_RAIDZ_P) | (1 << VDEV_RAIDZ_Q));
 }
 
 /* BEGIN CSTYLED */
@@ -1776,7 +1606,7 @@ vdev_raidz_matrix_reconstruct(raidz_row_t *rr, int n, int nmissing,
 	kmem_free(p, psize);
 }
 
-static int
+static void
 vdev_raidz_reconstruct_general(raidz_row_t *rr, int *tgts, int ntgts)
 {
 	int n, i, c, t, tt;
@@ -1792,8 +1622,6 @@ vdev_raidz_reconstruct_general(raidz_row_t *rr, int *tgts, int ntgts)
 	uint8_t *used;
 
 	abd_t **bufs = NULL;
-
-	int code = 0;
 
 	/*
 	 * Matrix reconstruction can't use scatter ABDs yet, so we allocate
@@ -1849,14 +1677,9 @@ vdev_raidz_reconstruct_general(raidz_row_t *rr, int *tgts, int ntgts)
 			continue;
 		}
 
-		code |= 1 << c;
-
 		parity_map[i] = c;
 		i++;
 	}
-
-	ASSERT(code != 0);
-	ASSERT3U(code, <, 1 << VDEV_RAIDZ_MAXPARITY);
 
 	psize = (sizeof (rows[0][0]) + sizeof (invrows[0][0])) *
 	    nmissing_rows * n + sizeof (used[0]) * n;
@@ -1920,18 +1743,15 @@ vdev_raidz_reconstruct_general(raidz_row_t *rr, int *tgts, int ntgts)
 		}
 		kmem_free(bufs, rr->rr_cols * sizeof (abd_t *));
 	}
-
-	return (code);
 }
 
-static int
+static void
 vdev_raidz_reconstruct_row(raidz_map_t *rm, raidz_row_t *rr,
     const int *t, int nt)
 {
 	int tgts[VDEV_RAIDZ_MAXPARITY], *dt;
 	int ntgts;
 	int i, c, ret;
-	int code;
 	int nbadparity, nbaddata;
 	int parity_valid[VDEV_RAIDZ_MAXPARITY];
 
@@ -1974,20 +1794,24 @@ vdev_raidz_reconstruct_row(raidz_map_t *rm, raidz_row_t *rr,
 	/* Reconstruct using the new math implementation */
 	ret = vdev_raidz_math_reconstruct(rm, rr, parity_valid, dt, nbaddata);
 	if (ret != RAIDZ_ORIGINAL_IMPL)
-		return (ret);
+		return;
 
 	/*
 	 * See if we can use any of our optimized reconstruction routines.
 	 */
 	switch (nbaddata) {
 	case 1:
-		if (parity_valid[VDEV_RAIDZ_P])
-			return (vdev_raidz_reconstruct_p(rr, dt, 1));
+		if (parity_valid[VDEV_RAIDZ_P]) {
+			vdev_raidz_reconstruct_p(rr, dt, 1);
+			return;
+		}
 
 		ASSERT(rr->rr_firstdatacol > 1);
 
-		if (parity_valid[VDEV_RAIDZ_Q])
-			return (vdev_raidz_reconstruct_q(rr, dt, 1));
+		if (parity_valid[VDEV_RAIDZ_Q]) {
+			vdev_raidz_reconstruct_q(rr, dt, 1);
+			return;
+		}
 
 		ASSERT(rr->rr_firstdatacol > 2);
 		break;
@@ -1996,18 +1820,17 @@ vdev_raidz_reconstruct_row(raidz_map_t *rm, raidz_row_t *rr,
 		ASSERT(rr->rr_firstdatacol > 1);
 
 		if (parity_valid[VDEV_RAIDZ_P] &&
-		    parity_valid[VDEV_RAIDZ_Q])
-			return (vdev_raidz_reconstruct_pq(rr, dt, 2));
+		    parity_valid[VDEV_RAIDZ_Q]) {
+			vdev_raidz_reconstruct_pq(rr, dt, 2);
+			return;
+		}
 
 		ASSERT(rr->rr_firstdatacol > 2);
 
 		break;
 	}
 
-	code = vdev_raidz_reconstruct_general(rr, tgts, ntgts);
-	ASSERT(code < (1 << VDEV_RAIDZ_MAXPARITY));
-	ASSERT(code > 0);
-	return (code);
+	vdev_raidz_reconstruct_general(rr, tgts, ntgts);
 }
 
 static int
@@ -2078,7 +1901,6 @@ vdev_raidz_close(vdev_t *vd)
 static uint64_t
 vdev_raidz_get_logical_width(vdev_raidz_t *vdrz, uint64_t txg)
 {
-#if 1
 	reflow_node_t lookup = {
 		.re_txg = txg,
 	};
@@ -2098,10 +1920,6 @@ vdev_raidz_get_logical_width(vdev_raidz_t *vdrz, uint64_t txg)
 	}
 	mutex_exit(&vdrz->vd_expand_lock);
 	return (width);
-
-#else
-	return (vdrz->vd_original_width);
-#endif
 }
 
 /*
@@ -2130,7 +1948,8 @@ vdev_raidz_asize(vdev_t *vd, uint64_t psize, uint64_t txg)
 #ifdef ZFS_DEBUG
 	uint64_t asize_new = ((psize - 1) >> ashift) + 1;
 	uint64_t ncols_new = vdrz->vd_physical_width;
-	asize_new += nparity * ((asize_new + ncols_new - nparity - 1) / (ncols_new - nparity));
+	asize_new += nparity * ((asize_new + ncols_new - nparity - 1) /
+	    (ncols_new - nparity));
 	asize_new = roundup(asize_new, nparity + 1) << ashift;
 	VERIFY3U(asize_new, <=, asize);
 #endif
@@ -2170,21 +1989,28 @@ vdev_raidz_shadow_child_done(zio_t *zio)
 static void
 vdev_raidz_io_verify(zio_t *zio, raidz_map_t *rm, raidz_row_t *rr, int col)
 {
-#if 0 // XXX vdev_xlate doesn't work right when block straddles the expansion progress
-//#ifdef ZFS_DEBUG
-	vdev_t *tvd = vd->vdev_top;
+#ifdef ZFS_DEBUG
+	vdev_t *tvd = zio->io_vd->vdev_top;
 
 	range_seg64_t logical_rs, physical_rs, remain_rs;
 	logical_rs.rs_start = rr->rr_offset;
 	logical_rs.rs_end = logical_rs.rs_start +
-	    vdev_raidz_asize(zio->io_vd, rr->rr_size),
+	    vdev_raidz_asize(zio->io_vd, rr->rr_size,
 	    BP_PHYSICAL_BIRTH(zio->io_bp));
 
 	raidz_col_t *rc = &rr->rr_col[col];
-	vdev_t *cvd = vd->vdev_child[rc->rc_devidx];
+	vdev_t *cvd = tvd->vdev_child[rc->rc_devidx];
 
 	vdev_xlate(cvd, &logical_rs, &physical_rs, &remain_rs);
 	ASSERT(vdev_xlate_is_empty(&remain_rs));
+	if (vdev_xlate_is_empty(&physical_rs)) {
+		/*
+		 * If we are in the middle of expansion, the
+		 * physical->logical mapping is changing so vdev_xlate()
+		 * can't give us a reliable answer.
+		 */
+		return;
+	}
 	ASSERT3U(rc->rc_offset, ==, physical_rs.rs_start);
 	ASSERT3U(rc->rc_offset, <, physical_rs.rs_end);
 	/*
@@ -2194,9 +2020,8 @@ vdev_raidz_io_verify(zio_t *zio, raidz_map_t *rm, raidz_row_t *rr, int col)
 	 * rc_size.
 	 */
 	if (physical_rs.rs_end > rc->rc_offset + rc->rc_size) {
-		if (rm->rm_nrows == 1)
-			ASSERT3U(physical_rs.rs_end, ==, rc->rc_offset +
-			    rc->rc_size + (1 << tvd->vdev_ashift));
+		ASSERT3U(physical_rs.rs_end, ==, rc->rc_offset +
+		    rc->rc_size + (1 << tvd->vdev_ashift));
 	} else {
 		ASSERT3U(physical_rs.rs_end, ==, rc->rc_offset + rc->rc_size);
 	}
@@ -2204,7 +2029,7 @@ vdev_raidz_io_verify(zio_t *zio, raidz_map_t *rm, raidz_row_t *rr, int col)
 }
 
 static void
-vdev_raidz_io_start_write(zio_t *zio, raidz_row_t *rr, uint64_t ashift)
+vdev_raidz_io_start_write(zio_t *zio, raidz_row_t *rr)
 {
 	vdev_t *vd = zio->io_vd;
 	raidz_map_t *rm = zio->io_vsd;
@@ -2234,16 +2059,23 @@ vdev_raidz_io_start_write(zio_t *zio, raidz_row_t *rr, uint64_t ashift)
 			    vdev_raidz_shadow_child_done, rc));
 		}
 	}
+}
 
-	// XXX do this in vdev_raidz_io_start, based on rm->nskip
-#if 0
+/*
+ * Generate optional I/Os for skip sectors to improve aggregation contiguity.
+ * This only works for vdev_raidz_map_alloc() (not _expanded()).
+ */
+static void
+raidz_start_skip_writes(zio_t *zio)
+{
+	vdev_t *vd = zio->io_vd;
+	uint64_t ashift = vd->vdev_top->vdev_ashift;
+	raidz_map_t *rm = zio->io_vsd;
 	int c, i;
-	/*
-	 * Generate optional I/Os for skip sectors to improve aggregation
-	 * contiguity.
-	 */
+	ASSERT3U(rm->rm_nrows, ==, 1);
+	raidz_row_t *rr = rm->rm_row[0];
 	for (c = rm->rm_skipstart, i = 0; i < rm->rm_nskip; c++, i++) {
-		ASSERT(c <= rr->rr_scols);
+		ASSERT3U(c, <=, rr->rr_scols);
 		if (c == rr->rr_scols)
 			c = 0;
 
@@ -2255,8 +2087,8 @@ vdev_raidz_io_start_write(zio_t *zio, raidz_row_t *rr, uint64_t ashift)
 		    zio->io_type, zio->io_priority,
 		    ZIO_FLAG_NODATA | ZIO_FLAG_OPTIONAL, NULL, NULL));
 	}
-#endif
 }
+
 
 static void
 vdev_raidz_io_start_read_row(zio_t *zio, raidz_row_t *rr, boolean_t forceparity)
@@ -2339,7 +2171,6 @@ vdev_raidz_io_start_read(zio_t *zio, raidz_map_t *rm)
 	 * If there are multiple rows, we will be hitting
 	 * all disks, so go ahead and read the parity so
 	 * that we are reading in decent size chunks.
-	 * XXX maybe doesn't really matter?
 	 */
 	boolean_t forceparity = rm->rm_nrows > 1;
 
@@ -2411,8 +2242,11 @@ vdev_raidz_io_start(zio_t *zio)
 			    &vdrz->vn_vre);
 			lr = zfs_rangelock_enter(&vdrz->vn_vre.vre_rangelock,
 			    zio->io_offset, zio->io_size, RL_READER);
-			use_scratch = (RRSS_GET_STATE(&vd->vdev_spa->spa_ubsync) == RRSS_SCRATCH_VALID);
-			synced_offset = RRSS_GET_OFFSET(&vd->vdev_spa->spa_ubsync);
+			use_scratch =
+			    (RRSS_GET_STATE(&vd->vdev_spa->spa_ubsync) ==
+			    RRSS_SCRATCH_VALID);
+			synced_offset =
+			    RRSS_GET_OFFSET(&vd->vdev_spa->spa_ubsync);
 			next_offset = vdrz->vn_vre.vre_offset;
 			/*
 			 * If we haven't resumed expanding since importing the
@@ -2448,8 +2282,11 @@ vdev_raidz_io_start(zio_t *zio)
 	zio->io_vsd_ops = &vdev_raidz_vsd_ops;
 	if (zio->io_type == ZIO_TYPE_WRITE) {
 		for (int i = 0; i < rm->rm_nrows; i++) {
-			vdev_raidz_io_start_write(zio,
-			    rm->rm_row[i], tvd->vdev_ashift);
+			vdev_raidz_io_start_write(zio, rm->rm_row[i]);
+		}
+
+		if (logical_width == vdrz->vd_physical_width) {
+			raidz_start_skip_writes(zio);
 		}
 	} else {
 		ASSERT(zio->io_type == ZIO_TYPE_READ);
@@ -2636,8 +2473,10 @@ vdev_raidz_io_done_verified(zio_t *zio, raidz_row_t *rr)
 			vdev_t *vd = zio->io_vd;
 			vdev_t *cvd = vd->vdev_child[rc->rc_devidx];
 
-			if ((rc->rc_error == 0 || rc->rc_size == 0) &&
-			    (rc->rc_repair == 0)) {
+			if (!rc->rc_allow_repair) {
+				continue;
+			} else if (!rc->rc_force_repair &&
+			    (rc->rc_error == 0 || rc->rc_size == 0)) {
 				continue;
 			}
 
@@ -2654,7 +2493,7 @@ vdev_raidz_io_done_verified(zio_t *zio, raidz_row_t *rr)
 	/*
 	 * Scrub or resilver i/o's: overwrite any shadow locations with the
 	 * good data.  This ensures that if we've already copied this sector,
-	 * it'll be corrected if it was damaged.  This writes more than is
+	 * it will be corrected if it was damaged.  This writes more than is
 	 * necessary, but since expansion is paused during scrub/resilver, at
 	 * most a single row will have a shadow location.
 	 */
@@ -2679,7 +2518,6 @@ vdev_raidz_io_done_verified(zio_t *zio, raidz_row_t *rr)
 			    rc->rc_shadow_offset, rc->rc_abd, rc->rc_size,
 			    ZIO_TYPE_WRITE, ZIO_PRIORITY_ASYNC_WRITE,
 			    ZIO_FLAG_IO_REPAIR, NULL, NULL);
-			    //vdev_raidz_shadow_child_done, rc);
 			cio->io_flags &= ~ZIO_FLAG_SCAN_THREAD;
 			zio_nowait(cio);
 		}
@@ -2694,7 +2532,7 @@ raidz_restore_orig_data(raidz_map_t *rm)
 		for (int c = 0; c < rr->rr_cols; c++) {
 			raidz_col_t *rc = &rr->rr_col[c];
 			if (rc->rc_need_orig_restore) {
-				abd_copy_from_buf(rc->rc_abd,
+				abd_copy(rc->rc_abd,
 				    rc->rc_orig_data, rc->rc_size);
 				rc->rc_need_orig_restore = B_FALSE;
 			}
@@ -2779,9 +2617,9 @@ raidz_reconstruct(zio_t *zio, int *ltgts, int ntgts, int nparity)
 				    ltgts[lt], rc)) {
 					if (rc->rc_orig_data == NULL) {
 						rc->rc_orig_data =
-						    zio_buf_alloc(rc->rc_size);
-						abd_copy_to_buf(
-						    rc->rc_orig_data,
+						    abd_alloc_linear(
+						    rc->rc_size, B_TRUE);
+						abd_copy(rc->rc_orig_data,
 						    rc->rc_abd, rc->rc_size);
 					}
 					rc->rc_need_orig_restore = B_TRUE;
@@ -2804,11 +2642,8 @@ raidz_reconstruct(zio_t *zio, int *ltgts, int ntgts, int nparity)
 			raidz_restore_orig_data(rm);
 			return (EINVAL);
 		}
-		/* XXX is rr_code used anywhere? */
-		rr->rr_code = 0;
 		if (dead_data > 0)
-			rr->rr_code = vdev_raidz_reconstruct_row(rm, rr,
-			    my_tgts, t);
+			vdev_raidz_reconstruct_row(rm, rr, my_tgts, t);
 	}
 
 	/* Check for success */
@@ -2834,7 +2669,7 @@ raidz_reconstruct(zio_t *zio, int *ltgts, int ntgts, int nparity)
 					if (rc->rc_error == 0 &&
 					    c >= rr->rr_firstdatacol) {
 						raidz_checksum_error(zio,
-						    rc, rc->rc_gdata);
+						    rc, rc->rc_orig_data);
 						rc->rc_error =
 						    SET_ERROR(ECKSUM);
 					}
@@ -3071,19 +2906,13 @@ vdev_raidz_io_done_write_impl(zio_t *zio, raidz_row_t *rr)
 	}
 }
 
-/*
- * return 0 if no reconstruction occurred, otherwise the "code" from
- * vdev_raidz_reconstruct().
- */
-static int
-vdev_raidz_io_done_reconstruct_known_missing(raidz_map_t *rm,
-    raidz_row_t *rr)
+static void
+vdev_raidz_io_done_reconstruct_known_missing(raidz_map_t *rm, raidz_row_t *rr)
 {
 	int parity_errors = 0;
 	int parity_untried = 0;
 	int data_errors = 0;
 	int total_errors = 0;
-	int code = 0;
 
 	ASSERT3U(rr->rr_missingparity, <=, rr->rr_firstdatacol);
 	ASSERT3U(rr->rr_missingdata, <=, rr->rr_cols - rr->rr_firstdatacol);
@@ -3137,10 +2966,8 @@ vdev_raidz_io_done_reconstruct_known_missing(raidz_map_t *rm,
 
 		ASSERT(rr->rr_firstdatacol >= n);
 
-		code = vdev_raidz_reconstruct_row(rm, rr, tgts, n);
+		vdev_raidz_reconstruct_row(rm, rr, tgts, n);
 	}
-
-	return (code);
 }
 
 /*
@@ -3205,7 +3032,7 @@ vdev_raidz_io_done_unrecoverable(zio_t *zio)
 
 			(void) zfs_ereport_start_checksum(zio->io_spa,
 			    cvd, &zio->io_bookmark, zio, rc->rc_offset,
-			    rc->rc_size, (void *)(uintptr_t)c, &zbc);
+			    rc->rc_size, &zbc);
 			mutex_enter(&cvd->vdev_stat_lock);
 			cvd->vdev_stat.vs_checksum_errors++;
 			mutex_exit(&cvd->vdev_stat_lock);
@@ -3218,13 +3045,17 @@ vdev_raidz_io_done(zio_t *zio)
 {
 	raidz_map_t *rm = zio->io_vsd;
 
-	ASSERT(zio->io_bp != NULL);  /* XXX need to add code to enforce this */
+	ASSERT(zio->io_bp != NULL);
 	if (zio->io_type == ZIO_TYPE_WRITE) {
 		for (int i = 0; i < rm->rm_nrows; i++) {
 			vdev_raidz_io_done_write_impl(zio, rm->rm_row[i]);
 		}
 	} else {
 		if (rm->rm_phys_col) {
+			/*
+			 * This is an aggregated read.  Copy the data and status
+			 * from the aggregate abd's to the individual rows.
+			 */
 			for (int i = 0; i < rm->rm_nrows; i++) {
 				raidz_row_t *rr = rm->rm_row[i];
 
@@ -3239,7 +3070,10 @@ vdev_raidz_io_done(zio_t *zio)
 					rc->rc_tried = prc->rc_tried;
 					rc->rc_skipped = prc->rc_skipped;
 					if (c >= rr->rr_firstdatacol) {
-#if 1 // XXX evaluate perf impact. if it matters then make a fast-path in abd_copy_off where one of the abd's is linear?
+						/*
+						 * Note: this is slightly faster
+						 * than using abd_copy_off().
+						 */
 						char *physbuf = abd_to_buf(
 						    prc->rc_abd);
 						void *physloc = physbuf +
@@ -3248,13 +3082,6 @@ vdev_raidz_io_done(zio_t *zio)
 
 						abd_copy_from_buf(rc->rc_abd,
 						    physloc, rc->rc_size);
-#else
-						abd_copy_off(rc->rc_abd,
-						    prc->rc_abd, 0,
-						    rc->rc_offset -
-						    prc->rc_offset,
-						    rc->rc_size);
-#endif
 					}
 				}
 			}
@@ -3262,9 +3089,7 @@ vdev_raidz_io_done(zio_t *zio)
 
 		for (int i = 0; i < rm->rm_nrows; i++) {
 			raidz_row_t *rr = rm->rm_row[i];
-			rr->rr_code =
-			    vdev_raidz_io_done_reconstruct_known_missing(rm,
-			    rr);
+			vdev_raidz_io_done_reconstruct_known_missing(rm, rr);
 		}
 
 		if (raidz_checksum_verify(zio) == 0) {
@@ -3289,8 +3114,14 @@ vdev_raidz_io_done(zio_t *zio)
 			 * data and parity as we can track down. If we've
 			 * already been through once before, all children will
 			 * be marked as tried so we'll proceed to combinatorial
-			 * reconstruction.
+			 * reconstruction.  We also disable aggregation.
 			 */
+			if (rm->rm_phys_col != NULL) {
+				kmem_free(rm->rm_phys_col,
+				    sizeof (raidz_col_t) * rm->rm_nphys_cols);
+				rm->rm_phys_col = NULL;
+				rm->rm_nphys_cols = 0;
+			}
 			int nread = 0;
 			for (int i = 0; i < rm->rm_nrows; i++) {
 				nread += vdev_raidz_read_all(zio,
@@ -3443,24 +3274,24 @@ vdev_raidz_xlate(vdev_t *cvd, const range_seg64_t *logical_rs,
 	ASSERT(raidvd->vdev_ops == &vdev_raidz_ops);
 
 	vdev_raidz_t *vdrz = raidvd->vdev_tsd;
-	uint64_t children = vdrz->vd_physical_width;
-#if 0
-	/*
-	 * XXX this seems wrong. we need to look at each row individually to see
-	 * if it's before or after the expansion progress.  However, we can't
-	 * really know where each row begins.  We could look at each sector
-	 * individually, but then the mapped range will be disjoint.  But the
-	 * reality is we probably shouldn't be using this function while
-	 * expansion is in progress.
-	 */
-	if (logical_rs->rs_start > vdrz->vn_vre.vre_offset_phys)
-		children--;
-#endif
 
 	ASSERT(raidvd->vdev_rz_expanding == B_FALSE);
-	ASSERT(raidvd->vdev_spa->spa_raidz_expand == NULL);
+	if (vdrz->vn_vre.vre_state == DSS_SCANNING) {
+		/*
+		 * We're in the middle of expansion, in which case the
+		 * translation is in flux.  Any answer we give may be wrong
+		 * by the time we return, so it isn't safe for the caller to
+		 * act on it.  Therefore we say that this range isn't present
+		 * on any children.  The only consumers of this are "zpool
+		 * initialize" and trimming, both of which are "best effort"
+		 * anyway.
+		 */
+		physical_rs->rs_start = physical_rs->rs_end = 0;
+		remain_rs->rs_start = remain_rs->rs_end = 0;
+		return;
+	}
 
-	uint64_t width = children;
+	uint64_t width = vdrz->vd_physical_width;
 	uint64_t tgt_col = cvd->vdev_id;
 	uint64_t ashift = raidvd->vdev_top->vdev_ashift;
 
@@ -3516,7 +3347,7 @@ raidz_reflow_sync(void *arg, dmu_tx_t *tx)
 	/*
 	 * Update the uberblock that will be written when this txg completes.
 	 */
-	zfs_dbgmsg("raidz reflow syncing txg=%llu offset_pertxg=%llu failed_offset=%llu",
+	zfs_dbgmsg("reflow syncing txg=%llu off_pertxg=%llu failed_off=%llu",
 	    (long long)dmu_tx_get_txg(tx),
 	    (long long)vre->vre_offset_pertxg[txgoff],
 	    (long long)vre->vre_failed_offset);
@@ -3636,7 +3467,8 @@ raidz_reflow_write_done(zio_t *zio)
 	vre->vre_outstanding_bytes -= zio->io_size;
 	if (rra->rra_lr->lr_offset + rra->rra_lr->lr_length <
 	    vre->vre_failed_offset) {
-		vre->vre_bytes_copied_pertxg[rra->rra_txg & TXG_MASK] += zio->io_size;
+		vre->vre_bytes_copied_pertxg[rra->rra_txg & TXG_MASK] +=
+		    zio->io_size;
 	}
 	cv_signal(&vre->vre_cv);
 	mutex_exit(&vre->vre_lock);
@@ -3665,7 +3497,8 @@ raidz_reflow_read_done(zio_t *zio)
 	 * will retry later due to vre_failed_offset.
 	 */
 	if (zio->io_error != 0 || !vdev_dtl_empty(zio->io_vd, DTL_MISSING)) {
-		zfs_dbgmsg("reflow read failed offset=%llu size=%llu txg=%llu err=%u partial_dtl_empty=%u missing_dtl_empty=%u",
+		zfs_dbgmsg("reflow read failed off=%llu size=%llu txg=%llu \
+err=%u partial_dtl_empty=%u missing_dtl_empty=%u",
 		    rra->rra_lr->lr_offset,
 		    rra->rra_lr->lr_length,
 		    rra->rra_txg,
@@ -3738,13 +3571,9 @@ raidz_reflow_impl(vdev_t *vd, vdev_raidz_expand_t *vre, range_tree_t *rt,
 	 */
 	uint64_t ubsync_blkid =
 	    RRSS_GET_OFFSET(&spa->spa_ubsync) >> ashift;
-#if 1
 	uint64_t next_overwrite_blkid = ubsync_blkid +
 	    ubsync_blkid / old_children - old_children;
 	VERIFY3U(next_overwrite_blkid, >, ubsync_blkid);
-#else // XXX for testing
-	uint64_t next_overwrite_blkid = ubsync_blkid + 1;
-#endif
 
 	if (blkid >= next_overwrite_blkid) {
 		raidz_reflow_record_progress(vre,
@@ -3814,6 +3643,15 @@ raidz_expand_pause(spa_t *spa, uint64_t progress)
 		delay(hz);
 }
 
+static void
+raidz_scratch_child_done(zio_t *zio)
+{
+	zio_t *pio = zio->io_private;
+
+	mutex_enter(&pio->io_lock);
+	pio->io_error = zio_worst_error(pio->io_error, zio->io_error);
+	mutex_exit(&pio->io_lock);
+}
 
 static void
 raidz_reflow_scratch_sync(void *arg, dmu_tx_t *tx)
@@ -3856,10 +3694,16 @@ raidz_reflow_scratch_sync(void *arg, dmu_tx_t *tx)
 	 */
 	pio = zio_root(spa, NULL, NULL, 0);
 	for (int i = 0; i < raidvd->vdev_children - 1; i++) {
+#if 0
 		zio_nowait(zio_read_phys(pio, raidvd->vdev_child[i],
 		    VDEV_LABEL_START_SIZE, read_size, abds[i],
 		    ZIO_CHECKSUM_OFF, NULL, NULL, ZIO_PRIORITY_ASYNC_READ,
 		    0, B_FALSE));
+#else
+		zio_nowait(zio_vdev_child_io(pio, NULL, raidvd->vdev_child[i],
+		    0, abds[i], read_size, ZIO_TYPE_READ,
+		    ZIO_PRIORITY_ASYNC_READ, 0, raidz_scratch_child_done, pio));
+#endif
 	}
 	zio_wait(pio);
 
@@ -3895,17 +3739,30 @@ raidz_reflow_scratch_sync(void *arg, dmu_tx_t *tx)
 	 */
 	pio = zio_root(spa, NULL, NULL, 0);
 	for (int i = 0; i < raidvd->vdev_children; i++) {
+#if 0
 		zio_nowait(zio_write_phys(pio, raidvd->vdev_child[i],
 		    VDEV_BOOT_OFFSET, write_size, abds[i],
 		    ZIO_CHECKSUM_OFF, NULL, NULL, ZIO_PRIORITY_ASYNC_WRITE,
 		    0, B_TRUE));
+#else
+		/*
+		 * Note: zio_vdev_child_io() adds VDEV_LABEL_START_SIZE to
+		 * the offset to calculate the physical offset to write to.
+		 * Passing in a negative offset lets us access to boot area.
+		 */
+		zio_nowait(zio_vdev_child_io(pio, NULL, raidvd->vdev_child[i],
+		    VDEV_BOOT_OFFSET - VDEV_LABEL_START_SIZE, abds[i],
+		    write_size, ZIO_TYPE_WRITE,
+		    ZIO_PRIORITY_ASYNC_WRITE, 0,
+		    raidz_scratch_child_done, pio));
 	}
+#endif
 	zio_wait(pio);
 	pio = zio_root(spa, NULL, NULL, 0);
 	zio_flush(pio, raidvd);
 	zio_wait(pio);
 
-	zfs_dbgmsg("raidz reflow: wrote %llu bytes (logical) to scratch area",
+	zfs_dbgmsg("reflow: wrote %llu bytes (logical) to scratch area",
 	    logical_size);
 
 	raidz_expand_pause(spa, 3);
@@ -3925,7 +3782,8 @@ raidz_reflow_scratch_sync(void *arg, dmu_tx_t *tx)
 	ASSERT0(vdev_uberblock_sync_list(&spa->spa_root_vdev, 1,
 	    &spa->spa_ubsync, ZIO_FLAG_CONFIG_WRITER));
 
-	zfs_dbgmsg("raidz reflow: uberblock updated (txg %llu, SCRATCH_VALID, size %llu, ts %llu)",
+	zfs_dbgmsg("reflow: uberblock updated \
+(txg %llu, SCRATCH_VALID, size %llu, ts %llu)",
 	    spa->spa_ubsync.ub_txg, logical_size, spa->spa_ubsync.ub_timestamp);
 
 	raidz_expand_pause(spa, 4);
@@ -3935,17 +3793,24 @@ raidz_reflow_scratch_sync(void *arg, dmu_tx_t *tx)
 	 */
 	pio = zio_root(spa, NULL, NULL, 0);
 	for (int i = 0; i < raidvd->vdev_children; i++) {
+#if 0
 		zio_nowait(zio_write_phys(pio, raidvd->vdev_child[i],
 		    VDEV_LABEL_START_SIZE, write_size, abds[i],
 		    ZIO_CHECKSUM_OFF, NULL, NULL, ZIO_PRIORITY_ASYNC_WRITE,
 		    0, B_FALSE));
+#else
+		zio_nowait(zio_vdev_child_io(pio, NULL, raidvd->vdev_child[i],
+		    0, abds[i], write_size, ZIO_TYPE_WRITE,
+		    ZIO_PRIORITY_ASYNC_WRITE, 0,
+		    raidz_scratch_child_done, pio));
+#endif
 	}
 	zio_wait(pio);
 	pio = zio_root(spa, NULL, NULL, 0);
 	zio_flush(pio, raidvd);
 	zio_wait(pio);
 
-	zfs_dbgmsg("raidz reflow: overwrote %llu bytes (logical) to real location",
+	zfs_dbgmsg("reflow: overwrote %llu bytes (logical) to real location",
 	    logical_size);
 
 	for (int i = 0; i < raidvd->vdev_children; i++)
@@ -3968,7 +3833,8 @@ raidz_reflow_scratch_sync(void *arg, dmu_tx_t *tx)
 	ASSERT0(vdev_uberblock_sync_list(&spa->spa_root_vdev, 1,
 	    &spa->spa_ubsync, ZIO_FLAG_CONFIG_WRITER));
 
-	zfs_dbgmsg("raidz reflow: uberblock updated (txg %llu, SCRATCH_NOT_IN_USE, size %llu, ts %llu)",
+	zfs_dbgmsg("reflow: uberblock updated \
+(txg %llu, SCRATCH_NOT_IN_USE, size %llu, ts %llu)",
 	    spa->spa_ubsync.ub_txg, logical_size, spa->spa_ubsync.ub_timestamp);
 
 	raidz_expand_pause(spa, 6);
@@ -4019,10 +3885,23 @@ vdev_raidz_reflow_copy_scratch(spa_t *spa)
 	raidz_expand_pause(spa, 8);
 	pio = zio_root(spa, NULL, NULL, 0);
 	for (int i = 0; i < raidvd->vdev_children; i++) {
+#if 0
 		zio_nowait(zio_read_phys(pio, raidvd->vdev_child[i],
 		    VDEV_BOOT_OFFSET, write_size, abds[i],
 		    ZIO_CHECKSUM_OFF, NULL, NULL, ZIO_PRIORITY_ASYNC_READ,
 		    0, B_TRUE));
+#else
+		/*
+		 * Note: zio_vdev_child_io() adds VDEV_LABEL_START_SIZE to
+		 * the offset to calculate the physical offset to write to.
+		 * Passing in a negative offset lets us access to boot area.
+		 */
+		zio_nowait(zio_vdev_child_io(pio, NULL, raidvd->vdev_child[i],
+		    VDEV_BOOT_OFFSET - VDEV_LABEL_START_SIZE, abds[i],
+		    write_size, ZIO_TYPE_READ,
+		    ZIO_PRIORITY_ASYNC_READ, 0,
+		    raidz_scratch_child_done, pio));
+#endif
 	}
 	zio_wait(pio);
 	raidz_expand_pause(spa, 9);
@@ -4032,18 +3911,25 @@ vdev_raidz_reflow_copy_scratch(spa_t *spa)
 	 */
 	pio = zio_root(spa, NULL, NULL, 0);
 	for (int i = 0; i < raidvd->vdev_children; i++) {
+#if 0
 		zio_nowait(zio_write_phys(pio, raidvd->vdev_child[i],
 		    VDEV_LABEL_START_SIZE, write_size, abds[i],
 		    ZIO_CHECKSUM_OFF, NULL, NULL, ZIO_PRIORITY_ASYNC_WRITE,
 		    0, B_FALSE));
+#else
+		zio_nowait(zio_vdev_child_io(pio, NULL, raidvd->vdev_child[i],
+		    0, abds[i], write_size, ZIO_TYPE_WRITE,
+		    ZIO_PRIORITY_ASYNC_WRITE, 0,
+		    raidz_scratch_child_done, pio));
+#endif
 	}
 	zio_wait(pio);
 	pio = zio_root(spa, NULL, NULL, 0);
 	zio_flush(pio, raidvd);
 	zio_wait(pio);
 
-	zfs_dbgmsg("raidz reflow recovery: overwrote %llu bytes (logical) to real location",
-	    logical_size);
+	zfs_dbgmsg("reflow recovery: overwrote %llu bytes (logical) "
+	    "to real location", logical_size);
 
 	for (int i = 0; i < raidvd->vdev_children; i++)
 		abd_free(abds[i]);
@@ -4059,7 +3945,8 @@ vdev_raidz_reflow_copy_scratch(spa_t *spa)
 	VERIFY0(vdev_uberblock_sync_list(&spa->spa_root_vdev, 1,
 	    &spa->spa_ubsync, ZIO_FLAG_CONFIG_WRITER));
 
-	zfs_dbgmsg("raidz reflow recovery: uberblock updated (txg %llu, SCRATCH_NOT_IN_USE, size %llu, ts %llu)",
+	zfs_dbgmsg("reflow recovery: uberblock updated "
+	    "(txg %llu, SCRATCH_NOT_IN_USE, size %llu, ts %llu)",
 	    spa->spa_ubsync.ub_txg, logical_size, spa->spa_ubsync.ub_timestamp);
 
 	spa_config_exit(spa, SCL_STATE, FTAG);
@@ -4233,25 +4120,26 @@ spa_raidz_expand_cb(void *arg, zthr_t *zthr)
 
 	spa_config_exit(spa, SCL_CONFIG, FTAG);
 
+	/*
+	 * The txg_wait_synced() here ensures that all reflow zio's have
+	 * completed, and vre_failed_offset has been set if necessary.  It
+	 * also ensures that the progress of the last raidz_reflow_sync() is
+	 * written to disk before raidz_reflow_complete_sync() changes the
+	 * in-memory vre_state.  vdev_raidz_io_start() uses vre_state to
+	 * determine if a reflow is in progress, in which case we may need to
+	 * write to both old and new locations.  Therefore we can only change
+	 * vre_state once this is not necessary, which is once the on-disk
+	 * progress (in spa_ubsync) has been set past any possible writes (to
+	 * the end of the last metaslab).
+	 */
+	txg_wait_synced(spa->spa_dsl_pool, 0);
+
 	if (!zthr_iscancelled(spa->spa_raidz_expand_zthr) &&
 	    vre->vre_failed_offset == UINT64_MAX) {
 		/*
 		 * We are not being canceled, so the reflow must be
 		 * complete. In that case also mark it as completed on disk.
-		 *
-		 * The txg_wait_synced() here ensures that the progress of
-		 * the last raidz_reflow_sync() is written to disk before
-		 * raidz_reflow_complete_sync() changes the in-memory
-		 * vre_state.  vdev_raidz_io_start() uses vre_state to
-		 * determine if a reflow is in progress, in which case we may
-		 * need to write to both old and new locations.  Therefore we
-		 * can only change vre_state once this is not necessary,
-		 * which is once the on-disk progress (in spa_ubsync) has
-		 * been set past any possible writes (to the end of the last
-		 * metaslab).
 		 */
-		txg_wait_synced(spa->spa_dsl_pool, 0);
-
 		VERIFY0(dsl_sync_task(spa_name(spa), NULL,
 		    raidz_reflow_complete_sync, spa,
 		    0, ZFS_SPACE_CHECK_NONE));
@@ -4261,11 +4149,10 @@ spa_raidz_expand_cb(void *arg, zthr_t *zthr)
 		 * Wait for all copy zio's to complete and for all the
 		 * raidz_reflow_sync() synctasks to be run.
 		 */
-		spa_history_log_internal(spa, "raidz reflow pause",
+		spa_history_log_internal(spa, "reflow pause",
 		    NULL, "offset=%llu failed_offset=%lld",
 		    (long long)vre->vre_offset,
 		    (long long)vre->vre_failed_offset);
-		txg_wait_synced(spa->spa_dsl_pool, 0);
 		mutex_enter(&vre->vre_lock);
 		if (vre->vre_failed_offset != UINT64_MAX) {
 			/*
@@ -4520,13 +4407,6 @@ vdev_raidz_init(spa_t *spa, nvlist_t *nv, void **tsd)
 	    nvlist_exists(nv, ZPOOL_CONFIG_RAIDZ_EXPANDING);
 	zfs_dbgmsg("reflow_in_progress=%u", (int)reflow_in_progress);
 	if (reflow_in_progress) {
-		/*
-		 * XXX we parse the mos config while the vdevs for the
-		 * label config still exist, so spa_raidz_expand will be
-		 * set to the label config vdev.  we just overwrite it here.
-		 * should find a cleaner way to do this.
-		 */
-		//ASSERT3P(spa->spa_raidz_expand, ==, NULL);
 		spa->spa_raidz_expand = &vdrz->vn_vre;
 		vdrz->vn_vre.vre_state = DSS_SCANNING;
 	}
@@ -4670,4 +4550,4 @@ ZFS_MODULE_PARAM(zfs_vdev, raidz_, expand_max_offset_pause, ULONG, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs_vdev, raidz_, expand_max_copy_bytes, ULONG, ZMOD_RW,
     "Max amount of concurrent i/o for RAIDZ expansion");
 ZFS_MODULE_PARAM(zfs_vdev, raidz_, io_aggregate_rows, ULONG, ZMOD_RW,
-    "Apply raidz map abds aggregation if the map contain more rows than value");
+    "For expanded RAIDZ, aggregate reads that have more rows than this");

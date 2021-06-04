@@ -70,4 +70,17 @@ extern struct task_struct *spl_kthread_create(int (*func)(void *),
 
 extern proc_t p0;
 
+#ifdef HAVE_SIGINFO
+typedef kernel_siginfo_t spl_kernel_siginfo_t;
+#else
+typedef siginfo_t spl_kernel_siginfo_t;
+#endif
+
+#ifdef HAVE_SET_SPECIAL_STATE
+#define	spl_set_special_state(x) set_special_state((x))
+#else
+#define	spl_set_special_state(x) __set_current_state((x))
+#endif
+
+
 #endif  /* _SPL_THREAD_H */

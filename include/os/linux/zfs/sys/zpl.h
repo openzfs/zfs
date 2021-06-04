@@ -63,7 +63,12 @@ extern int zpl_xattr_security_init(struct inode *ip, struct inode *dip,
     const struct qstr *qstr);
 #if defined(CONFIG_FS_POSIX_ACL)
 #if defined(HAVE_SET_ACL)
+#if defined(HAVE_SET_ACL_USERNS)
+extern int zpl_set_acl(struct user_namespace *userns, struct inode *ip,
+    struct posix_acl *acl, int type);
+#else
 extern int zpl_set_acl(struct inode *ip, struct posix_acl *acl, int type);
+#endif /* HAVE_SET_ACL_USERNS */
 #endif /* HAVE_SET_ACL */
 extern struct posix_acl *zpl_get_acl(struct inode *ip, int type);
 extern int zpl_init_acl(struct inode *ip, struct inode *dir);
@@ -169,6 +174,24 @@ zpl_dir_emit_dots(struct file *file, zpl_dir_context_t *ctx)
 #else
 #define	zpl_inode_timestamp_truncate(ts, ip)	\
 	timespec_trunc(ts, (ip)->i_sb->s_time_gran)
+#endif
+
+#if defined(HAVE_INODE_OWNER_OR_CAPABLE)
+#define	zpl_inode_owner_or_capable(ns, ip)	inode_owner_or_capable(ip)
+#elif defined(HAVE_INODE_OWNER_OR_CAPABLE_IDMAPPED)
+#define	zpl_inode_owner_or_capable(ns, ip)	inode_owner_or_capable(ns, ip)
+#else
+#error "Unsupported kernel"
+#endif
+
+#ifdef HAVE_SETATTR_PREPARE_USERNS
+#define	zpl_setattr_prepare(ns, dentry, ia)	setattr_prepare(ns, dentry, ia)
+#else
+/*
+ * Use kernel-provided version, or our own from
+ * linux/vfs_compat.h
+ */
+#define	zpl_setattr_prepare(ns, dentry, ia)	setattr_prepare(dentry, ia)
 #endif
 
 #endif	/* _SYS_ZPL_H */

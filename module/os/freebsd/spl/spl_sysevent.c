@@ -245,7 +245,7 @@ sysevent_worker(void *arg __unused)
 			if (error == ESHUTDOWN)
 				break;
 		} else {
-			VERIFY(event != NULL);
+			VERIFY3P(event, !=, NULL);
 			log_sysevent(event);
 			nvlist_free(event);
 		}

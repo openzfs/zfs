@@ -143,7 +143,7 @@ libzfs_load_module_impl(const char *module)
 
 	start = gethrtime();
 	do {
-		fd = open(ZFS_DEV, O_RDWR);
+		fd = open(ZFS_DEV, O_RDWR | O_CLOEXEC);
 		if (fd >= 0) {
 			(void) close(fd);
 			return (0);
@@ -195,7 +195,7 @@ zfs_version_kernel(char *version, int len)
 	int fd;
 	int rlen;
 
-	if ((fd = open(ZFS_SYSFS_DIR "/version", O_RDONLY)) == -1)
+	if ((fd = open(ZFS_SYSFS_DIR "/version", O_RDONLY | O_CLOEXEC)) == -1)
 		return (-1);
 
 	if ((rlen = read(fd, version, len)) == -1) {

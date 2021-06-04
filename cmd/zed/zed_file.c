@@ -3,7 +3,7 @@
  *
  * Developed at Lawrence Livermore National Laboratory (LLNL-CODE-403049).
  * Copyright (C) 2013-2014 Lawrence Livermore National Security, LLC.
- * Refer to the ZoL git commit log for authoritative copyright attribution.
+ * Refer to the OpenZFS git commit log for authoritative copyright attribution.
  *
  * The contents of this file are subject to the terms of the
  * Common Development and Distribution License Version 1.0 (CDDL-1.0).
@@ -12,72 +12,16 @@
  * You may not use this file except in compliance with the license.
  */
 
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
 #include <string.h>
-#include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
 #include "zed_file.h"
 #include "zed_log.h"
-
-/*
- * Read up to [n] bytes from [fd] into [buf].
- * Return the number of bytes read, 0 on EOF, or -1 on error.
- */
-ssize_t
-zed_file_read_n(int fd, void *buf, size_t n)
-{
-	unsigned char *p;
-	size_t n_left;
-	ssize_t n_read;
-
-	p = buf;
-	n_left = n;
-	while (n_left > 0) {
-		if ((n_read = read(fd, p, n_left)) < 0) {
-			if (errno == EINTR)
-				continue;
-			else
-				return (-1);
-
-		} else if (n_read == 0) {
-			break;
-		}
-		n_left -= n_read;
-		p += n_read;
-	}
-	return (n - n_left);
-}
-
-/*
- * Write [n] bytes from [buf] out to [fd].
- * Return the number of bytes written, or -1 on error.
- */
-ssize_t
-zed_file_write_n(int fd, void *buf, size_t n)
-{
-	const unsigned char *p;
-	size_t n_left;
-	ssize_t n_written;
-
-	p = buf;
-	n_left = n;
-	while (n_left > 0) {
-		if ((n_written = write(fd, p, n_left)) < 0) {
-			if (errno == EINTR)
-				continue;
-			else
-				return (-1);
-
-		}
-		n_left -= n_written;
-		p += n_written;
-	}
-	return (n);
-}
 
 /*
  * Set an exclusive advisory lock on the open file descriptor [fd].
@@ -160,6 +104,13 @@ zed_file_is_locked(int fd)
 	return (lock.l_pid);
 }
 
+
+#if __APPLE__
+#define	PROC_SELF_FD "/dev/fd"
+#else /* Linux-compatible layout */
+#define	PROC_SELF_FD "/proc/self/fd"
+#endif
+
 /*
  * Close all open file descriptors greater than or equal to [lowfd].
  * Any errors encountered while closing file descriptors are ignored.
@@ -167,51 +118,24 @@ zed_file_is_locked(int fd)
 void
 zed_file_close_from(int lowfd)
 {
-	const int maxfd_def = 256;
-	int errno_bak;
-	struct rlimit rl;
-	int maxfd;
+	int errno_bak = errno;
+	int maxfd = 0;
 	int fd;
+	DIR *fddir;
+	struct dirent *fdent;
 
-	errno_bak = errno;
-
-	if (getrlimit(RLIMIT_NOFILE, &rl) < 0) {
-		maxfd = maxfd_def;
-	} else if (rl.rlim_max == RLIM_INFINITY) {
-		maxfd = maxfd_def;
+	if ((fddir = opendir(PROC_SELF_FD)) != NULL) {
+		while ((fdent = readdir(fddir)) != NULL) {
+			fd = atoi(fdent->d_name);
+			if (fd > maxfd && fd != dirfd(fddir))
+				maxfd = fd;
+		}
+		(void) closedir(fddir);
 	} else {
-		maxfd = rl.rlim_max;
+		maxfd = sysconf(_SC_OPEN_MAX);
 	}
 	for (fd = lowfd; fd < maxfd; fd++)
 		(void) close(fd);
 
 	errno = errno_bak;
-}
-
-/*
- * Set the CLOEXEC flag on file descriptor [fd] so it will be automatically
- * closed upon successful execution of one of the exec functions.
- * Return 0 on success, or -1 on error.
- *
- * FIXME: No longer needed?
- */
-int
-zed_file_close_on_exec(int fd)
-{
-	int flags;
-
-	if (fd < 0) {
-		errno = EBADF;
-		return (-1);
-	}
-	flags = fcntl(fd, F_GETFD);
-	if (flags == -1)
-		return (-1);
-
-	flags |= FD_CLOEXEC;
-
-	if (fcntl(fd, F_SETFD, flags) == -1)
-		return (-1);
-
-	return (0);
 }

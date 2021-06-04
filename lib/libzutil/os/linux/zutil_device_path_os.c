@@ -195,10 +195,8 @@ zfs_get_enclosure_sysfs_path(const char *dev_name)
 	}
 
 	dp = opendir(tmp1);
-	if (dp == NULL) {
-		tmp1 = NULL;	/* To make free() at the end a NOP */
+	if (dp == NULL)
 		goto end;
-	}
 
 	/*
 	 * Look though all sysfs entries in /sys/block/<dev>/device for
@@ -209,18 +207,16 @@ zfs_get_enclosure_sysfs_path(const char *dev_name)
 		if (strstr(ep->d_name, "enclosure_device") == NULL)
 			continue;
 
-		if (asprintf(&tmp2, "%s/%s", tmp1, ep->d_name) == -1 ||
-		    tmp2 == NULL)
+		if (asprintf(&tmp2, "%s/%s", tmp1, ep->d_name) == -1) {
+			tmp2 = NULL;
 			break;
+		}
 
 		size = readlink(tmp2, buf, sizeof (buf));
 
 		/* Did readlink fail or crop the link name? */
-		if (size == -1 || size >= sizeof (buf)) {
-			free(tmp2);
-			tmp2 = NULL;	/* To make free() at the end a NOP */
+		if (size == -1 || size >= sizeof (buf))
 			break;
-		}
 
 		/*
 		 * We got a valid link.  readlink() doesn't terminate strings
@@ -306,9 +302,10 @@ dm_get_underlying_path(const char *dm_name)
 	else
 		dev_str = tmp;
 
-	size = asprintf(&tmp, "/sys/block/%s/slaves/", dev_str);
-	if (size == -1 || !tmp)
+	if ((size = asprintf(&tmp, "/sys/block/%s/slaves/", dev_str)) == -1) {
+		tmp = NULL;
 		goto end;
+	}
 
 	dp = opendir(tmp);
 	if (dp == NULL)
@@ -334,7 +331,9 @@ dm_get_underlying_path(const char *dm_name)
 			if (!enclosure_path)
 				continue;
 
-			size = asprintf(&path, "/dev/%s", ep->d_name);
+			if ((size = asprintf(
+			    &path, "/dev/%s", ep->d_name)) == -1)
+				path = NULL;
 			free(enclosure_path);
 			break;
 		}
@@ -346,13 +345,14 @@ end:
 	free(tmp);
 	free(realp);
 
-	if (!path) {
+	if (!path && first_path) {
 		/*
 		 * None of the underlying paths had a link back to their
 		 * enclosure devices.  Throw up out hands and return the first
 		 * underlying path.
 		 */
-		size = asprintf(&path, "/dev/%s", first_path);
+		if ((size = asprintf(&path, "/dev/%s", first_path)) == -1)
+			path = NULL;
 	}
 
 	free(first_path);
@@ -390,7 +390,7 @@ zfs_dev_is_whole_disk(const char *dev_name)
 	struct dk_gpt *label;
 	int fd;
 
-	if ((fd = open(dev_name, O_RDONLY | O_DIRECT)) < 0)
+	if ((fd = open(dev_name, O_RDONLY | O_DIRECT | O_CLOEXEC)) < 0)
 		return (B_FALSE);
 
 	if (efi_alloc_and_init(fd, EFI_NUMPAR, &label) != 0) {

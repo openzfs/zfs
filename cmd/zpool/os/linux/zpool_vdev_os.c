@@ -79,9 +79,6 @@
 
 #include <scsi/scsi.h>
 #include <scsi/sg.h>
-#include <stdio.h>
-#include <string.h>
-#include <unistd.h>
 #include <sys/efi_partition.h>
 #include <sys/stat.h>
 #include <sys/vtoc.h>
@@ -407,4 +404,9 @@ check_device(const char *path, boolean_t force,
 	blkid_put_cache(cache);
 
 	return (error);
+}
+
+void
+after_zpool_upgrade(zpool_handle_t *zhp)
+{
 }

@@ -481,7 +481,7 @@ The value is not used, only the presence or absence of the variable matters.
 Cause
 .Nm zpool
 subcommands to output vdev guids by default.  This behavior is identical to the
-.Nm zpool status -g
+.Nm zpool Cm status Fl g
 command line option.
 .El
 .Bl -tag -width "ZPOOL_VDEV_NAME_FOLLOW_LINKS"
@@ -489,7 +489,7 @@ command line option.
 Cause
 .Nm zpool
 subcommands to follow links for vdev names by default.  This behavior is identical to the
-.Nm zpool status -L
+.Nm zpool Cm status Fl L
 command line option.
 .El
 .Bl -tag -width "ZPOOL_VDEV_NAME_PATH"
@@ -498,7 +498,7 @@ Cause
 .Nm zpool
 subcommands to output full vdev path names by default.  This
 behavior is identical to the
-.Nm zpool status -P
+.Nm zpool Cm status Fl P
 command line option.
 .El
 .Bl -tag -width "ZFS_VDEV_DEVID_OPT_OUT"
@@ -554,7 +554,7 @@ with the
 option. If
 .Sy ZPOOL_SCRIPTS_ENABLED
 is not set, it is assumed that the user is allowed to run
-.Nm zpool status/iostat -c .
+.Nm zpool Cm status/iostat Fl c .
 .El
 .Sh INTERFACE STABILITY
 .Sy Evolving

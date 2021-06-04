@@ -51,6 +51,11 @@
 #include <sys/vm.h>
 #include <sys/vmmeter.h>
 
+#if __FreeBSD_version >= 1300139
+static struct sx arc_vnlru_lock;
+static struct vnode *arc_vnlru_marker;
+#endif
+
 extern struct vfsops zfs_vfsops;
 
 uint_t zfs_arc_free_target = 0;
@@ -153,11 +158,16 @@ arc_default_max(uint64_t min, uint64_t allmem)
 static void
 arc_prune_task(void *arg)
 {
-	int64_t nr_scan = *(int64_t *)arg;
+	int64_t nr_scan = (intptr_t)arg;
 
 	arc_reduce_target_size(ptob(nr_scan));
-	free(arg, M_TEMP);
+#if __FreeBSD_version >= 1300139
+	sx_xlock(&arc_vnlru_lock);
+	vnlru_free_vfsops(nr_scan, &zfs_vfsops, arc_vnlru_marker);
+	sx_xunlock(&arc_vnlru_lock);
+#else
 	vnlru_free(nr_scan, &zfs_vfsops);
+#endif
 }
 
 /*
@@ -175,13 +185,12 @@ void
 arc_prune_async(int64_t adjust)
 {
 
-	int64_t *adjustptr;
-
-	if ((adjustptr = malloc(sizeof (int64_t), M_TEMP, M_NOWAIT)) == NULL)
-		return;
-
-	*adjustptr = adjust;
-	taskq_dispatch(arc_prune_taskq, arc_prune_task, adjustptr, TQ_SLEEP);
+#ifndef __LP64__
+	if (adjust > INTPTR_MAX)
+		adjust = INTPTR_MAX;
+#endif
+	taskq_dispatch(arc_prune_taskq, arc_prune_task,
+	    (void *)(intptr_t)adjust, TQ_SLEEP);
 	ARCSTAT_BUMP(arcstat_prune);
 }
 
@@ -234,7 +243,10 @@ arc_lowmem_init(void)
 {
 	arc_event_lowmem = EVENTHANDLER_REGISTER(vm_lowmem, arc_lowmem, NULL,
 	    EVENTHANDLER_PRI_FIRST);
-
+#if __FreeBSD_version >= 1300139
+	arc_vnlru_marker = vnlru_alloc_marker();
+	sx_init(&arc_vnlru_lock, "arc vnlru lock");
+#endif
 }
 
 void
@@ -242,6 +254,12 @@ arc_lowmem_fini(void)
 {
 	if (arc_event_lowmem != NULL)
 		EVENTHANDLER_DEREGISTER(vm_lowmem, arc_event_lowmem);
+#if __FreeBSD_version >= 1300139
+	if (arc_vnlru_marker != NULL) {
+		vnlru_free_marker(arc_vnlru_marker);
+		sx_destroy(&arc_vnlru_lock);
+	}
+#endif
 }
 
 void

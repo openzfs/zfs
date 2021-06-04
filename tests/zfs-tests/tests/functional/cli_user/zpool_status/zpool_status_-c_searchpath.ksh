@@ -30,7 +30,7 @@
 #
 # STRATEGY:
 #	1. Set ZPOOL_SCRIPTS_PATH to contain a couple of non-default dirs
-#	2. Make a simple script that echos a key value pair in each dir
+#	2. Make a simple script that echoes a key value pair in each dir
 #	3. Make sure scripts can be run with -c
 #	4. Remove the scripts we created
 

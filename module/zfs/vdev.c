@@ -28,6 +28,7 @@
  * Copyright 2017 Joyent, Inc.
  * Copyright (c) 2017, Intel Corporation.
  * Copyright (c) 2019, Datto Inc. All rights reserved.
+ * Copyright [2021] Hewlett Packard Enterprise Development LP
  */
 
 #include <sys/zfs_context.h>
@@ -626,6 +627,8 @@ vdev_alloc_common(spa_t *spa, uint_t id, uint64_t guid, vdev_ops_t *ops)
 	 */
 	zfs_ratelimit_init(&vd->vdev_delay_rl, &zfs_slow_io_events_per_second,
 	    1);
+	zfs_ratelimit_init(&vd->vdev_deadman_rl, &zfs_slow_io_events_per_second,
+	    1);
 	zfs_ratelimit_init(&vd->vdev_checksum_rl,
 	    &zfs_checksum_events_per_second, 1);
 
@@ -1109,6 +1112,7 @@ vdev_free(vdev_t *vd)
 	cv_destroy(&vd->vdev_rebuild_cv);
 
 	zfs_ratelimit_fini(&vd->vdev_delay_rl);
+	zfs_ratelimit_fini(&vd->vdev_deadman_rl);
 	zfs_ratelimit_fini(&vd->vdev_checksum_rl);
 
 	if (vd == spa->spa_root_vdev)
@@ -1375,7 +1379,7 @@ vdev_metaslab_group_create(vdev_t *vd)
 
 		/*
 		 * The spa ashift min/max only apply for the normal metaslab
-		 * class. Class destination is late binding so ashift boundry
+		 * class. Class destination is late binding so ashift boundary
 		 * setting had to wait until now.
 		 */
 		if (vd->vdev_top == vd && vd->vdev_ashift != 0 &&
@@ -2053,7 +2057,7 @@ vdev_open(vdev_t *vd)
 		vd->vdev_max_asize = max_asize;
 
 		/*
-		 * If the vdev_ashift was not overriden at creation time,
+		 * If the vdev_ashift was not overridden at creation time,
 		 * then set it the logical ashift and optimize the ashift.
 		 */
 		if (vd->vdev_ashift == 0) {
@@ -2123,7 +2127,7 @@ vdev_open(vdev_t *vd)
 	}
 
 	/*
-	 * Track the the minimum allocation size.
+	 * Track the minimum allocation size.
 	 */
 	if (vd->vdev_top == vd && vd->vdev_ashift != 0 &&
 	    vd->vdev_islog == 0 && vd->vdev_aux == NULL) {
@@ -2226,7 +2230,7 @@ vdev_validate(vdev_t *vd)
 		txg = spa_last_synced_txg(spa);
 
 	if ((label = vdev_label_read_config(vd, txg)) == NULL) {
-		vdev_set_state(vd, B_TRUE, VDEV_STATE_CANT_OPEN,
+		vdev_set_state(vd, B_FALSE, VDEV_STATE_CANT_OPEN,
 		    VDEV_AUX_BAD_LABEL);
 		vdev_dbgmsg(vd, "vdev_validate: failed reading config for "
 		    "txg %llu", (u_longlong_t)txg);
@@ -3948,6 +3952,7 @@ vdev_online(spa_t *spa, uint64_t guid, uint64_t flags, vdev_state_t *newstate)
 	if ((vd = spa_lookup_by_guid(spa, guid, B_TRUE)) == NULL)
 		return (spa_vdev_state_exit(spa, NULL, SET_ERROR(ENODEV)));
 
+	/* XXX */
 #if 0
 	if (!vd->vdev_ops->vdev_op_leaf)
 		return (spa_vdev_state_exit(spa, NULL, SET_ERROR(ENOTSUP)));
@@ -4623,7 +4628,7 @@ vdev_stat_update(zio_t *zio, uint64_t psize)
 
 			/*
 			 * Solely for the purposes of 'zpool iostat -lqrw'
-			 * reporting use the priority to catagorize the IO.
+			 * reporting use the priority to categorize the IO.
 			 * Only the following are reported to user space:
 			 *
 			 *   ZIO_PRIORITY_SYNC_READ,
@@ -5158,10 +5163,8 @@ vdev_is_bootable(vdev_t *vd)
 	if (!vd->vdev_ops->vdev_op_leaf) {
 		const char *vdev_type = vd->vdev_ops->vdev_op_type;
 
-		if (strcmp(vdev_type, VDEV_TYPE_MISSING) == 0 ||
-		    strcmp(vdev_type, VDEV_TYPE_INDIRECT) == 0) {
+		if (strcmp(vdev_type, VDEV_TYPE_MISSING) == 0)
 			return (B_FALSE);
-		}
 	}
 
 	for (int c = 0; c < vd->vdev_children; c++) {
@@ -5214,7 +5217,9 @@ vdev_expand(vdev_t *vd, uint64_t txg)
 
 	vdev_set_deflate_ratio(vd);
 
-	if ((vd->vdev_asize >> vd->vdev_ms_shift) > vd->vdev_ms_count &&
+	if ((vd->vdev_spa->spa_raidz_expand == NULL ||
+	    vd->vdev_spa->spa_raidz_expand->vre_vdev_id != vd->vdev_id) &&
+	    (vd->vdev_asize >> vd->vdev_ms_shift) > vd->vdev_ms_count &&
 	    vdev_is_concrete(vd)) {
 		vdev_metaslab_group_create(vd);
 		VERIFY(vdev_metaslab_init(vd, txg) == 0);

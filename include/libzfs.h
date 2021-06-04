@@ -394,6 +394,7 @@ typedef enum {
 	ZPOOL_STATUS_REBUILD_SCRUB,	/* recommend scrubbing the pool */
 	ZPOOL_STATUS_NON_NATIVE_ASHIFT,	/* (e.g. 512e dev with ashift of 9) */
 	ZPOOL_STATUS_COMPATIBILITY_ERR,	/* bad 'compatibility' property */
+	ZPOOL_STATUS_INCOMPATIBLE_FEAT,	/* feature set outside compatibility */
 
 	/*
 	 * Finally, the following indicates a healthy pool.
@@ -468,6 +469,7 @@ extern zfs_handle_t *zfs_open(libzfs_handle_t *, const char *, int);
 extern zfs_handle_t *zfs_handle_dup(zfs_handle_t *);
 extern void zfs_close(zfs_handle_t *);
 extern zfs_type_t zfs_get_type(const zfs_handle_t *);
+extern zfs_type_t zfs_get_underlying_type(const zfs_handle_t *);
 extern const char *zfs_get_name(const zfs_handle_t *);
 extern zpool_handle_t *zfs_get_pool_handle(const zfs_handle_t *);
 extern const char *zfs_get_pool_name(const zfs_handle_t *);
@@ -667,6 +669,9 @@ typedef struct sendflags {
 	/* recursive send  (ie, -R) */
 	boolean_t replicate;
 
+	/* for recursive send, skip sending missing snapshots */
+	boolean_t skipmissing;
+
 	/* for incrementals, do all intermediate snapshots */
 	boolean_t doall;
 
@@ -823,6 +828,7 @@ extern int zfs_mount(zfs_handle_t *, const char *, int);
 extern int zfs_mount_at(zfs_handle_t *, const char *, int, const char *);
 extern int zfs_unmount(zfs_handle_t *, const char *, int);
 extern int zfs_unmountall(zfs_handle_t *, int);
+extern int zfs_mount_delegation_check(void);
 
 #if defined(__linux__)
 extern int zfs_parse_mount_options(char *mntopts, unsigned long *mntflags,
@@ -920,14 +926,14 @@ extern int zpool_disable_datasets(zpool_handle_t *, boolean_t);
  */
 typedef enum {
 	ZPOOL_COMPATIBILITY_OK,
-	ZPOOL_COMPATIBILITY_READERR,
+	ZPOOL_COMPATIBILITY_WARNTOKEN,
+	ZPOOL_COMPATIBILITY_BADTOKEN,
 	ZPOOL_COMPATIBILITY_BADFILE,
-	ZPOOL_COMPATIBILITY_BADWORD,
 	ZPOOL_COMPATIBILITY_NOFILES
 } zpool_compat_status_t;
 
 extern zpool_compat_status_t zpool_load_compat(const char *,
-    boolean_t *, char *, char *);
+    boolean_t *, char *, size_t);
 
 #ifdef __FreeBSD__
 

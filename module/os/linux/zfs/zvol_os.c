@@ -756,7 +756,9 @@ static struct block_device_operations zvol_ops = {
 	.ioctl			= zvol_ioctl,
 	.compat_ioctl		= zvol_compat_ioctl,
 	.check_events		= zvol_check_events,
+#ifdef HAVE_BLOCK_DEVICE_OPERATIONS_REVALIDATE_DISK
 	.revalidate_disk	= zvol_revalidate_disk,
+#endif
 	.getgeo			= zvol_getgeo,
 	.owner			= THIS_MODULE,
 #ifdef HAVE_SUBMIT_BIO_IN_BLOCK_DEVICE_OPERATIONS

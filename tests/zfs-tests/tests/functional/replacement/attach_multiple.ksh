@@ -44,7 +44,7 @@ function cleanup
 	rm -f ${VDEV_FILES[@]}
 }
 
-log_assert "Verify attach/detech with multiple vdevs"
+log_assert "Verify attach/detach with multiple vdevs"
 
 ORIG_SCAN_SUSPEND_PROGRESS=$(get_tunable SCAN_SUSPEND_PROGRESS)
 
@@ -79,7 +79,7 @@ for replace_mode in "healing" "sequential"; do
 	    ${VDEV_FILES[1]} ${VDEV_FILES[2]}
 	log_must is_pool_resilvering $TESTPOOL1
 
-	# Original vdev cannot be detached until there is sufficent redundancy.
+	# Original vdev cannot be detached until there is sufficient redundancy.
 	log_mustnot zpool detach $TESTPOOL1 ${VDEV_FILES[0]}
 
 	# Detach first vdev (resilver keeps running)
@@ -108,4 +108,4 @@ for replace_mode in "healing" "sequential"; do
 	log_must zpool wait $TESTPOOL1
 done
 
-log_pass "Verify attach/detech with multiple vdevs"
+log_pass "Verify attach/detach with multiple vdevs"

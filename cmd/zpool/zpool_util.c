@@ -50,6 +50,22 @@ safe_malloc(size_t size)
 }
 
 /*
+ * Utility function to guarantee realloc() success.
+ */
+void *
+safe_realloc(void *from, size_t size)
+{
+	void *data;
+
+	if ((data = realloc(from, size)) == NULL) {
+		(void) fprintf(stderr, "internal error: out of memory\n");
+		exit(1);
+	}
+
+	return (data);
+}
+
+/*
  * Display an out of memory error message and abort the current program.
  */
 void

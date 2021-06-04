@@ -62,7 +62,7 @@ zpool_relabel_disk(libzfs_handle_t *hdl, const char *path, const char *msg)
 {
 	int fd, error;
 
-	if ((fd = open(path, O_RDWR|O_DIRECT)) < 0) {
+	if ((fd = open(path, O_RDWR|O_DIRECT|O_CLOEXEC)) < 0) {
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "cannot "
 		    "relabel '%s': unable to open device: %d"), path, errno);
 		return (zfs_error(hdl, EZFS_OPENFAILED, msg));
@@ -107,7 +107,7 @@ read_efi_label(nvlist_t *config, diskaddr_t *sb)
 
 	(void) snprintf(diskname, sizeof (diskname), "%s%s", DISK_ROOT,
 	    strrchr(path, '/'));
-	if ((fd = open(diskname, O_RDONLY|O_DIRECT)) >= 0) {
+	if ((fd = open(diskname, O_RDONLY|O_DIRECT|O_CLOEXEC)) >= 0) {
 		struct dk_gpt *vtoc;
 
 		if ((err = efi_alloc_and_read(fd, &vtoc)) >= 0) {
@@ -159,7 +159,7 @@ zpool_label_disk_check(char *path)
 	struct dk_gpt *vtoc;
 	int fd, err;
 
-	if ((fd = open(path, O_RDONLY|O_DIRECT)) < 0)
+	if ((fd = open(path, O_RDONLY|O_DIRECT|O_CLOEXEC)) < 0)
 		return (errno);
 
 	if ((err = efi_alloc_and_read(fd, &vtoc)) != 0) {
@@ -190,7 +190,7 @@ zpool_label_name(char *label_name, int label_size)
 	uint64_t id = 0;
 	int fd;
 
-	fd = open("/dev/urandom", O_RDONLY);
+	fd = open("/dev/urandom", O_RDONLY|O_CLOEXEC);
 	if (fd >= 0) {
 		if (read(fd, &id, sizeof (id)) != sizeof (id))
 			id = 0;
@@ -241,7 +241,7 @@ zpool_label_disk(libzfs_handle_t *hdl, zpool_handle_t *zhp, const char *name)
 
 	(void) snprintf(path, sizeof (path), "%s/%s", DISK_ROOT, name);
 
-	if ((fd = open(path, O_RDWR|O_DIRECT|O_EXCL)) < 0) {
+	if ((fd = open(path, O_RDWR|O_DIRECT|O_EXCL|O_CLOEXEC)) < 0) {
 		/*
 		 * This shouldn't happen.  We've long since verified that this
 		 * is a valid device.

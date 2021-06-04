@@ -525,7 +525,6 @@ typedef struct zfs_useracct {
 } zfs_useracct_t;
 
 #define	ZFSDEV_MAX_MINOR	(1 << 16)
-#define	ZFS_MIN_MINOR	(ZFSDEV_MAX_MINOR + 1)
 
 #define	ZPOOL_EXPORT_AFTER_SPLIT 0x1
 
@@ -568,7 +567,6 @@ typedef struct zfsdev_state {
 
 extern void *zfsdev_get_state(minor_t minor, enum zfsdev_state_type which);
 extern int zfsdev_getminor(int fd, minor_t *minorp);
-extern minor_t zfsdev_minor_alloc(void);
 
 extern uint_t zfs_fsyncer_key;
 extern uint_t zfs_allow_log_key;

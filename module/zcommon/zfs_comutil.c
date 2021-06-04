@@ -26,7 +26,7 @@
 /*
  * This file is intended for functions that ought to be common between user
  * land (libzfs) and the kernel. When many common routines need to be shared
- * then a separate file should to be created.
+ * then a separate file should be created.
  */
 
 #if !defined(_KERNEL)

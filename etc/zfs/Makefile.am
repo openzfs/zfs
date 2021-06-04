@@ -1,4 +1,5 @@
 include $(top_srcdir)/config/Substfiles.am
+include $(top_srcdir)/config/Shellcheck.am
 
 pkgsysconfdir = $(sysconfdir)/zfs
 
@@ -13,3 +14,5 @@ pkgsysconf_SCRIPTS = \
 	zfs-functions
 
 SUBSTFILES += $(pkgsysconf_SCRIPTS)
+
+SHELLCHECK_SHELL = dash # local variables

@@ -50,17 +50,17 @@ dataset_kstats_update(kstat_t *ksp, int rw)
 
 	dataset_kstat_values_t *dkv = dk->dk_kstats->ks_data;
 	dkv->dkv_writes.value.ui64 =
-	    aggsum_value(&dk->dk_aggsums.das_writes);
+	    wmsum_value(&dk->dk_sums.dss_writes);
 	dkv->dkv_nwritten.value.ui64 =
-	    aggsum_value(&dk->dk_aggsums.das_nwritten);
+	    wmsum_value(&dk->dk_sums.dss_nwritten);
 	dkv->dkv_reads.value.ui64 =
-	    aggsum_value(&dk->dk_aggsums.das_reads);
+	    wmsum_value(&dk->dk_sums.dss_reads);
 	dkv->dkv_nread.value.ui64 =
-	    aggsum_value(&dk->dk_aggsums.das_nread);
+	    wmsum_value(&dk->dk_sums.dss_nread);
 	dkv->dkv_nunlinks.value.ui64 =
-	    aggsum_value(&dk->dk_aggsums.das_nunlinks);
+	    wmsum_value(&dk->dk_sums.dss_nunlinks);
 	dkv->dkv_nunlinked.value.ui64 =
-	    aggsum_value(&dk->dk_aggsums.das_nunlinked);
+	    wmsum_value(&dk->dk_sums.dss_nunlinked);
 
 	return (0);
 }
@@ -140,12 +140,12 @@ dataset_kstats_create(dataset_kstats_t *dk, objset_t *objset)
 	kstat_install(kstat);
 	dk->dk_kstats = kstat;
 
-	aggsum_init(&dk->dk_aggsums.das_writes, 0);
-	aggsum_init(&dk->dk_aggsums.das_nwritten, 0);
-	aggsum_init(&dk->dk_aggsums.das_reads, 0);
-	aggsum_init(&dk->dk_aggsums.das_nread, 0);
-	aggsum_init(&dk->dk_aggsums.das_nunlinks, 0);
-	aggsum_init(&dk->dk_aggsums.das_nunlinked, 0);
+	wmsum_init(&dk->dk_sums.dss_writes, 0);
+	wmsum_init(&dk->dk_sums.dss_nwritten, 0);
+	wmsum_init(&dk->dk_sums.dss_reads, 0);
+	wmsum_init(&dk->dk_sums.dss_nread, 0);
+	wmsum_init(&dk->dk_sums.dss_nunlinks, 0);
+	wmsum_init(&dk->dk_sums.dss_nunlinked, 0);
 }
 
 void
@@ -162,12 +162,12 @@ dataset_kstats_destroy(dataset_kstats_t *dk)
 	kstat_delete(dk->dk_kstats);
 	dk->dk_kstats = NULL;
 
-	aggsum_fini(&dk->dk_aggsums.das_writes);
-	aggsum_fini(&dk->dk_aggsums.das_nwritten);
-	aggsum_fini(&dk->dk_aggsums.das_reads);
-	aggsum_fini(&dk->dk_aggsums.das_nread);
-	aggsum_fini(&dk->dk_aggsums.das_nunlinks);
-	aggsum_fini(&dk->dk_aggsums.das_nunlinked);
+	wmsum_fini(&dk->dk_sums.dss_writes);
+	wmsum_fini(&dk->dk_sums.dss_nwritten);
+	wmsum_fini(&dk->dk_sums.dss_reads);
+	wmsum_fini(&dk->dk_sums.dss_nread);
+	wmsum_fini(&dk->dk_sums.dss_nunlinks);
+	wmsum_fini(&dk->dk_sums.dss_nunlinked);
 }
 
 void
@@ -179,8 +179,8 @@ dataset_kstats_update_write_kstats(dataset_kstats_t *dk,
 	if (dk->dk_kstats == NULL)
 		return;
 
-	aggsum_add(&dk->dk_aggsums.das_writes, 1);
-	aggsum_add(&dk->dk_aggsums.das_nwritten, nwritten);
+	wmsum_add(&dk->dk_sums.dss_writes, 1);
+	wmsum_add(&dk->dk_sums.dss_nwritten, nwritten);
 }
 
 void
@@ -192,8 +192,8 @@ dataset_kstats_update_read_kstats(dataset_kstats_t *dk,
 	if (dk->dk_kstats == NULL)
 		return;
 
-	aggsum_add(&dk->dk_aggsums.das_reads, 1);
-	aggsum_add(&dk->dk_aggsums.das_nread, nread);
+	wmsum_add(&dk->dk_sums.dss_reads, 1);
+	wmsum_add(&dk->dk_sums.dss_nread, nread);
 }
 
 void
@@ -202,7 +202,7 @@ dataset_kstats_update_nunlinks_kstat(dataset_kstats_t *dk, int64_t delta)
 	if (dk->dk_kstats == NULL)
 		return;
 
-	aggsum_add(&dk->dk_aggsums.das_nunlinks, delta);
+	wmsum_add(&dk->dk_sums.dss_nunlinks, delta);
 }
 
 void
@@ -211,5 +211,5 @@ dataset_kstats_update_nunlinked_kstat(dataset_kstats_t *dk, int64_t delta)
 	if (dk->dk_kstats == NULL)
 		return;
 
-	aggsum_add(&dk->dk_aggsums.das_nunlinked, delta);
+	wmsum_add(&dk->dk_sums.dss_nunlinked, delta);
 }

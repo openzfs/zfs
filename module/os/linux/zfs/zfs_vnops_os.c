@@ -175,18 +175,6 @@
  *	return (error);			// done, report error
  */
 
-/*
- * Virus scanning is unsupported.  It would be possible to add a hook
- * here to performance the required virus scan.  This could be done
- * entirely in the kernel or potentially as an update to invoke a
- * scanning utility.
- */
-static int
-zfs_vscan(struct inode *ip, cred_t *cr, int async)
-{
-	return (0);
-}
-
 /* ARGSUSED */
 int
 zfs_open(struct inode *ip, int mode, int flag, cred_t *cr)
@@ -202,15 +190,6 @@ zfs_open(struct inode *ip, int mode, int flag, cred_t *cr)
 	    ((flag & O_APPEND) == 0)) {
 		ZFS_EXIT(zfsvfs);
 		return (SET_ERROR(EPERM));
-	}
-
-	/* Virus scan eligible files on open */
-	if (!zfs_has_ctldir(zp) && zfsvfs->z_vscan && S_ISREG(ip->i_mode) &&
-	    !(zp->z_pflags & ZFS_AV_QUARANTINED) && zp->z_size > 0) {
-		if (zfs_vscan(ip, cr, 0) != 0) {
-			ZFS_EXIT(zfsvfs);
-			return (SET_ERROR(EACCES));
-		}
 	}
 
 	/* Keep a count of the synchronous opens in the znode */
@@ -234,10 +213,6 @@ zfs_close(struct inode *ip, int flag, cred_t *cr)
 	/* Decrement the synchronous opens in the znode */
 	if (flag & O_SYNC)
 		atomic_dec_32(&zp->z_sync_cnt);
-
-	if (!zfs_has_ctldir(zp) && zfsvfs->z_vscan && S_ISREG(ip->i_mode) &&
-	    !(zp->z_pflags & ZFS_AV_QUARANTINED) && zp->z_size > 0)
-		VERIFY(zfs_vscan(ip, cr, 1) == 0);
 
 	ZFS_EXIT(zfsvfs);
 	return (0);
@@ -1656,7 +1631,8 @@ out:
  */
 /* ARGSUSED */
 int
-zfs_getattr_fast(struct inode *ip, struct kstat *sp)
+zfs_getattr_fast(struct user_namespace *user_ns, struct inode *ip,
+    struct kstat *sp)
 {
 	znode_t *zp = ITOZ(ip);
 	zfsvfs_t *zfsvfs = ITOZSB(ip);
@@ -1668,7 +1644,7 @@ zfs_getattr_fast(struct inode *ip, struct kstat *sp)
 
 	mutex_enter(&zp->z_lock);
 
-	generic_fillattr(ip, sp);
+	zpl_generic_fillattr(user_ns, ip, sp);
 	/*
 	 * +1 link count for root inode with visible '.zfs' directory.
 	 */
@@ -3139,7 +3115,7 @@ top:
 
 	/*
 	 * Create a new object for the symlink.
-	 * for version 4 ZPL datsets the symlink will be an SA attribute
+	 * for version 4 ZPL datasets the symlink will be an SA attribute
 	 */
 	zfs_mknode(dzp, vap, tx, cr, 0, &zp, &acl_ids);
 
@@ -3949,6 +3925,13 @@ zfs_fid(struct inode *ip, fid_t *fidp)
 	int		size, i, error;
 
 	ZFS_ENTER(zfsvfs);
+
+	if (fidp->fid_len < SHORT_FID_LEN) {
+		fidp->fid_len = SHORT_FID_LEN;
+		ZFS_EXIT(zfsvfs);
+		return (SET_ERROR(ENOSPC));
+	}
+
 	ZFS_VERIFY_ZP(zp);
 
 	if ((error = sa_lookup(zp->z_sa_hdl, SA_ZPL_GEN(zfsvfs),

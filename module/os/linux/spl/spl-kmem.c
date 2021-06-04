@@ -245,7 +245,21 @@ spl_kmem_alloc_impl(size_t size, int flags, int node)
 				return (NULL);
 			}
 		} else {
+			/*
+			 * We use kmalloc when doing kmem_alloc(KM_NOSLEEP),
+			 * because kvmalloc/vmalloc may sleep.  We also use
+			 * kmalloc on systems with limited kernel VA space (e.g.
+			 * 32-bit), which have HIGHMEM.  Otherwise we use
+			 * kvmalloc, which tries to get contiguous physical
+			 * memory (fast, like kmalloc) and falls back on using
+			 * virtual memory to stitch together pages (slow, like
+			 * vmalloc).
+			 */
+#ifdef CONFIG_HIGHMEM
 			if (flags & KM_VMEM) {
+#else
+			if ((flags & KM_VMEM) || !(flags & KM_NOSLEEP)) {
+#endif
 				ptr = spl_kvmalloc(size, lflags);
 			} else {
 				ptr = kmalloc_node(size, lflags, node);

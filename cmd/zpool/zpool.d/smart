@@ -53,7 +53,7 @@ get_filename_from_dir()
 	num_files=$(find "$dir" -maxdepth 1 -type f | wc -l)
 	mod=$((pid % num_files))
 	i=0
-	find "$dir" -type f -printf "%f\n" | while read -r file ; do
+	find "$dir" -type f -printf '%f\n' | while read -r file ; do
 		if [ "$mod" = "$i" ] ; then
 			echo "$file"
 			break
@@ -62,17 +62,14 @@ get_filename_from_dir()
 	done
 }
 
-script=$(basename "$0")
+script="${0##*/}"
 
 if [ "$1" = "-h" ] ; then
         echo "$helpstr" | grep "$script:" | tr -s '\t' | cut -f 2-
         exit
 fi
 
-smartctl_path=$(command -v smartctl)
-
-# shellcheck disable=SC2015
-if [ -b "$VDEV_UPATH" ] && [ -x "$smartctl_path" ] || [ -n "$samples" ] ; then
+if [ -b "$VDEV_UPATH" ] && PATH="/usr/sbin:$PATH" command -v smartctl > /dev/null || [ -n "$samples" ] ; then
 	if [ -n "$samples" ] ; then
 		# cat a smartctl output text file instead of running smartctl
 		# on a vdev (only used for developer testing).
@@ -80,7 +77,7 @@ if [ -b "$VDEV_UPATH" ] && [ -x "$smartctl_path" ] || [ -n "$samples" ] ; then
 		echo "file=$file"
 		raw_out=$(cat "$samples/$file")
 	else
-		raw_out=$(eval "sudo $smartctl_path -a $VDEV_UPATH")
+		raw_out=$(sudo smartctl -a "$VDEV_UPATH")
 	fi
 
 	# What kind of drive are we?  Look for the right line in smartctl:
@@ -231,11 +228,11 @@ esac
 with_vals=$(echo "$out" | grep -E "$scripts")
 if [ -n "$with_vals" ]; then
 	echo "$with_vals"
-	without_vals=$(echo "$scripts" | tr "|" "\n" |
+	without_vals=$(echo "$scripts" | tr '|' '\n' |
 		grep -v -E "$(echo "$with_vals" |
 		awk -F "=" '{print $1}')" | awk '{print $0"="}')
 else
-	without_vals=$(echo "$scripts" | tr "|" "\n" | awk '{print $0"="}')
+	without_vals=$(echo "$scripts" | tr '|' '\n' | awk '{print $0"="}')
 fi
 
 if [ -n "$without_vals" ]; then

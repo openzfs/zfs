@@ -61,7 +61,6 @@
 #include <sys/dktp/fdisk.h>
 #include <sys/vdev_impl.h>
 #include <sys/fs/zfs.h>
-#include <sys/vdev_impl.h>
 
 #include <thread_pool.h>
 #include <libzutil.h>
@@ -137,9 +136,9 @@ zpool_open_func(void *arg)
 	 * cache which may be stale for multipath devices.  An EINVAL errno
 	 * indicates O_DIRECT is unsupported so fallback to just O_RDONLY.
 	 */
-	fd = open(rn->rn_name, O_RDONLY | O_DIRECT);
+	fd = open(rn->rn_name, O_RDONLY | O_DIRECT | O_CLOEXEC);
 	if ((fd < 0) && (errno == EINVAL))
-		fd = open(rn->rn_name, O_RDONLY);
+		fd = open(rn->rn_name, O_RDONLY | O_CLOEXEC);
 	if ((fd < 0) && (errno == EACCES))
 		hdl->lpc_open_access_error = B_TRUE;
 	if (fd < 0)
@@ -284,21 +283,20 @@ zpool_default_search_paths(size_t *count)
 static int
 zfs_path_order(char *name, int *order)
 {
-	int i = 0, error = ENOENT;
-	char *dir, *env, *envdup;
+	int i, error = ENOENT;
+	char *dir, *env, *envdup, *tmp = NULL;
 
 	env = getenv("ZPOOL_IMPORT_PATH");
 	if (env) {
 		envdup = strdup(env);
-		dir = strtok(envdup, ":");
-		while (dir) {
+		for (dir = strtok_r(envdup, ":", &tmp), i = 0;
+		    dir != NULL;
+		    dir = strtok_r(NULL, ":", &tmp), i++) {
 			if (strncmp(name, dir, strlen(dir)) == 0) {
 				*order = i;
 				error = 0;
 				break;
 			}
-			dir = strtok(NULL, ":");
-			i++;
 		}
 		free(envdup);
 	} else {

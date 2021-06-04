@@ -127,11 +127,7 @@ getextmntent(const char *path, struct extmnttab *entry, struct stat64 *statbuf)
 	}
 
 
-#ifdef HAVE_SETMNTENT
-	if ((fp = setmntent(MNTTAB, "r")) == NULL) {
-#else
-	if ((fp = fopen(MNTTAB, "r")) == NULL) {
-#endif
+	if ((fp = fopen(MNTTAB, "re")) == NULL) {
 		(void) fprintf(stderr, "cannot open %s\n", MNTTAB);
 		return (-1);
 	}
@@ -148,6 +144,7 @@ getextmntent(const char *path, struct extmnttab *entry, struct stat64 *statbuf)
 			break;
 		}
 	}
+	(void) fclose(fp);
 
 	if (!match) {
 		(void) fprintf(stderr, "cannot find mountpoint for '%s'\n",
