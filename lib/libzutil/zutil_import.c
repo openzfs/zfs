@@ -1035,6 +1035,7 @@ zpool_read_label(int fd, nvlist_t **config, int *num_labels)
 				case EOPNOTSUPP:
 				case ENOSYS:
 					do_slow = B_TRUE;
+					/* FALLTHROUGH */
 				case 0:
 				default:
 					(void) aio_return(&aiocbs[l]);

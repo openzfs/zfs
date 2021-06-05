@@ -4510,7 +4510,6 @@ zfs_do_send(int argc, char **argv)
 			usage(B_FALSE);
 			break;
 		case '?':
-			/*FALLTHROUGH*/
 		default:
 			/*
 			 * If an invalid flag was passed, optopt contains the
