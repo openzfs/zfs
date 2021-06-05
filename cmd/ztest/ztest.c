@@ -464,7 +464,8 @@ ztest_info_t ztest_info[] = {
 	ZTI_INIT(ztest_dmu_prealloc, 1, &zopt_sometimes, B_FALSE),
 #endif
 	ZTI_INIT(ztest_fzap, 1, &zopt_sometimes, B_FALSE),
-	ZTI_INIT(ztest_dmu_snapshot_create_destroy, 1, &zopt_sometimes, B_FALSE),
+	ZTI_INIT(ztest_dmu_snapshot_create_destroy, 1, &zopt_sometimes,
+		B_FALSE),
 	ZTI_INIT(ztest_spa_create_destroy, 1, &zopt_sometimes, B_FALSE),
 	ZTI_INIT(ztest_fault_inject, 1, &zopt_sometimes, B_FALSE),
 	ZTI_INIT(ztest_dmu_snapshot_hold, 1, &zopt_sometimes, B_FALSE),
@@ -478,7 +479,8 @@ ztest_info_t ztest_info[] = {
 	ZTI_INIT(ztest_vdev_LUN_growth, 1, &zopt_rarely, B_FALSE),
 	ZTI_INIT(ztest_vdev_add_remove, 1, &ztest_opts.zo_vdevtime, B_FALSE),
 	ZTI_INIT(ztest_vdev_class_add, 1, &ztest_opts.zo_vdevtime, B_FALSE),
-	ZTI_INIT(ztest_vdev_aux_add_remove, 1, &ztest_opts.zo_vdevtime, B_FALSE),
+	ZTI_INIT(ztest_vdev_aux_add_remove, 1, &ztest_opts.zo_vdevtime,
+		B_FALSE),
 	ZTI_INIT(ztest_device_removal, 1, &zopt_sometimes, B_FALSE),
 	ZTI_INIT(ztest_spa_checkpoint_create_discard, 1, &zopt_rarely, B_FALSE),
 	ZTI_INIT(ztest_initialize, 1, &zopt_sometimes, B_FALSE),
@@ -819,7 +821,7 @@ static ztest_option_t option_table[] = {
 	    NO_DEFAULT, NULL},
 	{ 'C',	"vdev-class-state", "on|off|random", "vdev class state",
 	    NO_DEFAULT, "random"},
-	{ 'X', "raidz-expand-max-offset", "OFFSET", 
+	{ 'X', "raidz-expand-max-offset", "OFFSET",
 	    "raidz_expand test, killing at off bytes into reflow",
 	    NO_DEFAULT, NULL},
 	{ 'o',	"option", "\"OPTION=INTEGER\"",
@@ -3974,7 +3976,7 @@ ztest_vdev_raidz_attach(ztest_ds_t *zd, uint64_t id)
 	 * Path to vdev to be attached
 	 */
 	(void) snprintf(newpath, MAXPATHLEN, ztest_dev_template,
-	ztest_opts.zo_dir, ztest_opts.zo_pool, pvd->vdev_children);
+		ztest_opts.zo_dir, ztest_opts.zo_pool, pvd->vdev_children);
 
 	/*
 	 * Build the nvlist describing newpath.
