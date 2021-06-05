@@ -218,7 +218,7 @@ void dsl_dir_cancel_waiters(dsl_dir_t *dd);
 	dprintf("dd=%s " fmt, __ds_name, __VA_ARGS__); \
 	kmem_free(__ds_name, ZFS_MAX_DATASET_NAME_LEN); \
 	} \
-_NOTE(CONSTCOND) } while (0)
+} while (0)
 #else
 #define	dprintf_dd(dd, fmt, ...)
 #endif

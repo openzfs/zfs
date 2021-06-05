@@ -98,6 +98,4 @@
 #define	offsetof(s, m)	((size_t)(&(((s *)0)->m)))
 #endif
 
-#define	_NOTE(x)
-
 #endif /* _LIBSPL_SYS_SYSMACROS_H */

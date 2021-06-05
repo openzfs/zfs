@@ -179,7 +179,6 @@ typedef struct skein_ctx {
 			(void) Skein1024_ ## _op(&sc->sc_1024, __VA_ARGS__);\
 			break;						\
 		}							\
-		_NOTE(CONSTCOND)					\
 	} while (0)
 
 static int

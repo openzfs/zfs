@@ -53,13 +53,13 @@ extern "C" {
 	ASSERT3U(val, <, 1U << (len)); \
 	ASSERT3U(low + len, <=, 32); \
 	(x) ^= BF32_ENCODE((x >> low) ^ (val), low, len); \
-_NOTE(CONSTCOND) } while (0)
+} while (0)
 
 #define	BF64_SET(x, low, len, val) do { \
 	ASSERT3U(val, <, 1ULL << (len)); \
 	ASSERT3U(low + len, <=, 64); \
 	((x) ^= BF64_ENCODE((x >> low) ^ (val), low, len)); \
-_NOTE(CONSTCOND) } while (0)
+} while (0)
 
 #define	BF32_GET_SB(x, low, len, shift, bias)	\
 	((BF32_GET(x, low, len) + (bias)) << (shift))
@@ -69,19 +69,18 @@ _NOTE(CONSTCOND) } while (0)
 /*
  * We use ASSERT3U instead of ASSERT in these macros to prevent a lint error in
  * the case where val is a constant.  We can't fix ASSERT because it's used as
- * an expression in several places in the kernel; as a result, changing it to
- * the do{} while() syntax to allow us to _NOTE the CONSTCOND is not an option.
+ * an expression in several places in the kernel.
  */
 #define	BF32_SET_SB(x, low, len, shift, bias, val) do { \
 	ASSERT3U(IS_P2ALIGNED(val, 1U << shift), !=, B_FALSE); \
 	ASSERT3S((val) >> (shift), >=, bias); \
 	BF32_SET(x, low, len, ((val) >> (shift)) - (bias)); \
-_NOTE(CONSTCOND) } while (0)
+} while (0)
 #define	BF64_SET_SB(x, low, len, shift, bias, val) do { \
 	ASSERT3U(IS_P2ALIGNED(val, 1ULL << shift), !=, B_FALSE); \
 	ASSERT3S((val) >> (shift), >=, bias); \
 	BF64_SET(x, low, len, ((val) >> (shift)) - (bias)); \
-_NOTE(CONSTCOND) } while (0)
+} while (0)
 
 #ifdef	__cplusplus
 }

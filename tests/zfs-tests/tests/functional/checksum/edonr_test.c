@@ -36,7 +36,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <sys/note.h>
 #include <sys/time.h>
 #include <sys/stdtypes.h>
 
@@ -167,7 +166,6 @@ main(int argc, char *argv[])
 			(void) printf("FAILED!\n");			\
 			failed = B_TRUE;				\
 		}							\
-		NOTE(CONSTCOND)						\
 	} while (0)
 
 #define	EDONR_PERF_TEST(mode)						\
@@ -194,7 +192,6 @@ main(int argc, char *argv[])
 		}							\
 		(void) printf("Edon-R-%-6s%llu us (%.02f CPB)\n", #mode,\
 		    (u_longlong_t)delta, cpb);				\
-		NOTE(CONSTCOND)						\
 	} while (0)
 
 	(void) printf("Running algorithm correctness tests:\n");

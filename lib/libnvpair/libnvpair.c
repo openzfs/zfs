@@ -28,7 +28,6 @@
 #include <libintl.h>
 #include <sys/types.h>
 #include <sys/inttypes.h>
-#include <sys/note.h>
 #include <stdarg.h>
 #include "libnvpair.h"
 
@@ -191,9 +190,9 @@ static int \
 nvprint_##type_and_variant(nvlist_prtctl_t pctl, void *private, \
     nvlist_t *nvl, const char *name, vtype value) \
 { \
+	(void) private; \
+	(void) nvl; \
 	FILE *fp = pctl->nvprt_fp; \
-	NOTE(ARGUNUSED(private)) \
-	NOTE(ARGUNUSED(nvl)) \
 	indent(pctl, 1); \
 	(void) fprintf(fp, pctl->nvprt_nmfmt, name); \
 	(void) fprintf(fp, vfmt, (ptype)value); \
@@ -224,10 +223,10 @@ static int \
 nvaprint_##type_and_variant(nvlist_prtctl_t pctl, void *private, \
     nvlist_t *nvl, const char *name, vtype *valuep, uint_t count) \
 { \
+	(void) private; \
+	(void) nvl; \
 	FILE *fp = pctl->nvprt_fp; \
 	uint_t i; \
-	NOTE(ARGUNUSED(private)) \
-	NOTE(ARGUNUSED(nvl)) \
 	for (i = 0; i < count; i++) { \
 		if (i == 0 || pctl->nvprt_btwnarrfmt_nl) { \
 			indent(pctl, 1); \
