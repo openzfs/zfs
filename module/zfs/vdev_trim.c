@@ -204,8 +204,8 @@ vdev_trim_zap_update_sync(void *arg, dmu_tx_t *tx)
 	kmem_free(arg, sizeof (uint64_t));
 
 	vdev_t *vd = spa_lookup_by_guid(tx->tx_pool->dp_spa, guid, B_FALSE);
-	if (vd == NULL || vd->vdev_top->vdev_removing || !vdev_is_concrete(vd) ||
-	    vd->vdev_top->vdev_rz_expanding)
+	if (vd == NULL || vd->vdev_top->vdev_removing ||
+	    !vdev_is_concrete(vd) || vd->vdev_top->vdev_rz_expanding)
 		return;
 
 	uint64_t last_offset = vd->vdev_trim_offset[txg & TXG_MASK];

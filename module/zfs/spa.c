@@ -6954,7 +6954,8 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 		vdev_dirty_leaves(tvd, VDD_DTL, dtl_max_txg);
 		vdev_config_dirty(tvd);
 
-		dmu_tx_t *tx = dmu_tx_create_assigned(spa->spa_dsl_pool, dtl_max_txg);
+		dmu_tx_t *tx = dmu_tx_create_assigned(spa->spa_dsl_pool,
+			dtl_max_txg);
 		dsl_sync_task_nowait(spa->spa_dsl_pool, vdev_raidz_attach_sync,
 		    newvd, tx);
 		dmu_tx_commit(tx);

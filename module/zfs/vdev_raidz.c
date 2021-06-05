@@ -4544,8 +4544,8 @@ vdev_ops_t vdev_raidz_ops = {
 };
 
 ZFS_MODULE_PARAM(zfs_vdev, raidz_, expand_max_offset_pause, ULONG, ZMOD_RW,
-    "For testing, pause RAIDZ expansion at this offset");
+	"For testing, pause RAIDZ expansion at this offset");
 ZFS_MODULE_PARAM(zfs_vdev, raidz_, expand_max_copy_bytes, ULONG, ZMOD_RW,
-    "Max amount of concurrent i/o for RAIDZ expansion");
+	"Max amount of concurrent i/o for RAIDZ expansion");
 ZFS_MODULE_PARAM(zfs_vdev, raidz_, io_aggregate_rows, ULONG, ZMOD_RW,
-    "For expanded RAIDZ, aggregate reads that have more rows than this");
+	"For expanded RAIDZ, aggregate reads that have more rows than this");
