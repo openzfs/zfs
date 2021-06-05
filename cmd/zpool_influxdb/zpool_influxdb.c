@@ -118,6 +118,7 @@ escape_string(const char *s)
 		case '=':
 		case '\\':
 			*d++ = '\\';
+			/* FALLTHROUGH */
 		default:
 			*d = *c;
 		}
