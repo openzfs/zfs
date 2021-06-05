@@ -49,12 +49,12 @@ extern "C" {
 #define	HDR_SET_LSIZE(hdr, x) do { \
 	ASSERT(IS_P2ALIGNED(x, 1U << SPA_MINBLOCKSHIFT)); \
 	(hdr)->b_lsize = ((x) >> SPA_MINBLOCKSHIFT); \
-_NOTE(CONSTCOND) } while (0)
+} while (0)
 
 #define	HDR_SET_PSIZE(hdr, x) do { \
 	ASSERT(IS_P2ALIGNED((x), 1U << SPA_MINBLOCKSHIFT)); \
 	(hdr)->b_psize = ((x) >> SPA_MINBLOCKSHIFT); \
-_NOTE(CONSTCOND) } while (0)
+} while (0)
 
 #define	HDR_GET_LSIZE(hdr)	((hdr)->b_lsize << SPA_MINBLOCKSHIFT)
 #define	HDR_GET_PSIZE(hdr)	((hdr)->b_psize << SPA_MINBLOCKSHIFT)

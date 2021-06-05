@@ -644,7 +644,6 @@ arc_sums_t arc_sums;
 		x = x - x / ARCSTAT_F_AVG_FACTOR + \
 		    (value) / ARCSTAT_F_AVG_FACTOR; \
 		ARCSTAT(stat) = x; \
-		_NOTE(CONSTCOND) \
 	} while (0)
 
 kstat_t			*arc_ksp;
@@ -10728,7 +10727,6 @@ l2arc_log_blk_commit(l2arc_dev_t *dev, zio_t *pio, l2arc_write_callback_t *cb)
 	    dev->l2ad_log_blk_payload_asize;
 	l2dhdr->dh_start_lbps[0].lbp_payload_start =
 	    dev->l2ad_log_blk_payload_start;
-	_NOTE(CONSTCOND)
 	L2BLK_SET_LSIZE(
 	    (&l2dhdr->dh_start_lbps[0])->lbp_prop, sizeof (*lb));
 	L2BLK_SET_PSIZE(

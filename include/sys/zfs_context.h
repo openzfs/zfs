@@ -41,7 +41,6 @@ extern "C" {
  * similar environment.
  */
 #if defined(__KERNEL__) || defined(_STANDALONE)
-#include <sys/note.h>
 #include <sys/types.h>
 #include <sys/atomic.h>
 #include <sys/sysmacros.h>
@@ -104,7 +103,6 @@ extern "C" {
 #include <ctype.h>
 #include <signal.h>
 #include <sys/mman.h>
-#include <sys/note.h>
 #include <sys/types.h>
 #include <sys/cred.h>
 #include <sys/sysmacros.h>

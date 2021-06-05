@@ -1060,7 +1060,6 @@ zio_crypt_do_objset_hmacs(zio_crypt_key_t *key, void *data, uint_t datalen,
 	if (should_bswap)
 		intval = BSWAP_64(intval);
 	intval &= OBJSET_CRYPT_PORTABLE_FLAGS_MASK;
-	/* CONSTCOND */
 	if (!ZFS_HOST_BYTEORDER)
 		intval = BSWAP_64(intval);
 
@@ -1100,7 +1099,6 @@ zio_crypt_do_objset_hmacs(zio_crypt_key_t *key, void *data, uint_t datalen,
 	if (should_bswap)
 		intval = BSWAP_64(intval);
 	intval &= ~OBJSET_CRYPT_PORTABLE_FLAGS_MASK;
-	/* CONSTCOND */
 	if (!ZFS_HOST_BYTEORDER)
 		intval = BSWAP_64(intval);
 

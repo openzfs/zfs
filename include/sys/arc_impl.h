@@ -360,7 +360,6 @@ typedef struct l2arc_lb_ptr_buf {
 		void *tmp = (x);\
 		x = y;		\
 		y = tmp;	\
-		_NOTE(CONSTCOND)\
 	} while (0)
 
 #define	L2ARC_DEV_HDR_MAGIC	0x5a46534341434845LLU	/* ASCII: "ZFSCACHE" */
