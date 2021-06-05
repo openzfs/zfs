@@ -79,7 +79,6 @@ zfs_log_create_txtype(zil_create_t type, vsecattr_t *vsecp, vattr_t *vap)
 			return (TX_CREATE_ACL);
 		else
 			return (TX_CREATE_ATTR);
-		/*NOTREACHED*/
 	case Z_DIR:
 		if (vsecp == NULL && !isxvattr)
 			return (TX_MKDIR);

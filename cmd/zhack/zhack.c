@@ -56,7 +56,7 @@ static importargs_t g_importargs;
 static char *g_pool;
 static boolean_t g_readonly;
 
-static void
+static __attribute__((noreturn)) void
 usage(void)
 {
 	(void) fprintf(stderr,
@@ -81,7 +81,7 @@ usage(void)
 }
 
 
-static void
+static __attribute__((noreturn)) __attribute__((format(printf, 3, 4))) void
 fatal(spa_t *spa, void *tag, const char *fmt, ...)
 {
 	va_list ap;
@@ -112,7 +112,6 @@ space_delta_cb(dmu_object_type_t bonustype, const void *data,
 		return (ENOENT);
 	(void) fprintf(stderr, "modifying object that needs user accounting");
 	abort();
-	/* NOTREACHED */
 }
 
 /*
@@ -318,7 +317,8 @@ zhack_do_feature_enable(int argc, char **argv)
 	mos = spa->spa_meta_objset;
 
 	if (zfeature_is_supported(feature.fi_guid))
-		fatal(spa, FTAG, "'%s' is a real feature, will not enable");
+		fatal(spa, FTAG, "'%s' is a real feature, will not enable",
+		    feature.fi_guid);
 	if (0 == zap_contains(mos, spa->spa_feat_desc_obj, feature.fi_guid))
 		fatal(spa, FTAG, "feature already enabled: %s",
 		    feature.fi_guid);
@@ -412,7 +412,8 @@ zhack_do_feature_ref(int argc, char **argv)
 
 	if (zfeature_is_supported(feature.fi_guid)) {
 		fatal(spa, FTAG,
-		    "'%s' is a real feature, will not change refcount");
+		    "'%s' is a real feature, will not change refcount",
+		    feature.fi_guid);
 	}
 
 	if (0 == zap_contains(mos, spa->spa_feat_for_read_obj,
