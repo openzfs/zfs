@@ -39,12 +39,6 @@
 #define	ZFS_KMOD	"openzfs"
 #endif
 
-void
-libzfs_set_pipe_max(int infd)
-{
-	/* FreeBSD automatically resizes */
-}
-
 static int
 execvPe(const char *name, const char *path, char * const *argv,
     char * const *envp)

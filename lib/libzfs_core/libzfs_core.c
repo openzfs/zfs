@@ -26,6 +26,7 @@
  * Copyright 2017 RackTop Systems.
  * Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
  * Copyright (c) 2019, 2020 by Christian Schwarz. All rights reserved.
+ * Copyright (c) 2021 Rich Ercolani.
  */
 
 /*
@@ -95,6 +96,19 @@
 static int g_fd = -1;
 static pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
 static int g_refcount;
+
+#ifdef __linux__
+#ifndef F_SETPIPE_SZ
+#define	F_SETPIPE_SZ (F_SETLEASE + 7)
+#endif /* F_SETPIPE_SZ */
+
+#ifndef F_GETPIPE_SZ
+#define	F_GETPIPE_SZ (F_GETLEASE + 7)
+#endif /* F_GETPIPE_SZ */
+#endif
+
+static unsigned long lzc_get_pipe_max(void);
+static void lzc_set_pipe_max(int infd);
 
 #ifdef ZFS_DEBUG
 static zfs_ioc_t fail_ioc_cmd = ZFS_IOC_LAST;
@@ -645,6 +659,97 @@ lzc_send_resume(const char *snapname, const char *from, int fd,
 	    resumeoff, NULL));
 }
 
+static unsigned long
+lzc_get_pipe_max()
+{
+	/* FreeBSD automatically grows to 64k */
+	unsigned long max_psize = 65536;
+#ifdef __linux__
+	FILE *procf = fopen("/proc/sys/fs/pipe-max-size", "re");
+
+	if (procf != NULL) {
+		/*
+		 * This seems superfluous, but you can't
+		 * mute warnings on many systems with a
+		 * (void), so here we are.
+		 */
+		if (fscanf(procf, "%lu", &max_psize) <= 0) {
+			max_psize = max_psize;
+		}
+		fclose(procf);
+	}
+#endif
+	return (max_psize);
+}
+
+static void
+lzc_set_pipe_max(int infd)
+{
+#ifdef __linux__
+	unsigned long max_psize = lzc_get_pipe_max();
+	long cur_psize;
+	cur_psize = fcntl(infd, F_GETPIPE_SZ);
+	if (cur_psize > 0 &&
+	    max_psize > (unsigned long) cur_psize)
+		fcntl(infd, F_SETPIPE_SZ,
+		    max_psize);
+#endif
+}
+
+
+struct sendargs {
+	int ioctlfd;
+	int inputfd;
+	int outputfd;
+};
+typedef struct sendargs sendargs_t;
+
+static void *
+do_send_output(void *voidargs)
+{
+	sendargs_t *args = (sendargs_t *)voidargs;
+	sigset_t sigs;
+	int buflen = lzc_get_pipe_max();
+
+	/*
+	 * See the comment above the close() call for why
+	 * we can't just die from SIGPIPE.
+	 */
+	sigemptyset(&sigs);
+	sigaddset(&sigs, SIGPIPE);
+	pthread_sigmask(SIG_BLOCK, &sigs, NULL);
+
+
+	int err = 1;
+#ifdef __linux__
+	while (err > 0) {
+		err = splice(args->inputfd, NULL, args->outputfd, NULL, buflen,
+		    SPLICE_F_MORE);
+	}
+#else
+	void* buf = calloc(1, buflen);
+	while (err > 0) {
+		err = read(args->inputfd, buf, buflen);
+		if (err <= 0) {
+			break;
+		}
+		err = write(args->outputfd, buf, err);
+	}
+	free(buf);
+#endif
+	if (err < 0) {
+		err = errno;
+	}
+	/*
+	 * If we just return here, the other thread often blocks
+	 * indefinitely on the ioctl completing, which won't happen
+	 * because we stopped consuming the data. So we close the pipe
+	 * here, and the other thread exits in a timely fashion.
+	 */
+	close(args->inputfd);
+	return ((void *)(uintptr_t)err);
+}
+
 /*
  * snapname: The name of the "tosnap", or the snapshot whose contents we are
  * sending.
@@ -664,9 +769,31 @@ lzc_send_resume_redacted(const char *snapname, const char *from, int fd,
 {
 	nvlist_t *args;
 	int err;
+	int pipefd[2];
+	pthread_t mythread;
+	sendargs_t sendargs;
+	int threadstatus;
+
+
+	err = pipe2(pipefd, O_CLOEXEC);
+
+	/*
+	 * This is a workaround for the test_send_bad_fd case in
+	 * test_libzfs_core.py - it hands us an fd it just opened
+	 * then closed, which will result in the wrong behavior
+	 * when it hands us e.g. fd=5 and pipe2() gives us fds 5 and 6.
+	 * So we check against fd == pipefd[0] or [1], and return EBADF.
+	 *
+	 * Opening any fds before the pipe2() call can result in
+	 * surprising behavior with the fd in that test for this reason.
+	 */
+	if (fd == pipefd[0] || fd == pipefd[1])
+		return (EBADF);
+
+	lzc_set_pipe_max(pipefd[0]);
 
 	args = fnvlist_alloc();
-	fnvlist_add_int32(args, "fd", fd);
+	fnvlist_add_int32(args, "fd", pipefd[1]);
 	if (from != NULL)
 		fnvlist_add_string(args, "fromsnap", from);
 	if (flags & LZC_SEND_FLAG_LARGE_BLOCK)
@@ -686,8 +813,32 @@ lzc_send_resume_redacted(const char *snapname, const char *from, int fd,
 	if (redactbook != NULL)
 		fnvlist_add_string(args, "redactbook", redactbook);
 
+	sendargs.inputfd = pipefd[0];
+	sendargs.outputfd = fd;
+	sendargs.ioctlfd = pipefd[1];
+
+	pthread_create(&mythread, NULL, do_send_output, (void *)&sendargs);
+
 	err = lzc_ioctl(ZFS_IOC_SEND_NEW, snapname, args, NULL);
+
+	close(pipefd[1]);
+
+	pthread_join(mythread, (void *)&threadstatus);
+
 	nvlist_free(args);
+
+
+	if (threadstatus != 0) {
+		err = threadstatus;
+		/*
+		 * if we don't set errno here, there are some edge cases
+		 * where we wind up dying unexpectedly with
+		 * "internal error: [normal warning msg]: Success"
+		 */
+		errno = threadstatus;
+	}
+
+
 	return (err);
 }
 
@@ -792,6 +943,7 @@ recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
 	char *atp;
 	int error;
 	boolean_t payload = B_FALSE;
+	struct stat sb;
 
 	ASSERT3S(g_refcount, >, 0);
 	VERIFY3S(g_fd, !=, -1);
@@ -810,6 +962,21 @@ recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
 			return (ENOENT);
 		*slashp = '\0';
 	}
+
+	/*
+	 * The only way fstat can fail is if we do not have a valid file
+	 * descriptor.
+	 */
+	if (fstat(input_fd, &sb) == -1) {
+		return (-errno);
+	}
+
+	/*
+	 * It is not uncommon for gigabytes to be processed in zfs receive.
+	 * Speculatively increase the buffer size if supported by the platform.
+	 */
+	if (S_ISFIFO(sb.st_mode))
+		lzc_set_pipe_max(input_fd);
 
 	/*
 	 * The begin_record is normally a non-byteswapped BEGIN record.
