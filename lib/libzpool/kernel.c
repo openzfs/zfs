@@ -634,7 +634,6 @@ vcmn_err(int ce, const char *fmt, va_list adx)
 	}
 }
 
-/*PRINTFLIKE2*/
 void
 cmn_err(int ce, const char *fmt, ...)
 {

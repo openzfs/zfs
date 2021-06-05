@@ -81,15 +81,18 @@ const char *uu_strerror(uint32_t);
 extern void uu_alt_exit(int);
 extern const char *uu_setpname(char *);
 extern const char *uu_getpname(void);
-/*PRINTFLIKE1*/
-extern void uu_warn(const char *, ...);
-extern void uu_vwarn(const char *, va_list);
-/*PRINTFLIKE1*/
-extern void uu_die(const char *, ...) __NORETURN;
-extern void uu_vdie(const char *, va_list) __NORETURN;
-/*PRINTFLIKE2*/
-extern void uu_xdie(int, const char *, ...) __NORETURN;
-extern void uu_vxdie(int, const char *, va_list) __NORETURN;
+extern void uu_warn(const char *, ...)
+    __attribute__((format(printf, 1, 2)));
+extern void uu_vwarn(const char *, va_list)
+    __attribute__((format(printf, 1, 0)));
+extern void uu_die(const char *, ...)
+    __attribute__((format(printf, 1, 2))) __NORETURN;
+extern void uu_vdie(const char *, va_list)
+    __attribute__((format(printf, 1, 0))) __NORETURN;
+extern void uu_xdie(int, const char *, ...)
+    __attribute__((format(printf, 2, 3))) __NORETURN;
+extern void uu_vxdie(int, const char *, va_list)
+    __attribute__((format(printf, 2, 0))) __NORETURN;
 
 /*
  * Exit status functions (not to be used directly)
@@ -111,8 +114,8 @@ int uu_check_name(const char *, uint_t);
  */
 #define	UU_NELEM(a)	(sizeof (a) / sizeof ((a)[0]))
 
-/*PRINTFLIKE1*/
-extern char *uu_msprintf(const char *format, ...);
+extern char *uu_msprintf(const char *format, ...)
+    __attribute__((format(printf, 1, 2)));
 extern void *uu_zalloc(size_t);
 extern char *uu_strdup(const char *);
 extern void uu_free(void *);

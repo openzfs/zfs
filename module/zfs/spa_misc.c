@@ -389,7 +389,6 @@ uint64_t spa_max_slop = 128ULL * 1024 * 1024 * 1024;
 int spa_allocators = 4;
 
 
-/*PRINTFLIKE2*/
 void
 spa_load_failed(spa_t *spa, const char *fmt, ...)
 {
@@ -404,7 +403,6 @@ spa_load_failed(spa_t *spa, const char *fmt, ...)
 	    spa->spa_trust_config ? "trusted" : "untrusted", buf);
 }
 
-/*PRINTFLIKE2*/
 void
 spa_load_note(spa_t *spa, const char *fmt, ...)
 {

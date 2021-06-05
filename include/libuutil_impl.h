@@ -42,8 +42,7 @@ extern "C" {
 void uu_set_error(uint_t);
 
 
-/*PRINTFLIKE1*/
-void uu_panic(const char *format, ...);
+void uu_panic(const char *format, ...) __attribute__((format(printf, 1, 2)));
 
 
 /*
