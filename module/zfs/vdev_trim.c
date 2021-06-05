@@ -1003,6 +1003,7 @@ vdev_trim_stop_wait_impl(vdev_t *vd)
 void
 vdev_trim_stop_wait(spa_t *spa, list_t *vd_list)
 {
+	(void) spa;
 	vdev_t *vd;
 
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));

@@ -87,6 +87,7 @@
 
 #include <sys/zvol_impl.h>
 
+#pragma GCC diagnostic error "-Wunused-parameter"
 
 unsigned int zvol_inhibit_dev = 0;
 unsigned int zvol_volmode = ZFS_VOLMODE_GEOM;
@@ -191,6 +192,7 @@ zvol_find_by_name(const char *name, int mode)
 void
 zvol_create_cb(objset_t *os, void *arg, cred_t *cr, dmu_tx_t *tx)
 {
+	(void) cr;
 	zfs_creat_t *zct = arg;
 	nvlist_t *nvprops = zct->zct_props;
 	int error;
@@ -535,6 +537,9 @@ zvol_replay_write(void *arg1, void *arg2, boolean_t byteswap)
 static int
 zvol_replay_err(void *arg1, void *arg2, boolean_t byteswap)
 {
+	(void) arg1;
+	(void) arg2;
+	(void) byteswap;
 	return (SET_ERROR(ENOTSUP));
 }
 
@@ -657,10 +662,11 @@ zvol_log_truncate(zvol_state_t *zv, dmu_tx_t *tx, uint64_t off, uint64_t len,
 }
 
 
-/* ARGSUSED */
 static void
 zvol_get_done(zgd_t *zgd, int error)
 {
+	(void) error;
+
 	if (zgd->zgd_db)
 		dmu_buf_rele(zgd->zgd_db, zgd);
 
@@ -676,6 +682,7 @@ int
 zvol_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,
     struct lwb *lwb, zio_t *zio)
 {
+	(void) arg2;
 	zvol_state_t *zv = arg;
 	uint64_t offset = lr->lr_offset;
 	uint64_t size = lr->lr_length;
@@ -1517,10 +1524,11 @@ zvol_set_snapdev_check(void *arg, dmu_tx_t *tx)
 	return (error);
 }
 
-/* ARGSUSED */
 static int
 zvol_set_snapdev_sync_cb(dsl_pool_t *dp, dsl_dataset_t *ds, void *arg)
 {
+	(void) arg;
+
 	char dsname[MAXNAMELEN];
 	zvol_task_t *task;
 	uint64_t snapdev;
@@ -1603,10 +1611,10 @@ zvol_set_volmode_check(void *arg, dmu_tx_t *tx)
 	return (error);
 }
 
-/* ARGSUSED */
 static int
 zvol_set_volmode_sync_cb(dsl_pool_t *dp, dsl_dataset_t *ds, void *arg)
 {
+	(void) arg;
 	char dsname[MAXNAMELEN];
 	zvol_task_t *task;
 	uint64_t volmode;

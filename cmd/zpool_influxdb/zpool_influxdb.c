@@ -258,10 +258,10 @@ print_scan_status(nvlist_t *nvroot, const char *pool_name)
  * get a vdev name that corresponds to the top-level vdev names
  * printed by `zpool status`
  */
-static char *
-get_vdev_name(nvlist_t *nvroot, const char *parent_name)
+static void
+get_vdev_name(nvlist_t *nvroot, const char *parent_name,
+    char *vdev_name, size_t size)
 {
-	static char vdev_name[256];
 	char *vdev_type = NULL;
 	uint64_t vdev_id = 0;
 
@@ -274,14 +274,14 @@ get_vdev_name(nvlist_t *nvroot, const char *parent_name)
 		vdev_id = UINT64_MAX;
 	}
 	if (parent_name == NULL) {
-		(void) snprintf(vdev_name, sizeof (vdev_name), "%s",
-		    vdev_type);
+		strlcpy(vdev_name, vdev_type, size);
 	} else {
-		(void) snprintf(vdev_name, sizeof (vdev_name),
-		    "%s/%s-%llu",
+		int len =
+		    snprintf(vdev_name, size, "%s/%s-%llu",
 		    parent_name, vdev_type, (u_longlong_t)vdev_id);
+		if (len >= size) /* don't care about truncation */
+			vdev_name[size - 1] = '\0';
 	}
-	return (vdev_name);
 }
 
 /*
@@ -685,9 +685,8 @@ print_recursive_stats(stat_printer_f func, nvlist_t *nvroot,
 
 	if (descend && nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN,
 	    &child, &children) == 0) {
-		(void) strncpy(vdev_name, get_vdev_name(nvroot, parent_name),
-		    sizeof (vdev_name));
-		vdev_name[sizeof (vdev_name) - 1] = '\0';
+		get_vdev_name(
+		    nvroot, parent_name, vdev_name, sizeof (vdev_name));
 
 		for (c = 0; c < children; c++) {
 			print_recursive_stats(func, child[c], pool_name,

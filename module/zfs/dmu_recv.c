@@ -64,6 +64,8 @@
 #endif
 #include <sys/zfs_file.h>
 
+#pragma GCC diagnostic error "-Wunused-parameter"
+
 int zfs_recv_queue_length = SPA_MAXBLOCKSIZE;
 int zfs_recv_queue_ff = 20;
 int zfs_recv_write_batch_size = 1024 * 1024;
@@ -1820,7 +1822,6 @@ receive_object(struct receive_writer_arg *rwa, struct drr_object *drro,
 	return (0);
 }
 
-/* ARGSUSED */
 noinline static int
 receive_freeobjects(struct receive_writer_arg *rwa,
     struct drr_freeobjects *drrfo)
@@ -2222,7 +2223,6 @@ receive_spill(struct receive_writer_arg *rwa, struct drr_spill *drrs,
 	return (0);
 }
 
-/* ARGSUSED */
 noinline static int
 receive_free(struct receive_writer_arg *rwa, struct drr_free *drrf)
 {
@@ -2297,7 +2297,6 @@ receive_object_range(struct receive_writer_arg *rwa,
  * Until we have the ability to redact large ranges of data efficiently, we
  * process these records as frees.
  */
-/* ARGSUSED */
 noinline static int
 receive_redact(struct receive_writer_arg *rwa, struct drr_redact *drrr)
 {
@@ -2446,7 +2445,6 @@ receive_read_payload_and_next_header(dmu_recv_cookie_t *drc, int len, void *buf)
  * numbers in the ignore list. In practice, we receive up to 32 object records
  * before receiving write records, so the list can have up to 32 nodes in it.
  */
-/* ARGSUSED */
 static void
 receive_read_prefetch(dmu_recv_cookie_t *drc, uint64_t object, uint64_t offset,
     uint64_t length)
@@ -2588,8 +2586,9 @@ dprintf_drr(struct receive_record_arg *rrd, int err)
 		dprintf("drr_type = OBJECT obj = %llu type = %u "
 		    "bonustype = %u blksz = %u bonuslen = %u cksumtype = %u "
 		    "compress = %u dn_slots = %u err = %d\n",
-		    (u_longlong_t)drro->drr_object, drro->drr_type,
-		    drro->drr_bonustype, drro->drr_blksz, drro->drr_bonuslen,
+		    (u_longlong_t)drro->drr_object,
+		    drro->drr_type,  drro->drr_bonustype,
+		    drro->drr_blksz, drro->drr_bonuslen,
 		    drro->drr_checksumtype, drro->drr_compress,
 		    drro->drr_dn_slots, err);
 		break;
@@ -2601,7 +2600,8 @@ dprintf_drr(struct receive_record_arg *rrd, int err)
 		dprintf("drr_type = FREEOBJECTS firstobj = %llu "
 		    "numobjs = %llu err = %d\n",
 		    (u_longlong_t)drrfo->drr_firstobj,
-		    (u_longlong_t)drrfo->drr_numobjs, err);
+		    (u_longlong_t)drrfo->drr_numobjs,
+		    err);
 		break;
 	}
 	case DRR_WRITE:
@@ -2615,7 +2615,8 @@ dprintf_drr(struct receive_record_arg *rrd, int err)
 		    (u_longlong_t)drrw->drr_logical_size,
 		    drrw->drr_checksumtype, drrw->drr_flags,
 		    drrw->drr_compressiontype,
-		    (u_longlong_t)drrw->drr_compressed_size, err);
+		    (u_longlong_t)drrw->drr_compressed_size,
+		    err);
 		break;
 	}
 	case DRR_WRITE_BYREF:
@@ -2665,8 +2666,10 @@ dprintf_drr(struct receive_record_arg *rrd, int err)
 	{
 		struct drr_spill *drrs = &rrd->header.drr_u.drr_spill;
 		dprintf("drr_type = SPILL obj = %llu length = %llu "
-		    "err = %d\n", (u_longlong_t)drrs->drr_object,
-		    (u_longlong_t)drrs->drr_length, err);
+		    "err = %d\n",
+		    (u_longlong_t)drrs->drr_object,
+		    (u_longlong_t)drrs->drr_length,
+		    err);
 		break;
 	}
 	case DRR_OBJECT_RANGE:
@@ -2683,6 +2686,9 @@ dprintf_drr(struct receive_record_arg *rrd, int err)
 	default:
 		return;
 	}
+#else
+	(void) rrd;
+	(void) err;
 #endif
 }
 

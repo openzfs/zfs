@@ -50,13 +50,13 @@ extern "C" {
 #define	BF64_GET(x, low, len)		BF64_DECODE(x, low, len)
 
 #define	BF32_SET(x, low, len, val) do { \
-	ASSERT3U(val, <, 1U << (len)); \
+	ASSERT3U((val) + 0U, <, 1U << (len)); \
 	ASSERT3U(low + len, <=, 32); \
 	(x) ^= BF32_ENCODE((x >> low) ^ (val), low, len); \
 } while (0)
 
 #define	BF64_SET(x, low, len, val) do { \
-	ASSERT3U(val, <, 1ULL << (len)); \
+	ASSERT3U((val) + 0ULL, <, 1ULL << (len)); \
 	ASSERT3U(low + len, <=, 64); \
 	((x) ^= BF64_ENCODE((x >> low) ^ (val), low, len)); \
 } while (0)

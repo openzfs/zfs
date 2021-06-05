@@ -375,10 +375,11 @@ livelist_verify(dsl_deadlist_t *dl, void *arg)
  * Check for errors in the livelist entry and discard the intermediary
  * data structures
  */
-/* ARGSUSED */
 static int
 sublivelist_verify_lightweight(void *args, dsl_deadlist_entry_t *dle)
 {
+	(void) args;
+
 	sublivelist_verify_t sv;
 	zfs_btree_create(&sv.sv_leftover, livelist_block_compare,
 	    sizeof (sublivelist_verify_block_t));
@@ -892,13 +893,13 @@ dump_debug_buffer(void)
  * dmu_bonus_hold(), or pool_match().  abort() is called for other errors.
  */
 
-static void
+static __attribute__((noreturn)) void
 fatal(const char *fmt, ...)
 {
 	va_list ap;
 
-	va_start(ap, fmt);
 	(void) fprintf(stderr, "%s: ", cmdname);
+	va_start(ap, fmt);
 	(void) vfprintf(stderr, fmt, ap);
 	va_end(ap);
 	(void) fprintf(stderr, "\n");
@@ -908,10 +909,10 @@ fatal(const char *fmt, ...)
 	exit(1);
 }
 
-/* ARGSUSED */
 static void
 dump_packed_nvlist(objset_t *os, uint64_t object, void *data, size_t size)
 {
+	(void) size;
 	nvlist_t *nv;
 	size_t nvsize = *(uint64_t *)data;
 	char *packed = umem_alloc(nvsize, UMEM_NOFAIL);
@@ -927,10 +928,12 @@ dump_packed_nvlist(objset_t *os, uint64_t object, void *data, size_t size)
 	nvlist_free(nv);
 }
 
-/* ARGSUSED */
 static void
 dump_history_offsets(objset_t *os, uint64_t object, void *data, size_t size)
 {
+	(void) os;
+	(void) object;
+	(void) size;
 	spa_history_phys_t *shp = data;
 
 	if (shp == NULL)
@@ -1050,26 +1053,34 @@ dump_zap_stats(objset_t *os, uint64_t object)
 	dump_histogram(zs.zs_buckets_with_n_entries, ZAP_HISTOGRAM_SIZE, 0);
 }
 
-/*ARGSUSED*/
 static void
 dump_none(objset_t *os, uint64_t object, void *data, size_t size)
 {
+	(void) os;
+	(void) object;
+	(void) data;
+	(void) size;
 }
 
-/*ARGSUSED*/
 static void
 dump_unknown(objset_t *os, uint64_t object, void *data, size_t size)
 {
+	(void) os;
+	(void) object;
+	(void) data;
+	(void) size;
 	(void) printf("\tUNKNOWN OBJECT TYPE\n");
 }
 
-/*ARGSUSED*/
 static void
 dump_uint8(objset_t *os, uint64_t object, void *data, size_t size)
 {
+	(void) os;
+	(void) object;
+	(void) data;
+	(void) size;
 }
 
-/*ARGSUSED*/
 static void
 dump_uint64(objset_t *os, uint64_t object, void *data, size_t size)
 {
@@ -1126,10 +1137,11 @@ dump_uint64(objset_t *os, uint64_t object, void *data, size_t size)
 		kmem_free(arr, oursize);
 }
 
-/*ARGSUSED*/
 static void
 dump_zap(objset_t *os, uint64_t object, void *data, size_t size)
 {
+	(void) data;
+	(void) size;
 	zap_cursor_t zc;
 	zap_attribute_t attr;
 	void *prop;
@@ -1246,10 +1258,11 @@ dump_bpobj(objset_t *os, uint64_t object, void *data, size_t size)
 	}
 }
 
-/* ARGSUSED */
 static void
 dump_bpobj_subobjs(objset_t *os, uint64_t object, void *data, size_t size)
 {
+	(void) data;
+	(void) size;
 	dmu_object_info_t doi;
 	int64_t i;
 
@@ -1275,18 +1288,20 @@ dump_bpobj_subobjs(objset_t *os, uint64_t object, void *data, size_t size)
 	kmem_free(subobjs, doi.doi_max_offset);
 }
 
-/*ARGSUSED*/
 static void
 dump_ddt_zap(objset_t *os, uint64_t object, void *data, size_t size)
 {
+	(void) data;
+	(void) size;
 	dump_zap_stats(os, object);
 	/* contents are printed elsewhere, properly decoded */
 }
 
-/*ARGSUSED*/
 static void
 dump_sa_attrs(objset_t *os, uint64_t object, void *data, size_t size)
 {
+	(void) data;
+	(void) size;
 	zap_cursor_t zc;
 	zap_attribute_t attr;
 
@@ -1310,10 +1325,11 @@ dump_sa_attrs(objset_t *os, uint64_t object, void *data, size_t size)
 	zap_cursor_fini(&zc);
 }
 
-/*ARGSUSED*/
 static void
 dump_sa_layouts(objset_t *os, uint64_t object, void *data, size_t size)
 {
+	(void) data;
+	(void) size;
 	zap_cursor_t zc;
 	zap_attribute_t attr;
 	uint16_t *layout_attrs;
@@ -1348,10 +1364,11 @@ dump_sa_layouts(objset_t *os, uint64_t object, void *data, size_t size)
 	zap_cursor_fini(&zc);
 }
 
-/*ARGSUSED*/
 static void
 dump_zpldir(objset_t *os, uint64_t object, void *data, size_t size)
 {
+	(void) data;
+	(void) size;
 	zap_cursor_t zc;
 	zap_attribute_t attr;
 	const char *typenames[] = {
@@ -2205,10 +2222,13 @@ next:
 	free(buf);
 }
 
-/*ARGSUSED*/
 static void
 dump_dnode(objset_t *os, uint64_t object, void *data, size_t size)
 {
+	(void) os;
+	(void) object;
+	(void) data;
+	(void) size;
 }
 
 static uint64_t
@@ -2428,7 +2448,6 @@ visit_indirect(spa_t *spa, const dnode_phys_t *dnp,
 	return (err);
 }
 
-/*ARGSUSED*/
 static void
 dump_indirect(dnode_t *dn)
 {
@@ -2449,10 +2468,11 @@ dump_indirect(dnode_t *dn)
 	(void) printf("\n");
 }
 
-/*ARGSUSED*/
 static void
 dump_dsl_dir(objset_t *os, uint64_t object, void *data, size_t size)
 {
+	(void) os;
+	(void) object;
 	dsl_dir_phys_t *dd = data;
 	time_t crtime;
 	char nice[32];
@@ -2506,10 +2526,11 @@ dump_dsl_dir(objset_t *os, uint64_t object, void *data, size_t size)
 	    (u_longlong_t)dd->dd_clones);
 }
 
-/*ARGSUSED*/
 static void
 dump_dsl_dataset(objset_t *os, uint64_t object, void *data, size_t size)
 {
+	(void) os;
+	(void) object;
 	dsl_dataset_phys_t *ds = data;
 	time_t crtime;
 	char used[32], compressed[32], uncompressed[32], unique[32];
@@ -2569,10 +2590,11 @@ dump_dsl_dataset(objset_t *os, uint64_t object, void *data, size_t size)
 	(void) printf("\t\tbp = %s\n", blkbuf);
 }
 
-/* ARGSUSED */
 static int
 dump_bptree_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx)
 {
+	(void) arg;
+	(void) tx;
 	char blkbuf[BP_SPRINTF_LEN];
 
 	if (bp->blk_birth != 0) {
@@ -2610,10 +2632,11 @@ dump_bptree(objset_t *os, uint64_t obj, const char *name)
 	(void) bptree_iterate(os, obj, B_FALSE, dump_bptree_cb, NULL, NULL);
 }
 
-/* ARGSUSED */
 static int
 dump_bpobj_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed, dmu_tx_t *tx)
 {
+	(void) arg;
+	(void) tx;
 	char blkbuf[BP_SPRINTF_LEN];
 
 	ASSERT(bp->blk_birth != 0);
@@ -3175,10 +3198,11 @@ dump_znode_symlink(sa_handle_t *hdl)
 		(void) printf("\ttarget	%s\n", linktarget);
 }
 
-/*ARGSUSED*/
 static void
 dump_znode(objset_t *os, uint64_t object, void *data, size_t size)
 {
+	(void) data;
+	(void) size;
 	char path[MAXPATHLEN * 2];	/* allow for xattr and failure prefix */
 	sa_handle_t *hdl;
 	uint64_t xattr, rdev, gen;
@@ -3270,16 +3294,22 @@ dump_znode(objset_t *os, uint64_t object, void *data, size_t size)
 	sa_handle_destroy(hdl);
 }
 
-/*ARGSUSED*/
 static void
 dump_acl(objset_t *os, uint64_t object, void *data, size_t size)
 {
+	(void) os;
+	(void) object;
+	(void) data;
+	(void) size;
 }
 
-/*ARGSUSED*/
 static void
 dump_dmu_objset(objset_t *os, uint64_t object, void *data, size_t size)
 {
+	(void) os;
+	(void) object;
+	(void) data;
+	(void) size;
 }
 
 static object_viewer_t *object_viewer[DMU_OT_NUMTYPES + 1] = {
@@ -4925,10 +4955,10 @@ static uint64_t dataset_feature_count[SPA_FEATURES];
 static uint64_t global_feature_count[SPA_FEATURES];
 static uint64_t remap_deadlist_count = 0;
 
-/*ARGSUSED*/
 static int
 dump_one_objset(const char *dsname, void *arg)
 {
+	(void) arg;
 	int error;
 	objset_t *os;
 	spa_feature_t f;
@@ -5492,7 +5522,6 @@ static metaslab_ops_t zdb_metaslab_ops = {
 	NULL	/* alloc */
 };
 
-/* ARGSUSED */
 static int
 load_unflushed_svr_segs_cb(spa_t *spa, space_map_entry_t *sme,
     uint64_t txg, void *arg)
@@ -5521,11 +5550,13 @@ load_unflushed_svr_segs_cb(spa_t *spa, space_map_entry_t *sme,
 	return (0);
 }
 
-/* ARGSUSED */
 static void
 claim_segment_impl_cb(uint64_t inner_offset, vdev_t *vd, uint64_t offset,
     uint64_t size, void *arg)
 {
+	(void) inner_offset;
+	(void) arg;
+
 	/*
 	 * This callback was called through a remap from
 	 * a device being removed. Therefore, the vdev that
@@ -5599,11 +5630,11 @@ zdb_claim_removing(spa_t *spa, zdb_cb_t *zcb)
 	spa_config_exit(spa, SCL_CONFIG, FTAG);
 }
 
-/* ARGSUSED */
 static int
 increment_indirect_mapping_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed,
     dmu_tx_t *tx)
 {
+	(void) tx;
 	zdb_cb_t *zcb = arg;
 	spa_t *spa = zcb->zcb_spa;
 	vdev_t *vd;
@@ -6215,10 +6246,10 @@ zdb_leak_fini(spa_t *spa, zdb_cb_t *zcb)
 	return (leaks);
 }
 
-/* ARGSUSED */
 static int
 count_block_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx)
 {
+	(void) tx;
 	zdb_cb_t *zcb = arg;
 
 	if (dump_opt['b'] >= 5) {
@@ -6675,11 +6706,12 @@ typedef struct zdb_ddt_entry {
 	avl_node_t	zdde_node;
 } zdb_ddt_entry_t;
 
-/* ARGSUSED */
 static int
 zdb_ddt_add_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
     const zbookmark_phys_t *zb, const dnode_phys_t *dnp, void *arg)
 {
+	(void) zilog;
+	(void) dnp;
 	avl_tree_t *t = arg;
 	avl_index_t where;
 	zdb_ddt_entry_t *zdde, zdde_search;
@@ -7302,10 +7334,10 @@ verify_checkpoint(spa_t *spa)
 	return (error);
 }
 
-/* ARGSUSED */
 static void
 mos_leaks_cb(void *arg, uint64_t start, uint64_t size)
 {
+	(void) arg;
 	for (uint64_t i = start; i < size; i++) {
 		(void) printf("MOS object %llu referenced but not allocated\n",
 		    (u_longlong_t)i);
@@ -7906,6 +7938,7 @@ static boolean_t
 zdb_decompress_block(abd_t *pabd, void *buf, void *lbuf, uint64_t lsize,
     uint64_t psize, int flags)
 {
+	(void) buf;
 	boolean_t exceeded = B_FALSE;
 	/*
 	 * We don't know how the data was compressed, so just try

@@ -592,10 +592,11 @@ compare_props(const void *a, const void *b, zfs_prop_t prop)
 		return (strcmp(propb, propa));
 }
 
-/*ARGSUSED*/
 static int
 compare_mountpoints(const void *a, const void *b, void *unused)
 {
+	(void) unused;
+
 	/*
 	 * When unsharing or unmounting filesystems, we need to do it in
 	 * mountpoint order.  This allows the user to have a mountpoint
@@ -605,10 +606,10 @@ compare_mountpoints(const void *a, const void *b, void *unused)
 	return (compare_props(a, b, ZFS_PROP_MOUNTPOINT));
 }
 
-/*ARGSUSED*/
 static int
 compare_dataset_names(const void *a, const void *b, void *unused)
 {
+	(void) unused;
 	return (compare_props(a, b, ZFS_PROP_NAME));
 }
 

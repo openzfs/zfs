@@ -476,6 +476,9 @@ get_key_material_file(libzfs_handle_t *hdl, const char *uri,
     const char *fsname, zfs_keyformat_t keyformat, boolean_t newkey,
     uint8_t **restrict buf, size_t *restrict len_out)
 {
+	(void) fsname;
+	(void) newkey;
+
 	FILE *f = NULL;
 	int ret = 0;
 
@@ -502,6 +505,9 @@ get_key_material_https(libzfs_handle_t *hdl, const char *uri,
     const char *fsname, zfs_keyformat_t keyformat, boolean_t newkey,
     uint8_t **restrict buf, size_t *restrict len_out)
 {
+	(void) fsname;
+	(void) newkey;
+
 	int ret = 0;
 	FILE *key = NULL;
 	boolean_t is_http = strncmp(uri, "http:", strlen("http:")) == 0;
@@ -769,6 +775,8 @@ derive_key(libzfs_handle_t *hdl, zfs_keyformat_t format, uint64_t iters,
     uint8_t *key_material, size_t key_material_len, uint64_t salt,
     uint8_t **key_out)
 {
+	(void) key_material_len;
+
 	int ret;
 	uint8_t *key;
 
@@ -1168,6 +1176,9 @@ int
 zfs_crypto_clone_check(libzfs_handle_t *hdl, zfs_handle_t *origin_zhp,
     char *parent_name, nvlist_t *props)
 {
+	(void) origin_zhp;
+	(void) parent_name;
+
 	char errbuf[1024];
 
 	(void) snprintf(errbuf, sizeof (errbuf),

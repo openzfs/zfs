@@ -192,7 +192,11 @@ extern int qat_checksum(uint64_t cksum, uint8_t *buf, uint64_t size,
 #define	qat_crypt_use_accel(s_len)				0
 #define	qat_checksum_use_accel(s_len)				0
 #define	qat_compress(dir, s, sl, d, dl, cl)			0
-#define	qat_crypt(dir, s, d, a, al, i, db, k, c, el)		0
+#define	qat_crypt(dir, s, d, a, al, i, db, k, c, el)			\
+	((void)sizeof (dir), (void)sizeof (s), (void)sizeof (d),  	\
+	    (void) sizeof (a), (void) sizeof (al), (void) sizeof (i),	\
+	    (void) sizeof (db), (void) sizeof (k),  (void) sizeof (c),	\
+	    (void) sizeof (el), 0)
 #define	qat_checksum(c, buf, s, z)				0
 #endif
 

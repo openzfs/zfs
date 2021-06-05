@@ -23,7 +23,6 @@
 #include <sys/dsl_pool.h>
 #include <sys/vdev_indirect_births.h>
 
-#ifdef ZFS_DEBUG
 static boolean_t
 vdev_indirect_births_verify(vdev_indirect_births_t *vib)
 {
@@ -38,7 +37,6 @@ vdev_indirect_births_verify(vdev_indirect_births_t *vib)
 
 	return (B_TRUE);
 }
-#endif
 
 uint64_t
 vdev_indirect_births_count(vdev_indirect_births_t *vib)

@@ -61,7 +61,7 @@ extern int zfs_dbgmsg_enable;
 extern void __set_error(const char *file, const char *func, int line, int err);
 extern void __zfs_dbgmsg(char *buf);
 extern void __dprintf(boolean_t dprint, const char *file, const char *func,
-    int line, const char *fmt, ...)  __attribute__((format(printf, 5, 6)));
+    int line, const char *fmt, ...) __attribute__((format(printf, 5, 6)));
 
 /*
  * Some general principles for using zfs_dbgmsg():
@@ -92,8 +92,10 @@ extern void __dprintf(boolean_t dprint, const char *file, const char *func,
 	if (zfs_flags & ZFS_DEBUG_DPRINTF) \
 		__dprintf(B_TRUE, __FILE__, __func__, __LINE__, __VA_ARGS__)
 #else
-#define	dprintf(...) ((void)0)
-#endif /* ZFS_DEBUG */
+extern int _not_dprintf(const char *, ...)
+    __attribute__((format(printf, 1, 2)));
+#define	dprintf(...) ((void)sizeof (_not_dprintf(__VA_ARGS__)))
+#endif
 
 extern void zfs_panic_recover(const char *fmt, ...);
 

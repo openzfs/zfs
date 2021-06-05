@@ -71,12 +71,13 @@ static void print_opts(raidz_test_opts_t *opts, boolean_t force)
 {
 	char *verbose;
 	switch (opts->rto_v) {
-		case 0:
+		case D_ALL:
 			verbose = "no";
 			break;
-		case 1:
+		case D_INFO:
 			verbose = "info";
 			break;
+		case D_DEBUG:
 		default:
 			verbose = "debug";
 			break;
@@ -266,6 +267,7 @@ cmp_data(raidz_test_opts_t *opts, raidz_map_t *rm)
 static int
 init_rand(void *data, size_t size, void *private)
 {
+	(void) private;
 	int i;
 	int *dst = (int *)data;
 

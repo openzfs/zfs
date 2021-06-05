@@ -33,10 +33,11 @@
 #include <sys/zfs_ctldir.h>
 #include <sys/zpl.h>
 
+#pragma GCC diagnostic error "-Wunused-parameter"
+
 /*
  * Common open routine.  Disallow any write access.
  */
-/* ARGSUSED */
 static int
 zpl_common_open(struct inode *ip, struct file *filp)
 {
@@ -99,7 +100,6 @@ zpl_root_readdir(struct file *filp, void *dirent, filldir_t filldir)
 /*
  * Get root directory attributes.
  */
-/* ARGSUSED */
 static int
 #ifdef HAVE_USERNS_IOPS_GETATTR
 zpl_root_getattr_impl(struct user_namespace *user_ns,
@@ -110,6 +110,8 @@ zpl_root_getattr_impl(const struct path *path, struct kstat *stat,
     u32 request_mask, unsigned int query_flags)
 #endif
 {
+	(void) request_mask;
+	(void) query_flags;
 	struct inode *ip = path->dentry->d_inode;
 
 #if defined(HAVE_GENERIC_FILLATTR_USERNS) && defined(HAVE_USERNS_IOPS_GETATTR)
@@ -126,6 +128,7 @@ ZPL_GETATTR_WRAPPER(zpl_root_getattr);
 static struct dentry *
 zpl_root_lookup(struct inode *dip, struct dentry *dentry, unsigned int flags)
 {
+	(void) flags;
 	cred_t *cr = CRED();
 	struct inode *ip;
 	int error;
@@ -193,11 +196,12 @@ zpl_snapdir_automount(struct path *path)
  */
 static int
 #ifdef HAVE_D_REVALIDATE_NAMEIDATA
-zpl_snapdir_revalidate(struct dentry *dentry, struct nameidata *i)
+zpl_snapdir_revalidate(struct dentry *dentry, struct nameidata *i_fl)
 #else
-zpl_snapdir_revalidate(struct dentry *dentry, unsigned int flags)
+zpl_snapdir_revalidate(struct dentry *dentry, unsigned int i_fl)
 #endif
 {
+	(void) i_fl;
 	return (!!dentry->d_inode);
 }
 
@@ -218,6 +222,7 @@ static struct dentry *
 zpl_snapdir_lookup(struct inode *dip, struct dentry *dentry,
     unsigned int flags)
 {
+	(void) flags;
 	fstrans_cookie_t cookie;
 	cred_t *cr = CRED();
 	struct inode *ip = NULL;
@@ -309,6 +314,9 @@ zpl_snapdir_rename2(struct inode *sdip, struct dentry *sdentry,
     struct inode *tdip, struct dentry *tdentry, unsigned int flags)
 #endif
 {
+#ifdef HAVE_IOPS_RENAME_USERNS
+	(void) user_ns;
+#endif
 	cred_t *cr = CRED();
 	int error;
 
@@ -356,6 +364,9 @@ zpl_snapdir_mkdir(struct user_namespace *user_ns, struct inode *dip,
 zpl_snapdir_mkdir(struct inode *dip, struct dentry *dentry, umode_t mode)
 #endif
 {
+#ifdef HAVE_IOPS_RENAME_USERNS
+	(void) user_ns;
+#endif
 	cred_t *cr = CRED();
 	vattr_t *vap;
 	struct inode *ip;
@@ -382,7 +393,6 @@ zpl_snapdir_mkdir(struct inode *dip, struct dentry *dentry, umode_t mode)
 /*
  * Get snapshot directory attributes.
  */
-/* ARGSUSED */
 static int
 #ifdef HAVE_USERNS_IOPS_GETATTR
 zpl_snapdir_getattr_impl(struct user_namespace *user_ns,
@@ -393,6 +403,8 @@ zpl_snapdir_getattr_impl(const struct path *path, struct kstat *stat,
     u32 request_mask, unsigned int query_flags)
 #endif
 {
+	(void) request_mask;
+	(void) query_flags;
 	struct inode *ip = path->dentry->d_inode;
 	zfsvfs_t *zfsvfs = ITOZSB(ip);
 
@@ -452,6 +464,7 @@ static struct dentry *
 zpl_shares_lookup(struct inode *dip, struct dentry *dentry,
     unsigned int flags)
 {
+	(void) flags;
 	fstrans_cookie_t cookie;
 	cred_t *cr = CRED();
 	struct inode *ip = NULL;
@@ -524,7 +537,6 @@ zpl_shares_readdir(struct file *filp, void *dirent, filldir_t filldir)
 }
 #endif /* !HAVE_VFS_ITERATE && !HAVE_VFS_ITERATE_SHARED */
 
-/* ARGSUSED */
 static int
 #ifdef HAVE_USERNS_IOPS_GETATTR
 zpl_shares_getattr_impl(struct user_namespace *user_ns,
@@ -535,6 +547,8 @@ zpl_shares_getattr_impl(const struct path *path, struct kstat *stat,
     u32 request_mask, unsigned int query_flags)
 #endif
 {
+	(void) request_mask;
+	(void) query_flags;
 	struct inode *ip = path->dentry->d_inode;
 	zfsvfs_t *zfsvfs = ITOZSB(ip);
 	znode_t *dzp;

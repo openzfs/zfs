@@ -42,6 +42,8 @@
 #include <sys/vdev.h>	/* For vdev_xlate() in vdev_draid_io_verify() */
 #endif
 
+#pragma GCC diagnostic error "-Wunused-parameter"
+
 /*
  * dRAID is a distributed spare implementation for ZFS. A dRAID vdev is
  * comprised of multiple raidz redundancy groups which are spread over the
@@ -1795,6 +1797,10 @@ vdev_draid_io_verify(vdev_t *vd, raidz_row_t *rr, int col)
 	ASSERT3U(rc->rc_offset, ==, physical_rs.rs_start);
 	ASSERT3U(rc->rc_offset, <, physical_rs.rs_end);
 	ASSERT3U(rc->rc_offset + rc->rc_size, ==, physical_rs.rs_end);
+#else
+	(void) vd;
+	(void) rr;
+	(void) col;
 #endif
 }
 
@@ -2154,6 +2160,8 @@ vdev_draid_config_generate(vdev_t *vd, nvlist_t *nv)
 static int
 vdev_draid_init(spa_t *spa, nvlist_t *nv, void **tsd)
 {
+	(void) spa;
+
 	uint64_t ndata, nparity, nspares, ngroups;
 	int error;
 
@@ -2382,7 +2390,6 @@ vdev_draid_spare_get_child(vdev_t *vd, uint64_t physical_offset)
 	return (cvd);
 }
 
-/* ARGSUSED */
 static void
 vdev_draid_spare_close(vdev_t *vd)
 {
@@ -2641,10 +2648,10 @@ vdev_draid_spare_io_start(zio_t *zio)
 	zio_execute(zio);
 }
 
-/* ARGSUSED */
 static void
 vdev_draid_spare_io_done(zio_t *zio)
 {
+	(void) zio;
 }
 
 /*

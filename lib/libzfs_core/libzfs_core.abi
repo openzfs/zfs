@@ -157,7 +157,6 @@
     <elf-symbol name='efi_err_check' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='efi_free' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='efi_rescan' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='efi_type' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='efi_use_whole_disk' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='efi_write' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='get_system_hostid' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -2136,9 +2135,9 @@
       <parameter type-id='type-id-26'/>
       <return type-id='type-id-17'/>
     </function-decl>
-    <function-decl name='dirname' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='type-id-37'/>
-      <return type-id='type-id-37'/>
+    <function-decl name='zfs_dirnamelen' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='type-id-16'/>
+      <return type-id='type-id-5'/>
     </function-decl>
     <function-decl name='realpath' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='type-id-16'/>
@@ -2492,7 +2491,7 @@
       <return type-id='type-id-37'/>
     </function-decl>
     <function-decl name='zfs_strip_path' mangled-name='zfs_strip_path' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_strip_path'>
-      <parameter type-id='type-id-37'/>
+      <parameter type-id='type-id-37' name='path'/>
       <return type-id='type-id-37'/>
     </function-decl>
     <function-decl name='zfs_get_enclosure_sysfs_path' mangled-name='zfs_get_enclosure_sysfs_path' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_get_enclosure_sysfs_path'>
@@ -2696,11 +2695,6 @@
       <parameter type-id='type-id-1' name='fd'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='zutil_strdup' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='type-id-180'/>
-      <parameter type-id='type-id-16'/>
-      <return type-id='type-id-37'/>
-    </function-decl>
     <function-decl name='zpool_read_label' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='type-id-1'/>
       <parameter type-id='type-id-74'/>
@@ -2723,6 +2717,11 @@
       <parameter type-id='type-id-180'/>
       <parameter type-id='type-id-26'/>
       <return type-id='type-id-73'/>
+    </function-decl>
+    <function-decl name='zutil_strdup' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='type-id-180'/>
+      <parameter type-id='type-id-16'/>
+      <return type-id='type-id-37'/>
     </function-decl>
     <class-decl name='timespec' size-in-bits='128' is-struct='yes' visibility='default' id='type-id-238'>
       <data-member access='public' layout-offset-in-bits='0'>
@@ -4507,10 +4506,6 @@
       <return type-id='type-id-5'/>
     </function-decl>
     <function-decl name='fsync' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='type-id-1'/>
-      <return type-id='type-id-1'/>
-    </function-decl>
-    <function-decl name='efi_type' mangled-name='efi_type' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='efi_type'>
       <parameter type-id='type-id-1'/>
       <return type-id='type-id-1'/>
     </function-decl>

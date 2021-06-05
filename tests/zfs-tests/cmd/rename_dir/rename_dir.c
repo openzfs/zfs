@@ -49,15 +49,14 @@
 #include <strings.h>
 
 int
-main(int argc, char *argvp[])
+main(void)
 {
 	int i = 1;
 
 	switch (fork()) {
 	case -1:
 		perror("fork");
-		exit(1);
-		break;
+		return (1);
 	case 0:
 		while (i > 0) {
 			int c_count = 0;
@@ -69,7 +68,7 @@ main(int argc, char *argvp[])
 				(void) fprintf(stderr, "c_count: %d", c_count);
 			}
 		}
-		break;
+		return (0);
 	default:
 		while (i > 0) {
 			int p_count = 0;
@@ -81,8 +80,6 @@ main(int argc, char *argvp[])
 				(void) fprintf(stderr, "p_count: %d", p_count);
 			}
 		}
-		break;
+		return (0);
 	}
-
-	return (0);
 }

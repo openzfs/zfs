@@ -67,6 +67,8 @@
 #include "zfs_prop.h"
 #include "zfs_comutil.h"
 
+#pragma GCC diagnostic error "-Wunused-parameter"
+
 /* Used by fstat(1). */
 SYSCTL_INT(_debug_sizeof, OID_AUTO, znode, CTLFLAG_RD,
 	SYSCTL_NULL_INT_PTR, sizeof (znode_t), "sizeof(znode_t)");
@@ -137,6 +139,8 @@ zfs_rangelock_cb(zfs_locked_range_t *new, void *arg)
 static int
 zfs_znode_cache_constructor(void *buf, void *arg, int kmflags)
 {
+	(void) arg;
+	(void) kmflags;
 	znode_t *zp = buf;
 
 	POINTER_INVALIDATE(&zp->z_zfsvfs);
@@ -156,10 +160,10 @@ zfs_znode_cache_constructor(void *buf, void *arg, int kmflags)
 	return (0);
 }
 
-/*ARGSUSED*/
 static void
 zfs_znode_cache_destructor(void *buf, void *arg)
 {
+	(void) arg;
 	znode_t *zp = buf;
 
 	ASSERT(!POINTER_IS_VALID(zp->z_zfsvfs));
@@ -1578,6 +1582,7 @@ zfs_trunc(znode_t *zp, uint64_t end)
 int
 zfs_freesp(znode_t *zp, uint64_t off, uint64_t len, int flag, boolean_t log)
 {
+	(void) flag;
 	dmu_tx_t *tx;
 	zfsvfs_t *zfsvfs = zp->z_zfsvfs;
 	zilog_t *zilog = zfsvfs->z_log;

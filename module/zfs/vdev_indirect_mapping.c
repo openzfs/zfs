@@ -25,7 +25,6 @@
 #include <sys/zfeature.h>
 #include <sys/dmu_objset.h>
 
-#ifdef ZFS_DEBUG
 static boolean_t
 vdev_indirect_mapping_verify(vdev_indirect_mapping_t *vim)
 {
@@ -54,7 +53,6 @@ vdev_indirect_mapping_verify(vdev_indirect_mapping_t *vim)
 
 	return (B_TRUE);
 }
-#endif
 
 uint64_t
 vdev_indirect_mapping_num_entries(vdev_indirect_mapping_t *vim)

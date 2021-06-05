@@ -62,6 +62,8 @@
 #include <linux/vfs_compat.h>
 #include "zfs_comutil.h"
 
+#pragma GCC diagnostic error "-Wunused-parameter"
+
 enum {
 	TOKEN_RO,
 	TOKEN_RW,
@@ -122,6 +124,8 @@ zfsvfs_vfs_free(vfs_t *vfsp)
 static int
 zfsvfs_parse_option(char *option, int token, substring_t *args, vfs_t *vfsp)
 {
+	(void) option;
+
 	switch (token) {
 	case TOKEN_RO:
 		vfsp->vfs_readonly = B_TRUE;
@@ -256,10 +260,10 @@ zfs_is_readonly(zfsvfs_t *zfsvfs)
 	return (!!(zfsvfs->z_sb->s_flags & SB_RDONLY));
 }
 
-/*ARGSUSED*/
 int
 zfs_sync(struct super_block *sb, int wait, cred_t *cr)
 {
+	(void) cr;
 	zfsvfs_t *zfsvfs = sb->s_fs_info;
 
 	/*
@@ -400,16 +404,22 @@ readonly_changed_cb(void *arg, uint64_t newval)
 static void
 devices_changed_cb(void *arg, uint64_t newval)
 {
+	(void) arg;
+	(void) newval;
 }
 
 static void
 setuid_changed_cb(void *arg, uint64_t newval)
 {
+	(void) arg;
+	(void) newval;
 }
 
 static void
 exec_changed_cb(void *arg, uint64_t newval)
 {
+	(void) arg;
+	(void) newval;
 }
 
 static void
@@ -1442,6 +1452,7 @@ atomic_long_t zfs_bdi_seq = ATOMIC_LONG_INIT(0);
 int
 zfs_domount(struct super_block *sb, zfs_mnt_t *zm, int silent)
 {
+	(void) silent;
 	const char *osname = zm->mnt_osname;
 	struct inode *root_inode = NULL;
 	uint64_t recordsize;
@@ -1595,7 +1606,6 @@ zfs_preumount(struct super_block *sb)
  * Called once all other unmount released tear down has occurred.
  * It is our responsibility to release any remaining infrastructure.
  */
-/*ARGSUSED*/
 int
 zfs_umount(struct super_block *sb)
 {
@@ -2123,7 +2133,6 @@ zfs_get_vfs_flag_unmounted(objset_t *os)
 	return (unmounted);
 }
 
-/*ARGSUSED*/
 void
 zfsvfs_update_fromname(const char *oldname, const char *newname)
 {
@@ -2131,6 +2140,8 @@ zfsvfs_update_fromname(const char *oldname, const char *newname)
 	 * We don't need to do anything here, the devname is always current by
 	 * virtue of zfsvfs->z_sb->s_op->show_devname.
 	 */
+	(void) oldname;
+	(void) newname;
 }
 
 void

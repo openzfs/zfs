@@ -40,6 +40,8 @@
 #include <sys/trace_zfs.h>
 #include <sys/zfs_project.h>
 
+#pragma GCC diagnostic error "-Wunused-parameter"
+
 dnode_stats_t dnode_stats = {
 	{ "dnode_hold_dbuf_hold",		KSTAT_DATA_UINT64 },
 	{ "dnode_hold_dbuf_read",		KSTAT_DATA_UINT64 },
@@ -108,10 +110,12 @@ dbuf_compare(const void *x1, const void *x2)
 	return (TREE_PCMP(d1, d2));
 }
 
-/* ARGSUSED */
 static int
 dnode_cons(void *arg, void *unused, int kmflag)
 {
+	(void) unused;
+	(void) kmflag;
+
 	dnode_t *dn = arg;
 	int i;
 
@@ -173,10 +177,11 @@ dnode_cons(void *arg, void *unused, int kmflag)
 	return (0);
 }
 
-/* ARGSUSED */
 static void
 dnode_dest(void *arg, void *unused)
 {
+	(void) unused;
+
 	int i;
 	dnode_t *dn = arg;
 
@@ -592,8 +597,9 @@ dnode_allocate(dnode_t *dn, dmu_object_type_t ot, int blocksize, int ibs,
 	ibs = MIN(MAX(ibs, DN_MIN_INDBLKSHIFT), DN_MAX_INDBLKSHIFT);
 
 	dprintf("os=%p obj=%llu txg=%llu blocksize=%d ibs=%d dn_slots=%d\n",
-	    dn->dn_objset, (u_longlong_t)dn->dn_object,
-	    (u_longlong_t)tx->tx_txg, blocksize, ibs, dn_slots);
+	    dn->dn_objset,
+	    (u_longlong_t)dn->dn_object, (u_longlong_t)tx->tx_txg,
+	    blocksize, ibs, dn_slots);
 	DNODE_STAT_BUMP(dnode_allocate);
 
 	ASSERT(dn->dn_type == DMU_OT_NONE);
@@ -888,10 +894,11 @@ dnode_move_impl(dnode_t *odn, dnode_t *ndn)
 	odn->dn_moved = (uint8_t)-1;
 }
 
-/*ARGSUSED*/
 static kmem_cbrc_t
 dnode_move(void *buf, void *newbuf, size_t size, void *arg)
 {
+	(void) size;
+	(void) arg;
 	dnode_t *odn = buf, *ndn = newbuf;
 	objset_t *os;
 	int64_t refcount;
@@ -1580,6 +1587,8 @@ dnode_hold(objset_t *os, uint64_t object, void *tag, dnode_t **dnp)
 boolean_t
 dnode_add_ref(dnode_t *dn, void *tag)
 {
+	(void) tag;
+
 	mutex_enter(&dn->dn_mtx);
 	if (zfs_refcount_is_zero(&dn->dn_holds)) {
 		mutex_exit(&dn->dn_mtx);
@@ -1600,7 +1609,9 @@ dnode_rele(dnode_t *dn, void *tag)
 void
 dnode_rele_and_unlock(dnode_t *dn, void *tag, boolean_t evicting)
 {
+	(void) tag;
 	uint64_t refs;
+
 	/* Get while the hold prevents the dnode from moving. */
 	dmu_buf_impl_t *db = dn->dn_dbuf;
 	dnode_handle_t *dnh = dn->dn_handle;
@@ -1620,7 +1631,9 @@ dnode_rele_and_unlock(dnode_t *dn, void *tag, boolean_t evicting)
 	 * other direct or indirect hold on the dnode must first drop the dnode
 	 * handle.
 	 */
+#ifdef	ZFS_DEBUG
 	ASSERT(refs > 0 || dnh->dnh_zrlock.zr_owner != curthread);
+#endif
 
 	/* NOTE: the DNODE_DNODE does not have a dn_dbuf */
 	if (refs == 0 && db != NULL) {
@@ -2254,8 +2267,7 @@ done:
 		range_tree_add(dn->dn_free_ranges[txgoff], blkid, nblks);
 	}
 	dprintf_dnode(dn, "blkid=%llu nblks=%llu txg=%llu\n",
-	    (u_longlong_t)blkid, (u_longlong_t)nblks,
-	    (u_longlong_t)tx->tx_txg);
+	    (u_longlong_t)blkid, (u_longlong_t)nblks, (u_longlong_t)tx->tx_txg);
 	mutex_exit(&dn->dn_mtx);
 
 	dbuf_free_range(dn, blkid, blkid + nblks - 1, tx);

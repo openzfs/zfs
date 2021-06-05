@@ -764,6 +764,8 @@ dsl_enforce_ds_ss_limits(dsl_dir_t *dd, zfs_prop_t prop,
 	 */
 	if (secpolicy_zfs_proc(cr, proc) == 0)
 		return (ENFORCE_NEVER);
+#else
+	(void) proc;
 #endif
 
 	if ((obj = dsl_dir_phys(dd)->dd_head_dataset_obj) == 0)
@@ -1156,8 +1158,9 @@ dsl_dir_sync(dsl_dir_t *dd, dmu_tx_t *tx)
 
 	mutex_enter(&dd->dd_lock);
 	ASSERT0(dd->dd_tempreserved[tx->tx_txg & TXG_MASK]);
-	dprintf_dd(dd, "txg=%llu towrite=%lluK\n", (u_longlong_t)tx->tx_txg,
-	    (u_longlong_t)dd->dd_space_towrite[tx->tx_txg & TXG_MASK] / 1024);
+	dprintf_dd(dd, "txg=%llu towrite=%lluK\n",
+	    (u_longlong_t)tx->tx_txg,
+	    (u_longlong_t)(dd->dd_space_towrite[tx->tx_txg & TXG_MASK] / 1024));
 	dd->dd_space_towrite[tx->tx_txg & TXG_MASK] = 0;
 	mutex_exit(&dd->dd_lock);
 
@@ -1346,7 +1349,9 @@ top_of_function:
 		    "quota=%lluK tr=%lluK err=%d\n",
 		    (u_longlong_t)used_on_disk>>10,
 		    (u_longlong_t)est_inflight>>10,
-		    (u_longlong_t)quota>>10, (u_longlong_t)asize>>10, retval);
+		    (u_longlong_t)quota>>10,
+		    (u_longlong_t)asize>>10,
+		    retval);
 		mutex_exit(&dd->dd_lock);
 		DMU_TX_STAT_BUMP(dmu_tx_quota);
 		return (SET_ERROR(retval));
@@ -1850,10 +1855,11 @@ typedef struct dsl_valid_rename_arg {
 	int nest_delta;
 } dsl_valid_rename_arg_t;
 
-/* ARGSUSED */
 static int
 dsl_valid_rename(dsl_pool_t *dp, dsl_dataset_t *ds, void *arg)
 {
+	(void) dp;
+
 	dsl_valid_rename_arg_t *dvra = arg;
 	char namebuf[ZFS_MAX_DATASET_NAME_LEN];
 
@@ -2347,9 +2353,11 @@ dsl_dir_activity_in_progress(dsl_dir_t *dd, dsl_dataset_t *ds,
 		break;
 #else
 		/*
-		 * The delete queue is ZPL specific, and libzpool doesn't have
-		 * it. It doesn't make sense to wait for it.
+		 * The delete queue is ZPL-specific,
+		 * and libzpool doesn't have it.
+		 * It doesn't make sense to wait for it.
 		 */
+		(void) ds;
 		*in_progress = B_FALSE;
 		break;
 #endif

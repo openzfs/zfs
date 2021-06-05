@@ -69,6 +69,8 @@
 
 #include "zfs_comutil.h"
 
+#pragma GCC diagnostic error "-Wunused-parameter"
+
 #ifndef	MNTK_VMSETSIZE_BUG
 #define	MNTK_VMSETSIZE_BUG	0
 #endif
@@ -278,6 +280,9 @@ zfs_quotactl(vfs_t *vfsp, int cmds, uid_t id, void *arg, bool *mp_busy)
 zfs_quotactl(vfs_t *vfsp, int cmds, uid_t id, void *arg)
 #endif
 {
+#if __FreeBSD_version >= 1400018
+	(void) mp_busy;
+#endif
 	zfsvfs_t *zfsvfs = vfsp->vfs_data;
 	struct thread *td;
 	int cmd, type, error = 0;
@@ -399,7 +404,6 @@ zfs_is_readonly(zfsvfs_t *zfsvfs)
 	return (!!(zfsvfs->z_vfs->vfs_flag & VFS_RDONLY));
 }
 
-/*ARGSUSED*/
 static int
 zfs_sync(vfs_t *vfsp, int waitfor)
 {
@@ -1312,7 +1316,6 @@ fetch_osname_options(char *name, bool *checkpointrewind)
 	}
 }
 
-/*ARGSUSED*/
 static int
 zfs_mount(vfs_t *vfsp)
 {
@@ -1643,7 +1646,6 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 	return (0);
 }
 
-/*ARGSUSED*/
 static int
 zfs_umount(vfs_t *vfsp, int fflag)
 {
@@ -1874,9 +1876,9 @@ zfs_fhtovp(vfs_t *vfsp, fid_t *fidp, int flags, vnode_t **vpp)
 
 	gen_mask = -1ULL >> (64 - 8 * i);
 
-	dprintf("getting %llu [%llu mask %llx]\n", (u_longlong_t)object,
-	    (u_longlong_t)fid_gen,
-	    (u_longlong_t)gen_mask);
+	dprintf("getting %llu [%llu mask %llx]\n",
+	    (u_longlong_t)object,
+	    (u_longlong_t)fid_gen, (u_longlong_t)gen_mask);
 	if ((err = zfs_zget(zfsvfs, object, &zp))) {
 		ZFS_EXIT(zfsvfs);
 		return (err);

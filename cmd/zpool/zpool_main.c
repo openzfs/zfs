@@ -867,8 +867,7 @@ add_prop_list(const char *propname, char *propval, nvlist_t **props,
  * Set a default property pair (name, string-value) in a property nvlist
  */
 static int
-add_prop_list_default(const char *propname, char *propval, nvlist_t **props,
-    boolean_t poolprop)
+add_prop_list_default(const char *propname, char *propval, nvlist_t **props)
 {
 	char *pval;
 
@@ -1428,7 +1427,7 @@ zpool_do_create(int argc, char **argv)
 			    ZPOOL_PROP_ALTROOT), optarg, &props, B_TRUE))
 				goto errout;
 			if (add_prop_list_default(zpool_prop_to_name(
-			    ZPOOL_PROP_CACHEFILE), "none", &props, B_TRUE))
+			    ZPOOL_PROP_CACHEFILE), "none", &props))
 				goto errout;
 			break;
 		case 'm':
@@ -1506,7 +1505,7 @@ zpool_do_create(int argc, char **argv)
 			    ZPOOL_PROP_TNAME), optarg, &props, B_TRUE))
 				goto errout;
 			if (add_prop_list_default(zpool_prop_to_name(
-			    ZPOOL_PROP_CACHEFILE), "none", &props, B_TRUE))
+			    ZPOOL_PROP_CACHEFILE), "none", &props))
 				goto errout;
 			tname = optarg;
 			break;
@@ -3539,7 +3538,7 @@ zpool_do_import(int argc, char **argv)
 			    ZPOOL_PROP_ALTROOT), optarg, &props, B_TRUE))
 				goto error;
 			if (add_prop_list_default(zpool_prop_to_name(
-			    ZPOOL_PROP_CACHEFILE), "none", &props, B_TRUE))
+			    ZPOOL_PROP_CACHEFILE), "none", &props))
 				goto error;
 			break;
 		case 's':
@@ -3548,7 +3547,7 @@ zpool_do_import(int argc, char **argv)
 		case 't':
 			flags |= ZFS_IMPORT_TEMP_NAME;
 			if (add_prop_list_default(zpool_prop_to_name(
-			    ZPOOL_PROP_CACHEFILE), "none", &props, B_TRUE))
+			    ZPOOL_PROP_CACHEFILE), "none", &props))
 				goto error;
 			break;
 
@@ -4487,8 +4486,7 @@ single_histo_average(uint64_t *histo, unsigned int buckets)
 }
 
 static void
-print_iostat_queues(iostat_cbdata_t *cb, nvlist_t *oldnv,
-    nvlist_t *newnv)
+print_iostat_queues(iostat_cbdata_t *cb, nvlist_t *newnv)
 {
 	int i;
 	uint64_t val;
@@ -4710,7 +4708,7 @@ print_vdev_stats(zpool_handle_t *zhp, const char *name, nvlist_t *oldnv,
 	if (cb->cb_flags & IOS_LATENCY_M)
 		print_iostat_latency(cb, oldnv, newnv);
 	if (cb->cb_flags & IOS_QUEUES_M)
-		print_iostat_queues(cb, oldnv, newnv);
+		print_iostat_queues(cb, newnv);
 	if (cb->cb_flags & IOS_ANYHISTO_M) {
 		printf("\n");
 		print_iostat_histos(cb, oldnv, newnv, scale, name);
@@ -6498,7 +6496,6 @@ zpool_do_attach_or_replace(int argc, char **argv, int replacing)
  *
  * Replace <device> with <new_device>.
  */
-/* ARGSUSED */
 int
 zpool_do_replace(int argc, char **argv)
 {
@@ -6534,7 +6531,6 @@ zpool_do_attach(int argc, char **argv)
  * is the last device in the mirror, or if the DTLs indicate that this device
  * has the only valid copy of some data.
  */
-/* ARGSUSED */
 int
 zpool_do_detach(int argc, char **argv)
 {
@@ -6841,7 +6837,6 @@ zpool_do_online(int argc, char **argv)
  *	-t	Only take the device off-line temporarily.  The offline/faulted
  *		state will not be persistent across reboots.
  */
-/* ARGSUSED */
 int
 zpool_do_offline(int argc, char **argv)
 {
@@ -8985,7 +8980,6 @@ upgrade_list_disabled_cb(zpool_handle_t *zhp, void *arg)
 	return (0);
 }
 
-/* ARGSUSED */
 static int
 upgrade_one(zpool_handle_t *zhp, void *data)
 {
@@ -9750,7 +9744,7 @@ zpool_do_events_next(ev_opts_t *opts)
 }
 
 static int
-zpool_do_events_clear(ev_opts_t *opts)
+zpool_do_events_clear(void)
 {
 	int count, ret;
 
@@ -9817,7 +9811,7 @@ zpool_do_events(int argc, char **argv)
 	}
 
 	if (opts.clear)
-		ret = zpool_do_events_clear(&opts);
+		ret = zpool_do_events_clear();
 	else
 		ret = zpool_do_events_next(&opts);
 
@@ -10579,6 +10573,9 @@ find_command_idx(char *command, int *idx)
 static int
 zpool_do_version(int argc, char **argv)
 {
+	(void) argc;
+	(void) argv;
+
 	if (zfs_version_print() == -1)
 		return (1);
 

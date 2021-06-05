@@ -151,14 +151,37 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_NO_UNUSED_BUT_SET_VARIABLE], [
 
 	AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [])], [
 		NO_UNUSED_BUT_SET_VARIABLE=-Wno-unused-but-set-variable
+		UNUSED_BUT_SET_VARIABLE=-Wunused-but-set-variable
 		AC_MSG_RESULT([yes])
 	], [
 		NO_UNUSED_BUT_SET_VARIABLE=
+		UNUSED_BUT_SET_VARIABLE=
 		AC_MSG_RESULT([no])
 	])
 
 	CFLAGS="$saved_flags"
-	AC_SUBST([NO_UNUSED_BUT_SET_VARIABLE])
+	AC_SUBST([UNUSED_BUT_SET_VARIABLE])
+])
+
+dnl #
+dnl # Check if gcc supports -Wunused-parameter option.
+dnl #
+AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_UNUSED_PARAMETER], [
+	AC_MSG_CHECKING([whether $CC supports -Wunused-parameter])
+
+	saved_flags="$CFLAGS"
+	CFLAGS="$CFLAGS -Werror -Wunused-parameter"
+
+	AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [])], [
+		UNUSED_PARAMETER=-Wunused-parameter
+		AC_MSG_RESULT([yes])
+	], [
+		UNUSED_PARAMETER=
+		AC_MSG_RESULT([no])
+	])
+
+	CFLAGS="$saved_flags"
+	AC_SUBST([UNUSED_PARAMETER])
 ])
 
 dnl #

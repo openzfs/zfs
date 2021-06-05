@@ -476,10 +476,10 @@ lzc_exists(const char *dataset)
  * It was added to preserve the function signature in case it is
  * needed in the future.
  */
-/*ARGSUSED*/
 int
 lzc_sync(const char *pool_name, nvlist_t *innvl, nvlist_t **outnvl)
 {
+	(void) outnvl;
 	return (lzc_ioctl(ZFS_IOC_POOL_SYNC, pool_name, innvl, NULL));
 }
 
@@ -1020,7 +1020,7 @@ lzc_receive_with_header(const char *snapname, nvlist_t *props,
  * The 'errflags' value will contain zprop_errflags_t flags which are
  * used to describe any failures.
  *
- * The 'action_handle' and 'cleanup_fd' are no longer used, and are ignored.
+ * 'action_handle' and 'cleanup_fd' are no longer used, and are ignored.
  *
  * The 'errors' nvlist contains an entry for each unapplied received
  * property.  Callers are responsible for freeing this nvlist.
@@ -1032,6 +1032,9 @@ lzc_receive_one(const char *snapname, nvlist_t *props,
     uint64_t *read_bytes, uint64_t *errflags, uint64_t *action_handle,
     nvlist_t **errors)
 {
+	(void) cleanup_fd;
+	(void) action_handle;
+
 	return (recv_impl(snapname, props, NULL, NULL, 0, origin, force,
 	    resumable, raw, input_fd, begin_record,
 	    read_bytes, errflags, errors));
@@ -1053,6 +1056,9 @@ lzc_receive_with_cmdprops(const char *snapname, nvlist_t *props,
     uint64_t *read_bytes, uint64_t *errflags, uint64_t *action_handle,
     nvlist_t **errors)
 {
+	(void) cleanup_fd;
+	(void) action_handle;
+
 	return (recv_impl(snapname, props, cmdprops, wkeydata, wkeylen, origin,
 	    force, resumable, raw, input_fd, begin_record,
 	    read_bytes, errflags, errors));

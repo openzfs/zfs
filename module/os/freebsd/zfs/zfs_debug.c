@@ -57,7 +57,6 @@ static int
 zfs_dbgmsg_headers(char *buf, size_t size)
 {
 	(void) snprintf(buf, size, "%-12s %-8s\n", "timestamp", "message");
-
 	return (0);
 }
 
@@ -68,7 +67,6 @@ zfs_dbgmsg_data(char *buf, size_t size, void *data)
 
 	(void) snprintf(buf, size, "%-12llu %-s\n",
 	    (u_longlong_t)zdm->zdm_timestamp, zdm->zdm_msg);
-
 	return (0);
 }
 
@@ -181,7 +179,7 @@ __set_error(const char *file, const char *func, int line, int err)
 	 * $ echo 512 >/sys/module/zfs/parameters/zfs_flags
 	 */
 	if (zfs_flags & ZFS_DEBUG_SET_ERROR)
-		__dprintf(B_FALSE, file, func, line, "error %lu", (ulong_t)err);
+		__dprintf(B_FALSE, file, func, line, "error %u", err);
 }
 
 #ifdef _KERNEL

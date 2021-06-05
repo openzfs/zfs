@@ -845,11 +845,6 @@ This setting does not influence debug prints due to
 .It Sy zfs_dbgmsg_maxsize Ns = Ns Sy 4194304 Ns B Po 4MB Pc Pq int
 Maximum size of the internal ZFS debug log.
 .
-.It Sy zfs_dbuf_state_index Ns = Ns Sy 0 Pq int
-Historically used for controlling what reporting was available under
-.Pa /proc/spl/kstat/zfs .
-No effect.
-.
 .It Sy zfs_deadman_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
 When a pool sync operation takes longer than
 .Sy zfs_deadman_synctime_ms ,

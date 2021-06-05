@@ -83,10 +83,11 @@ gzip_compress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
 	return ((size_t)dstlen);
 }
 
-/*ARGSUSED*/
 int
 gzip_decompress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
 {
+	(void) n;
+
 	zlen_t dstlen = d_len;
 
 	ASSERT(d_len >= s_len);
@@ -96,7 +97,7 @@ gzip_decompress(void *s_start, void *d_start, size_t s_len, size_t d_len, int n)
 		if (qat_compress(QAT_DECOMPRESS, s_start, s_len,
 		    d_start, d_len, &dstlen) == CPA_STATUS_SUCCESS)
 			return (0);
-		/* if hardware de-compress fail, do it again with software */
+		/* if hardware de-compress fails, try it again with software */
 	}
 
 	if (uncompress_func(d_start, &dstlen, s_start, s_len) != Z_OK)

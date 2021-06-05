@@ -5,6 +5,9 @@ VPATH = $(top_srcdir)/module/zstd
 # -fno-tree-vectorize is set for gcc in zstd/common/compiler.h
 # Set it for other compilers, too.
 AM_CFLAGS += -fno-tree-vectorize
+if !WITH_DEBUG
+AM_CFLAGS = -D"assert(x)=((void)sizeof (x))"
+endif
 
 noinst_LTLIBRARIES = libzstd.la
 

@@ -52,6 +52,8 @@
 #include <sys/dsl_crypt.h>
 #include <cityhash.h>
 
+#pragma GCC diagnostic error "-Wunused-parameter"
+
 /*
  * ==========================================================================
  * I/O type descriptions
@@ -369,6 +371,7 @@ zio_data_buf_free(void *buf, size_t size)
 static void
 zio_abd_free(void *abd, size_t size)
 {
+	(void) size;
 	abd_free((abd_t *)abd);
 }
 
@@ -925,6 +928,7 @@ static int
 zfs_blkptr_verify_log(spa_t *spa, const blkptr_t *bp,
     enum blk_verify_flag blk_verify, const char *fmt, ...)
 {
+	(void) bp;
 	va_list adx;
 	char buf[256];
 
@@ -1073,6 +1077,8 @@ zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp, boolean_t config_held,
 boolean_t
 zfs_dva_valid(spa_t *spa, const dva_t *dva, const blkptr_t *bp)
 {
+	(void) bp;
+
 	uint64_t vdevid = DVA_GET_VDEV(dva);
 
 	if (vdevid >= spa->spa_root_vdev->vdev_children)
@@ -2132,6 +2138,8 @@ zio_execute_stack_check(zio_t *zio)
 	    !zio_taskq_member(zio, ZIO_TASKQ_ISSUE) &&
 	    !zio_taskq_member(zio, ZIO_TASKQ_ISSUE_HIGH))
 		return (B_TRUE);
+#else
+	(void) zio;
 #endif /* HAVE_LARGE_STACKS */
 
 	return (B_FALSE);
@@ -2543,11 +2551,14 @@ zio_rewrite_gang(zio_t *pio, blkptr_t *bp, zio_gang_node_t *gn, abd_t *data,
 	return (zio);
 }
 
-/* ARGSUSED */
 static zio_t *
 zio_free_gang(zio_t *pio, blkptr_t *bp, zio_gang_node_t *gn, abd_t *data,
     uint64_t offset)
 {
+	(void) gn;
+	(void) data;
+	(void) offset;
+
 	zio_t *zio = zio_free_sync(pio, pio->io_spa, pio->io_txg, bp,
 	    ZIO_GANG_CHILD_FLAGS(pio));
 	if (zio == NULL) {
@@ -2557,11 +2568,13 @@ zio_free_gang(zio_t *pio, blkptr_t *bp, zio_gang_node_t *gn, abd_t *data,
 	return (zio);
 }
 
-/* ARGSUSED */
 static zio_t *
 zio_claim_gang(zio_t *pio, blkptr_t *bp, zio_gang_node_t *gn, abd_t *data,
     uint64_t offset)
 {
+	(void) gn;
+	(void) data;
+	(void) offset;
 	return (zio_claim(pio, pio->io_spa, pio->io_txg, bp,
 	    NULL, NULL, ZIO_GANG_CHILD_FLAGS(pio)));
 }
@@ -3539,8 +3552,8 @@ zio_dva_allocate(zio_t *zio)
 		if (zfs_flags & ZFS_DEBUG_METASLAB_ALLOC) {
 			zfs_dbgmsg("%s: metaslab allocation failure, "
 			    "trying normal class: zio %px, size %llu, error %d",
-			    spa_name(spa), zio, (u_longlong_t)zio->io_size,
-			    error);
+			    spa_name(spa), zio,
+			    (u_longlong_t)zio->io_size, error);
 		}
 
 		error = metaslab_alloc(spa, mc, zio->io_size, bp,
@@ -3552,8 +3565,8 @@ zio_dva_allocate(zio_t *zio)
 		if (zfs_flags & ZFS_DEBUG_METASLAB_ALLOC) {
 			zfs_dbgmsg("%s: metaslab allocation failure, "
 			    "trying ganging: zio %px, size %llu, error %d",
-			    spa_name(spa), zio, (u_longlong_t)zio->io_size,
-			    error);
+			    spa_name(spa), zio,
+			    (u_longlong_t)zio->io_size, error);
 		}
 		return (zio_write_gang_block(zio, mc));
 	}
@@ -3562,8 +3575,8 @@ zio_dva_allocate(zio_t *zio)
 		    (zfs_flags & ZFS_DEBUG_METASLAB_ALLOC)) {
 			zfs_dbgmsg("%s: metaslab allocation failure: zio %px, "
 			    "size %llu, error %d",
-			    spa_name(spa), zio, (u_longlong_t)zio->io_size,
-			    error);
+			    spa_name(spa), zio,
+			    (u_longlong_t)zio->io_size, error);
 		}
 		zio->io_error = error;
 	}
@@ -3689,8 +3702,8 @@ zio_alloc_zil(spa_t *spa, objset_t *os, uint64_t txg, blkptr_t *new_bp,
 		}
 	} else {
 		zfs_dbgmsg("%s: zil block allocation failure: "
-		    "size %llu, error %d", spa_name(spa), (u_longlong_t)size,
-		    error);
+		    "size %llu, error %d",
+		    spa_name(spa), (u_longlong_t)size, error);
 	}
 
 	return (error);
@@ -3952,7 +3965,6 @@ zio_vsd_default_cksum_finish(zio_cksum_report_t *zcr,
 	zfs_ereport_finish_checksum(zcr, good_buf, zcr->zcr_cbdata, B_FALSE);
 }
 
-/*ARGSUSED*/
 void
 zio_vsd_default_cksum_report(zio_t *zio, zio_cksum_report_t *zcr)
 {

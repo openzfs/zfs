@@ -136,8 +136,8 @@ free_blocks(dnode_t *dn, blkptr_t *bp, int num, dmu_tx_t *tx)
 	dsl_dataset_t *ds = dn->dn_objset->os_dsl_dataset;
 	uint64_t bytesfreed = 0;
 
-	dprintf("ds=%p obj=%llx num=%d\n", ds, (u_longlong_t)dn->dn_object,
-	    num);
+	dprintf("ds=%p obj=%llx num=%d\n",
+	    ds, (u_longlong_t)dn->dn_object, num);
 
 	for (int i = 0; i < num; i++, bp++) {
 		if (BP_IS_HOLE(bp))

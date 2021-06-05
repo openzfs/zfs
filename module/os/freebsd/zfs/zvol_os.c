@@ -99,6 +99,8 @@
 
 #include "zfs_namecheck.h"
 
+#pragma GCC diagnostic error "-Wunused-parameter"
+
 #define	ZVOL_DUMPSIZE		"dumpsize"
 
 #ifdef ZVOL_LOCK_DEBUG
@@ -203,7 +205,6 @@ static int zvol_geom_bio_getattr(struct bio *bp);
  * GEOM mode implementation
  */
 
-/*ARGSUSED*/
 static int
 zvol_geom_open(struct g_provider *pp, int flag, int count)
 {
@@ -324,10 +325,10 @@ out_locked:
 	return (err);
 }
 
-/*ARGSUSED*/
 static int
 zvol_geom_close(struct g_provider *pp, int flag, int count)
 {
+	(void) flag;
 	zvol_state_t *zv;
 	boolean_t drop_suspend = B_TRUE;
 	int new_open_count;
@@ -748,6 +749,7 @@ out:
 static int
 zvol_cdev_read(struct cdev *dev, struct uio *uio_s, int ioflag)
 {
+	(void) ioflag;
 	zvol_state_t *zv;
 	uint64_t volsize;
 	zfs_locked_range_t *lr;
@@ -855,6 +857,8 @@ zvol_cdev_write(struct cdev *dev, struct uio *uio_s, int ioflag)
 static int
 zvol_cdev_open(struct cdev *dev, int flags, int fmt, struct thread *td)
 {
+	(void) fmt;
+	(void) td;
 	zvol_state_t *zv;
 	struct zvol_state_dev *zsd;
 	int err = 0;
@@ -959,6 +963,8 @@ out_locked:
 static int
 zvol_cdev_close(struct cdev *dev, int flags, int fmt, struct thread *td)
 {
+	(void) fmt;
+	(void) td;
 	zvol_state_t *zv;
 	struct zvol_state_dev *zsd;
 	boolean_t drop_suspend = B_TRUE;
@@ -1032,6 +1038,8 @@ static int
 zvol_cdev_ioctl(struct cdev *dev, ulong_t cmd, caddr_t data,
     int fflag, struct thread *td)
 {
+	(void) fflag;
+	(void) td;
 	zvol_state_t *zv;
 	zfs_locked_range_t *lr;
 	off_t offset, length;
@@ -1493,12 +1501,16 @@ zvol_update_volsize(zvol_state_t *zv, uint64_t volsize)
 static void
 zvol_set_disk_ro_impl(zvol_state_t *zv, int flags)
 {
+	(void) zv;
+	(void) flags;
 	// XXX? set_disk_ro(zv->zv_zso->zvo_disk, flags);
 }
 
 static void
 zvol_set_capacity_impl(zvol_state_t *zv, uint64_t capacity)
 {
+	(void) zv;
+	(void) capacity;
 	// XXX? set_capacity(zv->zv_zso->zvo_disk, capacity);
 }
 

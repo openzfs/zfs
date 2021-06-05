@@ -91,6 +91,8 @@
 #include <sys/extattr.h>
 #include <sys/priv.h>
 
+#pragma GCC diagnostic error "-Wunused-parameter"
+
 #ifndef VN_OPEN_INVFS
 #define	VN_OPEN_INVFS	0x0
 #endif
@@ -215,10 +217,10 @@ VFS_SMR_DECLARE;
  *	return (error);			// done, report error
  */
 
-/* ARGSUSED */
 static int
 zfs_open(vnode_t **vpp, int flag, cred_t *cr)
 {
+	(void) cr;
 	znode_t	*zp = VTOZ(*vpp);
 	zfsvfs_t *zfsvfs = zp->z_zfsvfs;
 
@@ -239,10 +241,11 @@ zfs_open(vnode_t **vpp, int flag, cred_t *cr)
 	return (0);
 }
 
-/* ARGSUSED */
 static int
 zfs_close(vnode_t *vp, int flag, int count, offset_t offset, cred_t *cr)
 {
+	(void) offset;
+	(void) cr;
 	znode_t	*zp = VTOZ(vp);
 	zfsvfs_t *zfsvfs = zp->z_zfsvfs;
 
@@ -257,11 +260,13 @@ zfs_close(vnode_t *vp, int flag, int count, offset_t offset, cred_t *cr)
 	return (0);
 }
 
-/* ARGSUSED */
 static int
 zfs_ioctl(vnode_t *vp, ulong_t com, intptr_t data, int flag, cred_t *cred,
     int *rvalp)
 {
+	(void) flag;
+	(void) cred;
+	(void) rvalp;
 	loff_t off;
 	int error;
 
@@ -668,6 +673,7 @@ zfs_zrele_async(znode_t *zp)
 static int
 zfs_dd_callback(struct mount *mp, void *arg, int lkflags, struct vnode **vpp)
 {
+	(void) mp;
 	int error;
 
 	*vpp = arg;
@@ -758,12 +764,12 @@ zfs_lookup_lock(vnode_t *dvp, vnode_t *vp, const char *name, int lkflags)
  * Timestamps:
  *	NA
  */
-/* ARGSUSED */
 static int
 zfs_lookup(vnode_t *dvp, const char *nm, vnode_t **vpp,
     struct componentname *cnp, int nameiop, cred_t *cr, kthread_t *td,
     int flags, boolean_t cached)
 {
+	(void) td;
 	znode_t *zdp = VTOZ(dvp);
 	znode_t *zp;
 	zfsvfs_t *zfsvfs = zdp->z_zfsvfs;
@@ -1029,11 +1035,13 @@ zfs_lookup(vnode_t *dvp, const char *nm, vnode_t **vpp,
  *	 vp - ctime|mtime always, atime if new
  */
 
-/* ARGSUSED */
 int
 zfs_create(znode_t *dzp, const char *name, vattr_t *vap, int excl, int mode,
     znode_t **zpp, cred_t *cr, int flag, vsecattr_t *vsecp)
 {
+	(void) excl;
+	(void) mode;
+	(void) flag;
 	znode_t		*zp;
 	zfsvfs_t	*zfsvfs = dzp->z_zfsvfs;
 	zilog_t		*zilog;
@@ -1196,7 +1204,6 @@ out:
  *	 vp - ctime (if nlink > 0)
  */
 
-/*ARGSUSED*/
 static int
 zfs_remove_(vnode_t *dvp, vnode_t *vp, const char *name, cred_t *cr)
 {
@@ -1351,6 +1358,7 @@ zfs_lookup_internal(znode_t *dzp, const char *name, vnode_t **vpp,
 int
 zfs_remove(znode_t *dzp, const char *name, cred_t *cr, int flags)
 {
+	(void) flags;
 	vnode_t *vp;
 	int error;
 	struct componentname cn;
@@ -1382,11 +1390,12 @@ zfs_remove(znode_t *dzp, const char *name, cred_t *cr, int flags)
  *	dvp - ctime|mtime updated
  *	 vp - ctime|mtime|atime updated
  */
-/*ARGSUSED*/
 int
 zfs_mkdir(znode_t *dzp, const char *dirname, vattr_t *vap, znode_t **zpp,
     cred_t *cr, int flags, vsecattr_t *vsecp)
 {
+	(void) flags;
+	(void) vsecp;
 	znode_t		*zp;
 	zfsvfs_t	*zfsvfs = dzp->z_zfsvfs;
 	zilog_t		*zilog;
@@ -1559,7 +1568,6 @@ cache_vop_rmdir(struct vnode *dvp, struct vnode *vp)
  * Timestamps:
  *	dvp - ctime|mtime updated
  */
-/*ARGSUSED*/
 static int
 zfs_rmdir_(vnode_t *dvp, vnode_t *vp, const char *name, cred_t *cr)
 {
@@ -1623,6 +1631,8 @@ out:
 int
 zfs_rmdir(znode_t *dzp, const char *name, znode_t *cwd, cred_t *cr, int flags)
 {
+	(void) cwd;
+	(void) flags;
 	struct componentname cn;
 	vnode_t *vp;
 	int error;
@@ -1660,7 +1670,6 @@ zfs_rmdir(znode_t *dzp, const char *name, znode_t *cwd, cred_t *cr, int flags)
  * We use 0 for '.', and 1 for '..'.  If this is the root of the filesystem,
  * we use the offset 2 for the '.zfs' directory.
  */
-/* ARGSUSED */
 static int
 zfs_readdir(vnode_t *vp, zfs_uio_t *uio, cred_t *cr, int *eofp,
     int *ncookies, ulong_t **cookies)
@@ -1986,7 +1995,6 @@ update:
  *
  *	RETURN:	0 (always succeeds).
  */
-/* ARGSUSED */
 static int
 zfs_getattr(vnode_t *vp, vattr_t *vap, int flags, cred_t *cr)
 {
@@ -2200,7 +2208,6 @@ zfs_getattr(vnode_t *vp, vattr_t *vap, int flags, cred_t *cr)
  * Timestamps:
  *	vp - ctime updated, mtime updated if size changed.
  */
-/* ARGSUSED */
 int
 zfs_setattr(znode_t *zp, vattr_t *vap, int flags, cred_t *cr)
 {
@@ -3155,7 +3162,9 @@ static void
 cache_vop_rename(struct vnode *fdvp, struct vnode *fvp, struct vnode *tdvp,
     struct vnode *tvp, struct componentname *fcnp, struct componentname *tcnp)
 {
-
+	(void) fdvp;
+	(void) fcnp;
+	(void) tcnp;
 	cache_purge(fvp);
 	if (tvp != NULL)
 		cache_purge(tvp);
@@ -3180,12 +3189,12 @@ cache_vop_rename(struct vnode *fdvp, struct vnode *fvp, struct vnode *tdvp,
  * Timestamps:
  *	sdvp,tdvp - ctime|mtime updated
  */
-/*ARGSUSED*/
 static int
 zfs_rename_(vnode_t *sdvp, vnode_t **svpp, struct componentname *scnp,
     vnode_t *tdvp, vnode_t **tvpp, struct componentname *tcnp,
     cred_t *cr, int log)
 {
+	(void) log;
 	zfsvfs_t	*zfsvfs;
 	znode_t		*sdzp, *tdzp, *szp, *tzp;
 	zilog_t		*zilog = NULL;
@@ -3457,6 +3466,7 @@ int
 zfs_rename(znode_t *sdzp, const char *sname, znode_t *tdzp, const char *tname,
     cred_t *cr, int flags)
 {
+	(void) flags;
 	struct componentname scn, tcn;
 	vnode_t *sdvp, *tdvp;
 	vnode_t *svp, *tvp;
@@ -3506,11 +3516,11 @@ fail:
  * Timestamps:
  *	dvp - ctime|mtime updated
  */
-/*ARGSUSED*/
 int
 zfs_symlink(znode_t *dzp, const char *name, vattr_t *vap,
     const char *link, znode_t **zpp, cred_t *cr, int flags)
 {
+	(void) flags;
 	znode_t		*zp;
 	dmu_tx_t	*tx;
 	zfsvfs_t	*zfsvfs = dzp->z_zfsvfs;
@@ -3645,10 +3655,11 @@ zfs_symlink(znode_t *dzp, const char *name, vattr_t *vap,
  * Timestamps:
  *	vp - atime updated
  */
-/* ARGSUSED */
 static int
 zfs_readlink(vnode_t *vp, zfs_uio_t *uio, cred_t *cr, caller_context_t *ct)
 {
+	(void) cr;
+	(void) ct;
 	znode_t		*zp = VTOZ(vp);
 	zfsvfs_t	*zfsvfs = zp->z_zfsvfs;
 	int		error;
@@ -3682,11 +3693,11 @@ zfs_readlink(vnode_t *vp, zfs_uio_t *uio, cred_t *cr, caller_context_t *ct)
  *	tdvp - ctime|mtime updated
  *	 svp - ctime updated
  */
-/* ARGSUSED */
 int
 zfs_link(znode_t *tdzp, znode_t *szp, const char *name, cred_t *cr,
     int flags)
 {
+	(void) flags;
 	znode_t		*tzp;
 	zfsvfs_t	*zfsvfs = tdzp->z_zfsvfs;
 	zilog_t		*zilog;
@@ -3831,11 +3842,11 @@ zfs_link(znode_t *tdzp, znode_t *szp, const char *name, cred_t *cr,
  * Timestamps:
  *	ip - ctime|mtime updated
  */
-/* ARGSUSED */
 int
 zfs_space(znode_t *zp, int cmd, flock64_t *bfp, int flag,
     offset_t offset, cred_t *cr)
 {
+	(void) offset;
 	zfsvfs_t	*zfsvfs = ZTOZSB(zp);
 	uint64_t	off, len;
 	int		error;
@@ -3882,10 +3893,11 @@ zfs_space(znode_t *zp, int cmd, flock64_t *bfp, int flag,
 	return (error);
 }
 
-/*ARGSUSED*/
 static void
 zfs_inactive(vnode_t *vp, cred_t *cr, caller_context_t *ct)
 {
+	(void) cr;
+	(void) ct;
 	znode_t	*zp = VTOZ(vp);
 	zfsvfs_t *zfsvfs = zp->z_zfsvfs;
 	int error;
@@ -3932,10 +3944,10 @@ zfs_inactive(vnode_t *vp, cred_t *cr, caller_context_t *ct)
 CTASSERT(sizeof (struct zfid_short) <= sizeof (struct fid));
 CTASSERT(sizeof (struct zfid_long) <= sizeof (struct fid));
 
-/*ARGSUSED*/
 static int
 zfs_fid(vnode_t *vp, fid_t *fidp, caller_context_t *ct)
 {
+	(void) ct;
 	znode_t		*zp = VTOZ(vp);
 	zfsvfs_t	*zfsvfs = zp->z_zfsvfs;
 	uint32_t	gen;
@@ -3993,6 +4005,8 @@ static int
 zfs_pathconf(vnode_t *vp, int cmd, ulong_t *valp, cred_t *cr,
     caller_context_t *ct)
 {
+	(void) cr;
+	(void) ct;
 	znode_t *zp;
 	zfsvfs_t *zfsvfs;
 
@@ -5973,7 +5987,7 @@ struct vop_aclcheck_args {
 static int
 zfs_freebsd_aclcheck(struct vop_aclcheck_args *ap)
 {
-
+	(void) ap;
 	return (EOPNOTSUPP);
 }
 

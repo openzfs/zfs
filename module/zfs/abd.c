@@ -889,10 +889,10 @@ abd_copy_from_buf_off(abd_t *abd, const void *buf, size_t off, size_t size)
 	    &ba_ptr);
 }
 
-/*ARGSUSED*/
 static int
 abd_zero_off_cb(void *buf, size_t size, void *private)
 {
+	(void) private;
 	(void) memset(buf, 0, size);
 	return (0);
 }
@@ -967,10 +967,10 @@ abd_iterate_func2(abd_t *dabd, abd_t *sabd, size_t doff, size_t soff,
 	return (ret);
 }
 
-/*ARGSUSED*/
 static int
 abd_copy_off_cb(void *dbuf, void *sbuf, size_t size, void *private)
 {
+	(void) private;
 	(void) memcpy(dbuf, sbuf, size);
 	return (0);
 }
@@ -985,10 +985,10 @@ abd_copy_off(abd_t *dabd, abd_t *sabd, size_t doff, size_t soff, size_t size)
 	    abd_copy_off_cb, NULL);
 }
 
-/*ARGSUSED*/
 static int
 abd_cmp_cb(void *bufa, void *bufb, size_t size, void *private)
 {
+	(void) private;
 	return (memcmp(bufa, bufb, size));
 }
 
@@ -1021,7 +1021,7 @@ abd_raidz_gen_iterate(abd_t **cabds, abd_t *dabd,
 	struct abd_iter caiters[3];
 	struct abd_iter daiter = {0};
 	void *caddrs[3];
-	unsigned long flags __maybe_unused = 0;
+	unsigned long flags = 0;
 	abd_t *c_cabds[3];
 	abd_t *c_dabd = NULL;
 	boolean_t cabds_is_gang_abd[3];
@@ -1139,7 +1139,7 @@ abd_raidz_rec_iterate(abd_t **cabds, abd_t **tabds,
 	struct abd_iter citers[3];
 	struct abd_iter xiters[3];
 	void *caddrs[3], *xaddrs[3];
-	unsigned long flags __maybe_unused = 0;
+	unsigned long flags = 0;
 	boolean_t cabds_is_gang_abd[3];
 	boolean_t tabds_is_gang_abd[3];
 	abd_t *c_cabds[3];

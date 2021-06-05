@@ -84,6 +84,8 @@ zfs_dbgmsg_purge(int max_size)
 static int
 zfs_dbgmsg_clear(procfs_list_t *procfs_list)
 {
+	(void) procfs_list;
+
 	mutex_enter(&zfs_dbgmsgs.pl_lock);
 	zfs_dbgmsg_purge(0);
 	mutex_exit(&zfs_dbgmsgs.pl_lock);
@@ -127,8 +129,7 @@ __set_error(const char *file, const char *func, int line, int err)
 	 * $ echo 512 >/sys/module/zfs/parameters/zfs_flags
 	 */
 	if (zfs_flags & ZFS_DEBUG_SET_ERROR)
-		__dprintf(B_FALSE, file, func, line, "error %lu",
-		    (ulong_t)err);
+		__dprintf(B_FALSE, file, func, line, "error %u", err);
 }
 
 void

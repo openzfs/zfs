@@ -132,19 +132,19 @@ struct zfsvfs {
 	rms_try_rlock(&(zfsvfs)->z_teardown_lock)
 
 #define	ZFS_TEARDOWN_ENTER_READ(zfsvfs, tag)	\
-	rms_rlock(&(zfsvfs)->z_teardown_lock);
+	((void)sizeof (tag), rms_rlock(&(zfsvfs)->z_teardown_lock));
 
 #define	ZFS_TEARDOWN_EXIT_READ(zfsvfs, tag)	\
-	rms_runlock(&(zfsvfs)->z_teardown_lock)
+	((void)sizeof (tag), rms_runlock(&(zfsvfs)->z_teardown_lock))
 
 #define	ZFS_TEARDOWN_ENTER_WRITE(zfsvfs, tag)	\
-	rms_wlock(&(zfsvfs)->z_teardown_lock)
+	((void)sizeof (tag), rms_wlock(&(zfsvfs)->z_teardown_lock))
 
 #define	ZFS_TEARDOWN_EXIT_WRITE(zfsvfs)		\
 	rms_wunlock(&(zfsvfs)->z_teardown_lock)
 
 #define	ZFS_TEARDOWN_EXIT(zfsvfs, tag)		\
-	rms_unlock(&(zfsvfs)->z_teardown_lock)
+	((void)sizeof (tag), rms_unlock(&(zfsvfs)->z_teardown_lock))
 
 #define	ZFS_TEARDOWN_READ_HELD(zfsvfs)		\
 	rms_rowned(&(zfsvfs)->z_teardown_lock)

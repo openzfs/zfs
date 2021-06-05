@@ -786,6 +786,7 @@ kcf_get_mech_entry(crypto_mech_type_t mech_type, kcf_mech_entry_t **mep)
 crypto_mech_type_t
 crypto_mech2id_common(char *mechname, boolean_t load_module)
 {
+	(void) load_module;
 	crypto_mech_type_t mt = kcf_mech_hash_find(mechname);
 	return (mt);
 }

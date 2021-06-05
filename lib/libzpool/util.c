@@ -242,6 +242,7 @@ out_ret:
 static nvlist_t *
 refresh_config(void *unused, nvlist_t *tryconfig)
 {
+	(void) unused;
 	return (spa_tryimport(tryconfig));
 }
 
@@ -249,6 +250,9 @@ static int
 pool_active(void *unused, const char *name, uint64_t guid,
     boolean_t *isactive)
 {
+	(void) unused;
+	(void) guid;
+
 	zfs_cmd_t *zcp;
 	nvlist_t *innvl;
 	char *packed = NULL;

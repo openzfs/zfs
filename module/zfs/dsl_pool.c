@@ -51,6 +51,8 @@
 #include <sys/trace_zfs.h>
 #include <sys/mmp.h>
 
+#pragma GCC diagnostic error "-Wunused-parameter"
+
 /*
  * ZFS Write Throttle
  * ------------------
@@ -458,14 +460,12 @@ dsl_pool_t *
 dsl_pool_create(spa_t *spa, nvlist_t *zplprops, dsl_crypto_params_t *dcp,
     uint64_t txg)
 {
+	(void) zplprops;
+
 	int err;
 	dsl_pool_t *dp = dsl_pool_open_impl(spa, txg);
 	dmu_tx_t *tx = dmu_tx_create_assigned(dp, txg);
-#ifdef _KERNEL
 	objset_t *os;
-#else
-	objset_t *os __attribute__((unused));
-#endif
 	dsl_dataset_t *ds;
 	uint64_t obj;
 
@@ -535,6 +535,8 @@ dsl_pool_create(spa_t *spa, nvlist_t *zplprops, dsl_crypto_params_t *dcp,
 	rrw_exit(&ds->ds_bp_rwlock, FTAG);
 #ifdef _KERNEL
 	zfs_create_fs(os, kcred, zplprops, tx);
+#else
+	(void) os;
 #endif
 	dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
 
@@ -592,10 +594,10 @@ dsl_pool_dirty_delta(dsl_pool_t *dp, int64_t delta)
 		cv_signal(&dp->dp_spaceavail_cv);
 }
 
-#ifdef ZFS_DEBUG
 static boolean_t
 dsl_early_sync_task_verify(dsl_pool_t *dp, uint64_t txg)
 {
+#ifdef ZFS_DEBUG
 	spa_t *spa = dp->dp_spa;
 	vdev_t *rvd = spa->spa_root_vdev;
 
@@ -612,8 +614,12 @@ dsl_early_sync_task_verify(dsl_pool_t *dp, uint64_t txg)
 	}
 
 	return (B_TRUE);
-}
+#else
+	(void) dp;
+	(void) txg;
+	return (B_FALSE);
 #endif
+}
 
 void
 dsl_pool_sync(dsl_pool_t *dp, uint64_t txg)
@@ -940,7 +946,6 @@ dsl_pool_undirty_space(dsl_pool_t *dp, int64_t space, uint64_t txg)
 	mutex_exit(&dp->dp_lock);
 }
 
-/* ARGSUSED */
 static int
 upgrade_clones_cb(dsl_pool_t *dp, dsl_dataset_t *hds, void *arg)
 {
@@ -1031,7 +1036,6 @@ dsl_pool_upgrade_clones(dsl_pool_t *dp, dmu_tx_t *tx)
 	    tx, DS_FIND_CHILDREN | DS_FIND_SERIALIZE));
 }
 
-/* ARGSUSED */
 static int
 upgrade_dir_clones_cb(dsl_pool_t *dp, dsl_dataset_t *ds, void *arg)
 {

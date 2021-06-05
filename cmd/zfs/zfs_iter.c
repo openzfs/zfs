@@ -219,10 +219,11 @@ zfs_sort_only_by_name(const zfs_sort_column_t *sc)
 	    sc->sc_prop == ZFS_PROP_NAME);
 }
 
-/* ARGSUSED */
 static int
 zfs_compare(const void *larg, const void *rarg, void *unused)
 {
+	(void) unused;
+
 	zfs_handle_t *l = ((zfs_node_t *)larg)->zn_handle;
 	zfs_handle_t *r = ((zfs_node_t *)rarg)->zn_handle;
 	const char *lname = zfs_get_name(l);

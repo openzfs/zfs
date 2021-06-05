@@ -77,6 +77,9 @@ static int
 do_mount_(const char *spec, const char *dir, int mflag, char *fstype,
     char *dataptr, int datalen, char *optptr, int optlen)
 {
+	(void) dataptr;
+	(void) datalen;
+	(void) optlen;
 	struct iovec *iov;
 	char *optstr, *p, *tofree;
 	int iovlen, rv;

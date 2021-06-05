@@ -468,6 +468,7 @@ zfs_avx512vbmi_available(void)
 static jmp_buf env;
 static void sigillhandler(int x)
 {
+	(void) x;
 	longjmp(env, 1);
 }
 #endif

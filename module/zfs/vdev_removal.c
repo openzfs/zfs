@@ -345,7 +345,8 @@ vdev_remove_initiate_sync(void *arg, dmu_tx_t *tx)
 	vdev_config_dirty(vd);
 
 	zfs_dbgmsg("starting removal thread for vdev %llu (%px) in txg %llu "
-	    "im_obj=%llu", (u_longlong_t)vd->vdev_id, vd,
+	    "im_obj=%llu",
+	    (u_longlong_t)vd->vdev_id, vd,
 	    (u_longlong_t)dmu_tx_get_txg(tx),
 	    (u_longlong_t)vic->vic_mapping_object);
 
@@ -1492,8 +1493,8 @@ spa_vdev_remove_thread(void *arg)
 
 		vca.vca_msp = msp;
 		zfs_dbgmsg("copying %llu segments for metaslab %llu",
-		    (u_longlong_t)zfs_btree_numnodes(
-		    &svr->svr_allocd_segs->rt_root),
+		    (u_longlong_t)
+		    zfs_btree_numnodes(&svr->svr_allocd_segs->rt_root),
 		    (u_longlong_t)msp->ms_id);
 
 		while (!svr->svr_thread_exit &&
@@ -1619,10 +1620,10 @@ spa_vdev_remove_suspend(spa_t *spa)
 	mutex_exit(&svr->svr_lock);
 }
 
-/* ARGSUSED */
 static int
 spa_vdev_remove_cancel_check(void *arg, dmu_tx_t *tx)
 {
+	(void) arg;
 	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
 
 	if (spa->spa_vdev_removal == NULL)
@@ -1634,10 +1635,11 @@ spa_vdev_remove_cancel_check(void *arg, dmu_tx_t *tx)
  * Cancel a removal by freeing all entries from the partial mapping
  * and marking the vdev as no longer being removing.
  */
-/* ARGSUSED */
 static void
 spa_vdev_remove_cancel_sync(void *arg, dmu_tx_t *tx)
 {
+	(void) arg;
+
 	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
 	spa_vdev_removal_t *svr = spa->spa_vdev_removal;
 	vdev_t *vd = vdev_lookup_top(spa, svr->svr_vdev_id);

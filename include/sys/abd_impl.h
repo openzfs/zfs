@@ -94,15 +94,15 @@ void abd_iter_unmap(struct abd_iter *);
 
 #if defined(_KERNEL)
 #if defined(__FreeBSD__)
-#define	abd_enter_critical(flags)	critical_enter()
-#define	abd_exit_critical(flags)	critical_exit()
+#define	abd_enter_critical(flags)	((void)sizeof (flags), critical_enter())
+#define	abd_exit_critical(flags)	((void)sizeof (flags), critical_exit())
 #else
 #define	abd_enter_critical(flags)	local_irq_save(flags)
 #define	abd_exit_critical(flags)	local_irq_restore(flags)
 #endif
 #else /* !_KERNEL */
-#define	abd_enter_critical(flags)	((void)0)
-#define	abd_exit_critical(flags)	((void)0)
+#define	abd_enter_critical(flags)	((void)sizeof (flags))
+#define	abd_exit_critical(flags)	((void)sizeof (flags))
 #endif
 
 #ifdef __cplusplus

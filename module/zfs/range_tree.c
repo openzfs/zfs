@@ -34,6 +34,8 @@
 #include <sys/zio.h>
 #include <sys/range_tree.h>
 
+#pragma GCC diagnostic error "-Wunused-parameter"
+
 /*
  * Range trees are tree-based data structures that can be used to
  * track free space or generally any space allocation information.
@@ -741,7 +743,6 @@ range_tree_is_empty(range_tree_t *rt)
 	return (range_tree_space(rt) == 0);
 }
 
-/* ARGSUSED */
 void
 rt_btree_create(range_tree_t *rt, void *arg)
 {
@@ -764,35 +765,33 @@ rt_btree_create(range_tree_t *rt, void *arg)
 	zfs_btree_create(size_tree, rt->rt_btree_compare, size);
 }
 
-/* ARGSUSED */
 void
 rt_btree_destroy(range_tree_t *rt, void *arg)
 {
+	(void) rt;
+
 	zfs_btree_t *size_tree = arg;
 	ASSERT0(zfs_btree_numnodes(size_tree));
 
 	zfs_btree_destroy(size_tree);
 }
 
-/* ARGSUSED */
 void
 rt_btree_add(range_tree_t *rt, range_seg_t *rs, void *arg)
 {
+	(void) rt;
 	zfs_btree_t *size_tree = arg;
-
 	zfs_btree_add(size_tree, rs);
 }
 
-/* ARGSUSED */
 void
 rt_btree_remove(range_tree_t *rt, range_seg_t *rs, void *arg)
 {
+	(void) rt;
 	zfs_btree_t *size_tree = arg;
-
 	zfs_btree_remove(size_tree, rs);
 }
 
-/* ARGSUSED */
 void
 rt_btree_vacate(range_tree_t *rt, void *arg)
 {

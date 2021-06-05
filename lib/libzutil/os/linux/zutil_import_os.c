@@ -559,17 +559,21 @@ udev_device_is_ready(struct udev_device *dev)
 
 #else
 
-/* ARGSUSED */
 int
 zfs_device_get_devid(struct udev_device *dev, char *bufptr, size_t buflen)
 {
+	(void) dev;
+	(void) bufptr;
+	(void) buflen;
 	return (ENODATA);
 }
 
-/* ARGSUSED */
 int
 zfs_device_get_physical(struct udev_device *dev, char *bufptr, size_t buflen)
 {
+	(void) dev;
+	(void) bufptr;
+	(void) buflen;
 	return (ENODATA);
 }
 

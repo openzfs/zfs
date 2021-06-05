@@ -69,9 +69,11 @@
 #include <zfs_fletcher.h>
 #include <sys/zio_checksum.h>
 
+#pragma GCC diagnostic error "-Wunused-parameter"
+
 /*
  * The SPA supports block sizes up to 16MB.  However, very large blocks
- * can have an impact on i/o latency (e.g. tying up a spinning disk for
+ * can have an impact on I/O latency (e.g. tying up a spinning disk for
  * ~300ms), and also potentially on the memory allocator.  Therefore,
  * we do not allow the recordsize to be set larger than zfs_max_recordsize
  * (default 1MB).  Larger blocks can be created by changing this tunable,
@@ -717,9 +719,9 @@ dsl_dataset_hold_obj(dsl_pool_t *dp, uint64_t dsobj, void *tag,
 			    dsl_dataset_phys(ds)->ds_fsid_guid) {
 				zfs_dbgmsg("ds_fsid_guid changed from "
 				    "%llx to %llx for pool %s dataset id %llu",
-				    (long long)
+				    (u_longlong_t)
 				    dsl_dataset_phys(ds)->ds_fsid_guid,
-				    (long long)ds->ds_fsid_guid,
+				    (u_longlong_t)ds->ds_fsid_guid,
 				    spa_name(dp->dp_spa),
 				    (u_longlong_t)dsobj);
 			}
@@ -2393,8 +2395,8 @@ get_receive_resume_stats_impl(dsl_dataset_t *ds)
 		}
 		if (dsl_dataset_feature_is_active(ds,
 		    SPA_FEATURE_REDACTED_DATASETS)) {
-			uint64_t num_redact_snaps;
-			uint64_t *redact_snaps;
+			uint64_t num_redact_snaps = 0;
+			uint64_t *redact_snaps = 0;
 			VERIFY(dsl_dataset_get_uint64_array_feature(ds,
 			    SPA_FEATURE_REDACTED_DATASETS, &num_redact_snaps,
 			    &redact_snaps));
@@ -2945,11 +2947,12 @@ typedef struct dsl_dataset_rename_snapshot_arg {
 	dmu_tx_t *ddrsa_tx;
 } dsl_dataset_rename_snapshot_arg_t;
 
-/* ARGSUSED */
 static int
 dsl_dataset_rename_snapshot_check_impl(dsl_pool_t *dp,
     dsl_dataset_t *hds, void *arg)
 {
+	(void) dp;
+
 	dsl_dataset_rename_snapshot_arg_t *ddrsa = arg;
 	int error;
 	uint64_t val;
@@ -4307,7 +4310,6 @@ typedef struct dsl_dataset_set_qr_arg {
 } dsl_dataset_set_qr_arg_t;
 
 
-/* ARGSUSED */
 static int
 dsl_dataset_set_refquota_check(void *arg, dmu_tx_t *tx)
 {
@@ -4514,7 +4516,6 @@ typedef struct dsl_dataset_set_compression_arg {
 	uint64_t ddsca_value;
 } dsl_dataset_set_compression_arg_t;
 
-/* ARGSUSED */
 static int
 dsl_dataset_set_compression_check(void *arg, dmu_tx_t *tx)
 {

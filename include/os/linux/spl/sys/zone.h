@@ -28,8 +28,9 @@
 
 #define	GLOBAL_ZONEID			0
 
-#define	zone_dataset_visible(x, y)	(1)
+#define	zone_dataset_visible(x, y)	\
+	((void)sizeof ((char *)y - (char *)x), 1)
 #define	crgetzoneid(x)			(GLOBAL_ZONEID)
-#define	INGLOBALZONE(z)			(1)
+#define	INGLOBALZONE(z)			((void)sizeof (z), 1)
 
 #endif /* SPL_ZONE_H */

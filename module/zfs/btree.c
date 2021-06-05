@@ -507,7 +507,7 @@ zfs_btree_insert_core_impl(zfs_btree_t *tree, zfs_btree_core_t *parent,
 {
 	uint64_t size = tree->bt_elem_size;
 	zfs_btree_hdr_t *par_hdr = &parent->btc_hdr;
-	ASSERT3P(par_hdr, ==, new_node->bth_parent);
+	ASSERT3P(par_hdr, ==, (zfs_btree_hdr_t *)new_node->bth_parent);
 	ASSERT3U(par_hdr->bth_count, <, BTREE_CORE_ELEMS);
 
 	if (zfs_btree_verify_intensity >= 5) {
@@ -1328,7 +1328,7 @@ zfs_btree_remove_from_node(zfs_btree_t *tree, zfs_btree_core_t *node,
 	 */
 	if (hdr->bth_parent == NULL && hdr->bth_count <= 1) {
 		ASSERT3U(hdr->bth_count, ==, 1);
-		ASSERT3P(tree->bt_root, ==, node);
+		ASSERT3P(tree->bt_root, ==, (zfs_btree_hdr_t *)node);
 		ASSERT3P(node->btc_children[1], ==, rm_hdr);
 		tree->bt_root = node->btc_children[0];
 		node->btc_children[0]->bth_parent = NULL;

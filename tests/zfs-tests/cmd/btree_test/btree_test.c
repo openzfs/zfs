@@ -28,7 +28,7 @@ int contents_frequency = 100;
 int tree_limit = 64 * 1024;
 boolean_t stress_only = B_FALSE;
 
-static void
+static __attribute__((noreturn)) void
 usage(int exit_value)
 {
 	(void) fprintf(stderr, "Usage:\tbtree_test -n <test_name>\n");
@@ -294,6 +294,7 @@ drain_tree(zfs_btree_t *bt, char *why)
 static int
 stress_tree(zfs_btree_t *bt, char *why)
 {
+	(void) why;
 	avl_tree_t avl;
 	int_node_t *node;
 	struct timeval tp;

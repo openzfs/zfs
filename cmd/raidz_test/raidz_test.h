@@ -92,13 +92,13 @@ static inline size_t ilog2(size_t a)
 
 #define	LOG(lvl, a...)				\
 {						\
-	if (rto_opts.rto_v >= lvl)		\
+	if ((rto_opts.rto_v + 1) >= (lvl + 1))	\
 		(void) fprintf(stdout, a);	\
 }						\
 
 #define	LOG_OPT(lvl, opt, a...)			\
 {						\
-	if (opt->rto_v >= lvl)			\
+	if ((opt->rto_v + 1) >= (lvl + 1))	\
 		(void) fprintf(stdout, a);	\
 }						\
 

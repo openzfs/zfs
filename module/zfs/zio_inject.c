@@ -49,6 +49,8 @@
 #include <sys/dsl_dataset.h>
 #include <sys/fs/zfs.h>
 
+#pragma GCC diagnostic error "-Wunused-parameter"
+
 uint32_t zio_injection_enabled = 0;
 
 /*
@@ -341,7 +343,6 @@ zio_handle_label_injection(zio_t *zio, int error)
 	return (ret);
 }
 
-/*ARGSUSED*/
 static int
 zio_inject_bitflip_cb(void *data, size_t len, void *private)
 {

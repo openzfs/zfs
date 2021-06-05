@@ -24,11 +24,6 @@
 #include <sys/dmu_objset.h>
 
 /*
- * Calculate the index of the arc header for the state, disabled by default.
- */
-int zfs_dbuf_state_index = 0;
-
-/*
  * ==========================================================================
  * Dbuf Hash Read Routines
  * ==========================================================================
@@ -70,7 +65,7 @@ __dbuf_stats_hash_table_data(char *buf, size_t size, dmu_buf_impl_t *db)
 	size_t nwritten;
 
 	if (db->db_buf)
-		arc_buf_info(db->db_buf, &abi, zfs_dbuf_state_index);
+		arc_buf_info(db->db_buf, &abi);
 
 	__dmu_object_info_from_dnode(dn, &doi);
 
@@ -225,8 +220,3 @@ dbuf_stats_destroy(void)
 {
 	dbuf_stats_hash_table_destroy();
 }
-
-/* BEGIN CSTYLED */
-ZFS_MODULE_PARAM(zfs, zfs_, dbuf_state_index, INT, ZMOD_RW,
-	"Calculate arc header index");
-/* END CSTYLED */

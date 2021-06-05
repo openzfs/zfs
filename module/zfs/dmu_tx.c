@@ -39,6 +39,8 @@
 #include <sys/zfs_context.h>
 #include <sys/trace_zfs.h>
 
+#pragma GCC diagnostic error "-Wunused-parameter"
+
 typedef void (*dmu_tx_hold_func_t)(dmu_tx_t *tx, struct dnode *dn,
     uint64_t arg1, uint64_t arg2);
 
@@ -218,7 +220,6 @@ dmu_tx_check_ioerr(zio_t *zio, dnode_t *dn, int level, uint64_t blkid)
 	return (err);
 }
 
-/* ARGSUSED */
 static void
 dmu_tx_count_write(dmu_tx_hold_t *txh, uint64_t off, uint64_t len)
 {
@@ -613,7 +614,8 @@ dmu_tx_dirty_buf(dmu_tx_t *tx, dmu_buf_impl_t *db)
 			/* XXX txh_arg2 better not be zero... */
 
 			dprintf("found txh type %x beginblk=%llx endblk=%llx\n",
-			    txh->txh_type, (u_longlong_t)beginblk,
+			    txh->txh_type,
+			    (u_longlong_t)beginblk,
 			    (u_longlong_t)endblk);
 
 			switch (txh->txh_type) {

@@ -121,6 +121,7 @@ uu_list_t *zfs_cases;
 static void
 zfs_case_serialize(fmd_hdl_t *hdl, zfs_case_t *zcp)
 {
+	(void) hdl;
 	zcp->zc_data.zc_version = CASE_DATA_VERSION_SERD;
 }
 
@@ -209,10 +210,10 @@ zfs_mark_vdev(uint64_t pool_guid, nvlist_t *vd, er_timeval_t *loaded)
 	}
 }
 
-/*ARGSUSED*/
 static int
 zfs_mark_pool(zpool_handle_t *zhp, void *unused)
 {
+	(void) unused;
 	zfs_case_t *zcp;
 	uint64_t pool_guid;
 	uint64_t *tod;
@@ -376,6 +377,7 @@ static void
 zfs_case_solve(fmd_hdl_t *hdl, zfs_case_t *zcp, const char *faultname,
     boolean_t checkunusable)
 {
+	(void) checkunusable;
 	nvlist_t *detector, *fault;
 	boolean_t serialize;
 	nvlist_t *fru = NULL;
@@ -424,10 +426,10 @@ timeval_earlier(er_timeval_t *a, er_timeval_t *b)
 	    (a->ertv_sec == b->ertv_sec && a->ertv_nsec < b->ertv_nsec));
 }
 
-/*ARGSUSED*/
 static void
 zfs_ereport_when(fmd_hdl_t *hdl, nvlist_t *nvl, er_timeval_t *when)
 {
+	(void) hdl;
 	int64_t *tod;
 	uint_t	nelem;
 
@@ -443,7 +445,6 @@ zfs_ereport_when(fmd_hdl_t *hdl, nvlist_t *nvl, er_timeval_t *when)
 /*
  * Main fmd entry point.
  */
-/*ARGSUSED*/
 static void
 zfs_fm_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl, const char *class)
 {
@@ -854,7 +855,6 @@ zfs_fm_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl, const char *class)
  * The timeout is fired when we diagnosed an I/O error, and it was not due to
  * device removal (which would cause the timeout to be cancelled).
  */
-/* ARGSUSED */
 static void
 zfs_fm_timeout(fmd_hdl_t *hdl, id_t id, void *data)
 {

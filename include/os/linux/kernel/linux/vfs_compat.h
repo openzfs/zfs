@@ -455,7 +455,8 @@ zpl_is_32bit_api(void)
 #define	zpl_generic_fillattr(user_ns, ip, sp)	\
     generic_fillattr(user_ns, ip, sp)
 #else
-#define	zpl_generic_fillattr(user_ns, ip, sp)	generic_fillattr(ip, sp)
+#define	zpl_generic_fillattr(user_ns, ip, sp)	\
+	((void)sizeof (user_ns), generic_fillattr(ip, sp))
 #endif
 
 #endif /* _ZFS_VFS_H */

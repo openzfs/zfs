@@ -233,6 +233,8 @@ nfs_enable_share(sa_share_impl_t impl_share)
 static int
 nfs_disable_share_impl(sa_share_impl_t impl_share, char *filename)
 {
+	(void) impl_share;
+	(void) filename;
 	return (SA_OK);
 }
 
@@ -281,6 +283,7 @@ nfs_is_shared(sa_share_impl_t impl_share)
 static int
 nfs_validate_shareopts(const char *shareopts)
 {
+	(void) shareopts;
 	return (SA_OK);
 }
 

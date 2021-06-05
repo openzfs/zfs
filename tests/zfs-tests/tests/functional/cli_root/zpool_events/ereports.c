@@ -146,9 +146,8 @@ ereports_dump(libzfs_handle_t *zhdl, int zevent_fd)
 	}
 }
 
-/* ARGSUSED */
 int
-main(int argc, char **argv)
+main(void)
 {
 	libzfs_handle_t *hdl;
 	int fd;

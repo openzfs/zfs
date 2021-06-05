@@ -58,6 +58,8 @@
 #include <sys/trace_zfs.h>
 #include <sys/aggsum.h>
 
+#pragma GCC diagnostic error "-Wunused-parameter"
+
 /*
  * This is a limit on how many pages the ARC shrinker makes available for
  * eviction in response to one page allocation attempt.  Note that in
@@ -163,6 +165,8 @@ arc_evictable_memory(void)
 static unsigned long
 arc_shrinker_count(struct shrinker *shrink, struct shrink_control *sc)
 {
+	(void) shrink;
+
 	/*
 	 * __GFP_FS won't be set if we are called from ZFS code (see
 	 * kmem_flags_convert(), which removes it).  To avoid a deadlock, we
@@ -206,6 +210,8 @@ arc_shrinker_count(struct shrinker *shrink, struct shrink_control *sc)
 static unsigned long
 arc_shrinker_scan(struct shrinker *shrink, struct shrink_control *sc)
 {
+	(void) shrink;
+
 	ASSERT((sc->gfp_mask & __GFP_FS) != 0);
 
 	/* The arc is considered warm once reclaim has occurred */
@@ -386,11 +392,13 @@ param_set_arc_int(const char *buf, zfs_kernel_param_t *kp)
 }
 
 #ifdef CONFIG_MEMORY_HOTPLUG
-/* ARGSUSED */
 static int
 arc_hotplug_callback(struct notifier_block *self, unsigned long action,
     void *arg)
 {
+	(void) self;
+	(void) arg;
+
 	uint64_t allmem = arc_all_memory();
 	if (action != MEM_ONLINE)
 		return (NOTIFY_OK);
@@ -446,6 +454,9 @@ arc_available_memory(void)
 int
 arc_memory_throttle(spa_t *spa, uint64_t reserve, uint64_t txg)
 {
+	(void) spa;
+	(void) reserve;
+	(void) txg;
 	return (0);
 }
 

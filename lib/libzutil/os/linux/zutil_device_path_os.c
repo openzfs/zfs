@@ -528,10 +528,10 @@ is_mpath_whole_disk(const char *path)
 
 #else /* HAVE_LIBUDEV */
 
-/* ARGSUSED */
 boolean_t
 is_mpath_whole_disk(const char *path)
 {
+	(void) path;
 	return (B_FALSE);
 }
 

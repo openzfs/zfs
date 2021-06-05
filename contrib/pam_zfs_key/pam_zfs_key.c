@@ -46,6 +46,7 @@
 static void
 pam_syslog(pam_handle_t *pamh, int loglevel, const char *fmt, ...)
 {
+	(void) pamh;
 	va_list args;
 	va_start(args, fmt);
 	vsyslog(loglevel, fmt, args);
@@ -187,6 +188,9 @@ pw_clear(pam_handle_t *pamh)
 static void
 destroy_pw(pam_handle_t *pamh, void *data, int errcode)
 {
+	(void) pamh;
+	(void) errcode;
+
 	if (data != NULL) {
 		pw_free((pw_password_t *)data);
 	}
@@ -606,6 +610,10 @@ PAM_EXTERN int
 pam_sm_authenticate(pam_handle_t *pamh, int flags,
     int argc, const char **argv)
 {
+	(void) flags;
+	(void) argc;
+	(void) argv;
+
 	if (pw_fetch_lazy(pamh) == NULL) {
 		return (PAM_AUTH_ERR);
 	}
@@ -618,6 +626,10 @@ PAM_EXTERN int
 pam_sm_setcred(pam_handle_t *pamh, int flags,
     int argc, const char **argv)
 {
+	(void) pamh;
+	(void) flags;
+	(void) argc;
+	(void) argv;
 	return (PAM_SUCCESS);
 }
 
@@ -628,7 +640,7 @@ pam_sm_chauthtok(pam_handle_t *pamh, int flags,
 {
 	if (geteuid() != 0) {
 		pam_syslog(pamh, LOG_ERR,
-		    "Cannot zfs_mount when not being root.");
+		    "Cannot zfs_mount when not root.");
 		return (PAM_PERM_DENIED);
 	}
 	zfs_key_config_t config;
@@ -705,9 +717,11 @@ PAM_EXTERN int
 pam_sm_open_session(pam_handle_t *pamh, int flags,
     int argc, const char **argv)
 {
+	(void) flags;
+
 	if (geteuid() != 0) {
 		pam_syslog(pamh, LOG_ERR,
-		    "Cannot zfs_mount when not being root.");
+		    "Cannot zfs_mount when not root.");
 		return (PAM_SUCCESS);
 	}
 	zfs_key_config_t config;
@@ -759,9 +773,11 @@ PAM_EXTERN int
 pam_sm_close_session(pam_handle_t *pamh, int flags,
     int argc, const char **argv)
 {
+	(void) flags;
+
 	if (geteuid() != 0) {
 		pam_syslog(pamh, LOG_ERR,
-		    "Cannot zfs_mount when not being root.");
+		    "Cannot zfs_mount when not root.");
 		return (PAM_SUCCESS);
 	}
 	zfs_key_config_t config;

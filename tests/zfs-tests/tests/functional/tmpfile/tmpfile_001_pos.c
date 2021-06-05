@@ -39,7 +39,7 @@ fill_random(char *buf, int len)
 }
 
 int
-main(int argc, char *argv[])
+main(void)
 {
 	int i, fd;
 	char buf1[BSZ], buf2[BSZ] = {};

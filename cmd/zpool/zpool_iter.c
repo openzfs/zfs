@@ -62,10 +62,11 @@ struct zpool_list {
 	zprop_list_t	**zl_proplist;
 };
 
-/* ARGSUSED */
 static int
 zpool_compare(const void *larg, const void *rarg, void *unused)
 {
+	(void) unused;
+
 	zpool_handle_t *l = ((zpool_node_t *)larg)->zn_handle;
 	zpool_handle_t *r = ((zpool_node_t *)rarg)->zn_handle;
 	const char *lname = zpool_get_name(l);

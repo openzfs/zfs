@@ -2,7 +2,7 @@ include $(top_srcdir)/config/Rules.am
 
 AM_CFLAGS += $(LIBCRYPTO_CFLAGS)
 
-pammodule_LTLIBRARIES=pam_zfs_key.la
+pammodule_LTLIBRARIES = pam_zfs_key.la
 
 pam_zfs_key_la_SOURCES = pam_zfs_key.c
 

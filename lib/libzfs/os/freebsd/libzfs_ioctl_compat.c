@@ -44,7 +44,9 @@
 void
 zfs_cmd_compat_get(zfs_cmd_t *zc, caddr_t addr, const int cflag)
 {
-
+	(void) zc;
+	(void) addr;
+	(void) cflag;
 }
 #if 0
 static int

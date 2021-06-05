@@ -31,6 +31,8 @@
 #include <sys/edonr.h>
 #include <sys/abd.h>
 
+#pragma GCC diagnostic error "-Wunused-parameter"
+
 #define	EDONR_MODE		512
 #define	EDONR_BLOCK_SIZE	EdonR512_BLOCK_SIZE
 
@@ -45,7 +47,6 @@ edonr_incremental(void *buf, size_t size, void *arg)
 /*
  * Native zio_checksum interface for the Edon-R hash function.
  */
-/*ARGSUSED*/
 void
 abd_checksum_edonr_native(abd_t *abd, uint64_t size,
     const void *ctx_template, zio_cksum_t *zcp)

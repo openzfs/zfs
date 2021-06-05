@@ -49,7 +49,7 @@ LUALIB_API void (luaL_openlibs) (lua_State *L);
 
 
 #if !defined(lua_assert)
-#define lua_assert(x)	((void)0)
+#define lua_assert(x)	((void)sizeof(x))
 #endif
 
 

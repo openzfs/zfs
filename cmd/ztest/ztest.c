@@ -1189,10 +1189,10 @@ ztest_kill(ztest_shared_t *zs)
 	(void) kill(getpid(), SIGKILL);
 }
 
-/* ARGSUSED */
 static void
 ztest_record_enospc(const char *s)
 {
+	(void) s;
 	ztest_shared->zs_enospc_count++;
 }
 
@@ -2387,10 +2387,10 @@ zil_replay_func_t *ztest_replay_vector[TX_MAX_TYPE] = {
  * ZIL get_data callbacks
  */
 
-/* ARGSUSED */
 static void
 ztest_get_done(zgd_t *zgd, int error)
 {
+	(void) error;
 	ztest_ds_t *zd = zgd->zgd_private;
 	uint64_t object = ((rl_t *)zgd->zgd_lr)->rl_object;
 
@@ -2407,6 +2407,7 @@ static int
 ztest_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,
     struct lwb *lwb, zio_t *zio)
 {
+	(void) arg2;
 	ztest_ds_t *zd = arg;
 	objset_t *os = zd->zd_os;
 	uint64_t object = lr->lr_foid;
@@ -2867,10 +2868,10 @@ ztest_object_init(ztest_ds_t *zd, ztest_od_t *od, size_t size, boolean_t remove)
 	return (rv);
 }
 
-/* ARGSUSED */
 void
 ztest_zil_commit(ztest_ds_t *zd, uint64_t id)
 {
+	(void) id;
 	zilog_t *zilog = zd->zd_zilog;
 
 	(void) pthread_rwlock_rdlock(&zd->zd_zilog_lock);
@@ -2896,10 +2897,10 @@ ztest_zil_commit(ztest_ds_t *zd, uint64_t id)
  * mount/unmount operation.  We hold the dataset across these operations in an
  * attempt to expose any implicit assumptions about ZIL management.
  */
-/* ARGSUSED */
 void
 ztest_zil_remount(ztest_ds_t *zd, uint64_t id)
 {
+	(void) id;
 	objset_t *os = zd->zd_os;
 
 	/*
@@ -2933,10 +2934,11 @@ ztest_zil_remount(ztest_ds_t *zd, uint64_t id)
  * Verify that we can't destroy an active pool, create an existing pool,
  * or create a pool with a bad vdev spec.
  */
-/* ARGSUSED */
 void
 ztest_spa_create_destroy(ztest_ds_t *zd, uint64_t id)
 {
+	(void) zd;
+	(void) id;
 	ztest_shared_opts_t *zo = &ztest_opts;
 	spa_t *spa;
 	nvlist_t *nvroot;
@@ -2996,10 +2998,11 @@ ztest_spa_create_destroy(ztest_ds_t *zd, uint64_t id)
  * Start and then stop the MMP threads to ensure the startup and shutdown code
  * works properly.  Actual protection and property-related code tested via ZTS.
  */
-/* ARGSUSED */
 void
 ztest_mmp_enable_disable(ztest_ds_t *zd, uint64_t id)
 {
+	(void) zd;
+	(void) id;
 	ztest_shared_opts_t *zo = &ztest_opts;
 	spa_t *spa = ztest_spa;
 
@@ -3042,10 +3045,11 @@ ztest_mmp_enable_disable(ztest_ds_t *zd, uint64_t id)
 	spa_config_exit(spa, SCL_CONFIG, FTAG);
 }
 
-/* ARGSUSED */
 void
 ztest_spa_upgrade(ztest_ds_t *zd, uint64_t id)
 {
+	(void) zd;
+	(void) id;
 	spa_t *spa;
 	uint64_t initial_version = SPA_VERSION_INITIAL;
 	uint64_t version, newversion;
@@ -3162,10 +3166,11 @@ ztest_spa_discard_checkpoint(spa_t *spa)
 
 }
 
-/* ARGSUSED */
 void
 ztest_spa_checkpoint_create_discard(ztest_ds_t *zd, uint64_t id)
 {
+	(void) zd;
+	(void) id;
 	spa_t *spa = ztest_spa;
 
 	mutex_enter(&ztest_checkpoint_lock);
@@ -3206,10 +3211,11 @@ spa_num_top_vdevs(spa_t *spa)
 /*
  * Verify that vdev_add() works as expected.
  */
-/* ARGSUSED */
 void
 ztest_vdev_add_remove(ztest_ds_t *zd, uint64_t id)
 {
+	(void) zd;
+	(void) id;
 	ztest_shared_t *zs = ztest_shared;
 	spa_t *spa = ztest_spa;
 	uint64_t leaves;
@@ -3296,10 +3302,10 @@ ztest_vdev_add_remove(ztest_ds_t *zd, uint64_t id)
 	mutex_exit(&ztest_vdev_lock);
 }
 
-/* ARGSUSED */
 void
 ztest_vdev_class_add(ztest_ds_t *zd, uint64_t id)
 {
+	(void) id;
 	ztest_shared_t *zs = ztest_shared;
 	spa_t *spa = ztest_spa;
 	uint64_t leaves;
@@ -3377,10 +3383,11 @@ ztest_vdev_class_add(ztest_ds_t *zd, uint64_t id)
 /*
  * Verify that adding/removing aux devices (l2arc, hot spare) works as expected.
  */
-/* ARGSUSED */
 void
 ztest_vdev_aux_add_remove(ztest_ds_t *zd, uint64_t id)
 {
+	(void) zd;
+	(void) id;
 	ztest_shared_t *zs = ztest_shared;
 	spa_t *spa = ztest_spa;
 	vdev_t *rvd = spa->spa_root_vdev;
@@ -3489,10 +3496,11 @@ ztest_vdev_aux_add_remove(ztest_ds_t *zd, uint64_t id)
 /*
  * split a pool if it has mirror tlvdevs
  */
-/* ARGSUSED */
 void
 ztest_split_pool(ztest_ds_t *zd, uint64_t id)
 {
+	(void) zd;
+	(void) id;
 	ztest_shared_t *zs = ztest_shared;
 	spa_t *spa = ztest_spa;
 	vdev_t *rvd = spa->spa_root_vdev;
@@ -3584,10 +3592,11 @@ ztest_split_pool(ztest_ds_t *zd, uint64_t id)
 /*
  * Verify that we can attach and detach devices.
  */
-/* ARGSUSED */
 void
 ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 {
+	(void) zd;
+	(void) id;
 	ztest_shared_t *zs = ztest_shared;
 	spa_t *spa = ztest_spa;
 	spa_aux_vdev_t *sav = &spa->spa_spares;
@@ -3827,10 +3836,11 @@ out:
 	umem_free(newpath, MAXPATHLEN);
 }
 
-/* ARGSUSED */
 void
 ztest_device_removal(ztest_ds_t *zd, uint64_t id)
 {
+	(void) zd;
+	(void) id;
 	spa_t *spa = ztest_spa;
 	vdev_t *vd;
 	uint64_t guid;
@@ -3920,10 +3930,10 @@ grow_vdev(vdev_t *vd, void *arg)
 /*
  * Callback function which expands a given vdev by calling vdev_online().
  */
-/* ARGSUSED */
 static vdev_t *
 online_vdev(vdev_t *vd, void *arg)
 {
+	(void) arg;
 	spa_t *spa = vd->vdev_spa;
 	vdev_t *tvd = vd->vdev_top;
 	uint64_t guid = vd->vdev_guid;
@@ -4004,10 +4014,11 @@ vdev_walk_tree(vdev_t *vd, vdev_t *(*func)(vdev_t *, void *), void *arg)
 /*
  * Verify that dynamic LUN growth works as expected.
  */
-/* ARGSUSED */
 void
 ztest_vdev_LUN_growth(ztest_ds_t *zd, uint64_t id)
 {
+	(void) zd;
+	(void) id;
 	spa_t *spa = ztest_spa;
 	vdev_t *vd, *tvd;
 	metaslab_class_t *mc;
@@ -4159,10 +4170,12 @@ ztest_vdev_LUN_growth(ztest_ds_t *zd, uint64_t id)
 /*
  * Verify that dmu_objset_{create,destroy,open,close} work as expected.
  */
-/* ARGSUSED */
 static void
 ztest_objset_create_cb(objset_t *os, void *arg, cred_t *cr, dmu_tx_t *tx)
 {
+	(void) arg;
+	(void) cr;
+
 	/*
 	 * Create the objects common to all ztest datasets.
 	 */
@@ -4239,10 +4252,10 @@ ztest_dataset_create(char *dsname)
 	    ZFS_SYNC_ALWAYS, B_FALSE));
 }
 
-/* ARGSUSED */
 static int
 ztest_objset_destroy_cb(const char *name, void *arg)
 {
+	(void) arg;
 	objset_t *os;
 	dmu_object_info_t doi;
 	int error;
@@ -4315,10 +4328,10 @@ ztest_snapshot_destroy(char *osname, uint64_t id)
 	return (B_TRUE);
 }
 
-/* ARGSUSED */
 void
 ztest_dmu_objset_create_destroy(ztest_ds_t *zd, uint64_t id)
 {
+	(void) zd;
 	ztest_ds_t *zdtmp;
 	int iters;
 	int error;
@@ -4640,6 +4653,8 @@ ztest_dmu_object_alloc_free(ztest_ds_t *zd, uint64_t id)
 void
 ztest_dmu_object_next_chunk(ztest_ds_t *zd, uint64_t id)
 {
+	(void) zd;
+	(void) id;
 	objset_t *os = zd->zd_os;
 	int dnodes_per_chunk = 1 << dmu_object_alloc_chunk_shift;
 	uint64_t object;
@@ -5186,10 +5201,10 @@ ztest_dmu_read_write_zcopy(ztest_ds_t *zd, uint64_t id)
 	umem_free(od, size);
 }
 
-/* ARGSUSED */
 void
 ztest_dmu_write_parallel(ztest_ds_t *zd, uint64_t id)
 {
+	(void) id;
 	ztest_od_t *od;
 
 	od = umem_alloc(sizeof (ztest_od_t), UMEM_NOFAIL);
@@ -5448,10 +5463,10 @@ out:
 	umem_free(od, sizeof (ztest_od_t));
 }
 
-/* ARGSUSED */
 void
 ztest_zap_parallel(ztest_ds_t *zd, uint64_t id)
 {
+	(void) id;
 	objset_t *os = zd->zd_os;
 	ztest_od_t *od;
 	uint64_t txg, object, count, wsize, wc, zl_wsize, zl_wc;
@@ -5783,10 +5798,10 @@ ztest_dmu_commit_callbacks(ztest_ds_t *zd, uint64_t id)
  * are consistent what was stored in the block tag when it was created,
  * and that its unused bonus buffer space has not been overwritten.
  */
-/* ARGSUSED */
 void
 ztest_verify_dnode_bt(ztest_ds_t *zd, uint64_t id)
 {
+	(void) id;
 	objset_t *os = zd->zd_os;
 	uint64_t obj;
 	int err = 0;
@@ -5818,10 +5833,11 @@ ztest_verify_dnode_bt(ztest_ds_t *zd, uint64_t id)
 	}
 }
 
-/* ARGSUSED */
 void
 ztest_dsl_prop_get_set(ztest_ds_t *zd, uint64_t id)
 {
+	(void) zd;
+	(void) id;
 	zfs_prop_t proplist[] = {
 		ZFS_PROP_CHECKSUM,
 		ZFS_PROP_COMPRESSION,
@@ -5842,10 +5858,11 @@ ztest_dsl_prop_get_set(ztest_ds_t *zd, uint64_t id)
 	(void) pthread_rwlock_unlock(&ztest_name_lock);
 }
 
-/* ARGSUSED */
 void
 ztest_spa_prop_get_set(ztest_ds_t *zd, uint64_t id)
 {
+	(void) zd;
+	(void) id;
 	nvlist_t *props = NULL;
 
 	(void) pthread_rwlock_rdlock(&ztest_name_lock);
@@ -6006,10 +6023,11 @@ out:
 /*
  * Inject random faults into the on-disk data.
  */
-/* ARGSUSED */
 void
 ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 {
+	(void) zd;
+	(void) id;
 	ztest_shared_t *zs = ztest_shared;
 	spa_t *spa = ztest_spa;
 	int fd;
@@ -6322,10 +6340,11 @@ ztest_scrub_impl(spa_t *spa)
 /*
  * Scrub the pool.
  */
-/* ARGSUSED */
 void
 ztest_scrub(ztest_ds_t *zd, uint64_t id)
 {
+	(void) zd;
+	(void) id;
 	spa_t *spa = ztest_spa;
 	int error;
 
@@ -6350,10 +6369,11 @@ ztest_scrub(ztest_ds_t *zd, uint64_t id)
 /*
  * Change the guid for the pool.
  */
-/* ARGSUSED */
 void
 ztest_reguid(ztest_ds_t *zd, uint64_t id)
 {
+	(void) zd;
+	(void) id;
 	spa_t *spa = ztest_spa;
 	uint64_t orig, load;
 	int error;
@@ -6383,6 +6403,8 @@ ztest_reguid(ztest_ds_t *zd, uint64_t id)
 void
 ztest_fletcher(ztest_ds_t *zd, uint64_t id)
 {
+	(void) zd;
+	(void) id;
 	hrtime_t end = gethrtime() + NANOSEC;
 
 	while (gethrtime() <= end) {
@@ -6452,6 +6474,8 @@ ztest_fletcher(ztest_ds_t *zd, uint64_t id)
 void
 ztest_fletcher_incr(ztest_ds_t *zd, uint64_t id)
 {
+	(void) zd;
+	(void) id;
 	void *buf;
 	size_t size;
 	int *ptr;
@@ -6655,10 +6679,11 @@ ztest_random_concrete_vdev_leaf(vdev_t *vd)
 	return (ztest_random_concrete_vdev_leaf(eligible[child_no]));
 }
 
-/* ARGSUSED */
 void
 ztest_initialize(ztest_ds_t *zd, uint64_t id)
 {
+	(void) zd;
+	(void) id;
 	spa_t *spa = ztest_spa;
 	int error = 0;
 
@@ -6683,7 +6708,7 @@ ztest_initialize(ztest_ds_t *zd, uint64_t id)
 	char *path = strdup(rand_vd->vdev_path);
 	boolean_t active = rand_vd->vdev_initialize_thread != NULL;
 
-	zfs_dbgmsg("vd %px, guid %llu", rand_vd, (u_longlong_t)guid);
+	zfs_dbgmsg("vd %px, guid %"PRIu64"", rand_vd, guid);
 	spa_config_exit(spa, SCL_VDEV, FTAG);
 
 	uint64_t cmd = ztest_random(POOL_INITIALIZE_FUNCS);
@@ -6727,10 +6752,11 @@ ztest_initialize(ztest_ds_t *zd, uint64_t id)
 	mutex_exit(&ztest_vdev_lock);
 }
 
-/* ARGSUSED */
 void
 ztest_trim(ztest_ds_t *zd, uint64_t id)
 {
+	(void) zd;
+	(void) id;
 	spa_t *spa = ztest_spa;
 	int error = 0;
 
@@ -6755,7 +6781,7 @@ ztest_trim(ztest_ds_t *zd, uint64_t id)
 	char *path = strdup(rand_vd->vdev_path);
 	boolean_t active = rand_vd->vdev_trim_thread != NULL;
 
-	zfs_dbgmsg("vd %p, guid %llu", rand_vd, (u_longlong_t)guid);
+	zfs_dbgmsg("vd %p, guid %"PRIu64"", rand_vd, guid);
 	spa_config_exit(spa, SCL_VDEV, FTAG);
 
 	uint64_t cmd = ztest_random(POOL_TRIM_FUNCS);
@@ -7244,10 +7270,10 @@ ztest_dataset_close(int d)
 	ztest_zd_fini(zd);
 }
 
-/* ARGSUSED */
 static int
 ztest_replay_zil_cb(const char *name, void *arg)
 {
+	(void) arg;
 	objset_t *os;
 	ztest_ds_t *zdtmp;
 
@@ -7371,6 +7397,7 @@ ztest_freeze(void)
 static void
 ztest_import_impl(ztest_shared_t *zs)
 {
+	(void) zs;
 	importargs_t args = { 0 };
 	nvlist_t *cfg = NULL;
 	int nsearch = 1;

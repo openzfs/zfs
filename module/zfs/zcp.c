@@ -654,8 +654,8 @@ zcp_debug(lua_State *state)
 
 	dbgstring = lua_tostring(state, 1);
 
-	zfs_dbgmsg("txg %lld ZCP: %s", (longlong_t)ri->zri_tx->tx_txg,
-	    dbgstring);
+	zfs_dbgmsg("txg %lld ZCP: %s",
+	    (u_longlong_t)ri->zri_tx->tx_txg, dbgstring);
 
 	return (0);
 }
@@ -769,10 +769,11 @@ zcp_lua_alloc(void *ud, void *ptr, size_t osize, size_t nsize)
 	}
 }
 
-/* ARGSUSED */
 static void
 zcp_lua_counthook(lua_State *state, lua_Debug *ar)
 {
+	(void) ar;
+
 	lua_getfield(state, LUA_REGISTRYINDEX, ZCP_RUN_INFO_KEY);
 	zcp_run_info_t *ri = lua_touserdata(state, -1);
 
@@ -974,10 +975,10 @@ zcp_pool_error(zcp_run_info_t *ri, const char *poolname)
  * The txg_wait_synced_sig will continue to wait for the txg to complete
  * after calling this callback.
  */
-/* ARGSUSED */
 static void
 zcp_eval_sig(void *arg, dmu_tx_t *tx)
 {
+	(void) tx;
 	zcp_run_info_t *ri = arg;
 
 	ri->zri_canceled = B_TRUE;

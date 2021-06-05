@@ -39,20 +39,20 @@ __FBSDID("$FreeBSD$");
 #endif
 #include <sys/kobj.h>
 
+#pragma GCC diagnostic error "-Wunused-parameter"
 
-/*ARGSUSED*/
+
 static void *
 zcalloc(void *opaque, uint_t items, uint_t size)
 {
-
+	(void) opaque;
 	return (malloc((size_t)items*size, M_SOLARIS, M_NOWAIT));
 }
 
-/*ARGSUSED*/
 static void
 zcfree(void *opaque, void *ptr)
 {
-
+	(void) opaque;
 	free(ptr, M_SOLARIS);
 }
 
@@ -119,12 +119,14 @@ static void *
 zlib_workspace_alloc(int flags)
 {
 	// return (kmem_cache_alloc(zlib_workspace_cache, flags));
+	(void) flags;
 	return (NULL);
 }
 
 static void
 zlib_workspace_free(void *workspace)
 {
+	(void) workspace;
 	// kmem_cache_free(zlib_workspace_cache, workspace);
 }
 

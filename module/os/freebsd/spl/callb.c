@@ -40,6 +40,8 @@
 #include <sys/taskq.h>  /* For TASKQ_NAMELEN */
 #include <sys/kernel.h>
 
+#pragma GCC diagnostic error "-Wunused-parameter"
+
 #define	CB_MAXNAME	TASKQ_NAMELEN
 
 /*
@@ -338,10 +340,11 @@ callb_generic_cpr(void *arg, int code)
  * The generic callback function associated with kernel threads which
  * are always considered safe.
  */
-/* ARGSUSED */
 boolean_t
 callb_generic_cpr_safe(void *arg, int code)
 {
+	(void) arg;
+	(void) code;
 	return (B_TRUE);
 }
 /*

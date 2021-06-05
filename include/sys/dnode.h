@@ -614,7 +614,10 @@ extern dnode_stats_t dnode_stats;
 
 #else
 
-#define	dprintf_dnode(db, fmt, ...)
+extern int _not_dprintf_dnode(struct dnode *, const char *, ...)
+    __attribute__((format(printf, 2, 3)));
+#define	dprintf_dnode(dn, fmt, ...)	\
+	((void)sizeof (_not_dprintf_dnode(dn, fmt, __VA_ARGS__)))
 #define	DNODE_VERIFY(dn)
 #define	FREE_VERIFY(db, start, end, tx)
 

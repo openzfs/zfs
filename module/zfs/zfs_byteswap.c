@@ -30,6 +30,8 @@
 #include <sys/zfs_sa.h>
 #include <sys/zfs_acl.h>
 
+#pragma GCC diagnostic error "-Wunused-parameter"
+
 #ifndef _KERNEL
 static
 #endif
@@ -138,7 +140,6 @@ zfs_ace_byteswap(void *buf, size_t size, boolean_t zfs_layout)
 	}
 }
 
-/* ARGSUSED */
 void
 zfs_oldacl_byteswap(void *buf, size_t size)
 {
@@ -154,7 +155,6 @@ zfs_oldacl_byteswap(void *buf, size_t size)
 	zfs_oldace_byteswap((ace_t *)buf, cnt);
 }
 
-/* ARGSUSED */
 void
 zfs_acl_byteswap(void *buf, size_t size)
 {

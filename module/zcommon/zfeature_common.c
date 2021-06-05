@@ -233,6 +233,7 @@ zfs_mod_supported_feature(const char *name)
 	else
 		return (B_TRUE);
 #elif defined(_KERNEL) || defined(LIB_ZPOOL_BUILD)
+	(void) name;
 	return (B_TRUE);
 #else
 	return (zfs_mod_supported(ZFS_SYSFS_POOL_FEATURES, name));

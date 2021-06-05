@@ -255,10 +255,11 @@ vdev_initialize_write(vdev_t *vd, uint64_t start, uint64_t size, abd_t *data)
  * divisible by sizeof (uint64_t), and buf must be 8-byte aligned. The ABD
  * allocation will guarantee these for us.
  */
-/* ARGSUSED */
 static int
 vdev_initialize_block_fill(void *buf, size_t len, void *unused)
 {
+	(void) unused;
+
 	ASSERT0(len % sizeof (uint64_t));
 #ifdef _ILP32
 	for (uint64_t i = 0; i < len; i += sizeof (uint32_t)) {
@@ -624,6 +625,7 @@ vdev_initialize_stop_wait_impl(vdev_t *vd)
 void
 vdev_initialize_stop_wait(spa_t *spa, list_t *vd_list)
 {
+	(void) spa;
 	vdev_t *vd;
 
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));

@@ -52,6 +52,8 @@
 #include <sys/trace_acl.h>
 #include <sys/zpl.h>
 
+#pragma GCC diagnostic error "-Wunused-parameter"
+
 #define	ALLOW	ACE_ACCESS_ALLOWED_ACE_TYPE
 #define	DENY	ACE_ACCESS_DENIED_ACE_TYPE
 #define	MAX_ACE_TYPE	ACE_SYSTEM_ALARM_CALLBACK_OBJECT_ACE_TYPE
@@ -144,10 +146,10 @@ zfs_ace_v0_set_who(void *acep, uint64_t who)
 	((zfs_oldace_t *)acep)->z_fuid = who;
 }
 
-/*ARGSUSED*/
 static size_t
 zfs_ace_v0_size(void *acep)
 {
+	(void) acep;
 	return (sizeof (zfs_oldace_t));
 }
 
@@ -163,10 +165,10 @@ zfs_ace_v0_mask_off(void)
 	return (offsetof(zfs_oldace_t, z_access_mask));
 }
 
-/*ARGSUSED*/
 static int
 zfs_ace_v0_data(void *acep, void **datap)
 {
+	(void) acep;
 	*datap = NULL;
 	return (0);
 }
@@ -629,11 +631,12 @@ zfs_acl_next_ace(zfs_acl_t *aclp, void *start, uint64_t *who,
 	return (NULL);
 }
 
-/*ARGSUSED*/
 static uint64_t
 zfs_ace_walk(void *datap, uint64_t cookie, int aclcnt,
     uint16_t *flags, uint16_t *type, uint32_t *mask)
 {
+	(void) aclcnt;
+
 	zfs_acl_t *aclp = datap;
 	zfs_ace_hdr_t *acep = (zfs_ace_hdr_t *)(uintptr_t)cookie;
 	uint64_t who;
@@ -1130,11 +1133,11 @@ done:
 	return (error);
 }
 
-/*ARGSUSED*/
 void
 zfs_acl_data_locator(void **dataptr, uint32_t *length, uint32_t buflen,
     boolean_t start, void *userdata)
 {
+	(void) buflen;
 	zfs_acl_locator_cb_t *cb = (zfs_acl_locator_cb_t *)userdata;
 
 	if (start) {

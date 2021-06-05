@@ -59,10 +59,12 @@
 #include <sys/sha1.h>
 
 
-/* ARGSUSED */
 void
 sha1_block_data_order(SHA1_CTX *ctx, const void *inpp, size_t blocks)
 {
+	(void) ctx;
+	(void) inpp;
+	(void) blocks;
 }
 
 #else

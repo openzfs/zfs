@@ -56,10 +56,11 @@ typedef struct config_node {
 	uu_avl_node_t	cn_avl;
 } config_node_t;
 
-/* ARGSUSED */
 static int
 config_node_compare(const void *a, const void *b, void *unused)
 {
+	(void) unused;
+
 	int ret;
 
 	const config_node_t *ca = (config_node_t *)a;

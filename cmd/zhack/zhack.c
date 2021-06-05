@@ -100,14 +100,14 @@ fatal(spa_t *spa, void *tag, const char *fmt, ...)
 	exit(1);
 }
 
-/* ARGSUSED */
 static int
 space_delta_cb(dmu_object_type_t bonustype, const void *data,
     zfs_file_info_t *zoi)
 {
-	/*
-	 * Is it a valid type of object to track?
-	 */
+	(void) data;
+	(void) zoi;
+
+	/* Is it a valid type of object to track? */
 	if (bonustype != DMU_OT_ZNODE && bonustype != DMU_OT_SA)
 		return (ENOENT);
 	(void) fprintf(stderr, "modifying object that needs user accounting");

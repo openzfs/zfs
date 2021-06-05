@@ -88,6 +88,8 @@
 #include <sys/kernel.h>
 #include <sys/ccompat.h>
 
+#pragma GCC diagnostic error "-Wunused-parameter"
+
 /* Common access mode for all virtual directories under the ctldir */
 const uint16_t zfsctl_ctldir_mode = S_IRUSR | S_IXUSR | S_IRGRP | S_IXGRP |
     S_IROTH | S_IXOTH;
@@ -146,6 +148,7 @@ static int
 sfs_vnode_insert(struct vnode *vp, int flags, uint64_t parent_id,
     uint64_t id, struct vnode **vpp)
 {
+	(void) parent_id;
 	int err;
 
 	KASSERT(vp->v_data != NULL, ("sfs_vnode_insert with NULL v_data"));
@@ -456,10 +459,10 @@ zfsctl_common_open(struct vop_open_args *ap)
 /*
  * Common close routine.  Nothing to do here.
  */
-/* ARGSUSED */
 static int
 zfsctl_common_close(struct vop_close_args *ap)
 {
+	(void) ap;
 	return (0);
 }
 
@@ -1273,6 +1276,7 @@ zfsctl_lookup_objset(vfs_t *vfsp, uint64_t objsetid, zfsvfs_t **zfsvfsp)
 int
 zfsctl_umount_snapshots(vfs_t *vfsp, int fflags, cred_t *cr)
 {
+	(void) cr;
 	char snapname[ZFS_MAX_DATASET_NAME_LEN];
 	zfsvfs_t *zfsvfs = vfsp->vfs_data;
 	struct mount *mp;

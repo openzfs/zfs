@@ -38,7 +38,7 @@ extern int libspl_assert_ok;
 
 /* printf version of libspl_assert */
 extern void libspl_assertf(const char *file, const char *func, int line,
-    const char *format, ...);
+    const char *format, ...) __attribute__((format(printf, 4, 5)));
 
 static inline int
 libspl_assert(const char *buf, const char *file, const char *func, int line)
@@ -120,15 +120,15 @@ do {									\
 	__compile_time_assertion__ ## y[(x) ? 1 : -1]
 
 #ifdef NDEBUG
-#define	ASSERT3B(x, y, z)	((void)0)
-#define	ASSERT3S(x, y, z)	((void)0)
-#define	ASSERT3U(x, y, z)	((void)0)
-#define	ASSERT3P(x, y, z)	((void)0)
-#define	ASSERT0(x)		((void)0)
-#define	ASSERT(x)		((void)0)
-#define	assert(x)		((void)0)
-#define	IMPLY(A, B)		((void)0)
-#define	EQUIV(A, B)		((void)0)
+#define	ASSERT3B(x, y, z)	((void)sizeof ((x) y(z)))
+#define	ASSERT3S(x, y, z)	((void)sizeof ((x) y(z)))
+#define	ASSERT3U(x, y, z)	((void)sizeof ((x) y(z)))
+#define	ASSERT3P(x, y, z)	((void)sizeof ((x) y(z)))
+#define	ASSERT0(x)		((void)sizeof (x))
+#define	ASSERT(x)		((void)sizeof (x))
+#define	assert(x)		((void)sizeof (x))
+#define	IMPLY(A, B)		((void)sizeof (!(A) || (B)))
+#define	EQUIV(A, B)		((void)sizeof (!(A) || (B)))
 #else
 #define	ASSERT3B	VERIFY3B
 #define	ASSERT3S	VERIFY3S

@@ -486,7 +486,8 @@ mmp_write_uberblock(spa_t *spa)
 		mmp->mmp_skip_error = 0;
 		zfs_dbgmsg("MMP write after skipping due to unavailable "
 		    "leaves, pool '%s' gethrtime %llu leaf %llu",
-		    spa_name(spa), (u_longlong_t)gethrtime(),
+		    spa_name(spa),
+		    (u_longlong_t)gethrtime(),
 		    (u_longlong_t)vd->vdev_guid);
 	}
 
@@ -618,11 +619,13 @@ mmp_thread(void *arg)
 			    "mmp_interval %llu last_mmp_fail_intervals %u "
 			    "mmp_fail_intervals %u mmp_fail_ns %llu "
 			    "skip_wait %d leaves %d next_time %llu",
-			    spa_name(spa), (u_longlong_t)gethrtime(),
+			    spa_name(spa),
+			    (u_longlong_t)gethrtime(),
 			    (u_longlong_t)last_mmp_interval,
 			    (u_longlong_t)mmp_interval, last_mmp_fail_intervals,
-			    mmp_fail_intervals, (u_longlong_t)mmp_fail_ns,
-			    skip_wait, leaves, (u_longlong_t)next_time);
+			    mmp_fail_intervals,
+			    (u_longlong_t)mmp_fail_ns, skip_wait, leaves,
+			    (u_longlong_t)next_time);
 		}
 
 		/*

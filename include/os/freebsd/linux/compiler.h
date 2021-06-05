@@ -40,14 +40,14 @@
 #define	__force
 #define	__nocast
 #define	__iomem
-#define	__chk_user_ptr(x)		((void)0)
-#define	__chk_io_ptr(x)			((void)0)
+#define	__chk_user_ptr(x)		((void)sizeof (x))
+#define	__chk_io_ptr(x)			((void)sizeof (x))
 #define	__builtin_warning(x, y...)	(1)
 #define	__acquires(x)
 #define	__releases(x)
 #define	__acquire(x)			do { } while (0)
 #define	__release(x)			do { } while (0)
-#define	__cond_lock(x, c)		(c)
+#define	__cond_lock(x, c)		((void)sizeof (x), c)
 #define	__bitwise
 #define	__devinitdata
 #define	__deprecated

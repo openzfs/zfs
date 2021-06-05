@@ -3148,6 +3148,7 @@ userquota_propname_decode(const char *propname, boolean_t zoned,
 		if (errno != 0 || *end != '\0')
 			return (EINVAL);
 #else
+		(void) domainlen;
 		return (ENOSYS);
 #endif /* HAVE_IDMAP */
 	} else {

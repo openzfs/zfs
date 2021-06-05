@@ -65,6 +65,8 @@
 #include "zfs_prop.h"
 #include "zfs_comutil.h"
 
+#pragma GCC diagnostic error "-Wunused-parameter"
+
 /*
  * Functions needed for userland (ie: libzpool) are not put under
  * #ifdef_KERNEL; the rest of the functions have dependencies
@@ -113,10 +115,11 @@ zfs_rangelock_cb(zfs_locked_range_t *new, void *arg)
 	}
 }
 
-/*ARGSUSED*/
 static int
 zfs_znode_cache_constructor(void *buf, void *arg, int kmflags)
 {
+	(void) arg;
+	(void) kmflags;
 	znode_t *zp = buf;
 
 	inode_init_once(ZTOI(zp));
@@ -137,10 +140,10 @@ zfs_znode_cache_constructor(void *buf, void *arg, int kmflags)
 	return (0);
 }
 
-/*ARGSUSED*/
 static void
 zfs_znode_cache_destructor(void *buf, void *arg)
 {
+	(void) arg;
 	znode_t *zp = buf;
 
 	ASSERT(!list_link_active(&zp->z_link_node));
@@ -159,6 +162,8 @@ zfs_znode_cache_destructor(void *buf, void *arg)
 static int
 zfs_znode_hold_cache_constructor(void *buf, void *arg, int kmflags)
 {
+	(void) arg;
+	(void) kmflags;
 	znode_hold_t *zh = buf;
 
 	mutex_init(&zh->zh_lock, NULL, MUTEX_DEFAULT, NULL);
@@ -171,6 +176,7 @@ zfs_znode_hold_cache_constructor(void *buf, void *arg, int kmflags)
 static void
 zfs_znode_hold_cache_destructor(void *buf, void *arg)
 {
+	(void) arg;
 	znode_hold_t *zh = buf;
 
 	mutex_destroy(&zh->zh_lock);
@@ -364,6 +370,7 @@ zfs_znode_dmu_fini(znode_t *zp)
 int
 zfs_inode_alloc(struct super_block *sb, struct inode **ip)
 {
+	(void) sb;
 	znode_t *zp;
 
 	zp = kmem_cache_alloc(znode_cache, KM_SLEEP);
@@ -1748,6 +1755,7 @@ zfs_trunc(znode_t *zp, uint64_t end)
 int
 zfs_freesp(znode_t *zp, uint64_t off, uint64_t len, int flag, boolean_t log)
 {
+	(void) flag;
 	dmu_tx_t *tx;
 	zfsvfs_t *zfsvfs = ZTOZSB(zp);
 	zilog_t *zilog = zfsvfs->z_log;
