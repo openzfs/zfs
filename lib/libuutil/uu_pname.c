@@ -38,9 +38,6 @@
 #include <wchar.h>
 #include <unistd.h>
 
-static const char PNAME_FMT[] = "%s: ";
-static const char ERRNO_FMT[] = ": %s\n";
-
 static const char *pname;
 
 static void
@@ -85,16 +82,16 @@ uu_alt_exit(int profile)
 	}
 }
 
-static void
+static __attribute__((format(printf, 2, 0))) void
 uu_warn_internal(int err, const char *format, va_list alist)
 {
 	if (pname != NULL)
-		(void) fprintf(stderr, PNAME_FMT, pname);
+		(void) fprintf(stderr, "%s: ", pname);
 
 	(void) vfprintf(stderr, format, alist);
 
 	if (strrchr(format, '\n') == NULL)
-		(void) fprintf(stderr, ERRNO_FMT, strerror(err));
+		(void) fprintf(stderr, ": %s\n", strerror(err));
 }
 
 void
@@ -103,7 +100,6 @@ uu_vwarn(const char *format, va_list alist)
 	uu_warn_internal(errno, format, alist);
 }
 
-/*PRINTFLIKE1*/
 void
 uu_warn(const char *format, ...)
 {
@@ -113,7 +109,7 @@ uu_warn(const char *format, ...)
 	va_end(alist);
 }
 
-static void
+static __attribute__((format(printf, 2, 0))) __NORETURN void
 uu_die_internal(int status, const char *format, va_list alist)
 {
 	uu_warn_internal(errno, format, alist);
@@ -137,7 +133,6 @@ uu_vdie(const char *format, va_list alist)
 	uu_die_internal(UU_EXIT_FATAL, format, alist);
 }
 
-/*PRINTFLIKE1*/
 void
 uu_die(const char *format, ...)
 {
@@ -153,7 +148,6 @@ uu_vxdie(int status, const char *format, va_list alist)
 	uu_die_internal(status, format, alist);
 }
 
-/*PRINTFLIKE2*/
 void
 uu_xdie(int status, const char *format, ...)
 {

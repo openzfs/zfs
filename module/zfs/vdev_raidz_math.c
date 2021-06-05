@@ -165,8 +165,8 @@ vdev_raidz_math_generate(raidz_map_t *rm, raidz_row_t *rr)
 			break;
 		default:
 			gen_parity = NULL;
-			cmn_err(CE_PANIC, "invalid RAID-Z configuration %d",
-			    raidz_parity(rm));
+			cmn_err(CE_PANIC, "invalid RAID-Z configuration %llu",
+			    (u_longlong_t)raidz_parity(rm));
 			break;
 	}
 
@@ -257,8 +257,8 @@ vdev_raidz_math_reconstruct(raidz_map_t *rm, raidz_row_t *rr,
 		rec_fn = reconstruct_fun_pqr_sel(rm, parity_valid, nbaddata);
 		break;
 	default:
-		cmn_err(CE_PANIC, "invalid RAID-Z configuration %d",
-		    raidz_parity(rm));
+		cmn_err(CE_PANIC, "invalid RAID-Z configuration %llu",
+		    (u_longlong_t)raidz_parity(rm));
 		break;
 	}
 

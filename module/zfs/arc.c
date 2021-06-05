@@ -7470,7 +7470,7 @@ arc_state_multilist_index_func(multilist_t *ml, void *obj)
 	if ((do_warn) && (tuning) && ((tuning) != (value))) {	\
 		cmn_err(CE_WARN,				\
 		    "ignoring tunable %s (using %llu instead)",	\
-		    (#tuning), (value));			\
+		    (#tuning), (u_longlong_t)(value));	\
 	}							\
 } while (0)
 

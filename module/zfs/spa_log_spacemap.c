@@ -1033,8 +1033,8 @@ spa_ld_log_sm_metadata(spa_t *spa)
 		if (sls == NULL) {
 			spa_load_failed(spa, "spa_ld_log_sm_metadata(): bug "
 			    "encountered: could not find log spacemap for "
-			    "TXG %ld [error %d]",
-			    metaslab_unflushed_txg(m), ENOENT);
+			    "TXG %llu [error %d]",
+			    (u_longlong_t)metaslab_unflushed_txg(m), ENOENT);
 			return (ENOENT);
 		}
 		sls->sls_mscount++;
