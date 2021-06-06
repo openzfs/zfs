@@ -2625,10 +2625,25 @@ raidz_reconstruct(zio_t *zio, int *ltgts, int ntgts, int nparity)
 					dead++;
 					if (c >= nparity)
 						dead_data++;
-					my_tgts[t++] = c;
-					zfs_dbgmsg("simulating failure of "
-					    "col %u devidx %u",
-					    c, (int)rc->rc_devidx);
+					/*
+					 * Note: simulating failure of a
+					 * pre-expansion device can hit more
+					 * than one column, in which case we
+					 * might try to simulate more
+					 * failures than can be
+					 * reconstructed, which is also more
+					 * than the size of my_tgts.  This
+					 * check prevents accessing past the
+					 * end of my_tgts.  The "dead >
+					 * nparity" check below will fail
+					 * this reconstruction attempt.
+					 */
+					if (t < VDEV_RAIDZ_MAXPARITY) {
+						my_tgts[t++] = c;
+						zfs_dbgmsg("simulating failure "
+						    "of col %u devidx %u",
+						    c, (int)rc->rc_devidx);
+					}
 					break;
 				}
 			}
