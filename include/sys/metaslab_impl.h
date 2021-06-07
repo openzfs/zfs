@@ -423,6 +423,9 @@ struct metaslab {
 	 * facilitate efficient trimming.
 	 */
 	range_tree_t	*ms_trim;
+	range_tree_t	*ms_trimming;
+	range_tree_t	*ms_trimmed;
+	range_tree_t	*ms_trimmed_defer[TXG_DEFER_SIZE];
 
 	boolean_t	ms_condensing;	/* condensing? */
 	boolean_t	ms_condense_wanted;
@@ -483,6 +486,12 @@ struct metaslab {
 	 */
 	uint64_t	ms_synchist[SPACE_MAP_HISTOGRAM_SIZE];
 	uint64_t	ms_deferhist[TXG_DEFER_SIZE][SPACE_MAP_HISTOGRAM_SIZE];
+	uint64_t	ms_trim_hist[SPACE_MAP_HISTOGRAM_SIZE];
+	uint64_t	ms_notrim_hist[SPACE_MAP_HISTOGRAM_SIZE];
+	uint64_t	ms_trimming_hist[SPACE_MAP_HISTOGRAM_SIZE];
+	uint64_t	ms_trimmed_hist[SPACE_MAP_HISTOGRAM_SIZE];
+	uint64_t	ms_trimmed_deferhist
+			    [TXG_DEFER_SIZE][SPACE_MAP_HISTOGRAM_SIZE];
 
 	/*
 	 * Tracks the exact amount of allocated space of this metaslab
@@ -507,6 +516,7 @@ struct metaslab {
 	hrtime_t	ms_load_time;	/* time last loaded */
 	hrtime_t	ms_unload_time;	/* time last unloaded */
 	hrtime_t	ms_selected_time; /* time last allocated from */
+	hrtime_t	ms_hist_update_time; /* time histograms last updated */
 
 	uint64_t	ms_alloc_txg;	/* last successful alloc (debug only) */
 	uint64_t	ms_max_size;	/* maximum allocatable size	*/

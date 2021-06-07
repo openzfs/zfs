@@ -146,6 +146,12 @@ int zfs_mg_fragmentation_threshold = 95;
 int zfs_metaslab_fragmentation_threshold = 70;
 
 /*
+ * For debug purpose, if true, ms_trimmed ranges will be directly put back
+ * in ms_allocatable without being deferred.
+ */
+int metaslab_trimmed_defer_disable = B_FALSE;
+
+/*
  * When set will load all metaslabs when pool is first opened.
  */
 int metaslab_debug_load = 0;
@@ -1560,27 +1566,39 @@ metaslab_largest_unflushed_free(metaslab_t *msp)
 	 * the largest segment; there may be other usable chunks in the
 	 * largest segment, but we ignore them.
 	 */
+
+	/*
+	 * Create an exclusion list to hold ms_freed, ms_trimming, ms_trimmed,
+	 * ms_defer[TXG_DEFER_SIZE], and ms_trimmed_defer[TXG_DEFER_SIZE]
+	 */
+	range_tree_t *exclusion_trees[2 * TXG_DEFER_SIZE + 3] = {
+		msp->ms_freed,
+		msp->ms_trimming,
+		msp->ms_trimmed
+	};
+
+	for (int t = 0; t < TXG_DEFER_SIZE; t++) {
+		exclusion_trees[2 * t + 3] =
+		    msp->ms_defer[t];
+		exclusion_trees[2 * t + 3 + 1] =
+		    msp->ms_trimmed_defer[t];
+	}
+
+	uint64_t start, size;
+	boolean_t found;
 	uint64_t rstart = rs_get_start(rs, msp->ms_unflushed_frees);
 	uint64_t rsize = rs_get_end(rs, msp->ms_unflushed_frees) - rstart;
-	for (int t = 0; t < TXG_DEFER_SIZE; t++) {
-		uint64_t start = 0;
-		uint64_t size = 0;
-		boolean_t found = range_tree_find_in(msp->ms_defer[t], rstart,
-		    rsize, &start, &size);
+	for (int i = 0; i < 2 * TXG_DEFER_SIZE + 3; i++) {
+		start = 0;
+		size = 0;
+		found = range_tree_find_in(exclusion_trees[i],
+		    rstart, rsize, &start, &size);
 		if (found) {
 			if (rstart == start)
 				return (0);
 			rsize = start - rstart;
 		}
 	}
-
-	uint64_t start = 0;
-	uint64_t size = 0;
-	boolean_t found = range_tree_find_in(msp->ms_freed, rstart,
-	    rsize, &start, &size);
-	if (found)
-		rsize = start - rstart;
-
 	return (rsize);
 }
 
@@ -1945,10 +1963,14 @@ metaslab_verify_space(metaslab_t *msp, uint64_t txg)
 
 	ASSERT3U(msp->ms_deferspace, ==,
 	    range_tree_space(msp->ms_defer[0]) +
-	    range_tree_space(msp->ms_defer[1]));
+	    range_tree_space(msp->ms_defer[1]) +
+	    range_tree_space(msp->ms_trimmed_defer[0]) +
+	    range_tree_space(msp->ms_trimmed_defer[1]));
 
 	msp_free_space = range_tree_space(msp->ms_allocatable) + allocating +
-	    msp->ms_deferspace + range_tree_space(msp->ms_freed);
+	    msp->ms_deferspace + range_tree_space(msp->ms_freed) +
+	    range_tree_space(msp->ms_trimming) +
+	    range_tree_space(msp->ms_trimmed);
 
 	VERIFY3U(sm_free_space, ==, msp_free_space);
 }
@@ -1963,8 +1985,15 @@ metaslab_aux_histograms_clear(metaslab_t *msp)
 	ASSERT(msp->ms_loaded);
 
 	bzero(msp->ms_synchist, sizeof (msp->ms_synchist));
-	for (int t = 0; t < TXG_DEFER_SIZE; t++)
+	for (int t = 0; t < TXG_DEFER_SIZE; t++) {
 		bzero(msp->ms_deferhist[t], sizeof (msp->ms_deferhist[t]));
+		bzero(msp->ms_trimmed_deferhist[t],
+		    sizeof (msp->ms_trimmed_deferhist[t]));
+	}
+	bzero(msp->ms_trim_hist, sizeof (msp->ms_trim_hist));
+	bzero(msp->ms_notrim_hist, sizeof (msp->ms_notrim_hist));
+	bzero(msp->ms_trimming_hist, sizeof (msp->ms_trimming_hist));
+	bzero(msp->ms_trimmed_hist, sizeof (msp->ms_trimmed_hist));
 }
 
 static void
@@ -1991,8 +2020,108 @@ metaslab_aux_histogram_add(uint64_t *histogram, uint64_t shift,
 	}
 }
 
+static void
+metaslab_verify_aux_histograms(metaslab_t *msp)
+{
+	ASSERT(MUTEX_HELD(&msp->ms_lock));
+
+	if ((zfs_flags & ZFS_DEBUG_METASLAB_VERIFY) == 0)
+		return;
+
+	if (msp->ms_sm == NULL)
+		return;
+
+	space_map_t *sm = msp->ms_sm;
+	if (space_map_object(sm) == 0)
+		return;
+
+	if (sm->sm_dbuf->db_size != sizeof (space_map_phys_t))
+		return;
+
+	/*
+	 * For all the conditions that are no need to check the histogram,
+	 * please see the comments in metaslab_verify_weight_and_frag().
+	 */
+	if (msp->ms_group == NULL)
+		return;
+
+	vdev_t *vd = msp->ms_group->mg_vd;
+	if (vd->vdev_removing)
+		return;
+
+	spa_t *spa = vd->vdev_spa;
+	if (!spa_writeable(spa))
+		return;
+
+	/*
+	 * In-core histogram is never synced with the histogram of the space
+	 * map. The comparision is expected to fail.
+	 */
+	if (msp->ms_hist_update_time == 0)
+		return;
+
+	/* Check the histograms. */
+	uint64_t histogram[SPACE_MAP_HISTOGRAM_SIZE] = {0};
+	boolean_t failed = B_FALSE;
+	for (int i = 0; i < SPACE_MAP_HISTOGRAM_SIZE; i++) {
+		histogram[i] += msp->ms_synchist[i];
+		histogram[i] += msp->ms_trimming_hist[i];
+		histogram[i] += msp->ms_trimmed_hist[i];
+		histogram[i] += msp->ms_notrim_hist[i];
+		histogram[i] += msp->ms_trim_hist[i];
+		for (int t = 0; t < TXG_DEFER_SIZE; t++) {
+			histogram[i] += msp->ms_deferhist[t][i];
+			histogram[i] += msp->ms_trimmed_deferhist[t][i];
+		}
+		if (sm->sm_phys->smp_histogram[i] != histogram[i]) {
+			failed = B_TRUE;
+		}
+	}
+	if (failed) {
+		for (int i = 0; i < SPACE_MAP_HISTOGRAM_SIZE; i++) {
+			zfs_dbgmsg("i=%d smp_histogram[i]=%llu "
+			    "ms_*hist[i]=%llu", i,
+			    (u_longlong_t)sm->sm_phys->smp_histogram[i],
+			    (u_longlong_t)histogram[i]);
+		}
+		zfs_dbgmsg("txg %llu, spa %s, vdev_id %llu, "
+		    "ms_id %llu, smp_allocated %llu, "
+		    "ms_unflushed_allocs %llu, ms_unflushed_frees %llu, "
+		    "freeing %llu, freed %llu, defer %llu + %llu, "
+		    "trimming %llu, trimmed %llu, trimmed_defer %llu + %llu, "
+		    "allocatable %llu, ms_allocated_space %llu, "
+		    "ms_deferspace %llu, ms_loaded %s, ms_loading %s, "
+		    "ms_weight %llu\n",
+		    (u_longlong_t)spa_syncing_txg(spa), spa_name(spa),
+		    (u_longlong_t)msp->ms_group->mg_vd->vdev_id,
+		    (u_longlong_t)msp->ms_id,
+		    (u_longlong_t)space_map_allocated(msp->ms_sm),
+		    (u_longlong_t)range_tree_space(msp->ms_unflushed_allocs),
+		    (u_longlong_t)range_tree_space(msp->ms_unflushed_frees),
+		    (u_longlong_t)range_tree_space(msp->ms_freeing),
+		    (u_longlong_t)range_tree_space(msp->ms_freed),
+		    (u_longlong_t)range_tree_space(msp->ms_defer[0]),
+		    (u_longlong_t)range_tree_space(msp->ms_defer[1]),
+		    (u_longlong_t)range_tree_space(msp->ms_trimming),
+		    (u_longlong_t)range_tree_space(msp->ms_trimmed),
+		    (u_longlong_t)range_tree_space(msp->ms_trimmed_defer[0]),
+		    (u_longlong_t)range_tree_space(msp->ms_trimmed_defer[1]),
+		    (u_longlong_t)range_tree_space(msp->ms_allocatable),
+		    (u_longlong_t)msp->ms_allocated_space,
+		    (u_longlong_t)msp->ms_deferspace,
+		    msp->ms_loaded ? "true" : "false",
+		    msp->ms_loading ? "true" : "false",
+		    (u_longlong_t)msp->ms_weight);
+		ASSERT(!failed);
+	}
+}
+
 /*
- * Called at every sync pass that the metaslab gets synced.
+ * When the metaslab is loaded, call this routine to update both the space map
+ * histogram and the auxiliary histograms every time the metaslab gets synced.
+ * Note that ms_freeing is not included here. You can call
+ * space_map_histogram_add() and metaslab_aux_histogram_add() afterwards,
+ * if you want to include ms_freeing.
  *
  * The reason is that we want our auxiliary histograms to be updated
  * wherever the metaslab's space map histogram is updated. This way
@@ -2001,31 +2130,63 @@ metaslab_aux_histogram_add(uint64_t *histogram, uint64_t shift,
  * they are in the defer, freed, and freeing trees).
  */
 static void
-metaslab_aux_histograms_update(metaslab_t *msp)
+metaslab_histograms_update(metaslab_t *msp, dmu_tx_t *tx)
 {
 	space_map_t *sm = msp->ms_sm;
 	ASSERT(sm != NULL);
+	ASSERT(MUTEX_HELD(&msp->ms_lock));
+	ASSERT(msp->ms_loaded);
 
 	/*
-	 * This is similar to the metaslab's space map histogram updates
-	 * that take place in metaslab_sync(). The only difference is that
-	 * we only care about segments that haven't made it into the
-	 * ms_allocatable tree yet.
+	 * Every update must come in pair, one for space map, the other for
+	 * aux histogram. Both histograms should always be in sync.
 	 */
-	if (msp->ms_loaded) {
-		metaslab_aux_histograms_clear(msp);
+	space_map_histogram_clear(msp->ms_sm);
+	metaslab_aux_histograms_clear(msp);
 
-		metaslab_aux_histogram_add(msp->ms_synchist,
-		    sm->sm_shift, msp->ms_freed);
+	/*
+	 * we need to separate ms_trim from ms_allocatable. In case that
+	 * ms_trim gets trimmed, we can safely subtract the histogram of
+	 * ms_trim from the histogram of the space map.
+	 */
+	range_tree_walk(msp->ms_trim, range_tree_remove, msp->ms_allocatable);
 
-		for (int t = 0; t < TXG_DEFER_SIZE; t++) {
-			metaslab_aux_histogram_add(msp->ms_deferhist[t],
-			    sm->sm_shift, msp->ms_defer[t]);
-		}
+	space_map_histogram_add(msp->ms_sm, msp->ms_allocatable, tx);
+	metaslab_aux_histogram_add(msp->ms_notrim_hist,
+	    sm->sm_shift, msp->ms_allocatable);
+
+	space_map_histogram_add(msp->ms_sm, msp->ms_trim, tx);
+	metaslab_aux_histogram_add(msp->ms_trim_hist,
+	    sm->sm_shift, msp->ms_trim);
+
+	range_tree_walk(msp->ms_trim, range_tree_add, msp->ms_allocatable);
+
+	space_map_histogram_add(msp->ms_sm, msp->ms_trimming, tx);
+	metaslab_aux_histogram_add(msp->ms_trimming_hist,
+	    sm->sm_shift, msp->ms_trimming);
+
+	space_map_histogram_add(msp->ms_sm, msp->ms_trimmed, tx);
+	metaslab_aux_histogram_add(msp->ms_trimmed_hist,
+	    sm->sm_shift, msp->ms_trimmed);
+
+	space_map_histogram_add(msp->ms_sm, msp->ms_freed, tx);
+	metaslab_aux_histogram_add(msp->ms_synchist,
+	    sm->sm_shift, msp->ms_freed);
+
+	for (int t = 0; t < TXG_DEFER_SIZE; t++) {
+		space_map_histogram_add(msp->ms_sm,
+		    msp->ms_defer[t], tx);
+		metaslab_aux_histogram_add(msp->ms_deferhist[t],
+		    sm->sm_shift, msp->ms_defer[t]);
+
+		space_map_histogram_add(msp->ms_sm,
+		    msp->ms_trimmed_defer[t], tx);
+		metaslab_aux_histogram_add(msp->ms_trimmed_deferhist[t],
+		    sm->sm_shift, msp->ms_trimmed_defer[t]);
 	}
 
-	metaslab_aux_histogram_add(msp->ms_synchist,
-	    sm->sm_shift, msp->ms_freeing);
+	msp->ms_hist_update_time = gethrtime();
+	metaslab_verify_aux_histograms(msp);
 }
 
 /*
@@ -2053,14 +2214,44 @@ metaslab_aux_histograms_update_done(metaslab_t *msp, boolean_t defer_allowed)
 	 * and ms_defer trees in metaslab_sync_done().
 	 */
 	uint64_t hist_index = spa_syncing_txg(spa) % TXG_DEFER_SIZE;
-	if (defer_allowed) {
-		bcopy(msp->ms_synchist, msp->ms_deferhist[hist_index],
-		    sizeof (msp->ms_synchist));
-	} else {
-		bzero(msp->ms_deferhist[hist_index],
-		    sizeof (msp->ms_deferhist[hist_index]));
+	for (int i = 0; i < SPACE_MAP_HISTOGRAM_SIZE; i++) {
+		if (spa_get_autotrim(spa) == SPA_AUTOTRIM_ON) {
+			msp->ms_trim_hist[i] +=
+			    msp->ms_deferhist[hist_index][i];
+			if (!defer_allowed) {
+				msp->ms_trim_hist[i] += msp->ms_synchist[i];
+			}
+		} else {
+			msp->ms_notrim_hist[i] += msp->ms_trim_hist[i];
+			msp->ms_trim_hist[i] = 0;
+
+			msp->ms_notrim_hist[i] +=
+			    msp->ms_deferhist[hist_index][i];
+			if (!defer_allowed) {
+				msp->ms_notrim_hist[i] += msp->ms_synchist[i];
+			}
+		}
+		msp->ms_deferhist[hist_index][i] = 0;
+
+		msp->ms_notrim_hist[i] +=
+		    msp->ms_trimmed_deferhist[hist_index][i];
+		if (!defer_allowed || metaslab_trimmed_defer_disable) {
+			msp->ms_notrim_hist[i] += msp->ms_trimmed_hist[i];
+		}
+		msp->ms_trimmed_deferhist[hist_index][i] = 0;
+
+		if (defer_allowed) {
+			msp->ms_deferhist[hist_index][i] = msp->ms_synchist[i];
+			if (!metaslab_trimmed_defer_disable) {
+				msp->ms_trimmed_deferhist[hist_index][i] =
+				    msp->ms_trimmed_hist[i];
+			}
+		}
+		msp->ms_synchist[i] = 0;
+		msp->ms_trimmed_hist[i] = 0;
 	}
-	bzero(msp->ms_synchist, sizeof (msp->ms_synchist));
+
+	metaslab_verify_aux_histograms(msp);
 }
 
 /*
@@ -2412,7 +2603,13 @@ metaslab_load_impl(metaslab_t *msp)
 	for (int t = 0; t < TXG_DEFER_SIZE; t++) {
 		range_tree_walk(msp->ms_defer[t],
 		    range_tree_remove, msp->ms_allocatable);
+		range_tree_walk(msp->ms_trimmed_defer[t],
+		    range_tree_remove, msp->ms_allocatable);
 	}
+	range_tree_walk(msp->ms_trimming,
+	    range_tree_remove, msp->ms_allocatable);
+	range_tree_walk(msp->ms_trimmed,
+	    range_tree_remove, msp->ms_allocatable);
 
 	/*
 	 * Call metaslab_recalculate_weight_and_sort() now that the
@@ -2632,6 +2829,71 @@ metaslab_space_update(vdev_t *vd, metaslab_class_t *mc, int64_t alloc_delta,
 	    vdev_deflated_space(vd, space_delta));
 }
 
+/*
+ * Called from vdev_autotrim_thread(), before issuing trim I/O.
+ */
+void
+metaslab_trimming_update(metaslab_t *msp, vdev_t *vd)
+{
+	spa_t *spa = vd->vdev_spa;
+
+	ASSERT(spa_config_held(vd->vdev_spa, SCL_CONFIG, RW_READER));
+	ASSERT(MUTEX_HELD(&msp->ms_lock));
+
+	/* We should not update ms_allocatable when condensing */
+	ASSERT(!msp->ms_condensing);
+
+	if (msp->ms_loaded) {
+		range_tree_walk(msp->ms_trim,
+		    range_tree_remove, msp->ms_allocatable);
+
+		/*
+		 * We need to update the metaslab's maximum
+		 * block size since it may have changed.
+		 */
+		msp->ms_max_size = metaslab_largest_allocatable(msp);
+	}
+
+	/* ms_trimming should be emptied by last trim pass */
+	ASSERT(range_tree_is_empty(msp->ms_trimming));
+	range_tree_swap(&msp->ms_trim, &msp->ms_trimming);
+
+	bcopy(msp->ms_trim_hist, msp->ms_trimming_hist,
+	    sizeof (msp->ms_trim_hist));
+	bzero(msp->ms_trim_hist, sizeof (msp->ms_trim_hist));
+	metaslab_verify_aux_histograms(msp);
+
+	/* Sync the metaslab to update the histogram and the weight */
+	vdev_dirty(vd, VDD_METASLAB, msp, spa_syncing_txg(spa) + 1);
+}
+
+/*
+ * Called from vdev_autotrim_thread(), after all the trim I/Os are settled.
+ */
+void
+metaslab_trimmed_update(metaslab_t *msp, vdev_t *vd)
+{
+	spa_t *spa = vd->vdev_spa;
+
+	ASSERT(spa_config_held(vd->vdev_spa, SCL_CONFIG, RW_READER));
+	ASSERT(MUTEX_HELD(&msp->ms_lock));
+
+	/* ms_trimmed should be empty if we space out autotrim properly. */
+	ASSERT(range_tree_is_empty(msp->ms_trimmed));
+	range_tree_swap(&msp->ms_trimming, &msp->ms_trimmed);
+
+	bcopy(msp->ms_trimming_hist, msp->ms_trimmed_hist,
+	    sizeof (msp->ms_trimming_hist));
+	bzero(msp->ms_trimming_hist, sizeof (msp->ms_trimming_hist));
+	metaslab_verify_aux_histograms(msp);
+
+	/*
+	 * We rely on metaslab_sync_done() to push trimmed
+	 * ranges back to ms_allocatable. Sync this metaslab.
+	 */
+	vdev_dirty(vd, VDD_METASLAB, msp, spa_syncing_txg(spa) + 1);
+}
+
 int
 metaslab_init(metaslab_group_t *mg, uint64_t id, uint64_t object,
     uint64_t txg, metaslab_t **msp)
@@ -2710,6 +2972,12 @@ metaslab_init(metaslab_group_t *mg, uint64_t id, uint64_t object,
 	    type, mrap, start, shift);
 
 	ms->ms_trim = range_tree_create(NULL, type, NULL, start, shift);
+	ms->ms_trimming = range_tree_create(NULL, type, NULL, start, shift);
+	ms->ms_trimmed = range_tree_create(NULL, type, NULL, start, shift);
+	for (int t = 0; t < TXG_DEFER_SIZE; t++) {
+		ms->ms_trimmed_defer[t] = range_tree_create(NULL, type, NULL,
+		    start, shift);
+	}
 
 	metaslab_group_add(mg, ms);
 	metaslab_set_fragmentation(ms, B_FALSE);
@@ -2823,6 +3091,14 @@ metaslab_fini(metaslab_t *msp)
 
 	range_tree_vacate(msp->ms_trim, NULL, NULL);
 	range_tree_destroy(msp->ms_trim);
+	range_tree_vacate(msp->ms_trimming, NULL, NULL);
+	range_tree_destroy(msp->ms_trimming);
+	range_tree_vacate(msp->ms_trimmed, NULL, NULL);
+	range_tree_destroy(msp->ms_trimmed);
+	for (int t = 0; t < TXG_DEFER_SIZE; t++) {
+		range_tree_vacate(msp->ms_trimmed_defer[t], NULL, NULL);
+		range_tree_destroy(msp->ms_trimmed_defer[t]);
+	}
 
 	mutex_exit(&msp->ms_lock);
 	cv_destroy(&msp->ms_load_cv);
@@ -3086,17 +3362,20 @@ metaslab_weight_from_spacemap(metaslab_t *msp)
 	/*
 	 * Create a joint histogram from all the segments that have made
 	 * it to the metaslab's space map histogram, that are not yet
-	 * available for allocation because they are still in the freeing
-	 * pipeline (e.g. freeing, freed, and defer trees). Then subtract
-	 * these segments from the space map's histogram to get a more
-	 * accurate weight.
+	 * available for allocation, which include ms_synchist, ms_deferhist[],
+	 * ms_trimming_hist, ms_trimmed_hist, and ms_trimmed_deferhist[].
+	 * Then subtract these segments from the space map's histogram to
+	 * get a more accurate weight.
 	 */
 	uint64_t deferspace_histogram[SPACE_MAP_HISTOGRAM_SIZE] = {0};
-	for (int i = 0; i < SPACE_MAP_HISTOGRAM_SIZE; i++)
+	for (int i = 0; i < SPACE_MAP_HISTOGRAM_SIZE; i++) {
 		deferspace_histogram[i] += msp->ms_synchist[i];
-	for (int t = 0; t < TXG_DEFER_SIZE; t++) {
-		for (int i = 0; i < SPACE_MAP_HISTOGRAM_SIZE; i++) {
+		deferspace_histogram[i] += msp->ms_trimming_hist[i];
+		deferspace_histogram[i] += msp->ms_trimmed_hist[i];
+		for (int t = 0; t < TXG_DEFER_SIZE; t++) {
 			deferspace_histogram[i] += msp->ms_deferhist[t][i];
+			deferspace_histogram[i] +=
+			    msp->ms_trimmed_deferhist[t][i];
 		}
 	}
 
@@ -3563,12 +3842,28 @@ metaslab_should_condense(metaslab_t *msp)
 	ASSERT(sm != NULL);
 	ASSERT3U(spa_sync_pass(vd->vdev_spa), ==, 1);
 
+	if (msp->ms_condense_wanted)
+		return (B_TRUE);
+
+	uint64_t trim_numsegs = range_tree_numsegs(msp->ms_trimming) +
+	    range_tree_numsegs(msp->ms_trimmed);
+
+	for (int t = 0; t < TXG_DEFER_SIZE; t++) {
+		trim_numsegs += range_tree_numsegs(msp->ms_trimmed_defer[t]);
+	}
+
 	/*
-	 * We always condense metaslabs that are empty and metaslabs for
-	 * which a condense request has been made.
+	 * When there is any trim activity in flight, the estimation based on
+	 * ms_allocatable may not represent the full picture of the space map.
+	 * Skip the condense.
 	 */
-	if (range_tree_numsegs(msp->ms_allocatable) == 0 ||
-	    msp->ms_condense_wanted)
+	if (trim_numsegs > 0)
+		return (B_FALSE);
+
+	/*
+	 * We always condense metaslabs when ms_allocatable is empty.
+	 */
+	if (range_tree_numsegs(msp->ms_allocatable) == 0)
 		return (B_TRUE);
 
 	uint64_t record_size = MAX(sm->sm_blksz, vdev_blocksize);
@@ -3645,11 +3940,12 @@ metaslab_condense(metaslab_t *msp, dmu_tx_t *tx)
 	ASSERT3U(spa_sync_pass(spa), ==, 1);
 	ASSERT(range_tree_is_empty(msp->ms_freed)); /* since it is pass 1 */
 
-	zfs_dbgmsg("condensing: txg %llu, msp[%llu] %px, vdev id %llu, "
-	    "spa %s, smp size %llu, segments %llu, forcing condense=%s",
-	    (u_longlong_t)txg, (u_longlong_t)msp->ms_id, msp,
+	zfs_dbgmsg("condensing: txg %llu, spa %s, vdev_id %llu, ms_id %llu, "
+	    "smp size %llu, segments %llu, forcing condense=%s",
+	    (u_longlong_t)txg, spa_name(spa),
 	    (u_longlong_t)msp->ms_group->mg_vd->vdev_id,
-	    spa->spa_name, (u_longlong_t)space_map_length(msp->ms_sm),
+	    (u_longlong_t)msp->ms_id,
+	    (u_longlong_t)space_map_length(msp->ms_sm),
 	    (u_longlong_t)range_tree_numsegs(msp->ms_allocatable),
 	    msp->ms_condense_wanted ? "TRUE" : "FALSE");
 
@@ -3665,7 +3961,11 @@ metaslab_condense(metaslab_t *msp, dmu_tx_t *tx)
 	for (int t = 0; t < TXG_DEFER_SIZE; t++) {
 		range_tree_walk(msp->ms_defer[t],
 		    range_tree_add, condense_tree);
+		range_tree_walk(msp->ms_trimmed_defer[t],
+		    range_tree_add, condense_tree);
 	}
+	range_tree_walk(msp->ms_trimming, range_tree_add, condense_tree);
+	range_tree_walk(msp->ms_trimmed, range_tree_add, condense_tree);
 
 	for (int t = 0; t < TXG_CONCURRENT_STATES; t++) {
 		range_tree_walk(msp->ms_allocating[(txg + t) & TXG_MASK],
@@ -3855,14 +4155,7 @@ metaslab_flush(metaslab_t *msp, dmu_tx_t *tx)
 
 		metaslab_condense(msp, tx);
 
-		space_map_histogram_clear(msp->ms_sm);
-		space_map_histogram_add(msp->ms_sm, msp->ms_allocatable, tx);
-		ASSERT(range_tree_is_empty(msp->ms_freed));
-		for (int t = 0; t < TXG_DEFER_SIZE; t++) {
-			space_map_histogram_add(msp->ms_sm,
-			    msp->ms_defer[t], tx);
-		}
-		metaslab_aux_histograms_update(msp);
+		metaslab_histograms_update(msp, tx);
 
 		metaslab_group_histogram_add(mg, msp);
 		metaslab_group_histogram_verify(mg);
@@ -3894,11 +4187,12 @@ metaslab_flush(metaslab_t *msp, dmu_tx_t *tx)
 	uint64_t sm_len_after = space_map_length(msp->ms_sm);
 	if (zfs_flags & ZFS_DEBUG_LOG_SPACEMAP) {
 		zfs_dbgmsg("flushing: txg %llu, spa %s, vdev_id %llu, "
-		    "ms_id %llu, unflushed_allocs %llu, unflushed_frees %llu, "
-		    "appended %llu bytes", (u_longlong_t)dmu_tx_get_txg(tx),
-		    spa_name(spa),
+		    "ms_id %llu, smp_allocated %llu, unflushed_allocs %llu, "
+		    "unflushed_frees %llu, appended %llu bytes",
+		    (u_longlong_t)dmu_tx_get_txg(tx), spa_name(spa),
 		    (u_longlong_t)msp->ms_group->mg_vd->vdev_id,
 		    (u_longlong_t)msp->ms_id,
+		    (u_longlong_t)space_map_allocated(msp->ms_sm),
 		    (u_longlong_t)range_tree_space(msp->ms_unflushed_allocs),
 		    (u_longlong_t)range_tree_space(msp->ms_unflushed_frees),
 		    (u_longlong_t)(sm_len_after - sm_len_before));
@@ -4139,29 +4433,7 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
 		 * to bring the space map's histogram up-to-date so we clear
 		 * it first before updating it.
 		 */
-		space_map_histogram_clear(msp->ms_sm);
-		space_map_histogram_add(msp->ms_sm, msp->ms_allocatable, tx);
-
-		/*
-		 * Since we've cleared the histogram we need to add back
-		 * any free space that has already been processed, plus
-		 * any deferred space. This allows the on-disk histogram
-		 * to accurately reflect all free space even if some space
-		 * is not yet available for allocation (i.e. deferred).
-		 */
-		space_map_histogram_add(msp->ms_sm, msp->ms_freed, tx);
-
-		/*
-		 * Add back any deferred free space that has not been
-		 * added back into the in-core free tree yet. This will
-		 * ensure that we don't end up with a space map histogram
-		 * that is completely empty unless the metaslab is fully
-		 * allocated.
-		 */
-		for (int t = 0; t < TXG_DEFER_SIZE; t++) {
-			space_map_histogram_add(msp->ms_sm,
-			    msp->ms_defer[t], tx);
-		}
+		metaslab_histograms_update(msp, tx);
 	}
 
 	/*
@@ -4172,8 +4444,10 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
 	 * time we load the space map.
 	 */
 	space_map_histogram_add(msp->ms_sm, msp->ms_freeing, tx);
-	metaslab_aux_histograms_update(msp);
+	metaslab_aux_histogram_add(msp->ms_synchist,
+	    msp->ms_sm->sm_shift, msp->ms_freeing);
 
+	metaslab_verify_aux_histograms(msp);
 	metaslab_group_histogram_add(mg, msp);
 	metaslab_group_histogram_verify(mg);
 	metaslab_class_histogram_verify(mg->mg_class);
@@ -4247,6 +4521,7 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 	vdev_t *vd = mg->mg_vd;
 	spa_t *spa = vd->vdev_spa;
 	range_tree_t **defer_tree;
+	range_tree_t **trimmed_defer;
 	int64_t alloc_delta, defer_delta;
 	boolean_t defer_allowed = B_TRUE;
 
@@ -4267,6 +4542,7 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 	ASSERT0(range_tree_space(msp->ms_checkpointing));
 
 	defer_tree = &msp->ms_defer[txg % TXG_DEFER_SIZE];
+	trimmed_defer = &msp->ms_trimmed_defer[txg % TXG_DEFER_SIZE];
 
 	uint64_t free_space = metaslab_class_get_space(spa_normal_class(spa)) -
 	    metaslab_class_get_alloc(spa_normal_class(spa));
@@ -4279,10 +4555,19 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 	    range_tree_space(msp->ms_freed);
 
 	if (defer_allowed) {
-		defer_delta = range_tree_space(msp->ms_freed) -
-		    range_tree_space(*defer_tree);
+		if (!metaslab_trimmed_defer_disable) {
+			defer_delta = range_tree_space(msp->ms_freed) +
+			    range_tree_space(msp->ms_trimmed) -
+			    range_tree_space(*defer_tree) -
+			    range_tree_space(*trimmed_defer);
+		} else {
+			defer_delta = range_tree_space(msp->ms_freed) -
+			    range_tree_space(*defer_tree) -
+			    range_tree_space(*trimmed_defer);
+		}
 	} else {
-		defer_delta -= range_tree_space(*defer_tree);
+		defer_delta -= range_tree_space(*defer_tree) +
+		    range_tree_space(*trimmed_defer);
 	}
 	metaslab_space_update(vd, mg->mg_class, alloc_delta + defer_delta,
 	    defer_delta, 0);
@@ -4334,6 +4619,16 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 		    msp->ms_allocatable);
 	}
 
+	range_tree_vacate(*trimmed_defer,
+	    msp->ms_loaded ? range_tree_add : NULL, msp->ms_allocatable);
+	if (defer_allowed && !metaslab_trimmed_defer_disable) {
+		range_tree_swap(&msp->ms_trimmed, trimmed_defer);
+	} else {
+		range_tree_vacate(msp->ms_trimmed,
+		    msp->ms_loaded ? range_tree_add : NULL,
+		    msp->ms_allocatable);
+	}
+
 	msp->ms_synced_length = space_map_length(msp->ms_sm);
 
 	msp->ms_deferspace += defer_delta;
@@ -4346,6 +4641,8 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 		 */
 		vdev_dirty(vd, VDD_METASLAB, msp, txg + 1);
 	}
+
+	metaslab_verify_aux_histograms(msp);
 	metaslab_aux_histograms_update_done(msp, defer_allowed);
 
 	if (msp->ms_new) {
@@ -4365,6 +4662,7 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 	ASSERT0(range_tree_space(msp->ms_freeing));
 	ASSERT0(range_tree_space(msp->ms_freed));
 	ASSERT0(range_tree_space(msp->ms_checkpointing));
+	ASSERT0(range_tree_space(msp->ms_trimmed));
 	msp->ms_allocating_total -= msp->ms_allocated_this_txg;
 	msp->ms_allocated_this_txg = 0;
 	mutex_exit(&msp->ms_lock);
@@ -6028,9 +6326,14 @@ metaslab_check_free_impl(vdev_t *vd, uint64_t offset, uint64_t size)
 	range_tree_verify_not_present(msp->ms_freeing, offset, size);
 	range_tree_verify_not_present(msp->ms_checkpointing, offset, size);
 	range_tree_verify_not_present(msp->ms_freed, offset, size);
-	for (int j = 0; j < TXG_DEFER_SIZE; j++)
+	for (int j = 0; j < TXG_DEFER_SIZE; j++) {
 		range_tree_verify_not_present(msp->ms_defer[j], offset, size);
+		range_tree_verify_not_present(msp->ms_trimmed_defer[j],
+		    offset, size);
+	}
 	range_tree_verify_not_present(msp->ms_trim, offset, size);
+	range_tree_verify_not_present(msp->ms_trimming, offset, size);
+	range_tree_verify_not_present(msp->ms_trimmed, offset, size);
 	mutex_exit(&msp->ms_lock);
 }
 

@@ -806,6 +806,7 @@ static void
 vdev_trim_range_add(void *arg, uint64_t start, uint64_t size)
 {
 	trim_args_t *ta = arg;
+	metaslab_t *msp = ta->trim_msp;
 	vdev_t *vd = ta->trim_vdev;
 	range_seg64_t logical_rs;
 	logical_rs.rs_start = start;
@@ -813,13 +814,10 @@ vdev_trim_range_add(void *arg, uint64_t start, uint64_t size)
 
 	/*
 	 * Every range to be trimmed must be part of ms_allocatable.
-	 * When ZFS_DEBUG_TRIM is set load the metaslab to verify this
-	 * is always the case.
+	 * Only check if the metaslab is loaded.
 	 */
-	if (zfs_flags & ZFS_DEBUG_TRIM) {
+	if ((zfs_flags & ZFS_DEBUG_TRIM) && msp->ms_loaded) {
 		metaslab_t *msp = ta->trim_msp;
-		VERIFY0(metaslab_load(msp));
-		VERIFY3B(msp->ms_loaded, ==, B_TRUE);
 		VERIFY(range_tree_contains(msp->ms_allocatable, start, size));
 	}
 
@@ -1153,21 +1151,6 @@ vdev_trim_restart(vdev_t *vd)
 }
 
 /*
- * Used by the automatic TRIM when ZFS_DEBUG_TRIM is set to verify that
- * every TRIM range is contained within ms_allocatable.
- */
-static void
-vdev_trim_range_verify(void *arg, uint64_t start, uint64_t size)
-{
-	trim_args_t *ta = arg;
-	metaslab_t *msp = ta->trim_msp;
-
-	VERIFY3B(msp->ms_loaded, ==, B_TRUE);
-	VERIFY3U(msp->ms_disabled, >, 0);
-	VERIFY(range_tree_contains(msp->ms_allocatable, start, size));
-}
-
-/*
  * Each automatic TRIM thread is responsible for managing the trimming of a
  * top-level vdev in the pool.  No automatic TRIM state is maintained on-disk.
  *
@@ -1192,7 +1175,6 @@ vdev_autotrim_thread(void *arg)
 
 	while (!vdev_autotrim_should_stop(vd)) {
 		int txgs_per_trim = MAX(zfs_trim_txg_batch, 1);
-		boolean_t issued_trim = B_FALSE;
 
 		/*
 		 * All of the metaslabs are divided in to groups of size
@@ -1225,10 +1207,6 @@ vdev_autotrim_thread(void *arg)
 			metaslab_t *msp = vd->vdev_ms[i];
 			range_tree_t *trim_tree;
 
-			spa_config_exit(spa, SCL_CONFIG, FTAG);
-			metaslab_disable(msp);
-			spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
-
 			mutex_enter(&msp->ms_lock);
 
 			/*
@@ -1238,7 +1216,6 @@ vdev_autotrim_thread(void *arg)
 			if (msp->ms_sm == NULL ||
 			    range_tree_is_empty(msp->ms_trim)) {
 				mutex_exit(&msp->ms_lock);
-				metaslab_enable(msp, B_FALSE, B_FALSE);
 				continue;
 			}
 
@@ -1251,21 +1228,16 @@ vdev_autotrim_thread(void *arg)
 			 * disabled the metaslab will be included in the tree.
 			 * These will be processed when the automatic TRIM
 			 * next revisits this metaslab.
+			 * Also we should not update ms_allocatable when
+			 * condensing.
 			 */
-			if (msp->ms_disabled > 1) {
+			if (msp->ms_disabled > 0 || msp->ms_condensing) {
 				mutex_exit(&msp->ms_lock);
-				metaslab_enable(msp, B_FALSE, B_FALSE);
 				continue;
 			}
 
-			/*
-			 * Allocate an empty range tree which is swapped in
-			 * for the existing ms_trim tree while it is processed.
-			 */
-			trim_tree = range_tree_create(NULL, RANGE_SEG64, NULL,
-			    0, 0);
-			range_tree_swap(&msp->ms_trim, &trim_tree);
-			ASSERT(range_tree_is_empty(msp->ms_trim));
+			/* Temporarily hold the pointer of ms_trim. */
+			trim_tree = msp->ms_trim;
 
 			/*
 			 * There are two cases when constructing the per-vdev
@@ -1323,14 +1295,28 @@ vdev_autotrim_thread(void *arg)
 				    vdev_trim_range_add, ta);
 			}
 
+			if (zfs_flags & ZFS_DEBUG_TRIM) {
+				zfs_dbgmsg("issuing autotrim, "
+				    "spa %s, vdev_id %llu, ms_id %llu, "
+				    "ms_loaded %s, trim_tree %llu, txg %llu\n",
+				    spa_name(spa),
+				    (u_longlong_t)vd->vdev_id,
+				    (u_longlong_t)msp->ms_id,
+				    msp->ms_loaded ? "true" : "false",
+				    (u_longlong_t)range_tree_space(trim_tree),
+				    (u_longlong_t)spa_syncing_txg(spa));
+			}
+
+			/* No need to hold this pointer any more. */
+			trim_tree = NULL;
+
+			metaslab_trimming_update(msp, vd);
 			mutex_exit(&msp->ms_lock);
 			spa_config_exit(spa, SCL_CONFIG, FTAG);
 
 			/*
 			 * Issue the TRIM I/Os for all ranges covered by the
-			 * TRIM trees.  These ranges are safe to TRIM because
-			 * no new allocations will be performed until the call
-			 * to metaslab_enabled() below.
+			 * TRIM trees.
 			 */
 			for (uint64_t c = 0; c < children; c++) {
 				trim_args_t *ta = &tap[c];
@@ -1344,38 +1330,28 @@ vdev_autotrim_thread(void *arg)
 					continue;
 				}
 
-				/*
-				 * After this point metaslab_enable() must be
-				 * called with the sync flag set.  This is done
-				 * here because vdev_trim_ranges() is allowed
-				 * to be interrupted (EINTR) before issuing all
-				 * of the required TRIM I/Os.
-				 */
-				issued_trim = B_TRUE;
-
 				int error = vdev_trim_ranges(ta);
 				if (error)
 					break;
 			}
 
-			/*
-			 * Verify every range which was trimmed is still
-			 * contained within the ms_allocatable tree.
-			 */
-			if (zfs_flags & ZFS_DEBUG_TRIM) {
-				mutex_enter(&msp->ms_lock);
-				VERIFY0(metaslab_load(msp));
-				VERIFY3P(tap[0].trim_msp, ==, msp);
-				range_tree_walk(trim_tree,
-				    vdev_trim_range_verify, &tap[0]);
-				mutex_exit(&msp->ms_lock);
+			for (uint64_t c = 0; c < children; c++) {
+				trim_args_t *ta = &tap[c];
+				vdev_t *cvd = ta->trim_vdev;
+				trim_type_t tp = ta->trim_type;
+
+				mutex_enter(&cvd->vdev_trim_io_lock);
+				while (cvd->vdev_trim_inflight[tp] > 0) {
+					cv_wait(&cvd->vdev_trim_io_cv,
+					    &cvd->vdev_trim_io_lock);
+				}
+				mutex_exit(&cvd->vdev_trim_io_lock);
 			}
 
-			range_tree_vacate(trim_tree, NULL, NULL);
-			range_tree_destroy(trim_tree);
-
-			metaslab_enable(msp, issued_trim, B_FALSE);
 			spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+			mutex_enter(&msp->ms_lock);
+			metaslab_trimmed_update(msp, vd);
+			mutex_exit(&msp->ms_lock);
 
 			for (uint64_t c = 0; c < children; c++) {
 				trim_args_t *ta = &tap[c];
@@ -1398,21 +1374,10 @@ vdev_autotrim_thread(void *arg)
 		 * zfs_trim_txg_batch txgs will occur before these metaslabs
 		 * are trimmed again.
 		 */
-		txg_wait_open(spa_get_dsl(spa), 0, issued_trim);
+		txg_wait_open(spa_get_dsl(spa), 0, B_FALSE);
 
 		shift++;
 		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
-	}
-
-	for (uint64_t c = 0; c < vd->vdev_children; c++) {
-		vdev_t *cvd = vd->vdev_child[c];
-		mutex_enter(&cvd->vdev_trim_io_lock);
-
-		while (cvd->vdev_trim_inflight[1] > 0) {
-			cv_wait(&cvd->vdev_trim_io_cv,
-			    &cvd->vdev_trim_io_lock);
-		}
-		mutex_exit(&cvd->vdev_trim_io_lock);
 	}
 
 	spa_config_exit(spa, SCL_CONFIG, FTAG);
