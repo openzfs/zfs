@@ -18,7 +18,6 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
 .\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
@@ -27,27 +26,23 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd August 9, 2019
+.Dd May 31, 2021
 .Dt ZPOOL-REGUID 8
 .Os
+.
 .Sh NAME
 .Nm zpool-reguid
-.Nd Generate a new unique identifier for a ZFS storage pool
+.Nd generate new unique identifier for ZFS storage pool
 .Sh SYNOPSIS
 .Nm zpool
 .Cm reguid
 .Ar pool
+.
 .Sh DESCRIPTION
-.Bl -tag -width Ds
-.It Xo
-.Nm zpool
-.Cm reguid
-.Ar pool
-.Xc
 Generates a new unique identifier for the pool.
 You must ensure that all devices in this pool are online and healthy before
 performing this action.
-.El
+.
 .Sh SEE ALSO
 .Xr zpool-export 8 ,
 .Xr zpool-import 8
