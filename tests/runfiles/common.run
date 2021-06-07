@@ -165,8 +165,8 @@ tags = ['functional', 'cli_root', 'zfs_create']
 
 [tests/functional/cli_root/zfs_destroy]
 tests = ['zfs_clone_livelist_condense_and_disable',
-    'zfs_clone_livelist_condense_races', 'zfs_destroy_001_pos',
-    'zfs_destroy_002_pos', 'zfs_destroy_003_pos',
+    'zfs_clone_livelist_condense_races', 'zfs_clone_livelist_dedup',
+    'zfs_destroy_001_pos', 'zfs_destroy_002_pos', 'zfs_destroy_003_pos',
     'zfs_destroy_004_pos', 'zfs_destroy_005_neg', 'zfs_destroy_006_neg',
     'zfs_destroy_007_neg', 'zfs_destroy_008_pos', 'zfs_destroy_009_pos',
     'zfs_destroy_010_pos', 'zfs_destroy_011_pos', 'zfs_destroy_012_pos',

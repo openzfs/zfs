@@ -161,12 +161,6 @@ static int dump_bpobj_cb(void *arg, const blkptr_t *bp, boolean_t free,
     dmu_tx_t *tx);
 
 typedef struct sublivelist_verify {
-	/* all ALLOC'd blkptr_t in one sub-livelist */
-	zfs_btree_t sv_all_allocs;
-
-	/* all FREE'd blkptr_t in one sub-livelist */
-	zfs_btree_t sv_all_frees;
-
 	/* FREE's that haven't yet matched to an ALLOC, in one sub-livelist */
 	zfs_btree_t sv_pair;
 
@@ -225,29 +219,68 @@ typedef struct sublivelist_verify_block {
 
 static void zdb_print_blkptr(const blkptr_t *bp, int flags);
 
+typedef struct sublivelist_verify_block_refcnt {
+	/* block pointer entry in livelist being verified */
+	blkptr_t svbr_blk;
+
+	/*
+	 * Refcount gets incremented to 1 when we encounter the first
+	 * FREE entry for the svfbr block pointer and a node for it
+	 * is created in our ZDB verification/tracking metadata.
+	 *
+	 * As we encounter more FREE entries we increment this counter
+	 * and similarly decrement it whenever we find the respective
+	 * ALLOC entries for this block.
+	 *
+	 * When the refcount gets to 0 it means that all the FREE and
+	 * ALLOC entries of this block have paired up and we no longer
+	 * need to track it in our verification logic (e.g. the node
+	 * containing this struct in our verification data structure
+	 * should be freed).
+	 *
+	 * [refer to sublivelist_verify_blkptr() for the actual code]
+	 */
+	uint32_t svbr_refcnt;
+} sublivelist_verify_block_refcnt_t;
+
+static int
+sublivelist_block_refcnt_compare(const void *larg, const void *rarg)
+{
+	const sublivelist_verify_block_refcnt_t *l = larg;
+	const sublivelist_verify_block_refcnt_t *r = rarg;
+	return (livelist_compare(&l->svbr_blk, &r->svbr_blk));
+}
+
 static int
 sublivelist_verify_blkptr(void *arg, const blkptr_t *bp, boolean_t free,
     dmu_tx_t *tx)
 {
 	ASSERT3P(tx, ==, NULL);
 	struct sublivelist_verify *sv = arg;
-	char blkbuf[BP_SPRINTF_LEN];
+	sublivelist_verify_block_refcnt_t current = {
+			.svbr_blk = *bp,
+
+			/*
+			 * Start with 1 in case this is the first free entry.
+			 * This field is not used for our B-Tree comparisons
+			 * anyway.
+			 */
+			.svbr_refcnt = 1,
+	};
+
 	zfs_btree_index_t where;
+	sublivelist_verify_block_refcnt_t *pair =
+	    zfs_btree_find(&sv->sv_pair, &current, &where);
 	if (free) {
-		zfs_btree_add(&sv->sv_pair, bp);
-		/* Check if the FREE is a duplicate */
-		if (zfs_btree_find(&sv->sv_all_frees, bp, &where) != NULL) {
-			snprintf_blkptr_compact(blkbuf, sizeof (blkbuf), bp,
-			    free);
-			(void) printf("\tERROR: Duplicate FREE: %s\n", blkbuf);
+		if (pair == NULL) {
+			/* first free entry for this block pointer */
+			zfs_btree_add(&sv->sv_pair, &current);
 		} else {
-			zfs_btree_add_idx(&sv->sv_all_frees, bp, &where);
+			pair->svbr_refcnt++;
 		}
 	} else {
-		/* Check if the ALLOC has been freed */
-		if (zfs_btree_find(&sv->sv_pair, bp, &where) != NULL) {
-			zfs_btree_remove_idx(&sv->sv_pair, &where);
-		} else {
+		if (pair == NULL) {
+			/* block that is currently marked as allocated */
 			for (int i = 0; i < SPA_DVAS_PER_BP; i++) {
 				if (DVA_IS_EMPTY(&bp->blk_dva[i]))
 					break;
@@ -262,16 +295,16 @@ sublivelist_verify_blkptr(void *arg, const blkptr_t *bp, boolean_t free,
 					    &svb, &where);
 				}
 			}
-		}
-		/* Check if the ALLOC is a duplicate */
-		if (zfs_btree_find(&sv->sv_all_allocs, bp, &where) != NULL) {
-			snprintf_blkptr_compact(blkbuf, sizeof (blkbuf), bp,
-			    free);
-			(void) printf("\tERROR: Duplicate ALLOC: %s\n", blkbuf);
 		} else {
-			zfs_btree_add_idx(&sv->sv_all_allocs, bp, &where);
+			/* alloc matches a free entry */
+			pair->svbr_refcnt--;
+			if (pair->svbr_refcnt == 0) {
+				/* all allocs and frees have been matched */
+				zfs_btree_remove_idx(&sv->sv_pair, &where);
+			}
 		}
 	}
+
 	return (0);
 }
 
@@ -279,32 +312,22 @@ static int
 sublivelist_verify_func(void *args, dsl_deadlist_entry_t *dle)
 {
 	int err;
-	char blkbuf[BP_SPRINTF_LEN];
 	struct sublivelist_verify *sv = args;
 
-	zfs_btree_create(&sv->sv_all_allocs, livelist_compare,
-	    sizeof (blkptr_t));
-
-	zfs_btree_create(&sv->sv_all_frees, livelist_compare,
-	    sizeof (blkptr_t));
-
-	zfs_btree_create(&sv->sv_pair, livelist_compare,
-	    sizeof (blkptr_t));
+	zfs_btree_create(&sv->sv_pair, sublivelist_block_refcnt_compare,
+	    sizeof (sublivelist_verify_block_refcnt_t));
 
 	err = bpobj_iterate_nofree(&dle->dle_bpobj, sublivelist_verify_blkptr,
 	    sv, NULL);
 
-	zfs_btree_clear(&sv->sv_all_allocs);
-	zfs_btree_destroy(&sv->sv_all_allocs);
-
-	zfs_btree_clear(&sv->sv_all_frees);
-	zfs_btree_destroy(&sv->sv_all_frees);
-
-	blkptr_t *e;
+	sublivelist_verify_block_refcnt_t *e;
 	zfs_btree_index_t *cookie = NULL;
 	while ((e = zfs_btree_destroy_nodes(&sv->sv_pair, &cookie)) != NULL) {
-		snprintf_blkptr_compact(blkbuf, sizeof (blkbuf), e, B_TRUE);
-		(void) printf("\tERROR: Unmatched FREE: %s\n", blkbuf);
+		char blkbuf[BP_SPRINTF_LEN];
+		snprintf_blkptr_compact(blkbuf, sizeof (blkbuf),
+		    &e->svbr_blk, B_TRUE);
+		(void) printf("\tERROR: %d unmatched FREE(s): %s\n",
+		    e->svbr_refcnt, blkbuf);
 	}
 	zfs_btree_destroy(&sv->sv_pair);
 
@@ -613,9 +636,13 @@ mv_populate_livelist_allocs(metaslab_verify_t *mv, sublivelist_verify_t *sv)
 /*
  * [Livelist Check]
  * Iterate through all the sublivelists and:
- * - report leftover frees
- * - report double ALLOCs/FREEs
+ * - report leftover frees (**)
  * - record leftover ALLOCs together with their TXG [see Cross Check]
+ *
+ * (**) Note: Double ALLOCs are valid in datasets that have dedup
+ *      enabled. Similarly double FREEs are allowed as well but
+ *      only if they pair up with a corresponding ALLOC entry once
+ *      we our done with our sublivelist iteration.
  *
  * [Spacemap Check]
  * for each metaslab:
