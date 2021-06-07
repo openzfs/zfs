@@ -390,6 +390,19 @@ atomic_swap_ptr(volatile void *target, void *bits)
 	return (old);
 }
 
+#ifndef _LP64
+uint64_t
+atomic_load_64(volatile uint64_t *target)
+{
+	return (__atomic_load_n(target, __ATOMIC_RELAXED));
+}
+
+void
+atomic_store_64(volatile uint64_t *target, uint64_t bits)
+{
+	return (__atomic_store_n(target, bits, __ATOMIC_RELAXED));
+}
+#endif
 
 int
 atomic_set_long_excl(volatile ulong_t *target, uint_t value)
