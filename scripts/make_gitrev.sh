@@ -50,7 +50,7 @@ esac
 ZFS_GITREV=$({ cd "${top_srcdir}" &&
 	git describe --always --long --dirty 2>/dev/null; } || :)
 
-if [ "x${ZFS_GITREV}" = x ]
+if [ -z "${ZFS_GITREV}" ]
 then
 	# If the source directory is not a git repository, check if the file
 	# already exists (in the source)
