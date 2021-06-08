@@ -8,6 +8,7 @@ VPATH = \
 # Suppress unused but set variable warnings often due to ASSERTs
 AM_CFLAGS += $(NO_UNUSED_BUT_SET_VARIABLE)
 AM_CFLAGS += $(LIBCRYPTO_CFLAGS) $(ZLIB_CFLAGS)
+AM_CFLAGS += -fvisibility=hidden
 
 pkgconfig_DATA = libzfs.pc
 
@@ -16,6 +17,7 @@ lib_LTLIBRARIES = libzfs.la
 include $(top_srcdir)/config/Abigail.am
 
 USER_C = \
+	libzfs_impl.h \
 	libzfs_changelist.c \
 	libzfs_config.c \
 	libzfs_crypto.c \

@@ -24,7 +24,7 @@
  */
 
 #ifndef	_SYS_CITYHASH_H
-#define	_SYS_CITYHASH_H
+#define	_SYS_CITYHASH_H extern __attribute__((visibility("default")))
 
 #include <sys/zfs_context.h>
 
@@ -32,7 +32,7 @@
 extern "C" {
 #endif
 
-uint64_t cityhash4(uint64_t, uint64_t, uint64_t, uint64_t);
+_SYS_CITYHASH_H uint64_t cityhash4(uint64_t, uint64_t, uint64_t, uint64_t);
 
 #ifdef	__cplusplus
 }
