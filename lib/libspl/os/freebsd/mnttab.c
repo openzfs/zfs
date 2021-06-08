@@ -140,14 +140,14 @@ statfs_init(void)
 		free(gsfs);
 		gsfs = NULL;
 	}
-	allfs = getfsstat(NULL, 0, MNT_WAIT);
+	allfs = getfsstat(NULL, 0, MNT_NOWAIT);
 	if (allfs == -1)
 		goto fail;
 	gsfs = malloc(sizeof (gsfs[0]) * allfs * 2);
 	if (gsfs == NULL)
 		goto fail;
 	allfs = getfsstat(gsfs, (long)(sizeof (gsfs[0]) * allfs * 2),
-	    MNT_WAIT);
+	    MNT_NOWAIT);
 	if (allfs == -1)
 		goto fail;
 	sfs = realloc(gsfs, allfs * sizeof (gsfs[0]));
