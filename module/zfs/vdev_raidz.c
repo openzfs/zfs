@@ -2538,6 +2538,20 @@ raidz_restore_orig_data(raidz_map_t *rm)
 	}
 }
 
+/*
+ * Treating logical child i as failed, return TRUE if the given column should
+ * be treated as failed.  The idea of logical children allows us to imagine
+ * that a disk silently failed before a RAIDZ expansion (reads from this disk
+ * succeed but return the wrong data).  Since the expansion doesn't verify
+ * checksums, the incorrect data will be moved to new locations spread among
+ * the children (going diagonally across them).
+ *
+ * Higher "logical child failures" (values of `i`) indicate these
+ * "pre-expansion failures".  The first physical_width values imagine that a
+ * current child failed; the next physical_width-1 values imagine that a
+ * child failed before the most recent expansion; the next physical_width-2
+ * values imagine a child failed in the expansion before that, etc.
+ */
 static boolean_t
 raidz_simulate_failure(int physical_width, int original_width, int ashift,
     int i, raidz_col_t *rc)
@@ -2717,7 +2731,7 @@ raidz_reconstruct(zio_t *zio, int *ltgts, int ntgts, int nparity)
  * The order that we find the various possible combinations of failed
  * disks is dictated by these rules:
  * - Examine each "slot" (the "i" in tgts[i])
- *   - Try to increment this slot (tgts[i] = tgts[i] + 1)
+ *   - Try to increment this slot (tgts[i] += 1)
  *   - if we can't increment because it runs into the next slot,
  *     reset our slot to the minimum, and examine the next slot
  *

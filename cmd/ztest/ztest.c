@@ -3984,10 +3984,17 @@ ztest_vdev_raidz_attach(ztest_ds_t *zd, uint64_t id)
 	root = make_vdev_root(newpath, NULL, NULL, csize, ashift, NULL,
 	    0, 0, 1);
 
+	/*
+	 * XXX this doesn't work right because spa_vdev_attach() won't
+	 * return until it can write the first txg of the reflow, which
+	 * will be paused.  We need to kill off from another thread??
+	 */
+#if 0
 	if (ztest_random(2) == 0 && expected_error == 0) {
 		raidz_expand_max_offset_pause = RAIDZ_REFLOW_OFFSET_PAUSE;
 		ztest_shared->zs_do_raidz_scratch_verify = B_TRUE;
 	}
+#endif
 
 	error = spa_vdev_attach(spa, pvd->vdev_guid, root, B_FALSE, B_FALSE);
 
