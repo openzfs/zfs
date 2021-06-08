@@ -138,6 +138,23 @@ zfs_ioc_nextboot(const char *unused, nvlist_t *innvl, nvlist_t *outnvl)
 	return (error);
 }
 
+/* Update the VFS's cache of mountpoint properties */
+void
+zfs_ioctl_update_mount_cache(const char *dsname)
+{
+	zfsvfs_t *zfsvfs;
+
+	if (getzfsvfs(dsname, &zfsvfs) == 0) {
+		struct mount *mp = zfsvfs->z_vfs;
+		VFS_STATFS(mp, &mp->mnt_stat);
+		zfs_vfs_rele(zfsvfs);
+	}
+	/*
+	 * Ignore errors; we can't do anything useful if either getzfsvfs or
+	 * VFS_STATFS fails.
+	 */
+}
+
 uint64_t
 zfs_max_nvlist_src_size_os(void)
 {
