@@ -126,7 +126,7 @@ zed_lock()
 
     # Obtain a lock on the file bound to the given file descriptor.
     #
-    eval "exec ${fd}> '${lockfile}'"
+    eval "exec ${fd}>> '${lockfile}'"
     if ! err="$(flock --exclusive "${fd}" 2>&1)"; then
         zed_log_err "failed to lock \"${lockfile}\": ${err}"
     fi

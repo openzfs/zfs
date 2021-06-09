@@ -12,15 +12,11 @@
 
 zed_exit_if_ignoring_this_event
 
-lockfile="$(basename -- "${ZED_DEBUG_LOG}").lock"
+zed_lock "${ZED_DEBUG_LOG}"
+{
+	printenv | sort
+	echo
+} 1>&"${ZED_FLOCK_FD}"
+zed_unlock "${ZED_DEBUG_LOG}"
 
-umask 077
-zed_lock "${lockfile}"
-exec >> "${ZED_DEBUG_LOG}"
-
-printenv | sort
-echo
-
-exec >&-
-zed_unlock "${lockfile}"
 exit 0
