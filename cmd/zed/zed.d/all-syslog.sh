@@ -42,6 +42,7 @@ fi
     msg="${msg} delay=$((ZEVENT_ZIO_DELAY / 1000000))ms"
 
 # list the bookmark data together
+# shellcheck disable=SC2153
 [ -n "${ZEVENT_ZIO_OBJSET}" ] && \
     msg="${msg} bookmark=${ZEVENT_ZIO_OBJSET}:${ZEVENT_ZIO_OBJECT}:${ZEVENT_ZIO_LEVEL}:${ZEVENT_ZIO_BLKID}"
 
