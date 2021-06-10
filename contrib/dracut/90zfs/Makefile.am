@@ -10,7 +10,8 @@ pkgdracut_SCRIPTS = \
 	zfs-generator.sh \
 	zfs-load-key.sh \
 	zfs-needshutdown.sh \
-	zfs-lib.sh
+	zfs-lib.sh \
+	import-opts-generator.sh
 
 pkgdracut_DATA = \
 	zfs-env-bootfs.service \
