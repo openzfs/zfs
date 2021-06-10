@@ -2766,14 +2766,8 @@ raidz_reconstruct(zio_t *zio, int *ltgts, int ntgts, int nparity)
  * possible as long as there are no more than nparity data errors per row.
  * These additional permutations are not currently checked but could be as
  * a future improvement.
- */
-
-/*
- * Should this sector be considered failed for logical child ID i?
- * XXX comment explaining logical child ID's
- */
-/*
- * return 0 on success, ECKSUM on failure
+ *
+ * Returns 0 on success, ECKSUM on failure.
  */
 static int
 vdev_raidz_combrec(zio_t *zio)
@@ -2802,7 +2796,10 @@ vdev_raidz_combrec(zio_t *zio)
 		int *ltgts = &tstore[1]; /* value is logical child ID */
 
 
-		/* Determine number of logical children, n */
+		/*
+		 * Determine number of logical children, n.  See comment
+		 * above raidz_simulate_failure().
+		 */
 		int n = 0;
 		for (int w = physical_width;
 		    w >= original_width; w--) {
@@ -3352,7 +3349,6 @@ raidz_reflow_sync(void *arg, dmu_tx_t *tx)
 
 	/*
 	 * Ensure there are no i/os to the range that is being committed.
-	 * XXX This might be overkill?
 	 */
 	uint64_t old_offset = RRSS_GET_OFFSET(&spa->spa_uberblock);
 	ASSERT3U(vre->vre_offset_pertxg[txgoff], >=, old_offset);
@@ -4200,6 +4196,25 @@ spa_start_raidz_expansion_thread(spa_t *spa)
 	ASSERT3P(spa->spa_raidz_expand_zthr, ==, NULL);
 	spa->spa_raidz_expand_zthr = zthr_create("raidz_expand",
 	    spa_raidz_expand_cb_check, spa_raidz_expand_cb, spa);
+}
+
+void
+raidz_dtl_reassessed(vdev_t *vd)
+{
+	spa_t *spa = vd->vdev_spa;
+	if (spa->spa_raidz_expand != NULL) {
+		vdev_raidz_expand_t *vre = spa->spa_raidz_expand;
+		if (vd->vdev_top->vdev_id == vre->vre_vdev_id) {
+			mutex_enter(&vre->vre_lock);
+			if (vre->vre_waiting_for_resilver) {
+				vdev_dbgmsg(vd, "DTL reassessed, "
+				    "continuing raidz expansion");
+				vre->vre_waiting_for_resilver = B_FALSE;
+				zthr_wakeup(spa->spa_raidz_expand_zthr);
+			}
+			mutex_exit(&vre->vre_lock);
+		}
+	}
 }
 
 int

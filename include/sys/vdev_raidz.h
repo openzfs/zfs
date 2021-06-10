@@ -56,7 +56,8 @@ void vdev_raidz_reconstruct(struct raidz_map *, const int *, int);
 void vdev_raidz_child_done(zio_t *);
 void vdev_raidz_io_done(zio_t *);
 struct raidz_row *vdev_raidz_row_alloc(int);
-extern void vdev_raidz_reflow_copy_scratch(spa_t *);
+void vdev_raidz_reflow_copy_scratch(spa_t *);
+void raidz_dtl_reassessed(vdev_t *);
 
 extern const zio_vsd_ops_t vdev_raidz_vsd_ops;
 

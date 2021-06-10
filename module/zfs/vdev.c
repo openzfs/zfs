@@ -3120,23 +3120,8 @@ vdev_dtl_reassess(vdev_t *vd, uint64_t txg, uint64_t scrub_txg,
 		mutex_exit(&vd->vdev_dtl_lock);
 	}
 
-	/*
-	 * XXX make this a function in vdev_raidz.c
-	 * XXX seems prone to race conditions, e.g. we haven't yet
-	 * returned from spa_raidz_expand_cb().
-	 */
-	if (spa->spa_raidz_expand != NULL) {
-		vdev_raidz_expand_t *vre = spa->spa_raidz_expand;
-		if (vd->vdev_top->vdev_id == vre->vre_vdev_id) {
-			mutex_enter(&vre->vre_lock);
-			if (vre->vre_waiting_for_resilver) {
-				vdev_dbgmsg(vd, "DTL reassessed, "
-				    "continuing raidz expansion");
-				vre->vre_waiting_for_resilver = B_FALSE;
-				zthr_wakeup(spa->spa_raidz_expand_zthr);
-			}
-			mutex_exit(&vre->vre_lock);
-		}
+	if (vd->vdev_top->vdev_ops == &vdev_raidz_ops) {
+		raidz_dtl_reassessed(vd);
 	}
 }
 
@@ -3951,12 +3936,6 @@ vdev_online(spa_t *spa, uint64_t guid, uint64_t flags, vdev_state_t *newstate)
 
 	if ((vd = spa_lookup_by_guid(spa, guid, B_TRUE)) == NULL)
 		return (spa_vdev_state_exit(spa, NULL, SET_ERROR(ENODEV)));
-
-	/* XXX */
-#if 0
-	if (!vd->vdev_ops->vdev_op_leaf)
-		return (spa_vdev_state_exit(spa, NULL, SET_ERROR(ENOTSUP)));
-#endif
 
 	wasoffline = (vd->vdev_offline || vd->vdev_tmpoffline);
 	oldstate = vd->vdev_state;
