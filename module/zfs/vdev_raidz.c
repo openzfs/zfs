@@ -3141,6 +3141,11 @@ vdev_raidz_io_done(zio_t *zio)
 			 * reconstruction.  We also disable aggregation.
 			 */
 			if (rm->rm_phys_col != NULL) {
+				for (int i = 0; i < rm->rm_nphys_cols; i++) {
+					if (rm->rm_phys_col[i].rc_abd != NULL)
+						abd_free(rm->rm_phys_col[i].
+						    rc_abd);
+				}
 				kmem_free(rm->rm_phys_col,
 				    sizeof (raidz_col_t) * rm->rm_nphys_cols);
 				rm->rm_phys_col = NULL;
