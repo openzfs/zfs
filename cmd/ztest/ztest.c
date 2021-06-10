@@ -3976,7 +3976,7 @@ ztest_vdev_raidz_attach(ztest_ds_t *zd, uint64_t id)
 	 * Path to vdev to be attached
 	 */
 	(void) snprintf(newpath, MAXPATHLEN, ztest_dev_template,
-		ztest_opts.zo_dir, ztest_opts.zo_pool, pvd->vdev_children);
+	    ztest_opts.zo_dir, ztest_opts.zo_pool, pvd->vdev_children);
 
 	/*
 	 * Build the nvlist describing newpath.

@@ -90,7 +90,7 @@ typedef enum raidz_reflow_scratch_state {
 #define	RRSS_SET_STATE(ub, x)	\
 	BF64_SET_SB((ub)->ub_raidz_reflow_info, 32, 8, 0, 0, x)
 
-#define RAIDZ_REFLOW_SET(ub, state, offset)	do {	\
+#define	RAIDZ_REFLOW_SET(ub, state, offset)	do {	\
 	(ub)->ub_raidz_reflow_info = 0; \
 	RRSS_SET_OFFSET(ub, offset); \
 	RRSS_SET_STATE(ub, state); \
