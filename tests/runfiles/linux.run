@@ -171,3 +171,7 @@ tags = ['functional', 'user_namespace']
 tests = ['groupspace_001_pos', 'groupspace_002_pos', 'groupspace_003_pos',
     'userquota_013_pos', 'userspace_003_pos']
 tags = ['functional', 'userquota']
+
+[tests/functional/cache:Linux]
+tests = ['cache_013_pos']
+tags = ['functional' ]
