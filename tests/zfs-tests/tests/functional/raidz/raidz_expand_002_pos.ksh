@@ -90,7 +90,7 @@ for nparity in 1 2 3; do
 
 	for disk in ${disks[$(($nparity+2))..$devs]}; do
 		log_must dd if=/dev/urandom of=/${pool}/FILE-$RANDOM bs=1M \
-		    count=128
+		    count=64
 
 		log_must zpool attach -w $pool ${raid}-0 $disk
 
