@@ -315,16 +315,16 @@ zstd_mempool_reap(struct zstd_pool *zstd_mempool)
 static void *
 zstd_mempool_alloc(struct zstd_pool *zstd_mempool, size_t size)
 {
-	struct zstd_pool *pool;
 	struct zstd_kmem *mem = NULL;
 
 	if (!zstd_mempool) {
 		return (NULL);
 	}
 
+#if 0
 	/* Seek for preallocated memory slot and free obsolete slots */
 	for (int i = 0; i < ZSTD_POOL_MAX; i++) {
-		pool = &zstd_mempool[i];
+		struct zstd_pool *pool = &zstd_mempool[i];
 		/*
 		 * This lock is simply a marker for a pool object being in use.
 		 * If it's already hold, it will be skipped.
@@ -358,7 +358,7 @@ zstd_mempool_alloc(struct zstd_pool *zstd_mempool, size_t size)
 	 * allocations constantly at the end.
 	 */
 	for (int i = 0; i < ZSTD_POOL_MAX; i++) {
-		pool = &zstd_mempool[i];
+		struct zstd_pool *pool = &zstd_mempool[i];
 		if (mutex_tryenter(&pool->barrier)) {
 			/* Object is free, try to allocate new one */
 			if (!pool->mem) {
@@ -386,6 +386,7 @@ zstd_mempool_alloc(struct zstd_pool *zstd_mempool, size_t size)
 			mutex_exit(&pool->barrier);
 		}
 	}
+#endif
 
 	/*
 	 * If the pool is full or the allocation failed, try lazy allocation
