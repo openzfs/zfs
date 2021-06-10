@@ -146,36 +146,6 @@ void
 kstat_delete(kstat_t *ksp)
 {}
 
-/*ARGSUSED*/
-void
-kstat_waitq_enter(kstat_io_t *kiop)
-{}
-
-/*ARGSUSED*/
-void
-kstat_waitq_exit(kstat_io_t *kiop)
-{}
-
-/*ARGSUSED*/
-void
-kstat_runq_enter(kstat_io_t *kiop)
-{}
-
-/*ARGSUSED*/
-void
-kstat_runq_exit(kstat_io_t *kiop)
-{}
-
-/*ARGSUSED*/
-void
-kstat_waitq_to_runq(kstat_io_t *kiop)
-{}
-
-/*ARGSUSED*/
-void
-kstat_runq_back_to_waitq(kstat_io_t *kiop)
-{}
-
 void
 kstat_set_raw_ops(kstat_t *ksp,
     int (*headers)(char *buf, size_t size),
