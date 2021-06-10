@@ -153,6 +153,7 @@ typedef enum zfs_error {
 	EZFS_NOT_USER_NAMESPACE,	/* a file is not a user namespace */
 	EZFS_CKSUM,		/* insufficient replicas */
 	EZFS_RESUME_EXISTS,	/* Resume on existing dataset without force */
+	EZFS_RAIDZ_EXPAND_IN_PROGRESS,	/* a raidz is currently expanding */
 	EZFS_UNKNOWN
 } zfs_error_t;
 

@@ -75,6 +75,27 @@ extern "C" {
 #define	MMP_FAIL_INT_SET(fail) \
 	    (((uint64_t)(fail & 0xFFFF) << 48) | MMP_FAIL_INT_VALID_BIT)
 
+typedef enum raidz_reflow_scratch_state {
+	RRSS_SCRATCH_NOT_IN_USE = 0,
+	RRSS_SCRATCH_VALID,
+} raidz_reflow_scratch_state_t;
+
+#define	RRSS_GET_OFFSET(ub)	\
+	BF64_GET_SB((ub)->ub_raidz_reflow_info, 0, 32, SPA_MINBLOCKSHIFT, 0)
+#define	RRSS_SET_OFFSET(ub, x)	\
+	BF64_SET_SB((ub)->ub_raidz_reflow_info, 0, 32, SPA_MINBLOCKSHIFT, 0, x)
+
+#define	RRSS_GET_STATE(ub)	\
+	BF64_GET_SB((ub)->ub_raidz_reflow_info, 32, 8, 0, 0)
+#define	RRSS_SET_STATE(ub, x)	\
+	BF64_SET_SB((ub)->ub_raidz_reflow_info, 32, 8, 0, 0, x)
+
+#define	RAIDZ_REFLOW_SET(ub, state, offset)	do {	\
+	(ub)->ub_raidz_reflow_info = 0; \
+	RRSS_SET_OFFSET(ub, offset); \
+	RRSS_SET_STATE(ub, state); \
+} while (0)
+
 struct uberblock {
 	uint64_t	ub_magic;	/* UBERBLOCK_MAGIC		*/
 	uint64_t	ub_version;	/* SPA_VERSION			*/
@@ -136,6 +157,8 @@ struct uberblock {
 	 * the ZIL block is not allocated [see uses of spa_min_claim_txg()].
 	 */
 	uint64_t	ub_checkpoint_txg;
+
+	uint64_t	ub_raidz_reflow_info;
 };
 
 #ifdef	__cplusplus

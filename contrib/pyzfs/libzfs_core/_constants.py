@@ -103,6 +103,7 @@ zfs_errno = enum_with_offset(1024, [
         'ZFS_ERR_NOT_USER_NAMESPACE',
         'ZFS_ERR_RESUME_EXISTS',
         'ZFS_ERR_CRYPTO_NOTSUP',
+        'ZFS_ERR_RAIDZ_EXPAND_IN_PROGRESS',
     ],
     {}
 )
@@ -115,5 +116,6 @@ ZFS_ERR_DEVRM_IN_PROGRESS = zfs_errno.ZFS_ERR_DEVRM_IN_PROGRESS
 ZFS_ERR_VDEV_TOO_BIG = zfs_errno.ZFS_ERR_VDEV_TOO_BIG
 ZFS_ERR_WRONG_PARENT = zfs_errno.ZFS_ERR_WRONG_PARENT
 ZFS_ERR_VDEV_NOTSUP = zfs_errno.ZFS_ERR_VDEV_NOTSUP
+ZFS_ERR_RAIDZ_EXPAND_IN_PROGRESS = zfs_errno.ZFS_ERR_RAIDZ_EXPAND_IN_PROGRESS
 
 # vim: softtabstop=4 tabstop=4 expandtab shiftwidth=4

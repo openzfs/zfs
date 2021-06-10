@@ -737,6 +737,12 @@ zpool_feature_init(void)
 	    ZFEATURE_FLAG_MOS, ZFEATURE_TYPE_BOOLEAN, NULL,
 	    sfeatures);
 
+
+	zfeature_register(SPA_FEATURE_RAIDZ_EXPANSION,
+	    "org.openzfs:raidz_expansion", "raidz_expansion",
+	    "Support for raidz expansion",
+	    ZFEATURE_FLAG_MOS, ZFEATURE_TYPE_BOOLEAN, NULL);
+
 	zfs_mod_list_supported_free(sfeatures);
 }
 
