@@ -3392,9 +3392,8 @@ zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
 		break;
 
 	case EBUSY:
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "%s is busy, "
-		    "or device removal is in progress"),
-		    new_disk);
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "%s is busy"), new_disk);
 		(void) zfs_error(hdl, EZFS_BADDEV, msg);
 		break;
 

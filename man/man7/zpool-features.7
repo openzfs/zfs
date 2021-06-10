@@ -836,6 +836,14 @@ once all filesystems that have ever had their
 property set to
 .Sy zstd
 are destroyed.
+.
+.feature org.openzfs raidz_expansion no none
+This feature enables the
+.Nm zpool Cm attach
+subcommand to attach a new device to a RAIDZ group, expanding the total
+amount usable space in the pool.
+See
+.Xr zpool-attach 8 .
 .El
 .
 .Sh SEE ALSO

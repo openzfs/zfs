@@ -36,6 +36,6 @@
 #	runtime might be longer.
 #
 
-log_must raidz_test -S -e -r 0 -t 60
+log_must raidz_test -S -e -r 0 -t 300
 
 log_pass "raidz_test parameter sweep test with expanded map succeeded."

@@ -387,6 +387,15 @@ Note, that both this many milliseconds and
 .Sy metaslab_unload_delay
 TXGs must pass before unloading will occur.
 .
+.It Sy raidz_expand_max_copy_bytes Ns = Ns Sy 160MB Pq ulong
+Max amount of concurrent i/o for RAIDZ expansion.
+.
+.It Sy raidz_expand_max_offset_pause Ns = Ns Sy 0 Pq ulong
+For testing, pause RAIDZ expansion at this offset.
+.
+.It Sy raidz_io_aggregate_rows Ns = Ns Sy 4 Pq ulong
+For expanded RAIDZ, aggregate reads that have more rows than this.
+.
 .It Sy reference_history Ns = Ns Sy 3 Pq int
 Maximum reference holders being tracked when reference_tracking_enable is active.
 .
