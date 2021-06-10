@@ -542,6 +542,7 @@ typedef struct vdev_label {
 /*
  * Size of embedded boot loader region on each label.
  * The total size of the first two labels plus the boot area is 4MB.
+ * On RAIDZ, this space is overwritten during RAIDZ expansion.
  */
 #define	VDEV_BOOT_SIZE		(7ULL << 19)			/* 3.5M */
 
