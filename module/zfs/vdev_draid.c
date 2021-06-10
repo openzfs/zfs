@@ -1132,7 +1132,8 @@ vdev_draid_min_asize(vdev_t *vd)
 
 	ASSERT3P(vd->vdev_ops, ==, &vdev_draid_ops);
 
-	return ((vd->vdev_min_asize + vdc->vdc_ndisks - 1) / (vdc->vdc_ndisks));
+	return (VDEV_DRAID_REFLOW_RESERVE +
+	    (vd->vdev_min_asize + vdc->vdc_ndisks - 1) / (vdc->vdc_ndisks));
 }
 
 /*
