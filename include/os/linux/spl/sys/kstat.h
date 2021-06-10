@@ -206,10 +206,6 @@ extern void kstat_proc_entry_install(kstat_proc_entry_t *kpep, mode_t mode,
 
 extern void __kstat_install(kstat_t *ksp);
 extern void __kstat_delete(kstat_t *ksp);
-extern void kstat_waitq_enter(kstat_io_t *);
-extern void kstat_waitq_exit(kstat_io_t *);
-extern void kstat_runq_enter(kstat_io_t *);
-extern void kstat_runq_exit(kstat_io_t *);
 
 #define	kstat_set_raw_ops(k, h, d, a) \
     __kstat_set_raw_ops(k, h, d, a)
