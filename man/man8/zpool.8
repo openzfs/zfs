@@ -54,7 +54,7 @@ See
 for information on managing datasets.
 .Pp
 For an overview of creating and managing ZFS storage pools see the
-.Xr zpoolconcepts 8
+.Xr zpoolconcepts 7
 manual page.
 .
 .Sh SUBCOMMANDS
@@ -126,7 +126,7 @@ Creates a new pool by splitting all mirrors in an existing pool (which decreases
 .
 .Ss Properties
 Available pool properties listed in the
-.Xr zpoolprops 8
+.Xr zpoolprops 7
 manual page.
 .Bl -tag -width Ds
 .It Xr zpool-list 8
@@ -157,10 +157,8 @@ These events are consumed by the
 .Xr zed 8
 and used to automate administrative tasks such as replacing a failed device
 with a hot spare.
-For more information about the subclasses and event payloads
-that can be generated see the
-.Xr zfs-events 5
-man page.
+That manual page also describes the subclasses and event payloads
+that can be generated.
 .It Xr zpool-history 8
 Displays the command history of the specified pool(s) or all pools if no pool is
 specified.
@@ -523,9 +521,10 @@ is not set, it is assumed that the user is allowed to run
 .Sy Evolving
 .
 .Sh SEE ALSO
-.Xr zfs-events 5 ,
-.Xr zfs-module-parameters 5 ,
-.Xr zpool-features 5 ,
+.Xr zfs 4 ,
+.Xr zpool-features 7 ,
+.Xr zpoolconcepts 7 ,
+.Xr zpoolprops 7 ,
 .Xr zed 8 ,
 .Xr zfs 8 ,
 .Xr zpool-add 8 ,
@@ -558,6 +557,4 @@ is not set, it is assumed that the user is allowed to run
 .Xr zpool-sync 8 ,
 .Xr zpool-trim 8 ,
 .Xr zpool-upgrade 8 ,
-.Xr zpool-wait 8 ,
-.Xr zpoolconcepts 8 ,
-.Xr zpoolprops 8
+.Xr zpool-wait 8

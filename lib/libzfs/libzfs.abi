@@ -34,8 +34,6 @@
     <elf-symbol name='get_dataset_depth' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='getprop_uint64' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='is_mounted' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='libshare_nfs_init' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='libshare_smb_init' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='libzfs_add_handle' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='libzfs_envvar_is_set' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='libzfs_errno' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -59,7 +57,6 @@
     <elf-symbol name='permset_namecheck' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='pool_namecheck' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='printf_color' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='register_fstype' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='sa_commit_shares' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='sa_disable_share' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='sa_enable_share' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -350,7 +347,6 @@
     <elf-symbol name='fletcher_4_superscalar4_ops' size='64' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='fletcher_4_superscalar_ops' size='64' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='libzfs_config_ops' size='16' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='smb_shares' size='8' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='spa_feature_table' size='1904' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfeature_checks_disable' size='4' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_deleg_perm_tab' size='512' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -2686,13 +2682,6 @@
       <parameter type-id='type-id-104'/>
       <return type-id='type-id-8'/>
     </function-decl>
-    <function-decl name='zfs_setprop_error' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='type-id-91'/>
-      <parameter type-id='type-id-85'/>
-      <parameter type-id='type-id-8'/>
-      <parameter type-id='type-id-17'/>
-      <return type-id='type-id-6'/>
-    </function-decl>
     <function-decl name='changelist_free' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='type-id-231'/>
       <return type-id='type-id-6'/>
@@ -2700,6 +2689,13 @@
     <function-decl name='changelist_postfix' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='type-id-231'/>
       <return type-id='type-id-8'/>
+    </function-decl>
+    <function-decl name='zfs_setprop_error' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='type-id-91'/>
+      <parameter type-id='type-id-85'/>
+      <parameter type-id='type-id-8'/>
+      <parameter type-id='type-id-17'/>
+      <return type-id='type-id-6'/>
     </function-decl>
     <function-decl name='nvlist_remove_all' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='type-id-104'/>
@@ -7576,6 +7572,51 @@
     </function-decl>
   </abi-instr>
   <abi-instr version='1.0' address-size='64' path='libshare.c' comp-dir-path='/home/nabijaczleweli/store/code/zfs/lib/libshare' language='LANG_C99'>
+    <function-decl name='libshare_nfs_init' visibility='default' binding='global' size-in-bits='64'>
+      <return type-id='type-id-6'/>
+    </function-decl>
+    <function-decl name='libshare_smb_init' visibility='default' binding='global' size-in-bits='64'>
+      <return type-id='type-id-6'/>
+    </function-decl>
+    <function-decl name='sa_is_shared' mangled-name='sa_is_shared' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='sa_is_shared'>
+      <parameter type-id='type-id-84' name='mountpoint'/>
+      <parameter type-id='type-id-17' name='protocol'/>
+      <return type-id='type-id-16'/>
+    </function-decl>
+  </abi-instr>
+  <abi-instr version='1.0' address-size='64' path='nfs.c' comp-dir-path='/home/nabijaczleweli/store/code/zfs/lib/libshare' language='LANG_C99'>
+    <function-decl name='mkdir' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='type-id-84'/>
+      <parameter type-id='type-id-5'/>
+      <return type-id='type-id-8'/>
+    </function-decl>
+    <function-decl name='mkostemp' mangled-name='mkostemp64' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='type-id-17'/>
+      <parameter type-id='type-id-8'/>
+      <return type-id='type-id-8'/>
+    </function-decl>
+    <function-decl name='flock' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='type-id-8'/>
+      <parameter type-id='type-id-8'/>
+      <return type-id='type-id-8'/>
+    </function-decl>
+    <function-decl name='nfs_copy_entries' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='type-id-17'/>
+      <parameter type-id='type-id-84'/>
+      <return type-id='type-id-8'/>
+    </function-decl>
+    <function-decl name='rename' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='type-id-84'/>
+      <parameter type-id='type-id-84'/>
+      <return type-id='type-id-8'/>
+    </function-decl>
+  </abi-instr>
+  <abi-instr version='1.0' address-size='64' path='os/linux/nfs.c' comp-dir-path='/home/nabijaczleweli/store/code/zfs/lib/libshare' language='LANG_C99'>
+    <function-decl name='fputs' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='type-id-84'/>
+      <parameter type-id='type-id-150'/>
+      <return type-id='type-id-8'/>
+    </function-decl>
     <class-decl name='sa_fstype' size-in-bits='256' is-struct='yes' visibility='default' id='type-id-533'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='next' type-id='type-id-534' visibility='default'/>
@@ -7643,29 +7684,32 @@
     <typedef-decl name='sa_share_ops_t' type-id='type-id-536' id='type-id-555'/>
     <qualified-type-def type-id='type-id-555' const='yes' id='type-id-556'/>
     <pointer-type-def type-id='type-id-556' size-in-bits='64' id='type-id-535'/>
-    <typedef-decl name='sa_fstype_t' type-id='type-id-533' id='type-id-557'/>
+    <qualified-type-def type-id='type-id-536' const='yes' id='type-id-557'/>
     <pointer-type-def type-id='type-id-557' size-in-bits='64' id='type-id-558'/>
-    <function-decl name='register_fstype' mangled-name='register_fstype' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='register_fstype'>
-      <parameter type-id='type-id-84' name='name'/>
-      <parameter type-id='type-id-535' name='ops'/>
-      <return type-id='type-id-558'/>
+    <function-decl name='register_fstype' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='type-id-84'/>
+      <parameter type-id='type-id-558'/>
+      <return type-id='type-id-534'/>
     </function-decl>
-    <function-decl name='libshare_nfs_init' visibility='default' binding='global' size-in-bits='64'>
-      <return type-id='type-id-6'/>
-    </function-decl>
-    <function-decl name='libshare_smb_init' visibility='default' binding='global' size-in-bits='64'>
-      <return type-id='type-id-6'/>
-    </function-decl>
-    <function-decl name='sa_is_shared' mangled-name='sa_is_shared' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='sa_is_shared'>
-      <parameter type-id='type-id-84' name='mountpoint'/>
-      <parameter type-id='type-id-17' name='protocol'/>
-      <return type-id='type-id-16'/>
+    <pointer-type-def type-id='type-id-559' size-in-bits='64' id='type-id-560'/>
+    <function-decl name='nfs_toggle_share' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='type-id-84'/>
+      <parameter type-id='type-id-84'/>
+      <parameter type-id='type-id-84'/>
+      <parameter type-id='type-id-547'/>
+      <parameter type-id='type-id-560'/>
+      <return type-id='type-id-8'/>
     </function-decl>
     <function-type size-in-bits='64' id='type-id-554'>
       <return type-id='type-id-8'/>
     </function-type>
     <function-type size-in-bits='64' id='type-id-551'>
       <parameter type-id='type-id-84'/>
+      <return type-id='type-id-8'/>
+    </function-type>
+    <function-type size-in-bits='64' id='type-id-559'>
+      <parameter type-id='type-id-547'/>
+      <parameter type-id='type-id-17'/>
       <return type-id='type-id-8'/>
     </function-type>
     <function-type size-in-bits='64' id='type-id-549'>
@@ -7686,93 +7730,12 @@
       <return type-id='type-id-6'/>
     </function-type>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='nfs.c' comp-dir-path='/home/nabijaczleweli/store/code/zfs/lib/libshare' language='LANG_C99'>
-    <function-decl name='mkdir' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='type-id-84'/>
-      <parameter type-id='type-id-5'/>
-      <return type-id='type-id-8'/>
-    </function-decl>
-    <function-decl name='mkostemp' mangled-name='mkostemp64' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='type-id-17'/>
-      <parameter type-id='type-id-8'/>
-      <return type-id='type-id-8'/>
-    </function-decl>
-    <function-decl name='flock' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='type-id-8'/>
-      <parameter type-id='type-id-8'/>
-      <return type-id='type-id-8'/>
-    </function-decl>
-    <function-decl name='nfs_copy_entries' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='type-id-17'/>
-      <parameter type-id='type-id-84'/>
-      <return type-id='type-id-8'/>
-    </function-decl>
-    <function-decl name='rename' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='type-id-84'/>
-      <parameter type-id='type-id-84'/>
-      <return type-id='type-id-8'/>
-    </function-decl>
-  </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='os/linux/nfs.c' comp-dir-path='/home/nabijaczleweli/store/code/zfs/lib/libshare' language='LANG_C99'>
-    <function-decl name='fputs' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='type-id-84'/>
-      <parameter type-id='type-id-150'/>
-      <return type-id='type-id-8'/>
-    </function-decl>
-    <qualified-type-def type-id='type-id-536' const='yes' id='type-id-559'/>
-    <pointer-type-def type-id='type-id-559' size-in-bits='64' id='type-id-560'/>
-    <function-decl name='register_fstype' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='type-id-84'/>
-      <parameter type-id='type-id-560'/>
-      <return type-id='type-id-534'/>
-    </function-decl>
-    <pointer-type-def type-id='type-id-561' size-in-bits='64' id='type-id-562'/>
-    <function-decl name='nfs_toggle_share' visibility='default' binding='global' size-in-bits='64'>
-      <parameter type-id='type-id-84'/>
-      <parameter type-id='type-id-84'/>
-      <parameter type-id='type-id-84'/>
-      <parameter type-id='type-id-547'/>
-      <parameter type-id='type-id-562'/>
-      <return type-id='type-id-8'/>
-    </function-decl>
-    <function-type size-in-bits='64' id='type-id-561'>
-      <parameter type-id='type-id-547'/>
-      <parameter type-id='type-id-17'/>
-      <return type-id='type-id-8'/>
-    </function-type>
-  </abi-instr>
   <abi-instr version='1.0' address-size='64' path='os/linux/smb.c' comp-dir-path='/home/nabijaczleweli/store/code/zfs/lib/libshare' language='LANG_C99'>
-    <class-decl name='smb_share_s' size-in-bits='36992' is-struct='yes' visibility='default' id='type-id-563'>
-      <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='name' type-id='type-id-564' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='2040'>
-        <var-decl name='path' type-id='type-id-109' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='34808'>
-        <var-decl name='comment' type-id='type-id-564' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='36864'>
-        <var-decl name='guest_ok' type-id='type-id-16' visibility='default'/>
-      </data-member>
-      <data-member access='public' layout-offset-in-bits='36928'>
-        <var-decl name='next' type-id='type-id-565' visibility='default'/>
-      </data-member>
-    </class-decl>
-
-    <array-type-def dimensions='1' type-id='type-id-32' size-in-bits='2040' id='type-id-564'>
-      <subrange length='255' type-id='type-id-33' id='type-id-566'/>
-
-    </array-type-def>
-    <pointer-type-def type-id='type-id-563' size-in-bits='64' id='type-id-565'/>
-    <typedef-decl name='smb_share_t' type-id='type-id-563' id='type-id-567'/>
-    <pointer-type-def type-id='type-id-567' size-in-bits='64' id='type-id-568'/>
-    <var-decl name='smb_shares' type-id='type-id-568' mangled-name='smb_shares' visibility='default' elf-symbol-id='smb_shares'/>
     <function-decl name='opendir' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='type-id-84'/>
       <return type-id='type-id-305'/>
     </function-decl>
-    <class-decl name='dirent' size-in-bits='2240' is-struct='yes' visibility='default' id='type-id-569'>
+    <class-decl name='dirent' size-in-bits='2240' is-struct='yes' visibility='default' id='type-id-561'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='d_ino' type-id='type-id-307' visibility='default'/>
       </data-member>
@@ -7789,10 +7752,10 @@
         <var-decl name='d_name' type-id='type-id-12' visibility='default'/>
       </data-member>
     </class-decl>
-    <pointer-type-def type-id='type-id-569' size-in-bits='64' id='type-id-570'/>
+    <pointer-type-def type-id='type-id-561' size-in-bits='64' id='type-id-562'/>
     <function-decl name='readdir' mangled-name='readdir64' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='type-id-305'/>
-      <return type-id='type-id-570'/>
+      <return type-id='type-id-562'/>
     </function-decl>
     <function-decl name='fgets' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='type-id-17'/>

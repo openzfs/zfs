@@ -24,7 +24,7 @@
  */
 
 #ifndef	_SYS_EFI_PARTITION_H
-#define	_SYS_EFI_PARTITION_H
+#define	_SYS_EFI_PARTITION_H extern __attribute__((visibility("default")))
 
 #include <sys/uuid.h>
 
@@ -363,15 +363,15 @@ struct partition64 {
 #endif
 
 #ifndef _KERNEL
-extern	int	efi_alloc_and_init(int, uint32_t, struct dk_gpt **);
-extern	int	efi_alloc_and_read(int, struct dk_gpt **);
-extern	int	efi_write(int, struct dk_gpt *);
-extern	int	efi_rescan(int);
-extern	void	efi_free(struct dk_gpt *);
-extern	int	efi_type(int);
-extern	void	efi_err_check(struct dk_gpt *);
-extern	int	efi_auto_sense(int fd, struct dk_gpt **);
-extern	int	efi_use_whole_disk(int fd);
+_SYS_EFI_PARTITION_H int efi_debug;
+_SYS_EFI_PARTITION_H int efi_alloc_and_init(int, uint32_t, struct dk_gpt **);
+_SYS_EFI_PARTITION_H int efi_alloc_and_read(int, struct dk_gpt **);
+_SYS_EFI_PARTITION_H int efi_write(int, struct dk_gpt *);
+_SYS_EFI_PARTITION_H int efi_rescan(int);
+_SYS_EFI_PARTITION_H void efi_free(struct dk_gpt *);
+_SYS_EFI_PARTITION_H int efi_type(int);
+_SYS_EFI_PARTITION_H void efi_err_check(struct dk_gpt *);
+_SYS_EFI_PARTITION_H int efi_use_whole_disk(int fd);
 #endif
 
 #ifdef __cplusplus

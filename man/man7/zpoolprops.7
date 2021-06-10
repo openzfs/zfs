@@ -28,7 +28,7 @@
 .\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
 .\"
 .Dd May 27, 2021
-.Dt ZPOOLPROPS 8
+.Dt ZPOOLPROPS 7
 .Os
 .
 .Sh NAME
@@ -89,7 +89,7 @@ This discrepancy is due to several factors, including raidz parity;
 zfs reservation, quota, refreservation, and refquota properties; and space set aside by
 .Sy spa_slop_shift
 (see
-.Xr zfs-module-parameters 5
+.Xr zfs 4
 for more information).
 .It Sy freeing
 After a file system or snapshot is destroyed, the space it was using is
@@ -121,7 +121,7 @@ Total size of the storage pool.
 .It Sy unsupported@ Ns Em guid
 Information about unsupported features that are enabled on the pool.
 See
-.Xr zpool-features 5
+.Xr zpool-features 7
 for details.
 .El
 .Pp
@@ -316,7 +316,7 @@ whitespace and/or commas.
 Only features present in all files may be enabled.
 .Pp
 See
-.Xr zpool-features 5 ,
+.Xr zpool-features 7 ,
 .Xr zpool-create 8
 and
 .Xr zpool-upgrade 8
@@ -357,7 +357,7 @@ which moves
 .Ar feature_name
 to the enabled state.
 See
-.Xr zpool-features 5
+.Xr zpool-features 7
 for details on feature states.
 .It Sy listsnapshots Ns = Ns Sy on Ns | Ns Sy off
 Controls whether information about snapshots associated with this pool is
@@ -390,13 +390,13 @@ in use.
 See
 .Sy zfs_multihost_interval
 in the
-.Xr zfs-module-parameters 5
+.Xr zfs 4
 manual page.
 In order to enable this property each host must set a unique hostid.
 See
 .Xr genhostid 1
 .Xr zgenhostid 8
-.Xr spl-module-parameters 5
+.Xr spl 4
 for additional details.
 The default value is
 .Sy off .

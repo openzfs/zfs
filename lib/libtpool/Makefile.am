@@ -1,5 +1,7 @@
 include $(top_srcdir)/config/Rules.am
 
+AM_CFLAGS += -fvisibility=hidden
+
 noinst_LTLIBRARIES = libtpool.la
 
 USER_C = \

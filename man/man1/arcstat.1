@@ -22,7 +22,7 @@
 .Sh SYNOPSIS
 .Nm
 .Op Fl havxp
-.Op Fl f Ar field Ns Op , Ns Ar field Ns ...
+.Op Fl f Ar field Ns Op , Ns Ar field Ns …
 .Op Fl o Ar file
 .Op Fl s Ar string
 .Op Ar interval
@@ -31,7 +31,7 @@
 .Sh DESCRIPTION
 .Nm
 prints various ZFS ARC and L2ARC statistics in vmstat-like fashion:
-.Bl -tag -width "l2asize"
+.Bl -tag -compact -offset Ds -width "l2asize"
 .It Sy c
 ARC target size
 .It Sy dh%
@@ -155,7 +155,7 @@ Print all possible stats.
 .It Fl f
 Display only specific fields.
 See
-.Sy DESCRIPTION
+.Sx DESCRIPTION
 for supported statistics.
 .It Fl h
 Display help message.
@@ -166,17 +166,19 @@ Disable auto-scaling of numerical fields (for raw, machine-parsable values).
 .It Fl s
 Display data with a specified separator (default: 2 spaces).
 .It Fl x
-Print extended stats (same as
-.Fl f Ar time,mfu,mru,mfug,mrug,eskip,mtxmis,dread,pread,read Ns No ).
+Print extended stats
+.Pq same as Fl f Sy time , Ns Sy mfu , Ns Sy mru , Ns Sy mfug , Ns Sy mrug , Ns Sy eskip , Ns Sy mtxmis , Ns Sy dread , Ns Sy pread , Ns Sy read .
 .It Fl v
 Show field headers and definitions
 .El
 .
 .Sh OPERANDS
 The following operands are supported:
-.Bl -tag -width "interval"
+.Bl -tag -compact -offset Ds -width "interval"
 .It Ar interval
 Specify the sampling interval in seconds.
 .It Ar count
-Display only \fIcount\fR reports.
+Display only
+.Ar count
+reports.
 .El

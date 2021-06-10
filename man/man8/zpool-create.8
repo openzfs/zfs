@@ -80,7 +80,7 @@ The
 specification is described in the
 .Sx Virtual Devices
 section of
-.Xr zpoolconcepts 8 .
+.Xr zpoolconcepts 7 .
 .Pp
 The command attempts to verify that each device specified is accessible and not
 currently in use by another subsystem.
@@ -139,7 +139,7 @@ Individual features can be enabled by setting their corresponding properties to
 with
 .Fl o .
 See
-.Xr zpool-features 5
+.Xr zpool-features 7
 for details about feature properties.
 .It Fl f
 Forces use of
@@ -160,7 +160,7 @@ The mount point must be an absolute path,
 or
 .Sy none .
 For more information on dataset mount points, see
-.Xr zfsprops 8 .
+.Xr zfsprops 7 .
 .It Fl n
 Displays the configuration that would be used without actually creating the
 pool.
@@ -169,23 +169,23 @@ device sharing.
 .It Fl o Ar property Ns = Ns Ar value
 Sets the given pool properties.
 See
-.Xr zpoolprops 8
+.Xr zpoolprops 7
 for a list of valid properties that can be set.
 .It Fl o Ar compatibility Ns = Ns Sy off Ns | Ns Sy legacy Ns | Ns Ar file Ns Oo , Ns Ar file Oc Ns …
 Specifies compatibility feature sets.
 See
-.Xr zpool-features 5
+.Xr zpool-features 7
 for more information about compatibility feature sets.
 .It Fl o Sy feature@ Ns Ar feature Ns = Ns Ar value
 Sets the given pool feature.
 See the
-.Xr zpool-features 5
+.Xr zpool-features 7
 section for a list of valid features that can be set.
 Value can be either disabled or enabled.
 .It Fl O Ar file-system-property Ns = Ns Ar value
 Sets the given file system properties in the root file system of the pool.
 See
-.Xr zfsprops 8
+.Xr zfsprops 7
 for a list of valid properties that can be set.
 .It Fl R Ar root
 Equivalent to

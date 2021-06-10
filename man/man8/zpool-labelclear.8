@@ -18,7 +18,6 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
 .\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
@@ -27,25 +26,20 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd August 9, 2019
+.Dd May 31, 2021
 .Dt ZPOOL-LABELCLEAR 8
 .Os
+.
 .Sh NAME
 .Nm zpool-labelclear
-.Nd Removes ZFS label information from the specified physical device
+.Nd remove ZFS label information from device
 .Sh SYNOPSIS
 .Nm zpool
 .Cm labelclear
 .Op Fl f
 .Ar device
+.
 .Sh DESCRIPTION
-.Bl -tag -width Ds
-.It Xo
-.Nm zpool
-.Cm labelclear
-.Op Fl f
-.Ar device
-.Xc
 Removes ZFS label information from the specified
 .Ar device .
 If the
@@ -58,7 +52,7 @@ must not be part of an active pool configuration.
 .It Fl f
 Treat exported or foreign devices as inactive.
 .El
-.El
+.
 .Sh SEE ALSO
 .Xr zpool-destroy 8 ,
 .Xr zpool-detach 8 ,

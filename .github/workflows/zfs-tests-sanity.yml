@@ -22,7 +22,8 @@ jobs:
           xfslibs-dev libattr1-dev libacl1-dev libudev-dev libdevmapper-dev \
           libssl-dev libffi-dev libaio-dev libelf-dev libmount-dev \
           libpam0g-dev pamtester python-dev python-setuptools python-cffi \
-          python3 python3-dev python3-setuptools python3-cffi libcurl4-openssl-dev
+          python-packaging python3 python3-dev python3-setuptools python3-cffi \
+          python3-packaging libcurl4-openssl-dev
     - name: Autogen.sh
       run: |
         sh autogen.sh

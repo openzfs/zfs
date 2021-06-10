@@ -96,7 +96,7 @@ or
 .El
 .Pp
 See
-.Xr zfsconcepts 8
+.Xr zfsconcepts 7
 for details.
 .
 .Ss Properties
@@ -108,7 +108,7 @@ In addition, native properties are either editable or read-only.
 User properties have no effect on ZFS behavior, but you can use them to annotate
 datasets in a way that is meaningful in your environment.
 For more information about properties, see
-.Xr zfsprops 8 .
+.Xr zfsprops 7 .
 .
 .Ss Encryption
 Enabling the
@@ -354,7 +354,7 @@ Snapshots are displayed if
 The default is
 .Sy off .
 See
-.Xr zpoolprops 8
+.Xr zpoolprops 7
 for more information on pool properties.
 .Bd -literal -compact -offset Ds
 .No # Nm zfs Cm list
@@ -728,6 +728,8 @@ This option is provided for backwards compatibility with older ZFS versions.
 .Xr acl 5 ,
 .Xr attributes 5 ,
 .Xr exports 5 ,
+.Xr zfsconcepts 7 ,
+.Xr zfsprops 7 ,
 .Xr exportfs 8 ,
 .Xr mount 8 ,
 .Xr net 8 ,
@@ -768,6 +770,4 @@ This option is provided for backwards compatibility with older ZFS versions.
 .Xr zfs-upgrade 8 ,
 .Xr zfs-userspace 8 ,
 .Xr zfs-wait 8 ,
-.Xr zfsconcepts 8 ,
-.Xr zfsprops 8 ,
 .Xr zpool 8
