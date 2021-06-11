@@ -32,6 +32,13 @@ Obsoletes:      spl-dkms
 Provides:       %{module}-kmod = %{version}
 AutoReqProv:    no
 
+%if 0%{?rhel}%{?fedora}%{?suse_version}
+# We don't directly use it, but if this isn't installed, rpmbuild as root can
+# crash+corrupt rpmdb
+# See issue #12071
+BuildRequires:  ncompress
+%endif
+
 %description
 This package contains the dkms ZFS kernel modules.
 
