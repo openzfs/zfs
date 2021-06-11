@@ -57,6 +57,13 @@ BuildRequires:  gcc, make
 BuildRequires:  elfutils-libelf-devel
 %endif
 
+%if 0%{?rhel}%{?fedora}%{?suse_version}
+# We don't directly use it, but if this isn't installed, rpmbuild as root can
+# crash+corrupt rpmdb
+# See issue #12071
+BuildRequires:  ncompress
+%endif
+
 # The developments headers will conflict with the dkms packages.
 Conflicts:      %{module}-dkms
 
