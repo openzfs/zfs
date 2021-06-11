@@ -147,7 +147,7 @@ is sourced by scripts; these variables should be prefixed with
 The zevent nvpairs are passed to ZEDLETs as environment variables.
 Each nvpair name is converted to an environment variable in the following
 manner:
-.Bl -enum
+.Bl -enum -compact
 .It
 it is prefixed with
 .Sy ZEVENT_ ,
@@ -160,7 +160,7 @@ each non-alphanumeric character is converted to an underscore.
 Some additional environment variables have been defined to present certain
 nvpair values in a more convenient form.
 An incomplete list of zevent environment variables is as follows:
-.Bl -tag -width "ZEVENT_TIME_STRING"
+.Bl -tag -compact -width "ZEVENT_TIME_STRING"
 .It Sy ZEVENT_EID
 The Event IDentifier.
 .It Sy ZEVENT_CLASS
@@ -187,7 +187,7 @@ An almost-RFC3339-compliant string for
 .El
 .Pp
 Additionally, the following ZED & ZFS variables are defined:
-.Bl -tag -width "ZEVENT_TIME_STRING"
+.Bl -tag -compact -width "ZEVENT_TIME_STRING"
 .It Sy ZED_PID
 The daemon's process ID.
 .It Sy ZED_ZEDLET_DIR
@@ -237,7 +237,6 @@ Terminate the daemon.
 .El
 .
 .Sh SEE ALSO
-.Xr zfs-events 5 ,
 .Xr zfs 8 ,
 .Xr zpool 8 ,
 .Xr zpool-events 8

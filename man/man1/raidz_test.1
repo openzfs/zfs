@@ -50,44 +50,44 @@ option.
 .Bl -tag -width "-B(enchmark)"
 .It Fl h
 Print a help summary.
-.It Fl a Ar ashift No (default: Sy 9 )
+.It Fl a Ar ashift Pq default: Sy 9
 Ashift value.
-.It Fl o Ar zio_off_shift No (default: Sy 0 )
+.It Fl o Ar zio_off_shift Pq default: Sy 0
 ZIO offset for each raidz block.
 The offset's value is
-.Sy 1 << zio_off_shift .
-.It Fl d Ar raidz_data_disks No (default: Sy 8 )
+.Em 2^zio_off_shift .
+.It Fl d Ar raidz_data_disks Pq default: Sy 8
 Number of raidz data disks to use.
 Additional disks will be used for parity.
-.It Fl s Ar zio_size_shift No (default: Sy 19 )
+.It Fl s Ar zio_size_shift Pq default: Sy 19
 Size of data for raidz block.
 The real size is
-.Sy 1 << zio_size_shift .
-.It Fl r Ar reflow_offset No (default: Sy uint max )
+.Em 2^zio_size_shift .
+.It Fl r Ar reflow_offset Pq default: Sy uint max
 Set raidz expansion offset.
 The expanded raidz map allocation function will
 produce different map configurations depending on this value.
-.It Fl S Ns No (weep)
+.It Fl S Ns Pq weep
 Sweep parameter space while verifying the raidz implementations.
 This option
 will exhaust all most of valid values for the
 .Fl aods
 options.
 Runtime using this option will be long.
-.It Fl t Ns No (imeout)
+.It Fl t Ns Pq imeout
 Wall time for sweep test in seconds.
 The actual runtime could be longer.
-.It Fl B Ns No (enchmark)
+.It Fl B Ns Pq enchmark
 All implementations are benchmarked using increasing per disk data size.
 Results are given as throughput per disk, measured in MiB/s.
-.It Fl e Ns No (xpansion)
+.It Fl e Ns Pq xpansion
 Use expanded raidz map allocation function.
-.It Fl v Ns No (erbose)
+.It Fl v Ns Pq erbose
 Increase verbosity.
-.It Fl T Ns No (est the test)
+.It Fl T Ns Pq est the test
 Debugging option: fail all tests.
 This is to check if tests would properly verify bit-exactness.
-.It Fl D Ns No (ebug)
+.It Fl D Ns Pq ebug
 Debugging option: attach
 .Xr gdb 1
 when

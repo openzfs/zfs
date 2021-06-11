@@ -119,7 +119,7 @@ Can be specified more than once.
 .
 .Sh EXAMPLES
 .Bd -literal
-# zhack feature stat tank
+.No # Nm zhack Cm feature stat Ar tank
 for_read_obj:
 	org.illumos:lz4_compress = 0
 for_write_obj:
@@ -130,13 +130,11 @@ descriptions_obj:
 	com.delphix:empty_bpobj = Snapshots use less space.
 	org.illumos:lz4_compress = LZ4 compression algorithm support.
 
-# zhack feature enable -d 'Predict future disk failures.' \\
-    tank com.example:clairvoyance
-
-# zhack feature ref tank com.example:clairvoyance
+.No # Nm zhack Cm feature enable Fl d No 'Predict future disk failures.' Ar tank com.example:clairvoyance
+.No # Nm zhack Cm feature ref Ar tank com.example:clairvoyance
 .Ed
 .
 .Sh SEE ALSO
 .Xr ztest 1 ,
-.Xr zpool-features 5 ,
+.Xr zpool-features 7 ,
 .Xr zfs 8

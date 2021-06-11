@@ -15,11 +15,11 @@
 .\" Copyright 2013 Turbo Fredriksson <turbo@bayour.com>. All rights reserved.
 .\"
 .Dd August 24, 2020
-.Dt SPL-MODULE-PARAMETERS 5
+.Dt SPL 4
 .Os
 .
 .Sh NAME
-.Nm spl-module-parameters
+.Nm spl
 .Nd parameters of the SPL kernel module
 .
 .Sh DESCRIPTION
@@ -192,5 +192,4 @@ The proc file will walk the lists with lock held,
 reading it could cause a lock-up if the list grow too large
 without limiting the output.
 "(truncated)" will be shown if the list is larger than the limit.
-.
 .El

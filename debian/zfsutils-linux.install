@@ -35,7 +35,9 @@ usr/sbin/arc_summary
 usr/sbin/arcstat
 usr/sbin/dbufstat
 usr/share/man/man1/
+usr/share/man/man4/
 usr/share/man/man5/
+usr/share/man/man7/
 usr/share/man/man8/zstream.8
 usr/share/man/man8/zstreamdump.8
 usr/share/man/man8/zpool.8
@@ -77,8 +79,6 @@ usr/share/man/man8/zfs-upgrade.8
 usr/share/man/man8/zfs-userspace.8
 usr/share/man/man8/zfs-wait.8
 usr/share/man/man8/zfs_ids_to_path.8
-usr/share/man/man8/zfsconcepts.8
-usr/share/man/man8/zfsprops.8
 usr/share/man/man8/zdb.8
 usr/share/man/man8/zpool-add.8
 usr/share/man/man8/zpool-attach.8
@@ -112,8 +112,6 @@ usr/share/man/man8/zpool-trim.8
 usr/share/man/man8/zpool-upgrade.8
 usr/share/man/man8/zpool-wait.8
 usr/share/man/man8/zpool_influxdb.8
-usr/share/man/man8/zpoolconcepts.8
-usr/share/man/man8/zpoolprops.8
 usr/share/man/man8/vdev_id.8
 usr/share/man/man8/mount.zfs.8
 usr/share/man/man8/fsck.zfs.8
