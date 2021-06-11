@@ -3138,19 +3138,8 @@ vdev_raidz_io_done(zio_t *zio)
 			 * data and parity as we can track down. If we've
 			 * already been through once before, all children will
 			 * be marked as tried so we'll proceed to combinatorial
-			 * reconstruction.  We also disable aggregation.
+			 * reconstruction.
 			 */
-			if (rm->rm_phys_col != NULL) {
-				for (int i = 0; i < rm->rm_nphys_cols; i++) {
-					if (rm->rm_phys_col[i].rc_abd != NULL)
-						abd_free(rm->rm_phys_col[i].
-						    rc_abd);
-				}
-				kmem_free(rm->rm_phys_col,
-				    sizeof (raidz_col_t) * rm->rm_nphys_cols);
-				rm->rm_phys_col = NULL;
-				rm->rm_nphys_cols = 0;
-			}
 			int nread = 0;
 			for (int i = 0; i < rm->rm_nrows; i++) {
 				nread += vdev_raidz_read_all(zio,
