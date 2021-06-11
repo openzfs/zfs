@@ -4,6 +4,7 @@ dist_pkgdata_SCRIPTS = \
 	cleanup.ksh \
 	zfs_clone_livelist_condense_and_disable.ksh \
 	zfs_clone_livelist_condense_races.ksh \
+	zfs_clone_livelist_dedup.ksh \
 	zfs_destroy_001_pos.ksh \
 	zfs_destroy_002_pos.ksh \
 	zfs_destroy_003_pos.ksh \
