@@ -31,6 +31,22 @@
 
 #include <libzutil.h>
 
+/* Substring from after the last slash, or the string itself if none */
+const char *
+zfs_basename(const char *path)
+{
+	const char *bn = strrchr(path, '/');
+	return (bn ? bn + 1 : path);
+}
+
+/* Return index of last slash or -1 if none */
+ssize_t
+zfs_dirnamelen(const char *path)
+{
+	const char *end = strrchr(path, '/');
+	return (end ? end - path : -1);
+}
+
 /*
  * Given a shorthand device name check if a file by that name exists in any
  * of the 'zpool_default_import_path' or ZPOOL_IMPORT_PATH directories.  If

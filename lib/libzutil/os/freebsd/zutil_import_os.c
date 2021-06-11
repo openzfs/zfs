@@ -168,7 +168,7 @@ out:
 	(void) close(fd);
 }
 
-static const char *
+static const char * const
 zpool_default_import_path[] = {
 	"/dev"
 };

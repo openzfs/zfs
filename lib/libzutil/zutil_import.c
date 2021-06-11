@@ -154,6 +154,17 @@ zutil_strdup(libpc_handle_t *hdl, const char *str)
 	return (ret);
 }
 
+static char *
+zutil_strndup(libpc_handle_t *hdl, const char *str, size_t n)
+{
+	char *ret;
+
+	if ((ret = strndup(str, n)) == NULL)
+		(void) zutil_no_memory(hdl);
+
+	return (ret);
+}
+
 /*
  * Intermediate structures used to gather configuration information.
  */
@@ -1243,9 +1254,20 @@ zpool_find_import_scan_dir(libpc_handle_t *hdl, pthread_mutex_t *lock,
 
 	while ((dp = readdir64(dirp)) != NULL) {
 		const char *name = dp->d_name;
-		if (name[0] == '.' &&
-		    (name[1] == 0 || (name[1] == '.' && name[2] == 0)))
+		if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0)
 			continue;
+
+		switch (dp->d_type) {
+		case DT_UNKNOWN:
+		case DT_BLK:
+#ifdef __FreeBSD__
+		case DT_CHR:
+#endif
+		case DT_REG:
+			break;
+		default:
+			continue;
+		}
 
 		zpool_find_import_scan_add_slice(hdl, lock, cache, path, name,
 		    order);
@@ -1261,20 +1283,22 @@ zpool_find_import_scan_path(libpc_handle_t *hdl, pthread_mutex_t *lock,
 {
 	int error = 0;
 	char path[MAXPATHLEN];
-	char *d, *b;
-	char *dpath, *name;
+	char *d = NULL;
+	ssize_t dl;
+	const char *dpath, *name;
 
 	/*
-	 * Separate the directory part and last part of the
-	 * path. We do this so that we can get the realpath of
+	 * Separate the directory and the basename.
+	 * We do this so that we can get the realpath of
 	 * the directory. We don't get the realpath on the
 	 * whole path because if it's a symlink, we want the
 	 * path of the symlink not where it points to.
 	 */
-	d = zutil_strdup(hdl, dir);
-	b = zutil_strdup(hdl, dir);
-	dpath = dirname(d);
-	name = basename(b);
+	name = zfs_basename(dir);
+	if ((dl = zfs_dirnamelen(dir)) == -1)
+		dpath = ".";
+	else
+		dpath = d = zutil_strndup(hdl, dir, dl);
 
 	if (realpath(dpath, path) == NULL) {
 		error = errno;
@@ -1292,7 +1316,6 @@ zpool_find_import_scan_path(libpc_handle_t *hdl, pthread_mutex_t *lock,
 	zpool_find_import_scan_add_slice(hdl, lock, cache, path, name, order);
 
 out:
-	free(b);
 	free(d);
 	return (error);
 }
@@ -1495,6 +1518,7 @@ discover_cached_paths(libpc_handle_t *hdl, nvlist_t *nv,
     avl_tree_t *cache, pthread_mutex_t *lock)
 {
 	char *path = NULL;
+	ssize_t dl;
 	uint_t children;
 	nvlist_t **child;
 
@@ -1510,8 +1534,12 @@ discover_cached_paths(libpc_handle_t *hdl, nvlist_t *nv,
 	 * our directory cache.
 	 */
 	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &path) == 0) {
+		if ((dl = zfs_dirnamelen(path)) == -1)
+			path = ".";
+		else
+			path[dl] = '\0';
 		return (zpool_find_import_scan_dir(hdl, lock, cache,
-		    dirname(path), 0));
+		    path, 0));
 	}
 	return (0);
 }
