@@ -416,7 +416,7 @@ metaslab_class_create(spa_t *spa, metaslab_ops_t *ops)
 	mc->mc_spa = spa;
 	mc->mc_ops = ops;
 	mutex_init(&mc->mc_lock, NULL, MUTEX_DEFAULT, NULL);
-	mc->mc_metaslab_txg_list = multilist_create(sizeof (metaslab_t),
+	multilist_create(&mc->mc_metaslab_txg_list, sizeof (metaslab_t),
 	    offsetof(metaslab_t, ms_class_txg_node), metaslab_idx_func);
 	for (int i = 0; i < spa->spa_alloc_count; i++) {
 		metaslab_class_allocator_t *mca = &mc->mc_allocator[i];
@@ -443,7 +443,7 @@ metaslab_class_destroy(metaslab_class_t *mc)
 		zfs_refcount_destroy(&mca->mca_alloc_slots);
 	}
 	mutex_destroy(&mc->mc_lock);
-	multilist_destroy(mc->mc_metaslab_txg_list);
+	multilist_destroy(&mc->mc_metaslab_txg_list);
 	kmem_free(mc, offsetof(metaslab_class_t,
 	    mc_allocator[spa->spa_alloc_count]));
 }
@@ -639,7 +639,7 @@ metaslab_class_expandable_space(metaslab_class_t *mc)
 void
 metaslab_class_evict_old(metaslab_class_t *mc, uint64_t txg)
 {
-	multilist_t *ml = mc->mc_metaslab_txg_list;
+	multilist_t *ml = &mc->mc_metaslab_txg_list;
 	for (int i = 0; i < multilist_get_num_sublists(ml); i++) {
 		multilist_sublist_t *mls = multilist_sublist_lock(ml, i);
 		metaslab_t *msp = multilist_sublist_head(mls);
@@ -1139,7 +1139,7 @@ metaslab_group_remove(metaslab_group_t *mg, metaslab_t *msp)
 
 	metaslab_class_t *mc = msp->ms_group->mg_class;
 	multilist_sublist_t *mls =
-	    multilist_sublist_lock_obj(mc->mc_metaslab_txg_list, msp);
+	    multilist_sublist_lock_obj(&mc->mc_metaslab_txg_list, msp);
 	if (multilist_link_active(&msp->ms_class_txg_node))
 		multilist_sublist_remove(mls, msp);
 	multilist_sublist_unlock(mls);
@@ -2175,20 +2175,20 @@ metaslab_potentially_evict(metaslab_class_t *mc)
 	uint64_t size =	spl_kmem_cache_entry_size(zfs_btree_leaf_cache);
 	int tries = 0;
 	for (; allmem * zfs_metaslab_mem_limit / 100 < inuse * size &&
-	    tries < multilist_get_num_sublists(mc->mc_metaslab_txg_list) * 2;
+	    tries < multilist_get_num_sublists(&mc->mc_metaslab_txg_list) * 2;
 	    tries++) {
 		unsigned int idx = multilist_get_random_index(
-		    mc->mc_metaslab_txg_list);
+		    &mc->mc_metaslab_txg_list);
 		multilist_sublist_t *mls =
-		    multilist_sublist_lock(mc->mc_metaslab_txg_list, idx);
+		    multilist_sublist_lock(&mc->mc_metaslab_txg_list, idx);
 		metaslab_t *msp = multilist_sublist_head(mls);
 		multilist_sublist_unlock(mls);
 		while (msp != NULL && allmem * zfs_metaslab_mem_limit / 100 <
 		    inuse * size) {
 			VERIFY3P(mls, ==, multilist_sublist_lock(
-			    mc->mc_metaslab_txg_list, idx));
+			    &mc->mc_metaslab_txg_list, idx));
 			ASSERT3U(idx, ==,
-			    metaslab_idx_func(mc->mc_metaslab_txg_list, msp));
+			    metaslab_idx_func(&mc->mc_metaslab_txg_list, msp));
 
 			if (!multilist_link_active(&msp->ms_class_txg_node)) {
 				multilist_sublist_unlock(mls);
@@ -2535,7 +2535,7 @@ metaslab_unload(metaslab_t *msp)
 	if (msp->ms_group != NULL) {
 		metaslab_class_t *mc = msp->ms_group->mg_class;
 		multilist_sublist_t *mls =
-		    multilist_sublist_lock_obj(mc->mc_metaslab_txg_list, msp);
+		    multilist_sublist_lock_obj(&mc->mc_metaslab_txg_list, msp);
 		if (multilist_link_active(&msp->ms_class_txg_node))
 			multilist_sublist_remove(mls, msp);
 		multilist_sublist_unlock(mls);
@@ -2600,7 +2600,7 @@ metaslab_set_selected_txg(metaslab_t *msp, uint64_t txg)
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
 	metaslab_class_t *mc = msp->ms_group->mg_class;
 	multilist_sublist_t *mls =
-	    multilist_sublist_lock_obj(mc->mc_metaslab_txg_list, msp);
+	    multilist_sublist_lock_obj(&mc->mc_metaslab_txg_list, msp);
 	if (multilist_link_active(&msp->ms_class_txg_node))
 		multilist_sublist_remove(mls, msp);
 	msp->ms_selected_txg = txg;
@@ -5682,7 +5682,7 @@ metaslab_claim_concrete(vdev_t *vd, uint64_t offset, uint64_t size,
 	if (spa_writeable(spa)) {	/* don't dirty if we're zdb(8) */
 		metaslab_class_t *mc = msp->ms_group->mg_class;
 		multilist_sublist_t *mls =
-		    multilist_sublist_lock_obj(mc->mc_metaslab_txg_list, msp);
+		    multilist_sublist_lock_obj(&mc->mc_metaslab_txg_list, msp);
 		if (!multilist_link_active(&msp->ms_class_txg_node)) {
 			msp->ms_selected_txg = txg;
 			multilist_sublist_insert_head(mls, msp);

@@ -2327,7 +2327,7 @@ add_reference(arc_buf_hdr_t *hdr, void *tag)
 	    (state != arc_anon)) {
 		/* We don't use the L2-only state list. */
 		if (state != arc_l2c_only) {
-			multilist_remove(state->arcs_list[arc_buf_type(hdr)],
+			multilist_remove(&state->arcs_list[arc_buf_type(hdr)],
 			    hdr);
 			arc_evictable_space_decrement(hdr, state);
 		}
@@ -2361,7 +2361,7 @@ remove_reference(arc_buf_hdr_t *hdr, kmutex_t *hash_lock, void *tag)
 	 */
 	if (((cnt = zfs_refcount_remove(&hdr->b_l1hdr.b_refcnt, tag)) == 0) &&
 	    (state != arc_anon)) {
-		multilist_insert(state->arcs_list[arc_buf_type(hdr)], hdr);
+		multilist_insert(&state->arcs_list[arc_buf_type(hdr)], hdr);
 		ASSERT3U(hdr->b_l1hdr.b_bufcnt, >, 0);
 		arc_evictable_space_increment(hdr, state);
 	}
@@ -2464,7 +2464,7 @@ arc_change_state(arc_state_t *new_state, arc_buf_hdr_t *hdr,
 	if (refcnt == 0) {
 		if (old_state != arc_anon && old_state != arc_l2c_only) {
 			ASSERT(HDR_HAS_L1HDR(hdr));
-			multilist_remove(old_state->arcs_list[buftype], hdr);
+			multilist_remove(&old_state->arcs_list[buftype], hdr);
 
 			if (GHOST_STATE(old_state)) {
 				ASSERT0(bufcnt);
@@ -2481,7 +2481,7 @@ arc_change_state(arc_state_t *new_state, arc_buf_hdr_t *hdr,
 			 * beforehand.
 			 */
 			ASSERT(HDR_HAS_L1HDR(hdr));
-			multilist_insert(new_state->arcs_list[buftype], hdr);
+			multilist_insert(&new_state->arcs_list[buftype], hdr);
 
 			if (GHOST_STATE(new_state)) {
 				ASSERT0(bufcnt);
@@ -2633,8 +2633,8 @@ arc_change_state(arc_state_t *new_state, arc_buf_hdr_t *hdr,
 	 * L2 headers should never be on the L2 state list since they don't
 	 * have L1 headers allocated.
 	 */
-	ASSERT(multilist_is_empty(arc_l2c_only->arcs_list[ARC_BUFC_DATA]) &&
-	    multilist_is_empty(arc_l2c_only->arcs_list[ARC_BUFC_METADATA]));
+	ASSERT(multilist_is_empty(&arc_l2c_only->arcs_list[ARC_BUFC_DATA]) &&
+	    multilist_is_empty(&arc_l2c_only->arcs_list[ARC_BUFC_METADATA]));
 }
 
 void
@@ -4200,7 +4200,7 @@ arc_evict_state(arc_state_t *state, uint64_t spa, int64_t bytes,
     arc_buf_contents_t type)
 {
 	uint64_t total_evicted = 0;
-	multilist_t *ml = state->arcs_list[type];
+	multilist_t *ml = &state->arcs_list[type];
 	int num_sublists;
 	arc_buf_hdr_t **markers;
 
@@ -4534,8 +4534,8 @@ arc_evict_meta(uint64_t meta_used)
 static arc_buf_contents_t
 arc_evict_type(arc_state_t *state)
 {
-	multilist_t *data_ml = state->arcs_list[ARC_BUFC_DATA];
-	multilist_t *meta_ml = state->arcs_list[ARC_BUFC_METADATA];
+	multilist_t *data_ml = &state->arcs_list[ARC_BUFC_DATA];
+	multilist_t *meta_ml = &state->arcs_list[ARC_BUFC_METADATA];
 	int data_idx = multilist_get_random_index(data_ml);
 	int meta_idx = multilist_get_random_index(meta_ml);
 	multilist_sublist_t *data_mls;
@@ -7455,44 +7455,44 @@ arc_state_init(void)
 	arc_mfu_ghost = &ARC_mfu_ghost;
 	arc_l2c_only = &ARC_l2c_only;
 
-	arc_mru->arcs_list[ARC_BUFC_METADATA] =
-	    multilist_create(sizeof (arc_buf_hdr_t),
+	multilist_create(&arc_mru->arcs_list[ARC_BUFC_METADATA],
+	    sizeof (arc_buf_hdr_t),
 	    offsetof(arc_buf_hdr_t, b_l1hdr.b_arc_node),
 	    arc_state_multilist_index_func);
-	arc_mru->arcs_list[ARC_BUFC_DATA] =
-	    multilist_create(sizeof (arc_buf_hdr_t),
+	multilist_create(&arc_mru->arcs_list[ARC_BUFC_DATA],
+	    sizeof (arc_buf_hdr_t),
 	    offsetof(arc_buf_hdr_t, b_l1hdr.b_arc_node),
 	    arc_state_multilist_index_func);
-	arc_mru_ghost->arcs_list[ARC_BUFC_METADATA] =
-	    multilist_create(sizeof (arc_buf_hdr_t),
+	multilist_create(&arc_mru_ghost->arcs_list[ARC_BUFC_METADATA],
+	    sizeof (arc_buf_hdr_t),
 	    offsetof(arc_buf_hdr_t, b_l1hdr.b_arc_node),
 	    arc_state_multilist_index_func);
-	arc_mru_ghost->arcs_list[ARC_BUFC_DATA] =
-	    multilist_create(sizeof (arc_buf_hdr_t),
+	multilist_create(&arc_mru_ghost->arcs_list[ARC_BUFC_DATA],
+	    sizeof (arc_buf_hdr_t),
 	    offsetof(arc_buf_hdr_t, b_l1hdr.b_arc_node),
 	    arc_state_multilist_index_func);
-	arc_mfu->arcs_list[ARC_BUFC_METADATA] =
-	    multilist_create(sizeof (arc_buf_hdr_t),
+	multilist_create(&arc_mfu->arcs_list[ARC_BUFC_METADATA],
+	    sizeof (arc_buf_hdr_t),
 	    offsetof(arc_buf_hdr_t, b_l1hdr.b_arc_node),
 	    arc_state_multilist_index_func);
-	arc_mfu->arcs_list[ARC_BUFC_DATA] =
-	    multilist_create(sizeof (arc_buf_hdr_t),
+	multilist_create(&arc_mfu->arcs_list[ARC_BUFC_DATA],
+	    sizeof (arc_buf_hdr_t),
 	    offsetof(arc_buf_hdr_t, b_l1hdr.b_arc_node),
 	    arc_state_multilist_index_func);
-	arc_mfu_ghost->arcs_list[ARC_BUFC_METADATA] =
-	    multilist_create(sizeof (arc_buf_hdr_t),
+	multilist_create(&arc_mfu_ghost->arcs_list[ARC_BUFC_METADATA],
+	    sizeof (arc_buf_hdr_t),
 	    offsetof(arc_buf_hdr_t, b_l1hdr.b_arc_node),
 	    arc_state_multilist_index_func);
-	arc_mfu_ghost->arcs_list[ARC_BUFC_DATA] =
-	    multilist_create(sizeof (arc_buf_hdr_t),
+	multilist_create(&arc_mfu_ghost->arcs_list[ARC_BUFC_DATA],
+	    sizeof (arc_buf_hdr_t),
 	    offsetof(arc_buf_hdr_t, b_l1hdr.b_arc_node),
 	    arc_state_multilist_index_func);
-	arc_l2c_only->arcs_list[ARC_BUFC_METADATA] =
-	    multilist_create(sizeof (arc_buf_hdr_t),
+	multilist_create(&arc_l2c_only->arcs_list[ARC_BUFC_METADATA],
+	    sizeof (arc_buf_hdr_t),
 	    offsetof(arc_buf_hdr_t, b_l1hdr.b_arc_node),
 	    arc_state_multilist_index_func);
-	arc_l2c_only->arcs_list[ARC_BUFC_DATA] =
-	    multilist_create(sizeof (arc_buf_hdr_t),
+	multilist_create(&arc_l2c_only->arcs_list[ARC_BUFC_DATA],
+	    sizeof (arc_buf_hdr_t),
 	    offsetof(arc_buf_hdr_t, b_l1hdr.b_arc_node),
 	    arc_state_multilist_index_func);
 
@@ -7558,16 +7558,16 @@ arc_state_fini(void)
 	zfs_refcount_destroy(&arc_mfu_ghost->arcs_size);
 	zfs_refcount_destroy(&arc_l2c_only->arcs_size);
 
-	multilist_destroy(arc_mru->arcs_list[ARC_BUFC_METADATA]);
-	multilist_destroy(arc_mru_ghost->arcs_list[ARC_BUFC_METADATA]);
-	multilist_destroy(arc_mfu->arcs_list[ARC_BUFC_METADATA]);
-	multilist_destroy(arc_mfu_ghost->arcs_list[ARC_BUFC_METADATA]);
-	multilist_destroy(arc_mru->arcs_list[ARC_BUFC_DATA]);
-	multilist_destroy(arc_mru_ghost->arcs_list[ARC_BUFC_DATA]);
-	multilist_destroy(arc_mfu->arcs_list[ARC_BUFC_DATA]);
-	multilist_destroy(arc_mfu_ghost->arcs_list[ARC_BUFC_DATA]);
-	multilist_destroy(arc_l2c_only->arcs_list[ARC_BUFC_METADATA]);
-	multilist_destroy(arc_l2c_only->arcs_list[ARC_BUFC_DATA]);
+	multilist_destroy(&arc_mru->arcs_list[ARC_BUFC_METADATA]);
+	multilist_destroy(&arc_mru_ghost->arcs_list[ARC_BUFC_METADATA]);
+	multilist_destroy(&arc_mfu->arcs_list[ARC_BUFC_METADATA]);
+	multilist_destroy(&arc_mfu_ghost->arcs_list[ARC_BUFC_METADATA]);
+	multilist_destroy(&arc_mru->arcs_list[ARC_BUFC_DATA]);
+	multilist_destroy(&arc_mru_ghost->arcs_list[ARC_BUFC_DATA]);
+	multilist_destroy(&arc_mfu->arcs_list[ARC_BUFC_DATA]);
+	multilist_destroy(&arc_mfu_ghost->arcs_list[ARC_BUFC_DATA]);
+	multilist_destroy(&arc_l2c_only->arcs_list[ARC_BUFC_METADATA]);
+	multilist_destroy(&arc_l2c_only->arcs_list[ARC_BUFC_DATA]);
 
 	aggsum_fini(&arc_meta_used);
 	aggsum_fini(&arc_size);
@@ -8624,16 +8624,16 @@ l2arc_sublist_lock(int list_num)
 
 	switch (list_num) {
 	case 0:
-		ml = arc_mfu->arcs_list[ARC_BUFC_METADATA];
+		ml = &arc_mfu->arcs_list[ARC_BUFC_METADATA];
 		break;
 	case 1:
-		ml = arc_mru->arcs_list[ARC_BUFC_METADATA];
+		ml = &arc_mru->arcs_list[ARC_BUFC_METADATA];
 		break;
 	case 2:
-		ml = arc_mfu->arcs_list[ARC_BUFC_DATA];
+		ml = &arc_mfu->arcs_list[ARC_BUFC_DATA];
 		break;
 	case 3:
-		ml = arc_mru->arcs_list[ARC_BUFC_DATA];
+		ml = &arc_mru->arcs_list[ARC_BUFC_DATA];
 		break;
 	default:
 		return (NULL);
