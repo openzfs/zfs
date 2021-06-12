@@ -165,7 +165,8 @@ vdev_dbgmsg_print_tree(vdev_t *vd, int indent)
 	char state[20];
 
 	if (vd->vdev_ishole || vd->vdev_ops == &vdev_missing_ops) {
-		zfs_dbgmsg("%*svdev %u: %s", indent, "", vd->vdev_id,
+		zfs_dbgmsg("%*svdev %llu: %s", indent, "",
+		    (u_longlong_t)vd->vdev_id,
 		    vd->vdev_ops->vdev_op_type);
 		return;
 	}
@@ -5208,7 +5209,7 @@ vdev_deadman(vdev_t *vd, char *tag)
 			zio_t *fio;
 			uint64_t delta;
 
-			zfs_dbgmsg("slow vdev: %s has %d active IOs",
+			zfs_dbgmsg("slow vdev: %s has %lu active IOs",
 			    vd->vdev_path, avl_numnodes(&vq->vq_active_tree));
 
 			/*
