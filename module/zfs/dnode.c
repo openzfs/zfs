@@ -592,7 +592,8 @@ dnode_allocate(dnode_t *dn, dmu_object_type_t ot, int blocksize, int ibs,
 	ibs = MIN(MAX(ibs, DN_MIN_INDBLKSHIFT), DN_MAX_INDBLKSHIFT);
 
 	dprintf("os=%p obj=%llu txg=%llu blocksize=%d ibs=%d dn_slots=%d\n",
-	    dn->dn_objset, dn->dn_object, tx->tx_txg, blocksize, ibs, dn_slots);
+	    dn->dn_objset, (u_longlong_t)dn->dn_object,
+	    (u_longlong_t)tx->tx_txg, blocksize, ibs, dn_slots);
 	DNODE_STAT_BUMP(dnode_allocate);
 
 	ASSERT(dn->dn_type == DMU_OT_NONE);
@@ -1690,7 +1691,7 @@ dnode_setdirty(dnode_t *dn, dmu_tx_t *tx)
 	ASSERT0(dn->dn_next_bonustype[txg & TXG_MASK]);
 
 	dprintf_ds(os->os_dsl_dataset, "obj=%llu txg=%llu\n",
-	    dn->dn_object, txg);
+	    (u_longlong_t)dn->dn_object, (u_longlong_t)txg);
 
 	multilist_sublist_insert_head(mls, dn);
 
@@ -2253,7 +2254,8 @@ done:
 		range_tree_add(dn->dn_free_ranges[txgoff], blkid, nblks);
 	}
 	dprintf_dnode(dn, "blkid=%llu nblks=%llu txg=%llu\n",
-	    blkid, nblks, tx->tx_txg);
+	    (u_longlong_t)blkid, (u_longlong_t)nblks,
+	    (u_longlong_t)tx->tx_txg);
 	mutex_exit(&dn->dn_mtx);
 
 	dbuf_free_range(dn, blkid, blkid + nblks - 1, tx);
