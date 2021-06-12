@@ -1292,7 +1292,7 @@ sa_build_index(sa_handle_t *hdl, sa_buf_type_t buftype)
 			mutex_exit(&sa->sa_lock);
 			zfs_dbgmsg("Buffer Header: %x != SA_MAGIC:%x "
 			    "object=%#llx\n", sa_hdr_phys->sa_magic, SA_MAGIC,
-			    db->db.db_object);
+			    (u_longlong_t)db->db.db_object);
 			return (SET_ERROR(EIO));
 		}
 		sa_byteswap(hdl, buftype);
