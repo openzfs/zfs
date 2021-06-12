@@ -610,17 +610,24 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	 * number is already hashed for this super block.  This can never
 	 * happen because the inode numbers map 1:1 with the object numbers.
 	 *
-	 * The one exception is rolling back a mounted file system, but in
-	 * this case all the active inode are unhashed during the rollback.
+	 * Exceptions include rolling back a mounted file system, either
+	 * from the zfs rollback or zfs recv command.
+	 *
+	 * Active inodes are unhashed during the rollback, but since zrele
+	 * can happen asynchronously, we can't guarantee they've been
+	 * unhashed.  This can cause hash collisions in unlinked drain
+	 * processing so do not hash unlinked znodes.
 	 */
-	VERIFY3S(insert_inode_locked(ip), ==, 0);
+	if (links > 0)
+		VERIFY3S(insert_inode_locked(ip), ==, 0);
 
 	mutex_enter(&zfsvfs->z_znodes_lock);
 	list_insert_tail(&zfsvfs->z_all_znodes, zp);
 	zfsvfs->z_nr_znodes++;
 	mutex_exit(&zfsvfs->z_znodes_lock);
 
-	unlock_new_inode(ip);
+	if (links > 0)
+		unlock_new_inode(ip);
 	return (zp);
 
 error:
