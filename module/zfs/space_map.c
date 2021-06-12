@@ -877,9 +877,11 @@ space_map_truncate(space_map_t *sm, int blocksize, dmu_tx_t *tx)
 	    doi.doi_data_block_size != blocksize ||
 	    doi.doi_metadata_block_size != 1 << space_map_ibs) {
 		zfs_dbgmsg("txg %llu, spa %s, sm %px, reallocating "
-		    "object[%llu]: old bonus %u, old blocksz %u",
-		    dmu_tx_get_txg(tx), spa_name(spa), sm, sm->sm_object,
-		    doi.doi_bonus_size, doi.doi_data_block_size);
+		    "object[%llu]: old bonus %llu, old blocksz %u",
+		    (u_longlong_t)dmu_tx_get_txg(tx), spa_name(spa), sm,
+		    (u_longlong_t)sm->sm_object,
+		    (u_longlong_t)doi.doi_bonus_size,
+		    doi.doi_data_block_size);
 
 		space_map_free(sm, tx);
 		dmu_buf_rele(sm->sm_dbuf, sm);
