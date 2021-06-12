@@ -6669,7 +6669,7 @@ ztest_initialize(ztest_ds_t *zd, uint64_t id)
 	char *path = strdup(rand_vd->vdev_path);
 	boolean_t active = rand_vd->vdev_initialize_thread != NULL;
 
-	zfs_dbgmsg("vd %px, guid %llu", rand_vd, guid);
+	zfs_dbgmsg("vd %px, guid %llu", rand_vd, (u_longlong_t)guid);
 	spa_config_exit(spa, SCL_VDEV, FTAG);
 
 	uint64_t cmd = ztest_random(POOL_INITIALIZE_FUNCS);
@@ -6741,7 +6741,7 @@ ztest_trim(ztest_ds_t *zd, uint64_t id)
 	char *path = strdup(rand_vd->vdev_path);
 	boolean_t active = rand_vd->vdev_trim_thread != NULL;
 
-	zfs_dbgmsg("vd %p, guid %llu", rand_vd, guid);
+	zfs_dbgmsg("vd %p, guid %llu", rand_vd, (u_longlong_t)guid);
 	spa_config_exit(spa, SCL_VDEV, FTAG);
 
 	uint64_t cmd = ztest_random(POOL_TRIM_FUNCS);
