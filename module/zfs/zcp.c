@@ -654,7 +654,8 @@ zcp_debug(lua_State *state)
 
 	dbgstring = lua_tostring(state, 1);
 
-	zfs_dbgmsg("txg %lld ZCP: %s", ri->zri_tx->tx_txg, dbgstring);
+	zfs_dbgmsg("txg %lld ZCP: %s", (longlong_t)ri->zri_tx->tx_txg,
+	    dbgstring);
 
 	return (0);
 }
