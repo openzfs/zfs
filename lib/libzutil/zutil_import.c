@@ -1260,6 +1260,7 @@ zpool_find_import_scan_dir(libpc_handle_t *hdl, pthread_mutex_t *lock,
 		switch (dp->d_type) {
 		case DT_UNKNOWN:
 		case DT_BLK:
+		case DT_LNK:
 #ifdef __FreeBSD__
 		case DT_CHR:
 #endif
