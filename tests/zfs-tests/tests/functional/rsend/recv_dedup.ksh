@@ -48,6 +48,7 @@ log_must eval "zstream redup $sendfile | zfs recv -d $TESTPOOL/recv"
 
 log_must mkdir /$TESTPOOL/tar
 log_must tar --directory /$TESTPOOL/tar -xzf $tarfile
-log_must diff -r /$TESTPOOL/tar /$TESTPOOL/recv
+# The recv'd filesystem is called "/fs", so only compare that subdirectory.
+log_must directory_diff /$TESTPOOL/tar/fs /$TESTPOOL/recv/fs
 
 log_pass "zfs can receive dedup send streams with 'zstream redup'"

@@ -83,7 +83,7 @@ test_pool ()
 	cat $streamfile | log_must zfs receive $POOL/recvfs
 
 	recv_mntpnt=$(get_prop mountpoint "$POOL/recvfs")
-	log_must diff -r $mntpnt $recv_mntpnt
+	log_must directory_diff $mntpnt $recv_mntpnt
 	log_must zfs destroy -rf $POOL/fs
 	log_must zfs destroy -rf $POOL/recvfs
 }
