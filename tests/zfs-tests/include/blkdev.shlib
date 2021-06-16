@@ -652,3 +652,16 @@ function corrupt_blocks_at_level # input_file corrupt_level
 	# This is necessary for pools made of loop devices.
 	sync
 }
+
+function corrupt_label_checksum # label_number vdev_path
+{
+	typeset label_size=$((256*1024))
+	typeset vdev_size=$(stat_size ${2})
+	typeset -a offsets=("$((128*1024 - 32))" \
+	    "$(($label_size + (128*1024 - 32)))" \
+	    "$(($vdev_size - $label_size - (128*1024 + 32)))" \
+	    "$(($vdev_size - (128*1024 + 32)))")
+
+	dd if=/dev/urandom of=${2} seek=${offsets[$1]} bs=1 count=32 \
+	    conv=notrunc
+}
