@@ -27,6 +27,7 @@
 #define	_ABD_IMPL_H
 
 #include <sys/abd.h>
+#include <sys/wmsum.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -82,9 +83,8 @@ void abd_iter_unmap(struct abd_iter *);
 /*
  * Helper macros
  */
-#define	ABDSTAT(stat)		(abd_stats.stat.value.ui64)
 #define	ABDSTAT_INCR(stat, val) \
-	atomic_add_64(&abd_stats.stat.value.ui64, (val))
+	wmsum_add(&abd_sums.stat, (val))
 #define	ABDSTAT_BUMP(stat)	ABDSTAT_INCR(stat, 1)
 #define	ABDSTAT_BUMPDOWN(stat)	ABDSTAT_INCR(stat, -1)
 

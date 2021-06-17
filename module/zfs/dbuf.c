@@ -52,6 +52,7 @@
 #include <sys/vdev.h>
 #include <cityhash.h>
 #include <sys/spa_impl.h>
+#include <sys/wmsum.h>
 
 kstat_t *dbuf_ksp;
 
@@ -135,8 +136,22 @@ dbuf_stats_t dbuf_stats = {
 	{ "metadata_cache_overflow",		KSTAT_DATA_UINT64 }
 };
 
+struct {
+	wmsum_t cache_count;
+	wmsum_t cache_total_evicts;
+	wmsum_t cache_levels[DN_MAX_LEVELS];
+	wmsum_t cache_levels_bytes[DN_MAX_LEVELS];
+	wmsum_t hash_hits;
+	wmsum_t hash_misses;
+	wmsum_t hash_collisions;
+	wmsum_t hash_chains;
+	wmsum_t hash_insert_race;
+	wmsum_t metadata_cache_count;
+	wmsum_t metadata_cache_overflow;
+} dbuf_sums;
+
 #define	DBUF_STAT_INCR(stat, val)	\
-	atomic_add_64(&dbuf_stats.stat.value.ui64, (val));
+	wmsum_add(&dbuf_sums.stat, val);
 #define	DBUF_STAT_DECR(stat, val)	\
 	DBUF_STAT_INCR(stat, -(val));
 #define	DBUF_STAT_BUMP(stat)		\
@@ -297,8 +312,6 @@ dbuf_dest(void *vdb, void *unused)
  */
 static dbuf_hash_table_t dbuf_hash_table;
 
-static uint64_t dbuf_hash_count;
-
 /*
  * We use Cityhash for this. It's fast, and has good hash properties without
  * requiring any large static buffers.
@@ -409,8 +422,8 @@ dbuf_hash_insert(dmu_buf_impl_t *db)
 	db->db_hash_next = h->hash_table[idx];
 	h->hash_table[idx] = db;
 	mutex_exit(DBUF_HASH_MUTEX(h, idx));
-	atomic_inc_64(&dbuf_hash_count);
-	DBUF_STAT_MAX(hash_elements_max, dbuf_hash_count);
+	uint64_t he = atomic_inc_64_nv(&dbuf_stats.hash_elements.value.ui64);
+	DBUF_STAT_MAX(hash_elements_max, he);
 
 	return (NULL);
 }
@@ -483,7 +496,7 @@ dbuf_hash_remove(dmu_buf_impl_t *db)
 	    h->hash_table[idx]->db_hash_next == NULL)
 		DBUF_STAT_BUMPDOWN(hash_chains);
 	mutex_exit(DBUF_HASH_MUTEX(h, idx));
-	atomic_dec_64(&dbuf_hash_count);
+	atomic_dec_64(&dbuf_stats.hash_elements.value.ui64);
 }
 
 typedef enum {
@@ -767,19 +780,40 @@ dbuf_kstat_update(kstat_t *ksp, int rw)
 {
 	dbuf_stats_t *ds = ksp->ks_data;
 
-	if (rw == KSTAT_WRITE) {
+	if (rw == KSTAT_WRITE)
 		return (SET_ERROR(EACCES));
-	} else {
-		ds->metadata_cache_size_bytes.value.ui64 = zfs_refcount_count(
-		    &dbuf_caches[DB_DBUF_METADATA_CACHE].size);
-		ds->cache_size_bytes.value.ui64 =
-		    zfs_refcount_count(&dbuf_caches[DB_DBUF_CACHE].size);
-		ds->cache_target_bytes.value.ui64 = dbuf_cache_target_bytes();
-		ds->cache_hiwater_bytes.value.ui64 = dbuf_cache_hiwater_bytes();
-		ds->cache_lowater_bytes.value.ui64 = dbuf_cache_lowater_bytes();
-		ds->hash_elements.value.ui64 = dbuf_hash_count;
-	}
 
+	ds->cache_count.value.ui64 =
+	    wmsum_value(&dbuf_sums.cache_count);
+	ds->cache_size_bytes.value.ui64 =
+	    zfs_refcount_count(&dbuf_caches[DB_DBUF_CACHE].size);
+	ds->cache_target_bytes.value.ui64 = dbuf_cache_target_bytes();
+	ds->cache_hiwater_bytes.value.ui64 = dbuf_cache_hiwater_bytes();
+	ds->cache_lowater_bytes.value.ui64 = dbuf_cache_lowater_bytes();
+	ds->cache_total_evicts.value.ui64 =
+	    wmsum_value(&dbuf_sums.cache_total_evicts);
+	for (int i = 0; i < DN_MAX_LEVELS; i++) {
+		ds->cache_levels[i].value.ui64 =
+		    wmsum_value(&dbuf_sums.cache_levels[i]);
+		ds->cache_levels_bytes[i].value.ui64 =
+		    wmsum_value(&dbuf_sums.cache_levels_bytes[i]);
+	}
+	ds->hash_hits.value.ui64 =
+	    wmsum_value(&dbuf_sums.hash_hits);
+	ds->hash_misses.value.ui64 =
+	    wmsum_value(&dbuf_sums.hash_misses);
+	ds->hash_collisions.value.ui64 =
+	    wmsum_value(&dbuf_sums.hash_collisions);
+	ds->hash_chains.value.ui64 =
+	    wmsum_value(&dbuf_sums.hash_chains);
+	ds->hash_insert_race.value.ui64 =
+	    wmsum_value(&dbuf_sums.hash_insert_race);
+	ds->metadata_cache_count.value.ui64 =
+	    wmsum_value(&dbuf_sums.metadata_cache_count);
+	ds->metadata_cache_size_bytes.value.ui64 = zfs_refcount_count(
+	    &dbuf_caches[DB_DBUF_METADATA_CACHE].size);
+	ds->metadata_cache_overflow.value.ui64 =
+	    wmsum_value(&dbuf_sums.metadata_cache_overflow);
 	return (0);
 }
 
@@ -846,6 +880,20 @@ retry:
 	dbuf_cache_evict_thread = thread_create(NULL, 0, dbuf_evict_thread,
 	    NULL, 0, &p0, TS_RUN, minclsyspri);
 
+	wmsum_init(&dbuf_sums.cache_count, 0);
+	wmsum_init(&dbuf_sums.cache_total_evicts, 0);
+	for (i = 0; i < DN_MAX_LEVELS; i++) {
+		wmsum_init(&dbuf_sums.cache_levels[i], 0);
+		wmsum_init(&dbuf_sums.cache_levels_bytes[i], 0);
+	}
+	wmsum_init(&dbuf_sums.hash_hits, 0);
+	wmsum_init(&dbuf_sums.hash_misses, 0);
+	wmsum_init(&dbuf_sums.hash_collisions, 0);
+	wmsum_init(&dbuf_sums.hash_chains, 0);
+	wmsum_init(&dbuf_sums.hash_insert_race, 0);
+	wmsum_init(&dbuf_sums.metadata_cache_count, 0);
+	wmsum_init(&dbuf_sums.metadata_cache_overflow, 0);
+
 	dbuf_ksp = kstat_create("zfs", 0, "dbufstats", "misc",
 	    KSTAT_TYPE_NAMED, sizeof (dbuf_stats) / sizeof (kstat_named_t),
 	    KSTAT_FLAG_VIRTUAL);
@@ -908,6 +956,20 @@ dbuf_fini(void)
 		kstat_delete(dbuf_ksp);
 		dbuf_ksp = NULL;
 	}
+
+	wmsum_fini(&dbuf_sums.cache_count);
+	wmsum_fini(&dbuf_sums.cache_total_evicts);
+	for (i = 0; i < DN_MAX_LEVELS; i++) {
+		wmsum_fini(&dbuf_sums.cache_levels[i]);
+		wmsum_fini(&dbuf_sums.cache_levels_bytes[i]);
+	}
+	wmsum_fini(&dbuf_sums.hash_hits);
+	wmsum_fini(&dbuf_sums.hash_misses);
+	wmsum_fini(&dbuf_sums.hash_collisions);
+	wmsum_fini(&dbuf_sums.hash_chains);
+	wmsum_fini(&dbuf_sums.hash_insert_race);
+	wmsum_fini(&dbuf_sums.metadata_cache_count);
+	wmsum_fini(&dbuf_sums.metadata_cache_overflow);
 }
 
 /*
@@ -3708,9 +3770,11 @@ dbuf_rele_and_unlock(dmu_buf_impl_t *db, void *tag, boolean_t evicting)
 				db->db_caching_status = dcs;
 
 				multilist_insert(&dbuf_caches[dcs].cache, db);
+				uint64_t db_size = db->db.db_size;
 				size = zfs_refcount_add_many(
-				    &dbuf_caches[dcs].size,
-				    db->db.db_size, db);
+				    &dbuf_caches[dcs].size, db_size, db);
+				uint8_t db_level = db->db_level;
+				mutex_exit(&db->db_mtx);
 
 				if (dcs == DB_DBUF_METADATA_CACHE) {
 					DBUF_STAT_BUMP(metadata_cache_count);
@@ -3718,16 +3782,14 @@ dbuf_rele_and_unlock(dmu_buf_impl_t *db, void *tag, boolean_t evicting)
 					    metadata_cache_size_bytes_max,
 					    size);
 				} else {
-					DBUF_STAT_BUMP(
-					    cache_levels[db->db_level]);
 					DBUF_STAT_BUMP(cache_count);
-					DBUF_STAT_INCR(
-					    cache_levels_bytes[db->db_level],
-					    db->db.db_size);
 					DBUF_STAT_MAX(cache_size_bytes_max,
 					    size);
+					DBUF_STAT_BUMP(cache_levels[db_level]);
+					DBUF_STAT_INCR(
+					    cache_levels_bytes[db_level],
+					    db_size);
 				}
-				mutex_exit(&db->db_mtx);
 
 				if (dcs == DB_DBUF_CACHE && !evicting)
 					dbuf_evict_notify(size);
