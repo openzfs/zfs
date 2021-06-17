@@ -20,7 +20,7 @@
  */
 
 #ifndef _LIBUZFS_H_
-#define	_LIBUZFS_H_
+#define	_LIBUZFS_H_ extern __attribute__((visibility("default")))
 
 #include <sys/zfs_ioctl.h>
 #include <libzfs.h>
@@ -64,13 +64,14 @@ typedef struct uzfs_monitor {
 
 #define	MAX_NVLIST_SRC_SIZE (128 * 1024 * 1024)
 
-extern int uzfs_handle_ioctl(const char *pool, zfs_cmd_t *zc,
+_LIBUZFS_H_ int uzfs_handle_ioctl(const char *pool, zfs_cmd_t *zc,
     uzfs_info_t *ucmd_info);
-extern int uzfs_recv_ioctl(int fd, zfs_cmd_t *zc, uzfs_info_t *ucmd_info);
-extern int uzfs_send_response(int fd, zfs_cmd_t *zc, uzfs_info_t *ucmd_info);
-extern int uzfs_send_ioctl(int fd, unsigned long request, zfs_cmd_t *zc);
-extern int libuzfs_ioctl_init(void);
-extern int libuzfs_client_init(libzfs_handle_t *g_zfs);
+_LIBUZFS_H_ int uzfs_recv_ioctl(int fd, zfs_cmd_t *zc, uzfs_info_t *ucmd_info);
+_LIBUZFS_H_ int uzfs_send_response(int fd, zfs_cmd_t *zc,
+    uzfs_info_t *ucmd_info);
+_LIBUZFS_H_ int uzfs_send_ioctl(int fd, unsigned long request, zfs_cmd_t *zc);
+_LIBUZFS_H_ int libuzfs_run_ioctl_server(void);
+_LIBUZFS_H_ int libuzfs_client_init(libzfs_handle_t *g_zfs);
 extern int uzfs_recv_response(int fd, zfs_cmd_t *zc);
 extern int uzfs_client_init(const char *sock_path);
 extern int is_main_thread(void);

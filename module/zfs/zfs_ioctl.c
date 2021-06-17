@@ -2157,7 +2157,7 @@ zfs_ioc_objset_stats_impl(zfs_cmd_t *zc, objset_t *os)
 	if (zc->zc_nvlist_dst != 0 &&
 	    (error = dsl_prop_get_all(os, &nv)) == 0) {
 		dmu_objset_stats(os, nv);
-#ifndef _UZFS
+#ifndef	_UZFS
 		/*
 		 * _UZFS
 		 * After enabling zvol in uzfs, we can remove this
@@ -2645,6 +2645,7 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 	return (err);
 }
 
+#ifndef	_UZFS
 static boolean_t
 zfs_is_namespace_prop(zfs_prop_t prop)
 {
@@ -2664,6 +2665,7 @@ zfs_is_namespace_prop(zfs_prop_t prop)
 		return (B_FALSE);
 	}
 }
+#endif
 
 /*
  * This function is best effort. If it fails to set any of the given properties,
@@ -2684,7 +2686,9 @@ zfs_set_prop_nvlist(const char *dsname, zprop_source_t source, nvlist_t *nvl,
 	int rv = 0;
 	uint64_t intval;
 	const char *strval;
+#ifndef	_UZFS
 	boolean_t should_update_mount_cache = B_FALSE;
+#endif
 
 	nvlist_t *genericnvl = fnvlist_alloc();
 	nvlist_t *retrynvl = fnvlist_alloc();
@@ -2783,8 +2787,10 @@ retry:
 			rv = err;
 		}
 
+#ifndef	_UZFS
 		if (zfs_is_namespace_prop(prop))
 			should_update_mount_cache = B_TRUE;
+#endif
 	}
 
 	if (nvl != retrynvl && !nvlist_empty(retrynvl)) {
@@ -2833,8 +2839,10 @@ retry:
 			}
 		}
 	}
+#ifndef	_UZFS
 	if (should_update_mount_cache)
 		zfs_ioctl_update_mount_cache(dsname);
+#endif
 
 	nvlist_free(genericnvl);
 	nvlist_free(retrynvl);

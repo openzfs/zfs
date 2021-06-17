@@ -55,18 +55,11 @@ main(int argc, char *argv[])
 
 	kernel_init(SPA_MODE_READ | SPA_MODE_WRITE);
 
-	if (libuzfs_ioctl_init() < 0) {
+	if (libuzfs_run_ioctl_server() < 0) {
 		(void) fprintf(stderr, "%s",
-		    "failed to initialize libuzfs ioctl\n");
-		goto err;
+		    "failed to run libuzfs ioctl\n");
 	}
 
-	while (1) {
-		sleep(5);
-		/* other stuffs */
-	}
-
-err:
 	kernel_fini();
 	return (0);
 }

@@ -92,7 +92,7 @@
 #include <sys/stat.h>
 #include <sys/zfs_ioctl.h>
 
-int g_fd = -1;
+int g_fd __attribute__((visibility("default"))) = -1;
 static pthread_mutex_t g_lock = PTHREAD_MUTEX_INITIALIZER;
 static int g_refcount;
 

@@ -193,40 +193,11 @@ uzfs_process_ioctl(void *arg)
 }
 
 /*
- * accept connection and process it
- */
-static void *
-uzfs_accept(void *arg)
-{
-	struct sockaddr_in client_addr;
-	unsigned int addr_len;
-	int sfd = (int64_t)arg;
-
-	while (1) {
-		addr_len = sizeof (client_addr);
-		int cfd;
-		if ((cfd = accept(sfd, (struct sockaddr *)&client_addr,
-		    &addr_len)) < 0) {
-			perror("accept");
-			continue;
-		}
-
-		VERIFY(thread_create(NULL, 0, uzfs_process_ioctl,
-		    (void *)(int64_t)cfd, 0, NULL, TS_RUN,
-		    defclsyspri) != NULL);
-	}
-
-	close(sfd);
-	thread_exit();
-	return (NULL);
-}
-
-/*
  * creates server which listens on unix domain socket
  * and process client request
  */
 int
-libuzfs_ioctl_init(void)
+libuzfs_run_ioctl_server(void)
 {
 	int server_s;
 	struct sockaddr_un server_addr = { 0 };
@@ -270,25 +241,23 @@ libuzfs_ioctl_init(void)
 		goto err;
 	}
 
-	pthread_attr_t attr;
-	if (pthread_attr_init(&attr)) {
-		goto err;
+	struct sockaddr_in client_addr;
+	unsigned int addr_len = sizeof (client_addr);
+
+	/* accept connection and process it */
+	while (1) {
+		int cfd;
+		if ((cfd = accept(server_s, (struct sockaddr *)&client_addr,
+		    &addr_len)) < 0) {
+			perror("accept");
+			continue;
+		}
+
+		VERIFY(thread_create(NULL, 0, uzfs_process_ioctl,
+		    (void *)(int64_t)cfd, 0, NULL, TS_RUN,
+		    defclsyspri) != NULL);
 	}
 
-	do {
-		if (pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED))
-			break;
-
-		pthread_t tid;
-		if (pthread_create(&tid, &attr, uzfs_accept,
-		    (void *)(int64_t)server_s))
-			break;
-
-		VERIFY0(pthread_attr_destroy(&attr));
-		return (0);
-	} while (0);
-
-	VERIFY0(pthread_attr_destroy(&attr));
 err:
 	VERIFY0(close(server_s));
 	return (-1);
