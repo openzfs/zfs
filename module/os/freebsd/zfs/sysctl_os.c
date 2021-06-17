@@ -407,12 +407,6 @@ SYSCTL_INT(_vfs_zfs_metaslab, OID_AUTO, preload_limit, CTLFLAG_RWTUN,
     &metaslab_preload_limit, 0,
     "Max number of metaslabs per group to preload");
 
-/* refcount.c */
-extern int reference_tracking_enable;
-SYSCTL_INT(_vfs_zfs, OID_AUTO, reference_tracking_enable, CTLFLAG_RDTUN,
-    &reference_tracking_enable, 0,
-    "Track reference holders to refcount_t objects, used mostly by ZFS");
-
 /* spa.c */
 extern int zfs_ccw_retry_interval;
 SYSCTL_INT(_vfs_zfs, OID_AUTO, ccw_retry_interval, CTLFLAG_RWTUN,

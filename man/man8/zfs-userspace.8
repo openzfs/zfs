@@ -18,7 +18,6 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
 .\" Copyright (c) 2011, 2019 by Delphix. All rights reserved.
@@ -33,43 +32,45 @@
 .Dd June 30, 2019
 .Dt ZFS-USERSPACE 8
 .Os
+.
 .Sh NAME
 .Nm zfs-userspace
-.Nd Displays space consumed by, and quotas on, each user or group in the specified filesystem or snapshot.
+.Nd display space and quotas of ZFS dataset
 .Sh SYNOPSIS
 .Nm zfs
 .Cm userspace
 .Op Fl Hinp
-.Oo Fl o Ar field Ns Oo , Ns Ar field Oc Ns ... Oc
-.Oo Fl s Ar field Oc Ns ...
-.Oo Fl S Ar field Oc Ns ...
-.Oo Fl t Ar type Ns Oo , Ns Ar type Oc Ns ... Oc
+.Oo Fl o Ar field Ns Oo , Ns Ar field Oc Ns … Oc
+.Oo Fl s Ar field Oc Ns …
+.Oo Fl S Ar field Oc Ns …
+.Oo Fl t Ar type Ns Oo , Ns Ar type Oc Ns … Oc
 .Ar filesystem Ns | Ns Ar snapshot Ns | Ns Ar path
 .Nm zfs
 .Cm groupspace
 .Op Fl Hinp
-.Oo Fl o Ar field Ns Oo , Ns Ar field Oc Ns ... Oc
-.Oo Fl s Ar field Oc Ns ...
-.Oo Fl S Ar field Oc Ns ...
-.Oo Fl t Ar type Ns Oo , Ns Ar type Oc Ns ... Oc
+.Oo Fl o Ar field Ns Oo , Ns Ar field Oc Ns … Oc
+.Oo Fl s Ar field Oc Ns …
+.Oo Fl S Ar field Oc Ns …
+.Oo Fl t Ar type Ns Oo , Ns Ar type Oc Ns … Oc
 .Ar filesystem Ns | Ns Ar snapshot Ns | Ns Ar path
 .Nm zfs
 .Cm projectspace
 .Op Fl Hp
-.Oo Fl o Ar field Ns Oo , Ns Ar field Oc Ns ... Oc
-.Oo Fl s Ar field Oc Ns ...
-.Oo Fl S Ar field Oc Ns ...
+.Oo Fl o Ar field Ns Oo , Ns Ar field Oc Ns … Oc
+.Oo Fl s Ar field Oc Ns …
+.Oo Fl S Ar field Oc Ns …
 .Ar filesystem Ns | Ns Ar snapshot Ns | Ns Ar path
+.
 .Sh DESCRIPTION
 .Bl -tag -width ""
 .It Xo
 .Nm zfs
 .Cm userspace
 .Op Fl Hinp
-.Oo Fl o Ar field Ns Oo , Ns Ar field Oc Ns ... Oc
-.Oo Fl s Ar field Oc Ns ...
-.Oo Fl S Ar field Oc Ns ...
-.Oo Fl t Ar type Ns Oo , Ns Ar type Oc Ns ... Oc
+.Oo Fl o Ar field Ns Oo , Ns Ar field Oc Ns … Oc
+.Oo Fl s Ar field Oc Ns …
+.Oo Fl S Ar field Oc Ns …
+.Oo Fl t Ar type Ns Oo , Ns Ar type Oc Ns … Oc
 .Ar filesystem Ns | Ns Ar snapshot Ns | Ns Ar path
 .Xc
 Displays space consumed by, and quotas on, each user in the specified filesystem,
@@ -78,11 +79,11 @@ If a path is given, the filesystem that contains that path will be used.
 This corresponds to the
 .Sy userused@ Ns Em user ,
 .Sy userobjused@ Ns Em user ,
-.Sy userquota@ Ns Em user,
+.Sy userquota@ Ns Em user ,
 and
 .Sy userobjquota@ Ns Em user
 properties.
-.Bl -tag -width "-H"
+.Bl -tag -width "-S field"
 .It Fl H
 Do not print headers, use tab-delimited output.
 .It Fl S Ar field
@@ -93,10 +94,7 @@ See
 Translate SID to POSIX ID.
 The POSIX ID may be ephemeral if no mapping exists.
 Normal POSIX interfaces
-.Po for example,
-.Xr stat 2 ,
-.Nm ls Fl l
-.Pc
+.Pq like Xr stat 2 , Nm ls Fl l
 perform this translation, so the
 .Fl i
 option allows the output from
@@ -113,7 +111,7 @@ However, the
 option will report that the POSIX entity has the total usage and quota for both.
 .It Fl n
 Print numeric ID instead of user/group name.
-.It Fl o Ar field Ns Oo , Ns Ar field Oc Ns ...
+.It Fl o Ar field Ns Oo , Ns Ar field Oc Ns …
 Display only the specified fields from the following set:
 .Sy type ,
 .Sy name ,
@@ -134,7 +132,7 @@ flags may be specified multiple times to sort first by one field, then by
 another.
 The default is
 .Fl s Sy type Fl s Sy name .
-.It Fl t Ar type Ns Oo , Ns Ar type Oc Ns ...
+.It Fl t Ar type Ns Oo , Ns Ar type Oc Ns …
 Print only the specified types from the following set:
 .Sy all ,
 .Sy posixuser ,
@@ -142,17 +140,17 @@ Print only the specified types from the following set:
 .Sy posixgroup ,
 .Sy smbgroup .
 The default is
-.Fl t Sy posixuser Ns \&, Ns Sy smbuser .
+.Fl t Sy posixuser , Ns Sy smbuser .
 The default can be changed to include group types.
 .El
 .It Xo
 .Nm zfs
 .Cm groupspace
 .Op Fl Hinp
-.Oo Fl o Ar field Ns Oo , Ns Ar field Oc Ns ... Oc
-.Oo Fl s Ar field Oc Ns ...
-.Oo Fl S Ar field Oc Ns ...
-.Oo Fl t Ar type Ns Oo , Ns Ar type Oc Ns ... Oc
+.Oo Fl o Ar field Ns Oo , Ns Ar field Oc Ns … Oc
+.Oo Fl s Ar field Oc Ns …
+.Oo Fl S Ar field Oc Ns …
+.Oo Fl t Ar type Ns Oo , Ns Ar type Oc Ns … Oc
 .Ar filesystem Ns | Ns Ar snapshot
 .Xc
 Displays space consumed by, and quotas on, each group in the specified
@@ -160,28 +158,30 @@ filesystem or snapshot.
 This subcommand is identical to
 .Cm userspace ,
 except that the default types to display are
-.Fl t Sy posixgroup Ns \&, Ns Sy smbgroup .
+.Fl t Sy posixgroup , Ns Sy smbgroup .
 .It Xo
 .Nm zfs
 .Cm projectspace
 .Op Fl Hp
-.Oo Fl o Ar field Ns Oo , Ns Ar field Oc Ns ... Oc
-.Oo Fl s Ar field Oc Ns ...
-.Oo Fl S Ar field Oc Ns ...
+.Oo Fl o Ar field Ns Oo , Ns Ar field Oc Ns … Oc
+.Oo Fl s Ar field Oc Ns …
+.Oo Fl S Ar field Oc Ns …
 .Ar filesystem Ns | Ns Ar snapshot Ns | Ns Ar path
 .Xc
 Displays space consumed by, and quotas on, each project in the specified
-filesystem or snapshot. This subcommand is identical to
+filesystem or snapshot.
+This subcommand is identical to
 .Cm userspace ,
-except that the project identifier is numeral, not name. So need neither
-the option
-.Sy -i
+except that the project identifier is a numeral, not a name.
+So need neither the option
+.Fl i
 for SID to POSIX ID nor
-.Sy -n
+.Fl n
 for numeric ID, nor
-.Sy -t
+.Fl t
 for types.
 .El
+.
 .Sh SEE ALSO
-.Xr zfs-set 8 ,
-.Xr zfsprops 8
+.Xr zfsprops 7 ,
+.Xr zfs-set 8

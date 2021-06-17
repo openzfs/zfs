@@ -53,7 +53,6 @@
 #include <sys/avl.h>
 #include <sys/ddt.h>
 #include <sys/zfs_onexit.h>
-#include <sys/dmu_send.h>
 #include <sys/dsl_destroy.h>
 #include <sys/blkptr.h>
 #include <sys/dsl_bookmark.h>
@@ -2881,8 +2880,8 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, offset_t *voffp)
 	int err = 0;
 	struct receive_writer_arg *rwa = kmem_zalloc(sizeof (*rwa), KM_SLEEP);
 
-	if (dsl_dataset_is_zapified(drc->drc_ds)) {
-		uint64_t bytes;
+	if (dsl_dataset_has_resume_receive_state(drc->drc_ds)) {
+		uint64_t bytes = 0;
 		(void) zap_lookup(drc->drc_ds->ds_dir->dd_pool->dp_meta_objset,
 		    drc->drc_ds->ds_object, DS_FIELD_RESUME_BYTES,
 		    sizeof (bytes), 1, &bytes);

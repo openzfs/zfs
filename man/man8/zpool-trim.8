@@ -18,7 +18,6 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
 .\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
@@ -27,56 +26,54 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd February 25, 2020
+.Dd May 27, 2021
 .Dt ZPOOL-TRIM 8
 .Os
+.
 .Sh NAME
 .Nm zpool-trim
-.Nd Initiate immediate TRIM operations for all free space in a ZFS storage pool
+.Nd initiate TRIM of free space in ZFS storage pool
 .Sh SYNOPSIS
 .Nm zpool
 .Cm trim
 .Op Fl dw
 .Op Fl r Ar rate
-.Op Fl c | Fl s
+.Op Fl c Ns | Ns Fl s
 .Ar pool
-.Op Ar device Ns ...
+.Oo Ar device Ns Oc Ns …
+.
 .Sh DESCRIPTION
-.Bl -tag -width Ds
-.It Xo
-.Nm zpool
-.Cm trim
-.Op Fl dw
-.Op Fl c | Fl s
-.Ar pool
-.Op Ar device Ns ...
-.Xc
 Initiates an immediate on-demand TRIM operation for all of the free space in
-a pool.  This operation informs the underlying storage devices of all blocks
+a pool.
+This operation informs the underlying storage devices of all blocks
 in the pool which are no longer allocated and allows thinly provisioned
 devices to reclaim the space.
 .Pp
 A manual on-demand TRIM operation can be initiated irrespective of the
 .Sy autotrim
-pool property setting.  See the documentation for the
+pool property setting.
+See the documentation for the
 .Sy autotrim
 property above for the types of vdev devices which can be trimmed.
 .Bl -tag -width Ds
-.It Fl d -secure
-Causes a secure TRIM to be initiated.  When performing a secure TRIM, the
+.It Fl d , -secure
+Causes a secure TRIM to be initiated.
+When performing a secure TRIM, the
 device guarantees that data stored on the trimmed blocks has been erased.
 This requires support from the device and is not supported by all SSDs.
-.It Fl r -rate Ar rate
-Controls the rate at which the TRIM operation progresses.  Without this
-option TRIM is executed as quickly as possible. The rate, expressed in bytes
+.It Fl r , -rate Ar rate
+Controls the rate at which the TRIM operation progresses.
+Without this
+option TRIM is executed as quickly as possible.
+The rate, expressed in bytes
 per second, is applied on a per-vdev basis and may be set differently for
 each leaf vdev.
-.It Fl c, -cancel
+.It Fl c , -cancel
 Cancel trimming on the specified devices, or all eligible devices if none
 are specified.
 If one or more target devices are invalid or are not currently being
 trimmed, the command will fail and no cancellation will occur on any device.
-.It Fl s -suspend
+.It Fl s , -suspend
 Suspend trimming on the specified devices, or all eligible devices if none
 are specified.
 If one or more target devices are invalid or are not currently being
@@ -84,11 +81,11 @@ trimmed, the command will fail and no suspension will occur on any device.
 Trimming can then be resumed by running
 .Nm zpool Cm trim
 with no flags on the relevant target devices.
-.It Fl w -wait
+.It Fl w , -wait
 Wait until the devices are done being trimmed before returning.
 .El
-.El
+.
 .Sh SEE ALSO
+.Xr zpoolprops 7 ,
 .Xr zpool-initialize 8 ,
-.Xr zpool-wait 8 ,
-.Xr zpoolprops 8
+.Xr zpool-wait 8

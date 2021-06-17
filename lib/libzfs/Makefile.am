@@ -8,6 +8,7 @@ VPATH = \
 # Suppress unused but set variable warnings often due to ASSERTs
 AM_CFLAGS += $(NO_UNUSED_BUT_SET_VARIABLE)
 AM_CFLAGS += $(LIBCRYPTO_CFLAGS) $(ZLIB_CFLAGS)
+AM_CFLAGS += -fvisibility=hidden
 
 pkgconfig_DATA = libzfs.pc
 
@@ -16,6 +17,7 @@ lib_LTLIBRARIES = libzfs.la
 include $(top_srcdir)/config/Abigail.am
 
 USER_C = \
+	libzfs_impl.h \
 	libzfs_changelist.c \
 	libzfs_config.c \
 	libzfs_crypto.c \
@@ -95,7 +97,7 @@ if ENABLE_UZFS
 libzfs_la_LIBADD += $(abs_top_builddir)/lib/libzpool/libzpool.la
 endif
 
-libzfs_la_LIBADD += -lm $(LIBCRYPTO_LIBS) $(ZLIB_LIBS) $(LTLIBINTL)
+libzfs_la_LIBADD += -lm $(LIBCRYPTO_LIBS) $(ZLIB_LIBS) $(LIBFETCH_LIBS) $(LTLIBINTL)
 
 libzfs_la_LDFLAGS = -pthread
 
@@ -107,7 +109,7 @@ if BUILD_FREEBSD
 libzfs_la_LIBADD += -lutil -lgeom
 endif
 
-libzfs_la_LDFLAGS += -version-info 4:0:0
+libzfs_la_LDFLAGS += -version-info 5:0:1
 
 include $(top_srcdir)/config/CppCheck.am
 

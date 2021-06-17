@@ -381,7 +381,7 @@ abd_gang_add_gang(abd_t *pabd, abd_t *cabd, boolean_t free_on_free)
 		    child = list_next(&ABD_GANG(cabd).abd_gang_chain, child)) {
 			/*
 			 * We always pass B_FALSE for free_on_free as it is the
-			 * original child gang ABDs responsibilty to determine
+			 * original child gang ABDs responsibility to determine
 			 * if any of its child ABDs should be free'd on the call
 			 * to abd_free().
 			 */
@@ -555,8 +555,12 @@ abd_get_offset_impl(abd_t *abd, abd_t *sabd, size_t off, size_t size)
 abd_t *
 abd_get_offset_struct(abd_t *abd, abd_t *sabd, size_t off, size_t size)
 {
+	abd_t *result;
 	abd_init_struct(abd);
-	return (abd_get_offset_impl(abd, sabd, off, size));
+	result = abd_get_offset_impl(abd, sabd, off, size);
+	if (result != abd)
+		abd_fini_struct(abd);
+	return (result);
 }
 
 abd_t *

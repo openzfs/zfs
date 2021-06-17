@@ -416,7 +416,7 @@ metaslab_class_create(spa_t *spa, metaslab_ops_t *ops)
 	mc->mc_spa = spa;
 	mc->mc_ops = ops;
 	mutex_init(&mc->mc_lock, NULL, MUTEX_DEFAULT, NULL);
-	mc->mc_metaslab_txg_list = multilist_create(sizeof (metaslab_t),
+	multilist_create(&mc->mc_metaslab_txg_list, sizeof (metaslab_t),
 	    offsetof(metaslab_t, ms_class_txg_node), metaslab_idx_func);
 	for (int i = 0; i < spa->spa_alloc_count; i++) {
 		metaslab_class_allocator_t *mca = &mc->mc_allocator[i];
@@ -443,7 +443,7 @@ metaslab_class_destroy(metaslab_class_t *mc)
 		zfs_refcount_destroy(&mca->mca_alloc_slots);
 	}
 	mutex_destroy(&mc->mc_lock);
-	multilist_destroy(mc->mc_metaslab_txg_list);
+	multilist_destroy(&mc->mc_metaslab_txg_list);
 	kmem_free(mc, offsetof(metaslab_class_t,
 	    mc_allocator[spa->spa_alloc_count]));
 }
@@ -639,7 +639,7 @@ metaslab_class_expandable_space(metaslab_class_t *mc)
 void
 metaslab_class_evict_old(metaslab_class_t *mc, uint64_t txg)
 {
-	multilist_t *ml = mc->mc_metaslab_txg_list;
+	multilist_t *ml = &mc->mc_metaslab_txg_list;
 	for (int i = 0; i < multilist_get_num_sublists(ml); i++) {
 		multilist_sublist_t *mls = multilist_sublist_lock(ml, i);
 		metaslab_t *msp = multilist_sublist_head(mls);
@@ -1139,7 +1139,7 @@ metaslab_group_remove(metaslab_group_t *mg, metaslab_t *msp)
 
 	metaslab_class_t *mc = msp->ms_group->mg_class;
 	multilist_sublist_t *mls =
-	    multilist_sublist_lock_obj(mc->mc_metaslab_txg_list, msp);
+	    multilist_sublist_lock_obj(&mc->mc_metaslab_txg_list, msp);
 	if (multilist_link_active(&msp->ms_class_txg_node))
 		multilist_sublist_remove(mls, msp);
 	multilist_sublist_unlock(mls);
@@ -2175,20 +2175,20 @@ metaslab_potentially_evict(metaslab_class_t *mc)
 	uint64_t size =	spl_kmem_cache_entry_size(zfs_btree_leaf_cache);
 	int tries = 0;
 	for (; allmem * zfs_metaslab_mem_limit / 100 < inuse * size &&
-	    tries < multilist_get_num_sublists(mc->mc_metaslab_txg_list) * 2;
+	    tries < multilist_get_num_sublists(&mc->mc_metaslab_txg_list) * 2;
 	    tries++) {
 		unsigned int idx = multilist_get_random_index(
-		    mc->mc_metaslab_txg_list);
+		    &mc->mc_metaslab_txg_list);
 		multilist_sublist_t *mls =
-		    multilist_sublist_lock(mc->mc_metaslab_txg_list, idx);
+		    multilist_sublist_lock(&mc->mc_metaslab_txg_list, idx);
 		metaslab_t *msp = multilist_sublist_head(mls);
 		multilist_sublist_unlock(mls);
 		while (msp != NULL && allmem * zfs_metaslab_mem_limit / 100 <
 		    inuse * size) {
 			VERIFY3P(mls, ==, multilist_sublist_lock(
-			    mc->mc_metaslab_txg_list, idx));
+			    &mc->mc_metaslab_txg_list, idx));
 			ASSERT3U(idx, ==,
-			    metaslab_idx_func(mc->mc_metaslab_txg_list, msp));
+			    metaslab_idx_func(&mc->mc_metaslab_txg_list, msp));
 
 			if (!multilist_link_active(&msp->ms_class_txg_node)) {
 				multilist_sublist_unlock(mls);
@@ -2316,18 +2316,13 @@ metaslab_load_impl(metaslab_t *msp)
 		range_tree_add(msp->ms_allocatable,
 		    msp->ms_start, msp->ms_size);
 
-		if (msp->ms_freed != NULL) {
+		if (msp->ms_new) {
 			/*
 			 * If the ms_sm doesn't exist, this means that this
 			 * metaslab hasn't gone through metaslab_sync() and
 			 * thus has never been dirtied. So we shouldn't
 			 * expect any unflushed allocs or frees from previous
 			 * TXGs.
-			 *
-			 * Note: ms_freed and all the other trees except for
-			 * the ms_allocatable, can be NULL at this point only
-			 * if this is a new metaslab of a vdev that just got
-			 * expanded.
 			 */
 			ASSERT(range_tree_is_empty(msp->ms_unflushed_allocs));
 			ASSERT(range_tree_is_empty(msp->ms_unflushed_frees));
@@ -2364,8 +2359,6 @@ metaslab_load_impl(metaslab_t *msp)
 	    range_tree_remove, msp->ms_allocatable);
 	range_tree_walk(msp->ms_unflushed_frees,
 	    range_tree_add, msp->ms_allocatable);
-
-	msp->ms_loaded = B_TRUE;
 
 	ASSERT3P(msp->ms_group, !=, NULL);
 	spa_t *spa = msp->ms_group->mg_vd->vdev_spa;
@@ -2542,7 +2535,7 @@ metaslab_unload(metaslab_t *msp)
 	if (msp->ms_group != NULL) {
 		metaslab_class_t *mc = msp->ms_group->mg_class;
 		multilist_sublist_t *mls =
-		    multilist_sublist_lock_obj(mc->mc_metaslab_txg_list, msp);
+		    multilist_sublist_lock_obj(&mc->mc_metaslab_txg_list, msp);
 		if (multilist_link_active(&msp->ms_class_txg_node))
 			multilist_sublist_remove(mls, msp);
 		multilist_sublist_unlock(mls);
@@ -2607,7 +2600,7 @@ metaslab_set_selected_txg(metaslab_t *msp, uint64_t txg)
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
 	metaslab_class_t *mc = msp->ms_group->mg_class;
 	multilist_sublist_t *mls =
-	    multilist_sublist_lock_obj(mc->mc_metaslab_txg_list, msp);
+	    multilist_sublist_lock_obj(&mc->mc_metaslab_txg_list, msp);
 	if (multilist_link_active(&msp->ms_class_txg_node))
 		multilist_sublist_remove(mls, msp);
 	msp->ms_selected_txg = txg;
@@ -2680,19 +2673,31 @@ metaslab_init(metaslab_group_t *mg, uint64_t id, uint64_t object,
 		ms->ms_allocated_space = space_map_allocated(ms->ms_sm);
 	}
 
-	range_seg_type_t type;
 	uint64_t shift, start;
-	type = metaslab_calculate_range_tree_type(vd, ms, &start, &shift);
+	range_seg_type_t type =
+	    metaslab_calculate_range_tree_type(vd, ms, &start, &shift);
 
-	/*
-	 * We create the ms_allocatable here, but we don't create the
-	 * other range trees until metaslab_sync_done().  This serves
-	 * two purposes: it allows metaslab_sync_done() to detect the
-	 * addition of new space; and for debugging, it ensures that
-	 * we'd data fault on any attempt to use this metaslab before
-	 * it's ready.
-	 */
 	ms->ms_allocatable = range_tree_create(NULL, type, NULL, start, shift);
+	for (int t = 0; t < TXG_SIZE; t++) {
+		ms->ms_allocating[t] = range_tree_create(NULL, type,
+		    NULL, start, shift);
+	}
+	ms->ms_freeing = range_tree_create(NULL, type, NULL, start, shift);
+	ms->ms_freed = range_tree_create(NULL, type, NULL, start, shift);
+	for (int t = 0; t < TXG_DEFER_SIZE; t++) {
+		ms->ms_defer[t] = range_tree_create(NULL, type, NULL,
+		    start, shift);
+	}
+	ms->ms_checkpointing =
+	    range_tree_create(NULL, type, NULL, start, shift);
+	ms->ms_unflushed_allocs =
+	    range_tree_create(NULL, type, NULL, start, shift);
+
+	metaslab_rt_arg_t *mrap = kmem_zalloc(sizeof (*mrap), KM_SLEEP);
+	mrap->mra_bt = &ms->ms_unflushed_frees_by_size;
+	mrap->mra_floor_shift = metaslab_by_size_min_shift;
+	ms->ms_unflushed_frees = range_tree_create(&metaslab_rt_ops,
+	    type, mrap, start, shift);
 
 	ms->ms_trim = range_tree_create(NULL, type, NULL, start, shift);
 
@@ -2765,13 +2770,13 @@ metaslab_fini(metaslab_t *msp)
 
 	mutex_enter(&msp->ms_lock);
 	VERIFY(msp->ms_group == NULL);
+
 	/*
-	 * If the range trees haven't been allocated, this metaslab hasn't
-	 * been through metaslab_sync_done() for the first time yet, so its
+	 * If this metaslab hasn't been through metaslab_sync_done() yet its
 	 * space hasn't been accounted for in its vdev and doesn't need to be
 	 * subtracted.
 	 */
-	if (msp->ms_freed != NULL) {
+	if (!msp->ms_new) {
 		metaslab_space_update(vd, mg->mg_class,
 		    -metaslab_allocated_space(msp), 0, -msp->ms_size);
 
@@ -2782,27 +2787,24 @@ metaslab_fini(metaslab_t *msp)
 	metaslab_unload(msp);
 
 	range_tree_destroy(msp->ms_allocatable);
+	range_tree_destroy(msp->ms_freeing);
+	range_tree_destroy(msp->ms_freed);
 
-	if (msp->ms_freed != NULL) {
-		range_tree_destroy(msp->ms_freeing);
-		range_tree_destroy(msp->ms_freed);
+	ASSERT3U(spa->spa_unflushed_stats.sus_memused, >=,
+	    metaslab_unflushed_changes_memused(msp));
+	spa->spa_unflushed_stats.sus_memused -=
+	    metaslab_unflushed_changes_memused(msp);
+	range_tree_vacate(msp->ms_unflushed_allocs, NULL, NULL);
+	range_tree_destroy(msp->ms_unflushed_allocs);
+	range_tree_destroy(msp->ms_checkpointing);
+	range_tree_vacate(msp->ms_unflushed_frees, NULL, NULL);
+	range_tree_destroy(msp->ms_unflushed_frees);
 
-		ASSERT3U(spa->spa_unflushed_stats.sus_memused, >=,
-		    metaslab_unflushed_changes_memused(msp));
-		spa->spa_unflushed_stats.sus_memused -=
-		    metaslab_unflushed_changes_memused(msp);
-		range_tree_vacate(msp->ms_unflushed_allocs, NULL, NULL);
-		range_tree_destroy(msp->ms_unflushed_allocs);
-		range_tree_destroy(msp->ms_checkpointing);
-		range_tree_vacate(msp->ms_unflushed_frees, NULL, NULL);
-		range_tree_destroy(msp->ms_unflushed_frees);
-
-		for (int t = 0; t < TXG_SIZE; t++) {
-			range_tree_destroy(msp->ms_allocating[t]);
-		}
-		for (int t = 0; t < TXG_DEFER_SIZE; t++) {
-			range_tree_destroy(msp->ms_defer[t]);
-		}
+	for (int t = 0; t < TXG_SIZE; t++) {
+		range_tree_destroy(msp->ms_allocating[t]);
+	}
+	for (int t = 0; t < TXG_DEFER_SIZE; t++) {
+		range_tree_destroy(msp->ms_defer[t]);
 	}
 	ASSERT0(msp->ms_deferspace);
 
@@ -3926,16 +3928,14 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
 	/*
 	 * This metaslab has just been added so there's no work to do now.
 	 */
-	if (msp->ms_freeing == NULL) {
-		ASSERT3P(alloctree, ==, NULL);
+	if (msp->ms_new) {
+		ASSERT0(range_tree_space(alloctree));
+		ASSERT0(range_tree_space(msp->ms_freeing));
+		ASSERT0(range_tree_space(msp->ms_freed));
+		ASSERT0(range_tree_space(msp->ms_checkpointing));
+		ASSERT0(range_tree_space(msp->ms_trim));
 		return;
 	}
-
-	ASSERT3P(alloctree, !=, NULL);
-	ASSERT3P(msp->ms_freeing, !=, NULL);
-	ASSERT3P(msp->ms_freed, !=, NULL);
-	ASSERT3P(msp->ms_checkpointing, !=, NULL);
-	ASSERT3P(msp->ms_trim, !=, NULL);
 
 	/*
 	 * Normally, we don't want to process a metaslab if there are no
@@ -4240,54 +4240,15 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 
 	mutex_enter(&msp->ms_lock);
 
-	/*
-	 * If this metaslab is just becoming available, initialize its
-	 * range trees and add its capacity to the vdev.
-	 */
-	if (msp->ms_freed == NULL) {
-		range_seg_type_t type;
-		uint64_t shift, start;
-		type = metaslab_calculate_range_tree_type(vd, msp, &start,
-		    &shift);
-
-		for (int t = 0; t < TXG_SIZE; t++) {
-			ASSERT(msp->ms_allocating[t] == NULL);
-
-			msp->ms_allocating[t] = range_tree_create(NULL, type,
-			    NULL, start, shift);
-		}
-
-		ASSERT3P(msp->ms_freeing, ==, NULL);
-		msp->ms_freeing = range_tree_create(NULL, type, NULL, start,
-		    shift);
-
-		ASSERT3P(msp->ms_freed, ==, NULL);
-		msp->ms_freed = range_tree_create(NULL, type, NULL, start,
-		    shift);
-
-		for (int t = 0; t < TXG_DEFER_SIZE; t++) {
-			ASSERT3P(msp->ms_defer[t], ==, NULL);
-			msp->ms_defer[t] = range_tree_create(NULL, type, NULL,
-			    start, shift);
-		}
-
-		ASSERT3P(msp->ms_checkpointing, ==, NULL);
-		msp->ms_checkpointing = range_tree_create(NULL, type, NULL,
-		    start, shift);
-
-		ASSERT3P(msp->ms_unflushed_allocs, ==, NULL);
-		msp->ms_unflushed_allocs = range_tree_create(NULL, type, NULL,
-		    start, shift);
-
-		metaslab_rt_arg_t *mrap = kmem_zalloc(sizeof (*mrap), KM_SLEEP);
-		mrap->mra_bt = &msp->ms_unflushed_frees_by_size;
-		mrap->mra_floor_shift = metaslab_by_size_min_shift;
-		ASSERT3P(msp->ms_unflushed_frees, ==, NULL);
-		msp->ms_unflushed_frees = range_tree_create(&metaslab_rt_ops,
-		    type, mrap, start, shift);
-
+	if (msp->ms_new) {
+		/* this is a new metaslab, add its capacity to the vdev */
 		metaslab_space_update(vd, mg->mg_class, 0, 0, msp->ms_size);
+
+		/* there should be no allocations nor frees at this point */
+		VERIFY0(msp->ms_allocated_this_txg);
+		VERIFY0(range_tree_space(msp->ms_freed));
 	}
+
 	ASSERT0(range_tree_space(msp->ms_freeing));
 	ASSERT0(range_tree_space(msp->ms_checkpointing));
 
@@ -5583,7 +5544,7 @@ metaslab_unalloc_dva(spa_t *spa, const dva_t *dva, uint64_t txg)
 	ASSERT3P(vd->vdev_indirect_mapping, ==, NULL);
 
 	if (DVA_GET_GANG(dva))
-		size = vdev_psize_to_asize(vd, SPA_GANGBLOCKSIZE);
+		size = vdev_gang_header_asize(vd);
 
 	msp = vd->vdev_ms[offset >> vd->vdev_ms_shift];
 
@@ -5618,7 +5579,7 @@ metaslab_free_dva(spa_t *spa, const dva_t *dva, boolean_t checkpoint)
 	ASSERT3U(spa_config_held(spa, SCL_ALL, RW_READER), !=, 0);
 
 	if (DVA_GET_GANG(dva)) {
-		size = vdev_psize_to_asize(vd, SPA_GANGBLOCKSIZE);
+		size = vdev_gang_header_asize(vd);
 	}
 
 	metaslab_free_impl(vd, offset, size, checkpoint);
@@ -5721,7 +5682,7 @@ metaslab_claim_concrete(vdev_t *vd, uint64_t offset, uint64_t size,
 	if (spa_writeable(spa)) {	/* don't dirty if we're zdb(8) */
 		metaslab_class_t *mc = msp->ms_group->mg_class;
 		multilist_sublist_t *mls =
-		    multilist_sublist_lock_obj(mc->mc_metaslab_txg_list, msp);
+		    multilist_sublist_lock_obj(&mc->mc_metaslab_txg_list, msp);
 		if (!multilist_link_active(&msp->ms_class_txg_node)) {
 			msp->ms_selected_txg = txg;
 			multilist_sublist_insert_head(mls, msp);
@@ -5807,7 +5768,7 @@ metaslab_claim_dva(spa_t *spa, const dva_t *dva, uint64_t txg)
 	ASSERT(DVA_IS_VALID(dva));
 
 	if (DVA_GET_GANG(dva))
-		size = vdev_psize_to_asize(vd, SPA_GANGBLOCKSIZE);
+		size = vdev_gang_header_asize(vd);
 
 	return (metaslab_claim_impl(vd, offset, size, txg));
 }
@@ -6073,7 +6034,7 @@ metaslab_check_free(spa_t *spa, const blkptr_t *bp)
 		uint64_t size = DVA_GET_ASIZE(&bp->blk_dva[i]);
 
 		if (DVA_GET_GANG(&bp->blk_dva[i]))
-			size = vdev_psize_to_asize(vd, SPA_GANGBLOCKSIZE);
+			size = vdev_gang_header_asize(vd);
 
 		ASSERT3P(vd, !=, NULL);
 

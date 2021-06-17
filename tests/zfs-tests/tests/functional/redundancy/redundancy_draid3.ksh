@@ -42,7 +42,7 @@
 #	2. Create draid3 pool based on the virtual disk files.
 #	3. Fill the filesystem with directories and files.
 #	4. Record all the files and directories checksum information.
-#	5. Damaged at most two of the virtual disk files.
+#	5. Damaged at most three of the virtual disk files.
 #	6. Verify the data is correct to prove draid3 can withstand 3 devices
 #	   are failing.
 #

@@ -24,6 +24,7 @@
  * Copyright 2011 Nexenta Systems, Inc. All rights reserved.
  * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
  * Copyright 2017 Joyent, Inc.
+ * Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
  */
 
 #include <sys/spa.h>
@@ -31,7 +32,6 @@
 #include <sys/fm/fs/zfs.h>
 #include <sys/spa_impl.h>
 #include <sys/nvpair.h>
-#include <sys/uio.h>
 #include <sys/fs/zfs.h>
 #include <sys/vdev_impl.h>
 #include <sys/zfs_ioctl.h>
@@ -39,6 +39,7 @@
 #include <sys/sunddi.h>
 #include <sys/zfeature.h>
 #include <sys/zfs_file.h>
+#include <sys/zfs_context.h>
 #ifdef _KERNEL
 #include <sys/zone.h>
 #endif
@@ -446,6 +447,9 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
 	if (spa->spa_comment != NULL)
 		fnvlist_add_string(config, ZPOOL_CONFIG_COMMENT,
 		    spa->spa_comment);
+	if (spa->spa_compatibility != NULL)
+		fnvlist_add_string(config, ZPOOL_CONFIG_COMPATIBILITY,
+		    spa->spa_compatibility);
 
 	hostid = spa_get_hostid(spa);
 	if (hostid != 0)

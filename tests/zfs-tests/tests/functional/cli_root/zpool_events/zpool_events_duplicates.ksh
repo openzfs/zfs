@@ -102,8 +102,7 @@ function do_dup_test
 
 		# Read the file a few times to generate some
 		# duplicate errors of the same blocks
-		# shellcheck disable=SC2034
-		for i in {1..15}; do
+		for _ in {1..15}; do
 			dd if=$FILEPATH of=/dev/null bs=128K > /dev/null 2>&1
 		done
 		log_must zinject -c all
@@ -114,20 +113,9 @@ function do_dup_test
 	if [ "$RW" == "write" ] ; then
 		log_must mkfile $FILESIZE $FILEPATH
 		log_must zpool sync $POOL
-	else
-		# scrub twice to generate some duplicates
-		log_must zpool scrub $POOL
-		log_must zpool wait -t scrub $POOL
-		log_must zpool scrub $POOL
-		log_must zpool wait -t scrub $POOL
 	fi
 
 	log_must zinject -c all
-
-	# Wait for the pool to settle down and finish resilvering (if
-	# necessary).  We want the errors to stop incrementing before we
-	# check for duplicates.
-	zpool wait -t resilver $POOL
 
 	ereports="$($EREPORTS | sort)"
 	actual=$(echo "$ereports" | wc -l)

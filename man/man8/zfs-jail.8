@@ -18,7 +18,6 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
 .\" Copyright (c) 2011, 2019 by Delphix. All rights reserved.
@@ -37,83 +36,88 @@
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
 .\"
-.Dd December 9, 2019
+.Dd May 27, 2021
 .Dt ZFS-JAIL 8
-.Os FreeBSD
+.Os
+.
 .Sh NAME
 .Nm zfs-jail
-.Nd Attaches and detaches ZFS filesystems from FreeBSD jails.
-.No A Tn ZFS
-dataset can be attached to a jail by using the
-.Qq Nm Cm jail
-subcommand. You cannot attach a dataset to one jail and the children of the
-same dataset to another jail. You can also not attach the root file system
-of the jail or any dataset which needs to be mounted before the zfs rc script
-is run inside the jail, as it would be attached unmounted until it is
-mounted from the rc script inside the jail. To allow management of the
-dataset from within a jail, the
-.Sy jailed
-property has to be set and the jail needs access to the
-.Pa /dev/zfs
-device. The
-.Sy quota
-property cannot be changed from within a jail. See
-.Xr jail 8
-for information on how to allow mounting
-.Tn ZFS
-datasets from within a jail.
-.Pp
-.No A Tn ZFS
-dataset can be detached from a jail using the
-.Qq Nm Cm unjail
-subcommand.
-.Pp
-After a dataset is attached to a jail and the jailed property is set, a jailed
-file system cannot be mounted outside the jail, since the jail administrator
-might have set the mount point to an unacceptable value.
+.Nd attach or detach ZFS filesystem from FreeBSD jail
 .Sh SYNOPSIS
-.Nm zfs
-.Cm jail
-.Ar jailid Ns | Ns Ar jailname filesystem
-.Nm zfs
-.Cm unjail
-.Ar jailid Ns | Ns Ar jailname filesystem
+.Nm zfs Cm jail
+.Ar jailid Ns | Ns Ar jailname
+.Ar filesystem
+.Nm zfs Cm unjail
+.Ar jailid Ns | Ns Ar jailname
+.Ar filesystem
+.
 .Sh DESCRIPTION
 .Bl -tag -width ""
 .It Xo
 .Nm zfs
 .Cm jail
-.Ar jailid filesystem
+.Ar jailid Ns | Ns Ar jailname
+.Ar filesystem
 .Xc
-.Pp
-Attaches the specified
+Attach the specified
 .Ar filesystem
 to the jail identified by JID
-.Ar jailid .
+.Ar jailid
+or name
+.Ar jailname .
 From now on this file system tree can be managed from within a jail if the
 .Sy jailed
-property has been set. To use this functuinality, the jail needs the
-.Va allow.mount
+property has been set.
+To use this functionality, the jail needs the
+.Sy allow.mount
 and
-.Va allow.mount.zfs
-parameters set to 1 and the
-.Va enforce_statfs
-parameter set to a value lower than 2.
+.Sy allow.mount.zfs
+parameters set to
+.Sy 1
+and the
+.Sy enforce_statfs
+parameter set to a value lower than
+.Sy 2 .
+.Pp
+You cannot attach a jailed dataset's children to another jail.
+You can also not attach the root file system
+of the jail or any dataset which needs to be mounted before the zfs rc script
+is run inside the jail, as it would be attached unmounted until it is
+mounted from the rc script inside the jail.
+.Pp
+To allow management of the dataset from within a jail, the
+.Sy jailed
+property has to be set and the jail needs access to the
+.Pa /dev/zfs
+device.
+The
+.Sy quota
+property cannot be changed from within a jail.
+.Pp
+After a dataset is attached to a jail and the
+.Sy jailed
+property is set, a jailed file system cannot be mounted outside the jail,
+since the jail administrator might have set the mount point to an unacceptable value.
 .Pp
 See
 .Xr jail 8
-for more information on managing jails and configuring the parameters above.
+for more information on managing jails.
+Jails are a
+.Fx
+feature and are not relevant on other platforms.
 .It Xo
 .Nm zfs
 .Cm unjail
-.Ar jailid filesystem
+.Ar jailid Ns | Ns Ar jailname
+.Ar filesystem
 .Xc
-.Pp
 Detaches the specified
 .Ar filesystem
 from the jail identified by JID
-.Ar jailid .
+.Ar jailid
+or name
+.Ar jailname .
 .El
 .Sh SEE ALSO
-.Xr jail 8 ,
-.Xr zfsprops 8
+.Xr zfsprops 7 ,
+.Xr jail 8

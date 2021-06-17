@@ -26,11 +26,18 @@ BuildArch:      noarch
 Requires:       dkms >= 2.2.0.3
 Requires:       gcc, make, perl, diffutils
 %if 0%{?rhel}%{?fedora}%{?mageia}%{?suse_version}
-Requires:       kernel-devel
+Requires:       kernel-devel >= @ZFS_META_KVER_MIN@, kernel-devel <= @ZFS_META_KVER_MAX@.999
 Obsoletes:      spl-dkms
 %endif
 Provides:       %{module}-kmod = %{version}
 AutoReqProv:    no
+
+%if 0%{?rhel}%{?fedora}%{?suse_version}
+# We don't directly use it, but if this isn't installed, rpmbuild as root can
+# crash+corrupt rpmdb
+# See issue #12071
+BuildRequires:  ncompress
+%endif
 
 %description
 This package contains the dkms ZFS kernel modules.

@@ -1,9 +1,0 @@
-#!/bin/sh
-#
-# fsck.zfs: A fsck helper to accommodate distributions that expect
-# to be able to execute a fsck on all filesystem types.  Currently
-# this script does nothing but it could be extended to act as a
-# compatibility wrapper for 'zpool scrub'.
-#
-
-exit 0

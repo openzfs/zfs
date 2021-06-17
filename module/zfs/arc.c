@@ -294,7 +294,6 @@
 #include <sys/vdev.h>
 #include <sys/vdev_impl.h>
 #include <sys/dsl_pool.h>
-#include <sys/zio_checksum.h>
 #include <sys/multilist.h>
 #include <sys/abd.h>
 #include <sys/zil.h>
@@ -306,8 +305,10 @@
 #include <sys/arc_impl.h>
 #include <sys/trace_zfs.h>
 #include <sys/aggsum.h>
+#include <sys/wmsum.h>
 #include <cityhash.h>
 #include <sys/vdev_trim.h>
+#include <sys/zfs_racct.h>
 #include <sys/zstd/zstd.h>
 
 #ifndef _KERNEL
@@ -599,15 +600,14 @@ arc_stats_t arc_stats = {
 	{ "abd_chunk_waste_size",	KSTAT_DATA_UINT64 },
 };
 
+arc_sums_t arc_sums;
+
 #define	ARCSTAT_MAX(stat, val) {					\
 	uint64_t m;							\
 	while ((val) > (m = arc_stats.stat.value.ui64) &&		\
 	    (m != atomic_cas_64(&arc_stats.stat.value.ui64, m, (val))))	\
 		continue;						\
 }
-
-#define	ARCSTAT_MAXSTAT(stat) \
-	ARCSTAT_MAX(stat##_max, arc_stats.stat.value.ui64)
 
 /*
  * We define a macro to allow ARC hits/misses to be easily broken down by
@@ -670,36 +670,7 @@ arc_state_t	*arc_mfu;
 /* max size for dnodes */
 #define	arc_dnode_size_limit	ARCSTAT(arcstat_dnode_limit)
 #define	arc_meta_min	ARCSTAT(arcstat_meta_min) /* min size for metadata */
-#define	arc_meta_max	ARCSTAT(arcstat_meta_max) /* max size of metadata */
 #define	arc_need_free	ARCSTAT(arcstat_need_free) /* waiting to be evicted */
-
-/* size of all b_rabd's in entire arc */
-#define	arc_raw_size	ARCSTAT(arcstat_raw_size)
-/* compressed size of entire arc */
-#define	arc_compressed_size	ARCSTAT(arcstat_compressed_size)
-/* uncompressed size of entire arc */
-#define	arc_uncompressed_size	ARCSTAT(arcstat_uncompressed_size)
-/* number of bytes in the arc from arc_buf_t's */
-#define	arc_overhead_size	ARCSTAT(arcstat_overhead_size)
-
-/*
- * There are also some ARC variables that we want to export, but that are
- * updated so often that having the canonical representation be the statistic
- * variable causes a performance bottleneck. We want to use aggsum_t's for these
- * instead, but still be able to export the kstat in the same way as before.
- * The solution is to always use the aggsum version, except in the kstat update
- * callback.
- */
-aggsum_t arc_size;
-aggsum_t arc_meta_used;
-aggsum_t astat_data_size;
-aggsum_t astat_metadata_size;
-aggsum_t astat_dbuf_size;
-aggsum_t astat_dnode_size;
-aggsum_t astat_bonus_size;
-aggsum_t astat_hdr_size;
-aggsum_t astat_l2_hdr_size;
-aggsum_t astat_abd_chunk_waste_size;
 
 hrtime_t arc_growtime;
 list_t arc_prune_list;
@@ -817,9 +788,6 @@ uint64_t zfs_crc64_table[256];
  * and each of the state has two types: data and metadata.
  */
 #define	L2ARC_FEED_TYPES	4
-
-#define	l2arc_writes_sent	ARCSTAT(arcstat_l2_writes_sent)
-#define	l2arc_writes_done	ARCSTAT(arcstat_l2_writes_done)
 
 /* L2ARC Performance Tunables */
 unsigned long l2arc_write_max = L2ARC_WRITE_SIZE;	/* def max write size */
@@ -1084,9 +1052,9 @@ buf_hash_insert(arc_buf_hdr_t *hdr, kmutex_t **lockp)
 
 		ARCSTAT_MAX(arcstat_hash_chain_max, i);
 	}
-
-	ARCSTAT_BUMP(arcstat_hash_elements);
-	ARCSTAT_MAXSTAT(arcstat_hash_elements);
+	uint64_t he = atomic_inc_64_nv(
+	    &arc_stats.arcstat_hash_elements.value.ui64);
+	ARCSTAT_MAX(arcstat_hash_elements_max, he);
 
 	return (NULL);
 }
@@ -1110,7 +1078,7 @@ buf_hash_remove(arc_buf_hdr_t *hdr)
 	arc_hdr_clear_flags(hdr, ARC_FLAG_IN_HASH_TABLE);
 
 	/* collect some hash table performance data */
-	ARCSTAT_BUMPDOWN(arcstat_hash_elements);
+	atomic_dec_64(&arc_stats.arcstat_hash_elements.value.ui64);
 
 	if (buf_hash_table.ht_table[idx] &&
 	    buf_hash_table.ht_table[idx]->b_hash_next == NULL)
@@ -2326,7 +2294,7 @@ add_reference(arc_buf_hdr_t *hdr, void *tag)
 	    (state != arc_anon)) {
 		/* We don't use the L2-only state list. */
 		if (state != arc_l2c_only) {
-			multilist_remove(state->arcs_list[arc_buf_type(hdr)],
+			multilist_remove(&state->arcs_list[arc_buf_type(hdr)],
 			    hdr);
 			arc_evictable_space_decrement(hdr, state);
 		}
@@ -2360,7 +2328,7 @@ remove_reference(arc_buf_hdr_t *hdr, kmutex_t *hash_lock, void *tag)
 	 */
 	if (((cnt = zfs_refcount_remove(&hdr->b_l1hdr.b_refcnt, tag)) == 0) &&
 	    (state != arc_anon)) {
-		multilist_insert(state->arcs_list[arc_buf_type(hdr)], hdr);
+		multilist_insert(&state->arcs_list[arc_buf_type(hdr)], hdr);
 		ASSERT3U(hdr->b_l1hdr.b_bufcnt, >, 0);
 		arc_evictable_space_increment(hdr, state);
 	}
@@ -2463,7 +2431,7 @@ arc_change_state(arc_state_t *new_state, arc_buf_hdr_t *hdr,
 	if (refcnt == 0) {
 		if (old_state != arc_anon && old_state != arc_l2c_only) {
 			ASSERT(HDR_HAS_L1HDR(hdr));
-			multilist_remove(old_state->arcs_list[buftype], hdr);
+			multilist_remove(&old_state->arcs_list[buftype], hdr);
 
 			if (GHOST_STATE(old_state)) {
 				ASSERT0(bufcnt);
@@ -2480,7 +2448,7 @@ arc_change_state(arc_state_t *new_state, arc_buf_hdr_t *hdr,
 			 * beforehand.
 			 */
 			ASSERT(HDR_HAS_L1HDR(hdr));
-			multilist_insert(new_state->arcs_list[buftype], hdr);
+			multilist_insert(&new_state->arcs_list[buftype], hdr);
 
 			if (GHOST_STATE(new_state)) {
 				ASSERT0(bufcnt);
@@ -2632,8 +2600,8 @@ arc_change_state(arc_state_t *new_state, arc_buf_hdr_t *hdr,
 	 * L2 headers should never be on the L2 state list since they don't
 	 * have L1 headers allocated.
 	 */
-	ASSERT(multilist_is_empty(arc_l2c_only->arcs_list[ARC_BUFC_DATA]) &&
-	    multilist_is_empty(arc_l2c_only->arcs_list[ARC_BUFC_METADATA]));
+	ASSERT(multilist_is_empty(&arc_l2c_only->arcs_list[ARC_BUFC_DATA]) &&
+	    multilist_is_empty(&arc_l2c_only->arcs_list[ARC_BUFC_METADATA]));
 }
 
 void
@@ -2645,25 +2613,25 @@ arc_space_consume(uint64_t space, arc_space_type_t type)
 	default:
 		break;
 	case ARC_SPACE_DATA:
-		aggsum_add(&astat_data_size, space);
+		ARCSTAT_INCR(arcstat_data_size, space);
 		break;
 	case ARC_SPACE_META:
-		aggsum_add(&astat_metadata_size, space);
+		ARCSTAT_INCR(arcstat_metadata_size, space);
 		break;
 	case ARC_SPACE_BONUS:
-		aggsum_add(&astat_bonus_size, space);
+		ARCSTAT_INCR(arcstat_bonus_size, space);
 		break;
 	case ARC_SPACE_DNODE:
-		aggsum_add(&astat_dnode_size, space);
+		aggsum_add(&arc_sums.arcstat_dnode_size, space);
 		break;
 	case ARC_SPACE_DBUF:
-		aggsum_add(&astat_dbuf_size, space);
+		ARCSTAT_INCR(arcstat_dbuf_size, space);
 		break;
 	case ARC_SPACE_HDRS:
-		aggsum_add(&astat_hdr_size, space);
+		ARCSTAT_INCR(arcstat_hdr_size, space);
 		break;
 	case ARC_SPACE_L2HDRS:
-		aggsum_add(&astat_l2_hdr_size, space);
+		aggsum_add(&arc_sums.arcstat_l2_hdr_size, space);
 		break;
 	case ARC_SPACE_ABD_CHUNK_WASTE:
 		/*
@@ -2672,14 +2640,14 @@ arc_space_consume(uint64_t space, arc_space_type_t type)
 		 * scatter ABD's come from the ARC, because other users are
 		 * very short-lived.
 		 */
-		aggsum_add(&astat_abd_chunk_waste_size, space);
+		ARCSTAT_INCR(arcstat_abd_chunk_waste_size, space);
 		break;
 	}
 
 	if (type != ARC_SPACE_DATA && type != ARC_SPACE_ABD_CHUNK_WASTE)
-		aggsum_add(&arc_meta_used, space);
+		aggsum_add(&arc_sums.arcstat_meta_used, space);
 
-	aggsum_add(&arc_size, space);
+	aggsum_add(&arc_sums.arcstat_size, space);
 }
 
 void
@@ -2691,45 +2659,41 @@ arc_space_return(uint64_t space, arc_space_type_t type)
 	default:
 		break;
 	case ARC_SPACE_DATA:
-		aggsum_add(&astat_data_size, -space);
+		ARCSTAT_INCR(arcstat_data_size, -space);
 		break;
 	case ARC_SPACE_META:
-		aggsum_add(&astat_metadata_size, -space);
+		ARCSTAT_INCR(arcstat_metadata_size, -space);
 		break;
 	case ARC_SPACE_BONUS:
-		aggsum_add(&astat_bonus_size, -space);
+		ARCSTAT_INCR(arcstat_bonus_size, -space);
 		break;
 	case ARC_SPACE_DNODE:
-		aggsum_add(&astat_dnode_size, -space);
+		aggsum_add(&arc_sums.arcstat_dnode_size, -space);
 		break;
 	case ARC_SPACE_DBUF:
-		aggsum_add(&astat_dbuf_size, -space);
+		ARCSTAT_INCR(arcstat_dbuf_size, -space);
 		break;
 	case ARC_SPACE_HDRS:
-		aggsum_add(&astat_hdr_size, -space);
+		ARCSTAT_INCR(arcstat_hdr_size, -space);
 		break;
 	case ARC_SPACE_L2HDRS:
-		aggsum_add(&astat_l2_hdr_size, -space);
+		aggsum_add(&arc_sums.arcstat_l2_hdr_size, -space);
 		break;
 	case ARC_SPACE_ABD_CHUNK_WASTE:
-		aggsum_add(&astat_abd_chunk_waste_size, -space);
+		ARCSTAT_INCR(arcstat_abd_chunk_waste_size, -space);
 		break;
 	}
 
 	if (type != ARC_SPACE_DATA && type != ARC_SPACE_ABD_CHUNK_WASTE) {
-		ASSERT(aggsum_compare(&arc_meta_used, space) >= 0);
-		/*
-		 * We use the upper bound here rather than the precise value
-		 * because the arc_meta_max value doesn't need to be
-		 * precise. It's only consumed by humans via arcstats.
-		 */
-		if (arc_meta_max < aggsum_upper_bound(&arc_meta_used))
-			arc_meta_max = aggsum_upper_bound(&arc_meta_used);
-		aggsum_add(&arc_meta_used, -space);
+		ASSERT(aggsum_compare(&arc_sums.arcstat_meta_used,
+		    space) >= 0);
+		ARCSTAT_MAX(arcstat_meta_max,
+		    aggsum_upper_bound(&arc_sums.arcstat_meta_used));
+		aggsum_add(&arc_sums.arcstat_meta_used, -space);
 	}
 
-	ASSERT(aggsum_compare(&arc_size, space) >= 0);
-	aggsum_add(&arc_size, -space);
+	ASSERT(aggsum_compare(&arc_sums.arcstat_size, space) >= 0);
+	aggsum_add(&arc_sums.arcstat_size, -space);
 }
 
 /*
@@ -3468,7 +3432,6 @@ arc_hdr_realloc_crypt(arc_buf_hdr_t *hdr, boolean_t need_crypt)
 	arc_buf_hdr_t *nhdr;
 	arc_buf_t *buf;
 	kmem_cache_t *ncache, *ocache;
-	unsigned nsize, osize;
 
 	/*
 	 * This function requires that hdr is in the arc_anon state.
@@ -3485,14 +3448,10 @@ arc_hdr_realloc_crypt(arc_buf_hdr_t *hdr, boolean_t need_crypt)
 
 	if (need_crypt) {
 		ncache = hdr_full_crypt_cache;
-		nsize = sizeof (hdr->b_crypt_hdr);
 		ocache = hdr_full_cache;
-		osize = HDR_FULL_SIZE;
 	} else {
 		ncache = hdr_full_cache;
-		nsize = HDR_FULL_SIZE;
 		ocache = hdr_full_crypt_cache;
-		osize = sizeof (hdr->b_crypt_hdr);
 	}
 
 	nhdr = kmem_cache_alloc(ncache, KM_PUSHPAGE);
@@ -4204,7 +4163,7 @@ arc_evict_state(arc_state_t *state, uint64_t spa, int64_t bytes,
     arc_buf_contents_t type)
 {
 	uint64_t total_evicted = 0;
-	multilist_t *ml = state->arcs_list[type];
+	multilist_t *ml = &state->arcs_list[type];
 	int num_sublists;
 	arc_buf_hdr_t **markers;
 
@@ -4250,9 +4209,10 @@ arc_evict_state(arc_state_t *state, uint64_t spa, int64_t bytes,
 		 * Request that 10% of the LRUs be scanned by the superblock
 		 * shrinker.
 		 */
-		if (type == ARC_BUFC_DATA && aggsum_compare(&astat_dnode_size,
-		    arc_dnode_size_limit) > 0) {
-			arc_prune_async((aggsum_upper_bound(&astat_dnode_size) -
+		if (type == ARC_BUFC_DATA && aggsum_compare(
+		    &arc_sums.arcstat_dnode_size, arc_dnode_size_limit) > 0) {
+			arc_prune_async((aggsum_upper_bound(
+			    &arc_sums.arcstat_dnode_size) -
 			    arc_dnode_size_limit) / sizeof (dnode_t) /
 			    zfs_arc_dnode_reduce_percent);
 		}
@@ -4482,7 +4442,7 @@ restart:
 }
 
 /*
- * Evict metadata buffers from the cache, such that arc_meta_used is
+ * Evict metadata buffers from the cache, such that arcstat_meta_used is
  * capped by the arc_meta_limit tunable.
  */
 static uint64_t
@@ -4538,8 +4498,8 @@ arc_evict_meta(uint64_t meta_used)
 static arc_buf_contents_t
 arc_evict_type(arc_state_t *state)
 {
-	multilist_t *data_ml = state->arcs_list[ARC_BUFC_DATA];
-	multilist_t *meta_ml = state->arcs_list[ARC_BUFC_METADATA];
+	multilist_t *data_ml = &state->arcs_list[ARC_BUFC_DATA];
+	multilist_t *meta_ml = &state->arcs_list[ARC_BUFC_METADATA];
 	int data_idx = multilist_get_random_index(data_ml);
 	int meta_idx = multilist_get_random_index(meta_ml);
 	multilist_sublist_t *data_mls;
@@ -4603,7 +4563,7 @@ arc_evict_type(arc_state_t *state)
 }
 
 /*
- * Evict buffers from the cache, such that arc_size is capped by arc_c.
+ * Evict buffers from the cache, such that arcstat_size is capped by arc_c.
  */
 static uint64_t
 arc_evict(void)
@@ -4611,8 +4571,8 @@ arc_evict(void)
 	uint64_t total_evicted = 0;
 	uint64_t bytes;
 	int64_t target;
-	uint64_t asize = aggsum_value(&arc_size);
-	uint64_t ameta = aggsum_value(&arc_meta_used);
+	uint64_t asize = aggsum_value(&arc_sums.arcstat_size);
+	uint64_t ameta = aggsum_value(&arc_sums.arcstat_meta_used);
 
 	/*
 	 * If we're over arc_meta_limit, we want to correct that before
@@ -4672,8 +4632,8 @@ arc_evict(void)
 	/*
 	 * Re-sum ARC stats after the first round of evictions.
 	 */
-	asize = aggsum_value(&arc_size);
-	ameta = aggsum_value(&arc_meta_used);
+	asize = aggsum_value(&arc_sums.arcstat_size);
+	ameta = aggsum_value(&arc_sums.arcstat_meta_used);
 
 
 	/*
@@ -4787,7 +4747,7 @@ arc_flush(spa_t *spa, boolean_t retry)
 void
 arc_reduce_target_size(int64_t to_free)
 {
-	uint64_t asize = aggsum_value(&arc_size);
+	uint64_t asize = aggsum_value(&arc_sums.arcstat_size);
 
 	/*
 	 * All callers want the ARC to actually evict (at least) this much
@@ -4840,8 +4800,8 @@ arc_kmem_reap_soon(void)
 	extern kmem_cache_t	*zio_data_buf_cache[];
 
 #ifdef _KERNEL
-	if ((aggsum_compare(&arc_meta_used, arc_meta_limit) >= 0) &&
-	    zfs_arc_meta_prune) {
+	if ((aggsum_compare(&arc_sums.arcstat_meta_used,
+	    arc_meta_limit) >= 0) && zfs_arc_meta_prune) {
 		/*
 		 * We are exceeding our meta-data cache limit.
 		 * Prune some entries to release holds on meta-data.
@@ -4944,7 +4904,7 @@ arc_evict_cb(void *arg, zthr_t *zthr)
 	 */
 	mutex_enter(&arc_evict_lock);
 	arc_evict_needed = !zthr_iscancelled(arc_evict_zthr) &&
-	    evicted > 0 && aggsum_compare(&arc_size, arc_c) > 0;
+	    evicted > 0 && aggsum_compare(&arc_sums.arcstat_size, arc_c) > 0;
 	if (!arc_evict_needed) {
 		/*
 		 * We're either no longer overflowing, or we
@@ -5036,7 +4996,7 @@ arc_reap_cb(void *arg, zthr_t *zthr)
 	 * memory in the system at a fraction of the arc_size (1/128th by
 	 * default).  If oversubscribed (free_memory < 0) then reduce the
 	 * target arc_size by the deficit amount plus the fractional
-	 * amount.  If free memory is positive but less then the fractional
+	 * amount.  If free memory is positive but less than the fractional
 	 * amount, reduce by what is needed to hit the fractional amount.
 	 */
 	free_memory = arc_available_memory();
@@ -5157,7 +5117,7 @@ arc_adapt(int bytes, arc_state_t *state)
 	 * cache size, increment the target cache size
 	 */
 	ASSERT3U(arc_c, >=, 2ULL << SPA_MAXBLOCKSHIFT);
-	if (aggsum_upper_bound(&arc_size) >=
+	if (aggsum_upper_bound(&arc_sums.arcstat_size) >=
 	    arc_c - (2ULL << SPA_MAXBLOCKSHIFT)) {
 		atomic_add_64(&arc_c, (int64_t)bytes);
 		if (arc_c > arc_c_max)
@@ -5190,7 +5150,8 @@ arc_is_overflowing(void)
 	 * in the ARC. In practice, that's in the tens of MB, which is low
 	 * enough to be safe.
 	 */
-	return (aggsum_lower_bound(&arc_size) >= (int64_t)arc_c + overflow);
+	return (aggsum_lower_bound(&arc_sums.arcstat_size) >=
+	    (int64_t)arc_c + overflow);
 }
 
 static abd_t *
@@ -5359,7 +5320,7 @@ arc_get_data_impl(arc_buf_hdr_t *hdr, uint64_t size, void *tag,
 		 * If we are growing the cache, and we are adding anonymous
 		 * data, and we have outgrown arc_p, update arc_p
 		 */
-		if (aggsum_upper_bound(&arc_size) < arc_c &&
+		if (aggsum_upper_bound(&arc_sums.arcstat_size) < arc_c &&
 		    hdr->b_l1hdr.b_state == arc_anon &&
 		    (zfs_refcount_count(&arc_anon->arcs_size) +
 		    zfs_refcount_count(&arc_mru->arcs_size) > arc_p))
@@ -5948,6 +5909,12 @@ top:
 		 * Embedded BP's have no DVA and require no I/O to "read".
 		 * Create an anonymous arc buf to back it.
 		 */
+		if (!zfs_blkptr_verify(spa, bp, zio_flags &
+		    ZIO_FLAG_CONFIG_WRITER, BLK_VERIFY_LOG)) {
+			rc = SET_ERROR(ECKSUM);
+			goto out;
+		}
+
 		hdr = buf_hash_find(guid, bp, &hash_lock);
 	}
 
@@ -6114,17 +6081,6 @@ top:
 
 		if (*arc_flags & ARC_FLAG_CACHED_ONLY) {
 			rc = SET_ERROR(ENOENT);
-			if (hash_lock != NULL)
-				mutex_exit(hash_lock);
-			goto out;
-		}
-
-		/*
-		 * Gracefully handle a damaged logical block size as a
-		 * checksum error.
-		 */
-		if (lsize > spa_maxblocksize(spa)) {
-			rc = SET_ERROR(ECKSUM);
 			if (hash_lock != NULL)
 				mutex_exit(hash_lock);
 			goto out;
@@ -6302,6 +6258,7 @@ top:
 			ARCSTAT_CONDSTAT(!HDR_PREFETCH(hdr),
 			    demand, prefetch, !HDR_ISTYPE_METADATA(hdr), data,
 			    metadata, misses);
+			zfs_racct_read(size, 1);
 		}
 
 		/* Check if the spa even has l2 configured */
@@ -7248,55 +7205,219 @@ arc_kstat_update(kstat_t *ksp, int rw)
 {
 	arc_stats_t *as = ksp->ks_data;
 
-	if (rw == KSTAT_WRITE) {
+	if (rw == KSTAT_WRITE)
 		return (SET_ERROR(EACCES));
-	} else {
-		arc_kstat_update_state(arc_anon,
-		    &as->arcstat_anon_size,
-		    &as->arcstat_anon_evictable_data,
-		    &as->arcstat_anon_evictable_metadata);
-		arc_kstat_update_state(arc_mru,
-		    &as->arcstat_mru_size,
-		    &as->arcstat_mru_evictable_data,
-		    &as->arcstat_mru_evictable_metadata);
-		arc_kstat_update_state(arc_mru_ghost,
-		    &as->arcstat_mru_ghost_size,
-		    &as->arcstat_mru_ghost_evictable_data,
-		    &as->arcstat_mru_ghost_evictable_metadata);
-		arc_kstat_update_state(arc_mfu,
-		    &as->arcstat_mfu_size,
-		    &as->arcstat_mfu_evictable_data,
-		    &as->arcstat_mfu_evictable_metadata);
-		arc_kstat_update_state(arc_mfu_ghost,
-		    &as->arcstat_mfu_ghost_size,
-		    &as->arcstat_mfu_ghost_evictable_data,
-		    &as->arcstat_mfu_ghost_evictable_metadata);
 
-		ARCSTAT(arcstat_size) = aggsum_value(&arc_size);
-		ARCSTAT(arcstat_meta_used) = aggsum_value(&arc_meta_used);
-		ARCSTAT(arcstat_data_size) = aggsum_value(&astat_data_size);
-		ARCSTAT(arcstat_metadata_size) =
-		    aggsum_value(&astat_metadata_size);
-		ARCSTAT(arcstat_hdr_size) = aggsum_value(&astat_hdr_size);
-		ARCSTAT(arcstat_l2_hdr_size) = aggsum_value(&astat_l2_hdr_size);
-		ARCSTAT(arcstat_dbuf_size) = aggsum_value(&astat_dbuf_size);
+	as->arcstat_hits.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_hits);
+	as->arcstat_misses.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_misses);
+	as->arcstat_demand_data_hits.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_demand_data_hits);
+	as->arcstat_demand_data_misses.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_demand_data_misses);
+	as->arcstat_demand_metadata_hits.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_demand_metadata_hits);
+	as->arcstat_demand_metadata_misses.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_demand_metadata_misses);
+	as->arcstat_prefetch_data_hits.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_prefetch_data_hits);
+	as->arcstat_prefetch_data_misses.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_prefetch_data_misses);
+	as->arcstat_prefetch_metadata_hits.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_prefetch_metadata_hits);
+	as->arcstat_prefetch_metadata_misses.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_prefetch_metadata_misses);
+	as->arcstat_mru_hits.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_mru_hits);
+	as->arcstat_mru_ghost_hits.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_mru_ghost_hits);
+	as->arcstat_mfu_hits.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_mfu_hits);
+	as->arcstat_mfu_ghost_hits.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_mfu_ghost_hits);
+	as->arcstat_deleted.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_deleted);
+	as->arcstat_mutex_miss.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_mutex_miss);
+	as->arcstat_access_skip.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_access_skip);
+	as->arcstat_evict_skip.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_evict_skip);
+	as->arcstat_evict_not_enough.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_evict_not_enough);
+	as->arcstat_evict_l2_cached.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_evict_l2_cached);
+	as->arcstat_evict_l2_eligible.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_evict_l2_eligible);
+	as->arcstat_evict_l2_eligible_mfu.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_evict_l2_eligible_mfu);
+	as->arcstat_evict_l2_eligible_mru.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_evict_l2_eligible_mru);
+	as->arcstat_evict_l2_ineligible.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_evict_l2_ineligible);
+	as->arcstat_evict_l2_skip.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_evict_l2_skip);
+	as->arcstat_hash_collisions.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_hash_collisions);
+	as->arcstat_hash_chains.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_hash_chains);
+	as->arcstat_size.value.ui64 =
+	    aggsum_value(&arc_sums.arcstat_size);
+	as->arcstat_compressed_size.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_compressed_size);
+	as->arcstat_uncompressed_size.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_uncompressed_size);
+	as->arcstat_overhead_size.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_overhead_size);
+	as->arcstat_hdr_size.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_hdr_size);
+	as->arcstat_data_size.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_data_size);
+	as->arcstat_metadata_size.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_metadata_size);
+	as->arcstat_dbuf_size.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_dbuf_size);
 #if defined(COMPAT_FREEBSD11)
-		ARCSTAT(arcstat_other_size) = aggsum_value(&astat_bonus_size) +
-		    aggsum_value(&astat_dnode_size) +
-		    aggsum_value(&astat_dbuf_size);
+	as->arcstat_other_size.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_bonus_size) +
+	    aggsum_value(&arc_sums.arcstat_dnode_size) +
+	    wmsum_value(&arc_sums.arcstat_dbuf_size);
 #endif
-		ARCSTAT(arcstat_dnode_size) = aggsum_value(&astat_dnode_size);
-		ARCSTAT(arcstat_bonus_size) = aggsum_value(&astat_bonus_size);
-		ARCSTAT(arcstat_abd_chunk_waste_size) =
-		    aggsum_value(&astat_abd_chunk_waste_size);
 
-		as->arcstat_memory_all_bytes.value.ui64 =
-		    arc_all_memory();
-		as->arcstat_memory_free_bytes.value.ui64 =
-		    arc_free_memory();
-		as->arcstat_memory_available_bytes.value.i64 =
-		    arc_available_memory();
-	}
+	arc_kstat_update_state(arc_anon,
+	    &as->arcstat_anon_size,
+	    &as->arcstat_anon_evictable_data,
+	    &as->arcstat_anon_evictable_metadata);
+	arc_kstat_update_state(arc_mru,
+	    &as->arcstat_mru_size,
+	    &as->arcstat_mru_evictable_data,
+	    &as->arcstat_mru_evictable_metadata);
+	arc_kstat_update_state(arc_mru_ghost,
+	    &as->arcstat_mru_ghost_size,
+	    &as->arcstat_mru_ghost_evictable_data,
+	    &as->arcstat_mru_ghost_evictable_metadata);
+	arc_kstat_update_state(arc_mfu,
+	    &as->arcstat_mfu_size,
+	    &as->arcstat_mfu_evictable_data,
+	    &as->arcstat_mfu_evictable_metadata);
+	arc_kstat_update_state(arc_mfu_ghost,
+	    &as->arcstat_mfu_ghost_size,
+	    &as->arcstat_mfu_ghost_evictable_data,
+	    &as->arcstat_mfu_ghost_evictable_metadata);
+
+	as->arcstat_dnode_size.value.ui64 =
+	    aggsum_value(&arc_sums.arcstat_dnode_size);
+	as->arcstat_bonus_size.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_bonus_size);
+	as->arcstat_l2_hits.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_l2_hits);
+	as->arcstat_l2_misses.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_l2_misses);
+	as->arcstat_l2_prefetch_asize.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_l2_prefetch_asize);
+	as->arcstat_l2_mru_asize.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_l2_mru_asize);
+	as->arcstat_l2_mfu_asize.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_l2_mfu_asize);
+	as->arcstat_l2_bufc_data_asize.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_l2_bufc_data_asize);
+	as->arcstat_l2_bufc_metadata_asize.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_l2_bufc_metadata_asize);
+	as->arcstat_l2_feeds.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_l2_feeds);
+	as->arcstat_l2_rw_clash.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_l2_rw_clash);
+	as->arcstat_l2_read_bytes.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_l2_read_bytes);
+	as->arcstat_l2_write_bytes.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_l2_write_bytes);
+	as->arcstat_l2_writes_sent.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_l2_writes_sent);
+	as->arcstat_l2_writes_done.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_l2_writes_done);
+	as->arcstat_l2_writes_error.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_l2_writes_error);
+	as->arcstat_l2_writes_lock_retry.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_l2_writes_lock_retry);
+	as->arcstat_l2_evict_lock_retry.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_l2_evict_lock_retry);
+	as->arcstat_l2_evict_reading.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_l2_evict_reading);
+	as->arcstat_l2_evict_l1cached.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_l2_evict_l1cached);
+	as->arcstat_l2_free_on_write.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_l2_free_on_write);
+	as->arcstat_l2_abort_lowmem.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_l2_abort_lowmem);
+	as->arcstat_l2_cksum_bad.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_l2_cksum_bad);
+	as->arcstat_l2_io_error.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_l2_io_error);
+	as->arcstat_l2_lsize.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_l2_lsize);
+	as->arcstat_l2_psize.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_l2_psize);
+	as->arcstat_l2_hdr_size.value.ui64 =
+	    aggsum_value(&arc_sums.arcstat_l2_hdr_size);
+	as->arcstat_l2_log_blk_writes.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_l2_log_blk_writes);
+	as->arcstat_l2_log_blk_asize.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_l2_log_blk_asize);
+	as->arcstat_l2_log_blk_count.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_l2_log_blk_count);
+	as->arcstat_l2_rebuild_success.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_l2_rebuild_success);
+	as->arcstat_l2_rebuild_abort_unsupported.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_l2_rebuild_abort_unsupported);
+	as->arcstat_l2_rebuild_abort_io_errors.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_l2_rebuild_abort_io_errors);
+	as->arcstat_l2_rebuild_abort_dh_errors.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_l2_rebuild_abort_dh_errors);
+	as->arcstat_l2_rebuild_abort_cksum_lb_errors.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_l2_rebuild_abort_cksum_lb_errors);
+	as->arcstat_l2_rebuild_abort_lowmem.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_l2_rebuild_abort_lowmem);
+	as->arcstat_l2_rebuild_size.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_l2_rebuild_size);
+	as->arcstat_l2_rebuild_asize.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_l2_rebuild_asize);
+	as->arcstat_l2_rebuild_bufs.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_l2_rebuild_bufs);
+	as->arcstat_l2_rebuild_bufs_precached.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_l2_rebuild_bufs_precached);
+	as->arcstat_l2_rebuild_log_blks.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_l2_rebuild_log_blks);
+	as->arcstat_memory_throttle_count.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_memory_throttle_count);
+	as->arcstat_memory_direct_count.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_memory_direct_count);
+	as->arcstat_memory_indirect_count.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_memory_indirect_count);
+
+	as->arcstat_memory_all_bytes.value.ui64 =
+	    arc_all_memory();
+	as->arcstat_memory_free_bytes.value.ui64 =
+	    arc_free_memory();
+	as->arcstat_memory_available_bytes.value.i64 =
+	    arc_available_memory();
+
+	as->arcstat_prune.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_prune);
+	as->arcstat_meta_used.value.ui64 =
+	    aggsum_value(&arc_sums.arcstat_meta_used);
+	as->arcstat_async_upgrade_sync.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_async_upgrade_sync);
+	as->arcstat_demand_hit_predictive_prefetch.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_demand_hit_predictive_prefetch);
+	as->arcstat_demand_hit_prescient_prefetch.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_demand_hit_prescient_prefetch);
+	as->arcstat_raw_size.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_raw_size);
+	as->arcstat_cached_only_in_progress.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_cached_only_in_progress);
+	as->arcstat_abd_chunk_waste_size.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_abd_chunk_waste_size);
 
 	return (0);
 }
@@ -7458,44 +7579,44 @@ arc_state_init(void)
 	arc_mfu_ghost = &ARC_mfu_ghost;
 	arc_l2c_only = &ARC_l2c_only;
 
-	arc_mru->arcs_list[ARC_BUFC_METADATA] =
-	    multilist_create(sizeof (arc_buf_hdr_t),
+	multilist_create(&arc_mru->arcs_list[ARC_BUFC_METADATA],
+	    sizeof (arc_buf_hdr_t),
 	    offsetof(arc_buf_hdr_t, b_l1hdr.b_arc_node),
 	    arc_state_multilist_index_func);
-	arc_mru->arcs_list[ARC_BUFC_DATA] =
-	    multilist_create(sizeof (arc_buf_hdr_t),
+	multilist_create(&arc_mru->arcs_list[ARC_BUFC_DATA],
+	    sizeof (arc_buf_hdr_t),
 	    offsetof(arc_buf_hdr_t, b_l1hdr.b_arc_node),
 	    arc_state_multilist_index_func);
-	arc_mru_ghost->arcs_list[ARC_BUFC_METADATA] =
-	    multilist_create(sizeof (arc_buf_hdr_t),
+	multilist_create(&arc_mru_ghost->arcs_list[ARC_BUFC_METADATA],
+	    sizeof (arc_buf_hdr_t),
 	    offsetof(arc_buf_hdr_t, b_l1hdr.b_arc_node),
 	    arc_state_multilist_index_func);
-	arc_mru_ghost->arcs_list[ARC_BUFC_DATA] =
-	    multilist_create(sizeof (arc_buf_hdr_t),
+	multilist_create(&arc_mru_ghost->arcs_list[ARC_BUFC_DATA],
+	    sizeof (arc_buf_hdr_t),
 	    offsetof(arc_buf_hdr_t, b_l1hdr.b_arc_node),
 	    arc_state_multilist_index_func);
-	arc_mfu->arcs_list[ARC_BUFC_METADATA] =
-	    multilist_create(sizeof (arc_buf_hdr_t),
+	multilist_create(&arc_mfu->arcs_list[ARC_BUFC_METADATA],
+	    sizeof (arc_buf_hdr_t),
 	    offsetof(arc_buf_hdr_t, b_l1hdr.b_arc_node),
 	    arc_state_multilist_index_func);
-	arc_mfu->arcs_list[ARC_BUFC_DATA] =
-	    multilist_create(sizeof (arc_buf_hdr_t),
+	multilist_create(&arc_mfu->arcs_list[ARC_BUFC_DATA],
+	    sizeof (arc_buf_hdr_t),
 	    offsetof(arc_buf_hdr_t, b_l1hdr.b_arc_node),
 	    arc_state_multilist_index_func);
-	arc_mfu_ghost->arcs_list[ARC_BUFC_METADATA] =
-	    multilist_create(sizeof (arc_buf_hdr_t),
+	multilist_create(&arc_mfu_ghost->arcs_list[ARC_BUFC_METADATA],
+	    sizeof (arc_buf_hdr_t),
 	    offsetof(arc_buf_hdr_t, b_l1hdr.b_arc_node),
 	    arc_state_multilist_index_func);
-	arc_mfu_ghost->arcs_list[ARC_BUFC_DATA] =
-	    multilist_create(sizeof (arc_buf_hdr_t),
+	multilist_create(&arc_mfu_ghost->arcs_list[ARC_BUFC_DATA],
+	    sizeof (arc_buf_hdr_t),
 	    offsetof(arc_buf_hdr_t, b_l1hdr.b_arc_node),
 	    arc_state_multilist_index_func);
-	arc_l2c_only->arcs_list[ARC_BUFC_METADATA] =
-	    multilist_create(sizeof (arc_buf_hdr_t),
+	multilist_create(&arc_l2c_only->arcs_list[ARC_BUFC_METADATA],
+	    sizeof (arc_buf_hdr_t),
 	    offsetof(arc_buf_hdr_t, b_l1hdr.b_arc_node),
 	    arc_state_multilist_index_func);
-	arc_l2c_only->arcs_list[ARC_BUFC_DATA] =
-	    multilist_create(sizeof (arc_buf_hdr_t),
+	multilist_create(&arc_l2c_only->arcs_list[ARC_BUFC_DATA],
+	    sizeof (arc_buf_hdr_t),
 	    offsetof(arc_buf_hdr_t, b_l1hdr.b_arc_node),
 	    arc_state_multilist_index_func);
 
@@ -7519,16 +7640,93 @@ arc_state_init(void)
 	zfs_refcount_create(&arc_mfu_ghost->arcs_size);
 	zfs_refcount_create(&arc_l2c_only->arcs_size);
 
-	aggsum_init(&arc_meta_used, 0);
-	aggsum_init(&arc_size, 0);
-	aggsum_init(&astat_data_size, 0);
-	aggsum_init(&astat_metadata_size, 0);
-	aggsum_init(&astat_hdr_size, 0);
-	aggsum_init(&astat_l2_hdr_size, 0);
-	aggsum_init(&astat_bonus_size, 0);
-	aggsum_init(&astat_dnode_size, 0);
-	aggsum_init(&astat_dbuf_size, 0);
-	aggsum_init(&astat_abd_chunk_waste_size, 0);
+	wmsum_init(&arc_sums.arcstat_hits, 0);
+	wmsum_init(&arc_sums.arcstat_misses, 0);
+	wmsum_init(&arc_sums.arcstat_demand_data_hits, 0);
+	wmsum_init(&arc_sums.arcstat_demand_data_misses, 0);
+	wmsum_init(&arc_sums.arcstat_demand_metadata_hits, 0);
+	wmsum_init(&arc_sums.arcstat_demand_metadata_misses, 0);
+	wmsum_init(&arc_sums.arcstat_prefetch_data_hits, 0);
+	wmsum_init(&arc_sums.arcstat_prefetch_data_misses, 0);
+	wmsum_init(&arc_sums.arcstat_prefetch_metadata_hits, 0);
+	wmsum_init(&arc_sums.arcstat_prefetch_metadata_misses, 0);
+	wmsum_init(&arc_sums.arcstat_mru_hits, 0);
+	wmsum_init(&arc_sums.arcstat_mru_ghost_hits, 0);
+	wmsum_init(&arc_sums.arcstat_mfu_hits, 0);
+	wmsum_init(&arc_sums.arcstat_mfu_ghost_hits, 0);
+	wmsum_init(&arc_sums.arcstat_deleted, 0);
+	wmsum_init(&arc_sums.arcstat_mutex_miss, 0);
+	wmsum_init(&arc_sums.arcstat_access_skip, 0);
+	wmsum_init(&arc_sums.arcstat_evict_skip, 0);
+	wmsum_init(&arc_sums.arcstat_evict_not_enough, 0);
+	wmsum_init(&arc_sums.arcstat_evict_l2_cached, 0);
+	wmsum_init(&arc_sums.arcstat_evict_l2_eligible, 0);
+	wmsum_init(&arc_sums.arcstat_evict_l2_eligible_mfu, 0);
+	wmsum_init(&arc_sums.arcstat_evict_l2_eligible_mru, 0);
+	wmsum_init(&arc_sums.arcstat_evict_l2_ineligible, 0);
+	wmsum_init(&arc_sums.arcstat_evict_l2_skip, 0);
+	wmsum_init(&arc_sums.arcstat_hash_collisions, 0);
+	wmsum_init(&arc_sums.arcstat_hash_chains, 0);
+	aggsum_init(&arc_sums.arcstat_size, 0);
+	wmsum_init(&arc_sums.arcstat_compressed_size, 0);
+	wmsum_init(&arc_sums.arcstat_uncompressed_size, 0);
+	wmsum_init(&arc_sums.arcstat_overhead_size, 0);
+	wmsum_init(&arc_sums.arcstat_hdr_size, 0);
+	wmsum_init(&arc_sums.arcstat_data_size, 0);
+	wmsum_init(&arc_sums.arcstat_metadata_size, 0);
+	wmsum_init(&arc_sums.arcstat_dbuf_size, 0);
+	aggsum_init(&arc_sums.arcstat_dnode_size, 0);
+	wmsum_init(&arc_sums.arcstat_bonus_size, 0);
+	wmsum_init(&arc_sums.arcstat_l2_hits, 0);
+	wmsum_init(&arc_sums.arcstat_l2_misses, 0);
+	wmsum_init(&arc_sums.arcstat_l2_prefetch_asize, 0);
+	wmsum_init(&arc_sums.arcstat_l2_mru_asize, 0);
+	wmsum_init(&arc_sums.arcstat_l2_mfu_asize, 0);
+	wmsum_init(&arc_sums.arcstat_l2_bufc_data_asize, 0);
+	wmsum_init(&arc_sums.arcstat_l2_bufc_metadata_asize, 0);
+	wmsum_init(&arc_sums.arcstat_l2_feeds, 0);
+	wmsum_init(&arc_sums.arcstat_l2_rw_clash, 0);
+	wmsum_init(&arc_sums.arcstat_l2_read_bytes, 0);
+	wmsum_init(&arc_sums.arcstat_l2_write_bytes, 0);
+	wmsum_init(&arc_sums.arcstat_l2_writes_sent, 0);
+	wmsum_init(&arc_sums.arcstat_l2_writes_done, 0);
+	wmsum_init(&arc_sums.arcstat_l2_writes_error, 0);
+	wmsum_init(&arc_sums.arcstat_l2_writes_lock_retry, 0);
+	wmsum_init(&arc_sums.arcstat_l2_evict_lock_retry, 0);
+	wmsum_init(&arc_sums.arcstat_l2_evict_reading, 0);
+	wmsum_init(&arc_sums.arcstat_l2_evict_l1cached, 0);
+	wmsum_init(&arc_sums.arcstat_l2_free_on_write, 0);
+	wmsum_init(&arc_sums.arcstat_l2_abort_lowmem, 0);
+	wmsum_init(&arc_sums.arcstat_l2_cksum_bad, 0);
+	wmsum_init(&arc_sums.arcstat_l2_io_error, 0);
+	wmsum_init(&arc_sums.arcstat_l2_lsize, 0);
+	wmsum_init(&arc_sums.arcstat_l2_psize, 0);
+	aggsum_init(&arc_sums.arcstat_l2_hdr_size, 0);
+	wmsum_init(&arc_sums.arcstat_l2_log_blk_writes, 0);
+	wmsum_init(&arc_sums.arcstat_l2_log_blk_asize, 0);
+	wmsum_init(&arc_sums.arcstat_l2_log_blk_count, 0);
+	wmsum_init(&arc_sums.arcstat_l2_rebuild_success, 0);
+	wmsum_init(&arc_sums.arcstat_l2_rebuild_abort_unsupported, 0);
+	wmsum_init(&arc_sums.arcstat_l2_rebuild_abort_io_errors, 0);
+	wmsum_init(&arc_sums.arcstat_l2_rebuild_abort_dh_errors, 0);
+	wmsum_init(&arc_sums.arcstat_l2_rebuild_abort_cksum_lb_errors, 0);
+	wmsum_init(&arc_sums.arcstat_l2_rebuild_abort_lowmem, 0);
+	wmsum_init(&arc_sums.arcstat_l2_rebuild_size, 0);
+	wmsum_init(&arc_sums.arcstat_l2_rebuild_asize, 0);
+	wmsum_init(&arc_sums.arcstat_l2_rebuild_bufs, 0);
+	wmsum_init(&arc_sums.arcstat_l2_rebuild_bufs_precached, 0);
+	wmsum_init(&arc_sums.arcstat_l2_rebuild_log_blks, 0);
+	wmsum_init(&arc_sums.arcstat_memory_throttle_count, 0);
+	wmsum_init(&arc_sums.arcstat_memory_direct_count, 0);
+	wmsum_init(&arc_sums.arcstat_memory_indirect_count, 0);
+	wmsum_init(&arc_sums.arcstat_prune, 0);
+	aggsum_init(&arc_sums.arcstat_meta_used, 0);
+	wmsum_init(&arc_sums.arcstat_async_upgrade_sync, 0);
+	wmsum_init(&arc_sums.arcstat_demand_hit_predictive_prefetch, 0);
+	wmsum_init(&arc_sums.arcstat_demand_hit_prescient_prefetch, 0);
+	wmsum_init(&arc_sums.arcstat_raw_size, 0);
+	wmsum_init(&arc_sums.arcstat_cached_only_in_progress, 0);
+	wmsum_init(&arc_sums.arcstat_abd_chunk_waste_size, 0);
 
 	arc_anon->arcs_state = ARC_STATE_ANON;
 	arc_mru->arcs_state = ARC_STATE_MRU;
@@ -7561,27 +7759,104 @@ arc_state_fini(void)
 	zfs_refcount_destroy(&arc_mfu_ghost->arcs_size);
 	zfs_refcount_destroy(&arc_l2c_only->arcs_size);
 
-	multilist_destroy(arc_mru->arcs_list[ARC_BUFC_METADATA]);
-	multilist_destroy(arc_mru_ghost->arcs_list[ARC_BUFC_METADATA]);
-	multilist_destroy(arc_mfu->arcs_list[ARC_BUFC_METADATA]);
-	multilist_destroy(arc_mfu_ghost->arcs_list[ARC_BUFC_METADATA]);
-	multilist_destroy(arc_mru->arcs_list[ARC_BUFC_DATA]);
-	multilist_destroy(arc_mru_ghost->arcs_list[ARC_BUFC_DATA]);
-	multilist_destroy(arc_mfu->arcs_list[ARC_BUFC_DATA]);
-	multilist_destroy(arc_mfu_ghost->arcs_list[ARC_BUFC_DATA]);
-	multilist_destroy(arc_l2c_only->arcs_list[ARC_BUFC_METADATA]);
-	multilist_destroy(arc_l2c_only->arcs_list[ARC_BUFC_DATA]);
+	multilist_destroy(&arc_mru->arcs_list[ARC_BUFC_METADATA]);
+	multilist_destroy(&arc_mru_ghost->arcs_list[ARC_BUFC_METADATA]);
+	multilist_destroy(&arc_mfu->arcs_list[ARC_BUFC_METADATA]);
+	multilist_destroy(&arc_mfu_ghost->arcs_list[ARC_BUFC_METADATA]);
+	multilist_destroy(&arc_mru->arcs_list[ARC_BUFC_DATA]);
+	multilist_destroy(&arc_mru_ghost->arcs_list[ARC_BUFC_DATA]);
+	multilist_destroy(&arc_mfu->arcs_list[ARC_BUFC_DATA]);
+	multilist_destroy(&arc_mfu_ghost->arcs_list[ARC_BUFC_DATA]);
+	multilist_destroy(&arc_l2c_only->arcs_list[ARC_BUFC_METADATA]);
+	multilist_destroy(&arc_l2c_only->arcs_list[ARC_BUFC_DATA]);
 
-	aggsum_fini(&arc_meta_used);
-	aggsum_fini(&arc_size);
-	aggsum_fini(&astat_data_size);
-	aggsum_fini(&astat_metadata_size);
-	aggsum_fini(&astat_hdr_size);
-	aggsum_fini(&astat_l2_hdr_size);
-	aggsum_fini(&astat_bonus_size);
-	aggsum_fini(&astat_dnode_size);
-	aggsum_fini(&astat_dbuf_size);
-	aggsum_fini(&astat_abd_chunk_waste_size);
+	wmsum_fini(&arc_sums.arcstat_hits);
+	wmsum_fini(&arc_sums.arcstat_misses);
+	wmsum_fini(&arc_sums.arcstat_demand_data_hits);
+	wmsum_fini(&arc_sums.arcstat_demand_data_misses);
+	wmsum_fini(&arc_sums.arcstat_demand_metadata_hits);
+	wmsum_fini(&arc_sums.arcstat_demand_metadata_misses);
+	wmsum_fini(&arc_sums.arcstat_prefetch_data_hits);
+	wmsum_fini(&arc_sums.arcstat_prefetch_data_misses);
+	wmsum_fini(&arc_sums.arcstat_prefetch_metadata_hits);
+	wmsum_fini(&arc_sums.arcstat_prefetch_metadata_misses);
+	wmsum_fini(&arc_sums.arcstat_mru_hits);
+	wmsum_fini(&arc_sums.arcstat_mru_ghost_hits);
+	wmsum_fini(&arc_sums.arcstat_mfu_hits);
+	wmsum_fini(&arc_sums.arcstat_mfu_ghost_hits);
+	wmsum_fini(&arc_sums.arcstat_deleted);
+	wmsum_fini(&arc_sums.arcstat_mutex_miss);
+	wmsum_fini(&arc_sums.arcstat_access_skip);
+	wmsum_fini(&arc_sums.arcstat_evict_skip);
+	wmsum_fini(&arc_sums.arcstat_evict_not_enough);
+	wmsum_fini(&arc_sums.arcstat_evict_l2_cached);
+	wmsum_fini(&arc_sums.arcstat_evict_l2_eligible);
+	wmsum_fini(&arc_sums.arcstat_evict_l2_eligible_mfu);
+	wmsum_fini(&arc_sums.arcstat_evict_l2_eligible_mru);
+	wmsum_fini(&arc_sums.arcstat_evict_l2_ineligible);
+	wmsum_fini(&arc_sums.arcstat_evict_l2_skip);
+	wmsum_fini(&arc_sums.arcstat_hash_collisions);
+	wmsum_fini(&arc_sums.arcstat_hash_chains);
+	aggsum_fini(&arc_sums.arcstat_size);
+	wmsum_fini(&arc_sums.arcstat_compressed_size);
+	wmsum_fini(&arc_sums.arcstat_uncompressed_size);
+	wmsum_fini(&arc_sums.arcstat_overhead_size);
+	wmsum_fini(&arc_sums.arcstat_hdr_size);
+	wmsum_fini(&arc_sums.arcstat_data_size);
+	wmsum_fini(&arc_sums.arcstat_metadata_size);
+	wmsum_fini(&arc_sums.arcstat_dbuf_size);
+	aggsum_fini(&arc_sums.arcstat_dnode_size);
+	wmsum_fini(&arc_sums.arcstat_bonus_size);
+	wmsum_fini(&arc_sums.arcstat_l2_hits);
+	wmsum_fini(&arc_sums.arcstat_l2_misses);
+	wmsum_fini(&arc_sums.arcstat_l2_prefetch_asize);
+	wmsum_fini(&arc_sums.arcstat_l2_mru_asize);
+	wmsum_fini(&arc_sums.arcstat_l2_mfu_asize);
+	wmsum_fini(&arc_sums.arcstat_l2_bufc_data_asize);
+	wmsum_fini(&arc_sums.arcstat_l2_bufc_metadata_asize);
+	wmsum_fini(&arc_sums.arcstat_l2_feeds);
+	wmsum_fini(&arc_sums.arcstat_l2_rw_clash);
+	wmsum_fini(&arc_sums.arcstat_l2_read_bytes);
+	wmsum_fini(&arc_sums.arcstat_l2_write_bytes);
+	wmsum_fini(&arc_sums.arcstat_l2_writes_sent);
+	wmsum_fini(&arc_sums.arcstat_l2_writes_done);
+	wmsum_fini(&arc_sums.arcstat_l2_writes_error);
+	wmsum_fini(&arc_sums.arcstat_l2_writes_lock_retry);
+	wmsum_fini(&arc_sums.arcstat_l2_evict_lock_retry);
+	wmsum_fini(&arc_sums.arcstat_l2_evict_reading);
+	wmsum_fini(&arc_sums.arcstat_l2_evict_l1cached);
+	wmsum_fini(&arc_sums.arcstat_l2_free_on_write);
+	wmsum_fini(&arc_sums.arcstat_l2_abort_lowmem);
+	wmsum_fini(&arc_sums.arcstat_l2_cksum_bad);
+	wmsum_fini(&arc_sums.arcstat_l2_io_error);
+	wmsum_fini(&arc_sums.arcstat_l2_lsize);
+	wmsum_fini(&arc_sums.arcstat_l2_psize);
+	aggsum_fini(&arc_sums.arcstat_l2_hdr_size);
+	wmsum_fini(&arc_sums.arcstat_l2_log_blk_writes);
+	wmsum_fini(&arc_sums.arcstat_l2_log_blk_asize);
+	wmsum_fini(&arc_sums.arcstat_l2_log_blk_count);
+	wmsum_fini(&arc_sums.arcstat_l2_rebuild_success);
+	wmsum_fini(&arc_sums.arcstat_l2_rebuild_abort_unsupported);
+	wmsum_fini(&arc_sums.arcstat_l2_rebuild_abort_io_errors);
+	wmsum_fini(&arc_sums.arcstat_l2_rebuild_abort_dh_errors);
+	wmsum_fini(&arc_sums.arcstat_l2_rebuild_abort_cksum_lb_errors);
+	wmsum_fini(&arc_sums.arcstat_l2_rebuild_abort_lowmem);
+	wmsum_fini(&arc_sums.arcstat_l2_rebuild_size);
+	wmsum_fini(&arc_sums.arcstat_l2_rebuild_asize);
+	wmsum_fini(&arc_sums.arcstat_l2_rebuild_bufs);
+	wmsum_fini(&arc_sums.arcstat_l2_rebuild_bufs_precached);
+	wmsum_fini(&arc_sums.arcstat_l2_rebuild_log_blks);
+	wmsum_fini(&arc_sums.arcstat_memory_throttle_count);
+	wmsum_fini(&arc_sums.arcstat_memory_direct_count);
+	wmsum_fini(&arc_sums.arcstat_memory_indirect_count);
+	wmsum_fini(&arc_sums.arcstat_prune);
+	aggsum_fini(&arc_sums.arcstat_meta_used);
+	wmsum_fini(&arc_sums.arcstat_async_upgrade_sync);
+	wmsum_fini(&arc_sums.arcstat_demand_hit_predictive_prefetch);
+	wmsum_fini(&arc_sums.arcstat_demand_hit_prescient_prefetch);
+	wmsum_fini(&arc_sums.arcstat_raw_size);
+	wmsum_fini(&arc_sums.arcstat_cached_only_in_progress);
+	wmsum_fini(&arc_sums.arcstat_abd_chunk_waste_size);
 }
 
 uint64_t
@@ -7631,8 +7906,6 @@ arc_init(void)
 
 	/* Set min to 1/2 of arc_c_min */
 	arc_meta_min = 1ULL << SPA_MAXBLOCKSHIFT;
-	/* Initialize maximum observed usage to zero */
-	arc_meta_max = 0;
 	/*
 	 * Set arc_meta_limit to a percent of arc_c_max with a floor of
 	 * arc_meta_min, and a ceiling of arc_c_max.
@@ -8358,7 +8631,7 @@ top:
 		}
 	}
 
-	atomic_inc_64(&l2arc_writes_done);
+	ARCSTAT_BUMP(arcstat_l2_writes_done);
 	list_remove(buflist, head);
 	ASSERT(!HDR_HAS_L1HDR(head));
 	kmem_cache_free(hdr_l2only_cache, head);
@@ -8627,16 +8900,16 @@ l2arc_sublist_lock(int list_num)
 
 	switch (list_num) {
 	case 0:
-		ml = arc_mfu->arcs_list[ARC_BUFC_METADATA];
+		ml = &arc_mfu->arcs_list[ARC_BUFC_METADATA];
 		break;
 	case 1:
-		ml = arc_mru->arcs_list[ARC_BUFC_METADATA];
+		ml = &arc_mru->arcs_list[ARC_BUFC_METADATA];
 		break;
 	case 2:
-		ml = arc_mfu->arcs_list[ARC_BUFC_DATA];
+		ml = &arc_mfu->arcs_list[ARC_BUFC_DATA];
 		break;
 	case 3:
-		ml = arc_mru->arcs_list[ARC_BUFC_DATA];
+		ml = &arc_mru->arcs_list[ARC_BUFC_DATA];
 		break;
 	default:
 		return (NULL);
@@ -9330,7 +9603,7 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 static boolean_t
 l2arc_hdr_limit_reached(void)
 {
-	int64_t s = aggsum_upper_bound(&astat_l2_hdr_size);
+	int64_t s = aggsum_upper_bound(&arc_sums.arcstat_l2_hdr_size);
 
 	return (arc_reclaim_needed() || (s > arc_meta_limit * 3 / 4) ||
 	    (s > (arc_warm ? arc_c : arc_c_max) * l2arc_meta_percent / 100));
@@ -9664,8 +9937,6 @@ l2arc_init(void)
 {
 	l2arc_thread_exit = 0;
 	l2arc_ndev = 0;
-	l2arc_writes_sent = 0;
-	l2arc_writes_done = 0;
 
 	mutex_init(&l2arc_feed_thr_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&l2arc_feed_thr_cv, NULL, CV_DEFAULT, NULL);

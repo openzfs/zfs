@@ -104,7 +104,8 @@ set_tunable64 SPA_DISCARD_MEMORY_LIMIT 16777216
 
 nested_wait_discard_finish
 
-log_must zdb $NESTEDPOOL
+log_must zpool export $NESTEDPOOL
+log_must zdb -e -p $FILEDISKDIR $NESTEDPOOL
 
 log_pass "Can export/import but not rewind/checkpoint/discard or " \
     "change pool's config while discarding."

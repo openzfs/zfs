@@ -1,3 +1,5 @@
+include $(top_srcdir)/config/Shellcheck.am
+
 pkgdatadir = $(datadir)/@PACKAGE@
 
 dist_pkgdata_SCRIPTS = \
@@ -7,19 +9,26 @@ dist_pkgdata_SCRIPTS = \
 	zloop.sh \
 	zfs-helpers.sh
 
-EXTRA_DIST = \
+EXTRA_SCRIPTS = \
 	commitcheck.sh \
 	common.sh.in \
-	cstyle.pl \
 	dkms.mkconf \
 	dkms.postbuild \
-	enum-extract.pl \
 	kmodtool \
 	make_gitrev.sh \
 	man-dates.sh \
 	paxcheck.sh \
+	mancheck.sh
+
+EXTRA_DIST = \
+	cstyle.pl \
+	enum-extract.pl \
 	zfs2zol-patch.sed \
-	zol2zfs-patch.sed
+	zol2zfs-patch.sed \
+	$(EXTRA_SCRIPTS)
+
+SHELLCHECK_IGNORE = ,SC1117
+SHELLCHECKSCRIPTS = $(EXTRA_SCRIPTS)
 
 define EXTRA_ENVIRONMENT
 
@@ -34,6 +43,7 @@ export ZEDLET_ETC_DIR=$$CMD_DIR/zed/zed.d
 export ZEDLET_LIBEXEC_DIR=$$CMD_DIR/zed/zed.d
 export ZPOOL_SCRIPT_DIR=$$CMD_DIR/zpool/zpool.d
 export ZPOOL_SCRIPTS_PATH=$$CMD_DIR/zpool/zpool.d
+export ZPOOL_COMPAT_DIR=$$CMD_DIR/zpool/compatibility.d
 export CONTRIB_DIR=@abs_top_builddir@/contrib
 export LIB_DIR=@abs_top_builddir@/lib
 export SYSCONF_DIR=@abs_top_builddir@/etc

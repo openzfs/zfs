@@ -23,6 +23,7 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012 by Delphix. All rights reserved.
  * Copyright (c) 2013 Steven Hartland. All rights reserved.
+ * Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
  */
 
 /*
@@ -87,6 +88,8 @@ static char *zfs_msgid_table[] = {
 	 *	ZPOOL_STATUS_REMOVED_DEV
 	 *	ZPOOL_STATUS_REBUILDING
 	 *	ZPOOL_STATUS_REBUILD_SCRUB
+	 *	ZPOOL_STATUS_COMPATIBILITY_ERR
+	 *	ZPOOL_STATUS_INCOMPATIBLE_FEAT
 	 *	ZPOOL_STATUS_OK
 	 */
 };
@@ -218,7 +221,8 @@ find_vdev_problem(nvlist_t *vdev, int (*func)(vdev_stat_t *, uint_t),
  * only picks the most damaging of all the current errors to report.
  */
 static zpool_status_t
-check_status(nvlist_t *config, boolean_t isimport, zpool_errata_t *erratap)
+check_status(nvlist_t *config, boolean_t isimport,
+    zpool_errata_t *erratap, const char *compat)
 {
 	nvlist_t *nvroot;
 	vdev_stat_t *vs;
@@ -450,11 +454,17 @@ check_status(nvlist_t *config, boolean_t isimport, zpool_errata_t *erratap)
 	/*
 	 * Outdated, but usable, version
 	 */
-	if (SPA_VERSION_IS_SUPPORTED(version) && version != SPA_VERSION)
-		return (ZPOOL_STATUS_VERSION_OLDER);
+	if (SPA_VERSION_IS_SUPPORTED(version) && version != SPA_VERSION) {
+		/* "legacy" compatibility disables old version reporting */
+		if (compat != NULL && strcmp(compat, ZPOOL_COMPAT_LEGACY) == 0)
+			return (ZPOOL_STATUS_OK);
+		else
+			return (ZPOOL_STATUS_VERSION_OLDER);
+	}
 
 	/*
-	 * Usable pool with disabled features
+	 * Usable pool with disabled or superfluous features
+	 * (superfluous = beyond what's requested by 'compatibility')
 	 */
 	if (version >= SPA_VERSION_FEATURES) {
 		int i;
@@ -471,10 +481,24 @@ check_status(nvlist_t *config, boolean_t isimport, zpool_errata_t *erratap)
 			    ZPOOL_CONFIG_FEATURE_STATS);
 		}
 
+		/* check against all features, or limited set? */
+		boolean_t c_features[SPA_FEATURES];
+
+		switch (zpool_load_compat(compat, c_features, NULL, 0)) {
+		case ZPOOL_COMPATIBILITY_OK:
+		case ZPOOL_COMPATIBILITY_WARNTOKEN:
+			break;
+		default:
+			return (ZPOOL_STATUS_COMPATIBILITY_ERR);
+		}
 		for (i = 0; i < SPA_FEATURES; i++) {
 			zfeature_info_t *fi = &spa_feature_table[i];
-			if (!nvlist_exists(feat, fi->fi_guid))
+			if (!fi->fi_zfs_mod_supported)
+				continue;
+			if (c_features[i] && !nvlist_exists(feat, fi->fi_guid))
 				return (ZPOOL_STATUS_FEAT_DISABLED);
+			if (!c_features[i] && nvlist_exists(feat, fi->fi_guid))
+				return (ZPOOL_STATUS_INCOMPATIBLE_FEAT);
 		}
 	}
 
@@ -484,7 +508,18 @@ check_status(nvlist_t *config, boolean_t isimport, zpool_errata_t *erratap)
 zpool_status_t
 zpool_get_status(zpool_handle_t *zhp, char **msgid, zpool_errata_t *errata)
 {
-	zpool_status_t ret = check_status(zhp->zpool_config, B_FALSE, errata);
+	/*
+	 * pass in the desired feature set, as
+	 * it affects check for disabled features
+	 */
+	char compatibility[ZFS_MAXPROPLEN];
+	if (zpool_get_prop(zhp, ZPOOL_PROP_COMPATIBILITY, compatibility,
+	    ZFS_MAXPROPLEN, NULL, B_FALSE) != 0)
+		compatibility[0] = '\0';
+
+	zpool_status_t ret = check_status(zhp->zpool_config, B_FALSE, errata,
+	    compatibility);
+
 	if (msgid != NULL) {
 		if (ret >= NMSGID)
 			*msgid = NULL;
@@ -497,7 +532,7 @@ zpool_get_status(zpool_handle_t *zhp, char **msgid, zpool_errata_t *errata)
 zpool_status_t
 zpool_import_status(nvlist_t *config, char **msgid, zpool_errata_t *errata)
 {
-	zpool_status_t ret = check_status(config, B_TRUE, errata);
+	zpool_status_t ret = check_status(config, B_TRUE, errata, NULL);
 
 	if (ret >= NMSGID)
 		*msgid = NULL;

@@ -72,6 +72,7 @@ extern "C" {
 #include <sys/trace.h>
 #include <sys/procfs_list.h>
 #include <sys/mod.h>
+#include <sys/uio_impl.h>
 #include <sys/zfs_context_os.h>
 #else /* _KERNEL || _STANDALONE */
 
@@ -158,8 +159,6 @@ extern void panic(const char *, ...)  __NORETURN;
 extern void vpanic(const char *, va_list)  __NORETURN;
 
 #define	fm_panic	panic
-
-extern int aok;
 
 /*
  * DTrace SDT probes have different signatures in userland than they do in
@@ -361,12 +360,6 @@ extern kstat_t *kstat_create(const char *, int,
     const char *, const char *, uchar_t, ulong_t, uchar_t);
 extern void kstat_install(kstat_t *);
 extern void kstat_delete(kstat_t *);
-extern void kstat_waitq_enter(kstat_io_t *);
-extern void kstat_waitq_exit(kstat_io_t *);
-extern void kstat_runq_enter(kstat_io_t *);
-extern void kstat_runq_exit(kstat_io_t *);
-extern void kstat_waitq_to_runq(kstat_io_t *);
-extern void kstat_runq_back_to_waitq(kstat_io_t *);
 extern void kstat_set_raw_ops(kstat_t *ksp,
     int (*headers)(char *buf, size_t size),
     int (*data)(char *buf, size_t size, void *data),
@@ -637,8 +630,8 @@ extern void delay(clock_t ticks);
 #define	NN_NUMBUF_SZ	(6)
 
 extern uint64_t physmem;
-extern char *random_path;
-extern char *urandom_path;
+extern const char *random_path;
+extern const char *urandom_path;
 
 extern int highbit64(uint64_t i);
 extern int lowbit64(uint64_t i);
@@ -652,7 +645,7 @@ extern void random_fini(void);
 
 struct spa;
 extern void show_pool_stats(struct spa *);
-extern int set_global_var(char *arg);
+extern int set_global_var(char const *arg);
 
 typedef struct callb_cpr {
 	kmutex_t	*cc_lockp;

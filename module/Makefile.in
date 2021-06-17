@@ -17,6 +17,10 @@ check:
 	modules_uninstall modules_uninstall-Linux modules_uninstall-FreeBSD \
 	cppcheck cppcheck-Linux cppcheck-FreeBSD
 
+# For FreeBSD, use debug options from ./configure if not overridden.
+export WITH_DEBUG ?= @WITH_DEBUG@
+export WITH_INVARIANTS ?= @WITH_INVARIANTS@
+
 # Filter out options that FreeBSD make doesn't understand
 getflags = ( \
 set -- \
@@ -42,6 +46,7 @@ FMAKEFLAGS = -C @abs_srcdir@ -f Makefile.bsd $(shell $(getflags))
 ifneq (@abs_srcdir@,@abs_builddir@)
 FMAKEFLAGS += MAKEOBJDIR=@abs_builddir@
 endif
+
 FMAKE = env -u MAKEFLAGS make $(FMAKEFLAGS)
 
 modules-Linux:

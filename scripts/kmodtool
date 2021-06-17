@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2086
 
 # kmodtool - Helper script for building kernel module RPMs
 # Copyright (c) 2003-2012 Ville Skyttä <ville.skytta@iki.fi>,
@@ -38,15 +39,16 @@ prefix=
 filterfile=
 target=
 buildroot=
+dashvariant=
 
 error_out()
 {
 	local errorlevel=${1}
 	shift
-	echo "Error: $@" >&2
+	echo "Error: $*" >&2
 	# the next line is not multi-line safe -- not needed *yet*
-	echo "%global kmodtool_check echo \"kmodtool error: $@\"; exit ${errorlevel};"
-	exit ${errorlevel}
+	echo "%global kmodtool_check echo \"kmodtool error: $*\"; exit ${errorlevel};"
+	exit "${errorlevel}"
 }
 
 print_rpmtemplate_header()
@@ -182,9 +184,21 @@ BuildRequires:	  kernel-devel-uname-r = ${kernel_uname_r}
 %{?KmodsRequires:Requires: %{KmodsRequires}-uname-r = ${kernel_uname_r}}
 %{?KmodsRequires:BuildRequires: %{KmodsRequires}-uname-r = ${kernel_uname_r}}
 %post          -n kmod-${kmodname}-${kernel_uname_r}
-${prefix}${depmod_path} -aeF /boot/System.map-${kernel_uname_r} ${kernel_uname_r} > /dev/null || :
+if [[ -f "/boot/System.map-${kernel_uname_r}" ]]; then
+	${prefix}${depmod_path} -aeF /boot/System.map-${kernel_uname_r} ${kernel_uname_r} > /dev/null || :
+elif [[ -f "/lib/modules/${kernel_uname_r}/System.map" ]]; then
+	${prefix}${depmod_path} -aeF /lib/modules/${kernel_uname_r}/System.map ${kernel_uname_r} > /dev/null || :
+else
+	${prefix}${depmod_path} -ae ${kernel_uname_r} &> /dev/null || :
+fi
 %postun        -n kmod-${kmodname}-${kernel_uname_r}
-${prefix}${depmod_path} -aF /boot/System.map-${kernel_uname_r} ${kernel_uname_r} &> /dev/null || :
+if [[ -f "/boot/System.map-${kernel_uname_r}" ]]; then
+	${prefix}${depmod_path} -aF /boot/System.map-${kernel_uname_r} ${kernel_uname_r} &> /dev/null || :
+elif [[ -f "/lib/modules/${kernel_uname_r}/System.map" ]]; then
+	${prefix}${depmod_path} -aF /lib/modules/${kernel_uname_r}/System.map ${kernel_uname_r} &> /dev/null || :
+else
+	${prefix}${depmod_path} -a ${kernel_uname_r} &> /dev/null || :
+fi
 
 EOF
 	else
@@ -567,7 +581,7 @@ elif [[ ! "${kmodname}" ]]; then
 		error_out 2 "please pass kmodname with --kmodname"
 elif [[ ! "${kernels_known_variants}" ]] ; then
 		error_out 2 "could not determine known variants"
-elif ( [[ "${obsolete_name}" ]] && [[ ! "${obsolete_version}" ]] ) ||  ( [[ ! "${obsolete_name}" ]] && [[ "${obsolete_version}" ]] ) ; then
+elif { [[ "${obsolete_name}" ]] && [[ ! "${obsolete_version}" ]]; } ||  { [[ ! "${obsolete_name}" ]] && [[ "${obsolete_version}" ]]; } ; then
 		error_out 2 "you need to provide both --obsolete-name and --obsolete-version"
 fi
 
@@ -585,7 +599,7 @@ else
 	# we need more sanity checks in this case
 	if [[ ! "${repo}" ]]; then
 		error_out 2 "please provide repo name with --repo"
-	elif ! $(which buildsys-build-${repo}-kerneldevpkgs &> /dev/null) ; then
+	elif ! command -v "buildsys-build-${repo}-kerneldevpkgs" &> /dev/null ; then
 		error_out 2 "buildsys-build-${repo}-kerneldevpkgs not found"
 	fi
 
@@ -599,7 +613,7 @@ else
 
 	kernel_versions_to_build_for="$(buildsys-build-${repo}-kerneldevpkgs --${build_kernels} ${cmdoptions})"
 	returncode=$?
-	if (( ${returncode} != 0 )); then
+	if (( returncode != 0 )); then
 		error_out 2 "buildsys-build-${repo}-kerneldevpkgs failed: $(buildsys-build-${repo}-kerneldevpkgs --${build_kernels} ${cmdoptions})"
 	fi
 

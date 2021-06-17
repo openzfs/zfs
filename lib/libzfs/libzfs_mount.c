@@ -22,7 +22,7 @@
 /*
  * Copyright 2015 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2014, 2020 by Delphix. All rights reserved.
+ * Copyright (c) 2014, 2021 by Delphix. All rights reserved.
  * Copyright 2016 Igor Kozhukhov <ikozhukhov@gmail.com>
  * Copyright 2017 RackTop Systems.
  * Copyright (c) 2018 Datto Inc.
@@ -95,7 +95,7 @@
 static int mount_tp_nthr = 512;	/* tpool threads for multi-threaded mounting */
 
 static void zfs_mount_task(void *);
-zfs_share_type_t zfs_is_shared_proto(zfs_handle_t *, char **,
+static zfs_share_type_t zfs_is_shared_proto(zfs_handle_t *, char **,
     zfs_share_proto_t);
 
 /*
@@ -107,16 +107,16 @@ proto_table_t proto_table[PROTO_END] = {
 	{ZFS_PROP_SHARESMB, "smb", EZFS_SHARESMBFAILED, EZFS_UNSHARESMBFAILED},
 };
 
-zfs_share_proto_t nfs_only[] = {
+static zfs_share_proto_t nfs_only[] = {
 	PROTO_NFS,
 	PROTO_END
 };
 
-zfs_share_proto_t smb_only[] = {
+static zfs_share_proto_t smb_only[] = {
 	PROTO_SMB,
 	PROTO_END
 };
-zfs_share_proto_t share_all_proto[] = {
+static zfs_share_proto_t share_all_proto[] = {
 	PROTO_NFS,
 	PROTO_SMB,
 	PROTO_END
@@ -385,6 +385,9 @@ zfs_mount_at(zfs_handle_t *zhp, const char *options, int flags,
 	struct stat buf;
 	char mntopts[MNT_LINE_MAX];
 	char overlay[ZFS_MAXPROPLEN];
+	char prop_encroot[MAXNAMELEN];
+	boolean_t is_encroot;
+	zfs_handle_t *encroot_hp = zhp;
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
 	uint64_t keystatus;
 	int remount = 0, rc;
@@ -443,7 +446,27 @@ zfs_mount_at(zfs_handle_t *zhp, const char *options, int flags,
 		 */
 		if (keystatus == ZFS_KEYSTATUS_UNAVAILABLE) {
 			if (flags & MS_CRYPT) {
-				rc = zfs_crypto_load_key(zhp, B_FALSE, NULL);
+				rc = zfs_crypto_get_encryption_root(zhp,
+				    &is_encroot, prop_encroot);
+				if (rc) {
+					zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+					    "Failed to get encryption root for "
+					    "'%s'."), zfs_get_name(zhp));
+					return (rc);
+				}
+
+				if (!is_encroot) {
+					encroot_hp = zfs_open(hdl, prop_encroot,
+					    ZFS_TYPE_DATASET);
+					if (encroot_hp == NULL)
+						return (hdl->libzfs_error);
+				}
+
+				rc = zfs_crypto_load_key(encroot_hp,
+				    B_FALSE, NULL);
+
+				if (!is_encroot)
+					zfs_close(encroot_hp);
 				if (rc)
 					return (rc);
 			} else {
@@ -515,19 +538,17 @@ zfs_mount_at(zfs_handle_t *zhp, const char *options, int flags,
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "Insufficient privileges"));
 		} else if (rc == ENOTSUP) {
-			char buf[256];
 			int spa_version;
 
 			VERIFY(zfs_spa_version(zhp, &spa_version) == 0);
-			(void) snprintf(buf, sizeof (buf),
-			    dgettext(TEXT_DOMAIN, "Can't mount a version %lld "
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "Can't mount a version %llu "
 			    "file system on a version %d pool. Pool must be"
 			    " upgraded to mount this file system."),
 			    (u_longlong_t)zfs_prop_get_int(zhp,
 			    ZFS_PROP_VERSION), spa_version);
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, buf));
 		} else {
-			zfs_error_aux(hdl, strerror(rc));
+			zfs_error_aux(hdl, "%s", strerror(rc));
 		}
 		return (zfs_error_fmt(hdl, EZFS_MOUNTFAILED,
 		    dgettext(TEXT_DOMAIN, "cannot mount '%s'"),
@@ -553,7 +574,28 @@ unmount_one(libzfs_handle_t *hdl, const char *mountpoint, int flags)
 
 	error = do_unmount(mountpoint, flags);
 	if (error != 0) {
-		return (zfs_error_fmt(hdl, EZFS_UMOUNTFAILED,
+		int libzfs_err;
+
+		switch (error) {
+		case EBUSY:
+			libzfs_err = EZFS_BUSY;
+			break;
+		case EIO:
+			libzfs_err = EZFS_IO;
+			break;
+		case ENOENT:
+			libzfs_err = EZFS_NOENT;
+			break;
+		case ENOMEM:
+			libzfs_err = EZFS_NOMEM;
+			break;
+		case EPERM:
+			libzfs_err = EZFS_PERM;
+			break;
+		default:
+			libzfs_err = EZFS_UMOUNTFAILED;
+		}
+		return (zfs_error_fmt(hdl, libzfs_err,
 		    dgettext(TEXT_DOMAIN, "cannot unmount '%s'"),
 		    mountpoint));
 	}
@@ -776,7 +818,7 @@ zfs_unshare(zfs_handle_t *zhp)
 /*
  * Check to see if the filesystem is currently shared.
  */
-zfs_share_type_t
+static zfs_share_type_t
 zfs_is_shared_proto(zfs_handle_t *zhp, char **where, zfs_share_proto_t proto)
 {
 	char *mountpoint;
@@ -1409,7 +1451,6 @@ zfs_foreach_mountpoint(libzfs_handle_t *hdl, zfs_handle_t **handles,
  * Mount and share all datasets within the given pool.  This assumes that no
  * datasets within the pool are currently mounted.
  */
-#pragma weak zpool_mount_datasets = zpool_enable_datasets
 int
 zpool_enable_datasets(zpool_handle_t *zhp, const char *mntopts, int flags)
 {
@@ -1471,8 +1512,6 @@ mountpoint_compare(const void *a, const void *b)
 	return (strcmp(mountb, mounta));
 }
 
-/* alias for 2002/240 */
-#pragma weak zpool_unmount_datasets = zpool_disable_datasets
 /*
  * Unshare and unmount all datasets within the given pool.  We don't want to
  * rely on traversing the DSL to discover the filesystems within the pool,
@@ -1484,6 +1523,7 @@ int
 zpool_disable_datasets(zpool_handle_t *zhp, boolean_t force)
 {
 	int used, alloc;
+	FILE *mnttab;
 	struct mnttab entry;
 	size_t namelen;
 	char **mountpoints = NULL;
@@ -1495,12 +1535,11 @@ zpool_disable_datasets(zpool_handle_t *zhp, boolean_t force)
 
 	namelen = strlen(zhp->zpool_name);
 
-	/* Reopen MNTTAB to prevent reading stale data from open file */
-	if (freopen(MNTTAB, "r", hdl->libzfs_mnttab) == NULL)
+	if ((mnttab = fopen(MNTTAB, "re")) == NULL)
 		return (ENOENT);
 
 	used = alloc = 0;
-	while (getmntent(hdl->libzfs_mnttab, &entry) == 0) {
+	while (getmntent(mnttab, &entry) == 0) {
 		/*
 		 * Ignore non-ZFS entries.
 		 */
@@ -1602,6 +1641,7 @@ zpool_disable_datasets(zpool_handle_t *zhp, boolean_t force)
 
 	ret = 0;
 out:
+	(void) fclose(mnttab);
 	for (i = 0; i < used; i++) {
 		if (datasets[i])
 			zfs_close(datasets[i]);

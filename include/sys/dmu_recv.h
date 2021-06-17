@@ -34,7 +34,6 @@
 #include <sys/dsl_dataset.h>
 #include <sys/spa.h>
 #include <sys/objlist.h>
-#include <sys/dsl_bookmark.h>
 
 extern const char *recv_clone_name;
 

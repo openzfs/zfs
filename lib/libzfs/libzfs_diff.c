@@ -243,6 +243,7 @@ write_inuse_diffs_one(FILE *fp, differ_info_t *di, uint64_t dobj)
 	struct zfs_stat fsb, tsb;
 	mode_t fmode, tmode;
 	char fobjname[MAXPATHLEN], tobjname[MAXPATHLEN];
+	boolean_t already_logged = B_FALSE;
 	int fobjerr, tobjerr;
 	int change;
 
@@ -254,22 +255,36 @@ write_inuse_diffs_one(FILE *fp, differ_info_t *di, uint64_t dobj)
 	 * we get ENOENT, then the object just didn't exist in that
 	 * snapshot.  If we get ENOTSUP, then we tried to get
 	 * info on a non-ZPL object, which we don't care about anyway.
+	 * For any other error we print a warning which includes the
+	 * errno and continue.
 	 */
+
 	fobjerr = get_stats_for_obj(di, di->fromsnap, dobj, fobjname,
 	    MAXPATHLEN, &fsb);
-	if (fobjerr && di->zerr != ENOENT && di->zerr != ENOTSUP)
-		return (-1);
+	if (fobjerr && di->zerr != ENOTSUP && di->zerr != ENOENT) {
+		zfs_error_aux(di->zhp->zfs_hdl, "%s", strerror(di->zerr));
+		zfs_error(di->zhp->zfs_hdl, di->zerr, di->errbuf);
+		/*
+		 * Let's not print an error for the same object more than
+		 * once if it happens in both snapshots
+		 */
+		already_logged = B_TRUE;
+	}
 
 	tobjerr = get_stats_for_obj(di, di->tosnap, dobj, tobjname,
 	    MAXPATHLEN, &tsb);
-	if (tobjerr && di->zerr != ENOENT && di->zerr != ENOTSUP)
-		return (-1);
 
+	if (tobjerr && di->zerr != ENOTSUP && di->zerr != ENOENT) {
+		if (!already_logged) {
+			zfs_error_aux(di->zhp->zfs_hdl,
+			    "%s", strerror(di->zerr));
+			zfs_error(di->zhp->zfs_hdl, di->zerr, di->errbuf);
+		}
+	}
 	/*
 	 * Unallocated object sharing the same meta dnode block
 	 */
 	if (fobjerr && tobjerr) {
-		ASSERT(di->zerr == ENOENT || di->zerr == ENOTSUP);
 		di->zerr = 0;
 		return (0);
 	}
@@ -344,12 +359,11 @@ describe_free(FILE *fp, differ_info_t *di, uint64_t object, char *namebuf,
 {
 	struct zfs_stat sb;
 
-	if (get_stats_for_obj(di, di->fromsnap, object, namebuf,
-	    maxlen, &sb) != 0) {
-		return (-1);
-	}
+	(void) get_stats_for_obj(di, di->fromsnap, object, namebuf,
+	    maxlen, &sb);
+
 	/* Don't print if in the delete queue on from side */
-	if (di->zerr == ESTALE) {
+	if (di->zerr == ESTALE || di->zerr == ENOENT) {
 		di->zerr = 0;
 		return (0);
 	}
@@ -384,8 +398,6 @@ write_free_diffs(FILE *fp, differ_info_t *di, dmu_diff_record_t *dr)
 			}
 			err = describe_free(fp, di, zc.zc_obj, fobjname,
 			    MAXPATHLEN);
-			if (err)
-				break;
 		} else if (errno == ESRCH) {
 			break;
 		} else {
@@ -697,7 +709,7 @@ setup_differ_info(zfs_handle_t *zhp, const char *fromsnap,
 {
 	di->zhp = zhp;
 
-	di->cleanupfd = open(ZFS_DEV, O_RDWR);
+	di->cleanupfd = open(ZFS_DEV, O_RDWR | O_CLOEXEC);
 	VERIFY(di->cleanupfd >= 0);
 
 	if (get_snapshot_names(di, fromsnap, tosnap) != 0)
@@ -731,8 +743,8 @@ zfs_show_diffs(zfs_handle_t *zhp, int outfd, const char *fromsnap,
 		return (-1);
 	}
 
-	if (pipe(pipefd)) {
-		zfs_error_aux(zhp->zfs_hdl, strerror(errno));
+	if (pipe2(pipefd, O_CLOEXEC)) {
+		zfs_error_aux(zhp->zfs_hdl, "%s", strerror(errno));
 		teardown_differ_info(&di);
 		return (zfs_error(zhp->zfs_hdl, EZFS_PIPEFAILED, errbuf));
 	}
@@ -745,7 +757,7 @@ zfs_show_diffs(zfs_handle_t *zhp, int outfd, const char *fromsnap,
 	di.datafd = pipefd[0];
 
 	if (pthread_create(&tid, NULL, differ, &di)) {
-		zfs_error_aux(zhp->zfs_hdl, strerror(errno));
+		zfs_error_aux(zhp->zfs_hdl, "%s", strerror(errno));
 		(void) close(pipefd[0]);
 		(void) close(pipefd[1]);
 		teardown_differ_info(&di);
@@ -771,14 +783,14 @@ zfs_show_diffs(zfs_handle_t *zhp, int outfd, const char *fromsnap,
 			zfs_error_aux(zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
 			    "\n   Not an earlier snapshot from the same fs"));
 		} else if (errno != EPIPE || di.zerr == 0) {
-			zfs_error_aux(zhp->zfs_hdl, strerror(errno));
+			zfs_error_aux(zhp->zfs_hdl, "%s", strerror(errno));
 		}
 		(void) close(pipefd[1]);
 		(void) pthread_cancel(tid);
 		(void) pthread_join(tid, NULL);
 		teardown_differ_info(&di);
 		if (di.zerr != 0 && di.zerr != EPIPE) {
-			zfs_error_aux(zhp->zfs_hdl, strerror(di.zerr));
+			zfs_error_aux(zhp->zfs_hdl, "%s", strerror(di.zerr));
 			return (zfs_error(zhp->zfs_hdl, EZFS_DIFF, di.errbuf));
 		} else {
 			return (zfs_error(zhp->zfs_hdl, EZFS_DIFFDATA, errbuf));
@@ -789,7 +801,7 @@ zfs_show_diffs(zfs_handle_t *zhp, int outfd, const char *fromsnap,
 	(void) pthread_join(tid, NULL);
 
 	if (di.zerr != 0) {
-		zfs_error_aux(zhp->zfs_hdl, strerror(di.zerr));
+		zfs_error_aux(zhp->zfs_hdl, "%s", strerror(di.zerr));
 		return (zfs_error(zhp->zfs_hdl, EZFS_DIFF, di.errbuf));
 	}
 	teardown_differ_info(&di);

@@ -417,7 +417,7 @@ zfs_prop_init(void)
 	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
 	    "on | off | lzjb | gzip | gzip-[1-9] | zle | lz4 | "
 	    "zstd | zstd-[1-19] | "
-	    "zstd-fast-[1-10,20,30,40,50,60,70,80,90,100,500,1000]",
+	    "zstd-fast | zstd-fast-[1-10,20,30,40,50,60,70,80,90,100,500,1000]",
 	    "COMPRESS", compress_table);
 	zprop_register_index(ZFS_PROP_SNAPDIR, "snapdir", ZFS_SNAPDIR_HIDDEN,
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM,
@@ -583,7 +583,7 @@ zfs_prop_init(void)
 	    "ENCROOT");
 	zprop_register_string(ZFS_PROP_KEYLOCATION, "keylocation",
 	    "none", PROP_DEFAULT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
-	    "prompt | <file URI>", "KEYLOCATION");
+	    "prompt | <file URI> | <https URL> | <http URL>", "KEYLOCATION");
 	zprop_register_string(ZFS_PROP_REDACT_SNAPS,
 	    "redact_snaps", NULL, PROP_READONLY,
 	    ZFS_TYPE_DATASET | ZFS_TYPE_BOOKMARK, "<snapshot>[,...]",
@@ -935,6 +935,10 @@ zfs_prop_valid_keylocation(const char *str, boolean_t encrypted)
 	else if (strcmp("prompt", str) == 0)
 		return (B_TRUE);
 	else if (strlen(str) > 8 && strncmp("file:///", str, 8) == 0)
+		return (B_TRUE);
+	else if (strlen(str) > 8 && strncmp("https://", str, 8) == 0)
+		return (B_TRUE);
+	else if (strlen(str) > 7 && strncmp("http://", str, 7) == 0)
 		return (B_TRUE);
 
 	return (B_FALSE);

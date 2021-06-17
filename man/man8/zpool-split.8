@@ -18,7 +18,6 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
 .\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
@@ -27,31 +26,23 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd August 9, 2019
+.Dd June 2, 2021
 .Dt ZPOOL-SPLIT 8
 .Os
+.
 .Sh NAME
 .Nm zpool-split
-.Nd Split devices off a ZFS storage pool creating a new pool
+.Nd split devices off ZFS storage pool, creating new pool
 .Sh SYNOPSIS
 .Nm zpool
 .Cm split
 .Op Fl gLlnP
-.Oo Fl o Ar property Ns = Ns Ar value Oc Ns ...
+.Oo Fl o Ar property Ns = Ns Ar value Oc Ns …
 .Op Fl R Ar root
 .Ar pool newpool
-.Oo Ar device Oc Ns ...
+.Oo Ar device Oc Ns …
+.
 .Sh DESCRIPTION
-.Bl -tag -width Ds
-.It Xo
-.Nm zpool
-.Cm split
-.Op Fl gLlnP
-.Oo Fl o Ar property Ns = Ns Ar value Oc Ns ...
-.Op Fl R Ar root
-.Ar pool newpool
-.Op Ar device ...
-.Xc
 Splits devices off
 .Ar pool
 creating
@@ -76,37 +67,38 @@ and, should any devices remain unspecified,
 the last device in each mirror is used as would be by default.
 .Bl -tag -width Ds
 .It Fl g
-Display vdev GUIDs instead of the normal device names. These GUIDs
-can be used in place of device names for the zpool
+Display vdev GUIDs instead of the normal device names.
+These GUIDs can be used in place of device names for the zpool
 detach/offline/remove/replace commands.
 .It Fl L
-Display real paths for vdevs resolving all symbolic links. This can
-be used to look up the current block device name regardless of the
+Display real paths for vdevs resolving all symbolic links.
+This can be used to look up the current block device name regardless of the
 .Pa /dev/disk/
 path used to open it.
 .It Fl l
 Indicates that this command will request encryption keys for all encrypted
-datasets it attempts to mount as it is bringing the new pool online. Note that
-if any datasets have a
-.Sy keylocation
-of
-.Sy prompt
-this command will block waiting for the keys to be entered. Without this flag
-encrypted datasets will be left unavailable until the keys are loaded.
+datasets it attempts to mount as it is bringing the new pool online.
+Note that if any datasets have
+.Sy keylocation Ns = Ns Sy prompt ,
+this command will block waiting for the keys to be entered.
+Without this flag, encrypted datasets will be left unavailable until the keys are loaded.
 .It Fl n
-Do dry run, do not actually perform the split.
+Do a dry-run
+.Pq Qq No-op
+split: do not actually perform it.
 Print out the expected configuration of
 .Ar newpool .
 .It Fl P
 Display full paths for vdevs instead of only the last component of
-the path. This can be used in conjunction with the
+the path.
+This can be used in conjunction with the
 .Fl L
 flag.
 .It Fl o Ar property Ns = Ns Ar value
 Sets the specified property for
 .Ar newpool .
 See the
-.Xr zpoolprops
+.Xr zpoolprops 7
 manual page for more information on the available pool properties.
 .It Fl R Ar root
 Set
@@ -117,7 +109,7 @@ to
 .Ar root
 and automatically import it.
 .El
-.El
+.
 .Sh SEE ALSO
 .Xr zpool-import 8 ,
 .Xr zpool-list 8 ,

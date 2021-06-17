@@ -18,7 +18,6 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
 .\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
@@ -27,48 +26,42 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd May 15, 2020
+.Dd May 29, 2021
 .Dt ZPOOL-REPLACE 8
 .Os
+.
 .Sh NAME
 .Nm zpool-replace
-.Nd Replace one device with another in a ZFS storage pool
+.Nd replace one device with another in ZFS storage pool
 .Sh SYNOPSIS
 .Nm zpool
 .Cm replace
 .Op Fl fsw
 .Oo Fl o Ar property Ns = Ns Ar value Oc
-.Ar pool Ar device Op Ar new_device
+.Ar pool Ar device Op Ar new-device
+.
 .Sh DESCRIPTION
-.Bl -tag -width Ds
-.It Xo
-.Nm zpool
-.Cm replace
-.Op Fl fsw
-.Op Fl o Ar property Ns = Ns Ar value
-.Ar pool Ar device Op Ar new_device
-.Xc
 Replaces
-.Ar old_device
+.Ar device
 with
-.Ar new_device .
+.Ar new-device .
 This is equivalent to attaching
-.Ar new_device ,
+.Ar new-device ,
 waiting for it to resilver, and then detaching
-.Ar old_device .
+.Ar device .
 Any in progress scrub will be cancelled.
 .Pp
 The size of
-.Ar new_device
+.Ar new-device
 must be greater than or equal to the minimum size of all the devices in a mirror
 or raidz configuration.
 .Pp
-.Ar new_device
+.Ar new-device
 is required if the pool is not redundant.
 If
-.Ar new_device
+.Ar new-device
 is not specified, it defaults to
-.Ar old_device .
+.Ar device .
 This form of replacement is useful after an existing disk has failed and has
 been physically replaced.
 In this case, the new disk may have the same
@@ -78,18 +71,19 @@ ZFS recognizes this.
 .Bl -tag -width Ds
 .It Fl f
 Forces use of
-.Ar new_device ,
+.Ar new-device ,
 even if it appears to be in use.
 Not all devices can be overridden in this manner.
 .It Fl o Ar property Ns = Ns Ar value
-Sets the given pool properties. See the
-.Xr zpoolprops
+Sets the given pool properties.
+See the
+.Xr zpoolprops 7
 manual page for a list of valid properties that can be set.
 The only property supported at the moment is
 .Sy ashift .
 .It Fl s
 The
-.Ar new_device
+.Ar new-device
 is reconstructed sequentially to restore redundancy as quickly as possible.
 Checksums are not verfied during sequential reconstruction so a scrub is
 started when the resilver completes.
@@ -97,7 +91,7 @@ Sequential reconstruction is not supported for raidz configurations.
 .It Fl w
 Waits until the replacement has completed before returning.
 .El
-.El
+.
 .Sh SEE ALSO
 .Xr zpool-detach 8 ,
 .Xr zpool-initialize 8 ,

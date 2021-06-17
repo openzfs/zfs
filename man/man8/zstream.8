@@ -18,14 +18,15 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright (c) 2020 by Delphix. All rights reserved.
-.Dd March 25, 2020
+.\"
+.Dd May 8, 2021
 .Dt ZSTREAM 8
 .Os
+.
 .Sh NAME
 .Nm zstream
-.Nd manipulate zfs send streams
+.Nd manipulate ZFS send streams
 .Sh SYNOPSIS
 .Nm
 .Cm dump
@@ -38,12 +39,11 @@
 .Nm
 .Cm token
 .Ar resume_token
+.
 .Sh DESCRIPTION
-.sp
-.LP
 The
 .Sy zstream
-utility manipulates zfs send streams, which are the output of the
+utility manipulates ZFS send streams output by the
 .Sy zfs send
 command.
 .Bl -tag -width ""
@@ -68,6 +68,12 @@ Print metadata for each record.
 Dump data contained in each record.
 Implies verbose.
 .El
+.Pp
+The
+.Nm zstreamdump
+alias is provided for compatibility and is equivalent to running
+.Nm
+.Cm dump .
 .It Xo
 .Nm
 .Cm token
@@ -97,14 +103,15 @@ command is provided a
 containing a deduplicated send stream, and outputs an equivalent
 non-deduplicated send stream on standard output.
 Therefore, a deduplicated send stream can be received by running:
-.Bd -literal
-# zstream redup DEDUP_STREAM_FILE | zfs receive ...
-.Ed
+.Dl # Nm zstream Cm redup Pa DEDUP_STREAM_FILE | Nm zfs Cm receive No …
 .Bl -tag -width "-D"
 .It Fl v
 Verbose.
 Print summary of converted records.
+.El
+.El
+.
 .Sh SEE ALSO
 .Xr zfs 8 ,
-.Xr zfs-send 8 ,
-.Xr zfs-receive 8
+.Xr zfs-receive 8 ,
+.Xr zfs-send 8

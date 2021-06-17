@@ -5,12 +5,8 @@ command -v getargbool >/dev/null || {
     # Compatibility with older Dracut versions.
     # With apologies to the Dracut developers.
     getargbool() {
-        if ! [ -z "$_b" ]; then
-                unset _b
-        fi
         _default="$1"; shift
-        _b=$(getarg "$@")
-        [ $? -ne 0 ] &&  [ -z "$_b" ] && _b="$_default"
+        ! _b=$(getarg "$@") && [ -z "$_b" ] && _b="$_default"
         if [ -n "$_b" ]; then
             [ "$_b" = "0" ] && return 1
             [ "$_b" = "no" ] && return 1
@@ -23,6 +19,7 @@ command -v getargbool >/dev/null || {
 OLDIFS="${IFS}"
 NEWLINE="
 "
+TAB="	"
 
 ZPOOL_IMPORT_OPTS=""
 if getargbool 0 zfs_force -y zfs.force -y zfsforce ; then
@@ -58,10 +55,11 @@ find_bootfs() {
 # import_pool POOL
 #   imports the given zfs pool if it isn't imported already.
 import_pool() {
-        pool="${1}"
+    pool="${1}"
 
     if ! zpool list -H "${pool}" > /dev/null 2>&1; then
         info "ZFS: Importing pool ${pool}..."
+        # shellcheck disable=SC2086
         if ! zpool import -N ${ZPOOL_IMPORT_OPTS} "${pool}" ; then
             warn "ZFS: Unable to import pool ${pool}"
             return 1
@@ -71,32 +69,67 @@ import_pool() {
     return 0
 }
 
+_mount_dataset_cb() {
+    mount -o zfsutil -t zfs "${1}" "${NEWROOT}${2}"
+}
+
 # mount_dataset DATASET
 #   mounts the given zfs dataset.
 mount_dataset() {
-        dataset="${1}"
+    dataset="${1}"
     mountpoint="$(zfs get -H -o value mountpoint "${dataset}")"
+    ret=0
 
     # We need zfsutil for non-legacy mounts and not for legacy mounts.
     if [ "${mountpoint}" = "legacy" ] ; then
-        mount -t zfs "${dataset}" "${NEWROOT}"
+        mount -t zfs "${dataset}" "${NEWROOT}" || ret=$?
     else
-        mount -o zfsutil -t zfs "${dataset}" "${NEWROOT}"
+        mount -o zfsutil -t zfs "${dataset}" "${NEWROOT}" || ret=$?
+
+        if [ "$ret" = "0" ]; then
+            for_relevant_root_children "${dataset}" _mount_dataset_cb || ret=$?
+        fi
     fi
 
-    return $?
+    return ${ret}
+}
+
+# for_relevant_root_children DATASET EXEC
+#   Runs "EXEC dataset mountpoint" for all children of DATASET that are needed for system bringup
+#   Used by zfs-generator.sh and friends, too!
+for_relevant_root_children() {
+    dataset="${1}"
+    exec="${2}"
+
+    zfs list -t filesystem -Ho name,mountpoint,canmount -r "${dataset}" |
+        (
+            _ret=0
+            while IFS="${TAB}" read -r dataset mountpoint canmount; do
+                [ "$canmount" != "on" ] && continue
+
+                case "$mountpoint" in
+                    /etc|/bin|/lib|/lib??|/libx32|/usr)
+                        # If these aren't mounted we may not be able to get to the real init at all, or pollute the dataset holding the rootfs
+                        "${exec}" "${dataset}" "${mountpoint}" || _ret=$?
+                        ;;
+                    *)
+                        # Up to the real init to remount everything else it might need
+                        ;;
+                esac
+            done
+            exit ${_ret}
+        )
 }
 
 # export_all OPTS
 #   exports all imported zfs pools.
 export_all() {
-        opts="${@}"
     ret=0
 
     IFS="${NEWLINE}"
     for pool in $(zpool list -H -o name) ; do
         if zpool list -H "${pool}" > /dev/null 2>&1; then
-            zpool export "${pool}" ${opts} || ret=$?
+            zpool export "${pool}" "$@" || ret=$?
         fi
     done
     IFS="${OLDIFS}"

@@ -48,6 +48,7 @@ AC_CONFIG_HEADERS([zfs_config.h], [
 LT_INIT
 AC_PROG_INSTALL
 AC_PROG_CC
+AC_PROG_LN_S
 PKG_PROG_PKG_CONFIG
 AM_PROG_AS
 AM_PROG_CC_C_O
@@ -61,6 +62,7 @@ ZFS_AC_DEBUG
 ZFS_AC_DEBUGINFO
 ZFS_AC_DEBUG_KMEM
 ZFS_AC_DEBUG_KMEM_TRACKING
+ZFS_AC_DEBUG_INVARIANTS
 
 ZFS_UZFS
 
@@ -85,7 +87,6 @@ AC_CONFIG_FILES([
 	cmd/uzfs/Makefile
 	cmd/zpool/Makefile
 	cmd/zstream/Makefile
-	cmd/zstreamdump/Makefile
 	cmd/ztest/Makefile
 	cmd/zvol_id/Makefile
 	cmd/zvol_wait/Makefile
@@ -173,9 +174,6 @@ AC_CONFIG_FILES([
 	lib/libzstd/Makefile
 	lib/libzutil/Makefile
 	man/Makefile
-	man/man1/Makefile
-	man/man5/Makefile
-	man/man8/Makefile
 	module/Kbuild
 	module/Makefile
 	module/avl/Makefile
@@ -233,6 +231,7 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/cmd/readmmap/Makefile
 	tests/zfs-tests/cmd/rename_dir/Makefile
 	tests/zfs-tests/cmd/rm_lnkcnt_zero_file/Makefile
+	tests/zfs-tests/cmd/send_doall/Makefile
 	tests/zfs-tests/cmd/stride_dd/Makefile
 	tests/zfs-tests/cmd/threadsappend/Makefile
 	tests/zfs-tests/cmd/user_ns_exec/Makefile
@@ -241,6 +240,7 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/tests/Makefile
 	tests/zfs-tests/tests/functional/Makefile
 	tests/zfs-tests/tests/functional/acl/Makefile
+	tests/zfs-tests/tests/functional/acl/off/Makefile
 	tests/zfs-tests/tests/functional/acl/posix/Makefile
 	tests/zfs-tests/tests/functional/acl/posix-sa/Makefile
 	tests/zfs-tests/tests/functional/alloc_class/Makefile

@@ -18,7 +18,6 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
 .\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
@@ -30,29 +29,31 @@
 .Dd August 9, 2019
 .Dt ZPOOL-GET 8
 .Os
+.
 .Sh NAME
 .Nm zpool-get
-.Nd Retrieves properties for the specified ZFS storage pool(s)
+.Nd retrieve properties of ZFS storage pools
 .Sh SYNOPSIS
 .Nm zpool
 .Cm get
 .Op Fl Hp
-.Op Fl o Ar field Ns Oo , Ns Ar field Oc Ns ...
-.Sy all Ns | Ns Ar property Ns Oo , Ns Ar property Oc Ns ...
-.Oo Ar pool Oc Ns ...
+.Op Fl o Ar field Ns Oo , Ns Ar field Oc Ns …
+.Sy all Ns | Ns Ar property Ns Oo , Ns Ar property Oc Ns …
+.Oo Ar pool Oc Ns …
 .Nm zpool
 .Cm set
 .Ar property Ns = Ns Ar value
 .Ar pool
+.
 .Sh DESCRIPTION
 .Bl -tag -width Ds
 .It Xo
 .Nm zpool
 .Cm get
 .Op Fl Hp
-.Op Fl o Ar field Ns Oo , Ns Ar field Oc Ns ...
-.Sy all Ns | Ns Ar property Ns Oo , Ns Ar property Oc Ns ...
-.Oo Ar pool Oc Ns ...
+.Op Fl o Ar field Ns Oo , Ns Ar field Oc Ns …
+.Sy all Ns | Ns Ar property Ns Oo , Ns Ar property Oc Ns …
+.Oo Ar pool Oc Ns …
 .Xc
 Retrieves the given list of properties
 .Po
@@ -62,25 +63,29 @@ is used
 .Pc
 for the specified storage pool(s).
 These properties are displayed with the following fields:
-.Bd -literal
-        name          Name of storage pool
-        property      Property name
-        value         Property value
-        source        Property source, either 'default' or 'local'.
-.Ed
+.Bl -tag -compact -offset Ds -width "property"
+.It Sy name
+Name of storage pool.
+.It Sy property
+Property name.
+.It Sy value
+Property value.
+.It Sy source
+Property source, either
+.Sy default No or Sy local .
+.El
 .Pp
 See the
-.Xr zpoolprops
+.Xr zpoolprops 7
 manual page for more information on the available pool properties.
-.Bl -tag -width Ds
+.Bl -tag -compact -offset Ds -width "-o field"
 .It Fl H
 Scripted mode.
 Do not display headers, and separate fields by a single tab instead of arbitrary
 space.
 .It Fl o Ar field
-A comma-separated list of columns to display.
-.Sy name Ns \&, Ns Sy property Ns \&, Ns Sy value Ns \&, Ns Sy source
-is the default value.
+A comma-separated list of columns to display, defaults to
+.Sy name , Ns Sy property , Ns Sy value , Ns Sy source .
 .It Fl p
 Display numbers in parsable (exact) values.
 .El
@@ -92,11 +97,12 @@ Display numbers in parsable (exact) values.
 .Xc
 Sets the given property on the specified pool.
 See the
-.Xr zpoolprops
+.Xr zpoolprops 7
 manual page for more information on what properties can be set and acceptable
 values.
 .El
+.
 .Sh SEE ALSO
-.Xr zpoolprops 8 ,
-.Xr zpool-list 8 ,
-.Xr zpool-features 5
+.Xr zpool-features 7 ,
+.Xr zpoolprops 7 ,
+.Xr zpool-list 8

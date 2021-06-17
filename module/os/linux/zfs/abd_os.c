@@ -132,6 +132,20 @@ static abd_stats_t abd_stats = {
 	{ "scatter_sg_table_retry",		KSTAT_DATA_UINT64 },
 };
 
+struct {
+	wmsum_t abdstat_struct_size;
+	wmsum_t abdstat_linear_cnt;
+	wmsum_t abdstat_linear_data_size;
+	wmsum_t abdstat_scatter_cnt;
+	wmsum_t abdstat_scatter_data_size;
+	wmsum_t abdstat_scatter_chunk_waste;
+	wmsum_t abdstat_scatter_orders[MAX_ORDER];
+	wmsum_t abdstat_scatter_page_multi_chunk;
+	wmsum_t abdstat_scatter_page_multi_zone;
+	wmsum_t abdstat_scatter_page_alloc_retry;
+	wmsum_t abdstat_scatter_sg_table_retry;
+} abd_sums;
+
 #define	abd_for_each_sg(abd, sg, n, i)	\
 	for_each_sg(ABD_SCATTER(abd).abd_sgl, sg, n, i)
 
@@ -490,8 +504,8 @@ abd_alloc_zero_scatter(void)
 #define	PAGE_SHIFT (highbit64(PAGESIZE)-1)
 #endif
 
-#define	zfs_kmap_atomic(chunk, km)	((void *)chunk)
-#define	zfs_kunmap_atomic(addr, km)	do { (void)(addr); } while (0)
+#define	zfs_kmap_atomic(chunk)		((void *)chunk)
+#define	zfs_kunmap_atomic(addr)		do { (void)(addr); } while (0)
 #define	local_irq_save(flags)		do { (void)(flags); } while (0)
 #define	local_irq_restore(flags)	do { (void)(flags); } while (0)
 #define	nth_page(pg, i) \
@@ -687,6 +701,40 @@ abd_free_zero_scatter(void)
 #endif /* _KERNEL */
 }
 
+static int
+abd_kstats_update(kstat_t *ksp, int rw)
+{
+	abd_stats_t *as = ksp->ks_data;
+
+	if (rw == KSTAT_WRITE)
+		return (EACCES);
+	as->abdstat_struct_size.value.ui64 =
+	    wmsum_value(&abd_sums.abdstat_struct_size);
+	as->abdstat_linear_cnt.value.ui64 =
+	    wmsum_value(&abd_sums.abdstat_linear_cnt);
+	as->abdstat_linear_data_size.value.ui64 =
+	    wmsum_value(&abd_sums.abdstat_linear_data_size);
+	as->abdstat_scatter_cnt.value.ui64 =
+	    wmsum_value(&abd_sums.abdstat_scatter_cnt);
+	as->abdstat_scatter_data_size.value.ui64 =
+	    wmsum_value(&abd_sums.abdstat_scatter_data_size);
+	as->abdstat_scatter_chunk_waste.value.ui64 =
+	    wmsum_value(&abd_sums.abdstat_scatter_chunk_waste);
+	for (int i = 0; i < MAX_ORDER; i++) {
+		as->abdstat_scatter_orders[i].value.ui64 =
+		    wmsum_value(&abd_sums.abdstat_scatter_orders[i]);
+	}
+	as->abdstat_scatter_page_multi_chunk.value.ui64 =
+	    wmsum_value(&abd_sums.abdstat_scatter_page_multi_chunk);
+	as->abdstat_scatter_page_multi_zone.value.ui64 =
+	    wmsum_value(&abd_sums.abdstat_scatter_page_multi_zone);
+	as->abdstat_scatter_page_alloc_retry.value.ui64 =
+	    wmsum_value(&abd_sums.abdstat_scatter_page_alloc_retry);
+	as->abdstat_scatter_sg_table_retry.value.ui64 =
+	    wmsum_value(&abd_sums.abdstat_scatter_sg_table_retry);
+	return (0);
+}
+
 void
 abd_init(void)
 {
@@ -694,6 +742,19 @@ abd_init(void)
 
 	abd_cache = kmem_cache_create("abd_t", sizeof (abd_t),
 	    0, NULL, NULL, NULL, NULL, NULL, 0);
+
+	wmsum_init(&abd_sums.abdstat_struct_size, 0);
+	wmsum_init(&abd_sums.abdstat_linear_cnt, 0);
+	wmsum_init(&abd_sums.abdstat_linear_data_size, 0);
+	wmsum_init(&abd_sums.abdstat_scatter_cnt, 0);
+	wmsum_init(&abd_sums.abdstat_scatter_data_size, 0);
+	wmsum_init(&abd_sums.abdstat_scatter_chunk_waste, 0);
+	for (i = 0; i < MAX_ORDER; i++)
+		wmsum_init(&abd_sums.abdstat_scatter_orders[i], 0);
+	wmsum_init(&abd_sums.abdstat_scatter_page_multi_chunk, 0);
+	wmsum_init(&abd_sums.abdstat_scatter_page_multi_zone, 0);
+	wmsum_init(&abd_sums.abdstat_scatter_page_alloc_retry, 0);
+	wmsum_init(&abd_sums.abdstat_scatter_sg_table_retry, 0);
 
 	abd_ksp = kstat_create("zfs", 0, "abdstats", "misc", KSTAT_TYPE_NAMED,
 	    sizeof (abd_stats) / sizeof (kstat_named_t), KSTAT_FLAG_VIRTUAL);
@@ -705,6 +766,7 @@ abd_init(void)
 			    KSTAT_DATA_UINT64;
 		}
 		abd_ksp->ks_data = &abd_stats;
+		abd_ksp->ks_update = abd_kstats_update;
 		kstat_install(abd_ksp);
 	}
 
@@ -720,6 +782,19 @@ abd_fini(void)
 		kstat_delete(abd_ksp);
 		abd_ksp = NULL;
 	}
+
+	wmsum_fini(&abd_sums.abdstat_struct_size);
+	wmsum_fini(&abd_sums.abdstat_linear_cnt);
+	wmsum_fini(&abd_sums.abdstat_linear_data_size);
+	wmsum_fini(&abd_sums.abdstat_scatter_cnt);
+	wmsum_fini(&abd_sums.abdstat_scatter_data_size);
+	wmsum_fini(&abd_sums.abdstat_scatter_chunk_waste);
+	for (int i = 0; i < MAX_ORDER; i++)
+		wmsum_fini(&abd_sums.abdstat_scatter_orders[i]);
+	wmsum_fini(&abd_sums.abdstat_scatter_page_multi_chunk);
+	wmsum_fini(&abd_sums.abdstat_scatter_page_multi_zone);
+	wmsum_fini(&abd_sums.abdstat_scatter_page_alloc_retry);
+	wmsum_fini(&abd_sums.abdstat_scatter_sg_table_retry);
 
 	if (abd_cache) {
 		kmem_cache_destroy(abd_cache);
@@ -879,8 +954,7 @@ abd_iter_map(struct abd_iter *aiter)
 		aiter->iter_mapsize = MIN(aiter->iter_sg->length - offset,
 		    aiter->iter_abd->abd_size - aiter->iter_pos);
 
-		paddr = zfs_kmap_atomic(sg_page(aiter->iter_sg),
-		    km_table[aiter->iter_km]);
+		paddr = zfs_kmap_atomic(sg_page(aiter->iter_sg));
 	}
 
 	aiter->iter_mapaddr = (char *)paddr + offset;
@@ -899,8 +973,7 @@ abd_iter_unmap(struct abd_iter *aiter)
 
 	if (!abd_is_linear(aiter->iter_abd)) {
 		/* LINTED E_FUNC_SET_NOT_USED */
-		zfs_kunmap_atomic(aiter->iter_mapaddr - aiter->iter_offset,
-		    km_table[aiter->iter_km]);
+		zfs_kunmap_atomic(aiter->iter_mapaddr - aiter->iter_offset);
 	}
 
 	ASSERT3P(aiter->iter_mapaddr, !=, NULL);

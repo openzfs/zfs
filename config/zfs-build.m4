@@ -11,6 +11,7 @@ AC_DEFUN([ZFS_AC_DEBUG_ENABLE], [
 	DEBUG_CPPFLAGS="-DDEBUG -UNDEBUG"
 	DEBUG_LDFLAGS=""
 	DEBUG_ZFS="_with_debug"
+	WITH_DEBUG="true"
 	AC_DEFINE(ZFS_DEBUG, 1, [zfs debugging enabled])
 
 	KERNEL_DEBUG_CFLAGS="-Werror"
@@ -22,6 +23,7 @@ AC_DEFUN([ZFS_AC_DEBUG_DISABLE], [
 	DEBUG_CPPFLAGS="-UDEBUG -DNDEBUG"
 	DEBUG_LDFLAGS=""
 	DEBUG_ZFS="_without_debug"
+	WITH_DEBUG=""
 
 	KERNEL_DEBUG_CFLAGS=""
 	KERNEL_DEBUG_CPPFLAGS="-UDEBUG -DNDEBUG"
@@ -31,6 +33,9 @@ dnl #
 dnl # When debugging is enabled:
 dnl # - Enable all ASSERTs (-DDEBUG)
 dnl # - Promote all compiler warnings to errors (-Werror)
+dnl #
+dnl # (If INVARIANTS is detected, we need to force DEBUG, or strange panics
+dnl # can ensue.)
 dnl #
 AC_DEFUN([ZFS_AC_DEBUG], [
 	AC_MSG_CHECKING([whether assertion support will be enabled])
@@ -47,10 +52,25 @@ AC_DEFUN([ZFS_AC_DEBUG], [
 		[ZFS_AC_DEBUG_DISABLE],
 		[AC_MSG_ERROR([Unknown option $enable_debug])])
 
+	AS_CASE(["x$enable_invariants"],
+		["xyes"],
+		[],
+		["xno"],
+		[],
+		[ZFS_AC_DEBUG_INVARIANTS_DETECT])
+
+	AS_CASE(["x$enable_invariants"],
+		["xyes"],
+		[ZFS_AC_DEBUG_ENABLE],
+		["xno"],
+		[],
+		[AC_MSG_ERROR([Unknown option $enable_invariants])])
+
 	AC_SUBST(DEBUG_CFLAGS)
 	AC_SUBST(DEBUG_CPPFLAGS)
 	AC_SUBST(DEBUG_LDFLAGS)
 	AC_SUBST(DEBUG_ZFS)
+	AC_SUBST(WITH_DEBUG)
 
 	AC_SUBST(KERNEL_DEBUG_CFLAGS)
 	AC_SUBST(KERNEL_DEBUG_CPPFLAGS)
@@ -152,6 +172,39 @@ AC_DEFUN([ZFS_AC_DEBUG_KMEM_TRACKING], [
 	AC_MSG_RESULT([$enable_debug_kmem_tracking])
 ])
 
+AC_DEFUN([ZFS_AC_DEBUG_INVARIANTS_DETECT_FREEBSD], [
+	AS_IF([sysctl -n kern.conftxt | fgrep -qx $'options\tINVARIANTS'],
+		[enable_invariants="yes"],
+		[enable_invariants="no"])
+])
+
+AC_DEFUN([ZFS_AC_DEBUG_INVARIANTS_DETECT], [
+	AM_COND_IF([BUILD_FREEBSD],
+		[ZFS_AC_DEBUG_INVARIANTS_DETECT_FREEBSD],
+		[enable_invariants="no"])
+])
+
+dnl #
+dnl # Detected for the running kernel by default, enables INVARIANTS features
+dnl # in the FreeBSD kernel module.  This feature must be used when building
+dnl # for a FreeBSD kernel with "options INVARIANTS" in the KERNCONF and must
+dnl # not be used when the INVARIANTS option is absent.
+dnl #
+AC_DEFUN([ZFS_AC_DEBUG_INVARIANTS], [
+	AC_MSG_CHECKING([whether FreeBSD kernel INVARIANTS checks are enabled])
+	AC_ARG_ENABLE([invariants],
+		[AS_HELP_STRING([--enable-invariants],
+		[Enable FreeBSD kernel INVARIANTS checks [[default: detect]]])],
+		[], [ZFS_AC_DEBUG_INVARIANTS_DETECT])
+
+	AS_IF([test "x$enable_invariants" = xyes],
+		[WITH_INVARIANTS="true"],
+		[WITH_INVARIANTS=""])
+	AC_SUBST(WITH_INVARIANTS)
+
+	AC_MSG_RESULT([$enable_invariants])
+])
+
 AC_DEFUN([ZFS_AC_CONFIG_ALWAYS], [
 	AX_COUNT_CPUS([])
 	AC_SUBST(CPU_COUNT)
@@ -171,6 +224,7 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS], [
 	ZFS_AC_CONFIG_ALWAYS_PYZFS
 	ZFS_AC_CONFIG_ALWAYS_SED
 	ZFS_AC_CONFIG_ALWAYS_CPPCHECK
+	ZFS_AC_CONFIG_ALWAYS_SHELLCHECK
 ])
 
 AC_DEFUN([ZFS_AC_CONFIG], [
@@ -401,6 +455,9 @@ AC_DEFUN([ZFS_AC_ALIEN], [
 	AC_MSG_CHECKING([whether $ALIEN is available])
 	AS_IF([tmp=$($ALIEN --version 2>/dev/null)], [
 		ALIEN_VERSION=$(echo $tmp | $AWK '{ print $[3] }')
+		ALIEN_MAJOR=$(echo ${ALIEN_VERSION} | $AWK -F'.' '{ print $[1] }')
+		ALIEN_MINOR=$(echo ${ALIEN_VERSION} | $AWK -F'.' '{ print $[2] }')
+		ALIEN_POINT=$(echo ${ALIEN_VERSION} | $AWK -F'.' '{ print $[3] }')
 		HAVE_ALIEN=yes
 		AC_MSG_RESULT([$HAVE_ALIEN ($ALIEN_VERSION)])
 	],[
@@ -411,6 +468,9 @@ AC_DEFUN([ZFS_AC_ALIEN], [
 	AC_SUBST(HAVE_ALIEN)
 	AC_SUBST(ALIEN)
 	AC_SUBST(ALIEN_VERSION)
+	AC_SUBST(ALIEN_MAJOR)
+	AC_SUBST(ALIEN_MINOR)
+	AC_SUBST(ALIEN_POINT)
 ])
 
 dnl #

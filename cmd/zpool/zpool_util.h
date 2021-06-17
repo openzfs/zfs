@@ -39,6 +39,7 @@ extern "C" {
  * Basic utility functions
  */
 void *safe_malloc(size_t);
+void *safe_realloc(void *, size_t);
 void zpool_no_memory(void);
 uint_t num_logs(nvlist_t *nv);
 uint64_t array64_max(uint64_t array[], unsigned int len);
@@ -129,6 +130,7 @@ int check_device(const char *path, boolean_t force,
 boolean_t check_sector_size_database(char *path, int *sector_size);
 void vdev_error(const char *fmt, ...);
 int check_file(const char *file, boolean_t force, boolean_t isspare);
+void after_zpool_upgrade(zpool_handle_t *zhp);
 
 #ifdef	__cplusplus
 }

@@ -3,9 +3,8 @@
 # Track changes to enumerated pools for use in early-boot
 set -ef
 
-FSLIST_DIR="@sysconfdir@/zfs/zfs-list.cache"
-FSLIST_TMP="@runstatedir@/zfs-list.cache.new"
-FSLIST="${FSLIST_DIR}/${ZEVENT_POOL}"
+FSLIST="@sysconfdir@/zfs/zfs-list.cache/${ZEVENT_POOL}"
+FSLIST_TMP="@runstatedir@/zfs-list.cache@${ZEVENT_POOL}"
 
 # If the pool specific cache file is not writeable, abort
 [ -w "${FSLIST}" ] || exit 0
@@ -14,20 +13,20 @@ FSLIST="${FSLIST_DIR}/${ZEVENT_POOL}"
 . "${ZED_ZEDLET_DIR}/zed-functions.sh"
 
 [ "$ZEVENT_SUBCLASS" != "history_event" ] && exit 0
-zed_check_cmd "${ZFS}" sort diff grep
+zed_check_cmd "${ZFS}" sort diff
 
 # If we are acting on a snapshot, we have nothing to do
-printf '%s' "${ZEVENT_HISTORY_DSNAME}" | grep '@' && exit 0
+[ "${ZEVENT_HISTORY_DSNAME%@*}" = "${ZEVENT_HISTORY_DSNAME}" ] || exit 0
 
-# We obtain a lock on zfs-list to avoid any simultaneous writes.
+# We lock the output file to avoid simultaneous writes.
 # If we run into trouble, log and drop the lock
 abort_alter() {
-  zed_log_msg "Error updating zfs-list.cache!"
-  zed_unlock zfs-list
+  zed_log_msg "Error updating zfs-list.cache for ${ZEVENT_POOL}!"
+  zed_unlock "${FSLIST}"
 }
 
 finished() {
-  zed_unlock zfs-list
+  zed_unlock "${FSLIST}"
   trap - EXIT
   exit 0
 }
@@ -37,7 +36,7 @@ case "${ZEVENT_HISTORY_INTERNAL_NAME}" in
       ;;
 
     export)
-        zed_lock zfs-list
+        zed_lock "${FSLIST}"
         trap abort_alter EXIT
         echo > "${FSLIST}"
         finished
@@ -63,7 +62,7 @@ case "${ZEVENT_HISTORY_INTERNAL_NAME}" in
       ;;
 esac
 
-zed_lock zfs-list
+zed_lock "${FSLIST}"
 trap abort_alter EXIT
 
 PROPS="name,mountpoint,canmount,atime,relatime,devices,exec\
@@ -79,7 +78,7 @@ PROPS="name,mountpoint,canmount,atime,relatime,devices,exec\
 sort "${FSLIST_TMP}" -o "${FSLIST_TMP}"
 
 # Don't modify the file if it hasn't changed
-diff -q "${FSLIST_TMP}" "${FSLIST}" || mv "${FSLIST_TMP}" "${FSLIST}"
+diff -q "${FSLIST_TMP}" "${FSLIST}" || cat "${FSLIST_TMP}" > "${FSLIST}"
 rm -f "${FSLIST_TMP}"
 
 finished

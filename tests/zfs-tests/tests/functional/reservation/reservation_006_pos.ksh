@@ -39,7 +39,7 @@
 # for a dataset. Unlike quotas however there should be no restrictions
 # on accessing space outside of the limits of the reservation (if the
 # space is available in the pool). Verify that in a filesystem with a
-# reservation set that its possible to create files both within the
+# reservation set that it's possible to create files both within the
 # reserved space and also outside.
 #
 # STRATEGY:

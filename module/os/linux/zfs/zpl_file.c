@@ -148,7 +148,7 @@ zpl_aio_fsync(struct kiocb *kiocb, int datasync)
 
 #elif defined(HAVE_FSYNC_RANGE)
 /*
- * Linux 3.1 - 3.x API,
+ * Linux 3.1 API,
  * As of 3.1 the responsibility to call filemap_write_and_wait_range() has
  * been pushed down in to the .fsync() vfs hook.  Additionally, the i_mutex
  * lock is no longer held by the caller, for zfs we don't require the lock
@@ -341,9 +341,6 @@ zpl_iter_write(struct kiocb *kiocb, struct iov_iter *from)
 
 	ssize_t wrote = count - uio.uio_resid;
 	kiocb->ki_pos += wrote;
-
-	if (wrote > 0)
-		iov_iter_advance(from, wrote);
 
 	return (wrote);
 }
@@ -867,9 +864,9 @@ __zpl_ioctl_setflags(struct inode *ip, uint32_t ioctl_flags, xvattr_t *xva)
 	if ((fchange(ioctl_flags, zfs_flags, FS_IMMUTABLE_FL, ZFS_IMMUTABLE) ||
 	    fchange(ioctl_flags, zfs_flags, FS_APPEND_FL, ZFS_APPENDONLY)) &&
 	    !capable(CAP_LINUX_IMMUTABLE))
-		return (-EACCES);
+		return (-EPERM);
 
-	if (!inode_owner_or_capable(ip))
+	if (!zpl_inode_owner_or_capable(kcred->user_ns, ip))
 		return (-EACCES);
 
 	xva_init(xva);

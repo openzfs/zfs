@@ -69,6 +69,15 @@ static abd_stats_t abd_stats = {
 	{ "linear_data_size",			KSTAT_DATA_UINT64 },
 };
 
+struct {
+	wmsum_t abdstat_struct_size;
+	wmsum_t abdstat_scatter_cnt;
+	wmsum_t abdstat_scatter_data_size;
+	wmsum_t abdstat_scatter_chunk_waste;
+	wmsum_t abdstat_linear_cnt;
+	wmsum_t abdstat_linear_data_size;
+} abd_sums;
+
 /*
  * The size of the chunks ABD allocates. Because the sizes allocated from the
  * kmem_cache can't change, this tunable can only be modified at boot. Changing
@@ -168,8 +177,7 @@ abd_verify_scatter(abd_t *abd)
 	 * if an error if the ABD has been marked as a linear page.
 	 */
 	ASSERT(!abd_is_linear_page(abd));
-	ASSERT3U(ABD_SCATTER(abd).abd_offset, <,
-	    zfs_abd_chunk_size);
+	ASSERT3U(ABD_SCATTER(abd).abd_offset, <, zfs_abd_chunk_size);
 	n = abd_scatter_chunkcnt(abd);
 	for (i = 0; i < n; i++) {
 		ASSERT3P(ABD_SCATTER(abd).abd_chunks[i], !=, NULL);
@@ -272,16 +280,46 @@ abd_free_zero_scatter(void)
 	kmem_free(abd_zero_buf, zfs_abd_chunk_size);
 }
 
+static int
+abd_kstats_update(kstat_t *ksp, int rw)
+{
+	abd_stats_t *as = ksp->ks_data;
+
+	if (rw == KSTAT_WRITE)
+		return (EACCES);
+	as->abdstat_struct_size.value.ui64 =
+	    wmsum_value(&abd_sums.abdstat_struct_size);
+	as->abdstat_scatter_cnt.value.ui64 =
+	    wmsum_value(&abd_sums.abdstat_scatter_cnt);
+	as->abdstat_scatter_data_size.value.ui64 =
+	    wmsum_value(&abd_sums.abdstat_scatter_data_size);
+	as->abdstat_scatter_chunk_waste.value.ui64 =
+	    wmsum_value(&abd_sums.abdstat_scatter_chunk_waste);
+	as->abdstat_linear_cnt.value.ui64 =
+	    wmsum_value(&abd_sums.abdstat_linear_cnt);
+	as->abdstat_linear_data_size.value.ui64 =
+	    wmsum_value(&abd_sums.abdstat_linear_data_size);
+	return (0);
+}
+
 void
 abd_init(void)
 {
 	abd_chunk_cache = kmem_cache_create("abd_chunk", zfs_abd_chunk_size, 0,
 	    NULL, NULL, NULL, NULL, 0, KMC_NODEBUG);
 
+	wmsum_init(&abd_sums.abdstat_struct_size, 0);
+	wmsum_init(&abd_sums.abdstat_scatter_cnt, 0);
+	wmsum_init(&abd_sums.abdstat_scatter_data_size, 0);
+	wmsum_init(&abd_sums.abdstat_scatter_chunk_waste, 0);
+	wmsum_init(&abd_sums.abdstat_linear_cnt, 0);
+	wmsum_init(&abd_sums.abdstat_linear_data_size, 0);
+
 	abd_ksp = kstat_create("zfs", 0, "abdstats", "misc", KSTAT_TYPE_NAMED,
 	    sizeof (abd_stats) / sizeof (kstat_named_t), KSTAT_FLAG_VIRTUAL);
 	if (abd_ksp != NULL) {
 		abd_ksp->ks_data = &abd_stats;
+		abd_ksp->ks_update = abd_kstats_update;
 		kstat_install(abd_ksp);
 	}
 
@@ -298,6 +336,13 @@ abd_fini(void)
 		abd_ksp = NULL;
 	}
 
+	wmsum_fini(&abd_sums.abdstat_struct_size);
+	wmsum_fini(&abd_sums.abdstat_scatter_cnt);
+	wmsum_fini(&abd_sums.abdstat_scatter_data_size);
+	wmsum_fini(&abd_sums.abdstat_scatter_chunk_waste);
+	wmsum_fini(&abd_sums.abdstat_linear_cnt);
+	wmsum_fini(&abd_sums.abdstat_linear_data_size);
+
 	kmem_cache_destroy(abd_chunk_cache);
 	abd_chunk_cache = NULL;
 }
@@ -306,7 +351,7 @@ void
 abd_free_linear_page(abd_t *abd)
 {
 	/*
-	 * FreeBSD does not have have scatter linear pages
+	 * FreeBSD does not have scatter linear pages
 	 * so there is an error.
 	 */
 	VERIFY(0);
@@ -326,25 +371,6 @@ abd_t *
 abd_alloc_for_io(size_t size, boolean_t is_metadata)
 {
 	return (abd_alloc_linear(size, is_metadata));
-}
-
-/*
- * This is just a helper function to abd_get_offset_scatter() to alloc a
- * scatter ABD using the calculated chunkcnt based on the offset within the
- * parent ABD.
- */
-static abd_t *
-abd_alloc_scatter_offset_chunkcnt(size_t chunkcnt)
-{
-	size_t abd_size = offsetof(abd_t,
-	    abd_u.abd_scatter.abd_chunks[chunkcnt]);
-	abd_t *abd = kmem_alloc(abd_size, KM_PUSHPAGE);
-	ASSERT3P(abd, !=, NULL);
-	list_link_init(&abd->abd_gang_link);
-	mutex_init(&abd->abd_mtx, NULL, MUTEX_DEFAULT, NULL);
-	ABDSTAT_INCR(abdstat_struct_size, abd_size);
-
-	return (abd);
 }
 
 abd_t *

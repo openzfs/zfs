@@ -18,7 +18,6 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
 .\" Copyright (c) 2011, 2019 by Delphix. All rights reserved.
@@ -33,28 +32,30 @@
 .Dd December 1, 2020
 .Dt ZFS-CREATE 8
 .Os
+.
 .Sh NAME
 .Nm zfs-create
-.Nd Creates a new ZFS file system.
+.Nd create ZFS dataset
 .Sh SYNOPSIS
 .Nm zfs
 .Cm create
 .Op Fl Pnpuv
-.Oo Fl o Ar property Ns = Ns Ar value Oc Ns ...
+.Oo Fl o Ar property Ns = Ns Ar value Oc Ns …
 .Ar filesystem
 .Nm zfs
 .Cm create
 .Op Fl ps
 .Op Fl b Ar blocksize
-.Oo Fl o Ar property Ns = Ns Ar value Oc Ns ...
+.Oo Fl o Ar property Ns = Ns Ar value Oc Ns …
 .Fl V Ar size Ar volume
+.
 .Sh DESCRIPTION
 .Bl -tag -width ""
 .It Xo
 .Nm zfs
 .Cm create
 .Op Fl Pnpuv
-.Oo Fl o Ar property Ns = Ns Ar value Oc Ns ...
+.Oo Fl o Ar property Ns = Ns Ar value Oc Ns …
 .Ar filesystem
 .Xc
 Creates a new ZFS file system.
@@ -134,7 +135,7 @@ Print verbose information about the created dataset.
 .Cm create
 .Op Fl ps
 .Op Fl b Ar blocksize
-.Oo Fl o Ar property Ns = Ns Ar value Oc Ns ...
+.Oo Fl o Ar property Ns = Ns Ar value Oc Ns …
 .Fl V Ar size Ar volume
 .Xc
 Creates a volume of the given size.
@@ -183,7 +184,7 @@ See
 in the
 .Em Native Properties
 section of
-.Xr zfsprops 8
+.Xr zfsprops 7
 for more information about sparse volumes.
 .It Fl n
 Do a dry-run
@@ -234,14 +235,14 @@ Print verbose information about the created dataset.
 .El
 .El
 .Ss ZFS Volumes as Swap
-ZFS volumes may be used as swap devices. After creating the volume with the
+ZFS volumes may be used as swap devices.
+After creating the volume with the
 .Nm zfs Cm create Fl V
-command set up and enable the swap area using the
-.Xr mkswap 8
-and
+enable the swap area using the
 .Xr swapon 8
-commands. Do not swap to a file on a ZFS file system. A ZFS swap file
-configuration is not supported.
+command.
+Swapping to files on ZFS filesystems is not supported.
+.
 .Sh SEE ALSO
 .Xr zfs-destroy 8 ,
 .Xr zfs-list 8 ,

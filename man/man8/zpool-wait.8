@@ -27,31 +27,23 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd February 25, 2020
+.Dd May 27, 2021
 .Dt ZPOOL-WAIT 8
 .Os
+.
 .Sh NAME
 .Nm zpool-wait
-.Nd Wait for background activity to stop in a ZFS storage pool
+.Nd wait for activity to stop in a ZFS storage pool
 .Sh SYNOPSIS
 .Nm zpool
 .Cm wait
 .Op Fl Hp
 .Op Fl T Sy u Ns | Ns Sy d
-.Op Fl t Ar activity Ns Oo , Ns Ar activity Ns Oc Ns ...
+.Op Fl t Ar activity Ns Oo , Ns Ar activity Ns Oc Ns …
 .Ar pool
 .Op Ar interval
+.
 .Sh DESCRIPTION
-.Bl -tag -width Ds
-.It Xo
-.Nm zpool
-.Cm wait
-.Op Fl Hp
-.Op Fl T Sy u Ns | Ns Sy d
-.Op Fl t Ar activity Ns Oo , Ns Ar activity Ns Oc Ns ...
-.Ar pool
-.Op Ar interval
-.Xc
 Waits until all background activity of the given types has ceased in the given
 pool.
 The activity could cease because it has completed, or because it has been
@@ -65,16 +57,26 @@ immediately.
 These are the possible values for
 .Ar activity ,
 along with what each one waits for:
-.Bd -literal
-        discard       Checkpoint to be discarded
-        free          'freeing' property to become 0
-        initialize    All initializations to cease
-        replace       All device replacements to cease
-        remove        Device removal to cease
-        resilver      Resilver to cease
-        scrub         Scrub to cease
-        trim          Manual trim to cease
-.Ed
+.Bl -tag -compact -offset Ds -width "initialize"
+.It Sy discard
+Checkpoint to be discarded
+.It Sy free
+.Sy freeing
+property to become
+.Sy 0
+.It Sy initialize
+All initializations to cease
+.It Sy replace
+All device replacements to cease
+.It Sy remove
+Device removal to cease
+.It Sy resilver
+Resilver to cease
+.It Sy scrub
+Scrub to cease
+.It Sy trim
+Manual trim to cease
+.El
 .Pp
 If an
 .Ar interval
@@ -102,13 +104,13 @@ for standard date format.
 See
 .Xr date 1 .
 .El
-.El
+.
 .Sh SEE ALSO
-.Xr zpool-status 8 ,
 .Xr zpool-checkpoint 8 ,
 .Xr zpool-initialize 8 ,
-.Xr zpool-replace 8 ,
 .Xr zpool-remove 8 ,
+.Xr zpool-replace 8 ,
 .Xr zpool-resilver 8 ,
 .Xr zpool-scrub 8 ,
+.Xr zpool-status 8 ,
 .Xr zpool-trim 8

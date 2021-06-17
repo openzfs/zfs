@@ -18,7 +18,6 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
 .\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
@@ -27,27 +26,21 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd August 9, 2019
+.Dd May 27, 2021
 .Dt ZPOOL-SCRUB 8
 .Os
+.
 .Sh NAME
 .Nm zpool-scrub
-.Nd Begin a scrub or resume a paused scrub of a ZFS storage pool
+.Nd begin or resume scrub of ZFS storage pools
 .Sh SYNOPSIS
 .Nm zpool
 .Cm scrub
-.Op Fl s | Fl p
+.Op Fl s Ns | Ns Fl p
 .Op Fl w
-.Ar pool Ns ...
+.Ar pool Ns …
+.
 .Sh DESCRIPTION
-.Bl -tag -width Ds
-.It Xo
-.Nm zpool
-.Cm scrub
-.Op Fl s | Fl p
-.Op Fl w
-.Ar pool Ns ...
-.Xc
 Begins a scrub or resumes a paused scrub.
 The scrub examines all data in the specified pools to verify that it checksums
 correctly.
@@ -78,13 +71,13 @@ If a resilver is in progress, ZFS does not allow a scrub to be started until the
 resilver completes.
 .Pp
 Note that, due to changes in pool data on a live system, it is possible for
-scrubs to progress slightly beyond 100% completion. During this period, no
-completion time estimate will be provided.
-.Bl -tag -width Ds
+scrubs to progress slightly beyond 100% completion.
+During this period, no completion time estimate will be provided.
+.
+.Sh OPTIONS
+.Bl -tag -width "-s"
 .It Fl s
 Stop scrubbing.
-.El
-.Bl -tag -width Ds
 .It Fl p
 Pause scrubbing.
 Scrub pause state and progress are periodically synced to disk.
@@ -98,7 +91,7 @@ again.
 .It Fl w
 Wait until scrub has completed before returning.
 .El
-.El
+.
 .Sh SEE ALSO
 .Xr zpool-iostat 8 ,
 .Xr zpool-resilver 8 ,

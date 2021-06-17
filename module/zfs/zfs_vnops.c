@@ -34,7 +34,7 @@
 #include <sys/time.h>
 #include <sys/sysmacros.h>
 #include <sys/vfs.h>
-#include <sys/uio.h>
+#include <sys/uio_impl.h>
 #include <sys/file.h>
 #include <sys/stat.h>
 #include <sys/kmem.h>
@@ -350,9 +350,11 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	}
 
 	/*
-	 * If immutable or not appending then return EPERM
+	 * If immutable or not appending then return EPERM.
+	 * Intentionally allow ZFS_READONLY through here.
+	 * See zfs_zaccess_common()
 	 */
-	if ((zp->z_pflags & (ZFS_IMMUTABLE | ZFS_READONLY)) ||
+	if ((zp->z_pflags & ZFS_IMMUTABLE) ||
 	    ((zp->z_pflags & ZFS_APPENDONLY) && !(ioflag & O_APPEND) &&
 	    (zfs_uio_offset(uio) < zp->z_size))) {
 		ZFS_EXIT(zfsvfs);
@@ -738,7 +740,8 @@ static void zfs_get_done(zgd_t *zgd, int error);
  * Get data to generate a TX_WRITE intent log record.
  */
 int
-zfs_get_data(void *arg, lr_write_t *lr, char *buf, struct lwb *lwb, zio_t *zio)
+zfs_get_data(void *arg, uint64_t gen, lr_write_t *lr, char *buf,
+    struct lwb *lwb, zio_t *zio)
 {
 	zfsvfs_t *zfsvfs = arg;
 	objset_t *os = zfsvfs->z_os;
@@ -749,6 +752,7 @@ zfs_get_data(void *arg, lr_write_t *lr, char *buf, struct lwb *lwb, zio_t *zio)
 	dmu_buf_t *db;
 	zgd_t *zgd;
 	int error = 0;
+	uint64_t zp_gen;
 
 	ASSERT3P(lwb, !=, NULL);
 	ASSERT3P(zio, !=, NULL);
@@ -764,6 +768,16 @@ zfs_get_data(void *arg, lr_write_t *lr, char *buf, struct lwb *lwb, zio_t *zio)
 		 * Release the vnode asynchronously as we currently have the
 		 * txg stopped from syncing.
 		 */
+		zfs_zrele_async(zp);
+		return (SET_ERROR(ENOENT));
+	}
+	/* check if generation number matches */
+	if (sa_lookup(zp->z_sa_hdl, SA_ZPL_GEN(zfsvfs), &zp_gen,
+	    sizeof (zp_gen)) != 0) {
+		zfs_zrele_async(zp);
+		return (SET_ERROR(EIO));
+	}
+	if (zp_gen != gen) {
 		zfs_zrele_async(zp);
 		return (SET_ERROR(ENOENT));
 	}

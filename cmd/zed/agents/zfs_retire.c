@@ -38,6 +38,7 @@
 #include <sys/fs/zfs.h>
 #include <sys/fm/protocol.h>
 #include <sys/fm/fs/zfs.h>
+#include <libzutil.h>
 #include <libzfs.h>
 #include <string.h>
 
@@ -240,7 +241,7 @@ replace_with_spare(fmd_hdl_t *hdl, zpool_handle_t *zhp, nvlist_t *vdev)
 		    ZPOOL_CONFIG_CHILDREN, &spares[s], 1);
 
 		fmd_hdl_debug(hdl, "zpool_vdev_replace '%s' with spare '%s'",
-		    dev_name, basename(spare_name));
+		    dev_name, zfs_basename(spare_name));
 
 		if (zpool_vdev_attach(zhp, dev_name, spare_name,
 		    replacement, B_TRUE, rebuild) == 0) {

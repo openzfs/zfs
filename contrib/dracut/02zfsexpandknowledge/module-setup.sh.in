@@ -14,22 +14,16 @@ get_pool_devices() {
   local poolconfigtemp
   local poolconfigoutput
   local pooldev
-  local prefix
   local resolved
-  poolconfigtemp=`mktemp`
-  @sbindir@/zpool list -v -H -P "$1" > "$poolconfigtemp" 2>&1
-  if [ "$?" != "0" ] ; then
-    poolconfigoutput=$(cat "$poolconfigtemp")
+  poolconfigtemp="$(mktemp)"
+  if ! @sbindir@/zpool list -v -H -P "$1" > "$poolconfigtemp" 2>&1 ; then
+    poolconfigoutput="$(cat "$poolconfigtemp")"
     dinfo "zfsexpandknowledge: pool $1 cannot be listed: $poolconfigoutput"
   else
-    cat "$poolconfigtemp" |  awk -F '\t' '/\t\/dev/ { print $2 }' | \
-    while read pooldev ; do
-        if [ -n "$pooldev" -a -e "$pooldev" ] ; then
-          if [ -h "$pooldev" ] ; then
-              resolved=`readlink -f "$pooldev"`
-          else
-              resolved="$pooldev"
-          fi
+    awk -F '\t' '/\t\/dev/ { print $2 }' "$poolconfigtemp" | \
+    while read -r pooldev ; do
+        if [ -e "$pooldev" ] ; then
+          resolved="$(readlink -f "$pooldev")"
           dinfo "zfsexpandknowledge: pool $1 has device $pooldev (which resolves to $resolved)"
           echo "$resolved"
         fi
@@ -40,22 +34,20 @@ get_pool_devices() {
 
 find_zfs_block_devices() {
     local dev
-    local blockdev
     local mp
     local fstype
     local pool
-    local key
-    local n
-    local poolconfigoutput
-    numfields=`head -1 /proc/self/mountinfo | awk '{print NF}'`
-    if [ "$numfields" == "10" ] ; then
-        fields="n n n n mp n n fstype dev n"
+    local _
+    numfields="$(awk '{print NF; exit}' /proc/self/mountinfo)"
+    if [ "$numfields" = "10" ] ; then
+        fields="_ _ _ _ mp _ _ fstype dev _"
     else
-        fields="n n n n mp n n n fstype dev n"
+        fields="_ _ _ _ mp _ _ _ fstype dev _"
     fi
-    while read $fields ; do
-       if [ "$fstype" != "zfs" ]; then continue ; fi
-       if [ "$mp" == "$1" ]; then
+    # shellcheck disable=SC2086
+    while read -r ${fields?} ; do
+       [ "$fstype" = "zfs" ] || continue
+       if [ "$mp" = "$1" ]; then
            pool=$(echo "$dev" | cut -d / -f 1)
            get_pool_devices "$pool"
        fi
@@ -77,10 +69,9 @@ check() {
     local _depdev
     local _depdevname
     local _depdevtype
-    local _depmajmin
-    local _dev
 
-if [[ $hostonly ]]; then
+# shellcheck disable=SC2154
+if [ -n "$hostonly" ]; then
 
     for mp in \
         "/" \
@@ -100,21 +91,20 @@ if [[ $hostonly ]]; then
         mountpoint "$mp" >/dev/null 2>&1 || continue
         blockdevs=$(find_zfs_block_devices "$mp")
         if [ -z "$blockdevs" ] ; then continue ; fi
-        dinfo "zfsexpandknowledge: block devices backing ZFS dataset $mp: $blockdevs"
+        dinfo "zfsexpandknowledge: block devices backing ZFS dataset $mp: ${blockdevs//$'\n'/ }"
         for dev in $blockdevs
         do
             array_contains "$dev" "${host_devs[@]}" || host_devs+=("$dev")
             fstype=$(get_devtype "$dev")
             host_fs_types["$dev"]="$fstype"
             majmin=$(get_maj_min "$dev")
-            if [[ -d /sys/dev/block/$majmin/slaves ]] ; then
-                for _depdev in /sys/dev/block/$majmin/slaves/*; do
+            if [ -d "/sys/dev/block/$majmin/slaves" ] ; then
+                for _depdev in "/sys/dev/block/$majmin/slaves"/*; do
                     [[ -f $_depdev/dev ]] || continue
                     _depdev=/dev/$(basename "$_depdev")
                     _depdevname=$(udevadm info --query=property --name="$_depdev" | grep "^DEVNAME=" | sed 's|^DEVNAME=||')
                     _depdevtype=$(get_devtype "$_depdevname")
-                    _depmajmin=$(get_maj_min "$_depdevname")
-                    dinfo "zfsexpandknowledge: underlying block device backing ZFS dataset $mp: $_depdevname"
+                    dinfo "zfsexpandknowledge: underlying block device backing ZFS dataset $mp: ${_depdevname//$'\n'/ }"
                     array_contains "$_depdevname" "${host_devs[@]}" || host_devs+=("$_depdevname")
                     host_fs_types["$_depdevname"]="$_depdevtype"
                 done

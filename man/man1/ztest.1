@@ -1,4 +1,3 @@
-'\" t
 .\"
 .\" CDDL HEADER START
 .\"
@@ -19,178 +18,216 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright (c) 2009 Oracle and/or its affiliates. All rights reserved.
 .\" Copyright (c) 2009 Michael Gebetsroither <michael.geb@gmx.at>. All rights
 .\" reserved.
 .\" Copyright (c) 2017, Intel Corporation.
 .\"
-.TH ZTEST 1 "Aug 24, 2020" OpenZFS
-
-.SH NAME
-\fBztest\fR \- was written by the ZFS Developers as a ZFS unit test.
-.SH SYNOPSIS
-.LP
-.BI "ztest <options>"
-.SH DESCRIPTION
-.LP
-This manual page documents briefly the \fBztest\fR command.
-.LP
-\fBztest\fR was written by the ZFS Developers as a ZFS unit test. The
-tool was developed in tandem with the ZFS functionality and was
-executed nightly as one of the many regression test against the daily
-build. As features were added to ZFS, unit tests were also added to
-\fBztest\fR.  In addition, a separate test development team wrote and
+.Dd May 26, 2021
+.Dt ZTEST 1
+.Os
+.
+.Sh NAME
+.Nm ztest
+.Nd was written by the ZFS Developers as a ZFS unit test
+.Sh SYNOPSIS
+.Nm
+.Op Fl VEG
+.Op Fl v Ar vdevs
+.Op Fl s Ar size_of_each_vdev
+.Op Fl a Ar alignment_shift
+.Op Fl m Ar mirror_copies
+.Op Fl r Ar raidz_disks/draid_disks
+.Op Fl R Ar raid_parity
+.Op Fl K Ar raid_kind
+.Op Fl D Ar draid_data
+.Op Fl S Ar draid_spares
+.Op Fl C Ar vdev_class_state
+.Op Fl d Ar datasets
+.Op Fl t Ar threads
+.Op Fl g Ar gang_block_threshold
+.Op Fl i Ar initialize_pool_i_times
+.Op Fl k Ar kill_percentage
+.Op Fl p Ar pool_name
+.Op Fl T Ar time
+.Op Fl z Ar zil_failure_rate
+.
+.Sh DESCRIPTION
+.Nm
+was written by the ZFS Developers as a ZFS unit test.
+The tool was developed in tandem with the ZFS functionality and was
+executed nightly as one of the many regression test against the daily build.
+As features were added to ZFS, unit tests were also added to
+.Nm .
+In addition, a separate test development team wrote and
 executed more functional and stress tests.
-.LP
-By default \fBztest\fR runs for ten minutes and uses block files
-(stored in /tmp) to create pools rather than using physical disks.
-Block files afford \fBztest\fR its flexibility to play around with
+.
+.Pp
+By default
+.Nm
+runs for ten minutes and uses block files
+(stored in
+.Pa /tmp )
+to create pools rather than using physical disks.
+Block files afford
+.Nm
+its flexibility to play around with
 zpool components without requiring large hardware configurations.
-However, storing the block files in /tmp may not work for you if you
+However, storing the block files in
+.Pa /tmp
+may not work for you if you
 have a small tmp directory.
-.LP
-By default is non-verbose. This is why entering the command above will
-result in \fBztest\fR quietly executing for 5 minutes. The -V option
-can be used to increase the verbosity of the tool. Adding multiple -V
-option is allowed and the more you add the more chatty \fBztest\fR
+.
+.Pp
+By default is non-verbose.
+This is why entering the command above will result in
+.Nm
+quietly executing for 5 minutes.
+The
+.Fl V
+option can be used to increase the verbosity of the tool.
+Adding multiple
+.Fl V
+options is allowed and the more you add the more chatty
+.Nm
 becomes.
-.LP
-After the \fBztest\fR run completes, you should notice many ztest.*
-files lying around. Once the run completes you can safely remove these
-files. Note that you shouldn't remove these files during a run. You
-can re-use these files in your next \fBztest\fR run by using the -E
+.
+.Pp
+After the
+.Nm
+run completes, you should notice many
+.Pa ztest.*
+files lying around.
+Once the run completes you can safely remove these files.
+Note that you shouldn't remove these files during a run.
+You can re-use these files in your next
+.Nm
+run by using the
+.Fl E
 option.
-.SH OPTIONS
-.HP
-.BI "\-?" ""
-.IP
+.
+.Sh OPTIONS
+.Bl -tag -width "-v v"
+.It Fl h , \&? , -help
 Print a help summary.
-.HP
-.BI "\-v" " vdevs" " (default: 5)
-.IP
+.It Fl v , -vdevs Ns = (default: Sy 5 )
 Number of vdevs.
-.HP
-.BI "\-s" " size_of_each_vdev" " (default: 64M)"
-.IP
+.It Fl s , -vdev-size Ns = (default: Sy 64M )
 Size of each vdev.
-.HP
-.BI "\-a" " alignment_shift" " (default: 9) (use 0 for random)"
-.IP
-Used alignment in test.
-.HP
-.BI "\-m" " mirror_copies" " (default: 2)"
-.IP
+.It Fl a , -alignment-shift Ns = (default: Sy 9 ) No (use Sy 0 No for random)
+Alignment shift used in test.
+.It Fl m , -mirror-copies Ns = (default: Sy 2 )
 Number of mirror copies.
-.HP
-.BI "\-r" " raidz_disks / draid_disks" " (default: 4 / 16)"
-.IP
-Number of raidz disks.
-.HP
-.BI "\-R" " raid_parity" " (default: 1)"
-.IP
+.It Fl r , -raid-disks Ns = (default: Sy 4 No for raidz/ Ns Sy 16 No for draid)
+Number of raidz/draid disks.
+.It Fl R , -raid-parity Ns = (default: Sy 1 )
 Raid parity (raidz & draid).
-.HP
-.BI "\-K" " raid_kind" " (default: 'random') raidz|draid|random"
-.IP
-The kind of RAID config to use. With 'random' the kind alternates between raidz and draid.
-.HP
-.BI "\-D" " draid_data" " (default: 4)"
-.IP
+.It Fl K , -raid-kind Ns = Ns Sy raidz Ns | Ns Sy draid Ns | Ns Sy random No (default: Sy random )
+The kind of RAID config to use.
+With
+.Sy random
+the kind alternates between raidz and draid.
+.It Fl D , -draid-data Ns = (default: Sy 4 )
 Number of data disks in a dRAID redundancy group.
-.HP
-.BI "\-S" " draid_spares" " (default: 1)"
-.IP
+.It Fl S , -draid-spares Ns = (default: Sy 1 )
 Number of dRAID distributed spare disks.
-.HP
-.BI "\-C" " vdev_class_state" " (default: random)"
-.IP
-The vdev allocation class state: special=on|off|random.
-.HP
-.BI "\-d" " datasets" " (default: 7)"
-.IP
+.It Fl d , -datasets Ns = (default: Sy 7 )
 Number of datasets.
-.HP
-.BI "\-t" " threads" " (default: 23)"
-.IP
+.It Fl t , -threads Ns = (default: Sy 23 )
 Number of threads.
-.HP
-.BI "\-g" " gang_block_threshold" " (default: 32K)"
-.IP
+.It Fl g , -gang-block-threshold Ns = (default: Sy 32K )
 Gang block threshold.
-.HP
-.BI "\-i" " initialize_pool_i_times" " (default: 1)"
-.IP
-Number of pool initialisations.
-.HP
-.BI "\-k" " kill_percentage" " (default: 70%)"
-.IP
+.It Fl i , -init-count Ns = (default: Sy 1 )
+Number of pool initializations.
+.It Fl k , -kill-percentage Ns = (default: Sy 70% )
 Kill percentage.
-.HP
-.BI "\-p" " pool_name" " (default: ztest)"
-.IP
+.It Fl p , -pool-name Ns = (default: Sy ztest )
 Pool name.
-.HP
-.BI "\-V(erbose)"
-.IP
-Verbose (use multiple times for ever more blather).
-.HP
-.BI "\-E(xisting)"
-.IP
+.It Fl f , -vdev-file-directory Ns = (default: Pa /tmp )
+File directory for vdev files.
+.It Fl M , -multi-host
+Multi-host; simulate pool imported on remote host.
+.It Fl E , -use-existing-pool
 Use existing pool (use existing pool instead of creating new one).
-.HP
-.BI "\-T" " time" " (default: 300 sec)"
-.IP
+.It Fl T , -run-time Ns = (default: Sy 300 Ns s)
 Total test run time.
-.HP
-.BI "\-z" " zil_failure_rate" " (default: fail every 2^5 allocs)
-.IP
-Injected failure rate.
-.HP
-.BI "\-G"
-.IP
-Dump zfs_dbgmsg buffer before exiting.
-.SH "EXAMPLES"
-.LP
-To override /tmp as your location for block files, you can use the -f
+.It Fl P , -pass-time Ns = (default: Sy 60 Ns s)
+Time per pass.
+.It Fl F , -freeze-loops Ns = (default: Sy 50 )
+Max loops in
+.Fn spa_freeze .
+.It Fl B , -alt-ztest Ns =
+Alternate ztest path.
+.It Fl C , -vdev-class-state Ns = Ns Sy on Ns | Ns Sy off Ns | Ns Sy random No (default: Sy random )
+The vdev allocation class state.
+.It Fl o , -option Ns = Ns Ar variable Ns = Ns Ar value
+Set global
+.Ar variable
+to an unsigned 32-bit integer
+.Ar value
+(little-endian only).
+.It Fl G , -dump-debug
+Dump zfs_dbgmsg buffer before exiting due to an error.
+.It Fl V , -verbose
+Verbose (use multiple times for ever more verbosity).
+.El
+.
+.Sh EXAMPLES
+To override
+.Pa /tmp
+as your location for block files, you can use the
+.Fl f
 option:
-.IP
-ztest -f /
-.LP
-To get an idea of what ztest is actually testing try this:
-.IP
-ztest -f / -VVV
-.LP
-Maybe you'd like to run ztest for longer? To do so simply use the -T
+.Dl # ztest -f /
+.Pp
+To get an idea of what
+.Nm
+is actually testing try this:
+.Dl # ztest -f / -VVV
+.Pp
+Maybe you'd like to run
+.Nm ztest
+for longer? To do so simply use the
+.Fl T
 option and specify the runlength in seconds like so:
-.IP
-ztest -f / -V -T 120
-
-.SH "ENVIRONMENT VARIABLES"
-.TP
-.B "ZFS_HOSTID=id"
-Use \fBid\fR instead of the SPL hostid to identify this host.  Intended for use
-with ztest, but this environment variable will affect any utility which uses
-libzpool, including \fBzpool(8)\fR.  Since the kernel is unaware of this setting
+.Dl # ztest -f / -V -T 120
+.
+.Sh ENVIRONMENT VARIABLES
+.Bl -tag -width "ZF"
+.It Ev ZFS_HOSTID Ns = Ns Em id
+Use
+.Em id
+instead of the SPL hostid to identify this host.
+Intended for use with
+.Nm , but this environment variable will affect any utility which uses
+libzpool, including
+.Xr zpool 8 .
+Since the kernel is unaware of this setting,
 results with utilities other than ztest are undefined.
-.TP
-.B "ZFS_STACK_SIZE=stacksize"
-Limit the default stack size to \fBstacksize\fR bytes for the purpose of
-detecting and debugging kernel stack overflows.  This value defaults to
-\fB32K\fR which is double the default \fB16K\fR Linux kernel stack size.
-
+.It Ev ZFS_STACK_SIZE Ns = Ns Em stacksize
+Limit the default stack size to
+.Em stacksize
+bytes for the purpose of
+detecting and debugging kernel stack overflows.
+This value defaults to
+.Em 32K
+which is double the default
+.Em 16K
+Linux kernel stack size.
+.Pp
 In practice, setting the stack size slightly higher is needed because
 differences in stack usage between kernel and user space can lead to spurious
-stack overflows (especially when debugging is enabled).  The specified value
+stack overflows (especially when debugging is enabled).
+The specified value
 will be rounded up to a floor of PTHREAD_STACK_MIN which is the minimum stack
 required for a NULL procedure in user space.
-
-By default the stack size is limited to 256K.
-.SH "SEE ALSO"
-.BR "spl-module-parameters (5)" ","
-.BR "zpool (1)" ","
-.BR "zfs (1)" ","
-.BR "zdb (1)" ","
-.SH "AUTHOR"
-This manual page was transferred to asciidoc by Michael Gebetsroither
-<gebi@grml.org> from http://opensolaris.org/os/community/zfs/ztest/
+.Pp
+By default the stack size is limited to
+.Em 256K .
+.El
+.
+.Sh SEE ALSO
+.Xr zdb 1 ,
+.Xr zfs 1 ,
+.Xr zpool 1 ,
+.Xr spl 4

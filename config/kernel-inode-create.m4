@@ -1,7 +1,25 @@
-dnl #
-dnl # 3.6 API change
-dnl #
-AC_DEFUN([ZFS_AC_KERNEL_SRC_CREATE_FLAGS], [
+AC_DEFUN([ZFS_AC_KERNEL_SRC_CREATE], [
+	dnl #
+	dnl # 5.12 API change that added the struct user_namespace* arg
+	dnl # to the front of this function type's arg list.
+	dnl #
+	ZFS_LINUX_TEST_SRC([create_userns], [
+		#include <linux/fs.h>
+		#include <linux/sched.h>
+
+		int inode_create(struct user_namespace *userns,
+		    struct inode *inode ,struct dentry *dentry,
+		    umode_t umode, bool flag) { return 0; }
+
+		static const struct inode_operations
+			iops __attribute__ ((unused)) = {
+			.create		= inode_create,
+		};
+	],[])
+
+	dnl #
+	dnl # 3.6 API change
+	dnl #
 	ZFS_LINUX_TEST_SRC([create_flags], [
 		#include <linux/fs.h>
 		#include <linux/sched.h>
@@ -16,11 +34,20 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_CREATE_FLAGS], [
 	],[])
 ])
 
-AC_DEFUN([ZFS_AC_KERNEL_CREATE_FLAGS], [
-	AC_MSG_CHECKING([whether iops->create() passes flags])
-	ZFS_LINUX_TEST_RESULT([create_flags], [
+AC_DEFUN([ZFS_AC_KERNEL_CREATE], [
+	AC_MSG_CHECKING([whether iops->create() takes struct user_namespace*])
+	ZFS_LINUX_TEST_RESULT([create_userns], [
 		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_IOPS_CREATE_USERNS, 1,
+		   [iops->create() takes struct user_namespace*])
 	],[
-		ZFS_LINUX_TEST_ERROR([iops->create()])
+		AC_MSG_RESULT(no)
+
+		AC_MSG_CHECKING([whether iops->create() passes flags])
+		ZFS_LINUX_TEST_RESULT([create_flags], [
+			AC_MSG_RESULT(yes)
+		],[
+			ZFS_LINUX_TEST_ERROR([iops->create()])
+		])
 	])
 ])

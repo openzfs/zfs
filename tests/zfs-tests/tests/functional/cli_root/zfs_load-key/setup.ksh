@@ -26,7 +26,10 @@
 #
 
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/cli_root/zfs_load-key/zfs_load-key_common.kshlib
 
 DISK=${DISKS%% *}
 
-default_setup $DISK
+default_setup_noexit $DISK
+setup_https
+log_pass

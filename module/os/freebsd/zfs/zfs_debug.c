@@ -42,8 +42,11 @@ kstat_t *zfs_dbgmsg_kstat;
 /*
  * Internal ZFS debug messages are enabled by default.
  *
- * # Print debug messages
+ * # Print debug messages as they're logged
  * dtrace -n 'zfs-dbgmsg { print(stringof(arg0)); }'
+ *
+ * # Print all logged dbgmsg entries
+ * sysctl kstat.zfs.misc.dbgmsg
  *
  * # Disable the kernel debug message log.
  * sysctl vfs.zfs.dbgmsg_enable=0

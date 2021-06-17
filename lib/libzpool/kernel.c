@@ -31,6 +31,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <libzutil.h>
 #include <sys/crypto/icp.h>
 #include <sys/processor.h>
 #include <sys/rrwlock.h>
@@ -144,36 +145,6 @@ kstat_install(kstat_t *ksp)
 /*ARGSUSED*/
 void
 kstat_delete(kstat_t *ksp)
-{}
-
-/*ARGSUSED*/
-void
-kstat_waitq_enter(kstat_io_t *kiop)
-{}
-
-/*ARGSUSED*/
-void
-kstat_waitq_exit(kstat_io_t *kiop)
-{}
-
-/*ARGSUSED*/
-void
-kstat_runq_enter(kstat_io_t *kiop)
-{}
-
-/*ARGSUSED*/
-void
-kstat_runq_exit(kstat_io_t *kiop)
-{}
-
-/*ARGSUSED*/
-void
-kstat_waitq_to_runq(kstat_io_t *kiop)
-{}
-
-/*ARGSUSED*/
-void
-kstat_runq_back_to_waitq(kstat_io_t *kiop)
 {}
 
 void
@@ -571,19 +542,10 @@ void
 __dprintf(boolean_t dprint, const char *file, const char *func,
     int line, const char *fmt, ...)
 {
-	const char *newfile;
+	/* Get rid of annoying "../common/" prefix to filename. */
+	const char *newfile = zfs_basename(file);
+
 	va_list adx;
-
-	/*
-	 * Get rid of annoying "../common/" prefix to filename.
-	 */
-	newfile = strrchr(file, '/');
-	if (newfile != NULL) {
-		newfile = newfile + 1; /* Get rid of leading / */
-	} else {
-		newfile = file;
-	}
-
 	if (dprint) {
 		/* dprintf messages are printed immediately */
 
@@ -723,15 +685,15 @@ lowbit64(uint64_t i)
 	return (__builtin_ffsll(i));
 }
 
-char *random_path = "/dev/random";
-char *urandom_path = "/dev/urandom";
+const char *random_path = "/dev/random";
+const char *urandom_path = "/dev/urandom";
 static int random_fd = -1, urandom_fd = -1;
 
 void
 random_init(void)
 {
-	VERIFY((random_fd = open(random_path, O_RDONLY)) != -1);
-	VERIFY((urandom_fd = open(urandom_path, O_RDONLY)) != -1);
+	VERIFY((random_fd = open(random_path, O_RDONLY | O_CLOEXEC)) != -1);
+	VERIFY((urandom_fd = open(urandom_path, O_RDONLY | O_CLOEXEC)) != -1);
 }
 
 void
@@ -1070,7 +1032,7 @@ zfs_file_open(const char *path, int flags, int mode, zfs_file_t **fpp)
 
 	if (vn_dumpdir != NULL) {
 		char *dumppath = umem_zalloc(MAXPATHLEN, UMEM_NOFAIL);
-		char *inpath = basename((char *)(uintptr_t)path);
+		const char *inpath = zfs_basename(path);
 
 		(void) snprintf(dumppath, MAXPATHLEN,
 		    "%s/%s", vn_dumpdir, inpath);

@@ -550,54 +550,6 @@ spa_tx_assign_add_nsecs(spa_t *spa, uint64_t nsecs)
 
 /*
  * ==========================================================================
- * SPA IO History Routines
- * ==========================================================================
- */
-static int
-spa_io_history_update(kstat_t *ksp, int rw)
-{
-	if (rw == KSTAT_WRITE)
-		memset(ksp->ks_data, 0, ksp->ks_data_size);
-
-	return (0);
-}
-
-static void
-spa_io_history_init(spa_t *spa)
-{
-	spa_history_kstat_t *shk = &spa->spa_stats.io_history;
-	char *name;
-	kstat_t *ksp;
-
-	mutex_init(&shk->lock, NULL, MUTEX_DEFAULT, NULL);
-
-	name = kmem_asprintf("zfs/%s", spa_name(spa));
-
-	ksp = kstat_create(name, 0, "io", "disk", KSTAT_TYPE_IO, 1, 0);
-	shk->kstat = ksp;
-
-	if (ksp) {
-		ksp->ks_lock = &shk->lock;
-		ksp->ks_private = spa;
-		ksp->ks_update = spa_io_history_update;
-		kstat_install(ksp);
-	}
-	kmem_strfree(name);
-}
-
-static void
-spa_io_history_destroy(spa_t *spa)
-{
-	spa_history_kstat_t *shk = &spa->spa_stats.io_history;
-
-	if (shk->kstat)
-		kstat_delete(shk->kstat);
-
-	mutex_destroy(&shk->lock);
-}
-
-/*
- * ==========================================================================
  * SPA MMP History Routines
  * ==========================================================================
  */
@@ -996,7 +948,6 @@ spa_stats_init(spa_t *spa)
 	spa_read_history_init(spa);
 	spa_txg_history_init(spa);
 	spa_tx_assign_init(spa);
-	spa_io_history_init(spa);
 	spa_mmp_history_init(spa);
 	spa_state_init(spa);
 	spa_iostats_init(spa);
@@ -1010,7 +961,6 @@ spa_stats_destroy(spa_t *spa)
 	spa_tx_assign_destroy(spa);
 	spa_txg_history_destroy(spa);
 	spa_read_history_destroy(spa);
-	spa_io_history_destroy(spa);
 	spa_mmp_history_destroy(spa);
 }
 

@@ -337,7 +337,7 @@ Q256(size_t bitlen, const uint32_t *data, uint32_t *restrict p)
  *
  * Checksum functions like this one can go over the stack frame size check
  * Linux imposes on 32-bit platforms (-Wframe-larger-than=1024).  We can
- * safely ignore the compiler error since we know that in ZoL, that
+ * safely ignore the compiler error since we know that in OpenZFS, that
  * the function will be called from a worker thread that won't be using
  * much stack.  The only function that goes over the 1k limit is Q512(),
  * which only goes over it by a hair (1248 bytes on ARM32).

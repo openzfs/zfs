@@ -36,7 +36,7 @@
 #include <unistd.h>
 #include <sys/vdev_impl.h>
 #include <libzfs.h>
-#include <libzfs_impl.h>
+#include "libzfs_impl.h"
 #include <libzutil.h>
 #include <sys/arc_impl.h>
 

@@ -124,6 +124,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <getopt.h>
 #include <signal.h>
 #include <umem.h>
 #include <ctype.h>
@@ -133,7 +134,7 @@
 #include <libnvpair.h>
 #include <libzutil.h>
 #include <sys/crypto/icp.h>
-#ifdef __GLIBC__
+#if (__GLIBC__ && !__UCLIBC__)
 #include <execinfo.h> /* for backtrace() */
 #endif
 
@@ -157,6 +158,9 @@ enum ztest_class_state {
 	ZTEST_VDEV_CLASS_ON,
 	ZTEST_VDEV_CLASS_RND
 };
+
+#define	ZO_GVARS_MAX_ARGLEN	((size_t)64)
+#define	ZO_GVARS_MAX_COUNT	((size_t)10)
 
 typedef struct ztest_shared_opts {
 	char zo_pool[ZFS_MAX_DATASET_NAME_LEN];
@@ -185,33 +189,64 @@ typedef struct ztest_shared_opts {
 	int zo_mmp_test;
 	int zo_special_vdevs;
 	int zo_dump_dbgmsg;
+	int zo_gvars_count;
+	char zo_gvars[ZO_GVARS_MAX_COUNT][ZO_GVARS_MAX_ARGLEN];
 } ztest_shared_opts_t;
 
+/* Default values for command line options. */
+#define	DEFAULT_POOL "ztest"
+#define	DEFAULT_VDEV_DIR "/tmp"
+#define	DEFAULT_VDEV_COUNT 5
+#define	DEFAULT_VDEV_SIZE (SPA_MINDEVSIZE * 4)	/* 256m default size */
+#define	DEFAULT_VDEV_SIZE_STR "256M"
+#define	DEFAULT_ASHIFT SPA_MINBLOCKSHIFT
+#define	DEFAULT_MIRRORS 2
+#define	DEFAULT_RAID_CHILDREN 4
+#define	DEFAULT_RAID_PARITY 1
+#define	DEFAULT_DRAID_DATA 4
+#define	DEFAULT_DRAID_SPARES 1
+#define	DEFAULT_DATASETS_COUNT 7
+#define	DEFAULT_THREADS 23
+#define	DEFAULT_RUN_TIME 300 /* 300 seconds */
+#define	DEFAULT_RUN_TIME_STR "300 sec"
+#define	DEFAULT_PASS_TIME 60 /* 60 seconds */
+#define	DEFAULT_PASS_TIME_STR "60 sec"
+#define	DEFAULT_KILL_RATE 70 /* 70% kill rate */
+#define	DEFAULT_KILLRATE_STR "70%"
+#define	DEFAULT_INITS 1
+#define	DEFAULT_MAX_LOOPS 50 /* 5 minutes */
+#define	DEFAULT_FORCE_GANGING (64 << 10)
+#define	DEFAULT_FORCE_GANGING_STR "64K"
+
+/* Simplifying assumption: -1 is not a valid default. */
+#define	NO_DEFAULT -1
+
 static const ztest_shared_opts_t ztest_opts_defaults = {
-	.zo_pool = "ztest",
-	.zo_dir = "/tmp",
+	.zo_pool = DEFAULT_POOL,
+	.zo_dir = DEFAULT_VDEV_DIR,
 	.zo_alt_ztest = { '\0' },
 	.zo_alt_libpath = { '\0' },
-	.zo_vdevs = 5,
-	.zo_ashift = SPA_MINBLOCKSHIFT,
-	.zo_mirrors = 2,
-	.zo_raid_children = 4,
-	.zo_raid_parity = 1,
+	.zo_vdevs = DEFAULT_VDEV_COUNT,
+	.zo_ashift = DEFAULT_ASHIFT,
+	.zo_mirrors = DEFAULT_MIRRORS,
+	.zo_raid_children = DEFAULT_RAID_CHILDREN,
+	.zo_raid_parity = DEFAULT_RAID_PARITY,
 	.zo_raid_type = VDEV_TYPE_RAIDZ,
-	.zo_vdev_size = SPA_MINDEVSIZE * 4,	/* 256m default size */
-	.zo_draid_data = 4,		/* data drives */
-	.zo_draid_spares = 1,		/* distributed spares */
-	.zo_datasets = 7,
-	.zo_threads = 23,
-	.zo_passtime = 60,		/* 60 seconds */
-	.zo_killrate = 70,		/* 70% kill rate */
+	.zo_vdev_size = DEFAULT_VDEV_SIZE,
+	.zo_draid_data = DEFAULT_DRAID_DATA,	/* data drives */
+	.zo_draid_spares = DEFAULT_DRAID_SPARES, /* distributed spares */
+	.zo_datasets = DEFAULT_DATASETS_COUNT,
+	.zo_threads = DEFAULT_THREADS,
+	.zo_passtime = DEFAULT_PASS_TIME,
+	.zo_killrate = DEFAULT_KILL_RATE,
 	.zo_verbose = 0,
 	.zo_mmp_test = 0,
-	.zo_init = 1,
-	.zo_time = 300,			/* 5 minutes */
-	.zo_maxloops = 50,		/* max loops during spa_freeze() */
-	.zo_metaslab_force_ganging = 64 << 10,
+	.zo_init = DEFAULT_INITS,
+	.zo_time = DEFAULT_RUN_TIME,
+	.zo_maxloops = DEFAULT_MAX_LOOPS, /* max loops during spa_freeze() */
+	.zo_metaslab_force_ganging = DEFAULT_FORCE_GANGING,
 	.zo_special_vdevs = ZTEST_VDEV_CLASS_RND,
+	.zo_gvars_count = 0,
 };
 
 extern uint64_t metaslab_force_ganging;
@@ -563,7 +598,7 @@ dump_debug_buffer(void)
 static void sig_handler(int signo)
 {
 	struct sigaction action;
-#ifdef __GLIBC__ /* backtrace() is a GNU extension */
+#if (__GLIBC__ && !__UCLIBC__) /* backtrace() is a GNU extension */
 	int nptrs;
 	void *buffer[BACKTRACE_SZ];
 
@@ -678,68 +713,154 @@ nicenumtoull(const char *buf)
 	return (val);
 }
 
+typedef struct ztest_option {
+	const char	short_opt;
+	const char	*long_opt;
+	const char	*long_opt_param;
+	const char	*comment;
+	unsigned int	default_int;
+	char		*default_str;
+} ztest_option_t;
+
+/*
+ * The following option_table is used for generating the usage info as well as
+ * the long and short option information for calling getopt_long().
+ */
+static ztest_option_t option_table[] = {
+	{ 'v',	"vdevs", "INTEGER", "Number of vdevs", DEFAULT_VDEV_COUNT,
+	    NULL},
+	{ 's',	"vdev-size", "INTEGER", "Size of each vdev",
+	    NO_DEFAULT, DEFAULT_VDEV_SIZE_STR},
+	{ 'a',	"alignment-shift", "INTEGER",
+	    "Alignment shift; use 0 for random", DEFAULT_ASHIFT, NULL},
+	{ 'm',	"mirror-copies", "INTEGER", "Number of mirror copies",
+	    DEFAULT_MIRRORS, NULL},
+	{ 'r',	"raid-disks", "INTEGER", "Number of raidz/draid disks",
+	    DEFAULT_RAID_CHILDREN, NULL},
+	{ 'R',	"raid-parity", "INTEGER", "Raid parity",
+	    DEFAULT_RAID_PARITY, NULL},
+	{ 'K',	"raid-kind", "raidz|draid|random", "Raid kind",
+	    NO_DEFAULT, "random"},
+	{ 'D',	"draid-data", "INTEGER", "Number of draid data drives",
+	    DEFAULT_DRAID_DATA, NULL},
+	{ 'S',	"draid-spares", "INTEGER", "Number of draid spares",
+	    DEFAULT_DRAID_SPARES, NULL},
+	{ 'd',	"datasets", "INTEGER", "Number of datasets",
+	    DEFAULT_DATASETS_COUNT, NULL},
+	{ 't',	"threads", "INTEGER", "Number of ztest threads",
+	    DEFAULT_THREADS, NULL},
+	{ 'g',	"gang-block-threshold", "INTEGER",
+	    "Metaslab gang block threshold",
+	    NO_DEFAULT, DEFAULT_FORCE_GANGING_STR},
+	{ 'i',	"init-count", "INTEGER", "Number of times to initialize pool",
+	    DEFAULT_INITS, NULL},
+	{ 'k',	"kill-percentage", "INTEGER", "Kill percentage",
+	    NO_DEFAULT, DEFAULT_KILLRATE_STR},
+	{ 'p',	"pool-name", "STRING", "Pool name",
+	    NO_DEFAULT, DEFAULT_POOL},
+	{ 'f',	"vdev-file-directory", "PATH", "File directory for vdev files",
+	    NO_DEFAULT, DEFAULT_VDEV_DIR},
+	{ 'M',	"multi-host", NULL,
+	    "Multi-host; simulate pool imported on remote host",
+	    NO_DEFAULT, NULL},
+	{ 'E',	"use-existing-pool", NULL,
+	    "Use existing pool instead of creating new one", NO_DEFAULT, NULL},
+	{ 'T',	"run-time", "INTEGER", "Total run time",
+	    NO_DEFAULT, DEFAULT_RUN_TIME_STR},
+	{ 'P',	"pass-time", "INTEGER", "Time per pass",
+	    NO_DEFAULT, DEFAULT_PASS_TIME_STR},
+	{ 'F',	"freeze-loops", "INTEGER", "Max loops in spa_freeze()",
+	    DEFAULT_MAX_LOOPS, NULL},
+	{ 'B',	"alt-ztest", "PATH", "Alternate ztest path",
+	    NO_DEFAULT, NULL},
+	{ 'C',	"vdev-class-state", "on|off|random", "vdev class state",
+	    NO_DEFAULT, "random"},
+	{ 'o',	"option", "\"OPTION=INTEGER\"",
+	    "Set global variable to an unsigned 32-bit integer value",
+	    NO_DEFAULT, NULL},
+	{ 'G',	"dump-debug-msg", NULL,
+	    "Dump zfs_dbgmsg buffer before exiting due to an error",
+	    NO_DEFAULT, NULL},
+	{ 'V',	"verbose", NULL,
+	    "Verbose (use multiple times for ever more verbosity)",
+	    NO_DEFAULT, NULL},
+	{ 'h',	"help",	NULL, "Show this help",
+	    NO_DEFAULT, NULL},
+	{0, 0, 0, 0, 0, 0}
+};
+
+static struct option *long_opts = NULL;
+static char *short_opts = NULL;
+
+static void
+init_options(void)
+{
+	ASSERT3P(long_opts, ==, NULL);
+	ASSERT3P(short_opts, ==, NULL);
+
+	int count = sizeof (option_table) / sizeof (option_table[0]);
+	long_opts = umem_alloc(sizeof (struct option) * count, UMEM_NOFAIL);
+
+	short_opts = umem_alloc(sizeof (char) * 2 * count, UMEM_NOFAIL);
+	int short_opt_index = 0;
+
+	for (int i = 0; i < count; i++) {
+		long_opts[i].val = option_table[i].short_opt;
+		long_opts[i].name = option_table[i].long_opt;
+		long_opts[i].has_arg = option_table[i].long_opt_param != NULL
+		    ? required_argument : no_argument;
+		long_opts[i].flag = NULL;
+		short_opts[short_opt_index++] = option_table[i].short_opt;
+		if (option_table[i].long_opt_param != NULL) {
+			short_opts[short_opt_index++] = ':';
+		}
+	}
+}
+
+static void
+fini_options(void)
+{
+	int count = sizeof (option_table) / sizeof (option_table[0]);
+
+	umem_free(long_opts, sizeof (struct option) * count);
+	umem_free(short_opts, sizeof (char) * 2 * count);
+
+	long_opts = NULL;
+	short_opts = NULL;
+}
+
 static void
 usage(boolean_t requested)
 {
-	const ztest_shared_opts_t *zo = &ztest_opts_defaults;
-
-	char nice_vdev_size[NN_NUMBUF_SZ];
-	char nice_force_ganging[NN_NUMBUF_SZ];
+	char option[80];
 	FILE *fp = requested ? stdout : stderr;
 
-	nicenum(zo->zo_vdev_size, nice_vdev_size, sizeof (nice_vdev_size));
-	nicenum(zo->zo_metaslab_force_ganging, nice_force_ganging,
-	    sizeof (nice_force_ganging));
+	(void) fprintf(fp, "Usage: %s [OPTIONS...]\n", DEFAULT_POOL);
+	for (int i = 0; option_table[i].short_opt != 0; i++) {
+		if (option_table[i].long_opt_param != NULL) {
+			(void) sprintf(option, "  -%c --%s=%s",
+			    option_table[i].short_opt,
+			    option_table[i].long_opt,
+			    option_table[i].long_opt_param);
+		} else {
+			(void) sprintf(option, "  -%c --%s",
+			    option_table[i].short_opt,
+			    option_table[i].long_opt);
+		}
+		(void) fprintf(fp, "  %-40s%s", option,
+		    option_table[i].comment);
 
-	(void) fprintf(fp, "Usage: %s\n"
-	    "\t[-v vdevs (default: %llu)]\n"
-	    "\t[-s size_of_each_vdev (default: %s)]\n"
-	    "\t[-a alignment_shift (default: %d)] use 0 for random\n"
-	    "\t[-m mirror_copies (default: %d)]\n"
-	    "\t[-r raidz_disks / draid_disks (default: %d)]\n"
-	    "\t[-R raid_parity (default: %d)]\n"
-	    "\t[-K raid_kind (default: random)] raidz|draid|random\n"
-	    "\t[-D draid_data (default: %d)] in config\n"
-	    "\t[-S draid_spares (default: %d)]\n"
-	    "\t[-d datasets (default: %d)]\n"
-	    "\t[-t threads (default: %d)]\n"
-	    "\t[-g gang_block_threshold (default: %s)]\n"
-	    "\t[-i init_count (default: %d)] initialize pool i times\n"
-	    "\t[-k kill_percentage (default: %llu%%)]\n"
-	    "\t[-p pool_name (default: %s)]\n"
-	    "\t[-f dir (default: %s)] file directory for vdev files\n"
-	    "\t[-M] Multi-host simulate pool imported on remote host\n"
-	    "\t[-V] verbose (use multiple times for ever more blather)\n"
-	    "\t[-E] use existing pool instead of creating new one\n"
-	    "\t[-T time (default: %llu sec)] total run time\n"
-	    "\t[-F freezeloops (default: %llu)] max loops in spa_freeze()\n"
-	    "\t[-P passtime (default: %llu sec)] time per pass\n"
-	    "\t[-B alt_ztest (default: <none>)] alternate ztest path\n"
-	    "\t[-C vdev class state (default: random)] special=on|off|random\n"
-	    "\t[-o variable=value] ... set global variable to an unsigned\n"
-	    "\t    32-bit integer value\n"
-	    "\t[-G dump zfs_dbgmsg buffer before exiting due to an error\n"
-	    "\t[-h] (print help)\n"
-	    "",
-	    zo->zo_pool,
-	    (u_longlong_t)zo->zo_vdevs,			/* -v */
-	    nice_vdev_size,				/* -s */
-	    zo->zo_ashift,				/* -a */
-	    zo->zo_mirrors,				/* -m */
-	    zo->zo_raid_children,			/* -r */
-	    zo->zo_raid_parity,				/* -R */
-	    zo->zo_draid_data,				/* -D */
-	    zo->zo_draid_spares,			/* -S */
-	    zo->zo_datasets,				/* -d */
-	    zo->zo_threads,				/* -t */
-	    nice_force_ganging,				/* -g */
-	    zo->zo_init,				/* -i */
-	    (u_longlong_t)zo->zo_killrate,		/* -k */
-	    zo->zo_pool,				/* -p */
-	    zo->zo_dir,					/* -f */
-	    (u_longlong_t)zo->zo_time,			/* -T */
-	    (u_longlong_t)zo->zo_maxloops,		/* -F */
-	    (u_longlong_t)zo->zo_passtime);
+		if (option_table[i].long_opt_param != NULL) {
+			if (option_table[i].default_str != NULL) {
+				(void) fprintf(fp, " (default: %s)",
+				    option_table[i].default_str);
+			} else if (option_table[i].default_int != NO_DEFAULT) {
+				(void) fprintf(fp, " (default: %u)",
+				    option_table[i].default_int);
+			}
+		}
+		(void) fprintf(fp, "\n");
+	}
 	exit(requested ? 0 : 1);
 }
 
@@ -811,8 +932,10 @@ process_options(int argc, char **argv)
 
 	bcopy(&ztest_opts_defaults, zo, sizeof (*zo));
 
-	while ((opt = getopt(argc, argv,
-	    "v:s:a:m:r:R:K:D:S:d:t:g:i:k:p:f:MVET:P:hF:B:C:o:G")) != EOF) {
+	init_options();
+
+	while ((opt = getopt_long(argc, argv, short_opts, long_opts,
+	    NULL)) != EOF) {
 		value = 0;
 		switch (opt) {
 		case 'v':
@@ -918,8 +1041,21 @@ process_options(int argc, char **argv)
 			ztest_parse_name_value(optarg, zo);
 			break;
 		case 'o':
-			if (set_global_var(optarg) != 0)
+			if (zo->zo_gvars_count >= ZO_GVARS_MAX_COUNT) {
+				(void) fprintf(stderr,
+				    "max global var count (%zu) exceeded\n",
+				    ZO_GVARS_MAX_COUNT);
 				usage(B_FALSE);
+			}
+			char *v = zo->zo_gvars[zo->zo_gvars_count];
+			if (strlcpy(v, optarg, ZO_GVARS_MAX_ARGLEN) >=
+			    ZO_GVARS_MAX_ARGLEN) {
+				(void) fprintf(stderr,
+				    "global var option '%s' is too long\n",
+				    optarg);
+				usage(B_FALSE);
+			}
+			zo->zo_gvars_count++;
 			break;
 		case 'G':
 			zo->zo_dump_dbgmsg = 1;
@@ -933,6 +1069,8 @@ process_options(int argc, char **argv)
 			break;
 		}
 	}
+
+	fini_options();
 
 	/* When raid choice is 'random' add a draid pool 50% of the time */
 	if (strcmp(raid_kind, "random") == 0) {
@@ -2268,8 +2406,8 @@ ztest_get_done(zgd_t *zgd, int error)
 }
 
 static int
-ztest_get_data(void *arg, lr_write_t *lr, char *buf, struct lwb *lwb,
-    zio_t *zio)
+ztest_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,
+    struct lwb *lwb, zio_t *zio)
 {
 	ztest_ds_t *zd = arg;
 	objset_t *os = zd->zd_os;
@@ -5960,7 +6098,7 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 		    vd0->vdev_resilver_txg != 0)) {
 			/*
 			 * Make vd0 explicitly claim to be unreadable,
-			 * or unwriteable, or reach behind its back
+			 * or unwritable, or reach behind its back
 			 * and close the underlying fd.  We can do this if
 			 * maxfaults == 0 because we'll fail and reexecute,
 			 * and we can do it if maxfaults >= 2 because we'll
@@ -6374,6 +6512,75 @@ ztest_fletcher_incr(ztest_ds_t *zd, uint64_t id)
 }
 
 static int
+ztest_set_global_vars(void)
+{
+	for (size_t i = 0; i < ztest_opts.zo_gvars_count; i++) {
+		char *kv = ztest_opts.zo_gvars[i];
+		VERIFY3U(strlen(kv), <=, ZO_GVARS_MAX_ARGLEN);
+		VERIFY3U(strlen(kv), >, 0);
+		int err = set_global_var(kv);
+		if (ztest_opts.zo_verbose > 0) {
+			(void) printf("setting global var %s ... %s\n", kv,
+			    err ? "failed" : "ok");
+		}
+		if (err != 0) {
+			(void) fprintf(stderr,
+			    "failed to set global var '%s'\n", kv);
+			return (err);
+		}
+	}
+	return (0);
+}
+
+static char **
+ztest_global_vars_to_zdb_args(void)
+{
+	char **args = calloc(2*ztest_opts.zo_gvars_count + 1, sizeof (char *));
+	char **cur = args;
+	for (size_t i = 0; i < ztest_opts.zo_gvars_count; i++) {
+		char *kv = ztest_opts.zo_gvars[i];
+		*cur = "-o";
+		cur++;
+		*cur = strdup(kv);
+		cur++;
+	}
+	ASSERT3P(cur, ==, &args[2*ztest_opts.zo_gvars_count]);
+	*cur = NULL;
+	return (args);
+}
+
+/* The end of strings is indicated by a NULL element */
+static char *
+join_strings(char **strings, const char *sep)
+{
+	size_t totallen = 0;
+	for (char **sp = strings; *sp != NULL; sp++) {
+		totallen += strlen(*sp);
+		totallen += strlen(sep);
+	}
+	if (totallen > 0) {
+		ASSERT(totallen >= strlen(sep));
+		totallen -= strlen(sep);
+	}
+
+	size_t buflen = totallen + 1;
+	char *o = malloc(buflen); /* trailing 0 byte */
+	o[0] = '\0';
+	for (char **sp = strings; *sp != NULL; sp++) {
+		size_t would;
+		would = strlcat(o, *sp, buflen);
+		VERIFY3U(would, <, buflen);
+		if (*(sp+1) == NULL) {
+			break;
+		}
+		would = strlcat(o, sep, buflen);
+		VERIFY3U(would, <, buflen);
+	}
+	ASSERT3S(strlen(o), ==, totallen);
+	return (o);
+}
+
+static int
 ztest_check_path(char *path)
 {
 	struct stat s;
@@ -6601,13 +6808,21 @@ ztest_run_zdb(char *pool)
 
 	ztest_get_zdb_bin(bin, len);
 
-	(void) sprintf(zdb,
-	    "%s -bcc%s%s -G -d -Y -e -y -p %s %s",
+	char **set_gvars_args = ztest_global_vars_to_zdb_args();
+	char *set_gvars_args_joined = join_strings(set_gvars_args, " ");
+	free(set_gvars_args);
+
+	size_t would = snprintf(zdb, len,
+	    "%s -bcc%s%s -G -d -Y -e -y %s -p %s %s",
 	    bin,
 	    ztest_opts.zo_verbose >= 3 ? "s" : "",
 	    ztest_opts.zo_verbose >= 4 ? "v" : "",
+	    set_gvars_args_joined,
 	    ztest_opts.zo_dir,
 	    pool);
+	ASSERT3U(would, <, len);
+
+	free(set_gvars_args_joined);
 
 	if (ztest_opts.zo_verbose >= 5)
 		(void) printf("Executing %s\n", strstr(zdb, "zdb "));
@@ -7496,6 +7711,9 @@ ztest_init(ztest_shared_t *zs)
 	for (i = 0; i < SPA_FEATURES; i++) {
 		char *buf;
 
+		if (!spa_feature_table[i].fi_zfs_mod_supported)
+			continue;
+
 		/*
 		 * 75% chance of using the log space map feature. We want ztest
 		 * to exercise both the code paths that use the log space map
@@ -7727,7 +7945,7 @@ main(int argc, char **argv)
 	char numbuf[NN_NUMBUF_SZ];
 	char *cmd;
 	boolean_t hasalt;
-	int f;
+	int f, err;
 	char *fd_data_str = getenv("ZTEST_FD_DATA");
 	struct sigaction action;
 
@@ -7793,6 +8011,15 @@ main(int argc, char **argv)
 		bcopy(ztest_shared_opts, &ztest_opts, sizeof (ztest_opts));
 	}
 	ASSERT3U(ztest_opts.zo_datasets, ==, ztest_shared_hdr->zh_ds_count);
+
+	err = ztest_set_global_vars();
+	if (err != 0 && !fd_data_str) {
+		/* error message done by ztest_set_global_vars */
+		exit(EXIT_FAILURE);
+	} else {
+		/* children should not be spawned if setting gvars fails */
+		VERIFY3S(err, ==, 0);
+	}
 
 	/* Override location of zpool.cache */
 	VERIFY3S(asprintf((char **)&spa_config_path, "%s/zpool.cache",

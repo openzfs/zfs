@@ -18,7 +18,6 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
 .\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
@@ -26,41 +25,34 @@
 .\" Copyright (c) 2018 George Melikov. All Rights Reserved.
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+.\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
 .\"
-.Dd August 9, 2019
+.Dd June 2, 2021
 .Dt ZPOOL-CREATE 8
 .Os
+.
 .Sh NAME
 .Nm zpool-create
-.Nd Creates a new ZFS storage pool
+.Nd create ZFS storage pool
 .Sh SYNOPSIS
 .Nm zpool
 .Cm create
 .Op Fl dfn
 .Op Fl m Ar mountpoint
-.Oo Fl o Ar property Ns = Ns Ar value Oc Ns ...
-.Oo Fl o Ar feature@feature Ns = Ns Ar value Oc
-.Oo Fl O Ar file-system-property Ns = Ns Ar value Oc Ns ...
-.Op Fl R Ar root
-.Ar pool vdev Ns ...
-.Sh DESCRIPTION
-.Bl -tag -width Ds
-.It Xo
-.Nm zpool
-.Cm create
-.Op Fl dfn
-.Op Fl m Ar mountpoint
-.Oo Fl o Ar property Ns = Ns Ar value Oc Ns ...
-.Oo Fl o Ar feature@feature Ns = Ns Ar value Oc Ns ...
-.Oo Fl O Ar file-system-property Ns = Ns Ar value Oc Ns ...
+.Oo Fl o Ar property Ns = Ns Ar value Oc Ns …
+.Oo Fl o Sy feature@ Ns Ar feature Ns = Ns Ar value Oc
+.Op Fl o Ar compatibility Ns = Ns Sy off Ns | Ns Sy legacy Ns | Ns Ar file Ns Oo , Ns Ar file Oc Ns …
+.Oo Fl O Ar file-system-property Ns = Ns Ar value Oc Ns …
 .Op Fl R Ar root
 .Op Fl t Ar tname
-.Ar pool vdev Ns ...
-.Xc
+.Ar pool
+.Ar vdev Ns …
+.
+.Sh DESCRIPTION
 Creates a new storage pool containing the virtual devices specified on the
 command line.
 The pool name must begin with a letter, and can only contain
-alphanumeric characters as well as underscore
+alphanumeric characters as well as the underscore
 .Pq Qq Sy _ ,
 dash
 .Pq Qq Sy \&- ,
@@ -81,46 +73,41 @@ are reserved, as are names beginning with
 .Sy mirror ,
 .Sy raidz ,
 .Sy draid ,
-.Sy spare ,
-and the pattern
-.Sy c[0-9] .
+and
+.Sy spare .
 The
 .Ar vdev
 specification is described in the
-.Em Virtual Devices
+.Sx Virtual Devices
 section of
-.Xr zpoolconcepts.
+.Xr zpoolconcepts 7 .
 .Pp
 The command attempts to verify that each device specified is accessible and not
-currently in use by another subsystem.  However this check is not robust enough
+currently in use by another subsystem.
+However this check is not robust enough
 to detect simultaneous attempts to use a new device in different pools, even if
-.Sy multihost
-is
-.Sy enabled.
-The
-administrator must ensure that simultaneous invocations of any combination of
-.Sy zpool replace ,
-.Sy zpool create ,
-.Sy zpool add ,
+.Sy multihost Ns = Sy enabled .
+The administrator must ensure, that simultaneous invocations of any combination of
+.Nm zpool Cm replace ,
+.Nm zpool Cm create ,
+.Nm zpool Cm add ,
 or
-.Sy zpool labelclear ,
-do not refer to the same device.  Using the same device in two pools will
-result in pool corruption.
+.Nm zpool Cm labelclear ,
+do not refer to the same device.
+Using the same device in two pools will result in pool corruption.
 .Pp
 There are some uses, such as being currently mounted, or specified as the
 dedicated dump device, that prevents a device from ever being used by ZFS.
 Other uses, such as having a preexisting UFS file system, can be overridden with
-the
-.Fl f
-option.
+.Fl f .
 .Pp
 The command also checks that the replication strategy for the pool is
 consistent.
-An attempt to combine redundant and non-redundant storage in a single pool, or
-to mix disks and files, results in an error unless
+An attempt to combine redundant and non-redundant storage in a single pool,
+or to mix disks and files, results in an error unless
 .Fl f
 is specified.
-The use of differently sized devices within a single raidz or mirror group is
+The use of differently-sized devices within a single raidz or mirror group is
 also flagged as an error unless
 .Fl f
 is specified.
@@ -130,24 +117,29 @@ Unless the
 option is specified, the default mount point is
 .Pa / Ns Ar pool .
 The mount point must not exist or must be empty, or else the root dataset
-cannot be mounted.
+will not be able to be be mounted.
 This can be overridden with the
 .Fl m
 option.
 .Pp
-By default all supported features are enabled on the new pool unless the
+By default all supported features are enabled on the new pool.
+The
 .Fl d
-option is specified.
-.Bl -tag -width Ds
+option and the
+.Fl o Ar compatibility
+property
+.Pq e.g Fl o Sy compatibility Ns = Ns Ar 2020
+can be used to restrict the features that are enabled, so that the
+pool can be imported on other releases of ZFS.
+.Bl -tag -width "-t tname"
 .It Fl d
 Do not enable any features on the new pool.
 Individual features can be enabled by setting their corresponding properties to
 .Sy enabled
-with the
-.Fl o
-option.
+with
+.Fl o .
 See
-.Xr zpool-features 5
+.Xr zpool-features 7
 for details about feature properties.
 .It Fl f
 Forces use of
@@ -161,14 +153,14 @@ The default mount point is
 or
 .Pa altroot/pool
 if
-.Ar altroot
+.Sy altroot
 is specified.
 The mount point must be an absolute path,
 .Sy legacy ,
 or
 .Sy none .
 For more information on dataset mount points, see
-.Xr zfs 8 .
+.Xr zfsprops 7 .
 .It Fl n
 Displays the configuration that would be used without actually creating the
 pool.
@@ -176,33 +168,43 @@ The actual pool creation can still fail due to insufficient privileges or
 device sharing.
 .It Fl o Ar property Ns = Ns Ar value
 Sets the given pool properties.
+See
+.Xr zpoolprops 7
+for a list of valid properties that can be set.
+.It Fl o Ar compatibility Ns = Ns Sy off Ns | Ns Sy legacy Ns | Ns Ar file Ns Oo , Ns Ar file Oc Ns …
+Specifies compatibility feature sets.
+See
+.Xr zpool-features 7
+for more information about compatibility feature sets.
+.It Fl o Sy feature@ Ns Ar feature Ns = Ns Ar value
+Sets the given pool feature.
 See the
-.Xr zpoolprops
-manual page for a list of valid properties that can be set.
-.It Fl o Ar feature@feature Ns = Ns Ar value
-Sets the given pool feature. See the
-.Xr zpool-features 5
+.Xr zpool-features 7
 section for a list of valid features that can be set.
 Value can be either disabled or enabled.
 .It Fl O Ar file-system-property Ns = Ns Ar value
 Sets the given file system properties in the root file system of the pool.
-See the
-.Xr zfsprops 8
-manual page for a list of valid properties that can be set.
+See
+.Xr zfsprops 7
+for a list of valid properties that can be set.
 .It Fl R Ar root
 Equivalent to
 .Fl o Sy cachefile Ns = Ns Sy none Fl o Sy altroot Ns = Ns Ar root
 .It Fl t Ar tname
 Sets the in-core pool name to
-.Sy tname
-while the on-disk name will be the name specified as the pool name
-.Sy pool .
-This will set the default cachefile property to none. This is intended
+.Ar tname
+while the on-disk name will be the name specified as
+.Ar pool .
+This will set the default of the
+.Sy cachefile
+property to
+.Sy none .
+This is intended
 to handle name space collisions when creating pools for other systems,
 such as virtual machines or physical machines whose pools live on network
 block devices.
 .El
-.El
+.
 .Sh SEE ALSO
 .Xr zpool-destroy 8 ,
 .Xr zpool-export 8 ,

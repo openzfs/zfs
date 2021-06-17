@@ -38,7 +38,6 @@
 #include <sys/vdev_trim.h>
 #include <sys/vdev_impl.h>
 #include <sys/dsl_pool.h>
-#include <sys/zio_checksum.h>
 #include <sys/multilist.h>
 #include <sys/abd.h>
 #include <sys/zil.h>
@@ -136,7 +135,7 @@ arc_available_memory(void)
 static uint64_t
 arc_evictable_memory(void)
 {
-	int64_t asize = aggsum_value(&arc_size);
+	int64_t asize = aggsum_value(&arc_sums.arcstat_size);
 	uint64_t arc_clean =
 	    zfs_refcount_count(&arc_mru->arcs_esize[ARC_BUFC_DATA]) +
 	    zfs_refcount_count(&arc_mru->arcs_esize[ARC_BUFC_METADATA]) +

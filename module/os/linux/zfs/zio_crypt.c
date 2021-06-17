@@ -115,7 +115,7 @@
  * Similarly to ZIL blocks, the core part of each dnode_phys_t needs to be left
  * in plaintext for scrubbing and claiming, but the bonus buffers might contain
  * sensitive user data. The function zio_crypt_init_uios_dnode() handles parsing
- * which which pieces of the block need to be encrypted. For more details about
+ * which pieces of the block need to be encrypted. For more details about
  * dnode authentication and encryption, see zio_crypt_init_uios_dnode().
  *
  * OBJECT SET AUTHENTICATION:
@@ -1198,16 +1198,6 @@ zio_crypt_do_objset_hmacs(zio_crypt_key_t *key, void *data, uint_t datalen,
 	bcopy(raw_portable_mac, portable_mac, ZIO_OBJSET_MAC_LEN);
 
 	/*
-	 * This is necessary here as we check next whether
-	 * OBJSET_FLAG_USERACCOUNTING_COMPLETE or
-	 * OBJSET_FLAG_USEROBJACCOUNTING are set in order to
-	 * decide if the local_mac should be zeroed out.
-	 */
-	intval = osp->os_flags;
-	if (should_bswap)
-		intval = BSWAP_64(intval);
-
-	/*
 	 * The local MAC protects the user, group and project accounting.
 	 * If these objects are not present, the local MAC is zeroed out.
 	 */
@@ -1218,10 +1208,7 @@ zio_crypt_do_objset_hmacs(zio_crypt_key_t *key, void *data, uint_t datalen,
 	    (datalen >= OBJSET_PHYS_SIZE_V2 &&
 	    osp->os_userused_dnode.dn_type == DMU_OT_NONE &&
 	    osp->os_groupused_dnode.dn_type == DMU_OT_NONE) ||
-	    (datalen <= OBJSET_PHYS_SIZE_V1) ||
-	    (((intval & OBJSET_FLAG_USERACCOUNTING_COMPLETE) == 0 ||
-	    (intval & OBJSET_FLAG_USEROBJACCOUNTING_COMPLETE) == 0) &&
-	    key->zk_version > 0)) {
+	    (datalen <= OBJSET_PHYS_SIZE_V1)) {
 		bzero(local_mac, ZIO_OBJSET_MAC_LEN);
 		return (0);
 	}
@@ -1412,6 +1399,7 @@ zio_crypt_init_uios_zil(boolean_t encrypt, uint8_t *plainbuf,
 		nr_src = 1;
 		nr_dst = 0;
 	}
+	bzero(dst, datalen);
 
 	/* find the start and end record of the log block */
 	zilc = (zil_chain_t *)src;

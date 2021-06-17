@@ -44,11 +44,9 @@
 #include <sys/time.h>
 #include <linux/limits.h>
 
-extern char *program_invocation_short_name;
-
 #define	ERROR(fmt, ...)                                                 \
-	fprintf(stderr, "%s: %s:%d: %s: " fmt "\n",                     \
-		program_invocation_short_name, __FILE__, __LINE__,      \
+	fprintf(stderr, "xattrtest: %s:%d: %s: " fmt "\n",              \
+		__FILE__, __LINE__,      				\
 		__func__, ## __VA_ARGS__);
 
 static const char shortopts[] = "hvycdn:f:x:s:p:t:e:rRko:";
@@ -264,7 +262,7 @@ run_process(const char *path, char *argv[])
 	pid_t pid;
 	int rc, devnull_fd;
 
-	pid = vfork();
+	pid = fork();
 	if (pid == 0) {
 		devnull_fd = open("/dev/null", O_WRONLY);
 

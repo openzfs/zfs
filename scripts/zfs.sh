@@ -120,9 +120,7 @@ load_module_linux() {
 		echo "Loading: $FILE ($VERSION)"
 	fi
 
-	$LDMOD "$KMOD" >/dev/null 2>&1
-	# shellcheck disable=SC2181
-	if [ $? -ne 0 ]; then
+	if ! $LDMOD "$KMOD" >/dev/null 2>&1; then
 		echo "Failed to load $KMOD"
 		return 1
 	fi
@@ -198,7 +196,7 @@ unload_modules_linux() {
 
 		if [ "$USE_COUNT" = "0" ] ; then
 			unload_module_linux "$KMOD" || return 1
-		else
+		elif [ "$USE_COUNT" != "" ] ; then
 			echo "Module ${NAME} is still in use!"
 			return 1
 		fi

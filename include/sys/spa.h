@@ -20,7 +20,7 @@
  */
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
+ * Copyright (c) 2011, 2021 by Delphix. All rights reserved.
  * Copyright 2011 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
  * Copyright 2013 Saso Kiselkov. All rights reserved.
@@ -71,27 +71,6 @@ struct bplist;
 struct dsl_pool;
 struct dsl_dataset;
 struct dsl_crypto_params;
-
-/*
- * We currently support block sizes from 512 bytes to 16MB.
- * The benefits of larger blocks, and thus larger IO, need to be weighed
- * against the cost of COWing a giant block to modify one byte, and the
- * large latency of reading or writing a large block.
- *
- * Note that although blocks up to 16MB are supported, the recordsize
- * property can not be set larger than zfs_max_recordsize (default 1MB).
- * See the comment near zfs_max_recordsize in dsl_dataset.c for details.
- *
- * Note that although the LSIZE field of the blkptr_t can store sizes up
- * to 32MB, the dnode's dn_datablkszsec can only store sizes up to
- * 32MB - 512 bytes.  Therefore, we limit SPA_MAXBLOCKSIZE to 16MB.
- */
-#define	SPA_MINBLOCKSHIFT	9
-#define	SPA_OLD_MAXBLOCKSHIFT	17
-#define	SPA_MAXBLOCKSHIFT	24
-#define	SPA_MINBLOCKSIZE	(1ULL << SPA_MINBLOCKSHIFT)
-#define	SPA_OLD_MAXBLOCKSIZE	(1ULL << SPA_OLD_MAXBLOCKSHIFT)
-#define	SPA_MAXBLOCKSIZE	(1ULL << SPA_MAXBLOCKSHIFT)
 
 /*
  * Alignment Shift (ashift) is an immutable, internal top-level vdev property
@@ -404,6 +383,12 @@ typedef struct blkptr {
 
 /*
  * Macros to get and set fields in a bp or DVA.
+ */
+
+/*
+ * Note, for gang blocks, DVA_GET_ASIZE() is the total space allocated for
+ * this gang DVA including its children BP's.  The space allocated at this
+ * DVA's vdev/offset is vdev_gang_header_asize(vdev).
  */
 #define	DVA_GET_ASIZE(dva)	\
 	BF64_GET_SB((dva)->dva_word[0], 0, SPA_ASIZEBITS, SPA_MINBLOCKSHIFT, 0)
@@ -910,7 +895,6 @@ typedef struct spa_stats {
 	spa_history_list_t	read_history;
 	spa_history_list_t	txg_history;
 	spa_history_kstat_t	tx_assign_histogram;
-	spa_history_kstat_t	io_history;
 	spa_history_list_t	mmp_history;
 	spa_history_kstat_t	state;		/* pool state */
 	spa_history_kstat_t	iostats;
@@ -1150,6 +1134,7 @@ extern int zfs_ereport_post(const char *clazz, spa_t *spa, vdev_t *vd,
 extern boolean_t zfs_ereport_is_valid(const char *clazz, spa_t *spa, vdev_t *vd,
     zio_t *zio);
 extern void zfs_ereport_taskq_fini(void);
+extern void zfs_ereport_clear(spa_t *spa, vdev_t *vd);
 extern nvlist_t *zfs_event_create(spa_t *spa, vdev_t *vd, const char *type,
     const char *name, nvlist_t *aux);
 extern void zfs_post_remove(spa_t *spa, vdev_t *vd);

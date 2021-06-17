@@ -5,6 +5,8 @@
 #
 # Enable this by passing boot=zfs on the kernel command line.
 #
+# $quiet, $root, $rpool, $bootfs come from the cmdline:
+# shellcheck disable=SC2154
 
 # Source the common functions
 . /etc/zfs/zfs-functions
@@ -94,22 +96,18 @@ find_rootfs()
 
 	# Not boot fs here, export it and later try again..
 	"${ZPOOL}" export "$pool"
-	POOL_IMPORTED=""
-
+	POOL_IMPORTED=
+	ZFS_BOOTFS=
 	return 1
 }
 
 # Support function to get a list of all pools, separated with ';'
 find_pools()
 {
-	CMD="$*"
-
-	pools=$($CMD 2> /dev/null | \
+	pools=$("$@" 2> /dev/null | \
 		grep -E "pool:|^[a-zA-Z0-9]" | \
 		sed 's@.*: @@' | \
-		while read -r pool; do \
-		    printf "%s" "$pool;"
-		done)
+		tr '\n' ';')
 
 	echo "${pools%%;}" # Return without the last ';'.
 }
@@ -203,7 +201,7 @@ import_pool()
 	# exists).
 	if [ -n "$USE_DISK_BY_ID" ] && [ -z "$ZPOOL_IMPORT_PATH" ]
 	then
-		dirs="$(for dir in $(echo /dev/disk/by-*)
+		dirs="$(for dir in /dev/disk/by-*
 		do
 			# Ignore by-vdev here - we want it first!
 			echo "$dir" | grep -q /by-vdev && continue
@@ -273,6 +271,8 @@ import_pool()
 # with more logging etc.
 load_module_initrd()
 {
+	[ -n "$ROOTDELAY" ] && ZFS_INITRD_PRE_MOUNTROOT_SLEEP="$ROOTDELAY"
+
 	if [ "$ZFS_INITRD_PRE_MOUNTROOT_SLEEP" -gt 0 ] 2>/dev/null
 	then
 		if [ "$quiet" != "y" ]; then
@@ -327,6 +327,7 @@ mount_fs()
 
 	# Need the _original_ datasets mountpoint!
 	mountpoint=$(get_fs_value "$fs" mountpoint)
+	ZFS_CMD="mount -o zfsutil -t zfs"
 	if [ "$mountpoint" = "legacy" ] || [ "$mountpoint" = "none" ]; then
 		# Can't use the mountpoint property. Might be one of our
 		# clones. Check the 'org.zol:mountpoint' property set in
@@ -346,15 +347,11 @@ mount_fs()
 			fi
 		fi
 
+		# If it's not a legacy filesystem, it can only be a
+		# native one...
 		if [ "$mountpoint" = "legacy" ]; then
 			ZFS_CMD="mount -t zfs"
-		else
-			# If it's not a legacy filesystem, it can only be a
-			# native one...
-			ZFS_CMD="mount -o zfsutil -t zfs"
 		fi
-	else
-		ZFS_CMD="mount -o zfsutil -t zfs"
 	fi
 
 	# Possibly decrypt a filesystem using native encryption.
@@ -393,7 +390,7 @@ decrypt_fs()
 	fs="$1"
 
 	# If pool encryption is active and the zfs command understands '-o encryption'
-	if [ "$(zpool list -H -o feature@encryption "$(echo "${fs}" | awk -F/ '{print $1}')")" = 'active' ]; then
+	if [ "$(zpool list -H -o feature@encryption "${fs%%/*}")" = 'active' ]; then
 
 		# Determine dataset that holds key for root dataset
 		ENCRYPTIONROOT="$(get_fs_value "${fs}" encryptionroot)"
@@ -406,28 +403,25 @@ decrypt_fs()
 			KEYSTATUS="$(get_fs_value "${ENCRYPTIONROOT}" keystatus)"
 			# Continue only if the key needs to be loaded
 			[ "$KEYSTATUS" = "unavailable" ] || return 0
-			TRY_COUNT=3
 
-			# If key is stored in a file, do not prompt
+			# Do not prompt if key is stored noninteractively,
 			if ! [ "${KEYLOCATION}" = "prompt" ]; then
 				$ZFS load-key "${ENCRYPTIONROOT}"
 
 			# Prompt with plymouth, if active
-			elif [ -e /bin/plymouth ] && /bin/plymouth --ping 2>/dev/null; then
+			elif /bin/plymouth --ping 2>/dev/null; then
 				echo "plymouth" > /run/zfs_console_askpwd_cmd
-				while [ $TRY_COUNT -gt 0 ]; do
+				for _ in 1 2 3; do
 					plymouth ask-for-password --prompt "Encrypted ZFS password for ${ENCRYPTIONROOT}" | \
 						$ZFS load-key "${ENCRYPTIONROOT}" && break
-					TRY_COUNT=$((TRY_COUNT - 1))
 				done
 
 			# Prompt with systemd, if active
 			elif [ -e /run/systemd/system ]; then
 				echo "systemd-ask-password" > /run/zfs_console_askpwd_cmd
-				while [ $TRY_COUNT -gt 0 ]; do
+				for _ in 1 2 3; do
 					systemd-ask-password "Encrypted ZFS password for ${ENCRYPTIONROOT}" --no-tty | \
 						$ZFS load-key "${ENCRYPTIONROOT}" && break
-					TRY_COUNT=$((TRY_COUNT - 1))
 				done
 
 			# Prompt with ZFS tty, otherwise
@@ -554,7 +548,6 @@ rollback_snap()
 ask_user_snap()
 {
 	fs="$1"
-	i=1
 
 	# We need to temporarily disable debugging. Set 'debug' so we
 	# remember to enabled it again.
@@ -567,16 +560,25 @@ ask_user_snap()
 	# Because we need the resulting snapshot, which is sent on
 	# stdout to the caller, we use stderr for our questions.
 	echo "What snapshot do you want to boot from?" > /dev/stderr
-	while read -r snap; do
-	    echo "  $i: ${snap}" > /dev/stderr
-	    eval "$(echo SNAP_$i=$snap)"
-	    i=$((i + 1))
-	done <<EOT
-$("${ZFS}" list -H -oname -tsnapshot -r "${fs}")
-EOT
+	# shellcheck disable=SC2046
+	IFS="
+" set -- $("${ZFS}" list -H -oname -tsnapshot -r "${fs}")
 
-	echo "%s" "  Snap nr [1-$((i-1))]? " > /dev/stderr
-	read -r snapnr
+	i=1
+	for snap in "$@"; do
+		echo "  $i: $snap"
+		i=$((i + 1))
+	done > /dev/stderr
+
+	# expr instead of test here because [ a -lt 0 ] errors out,
+	# but expr falls back to lexicographical, which works out right
+	snapnr=0
+	while expr "$snapnr" "<" 1 > /dev/null ||
+	    expr "$snapnr" ">" "$#" > /dev/null
+	do
+		printf "%s" "Snap nr [1-$#]? " > /dev/stderr
+		read -r snapnr
+	done
 
 	# Re-enable debugging.
 	if [ -n "${debug}" ]; then
@@ -584,7 +586,7 @@ EOT
 		set -x
 	fi
 
-	echo "$(eval echo '$SNAP_'$snapnr)"
+	eval echo '$'"$snapnr"
 }
 
 setup_snapshot_booting()
@@ -704,7 +706,8 @@ mountroot()
 
 	# ------------
 	# Look for the cache file (if any).
-	[ ! -f ${ZPOOL_CACHE} ] && unset ZPOOL_CACHE
+	[ -f "${ZPOOL_CACHE}" ] || unset ZPOOL_CACHE
+	[ -s "${ZPOOL_CACHE}" ] || unset ZPOOL_CACHE
 
 	# ------------
 	# Compatibility: 'ROOT' is for Debian GNU/Linux (etc),
@@ -794,7 +797,8 @@ mountroot()
 		#
 		# Reassign the variable by dumping the environment and
 		# stripping the zfs-bootfs= prefix.  Let the shell handle
-		# quoting through the eval command.
+		# quoting through the eval command:
+		# shellcheck disable=SC2046
 		eval ZFS_RPOOL=$(set | sed -n -e 's,^zfs-bootfs=,,p')
 	fi
 
@@ -815,6 +819,11 @@ mountroot()
 	then
 		# Try to detect both pool and root fs.
 
+		# If we got here, that means we don't have a hint so as to
+		# the root dataset, but with root=zfs:AUTO on cmdline,
+		# this says "zfs:AUTO" here and interferes with checks later
+		ZFS_BOOTFS=
+
 		[ "$quiet" != "y" ] && \
 		    zfs_log_begin_msg "Attempting to import additional pools."
 
@@ -832,8 +841,8 @@ mountroot()
 		do
 			[ -z "$pool" ] && continue
 
-			import_pool "$pool"
-			find_rootfs "$pool"
+			IFS="$OLD_IFS" import_pool "$pool"
+			IFS="$OLD_IFS" find_rootfs "$pool" && break
 		done
 		IFS="$OLD_IFS"
 
@@ -871,7 +880,7 @@ mountroot()
 		echo ""
 		echo "No pool imported. Manually import the root pool"
 		echo "at the command prompt and then exit."
-		echo "Hint: Try:  zpool import -R ${rootmnt} -N ${ZFS_RPOOL}"
+		echo "Hint: Try:  zpool import -N ${ZFS_RPOOL}"
 		shell
 	fi
 
@@ -884,30 +893,6 @@ mountroot()
 			sed -e "s/$("${ZPOOL}" get guid -o value "$pool" -H)/$pool/g")
 		ZFS_RPOOL="${pool}"
 	fi
-
-	# Set the no-op scheduler on the disks containing the vdevs of
-	# the root pool. For single-queue devices, this scheduler is
-	# "noop", for multi-queue devices, it is "none".
-	# ZFS already does this for wholedisk vdevs (for all pools), so this
-	# is only important for partitions.
-	"${ZPOOL}" status -L "${ZFS_RPOOL}" 2> /dev/null |
-	    awk '/^\t / && !/(mirror|raidz)/ {
-	        dev=$1;
-	        sub(/[0-9]+$/, "", dev);
-	        print dev
-	    }' |
-	while read -r i
-	do
-		SCHEDULER=/sys/block/$i/queue/scheduler
-		if [ -e "${SCHEDULER}" ]
-		then
-			# Query to see what schedulers are available
-			case "$(cat "${SCHEDULER}")" in
-				*noop*) echo noop > "${SCHEDULER}" ;;
-				*none*) echo none > "${SCHEDULER}" ;;
-			esac
-		fi
-	done
 
 
 	# ----------------------------------------------------------------
@@ -954,15 +939,20 @@ mountroot()
 
 	# Go through the complete list (recursively) of all filesystems below
 	# the real root dataset
-	filesystems=$("${ZFS}" list -oname -tfilesystem -H -r "${ZFS_BOOTFS}")
-	for fs in $filesystems $ZFS_INITRD_ADDITIONAL_DATASETS
-	do
+	filesystems="$("${ZFS}" list -oname -tfilesystem -H -r "${ZFS_BOOTFS}")"
+	OLD_IFS="$IFS" ; IFS="
+"
+	for fs in $filesystems; do
+		IFS="$OLD_IFS" mount_fs "$fs"
+	done
+	IFS="$OLD_IFS"
+	for fs in $ZFS_INITRD_ADDITIONAL_DATASETS; do
 		mount_fs "$fs"
 	done
 
 	touch /run/zfs_unlock_complete
 	if [ -e /run/zfs_unlock_complete_notify ]; then
-		read -r zfs_unlock_complete_notify < /run/zfs_unlock_complete_notify
+		read -r < /run/zfs_unlock_complete_notify
 	fi
 
 	# ------------

@@ -45,7 +45,6 @@ $(MODULE)-objs += algs/aes/aes_modes.o
 $(MODULE)-objs += algs/edonr/edonr.o
 $(MODULE)-objs += algs/sha1/sha1.o
 $(MODULE)-objs += algs/sha2/sha2.o
-$(MODULE)-objs += algs/sha1/sha1.o
 $(MODULE)-objs += algs/skein/skein.o
 $(MODULE)-objs += algs/skein/skein_block.o
 $(MODULE)-objs += algs/skein/skein_iv.o
@@ -70,6 +69,12 @@ $(MODULE)-$(CONFIG_X86) += algs/aes/aes_impl_x86-64.o
 # utility tries to interpret them as opcodes and obviously fails doing so.
 OBJECT_FILES_NON_STANDARD_aesni-gcm-x86_64.o := y
 OBJECT_FILES_NON_STANDARD_ghash-x86_64.o := y
+# Suppress objtool "unsupported stack pointer realignment" warnings. We are
+# not using a DRAP register while aligning the stack to a 64 byte boundary.
+# See #6950 for the reasoning.
+OBJECT_FILES_NON_STANDARD_sha1-x86_64.o := y
+OBJECT_FILES_NON_STANDARD_sha256_impl.o := y
+OBJECT_FILES_NON_STANDARD_sha512_impl.o := y
 
 ICP_DIRS = \
 	api \

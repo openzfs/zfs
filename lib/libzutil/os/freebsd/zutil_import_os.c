@@ -127,7 +127,7 @@ zpool_open_func(void *arg)
 	/*
 	 * O_NONBLOCK so we don't hang trying to open things like serial ports.
 	 */
-	if ((fd = open(rn->rn_name, O_RDONLY|O_NONBLOCK)) < 0)
+	if ((fd = open(rn->rn_name, O_RDONLY|O_NONBLOCK|O_CLOEXEC)) < 0)
 		return;
 
 	/*
@@ -168,7 +168,7 @@ out:
 	(void) close(fd);
 }
 
-static const char *
+static const char * const
 zpool_default_import_path[] = {
 	"/dev"
 };

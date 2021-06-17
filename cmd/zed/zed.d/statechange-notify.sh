@@ -37,7 +37,7 @@ fi
 
 umask 077
 note_subject="ZFS device fault for pool ${ZEVENT_POOL_GUID} on $(hostname)"
-note_pathname="${TMPDIR:="/tmp"}/$(basename -- "$0").${ZEVENT_EID}.$$"
+note_pathname="$(mktemp)"
 {
     if [ "${ZEVENT_VDEV_STATE_STR}" = "FAULTED" ] ; then
         echo "The number of I/O errors associated with a ZFS device exceeded"

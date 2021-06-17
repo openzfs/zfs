@@ -18,11 +18,12 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright (c) 2020 by Delphix. All rights reserved.
+.\"
 .Dd April 17, 2020
 .Dt ZFS_IDS_TO_PATH 8
 .Os
+.
 .Sh NAME
 .Nm zfs_ids_to_path
 .Nd convert objset and object ids to names and paths
@@ -30,21 +31,21 @@
 .Nm
 .Op Fl v
 .Ar pool
-.Ar objset id
-.Ar object id
-.Nm
+.Ar objset-id
+.Ar object-id
+.
 .Sh DESCRIPTION
-.Pp
-.LP
 The
 .Sy zfs_ids_to_path
-utility converts a provided objset and object id into a path to the file that
-those ids refer to.
+utility converts a provided objset and object ids
+into a path to the file they refer to.
 .Bl -tag -width "-D"
 .It Fl v
 Verbose.
-Print the dataset name and the file path within the dataset separately. This
-will work correctly even if the dataset is not mounted.
+Print the dataset name and the file path within the dataset separately.
+This will work correctly even if the dataset is not mounted.
+.El
+.
 .Sh SEE ALSO
-.Xr zfs 8 ,
-.Xr zdb 8
+.Xr zdb 8 ,
+.Xr zfs 8

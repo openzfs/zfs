@@ -26,7 +26,7 @@
 # Strategy:
 # 1. For both healing and sequential resilvering replace:
 #    a. Create a pool
-#    b. Repalce a vdev with 'zpool replace' to resilver (-s) it.
+#    b. Replace a vdev with 'zpool replace' to resilver (-s) it.
 #    c. Export the pool
 #    d. Import the pool
 #    e. Verify the 'zpool replace' resumed resilvering.

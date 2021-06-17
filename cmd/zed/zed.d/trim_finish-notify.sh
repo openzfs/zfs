@@ -19,7 +19,7 @@ zed_check_cmd "${ZPOOL}" || exit 9
 
 umask 077
 note_subject="ZFS ${ZEVENT_SUBCLASS} event for ${ZEVENT_POOL} on $(hostname)"
-note_pathname="${TMPDIR:="/tmp"}/$(basename -- "$0").${ZEVENT_EID}.$$"
+note_pathname="$(mktemp)"
 {
     echo "ZFS has finished a trim:"
     echo

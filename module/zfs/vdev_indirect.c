@@ -181,7 +181,7 @@ int zfs_condense_indirect_vdevs_enable = B_TRUE;
  * condenses.  Higher values will condense less often (causing less
  * i/o); lower values will reduce the mapping size more quickly.
  */
-int zfs_indirect_condense_obsolete_pct = 25;
+int zfs_condense_indirect_obsolete_pct = 25;
 
 /*
  * Condense if the obsolete space map takes up more than this amount of
@@ -315,7 +315,6 @@ vdev_indirect_map_free(zio_t *zio)
 
 static const zio_vsd_ops_t vdev_indirect_vsd_ops = {
 	.vsd_free = vdev_indirect_map_free,
-	.vsd_cksum_report = zio_vsd_default_cksum_report
 };
 
 /*
@@ -446,7 +445,7 @@ vdev_indirect_should_condense(vdev_t *vd)
 	 * by the mapping.
 	 */
 	if (bytes_obsolete * 100 / bytes_mapped >=
-	    zfs_indirect_condense_obsolete_pct &&
+	    zfs_condense_indirect_obsolete_pct &&
 	    mapping_size > zfs_condense_min_mapping_bytes) {
 		zfs_dbgmsg("should condense vdev %llu because obsolete "
 		    "spacemap covers %d%% of %lluMB mapping",
@@ -1425,11 +1424,6 @@ vdev_indirect_repair(zio_t *zio)
 {
 	indirect_vsd_t *iv = zio->io_vsd;
 
-	enum zio_flag flags = ZIO_FLAG_IO_REPAIR;
-
-	if (!(zio->io_flags & (ZIO_FLAG_SCRUB | ZIO_FLAG_RESILVER)))
-		flags |= ZIO_FLAG_SELF_HEAL;
-
 	if (!spa_writeable(zio->io_spa))
 		return;
 
@@ -1485,14 +1479,12 @@ vdev_indirect_all_checksum_errors(zio_t *zio)
 
 			vdev_t *vd = ic->ic_vdev;
 
-			int ret = zfs_ereport_post_checksum(zio->io_spa, vd,
+			(void) zfs_ereport_post_checksum(zio->io_spa, vd,
 			    NULL, zio, is->is_target_offset, is->is_size,
 			    NULL, NULL, NULL);
-			if (ret != EALREADY) {
-				mutex_enter(&vd->vdev_stat_lock);
-				vd->vdev_stat.vs_checksum_errors++;
-				mutex_exit(&vd->vdev_stat_lock);
-			}
+			mutex_enter(&vd->vdev_stat_lock);
+			vd->vdev_stat.vs_checksum_errors++;
+			mutex_exit(&vd->vdev_stat_lock);
 		}
 	}
 }
@@ -1894,6 +1886,9 @@ EXPORT_SYMBOL(vdev_obsolete_sm_object);
 /* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs_condense, zfs_condense_, indirect_vdevs_enable, INT, ZMOD_RW,
 	"Whether to attempt condensing indirect vdev mappings");
+
+ZFS_MODULE_PARAM(zfs_condense, zfs_condense_, indirect_obsolete_pct, INT, ZMOD_RW,
+	"Minimum obsolete percent of bytes in the mapping to attempt condensing");
 
 ZFS_MODULE_PARAM(zfs_condense, zfs_condense_, min_mapping_bytes, ULONG, ZMOD_RW,
 	"Don't bother condensing if the mapping uses less than this amount of "

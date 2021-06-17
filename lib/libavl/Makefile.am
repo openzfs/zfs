@@ -4,6 +4,7 @@ VPATH = $(top_srcdir)/module/avl/
 
 # Includes kernel code, generate warnings for large stack frames
 AM_CFLAGS += $(FRAME_LARGER_THAN)
+AM_CFLAGS += -fvisibility=hidden
 
 noinst_LTLIBRARIES = libavl.la
 

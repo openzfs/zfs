@@ -1,4 +1,5 @@
 #!/bin/sh
+# shellcheck disable=SC2154
 
 # only run this on systemd systems, we handle the decrypt in mount-zfs.sh in the mount hook otherwise
 [ -e /bin/systemctl ] || [ -e /usr/bin/systemctl ] || return 0
@@ -32,25 +33,41 @@ else
 fi
 
 # if pool encryption is active and the zfs command understands '-o encryption'
-if [ "$(zpool list -H -o feature@encryption "$(echo "${BOOTFS}" | awk -F/ '{print $1}')")" = 'active' ]; then
+if [ "$(zpool list -H -o feature@encryption "${BOOTFS%%/*}")" = 'active' ]; then
     # if the root dataset has encryption enabled
     ENCRYPTIONROOT="$(zfs get -H -o value encryptionroot "${BOOTFS}")"
-    # where the key is stored (in a file or loaded via prompt)
-    KEYLOCATION="$(zfs get -H -o value keylocation "${ENCRYPTIONROOT}")"
     if ! [ "${ENCRYPTIONROOT}" = "-" ]; then
         KEYSTATUS="$(zfs get -H -o value keystatus "${ENCRYPTIONROOT}")"
         # continue only if the key needs to be loaded
         [ "$KEYSTATUS" = "unavailable" ] || exit 0
-        # if key is stored in a file, do not prompt
-        if ! [ "${KEYLOCATION}" = "prompt" ]; then
-            zfs load-key "${ENCRYPTIONROOT}"
-        else
-            # decrypt them
-            TRY_COUNT=5
-            while [ $TRY_COUNT -gt 0 ]; do
-                systemd-ask-password "Encrypted ZFS password for ${BOOTFS}" --no-tty | zfs load-key "${ENCRYPTIONROOT}" && break
-                TRY_COUNT=$((TRY_COUNT - 1))
-            done
-        fi
+
+        KEYLOCATION="$(zfs get -H -o value keylocation "${ENCRYPTIONROOT}")"
+        case "${KEYLOCATION%%://*}" in
+            prompt)
+                for _ in 1 2 3; do
+                    systemd-ask-password "Encrypted ZFS password for ${BOOTFS}" --no-tty | zfs load-key "${ENCRYPTIONROOT}" && break
+                done
+                ;;
+            http*)
+                systemctl start network-online.target
+                zfs load-key "${ENCRYPTIONROOT}"
+                ;;
+            file)
+                KEYFILE="${KEYLOCATION#file://}"
+                [ -r "${KEYFILE}" ] || udevadm settle
+                [ -r "${KEYFILE}" ] || {
+                    info "Waiting for key ${KEYFILE} for ${ENCRYPTIONROOT}..."
+                    for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+                        sleep 0.5s
+                        [ -r "${KEYFILE}" ] && break
+                    done
+                }
+                [ -r "${KEYFILE}" ] || warn "Key ${KEYFILE} for ${ENCRYPTIONROOT} hasn't appeared. Trying anyway."
+                zfs load-key "${ENCRYPTIONROOT}"
+                ;;
+            *)
+                zfs load-key "${ENCRYPTIONROOT}"
+                ;;
+        esac
     fi
 fi

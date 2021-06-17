@@ -151,9 +151,9 @@ zfs_znode_cache_destructor(void *buf, void *arg)
 	rw_destroy(&zp->z_xattr_lock);
 	zfs_rangelock_fini(&zp->z_rangelock);
 
-	ASSERT(zp->z_dirlocks == NULL);
-	ASSERT(zp->z_acl_cached == NULL);
-	ASSERT(zp->z_xattr_cached == NULL);
+	ASSERT3P(zp->z_dirlocks, ==, NULL);
+	ASSERT3P(zp->z_acl_cached, ==, NULL);
+	ASSERT3P(zp->z_xattr_cached, ==, NULL);
 }
 
 static int
@@ -217,7 +217,7 @@ zfs_znode_fini(void)
  * created or destroyed.  This kind of locking would normally reside in the
  * znode itself but in this case that's impossible because the znode and SA
  * buffer may not yet exist.  Therefore the locking is handled externally
- * with an array of mutexs and AVLs trees which contain per-object locks.
+ * with an array of mutexes and AVLs trees which contain per-object locks.
  *
  * In zfs_znode_hold_enter() a per-object lock is created as needed, inserted
  * in to the correct AVL tree and finally the per-object lock is held.  In
@@ -606,17 +606,24 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	 * number is already hashed for this super block.  This can never
 	 * happen because the inode numbers map 1:1 with the object numbers.
 	 *
-	 * The one exception is rolling back a mounted file system, but in
-	 * this case all the active inode are unhashed during the rollback.
+	 * Exceptions include rolling back a mounted file system, either
+	 * from the zfs rollback or zfs recv command.
+	 *
+	 * Active inodes are unhashed during the rollback, but since zrele
+	 * can happen asynchronously, we can't guarantee they've been
+	 * unhashed.  This can cause hash collisions in unlinked drain
+	 * processing so do not hash unlinked znodes.
 	 */
-	VERIFY3S(insert_inode_locked(ip), ==, 0);
+	if (links > 0)
+		VERIFY3S(insert_inode_locked(ip), ==, 0);
 
 	mutex_enter(&zfsvfs->z_znodes_lock);
 	list_insert_tail(&zfsvfs->z_all_znodes, zp);
 	zfsvfs->z_nr_znodes++;
 	mutex_exit(&zfsvfs->z_znodes_lock);
 
-	unlock_new_inode(ip);
+	if (links > 0)
+		unlock_new_inode(ip);
 	return (zp);
 
 error:

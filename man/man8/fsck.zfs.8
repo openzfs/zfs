@@ -1,4 +1,3 @@
-'\" t
 .\"
 .\" CDDL HEADER START
 .\"
@@ -19,49 +18,60 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright 2013 Darik Horn <dajhorn@vanadac.com>. All rights reserved.
 .\"
-.TH FSCK.ZFS 8 "Aug 24, 2020" OpenZFS
-
-.SH NAME
-fsck.zfs \- Dummy ZFS filesystem checker.
-
-.SH SYNOPSIS
-.LP
-.BI "fsck.zfs [" "options" "] <" "dataset" ">"
-
-.SH DESCRIPTION
-.LP
-\fBfsck.zfs\fR is a shell stub that does nothing and always returns
-true. It is installed by ZoL because some Linux distributions expect
-a fsck helper for all filesystems.
-
-.SH OPTIONS
-.HP
-All \fIoptions\fR and the \fIdataset\fR are ignored.
-
-.SH "NOTES"
-.LP
-ZFS datasets are checked by running \fBzpool scrub\fR on the
-containing pool. An individual ZFS dataset is never checked
-independently of its pool, which is unlike a regular filesystem.
-
-.SH "BUGS"
-.LP
-On some systems, if the \fIdataset\fR is in a degraded pool, then it
-might be appropriate for \fBfsck.zfs\fR to return exit code 4 to
-indicate an uncorrected filesystem error.
-.LP
-Similarly, if the \fIdataset\fR is in a faulted pool and has a legacy
-/etc/fstab record, then \fBfsck.zfs\fR should return exit code 8 to
-indicate a fatal operational error.
-
-.SH "AUTHORS"
-.LP
-Darik Horn <dajhorn@vanadac.com>.
-
-.SH "SEE ALSO"
-.BR fsck (8),
-.BR fstab (5),
-.BR zpool-scrub (8)
+.Dd May 26, 2021
+.Dt FSCK.ZFS 8
+.Os
+.
+.Sh NAME
+.Nm fsck.zfs
+.Nd dummy ZFS filesystem checker
+.Sh SYNOPSIS
+.Nm
+.Op Ar options
+.Ar dataset Ns No …
+.
+.Sh DESCRIPTION
+.Nm
+is a thin shell wrapper that at most checks the status of a dataset's container pool.
+It is installed by OpenZFS because some Linux
+distributions expect a fsck helper for all filesystems.
+.Pp
+If more than one
+.Ar dataset
+is specified, each is checked in turn and the results binary-ored.
+.
+.Sh OPTIONS
+Ignored.
+.
+.Sh NOTES
+ZFS datasets are checked by running
+.Nm zpool Cm scrub
+on the containing pool.
+An individual ZFS dataset is never checked independently of its pool,
+which is unlike a regular filesystem.
+.Pp
+However, the
+.Xr fsck 8
+interface still allows it to communicate some errors: if the
+.Ar dataset
+is in a degraded pool, then
+.Nm
+will return exit code
+.Sy 4
+to indicate an uncorrected filesystem error.
+.Pp
+Similarly, if the
+.Ar dataset
+is in a faulted pool and has a legacy
+.Pa /etc/fstab
+record, then
+.Nm
+will return exit code
+.Sy 8
+to indicate a fatal operational error.
+.Sh SEE ALSO
+.Xr fstab 5 ,
+.Xr fsck 8 ,
+.Xr zpool-scrub 8

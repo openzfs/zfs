@@ -24,7 +24,7 @@
  */
 
 /*
- * Copyright (c) 2012,2020 by Delphix. All rights reserved.
+ * Copyright (c) 2012,2021 by Delphix. All rights reserved.
  */
 
 #include <sys/spa.h>
@@ -248,6 +248,44 @@ zfs_ereport_schedule_cleaner(void)
 }
 
 /*
+ * Clear entries for a given vdev or all vdevs in a pool when vdev == NULL
+ */
+void
+zfs_ereport_clear(spa_t *spa, vdev_t *vd)
+{
+	uint64_t vdev_guid, pool_guid;
+	int cnt = 0;
+
+	ASSERT(vd != NULL || spa != NULL);
+	if (vd == NULL) {
+		vdev_guid = 0;
+		pool_guid = spa_guid(spa);
+	} else {
+		vdev_guid = vd->vdev_guid;
+		pool_guid = 0;
+	}
+
+	mutex_enter(&recent_events_lock);
+
+	recent_events_node_t *next = list_head(&recent_events_list);
+	while (next != NULL) {
+		recent_events_node_t *entry = next;
+
+		next = list_next(&recent_events_list, next);
+
+		if (entry->re_vdev_guid == vdev_guid ||
+		    entry->re_pool_guid == pool_guid) {
+			avl_remove(&recent_events_tree, entry);
+			list_remove(&recent_events_list, entry);
+			kmem_free(entry, sizeof (*entry));
+			cnt++;
+		}
+	}
+
+	mutex_exit(&recent_events_lock);
+}
+
+/*
  * Check if an ereport would be a duplicate of one recently posted.
  *
  * An ereport is considered a duplicate if the set of criteria in
@@ -357,8 +395,8 @@ zfs_zevent_post_cb(nvlist_t *nvl, nvlist_t *detector)
 }
 
 /*
- * We want to rate limit ZIO delay and checksum events so as to not
- * flood ZED when a disk is acting up.
+ * We want to rate limit ZIO delay, deadman, and checksum events so as to not
+ * flood zevent consumers when a disk is acting up.
  *
  * Returns 1 if we're ratelimiting, 0 if not.
  */
@@ -367,11 +405,13 @@ zfs_is_ratelimiting_event(const char *subclass, vdev_t *vd)
 {
 	int rc = 0;
 	/*
-	 * __ratelimit() returns 1 if we're *not* ratelimiting and 0 if we
+	 * zfs_ratelimit() returns 1 if we're *not* ratelimiting and 0 if we
 	 * are.  Invert it to get our return value.
 	 */
 	if (strcmp(subclass, FM_EREPORT_ZFS_DELAY) == 0) {
 		rc = !zfs_ratelimit(&vd->vdev_delay_rl);
+	} else if (strcmp(subclass, FM_EREPORT_ZFS_DEADMAN) == 0) {
+		rc = !zfs_ratelimit(&vd->vdev_deadman_rl);
 	} else if (strcmp(subclass, FM_EREPORT_ZFS_CHECKSUM) == 0) {
 		rc = !zfs_ratelimit(&vd->vdev_checksum_rl);
 	}
@@ -951,6 +991,12 @@ annotate_ecksum(nvlist_t *ereport, zio_bad_cksum_t *info,
 	}
 	return (eip);
 }
+#else
+/*ARGSUSED*/
+void
+zfs_ereport_clear(spa_t *spa, vdev_t *vd)
+{
+}
 #endif
 
 /*
@@ -1081,8 +1127,7 @@ zfs_ereport_post(const char *subclass, spa_t *spa, vdev_t *vd,
  */
 int
 zfs_ereport_start_checksum(spa_t *spa, vdev_t *vd, const zbookmark_phys_t *zb,
-    struct zio *zio, uint64_t offset, uint64_t length, void *arg,
-    zio_bad_cksum_t *info)
+    struct zio *zio, uint64_t offset, uint64_t length, zio_bad_cksum_t *info)
 {
 	zio_cksum_report_t *report;
 
@@ -1100,10 +1145,7 @@ zfs_ereport_start_checksum(spa_t *spa, vdev_t *vd, const zbookmark_phys_t *zb,
 
 	report = kmem_zalloc(sizeof (*report), KM_SLEEP);
 
-	if (zio->io_vsd != NULL)
-		zio->io_vsd_ops->vsd_cksum_report(zio, report, arg);
-	else
-		zio_vsd_default_cksum_report(zio, report, arg);
+	zio_vsd_default_cksum_report(zio, report);
 
 	/* copy the checksum failure information if it was provided */
 	if (info != NULL) {

@@ -43,7 +43,7 @@ __FBSDID("$FreeBSD$");
 #include <sys/errno.h>
 #include <libzfs.h>
 
-#include "libzfs_impl.h"
+#include "../../libzfs_impl.h"
 
 static void
 build_iovec(struct iovec **iov, int *iovlen, const char *name, void *val,
@@ -97,11 +97,6 @@ do_mount_(const char *spec, const char *dir, int mflag, char *fstype,
 	iovlen = 0;
 	if (strstr(optstr, MNTOPT_REMOUNT) != NULL)
 		build_iovec(&iov, &iovlen, "update", NULL, 0);
-	if (strstr(optstr, MNTOPT_NOXATTR) == NULL &&
-	    strstr(optstr, MNTOPT_XATTR) == NULL &&
-	    strstr(optstr, MNTOPT_SAXATTR) == NULL &&
-	    strstr(optstr, MNTOPT_DIRXATTR) == NULL)
-		build_iovec(&iov, &iovlen, "xattr", NULL, 0);
 	if (mflag & MS_RDONLY)
 		build_iovec(&iov, &iovlen, "ro", NULL, 0);
 	build_iovec(&iov, &iovlen, "fstype", fstype, (size_t)-1);
@@ -128,8 +123,9 @@ do_mount(zfs_handle_t *zhp, const char *mntpt, char *opts, int flags)
 int
 do_unmount(const char *mntpt, int flags)
 {
-
-	return (unmount(mntpt, flags));
+	if (unmount(mntpt, flags) < 0)
+		return (errno);
+	return (0);
 }
 
 int

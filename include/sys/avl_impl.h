@@ -25,8 +25,7 @@
  */
 
 #ifndef	_AVL_IMPL_H
-#define	_AVL_IMPL_H
-
+#define	_AVL_IMPL_H extern __attribute__((visibility("default")))
 
 
 /*
@@ -155,7 +154,7 @@ struct avl_tree {
 /*
  * This will only by used via AVL_NEXT() or AVL_PREV()
  */
-extern void *avl_walk(struct avl_tree *, void *, int);
+_AVL_IMPL_H void *avl_walk(struct avl_tree *, void *, int);
 
 #ifdef	__cplusplus
 }

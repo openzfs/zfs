@@ -18,7 +18,6 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
 .\" Copyright (c) 2011, 2019 by Delphix. All rights reserved.
@@ -33,9 +32,10 @@
 .Dd February 16, 2020
 .Dt ZFS-RECEIVE 8
 .Os
+.
 .Sh NAME
 .Nm zfs-receive
-.Nd Creates a snapshot whose contents are as specified in the stream provided on standard input.
+.Nd create snapshot from backup stream
 .Sh SYNOPSIS
 .Nm zfs
 .Cm receive
@@ -56,6 +56,7 @@
 .Cm receive
 .Fl A
 .Ar filesystem Ns | Ns Ar volume
+.
 .Sh DESCRIPTION
 .Bl -tag -width ""
 .It Xo
@@ -85,7 +86,7 @@ Streams are created using the
 subcommand, which by default creates a full stream.
 .Nm zfs Cm recv
 can be used as an alias for
-.Nm zfs Cm receive.
+.Nm zfs Cm receive .
 .Pp
 If an incremental stream is received, then the destination file system must
 already exist, and its most recent snapshot must match the incremental stream's
@@ -116,15 +117,17 @@ If
 or
 .Fl x Em property
 is specified, it applies to the effective value of the property throughout
-the entire subtree of replicated datasets. Effective property values will be
-set (
-.Fl o
-) or inherited (
-.Fl x
-) on the topmost in the replicated subtree. In descendant datasets, if the
+the entire subtree of replicated datasets.
+Effective property values will be set
+.Pq Fl o
+or inherited
+.Pq Fl x
+on the topmost in the replicated subtree.
+In descendant datasets, if the
 property is set by the send stream, it will be overridden by forcing the
-property to be inherited from the top‐most file system. Received properties
-are retained in spite of being overridden and may be restored with
+property to be inherited from the top‐most file system.
+Received properties are retained in spite of being overridden
+and may be restored with
 .Nm zfs Cm inherit Fl S .
 Specifying
 .Fl o Sy origin Ns = Ns Em snapshot
@@ -134,41 +137,51 @@ is a read-only property and cannot be set, it's allowed to receive the send
 stream as a clone of the given snapshot.
 .Pp
 Raw encrypted send streams (created with
-.Nm zfs Cm send Fl w
-) may only be received as is, and cannot be re-encrypted, decrypted, or
-recompressed by the receive process. Unencrypted streams can be received as
+.Nm zfs Cm send Fl w )
+may only be received as is, and cannot be re-encrypted, decrypted, or
+recompressed by the receive process.
+Unencrypted streams can be received as
 encrypted datasets, either through inheritance or by specifying encryption
 parameters with the
 .Fl o
-options. Note that the
+options.
+Note that the
 .Sy keylocation
 property cannot be overridden to
 .Sy prompt
-during a receive. This is because the receive process itself is already using
-stdin for the send stream. Instead, the property can be overridden after the
-receive completes.
+during a receive.
+This is because the receive process itself is already using
+the standard input for the send stream.
+Instead, the property can be overridden after the receive completes.
 .Pp
 The added security provided by raw sends adds some restrictions to the send
-and receive process. ZFS will not allow a mix of raw receives and non-raw
-receives. Specifically, any raw incremental receives that are attempted after
-a non-raw receive will fail. Non-raw receives do not have this restriction and,
-therefore, are always possible. Because of this, it is best practice to always
+and receive process.
+ZFS will not allow a mix of raw receives and non-raw receives.
+Specifically, any raw incremental receives that are attempted after
+a non-raw receive will fail.
+Non-raw receives do not have this restriction and,
+therefore, are always possible.
+Because of this, it is best practice to always
 use either raw sends for their security benefits or non-raw sends for their
 flexibility when working with encrypted datasets, but not a combination.
 .Pp
 The reason for this restriction stems from the inherent restrictions of the
-AEAD ciphers that ZFS uses to encrypt data. When using ZFS native encryption,
+AEAD ciphers that ZFS uses to encrypt data.
+When using ZFS native encryption,
 each block of data is encrypted against a randomly generated number known as
 the "initialization vector" (IV), which is stored in the filesystem metadata.
 This number is required by the encryption algorithms whenever the data is to
-be decrypted. Together, all of the IVs provided for all of the blocks in a
-given snapshot are collectively called an "IV set". When ZFS performs a raw
-send, the IV set is transferred from the source to the destination in the send
-stream. When ZFS performs a non-raw send, the data is decrypted by the source
+be decrypted.
+Together, all of the IVs provided for all of the blocks in a
+given snapshot are collectively called an "IV set".
+When ZFS performs a raw send, the IV set is transferred from the source
+to the destination in the send stream.
+When ZFS performs a non-raw send, the data is decrypted by the source
 system and re-encrypted by the destination system, creating a snapshot with
-effectively the same data, but a different IV set. In order for decryption to
-work after a raw send, ZFS must ensure that the IV set used on both the source
-and destination side match. When an incremental raw receive is performed on
+effectively the same data, but a different IV set.
+In order for decryption to work after a raw send, ZFS must ensure that
+the IV set used on both the source and destination side match.
+When an incremental raw receive is performed on
 top of an existing snapshot, ZFS will check to confirm that the "from"
 snapshot on both the source and destination were using the same IV set,
 ensuring the new IV set is consistent.
@@ -234,7 +247,8 @@ Discard all but the last element of the sent snapshot's file system name, using
 that element to determine the name of the target file system for the new
 snapshot as described in the paragraph above.
 .It Fl h
-Skip the receive of holds.  There is no effect if holds are not sent.
+Skip the receive of holds.
+There is no effect if holds are not sent.
 .It Fl M
 Force an unmount of the file system while receiving a snapshot.
 This option is not supported on Linux.
@@ -254,14 +268,27 @@ performed.
 .It Fl o Em property Ns = Ns Ar value
 Sets the specified property as if the command
 .Nm zfs Cm set Em property Ns = Ns Ar value
-was invoked immediately before the receive. When receiving a stream from
+was invoked immediately before the receive.
+When receiving a stream from
 .Nm zfs Cm send Fl R ,
 causes the property to be inherited by all descendant datasets, as through
 .Nm zfs Cm inherit Em property
 was run on any descendant datasets that have this property set on the
 sending system.
 .Pp
-Any editable property can be set at receive time. Set-once properties bound
+If the send stream was sent with
+.Fl c
+then overriding the
+.Sy compression
+property will have no affect on received data but the
+.Sy compression
+property will be set.
+To have the data recompressed on receive remove the
+.Fl c
+flag from the send stream.
+.Pp
+Any editable property can be set at receive time.
+Set-once properties bound
 to the received data, such as
 .Sy normalization
 and
@@ -276,8 +303,8 @@ cannot be set at receive time.
 .Pp
 The
 .Fl o
-option may be specified multiple times, for different properties. An error
-results if the same property is specified in multiple
+option may be specified multiple times, for different properties.
+An error results if the same property is specified in multiple
 .Fl o
 or
 .Fl x
@@ -285,30 +312,27 @@ options.
 .Pp
 The
 .Fl o
-option may also be used to override encryption properties upon initial
-receive. This allows unencrypted streams to be received as encrypted datasets.
+option may also be used to override encryption properties upon initial receive.
+This allows unencrypted streams to be received as encrypted datasets.
 To cause the received dataset (or root dataset of a recursive stream) to be
 received as an encryption root, specify encryption properties in the same
 manner as is required for
-.Nm zfs
-.Cm create .
+.Nm zfs Cm create .
 For instance:
-.Bd -literal
-# zfs send tank/test@snap1 | zfs recv -o encryption=on -o keyformat=passphrase -o keylocation=file:///path/to/keyfile
-.Ed
+.Dl # Nm zfs Cm send Pa tank/test@snap1 | Nm zfs Cm recv Fl o Sy encryption Ns = Ns Sy on Fl o keyformat=passphrase Fl o Sy keylocation Ns = Ns Pa file:///path/to/keyfile
 .Pp
 Note that
-.Op Fl o Ar keylocation Ns = Ns Ar prompt
-may not be specified here, since stdin is already being utilized for the send
-stream. Once the receive has completed, you can use
-.Nm zfs
-.Cm set
-to change this setting after the fact. Similarly, you can receive a dataset as
-an encrypted child by specifying
+.Fl o Sy keylocation Ns = Ns Sy prompt
+may not be specified here, since the standard input
+is already being utilized for the send stream.
+Once the receive has completed, you can use
+.Nm zfs Cm set
+to change this setting after the fact.
+Similarly, you can receive a dataset as an encrypted child by specifying
 .Op Fl x Ar encryption
-to force the property to be inherited. Overriding encryption properties (except
-for
-.Sy keylocation Ns )
+to force the property to be inherited.
+Overriding encryption properties (except for
+.Sy keylocation )
 is not possible with raw send streams.
 .It Fl s
 If the receive is interrupted, save the partially received state, rather
@@ -333,7 +357,7 @@ To use this flag, the storage pool must have the
 .Sy extensible_dataset
 feature enabled.
 See
-.Xr zpool-features 5
+.Xr zpool-features 7
 for details on ZFS feature flags.
 .It Fl u
 File system that is associated with the received stream is not mounted.
@@ -370,6 +394,7 @@ Abort an interrupted
 .Nm zfs Cm receive Fl s ,
 deleting its saved partially received state.
 .El
+.
 .Sh SEE ALSO
-.Xr zfs-send 8
+.Xr zfs-send 8 ,
 .Xr zstream 8

@@ -120,16 +120,16 @@ License:        @ZFS_META_LICENSE@
 URL:            https://github.com/openzfs/zfs
 Source0:        %{name}-%{version}.tar.gz
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
-Requires:       libzpool4 = %{version}
+Requires:       libzpool5 = %{version}
 Requires:       libnvpair3 = %{version}
 Requires:       libuutil3 = %{version}
-Requires:       libzfs4 = %{version}
+Requires:       libzfs5 = %{version}
 Requires:       %{name}-kmod = %{version}
 Provides:       %{name}-kmod-common = %{version}
 Obsoletes:      spl
 
-# zfs-fuse provides the same commands and man pages that ZoL does. Renaming
-# those on either side would conflict with all available documentation.
+# zfs-fuse provides the same commands and man pages that OpenZFS does.
+# Renaming those on either side would conflict with all available documentation.
 Conflicts:      zfs-fuse
 
 %if 0%{?rhel}%{?fedora}%{?suse_version}
@@ -140,9 +140,14 @@ BuildRequires:  libblkid-devel
 BuildRequires:  libudev-devel
 BuildRequires:  libattr-devel
 BuildRequires:  openssl-devel
+# We don't directly use it, but if this isn't installed, rpmbuild as root can
+# crash+corrupt rpmdb
+# See issue #12071
+BuildRequires:  ncompress
 %if 0%{?fedora} >= 28 || 0%{?rhel} >= 8 || 0%{?centos} >= 8
 BuildRequires:  libtirpc-devel
 %endif
+
 Requires:       openssl
 %if 0%{?_systemd}
 BuildRequires: systemd
@@ -162,17 +167,22 @@ Requires:  sysstat
 %description
 This package contains the core ZFS command line utilities.
 
-%package -n libzpool4
+%package -n libzpool5
 Summary:        Native ZFS pool library for Linux
 Group:          System Environment/Kernel
 Obsoletes:      libzpool2
+Obsoletes:      libzpool4
 
-%description -n libzpool4
+%description -n libzpool5
 This package contains the zpool library, which provides support
 for managing zpools
 
-%post -n libzpool4 -p /sbin/ldconfig
-%postun -n libzpool4 -p /sbin/ldconfig
+%if %{defined ldconfig_scriptlets}
+%ldconfig_scriptlets -n libzpool5
+%else
+%post -n libzpool5 -p /sbin/ldconfig
+%postun -n libzpool5 -p /sbin/ldconfig
+%endif
 
 %package -n libnvpair3
 Summary:        Solaris name-value library for Linux
@@ -185,8 +195,12 @@ pairs.  This functionality is used to portably transport data across
 process boundaries, between kernel and user space, and can be used
 to write self describing data structures on disk.
 
+%if %{defined ldconfig_scriptlets}
+%ldconfig_scriptlets -n libnvpair3
+%else
 %post -n libnvpair3 -p /sbin/ldconfig
 %postun -n libnvpair3 -p /sbin/ldconfig
+%endif
 
 %package -n libuutil3
 Summary:        Solaris userland utility library for Linux
@@ -204,34 +218,47 @@ This library provides a variety of compatibility functions for OpenZFS:
    partitioning.
  * libshare: NFS, SMB, and iSCSI service integration for ZFS.
 
+%if %{defined ldconfig_scriptlets}
+%ldconfig_scriptlets -n libuutil3
+%else
 %post -n libuutil3 -p /sbin/ldconfig
 %postun -n libuutil3 -p /sbin/ldconfig
+%endif
 
-%package -n libzfs4
+# The library version is encoded in the package name.  When updating the
+# version information it is important to add an obsoletes line below for
+# the previous version of the package.
+%package -n libzfs5
 Summary:        Native ZFS filesystem library for Linux
 Group:          System Environment/Kernel
 Obsoletes:      libzfs2
+Obsoletes:      libzfs4
 
-%description -n libzfs4
+%description -n libzfs5
 This package provides support for managing ZFS filesystems
 
-%post -n libzfs4 -p /sbin/ldconfig
-%postun -n libzfs4 -p /sbin/ldconfig
+%if %{defined ldconfig_scriptlets}
+%ldconfig_scriptlets -n libzfs5
+%else
+%post -n libzfs5 -p /sbin/ldconfig
+%postun -n libzfs5 -p /sbin/ldconfig
+%endif
 
-%package -n libzfs4-devel
+%package -n libzfs5-devel
 Summary:        Development headers
 Group:          System Environment/Kernel
-Requires:       libzfs4 = %{version}
-Requires:       libzpool4 = %{version}
+Requires:       libzfs5 = %{version}
+Requires:       libzpool5 = %{version}
 Requires:       libnvpair3 = %{version}
 Requires:       libuutil3 = %{version}
-Provides:       libzpool4-devel
+Provides:       libzpool5-devel
 Provides:       libnvpair3-devel
 Provides:       libuutil3-devel
 Obsoletes:      zfs-devel
 Obsoletes:      libzfs2-devel
+Obsoletes:      libzfs4-devel
 
-%description -n libzfs4-devel
+%description -n libzfs5-devel
 This package contains the header files needed for building additional
 applications against the ZFS libraries.
 
@@ -278,12 +305,17 @@ Summary:        Python %{python_version} wrapper for libzfs_core
 Group:          Development/Languages/Python
 License:        Apache-2.0
 BuildArch:      noarch
-Requires:       libzfs4 = %{version}
+Requires:       libzfs5 = %{version}
 Requires:       libnvpair3 = %{version}
 Requires:       libffi
 Requires:       python%{__python_pkg_version}
 Requires:       %{__python_cffi_pkg}
 %if 0%{?rhel}%{?fedora}%{?suse_version}
+%if 0%{?rhel} >= 8 || 0%{?centos} >= 8 || 0%{?fedora} >= 28
+BuildRequires:  python3-packaging
+%else
+BuildRequires:  python-packaging
+%endif
 BuildRequires:  python%{__python_pkg_version}-devel
 BuildRequires:  %{__python_cffi_pkg}
 BuildRequires:  %{__python_setuptools_pkg}
@@ -450,13 +482,16 @@ systemctl --system daemon-reload >/dev/null || true
 %{_bindir}/dbufstat
 # Man pages
 %{_mandir}/man1/*
+%{_mandir}/man4/*
 %{_mandir}/man5/*
+%{_mandir}/man7/*
 %{_mandir}/man8/*
 # Configuration files and scripts
 %{_libexecdir}/%{name}
 %{_udevdir}/vdev_id
 %{_udevdir}/zvol_id
 %{_udevdir}/rules.d/*
+%{_datadir}/%{name}/compatibility.d
 %if ! 0%{?_systemd} || 0%{?_initramfs}
 # Files needed for sysvinit and initramfs-tools
 %{_sysconfdir}/%{name}/zfs-functions
@@ -482,7 +517,7 @@ systemctl --system daemon-reload >/dev/null || true
 %{_datadir}/pam-configs/*
 %endif
 
-%files -n libzpool4
+%files -n libzpool5
 %{_libdir}/libzpool.so.*
 
 %files -n libnvpair3
@@ -491,10 +526,10 @@ systemctl --system daemon-reload >/dev/null || true
 %files -n libuutil3
 %{_libdir}/libuutil.so.*
 
-%files -n libzfs4
+%files -n libzfs5
 %{_libdir}/libzfs*.so.*
 
-%files -n libzfs4-devel
+%files -n libzfs5-devel
 %{_pkgconfigdir}/libzfs.pc
 %{_pkgconfigdir}/libzfsbootenv.pc
 %{_pkgconfigdir}/libzfs_core.pc
@@ -503,7 +538,10 @@ systemctl --system daemon-reload >/dev/null || true
 %doc AUTHORS COPYRIGHT LICENSE NOTICE README.md
 
 %files test
-%{_datadir}/%{name}
+%{_datadir}/%{name}/zfs-tests
+%{_datadir}/%{name}/test-runner
+%{_datadir}/%{name}/runfiles
+%{_datadir}/%{name}/*.sh
 
 %files dracut
 %doc contrib/dracut/README.dracut.markdown

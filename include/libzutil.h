@@ -24,7 +24,7 @@
  */
 
 #ifndef	_LIBZUTIL_H
-#define	_LIBZUTIL_H
+#define	_LIBZUTIL_H extern __attribute__((visibility("default")))
 
 #include <sys/nvpair.h>
 #include <sys/fs/zfs.h>
@@ -56,8 +56,8 @@ typedef const struct pool_config_ops {
 /*
  * An instance of pool_config_ops_t is expected in the caller's binary.
  */
-extern const pool_config_ops_t libzfs_config_ops;
-extern const pool_config_ops_t libzpool_config_ops;
+_LIBZUTIL_H const pool_config_ops_t libzfs_config_ops;
+_LIBZUTIL_H const pool_config_ops_t libzpool_config_ops;
 
 typedef struct importargs {
 	char **path;		/* a list of paths to search		*/
@@ -70,21 +70,21 @@ typedef struct importargs {
 	nvlist_t *policy;	/* load policy (max txg, rewind, etc.)	*/
 } importargs_t;
 
-extern nvlist_t *zpool_search_import(void *, importargs_t *,
+_LIBZUTIL_H nvlist_t *zpool_search_import(void *, importargs_t *,
     const pool_config_ops_t *);
-extern int zpool_find_config(void *, const char *, nvlist_t **, importargs_t *,
-    const pool_config_ops_t *);
+_LIBZUTIL_H int zpool_find_config(void *, const char *, nvlist_t **,
+    importargs_t *, const pool_config_ops_t *);
 
-extern const char * const * zpool_default_search_paths(size_t *count);
-extern int zpool_read_label(int, nvlist_t **, int *);
-extern int zpool_label_disk_wait(const char *, int);
+_LIBZUTIL_H const char * const * zpool_default_search_paths(size_t *count);
+_LIBZUTIL_H int zpool_read_label(int, nvlist_t **, int *);
+_LIBZUTIL_H int zpool_label_disk_wait(const char *, int);
 
 struct udev_device;
 
-extern int zfs_device_get_devid(struct udev_device *, char *, size_t);
-extern int zfs_device_get_physical(struct udev_device *, char *, size_t);
+_LIBZUTIL_H int zfs_device_get_devid(struct udev_device *, char *, size_t);
+_LIBZUTIL_H int zfs_device_get_physical(struct udev_device *, char *, size_t);
 
-extern void update_vdev_config_dev_strs(nvlist_t *);
+_LIBZUTIL_H void update_vdev_config_dev_strs(nvlist_t *);
 
 /*
  * Default device paths
@@ -93,23 +93,24 @@ extern void update_vdev_config_dev_strs(nvlist_t *);
 #define	UDISK_ROOT	"/dev/disk"
 #define	ZVOL_ROOT	"/dev/zvol"
 
-extern int zfs_append_partition(char *path, size_t max_len);
-extern int zfs_resolve_shortname(const char *name, char *path, size_t pathlen);
+_LIBZUTIL_H int zfs_append_partition(char *path, size_t max_len);
+_LIBZUTIL_H int zfs_resolve_shortname(const char *name, char *path,
+    size_t pathlen);
 
-extern char *zfs_strip_partition(char *);
-extern char *zfs_strip_path(char *);
+_LIBZUTIL_H char *zfs_strip_partition(char *);
+_LIBZUTIL_H char *zfs_strip_path(char *);
 
-extern int zfs_strcmp_pathname(const char *, const char *, int);
+_LIBZUTIL_H int zfs_strcmp_pathname(const char *, const char *, int);
 
-extern boolean_t zfs_dev_is_dm(const char *);
-extern boolean_t zfs_dev_is_whole_disk(const char *);
-extern int zfs_dev_flush(int);
-extern char *zfs_get_underlying_path(const char *);
-extern char *zfs_get_enclosure_sysfs_path(const char *);
+_LIBZUTIL_H boolean_t zfs_dev_is_dm(const char *);
+_LIBZUTIL_H boolean_t zfs_dev_is_whole_disk(const char *);
+_LIBZUTIL_H int zfs_dev_flush(int);
+_LIBZUTIL_H char *zfs_get_underlying_path(const char *);
+_LIBZUTIL_H char *zfs_get_enclosure_sysfs_path(const char *);
 
-extern boolean_t is_mpath_whole_disk(const char *);
+_LIBZUTIL_H boolean_t is_mpath_whole_disk(const char *);
 
-extern boolean_t zfs_isnumber(const char *);
+_LIBZUTIL_H boolean_t zfs_isnumber(const char *);
 
 /*
  * Formats for iostat numbers.  Examples: "12K", "30ms", "4B", "2321234", "-".
@@ -131,21 +132,21 @@ enum zfs_nicenum_format {
 /*
  * Convert a number to a human-readable form.
  */
-extern void zfs_nicebytes(uint64_t, char *, size_t);
-extern void zfs_nicenum(uint64_t, char *, size_t);
-extern void zfs_nicenum_format(uint64_t, char *, size_t,
+_LIBZUTIL_H void zfs_nicebytes(uint64_t, char *, size_t);
+_LIBZUTIL_H void zfs_nicenum(uint64_t, char *, size_t);
+_LIBZUTIL_H void zfs_nicenum_format(uint64_t, char *, size_t,
     enum zfs_nicenum_format);
-extern void zfs_nicetime(uint64_t, char *, size_t);
-extern void zfs_niceraw(uint64_t, char *, size_t);
+_LIBZUTIL_H void zfs_nicetime(uint64_t, char *, size_t);
+_LIBZUTIL_H void zfs_niceraw(uint64_t, char *, size_t);
 
 #define	nicenum(num, buf, size)	zfs_nicenum(num, buf, size)
 
-extern void zpool_dump_ddt(const ddt_stat_t *, const ddt_histogram_t *);
-extern int zpool_history_unpack(char *, uint64_t, uint64_t *, nvlist_t ***,
+_LIBZUTIL_H void zpool_dump_ddt(const ddt_stat_t *, const ddt_histogram_t *);
+_LIBZUTIL_H int zpool_history_unpack(char *, uint64_t, uint64_t *, nvlist_t ***,
     uint_t *);
 
 struct zfs_cmd;
-int zfs_ioctl_fd(int fd, unsigned long request, struct zfs_cmd *zc);
+_LIBZUTIL_H int zfs_ioctl_fd(int fd, unsigned long request, struct zfs_cmd *zc);
 
 /*
  * List of colors to use
@@ -155,9 +156,12 @@ int zfs_ioctl_fd(int fd, unsigned long request, struct zfs_cmd *zc);
 #define	ANSI_RESET	"\033[0m"
 #define	ANSI_BOLD	"\033[1m"
 
-void color_start(char *color);
-void color_end(void);
-int printf_color(char *color, char *format, ...);
+_LIBZUTIL_H void color_start(char *color);
+_LIBZUTIL_H void color_end(void);
+_LIBZUTIL_H int printf_color(char *color, char *format, ...);
+
+_LIBZUTIL_H const char *zfs_basename(const char *path);
+_LIBZUTIL_H ssize_t zfs_dirnamelen(const char *path);
 
 #ifdef	__cplusplus
 }

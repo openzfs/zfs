@@ -172,11 +172,13 @@ zfs_crypto_dispatch(freebsd_crypt_session_t *session, 	struct cryptop *crp)
 			break;
 		mtx_lock(&session->fs_lock);
 		while (session->fs_done == false)
-			msleep(crp, &session->fs_lock, PRIBIO,
-			    "zfs_crypto", hz/5);
+			msleep(crp, &session->fs_lock, 0,
+			    "zfs_crypto", 0);
 		mtx_unlock(&session->fs_lock);
 
-		if (crp->crp_etype != EAGAIN) {
+		if (crp->crp_etype == ENOMEM) {
+			pause("zcrnomem", 1);
+		} else if (crp->crp_etype != EAGAIN) {
 			error = crp->crp_etype;
 			break;
 		}
@@ -293,8 +295,19 @@ freebsd_crypt_newsession(freebsd_crypt_session_t *sessp,
 		error = ENOTSUP;
 		goto bad;
 	}
-	error = crypto_newsession(&sessp->fs_sid, &csp,
-	    CRYPTOCAP_F_HARDWARE | CRYPTOCAP_F_SOFTWARE);
+
+	/*
+	 * Disable the use of hardware drivers on FreeBSD 13 and later since
+	 * common crypto offload drivers impose constraints on AES-GCM AAD
+	 * lengths that make them unusable for ZFS, and we currently do not have
+	 * a mechanism to fall back to a software driver for requests not
+	 * handled by a hardware driver.
+	 *
+	 * On 12 we continue to permit the use of hardware drivers since
+	 * CPU-accelerated drivers such as aesni(4) register themselves as
+	 * hardware drivers.
+	 */
+	error = crypto_newsession(&sessp->fs_sid, &csp, CRYPTOCAP_F_SOFTWARE);
 	mtx_init(&sessp->fs_lock, "FreeBSD Cryptographic Session Lock",
 	    NULL, MTX_DEF);
 	crypt_sessions++;

@@ -18,7 +18,6 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
 .\" Copyright (c) 2011, 2019 by Delphix. All rights reserved.
@@ -31,38 +30,37 @@
 .\" Copyright 2019 Joyent, Inc.
 .\" Copyright (c) 2019, 2020 by Christian Schwarz. All Rights Reserved.
 .\"
-.Dd June 30, 2019
-.Dt ZFS-BOOKMARK 8 SMM
+.Dd May 27, 2021
+.Dt ZFS-BOOKMARK 8
 .Os
+.
 .Sh NAME
 .Nm zfs-bookmark
-.Nd Creates a bookmark of the given snapshot.
+.Nd create bookmark of ZFS snapshot
 .Sh SYNOPSIS
-.Sh DESCRIPTION
-.Bl -tag -width ""
-.It Xo
 .Nm zfs
 .Cm bookmark
-.Ar snapshot Ns | Ns Ar bookmark newbookmark
-.Xc
+.Ar snapshot Ns | Ns Ar bookmark
+.Ar newbookmark
+.
+.Sh DESCRIPTION
 Creates a new bookmark of the given snapshot or bookmark.
 Bookmarks mark the point in time when the snapshot was created, and can be used
 as the incremental source for a
-.Xr zfs-send 8
-command.
+.Nm zfs Cm send .
 .Pp
 When creating a bookmark from an existing redaction bookmark, the resulting
 bookmark is
-.Sy not
+.Em not
 a redaction bookmark.
 .Pp
 This feature must be enabled to be used.
 See
-.Xr zpool-features 5
+.Xr zpool-features 7
 for details on ZFS feature flags and the
 .Sy bookmarks
 feature.
-.El
+.
 .Sh SEE ALSO
 .Xr zfs-destroy 8 ,
 .Xr zfs-send 8 ,

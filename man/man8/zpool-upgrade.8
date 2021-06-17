@@ -18,7 +18,6 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
 .\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
@@ -26,13 +25,15 @@
 .\" Copyright (c) 2018 George Melikov. All Rights Reserved.
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
+.\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
 .\"
 .Dd August 9, 2019
 .Dt ZPOOL-UPGRADE 8
 .Os
+.
 .Sh NAME
 .Nm zpool-upgrade
-.Nd Manage version and feature flags of ZFS storage pools
+.Nd manage version and feature flags of ZFS storage pools
 .Sh SYNOPSIS
 .Nm zpool
 .Cm upgrade
@@ -42,7 +43,8 @@
 .Nm zpool
 .Cm upgrade
 .Op Fl V Ar version
-.Fl a Ns | Ns Ar pool Ns ...
+.Fl a Ns | Ns Ar pool Ns …
+.
 .Sh DESCRIPTION
 .Bl -tag -width Ds
 .It Xo
@@ -54,43 +56,54 @@ formatted using a legacy ZFS version number.
 These pools can continue to be used, but some features may not be available.
 Use
 .Nm zpool Cm upgrade Fl a
-to enable all features on all pools.
+to enable all features on all pools (subject to the
+.Fl o Sy compatibility
+property).
 .It Xo
 .Nm zpool
 .Cm upgrade
 .Fl v
 .Xc
-Displays legacy ZFS versions supported by the current software.
+Displays legacy ZFS versions supported by the this version of ZFS.
 See
-.Xr zpool-features 5
-for a description of feature flags features supported by the current software.
+.Xr zpool-features 7
+for a description of feature flags features supported by this version of ZFS.
 .It Xo
 .Nm zpool
 .Cm upgrade
 .Op Fl V Ar version
-.Fl a Ns | Ns Ar pool Ns ...
+.Fl a Ns | Ns Ar pool Ns …
 .Xc
 Enables all supported features on the given pool.
+.Pp
+If the pool has specified compatibility feature sets using the
+.Fl o Sy compatibility
+property, only the features present in all requested compatibility sets will be
+enabled.
+If this property is set to
+.Ar legacy
+then no upgrade will take place.
+.Pp
 Once this is done, the pool will no longer be accessible on systems that do not
 support feature flags.
 See
-.Xr zpool-features 5
+.Xr zpool-features 7
 for details on compatibility with systems that support feature flags, but do not
 support all features enabled on the pool.
 .Bl -tag -width Ds
 .It Fl a
-Enables all supported features on all pools.
+Enables all supported features (from specified compatibility sets, if any) on all
+pools.
 .It Fl V Ar version
 Upgrade to the specified legacy version.
-If the
-.Fl V
-flag is specified, no features will be enabled on the pool.
+If specified, no features will be enabled on the pool.
 This option can only be used to increase the version number up to the last
 supported legacy version number.
 .El
 .El
+.
 .Sh SEE ALSO
-.Xr zpool-features 5 ,
-.Xr zpoolconcepts 8 ,
-.Xr zpoolprops 8 ,
+.Xr zpool-features 7 ,
+.Xr zpoolconcepts 7 ,
+.Xr zpoolprops 7 ,
 .Xr zpool-history 8

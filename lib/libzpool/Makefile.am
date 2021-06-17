@@ -163,6 +163,7 @@ KERNEL_C = \
 	zfs_debug.c \
 	zfs_fm.c \
 	zfs_fuid.c \
+	zfs_racct.c \
 	zfs_sa.c \
 	zfs_znode.c \
 	zfs_ratelimit.c \
@@ -229,7 +230,7 @@ if BUILD_FREEBSD
 libzpool_la_LIBADD += -lgeom
 endif
 
-libzpool_la_LDFLAGS += -version-info 4:0:0
+libzpool_la_LDFLAGS += -version-info 5:0:0
 
 if TARGET_CPU_POWERPC
 vdev_raidz_math_powerpc_altivec.$(OBJEXT): CFLAGS += -maltivec

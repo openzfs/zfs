@@ -25,6 +25,7 @@
  * Copyright (c) 2017, Intel Corporation.
  * Copyright (c) 2019, Klara Inc.
  * Copyright (c) 2019, Allan Jude
+ * Copyright (c) 2021, Datto, Inc.
  */
 
 #include <sys/sysmacros.h>
@@ -204,6 +205,19 @@ zio_init(void)
 
 		if (align != 0) {
 			char name[36];
+			if (cflags == data_cflags) {
+				/*
+				 * Resulting kmem caches would be identical.
+				 * Save memory by creating only one.
+				 */
+				(void) snprintf(name, sizeof (name),
+				    "zio_buf_comb_%lu", (ulong_t)size);
+				zio_buf_cache[c] = kmem_cache_create(name,
+				    size, align, NULL, NULL, NULL, NULL, NULL,
+				    cflags);
+				zio_data_buf_cache[c] = zio_buf_cache[c];
+				continue;
+			}
 			(void) snprintf(name, sizeof (name), "zio_buf_%lu",
 			    (ulong_t)size);
 			zio_buf_cache[c] = kmem_cache_create(name, size,
@@ -234,37 +248,50 @@ zio_init(void)
 void
 zio_fini(void)
 {
-	size_t c;
-	kmem_cache_t *last_cache = NULL;
-	kmem_cache_t *last_data_cache = NULL;
+	size_t n = SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT;
 
-	for (c = 0; c < SPA_MAXBLOCKSIZE >> SPA_MINBLOCKSHIFT; c++) {
-#ifdef _ILP32
-		/*
-		 * Cache size limited to 1M on 32-bit platforms until ARC
-		 * buffers no longer require virtual address space.
-		 */
-		if (((c + 1) << SPA_MINBLOCKSHIFT) > zfs_max_recordsize)
-			break;
-#endif
 #if defined(ZFS_DEBUG) && !defined(_KERNEL)
-		if (zio_buf_cache_allocs[c] != zio_buf_cache_frees[c])
+	for (size_t i = 0; i < n; i++) {
+		if (zio_buf_cache_allocs[i] != zio_buf_cache_frees[i])
 			(void) printf("zio_fini: [%d] %llu != %llu\n",
-			    (int)((c + 1) << SPA_MINBLOCKSHIFT),
-			    (long long unsigned)zio_buf_cache_allocs[c],
-			    (long long unsigned)zio_buf_cache_frees[c]);
+			    (int)((i + 1) << SPA_MINBLOCKSHIFT),
+			    (long long unsigned)zio_buf_cache_allocs[i],
+			    (long long unsigned)zio_buf_cache_frees[i]);
+	}
 #endif
-		if (zio_buf_cache[c] != last_cache) {
-			last_cache = zio_buf_cache[c];
-			kmem_cache_destroy(zio_buf_cache[c]);
-		}
-		zio_buf_cache[c] = NULL;
 
-		if (zio_data_buf_cache[c] != last_data_cache) {
-			last_data_cache = zio_data_buf_cache[c];
-			kmem_cache_destroy(zio_data_buf_cache[c]);
+	/*
+	 * The same kmem cache can show up multiple times in both zio_buf_cache
+	 * and zio_data_buf_cache. Do a wasteful but trivially correct scan to
+	 * sort it out.
+	 */
+	for (size_t i = 0; i < n; i++) {
+		kmem_cache_t *cache = zio_buf_cache[i];
+		if (cache == NULL)
+			continue;
+		for (size_t j = i; j < n; j++) {
+			if (cache == zio_buf_cache[j])
+				zio_buf_cache[j] = NULL;
+			if (cache == zio_data_buf_cache[j])
+				zio_data_buf_cache[j] = NULL;
 		}
-		zio_data_buf_cache[c] = NULL;
+		kmem_cache_destroy(cache);
+	}
+
+	for (size_t i = 0; i < n; i++) {
+		kmem_cache_t *cache = zio_data_buf_cache[i];
+		if (cache == NULL)
+			continue;
+		for (size_t j = i; j < n; j++) {
+			if (cache == zio_data_buf_cache[j])
+				zio_data_buf_cache[j] = NULL;
+		}
+		kmem_cache_destroy(cache);
+	}
+
+	for (size_t i = 0; i < n; i++) {
+		VERIFY3P(zio_buf_cache[i], ==, NULL);
+		VERIFY3P(zio_data_buf_cache[i], ==, NULL);
 	}
 
 	kmem_cache_destroy(zio_link_cache);
@@ -995,7 +1022,8 @@ zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp, boolean_t config_held,
 	 * that are in the log) to be arbitrarily large.
 	 */
 	for (int i = 0; i < BP_GET_NDVAS(bp); i++) {
-		uint64_t vdevid = DVA_GET_VDEV(&bp->blk_dva[i]);
+		const dva_t *dva = &bp->blk_dva[i];
+		uint64_t vdevid = DVA_GET_VDEV(dva);
 
 		if (vdevid >= spa->spa_root_vdev->vdev_children) {
 			errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
@@ -1024,10 +1052,10 @@ zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp, boolean_t config_held,
 			 */
 			continue;
 		}
-		uint64_t offset = DVA_GET_OFFSET(&bp->blk_dva[i]);
-		uint64_t asize = DVA_GET_ASIZE(&bp->blk_dva[i]);
-		if (BP_IS_GANG(bp))
-			asize = vdev_psize_to_asize(vd, SPA_GANGBLOCKSIZE);
+		uint64_t offset = DVA_GET_OFFSET(dva);
+		uint64_t asize = DVA_GET_ASIZE(dva);
+		if (DVA_GET_GANG(dva))
+			asize = vdev_gang_header_asize(vd);
 		if (offset + asize > vd->vdev_asize) {
 			errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
 			    "blkptr at %p DVA %u has invalid OFFSET %llu",
@@ -1064,8 +1092,8 @@ zfs_dva_valid(spa_t *spa, const dva_t *dva, const blkptr_t *bp)
 	uint64_t offset = DVA_GET_OFFSET(dva);
 	uint64_t asize = DVA_GET_ASIZE(dva);
 
-	if (BP_IS_GANG(bp))
-		asize = vdev_psize_to_asize(vd, SPA_GANGBLOCKSIZE);
+	if (DVA_GET_GANG(dva))
+		asize = vdev_gang_header_asize(vd);
 	if (offset + asize > vd->vdev_asize)
 		return (B_FALSE);
 
@@ -1078,9 +1106,6 @@ zio_read(zio_t *pio, spa_t *spa, const blkptr_t *bp,
     zio_priority_t priority, enum zio_flag flags, const zbookmark_phys_t *zb)
 {
 	zio_t *zio;
-
-	(void) zfs_blkptr_verify(spa, bp, flags & ZIO_FLAG_CONFIG_WRITER,
-	    BLK_VERIFY_HALT);
 
 	zio = zio_create(pio, spa, BP_PHYSICAL_BIRTH(bp), bp,
 	    data, size, size, done, private,
@@ -3919,7 +3944,7 @@ zio_vsd_default_cksum_finish(zio_cksum_report_t *zcr,
 
 /*ARGSUSED*/
 void
-zio_vsd_default_cksum_report(zio_t *zio, zio_cksum_report_t *zcr, void *ignored)
+zio_vsd_default_cksum_report(zio_t *zio, zio_cksum_report_t *zcr)
 {
 	void *abd = abd_alloc_sametype(zio->io_abd, zio->io_size);
 
@@ -3984,6 +4009,9 @@ zio_vdev_io_assess(zio_t *zio)
 	 */
 	if (zio->io_error == ENXIO && zio->io_type == ZIO_TYPE_WRITE &&
 	    vd != NULL && !vd->vdev_ops->vdev_op_leaf) {
+		vdev_dbgmsg(vd, "zio_vdev_io_assess(zio=%px) setting "
+		    "cant_write=TRUE due to write failure with ENXIO",
+		    zio);
 		vd->vdev_cant_write = B_TRUE;
 	}
 
@@ -4255,15 +4283,12 @@ zio_checksum_verify(zio_t *zio)
 		zio->io_error = error;
 		if (error == ECKSUM &&
 		    !(zio->io_flags & ZIO_FLAG_SPECULATIVE)) {
-			int ret = zfs_ereport_start_checksum(zio->io_spa,
+			(void) zfs_ereport_start_checksum(zio->io_spa,
 			    zio->io_vd, &zio->io_bookmark, zio,
-			    zio->io_offset, zio->io_size, NULL, &info);
-
-			if (ret != EALREADY) {
-				mutex_enter(&zio->io_vd->vdev_stat_lock);
-				zio->io_vd->vdev_stat.vs_checksum_errors++;
-				mutex_exit(&zio->io_vd->vdev_stat_lock);
-			}
+			    zio->io_offset, zio->io_size, &info);
+			mutex_enter(&zio->io_vd->vdev_stat_lock);
+			zio->io_vd->vdev_stat.vs_checksum_errors++;
+			mutex_exit(&zio->io_vd->vdev_stat_lock);
 		}
 	}
 
@@ -4538,7 +4563,7 @@ zio_done(zio_t *zio)
 			uint64_t asize = P2ROUNDUP(psize, align);
 			abd_t *adata = zio->io_abd;
 
-			if (asize != psize) {
+			if (adata != NULL && asize != psize) {
 				adata = abd_alloc(asize, B_TRUE);
 				abd_copy(adata, zio->io_abd, psize);
 				abd_zero_off(adata, psize, asize - psize);
@@ -4549,7 +4574,7 @@ zio_done(zio_t *zio)
 			zcr->zcr_finish(zcr, adata);
 			zfs_ereport_free_checksum(zcr);
 
-			if (asize != psize)
+			if (adata != NULL && asize != psize)
 				abd_free(adata);
 		}
 	}

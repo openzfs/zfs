@@ -27,7 +27,7 @@
  */
 
 #ifndef _ZFEATURE_COMMON_H
-#define	_ZFEATURE_COMMON_H
+#define	_ZFEATURE_COMMON_H extern __attribute__((visibility("default")))
 
 #include <sys/fs/zfs.h>
 #include <sys/inttypes.h>
@@ -56,9 +56,7 @@ typedef enum spa_feature {
 	SPA_FEATURE_LARGE_DNODE,
 	SPA_FEATURE_SHA512,
 	SPA_FEATURE_SKEIN,
-#if !defined(__FreeBSD__)
 	SPA_FEATURE_EDONR,
-#endif
 	SPA_FEATURE_USEROBJ_ACCOUNTING,
 	SPA_FEATURE_ENCRYPTION,
 	SPA_FEATURE_PROJECT_QUOTA,
@@ -118,16 +116,17 @@ typedef int (zfeature_func_t)(zfeature_info_t *, void *);
 
 #define	ZFS_FEATURE_DEBUG
 
-extern zfeature_info_t spa_feature_table[SPA_FEATURES];
+_ZFEATURE_COMMON_H zfeature_info_t spa_feature_table[SPA_FEATURES];
+_ZFEATURE_COMMON_H boolean_t zfeature_checks_disable;
 
-extern boolean_t zfeature_is_valid_guid(const char *);
+_ZFEATURE_COMMON_H boolean_t zfeature_is_valid_guid(const char *);
 
-extern boolean_t zfeature_is_supported(const char *);
-extern int zfeature_lookup_guid(const char *, spa_feature_t *);
-extern int zfeature_lookup_name(const char *, spa_feature_t *);
-extern boolean_t zfeature_depends_on(spa_feature_t, spa_feature_t);
+_ZFEATURE_COMMON_H boolean_t zfeature_is_supported(const char *);
+_ZFEATURE_COMMON_H int zfeature_lookup_guid(const char *, spa_feature_t *);
+_ZFEATURE_COMMON_H int zfeature_lookup_name(const char *, spa_feature_t *);
+_ZFEATURE_COMMON_H boolean_t zfeature_depends_on(spa_feature_t, spa_feature_t);
 
-extern void zpool_feature_init(void);
+_ZFEATURE_COMMON_H void zpool_feature_init(void);
 
 #ifdef	__cplusplus
 }
