@@ -5835,6 +5835,12 @@ top:
 		 * Embedded BP's have no DVA and require no I/O to "read".
 		 * Create an anonymous arc buf to back it.
 		 */
+		if (!zfs_blkptr_verify(spa, bp, zio_flags &
+		    ZIO_FLAG_CONFIG_WRITER, BLK_VERIFY_LOG)) {
+			rc = SET_ERROR(ECKSUM);
+			goto out;
+		}
+
 		hdr = buf_hash_find(guid, bp, &hash_lock);
 	}
 
@@ -5998,17 +6004,6 @@ top:
 
 		if (*arc_flags & ARC_FLAG_CACHED_ONLY) {
 			rc = SET_ERROR(ENOENT);
-			if (hash_lock != NULL)
-				mutex_exit(hash_lock);
-			goto out;
-		}
-
-		/*
-		 * Gracefully handle a damaged logical block size as a
-		 * checksum error.
-		 */
-		if (lsize > spa_maxblocksize(spa)) {
-			rc = SET_ERROR(ECKSUM);
 			if (hash_lock != NULL)
 				mutex_exit(hash_lock);
 			goto out;
