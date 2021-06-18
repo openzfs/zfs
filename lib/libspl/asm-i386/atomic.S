@@ -762,6 +762,7 @@
 	SET_SIZE(atomic_swap_32)
 
 	ENTRY(atomic_swap_64)
+	ALTENTRY(atomic_store_64)
 	pushl	%esi
 	pushl	%ebx
 	movl	12(%esp), %esi
@@ -776,7 +777,19 @@
 	popl	%ebx
 	popl	%esi
 	ret
+	SET_SIZE(atomic_store_64)
 	SET_SIZE(atomic_swap_64)
+
+	ENTRY(atomic_load_64)
+	pushl	%esi
+	movl	8(%esp), %esi
+	movl	%ebx, %eax
+	movl	%ecx, %edx
+	lock
+	cmpxchg8b (%esi)
+	popl	%esi
+	ret
+	SET_SIZE(atomic_load_64)
 
 	ENTRY(atomic_set_long_excl)
 	movl	4(%esp), %edx
