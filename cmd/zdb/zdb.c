@@ -1086,7 +1086,7 @@ dump_zap(objset_t *os, uint64_t object, void *data, size_t size)
 {
 	(void) data, (void) size;
 	zap_cursor_t zc;
-	zap_attribute_t *attrp = zap_attribute_alloc();
+	zap_attribute_t *attrp = zap_attribute_long_alloc();
 	void *prop;
 	unsigned i;
 
@@ -1313,7 +1313,7 @@ dump_zpldir(objset_t *os, uint64_t object, void *data, size_t size)
 {
 	(void) data, (void) size;
 	zap_cursor_t zc;
-	zap_attribute_t *attrp = zap_attribute_alloc();
+	zap_attribute_t *attrp = zap_attribute_long_alloc();
 	const char *typenames[] = {
 		/* 0 */ "not specified",
 		/* 1 */ "FIFO",
