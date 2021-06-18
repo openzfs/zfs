@@ -203,7 +203,7 @@ static void
 dump_obj(objset_t *os, uint64_t obj, const char *name)
 {
 	zap_cursor_t zc;
-	zap_attribute_t *za = zap_attribute_alloc();
+	zap_attribute_t *za = zap_attribute_long_alloc();
 
 	(void) printf("%s_obj:\n", name);
 

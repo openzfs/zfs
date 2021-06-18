@@ -602,6 +602,13 @@ recv_begin_check_feature_flags_impl(uint64_t featureflags, spa_t *spa)
 	    !spa_feature_is_enabled(spa, SPA_FEATURE_REDACTED_DATASETS))
 		return (SET_ERROR(ENOTSUP));
 
+	/*
+	 * If the LONGNAME is not enabled on the target, fail that request.
+	 */
+	if ((featureflags & DMU_BACKUP_FEATURE_LONGNAME) &&
+	    !spa_feature_is_enabled(spa, SPA_FEATURE_LONGNAME))
+		return (SET_ERROR(ENOTSUP));
+
 	return (0);
 }
 
@@ -989,6 +996,16 @@ dmu_recv_begin_sync(void *arg, dmu_tx_t *tx)
 
 	dmu_buf_will_dirty(newds->ds_dbuf, tx);
 	dsl_dataset_phys(newds)->ds_flags |= DS_FLAG_INCONSISTENT;
+
+	/*
+	 * Activate longname feature if received
+	 */
+	if (featureflags & DMU_BACKUP_FEATURE_LONGNAME &&
+	    !dsl_dataset_feature_is_active(newds, SPA_FEATURE_LONGNAME)) {
+		dsl_dataset_activate_feature(newds->ds_object,
+		    SPA_FEATURE_LONGNAME, (void *)B_TRUE, tx);
+		newds->ds_feature[SPA_FEATURE_LONGNAME] = (void *)B_TRUE;
+	}
 
 	/*
 	 * If we actually created a non-clone, we need to create the objset

@@ -5996,7 +5996,8 @@ zfs_vptocnp(struct vop_vptocnp_args *ap)
 		znode_t *dzp;
 		size_t len;
 
-		error = zfs_znode_parent_and_name(zp, &dzp, name);
+		error = zfs_znode_parent_and_name(zp, &dzp, name,
+		    sizeof (name));
 		if (error == 0) {
 			len = strlen(name);
 			if (*ap->a_buflen < len)

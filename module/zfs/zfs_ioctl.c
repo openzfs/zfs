@@ -2594,6 +2594,41 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 		}
 		break;
 	}
+	case ZFS_PROP_LONGNAME:
+	{
+		zfsvfs_t *zfsvfs;
+
+		/*
+		 * Ignore the checks if the property is being applied as part of
+		 * 'zfs receive'. Because, we already check if the local pool
+		 * has SPA_FEATURE_LONGNAME enabled in dmu_recv_begin_check().
+		 */
+		if (source == ZPROP_SRC_RECEIVED) {
+			cmn_err(CE_NOTE, "Skipping ZFS_PROP_LONGNAME checks "
+			    "for dsname=%s\n", dsname);
+			err = -1;
+			break;
+		}
+
+		if ((err = zfsvfs_hold(dsname, FTAG, &zfsvfs, B_FALSE)) != 0) {
+			cmn_err(CE_WARN, "%s:%d Failed to hold for dsname=%s "
+			    "err=%d\n", __FILE__, __LINE__, dsname, err);
+			break;
+		}
+
+		if (!spa_feature_is_enabled(zfsvfs->z_os->os_spa,
+		    SPA_FEATURE_LONGNAME)) {
+			err = ENOTSUP;
+		} else {
+			/*
+			 * Set err to -1 to force the zfs_set_prop_nvlist code
+			 * down the default path to set the value in the nvlist.
+			 */
+			err = -1;
+		}
+		zfsvfs_rele(zfsvfs, FTAG);
+		break;
+	}
 	default:
 		err = -1;
 	}

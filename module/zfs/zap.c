@@ -832,7 +832,12 @@ zap_put_leaf_maybe_grow_ptrtbl(zap_name_t *zn, zap_leaf_t *l,
 static int
 fzap_checkname(zap_name_t *zn)
 {
-	if (zn->zn_key_orig_numints * zn->zn_key_intlen > ZAP_MAXNAMELEN)
+	uint32_t maxnamelen = zn->zn_normbuf_len;
+	uint64_t len = (uint64_t)zn->zn_key_orig_numints * zn->zn_key_intlen;
+	/* Only allow directory zap to have longname */
+	if (len > maxnamelen ||
+	    (len > ZAP_MAXNAMELEN &&
+	    zn->zn_zap->zap_dnode->dn_type != DMU_OT_DIRECTORY_CONTENTS))
 		return (SET_ERROR(ENAMETOOLONG));
 	return (0);
 }
@@ -1102,7 +1107,7 @@ zap_create_link_dnsize(objset_t *os, dmu_object_type_t ot, uint64_t parent_obj,
 
 int
 zap_value_search(objset_t *os, uint64_t zapobj, uint64_t value, uint64_t mask,
-    char *name)
+    char *name, uint64_t namelen)
 {
 	zap_cursor_t zc;
 	int err;
@@ -1110,12 +1115,13 @@ zap_value_search(objset_t *os, uint64_t zapobj, uint64_t value, uint64_t mask,
 	if (mask == 0)
 		mask = -1ULL;
 
-	zap_attribute_t *za = zap_attribute_alloc();
+	zap_attribute_t *za = zap_attribute_long_alloc();
 	for (zap_cursor_init(&zc, os, zapobj);
 	    (err = zap_cursor_retrieve(&zc, za)) == 0;
 	    zap_cursor_advance(&zc)) {
 		if ((za->za_first_integer & mask) == (value & mask)) {
-			(void) strlcpy(name, za->za_name, MAXNAMELEN);
+			if (strlcpy(name, za->za_name, namelen) >= namelen)
+				err = SET_ERROR(ENAMETOOLONG);
 			break;
 		}
 	}
@@ -1130,7 +1136,7 @@ zap_join(objset_t *os, uint64_t fromobj, uint64_t intoobj, dmu_tx_t *tx)
 	zap_cursor_t zc;
 	int err = 0;
 
-	zap_attribute_t *za = zap_attribute_alloc();
+	zap_attribute_t *za = zap_attribute_long_alloc();
 	for (zap_cursor_init(&zc, os, fromobj);
 	    zap_cursor_retrieve(&zc, za) == 0;
 	    (void) zap_cursor_advance(&zc)) {
@@ -1155,7 +1161,7 @@ zap_join_key(objset_t *os, uint64_t fromobj, uint64_t intoobj,
 	zap_cursor_t zc;
 	int err = 0;
 
-	zap_attribute_t *za = zap_attribute_alloc();
+	zap_attribute_t *za = zap_attribute_long_alloc();
 	for (zap_cursor_init(&zc, os, fromobj);
 	    zap_cursor_retrieve(&zc, za) == 0;
 	    (void) zap_cursor_advance(&zc)) {
@@ -1180,7 +1186,7 @@ zap_join_increment(objset_t *os, uint64_t fromobj, uint64_t intoobj,
 	zap_cursor_t zc;
 	int err = 0;
 
-	zap_attribute_t *za = zap_attribute_alloc();
+	zap_attribute_t *za = zap_attribute_long_alloc();
 	for (zap_cursor_init(&zc, os, fromobj);
 	    zap_cursor_retrieve(&zc, za) == 0;
 	    (void) zap_cursor_advance(&zc)) {

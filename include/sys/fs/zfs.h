@@ -81,6 +81,7 @@ typedef enum dmu_objset_type {
  * All of these include the terminating NUL byte.
  */
 #define	ZAP_MAXNAMELEN 256
+#define	ZAP_MAXNAMELEN_NEW 1024
 #define	ZAP_MAXVALUELEN (1024 * 8)
 #define	ZAP_OLDMAXVALUELEN 1024
 #define	ZFS_MAX_DATASET_NAME_LEN 256
@@ -194,6 +195,7 @@ typedef enum {
 	ZFS_PROP_PREFETCH,
 	ZFS_PROP_VOLTHREADING,
 	ZFS_PROP_DIRECT,
+	ZFS_PROP_LONGNAME,
 	ZFS_NUM_PROPS
 } zfs_prop_t;
 

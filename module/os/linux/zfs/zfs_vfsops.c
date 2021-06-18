@@ -57,6 +57,7 @@
 #include <sys/dmu_objset.h>
 #include <sys/dsl_dir.h>
 #include <sys/objlist.h>
+#include <sys/zfeature.h>
 #include <sys/zpl.h>
 #include <linux/vfs_compat.h>
 #include <linux/fs.h>
@@ -449,6 +450,12 @@ acl_inherit_changed_cb(void *arg, uint64_t newval)
 	((zfsvfs_t *)arg)->z_acl_inherit = newval;
 }
 
+static void
+longname_changed_cb(void *arg, uint64_t newval)
+{
+	((zfsvfs_t *)arg)->z_longname = newval;
+}
+
 static int
 zfs_register_callbacks(vfs_t *vfsp)
 {
@@ -509,6 +516,8 @@ zfs_register_callbacks(vfs_t *vfsp)
 	    zfsvfs);
 	error = error ? error : dsl_prop_register(ds,
 	    zfs_prop_to_name(ZFS_PROP_NBMAND), nbmand_changed_cb, zfsvfs);
+	error = error ? error : dsl_prop_register(ds,
+	    zfs_prop_to_name(ZFS_PROP_LONGNAME), longname_changed_cb, zfsvfs);
 	dsl_pool_config_exit(dmu_objset_pool(os), FTAG);
 	if (error)
 		goto unregister;
@@ -1140,7 +1149,8 @@ zfs_statvfs(struct inode *ip, struct kstatfs *statp)
 	statp->f_fsid.val[0] = (uint32_t)fsid;
 	statp->f_fsid.val[1] = (uint32_t)(fsid >> 32);
 	statp->f_type = ZFS_SUPER_MAGIC;
-	statp->f_namelen = MAXNAMELEN - 1;
+	statp->f_namelen =
+	    zfsvfs->z_longname ? (ZAP_MAXNAMELEN_NEW - 1) : (MAXNAMELEN - 1);
 
 	/*
 	 * We have all of 40 characters to stuff a string here.
