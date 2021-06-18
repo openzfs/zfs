@@ -802,6 +802,7 @@ zfs_link_create(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag)
 {
 	znode_t *dzp = dl->dl_dzp;
 	zfsvfs_t *zfsvfs = ZTOZSB(zp);
+	dsl_dataset_t *ds = dmu_objset_ds(zfsvfs->z_os);
 	uint64_t value;
 	int zp_is_dir = S_ISDIR(ZTOI(zp)->i_mode);
 	sa_bulk_attr_t bulk[5];
@@ -845,6 +846,14 @@ zfs_link_create(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag)
 			drop_nlink(ZTOI(zp));
 		mutex_exit(&zp->z_lock);
 		return (error);
+	}
+
+	/*
+	 * If we added a longname activate the SPA_FEATURE_LONGNAME.
+	 */
+	if (strlen(dl->dl_name) >= ZAP_MAXNAMELEN) {
+		ds->ds_feature_activation[SPA_FEATURE_LONGNAME] =
+		    (void *)B_TRUE;
 	}
 
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_PARENT(zfsvfs), NULL,

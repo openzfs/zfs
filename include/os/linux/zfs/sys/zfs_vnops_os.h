@@ -44,6 +44,7 @@ extern int zfs_write_simple(znode_t *zp, const void *data, size_t len,
     loff_t pos, size_t *resid);
 extern int zfs_lookup(znode_t *dzp, char *nm, znode_t **zpp, int flags,
     cred_t *cr, int *direntflags, pathname_t *realpnp);
+extern int zfs_get_name(znode_t *dzp, char *name, znode_t *zp);
 extern int zfs_create(znode_t *dzp, char *name, vattr_t *vap, int excl,
     int mode, znode_t **zpp, cred_t *cr, int flag, vsecattr_t *vsecp,
     zidmap_t *mnt_ns);

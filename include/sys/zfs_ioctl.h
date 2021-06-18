@@ -124,7 +124,7 @@ typedef enum drr_headertype {
  * default use of "zfs send" won't encounter the bug mentioned above.
  */
 #define	DMU_BACKUP_FEATURE_SWITCH_TO_LARGE_BLOCKS (1 << 27)
-/* flag #28 is reserved for a Nutanix feature */
+#define	DMU_BACKUP_FEATURE_LONGNAME		(1 << 28)
 /*
  * flag #29 is the last unused bit. It is reserved to indicate a to-be-designed
  * extension to the stream format which will accomodate more feature flags.
@@ -141,7 +141,7 @@ typedef enum drr_headertype {
     DMU_BACKUP_FEATURE_COMPRESSED | DMU_BACKUP_FEATURE_LARGE_DNODE | \
     DMU_BACKUP_FEATURE_RAW | DMU_BACKUP_FEATURE_HOLDS | \
     DMU_BACKUP_FEATURE_REDACTED | DMU_BACKUP_FEATURE_SWITCH_TO_LARGE_BLOCKS | \
-    DMU_BACKUP_FEATURE_ZSTD)
+    DMU_BACKUP_FEATURE_ZSTD | DMU_BACKUP_FEATURE_LONGNAME)
 
 /* Are all features in the given flag word currently supported? */
 #define	DMU_STREAM_SUPPORTED(x)	(!((x) & ~DMU_BACKUP_FEATURE_MASK))
