@@ -1605,6 +1605,11 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/link_count/link_count_001.ksh \
 	functional/link_count/link_count_root_inode.ksh \
 	functional/link_count/setup.ksh \
+	functional/longname/cleanup.ksh \
+	functional/longname/longname_001_pos.ksh \
+	functional/longname/longname_002_pos.ksh \
+	functional/longname/longname_003_pos.ksh \
+	functional/longname/setup.ksh \
 	functional/log_spacemap/log_spacemap_import_logs.ksh \
 	functional/migration/cleanup.ksh \
 	functional/migration/migration_001_pos.ksh \
@@ -1938,6 +1943,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/rsend/rsend_031_pos.ksh \
 	functional/rsend/send-c_embedded_blocks.ksh \
 	functional/rsend/send-c_incremental.ksh \
+	functional/rsend/send-c_longname.ksh \
 	functional/rsend/send-c_lz4_disabled.ksh \
 	functional/rsend/send-c_mixed_compression.ksh \
 	functional/rsend/send-c_props.ksh \

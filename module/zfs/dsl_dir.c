@@ -239,7 +239,8 @@ dsl_dir_hold_obj(dsl_pool_t *dp, uint64_t ddobj,
 				err = zap_value_search(dp->dp_meta_objset,
 				    dsl_dir_phys(dd->dd_parent)->
 				    dd_child_dir_zapobj,
-				    ddobj, 0, dd->dd_myname);
+				    ddobj, 0, dd->dd_myname,
+				    sizeof (dd->dd_myname));
 			}
 			if (err != 0)
 				goto errout;

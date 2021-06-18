@@ -131,12 +131,12 @@ zap_hash(zap_name_t *zn)
 }
 
 static int
-zap_normalize(zap_t *zap, const char *name, char *namenorm, int normflags)
+zap_normalize(zap_t *zap, const char *name, char *namenorm, int normflags,
+    size_t outlen)
 {
 	ASSERT(!(zap_getflags(zap) & ZAP_FLAG_UINT64_KEY));
 
 	size_t inlen = strlen(name) + 1;
-	size_t outlen = ZAP_MAXNAMELEN;
 
 	int err = 0;
 	(void) u8_textprep_str((char *)name, &inlen, namenorm, &outlen,
@@ -149,23 +149,39 @@ zap_normalize(zap_t *zap, const char *name, char *namenorm, int normflags)
 boolean_t
 zap_match(zap_name_t *zn, const char *matchname)
 {
+	boolean_t res = B_FALSE;
 	ASSERT(!(zap_getflags(zn->zn_zap) & ZAP_FLAG_UINT64_KEY));
 
 	if (zn->zn_matchtype & MT_NORMALIZE) {
-		char norm[ZAP_MAXNAMELEN];
+		size_t namelen = zn->zn_normbuf_len;
+		char normbuf[ZAP_MAXNAMELEN];
+		char *norm = normbuf;
+
+		/*
+		 * Cannot allocate this on-stack as it exceed the stack-limit of
+		 * 1024.
+		 */
+		if (namelen > ZAP_MAXNAMELEN)
+			norm = kmem_alloc(namelen, KM_SLEEP);
 
 		if (zap_normalize(zn->zn_zap, matchname, norm,
-		    zn->zn_normflags) != 0)
-			return (B_FALSE);
-
-		return (strcmp(zn->zn_key_norm, norm) == 0);
+		    zn->zn_normflags, namelen) != 0) {
+			res = B_FALSE;
+		} else {
+			res = (strcmp(zn->zn_key_norm, norm) == 0);
+		}
+		if (norm != normbuf)
+			kmem_free(norm, namelen);
 	} else {
-		return (strcmp(zn->zn_key_orig, matchname) == 0);
+		res = (strcmp(zn->zn_key_orig, matchname) == 0);
 	}
+	return (res);
 }
 
 static kmem_cache_t *zap_name_cache;
 static kmem_cache_t *zap_attr_cache;
+static kmem_cache_t *zap_name_long_cache;
+static kmem_cache_t *zap_attr_long_cache;
 
 void
 zap_init(void)
@@ -177,6 +193,14 @@ zap_init(void)
 	zap_attr_cache = kmem_cache_create("zap_attr_cache",
 	    sizeof (zap_attribute_t) + ZAP_MAXNAMELEN,  0, NULL,
 	    NULL, NULL, NULL, NULL, 0);
+
+	zap_name_long_cache = kmem_cache_create("zap_name_long",
+	    sizeof (zap_name_t) + ZAP_MAXNAMELEN_NEW, 0, NULL, NULL,
+	    NULL, NULL, NULL, 0);
+
+	zap_attr_long_cache = kmem_cache_create("zap_attr_long_cache",
+	    sizeof (zap_attribute_t) + ZAP_MAXNAMELEN_NEW,  0, NULL,
+	    NULL, NULL, NULL, NULL, 0);
 }
 
 void
@@ -184,33 +208,47 @@ zap_fini(void)
 {
 	kmem_cache_destroy(zap_name_cache);
 	kmem_cache_destroy(zap_attr_cache);
+	kmem_cache_destroy(zap_name_long_cache);
+	kmem_cache_destroy(zap_attr_long_cache);
 }
 
 static zap_name_t *
-zap_name_alloc(zap_t *zap)
+zap_name_alloc(zap_t *zap, boolean_t longname)
 {
-	zap_name_t *zn = kmem_cache_alloc(zap_name_cache, KM_SLEEP);
+	kmem_cache_t *cache = longname ? zap_name_long_cache : zap_name_cache;
+	zap_name_t *zn = kmem_cache_alloc(cache, KM_SLEEP);
+
 	zn->zn_zap = zap;
+	zn->zn_normbuf_len = longname ? ZAP_MAXNAMELEN_NEW : ZAP_MAXNAMELEN;
 	return (zn);
 }
 
 void
 zap_name_free(zap_name_t *zn)
 {
-	kmem_cache_free(zap_name_cache, zn);
+	if (zn->zn_normbuf_len == ZAP_MAXNAMELEN) {
+		kmem_cache_free(zap_name_cache, zn);
+	} else {
+		ASSERT3U(zn->zn_normbuf_len, ==, ZAP_MAXNAMELEN_NEW);
+		kmem_cache_free(zap_name_long_cache, zn);
+	}
 }
 
 static int
 zap_name_init_str(zap_name_t *zn, const char *key, matchtype_t mt)
 {
 	zap_t *zap = zn->zn_zap;
+	size_t key_len = strlen(key) + 1;
+
+	/* Make sure zn is allocated for longname if key is long */
+	IMPLY(key_len > ZAP_MAXNAMELEN,
+	    zn->zn_normbuf_len == ZAP_MAXNAMELEN_NEW);
 
 	zn->zn_key_intlen = sizeof (*key);
 	zn->zn_key_orig = key;
-	zn->zn_key_orig_numints = strlen(zn->zn_key_orig) + 1;
+	zn->zn_key_orig_numints = key_len;
 	zn->zn_matchtype = mt;
 	zn->zn_normflags = zap->zap_normflags;
-	zn->zn_normbuf_len = ZAP_MAXNAMELEN;
 
 	/*
 	 * If we're dealing with a case sensitive lookup on a mixed or
@@ -226,7 +264,7 @@ zap_name_init_str(zap_name_t *zn, const char *key, matchtype_t mt)
 		 * what the hash is computed from.
 		 */
 		if (zap_normalize(zap, key, zn->zn_normbuf,
-		    zap->zap_normflags) != 0)
+		    zap->zap_normflags, zn->zn_normbuf_len) != 0)
 			return (SET_ERROR(ENOTSUP));
 		zn->zn_key_norm = zn->zn_normbuf;
 		zn->zn_key_norm_numints = strlen(zn->zn_key_norm) + 1;
@@ -245,7 +283,7 @@ zap_name_init_str(zap_name_t *zn, const char *key, matchtype_t mt)
 		 * what the matching is based on.  (Not the hash!)
 		 */
 		if (zap_normalize(zap, key, zn->zn_normbuf,
-		    zn->zn_normflags) != 0)
+		    zn->zn_normflags, zn->zn_normbuf_len) != 0)
 			return (SET_ERROR(ENOTSUP));
 		zn->zn_key_norm_numints = strlen(zn->zn_key_norm) + 1;
 	}
@@ -256,7 +294,8 @@ zap_name_init_str(zap_name_t *zn, const char *key, matchtype_t mt)
 zap_name_t *
 zap_name_alloc_str(zap_t *zap, const char *key, matchtype_t mt)
 {
-	zap_name_t *zn = zap_name_alloc(zap);
+	size_t key_len = strlen(key) + 1;
+	zap_name_t *zn = zap_name_alloc(zap, (key_len > ZAP_MAXNAMELEN));
 	if (zap_name_init_str(zn, key, mt) != 0) {
 		zap_name_free(zn);
 		return (NULL);
@@ -491,7 +530,7 @@ mzap_open(dmu_buf_t *db)
 		zfs_btree_create_custom(&zap->zap_m.zap_tree, mze_compare,
 		    mze_find_in_buf, sizeof (mzap_ent_t), 512);
 
-		zap_name_t *zn = zap_name_alloc(zap);
+		zap_name_t *zn = zap_name_alloc(zap, B_FALSE);
 		for (uint16_t i = 0; i < zap->zap_m.zap_num_chunks; i++) {
 			mzap_ent_phys_t *mze =
 			    &zap_m_phys(zap)->mz_chunk[i];
@@ -698,7 +737,7 @@ mzap_upgrade(zap_t **zapp, const void *tag, dmu_tx_t *tx, zap_flags_t flags)
 
 	fzap_upgrade(zap, tx, flags);
 
-	zap_name_t *zn = zap_name_alloc(zap);
+	zap_name_t *zn = zap_name_alloc(zap, B_FALSE);
 	for (int i = 0; i < nchunks; i++) {
 		mzap_ent_phys_t *mze = &mzp->mz_chunk[i];
 		if (mze->mze_name[0] == 0)
@@ -1625,21 +1664,38 @@ zap_remove_uint64_by_dnode(dnode_t *dn, const uint64_t *key, int key_numints,
 }
 
 
+static zap_attribute_t *
+zap_attribute_alloc_impl(boolean_t longname)
+{
+	zap_attribute_t *za;
+
+	za = kmem_cache_alloc((longname)? zap_attr_long_cache : zap_attr_cache,
+	    KM_SLEEP);
+	za->za_name_len = (longname)? ZAP_MAXNAMELEN_NEW : ZAP_MAXNAMELEN;
+	return (za);
+}
+
 zap_attribute_t *
 zap_attribute_alloc(void)
 {
-	uint32_t len = ZAP_MAXNAMELEN;
-	zap_attribute_t *za;
+	return (zap_attribute_alloc_impl(B_FALSE));
+}
 
-	za = kmem_cache_alloc(zap_attr_cache, KM_SLEEP);
-	za->za_name_len = len;
-	return (za);
+zap_attribute_t *
+zap_attribute_long_alloc(void)
+{
+	return (zap_attribute_alloc_impl(B_TRUE));
 }
 
 void
 zap_attribute_free(zap_attribute_t *za)
 {
-	kmem_cache_free(zap_attr_cache, za);
+	if (za->za_name_len == ZAP_MAXNAMELEN) {
+		kmem_cache_free(zap_attr_cache, za);
+	} else {
+		ASSERT3U(za->za_name_len, ==, ZAP_MAXNAMELEN_NEW);
+		kmem_cache_free(zap_attr_long_cache, za);
+	}
 }
 
 /*

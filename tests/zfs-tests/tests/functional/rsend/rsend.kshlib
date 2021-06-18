@@ -713,6 +713,7 @@ function stream_has_features
 	feature[resuming]="100000"
 	feature[redacted]="200000"
 	feature[compressed]="400000"
+	feature[longname]="10000000"
 
 	typeset flag known derived=0
 	for flag in "$@"; do

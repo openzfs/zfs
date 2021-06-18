@@ -723,6 +723,23 @@ instead of scattering multiple writes to all the metaslab spacemaps.
 .Pp
 \*[instant-never]
 .
+.feature org.zfsonlinux longname no extensible_dataset
+This feature allows creating files and directories with name up to 1023 bytes
+in length.
+A new dataset property
+.Sy longname
+is also introduced to toggle longname support for each dataset individually.
+This property can be disabled even if it contains longname files.
+In such case, new file cannot be created with longname but existing longname
+files can still be looked up.
+.Pp
+This feature becomes
+.Sy active
+when a file name greater than 255 is created in a dataset, and returns to
+being
+.Sy enabled
+when all such datasets are destroyed.
+.
 .feature org.illumos lz4_compress no
 .Sy lz4
 is a high-performance real-time compression algorithm that

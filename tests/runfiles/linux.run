@@ -143,6 +143,10 @@ pre =
 post =
 tags = ['functional', 'largest_pool']
 
+[tests/functional/longname:Linux]
+tests = ['longname_001_pos', 'longname_002_pos', 'longname_003_pos']
+tags = ['functional', 'longname']
+
 [tests/functional/mmap:Linux]
 tests = ['mmap_libaio_001_pos', 'mmap_sync_001_pos']
 tags = ['functional', 'mmap']
@@ -187,7 +191,7 @@ tests = ['renameat2_noreplace', 'renameat2_exchange', 'renameat2_whiteout']
 tags = ['functional', 'renameat2']
 
 [tests/functional/rsend:Linux]
-tests = ['send_realloc_dnode_size', 'send_encrypted_files']
+tests = ['send_realloc_dnode_size', 'send_encrypted_files', 'send-c_longname']
 tags = ['functional', 'rsend']
 
 [tests/functional/simd:Linux]
