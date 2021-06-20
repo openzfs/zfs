@@ -1891,8 +1891,8 @@ zio_taskq_dispatch(zio_t *zio, zio_taskq_type_t q, boolean_t cutinline)
 	 * to dispatch the zio to another taskq at the same time.
 	 */
 	ASSERT(taskq_empty_ent(&zio->io_tqent));
-	spa_taskq_dispatch_ent(spa, t, q, (task_func_t *)zio_execute, zio,
-	    flags, &zio->io_tqent);
+	spa_taskq_dispatch_ent(spa, t, q, zio_execute, zio, flags,
+	    &zio->io_tqent);
 }
 
 static boolean_t
@@ -2103,7 +2103,7 @@ static zio_pipe_stage_t *zio_pipeline[];
  * it is externally visible.
  */
 void
-zio_execute(zio_t *zio)
+zio_execute(void *zio)
 {
 	fstrans_cookie_t cookie;
 
@@ -2292,8 +2292,9 @@ zio_nowait(zio_t *zio)
  */
 
 static void
-zio_reexecute(zio_t *pio)
+zio_reexecute(void *arg)
 {
+	zio_t *pio = arg;
 	zio_t *cio, *cio_next;
 
 	ASSERT(pio->io_child_type == ZIO_CHILD_LOGICAL);
@@ -4788,8 +4789,7 @@ zio_done(zio_t *zio)
 			ASSERT(taskq_empty_ent(&zio->io_tqent));
 			spa_taskq_dispatch_ent(zio->io_spa,
 			    ZIO_TYPE_CLAIM, ZIO_TASKQ_ISSUE,
-			    (task_func_t *)zio_reexecute, zio, 0,
-			    &zio->io_tqent);
+			    zio_reexecute, zio, 0, &zio->io_tqent);
 		}
 		return (NULL);
 	}
