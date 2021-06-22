@@ -524,9 +524,9 @@ mmp_write_uberblock(spa_t *spa)
 	mutex_exit(&mmp->mmp_io_lock);
 
 	offset = VDEV_UBERBLOCK_OFFSET(vd, VDEV_UBERBLOCK_COUNT(vd) -
-	    MMP_BLOCKS_PER_LABEL + spa_get_random(MMP_BLOCKS_PER_LABEL));
+	    MMP_BLOCKS_PER_LABEL + random_in_range(MMP_BLOCKS_PER_LABEL));
 
-	label = spa_get_random(VDEV_LABELS);
+	label = random_in_range(VDEV_LABELS);
 	vdev_label_write(zio, vd, label, ub_abd, offset,
 	    VDEV_UBERBLOCK_SIZE(vd), mmp_write_done, mmp,
 	    flags | ZIO_FLAG_DONT_PROPAGATE);

@@ -205,8 +205,10 @@ zil_init_log_chain(zilog_t *zilog, blkptr_t *bp)
 {
 	zio_cksum_t *zc = &bp->blk_cksum;
 
-	zc->zc_word[ZIL_ZC_GUID_0] = spa_get_random(-1ULL);
-	zc->zc_word[ZIL_ZC_GUID_1] = spa_get_random(-1ULL);
+	(void) random_get_pseudo_bytes((void *)&zc->zc_word[ZIL_ZC_GUID_0],
+	    sizeof (zc->zc_word[ZIL_ZC_GUID_0]));
+	(void) random_get_pseudo_bytes((void *)&zc->zc_word[ZIL_ZC_GUID_1],
+	    sizeof (zc->zc_word[ZIL_ZC_GUID_1]));
 	zc->zc_word[ZIL_ZC_OBJSET] = dmu_objset_id(zilog->zl_os);
 	zc->zc_word[ZIL_ZC_SEQ] = 1ULL;
 }
