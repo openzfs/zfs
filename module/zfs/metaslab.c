@@ -5070,7 +5070,7 @@ metaslab_alloc_dva(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
 	 * damage can result in extremely long reconstruction times.  This
 	 * will also test spilling from special to normal.
 	 */
-	if (psize >= metaslab_force_ganging && (spa_get_random(100) < 3)) {
+	if (psize >= metaslab_force_ganging && (random_in_range(100) < 3)) {
 		metaslab_trace_add(zal, NULL, NULL, psize, d, TRACE_FORCE_GANG,
 		    allocator);
 		return (SET_ERROR(ENOSPC));
