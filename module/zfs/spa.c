@@ -3175,7 +3175,7 @@ spa_activity_check(spa_t *spa, uberblock_t *ub, nvlist_t *config)
 	import_delay = spa_activity_check_duration(spa, ub);
 
 	/* Add a small random factor in case of simultaneous imports (0-25%) */
-	import_delay += import_delay * spa_get_random(250) / 1000;
+	import_delay += import_delay * random_in_range(250) / 1000;
 
 	import_expire = gethrtime() + import_delay;
 
@@ -4619,7 +4619,7 @@ spa_ld_checkpoint_rewind(spa_t *spa)
 		vdev_t *svd[SPA_SYNC_MIN_VDEVS] = { NULL };
 		int svdcount = 0;
 		int children = rvd->vdev_children;
-		int c0 = spa_get_random(children);
+		int c0 = random_in_range(children);
 
 		for (int c = 0; c < children; c++) {
 			vdev_t *vd = rvd->vdev_child[(c0 + c) % children];
@@ -9165,7 +9165,7 @@ spa_sync_rewrite_vdev_config(spa_t *spa, dmu_tx_t *tx)
 			vdev_t *svd[SPA_SYNC_MIN_VDEVS] = { NULL };
 			int svdcount = 0;
 			int children = rvd->vdev_children;
-			int c0 = spa_get_random(children);
+			int c0 = random_in_range(children);
 
 			for (int c = 0; c < children; c++) {
 				vdev_t *vd =

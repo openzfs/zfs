@@ -726,7 +726,7 @@ space_map_write_impl(space_map_t *sm, range_tree_t *rt, maptype_t maptype,
 		    length > SM_RUN_MAX ||
 		    vdev_id != SM_NO_VDEVID ||
 		    (zfs_force_some_double_word_sm_entries &&
-		    spa_get_random(100) == 0)))
+		    random_in_range(100) == 0)))
 			words = 2;
 
 		space_map_write_seg(sm, rs_get_start(rs, rt), rs_get_end(rs,

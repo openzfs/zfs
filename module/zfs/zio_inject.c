@@ -117,7 +117,7 @@ freq_triggered(uint32_t frequency)
 	 */
 	uint32_t maximum = (frequency <= 100) ? 100 : ZI_PERCENTAGE_MAX;
 
-	return (spa_get_random(maximum) < frequency);
+	return (random_in_range(maximum) < frequency);
 }
 
 /*
@@ -347,12 +347,12 @@ zio_inject_bitflip_cb(void *data, size_t len, void *private)
 {
 	zio_t *zio __maybe_unused = private;
 	uint8_t *buffer = data;
-	uint_t byte = spa_get_random(len);
+	uint_t byte = random_in_range(len);
 
 	ASSERT(zio->io_type == ZIO_TYPE_READ);
 
 	/* flip a single random bit in an abd data buffer */
-	buffer[byte] ^= 1 << spa_get_random(8);
+	buffer[byte] ^= 1 << random_in_range(8);
 
 	return (1);	/* stop after first flip */
 }
@@ -493,7 +493,7 @@ zio_handle_ignored_writes(zio_t *zio)
 		}
 
 		/* Have a "problem" writing 60% of the time */
-		if (spa_get_random(100) < 60)
+		if (random_in_range(100) < 60)
 			zio->io_pipeline &= ~ZIO_VDEV_IO_STAGES;
 		break;
 	}

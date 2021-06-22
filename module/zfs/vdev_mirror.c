@@ -496,7 +496,7 @@ vdev_mirror_preferred_child_randomize(zio_t *zio)
 	int p;
 
 	if (mm->mm_root) {
-		p = spa_get_random(mm->mm_preferred_cnt);
+		p = random_in_range(mm->mm_preferred_cnt);
 		return (vdev_mirror_dva_select(zio, p));
 	}
 
