@@ -201,7 +201,7 @@ zio_decompress_data(enum zio_compress c, abd_t *src, void *dst,
 	 * in non-ECC RAM), we handle this error (and test it).
 	 */
 	if (zio_decompress_fail_fraction != 0 &&
-	    spa_get_random(zio_decompress_fail_fraction) == 0)
+	    random_in_range(zio_decompress_fail_fraction) == 0)
 		ret = SET_ERROR(EINVAL);
 
 	return (ret);
