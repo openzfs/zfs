@@ -1045,17 +1045,23 @@ zio_crypt_do_dnode_hmac_updates(crypto_context_t ctx, uint64_t version,
     boolean_t should_bswap, dnode_phys_t *dnp)
 {
 	int ret, i;
-	dnode_phys_t *adnp;
+	dnode_phys_t *adnp, tmp_dncore;
+	size_t dn_core_size = offsetof(dnode_phys_t, dn_blkptr);
 	boolean_t le_bswap = (should_bswap == ZFS_HOST_BYTEORDER);
 	crypto_data_t cd;
-	uint8_t tmp_dncore[offsetof(dnode_phys_t, dn_blkptr)];
 
 	cd.cd_format = CRYPTO_DATA_RAW;
 	cd.cd_offset = 0;
 
-	/* authenticate the core dnode (masking out non-portable bits) */
-	bcopy(dnp, tmp_dncore, sizeof (tmp_dncore));
-	adnp = (dnode_phys_t *)tmp_dncore;
+	/*
+	 * Authenticate the core dnode (masking out non-portable bits).
+	 * We only copy the first 64 bytes we operate on to avoid the overhead
+	 * of copying 512-64 unneeded bytes. The compiler seems to be fine
+	 * with that.
+	 */
+	bcopy(dnp, &tmp_dncore, dn_core_size);
+	adnp = &tmp_dncore;
+
 	if (le_bswap) {
 		adnp->dn_datablkszsec = BSWAP_16(adnp->dn_datablkszsec);
 		adnp->dn_bonuslen = BSWAP_16(adnp->dn_bonuslen);
@@ -1065,7 +1071,7 @@ zio_crypt_do_dnode_hmac_updates(crypto_context_t ctx, uint64_t version,
 	adnp->dn_flags &= DNODE_CRYPT_PORTABLE_FLAGS_MASK;
 	adnp->dn_used = 0;
 
-	cd.cd_length = sizeof (tmp_dncore);
+	cd.cd_length = dn_core_size;
 	cd.cd_raw.iov_base = (char *)adnp;
 	cd.cd_raw.iov_len = cd.cd_length;
 
