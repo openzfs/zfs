@@ -1787,7 +1787,12 @@ spa_get_worst_case_asize(spa_t *spa, uint64_t lsize)
 uint64_t
 spa_get_slop_space(spa_t *spa)
 {
-	uint64_t space = spa_get_dspace(spa);
+	/*
+	 * spa_get_dspace() includes the space only logically "used" by
+	 * deduplicated data, so since it's not useful to reserve more
+	 * space with more deduplicated data, we subtract that out here.
+	 */
+	uint64_t space = spa_get_dspace(spa) - spa->spa_dedup_dspace;
 	uint64_t slop = MIN(space >> spa_slop_shift, spa_max_slop);
 
 	/*
