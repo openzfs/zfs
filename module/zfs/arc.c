@@ -7179,8 +7179,11 @@ arc_tempreserve_space(spa_t *spa, uint64_t reserve, uint64_t txg)
 		    zfs_refcount_count(&arc_anon->arcs_esize[ARC_BUFC_DATA]);
 		dprintf("failing, arc_tempreserve=%lluK anon_meta=%lluK "
 		    "anon_data=%lluK tempreserve=%lluK rarc_c=%lluK\n",
-		    arc_tempreserve >> 10, meta_esize >> 10,
-		    data_esize >> 10, reserve >> 10, rarc_c >> 10);
+		    (u_longlong_t)arc_tempreserve >> 10,
+		    (u_longlong_t)meta_esize >> 10,
+		    (u_longlong_t)data_esize >> 10,
+		    (u_longlong_t)reserve >> 10,
+		    (u_longlong_t)rarc_c >> 10);
 #endif
 		DMU_TX_STAT_BUMP(dmu_tx_dirty_throttle);
 		return (SET_ERROR(ERESTART));
@@ -10250,7 +10253,7 @@ out:
 		 * log as the pool may be in the process of being removed.
 		 */
 		zfs_dbgmsg("L2ARC rebuild aborted, restored %llu blocks",
-		    zfs_refcount_count(&dev->l2ad_lb_count));
+		    (u_longlong_t)zfs_refcount_count(&dev->l2ad_lb_count));
 	} else if (err != 0) {
 		spa_history_log_internal(spa, "L2ARC rebuild", NULL,
 		    "aborted, restored %llu blocks",
@@ -10293,7 +10296,8 @@ l2arc_dev_hdr_read(l2arc_dev_t *dev)
 	if (err != 0) {
 		ARCSTAT_BUMP(arcstat_l2_rebuild_abort_dh_errors);
 		zfs_dbgmsg("L2ARC IO error (%d) while reading device header, "
-		    "vdev guid: %llu", err, dev->l2ad_vdev->vdev_guid);
+		    "vdev guid: %llu", err,
+		    (u_longlong_t)dev->l2ad_vdev->vdev_guid);
 		return (err);
 	}
 
@@ -10390,8 +10394,9 @@ l2arc_log_blk_read(l2arc_dev_t *dev,
 	if ((err = zio_wait(this_io)) != 0) {
 		ARCSTAT_BUMP(arcstat_l2_rebuild_abort_io_errors);
 		zfs_dbgmsg("L2ARC IO error (%d) while reading log block, "
-		    "offset: %llu, vdev guid: %llu", err, this_lbp->lbp_daddr,
-		    dev->l2ad_vdev->vdev_guid);
+		    "offset: %llu, vdev guid: %llu", err,
+		    (u_longlong_t)this_lbp->lbp_daddr,
+		    (u_longlong_t)dev->l2ad_vdev->vdev_guid);
 		goto cleanup;
 	}
 
@@ -10405,8 +10410,10 @@ l2arc_log_blk_read(l2arc_dev_t *dev,
 		ARCSTAT_BUMP(arcstat_l2_rebuild_abort_cksum_lb_errors);
 		zfs_dbgmsg("L2ARC log block cksum failed, offset: %llu, "
 		    "vdev guid: %llu, l2ad_hand: %llu, l2ad_evict: %llu",
-		    this_lbp->lbp_daddr, dev->l2ad_vdev->vdev_guid,
-		    dev->l2ad_hand, dev->l2ad_evict);
+		    (u_longlong_t)this_lbp->lbp_daddr,
+		    (u_longlong_t)dev->l2ad_vdev->vdev_guid,
+		    (u_longlong_t)dev->l2ad_hand,
+		    (u_longlong_t)dev->l2ad_evict);
 		err = SET_ERROR(ECKSUM);
 		goto cleanup;
 	}
@@ -10660,7 +10667,8 @@ l2arc_dev_hdr_update(l2arc_dev_t *dev)
 
 	if (err != 0) {
 		zfs_dbgmsg("L2ARC IO error (%d) while writing device header, "
-		    "vdev guid: %llu", err, dev->l2ad_vdev->vdev_guid);
+		    "vdev guid: %llu", err,
+		    (u_longlong_t)dev->l2ad_vdev->vdev_guid);
 	}
 }
 

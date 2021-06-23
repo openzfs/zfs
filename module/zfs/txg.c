@@ -554,7 +554,8 @@ txg_sync_thread(void *arg)
 		    !txg_has_quiesced_to_sync(dp) &&
 		    dp->dp_dirty_total < dirty_min_bytes) {
 			dprintf("waiting; tx_synced=%llu waiting=%llu dp=%p\n",
-			    tx->tx_synced_txg, tx->tx_sync_txg_waiting, dp);
+			    (u_longlong_t)tx->tx_synced_txg,
+			    (u_longlong_t)tx->tx_sync_txg_waiting, dp);
 			txg_thread_wait(tx, &cpr, &tx->tx_sync_more_cv, timer);
 			delta = ddi_get_lbolt() - start;
 			timer = (delta > timeout ? 0 : timeout - delta);
@@ -587,7 +588,8 @@ txg_sync_thread(void *arg)
 		cv_broadcast(&tx->tx_quiesce_more_cv);
 
 		dprintf("txg=%llu quiesce_txg=%llu sync_txg=%llu\n",
-		    txg, tx->tx_quiesce_txg_waiting, tx->tx_sync_txg_waiting);
+		    (u_longlong_t)txg, (u_longlong_t)tx->tx_quiesce_txg_waiting,
+		    (u_longlong_t)tx->tx_sync_txg_waiting);
 		mutex_exit(&tx->tx_sync_lock);
 
 		txg_stat_t *ts = spa_txg_history_init_io(spa, txg, dp);
@@ -638,8 +640,9 @@ txg_quiesce_thread(void *arg)
 
 		txg = tx->tx_open_txg;
 		dprintf("txg=%llu quiesce_txg=%llu sync_txg=%llu\n",
-		    txg, tx->tx_quiesce_txg_waiting,
-		    tx->tx_sync_txg_waiting);
+		    (u_longlong_t)txg,
+		    (u_longlong_t)tx->tx_quiesce_txg_waiting,
+		    (u_longlong_t)tx->tx_sync_txg_waiting);
 		tx->tx_quiescing_txg = txg;
 
 		mutex_exit(&tx->tx_sync_lock);
@@ -649,7 +652,8 @@ txg_quiesce_thread(void *arg)
 		/*
 		 * Hand this txg off to the sync thread.
 		 */
-		dprintf("quiesce done, handing off txg %llu\n", txg);
+		dprintf("quiesce done, handing off txg %llu\n",
+		    (u_longlong_t)txg);
 		tx->tx_quiescing_txg = 0;
 		tx->tx_quiesced_txg = txg;
 		DTRACE_PROBE2(txg__quiesced, dsl_pool_t *, dp, uint64_t, txg);
@@ -705,11 +709,13 @@ txg_wait_synced_impl(dsl_pool_t *dp, uint64_t txg, boolean_t wait_sig)
 	if (tx->tx_sync_txg_waiting < txg)
 		tx->tx_sync_txg_waiting = txg;
 	dprintf("txg=%llu quiesce_txg=%llu sync_txg=%llu\n",
-	    txg, tx->tx_quiesce_txg_waiting, tx->tx_sync_txg_waiting);
+	    (u_longlong_t)txg, (u_longlong_t)tx->tx_quiesce_txg_waiting,
+	    (u_longlong_t)tx->tx_sync_txg_waiting);
 	while (tx->tx_synced_txg < txg) {
 		dprintf("broadcasting sync more "
 		    "tx_synced=%llu waiting=%llu dp=%px\n",
-		    tx->tx_synced_txg, tx->tx_sync_txg_waiting, dp);
+		    (u_longlong_t)tx->tx_synced_txg,
+		    (u_longlong_t)tx->tx_sync_txg_waiting, dp);
 		cv_broadcast(&tx->tx_sync_more_cv);
 		if (wait_sig) {
 			/*
@@ -764,7 +770,8 @@ txg_wait_open(dsl_pool_t *dp, uint64_t txg, boolean_t should_quiesce)
 	if (tx->tx_quiesce_txg_waiting < txg && should_quiesce)
 		tx->tx_quiesce_txg_waiting = txg;
 	dprintf("txg=%llu quiesce_txg=%llu sync_txg=%llu\n",
-	    txg, tx->tx_quiesce_txg_waiting, tx->tx_sync_txg_waiting);
+	    (u_longlong_t)txg, (u_longlong_t)tx->tx_quiesce_txg_waiting,
+	    (u_longlong_t)tx->tx_sync_txg_waiting);
 	while (tx->tx_open_txg < txg) {
 		cv_broadcast(&tx->tx_quiesce_more_cv);
 		/*

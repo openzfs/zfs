@@ -1848,7 +1848,8 @@ dbuf_free_range(dnode_t *dn, uint64_t start_blkid, uint64_t end_blkid,
 	if (end_blkid > dn->dn_maxblkid &&
 	    !(start_blkid == DMU_SPILL_BLKID || end_blkid == DMU_SPILL_BLKID))
 		end_blkid = dn->dn_maxblkid;
-	dprintf_dnode(dn, "start=%llu end=%llu\n", start_blkid, end_blkid);
+	dprintf_dnode(dn, "start=%llu end=%llu\n", (u_longlong_t)start_blkid,
+	    (u_longlong_t)end_blkid);
 
 	db_search = kmem_alloc(sizeof (dmu_buf_impl_t), KM_SLEEP);
 	db_search->db_level = 0;
