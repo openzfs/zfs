@@ -1616,7 +1616,7 @@ dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 	blkptr_t *blkptr_copy = kmem_alloc(sizeof (*os->os_rootbp), KM_SLEEP);
 	*blkptr_copy = *os->os_rootbp;
 
-	dprintf_ds(os->os_dsl_dataset, "txg=%llu\n", tx->tx_txg);
+	dprintf_ds(os->os_dsl_dataset, "txg=%llu\n", (u_longlong_t)tx->tx_txg);
 
 	ASSERT(dmu_tx_is_syncing(tx));
 	/* XXX the write_done callback should really give us the tx... */

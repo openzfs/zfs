@@ -337,17 +337,18 @@ spa_checkpoint_discard_thread_sync(void *arg, dmu_tx_t *tx)
 	spa_checkpoint_accounting_verify(vd->vdev_spa);
 #endif
 
-	zfs_dbgmsg("discarding checkpoint: txg %llu, vdev id %d, "
+	zfs_dbgmsg("discarding checkpoint: txg %llu, vdev id %lld, "
 	    "deleted %llu words - %llu words are left",
-	    tx->tx_txg, vd->vdev_id, (words_before - words_after),
-	    words_after);
+	    (u_longlong_t)tx->tx_txg, (longlong_t)vd->vdev_id,
+	    (u_longlong_t)(words_before - words_after),
+	    (u_longlong_t)words_after);
 
 	if (error != EINTR) {
 		if (error != 0) {
-			zfs_panic_recover("zfs: error %d was returned "
+			zfs_panic_recover("zfs: error %lld was returned "
 			    "while incrementally destroying the checkpoint "
-			    "space map of vdev %llu\n",
-			    error, vd->vdev_id);
+			    "space map of vdev %u\n",
+			    (longlong_t)error, vd->vdev_id);
 		}
 		ASSERT0(words_after);
 		ASSERT0(space_map_allocated(vd->vdev_checkpoint_sm));

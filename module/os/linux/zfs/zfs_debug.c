@@ -127,7 +127,8 @@ __set_error(const char *file, const char *func, int line, int err)
 	 * $ echo 512 >/sys/module/zfs/parameters/zfs_flags
 	 */
 	if (zfs_flags & ZFS_DEBUG_SET_ERROR)
-		__dprintf(B_FALSE, file, func, line, "error %lu", err);
+		__dprintf(B_FALSE, file, func, line, "error %lu",
+		    (ulong_t)err);
 }
 
 void
