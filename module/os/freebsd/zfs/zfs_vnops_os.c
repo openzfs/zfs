@@ -5343,7 +5343,7 @@ zfs_getextattr_dir(struct vop_getextattr_args *ap, const char *attrname)
 	vp = nd.ni_vp;
 	NDFREE(&nd, NDF_ONLY_PNBUF);
 	if (error != 0)
-		return (error);
+		return (SET_ERROR(error));
 
 	if (ap->a_size != NULL) {
 		error = VOP_GETATTR(vp, &va, ap->a_cred);
@@ -5374,15 +5374,17 @@ zfs_getextattr_sa(struct vop_getextattr_args *ap, const char *attrname)
 
 	error = nvlist_lookup_byte_array(zp->z_xattr_cached, attrname,
 	    &nv_value, &nv_size);
-	if (error)
-		return (error);
+	if (error != 0)
+		return (SET_ERROR(error));
 
 	if (ap->a_size != NULL)
 		*ap->a_size = nv_size;
 	else if (ap->a_uio != NULL)
 		error = uiomove(nv_value, nv_size, ap->a_uio);
+	if (error != 0)
+		return (SET_ERROR(error));
 
-	return (error);
+	return (0);
 }
 
 /*
@@ -5405,7 +5407,7 @@ zfs_getextattr(struct vop_getextattr_args *ap)
 	error = extattr_check_cred(ap->a_vp, ap->a_attrnamespace,
 	    ap->a_cred, ap->a_td, VREAD);
 	if (error != 0)
-		return (error);
+		return (SET_ERROR(error));
 
 	error = zfs_create_attrname(ap->a_attrnamespace, ap->a_name, attrname,
 	    sizeof (attrname));
@@ -5456,7 +5458,7 @@ zfs_deleteextattr_dir(struct vop_deleteextattr_args *ap, const char *attrname)
 	vp = nd.ni_vp;
 	if (error != 0) {
 		NDFREE(&nd, NDF_ONLY_PNBUF);
-		return (error);
+		return (SET_ERROR(error));
 	}
 
 	error = VOP_REMOVE(nd.ni_dvp, vp, &nd.ni_cnd);
@@ -5487,7 +5489,9 @@ zfs_deleteextattr_sa(struct vop_deleteextattr_args *ap, const char *attrname)
 
 	nvl = zp->z_xattr_cached;
 	error = nvlist_remove(nvl, attrname, DATA_TYPE_BYTE_ARRAY);
-	if (error == 0)
+	if (error != 0)
+		error = SET_ERROR(error);
+	else
 		error = zfs_sa_set_xattr(zp);
 	if (error != 0) {
 		zp->z_xattr_cached = NULL;
@@ -5516,7 +5520,7 @@ zfs_deleteextattr(struct vop_deleteextattr_args *ap)
 	error = extattr_check_cred(ap->a_vp, ap->a_attrnamespace,
 	    ap->a_cred, ap->a_td, VWRITE);
 	if (error != 0)
-		return (error);
+		return (SET_ERROR(error));
 
 	error = zfs_create_attrname(ap->a_attrnamespace, ap->a_name, attrname,
 	    sizeof (attrname));
@@ -5583,7 +5587,7 @@ zfs_setextattr_dir(struct vop_setextattr_args *ap, const char *attrname)
 	vp = nd.ni_vp;
 	NDFREE(&nd, NDF_ONLY_PNBUF);
 	if (error != 0)
-		return (error);
+		return (SET_ERROR(error));
 
 	VATTR_NULL(&va);
 	va.va_size = 0;
@@ -5617,13 +5621,18 @@ zfs_setextattr_sa(struct vop_setextattr_args *ap, const char *attrname)
 		return (SET_ERROR(EFBIG));
 	error = nvlist_size(nvl, &sa_size, NV_ENCODE_XDR);
 	if (error != 0)
-		return (error);
+		return (SET_ERROR(error));
 	if (sa_size > DXATTR_MAX_SA_SIZE)
 		return (SET_ERROR(EFBIG));
 	uchar_t *buf = kmem_alloc(entry_size, KM_SLEEP);
 	error = uiomove(buf, entry_size, ap->a_uio);
-	if (error == 0)
+	if (error != 0) {
+		error = SET_ERROR(error);
+	} else {
 		error = nvlist_add_byte_array(nvl, attrname, buf, entry_size);
+		if (error != 0)
+			error = SET_ERROR(error);
+	}
 	kmem_free(buf, entry_size);
 	if (error == 0)
 		error = zfs_sa_set_xattr(zp);
@@ -5654,7 +5663,7 @@ zfs_setextattr(struct vop_setextattr_args *ap)
 	error = extattr_check_cred(ap->a_vp, ap->a_attrnamespace,
 	    ap->a_cred, ap->a_td, VWRITE);
 	if (error != 0)
-		return (error);
+		return (SET_ERROR(error));
 
 	error = zfs_create_attrname(ap->a_attrnamespace, ap->a_name, attrname,
 	    sizeof (attrname));
@@ -5733,7 +5742,7 @@ zfs_listextattr_dir(struct vop_listextattr_args *ap, const char *attrprefix)
 	vp = nd.ni_vp;
 	NDFREE(&nd, NDF_ONLY_PNBUF);
 	if (error != 0)
-		return (error);
+		return (SET_ERROR(error));
 
 	auio.uio_iov = &aiov;
 	auio.uio_iovcnt = 1;
@@ -5779,8 +5788,10 @@ zfs_listextattr_dir(struct vop_listextattr_args *ap, const char *attrprefix)
 					char *namep = dp->d_name + plen;
 					error = uiomove(namep, nlen, ap->a_uio);
 				}
-				if (error != 0)
+				if (error != 0) {
+					error = SET_ERROR(error);
 					break;
+				}
 			}
 		}
 	} while (!eof && error == 0);
@@ -5825,8 +5836,10 @@ zfs_listextattr_sa(struct vop_listextattr_args *ap, const char *attrprefix)
 				char *namep = __DECONST(char *, name) + plen;
 				error = uiomove(namep, nlen, ap->a_uio);
 			}
-			if (error != 0)
+			if (error != 0) {
+				error = SET_ERROR(error);
 				break;
+			}
 		}
 	}
 
@@ -5856,7 +5869,7 @@ zfs_listextattr(struct vop_listextattr_args *ap)
 	error = extattr_check_cred(ap->a_vp, ap->a_attrnamespace,
 	    ap->a_cred, ap->a_td, VREAD);
 	if (error != 0)
-		return (error);
+		return (SET_ERROR(error));
 
 	error = zfs_create_attrname(ap->a_attrnamespace, "", attrprefix,
 	    sizeof (attrprefix));
