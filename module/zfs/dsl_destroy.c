@@ -654,7 +654,7 @@ dsl_destroy_snapshots_nvl(nvlist_t *snaps, boolean_t defer,
 		char *errorstr = NULL;
 		(void) nvlist_lookup_string(result, ZCP_RET_ERROR, &errorstr);
 		if (errorstr != NULL) {
-			zfs_dbgmsg(errorstr);
+			zfs_dbgmsg("%s", errorstr);
 		}
 		fnvlist_free(wrapper);
 		fnvlist_free(result);
