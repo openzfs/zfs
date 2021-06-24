@@ -39,6 +39,7 @@ dist_pkgdata_SCRIPTS = \
 	zpool_create_features_006_pos.ksh \
 	zpool_create_features_007_pos.ksh \
 	zpool_create_features_008_pos.ksh \
+	zpool_create_features_009_pos.ksh \
 	create-o_ashift.ksh \
 	zpool_create_tempname.ksh \
 	zpool_create_dryrun_output.ksh

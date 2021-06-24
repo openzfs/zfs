@@ -1743,6 +1743,10 @@ zfs_send_resume_impl(libzfs_handle_t *hdl, sendflags_t *flags, int outfd,
 			tmpflags.compress = B_TRUE;
 		if (lzc_flags & LZC_SEND_FLAG_EMBED_DATA)
 			tmpflags.embed_data = B_TRUE;
+		if (lzc_flags & LZC_SEND_FLAG_RAW)
+			tmpflags.raw = B_TRUE;
+		if (lzc_flags & LZC_SEND_FLAG_SAVED)
+			tmpflags.saved = B_TRUE;
 		error = estimate_size(zhp, fromname, outfd, &tmpflags,
 		    resumeobj, resumeoff, bytes, redact_book, errbuf);
 	}
