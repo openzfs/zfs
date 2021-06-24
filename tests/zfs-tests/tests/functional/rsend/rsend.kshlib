@@ -584,13 +584,13 @@ function mess_send_file
 	# The random offset might truncate the send stream to be
 	# smaller than the DRR_BEGIN record. If this happens, then
 	# the receiving system won't have enough info to create the
-	# partial dataset at all. We use zstreamdump to check for
+	# partial dataset at all. We use zstream dump to check for
 	# this and retry in this case.
-	nr_begins=$(head -c $offset $file | zstreamdump | \
+	nr_begins=$(head -c $offset $file | zstream dump | \
 	    grep DRR_BEGIN | awk '{ print $5 }')
 	while [ "$nr_begins" -eq 0 ]; do
 		offset=$(($RANDOM * $RANDOM % $filesize))
-		nr_begins=$(head -c $offset $file | zstreamdump | \
+		nr_begins=$(head -c $offset $file | zstream dump | \
 		    grep DRR_BEGIN | awk '{ print $5 }')
 	done
 
@@ -741,7 +741,7 @@ function stream_has_features
 	shift
 
 	[[ -f $file ]] || log_fail "Couldn't find file: $file"
-	typeset flags=$(cat $file | zstreamdump | \
+	typeset flags=$(cat $file | zstream dump | \
 	    awk '/features =/ {features = $3} END {print features}')
 	typeset -A feature
 	feature[dedup]="1"
@@ -774,7 +774,7 @@ function stream_has_features
 # comparing. This function does not currently handle incremental streams
 # that remove data.
 #
-# $1 The zstreamdump output file
+# $1 The zstream dump output file
 # $2 The dataset to compare against
 #    This can be a source of a send or recv target (fs, not snapshot)
 # $3 The percentage below which verification is deemed a failure
@@ -791,7 +791,7 @@ function verify_stream_size
 	[[ -f $stream ]] || log_fail "No such file: $stream"
 	datasetexists $ds || log_fail "No such dataset: $ds"
 
-	typeset stream_size=$(cat $stream | zstreamdump | sed -n \
+	typeset stream_size=$(cat $stream | zstream dump | sed -n \
 	    's/	Total payload size = \(.*\) (0x.*)/\1/p')
 
 	typeset inc_size=0

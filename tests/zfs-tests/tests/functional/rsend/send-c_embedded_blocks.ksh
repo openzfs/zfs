@@ -63,17 +63,17 @@ for recsize in "${recsize_prop_vals[@]}"; do
 	fi
 done
 
-# Generate the streams and zstreamdump output.
+# Generate the streams and zstream dump output.
 log_must zfs snapshot $sendfs@now
 log_must eval "zfs send -c $sendfs@now >$stream"
-log_must eval "zstreamdump -v <$stream >$dump"
+log_must eval "zstream dump -v <$stream >$dump"
 log_must eval "zfs recv -d $recvfs <$stream"
 cmp_ds_cont $sendfs $recvfs
 verify_stream_size $stream $sendfs
 log_mustnot stream_has_features $stream embed_data
 
 log_must eval "zfs send -c -e $sendfs@now >$stream2"
-log_must eval "zstreamdump -v <$stream2 >$dump2"
+log_must eval "zstream dump -v <$stream2 >$dump2"
 log_must eval "zfs recv -d $recvfs2 <$stream2"
 cmp_ds_cont $sendfs $recvfs2
 verify_stream_size $stream2 $sendfs
@@ -101,9 +101,9 @@ for recsize in "${recsize_prop_vals[@]}"; do
 	    log_fail "Obj $recv2_obj not embedded in $recvfs2"
 
 	grep -q "WRITE_EMBEDDED object = $send_obj offset = 0" $dump && \
-	    log_fail "Obj $obj embedded in zstreamdump output"
+	    log_fail "Obj $obj embedded in zstream dump output"
 	grep -q "WRITE_EMBEDDED object = $send_obj offset = 0" $dump2 || \
-	    log_fail "Obj $obj not embedded in zstreamdump output"
+	    log_fail "Obj $obj not embedded in zstream dump output"
 done
 
 log_pass "Compressed streams can contain embedded blocks."

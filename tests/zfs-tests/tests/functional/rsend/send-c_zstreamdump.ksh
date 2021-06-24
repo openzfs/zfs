@@ -21,12 +21,12 @@
 
 #
 # Description:
-# Verify compression features show up in zstreamdump
+# Verify compression features show up in zstream dump
 #
 # Strategy:
 # 1. Create a full compressed send stream
-# 2. Verify zstreamdump shows this stream has the relevant features
-# 3. Verify zstreamdump's accounting of logical and compressed size is correct
+# 2. Verify zstream dump shows this stream has the relevant features
+# 3. Verify zstream dump's accounting of logical and compressed size is correct
 # 4. Verify the toname from a resume token
 # 5. Verify it fails with corrupted resume token
 # 6. Verify it fails with missing resume token
@@ -34,7 +34,7 @@
 
 verify_runnable "both"
 
-log_assert "Verify zstreamdump correctly interprets compressed send streams."
+log_assert "Verify zstream dump correctly interprets compressed send streams."
 log_onexit cleanup_pool $POOL2
 
 typeset sendfs=$POOL2/fs
@@ -49,7 +49,7 @@ log_must zfs snapshot $sendfs@full
 
 log_must eval "zfs send -c $sendfs@full >$BACKDIR/full"
 log_must stream_has_features $BACKDIR/full lz4 compressed
-cat $BACKDIR/full | zstreamdump -v > $BACKDIR/dump.out
+cat $BACKDIR/full | zstream dump -v > $BACKDIR/dump.out
 
 lsize=$(awk '/^WRITE [^0]/ {lsize += $24} END {printf("%d", lsize)}' \
     $BACKDIR/dump.out)
@@ -72,4 +72,4 @@ bad_resume_token="1-1162e8285b-100789c6360"
 log_mustnot eval "zstream token $bad_resume_token 2>&1"
 log_mustnot eval "zstream token 2>&1"
 
-log_pass "zstreamdump correctly interprets compressed send streams."
+log_pass "zstream dump correctly interprets compressed send streams."
