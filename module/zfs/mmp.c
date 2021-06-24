@@ -485,8 +485,9 @@ mmp_write_uberblock(spa_t *spa)
 	if (mmp->mmp_skip_error != 0) {
 		mmp->mmp_skip_error = 0;
 		zfs_dbgmsg("MMP write after skipping due to unavailable "
-		    "leaves, pool '%s' gethrtime %llu leaf %#llu",
-		    spa_name(spa), gethrtime(), vd->vdev_guid);
+		    "leaves, pool '%s' gethrtime %llu leaf %llu",
+		    spa_name(spa), (u_longlong_t)gethrtime(),
+		    (u_longlong_t)vd->vdev_guid);
 	}
 
 	if (mmp->mmp_zio_root == NULL)
@@ -523,9 +524,9 @@ mmp_write_uberblock(spa_t *spa)
 	mutex_exit(&mmp->mmp_io_lock);
 
 	offset = VDEV_UBERBLOCK_OFFSET(vd, VDEV_UBERBLOCK_COUNT(vd) -
-	    MMP_BLOCKS_PER_LABEL + spa_get_random(MMP_BLOCKS_PER_LABEL));
+	    MMP_BLOCKS_PER_LABEL + random_in_range(MMP_BLOCKS_PER_LABEL));
 
-	label = spa_get_random(VDEV_LABELS);
+	label = random_in_range(VDEV_LABELS);
 	vdev_label_write(zio, vd, label, ub_abd, offset,
 	    VDEV_UBERBLOCK_SIZE(vd), mmp_write_done, mmp,
 	    flags | ZIO_FLAG_DONT_PROPAGATE);
@@ -617,10 +618,11 @@ mmp_thread(void *arg)
 			    "mmp_interval %llu last_mmp_fail_intervals %u "
 			    "mmp_fail_intervals %u mmp_fail_ns %llu "
 			    "skip_wait %d leaves %d next_time %llu",
-			    spa_name(spa), gethrtime(), last_mmp_interval,
-			    mmp_interval, last_mmp_fail_intervals,
-			    mmp_fail_intervals, mmp_fail_ns, skip_wait, leaves,
-			    next_time);
+			    spa_name(spa), (u_longlong_t)gethrtime(),
+			    (u_longlong_t)last_mmp_interval,
+			    (u_longlong_t)mmp_interval, last_mmp_fail_intervals,
+			    mmp_fail_intervals, (u_longlong_t)mmp_fail_ns,
+			    skip_wait, leaves, (u_longlong_t)next_time);
 		}
 
 		/*
@@ -633,8 +635,9 @@ mmp_thread(void *arg)
 			zfs_dbgmsg("MMP state change pool '%s': gethrtime %llu "
 			    "last_spa_multihost %u multihost %u "
 			    "last_spa_suspended %u suspended %u",
-			    spa_name(spa), last_spa_multihost, multihost,
-			    last_spa_suspended, suspended);
+			    spa_name(spa), (u_longlong_t)gethrtime(),
+			    last_spa_multihost, multihost, last_spa_suspended,
+			    suspended);
 			mutex_enter(&mmp->mmp_io_lock);
 			mmp->mmp_last_write = gethrtime();
 			mmp->mmp_delay = mmp_interval;

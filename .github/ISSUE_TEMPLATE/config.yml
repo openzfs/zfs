@@ -10,5 +10,5 @@ contact_links:
     url: https://lists.freebsd.org/mailman/listinfo/freebsd-fs
     about: Get community support for OpenZFS on FreeBSD
   - name: OpenZFS on IRC
-    url: https://kiwiirc.com/nextclient/irc.libera.chat/openzfs
+    url: https://web.libera.chat/#openzfs
     about: Use IRC to get community support for OpenZFS

@@ -529,8 +529,9 @@ spa_condense_indirect_complete_sync(void *arg, dmu_tx_t *tx)
 	zfs_dbgmsg("finished condense of vdev %llu in txg %llu: "
 	    "new mapping object %llu has %llu entries "
 	    "(was %llu entries)",
-	    vd->vdev_id, dmu_tx_get_txg(tx), vic->vic_mapping_object,
-	    new_count, old_count);
+	    (u_longlong_t)vd->vdev_id, (u_longlong_t)dmu_tx_get_txg(tx),
+	    (u_longlong_t)vic->vic_mapping_object,
+	    (u_longlong_t)new_count, (u_longlong_t)old_count);
 
 	vdev_config_dirty(spa->spa_root_vdev);
 }
@@ -796,7 +797,7 @@ spa_condense_indirect_start_sync(vdev_t *vd, dmu_tx_t *tx)
 
 	zfs_dbgmsg("starting condense of vdev %llu in txg %llu: "
 	    "posm=%llu nm=%llu",
-	    vd->vdev_id, dmu_tx_get_txg(tx),
+	    (u_longlong_t)vd->vdev_id, (u_longlong_t)dmu_tx_get_txg(tx),
 	    (u_longlong_t)scip->scip_prev_obsolete_sm_object,
 	    (u_longlong_t)scip->scip_next_mapping_object);
 
@@ -1572,7 +1573,7 @@ vdev_indirect_splits_enumerate_randomly(indirect_vsd_t *iv, zio_t *zio)
 			indirect_child_t *ic = list_head(&is->is_unique_child);
 			int children = is->is_unique_children;
 
-			for (int i = spa_get_random(children); i > 0; i--)
+			for (int i = random_in_range(children); i > 0; i--)
 				ic = list_next(&is->is_unique_child, ic);
 
 			ASSERT3P(ic, !=, NULL);
@@ -1736,7 +1737,7 @@ vdev_indirect_reconstruct_io_done(zio_t *zio)
 	 * Known_good will be TRUE when reconstruction is known to be possible.
 	 */
 	if (zfs_reconstruct_indirect_damage_fraction != 0 &&
-	    spa_get_random(zfs_reconstruct_indirect_damage_fraction) == 0)
+	    random_in_range(zfs_reconstruct_indirect_damage_fraction) == 0)
 		known_good = (vdev_indirect_splits_damage(iv, zio) == 0);
 
 	/*

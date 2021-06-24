@@ -293,7 +293,7 @@ unsigned long zfs_metaslab_max_size_cache_sec = 3600; /* 1 hour */
  * a metaslab would take it over this percentage, the oldest selected metaslab
  * is automatically unloaded.
  */
-int zfs_metaslab_mem_limit = 75;
+int zfs_metaslab_mem_limit = 25;
 
 /*
  * Force the per-metaslab range trees to use 64-bit integers to store
@@ -2437,18 +2437,20 @@ metaslab_load_impl(metaslab_t *msp)
 	    "loading_time %lld ms, ms_max_size %llu, "
 	    "max size error %lld, "
 	    "old_weight %llx, new_weight %llx",
-	    spa_syncing_txg(spa), spa_name(spa),
-	    msp->ms_group->mg_vd->vdev_id, msp->ms_id,
-	    space_map_length(msp->ms_sm),
-	    range_tree_space(msp->ms_unflushed_allocs),
-	    range_tree_space(msp->ms_unflushed_frees),
-	    range_tree_space(msp->ms_freed),
-	    range_tree_space(msp->ms_defer[0]),
-	    range_tree_space(msp->ms_defer[1]),
+	    (u_longlong_t)spa_syncing_txg(spa), spa_name(spa),
+	    (u_longlong_t)msp->ms_group->mg_vd->vdev_id,
+	    (u_longlong_t)msp->ms_id,
+	    (u_longlong_t)space_map_length(msp->ms_sm),
+	    (u_longlong_t)range_tree_space(msp->ms_unflushed_allocs),
+	    (u_longlong_t)range_tree_space(msp->ms_unflushed_frees),
+	    (u_longlong_t)range_tree_space(msp->ms_freed),
+	    (u_longlong_t)range_tree_space(msp->ms_defer[0]),
+	    (u_longlong_t)range_tree_space(msp->ms_defer[1]),
 	    (longlong_t)((load_start - msp->ms_unload_time) / 1000000),
 	    (longlong_t)((load_end - load_start) / 1000000),
-	    msp->ms_max_size, msp->ms_max_size - max_size,
-	    weight, msp->ms_weight);
+	    (u_longlong_t)msp->ms_max_size,
+	    (u_longlong_t)msp->ms_max_size - max_size,
+	    (u_longlong_t)weight, (u_longlong_t)msp->ms_weight);
 
 	metaslab_verify_space(msp, spa_syncing_txg(spa));
 	mutex_exit(&msp->ms_sync_lock);
@@ -2545,14 +2547,17 @@ metaslab_unload(metaslab_t *msp)
 		    "ms_id %llu, weight %llx, "
 		    "selected txg %llu (%llu ms ago), alloc_txg %llu, "
 		    "loaded %llu ms ago, max_size %llu",
-		    spa_syncing_txg(spa), spa_name(spa),
-		    msp->ms_group->mg_vd->vdev_id, msp->ms_id,
-		    msp->ms_weight,
-		    msp->ms_selected_txg,
-		    (msp->ms_unload_time - msp->ms_selected_time) / 1000 / 1000,
-		    msp->ms_alloc_txg,
-		    (msp->ms_unload_time - msp->ms_load_time) / 1000 / 1000,
-		    msp->ms_max_size);
+		    (u_longlong_t)spa_syncing_txg(spa), spa_name(spa),
+		    (u_longlong_t)msp->ms_group->mg_vd->vdev_id,
+		    (u_longlong_t)msp->ms_id,
+		    (u_longlong_t)msp->ms_weight,
+		    (u_longlong_t)msp->ms_selected_txg,
+		    (u_longlong_t)(msp->ms_unload_time -
+		    msp->ms_selected_time) / 1000 / 1000,
+		    (u_longlong_t)msp->ms_alloc_txg,
+		    (u_longlong_t)(msp->ms_unload_time -
+		    msp->ms_load_time) / 1000 / 1000,
+		    (u_longlong_t)msp->ms_max_size);
 	}
 
 	/*
@@ -2914,8 +2919,9 @@ metaslab_set_fragmentation(metaslab_t *msp, boolean_t nodirty)
 			msp->ms_condense_wanted = B_TRUE;
 			vdev_dirty(vd, VDD_METASLAB, msp, txg + 1);
 			zfs_dbgmsg("txg %llu, requesting force condense: "
-			    "ms_id %llu, vdev_id %llu", txg, msp->ms_id,
-			    vd->vdev_id);
+			    "ms_id %llu, vdev_id %llu", (u_longlong_t)txg,
+			    (u_longlong_t)msp->ms_id,
+			    (u_longlong_t)vd->vdev_id);
 		}
 		msp->ms_fragmentation = ZFS_FRAG_INVALID;
 		return;
@@ -3635,10 +3641,11 @@ metaslab_condense(metaslab_t *msp, dmu_tx_t *tx)
 	ASSERT(range_tree_is_empty(msp->ms_freed)); /* since it is pass 1 */
 
 	zfs_dbgmsg("condensing: txg %llu, msp[%llu] %px, vdev id %llu, "
-	    "spa %s, smp size %llu, segments %lu, forcing condense=%s", txg,
-	    msp->ms_id, msp, msp->ms_group->mg_vd->vdev_id,
-	    spa->spa_name, space_map_length(msp->ms_sm),
-	    range_tree_numsegs(msp->ms_allocatable),
+	    "spa %s, smp size %llu, segments %llu, forcing condense=%s",
+	    (u_longlong_t)txg, (u_longlong_t)msp->ms_id, msp,
+	    (u_longlong_t)msp->ms_group->mg_vd->vdev_id,
+	    spa->spa_name, (u_longlong_t)space_map_length(msp->ms_sm),
+	    (u_longlong_t)range_tree_numsegs(msp->ms_allocatable),
 	    msp->ms_condense_wanted ? "TRUE" : "FALSE");
 
 	msp->ms_condense_wanted = B_FALSE;
@@ -3883,11 +3890,13 @@ metaslab_flush(metaslab_t *msp, dmu_tx_t *tx)
 	if (zfs_flags & ZFS_DEBUG_LOG_SPACEMAP) {
 		zfs_dbgmsg("flushing: txg %llu, spa %s, vdev_id %llu, "
 		    "ms_id %llu, unflushed_allocs %llu, unflushed_frees %llu, "
-		    "appended %llu bytes", dmu_tx_get_txg(tx), spa_name(spa),
-		    msp->ms_group->mg_vd->vdev_id, msp->ms_id,
-		    range_tree_space(msp->ms_unflushed_allocs),
-		    range_tree_space(msp->ms_unflushed_frees),
-		    (sm_len_after - sm_len_before));
+		    "appended %llu bytes", (u_longlong_t)dmu_tx_get_txg(tx),
+		    spa_name(spa),
+		    (u_longlong_t)msp->ms_group->mg_vd->vdev_id,
+		    (u_longlong_t)msp->ms_id,
+		    (u_longlong_t)range_tree_space(msp->ms_unflushed_allocs),
+		    (u_longlong_t)range_tree_space(msp->ms_unflushed_frees),
+		    (u_longlong_t)(sm_len_after - sm_len_before));
 	}
 
 	ASSERT3U(spa->spa_unflushed_stats.sus_memused, >=,
@@ -5070,7 +5079,7 @@ metaslab_alloc_dva(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
 	 * damage can result in extremely long reconstruction times.  This
 	 * will also test spilling from special to normal.
 	 */
-	if (psize >= metaslab_force_ganging && (spa_get_random(100) < 3)) {
+	if (psize >= metaslab_force_ganging && (random_in_range(100) < 3)) {
 		metaslab_trace_add(zal, NULL, NULL, psize, d, TRACE_FORCE_GANG,
 		    allocator);
 		return (SET_ERROR(ENOSPC));

@@ -345,8 +345,9 @@ vdev_remove_initiate_sync(void *arg, dmu_tx_t *tx)
 	vdev_config_dirty(vd);
 
 	zfs_dbgmsg("starting removal thread for vdev %llu (%px) in txg %llu "
-	    "im_obj=%llu", vd->vdev_id, vd, dmu_tx_get_txg(tx),
-	    vic->vic_mapping_object);
+	    "im_obj=%llu", (u_longlong_t)vd->vdev_id, vd,
+	    (u_longlong_t)dmu_tx_get_txg(tx),
+	    (u_longlong_t)vic->vic_mapping_object);
 
 	spa_history_log_internal(spa, "vdev remove started", tx,
 	    "%s vdev %llu %s", spa_name(spa), (u_longlong_t)vd->vdev_id,
@@ -474,7 +475,8 @@ spa_restart_removal(spa_t *spa)
 	if (!spa_writeable(spa))
 		return;
 
-	zfs_dbgmsg("restarting removal of %llu", svr->svr_vdev_id);
+	zfs_dbgmsg("restarting removal of %llu",
+	    (u_longlong_t)svr->svr_vdev_id);
 	svr->svr_thread = thread_create(NULL, 0, spa_vdev_remove_thread, spa,
 	    0, &p0, TS_RUN, minclsyspri);
 }
@@ -1196,7 +1198,7 @@ vdev_remove_complete(spa_t *spa)
 	    ESC_ZFS_VDEV_REMOVE_DEV);
 
 	zfs_dbgmsg("finishing device removal for vdev %llu in txg %llu",
-	    vd->vdev_id, txg);
+	    (u_longlong_t)vd->vdev_id, (u_longlong_t)txg);
 
 	/*
 	 * Discard allocation state.
@@ -1490,8 +1492,9 @@ spa_vdev_remove_thread(void *arg)
 
 		vca.vca_msp = msp;
 		zfs_dbgmsg("copying %llu segments for metaslab %llu",
-		    zfs_btree_numnodes(&svr->svr_allocd_segs->rt_root),
-		    msp->ms_id);
+		    (u_longlong_t)zfs_btree_numnodes(
+		    &svr->svr_allocd_segs->rt_root),
+		    (u_longlong_t)msp->ms_id);
 
 		while (!svr->svr_thread_exit &&
 		    !range_tree_is_empty(svr->svr_allocd_segs)) {
@@ -1588,8 +1591,8 @@ spa_vdev_remove_thread(void *arg)
 		    vca.vca_write_error_bytes > 0)) {
 			zfs_dbgmsg("canceling removal due to IO errors: "
 			    "[read_error_bytes=%llu] [write_error_bytes=%llu]",
-			    vca.vca_read_error_bytes,
-			    vca.vca_write_error_bytes);
+			    (u_longlong_t)vca.vca_read_error_bytes,
+			    (u_longlong_t)vca.vca_write_error_bytes);
 			spa_vdev_remove_cancel_impl(spa);
 		}
 	} else {
@@ -1761,7 +1764,7 @@ spa_vdev_remove_cancel_sync(void *arg, dmu_tx_t *tx)
 	vdev_config_dirty(vd);
 
 	zfs_dbgmsg("canceled device removal for vdev %llu in %llu",
-	    vd->vdev_id, dmu_tx_get_txg(tx));
+	    (u_longlong_t)vd->vdev_id, (u_longlong_t)dmu_tx_get_txg(tx));
 	spa_history_log_internal(spa, "vdev remove canceled", tx,
 	    "%s vdev %llu %s", spa_name(spa),
 	    (u_longlong_t)vd->vdev_id,
