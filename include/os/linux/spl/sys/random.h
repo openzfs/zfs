@@ -46,7 +46,7 @@ random_in_range(uint32_t range)
 	if (range == 1)
 		return (0);
 
-	(void) random_get_pseudo_bytes((void *)&r, sizeof (r));
+	(void) random_get_pseudo_bytes((uint8_t *)&r, sizeof (r));
 
 	return (r % range);
 }
