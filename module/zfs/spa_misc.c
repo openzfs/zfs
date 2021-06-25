@@ -1494,6 +1494,15 @@ spa_strfree(char *s)
 	kmem_free(s, strlen(s) + 1);
 }
 
+char *
+spa_stralloc(size_t len)
+{
+	char *new;
+	new = kmem_alloc(len + 1, KM_SLEEP);
+	new[0] = '\0';
+	return (new);
+}
+
 uint64_t
 spa_generate_guid(spa_t *spa)
 {
@@ -2877,6 +2886,7 @@ EXPORT_SYMBOL(spa_maxdnodesize);
 EXPORT_SYMBOL(spa_guid_exists);
 EXPORT_SYMBOL(spa_strdup);
 EXPORT_SYMBOL(spa_strfree);
+EXPORT_SYMBOL(spa_stralloc);
 EXPORT_SYMBOL(spa_generate_guid);
 EXPORT_SYMBOL(snprintf_blkptr);
 EXPORT_SYMBOL(spa_freeze);

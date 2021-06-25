@@ -2421,6 +2421,29 @@ spa_prop_find(spa_t *spa, zpool_prop_t prop, uint64_t *val)
 }
 
 /*
+ * Find a string value in the pool props object.
+ */
+static void
+spa_prop_fstr(spa_t *spa, zpool_prop_t prop, char **val)
+{
+	objset_t *mos = spa->spa_meta_objset;
+	uint64_t props = spa->spa_pool_props_object;
+	const char *propname = zpool_prop_to_name(prop);
+
+	uint64_t size, count;
+
+	if (zap_contains(mos, props, propname) == ENOENT) {
+		*val = NULL;
+	} else {
+		(void) zap_length(mos, props, propname, &size, &count);
+		ASSERT3P(size, ==, 1);
+		ASSERT3P(count, >, 0);
+		*val = spa_stralloc(count - 1);
+		(void) zap_lookup(mos, props, propname, 1, count, *val);
+	}
+}
+
+/*
  * Find a value in the pool directory object.
  */
 static int
@@ -3313,8 +3336,6 @@ spa_ld_parse_config(spa_t *spa, spa_import_type_t type)
 	int parse;
 	vdev_t *rvd;
 	uint64_t pool_guid;
-	char *comment;
-	char *compatibility;
 
 	/*
 	 * Versioning wasn't explicitly added to the label until later, so if
@@ -3358,15 +3379,6 @@ spa_ld_parse_config(spa_t *spa, spa_import_type_t type)
 
 	nvlist_free(spa->spa_load_info);
 	spa->spa_load_info = fnvlist_alloc();
-
-	ASSERT(spa->spa_comment == NULL);
-	if (nvlist_lookup_string(config, ZPOOL_CONFIG_COMMENT, &comment) == 0)
-		spa->spa_comment = spa_strdup(comment);
-
-	ASSERT(spa->spa_compatibility == NULL);
-	if (nvlist_lookup_string(config, ZPOOL_CONFIG_COMPATIBILITY,
-	    &compatibility) == 0)
-		spa->spa_compatibility = spa_strdup(compatibility);
 
 	(void) nvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_TXG,
 	    &spa->spa_config_txg);
@@ -4184,6 +4196,7 @@ spa_ld_get_props(spa_t *spa)
 
 	if (error == 0) {
 		uint64_t autoreplace;
+		char *comment, *compatibility;
 
 		spa_prop_find(spa, ZPOOL_PROP_BOOTFS, &spa->spa_bootfs);
 		spa_prop_find(spa, ZPOOL_PROP_AUTOREPLACE, &autoreplace);
@@ -4192,7 +4205,18 @@ spa_ld_get_props(spa_t *spa)
 		spa_prop_find(spa, ZPOOL_PROP_AUTOEXPAND, &spa->spa_autoexpand);
 		spa_prop_find(spa, ZPOOL_PROP_MULTIHOST, &spa->spa_multihost);
 		spa_prop_find(spa, ZPOOL_PROP_AUTOTRIM, &spa->spa_autotrim);
+		spa_prop_fstr(spa, ZPOOL_PROP_COMMENT, &comment);
+		spa_prop_fstr(spa, ZPOOL_PROP_COMPATIBILITY, &compatibility);
+
 		spa->spa_autoreplace = (autoreplace != 0);
+
+		if (spa->spa_comment != NULL)
+			spa_strfree(spa->spa_comment);
+		spa->spa_comment = comment;
+
+		if (spa->spa_compatibility != NULL)
+			spa_strfree(spa->spa_compatibility);
+		spa->spa_compatibility = compatibility;
 	}
 
 	/*
@@ -8723,42 +8747,6 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 			 * properties.
 			 */
 			break;
-		case ZPOOL_PROP_COMMENT:
-			strval = fnvpair_value_string(elem);
-			if (spa->spa_comment != NULL)
-				spa_strfree(spa->spa_comment);
-			spa->spa_comment = spa_strdup(strval);
-			/*
-			 * We need to dirty the configuration on all the vdevs
-			 * so that their labels get updated.  We also need to
-			 * update the cache file to keep it in sync with the
-			 * MOS version. It's unnecessary to do this for pool
-			 * creation since the vdev's configuration has already
-			 * been dirtied.
-			 */
-			if (tx->tx_txg != TXG_INITIAL) {
-				vdev_config_dirty(spa->spa_root_vdev);
-				spa_async_request(spa, SPA_ASYNC_CONFIG_UPDATE);
-			}
-			spa_history_log_internal(spa, "set", tx,
-			    "%s=%s", nvpair_name(elem), strval);
-			break;
-		case ZPOOL_PROP_COMPATIBILITY:
-			strval = fnvpair_value_string(elem);
-			if (spa->spa_compatibility != NULL)
-				spa_strfree(spa->spa_compatibility);
-			spa->spa_compatibility = spa_strdup(strval);
-			/*
-			 * Dirty the configuration on vdevs as above.
-			 */
-			if (tx->tx_txg != TXG_INITIAL) {
-				vdev_config_dirty(spa->spa_root_vdev);
-				spa_async_request(spa, SPA_ASYNC_CONFIG_UPDATE);
-			}
-
-			spa_history_log_internal(spa, "set", tx,
-			    "%s=%s", nvpair_name(elem), strval);
-			break;
 
 		default:
 			/*
@@ -8824,6 +8812,18 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 				break;
 			case ZPOOL_PROP_MULTIHOST:
 				spa->spa_multihost = intval;
+				break;
+			case ZPOOL_PROP_COMMENT:
+				strval = fnvpair_value_string(elem);
+				if (spa->spa_comment != NULL)
+					spa_strfree(spa->spa_comment);
+				spa->spa_comment = spa_strdup(strval);
+				break;
+			case ZPOOL_PROP_COMPATIBILITY:
+				strval = fnvpair_value_string(elem);
+				if (spa->spa_compatibility != NULL)
+					spa_strfree(spa->spa_compatibility);
+				spa->spa_compatibility = spa_strdup(strval);
 				break;
 			default:
 				break;
