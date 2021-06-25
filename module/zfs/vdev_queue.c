@@ -912,9 +912,9 @@ vdev_queue_io(zio_t *zio)
 	}
 
 	zio->io_flags |= ZIO_FLAG_DONT_CACHE | ZIO_FLAG_DONT_QUEUE;
+	zio->io_timestamp = gethrtime();
 
 	mutex_enter(&vq->vq_lock);
-	zio->io_timestamp = gethrtime();
 	vdev_queue_io_add(vq, zio);
 	nio = vdev_queue_io_to_issue(vq);
 	mutex_exit(&vq->vq_lock);
@@ -936,13 +936,12 @@ vdev_queue_io_done(zio_t *zio)
 	vdev_queue_t *vq = &zio->io_vd->vdev_queue;
 	zio_t *nio;
 
+	hrtime_t now = gethrtime();
+	vq->vq_io_complete_ts = now;
+	vq->vq_io_delta_ts = zio->io_delta = now - zio->io_timestamp;
+
 	mutex_enter(&vq->vq_lock);
-
 	vdev_queue_pending_remove(vq, zio);
-
-	zio->io_delta = gethrtime() - zio->io_timestamp;
-	vq->vq_io_complete_ts = gethrtime();
-	vq->vq_io_delta_ts = vq->vq_io_complete_ts - zio->io_timestamp;
 
 	while ((nio = vdev_queue_io_to_issue(vq)) != NULL) {
 		mutex_exit(&vq->vq_lock);
