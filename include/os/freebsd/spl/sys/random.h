@@ -51,7 +51,7 @@ random_get_pseudo_bytes(uint8_t *p, size_t s)
 static inline uint32_t
 random_in_range(uint32_t range)
 {
-#if  __FreeBSD_version >= 1300108
+#if defined(_KERNEL) && __FreeBSD_version >= 1300108
 	return (prng32_bounded(range));
 #else
 	uint32_t r;
@@ -61,7 +61,7 @@ random_in_range(uint32_t range)
 	if (range == 1)
 		return (0);
 
-	(void) random_get_pseudo_bytes((void *)&r, sizeof (r));
+	(void) random_get_pseudo_bytes((uint8_t *)&r, sizeof (r));
 
 	return (r % range);
 #endif
