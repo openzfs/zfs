@@ -870,6 +870,14 @@ static void l2arc_hdr_arcstats_update(arc_buf_hdr_t *hdr, boolean_t incr,
 	l2arc_hdr_arcstats_update((hdr), B_FALSE, B_TRUE)
 
 /*
+ * l2arc_exclude_special : A zfs module parameter that controls whether buffers
+ * 		present on special vdevs are eligibile for caching in L2ARC. If
+ * 		set to 1, exclude dbufs on special vdevs from being cached to
+ * 		L2ARC.
+ */
+int l2arc_exclude_special = 0;
+
+/*
  * l2arc_mfuonly : A ZFS module parameter that controls whether only MFU
  * 		metadata and data are cached from ARC into L2ARC.
  */
@@ -11096,6 +11104,10 @@ ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, rebuild_blocks_min_l2size, ULONG, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, mfuonly, INT, ZMOD_RW,
 	"Cache only MFU data from ARC into L2ARC");
+
+ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, exclude_special, INT, ZMOD_RW,
+	"If set to 1 exclude dbufs on special vdevs from being cached to "
+	"L2ARC.");
 
 ZFS_MODULE_PARAM_CALL(zfs_arc, zfs_arc_, lotsfree_percent, param_set_arc_int,
 	param_get_int, ZMOD_RW, "System free memory I/O throttle in bytes");
