@@ -1197,6 +1197,12 @@ zvol_create_minor(const char *name)
  * Remove minors for specified dataset including children and snapshots.
  */
 
+static void
+zvol_free_task(void *arg)
+{
+	ops->zv_free(arg);
+}
+
 void
 zvol_remove_minors_impl(const char *name)
 {
@@ -1245,8 +1251,8 @@ zvol_remove_minors_impl(const char *name)
 			mutex_exit(&zv->zv_state_lock);
 
 			/* Try parallel zv_free, if failed do it in place */
-			t = taskq_dispatch(system_taskq,
-			    (task_func_t *)ops->zv_free, zv, TQ_SLEEP);
+			t = taskq_dispatch(system_taskq, zvol_free_task, zv,
+			    TQ_SLEEP);
 			if (t == TASKQID_INVALID)
 				list_insert_head(&free_list, zv);
 		} else {
