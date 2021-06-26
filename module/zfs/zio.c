@@ -1923,7 +1923,7 @@ zio_issue_async(zio_t *zio)
 }
 
 void
-zio_interrupt(zio_t *zio)
+zio_interrupt(void *zio)
 {
 	zio_taskq_dispatch(zio, ZIO_TASKQ_INTERRUPT, B_FALSE);
 }
@@ -1981,8 +1981,8 @@ zio_delay_interrupt(zio_t *zio)
 				 * OpenZFS's timeout_generic().
 				 */
 				tid = taskq_dispatch_delay(system_taskq,
-				    (task_func_t *)zio_interrupt,
-				    zio, TQ_NOSLEEP, expire_at_tick);
+				    zio_interrupt, zio, TQ_NOSLEEP,
+				    expire_at_tick);
 				if (tid == TASKQID_INVALID) {
 					/*
 					 * Couldn't allocate a task.  Just
