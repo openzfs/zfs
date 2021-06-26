@@ -179,8 +179,8 @@ ask_for_password() {
         # Prompt for password with plymouth, if installed and running.
         if plymouth --ping 2>/dev/null; then
             plymouth ask-for-password \
-                --prompt "$ply_prompt" --number-of-tries="$ply_tries" \
-                --command="$ply_cmd"
+                --prompt "$ply_prompt" --number-of-tries="$ply_tries" | \
+                eval "$ply_cmd"
             ret=$?
         else
             if [ "$tty_echo_off" = yes ]; then
