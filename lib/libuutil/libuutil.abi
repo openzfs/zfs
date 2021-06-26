@@ -266,13 +266,13 @@
     <elf-symbol name='uu_exit_ok_value' size='4' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='uu_exit_usage_value' size='4' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
   </elf-variable-symbols>
-  <abi-instr version='1.0' address-size='64' path='uu_alloc.c' comp-dir-path='/home/ryan/ZoF/lib/libuutil' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='uu_alloc.c' comp-dir-path='/home/ryan/zfs/lib/libuutil' language='LANG_C99'>
     <type-decl name='char' size-in-bits='8' id='type-id-1'/>
     <pointer-type-def type-id='type-id-1' size-in-bits='64' id='type-id-2'/>
     <qualified-type-def type-id='type-id-1' const='yes' id='type-id-3'/>
     <pointer-type-def type-id='type-id-3' size-in-bits='64' id='type-id-4'/>
-    <function-decl name='uu_msprintf' mangled-name='uu_msprintf' filepath='/home/ryan/ZoF/lib/libuutil/uu_alloc.c' line='108' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_msprintf'>
-      <parameter type-id='type-id-4' name='format' filepath='/home/ryan/ZoF/lib/libuutil/uu_alloc.c' line='108' column='1'/>
+    <function-decl name='uu_msprintf' mangled-name='uu_msprintf' filepath='/home/ryan/zfs/lib/libuutil/uu_alloc.c' line='108' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_msprintf'>
+      <parameter type-id='type-id-4' name='format' filepath='/home/ryan/zfs/lib/libuutil/uu_alloc.c' line='108' column='1'/>
       <parameter is-variadic='yes'/>
       <return type-id='type-id-2'/>
     </function-decl>
@@ -280,26 +280,26 @@
     <pointer-type-def type-id='type-id-5' size-in-bits='64' id='type-id-6'/>
     <type-decl name='unsigned long int' size-in-bits='64' id='type-id-7'/>
     <typedef-decl name='size_t' type-id='type-id-7' filepath='/usr/lib/gcc/x86_64-linux-gnu/8/include/stddef.h' line='216' column='1' id='type-id-8'/>
-    <function-decl name='uu_memdup' mangled-name='uu_memdup' filepath='/home/ryan/ZoF/lib/libuutil/uu_alloc.c' line='96' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_memdup'>
-      <parameter type-id='type-id-6' name='buf' filepath='/home/ryan/ZoF/lib/libuutil/uu_alloc.c' line='96' column='1'/>
-      <parameter type-id='type-id-8' name='sz' filepath='/home/ryan/ZoF/lib/libuutil/uu_alloc.c' line='96' column='1'/>
+    <function-decl name='uu_memdup' mangled-name='uu_memdup' filepath='/home/ryan/zfs/lib/libuutil/uu_alloc.c' line='96' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_memdup'>
+      <parameter type-id='type-id-6' name='buf' filepath='/home/ryan/zfs/lib/libuutil/uu_alloc.c' line='96' column='1'/>
+      <parameter type-id='type-id-8' name='sz' filepath='/home/ryan/zfs/lib/libuutil/uu_alloc.c' line='96' column='1'/>
       <return type-id='type-id-6'/>
     </function-decl>
-    <function-decl name='uu_strndup' mangled-name='uu_strndup' filepath='/home/ryan/ZoF/lib/libuutil/uu_alloc.c' line='74' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_strndup'>
-      <parameter type-id='type-id-4' name='s' filepath='/home/ryan/ZoF/lib/libuutil/uu_alloc.c' line='74' column='1'/>
-      <parameter type-id='type-id-8' name='n' filepath='/home/ryan/ZoF/lib/libuutil/uu_alloc.c' line='74' column='1'/>
+    <function-decl name='uu_strndup' mangled-name='uu_strndup' filepath='/home/ryan/zfs/lib/libuutil/uu_alloc.c' line='74' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_strndup'>
+      <parameter type-id='type-id-4' name='s' filepath='/home/ryan/zfs/lib/libuutil/uu_alloc.c' line='74' column='1'/>
+      <parameter type-id='type-id-8' name='n' filepath='/home/ryan/zfs/lib/libuutil/uu_alloc.c' line='74' column='1'/>
       <return type-id='type-id-2'/>
     </function-decl>
-    <function-decl name='uu_strdup' mangled-name='uu_strdup' filepath='/home/ryan/ZoF/lib/libuutil/uu_alloc.c' line='54' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_strdup'>
-      <parameter type-id='type-id-4' name='str' filepath='/home/ryan/ZoF/lib/libuutil/uu_alloc.c' line='54' column='1'/>
+    <function-decl name='uu_strdup' mangled-name='uu_strdup' filepath='/home/ryan/zfs/lib/libuutil/uu_alloc.c' line='54' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_strdup'>
+      <parameter type-id='type-id-4' name='str' filepath='/home/ryan/zfs/lib/libuutil/uu_alloc.c' line='54' column='1'/>
       <return type-id='type-id-2'/>
     </function-decl>
-    <function-decl name='uu_free' mangled-name='uu_free' filepath='/home/ryan/ZoF/lib/libuutil/uu_alloc.c' line='48' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_free'>
-      <parameter type-id='type-id-6' name='p' filepath='/home/ryan/ZoF/lib/libuutil/uu_alloc.c' line='48' column='1'/>
+    <function-decl name='uu_free' mangled-name='uu_free' filepath='/home/ryan/zfs/lib/libuutil/uu_alloc.c' line='48' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_free'>
+      <parameter type-id='type-id-6' name='p' filepath='/home/ryan/zfs/lib/libuutil/uu_alloc.c' line='48' column='1'/>
       <return type-id='type-id-5'/>
     </function-decl>
-    <function-decl name='uu_zalloc' mangled-name='uu_zalloc' filepath='/home/ryan/ZoF/lib/libuutil/uu_alloc.c' line='33' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_zalloc'>
-      <parameter type-id='type-id-8' name='n' filepath='/home/ryan/ZoF/lib/libuutil/uu_alloc.c' line='33' column='1'/>
+    <function-decl name='uu_zalloc' mangled-name='uu_zalloc' filepath='/home/ryan/zfs/lib/libuutil/uu_alloc.c' line='33' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_zalloc'>
+      <parameter type-id='type-id-8' name='n' filepath='/home/ryan/zfs/lib/libuutil/uu_alloc.c' line='33' column='1'/>
       <return type-id='type-id-6'/>
     </function-decl>
     <function-decl name='vsnprintf' mangled-name='vsnprintf' filepath='/usr/include/stdio.h' line='358' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -324,11 +324,11 @@
       <return type-id='type-id-5'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='uu_avl.c' comp-dir-path='/home/ryan/ZoF/lib/libuutil' language='LANG_C99'>
-    <function-decl name='uu_avl_release' mangled-name='uu_avl_release' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='562' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_release'>
+  <abi-instr version='1.0' address-size='64' path='uu_avl.c' comp-dir-path='/home/ryan/zfs/lib/libuutil' language='LANG_C99'>
+    <function-decl name='uu_avl_release' mangled-name='uu_avl_release' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='562' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_release'>
       <return type-id='type-id-5'/>
     </function-decl>
-    <function-decl name='uu_avl_lockup' mangled-name='uu_avl_lockup' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='551' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_lockup'>
+    <function-decl name='uu_avl_lockup' mangled-name='uu_avl_lockup' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='551' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_lockup'>
       <return type-id='type-id-5'/>
     </function-decl>
     <class-decl name='uu_avl' size-in-bits='960' is-struct='yes' visibility='default' filepath='../../include/libuutil_impl.h' line='137' column='1' id='type-id-9'>
@@ -520,95 +520,95 @@
     <typedef-decl name='__int8_t' type-id='type-id-48' filepath='/usr/include/x86_64-linux-gnu/bits/types.h' line='36' column='1' id='type-id-49'/>
     <typedef-decl name='int8_t' type-id='type-id-49' filepath='/usr/include/x86_64-linux-gnu/bits/stdint-intn.h' line='24' column='1' id='type-id-47'/>
     <typedef-decl name='uu_avl_index_t' type-id='type-id-10' filepath='../../include/libuutil.h' line='300' column='1' id='type-id-50'/>
-    <function-decl name='uu_avl_nearest_prev' mangled-name='uu_avl_nearest_prev' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='538' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_nearest_prev'>
-      <parameter type-id='type-id-46' name='ap' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='538' column='1'/>
-      <parameter type-id='type-id-50' name='idx' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='538' column='1'/>
+    <function-decl name='uu_avl_nearest_prev' mangled-name='uu_avl_nearest_prev' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='538' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_nearest_prev'>
+      <parameter type-id='type-id-46' name='ap' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='538' column='1'/>
+      <parameter type-id='type-id-50' name='idx' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='538' column='1'/>
       <return type-id='type-id-6'/>
     </function-decl>
-    <function-decl name='uu_avl_nearest_next' mangled-name='uu_avl_nearest_next' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='528' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_nearest_next'>
-      <parameter type-id='type-id-46' name='ap' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='538' column='1'/>
-      <parameter type-id='type-id-50' name='idx' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='538' column='1'/>
+    <function-decl name='uu_avl_nearest_next' mangled-name='uu_avl_nearest_next' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='528' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_nearest_next'>
+      <parameter type-id='type-id-46' name='ap' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='538' column='1'/>
+      <parameter type-id='type-id-50' name='idx' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='538' column='1'/>
       <return type-id='type-id-6'/>
     </function-decl>
-    <function-decl name='uu_avl_insert' mangled-name='uu_avl_insert' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='494' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_insert'>
-      <parameter type-id='type-id-46' name='ap' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='494' column='1'/>
-      <parameter type-id='type-id-6' name='elem' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='494' column='1'/>
-      <parameter type-id='type-id-50' name='idx' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='494' column='1'/>
+    <function-decl name='uu_avl_insert' mangled-name='uu_avl_insert' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='494' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_insert'>
+      <parameter type-id='type-id-46' name='ap' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='494' column='1'/>
+      <parameter type-id='type-id-6' name='elem' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='494' column='1'/>
+      <parameter type-id='type-id-50' name='idx' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='494' column='1'/>
       <return type-id='type-id-5'/>
     </function-decl>
     <pointer-type-def type-id='type-id-50' size-in-bits='64' id='type-id-51'/>
-    <function-decl name='uu_avl_find' mangled-name='uu_avl_find' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='473' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_find'>
-      <parameter type-id='type-id-46' name='ap' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='473' column='1'/>
-      <parameter type-id='type-id-6' name='elem' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='473' column='1'/>
-      <parameter type-id='type-id-6' name='private' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='473' column='1'/>
-      <parameter type-id='type-id-51' name='out' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='473' column='1'/>
+    <function-decl name='uu_avl_find' mangled-name='uu_avl_find' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='473' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_find'>
+      <parameter type-id='type-id-46' name='ap' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='473' column='1'/>
+      <parameter type-id='type-id-6' name='elem' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='473' column='1'/>
+      <parameter type-id='type-id-6' name='private' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='473' column='1'/>
+      <parameter type-id='type-id-51' name='out' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='473' column='1'/>
       <return type-id='type-id-6'/>
     </function-decl>
     <pointer-type-def type-id='type-id-6' size-in-bits='64' id='type-id-52'/>
-    <function-decl name='uu_avl_teardown' mangled-name='uu_avl_teardown' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='458' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_teardown'>
-      <parameter type-id='type-id-46' name='ap' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='458' column='1'/>
-      <parameter type-id='type-id-52' name='cookie' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='458' column='1'/>
+    <function-decl name='uu_avl_teardown' mangled-name='uu_avl_teardown' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='458' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_teardown'>
+      <parameter type-id='type-id-46' name='ap' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='458' column='1'/>
+      <parameter type-id='type-id-52' name='cookie' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='458' column='1'/>
       <return type-id='type-id-6'/>
     </function-decl>
-    <function-decl name='uu_avl_remove' mangled-name='uu_avl_remove' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='422' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_remove'>
-      <parameter type-id='type-id-46' name='ap' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='422' column='1'/>
-      <parameter type-id='type-id-6' name='elem' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='422' column='1'/>
+    <function-decl name='uu_avl_remove' mangled-name='uu_avl_remove' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='422' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_remove'>
+      <parameter type-id='type-id-46' name='ap' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='422' column='1'/>
+      <parameter type-id='type-id-6' name='elem' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='422' column='1'/>
       <return type-id='type-id-5'/>
     </function-decl>
     <typedef-decl name='uu_walk_fn_t' type-id='type-id-43' filepath='../../include/libuutil.h' line='183' column='1' id='type-id-53'/>
     <pointer-type-def type-id='type-id-53' size-in-bits='64' id='type-id-54'/>
     <typedef-decl name='__uint32_t' type-id='type-id-31' filepath='/usr/include/x86_64-linux-gnu/bits/types.h' line='41' column='1' id='type-id-55'/>
     <typedef-decl name='uint32_t' type-id='type-id-55' filepath='/usr/include/x86_64-linux-gnu/bits/stdint-uintn.h' line='26' column='1' id='type-id-56'/>
-    <function-decl name='uu_avl_walk' mangled-name='uu_avl_walk' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='397' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_walk'>
-      <parameter type-id='type-id-46' name='ap' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='397' column='1'/>
-      <parameter type-id='type-id-54' name='func' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='397' column='1'/>
-      <parameter type-id='type-id-6' name='private' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='397' column='1'/>
-      <parameter type-id='type-id-56' name='flags' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='397' column='1'/>
+    <function-decl name='uu_avl_walk' mangled-name='uu_avl_walk' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='397' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_walk'>
+      <parameter type-id='type-id-46' name='ap' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='397' column='1'/>
+      <parameter type-id='type-id-54' name='func' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='397' column='1'/>
+      <parameter type-id='type-id-6' name='private' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='397' column='1'/>
+      <parameter type-id='type-id-56' name='flags' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='397' column='1'/>
       <return type-id='type-id-22'/>
     </function-decl>
-    <function-decl name='uu_avl_walk_end' mangled-name='uu_avl_walk_end' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='390' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_walk_end'>
-      <parameter type-id='type-id-45' name='wp' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='390' column='1'/>
+    <function-decl name='uu_avl_walk_end' mangled-name='uu_avl_walk_end' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='390' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_walk_end'>
+      <parameter type-id='type-id-45' name='wp' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='390' column='1'/>
       <return type-id='type-id-5'/>
     </function-decl>
-    <function-decl name='uu_avl_walk_next' mangled-name='uu_avl_walk_next' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='384' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_walk_next'>
-      <parameter type-id='type-id-45' name='wp' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='384' column='1'/>
+    <function-decl name='uu_avl_walk_next' mangled-name='uu_avl_walk_next' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='384' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_walk_next'>
+      <parameter type-id='type-id-45' name='wp' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='384' column='1'/>
       <return type-id='type-id-6'/>
     </function-decl>
-    <function-decl name='uu_avl_walk_start' mangled-name='uu_avl_walk_start' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='364' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_walk_start'>
-      <parameter type-id='type-id-46' name='ap' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='364' column='1'/>
-      <parameter type-id='type-id-56' name='flags' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='364' column='1'/>
+    <function-decl name='uu_avl_walk_start' mangled-name='uu_avl_walk_start' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='364' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_walk_start'>
+      <parameter type-id='type-id-46' name='ap' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='364' column='1'/>
+      <parameter type-id='type-id-56' name='flags' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='364' column='1'/>
       <return type-id='type-id-45'/>
     </function-decl>
-    <function-decl name='uu_avl_prev' mangled-name='uu_avl_prev' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='303' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_prev'>
-      <parameter type-id='type-id-46' name='ap' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='303' column='1'/>
-      <parameter type-id='type-id-6' name='node' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='303' column='1'/>
+    <function-decl name='uu_avl_prev' mangled-name='uu_avl_prev' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='303' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_prev'>
+      <parameter type-id='type-id-46' name='ap' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='303' column='1'/>
+      <parameter type-id='type-id-6' name='node' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='303' column='1'/>
       <return type-id='type-id-6'/>
     </function-decl>
-    <function-decl name='uu_avl_next' mangled-name='uu_avl_next' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='297' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_next'>
-      <parameter type-id='type-id-46' name='ap' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='303' column='1'/>
-      <parameter type-id='type-id-6' name='node' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='303' column='1'/>
+    <function-decl name='uu_avl_next' mangled-name='uu_avl_next' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='297' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_next'>
+      <parameter type-id='type-id-46' name='ap' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='303' column='1'/>
+      <parameter type-id='type-id-6' name='node' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='303' column='1'/>
       <return type-id='type-id-6'/>
     </function-decl>
-    <function-decl name='uu_avl_last' mangled-name='uu_avl_last' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='291' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_last'>
-      <parameter type-id='type-id-46' name='ap' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='291' column='1'/>
+    <function-decl name='uu_avl_last' mangled-name='uu_avl_last' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='291' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_last'>
+      <parameter type-id='type-id-46' name='ap' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='291' column='1'/>
       <return type-id='type-id-6'/>
     </function-decl>
-    <function-decl name='uu_avl_first' mangled-name='uu_avl_first' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='285' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_first'>
-      <parameter type-id='type-id-46' name='ap' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='291' column='1'/>
+    <function-decl name='uu_avl_first' mangled-name='uu_avl_first' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='285' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_first'>
+      <parameter type-id='type-id-46' name='ap' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='291' column='1'/>
       <return type-id='type-id-6'/>
     </function-decl>
-    <function-decl name='uu_avl_numnodes' mangled-name='uu_avl_numnodes' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='279' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_numnodes'>
-      <parameter type-id='type-id-46' name='ap' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='279' column='1'/>
+    <function-decl name='uu_avl_numnodes' mangled-name='uu_avl_numnodes' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='279' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_numnodes'>
+      <parameter type-id='type-id-46' name='ap' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='279' column='1'/>
       <return type-id='type-id-8'/>
     </function-decl>
-    <function-decl name='uu_avl_destroy' mangled-name='uu_avl_destroy' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='250' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_destroy'>
-      <parameter type-id='type-id-46' name='ap' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='250' column='1'/>
+    <function-decl name='uu_avl_destroy' mangled-name='uu_avl_destroy' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='250' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_destroy'>
+      <parameter type-id='type-id-46' name='ap' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='250' column='1'/>
       <return type-id='type-id-5'/>
     </function-decl>
-    <function-decl name='uu_avl_create' mangled-name='uu_avl_create' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='211' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_create'>
-      <parameter type-id='type-id-11' name='pp' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='211' column='1'/>
-      <parameter type-id='type-id-6' name='parent' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='211' column='1'/>
-      <parameter type-id='type-id-56' name='flags' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='211' column='1'/>
+    <function-decl name='uu_avl_create' mangled-name='uu_avl_create' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='211' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_create'>
+      <parameter type-id='type-id-11' name='pp' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='211' column='1'/>
+      <parameter type-id='type-id-6' name='parent' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='211' column='1'/>
+      <parameter type-id='type-id-56' name='flags' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='211' column='1'/>
       <return type-id='type-id-46'/>
     </function-decl>
     <class-decl name='uu_avl_node' size-in-bits='192' is-struct='yes' visibility='default' filepath='../../include/libuutil.h' line='290' column='1' id='type-id-57'>
@@ -623,28 +623,28 @@
     </array-type-def>
     <typedef-decl name='uu_avl_node_t' type-id='type-id-57' filepath='../../include/libuutil.h' line='296' column='1' id='type-id-60'/>
     <pointer-type-def type-id='type-id-60' size-in-bits='64' id='type-id-61'/>
-    <function-decl name='uu_avl_node_fini' mangled-name='uu_avl_node_fini' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='163' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_node_fini'>
-      <parameter type-id='type-id-6' name='base' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='163' column='1'/>
-      <parameter type-id='type-id-61' name='np' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='163' column='1'/>
-      <parameter type-id='type-id-11' name='pp' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='163' column='1'/>
+    <function-decl name='uu_avl_node_fini' mangled-name='uu_avl_node_fini' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='163' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_node_fini'>
+      <parameter type-id='type-id-6' name='base' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='163' column='1'/>
+      <parameter type-id='type-id-61' name='np' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='163' column='1'/>
+      <parameter type-id='type-id-11' name='pp' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='163' column='1'/>
       <return type-id='type-id-5'/>
     </function-decl>
-    <function-decl name='uu_avl_node_init' mangled-name='uu_avl_node_init' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='138' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_node_init'>
-      <parameter type-id='type-id-6' name='base' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='138' column='1'/>
-      <parameter type-id='type-id-61' name='np' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='138' column='1'/>
-      <parameter type-id='type-id-11' name='pp' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='138' column='1'/>
+    <function-decl name='uu_avl_node_init' mangled-name='uu_avl_node_init' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='138' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_node_init'>
+      <parameter type-id='type-id-6' name='base' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='138' column='1'/>
+      <parameter type-id='type-id-61' name='np' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='138' column='1'/>
+      <parameter type-id='type-id-11' name='pp' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='138' column='1'/>
       <return type-id='type-id-5'/>
     </function-decl>
-    <function-decl name='uu_avl_pool_destroy' mangled-name='uu_avl_pool_destroy' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='114' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_pool_destroy'>
-      <parameter type-id='type-id-11' name='pp' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='114' column='1'/>
+    <function-decl name='uu_avl_pool_destroy' mangled-name='uu_avl_pool_destroy' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='114' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_pool_destroy'>
+      <parameter type-id='type-id-11' name='pp' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='114' column='1'/>
       <return type-id='type-id-5'/>
     </function-decl>
-    <function-decl name='uu_avl_pool_create' mangled-name='uu_avl_pool_create' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='66' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_pool_create'>
-      <parameter type-id='type-id-4' name='name' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='66' column='1'/>
-      <parameter type-id='type-id-8' name='objsize' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='66' column='1'/>
-      <parameter type-id='type-id-8' name='nodeoffset' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='66' column='1'/>
-      <parameter type-id='type-id-17' name='compare_func' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='67' column='1'/>
-      <parameter type-id='type-id-56' name='flags' filepath='/home/ryan/ZoF/lib/libuutil/uu_avl.c' line='67' column='1'/>
+    <function-decl name='uu_avl_pool_create' mangled-name='uu_avl_pool_create' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='66' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_avl_pool_create'>
+      <parameter type-id='type-id-4' name='name' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='66' column='1'/>
+      <parameter type-id='type-id-8' name='objsize' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='66' column='1'/>
+      <parameter type-id='type-id-8' name='nodeoffset' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='66' column='1'/>
+      <parameter type-id='type-id-17' name='compare_func' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='67' column='1'/>
+      <parameter type-id='type-id-56' name='flags' filepath='/home/ryan/zfs/lib/libuutil/uu_avl.c' line='67' column='1'/>
       <return type-id='type-id-11'/>
     </function-decl>
     <function-decl name='pthread_mutex_unlock' mangled-name='pthread_mutex_unlock' filepath='/usr/include/pthread.h' line='774' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -719,7 +719,7 @@
       <return type-id='type-id-22'/>
     </function-type>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='uu_dprintf.c' comp-dir-path='/home/ryan/ZoF/lib/libuutil' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='uu_dprintf.c' comp-dir-path='/home/ryan/zfs/lib/libuutil' language='LANG_C99'>
     <class-decl name='uu_dprintf' size-in-bits='128' is-struct='yes' visibility='default' filepath='../../include/libuutil_impl.h' line='49' column='1' id='type-id-62'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='uud_name' type-id='type-id-2' visibility='default' filepath='../../include/libuutil_impl.h' line='50' column='1'/>
@@ -745,25 +745,25 @@
     <typedef-decl name='uint_t' type-id='type-id-31' filepath='../../lib/libspl/include/sys/stdtypes.h' line='33' column='1' id='type-id-64'/>
     <typedef-decl name='uu_dprintf_t' type-id='type-id-62' filepath='../../include/libuutil.h' line='104' column='1' id='type-id-67'/>
     <pointer-type-def type-id='type-id-67' size-in-bits='64' id='type-id-68'/>
-    <function-decl name='uu_dprintf_getname' mangled-name='uu_dprintf_getname' filepath='/home/ryan/ZoF/lib/libuutil/uu_dprintf.c' line='127' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_dprintf_getname'>
-      <parameter type-id='type-id-68' name='D' filepath='/home/ryan/ZoF/lib/libuutil/uu_dprintf.c' line='127' column='1'/>
+    <function-decl name='uu_dprintf_getname' mangled-name='uu_dprintf_getname' filepath='/home/ryan/zfs/lib/libuutil/uu_dprintf.c' line='127' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_dprintf_getname'>
+      <parameter type-id='type-id-68' name='D' filepath='/home/ryan/zfs/lib/libuutil/uu_dprintf.c' line='127' column='1'/>
       <return type-id='type-id-4'/>
     </function-decl>
-    <function-decl name='uu_dprintf_destroy' mangled-name='uu_dprintf_destroy' filepath='/home/ryan/ZoF/lib/libuutil/uu_dprintf.c' line='118' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_dprintf_destroy'>
-      <parameter type-id='type-id-68' name='D' filepath='/home/ryan/ZoF/lib/libuutil/uu_dprintf.c' line='118' column='1'/>
+    <function-decl name='uu_dprintf_destroy' mangled-name='uu_dprintf_destroy' filepath='/home/ryan/zfs/lib/libuutil/uu_dprintf.c' line='118' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_dprintf_destroy'>
+      <parameter type-id='type-id-68' name='D' filepath='/home/ryan/zfs/lib/libuutil/uu_dprintf.c' line='118' column='1'/>
       <return type-id='type-id-5'/>
     </function-decl>
-    <function-decl name='uu_dprintf' mangled-name='uu_dprintf' filepath='/home/ryan/ZoF/lib/libuutil/uu_dprintf.c' line='99' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_dprintf'>
-      <parameter type-id='type-id-68' name='D' filepath='/home/ryan/ZoF/lib/libuutil/uu_dprintf.c' line='99' column='1'/>
-      <parameter type-id='type-id-63' name='severity' filepath='/home/ryan/ZoF/lib/libuutil/uu_dprintf.c' line='99' column='1'/>
-      <parameter type-id='type-id-4' name='format' filepath='/home/ryan/ZoF/lib/libuutil/uu_dprintf.c' line='100' column='1'/>
+    <function-decl name='uu_dprintf' mangled-name='uu_dprintf' filepath='/home/ryan/zfs/lib/libuutil/uu_dprintf.c' line='99' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_dprintf'>
+      <parameter type-id='type-id-68' name='D' filepath='/home/ryan/zfs/lib/libuutil/uu_dprintf.c' line='99' column='1'/>
+      <parameter type-id='type-id-63' name='severity' filepath='/home/ryan/zfs/lib/libuutil/uu_dprintf.c' line='99' column='1'/>
+      <parameter type-id='type-id-4' name='format' filepath='/home/ryan/zfs/lib/libuutil/uu_dprintf.c' line='100' column='1'/>
       <parameter is-variadic='yes'/>
       <return type-id='type-id-5'/>
     </function-decl>
-    <function-decl name='uu_dprintf_create' mangled-name='uu_dprintf_create' filepath='/home/ryan/ZoF/lib/libuutil/uu_dprintf.c' line='67' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_dprintf_create'>
-      <parameter type-id='type-id-4' name='name' filepath='/home/ryan/ZoF/lib/libuutil/uu_dprintf.c' line='67' column='1'/>
-      <parameter type-id='type-id-63' name='severity' filepath='/home/ryan/ZoF/lib/libuutil/uu_dprintf.c' line='67' column='1'/>
-      <parameter type-id='type-id-64' name='flags' filepath='/home/ryan/ZoF/lib/libuutil/uu_dprintf.c' line='68' column='1'/>
+    <function-decl name='uu_dprintf_create' mangled-name='uu_dprintf_create' filepath='/home/ryan/zfs/lib/libuutil/uu_dprintf.c' line='67' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_dprintf_create'>
+      <parameter type-id='type-id-4' name='name' filepath='/home/ryan/zfs/lib/libuutil/uu_dprintf.c' line='67' column='1'/>
+      <parameter type-id='type-id-63' name='severity' filepath='/home/ryan/zfs/lib/libuutil/uu_dprintf.c' line='67' column='1'/>
+      <parameter type-id='type-id-64' name='flags' filepath='/home/ryan/zfs/lib/libuutil/uu_dprintf.c' line='68' column='1'/>
       <return type-id='type-id-68'/>
     </function-decl>
     <function-decl name='fprintf' mangled-name='fprintf' filepath='/usr/include/stdio.h' line='326' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -779,21 +779,21 @@
       <return type-id='type-id-5'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='uu_ident.c' comp-dir-path='/home/ryan/ZoF/lib/libuutil' language='LANG_C99'>
-    <function-decl name='uu_check_name' mangled-name='uu_check_name' filepath='/home/ryan/ZoF/lib/libuutil/uu_ident.c' line='93' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_check_name'>
-      <parameter type-id='type-id-4' name='name' filepath='/home/ryan/ZoF/lib/libuutil/uu_ident.c' line='93' column='1'/>
-      <parameter type-id='type-id-64' name='flags' filepath='/home/ryan/ZoF/lib/libuutil/uu_ident.c' line='93' column='1'/>
+  <abi-instr version='1.0' address-size='64' path='uu_ident.c' comp-dir-path='/home/ryan/zfs/lib/libuutil' language='LANG_C99'>
+    <function-decl name='uu_check_name' mangled-name='uu_check_name' filepath='/home/ryan/zfs/lib/libuutil/uu_ident.c' line='93' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_check_name'>
+      <parameter type-id='type-id-4' name='name' filepath='/home/ryan/zfs/lib/libuutil/uu_ident.c' line='93' column='1'/>
+      <parameter type-id='type-id-64' name='flags' filepath='/home/ryan/zfs/lib/libuutil/uu_ident.c' line='93' column='1'/>
       <return type-id='type-id-22'/>
     </function-decl>
     <function-decl name='strchr' mangled-name='strchr' filepath='/usr/include/string.h' line='225' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-5'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='uu_list.c' comp-dir-path='/home/ryan/ZoF/lib/libuutil' language='LANG_C99'>
-    <function-decl name='uu_list_release' mangled-name='uu_list_release' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='710' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_release'>
+  <abi-instr version='1.0' address-size='64' path='uu_list.c' comp-dir-path='/home/ryan/zfs/lib/libuutil' language='LANG_C99'>
+    <function-decl name='uu_list_release' mangled-name='uu_list_release' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='710' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_release'>
       <return type-id='type-id-5'/>
     </function-decl>
-    <function-decl name='uu_list_lockup' mangled-name='uu_list_lockup' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='699' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_lockup'>
+    <function-decl name='uu_list_lockup' mangled-name='uu_list_lockup' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='699' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_lockup'>
       <return type-id='type-id-5'/>
     </function-decl>
     <class-decl name='uu_list' size-in-bits='896' is-struct='yes' visibility='default' filepath='../../include/libuutil_impl.h' line='88' column='1' id='type-id-69'>
@@ -900,103 +900,103 @@
     <pointer-type-def type-id='type-id-72' size-in-bits='64' id='type-id-79'/>
     <pointer-type-def type-id='type-id-74' size-in-bits='64' id='type-id-80'/>
     <pointer-type-def type-id='type-id-71' size-in-bits='64' id='type-id-81'/>
-    <function-decl name='uu_list_prev' mangled-name='uu_list_prev' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='685' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_prev'>
-      <parameter type-id='type-id-80' name='lp' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='685' column='1'/>
-      <parameter type-id='type-id-6' name='elem' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='685' column='1'/>
+    <function-decl name='uu_list_prev' mangled-name='uu_list_prev' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='685' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_prev'>
+      <parameter type-id='type-id-80' name='lp' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='685' column='1'/>
+      <parameter type-id='type-id-6' name='elem' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='685' column='1'/>
       <return type-id='type-id-6'/>
     </function-decl>
-    <function-decl name='uu_list_next' mangled-name='uu_list_next' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='674' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_next'>
-      <parameter type-id='type-id-80' name='lp' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='685' column='1'/>
-      <parameter type-id='type-id-6' name='elem' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='685' column='1'/>
+    <function-decl name='uu_list_next' mangled-name='uu_list_next' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='674' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_next'>
+      <parameter type-id='type-id-80' name='lp' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='685' column='1'/>
+      <parameter type-id='type-id-6' name='elem' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='685' column='1'/>
       <return type-id='type-id-6'/>
     </function-decl>
-    <function-decl name='uu_list_last' mangled-name='uu_list_last' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='665' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_last'>
-      <parameter type-id='type-id-80' name='lp' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='665' column='1'/>
+    <function-decl name='uu_list_last' mangled-name='uu_list_last' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='665' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_last'>
+      <parameter type-id='type-id-80' name='lp' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='665' column='1'/>
       <return type-id='type-id-6'/>
     </function-decl>
-    <function-decl name='uu_list_first' mangled-name='uu_list_first' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='656' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_first'>
-      <parameter type-id='type-id-80' name='lp' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='665' column='1'/>
+    <function-decl name='uu_list_first' mangled-name='uu_list_first' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='656' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_first'>
+      <parameter type-id='type-id-80' name='lp' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='665' column='1'/>
       <return type-id='type-id-6'/>
     </function-decl>
-    <function-decl name='uu_list_numnodes' mangled-name='uu_list_numnodes' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='650' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_numnodes'>
-      <parameter type-id='type-id-80' name='lp' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='650' column='1'/>
+    <function-decl name='uu_list_numnodes' mangled-name='uu_list_numnodes' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='650' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_numnodes'>
+      <parameter type-id='type-id-80' name='lp' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='650' column='1'/>
       <return type-id='type-id-8'/>
     </function-decl>
-    <function-decl name='uu_list_insert_after' mangled-name='uu_list_insert_after' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='624' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_insert_after'>
-      <parameter type-id='type-id-80' name='lp' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='624' column='1'/>
-      <parameter type-id='type-id-6' name='target' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='624' column='1'/>
-      <parameter type-id='type-id-6' name='elem' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='624' column='1'/>
+    <function-decl name='uu_list_insert_after' mangled-name='uu_list_insert_after' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='624' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_insert_after'>
+      <parameter type-id='type-id-80' name='lp' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='624' column='1'/>
+      <parameter type-id='type-id-6' name='target' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='624' column='1'/>
+      <parameter type-id='type-id-6' name='elem' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='624' column='1'/>
       <return type-id='type-id-22'/>
     </function-decl>
-    <function-decl name='uu_list_insert_before' mangled-name='uu_list_insert_before' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='598' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_insert_before'>
-      <parameter type-id='type-id-80' name='lp' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='624' column='1'/>
-      <parameter type-id='type-id-6' name='target' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='624' column='1'/>
-      <parameter type-id='type-id-6' name='elem' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='624' column='1'/>
+    <function-decl name='uu_list_insert_before' mangled-name='uu_list_insert_before' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='598' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_insert_before'>
+      <parameter type-id='type-id-80' name='lp' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='624' column='1'/>
+      <parameter type-id='type-id-6' name='target' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='624' column='1'/>
+      <parameter type-id='type-id-6' name='elem' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='624' column='1'/>
       <return type-id='type-id-22'/>
     </function-decl>
-    <function-decl name='uu_list_teardown' mangled-name='uu_list_teardown' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='580' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_teardown'>
-      <parameter type-id='type-id-80' name='lp' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='580' column='1'/>
-      <parameter type-id='type-id-52' name='cookie' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='580' column='1'/>
+    <function-decl name='uu_list_teardown' mangled-name='uu_list_teardown' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='580' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_teardown'>
+      <parameter type-id='type-id-80' name='lp' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='580' column='1'/>
+      <parameter type-id='type-id-52' name='cookie' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='580' column='1'/>
       <return type-id='type-id-6'/>
     </function-decl>
-    <function-decl name='uu_list_remove' mangled-name='uu_list_remove' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='540' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_remove'>
-      <parameter type-id='type-id-80' name='lp' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='540' column='1'/>
-      <parameter type-id='type-id-6' name='elem' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='540' column='1'/>
+    <function-decl name='uu_list_remove' mangled-name='uu_list_remove' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='540' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_remove'>
+      <parameter type-id='type-id-80' name='lp' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='540' column='1'/>
+      <parameter type-id='type-id-6' name='elem' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='540' column='1'/>
       <return type-id='type-id-5'/>
     </function-decl>
-    <function-decl name='uu_list_walk' mangled-name='uu_list_walk' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='495' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_walk'>
-      <parameter type-id='type-id-80' name='lp' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='495' column='1'/>
-      <parameter type-id='type-id-54' name='func' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='495' column='1'/>
-      <parameter type-id='type-id-6' name='private' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='495' column='1'/>
-      <parameter type-id='type-id-56' name='flags' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='495' column='1'/>
+    <function-decl name='uu_list_walk' mangled-name='uu_list_walk' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='495' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_walk'>
+      <parameter type-id='type-id-80' name='lp' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='495' column='1'/>
+      <parameter type-id='type-id-54' name='func' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='495' column='1'/>
+      <parameter type-id='type-id-6' name='private' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='495' column='1'/>
+      <parameter type-id='type-id-56' name='flags' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='495' column='1'/>
       <return type-id='type-id-22'/>
     </function-decl>
-    <function-decl name='uu_list_walk_end' mangled-name='uu_list_walk_end' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='488' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_walk_end'>
-      <parameter type-id='type-id-79' name='wp' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='488' column='1'/>
+    <function-decl name='uu_list_walk_end' mangled-name='uu_list_walk_end' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='488' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_walk_end'>
+      <parameter type-id='type-id-79' name='wp' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='488' column='1'/>
       <return type-id='type-id-5'/>
     </function-decl>
-    <function-decl name='uu_list_walk_next' mangled-name='uu_list_walk_next' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='476' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_walk_next'>
-      <parameter type-id='type-id-79' name='wp' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='476' column='1'/>
+    <function-decl name='uu_list_walk_next' mangled-name='uu_list_walk_next' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='476' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_walk_next'>
+      <parameter type-id='type-id-79' name='wp' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='476' column='1'/>
       <return type-id='type-id-6'/>
     </function-decl>
-    <function-decl name='uu_list_walk_start' mangled-name='uu_list_walk_start' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='456' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_walk_start'>
-      <parameter type-id='type-id-80' name='lp' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='456' column='1'/>
-      <parameter type-id='type-id-56' name='flags' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='456' column='1'/>
+    <function-decl name='uu_list_walk_start' mangled-name='uu_list_walk_start' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='456' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_walk_start'>
+      <parameter type-id='type-id-80' name='lp' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='456' column='1'/>
+      <parameter type-id='type-id-56' name='flags' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='456' column='1'/>
       <return type-id='type-id-79'/>
     </function-decl>
     <typedef-decl name='uu_list_index_t' type-id='type-id-10' filepath='../../include/libuutil.h' line='197' column='1' id='type-id-82'/>
-    <function-decl name='uu_list_nearest_prev' mangled-name='uu_list_nearest_prev' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='373' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_nearest_prev'>
-      <parameter type-id='type-id-80' name='lp' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='373' column='1'/>
-      <parameter type-id='type-id-82' name='idx' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='373' column='1'/>
+    <function-decl name='uu_list_nearest_prev' mangled-name='uu_list_nearest_prev' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='373' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_nearest_prev'>
+      <parameter type-id='type-id-80' name='lp' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='373' column='1'/>
+      <parameter type-id='type-id-82' name='idx' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='373' column='1'/>
       <return type-id='type-id-6'/>
     </function-decl>
-    <function-decl name='uu_list_nearest_next' mangled-name='uu_list_nearest_next' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='348' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_nearest_next'>
-      <parameter type-id='type-id-80' name='lp' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='373' column='1'/>
-      <parameter type-id='type-id-82' name='idx' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='373' column='1'/>
+    <function-decl name='uu_list_nearest_next' mangled-name='uu_list_nearest_next' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='348' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_nearest_next'>
+      <parameter type-id='type-id-80' name='lp' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='373' column='1'/>
+      <parameter type-id='type-id-82' name='idx' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='373' column='1'/>
       <return type-id='type-id-6'/>
     </function-decl>
     <pointer-type-def type-id='type-id-82' size-in-bits='64' id='type-id-83'/>
-    <function-decl name='uu_list_find' mangled-name='uu_list_find' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='315' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_find'>
-      <parameter type-id='type-id-80' name='lp' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='315' column='1'/>
-      <parameter type-id='type-id-6' name='elem' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='315' column='1'/>
-      <parameter type-id='type-id-6' name='private' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='315' column='1'/>
-      <parameter type-id='type-id-83' name='out' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='315' column='1'/>
+    <function-decl name='uu_list_find' mangled-name='uu_list_find' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='315' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_find'>
+      <parameter type-id='type-id-80' name='lp' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='315' column='1'/>
+      <parameter type-id='type-id-6' name='elem' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='315' column='1'/>
+      <parameter type-id='type-id-6' name='private' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='315' column='1'/>
+      <parameter type-id='type-id-83' name='out' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='315' column='1'/>
       <return type-id='type-id-6'/>
     </function-decl>
-    <function-decl name='uu_list_insert' mangled-name='uu_list_insert' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='292' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_insert'>
-      <parameter type-id='type-id-80' name='lp' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='292' column='1'/>
-      <parameter type-id='type-id-6' name='elem' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='292' column='1'/>
-      <parameter type-id='type-id-82' name='idx' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='292' column='1'/>
+    <function-decl name='uu_list_insert' mangled-name='uu_list_insert' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='292' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_insert'>
+      <parameter type-id='type-id-80' name='lp' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='292' column='1'/>
+      <parameter type-id='type-id-6' name='elem' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='292' column='1'/>
+      <parameter type-id='type-id-82' name='idx' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='292' column='1'/>
       <return type-id='type-id-5'/>
     </function-decl>
-    <function-decl name='uu_list_destroy' mangled-name='uu_list_destroy' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='231' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_destroy'>
-      <parameter type-id='type-id-80' name='lp' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='231' column='1'/>
+    <function-decl name='uu_list_destroy' mangled-name='uu_list_destroy' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='231' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_destroy'>
+      <parameter type-id='type-id-80' name='lp' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='231' column='1'/>
       <return type-id='type-id-5'/>
     </function-decl>
-    <function-decl name='uu_list_create' mangled-name='uu_list_create' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='180' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_create'>
-      <parameter type-id='type-id-70' name='pp' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='180' column='1'/>
-      <parameter type-id='type-id-6' name='parent' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='180' column='1'/>
-      <parameter type-id='type-id-56' name='flags' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='180' column='1'/>
+    <function-decl name='uu_list_create' mangled-name='uu_list_create' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='180' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_create'>
+      <parameter type-id='type-id-70' name='pp' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='180' column='1'/>
+      <parameter type-id='type-id-6' name='parent' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='180' column='1'/>
+      <parameter type-id='type-id-56' name='flags' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='180' column='1'/>
       <return type-id='type-id-80'/>
     </function-decl>
     <class-decl name='uu_list_node' size-in-bits='128' is-struct='yes' visibility='default' filepath='../../include/libuutil.h' line='191' column='1' id='type-id-84'>
@@ -1011,32 +1011,32 @@
     </array-type-def>
     <typedef-decl name='uu_list_node_t' type-id='type-id-84' filepath='../../include/libuutil.h' line='193' column='1' id='type-id-86'/>
     <pointer-type-def type-id='type-id-86' size-in-bits='64' id='type-id-87'/>
-    <function-decl name='uu_list_node_fini' mangled-name='uu_list_node_fini' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='157' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_node_fini'>
-      <parameter type-id='type-id-6' name='base' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='157' column='1'/>
-      <parameter type-id='type-id-87' name='np_arg' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='157' column='1'/>
-      <parameter type-id='type-id-70' name='pp' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='157' column='1'/>
+    <function-decl name='uu_list_node_fini' mangled-name='uu_list_node_fini' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='157' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_node_fini'>
+      <parameter type-id='type-id-6' name='base' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='157' column='1'/>
+      <parameter type-id='type-id-87' name='np_arg' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='157' column='1'/>
+      <parameter type-id='type-id-70' name='pp' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='157' column='1'/>
       <return type-id='type-id-5'/>
     </function-decl>
-    <function-decl name='uu_list_node_init' mangled-name='uu_list_node_init' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='133' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_node_init'>
-      <parameter type-id='type-id-6' name='base' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='133' column='1'/>
-      <parameter type-id='type-id-87' name='np_arg' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='133' column='1'/>
-      <parameter type-id='type-id-70' name='pp' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='133' column='1'/>
+    <function-decl name='uu_list_node_init' mangled-name='uu_list_node_init' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='133' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_node_init'>
+      <parameter type-id='type-id-6' name='base' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='133' column='1'/>
+      <parameter type-id='type-id-87' name='np_arg' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='133' column='1'/>
+      <parameter type-id='type-id-70' name='pp' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='133' column='1'/>
       <return type-id='type-id-5'/>
     </function-decl>
-    <function-decl name='uu_list_pool_destroy' mangled-name='uu_list_pool_destroy' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='110' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_pool_destroy'>
-      <parameter type-id='type-id-70' name='pp' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='110' column='1'/>
+    <function-decl name='uu_list_pool_destroy' mangled-name='uu_list_pool_destroy' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='110' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_pool_destroy'>
+      <parameter type-id='type-id-70' name='pp' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='110' column='1'/>
       <return type-id='type-id-5'/>
     </function-decl>
-    <function-decl name='uu_list_pool_create' mangled-name='uu_list_pool_create' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='63' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_pool_create'>
-      <parameter type-id='type-id-4' name='name' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='63' column='1'/>
-      <parameter type-id='type-id-8' name='objsize' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='63' column='1'/>
-      <parameter type-id='type-id-8' name='nodeoffset' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='64' column='1'/>
-      <parameter type-id='type-id-17' name='compare_func' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='64' column='1'/>
-      <parameter type-id='type-id-56' name='flags' filepath='/home/ryan/ZoF/lib/libuutil/uu_list.c' line='64' column='1'/>
+    <function-decl name='uu_list_pool_create' mangled-name='uu_list_pool_create' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='63' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_list_pool_create'>
+      <parameter type-id='type-id-4' name='name' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='63' column='1'/>
+      <parameter type-id='type-id-8' name='objsize' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='63' column='1'/>
+      <parameter type-id='type-id-8' name='nodeoffset' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='64' column='1'/>
+      <parameter type-id='type-id-17' name='compare_func' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='64' column='1'/>
+      <parameter type-id='type-id-56' name='flags' filepath='/home/ryan/zfs/lib/libuutil/uu_list.c' line='64' column='1'/>
       <return type-id='type-id-70'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='uu_misc.c' comp-dir-path='/home/ryan/ZoF/lib/libuutil' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='uu_misc.c' comp-dir-path='/home/ryan/zfs/lib/libuutil' language='LANG_C99'>
     <class-decl name='_IO_FILE' size-in-bits='1728' is-struct='yes' visibility='default' filepath='/usr/include/x86_64-linux-gnu/bits/types/struct_FILE.h' line='49' column='1' id='type-id-88'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='_flags' type-id='type-id-22' visibility='default' filepath='/usr/include/x86_64-linux-gnu/bits/types/struct_FILE.h' line='51' column='1'/>
@@ -1145,22 +1145,22 @@
     </array-type-def>
     <typedef-decl name='FILE' type-id='type-id-88' filepath='/usr/include/x86_64-linux-gnu/bits/types/FILE.h' line='7' column='1' id='type-id-103'/>
     <pointer-type-def type-id='type-id-103' size-in-bits='64' id='type-id-104'/>
-    <function-decl name='uu_dump' mangled-name='uu_dump' filepath='/home/ryan/ZoF/lib/libuutil/uu_misc.c' line='260' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_dump'>
-      <parameter type-id='type-id-104' name='out' filepath='/home/ryan/ZoF/lib/libuutil/uu_misc.c' line='260' column='1'/>
-      <parameter type-id='type-id-4' name='prefix' filepath='/home/ryan/ZoF/lib/libuutil/uu_misc.c' line='260' column='1'/>
-      <parameter type-id='type-id-6' name='buf' filepath='/home/ryan/ZoF/lib/libuutil/uu_misc.c' line='260' column='1'/>
-      <parameter type-id='type-id-8' name='len' filepath='/home/ryan/ZoF/lib/libuutil/uu_misc.c' line='260' column='1'/>
+    <function-decl name='uu_dump' mangled-name='uu_dump' filepath='/home/ryan/zfs/lib/libuutil/uu_misc.c' line='260' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_dump'>
+      <parameter type-id='type-id-104' name='out' filepath='/home/ryan/zfs/lib/libuutil/uu_misc.c' line='260' column='1'/>
+      <parameter type-id='type-id-4' name='prefix' filepath='/home/ryan/zfs/lib/libuutil/uu_misc.c' line='260' column='1'/>
+      <parameter type-id='type-id-6' name='buf' filepath='/home/ryan/zfs/lib/libuutil/uu_misc.c' line='260' column='1'/>
+      <parameter type-id='type-id-8' name='len' filepath='/home/ryan/zfs/lib/libuutil/uu_misc.c' line='260' column='1'/>
       <return type-id='type-id-5'/>
     </function-decl>
-    <function-decl name='uu_strerror' mangled-name='uu_strerror' filepath='/home/ryan/ZoF/lib/libuutil/uu_misc.c' line='118' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_strerror'>
-      <parameter type-id='type-id-56' name='code' filepath='/home/ryan/ZoF/lib/libuutil/uu_misc.c' line='118' column='1'/>
+    <function-decl name='uu_strerror' mangled-name='uu_strerror' filepath='/home/ryan/zfs/lib/libuutil/uu_misc.c' line='118' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_strerror'>
+      <parameter type-id='type-id-56' name='code' filepath='/home/ryan/zfs/lib/libuutil/uu_misc.c' line='118' column='1'/>
       <return type-id='type-id-4'/>
     </function-decl>
-    <function-decl name='uu_error' mangled-name='uu_error' filepath='/home/ryan/ZoF/lib/libuutil/uu_misc.c' line='102' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_error'>
+    <function-decl name='uu_error' mangled-name='uu_error' filepath='/home/ryan/zfs/lib/libuutil/uu_misc.c' line='102' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_error'>
       <return type-id='type-id-56'/>
     </function-decl>
-    <function-decl name='uu_set_error' mangled-name='uu_set_error' filepath='/home/ryan/ZoF/lib/libuutil/uu_misc.c' line='73' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_set_error'>
-      <parameter type-id='type-id-64' name='code' filepath='/home/ryan/ZoF/lib/libuutil/uu_misc.c' line='73' column='1'/>
+    <function-decl name='uu_set_error' mangled-name='uu_set_error' filepath='/home/ryan/zfs/lib/libuutil/uu_misc.c' line='73' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_set_error'>
+      <parameter type-id='type-id-64' name='code' filepath='/home/ryan/zfs/lib/libuutil/uu_misc.c' line='73' column='1'/>
       <return type-id='type-id-5'/>
     </function-decl>
     <function-decl name='__builtin_fputs' mangled-name='fputs' visibility='default' binding='global' size-in-bits='64'>
@@ -1200,10 +1200,10 @@
       <return type-id='type-id-5'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='uu_open.c' comp-dir-path='/home/ryan/ZoF/lib/libuutil' language='LANG_C99'>
-    <function-decl name='uu_open_tmp' mangled-name='uu_open_tmp' filepath='/home/ryan/ZoF/lib/libuutil/uu_open.c' line='41' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_open_tmp'>
-      <parameter type-id='type-id-4' name='dir' filepath='/home/ryan/ZoF/lib/libuutil/uu_open.c' line='41' column='1'/>
-      <parameter type-id='type-id-64' name='uflags' filepath='/home/ryan/ZoF/lib/libuutil/uu_open.c' line='41' column='1'/>
+  <abi-instr version='1.0' address-size='64' path='uu_open.c' comp-dir-path='/home/ryan/zfs/lib/libuutil' language='LANG_C99'>
+    <function-decl name='uu_open_tmp' mangled-name='uu_open_tmp' filepath='/home/ryan/zfs/lib/libuutil/uu_open.c' line='41' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_open_tmp'>
+      <parameter type-id='type-id-4' name='dir' filepath='/home/ryan/zfs/lib/libuutil/uu_open.c' line='41' column='1'/>
+      <parameter type-id='type-id-64' name='uflags' filepath='/home/ryan/zfs/lib/libuutil/uu_open.c' line='41' column='1'/>
       <return type-id='type-id-22'/>
     </function-decl>
     <function-decl name='snprintf' mangled-name='snprintf' filepath='/usr/include/stdio.h' line='354' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -1219,20 +1219,20 @@
       <return type-id='type-id-5'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='uu_pname.c' comp-dir-path='/home/ryan/ZoF/lib/libuutil' language='LANG_C99'>
-    <var-decl name='uu_exit_ok_value' type-id='type-id-22' mangled-name='uu_exit_ok_value' visibility='default' filepath='/home/ryan/ZoF/lib/libuutil/uu_pname.c' line='49' column='1' elf-symbol-id='uu_exit_ok_value'/>
-    <var-decl name='uu_exit_fatal_value' type-id='type-id-22' mangled-name='uu_exit_fatal_value' visibility='default' filepath='/home/ryan/ZoF/lib/libuutil/uu_pname.c' line='50' column='1' elf-symbol-id='uu_exit_fatal_value'/>
-    <var-decl name='uu_exit_usage_value' type-id='type-id-22' mangled-name='uu_exit_usage_value' visibility='default' filepath='/home/ryan/ZoF/lib/libuutil/uu_pname.c' line='51' column='1' elf-symbol-id='uu_exit_usage_value'/>
-    <function-decl name='uu_getpname' mangled-name='uu_getpname' filepath='/home/ryan/ZoF/lib/libuutil/uu_pname.c' line='204' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_getpname'>
+  <abi-instr version='1.0' address-size='64' path='uu_pname.c' comp-dir-path='/home/ryan/zfs/lib/libuutil' language='LANG_C99'>
+    <var-decl name='uu_exit_ok_value' type-id='type-id-22' mangled-name='uu_exit_ok_value' visibility='default' filepath='/home/ryan/zfs/lib/libuutil/uu_pname.c' line='49' column='1' elf-symbol-id='uu_exit_ok_value'/>
+    <var-decl name='uu_exit_fatal_value' type-id='type-id-22' mangled-name='uu_exit_fatal_value' visibility='default' filepath='/home/ryan/zfs/lib/libuutil/uu_pname.c' line='50' column='1' elf-symbol-id='uu_exit_fatal_value'/>
+    <var-decl name='uu_exit_usage_value' type-id='type-id-22' mangled-name='uu_exit_usage_value' visibility='default' filepath='/home/ryan/zfs/lib/libuutil/uu_pname.c' line='51' column='1' elf-symbol-id='uu_exit_usage_value'/>
+    <function-decl name='uu_getpname' mangled-name='uu_getpname' filepath='/home/ryan/zfs/lib/libuutil/uu_pname.c' line='204' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_getpname'>
       <return type-id='type-id-4'/>
     </function-decl>
-    <function-decl name='uu_setpname' mangled-name='uu_setpname' filepath='/home/ryan/ZoF/lib/libuutil/uu_pname.c' line='167' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_setpname'>
-      <parameter type-id='type-id-2' name='arg0' filepath='/home/ryan/ZoF/lib/libuutil/uu_pname.c' line='167' column='1'/>
+    <function-decl name='uu_setpname' mangled-name='uu_setpname' filepath='/home/ryan/zfs/lib/libuutil/uu_pname.c' line='167' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_setpname'>
+      <parameter type-id='type-id-2' name='arg0' filepath='/home/ryan/zfs/lib/libuutil/uu_pname.c' line='167' column='1'/>
       <return type-id='type-id-4'/>
     </function-decl>
-    <function-decl name='uu_xdie' mangled-name='uu_xdie' filepath='/home/ryan/ZoF/lib/libuutil/uu_pname.c' line='158' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_xdie'>
-      <parameter type-id='type-id-22' name='status' filepath='/home/ryan/ZoF/lib/libuutil/uu_pname.c' line='158' column='1'/>
-      <parameter type-id='type-id-4' name='format' filepath='/home/ryan/ZoF/lib/libuutil/uu_pname.c' line='158' column='1'/>
+    <function-decl name='uu_xdie' mangled-name='uu_xdie' filepath='/home/ryan/zfs/lib/libuutil/uu_pname.c' line='158' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_xdie'>
+      <parameter type-id='type-id-22' name='status' filepath='/home/ryan/zfs/lib/libuutil/uu_pname.c' line='158' column='1'/>
+      <parameter type-id='type-id-4' name='format' filepath='/home/ryan/zfs/lib/libuutil/uu_pname.c' line='158' column='1'/>
       <parameter is-variadic='yes'/>
       <return type-id='type-id-5'/>
     </function-decl>
@@ -1251,44 +1251,44 @@
       </data-member>
     </class-decl>
     <pointer-type-def type-id='type-id-105' size-in-bits='64' id='type-id-106'/>
-    <function-decl name='uu_vxdie' mangled-name='uu_vxdie' filepath='/home/ryan/ZoF/lib/libuutil/uu_pname.c' line='151' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_vxdie'>
-      <parameter type-id='type-id-22' name='status' filepath='/home/ryan/ZoF/lib/libuutil/uu_pname.c' line='151' column='1'/>
-      <parameter type-id='type-id-4' name='format' filepath='/home/ryan/ZoF/lib/libuutil/uu_pname.c' line='151' column='1'/>
-      <parameter type-id='type-id-106' name='alist' filepath='/home/ryan/ZoF/lib/libuutil/uu_pname.c' line='151' column='1'/>
+    <function-decl name='uu_vxdie' mangled-name='uu_vxdie' filepath='/home/ryan/zfs/lib/libuutil/uu_pname.c' line='151' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_vxdie'>
+      <parameter type-id='type-id-22' name='status' filepath='/home/ryan/zfs/lib/libuutil/uu_pname.c' line='151' column='1'/>
+      <parameter type-id='type-id-4' name='format' filepath='/home/ryan/zfs/lib/libuutil/uu_pname.c' line='151' column='1'/>
+      <parameter type-id='type-id-106' name='alist' filepath='/home/ryan/zfs/lib/libuutil/uu_pname.c' line='151' column='1'/>
       <return type-id='type-id-5'/>
     </function-decl>
-    <function-decl name='uu_die' mangled-name='uu_die' filepath='/home/ryan/ZoF/lib/libuutil/uu_pname.c' line='142' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_die'>
-      <parameter type-id='type-id-4' name='format' filepath='/home/ryan/ZoF/lib/libuutil/uu_pname.c' line='142' column='1'/>
+    <function-decl name='uu_die' mangled-name='uu_die' filepath='/home/ryan/zfs/lib/libuutil/uu_pname.c' line='142' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_die'>
+      <parameter type-id='type-id-4' name='format' filepath='/home/ryan/zfs/lib/libuutil/uu_pname.c' line='142' column='1'/>
       <parameter is-variadic='yes'/>
       <return type-id='type-id-5'/>
     </function-decl>
-    <function-decl name='uu_vdie' mangled-name='uu_vdie' filepath='/home/ryan/ZoF/lib/libuutil/uu_pname.c' line='135' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_vdie'>
-      <parameter type-id='type-id-4' name='format' filepath='/home/ryan/ZoF/lib/libuutil/uu_pname.c' line='135' column='1'/>
-      <parameter type-id='type-id-106' name='alist' filepath='/home/ryan/ZoF/lib/libuutil/uu_pname.c' line='135' column='1'/>
+    <function-decl name='uu_vdie' mangled-name='uu_vdie' filepath='/home/ryan/zfs/lib/libuutil/uu_pname.c' line='135' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_vdie'>
+      <parameter type-id='type-id-4' name='format' filepath='/home/ryan/zfs/lib/libuutil/uu_pname.c' line='135' column='1'/>
+      <parameter type-id='type-id-106' name='alist' filepath='/home/ryan/zfs/lib/libuutil/uu_pname.c' line='135' column='1'/>
       <return type-id='type-id-5'/>
     </function-decl>
-    <function-decl name='uu_warn' mangled-name='uu_warn' filepath='/home/ryan/ZoF/lib/libuutil/uu_pname.c' line='108' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_warn'>
-      <parameter type-id='type-id-4' name='format' filepath='/home/ryan/ZoF/lib/libuutil/uu_pname.c' line='142' column='1'/>
+    <function-decl name='uu_warn' mangled-name='uu_warn' filepath='/home/ryan/zfs/lib/libuutil/uu_pname.c' line='108' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_warn'>
+      <parameter type-id='type-id-4' name='format' filepath='/home/ryan/zfs/lib/libuutil/uu_pname.c' line='142' column='1'/>
       <parameter is-variadic='yes'/>
       <return type-id='type-id-5'/>
     </function-decl>
-    <function-decl name='uu_vwarn' mangled-name='uu_vwarn' filepath='/home/ryan/ZoF/lib/libuutil/uu_pname.c' line='101' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_vwarn'>
-      <parameter type-id='type-id-4' name='format' filepath='/home/ryan/ZoF/lib/libuutil/uu_pname.c' line='135' column='1'/>
-      <parameter type-id='type-id-106' name='alist' filepath='/home/ryan/ZoF/lib/libuutil/uu_pname.c' line='135' column='1'/>
+    <function-decl name='uu_vwarn' mangled-name='uu_vwarn' filepath='/home/ryan/zfs/lib/libuutil/uu_pname.c' line='101' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_vwarn'>
+      <parameter type-id='type-id-4' name='format' filepath='/home/ryan/zfs/lib/libuutil/uu_pname.c' line='135' column='1'/>
+      <parameter type-id='type-id-106' name='alist' filepath='/home/ryan/zfs/lib/libuutil/uu_pname.c' line='135' column='1'/>
       <return type-id='type-id-5'/>
     </function-decl>
-    <function-decl name='uu_alt_exit' mangled-name='uu_alt_exit' filepath='/home/ryan/ZoF/lib/libuutil/uu_pname.c' line='72' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_alt_exit'>
-      <parameter type-id='type-id-22' name='profile' filepath='/home/ryan/ZoF/lib/libuutil/uu_pname.c' line='72' column='1'/>
+    <function-decl name='uu_alt_exit' mangled-name='uu_alt_exit' filepath='/home/ryan/zfs/lib/libuutil/uu_pname.c' line='72' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_alt_exit'>
+      <parameter type-id='type-id-22' name='profile' filepath='/home/ryan/zfs/lib/libuutil/uu_pname.c' line='72' column='1'/>
       <return type-id='type-id-5'/>
     </function-decl>
     <pointer-type-def type-id='type-id-22' size-in-bits='64' id='type-id-107'/>
-    <function-decl name='uu_exit_usage' mangled-name='uu_exit_usage' filepath='/home/ryan/ZoF/lib/libuutil/uu_pname.c' line='66' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_exit_usage'>
+    <function-decl name='uu_exit_usage' mangled-name='uu_exit_usage' filepath='/home/ryan/zfs/lib/libuutil/uu_pname.c' line='66' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_exit_usage'>
       <return type-id='type-id-107'/>
     </function-decl>
-    <function-decl name='uu_exit_fatal' mangled-name='uu_exit_fatal' filepath='/home/ryan/ZoF/lib/libuutil/uu_pname.c' line='60' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_exit_fatal'>
+    <function-decl name='uu_exit_fatal' mangled-name='uu_exit_fatal' filepath='/home/ryan/zfs/lib/libuutil/uu_pname.c' line='60' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_exit_fatal'>
       <return type-id='type-id-107'/>
     </function-decl>
-    <function-decl name='uu_exit_ok' mangled-name='uu_exit_ok' filepath='/home/ryan/ZoF/lib/libuutil/uu_pname.c' line='54' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_exit_ok'>
+    <function-decl name='uu_exit_ok' mangled-name='uu_exit_ok' filepath='/home/ryan/zfs/lib/libuutil/uu_pname.c' line='54' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_exit_ok'>
       <return type-id='type-id-107'/>
     </function-decl>
     <function-decl name='strrchr' mangled-name='strrchr' filepath='/usr/include/string.h' line='252' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -1313,26 +1313,26 @@
       <return type-id='type-id-5'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='uu_string.c' comp-dir-path='/home/ryan/ZoF/lib/libuutil' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='uu_string.c' comp-dir-path='/home/ryan/zfs/lib/libuutil' language='LANG_C99'>
     <enum-decl name='__anonymous_enum__' is-anonymous='yes' filepath='../../lib/libspl/include/sys/stdtypes.h' line='26' column='1' id='type-id-108'>
       <underlying-type type-id='type-id-65'/>
       <enumerator name='B_FALSE' value='0'/>
       <enumerator name='B_TRUE' value='1'/>
     </enum-decl>
     <typedef-decl name='boolean_t' type-id='type-id-108' filepath='../../lib/libspl/include/sys/stdtypes.h' line='29' column='1' id='type-id-109'/>
-    <function-decl name='uu_strbw' mangled-name='uu_strbw' filepath='/home/ryan/ZoF/lib/libuutil/uu_string.c' line='51' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_strbw'>
-      <parameter type-id='type-id-4' name='a' filepath='/home/ryan/ZoF/lib/libuutil/uu_string.c' line='51' column='1'/>
-      <parameter type-id='type-id-4' name='b' filepath='/home/ryan/ZoF/lib/libuutil/uu_string.c' line='51' column='1'/>
+    <function-decl name='uu_strbw' mangled-name='uu_strbw' filepath='/home/ryan/zfs/lib/libuutil/uu_string.c' line='51' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_strbw'>
+      <parameter type-id='type-id-4' name='a' filepath='/home/ryan/zfs/lib/libuutil/uu_string.c' line='51' column='1'/>
+      <parameter type-id='type-id-4' name='b' filepath='/home/ryan/zfs/lib/libuutil/uu_string.c' line='51' column='1'/>
       <return type-id='type-id-109'/>
     </function-decl>
-    <function-decl name='uu_strcaseeq' mangled-name='uu_strcaseeq' filepath='/home/ryan/ZoF/lib/libuutil/uu_string.c' line='44' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_strcaseeq'>
-      <parameter type-id='type-id-4' name='a' filepath='/home/ryan/ZoF/lib/libuutil/uu_string.c' line='44' column='1'/>
-      <parameter type-id='type-id-4' name='b' filepath='/home/ryan/ZoF/lib/libuutil/uu_string.c' line='44' column='1'/>
+    <function-decl name='uu_strcaseeq' mangled-name='uu_strcaseeq' filepath='/home/ryan/zfs/lib/libuutil/uu_string.c' line='44' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_strcaseeq'>
+      <parameter type-id='type-id-4' name='a' filepath='/home/ryan/zfs/lib/libuutil/uu_string.c' line='44' column='1'/>
+      <parameter type-id='type-id-4' name='b' filepath='/home/ryan/zfs/lib/libuutil/uu_string.c' line='44' column='1'/>
       <return type-id='type-id-109'/>
     </function-decl>
-    <function-decl name='uu_streq' mangled-name='uu_streq' filepath='/home/ryan/ZoF/lib/libuutil/uu_string.c' line='37' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_streq'>
-      <parameter type-id='type-id-4' name='a' filepath='/home/ryan/ZoF/lib/libuutil/uu_string.c' line='44' column='1'/>
-      <parameter type-id='type-id-4' name='b' filepath='/home/ryan/ZoF/lib/libuutil/uu_string.c' line='44' column='1'/>
+    <function-decl name='uu_streq' mangled-name='uu_streq' filepath='/home/ryan/zfs/lib/libuutil/uu_string.c' line='37' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='uu_streq'>
+      <parameter type-id='type-id-4' name='a' filepath='/home/ryan/zfs/lib/libuutil/uu_string.c' line='44' column='1'/>
+      <parameter type-id='type-id-4' name='b' filepath='/home/ryan/zfs/lib/libuutil/uu_string.c' line='44' column='1'/>
       <return type-id='type-id-109'/>
     </function-decl>
     <function-decl name='strncmp' mangled-name='strncmp' filepath='/usr/include/string.h' line='139' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -1345,7 +1345,7 @@
       <return type-id='type-id-5'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='../../module/avl/avl.c' comp-dir-path='/home/ryan/ZoF/lib/libavl' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='../../module/avl/avl.c' comp-dir-path='/home/ryan/zfs/lib/libavl' language='LANG_C99'>
     <typedef-decl name='avl_tree_t' type-id='type-id-13' filepath='../../include/sys/avl.h' line='119' column='1' id='type-id-110'/>
     <pointer-type-def type-id='type-id-110' size-in-bits='64' id='type-id-111'/>
     <function-decl name='avl_destroy_nodes' mangled-name='avl_destroy_nodes' filepath='../../module/avl/avl.c' line='962' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='avl_destroy_nodes'>
@@ -1447,7 +1447,7 @@
       <return type-id='type-id-5'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='list.c' comp-dir-path='/home/ryan/ZoF/lib/libspl' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='list.c' comp-dir-path='/home/ryan/zfs/lib/libspl' language='LANG_C99'>
     <class-decl name='list' size-in-bits='256' is-struct='yes' visibility='default' filepath='../../lib/libspl/include/sys/list_impl.h' line='41' column='1' id='type-id-114'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='list_size' type-id='type-id-8' visibility='default' filepath='../../lib/libspl/include/sys/list_impl.h' line='42' column='1'/>
@@ -1470,100 +1470,100 @@
     <pointer-type-def type-id='type-id-115' size-in-bits='64' id='type-id-116'/>
     <typedef-decl name='list_t' type-id='type-id-114' filepath='../../lib/libspl/include/sys/list.h' line='36' column='1' id='type-id-117'/>
     <pointer-type-def type-id='type-id-117' size-in-bits='64' id='type-id-118'/>
-    <function-decl name='list_is_empty' mangled-name='list_is_empty' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='240' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_is_empty'>
-      <parameter type-id='type-id-118' name='list' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='240' column='1'/>
+    <function-decl name='list_is_empty' mangled-name='list_is_empty' filepath='/home/ryan/zfs/lib/libspl/list.c' line='240' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_is_empty'>
+      <parameter type-id='type-id-118' name='list' filepath='/home/ryan/zfs/lib/libspl/list.c' line='240' column='1'/>
       <return type-id='type-id-22'/>
     </function-decl>
     <typedef-decl name='list_node_t' type-id='type-id-115' filepath='../../lib/libspl/include/sys/list.h' line='35' column='1' id='type-id-119'/>
     <pointer-type-def type-id='type-id-119' size-in-bits='64' id='type-id-120'/>
-    <function-decl name='list_link_active' mangled-name='list_link_active' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='233' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_link_active'>
-      <parameter type-id='type-id-120' name='ln' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='233' column='1'/>
+    <function-decl name='list_link_active' mangled-name='list_link_active' filepath='/home/ryan/zfs/lib/libspl/list.c' line='233' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_link_active'>
+      <parameter type-id='type-id-120' name='ln' filepath='/home/ryan/zfs/lib/libspl/list.c' line='233' column='1'/>
       <return type-id='type-id-22'/>
     </function-decl>
-    <function-decl name='list_link_init' mangled-name='list_link_init' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='226' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_link_init'>
-      <parameter type-id='type-id-120' name='ln' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='226' column='1'/>
+    <function-decl name='list_link_init' mangled-name='list_link_init' filepath='/home/ryan/zfs/lib/libspl/list.c' line='226' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_link_init'>
+      <parameter type-id='type-id-120' name='ln' filepath='/home/ryan/zfs/lib/libspl/list.c' line='226' column='1'/>
       <return type-id='type-id-5'/>
     </function-decl>
-    <function-decl name='list_link_replace' mangled-name='list_link_replace' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='213' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_link_replace'>
-      <parameter type-id='type-id-120' name='lold' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='213' column='1'/>
-      <parameter type-id='type-id-120' name='lnew' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='213' column='1'/>
+    <function-decl name='list_link_replace' mangled-name='list_link_replace' filepath='/home/ryan/zfs/lib/libspl/list.c' line='213' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_link_replace'>
+      <parameter type-id='type-id-120' name='lold' filepath='/home/ryan/zfs/lib/libspl/list.c' line='213' column='1'/>
+      <parameter type-id='type-id-120' name='lnew' filepath='/home/ryan/zfs/lib/libspl/list.c' line='213' column='1'/>
       <return type-id='type-id-5'/>
     </function-decl>
-    <function-decl name='list_move_tail' mangled-name='list_move_tail' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='192' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_move_tail'>
-      <parameter type-id='type-id-118' name='dst' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='192' column='1'/>
-      <parameter type-id='type-id-118' name='src' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='192' column='1'/>
+    <function-decl name='list_move_tail' mangled-name='list_move_tail' filepath='/home/ryan/zfs/lib/libspl/list.c' line='192' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_move_tail'>
+      <parameter type-id='type-id-118' name='dst' filepath='/home/ryan/zfs/lib/libspl/list.c' line='192' column='1'/>
+      <parameter type-id='type-id-118' name='src' filepath='/home/ryan/zfs/lib/libspl/list.c' line='192' column='1'/>
       <return type-id='type-id-5'/>
     </function-decl>
-    <function-decl name='list_prev' mangled-name='list_prev' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='178' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_prev'>
-      <parameter type-id='type-id-118' name='list' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='178' column='1'/>
-      <parameter type-id='type-id-6' name='object' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='178' column='1'/>
+    <function-decl name='list_prev' mangled-name='list_prev' filepath='/home/ryan/zfs/lib/libspl/list.c' line='178' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_prev'>
+      <parameter type-id='type-id-118' name='list' filepath='/home/ryan/zfs/lib/libspl/list.c' line='178' column='1'/>
+      <parameter type-id='type-id-6' name='object' filepath='/home/ryan/zfs/lib/libspl/list.c' line='178' column='1'/>
       <return type-id='type-id-6'/>
     </function-decl>
-    <function-decl name='list_next' mangled-name='list_next' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='167' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_next'>
-      <parameter type-id='type-id-118' name='list' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='178' column='1'/>
-      <parameter type-id='type-id-6' name='object' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='178' column='1'/>
+    <function-decl name='list_next' mangled-name='list_next' filepath='/home/ryan/zfs/lib/libspl/list.c' line='167' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_next'>
+      <parameter type-id='type-id-118' name='list' filepath='/home/ryan/zfs/lib/libspl/list.c' line='178' column='1'/>
+      <parameter type-id='type-id-6' name='object' filepath='/home/ryan/zfs/lib/libspl/list.c' line='178' column='1'/>
       <return type-id='type-id-6'/>
     </function-decl>
-    <function-decl name='list_tail' mangled-name='list_tail' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='159' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_tail'>
-      <parameter type-id='type-id-118' name='list' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='159' column='1'/>
+    <function-decl name='list_tail' mangled-name='list_tail' filepath='/home/ryan/zfs/lib/libspl/list.c' line='159' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_tail'>
+      <parameter type-id='type-id-118' name='list' filepath='/home/ryan/zfs/lib/libspl/list.c' line='159' column='1'/>
       <return type-id='type-id-6'/>
     </function-decl>
-    <function-decl name='list_head' mangled-name='list_head' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='151' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_head'>
-      <parameter type-id='type-id-118' name='list' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='159' column='1'/>
+    <function-decl name='list_head' mangled-name='list_head' filepath='/home/ryan/zfs/lib/libspl/list.c' line='151' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_head'>
+      <parameter type-id='type-id-118' name='list' filepath='/home/ryan/zfs/lib/libspl/list.c' line='159' column='1'/>
       <return type-id='type-id-6'/>
     </function-decl>
-    <function-decl name='list_remove_tail' mangled-name='list_remove_tail' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='141' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_remove_tail'>
-      <parameter type-id='type-id-118' name='list' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='141' column='1'/>
+    <function-decl name='list_remove_tail' mangled-name='list_remove_tail' filepath='/home/ryan/zfs/lib/libspl/list.c' line='141' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_remove_tail'>
+      <parameter type-id='type-id-118' name='list' filepath='/home/ryan/zfs/lib/libspl/list.c' line='141' column='1'/>
       <return type-id='type-id-6'/>
     </function-decl>
-    <function-decl name='list_remove_head' mangled-name='list_remove_head' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='131' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_remove_head'>
-      <parameter type-id='type-id-118' name='list' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='141' column='1'/>
+    <function-decl name='list_remove_head' mangled-name='list_remove_head' filepath='/home/ryan/zfs/lib/libspl/list.c' line='131' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_remove_head'>
+      <parameter type-id='type-id-118' name='list' filepath='/home/ryan/zfs/lib/libspl/list.c' line='141' column='1'/>
       <return type-id='type-id-6'/>
     </function-decl>
-    <function-decl name='list_remove' mangled-name='list_remove' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='122' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_remove'>
-      <parameter type-id='type-id-118' name='list' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='122' column='1'/>
-      <parameter type-id='type-id-6' name='object' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='122' column='1'/>
+    <function-decl name='list_remove' mangled-name='list_remove' filepath='/home/ryan/zfs/lib/libspl/list.c' line='122' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_remove'>
+      <parameter type-id='type-id-118' name='list' filepath='/home/ryan/zfs/lib/libspl/list.c' line='122' column='1'/>
+      <parameter type-id='type-id-6' name='object' filepath='/home/ryan/zfs/lib/libspl/list.c' line='122' column='1'/>
       <return type-id='type-id-5'/>
     </function-decl>
-    <function-decl name='list_insert_tail' mangled-name='list_insert_tail' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='115' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_insert_tail'>
-      <parameter type-id='type-id-118' name='list' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='115' column='1'/>
-      <parameter type-id='type-id-6' name='object' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='115' column='1'/>
+    <function-decl name='list_insert_tail' mangled-name='list_insert_tail' filepath='/home/ryan/zfs/lib/libspl/list.c' line='115' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_insert_tail'>
+      <parameter type-id='type-id-118' name='list' filepath='/home/ryan/zfs/lib/libspl/list.c' line='115' column='1'/>
+      <parameter type-id='type-id-6' name='object' filepath='/home/ryan/zfs/lib/libspl/list.c' line='115' column='1'/>
       <return type-id='type-id-5'/>
     </function-decl>
-    <function-decl name='list_insert_head' mangled-name='list_insert_head' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='108' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_insert_head'>
-      <parameter type-id='type-id-118' name='list' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='115' column='1'/>
-      <parameter type-id='type-id-6' name='object' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='115' column='1'/>
+    <function-decl name='list_insert_head' mangled-name='list_insert_head' filepath='/home/ryan/zfs/lib/libspl/list.c' line='108' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_insert_head'>
+      <parameter type-id='type-id-118' name='list' filepath='/home/ryan/zfs/lib/libspl/list.c' line='115' column='1'/>
+      <parameter type-id='type-id-6' name='object' filepath='/home/ryan/zfs/lib/libspl/list.c' line='115' column='1'/>
       <return type-id='type-id-5'/>
     </function-decl>
-    <function-decl name='list_insert_before' mangled-name='list_insert_before' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='97' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_insert_before'>
-      <parameter type-id='type-id-118' name='list' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='97' column='1'/>
-      <parameter type-id='type-id-6' name='object' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='97' column='1'/>
-      <parameter type-id='type-id-6' name='nobject' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='97' column='1'/>
+    <function-decl name='list_insert_before' mangled-name='list_insert_before' filepath='/home/ryan/zfs/lib/libspl/list.c' line='97' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_insert_before'>
+      <parameter type-id='type-id-118' name='list' filepath='/home/ryan/zfs/lib/libspl/list.c' line='97' column='1'/>
+      <parameter type-id='type-id-6' name='object' filepath='/home/ryan/zfs/lib/libspl/list.c' line='97' column='1'/>
+      <parameter type-id='type-id-6' name='nobject' filepath='/home/ryan/zfs/lib/libspl/list.c' line='97' column='1'/>
       <return type-id='type-id-5'/>
     </function-decl>
-    <function-decl name='list_insert_after' mangled-name='list_insert_after' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='86' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_insert_after'>
-      <parameter type-id='type-id-118' name='list' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='97' column='1'/>
-      <parameter type-id='type-id-6' name='object' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='97' column='1'/>
-      <parameter type-id='type-id-6' name='nobject' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='97' column='1'/>
+    <function-decl name='list_insert_after' mangled-name='list_insert_after' filepath='/home/ryan/zfs/lib/libspl/list.c' line='86' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_insert_after'>
+      <parameter type-id='type-id-118' name='list' filepath='/home/ryan/zfs/lib/libspl/list.c' line='97' column='1'/>
+      <parameter type-id='type-id-6' name='object' filepath='/home/ryan/zfs/lib/libspl/list.c' line='97' column='1'/>
+      <parameter type-id='type-id-6' name='nobject' filepath='/home/ryan/zfs/lib/libspl/list.c' line='97' column='1'/>
       <return type-id='type-id-5'/>
     </function-decl>
-    <function-decl name='list_destroy' mangled-name='list_destroy' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='74' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_destroy'>
-      <parameter type-id='type-id-118' name='list' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='74' column='1'/>
+    <function-decl name='list_destroy' mangled-name='list_destroy' filepath='/home/ryan/zfs/lib/libspl/list.c' line='74' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_destroy'>
+      <parameter type-id='type-id-118' name='list' filepath='/home/ryan/zfs/lib/libspl/list.c' line='74' column='1'/>
       <return type-id='type-id-5'/>
     </function-decl>
-    <function-decl name='list_create' mangled-name='list_create' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='62' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_create'>
-      <parameter type-id='type-id-118' name='list' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='62' column='1'/>
-      <parameter type-id='type-id-8' name='size' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='62' column='1'/>
-      <parameter type-id='type-id-8' name='offset' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='62' column='1'/>
+    <function-decl name='list_create' mangled-name='list_create' filepath='/home/ryan/zfs/lib/libspl/list.c' line='62' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_create'>
+      <parameter type-id='type-id-118' name='list' filepath='/home/ryan/zfs/lib/libspl/list.c' line='62' column='1'/>
+      <parameter type-id='type-id-8' name='size' filepath='/home/ryan/zfs/lib/libspl/list.c' line='62' column='1'/>
+      <parameter type-id='type-id-8' name='offset' filepath='/home/ryan/zfs/lib/libspl/list.c' line='62' column='1'/>
       <return type-id='type-id-5'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='mkdirp.c' comp-dir-path='/home/ryan/ZoF/lib/libspl' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='mkdirp.c' comp-dir-path='/home/ryan/zfs/lib/libspl' language='LANG_C99'>
     <typedef-decl name='__mode_t' type-id='type-id-31' filepath='/usr/include/x86_64-linux-gnu/bits/types.h' line='148' column='1' id='type-id-121'/>
     <typedef-decl name='mode_t' type-id='type-id-121' filepath='/usr/include/x86_64-linux-gnu/sys/types.h' line='69' column='1' id='type-id-122'/>
-    <function-decl name='mkdirp' mangled-name='mkdirp' filepath='/home/ryan/ZoF/lib/libspl/mkdirp.c' line='50' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='mkdirp'>
-      <parameter type-id='type-id-4' name='d' filepath='/home/ryan/ZoF/lib/libspl/mkdirp.c' line='50' column='1'/>
-      <parameter type-id='type-id-122' name='mode' filepath='/home/ryan/ZoF/lib/libspl/mkdirp.c' line='50' column='1'/>
+    <function-decl name='mkdirp' mangled-name='mkdirp' filepath='/home/ryan/zfs/lib/libspl/mkdirp.c' line='50' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='mkdirp'>
+      <parameter type-id='type-id-4' name='d' filepath='/home/ryan/zfs/lib/libspl/mkdirp.c' line='50' column='1'/>
+      <parameter type-id='type-id-122' name='mode' filepath='/home/ryan/zfs/lib/libspl/mkdirp.c' line='50' column='1'/>
       <return type-id='type-id-22'/>
     </function-decl>
     <function-decl name='mbstowcs' mangled-name='mbstowcs' filepath='/usr/include/stdlib.h' line='930' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -1579,34 +1579,34 @@
       <return type-id='type-id-5'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='page.c' comp-dir-path='/home/ryan/ZoF/lib/libspl' language='LANG_C99'>
-    <var-decl name='pagesize' type-id='type-id-8' mangled-name='pagesize' visibility='default' filepath='/home/ryan/ZoF/lib/libspl/page.c' line='25' column='1' elf-symbol-id='pagesize'/>
-    <function-decl name='spl_pagesize' mangled-name='spl_pagesize' filepath='/home/ryan/ZoF/lib/libspl/page.c' line='28' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='spl_pagesize'>
+  <abi-instr version='1.0' address-size='64' path='page.c' comp-dir-path='/home/ryan/zfs/lib/libspl' language='LANG_C99'>
+    <var-decl name='pagesize' type-id='type-id-8' mangled-name='pagesize' visibility='default' filepath='/home/ryan/zfs/lib/libspl/page.c' line='25' column='1' elf-symbol-id='pagesize'/>
+    <function-decl name='spl_pagesize' mangled-name='spl_pagesize' filepath='/home/ryan/zfs/lib/libspl/page.c' line='28' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='spl_pagesize'>
       <return type-id='type-id-8'/>
     </function-decl>
     <function-decl name='sysconf' mangled-name='sysconf' filepath='/usr/include/unistd.h' line='619' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-5'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='strlcat.c' comp-dir-path='/home/ryan/ZoF/lib/libspl' language='LANG_C99'>
-    <function-decl name='strlcat' mangled-name='strlcat' filepath='/home/ryan/ZoF/lib/libspl/strlcat.c' line='39' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='strlcat'>
-      <parameter type-id='type-id-2' name='dst' filepath='/home/ryan/ZoF/lib/libspl/strlcat.c' line='39' column='1'/>
-      <parameter type-id='type-id-4' name='src' filepath='/home/ryan/ZoF/lib/libspl/strlcat.c' line='39' column='1'/>
-      <parameter type-id='type-id-8' name='dstsize' filepath='/home/ryan/ZoF/lib/libspl/strlcat.c' line='39' column='1'/>
+  <abi-instr version='1.0' address-size='64' path='strlcat.c' comp-dir-path='/home/ryan/zfs/lib/libspl' language='LANG_C99'>
+    <function-decl name='strlcat' mangled-name='strlcat' filepath='/home/ryan/zfs/lib/libspl/strlcat.c' line='39' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='strlcat'>
+      <parameter type-id='type-id-2' name='dst' filepath='/home/ryan/zfs/lib/libspl/strlcat.c' line='39' column='1'/>
+      <parameter type-id='type-id-4' name='src' filepath='/home/ryan/zfs/lib/libspl/strlcat.c' line='39' column='1'/>
+      <parameter type-id='type-id-8' name='dstsize' filepath='/home/ryan/zfs/lib/libspl/strlcat.c' line='39' column='1'/>
       <return type-id='type-id-8'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='strlcpy.c' comp-dir-path='/home/ryan/ZoF/lib/libspl' language='LANG_C99'>
-    <function-decl name='strlcpy' mangled-name='strlcpy' filepath='/home/ryan/ZoF/lib/libspl/strlcpy.c' line='39' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='strlcpy'>
-      <parameter type-id='type-id-2' name='dst' filepath='/home/ryan/ZoF/lib/libspl/strlcpy.c' line='39' column='1'/>
-      <parameter type-id='type-id-4' name='src' filepath='/home/ryan/ZoF/lib/libspl/strlcpy.c' line='39' column='1'/>
-      <parameter type-id='type-id-8' name='len' filepath='/home/ryan/ZoF/lib/libspl/strlcpy.c' line='39' column='1'/>
+  <abi-instr version='1.0' address-size='64' path='strlcpy.c' comp-dir-path='/home/ryan/zfs/lib/libspl' language='LANG_C99'>
+    <function-decl name='strlcpy' mangled-name='strlcpy' filepath='/home/ryan/zfs/lib/libspl/strlcpy.c' line='39' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='strlcpy'>
+      <parameter type-id='type-id-2' name='dst' filepath='/home/ryan/zfs/lib/libspl/strlcpy.c' line='39' column='1'/>
+      <parameter type-id='type-id-4' name='src' filepath='/home/ryan/zfs/lib/libspl/strlcpy.c' line='39' column='1'/>
+      <parameter type-id='type-id-8' name='len' filepath='/home/ryan/zfs/lib/libspl/strlcpy.c' line='39' column='1'/>
       <return type-id='type-id-8'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='timestamp.c' comp-dir-path='/home/ryan/ZoF/lib/libspl' language='LANG_C99'>
-    <function-decl name='print_timestamp' mangled-name='print_timestamp' filepath='/home/ryan/ZoF/lib/libspl/timestamp.c' line='44' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='print_timestamp'>
-      <parameter type-id='type-id-64' name='timestamp_fmt' filepath='/home/ryan/ZoF/lib/libspl/timestamp.c' line='44' column='1'/>
+  <abi-instr version='1.0' address-size='64' path='timestamp.c' comp-dir-path='/home/ryan/zfs/lib/libspl' language='LANG_C99'>
+    <function-decl name='print_timestamp' mangled-name='print_timestamp' filepath='/home/ryan/zfs/lib/libspl/timestamp.c' line='44' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='print_timestamp'>
+      <parameter type-id='type-id-64' name='timestamp_fmt' filepath='/home/ryan/zfs/lib/libspl/timestamp.c' line='44' column='1'/>
       <return type-id='type-id-5'/>
     </function-decl>
     <function-decl name='localtime' mangled-name='localtime' filepath='/usr/include/time.h' line='123' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -1628,7 +1628,7 @@
       <return type-id='type-id-5'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='os/linux/getexecname.c' comp-dir-path='/home/ryan/ZoF/lib/libspl' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='os/linux/getexecname.c' comp-dir-path='/home/ryan/zfs/lib/libspl' language='LANG_C99'>
     <function-decl name='getexecname' mangled-name='getexecname' filepath='os/linux/getexecname.c' line='35' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='getexecname'>
       <return type-id='type-id-4'/>
     </function-decl>
@@ -1636,8 +1636,8 @@
       <return type-id='type-id-5'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='os/linux/gethostid.c' comp-dir-path='/home/ryan/ZoF/lib/libspl' language='LANG_C99'>
-    <function-decl name='get_system_hostid' mangled-name='get_system_hostid' filepath='os/linux/gethostid.c' line='61' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='get_system_hostid'>
+  <abi-instr version='1.0' address-size='64' path='os/linux/gethostid.c' comp-dir-path='/home/ryan/zfs/lib/libspl' language='LANG_C99'>
+    <function-decl name='get_system_hostid' mangled-name='get_system_hostid' filepath='os/linux/gethostid.c' line='59' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='get_system_hostid'>
       <return type-id='type-id-7'/>
     </function-decl>
     <function-decl name='read' mangled-name='read' filepath='/usr/include/unistd.h' line='360' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -1659,7 +1659,7 @@
       <return type-id='type-id-5'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='os/linux/getmntany.c' comp-dir-path='/home/ryan/ZoF/lib/libspl' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='os/linux/getmntany.c' comp-dir-path='/home/ryan/zfs/lib/libspl' language='LANG_C99'>
 
     <array-type-def dimensions='1' type-id='type-id-1' size-in-bits='32880' id='type-id-123'>
       <subrange length='4110' type-id='type-id-7' id='type-id-124'/>
@@ -1808,13 +1808,13 @@
       <return type-id='type-id-5'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='os/linux/zone.c' comp-dir-path='/home/ryan/ZoF/lib/libspl' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='os/linux/zone.c' comp-dir-path='/home/ryan/zfs/lib/libspl' language='LANG_C99'>
     <typedef-decl name='zoneid_t' type-id='type-id-22' filepath='../../lib/libspl/include/sys/types.h' line='47' column='1' id='type-id-142'/>
     <function-decl name='getzoneid' mangled-name='getzoneid' filepath='os/linux/zone.c' line='29' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='getzoneid'>
       <return type-id='type-id-142'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='assert.c' comp-dir-path='/home/ryan/ZoF/lib/libspl' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='assert.c' comp-dir-path='/home/ryan/zfs/lib/libspl' language='LANG_C99'>
     <var-decl name='aok' type-id='type-id-22' mangled-name='aok' visibility='default' filepath='../../lib/libspl/include/assert.h' line='37' column='1' elf-symbol-id='aok'/>
   </abi-instr>
 </abi-corpus>

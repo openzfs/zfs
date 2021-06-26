@@ -15,16 +15,16 @@
     <elf-symbol name='lzbe_remove_pair' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzbe_set_boot_device' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
   </elf-function-symbols>
-  <abi-instr version='1.0' address-size='64' path='lzbe_device.c' comp-dir-path='/home/ryan/ZoF/lib/libzfsbootenv' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='lzbe_device.c' comp-dir-path='/home/ryan/zfs/lib/libzfsbootenv' language='LANG_C99'>
     <type-decl name='int' size-in-bits='32' id='type-id-1'/>
     <type-decl name='char' size-in-bits='8' id='type-id-2'/>
     <qualified-type-def type-id='type-id-2' const='yes' id='type-id-3'/>
     <pointer-type-def type-id='type-id-3' size-in-bits='64' id='type-id-4'/>
     <pointer-type-def type-id='type-id-2' size-in-bits='64' id='type-id-5'/>
     <pointer-type-def type-id='type-id-5' size-in-bits='64' id='type-id-6'/>
-    <function-decl name='lzbe_get_boot_device' mangled-name='lzbe_get_boot_device' filepath='/home/ryan/ZoF/lib/libzfsbootenv/lzbe_device.c' line='114' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzbe_get_boot_device'>
-      <parameter type-id='type-id-4' name='pool' filepath='/home/ryan/ZoF/lib/libzfsbootenv/lzbe_device.c' line='114' column='1'/>
-      <parameter type-id='type-id-6' name='device' filepath='/home/ryan/ZoF/lib/libzfsbootenv/lzbe_device.c' line='114' column='1'/>
+    <function-decl name='lzbe_get_boot_device' mangled-name='lzbe_get_boot_device' filepath='/home/ryan/zfs/lib/libzfsbootenv/lzbe_device.c' line='113' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzbe_get_boot_device'>
+      <parameter type-id='type-id-4' name='pool' filepath='/home/ryan/zfs/lib/libzfsbootenv/lzbe_device.c' line='113' column='1'/>
+      <parameter type-id='type-id-6' name='device' filepath='/home/ryan/zfs/lib/libzfsbootenv/lzbe_device.c' line='113' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <type-decl name='unnamed-enum-underlying-type' is-anonymous='yes' size-in-bits='32' alignment-in-bits='32' id='type-id-7'/>
@@ -34,10 +34,10 @@
       <enumerator name='lzbe_replace' value='1'/>
     </enum-decl>
     <typedef-decl name='lzbe_flags_t' type-id='type-id-8' filepath='../../include/libzfsbootenv.h' line='26' column='1' id='type-id-9'/>
-    <function-decl name='lzbe_set_boot_device' mangled-name='lzbe_set_boot_device' filepath='/home/ryan/ZoF/lib/libzfsbootenv/lzbe_device.c' line='28' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzbe_set_boot_device'>
-      <parameter type-id='type-id-4' name='pool' filepath='/home/ryan/ZoF/lib/libzfsbootenv/lzbe_device.c' line='28' column='1'/>
-      <parameter type-id='type-id-9' name='flag' filepath='/home/ryan/ZoF/lib/libzfsbootenv/lzbe_device.c' line='28' column='1'/>
-      <parameter type-id='type-id-4' name='device' filepath='/home/ryan/ZoF/lib/libzfsbootenv/lzbe_device.c' line='28' column='1'/>
+    <function-decl name='lzbe_set_boot_device' mangled-name='lzbe_set_boot_device' filepath='/home/ryan/zfs/lib/libzfsbootenv/lzbe_device.c' line='28' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzbe_set_boot_device'>
+      <parameter type-id='type-id-4' name='pool' filepath='/home/ryan/zfs/lib/libzfsbootenv/lzbe_device.c' line='28' column='1'/>
+      <parameter type-id='type-id-9' name='flag' filepath='/home/ryan/zfs/lib/libzfsbootenv/lzbe_device.c' line='28' column='1'/>
+      <parameter type-id='type-id-4' name='device' filepath='/home/ryan/zfs/lib/libzfsbootenv/lzbe_device.c' line='28' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <type-decl name='void' id='type-id-10'/>
@@ -102,38 +102,38 @@
       <return type-id='type-id-10'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='lzbe_pair.c' comp-dir-path='/home/ryan/ZoF/lib/libzfsbootenv' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='lzbe_pair.c' comp-dir-path='/home/ryan/zfs/lib/libzfsbootenv' language='LANG_C99'>
     <pointer-type-def type-id='type-id-10' size-in-bits='64' id='type-id-11'/>
-    <function-decl name='lzbe_remove_pair' mangled-name='lzbe_remove_pair' filepath='/home/ryan/ZoF/lib/libzfsbootenv/lzbe_pair.c' line='343' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzbe_remove_pair'>
-      <parameter type-id='type-id-11' name='ptr' filepath='/home/ryan/ZoF/lib/libzfsbootenv/lzbe_pair.c' line='343' column='1'/>
-      <parameter type-id='type-id-4' name='key' filepath='/home/ryan/ZoF/lib/libzfsbootenv/lzbe_pair.c' line='343' column='1'/>
+    <function-decl name='lzbe_remove_pair' mangled-name='lzbe_remove_pair' filepath='/home/ryan/zfs/lib/libzfsbootenv/lzbe_pair.c' line='343' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzbe_remove_pair'>
+      <parameter type-id='type-id-11' name='ptr' filepath='/home/ryan/zfs/lib/libzfsbootenv/lzbe_pair.c' line='343' column='1'/>
+      <parameter type-id='type-id-4' name='key' filepath='/home/ryan/zfs/lib/libzfsbootenv/lzbe_pair.c' line='343' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <type-decl name='unsigned long int' size-in-bits='64' id='type-id-12'/>
     <typedef-decl name='size_t' type-id='type-id-12' filepath='/usr/lib/gcc/x86_64-linux-gnu/8/include/stddef.h' line='216' column='1' id='type-id-13'/>
-    <function-decl name='lzbe_add_pair' mangled-name='lzbe_add_pair' filepath='/home/ryan/ZoF/lib/libzfsbootenv/lzbe_pair.c' line='182' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzbe_add_pair'>
-      <parameter type-id='type-id-11' name='ptr' filepath='/home/ryan/ZoF/lib/libzfsbootenv/lzbe_pair.c' line='182' column='1'/>
-      <parameter type-id='type-id-4' name='key' filepath='/home/ryan/ZoF/lib/libzfsbootenv/lzbe_pair.c' line='182' column='1'/>
-      <parameter type-id='type-id-4' name='type' filepath='/home/ryan/ZoF/lib/libzfsbootenv/lzbe_pair.c' line='182' column='1'/>
-      <parameter type-id='type-id-11' name='value' filepath='/home/ryan/ZoF/lib/libzfsbootenv/lzbe_pair.c' line='182' column='1'/>
-      <parameter type-id='type-id-13' name='size' filepath='/home/ryan/ZoF/lib/libzfsbootenv/lzbe_pair.c' line='183' column='1'/>
+    <function-decl name='lzbe_add_pair' mangled-name='lzbe_add_pair' filepath='/home/ryan/zfs/lib/libzfsbootenv/lzbe_pair.c' line='182' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzbe_add_pair'>
+      <parameter type-id='type-id-11' name='ptr' filepath='/home/ryan/zfs/lib/libzfsbootenv/lzbe_pair.c' line='182' column='1'/>
+      <parameter type-id='type-id-4' name='key' filepath='/home/ryan/zfs/lib/libzfsbootenv/lzbe_pair.c' line='182' column='1'/>
+      <parameter type-id='type-id-4' name='type' filepath='/home/ryan/zfs/lib/libzfsbootenv/lzbe_pair.c' line='182' column='1'/>
+      <parameter type-id='type-id-11' name='value' filepath='/home/ryan/zfs/lib/libzfsbootenv/lzbe_pair.c' line='182' column='1'/>
+      <parameter type-id='type-id-13' name='size' filepath='/home/ryan/zfs/lib/libzfsbootenv/lzbe_pair.c' line='183' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='lzbe_nvlist_free' mangled-name='lzbe_nvlist_free' filepath='/home/ryan/ZoF/lib/libzfsbootenv/lzbe_pair.c' line='131' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzbe_nvlist_free'>
-      <parameter type-id='type-id-11' name='ptr' filepath='/home/ryan/ZoF/lib/libzfsbootenv/lzbe_pair.c' line='131' column='1'/>
+    <function-decl name='lzbe_nvlist_free' mangled-name='lzbe_nvlist_free' filepath='/home/ryan/zfs/lib/libzfsbootenv/lzbe_pair.c' line='131' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzbe_nvlist_free'>
+      <parameter type-id='type-id-11' name='ptr' filepath='/home/ryan/zfs/lib/libzfsbootenv/lzbe_pair.c' line='131' column='1'/>
       <return type-id='type-id-10'/>
     </function-decl>
-    <function-decl name='lzbe_nvlist_set' mangled-name='lzbe_nvlist_set' filepath='/home/ryan/ZoF/lib/libzfsbootenv/lzbe_pair.c' line='74' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzbe_nvlist_set'>
-      <parameter type-id='type-id-4' name='pool' filepath='/home/ryan/ZoF/lib/libzfsbootenv/lzbe_pair.c' line='74' column='1'/>
-      <parameter type-id='type-id-4' name='key' filepath='/home/ryan/ZoF/lib/libzfsbootenv/lzbe_pair.c' line='74' column='1'/>
-      <parameter type-id='type-id-11' name='ptr' filepath='/home/ryan/ZoF/lib/libzfsbootenv/lzbe_pair.c' line='74' column='1'/>
+    <function-decl name='lzbe_nvlist_set' mangled-name='lzbe_nvlist_set' filepath='/home/ryan/zfs/lib/libzfsbootenv/lzbe_pair.c' line='74' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzbe_nvlist_set'>
+      <parameter type-id='type-id-4' name='pool' filepath='/home/ryan/zfs/lib/libzfsbootenv/lzbe_pair.c' line='74' column='1'/>
+      <parameter type-id='type-id-4' name='key' filepath='/home/ryan/zfs/lib/libzfsbootenv/lzbe_pair.c' line='74' column='1'/>
+      <parameter type-id='type-id-11' name='ptr' filepath='/home/ryan/zfs/lib/libzfsbootenv/lzbe_pair.c' line='74' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <pointer-type-def type-id='type-id-11' size-in-bits='64' id='type-id-14'/>
-    <function-decl name='lzbe_nvlist_get' mangled-name='lzbe_nvlist_get' filepath='/home/ryan/ZoF/lib/libzfsbootenv/lzbe_pair.c' line='27' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzbe_nvlist_get'>
-      <parameter type-id='type-id-4' name='pool' filepath='/home/ryan/ZoF/lib/libzfsbootenv/lzbe_pair.c' line='27' column='1'/>
-      <parameter type-id='type-id-4' name='key' filepath='/home/ryan/ZoF/lib/libzfsbootenv/lzbe_pair.c' line='27' column='1'/>
-      <parameter type-id='type-id-14' name='ptr' filepath='/home/ryan/ZoF/lib/libzfsbootenv/lzbe_pair.c' line='27' column='1'/>
+    <function-decl name='lzbe_nvlist_get' mangled-name='lzbe_nvlist_get' filepath='/home/ryan/zfs/lib/libzfsbootenv/lzbe_pair.c' line='27' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzbe_nvlist_get'>
+      <parameter type-id='type-id-4' name='pool' filepath='/home/ryan/zfs/lib/libzfsbootenv/lzbe_pair.c' line='27' column='1'/>
+      <parameter type-id='type-id-4' name='key' filepath='/home/ryan/zfs/lib/libzfsbootenv/lzbe_pair.c' line='27' column='1'/>
+      <parameter type-id='type-id-14' name='ptr' filepath='/home/ryan/zfs/lib/libzfsbootenv/lzbe_pair.c' line='27' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='nvlist_remove_all' mangled-name='nvlist_remove_all' filepath='../../include/sys/nvpair.h' line='199' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -224,7 +224,7 @@
       <return type-id='type-id-10'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='lzbe_util.c' comp-dir-path='/home/ryan/ZoF/lib/libzfsbootenv' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='lzbe_util.c' comp-dir-path='/home/ryan/zfs/lib/libzfsbootenv' language='LANG_C99'>
     <class-decl name='_IO_FILE' size-in-bits='1728' is-struct='yes' visibility='default' filepath='/usr/include/x86_64-linux-gnu/bits/types/struct_FILE.h' line='49' column='1' id='type-id-15'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='_flags' type-id='type-id-1' visibility='default' filepath='/usr/include/x86_64-linux-gnu/bits/types/struct_FILE.h' line='51' column='1'/>
@@ -335,10 +335,10 @@
     </array-type-def>
     <typedef-decl name='FILE' type-id='type-id-15' filepath='/usr/include/x86_64-linux-gnu/bits/types/FILE.h' line='7' column='1' id='type-id-32'/>
     <pointer-type-def type-id='type-id-32' size-in-bits='64' id='type-id-33'/>
-    <function-decl name='lzbe_bootenv_print' mangled-name='lzbe_bootenv_print' filepath='/home/ryan/ZoF/lib/libzfsbootenv/lzbe_util.c' line='24' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzbe_bootenv_print'>
-      <parameter type-id='type-id-4' name='pool' filepath='/home/ryan/ZoF/lib/libzfsbootenv/lzbe_util.c' line='24' column='1'/>
-      <parameter type-id='type-id-4' name='nvlist' filepath='/home/ryan/ZoF/lib/libzfsbootenv/lzbe_util.c' line='24' column='1'/>
-      <parameter type-id='type-id-33' name='of' filepath='/home/ryan/ZoF/lib/libzfsbootenv/lzbe_util.c' line='24' column='1'/>
+    <function-decl name='lzbe_bootenv_print' mangled-name='lzbe_bootenv_print' filepath='/home/ryan/zfs/lib/libzfsbootenv/lzbe_util.c' line='24' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzbe_bootenv_print'>
+      <parameter type-id='type-id-4' name='pool' filepath='/home/ryan/zfs/lib/libzfsbootenv/lzbe_util.c' line='24' column='1'/>
+      <parameter type-id='type-id-4' name='nvlist' filepath='/home/ryan/zfs/lib/libzfsbootenv/lzbe_util.c' line='24' column='1'/>
+      <parameter type-id='type-id-33' name='of' filepath='/home/ryan/zfs/lib/libzfsbootenv/lzbe_util.c' line='24' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='lzbe_nvlist_get' mangled-name='lzbe_nvlist_get' filepath='../../include/libzfsbootenv.h' line='28' column='1' visibility='default' binding='global' size-in-bits='64'>

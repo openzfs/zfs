@@ -240,7 +240,7 @@
     <elf-symbol name='nvlist_hashtable_init_size' size='8' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='nvpair_max_recursion' size='4' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
   </elf-variable-symbols>
-  <abi-instr version='1.0' address-size='64' path='libnvpair.c' comp-dir-path='/home/ryan/ZoF/lib/libnvpair' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='libnvpair.c' comp-dir-path='/home/ryan/zfs/lib/libnvpair' language='LANG_C99'>
     <type-decl name='int' size-in-bits='32' id='type-id-1'/>
     <class-decl name='nvpair' size-in-bits='128' is-struct='yes' visibility='default' filepath='../../include/sys/nvpair.h' line='73' column='1' id='type-id-2'>
       <data-member access='public' layout-offset-in-bits='0'>
@@ -303,11 +303,11 @@
     <type-decl name='char' size-in-bits='8' id='type-id-13'/>
     <pointer-type-def type-id='type-id-13' size-in-bits='64' id='type-id-14'/>
     <pointer-type-def type-id='type-id-14' size-in-bits='64' id='type-id-15'/>
-    <function-decl name='nvpair_value_match' mangled-name='nvpair_value_match' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='1274' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvpair_value_match'>
-      <parameter type-id='type-id-12' name='nvp' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='1274' column='1'/>
-      <parameter type-id='type-id-1' name='ai' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='1274' column='1'/>
-      <parameter type-id='type-id-14' name='value' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='1274' column='1'/>
-      <parameter type-id='type-id-15' name='ep' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='1274' column='1'/>
+    <function-decl name='nvpair_value_match' mangled-name='nvpair_value_match' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='1274' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvpair_value_match'>
+      <parameter type-id='type-id-12' name='nvp' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='1274' column='1'/>
+      <parameter type-id='type-id-1' name='ai' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='1274' column='1'/>
+      <parameter type-id='type-id-14' name='value' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='1274' column='1'/>
+      <parameter type-id='type-id-15' name='ep' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='1274' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <class-decl name='re_pattern_buffer' size-in-bits='512' is-struct='yes' visibility='default' filepath='/usr/include/regex.h' line='413' column='1' id='type-id-16'>
@@ -365,12 +365,12 @@
     <type-decl name='unsigned int' size-in-bits='32' id='type-id-22'/>
     <typedef-decl name='regex_t' type-id='type-id-16' filepath='/usr/include/regex.h' line='478' column='1' id='type-id-26'/>
     <pointer-type-def type-id='type-id-26' size-in-bits='64' id='type-id-27'/>
-    <function-decl name='nvpair_value_match_regex' mangled-name='nvpair_value_match_regex' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='949' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvpair_value_match_regex'>
-      <parameter type-id='type-id-12' name='nvp' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='949' column='1'/>
-      <parameter type-id='type-id-1' name='ai' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='949' column='1'/>
-      <parameter type-id='type-id-14' name='value' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='950' column='1'/>
-      <parameter type-id='type-id-27' name='value_regex' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='950' column='1'/>
-      <parameter type-id='type-id-15' name='ep' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='950' column='1'/>
+    <function-decl name='nvpair_value_match_regex' mangled-name='nvpair_value_match_regex' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='949' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvpair_value_match_regex'>
+      <parameter type-id='type-id-12' name='nvp' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='949' column='1'/>
+      <parameter type-id='type-id-1' name='ai' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='949' column='1'/>
+      <parameter type-id='type-id-14' name='value' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='950' column='1'/>
+      <parameter type-id='type-id-27' name='value_regex' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='950' column='1'/>
+      <parameter type-id='type-id-15' name='ep' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='950' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <type-decl name='void' id='type-id-28'/>
@@ -397,41 +397,41 @@
     <typedef-decl name='uint64_t' type-id='type-id-33' filepath='/usr/include/x86_64-linux-gnu/bits/stdint-uintn.h' line='27' column='1' id='type-id-31'/>
     <typedef-decl name='nvlist_t' type-id='type-id-29' filepath='../../include/sys/nvpair.h' line='91' column='1' id='type-id-34'/>
     <pointer-type-def type-id='type-id-34' size-in-bits='64' id='type-id-35'/>
-    <function-decl name='dump_nvlist' mangled-name='dump_nvlist' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='794' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='dump_nvlist'>
-      <parameter type-id='type-id-35' name='list' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='794' column='1'/>
-      <parameter type-id='type-id-1' name='indent' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='794' column='1'/>
+    <function-decl name='dump_nvlist' mangled-name='dump_nvlist' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='794' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='dump_nvlist'>
+      <parameter type-id='type-id-35' name='list' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='794' column='1'/>
+      <parameter type-id='type-id-1' name='indent' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='794' column='1'/>
       <return type-id='type-id-28'/>
     </function-decl>
-    <class-decl name='nvlist_prtctl' size-in-bits='576' is-struct='yes' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='91' column='1' id='type-id-36'>
+    <class-decl name='nvlist_prtctl' size-in-bits='576' is-struct='yes' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='91' column='1' id='type-id-36'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='nvprt_fp' type-id='type-id-37' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='92' column='1'/>
+        <var-decl name='nvprt_fp' type-id='type-id-37' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='92' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='nvprt_indent_mode' type-id='type-id-38' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='93' column='1'/>
+        <var-decl name='nvprt_indent_mode' type-id='type-id-38' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='93' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='96'>
-        <var-decl name='nvprt_indent' type-id='type-id-1' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='94' column='1'/>
+        <var-decl name='nvprt_indent' type-id='type-id-1' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='94' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='128'>
-        <var-decl name='nvprt_indentinc' type-id='type-id-1' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='95' column='1'/>
+        <var-decl name='nvprt_indentinc' type-id='type-id-1' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='95' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='192'>
-        <var-decl name='nvprt_nmfmt' type-id='type-id-39' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='96' column='1'/>
+        <var-decl name='nvprt_nmfmt' type-id='type-id-39' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='96' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='256'>
-        <var-decl name='nvprt_eomfmt' type-id='type-id-39' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='97' column='1'/>
+        <var-decl name='nvprt_eomfmt' type-id='type-id-39' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='97' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='320'>
-        <var-decl name='nvprt_btwnarrfmt' type-id='type-id-39' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='98' column='1'/>
+        <var-decl name='nvprt_btwnarrfmt' type-id='type-id-39' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='98' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='384'>
-        <var-decl name='nvprt_btwnarrfmt_nl' type-id='type-id-1' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='99' column='1'/>
+        <var-decl name='nvprt_btwnarrfmt_nl' type-id='type-id-1' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='99' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='448'>
-        <var-decl name='nvprt_dfltops' type-id='type-id-40' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='100' column='1'/>
+        <var-decl name='nvprt_dfltops' type-id='type-id-40' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='100' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='512'>
-        <var-decl name='nvprt_custops' type-id='type-id-40' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='101' column='1'/>
+        <var-decl name='nvprt_custops' type-id='type-id-40' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='101' column='1'/>
       </data-member>
     </class-decl>
     <class-decl name='_IO_FILE' size-in-bits='1728' is-struct='yes' visibility='default' filepath='/usr/include/x86_64-linux-gnu/bits/types/struct_FILE.h' line='49' column='1' id='type-id-41'>
@@ -552,105 +552,105 @@
     </enum-decl>
     <qualified-type-def type-id='type-id-13' const='yes' id='type-id-60'/>
     <pointer-type-def type-id='type-id-60' size-in-bits='64' id='type-id-39'/>
-    <class-decl name='nvlist_printops' size-in-bits='3456' is-struct='yes' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='61' column='1' id='type-id-61'>
+    <class-decl name='nvlist_printops' size-in-bits='3456' is-struct='yes' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='61' column='1' id='type-id-61'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='print_boolean' type-id='type-id-62' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='62' column='1'/>
+        <var-decl name='print_boolean' type-id='type-id-62' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='62' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='128'>
-        <var-decl name='print_boolean_value' type-id='type-id-63' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='63' column='1'/>
+        <var-decl name='print_boolean_value' type-id='type-id-63' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='63' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='256'>
-        <var-decl name='print_byte' type-id='type-id-64' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='64' column='1'/>
+        <var-decl name='print_byte' type-id='type-id-64' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='64' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='384'>
-        <var-decl name='print_int8' type-id='type-id-65' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='65' column='1'/>
+        <var-decl name='print_int8' type-id='type-id-65' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='65' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='512'>
-        <var-decl name='print_uint8' type-id='type-id-66' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='66' column='1'/>
+        <var-decl name='print_uint8' type-id='type-id-66' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='66' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='640'>
-        <var-decl name='print_int16' type-id='type-id-67' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='67' column='1'/>
+        <var-decl name='print_int16' type-id='type-id-67' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='67' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='768'>
-        <var-decl name='print_uint16' type-id='type-id-68' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='68' column='1'/>
+        <var-decl name='print_uint16' type-id='type-id-68' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='68' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='896'>
-        <var-decl name='print_int32' type-id='type-id-69' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='69' column='1'/>
+        <var-decl name='print_int32' type-id='type-id-69' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='69' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='1024'>
-        <var-decl name='print_uint32' type-id='type-id-70' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='70' column='1'/>
+        <var-decl name='print_uint32' type-id='type-id-70' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='70' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='1152'>
-        <var-decl name='print_int64' type-id='type-id-71' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='71' column='1'/>
+        <var-decl name='print_int64' type-id='type-id-71' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='71' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='1280'>
-        <var-decl name='print_uint64' type-id='type-id-72' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='72' column='1'/>
+        <var-decl name='print_uint64' type-id='type-id-72' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='72' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='1408'>
-        <var-decl name='print_double' type-id='type-id-73' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='73' column='1'/>
+        <var-decl name='print_double' type-id='type-id-73' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='73' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='1536'>
-        <var-decl name='print_string' type-id='type-id-74' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='74' column='1'/>
+        <var-decl name='print_string' type-id='type-id-74' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='74' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='1664'>
-        <var-decl name='print_hrtime' type-id='type-id-75' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='75' column='1'/>
+        <var-decl name='print_hrtime' type-id='type-id-75' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='75' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='1792'>
-        <var-decl name='print_nvlist' type-id='type-id-76' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='76' column='1'/>
+        <var-decl name='print_nvlist' type-id='type-id-76' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='76' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='1920'>
-        <var-decl name='print_boolean_array' type-id='type-id-77' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='77' column='1'/>
+        <var-decl name='print_boolean_array' type-id='type-id-77' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='77' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='2048'>
-        <var-decl name='print_byte_array' type-id='type-id-78' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='78' column='1'/>
+        <var-decl name='print_byte_array' type-id='type-id-78' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='78' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='2176'>
-        <var-decl name='print_int8_array' type-id='type-id-79' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='79' column='1'/>
+        <var-decl name='print_int8_array' type-id='type-id-79' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='79' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='2304'>
-        <var-decl name='print_uint8_array' type-id='type-id-80' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='80' column='1'/>
+        <var-decl name='print_uint8_array' type-id='type-id-80' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='80' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='2432'>
-        <var-decl name='print_int16_array' type-id='type-id-81' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='81' column='1'/>
+        <var-decl name='print_int16_array' type-id='type-id-81' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='81' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='2560'>
-        <var-decl name='print_uint16_array' type-id='type-id-82' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='82' column='1'/>
+        <var-decl name='print_uint16_array' type-id='type-id-82' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='82' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='2688'>
-        <var-decl name='print_int32_array' type-id='type-id-83' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='83' column='1'/>
+        <var-decl name='print_int32_array' type-id='type-id-83' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='83' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='2816'>
-        <var-decl name='print_uint32_array' type-id='type-id-84' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='84' column='1'/>
+        <var-decl name='print_uint32_array' type-id='type-id-84' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='84' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='2944'>
-        <var-decl name='print_int64_array' type-id='type-id-85' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='85' column='1'/>
+        <var-decl name='print_int64_array' type-id='type-id-85' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='85' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='3072'>
-        <var-decl name='print_uint64_array' type-id='type-id-86' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='86' column='1'/>
+        <var-decl name='print_uint64_array' type-id='type-id-86' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='86' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='3200'>
-        <var-decl name='print_string_array' type-id='type-id-87' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='87' column='1'/>
+        <var-decl name='print_string_array' type-id='type-id-87' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='87' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='3328'>
-        <var-decl name='print_nvlist_array' type-id='type-id-88' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='88' column='1'/>
+        <var-decl name='print_nvlist_array' type-id='type-id-88' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='88' column='1'/>
       </data-member>
     </class-decl>
-    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='62' column='1' id='type-id-62'>
+    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='62' column='1' id='type-id-62'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='op' type-id='type-id-89' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='62' column='1'/>
+        <var-decl name='op' type-id='type-id-89' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='62' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='62' column='1'/>
+        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='62' column='1'/>
       </data-member>
     </class-decl>
     <pointer-type-def type-id='type-id-36' size-in-bits='64' id='type-id-90'/>
     <pointer-type-def type-id='type-id-91' size-in-bits='64' id='type-id-89'/>
-    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='63' column='1' id='type-id-63'>
+    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='63' column='1' id='type-id-63'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='op' type-id='type-id-92' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='63' column='1'/>
+        <var-decl name='op' type-id='type-id-92' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='63' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='63' column='1'/>
+        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='63' column='1'/>
       </data-member>
     </class-decl>
     <enum-decl name='__anonymous_enum__' is-anonymous='yes' filepath='../../lib/libspl/include/sys/stdtypes.h' line='26' column='1' id='type-id-93'>
@@ -660,461 +660,461 @@
     </enum-decl>
     <typedef-decl name='boolean_t' type-id='type-id-93' filepath='../../lib/libspl/include/sys/stdtypes.h' line='29' column='1' id='type-id-94'/>
     <pointer-type-def type-id='type-id-95' size-in-bits='64' id='type-id-92'/>
-    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='64' column='1' id='type-id-64'>
+    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='64' column='1' id='type-id-64'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='op' type-id='type-id-96' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='64' column='1'/>
+        <var-decl name='op' type-id='type-id-96' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='64' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='64' column='1'/>
+        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='64' column='1'/>
       </data-member>
     </class-decl>
     <typedef-decl name='uchar_t' type-id='type-id-25' filepath='../../lib/libspl/include/sys/stdtypes.h' line='31' column='1' id='type-id-97'/>
     <pointer-type-def type-id='type-id-98' size-in-bits='64' id='type-id-96'/>
-    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='65' column='1' id='type-id-65'>
+    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='65' column='1' id='type-id-65'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='op' type-id='type-id-99' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='65' column='1'/>
+        <var-decl name='op' type-id='type-id-99' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='65' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='65' column='1'/>
+        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='65' column='1'/>
       </data-member>
     </class-decl>
     <typedef-decl name='__int8_t' type-id='type-id-46' filepath='/usr/include/x86_64-linux-gnu/bits/types.h' line='36' column='1' id='type-id-100'/>
     <typedef-decl name='int8_t' type-id='type-id-100' filepath='/usr/include/x86_64-linux-gnu/bits/stdint-intn.h' line='24' column='1' id='type-id-101'/>
     <pointer-type-def type-id='type-id-102' size-in-bits='64' id='type-id-99'/>
-    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='66' column='1' id='type-id-66'>
+    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='66' column='1' id='type-id-66'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='op' type-id='type-id-103' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='66' column='1'/>
+        <var-decl name='op' type-id='type-id-103' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='66' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='66' column='1'/>
+        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='66' column='1'/>
       </data-member>
     </class-decl>
     <typedef-decl name='__uint8_t' type-id='type-id-25' filepath='/usr/include/x86_64-linux-gnu/bits/types.h' line='37' column='1' id='type-id-104'/>
     <typedef-decl name='uint8_t' type-id='type-id-104' filepath='/usr/include/x86_64-linux-gnu/bits/stdint-uintn.h' line='24' column='1' id='type-id-105'/>
     <pointer-type-def type-id='type-id-106' size-in-bits='64' id='type-id-103'/>
-    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='67' column='1' id='type-id-67'>
+    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='67' column='1' id='type-id-67'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='op' type-id='type-id-107' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='67' column='1'/>
+        <var-decl name='op' type-id='type-id-107' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='67' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='67' column='1'/>
+        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='67' column='1'/>
       </data-member>
     </class-decl>
     <pointer-type-def type-id='type-id-108' size-in-bits='64' id='type-id-107'/>
-    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='68' column='1' id='type-id-68'>
+    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='68' column='1' id='type-id-68'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='op' type-id='type-id-109' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='68' column='1'/>
+        <var-decl name='op' type-id='type-id-109' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='68' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='68' column='1'/>
+        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='68' column='1'/>
       </data-member>
     </class-decl>
     <typedef-decl name='__uint16_t' type-id='type-id-45' filepath='/usr/include/x86_64-linux-gnu/bits/types.h' line='39' column='1' id='type-id-110'/>
     <typedef-decl name='uint16_t' type-id='type-id-110' filepath='/usr/include/x86_64-linux-gnu/bits/stdint-uintn.h' line='25' column='1' id='type-id-111'/>
     <pointer-type-def type-id='type-id-112' size-in-bits='64' id='type-id-109'/>
-    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='69' column='1' id='type-id-69'>
+    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='69' column='1' id='type-id-69'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='op' type-id='type-id-113' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='69' column='1'/>
+        <var-decl name='op' type-id='type-id-113' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='69' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='69' column='1'/>
+        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='69' column='1'/>
       </data-member>
     </class-decl>
     <pointer-type-def type-id='type-id-114' size-in-bits='64' id='type-id-113'/>
-    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='70' column='1' id='type-id-70'>
+    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='70' column='1' id='type-id-70'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='op' type-id='type-id-115' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='70' column='1'/>
+        <var-decl name='op' type-id='type-id-115' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='70' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='70' column='1'/>
+        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='70' column='1'/>
       </data-member>
     </class-decl>
     <pointer-type-def type-id='type-id-116' size-in-bits='64' id='type-id-115'/>
-    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='71' column='1' id='type-id-71'>
+    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='71' column='1' id='type-id-71'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='op' type-id='type-id-117' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='71' column='1'/>
+        <var-decl name='op' type-id='type-id-117' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='71' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='71' column='1'/>
+        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='71' column='1'/>
       </data-member>
     </class-decl>
     <typedef-decl name='__int64_t' type-id='type-id-54' filepath='/usr/include/x86_64-linux-gnu/bits/types.h' line='43' column='1' id='type-id-118'/>
     <typedef-decl name='int64_t' type-id='type-id-118' filepath='/usr/include/x86_64-linux-gnu/bits/stdint-intn.h' line='27' column='1' id='type-id-119'/>
     <pointer-type-def type-id='type-id-120' size-in-bits='64' id='type-id-117'/>
-    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='72' column='1' id='type-id-72'>
+    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='72' column='1' id='type-id-72'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='op' type-id='type-id-121' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='72' column='1'/>
+        <var-decl name='op' type-id='type-id-121' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='72' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='72' column='1'/>
+        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='72' column='1'/>
       </data-member>
     </class-decl>
     <pointer-type-def type-id='type-id-122' size-in-bits='64' id='type-id-121'/>
-    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='73' column='1' id='type-id-73'>
+    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='73' column='1' id='type-id-73'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='op' type-id='type-id-123' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='73' column='1'/>
+        <var-decl name='op' type-id='type-id-123' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='73' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='73' column='1'/>
+        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='73' column='1'/>
       </data-member>
     </class-decl>
     <type-decl name='double' size-in-bits='64' id='type-id-124'/>
     <pointer-type-def type-id='type-id-125' size-in-bits='64' id='type-id-123'/>
-    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='74' column='1' id='type-id-74'>
+    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='74' column='1' id='type-id-74'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='op' type-id='type-id-126' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='74' column='1'/>
+        <var-decl name='op' type-id='type-id-126' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='74' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='74' column='1'/>
+        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='74' column='1'/>
       </data-member>
     </class-decl>
     <pointer-type-def type-id='type-id-127' size-in-bits='64' id='type-id-126'/>
-    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='75' column='1' id='type-id-75'>
+    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='75' column='1' id='type-id-75'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='op' type-id='type-id-128' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='75' column='1'/>
+        <var-decl name='op' type-id='type-id-128' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='75' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='75' column='1'/>
+        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='75' column='1'/>
       </data-member>
     </class-decl>
     <type-decl name='long long int' size-in-bits='64' id='type-id-129'/>
     <typedef-decl name='hrtime_t' type-id='type-id-129' filepath='../../lib/libspl/include/sys/time.h' line='78' column='1' id='type-id-130'/>
     <pointer-type-def type-id='type-id-131' size-in-bits='64' id='type-id-128'/>
-    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='76' column='1' id='type-id-76'>
+    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='76' column='1' id='type-id-76'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='op' type-id='type-id-132' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='76' column='1'/>
+        <var-decl name='op' type-id='type-id-132' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='76' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='76' column='1'/>
+        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='76' column='1'/>
       </data-member>
     </class-decl>
     <pointer-type-def type-id='type-id-133' size-in-bits='64' id='type-id-132'/>
-    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='77' column='1' id='type-id-77'>
+    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='77' column='1' id='type-id-77'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='op' type-id='type-id-134' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='77' column='1'/>
+        <var-decl name='op' type-id='type-id-134' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='77' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='77' column='1'/>
+        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='77' column='1'/>
       </data-member>
     </class-decl>
     <pointer-type-def type-id='type-id-94' size-in-bits='64' id='type-id-135'/>
     <typedef-decl name='uint_t' type-id='type-id-22' filepath='../../lib/libspl/include/sys/stdtypes.h' line='33' column='1' id='type-id-136'/>
     <pointer-type-def type-id='type-id-137' size-in-bits='64' id='type-id-134'/>
-    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='78' column='1' id='type-id-78'>
+    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='78' column='1' id='type-id-78'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='op' type-id='type-id-138' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='78' column='1'/>
+        <var-decl name='op' type-id='type-id-138' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='78' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='78' column='1'/>
+        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='78' column='1'/>
       </data-member>
     </class-decl>
     <pointer-type-def type-id='type-id-97' size-in-bits='64' id='type-id-139'/>
     <pointer-type-def type-id='type-id-140' size-in-bits='64' id='type-id-138'/>
-    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='79' column='1' id='type-id-79'>
+    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='79' column='1' id='type-id-79'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='op' type-id='type-id-141' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='79' column='1'/>
+        <var-decl name='op' type-id='type-id-141' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='79' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='79' column='1'/>
+        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='79' column='1'/>
       </data-member>
     </class-decl>
     <pointer-type-def type-id='type-id-101' size-in-bits='64' id='type-id-142'/>
     <pointer-type-def type-id='type-id-143' size-in-bits='64' id='type-id-141'/>
-    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='80' column='1' id='type-id-80'>
+    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='80' column='1' id='type-id-80'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='op' type-id='type-id-144' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='80' column='1'/>
+        <var-decl name='op' type-id='type-id-144' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='80' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='80' column='1'/>
+        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='80' column='1'/>
       </data-member>
     </class-decl>
     <pointer-type-def type-id='type-id-105' size-in-bits='64' id='type-id-145'/>
     <pointer-type-def type-id='type-id-146' size-in-bits='64' id='type-id-144'/>
-    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='81' column='1' id='type-id-81'>
+    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='81' column='1' id='type-id-81'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='op' type-id='type-id-147' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='81' column='1'/>
+        <var-decl name='op' type-id='type-id-147' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='81' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='81' column='1'/>
+        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='81' column='1'/>
       </data-member>
     </class-decl>
     <pointer-type-def type-id='type-id-4' size-in-bits='64' id='type-id-148'/>
     <pointer-type-def type-id='type-id-149' size-in-bits='64' id='type-id-147'/>
-    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='82' column='1' id='type-id-82'>
+    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='82' column='1' id='type-id-82'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='op' type-id='type-id-150' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='82' column='1'/>
+        <var-decl name='op' type-id='type-id-150' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='82' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='82' column='1'/>
+        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='82' column='1'/>
       </data-member>
     </class-decl>
     <pointer-type-def type-id='type-id-111' size-in-bits='64' id='type-id-151'/>
     <pointer-type-def type-id='type-id-152' size-in-bits='64' id='type-id-150'/>
-    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='83' column='1' id='type-id-83'>
+    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='83' column='1' id='type-id-83'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='op' type-id='type-id-153' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='83' column='1'/>
+        <var-decl name='op' type-id='type-id-153' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='83' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='83' column='1'/>
+        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='83' column='1'/>
       </data-member>
     </class-decl>
     <pointer-type-def type-id='type-id-3' size-in-bits='64' id='type-id-154'/>
     <pointer-type-def type-id='type-id-155' size-in-bits='64' id='type-id-153'/>
-    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='84' column='1' id='type-id-84'>
+    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='84' column='1' id='type-id-84'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='op' type-id='type-id-156' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='84' column='1'/>
+        <var-decl name='op' type-id='type-id-156' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='84' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='84' column='1'/>
+        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='84' column='1'/>
       </data-member>
     </class-decl>
     <pointer-type-def type-id='type-id-30' size-in-bits='64' id='type-id-157'/>
     <pointer-type-def type-id='type-id-158' size-in-bits='64' id='type-id-156'/>
-    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='85' column='1' id='type-id-85'>
+    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='85' column='1' id='type-id-85'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='op' type-id='type-id-159' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='85' column='1'/>
+        <var-decl name='op' type-id='type-id-159' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='85' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='85' column='1'/>
+        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='85' column='1'/>
       </data-member>
     </class-decl>
     <pointer-type-def type-id='type-id-119' size-in-bits='64' id='type-id-160'/>
     <pointer-type-def type-id='type-id-161' size-in-bits='64' id='type-id-159'/>
-    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='86' column='1' id='type-id-86'>
+    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='86' column='1' id='type-id-86'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='op' type-id='type-id-162' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='86' column='1'/>
+        <var-decl name='op' type-id='type-id-162' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='86' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='86' column='1'/>
+        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='86' column='1'/>
       </data-member>
     </class-decl>
     <pointer-type-def type-id='type-id-31' size-in-bits='64' id='type-id-163'/>
     <pointer-type-def type-id='type-id-164' size-in-bits='64' id='type-id-162'/>
-    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='87' column='1' id='type-id-87'>
+    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='87' column='1' id='type-id-87'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='op' type-id='type-id-165' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='87' column='1'/>
+        <var-decl name='op' type-id='type-id-165' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='87' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='87' column='1'/>
+        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='87' column='1'/>
       </data-member>
     </class-decl>
     <pointer-type-def type-id='type-id-166' size-in-bits='64' id='type-id-165'/>
-    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='88' column='1' id='type-id-88'>
+    <class-decl name='__anonymous_struct__' size-in-bits='128' is-struct='yes' is-anonymous='yes' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='88' column='1' id='type-id-88'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='op' type-id='type-id-167' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='88' column='1'/>
+        <var-decl name='op' type-id='type-id-167' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='88' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='88' column='1'/>
+        <var-decl name='arg' type-id='type-id-51' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='88' column='1'/>
       </data-member>
     </class-decl>
     <pointer-type-def type-id='type-id-35' size-in-bits='64' id='type-id-168'/>
     <pointer-type-def type-id='type-id-169' size-in-bits='64' id='type-id-167'/>
     <pointer-type-def type-id='type-id-61' size-in-bits='64' id='type-id-40'/>
     <typedef-decl name='nvlist_prtctl_t' type-id='type-id-90' filepath='../../include/libnvpair.h' line='84' column='1' id='type-id-170'/>
-    <function-decl name='nvlist_prt' mangled-name='nvlist_prt' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='766' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prt'>
-      <parameter type-id='type-id-35' name='nvl' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='766' column='1'/>
-      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='766' column='1'/>
+    <function-decl name='nvlist_prt' mangled-name='nvlist_prt' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='766' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prt'>
+      <parameter type-id='type-id-35' name='nvl' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='766' column='1'/>
+      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='766' column='1'/>
       <return type-id='type-id-28'/>
     </function-decl>
-    <function-decl name='nvlist_print' mangled-name='nvlist_print' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='757' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_print'>
-      <parameter type-id='type-id-37' name='fp' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='757' column='1'/>
-      <parameter type-id='type-id-35' name='nvl' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='757' column='1'/>
+    <function-decl name='nvlist_print' mangled-name='nvlist_print' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='757' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_print'>
+      <parameter type-id='type-id-37' name='fp' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='757' column='1'/>
+      <parameter type-id='type-id-35' name='nvl' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='757' column='1'/>
       <return type-id='type-id-28'/>
     </function-decl>
-    <function-decl name='nvlist_prtctl_free' mangled-name='nvlist_prtctl_free' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='546' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctl_free'>
-      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='546' column='1'/>
+    <function-decl name='nvlist_prtctl_free' mangled-name='nvlist_prtctl_free' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='546' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctl_free'>
+      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='546' column='1'/>
       <return type-id='type-id-28'/>
     </function-decl>
-    <function-decl name='nvlist_prtctl_alloc' mangled-name='nvlist_prtctl_alloc' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='527' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctl_alloc'>
+    <function-decl name='nvlist_prtctl_alloc' mangled-name='nvlist_prtctl_alloc' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='527' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctl_alloc'>
       <return type-id='type-id-170'/>
     </function-decl>
     <pointer-type-def type-id='type-id-171' size-in-bits='64' id='type-id-172'/>
-    <function-decl name='nvlist_prtctlop_nvlist_array' mangled-name='nvlist_prtctlop_nvlist_array' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='467' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_nvlist_array'>
-      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='467' column='1'/>
-      <parameter type-id='type-id-172' name='func' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='467' column='1'/>
-      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='467' column='1'/>
+    <function-decl name='nvlist_prtctlop_nvlist_array' mangled-name='nvlist_prtctlop_nvlist_array' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='467' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_nvlist_array'>
+      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='467' column='1'/>
+      <parameter type-id='type-id-172' name='func' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='467' column='1'/>
+      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='467' column='1'/>
       <return type-id='type-id-28'/>
     </function-decl>
     <pointer-type-def type-id='type-id-173' size-in-bits='64' id='type-id-174'/>
-    <function-decl name='nvlist_prtctlop_string_array' mangled-name='nvlist_prtctlop_string_array' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='466' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_string_array'>
-      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='466' column='1'/>
-      <parameter type-id='type-id-174' name='func' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='466' column='1'/>
-      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='466' column='1'/>
+    <function-decl name='nvlist_prtctlop_string_array' mangled-name='nvlist_prtctlop_string_array' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='466' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_string_array'>
+      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='466' column='1'/>
+      <parameter type-id='type-id-174' name='func' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='466' column='1'/>
+      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='466' column='1'/>
       <return type-id='type-id-28'/>
     </function-decl>
     <pointer-type-def type-id='type-id-175' size-in-bits='64' id='type-id-176'/>
-    <function-decl name='nvlist_prtctlop_uint64_array' mangled-name='nvlist_prtctlop_uint64_array' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='465' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_uint64_array'>
-      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='465' column='1'/>
-      <parameter type-id='type-id-176' name='func' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='465' column='1'/>
-      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='465' column='1'/>
+    <function-decl name='nvlist_prtctlop_uint64_array' mangled-name='nvlist_prtctlop_uint64_array' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='465' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_uint64_array'>
+      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='465' column='1'/>
+      <parameter type-id='type-id-176' name='func' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='465' column='1'/>
+      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='465' column='1'/>
       <return type-id='type-id-28'/>
     </function-decl>
     <pointer-type-def type-id='type-id-177' size-in-bits='64' id='type-id-178'/>
-    <function-decl name='nvlist_prtctlop_int64_array' mangled-name='nvlist_prtctlop_int64_array' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='464' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_int64_array'>
-      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='464' column='1'/>
-      <parameter type-id='type-id-178' name='func' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='464' column='1'/>
-      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='464' column='1'/>
+    <function-decl name='nvlist_prtctlop_int64_array' mangled-name='nvlist_prtctlop_int64_array' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='464' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_int64_array'>
+      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='464' column='1'/>
+      <parameter type-id='type-id-178' name='func' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='464' column='1'/>
+      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='464' column='1'/>
       <return type-id='type-id-28'/>
     </function-decl>
     <pointer-type-def type-id='type-id-179' size-in-bits='64' id='type-id-180'/>
-    <function-decl name='nvlist_prtctlop_uint32_array' mangled-name='nvlist_prtctlop_uint32_array' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='463' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_uint32_array'>
-      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='463' column='1'/>
-      <parameter type-id='type-id-180' name='func' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='463' column='1'/>
-      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='463' column='1'/>
+    <function-decl name='nvlist_prtctlop_uint32_array' mangled-name='nvlist_prtctlop_uint32_array' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='463' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_uint32_array'>
+      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='463' column='1'/>
+      <parameter type-id='type-id-180' name='func' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='463' column='1'/>
+      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='463' column='1'/>
       <return type-id='type-id-28'/>
     </function-decl>
     <pointer-type-def type-id='type-id-181' size-in-bits='64' id='type-id-182'/>
-    <function-decl name='nvlist_prtctlop_int32_array' mangled-name='nvlist_prtctlop_int32_array' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='462' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_int32_array'>
-      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='462' column='1'/>
-      <parameter type-id='type-id-182' name='func' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='462' column='1'/>
-      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='462' column='1'/>
+    <function-decl name='nvlist_prtctlop_int32_array' mangled-name='nvlist_prtctlop_int32_array' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='462' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_int32_array'>
+      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='462' column='1'/>
+      <parameter type-id='type-id-182' name='func' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='462' column='1'/>
+      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='462' column='1'/>
       <return type-id='type-id-28'/>
     </function-decl>
     <pointer-type-def type-id='type-id-183' size-in-bits='64' id='type-id-184'/>
-    <function-decl name='nvlist_prtctlop_uint16_array' mangled-name='nvlist_prtctlop_uint16_array' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='461' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_uint16_array'>
-      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='461' column='1'/>
-      <parameter type-id='type-id-184' name='func' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='461' column='1'/>
-      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='461' column='1'/>
+    <function-decl name='nvlist_prtctlop_uint16_array' mangled-name='nvlist_prtctlop_uint16_array' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='461' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_uint16_array'>
+      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='461' column='1'/>
+      <parameter type-id='type-id-184' name='func' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='461' column='1'/>
+      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='461' column='1'/>
       <return type-id='type-id-28'/>
     </function-decl>
     <pointer-type-def type-id='type-id-185' size-in-bits='64' id='type-id-186'/>
-    <function-decl name='nvlist_prtctlop_int16_array' mangled-name='nvlist_prtctlop_int16_array' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='460' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_int16_array'>
-      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='460' column='1'/>
-      <parameter type-id='type-id-186' name='func' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='460' column='1'/>
-      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='460' column='1'/>
+    <function-decl name='nvlist_prtctlop_int16_array' mangled-name='nvlist_prtctlop_int16_array' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='460' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_int16_array'>
+      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='460' column='1'/>
+      <parameter type-id='type-id-186' name='func' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='460' column='1'/>
+      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='460' column='1'/>
       <return type-id='type-id-28'/>
     </function-decl>
     <pointer-type-def type-id='type-id-187' size-in-bits='64' id='type-id-188'/>
-    <function-decl name='nvlist_prtctlop_uint8_array' mangled-name='nvlist_prtctlop_uint8_array' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='459' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_uint8_array'>
-      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='459' column='1'/>
-      <parameter type-id='type-id-188' name='func' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='459' column='1'/>
-      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='459' column='1'/>
+    <function-decl name='nvlist_prtctlop_uint8_array' mangled-name='nvlist_prtctlop_uint8_array' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='459' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_uint8_array'>
+      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='459' column='1'/>
+      <parameter type-id='type-id-188' name='func' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='459' column='1'/>
+      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='459' column='1'/>
       <return type-id='type-id-28'/>
     </function-decl>
     <pointer-type-def type-id='type-id-189' size-in-bits='64' id='type-id-190'/>
-    <function-decl name='nvlist_prtctlop_int8_array' mangled-name='nvlist_prtctlop_int8_array' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='458' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_int8_array'>
-      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='458' column='1'/>
-      <parameter type-id='type-id-190' name='func' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='458' column='1'/>
-      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='458' column='1'/>
+    <function-decl name='nvlist_prtctlop_int8_array' mangled-name='nvlist_prtctlop_int8_array' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='458' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_int8_array'>
+      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='458' column='1'/>
+      <parameter type-id='type-id-190' name='func' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='458' column='1'/>
+      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='458' column='1'/>
       <return type-id='type-id-28'/>
     </function-decl>
     <pointer-type-def type-id='type-id-191' size-in-bits='64' id='type-id-192'/>
-    <function-decl name='nvlist_prtctlop_byte_array' mangled-name='nvlist_prtctlop_byte_array' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='457' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_byte_array'>
-      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='457' column='1'/>
-      <parameter type-id='type-id-192' name='func' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='457' column='1'/>
-      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='457' column='1'/>
+    <function-decl name='nvlist_prtctlop_byte_array' mangled-name='nvlist_prtctlop_byte_array' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='457' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_byte_array'>
+      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='457' column='1'/>
+      <parameter type-id='type-id-192' name='func' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='457' column='1'/>
+      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='457' column='1'/>
       <return type-id='type-id-28'/>
     </function-decl>
     <pointer-type-def type-id='type-id-193' size-in-bits='64' id='type-id-194'/>
-    <function-decl name='nvlist_prtctlop_boolean_array' mangled-name='nvlist_prtctlop_boolean_array' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='456' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_boolean_array'>
-      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='456' column='1'/>
-      <parameter type-id='type-id-194' name='func' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='456' column='1'/>
-      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='456' column='1'/>
+    <function-decl name='nvlist_prtctlop_boolean_array' mangled-name='nvlist_prtctlop_boolean_array' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='456' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_boolean_array'>
+      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='456' column='1'/>
+      <parameter type-id='type-id-194' name='func' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='456' column='1'/>
+      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='456' column='1'/>
       <return type-id='type-id-28'/>
     </function-decl>
     <pointer-type-def type-id='type-id-195' size-in-bits='64' id='type-id-196'/>
-    <function-decl name='nvlist_prtctlop_nvlist' mangled-name='nvlist_prtctlop_nvlist' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='444' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_nvlist'>
-      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='444' column='1'/>
-      <parameter type-id='type-id-196' name='func' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='444' column='1'/>
-      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='444' column='1'/>
+    <function-decl name='nvlist_prtctlop_nvlist' mangled-name='nvlist_prtctlop_nvlist' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='444' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_nvlist'>
+      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='444' column='1'/>
+      <parameter type-id='type-id-196' name='func' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='444' column='1'/>
+      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='444' column='1'/>
       <return type-id='type-id-28'/>
     </function-decl>
     <pointer-type-def type-id='type-id-197' size-in-bits='64' id='type-id-198'/>
-    <function-decl name='nvlist_prtctlop_hrtime' mangled-name='nvlist_prtctlop_hrtime' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='443' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_hrtime'>
-      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='443' column='1'/>
-      <parameter type-id='type-id-198' name='func' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='443' column='1'/>
-      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='443' column='1'/>
+    <function-decl name='nvlist_prtctlop_hrtime' mangled-name='nvlist_prtctlop_hrtime' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='443' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_hrtime'>
+      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='443' column='1'/>
+      <parameter type-id='type-id-198' name='func' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='443' column='1'/>
+      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='443' column='1'/>
       <return type-id='type-id-28'/>
     </function-decl>
     <pointer-type-def type-id='type-id-199' size-in-bits='64' id='type-id-200'/>
-    <function-decl name='nvlist_prtctlop_string' mangled-name='nvlist_prtctlop_string' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='442' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_string'>
-      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='442' column='1'/>
-      <parameter type-id='type-id-200' name='func' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='442' column='1'/>
-      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='442' column='1'/>
+    <function-decl name='nvlist_prtctlop_string' mangled-name='nvlist_prtctlop_string' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='442' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_string'>
+      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='442' column='1'/>
+      <parameter type-id='type-id-200' name='func' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='442' column='1'/>
+      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='442' column='1'/>
       <return type-id='type-id-28'/>
     </function-decl>
     <pointer-type-def type-id='type-id-201' size-in-bits='64' id='type-id-202'/>
-    <function-decl name='nvlist_prtctlop_double' mangled-name='nvlist_prtctlop_double' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='441' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_double'>
-      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='441' column='1'/>
-      <parameter type-id='type-id-202' name='func' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='441' column='1'/>
-      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='441' column='1'/>
+    <function-decl name='nvlist_prtctlop_double' mangled-name='nvlist_prtctlop_double' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='441' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_double'>
+      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='441' column='1'/>
+      <parameter type-id='type-id-202' name='func' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='441' column='1'/>
+      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='441' column='1'/>
       <return type-id='type-id-28'/>
     </function-decl>
     <pointer-type-def type-id='type-id-203' size-in-bits='64' id='type-id-204'/>
-    <function-decl name='nvlist_prtctlop_uint64' mangled-name='nvlist_prtctlop_uint64' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='440' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_uint64'>
-      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='440' column='1'/>
-      <parameter type-id='type-id-204' name='func' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='440' column='1'/>
-      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='440' column='1'/>
+    <function-decl name='nvlist_prtctlop_uint64' mangled-name='nvlist_prtctlop_uint64' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='440' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_uint64'>
+      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='440' column='1'/>
+      <parameter type-id='type-id-204' name='func' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='440' column='1'/>
+      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='440' column='1'/>
       <return type-id='type-id-28'/>
     </function-decl>
     <pointer-type-def type-id='type-id-205' size-in-bits='64' id='type-id-206'/>
-    <function-decl name='nvlist_prtctlop_int64' mangled-name='nvlist_prtctlop_int64' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='439' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_int64'>
-      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='439' column='1'/>
-      <parameter type-id='type-id-206' name='func' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='439' column='1'/>
-      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='439' column='1'/>
+    <function-decl name='nvlist_prtctlop_int64' mangled-name='nvlist_prtctlop_int64' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='439' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_int64'>
+      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='439' column='1'/>
+      <parameter type-id='type-id-206' name='func' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='439' column='1'/>
+      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='439' column='1'/>
       <return type-id='type-id-28'/>
     </function-decl>
     <pointer-type-def type-id='type-id-207' size-in-bits='64' id='type-id-208'/>
-    <function-decl name='nvlist_prtctlop_uint32' mangled-name='nvlist_prtctlop_uint32' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='438' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_uint32'>
-      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='438' column='1'/>
-      <parameter type-id='type-id-208' name='func' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='438' column='1'/>
-      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='438' column='1'/>
+    <function-decl name='nvlist_prtctlop_uint32' mangled-name='nvlist_prtctlop_uint32' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='438' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_uint32'>
+      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='438' column='1'/>
+      <parameter type-id='type-id-208' name='func' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='438' column='1'/>
+      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='438' column='1'/>
       <return type-id='type-id-28'/>
     </function-decl>
     <pointer-type-def type-id='type-id-209' size-in-bits='64' id='type-id-210'/>
-    <function-decl name='nvlist_prtctlop_int32' mangled-name='nvlist_prtctlop_int32' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='437' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_int32'>
-      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='437' column='1'/>
-      <parameter type-id='type-id-210' name='func' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='437' column='1'/>
-      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='437' column='1'/>
+    <function-decl name='nvlist_prtctlop_int32' mangled-name='nvlist_prtctlop_int32' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='437' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_int32'>
+      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='437' column='1'/>
+      <parameter type-id='type-id-210' name='func' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='437' column='1'/>
+      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='437' column='1'/>
       <return type-id='type-id-28'/>
     </function-decl>
     <pointer-type-def type-id='type-id-211' size-in-bits='64' id='type-id-212'/>
-    <function-decl name='nvlist_prtctlop_uint16' mangled-name='nvlist_prtctlop_uint16' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='436' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_uint16'>
-      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='436' column='1'/>
-      <parameter type-id='type-id-212' name='func' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='436' column='1'/>
-      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='436' column='1'/>
+    <function-decl name='nvlist_prtctlop_uint16' mangled-name='nvlist_prtctlop_uint16' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='436' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_uint16'>
+      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='436' column='1'/>
+      <parameter type-id='type-id-212' name='func' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='436' column='1'/>
+      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='436' column='1'/>
       <return type-id='type-id-28'/>
     </function-decl>
     <pointer-type-def type-id='type-id-213' size-in-bits='64' id='type-id-214'/>
-    <function-decl name='nvlist_prtctlop_int16' mangled-name='nvlist_prtctlop_int16' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='435' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_int16'>
-      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='435' column='1'/>
-      <parameter type-id='type-id-214' name='func' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='435' column='1'/>
-      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='435' column='1'/>
+    <function-decl name='nvlist_prtctlop_int16' mangled-name='nvlist_prtctlop_int16' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='435' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_int16'>
+      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='435' column='1'/>
+      <parameter type-id='type-id-214' name='func' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='435' column='1'/>
+      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='435' column='1'/>
       <return type-id='type-id-28'/>
     </function-decl>
     <pointer-type-def type-id='type-id-215' size-in-bits='64' id='type-id-216'/>
-    <function-decl name='nvlist_prtctlop_uint8' mangled-name='nvlist_prtctlop_uint8' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='434' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_uint8'>
-      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='434' column='1'/>
-      <parameter type-id='type-id-216' name='func' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='434' column='1'/>
-      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='434' column='1'/>
+    <function-decl name='nvlist_prtctlop_uint8' mangled-name='nvlist_prtctlop_uint8' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='434' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_uint8'>
+      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='434' column='1'/>
+      <parameter type-id='type-id-216' name='func' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='434' column='1'/>
+      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='434' column='1'/>
       <return type-id='type-id-28'/>
     </function-decl>
     <pointer-type-def type-id='type-id-217' size-in-bits='64' id='type-id-218'/>
-    <function-decl name='nvlist_prtctlop_int8' mangled-name='nvlist_prtctlop_int8' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='433' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_int8'>
-      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='433' column='1'/>
-      <parameter type-id='type-id-218' name='func' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='433' column='1'/>
-      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='433' column='1'/>
+    <function-decl name='nvlist_prtctlop_int8' mangled-name='nvlist_prtctlop_int8' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='433' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_int8'>
+      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='433' column='1'/>
+      <parameter type-id='type-id-218' name='func' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='433' column='1'/>
+      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='433' column='1'/>
       <return type-id='type-id-28'/>
     </function-decl>
     <pointer-type-def type-id='type-id-219' size-in-bits='64' id='type-id-220'/>
-    <function-decl name='nvlist_prtctlop_byte' mangled-name='nvlist_prtctlop_byte' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='432' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_byte'>
-      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='432' column='1'/>
-      <parameter type-id='type-id-220' name='func' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='432' column='1'/>
-      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='432' column='1'/>
+    <function-decl name='nvlist_prtctlop_byte' mangled-name='nvlist_prtctlop_byte' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='432' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_byte'>
+      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='432' column='1'/>
+      <parameter type-id='type-id-220' name='func' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='432' column='1'/>
+      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='432' column='1'/>
       <return type-id='type-id-28'/>
     </function-decl>
     <pointer-type-def type-id='type-id-221' size-in-bits='64' id='type-id-222'/>
-    <function-decl name='nvlist_prtctlop_boolean_value' mangled-name='nvlist_prtctlop_boolean_value' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='431' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_boolean_value'>
-      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='431' column='1'/>
-      <parameter type-id='type-id-222' name='func' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='431' column='1'/>
-      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='431' column='1'/>
+    <function-decl name='nvlist_prtctlop_boolean_value' mangled-name='nvlist_prtctlop_boolean_value' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='431' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_boolean_value'>
+      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='431' column='1'/>
+      <parameter type-id='type-id-222' name='func' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='431' column='1'/>
+      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='431' column='1'/>
       <return type-id='type-id-28'/>
     </function-decl>
     <pointer-type-def type-id='type-id-223' size-in-bits='64' id='type-id-224'/>
-    <function-decl name='nvlist_prtctlop_boolean' mangled-name='nvlist_prtctlop_boolean' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='430' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_boolean'>
-      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='430' column='1'/>
-      <parameter type-id='type-id-224' name='func' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='430' column='1'/>
-      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='430' column='1'/>
+    <function-decl name='nvlist_prtctlop_boolean' mangled-name='nvlist_prtctlop_boolean' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='430' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctlop_boolean'>
+      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='430' column='1'/>
+      <parameter type-id='type-id-224' name='func' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='430' column='1'/>
+      <parameter type-id='type-id-51' name='private' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='430' column='1'/>
       <return type-id='type-id-28'/>
     </function-decl>
     <enum-decl name='nvlist_prtctl_fmt' filepath='../../include/libnvpair.h' line='104' column='1' id='type-id-225'>
@@ -1123,37 +1123,37 @@
       <enumerator name='NVLIST_FMT_MEMBER_POSTAMBLE' value='1'/>
       <enumerator name='NVLIST_FMT_BTWN_ARRAY' value='2'/>
     </enum-decl>
-    <function-decl name='nvlist_prtctl_dofmt' mangled-name='nvlist_prtctl_dofmt' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='383' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctl_dofmt'>
-      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='383' column='1'/>
-      <parameter type-id='type-id-225' name='which' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='383' column='1'/>
+    <function-decl name='nvlist_prtctl_dofmt' mangled-name='nvlist_prtctl_dofmt' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='383' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctl_dofmt'>
+      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='383' column='1'/>
+      <parameter type-id='type-id-225' name='which' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='383' column='1'/>
       <parameter is-variadic='yes'/>
       <return type-id='type-id-28'/>
     </function-decl>
-    <function-decl name='nvlist_prtctl_setfmt' mangled-name='nvlist_prtctl_setfmt' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='350' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctl_setfmt'>
-      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='350' column='1'/>
-      <parameter type-id='type-id-225' name='which' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='350' column='1'/>
-      <parameter type-id='type-id-39' name='fmt' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='351' column='1'/>
+    <function-decl name='nvlist_prtctl_setfmt' mangled-name='nvlist_prtctl_setfmt' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='350' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctl_setfmt'>
+      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='350' column='1'/>
+      <parameter type-id='type-id-225' name='which' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='350' column='1'/>
+      <parameter type-id='type-id-39' name='fmt' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='351' column='1'/>
       <return type-id='type-id-28'/>
     </function-decl>
-    <function-decl name='nvlist_prtctl_doindent' mangled-name='nvlist_prtctl_doindent' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='343' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctl_doindent'>
-      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='343' column='1'/>
-      <parameter type-id='type-id-1' name='onemore' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='343' column='1'/>
+    <function-decl name='nvlist_prtctl_doindent' mangled-name='nvlist_prtctl_doindent' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='343' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctl_doindent'>
+      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='343' column='1'/>
+      <parameter type-id='type-id-1' name='onemore' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='343' column='1'/>
       <return type-id='type-id-28'/>
     </function-decl>
-    <function-decl name='nvlist_prtctl_setindent' mangled-name='nvlist_prtctl_setindent' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='325' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctl_setindent'>
-      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='325' column='1'/>
-      <parameter type-id='type-id-38' name='mode' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='325' column='1'/>
-      <parameter type-id='type-id-1' name='start' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='326' column='1'/>
-      <parameter type-id='type-id-1' name='inc' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='326' column='1'/>
+    <function-decl name='nvlist_prtctl_setindent' mangled-name='nvlist_prtctl_setindent' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='325' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctl_setindent'>
+      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='325' column='1'/>
+      <parameter type-id='type-id-38' name='mode' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='325' column='1'/>
+      <parameter type-id='type-id-1' name='start' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='326' column='1'/>
+      <parameter type-id='type-id-1' name='inc' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='326' column='1'/>
       <return type-id='type-id-28'/>
     </function-decl>
-    <function-decl name='nvlist_prtctl_getdest' mangled-name='nvlist_prtctl_getdest' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='318' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctl_getdest'>
-      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='318' column='1'/>
+    <function-decl name='nvlist_prtctl_getdest' mangled-name='nvlist_prtctl_getdest' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='318' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctl_getdest'>
+      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='318' column='1'/>
       <return type-id='type-id-37'/>
     </function-decl>
-    <function-decl name='nvlist_prtctl_setdest' mangled-name='nvlist_prtctl_setdest' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='312' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctl_setdest'>
-      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='312' column='1'/>
-      <parameter type-id='type-id-37' name='fp' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair.c' line='312' column='1'/>
+    <function-decl name='nvlist_prtctl_setdest' mangled-name='nvlist_prtctl_setdest' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='312' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_prtctl_setdest'>
+      <parameter type-id='type-id-170' name='pctl' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='312' column='1'/>
+      <parameter type-id='type-id-37' name='fp' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair.c' line='312' column='1'/>
       <return type-id='type-id-28'/>
     </function-decl>
     <function-decl name='nvpair_value_string' mangled-name='nvpair_value_string' filepath='../../include/sys/nvpair.h' line='257' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -1745,10 +1745,10 @@
       <return type-id='type-id-1'/>
     </function-type>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='libnvpair_json.c' comp-dir-path='/home/ryan/ZoF/lib/libnvpair' language='LANG_C99'>
-    <function-decl name='nvlist_print_json' mangled-name='nvlist_print_json' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair_json.c' line='118' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_print_json'>
-      <parameter type-id='type-id-37' name='fp' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair_json.c' line='118' column='1'/>
-      <parameter type-id='type-id-35' name='nvl' filepath='/home/ryan/ZoF/lib/libnvpair/libnvpair_json.c' line='118' column='1'/>
+  <abi-instr version='1.0' address-size='64' path='libnvpair_json.c' comp-dir-path='/home/ryan/zfs/lib/libnvpair' language='LANG_C99'>
+    <function-decl name='nvlist_print_json' mangled-name='nvlist_print_json' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair_json.c' line='118' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_print_json'>
+      <parameter type-id='type-id-37' name='fp' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair_json.c' line='118' column='1'/>
+      <parameter type-id='type-id-35' name='nvl' filepath='/home/ryan/zfs/lib/libnvpair/libnvpair_json.c' line='118' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='fnvpair_value_string' mangled-name='fnvpair_value_string' filepath='../../include/sys/nvpair.h' line='351' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -1797,7 +1797,7 @@
       <return type-id='type-id-28'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='nvpair_alloc_system.c' comp-dir-path='/home/ryan/ZoF/lib/libnvpair' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='nvpair_alloc_system.c' comp-dir-path='/home/ryan/zfs/lib/libnvpair' language='LANG_C99'>
     <class-decl name='nv_alloc' size-in-bits='128' is-struct='yes' visibility='default' filepath='../../include/sys/nvpair.h' line='125' column='1' id='type-id-226'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='nva_ops' type-id='type-id-227' visibility='default' filepath='../../include/sys/nvpair.h' line='126' column='1'/>
@@ -1847,9 +1847,9 @@
     <typedef-decl name='nv_alloc_ops_t' type-id='type-id-228' filepath='../../include/sys/nvpair.h' line='123' column='1' id='type-id-241'/>
     <qualified-type-def type-id='type-id-241' const='yes' id='type-id-242'/>
     <pointer-type-def type-id='type-id-242' size-in-bits='64' id='type-id-227'/>
-    <var-decl name='nv_alloc_sleep_def' type-id='type-id-233' mangled-name='nv_alloc_sleep_def' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/nvpair_alloc_system.c' line='54' column='1' elf-symbol-id='nv_alloc_sleep_def'/>
-    <var-decl name='nv_alloc_nosleep_def' type-id='type-id-233' mangled-name='nv_alloc_nosleep_def' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/nvpair_alloc_system.c' line='59' column='1' elf-symbol-id='nv_alloc_nosleep_def'/>
-    <var-decl name='nv_alloc_sleep' type-id='type-id-234' mangled-name='nv_alloc_sleep' visibility='default' filepath='/home/ryan/ZoF/lib/libnvpair/nvpair_alloc_system.c' line='64' column='1' elf-symbol-id='nv_alloc_sleep'/>
+    <var-decl name='nv_alloc_sleep_def' type-id='type-id-233' mangled-name='nv_alloc_sleep_def' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/nvpair_alloc_system.c' line='54' column='1' elf-symbol-id='nv_alloc_sleep_def'/>
+    <var-decl name='nv_alloc_nosleep_def' type-id='type-id-233' mangled-name='nv_alloc_nosleep_def' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/nvpair_alloc_system.c' line='59' column='1' elf-symbol-id='nv_alloc_nosleep_def'/>
+    <var-decl name='nv_alloc_sleep' type-id='type-id-234' mangled-name='nv_alloc_sleep' visibility='default' filepath='/home/ryan/zfs/lib/libnvpair/nvpair_alloc_system.c' line='64' column='1' elf-symbol-id='nv_alloc_sleep'/>
     <var-decl name='nv_alloc_nosleep' type-id='type-id-234' mangled-name='nv_alloc_nosleep' visibility='default' filepath='../../include/sys/nvpair.h' line='139' column='1' elf-symbol-id='nv_alloc_nosleep'/>
     <function-type size-in-bits='64' id='type-id-237'>
       <parameter type-id='type-id-234'/>
@@ -1872,11 +1872,11 @@
       <return type-id='type-id-51'/>
     </function-type>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='../../module/nvpair/nvpair_alloc_fixed.c' comp-dir-path='/home/ryan/ZoF/lib/libnvpair' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='../../module/nvpair/nvpair_alloc_fixed.c' comp-dir-path='/home/ryan/zfs/lib/libnvpair' language='LANG_C99'>
     <var-decl name='nv_fixed_ops_def' type-id='type-id-242' mangled-name='nv_fixed_ops_def' visibility='default' filepath='../../module/nvpair/nvpair_alloc_fixed.c' line='103' column='1' elf-symbol-id='nv_fixed_ops_def'/>
     <var-decl name='nv_fixed_ops' type-id='type-id-227' mangled-name='nv_fixed_ops' visibility='default' filepath='../../include/sys/nvpair.h' line='138' column='1' elf-symbol-id='nv_fixed_ops'/>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='../../module/nvpair/nvpair.c' comp-dir-path='/home/ryan/ZoF/lib/libnvpair' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='../../module/nvpair/nvpair.c' comp-dir-path='/home/ryan/zfs/lib/libnvpair' language='LANG_C99'>
     <var-decl name='nvpair_max_recursion' type-id='type-id-1' mangled-name='nvpair_max_recursion' visibility='default' filepath='../../module/nvpair/nvpair.c' line='151' column='1' elf-symbol-id='nvpair_max_recursion'/>
     <var-decl name='nvlist_hashtable_init_size' type-id='type-id-31' mangled-name='nvlist_hashtable_init_size' visibility='default' filepath='../../module/nvpair/nvpair.c' line='154' column='1' elf-symbol-id='nvlist_hashtable_init_size'/>
     <function-decl name='nvlist_xunpack' mangled-name='nvlist_xunpack' filepath='../../module/nvpair/nvpair.c' line='2721' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_xunpack'>
@@ -2603,7 +2603,7 @@
       <return type-id='type-id-28'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='../../module/nvpair/fnvpair.c' comp-dir-path='/home/ryan/ZoF/lib/libnvpair' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='../../module/nvpair/fnvpair.c' comp-dir-path='/home/ryan/zfs/lib/libnvpair' language='LANG_C99'>
     <function-decl name='fnvpair_value_nvlist' mangled-name='fnvpair_value_nvlist' filepath='../../module/nvpair/fnvpair.c' line='583' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='fnvpair_value_nvlist'>
       <parameter type-id='type-id-12' name='nvp' filepath='../../module/nvpair/fnvpair.c' line='583' column='1'/>
       <return type-id='type-id-35'/>
@@ -3175,7 +3175,7 @@
       <return type-id='type-id-28'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='assert.c' comp-dir-path='/home/ryan/ZoF/lib/libspl' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='assert.c' comp-dir-path='/home/ryan/zfs/lib/libspl' language='LANG_C99'>
     <var-decl name='aok' type-id='type-id-1' mangled-name='aok' visibility='default' filepath='../../lib/libspl/include/assert.h' line='37' column='1' elf-symbol-id='aok'/>
     <function-decl name='vfprintf' mangled-name='vfprintf' filepath='/usr/include/stdio.h' line='341' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-28'/>

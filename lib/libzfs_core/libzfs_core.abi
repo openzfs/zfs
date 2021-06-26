@@ -292,7 +292,7 @@
     <elf-symbol name='efi_debug' size='4' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='pagesize' size='8' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
   </elf-variable-symbols>
-  <abi-instr version='1.0' address-size='64' path='libzfs_core.c' comp-dir-path='/home/ryan/ZoF/lib/libzfs_core' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='libzfs_core.c' comp-dir-path='/home/ryan/zfs/lib/libzfs_core' language='LANG_C99'>
     <type-decl name='int' size-in-bits='32' id='type-id-1'/>
     <type-decl name='char' size-in-bits='8' id='type-id-2'/>
     <qualified-type-def type-id='type-id-2' const='yes' id='type-id-3'/>
@@ -325,25 +325,25 @@
     <typedef-decl name='nvlist_t' type-id='type-id-5' filepath='../../include/sys/nvpair.h' line='91' column='1' id='type-id-14'/>
     <pointer-type-def type-id='type-id-14' size-in-bits='64' id='type-id-15'/>
     <pointer-type-def type-id='type-id-15' size-in-bits='64' id='type-id-16'/>
-    <function-decl name='lzc_get_bootenv' mangled-name='lzc_get_bootenv' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1637' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_get_bootenv'>
-      <parameter type-id='type-id-4' name='pool' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1637' column='1'/>
-      <parameter type-id='type-id-16' name='outnvl' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1637' column='1'/>
+    <function-decl name='lzc_get_bootenv' mangled-name='lzc_get_bootenv' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1637' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_get_bootenv'>
+      <parameter type-id='type-id-4' name='pool' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1637' column='1'/>
+      <parameter type-id='type-id-16' name='outnvl' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1637' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <qualified-type-def type-id='type-id-14' const='yes' id='type-id-17'/>
     <pointer-type-def type-id='type-id-17' size-in-bits='64' id='type-id-18'/>
-    <function-decl name='lzc_set_bootenv' mangled-name='lzc_set_bootenv' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1628' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_set_bootenv'>
-      <parameter type-id='type-id-4' name='pool' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1628' column='1'/>
-      <parameter type-id='type-id-18' name='env' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1628' column='1'/>
+    <function-decl name='lzc_set_bootenv' mangled-name='lzc_set_bootenv' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1628' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_set_bootenv'>
+      <parameter type-id='type-id-4' name='pool' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1628' column='1'/>
+      <parameter type-id='type-id-18' name='env' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1628' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <type-decl name='unnamed-enum-underlying-type' is-anonymous='yes' size-in-bits='32' alignment-in-bits='32' id='type-id-19'/>
-    <enum-decl name='__anonymous_enum__' is-anonymous='yes' filepath='../../include/sys/fs/zfs.h' line='1439' column='1' id='type-id-20'>
+    <enum-decl name='__anonymous_enum__' is-anonymous='yes' filepath='../../include/sys/fs/zfs.h' line='1445' column='1' id='type-id-20'>
       <underlying-type type-id='type-id-19'/>
       <enumerator name='ZFS_WAIT_DELETEQ' value='0'/>
       <enumerator name='ZFS_WAIT_NUM_ACTIVITIES' value='1'/>
     </enum-decl>
-    <typedef-decl name='zfs_wait_activity_t' type-id='type-id-20' filepath='../../include/sys/fs/zfs.h' line='1442' column='1' id='type-id-21'/>
+    <typedef-decl name='zfs_wait_activity_t' type-id='type-id-20' filepath='../../include/sys/fs/zfs.h' line='1448' column='1' id='type-id-21'/>
     <enum-decl name='__anonymous_enum__' is-anonymous='yes' filepath='../../lib/libspl/include/sys/stdtypes.h' line='26' column='1' id='type-id-22'>
       <underlying-type type-id='type-id-19'/>
       <enumerator name='B_FALSE' value='0'/>
@@ -351,13 +351,13 @@
     </enum-decl>
     <typedef-decl name='boolean_t' type-id='type-id-22' filepath='../../lib/libspl/include/sys/stdtypes.h' line='29' column='1' id='type-id-23'/>
     <pointer-type-def type-id='type-id-23' size-in-bits='64' id='type-id-24'/>
-    <function-decl name='lzc_wait_fs' mangled-name='lzc_wait_fs' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1605' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_wait_fs'>
-      <parameter type-id='type-id-4' name='fs' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1605' column='1'/>
-      <parameter type-id='type-id-21' name='activity' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1605' column='1'/>
-      <parameter type-id='type-id-24' name='waited' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1605' column='1'/>
+    <function-decl name='lzc_wait_fs' mangled-name='lzc_wait_fs' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1605' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_wait_fs'>
+      <parameter type-id='type-id-4' name='fs' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1605' column='1'/>
+      <parameter type-id='type-id-21' name='activity' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1605' column='1'/>
+      <parameter type-id='type-id-24' name='waited' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1605' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <enum-decl name='__anonymous_enum__' is-anonymous='yes' filepath='../../include/sys/fs/zfs.h' line='1427' column='1' id='type-id-25'>
+    <enum-decl name='__anonymous_enum__' is-anonymous='yes' filepath='../../include/sys/fs/zfs.h' line='1433' column='1' id='type-id-25'>
       <underlying-type type-id='type-id-19'/>
       <enumerator name='ZPOOL_WAIT_CKPT_DISCARD' value='0'/>
       <enumerator name='ZPOOL_WAIT_FREE' value='1'/>
@@ -369,61 +369,61 @@
       <enumerator name='ZPOOL_WAIT_TRIM' value='7'/>
       <enumerator name='ZPOOL_WAIT_NUM_ACTIVITIES' value='8'/>
     </enum-decl>
-    <typedef-decl name='zpool_wait_activity_t' type-id='type-id-25' filepath='../../include/sys/fs/zfs.h' line='1437' column='1' id='type-id-26'/>
-    <function-decl name='lzc_wait_tag' mangled-name='lzc_wait_tag' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1598' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_wait_tag'>
-      <parameter type-id='type-id-4' name='pool' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1598' column='1'/>
-      <parameter type-id='type-id-26' name='activity' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1598' column='1'/>
-      <parameter type-id='type-id-8' name='tag' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1598' column='1'/>
-      <parameter type-id='type-id-24' name='waited' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1599' column='1'/>
+    <typedef-decl name='zpool_wait_activity_t' type-id='type-id-25' filepath='../../include/sys/fs/zfs.h' line='1443' column='1' id='type-id-26'/>
+    <function-decl name='lzc_wait_tag' mangled-name='lzc_wait_tag' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1598' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_wait_tag'>
+      <parameter type-id='type-id-4' name='pool' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1598' column='1'/>
+      <parameter type-id='type-id-26' name='activity' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1598' column='1'/>
+      <parameter type-id='type-id-8' name='tag' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1598' column='1'/>
+      <parameter type-id='type-id-24' name='waited' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1599' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='lzc_wait' mangled-name='lzc_wait' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1592' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_wait'>
-      <parameter type-id='type-id-4' name='pool' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1592' column='1'/>
-      <parameter type-id='type-id-26' name='activity' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1592' column='1'/>
-      <parameter type-id='type-id-24' name='waited' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1592' column='1'/>
+    <function-decl name='lzc_wait' mangled-name='lzc_wait' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1592' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_wait'>
+      <parameter type-id='type-id-4' name='pool' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1592' column='1'/>
+      <parameter type-id='type-id-26' name='activity' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1592' column='1'/>
+      <parameter type-id='type-id-24' name='waited' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1592' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='lzc_redact' mangled-name='lzc_redact' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1558' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_redact'>
-      <parameter type-id='type-id-4' name='snapshot' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1558' column='1'/>
-      <parameter type-id='type-id-4' name='bookname' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1558' column='1'/>
-      <parameter type-id='type-id-15' name='snapnv' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1558' column='1'/>
+    <function-decl name='lzc_redact' mangled-name='lzc_redact' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1558' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_redact'>
+      <parameter type-id='type-id-4' name='snapshot' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1558' column='1'/>
+      <parameter type-id='type-id-4' name='bookname' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1558' column='1'/>
+      <parameter type-id='type-id-15' name='snapnv' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1558' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <enum-decl name='pool_trim_func' filepath='../../include/sys/fs/zfs.h' line='1177' column='1' id='type-id-27'>
+    <enum-decl name='pool_trim_func' filepath='../../include/sys/fs/zfs.h' line='1183' column='1' id='type-id-27'>
       <underlying-type type-id='type-id-19'/>
       <enumerator name='POOL_TRIM_START' value='0'/>
       <enumerator name='POOL_TRIM_CANCEL' value='1'/>
       <enumerator name='POOL_TRIM_SUSPEND' value='2'/>
       <enumerator name='POOL_TRIM_FUNCS' value='3'/>
     </enum-decl>
-    <typedef-decl name='pool_trim_func_t' type-id='type-id-27' filepath='../../include/sys/fs/zfs.h' line='1182' column='1' id='type-id-28'/>
-    <function-decl name='lzc_trim' mangled-name='lzc_trim' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1535' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_trim'>
-      <parameter type-id='type-id-4' name='poolname' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1535' column='1'/>
-      <parameter type-id='type-id-28' name='cmd_type' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1535' column='1'/>
-      <parameter type-id='type-id-8' name='rate' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1535' column='1'/>
-      <parameter type-id='type-id-23' name='secure' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1536' column='1'/>
-      <parameter type-id='type-id-15' name='vdevs' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1536' column='1'/>
-      <parameter type-id='type-id-16' name='errlist' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1536' column='1'/>
+    <typedef-decl name='pool_trim_func_t' type-id='type-id-27' filepath='../../include/sys/fs/zfs.h' line='1188' column='1' id='type-id-28'/>
+    <function-decl name='lzc_trim' mangled-name='lzc_trim' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1535' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_trim'>
+      <parameter type-id='type-id-4' name='poolname' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1535' column='1'/>
+      <parameter type-id='type-id-28' name='cmd_type' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1535' column='1'/>
+      <parameter type-id='type-id-8' name='rate' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1535' column='1'/>
+      <parameter type-id='type-id-23' name='secure' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1536' column='1'/>
+      <parameter type-id='type-id-15' name='vdevs' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1536' column='1'/>
+      <parameter type-id='type-id-16' name='errlist' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1536' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <enum-decl name='pool_initialize_func' filepath='../../include/sys/fs/zfs.h' line='1167' column='1' id='type-id-29'>
+    <enum-decl name='pool_initialize_func' filepath='../../include/sys/fs/zfs.h' line='1173' column='1' id='type-id-29'>
       <underlying-type type-id='type-id-19'/>
       <enumerator name='POOL_INITIALIZE_START' value='0'/>
       <enumerator name='POOL_INITIALIZE_CANCEL' value='1'/>
       <enumerator name='POOL_INITIALIZE_SUSPEND' value='2'/>
       <enumerator name='POOL_INITIALIZE_FUNCS' value='3'/>
     </enum-decl>
-    <typedef-decl name='pool_initialize_func_t' type-id='type-id-29' filepath='../../include/sys/fs/zfs.h' line='1172' column='1' id='type-id-30'/>
-    <function-decl name='lzc_initialize' mangled-name='lzc_initialize' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1495' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_initialize'>
-      <parameter type-id='type-id-4' name='poolname' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1495' column='1'/>
-      <parameter type-id='type-id-30' name='cmd_type' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1495' column='1'/>
-      <parameter type-id='type-id-15' name='vdevs' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1496' column='1'/>
-      <parameter type-id='type-id-16' name='errlist' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1496' column='1'/>
+    <typedef-decl name='pool_initialize_func_t' type-id='type-id-29' filepath='../../include/sys/fs/zfs.h' line='1178' column='1' id='type-id-30'/>
+    <function-decl name='lzc_initialize' mangled-name='lzc_initialize' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1495' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_initialize'>
+      <parameter type-id='type-id-4' name='poolname' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1495' column='1'/>
+      <parameter type-id='type-id-30' name='cmd_type' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1495' column='1'/>
+      <parameter type-id='type-id-15' name='vdevs' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1496' column='1'/>
+      <parameter type-id='type-id-16' name='errlist' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1496' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='lzc_reopen' mangled-name='lzc_reopen' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1460' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_reopen'>
-      <parameter type-id='type-id-4' name='pool_name' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1460' column='1'/>
-      <parameter type-id='type-id-23' name='scrub_restart' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1460' column='1'/>
+    <function-decl name='lzc_reopen' mangled-name='lzc_reopen' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1460' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_reopen'>
+      <parameter type-id='type-id-4' name='pool_name' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1460' column='1'/>
+      <parameter type-id='type-id-23' name='scrub_restart' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1460' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <type-decl name='unsigned char' size-in-bits='8' id='type-id-31'/>
@@ -431,82 +431,82 @@
     <typedef-decl name='uint8_t' type-id='type-id-32' filepath='/usr/include/x86_64-linux-gnu/bits/stdint-uintn.h' line='24' column='1' id='type-id-33'/>
     <pointer-type-def type-id='type-id-33' size-in-bits='64' id='type-id-34'/>
     <typedef-decl name='uint_t' type-id='type-id-10' filepath='../../lib/libspl/include/sys/stdtypes.h' line='33' column='1' id='type-id-35'/>
-    <function-decl name='lzc_change_key' mangled-name='lzc_change_key' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1433' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_change_key'>
-      <parameter type-id='type-id-4' name='fsname' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1433' column='1'/>
-      <parameter type-id='type-id-8' name='crypt_cmd' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1433' column='1'/>
-      <parameter type-id='type-id-15' name='props' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1433' column='1'/>
-      <parameter type-id='type-id-34' name='wkeydata' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1434' column='1'/>
-      <parameter type-id='type-id-35' name='wkeylen' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1434' column='1'/>
+    <function-decl name='lzc_change_key' mangled-name='lzc_change_key' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1433' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_change_key'>
+      <parameter type-id='type-id-4' name='fsname' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1433' column='1'/>
+      <parameter type-id='type-id-8' name='crypt_cmd' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1433' column='1'/>
+      <parameter type-id='type-id-15' name='props' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1433' column='1'/>
+      <parameter type-id='type-id-34' name='wkeydata' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1434' column='1'/>
+      <parameter type-id='type-id-35' name='wkeylen' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1434' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='lzc_unload_key' mangled-name='lzc_unload_key' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1427' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_unload_key'>
-      <parameter type-id='type-id-4' name='fsname' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1427' column='1'/>
+    <function-decl name='lzc_unload_key' mangled-name='lzc_unload_key' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1427' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_unload_key'>
+      <parameter type-id='type-id-4' name='fsname' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1427' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='lzc_load_key' mangled-name='lzc_load_key' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1403' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_load_key'>
-      <parameter type-id='type-id-4' name='fsname' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1403' column='1'/>
-      <parameter type-id='type-id-23' name='noop' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1403' column='1'/>
-      <parameter type-id='type-id-34' name='wkeydata' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1403' column='1'/>
-      <parameter type-id='type-id-35' name='wkeylen' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1404' column='1'/>
+    <function-decl name='lzc_load_key' mangled-name='lzc_load_key' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1403' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_load_key'>
+      <parameter type-id='type-id-4' name='fsname' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1403' column='1'/>
+      <parameter type-id='type-id-23' name='noop' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1403' column='1'/>
+      <parameter type-id='type-id-34' name='wkeydata' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1403' column='1'/>
+      <parameter type-id='type-id-35' name='wkeylen' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1404' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='lzc_channel_program_nosync' mangled-name='lzc_channel_program_nosync' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1388' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_channel_program_nosync'>
-      <parameter type-id='type-id-4' name='pool' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1388' column='1'/>
-      <parameter type-id='type-id-4' name='program' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1388' column='1'/>
-      <parameter type-id='type-id-8' name='timeout' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1389' column='1'/>
-      <parameter type-id='type-id-8' name='memlimit' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1389' column='1'/>
-      <parameter type-id='type-id-15' name='argnvl' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1389' column='1'/>
-      <parameter type-id='type-id-16' name='outnvl' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1389' column='1'/>
+    <function-decl name='lzc_channel_program_nosync' mangled-name='lzc_channel_program_nosync' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1388' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_channel_program_nosync'>
+      <parameter type-id='type-id-4' name='pool' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1388' column='1'/>
+      <parameter type-id='type-id-4' name='program' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1388' column='1'/>
+      <parameter type-id='type-id-8' name='timeout' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1389' column='1'/>
+      <parameter type-id='type-id-8' name='memlimit' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1389' column='1'/>
+      <parameter type-id='type-id-15' name='argnvl' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1389' column='1'/>
+      <parameter type-id='type-id-16' name='outnvl' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1389' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='lzc_pool_checkpoint_discard' mangled-name='lzc_pool_checkpoint_discard' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1360' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_pool_checkpoint_discard'>
-      <parameter type-id='type-id-4' name='pool' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1360' column='1'/>
+    <function-decl name='lzc_pool_checkpoint_discard' mangled-name='lzc_pool_checkpoint_discard' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1360' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_pool_checkpoint_discard'>
+      <parameter type-id='type-id-4' name='pool' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1360' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='lzc_pool_checkpoint' mangled-name='lzc_pool_checkpoint' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1331' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_pool_checkpoint'>
-      <parameter type-id='type-id-4' name='pool' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1360' column='1'/>
+    <function-decl name='lzc_pool_checkpoint' mangled-name='lzc_pool_checkpoint' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1331' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_pool_checkpoint'>
+      <parameter type-id='type-id-4' name='pool' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1360' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='lzc_channel_program' mangled-name='lzc_channel_program' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1300' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_channel_program'>
-      <parameter type-id='type-id-4' name='pool' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1388' column='1'/>
-      <parameter type-id='type-id-4' name='program' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1388' column='1'/>
-      <parameter type-id='type-id-8' name='timeout' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1389' column='1'/>
-      <parameter type-id='type-id-8' name='memlimit' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1389' column='1'/>
-      <parameter type-id='type-id-15' name='argnvl' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1389' column='1'/>
-      <parameter type-id='type-id-16' name='outnvl' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1389' column='1'/>
+    <function-decl name='lzc_channel_program' mangled-name='lzc_channel_program' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1300' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_channel_program'>
+      <parameter type-id='type-id-4' name='pool' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1388' column='1'/>
+      <parameter type-id='type-id-4' name='program' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1388' column='1'/>
+      <parameter type-id='type-id-8' name='timeout' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1389' column='1'/>
+      <parameter type-id='type-id-8' name='memlimit' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1389' column='1'/>
+      <parameter type-id='type-id-15' name='argnvl' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1389' column='1'/>
+      <parameter type-id='type-id-16' name='outnvl' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1389' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='lzc_destroy_bookmarks' mangled-name='lzc_destroy_bookmarks' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1229' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_destroy_bookmarks'>
-      <parameter type-id='type-id-15' name='bmarks' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1229' column='1'/>
-      <parameter type-id='type-id-16' name='errlist' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1229' column='1'/>
+    <function-decl name='lzc_destroy_bookmarks' mangled-name='lzc_destroy_bookmarks' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1229' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_destroy_bookmarks'>
+      <parameter type-id='type-id-15' name='bmarks' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1229' column='1'/>
+      <parameter type-id='type-id-16' name='errlist' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1229' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='lzc_get_bookmark_props' mangled-name='lzc_get_bookmark_props' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1201' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_get_bookmark_props'>
-      <parameter type-id='type-id-4' name='bookmark' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1201' column='1'/>
-      <parameter type-id='type-id-16' name='props' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1201' column='1'/>
+    <function-decl name='lzc_get_bookmark_props' mangled-name='lzc_get_bookmark_props' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1201' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_get_bookmark_props'>
+      <parameter type-id='type-id-4' name='bookmark' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1201' column='1'/>
+      <parameter type-id='type-id-16' name='props' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1201' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='lzc_get_bookmarks' mangled-name='lzc_get_bookmarks' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1180' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_get_bookmarks'>
-      <parameter type-id='type-id-4' name='fsname' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1180' column='1'/>
-      <parameter type-id='type-id-15' name='props' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1180' column='1'/>
-      <parameter type-id='type-id-16' name='bmarks' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1180' column='1'/>
+    <function-decl name='lzc_get_bookmarks' mangled-name='lzc_get_bookmarks' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1180' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_get_bookmarks'>
+      <parameter type-id='type-id-4' name='fsname' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1180' column='1'/>
+      <parameter type-id='type-id-15' name='props' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1180' column='1'/>
+      <parameter type-id='type-id-16' name='bmarks' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1180' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='lzc_bookmark' mangled-name='lzc_bookmark' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1125' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_bookmark'>
-      <parameter type-id='type-id-15' name='bmarks' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1229' column='1'/>
-      <parameter type-id='type-id-16' name='errlist' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1229' column='1'/>
+    <function-decl name='lzc_bookmark' mangled-name='lzc_bookmark' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1125' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_bookmark'>
+      <parameter type-id='type-id-15' name='bmarks' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1229' column='1'/>
+      <parameter type-id='type-id-16' name='errlist' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1229' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='lzc_rollback_to' mangled-name='lzc_rollback_to' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1095' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_rollback_to'>
-      <parameter type-id='type-id-4' name='fsname' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1095' column='1'/>
-      <parameter type-id='type-id-4' name='snapname' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1095' column='1'/>
+    <function-decl name='lzc_rollback_to' mangled-name='lzc_rollback_to' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1095' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_rollback_to'>
+      <parameter type-id='type-id-4' name='fsname' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1095' column='1'/>
+      <parameter type-id='type-id-4' name='snapname' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1095' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <pointer-type-def type-id='type-id-2' size-in-bits='64' id='type-id-36'/>
-    <function-decl name='lzc_rollback' mangled-name='lzc_rollback' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1070' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_rollback'>
-      <parameter type-id='type-id-4' name='fsname' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1070' column='1'/>
-      <parameter type-id='type-id-36' name='snapnamebuf' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1070' column='1'/>
-      <parameter type-id='type-id-1' name='snapnamelen' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1070' column='1'/>
+    <function-decl name='lzc_rollback' mangled-name='lzc_rollback' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1070' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_rollback'>
+      <parameter type-id='type-id-4' name='fsname' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1070' column='1'/>
+      <parameter type-id='type-id-36' name='snapnamebuf' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1070' column='1'/>
+      <parameter type-id='type-id-1' name='snapnamelen' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1070' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <class-decl name='dmu_replay_record' size-in-bits='2496' is-struct='yes' visibility='default' filepath='../../include/sys/zfs_ioctl.h' line='242' column='1' id='type-id-37'>
@@ -1030,68 +1030,68 @@
     <qualified-type-def type-id='type-id-78' const='yes' id='type-id-79'/>
     <pointer-type-def type-id='type-id-79' size-in-bits='64' id='type-id-80'/>
     <pointer-type-def type-id='type-id-8' size-in-bits='64' id='type-id-81'/>
-    <function-decl name='lzc_receive_with_cmdprops' mangled-name='lzc_receive_with_cmdprops' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1047' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_receive_with_cmdprops'>
-      <parameter type-id='type-id-4' name='snapname' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1047' column='1'/>
-      <parameter type-id='type-id-15' name='props' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1047' column='1'/>
-      <parameter type-id='type-id-15' name='cmdprops' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1048' column='1'/>
-      <parameter type-id='type-id-34' name='wkeydata' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1048' column='1'/>
-      <parameter type-id='type-id-35' name='wkeylen' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1048' column='1'/>
-      <parameter type-id='type-id-4' name='origin' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1048' column='1'/>
-      <parameter type-id='type-id-23' name='force' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1049' column='1'/>
-      <parameter type-id='type-id-23' name='resumable' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1049' column='1'/>
-      <parameter type-id='type-id-23' name='raw' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1049' column='1'/>
-      <parameter type-id='type-id-1' name='input_fd' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1049' column='1'/>
-      <parameter type-id='type-id-80' name='begin_record' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1050' column='1'/>
-      <parameter type-id='type-id-1' name='cleanup_fd' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1050' column='1'/>
-      <parameter type-id='type-id-81' name='read_bytes' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1051' column='1'/>
-      <parameter type-id='type-id-81' name='errflags' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1051' column='1'/>
-      <parameter type-id='type-id-81' name='action_handle' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1051' column='1'/>
-      <parameter type-id='type-id-16' name='errors' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1052' column='1'/>
+    <function-decl name='lzc_receive_with_cmdprops' mangled-name='lzc_receive_with_cmdprops' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1047' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_receive_with_cmdprops'>
+      <parameter type-id='type-id-4' name='snapname' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1047' column='1'/>
+      <parameter type-id='type-id-15' name='props' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1047' column='1'/>
+      <parameter type-id='type-id-15' name='cmdprops' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1048' column='1'/>
+      <parameter type-id='type-id-34' name='wkeydata' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1048' column='1'/>
+      <parameter type-id='type-id-35' name='wkeylen' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1048' column='1'/>
+      <parameter type-id='type-id-4' name='origin' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1048' column='1'/>
+      <parameter type-id='type-id-23' name='force' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1049' column='1'/>
+      <parameter type-id='type-id-23' name='resumable' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1049' column='1'/>
+      <parameter type-id='type-id-23' name='raw' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1049' column='1'/>
+      <parameter type-id='type-id-1' name='input_fd' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1049' column='1'/>
+      <parameter type-id='type-id-80' name='begin_record' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1050' column='1'/>
+      <parameter type-id='type-id-1' name='cleanup_fd' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1050' column='1'/>
+      <parameter type-id='type-id-81' name='read_bytes' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1051' column='1'/>
+      <parameter type-id='type-id-81' name='errflags' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1051' column='1'/>
+      <parameter type-id='type-id-81' name='action_handle' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1051' column='1'/>
+      <parameter type-id='type-id-16' name='errors' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1052' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='lzc_receive_one' mangled-name='lzc_receive_one' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1028' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_receive_one'>
-      <parameter type-id='type-id-4' name='snapname' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1028' column='1'/>
-      <parameter type-id='type-id-15' name='props' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1028' column='1'/>
-      <parameter type-id='type-id-4' name='origin' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1029' column='1'/>
-      <parameter type-id='type-id-23' name='force' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1029' column='1'/>
-      <parameter type-id='type-id-23' name='resumable' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1029' column='1'/>
-      <parameter type-id='type-id-23' name='raw' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1029' column='1'/>
-      <parameter type-id='type-id-1' name='input_fd' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1030' column='1'/>
-      <parameter type-id='type-id-80' name='begin_record' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1030' column='1'/>
-      <parameter type-id='type-id-1' name='cleanup_fd' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1030' column='1'/>
-      <parameter type-id='type-id-81' name='read_bytes' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1031' column='1'/>
-      <parameter type-id='type-id-81' name='errflags' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1031' column='1'/>
-      <parameter type-id='type-id-81' name='action_handle' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1031' column='1'/>
-      <parameter type-id='type-id-16' name='errors' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1032' column='1'/>
+    <function-decl name='lzc_receive_one' mangled-name='lzc_receive_one' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1028' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_receive_one'>
+      <parameter type-id='type-id-4' name='snapname' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1028' column='1'/>
+      <parameter type-id='type-id-15' name='props' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1028' column='1'/>
+      <parameter type-id='type-id-4' name='origin' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1029' column='1'/>
+      <parameter type-id='type-id-23' name='force' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1029' column='1'/>
+      <parameter type-id='type-id-23' name='resumable' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1029' column='1'/>
+      <parameter type-id='type-id-23' name='raw' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1029' column='1'/>
+      <parameter type-id='type-id-1' name='input_fd' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1030' column='1'/>
+      <parameter type-id='type-id-80' name='begin_record' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1030' column='1'/>
+      <parameter type-id='type-id-1' name='cleanup_fd' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1030' column='1'/>
+      <parameter type-id='type-id-81' name='read_bytes' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1031' column='1'/>
+      <parameter type-id='type-id-81' name='errflags' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1031' column='1'/>
+      <parameter type-id='type-id-81' name='action_handle' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1031' column='1'/>
+      <parameter type-id='type-id-16' name='errors' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1032' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='lzc_receive_with_header' mangled-name='lzc_receive_with_header' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='999' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_receive_with_header'>
-      <parameter type-id='type-id-4' name='snapname' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='999' column='1'/>
-      <parameter type-id='type-id-15' name='props' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='999' column='1'/>
-      <parameter type-id='type-id-4' name='origin' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1000' column='1'/>
-      <parameter type-id='type-id-23' name='force' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1000' column='1'/>
-      <parameter type-id='type-id-23' name='resumable' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1000' column='1'/>
-      <parameter type-id='type-id-23' name='raw' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1000' column='1'/>
-      <parameter type-id='type-id-1' name='fd' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1001' column='1'/>
-      <parameter type-id='type-id-80' name='begin_record' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1001' column='1'/>
+    <function-decl name='lzc_receive_with_header' mangled-name='lzc_receive_with_header' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='999' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_receive_with_header'>
+      <parameter type-id='type-id-4' name='snapname' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='999' column='1'/>
+      <parameter type-id='type-id-15' name='props' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='999' column='1'/>
+      <parameter type-id='type-id-4' name='origin' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1000' column='1'/>
+      <parameter type-id='type-id-23' name='force' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1000' column='1'/>
+      <parameter type-id='type-id-23' name='resumable' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1000' column='1'/>
+      <parameter type-id='type-id-23' name='raw' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1000' column='1'/>
+      <parameter type-id='type-id-1' name='fd' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1001' column='1'/>
+      <parameter type-id='type-id-80' name='begin_record' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1001' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='lzc_receive_resumable' mangled-name='lzc_receive_resumable' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='980' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_receive_resumable'>
-      <parameter type-id='type-id-4' name='snapname' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='980' column='1'/>
-      <parameter type-id='type-id-15' name='props' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='980' column='1'/>
-      <parameter type-id='type-id-4' name='origin' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='980' column='1'/>
-      <parameter type-id='type-id-23' name='force' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='981' column='1'/>
-      <parameter type-id='type-id-23' name='raw' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='981' column='1'/>
-      <parameter type-id='type-id-1' name='fd' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='981' column='1'/>
+    <function-decl name='lzc_receive_resumable' mangled-name='lzc_receive_resumable' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='980' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_receive_resumable'>
+      <parameter type-id='type-id-4' name='snapname' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='980' column='1'/>
+      <parameter type-id='type-id-15' name='props' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='980' column='1'/>
+      <parameter type-id='type-id-4' name='origin' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='980' column='1'/>
+      <parameter type-id='type-id-23' name='force' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='981' column='1'/>
+      <parameter type-id='type-id-23' name='raw' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='981' column='1'/>
+      <parameter type-id='type-id-1' name='fd' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='981' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='lzc_receive' mangled-name='lzc_receive' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='966' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_receive'>
-      <parameter type-id='type-id-4' name='snapname' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='980' column='1'/>
-      <parameter type-id='type-id-15' name='props' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='980' column='1'/>
-      <parameter type-id='type-id-4' name='origin' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='980' column='1'/>
-      <parameter type-id='type-id-23' name='force' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='981' column='1'/>
-      <parameter type-id='type-id-23' name='raw' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='981' column='1'/>
-      <parameter type-id='type-id-1' name='fd' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='981' column='1'/>
+    <function-decl name='lzc_receive' mangled-name='lzc_receive' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='966' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_receive'>
+      <parameter type-id='type-id-4' name='snapname' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='980' column='1'/>
+      <parameter type-id='type-id-15' name='props' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='980' column='1'/>
+      <parameter type-id='type-id-4' name='origin' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='980' column='1'/>
+      <parameter type-id='type-id-23' name='force' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='981' column='1'/>
+      <parameter type-id='type-id-23' name='raw' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='981' column='1'/>
+      <parameter type-id='type-id-1' name='fd' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='981' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <enum-decl name='lzc_send_flags' filepath='../../include/libzfs_core.h' line='77' column='1' id='type-id-82'>
@@ -1102,122 +1102,122 @@
       <enumerator name='LZC_SEND_FLAG_RAW' value='8'/>
       <enumerator name='LZC_SEND_FLAG_SAVED' value='16'/>
     </enum-decl>
-    <function-decl name='lzc_send_space' mangled-name='lzc_send_space' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='749' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_send_space'>
-      <parameter type-id='type-id-4' name='snapname' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='749' column='1'/>
-      <parameter type-id='type-id-4' name='from' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='749' column='1'/>
-      <parameter type-id='type-id-82' name='flags' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='750' column='1'/>
-      <parameter type-id='type-id-81' name='spacep' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='750' column='1'/>
+    <function-decl name='lzc_send_space' mangled-name='lzc_send_space' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='749' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_send_space'>
+      <parameter type-id='type-id-4' name='snapname' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='749' column='1'/>
+      <parameter type-id='type-id-4' name='from' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='749' column='1'/>
+      <parameter type-id='type-id-82' name='flags' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='750' column='1'/>
+      <parameter type-id='type-id-81' name='spacep' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='750' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='lzc_send_space_resume_redacted' mangled-name='lzc_send_space_resume_redacted' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='711' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_send_space_resume_redacted'>
-      <parameter type-id='type-id-4' name='snapname' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='711' column='1'/>
-      <parameter type-id='type-id-4' name='from' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='711' column='1'/>
-      <parameter type-id='type-id-82' name='flags' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='712' column='1'/>
-      <parameter type-id='type-id-8' name='resumeobj' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='712' column='1'/>
-      <parameter type-id='type-id-8' name='resumeoff' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='712' column='1'/>
-      <parameter type-id='type-id-8' name='resume_bytes' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='713' column='1'/>
-      <parameter type-id='type-id-4' name='redactbook' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='713' column='1'/>
-      <parameter type-id='type-id-1' name='fd' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='713' column='1'/>
-      <parameter type-id='type-id-81' name='spacep' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='713' column='1'/>
+    <function-decl name='lzc_send_space_resume_redacted' mangled-name='lzc_send_space_resume_redacted' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='711' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_send_space_resume_redacted'>
+      <parameter type-id='type-id-4' name='snapname' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='711' column='1'/>
+      <parameter type-id='type-id-4' name='from' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='711' column='1'/>
+      <parameter type-id='type-id-82' name='flags' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='712' column='1'/>
+      <parameter type-id='type-id-8' name='resumeobj' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='712' column='1'/>
+      <parameter type-id='type-id-8' name='resumeoff' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='712' column='1'/>
+      <parameter type-id='type-id-8' name='resume_bytes' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='713' column='1'/>
+      <parameter type-id='type-id-4' name='redactbook' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='713' column='1'/>
+      <parameter type-id='type-id-1' name='fd' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='713' column='1'/>
+      <parameter type-id='type-id-81' name='spacep' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='713' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='lzc_send_resume_redacted' mangled-name='lzc_send_resume_redacted' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='661' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_send_resume_redacted'>
-      <parameter type-id='type-id-4' name='snapname' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='661' column='1'/>
-      <parameter type-id='type-id-4' name='from' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='661' column='1'/>
-      <parameter type-id='type-id-1' name='fd' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='661' column='1'/>
-      <parameter type-id='type-id-82' name='flags' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='662' column='1'/>
-      <parameter type-id='type-id-8' name='resumeobj' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='662' column='1'/>
-      <parameter type-id='type-id-8' name='resumeoff' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='662' column='1'/>
-      <parameter type-id='type-id-4' name='redactbook' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='663' column='1'/>
+    <function-decl name='lzc_send_resume_redacted' mangled-name='lzc_send_resume_redacted' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='661' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_send_resume_redacted'>
+      <parameter type-id='type-id-4' name='snapname' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='661' column='1'/>
+      <parameter type-id='type-id-4' name='from' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='661' column='1'/>
+      <parameter type-id='type-id-1' name='fd' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='661' column='1'/>
+      <parameter type-id='type-id-82' name='flags' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='662' column='1'/>
+      <parameter type-id='type-id-8' name='resumeobj' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='662' column='1'/>
+      <parameter type-id='type-id-8' name='resumeoff' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='662' column='1'/>
+      <parameter type-id='type-id-4' name='redactbook' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='663' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='lzc_send_resume' mangled-name='lzc_send_resume' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='641' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_send_resume'>
-      <parameter type-id='type-id-4' name='snapname' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='641' column='1'/>
-      <parameter type-id='type-id-4' name='from' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='641' column='1'/>
-      <parameter type-id='type-id-1' name='fd' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='641' column='1'/>
-      <parameter type-id='type-id-82' name='flags' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='642' column='1'/>
-      <parameter type-id='type-id-8' name='resumeobj' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='642' column='1'/>
-      <parameter type-id='type-id-8' name='resumeoff' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='642' column='1'/>
+    <function-decl name='lzc_send_resume' mangled-name='lzc_send_resume' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='641' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_send_resume'>
+      <parameter type-id='type-id-4' name='snapname' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='641' column='1'/>
+      <parameter type-id='type-id-4' name='from' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='641' column='1'/>
+      <parameter type-id='type-id-1' name='fd' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='641' column='1'/>
+      <parameter type-id='type-id-82' name='flags' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='642' column='1'/>
+      <parameter type-id='type-id-8' name='resumeobj' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='642' column='1'/>
+      <parameter type-id='type-id-8' name='resumeoff' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='642' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='lzc_send_redacted' mangled-name='lzc_send_redacted' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='633' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_send_redacted'>
-      <parameter type-id='type-id-4' name='snapname' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='633' column='1'/>
-      <parameter type-id='type-id-4' name='from' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='633' column='1'/>
-      <parameter type-id='type-id-1' name='fd' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='633' column='1'/>
-      <parameter type-id='type-id-82' name='flags' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='634' column='1'/>
-      <parameter type-id='type-id-4' name='redactbook' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='634' column='1'/>
+    <function-decl name='lzc_send_redacted' mangled-name='lzc_send_redacted' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='633' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_send_redacted'>
+      <parameter type-id='type-id-4' name='snapname' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='633' column='1'/>
+      <parameter type-id='type-id-4' name='from' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='633' column='1'/>
+      <parameter type-id='type-id-1' name='fd' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='633' column='1'/>
+      <parameter type-id='type-id-82' name='flags' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='634' column='1'/>
+      <parameter type-id='type-id-4' name='redactbook' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='634' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='lzc_send' mangled-name='lzc_send' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='625' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_send'>
-      <parameter type-id='type-id-4' name='snapname' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='625' column='1'/>
-      <parameter type-id='type-id-4' name='from' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='625' column='1'/>
-      <parameter type-id='type-id-1' name='fd' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='625' column='1'/>
-      <parameter type-id='type-id-82' name='flags' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='626' column='1'/>
+    <function-decl name='lzc_send' mangled-name='lzc_send' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='625' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_send'>
+      <parameter type-id='type-id-4' name='snapname' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='625' column='1'/>
+      <parameter type-id='type-id-4' name='from' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='625' column='1'/>
+      <parameter type-id='type-id-1' name='fd' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='625' column='1'/>
+      <parameter type-id='type-id-82' name='flags' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='626' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='lzc_get_holds' mangled-name='lzc_get_holds' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='584' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_get_holds'>
-      <parameter type-id='type-id-4' name='pool' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1637' column='1'/>
-      <parameter type-id='type-id-16' name='outnvl' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1637' column='1'/>
+    <function-decl name='lzc_get_holds' mangled-name='lzc_get_holds' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='584' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_get_holds'>
+      <parameter type-id='type-id-4' name='pool' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1637' column='1'/>
+      <parameter type-id='type-id-16' name='outnvl' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1637' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='lzc_release' mangled-name='lzc_release' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='561' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_release'>
-      <parameter type-id='type-id-15' name='holds' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='561' column='1'/>
-      <parameter type-id='type-id-16' name='errlist' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='561' column='1'/>
+    <function-decl name='lzc_release' mangled-name='lzc_release' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='561' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_release'>
+      <parameter type-id='type-id-15' name='holds' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='561' column='1'/>
+      <parameter type-id='type-id-16' name='errlist' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='561' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='lzc_hold' mangled-name='lzc_hold' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='514' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_hold'>
-      <parameter type-id='type-id-15' name='holds' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='514' column='1'/>
-      <parameter type-id='type-id-1' name='cleanup_fd' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='514' column='1'/>
-      <parameter type-id='type-id-16' name='errlist' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='514' column='1'/>
+    <function-decl name='lzc_hold' mangled-name='lzc_hold' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='514' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_hold'>
+      <parameter type-id='type-id-15' name='holds' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='514' column='1'/>
+      <parameter type-id='type-id-1' name='cleanup_fd' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='514' column='1'/>
+      <parameter type-id='type-id-16' name='errlist' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='514' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='lzc_sync' mangled-name='lzc_sync' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='481' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_sync'>
-      <parameter type-id='type-id-4' name='fsname' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1180' column='1'/>
-      <parameter type-id='type-id-15' name='props' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1180' column='1'/>
-      <parameter type-id='type-id-16' name='bmarks' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='1180' column='1'/>
+    <function-decl name='lzc_sync' mangled-name='lzc_sync' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='481' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_sync'>
+      <parameter type-id='type-id-4' name='fsname' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1180' column='1'/>
+      <parameter type-id='type-id-15' name='props' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1180' column='1'/>
+      <parameter type-id='type-id-16' name='bmarks' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='1180' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='lzc_exists' mangled-name='lzc_exists' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='459' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_exists'>
-      <parameter type-id='type-id-4' name='dataset' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='459' column='1'/>
+    <function-decl name='lzc_exists' mangled-name='lzc_exists' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='459' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_exists'>
+      <parameter type-id='type-id-4' name='dataset' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='459' column='1'/>
       <return type-id='type-id-23'/>
     </function-decl>
-    <function-decl name='lzc_snaprange_space' mangled-name='lzc_snaprange_space' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='430' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_snaprange_space'>
-      <parameter type-id='type-id-4' name='firstsnap' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='430' column='1'/>
-      <parameter type-id='type-id-4' name='lastsnap' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='430' column='1'/>
-      <parameter type-id='type-id-81' name='usedp' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='431' column='1'/>
+    <function-decl name='lzc_snaprange_space' mangled-name='lzc_snaprange_space' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='430' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_snaprange_space'>
+      <parameter type-id='type-id-4' name='firstsnap' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='430' column='1'/>
+      <parameter type-id='type-id-4' name='lastsnap' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='430' column='1'/>
+      <parameter type-id='type-id-81' name='usedp' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='431' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='lzc_destroy_snaps' mangled-name='lzc_destroy_snaps' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='404' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_destroy_snaps'>
-      <parameter type-id='type-id-15' name='snaps' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='404' column='1'/>
-      <parameter type-id='type-id-23' name='defer' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='404' column='1'/>
-      <parameter type-id='type-id-16' name='errlist' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='404' column='1'/>
+    <function-decl name='lzc_destroy_snaps' mangled-name='lzc_destroy_snaps' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='404' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_destroy_snaps'>
+      <parameter type-id='type-id-15' name='snaps' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='404' column='1'/>
+      <parameter type-id='type-id-23' name='defer' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='404' column='1'/>
+      <parameter type-id='type-id-16' name='errlist' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='404' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='lzc_snapshot' mangled-name='lzc_snapshot' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='352' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_snapshot'>
-      <parameter type-id='type-id-15' name='snaps' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='352' column='1'/>
-      <parameter type-id='type-id-15' name='props' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='352' column='1'/>
-      <parameter type-id='type-id-16' name='errlist' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='352' column='1'/>
+    <function-decl name='lzc_snapshot' mangled-name='lzc_snapshot' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='352' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_snapshot'>
+      <parameter type-id='type-id-15' name='snaps' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='352' column='1'/>
+      <parameter type-id='type-id-15' name='props' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='352' column='1'/>
+      <parameter type-id='type-id-16' name='errlist' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='352' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='lzc_destroy' mangled-name='lzc_destroy' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='327' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_destroy'>
-      <parameter type-id='type-id-4' name='fsname' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='327' column='1'/>
+    <function-decl name='lzc_destroy' mangled-name='lzc_destroy' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='327' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_destroy'>
+      <parameter type-id='type-id-4' name='fsname' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='327' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='lzc_rename' mangled-name='lzc_rename' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='312' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_rename'>
-      <parameter type-id='type-id-4' name='source' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='312' column='1'/>
-      <parameter type-id='type-id-4' name='target' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='312' column='1'/>
+    <function-decl name='lzc_rename' mangled-name='lzc_rename' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='312' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_rename'>
+      <parameter type-id='type-id-4' name='source' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='312' column='1'/>
+      <parameter type-id='type-id-4' name='target' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='312' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='lzc_promote' mangled-name='lzc_promote' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='290' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_promote'>
-      <parameter type-id='type-id-4' name='fsname' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='290' column='1'/>
-      <parameter type-id='type-id-36' name='snapnamebuf' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='290' column='1'/>
-      <parameter type-id='type-id-1' name='snapnamelen' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='290' column='1'/>
+    <function-decl name='lzc_promote' mangled-name='lzc_promote' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='290' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_promote'>
+      <parameter type-id='type-id-4' name='fsname' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='290' column='1'/>
+      <parameter type-id='type-id-36' name='snapnamebuf' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='290' column='1'/>
+      <parameter type-id='type-id-1' name='snapnamelen' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='290' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='lzc_clone' mangled-name='lzc_clone' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='274' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_clone'>
-      <parameter type-id='type-id-4' name='fsname' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='274' column='1'/>
-      <parameter type-id='type-id-4' name='origin' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='274' column='1'/>
-      <parameter type-id='type-id-15' name='props' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='274' column='1'/>
+    <function-decl name='lzc_clone' mangled-name='lzc_clone' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='274' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_clone'>
+      <parameter type-id='type-id-4' name='fsname' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='274' column='1'/>
+      <parameter type-id='type-id-4' name='origin' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='274' column='1'/>
+      <parameter type-id='type-id-15' name='props' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='274' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <enum-decl name='lzc_dataset_type' filepath='../../include/libzfs_core.h' line='47' column='1' id='type-id-83'>
@@ -1225,19 +1225,19 @@
       <enumerator name='LZC_DATSET_TYPE_ZFS' value='2'/>
       <enumerator name='LZC_DATSET_TYPE_ZVOL' value='3'/>
     </enum-decl>
-    <function-decl name='lzc_create' mangled-name='lzc_create' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='249' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_create'>
-      <parameter type-id='type-id-4' name='fsname' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='249' column='1'/>
-      <parameter type-id='type-id-83' name='type' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='249' column='1'/>
-      <parameter type-id='type-id-15' name='props' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='249' column='1'/>
-      <parameter type-id='type-id-34' name='wkeydata' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='250' column='1'/>
-      <parameter type-id='type-id-35' name='wkeylen' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='250' column='1'/>
+    <function-decl name='lzc_create' mangled-name='lzc_create' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='249' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_create'>
+      <parameter type-id='type-id-4' name='fsname' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='249' column='1'/>
+      <parameter type-id='type-id-83' name='type' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='249' column='1'/>
+      <parameter type-id='type-id-15' name='props' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='249' column='1'/>
+      <parameter type-id='type-id-34' name='wkeydata' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='250' column='1'/>
+      <parameter type-id='type-id-35' name='wkeylen' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='250' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <type-decl name='void' id='type-id-84'/>
-    <function-decl name='libzfs_core_fini' mangled-name='libzfs_core_fini' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='156' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='libzfs_core_fini'>
+    <function-decl name='libzfs_core_fini' mangled-name='libzfs_core_fini' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='156' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='libzfs_core_fini'>
       <return type-id='type-id-84'/>
     </function-decl>
-    <function-decl name='libzfs_core_init' mangled-name='libzfs_core_init' filepath='/home/ryan/ZoF/lib/libzfs_core/libzfs_core.c' line='136' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='libzfs_core_init'>
+    <function-decl name='libzfs_core_init' mangled-name='libzfs_core_init' filepath='/home/ryan/zfs/lib/libzfs_core/libzfs_core.c' line='136' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='libzfs_core_init'>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='fnvlist_alloc' mangled-name='fnvlist_alloc' filepath='../../include/sys/nvpair.h' line='276' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -1361,18 +1361,18 @@
       <return type-id='type-id-84'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='zutil_device_path.c' comp-dir-path='/home/ryan/ZoF/lib/libzutil' language='LANG_C99'>
-    <function-decl name='zfs_strcmp_pathname' mangled-name='zfs_strcmp_pathname' filepath='/home/ryan/ZoF/lib/libzutil/zutil_device_path.c' line='139' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_strcmp_pathname'>
-      <parameter type-id='type-id-4' name='name' filepath='/home/ryan/ZoF/lib/libzutil/zutil_device_path.c' line='139' column='1'/>
-      <parameter type-id='type-id-4' name='cmp' filepath='/home/ryan/ZoF/lib/libzutil/zutil_device_path.c' line='139' column='1'/>
-      <parameter type-id='type-id-1' name='wholedisk' filepath='/home/ryan/ZoF/lib/libzutil/zutil_device_path.c' line='139' column='1'/>
+  <abi-instr version='1.0' address-size='64' path='zutil_device_path.c' comp-dir-path='/home/ryan/zfs/lib/libzutil' language='LANG_C99'>
+    <function-decl name='zfs_strcmp_pathname' mangled-name='zfs_strcmp_pathname' filepath='/home/ryan/zfs/lib/libzutil/zutil_device_path.c' line='139' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_strcmp_pathname'>
+      <parameter type-id='type-id-4' name='name' filepath='/home/ryan/zfs/lib/libzutil/zutil_device_path.c' line='139' column='1'/>
+      <parameter type-id='type-id-4' name='cmp' filepath='/home/ryan/zfs/lib/libzutil/zutil_device_path.c' line='139' column='1'/>
+      <parameter type-id='type-id-1' name='wholedisk' filepath='/home/ryan/zfs/lib/libzutil/zutil_device_path.c' line='139' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <typedef-decl name='size_t' type-id='type-id-12' filepath='/usr/lib/gcc/x86_64-linux-gnu/8/include/stddef.h' line='216' column='1' id='type-id-85'/>
-    <function-decl name='zfs_resolve_shortname' mangled-name='zfs_resolve_shortname' filepath='/home/ryan/ZoF/lib/libzutil/zutil_device_path.c' line='41' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_resolve_shortname'>
-      <parameter type-id='type-id-4' name='name' filepath='/home/ryan/ZoF/lib/libzutil/zutil_device_path.c' line='41' column='1'/>
-      <parameter type-id='type-id-36' name='path' filepath='/home/ryan/ZoF/lib/libzutil/zutil_device_path.c' line='41' column='1'/>
-      <parameter type-id='type-id-85' name='len' filepath='/home/ryan/ZoF/lib/libzutil/zutil_device_path.c' line='41' column='1'/>
+    <function-decl name='zfs_resolve_shortname' mangled-name='zfs_resolve_shortname' filepath='/home/ryan/zfs/lib/libzutil/zutil_device_path.c' line='41' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_resolve_shortname'>
+      <parameter type-id='type-id-4' name='name' filepath='/home/ryan/zfs/lib/libzutil/zutil_device_path.c' line='41' column='1'/>
+      <parameter type-id='type-id-36' name='path' filepath='/home/ryan/zfs/lib/libzutil/zutil_device_path.c' line='41' column='1'/>
+      <parameter type-id='type-id-85' name='len' filepath='/home/ryan/zfs/lib/libzutil/zutil_device_path.c' line='41' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='strdup' mangled-name='strdup' filepath='/usr/include/string.h' line='166' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -1403,7 +1403,7 @@
       <return type-id='type-id-84'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='zutil_import.c' comp-dir-path='/home/ryan/ZoF/lib/libzutil' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='zutil_import.c' comp-dir-path='/home/ryan/zfs/lib/libzutil' language='LANG_C99'>
     <pointer-type-def type-id='type-id-84' size-in-bits='64' id='type-id-86'/>
     <class-decl name='importargs' size-in-bits='448' is-struct='yes' visibility='default' filepath='../../include/libzutil.h' line='62' column='1' id='type-id-87'>
       <data-member access='public' layout-offset-in-bits='0'>
@@ -1449,38 +1449,38 @@
     <qualified-type-def type-id='type-id-91' const='yes' id='type-id-98'/>
     <typedef-decl name='pool_config_ops_t' type-id='type-id-98' filepath='../../include/libzutil.h' line='54' column='1' id='type-id-99'/>
     <pointer-type-def type-id='type-id-99' size-in-bits='64' id='type-id-100'/>
-    <function-decl name='zpool_find_config' mangled-name='zpool_find_config' filepath='/home/ryan/ZoF/lib/libzutil/zutil_import.c' line='1685' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_find_config'>
-      <parameter type-id='type-id-86' name='hdl' filepath='/home/ryan/ZoF/lib/libzutil/zutil_import.c' line='1685' column='1'/>
-      <parameter type-id='type-id-4' name='target' filepath='/home/ryan/ZoF/lib/libzutil/zutil_import.c' line='1685' column='1'/>
-      <parameter type-id='type-id-16' name='configp' filepath='/home/ryan/ZoF/lib/libzutil/zutil_import.c' line='1685' column='1'/>
-      <parameter type-id='type-id-90' name='args' filepath='/home/ryan/ZoF/lib/libzutil/zutil_import.c' line='1686' column='1'/>
-      <parameter type-id='type-id-100' name='pco' filepath='/home/ryan/ZoF/lib/libzutil/zutil_import.c' line='1686' column='1'/>
+    <function-decl name='zpool_find_config' mangled-name='zpool_find_config' filepath='/home/ryan/zfs/lib/libzutil/zutil_import.c' line='1783' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_find_config'>
+      <parameter type-id='type-id-86' name='hdl' filepath='/home/ryan/zfs/lib/libzutil/zutil_import.c' line='1783' column='1'/>
+      <parameter type-id='type-id-4' name='target' filepath='/home/ryan/zfs/lib/libzutil/zutil_import.c' line='1783' column='1'/>
+      <parameter type-id='type-id-16' name='configp' filepath='/home/ryan/zfs/lib/libzutil/zutil_import.c' line='1783' column='1'/>
+      <parameter type-id='type-id-90' name='args' filepath='/home/ryan/zfs/lib/libzutil/zutil_import.c' line='1784' column='1'/>
+      <parameter type-id='type-id-100' name='pco' filepath='/home/ryan/zfs/lib/libzutil/zutil_import.c' line='1784' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='zpool_search_import' mangled-name='zpool_search_import' filepath='/home/ryan/ZoF/lib/libzutil/zutil_import.c' line='1642' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_search_import'>
-      <parameter type-id='type-id-86' name='hdl' filepath='/home/ryan/ZoF/lib/libzutil/zutil_import.c' line='1642' column='1'/>
-      <parameter type-id='type-id-90' name='import' filepath='/home/ryan/ZoF/lib/libzutil/zutil_import.c' line='1642' column='1'/>
-      <parameter type-id='type-id-100' name='pco' filepath='/home/ryan/ZoF/lib/libzutil/zutil_import.c' line='1643' column='1'/>
+    <function-decl name='zpool_search_import' mangled-name='zpool_search_import' filepath='/home/ryan/zfs/lib/libzutil/zutil_import.c' line='1740' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_search_import'>
+      <parameter type-id='type-id-86' name='hdl' filepath='/home/ryan/zfs/lib/libzutil/zutil_import.c' line='1740' column='1'/>
+      <parameter type-id='type-id-90' name='import' filepath='/home/ryan/zfs/lib/libzutil/zutil_import.c' line='1740' column='1'/>
+      <parameter type-id='type-id-100' name='pco' filepath='/home/ryan/zfs/lib/libzutil/zutil_import.c' line='1741' column='1'/>
       <return type-id='type-id-15'/>
     </function-decl>
     <class-decl name='libpc_handle' size-in-bits='8448' is-struct='yes' visibility='default' filepath='./zutil_import.h' line='41' column='1' id='type-id-101'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='lpc_printerr' type-id='type-id-23' visibility='default' filepath='/home/ryan/ZoF/lib/libzutil/zutil_import.h' line='42' column='1'/>
+        <var-decl name='lpc_printerr' type-id='type-id-23' visibility='default' filepath='/home/ryan/zfs/lib/libzutil/zutil_import.h' line='42' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='32'>
-        <var-decl name='lpc_open_access_error' type-id='type-id-23' visibility='default' filepath='/home/ryan/ZoF/lib/libzutil/zutil_import.h' line='43' column='1'/>
+        <var-decl name='lpc_open_access_error' type-id='type-id-23' visibility='default' filepath='/home/ryan/zfs/lib/libzutil/zutil_import.h' line='43' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='lpc_desc_active' type-id='type-id-23' visibility='default' filepath='/home/ryan/ZoF/lib/libzutil/zutil_import.h' line='44' column='1'/>
+        <var-decl name='lpc_desc_active' type-id='type-id-23' visibility='default' filepath='/home/ryan/zfs/lib/libzutil/zutil_import.h' line='44' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='96'>
-        <var-decl name='lpc_desc' type-id='type-id-102' visibility='default' filepath='/home/ryan/ZoF/lib/libzutil/zutil_import.h' line='45' column='1'/>
+        <var-decl name='lpc_desc' type-id='type-id-102' visibility='default' filepath='/home/ryan/zfs/lib/libzutil/zutil_import.h' line='45' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='8320'>
-        <var-decl name='lpc_ops' type-id='type-id-100' visibility='default' filepath='/home/ryan/ZoF/lib/libzutil/zutil_import.h' line='46' column='1'/>
+        <var-decl name='lpc_ops' type-id='type-id-100' visibility='default' filepath='/home/ryan/zfs/lib/libzutil/zutil_import.h' line='46' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='8384'>
-        <var-decl name='lpc_lib_handle' type-id='type-id-86' visibility='default' filepath='/home/ryan/ZoF/lib/libzutil/zutil_import.h' line='47' column='1'/>
+        <var-decl name='lpc_lib_handle' type-id='type-id-86' visibility='default' filepath='/home/ryan/zfs/lib/libzutil/zutil_import.h' line='47' column='1'/>
       </data-member>
     </class-decl>
 
@@ -1488,35 +1488,35 @@
       <subrange length='1024' type-id='type-id-12' id='type-id-103'/>
 
     </array-type-def>
-    <typedef-decl name='libpc_handle_t' type-id='type-id-101' filepath='/home/ryan/ZoF/lib/libzutil/zutil_import.h' line='48' column='1' id='type-id-104'/>
+    <typedef-decl name='libpc_handle_t' type-id='type-id-101' filepath='/home/ryan/zfs/lib/libzutil/zutil_import.h' line='48' column='1' id='type-id-104'/>
     <pointer-type-def type-id='type-id-104' size-in-bits='64' id='type-id-105'/>
-    <function-decl name='label_paths' mangled-name='label_paths' filepath='/home/ryan/ZoF/lib/libzutil/zutil_import.c' line='1070' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='label_paths'>
-      <parameter type-id='type-id-105' name='hdl' filepath='/home/ryan/ZoF/lib/libzutil/zutil_import.c' line='1070' column='1'/>
-      <parameter type-id='type-id-15' name='label' filepath='/home/ryan/ZoF/lib/libzutil/zutil_import.c' line='1070' column='1'/>
-      <parameter type-id='type-id-88' name='path' filepath='/home/ryan/ZoF/lib/libzutil/zutil_import.c' line='1070' column='1'/>
-      <parameter type-id='type-id-88' name='devid' filepath='/home/ryan/ZoF/lib/libzutil/zutil_import.c' line='1070' column='1'/>
+    <function-decl name='label_paths' mangled-name='label_paths' filepath='/home/ryan/zfs/lib/libzutil/zutil_import.c' line='1168' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='label_paths'>
+      <parameter type-id='type-id-105' name='hdl' filepath='/home/ryan/zfs/lib/libzutil/zutil_import.c' line='1168' column='1'/>
+      <parameter type-id='type-id-15' name='label' filepath='/home/ryan/zfs/lib/libzutil/zutil_import.c' line='1168' column='1'/>
+      <parameter type-id='type-id-88' name='path' filepath='/home/ryan/zfs/lib/libzutil/zutil_import.c' line='1168' column='1'/>
+      <parameter type-id='type-id-88' name='devid' filepath='/home/ryan/zfs/lib/libzutil/zutil_import.c' line='1168' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='slice_cache_compare' mangled-name='slice_cache_compare' filepath='/home/ryan/ZoF/lib/libzutil/zutil_import.c' line='1010' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='slice_cache_compare'>
-      <parameter type-id='type-id-86' name='arg1' filepath='/home/ryan/ZoF/lib/libzutil/zutil_import.c' line='1010' column='1'/>
-      <parameter type-id='type-id-86' name='arg2' filepath='/home/ryan/ZoF/lib/libzutil/zutil_import.c' line='1010' column='1'/>
+    <function-decl name='slice_cache_compare' mangled-name='slice_cache_compare' filepath='/home/ryan/zfs/lib/libzutil/zutil_import.c' line='1108' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='slice_cache_compare'>
+      <parameter type-id='type-id-86' name='arg1' filepath='/home/ryan/zfs/lib/libzutil/zutil_import.c' line='1108' column='1'/>
+      <parameter type-id='type-id-86' name='arg2' filepath='/home/ryan/zfs/lib/libzutil/zutil_import.c' line='1108' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <pointer-type-def type-id='type-id-1' size-in-bits='64' id='type-id-106'/>
-    <function-decl name='zpool_read_label' mangled-name='zpool_read_label' filepath='/home/ryan/ZoF/lib/libzutil/zutil_import.c' line='897' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_read_label'>
-      <parameter type-id='type-id-1' name='fd' filepath='/home/ryan/ZoF/lib/libzutil/zutil_import.c' line='897' column='1'/>
-      <parameter type-id='type-id-16' name='config' filepath='/home/ryan/ZoF/lib/libzutil/zutil_import.c' line='897' column='1'/>
-      <parameter type-id='type-id-106' name='num_labels' filepath='/home/ryan/ZoF/lib/libzutil/zutil_import.c' line='897' column='1'/>
+    <function-decl name='zpool_read_label' mangled-name='zpool_read_label' filepath='/home/ryan/zfs/lib/libzutil/zutil_import.c' line='974' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_read_label'>
+      <parameter type-id='type-id-1' name='fd' filepath='/home/ryan/zfs/lib/libzutil/zutil_import.c' line='974' column='1'/>
+      <parameter type-id='type-id-16' name='config' filepath='/home/ryan/zfs/lib/libzutil/zutil_import.c' line='974' column='1'/>
+      <parameter type-id='type-id-106' name='num_labels' filepath='/home/ryan/zfs/lib/libzutil/zutil_import.c' line='974' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='zutil_strdup' mangled-name='zutil_strdup' filepath='/home/ryan/ZoF/lib/libzutil/zutil_import.c' line='147' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zutil_strdup'>
-      <parameter type-id='type-id-105' name='hdl' filepath='/home/ryan/ZoF/lib/libzutil/zutil_import.c' line='147' column='1'/>
-      <parameter type-id='type-id-4' name='str' filepath='/home/ryan/ZoF/lib/libzutil/zutil_import.c' line='147' column='1'/>
+    <function-decl name='zutil_strdup' mangled-name='zutil_strdup' filepath='/home/ryan/zfs/lib/libzutil/zutil_import.c' line='147' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zutil_strdup'>
+      <parameter type-id='type-id-105' name='hdl' filepath='/home/ryan/zfs/lib/libzutil/zutil_import.c' line='147' column='1'/>
+      <parameter type-id='type-id-4' name='str' filepath='/home/ryan/zfs/lib/libzutil/zutil_import.c' line='147' column='1'/>
       <return type-id='type-id-36'/>
     </function-decl>
-    <function-decl name='zutil_alloc' mangled-name='zutil_alloc' filepath='/home/ryan/ZoF/lib/libzutil/zutil_import.c' line='136' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zutil_alloc'>
-      <parameter type-id='type-id-105' name='hdl' filepath='/home/ryan/ZoF/lib/libzutil/zutil_import.c' line='136' column='1'/>
-      <parameter type-id='type-id-85' name='size' filepath='/home/ryan/ZoF/lib/libzutil/zutil_import.c' line='136' column='1'/>
+    <function-decl name='zutil_alloc' mangled-name='zutil_alloc' filepath='/home/ryan/zfs/lib/libzutil/zutil_import.c' line='136' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zutil_alloc'>
+      <parameter type-id='type-id-105' name='hdl' filepath='/home/ryan/zfs/lib/libzutil/zutil_import.c' line='136' column='1'/>
+      <parameter type-id='type-id-85' name='size' filepath='/home/ryan/zfs/lib/libzutil/zutil_import.c' line='136' column='1'/>
       <return type-id='type-id-86'/>
     </function-decl>
     <function-decl name='nvpair_value_nvlist' mangled-name='nvpair_value_nvlist' filepath='../../include/sys/nvpair.h' line='258' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -1546,7 +1546,7 @@
     <function-decl name='pthread_mutex_destroy' mangled-name='pthread_mutex_destroy' filepath='/usr/include/pthread.h' line='755' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-84'/>
     </function-decl>
-    <function-decl name='zpool_find_import_blkid' mangled-name='zpool_find_import_blkid' filepath='/home/ryan/ZoF/lib/libzutil/zutil_import.h' line='53' column='1' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='zpool_find_import_blkid' mangled-name='zpool_find_import_blkid' filepath='/home/ryan/zfs/lib/libzutil/zutil_import.h' line='53' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-84'/>
     </function-decl>
     <function-decl name='avl_create' mangled-name='avl_create' filepath='../../include/sys/avl.h' line='163' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -1622,6 +1622,9 @@
       <return type-id='type-id-84'/>
     </function-decl>
     <function-decl name='lio_listio' mangled-name='lio_listio64' filepath='/usr/include/aio.h' line='183' column='1' visibility='default' binding='global' size-in-bits='64'>
+      <return type-id='type-id-84'/>
+    </function-decl>
+    <function-decl name='pread64' mangled-name='pread64' filepath='/usr/include/unistd.h' line='404' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-84'/>
     </function-decl>
     <function-decl name='nvlist_add_uint64' mangled-name='nvlist_add_uint64' filepath='../../include/sys/nvpair.h' line='178' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -1700,29 +1703,29 @@
       <return type-id='type-id-15'/>
     </function-type>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='zutil_nicenum.c' comp-dir-path='/home/ryan/ZoF/lib/libzutil' language='LANG_C99'>
-    <function-decl name='zfs_nicebytes' mangled-name='zfs_nicebytes' filepath='/home/ryan/ZoF/lib/libzutil/zutil_nicenum.c' line='172' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_nicebytes'>
-      <parameter type-id='type-id-8' name='num' filepath='/home/ryan/ZoF/lib/libzutil/zutil_nicenum.c' line='172' column='1'/>
-      <parameter type-id='type-id-36' name='buf' filepath='/home/ryan/ZoF/lib/libzutil/zutil_nicenum.c' line='172' column='1'/>
-      <parameter type-id='type-id-85' name='buflen' filepath='/home/ryan/ZoF/lib/libzutil/zutil_nicenum.c' line='172' column='1'/>
+  <abi-instr version='1.0' address-size='64' path='zutil_nicenum.c' comp-dir-path='/home/ryan/zfs/lib/libzutil' language='LANG_C99'>
+    <function-decl name='zfs_nicebytes' mangled-name='zfs_nicebytes' filepath='/home/ryan/zfs/lib/libzutil/zutil_nicenum.c' line='172' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_nicebytes'>
+      <parameter type-id='type-id-8' name='num' filepath='/home/ryan/zfs/lib/libzutil/zutil_nicenum.c' line='172' column='1'/>
+      <parameter type-id='type-id-36' name='buf' filepath='/home/ryan/zfs/lib/libzutil/zutil_nicenum.c' line='172' column='1'/>
+      <parameter type-id='type-id-85' name='buflen' filepath='/home/ryan/zfs/lib/libzutil/zutil_nicenum.c' line='172' column='1'/>
       <return type-id='type-id-84'/>
     </function-decl>
-    <function-decl name='zfs_niceraw' mangled-name='zfs_niceraw' filepath='/home/ryan/ZoF/lib/libzutil/zutil_nicenum.c' line='163' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_niceraw'>
-      <parameter type-id='type-id-8' name='num' filepath='/home/ryan/ZoF/lib/libzutil/zutil_nicenum.c' line='172' column='1'/>
-      <parameter type-id='type-id-36' name='buf' filepath='/home/ryan/ZoF/lib/libzutil/zutil_nicenum.c' line='172' column='1'/>
-      <parameter type-id='type-id-85' name='buflen' filepath='/home/ryan/ZoF/lib/libzutil/zutil_nicenum.c' line='172' column='1'/>
+    <function-decl name='zfs_niceraw' mangled-name='zfs_niceraw' filepath='/home/ryan/zfs/lib/libzutil/zutil_nicenum.c' line='163' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_niceraw'>
+      <parameter type-id='type-id-8' name='num' filepath='/home/ryan/zfs/lib/libzutil/zutil_nicenum.c' line='172' column='1'/>
+      <parameter type-id='type-id-36' name='buf' filepath='/home/ryan/zfs/lib/libzutil/zutil_nicenum.c' line='172' column='1'/>
+      <parameter type-id='type-id-85' name='buflen' filepath='/home/ryan/zfs/lib/libzutil/zutil_nicenum.c' line='172' column='1'/>
       <return type-id='type-id-84'/>
     </function-decl>
-    <function-decl name='zfs_nicetime' mangled-name='zfs_nicetime' filepath='/home/ryan/ZoF/lib/libzutil/zutil_nicenum.c' line='154' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_nicetime'>
-      <parameter type-id='type-id-8' name='num' filepath='/home/ryan/ZoF/lib/libzutil/zutil_nicenum.c' line='172' column='1'/>
-      <parameter type-id='type-id-36' name='buf' filepath='/home/ryan/ZoF/lib/libzutil/zutil_nicenum.c' line='172' column='1'/>
-      <parameter type-id='type-id-85' name='buflen' filepath='/home/ryan/ZoF/lib/libzutil/zutil_nicenum.c' line='172' column='1'/>
+    <function-decl name='zfs_nicetime' mangled-name='zfs_nicetime' filepath='/home/ryan/zfs/lib/libzutil/zutil_nicenum.c' line='154' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_nicetime'>
+      <parameter type-id='type-id-8' name='num' filepath='/home/ryan/zfs/lib/libzutil/zutil_nicenum.c' line='172' column='1'/>
+      <parameter type-id='type-id-36' name='buf' filepath='/home/ryan/zfs/lib/libzutil/zutil_nicenum.c' line='172' column='1'/>
+      <parameter type-id='type-id-85' name='buflen' filepath='/home/ryan/zfs/lib/libzutil/zutil_nicenum.c' line='172' column='1'/>
       <return type-id='type-id-84'/>
     </function-decl>
-    <function-decl name='zfs_nicenum' mangled-name='zfs_nicenum' filepath='/home/ryan/ZoF/lib/libzutil/zutil_nicenum.c' line='144' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_nicenum'>
-      <parameter type-id='type-id-8' name='num' filepath='/home/ryan/ZoF/lib/libzutil/zutil_nicenum.c' line='172' column='1'/>
-      <parameter type-id='type-id-36' name='buf' filepath='/home/ryan/ZoF/lib/libzutil/zutil_nicenum.c' line='172' column='1'/>
-      <parameter type-id='type-id-85' name='buflen' filepath='/home/ryan/ZoF/lib/libzutil/zutil_nicenum.c' line='172' column='1'/>
+    <function-decl name='zfs_nicenum' mangled-name='zfs_nicenum' filepath='/home/ryan/zfs/lib/libzutil/zutil_nicenum.c' line='144' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_nicenum'>
+      <parameter type-id='type-id-8' name='num' filepath='/home/ryan/zfs/lib/libzutil/zutil_nicenum.c' line='172' column='1'/>
+      <parameter type-id='type-id-36' name='buf' filepath='/home/ryan/zfs/lib/libzutil/zutil_nicenum.c' line='172' column='1'/>
+      <parameter type-id='type-id-85' name='buflen' filepath='/home/ryan/zfs/lib/libzutil/zutil_nicenum.c' line='172' column='1'/>
       <return type-id='type-id-84'/>
     </function-decl>
     <enum-decl name='zfs_nicenum_format' filepath='../../include/libzutil.h' line='123' column='1' id='type-id-107'>
@@ -1733,15 +1736,15 @@
       <enumerator name='ZFS_NICENUM_RAW' value='3'/>
       <enumerator name='ZFS_NICENUM_RAWTIME' value='4'/>
     </enum-decl>
-    <function-decl name='zfs_nicenum_format' mangled-name='zfs_nicenum_format' filepath='/home/ryan/ZoF/lib/libzutil/zutil_nicenum.c' line='52' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_nicenum_format'>
-      <parameter type-id='type-id-8' name='num' filepath='/home/ryan/ZoF/lib/libzutil/zutil_nicenum.c' line='52' column='1'/>
-      <parameter type-id='type-id-36' name='buf' filepath='/home/ryan/ZoF/lib/libzutil/zutil_nicenum.c' line='52' column='1'/>
-      <parameter type-id='type-id-85' name='buflen' filepath='/home/ryan/ZoF/lib/libzutil/zutil_nicenum.c' line='52' column='1'/>
-      <parameter type-id='type-id-107' name='format' filepath='/home/ryan/ZoF/lib/libzutil/zutil_nicenum.c' line='53' column='1'/>
+    <function-decl name='zfs_nicenum_format' mangled-name='zfs_nicenum_format' filepath='/home/ryan/zfs/lib/libzutil/zutil_nicenum.c' line='52' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_nicenum_format'>
+      <parameter type-id='type-id-8' name='num' filepath='/home/ryan/zfs/lib/libzutil/zutil_nicenum.c' line='52' column='1'/>
+      <parameter type-id='type-id-36' name='buf' filepath='/home/ryan/zfs/lib/libzutil/zutil_nicenum.c' line='52' column='1'/>
+      <parameter type-id='type-id-85' name='buflen' filepath='/home/ryan/zfs/lib/libzutil/zutil_nicenum.c' line='52' column='1'/>
+      <parameter type-id='type-id-107' name='format' filepath='/home/ryan/zfs/lib/libzutil/zutil_nicenum.c' line='53' column='1'/>
       <return type-id='type-id-84'/>
     </function-decl>
-    <function-decl name='zfs_isnumber' mangled-name='zfs_isnumber' filepath='/home/ryan/ZoF/lib/libzutil/zutil_nicenum.c' line='36' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_isnumber'>
-      <parameter type-id='type-id-4' name='str' filepath='/home/ryan/ZoF/lib/libzutil/zutil_nicenum.c' line='36' column='1'/>
+    <function-decl name='zfs_isnumber' mangled-name='zfs_isnumber' filepath='/home/ryan/zfs/lib/libzutil/zutil_nicenum.c' line='36' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_isnumber'>
+      <parameter type-id='type-id-4' name='str' filepath='/home/ryan/zfs/lib/libzutil/zutil_nicenum.c' line='36' column='1'/>
       <return type-id='type-id-23'/>
     </function-decl>
     <function-decl name='powl' mangled-name='powl' filepath='/usr/include/x86_64-linux-gnu/bits/mathcalls.h' line='140' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -1751,49 +1754,49 @@
       <return type-id='type-id-84'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='zutil_pool.c' comp-dir-path='/home/ryan/ZoF/lib/libzutil' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='zutil_pool.c' comp-dir-path='/home/ryan/zfs/lib/libzutil' language='LANG_C99'>
     <pointer-type-def type-id='type-id-16' size-in-bits='64' id='type-id-108'/>
     <pointer-type-def type-id='type-id-35' size-in-bits='64' id='type-id-109'/>
-    <function-decl name='zpool_history_unpack' mangled-name='zpool_history_unpack' filepath='/home/ryan/ZoF/lib/libzutil/zutil_pool.c' line='105' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_history_unpack'>
-      <parameter type-id='type-id-36' name='buf' filepath='/home/ryan/ZoF/lib/libzutil/zutil_pool.c' line='105' column='1'/>
-      <parameter type-id='type-id-8' name='bytes_read' filepath='/home/ryan/ZoF/lib/libzutil/zutil_pool.c' line='105' column='1'/>
-      <parameter type-id='type-id-81' name='leftover' filepath='/home/ryan/ZoF/lib/libzutil/zutil_pool.c' line='105' column='1'/>
-      <parameter type-id='type-id-108' name='records' filepath='/home/ryan/ZoF/lib/libzutil/zutil_pool.c' line='106' column='1'/>
-      <parameter type-id='type-id-109' name='numrecords' filepath='/home/ryan/ZoF/lib/libzutil/zutil_pool.c' line='106' column='1'/>
+    <function-decl name='zpool_history_unpack' mangled-name='zpool_history_unpack' filepath='/home/ryan/zfs/lib/libzutil/zutil_pool.c' line='105' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_history_unpack'>
+      <parameter type-id='type-id-36' name='buf' filepath='/home/ryan/zfs/lib/libzutil/zutil_pool.c' line='105' column='1'/>
+      <parameter type-id='type-id-8' name='bytes_read' filepath='/home/ryan/zfs/lib/libzutil/zutil_pool.c' line='105' column='1'/>
+      <parameter type-id='type-id-81' name='leftover' filepath='/home/ryan/zfs/lib/libzutil/zutil_pool.c' line='105' column='1'/>
+      <parameter type-id='type-id-108' name='records' filepath='/home/ryan/zfs/lib/libzutil/zutil_pool.c' line='106' column='1'/>
+      <parameter type-id='type-id-109' name='numrecords' filepath='/home/ryan/zfs/lib/libzutil/zutil_pool.c' line='106' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <class-decl name='ddt_stat' size-in-bits='512' is-struct='yes' visibility='default' filepath='../../include/sys/fs/zfs.h' line='1194' column='1' id='type-id-110'>
+    <class-decl name='ddt_stat' size-in-bits='512' is-struct='yes' visibility='default' filepath='../../include/sys/fs/zfs.h' line='1200' column='1' id='type-id-110'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='dds_blocks' type-id='type-id-8' visibility='default' filepath='../../include/sys/fs/zfs.h' line='1195' column='1'/>
+        <var-decl name='dds_blocks' type-id='type-id-8' visibility='default' filepath='../../include/sys/fs/zfs.h' line='1201' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='dds_lsize' type-id='type-id-8' visibility='default' filepath='../../include/sys/fs/zfs.h' line='1196' column='1'/>
+        <var-decl name='dds_lsize' type-id='type-id-8' visibility='default' filepath='../../include/sys/fs/zfs.h' line='1202' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='128'>
-        <var-decl name='dds_psize' type-id='type-id-8' visibility='default' filepath='../../include/sys/fs/zfs.h' line='1197' column='1'/>
+        <var-decl name='dds_psize' type-id='type-id-8' visibility='default' filepath='../../include/sys/fs/zfs.h' line='1203' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='192'>
-        <var-decl name='dds_dsize' type-id='type-id-8' visibility='default' filepath='../../include/sys/fs/zfs.h' line='1198' column='1'/>
+        <var-decl name='dds_dsize' type-id='type-id-8' visibility='default' filepath='../../include/sys/fs/zfs.h' line='1204' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='256'>
-        <var-decl name='dds_ref_blocks' type-id='type-id-8' visibility='default' filepath='../../include/sys/fs/zfs.h' line='1199' column='1'/>
+        <var-decl name='dds_ref_blocks' type-id='type-id-8' visibility='default' filepath='../../include/sys/fs/zfs.h' line='1205' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='320'>
-        <var-decl name='dds_ref_lsize' type-id='type-id-8' visibility='default' filepath='../../include/sys/fs/zfs.h' line='1200' column='1'/>
+        <var-decl name='dds_ref_lsize' type-id='type-id-8' visibility='default' filepath='../../include/sys/fs/zfs.h' line='1206' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='384'>
-        <var-decl name='dds_ref_psize' type-id='type-id-8' visibility='default' filepath='../../include/sys/fs/zfs.h' line='1201' column='1'/>
+        <var-decl name='dds_ref_psize' type-id='type-id-8' visibility='default' filepath='../../include/sys/fs/zfs.h' line='1207' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='448'>
-        <var-decl name='dds_ref_dsize' type-id='type-id-8' visibility='default' filepath='../../include/sys/fs/zfs.h' line='1202' column='1'/>
+        <var-decl name='dds_ref_dsize' type-id='type-id-8' visibility='default' filepath='../../include/sys/fs/zfs.h' line='1208' column='1'/>
       </data-member>
     </class-decl>
-    <typedef-decl name='ddt_stat_t' type-id='type-id-110' filepath='../../include/sys/fs/zfs.h' line='1203' column='1' id='type-id-111'/>
+    <typedef-decl name='ddt_stat_t' type-id='type-id-110' filepath='../../include/sys/fs/zfs.h' line='1209' column='1' id='type-id-111'/>
     <qualified-type-def type-id='type-id-111' const='yes' id='type-id-112'/>
     <pointer-type-def type-id='type-id-112' size-in-bits='64' id='type-id-113'/>
-    <class-decl name='ddt_histogram' size-in-bits='32768' is-struct='yes' visibility='default' filepath='../../include/sys/fs/zfs.h' line='1205' column='1' id='type-id-114'>
+    <class-decl name='ddt_histogram' size-in-bits='32768' is-struct='yes' visibility='default' filepath='../../include/sys/fs/zfs.h' line='1211' column='1' id='type-id-114'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='ddh_stat' type-id='type-id-115' visibility='default' filepath='../../include/sys/fs/zfs.h' line='1206' column='1'/>
+        <var-decl name='ddh_stat' type-id='type-id-115' visibility='default' filepath='../../include/sys/fs/zfs.h' line='1212' column='1'/>
       </data-member>
     </class-decl>
 
@@ -1801,12 +1804,12 @@
       <subrange length='64' type-id='type-id-12' id='type-id-116'/>
 
     </array-type-def>
-    <typedef-decl name='ddt_histogram_t' type-id='type-id-114' filepath='../../include/sys/fs/zfs.h' line='1207' column='1' id='type-id-117'/>
+    <typedef-decl name='ddt_histogram_t' type-id='type-id-114' filepath='../../include/sys/fs/zfs.h' line='1213' column='1' id='type-id-117'/>
     <qualified-type-def type-id='type-id-117' const='yes' id='type-id-118'/>
     <pointer-type-def type-id='type-id-118' size-in-bits='64' id='type-id-119'/>
-    <function-decl name='zpool_dump_ddt' mangled-name='zpool_dump_ddt' filepath='/home/ryan/ZoF/lib/libzutil/zutil_pool.c' line='68' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_dump_ddt'>
-      <parameter type-id='type-id-113' name='dds_total' filepath='/home/ryan/ZoF/lib/libzutil/zutil_pool.c' line='68' column='1'/>
-      <parameter type-id='type-id-119' name='ddh' filepath='/home/ryan/ZoF/lib/libzutil/zutil_pool.c' line='68' column='1'/>
+    <function-decl name='zpool_dump_ddt' mangled-name='zpool_dump_ddt' filepath='/home/ryan/zfs/lib/libzutil/zutil_pool.c' line='68' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_dump_ddt'>
+      <parameter type-id='type-id-113' name='dds_total' filepath='/home/ryan/zfs/lib/libzutil/zutil_pool.c' line='68' column='1'/>
+      <parameter type-id='type-id-119' name='ddh' filepath='/home/ryan/zfs/lib/libzutil/zutil_pool.c' line='68' column='1'/>
       <return type-id='type-id-84'/>
     </function-decl>
     <function-decl name='realloc' mangled-name='realloc' filepath='/usr/include/stdlib.h' line='549' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -1828,7 +1831,7 @@
       <return type-id='type-id-84'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='os/linux/zutil_device_path_os.c' comp-dir-path='/home/ryan/ZoF/lib/libzutil' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='os/linux/zutil_device_path_os.c' comp-dir-path='/home/ryan/zfs/lib/libzutil' language='LANG_C99'>
     <function-decl name='is_mpath_whole_disk' mangled-name='is_mpath_whole_disk' filepath='os/linux/zutil_device_path_os.c' line='502' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='is_mpath_whole_disk'>
       <parameter type-id='type-id-4' name='path' filepath='os/linux/zutil_device_path_os.c' line='502' column='1'/>
       <return type-id='type-id-23'/>
@@ -1887,7 +1890,7 @@
       <return type-id='type-id-84'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='os/linux/zutil_import_os.c' comp-dir-path='/home/ryan/ZoF/lib/libzutil' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='os/linux/zutil_import_os.c' comp-dir-path='/home/ryan/zfs/lib/libzutil' language='LANG_C99'>
     <function-decl name='update_vdev_config_dev_strs' mangled-name='update_vdev_config_dev_strs' filepath='os/linux/zutil_import_os.c' line='800' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='update_vdev_config_dev_strs'>
       <parameter type-id='type-id-15' name='nv' filepath='os/linux/zutil_import_os.c' line='800' column='1'/>
       <return type-id='type-id-84'/>
@@ -2106,7 +2109,7 @@
       <return type-id='type-id-1'/>
     </function-type>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='os/linux/zutil_compat.c' comp-dir-path='/home/ryan/ZoF/lib/libzutil' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='os/linux/zutil_compat.c' comp-dir-path='/home/ryan/zfs/lib/libzutil' language='LANG_C99'>
     <class-decl name='zfs_cmd' size-in-bits='109952' is-struct='yes' visibility='default' filepath='../../include/sys/zfs_ioctl.h' line='477' column='1' id='type-id-148'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='zc_name' type-id='type-id-149' visibility='default' filepath='../../include/sys/zfs_ioctl.h' line='478' column='1'/>
@@ -2349,7 +2352,7 @@
       <return type-id='type-id-1'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='../../module/avl/avl.c' comp-dir-path='/home/ryan/ZoF/lib/libavl' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='../../module/avl/avl.c' comp-dir-path='/home/ryan/zfs/lib/libavl' language='LANG_C99'>
     <pointer-type-def type-id='type-id-86' size-in-bits='64' id='type-id-164'/>
     <function-decl name='avl_destroy_nodes' mangled-name='avl_destroy_nodes' filepath='../../module/avl/avl.c' line='962' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='avl_destroy_nodes'>
       <parameter type-id='type-id-143' name='tree' filepath='../../module/avl/avl.c' line='962' column='1'/>
@@ -2447,58 +2450,58 @@
       <return type-id='type-id-86'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='thread_pool.c' comp-dir-path='/home/ryan/ZoF/lib/libtpool' language='LANG_C99'>
-    <class-decl name='tpool' size-in-bits='2496' is-struct='yes' visibility='default' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool_impl.h' line='63' column='1' id='type-id-167'>
+  <abi-instr version='1.0' address-size='64' path='thread_pool.c' comp-dir-path='/home/ryan/zfs/lib/libtpool' language='LANG_C99'>
+    <class-decl name='tpool' size-in-bits='2496' is-struct='yes' visibility='default' filepath='/home/ryan/zfs/lib/libtpool/thread_pool_impl.h' line='63' column='1' id='type-id-167'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='tp_forw' type-id='type-id-168' visibility='default' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool_impl.h' line='64' column='1'/>
+        <var-decl name='tp_forw' type-id='type-id-168' visibility='default' filepath='/home/ryan/zfs/lib/libtpool/thread_pool_impl.h' line='64' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='tp_back' type-id='type-id-168' visibility='default' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool_impl.h' line='65' column='1'/>
+        <var-decl name='tp_back' type-id='type-id-168' visibility='default' filepath='/home/ryan/zfs/lib/libtpool/thread_pool_impl.h' line='65' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='128'>
-        <var-decl name='tp_mutex' type-id='type-id-131' visibility='default' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool_impl.h' line='66' column='1'/>
+        <var-decl name='tp_mutex' type-id='type-id-131' visibility='default' filepath='/home/ryan/zfs/lib/libtpool/thread_pool_impl.h' line='66' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='448'>
-        <var-decl name='tp_busycv' type-id='type-id-169' visibility='default' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool_impl.h' line='67' column='1'/>
+        <var-decl name='tp_busycv' type-id='type-id-169' visibility='default' filepath='/home/ryan/zfs/lib/libtpool/thread_pool_impl.h' line='67' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='832'>
-        <var-decl name='tp_workcv' type-id='type-id-169' visibility='default' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool_impl.h' line='68' column='1'/>
+        <var-decl name='tp_workcv' type-id='type-id-169' visibility='default' filepath='/home/ryan/zfs/lib/libtpool/thread_pool_impl.h' line='68' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='1216'>
-        <var-decl name='tp_waitcv' type-id='type-id-169' visibility='default' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool_impl.h' line='69' column='1'/>
+        <var-decl name='tp_waitcv' type-id='type-id-169' visibility='default' filepath='/home/ryan/zfs/lib/libtpool/thread_pool_impl.h' line='69' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='1600'>
-        <var-decl name='tp_active' type-id='type-id-170' visibility='default' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool_impl.h' line='70' column='1'/>
+        <var-decl name='tp_active' type-id='type-id-170' visibility='default' filepath='/home/ryan/zfs/lib/libtpool/thread_pool_impl.h' line='70' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='1664'>
-        <var-decl name='tp_head' type-id='type-id-171' visibility='default' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool_impl.h' line='71' column='1'/>
+        <var-decl name='tp_head' type-id='type-id-171' visibility='default' filepath='/home/ryan/zfs/lib/libtpool/thread_pool_impl.h' line='71' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='1728'>
-        <var-decl name='tp_tail' type-id='type-id-171' visibility='default' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool_impl.h' line='72' column='1'/>
+        <var-decl name='tp_tail' type-id='type-id-171' visibility='default' filepath='/home/ryan/zfs/lib/libtpool/thread_pool_impl.h' line='72' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='1792'>
-        <var-decl name='tp_attr' type-id='type-id-172' visibility='default' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool_impl.h' line='73' column='1'/>
+        <var-decl name='tp_attr' type-id='type-id-172' visibility='default' filepath='/home/ryan/zfs/lib/libtpool/thread_pool_impl.h' line='73' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='2240'>
-        <var-decl name='tp_flags' type-id='type-id-1' visibility='default' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool_impl.h' line='74' column='1'/>
+        <var-decl name='tp_flags' type-id='type-id-1' visibility='default' filepath='/home/ryan/zfs/lib/libtpool/thread_pool_impl.h' line='74' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='2272'>
-        <var-decl name='tp_linger' type-id='type-id-35' visibility='default' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool_impl.h' line='75' column='1'/>
+        <var-decl name='tp_linger' type-id='type-id-35' visibility='default' filepath='/home/ryan/zfs/lib/libtpool/thread_pool_impl.h' line='75' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='2304'>
-        <var-decl name='tp_njobs' type-id='type-id-1' visibility='default' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool_impl.h' line='76' column='1'/>
+        <var-decl name='tp_njobs' type-id='type-id-1' visibility='default' filepath='/home/ryan/zfs/lib/libtpool/thread_pool_impl.h' line='76' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='2336'>
-        <var-decl name='tp_minimum' type-id='type-id-1' visibility='default' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool_impl.h' line='77' column='1'/>
+        <var-decl name='tp_minimum' type-id='type-id-1' visibility='default' filepath='/home/ryan/zfs/lib/libtpool/thread_pool_impl.h' line='77' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='2368'>
-        <var-decl name='tp_maximum' type-id='type-id-1' visibility='default' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool_impl.h' line='78' column='1'/>
+        <var-decl name='tp_maximum' type-id='type-id-1' visibility='default' filepath='/home/ryan/zfs/lib/libtpool/thread_pool_impl.h' line='78' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='2400'>
-        <var-decl name='tp_current' type-id='type-id-1' visibility='default' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool_impl.h' line='79' column='1'/>
+        <var-decl name='tp_current' type-id='type-id-1' visibility='default' filepath='/home/ryan/zfs/lib/libtpool/thread_pool_impl.h' line='79' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='2432'>
-        <var-decl name='tp_idle' type-id='type-id-1' visibility='default' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool_impl.h' line='80' column='1'/>
+        <var-decl name='tp_idle' type-id='type-id-1' visibility='default' filepath='/home/ryan/zfs/lib/libtpool/thread_pool_impl.h' line='80' column='1'/>
       </data-member>
     </class-decl>
     <typedef-decl name='tpool_t' type-id='type-id-167' filepath='../../include/thread_pool.h' line='38' column='1' id='type-id-173'/>
@@ -2563,29 +2566,29 @@
     </array-type-def>
     <type-decl name='long long int' size-in-bits='64' id='type-id-177'/>
     <typedef-decl name='pthread_cond_t' type-id='type-id-174' filepath='/usr/include/x86_64-linux-gnu/bits/pthreadtypes.h' line='80' column='1' id='type-id-169'/>
-    <class-decl name='tpool_active' size-in-bits='128' is-struct='yes' visibility='default' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool_impl.h' line='55' column='1' id='type-id-183'>
+    <class-decl name='tpool_active' size-in-bits='128' is-struct='yes' visibility='default' filepath='/home/ryan/zfs/lib/libtpool/thread_pool_impl.h' line='55' column='1' id='type-id-183'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='tpa_next' type-id='type-id-170' visibility='default' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool_impl.h' line='56' column='1'/>
+        <var-decl name='tpa_next' type-id='type-id-170' visibility='default' filepath='/home/ryan/zfs/lib/libtpool/thread_pool_impl.h' line='56' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='tpa_tid' type-id='type-id-184' visibility='default' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool_impl.h' line='57' column='1'/>
+        <var-decl name='tpa_tid' type-id='type-id-184' visibility='default' filepath='/home/ryan/zfs/lib/libtpool/thread_pool_impl.h' line='57' column='1'/>
       </data-member>
     </class-decl>
-    <typedef-decl name='tpool_active_t' type-id='type-id-183' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool_impl.h' line='54' column='1' id='type-id-185'/>
+    <typedef-decl name='tpool_active_t' type-id='type-id-183' filepath='/home/ryan/zfs/lib/libtpool/thread_pool_impl.h' line='54' column='1' id='type-id-185'/>
     <pointer-type-def type-id='type-id-185' size-in-bits='64' id='type-id-170'/>
     <typedef-decl name='pthread_t' type-id='type-id-12' filepath='/usr/include/x86_64-linux-gnu/bits/pthreadtypes.h' line='27' column='1' id='type-id-184'/>
-    <class-decl name='tpool_job' size-in-bits='192' is-struct='yes' visibility='default' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool_impl.h' line='45' column='1' id='type-id-186'>
+    <class-decl name='tpool_job' size-in-bits='192' is-struct='yes' visibility='default' filepath='/home/ryan/zfs/lib/libtpool/thread_pool_impl.h' line='45' column='1' id='type-id-186'>
       <data-member access='public' layout-offset-in-bits='0'>
-        <var-decl name='tpj_next' type-id='type-id-171' visibility='default' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool_impl.h' line='46' column='1'/>
+        <var-decl name='tpj_next' type-id='type-id-171' visibility='default' filepath='/home/ryan/zfs/lib/libtpool/thread_pool_impl.h' line='46' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='64'>
-        <var-decl name='tpj_func' type-id='type-id-187' visibility='default' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool_impl.h' line='47' column='1'/>
+        <var-decl name='tpj_func' type-id='type-id-187' visibility='default' filepath='/home/ryan/zfs/lib/libtpool/thread_pool_impl.h' line='47' column='1'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='128'>
-        <var-decl name='tpj_arg' type-id='type-id-86' visibility='default' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool_impl.h' line='48' column='1'/>
+        <var-decl name='tpj_arg' type-id='type-id-86' visibility='default' filepath='/home/ryan/zfs/lib/libtpool/thread_pool_impl.h' line='48' column='1'/>
       </data-member>
     </class-decl>
-    <typedef-decl name='tpool_job_t' type-id='type-id-186' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool_impl.h' line='44' column='1' id='type-id-188'/>
+    <typedef-decl name='tpool_job_t' type-id='type-id-186' filepath='/home/ryan/zfs/lib/libtpool/thread_pool_impl.h' line='44' column='1' id='type-id-188'/>
     <pointer-type-def type-id='type-id-188' size-in-bits='64' id='type-id-171'/>
     <pointer-type-def type-id='type-id-189' size-in-bits='64' id='type-id-187'/>
     <union-decl name='pthread_attr_t' size-in-bits='448' visibility='default' filepath='/usr/include/x86_64-linux-gnu/bits/pthreadtypes.h' line='56' column='1' id='type-id-190'>
@@ -2602,46 +2605,46 @@
 
     </array-type-def>
     <typedef-decl name='pthread_attr_t' type-id='type-id-190' filepath='/usr/include/x86_64-linux-gnu/bits/pthreadtypes.h' line='62' column='1' id='type-id-172'/>
-    <function-decl name='tpool_member' mangled-name='tpool_member' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool.c' line='583' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='tpool_member'>
-      <parameter type-id='type-id-168' name='tpool' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool.c' line='583' column='1'/>
+    <function-decl name='tpool_member' mangled-name='tpool_member' filepath='/home/ryan/zfs/lib/libtpool/thread_pool.c' line='583' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='tpool_member'>
+      <parameter type-id='type-id-168' name='tpool' filepath='/home/ryan/zfs/lib/libtpool/thread_pool.c' line='583' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='tpool_resume' mangled-name='tpool_resume' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool.c' line='560' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='tpool_resume'>
-      <parameter type-id='type-id-168' name='tpool' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool.c' line='560' column='1'/>
+    <function-decl name='tpool_resume' mangled-name='tpool_resume' filepath='/home/ryan/zfs/lib/libtpool/thread_pool.c' line='560' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='tpool_resume'>
+      <parameter type-id='type-id-168' name='tpool' filepath='/home/ryan/zfs/lib/libtpool/thread_pool.c' line='560' column='1'/>
       <return type-id='type-id-84'/>
     </function-decl>
-    <function-decl name='tpool_suspended' mangled-name='tpool_suspended' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool.c' line='546' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='tpool_suspended'>
-      <parameter type-id='type-id-168' name='tpool' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool.c' line='546' column='1'/>
+    <function-decl name='tpool_suspended' mangled-name='tpool_suspended' filepath='/home/ryan/zfs/lib/libtpool/thread_pool.c' line='546' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='tpool_suspended'>
+      <parameter type-id='type-id-168' name='tpool' filepath='/home/ryan/zfs/lib/libtpool/thread_pool.c' line='546' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='tpool_suspend' mangled-name='tpool_suspend' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool.c' line='536' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='tpool_suspend'>
-      <parameter type-id='type-id-168' name='tpool' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool.c' line='536' column='1'/>
+    <function-decl name='tpool_suspend' mangled-name='tpool_suspend' filepath='/home/ryan/zfs/lib/libtpool/thread_pool.c' line='536' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='tpool_suspend'>
+      <parameter type-id='type-id-168' name='tpool' filepath='/home/ryan/zfs/lib/libtpool/thread_pool.c' line='536' column='1'/>
       <return type-id='type-id-84'/>
     </function-decl>
-    <function-decl name='tpool_wait' mangled-name='tpool_wait' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool.c' line='520' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='tpool_wait'>
-      <parameter type-id='type-id-168' name='tpool' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool.c' line='520' column='1'/>
+    <function-decl name='tpool_wait' mangled-name='tpool_wait' filepath='/home/ryan/zfs/lib/libtpool/thread_pool.c' line='520' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='tpool_wait'>
+      <parameter type-id='type-id-168' name='tpool' filepath='/home/ryan/zfs/lib/libtpool/thread_pool.c' line='520' column='1'/>
       <return type-id='type-id-84'/>
     </function-decl>
-    <function-decl name='tpool_abandon' mangled-name='tpool_abandon' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool.c' line='497' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='tpool_abandon'>
-      <parameter type-id='type-id-168' name='tpool' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool.c' line='497' column='1'/>
+    <function-decl name='tpool_abandon' mangled-name='tpool_abandon' filepath='/home/ryan/zfs/lib/libtpool/thread_pool.c' line='497' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='tpool_abandon'>
+      <parameter type-id='type-id-168' name='tpool' filepath='/home/ryan/zfs/lib/libtpool/thread_pool.c' line='497' column='1'/>
       <return type-id='type-id-84'/>
     </function-decl>
-    <function-decl name='tpool_destroy' mangled-name='tpool_destroy' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool.c' line='459' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='tpool_destroy'>
-      <parameter type-id='type-id-168' name='tpool' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool.c' line='459' column='1'/>
+    <function-decl name='tpool_destroy' mangled-name='tpool_destroy' filepath='/home/ryan/zfs/lib/libtpool/thread_pool.c' line='459' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='tpool_destroy'>
+      <parameter type-id='type-id-168' name='tpool' filepath='/home/ryan/zfs/lib/libtpool/thread_pool.c' line='459' column='1'/>
       <return type-id='type-id-84'/>
     </function-decl>
-    <function-decl name='tpool_dispatch' mangled-name='tpool_dispatch' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool.c' line='412' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='tpool_dispatch'>
-      <parameter type-id='type-id-168' name='tpool' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool.c' line='412' column='1'/>
-      <parameter type-id='type-id-187' name='func' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool.c' line='412' column='1'/>
-      <parameter type-id='type-id-86' name='arg' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool.c' line='412' column='1'/>
+    <function-decl name='tpool_dispatch' mangled-name='tpool_dispatch' filepath='/home/ryan/zfs/lib/libtpool/thread_pool.c' line='412' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='tpool_dispatch'>
+      <parameter type-id='type-id-168' name='tpool' filepath='/home/ryan/zfs/lib/libtpool/thread_pool.c' line='412' column='1'/>
+      <parameter type-id='type-id-187' name='func' filepath='/home/ryan/zfs/lib/libtpool/thread_pool.c' line='412' column='1'/>
+      <parameter type-id='type-id-86' name='arg' filepath='/home/ryan/zfs/lib/libtpool/thread_pool.c' line='412' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <pointer-type-def type-id='type-id-172' size-in-bits='64' id='type-id-193'/>
-    <function-decl name='tpool_create' mangled-name='tpool_create' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool.c' line='322' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='tpool_create'>
-      <parameter type-id='type-id-35' name='min_threads' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool.c' line='322' column='1'/>
-      <parameter type-id='type-id-35' name='max_threads' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool.c' line='322' column='1'/>
-      <parameter type-id='type-id-35' name='linger' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool.c' line='322' column='1'/>
-      <parameter type-id='type-id-193' name='attr' filepath='/home/ryan/ZoF/lib/libtpool/thread_pool.c' line='323' column='1'/>
+    <function-decl name='tpool_create' mangled-name='tpool_create' filepath='/home/ryan/zfs/lib/libtpool/thread_pool.c' line='322' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='tpool_create'>
+      <parameter type-id='type-id-35' name='min_threads' filepath='/home/ryan/zfs/lib/libtpool/thread_pool.c' line='322' column='1'/>
+      <parameter type-id='type-id-35' name='max_threads' filepath='/home/ryan/zfs/lib/libtpool/thread_pool.c' line='322' column='1'/>
+      <parameter type-id='type-id-35' name='linger' filepath='/home/ryan/zfs/lib/libtpool/thread_pool.c' line='322' column='1'/>
+      <parameter type-id='type-id-193' name='attr' filepath='/home/ryan/zfs/lib/libtpool/thread_pool.c' line='323' column='1'/>
       <return type-id='type-id-168'/>
     </function-decl>
     <function-decl name='pthread_self' mangled-name='pthread_self' filepath='/usr/include/pthread.h' line='276' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -2748,7 +2751,7 @@
       <return type-id='type-id-84'/>
     </function-type>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='assert.c' comp-dir-path='/home/ryan/ZoF/lib/libspl' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='assert.c' comp-dir-path='/home/ryan/zfs/lib/libspl' language='LANG_C99'>
     <var-decl name='aok' type-id='type-id-1' mangled-name='aok' visibility='default' filepath='../../lib/libspl/include/assert.h' line='37' column='1' elf-symbol-id='aok'/>
     <function-decl name='vfprintf' mangled-name='vfprintf' filepath='/usr/include/stdio.h' line='341' column='1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-84'/>
@@ -2760,13 +2763,13 @@
       <return type-id='type-id-84'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='os/linux/getexecname.c' comp-dir-path='/home/ryan/ZoF/lib/libspl' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='os/linux/getexecname.c' comp-dir-path='/home/ryan/zfs/lib/libspl' language='LANG_C99'>
     <function-decl name='getexecname' mangled-name='getexecname' filepath='os/linux/getexecname.c' line='35' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='getexecname'>
       <return type-id='type-id-4'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='os/linux/gethostid.c' comp-dir-path='/home/ryan/ZoF/lib/libspl' language='LANG_C99'>
-    <function-decl name='get_system_hostid' mangled-name='get_system_hostid' filepath='os/linux/gethostid.c' line='61' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='get_system_hostid'>
+  <abi-instr version='1.0' address-size='64' path='os/linux/gethostid.c' comp-dir-path='/home/ryan/zfs/lib/libspl' language='LANG_C99'>
+    <function-decl name='get_system_hostid' mangled-name='get_system_hostid' filepath='os/linux/gethostid.c' line='59' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='get_system_hostid'>
       <return type-id='type-id-12'/>
     </function-decl>
     <function-decl name='fopen' mangled-name='fopen64' filepath='/usr/include/stdio.h' line='257' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -2779,7 +2782,7 @@
       <return type-id='type-id-84'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='os/linux/getmntany.c' comp-dir-path='/home/ryan/ZoF/lib/libspl' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='os/linux/getmntany.c' comp-dir-path='/home/ryan/zfs/lib/libspl' language='LANG_C99'>
 
     <array-type-def dimensions='1' type-id='type-id-2' size-in-bits='32880' id='type-id-194'>
       <subrange length='4110' type-id='type-id-12' id='type-id-195'/>
@@ -3038,7 +3041,7 @@
       <return type-id='type-id-84'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='list.c' comp-dir-path='/home/ryan/ZoF/lib/libspl' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='list.c' comp-dir-path='/home/ryan/zfs/lib/libspl' language='LANG_C99'>
     <class-decl name='list' size-in-bits='256' is-struct='yes' visibility='default' filepath='../../lib/libspl/include/sys/list_impl.h' line='41' column='1' id='type-id-232'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='list_size' type-id='type-id-85' visibility='default' filepath='../../lib/libspl/include/sys/list_impl.h' line='42' column='1'/>
@@ -3061,99 +3064,99 @@
     <pointer-type-def type-id='type-id-233' size-in-bits='64' id='type-id-234'/>
     <typedef-decl name='list_t' type-id='type-id-232' filepath='../../lib/libspl/include/sys/list.h' line='36' column='1' id='type-id-235'/>
     <pointer-type-def type-id='type-id-235' size-in-bits='64' id='type-id-236'/>
-    <function-decl name='list_is_empty' mangled-name='list_is_empty' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='240' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_is_empty'>
-      <parameter type-id='type-id-236' name='list' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='240' column='1'/>
+    <function-decl name='list_is_empty' mangled-name='list_is_empty' filepath='/home/ryan/zfs/lib/libspl/list.c' line='240' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_is_empty'>
+      <parameter type-id='type-id-236' name='list' filepath='/home/ryan/zfs/lib/libspl/list.c' line='240' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <typedef-decl name='list_node_t' type-id='type-id-233' filepath='../../lib/libspl/include/sys/list.h' line='35' column='1' id='type-id-237'/>
     <pointer-type-def type-id='type-id-237' size-in-bits='64' id='type-id-238'/>
-    <function-decl name='list_link_active' mangled-name='list_link_active' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='233' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_link_active'>
-      <parameter type-id='type-id-238' name='ln' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='233' column='1'/>
+    <function-decl name='list_link_active' mangled-name='list_link_active' filepath='/home/ryan/zfs/lib/libspl/list.c' line='233' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_link_active'>
+      <parameter type-id='type-id-238' name='ln' filepath='/home/ryan/zfs/lib/libspl/list.c' line='233' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='list_link_init' mangled-name='list_link_init' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='226' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_link_init'>
-      <parameter type-id='type-id-238' name='ln' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='226' column='1'/>
+    <function-decl name='list_link_init' mangled-name='list_link_init' filepath='/home/ryan/zfs/lib/libspl/list.c' line='226' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_link_init'>
+      <parameter type-id='type-id-238' name='ln' filepath='/home/ryan/zfs/lib/libspl/list.c' line='226' column='1'/>
       <return type-id='type-id-84'/>
     </function-decl>
-    <function-decl name='list_link_replace' mangled-name='list_link_replace' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='213' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_link_replace'>
-      <parameter type-id='type-id-238' name='lold' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='213' column='1'/>
-      <parameter type-id='type-id-238' name='lnew' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='213' column='1'/>
+    <function-decl name='list_link_replace' mangled-name='list_link_replace' filepath='/home/ryan/zfs/lib/libspl/list.c' line='213' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_link_replace'>
+      <parameter type-id='type-id-238' name='lold' filepath='/home/ryan/zfs/lib/libspl/list.c' line='213' column='1'/>
+      <parameter type-id='type-id-238' name='lnew' filepath='/home/ryan/zfs/lib/libspl/list.c' line='213' column='1'/>
       <return type-id='type-id-84'/>
     </function-decl>
-    <function-decl name='list_move_tail' mangled-name='list_move_tail' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='192' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_move_tail'>
-      <parameter type-id='type-id-236' name='dst' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='192' column='1'/>
-      <parameter type-id='type-id-236' name='src' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='192' column='1'/>
+    <function-decl name='list_move_tail' mangled-name='list_move_tail' filepath='/home/ryan/zfs/lib/libspl/list.c' line='192' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_move_tail'>
+      <parameter type-id='type-id-236' name='dst' filepath='/home/ryan/zfs/lib/libspl/list.c' line='192' column='1'/>
+      <parameter type-id='type-id-236' name='src' filepath='/home/ryan/zfs/lib/libspl/list.c' line='192' column='1'/>
       <return type-id='type-id-84'/>
     </function-decl>
-    <function-decl name='list_prev' mangled-name='list_prev' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='178' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_prev'>
-      <parameter type-id='type-id-236' name='list' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='178' column='1'/>
-      <parameter type-id='type-id-86' name='object' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='178' column='1'/>
+    <function-decl name='list_prev' mangled-name='list_prev' filepath='/home/ryan/zfs/lib/libspl/list.c' line='178' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_prev'>
+      <parameter type-id='type-id-236' name='list' filepath='/home/ryan/zfs/lib/libspl/list.c' line='178' column='1'/>
+      <parameter type-id='type-id-86' name='object' filepath='/home/ryan/zfs/lib/libspl/list.c' line='178' column='1'/>
       <return type-id='type-id-86'/>
     </function-decl>
-    <function-decl name='list_next' mangled-name='list_next' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='167' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_next'>
-      <parameter type-id='type-id-236' name='list' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='178' column='1'/>
-      <parameter type-id='type-id-86' name='object' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='178' column='1'/>
+    <function-decl name='list_next' mangled-name='list_next' filepath='/home/ryan/zfs/lib/libspl/list.c' line='167' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_next'>
+      <parameter type-id='type-id-236' name='list' filepath='/home/ryan/zfs/lib/libspl/list.c' line='178' column='1'/>
+      <parameter type-id='type-id-86' name='object' filepath='/home/ryan/zfs/lib/libspl/list.c' line='178' column='1'/>
       <return type-id='type-id-86'/>
     </function-decl>
-    <function-decl name='list_tail' mangled-name='list_tail' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='159' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_tail'>
-      <parameter type-id='type-id-236' name='list' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='159' column='1'/>
+    <function-decl name='list_tail' mangled-name='list_tail' filepath='/home/ryan/zfs/lib/libspl/list.c' line='159' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_tail'>
+      <parameter type-id='type-id-236' name='list' filepath='/home/ryan/zfs/lib/libspl/list.c' line='159' column='1'/>
       <return type-id='type-id-86'/>
     </function-decl>
-    <function-decl name='list_head' mangled-name='list_head' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='151' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_head'>
-      <parameter type-id='type-id-236' name='list' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='159' column='1'/>
+    <function-decl name='list_head' mangled-name='list_head' filepath='/home/ryan/zfs/lib/libspl/list.c' line='151' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_head'>
+      <parameter type-id='type-id-236' name='list' filepath='/home/ryan/zfs/lib/libspl/list.c' line='159' column='1'/>
       <return type-id='type-id-86'/>
     </function-decl>
-    <function-decl name='list_remove_tail' mangled-name='list_remove_tail' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='141' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_remove_tail'>
-      <parameter type-id='type-id-236' name='list' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='141' column='1'/>
+    <function-decl name='list_remove_tail' mangled-name='list_remove_tail' filepath='/home/ryan/zfs/lib/libspl/list.c' line='141' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_remove_tail'>
+      <parameter type-id='type-id-236' name='list' filepath='/home/ryan/zfs/lib/libspl/list.c' line='141' column='1'/>
       <return type-id='type-id-86'/>
     </function-decl>
-    <function-decl name='list_remove_head' mangled-name='list_remove_head' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='131' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_remove_head'>
-      <parameter type-id='type-id-236' name='list' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='141' column='1'/>
+    <function-decl name='list_remove_head' mangled-name='list_remove_head' filepath='/home/ryan/zfs/lib/libspl/list.c' line='131' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_remove_head'>
+      <parameter type-id='type-id-236' name='list' filepath='/home/ryan/zfs/lib/libspl/list.c' line='141' column='1'/>
       <return type-id='type-id-86'/>
     </function-decl>
-    <function-decl name='list_remove' mangled-name='list_remove' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='122' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_remove'>
-      <parameter type-id='type-id-236' name='list' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='122' column='1'/>
-      <parameter type-id='type-id-86' name='object' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='122' column='1'/>
+    <function-decl name='list_remove' mangled-name='list_remove' filepath='/home/ryan/zfs/lib/libspl/list.c' line='122' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_remove'>
+      <parameter type-id='type-id-236' name='list' filepath='/home/ryan/zfs/lib/libspl/list.c' line='122' column='1'/>
+      <parameter type-id='type-id-86' name='object' filepath='/home/ryan/zfs/lib/libspl/list.c' line='122' column='1'/>
       <return type-id='type-id-84'/>
     </function-decl>
-    <function-decl name='list_insert_tail' mangled-name='list_insert_tail' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='115' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_insert_tail'>
-      <parameter type-id='type-id-236' name='list' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='115' column='1'/>
-      <parameter type-id='type-id-86' name='object' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='115' column='1'/>
+    <function-decl name='list_insert_tail' mangled-name='list_insert_tail' filepath='/home/ryan/zfs/lib/libspl/list.c' line='115' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_insert_tail'>
+      <parameter type-id='type-id-236' name='list' filepath='/home/ryan/zfs/lib/libspl/list.c' line='115' column='1'/>
+      <parameter type-id='type-id-86' name='object' filepath='/home/ryan/zfs/lib/libspl/list.c' line='115' column='1'/>
       <return type-id='type-id-84'/>
     </function-decl>
-    <function-decl name='list_insert_head' mangled-name='list_insert_head' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='108' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_insert_head'>
-      <parameter type-id='type-id-236' name='list' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='115' column='1'/>
-      <parameter type-id='type-id-86' name='object' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='115' column='1'/>
+    <function-decl name='list_insert_head' mangled-name='list_insert_head' filepath='/home/ryan/zfs/lib/libspl/list.c' line='108' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_insert_head'>
+      <parameter type-id='type-id-236' name='list' filepath='/home/ryan/zfs/lib/libspl/list.c' line='115' column='1'/>
+      <parameter type-id='type-id-86' name='object' filepath='/home/ryan/zfs/lib/libspl/list.c' line='115' column='1'/>
       <return type-id='type-id-84'/>
     </function-decl>
-    <function-decl name='list_insert_before' mangled-name='list_insert_before' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='97' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_insert_before'>
-      <parameter type-id='type-id-236' name='list' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='97' column='1'/>
-      <parameter type-id='type-id-86' name='object' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='97' column='1'/>
-      <parameter type-id='type-id-86' name='nobject' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='97' column='1'/>
+    <function-decl name='list_insert_before' mangled-name='list_insert_before' filepath='/home/ryan/zfs/lib/libspl/list.c' line='97' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_insert_before'>
+      <parameter type-id='type-id-236' name='list' filepath='/home/ryan/zfs/lib/libspl/list.c' line='97' column='1'/>
+      <parameter type-id='type-id-86' name='object' filepath='/home/ryan/zfs/lib/libspl/list.c' line='97' column='1'/>
+      <parameter type-id='type-id-86' name='nobject' filepath='/home/ryan/zfs/lib/libspl/list.c' line='97' column='1'/>
       <return type-id='type-id-84'/>
     </function-decl>
-    <function-decl name='list_insert_after' mangled-name='list_insert_after' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='86' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_insert_after'>
-      <parameter type-id='type-id-236' name='list' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='97' column='1'/>
-      <parameter type-id='type-id-86' name='object' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='97' column='1'/>
-      <parameter type-id='type-id-86' name='nobject' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='97' column='1'/>
+    <function-decl name='list_insert_after' mangled-name='list_insert_after' filepath='/home/ryan/zfs/lib/libspl/list.c' line='86' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_insert_after'>
+      <parameter type-id='type-id-236' name='list' filepath='/home/ryan/zfs/lib/libspl/list.c' line='97' column='1'/>
+      <parameter type-id='type-id-86' name='object' filepath='/home/ryan/zfs/lib/libspl/list.c' line='97' column='1'/>
+      <parameter type-id='type-id-86' name='nobject' filepath='/home/ryan/zfs/lib/libspl/list.c' line='97' column='1'/>
       <return type-id='type-id-84'/>
     </function-decl>
-    <function-decl name='list_destroy' mangled-name='list_destroy' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='74' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_destroy'>
-      <parameter type-id='type-id-236' name='list' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='74' column='1'/>
+    <function-decl name='list_destroy' mangled-name='list_destroy' filepath='/home/ryan/zfs/lib/libspl/list.c' line='74' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_destroy'>
+      <parameter type-id='type-id-236' name='list' filepath='/home/ryan/zfs/lib/libspl/list.c' line='74' column='1'/>
       <return type-id='type-id-84'/>
     </function-decl>
-    <function-decl name='list_create' mangled-name='list_create' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='62' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_create'>
-      <parameter type-id='type-id-236' name='list' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='62' column='1'/>
-      <parameter type-id='type-id-85' name='size' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='62' column='1'/>
-      <parameter type-id='type-id-85' name='offset' filepath='/home/ryan/ZoF/lib/libspl/list.c' line='62' column='1'/>
+    <function-decl name='list_create' mangled-name='list_create' filepath='/home/ryan/zfs/lib/libspl/list.c' line='62' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='list_create'>
+      <parameter type-id='type-id-236' name='list' filepath='/home/ryan/zfs/lib/libspl/list.c' line='62' column='1'/>
+      <parameter type-id='type-id-85' name='size' filepath='/home/ryan/zfs/lib/libspl/list.c' line='62' column='1'/>
+      <parameter type-id='type-id-85' name='offset' filepath='/home/ryan/zfs/lib/libspl/list.c' line='62' column='1'/>
       <return type-id='type-id-84'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='mkdirp.c' comp-dir-path='/home/ryan/ZoF/lib/libspl' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='mkdirp.c' comp-dir-path='/home/ryan/zfs/lib/libspl' language='LANG_C99'>
     <typedef-decl name='mode_t' type-id='type-id-202' filepath='/usr/include/x86_64-linux-gnu/sys/types.h' line='69' column='1' id='type-id-239'/>
-    <function-decl name='mkdirp' mangled-name='mkdirp' filepath='/home/ryan/ZoF/lib/libspl/mkdirp.c' line='50' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='mkdirp'>
-      <parameter type-id='type-id-4' name='d' filepath='/home/ryan/ZoF/lib/libspl/mkdirp.c' line='50' column='1'/>
-      <parameter type-id='type-id-239' name='mode' filepath='/home/ryan/ZoF/lib/libspl/mkdirp.c' line='50' column='1'/>
+    <function-decl name='mkdirp' mangled-name='mkdirp' filepath='/home/ryan/zfs/lib/libspl/mkdirp.c' line='50' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='mkdirp'>
+      <parameter type-id='type-id-4' name='d' filepath='/home/ryan/zfs/lib/libspl/mkdirp.c' line='50' column='1'/>
+      <parameter type-id='type-id-239' name='mode' filepath='/home/ryan/zfs/lib/libspl/mkdirp.c' line='50' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='mbstowcs' mangled-name='mbstowcs' filepath='/usr/include/stdlib.h' line='930' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -3166,34 +3169,34 @@
       <return type-id='type-id-84'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='page.c' comp-dir-path='/home/ryan/ZoF/lib/libspl' language='LANG_C99'>
-    <var-decl name='pagesize' type-id='type-id-85' mangled-name='pagesize' visibility='default' filepath='/home/ryan/ZoF/lib/libspl/page.c' line='25' column='1' elf-symbol-id='pagesize'/>
-    <function-decl name='spl_pagesize' mangled-name='spl_pagesize' filepath='/home/ryan/ZoF/lib/libspl/page.c' line='28' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='spl_pagesize'>
+  <abi-instr version='1.0' address-size='64' path='page.c' comp-dir-path='/home/ryan/zfs/lib/libspl' language='LANG_C99'>
+    <var-decl name='pagesize' type-id='type-id-85' mangled-name='pagesize' visibility='default' filepath='/home/ryan/zfs/lib/libspl/page.c' line='25' column='1' elf-symbol-id='pagesize'/>
+    <function-decl name='spl_pagesize' mangled-name='spl_pagesize' filepath='/home/ryan/zfs/lib/libspl/page.c' line='28' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='spl_pagesize'>
       <return type-id='type-id-85'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='strlcat.c' comp-dir-path='/home/ryan/ZoF/lib/libspl' language='LANG_C99'>
-    <function-decl name='strlcat' mangled-name='strlcat' filepath='/home/ryan/ZoF/lib/libspl/strlcat.c' line='39' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='strlcat'>
-      <parameter type-id='type-id-36' name='dst' filepath='/home/ryan/ZoF/lib/libspl/strlcat.c' line='39' column='1'/>
-      <parameter type-id='type-id-4' name='src' filepath='/home/ryan/ZoF/lib/libspl/strlcat.c' line='39' column='1'/>
-      <parameter type-id='type-id-85' name='dstsize' filepath='/home/ryan/ZoF/lib/libspl/strlcat.c' line='39' column='1'/>
+  <abi-instr version='1.0' address-size='64' path='strlcat.c' comp-dir-path='/home/ryan/zfs/lib/libspl' language='LANG_C99'>
+    <function-decl name='strlcat' mangled-name='strlcat' filepath='/home/ryan/zfs/lib/libspl/strlcat.c' line='39' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='strlcat'>
+      <parameter type-id='type-id-36' name='dst' filepath='/home/ryan/zfs/lib/libspl/strlcat.c' line='39' column='1'/>
+      <parameter type-id='type-id-4' name='src' filepath='/home/ryan/zfs/lib/libspl/strlcat.c' line='39' column='1'/>
+      <parameter type-id='type-id-85' name='dstsize' filepath='/home/ryan/zfs/lib/libspl/strlcat.c' line='39' column='1'/>
       <return type-id='type-id-85'/>
     </function-decl>
     <function-decl name='__builtin_memcpy' mangled-name='memcpy' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-84'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='strlcpy.c' comp-dir-path='/home/ryan/ZoF/lib/libspl' language='LANG_C99'>
-    <function-decl name='strlcpy' mangled-name='strlcpy' filepath='/home/ryan/ZoF/lib/libspl/strlcpy.c' line='39' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='strlcpy'>
-      <parameter type-id='type-id-36' name='dst' filepath='/home/ryan/ZoF/lib/libspl/strlcpy.c' line='39' column='1'/>
-      <parameter type-id='type-id-4' name='src' filepath='/home/ryan/ZoF/lib/libspl/strlcpy.c' line='39' column='1'/>
-      <parameter type-id='type-id-85' name='len' filepath='/home/ryan/ZoF/lib/libspl/strlcpy.c' line='39' column='1'/>
+  <abi-instr version='1.0' address-size='64' path='strlcpy.c' comp-dir-path='/home/ryan/zfs/lib/libspl' language='LANG_C99'>
+    <function-decl name='strlcpy' mangled-name='strlcpy' filepath='/home/ryan/zfs/lib/libspl/strlcpy.c' line='39' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='strlcpy'>
+      <parameter type-id='type-id-36' name='dst' filepath='/home/ryan/zfs/lib/libspl/strlcpy.c' line='39' column='1'/>
+      <parameter type-id='type-id-4' name='src' filepath='/home/ryan/zfs/lib/libspl/strlcpy.c' line='39' column='1'/>
+      <parameter type-id='type-id-85' name='len' filepath='/home/ryan/zfs/lib/libspl/strlcpy.c' line='39' column='1'/>
       <return type-id='type-id-85'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='timestamp.c' comp-dir-path='/home/ryan/ZoF/lib/libspl' language='LANG_C99'>
-    <function-decl name='print_timestamp' mangled-name='print_timestamp' filepath='/home/ryan/ZoF/lib/libspl/timestamp.c' line='44' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='print_timestamp'>
-      <parameter type-id='type-id-35' name='timestamp_fmt' filepath='/home/ryan/ZoF/lib/libspl/timestamp.c' line='44' column='1'/>
+  <abi-instr version='1.0' address-size='64' path='timestamp.c' comp-dir-path='/home/ryan/zfs/lib/libspl' language='LANG_C99'>
+    <function-decl name='print_timestamp' mangled-name='print_timestamp' filepath='/home/ryan/zfs/lib/libspl/timestamp.c' line='44' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='print_timestamp'>
+      <parameter type-id='type-id-35' name='timestamp_fmt' filepath='/home/ryan/zfs/lib/libspl/timestamp.c' line='44' column='1'/>
       <return type-id='type-id-84'/>
     </function-decl>
     <function-decl name='localtime' mangled-name='localtime' filepath='/usr/include/time.h' line='123' column='1' visibility='default' binding='global' size-in-bits='64'>
@@ -3209,13 +3212,13 @@
       <return type-id='type-id-84'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='os/linux/zone.c' comp-dir-path='/home/ryan/ZoF/lib/libspl' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='os/linux/zone.c' comp-dir-path='/home/ryan/zfs/lib/libspl' language='LANG_C99'>
     <typedef-decl name='zoneid_t' type-id='type-id-1' filepath='../../lib/libspl/include/sys/types.h' line='47' column='1' id='type-id-240'/>
     <function-decl name='getzoneid' mangled-name='getzoneid' filepath='os/linux/zone.c' line='29' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='getzoneid'>
       <return type-id='type-id-240'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='rdwr_efi.c' comp-dir-path='/home/ryan/ZoF/lib/libefi' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='rdwr_efi.c' comp-dir-path='/home/ryan/zfs/lib/libefi' language='LANG_C99'>
     <class-decl name='dk_map2' size-in-bits='32' is-struct='yes' visibility='default' filepath='../../lib/libspl/include/sys/dklabel.h' line='102' column='1' id='type-id-241'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='p_tag' type-id='type-id-242' visibility='default' filepath='../../lib/libspl/include/sys/dklabel.h' line='103' column='1'/>
@@ -3231,8 +3234,8 @@
       <subrange length='16' type-id='type-id-12' id='type-id-71'/>
 
     </array-type-def>
-    <var-decl name='default_vtoc_map' type-id='type-id-244' mangled-name='default_vtoc_map' visibility='default' filepath='/home/ryan/ZoF/lib/libefi/rdwr_efi.c' line='146' column='1' elf-symbol-id='default_vtoc_map'/>
-    <var-decl name='efi_debug' type-id='type-id-1' mangled-name='efi_debug' visibility='default' filepath='/home/ryan/ZoF/lib/libefi/rdwr_efi.c' line='177' column='1' elf-symbol-id='efi_debug'/>
+    <var-decl name='default_vtoc_map' type-id='type-id-244' mangled-name='default_vtoc_map' visibility='default' filepath='/home/ryan/zfs/lib/libefi/rdwr_efi.c' line='146' column='1' elf-symbol-id='default_vtoc_map'/>
+    <var-decl name='efi_debug' type-id='type-id-1' mangled-name='efi_debug' visibility='default' filepath='/home/ryan/zfs/lib/libefi/rdwr_efi.c' line='177' column='1' elf-symbol-id='efi_debug'/>
     <class-decl name='dk_gpt' size-in-bits='1920' is-struct='yes' visibility='default' filepath='../../include/sys/efi_partition.h' line='316' column='1' id='type-id-245'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='efi_version' type-id='type-id-35' visibility='default' filepath='../../include/sys/efi_partition.h' line='317' column='1'/>
@@ -3345,45 +3348,45 @@
     </array-type-def>
     <pointer-type-def type-id='type-id-245' size-in-bits='64' id='type-id-256'/>
     <pointer-type-def type-id='type-id-256' size-in-bits='64' id='type-id-257'/>
-    <function-decl name='efi_auto_sense' mangled-name='efi_auto_sense' filepath='/home/ryan/ZoF/lib/libefi/rdwr_efi.c' line='1708' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='efi_auto_sense'>
-      <parameter type-id='type-id-1' name='fd' filepath='/home/ryan/ZoF/lib/libefi/rdwr_efi.c' line='1708' column='1'/>
-      <parameter type-id='type-id-257' name='vtoc' filepath='/home/ryan/ZoF/lib/libefi/rdwr_efi.c' line='1708' column='1'/>
+    <function-decl name='efi_auto_sense' mangled-name='efi_auto_sense' filepath='/home/ryan/zfs/lib/libefi/rdwr_efi.c' line='1708' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='efi_auto_sense'>
+      <parameter type-id='type-id-1' name='fd' filepath='/home/ryan/zfs/lib/libefi/rdwr_efi.c' line='1708' column='1'/>
+      <parameter type-id='type-id-257' name='vtoc' filepath='/home/ryan/zfs/lib/libefi/rdwr_efi.c' line='1708' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='efi_err_check' mangled-name='efi_err_check' filepath='/home/ryan/ZoF/lib/libefi/rdwr_efi.c' line='1613' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='efi_err_check'>
-      <parameter type-id='type-id-256' name='vtoc' filepath='/home/ryan/ZoF/lib/libefi/rdwr_efi.c' line='1613' column='1'/>
+    <function-decl name='efi_err_check' mangled-name='efi_err_check' filepath='/home/ryan/zfs/lib/libefi/rdwr_efi.c' line='1613' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='efi_err_check'>
+      <parameter type-id='type-id-256' name='vtoc' filepath='/home/ryan/zfs/lib/libefi/rdwr_efi.c' line='1613' column='1'/>
       <return type-id='type-id-84'/>
     </function-decl>
-    <function-decl name='efi_type' mangled-name='efi_type' filepath='/home/ryan/ZoF/lib/libefi/rdwr_efi.c' line='1591' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='efi_type'>
-      <parameter type-id='type-id-1' name='fd' filepath='/home/ryan/ZoF/lib/libefi/rdwr_efi.c' line='1591' column='1'/>
+    <function-decl name='efi_type' mangled-name='efi_type' filepath='/home/ryan/zfs/lib/libefi/rdwr_efi.c' line='1591' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='efi_type'>
+      <parameter type-id='type-id-1' name='fd' filepath='/home/ryan/zfs/lib/libefi/rdwr_efi.c' line='1591' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='efi_free' mangled-name='efi_free' filepath='/home/ryan/ZoF/lib/libefi/rdwr_efi.c' line='1580' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='efi_free'>
-      <parameter type-id='type-id-256' name='ptr' filepath='/home/ryan/ZoF/lib/libefi/rdwr_efi.c' line='1580' column='1'/>
+    <function-decl name='efi_free' mangled-name='efi_free' filepath='/home/ryan/zfs/lib/libefi/rdwr_efi.c' line='1580' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='efi_free'>
+      <parameter type-id='type-id-256' name='ptr' filepath='/home/ryan/zfs/lib/libefi/rdwr_efi.c' line='1580' column='1'/>
       <return type-id='type-id-84'/>
     </function-decl>
-    <function-decl name='efi_write' mangled-name='efi_write' filepath='/home/ryan/ZoF/lib/libefi/rdwr_efi.c' line='1377' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='efi_write'>
-      <parameter type-id='type-id-1' name='fd' filepath='/home/ryan/ZoF/lib/libefi/rdwr_efi.c' line='1377' column='1'/>
-      <parameter type-id='type-id-256' name='vtoc' filepath='/home/ryan/ZoF/lib/libefi/rdwr_efi.c' line='1377' column='1'/>
+    <function-decl name='efi_write' mangled-name='efi_write' filepath='/home/ryan/zfs/lib/libefi/rdwr_efi.c' line='1377' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='efi_write'>
+      <parameter type-id='type-id-1' name='fd' filepath='/home/ryan/zfs/lib/libefi/rdwr_efi.c' line='1377' column='1'/>
+      <parameter type-id='type-id-256' name='vtoc' filepath='/home/ryan/zfs/lib/libefi/rdwr_efi.c' line='1377' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='efi_use_whole_disk' mangled-name='efi_use_whole_disk' filepath='/home/ryan/ZoF/lib/libefi/rdwr_efi.c' line='1161' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='efi_use_whole_disk'>
-      <parameter type-id='type-id-1' name='fd' filepath='/home/ryan/ZoF/lib/libefi/rdwr_efi.c' line='1161' column='1'/>
+    <function-decl name='efi_use_whole_disk' mangled-name='efi_use_whole_disk' filepath='/home/ryan/zfs/lib/libefi/rdwr_efi.c' line='1161' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='efi_use_whole_disk'>
+      <parameter type-id='type-id-1' name='fd' filepath='/home/ryan/zfs/lib/libefi/rdwr_efi.c' line='1161' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='efi_rescan' mangled-name='efi_rescan' filepath='/home/ryan/ZoF/lib/libefi/rdwr_efi.c' line='608' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='efi_rescan'>
-      <parameter type-id='type-id-1' name='fd' filepath='/home/ryan/ZoF/lib/libefi/rdwr_efi.c' line='608' column='1'/>
+    <function-decl name='efi_rescan' mangled-name='efi_rescan' filepath='/home/ryan/zfs/lib/libefi/rdwr_efi.c' line='608' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='efi_rescan'>
+      <parameter type-id='type-id-1' name='fd' filepath='/home/ryan/zfs/lib/libefi/rdwr_efi.c' line='608' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='efi_alloc_and_read' mangled-name='efi_alloc_and_read' filepath='/home/ryan/ZoF/lib/libefi/rdwr_efi.c' line='446' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='efi_alloc_and_read'>
-      <parameter type-id='type-id-1' name='fd' filepath='/home/ryan/ZoF/lib/libefi/rdwr_efi.c' line='446' column='1'/>
-      <parameter type-id='type-id-257' name='vtoc' filepath='/home/ryan/ZoF/lib/libefi/rdwr_efi.c' line='446' column='1'/>
+    <function-decl name='efi_alloc_and_read' mangled-name='efi_alloc_and_read' filepath='/home/ryan/zfs/lib/libefi/rdwr_efi.c' line='446' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='efi_alloc_and_read'>
+      <parameter type-id='type-id-1' name='fd' filepath='/home/ryan/zfs/lib/libefi/rdwr_efi.c' line='446' column='1'/>
+      <parameter type-id='type-id-257' name='vtoc' filepath='/home/ryan/zfs/lib/libefi/rdwr_efi.c' line='446' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='efi_alloc_and_init' mangled-name='efi_alloc_and_init' filepath='/home/ryan/ZoF/lib/libefi/rdwr_efi.c' line='376' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='efi_alloc_and_init'>
-      <parameter type-id='type-id-1' name='fd' filepath='/home/ryan/ZoF/lib/libefi/rdwr_efi.c' line='376' column='1'/>
-      <parameter type-id='type-id-7' name='nparts' filepath='/home/ryan/ZoF/lib/libefi/rdwr_efi.c' line='376' column='1'/>
-      <parameter type-id='type-id-257' name='vtoc' filepath='/home/ryan/ZoF/lib/libefi/rdwr_efi.c' line='376' column='1'/>
+    <function-decl name='efi_alloc_and_init' mangled-name='efi_alloc_and_init' filepath='/home/ryan/zfs/lib/libefi/rdwr_efi.c' line='376' column='1' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='efi_alloc_and_init'>
+      <parameter type-id='type-id-1' name='fd' filepath='/home/ryan/zfs/lib/libefi/rdwr_efi.c' line='376' column='1'/>
+      <parameter type-id='type-id-7' name='nparts' filepath='/home/ryan/zfs/lib/libefi/rdwr_efi.c' line='376' column='1'/>
+      <parameter type-id='type-id-257' name='vtoc' filepath='/home/ryan/zfs/lib/libefi/rdwr_efi.c' line='376' column='1'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='uuid_is_null' mangled-name='uuid_is_null' filepath='/usr/include/uuid/uuid.h' line='99' column='1' visibility='default' binding='global' size-in-bits='64'>
