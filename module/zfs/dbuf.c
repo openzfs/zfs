@@ -622,9 +622,10 @@ dbuf_cache_multilist_index_func(multilist_t *ml, void *obj)
 	 * Also, the low order bits of the hash value are thought to be
 	 * distributed evenly. Otherwise, in the case that the multilist
 	 * has a power of two number of sublists, each sublists' usage
-	 * would not be evenly distributed.
+	 * would not be evenly distributed. In this context full 64bit
+	 * division would be a waste of time, so limit it to 32 bits.
 	 */
-	return (dbuf_hash(db->db_objset, db->db.db_object,
+	return ((unsigned int)dbuf_hash(db->db_objset, db->db.db_object,
 	    db->db_level, db->db_blkid) %
 	    multilist_get_num_sublists(ml));
 }
