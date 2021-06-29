@@ -423,8 +423,8 @@ ddt_stat_add(ddt_stat_t *dst, const ddt_stat_t *src, uint64_t neg)
 
 	ASSERT(neg == 0 || neg == -1ULL);	/* add or subtract */
 
-	while (d < d_end)
-		*d++ += (*s++ ^ neg) - neg;
+	for (int i = 0; i < d_end - d; i++)
+		d[i] += (s[i] ^ neg) - neg;
 }
 
 static void
