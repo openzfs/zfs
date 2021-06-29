@@ -263,7 +263,7 @@ zed_notify_email()
                 -e "s/@SUBJECT@/${subject}/g")"
 
     # shellcheck disable=SC2086
-    ${ZED_EMAIL_PROG} ${ZED_EMAIL_OPTS} < "${pathname}" >/dev/null 2>&1
+    eval ${ZED_EMAIL_PROG} ${ZED_EMAIL_OPTS} < "${pathname}" >/dev/null 2>&1
     rv=$?
     if [ "${rv}" -ne 0 ]; then
         zed_log_err "$(basename "${ZED_EMAIL_PROG}") exit=${rv}"
