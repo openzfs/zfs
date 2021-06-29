@@ -4861,8 +4861,8 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin, nvlist_t *recvprops,
 	*errors = fnvlist_alloc();
 	off = 0;
 
-	if ((error = zfs_file_get(input_fd, &input_fp)))
-		return (error);
+	if ((input_fp = zfs_file_get(input_fd)) == NULL)
+		return (SET_ERROR(EBADF));
 
 	noff = off = zfs_file_off(input_fp);
 	error = dmu_recv_begin(tofs, tosnap, begin_record, force,
@@ -5142,7 +5142,7 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, char *origin, nvlist_t *recvprops,
 		nvlist_free(inheritprops);
 	}
 out:
-	zfs_file_put(input_fd);
+	zfs_file_put(input_fp);
 	nvlist_free(origrecvd);
 	nvlist_free(origprops);
 
@@ -5472,8 +5472,8 @@ zfs_ioc_send(zfs_cmd_t *zc)
 		zfs_file_t *fp;
 		dmu_send_outparams_t out = {0};
 
-		if ((error = zfs_file_get(zc->zc_cookie, &fp)))
-			return (error);
+		if ((fp = zfs_file_get(zc->zc_cookie)) == NULL)
+			return (SET_ERROR(EBADF));
 
 		off = zfs_file_off(fp);
 		out.dso_outfunc = dump_bytes;
@@ -5483,7 +5483,7 @@ zfs_ioc_send(zfs_cmd_t *zc)
 		    zc->zc_fromobj, embedok, large_block_ok, compressok,
 		    rawok, savedok, zc->zc_cookie, &off, &out);
 
-		zfs_file_put(zc->zc_cookie);
+		zfs_file_put(fp);
 	}
 	return (error);
 }
@@ -6047,25 +6047,24 @@ zfs_ioc_tmp_snapshot(zfs_cmd_t *zc)
 {
 	char *snap_name;
 	char *hold_name;
-	int error;
 	minor_t minor;
 
-	error = zfs_onexit_fd_hold(zc->zc_cleanup_fd, &minor);
-	if (error != 0)
-		return (error);
+	zfs_file_t *fp = zfs_onexit_fd_hold(zc->zc_cleanup_fd, &minor);
+	if (fp == NULL)
+		return (SET_ERROR(EBADF));
 
 	snap_name = kmem_asprintf("%s-%016llx", zc->zc_value,
 	    (u_longlong_t)ddi_get_lbolt64());
 	hold_name = kmem_asprintf("%%%s", zc->zc_value);
 
-	error = dsl_dataset_snapshot_tmp(zc->zc_name, snap_name, minor,
+	int error = dsl_dataset_snapshot_tmp(zc->zc_name, snap_name, minor,
 	    hold_name);
 	if (error == 0)
 		(void) strlcpy(zc->zc_value, snap_name,
 		    sizeof (zc->zc_value));
 	kmem_strfree(snap_name);
 	kmem_strfree(hold_name);
-	zfs_onexit_fd_rele(zc->zc_cleanup_fd);
+	zfs_onexit_fd_rele(fp);
 	return (error);
 }
 
@@ -6085,13 +6084,13 @@ zfs_ioc_diff(zfs_cmd_t *zc)
 	offset_t off;
 	int error;
 
-	if ((error = zfs_file_get(zc->zc_cookie, &fp)))
-		return (error);
+	if ((fp = zfs_file_get(zc->zc_cookie)) == NULL)
+		return (SET_ERROR(EBADF));
 
 	off = zfs_file_off(fp);
 	error = dmu_diff(zc->zc_name, zc->zc_value, fp, &off);
 
-	zfs_file_put(zc->zc_cookie);
+	zfs_file_put(fp);
 
 	return (error);
 }
@@ -6127,6 +6126,7 @@ zfs_ioc_hold(const char *pool, nvlist_t *args, nvlist_t *errlist)
 	int cleanup_fd = -1;
 	int error;
 	minor_t minor = 0;
+	zfs_file_t *fp = NULL;
 
 	holds = fnvlist_lookup_nvlist(args, "holds");
 
@@ -6144,14 +6144,16 @@ zfs_ioc_hold(const char *pool, nvlist_t *args, nvlist_t *errlist)
 	}
 
 	if (nvlist_lookup_int32(args, "cleanup_fd", &cleanup_fd) == 0) {
-		error = zfs_onexit_fd_hold(cleanup_fd, &minor);
-		if (error != 0)
-			return (SET_ERROR(error));
+		fp = zfs_onexit_fd_hold(cleanup_fd, &minor);
+		if (fp == NULL)
+			return (SET_ERROR(EBADF));
 	}
 
 	error = dsl_dataset_user_hold(holds, minor, errlist);
-	if (minor != 0)
-		zfs_onexit_fd_rele(cleanup_fd);
+	if (fp != NULL) {
+		ASSERT3U(minor, !=, 0);
+		zfs_onexit_fd_rele(fp);
+	}
 	return (SET_ERROR(error));
 }
 
@@ -6214,9 +6216,9 @@ zfs_ioc_events_next(zfs_cmd_t *zc)
 	uint64_t dropped = 0;
 	int error;
 
-	error = zfs_zevent_fd_hold(zc->zc_cleanup_fd, &minor, &ze);
-	if (error != 0)
-		return (error);
+	zfs_file_t *fp = zfs_zevent_fd_hold(zc->zc_cleanup_fd, &minor, &ze);
+	if (fp == NULL)
+		return (SET_ERROR(EBADF));
 
 	do {
 		error = zfs_zevent_next(ze, &event,
@@ -6238,7 +6240,7 @@ zfs_ioc_events_next(zfs_cmd_t *zc)
 			break;
 	} while (1);
 
-	zfs_zevent_fd_rele(zc->zc_cleanup_fd);
+	zfs_zevent_fd_rele(fp);
 
 	return (error);
 }
@@ -6270,12 +6272,12 @@ zfs_ioc_events_seek(zfs_cmd_t *zc)
 	minor_t minor;
 	int error;
 
-	error = zfs_zevent_fd_hold(zc->zc_cleanup_fd, &minor, &ze);
-	if (error != 0)
-		return (error);
+	zfs_file_t *fp = zfs_zevent_fd_hold(zc->zc_cleanup_fd, &minor, &ze);
+	if (fp == NULL)
+		return (SET_ERROR(EBADF));
 
 	error = zfs_zevent_seek(ze, zc->zc_guid);
-	zfs_zevent_fd_rele(zc->zc_cleanup_fd);
+	zfs_zevent_fd_rele(fp);
 
 	return (error);
 }
@@ -6459,8 +6461,8 @@ zfs_ioc_send_new(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 
 	(void) nvlist_lookup_string(innvl, "redactbook", &redactbook);
 
-	if ((error = zfs_file_get(fd, &fp)))
-		return (error);
+	if ((fp = zfs_file_get(fd)) == NULL)
+		return (SET_ERROR(EBADF));
 
 	off = zfs_file_off(fp);
 
@@ -6472,7 +6474,7 @@ zfs_ioc_send_new(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 	    compressok, rawok, savedok, resumeobj, resumeoff,
 	    redactbook, fd, &off, &out);
 
-	zfs_file_put(fd);
+	zfs_file_put(fp);
 	return (error);
 }
 
@@ -7345,16 +7347,11 @@ pool_status_check(const char *name, zfs_ioc_namecheck_t type,
 }
 
 int
-zfsdev_getminor(int fd, minor_t *minorp)
+zfsdev_getminor(zfs_file_t *fp, minor_t *minorp)
 {
 	zfsdev_state_t *zs, *fpd;
-	zfs_file_t *fp;
-	int rc;
 
 	ASSERT(!MUTEX_HELD(&zfsdev_state_lock));
-
-	if ((rc = zfs_file_get(fd, &fp)))
-		return (rc);
 
 	fpd = zfs_file_private(fp);
 	if (fpd == NULL)
