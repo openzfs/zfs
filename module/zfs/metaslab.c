@@ -1874,7 +1874,12 @@ static unsigned int
 metaslab_idx_func(multilist_t *ml, void *arg)
 {
 	metaslab_t *msp = arg;
-	return (msp->ms_id % multilist_get_num_sublists(ml));
+
+	/*
+	 * ms_id values are allocated sequentially, so full 64bit
+	 * division would be a waste of time, so limit it to 32 bits.
+	 */
+	return ((unsigned int)msp->ms_id % multilist_get_num_sublists(ml));
 }
 
 uint64_t
