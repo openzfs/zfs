@@ -641,6 +641,27 @@ devid_iter(const char *devid, zfs_process_func_t func, boolean_t is_slice)
 }
 
 /*
+ * Given a device guid, find any vdevs with a matching guid.
+ */
+static boolean_t
+guid_iter(uint64_t pool_guid, uint64_t vdev_guid, const char *devid,
+    zfs_process_func_t func, boolean_t is_slice)
+{
+	dev_data_t data = { 0 };
+
+	data.dd_func = func;
+	data.dd_found = B_FALSE;
+	data.dd_pool_guid = pool_guid;
+	data.dd_vdev_guid = vdev_guid;
+	data.dd_islabeled = is_slice;
+	data.dd_new_devid = devid;
+
+	(void) zpool_iter(g_zfshdl, zfs_iter_pool, &data);
+
+	return (data.dd_found);
+}
+
+/*
  * Handle a EC_DEV_ADD.ESC_DISK event.
  *
  * illumos
@@ -663,15 +684,18 @@ static int
 zfs_deliver_add(nvlist_t *nvl, boolean_t is_lofi)
 {
 	char *devpath = NULL, *devid;
+	uint64_t pool_guid = 0, vdev_guid = 0;
 	boolean_t is_slice;
 
 	/*
-	 * Expecting a devid string and an optional physical location
+	 * Expecting a devid string and an optional physical location and guid
 	 */
 	if (nvlist_lookup_string(nvl, DEV_IDENTIFIER, &devid) != 0)
 		return (-1);
 
 	(void) nvlist_lookup_string(nvl, DEV_PHYS_PATH, &devpath);
+	(void) nvlist_lookup_uint64(nvl, ZFS_EV_POOL_GUID, &pool_guid);
+	(void) nvlist_lookup_uint64(nvl, ZFS_EV_VDEV_GUID, &vdev_guid);
 
 	is_slice = (nvlist_lookup_boolean(nvl, DEV_IS_PART) == 0);
 
@@ -682,12 +706,16 @@ zfs_deliver_add(nvlist_t *nvl, boolean_t is_lofi)
 	 * Iterate over all vdevs looking for a match in the following order:
 	 * 1. ZPOOL_CONFIG_DEVID (identifies the unique disk)
 	 * 2. ZPOOL_CONFIG_PHYS_PATH (identifies disk physical location).
-	 *
-	 * For disks, we only want to pay attention to vdevs marked as whole
-	 * disks or are a multipath device.
+	 * 3. ZPOOL_CONFIG_GUID (identifies unique vdev).
 	 */
-	if (!devid_iter(devid, zfs_process_add, is_slice) && devpath != NULL)
-		(void) devphys_iter(devpath, devid, zfs_process_add, is_slice);
+	if (devid_iter(devid, zfs_process_add, is_slice))
+		return (0);
+	if (devpath != NULL && devphys_iter(devpath, devid, zfs_process_add,
+	    is_slice))
+		return (0);
+	if (vdev_guid != 0)
+		(void) guid_iter(pool_guid, vdev_guid, devid, zfs_process_add,
+		    is_slice);
 
 	return (0);
 }
