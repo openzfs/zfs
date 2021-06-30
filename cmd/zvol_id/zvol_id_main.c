@@ -63,14 +63,14 @@ main(int argc, char **argv)
 	int rc;
 
 	if (argc < 2) {
-		printf("Usage: %s /dev/zvol_device_node\n", argv[0]);
+		fprintf(stderr, "Usage: %s /dev/zvol_device_node\n", argv[0]);
 		return (EINVAL);
 	}
 
 	dev_name = argv[1];
 	error = stat64(dev_name, &statbuf);
 	if (error != 0) {
-		printf("Unable to access device file: %s\n", dev_name);
+		fprintf(stderr, "Unable to access device file: %s\n", dev_name);
 		return (errno);
 	}
 
@@ -79,13 +79,13 @@ main(int argc, char **argv)
 
 	fd = open(dev_name, O_RDONLY);
 	if (fd < 0) {
-		printf("Unable to open device file: %s\n", dev_name);
+		fprintf(stderr, "Unable to open device file: %s\n", dev_name);
 		return (errno);
 	}
 
 	error = ioctl_get_msg(zvol_name, fd);
 	if (error < 0) {
-		printf("ioctl_get_msg failed:%s\n", strerror(errno));
+		fprintf(stderr, "ioctl_get_msg failed: %s\n", strerror(errno));
 		return (errno);
 	}
 	if (dev_part > 0)
