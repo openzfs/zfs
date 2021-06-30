@@ -323,6 +323,7 @@ if os.environ.get('CI') == 'true':
         'cli_root/zpool_split/zpool_split_wholedisk': ['SKIP', ci_reason],
         'fault/auto_offline_001_pos': ['SKIP', ci_reason],
         'fault/auto_online_001_pos': ['SKIP', ci_reason],
+        'fault/auto_online_002_pos': ['SKIP', ci_reason],
         'fault/auto_replace_001_pos': ['SKIP', ci_reason],
         'fault/auto_spare_ashift': ['SKIP', ci_reason],
         'fault/auto_spare_shared': ['SKIP', ci_reason],
