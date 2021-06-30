@@ -320,11 +320,11 @@ struct componentname {
 
 extern struct vnode *vn_alloc(int flag);
 
-extern int vn_open(char *pnamep, enum uio_seg seg, int filemode,
+extern int vn_open(char *pnamep, enum zfs_uio_seg seg, int filemode,
 	int createmode,
 	struct vnode **vpp, enum create crwhy, mode_t umask);
 
-extern int vn_openat(char *pnamep, enum uio_seg seg, int filemode,
+extern int vn_openat(char *pnamep, enum zfs_uio_seg seg, int filemode,
 	int createmode, struct vnode **vpp, enum create crwhy,
 	mode_t umask, struct vnode *startvp);
 
@@ -333,8 +333,8 @@ extern int vn_openat(char *pnamep, enum uio_seg seg, int filemode,
 #define	vn_pages_remove(vp, fl, op) do { } while (0)
 
 // OSX kernel has a vn_rdwr, let's work around it.
-extern int  zfs_vn_rdwr(enum uio_rw rw, struct vnode *vp, caddr_t base,
-	ssize_t len, offset_t offset, enum uio_seg seg,
+extern int  zfs_vn_rdwr(enum zfs_uio_rw rw, struct vnode *vp, caddr_t base,
+	ssize_t len, offset_t offset, enum zfs_uio_seg seg,
 	int ioflag, rlim64_t ulimit, cred_t *cr,
 	ssize_t *residp);
 
@@ -342,8 +342,8 @@ extern int  zfs_vn_rdwr(enum uio_rw rw, struct vnode *vp, caddr_t base,
     zfs_vn_rdwr((rw), (vp), (base), (len), (off), (seg), (flg),\
 	(limit), (cr), (resid))
 
-extern int vn_remove(char *fnamep, enum uio_seg seg, enum rm dirflag);
-extern int vn_rename(char *from, char *to, enum uio_seg seg);
+extern int vn_remove(char *fnamep, enum zfs_uio_seg seg, enum rm dirflag);
+extern int vn_rename(char *from, char *to, enum zfs_uio_seg seg);
 
 #define	LK_RETRY  0
 #define	LK_SHARED 0
@@ -444,8 +444,8 @@ extern int spl_vfs_root(mount_t *mount, struct vnode **vp);
 
 extern void cache_purgevfs(mount_t *mp);
 
-int spl_vn_rdwr(enum uio_rw rw, struct vnode *vp, caddr_t base, ssize_t len,
-	offset_t offset, enum uio_seg seg, int ioflag, rlim64_t ulimit,
+int spl_vn_rdwr(enum zfs_uio_rw rw, struct vnode *vp, caddr_t base, ssize_t len,
+	offset_t offset, enum zfs_uio_seg seg, int ioflag, rlim64_t ulimit,
 	cred_t *cr, ssize_t *residp);
 
 extern int spl_vnode_notify(struct vnode *vp, uint32_t type,

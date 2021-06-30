@@ -67,10 +67,18 @@ extern "C" {
 #define	module_param_call(a, b, c, d, e)
 #define	module_param_named(a, b, c, d)
 
+#define ZFS_MODULE_VIRTUAL_PARAM_CALL ZFS_MODULE_PARAM_CALL
+#define module_init_early(fn)	\
+    void \
+    wrap_ ## fn(void *dummy __unused) \
+    {	\
+    fn();   \
+}
+
 struct zfs_kernel_param_s;
 typedef struct zfs_kernel_param_s zfs_kernel_param_t;
 
-
+extern int param_set_uint(char *v, zfs_kernel_param_t *kp);
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

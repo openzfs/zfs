@@ -76,7 +76,7 @@ typedef unsigned char uuid_t[16];
 
 
 // clang spits out "atomics are disabled" - change code to use atomic() calls.
-#define	_Atomic
+//#define	_Atomic
 
 #define	PATH_MAX 1024
 #define	Z_OK 0

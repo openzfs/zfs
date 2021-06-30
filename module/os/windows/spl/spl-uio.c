@@ -35,283 +35,90 @@
 #include <sys/uio.h>
 #include <sys/kmem.h>
 
-uio_t *
-uio_create(int iovcount, off_t offset, int spacetype, int iodirection)
+static int
+zfs_uiomove_iov(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio)
 {
-	// void *my_buf_p;
-	uint64_t my_size;
-	uio_t *my_uio;
+	const struct iovec *iov = uio->uio_iov;
+	size_t skip = uio->uio_skip;
+	int cnt;
 
-	// Future, make sure the uio struct is aligned,
-	// and do one alloc for uio and iovec
-	my_size = sizeof (uio_t);
-	my_uio = kmem_alloc((uint32_t)my_size, KM_SLEEP);
-
-	memset(my_uio, 0, my_size);
-	// my_uio->uio_size = my_size;
-	my_uio->uio_segflg = spacetype;
-
-	if (iovcount > 0) {
-		my_uio->uio_iov = kmem_alloc(iovcount * sizeof (iovec_t),
-		    KM_SLEEP);
-		memset(my_uio->uio_iov, 0, iovcount * sizeof (iovec_t));
-	} else {
-		my_uio->uio_iov = NULL;
-	}
-	my_uio->uio_max_iovs = iovcount;
-	my_uio->uio_offset = offset;
-	my_uio->uio_rw = iodirection;
-
-	return (my_uio);
-}
-
-void
-uio_free(uio_t *uio)
-{
-	ASSERT(uio != NULL);
-	ASSERT(uio->uio_iov != NULL);
-
-	kmem_free(uio->uio_iov, uio->uio_max_iovs * sizeof (iovec_t));
-	kmem_free(uio, sizeof (uio_t));
-}
-
-int
-uio_addiov(uio_t *uio, user_addr_t baseaddr, user_size_t length)
-{
-	ASSERT(uio != NULL);
-	ASSERT(uio->uio_iov != NULL);
-
-	for (int i = 0; i < uio->uio_max_iovs; i++) {
-		if (uio->uio_iov[i].iov_len == 0 &&
-		    uio->uio_iov[i].iov_base == 0) {
-			uio->uio_iov[i].iov_len = (uint64_t)length;
-			uio->uio_iov[i].iov_base =
-			    (void *)(user_addr_t)baseaddr;
-			uio->uio_iovcnt++;
-			uio->uio_resid += length;
-			return (0);
+	while (n && uio->uio_resid) {
+		cnt = MIN(iov->iov_len - skip, n);
+		switch (uio->uio_segflg) {
+		case UIO_SYSSPACE:
+			if (rw == UIO_READ)
+				bcopy(p, iov->iov_base + skip, cnt);
+			else
+				bcopy(iov->iov_base + skip, (void *)p,
+				    cnt);
+			break;
+		default:
+		/* Probably have no uio from userland in Windows */
+			VERIFY(0);
+			return (-1);
 		}
+		skip += cnt;
+		if (skip == iov->iov_len) {
+			skip = 0;
+			uio->uio_iov = (++iov);
+			uio->uio_iovcnt--;
+		}
+		uio->uio_skip = skip;
+		uio->uio_resid -= cnt;
+		uio->uio_loffset += cnt;
+		p = (caddr_t)p + cnt;
+		n -= cnt;
 	}
-
-	return (-1);
-}
-
-int
-uio_isuserspace(uio_t *uio)
-{
-	ASSERT(uio != NULL);
-	if (uio->uio_segflg == UIO_USERSPACE)
-		return (1);
 	return (0);
 }
 
 int
-uio_getiov(uio_t *uio, int index, user_addr_t *baseaddr, user_size_t *length)
+zfs_uiomove(const char *p, size_t n, enum uio_rw rw, zfs_uio_t *uio)
 {
-	ASSERT(uio != NULL);
-	ASSERT(uio->uio_iov != NULL);
+	int result;
 
-	if (index < 0 || index >= uio->uio_iovcnt) {
-		return (-1);
-	}
-
-	if (baseaddr != NULL) {
-		*baseaddr = (user_addr_t)uio->uio_iov[index].iov_base;
-	}
-	if (length != NULL) {
-		*length = uio->uio_iov[index].iov_len;
-	}
-
-	return (0);
-}
-
-int
-uio_iovcnt(uio_t *uio)
-{
-	if (uio == NULL)
-		return (0);
-
-	return (uio->uio_iovcnt);
-}
-
-
-off_t
-uio_offset(uio_t *uio)
-{
-	ASSERT(uio != NULL);
-	ASSERT(uio->uio_iov != NULL);
-
-	if (uio == NULL)
-		return (0);
-
-	return (uio->uio_offset);
+	result = zfs_uiomove_iov((void *)p, n, rw, uio);
+	return (SET_ERROR(result));
 }
 
 /*
- * This function is modelled after OsX, which means you can only pass
- * in a value between 0 and current "iov_len". Any larger number will
- * ignore the extra bytes.
+ * same as uiomove() but doesn't modify uio structure.
+ * return in cbytes how many bytes were copied.
  */
-void
-uio_update(uio_t *uio, user_size_t count)
+int
+zfs_uiocopy(const char *p, size_t n, enum uio_rw rw, zfs_uio_t *uio,
+    size_t *cbytes)
 {
-	uint32_t ind;
+	int result;
 
-	if (uio == NULL || uio->uio_iovcnt < 1)
+	zfs_uio_t uio_copy;
+
+	bcopy(uio, &uio_copy, sizeof (zfs_uio_t));
+	result = zfs_uiomove_iov((void *)p, n, rw, &uio_copy);
+
+	*cbytes = uio->uio_resid - uio_copy.uio_resid;
+
+	return (result);
+}
+
+void
+zfs_uioskip(zfs_uio_t *uio, size_t n)
+{
+	if (n > uio->uio_resid)
 		return;
-
-	ASSERT(uio->uio_index < uio->uio_iovcnt);
-
-	ind = uio->uio_index;
-
-	if (count) {
-		if (count > uio->uio_iov->iov_len) {
-			uio->uio_iov[ind].iov_base += uio->uio_iov[ind].iov_len;
-			uio->uio_iov[ind].iov_len = 0;
-		} else {
-			uio->uio_iov[ind].iov_base += count;
-			uio->uio_iov[ind].iov_len -= count;
-		}
-		if (count > (user_size_t)uio->uio_resid) {
-			uio->uio_offset += uio->uio_resid;
-			uio->uio_resid = 0;
-		} else {
-			uio->uio_offset += count;
-			uio->uio_resid -= count;
-		}
-	}
-
-	while (uio->uio_iovcnt > 0 && uio->uio_iov[ind].iov_len == 0) {
+	uio->uio_skip += n;
+	while (uio->uio_iovcnt &&
+	    uio->uio_skip >= uio->uio_iov->iov_len) {
+		uio->uio_skip -= uio->uio_iov->iov_len;
+		uio->uio_iov++;
 		uio->uio_iovcnt--;
-		if (uio->uio_iovcnt > 0) {
-			uio->uio_index = (ind++);
-		}
 	}
-}
-
-uint64_t
-uio_resid(uio_t *uio)
-{
-	if (uio == NULL)
-		return (0);
-
-	return (uio->uio_resid);
-}
-
-user_addr_t
-uio_curriovbase(uio_t *uio)
-{
-	if (uio == NULL || uio->uio_iovcnt < 1)
-		return (0);
-
-	return ((user_addr_t)uio->uio_iov[uio->uio_index].iov_base);
-}
-
-user_size_t
-uio_curriovlen(uio_t *a_uio)
-{
-	if (a_uio == NULL || a_uio->uio_iovcnt < 1)
-		return (0);
-
-	return ((user_size_t)a_uio->uio_iov[a_uio->uio_index].iov_len);
-}
-
-void
-uio_setoffset(uio_t *uio, off_t offset)
-{
-	if (uio == NULL)
-		return;
-
-	uio->uio_offset = offset;
+	uio->uio_loffset += n;
+	uio->uio_resid -= n;
 }
 
 int
-uio_rw(uio_t *a_uio)
+zfs_uio_prefaultpages(ssize_t n, zfs_uio_t *uio)
 {
-	if (a_uio == NULL)
-		return (-1);
-
-	return (a_uio->uio_rw);
-}
-
-void
-uio_setrw(uio_t *a_uio, int a_value)
-{
-	if (a_uio == NULL)
-		return;
-
-	if (a_value == UIO_READ || a_value == UIO_WRITE) {
-		a_uio->uio_rw = a_value;
-	}
-}
-
-int
-uio_spacetype(uio_t *a_uio)
-{
-	if (a_uio == NULL)
-		return (-1);
-
-	return (a_uio->uio_segflg);
-}
-
-
-uio_t *
-uio_duplicate(uio_t *a_uio)
-{
-	uio_t *my_uio;
-
-	if (a_uio == NULL)
-		return (NULL);
-
-	my_uio = uio_create(a_uio->uio_max_iovs,
-	    uio_offset(a_uio),
-	    uio_spacetype(a_uio),
-	    uio_rw(a_uio));
-	if (my_uio == 0) {
-		panic("%s :%d - allocation failed\n", __FILE__, __LINE__);
-	}
-
-	bcopy((void *)a_uio->uio_iov, (void *)my_uio->uio_iov,
-	    a_uio->uio_max_iovs * sizeof (iovec_t));
-	my_uio->uio_index = a_uio->uio_index;
-	my_uio->uio_resid = a_uio->uio_resid;
-	my_uio->uio_iovcnt = a_uio->uio_iovcnt;
-
-	return (my_uio);
-}
-
-int
-spl_uiomove(const uint8_t *c_cp, uint32_t n, struct uio *uio)
-{
-	const uint8_t *cp = c_cp;
-	uint64_t acnt;
-	int error = 0;
-
-	while (n > 0 && uio_resid(uio)) {
-		uio_update(uio, 0);
-		acnt = uio_curriovlen(uio);
-		if (acnt == 0) {
-			continue;
-		}
-		if (n > 0 && acnt > (uint64_t)n)
-			acnt = n;
-
-		switch ((int)uio->uio_segflg) {
-		case UIO_SYSSPACE:
-			if (uio->uio_rw == UIO_READ)
-				bcopy(cp, uio->uio_iov[uio->uio_index].iov_base,
-				    acnt);
-			else
-				bcopy(uio->uio_iov[uio->uio_index].iov_base,
-				    (void *)cp, acnt);
-			break;
-		default:
-			break;
-		}
-		uio_update(uio, acnt);
-		cp += acnt;
-		n -= (uint32_t)acnt;
-	}
-	ASSERT0(n);
-	return (error);
+	return (0);
 }

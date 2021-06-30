@@ -124,41 +124,41 @@ extern "C" {
 struct vmem;
 
 typedef struct vmem vmem_t;
-typedef void *(vmem_alloc_t)(vmem_t *, uint32_t, int);
-typedef void (vmem_free_t)(vmem_t *, void *, uint32_t);
+typedef void *(vmem_alloc_t)(vmem_t *, size_t, int);
+typedef void (vmem_free_t)(vmem_t *, void *, size_t);
 
 /*
  * Alternate import style; the requested size is passed in a pointer,
  * which can be increased by the import function if desired.
  */
-typedef void *(vmem_ximport_t)(vmem_t *, uint32_t *, uint32_t, int);
+typedef void *(vmem_ximport_t)(vmem_t *, size_t *, size_t, int);
 
 #ifdef _KERNEL
-extern vmem_t *vmem_init(const char *, void *, uint32_t, uint32_t,
+extern vmem_t *vmem_init(const char *, void *, size_t, size_t,
     vmem_alloc_t *, vmem_free_t *);
 extern void    vmem_fini(vmem_t *);
 extern void vmem_update(void *);
 extern int vmem_is_populator();
-extern uint32_t vmem_seg_size;
+extern size_t vmem_seg_size;
 #endif
 
-extern vmem_t *vmem_create(const char *, void *, uint32_t, uint32_t,
-    vmem_alloc_t *, vmem_free_t *, vmem_t *, uint32_t, int);
-extern vmem_t *vmem_xcreate(const char *, void *, uint32_t, uint32_t,
-    vmem_ximport_t *, vmem_free_t *, vmem_t *, uint32_t, int);
+extern vmem_t *vmem_create(const char *, void *, size_t, size_t,
+    vmem_alloc_t *, vmem_free_t *, vmem_t *, size_t, int);
+extern vmem_t *vmem_xcreate(const char *, void *, size_t, size_t,
+    vmem_ximport_t *, vmem_free_t *, vmem_t *, size_t, int);
 extern void vmem_destroy(vmem_t *);
-extern void *vmem_alloc(vmem_t *, uint32_t, int);
-extern void *vmem_xalloc(vmem_t *, uint32_t, uint32_t, uint32_t, uint32_t,
+extern void *vmem_alloc(vmem_t *, size_t, int);
+extern void *vmem_xalloc(vmem_t *, size_t, size_t, size_t, size_t,
     void *, void *, int);
-extern void vmem_free(vmem_t *, void *, uint32_t);
-extern void vmem_xfree(vmem_t *, void *, uint32_t);
-extern void *vmem_add(vmem_t *, void *, uint32_t, int);
-extern int vmem_contains(vmem_t *, void *, uint32_t);
-extern void vmem_walk(vmem_t *, int, void (*)(void *, void *, uint32_t),
+extern void vmem_free(vmem_t *, void *, size_t);
+extern void vmem_xfree(vmem_t *, void *, size_t);
+extern void *vmem_add(vmem_t *, void *, size_t, int);
+extern int vmem_contains(vmem_t *, void *, size_t);
+extern void vmem_walk(vmem_t *, int, void (*)(void *, void *, size_t),
     void *);
-extern uint32_t vmem_size(vmem_t *, int);
-extern uint32_t vmem_size_locked(vmem_t *, int);
-extern uint32_t vmem_size_semi_atomic(vmem_t *, int);
+extern size_t vmem_size(vmem_t *, int);
+extern size_t vmem_size_locked(vmem_t *, int);
+extern size_t vmem_size_semi_atomic(vmem_t *, int);
 extern void vmem_qcache_reap(vmem_t *vmp);
 extern int64_t vmem_buckets_size(int);
 

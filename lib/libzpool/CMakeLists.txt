@@ -42,7 +42,6 @@ add_library(libzpool
     "${MODULE_DIR}/zcommon/zfs_fletcher_superscalar4.c"
     "${MODULE_DIR}/zcommon/zfs_namecheck.c"
     "${MODULE_DIR}/zcommon/zfs_prop.c"
-    "${MODULE_DIR}/zcommon/zfs_uio.c"
     "${MODULE_DIR}/zcommon/zpool_prop.c"
     "${MODULE_DIR}/zcommon/zprop_common.c"
     "${MODULE_DIR}/zfs/abd.c"

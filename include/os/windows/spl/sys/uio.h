@@ -71,155 +71,96 @@ typedef struct iovec {
 /*
  * I/O direction.
  */
-typedef enum uio_rw { UIO_READ, UIO_WRITE } uio_rw_t;
+typedef enum zfs_uio_rw { UIO_READ, UIO_WRITE } zfs_uio_rw_t;
 
 /*
  * Segment flag values.
  */
-typedef enum uio_seg { UIO_USERSPACE, UIO_SYSSPACE, UIO_USERISPACE } uio_seg_t;
+typedef enum zfs_uio_seg { UIO_USERSPACE, UIO_SYSSPACE, UIO_USERISPACE } zfs_uio_seg_t;
 
 
-typedef struct uio {
-	iovec_t		*uio_iov;	/* pointer to array of iovecs */
-	int		uio_iovcnt;	/* number of iovecs */
-	loff_t		uio_offset;	/* file offset */
-	uio_seg_t	uio_segflg;	/* address space (kernel or user) */
-	loff_t		uio_limit;	/* u-limit (maximum byte offset) */
-	ssize_t		uio_resid;	/* residual count */
-	enum uio_rw	uio_rw;
-	int		uio_max_iovs;   /* max # of iovecs uio_t can hold */
-	uint32_t	uio_index;	/* Current index */
-} uio_t;
+typedef struct zfs_uio {
+	const struct iovec	*uio_iov;
+	int		uio_iovcnt;
+	off_t		uio_loffset;
+	zfs_uio_seg_t	uio_segflg;
+	boolean_t	uio_fault_disable;
+	uint16_t	uio_fmode;
+	uint16_t	uio_extflg;
+	ssize_t		uio_resid;
+	size_t		uio_skip;
+} zfs_uio_t;
 
-
-#if defined(_KERNEL) || defined(_FAKE_KERNEL)
-
-uio_t *uio_create(int iovcount, off_t offset, int spacetype, int iodirection);
-void uio_free(uio_t *uio);
-int uio_addiov(uio_t *uio, user_addr_t baseaddr, user_size_t length);
-int uio_isuserspace(uio_t *uio);
-int uio_getiov(uio_t *uio, int index, user_addr_t *baseaddr,
-	user_size_t *length);
-int uio_iovcnt(uio_t *uio);
-off_t uio_offset(uio_t *uio);
-void uio_update(uio_t *uio, user_size_t count);
-uint64_t uio_resid(uio_t *uio);
-user_addr_t uio_curriovbase(uio_t *uio);
-user_size_t uio_curriovlen(uio_t *uio);
-void uio_setoffset(uio_t *uio, off_t a_offset);
-uio_t *uio_duplicate(uio_t *uio);
-int uio_rw(uio_t *a_uio);
-void uio_setrw(uio_t *a_uio, int a_value);
-
-int	uiomove(void *, uint32_t, enum uio_rw, struct uio *);
-int	spl_uiomove(const uint8_t *, uint32_t, struct uio *);
-// int	uiocopy(void *, uint32_t, enum uio_rw, struct uio *, uint64_t *);
-void uioskip(struct uio *, uint32_t);
-int	uiodup(struct uio *, struct uio *, iovec_t *, int);
-
-#endif	/* defined(_KERNEL) */
-
-// xuio struct is not used in this platform, but we define it
-// to allow compilation and easier patching
-typedef enum xuio_type {
-	UIOTYPE_ASYNCIO,
-	UIOTYPE_ZEROCOPY,
-} xuio_type_t;
-
-
-#define	UIOA_IOV_MAX    16
-
-typedef struct uioa_page_s {
-	int		uioa_pfncnt;
-	void	**uioa_ppp;
-	caddr_t	uioa_base;
-	size_t	uioa_len;
-} uioa_page_t;
-
-typedef struct xuio {
-	uio_t *xu_uio;
-	enum xuio_type xu_type;
-	union {
-		struct {
-			uint32_t xu_a_state;
-			ssize_t xu_a_mbytes;
-			uioa_page_t *xu_a_lcur;
-			void **xu_a_lppp;
-			void *xu_a_hwst[4];
-			uioa_page_t xu_a_locked[UIOA_IOV_MAX];
-		} xu_aio;
-		struct {
-			int xu_zc_rw;
-			void *xu_zc_priv;
-		} xu_zc;
-	} xu_ext;
-} xuio_t;
-
-#define	XUIO_XUZC_PRIV(xuio)	xuio->xu_ext.xu_zc.xu_zc_priv
-#define	XUIO_XUZC_RW(xuio)		xuio->xu_ext.xu_zc.xu_zc_rw
-
-#define	uio_segflg(U) \
-	(uio_isuserspace((struct uio *)(U))?UIO_USERSPACE:UIO_SYSSPACE)
-#define	uio_advance(U, N)	uio_update((struct uio *)(U), (N))
-
-static inline uint64_t
-uio_iovlen(const struct uio *u, unsigned int i)
+static inline zfs_uio_seg_t
+zfs_uio_segflg(zfs_uio_t *uio)
 {
-	user_size_t iov_len;
-	uio_getiov((struct uio *)u, i, NULL, &iov_len);
-	return (iov_len);
+	return (uio->uio_segflg);
 }
 
-static inline void *
-uio_iovbase(const struct uio *u, unsigned int i)
+static inline int
+zfs_uio_iovcnt(zfs_uio_t *uio)
 {
-	user_addr_t iov_base;
-	uio_getiov((struct uio *)u, i, &iov_base, NULL);
-	return ((void *)iov_base);
+	return (uio->uio_iovcnt);
+}
+
+static inline off_t
+zfs_uio_offset(zfs_uio_t *uio)
+{
+	return (uio->uio_loffset);
+}
+
+static inline size_t
+zfs_uio_resid(zfs_uio_t *uio)
+{
+	return (uio->uio_resid);
 }
 
 static inline void
-uio_iov_at_index(uio_t *uio, unsigned int idx, void **base, uint64_t *len)
+zfs_uio_setoffset(zfs_uio_t *uio, off_t off)
 {
-	(void) uio_getiov(uio, idx, (user_addr_t *)base, len);
+	uio->uio_loffset = off;
 }
 
-static inline long long
-uio_index_at_offset(struct uio *uio, long long off, unsigned int *vec_idx)
+static inline void
+zfs_uio_advance(zfs_uio_t *uio, size_t size)
 {
-	uint64_t len;
-	*vec_idx = 0;
-	while (*vec_idx < uio_iovcnt(uio) && off >=
-	    (len = uio_iovlen(uio, *vec_idx))) {
-	off -= len;
-	(*vec_idx)++;
-	}
-	return (off);
+	uio->uio_resid -= size;
+	uio->uio_loffset += size;
 }
 
-/*
- * same as uiomove() but doesn't modify uio structure.
- * return in cbytes how many bytes were copied.
- */
-static inline int
-uiocopy(const uint8_t *p, uint32_t n, enum uio_rw rw,
-    struct uio *uio, uint64_t *cbytes)
+/* zfs_uio_iovlen(uio, 0) = uio_curriovlen() */
+static inline uint64_t
+zfs_uio_iovlen(zfs_uio_t *uio, unsigned int idx)
 {
-	int result;
-	struct uio *nuio = uio_duplicate(uio);
-	unsigned long long x = uio_resid(uio);
-	if (!nuio)
-		return (ENOMEM);
-	uio_setrw(nuio, rw);
-	result = spl_uiomove(p, n, nuio);
-	*cbytes = (x - uio_resid(nuio));
-	uio_free(nuio);
-	return (result);
+	return (uio->uio_iov[idx].iov_len);
 }
 
-// Apple's uiomove puts the uio_rw in uio_create
-#define	uiomove(A, B, C, D) spl_uiomove((const uint8_t *)(A), (B), (D))
-#define	uioskip(A, B)	uio_update((A), (B))
+static inline void *
+zfs_uio_iovbase(zfs_uio_t *uio, unsigned int idx)
+{
+	return (uio->uio_iov[(idx)].iov_base);
+}
+
+static inline void
+zfs_uio_iovec_init(zfs_uio_t *uio, const struct iovec *iov,
+    unsigned long nr_segs, off_t offset, zfs_uio_seg_t seg, ssize_t resid,
+    size_t skip)
+{
+	uio->uio_iov = iov;
+	uio->uio_iovcnt = nr_segs;
+	uio->uio_loffset = offset;
+	uio->uio_segflg = seg;
+	uio->uio_fmode = 0;
+	uio->uio_extflg = 0;
+	uio->uio_resid = resid;
+	uio->uio_skip = skip;
+}
+
+extern int zfs_uio_prefaultpages(ssize_t, zfs_uio_t *);
+#define zfs_uio_fault_disable(uio, set)
+#define zfs_uio_fault_move(p, n, rw, u) zfs_uiomove((p), (n), (rw), (u))
+
+
 
 #ifdef	__cplusplus
 }

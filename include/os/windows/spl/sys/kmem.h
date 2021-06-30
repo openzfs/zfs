@@ -120,7 +120,7 @@ typedef enum kmem_cbrc {
 #define	POINTER_IS_VALID(p) (!((uintptr_t)(p) & 0x3))
 #define	POINTER_INVALIDATE(pp) (*(pp) = (void *)((uintptr_t)(*(pp)) | 0x1))
 
-kmem_cache_t *kmem_cache_create(char *name, uint32_t bufsize, uint32_t align,
+kmem_cache_t *kmem_cache_create(char *name, size_t bufsize, size_t align,
     int (*constructor)(void *, void *, int),
     void (*destructor)(void *, void *),
     void (*reclaim)(void *),
@@ -137,17 +137,17 @@ kmem_cache_t *kmem_cache_buf_in_cache(kmem_cache_t *, void *);
 
 int kmem_debugging(void);
 void kmem_cache_set_move(kmem_cache_t *,
-    kmem_cbrc_t (*)(void *, void *, uint32_t, void *));
+    kmem_cbrc_t (*)(void *, void *, size_t, void *));
 
 extern char *kmem_asprintf(const char *fmt, ...);
 extern char *kmem_strdup(const char *str);
 extern void kmem_strfree(char *str);
 extern char *kmem_vasprintf(const char *fmt, va_list ap);
 extern char *kmem_strstr(const char *in, const char *str);
-extern void strident_canon(char *s, uint32_t n);
+extern void strident_canon(char *s, size_t n);
 extern uint64_t spl_kmem_cache_inuse(kmem_cache_t *cache);
 extern uint64_t spl_kmem_cache_entry_size(kmem_cache_t *cache);
-extern boolean_t spl_arc_no_grow(uint32_t, boolean_t, kmem_cache_t **);
+extern boolean_t spl_arc_no_grow(size_t, boolean_t, kmem_cache_t **);
 extern boolean_t kmem_cache_reap_active(void);
 
 #ifdef	__cplusplus

@@ -89,28 +89,6 @@
 
 #include <Trace.h>
 
-/*
- * These extern prototypes has to be carefully checked against XNU source
- * in case Apple changes them. They are not defined in the "allowed" parts
- * of the kernel.framework
- */
-typedef uint8_t vm_tag_t;
-
-/*
- * Tag we use to identify memory we have allocated
- *
- * (VM_KERN_MEMORY_KEXT - mach_vm_statistics.h)
- */
-#define	SPL_TAG 6
-
-/*
- * In kernel lowlevel form of malloc.
- */
-
-/*
- * Free memory
- */
-
 #endif /* _KERNEL */
 
 typedef int page_t;

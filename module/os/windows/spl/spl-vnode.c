@@ -79,7 +79,7 @@ extern int zfs_vnop_reclaim(struct vnode *);
 int vnode_recycle_int(vnode_t *vp, int flags);
 
 int
-vn_open(char *pnamep, enum uio_seg seg, int filemode, int createmode,
+vn_open(char *pnamep, enum zfs_uio_seg seg, int filemode, int createmode,
     struct vnode **vpp, enum create crwhy, mode_t umask)
 {
 	// vfs_context_t *vctx;
@@ -94,7 +94,7 @@ vn_open(char *pnamep, enum uio_seg seg, int filemode, int createmode,
 }
 
 int
-vn_openat(char *pnamep, enum uio_seg seg, int filemode, int createmode,
+vn_openat(char *pnamep, enum zfs_uio_seg seg, int filemode, int createmode,
     struct vnode **vpp, enum create crwhy,
     mode_t umask, struct vnode *startvp)
 {
@@ -124,7 +124,7 @@ vnode_rename(const char *from, const char *to, int flags, vfs_context_t *vctx)
 }
 
 int
-vn_rename(char *from, char *to, enum uio_seg seg)
+vn_rename(char *from, char *to, enum zfs_uio_seg seg)
 {
 	// vfs_context_t *vctx;
 	int error = 0;
@@ -152,7 +152,7 @@ vnode_remove(const char *name, int flag, enum vtype type, vfs_context_t *vctx)
 
 
 int
-vn_remove(char *fnamep, enum uio_seg seg, enum rm dirflag)
+vn_remove(char *fnamep, enum zfs_uio_seg seg, enum rm dirflag)
 {
 	// vfs_context_t *vctx;
 	// enum vtype type;
@@ -160,8 +160,8 @@ vn_remove(char *fnamep, enum uio_seg seg, enum rm dirflag)
 	return (error);
 }
 
-int zfs_vn_rdwr(enum uio_rw rw, struct vnode *vp, caddr_t base, ssize_t len,
-    offset_t offset, enum uio_seg seg, int ioflag, rlim64_t ulimit,
+int zfs_vn_rdwr(enum zfs_uio_rw rw, struct vnode *vp, caddr_t base, ssize_t len,
+    offset_t offset, enum zfs_uio_seg seg, int ioflag, rlim64_t ulimit,
     cred_t *cr, ssize_t *residp)
 {
 	int error = 0;
@@ -671,12 +671,12 @@ releasef(uint64_t fd)
  * You must call getf() before calling spl_vn_rdwr().
  */
 int
-spl_vn_rdwr(enum uio_rw rw,
+spl_vn_rdwr(enum zfs_uio_rw rw,
     struct vnode *vp,
     caddr_t base,
     ssize_t len,
     offset_t offset,
-    enum uio_seg seg,
+    enum zfs_uio_seg seg,
     int ioflag,
     rlim64_t ulimit,    /* meaningful only if rw is UIO_WRITE */
     cred_t *cr,

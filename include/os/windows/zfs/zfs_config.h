@@ -4,6 +4,8 @@
 /* #undef DEBUG_DMU_TX */
 
 #define	SYSCONFDIR "/etc/zfs/scripts/"  // Windwosify me
+#define	PKGDATADIR "/etc/zfs/scripts/"  // Windwosify me
+
 #define	TEXT_DOMAIN "zfs-windows-user"
 
 /* Path where the Filesystems bundle is installed. */

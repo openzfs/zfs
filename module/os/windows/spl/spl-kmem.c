@@ -28,16 +28,20 @@
  *
  */
 
-#include <spl-debug.h>
+#include <sys/debug.h>
+// #include <sys/cdefs.h>
 #include <sys/cmn_err.h>
 #include <sys/param.h>
+// #include <sys/kernel.h>
 #include <sys/kstat.h>
 #include <sys/seg_kmem.h>
 #include <sys/systm.h>
+// #include <sys/sysctl.h>
 #include <sys/thread.h>
 #include <sys/taskq.h>
 #include <sys/kmem_impl.h>
 #include <sys/vmem_impl.h>
+// #include <kern/sched_prim.h>
 #include <sys/callb.h>
 
 #include <Trace.h>
@@ -91,9 +95,6 @@ extern vm_offset_t virtual_space_end;
 // Can be polled to determine if the VM is experiecing
 // a shortage of free pages.
 extern int vm_pool_low(void);
-
-// Which CPU are we executing on?
-extern uint32_t cpu_number();
 
 // Invoke the kernel debugger
 extern void Debugger(const char *message);
@@ -3360,11 +3361,6 @@ spl_minimal_physmem_p_logic()
 	return (TRUE);
 }
 
-/*
- * Windows pressure events come from "\KernelObjects\HighMemoryCondition" and
- * "\KernelObjects\LowMemoryCondition"
- */
-
 int64_t
 spl_minimal_physmem_p(void)
 {
@@ -4530,7 +4526,75 @@ spl_free_thread(void *notused)
 
 		last_spl_free = spl_free;
 
-		new_spl_free = 0LL;
+		new_spl_free = total_memory -
+		    segkmem_total_mem_allocated;
+
+		/* Ask Mach about pressure */
+
+		/*
+		 * Don't wait for pressure, just report back
+		 * how much has changed while we were asleep
+		 * (cf. the duration of cv_timedwait_hires
+		 * at justwait: below -- 10 msec is an eternity
+		 * on most hardware, and the osfmk/vm/vm_pageout.c
+		 * code is linear in the nsecs_wanted parameter
+		 *
+		 */
+
+		uint32_t pages_reclaimed = 0;
+		uint32_t pages_wanted = 0;
+
+/* get pressure here */
+
+		if (spl_vm_pressure_level > 0 &&
+		    spl_vm_pressure_level != MAGIC_PRESSURE_UNAVAILABLE) {
+			/* there is pressure */
+			lowmem = true;
+			new_spl_free = -(2LL * PAGE_SIZE * spl_vm_pages_wanted);
+			if (spl_vm_pressure_level > 1) {
+				emergency_lowmem = true;
+				if (new_spl_free > 0)
+					new_spl_free = -(4LL *
+					    PAGE_SIZE *
+					    spl_vm_pages_wanted);
+				spl_free_fast_pressure = TRUE;
+			}
+			spl_free_manual_pressure += PAGE_SIZE *
+			    spl_vm_pages_wanted;
+		} else if (spl_vm_pages_wanted > 0) {
+			/*
+			 * kVMPressureNormal but pages wanted : react more
+			 * strongly if there was some transient pressure that
+			 * was weakly absorbed by the virtual memory system
+			 */
+			/* XXX : additional hysteresis maintained below */
+			int64_t m = 2LL;
+			if (spl_vm_pages_wanted * 8 >
+			    spl_vm_pages_reclaimed)
+				m = 8LL;
+
+			new_spl_free -= m *
+			    PAGE_SIZE * spl_vm_pages_wanted;
+		} else {
+			/*
+			 * No pressure. Xnu has freed up some memory
+			 * which we can use.
+			 */
+			if (spl_vm_pages_reclaimed > 0)
+				new_spl_free += (PAGE_SIZE *
+				    spl_vm_pages_reclaimed) >> 1LL;
+			else {
+				/* grow a little every pressure-free pass */
+				new_spl_free += 1024LL*1024LL;
+			}
+			/*
+			 * Cap, bearing in mind that we deflate
+			 * total_memory by 50% at initialization
+			 */
+			if (new_spl_free > total_memory)
+				new_spl_free = total_memory;
+		}
+>>>>>>> fe3945d75... Large sweeping compile fixes
 
 		// if there is pressure that has not yet reached
 		// arc_reclaim_thread() then start with a negative
@@ -5059,11 +5123,14 @@ spl_event_thread(void *notused)
 
 	ZwClose(low_mem_handle);
 
-	spl_event_thread_exit = FALSE;
-	dprintf("SPL: %s thread_exit\n", __func__);
-	thread_exit();
+                xprintf("%s: LOWMEMORY EVENT *** 0x%x (memusage: %llu)\n",
+                    __func__, Status, segkmem_total_mem_allocated);
+                /* We were signalled */
+                // vm_page_free_wanted = vm_page_free_min;
+                spl_free_set_pressure(spl_vm_page_free_min);
+                cv_broadcast(&spl_free_thread_cv);
+        }
 }
-
 
 
 
@@ -7073,7 +7140,7 @@ spl_zio_kmem_cache_alloc(kmem_cache_t *cp, int kmflag, uint32_t size,
  * return true if the reclaim thread should be awakened
  * because we do not have enough memory on hand
  */
-boolean_t
+boolean_t		
 spl_arc_reclaim_needed(const size_t bytes, kmem_cache_t **zp)
 {
 

@@ -2,7 +2,7 @@
 use_clang()
 
 add_library(libspl
-    asm-generic/atomic.c
+    atomic.c
     list.c
     mkdirp.c
 	strlcat.c
