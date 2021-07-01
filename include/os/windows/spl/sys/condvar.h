@@ -114,7 +114,7 @@ int cv_timedwait_hires(kcondvar_t *cvp, struct kmutex *mp,
 	cv_timedwait_hires((cvp), (mp), TICK_TO_NSEC((tim)), 0, 0)
 
 #define	cv_timedwait_idle_hires(cvp, mp, tim, res, flag)        \
-	cv_timedwait_hires(cvp, mp, tim, res, (flag)|PCATCH)
+	cv_timedwait_hires(cvp, mp, tim, res, flag)
 
 #define	cv_init spl_cv_init
 #define	cv_destroy spl_cv_destroy
