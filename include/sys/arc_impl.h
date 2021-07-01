@@ -983,6 +983,7 @@ extern kmutex_t arc_prune_mtx;
 extern list_t arc_prune_list;
 extern arc_state_t	ARC_mfu;
 extern arc_state_t	ARC_mru;
+extern aggsum_t arc_size;
 extern uint_t zfs_arc_pc_percent;
 extern int arc_lotsfree_percent;
 extern unsigned long zfs_arc_min;

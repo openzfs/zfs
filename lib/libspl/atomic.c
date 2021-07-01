@@ -339,7 +339,7 @@ atomic_swap_ptr(volatile void *target, void *bits)
 	return (__atomic_exchange_n((void **)target, bits, __ATOMIC_SEQ_CST));
 }
 
-#ifndef _LP64
+#if !defined(_LP64) || defined(_WIN32)
 uint64_t
 atomic_load_64(volatile uint64_t *target)
 {

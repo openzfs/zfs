@@ -4863,6 +4863,7 @@ zpool_compat_status_t
 zpool_load_compat(const char *compat, boolean_t *features, char *report,
     size_t rlen)
 {
+#ifndef _WIN32
 	int sdirfd, ddirfd, featfd;
 	struct stat fs;
 	char *fc;
@@ -5062,6 +5063,7 @@ zpool_load_compat(const char *compat, boolean_t *features, char *report,
 	}
 	if (report != NULL)
 		strlcpy(report, gettext("compatibility set ok"), rlen);
+#endif
 	return (ZPOOL_COMPATIBILITY_OK);
 }
 
