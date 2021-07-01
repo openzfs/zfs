@@ -146,9 +146,9 @@ typedef struct spa_config_lock {
 	kmutex_t	scl_lock;
 	kthread_t	*scl_writer;
 	int		scl_write_wanted;
+	int		scl_count;
 	kcondvar_t	scl_cv;
-	zfs_refcount_t	scl_count;
-} spa_config_lock_t;
+} ____cacheline_aligned spa_config_lock_t;
 
 typedef struct spa_config_dirent {
 	list_node_t	scd_link;
