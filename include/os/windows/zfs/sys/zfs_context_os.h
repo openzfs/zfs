@@ -190,6 +190,17 @@ void spa_export_os(void *spa);
 void spa_activate_os(void *spa);
 void spa_deactivate_os(void *spa);
 
+#define	task_io_account_read(n)
+#define	task_io_account_write(n)
+
+#ifndef SEEK_HOLE
+#define	SEEK_HOLE 3
+#endif
+
+#ifndef SEEK_DATA
+#define	SEEK_DATA 4
+#endif
+
 #endif // _KERNEL
 
 #endif

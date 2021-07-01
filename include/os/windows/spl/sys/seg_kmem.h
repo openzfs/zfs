@@ -40,9 +40,8 @@ extern "C" {
 #if defined(_KERNEL)
 
 extern uint64_t segkmem_total_allocated;
-extern vmem_t *zio_arena_parent; /* qcaching for zio arenas and abd arena */
-extern vmem_t *zio_arena;	/* arena for zio caches for file blocks */
-extern vmem_t *zio_metadata_arena;	/* zio caches for (zfs) metadata */
+
+extern vmem_t *abd_arena;
 
 /*
  * segkmem page vnodes

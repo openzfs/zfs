@@ -60,3 +60,8 @@ check_device(const char *name, boolean_t force,
 
 	return (check_file(path, force, isspare));
 }
+
+void
+after_zpool_upgrade(zpool_handle_t *zhp)
+{
+}

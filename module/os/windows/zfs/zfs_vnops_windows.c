@@ -412,11 +412,10 @@ zfs_find_dvp_vp(zfsvfs_t *zfsvfs, char *filename, int finalpartmaynotexist,
 				REPARSE_DATA_BUFFER *rpb;
 				rpb = ExAllocatePoolWithTag(PagedPool,
 				    zp->z_size, '!FSZ');
-				uio_t *uio;
-				uio = uio_create(1, 0, UIO_SYSSPACE, UIO_READ);
-				uio_addiov(uio, (user_addr_t)rpb, zp->z_size);
-				zfs_readlink(vp, uio, NULL);
-				uio_free(uio);
+				zfs_uio_t uio;
+				struct iovec iov = { rpb, zp->z_size };
+				zfs_uio_iovec_init(&uio, &iov, 1, 0, UIO_SYSSPACE, zp->z_size, 0);
+				zfs_readlink(vp, &uio, NULL);
 				VN_RELE(vp);
 
 				// Return in Reserved the amount of path
@@ -2370,20 +2369,20 @@ zfswin_insert_xattrname(struct vnode *vp, char *xattrname, uint8_t *outbuffer,
 				if (roomforvalue < VTOZ(vp)->z_size)
 					overflow = 1;
 
-				// Read in as much as we can
-				uio_t *uio = uio_create(1, 0, UIO_SYSSPACE,
-				    UIO_READ);
-				uio_addiov(uio,
-				    (user_addr_t)&outbuffer[*spaceused],
-				    roomforvalue);
-				zfs_read(vp, uio, 0, NULL);
+				struct iovec iov;
+				iov.iov_base = (void *)&outbuffer[*spaceused];
+				iov.iov_len = roomforvalue;
+
+				zfs_uio_t uio;
+				zfs_uio_iovec_init(&uio, &iov, 1, 0, UIO_SYSSPACE, roomforvalue, 0);
+
+				zfs_read(vp, &uio, 0, NULL);
 				// Consume as many bytes as we read
-				*spaceused += roomforvalue - uio_resid(uio);
+				*spaceused += roomforvalue - zfs_uio_resid(&uio);
 				// Set the valuelen, should this be the full
 				// value or what we would need?
 				// That is how the names work.
 				ea->EaValueLength = VTOZ(vp)->z_size;
-				uio_free(uio);
 			}
 		}
 		dprintf("%s: added %s xattrname '%s'\n", __func__,
@@ -2617,11 +2616,13 @@ get_reparse_point(PDEVICE_OBJECT DeviceObject, PIRP Irp,
 		if (zp->z_pflags & ZFS_REPARSE) {
 			int err;
 			int size = MIN(zp->z_size, outlen);
-			uio_t *uio;
-			uio = uio_create(1, 0, UIO_SYSSPACE, UIO_READ);
-			uio_addiov(uio, (user_addr_t)buffer, size);
-			err = zfs_readlink(vp, uio, NULL);
-			uio_free(uio);
+			struct iovec iov;
+			iov.iov_base = (void *)buffer;
+			iov.iov_len = size;
+
+			zfs_uio_t uio;
+			zfs_uio_iovec_init(&uio, &iov, 1, 0, UIO_SYSSPACE, size, 0);
+			err = zfs_readlink(vp, &uio, NULL);
 
 			if (outlen < zp->z_size)
 				Status = STATUS_BUFFER_OVERFLOW;
@@ -2948,7 +2949,6 @@ query_directory_FileFullDirectoryInformation(PDEVICE_OBJECT DeviceObject,
 	    IrpSp->Flags & SL_RETURN_SINGLE_ENTRY ? 1 : 0;
 	int bytes_out = 0;
 	int index = 0;
-	uio_t *uio;
 	int eof = 0;
 	int numdirent;
 	int ret;
@@ -2985,12 +2985,13 @@ query_directory_FileFullDirectoryInformation(PDEVICE_OBJECT DeviceObject,
 	// Did last call complete listing?
 	if (zccb->dir_eof)
 		return (STATUS_NO_MORE_FILES);
-
-	uio = uio_create(1, zccb->uio_offset, UIO_SYSSPACE, UIO_READ);
-
+        struct iovec iov;
 	void *SystemBuffer = MapUserBuffer(Irp);
-	uio_addiov(uio, (user_addr_t)SystemBuffer,
-	    IrpSp->Parameters.QueryDirectory.Length);
+        iov.iov_base = (void *)SystemBuffer;
+        iov.iov_len = IrpSp->Parameters.QueryDirectory.Length;
+
+        zfs_uio_t uio;
+        zfs_uio_iovec_init(&uio, &iov, 1, zccb->uio_offset, UIO_SYSSPACE, IrpSp->Parameters.QueryDirectory.Length, 0);
 
 	// Grab the root zp
 	zmo = DeviceObject->DeviceExtension;
@@ -3043,7 +3044,7 @@ query_directory_FileFullDirectoryInformation(PDEVICE_OBJECT DeviceObject,
 	}
 
 	VN_HOLD(dvp);
-	ret = zfs_readdir(dvp, uio, NULL, zccb, IrpSp->Flags,
+	ret = zfs_readdir(dvp, &uio, NULL, zccb, IrpSp->Flags,
 	    IrpSp->Parameters.QueryDirectory.FileInformationClass, &numdirent);
 	VN_RELE(dvp);
 
@@ -3051,7 +3052,7 @@ query_directory_FileFullDirectoryInformation(PDEVICE_OBJECT DeviceObject,
 
 		// Set correct buffer size returned.
 		Irp->IoStatus.Information =
-		    IrpSp->Parameters.QueryDirectory.Length - uio_resid(uio);
+		    IrpSp->Parameters.QueryDirectory.Length - zfs_uio_resid(&uio);
 
 		dprintf("dirlist information in %d out size %d\n",
 		    IrpSp->Parameters.QueryDirectory.Length,
@@ -3067,12 +3068,9 @@ query_directory_FileFullDirectoryInformation(PDEVICE_OBJECT DeviceObject,
 			Status = STATUS_SUCCESS;
 
 		// Remember directory index for next time
-		zccb->uio_offset = uio_offset(uio);
+		zccb->uio_offset = zfs_uio_offset(&uio);
 
 	}
-
-	// Release uio
-	uio_free(uio);
 
 	return (Status);
 }
@@ -3436,26 +3434,24 @@ fs_read(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 	} // !nocache
 
 
-	uio_t *uio;
+        struct iovec iov;
+        iov.iov_base = (void *)SystemBuffer;
+        iov.iov_len = bufferLength;
 
-	uio = uio_create(1, byteOffset.QuadPart, UIO_SYSSPACE, UIO_READ);
-
-	ASSERT(SystemBuffer != NULL);
-	uio_addiov(uio, (user_addr_t)SystemBuffer, bufferLength);
+        zfs_uio_t uio;
+        zfs_uio_iovec_init(&uio, &iov, 1, byteOffset.QuadPart, UIO_SYSSPACE, bufferLength, 0);
 
 	dprintf("%s: offset %llx size %lx\n", __func__,
 	    byteOffset.QuadPart, bufferLength);
 
-	error = zfs_read(vp, uio, 0, NULL);
+	error = zfs_read(vp, &uio, 0, NULL);
 
 	// Update bytes read
-	Irp->IoStatus.Information = bufferLength - uio_resid(uio);
+	Irp->IoStatus.Information = bufferLength - zfs_uio_resid(&uio);
 
 	// apparently we dont use EOF
 //	if (Irp->IoStatus.Information == 0)
 //		Status = STATUS_END_OF_FILE;
-
-	uio_free(uio);
 
 out:
 
@@ -3679,9 +3675,12 @@ fs_write(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 		}
 	}
 
-	uio_t *uio;
-	uio = uio_create(1, byteOffset.QuadPart, UIO_SYSSPACE, UIO_WRITE);
-	uio_addiov(uio, (user_addr_t)SystemBuffer, bufferLength);
+        struct iovec iov;
+        iov.iov_base = (void *)SystemBuffer;
+        iov.iov_len = bufferLength;
+
+        zfs_uio_t uio;
+        zfs_uio_iovec_init(&uio, &iov, 1, byteOffset.QuadPart, UIO_SYSSPACE, bufferLength, 0);
 
 	// dprintf("%s: offset %llx size %lx\n", __func__,
 	// byteOffset.QuadPart, bufferLength);
@@ -3692,21 +3691,19 @@ fs_write(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 
 	if (FlagOn(Irp->Flags, IRP_PAGING_IO))
 		// Should we call vnop_pageout instead?
-		error = zfs_write(vp, uio, 0, NULL);
+		error = zfs_write(vp, &uio, 0, NULL);
 	else
-		error = zfs_write(vp, uio, 0, NULL);
+		error = zfs_write(vp, &uio, 0, NULL);
 
 	// if (error == 0)
 	//	zp->z_pflags |= ZFS_ARCHIVE;
 
 	// EOF?
-	if ((bufferLength == uio_resid(uio)) && error == ENOSPC)
+	if ((bufferLength == zfs_uio_resid(&uio)) && error == ENOSPC)
 		Status = STATUS_DISK_FULL;
 
 	// Update bytes written
-	Irp->IoStatus.Information = bufferLength - uio_resid(uio);
-
-	uio_free(uio);
+	Irp->IoStatus.Information = bufferLength - zfs_uio_resid(&uio);
 
 	// Update the file offset
 out:

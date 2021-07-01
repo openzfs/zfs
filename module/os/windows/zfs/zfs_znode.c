@@ -171,7 +171,6 @@ zfs_znode_cache_constructor(void *buf, void *arg, int kmflags)
 	zp->z_acl_cached = NULL;
 	zp->z_xattr_cached = NULL;
 	zp->z_xattr_parent = 0;
-	zp->z_moved = 0;
 	return (0);
 }
 
@@ -548,7 +547,6 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 
 	ASSERT(zp->z_dirlocks == NULL);
 	ASSERT(!POINTER_IS_VALID(zp->z_zfsvfs));
-	zp->z_moved = 0;
 
 	/*
 	 * Defer setting z_zfsvfs until the znode is ready to be a candidate for
@@ -1972,7 +1970,6 @@ zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 
 	rootzp = kmem_cache_alloc(znode_cache, KM_SLEEP);
 	ASSERT(!POINTER_IS_VALID(rootzp->z_zfsvfs));
-	rootzp->z_moved = 0;
 	rootzp->z_unlinked = 0;
 	rootzp->z_atime_dirty = 0;
 	rootzp->z_is_sa = USE_SA(version, os);
@@ -2052,6 +2049,12 @@ zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 	kmem_free(zfsvfs->z_hold_locks, sizeof (kmutex_t) * size);
 
 	kmem_free(zfsvfs, sizeof (zfsvfs_t));
+}
+
+void
+zfs_znode_update_vfs(znode_t *zp)
+{
+	vnode_pager_setsize(ZTOV(zp), zp->z_size);
 }
 
 #endif /* _KERNEL */
@@ -2320,3 +2323,4 @@ zfs_obj_to_stats(objset_t *osp, uint64_t obj, zfs_stat_t *sb,
 	zfs_release_sa_handle(hdl, db, FTAG);
 	return (error);
 }
+

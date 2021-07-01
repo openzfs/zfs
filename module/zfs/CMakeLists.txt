@@ -13,6 +13,7 @@ wdk_add_library(zfskern
   bptree.c
   bqueue.c
   btree.c
+  dataset_kstats.c
   dbuf.c
   dbuf_stats.c
   ddt.c
@@ -74,6 +75,8 @@ wdk_add_library(zfskern
   unique.c
   vdev.c
   vdev_cache.c
+  vdev_draid.c
+  vdev_draid_rand.c
   vdev_indirect.c
   vdev_indirect_births.c
   vdev_indirect_mapping.c
@@ -110,6 +113,7 @@ wdk_add_library(zfskern
   zfs_replay.c
   zfs_rlock.c
   zfs_sa.c
+  zfs_vnops.c
   zil.c
   zio.c
   zio_checksum.c

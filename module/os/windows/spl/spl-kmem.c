@@ -46,6 +46,11 @@
 
 #include <Trace.h>
 
+// TODO, track down what is using floats in this file
+int _fltused = 0;
+
+
+
 // ===============================================================
 // Options
 // ===============================================================
@@ -712,7 +717,7 @@ calloc(size_t n, size_t s)
 (((c) >= 'a' && (c) <= 'z') || ((c) >= 'A' && (c) <= 'Z'))
 
 /*
- * BGH - Missing from OSX?
+ * BGH - Missing from Windows?
  *
  * Convert a string into a valid C identifier by replacing invalid
  * characters with '_'.  Also makes sure the string is nul-terminated
@@ -4287,7 +4292,7 @@ kmem_cache_fini()
 		FREE(fs, M_TEMP);
 
 	}
-	dprintf("SPL: Released %u slabs\n", i);
+	xprintf("SPL: Released %u slabs\n", i);
 	list_destroy(&freelist);
 }
 
@@ -5123,7 +5128,7 @@ spl_event_thread(void *notused)
 
 	ZwClose(low_mem_handle);
 
-                xprintf("%s: LOWMEMORY EVENT *** 0x%x (memusage: %llu)\n",
+                dprintf("%s: LOWMEMORY EVENT *** 0x%x (memusage: %llu)\n",
                     __func__, Status, segkmem_total_mem_allocated);
                 /* We were signalled */
                 // vm_page_free_wanted = vm_page_free_min;

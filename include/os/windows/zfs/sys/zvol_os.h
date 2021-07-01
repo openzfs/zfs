@@ -49,11 +49,11 @@ extern int zvol_os_open_zv(zvol_state_t *, int, int, struct proc *p);
 extern int zvol_os_open(dev_t dev, int flag, int otyp, struct proc *p);
 extern int zvol_os_close_zv(zvol_state_t *, int, int, struct proc *p);
 extern int zvol_os_close(dev_t dev, int flag, int otyp, struct proc *p);
-extern int zvol_os_read(dev_t dev, struct uio *uio, int p);
-extern int zvol_os_write(dev_t dev, struct uio *uio, int p);
+extern int zvol_os_read(dev_t dev, zfs_uio_t *uio, int p);
+extern int zvol_os_write(dev_t dev, zfs_uio_t *uio, int p);
 
-extern int zvol_os_read_zv(zvol_state_t *zv, uio_t *, int);
-extern int zvol_os_write_zv(zvol_state_t *zv, uio_t *, int);
+extern int zvol_os_read_zv(zvol_state_t *zv, zfs_uio_t *, int);
+extern int zvol_os_write_zv(zvol_state_t *zv, zfs_uio_t *, int);
 extern int zvol_os_unmap(zvol_state_t *zv, uint64_t off, uint64_t bytes);
 
 extern void zvol_os_strategy(struct buf *bp);

@@ -146,7 +146,7 @@ secpolicy_vnode_chown(struct vnode *vp, const cred_t *cr, uid_t u)
 }
 
 int
-secpolicy_vnode_setid_retain(const cred_t *cr, int fal)
+secpolicy_vnode_setid_retain(struct znode *zp, const cred_t *cr, int fal)
 {
 	return (0);
 }

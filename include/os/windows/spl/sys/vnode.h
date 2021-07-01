@@ -148,6 +148,8 @@ extern int			vttoif_tab[];
 
 #define	ATTR_NOACLCHECK 0x20
 
+#define	F_SEEK_HOLE 0
+
 /*
  * Windows uses separate vnop getfileinformation to deal with XATTRs, so
  * we never get vop&XVATTR set from VFS. All internal checks for it in

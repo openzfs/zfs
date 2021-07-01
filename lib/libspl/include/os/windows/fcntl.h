@@ -37,6 +37,7 @@
 #define	F_SETFD		2
 #define	FD_CLOEXEC	1
 
+#define	O_DIRECTORY 0
 /*
  * Special value used to indicate openat should use the current
  * working directory.

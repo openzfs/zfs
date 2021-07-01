@@ -122,7 +122,7 @@ windows_kstat_t windows_kstat = {
 	{"zfs_no_scrub_prefetch",		KSTAT_DATA_INT64  },
 	{"fzap_default_block_shift",	KSTAT_DATA_INT64  },
 	{"zfs_immediate_write_sz",		KSTAT_DATA_INT64  },
-	{"zfs_read_chunk_size",			KSTAT_DATA_INT64  },
+//	{"zfs_read_chunk_size",			KSTAT_DATA_INT64  },
 	{"zfs_nocacheflush",			KSTAT_DATA_INT64  },
 	{"zil_replay_disable",			KSTAT_DATA_INT64  },
 	{"metaslab_df_alloc_threshold",	KSTAT_DATA_INT64  },
@@ -299,8 +299,8 @@ windows_kstat_update(kstat_t *ksp, int rw)
 		    ks->fzap_default_block_shift.value.i64;
 		zfs_immediate_write_sz =
 		    ks->zfs_immediate_write_sz.value.i64;
-		zfs_read_chunk_size =
-		    ks->zfs_read_chunk_size.value.i64;
+//		zfs_read_chunk_size =
+//		    ks->zfs_read_chunk_size.value.i64;
 		zfs_nocacheflush =
 		    ks->zfs_nocacheflush.value.i64;
 		zil_replay_disable =
@@ -488,8 +488,8 @@ windows_kstat_update(kstat_t *ksp, int rw)
 		    fzap_default_block_shift;
 		ks->zfs_immediate_write_sz.value.i64 =
 		    zfs_immediate_write_sz;
-		ks->zfs_read_chunk_size.value.i64 =
-		    zfs_read_chunk_size;
+//		ks->zfs_read_chunk_size.value.i64 =
+//		    zfs_read_chunk_size;
 		ks->zfs_nocacheflush.value.i64 =
 		    zfs_nocacheflush;
 		ks->zil_replay_disable.value.i64 =

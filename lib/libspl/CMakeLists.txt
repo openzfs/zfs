@@ -16,7 +16,7 @@ add_library(libspl
     #
 	os/windows/getmntany.c
     os/windows/getopt.c
-    os/windows/getoptl.c
+    #os/windows/getoptl.c
     os/windows/gethostid.c
 	os/windows/page.c
     os/windows/regex.c

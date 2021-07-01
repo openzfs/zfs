@@ -25,6 +25,7 @@
 #ifndef	_SYS_FS_ZFS_VFSOPS_OS_H
 #define	_SYS_FS_ZFS_VFSOPS_OS_H
 
+#include <sys/dataset_kstats.h>
 #include <sys/isa_defs.h>
 #include <sys/types32.h>
 #include <sys/list.h>
@@ -94,6 +95,7 @@ struct zfsvfs {
 	uint64_t	z_version;
 	uint64_t	z_shares_dir;	/* hidden shares dir */
 	kmutex_t	z_lock;
+	dataset_kstats_t	z_kstat; /* fs kstats */
 
 	/* for controlling async zfs_unlinked_drain */
 	kmutex_t	z_drain_lock;
@@ -151,6 +153,39 @@ typedef struct hardlinks_struct hardlinks_t;
 #define	ZFS_SUPER_MAGIC	0x2fc12fc1
 
 #define	ZSB_XATTR	0x0001		/* Enable user xattrs */
+
+#define ZFS_TEARDOWN_INIT(zfsvfs)               \
+        rrm_init(&(zfsvfs)->z_teardown_lock, B_FALSE)
+
+#define ZFS_TEARDOWN_DESTROY(zfsvfs)            \
+        rrm_destroy(&(zfsvfs)->z_teardown_lock)
+
+#define ZFS_TEARDOWN_TRY_ENTER_READ(zfsvfs)     \
+        rw_tryenter(&(zfsvfs)->z_teardown_lock, RW_READER)
+
+#define ZFS_TEARDOWN_ENTER_READ(zfsvfs, tag)    \
+        rrm_enter_read(&(zfsvfs)->z_teardown_lock, tag);
+
+#define ZFS_TEARDOWN_EXIT_READ(zfsvfs, tag)     \
+        rrm_exit(&(zfsvfs)->z_teardown_lock, tag)
+
+#define ZFS_TEARDOWN_ENTER_WRITE(zfsvfs, tag)   \
+        rrm_enter(&(zfsvfs)->z_teardown_lock, RW_WRITER, tag)
+
+#define ZFS_TEARDOWN_EXIT_WRITE(zfsvfs)         \
+        rrm_exit(&(zfsvfs)->z_teardown_lock, tag)
+
+#define ZFS_TEARDOWN_EXIT(zfsvfs, tag)          \
+        rrm_exit(&(zfsvfs)->z_teardown_lock, tag)
+
+#define ZFS_TEARDOWN_READ_HELD(zfsvfs)          \
+        RRM_READ_HELD(&(zfsvfs)->z_teardown_lock)
+
+#define ZFS_TEARDOWN_WRITE_HELD(zfsvfs)         \
+        RRM_WRITE_HELD(&(zfsvfs)->z_teardown_lock)
+
+#define ZFS_TEARDOWN_HELD(zfsvfs)               \
+        RRM_LOCK_HELD(&(zfsvfs)->z_teardown_lock)
 
 /*
  * Normal filesystems (those not under .zfs/snapshot) have a total

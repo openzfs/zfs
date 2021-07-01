@@ -531,7 +531,7 @@ zfsctl_vnop_readdir_root(struct vnop_readdir_args *ap)
 
 	*ap->a_numdirent = 0;
 
-	offset = uio_offset(uio);
+	offset = zfs_uio_offset(uio);
 
 	while (offset < 3 && error == 0) {
 
@@ -564,10 +564,10 @@ zfsctl_vnop_readdir_root(struct vnop_readdir_args *ap)
 
 		entries++;
 		offset++;
-		uio_setoffset(uio, offset);
+		zfs_uio_setoffset(uio, offset);
 	}
 
-	uio_setoffset(uio, offset);
+	zfs_uio_setoffset(uio, offset);
 
 	/* Finished without error? Set EOF */
 	if (offset >= 3 && error == 0) {
@@ -613,7 +613,7 @@ zfsctl_vnop_readdir_snapdir(struct vnop_readdir_args *ap)
 
 	*ap->a_numdirent = 0;
 
-	offset = uio_offset(uio);
+	offset = zfs_uio_offset(uio);
 
 	while (error == 0) {
 
@@ -650,10 +650,10 @@ zfsctl_vnop_readdir_snapdir(struct vnop_readdir_args *ap)
 
 		entries++;
 		offset++;
-		uio_setoffset(uio, offset);
+		zfs_uio_setoffset(uio, offset);
 	}
 
-	uio_setoffset(uio, offset);
+	zfs_uio_setoffset(uio, offset);
 
 	/* Finished without error? Set EOF */
 	if (error == ENOENT) {
@@ -697,7 +697,7 @@ zfsctl_vnop_readdir_snapdirs(struct vnop_readdir_args *ap)
 
 	*ap->a_numdirent = 0;
 
-	offset = uio_offset(uio);
+	offset = zfs_uio_offset(uio);
 
 	dprintf("%s: for id %llu: offset %llu\n", __func__,
 	    zp->z_id, offset);
@@ -727,10 +727,10 @@ zfsctl_vnop_readdir_snapdirs(struct vnop_readdir_args *ap)
 
 		entries++;
 		offset++;
-		uio_setoffset(uio, offset);
+		zfs_uio_setoffset(uio, offset);
 	}
 
-	uio_setoffset(uio, offset);
+	zfs_uio_setoffset(uio, offset);
 
 	/* Finished without error? Set EOF */
 	if (error == ENOENT) {

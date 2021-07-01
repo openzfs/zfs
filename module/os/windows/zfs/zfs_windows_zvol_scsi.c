@@ -886,28 +886,23 @@ wzvol_WkRtn(__in PVOID pWkParms)
 	// Create an uio for the IO. If we can possibly embed
 	// the uio in some Extension to this IO, we could
 	// save the allocation here.
-	uio_t *uio = uio_create(1, 0, UIO_SYSSPACE,
-	    ActionRead == pWkRtnParms->Action ? UIO_READ : UIO_WRITE);
-	if (uio == NULL) {
-		dprintf("%s: out of memory.\n", __func__);
-		status = SRB_STATUS_INVALID_REQUEST;
-		goto Done;
-	}
-	VERIFY0(uio_addiov(uio, (user_addr_t)pSrb->DataBuffer,
-	    pSrb->DataTransferLength));
-	uio_setoffset(uio, sectorOffset);
+	struct iovec iov;
+	iov.iov_base = (void *)pSrb->DataBuffer;
+	iov.iov_len = pSrb->DataTransferLength;
+
+	zfs_uio_t uio;
+	zfs_uio_iovec_init(&uio, &iov, 1, 0, UIO_SYSSPACE, pSrb->DataTransferLength, 0);
+	//    ActionRead == pWkRtnParms->Action ? UIO_READ : UIO_WRITE);
 
 	/* Call ZFS to read/write data */
 	if (ActionRead == pWkRtnParms->Action) {
-		status = zvol_os_read_zv(zv, uio, flags);
+		status = zvol_os_read_zv(zv, &uio, flags);
 	} else {
-		status = zvol_os_write_zv(zv, uio, flags);
+		status = zvol_os_write_zv(zv, &uio, flags);
 	}
 
 	if (status == 0)
 		status = SRB_STATUS_SUCCESS;
-
-	uio_free(uio);
 
 Done:
 	if (zv)

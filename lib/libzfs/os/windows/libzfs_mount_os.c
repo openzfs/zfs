@@ -333,7 +333,7 @@ unmount_snapshots(zfs_handle_t *zhp, const char *mntpt, int flags)
 	struct mnttab entry;
 	int len = strlen(mntpt);
 
-	while (getmntent(zhp->zfs_hdl->libzfs_mnttab, &entry) == 0) {
+	while (getmntent(NULL, &entry) == 0) {
 		/* Starts with our mountpoint ? */
 		if (strncmp(mntpt, entry.mnt_mountp, len) == 0) {
 			/* The next part is "/.zfs/snapshot/" ? */

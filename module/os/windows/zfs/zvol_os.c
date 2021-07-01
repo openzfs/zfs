@@ -152,19 +152,19 @@ zvol_os_register_device_cb(void *param)
 }
 
 int
-zvol_os_write(dev_t dev, struct uio *uio, int p)
+zvol_os_write(dev_t dev, zfs_uio_t *uio, int p)
 {
 	return (ENOTSUP);
 }
 
 int
-zvol_os_read(dev_t dev, struct uio *uio, int p)
+zvol_os_read(dev_t dev, zfs_uio_t *uio, int p)
 {
 	return (ENOTSUP);
 }
 
 int
-zvol_os_read_zv(zvol_state_t *zv, uio_t *uio, int flags)
+zvol_os_read_zv(zvol_state_t *zv, zfs_uio_t *uio, int flags)
 {
 	zfs_locked_range_t *lr;
 	int error = 0;
@@ -174,22 +174,22 @@ zvol_os_read_zv(zvol_state_t *zv, uio_t *uio, int flags)
 		return (ENXIO);
 
 	uint64_t volsize = zv->zv_volsize;
-	if (uio_offset(uio) >= volsize)
+	if (zfs_uio_offset(uio) >= volsize)
 		return (EIO);
 
 	lr = zfs_rangelock_enter(&zv->zv_rangelock,
-	    uio_offset(uio), uio_resid(uio), RL_READER);
+	    zfs_uio_offset(uio), zfs_uio_resid(uio), RL_READER);
 
-	while (uio_resid(uio) > 0 && uio_offset(uio) < volsize) {
-		uint64_t bytes = MIN(uio_resid(uio), DMU_MAX_ACCESS >> 1);
+	while (zfs_uio_resid(uio) > 0 && zfs_uio_offset(uio) < volsize) {
+		uint64_t bytes = MIN(zfs_uio_resid(uio), DMU_MAX_ACCESS >> 1);
 
 		/* don't read past the end */
-		if (bytes > volsize - uio_offset(uio))
-			bytes = volsize - uio_offset(uio);
+		if (bytes > volsize - zfs_uio_offset(uio))
+			bytes = volsize - zfs_uio_offset(uio);
 
 		dprintf("%s %llu len %llu bytes %llu\n",
 		    "zvol_read_iokit: position",
-		    uio_offset(uio), uio_resid(uio), bytes);
+		    zfs_uio_offset(uio), zfs_uio_resid(uio), bytes);
 
 		error = dmu_read_uio_dnode(zv->zv_dn, uio, bytes);
 
@@ -207,7 +207,7 @@ zvol_os_read_zv(zvol_state_t *zv, uio_t *uio, int flags)
 
 
 int
-zvol_os_write_zv(zvol_state_t *zv, uio_t *uio, int flags)
+zvol_os_write_zv(zvol_state_t *zv, zfs_uio_t *uio, int flags)
 {
 	uint64_t volsize;
 	zfs_locked_range_t *lr;
@@ -221,11 +221,11 @@ zvol_os_write_zv(zvol_state_t *zv, uio_t *uio, int flags)
 		return (ENXIO);
 
 	/* Some requests are just for flush and nothing else. */
-	if (uio_resid(uio) == 0)
+	if (zfs_uio_resid(uio) == 0)
 		return (0);
 
 	volsize = zv->zv_volsize;
-	if (uio_offset(uio) >= volsize)
+	if (zfs_uio_offset(uio) >= volsize)
 		return (EIO);
 
 	rw_enter(&zv->zv_suspend_lock, RW_READER);
@@ -248,18 +248,18 @@ zvol_os_write_zv(zvol_state_t *zv, uio_t *uio, int flags)
 	}
 
 	dprintf("zvol_write_zv(position %llu offset "
-	    "0x%llx bytes 0x%llx)\n",  uio_offset(uio), uio_resid(uio), bytes);
+	    "0x%llx bytes 0x%llx)\n",  zfs_uio_offset(uio), zfs_uio_resid(uio), bytes);
 
 	sync = (zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS);
 
 	/* Lock the entire range */
-	lr = zfs_rangelock_enter(&zv->zv_rangelock, uio_offset(uio),
-	    uio_resid(uio), RL_WRITER);
+	lr = zfs_rangelock_enter(&zv->zv_rangelock, zfs_uio_offset(uio),
+	    zfs_uio_resid(uio), RL_WRITER);
 
 	/* Iterate over (DMU_MAX_ACCESS/2) segments */
-	while (uio_resid(uio) > 0 && uio_offset(uio) < volsize) {
-		uint64_t bytes = MIN(uio_resid(uio), DMU_MAX_ACCESS >> 1);
-		uint64_t off = uio_offset(uio);
+	while (zfs_uio_resid(uio) > 0 && zfs_uio_offset(uio) < volsize) {
+		uint64_t bytes = MIN(zfs_uio_resid(uio), DMU_MAX_ACCESS >> 1);
+		uint64_t off = zfs_uio_offset(uio);
 		dmu_tx_t *tx = dmu_tx_create(zv->zv_objset);
 
 		/* don't write past the end */
@@ -537,7 +537,10 @@ zvol_os_free(zvol_state_t *zv)
 	kmem_free(zv, sizeof (zvol_state_t));
 }
 
-
+void
+zvol_wait_close(zvol_state_t *zv)
+{
+}
 
 /*
  * Create a block device minor node and setup the linkage between it

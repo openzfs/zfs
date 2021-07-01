@@ -12,6 +12,7 @@ spa_misc_os.c
 vdev_disk.c
 vdev_file.c
 zfs_acl.c
+zfs_racct.c 
 zfs_ctldir.c
 zfs_debug.c
 zfs_dir.c
@@ -20,7 +21,7 @@ zfs_fuid_os.c
 zfs_ioctl_os.c
 zfs_kstat_windows.c
 zfs_vfsops.c
-zfs_vnops.c
+zfs_vnops_os.c
 zfs_vnops_windows.c
 zfs_vnops_windows_lib.c
 zfs_vnops_windows_mount.c

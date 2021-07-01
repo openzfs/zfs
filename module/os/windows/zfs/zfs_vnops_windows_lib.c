@@ -40,6 +40,7 @@
 #include <sys/zap.h>
 #include <sys/sa.h>
 #include <sys/zfs_vnops.h>
+#include <sys/zfs_vnops_os.h>
 #include <sys/zfs_ctldir.h>
 #include <sys/stat.h>
 
@@ -598,12 +599,13 @@ vnode_apply_single_ea(struct vnode *vp, struct vnode *xdvp,
 		error = zfs_freesp(VTOZ(xvp), 0, 0, VTOZ(vp)->z_mode, TRUE);
 
 		/* Write data */
-		uio_t *uio;
-		uio = uio_create(1, 0, UIO_SYSSPACE, UIO_WRITE);
-		uio_addiov(uio, ea->EaName + ea->EaNameLength + 1,
-		    ea->EaValueLength);
-		error = zfs_write(xvp, uio, 0, NULL);
-		uio_free(uio);
+		struct iovec iov;
+		iov.iov_base = (void *)(ea->EaName + ea->EaNameLength + 1);
+		iov.iov_len = ea->EaValueLength;
+
+		zfs_uio_t uio;
+		zfs_uio_iovec_init(&uio, &iov, 1, 0, UIO_SYSSPACE, ea->EaValueLength, 0);
+		error = zfs_write(xvp, &uio, 0, NULL);
 	}
 
 out:
@@ -1013,6 +1015,11 @@ getuseraccess(znode_t *zp, vfs_context_t ctx)
 	return (user_access);
 }
 
+#define KAUTH_WKG_NOT   0       /* not a well-known GUID */
+#define KAUTH_WKG_OWNER 1
+#define KAUTH_WKG_GROUP 2
+#define KAUTH_WKG_NOBODY        3
+#define KAUTH_WKG_EVERYBODY     4
 
 
 static unsigned char fingerprint[] = {0xab, 0xcd, 0xef, 0xab, 0xcd, 0xef,
@@ -2641,15 +2648,16 @@ file_attribute_tag_information(PDEVICE_OBJECT DeviceObject, PIRP Irp,
 		tag->FileAttributes = zfs_getwinflags(zp);
 		if (zp->z_pflags & ZFS_REPARSE) {
 			int err;
-			uio_t *uio;
 			REPARSE_DATA_BUFFER tagdata;
-			uio = uio_create(1, 0, UIO_SYSSPACE, UIO_READ);
-			uio_addiov(uio, (user_addr_t)&tagdata,
-			    sizeof (tagdata));
-			err = zfs_readlink(vp, uio, NULL);
+			struct iovec iov;
+			iov.iov_base = (void *)&tagdata;
+			iov.iov_len = sizeof (tagdata);
+
+			zfs_uio_t uio;
+			zfs_uio_iovec_init(&uio, &iov, 1, 0, UIO_SYSSPACE, sizeof (tagdata), 0);
+			err = zfs_readlink(vp, &uio, NULL);
 			tag->ReparseTag = tagdata.ReparseTag;
 			dprintf("Returning tag 0x%x\n", tag->ReparseTag);
-			uio_free(uio);
 		}
 		Irp->IoStatus.Information =
 		    sizeof (FILE_ATTRIBUTE_TAG_INFORMATION);

@@ -31,4 +31,19 @@
 extern int random_get_bytes(uint8_t *ptr, uint32_t len);
 #define	random_get_pseudo_bytes random_get_bytes
 
+static inline uint32_t
+random_in_range(uint32_t range)
+{
+	uint32_t r;
+
+	ASSERT(range != 0);
+
+	if (range == 1)
+	    return (0);
+
+	random_get_bytes((void *)&r, sizeof (r));
+
+	return (r % range);
+}
+
 #endif	/* _SPL_RANDOM_H */

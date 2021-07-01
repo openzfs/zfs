@@ -179,6 +179,20 @@ atomic_swap_64(volatile uint64_t *_target, uint64_t _new)
 
 extern void *atomic_cas_ptr(volatile void *_target, void *_cmp, void *_new);
 
+#if defined(__clang__)
+static inline uint64_t
+atomic_load_64(volatile uint64_t *target)
+{
+	return (__atomic_load_n(target, __ATOMIC_RELAXED));
+}
+
+static inline void
+atomic_store_64(volatile uint64_t *target, uint64_t bits)
+{
+	return (__atomic_store_n(target, bits, __ATOMIC_RELAXED));
+}
+#endif
+
 static inline void
 membar_producer(void)
 {

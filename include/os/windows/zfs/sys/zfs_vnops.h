@@ -141,6 +141,12 @@ typedef struct attrinfo {
 	    ATTR_FILE_DATAALLOCSIZE | ATTR_FILE_RSRCLENGTH | \
 	    ATTR_FILE_RSRCALLOCSIZE)
 
+#define KAUTH_WKG_NOT   0       /* not a well-known GUID */
+#define KAUTH_WKG_OWNER 1
+#define KAUTH_WKG_GROUP 2
+#define KAUTH_WKG_NOBODY        3
+#define KAUTH_WKG_EVERYBODY     4
+
 extern int zfs_remove(znode_t *dzp, char *name, cred_t *cr, int flags);
 extern int zfs_mkdir(znode_t *dzp, char *dirname, vattr_t *vap,
 	znode_t **zpp, cred_t *cr, int flags, vsecattr_t *vsecp);
@@ -164,8 +170,6 @@ extern int zfs_write_simple(znode_t *zp, const void *data, size_t len,
 
 extern int zfs_open(struct vnode *ip, int mode, int flag, cred_t *cr);
 extern int zfs_close(struct vnode *ip, int flag, cred_t *cr);
-extern int zfs_read(struct vnode *ip, uio_t *uio, int ioflag, cred_t *cr);
-extern int zfs_write(struct vnode *ip, uio_t *uio, int ioflag, cred_t *cr);
 extern int zfs_lookup(znode_t *dzp, char *nm, znode_t **zpp,
     int flags, cred_t *cr, int *direntflags, struct componentname *realpnp);
 extern int zfs_ioctl(vnode_t *vp, ulong_t com, intptr_t data, int flag,
@@ -178,7 +182,6 @@ extern int zfs_getattr(vnode_t *vp, vattr_t *vap, int flags,
     cred_t *cr, caller_context_t *ct);
 extern int zfs_readlink(vnode_t *vp, uio_t *uio, cred_t *cr);
 
-extern int zfs_access(struct vnode *ip, int mode, int flag, cred_t *cr);
 extern void   zfs_inactive(vnode_t *vp);
 
 /* zfs_vops_osx.c calls */

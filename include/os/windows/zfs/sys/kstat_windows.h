@@ -97,7 +97,7 @@ typedef struct windows_kstat {
 	kstat_named_t zfs_no_scrub_prefetch;
 	kstat_named_t fzap_default_block_shift;
 	kstat_named_t zfs_immediate_write_sz;
-	kstat_named_t zfs_read_chunk_size;
+//	kstat_named_t zfs_read_chunk_size;
 	kstat_named_t zfs_nocacheflush;
 	kstat_named_t zil_replay_disable;
 	kstat_named_t metaslab_df_alloc_threshold;

@@ -91,86 +91,31 @@ zfs_vfs_rele(zfsvfs_t *zfsvfs)
 
 static uint_t zfsdev_private_tsd;
 
-static int
-zfsdev_state_init(dev_t dev)
-{
-	zfsdev_state_t *zs, *zsprev = NULL;
-	minor_t minor;
-	boolean_t newzs = B_FALSE;
-
-	ASSERT(MUTEX_HELD(&zfsdev_state_lock));
-
-	minor = minor(dev);
-	if (minor == 0)
-		return (SET_ERROR(ENXIO));
-
-	for (zs = zfsdev_state_list; zs != NULL; zs = zs->zs_next) {
-		if (zs->zs_minor == -1)
-			break;
-		zsprev = zs;
-	}
-
-	if (!zs) {
-		zs = kmem_zalloc(sizeof (zfsdev_state_t), KM_SLEEP);
-		newzs = B_TRUE;
-	}
-
-	/* Store this dev_t in tsd, so zfs_get_private() can retrieve it */
-	tsd_set(zfsdev_private_tsd, (void *)(uintptr_t)dev);
-
-	zfs_onexit_init((zfs_onexit_t **)&zs->zs_onexit);
-	zfs_zevent_init((zfs_zevent_t **)&zs->zs_zevent);
-
-	/*
-	 * In order to provide for lock-free concurrent read access
-	 * to the minor list in zfsdev_get_state_impl(), new entries
-	 * must be completely written before linking them into the
-	 * list whereas existing entries are already linked; the last
-	 * operation must be updating zs_minor (from -1 to the new
-	 * value).
-	 */
-	if (newzs) {
-		zs->zs_minor = minor;
-		zsprev->zs_next = zs;
-	} else {
-		zs->zs_minor = minor;
-	}
-
-	return (0);
-}
-
 dev_t
 zfsdev_get_dev(void)
 {
 	return ((dev_t)tsd_get(zfsdev_private_tsd));
 }
 
-static int
-zfsdev_state_destroy(dev_t dev)
+/* We can't set ->private method, so this function does nothing */
+void
+zfsdev_private_set_state(void *priv, zfsdev_state_t *zs)
 {
+	zfsdev_state_t **actual_zs = (zfsdev_state_t **)priv;
+	if (actual_zs != NULL)
+		*actual_zs = zs;
+}
+
+/* Loop all zs looking for matching dev_t */
+zfsdev_state_t *
+zfsdev_private_get_state(void *priv)
+{
+	dev_t dev = (dev_t)priv;
 	zfsdev_state_t *zs;
-
-	ASSERT(MUTEX_HELD(&zfsdev_state_lock));
-
-	tsd_set(zfsdev_private_tsd, NULL);
-
-	zs = zfsdev_get_state(minor(dev), ZST_ALL);
-
-	if (!zs) {
-		dprintf("%s: no cleanup for minor x%x\n", __func__,
-		    minor(dev));
-		return (0);
-	}
-
-	ASSERT(zs != NULL);
-	if (zs->zs_minor != -1) {
-		zs->zs_minor = -1;
-		zfs_onexit_destroy(zs->zs_onexit);
-		zfs_zevent_destroy(zs->zs_zevent);
-		zs->zs_onexit = NULL;
-		zs->zs_zevent = NULL;
-	}
-	return (0);
+	mutex_enter(&zfsdev_state_lock);
+	zs = zfsdev_get_state(dev, ZST_ALL);
+	mutex_exit(&zfsdev_state_lock);                                             
+	return (zs);
 }
 
 static NTSTATUS
@@ -196,17 +141,14 @@ zfsdev_open(dev_t dev, PIRP Irp)
 static NTSTATUS
 zfsdev_release(dev_t dev, PIRP Irp)
 {
-	int error;
-	int flags = 0;
-	int devtype = 0;
-	struct proc *p = current_proc();
-	PAGED_CODE();
+	/* zfsdev_state_destroy() doesn't check for NULL, so pre-lookup here */
+	void *priv;
 
-	mutex_enter(&zfsdev_state_lock);
-	error = zfsdev_state_destroy(dev);
-	mutex_exit(&zfsdev_state_lock);
-
-	return (-error);
+	priv = (void *)(uintptr_t)minor(dev);
+	zfsdev_state_t *zs = zfsdev_private_get_state(priv);
+	if (zs != NULL)
+		zfsdev_state_destroy(priv);
+	return (0);
 }
 
 static NTSTATUS
@@ -567,6 +509,22 @@ zfsdev_detach(void)
 	wrap_nvpair_fini();
 	wrap_unicode_fini();
 	wrap_avl_fini();
+}
+
+/* Update the VFS's cache of mountpoint properties */
+void
+zfs_ioctl_update_mount_cache(const char *dsname)
+{   
+	zfsvfs_t *zfsvfs;
+
+	if (getzfsvfs(dsname, &zfsvfs) == 0) {
+		/* insert code here */
+		zfs_vfs_rele(zfsvfs);
+	}
+	/*                                                                          
+	 * Ignore errors; we can't do anything useful if either getzfsvfs or        
+	 * VFS_STATFS fails.                                                        
+	 */
 }
 
 uint64_t

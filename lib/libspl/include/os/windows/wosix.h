@@ -80,6 +80,7 @@ extern int wosix_socketpair(int domain, int type, int protocol,
     int socket_vector[2]);
 extern int wosix_dup2(int fildes, int fildes2);
 extern int wosix_pipe(int fildes[2]);
+extern int wosix_pipe(int fildes[2]);
 
 #define	wosix_fileno(X) (_get_osfhandle(_fileno((X))))
 
@@ -155,4 +156,5 @@ extern FILE *wosix_freopen(const char *path, const char *mode, FILE *stream);
 #undef  pipe
 #define	pipe	wosix_pipe
 #endif
+#define	pipe2(X,Y)	wosix_pipe(X)
 #endif /* WOSIX_HEADER */
