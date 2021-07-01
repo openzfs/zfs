@@ -78,7 +78,7 @@ extern void txg_register_callbacks(txg_handle_t *txghp, list_t *tx_callbacks);
 
 extern void txg_delay(struct dsl_pool *dp, uint64_t txg, hrtime_t delta,
     hrtime_t resolution);
-extern void txg_kick(struct dsl_pool *dp);
+extern void txg_kick(struct dsl_pool *dp, uint64_t txg);
 
 /*
  * Wait until the given transaction group has finished syncing.
