@@ -826,12 +826,12 @@ dbuf_init(void)
 	int i;
 
 	/*
-	 * The hash table is big enough to fill all of physical memory
+	 * The hash table is big enough to fill one eighth of physical memory
 	 * with an average block size of zfs_arc_average_blocksize (default 8K).
 	 * By default, the table will take up
 	 * totalmem * sizeof(void*) / 8K (1MB per GB with 8-byte pointers).
 	 */
-	while (hsize * zfs_arc_average_blocksize < physmem * PAGESIZE)
+	while (hsize * zfs_arc_average_blocksize < arc_all_memory() / 8)
 		hsize <<= 1;
 
 retry:
@@ -3057,8 +3057,8 @@ dbuf_create(dnode_t *dn, uint8_t level, uint64_t blkid,
 	db->db_state = DB_EVICTING; /* not worth logging this state change */
 	if ((odb = dbuf_hash_insert(db)) != NULL) {
 		/* someone else inserted it first */
-		kmem_cache_free(dbuf_kmem_cache, db);
 		mutex_exit(&dn->dn_dbufs_mtx);
+		kmem_cache_free(dbuf_kmem_cache, db);
 		DBUF_STAT_BUMP(hash_insert_race);
 		return (odb);
 	}
