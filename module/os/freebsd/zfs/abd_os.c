@@ -374,14 +374,17 @@ abd_alloc_for_io(size_t size, boolean_t is_metadata)
 }
 
 abd_t *
-abd_get_offset_scatter(abd_t *abd, abd_t *sabd, size_t off)
+abd_get_offset_scatter(abd_t *abd, abd_t *sabd, size_t off,
+    size_t size)
 {
 	abd_verify(sabd);
 	ASSERT3U(off, <=, sabd->abd_size);
 
 	size_t new_offset = ABD_SCATTER(sabd).abd_offset + off;
-	uint_t chunkcnt = abd_scatter_chunkcnt(sabd) -
-	    (new_offset / zfs_abd_chunk_size);
+	size_t chunkcnt = abd_chunkcnt_for_bytes(
+	    (new_offset % zfs_abd_chunk_size) + size);
+
+	ASSERT3U(chunkcnt, <=, abd_scatter_chunkcnt(sabd));
 
 	/*
 	 * If an abd struct is provided, it is only the minimum size.  If we
