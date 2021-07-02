@@ -344,7 +344,6 @@ ScsiExecuteMain(
 			break;
 
 		case SCSIOP_UNMAP:
-			DbgBreakPoint();
 			status = ScsiOpUnmap(pHBAExt, pSrb, pResult);
 			break;
 
