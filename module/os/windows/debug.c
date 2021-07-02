@@ -22,6 +22,11 @@
  * Copyright (c) 2018 Julian Heuking <J.Heuking@beckhoff.com>
  */
 
+// Get "_daylight: has bad storage class" in time.h
+#define _INC_TIME
+
+#define	_NO_CRT_STDIO_INLINE
+
 #include <sys/debug.h>
 #include <stdarg.h>
 #include <stdio.h>

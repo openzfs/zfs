@@ -18,6 +18,8 @@
  *
  * CDDL HEADER END
  */
+// Get "_daylight: has bad storage class" in time.h
+#define _INC_TIME
 
 #include <sys/kstat.h>
 #include <sys/kstat_windows.h>

@@ -510,10 +510,6 @@ spl_start(void)
 	spl_mutex_subsystem_init();
 	spl_kmem_init(total_memory);
 
-	spl_tsd_init();
-	spl_rwlock_init();
-	spl_taskq_init();
-
 	spl_vnode_init();
 	spl_kmem_thread_init();
 	spl_kmem_mp_init();

@@ -69,7 +69,8 @@ static inline void bsd_timeout(void *FUNC, void *ID, struct timespec *TIM)
 	LARGE_INTEGER duetime;
 	struct bsd_timeout_wrapper *btw = (struct bsd_timeout_wrapper *)ID;
 	void(*func)(void *) = FUNC;
-	ASSERT(btw != NULL);
+	if (btw == NULL)
+		return;
 	duetime.QuadPart = -((int64_t)(SEC2NSEC100(TIM->tv_sec) +
 	    NSEC2NSEC100(TIM->tv_nsec)));
 	btw->func = func;
