@@ -52,21 +52,20 @@ typedef struct aiocb {
 static inline int lio_listio(int mode, struct aiocb * aiocb_list[],
     int nitems, void * sevp)
 {
+	errno = EIO;
 	return (-1);
 }
 
 static inline int
 aio_error(const struct aiocb *aiocbp)
 {
-    errno = EINVAL;
-    return (-1);
+	return (EOPNOTSUPP);
 }
 
 static inline ssize_t
 aio_return(const struct aiocb *aiocbp)
 {
-    errno = EINVAL;
-    return (-1);
+	return (EOPNOTSUPP);
 }
 
 #endif

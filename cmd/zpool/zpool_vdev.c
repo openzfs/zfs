@@ -916,7 +916,10 @@ zero_label(char *path)
 	err = write(fd, buf, size);
 	(void) fdatasync(fd);
 	(void) close(fd);
-
+#ifdef _WIN32
+	/* Not allowed to write to boot sector */
+	err = size;
+#endif
 	if (err == -1) {
 		(void) fprintf(stderr, gettext("cannot zero first %d bytes "
 		    "of '%s': %s\n"), size, path, strerror(errno));
