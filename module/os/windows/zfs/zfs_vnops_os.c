@@ -65,6 +65,7 @@
 #include <sys/zfs_quota.h>
 #include <sys/zfs_sa.h>
 #include <sys/zfs_vnops.h>
+#include <sys/zfs_vnops_os.h>
 #include <sys/zfs_rlock.h>
 #include <sys/cred.h>
 #include <sys/zpl.h>

@@ -68,7 +68,7 @@ extern void zfs_send_notify(zfsvfs_t *zfsvfs, char *name, int,
     ULONG FilterMatch, ULONG Action);
 extern void zfs_send_notify_stream(zfsvfs_t *, char *, int, ULONG,
     ULONG, char *stream);
-extern void zfs_set_security(struct vnode *vp, struct vnode *dvp);
+extern int zfs_set_security(struct vnode *vp, struct vnode *dvp);
 extern uint64_t zfs_sid2uid(SID *sid);
 
 BOOLEAN vattr_apply_lx_ea(vattr_t *vap, PFILE_FULL_EA_INFORMATION ea);

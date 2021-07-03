@@ -1742,7 +1742,7 @@ err:
 		zfs_freesid(groupsid);
 }
 
-void
+int
 zfs_set_security(struct vnode *vp, struct vnode *dvp)
 {
 	SECURITY_SUBJECT_CONTEXT subjcont;
@@ -1750,10 +1750,10 @@ zfs_set_security(struct vnode *vp, struct vnode *dvp)
 	SID *usersid = NULL, *groupsid = NULL;
 
 	if (vp == NULL)
-		return;
+		return (0);
 
 	if (vp->security_descriptor != NULL)
-		return;
+		return (0);
 
 	znode_t *zp = VTOZ(vp);
 	zfsvfs_t *zfsvfs = zp->z_zfsvfs;
@@ -1762,11 +1762,10 @@ zfs_set_security(struct vnode *vp, struct vnode *dvp)
 	if (zp->z_id == zfsvfs->z_root ||
 	    zp->z_id == ZFSCTL_INO_ROOT) {
 		zfs_set_security_root(vp);
-		return;
+		return (0);
 	}
 
-	ZFS_ENTER_IFERROR(zfsvfs)
-		return;
+	ZFS_ENTER(zfsvfs);
 
 	// If no parent, find it. This will take one hold on
 	// dvp, either directly or from zget().
@@ -1818,6 +1817,7 @@ err:
 		zfs_freesid(usersid);
 	if (groupsid != NULL)
 		zfs_freesid(groupsid);
+	return (0);
 }
 
 // return true if a XATTR name should be skipped

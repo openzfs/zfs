@@ -990,7 +990,7 @@ zfs_vnop_lookup_impl(PIRP Irp, PIO_STACK_LOCATION IrpSp, mount_t *zmo,
 
 		ASSERT(strchr(finalname, '\\') == NULL);
 		error = zfs_mkdir(VTOZ(dvp), finalname, vap, &zp, NULL,
-		    NULL, 0);
+		    0, NULL);
 		if (error == 0) {
 			vp = ZTOV(zp);
 			zfs_couplefileobject(vp, FileObject, 0ULL);
