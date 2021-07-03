@@ -99,7 +99,7 @@ typedef struct lwb {
 	char		*lwb_buf;	/* log write buffer */
 	zio_t		*lwb_write_zio;	/* zio for the lwb buffer */
 	zio_t		*lwb_root_zio;	/* root zio for lwb write and flushes */
-	dmu_tx_t	*lwb_tx;	/* tx for log block allocation */
+	uint64_t	lwb_issued_txg;	/* the txg when the write is issued */
 	uint64_t	lwb_max_txg;	/* highest txg in this lwb */
 	list_node_t	lwb_node;	/* zilog->zl_lwb_list linkage */
 	list_t		lwb_itxs;	/* list of itx's */
@@ -209,6 +209,12 @@ struct zilog {
 	uint_t		zl_prev_rotor;	/* rotor for zl_prev[] */
 	txg_node_t	zl_dirty_link;	/* protected by dp_dirty_zilogs list */
 	uint64_t	zl_dirty_max_txg; /* highest txg used to dirty zilog */
+
+	kmutex_t	zl_lwb_io_lock; /* protect following members */
+	uint64_t	zl_lwb_inflight[TXG_SIZE]; /* io issued, but not done */
+	kcondvar_t	zl_lwb_io_cv;	/* signal when the flush is done */
+	uint64_t	zl_lwb_max_issued_txg; /* max txg when lwb io issued */
+
 	/*
 	 * Max block size for this ZIL.  Note that this can not be changed
 	 * while the ZIL is in use because consumers (ZPL/zvol) need to take
