@@ -318,8 +318,6 @@ vdev_disk_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 	RtlInitUnicodeString(&defaultFilterName, L"\\Driver\\partmgr");
 
 	DeviceObject = FileObject->DeviceObject; // bottom of stack
-	ObReferenceObject(DeviceObject);
-	dvd->vd_DeviceObject = DeviceObject;
 
 	/*
 	 * Determine the actual size of the device.
@@ -405,6 +403,9 @@ vdev_disk_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 
 	dvd->vd_FileObject = FileObject;
 	dvd->vd_ExclusiveObject = DeviceObject;
+
+	dvd->vd_DeviceObject = DeviceObject;
+	ObReferenceObject(dvd->vd_DeviceObject);
 
 	// Make disk readonly and offline, so that users can't
 	// partition/format it.
