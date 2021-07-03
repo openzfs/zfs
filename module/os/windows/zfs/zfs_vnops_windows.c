@@ -3444,7 +3444,7 @@ fs_read(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 	dprintf("%s: offset %llx size %lx\n", __func__,
 	    byteOffset.QuadPart, bufferLength);
 
-	error = zfs_read(vp, &uio, 0, NULL);
+	error = zfs_read(zp, &uio, 0, NULL);
 
 	// Update bytes read
 	Irp->IoStatus.Information = bufferLength - zfs_uio_resid(&uio);
@@ -3691,7 +3691,7 @@ fs_write(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 
 	if (FlagOn(Irp->Flags, IRP_PAGING_IO))
 		// Should we call vnop_pageout instead?
-		error = zfs_write(vp, &uio, 0, NULL);
+		error = zfs_write(zp, &uio, 0, NULL);
 	else
 		error = zfs_write(vp, &uio, 0, NULL);
 

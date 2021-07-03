@@ -882,8 +882,12 @@ libzfs_mnttab_find(libzfs_handle_t *hdl, const char *fsname,
 
 		if (avl_numnodes(&hdl->libzfs_mnttab_cache))
 			libzfs_mnttab_fini(hdl);
-
+#ifdef WIN32
+		// Unfortunately Windows abort() on unknown file mode
+		if ((mnttab = fopen(MNTTAB, "rb")) == NULL)
+#else
 		if ((mnttab = fopen(MNTTAB, "re")) == NULL)
+#endif
 			return (ENOENT);
 
 		srch.mnt_special = (char *)fsname;

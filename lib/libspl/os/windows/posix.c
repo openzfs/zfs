@@ -615,8 +615,8 @@ gethostid(void)
 	    (LPBYTE)&hostid, &len);
 	if (Status != ERROR_SUCCESS)
 		hostid = 0;
-
-	assert(type == REG_DWORD);
+	else
+		assert(type == REG_DWORD);
 
 	RegCloseKey(key);
 
