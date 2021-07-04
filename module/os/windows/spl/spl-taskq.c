@@ -28,7 +28,7 @@
  */
 
 /*
- * Copyright (C) 2017 Jorgen Lundman <lundman@lundman.net>
+ * Copyright (C) 2015, 2020 Jorgen Lundman <lundman@lundman.net>
  */
 
 /*
@@ -483,6 +483,35 @@
  *
  *    TASKQ_STATISTIC	- If set will enable bucket statistic (default).
  *
+ * DELAY DISPATCH --------------------------------------------------------------
+ * roger
+ * taskq_delay_dispatch():
+ *     Create a tqd_delay node containing the dispatch information, and
+ * expire time. It is inserted sorted by time. The "tqd_delay" pointer is
+ * returned as "taskqid_t" (ID). The dispatcher thread is signalled.
+ *     List is controlled by tqd_delay_lock and tqd_delay_cv.
+ *
+ * taskq_delay_dispatcher_thread():
+ *     Thread sitting in cv_wait()/cv_timedwait(), waiting either to be
+ * signalled or time expires. The sleeping time is the head of the list
+ * (expires the soonest due to sorting). If the head-node is expired
+ * we call taskq_dispatch() on the information. The taskqid_t is assigned
+ * to the node as the taskq is active. It also tagged the tqent as
+ * DELAYED.
+ *
+ *     Once the taskqent completes, as DELAYED is set, it will run through
+ * the list to locate the tqdelay node, and free it.
+ *
+ * taskq_cancel_id():
+ *     If called, it uses the given taskqid_t/tqdelay to locate a match
+ * in the list (can't trust the node until it is confirmed to exist on list)
+ * If it present, and the tqe is not set (not yet active), the node is
+ * removed from the list. Cancel is complete.
+ *
+ *     If tqe is set (active), taskq_cancel_id() will need to wait for
+ * the taskq to complete, sitting in cv_wait(). The active tqe will
+ * signal back when completed.
+ *
  */
 
 #include <sys/taskq_impl.h>
@@ -496,9 +525,9 @@
 #include <sys/debug.h>
 #include <sys/vmsystm.h>	/* For throttlefree */
 #include <sys/sysmacros.h>
-#include <sys/cpuvar.h>
-#include <sys/cpupart.h>
 #include <sys/note.h>
+#include <sys/tsd.h>
+#include <sys/list.h>
 
 #include <Trace.h>
 
@@ -519,7 +548,11 @@ taskq_t *system_delay_taskq = NULL;
  * Maximum number of entries in global system taskq is
  *	system_taskq_size * max_ncpus
  */
+#ifdef _WIN32
+#define	SYSTEM_TASKQ_SIZE 128
+#else
 #define	SYSTEM_TASKQ_SIZE 64
+#endif
 int system_taskq_size = SYSTEM_TASKQ_SIZE;
 
 /*
@@ -569,7 +602,11 @@ int taskq_search_depth = TASKQ_SEARCH_DEPTH;
  * throttling memory allocations. The following macro tries to estimate such
  * condition.
  */
-#define	ENOUGH_MEMORY() (spl_vm_pool_low())
+#ifdef _WIN32
+#define	ENOUGH_MEMORY() (!spl_vm_pool_low())
+#else
+#define	ENOUGH_MEMORY() (freemem > throttlefree)
+#endif
 
 /*
  * Static functions.
@@ -751,8 +788,8 @@ uint_t taskq_smtbf = UINT_MAX;    /* mean time between injected failures */
 	tqe->tqent_func = (func);					\
 	tqe->tqent_arg = (arg);						\
 	tq->tq_tasks++;							\
-	if (tq->tq_tasks - tq->tq_executed > tq->tq_maxtasks) \
-		tq->tq_maxtasks = (int)(tq->tq_tasks - tq->tq_executed); \
+	if (tq->tq_tasks - tq->tq_executed > tq->tq_maxtasks)		\
+		tq->tq_maxtasks = tq->tq_tasks - tq->tq_executed;	\
 	cv_signal(&tq->tq_dispatch_cv);					\
 	DTRACE_PROBE2(taskq__enqueue, taskq_t *, tq, taskq_ent_t *, tqe); \
 }
@@ -820,13 +857,11 @@ taskq_ent_constructor(void *buf, void *cdrarg, int kmflags)
 
 	tqe->tqent_thread = NULL;
 	cv_init(&tqe->tqent_cv, NULL, CV_DEFAULT, NULL);
+#ifdef _WIN32
 	/* Simulate TS_STOPPED */
 	mutex_init(&tqe->tqent_thread_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&tqe->tqent_thread_cv, NULL, CV_DEFAULT, NULL);
-	mutex_init(&tqe->tqent_delay_lock, NULL, MUTEX_DEFAULT, NULL);
-	cv_init(&tqe->tqent_delay_cv, NULL, CV_DEFAULT, NULL);
-
-	tqe->tqent_delay_time = 0;
+#endif /* __APPLE__ */
 	return (0);
 }
 
@@ -838,17 +873,241 @@ taskq_ent_destructor(void *buf, void *cdrarg)
 
 	ASSERT(tqe->tqent_thread == NULL);
 	cv_destroy(&tqe->tqent_cv);
+#ifdef _WIN32
 	/* See comment in taskq_d_thread(). */
 	mutex_destroy(&tqe->tqent_thread_lock);
 	cv_destroy(&tqe->tqent_thread_cv);
-	mutex_destroy(&tqe->tqent_delay_lock);
-	cv_destroy(&tqe->tqent_delay_cv);
+#endif /* __APPLE__ */
+}
+
+
+struct tqdelay {
+	/* list of all dispatch_delay */
+	list_node_t tqd_listnode;
+	/* time (list sorted on this, soonest first) */
+	clock_t	tqd_time;
+	/* func+arg for taskq_dispatch */
+	taskq_t *tqd_taskq;
+	task_func_t	*tqd_func;
+	void *tqd_arg;
+	uint_t tqd_tqflags;
+	/* tqe once dispatch called (currently executing) */
+	taskqid_t tqd_ent;
+};
+
+typedef struct tqdelay tqdelay_t;
+
+static list_t tqd_list;
+static kmutex_t	tqd_delay_lock;
+static kcondvar_t tqd_delay_cv;
+static int tqd_do_exit = 0;
+
+static void
+taskq_delay_dispatcher_thread(void *notused)
+{
+	callb_cpr_t		cpr;
+
+	dprintf("%s: starting\n", __func__);
+	CALLB_CPR_INIT(&cpr, &tqd_delay_lock, callb_generic_cpr, FTAG);
+
+	mutex_enter(&tqd_delay_lock);
+	while (tqd_do_exit == 0) {
+		int didsleep = 0;
+		tqdelay_t *tqdnode;
+		CALLB_CPR_SAFE_BEGIN(&cpr);
+
+		/*
+		 * If list is empty, just sleep until signal,
+		 * otherwise, sleep on list_head (lowest in the list)
+		 */
+		tqdnode = list_head(&tqd_list);
+
+		if (tqdnode == NULL)
+			(void) cv_wait(&tqd_delay_cv, &tqd_delay_lock);
+		else
+			didsleep = cv_timedwait(&tqd_delay_cv,
+			    &tqd_delay_lock, tqdnode->tqd_time);
+		CALLB_CPR_SAFE_END(&cpr, &tqd_delay_lock);
+
+		if (tqd_do_exit != 0)
+			break;
+
+		/* If we got a node, and we slept until expired, run it. */
+		tqdnode = list_head(&tqd_list);
+		if (tqdnode != NULL) {
+			clock_t now = ddi_get_lbolt();
+
+			/* First node is 'running', nothing to do. */
+			if (tqdnode->tqd_ent != TASKQID_INVALID) {
+				/* Set time in the future, just stick on end */
+				tqdnode->tqd_time = now + SEC_TO_TICK(1);
+				list_remove(&tqd_list, tqdnode);
+				list_insert_tail(&tqd_list, tqdnode);
+				continue;
+			}
+
+			/* Time has arrived */
+			if (tqdnode->tqd_time <= now) {
+
+				mutex_exit(&tqd_delay_lock);
+				/* Dispatch the taskq */
+				tqdnode->tqd_ent = taskq_dispatch(
+				    tqdnode->tqd_taskq,
+				    tqdnode->tqd_func, tqdnode->tqd_arg,
+				    tqdnode->tqd_tqflags | TQ_DELAYED);
+
+				mutex_enter(&tqd_delay_lock);
+				if (tqdnode->tqd_ent == TASKQID_INVALID) {
+					/* Failed to dispatch, if !TQ_SLEEP */
+					list_remove(&tqd_list, tqdnode);
+					kmem_free(tqdnode, sizeof (tqdelay_t));
+				}
+			}
+			//
+		}
+	}
+
+	tqd_do_exit = 0;
+	cv_broadcast(&tqd_delay_cv);
+	CALLB_CPR_EXIT(&cpr);		/* drops lock */
+	dprintf("%s: exit\n", __func__);
+	thread_exit();
+}
+
+taskqid_t
+taskq_dispatch_delay(taskq_t *tq, task_func_t func, void *arg, uint_t tqflags,
+    clock_t expire_time)
+{
+	tqdelay_t *tqdnode;
+
+	tqdnode = kmem_alloc(sizeof (tqdelay_t), KM_SLEEP);
+
+	tqdnode->tqd_time   = expire_time;
+	tqdnode->tqd_taskq  = tq;
+	tqdnode->tqd_func   = func;
+	tqdnode->tqd_arg    = arg;
+	tqdnode->tqd_tqflags = tqflags;
+	tqdnode->tqd_ent    = TASKQID_INVALID;
+
+	mutex_enter(&tqd_delay_lock);
+
+	/* Insert sorted on time */
+	tqdelay_t *runner;
+	for (runner = list_head(&tqd_list);
+	    runner != NULL;
+	    runner = list_next(&tqd_list, runner))
+		if (tqdnode->tqd_time < runner->tqd_time) {
+			list_insert_before(&tqd_list, runner, tqdnode);
+			break;
+		}
+	if (runner == NULL) {
+		list_insert_tail(&tqd_list, tqdnode);
+	}
+
+	/* We have added to the list, wake the thread up */
+	cv_broadcast(&tqd_delay_cv);
+	mutex_exit(&tqd_delay_lock);
+
+	return ((taskqid_t)tqdnode);
+}
+
+int
+taskq_cancel_id(taskq_t *tq, taskqid_t id)
+{
+	tqdelay_t *task = (tqdelay_t *)id;
+	tqdelay_t *tqdnode;
+
+	/* delay_taskq active? Linux will call with id==NULL */
+	if (task != NULL) {
+
+		/* Don't trust 'task' until it is found in the list */
+again:
+		mutex_enter(&tqd_delay_lock);
+
+		for (tqdnode = list_head(&tqd_list);
+		    tqdnode != NULL;
+		    tqdnode = list_next(&tqd_list, tqdnode)) {
+
+			if (tqdnode == task) {
+				/*
+				 * First check if it has already started
+				 * executing, if so, we want for signal
+				 * that it has finished and restart the loop.
+				 */
+				if (tqdnode->tqd_ent != TASKQID_INVALID) {
+					(void) cv_timedwait(&tqd_delay_cv,
+					    &tqd_delay_lock,
+					    ddi_get_lbolt() + SEC_TO_TICK(1));
+					mutex_exit(&tqd_delay_lock);
+					goto again;
+				}
+
+				/*
+				 * task exists and needs to be cancelled.
+				 * remove it from list, and wake the thread up
+				 * as it might be sleeping on this node. We can
+				 * free the memory as "time" is passed in as a
+				 * variable.
+				 */
+				list_remove(&tqd_list, tqdnode);
+				cv_signal(&tqd_delay_cv);
+				mutex_exit(&tqd_delay_lock);
+
+				kmem_free(tqdnode, sizeof (tqdelay_t));
+
+				return (1);
+
+			} // task == tqdnode
+		} // for
+		mutex_exit(&tqd_delay_lock);
+	} // task != NULL
+	return (0);
+}
+
+void
+taskq_start_delay_thread(void)
+{
+	list_create(&tqd_list, sizeof (tqdelay_t),
+	    offsetof(tqdelay_t, tqd_listnode));
+	mutex_init(&tqd_delay_lock, NULL, MUTEX_DEFAULT, NULL);
+	cv_init(&tqd_delay_cv, NULL, CV_DEFAULT, NULL);
+	tqd_do_exit = 0;
+	(void) thread_create(NULL, 0, taskq_delay_dispatcher_thread,
+	    NULL, 0, &p0, TS_RUN, minclsyspri);
+}
+
+void
+taskq_stop_delay_thread(void)
+{
+	tqdelay_t *tqdnode;
+
+	mutex_enter(&tqd_delay_lock);
+	tqd_do_exit = 1;
+	/*
+	 * The reclaim thread will set arc_reclaim_thread_exit back to
+	 * FALSE when it is finished exiting; we're waiting for that.
+	 */
+	while (tqd_do_exit) {
+		cv_signal(&tqd_delay_cv);
+		cv_wait(&tqd_delay_cv, &tqd_delay_lock);
+	}
+	mutex_exit(&tqd_delay_lock);
+	mutex_destroy(&tqd_delay_lock);
+	cv_destroy(&tqd_delay_cv);
+
+	while ((tqdnode = list_head(&tqd_list)) != NULL) {
+		list_remove(&tqd_list, tqdnode);
+		kmem_free(tqdnode, sizeof (tqdelay_t));
+	}
+
+	list_destroy(&tqd_list);
 }
 
 int
 spl_taskq_init(void)
 {
 	tsd_create(&taskq_tsd, NULL);
+
 	taskq_ent_cache = kmem_cache_create("taskq_ent_cache",
 	    sizeof (taskq_ent_t), 0, taskq_ent_constructor,
 	    taskq_ent_destructor, NULL, NULL, NULL, 0);
@@ -870,6 +1129,9 @@ spl_taskq_init(void)
 void
 spl_taskq_fini(void)
 {
+	mutex_destroy(&taskq_d_kstat_lock);
+	mutex_destroy(&taskq_kstat_lock);
+
 	if (taskq_cache) {
 		kmem_cache_destroy(taskq_cache);
 		taskq_cache = NULL;
@@ -881,10 +1143,8 @@ spl_taskq_fini(void)
 
 	list_destroy(&taskq_cpupct_list);
 
-	mutex_destroy(&taskq_d_kstat_lock);
-	mutex_destroy(&taskq_kstat_lock);
-
 	vmem_destroy(taskq_id_arena);
+
 	tsd_destroy(&taskq_tsd);
 }
 
@@ -896,6 +1156,9 @@ taskq_update_nthreads(taskq_t *tq, uint_t ncpus)
 {
 	uint_t newtarget = TASKQ_THREADS_PCT(ncpus, tq->tq_threads_ncpus_pct);
 
+#ifndef _WIN32
+	ASSERT(MUTEX_HELD(&cpu_lock));
+#endif
 	ASSERT(MUTEX_HELD(&tq->tq_lock));
 
 	/* We must be going from non-zero to non-zero; no exiting. */
@@ -911,6 +1174,91 @@ taskq_update_nthreads(taskq_t *tq, uint_t ncpus)
 	}
 }
 
+#ifndef _WIN32
+/* No dynamic CPU add/remove in XNU, so we can just use static ncpu math */
+
+/* called during task queue creation */
+static void
+taskq_cpupct_install(taskq_t *tq, cpupart_t *cpup)
+{
+	ASSERT(tq->tq_flags & TASKQ_THREADS_CPU_PCT);
+
+	mutex_enter(&cpu_lock);
+	mutex_enter(&tq->tq_lock);
+	tq->tq_cpupart = cpup->cp_id;
+	taskq_update_nthreads(tq, cpup->cp_ncpus);
+	mutex_exit(&tq->tq_lock);
+
+	list_insert_tail(&taskq_cpupct_list, tq);
+	mutex_exit(&cpu_lock);
+}
+
+static void
+taskq_cpupct_remove(taskq_t *tq)
+{
+	ASSERT(tq->tq_flags & TASKQ_THREADS_CPU_PCT);
+
+	mutex_enter(&cpu_lock);
+	list_remove(&taskq_cpupct_list, tq);
+	mutex_exit(&cpu_lock);
+}
+
+/*ARGSUSED*/
+static int
+taskq_cpu_setup(cpu_setup_t what, int id, void *arg)
+{
+	taskq_t *tq;
+	cpupart_t *cp = cpu[id]->cpu_part;
+	uint_t ncpus = cp->cp_ncpus;
+
+	ASSERT(MUTEX_HELD(&cpu_lock));
+	ASSERT(ncpus > 0);
+
+	switch (what) {
+	case CPU_OFF:
+	case CPU_CPUPART_OUT:
+		/* offlines are called *before* the cpu is offlined. */
+		if (ncpus > 1)
+			ncpus--;
+		break;
+
+	case CPU_ON:
+	case CPU_CPUPART_IN:
+		break;
+
+	default:
+		return (0);		/* doesn't affect cpu count */
+	}
+
+	for (tq = list_head(&taskq_cpupct_list); tq != NULL;
+	    tq = list_next(&taskq_cpupct_list, tq)) {
+
+		mutex_enter(&tq->tq_lock);
+		/*
+		 * If the taskq is part of the cpuset which is changing,
+		 * update its nthreads_target.
+		 */
+		if (tq->tq_cpupart == cp->cp_id) {
+			taskq_update_nthreads(tq, ncpus);
+		}
+		mutex_exit(&tq->tq_lock);
+	}
+	return (0);
+}
+
+void
+taskq_mp_init(void)
+{
+	mutex_enter(&cpu_lock);
+	register_cpu_setup_func(taskq_cpu_setup, NULL);
+	/*
+	 * Make sure we're up to date.  At this point in boot, there is only
+	 * one processor set, so we only have to update the current CPU.
+	 */
+	(void) taskq_cpu_setup(CPU_ON, CPU->cpu_id, NULL);
+	mutex_exit(&cpu_lock);
+}
+#endif /* __APPLE__ */
 
 /*
  * Create global system dynamic task queue.
@@ -918,18 +1266,28 @@ taskq_update_nthreads(taskq_t *tq, uint_t ncpus)
 void
 system_taskq_init(void)
 {
+#ifdef _WIN32
+	system_taskq = taskq_create_common("system_taskq", 0,
+	    system_taskq_size * max_ncpus, minclsyspri, 4, 512, &p0, 0,
+	    TASKQ_DYNAMIC | TASKQ_PREPOPULATE | TASKQ_REALLY_DYNAMIC);
+#else
 	system_taskq = taskq_create_common("system_taskq", 0,
 	    system_taskq_size * max_ncpus, minclsyspri, 4, 512, &p0, 0,
 	    TASKQ_DYNAMIC | TASKQ_PREPOPULATE);
-	system_delay_taskq = taskq_create("system_delay_taskq", max_ncpus,
-	    minclsyspri, 0, 0, 0);
-}
+#endif
 
+	system_delay_taskq = taskq_create("system_delay_taskq", max_ncpus,
+	    minclsyspri, max_ncpus, INT_MAX, TASKQ_PREPOPULATE);
+
+	taskq_start_delay_thread();
+}
 
 void
 system_taskq_fini(void)
 {
-	if (system_taskq)
+	taskq_stop_delay_thread();
+
+	if (system_delay_taskq)
 		taskq_destroy(system_delay_taskq);
 	if (system_taskq)
 		taskq_destroy(system_taskq);
@@ -1000,6 +1358,7 @@ again:	if ((tqe = tq->tq_freelist) != NULL &&
 		if (tqe != NULL)
 			tq->tq_nalloc++;
 	}
+
 	return (tqe);
 }
 
@@ -1015,15 +1374,8 @@ static void
 taskq_ent_free(taskq_t *tq, taskq_ent_t *tqe)
 {
 	ASSERT(MUTEX_HELD(&tq->tq_lock));
-	ASSERT((tqe->tqent_un.tqent_flags & TQENT_FLAG_PREALLOC) == 0);
 
 	if (tq->tq_nalloc <= tq->tq_minalloc) {
-
-		if (tqe->tqent_next == 0xdeadbeefdeadbeef) {
-			dprintf("%s: Avoiding MAF\n", __func__);
-			return;
-		}
-
 		tqe->tqent_next = tq->tq_freelist;
 		tq->tq_freelist = tqe;
 	} else {
@@ -1089,7 +1441,6 @@ taskq_bucket_dispatch(taskq_bucket_t *b, task_func_t func, void *arg)
 
 		ASSERT(tqe != &b->tqbucket_freelist);
 		ASSERT(tqe->tqent_thread != NULL);
-	VERIFY3P(tqe->tqent_prev->tqent_next, !=, 0xdeadbeefdeadbeef);
 
 		tqe->tqent_prev->tqent_next = tqe->tqent_next;
 		tqe->tqent_next->tqent_prev = tqe->tqent_prev;
@@ -1119,9 +1470,8 @@ taskq_bucket_dispatch(taskq_bucket_t *b, task_func_t func, void *arg)
  *	    Actual return value is the pointer to taskq entry that was used to
  *	    dispatch a task. This is useful for debugging.
  */
-static taskqid_t
-taskq_dispatch_impl(taskq_t *tq, task_func_t func, void *arg,
-    uint_t flags, clock_t expire_time)
+taskqid_t
+taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t flags)
 {
 	taskq_bucket_t *bucket = NULL;	/* Which bucket needs extension */
 	taskq_ent_t *tqe = NULL;
@@ -1150,9 +1500,8 @@ taskq_dispatch_impl(taskq_t *tq, task_func_t func, void *arg,
 		/* Make sure we start without any flags */
 		tqe->tqent_un.tqent_flags = 0;
 
-		// We could bake this into TQ_ENQUEUE?
-		// Arm the delay logic, if set
-		tqe->tqent_delay_time = expire_time;
+		if (flags & TQ_DELAYED)
+			tqe->tqent_un.tqent_flags = TQENT_FLAG_DELAYED;
 
 		if (flags & TQ_FRONT) {
 			TQ_ENQUEUE_FRONT(tq, tqe, func, arg);
@@ -1184,8 +1533,8 @@ taskq_dispatch_impl(taskq_t *tq, task_func_t func, void *arg,
 		int loopcount;
 		taskq_bucket_t *b;
 		// uintptr_t h = ((uintptr_t)CPU + (uintptr_t)arg) >> 3;
-		uintptr_t h =
-		    ((uintptr_t)(cpu_number()<<3) + (uintptr_t)arg) >> 3;
+		uintptr_t h = ((uintptr_t)(CPU_SEQID<<3) +
+		    (uintptr_t)arg) >> 3;
 
 		h = TQ_HASH(h);
 
@@ -1283,28 +1632,9 @@ taskq_dispatch_impl(taskq_t *tq, task_func_t func, void *arg,
 	return ((taskqid_t)tqe);
 }
 
-taskqid_t
-taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t flags)
-{
-	return (taskq_dispatch_impl(tq, func, arg, flags, 0));
-}
-
-/*
- * Set a taskq to be fired atfer 'expire_time' is met, unless
- * taskq_cancel_id is called. Used by spa_deadman logic (start
- * txg IO, and deadman is called if txg isn't synced in time)
- */
-taskqid_t
-taskq_dispatch_delay(taskq_t *tq,  task_func_t func, void *arg, uint_t tqflags,
-    clock_t expire_time)
-{
-	return (taskq_dispatch_impl(tq, func, arg, tqflags, expire_time));
-}
-
 void
 taskq_init_ent(taskq_ent_t *t)
 {
-	VERIFY3P(t->tqent_next, !=, 0xdeadbeefdeadbeef);
 	memset(t, 0, sizeof (*t));
 }
 
@@ -1313,8 +1643,6 @@ taskq_dispatch_ent(taskq_t *tq, task_func_t func, void *arg, uint_t flags,
     taskq_ent_t *tqe)
 {
 	ASSERT(func != NULL);
-	/* ZOL creates z_null_int with DYNAMIC */
-
 	ASSERT(!(tq->tq_flags & TASKQ_DYNAMIC));
 
 	/*
@@ -1322,6 +1650,7 @@ taskq_dispatch_ent(taskq_t *tq, task_func_t func, void *arg, uint_t flags,
 	 * to ensure that we don't free it later.
 	 */
 	tqe->tqent_un.tqent_flags |= TQENT_FLAG_PREALLOC;
+	tqe->tqent_un.tqent_flags &= ~TQENT_FLAG_DELAYED;
 	/*
 	 * Enqueue the task to the underlying queue.
 	 */
@@ -1353,11 +1682,6 @@ taskq_empty(taskq_t *tq)
 int
 taskq_empty_ent(taskq_ent_t *t)
 {
-	boolean_t ret;
-
-	if (t->tqent_prev == NULL &&
-	    t->tqent_next == NULL)
-		return (TRUE);
 	return (IS_EMPTY(*t));
 }
 
@@ -1368,6 +1692,13 @@ taskq_empty_ent(taskq_ent_t *t)
 void
 taskq_wait(taskq_t *tq)
 {
+#ifndef _WIN32
+	ASSERT(tq != curthread->t_taskq);
+#endif
+
+	if (tq == NULL)
+		return;
+
 	mutex_enter(&tq->tq_lock);
 	while (tq->tq_task.tqent_next != &tq->tq_task || tq->tq_active != 0)
 		cv_wait(&tq->tq_wait_cv, &tq->tq_lock);
@@ -1395,6 +1726,13 @@ taskq_wait_id(taskq_t *tq, taskqid_t id)
 {
 	return (taskq_wait(tq));
 }
+
+void
+taskq_wait_outstanding(taskq_t *tq, taskqid_t id)
+{
+	return (taskq_wait(tq));
+}
+
 /*
  * Suspend execution of tasks.
  *
@@ -1465,64 +1803,10 @@ taskq_member(taskq_t *tq, struct kthread *thread)
 	return (tq == (taskq_t *)tsd_get_by_thread(taskq_tsd, thread));
 }
 
-#if 0
-int
-taskq_member(taskq_t *tq, struct kthread *thread)
-{
-	int i;
-
-	mutex_enter(&tq->tq_lock);
-	if (tq->tq_thread != NULL) /* nthreads==1 case */
-		if (tq->tq_thread == (void *)thread) {
-			mutex_exit(&tq->tq_lock);
-			return (1);
-		}
-
-	for (i = 0; i < tq->tq_nthreads; i++)
-		if (tq->tq_threadlist[i] == (void *)thread) {
-			mutex_exit(&tq->tq_lock);
-			return (1);
-		}
-	mutex_exit(&tq->tq_lock);
-	return (0);
-}
-#endif
-
 taskq_t *
 taskq_of_curthread(void)
 {
 	return (tsd_get(taskq_tsd));
-}
-
-/*
- * Cancel an already dispatched task given the task id.  Still pending tasks
- * will be immediately canceled, and if the task is active the function will
- * block until it completes.  Preallocated tasks which are canceled must be
- * freed by the caller.
- */
-int
-taskq_cancel_id(taskq_t *tq, taskqid_t id)
-{
-	taskq_ent_t *task = (taskq_t *)id;
-
-	// delay_taskq active? Linux will call with id==0
-	if (task != NULL) {
-		mutex_enter(&tq->tq_lock);
-		if (task->tqent_delay_time > 0) {
-			// If delay_time is set, we can grab the mutex
-			mutex_enter(&task->tqent_delay_lock);
-			task->tqent_delay_time = 0; // Signal cancel
-			cv_broadcast(&task->tqent_delay_cv);
-			mutex_exit(&task->tqent_delay_lock);
-		}
-		mutex_exit(&tq->tq_lock);
-	}
-
-	/* So we want to tell task to stop, and wait until it does */
-	if (!EMPTY_TASKQ(tq))
-		taskq_wait(tq);
-
-	return (0);
 }
 
 /*
@@ -1544,7 +1828,6 @@ taskq_thread_create(taskq_t *tq)
 	ASSERT(tq->tq_nthreads < tq->tq_nthreads_target);
 	ASSERT(!(tq->tq_flags & TASKQ_THREAD_CREATED));
 
-
 	tq->tq_flags |= TASKQ_THREAD_CREATED;
 	tq->tq_active++;
 	mutex_exit(&tq->tq_lock);
@@ -1557,8 +1840,18 @@ taskq_thread_create(taskq_t *tq)
 	if ((tq->tq_flags & TASKQ_DUTY_CYCLE) != 0) {
 		/* Enforced in taskq_create_common */
 		dprintf("SPL: taskq_thread_create(TASKQ_DUTY_CYCLE) seen\n");
+#ifndef _WIN32
+		ASSERT3P(tq->tq_proc, !=, &p0);
+		t = lwp_kernel_create(tq->tq_proc, taskq_thread, tq, TS_RUN,
+		    tq->tq_pri);
+#else
+		t = thread_create_named(tq->tq_name,
+		    NULL, 0, taskq_thread, tq, 0, tq->tq_proc,
+		    TS_RUN, tq->tq_pri);
+#endif
 	} else {
-		t = thread_create(NULL, 0, taskq_thread, tq, 0, tq->tq_proc,
+		t = thread_create_named(tq->tq_name,
+		    NULL, 0, taskq_thread, tq, 0, tq->tq_proc,
 		    TS_RUN, tq->tq_pri);
 	}
 
@@ -1573,9 +1866,13 @@ taskq_thread_create(taskq_t *tq)
 	 * safely dereference t.
 	 */
 	if (tq->tq_flags & TASKQ_THREADS_CPU_PCT) {
+#ifdef _WIN32
 		mutex_enter(&tq->tq_lock);
 		taskq_update_nthreads(tq, max_ncpus);
 		mutex_exit(&tq->tq_lock);
+#else
+		taskq_cpupct_install(tq, t->t_cpupart);
+#endif
 	}
 	mutex_enter(&tq->tq_lock);
 
@@ -1584,7 +1881,6 @@ taskq_thread_create(taskq_t *tq)
 	    tq->tq_nthreads < TASKQ_CREATE_ACTIVE_THREADS) {
 		cv_wait(&tq->tq_wait_cv, &tq->tq_lock);
 	}
-
 }
 
 /*
@@ -1612,6 +1908,68 @@ taskq_thread_wait(taskq_t *tq, kmutex_t *mx, kcondvar_t *cv,
 	return (ret);
 }
 
+#ifdef _WIN32
+/*
+ * Adjust thread policies for SYSDC and BATCH task threads
+ */
+
+/*
+ * from osfmk/kern/thread.[hc] and osfmk/kern/ledger.c
+ *
+ * limit [is] a percentage of CPU over an interval in nanoseconds
+ *
+ * in particular limittime = (interval_ns * percentage) / 100
+ *
+ * when a thread has enough cpu time accumulated to hit limittime,
+ * ast_taken->thread_block is seen in a stackshot (e.g. spindump)
+ *
+ * thread.h 204:#define MINIMUM_CPULIMIT_INTERVAL_MS 1
+ *
+ * Illumos's sysdc updates its stats every 20 ms
+ * (sysdc_update_interval_msec)
+ * which is the tunable we can deal with here; xnu will
+ * take care of the bookkeeping and the amount of "break",
+ * which are the other Illumos tunables.
+ */
+#define	CPULIMIT_INTERVAL (MSEC2NSEC(100ULL))
+#define	THREAD_CPULIMIT_BLOCK 0x1
+
+
+static void
+taskq_thread_set_cpulimit(taskq_t *tq)
+{
+}
+
+/*
+ * Set up xnu thread importance,
+ * throughput and latency QOS.
+ *
+ * Approximate Illumos's SYSDC
+ * (/usr/src/uts/common/disp/sysdc.c)
+ *
+ * SYSDC tracks cpu runtime itself, and yields to
+ * other threads if
+ * onproc time / (onproc time + runnable time)
+ * exceeds the Duty Cycle threshold.
+ *
+ * Approximate this by
+ * [a] setting a thread_cpu_limit percentage,
+ * [b] setting the thread precedence
+ * slightly higher than normal,
+ * [c] setting the thread throughput and latency policies
+ * just less than USER_INTERACTIVE, and
+ * [d] turning on the
+ * TIMESHARE policy, which adjusts the thread
+ * priority based on cpu usage.
+ */
+
+static void
+set_taskq_thread_attributes(struct kthread *thread, taskq_t *tq)
+{
+}
+
+#endif // __APPLE__
+
 /*
  * Worker thread for processing task queue.
  */
@@ -1626,8 +1984,13 @@ taskq_thread(void *arg)
 	hrtime_t start, end;
 	boolean_t freeit;
 
+#ifdef __APPLE__
+	set_taskq_thread_attributes(current_thread(), tq);
+#endif
+
 	CALLB_CPR_INIT(&cprinfo, &tq->tq_lock, callb_generic_cpr,
 	    tq->tq_name);
+
 	tsd_set(taskq_tsd, tq);
 	mutex_enter(&tq->tq_lock);
 	thread_id = ++tq->tq_nthreads;
@@ -1662,8 +2025,9 @@ taskq_thread(void *arg)
 				 * tq_nthreads_target to 0)
 				 */
 				if (thread_id == tq->tq_nthreads ||
-				    tq->tq_nthreads_target == 0)
+				    tq->tq_nthreads_target == 0) {
 					break;
+				}
 
 				/* Wait for higher thread_ids to exit */
 				(void) taskq_thread_wait(tq, &tq->tq_lock,
@@ -1712,30 +2076,10 @@ taskq_thread(void *arg)
 		if ((!(tq->tq_flags & TASKQ_DYNAMIC)) &&
 		    (tqe->tqent_un.tqent_flags & TQENT_FLAG_PREALLOC)) {
 			/* clear pointers to assist assertion checks */
-
 			tqe->tqent_next = tqe->tqent_prev = NULL;
 			freeit = B_FALSE;
 		} else {
 			freeit = B_TRUE;
-		}
-
-
-		// Should we delay?
-		if (tqe->tqent_delay_time > 0) {
-			mutex_enter(&tqe->tqent_delay_lock);
-			if (tqe->tqent_delay_time > 0)
-				cv_timedwait(&tqe->tqent_delay_cv,
-				    &tqe->tqent_delay_lock,
-				    tqe->tqent_delay_time);
-			mutex_exit(&tqe->tqent_delay_lock);
-
-			// Did we wake up from being canceled?
-			if (tqe->tqent_delay_time == 0) {
-				mutex_enter(&tq->tq_lock);
-				if (freeit)
-					taskq_ent_free(tq, tqe);
-				continue;
-			}
 		}
 
 		rw_enter(&tq->tq_threadlock, RW_READER);
@@ -1747,6 +2091,26 @@ taskq_thread(void *arg)
 		    taskq_ent_t *, tqe);
 		end = gethrtime();
 		rw_exit(&tq->tq_threadlock);
+
+		/* If we were launched as canceled, do some book keeping */
+		if (!(tq->tq_flags & TASKQ_DYNAMIC) &&
+		    (tqe->tqent_un.tqent_flags & TQENT_FLAG_DELAYED)) {
+			tqdelay_t *tqdnode;
+			tqe->tqent_un.tqent_flags &= ~TQENT_FLAG_DELAYED;
+			mutex_enter(&tqd_delay_lock);
+			/* Try to find this node on list */
+			for (tqdnode = list_head(&tqd_list);
+			    tqdnode != NULL;
+			    tqdnode = list_next(&tqd_list, tqdnode)) {
+				if (tqdnode->tqd_ent == (taskqid_t)tqe) {
+					list_remove(&tqd_list, tqdnode);
+					kmem_free(tqdnode, sizeof (tqdelay_t));
+					cv_broadcast(&tqd_delay_cv);
+					break;
+				}
+			}
+			mutex_exit(&tqd_delay_lock);
+		}
 
 		mutex_enter(&tq->tq_lock);
 		tq->tq_totaltime += end - start;
@@ -1778,8 +2142,10 @@ taskq_thread(void *arg)
 	}
 
 	tsd_set(taskq_tsd, NULL);
+
 	CALLB_CPR_EXIT(&cprinfo);
 	thread_exit();
+
 }
 
 /*
@@ -1797,6 +2163,7 @@ taskq_d_thread(taskq_ent_t *tqe)
 
 	CALLB_CPR_INIT(&cprinfo, lock, callb_generic_cpr, tq->tq_name);
 
+#ifdef _WIN32
 	/*
 	 * There's no way in Mac OS X KPI to create a thread
 	 * in a suspended state (TS_STOPPED). So instead we
@@ -1807,6 +2174,7 @@ taskq_d_thread(taskq_ent_t *tqe)
 	while (tqe->tqent_thread == (kthread_t *)0xCEDEC0DE)
 		cv_wait(&tqe->tqent_thread_cv, &tqe->tqent_thread_lock);
 	mutex_exit(&tqe->tqent_thread_lock);
+#endif
 
 	mutex_enter(lock);
 
@@ -1907,8 +2275,6 @@ taskq_d_thread(taskq_ent_t *tqe)
 			 */
 
 			/* Remove the entry from the free list. */
-	VERIFY3P(tqe->tqent_prev->tqent_next, !=, 0xdeadbeefdeadbeef);
-
 			tqe->tqent_prev->tqent_next = tqe->tqent_next;
 			tqe->tqent_next->tqent_prev = tqe->tqent_prev;
 			ASSERT(bucket->tqbucket_nfree > 0);
@@ -1921,7 +2287,6 @@ taskq_d_thread(taskq_ent_t *tqe)
 			tq->tq_tdeaths++;
 			mutex_exit(&tq->tq_lock);
 			CALLB_CPR_EXIT(&cprinfo);
-//			DbgBreakPoint();
 			kmem_cache_free(taskq_ent_cache, tqe);
 			thread_exit();
 		}
@@ -1942,7 +2307,7 @@ taskq_create(const char *name, int nthreads, pri_t pri, int minalloc,
 	ASSERT((flags & ~TASKQ_INTERFACE_FLAGS) == 0);
 
 	return (taskq_create_common(name, 0, nthreads, pri, minalloc,
-	    maxalloc, NULL, 0, flags | TASKQ_NOINSTANCE));
+	    maxalloc, &p0, 0, flags | TASKQ_NOINSTANCE));
 }
 
 /*
@@ -1974,7 +2339,9 @@ taskq_create_proc(const char *name, int nthreads, pri_t pri, int minalloc,
     int maxalloc, proc_t *proc, uint_t flags)
 {
 	ASSERT((flags & ~TASKQ_INTERFACE_FLAGS) == 0);
-	flags &= ~TASKQ_DYNAMIC; // Linux likes invalid combinations
+#ifndef _WIN32
+	ASSERT(proc->p_flag & SSYS);
+#endif
 	return (taskq_create_common(name, 0, nthreads, pri, minalloc,
 	    maxalloc, proc, 0, flags | TASKQ_NOINSTANCE));
 }
@@ -1984,7 +2351,14 @@ taskq_create_sysdc(const char *name, int nthreads, int minalloc,
     int maxalloc, proc_t *proc, uint_t dc, uint_t flags)
 {
 	ASSERT((flags & ~TASKQ_INTERFACE_FLAGS) == 0);
-	flags &= ~TASKQ_DYNAMIC; // Linux likes invalid combinations
+#ifndef _WIN32
+	ASSERT(proc->p_flag & SSYS);
+#else
+	dprintf("SPL: %s:%d: taskq_create_sysdc(%s, nthreads: %d,"
+	    " minalloc: %d, maxalloc: %d, proc, dc: %u, flags: %x)\n",
+	    __func__, __LINE__, name, nthreads,
+	    minalloc, maxalloc, dc, flags);
+#endif
 	return (taskq_create_common(name, 0, nthreads, minclsyspri, minalloc,
 	    maxalloc, proc, dc, flags | TASKQ_NOINSTANCE | TASKQ_DUTY_CYCLE));
 }
@@ -1994,9 +2368,20 @@ taskq_create_common(const char *name, int instance, int nthreads, pri_t pri,
     int minalloc, int maxalloc, proc_t *proc, uint_t dc, uint_t flags)
 {
 	taskq_t *tq = kmem_cache_alloc(taskq_cache, KM_SLEEP);
+#ifdef _WIN32
 	uint_t ncpus = max_ncpus;
+#else
+	uint_t ncpus = ((boot_max_ncpus == -1) ? max_ncpus : boot_max_ncpus);
+#endif
 	uint_t bsize;	/* # of buckets - always power of 2 */
 	int max_nthreads;
+
+	/*
+	 * We are not allowed to use TASKQ_DYNAMIC with taskq_dispatch_ent()
+	 * but that is done by spa.c - so we will simply mask DYNAMIC out.
+	 */
+	if (!(flags & TASKQ_REALLY_DYNAMIC))
+		flags &= ~TASKQ_DYNAMIC;
 
 	/*
 	 * TASKQ_DYNAMIC, TASKQ_CPR_SAFE and TASKQ_THREADS_CPU_PCT are all
@@ -2013,9 +2398,16 @@ taskq_create_common(const char *name, int instance, int nthreads, pri_t pri,
 	IMPLY((flags & TASKQ_DUTY_CYCLE), proc != &p0);
 
 	/* Cannot have DC_BATCH without DUTY_CYCLE */
-	ASSERT((flags & (TASKQ_DUTY_CYCLE|TASKQ_DC_BATCH)) != TASKQ_DC_BATCH);
+	ASSERT((flags & (TASKQ_DUTY_CYCLE|TASKQ_DC_BATCH))
+	    != TASKQ_DC_BATCH);
 
-	// ASSERT(proc != NULL);
+#ifdef _WIN32
+	/* Cannot have DC_BATCH or DUTY_CYCLE with TIMESHARE */
+	IMPLY((flags & (TASKQ_DUTY_CYCLE|TASKQ_DC_BATCH)),
+	    !(flags & TASKQ_TIMESHARE));
+#endif
+
+	ASSERT(proc != NULL);
 
 	bsize = 1 << (highbit(ncpus) - 1);
 	ASSERT(bsize >= 1);
@@ -2092,6 +2484,9 @@ taskq_create_common(const char *name, int instance, int nthreads, pri_t pri,
 	 * makes sure all the taskq threads are gone.  This hold is
 	 * similar in purpose to those taken by zthread_create().
 	 */
+#ifndef _WIN32
+	zone_hold(tq->tq_proc->p_zone);
+#endif
 	/*
 	 * Create the first thread, which will create any other threads
 	 * necessary.  taskq_thread_create will not return until we have
@@ -2195,6 +2590,11 @@ taskq_destroy(taskq_t *tq)
 	/*
 	 * Unregister from the cpupct list.
 	 */
+#ifndef _WIN32
+	if (tq->tq_flags & TASKQ_THREADS_CPU_PCT) {
+		taskq_cpupct_remove(tq);
+	}
+#endif
 
 	/*
 	 * Wait for any pending entries to complete.
@@ -2271,6 +2671,9 @@ taskq_destroy(taskq_t *tq)
 	 * Now that all the taskq threads are gone, we can
 	 * drop the zone hold taken in taskq_create_common
 	 */
+#ifndef _WIN32
+	zone_rele(tq->tq_proc->p_zone);
+#endif
 
 	tq->tq_threads_ncpus_pct = 0;
 	tq->tq_totaltime = 0;
@@ -2296,7 +2699,9 @@ taskq_bucket_extend(void *arg)
 	taskq_bucket_t *b = (taskq_bucket_t *)arg;
 	taskq_t *tq = b->tqbucket_taskq;
 	int nthreads;
+#ifdef _WIN32
 	kthread_t *thread;
+#endif
 
 	if (! ENOUGH_MEMORY()) {
 		TQ_STAT(b, tqs_nomem);
@@ -2314,6 +2719,7 @@ taskq_bucket_extend(void *arg)
 		return;
 	}
 	mutex_exit(&tq->tq_lock);
+
 	tqe = kmem_cache_alloc(taskq_ent_cache, KM_NOSLEEP);
 
 	if (tqe == NULL) {
@@ -2327,8 +2733,8 @@ taskq_bucket_extend(void *arg)
 	ASSERT(tqe->tqent_thread == NULL);
 
 	tqe->tqent_un.tqent_bucket = b;
-	tqe->tqent_delay_time = 0;
 
+#ifdef _WIN32
 	/*
 	 * There's no way in Mac OS X KPI to create a thread
 	 * in a suspended state (TS_STOPPED). So instead we
@@ -2336,8 +2742,20 @@ taskq_bucket_extend(void *arg)
 	 * for it to be initialized (below).
 	 */
 	tqe->tqent_thread = (kthread_t *)0xCEDEC0DE;
-	thread = thread_create(NULL, 0, (void (*)(void *))taskq_d_thread,
+	thread = thread_create_named(tq->tq_name,
+	    NULL, 0, (void (*)(void *))taskq_d_thread,
 	    tqe, 0, pp0, TS_RUN, tq->tq_pri);
+
+	set_taskq_thread_attributes(thread, tq);
+#else
+
+	/*
+	 * Create a thread in a TS_STOPPED state first. If it is successfully
+	 * created, place the entry on the free list and start the thread.
+	 */
+	tqe->tqent_thread = thread_create(NULL, 0, taskq_d_thread, tqe,
+	    0, tq->tq_proc, TS_STOPPED, tq->tq_pri);
+#endif /* __APPLE__ */
 
 	/*
 	 * Once the entry is ready, link it to the the bucket free list.
@@ -2359,10 +2777,18 @@ taskq_bucket_extend(void *arg)
 	/*
 	 * Start the stopped thread.
 	 */
+#ifdef _WIN32
 	mutex_enter(&tqe->tqent_thread_lock);
 	tqe->tqent_thread = thread;
 	cv_signal(&tqe->tqent_thread_cv);
 	mutex_exit(&tqe->tqent_thread_lock);
+#else
+	thread_lock(tqe->tqent_thread);
+	tqe->tqent_thread->t_taskq = tq;
+	tqe->tqent_thread->t_schedflag |= TS_ALLSTART;
+	setrun_locked(tqe->tqent_thread);
+	thread_unlock(tqe->tqent_thread);
+#endif /* __APPLE__ */
 }
 
 static int
@@ -2374,7 +2800,11 @@ taskq_kstat_update(kstat_t *ksp, int rw)
 	if (rw == KSTAT_WRITE)
 		return (EACCES);
 
+#ifdef _WIN32
 	tqsp->tq_pid.value.ui64 = 0; /* kernel_task'd pid is 0 */
+#else
+	tqsp->tq_pid.value.ui64 = proc_pid(tq->tq_proc->p_pid);
+#endif
 	tqsp->tq_tasks.value.ui64 = tq->tq_tasks;
 	tqsp->tq_executed.value.ui64 = tq->tq_executed;
 	tqsp->tq_maxtasks.value.ui64 = tq->tq_maxtasks;

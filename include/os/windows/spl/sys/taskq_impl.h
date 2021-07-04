@@ -65,6 +65,7 @@ typedef struct taskq_ent {
 } taskq_ent_t;
 
 #define	TQENT_FLAG_PREALLOC	0x1
+#define	TQENT_FLAG_DELAYED	0x2
 
 /*
  * Taskq Statistics fields are not protected by any locks.

@@ -57,6 +57,10 @@ struct proc;
 #define	TASKQ_THREADS_CPU_PCT	0x0008	/* number of threads as % of ncpu */
 #define	TASKQ_DC_BATCH		0x0010	/* Taskq uses SDC in batch mode */
 
+#ifdef _WIN32
+#define	TASKQ_TIMESHARE         0x0020  /* macOS dynamic thread priority */
+#define	TASKQ_REALLY_DYNAMIC    0x0040  /* don't filter out TASKQ_DYNAMIC */
+#endif
 /*
  * Flags for taskq_dispatch. TQ_SLEEP/TQ_NOSLEEP should be same as
  * KM_SLEEP/KM_NOSLEEP.
@@ -66,6 +70,7 @@ struct proc;
 #define	TQ_NOQUEUE	0x02	/* Do not enqueue if can't dispatch */
 #define	TQ_NOALLOC	0x04	/* cannot allocate memory; may fail */
 #define	TQ_FRONT	0x08	/* Put task at the front of the queue */
+#define	TQ_DELAYED	0x10    /* dispatch_delay, clean up after */
 
 #define	TASKQID_INVALID ((taskqid_t)0)
 
@@ -101,7 +106,7 @@ extern int taskq_cancel_id(taskq_t *, taskqid_t);
 extern taskq_t *taskq_of_curthread(void);
 extern int taskq_empty_ent(struct taskq_ent *);
 
-#define	taskq_wait_outstanding(T, D) taskq_wait((T))
+extern void taskq_wait_outstanding(taskq_t *, taskqid_t);
 
 extern void system_taskq_init(void);
 extern void system_taskq_fini(void);
