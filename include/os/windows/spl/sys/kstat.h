@@ -156,8 +156,8 @@ typedef struct kstat {
 	 * Fields relevant to kernel only
 	 */
 	int(*ks_update)(struct kstat *, int); /* dynamic update */
-	void	*ks_private;    	/* arbitrary provider-private data */
 	int(*ks_snapshot)(struct kstat *, void *, int);
+	void	*ks_private;    	/* arbitrary provider-private data */
 	void	*ks_private1;		/* private data */
 	kmutex_t ks_private_lock;	/* kstat private data lock */
 	kmutex_t *ks_lock;		/* kstat data lock */

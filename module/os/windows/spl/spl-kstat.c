@@ -1299,9 +1299,6 @@ kstat_delete(kstat_t *ksp)
 		return;
 	}
 
-	ksp->ks_lock = NULL;
-	mutex_destroy(&ksp->ks_private_lock);
-
 	if (ksp->ks_flags & KSTAT_FLAG_PERSISTENT) {
 		/*
 		 * Update the data one last time, so that all activity
@@ -1335,6 +1332,8 @@ kstat_delete(kstat_t *ksp)
 	avl_remove(&kstat_avl_byname, e);
 	kstat_chain_id++;
 	mutex_exit(&kstat_chain_lock);
+
+	mutex_destroy(&ksp->ks_private_lock);
 
 	kz = e->e_zone.next;
 	while (kz != NULL) {
