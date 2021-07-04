@@ -35,6 +35,7 @@
 #include <sys/vdev_impl.h>
 #include <sys/vdev_draid.h>
 #include <sys/zio.h>
+#include <sys/zio_checksum.h>
 #include <sys/abd.h>
 #include <sys/fs/zfs.h>
 
@@ -637,8 +638,15 @@ vdev_mirror_io_start(zio_t *zio)
 	}
 
 	if (zio->io_type == ZIO_TYPE_READ) {
-		if (zio->io_bp != NULL &&
-		    (zio->io_flags & ZIO_FLAG_SCRUB) && !mm->mm_resilvering) {
+		boolean_t have_checksum = zio->io_bp != NULL;
+		boolean_t is_scrub = have_checksum &&
+		    (zio->io_flags & ZIO_FLAG_SCRUB) &&
+		    !mm->mm_resilvering;
+		boolean_t resilver_read = have_checksum &&
+		    (zio->io_flags & (ZIO_FLAG_SCRUB | ZIO_FLAG_RESILVER)) &&
+		    (zio_checksum_table[BP_GET_CHECKSUM(zio->io_bp)].ci_flags &
+		    ZCHECKSUM_FLAG_NOPWRITE);
+		if (is_scrub || resilver_read) {
 			/*
 			 * For scrubbing reads (if we can verify the
 			 * checksum here, as indicated by io_bp being
