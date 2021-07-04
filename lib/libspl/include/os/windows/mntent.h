@@ -35,7 +35,7 @@
 extern "C" {
 #endif
 
-#define	MNTTAB		"/etc/mnttab"
+#define	MNTTAB		"nul"
 #define	VFSTAB		"/etc/vfstab"
 #define	MNTMAXSTR	128
 

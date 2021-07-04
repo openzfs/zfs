@@ -165,15 +165,21 @@ struct sbuf {
 #define	SBUF_HASROOM(s)	((s)->s_len < (s)->s_size - 1)
 #define	SBUF_FREESPACE(s)	((s)->s_size - (s)->s_len - 1)
 #define	SBUF_CANEXTEND(s)	((s)->s_flags & SBUF_AUTOEXTEND)
+#define	SBUF_ISFINISHED(s)	((s)->s_flags & SBUF_FINISHED)
 
 #define	SBUF_MINEXTENDSIZE	16 /* Should be power of 2. */
 #define	SBUF_MAXEXTENDSIZE	PAGE_SIZE
 #define	SBUF_MAXEXTENDINCR	PAGE_SIZE
 
+#define SBUF_INCLUDENUL 0x00000002 /* FBSD: nulterm byte is counted in len */
+#define SBUF_NULINCLUDED(s) ((s)->s_flags & SBUF_INCLUDENUL)
+
 void
 sbuf_finish(struct sbuf *s)
 {
 	s->s_buf[s->s_len] = '\0';
+	if (SBUF_NULINCLUDED(s))
+		s->s_len++;
 	SBUF_CLEARFLAG(s, SBUF_OVERFLOWED);
 	SBUF_SETFLAG(s, SBUF_FINISHED);
 }
@@ -190,6 +196,9 @@ sbuf_len(struct sbuf *s)
 	if (SBUF_HASOVERFLOWED(s)) {
 		return (-1);
 	}
+	/* If finished, nulterm is already in len, else add one. */
+	if (SBUF_NULINCLUDED(s) && !SBUF_ISFINISHED(s))
+		return (s->s_len + 1);
 	return (s->s_len);
 }
 
@@ -1145,7 +1154,8 @@ kstat_create_zone(const char *ks_module, int ks_instance, const char *ks_name,
 	ksp->ks_update = default_kstat_update;
 	ksp->ks_private = NULL;
 	ksp->ks_snapshot = default_kstat_snapshot;
-	ksp->ks_lock = NULL;
+	mutex_init(&ksp->ks_private_lock, NULL, MUTEX_DEFAULT, NULL);
+	ksp->ks_lock = &ksp->ks_private_lock;
 
 	mutex_enter(&kstat_chain_lock);
 
@@ -1288,6 +1298,9 @@ kstat_delete(kstat_t *ksp)
 		    (void *)ksp);
 		return;
 	}
+
+	ksp->ks_lock = NULL;
+	mutex_destroy(&ksp->ks_private_lock);
 
 	if (ksp->ks_flags & KSTAT_FLAG_PERSISTENT) {
 		/*

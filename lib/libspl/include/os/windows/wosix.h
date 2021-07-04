@@ -87,6 +87,9 @@ extern int wosix_pipe(int fildes[2]);
 extern FILE *wosix_fdopen(int fildes, const char *mode);
 extern FILE *wosix_freopen(const char *path, const char *mode, FILE *stream);
 
+/* Technically not needed, but handle mode */
+extern FILE *wosix_fopen(const char *name, const char *mode);
+
 /*
  * Thin wrapper for the POSIX IO calls, to translate to HANDLEs
  *
@@ -157,4 +160,5 @@ extern FILE *wosix_freopen(const char *path, const char *mode, FILE *stream);
 #define	pipe	wosix_pipe
 #endif
 #define	pipe2(X,Y)	wosix_pipe(X)
+#define	fopen	wosix_fopen
 #endif /* WOSIX_HEADER */

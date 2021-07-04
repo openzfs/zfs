@@ -46,7 +46,7 @@
 #ifdef MNTTAB
 #undef MNTTAB
 #endif /* MNTTAB */
-#define	MNTTAB		"/etc/mtab"
+#define	MNTTAB		"nul"
 
 #define	umount2(p, f)	unmount(p, f)
 

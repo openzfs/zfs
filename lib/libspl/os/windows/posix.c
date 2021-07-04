@@ -1355,6 +1355,25 @@ wosix_ftruncate(int fd, off_t length)
 	return (-1);
 }
 
+const char *
+check_file_mode(const char *mode)
+{
+	/* Unknown mode cauises abort() */
+	if (strcmp(mode, "re") == 0)
+		return ("rb");
+	if (strcmp(mode, "r") == 0)
+		return ("rb");
+	return (mode);
+}
+
+FILE *
+wosix_fopen(const char *name, const char *mode)
+{
+	mode = check_file_mode(mode);
+#undef fopen
+	return (fopen(name, mode));
+}
+
 FILE *
 wosix_fdopen(int fd, const char *mode)
 {
@@ -1365,6 +1384,7 @@ wosix_fdopen(int fd, const char *mode)
 		return (NULL);
 	}
 
+	mode = check_file_mode(mode);
 	// Convert int to FILE*
 	FILE *f = _fdopen(temp, mode);
 
