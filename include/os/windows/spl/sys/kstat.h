@@ -155,12 +155,12 @@ typedef struct kstat {
 	/*
 	 * Fields relevant to kernel only
 	 */
+	kmutex_t ks_private_lock;	/* kstat private data lock */
+	kmutex_t *ks_lock;		/* kstat data lock */
 	int(*ks_update)(struct kstat *, int); /* dynamic update */
 	int(*ks_snapshot)(struct kstat *, void *, int);
 	void	*ks_private;    	/* arbitrary provider-private data */
 	void	*ks_private1;		/* private data */
-	kmutex_t ks_private_lock;	/* kstat private data lock */
-	kmutex_t *ks_lock;		/* kstat data lock */
 	kstat_raw_ops_t ks_raw_ops;	/* ops table for raw type */
 	char	*ks_raw_buf;		/* buf used for raw ops */
 	size_t  ks_raw_bufsize; 	/* size of raw ops buffer */

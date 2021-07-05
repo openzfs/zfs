@@ -1153,6 +1153,7 @@ kstat_create_zone(const char *ks_module, int ks_instance, const char *ks_name,
 	ksp->ks_snaptime = ksp->ks_crtime;
 	ksp->ks_update = default_kstat_update;
 	ksp->ks_private = NULL;
+	ksp->ks_private1 = NULL;
 	ksp->ks_snapshot = default_kstat_snapshot;
 	mutex_init(&ksp->ks_private_lock, NULL, MUTEX_DEFAULT, NULL);
 	ksp->ks_lock = &ksp->ks_private_lock;
@@ -1287,6 +1288,7 @@ kstat_delete(kstat_t *ksp)
 	zoneid = e->e_zone.zoneid;
 
 	lp = ksp->ks_lock;
+	ksp->ks_lock = NULL;
 
 	if (lp != NULL && MUTEX_HELD(lp)) {
 		panic("kstat_delete(%p): caller holds data lock %p",
