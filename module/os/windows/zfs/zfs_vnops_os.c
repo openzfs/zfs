@@ -3715,6 +3715,8 @@ zfs_inactive(struct vnode *vp)
 
 	if (zfsvfs == NULL)
 		return;
+	if (zp == NULL)
+		return;
 
 	rw_enter(&zfsvfs->z_teardown_inactive_lock, RW_READER);
 	if (zp->z_sa_hdl == NULL) {

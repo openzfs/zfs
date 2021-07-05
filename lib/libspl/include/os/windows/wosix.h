@@ -80,7 +80,9 @@ extern int wosix_socketpair(int domain, int type, int protocol,
     int socket_vector[2]);
 extern int wosix_dup2(int fildes, int fildes2);
 extern int wosix_pipe(int fildes[2]);
-extern int wosix_pipe(int fildes[2]);
+extern void *wosix_mmap(void *addr, size_t len, int prot, int flags,
+    int fildes, off_t off);
+extern int wosix_munmap(void *addr, size_t len);
 
 #define	wosix_fileno(X) (_get_osfhandle(_fileno((X))))
 
@@ -160,5 +162,7 @@ extern FILE *wosix_fopen(const char *name, const char *mode);
 #define	pipe	wosix_pipe
 #endif
 #define	pipe2(X,Y)	wosix_pipe(X)
+#define	mmap wosix_mmap
+#define	munmap wosix_munmap
 #define	fopen	wosix_fopen
 #endif /* WOSIX_HEADER */

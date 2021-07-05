@@ -39,7 +39,7 @@
 #include <Windows.h>
 #include <langinfo.h>
 #include <os/windows/zfs/sys/zfs_ioctl_compat.h>
-
+#include <sys/mman.h>
 
 #pragma comment(lib, "ws2_32.lib")
 
@@ -1503,6 +1503,54 @@ wosix_dup2(int fildes, int fildes2)
 {
 	return (-1);
 }
+
+void *
+wosix_mmap(void *addr, size_t len, int prot, int flags,
+    int fildes, off_t off)
+{
+	HANDLE h = ITOH(fildes);
+	HANDLE file_mapping;
+	int winprot = 0, winflags = 0;
+	void *mapaddr = NULL;
+
+	/* Make a vague effort at matching flags */
+  
+	if (prot & PROT_READ) { 
+		winprot = PAGE_READONLY;
+		winflags = FILE_MAP_READ;
+	}
+	if (prot & PROT_WRITE) {
+		if (flags & MAP_PRIVATE)  {
+			winprot = PAGE_WRITECOPY;
+			winflags = FILE_MAP_COPY;
+		} else if (flags & MAP_SHARED) {
+			winprot = PAGE_READWRITE;
+			winflags = FILE_MAP_WRITE;
+		}
+	}
+
+	file_mapping = CreateFileMapping(h, NULL, winprot,
+	    0, 0, NULL);
+	if (file_mapping == NULL)
+		return (MAP_FAILED);
+
+	mapaddr = (caddr_t)MapViewOfFileEx(file_mapping, winflags,
+	    0, off, len, (LPVOID) addr);
+
+	CloseHandle(file_mapping);
+	if (mapaddr == NULL)
+		return (MAP_FAILED);
+
+	return (mapaddr);
+}
+
+int
+wosix_munmap(void *addr, size_t len)
+{
+	return (int)(UnmapViewOfFile((LPVOID) addr));
+}
+
+
 
 static long GetLogicalProcessors(void);
 

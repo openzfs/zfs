@@ -27,6 +27,12 @@
 #define	PROT_WRITE	0x2	/* pages can be written */
 #define	PROT_EXEC	0x4	/* pages can be executed */
 
+#define	MAP_SHARED	1	/* share changes */
+#define	MAP_PRIVATE	2	/* changes are private */
+
+#define	MAP_FAILED	((void *) -1)
+
+
 int mprotect(void *addr, size_t len, int prot);
 
 #endif
