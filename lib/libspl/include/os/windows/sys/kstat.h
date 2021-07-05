@@ -45,11 +45,13 @@ typedef int	kid_t;		/* unique kstat id */
  * Kernel statistics driver (/dev/kstat) ioctls
  */
 
-#define	KSTAT_IOC_BASE		('K' << 8)
-
-#define	KSTAT_IOC_CHAIN_ID	KSTAT_IOC_BASE | 0x01
-#define	KSTAT_IOC_READ		KSTAT_IOC_BASE | 0x02
-#define	KSTAT_IOC_WRITE		KSTAT_IOC_BASE | 0x03
+#define	SPLIOCTL_TYPE 40000
+#define	KSTAT_IOC_CHAIN_ID	CTL_CODE(SPLIOCTL_TYPE, 0x7FD, \
+	METHOD_NEITHER, FILE_ANY_ACCESS)
+#define	KSTAT_IOC_READ		CTL_CODE(SPLIOCTL_TYPE, 0x7FE, \
+	METHOD_NEITHER, FILE_ANY_ACCESS)
+#define	KSTAT_IOC_WRITE		CTL_CODE(SPLIOCTL_TYPE, 0x7FF, \
+	METHOD_NEITHER, FILE_ANY_ACCESS)
 
 /*
  * /dev/kstat ioctl usage (kd denotes /dev/kstat descriptor):
@@ -65,6 +67,20 @@ typedef int	kid_t;		/* unique kstat id */
  * The generic kstat header
  */
 
+typedef struct kstat_raw_ops {
+	int (*headers)(char *buf, size_t size);
+	int (*seq_headers)(struct seq_file *);
+	int (*data)(char *buf, size_t size, void *data);
+	void *(*addr)(struct kstat_s *ksp, loff_t index);
+} kstat_raw_ops_t;
+
+/* This is a bit unfortunate, we store a mutex in kernel which userland needs to match in size */
+struct kernel_mutex
+{
+	unsigned char opaque[0x48];
+};
+
+#pragma pack(4)
 typedef struct kstat {
 	/*
 	 * Fields relevant to both kernel and user
@@ -89,11 +105,17 @@ typedef struct kstat {
 	/*
 	 * Fields relevant to kernel only
 	 */
-	int		(*ks_update)(struct kstat *, int); /* dynamic update */
-	void		*ks_private;	/* arbitrary provider-private data */
-	int		(*ks_snapshot)(struct kstat *, void *, int);
-	void		*ks_lock;	/* protects this kstat's data */
+	struct kernel_mutex ks_private_lock;	/* kstat private data lock */
+	struct kernel_mutex *ks_lock;		/* kstat data lock */
+	int(*ks_update)(struct kstat *, int); /* dynamic update */
+	int(*ks_snapshot)(struct kstat *, void *, int);
+	void	*ks_private;    	/* arbitrary provider-private data */
+	void	*ks_private1;		/* private data */
+	kstat_raw_ops_t ks_raw_ops;	/* ops table for raw type */
+	char	*ks_raw_buf;		/* buf used for raw ops */
+	size_t  ks_raw_bufsize; 	/* size of raw ops buffer */
 } kstat_t;
+#pragma pack()
 
 #ifdef _SYSCALL32
 

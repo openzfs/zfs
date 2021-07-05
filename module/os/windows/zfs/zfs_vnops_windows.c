@@ -4434,19 +4434,20 @@ _Function_class_(DRIVER_DISPATCH)
 			    IrpSp->Parameters.DeviceIoControl.IoControlCode;
 
 			if ((DEVICE_TYPE_FROM_CTL_CODE(cmd) == ZFSIOCTL_TYPE)) {
+				ulong_t cmd2;
 
-				cmd = DEVICE_FUNCTION_FROM_CTL_CODE(cmd);
-				if ((cmd >= ZFSIOCTL_BASE + ZFS_IOC_FIRST &&
-				    cmd < ZFSIOCTL_BASE + ZFS_IOC_LAST)) {
+				cmd2 = DEVICE_FUNCTION_FROM_CTL_CODE(cmd);
+				if ((cmd2 >= ZFSIOCTL_BASE + ZFS_IOC_FIRST &&
+				    cmd2 < ZFSIOCTL_BASE + ZFS_IOC_LAST)) {
 
-					cmd -= ZFSIOCTL_BASE;
+					cmd2 -= ZFSIOCTL_BASE;
 
 /*
  * Some IOCTL are very long-living, so we will put them in the
  * background and return PENDING. Possibly we should always do
  * this logic, but some ioctls are really short lived.
  */
-					switch (cmd) {
+					switch (cmd2) {
 					case ZFS_IOC_UNREGISTER_FS:
 // We abuse returnedBytes to send back busy
 						Irp->IoStatus.Information =
