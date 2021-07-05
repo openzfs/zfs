@@ -22,8 +22,8 @@
  * Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
-#ifndef	_SYS_FS_ZFS_VNOPS_H
-#define	_SYS_FS_ZFS_VNOPS_H
+#ifndef	_SYS_FS_ZFS_VNOPS_OS_H
+#define	_SYS_FS_ZFS_VNOPS_OS_H
 
 #include <sys/vnode.h>
 #include <sys/xvattr.h>
@@ -36,110 +36,6 @@
 #ifdef	__cplusplus
 extern "C" {
 #endif
-
-/*
- * Spotlight specific fcntl()'s
- */
-
-// Older defines
-#define	SPOTLIGHT_GET_MOUNT_TIME	(FCNTL_FS_SPECIFIC_BASE + 0x00002)
-#define	SPOTLIGHT_GET_UNMOUNT_TIME	(FCNTL_FS_SPECIFIC_BASE + 0x00003)
-
-// Newer defines, will these need a OSX version test to compile on older?
-#define	SPOTLIGHT_IOC_GET_MOUNT_TIME	_IOR('h', 18, u_int32_t)
-#define	SPOTLIGHT_FSCTL_GET_MOUNT_TIME	\
-    IOCBASECMD(SPOTLIGHT_IOC_GET_MOUNT_TIME)
-#define	SPOTLIGHT_IOC_GET_LAST_MTIME	_IOR('h', 19, u_int32_t)
-#define	SPOTLIGHT_FSCTL_GET_LAST_MTIME	\
-    IOCBASECMD(SPOTLIGHT_IOC_GET_LAST_MTIME)
-
-/*
- * Account for user timespec structure differences
- */
-#ifdef ZFS_LEOPARD_ONLY
-typedef struct timespec		timespec_user32_t;
-typedef struct user_timespec	timespec_user64_t;
-#else
-typedef struct user32_timespec	timespec_user32_t;
-typedef struct user64_timespec	timespec_user64_t;
-#endif
-
-#define	UNKNOWNUID ((uid_t)99)
-#define	UNKNOWNGID ((gid_t)99)
-
-#define	DTTOVT(dtype)   (iftovt_tab[(dtype)])
-#define	kTextEncodingMacUnicode	0x7e
-#define	ZAP_AVENAMELEN  (ZAP_MAXNAMELEN / 4)
-
-/* Finder information */
-struct finderinfo {
-	uint32_t  fi_type;	/* files only */
-	uint32_t  fi_creator;	/* files only */
-	uint16_t  fi_flags;
-	struct {
-		int16_t  v;
-		int16_t  h;
-	} fi_location;
-	int8_t  fi_opaque[18];
-} __attribute__((aligned(2), packed));
-typedef struct finderinfo finderinfo_t;
-
-enum {
-	/* Finder Flags */
-	kHasBeenInited		= 0x0100,
-	kHasCustomIcon		= 0x0400,
-	kIsStationery		= 0x0800,
-	kNameLocked		= 0x1000,
-	kHasBundle		= 0x2000,
-	kIsInvisible		= 0x4000,
-	kIsAlias		= 0x8000
-};
-
-/* Attribute packing information */
-typedef struct attrinfo {
-	struct attrlist *ai_attrlist;
-	void **ai_attrbufpp;
-	void **ai_varbufpp;
-	void *ai_varbufend;
-	// vfs_context_t ai_context;
-} attrinfo_t;
-
-/*
- * Attributes that we can get for free from the zap (ie without a znode)
- */
-#define	ZFS_DIR_ENT_ATTRS ( \
-	    ATTR_CMN_NAME | ATTR_CMN_DEVID | ATTR_CMN_FSID | \
-	    ATTR_CMN_OBJTYPE | ATTR_CMN_OBJTAG | ATTR_CMN_OBJID | \
-	    ATTR_CMN_OBJPERMANENTID | ATTR_CMN_SCRIPT | \
-	    ATTR_CMN_FILEID)
-
-/*
- * Attributes that we support
- */
-#define	ZFS_ATTR_BIT_MAP_COUNT  5
-
-#define	ZFS_ATTR_CMN_VALID (                                    \
-	    ATTR_CMN_NAME | ATTR_CMN_DEVID  | ATTR_CMN_FSID |       \
-	    ATTR_CMN_OBJTYPE | ATTR_CMN_OBJTAG | ATTR_CMN_OBJID |   \
-	    ATTR_CMN_OBJPERMANENTID | ATTR_CMN_PAROBJID |           \
-	    ATTR_CMN_SCRIPT | ATTR_CMN_CRTIME | ATTR_CMN_MODTIME |  \
-	    ATTR_CMN_CHGTIME | ATTR_CMN_ACCTIME |                   \
-	    ATTR_CMN_BKUPTIME | ATTR_CMN_FNDRINFO |                 \
-	    ATTR_CMN_OWNERID | ATTR_CMN_GRPID |                     \
-	    ATTR_CMN_ACCESSMASK | ATTR_CMN_FLAGS |                  \
-	    ATTR_CMN_USERACCESS | ATTR_CMN_FILEID |                 \
-	    ATTR_CMN_PARENTID)
-
-#define	ZFS_ATTR_DIR_VALID (                            \
-	    ATTR_DIR_LINKCOUNT | ATTR_DIR_ENTRYCOUNT |      \
-	    ATTR_DIR_MOUNTSTATUS)
-
-#define	ZFS_ATTR_FILE_VALID (                            \
-	    ATTR_FILE_LINKCOUNT |ATTR_FILE_TOTALSIZE |       \
-	    ATTR_FILE_ALLOCSIZE | ATTR_FILE_IOBLOCKSIZE |    \
-	    ATTR_FILE_DEVTYPE | ATTR_FILE_DATALENGTH |       \
-	    ATTR_FILE_DATAALLOCSIZE | ATTR_FILE_RSRCLENGTH | \
-	    ATTR_FILE_RSRCALLOCSIZE)
 
 #define KAUTH_WKG_NOT   0       /* not a well-known GUID */
 #define KAUTH_WKG_OWNER 1
@@ -174,13 +70,13 @@ extern int zfs_lookup(znode_t *dzp, char *nm, znode_t **zpp,
     int flags, cred_t *cr, int *direntflags, struct componentname *realpnp);
 extern int zfs_ioctl(vnode_t *vp, ulong_t com, intptr_t data, int flag,
     cred_t *cred, int *rvalp, caller_context_t *ct);
-extern int zfs_readdir(vnode_t *vp, uio_t *uio, cred_t *cr,
+extern int zfs_readdir(vnode_t *vp, zfs_uio_t *uio, cred_t *cr,
 	zfs_dirlist_t *zccb, int flags, int dirlisttype, int *a_numdirent);
 
 extern int zfs_fsync(znode_t *zp, int syncflag, cred_t *cr);
 extern int zfs_getattr(vnode_t *vp, vattr_t *vap, int flags,
     cred_t *cr, caller_context_t *ct);
-extern int zfs_readlink(vnode_t *vp, uio_t *uio, cred_t *cr);
+extern int zfs_readlink(vnode_t *vp, zfs_uio_t *uio, cred_t *cr);
 
 extern void   zfs_inactive(vnode_t *vp);
 
@@ -205,16 +101,7 @@ extern int    ace_trivial_common(void *acep, int aclcnt,
 extern int    zpl_obtain_xattr(struct znode *, const char *name, mode_t mode,
     cred_t *cr, struct vnode **vpp, int flag);
 
-extern void  commonattrpack(attrinfo_t *aip, zfsvfs_t *zfsvfs, znode_t *zp,
-    const char *name, ino64_t objnum, enum vtype vtype,
-    boolean_t user64);
-extern void  dirattrpack(attrinfo_t *aip, znode_t *zp);
-extern void  fileattrpack(attrinfo_t *aip, zfsvfs_t *zfsvfs, znode_t *zp);
-extern void  nameattrpack(attrinfo_t *aip, const char *name, int namelen);
-extern int   getpackedsize(struct attrlist *alp, boolean_t user64);
-extern void  getfinderinfo(znode_t *zp, cred_t *cr, finderinfo_t *fip);
 extern uint32_t getuseraccess(znode_t *zp, vfs_context_t ctx);
-extern void  finderinfo_update(uint8_t *finderinfo, znode_t *zp);
 extern int   zpl_xattr_set_sa(struct vnode *vp, const char *name,
     const void *value, size_t size, int flags, cred_t *cr);
 extern int zpl_xattr_get_sa(struct vnode *vp, const char *name, void *value,

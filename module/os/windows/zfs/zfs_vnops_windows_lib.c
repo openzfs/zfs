@@ -577,7 +577,7 @@ vnode_apply_single_ea(struct vnode *vp, struct vnode *xdvp,
     FILE_FULL_EA_INFORMATION *ea)
 {
 	int error;
-	struct vnode *xvp = NULL;
+	znode_t *xzp = NULL;
 
 	dprintf("%s: xattr '%.*s' valuelen %u\n", __func__,
 	    ea->EaNameLength, ea->EaName, ea->EaValueLength);
@@ -591,12 +591,12 @@ vnode_apply_single_ea(struct vnode *vp, struct vnode *xdvp,
 		// Add replace EA
 
 		error = zfs_obtain_xattr(VTOZ(xdvp), ea->EaName,
-		    VTOZ(vp)->z_mode, NULL, &xvp, 0);
+		    VTOZ(vp)->z_mode, NULL, &xzp, 0);
 		if (error)
 			goto out;
 
 		/* Truncate, if it was existing */
-		error = zfs_freesp(VTOZ(xvp), 0, 0, VTOZ(vp)->z_mode, TRUE);
+		error = zfs_freesp(xzp, 0, 0, VTOZ(vp)->z_mode, TRUE);
 
 		/* Write data */
 		struct iovec iov;
@@ -605,12 +605,12 @@ vnode_apply_single_ea(struct vnode *vp, struct vnode *xdvp,
 
 		zfs_uio_t uio;
 		zfs_uio_iovec_init(&uio, &iov, 1, 0, UIO_SYSSPACE, ea->EaValueLength, 0);
-		error = zfs_write(xvp, &uio, 0, NULL);
+		error = zfs_write(xzp, &uio, 0, NULL);
 	}
 
 out:
-	if (xvp != NULL)
-		VN_RELE(xvp);
+	if (xzp != NULL)
+		zrele(xzp);
 
 	return (error);
 }
@@ -712,7 +712,7 @@ zfs_obtain_xattr(znode_t *dzp, const char *name, mode_t mode, cred_t *cr,
 	zfs_dirlock_t  *dl;
 	dmu_tx_t  *tx;
 	struct vnode_attr  vattr = { 0 };
-	pathname_t cn = { 0 };
+	struct componentname cn = { 0 };
 	zfs_acl_ids_t	acl_ids;
 
 	/* zfs_dirent_lock() expects a component name */
@@ -731,8 +731,8 @@ zfs_obtain_xattr(znode_t *dzp, const char *name, mode_t mode, cred_t *cr,
 		return (error);
 	}
 
-	cn.pn_bufsize = strlen(name)+1;
-	cn.pn_buf = (char *)kmem_zalloc(cn.pn_bufsize, KM_SLEEP);
+	cn.cn_namelen = cn.cn_pnlen = strlen(name)+1;
+	cn.cn_nameptr = cn.cn_pnbuf = (char *)kmem_zalloc(cn.cn_pnlen, KM_SLEEP);
 
 top:
 	/* Lock the attribute entry name. */
@@ -786,8 +786,8 @@ top:
 	zfs_dirent_unlock(dl);
 out:
 	zfs_acl_ids_free(&acl_ids);
-	if (cn.pn_buf)
-		kmem_free(cn.pn_buf, cn.pn_bufsize);
+	if (cn.cn_pnbuf)
+		kmem_free(cn.cn_pnbuf, cn.cn_pnlen);
 
 	/* The REPLACE error if doesn't exist is ENOATTR */
 	if ((flag & ZEXISTS) && (error == ENOENT))
@@ -1853,8 +1853,8 @@ uint64_t
 xattr_getsize(struct vnode *vp)
 {
 	uint64_t ret = 0;
-	struct vnode *xdvp = NULL, *xvp = NULL;
-	znode_t *zp, *xdzp = NULL;
+	struct vnode *xdvp = NULL;
+	znode_t *zp, *xdzp = NULL, *xzp = NULL;
 	zfsvfs_t *zfsvfs;
 	zap_cursor_t  zc;
 	zap_attribute_t  za;
@@ -1891,12 +1891,12 @@ xattr_getsize(struct vnode *vp)
 		if (xattr_stream(za.za_name))
 			continue;	 /* skip */
 
-		if (zfs_dirlook(VTOZ(xdvp), za.za_name, &xvp, 0, NULL,
+		if (zfs_dirlook(VTOZ(xdvp), za.za_name, &xzp, 0, NULL,
 		    NULL) == 0) {
 			ret = ((ret + 3) & ~3); // aligned to 4 bytes.
 			ret += offsetof(FILE_FULL_EA_INFORMATION, EaName) +
-			    strlen(za.za_name) + 1 + VTOZ(xvp)->z_size;
-			VN_RELE(xvp);
+			    strlen(za.za_name) + 1 + xzp->z_size;
+			zrele(xzp);
 		}
 	}
 	zap_cursor_fini(&zc);
@@ -3383,8 +3383,8 @@ file_stream_information(PDEVICE_OBJECT DeviceObject, PIRP Irp,
 		return (STATUS_BUFFER_TOO_SMALL);
 	}
 
-	struct vnode *vp = FileObject->FsContext, *xvp = NULL;
-	znode_t *zp = VTOZ(vp);
+	struct vnode *vp = FileObject->FsContext;
+	znode_t *zp = VTOZ(vp), *xzp = NULL;
 	znode_t *xdzp = NULL;
 	zfsvfs_t *zfsvfs = zp->z_zfsvfs;
 
@@ -3421,14 +3421,15 @@ file_stream_information(PDEVICE_OBJECT DeviceObject, PIRP Irp,
 			continue;	 /* skip */
 
 		// We need to lookup the size of the xattr.
-		int error = zfs_dirlook(VTOZ(xdvp), za.za_name, &xvp, 0,
+		int error = zfs_dirlook(VTOZ(xdvp), za.za_name, &xzp, 0,
 		    NULL, NULL);
 
 		overflow += zfswin_insert_streamname(za.za_name, outbuffer,
 		    &lastNextEntryOffset, availablebytes, &spaceused,
-		    xvp ? VTOZ(xvp)->z_size : 0);
+		    xzp ? xzp->z_size : 0);
 
-		if (error == 0) VN_RELE(xvp);
+		if (error == 0)
+			zrele(xzp);
 
 	}
 

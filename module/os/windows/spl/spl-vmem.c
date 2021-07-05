@@ -831,6 +831,7 @@ vmem_span_create(vmem_t *vmp, void *vaddr, uint32_t size, uint8_t import)
 
 	ASSERT(MUTEX_HELD(&vmp->vm_lock));
 
+	/* AllocatePoolWithTag does not handle alignment: no windows equivalent? */
 	if ((start | end) & (vmp->vm_quantum - 1))
 		panic("vmem_span_create(%p, %p, %lu): misaligned (%s)",
 		    (void *)vmp, vaddr, size, vmp->vm_name);

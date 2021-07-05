@@ -119,25 +119,25 @@ void *
 osif_malloc(uint64_t size)
 {
 #ifdef _KERNEL
+        void *tr = NULL;
 
-	void *tr;
-	tr = ExAllocatePoolWithTag(NonPagedPoolNx, size, '!SFZ');
-	ASSERT(P2PHASE(tr, PAGE_SIZE) == 0);
-	if (tr != NULL) {
-		atomic_inc_64(&stat_osif_malloc_success);
-		atomic_add_64(&segkmem_total_mem_allocated, size);
-		atomic_add_64(&stat_osif_malloc_bytes, size);
-		return (tr);
-	} else {
-		dprintf("%s: ExAllocatePoolWithTag failed (memusage: %llu)\n",
-		    __func__, segkmem_total_mem_allocated);
-		ASSERT(0);
-		extern volatile unsigned int vm_page_free_wanted;
-		extern volatile unsigned int vm_page_free_min;
-		spl_free_set_pressure(vm_page_free_min);
-		vm_page_free_wanted = vm_page_free_min;
-		return (NULL);
-	}
+        tr = ExAllocatePoolWithTag(NonPagedPoolNx, size, '!SFZ');
+        ASSERT(P2PHASE(tr, PAGE_SIZE) == 0);
+        if (tr != NULL) {
+                atomic_inc_64(&stat_osif_malloc_success);
+                atomic_add_64(&segkmem_total_mem_allocated, size);
+                atomic_add_64(&stat_osif_malloc_bytes, size);
+                return (tr);
+        } else {
+                dprintf("%s: ExAllocatePoolWithTag failed (memusage: %llu)\n",
+                    __func__, segkmem_total_mem_allocated);
+                ASSERT(0);
+                extern volatile unsigned int vm_page_free_wanted;
+                extern volatile unsigned int vm_page_free_min;
+                spl_free_set_pressure(vm_page_free_min);
+                vm_page_free_wanted = vm_page_free_min;
+                return (NULL);
+        }
 #else
 	return (malloc(size));
 #endif

@@ -467,6 +467,7 @@ typedef struct kstat32 {
  * List of arbitrary name=value statistics.
  */
 
+#pragma pack(4)
 typedef struct kstat_named {
 	char	name[KSTAT_STRLEN];	/* name of counter */
 	uchar_t	data_type;		/* data type */
@@ -509,6 +510,7 @@ typedef struct kstat_named {
 		double		d;
 	} value;			/* value of counter */
 } kstat_named_t;
+#pragma pack()
 
 #define	KSTAT_DATA_CHAR		0
 #define	KSTAT_DATA_INT32	1

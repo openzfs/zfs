@@ -196,6 +196,7 @@ nvlist_t *zfs_ioctl_compat_outnvl(zfs_cmd_t *, nvlist_t *, const int,
 #endif	/* _KERNEL */
 void zfs_cmd_compat_get(zfs_cmd_t *, caddr_t, const int);
 void zfs_cmd_compat_put(zfs_cmd_t *, caddr_t, const int, const int);
+uint64_t zfs_ioc_unregister_fs(void);
 
 int	wrap_avl_init(void);
 int	wrap_unicode_init(void);

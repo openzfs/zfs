@@ -53,6 +53,7 @@
 #include <sys/vnode.h>
 #include <sys/zfs_dir.h>
 #include <sys/zfs_ioctl.h>
+#include <sys/zfs_ioctl_compat.h>
 #include <sys/fs/zfs.h>
 #include <sys/dmu.h>
 #include <sys/dmu_objset.h>
@@ -62,6 +63,7 @@
 #include <sys/zap.h>
 #include <sys/sa.h>
 #include <sys/zfs_vnops.h>
+#include <sys/zfs_vnops_os.h>
 #include <sys/vfs.h>
 #include <sys/vfs_opreg.h>
 #include <sys/zfs_vfsops.h>
@@ -363,7 +365,7 @@ zfs_find_dvp_vp(zfsvfs_t *zfsvfs, char *filename, int finalpartmaynotexist,
 	for (word = strtok_r(filename, "/\\", &brkt);
 	    word;
 	    word = strtok_r(NULL, "/\\", &brkt)) {
-
+		int direntflags = 0;
 		// dprintf("..'%s'..", word);
 
 		// If a component part name is too long
@@ -376,9 +378,11 @@ zfs_find_dvp_vp(zfsvfs_t *zfsvfs, char *filename, int finalpartmaynotexist,
 		cn.cn_flags = ISLASTCN;
 		cn.cn_namelen = strlen(word);
 		cn.cn_nameptr = word;
+		cn.cn_pnlen = cn.cn_namelen;
+		cn.cn_pnbuf = word;
 
 		error = zfs_lookup(VTOZ(dvp), word,
-		    &zp, &cn, cn.cn_nameiop, NULL, flags);
+		    &zp, flags, NULL, &direntflags, &cn);
 
 		if (error != 0) {
 			// If we are creating a file, or looking up parent,
@@ -896,8 +900,8 @@ zfs_vnop_lookup_impl(PIRP Irp, PIO_STACK_LOCATION IrpSp, mount_t *zmo,
 
 		// Create the xattrdir only if we are to create a new entry
 		zp = VTOZ(vp);
-		if (error = zfs_get_xattrdir(zp, &dzp, cr,
-		    CreateFile ? CREATE_XATTR_DIR : 0)) {
+		if ((error = zfs_get_xattrdir(zp, &dzp, cr,
+		    CreateFile ? CREATE_XATTR_DIR : 0))) {
 			Irp->IoStatus.Information = FILE_DOES_NOT_EXIST;
 			VN_RELE(vp);
 			return (STATUS_OBJECT_NAME_NOT_FOUND);
@@ -2376,7 +2380,7 @@ zfswin_insert_xattrname(struct vnode *vp, char *xattrname, uint8_t *outbuffer,
 				zfs_uio_t uio;
 				zfs_uio_iovec_init(&uio, &iov, 1, 0, UIO_SYSSPACE, roomforvalue, 0);
 
-				zfs_read(vp, &uio, 0, NULL);
+				zfs_read(VTOZ(vp), &uio, 0, NULL);
 				// Consume as many bytes as we read
 				*spaceused += roomforvalue - zfs_uio_resid(&uio);
 				// Set the valuelen, should this be the full
@@ -2451,7 +2455,7 @@ query_ea(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 	xdvp = ZTOV(xdzp);
 	Buffer = MapUserBuffer(Irp);
 
-	struct vnode *xvp = NULL;
+	znode_t *xzp = NULL;
 	FILE_GET_EA_INFORMATION *ea;
 	int error = 0;
 
@@ -2475,13 +2479,13 @@ query_ea(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 		do {
 			ea = (FILE_GET_EA_INFORMATION *)&Buffer[offset];
 			// Lookup ea if we can
-			error = zfs_dirlook(VTOZ(xdvp), ea->EaName, &xvp,
+			error = zfs_dirlook(VTOZ(xdvp), ea->EaName, &xzp,
 			    0, NULL, NULL);
 			if (error == 0) {
-				overflow += zfswin_insert_xattrname(xvp,
+				overflow += zfswin_insert_xattrname(ZTOV(xzp),
 				    ea->EaName, Buffer, &lastNextEntryOffset,
 				    UserBufferLength, &spaceused);
-				VN_RELE(xvp);
+				zrele(xzp);
 			} else {
 				// No such xattr, we then "dummy" up an ea
 				overflow += zfswin_insert_xattrname(NULL,
@@ -2521,13 +2525,13 @@ query_ea(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 				continue;	 /* skip */
 			if (xattr_stream(za.za_name))
 				continue;	 /* skip */
-			error = zfs_dirlook(VTOZ(xdvp), za.za_name, &xvp,
+			error = zfs_dirlook(VTOZ(xdvp), za.za_name, &xzp,
 			    0, NULL, NULL);
 			if (error == 0) {
-				overflow += zfswin_insert_xattrname(xvp,
+				overflow += zfswin_insert_xattrname(ZTOV(xzp),
 				    za.za_name, Buffer, &lastNextEntryOffset,
 				    UserBufferLength, &spaceused);
-				VN_RELE(xvp);
+				zrele(xzp);
 				if (overflow != 0)
 					break;
 				zccb->ea_index++;
@@ -3693,7 +3697,7 @@ fs_write(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 		// Should we call vnop_pageout instead?
 		error = zfs_write(zp, &uio, 0, NULL);
 	else
-		error = zfs_write(vp, &uio, 0, NULL);
+		error = zfs_write(zp, &uio, 0, NULL);
 
 	// if (error == 0)
 	//	zp->z_pflags |= ZFS_ARCHIVE;
