@@ -144,7 +144,7 @@ extern FILE *wosix_fopen(const char *name, const char *mode);
 #define	fstat64_blk	wosix_fstat_blk
 #undef  stat
 #define	stat	wosix_stat
-#undef  stat
+#undef  stat64
 #define	stat64	wosix_stat
 #undef  fdatasync
 #define	fdatasync	wosix_fdatasync

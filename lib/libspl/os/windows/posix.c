@@ -867,7 +867,16 @@ wosix_open(const char *inpath, int oflag, ...)
 	DWORD how = OPEN_EXISTING;
 	DWORD share = FILE_SHARE_READ | FILE_SHARE_WRITE;
 	char otherpath[MAXPATHLEN];
-	char *path = inpath;
+	char *path;
+	char *copy_path, *r;
+
+	copy_path = strdup(inpath);
+	path = copy_path;
+
+	/* Windows does not always handle mixed \\ and / in same path */
+	r = copy_path;
+	while ((r = strchr(r, '/')) != NULL)
+		*r = '\\';
 
 	// This is wrong, not all bitfields
 	if (oflag&O_WRONLY) mode = GENERIC_WRITE;
@@ -910,7 +919,8 @@ wosix_open(const char *inpath, int oflag, ...)
 	// "#offset#length#name" style, and try again. We let it fail first
 	// just in case someone names their file with a starting '#'.
 
-	h = CreateFile(path, mode, share, NULL, how, FILE_ATTRIBUTE_NORMAL,
+	h = CreateFile(path, mode, share, NULL, how,
+	    oflag & O_DIRECTORY ? FILE_FLAG_BACKUP_SEMANTICS : FILE_ATTRIBUTE_NORMAL,
 	    NULL);
 
 	if (h == INVALID_HANDLE_VALUE && path[0] == '#') {
@@ -923,7 +933,8 @@ wosix_open(const char *inpath, int oflag, ...)
 		while (end && *end == '#') end++;
 
 		h = CreateFile(end, mode, share, NULL, how,
-		    FILE_ATTRIBUTE_NORMAL, NULL);
+		    oflag & O_DIRECTORY ? FILE_FLAG_BACKUP_SEMANTICS : FILE_ATTRIBUTE_NORMAL,
+		    NULL);
 		if (h != INVALID_HANDLE_VALUE) {
 			// Upper layer probably handles this, but let's help
 			LARGE_INTEGER place;
@@ -961,8 +972,10 @@ wosix_open(const char *inpath, int oflag, ...)
 			fprintf(stderr, "wosix_open(%s): error %d / 0x%x\n",
 			    path, GetLastError(), GetLastError());
 		}
+		free(copy_path);
 		return (-1);
 	}
+	free(copy_path);
 	return (HTOI(h));
 }
 
@@ -1764,16 +1777,26 @@ nl_langinfo(nl_item item)
 	return ("");
 }
 
-/*
- * The port of openat() is quite half-hearted. But it is currently
- * only used with opendir(), and not used to create "..." nor with "fd".
- */
 int
 wosix_openat(int fd, const char *path, int oflag, ...)
 {
+	HANDLE h = ITOH(fd);
+	char fullpath[MAXPATHLEN];
+
 	if (fd == AT_FDCWD)
 		return (wosix_open(path, oflag));
-	ASSERT("openat() implementation lacking support");
+    
+	/*
+	 * Fetch the directory name, and stitch the name together.
+	 * Another option is using NTCreateFile with RootDirectory=handle
+	 */ 
+
+	if (GetFinalPathNameByHandleA(h, fullpath,
+	    MAXPATHLEN, FILE_NAME_NORMALIZED) > 0) {
+		strlcat(fullpath, "/", MAXPATHLEN);
+		strlcat(fullpath, path, MAXPATHLEN);
+		return (wosix_open(fullpath, oflag));
+	}
 	return (-1);
 }
 

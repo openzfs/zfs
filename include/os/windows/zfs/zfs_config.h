@@ -3,8 +3,8 @@
 /* Define to 1 to enabled dmu tx validation */
 /* #undef DEBUG_DMU_TX */
 
-#define	SYSCONFDIR "/etc/zfs/scripts/"  // Windwosify me
-#define	PKGDATADIR "/etc/zfs/scripts/"  // Windwosify me
+#define	SYSCONFDIR "\\SystemRoot\\System32\\drivers"  // Windwosify me
+#define	PKGDATADIR "\\SystemRoot\\System32\\drivers"  // Windwosify me
 
 #define	TEXT_DOMAIN "zfs-windows-user"
 
