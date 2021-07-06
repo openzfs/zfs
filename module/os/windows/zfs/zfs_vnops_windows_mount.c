@@ -1343,7 +1343,6 @@ zfs_remove_driveletter(mount_t *zmo)
 	RtlInitUnicodeString(&name, MOUNTMGR_DEVICE_NAME);
 	Status = IoGetDeviceObjectPointer(&name, FILE_READ_ATTRIBUTES,
 	    &fileObject, &mountmgr);
-	ObDereferenceObject(fileObject);
 
 	MOUNTMGR_MOUNT_POINT* mmp = NULL;
 	ULONG mmpsize;
@@ -1386,7 +1385,7 @@ out:
 	if (mmp)
 		kmem_free(mmp, mmpsize);
 
-	ObDereferenceObject(mountmgr);
+	ObDereferenceObject(fileObject);
 	return (Status);
 }
 
