@@ -1223,6 +1223,9 @@ zvol_remove_minors_impl(const char *name)
 			 * By holding zv_state_lock here, we guarantee that no
 			 * one is currently using this zv
 			 */
+#ifdef _WIN32
+			zvol_os_detach_zv(zv);
+#endif
 
 			/* If in use, leave alone */
 			if (zv->zv_open_count > 0 ||

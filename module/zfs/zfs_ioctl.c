@@ -4004,6 +4004,11 @@ zfs_ioc_destroy(zfs_cmd_t *zc)
 	if (ost == DMU_OST_ZFS)
 		zfs_unmount_snap(zc->zc_name);
 
+#if defined(_WIN32) && defined(_KERNEL)
+	if (ost == DMU_OST_ZVOL)
+		zvol_os_detach(zc->zc_name);
+#endif
+	
 	if (strchr(zc->zc_name, '@')) {
 		err = dsl_destroy_snapshot(zc->zc_name, zc->zc_defer_destroy);
 	} else {
@@ -4037,6 +4042,11 @@ zfs_ioc_destroy(zfs_cmd_t *zc)
 				err = SET_ERROR(EEXIST);
 		}
 	}
+
+#if defined(_WIN32) && defined(_KERNEL)
+	if (ost == DMU_OST_ZVOL && err != 0)
+		zvol_os_attach(zc->zc_name);
+#endif
 
 	return (err);
 }
