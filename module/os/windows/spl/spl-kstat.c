@@ -429,7 +429,8 @@ sbuf_hexdump(struct sbuf *sb, const void *ptr, int length, const char *hdr,
 	}
 }
 
-static uint64_t kstat_initial[8192];
+/* kmem sets up kstats before it is ready to be called, so have some initial space */
+static uint64_t kstat_initial[16384];
 static void *kstat_initial_ptr = kstat_initial;
 static size_t kstat_initial_avail = sizeof (kstat_initial);
 static vmem_t *kstat_arena;
