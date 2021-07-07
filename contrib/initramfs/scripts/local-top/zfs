@@ -1,18 +1,11 @@
 #!/bin/sh
-PREREQ="mdadm mdrun multipath"
+# shellcheck disable=SC2154
 
-prereqs()
-{
-        echo "$PREREQ"
-}
 
-case $1 in
-# get pre-requisites
-prereqs)
-        prereqs
+if [ "$1" = "prereqs" ]; then
+        echo mdadm mdrun multipath
         exit 0
-        ;;
-esac
+fi
 
 
 #
@@ -20,10 +13,10 @@ esac
 #
 message()
 {
-        if [ -x /bin/plymouth ] && plymouth --ping; then
-                plymouth message --text="$@"
+        if plymouth --ping 2>/dev/null; then
+                plymouth message --text="$*"
         else
-                echo "$@" >&2
+                echo "$*" >&2
         fi
         return 0
 }

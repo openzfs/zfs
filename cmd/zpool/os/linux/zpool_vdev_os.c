@@ -405,3 +405,8 @@ check_device(const char *path, boolean_t force,
 
 	return (error);
 }
+
+void
+after_zpool_upgrade(zpool_handle_t *zhp)
+{
+}

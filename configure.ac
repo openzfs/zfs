@@ -50,6 +50,7 @@ AC_PROG_INSTALL
 AC_PROG_CC
 AC_PROG_CXX
 AC_PROG_LIBTOOL
+AC_PROG_LN_S
 PKG_PROG_PKG_CONFIG
 AM_PROG_AS
 AM_PROG_CC_C_O
@@ -86,7 +87,6 @@ AC_CONFIG_FILES([
 	cmd/zinject/Makefile
 	cmd/zpool/Makefile
 	cmd/zstream/Makefile
-	cmd/zstreamdump/Makefile
 	cmd/ztest/Makefile
 	cmd/zvol_id/Makefile
 	cmd/zvol_wait/Makefile
@@ -175,9 +175,6 @@ AC_CONFIG_FILES([
 	lib/libzstd/Makefile
 	lib/libzutil/Makefile
 	man/Makefile
-	man/man1/Makefile
-	man/man5/Makefile
-	man/man8/Makefile
 	module/Kbuild
 	module/Makefile
 	module/avl/Makefile

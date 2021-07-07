@@ -146,36 +146,6 @@ void
 kstat_delete(kstat_t *ksp)
 {}
 
-/*ARGSUSED*/
-void
-kstat_waitq_enter(kstat_io_t *kiop)
-{}
-
-/*ARGSUSED*/
-void
-kstat_waitq_exit(kstat_io_t *kiop)
-{}
-
-/*ARGSUSED*/
-void
-kstat_runq_enter(kstat_io_t *kiop)
-{}
-
-/*ARGSUSED*/
-void
-kstat_runq_exit(kstat_io_t *kiop)
-{}
-
-/*ARGSUSED*/
-void
-kstat_waitq_to_runq(kstat_io_t *kiop)
-{}
-
-/*ARGSUSED*/
-void
-kstat_runq_back_to_waitq(kstat_io_t *kiop)
-{}
-
 void
 kstat_set_raw_ops(kstat_t *ksp,
     int (*headers)(char *buf, size_t size),
@@ -826,7 +796,7 @@ kernel_init(int mode)
 
 	physmem = sysconf(_SC_PHYS_PAGES);
 
-	dprintf("physmem = %llu pages (%.2f GB)\n", physmem,
+	dprintf("physmem = %llu pages (%.2f GB)\n", (u_longlong_t)physmem,
 	    (double)physmem * sysconf(_SC_PAGE_SIZE) / (1ULL << 30));
 
 	(void) snprintf(hw_serial, sizeof (hw_serial), "%ld",

@@ -18,7 +18,6 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
 .\" Copyright (c) 2011, 2019 by Delphix. All rights reserved.
@@ -33,37 +32,33 @@
 .Dd June 30, 2019
 .Dt ZFS-PROMOTE 8
 .Os
+.
 .Sh NAME
 .Nm zfs-promote
-.Nd Promotes a clone file system to no longer be dependent on its origin snapshot.
+.Nd promote clone dataset to no longer depend on origin snapshot
 .Sh SYNOPSIS
 .Nm zfs
 .Cm promote
-.Ar clone-filesystem
+.Ar clone
+.
 .Sh DESCRIPTION
-.Bl -tag -width ""
-.It Xo
-.Nm zfs
-.Cm promote
-.Ar clone-filesystem
-.Xc
 The
-.Cm promote
-command makes it possible to destroy the file system that the clone was created
-from.
+.Nm zfs Cm promote
+command makes it possible to destroy the dataset that the clone was created from.
 The clone parent-child dependency relationship is reversed, so that the origin
-file system becomes a clone of the specified file system.
+dataset becomes a clone of the specified dataset.
 .Pp
 The snapshot that was cloned, and any snapshots previous to this snapshot, are
 now owned by the promoted clone.
-The space they use moves from the origin file system to the promoted clone, so
+The space they use moves from the origin dataset to the promoted clone, so
 enough space must be available to accommodate these snapshots.
 No new space is consumed by this operation, but the space accounting is
 adjusted.
 The promoted clone must not have any conflicting snapshot names of its own.
 The
-.Xr zfs-rename 8
+.Nm zfs Cm rename
 subcommand can be used to rename any conflicting snapshots.
-.El
+.
 .Sh SEE ALSO
-.Xr zfs-clone 8
+.Xr zfs-clone 8 ,
+.Xr zfs-rename 8

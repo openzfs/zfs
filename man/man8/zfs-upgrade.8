@@ -18,7 +18,6 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
 .\" Copyright (c) 2011, 2019 by Delphix. All rights reserved.
@@ -33,9 +32,10 @@
 .Dd June 30, 2019
 .Dt ZFS-UPGRADE 8
 .Os
+.
 .Sh NAME
 .Nm zfs-upgrade
-.Nd Manage upgrading the on-disk version of filesystems.
+.Nd manage on-disk version of ZFS filesystems
 .Sh SYNOPSIS
 .Nm zfs
 .Cm upgrade
@@ -46,7 +46,8 @@
 .Cm upgrade
 .Op Fl r
 .Op Fl V Ar version
-.Fl a | Ar filesystem
+.Fl a Ns | Ns Ar filesystem
+.
 .Sh DESCRIPTION
 .Bl -tag -width ""
 .It Xo
@@ -65,35 +66,31 @@ Displays a list of currently supported file system versions.
 .Cm upgrade
 .Op Fl r
 .Op Fl V Ar version
-.Fl a | Ar filesystem
+.Fl a Ns | Ns Ar filesystem
 .Xc
 Upgrades file systems to a new on-disk version.
 Once this is done, the file systems will no longer be accessible on systems
-running older versions of the software.
+running older versions of ZFS.
 .Nm zfs Cm send
 streams generated from new snapshots of these file systems cannot be accessed on
-systems running older versions of the software.
+systems running older versions of ZFS.
 .Pp
 In general, the file system version is independent of the pool version.
 See
-.Xr zpool 8
-for information on the
-.Nm zpool Cm upgrade
-command.
+.Xr zpool-features 7
+for information on features of ZFS storage pools.
 .Pp
 In some cases, the file system version and the pool version are interrelated and
 the pool version must be upgraded before the file system version can be
 upgraded.
-.Bl -tag -width "-V"
+.Bl -tag -width "filesystem"
 .It Fl V Ar version
-Upgrade to the specified
+Upgrade to
 .Ar version .
-If the
-.Fl V
-flag is not specified, this command upgrades to the most recent version.
+If not specified, upgrade to the most recent version.
 This
 option can only be used to increase the version number, and only up to the most
-recent version supported by this software.
+recent version supported by this version of ZFS.
 .It Fl a
 Upgrade all file systems on all imported pools.
 .It Ar filesystem

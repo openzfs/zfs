@@ -212,6 +212,12 @@ zfs_max_nvlist_src_size_os(void)
 	return (MIN(ptob(zfs_totalram_pages) / 4, 128 * 1024 * 1024));
 }
 
+/* Update the VFS's cache of mountpoint properties */
+void
+zfs_ioctl_update_mount_cache(const char *dsname)
+{
+}
+
 void
 zfs_ioctl_init_os(void)
 {

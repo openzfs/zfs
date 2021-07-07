@@ -134,7 +134,7 @@ function check
 	[[ -f $stream ]] && log_must rm $stream
 	log_must eval "zfs send $flags $send_snap >$stream"
 	$verify eval "zfs recv $recv_ds <$stream"
-	typeset stream_size=$(cat $stream | zstreamdump | sed -n \
+	typeset stream_size=$(cat $stream | zstream dump | sed -n \
 	    's/	Total write size = \(.*\) (0x.*)/\1/p')
 
 	#

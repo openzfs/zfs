@@ -771,7 +771,7 @@ zfs_send_space(zfs_handle_t *zhp, const char *snapname, const char *from,
 		case EFAULT:
 		case EROFS:
 		case EINVAL:
-			zfs_error_aux(hdl, strerror(error));
+			zfs_error_aux(hdl, "%s", strerror(error));
 			return (zfs_error(hdl, EZFS_BADBACKUP, errbuf));
 
 		default:
@@ -852,7 +852,8 @@ dump_ioctl(zfs_handle_t *zhp, const char *fromsnap, uint64_t fromsnap_obj,
 		case ERANGE:
 		case EFAULT:
 		case EROFS:
-			zfs_error_aux(hdl, strerror(errno));
+		case EINVAL:
+			zfs_error_aux(hdl, "%s", strerror(errno));
 			return (zfs_error(hdl, EZFS_BADBACKUP, errbuf));
 
 		default:
@@ -1498,7 +1499,7 @@ estimate_size(zfs_handle_t *zhp, const char *from, int fd, sendflags_t *flags,
 		err = pthread_create(&ptid, NULL,
 		    send_progress_thread, &pa);
 		if (err != 0) {
-			zfs_error_aux(zhp->zfs_hdl, strerror(errno));
+			zfs_error_aux(zhp->zfs_hdl, "%s", strerror(errno));
 			return (zfs_error(zhp->zfs_hdl,
 			    EZFS_THREADCREATEFAILED, errbuf));
 		}
@@ -1525,7 +1526,7 @@ estimate_size(zfs_handle_t *zhp, const char *from, int fd, sendflags_t *flags,
 	}
 
 	if (err != 0) {
-		zfs_error_aux(zhp->zfs_hdl, strerror(err));
+		zfs_error_aux(zhp->zfs_hdl, "%s", strerror(err));
 		return (zfs_error(zhp->zfs_hdl, EZFS_BADBACKUP,
 		    errbuf));
 	}
@@ -1767,6 +1768,10 @@ zfs_send_resume_impl(libzfs_handle_t *hdl, sendflags_t *flags, int outfd,
 			tmpflags.compress = B_TRUE;
 		if (lzc_flags & LZC_SEND_FLAG_EMBED_DATA)
 			tmpflags.embed_data = B_TRUE;
+		if (lzc_flags & LZC_SEND_FLAG_RAW)
+			tmpflags.raw = B_TRUE;
+		if (lzc_flags & LZC_SEND_FLAG_SAVED)
+			tmpflags.saved = B_TRUE;
 		error = estimate_size(zhp, fromname, outfd, &tmpflags,
 		    resumeobj, resumeoff, bytes, redact_book, errbuf, &size);
 	}
@@ -1849,7 +1854,7 @@ zfs_send_resume_impl(libzfs_handle_t *hdl, sendflags_t *flags, int outfd,
 		case ERANGE:
 		case EFAULT:
 		case EROFS:
-			zfs_error_aux(hdl, strerror(errno));
+			zfs_error_aux(hdl, "%s", strerror(errno));
 			return (zfs_error(hdl, EZFS_BADBACKUP, errbuf));
 
 		default:
@@ -2109,13 +2114,13 @@ send_prelim_records(zfs_handle_t *zhp, const char *from, int fd,
 		err = dump_record(&drr, packbuf, buflen, &zc, fd);
 		free(packbuf);
 		if (err != 0) {
-			zfs_error_aux(zhp->zfs_hdl, strerror(err));
+			zfs_error_aux(zhp->zfs_hdl, "%s", strerror(err));
 			return (zfs_error(zhp->zfs_hdl, EZFS_BADBACKUP,
 			    errbuf));
 		}
 		err = send_conclusion_record(fd, &zc);
 		if (err != 0) {
-			zfs_error_aux(zhp->zfs_hdl, strerror(err));
+			zfs_error_aux(zhp->zfs_hdl, "%s", strerror(err));
 			return (zfs_error(zhp->zfs_hdl, EZFS_BADBACKUP,
 			    errbuf));
 		}
@@ -2538,7 +2543,7 @@ zfs_send_one(zfs_handle_t *zhp, const char *from, int fd, sendflags_t *flags,
 		err = pthread_create(&ptid, NULL,
 		    send_progress_thread, &pa);
 		if (err != 0) {
-			zfs_error_aux(zhp->zfs_hdl, strerror(errno));
+			zfs_error_aux(zhp->zfs_hdl, "%s", strerror(errno));
 			return (zfs_error(zhp->zfs_hdl,
 			    EZFS_THREADCREATEFAILED, errbuf));
 		}
@@ -2553,13 +2558,10 @@ zfs_send_one(zfs_handle_t *zhp, const char *from, int fd, sendflags_t *flags,
 			(void) pthread_cancel(ptid);
 		(void) pthread_join(ptid, &status);
 		int error = (int)(uintptr_t)status;
-		if (error != 0 && status != PTHREAD_CANCELED) {
-			char errbuf[1024];
-			(void) snprintf(errbuf, sizeof (errbuf),
-			    dgettext(TEXT_DOMAIN, "progress thread exited "
-			    "nonzero"));
-			return (zfs_standard_error(hdl, error, errbuf));
-		}
+		if (error != 0 && status != PTHREAD_CANCELED)
+			return (zfs_standard_error_fmt(hdl, error,
+			    dgettext(TEXT_DOMAIN,
+			    "progress thread exited nonzero")));
 	}
 
 	if (flags->props || flags->holds || flags->backup) {
@@ -2607,7 +2609,7 @@ zfs_send_one(zfs_handle_t *zhp, const char *from, int fd, sendflags_t *flags,
 		case EPIPE:
 		case ERANGE:
 		case EROFS:
-			zfs_error_aux(hdl, strerror(errno));
+			zfs_error_aux(hdl, "%s", strerror(errno));
 			return (zfs_error(hdl, EZFS_BADBACKUP, errbuf));
 
 		default:
@@ -5109,8 +5111,8 @@ zfs_receive_impl(libzfs_handle_t *hdl, const char *tosnap,
 	if (!DMU_STREAM_SUPPORTED(featureflags) ||
 	    (hdrtype != DMU_SUBSTREAM && hdrtype != DMU_COMPOUNDSTREAM)) {
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "stream has unsupported feature, feature flags = %lx"),
-		    featureflags);
+		    "stream has unsupported feature, feature flags = %llx"),
+		    (unsigned long long)featureflags);
 		return (zfs_error(hdl, EZFS_BADSTREAM, errbuf));
 	}
 

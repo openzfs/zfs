@@ -26,7 +26,7 @@
 .
 .Sh NAME
 .Nm mount.zfs
-.Nd mount a ZFS filesystem
+.Nd mount ZFS filesystem
 .Sh SYNOPSIS
 .Nm
 .Op Fl sfnvh
@@ -44,7 +44,7 @@ to mount filesystem snapshots and
 ZFS filesystems, as well as by
 .Xr zfs 8
 when the
-.Ev Em $ZFS_MOUNT_HELPER
+.Sy ZFS_MOUNT_HELPER
 environment variable is not set.
 Users should should invoke either
 .Xr mount 8
@@ -56,7 +56,7 @@ in most cases.
 are handled according to the
 .Em Temporary Mount Point Properties
 section in
-.Xr zfsprops 8 ,
+.Xr zfsprops 7 ,
 except for those described below.
 .Pp
 If

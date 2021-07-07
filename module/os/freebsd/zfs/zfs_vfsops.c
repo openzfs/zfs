@@ -103,7 +103,12 @@ SYSCTL_INT(_vfs_zfs_version, OID_AUTO, zpl, CTLFLAG_RD, &zfs_version_zpl, 0,
     "ZPL_VERSION");
 /* END CSTYLED */
 
+#if __FreeBSD_version >= 1400018
+static int zfs_quotactl(vfs_t *vfsp, int cmds, uid_t id, void *arg,
+    bool *mp_busy);
+#else
 static int zfs_quotactl(vfs_t *vfsp, int cmds, uid_t id, void *arg);
+#endif
 static int zfs_mount(vfs_t *vfsp);
 static int zfs_umount(vfs_t *vfsp, int fflag);
 static int zfs_root(vfs_t *vfsp, int flags, vnode_t **vpp);
@@ -268,7 +273,11 @@ done:
 }
 
 static int
+#if __FreeBSD_version >= 1400018
+zfs_quotactl(vfs_t *vfsp, int cmds, uid_t id, void *arg, bool *mp_busy)
+#else
 zfs_quotactl(vfs_t *vfsp, int cmds, uid_t id, void *arg)
+#endif
 {
 	zfsvfs_t *zfsvfs = vfsp->vfs_data;
 	struct thread *td;
@@ -292,8 +301,10 @@ zfs_quotactl(vfs_t *vfsp, int cmds, uid_t id, void *arg)
 			break;
 		default:
 			error = EINVAL;
+#if __FreeBSD_version < 1400018
 			if (cmd == Q_QUOTAON || cmd == Q_QUOTAOFF)
 				vfs_unbusy(vfsp);
+#endif
 			goto done;
 		}
 	}
@@ -352,11 +363,15 @@ zfs_quotactl(vfs_t *vfsp, int cmds, uid_t id, void *arg)
 	case Q_QUOTAON:
 		// As far as I can tell, you can't turn quotas on or off on zfs
 		error = 0;
+#if __FreeBSD_version < 1400018
 		vfs_unbusy(vfsp);
+#endif
 		break;
 	case Q_QUOTAOFF:
 		error = ENOTSUP;
+#if __FreeBSD_version < 1400018
 		vfs_unbusy(vfsp);
+#endif
 		break;
 	case Q_SETQUOTA:
 		error = copyin(arg, &dqblk, sizeof (dqblk));
@@ -1084,7 +1099,7 @@ zfsvfs_setup(zfsvfs_t *zfsvfs, boolean_t mounting)
 				    &zfsvfs->z_kstat, zs.zs_num_entries);
 				dprintf_ds(zfsvfs->z_os->os_dsl_dataset,
 				    "num_entries in unlinked set: %llu",
-				    zs.zs_num_entries);
+				    (u_longlong_t)zs.zs_num_entries);
 			}
 
 			zfs_unlinked_drain(zfsvfs);
@@ -1902,7 +1917,9 @@ zfs_fhtovp(vfs_t *vfsp, fid_t *fidp, int flags, vnode_t **vpp)
 
 	gen_mask = -1ULL >> (64 - 8 * i);
 
-	dprintf("getting %llu [%u mask %llx]\n", object, fid_gen, gen_mask);
+	dprintf("getting %llu [%llu mask %llx]\n", (u_longlong_t)object,
+	    (u_longlong_t)fid_gen,
+	    (u_longlong_t)gen_mask);
 	if ((err = zfs_zget(zfsvfs, object, &zp))) {
 		ZFS_EXIT(zfsvfs);
 		return (err);
@@ -1913,7 +1930,8 @@ zfs_fhtovp(vfs_t *vfsp, fid_t *fidp, int flags, vnode_t **vpp)
 	if (zp_gen == 0)
 		zp_gen = 1;
 	if (zp->z_unlinked || zp_gen != fid_gen) {
-		dprintf("znode gen (%u) != fid gen (%u)\n", zp_gen, fid_gen);
+		dprintf("znode gen (%llu) != fid gen (%llu)\n",
+		    (u_longlong_t)zp_gen, (u_longlong_t)fid_gen);
 		vrele(ZTOV(zp));
 		ZFS_EXIT(zfsvfs);
 		return (SET_ERROR(EINVAL));

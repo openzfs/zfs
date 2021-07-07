@@ -529,8 +529,9 @@ spa_condense_indirect_complete_sync(void *arg, dmu_tx_t *tx)
 	zfs_dbgmsg("finished condense of vdev %llu in txg %llu: "
 	    "new mapping object %llu has %llu entries "
 	    "(was %llu entries)",
-	    vd->vdev_id, dmu_tx_get_txg(tx), vic->vic_mapping_object,
-	    new_count, old_count);
+	    (u_longlong_t)vd->vdev_id, (u_longlong_t)dmu_tx_get_txg(tx),
+	    (u_longlong_t)vic->vic_mapping_object,
+	    (u_longlong_t)new_count, (u_longlong_t)old_count);
 
 	vdev_config_dirty(spa->spa_root_vdev);
 }
@@ -796,7 +797,7 @@ spa_condense_indirect_start_sync(vdev_t *vd, dmu_tx_t *tx)
 
 	zfs_dbgmsg("starting condense of vdev %llu in txg %llu: "
 	    "posm=%llu nm=%llu",
-	    vd->vdev_id, dmu_tx_get_txg(tx),
+	    (u_longlong_t)vd->vdev_id, (u_longlong_t)dmu_tx_get_txg(tx),
 	    (u_longlong_t)scip->scip_prev_obsolete_sm_object,
 	    (u_longlong_t)scip->scip_next_mapping_object);
 

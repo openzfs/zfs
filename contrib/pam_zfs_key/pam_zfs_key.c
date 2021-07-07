@@ -82,7 +82,11 @@ alloc_pw_size(size_t len)
 		return (NULL);
 	}
 	pw->len = len;
-	pw->value = malloc(len);
+	/*
+	 * The use of malloc() triggers a spurious gcc 11 -Wmaybe-uninitialized
+	 * warning in the mlock() function call below, so use calloc().
+	 */
+	pw->value = calloc(len, 1);
 	if (!pw->value) {
 		free(pw);
 		return (NULL);
@@ -99,7 +103,11 @@ alloc_pw_string(const char *source)
 		return (NULL);
 	}
 	pw->len = strlen(source) + 1;
-	pw->value = malloc(pw->len);
+	/*
+	 * The use of malloc() triggers a spurious gcc 11 -Wmaybe-uninitialized
+	 * warning in the mlock() function call below, so use calloc().
+	 */
+	pw->value = calloc(pw->len, 1);
 	if (!pw->value) {
 		free(pw);
 		return (NULL);

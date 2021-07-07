@@ -18,76 +18,81 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright 2020 Richard Elling
-.\" .Dd June 14, 2020
-.TH zpool_influxdb 8
-.SH NAME
-zpool_influxdb \- collect zpool statistics in influxdb line protocol format
-.SH SYNOPSIS
-.LP
-.nf
-\fBzpool_influxdb\fR [--execd] [--no-histogram] [--sum-histogram-buckets]
-[--tags key=value] [pool]
-\fBzpool_influxdb\fR --help
-.fi
-.SH DESCRIPTION
-The \fBzpool_influxdb\fR command produces influxdb line protocol compatible
-metrics from zpools. Like the \fBzpool\fR command, \fBzpool_influxdb\fR
-reads the current pool status and statistics. Unlike the \fBzpool\fR
-command which is intended for humans, \fBzpool_influxdb\fR formats the
-output in influxdb line protocol. The expected use is as a plugin to a
-metrics collector or aggregator, such as telegraf.
-
-By default, \fBzpool_influxdb\fR prints pool metrics and status in the
-influxdb line protocol format. All pools are printed, similar to
-the \fBzpool status\fR command. Providing a pool name restricts the
-output to the named pool.
-
-Like the \fBzpool\fR command, \fBzpool_influxdb\fR uses internal data
-structures that can change over time as new ZFS releases are made.
-Therefore, the \fBzpool_influxdb\fR command must be compiled against the
-ZFS source. It is expected that later releases of ZFS includes compatible
-\fBzpool_influxdb\fR and \fBzpool\fR commands.
-
-.SH OPTIONS
-.TP
-\fB\--execd\fR, \fB-e\fR
-Run in daemon mode compatible with telegraf`s \fBexecd\fR plugin.
-In this mode, the pools are sampled every time there is a [return] on stdin.
-Once a sample printed, \fBzpool_influxdb\fR waits for another [return].
-When run on a terminal, use [ctrl+C] to exit.
-.TP
-\fB\--no-histogram\fR, \fB-n\fR
-Do not print latency and I/O size histograms. This can reduce the total
+.\"
+.Dd May 26, 2021
+.Dt ZPOOL_INFLUXDB 8
+.Os
+.
+.Sh NAME
+.Nm zpool_influxdb
+.Nd collect ZFS pool statistics in InfluxDB line protocol format
+.Sh SYNOPSIS
+.Nm
+.Op Fl e Ns | Ns Fl -execd
+.Op Fl n Ns | Ns Fl -no-histogram
+.Op Fl s Ns | Ns Fl -sum-histogram-buckets
+.Op Fl t Ns | Ns Fl -tags Ar key Ns = Ns Ar value Ns Oo , Ns Ar key Ns = Ns Ar value Oc Ns …
+.Op Ar pool
+.
+.Sh DESCRIPTION
+.Nm
+produces InfluxDB-line-protocol-compatible metrics from zpools.
+Like the
+.Nm zpool
+command,
+.Nm
+reads the current pool status and statistics.
+Unlike the
+.Nm zpool
+command which is intended for humans,
+.Nm
+formats the output in the InfluxDB line protocol.
+The expected use is as a plugin to a
+metrics collector or aggregator, such as Telegraf.
+.Pp
+By default,
+.Nm
+prints pool metrics and status in the InfluxDB line protocol format.
+All pools are printed, similar to the
+.Nm zpool Cm status
+command.
+Providing a pool name restricts the output to the named pool.
+.
+.Sh OPTIONS
+.Bl -tag -width "-e, --execd"
+.It Fl e , -execd
+Run in daemon mode compatible with Telegraf's
+.Nm execd
+plugin.
+In this mode, the pools are sampled every time a
+newline appears on the standard input.
+.It Fl n , -no-histogram
+Do not print latency and I/O size histograms.
+This can reduce the total
 amount of data, but one should consider the value brought by the insights
-that latency and I/O size distributions provide. The resulting values
-are suitable for graphing with grafana's heatmap plugin.
-.TP
-\fB--sum-histogram-buckets\fR, \fB-s\fR
-Accumulates bucket values. By default, the values are not accumulated and
-the raw data appears as shown by \fBzpool iostat\fR. This works well for
-grafana's heatmap plugin. Summing the buckets produces output similar to
-prometheus histograms.
-.TP
-\fB--tags\fR, \fB-t\fR
-Adds specified tags to the tag set. Tags are key=value pairs and multiple
-tags are separated by commas. No sanity checking is performed.
+that latency and I/O size distributions provide.
+The resulting values
+are suitable for graphing with Grafana's heatmap plugin.
+.It Fl s , -sum-histogram-buckets
+Accumulates bucket values.
+By default, the values are not accumulated and the raw data appears as shown by
+.Nm zpool Cm iostat .
+This works well for Grafana's heatmap plugin.
+Summing the buckets produces output similar to Prometheus histograms.
+.It Fl t , Fl -tags Ar key Ns = Ns Ar value Ns Oo , Ns Ar key Ns = Ns Ar value Oc Ns …
+Adds specified tags to the tag set.
+No sanity checking is performed.
 See the InfluxDB Line Protocol format documentation for details on escaping
 special characters used in tags.
-.TP
-\fB\--help\fR, \fB\-h\fR
+.It Fl h , -help
 Print a usage summary.
-
-.SH SEE ALSO
-.LP
-\fBzpool-status\fR(8)
-\fBzpool-iostat\fR(8)
-.PP
-Influxdb https://github.com/influxdata/influxdb
-.PP
-Telegraf https://github.com/influxdata/telegraf
-.PP
-Grafana https://grafana.com
-.PP
-Prometheus https://prometheus.io
+.El
+.
+.Sh SEE ALSO
+.Xr zpool-iostat 8 ,
+.Xr zpool-status 8 ,
+.Lk https://github.com/influxdata/influxdb "InfluxDB" ,
+.Lk https://github.com/influxdata/telegraf "Telegraf" ,
+.Lk https://grafana.com "Grafana" ,
+.Lk https://prometheus.io "Prometheus"

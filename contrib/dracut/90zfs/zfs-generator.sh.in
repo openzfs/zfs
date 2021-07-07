@@ -1,4 +1,5 @@
 #!/bin/sh
+# shellcheck disable=SC2016,SC1004
 
 grep -wq debug /proc/cmdline && debug=1
 [ -n "$debug" ] && echo "zfs-generator: starting" >> /dev/kmsg

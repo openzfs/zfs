@@ -261,6 +261,8 @@ if sys.platform.startswith('freebsd'):
     maybe.update({
         'cli_root/zfs_copies/zfs_copies_002_pos': ['FAIL', known_reason],
         'cli_root/zfs_inherit/zfs_inherit_001_neg': ['FAIL', known_reason],
+        'cli_root/zfs_receive/receive-o-x_props_override':
+            ['FAIL', known_reason],
         'cli_root/zfs_share/zfs_share_011_pos': ['FAIL', known_reason],
         'cli_root/zfs_share/zfs_share_concurrent_shares':
             ['FAIL', known_reason],
@@ -282,6 +284,7 @@ elif sys.platform.startswith('linux'):
         'alloc_class/alloc_class_009_pos': ['FAIL', known_reason],
         'alloc_class/alloc_class_010_pos': ['FAIL', known_reason],
         'alloc_class/alloc_class_011_neg': ['FAIL', known_reason],
+        'alloc_class/alloc_class_012_pos': ['FAIL', known_reason],
         'alloc_class/alloc_class_013_pos': ['FAIL', '11888'],
         'cli_root/zfs_rename/zfs_rename_002_pos': ['FAIL', known_reason],
         'cli_root/zpool_expand/zpool_expand_001_pos': ['FAIL', known_reason],

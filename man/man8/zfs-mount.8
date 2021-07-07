@@ -18,7 +18,6 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
 .\" Copyright (c) 2011, 2019 by Delphix. All rights reserved.
@@ -33,9 +32,10 @@
 .Dd February 16, 2019
 .Dt ZFS-MOUNT 8
 .Os
+.
 .Sh NAME
 .Nm zfs-mount
-.Nd Manage mount state of ZFS file systems.
+.Nd manage mount state of ZFS filesystems
 .Sh SYNOPSIS
 .Nm zfs
 .Cm mount
@@ -43,11 +43,12 @@
 .Cm mount
 .Op Fl Oflv
 .Op Fl o Ar options
-.Fl a | Ar filesystem
+.Fl a Ns | Ns Ar filesystem
 .Nm zfs
 .Cm unmount
 .Op Fl fu
-.Fl a | Ar filesystem Ns | Ns Ar mountpoint
+.Fl a Ns | Ns Ar filesystem Ns | Ns Ar mountpoint
+.
 .Sh DESCRIPTION
 .Bl -tag -width ""
 .It Xo
@@ -60,11 +61,12 @@ Displays all ZFS file systems currently mounted.
 .Cm mount
 .Op Fl Oflv
 .Op Fl o Ar options
-.Fl a | Ar filesystem
+.Fl a Ns | Ns Ar filesystem
 .Xc
 Mount ZFS filesystem on a path described by its
 .Sy mountpoint
-property, if the path exists and is empty. If
+property, if the path exists and is empty.
+If
 .Sy mountpoint
 is set to
 .Em legacy ,
@@ -72,7 +74,8 @@ the filesystem should be instead mounted using
 .Xr mount 8 .
 .Bl -tag -width "-O"
 .It Fl O
-Perform an overlay mount. Allows mounting in non-empty
+Perform an overlay mount.
+Allows mounting in non-empty
 .Sy mountpoint .
 See
 .Xr mount 8
@@ -88,16 +91,15 @@ duration of the mount.
 See the
 .Em Temporary Mount Point Properties
 section of
-.Xr zfsprops 8
+.Xr zfsprops 7
 for details.
 .It Fl l
-Load keys for encrypted filesystems as they are being mounted. This is
-equivalent to executing
+Load keys for encrypted filesystems as they are being mounted.
+This is equivalent to executing
 .Nm zfs Cm load-key
-on each encryption root before mounting it. Note that if a filesystem has a
-.Sy keylocation
-of
-.Sy prompt
+on each encryption root before mounting it.
+Note that if a filesystem has
+.Sy keylocation Ns = Ns Sy prompt ,
 this will cause the terminal to interactively block after asking for the key.
 .It Fl v
 Report mount progress.
@@ -108,7 +110,7 @@ Attempt to force mounting of all filesystems, even those that couldn't normally 
 .Nm zfs
 .Cm unmount
 .Op Fl fu
-.Fl a | Ar filesystem Ns | Ns Ar mountpoint
+.Fl a Ns | Ns Ar filesystem Ns | Ns Ar mountpoint
 .Xc
 Unmounts currently mounted ZFS file systems.
 .Bl -tag -width "-a"

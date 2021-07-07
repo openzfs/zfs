@@ -82,6 +82,7 @@ void zfs_ioctl_register(const char *, zfs_ioc_t, zfs_ioc_func_t *,
     boolean_t, boolean_t, const zfs_ioc_key_t *, size_t);
 
 uint64_t zfs_max_nvlist_src_size_os(void);
+void zfs_ioctl_update_mount_cache(const char *dsname);
 void zfs_ioctl_init_os(void);
 
 boolean_t zfs_vfs_held(zfsvfs_t *);

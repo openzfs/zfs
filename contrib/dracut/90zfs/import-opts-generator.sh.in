@@ -1,0 +1,5 @@
+#!/bin/sh
+
+. /lib/dracut-zfs-lib.sh
+
+echo ZPOOL_IMPORT_OPTS="$ZPOOL_IMPORT_OPTS"

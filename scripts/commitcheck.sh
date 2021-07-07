@@ -87,9 +87,7 @@ coverity_fix_commit()
     IFS='
 '
     for line in $(git log -n 1 --pretty=%b "$REF" | grep -E '^CID'); do
-        echo "$line" | grep -E '^CID [[:digit:]]+: ([[:graph:]]+|[[:space:]])+ \(([[:upper:]]|\_)+\)' > /dev/null
-        # shellcheck disable=SC2181
-        if [ $? -ne 0 ]; then
+        if ! echo "$line" | grep -qE '^CID [[:digit:]]+: ([[:graph:]]+|[[:space:]])+ \(([[:upper:]]|\_)+\)'; then
             echo "error: commit message has an improperly formatted CID defect line"
             error=1
         fi

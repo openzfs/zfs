@@ -1,222 +1,249 @@
-.TH VDEV_ID.CONF 5 "Aug 24, 2020" OpenZFS
-.SH NAME
-vdev_id.conf \- Configuration file for vdev_id
-.SH DESCRIPTION
-.I vdev_id.conf
+.\"
+.\" This file and its contents are supplied under the terms of the
+.\" Common Development and Distribution License ("CDDL"), version 1.0.
+.\" You may only use this file in accordance with the terms of version
+.\" 1.0 of the CDDL.
+.\"
+.\" A full copy of the text of the CDDL should have accompanied this
+.\" source.  A copy of the CDDL is also available via the Internet at
+.\" http://www.illumos.org/license/CDDL.
+.\"
+.Dd May 26, 2021
+.Dt VDEV_ID.CONF 5
+.Os
+.
+.Sh NAME
+.Nm vdev_id.conf
+.Nd configuration file for vdev_id(8)
+.Sh DESCRIPTION
+.Nm
 is the configuration file for
-.BR vdev_id (8).
+.Xr vdev_id 8 .
 It controls the default behavior of
-.BR vdev_id (8)
+.Xr vdev_id 8
 while it is mapping a disk device name to an alias.
-.PP
+.Pp
 The
-.I vdev_id.conf
+.Nm
 file uses a simple format consisting of a keyword followed by one or
-more values on a single line.  Any line not beginning with a recognized
-keyword is ignored.  Comments may optionally begin with a hash
-character.
-
+more values on a single line.
+Any line not beginning with a recognized keyword is ignored.
+Comments may optionally begin with a hash character.
+.Pp
 The following keywords and values are used.
-.TP
-\fIalias\fR <name> <devlink>
-Maps a device link in the /dev directory hierarchy to a new device
-name.  The udev rule defining the device link must have run prior to
-.BR vdev_id (8).
+.Bl -tag -width "-h"
+.It Sy alias Ar name Ar devlink
+Maps a device link in the
+.Pa /dev
+directory hierarchy to a new device name.
+The udev rule defining the device link must have run prior to
+.Xr vdev_id 8 .
 A defined alias takes precedence over a topology-derived name, but the
-two naming methods can otherwise coexist.  For example, one might name
-drives in a JBOD with the sas_direct topology while naming an internal
-L2ARC device with an alias.
-
-\fIname\fR - the name of the link to the device that will by created in
-/dev/disk/by-vdev.
-
-\fIdevlink\fR - the name of the device link that has already been
-defined by udev.  This may be an absolute path or the base filename.
-
-.TP
-\fIchannel\fR [pci_slot] <port> <name>
+two naming methods can otherwise coexist.
+For example, one might name drives in a JBOD with the
+.Sy sas_direct
+topology while naming an internal L2ARC device with an alias.
+.Pp
+.Ar name
+is the name of the link to the device that will by created under
+.Pa /dev/disk/by-vdev .
+.Pp
+.Ar devlink
+is the name of the device link that has already been
+defined by udev.
+This may be an absolute path or the base filename.
+.
+.It Sy channel [ Ns Ar pci_slot ] Ar port Ar name
 Maps a physical path to a channel name (typically representing a single
 disk enclosure).
-
-.TP
-\fIenclosure_symlinks\fR <yes|no>
-Additionally create /dev/by-enclosure symlinks to the disk enclosure
-sg devices using the naming scheme from vdev_id.conf.
-\fIenclosure_symlinks\fR is only allowed for sas_direct mode.
-.TP
-\fIenclosure_symlinks_prefix\fR <prefix>
-Specify the prefix for the enclosure symlinks in the form of:
-
-/dev/by-enclosure/<prefix>-<channel><num>
-
-Defaults to "enc" if not specified.
-.TP
-\fIpci_slot\fR - specifies the PCI SLOT of the HBA
-hosting the disk enclosure being mapped, as found in the output of
-.BR lspci (8).
-This argument is not used in sas_switch mode.
-
-\fIport\fR - specifies the numeric identifier of the HBA or SAS switch port
-connected to the disk enclosure being mapped.
-
-\fIname\fR - specifies the name of the channel.
-
-.TP
-\fIslot\fR <old> <new> [channel]
+.
+.It Sy enclosure_symlinks Sy yes Ns | Ns Sy no
+Additionally create
+.Pa /dev/by-enclosure
+symlinks to the disk enclosure
+.Em sg
+devices using the naming scheme from
+.Pa vdev_id.conf .
+.Sy enclosure_symlinks
+is only allowed for
+.Sy sas_direct
+mode.
+.
+.It Sy enclosure_symlinks_prefix Ar prefix
+Specify the prefix for the enclosure symlinks in the form
+.Pa /dev/by-enclosure/ Ns Ao Ar prefix Ac Ns - Ns Ao Ar channel Ac Ns Aq Ar num
+.Pp
+Defaults to
+.Dq Em enc .
+.
+.It Sy slot Ar prefix Ar new Op Ar channel
 Maps a disk slot number as reported by the operating system to an
-alternative slot number.  If the \fIchannel\fR parameter is specified
+alternative slot number.
+If the
+.Ar channel
+parameter is specified
 then the mapping is only applied to slots in the named channel,
-otherwise the mapping is applied to all channels. The first-specified
-\fIslot\fR rule that can match a slot takes precedence.  Therefore a
-channel-specific mapping for a given slot should generally appear before
-a generic mapping for the same slot.  In this way a custom mapping may
-be applied to a particular channel and a default mapping applied to the
-others.
-
-.TP
-\fImultipath\fR <yes|no>
+otherwise the mapping is applied to all channels.
+The first-specified
+.Ar slot
+rule that can match a slot takes precedence.
+Therefore a channel-specific mapping for a given slot should generally appear
+before a generic mapping for the same slot.
+In this way a custom mapping may be applied to a particular channel
+and a default mapping applied to the others.
+.
+.It Sy multipath Sy yes Ns | Ns Sy no
 Specifies whether
-.BR vdev_id (8)
-will handle only dm-multipath devices.  If set to "yes" then
-.BR vdev_id (8)
+.Xr vdev_id 8
+will handle only dm-multipath devices.
+If set to
+.Sy yes
+then
+.Xr vdev_id 8
 will examine the first running component disk of a dm-multipath
-device as listed by the
-.BR multipath (8)
-command to determine the physical path.
-.TP
-\fItopology\fR <sas_direct|sas_switch>
+device as provided by the driver command to determine the physical path.
+.
+.It Sy topology Sy sas_direct Ns | Ns Sy sas_switch Ns | Ns Sy scsi
 Identifies a physical topology that governs how physical paths are
-mapped to channels.
-
-\fIsas_direct\fR - in this mode a channel is uniquely identified by
-a PCI slot and a HBA port number
-
-\fIsas_switch\fR - in this mode a channel is uniquely identified by
-a SAS switch port number
-
-.TP
-\fIphys_per_port\fR <num>
+mapped to channels:
+.Bl -tag -compact -width "sas_direct and scsi"
+.It Sy sas_direct No and Sy scsi
+channels are uniquely identified by a PCI slot and HBA port number
+.It Sy sas_switch
+channels are uniquely identified by a SAS switch port number
+.El
+.
+.It Sy phys_per_port Ar num
 Specifies the number of PHY devices associated with a SAS HBA port or SAS
 switch port.
-.BR vdev_id (8)
+.Xr vdev_id 8
 internally uses this value to determine which HBA or switch port a
-device is connected to.  The default is 4.
-
-.TP
-\fIslot\fR <bay|phy|port|id|lun|ses>
+device is connected to.
+The default is
+.Sy 4 .
+.
+.It Sy slot Sy bay Ns | Ns Sy phy Ns | Ns Sy port Ns | Ns Sy id Ns | Ns Sy lun Ns | Ns Sy ses
 Specifies from which element of a SAS identifier the slot number is
-taken.  The default is bay.
-
-\fIbay\fR - read the slot number from the bay identifier.
-
-\fIphy\fR - read the slot number from the phy identifier.
-
-\fIport\fR - use the SAS port as the slot number.
-
-\fIid\fR - use the scsi id as the slot number.
-
-\fIlun\fR - use the scsi lun as the slot number.
-
-\fIses\fR - use the SCSI Enclosure Services (SES) enclosure device slot number,
+taken.
+The default is
+.Sy bay :
+.Bl -tag -compact -width "port"
+.It Sy bay
+read the slot number from the bay identifier.
+.It Sy phy
+read the slot number from the phy identifier.
+.It Sy port
+use the SAS port as the slot number.
+.It Sy id
+use the scsi id as the slot number.
+.It Sy lun
+use the scsi lun as the slot number.
+.It Sy ses
+use the SCSI Enclosure Services (SES) enclosure device slot number,
 as reported by
-.BR sg_ses (8).
-This is intended for use only on systems where \fIbay\fR is unsupported,
-noting that \fIport\fR and \fIid\fR may be unstable across disk replacement.
-.SH EXAMPLES
-A non-multipath configuration with direct-attached SAS enclosures and an
-arbitrary slot re-mapping.
-.P
-.nf
-	multipath     no
-	topology      sas_direct
-	phys_per_port 4
-	slot          bay
-
-	#       PCI_SLOT HBA PORT  CHANNEL NAME
-	channel 85:00.0  1         A
-	channel 85:00.0  0         B
-	channel 86:00.0  1         C
-	channel 86:00.0  0         D
-
-	# Custom mapping for Channel A
-
-	#    Linux      Mapped
-	#    Slot       Slot      Channel
-	slot 1          7         A
-	slot 2          10        A
-	slot 3          3         A
-	slot 4          6         A
-
-	# Default mapping for B, C, and D
-
-	slot 1          4
-	slot 2          2
-	slot 3          1
-	slot 4          3
-.fi
-.P
-A SAS-switch topology.  Note that the
-.I channel
-keyword takes only two arguments in this example.
-.P
-.nf
-	topology      sas_switch
-
-	#       SWITCH PORT  CHANNEL NAME
-	channel 1            A
-	channel 2            B
-	channel 3            C
-	channel 4            D
-.fi
-.P
-A multipath configuration.  Note that channel names have multiple
-definitions - one per physical path.
-.P
-.nf
-	multipath yes
-
-	#       PCI_SLOT HBA PORT  CHANNEL NAME
-	channel 85:00.0  1         A
-	channel 85:00.0  0         B
-	channel 86:00.0  1         A
-	channel 86:00.0  0         B
-.fi
-.P
-A configuration with enclosure_symlinks enabled.
-.P
-.nf
-	multipath yes
-	enclosure_symlinks yes
-
-	#          PCI_ID      HBA PORT     CHANNEL NAME
-	channel    05:00.0     1            U
-	channel    05:00.0     0            L
-	channel    06:00.0     1            U
-	channel    06:00.0     0            L
-.fi
-In addition to the disks symlinks, this configuration will create:
-.P
-.nf
-	/dev/by-enclosure/enc-L0
-	/dev/by-enclosure/enc-L1
-	/dev/by-enclosure/enc-U0
-	/dev/by-enclosure/enc-U1
-.fi
-.P
-A configuration using device link aliases.
-.P
-.nf
-	#     by-vdev
-	#     name     fully qualified or base name of device link
-	alias d1       /dev/disk/by-id/wwn-0x5000c5002de3b9ca
-	alias d2       wwn-0x5000c5002def789e
-.fi
-.P
-
-.SH FILES
-.TP
-.I /etc/zfs/vdev_id.conf
+.Xr sg_ses 8 .
+Intended for use only on systems where
+.Sy bay
+is unsupported,
+noting that
+.Sy port
+and
+.Sy id
+may be unstable across disk replacement.
+.El
+.El
+.
+.Sh FILES
+.Bl -tag -width "-v v"
+.It Pa /etc/zfs/vdev_id.conf
 The configuration file for
-.BR vdev_id (8).
-.SH SEE ALSO
-.BR vdev_id (8)
+.Xr vdev_id 8 .
+.El
+.
+.Sh EXAMPLES
+A non-multipath configuration with direct-attached SAS enclosures and an
+arbitrary slot re-mapping:
+.Bd -literal -compact -offset Ds
+multipath     no
+topology      sas_direct
+phys_per_port 4
+slot          bay
+
+#       PCI_SLOT HBA PORT  CHANNEL NAME
+channel 85:00.0  1         A
+channel 85:00.0  0         B
+channel 86:00.0  1         C
+channel 86:00.0  0         D
+
+# Custom mapping for Channel A
+
+#    Linux      Mapped
+#    Slot       Slot      Channel
+slot 1          7         A
+slot 2          10        A
+slot 3          3         A
+slot 4          6         A
+
+# Default mapping for B, C, and D
+
+slot 1          4
+slot 2          2
+slot 3          1
+slot 4          3
+.Ed
+.Pp
+A SAS-switch topology.
+Note, that the
+.Ar channel
+keyword takes only two arguments in this example:
+.Bd -literal -compact -offset Ds
+topology      sas_switch
+
+#       SWITCH PORT  CHANNEL NAME
+channel 1            A
+channel 2            B
+channel 3            C
+channel 4            D
+.Ed
+.Pp
+A multipath configuration.
+Note that channel names have multiple definitions - one per physical path:
+.Bd -literal -compact -offset Ds
+multipath yes
+
+#       PCI_SLOT HBA PORT  CHANNEL NAME
+channel 85:00.0  1         A
+channel 85:00.0  0         B
+channel 86:00.0  1         A
+channel 86:00.0  0         B
+.Ed
+.Pp
+A configuration with enclosure_symlinks enabled:
+.Bd -literal -compact -offset Ds
+multipath yes
+enclosure_symlinks yes
+
+#          PCI_ID      HBA PORT     CHANNEL NAME
+channel    05:00.0     1            U
+channel    05:00.0     0            L
+channel    06:00.0     1            U
+channel    06:00.0     0            L
+.Ed
+In addition to the disks symlinks, this configuration will create:
+.Bd -literal -compact -offset Ds
+/dev/by-enclosure/enc-L0
+/dev/by-enclosure/enc-L1
+/dev/by-enclosure/enc-U0
+/dev/by-enclosure/enc-U1
+.Ed
+.Pp
+A configuration using device link aliases:
+.Bd -literal -compact -offset Ds
+#     by-vdev
+#     name     fully qualified or base name of device link
+alias d1       /dev/disk/by-id/wwn-0x5000c5002de3b9ca
+alias d2       wwn-0x5000c5002def789e
+.Ed
+.
+.Sh SEE ALSO
+.Xr vdev_id 8

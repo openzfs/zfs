@@ -54,6 +54,13 @@ nvlist_print_json_string(FILE *fp, const char *input)
 
 	FPRINTF(fp, "\"");
 	while ((sz = mbrtowc(&c, input, MB_CUR_MAX, &mbr)) > 0) {
+		if (sz == (size_t)-1 || sz == (size_t)-2) {
+			/*
+			 * We last read an invalid multibyte character sequence,
+			 * so return an error.
+			 */
+			return (-1);
+		}
 		switch (c) {
 		case '"':
 			FPRINTF(fp, "\\\"");
@@ -95,14 +102,6 @@ nvlist_print_json_string(FILE *fp, const char *input)
 			break;
 		}
 		input += sz;
-	}
-
-	if (sz == (size_t)-1 || sz == (size_t)-2) {
-		/*
-		 * We last read an invalid multibyte character sequence,
-		 * so return an error.
-		 */
-		return (-1);
 	}
 
 	FPRINTF(fp, "\"");

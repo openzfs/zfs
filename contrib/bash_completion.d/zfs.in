@@ -62,24 +62,25 @@ __zfs_list_filesystems()
 
 __zfs_match_snapshot()
 {
-    local base_dataset=${cur%@*}
-    if [[ $base_dataset != $cur ]]
+    local base_dataset="${cur%@*}"
+    if [ "$base_dataset" != "$cur" ]
     then
-        $__ZFS_CMD list -H -o name -s name -t snapshot -d 1 $base_dataset
+        $__ZFS_CMD list -H -o name -s name -t snapshot -d 1 "$base_dataset"
     else
-        if [[ $cur != "" ]] && __zfs_list_datasets $cur &> /dev/null
+        if [ "$cur" != "" ] && __zfs_list_datasets "$cur" &> /dev/null
         then
-            $__ZFS_CMD list -H -o name -s name -t filesystem -r $cur | tail -n +2
+            $__ZFS_CMD list -H -o name -s name -t filesystem -r "$cur" | tail -n +2
             # We output the base dataset name even though we might be
             # completing a command that can only take a snapshot, because it
             # prevents bash from considering the completion finished when it
             # ends in the bare @.
-            echo $cur
-            echo $cur@
+            echo "$cur"
+            echo "$cur@"
         else
-            local datasets=$(__zfs_list_datasets)
+            local datasets
+            datasets="$(__zfs_list_datasets)"
             # As above
-            echo $datasets
+            echo "$datasets"
             if [[ "$cur" == */ ]]
             then
                 # If the current command ends with a slash, then the only way
@@ -89,54 +90,57 @@ __zfs_match_snapshot()
                 local num_children
                 # This is actually off by one as zfs list includes the named
                 # dataset in addition to its children
-                num_children=$(__zfs_list_datasets -d 1 ${cur%/} 2> /dev/null | wc -l)
+                num_children=$(__zfs_list_datasets -d 1 "${cur%/}" 2> /dev/null | wc -l)
                 if [[ $num_children != 2 ]]
                 then
                     return 0
                 fi
             fi
-            echo "$datasets" | awk '{print $1"@"}'
+            echo "$datasets" | awk '{print $1 "@"}'
         fi
     fi
 }
 
 __zfs_match_snapshot_or_bookmark()
 {
-    local base_dataset=${cur%[#@]*}
-    if [[ $base_dataset != $cur ]]
+    local base_dataset="${cur%[#@]*}"
+    if [ "$base_dataset" != "$cur" ]
     then
         if [[ $cur == *@* ]]
         then
-            $__ZFS_CMD list -H -o name -s name -t snapshot -d 1 $base_dataset
+            $__ZFS_CMD list -H -o name -s name -t snapshot -d 1 "$base_dataset"
         else
-            $__ZFS_CMD list -H -o name -s name -t bookmark -d 1 $base_dataset
+            $__ZFS_CMD list -H -o name -s name -t bookmark -d 1 "$base_dataset"
         fi
     else
         $__ZFS_CMD list -H -o name -s name -t filesystem,volume
-        if [[ $cur != "" ]] && $__ZFS_CMD list -H -o name -s name -t filesystem,volume $cur &> /dev/null
+        if [ -e "$cur" ] && $__ZFS_CMD list -H -o name -s name -t filesystem,volume "$cur" &> /dev/null
         then
-            echo $cur@
-            echo $cur#
+            echo "$cur@"
+            echo "$cur#"
         fi
     fi
 }
 
 __zfs_match_multiple_snapshots()
 {
-    local existing_opts=$(expr "$cur" : '\(.*\)[%,]')
-    if [[ $existing_opts ]]
+    local existing_opts
+    existing_opts="$(expr "$cur" : '\(.*\)[%,]')"
+    if [ -e "$existing_opts" ]
     then
-        local base_dataset=${cur%@*}
-        if [[ $base_dataset != $cur ]]
+        local base_dataset="${cur%@*}"
+        if [ "$base_dataset" != "$cur" ]
         then
-            local cur=${cur##*,}
+            local cur="${cur##*,}"
             if [[ $cur =~ ^%|%.*% ]]
             then
                 # correct range syntax is start%end
                 return 1
             fi
-            local range_start=$(expr "$cur" : '\(.*%\)')
-            $__ZFS_CMD list -H -o name -s name -t snapshot -d 1 $base_dataset | sed 's$.*@$'$range_start'$g'
+            local range_start
+            range_start="$(expr "$cur" : '\(.*%\)')"
+            # shellcheck disable=SC2016
+            $__ZFS_CMD list -H -o name -s name -t snapshot -d 1 "$base_dataset" | sed 's$.*@$'"$range_start"'$g'
         fi
     else
         __zfs_match_snapshot_or_bookmark
@@ -160,7 +164,7 @@ __zfs_argument_chosen()
             then
                 return 0
             fi
-            for property in $@
+            for property in "$@"
             do
                 if [[ $prev == "$property"* ]]
                 then
@@ -178,6 +182,7 @@ __zfs_complete_ordered_arguments()
     local list2=$2
     local cur=$3
     local extra=$4
+    # shellcheck disable=SC2086
     if __zfs_argument_chosen $list1
     then
         COMPREPLY=($(compgen -W "$list2 $extra" -- "$cur"))
@@ -190,9 +195,10 @@ __zfs_complete_multiple_options()
 {
     local options=$1
     local cur=$2
+    local existing_opts
 
     COMPREPLY=($(compgen -W "$options" -- "${cur##*,}"))
-    local existing_opts=$(expr "$cur" : '\(.*,\)')
+    existing_opts=$(expr "$cur" : '\(.*,\)')
     if [[ $existing_opts ]]
     then
         COMPREPLY=( "${COMPREPLY[@]/#/${existing_opts}}" )
@@ -287,6 +293,7 @@ __zfs_complete()
                 *)
                     if ! __zfs_complete_switch "H,r,p,d,o,t,s"
                     then
+                        # shellcheck disable=SC2046
                         if __zfs_argument_chosen $(__zfs_get_properties)
                         then
                             COMPREPLY=($(compgen -W "$(__zfs_match_snapshot)" -- "$cur"))
@@ -300,7 +307,7 @@ __zfs_complete()
         inherit)
             if ! __zfs_complete_switch "r"
             then
-                __zfs_complete_ordered_arguments "$(__zfs_get_inheritable_properties)" "$(__zfs_match_snapshot)" $cur
+                __zfs_complete_ordered_arguments "$(__zfs_get_inheritable_properties)" "$(__zfs_match_snapshot)" "$cur"
             fi
             ;;
         list)
@@ -366,7 +373,7 @@ __zfs_complete()
             esac
             ;;
         set)
-            __zfs_complete_ordered_arguments "$(__zfs_get_editable_properties)" "$(__zfs_match_snapshot)" $cur
+            __zfs_complete_ordered_arguments "$(__zfs_get_editable_properties)" "$(__zfs_match_snapshot)" "$cur"
             __zfs_complete_nospace
             ;;
         upgrade)
@@ -385,7 +392,7 @@ __zfs_complete()
         destroy)
             if ! __zfs_complete_switch "d,f,n,p,R,r,v"
             then
-                __zfs_complete_multiple_options "$(__zfs_match_multiple_snapshots)" $cur
+                __zfs_complete_multiple_options "$(__zfs_match_multiple_snapshots)" "$cur"
                 __zfs_complete_nospace
             fi
             ;;
@@ -422,7 +429,7 @@ __zpool_list_pools()
 
 __zpool_complete()
 {
-    local cur prev cmd cmds
+    local cur prev cmd cmds pools
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
@@ -437,7 +444,7 @@ __zpool_complete()
 
     case "${cmd}" in
         get)
-            __zfs_complete_ordered_arguments "$(__zpool_get_properties)" "$(__zpool_list_pools)" $cur
+            __zfs_complete_ordered_arguments "$(__zpool_get_properties)" "$(__zpool_list_pools)" "$cur"
             return 0
             ;;
         import)
@@ -450,12 +457,13 @@ __zpool_complete()
             return 0
             ;;
         set)
-            __zfs_complete_ordered_arguments "$(__zpool_get_editable_properties)" "$(__zpool_list_pools)" $cur
+            __zfs_complete_ordered_arguments "$(__zpool_get_editable_properties)" "$(__zpool_list_pools)" "$cur"
             __zfs_complete_nospace
             return 0
             ;;
         add|attach|clear|create|detach|offline|online|remove|replace)
-            local pools="$(__zpool_list_pools)"
+            pools="$(__zpool_list_pools)"
+            # shellcheck disable=SC2086
             if __zfs_argument_chosen $pools
             then
                 _filedir

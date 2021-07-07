@@ -488,7 +488,7 @@ dsl_dir_hold(dsl_pool_t *dp, const char *name, void *tag,
 		if (next[0] == '@')
 			break;
 		dprintf("looking up %s in obj%lld\n",
-		    buf, dsl_dir_phys(dd)->dd_child_dir_zapobj);
+		    buf, (longlong_t)dsl_dir_phys(dd)->dd_child_dir_zapobj);
 
 		err = zap_lookup(dp->dp_meta_objset,
 		    dsl_dir_phys(dd)->dd_child_dir_zapobj,
@@ -1156,8 +1156,8 @@ dsl_dir_sync(dsl_dir_t *dd, dmu_tx_t *tx)
 
 	mutex_enter(&dd->dd_lock);
 	ASSERT0(dd->dd_tempreserved[tx->tx_txg & TXG_MASK]);
-	dprintf_dd(dd, "txg=%llu towrite=%lluK\n", tx->tx_txg,
-	    dd->dd_space_towrite[tx->tx_txg & TXG_MASK] / 1024);
+	dprintf_dd(dd, "txg=%llu towrite=%lluK\n", (u_longlong_t)tx->tx_txg,
+	    (u_longlong_t)dd->dd_space_towrite[tx->tx_txg & TXG_MASK] / 1024);
 	dd->dd_space_towrite[tx->tx_txg & TXG_MASK] = 0;
 	mutex_exit(&dd->dd_lock);
 
@@ -1344,8 +1344,9 @@ top_of_function:
 			retval = ERESTART;
 		dprintf_dd(dd, "failing: used=%lluK inflight = %lluK "
 		    "quota=%lluK tr=%lluK err=%d\n",
-		    used_on_disk>>10, est_inflight>>10,
-		    quota>>10, asize>>10, retval);
+		    (u_longlong_t)used_on_disk>>10,
+		    (u_longlong_t)est_inflight>>10,
+		    (u_longlong_t)quota>>10, (u_longlong_t)asize>>10, retval);
 		mutex_exit(&dd->dd_lock);
 		DMU_TX_STAT_BUMP(dmu_tx_quota);
 		return (SET_ERROR(retval));

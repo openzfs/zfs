@@ -166,8 +166,8 @@ tags = ['functional', 'cli_root', 'zfs_create']
 
 [tests/functional/cli_root/zfs_destroy]
 tests = ['zfs_clone_livelist_condense_and_disable',
-    'zfs_clone_livelist_condense_races', 'zfs_destroy_001_pos',
-    'zfs_destroy_002_pos', 'zfs_destroy_003_pos',
+    'zfs_clone_livelist_condense_races', 'zfs_clone_livelist_dedup',
+    'zfs_destroy_001_pos', 'zfs_destroy_002_pos', 'zfs_destroy_003_pos',
     'zfs_destroy_004_pos', 'zfs_destroy_005_neg', 'zfs_destroy_006_neg',
     'zfs_destroy_007_neg', 'zfs_destroy_008_pos', 'zfs_destroy_009_pos',
     'zfs_destroy_010_pos', 'zfs_destroy_011_pos', 'zfs_destroy_012_pos',
@@ -350,7 +350,8 @@ tests = ['zpool_create_001_pos', 'zpool_create_002_pos',
     'zpool_create_features_003_pos', 'zpool_create_features_004_neg',
     'zpool_create_features_005_pos', 'zpool_create_features_006_pos',
     'zpool_create_features_007_pos', 'zpool_create_features_008_pos',
-    'create-o_ashift', 'zpool_create_tempname', 'zpool_create_dryrun_output']
+    'zpool_create_features_009_pos', 'create-o_ashift',
+    'zpool_create_tempname', 'zpool_create_dryrun_output']
 tags = ['functional', 'cli_root', 'zpool_create']
 
 [tests/functional/cli_root/zpool_destroy]

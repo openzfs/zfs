@@ -25,16 +25,6 @@
  */
 
 #include <atomic.h>
-#include <assert.h>
-#include <pthread.h>
-
-/*
- * All operations are implemented by serializing them through a global
- * pthread mutex.  This provides a correct generic implementation.
- * However all supported architectures are encouraged to provide a
- * native implementation is assembly for performance reasons.
- */
-pthread_mutex_t atomic_lock = PTHREAD_MUTEX_INITIALIZER;
 
 /*
  * These are the void returning variants
@@ -43,9 +33,7 @@ pthread_mutex_t atomic_lock = PTHREAD_MUTEX_INITIALIZER;
 #define	ATOMIC_INC(name, type) \
 	void atomic_inc_##name(volatile type *target)			\
 	{								\
-		VERIFY3S(pthread_mutex_lock(&atomic_lock), ==, 0);	\
-		(*target)++;						\
-		VERIFY3S(pthread_mutex_unlock(&atomic_lock), ==, 0);	\
+		(void) __atomic_add_fetch(target, 1, __ATOMIC_SEQ_CST);	\
 	}
 
 ATOMIC_INC(8, uint8_t)
@@ -61,9 +49,7 @@ ATOMIC_INC(64, uint64_t)
 #define	ATOMIC_DEC(name, type) \
 	void atomic_dec_##name(volatile type *target)			\
 	{								\
-		VERIFY3S(pthread_mutex_lock(&atomic_lock), ==, 0);	\
-		(*target)--;						\
-		VERIFY3S(pthread_mutex_unlock(&atomic_lock), ==, 0);	\
+		(void) __atomic_sub_fetch(target, 1, __ATOMIC_SEQ_CST);	\
 	}
 
 ATOMIC_DEC(8, uint8_t)
@@ -79,9 +65,7 @@ ATOMIC_DEC(64, uint64_t)
 #define	ATOMIC_ADD(name, type1, type2) \
 	void atomic_add_##name(volatile type1 *target, type2 bits)	\
 	{								\
-		VERIFY3S(pthread_mutex_lock(&atomic_lock), ==, 0);	\
-		*target += bits;					\
-		VERIFY3S(pthread_mutex_unlock(&atomic_lock), ==, 0);	\
+		(void) __atomic_add_fetch(target, bits, __ATOMIC_SEQ_CST); \
 	}
 
 ATOMIC_ADD(8, uint8_t, int8_t)
@@ -96,18 +80,14 @@ ATOMIC_ADD(64, uint64_t, int64_t)
 void
 atomic_add_ptr(volatile void *target, ssize_t bits)
 {
-	VERIFY3S(pthread_mutex_lock(&atomic_lock), ==, 0);
-	*(caddr_t *)target += bits;
-	VERIFY3S(pthread_mutex_unlock(&atomic_lock), ==, 0);
+	(void) __atomic_add_fetch((void **)target, bits, __ATOMIC_SEQ_CST);
 }
 
 
 #define	ATOMIC_SUB(name, type1, type2) \
 	void atomic_sub_##name(volatile type1 *target, type2 bits)	\
 	{								\
-		VERIFY3S(pthread_mutex_lock(&atomic_lock), ==, 0);	\
-		*target -= bits;					\
-		VERIFY3S(pthread_mutex_unlock(&atomic_lock), ==, 0);	\
+		(void) __atomic_sub_fetch(target, bits, __ATOMIC_SEQ_CST); \
 	}
 
 ATOMIC_SUB(8, uint8_t, int8_t)
@@ -122,18 +102,14 @@ ATOMIC_SUB(64, uint64_t, int64_t)
 void
 atomic_sub_ptr(volatile void *target, ssize_t bits)
 {
-	VERIFY3S(pthread_mutex_lock(&atomic_lock), ==, 0);
-	*(caddr_t *)target -= bits;
-	VERIFY3S(pthread_mutex_unlock(&atomic_lock), ==, 0);
+	(void) __atomic_sub_fetch((void **)target, bits, __ATOMIC_SEQ_CST);
 }
 
 
 #define	ATOMIC_OR(name, type) \
 	void atomic_or_##name(volatile type *target, type bits)		\
 	{								\
-		VERIFY3S(pthread_mutex_lock(&atomic_lock), ==, 0);	\
-		*target |= bits;					\
-		VERIFY3S(pthread_mutex_unlock(&atomic_lock), ==, 0);	\
+		(void) __atomic_or_fetch(target, bits, __ATOMIC_SEQ_CST); \
 	}
 
 ATOMIC_OR(8, uint8_t)
@@ -149,9 +125,7 @@ ATOMIC_OR(64, uint64_t)
 #define	ATOMIC_AND(name, type) \
 	void atomic_and_##name(volatile type *target, type bits)	\
 	{								\
-		VERIFY3S(pthread_mutex_lock(&atomic_lock), ==, 0);	\
-		*target &= bits;					\
-		VERIFY3S(pthread_mutex_unlock(&atomic_lock), ==, 0);	\
+		(void) __atomic_and_fetch(target, bits, __ATOMIC_SEQ_CST); \
 	}
 
 ATOMIC_AND(8, uint8_t)
@@ -171,11 +145,7 @@ ATOMIC_AND(64, uint64_t)
 #define	ATOMIC_INC_NV(name, type) \
 	type atomic_inc_##name##_nv(volatile type *target)		\
 	{								\
-		type rc;						\
-		VERIFY3S(pthread_mutex_lock(&atomic_lock), ==, 0);	\
-		rc = (++(*target));					\
-		VERIFY3S(pthread_mutex_unlock(&atomic_lock), ==, 0);	\
-		return (rc);						\
+		return (__atomic_add_fetch(target, 1, __ATOMIC_SEQ_CST)); \
 	}
 
 ATOMIC_INC_NV(8, uint8_t)
@@ -191,11 +161,7 @@ ATOMIC_INC_NV(64, uint64_t)
 #define	ATOMIC_DEC_NV(name, type) \
 	type atomic_dec_##name##_nv(volatile type *target)		\
 	{								\
-		type rc;						\
-		VERIFY3S(pthread_mutex_lock(&atomic_lock), ==, 0);	\
-		rc = (--(*target));					\
-		VERIFY3S(pthread_mutex_unlock(&atomic_lock), ==, 0);	\
-		return (rc);						\
+		return (__atomic_sub_fetch(target, 1, __ATOMIC_SEQ_CST)); \
 	}
 
 ATOMIC_DEC_NV(8, uint8_t)
@@ -209,13 +175,9 @@ ATOMIC_DEC_NV(64, uint64_t)
 
 
 #define	ATOMIC_ADD_NV(name, type1, type2) \
-	type1 atomic_add_##name##_nv(volatile type1 *target, type2 bits)\
+	type1 atomic_add_##name##_nv(volatile type1 *target, type2 bits) \
 	{								\
-		type1 rc;						\
-		VERIFY3S(pthread_mutex_lock(&atomic_lock), ==, 0);	\
-		rc = (*target += bits);					\
-		VERIFY3S(pthread_mutex_unlock(&atomic_lock), ==, 0);	\
-		return (rc);						\
+		return (__atomic_add_fetch(target, bits, __ATOMIC_SEQ_CST)); \
 	}
 
 ATOMIC_ADD_NV(8, uint8_t, int8_t)
@@ -230,24 +192,14 @@ ATOMIC_ADD_NV(64, uint64_t, int64_t)
 void *
 atomic_add_ptr_nv(volatile void *target, ssize_t bits)
 {
-	void *ptr;
-
-	VERIFY3S(pthread_mutex_lock(&atomic_lock), ==, 0);
-	ptr = (*(caddr_t *)target += bits);
-	VERIFY3S(pthread_mutex_unlock(&atomic_lock), ==, 0);
-
-	return (ptr);
+	return (__atomic_add_fetch((void **)target, bits, __ATOMIC_SEQ_CST));
 }
 
 
 #define	ATOMIC_SUB_NV(name, type1, type2) \
-	type1 atomic_sub_##name##_nv(volatile type1 *target, type2 bits)\
+	type1 atomic_sub_##name##_nv(volatile type1 *target, type2 bits) \
 	{								\
-		type1 rc;						\
-		VERIFY3S(pthread_mutex_lock(&atomic_lock), ==, 0);	\
-		rc = (*target -= bits);					\
-		VERIFY3S(pthread_mutex_unlock(&atomic_lock), ==, 0);	\
-		return (rc);						\
+		return (__atomic_sub_fetch(target, bits, __ATOMIC_SEQ_CST)); \
 	}
 
 ATOMIC_SUB_NV(8, uint8_t, int8_t)
@@ -262,24 +214,14 @@ ATOMIC_SUB_NV(64, uint64_t, int64_t)
 void *
 atomic_sub_ptr_nv(volatile void *target, ssize_t bits)
 {
-	void *ptr;
-
-	VERIFY3S(pthread_mutex_lock(&atomic_lock), ==, 0);
-	ptr = (*(caddr_t *)target -= bits);
-	VERIFY3S(pthread_mutex_unlock(&atomic_lock), ==, 0);
-
-	return (ptr);
+	return (__atomic_sub_fetch((void **)target, bits, __ATOMIC_SEQ_CST));
 }
 
 
 #define	ATOMIC_OR_NV(name, type) \
 	type atomic_or_##name##_nv(volatile type *target, type bits)	\
 	{								\
-		type rc;						\
-		VERIFY3S(pthread_mutex_lock(&atomic_lock), ==, 0);	\
-		rc = (*target |= bits);					\
-		VERIFY3S(pthread_mutex_unlock(&atomic_lock), ==, 0);	\
-		return (rc);						\
+		return (__atomic_or_fetch(target, bits, __ATOMIC_SEQ_CST)); \
 	}
 
 ATOMIC_OR_NV(8, uint8_t)
@@ -295,11 +237,7 @@ ATOMIC_OR_NV(64, uint64_t)
 #define	ATOMIC_AND_NV(name, type) \
 	type atomic_and_##name##_nv(volatile type *target, type bits)	\
 	{								\
-		type rc;						\
-		VERIFY3S(pthread_mutex_lock(&atomic_lock), ==, 0);	\
-		rc = (*target &= bits);					\
-		VERIFY3S(pthread_mutex_unlock(&atomic_lock), ==, 0);	\
-		return (rc);						\
+		return (__atomic_and_fetch(target, bits, __ATOMIC_SEQ_CST)); \
 	}
 
 ATOMIC_AND_NV(8, uint8_t)
@@ -313,19 +251,21 @@ ATOMIC_AND_NV(64, uint64_t)
 
 
 /*
- *  If *arg1 == arg2, set *arg1 = arg3; return old value
+ * If *tgt == exp, set *tgt = des; return old value
+ *
+ * This may not look right on the first pass (or the sixteenth), but,
+ * from https://gcc.gnu.org/onlinedocs/gcc/_005f_005fatomic-Builtins.html:
+ * > If they are not equal, the operation is a read
+ * > and the current contents of *ptr are written into *expected.
+ * And, in the converse case, exp is already *target by definition.
  */
 
 #define	ATOMIC_CAS(name, type) \
-	type atomic_cas_##name(volatile type *target, type arg1, type arg2) \
+	type atomic_cas_##name(volatile type *target, type exp, type des) \
 	{								\
-		type old;						\
-		VERIFY3S(pthread_mutex_lock(&atomic_lock), ==, 0);	\
-		old = *target;						\
-		if (old == arg1)					\
-			*target = arg2;					\
-		VERIFY3S(pthread_mutex_unlock(&atomic_lock), ==, 0);	\
-		return (old);						\
+		__atomic_compare_exchange_n(target, &exp, des, B_FALSE,	\
+		    __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);		\
+		return (exp);						\
 	}
 
 ATOMIC_CAS(8, uint8_t)
@@ -338,17 +278,12 @@ ATOMIC_CAS(ulong, ulong_t)
 ATOMIC_CAS(64, uint64_t)
 
 void *
-atomic_cas_ptr(volatile void *target, void *arg1, void *arg2)
+atomic_cas_ptr(volatile void *target, void *exp, void *des)
 {
-	void *old;
 
-	VERIFY3S(pthread_mutex_lock(&atomic_lock), ==, 0);
-	old = *(void **)target;
-	if (old == arg1)
-		*(void **)target = arg2;
-	VERIFY3S(pthread_mutex_unlock(&atomic_lock), ==, 0);
-
-	return (old);
+	__atomic_compare_exchange_n((void **)target, &exp, des, B_FALSE,
+	    __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+	return (exp);
 }
 
 
@@ -359,12 +294,7 @@ atomic_cas_ptr(volatile void *target, void *arg1, void *arg2)
 #define	ATOMIC_SWAP(name, type) \
 	type atomic_swap_##name(volatile type *target, type bits)	\
 	{								\
-		type old;						\
-		VERIFY3S(pthread_mutex_lock(&atomic_lock), ==, 0);	\
-		old = *target;						\
-		*target = bits;						\
-		VERIFY3S(pthread_mutex_unlock(&atomic_lock), ==, 0);	\
-		return (old);						\
+		return (__atomic_exchange_n(target, bits, __ATOMIC_SEQ_CST)); \
 	}
 
 ATOMIC_SWAP(8, uint8_t)
@@ -380,71 +310,59 @@ ATOMIC_SWAP(64, uint64_t)
 void *
 atomic_swap_ptr(volatile void *target, void *bits)
 {
-	void *old;
-
-	VERIFY3S(pthread_mutex_lock(&atomic_lock), ==, 0);
-	old = *(void **)target;
-	*(void **)target = bits;
-	VERIFY3S(pthread_mutex_unlock(&atomic_lock), ==, 0);
-
-	return (old);
+	return (__atomic_exchange_n((void **)target, bits, __ATOMIC_SEQ_CST));
 }
 
+#ifndef _LP64
+uint64_t
+atomic_load_64(volatile uint64_t *target)
+{
+	return (__atomic_load_n(target, __ATOMIC_RELAXED));
+}
+
+void
+atomic_store_64(volatile uint64_t *target, uint64_t bits)
+{
+	return (__atomic_store_n(target, bits, __ATOMIC_RELAXED));
+}
+#endif
 
 int
 atomic_set_long_excl(volatile ulong_t *target, uint_t value)
 {
-	ulong_t bit;
-
-	VERIFY3S(pthread_mutex_lock(&atomic_lock), ==, 0);
-	bit = (1UL << value);
-	if ((*target & bit) != 0) {
-		VERIFY3S(pthread_mutex_unlock(&atomic_lock), ==, 0);
-		return (-1);
-	}
-	*target |= bit;
-	VERIFY3S(pthread_mutex_unlock(&atomic_lock), ==, 0);
-
-	return (0);
+	ulong_t bit = 1UL << value;
+	ulong_t old = __atomic_fetch_or(target, bit, __ATOMIC_SEQ_CST);
+	return ((old & bit) ? -1 : 0);
 }
 
 int
 atomic_clear_long_excl(volatile ulong_t *target, uint_t value)
 {
-	ulong_t bit;
-
-	VERIFY3S(pthread_mutex_lock(&atomic_lock), ==, 0);
-	bit = (1UL << value);
-	if ((*target & bit) == 0) {
-		VERIFY3S(pthread_mutex_unlock(&atomic_lock), ==, 0);
-		return (-1);
-	}
-	*target &= ~bit;
-	VERIFY3S(pthread_mutex_unlock(&atomic_lock), ==, 0);
-
-	return (0);
+	ulong_t bit = 1UL << value;
+	ulong_t old = __atomic_fetch_and(target, ~bit, __ATOMIC_SEQ_CST);
+	return ((old & bit) ? 0 : -1);
 }
 
 void
 membar_enter(void)
 {
-	/* XXX - Implement me */
+	__atomic_thread_fence(__ATOMIC_SEQ_CST);
 }
 
 void
 membar_exit(void)
 {
-	/* XXX - Implement me */
+	__atomic_thread_fence(__ATOMIC_SEQ_CST);
 }
 
 void
 membar_producer(void)
 {
-	/* XXX - Implement me */
+	__atomic_thread_fence(__ATOMIC_RELEASE);
 }
 
 void
 membar_consumer(void)
 {
-	/* XXX - Implement me */
+	__atomic_thread_fence(__ATOMIC_ACQUIRE);
 }

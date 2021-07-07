@@ -164,15 +164,13 @@ populate() {
 	local MAX_DIR_SIZE=$2
 	local MAX_FILE_SIZE=$3
 
-	# shellcheck disable=SC2086
-	mkdir -p $ROOT/{a,b,c,d,e,f,g}/{h,i}
+	mkdir -p "$ROOT"/{a,b,c,d,e,f,g}/{h,i}
 	DIRS=$(find "$ROOT")
 
 	for DIR in $DIRS; do
 		COUNT=$((RANDOM % MAX_DIR_SIZE))
 
-		# shellcheck disable=SC2034
-		for i in $(seq $COUNT); do
+		for _ in $(seq $COUNT); do
 			FILE=$(mktemp -p "$DIR")
 			SIZE=$((RANDOM % MAX_FILE_SIZE))
 			dd if=/dev/urandom of="$FILE" bs=1k \
@@ -334,9 +332,8 @@ fi
 for TAG in $POOL_TAGS; do
 
 	if  [ "$TAG" = "all" ]; then
-		# shellcheck disable=SC2010
-		ALL_TAGS=$(ls "$IMAGES_DIR" | grep "tar.bz2" | \
-		    sed 's/.tar.bz2//' | tr '\n' ' ')
+		ALL_TAGS=$(echo "$IMAGES_DIR"/*.tar.bz2 | \
+		    sed "s|$IMAGES_DIR/||g;s|.tar.bz2||g")
 		NEW_TAGS="$NEW_TAGS $ALL_TAGS"
 	else
 		NEW_TAGS="$NEW_TAGS $TAG"
@@ -491,10 +488,8 @@ for TAG in $POOL_TAGS; do
 		POOL_NAME=$($ZPOOL_CMD import -d "$POOL_DIR_COPY" | \
 		    awk '/pool:/ { print $2; exit 0 }')
 
-		$ZPOOL_CMD import -N -d "$POOL_DIR_COPY" \
-		   "$POOL_NAME" &>/dev/null
-		# shellcheck disable=SC2181
-		if [ $? -ne 0 ]; then
+		if ! $ZPOOL_CMD import -N -d "$POOL_DIR_COPY"
+		    "$POOL_NAME" &>/dev/null; then
 			fail_nonewline
 			ERROR=1
 		else

@@ -18,7 +18,6 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
 .\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
@@ -30,28 +29,25 @@
 .Dd August 9, 2019
 .Dt ZPOOL-SYNC 8
 .Os
+.
 .Sh NAME
 .Nm zpool-sync
-.Nd Force data to be written to primary storage of a ZFS storage pool and update reporting data
+.Nd flush data to primary storage of ZFS storage pools
 .Sh SYNOPSIS
 .Nm zpool
 .Cm sync
-.Oo Ar pool Oc Ns ...
+.Oo Ar pool Oc Ns …
+.
 .Sh DESCRIPTION
-.Bl -tag -width Ds
-.It Xo
-.Nm zpool
-.Cm sync
-.Op Ar pool ...
-.Xc
 This command forces all in-core dirty data to be written to the primary
-pool storage and not the ZIL. It will also update administrative
-information including quota reporting. Without arguments,
-.Sy zpool sync
-will sync all pools on the system. Otherwise, it will sync only the
-specified pool(s).
-.El
+pool storage and not the ZIL.
+It will also update administrative information including quota reporting.
+Without arguments,
+.Nm zpool Cm sync
+will sync all pools on the system.
+Otherwise, it will sync only the specified pools.
+.
 .Sh SEE ALSO
-.Xr zpoolconcepts 8 ,
+.Xr zpoolconcepts 7 ,
 .Xr zpool-export 8 ,
 .Xr zpool-iostat 8

@@ -1,4 +1,5 @@
 #!/bin/sh
+# shellcheck disable=SC2154
 
 # only run this on systemd systems, we handle the decrypt in mount-zfs.sh in the mount hook otherwise
 [ -e /bin/systemctl ] || [ -e /usr/bin/systemctl ] || return 0
@@ -32,16 +33,15 @@ else
 fi
 
 # if pool encryption is active and the zfs command understands '-o encryption'
-if [ "$(zpool list -H -o feature@encryption "$(echo "${BOOTFS}" | awk -F/ '{print $1}')")" = 'active' ]; then
+if [ "$(zpool list -H -o feature@encryption "${BOOTFS%%/*}")" = 'active' ]; then
     # if the root dataset has encryption enabled
     ENCRYPTIONROOT="$(zfs get -H -o value encryptionroot "${BOOTFS}")"
-    # where the key is stored (in a file or loaded via prompt)
-    KEYLOCATION="$(zfs get -H -o value keylocation "${ENCRYPTIONROOT}")"
     if ! [ "${ENCRYPTIONROOT}" = "-" ]; then
         KEYSTATUS="$(zfs get -H -o value keystatus "${ENCRYPTIONROOT}")"
         # continue only if the key needs to be loaded
         [ "$KEYSTATUS" = "unavailable" ] || exit 0
-        # if key is stored in a file, do not prompt
+
+        KEYLOCATION="$(zfs get -H -o value keylocation "${ENCRYPTIONROOT}")"
         if ! [ "${KEYLOCATION}" = "prompt" ]; then
             zfs load-key "${ENCRYPTIONROOT}"
         else

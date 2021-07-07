@@ -18,7 +18,6 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
 .\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
@@ -28,19 +27,21 @@
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
 .\"
-.Dd August 9, 2019
-.Dt ZPOOLPROPS 8
+.Dd May 27, 2021
+.Dt ZPOOLPROPS 7
 .Os
+.
 .Sh NAME
 .Nm zpoolprops
-.Nd available properties for ZFS storage pools
+.Nd properties of ZFS storage pools
+.
 .Sh DESCRIPTION
 Each pool has several properties associated with it.
 Some properties are read-only statistics while others are configurable and
 change the behavior of the pool.
 .Pp
 The following are read-only properties:
-.Bl -tag -width Ds
+.Bl -tag -width "unsupported@guid"
 .It Cm allocated
 Amount of storage used within the pool.
 See
@@ -65,11 +66,13 @@ The space can be claimed for the pool by bringing it online with
 or using
 .Nm zpool Cm online Fl e .
 .It Sy fragmentation
-The amount of fragmentation in the pool. As the amount of space
+The amount of fragmentation in the pool.
+As the amount of space
 .Sy allocated
 increases, it becomes more difficult to locate
 .Sy free
-space. This may result in lower write performance compared to pools with more
+space.
+This may result in lower write performance compared to pools with more
 unfragmented free space.
 .It Sy free
 The amount of free space available in the pool.
@@ -81,11 +84,12 @@ The zpool
 .Sy free
 property is not generally useful for this purpose, and can be substantially more than the zfs
 .Sy available
-space. This discrepancy is due to several factors, including raidz parity; zfs
-reservation, quota, refreservation, and refquota properties; and space set aside by
+space.
+This discrepancy is due to several factors, including raidz parity;
+zfs reservation, quota, refreservation, and refquota properties; and space set aside by
 .Sy spa_slop_shift
 (see
-.Xr zfs-module-parameters 5
+.Xr zfs 4
 for more information).
 .It Sy freeing
 After a file system or snapshot is destroyed, the space it was using is
@@ -107,17 +111,17 @@ A unique identifier for the pool.
 A unique identifier for the pool.
 Unlike the
 .Sy guid
-property, this identifier is generated every time we load the pool (e.g. does
+property, this identifier is generated every time we load the pool (i.e. does
 not persist across imports/exports) and never changes while the pool is loaded
 (even if a
 .Sy reguid
 operation takes place).
 .It Sy size
 Total size of the storage pool.
-.It Sy unsupported@ Ns Em feature_guid
+.It Sy unsupported@ Ns Em guid
 Information about unsupported features that are enabled on the pool.
 See
-.Xr zpool-features 5
+.Xr zpool-features 7
 for details.
 .El
 .Pp
@@ -173,22 +177,27 @@ command:
 Pool sector size exponent, to the power of
 .Sy 2
 (internally referred to as
-.Sy ashift
-). Values from 9 to 16, inclusive, are valid; also, the
+.Sy ashift ) .
+Values from 9 to 16, inclusive, are valid; also, the
 value 0 (the default) means to auto-detect using the kernel's block
-layer and a ZFS internal exception list. I/O operations will be aligned
-to the specified size boundaries. Additionally, the minimum (disk)
+layer and a ZFS internal exception list.
+I/O operations will be aligned to the specified size boundaries.
+Additionally, the minimum (disk)
 write size will be set to the specified size, so this represents a
-space vs. performance trade-off. For optimal performance, the pool
-sector size should be greater than or equal to the sector size of the
-underlying disks. The typical case for setting this property is when
+space vs. performance trade-off.
+For optimal performance, the pool sector size should be greater than
+or equal to the sector size of the underlying disks.
+The typical case for setting this property is when
 performance is important and the underlying disks use 4KiB sectors but
 report 512B sectors to the OS (for compatibility reasons); in that
 case, set
-.Sy ashift=12
-(which is 1<<12 = 4096). When set, this property is
+.Sy ashift Ns = Ns Sy 12
+(which is
+.Sy 1<<12 No = Sy 4096 ) .
+When set, this property is
 used as the default hint value in subsequent vdev operations (add,
-attach and replace). Changing this value will not modify any existing
+attach and replace).
+Changing this value will not modify any existing
 vdev, not even on disk replacement; however it can be used, for
 instance, to replace a dying 512B sectors disk with a newer 4KiB
 sectors device: this will probably result in bad performance but at the
@@ -222,40 +231,44 @@ This property can also be referred to by its shortened column name,
 .Sy replace .
 Autoreplace can also be used with virtual disks (like device
 mapper) provided that you use the /dev/disk/by-vdev paths setup by
-vdev_id.conf. See the
+vdev_id.conf.
+See the
 .Xr vdev_id 8
-man page for more details.
+manual page for more details.
 Autoreplace and autoonline require the ZFS Event Daemon be configured and
-running.  See the
+running.
+See the
 .Xr zed 8
-man page for more details.
+manual page for more details.
 .It Sy autotrim Ns = Ns Sy on Ns | Ns Sy off
 When set to
 .Sy on
 space which has been recently freed, and is no longer allocated by the pool,
-will be periodically trimmed.  This allows block device vdevs which support
+will be periodically trimmed.
+This allows block device vdevs which support
 BLKDISCARD, such as SSDs, or file vdevs on which the underlying file system
-supports hole-punching, to reclaim unused blocks.  The default setting for
-this property is
+supports hole-punching, to reclaim unused blocks.
+The default value for this property is
 .Sy off .
 .Pp
-Automatic TRIM does not immediately reclaim blocks after a free. Instead,
-it will optimistically delay allowing smaller ranges to be aggregated in to
-a few larger ones.  These can then be issued more efficiently to the storage.
+Automatic TRIM does not immediately reclaim blocks after a free.
+Instead, it will optimistically delay allowing smaller ranges to be aggregated
+into a few larger ones.
+These can then be issued more efficiently to the storage.
 TRIM on L2ARC devices is enabled by setting
 .Sy l2arc_trim_ahead > 0 .
 .Pp
 Be aware that automatic trimming of recently freed data blocks can put
-significant stress on the underlying storage devices.  This will vary
-depending of how well the specific device handles these commands.  For
-lower end devices it is often possible to achieve most of the benefits
+significant stress on the underlying storage devices.
+This will vary depending of how well the specific device handles these commands.
+For lower-end devices it is often possible to achieve most of the benefits
 of automatic trimming by running an on-demand (manual) TRIM periodically
 using the
 .Nm zpool Cm trim
 command.
-.It Sy bootfs Ns = Ns Sy (unset) Ns | Ns Ar pool Ns / Ns Ar dataset
-Identifies the default bootable dataset for the root pool. This property is
-expected to be set mainly by the installation and upgrade programs.
+.It Sy bootfs Ns = Ns Sy (unset) Ns | Ns Ar pool Ns Op / Ns Ar dataset
+Identifies the default bootable dataset for the root pool.
+This property is expected to be set mainly by the installation and upgrade programs.
 Not all Linux distribution boot processes use the bootfs property.
 .It Sy cachefile Ns = Ns Ar path Ns | Ns Sy none
 Controls the location of where the pool configuration is cached.
@@ -286,20 +299,24 @@ A text string consisting of printable ASCII characters that will be stored
 such that it is available even if the pool becomes faulted.
 An administrator can provide additional information about a pool using this
 property.
-.It Sy compatibility Ns = Ns Ar off | legacy | file Bq , Ns Ar file Ns ...
+.It Sy compatibility Ns = Ns Sy off Ns | Ns Sy legacy Ns | Ns Ar file Ns Oo , Ns Ar file Oc Ns …
 Specifies that the pool maintain compatibility with specific feature sets.
 When set to
 .Sy off
-(or unset); compatibility is disabled (all features are enabled); when set to
-.Sy legacy Ns ;
-no features are enabled. When set to a comma-separated list of
-filenames (each filename may either be an absolute path, or relative to
-.Pa /etc/zfs/compatibility.d or Pa /usr/share/zfs/compatibility.d Ns )
+(or unset) compatibility is disabled (all features may be enabled); when set to
+.Sy legacy Ns
+no features may be enabled.
+When set to a comma-separated list of filenames
+(each filename may either be an absolute path, or relative to
+.Pa /etc/zfs/compatibility.d
+or
+.Pa /usr/share/zfs/compatibility.d )
 the lists of requested features are read from those files, separated by
-whitespace and/or commas. Only features present in all files are enabled.
-
+whitespace and/or commas.
+Only features present in all files may be enabled.
+.Pp
 See
-.Xr zpool-features 5 Ns ,
+.Xr zpool-features 7 ,
 .Xr zpool-create 8
 and
 .Xr zpool-upgrade 8
@@ -340,7 +357,7 @@ which moves
 .Ar feature_name
 to the enabled state.
 See
-.Xr zpool-features 5
+.Xr zpool-features 7
 for details on feature states.
 .It Sy listsnapshots Ns = Ns Sy on Ns | Ns Sy off
 Controls whether information about snapshots associated with this pool is
@@ -358,25 +375,30 @@ Controls whether a pool activity check should be performed during
 .Nm zpool Cm import .
 When a pool is determined to be active it cannot be imported, even with the
 .Fl f
-option.  This property is intended to be used in failover configurations
+option.
+This property is intended to be used in failover configurations
 where multiple hosts have access to a pool on shared storage.
 .Pp
-Multihost provides protection on import only.  It does not protect against an
+Multihost provides protection on import only.
+It does not protect against an
 individual device being used in multiple pools, regardless of the type of vdev.
 See the discussion under
-.Sy zpool create.
+.Nm zpool Cm create .
 .Pp
 When this property is on, periodic writes to storage occur to show the pool is
-in use.  See
+in use.
+See
 .Sy zfs_multihost_interval
 in the
-.Xr zfs-module-parameters 5
-man page.  In order to enable this property each host must set a unique hostid.
+.Xr zfs 4
+manual page.
+In order to enable this property each host must set a unique hostid.
 See
 .Xr genhostid 1
 .Xr zgenhostid 8
-.Xr spl-module-parameters 5
-for additional details.  The default value is
+.Xr spl 4
+for additional details.
+The default value is
 .Sy off .
 .It Sy version Ns = Ns Ar version
 The current on-disk version of the pool.

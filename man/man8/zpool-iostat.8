@@ -18,7 +18,6 @@
 .\"
 .\" CDDL HEADER END
 .\"
-.\"
 .\" Copyright (c) 2007, Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
 .\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
@@ -27,79 +26,85 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd August 9, 2019
+.Dd May 27, 2021
 .Dt ZPOOL-IOSTAT 8
 .Os
+.
 .Sh NAME
 .Nm zpool-iostat
-.Nd Display logical I/O statistics for the given ZFS storage pools/vdevs
+.Nd display logical I/O statistics for ZFS storage pools
 .Sh SYNOPSIS
 .Nm zpool
 .Cm iostat
 .Op Oo Oo Fl c Ar SCRIPT Oc Oo Fl lq Oc Oc Ns | Ns Fl rw
 .Op Fl T Sy u Ns | Ns Sy d
 .Op Fl ghHLnpPvy
-.Oo Oo Ar pool Ns ... Oc Ns | Ns Oo Ar pool vdev Ns ... Oc Ns | Ns Oo Ar vdev Ns ... Oc Oc
+.Oo Ar pool Ns … Ns | Ns Oo Ar pool vdev Ns … Oc Ns | Ns Ar vdev Ns … Oc
 .Op Ar interval Op Ar count
+.
 .Sh DESCRIPTION
-.Bl -tag -width Ds
-.It Xo
-.Nm zpool
-.Cm iostat
-.Op Oo Oo Fl c Ar SCRIPT Oc Oo Fl lq Oc Oc Ns | Ns Fl rw
-.Op Fl T Sy u Ns | Ns Sy d
-.Op Fl ghHLnpPvy
-.Oo Oo Ar pool Ns ... Oc Ns | Ns Oo Ar pool vdev Ns ... Oc Ns | Ns Oo Ar vdev Ns ... Oc Oc
-.Op Ar interval Op Ar count
-.Xc
-Displays logical I/O statistics for the given pools/vdevs. Physical I/Os may
-be observed via
+Displays logical I/O statistics for the given pools/vdevs.
+Physical I/O statistics may be observed via
 .Xr iostat 1 .
 If writes are located nearby, they may be merged into a single
-larger operation. Additional I/O may be generated depending on the level of
-vdev redundancy.
+larger operation.
+Additional I/O may be generated depending on the level of vdev redundancy.
 To filter output, you may pass in a list of pools, a pool and list of vdevs
-in that pool, or a list of any vdevs from any pool. If no items are specified,
-statistics for every pool in the system are shown.
+in that pool, or a list of any vdevs from any pool.
+If no items are specified, statistics for every pool in the system are shown.
 When given an
 .Ar interval ,
 the statistics are printed every
 .Ar interval
-seconds until ^C is pressed. If
+seconds until killed.
+If
 .Fl n
 flag is specified the headers are displayed only once, otherwise they are
-displayed periodically. If count is specified, the command exits
-after count reports are printed. The first report printed is always
-the statistics since boot regardless of whether
+displayed periodically.
+If
+.Ar count
+is specified, the command exits after
+.Ar count
+reports are printed.
+The first report printed is always the statistics since boot regardless of whether
 .Ar interval
 and
 .Ar count
-are passed. However, this behavior can be suppressed with the
+are passed.
+However, this behavior can be suppressed with the
 .Fl y
-flag. Also note that the units of
+flag.
+Also note that the units of
 .Sy K ,
 .Sy M ,
-.Sy G ...
-that are printed in the report are in base 1024. To get the raw
-values, use the
+.Sy G Ns …
+that are printed in the report are in base 1024.
+To get the raw values, use the
 .Fl p
 flag.
 .Bl -tag -width Ds
-.It Fl c Op Ar SCRIPT1 Ns Oo , Ns Ar SCRIPT2 Oc Ns ...
+.It Fl c Op Ar SCRIPT1 Ns Oo , Ns Ar SCRIPT2 Oc Ns …
 Run a script (or scripts) on each vdev and include the output as a new column
 in the
 .Nm zpool Cm iostat
-output. Users can run any script found in their
+output.
+Users can run any script found in their
 .Pa ~/.zpool.d
 directory or from the system
 .Pa /etc/zfs/zpool.d
-directory. Script names containing the slash (/) character are not allowed.
+directory.
+Script names containing the slash
+.Pq Sy /
+character are not allowed.
 The default search path can be overridden by setting the
-ZPOOL_SCRIPTS_PATH environment variable. A privileged user can run
+.Sy ZPOOL_SCRIPTS_PATH
+environment variable.
+A privileged user can only run
 .Fl c
-if they have the ZPOOL_SCRIPTS_AS_ROOT
-environment variable set. If a script requires the use of a privileged
-command, like
+if they have the
+.Sy ZPOOL_SCRIPTS_AS_ROOT
+environment variable set.
+If a script requires the use of a privileged command, like
 .Xr smartctl 8 ,
 then it's recommended you allow the user access to it in
 .Pa /etc/sudoers
@@ -114,25 +119,23 @@ is passed without a script name, it prints a list of all scripts.
 also sets verbose mode
 .No \&( Ns Fl v Ns No \&).
 .Pp
-Script output should be in the form of "name=value". The column name is
-set to "name" and the value is set to "value". Multiple lines can be
-used to output multiple columns. The first line of output not in the
-"name=value" format is displayed without a column title, and no more
-output after that is displayed. This can be useful for printing error
-messages. Blank or NULL values are printed as a '-' to make output
-awk-able.
+Script output should be in the form of "name=value".
+The column name is set to "name" and the value is set to "value".
+Multiple lines can be used to output multiple columns.
+The first line of output not in the
+"name=value" format is displayed without a column title,
+and no more output after that is displayed.
+This can be useful for printing error messages.
+Blank or NULL values are printed as a '-' to make output AWKable.
 .Pp
 The following environment variables are set before running each script:
-.Bl -tag -width "VDEV_PATH"
+.Bl -tag -compact -width "VDEV_ENC_SYSFS_PATH"
 .It Sy VDEV_PATH
 Full path to the vdev
-.El
-.Bl -tag -width "VDEV_UPATH"
 .It Sy VDEV_UPATH
-Underlying path to the vdev (/dev/sd*).  For use with device mapper,
-multipath, or partitioned vdevs.
-.El
-.Bl -tag -width "VDEV_ENC_SYSFS_PATH"
+Underlying path to the vdev
+.Pq Pa /dev/sd* .
+For use with device mapper, multipath, or partitioned vdevs.
 .It Sy VDEV_ENC_SYSFS_PATH
 The sysfs path to the enclosure for the vdev (if any).
 .El
@@ -149,99 +152,106 @@ for standard date format.
 See
 .Xr date 1 .
 .It Fl g
-Display vdev GUIDs instead of the normal device names. These GUIDs
-can be used in place of device names for the zpool
+Display vdev GUIDs instead of the normal device names.
+These GUIDs can be used in place of device names for the zpool
 detach/offline/remove/replace commands.
 .It Fl H
-Scripted mode. Do not display headers, and separate fields by a
+Scripted mode.
+Do not display headers, and separate fields by a
 single tab instead of arbitrary space.
 .It Fl L
-Display real paths for vdevs resolving all symbolic links. This can
-be used to look up the current block device name regardless of the
+Display real paths for vdevs resolving all symbolic links.
+This can be used to look up the current block device name regardless of the
 .Pa /dev/disk/
 path used to open it.
 .It Fl n
 Print headers only once when passed
 .It Fl p
-Display numbers in parsable (exact) values. Time values are in
-nanoseconds.
+Display numbers in parsable (exact) values.
+Time values are in nanoseconds.
 .It Fl P
-Display full paths for vdevs instead of only the last component of
-the path. This can be used in conjunction with the
+Display full paths for vdevs instead of only the last component of the path.
+This can be used in conjunction with the
 .Fl L
 flag.
 .It Fl r
-Print request size histograms for the leaf vdev's IO. This includes
-histograms of individual IOs (ind) and aggregate IOs (agg). These stats
-can be useful for observing how well IO aggregation is working.  Note
-that TRIM IOs may exceed 16M, but will be counted as 16M.
+Print request size histograms for the leaf vdev's I/O.
+This includes histograms of individual I/O (ind) and aggregate I/O (agg).
+These stats can be useful for observing how well I/O aggregation is working.
+Note that TRIM I/O may exceed 16M, but will be counted as 16M.
 .It Fl v
 Verbose statistics Reports usage statistics for individual vdevs within the
 pool, in addition to the pool-wide statistics.
 .It Fl y
-Omit statistics since boot.
-Normally the first line of output reports the statistics since boot.
-This option suppresses that first line of output.
-.Ar interval
+Normally the first line of output reports the statistics since boot:
+suppress it.
 .It Fl w
 Display latency histograms:
-.Pp
-.Ar total_wait :
-Total IO time (queuing + disk IO time).
-.Ar disk_wait :
-Disk IO time (time reading/writing the disk).
-.Ar syncq_wait :
-Amount of time IO spent in synchronous priority queues.  Does not include
-disk time.
-.Ar asyncq_wait :
-Amount of time IO spent in asynchronous priority queues.  Does not include
-disk time.
-.Ar scrub :
-Amount of time IO spent in scrub queue. Does not include disk time.
+.Bl -tag -compact -width "asyncq_read/write"
+.It Sy total_wait
+Total I/O time (queuing + disk I/O time).
+.It Sy disk_wait
+Disk I/O time (time reading/writing the disk).
+.It Sy syncq_wait
+Amount of time I/O spent in synchronous priority queues.
+Does not include disk time.
+.It Sy asyncq_wait
+Amount of time I/O spent in asynchronous priority queues.
+Does not include disk time.
+.It Sy scrub
+Amount of time I/O spent in scrub queue.
+Does not include disk time.
+.El
 .It Fl l
 Include average latency statistics:
-.Pp
-.Ar total_wait :
-Average total IO time (queuing + disk IO time).
-.Ar disk_wait :
-Average disk IO time (time reading/writing the disk).
-.Ar syncq_wait :
-Average amount of time IO spent in synchronous priority queues. Does
-not include disk time.
-.Ar asyncq_wait :
-Average amount of time IO spent in asynchronous priority queues.
+.Bl -tag -compact -width "asyncq_read/write"
+.It Sy total_wait
+Average total I/O time (queuing + disk I/O time).
+.It Sy disk_wait
+Average disk I/O time (time reading/writing the disk).
+.It Sy syncq_wait
+Average amount of time I/O spent in synchronous priority queues.
 Does not include disk time.
-.Ar scrub :
-Average queuing time in scrub queue. Does not include disk time.
-.Ar trim :
-Average queuing time in trim queue. Does not include disk time.
+.It Sy asyncq_wait
+Average amount of time I/O spent in asynchronous priority queues.
+Does not include disk time.
+.It Sy scrub
+Average queuing time in scrub queue.
+Does not include disk time.
+.It Sy trim
+Average queuing time in trim queue.
+Does not include disk time.
+.El
 .It Fl q
-Include active queue statistics. Each priority queue has both
-pending (
-.Ar pend )
-and active (
-.Ar activ )
-IOs. Pending IOs are waiting to
-be issued to the disk, and active IOs have been issued to disk and are
-waiting for completion. These stats are broken out by priority queue:
-.Pp
-.Ar syncq_read/write :
+Include active queue statistics.
+Each priority queue has both pending
+.Sy ( pend )
+and active
+.Sy ( activ )
+I/O requests.
+Pending requests are waiting to be issued to the disk,
+and active requests have been issued to disk and are waiting for completion.
+These stats are broken out by priority queue:
+.Bl -tag -compact -width "asyncq_read/write"
+.It Sy syncq_read/write
 Current number of entries in synchronous priority
 queues.
-.Ar asyncq_read/write :
+.It Sy asyncq_read/write
 Current number of entries in asynchronous priority queues.
-.Ar scrubq_read :
+.It Sy scrubq_read
 Current number of entries in scrub queue.
-.Ar trimq_write :
+.It Sy trimq_write
 Current number of entries in trim queue.
+.El
 .Pp
 All queue statistics are instantaneous measurements of the number of
-entries in the queues. If you specify an interval, the measurements
-will be sampled from the end of the interval.
+entries in the queues.
+If you specify an interval,
+the measurements will be sampled from the end of the interval.
 .El
-.El
+.
 .Sh SEE ALSO
-.Xr zpool-list 8 ,
-.Xr zpool-status 8 ,
 .Xr iostat 1 ,
-.Xr smartctl 8
+.Xr smartctl 8 ,
+.Xr zpool-list 8 ,
+.Xr zpool-status 8

@@ -909,15 +909,16 @@ dsl_deadlist_move_bpobj(dsl_deadlist_t *dl, bpobj_t *bpo, uint64_t mintxg,
 }
 
 typedef struct livelist_entry {
-	const blkptr_t *le_bp;
+	blkptr_t le_bp;
+	uint32_t le_refcnt;
 	avl_node_t le_node;
 } livelist_entry_t;
 
 static int
 livelist_compare(const void *larg, const void *rarg)
 {
-	const blkptr_t *l = ((livelist_entry_t *)larg)->le_bp;
-	const blkptr_t *r = ((livelist_entry_t *)rarg)->le_bp;
+	const blkptr_t *l = &((livelist_entry_t *)larg)->le_bp;
+	const blkptr_t *r = &((livelist_entry_t *)rarg)->le_bp;
 
 	/* Sort them according to dva[0] */
 	uint64_t l_dva0_vdev = DVA_GET_VDEV(&l->blk_dva[0]);
@@ -944,6 +945,11 @@ struct livelist_iter_arg {
  * Expects an AVL tree which is incrementally filled will FREE blkptrs
  * and used to match up ALLOC/FREE pairs. ALLOC'd blkptrs without a
  * corresponding FREE are stored in the supplied bplist.
+ *
+ * Note that multiple FREE and ALLOC entries for the same blkptr may
+ * be encountered when dedup is involved. For this reason we keep a
+ * refcount for all the FREE entries of each blkptr and ensure that
+ * each of those FREE entries has a corresponding ALLOC preceding it.
  */
 static int
 dsl_livelist_iterate(void *arg, const blkptr_t *bp, boolean_t bp_freed,
@@ -957,23 +963,47 @@ dsl_livelist_iterate(void *arg, const blkptr_t *bp, boolean_t bp_freed,
 
 	if ((t != NULL) && (zthr_has_waiters(t) || zthr_iscancelled(t)))
 		return (SET_ERROR(EINTR));
+
+	livelist_entry_t node;
+	node.le_bp = *bp;
+	livelist_entry_t *found = avl_find(avl, &node, NULL);
 	if (bp_freed) {
-		livelist_entry_t *node = kmem_alloc(sizeof (livelist_entry_t),
-		    KM_SLEEP);
-		blkptr_t *temp_bp = kmem_alloc(sizeof (blkptr_t), KM_SLEEP);
-		*temp_bp = *bp;
-		node->le_bp = temp_bp;
-		avl_add(avl, node);
-	} else {
-		livelist_entry_t node;
-		node.le_bp = bp;
-		livelist_entry_t *found = avl_find(avl, &node, NULL);
-		if (found != NULL) {
-			avl_remove(avl, found);
-			kmem_free((blkptr_t *)found->le_bp, sizeof (blkptr_t));
-			kmem_free(found, sizeof (livelist_entry_t));
+		if (found == NULL) {
+			/* first free entry for this blkptr */
+			livelist_entry_t *e =
+			    kmem_alloc(sizeof (livelist_entry_t), KM_SLEEP);
+			e->le_bp = *bp;
+			e->le_refcnt = 1;
+			avl_add(avl, e);
 		} else {
+			/* dedup block free */
+			ASSERT(BP_GET_DEDUP(bp));
+			ASSERT3U(BP_GET_CHECKSUM(bp), ==,
+			    BP_GET_CHECKSUM(&found->le_bp));
+			ASSERT3U(found->le_refcnt + 1, >, found->le_refcnt);
+			found->le_refcnt++;
+		}
+	} else {
+		if (found == NULL) {
+			/* block is currently marked as allocated */
 			bplist_append(to_free, bp);
+		} else {
+			/* alloc matches a free entry */
+			ASSERT3U(found->le_refcnt, !=, 0);
+			found->le_refcnt--;
+			if (found->le_refcnt == 0) {
+				/* all tracked free pairs have been matched */
+				avl_remove(avl, found);
+				kmem_free(found, sizeof (livelist_entry_t));
+			} else {
+				/*
+				 * This is definitely a deduped blkptr so
+				 * let's validate it.
+				 */
+				ASSERT(BP_GET_DEDUP(bp));
+				ASSERT3U(BP_GET_CHECKSUM(bp), ==,
+				    BP_GET_CHECKSUM(&found->le_bp));
+			}
 		}
 	}
 	return (0);
@@ -999,6 +1029,7 @@ dsl_process_sub_livelist(bpobj_t *bpobj, bplist_t *to_free, zthr_t *t,
 	};
 	int err = bpobj_iterate_nofree(bpobj, dsl_livelist_iterate, &arg, size);
 
+	VERIFY0(avl_numnodes(&avl));
 	avl_destroy(&avl);
 	return (err);
 }

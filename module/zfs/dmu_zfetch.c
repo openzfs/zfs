@@ -34,6 +34,7 @@
 #include <sys/dmu.h>
 #include <sys/dbuf.h>
 #include <sys/kstat.h>
+#include <sys/wmsum.h>
 
 /*
  * This tunable disables predictive prefetch.  Note that it leaves "prescient"
@@ -69,27 +70,54 @@ static zfetch_stats_t zfetch_stats = {
 	{ "io_issued",		KSTAT_DATA_UINT64 },
 };
 
-#define	ZFETCHSTAT_BUMP(stat) \
-	atomic_inc_64(&zfetch_stats.stat.value.ui64)
+struct {
+	wmsum_t zfetchstat_hits;
+	wmsum_t zfetchstat_misses;
+	wmsum_t zfetchstat_max_streams;
+	wmsum_t zfetchstat_io_issued;
+} zfetch_sums;
+
+#define	ZFETCHSTAT_BUMP(stat)					\
+	wmsum_add(&zfetch_sums.stat, 1)
 #define	ZFETCHSTAT_ADD(stat, val)				\
-	atomic_add_64(&zfetch_stats.stat.value.ui64, val)
-#define	ZFETCHSTAT_SET(stat, val)				\
-	zfetch_stats.stat.value.ui64 = val
-#define	ZFETCHSTAT_GET(stat)					\
-	zfetch_stats.stat.value.ui64
+	wmsum_add(&zfetch_sums.stat, val)
 
 
 kstat_t		*zfetch_ksp;
 
+static int
+zfetch_kstats_update(kstat_t *ksp, int rw)
+{
+	zfetch_stats_t *zs = ksp->ks_data;
+
+	if (rw == KSTAT_WRITE)
+		return (EACCES);
+	zs->zfetchstat_hits.value.ui64 =
+	    wmsum_value(&zfetch_sums.zfetchstat_hits);
+	zs->zfetchstat_misses.value.ui64 =
+	    wmsum_value(&zfetch_sums.zfetchstat_misses);
+	zs->zfetchstat_max_streams.value.ui64 =
+	    wmsum_value(&zfetch_sums.zfetchstat_max_streams);
+	zs->zfetchstat_io_issued.value.ui64 =
+	    wmsum_value(&zfetch_sums.zfetchstat_io_issued);
+	return (0);
+}
+
 void
 zfetch_init(void)
 {
+	wmsum_init(&zfetch_sums.zfetchstat_hits, 0);
+	wmsum_init(&zfetch_sums.zfetchstat_misses, 0);
+	wmsum_init(&zfetch_sums.zfetchstat_max_streams, 0);
+	wmsum_init(&zfetch_sums.zfetchstat_io_issued, 0);
+
 	zfetch_ksp = kstat_create("zfs", 0, "zfetchstats", "misc",
 	    KSTAT_TYPE_NAMED, sizeof (zfetch_stats) / sizeof (kstat_named_t),
 	    KSTAT_FLAG_VIRTUAL);
 
 	if (zfetch_ksp != NULL) {
 		zfetch_ksp->ks_data = &zfetch_stats;
+		zfetch_ksp->ks_update = zfetch_kstats_update;
 		kstat_install(zfetch_ksp);
 	}
 }
@@ -101,6 +129,11 @@ zfetch_fini(void)
 		kstat_delete(zfetch_ksp);
 		zfetch_ksp = NULL;
 	}
+
+	wmsum_fini(&zfetch_sums.zfetchstat_hits);
+	wmsum_fini(&zfetch_sums.zfetchstat_misses);
+	wmsum_fini(&zfetch_sums.zfetchstat_max_streams);
+	wmsum_fini(&zfetch_sums.zfetchstat_io_issued);
 }
 
 /*
