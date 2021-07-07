@@ -7975,7 +7975,7 @@ arc_init(void)
 		/*
 		 * dp_wrlog_total is reduced for each txg at the end of
 		 * spa_sync(). However, dp_dirty_total is reduced every time
-		 * a block being written out. Thus under normal operation,
+		 * a block is written out. Thus under normal operation,
 		 * dp_wrlog_total could grow 2 times as big as
 		 * zfs_dirty_data_max.
 		 */

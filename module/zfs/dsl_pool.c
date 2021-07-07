@@ -430,8 +430,10 @@ dsl_pool_close(dsl_pool_t *dp)
 	mutex_destroy(&dp->dp_lock);
 	cv_destroy(&dp->dp_spaceavail_cv);
 
+	ASSERT0(aggsum_value(&dp->dp_wrlog_total));
 	aggsum_fini(&dp->dp_wrlog_total);
 	for (int i = 0; i < TXG_SIZE; i++) {
+		ASSERT0(aggsum_value(&dp->dp_wrlog_pertxg[i]));
 		aggsum_fini(&dp->dp_wrlog_pertxg[i]);
 	}
 
