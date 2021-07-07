@@ -5576,9 +5576,6 @@ zfs_deleteextattr_impl(struct vop_deleteextattr_args *ap, boolean_t compat)
 		.a_td = ap->a_td,
 	};
 	error = ENOENT;
-	ZFS_ENTER(zfsvfs);
-	ZFS_VERIFY_ZP(zp);
-	rw_enter(&zp->z_xattr_lock, RW_WRITER);
 	if (zfsvfs->z_use_sa && zp->z_is_sa) {
 		error = zfs_getextattr_sa(&vga, attrname);
 		if (error == 0)
