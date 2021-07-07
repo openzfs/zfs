@@ -469,12 +469,14 @@ zvol_os_update_volsize(zvol_state_t *zv, uint64_t volsize)
 static void
 zvol_os_clear_private(zvol_state_t *zv)
 {
+#if 0
 	// Close the Storport half open
 	if (zv->zv_open_count == 0) {
 		wzvol_clear_targetid(zv->zv_zso->zso_target_id,
 		    zv->zv_zso->zso_lun_id, zv);
 		wzvol_announce_buschange();
 	}
+#endif
 }
 
 /*
@@ -586,7 +588,7 @@ static void
 zvol_os_free(zvol_state_t *zv)
 {
 	dprintf("%s\n", __func__);
-
+#if 0
 	rw_enter(&zv->zv_suspend_lock, RW_READER);
 	mutex_enter(&zv->zv_state_lock);
 	zv->zv_zso->zso_open_count--;
@@ -595,6 +597,7 @@ zvol_os_free(zvol_state_t *zv)
 	zv->zv_open_count--;
 	mutex_exit(&zv->zv_state_lock);
 	rw_exit(&zv->zv_suspend_lock);
+#endif
 
 	ASSERT(!RW_LOCK_HELD(&zv->zv_suspend_lock));
 	ASSERT(!MUTEX_HELD(&zv->zv_state_lock));
@@ -608,6 +611,56 @@ zvol_os_free(zvol_state_t *zv)
 
 	kmem_free(zv->zv_zso, sizeof (struct zvol_state_os));
 	kmem_free(zv, sizeof (zvol_state_t));
+}
+
+void
+zvol_os_attach(char *name)
+{
+	zvol_state_t *zv;
+	uint64_t hash = zvol_name_hash(name);
+
+	dprintf("%s\n", __func__);
+
+	zv = zvol_find_by_name_hash(name, hash, RW_NONE);
+	if (zv != NULL) {
+		// Assign new TargetId and Lun
+		wzvol_assign_targetid(zv);
+		mutex_exit(&zv->zv_state_lock);
+		zvol_os_open_zv(zv, zv->zv_flags & ZVOL_RDONLY ? FREAD : FWRITE, 0, NULL); //readonly?
+		wzvol_announce_buschange();
+	}
+}
+
+void
+zvol_os_detach_zv(zvol_state_t *zv)
+{
+	if (zv != NULL) {
+		wzvol_clear_targetid(zv->zv_zso->zso_target_id,
+		    zv->zv_zso->zso_lun_id, zv);
+		/* Last close needs suspect lock, give it a try */
+		if (rw_tryenter(&zv->zv_suspend_lock, RW_READER)) {
+			zvol_last_close(zv);
+			rw_exit(&zv->zv_suspend_lock);
+		}
+	}
+}
+
+void
+zvol_os_detach(char *name)
+{
+	zvol_state_t *zv;
+	uint64_t hash = zvol_name_hash(name);
+
+	dprintf("%s\n", __func__);
+
+	zv = zvol_find_by_name_hash(name, hash, RW_NONE);
+	if (zv != NULL) {
+		wzvol_clear_targetid(zv->zv_zso->zso_target_id,
+		    zv->zv_zso->zso_lun_id, zv);
+		mutex_exit(&zv->zv_state_lock);
+		zvol_os_detach_zv(zv);
+		wzvol_announce_buschange();
+	}
 }
 
 void
@@ -683,9 +736,6 @@ zvol_os_create_minor(const char *name)
 
 	dataset_kstats_create(&zv->zv_kstat, zv->zv_objset);
 
-	// Assign new TargetId and Lun
-	wzvol_assign_targetid(zv);
-
 	rw_enter(&zvol_state_lock, RW_WRITER);
 	zvol_insert(zv);
 	rw_exit(&zvol_state_lock);
@@ -731,16 +781,7 @@ out_doi:
 	kmem_free(doi, sizeof (dmu_object_info_t));
 
 	if (error == 0) {
-		error = zvol_os_open_zv(zv, FWRITE, 0, NULL);
-
-		if (error == 0) {
-			// Steal this open_count; or we can't
-			// export/destroy (EBUSY)
-			zv->zv_zso->zso_open_count++;
-			zv->zv_open_count--;
-
-			wzvol_announce_buschange();
-		}
+		zvol_os_attach(name);
 	}
 	dprintf("%s complete\n", __func__);
 	return (error);
