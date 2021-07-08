@@ -4,6 +4,7 @@ dist_pkgdata_SCRIPTS = \
 	setup.ksh \
 	tst.args_to_lua.ksh \
 	tst.divide_by_zero.ksh \
+	tst.encryption.ksh \
 	tst.exists.ksh \
 	tst.integer_illegal.ksh \
 	tst.integer_overflow.ksh \
@@ -30,6 +31,7 @@ dist_pkgdata_DATA = \
 	tst.divide_by_zero.err \
 	tst.divide_by_zero.zcp \
 	tst.exists.zcp \
+	tst.encryption.zcp \
 	tst.large_prog.out \
 	tst.large_prog.zcp \
 	tst.lib_base.lua \

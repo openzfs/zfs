@@ -64,7 +64,7 @@ tests = ['case_all_values', 'norm_all_values', 'sensitive_none_lookup',
 tags = ['functional', 'casenorm']
 
 [tests/functional/channel_program/lua_core]
-tests = ['tst.args_to_lua', 'tst.divide_by_zero', 'tst.exists',
+tests = ['tst.args_to_lua', 'tst.divide_by_zero', 'tst.exists', 'tst.encryption',
     'tst.integer_illegal', 'tst.integer_overflow', 'tst.language_functions_neg',
     'tst.language_functions_pos', 'tst.large_prog', 'tst.libraries',
     'tst.memory_limit', 'tst.nested_neg', 'tst.nested_pos', 'tst.nvlist_to_lua',
