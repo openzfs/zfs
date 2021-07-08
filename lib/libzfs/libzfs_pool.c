@@ -4871,7 +4871,9 @@ zpool_load_compat(const char *compat, boolean_t *features, char *report,
 		    line != NULL;
 		    line = strtok_r(NULL, "\n", &ls)) {
 			/* discard comments */
-			*(strchrnul(line, '#')) = '\0';
+			char *r = strchr(line, '#');
+			if (r != NULL)
+				*r = '\0';
 
 			for (word = strtok_r(line, ", \t", &ws);
 			    word != NULL;
