@@ -964,6 +964,13 @@ typedef struct arc_evict_waiter {
 #define	arc_c_max	ARCSTAT(arcstat_c_max)	/* max target cache size */
 #define	arc_sys_free	ARCSTAT(arcstat_sys_free) /* target system free bytes */
 
+#define	arc_anon	(&ARC_anon)
+#define	arc_mru		(&ARC_mru)
+#define	arc_mru_ghost	(&ARC_mru_ghost)
+#define	arc_mfu		(&ARC_mfu)
+#define	arc_mfu_ghost	(&ARC_mfu_ghost)
+#define	arc_l2c_only	(&ARC_l2c_only)
+
 extern taskq_t *arc_prune_taskq;
 extern arc_stats_t arc_stats;
 extern arc_sums_t arc_sums;
@@ -974,8 +981,8 @@ extern int arc_no_grow_shift;
 extern int arc_shrink_shift;
 extern kmutex_t arc_prune_mtx;
 extern list_t arc_prune_list;
-extern arc_state_t	*arc_mfu;
-extern arc_state_t	*arc_mru;
+extern arc_state_t	ARC_mfu;
+extern arc_state_t	ARC_mru;
 extern uint_t zfs_arc_pc_percent;
 extern int arc_lotsfree_percent;
 extern unsigned long zfs_arc_min;

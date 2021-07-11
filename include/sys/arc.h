@@ -44,7 +44,7 @@ extern "C" {
  * Used by arc_flush() to inform arc_evict_state() that it should evict
  * all available buffers from the arc state being passed in.
  */
-#define	ARC_EVICT_ALL	-1ULL
+#define	ARC_EVICT_ALL	UINT64_MAX
 
 #define	HDR_SET_LSIZE(hdr, x) do { \
 	ASSERT(IS_P2ALIGNED(x, 1U << SPA_MINBLOCKSHIFT)); \

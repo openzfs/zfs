@@ -648,13 +648,6 @@ arc_sums_t arc_sums;
 	} while (0)
 
 kstat_t			*arc_ksp;
-static arc_state_t	*arc_anon;
-static arc_state_t	*arc_mru_ghost;
-static arc_state_t	*arc_mfu_ghost;
-static arc_state_t	*arc_l2c_only;
-
-arc_state_t	*arc_mru;
-arc_state_t	*arc_mfu;
 
 /*
  * There are several ARC variables that are critical to export as kstats --
@@ -2197,7 +2190,6 @@ arc_evictable_space_increment(arc_buf_hdr_t *hdr, arc_state_t *state)
 		return;
 	}
 
-	ASSERT(!GHOST_STATE(state));
 	if (hdr->b_l1hdr.b_pabd != NULL) {
 		(void) zfs_refcount_add_many(&state->arcs_esize[type],
 		    arc_hdr_size(hdr), hdr);
@@ -2238,7 +2230,6 @@ arc_evictable_space_decrement(arc_buf_hdr_t *hdr, arc_state_t *state)
 		return;
 	}
 
-	ASSERT(!GHOST_STATE(state));
 	if (hdr->b_l1hdr.b_pabd != NULL) {
 		(void) zfs_refcount_remove_many(&state->arcs_esize[type],
 		    arc_hdr_size(hdr), hdr);
@@ -4010,23 +4001,21 @@ arc_set_need_free(void)
 
 static uint64_t
 arc_evict_state_impl(multilist_t *ml, int idx, arc_buf_hdr_t *marker,
-    uint64_t spa, int64_t bytes)
+    uint64_t spa, uint64_t bytes)
 {
 	multilist_sublist_t *mls;
 	uint64_t bytes_evicted = 0;
 	arc_buf_hdr_t *hdr;
 	kmutex_t *hash_lock;
-	int evict_count = 0;
+	int evict_count = zfs_arc_evict_batch_limit;
 
 	ASSERT3P(marker, !=, NULL);
-	IMPLY(bytes < 0, bytes == ARC_EVICT_ALL);
 
 	mls = multilist_sublist_lock(ml, idx);
 
-	for (hdr = multilist_sublist_prev(mls, marker); hdr != NULL;
+	for (hdr = multilist_sublist_prev(mls, marker); likely(hdr != NULL);
 	    hdr = multilist_sublist_prev(mls, marker)) {
-		if ((bytes != ARC_EVICT_ALL && bytes_evicted >= bytes) ||
-		    (evict_count >= zfs_arc_evict_batch_limit))
+		if ((evict_count <= 0) || (bytes_evicted >= bytes))
 			break;
 
 		/*
@@ -4085,7 +4074,7 @@ arc_evict_state_impl(multilist_t *ml, int idx, arc_buf_hdr_t *marker,
 			 * evict_count in this case.
 			 */
 			if (evicted != 0)
-				evict_count++;
+				evict_count--;
 
 		} else {
 			ARCSTAT_BUMP(arcstat_mutex_miss);
@@ -4146,15 +4135,13 @@ arc_evict_state_impl(multilist_t *ml, int idx, arc_buf_hdr_t *marker,
  * the given arc state; which is used by arc_flush().
  */
 static uint64_t
-arc_evict_state(arc_state_t *state, uint64_t spa, int64_t bytes,
+arc_evict_state(arc_state_t *state, uint64_t spa, uint64_t bytes,
     arc_buf_contents_t type)
 {
 	uint64_t total_evicted = 0;
 	multilist_t *ml = &state->arcs_list[type];
 	int num_sublists;
 	arc_buf_hdr_t **markers;
-
-	IMPLY(bytes < 0, bytes == ARC_EVICT_ALL);
 
 	num_sublists = multilist_get_num_sublists(ml);
 
@@ -4187,7 +4174,7 @@ arc_evict_state(arc_state_t *state, uint64_t spa, int64_t bytes,
 	 * While we haven't hit our target number of bytes to evict, or
 	 * we're evicting all available buffers.
 	 */
-	while (total_evicted < bytes || bytes == ARC_EVICT_ALL) {
+	while (total_evicted < bytes) {
 		int sublist_idx = multilist_get_random_index(ml);
 		uint64_t scan_evicted = 0;
 
@@ -4215,9 +4202,7 @@ arc_evict_state(arc_state_t *state, uint64_t spa, int64_t bytes,
 			uint64_t bytes_remaining;
 			uint64_t bytes_evicted;
 
-			if (bytes == ARC_EVICT_ALL)
-				bytes_remaining = ARC_EVICT_ALL;
-			else if (total_evicted < bytes)
+			if (total_evicted < bytes)
 				bytes_remaining = bytes - total_evicted;
 			else
 				break;
@@ -4312,7 +4297,7 @@ static uint64_t
 arc_evict_impl(arc_state_t *state, uint64_t spa, int64_t bytes,
     arc_buf_contents_t type)
 {
-	int64_t delta;
+	uint64_t delta;
 
 	if (bytes > 0 && zfs_refcount_count(&state->arcs_esize[type]) > 0) {
 		delta = MIN(zfs_refcount_count(&state->arcs_esize[type]),
@@ -7563,13 +7548,6 @@ arc_tuning_update(boolean_t verbose)
 static void
 arc_state_init(void)
 {
-	arc_anon = &ARC_anon;
-	arc_mru = &ARC_mru;
-	arc_mru_ghost = &ARC_mru_ghost;
-	arc_mfu = &ARC_mfu;
-	arc_mfu_ghost = &ARC_mfu_ghost;
-	arc_l2c_only = &ARC_l2c_only;
-
 	multilist_create(&arc_mru->arcs_list[ARC_BUFC_METADATA],
 	    sizeof (arc_buf_hdr_t),
 	    offsetof(arc_buf_hdr_t, b_l1hdr.b_arc_node),
