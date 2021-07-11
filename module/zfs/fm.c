@@ -278,25 +278,29 @@ zfs_zevent_minor_to_state(minor_t minor, zfs_zevent_t **ze)
 	return (0);
 }
 
-int
+zfs_file_t *
 zfs_zevent_fd_hold(int fd, minor_t *minorp, zfs_zevent_t **ze)
 {
-	int error;
+	zfs_file_t *fp = zfs_file_get(fd);
+	if (fp == NULL)
+		return (NULL);
 
-	error = zfsdev_getminor(fd, minorp);
+	int error = zfsdev_getminor(fp, minorp);
 	if (error == 0)
 		error = zfs_zevent_minor_to_state(*minorp, ze);
 
-	if (error)
-		zfs_zevent_fd_rele(fd);
+	if (error) {
+		zfs_zevent_fd_rele(fp);
+		fp = NULL;
+	}
 
-	return (error);
+	return (fp);
 }
 
 void
-zfs_zevent_fd_rele(int fd)
+zfs_zevent_fd_rele(zfs_file_t *fp)
 {
-	zfs_file_put(fd);
+	zfs_file_put(fp);
 }
 
 /*
