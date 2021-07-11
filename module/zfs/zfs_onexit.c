@@ -107,30 +107,33 @@ zfs_onexit_destroy(zfs_onexit_t *zo)
  * of this function must call zfs_onexit_fd_rele() when they're finished
  * using the minor number.
  */
-int
+zfs_file_t *
 zfs_onexit_fd_hold(int fd, minor_t *minorp)
 {
 	zfs_onexit_t *zo = NULL;
-	int error;
 
-	error = zfsdev_getminor(fd, minorp);
+	zfs_file_t *fp = zfs_file_get(fd);
+	if (fp == NULL)
+		return (NULL);
+
+	int error = zfsdev_getminor(fp, minorp);
 	if (error) {
-		zfs_onexit_fd_rele(fd);
-		return (error);
+		zfs_onexit_fd_rele(fp);
+		return (NULL);
 	}
 
 	zo = zfsdev_get_state(*minorp, ZST_ONEXIT);
 	if (zo == NULL) {
-		zfs_onexit_fd_rele(fd);
-		return (SET_ERROR(EBADF));
+		zfs_onexit_fd_rele(fp);
+		return (NULL);
 	}
-	return (0);
+	return (fp);
 }
 
 void
-zfs_onexit_fd_rele(int fd)
+zfs_onexit_fd_rele(zfs_file_t *fp)
 {
-	zfs_file_put(fd);
+	zfs_file_put(fp);
 }
 
 static int

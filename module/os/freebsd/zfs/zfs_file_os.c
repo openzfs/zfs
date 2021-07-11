@@ -241,28 +241,21 @@ zfs_file_fsync(zfs_file_t *fp, int flags)
 	return (zfs_vop_fsync(fp->f_vnode));
 }
 
-int
-zfs_file_get(int fd, zfs_file_t **fpp)
+zfs_file_t *
+zfs_file_get(int fd)
 {
 	struct file *fp;
 
 	if (fget(curthread, fd, &cap_no_rights, &fp))
-		return (SET_ERROR(EBADF));
+		return (NULL);
 
-	*fpp = fp;
-	return (0);
+	return (fp);
 }
 
 void
-zfs_file_put(int fd)
+zfs_file_put(zfs_file_t *fp)
 {
-	struct file *fp;
-
-	/* No CAP_ rights required, as we're only releasing. */
-	if (fget(curthread, fd, &cap_no_rights, &fp) == 0) {
-		fdrop(fp, curthread);
-		fdrop(fp, curthread);
-	}
+	fdrop(fp, curthread);
 }
 
 loff_t
