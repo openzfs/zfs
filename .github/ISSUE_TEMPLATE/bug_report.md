@@ -25,14 +25,16 @@ Type | Version/Name
  --- | ---
 Distribution Name	|
 Distribution Version	|
-Linux Kernel	|
+Kernel Version	|
 Architecture	|
-ZFS Version	|
-SPL Version	|
+OpenZFS Version	|
 <!--
-Commands to find ZFS/SPL versions:
-modinfo zfs | grep -iw version
-modinfo spl | grep -iw version
+Command to find OpenZFS version:
+zfs version
+
+Commands to find kernel version:
+uname -r		# Linux
+freebsd-version -r	# FreeBSD
 -->
 
 ### Describe the problem you're observing
