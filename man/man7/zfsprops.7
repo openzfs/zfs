@@ -1864,7 +1864,10 @@ format when written.
 When
 .Sy feature@xattr_compat
 is disabled, xattrs behave as with
-.Sy xattr_compat=linux .
+.Sy xattr_compat=linux
+on Linux and as with
+.Sy xattr_compat=all
+elsewhere.
 When set to
 .Sy linux ,
 xattrs written in the user namespace are stored in a format that is compatible
