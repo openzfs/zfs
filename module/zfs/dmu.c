@@ -994,11 +994,25 @@ dmu_free_range(objset_t *os, uint64_t object, uint64_t offset,
 	return (0);
 }
 
+inline static size_t dmu_read_default(const void *buf, char *addr,
+    uint64_t offset, uint64_t logical_offset, size_t len)
+{
+	/* Deal with odd block sizes */
+	if (addr == NULL) {
+		bzero((char *)buf, len);
+		return (len);
+	}
+
+	(void) memcpy((char *)buf + logical_offset, (char *)addr, len);
+	return (len);
+}
+
 static int
 dmu_read_impl(dnode_t *dn, uint64_t offset, uint64_t size,
-    void *buf, uint32_t flags)
+    void *buf, dmu_io_func func, uint32_t flags)
 {
 	dmu_buf_t **dbp;
+	uint64_t logical_offset = 0ULL;
 	int numbufs, err = 0;
 
 	/*
@@ -1009,7 +1023,7 @@ dmu_read_impl(dnode_t *dn, uint64_t offset, uint64_t size,
 	if (dn->dn_maxblkid == 0) {
 		uint64_t newsz = offset > dn->dn_datablksz ? 0 :
 		    MIN(size, dn->dn_datablksz - offset);
-		bzero((char *)buf + newsz, size - newsz);
+		(void) func((char *)buf + newsz, NULL, 0, 0, size - newsz);
 		size = newsz;
 	}
 
@@ -1036,11 +1050,17 @@ dmu_read_impl(dnode_t *dn, uint64_t offset, uint64_t size,
 			bufoff = offset - db->db_offset;
 			tocpy = MIN(db->db_size - bufoff, size);
 
-			(void) memcpy(buf, (char *)db->db_data + bufoff, tocpy);
+			tocpy = func(buf, (char *)db->db_data + bufoff, offset,
+			    logical_offset, tocpy);
+
+			if (tocpy < 0) {
+				err = SET_ERROR(EIO);
+				break;
+			}
 
 			offset += tocpy;
 			size -= tocpy;
-			buf = (char *)buf + tocpy;
+			logical_offset += tocpy;
 		}
 		dmu_buf_rele_array(dbp, numbufs, FTAG);
 	}
@@ -1058,7 +1078,7 @@ dmu_read(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 	if (err != 0)
 		return (err);
 
-	err = dmu_read_impl(dn, offset, size, buf, flags);
+	err = dmu_read_impl(dn, offset, size, buf, dmu_read_default, flags);
 	dnode_rele(dn, FTAG);
 	return (err);
 }
@@ -1067,14 +1087,22 @@ int
 dmu_read_by_dnode(dnode_t *dn, uint64_t offset, uint64_t size, void *buf,
     uint32_t flags)
 {
-	return (dmu_read_impl(dn, offset, size, buf, flags));
+	return (dmu_read_impl(dn, offset, size, buf, dmu_read_default, flags));
 }
 
-static void
+inline static size_t dmu_write_default(const void *buf, char *addr,
+    uint64_t offset, uint64_t logical_offset, size_t len)
+{
+	(void) memcpy((char *)addr, (char *)buf + logical_offset, len);
+	return (len);
+}
+
+static int
 dmu_write_impl(dmu_buf_t **dbp, int numbufs, uint64_t offset, uint64_t size,
-    const void *buf, dmu_tx_t *tx)
+    const void *buf, dmu_io_func func, dmu_tx_t *tx)
 {
 	int i;
+	uint64_t logical_offset = 0ULL;
 
 	for (i = 0; i < numbufs; i++) {
 		uint64_t tocpy;
@@ -1093,15 +1121,20 @@ dmu_write_impl(dmu_buf_t **dbp, int numbufs, uint64_t offset, uint64_t size,
 		else
 			dmu_buf_will_dirty(db, tx);
 
-		(void) memcpy((char *)db->db_data + bufoff, buf, tocpy);
+		tocpy = func(buf, (char *)db->db_data + bufoff, offset,
+		    logical_offset, tocpy);
+
+		if (tocpy < 0)
+			return (SET_ERROR(EIO));
 
 		if (tocpy == db->db_size)
 			dmu_buf_fill_done(db, tx);
 
 		offset += tocpy;
 		size -= tocpy;
-		buf = (char *)buf + tocpy;
+		logical_offset += tocpy;
 	}
+	return (0);
 }
 
 void
@@ -1116,7 +1149,8 @@ dmu_write(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 
 	VERIFY0(dmu_buf_hold_array(os, object, offset, size,
 	    FALSE, FTAG, &numbufs, &dbp));
-	dmu_write_impl(dbp, numbufs, offset, size, buf, tx);
+	(void) dmu_write_impl(dbp, numbufs, offset, size, buf,
+	    dmu_write_default, tx);
 	dmu_buf_rele_array(dbp, numbufs, FTAG);
 }
 
@@ -1135,7 +1169,8 @@ dmu_write_by_dnode(dnode_t *dn, uint64_t offset, uint64_t size,
 
 	VERIFY0(dmu_buf_hold_array_by_dnode(dn, offset, size,
 	    FALSE, FTAG, &numbufs, &dbp, DMU_READ_PREFETCH));
-	dmu_write_impl(dbp, numbufs, offset, size, buf, tx);
+	(void) dmu_write_impl(dbp, numbufs, offset, size, buf,
+	    dmu_write_default, tx);
 	dmu_buf_rele_array(dbp, numbufs, FTAG);
 }
 
@@ -1229,6 +1264,37 @@ dmu_read_uio_dnode(dnode_t *dn, zfs_uio_t *uio, uint64_t size)
 	}
 	dmu_buf_rele_array(dbp, numbufs, FTAG);
 
+	return (err);
+}
+
+/*
+ * Issue IO with callout to function 'func'.
+ * int func(void *privptr, char *address, uint64_t offset, uint64_t len);
+ * return number of bytes processed (hopefully 'len' amount). negative
+ * return for failure abort.
+ */
+int
+dmu_read_func_dnode(dnode_t *dn, uint64_t offset, uint64_t size,
+    void *privptr, dmu_io_func func, uint32_t flags)
+{
+	return (dmu_read_impl(dn, offset, size, privptr, func, flags));
+}
+
+int
+dmu_write_func_dnode(dnode_t *dn, uint64_t offset, uint64_t size,
+    const void *privptr, dmu_io_func func, dmu_tx_t *tx)
+{
+	dmu_buf_t **dbp;
+	int numbufs;
+	int err = 0;
+
+	if (size == 0)
+		return (err);
+
+	VERIFY0(dmu_buf_hold_array_by_dnode(dn, offset, size,
+	    FALSE, FTAG, &numbufs, &dbp, DMU_READ_PREFETCH));
+	err = dmu_write_impl(dbp, numbufs, offset, size, privptr, func, tx);
+	dmu_buf_rele_array(dbp, numbufs, FTAG);
 	return (err);
 }
 

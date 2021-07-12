@@ -833,6 +833,10 @@ int dmu_free_long_object(objset_t *os, uint64_t object);
 #define	DMU_READ_PREFETCH	0 /* prefetch */
 #define	DMU_READ_NO_PREFETCH	1 /* don't prefetch */
 #define	DMU_READ_NO_DECRYPT	2 /* don't decrypt */
+
+typedef size_t (*dmu_io_func)(const void *privptr, char *addr,
+    uint64_t offset, uint64_t logical_offset, size_t len);
+
 int dmu_read(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 	void *buf, uint32_t flags);
 int dmu_read_by_dnode(dnode_t *dn, uint64_t offset, uint64_t size, void *buf,
@@ -853,6 +857,10 @@ int dmu_write_uio_dbuf(dmu_buf_t *zdb, zfs_uio_t *uio, uint64_t size,
 	dmu_tx_t *tx);
 int dmu_write_uio_dnode(dnode_t *dn, zfs_uio_t *uio, uint64_t size,
 	dmu_tx_t *tx);
+int dmu_read_func_dnode(dnode_t *dn, uint64_t offset, uint64_t size,
+    void *privptr, dmu_io_func func, uint32_t flags);
+int dmu_write_func_dnode(dnode_t *dn, uint64_t offset, uint64_t size,
+    const void *privptr, dmu_io_func func, dmu_tx_t *tx);
 #endif
 struct arc_buf *dmu_request_arcbuf(dmu_buf_t *handle, int size);
 void dmu_return_arcbuf(struct arc_buf *buf);
