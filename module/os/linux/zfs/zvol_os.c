@@ -794,10 +794,19 @@ zvol_alloc(dev_t dev, const char *name)
 	list_link_init(&zv->zv_next);
 	mutex_init(&zv->zv_state_lock, NULL, MUTEX_DEFAULT, NULL);
 
+#ifdef HAVE_BLK_ALLOC_DISK
+	zso->zvo_disk = blk_alloc_disk(NUMA_NO_NODE);
+	if (zso->zvo_disk == NULL)
+		goto out_kmem;
+
+	zso->zvo_queue = zso->zvo_disk->queue;
+	zso->zvo_disk->minors = ZVOL_MINORS;
+#else
 #ifdef HAVE_SUBMIT_BIO_IN_BLOCK_DEVICE_OPERATIONS
 	zso->zvo_queue = blk_alloc_queue(NUMA_NO_NODE);
 #else
 	zso->zvo_queue = blk_generic_alloc_queue(zvol_request, NUMA_NO_NODE);
+#endif
 #endif
 	if (zso->zvo_queue == NULL)
 		goto out_kmem;
@@ -810,9 +819,11 @@ zvol_alloc(dev_t dev, const char *name)
 	/* Disable write merging in favor of the ZIO pipeline. */
 	blk_queue_flag_set(QUEUE_FLAG_NOMERGES, zso->zvo_queue);
 
+#ifndef HAVE_BLK_ALLOC_DISK
 	zso->zvo_disk = alloc_disk(ZVOL_MINORS);
 	if (zso->zvo_disk == NULL)
 		goto out_queue;
+#endif
 
 	zso->zvo_queue->queuedata = zv;
 	zso->zvo_dev = dev;
@@ -851,7 +862,11 @@ zvol_alloc(dev_t dev, const char *name)
 	return (zv);
 
 out_queue:
+#ifdef HAVE_BLK_ALLOC_DISK
+	blk_cleanup_disk(zso->zvo_disk);
+#else
 	blk_cleanup_queue(zso->zvo_queue);
+#endif
 out_kmem:
 	kmem_free(zso, sizeof (struct zvol_state_os));
 	kmem_free(zv, sizeof (zvol_state_t));
