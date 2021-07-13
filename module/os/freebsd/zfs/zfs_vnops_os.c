@@ -5564,24 +5564,11 @@ zfs_deleteextattr_impl(struct vop_deleteextattr_args *ap, boolean_t compat)
 	if (error != 0)
 		return (error);
 
-	size_t size = 0;
-	struct vop_getextattr_args vga = {
-		.a_vp = ap->a_vp,
-		.a_size = &size,
-		.a_cred = ap->a_cred,
-		.a_td = ap->a_td,
-	};
 	error = ENOENT;
-	if (zfsvfs->z_use_sa && zp->z_is_sa) {
-		error = zfs_getextattr_sa(&vga, attrname);
-		if (error == 0)
-			error = zfs_deleteextattr_sa(ap, attrname);
-	}
-	if (error == ENOENT) {
-		error = zfs_getextattr_dir(&vga, attrname);
-		if (error == 0)
-			error = zfs_deleteextattr_dir(ap, attrname);
-	}
+	if (zfsvfs->z_use_sa && zp->z_is_sa)
+		error = zfs_deleteextattr_sa(ap, attrname);
+	if (error == ENOENT)
+		error = zfs_deleteextattr_dir(ap, attrname);
 	return (error);
 }
 
@@ -5753,16 +5740,11 @@ zfs_setextattr_impl(struct vop_setextattr_args *ap, boolean_t compat)
 			 */
 			zfs_deleteextattr_sa(&vda, attrname);
 	}
-	if (error == 0 && ap->a_attrnamespace == EXTATTR_NAMESPACE_USER) {
+	if (error == 0 && ap->a_attrnamespace == EXTATTR_NAMESPACE_USER)
 		/*
 		 * Also clear all versions of the alternate compat name.
 		 */
-		if (zfs_create_attrname(ap->a_attrnamespace, ap->a_name,
-		    attrname, sizeof (attrname), !compat) == 0) {
-			zfs_deleteextattr_sa(&vda, attrname);
-			zfs_deleteextattr_dir(&vda, attrname);
-		}
-	}
+		zfs_deleteextattr_impl(&vda, !compat);
 	return (error);
 }
 
