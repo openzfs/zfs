@@ -7729,6 +7729,9 @@ out:
 	return (error);
 }
 
+/*
+ * Returns 0 for success or a _positive_ error value.
+ */
 int
 zfs_kmod_init(void)
 {
@@ -7763,6 +7766,8 @@ err1:
 	zvol_fini();
 err0:
 	zfs_dbgmsg_fini();
+
+	VERIFY3S(error, >, 0);
 	return (error);
 }
 
