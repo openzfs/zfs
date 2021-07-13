@@ -503,7 +503,7 @@ ddt_get_dedup_histogram(spa_t *spa, ddt_histogram_t *ddh)
 {
 	for (enum zio_checksum c = 0; c < ZIO_CHECKSUM_FUNCTIONS; c++) {
 		ddt_t *ddt = spa->spa_ddt[c];
-		for (enum ddt_type type = 0; type < DDT_TYPES; type++) {
+		for (enum ddt_type type = 0; type < DDT_TYPES && ddt; type++) {
 			for (enum ddt_class class = 0; class < DDT_CLASSES;
 			    class++) {
 				ddt_histogram_add(ddh,
