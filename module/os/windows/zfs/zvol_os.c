@@ -733,13 +733,16 @@ zvol_os_create_minor(const char *name)
 	zv->zv_objset = os;
 
 	// set_capacity(zv->zv_zso->zvo_disk, zv->zv_volsize >> 9);
-
+	ASSERT3P(zv->zv_zilog, ==, NULL);
+	zv->zv_zilog = zil_open(os, zvol_get_data);
 	if (spa_writeable(dmu_objset_spa(os))) {
 		if (zil_replay_disable)
-			zil_destroy(dmu_objset_zil(os), B_FALSE);
+			zil_destroy(zv->zv_zilog, B_FALSE);
 		else
 			zil_replay(os, zv, zvol_replay_vector);
 	}
+	zil_close(zv->zv_zilog);
+	zv->zv_zilog = NULL;
 
 	dataset_kstats_create(&zv->zv_kstat, zv->zv_objset);
 
