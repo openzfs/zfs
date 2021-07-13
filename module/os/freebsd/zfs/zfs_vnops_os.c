@@ -5375,8 +5375,6 @@ zfs_getextattr_dir(struct vop_getextattr_args *ap, const char *attrname)
 			*ap->a_size = (size_t)va.va_size;
 	} else if (ap->a_uio != NULL)
 		error = VOP_READ(vp, ap->a_uio, IO_UNIT, ap->a_cred);
-	if (error != 0)
-		error = SET_ERROR(error);
 
 	VOP_UNLOCK1(vp);
 	vn_close(vp, flags, ap->a_cred, td);
@@ -5515,8 +5513,6 @@ zfs_deleteextattr_dir(struct vop_deleteextattr_args *ap, const char *attrname)
 	}
 
 	error = VOP_REMOVE(nd.ni_dvp, vp, &nd.ni_cnd);
-	if (error != 0)
-		error = SET_ERROR(error);
 	NDFREE(&nd, NDF_ONLY_PNBUF);
 
 	vput(nd.ni_dvp);
@@ -5544,10 +5540,10 @@ zfs_deleteextattr_sa(struct vop_deleteextattr_args *ap, const char *attrname)
 
 	nvl = zp->z_xattr_cached;
 	error = nvlist_remove(nvl, attrname, DATA_TYPE_BYTE_ARRAY);
-	if (error == 0)
-		error = zfs_sa_set_xattr(zp);
-	else
+	if (error != 0)
 		error = SET_ERROR(error);
+	else
+		error = zfs_sa_set_xattr(zp);
 	if (error != 0) {
 		zp->z_xattr_cached = NULL;
 		nvlist_free(nvl);
@@ -5671,8 +5667,6 @@ zfs_setextattr_dir(struct vop_setextattr_args *ap, const char *attrname)
 	error = VOP_SETATTR(vp, &va, ap->a_cred);
 	if (error == 0)
 		VOP_WRITE(vp, ap->a_uio, IO_UNIT, ap->a_cred);
-	else
-		error = SET_ERROR(error);
 
 	VOP_UNLOCK1(vp);
 	vn_close(vp, flags, ap->a_cred, td);
@@ -5705,10 +5699,13 @@ zfs_setextattr_sa(struct vop_setextattr_args *ap, const char *attrname)
 		return (SET_ERROR(EFBIG));
 	uchar_t *buf = kmem_alloc(entry_size, KM_SLEEP);
 	error = uiomove(buf, entry_size, ap->a_uio);
-	if (error == 0)
-		error = nvlist_add_byte_array(nvl, attrname, buf, entry_size);
-	else
+	if (error != 0) {
 		error = SET_ERROR(error);
+	} else {
+		error = nvlist_add_byte_array(nvl, attrname, buf, entry_size);
+		if (error != 0)
+			error = SET_ERROR(error);
+	}
 	kmem_free(buf, entry_size);
 	if (error == 0)
 		error = zfs_sa_set_xattr(zp);
@@ -5862,10 +5859,8 @@ zfs_listextattr_dir(struct vop_listextattr_args *ap, const char *attrprefix)
 		aiov.iov_len = sizeof (dirbuf);
 		auio.uio_resid = sizeof (dirbuf);
 		error = VOP_READDIR(vp, &auio, ap->a_cred, &eof, NULL, NULL);
-		if (error != 0) {
-			error = SET_ERROR(error);
+		if (error != 0)
 			break;
-		}
 		int done = sizeof (dirbuf) - auio.uio_resid;
 		for (int pos = 0; pos < done; ) {
 			struct dirent *dp = (struct dirent *)(dirbuf + pos);
