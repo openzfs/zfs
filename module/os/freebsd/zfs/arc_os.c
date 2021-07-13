@@ -234,8 +234,6 @@ arc_lowmem(void *arg __unused, int howto __unused)
 	 */
 	if (curproc == pageproc)
 		arc_wait_for_eviction(to_free);
-	else
-		arc_wait_for_eviction(0);
 }
 
 void
