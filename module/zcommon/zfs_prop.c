@@ -466,8 +466,12 @@ zfs_prop_init(void)
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT,
 	    "on | off | dir | sa", "XATTR", xattr_table);
 	zprop_register_index(ZFS_PROP_XATTR_COMPAT, "xattr_compat",
-	    ZFS_XATTR_COMPAT_ALL, PROP_INHERIT,
-	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT,
+#ifdef __linux__
+	    ZFS_XATTR_COMPAT_LINUX,
+#else
+	    ZFS_XATTR_COMPAT_ALL,
+#endif
+	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT,
 	    "all | linux", "XATTR_COMPAT", xattr_compat_table);
 	zprop_register_index(ZFS_PROP_DNODESIZE, "dnodesize",
 	    ZFS_DNSIZE_LEGACY, PROP_INHERIT, ZFS_TYPE_FILESYSTEM,
