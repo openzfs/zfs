@@ -5462,7 +5462,7 @@ zfs_getextattr(struct vop_getextattr_args *ap)
 	ZFS_VERIFY_ZP(zp)
 	rw_enter(&zp->z_xattr_lock, RW_READER);
 
-	boolean_t compat = !!(zfsvfs->z_flags & ZSB_XATTR_COMPAT);
+	boolean_t compat = (zfsvfs->z_flags & ZSB_XATTR_COMPAT) != 0;
 	error = zfs_getextattr_impl(ap, compat);
 	if (error == ENOENT && ap->a_attrnamespace == EXTATTR_NAMESPACE_USER)
 		/*
@@ -5601,7 +5601,7 @@ zfs_deleteextattr(struct vop_deleteextattr_args *ap)
 	ZFS_VERIFY_ZP(zp);
 	rw_enter(&zp->z_xattr_lock, RW_WRITER);
 
-	boolean_t compat = !!(zfsvfs->z_flags & ZSB_XATTR_COMPAT);
+	boolean_t compat = (zfsvfs->z_flags & ZSB_XATTR_COMPAT) != 0;
 	error = zfs_deleteextattr_impl(ap, compat);
 	if (error == ENOENT && ap->a_attrnamespace == EXTATTR_NAMESPACE_USER)
 		error = zfs_deleteextattr_impl(ap, !compat);
@@ -5777,7 +5777,7 @@ zfs_setextattr(struct vop_setextattr_args *ap)
 	ZFS_VERIFY_ZP(zp);
 	rw_enter(&zp->z_xattr_lock, RW_WRITER);
 
-	boolean_t compat = !!(zfsvfs->z_flags & ZSB_XATTR_COMPAT);
+	boolean_t compat = (zfsvfs->z_flags & ZSB_XATTR_COMPAT) != 0;
 	error = zfs_setextattr_impl(ap, compat);
 
 	rw_exit(&zp->z_xattr_lock);
@@ -5977,7 +5977,7 @@ zfs_listextattr(struct vop_listextattr_args *ap)
 	ZFS_VERIFY_ZP(zp);
 	rw_enter(&zp->z_xattr_lock, RW_READER);
 
-	boolean_t compat = !!(zfsvfs->z_flags & ZSB_XATTR_COMPAT);
+	boolean_t compat = (zfsvfs->z_flags & ZSB_XATTR_COMPAT) != 0;
 	error = zfs_listextattr_impl(ap, compat);
 	if (error == 0 && ap->a_attrnamespace == EXTATTR_NAMESPACE_USER)
 		/* Also list user xattrs with the alternate format. */
