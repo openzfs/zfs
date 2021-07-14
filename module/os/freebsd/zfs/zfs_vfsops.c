@@ -520,6 +520,17 @@ xattr_compat_changed_cb(void *arg, uint64_t newval)
 }
 
 static void
+xattr_fallback_changed_cb(void *arg, uint64_t newval)
+{
+	zfsvfs_t *zfsvfs = arg;
+
+	if (newval)
+		zfsvfs->z_flags |= ZSB_XATTR_FALLBACK;
+	else
+		zfsvfs->z_flags &= ~ZSB_XATTR_FALLBACK;
+}
+
+static void
 blksz_changed_cb(void *arg, uint64_t newval)
 {
 	zfsvfs_t *zfsvfs = arg;
@@ -765,6 +776,9 @@ zfs_register_callbacks(vfs_t *vfsp)
 	error = error ? error : dsl_prop_register(ds,
 	    zfs_prop_to_name(ZFS_PROP_XATTR_COMPAT), xattr_compat_changed_cb,
 	    zfsvfs);
+	error = error ? error : dsl_prop_register(ds,
+	    zfs_prop_to_name(ZFS_PROP_XATTR_FALLBACK),
+	    xattr_fallback_changed_cb, zfsvfs);
 	error = error ? error : dsl_prop_register(ds,
 	    zfs_prop_to_name(ZFS_PROP_RECORDSIZE), blksz_changed_cb, zfsvfs);
 	error = error ? error : dsl_prop_register(ds,
@@ -1285,6 +1299,10 @@ zfs_domount(vfs_t *vfsp, char *osname)
 		    "xattr_compat", &pval, NULL)))
 			goto out;
 		xattr_compat_changed_cb(zfsvfs, pval);
+		if ((error = dsl_prop_get_integer(osname,
+		    "xattr_fallback", &pval, NULL)))
+			goto out;
+		xattr_fallback_changed_cb(zfsvfs, pval);
 		if ((error = dsl_prop_get_integer(osname,
 		    "acltype", &pval, NULL)))
 			goto out;

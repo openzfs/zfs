@@ -729,6 +729,7 @@ __zpl_xattr_user_get(struct inode *ip, const char *name,
     void *value, size_t size)
 {
 	boolean_t compat = !!(ITOZSB(ip)->z_flags & ZSB_XATTR_COMPAT);
+	boolean_t fallback = !!(ITOZSB(ip)->z_flags & ZSB_XATTR_FALLBACK);
 	int error;
 	/* xattr_resolve_name will do this for us if this is defined */
 #ifndef HAVE_XATTR_HANDLER_NAME
@@ -743,11 +744,12 @@ __zpl_xattr_user_get(struct inode *ip, const char *name,
 	/*
 	 * Try to look up the name without the namespace prefix first for
 	 * compatibility with xattrs from other platforms.  If that fails,
-	 * try again with the namespace prefix.
+	 * try again with the namespace prefix if fallback is allowed.
 	 */
-	if (compat)
+	error = -ENODATA;
+	if (compat || fallback)
 		error = zpl_xattr_get(ip, name, value, size);
-	if (!compat || error == -ENODATA) {
+	if (!compat || (fallback && error == -ENODATA)) {
 		char *xattr_name;
 		xattr_name = kmem_asprintf("%s%s", XATTR_USER_PREFIX, name);
 		error = zpl_xattr_get(ip, xattr_name, value, size);
@@ -764,7 +766,8 @@ __zpl_xattr_user_set(struct inode *ip, const char *name,
 {
 	char *xattr_name;
 	boolean_t compat = !!(ITOZSB(ip)->z_flags & ZSB_XATTR_COMPAT);
-	int error;
+	boolean_t fallback = !!(ITOZSB(ip)->z_flags & ZSB_XATTR_FALLBACK);
+	int error = 0;
 	/* xattr_resolve_name will do this for us if this is defined */
 #ifndef HAVE_XATTR_HANDLER_NAME
 	if (strcmp(name, "") == 0)
@@ -785,15 +788,15 @@ __zpl_xattr_user_set(struct inode *ip, const char *name,
 	 *   XATTR_REPLACE: fail if xattr does not exist
 	 */
 	xattr_name = kmem_asprintf("%s%s", XATTR_USER_PREFIX, name);
-	if (compat)
+	if (compat && fallback)
 		error = zpl_xattr_set(ip, xattr_name, NULL, 0, flags);
-	else
+	if (!compat)
 		error = zpl_xattr_set(ip, xattr_name, value, size, flags);
 	kmem_strfree(xattr_name);
 
 	if (!compat || error == -EEXIST)
 		return (error);
-	if (error == 0 && (flags & XATTR_REPLACE))
+	if (fallback && error == 0 && (flags & XATTR_REPLACE))
 		flags &= ~XATTR_REPLACE;
 	error = zpl_xattr_set(ip, name, value, size, flags);
 
