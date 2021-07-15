@@ -5375,8 +5375,6 @@ zfs_getextattr_dir(struct vop_getextattr_args *ap, const char *attrname)
 			*ap->a_size = (size_t)va.va_size;
 	} else if (ap->a_uio != NULL)
 		error = VOP_READ(vp, ap->a_uio, IO_UNIT, ap->a_cred);
-	if (error != 0)
-		error = SET_ERROR(error);
 
 	VOP_UNLOCK1(vp);
 	vn_close(vp, flags, ap->a_cred, td);
@@ -5464,14 +5462,17 @@ zfs_getextattr(struct vop_getextattr_args *ap)
 	ZFS_VERIFY_ZP(zp)
 	rw_enter(&zp->z_xattr_lock, RW_READER);
 
-	boolean_t compat = !!(zfsvfs->z_flags & ZSB_XATTR_COMPAT);
+	boolean_t compat = (zfsvfs->z_flags & ZSB_XATTR_COMPAT) != 0;
+	boolean_t fallback = (zfsvfs->z_flags & ZSB_XATTR_FALLBACK) != 0;
 	error = zfs_getextattr_impl(ap, compat);
-	if (error == ENOENT && ap->a_attrnamespace == EXTATTR_NAMESPACE_USER)
+	if (fallback && error == ENOENT &&
+	    ap->a_attrnamespace == EXTATTR_NAMESPACE_USER) {
 		/*
 		 * Fall back to the alternate namespace format if we failed to
 		 * find a user xattr.
 		 */
 		error = zfs_getextattr_impl(ap, !compat);
+	}
 	if (error == ENOENT)
 		error = SET_ERROR(ENOATTR);
 
@@ -5515,8 +5516,6 @@ zfs_deleteextattr_dir(struct vop_deleteextattr_args *ap, const char *attrname)
 	}
 
 	error = VOP_REMOVE(nd.ni_dvp, vp, &nd.ni_cnd);
-	if (error != 0)
-		error = SET_ERROR(error);
 	NDFREE(&nd, NDF_ONLY_PNBUF);
 
 	vput(nd.ni_dvp);
@@ -5544,10 +5543,10 @@ zfs_deleteextattr_sa(struct vop_deleteextattr_args *ap, const char *attrname)
 
 	nvl = zp->z_xattr_cached;
 	error = nvlist_remove(nvl, attrname, DATA_TYPE_BYTE_ARRAY);
-	if (error == 0)
-		error = zfs_sa_set_xattr(zp);
-	else
+	if (error != 0)
 		error = SET_ERROR(error);
+	else
+		error = zfs_sa_set_xattr(zp);
 	if (error != 0) {
 		zp->z_xattr_cached = NULL;
 		nvlist_free(nvl);
@@ -5568,24 +5567,11 @@ zfs_deleteextattr_impl(struct vop_deleteextattr_args *ap, boolean_t compat)
 	if (error != 0)
 		return (error);
 
-	size_t size = 0;
-	struct vop_getextattr_args vga = {
-		.a_vp = ap->a_vp,
-		.a_size = &size,
-		.a_cred = ap->a_cred,
-		.a_td = ap->a_td,
-	};
 	error = ENOENT;
-	if (zfsvfs->z_use_sa && zp->z_is_sa) {
-		error = zfs_getextattr_sa(&vga, attrname);
-		if (error == 0)
-			error = zfs_deleteextattr_sa(ap, attrname);
-	}
-	if (error == ENOENT) {
-		error = zfs_getextattr_dir(&vga, attrname);
-		if (error == 0)
-			error = zfs_deleteextattr_dir(ap, attrname);
-	}
+	if (zfsvfs->z_use_sa && zp->z_is_sa)
+		error = zfs_deleteextattr_sa(ap, attrname);
+	if (error == ENOENT)
+		error = zfs_deleteextattr_dir(ap, attrname);
 	return (error);
 }
 
@@ -5618,10 +5604,17 @@ zfs_deleteextattr(struct vop_deleteextattr_args *ap)
 	ZFS_VERIFY_ZP(zp);
 	rw_enter(&zp->z_xattr_lock, RW_WRITER);
 
-	boolean_t compat = !!(zfsvfs->z_flags & ZSB_XATTR_COMPAT);
+	boolean_t compat = (zfsvfs->z_flags & ZSB_XATTR_COMPAT) != 0;
+	boolean_t fallback = (zfsvfs->z_flags & ZSB_XATTR_FALLBACK) != 0;
 	error = zfs_deleteextattr_impl(ap, compat);
-	if (error == ENOENT && ap->a_attrnamespace == EXTATTR_NAMESPACE_USER)
+	if (fallback && error == ENOENT &&
+	    ap->a_attrnamespace == EXTATTR_NAMESPACE_USER) {
+		/*
+		 * Fall back to the alternate namespace format if we failed to
+		 * find a user xattr.
+		 */
 		error = zfs_deleteextattr_impl(ap, !compat);
+	}
 	if (error == ENOENT)
 		error = SET_ERROR(ENOATTR);
 
@@ -5671,8 +5664,6 @@ zfs_setextattr_dir(struct vop_setextattr_args *ap, const char *attrname)
 	error = VOP_SETATTR(vp, &va, ap->a_cred);
 	if (error == 0)
 		VOP_WRITE(vp, ap->a_uio, IO_UNIT, ap->a_cred);
-	else
-		error = SET_ERROR(error);
 
 	VOP_UNLOCK1(vp);
 	vn_close(vp, flags, ap->a_cred, td);
@@ -5705,10 +5696,13 @@ zfs_setextattr_sa(struct vop_setextattr_args *ap, const char *attrname)
 		return (SET_ERROR(EFBIG));
 	uchar_t *buf = kmem_alloc(entry_size, KM_SLEEP);
 	error = uiomove(buf, entry_size, ap->a_uio);
-	if (error == 0)
-		error = nvlist_add_byte_array(nvl, attrname, buf, entry_size);
-	else
+	if (error != 0) {
 		error = SET_ERROR(error);
+	} else {
+		error = nvlist_add_byte_array(nvl, attrname, buf, entry_size);
+		if (error != 0)
+			error = SET_ERROR(error);
+	}
 	kmem_free(buf, entry_size);
 	if (error == 0)
 		error = zfs_sa_set_xattr(zp);
@@ -5740,31 +5734,31 @@ zfs_setextattr_impl(struct vop_setextattr_args *ap, boolean_t compat)
 	error = ENOENT;
 	if (zfsvfs->z_use_sa && zp->z_is_sa && zfsvfs->z_xattr_sa) {
 		error = zfs_setextattr_sa(ap, attrname);
-		if (error == 0)
+		if (error == 0) {
 			/*
 			 * Successfully put into SA, we need to clear the one
 			 * in dir if present.
 			 */
 			zfs_deleteextattr_dir(&vda, attrname);
+		}
 	}
 	if (error) {
 		error = zfs_setextattr_dir(ap, attrname);
-		if (error == 0)
+		if (error == 0) {
 			/*
 			 * Successfully put into dir, we need to clear the one
 			 * in SA if present.
 			 */
 			zfs_deleteextattr_sa(&vda, attrname);
+		}
 	}
-	if (error == 0 && ap->a_attrnamespace == EXTATTR_NAMESPACE_USER) {
+	boolean_t fallback = (zfsvfs->z_flags & ZSB_XATTR_FALLBACK) != 0;
+	if (fallback && error == 0 &&
+	    ap->a_attrnamespace == EXTATTR_NAMESPACE_USER) {
 		/*
 		 * Also clear all versions of the alternate compat name.
 		 */
-		if (zfs_create_attrname(ap->a_attrnamespace, ap->a_name,
-		    attrname, sizeof (attrname), !compat) == 0) {
-			zfs_deleteextattr_sa(&vda, attrname);
-			zfs_deleteextattr_dir(&vda, attrname);
-		}
+		zfs_deleteextattr_impl(&vda, !compat);
 	}
 	return (error);
 }
@@ -5798,7 +5792,7 @@ zfs_setextattr(struct vop_setextattr_args *ap)
 	ZFS_VERIFY_ZP(zp);
 	rw_enter(&zp->z_xattr_lock, RW_WRITER);
 
-	boolean_t compat = !!(zfsvfs->z_flags & ZSB_XATTR_COMPAT);
+	boolean_t compat = (zfsvfs->z_flags & ZSB_XATTR_COMPAT) != 0;
 	error = zfs_setextattr_impl(ap, compat);
 
 	rw_exit(&zp->z_xattr_lock);
@@ -5862,10 +5856,8 @@ zfs_listextattr_dir(struct vop_listextattr_args *ap, const char *attrprefix)
 		aiov.iov_len = sizeof (dirbuf);
 		auio.uio_resid = sizeof (dirbuf);
 		error = VOP_READDIR(vp, &auio, ap->a_cred, &eof, NULL, NULL);
-		if (error != 0) {
-			error = SET_ERROR(error);
+		if (error != 0)
 			break;
-		}
 		int done = sizeof (dirbuf) - auio.uio_resid;
 		for (int pos = 0; pos < done; ) {
 			struct dirent *dp = (struct dirent *)(dirbuf + pos);
@@ -6000,11 +5992,14 @@ zfs_listextattr(struct vop_listextattr_args *ap)
 	ZFS_VERIFY_ZP(zp);
 	rw_enter(&zp->z_xattr_lock, RW_READER);
 
-	boolean_t compat = !!(zfsvfs->z_flags & ZSB_XATTR_COMPAT);
+	boolean_t compat = (zfsvfs->z_flags & ZSB_XATTR_COMPAT) != 0;
+	boolean_t fallback = (zfsvfs->z_flags & ZSB_XATTR_FALLBACK) != 0;
 	error = zfs_listextattr_impl(ap, compat);
-	if (error == 0 && ap->a_attrnamespace == EXTATTR_NAMESPACE_USER)
+	if (fallback && error == 0 &&
+	    ap->a_attrnamespace == EXTATTR_NAMESPACE_USER) {
 		/* Also list user xattrs with the alternate format. */
 		error = zfs_listextattr_impl(ap, !compat);
+	}
 
 	rw_exit(&zp->z_xattr_lock);
 	ZFS_EXIT(zfsvfs);
