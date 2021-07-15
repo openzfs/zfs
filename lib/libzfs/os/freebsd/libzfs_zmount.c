@@ -121,7 +121,7 @@ do_mount(zfs_handle_t *zhp, const char *mntpt, char *opts, int flags)
 }
 
 int
-do_unmount(const char *mntpt, int flags)
+do_unmount(zfs_handle_t *zhp, const char *mntpt, int flags)
 {
 	if (unmount(mntpt, flags) < 0)
 		return (errno);

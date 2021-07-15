@@ -243,7 +243,8 @@ extern proto_table_t proto_table[PROTO_END];
 
 extern int do_mount(zfs_handle_t *zhp, const char *mntpt, char *opts,
     int flags);
-extern int do_unmount(const char *mntpt, int flags);
+extern int do_unmount(zfs_handle_t *zhp, const char *mntpt, int flags);
+extern int zfs_mount_delegation_check(void);
 extern int zfs_share_proto(zfs_handle_t *zhp, zfs_share_proto_t *proto);
 extern int zfs_unshare_proto(zfs_handle_t *, const char *, zfs_share_proto_t *);
 extern int unshare_one(libzfs_handle_t *hdl, const char *name,
