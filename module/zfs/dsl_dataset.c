@@ -192,9 +192,8 @@ dsl_dataset_block_born(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx)
 	}
 
 	mutex_exit(&ds->ds_lock);
-	dsl_dir_diduse_space(ds->ds_dir, DD_USED_HEAD, delta,
-	    compressed, uncompressed, tx);
-	dsl_dir_transfer_space(ds->ds_dir, used - delta,
+	dsl_dir_diduse_transfer_space(ds->ds_dir, delta,
+	    compressed, uncompressed, used,
 	    DD_USED_REFRSRV, DD_USED_HEAD, tx);
 }
 
@@ -291,9 +290,8 @@ dsl_dataset_block_kill(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx,
 		delta = parent_delta(ds, -used);
 		dsl_dataset_phys(ds)->ds_unique_bytes -= used;
 		mutex_exit(&ds->ds_lock);
-		dsl_dir_diduse_space(ds->ds_dir, DD_USED_HEAD,
-		    delta, -compressed, -uncompressed, tx);
-		dsl_dir_transfer_space(ds->ds_dir, -used - delta,
+		dsl_dir_diduse_transfer_space(ds->ds_dir,
+		    delta, -compressed, -uncompressed, -used,
 		    DD_USED_REFRSRV, DD_USED_HEAD, tx);
 	} else {
 		dprintf_bp(bp, "putting on dead list: %s", "");
