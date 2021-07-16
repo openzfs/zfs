@@ -44,7 +44,7 @@
 .Ar snapshot
 .Nm zfs
 .Cm send
-.Op Fl DLPRcenpsvw
+.Op Fl DLPcensvw
 .Op Fl i Ar snapshot Ns | Ns Ar bookmark
 .Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot
 .Nm zfs
@@ -285,7 +285,7 @@ You will be able to receive your streams on future versions of ZFS.
 .It Xo
 .Nm zfs
 .Cm send
-.Op Fl DLPRcenpvw
+.Op Fl DLPcenvw
 .Op Fl i Ar snapshot Ns | Ns Ar bookmark
 .Ar filesystem Ns | Ns Ar volume Ns | Ns Ar snapshot
 .Xc
@@ -296,7 +296,11 @@ filesystem must not be mounted.
 When the stream generated from a filesystem or volume is received, the default
 snapshot name will be
 .Qq --head-- .
-.Bl -tag -width "-L"
+.Bl -tag -width "-D"
+.It Fl D , -dedup
+Deduplicated send is no longer supported.
+This flag is accepted for backwards compatibility, but a regular,
+non-deduplicated stream will be generated.
 .It Fl L , -large-block
 Generate a stream which may contain blocks larger than 128KB.
 This flag has no effect if the
