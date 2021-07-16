@@ -129,6 +129,7 @@ dnode_cons(void *arg, void *unused, int kmflag)
 	zfs_refcount_create(&dn->dn_tx_holds);
 	list_link_init(&dn->dn_link);
 
+	bzero(&dn->dn_next_type[0], sizeof (dn->dn_next_type));
 	bzero(&dn->dn_next_nblkptr[0], sizeof (dn->dn_next_nblkptr));
 	bzero(&dn->dn_next_nlevels[0], sizeof (dn->dn_next_nlevels));
 	bzero(&dn->dn_next_indblkshift[0], sizeof (dn->dn_next_indblkshift));
