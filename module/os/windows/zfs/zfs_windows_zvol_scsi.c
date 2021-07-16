@@ -963,7 +963,7 @@ wzvol_WkRtn(__in PVOID pWkParms)
 	iov.iov_len = pSrb->DataTransferLength;
 
 	zfs_uio_t uio;
-	zfs_uio_iovec_init(&uio, &iov, 1, 0, UIO_SYSSPACE, pSrb->DataTransferLength, 0);
+	zfs_uio_iovec_init(&uio, &iov, 1, sectorOffset, UIO_SYSSPACE, pSrb->DataTransferLength, 0);
 	//    ActionRead == pWkRtnParms->Action ? UIO_READ : UIO_WRITE);
 
 	/* Call ZFS to read/write data */
