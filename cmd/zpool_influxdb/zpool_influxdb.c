@@ -683,9 +683,8 @@ print_recursive_stats(stat_printer_f func, nvlist_t *nvroot,
 
 	if (descend && nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN,
 	    &child, &children) == 0) {
-		(void) strncpy(vdev_name, get_vdev_name(nvroot, parent_name),
+		(void) strlcpy(vdev_name, get_vdev_name(nvroot, parent_name),
 		    sizeof (vdev_name));
-		vdev_name[sizeof (vdev_name) - 1] = '\0';
 
 		for (c = 0; c < children; c++) {
 			print_recursive_stats(func, child[c], pool_name,
