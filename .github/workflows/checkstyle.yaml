@@ -28,9 +28,12 @@ jobs:
     - name: Checkstyle
       run: |
         make checkstyle
-    - name: Lint
+    - name: Lint code
       run: |
         make lint
+    - name: Lint man pages
+      run: |
+        make mancheck
     - name: CheckABI
       run: |
         make checkabi
