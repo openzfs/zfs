@@ -106,10 +106,8 @@ typedef enum {
 
 typedef struct {
 	zvol_async_op_t op;
-	char pool[MAXNAMELEN];
 	char name1[MAXNAMELEN];
 	char name2[MAXNAMELEN];
-	zprop_source_t source;
 	uint64_t value;
 } zvol_task_t;
 
@@ -1435,7 +1433,6 @@ zvol_task_alloc(zvol_async_op_t op, const char *name1, const char *name2,
     uint64_t value)
 {
 	zvol_task_t *task;
-	char *delim;
 
 	/* Never allow tasks on hidden names. */
 	if (name1[0] == '$')
@@ -1444,8 +1441,6 @@ zvol_task_alloc(zvol_async_op_t op, const char *name1, const char *name2,
 	task = kmem_zalloc(sizeof (zvol_task_t), KM_SLEEP);
 	task->op = op;
 	task->value = value;
-	delim = strchr(name1, '/');
-	strlcpy(task->pool, name1, delim ? (delim - name1 + 1) : MAXNAMELEN);
 
 	strlcpy(task->name1, name1, MAXNAMELEN);
 	if (name2 != NULL)
