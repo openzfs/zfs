@@ -1241,7 +1241,11 @@ zvol_rename_minor(zvol_state_t *zv, const char *newname)
 		args.mda_si_drv2 = zv;
 		if (make_dev_s(&args, &dev, "%s/%s", ZVOL_DRIVER, newname)
 		    == 0) {
+#if __FreeBSD_version > 1300130
+			dev->si_iosize_max = maxphys;
+#else
 			dev->si_iosize_max = MAXPHYS;
+#endif
 			zsd->zsd_cdev = dev;
 		}
 	}
@@ -1382,7 +1386,11 @@ zvol_create_minor_impl(const char *name)
 			dmu_objset_disown(os, B_TRUE, FTAG);
 			goto out_doi;
 		}
+#if __FreeBSD_version > 1300130
+		dev->si_iosize_max = maxphys;
+#else
 		dev->si_iosize_max = MAXPHYS;
+#endif
 		zsd->zsd_cdev = dev;
 	}
 	(void) strlcpy(zv->zv_name, name, MAXPATHLEN);
