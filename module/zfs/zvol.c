@@ -408,51 +408,6 @@ zvol_check_volblocksize(const char *name, uint64_t volblocksize)
 }
 
 /*
- * Set ZFS_PROP_VOLBLOCKSIZE set entry point.
- */
-int
-zvol_set_volblocksize(const char *name, uint64_t volblocksize)
-{
-	zvol_state_t *zv;
-	dmu_tx_t *tx;
-	int error;
-
-	zv = zvol_find_by_name(name, RW_READER);
-
-	if (zv == NULL)
-		return (SET_ERROR(ENXIO));
-
-	ASSERT(MUTEX_HELD(&zv->zv_state_lock));
-	ASSERT(RW_READ_HELD(&zv->zv_suspend_lock));
-
-	if (zv->zv_flags & ZVOL_RDONLY) {
-		mutex_exit(&zv->zv_state_lock);
-		rw_exit(&zv->zv_suspend_lock);
-		return (SET_ERROR(EROFS));
-	}
-
-	tx = dmu_tx_create(zv->zv_objset);
-	dmu_tx_hold_bonus(tx, ZVOL_OBJ);
-	error = dmu_tx_assign(tx, TXG_WAIT);
-	if (error) {
-		dmu_tx_abort(tx);
-	} else {
-		error = dmu_object_set_blocksize(zv->zv_objset, ZVOL_OBJ,
-		    volblocksize, 0, tx);
-		if (error == ENOTSUP)
-			error = SET_ERROR(EBUSY);
-		dmu_tx_commit(tx);
-		if (error == 0)
-			zv->zv_volblocksize = volblocksize;
-	}
-
-	mutex_exit(&zv->zv_state_lock);
-	rw_exit(&zv->zv_suspend_lock);
-
-	return (SET_ERROR(error));
-}
-
-/*
  * Replay a TX_TRUNCATE ZIL transaction if asked.  TX_TRUNCATE is how we
  * implement DKIOCFREE/free-long-range.
  */
