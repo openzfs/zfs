@@ -1068,6 +1068,18 @@ Start syncing out a transaction group if there's at least this much dirty data
 This should be less than
 .Sy zfs_vdev_async_write_active_min_dirty_percent .
 .
+.It Sy zfs_wrlog_data_max Ns = Pq int
+The upper limit of write-transaction zil log data size in bytes.
+Once it is reached, write operation is blocked, until log data is cleared out
+after transaction group sync. Because of some overhead, it should be set
+at least 2 times the size of
+.Sy zfs_dirty_data_max
+.No to prevent harming normal write throughput.
+It also should be smaller than the size of the slog device if slog is present.
+.Pp
+Defaults to
+.Sy zfs_dirty_data_max*2
+.
 .It Sy zfs_fallocate_reserve_percent Ns = Ns Sy 110 Ns % Pq uint
 Since ZFS is a copy-on-write filesystem with snapshots, blocks cannot be
 preallocated for a file in order to guarantee that later writes will not

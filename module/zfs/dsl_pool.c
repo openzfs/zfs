@@ -105,6 +105,14 @@ int zfs_dirty_data_max_percent = 10;
 int zfs_dirty_data_max_max_percent = 25;
 
 /*
+ * zfs_wrlog_data_max, the upper limit of TX_WRITE log data.
+ * Once it is reached, write operation is blocked,
+ * until log data is cleared out after txg sync.
+ * It only counts TX_WRITE log with WR_COPIED or WR_NEED_COPY.
+ */
+unsigned long zfs_wrlog_data_max = 0;
+
+/*
  * If there's at least this much dirty data (as a percentage of
  * zfs_dirty_data_max), push out a txg.  This should be less than
  * zfs_vdev_async_write_active_min_dirty_percent.
@@ -219,6 +227,11 @@ dsl_pool_open_impl(spa_t *spa, uint64_t txg)
 
 	mutex_init(&dp->dp_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&dp->dp_spaceavail_cv, NULL, CV_DEFAULT, NULL);
+
+	aggsum_init(&dp->dp_wrlog_total, 0);
+	for (int i = 0; i < TXG_SIZE; i++) {
+		aggsum_init(&dp->dp_wrlog_pertxg[i], 0);
+	}
 
 	dp->dp_zrele_taskq = taskq_create("z_zrele", 100, defclsyspri,
 	    boot_ncpus * 8, INT_MAX, TASKQ_PREPOPULATE | TASKQ_DYNAMIC |
@@ -416,6 +429,14 @@ dsl_pool_close(dsl_pool_t *dp)
 	rrw_destroy(&dp->dp_config_rwlock);
 	mutex_destroy(&dp->dp_lock);
 	cv_destroy(&dp->dp_spaceavail_cv);
+
+	ASSERT0(aggsum_value(&dp->dp_wrlog_total));
+	aggsum_fini(&dp->dp_wrlog_total);
+	for (int i = 0; i < TXG_SIZE; i++) {
+		ASSERT0(aggsum_value(&dp->dp_wrlog_pertxg[i]));
+		aggsum_fini(&dp->dp_wrlog_pertxg[i]);
+	}
+
 	taskq_destroy(dp->dp_unlinked_drain_taskq);
 	taskq_destroy(dp->dp_zrele_taskq);
 	if (dp->dp_blkstats != NULL) {
@@ -590,6 +611,36 @@ dsl_pool_dirty_delta(dsl_pool_t *dp, int64_t delta)
 	 */
 	if (dp->dp_dirty_total < zfs_dirty_data_max)
 		cv_signal(&dp->dp_spaceavail_cv);
+}
+
+void
+dsl_pool_wrlog_count(dsl_pool_t *dp, int64_t size, uint64_t txg)
+{
+	ASSERT3S(size, >=, 0);
+
+	aggsum_add(&dp->dp_wrlog_pertxg[txg & TXG_MASK], size);
+	aggsum_add(&dp->dp_wrlog_total, size);
+
+	/* Choose a value slightly bigger than min dirty sync bytes */
+	uint64_t sync_min =
+	    zfs_dirty_data_max * (zfs_dirty_data_sync_percent + 10) / 100;
+	if (aggsum_compare(&dp->dp_wrlog_pertxg[txg & TXG_MASK], sync_min) > 0)
+		txg_kick(dp, txg);
+}
+
+boolean_t
+dsl_pool_wrlog_over_max(dsl_pool_t *dp)
+{
+	return (aggsum_compare(&dp->dp_wrlog_total, zfs_wrlog_data_max) > 0);
+}
+
+static void
+dsl_pool_wrlog_clear(dsl_pool_t *dp, uint64_t txg)
+{
+	int64_t delta;
+	delta = -(int64_t)aggsum_value(&dp->dp_wrlog_pertxg[txg & TXG_MASK]);
+	aggsum_add(&dp->dp_wrlog_pertxg[txg & TXG_MASK], delta);
+	aggsum_add(&dp->dp_wrlog_total, delta);
 }
 
 #ifdef ZFS_DEBUG
@@ -816,6 +867,9 @@ dsl_pool_sync_done(dsl_pool_t *dp, uint64_t txg)
 		ASSERT(!dmu_objset_is_dirty(zilog->zl_os, txg));
 		dmu_buf_rele(ds->ds_dbuf, zilog);
 	}
+
+	dsl_pool_wrlog_clear(dp, txg);
+
 	ASSERT(!dmu_objset_is_dirty(dp->dp_meta_objset, txg));
 }
 
@@ -1404,6 +1458,9 @@ ZFS_MODULE_PARAM(zfs, zfs_, delay_min_dirty_percent, INT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs, zfs_, dirty_data_max, ULONG, ZMOD_RW,
 	"Determines the dirty space limit");
+
+ZFS_MODULE_PARAM(zfs, zfs_, wrlog_data_max, ULONG, ZMOD_RW,
+	"The size limit of write-transaction zil log data");
 
 /* zfs_dirty_data_max_max only applied at module load in arc_init(). */
 ZFS_MODULE_PARAM(zfs, zfs_, dirty_data_max_max, ULONG, ZMOD_RD,
