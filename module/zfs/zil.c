@@ -1822,12 +1822,13 @@ zil_itx_destroy(itx_t *itx)
  * so no locks are needed.
  */
 static void
-zil_itxg_clean(itxs_t *itxs)
+zil_itxg_clean(void *arg)
 {
 	itx_t *itx;
 	list_t *list;
 	avl_tree_t *t;
 	void *cookie;
+	itxs_t *itxs = arg;
 	itx_async_node_t *ian;
 
 	list = &itxs->i_sync_list;
@@ -2047,7 +2048,7 @@ zil_clean(zilog_t *zilog, uint64_t synced_txg)
 	ASSERT3P(zilog->zl_dmu_pool, !=, NULL);
 	ASSERT3P(zilog->zl_dmu_pool->dp_zil_clean_taskq, !=, NULL);
 	taskqid_t id = taskq_dispatch(zilog->zl_dmu_pool->dp_zil_clean_taskq,
-	    (void (*)(void *))zil_itxg_clean, clean_me, TQ_NOSLEEP);
+	    zil_itxg_clean, clean_me, TQ_NOSLEEP);
 	if (id == TASKQID_INVALID)
 		zil_itxg_clean(clean_me);
 }

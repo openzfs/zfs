@@ -367,6 +367,12 @@ zfs_write_simple(znode_t *zp, const void *data, size_t len,
 	return (error);
 }
 
+static void
+zfs_rele_async_task(void *arg)
+{
+	iput(arg);
+}
+
 void
 zfs_zrele_async(znode_t *zp)
 {
@@ -386,7 +392,7 @@ zfs_zrele_async(znode_t *zp)
 	 */
 	if (!atomic_add_unless(&ip->i_count, -1, 1)) {
 		VERIFY(taskq_dispatch(dsl_pool_zrele_taskq(dmu_objset_pool(os)),
-		    (task_func_t *)iput, ip, TQ_SLEEP) != TASKQID_INVALID);
+		    zfs_rele_async_task, ip, TQ_SLEEP) != TASKQID_INVALID);
 	}
 }
 
