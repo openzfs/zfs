@@ -27,8 +27,8 @@
 #include <ntddk.h>
 #include <storport.h>
 
-#include <sys/wzvol.h>
 #include <sys/taskq.h>
+#include <sys/wzvol.h>
 
 #include "Trace.h"
 

@@ -31,6 +31,7 @@
 #include <devioctl.h>
 #include <ntddscsi.h>
 #include <scsiwmi.h>
+#include <sys/fs/zfsdi.h>
 
 #define	VENDOR_ID		L"OpenZFS "
 #define	VENDOR_ID_ascii		"OpenZFS "
@@ -219,13 +220,19 @@ typedef enum {
 	ActionUnmap
 } MpWkRtnAction;
 
+
 typedef struct _MP_WorkRtnParms {
 	pHW_HBA_EXT		pHBAExt;
 	PSCSI_REQUEST_BLOCK	pSrb;
 	PEPROCESS		pReqProcess;
 	MpWkRtnAction		Action;
 	ULONG			SecondsToDelay;
-	CHAR			pQueueWorkItem[1];
+	PVOID				 pUio;
+	/* ZFS ZVOLDI */
+	void* zv;
+	zfsiodesc_t ioDesc;
+	taskq_ent_t ent;
+	CHAR pQueueWorkItem[1];
 	// IO_WORKITEM struct: keep at the end (dynamically allocated).
 } MP_WorkRtnParms, *pMP_WorkRtnParms;
 

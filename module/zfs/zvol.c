@@ -1738,3 +1738,52 @@ zvol_fini_impl(void)
 	list_destroy(&zvol_state_list);
 	rw_destroy(&zvol_state_lock);
 }
+
+/* ZFS ZVOLDI */
+_Function_class_(PINTERFACE_REFERENCE)
+void IncZvolRef(PVOID Context) {
+	zvol_state_t* zv = (zvol_state_t*)Context;
+	mutex_enter(&zv->zv_state_lock);
+	atomic_inc_32(&zv->zv_open_count);
+	mutex_exit(&zv->zv_state_lock);
+}
+
+_Function_class_(PINTERFACE_REFERENCE)
+void DecZvolRef(PVOID Context) {
+	zvol_state_t* zv = (zvol_state_t*)Context;
+	mutex_enter(&zv->zv_state_lock);
+	atomic_dec_32(&zv->zv_open_count);
+	mutex_exit(&zv->zv_state_lock);
+}
+
+zvol_state_t*
+zvol_name2minor(const char* name, uint32_t* minor)
+{
+    zvol_state_t* zv;
+
+    zv = zvol_find_by_name(name, RW_NONE);
+    if (zv == NULL)
+	return zv;
+
+    if (minor)
+	*minor = zv->zv_open_count;
+
+    mutex_exit(&zv->zv_state_lock);
+    return (zv);
+}
+
+zvol_state_t*
+zvol_name2zvolState(const char* name, uint32_t* openCount)
+{
+    zvol_state_t* zv;
+
+    zv = zvol_find_by_name(name, RW_NONE);
+    if (zv == NULL)
+	return zv;
+
+    if (openCount)
+	*openCount = zv->zv_open_count;
+
+    mutex_exit(&zv->zv_state_lock);
+    return (zv);
+}

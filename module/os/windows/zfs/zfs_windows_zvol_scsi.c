@@ -41,6 +41,8 @@
 #include <sys/debug.h>
 #include <ntddk.h>
 #include <storport.h>
+
+#include <sys/zfs_context.h>
 #include <sys/wzvol.h>
 
 #pragma warning(push)
@@ -94,6 +96,7 @@
  * when the refcnt reaches 0 it is safe to free the remove lock cb.
  */
 extern wzvolDriverInfo STOR_wzvolDriverInfo;
+extern taskq_t* zvol_taskq;
 
 inline int
 resolveArrayIndex(int t, int l, int nbL)
@@ -140,7 +143,7 @@ wzvol_lock_target(zvol_state_t *zv)
 	return (FALSE);
 }
 
-static inline void
+inline void
 wzvol_unlock_target(zvol_state_t *zv)
 {
 	wzvolContext* zvc = (pwzvolContext)zv->zv_zso->zso_target_context;
@@ -219,7 +222,7 @@ wzvol_assign_targetid(zvol_state_t *zv)
  * note: find_target will lock the zv's remove lock. caller
  * is responsible to unlock_target if a non-NULL zv pointer is returned
  */
-static inline zvol_state_t *
+inline zvol_state_t *
 wzvol_find_target(uint8_t targetid, uint8_t lun)
 {
 	wzvolContext *zv_targets = STOR_wzvolDriverInfo.zvContextArray;
@@ -1009,4 +1012,109 @@ wzvol_GeneralWkRtn(
 
 	wzvol_WkRtn(pWkParms);
 
+}
+
+/*
+** ZFS ZVOLDI
+** ZVOL Direct Interface
+*/
+
+VOID
+bzvol_ReadWriteTaskRtn(
+    __in PVOID           pWkParms          // Parm list 
+)
+{
+    NTSTATUS Status;
+    pMP_WorkRtnParms pWkRtnParms = (pMP_WorkRtnParms)pWkParms;
+    zfsiodesc_t* pIo = &pWkRtnParms->ioDesc;
+    int iores;
+
+    struct iovec iov;
+    iov.iov_base = (void*)pIo->Buffer;
+    iov.iov_len = pIo->Length;
+
+    zfs_uio_t uio;
+    zfs_uio_iovec_init(&uio, &iov, 1, pIo->ByteOffset, UIO_SYSSPACE, pIo->Length, 0);
+
+    /* Call ZFS to read/write data */
+
+    if (ActionRead == pWkRtnParms->Action) {
+	iores = zvol_os_read_zv(pWkRtnParms->zv, &uio, 0);
+    }
+    else {
+	iores = zvol_os_write_zv(pWkRtnParms->zv, &uio, 0); /* TODO add flag if FUA */
+    }
+
+    if (pIo->Cb) {
+	pIo->Cb(pIo, iores == 0 ? STATUS_SUCCESS : STATUS_UNSUCCESSFUL, TRUE);
+    }
+
+    ExFreePoolWithTag(pWkRtnParms, MP_TAG_GENERAL);
+}
+
+VOID bzvol_TaskQueuingWkRtn(
+    __in PVOID           pDummy,           // Not used.	
+    __in PVOID           pWkParms          // Parm list 
+)
+{
+    pMP_WorkRtnParms pWkRtnParms = (pMP_WorkRtnParms)pWkParms;
+    zfsiodesc_t* pIo = &pWkRtnParms->ioDesc;
+    PIO_WORKITEM pWI = (PIO_WORKITEM)ALIGN_UP_POINTER_BY(pWkRtnParms->pQueueWorkItem, 16);
+
+    UNREFERENCED_PARAMETER(pDummy);
+    IoUninitializeWorkItem(pWI);
+
+    if (pIo->Flags & ZFSZVOLFG_AlwaysPend) {
+	taskq_init_ent(&pWkRtnParms->ent);
+	taskq_dispatch_ent(zvol_taskq, bzvol_ReadWriteTaskRtn, pWkRtnParms, 0, &pWkRtnParms->ent);
+    }
+    else {
+	// bypass the taskq and do everything under workitem thread context.
+	bzvol_ReadWriteTaskRtn(pWkRtnParms);
+    }
+    // workitem freed inside bzvol_ReadWriteTaskRtn
+}
+
+NTSTATUS
+DiReadWriteSetup(
+    zvol_state_t* zv,
+    MpWkRtnAction action,
+    zfsiodesc_t* pIo)
+{
+    // SSV-19147: cannot use kmem_alloc with sleep if IRQL dispatch so get straight from NP pool.
+    // SSV-19161: cannot use uio routines at DISPATCH as they use a mutex. Resolve everything in the workitem.
+    pMP_WorkRtnParms pWkRtnParms = (pMP_WorkRtnParms)ExAllocatePoolWithTag(NonPagedPool, ALIGN_UP_BY(sizeof(MP_WorkRtnParms), 16) + IoSizeofWorkItem(), MP_TAG_GENERAL);
+    if (NULL == pWkRtnParms) {
+	if (pIo->Cb) {
+	    pIo->Cb(pIo, STATUS_INSUFFICIENT_RESOURCES, FALSE);
+	}
+	return STATUS_INSUFFICIENT_RESOURCES;
+    }
+    RtlZeroMemory(pWkRtnParms, sizeof(MP_WorkRtnParms));
+    pWkRtnParms->ioDesc = *pIo;
+    pWkRtnParms->zv = zv;
+    pWkRtnParms->Action = action;
+
+    // SSV-19147: cannot use taskq queuing at dispatch. must queue a work item to do it.
+    // since taskq queueing involves a possibly waiting mutex we do not want to slow down the caller so 
+    // perform taskq queuing always in the workitem.
+    extern PDEVICE_OBJECT ioctlDeviceObject;
+    PIO_WORKITEM pWI = (PIO_WORKITEM)ALIGN_UP_POINTER_BY(pWkRtnParms->pQueueWorkItem, 16);
+    IoInitializeWorkItem(ioctlDeviceObject, pWI);
+    IoQueueWorkItem(pWI, bzvol_TaskQueuingWkRtn, DelayedWorkQueue, pWkRtnParms);
+    return STATUS_PENDING; // queued up.
+}
+
+NTSTATUS ZvolDiRead(
+    PVOID Context,
+    zfsiodesc_t* pIo)
+{
+    return (DiReadWriteSetup((zvol_state_t*)Context, ActionRead, pIo));
+}
+
+NTSTATUS ZvolDiWrite(
+    PVOID Context,
+    zfsiodesc_t* pIo)
+{
+    return (DiReadWriteSetup((zvol_state_t*)Context, ActionWrite, pIo));
 }

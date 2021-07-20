@@ -524,6 +524,17 @@ typedef struct zfs_useracct {
 	uint64_t zu_space;
 } zfs_useracct_t;
 
+#define ZPOOL_GET_SIZE_STATS	CTL_CODE(ZFSIOCTL_TYPE, 0xFFF, METHOD_BUFFERED, FILE_ANY_ACCESS)
+
+// Input/Output for IOCTL - ZPOOL_GET_SIZE_STATS
+typedef struct {
+	uint8_t targetid;
+	uint8_t lun;
+	char zpool_name[MAXNAMELEN];
+	uint64_t size;
+	uint64_t alloc;
+} zpool_size_stats;
+
 #define	ZFSDEV_MAX_MINOR	(1 << 16)
 
 #define	ZPOOL_EXPORT_AFTER_SPLIT 0x1

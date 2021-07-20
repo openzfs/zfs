@@ -35,6 +35,7 @@
 #include <Mountdev.h>
 #include <ntddvol.h>
 #include <os/windows/zfs/sys/zfs_ioctl_compat.h>
+#include <sys/fs/zfsdi.h>
 
 // I have no idea what black magic is needed to get ntifs.h to define these
 
@@ -4404,6 +4405,8 @@ out:
  * volumes, or filesystems.
  * Incidentally, cstyle is confused about the function_class
  */
+NTSTATUS pnp_query_di(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+
 _Function_class_(DRIVER_DISPATCH)
     static NTSTATUS
     ioctlDispatcher(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIRP Irp,
@@ -4540,6 +4543,10 @@ _Function_class_(DRIVER_DISPATCH)
 				Status = spl_kstat_write(DeviceObject, Irp,
 				    IrpSp);
 				break;
+			case ZPOOL_GET_SIZE_STATS:
+			    dprintf("ZPOOL_GET_SIZE_STATS\n");
+			    Status = zpool_get_size_stats(DeviceObject, Irp, IrpSp);
+			    break;
 			default:
 				dprintf("**** unknown Windows IOCTL: 0x%lx\n",
 				    cmd);
@@ -4594,6 +4601,9 @@ _Function_class_(DRIVER_DISPATCH)
 			dprintf("IRP_MN_CANCEL_REMOVE_DEVICE\n");
 			Status = STATUS_SUCCESS;
 			break;
+		case IRP_MN_QUERY_INTERFACE:
+		    Status = pnp_query_di(DeviceObject, Irp, IrpSp);
+		    break;
 		}
 		break;
 
@@ -4756,6 +4766,10 @@ _Function_class_(DRIVER_DISPATCH)
 			dprintf("IOCTL_DISK_GET_DRIVE_GEOMETRY\n");
 			Status = ioctl_disk_get_drive_geometry(DeviceObject,
 			    Irp, IrpSp);
+			break;
+		case ZPOOL_GET_SIZE_STATS:
+			dprintf("ZPOOL_GET_SIZE_STATS\n");
+			Status = zpool_get_size_stats(DeviceObject, Irp, IrpSp);
 			break;
 		default:
 			dprintf("**** unknown disk Windows IOCTL: 0x%lx\n",
@@ -5559,4 +5573,47 @@ zfs_vfsops_fini(void)
 	mutex_destroy(&GIANT_SERIAL_LOCK);
 #endif
 	return (0);
+}
+
+NTSTATUS pnp_query_di(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
+{
+	NTSTATUS status;
+	if (IsEqualGUID(IrpSp->Parameters.QueryInterface.InterfaceType, &ZFSZVOLDI_GUID)) {
+		if (IrpSp->Parameters.QueryInterface.Version < 1)
+			status = STATUS_NOT_SUPPORTED;
+		else if (IrpSp->Parameters.QueryInterface.Size < sizeof(zfsdizvol_t))
+			status = STATUS_BUFFER_TOO_SMALL;
+		else if ((IrpSp->Parameters.QueryInterface.InterfaceSpecificData == NULL) || strlen(IrpSp->Parameters.QueryInterface.InterfaceSpecificData) <= 8)
+			status = STATUS_INVALID_PARAMETER;
+		else {
+			PVOID zv; //zvol_state_t*, opaque here
+			minor_t minorNum;
+			extern PVOID zvol_name2minor(const char* name, minor_t * minor);
+			PCHAR vendorUniqueId = (PCHAR)IrpSp->Parameters.QueryInterface.InterfaceSpecificData;
+			zv = zvol_name2minor(&vendorUniqueId[8], &minorNum);
+			// check that the minor number is non-zero: that signifies the zvol has fully completed its bringup phase.
+			if (zv && minorNum) {
+				extern void IncZvolRef(PVOID Context);
+				extern void DecZvolRef(PVOID Context);
+				extern NTSTATUS ZvolDiRead(PVOID Context, zfsiodesc_t * pIo);
+				extern NTSTATUS ZvolDiWrite(PVOID Context, zfsiodesc_t * pIo);
+				IncZvolRef(zv); // lock in an extra reference on the zvol
+				zfsdizvol_t* pDI = (zfsdizvol_t*)IrpSp->Parameters.QueryInterface.Interface;
+				pDI->header.Size = sizeof(zfsdizvol_t);
+				pDI->header.Version = ZFSZVOLDI_VERSION;
+				pDI->header.Context = zv;
+				pDI->header.InterfaceReference = IncZvolRef;
+				pDI->header.InterfaceDereference = DecZvolRef;
+				pDI->Read = ZvolDiRead;
+				pDI->Write = ZvolDiWrite;
+				Irp->IoStatus.Information = 0;
+				status = STATUS_SUCCESS;
+			}
+			else
+				status = STATUS_NOT_FOUND;
+		}
+	}
+	else
+		status = STATUS_NOT_IMPLEMENTED;
+	return (status);
 }

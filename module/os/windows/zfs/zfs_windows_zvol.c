@@ -28,6 +28,7 @@
 #include <wmistr.h>
 #include <hbapiwmi.h>
 #include <wdf.h>
+#include <sys/zfs_context.h>
 #include <sys/wzvol.h>
 
 extern PDRIVER_OBJECT WIN_DriverObject;
