@@ -53,6 +53,7 @@ dmu_tx_stats_t dmu_tx_stats = {
 	{ "dmu_tx_dirty_throttle",	KSTAT_DATA_UINT64 },
 	{ "dmu_tx_dirty_delay",		KSTAT_DATA_UINT64 },
 	{ "dmu_tx_dirty_over_max",	KSTAT_DATA_UINT64 },
+	{ "dmu_tx_wrlog_over_max",	KSTAT_DATA_UINT64 },
 	{ "dmu_tx_dirty_frees_delay",	KSTAT_DATA_UINT64 },
 	{ "dmu_tx_quota",		KSTAT_DATA_UINT64 },
 };
@@ -881,6 +882,12 @@ dmu_tx_try_assign(dmu_tx_t *tx, uint64_t txg_how)
 		    !(txg_how & TXG_WAIT))
 			return (SET_ERROR(EIO));
 
+		return (SET_ERROR(ERESTART));
+	}
+
+	if (!tx->tx_dirty_delayed &&
+	    dsl_pool_wrlog_over_max(tx->tx_pool)) {
+		DMU_TX_STAT_BUMP(dmu_tx_wrlog_over_max);
 		return (SET_ERROR(ERESTART));
 	}
 

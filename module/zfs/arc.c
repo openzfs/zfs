@@ -8062,6 +8062,18 @@ arc_init(void)
 		zfs_dirty_data_max = MIN(zfs_dirty_data_max,
 		    zfs_dirty_data_max_max);
 	}
+
+	if (zfs_wrlog_data_max == 0) {
+
+		/*
+		 * dp_wrlog_total is reduced for each txg at the end of
+		 * spa_sync(). However, dp_dirty_total is reduced every time
+		 * a block is written out. Thus under normal operation,
+		 * dp_wrlog_total could grow 2 times as big as
+		 * zfs_dirty_data_max.
+		 */
+		zfs_wrlog_data_max = zfs_dirty_data_max * 2;
+	}
 }
 
 void

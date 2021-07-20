@@ -84,9 +84,7 @@
 #include <sys/zfs_rlock.h>
 #include <sys/spa_impl.h>
 #include <sys/zvol.h>
-
 #include <sys/zvol_impl.h>
-
 
 unsigned int zvol_inhibit_dev = 0;
 unsigned int zvol_volmode = ZFS_VOLMODE_GEOM;
@@ -577,6 +575,7 @@ zvol_log_write(zvol_state_t *zv, dmu_tx_t *tx, uint64_t offset,
 	uint32_t blocksize = zv->zv_volblocksize;
 	zilog_t *zilog = zv->zv_zilog;
 	itx_wr_state_t write_state;
+	uint64_t sz = size;
 
 	if (zil_replaying(zilog, tx))
 		return;
@@ -627,6 +626,10 @@ zvol_log_write(zvol_state_t *zv, dmu_tx_t *tx, uint64_t offset,
 
 		offset += len;
 		size -= len;
+	}
+
+	if (write_state == WR_COPIED || write_state == WR_NEED_COPY) {
+		dsl_pool_wrlog_count(zilog->zl_dmu_pool, sz, tx->tx_txg);
 	}
 }
 
