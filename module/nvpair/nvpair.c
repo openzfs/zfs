@@ -3214,6 +3214,56 @@ nvs_xdr_nvl_fini(nvstream_t *nvs)
 }
 
 /*
+ * xdrproc_t-compatible callbacks for xdr_array()
+ */
+
+#if defined(_KERNEL) && defined(__linux__) /* Linux kernel */
+
+#define	NVS_BUILD_XDRPROC_T(type)		\
+static bool_t					\
+nvs_xdr_nvp_##type(XDR *xdrs, void *ptr)	\
+{						\
+	return (xdr_##type(xdrs, ptr));		\
+}
+
+#elif !defined(_KERNEL) && defined(XDR_CONTROL) /* tirpc */
+
+#define	NVS_BUILD_XDRPROC_T(type)		\
+static bool_t					\
+nvs_xdr_nvp_##type(XDR *xdrs, ...)		\
+{						\
+	va_list args;				\
+	void *ptr;				\
+						\
+	va_start(args, xdrs);			\
+	ptr = va_arg(args, void *);		\
+	va_end(args);				\
+						\
+	return (xdr_##type(xdrs, ptr));		\
+}
+
+#else /* FreeBSD, sunrpc */
+
+#define	NVS_BUILD_XDRPROC_T(type)		\
+static bool_t					\
+nvs_xdr_nvp_##type(XDR *xdrs, void *ptr, ...)	\
+{						\
+	return (xdr_##type(xdrs, ptr));		\
+}
+
+#endif
+
+/* BEGIN CSTYLED */
+NVS_BUILD_XDRPROC_T(char);
+NVS_BUILD_XDRPROC_T(short);
+NVS_BUILD_XDRPROC_T(u_short);
+NVS_BUILD_XDRPROC_T(int);
+NVS_BUILD_XDRPROC_T(u_int);
+NVS_BUILD_XDRPROC_T(longlong_t);
+NVS_BUILD_XDRPROC_T(u_longlong_t);
+/* END CSTYLED */
+
+/*
  * The format of xdr encoded nvpair is:
  * encode_size, decode_size, name string, data type, nelem, data
  */
@@ -3335,38 +3385,38 @@ nvs_xdr_nvp_op(nvstream_t *nvs, nvpair_t *nvp)
 	case DATA_TYPE_INT8_ARRAY:
 	case DATA_TYPE_UINT8_ARRAY:
 		ret = xdr_array(xdr, &buf, &nelem, buflen, sizeof (int8_t),
-		    (xdrproc_t)xdr_char);
+		    nvs_xdr_nvp_char);
 		break;
 
 	case DATA_TYPE_INT16_ARRAY:
 		ret = xdr_array(xdr, &buf, &nelem, buflen / sizeof (int16_t),
-		    sizeof (int16_t), (xdrproc_t)xdr_short);
+		    sizeof (int16_t), nvs_xdr_nvp_short);
 		break;
 
 	case DATA_TYPE_UINT16_ARRAY:
 		ret = xdr_array(xdr, &buf, &nelem, buflen / sizeof (uint16_t),
-		    sizeof (uint16_t), (xdrproc_t)xdr_u_short);
+		    sizeof (uint16_t), nvs_xdr_nvp_u_short);
 		break;
 
 	case DATA_TYPE_BOOLEAN_ARRAY:
 	case DATA_TYPE_INT32_ARRAY:
 		ret = xdr_array(xdr, &buf, &nelem, buflen / sizeof (int32_t),
-		    sizeof (int32_t), (xdrproc_t)xdr_int);
+		    sizeof (int32_t), nvs_xdr_nvp_int);
 		break;
 
 	case DATA_TYPE_UINT32_ARRAY:
 		ret = xdr_array(xdr, &buf, &nelem, buflen / sizeof (uint32_t),
-		    sizeof (uint32_t), (xdrproc_t)xdr_u_int);
+		    sizeof (uint32_t), nvs_xdr_nvp_u_int);
 		break;
 
 	case DATA_TYPE_INT64_ARRAY:
 		ret = xdr_array(xdr, &buf, &nelem, buflen / sizeof (int64_t),
-		    sizeof (int64_t), (xdrproc_t)xdr_longlong_t);
+		    sizeof (int64_t), nvs_xdr_nvp_longlong_t);
 		break;
 
 	case DATA_TYPE_UINT64_ARRAY:
 		ret = xdr_array(xdr, &buf, &nelem, buflen / sizeof (uint64_t),
-		    sizeof (uint64_t), (xdrproc_t)xdr_u_longlong_t);
+		    sizeof (uint64_t), nvs_xdr_nvp_u_longlong_t);
 		break;
 
 	case DATA_TYPE_STRING_ARRAY: {
