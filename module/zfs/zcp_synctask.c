@@ -54,6 +54,12 @@ typedef struct zcp_synctask_info {
 	int blocks_modified;
 } zcp_synctask_info_t;
 
+static void
+zcp_synctask_cleanup(void *arg)
+{
+	fnvlist_free(arg);
+}
+
 /*
  * Generic synctask interface for channel program syncfuncs.
  *
@@ -275,7 +281,7 @@ zcp_synctask_snapshot(lua_State *state, boolean_t sync, nvlist_t *err_details)
 	fnvlist_add_boolean(ddsa.ddsa_snaps, dsname);
 
 	zcp_cleanup_handler_t *zch = zcp_register_cleanup(state,
-	    (zcp_cleanup_t *)&fnvlist_free, ddsa.ddsa_snaps);
+	    zcp_synctask_cleanup, ddsa.ddsa_snaps);
 
 	err = zcp_sync_task(state, dsl_dataset_snapshot_check,
 	    dsl_dataset_snapshot_sync, &ddsa, sync, dsname);
@@ -363,7 +369,7 @@ zcp_synctask_inherit_prop(lua_State *state, boolean_t sync,
 	fnvlist_add_boolean(dpsa->dpsa_props, prop);
 
 	zcp_cleanup_handler_t *zch = zcp_register_cleanup(state,
-	    (zcp_cleanup_t *)&fnvlist_free, dpsa->dpsa_props);
+	    zcp_synctask_cleanup, dpsa->dpsa_props);
 
 	err = zcp_sync_task(state, zcp_synctask_inherit_prop_check,
 	    zcp_synctask_inherit_prop_sync, &zipa, sync, dsname);
@@ -402,7 +408,7 @@ zcp_synctask_bookmark(lua_State *state, boolean_t sync, nvlist_t *err_details)
 	fnvlist_add_string(bmarks, new, source);
 
 	zcp_cleanup_handler_t *zch = zcp_register_cleanup(state,
-	    (zcp_cleanup_t *)&fnvlist_free, bmarks);
+	    zcp_synctask_cleanup, bmarks);
 
 	dsl_bookmark_create_arg_t dbca = {
 		.dbca_bmarks = bmarks,
@@ -467,8 +473,7 @@ zcp_synctask_wrapper(lua_State *state)
 	 * Make sure err_details is properly freed, even if a fatal error is
 	 * thrown during the synctask.
 	 */
-	zch = zcp_register_cleanup(state,
-	    (zcp_cleanup_t *)&fnvlist_free, err_details);
+	zch = zcp_register_cleanup(state, zcp_synctask_cleanup, err_details);
 
 	zcp_synctask_info_t *info = lua_touserdata(state, lua_upvalueindex(1));
 	boolean_t sync = lua_toboolean(state, lua_upvalueindex(2));
