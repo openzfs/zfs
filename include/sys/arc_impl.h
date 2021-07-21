@@ -560,6 +560,11 @@ typedef struct arc_stats {
 	kstat_named_t arcstat_hash_collisions;
 	kstat_named_t arcstat_hash_chains;
 	kstat_named_t arcstat_hash_chain_max;
+	/*
+	 * Number of ARC buffers that should have been in the hash table but
+	 * are not. Instead of panicking report them here.
+	 */
+	kstat_named_t arcstat_hash_missing;
 	kstat_named_t arcstat_p;
 	kstat_named_t arcstat_c;
 	kstat_named_t arcstat_c_min;
@@ -881,6 +886,7 @@ typedef struct arc_sums {
 	wmsum_t arcstat_evict_l2_skip;
 	wmsum_t arcstat_hash_collisions;
 	wmsum_t arcstat_hash_chains;
+	wmsum_t arcstat_hash_missing;
 	aggsum_t arcstat_size;
 	wmsum_t arcstat_compressed_size;
 	wmsum_t arcstat_uncompressed_size;

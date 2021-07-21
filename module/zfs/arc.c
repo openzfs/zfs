@@ -502,6 +502,7 @@ arc_stats_t arc_stats = {
 	{ "hash_collisions",		KSTAT_DATA_UINT64 },
 	{ "hash_chains",		KSTAT_DATA_UINT64 },
 	{ "hash_chain_max",		KSTAT_DATA_UINT64 },
+	{ "hash_missing",		KSTAT_DATA_UINT64 },
 	{ "p",				KSTAT_DATA_UINT64 },
 	{ "c",				KSTAT_DATA_UINT64 },
 	{ "c_min",			KSTAT_DATA_UINT64 },
@@ -1058,19 +1059,25 @@ buf_hash_remove(arc_buf_hdr_t *hdr)
 
 	hdrp = &buf_hash_table.ht_table[idx];
 	while ((fhdr = *hdrp) != hdr) {
-		ASSERT3P(fhdr, !=, NULL);
+		if (fhdr == NULL) {
+			ARCSTAT_BUMP(arcstat_hash_missing);
+			cmn_err(CE_WARN, "ARC hdr missing from hash table");
+			goto out;
+		}
 		hdrp = &fhdr->b_hash_next;
 	}
 	*hdrp = hdr->b_hash_next;
-	hdr->b_hash_next = NULL;
-	arc_hdr_clear_flags(hdr, ARC_FLAG_IN_HASH_TABLE);
 
 	/* collect some hash table performance data */
 	atomic_dec_64(&arc_stats.arcstat_hash_elements.value.ui64);
 
+out:
 	if (buf_hash_table.ht_table[idx] &&
 	    buf_hash_table.ht_table[idx]->b_hash_next == NULL)
 		ARCSTAT_BUMPDOWN(arcstat_hash_chains);
+
+	hdr->b_hash_next = NULL;
+	arc_hdr_clear_flags(hdr, ARC_FLAG_IN_HASH_TABLE);
 }
 
 /*
@@ -7270,6 +7277,8 @@ arc_kstat_update(kstat_t *ksp, int rw)
 	    wmsum_value(&arc_sums.arcstat_hash_collisions);
 	as->arcstat_hash_chains.value.ui64 =
 	    wmsum_value(&arc_sums.arcstat_hash_chains);
+	as->arcstat_hash_missing.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_hash_missing);
 	as->arcstat_size.value.ui64 =
 	    aggsum_value(&arc_sums.arcstat_size);
 	as->arcstat_compressed_size.value.ui64 =
@@ -7669,6 +7678,7 @@ arc_state_init(void)
 	wmsum_init(&arc_sums.arcstat_evict_l2_skip, 0);
 	wmsum_init(&arc_sums.arcstat_hash_collisions, 0);
 	wmsum_init(&arc_sums.arcstat_hash_chains, 0);
+	wmsum_init(&arc_sums.arcstat_hash_missing, 0);
 	aggsum_init(&arc_sums.arcstat_size, 0);
 	wmsum_init(&arc_sums.arcstat_compressed_size, 0);
 	wmsum_init(&arc_sums.arcstat_uncompressed_size, 0);
@@ -7799,6 +7809,7 @@ arc_state_fini(void)
 	wmsum_fini(&arc_sums.arcstat_evict_l2_skip);
 	wmsum_fini(&arc_sums.arcstat_hash_collisions);
 	wmsum_fini(&arc_sums.arcstat_hash_chains);
+	wmsum_fini(&arc_sums.arcstat_hash_missing);
 	aggsum_fini(&arc_sums.arcstat_size);
 	wmsum_fini(&arc_sums.arcstat_compressed_size);
 	wmsum_fini(&arc_sums.arcstat_uncompressed_size);
