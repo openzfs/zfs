@@ -5611,19 +5611,11 @@ metaslab_class_throttle_reserve(metaslab_class_t *mc, int slots, int allocator,
     zio_t *zio, int flags)
 {
 	metaslab_class_allocator_t *mca = &mc->mc_allocator[allocator];
-	uint64_t available_slots = 0;
-	boolean_t slot_reserved = B_FALSE;
 	uint64_t max = mca->mca_alloc_max_slots;
 
 	ASSERT(mc->mc_alloc_throttle_enabled);
-	mutex_enter(&mc->mc_lock);
-
-	uint64_t reserved_slots = zfs_refcount_count(&mca->mca_alloc_slots);
-	if (reserved_slots < max)
-		available_slots = max - reserved_slots;
-
-	if (slots <= available_slots || GANG_ALLOCATION(flags) ||
-	    flags & METASLAB_MUST_RESERVE) {
+	if (GANG_ALLOCATION(flags) || (flags & METASLAB_MUST_RESERVE) ||
+	    zfs_refcount_count(&mca->mca_alloc_slots) + slots <= max) {
 		/*
 		 * We reserve the slots individually so that we can unreserve
 		 * them individually when an I/O completes.
@@ -5631,11 +5623,9 @@ metaslab_class_throttle_reserve(metaslab_class_t *mc, int slots, int allocator,
 		for (int d = 0; d < slots; d++)
 			zfs_refcount_add(&mca->mca_alloc_slots, zio);
 		zio->io_flags |= ZIO_FLAG_IO_ALLOCATING;
-		slot_reserved = B_TRUE;
+		return (B_TRUE);
 	}
-
-	mutex_exit(&mc->mc_lock);
-	return (slot_reserved);
+	return (B_FALSE);
 }
 
 void
@@ -5645,10 +5635,8 @@ metaslab_class_throttle_unreserve(metaslab_class_t *mc, int slots,
 	metaslab_class_allocator_t *mca = &mc->mc_allocator[allocator];
 
 	ASSERT(mc->mc_alloc_throttle_enabled);
-	mutex_enter(&mc->mc_lock);
 	for (int d = 0; d < slots; d++)
 		zfs_refcount_remove(&mca->mca_alloc_slots, zio);
-	mutex_exit(&mc->mc_lock);
 }
 
 static int

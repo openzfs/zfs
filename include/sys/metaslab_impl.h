@@ -157,7 +157,7 @@ typedef struct metaslab_class_allocator {
 	 */
 	uint64_t		mca_alloc_max_slots;
 	zfs_refcount_t		mca_alloc_slots;
-} metaslab_class_allocator_t;
+} ____cacheline_aligned metaslab_class_allocator_t;
 
 /*
  * A metaslab class encompasses a category of allocatable top-level vdevs.
