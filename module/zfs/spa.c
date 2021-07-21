@@ -9197,9 +9197,9 @@ spa_sync(spa_t *spa, uint64_t txg)
 	spa->spa_sync_pass = 0;
 
 	for (int i = 0; i < spa->spa_alloc_count; i++) {
-		mutex_enter(&spa->spa_alloc_locks[i]);
-		VERIFY0(avl_numnodes(&spa->spa_alloc_trees[i]));
-		mutex_exit(&spa->spa_alloc_locks[i]);
+		mutex_enter(&spa->spa_allocs[i].spaa_lock);
+		VERIFY0(avl_numnodes(&spa->spa_allocs[i].spaa_tree));
+		mutex_exit(&spa->spa_allocs[i].spaa_lock);
 	}
 
 	/*
@@ -9309,9 +9309,9 @@ spa_sync(spa_t *spa, uint64_t txg)
 	dsl_pool_sync_done(dp, txg);
 
 	for (int i = 0; i < spa->spa_alloc_count; i++) {
-		mutex_enter(&spa->spa_alloc_locks[i]);
-		VERIFY0(avl_numnodes(&spa->spa_alloc_trees[i]));
-		mutex_exit(&spa->spa_alloc_locks[i]);
+		mutex_enter(&spa->spa_allocs[i].spaa_lock);
+		VERIFY0(avl_numnodes(&spa->spa_allocs[i].spaa_tree));
+		mutex_exit(&spa->spa_allocs[i].spaa_lock);
 	}
 
 	/*
