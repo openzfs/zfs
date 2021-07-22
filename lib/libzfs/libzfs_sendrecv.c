@@ -2403,7 +2403,6 @@ zfs_send_one(zfs_handle_t *zhp, const char *from, int fd, sendflags_t *flags,
 	int err;
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
 	char *name = zhp->zfs_name;
-	int orig_fd = fd;
 	pthread_t ptid;
 	progress_arg_t pa = { 0 };
 
@@ -2535,7 +2534,7 @@ zfs_send_one(zfs_handle_t *zhp, const char *from, int fd, sendflags_t *flags,
 
 	if (flags->props || flags->holds || flags->backup) {
 		/* Write the final end record. */
-		err = send_conclusion_record(orig_fd, NULL);
+		err = send_conclusion_record(fd, NULL);
 		if (err != 0)
 			return (zfs_standard_error(hdl, err, errbuf));
 	}
