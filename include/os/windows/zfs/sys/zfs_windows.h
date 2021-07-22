@@ -182,7 +182,7 @@ extern NTSTATUS ioctl_mountdev_query_suggested_link_name(PDEVICE_OBJECT, PIRP,
     PIO_STACK_LOCATION);
 extern NTSTATUS ioctl_mountdev_query_stable_guid(PDEVICE_OBJECT, PIRP,
     PIO_STACK_LOCATION);
-extern NTSTATUS ioctl_query_stable_guid(PDEVICE_OBJECT, PIRP, PIO_STACK_LOCATION);
-extern NTSTATUS zpool_get_size_stats(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp);
+extern NTSTATUS ioctl_query_stable_guid(PDEVICE_OBJECT, PIRP,
+    PIO_STACK_LOCATION);
 
 #endif

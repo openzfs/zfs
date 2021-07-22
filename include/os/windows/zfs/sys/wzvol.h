@@ -227,7 +227,6 @@ typedef struct _MP_WorkRtnParms {
 	PEPROCESS		pReqProcess;
 	MpWkRtnAction		Action;
 	ULONG			SecondsToDelay;
-	PVOID				 pUio;
 	/* ZFS ZVOLDI */
 	void* zv;
 	zfsiodesc_t ioDesc;
