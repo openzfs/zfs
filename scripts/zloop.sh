@@ -38,25 +38,30 @@ DEFAULTCOREDIR=/var/tmp/zloop
 
 function usage
 {
-	echo -e "\n$0 [-t <timeout>] [ -s <vdev size> ] [-c <dump directory>]" \
-	    "[ -- [extra ztest parameters]]\n" \
-	    "\n" \
-	    "  This script runs ztest repeatedly with randomized arguments.\n" \
-	    "  If a crash is encountered, the ztest logs, any associated\n" \
-	    "  vdev files, and core file (if one exists) are moved to the\n" \
-	    "  output directory ($DEFAULTCOREDIR by default). Any options\n" \
-	    "  after the -- end-of-options marker will be passed to ztest.\n" \
-	    "\n" \
-	    "  Options:\n" \
-	    "    -t  Total time to loop for, in seconds. If not provided,\n" \
-	    "        zloop runs forever.\n" \
-	    "    -s  Size of vdev devices.\n" \
-	    "    -f  Specify working directory for ztest vdev files.\n" \
-	    "    -c  Specify a core dump directory to use.\n" \
-	    "    -m  Max number of core dumps to allow before exiting.\n" \
-	    "    -l  Create 'ztest.core.N' symlink to core directory.\n" \
-	    "    -h  Print this help message.\n" \
-	    "" >&2
+	cat >&2 <<EOF
+
+$0 [-hl] [-c <dump directory>] [-f <vdev directory>]
+  [-m <max core dumps>] [-s <vdev size>] [-t <timeout>]
+  [-I <max iterations>] [-- [extra ztest parameters]]
+
+  This script runs ztest repeatedly with randomized arguments.
+  If a crash is encountered, the ztest logs, any associated
+  vdev files, and core file (if one exists) are moved to the
+  output directory ($DEFAULTCOREDIR by default). Any options
+  after the -- end-of-options marker will be passed to ztest.
+
+  Options:
+    -c  Specify a core dump directory to use.
+    -f  Specify working directory for ztest vdev files.
+    -h  Print this help message.
+    -l  Create 'ztest.core.N' symlink to core directory.
+    -m  Max number of core dumps to allow before exiting.
+    -s  Size of vdev devices.
+    -t  Total time to loop for, in seconds. If not provided,
+        zloop runs forever.
+    -I  Max number of iterations to loop before exiting.
+
+EOF
 }
 
 function or_die
@@ -185,10 +190,12 @@ timeout=0
 size="512m"
 coremax=0
 symlink=0
-while getopts ":ht:m:s:c:f:l" opt; do
+iterations=0
+while getopts ":ht:m:I:s:c:f:l" opt; do
 	case $opt in
 		t ) [[ $OPTARG -gt 0 ]] && timeout=$OPTARG ;;
 		m ) [[ $OPTARG -gt 0 ]] && coremax=$OPTARG ;;
+		I ) [[ $OPTARG ]] && iterations=$OPTARG ;;
 		s ) [[ $OPTARG ]] && size=$OPTARG ;;
 		c ) [[ $OPTARG ]] && coredir=$OPTARG ;;
 		f ) [[ $OPTARG ]] && basedir=$(readlink -f "$OPTARG") ;;
@@ -233,9 +240,14 @@ ztrc=0		# ztest return value
 foundcrashes=0	# number of crashes found so far
 starttime=$(date +%s)
 curtime=$starttime
+iteration=0
 
 # if no timeout was specified, loop forever.
-while [[ $timeout -eq 0 ]] || [[ $curtime -le $((starttime + timeout)) ]]; do
+while (( timeout == 0 )) || (( curtime <= (starttime + timeout) )); do
+	if (( iterations > 0 )) && (( iteration++ == iterations )); then
+		break
+	fi
+
 	zopt="-G -VVVVV"
 
 	# start each run with an empty directory
@@ -284,10 +296,6 @@ while [[ $timeout -eq 0 ]] || [[ $curtime -le $((starttime + timeout)) ]]; do
 		raid_type="draid"
 	fi
 
-	# run from 30 to 120 seconds
-	runtime=$(((RANDOM % 90) + 30))
-	passtime=$((RANDOM % (runtime / 3 + 1) + 10))
-
 	zopt="$zopt -K $raid_type"
 	zopt="$zopt -m $mirrors"
 	zopt="$zopt -r $raid_children"
@@ -297,8 +305,6 @@ while [[ $timeout -eq 0 ]] || [[ $curtime -le $((starttime + timeout)) ]]; do
 	zopt="$zopt -v $vdevs"
 	zopt="$zopt -a $align"
 	zopt="$zopt -C $class"
-	zopt="$zopt -T $runtime"
-	zopt="$zopt -P $passtime"
 	zopt="$zopt -s $size"
 	zopt="$zopt -f $workdir"
 
