@@ -91,6 +91,7 @@ abd_t *abd_alloc_linear(size_t, boolean_t);
 abd_t *abd_alloc_gang(void);
 abd_t *abd_alloc_for_io(size_t, boolean_t);
 abd_t *abd_alloc_sametype(abd_t *, size_t);
+boolean_t abd_size_alloc_linear(size_t);
 void abd_gang_add(abd_t *, abd_t *, boolean_t);
 void abd_free(abd_t *);
 abd_t *abd_get_offset(abd_t *, size_t);

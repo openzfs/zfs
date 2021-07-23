@@ -181,7 +181,7 @@ abd_free_struct(abd_t *abd)
 abd_t *
 abd_alloc(size_t size, boolean_t is_metadata)
 {
-	if (!zfs_abd_scatter_enabled || abd_size_alloc_linear(size))
+	if (abd_size_alloc_linear(size))
 		return (abd_alloc_linear(size, is_metadata));
 
 	VERIFY3U(size, <=, SPA_MAXBLOCKSIZE);
