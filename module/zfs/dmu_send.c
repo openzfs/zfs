@@ -487,7 +487,7 @@ dmu_dump_write(dmu_send_cookie_t *dscp, dmu_object_type_t type, uint64_t object,
 	drrw->drr_logical_size = lsize;
 
 	/* only set the compression fields if the buf is compressed or raw */
-	if (raw || lsize != psize) {
+	if (lsize != psize || raw) {
 		ASSERT(raw || dscp->dsc_featureflags &
 		    DMU_BACKUP_FEATURE_COMPRESSED);
 		ASSERT(!BP_IS_EMBEDDED(bp));
@@ -922,6 +922,7 @@ do_dump(dmu_send_cookie_t *dscp, struct send_range *range)
 		blkptr_t *bp = &srdp->bp;
 		spa_t *spa =
 		    dmu_objset_spa(dscp->dsc_os);
+		uint64_t offset, sz;
 
 		ASSERT3U(srdp->datablksz, ==, BP_GET_LSIZE(bp));
 		ASSERT3U(range->start_blkid + 1, ==, range->end_blkid);
@@ -992,8 +993,6 @@ do_dump(dmu_send_cookie_t *dscp, struct send_range *range)
 		ASSERT(dscp->dsc_dso->dso_dryrun ||
 		    srdp->abuf != NULL || srdp->abd != NULL);
 
-		uint64_t offset = range->start_blkid * srdp->datablksz;
-
 		char *data = NULL;
 		if (srdp->abd != NULL) {
 			data = abd_to_buf(srdp->abd);
@@ -1005,14 +1004,17 @@ do_dump(dmu_send_cookie_t *dscp, struct send_range *range)
 		/*
 		 * If we have large blocks stored on disk but the send flags
 		 * don't allow us to send large blocks, we split the data from
-		 * the arc buf into chunks.
+		 * the arc buf into chunks. If this is a raw send use the
+		 * payload size to split in chunks if necessary.
 		 */
-		if (srdp->datablksz > SPA_OLD_MAXBLOCKSIZE &&
+		sz = (dscp->dsc_featureflags & DMU_BACKUP_FEATURE_RAW) ?
+		    srdp->datasz : srdp->datablksz;
+		if (sz > SPA_OLD_MAXBLOCKSIZE &&
 		    !(dscp->dsc_featureflags &
 		    DMU_BACKUP_FEATURE_LARGE_BLOCKS)) {
-			while (srdp->datablksz > 0 && err == 0) {
-				int n = MIN(srdp->datablksz,
-				    SPA_OLD_MAXBLOCKSIZE);
+			offset = range->start_blkid * sz;
+			while (sz > 0 && err == 0) {
+				int n = MIN(sz, SPA_OLD_MAXBLOCKSIZE);
 				err = dmu_dump_write(dscp, srdp->obj_type,
 				    range->object, offset, n, n, NULL, data);
 				offset += n;
@@ -1023,9 +1025,10 @@ do_dump(dmu_send_cookie_t *dscp, struct send_range *range)
 				 */
 				if (data != NULL)
 					data += n;
-				srdp->datablksz -= n;
+				sz -= n;
 			}
 		} else {
+			offset = range->start_blkid * srdp->datablksz;
 			err = dmu_dump_write(dscp, srdp->obj_type,
 			    range->object, offset,
 			    srdp->datablksz, srdp->datasz, bp, data);
