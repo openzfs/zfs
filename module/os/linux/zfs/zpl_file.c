@@ -33,6 +33,9 @@
 #include <sys/zfs_vfsops.h>
 #include <sys/zfs_vnops.h>
 #include <sys/zfs_project.h>
+#ifdef HAVE_VFS_SET_PAGE_DIRTY_NOBUFFERS
+#include <linux/pagemap.h>
+#endif
 
 /*
  * When using fallocate(2) to preallocate space, inflate the requested
@@ -1007,6 +1010,9 @@ const struct address_space_operations zpl_address_space_operations = {
 	.writepage	= zpl_writepage,
 	.writepages	= zpl_writepages,
 	.direct_IO	= zpl_direct_IO,
+#ifdef HAVE_VFS_SET_PAGE_DIRTY_NOBUFFERS
+	.set_page_dirty = __set_page_dirty_nobuffers,
+#endif
 };
 
 const struct file_operations zpl_file_operations = {
