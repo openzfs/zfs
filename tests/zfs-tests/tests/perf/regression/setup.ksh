@@ -12,12 +12,11 @@
 #
 
 #
-# Copyright (c) 2015 by Delphix. All rights reserved.
+# Copyright (c) 2015, 2021 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
 
 verify_runnable "global"
-verify_disk_count "$DISKS" 3
 
 log_pass
