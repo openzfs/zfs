@@ -9743,85 +9743,12 @@ l2arc_vdev_get(vdev_t *vd)
 	return (dev);
 }
 
-/*
- * Add a vdev for use by the L2ARC.  By this point the spa has already
- * validated the vdev and opened it.
- */
-void
-l2arc_add_vdev(spa_t *spa, vdev_t *vd)
+static void
+l2arc_rebuild_dev(l2arc_dev_t *dev, boolean_t reopen)
 {
-	l2arc_dev_t		*adddev;
-	uint64_t		l2dhdr_asize;
-
-	ASSERT(!l2arc_vdev_present(vd));
-
-	/*
-	 * Create a new l2arc device entry.
-	 */
-	adddev = vmem_zalloc(sizeof (l2arc_dev_t), KM_SLEEP);
-	adddev->l2ad_spa = spa;
-	adddev->l2ad_vdev = vd;
-	/* leave extra size for an l2arc device header */
-	l2dhdr_asize = adddev->l2ad_dev_hdr_asize =
-	    MAX(sizeof (*adddev->l2ad_dev_hdr), 1 << vd->vdev_ashift);
-	adddev->l2ad_start = VDEV_LABEL_START_SIZE + l2dhdr_asize;
-	adddev->l2ad_end = VDEV_LABEL_START_SIZE + vdev_get_min_asize(vd);
-	ASSERT3U(adddev->l2ad_start, <, adddev->l2ad_end);
-	adddev->l2ad_hand = adddev->l2ad_start;
-	adddev->l2ad_evict = adddev->l2ad_start;
-	adddev->l2ad_first = B_TRUE;
-	adddev->l2ad_writing = B_FALSE;
-	adddev->l2ad_trim_all = B_FALSE;
-	list_link_init(&adddev->l2ad_node);
-	adddev->l2ad_dev_hdr = kmem_zalloc(l2dhdr_asize, KM_SLEEP);
-
-	mutex_init(&adddev->l2ad_mtx, NULL, MUTEX_DEFAULT, NULL);
-	/*
-	 * This is a list of all ARC buffers that are still valid on the
-	 * device.
-	 */
-	list_create(&adddev->l2ad_buflist, sizeof (arc_buf_hdr_t),
-	    offsetof(arc_buf_hdr_t, b_l2hdr.b_l2node));
-
-	/*
-	 * This is a list of pointers to log blocks that are still present
-	 * on the device.
-	 */
-	list_create(&adddev->l2ad_lbptr_list, sizeof (l2arc_lb_ptr_buf_t),
-	    offsetof(l2arc_lb_ptr_buf_t, node));
-
-	vdev_space_update(vd, 0, 0, adddev->l2ad_end - adddev->l2ad_hand);
-	zfs_refcount_create(&adddev->l2ad_alloc);
-	zfs_refcount_create(&adddev->l2ad_lb_asize);
-	zfs_refcount_create(&adddev->l2ad_lb_count);
-
-	/*
-	 * Add device to global list
-	 */
-	mutex_enter(&l2arc_dev_mtx);
-	list_insert_head(l2arc_dev_list, adddev);
-	atomic_inc_64(&l2arc_ndev);
-	mutex_exit(&l2arc_dev_mtx);
-
-	/*
-	 * Decide if vdev is eligible for L2ARC rebuild
-	 */
-	l2arc_rebuild_vdev(adddev->l2ad_vdev, B_FALSE);
-}
-
-void
-l2arc_rebuild_vdev(vdev_t *vd, boolean_t reopen)
-{
-	l2arc_dev_t		*dev = NULL;
-	l2arc_dev_hdr_phys_t	*l2dhdr;
-	uint64_t		l2dhdr_asize;
-	spa_t			*spa;
-
-	dev = l2arc_vdev_get(vd);
-	ASSERT3P(dev, !=, NULL);
-	spa = dev->l2ad_spa;
-	l2dhdr = dev->l2ad_dev_hdr;
-	l2dhdr_asize = dev->l2ad_dev_hdr_asize;
+	l2arc_dev_hdr_phys_t *l2dhdr = dev->l2ad_dev_hdr;
+	uint64_t l2dhdr_asize = dev->l2ad_dev_hdr_asize;
+	spa_t *spa = dev->l2ad_spa;
 
 	/*
 	 * The L2ARC has to hold at least the payload of one log block for
@@ -9888,6 +9815,106 @@ l2arc_rebuild_vdev(vdev_t *vd, boolean_t reopen)
 			l2arc_dev_hdr_update(dev);
 		}
 	}
+}
+
+/*
+ * Add a vdev for use by the L2ARC.  By this point the spa has already
+ * validated the vdev and opened it.
+ */
+void
+l2arc_add_vdev(spa_t *spa, vdev_t *vd)
+{
+	l2arc_dev_t		*adddev;
+	uint64_t		l2dhdr_asize;
+
+	ASSERT(!l2arc_vdev_present(vd));
+
+	/*
+	 * Create a new l2arc device entry.
+	 */
+	adddev = vmem_zalloc(sizeof (l2arc_dev_t), KM_SLEEP);
+	adddev->l2ad_spa = spa;
+	adddev->l2ad_vdev = vd;
+	/* leave extra size for an l2arc device header */
+	l2dhdr_asize = adddev->l2ad_dev_hdr_asize =
+	    MAX(sizeof (*adddev->l2ad_dev_hdr), 1 << vd->vdev_ashift);
+	adddev->l2ad_start = VDEV_LABEL_START_SIZE + l2dhdr_asize;
+	adddev->l2ad_end = VDEV_LABEL_START_SIZE + vdev_get_min_asize(vd);
+	ASSERT3U(adddev->l2ad_start, <, adddev->l2ad_end);
+	adddev->l2ad_hand = adddev->l2ad_start;
+	adddev->l2ad_evict = adddev->l2ad_start;
+	adddev->l2ad_first = B_TRUE;
+	adddev->l2ad_writing = B_FALSE;
+	adddev->l2ad_trim_all = B_FALSE;
+	list_link_init(&adddev->l2ad_node);
+	adddev->l2ad_dev_hdr = kmem_zalloc(l2dhdr_asize, KM_SLEEP);
+
+	mutex_init(&adddev->l2ad_mtx, NULL, MUTEX_DEFAULT, NULL);
+	/*
+	 * This is a list of all ARC buffers that are still valid on the
+	 * device.
+	 */
+	list_create(&adddev->l2ad_buflist, sizeof (arc_buf_hdr_t),
+	    offsetof(arc_buf_hdr_t, b_l2hdr.b_l2node));
+
+	/*
+	 * This is a list of pointers to log blocks that are still present
+	 * on the device.
+	 */
+	list_create(&adddev->l2ad_lbptr_list, sizeof (l2arc_lb_ptr_buf_t),
+	    offsetof(l2arc_lb_ptr_buf_t, node));
+
+	vdev_space_update(vd, 0, 0, adddev->l2ad_end - adddev->l2ad_hand);
+	zfs_refcount_create(&adddev->l2ad_alloc);
+	zfs_refcount_create(&adddev->l2ad_lb_asize);
+	zfs_refcount_create(&adddev->l2ad_lb_count);
+
+	/*
+	 * Decide if dev is eligible for L2ARC rebuild or whole device
+	 * trimming. This has to happen before the device is added in the
+	 * cache device list and l2arc_dev_mtx is released. Otherwise
+	 * l2arc_feed_thread() might already start writing on the
+	 * device.
+	 */
+	l2arc_rebuild_dev(adddev, B_FALSE);
+
+	/*
+	 * Add device to global list
+	 */
+	mutex_enter(&l2arc_dev_mtx);
+	list_insert_head(l2arc_dev_list, adddev);
+	atomic_inc_64(&l2arc_ndev);
+	mutex_exit(&l2arc_dev_mtx);
+}
+
+/*
+ * Decide if a vdev is eligible for L2ARC rebuild, called from vdev_reopen()
+ * in case of onlining a cache device.
+ */
+void
+l2arc_rebuild_vdev(vdev_t *vd, boolean_t reopen)
+{
+	l2arc_dev_t		*dev = NULL;
+
+	dev = l2arc_vdev_get(vd);
+	ASSERT3P(dev, !=, NULL);
+
+	/*
+	 * In contrast to l2arc_add_vdev() we do not have to worry about
+	 * l2arc_feed_thread() invalidating previous content when onlining a
+	 * cache device. The device parameters (l2ad*) are not cleared when
+	 * offlining the device and writing new buffers will not invalidate
+	 * all previous content. In worst case only buffers that have not had
+	 * their log block written to the device will be lost.
+	 * When onlining the cache device (ie offline->online without exporting
+	 * the pool in between) this happens:
+	 * vdev_reopen() -> vdev_open() -> l2arc_rebuild_vdev()
+	 * 			|			|
+	 * 		vdev_is_dead() = B_FALSE	l2ad_rebuild = B_TRUE
+	 * During the time where vdev_is_dead = B_FALSE and until l2ad_rebuild
+	 * is set to B_TRUE we might write additional buffers to the device.
+	 */
+	l2arc_rebuild_dev(dev, reopen);
 }
 
 /*
