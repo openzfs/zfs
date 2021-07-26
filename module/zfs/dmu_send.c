@@ -1963,8 +1963,14 @@ setup_featureflags(struct dmu_send_params *dspp, objset_t *os,
 	if (dspp->compressok || dspp->rawok)
 		*featureflags |= DMU_BACKUP_FEATURE_COMPRESSED;
 
-	if (dspp->rawok && os->os_encrypted)
+	if (dspp->rawok && os->os_encrypted) {
 		*featureflags |= DMU_BACKUP_FEATURE_RAW;
+		if (!(*featureflags & DMU_BACKUP_FEATURE_LARGE_BLOCKS)) {
+			cmn_err(CE_WARN, "Raw sending without large_blocks "
+			    "active is unsupported.");
+			return (SET_ERROR(ENOTSUP));
+		}
+	}
 
 	if ((*featureflags &
 	    (DMU_BACKUP_FEATURE_EMBED_DATA | DMU_BACKUP_FEATURE_COMPRESSED |
