@@ -5617,6 +5617,13 @@ metaslab_class_throttle_reserve(metaslab_class_t *mc, int slots, int allocator,
 	if (GANG_ALLOCATION(flags) || (flags & METASLAB_MUST_RESERVE) ||
 	    zfs_refcount_count(&mca->mca_alloc_slots) + slots <= max) {
 		/*
+		 * The potential race between _count() and _add() is covered
+		 * by the allocator lock in most cases, or irrelevant due to
+		 * GANG_ALLOCATION() or METASLAB_MUST_RESERVE set in others.
+		 * But even if we assume some other non-existing scenario, the
+		 * worst that can happen is few more I/Os get to allocation
+		 * earlier, that is not a problem.
+		 *
 		 * We reserve the slots individually so that we can unreserve
 		 * them individually when an I/O completes.
 		 */
