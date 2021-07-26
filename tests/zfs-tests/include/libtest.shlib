@@ -4048,6 +4048,34 @@ function stat_size #<path>
 	esac
 }
 
+function stat_ctime #<path>
+{
+	typeset path=$1
+
+	case $(uname) in
+	FreeBSD)
+		stat -f %c "$path"
+		;;
+	*)
+		stat -c %Z "$path"
+		;;
+	esac
+}
+
+function stat_crtime #<path>
+{
+	typeset path=$1
+
+	case $(uname) in
+	FreeBSD)
+		stat -f %B "$path"
+		;;
+	*)
+		stat -c %W "$path"
+		;;
+	esac
+}
+
 # Run a command as if it was being run in a TTY.
 #
 # Usage:
