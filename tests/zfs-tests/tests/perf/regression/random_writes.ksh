@@ -12,7 +12,7 @@
 #
 
 #
-# Copyright (c) 2015, 2020 by Delphix. All rights reserved.
+# Copyright (c) 2015, 2021 by Delphix. All rights reserved.
 #
 
 #
@@ -54,28 +54,10 @@ populate_perf_filesystems
 # Aim to fill the pool to 50% capacity while accounting for a 3x compressratio.
 export TOTAL_SIZE=$(($(get_prop avail $PERFPOOL) * 3 / 2))
 
-# Variables for use by fio.
-if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
-	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_WEEKLY}
-	export PERF_RANDSEED=${PERF_RANDSEED:-'1234'}
-	export PERF_COMPPERCENT=${PERF_COMPPERCENT:-'66'}
-	export PERF_COMPCHUNK=${PERF_COMPCHUNK:-'4096'}
-	export PERF_RUNTYPE=${PERF_RUNTYPE:-'weekly'}
-	export PERF_NTHREADS=${PERF_NTHREADS:-'1 4 8 16 32 64 128'}
-	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
-	export PERF_SYNC_TYPES=${PERF_SYNC_TYPES:-'0 1'}
-	export PERF_IOSIZES=${PERF_IOSIZES:-'8k 64k 256k'}
-elif [[ -n $PERF_REGRESSION_NIGHTLY ]]; then
-	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_NIGHTLY}
-	export PERF_RANDSEED=${PERF_RANDSEED:-'1234'}
-	export PERF_COMPPERCENT=${PERF_COMPPERCENT:-'66'}
-	export PERF_COMPCHUNK=${PERF_COMPCHUNK:-'4096'}
-	export PERF_RUNTYPE=${PERF_RUNTYPE:-'nightly'}
-	export PERF_NTHREADS=${PERF_NTHREADS:-'32 128'}
-	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
-	export PERF_SYNC_TYPES=${PERF_SYNC_TYPES:-'1'}
-	export PERF_IOSIZES=${PERF_IOSIZES:-'8k'}
-fi
+# Variables specific to this test for use by fio.
+export PERF_NTHREADS=${PERF_NTHREADS:-'32 128'}
+export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
+export PERF_IOSIZES=${PERF_IOSIZES:-'8k'}
 
 # Set up the scripts and output files that will log performance data.
 lun_list=$(pool_to_lun_list $PERFPOOL)
@@ -100,6 +82,6 @@ else
 	)
 fi
 
-log_note "Random writes with $PERF_RUNTYPE settings"
+log_note "Random writes with settings: $(print_perf_settings)"
 do_fio_run random_writes.fio true false
 log_pass "Measure IO stats during random write load"
