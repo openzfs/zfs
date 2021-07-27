@@ -36,12 +36,6 @@
 extern "C" {
 #endif
 
-#if	defined(_KERNEL) || defined(_STANDALONE)
-#define	__NORETURN		__sun_attr__((__noreturn__))
-#endif /* _KERNEL || _STANDALONE */
-#define	__CONST			__sun_attr__((__const__))
-#define	__PURE			__sun_attr__((__pure__))
-
 #if defined(INVARIANTS) && !defined(ZFS_DEBUG)
 #define	ZFS_DEBUG
 #undef 	NDEBUG
