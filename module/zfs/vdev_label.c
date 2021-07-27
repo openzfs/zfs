@@ -1305,7 +1305,7 @@ vdev_label_read_bootenv(vdev_t *rvd, nvlist_t *bootenv)
 				nvlist_free(config);
 				break;
 			}
-			/* FALLTHROUGH */
+			fallthrough;
 		default:
 			/* Check for FreeBSD zfs bootonce command string */
 			buf = abd_to_buf(abd);
