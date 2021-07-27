@@ -826,6 +826,7 @@ perform_thread_merge(bqueue_t *q, uint32_t num_threads,
 		avl_remove(&end_tree, &redact_nodes[i]);
 		kmem_free(redact_nodes[i].record,
 		    sizeof (struct redact_record));
+		bqueue_destroy(&thread_args[i].q);
 	}
 
 	avl_destroy(&start_tree);
@@ -1232,6 +1233,7 @@ dmu_redact_snap(const char *snapname, nvlist_t *redactnvl,
 		spa_strfree(search.dbn_name);
 		dnode_rele(dn, FTAG);
 	}
+	bqueue_destroy(&rmta->q);
 	kmem_free(rmta, sizeof (struct redact_merge_thread_arg));
 
 out:
