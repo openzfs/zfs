@@ -8354,8 +8354,8 @@ l2arc_write_size(l2arc_dev_t *dev)
 		    "plus the overhead of log blocks (persistent L2ARC, "
 		    "%llu bytes) exceeds the size of the cache device "
 		    "(guid %llu), resetting them to the default (%d)",
-		    l2arc_log_blk_overhead(size, dev),
-		    dev->l2ad_vdev->vdev_guid, L2ARC_WRITE_SIZE);
+		    (u_longlong_t)l2arc_log_blk_overhead(size, dev),
+		    (u_longlong_t)dev->l2ad_vdev->vdev_guid, L2ARC_WRITE_SIZE);
 		size = l2arc_write_max = l2arc_write_boost = L2ARC_WRITE_SIZE;
 
 		if (arc_warm == B_FALSE)
