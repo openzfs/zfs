@@ -352,12 +352,11 @@ send_iterate_snap(zfs_handle_t *zhp, void *arg)
 	fnvlist_add_nvlist(sd->snapprops, snapname, nv);
 	fnvlist_free(nv);
 	if (sd->holds) {
-		nvlist_t *holds = fnvlist_alloc();
-		int err = lzc_get_holds(zhp->zfs_name, &holds);
-		if (err == 0) {
+		nvlist_t *holds;
+		if (lzc_get_holds(zhp->zfs_name, &holds) == 0) {
 			fnvlist_add_nvlist(sd->snapholds, snapname, holds);
+			fnvlist_free(holds);
 		}
-		fnvlist_free(holds);
 	}
 
 	zfs_close(zhp);
