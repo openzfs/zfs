@@ -86,7 +86,7 @@ typedef struct progress_arg {
 } progress_arg_t;
 
 static int
-dump_record(dmu_replay_record_t *drr, void *payload, int payload_len,
+dump_record(dmu_replay_record_t *drr, void *payload, size_t payload_len,
     zio_cksum_t *zc, int outfd)
 {
 	ASSERT3U(offsetof(dmu_replay_record_t, drr_u.drr_checksum.drr_checksum),
