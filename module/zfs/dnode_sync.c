@@ -482,7 +482,14 @@ dnode_evict_dbufs(dnode_t *dn)
 		    zfs_refcount_is_zero(&db->db_holds)) {
 			db_marker->db_level = db->db_level;
 			db_marker->db_blkid = db->db_blkid;
-			db_marker->db_state = DB_SEARCH;
+			/*
+			 * Insert a MARKER node with the same level and blkid.
+			 * And to resolve any ties in dbuf_compare() use the
+			 * pointer of the dbuf that we are evicting. Pass the
+			 * address in db_parent.
+			 */
+			db_marker->db_state = DB_MARKER;
+			db_marker->db_parent = (void *)((uintptr_t)db - 1);
 			avl_insert_here(&dn->dn_dbufs, db_marker, db,
 			    AVL_BEFORE);
 
