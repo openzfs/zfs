@@ -6878,7 +6878,8 @@ arc_write_ready(zio_t *zio)
 		ASSERT(ARC_BUF_COMPRESSED(buf));
 		arc_hdr_alloc_abd(hdr, ARC_HDR_DO_ADAPT|ARC_HDR_ALLOC_RDATA);
 		abd_copy(hdr->b_crypt_hdr.b_rabd, zio->io_abd, psize);
-	} else if (zfs_abd_scatter_enabled || !arc_can_share(hdr, buf)) {
+	} else if (!abd_size_alloc_linear(arc_buf_size(buf)) ||
+	    !arc_can_share(hdr, buf)) {
 		/*
 		 * Ideally, we would always copy the io_abd into b_pabd, but the
 		 * user may have disabled compressed ARC, thus we must check the
