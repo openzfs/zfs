@@ -364,21 +364,23 @@ send_iterate_snap(zfs_handle_t *zhp, void *arg)
 	return (0);
 }
 
+/*
+ * Collect all valid props from the handle snap into an nvlist.
+ */
 static void
 send_iterate_prop(zfs_handle_t *zhp, boolean_t received_only, nvlist_t *nv)
 {
-	nvlist_t *props = NULL;
-	nvpair_t *elem = NULL;
+	nvlist_t *props;
 
 	if (received_only)
 		props = zfs_get_recvd_props(zhp);
 	else
 		props = zhp->zfs_props;
 
+	nvpair_t *elem = NULL;
 	while ((elem = nvlist_next_nvpair(props, elem)) != NULL) {
 		char *propname = nvpair_name(elem);
 		zfs_prop_t prop = zfs_name_to_prop(propname);
-		nvlist_t *propnv;
 
 		if (!zfs_prop_user(propname)) {
 			/*
@@ -396,34 +398,26 @@ send_iterate_prop(zfs_handle_t *zhp, boolean_t received_only, nvlist_t *nv)
 				continue;
 		}
 
-		verify(nvpair_value_nvlist(elem, &propnv) == 0);
-		if (prop == ZFS_PROP_QUOTA || prop == ZFS_PROP_RESERVATION ||
+		nvlist_t *propnv = fnvpair_value_nvlist(elem);
+
+		boolean_t isspacelimit = (prop == ZFS_PROP_QUOTA ||
+		    prop == ZFS_PROP_RESERVATION ||
 		    prop == ZFS_PROP_REFQUOTA ||
-		    prop == ZFS_PROP_REFRESERVATION) {
-			char *source;
-			uint64_t value;
-			verify(nvlist_lookup_uint64(propnv,
-			    ZPROP_VALUE, &value) == 0);
-			if (zhp->zfs_type == ZFS_TYPE_SNAPSHOT)
+		    prop == ZFS_PROP_REFRESERVATION);
+		if (isspacelimit && zhp->zfs_type == ZFS_TYPE_SNAPSHOT)
+			continue;
+
+		char *source;
+		if (nvlist_lookup_string(propnv, ZPROP_SOURCE, &source) == 0) {
+			if (strcmp(source, zhp->zfs_name) != 0 &&
+			    strcmp(source, ZPROP_SOURCE_VAL_RECVD) != 0)
 				continue;
+		} else {
 			/*
 			 * May have no source before SPA_VERSION_RECVD_PROPS,
 			 * but is still modifiable.
 			 */
-			if (nvlist_lookup_string(propnv,
-			    ZPROP_SOURCE, &source) == 0) {
-				if ((strcmp(source, zhp->zfs_name) != 0) &&
-				    (strcmp(source,
-				    ZPROP_SOURCE_VAL_RECVD) != 0))
-					continue;
-			}
-		} else {
-			char *source;
-			if (nvlist_lookup_string(propnv,
-			    ZPROP_SOURCE, &source) != 0)
-				continue;
-			if ((strcmp(source, zhp->zfs_name) != 0) &&
-			    (strcmp(source, ZPROP_SOURCE_VAL_RECVD) != 0))
+			if (!isspacelimit)
 				continue;
 		}
 
