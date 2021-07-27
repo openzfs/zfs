@@ -191,16 +191,14 @@ fsavl_create(nvlist_t *fss)
 		while ((snapelem =
 		    nvlist_next_nvpair(snaps, snapelem)) != NULL) {
 			fsavl_node_t *fn;
-			uint64_t guid;
 
-			guid = fnvpair_value_uint64(snapelem);
 			if ((fn = malloc(sizeof (fsavl_node_t))) == NULL) {
 				fsavl_destroy(fsavl);
 				return (NULL);
 			}
 			fn->fn_nvfs = nvfs;
 			fn->fn_snapname = nvpair_name(snapelem);
-			fn->fn_guid = guid;
+			fn->fn_guid = fnvpair_value_uint64(snapelem);
 
 			/*
 			 * Note: if there are multiple snaps with the
