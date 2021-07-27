@@ -131,7 +131,7 @@ abd_scatter_chunkcnt(abd_t *abd)
 boolean_t
 abd_size_alloc_linear(size_t size)
 {
-	return (size < zfs_abd_scatter_min_size ? B_TRUE : B_FALSE);
+	return (!zfs_abd_scatter_enabled || size < zfs_abd_scatter_min_size);
 }
 
 void
