@@ -204,8 +204,9 @@ fsavl_create(nvlist_t *fss)
 			 * Note: if there are multiple snaps with the
 			 * same GUID, we ignore all but one.
 			 */
-			if (avl_find(fsavl, fn, NULL) == NULL)
-				avl_add(fsavl, fn);
+			avl_index_t where = 0;
+			if (avl_find(fsavl, fn, &where) == NULL)
+				avl_insert(fsavl, fn, where);
 			else
 				free(fn);
 		}
