@@ -283,51 +283,54 @@ typedef struct send_data {
 static void
 send_iterate_prop(zfs_handle_t *zhp, boolean_t received_only, nvlist_t *nv);
 
+/*
+ * Collect guid, valid props, optionally holds, etc. of a snapshot.
+ * This interface is intended for use as a zfs_iter_snapshots_sorted visitor.
+ */
 static int
 send_iterate_snap(zfs_handle_t *zhp, void *arg)
 {
 	send_data_t *sd = arg;
 	uint64_t guid = zhp->zfs_dmustats.dds_guid;
 	uint64_t txg = zhp->zfs_dmustats.dds_creation_txg;
-	char *snapname;
-	nvlist_t *nv;
 	boolean_t isfromsnap, istosnap, istosnapwithnofrom;
+	char *snapname = strrchr(zhp->zfs_name, '@') + 1;
+	const char *from = sd->fromsnap;
+	const char *to = sd->tosnap;
 
-	snapname = strrchr(zhp->zfs_name, '@')+1;
-	isfromsnap = (sd->fromsnap != NULL &&
-	    strcmp(sd->fromsnap, snapname) == 0);
-	istosnap = (sd->tosnap != NULL && (strcmp(sd->tosnap, snapname) == 0));
-	istosnapwithnofrom = (istosnap && sd->fromsnap == NULL);
+	assert(snapname != (NULL + 1));
+
+	isfromsnap = (from != NULL && strcmp(from, snapname) == 0);
+	istosnap = (to != NULL && strcmp(to, snapname) == 0);
+	istosnapwithnofrom = (istosnap && from == NULL);
 
 	if (sd->tosnap_txg != 0 && txg > sd->tosnap_txg) {
 		if (sd->verbose) {
 			(void) fprintf(stderr, dgettext(TEXT_DOMAIN,
 			    "skipping snapshot %s because it was created "
 			    "after the destination snapshot (%s)\n"),
-			    zhp->zfs_name, sd->tosnap);
+			    zhp->zfs_name, to);
 		}
 		zfs_close(zhp);
 		return (0);
 	}
 
 	fnvlist_add_uint64(sd->parent_snaps, snapname, guid);
+
 	/*
 	 * NB: if there is no fromsnap here (it's a newly created fs in
 	 * an incremental replication), we will substitute the tosnap.
 	 */
-	if (isfromsnap || (sd->parent_fromsnap_guid == 0 && istosnap)) {
+	if (isfromsnap || (sd->parent_fromsnap_guid == 0 && istosnap))
 		sd->parent_fromsnap_guid = guid;
-	}
 
 	if (!sd->recursive) {
-
 		/*
 		 * To allow a doall stream to work properly
 		 * with a NULL fromsnap
 		 */
-		if (sd->doall && sd->fromsnap == NULL && !sd->seenfrom) {
+		if (sd->doall && from == NULL && !sd->seenfrom)
 			sd->seenfrom = B_TRUE;
-		}
 
 		if (!sd->seenfrom && isfromsnap) {
 			sd->seenfrom = B_TRUE;
@@ -344,10 +347,11 @@ send_iterate_snap(zfs_handle_t *zhp, void *arg)
 			sd->seento = B_TRUE;
 	}
 
-	nv = fnvlist_alloc();
+	nvlist_t *nv = fnvlist_alloc();
 	send_iterate_prop(zhp, sd->backup, nv);
 	fnvlist_add_nvlist(sd->snapprops, snapname, nv);
 	fnvlist_free(nv);
+
 	if (sd->holds) {
 		nvlist_t *holds;
 		if (lzc_get_holds(zhp->zfs_name, &holds) == 0) {
