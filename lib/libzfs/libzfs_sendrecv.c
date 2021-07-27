@@ -460,7 +460,7 @@ get_snap_txg(libzfs_handle_t *hdl, const char *fs, const char *snap)
 }
 
 /*
- * recursively generate nvlists describing datasets.  See comment
+ * Recursively generate nvlists describing datasets.  See comment
  * for the data structure send_data_t above for description of contents
  * of the nvlist.
  */
@@ -471,13 +471,15 @@ send_iterate_fs(zfs_handle_t *zhp, void *arg)
 	nvlist_t *nvfs = NULL, *nv = NULL;
 	int rv = 0;
 	uint64_t min_txg = 0, max_txg = 0;
-	uint64_t parent_fromsnap_guid_save = sd->parent_fromsnap_guid;
-	uint64_t fromsnap_txg_save = sd->fromsnap_txg;
-	uint64_t tosnap_txg_save = sd->tosnap_txg;
 	uint64_t txg = zhp->zfs_dmustats.dds_creation_txg;
 	uint64_t guid = zhp->zfs_dmustats.dds_guid;
 	uint64_t fromsnap_txg, tosnap_txg;
 	char guidstring[64];
+
+	/* These fields are restored on return from a recursive call. */
+	uint64_t parent_fromsnap_guid_save = sd->parent_fromsnap_guid;
+	uint64_t fromsnap_txg_save = sd->fromsnap_txg;
+	uint64_t tosnap_txg_save = sd->tosnap_txg;
 
 	fromsnap_txg = get_snap_txg(zhp->zfs_hdl, zhp->zfs_name, sd->fromsnap);
 	if (fromsnap_txg != 0)
@@ -488,14 +490,14 @@ send_iterate_fs(zfs_handle_t *zhp, void *arg)
 		sd->tosnap_txg = tosnap_txg;
 
 	/*
-	 * on the send side, if the current dataset does not have tosnap,
+	 * On the send side, if the current dataset does not have tosnap,
 	 * perform two additional checks:
 	 *
-	 * - skip sending the current dataset if it was created later than
-	 *   the parent tosnap
-	 * - return error if the current dataset was created earlier than
+	 * - Skip sending the current dataset if it was created later than
+	 *   the parent tosnap.
+	 * - Return error if the current dataset was created earlier than
 	 *   the parent tosnap, unless --skip-missing specified. Then
-	 *   just print a warning
+	 *   just print a warning.
 	 */
 	if (sd->tosnap != NULL && tosnap_txg == 0) {
 		if (sd->tosnap_txg != 0 && txg > sd->tosnap_txg) {
@@ -522,10 +524,9 @@ send_iterate_fs(zfs_handle_t *zhp, void *arg)
 
 	nvfs = fnvlist_alloc();
 	fnvlist_add_string(nvfs, "name", zhp->zfs_name);
-	fnvlist_add_uint64(nvfs, "parentfromsnap",
-	    sd->parent_fromsnap_guid);
+	fnvlist_add_uint64(nvfs, "parentfromsnap", sd->parent_fromsnap_guid);
 
-	if (zhp->zfs_dmustats.dds_origin[0]) {
+	if (zhp->zfs_dmustats.dds_origin[0] != '\0') {
 		zfs_handle_t *origin = zfs_open(zhp->zfs_hdl,
 		    zhp->zfs_dmustats.dds_origin, ZFS_TYPE_SNAPSHOT);
 		if (origin == NULL) {
@@ -534,19 +535,19 @@ send_iterate_fs(zfs_handle_t *zhp, void *arg)
 		}
 		fnvlist_add_uint64(nvfs, "origin",
 		    origin->zfs_dmustats.dds_guid);
-
 		zfs_close(origin);
 	}
 
-	/* iterate over props */
+	/* Iterate over props. */
 	if (sd->props || sd->backup || sd->recursive) {
 		nv = fnvlist_alloc();
 		send_iterate_prop(zhp, sd->backup, nv);
+		fnvlist_add_nvlist(nvfs, "props", nv);
 	}
 	if (zfs_prop_get_int(zhp, ZFS_PROP_ENCRYPTION) != ZIO_CRYPT_OFF) {
 		boolean_t encroot;
 
-		/* determine if this dataset is an encryption root */
+		/* Determine if this dataset is an encryption root. */
 		if (zfs_crypto_get_encryption_root(zhp, &encroot, NULL) != 0) {
 			rv = -1;
 			goto out;
@@ -572,22 +573,19 @@ send_iterate_fs(zfs_handle_t *zhp, void *arg)
 
 	}
 
-	if (nv != NULL)
-		fnvlist_add_nvlist(nvfs, "props", nv);
-
-	/* iterate over snaps, and set sd->parent_fromsnap_guid */
-	sd->parent_fromsnap_guid = 0;
-	sd->parent_snaps = fnvlist_alloc();
-	sd->snapprops = fnvlist_alloc();
-	if (sd->holds)
-		sd->snapholds = fnvlist_alloc();
-
 	/*
+	 * Iterate over snaps, and set sd->parent_fromsnap_guid.
+	 *
 	 * If this is a "doall" send, a replicate send or we're just trying
 	 * to gather a list of previous snapshots, iterate through all the
 	 * snaps in the txg range. Otherwise just look at the one we're
 	 * interested in.
 	 */
+	sd->parent_fromsnap_guid = 0;
+	sd->parent_snaps = fnvlist_alloc();
+	sd->snapprops = fnvlist_alloc();
+	if (sd->holds)
+		sd->snapholds = fnvlist_alloc();
 	if (sd->doall || sd->replicate || sd->tosnap == NULL) {
 		if (!sd->replicate && fromsnap_txg != 0)
 			min_txg = fromsnap_txg;
@@ -596,26 +594,26 @@ send_iterate_fs(zfs_handle_t *zhp, void *arg)
 		(void) zfs_iter_snapshots_sorted(zhp, send_iterate_snap, sd,
 		    min_txg, max_txg);
 	} else {
-		char snapname[MAXPATHLEN] = { 0 };
+		char snapname[MAXPATHLEN];
 		zfs_handle_t *snap;
 
 		(void) snprintf(snapname, sizeof (snapname), "%s@%s",
 		    zhp->zfs_name, sd->tosnap);
 		if (sd->fromsnap != NULL)
 			sd->seenfrom = B_TRUE;
-		snap = zfs_open(zhp->zfs_hdl, snapname,
-		    ZFS_TYPE_SNAPSHOT);
+		snap = zfs_open(zhp->zfs_hdl, snapname, ZFS_TYPE_SNAPSHOT);
 		if (snap != NULL)
 			(void) send_iterate_snap(snap, sd);
 	}
 
 	fnvlist_add_nvlist(nvfs, "snaps", sd->parent_snaps);
-	fnvlist_add_nvlist(nvfs, "snapprops", sd->snapprops);
-	if (sd->holds)
-		fnvlist_add_nvlist(nvfs, "snapholds", sd->snapholds);
 	fnvlist_free(sd->parent_snaps);
+	fnvlist_add_nvlist(nvfs, "snapprops", sd->snapprops);
 	fnvlist_free(sd->snapprops);
-	fnvlist_free(sd->snapholds);
+	if (sd->holds) {
+		fnvlist_add_nvlist(nvfs, "snapholds", sd->snapholds);
+		fnvlist_free(sd->snapholds);
+	}
 
 	/* Do not allow the size of the properties list to exceed the limit */
 	if ((fnvlist_size(nvfs) + fnvlist_size(sd->fss)) >
@@ -629,19 +627,21 @@ send_iterate_fs(zfs_handle_t *zhp, void *arg)
 		rv = EZFS_NOSPC;
 		goto out;
 	}
-	/* add this fs to nvlist */
+	/* Add this fs to nvlist. */
 	(void) snprintf(guidstring, sizeof (guidstring),
 	    "0x%llx", (longlong_t)guid);
 	fnvlist_add_nvlist(sd->fss, guidstring, nvfs);
 
-	/* iterate over children */
+	/* Iterate over children. */
 	if (sd->recursive)
 		rv = zfs_iter_filesystems(zhp, send_iterate_fs, sd);
 
 out:
+	/* Restore saved fields. */
 	sd->parent_fromsnap_guid = parent_fromsnap_guid_save;
 	sd->fromsnap_txg = fromsnap_txg_save;
 	sd->tosnap_txg = tosnap_txg_save;
+
 	fnvlist_free(nv);
 	fnvlist_free(nvfs);
 
