@@ -837,6 +837,9 @@ zvol_alloc(dev_t dev, const char *name)
 	/* Disable write merging in favor of the ZIO pipeline. */
 	blk_queue_flag_set(QUEUE_FLAG_NOMERGES, zso->zvo_queue);
 
+	/* Enable /proc/diskstats */
+	blk_queue_flag_set(QUEUE_FLAG_IO_STAT, zso->zvo_queue);
+
 	zso->zvo_queue->queuedata = zv;
 	zso->zvo_dev = dev;
 	zv->zv_open_count = 0;
