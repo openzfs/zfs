@@ -53,13 +53,13 @@ set -A options " " "-r" "-H" "-p" "-rHp" "-o name" \
 set -A props type used available creation volsize referenced compressratio \
 	mounted origin recordsize quota reservation mountpoint sharenfs \
 	checksum compression atime devices exec readonly setuid snapdir \
-	aclinherit canmount primarycache secondarycache version \
+	aclinherit aclmode acltype canmount primarycache secondarycache \
 	usedbychildren usedbydataset usedbyrefreservation usedbysnapshots \
 	userquota@root groupquota@root userused@root groupused@root
 if is_freebsd; then
-	set -A props ${props[*]} jailed aclmode
+	set -A props ${props[*]} jailed
 else
-	set -A props ${props[*]} zoned acltype
+	set -A props ${props[*]} zoned
 fi
 
 set -A dataset $TESTPOOL/$TESTCTR $TESTPOOL/$TESTFS $TESTPOOL/$TESTVOL \
