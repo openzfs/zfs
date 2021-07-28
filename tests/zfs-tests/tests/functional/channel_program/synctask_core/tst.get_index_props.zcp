@@ -27,11 +27,8 @@ props['checksum']           = {{'on',        'default'}, {nil,         nil}}
 props['dedup']              = {{'off',       'default'}, {nil,         nil}}
 props['compression']        = {{'off',       'default'}, {nil,         nil}}
 props['snapdir']            = {{'hidden',    'default'}, {nil,         nil}}
-if os == "Linux" then
-	props['acltype']    = {{'off',       'default'}, {'off', 'default'}}
-elseif os == "FreeBSD" then
-	props['aclmode']    = {{'discard',   'default'}, {'discard', 'default'}}
-end
+props['acltype']            = {{'nfsv4',     'default'}, {'nfsv4', 'default'}}
+props['aclmode']            = {{'discard',   'default'}, {'discard', 'default'}}
 props['aclinherit']         = {{'restricted','default'}, {nil,         nil}}
 props['copies']             = {{'1',         'default'}, {nil,         nil}}
 props['primarycache']       = {{'all',       'default'}, {'all', 'default'}}
