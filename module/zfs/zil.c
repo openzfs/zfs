@@ -1179,7 +1179,8 @@ zil_lwb_flush_vdevs_done(zio_t *zio)
 		ASSERT3P(zcw->zcw_lwb, ==, lwb);
 		zcw->zcw_lwb = NULL;
 
-		zcw->zcw_zio_error = zio->io_error;
+		if (zio->io_error != 0)
+			zcw->zcw_zio_error = zio->io_error;
 
 		ASSERT3B(zcw->zcw_done, ==, B_FALSE);
 		zcw->zcw_done = B_TRUE;
@@ -1253,6 +1254,24 @@ zil_lwb_write_done(zio_t *zio)
 	 * written out.
 	 */
 	if (zio->io_error != 0) {
+		/*
+		 * Copy the write error to zcw, becaues the zil_lwb_write_done
+		 * error is not propagated to zil_lwb_flush_vdevs_done, which
+		 * will cause zil_commit_impl to return without committing
+		 * the data.
+		 * Refer https://github.com/openzfs/zfs/issues/12391
+		 * for more details.
+		 */
+		zil_commit_waiter_t *zcw;
+		for (zcw = list_head(&lwb->lwb_waiters); zcw != NULL;
+		    zcw = list_next(&lwb->lwb_waiters, zcw)) {
+			mutex_enter(&zcw->zcw_lock);
+			ASSERT(list_link_active(&zcw->zcw_node));
+			ASSERT3P(zcw->zcw_lwb, ==, lwb);
+			zcw->zcw_zio_error = zio->io_error;
+			mutex_exit(&zcw->zcw_lock);
+		}
+
 		while ((zv = avl_destroy_nodes(t, &cookie)) != NULL)
 			kmem_free(zv, sizeof (*zv));
 		return;
