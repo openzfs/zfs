@@ -376,6 +376,8 @@ function scan_state { #state-file
 #
 set -A prop "checksum" "" \
 	"compression" "" \
+	"aclmode" "" \
+	"acltype" "" \
 	"atime" "" \
 	"sharenfs" "" \
 	"recordsize" "recsize" \
@@ -388,12 +390,20 @@ set -A prop "checksum" "" \
 # above must have a corresponding entry in the two arrays below.
 #
 
-set -A def_val "on" "off" "on" \
+set -A def_val "on" \
+	"off" \
+	"discard" \
+	"nfsv4" \
+	"on" \
 	"off" "" \
 	"hidden" \
 	"off"
 
-set -A local_val "off" "on" "off" \
+set -A local_val "off" \
+	"on" \
+	"groupmask" \
+	"off" \
+	"off" \
 	"on" "" \
 	"visible" \
 	"off"
@@ -401,15 +411,6 @@ set -A local_val "off" "on" "off" \
 #
 # Add system specific values
 #
-if is_linux; then
-	prop+=("acltype" "")
-	def_val+=("off")
-	local_val+=("off")
-else
-	prop+=("aclmode" "")
-	def_val+=("discard")
-	local_val+=("groupmask")
-fi
 if is_illumos; then
 	prop+=("mountpoint" "")
 	def_val+=("")
