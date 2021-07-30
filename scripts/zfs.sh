@@ -14,6 +14,7 @@ fi
 PROG=zfs.sh
 VERBOSE="no"
 UNLOAD="no"
+LOAD="yes"
 STACK_TRACER="no"
 
 ZED_PIDFILE=${ZED_PIDFILE:-/var/run/zed.pid}
@@ -44,12 +45,13 @@ DESCRIPTION:
 OPTIONS:
 	-h      Show this message
 	-v      Verbose
+	-r	Reload modules
 	-u      Unload modules
 	-S      Enable kernel stack tracer
 EOF
 }
 
-while getopts 'hvuS' OPTION; do
+while getopts 'hvruS' OPTION; do
 	case $OPTION in
 	h)
 		usage
@@ -58,8 +60,13 @@ while getopts 'hvuS' OPTION; do
 	v)
 		VERBOSE="yes"
 		;;
+	r)
+		UNLOAD="yes"
+		LOAD="yes"
+		;;
 	u)
 		UNLOAD="yes"
+		LOAD="no"
 		;;
 	S)
 		STACK_TRACER="yes"
@@ -262,7 +269,8 @@ if [ "$UNLOAD" = "yes" ]; then
 	           unload_modules_linux
 		   ;;
 	esac
-else
+fi
+if [ "$LOAD" = "yes" ]; then
 	case $UNAME in
 		FreeBSD)
 		   load_modules_freebsd
