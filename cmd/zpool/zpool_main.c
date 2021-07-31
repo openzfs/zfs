@@ -398,7 +398,7 @@ get_usage(zpool_help_t idx)
 	case HELP_REOPEN:
 		return (gettext("\treopen [-n] <pool>\n"));
 	case HELP_INITIALIZE:
-		return (gettext("\tinitialize [-c | -s] [-w] <pool> "
+		return (gettext("\tinitialize [-c | -s | -u] [-w] <pool> "
 		    "[<device> ...]\n"));
 	case HELP_SCRUB:
 		return (gettext("\tscrub [-s | -p] [-w] <pool> ...\n"));
@@ -585,12 +585,13 @@ usage(boolean_t requested)
 }
 
 /*
- * zpool initialize [-c | -s] [-w] <pool> [<vdev> ...]
+ * zpool initialize [-c | -s | -u] [-w] <pool> [<vdev> ...]
  * Initialize all unused blocks in the specified vdevs, or all vdevs in the pool
  * if none specified.
  *
  *	-c	Cancel. Ends active initializing.
  *	-s	Suspend. Initializing can then be restarted with no flags.
+ *	-u	Uninitialize. Clears initialization state.
  *	-w	Wait. Blocks until initializing has completed.
  */
 int
@@ -606,12 +607,14 @@ zpool_do_initialize(int argc, char **argv)
 	struct option long_options[] = {
 		{"cancel",	no_argument,		NULL, 'c'},
 		{"suspend",	no_argument,		NULL, 's'},
+		{"uninit",	no_argument,		NULL, 'u'},
 		{"wait",	no_argument,		NULL, 'w'},
 		{0, 0, 0, 0}
 	};
 
 	pool_initialize_func_t cmd_type = POOL_INITIALIZE_START;
-	while ((c = getopt_long(argc, argv, "csw", long_options, NULL)) != -1) {
+	while ((c = getopt_long(argc, argv, "csuw", long_options,
+	    NULL)) != -1) {
 		switch (c) {
 		case 'c':
 			if (cmd_type != POOL_INITIALIZE_START &&
@@ -630,6 +633,15 @@ zpool_do_initialize(int argc, char **argv)
 				usage(B_FALSE);
 			}
 			cmd_type = POOL_INITIALIZE_SUSPEND;
+			break;
+		case 'u':
+			if (cmd_type != POOL_INITIALIZE_START &&
+			    cmd_type != POOL_INITIALIZE_UNINIT) {
+				(void) fprintf(stderr, gettext("-u cannot be "
+				    "combined with other options\n"));
+				usage(B_FALSE);
+			}
+			cmd_type = POOL_INITIALIZE_UNINIT;
 			break;
 		case 'w':
 			wait = B_TRUE;
@@ -657,8 +669,8 @@ zpool_do_initialize(int argc, char **argv)
 	}
 
 	if (wait && (cmd_type != POOL_INITIALIZE_START)) {
-		(void) fprintf(stderr, gettext("-w cannot be used with -c or "
-		    "-s\n"));
+		(void) fprintf(stderr, gettext("-w cannot be used with -c, -s"
+		    "or -u\n"));
 		usage(B_FALSE);
 	}
 

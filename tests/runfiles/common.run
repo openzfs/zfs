@@ -446,6 +446,7 @@ tests = ['zpool_initialize_attach_detach_add_remove',
     'zpool_initialize_start_and_cancel_neg',
     'zpool_initialize_start_and_cancel_pos',
     'zpool_initialize_suspend_resume',
+    'zpool_initialize_uninit',
     'zpool_initialize_unsupported_vdevs',
     'zpool_initialize_verify_checksums',
     'zpool_initialize_verify_initialized']

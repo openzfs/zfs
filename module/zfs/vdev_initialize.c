@@ -97,6 +97,39 @@ vdev_initialize_zap_update_sync(void *arg, dmu_tx_t *tx)
 }
 
 static void
+vdev_initialize_zap_remove_sync(void *arg, dmu_tx_t *tx)
+{
+	uint64_t guid = *(uint64_t *)arg;
+
+	kmem_free(arg, sizeof (uint64_t));
+
+	vdev_t *vd = spa_lookup_by_guid(tx->tx_pool->dp_spa, guid, B_FALSE);
+	if (vd == NULL || vd->vdev_top->vdev_removing || !vdev_is_concrete(vd))
+		return;
+
+	ASSERT3S(vd->vdev_initialize_state, ==, VDEV_INITIALIZE_NONE);
+	ASSERT3U(vd->vdev_leaf_zap, !=, 0);
+
+	vd->vdev_initialize_last_offset = 0;
+	vd->vdev_initialize_action_time = 0;
+
+	objset_t *mos = vd->vdev_spa->spa_meta_objset;
+	int error;
+
+	error = zap_remove(mos, vd->vdev_leaf_zap,
+	    VDEV_LEAF_ZAP_INITIALIZE_LAST_OFFSET, tx);
+	VERIFY(error == 0 || error == ENOENT);
+
+	error = zap_remove(mos, vd->vdev_leaf_zap,
+	    VDEV_LEAF_ZAP_INITIALIZE_STATE, tx);
+	VERIFY(error == 0 || error == ENOENT);
+
+	error = zap_remove(mos, vd->vdev_leaf_zap,
+	    VDEV_LEAF_ZAP_INITIALIZE_ACTION_TIME, tx);
+	VERIFY(error == 0 || error == ENOENT);
+}
+
+static void
 vdev_initialize_change_state(vdev_t *vd, vdev_initializing_state_t new_state)
 {
 	ASSERT(MUTEX_HELD(&vd->vdev_initialize_lock));
@@ -123,8 +156,14 @@ vdev_initialize_change_state(vdev_t *vd, vdev_initializing_state_t new_state)
 
 	dmu_tx_t *tx = dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
 	VERIFY0(dmu_tx_assign(tx, TXG_WAIT));
-	dsl_sync_task_nowait(spa_get_dsl(spa), vdev_initialize_zap_update_sync,
-	    guid, tx);
+
+	if (new_state != VDEV_INITIALIZE_NONE) {
+		dsl_sync_task_nowait(spa_get_dsl(spa),
+		    vdev_initialize_zap_update_sync, guid, tx);
+	} else {
+		dsl_sync_task_nowait(spa_get_dsl(spa),
+		    vdev_initialize_zap_remove_sync, guid, tx);
+	}
 
 	switch (new_state) {
 	case VDEV_INITIALIZE_ACTIVE:
@@ -144,6 +183,10 @@ vdev_initialize_change_state(vdev_t *vd, vdev_initializing_state_t new_state)
 	case VDEV_INITIALIZE_COMPLETE:
 		spa_history_log_internal(spa, "initialize", tx,
 		    "vdev=%s complete", vd->vdev_path);
+		break;
+	case VDEV_INITIALIZE_NONE:
+		spa_history_log_internal(spa, "uninitialize", tx,
+		    "vdev=%s", vd->vdev_path);
 		break;
 	default:
 		panic("invalid state %llu", (unsigned long long)new_state);
@@ -595,6 +638,24 @@ vdev_initialize(vdev_t *vd)
 }
 
 /*
+ * Uninitializes a device. Caller must hold vdev_initialize_lock.
+ * Device must be a leaf and not already be initializing.
+ */
+void
+vdev_uninitialize(vdev_t *vd)
+{
+	ASSERT(MUTEX_HELD(&vd->vdev_initialize_lock));
+	ASSERT(vd->vdev_ops->vdev_op_leaf);
+	ASSERT(vdev_is_concrete(vd));
+	ASSERT3P(vd->vdev_initialize_thread, ==, NULL);
+	ASSERT(!vd->vdev_detached);
+	ASSERT(!vd->vdev_initialize_exit_wanted);
+	ASSERT(!vd->vdev_top->vdev_removing);
+
+	vdev_initialize_change_state(vd, VDEV_INITIALIZE_NONE);
+}
+
+/*
  * Wait for the initialize thread to be terminated (cancelled or stopped).
  */
 static void
@@ -750,6 +811,7 @@ vdev_initialize_restart(vdev_t *vd)
 }
 
 EXPORT_SYMBOL(vdev_initialize);
+EXPORT_SYMBOL(vdev_uninitialize);
 EXPORT_SYMBOL(vdev_initialize_stop);
 EXPORT_SYMBOL(vdev_initialize_stop_all);
 EXPORT_SYMBOL(vdev_initialize_stop_wait);
