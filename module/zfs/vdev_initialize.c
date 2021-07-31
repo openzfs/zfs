@@ -81,7 +81,19 @@ vdev_initialize_zap_update_sync(void *arg, dmu_tx_t *tx)
 
 	objset_t *mos = vd->vdev_spa->spa_meta_objset;
 
-	if (last_offset > 0) {
+	uint64_t initialize_state = vd->vdev_initialize_state;
+
+	/*
+	 * XXX: need to double-check that there's really no way around this
+	 *
+	 * It turns out we call this with last_offset = 0 and
+	 * VDEV_INITIALIZE_NONE when resuming, so we can't just lob
+	 * VDEV_INITIALIZE_NONE out if we see it or we'll clobber that.
+	 */
+	if (last_offset > 0 || initialize_state == VDEV_INITIALIZE_UNINIT) {
+		if (initialize_state == VDEV_INITIALIZE_UNINIT) {
+			vd->vdev_initialize_state = VDEV_INITIALIZE_NONE;
+		}
 		vd->vdev_initialize_last_offset = last_offset;
 		VERIFY0(zap_update(mos, vd->vdev_leaf_zap,
 		    VDEV_LEAF_ZAP_INITIALIZE_LAST_OFFSET,
@@ -94,7 +106,7 @@ vdev_initialize_zap_update_sync(void *arg, dmu_tx_t *tx)
 		    1, &val, tx));
 	}
 
-	uint64_t initialize_state = vd->vdev_initialize_state;
+	initialize_state = vd->vdev_initialize_state;
 	VERIFY0(zap_update(mos, vd->vdev_leaf_zap,
 	    VDEV_LEAF_ZAP_INITIALIZE_STATE, sizeof (initialize_state), 1,
 	    &initialize_state, tx));
@@ -148,6 +160,10 @@ vdev_initialize_change_state(vdev_t *vd, vdev_initializing_state_t new_state)
 	case VDEV_INITIALIZE_COMPLETE:
 		spa_history_log_internal(spa, "initialize", tx,
 		    "vdev=%s complete", vd->vdev_path);
+		break;
+	case VDEV_INITIALIZE_UNINIT:
+		spa_history_log_internal(spa, "uninitialize", tx,
+		    "vdev=%s", vd->vdev_path);
 		break;
 	default:
 		panic("invalid state %llu", (unsigned long long)new_state);
@@ -604,6 +620,24 @@ vdev_initialize(vdev_t *vd)
 }
 
 /*
+ * Uninitializes a device. Caller must hold vdev_initialize_lock.
+ * Device must be a leaf and not already be initializing.
+ */
+void
+vdev_uninitialize(vdev_t *vd)
+{
+	ASSERT(MUTEX_HELD(&vd->vdev_initialize_lock));
+	ASSERT(vd->vdev_ops->vdev_op_leaf);
+	ASSERT(vdev_is_concrete(vd));
+	ASSERT3P(vd->vdev_initialize_thread, ==, NULL);
+	ASSERT(!vd->vdev_detached);
+	ASSERT(!vd->vdev_initialize_exit_wanted);
+	ASSERT(!vd->vdev_top->vdev_removing);
+
+	vdev_initialize_change_state(vd, VDEV_INITIALIZE_UNINIT);
+}
+
+/*
  * Wait for the initialize thread to be terminated (cancelled or stopped).
  */
 static void
@@ -758,6 +792,7 @@ vdev_initialize_restart(vdev_t *vd)
 }
 
 EXPORT_SYMBOL(vdev_initialize);
+EXPORT_SYMBOL(vdev_uninitialize);
 EXPORT_SYMBOL(vdev_initialize_stop);
 EXPORT_SYMBOL(vdev_initialize_stop_all);
 EXPORT_SYMBOL(vdev_initialize_stop_wait);
