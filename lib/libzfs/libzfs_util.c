@@ -304,7 +304,6 @@ libzfs_error_description(libzfs_handle_t *hdl)
 	}
 }
 
-/*PRINTFLIKE2*/
 void
 zfs_error_aux(libzfs_handle_t *hdl, const char *fmt, ...)
 {
@@ -352,7 +351,6 @@ zfs_error(libzfs_handle_t *hdl, int error, const char *msg)
 	return (zfs_error_fmt(hdl, error, "%s", msg));
 }
 
-/*PRINTFLIKE3*/
 int
 zfs_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 {
@@ -403,7 +401,6 @@ zfs_standard_error(libzfs_handle_t *hdl, int error, const char *msg)
 	return (zfs_standard_error_fmt(hdl, error, "%s", msg));
 }
 
-/*PRINTFLIKE3*/
 int
 zfs_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 {
@@ -613,7 +610,6 @@ zpool_standard_error(libzfs_handle_t *hdl, int error, const char *msg)
 	return (zpool_standard_error_fmt(hdl, error, "%s", msg));
 }
 
-/*PRINTFLIKE3*/
 int
 zpool_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 {
@@ -771,7 +767,6 @@ zfs_alloc(libzfs_handle_t *hdl, size_t size)
 /*
  * A safe form of asprintf() which will die if the allocation fails.
  */
-/*PRINTFLIKE2*/
 char *
 zfs_asprintf(libzfs_handle_t *hdl, const char *fmt, ...)
 {

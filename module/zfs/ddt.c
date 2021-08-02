@@ -570,7 +570,6 @@ ddt_compress(void *src, uchar_t *dst, size_t s_len, size_t d_len)
 	}
 
 	*version = cpfunc;
-	/* CONSTCOND */
 	if (ZFS_HOST_BYTEORDER)
 		*version |= DDT_COMPRESS_BYTEORDER_MASK;
 

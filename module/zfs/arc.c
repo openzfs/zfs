@@ -644,17 +644,9 @@ arc_sums_t arc_sums;
 		x = x - x / ARCSTAT_F_AVG_FACTOR + \
 		    (value) / ARCSTAT_F_AVG_FACTOR; \
 		ARCSTAT(stat) = x; \
-		_NOTE(CONSTCOND) \
 	} while (0)
 
 kstat_t			*arc_ksp;
-static arc_state_t	*arc_anon;
-static arc_state_t	*arc_mru_ghost;
-static arc_state_t	*arc_mfu_ghost;
-static arc_state_t	*arc_l2c_only;
-
-arc_state_t	*arc_mru;
-arc_state_t	*arc_mfu;
 
 /*
  * There are several ARC variables that are critical to export as kstats --
@@ -2203,7 +2195,6 @@ arc_evictable_space_increment(arc_buf_hdr_t *hdr, arc_state_t *state)
 		return;
 	}
 
-	ASSERT(!GHOST_STATE(state));
 	if (hdr->b_l1hdr.b_pabd != NULL) {
 		(void) zfs_refcount_add_many(&state->arcs_esize[type],
 		    arc_hdr_size(hdr), hdr);
@@ -2244,7 +2235,6 @@ arc_evictable_space_decrement(arc_buf_hdr_t *hdr, arc_state_t *state)
 		return;
 	}
 
-	ASSERT(!GHOST_STATE(state));
 	if (hdr->b_l1hdr.b_pabd != NULL) {
 		(void) zfs_refcount_remove_many(&state->arcs_esize[type],
 		    arc_hdr_size(hdr), hdr);
@@ -4031,23 +4021,21 @@ arc_set_need_free(void)
 
 static uint64_t
 arc_evict_state_impl(multilist_t *ml, int idx, arc_buf_hdr_t *marker,
-    uint64_t spa, int64_t bytes)
+    uint64_t spa, uint64_t bytes)
 {
 	multilist_sublist_t *mls;
 	uint64_t bytes_evicted = 0, real_evicted = 0;
 	arc_buf_hdr_t *hdr;
 	kmutex_t *hash_lock;
-	int evict_count = 0;
+	int evict_count = zfs_arc_evict_batch_limit;
 
 	ASSERT3P(marker, !=, NULL);
-	IMPLY(bytes < 0, bytes == ARC_EVICT_ALL);
 
 	mls = multilist_sublist_lock(ml, idx);
 
-	for (hdr = multilist_sublist_prev(mls, marker); hdr != NULL;
+	for (hdr = multilist_sublist_prev(mls, marker); likely(hdr != NULL);
 	    hdr = multilist_sublist_prev(mls, marker)) {
-		if ((bytes != ARC_EVICT_ALL && bytes_evicted >= bytes) ||
-		    (evict_count >= zfs_arc_evict_batch_limit))
+		if ((evict_count <= 0) || (bytes_evicted >= bytes))
 			break;
 
 		/*
@@ -4109,7 +4097,7 @@ arc_evict_state_impl(multilist_t *ml, int idx, arc_buf_hdr_t *marker,
 			 * evict_count in this case.
 			 */
 			if (evicted != 0)
-				evict_count++;
+				evict_count--;
 
 		} else {
 			ARCSTAT_BUMP(arcstat_mutex_miss);
@@ -4170,15 +4158,13 @@ arc_evict_state_impl(multilist_t *ml, int idx, arc_buf_hdr_t *marker,
  * the given arc state; which is used by arc_flush().
  */
 static uint64_t
-arc_evict_state(arc_state_t *state, uint64_t spa, int64_t bytes,
+arc_evict_state(arc_state_t *state, uint64_t spa, uint64_t bytes,
     arc_buf_contents_t type)
 {
 	uint64_t total_evicted = 0;
 	multilist_t *ml = &state->arcs_list[type];
 	int num_sublists;
 	arc_buf_hdr_t **markers;
-
-	IMPLY(bytes < 0, bytes == ARC_EVICT_ALL);
 
 	num_sublists = multilist_get_num_sublists(ml);
 
@@ -4211,7 +4197,7 @@ arc_evict_state(arc_state_t *state, uint64_t spa, int64_t bytes,
 	 * While we haven't hit our target number of bytes to evict, or
 	 * we're evicting all available buffers.
 	 */
-	while (total_evicted < bytes || bytes == ARC_EVICT_ALL) {
+	while (total_evicted < bytes) {
 		int sublist_idx = multilist_get_random_index(ml);
 		uint64_t scan_evicted = 0;
 
@@ -4239,9 +4225,7 @@ arc_evict_state(arc_state_t *state, uint64_t spa, int64_t bytes,
 			uint64_t bytes_remaining;
 			uint64_t bytes_evicted;
 
-			if (bytes == ARC_EVICT_ALL)
-				bytes_remaining = ARC_EVICT_ALL;
-			else if (total_evicted < bytes)
+			if (total_evicted < bytes)
 				bytes_remaining = bytes - total_evicted;
 			else
 				break;
@@ -4336,7 +4320,7 @@ static uint64_t
 arc_evict_impl(arc_state_t *state, uint64_t spa, int64_t bytes,
     arc_buf_contents_t type)
 {
-	int64_t delta;
+	uint64_t delta;
 
 	if (bytes > 0 && zfs_refcount_count(&state->arcs_esize[type]) > 0) {
 		delta = MIN(zfs_refcount_count(&state->arcs_esize[type]),
@@ -6888,7 +6872,8 @@ arc_write_ready(zio_t *zio)
 		ASSERT(ARC_BUF_COMPRESSED(buf));
 		arc_hdr_alloc_abd(hdr, ARC_HDR_DO_ADAPT|ARC_HDR_ALLOC_RDATA);
 		abd_copy(hdr->b_crypt_hdr.b_rabd, zio->io_abd, psize);
-	} else if (zfs_abd_scatter_enabled || !arc_can_share(hdr, buf)) {
+	} else if (!abd_size_alloc_linear(arc_buf_size(buf)) ||
+	    !arc_can_share(hdr, buf)) {
 		/*
 		 * Ideally, we would always copy the io_abd into b_pabd, but the
 		 * user may have disabled compressed ARC, thus we must check the
@@ -7485,7 +7470,7 @@ arc_state_multilist_index_func(multilist_t *ml, void *obj)
 	if ((do_warn) && (tuning) && ((tuning) != (value))) {	\
 		cmn_err(CE_WARN,				\
 		    "ignoring tunable %s (using %llu instead)",	\
-		    (#tuning), (value));			\
+		    (#tuning), (u_longlong_t)(value));	\
 	}							\
 } while (0)
 
@@ -7596,13 +7581,6 @@ arc_tuning_update(boolean_t verbose)
 static void
 arc_state_init(void)
 {
-	arc_anon = &ARC_anon;
-	arc_mru = &ARC_mru;
-	arc_mru_ghost = &ARC_mru_ghost;
-	arc_mfu = &ARC_mfu;
-	arc_mfu_ghost = &ARC_mfu_ghost;
-	arc_l2c_only = &ARC_l2c_only;
-
 	multilist_create(&arc_mru->arcs_list[ARC_BUFC_METADATA],
 	    sizeof (arc_buf_hdr_t),
 	    offsetof(arc_buf_hdr_t, b_l1hdr.b_arc_node),
@@ -8002,6 +7980,18 @@ arc_init(void)
 		zfs_dirty_data_max = MIN(zfs_dirty_data_max,
 		    zfs_dirty_data_max_max);
 	}
+
+	if (zfs_wrlog_data_max == 0) {
+
+		/*
+		 * dp_wrlog_total is reduced for each txg at the end of
+		 * spa_sync(). However, dp_dirty_total is reduced every time
+		 * a block is written out. Thus under normal operation,
+		 * dp_wrlog_total could grow 2 times as big as
+		 * zfs_dirty_data_max.
+		 */
+		zfs_wrlog_data_max = zfs_dirty_data_max * 2;
+	}
 }
 
 void
@@ -8365,8 +8355,8 @@ l2arc_write_size(l2arc_dev_t *dev)
 		    "plus the overhead of log blocks (persistent L2ARC, "
 		    "%llu bytes) exceeds the size of the cache device "
 		    "(guid %llu), resetting them to the default (%d)",
-		    l2arc_log_blk_overhead(size, dev),
-		    dev->l2ad_vdev->vdev_guid, L2ARC_WRITE_SIZE);
+		    (u_longlong_t)l2arc_log_blk_overhead(size, dev),
+		    (u_longlong_t)dev->l2ad_vdev->vdev_guid, L2ARC_WRITE_SIZE);
 		size = l2arc_write_max = l2arc_write_boost = L2ARC_WRITE_SIZE;
 
 		if (arc_warm == B_FALSE)
@@ -9760,85 +9750,12 @@ l2arc_vdev_get(vdev_t *vd)
 	return (dev);
 }
 
-/*
- * Add a vdev for use by the L2ARC.  By this point the spa has already
- * validated the vdev and opened it.
- */
-void
-l2arc_add_vdev(spa_t *spa, vdev_t *vd)
+static void
+l2arc_rebuild_dev(l2arc_dev_t *dev, boolean_t reopen)
 {
-	l2arc_dev_t		*adddev;
-	uint64_t		l2dhdr_asize;
-
-	ASSERT(!l2arc_vdev_present(vd));
-
-	/*
-	 * Create a new l2arc device entry.
-	 */
-	adddev = vmem_zalloc(sizeof (l2arc_dev_t), KM_SLEEP);
-	adddev->l2ad_spa = spa;
-	adddev->l2ad_vdev = vd;
-	/* leave extra size for an l2arc device header */
-	l2dhdr_asize = adddev->l2ad_dev_hdr_asize =
-	    MAX(sizeof (*adddev->l2ad_dev_hdr), 1 << vd->vdev_ashift);
-	adddev->l2ad_start = VDEV_LABEL_START_SIZE + l2dhdr_asize;
-	adddev->l2ad_end = VDEV_LABEL_START_SIZE + vdev_get_min_asize(vd);
-	ASSERT3U(adddev->l2ad_start, <, adddev->l2ad_end);
-	adddev->l2ad_hand = adddev->l2ad_start;
-	adddev->l2ad_evict = adddev->l2ad_start;
-	adddev->l2ad_first = B_TRUE;
-	adddev->l2ad_writing = B_FALSE;
-	adddev->l2ad_trim_all = B_FALSE;
-	list_link_init(&adddev->l2ad_node);
-	adddev->l2ad_dev_hdr = kmem_zalloc(l2dhdr_asize, KM_SLEEP);
-
-	mutex_init(&adddev->l2ad_mtx, NULL, MUTEX_DEFAULT, NULL);
-	/*
-	 * This is a list of all ARC buffers that are still valid on the
-	 * device.
-	 */
-	list_create(&adddev->l2ad_buflist, sizeof (arc_buf_hdr_t),
-	    offsetof(arc_buf_hdr_t, b_l2hdr.b_l2node));
-
-	/*
-	 * This is a list of pointers to log blocks that are still present
-	 * on the device.
-	 */
-	list_create(&adddev->l2ad_lbptr_list, sizeof (l2arc_lb_ptr_buf_t),
-	    offsetof(l2arc_lb_ptr_buf_t, node));
-
-	vdev_space_update(vd, 0, 0, adddev->l2ad_end - adddev->l2ad_hand);
-	zfs_refcount_create(&adddev->l2ad_alloc);
-	zfs_refcount_create(&adddev->l2ad_lb_asize);
-	zfs_refcount_create(&adddev->l2ad_lb_count);
-
-	/*
-	 * Add device to global list
-	 */
-	mutex_enter(&l2arc_dev_mtx);
-	list_insert_head(l2arc_dev_list, adddev);
-	atomic_inc_64(&l2arc_ndev);
-	mutex_exit(&l2arc_dev_mtx);
-
-	/*
-	 * Decide if vdev is eligible for L2ARC rebuild
-	 */
-	l2arc_rebuild_vdev(adddev->l2ad_vdev, B_FALSE);
-}
-
-void
-l2arc_rebuild_vdev(vdev_t *vd, boolean_t reopen)
-{
-	l2arc_dev_t		*dev = NULL;
-	l2arc_dev_hdr_phys_t	*l2dhdr;
-	uint64_t		l2dhdr_asize;
-	spa_t			*spa;
-
-	dev = l2arc_vdev_get(vd);
-	ASSERT3P(dev, !=, NULL);
-	spa = dev->l2ad_spa;
-	l2dhdr = dev->l2ad_dev_hdr;
-	l2dhdr_asize = dev->l2ad_dev_hdr_asize;
+	l2arc_dev_hdr_phys_t *l2dhdr = dev->l2ad_dev_hdr;
+	uint64_t l2dhdr_asize = dev->l2ad_dev_hdr_asize;
+	spa_t *spa = dev->l2ad_spa;
 
 	/*
 	 * The L2ARC has to hold at least the payload of one log block for
@@ -9905,6 +9822,106 @@ l2arc_rebuild_vdev(vdev_t *vd, boolean_t reopen)
 			l2arc_dev_hdr_update(dev);
 		}
 	}
+}
+
+/*
+ * Add a vdev for use by the L2ARC.  By this point the spa has already
+ * validated the vdev and opened it.
+ */
+void
+l2arc_add_vdev(spa_t *spa, vdev_t *vd)
+{
+	l2arc_dev_t		*adddev;
+	uint64_t		l2dhdr_asize;
+
+	ASSERT(!l2arc_vdev_present(vd));
+
+	/*
+	 * Create a new l2arc device entry.
+	 */
+	adddev = vmem_zalloc(sizeof (l2arc_dev_t), KM_SLEEP);
+	adddev->l2ad_spa = spa;
+	adddev->l2ad_vdev = vd;
+	/* leave extra size for an l2arc device header */
+	l2dhdr_asize = adddev->l2ad_dev_hdr_asize =
+	    MAX(sizeof (*adddev->l2ad_dev_hdr), 1 << vd->vdev_ashift);
+	adddev->l2ad_start = VDEV_LABEL_START_SIZE + l2dhdr_asize;
+	adddev->l2ad_end = VDEV_LABEL_START_SIZE + vdev_get_min_asize(vd);
+	ASSERT3U(adddev->l2ad_start, <, adddev->l2ad_end);
+	adddev->l2ad_hand = adddev->l2ad_start;
+	adddev->l2ad_evict = adddev->l2ad_start;
+	adddev->l2ad_first = B_TRUE;
+	adddev->l2ad_writing = B_FALSE;
+	adddev->l2ad_trim_all = B_FALSE;
+	list_link_init(&adddev->l2ad_node);
+	adddev->l2ad_dev_hdr = kmem_zalloc(l2dhdr_asize, KM_SLEEP);
+
+	mutex_init(&adddev->l2ad_mtx, NULL, MUTEX_DEFAULT, NULL);
+	/*
+	 * This is a list of all ARC buffers that are still valid on the
+	 * device.
+	 */
+	list_create(&adddev->l2ad_buflist, sizeof (arc_buf_hdr_t),
+	    offsetof(arc_buf_hdr_t, b_l2hdr.b_l2node));
+
+	/*
+	 * This is a list of pointers to log blocks that are still present
+	 * on the device.
+	 */
+	list_create(&adddev->l2ad_lbptr_list, sizeof (l2arc_lb_ptr_buf_t),
+	    offsetof(l2arc_lb_ptr_buf_t, node));
+
+	vdev_space_update(vd, 0, 0, adddev->l2ad_end - adddev->l2ad_hand);
+	zfs_refcount_create(&adddev->l2ad_alloc);
+	zfs_refcount_create(&adddev->l2ad_lb_asize);
+	zfs_refcount_create(&adddev->l2ad_lb_count);
+
+	/*
+	 * Decide if dev is eligible for L2ARC rebuild or whole device
+	 * trimming. This has to happen before the device is added in the
+	 * cache device list and l2arc_dev_mtx is released. Otherwise
+	 * l2arc_feed_thread() might already start writing on the
+	 * device.
+	 */
+	l2arc_rebuild_dev(adddev, B_FALSE);
+
+	/*
+	 * Add device to global list
+	 */
+	mutex_enter(&l2arc_dev_mtx);
+	list_insert_head(l2arc_dev_list, adddev);
+	atomic_inc_64(&l2arc_ndev);
+	mutex_exit(&l2arc_dev_mtx);
+}
+
+/*
+ * Decide if a vdev is eligible for L2ARC rebuild, called from vdev_reopen()
+ * in case of onlining a cache device.
+ */
+void
+l2arc_rebuild_vdev(vdev_t *vd, boolean_t reopen)
+{
+	l2arc_dev_t		*dev = NULL;
+
+	dev = l2arc_vdev_get(vd);
+	ASSERT3P(dev, !=, NULL);
+
+	/*
+	 * In contrast to l2arc_add_vdev() we do not have to worry about
+	 * l2arc_feed_thread() invalidating previous content when onlining a
+	 * cache device. The device parameters (l2ad*) are not cleared when
+	 * offlining the device and writing new buffers will not invalidate
+	 * all previous content. In worst case only buffers that have not had
+	 * their log block written to the device will be lost.
+	 * When onlining the cache device (ie offline->online without exporting
+	 * the pool in between) this happens:
+	 * vdev_reopen() -> vdev_open() -> l2arc_rebuild_vdev()
+	 * 			|			|
+	 * 		vdev_is_dead() = B_FALSE	l2ad_rebuild = B_TRUE
+	 * During the time where vdev_is_dead = B_FALSE and until l2ad_rebuild
+	 * is set to B_TRUE we might write additional buffers to the device.
+	 */
+	l2arc_rebuild_dev(dev, reopen);
 }
 
 /*
@@ -10748,7 +10765,6 @@ l2arc_log_blk_commit(l2arc_dev_t *dev, zio_t *pio, l2arc_write_callback_t *cb)
 	    dev->l2ad_log_blk_payload_asize;
 	l2dhdr->dh_start_lbps[0].lbp_payload_start =
 	    dev->l2ad_log_blk_payload_start;
-	_NOTE(CONSTCOND)
 	L2BLK_SET_LSIZE(
 	    (&l2dhdr->dh_start_lbps[0])->lbp_prop, sizeof (*lb));
 	L2BLK_SET_PSIZE(

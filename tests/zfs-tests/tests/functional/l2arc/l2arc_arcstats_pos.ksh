@@ -96,7 +96,6 @@ typeset l2_mru_end=$(get_arcstat l2_mru_asize)
 typeset l2_prefetch_end=$(get_arcstat l2_prefetch_asize)
 typeset l2_asize_end=$(get_arcstat l2_asize)
 
-log_must test $(( $l2_mfu_end - $l2_mfu_init )) -gt 0
 log_must test $(( $l2_mru_end + $l2_mfu_end + $l2_prefetch_end - \
 	$l2_asize_end )) -eq 0
 log_must test $(( $l2_mru_init + $l2_mfu_init + $l2_prefetch_init - \

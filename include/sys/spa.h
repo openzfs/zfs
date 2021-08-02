@@ -328,7 +328,7 @@ typedef struct zio_cksum_salt {
 #define	BPE_SET_ETYPE(bp, t)	do { \
 	ASSERT(BP_IS_EMBEDDED(bp)); \
 	BF64_SET((bp)->blk_prop, 40, 8, t); \
-_NOTE(CONSTCOND) } while (0)
+} while (0)
 
 #define	BPE_GET_LSIZE(bp)	\
 	(ASSERT(BP_IS_EMBEDDED(bp)), \
@@ -336,7 +336,7 @@ _NOTE(CONSTCOND) } while (0)
 #define	BPE_SET_LSIZE(bp, x)	do { \
 	ASSERT(BP_IS_EMBEDDED(bp)); \
 	BF64_SET_SB((bp)->blk_prop, 0, 25, 0, 1, x); \
-_NOTE(CONSTCOND) } while (0)
+} while (0)
 
 #define	BPE_GET_PSIZE(bp)	\
 	(ASSERT(BP_IS_EMBEDDED(bp)), \
@@ -344,7 +344,7 @@ _NOTE(CONSTCOND) } while (0)
 #define	BPE_SET_PSIZE(bp, x)	do { \
 	ASSERT(BP_IS_EMBEDDED(bp)); \
 	BF64_SET_SB((bp)->blk_prop, 25, 7, 0, 1, x); \
-_NOTE(CONSTCOND) } while (0)
+} while (0)
 
 typedef enum bp_embedded_type {
 	BP_EMBEDDED_TYPE_DATA,
@@ -419,7 +419,7 @@ typedef struct blkptr {
 	ASSERT(!BP_IS_EMBEDDED(bp)); \
 	BF64_SET_SB((bp)->blk_prop, \
 	    0, SPA_LSIZEBITS, SPA_MINBLOCKSHIFT, 1, x); \
-_NOTE(CONSTCOND) } while (0)
+} while (0)
 
 #define	BP_GET_PSIZE(bp)	\
 	(BP_IS_EMBEDDED(bp) ? 0 : \
@@ -428,7 +428,7 @@ _NOTE(CONSTCOND) } while (0)
 	ASSERT(!BP_IS_EMBEDDED(bp)); \
 	BF64_SET_SB((bp)->blk_prop, \
 	    16, SPA_PSIZEBITS, SPA_MINBLOCKSHIFT, 1, x); \
-_NOTE(CONSTCOND) } while (0)
+} while (0)
 
 #define	BP_GET_COMPRESS(bp)		\
 	BF64_GET((bp)->blk_prop, 32, SPA_COMPRESSBITS)
@@ -444,7 +444,7 @@ _NOTE(CONSTCOND) } while (0)
 #define	BP_SET_CHECKSUM(bp, x)		do { \
 	ASSERT(!BP_IS_EMBEDDED(bp)); \
 	BF64_SET((bp)->blk_prop, 40, 8, x); \
-_NOTE(CONSTCOND) } while (0)
+} while (0)
 
 #define	BP_GET_TYPE(bp)			BF64_GET((bp)->blk_prop, 48, 8)
 #define	BP_SET_TYPE(bp, x)		BF64_SET((bp)->blk_prop, 48, 8, x)
@@ -1056,8 +1056,10 @@ extern uint64_t spa_dirty_data(spa_t *spa);
 extern spa_autotrim_t spa_get_autotrim(spa_t *spa);
 
 /* Miscellaneous support routines */
-extern void spa_load_failed(spa_t *spa, const char *fmt, ...);
-extern void spa_load_note(spa_t *spa, const char *fmt, ...);
+extern void spa_load_failed(spa_t *spa, const char *fmt, ...)
+    __attribute__((format(printf, 2, 3)));
+extern void spa_load_note(spa_t *spa, const char *fmt, ...)
+    __attribute__((format(printf, 2, 3)));
 extern void spa_activate_mos_feature(spa_t *spa, const char *feature,
     dmu_tx_t *tx);
 extern void spa_deactivate_mos_feature(spa_t *spa, const char *feature);
@@ -1191,7 +1193,7 @@ int param_set_deadman_failmode(ZFS_MODULE_PARAM_ARGS);
 	dprintf(fmt " %s\n", __VA_ARGS__, __blkbuf);		\
 	kmem_free(__blkbuf, BP_SPRINTF_LEN);			\
 	} \
-_NOTE(CONSTCOND) } while (0)
+} while (0)
 #else
 #define	dprintf_bp(bp, fmt, ...)
 #endif

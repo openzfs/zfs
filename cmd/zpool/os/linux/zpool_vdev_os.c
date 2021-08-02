@@ -410,3 +410,9 @@ void
 after_zpool_upgrade(zpool_handle_t *zhp)
 {
 }
+
+int
+check_file(const char *file, boolean_t force, boolean_t isspare)
+{
+	return (check_file_generic(file, force, isspare));
+}

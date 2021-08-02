@@ -497,7 +497,7 @@ void dsl_dataset_activate_redaction(dsl_dataset_t *ds, uint64_t *redact_snaps,
 	dprintf("ds=%s " fmt, __ds_name, __VA_ARGS__); \
 	kmem_free(__ds_name, ZFS_MAX_DATASET_NAME_LEN); \
 	} \
-_NOTE(CONSTCOND) } while (0)
+} while (0)
 #else
 #define	dprintf_ds(dd, fmt, ...)
 #endif

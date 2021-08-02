@@ -38,7 +38,6 @@
 #include <stdio.h>
 #include <sys/time.h>
 #include <sys/stdtypes.h>
-#define NOTE(x)
 
 /*
  * Skein test suite using values from the Skein V1.3 specification found at:
@@ -285,7 +284,6 @@ main(int argc, char *argv[])
 			(void) printf("FAILED!\n");			\
 			failed = B_TRUE;				\
 		}							\
-		NOTE(CONSTCOND)						\
 	} while (0)
 
 #define	SKEIN_PERF_TEST(mode, diglen)					\
@@ -314,7 +312,6 @@ main(int argc, char *argv[])
 		}							\
 		(void) printf("Skein" #mode "/" #diglen "\t%llu us "	\
 		    "(%.02f CPB)\n", (u_longlong_t)delta, cpb);		\
-		NOTE(CONSTCOND)						\
 	} while (0)
 
 	(void) printf("Running algorithm correctness tests:\n");

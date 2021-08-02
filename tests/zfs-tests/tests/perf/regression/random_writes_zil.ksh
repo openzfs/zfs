@@ -12,7 +12,7 @@
 #
 
 #
-# Copyright (c) 2015, 2020 by Delphix. All rights reserved.
+# Copyright (c) 2015, 2021 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -43,28 +43,10 @@ recreate_perf_pool
 # Aim to fill the pool to 50% capacity while accounting for a 3x compressratio.
 export TOTAL_SIZE=$(($(get_prop avail $PERFPOOL) * 3 / 2))
 
-if [[ -n $PERF_REGRESSION_WEEKLY ]]; then
-	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_WEEKLY}
-	export PERF_RANDSEED=${PERF_RANDSEED:-'1234'}
-	export PERF_COMPPERCENT=${PERF_COMPPERCENT:-'66'}
-	export PERF_COMPCHUNK=${PERF_COMPCHUNK:-'4096'}
-	export PERF_RUNTYPE=${PERF_RUNTYPE:-'weekly'}
-	export PERF_NTHREADS=${PERF_NTHREADS:-'1 2 4 8 16 32 64 128'}
-	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0 1'}
-	export PERF_SYNC_TYPES=${PERF_SYNC_TYPES:-'1'}
-	export PERF_IOSIZES=${PERF_IOSIZES:-'8k'}
-
-elif [[ -n $PERF_REGRESSION_NIGHTLY ]]; then
-	export PERF_RUNTIME=${PERF_RUNTIME:-$PERF_RUNTIME_NIGHTLY}
-	export PERF_RANDSEED=${PERF_RANDSEED:-'1234'}
-	export PERF_COMPPERCENT=${PERF_COMPPERCENT:-'66'}
-	export PERF_COMPCHUNK=${PERF_COMPCHUNK:-'4096'}
-	export PERF_RUNTYPE=${PERF_RUNTYPE:-'nightly'}
-	export PERF_NTHREADS=${PERF_NTHREADS:-'1 4 16 64'}
-	export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0 1'}
-	export PERF_SYNC_TYPES=${PERF_SYNC_TYPES:-'1'}
-	export PERF_IOSIZES=${PERF_IOSIZES:-'8k'}
-fi
+# Variables specific to this test for use by fio.
+export PERF_NTHREADS=${PERF_NTHREADS:-'1 4 16 64'}
+export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0 1'}
+export PERF_IOSIZES=${PERF_IOSIZES:-'8k'}
 
 # Until the performance tests over NFS can deal with multiple file systems,
 # force the use of only one file system when testing over NFS.
@@ -95,6 +77,7 @@ else
 	    "dtrace  -s $PERF_SCRIPTS/offcpu-profile.d" "offcpu-profile"
 	)
 fi
-log_note "ZIL specific random write workload with $PERF_RUNTYPE settings"
+log_note \
+    "ZIL specific random write workload with settings: $(print_perf_settings)"
 do_fio_run random_writes.fio true false
 log_pass "Measure IO stats during ZIL specific random write workload"

@@ -128,9 +128,10 @@ void free_vdev_cmd_data_list(vdev_cmd_data_list_t *vcdl);
 int check_device(const char *path, boolean_t force,
     boolean_t isspare, boolean_t iswholedisk);
 boolean_t check_sector_size_database(char *path, int *sector_size);
-void vdev_error(const char *fmt, ...);
+void vdev_error(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 int check_file(const char *file, boolean_t force, boolean_t isspare);
 void after_zpool_upgrade(zpool_handle_t *zhp);
+int check_file_generic(const char *file, boolean_t force, boolean_t isspare);
 
 #ifdef	__cplusplus
 }

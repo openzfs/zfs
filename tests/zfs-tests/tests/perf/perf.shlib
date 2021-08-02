@@ -10,18 +10,18 @@
 #
 
 #
-# Copyright (c) 2015, 2016 by Delphix. All rights reserved.
+# Copyright (c) 2015, 2021 by Delphix. All rights reserved.
 # Copyright (c) 2016, Intel Corporation.
 #
 
 . $STF_SUITE/include/libtest.shlib
 
-# If neither is specified, do a nightly run.
-[[ -z $PERF_REGRESSION_WEEKLY ]] && export PERF_REGRESSION_NIGHTLY=1
-
-# Default runtime for each type of test run.
-export PERF_RUNTIME_WEEKLY=$((30 * 60))
-export PERF_RUNTIME_NIGHTLY=$((10 * 60))
+# Defaults common to all the tests in the regression group
+export PERF_RUNTIME=${PERF_RUNTIME:-'180'}
+export PERF_RANDSEED=${PERF_RANDSEED:-'1234'}
+export PERF_COMPPERCENT=${PERF_COMPPERCENT:-'66'}
+export PERF_COMPCHUNK=${PERF_COMPCHUNK:-'4096'}
+export PERF_SYNC_TYPES=${PERF_SYNC_TYPES:-'1'}
 
 # Default to JSON for fio output
 export PERF_FIO_FORMAT=${PERF_FIO_FORMAT:-'json'}
@@ -90,8 +90,7 @@ function do_fio_run_impl
 
 	if $clear_cache; then
 		# Clear the ARC
-		zpool export $PERFPOOL
-		zpool import $PERFPOOL
+		log_must zinject -a
 	fi
 
 	if [[ -n $ZINJECT_DELAYS ]]; then
@@ -159,8 +158,6 @@ function do_fio_run_impl
 # set before launching zfstest to override the defaults.
 #
 # PERF_RUNTIME: The time in seconds each fio invocation should run.
-# PERF_RUNTYPE: A human readable tag that appears in logs. The defaults are
-#    nightly and weekly.
 # PERF_NTHREADS: A list of how many threads each fio invocation will use.
 # PERF_SYNC_TYPES: Whether to use (O_SYNC) or not. 1 is sync IO, 0 is async IO.
 # PERF_IOSIZES: A list of blocksizes in which each fio invocation will do IO.
@@ -424,22 +421,44 @@ function get_max_arc_size
 	echo $max_arc_size
 }
 
-function get_max_dbuf_cache_size
+function get_arc_target
 {
-	typeset -l max_dbuf_cache_size
+	typeset -l arc_c
+
+	if is_freebsd; then
+		arc_c=$(sysctl -n kstat.zfs.misc.arcstats.c)
+	elif is_illumos; then
+		arc_c=$(dtrace -qn 'BEGIN {
+		    printf("%u\n", `arc_stats.arcstat_c.value.ui64);
+		    exit(0);
+		}')
+	elif is_linux; then
+		arc_c=`awk '$1 == "c" { print $3 }' \
+		    /proc/spl/kstat/zfs/arcstats`
+	fi
+
+	[[ $? -eq 0 ]] || log_fail "get_arc_target failed"
+
+	echo $arc_c
+}
+
+function get_dbuf_cache_size
+{
+	typeset -l dbuf_cache_size dbuf_cache_shift
 
 	if is_illumos; then
-		max_dbuf_cache_size=$(dtrace -qn 'BEGIN {
+		dbuf_cache_size=$(dtrace -qn 'BEGIN {
 		    printf("%u\n", `dbuf_cache_max_bytes);
 		    exit(0);
 		}')
 	else
-		max_dbuf_cache_size=$(get_tunable DBUF_CACHE_MAX_BYTES)
+		dbuf_cache_shift=$(get_tunable DBUF_CACHE_SHIFT)
+		dbuf_cache_size=$(($(get_arc_target) / 2**dbuf_cache_shift))
 	fi
 
-	[[ $? -eq 0 ]] || log_fail "get_max_dbuf_cache_size failed"
+	[[ $? -eq 0 ]] || log_fail "get_dbuf_cache_size failed"
 
-	echo $max_dbuf_cache_size
+	echo $dbuf_cache_size
 }
 
 # Create a file with some information about how this system is configured.
@@ -567,6 +586,14 @@ function pool_to_lun_list
 		done
 	fi
 	echo $lun_list
+}
+
+function print_perf_settings
+{
+	echo "PERF_NTHREADS: $PERF_NTHREADS"
+	echo "PERF_NTHREADS_PER_FS: $PERF_NTHREADS_PER_FS"
+	echo "PERF_SYNC_TYPES: $PERF_SYNC_TYPES"
+	echo "PERF_IOSIZES: $PERF_IOSIZES"
 }
 
 # Create a perf_data directory to hold performance statistics and

@@ -223,8 +223,6 @@ maybe = {
     'history/history_008_pos': ['FAIL', known_reason],
     'history/history_010_pos': ['SKIP', exec_reason],
     'io/mmap': ['SKIP', fio_reason],
-    'l2arc/persist_l2arc_005_pos': ['FAIL', known_reason],
-    'l2arc/persist_l2arc_007_pos': ['FAIL', '11887'],
     'largest_pool/largest_pool_001_pos': ['FAIL', known_reason],
     'mmp/mmp_on_uberblocks': ['FAIL', known_reason],
     'pyzfs/pyzfs_unittest': ['SKIP', python_deps_reason],

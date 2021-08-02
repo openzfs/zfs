@@ -71,7 +71,7 @@ zfs_init_vattr(vattr_t *vap, uint64_t mask, uint64_t mode,
 	bzero(vap, sizeof (*vap));
 	vap->va_mask = (uint_t)mask;
 	vap->va_mode = mode;
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__) || defined(__APPLE__)
 	vap->va_type = IFTOVT(mode);
 #endif
 	vap->va_uid = (uid_t)(IS_EPHEMERAL(uid)) ? -1 : uid;
@@ -362,7 +362,7 @@ zfs_replay_create_acl(void *arg1, void *arg2, boolean_t byteswap)
 		zfsvfs->z_fuid_replay = zfs_replay_fuids(fuidstart,
 		    (void *)&name, lracl->lr_fuidcnt, lracl->lr_domcnt,
 		    lr->lr_uid, lr->lr_gid);
-		/*FALLTHROUGH*/
+		/* FALLTHROUGH */
 	case TX_CREATE_ACL_ATTR:
 		if (name == NULL) {
 			lrattr = (lr_attr_t *)(caddr_t)(lracl + 1);
@@ -394,7 +394,7 @@ zfs_replay_create_acl(void *arg1, void *arg2, boolean_t byteswap)
 		zfsvfs->z_fuid_replay = zfs_replay_fuids(fuidstart,
 		    (void *)&name, lracl->lr_fuidcnt, lracl->lr_domcnt,
 		    lr->lr_uid, lr->lr_gid);
-		/*FALLTHROUGH*/
+		/* FALLTHROUGH */
 	case TX_MKDIR_ACL_ATTR:
 		if (name == NULL) {
 			lrattr = (lr_attr_t *)(caddr_t)(lracl + 1);
@@ -519,8 +519,8 @@ zfs_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 		    zfs_replay_fuid_domain(start, &start,
 		    lr->lr_uid, lr->lr_gid);
 		name = (char *)start;
+		/* FALLTHROUGH */
 
-		/*FALLTHROUGH*/
 	case TX_CREATE:
 		if (name == NULL)
 			name = (char *)start;
@@ -537,8 +537,8 @@ zfs_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 		    zfs_replay_fuid_domain(start, &start,
 		    lr->lr_uid, lr->lr_gid);
 		name = (char *)start;
+		/* FALLTHROUGH */
 
-		/*FALLTHROUGH*/
 	case TX_MKDIR:
 		if (name == NULL)
 			name = (char *)(lr + 1);

@@ -429,10 +429,9 @@ get_usage(zpool_help_t idx)
 	case HELP_WAIT:
 		return (gettext("\twait [-Hp] [-T d|u] [-t <activity>[,...]] "
 		    "<pool> [interval]\n"));
+	default:
+		__builtin_unreachable();
 	}
-
-	abort();
-	/* NOTREACHED */
 }
 
 static void
@@ -3746,9 +3745,10 @@ zpool_do_import(int argc, char **argv)
 		return (1);
 	}
 
-	err = import_pools(pools, props, mntopts, flags, argv[0],
-	    argc == 1 ? NULL : argv[1], do_destroyed, pool_specified,
-	    do_all, &idata);
+	err = import_pools(pools, props, mntopts, flags,
+	    argc >= 1 ? argv[0] : NULL,
+	    argc >= 2 ? argv[1] : NULL,
+	    do_destroyed, pool_specified, do_all, &idata);
 
 	/*
 	 * If we're using the cachefile and we failed to import, then
@@ -3768,9 +3768,10 @@ zpool_do_import(int argc, char **argv)
 		nvlist_free(pools);
 		pools = zpool_search_import(g_zfs, &idata, &libzfs_config_ops);
 
-		err = import_pools(pools, props, mntopts, flags, argv[0],
-		    argc == 1 ? NULL : argv[1], do_destroyed, pool_specified,
-		    do_all, &idata);
+		err = import_pools(pools, props, mntopts, flags,
+		    argc >= 1 ? argv[0] : NULL,
+		    argc >= 2 ? argv[1] : NULL,
+		    do_destroyed, pool_specified, do_all, &idata);
 	}
 
 error:
