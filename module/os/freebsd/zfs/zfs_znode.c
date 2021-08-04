@@ -1476,12 +1476,16 @@ zfs_free_range(znode_t *zp, uint64_t off, uint64_t len)
 	error = dmu_free_long_range(zfsvfs->z_os, zp->z_id, off, len);
 
 	if (error == 0) {
+#if __FreeBSD_version >= 1400032
+		vnode_pager_purge_range(ZTOV(zp), off, off + len);
+#else
 		/*
-		 * In FreeBSD we cannot free block in the middle of a file,
-		 * but only at the end of a file, so this code path should
-		 * never happen.
+		 * Before __FreeBSD_version 1400032 we cannot free block in the
+		 * middle of a file, but only at the end of a file, so this code
+		 * path should never happen.
 		 */
 		vnode_pager_setsize(ZTOV(zp), off);
+#endif
 	}
 
 	zfs_rangelock_exit(lr);
