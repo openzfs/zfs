@@ -795,23 +795,26 @@ dump_ioctl(zfs_handle_t *zhp, const char *fromsnap, uint64_t fromsnap_obj,
 	zc.zc_fromobj = fromsnap_obj;
 	zc.zc_flags = flags;
 
-	thisdbg = fnvlist_alloc();
-	if (fromsnap && fromsnap[0] != '\0') {
-		fnvlist_add_string(thisdbg, "fromsnap", fromsnap);
+	if (debugnv != NULL) {
+		thisdbg = fnvlist_alloc();
+		if (fromsnap != NULL && fromsnap[0] != '\0')
+			fnvlist_add_string(thisdbg, "fromsnap", fromsnap);
 	}
 
 	if (zfs_ioctl(zhp->zfs_hdl, ZFS_IOC_SEND, &zc) != 0) {
 		char errbuf[1024];
+		int error = errno;
+
 		(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
 		    "warning: cannot send '%s'"), zhp->zfs_name);
 
-		fnvlist_add_uint64(thisdbg, "error", errno);
-		if (debugnv) {
+		if (debugnv != NULL) {
+			fnvlist_add_uint64(thisdbg, "error", error);
 			fnvlist_add_nvlist(debugnv, zhp->zfs_name, thisdbg);
+			fnvlist_free(thisdbg);
 		}
-		fnvlist_free(thisdbg);
 
-		switch (errno) {
+		switch (error) {
 		case EXDEV:
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "not an earlier snapshot from the same fs"));
@@ -851,9 +854,10 @@ dump_ioctl(zfs_handle_t *zhp, const char *fromsnap, uint64_t fromsnap_obj,
 		}
 	}
 
-	if (debugnv)
+	if (debugnv != NULL) {
 		fnvlist_add_nvlist(debugnv, zhp->zfs_name, thisdbg);
-	fnvlist_free(thisdbg);
+		fnvlist_free(thisdbg);
+	}
 
 	return (0);
 }
