@@ -726,53 +726,50 @@ static int
 zfs_send_space(zfs_handle_t *zhp, const char *snapname, const char *from,
     enum lzc_send_flags flags, uint64_t *spacep)
 {
-	libzfs_handle_t *hdl = zhp->zfs_hdl;
-	int error;
-
 	assert(snapname != NULL);
-	error = lzc_send_space(snapname, from, flags, spacep);
 
-	if (error != 0) {
-		char errbuf[1024];
-		(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
-		    "warning: cannot estimate space for '%s'"), snapname);
+	int error = lzc_send_space(snapname, from, flags, spacep);
+	if (error == 0)
+		return (0);
 
-		switch (error) {
-		case EXDEV:
+	char errbuf[1024];
+	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
+	    "warning: cannot estimate space for '%s'"), snapname);
+
+	libzfs_handle_t *hdl = zhp->zfs_hdl;
+	switch (error) {
+	case EXDEV:
+		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		    "not an earlier snapshot from the same fs"));
+		return (zfs_error(hdl, EZFS_CROSSTARGET, errbuf));
+
+	case ENOENT:
+		if (zfs_dataset_exists(hdl, snapname,
+		    ZFS_TYPE_SNAPSHOT)) {
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "not an earlier snapshot from the same fs"));
-			return (zfs_error(hdl, EZFS_CROSSTARGET, errbuf));
-
-		case ENOENT:
-			if (zfs_dataset_exists(hdl, snapname,
-			    ZFS_TYPE_SNAPSHOT)) {
-				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-				    "incremental source (%s) does not exist"),
-				    snapname);
-			}
-			return (zfs_error(hdl, EZFS_NOENT, errbuf));
-
-		case EDQUOT:
-		case EFBIG:
-		case EIO:
-		case ENOLINK:
-		case ENOSPC:
-		case ENOSTR:
-		case ENXIO:
-		case EPIPE:
-		case ERANGE:
-		case EFAULT:
-		case EROFS:
-		case EINVAL:
-			zfs_error_aux(hdl, "%s", strerror(error));
-			return (zfs_error(hdl, EZFS_BADBACKUP, errbuf));
-
-		default:
-			return (zfs_standard_error(hdl, error, errbuf));
+			    "incremental source (%s) does not exist"),
+			    snapname);
 		}
-	}
+		return (zfs_error(hdl, EZFS_NOENT, errbuf));
 
-	return (0);
+	case EDQUOT:
+	case EFBIG:
+	case EIO:
+	case ENOLINK:
+	case ENOSPC:
+	case ENOSTR:
+	case ENXIO:
+	case EPIPE:
+	case ERANGE:
+	case EFAULT:
+	case EROFS:
+	case EINVAL:
+		zfs_error_aux(hdl, "%s", strerror(error));
+		return (zfs_error(hdl, EZFS_BADBACKUP, errbuf));
+
+	default:
+		return (zfs_standard_error(hdl, error, errbuf));
+	}
 }
 
 /*
