@@ -50,7 +50,6 @@ COMMON_H = \
 	mntent.h \
 	mod.h \
 	multilist.h \
-	note.h \
 	nvpair.h \
 	nvpair_impl.h \
 	objlist.h \

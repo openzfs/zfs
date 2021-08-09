@@ -389,7 +389,6 @@ uint64_t spa_max_slop = 128ULL * 1024 * 1024 * 1024;
 int spa_allocators = 4;
 
 
-/*PRINTFLIKE2*/
 void
 spa_load_failed(spa_t *spa, const char *fmt, ...)
 {
@@ -404,7 +403,6 @@ spa_load_failed(spa_t *spa, const char *fmt, ...)
 	    spa->spa_trust_config ? "trusted" : "untrusted", buf);
 }
 
-/*PRINTFLIKE2*/
 void
 spa_load_note(spa_t *spa, const char *fmt, ...)
 {
@@ -1899,7 +1897,14 @@ spa_update_dspace(spa_t *spa)
 		spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
 		vdev_t *vd =
 		    vdev_lookup_top(spa, spa->spa_vdev_removal->svr_vdev_id);
-		if (vd->vdev_mg->mg_class == spa_normal_class(spa)) {
+		/*
+		 * If the stars align, we can wind up here after
+		 * vdev_remove_complete() has cleared vd->vdev_mg but before
+		 * spa->spa_vdev_removal gets cleared, so we must check before
+		 * we dereference.
+		 */
+		if (vd->vdev_mg &&
+		    vd->vdev_mg->mg_class == spa_normal_class(spa)) {
 			spa->spa_dspace -= spa_deflate(spa) ?
 			    vd->vdev_stat.vs_dspace : vd->vdev_stat.vs_space;
 		}

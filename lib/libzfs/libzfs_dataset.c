@@ -1379,8 +1379,8 @@ badlabel:
 				goto error;
 			}
 		}
+			/* FALLTHROUGH */
 
-			/*FALLTHRU*/
 
 		case ZFS_PROP_SHARESMB:
 		case ZFS_PROP_SHARENFS:

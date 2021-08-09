@@ -79,7 +79,6 @@ zfs_log_create_txtype(zil_create_t type, vsecattr_t *vsecp, vattr_t *vap)
 			return (TX_CREATE_ACL);
 		else
 			return (TX_CREATE_ATTR);
-		/*NOTREACHED*/
 	case Z_DIR:
 		if (vsecp == NULL && !isxvattr)
 			return (TX_MKDIR);
@@ -126,9 +125,11 @@ zfs_log_xvattr(lr_attr_t *lrattr, xvattr_t *xvap)
 
 	/* Now pack the attributes up in a single uint64_t */
 	attrs = (uint64_t *)bitmap;
-	crtime = attrs + 1;
-	scanstamp = (caddr_t)(crtime + 2);
 	*attrs = 0;
+	crtime = attrs + 1;
+	bzero(crtime, 2 * sizeof (uint64_t));
+	scanstamp = (caddr_t)(crtime + 2);
+	bzero(scanstamp, AV_SCANSTAMP_SZ);
 	if (XVA_ISSET_REQ(xvap, XAT_READONLY))
 		*attrs |= (xoap->xoa_readonly == 0) ? 0 :
 		    XAT0_READONLY;

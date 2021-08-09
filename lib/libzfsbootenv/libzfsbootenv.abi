@@ -1,7 +1,8 @@
-<abi-corpus path='libzfsbootenv.so' architecture='elf-amd-x86_64' soname='libzfsbootenv.so.1'>
+<abi-corpus architecture='elf-amd-x86_64' soname='libzfsbootenv.so.1'>
   <elf-needed>
     <dependency name='libzfs.so.4'/>
     <dependency name='libnvpair.so.3'/>
+    <dependency name='libpthread.so.0'/>
     <dependency name='libc.so.6'/>
   </elf-needed>
   <elf-function-symbols>
@@ -14,7 +15,7 @@
     <elf-symbol name='lzbe_remove_pair' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzbe_set_boot_device' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
   </elf-function-symbols>
-  <abi-instr version='1.0' address-size='64' path='lzbe_device.c' comp-dir-path='/home/allan/openzfs/lib/libzfsbootenv' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='lzbe_device.c' comp-dir-path='/store0/home/cw/wk/zfsonlinux/zfs/lib/libzfsbootenv' language='LANG_C99'>
     <type-decl name='int' size-in-bits='32' id='type-id-1'/>
     <type-decl name='char' size-in-bits='8' id='type-id-2'/>
     <qualified-type-def type-id='type-id-2' const='yes' id='type-id-3'/>
@@ -64,21 +65,6 @@
     <function-decl name='strdup' mangled-name='strdup' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-10'/>
     </function-decl>
-    <function-decl name='__stack_chk_fail' mangled-name='__stack_chk_fail' visibility='default' binding='global' size-in-bits='64'>
-      <return type-id='type-id-10'/>
-    </function-decl>
-    <function-decl name='__asprintf_chk' mangled-name='__asprintf_chk' visibility='default' binding='global' size-in-bits='64'>
-      <return type-id='type-id-10'/>
-    </function-decl>
-    <function-decl name='__fprintf_chk' mangled-name='__fprintf_chk' visibility='default' binding='global' size-in-bits='64'>
-      <return type-id='type-id-10'/>
-    </function-decl>
-    <function-decl name='nvlist_lookup_uint64' mangled-name='nvlist_lookup_uint64' visibility='default' binding='global' size-in-bits='64'>
-      <return type-id='type-id-10'/>
-    </function-decl>
-    <function-decl name='fnvlist_free' mangled-name='fnvlist_free' visibility='default' binding='global' size-in-bits='64'>
-      <return type-id='type-id-10'/>
-    </function-decl>
     <function-decl name='fnvlist_alloc' mangled-name='fnvlist_alloc' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-10'/>
     </function-decl>
@@ -91,20 +77,32 @@
     <function-decl name='zpool_set_bootenv' mangled-name='zpool_set_bootenv' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-10'/>
     </function-decl>
+    <function-decl name='fnvlist_free' mangled-name='fnvlist_free' visibility='default' binding='global' size-in-bits='64'>
+      <return type-id='type-id-10'/>
+    </function-decl>
+    <function-decl name='asprintf' mangled-name='asprintf' visibility='default' binding='global' size-in-bits='64'>
+      <return type-id='type-id-10'/>
+    </function-decl>
     <function-decl name='fnvlist_add_string' mangled-name='fnvlist_add_string' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-10'/>
     </function-decl>
     <function-decl name='free' mangled-name='free' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-10'/>
     </function-decl>
+    <function-decl name='nvlist_lookup_uint64' mangled-name='nvlist_lookup_uint64' visibility='default' binding='global' size-in-bits='64'>
+      <return type-id='type-id-10'/>
+    </function-decl>
     <function-decl name='libzfs_error_description' mangled-name='libzfs_error_description' visibility='default' binding='global' size-in-bits='64'>
+      <return type-id='type-id-10'/>
+    </function-decl>
+    <function-decl name='fprintf' mangled-name='fprintf' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-10'/>
     </function-decl>
     <function-decl name='fnvlist_remove' mangled-name='fnvlist_remove' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-10'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='lzbe_pair.c' comp-dir-path='/home/allan/openzfs/lib/libzfsbootenv' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='lzbe_pair.c' comp-dir-path='/store0/home/cw/wk/zfsonlinux/zfs/lib/libzfsbootenv' language='LANG_C99'>
     <pointer-type-def type-id='type-id-10' size-in-bits='64' id='type-id-11'/>
     <function-decl name='lzbe_remove_pair' mangled-name='lzbe_remove_pair' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzbe_remove_pair'>
       <parameter type-id='type-id-11' name='ptr'/>
@@ -226,7 +224,7 @@
       <return type-id='type-id-10'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='lzbe_util.c' comp-dir-path='/home/allan/openzfs/lib/libzfsbootenv' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='lzbe_util.c' comp-dir-path='/store0/home/cw/wk/zfsonlinux/zfs/lib/libzfsbootenv' language='LANG_C99'>
     <class-decl name='_IO_FILE' size-in-bits='1728' is-struct='yes' visibility='default' id='type-id-15'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='_flags' type-id='type-id-1' visibility='default'/>
@@ -288,17 +286,14 @@
       <data-member access='public' layout-offset-in-bits='1048'>
         <var-decl name='_shortbuf' type-id='type-id-21' visibility='default'/>
       </data-member>
-      <data-member access='public' layout-offset-in-bits='1088'>
-        <var-decl name='_lock' type-id='type-id-22' visibility='default'/>
-      </data-member>
       <data-member access='public' layout-offset-in-bits='1152'>
-        <var-decl name='_offset' type-id='type-id-23' visibility='default'/>
+        <var-decl name='_offset' type-id='type-id-22' visibility='default'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='1216'>
-        <var-decl name='_codecvt' type-id='type-id-24' visibility='default'/>
+        <var-decl name='_codecvt' type-id='type-id-23' visibility='default'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='1280'>
-        <var-decl name='_wide_data' type-id='type-id-25' visibility='default'/>
+        <var-decl name='_wide_data' type-id='type-id-24' visibility='default'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='1344'>
         <var-decl name='_freeres_list' type-id='type-id-17' visibility='default'/>
@@ -313,39 +308,37 @@
         <var-decl name='_mode' type-id='type-id-1' visibility='default'/>
       </data-member>
       <data-member access='public' layout-offset-in-bits='1568'>
-        <var-decl name='_unused2' type-id='type-id-26' visibility='default'/>
+        <var-decl name='_unused2' type-id='type-id-25' visibility='default'/>
       </data-member>
     </class-decl>
-    <class-decl name='_IO_marker' is-struct='yes' visibility='default' is-declaration-only='yes' id='type-id-27'/>
-    <pointer-type-def type-id='type-id-27' size-in-bits='64' id='type-id-16'/>
+    <class-decl name='_IO_marker' is-struct='yes' visibility='default' is-declaration-only='yes' id='type-id-26'/>
+    <pointer-type-def type-id='type-id-26' size-in-bits='64' id='type-id-16'/>
     <pointer-type-def type-id='type-id-15' size-in-bits='64' id='type-id-17'/>
-    <type-decl name='long int' size-in-bits='64' id='type-id-28'/>
-    <typedef-decl name='__off_t' type-id='type-id-28' id='type-id-18'/>
+    <type-decl name='long int' size-in-bits='64' id='type-id-27'/>
+    <typedef-decl name='__off_t' type-id='type-id-27' id='type-id-18'/>
     <type-decl name='unsigned short int' size-in-bits='16' id='type-id-19'/>
     <type-decl name='signed char' size-in-bits='8' id='type-id-20'/>
 
     <array-type-def dimensions='1' type-id='type-id-2' size-in-bits='8' id='type-id-21'>
-      <subrange length='1' type-id='type-id-12' id='type-id-29'/>
+      <subrange length='1' type-id='type-id-12' id='type-id-28'/>
 
     </array-type-def>
-    <typedef-decl name='_IO_lock_t' type-id='type-id-10' id='type-id-30'/>
-    <pointer-type-def type-id='type-id-30' size-in-bits='64' id='type-id-22'/>
-    <typedef-decl name='__off64_t' type-id='type-id-28' id='type-id-23'/>
-    <class-decl name='_IO_codecvt' is-struct='yes' visibility='default' is-declaration-only='yes' id='type-id-31'/>
-    <pointer-type-def type-id='type-id-31' size-in-bits='64' id='type-id-24'/>
-    <class-decl name='_IO_wide_data' is-struct='yes' visibility='default' is-declaration-only='yes' id='type-id-32'/>
-    <pointer-type-def type-id='type-id-32' size-in-bits='64' id='type-id-25'/>
+    <typedef-decl name='__off64_t' type-id='type-id-27' id='type-id-22'/>
+    <class-decl name='_IO_codecvt' is-struct='yes' visibility='default' is-declaration-only='yes' id='type-id-29'/>
+    <pointer-type-def type-id='type-id-29' size-in-bits='64' id='type-id-23'/>
+    <class-decl name='_IO_wide_data' is-struct='yes' visibility='default' is-declaration-only='yes' id='type-id-30'/>
+    <pointer-type-def type-id='type-id-30' size-in-bits='64' id='type-id-24'/>
 
-    <array-type-def dimensions='1' type-id='type-id-2' size-in-bits='160' id='type-id-26'>
-      <subrange length='20' type-id='type-id-12' id='type-id-33'/>
+    <array-type-def dimensions='1' type-id='type-id-2' size-in-bits='160' id='type-id-25'>
+      <subrange length='20' type-id='type-id-12' id='type-id-31'/>
 
     </array-type-def>
-    <typedef-decl name='FILE' type-id='type-id-15' id='type-id-34'/>
-    <pointer-type-def type-id='type-id-34' size-in-bits='64' id='type-id-35'/>
+    <typedef-decl name='FILE' type-id='type-id-15' id='type-id-32'/>
+    <pointer-type-def type-id='type-id-32' size-in-bits='64' id='type-id-33'/>
     <function-decl name='lzbe_bootenv_print' mangled-name='lzbe_bootenv_print' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzbe_bootenv_print'>
       <parameter type-id='type-id-4' name='pool'/>
       <parameter type-id='type-id-4' name='nvlist'/>
-      <parameter type-id='type-id-35' name='of'/>
+      <parameter type-id='type-id-33' name='of'/>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='lzbe_nvlist_get' mangled-name='lzbe_nvlist_get' visibility='default' binding='global' size-in-bits='64'>

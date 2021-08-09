@@ -1,4 +1,4 @@
-<abi-corpus path='libzfs.so' architecture='elf-amd-x86_64' soname='libzfs.so.4'>
+<abi-corpus architecture='elf-amd-x86_64' soname='libzfs.so.4'>
   <elf-needed>
     <dependency name='libzfs_core.so.3'/>
     <dependency name='libnvpair.so.3'/>
@@ -353,7 +353,7 @@
     <elf-symbol name='zfs_max_dataset_nesting' size='4' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_userquota_prop_prefixes' size='96' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
   </elf-variable-symbols>
-  <abi-instr version='1.0' address-size='64' path='libzfs_changelist.c' comp-dir-path='/home/allan/openzfs/lib/libzfs' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='libzfs_changelist.c' comp-dir-path='/store0/home/cw/wk/zfsonlinux/zfs/lib/libzfs' language='LANG_C99'>
     <type-decl name='void' id='type-id-1'/>
     <function-decl name='zfs_alloc' mangled-name='zfs_alloc' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
@@ -407,9 +407,6 @@
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='zfs_error' mangled-name='zfs_error' visibility='default' binding='global' size-in-bits='64'>
-      <return type-id='type-id-1'/>
-    </function-decl>
-    <function-decl name='__stack_chk_fail' mangled-name='__stack_chk_fail' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='strcmp' mangled-name='strcmp' visibility='default' binding='global' size-in-bits='64'>
@@ -481,17 +478,17 @@
     <function-decl name='uu_avl_last' mangled-name='uu_avl_last' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='zfs_commit_smb_shares' mangled-name='zfs_commit_smb_shares' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='zfs_commit_nfs_shares' mangled-name='zfs_commit_nfs_shares' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='zfs_commit_nfs_shares' mangled-name='zfs_commit_nfs_shares' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='zfs_commit_smb_shares' mangled-name='zfs_commit_smb_shares' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='zfs_unmount' mangled-name='zfs_unmount' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='libzfs_config.c' comp-dir-path='/home/allan/openzfs/lib/libzfs' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='libzfs_config.c' comp-dir-path='/store0/home/cw/wk/zfsonlinux/zfs/lib/libzfs' language='LANG_C99'>
     <type-decl name='int' size-in-bits='32' id='type-id-2'/>
     <class-decl name='libzfs_handle' size-in-bits='18304' is-struct='yes' visibility='default' id='type-id-3'>
       <data-member access='public' layout-offset-in-bits='0'>
@@ -932,10 +929,10 @@
     <function-decl name='getenv' mangled-name='getenv' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='__builtin___strcpy_chk' mangled-name='__strcpy_chk' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='__builtin_memset' mangled-name='memset' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='__builtin_memset' mangled-name='memset' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='strcpy' mangled-name='strcpy' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='zcmd_alloc_dst_nvlist' mangled-name='zcmd_alloc_dst_nvlist' visibility='default' binding='global' size-in-bits='64'>
@@ -1011,7 +1008,7 @@
       <return type-id='type-id-2'/>
     </function-type>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='libzfs_crypto.c' comp-dir-path='/home/allan/openzfs/lib/libzfs' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='libzfs_crypto.c' comp-dir-path='/store0/home/cw/wk/zfsonlinux/zfs/lib/libzfs' language='LANG_C99'>
     <function-decl name='zfs_crypto_rewrap' mangled-name='zfs_crypto_rewrap' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_crypto_rewrap'>
       <parameter type-id='type-id-79' name='zhp'/>
       <parameter type-id='type-id-19' name='raw_props'/>
@@ -1059,9 +1056,6 @@
       <parameter type-id='type-id-14' name='buf'/>
       <return type-id='type-id-2'/>
     </function-decl>
-    <function-decl name='__builtin___snprintf_chk' mangled-name='__snprintf_chk' visibility='default' binding='global' size-in-bits='64'>
-      <return type-id='type-id-1'/>
-    </function-decl>
     <function-decl name='zfs_name_to_prop' mangled-name='zfs_name_to_prop' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
@@ -1072,6 +1066,9 @@
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='zfs_valid_proplist' mangled-name='zfs_valid_proplist' visibility='default' binding='global' size-in-bits='64'>
+      <return type-id='type-id-1'/>
+    </function-decl>
+    <function-decl name='snprintf' mangled-name='snprintf' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='zfs_parent_name' mangled-name='zfs_parent_name' visibility='default' binding='global' size-in-bits='64'>
@@ -1101,19 +1098,19 @@
     <function-decl name='lzc_load_key' mangled-name='lzc_load_key' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='__printf_chk' mangled-name='__printf_chk' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='zfs_handle_dup' mangled-name='zfs_handle_dup' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='zfs_handle_dup' mangled-name='zfs_handle_dup' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='printf' mangled-name='printf' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='zfs_iter_filesystems' mangled-name='zfs_iter_filesystems' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='__builtin_memcpy' mangled-name='memcpy' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='calloc' mangled-name='calloc' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='calloc' mangled-name='calloc' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='__builtin_memcpy' mangled-name='memcpy' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='regexec' mangled-name='regexec' visibility='default' binding='global' size-in-bits='64'>
@@ -1123,9 +1120,6 @@
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='isatty' mangled-name='isatty' visibility='default' binding='global' size-in-bits='64'>
-      <return type-id='type-id-1'/>
-    </function-decl>
-    <function-decl name='__builtin_putchar' mangled-name='putchar' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='__getdelim' mangled-name='__getdelim' visibility='default' binding='global' size-in-bits='64'>
@@ -1149,6 +1143,9 @@
     <function-decl name='tcsetattr' mangled-name='tcsetattr' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
+    <function-decl name='__builtin_putchar' mangled-name='putchar' visibility='default' binding='global' size-in-bits='64'>
+      <return type-id='type-id-1'/>
+    </function-decl>
     <function-decl name='getpid' mangled-name='getpid' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
@@ -1164,13 +1161,16 @@
     <function-decl name='zpool_get_prop_int' mangled-name='zpool_get_prop_int' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='__fread_alias' mangled-name='fread' visibility='default' binding='global' size-in-bits='64'>
-      <return type-id='type-id-1'/>
-    </function-decl>
     <function-decl name='malloc' mangled-name='malloc' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
+    <function-decl name='fread' mangled-name='fread' visibility='default' binding='global' size-in-bits='64'>
+      <return type-id='type-id-1'/>
+    </function-decl>
     <function-decl name='ferror' mangled-name='ferror' visibility='default' binding='global' size-in-bits='64'>
+      <return type-id='type-id-1'/>
+    </function-decl>
+    <function-decl name='strerror' mangled-name='strerror' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='fopen' mangled-name='fopen64' visibility='default' binding='global' size-in-bits='64'>
@@ -1179,7 +1179,7 @@
     <function-decl name='fclose' mangled-name='fclose' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='sscanf' mangled-name='__isoc99_sscanf' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='sscanf' mangled-name='sscanf' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='__builtin_memmove' mangled-name='memmove' visibility='default' binding='global' size-in-bits='64'>
@@ -1188,20 +1188,17 @@
     <function-decl name='PKCS5_PBKDF2_HMAC_SHA1' mangled-name='PKCS5_PBKDF2_HMAC_SHA1' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='__open_alias' mangled-name='open64' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='read' mangled-name='read' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='__read_alias' mangled-name='read' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='open' mangled-name='open64' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='close' mangled-name='close' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='__builtin_strcpy' mangled-name='strcpy' visibility='default' binding='global' size-in-bits='64'>
-      <return type-id='type-id-1'/>
-    </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='libzfs_dataset.c' comp-dir-path='/home/allan/openzfs/lib/libzfs' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='libzfs_dataset.c' comp-dir-path='/store0/home/cw/wk/zfsonlinux/zfs/lib/libzfs' language='LANG_C99'>
     <enum-decl name='__anonymous_enum__' is-anonymous='yes' id='type-id-93'>
       <underlying-type type-id='type-id-41'/>
       <enumerator name='ZFS_WAIT_DELETEQ' value='0'/>
@@ -1621,6 +1618,17 @@
       <parameter type-id='type-id-113' name='prop'/>
       <return type-id='type-id-7'/>
     </function-decl>
+    <function-decl name='zfs_prop_get' mangled-name='zfs_prop_get' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_prop_get'>
+      <parameter type-id='type-id-79' name='zhp'/>
+      <parameter type-id='type-id-113' name='prop'/>
+      <parameter type-id='type-id-14' name='propbuf'/>
+      <parameter type-id='type-id-18' name='proplen'/>
+      <parameter type-id='type-id-116' name='src'/>
+      <parameter type-id='type-id-14' name='statbuf'/>
+      <parameter type-id='type-id-18' name='statlen'/>
+      <parameter type-id='type-id-9' name='literal'/>
+      <return type-id='type-id-2'/>
+    </function-decl>
     <function-decl name='zfs_get_clones_nvl' mangled-name='zfs_get_clones_nvl' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_get_clones_nvl'>
       <parameter type-id='type-id-79' name='zhp'/>
       <return type-id='type-id-19'/>
@@ -1788,9 +1796,6 @@
     <function-decl name='nvlist_unpack' mangled-name='nvlist_unpack' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='strerror' mangled-name='strerror' visibility='default' binding='global' size-in-bits='64'>
-      <return type-id='type-id-1'/>
-    </function-decl>
     <function-decl name='nvlist_empty' mangled-name='nvlist_empty' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
@@ -1911,7 +1916,7 @@
     <function-decl name='zfs_commit_all_shares' mangled-name='zfs_commit_all_shares' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='__builtin___strncpy_chk' mangled-name='__strncpy_chk' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='strncpy' mangled-name='strncpy' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='strrchr' mangled-name='strrchr' visibility='default' binding='global' size-in-bits='64'>
@@ -1938,9 +1943,6 @@
     <function-decl name='zpool_get_prop' mangled-name='zpool_get_prop' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='__builtin_snprintf' mangled-name='snprintf' visibility='default' binding='global' size-in-bits='64'>
-      <return type-id='type-id-1'/>
-    </function-decl>
     <function-decl name='nvlist_lookup_uint64_array' mangled-name='nvlist_lookup_uint64_array' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
@@ -1959,7 +1961,7 @@
     <function-decl name='nvlist_lookup_int64' mangled-name='nvlist_lookup_int64' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='__fprintf_chk' mangled-name='__fprintf_chk' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='fprintf' mangled-name='fprintf' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='fnvlist_add_string' mangled-name='fnvlist_add_string' visibility='default' binding='global' size-in-bits='64'>
@@ -1998,10 +2000,10 @@
     <function-decl name='fnvpair_value_uint64' mangled-name='fnvpair_value_uint64' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='__asprintf_chk' mangled-name='__asprintf_chk' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='nvpair_value_uint64' mangled-name='nvpair_value_uint64' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='nvpair_value_uint64' mangled-name='nvpair_value_uint64' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='asprintf' mangled-name='asprintf' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='nvlist_add_uint64_array' mangled-name='nvlist_add_uint64_array' visibility='default' binding='global' size-in-bits='64'>
@@ -2053,9 +2055,6 @@
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='avl_add' mangled-name='avl_add' visibility='default' binding='global' size-in-bits='64'>
-      <return type-id='type-id-1'/>
-    </function-decl>
-    <function-decl name='getmntany' mangled-name='getmntany' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='avl_destroy_nodes' mangled-name='avl_destroy_nodes' visibility='default' binding='global' size-in-bits='64'>
@@ -2112,6 +2111,9 @@
     <function-decl name='nvlist_add_boolean' mangled-name='nvlist_add_boolean' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
+    <function-decl name='getmntany' mangled-name='getmntany' visibility='default' binding='global' size-in-bits='64'>
+      <return type-id='type-id-1'/>
+    </function-decl>
     <function-decl name='_sol_getmntent' mangled-name='_sol_getmntent' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
@@ -2126,7 +2128,7 @@
       <return type-id='type-id-2'/>
     </function-type>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='libzfs_diff.c' comp-dir-path='/home/allan/openzfs/lib/libzfs' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='libzfs_diff.c' comp-dir-path='/store0/home/cw/wk/zfsonlinux/zfs/lib/libzfs' language='LANG_C99'>
     <function-decl name='zfs_show_diffs' mangled-name='zfs_show_diffs' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_show_diffs'>
       <parameter type-id='type-id-79' name='zhp'/>
       <parameter type-id='type-id-2' name='outfd'/>
@@ -2134,9 +2136,6 @@
       <parameter type-id='type-id-87' name='tosnap'/>
       <parameter type-id='type-id-2' name='flags'/>
       <return type-id='type-id-2'/>
-    </function-decl>
-    <function-decl name='__builtin_strncpy' mangled-name='strncpy' visibility='default' binding='global' size-in-bits='64'>
-      <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='zfs_asprintf' mangled-name='zfs_asprintf' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
@@ -2169,7 +2168,7 @@
       <return type-id='type-id-1'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='libzfs_import.c' comp-dir-path='/home/allan/openzfs/lib/libzfs' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='libzfs_import.c' comp-dir-path='/store0/home/cw/wk/zfsonlinux/zfs/lib/libzfs' language='LANG_C99'>
     <class-decl name='pool_config_ops' size-in-bits='128' is-struct='yes' visibility='default' id='type-id-121'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='pco_refresh_config' type-id='type-id-122' visibility='default'/>
@@ -2216,7 +2215,7 @@
     <function-decl name='zpool_iter' mangled-name='zpool_iter' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='__pread64_alias' mangled-name='pread64' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='pread64' mangled-name='pread64' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='pwrite64' mangled-name='pwrite64' visibility='default' binding='global' size-in-bits='64'>
@@ -2241,7 +2240,7 @@
       <return type-id='type-id-19'/>
     </function-type>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='libzfs_iter.c' comp-dir-path='/home/allan/openzfs/lib/libzfs' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='libzfs_iter.c' comp-dir-path='/store0/home/cw/wk/zfsonlinux/zfs/lib/libzfs' language='LANG_C99'>
     <function-decl name='zfs_iter_mounted' mangled-name='zfs_iter_mounted' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_iter_mounted'>
       <parameter type-id='type-id-79' name='zhp'/>
       <parameter type-id='type-id-82' name='func'/>
@@ -2325,7 +2324,7 @@
       <return type-id='type-id-1'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='libzfs_mount.c' comp-dir-path='/home/allan/openzfs/lib/libzfs' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='libzfs_mount.c' comp-dir-path='/store0/home/cw/wk/zfsonlinux/zfs/lib/libzfs' language='LANG_C99'>
     <class-decl name='__anonymous_struct__' size-in-bits='192' is-struct='yes' is-anonymous='yes' naming-typedef-id='type-id-133' visibility='default' id='type-id-134'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='p_prop' type-id='type-id-113' visibility='default'/>
@@ -2548,7 +2547,7 @@
     <function-decl name='__lxstat' mangled-name='__lxstat64' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='__openat_alias' mangled-name='openat64' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='openat' mangled-name='openat64' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='fdopendir' mangled-name='fdopendir' visibility='default' binding='global' size-in-bits='64'>
@@ -2585,7 +2584,7 @@
       <return type-id='type-id-1'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='libzfs_pool.c' comp-dir-path='/home/allan/openzfs/lib/libzfs' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='libzfs_pool.c' comp-dir-path='/store0/home/cw/wk/zfsonlinux/zfs/lib/libzfs' language='LANG_C99'>
     <function-decl name='zpool_get_bootenv' mangled-name='zpool_get_bootenv' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_get_bootenv'>
       <parameter type-id='type-id-4' name='zhp'/>
       <parameter type-id='type-id-89' name='nvlp'/>
@@ -3038,15 +3037,6 @@
       <parameter type-id='type-id-87' name='propval'/>
       <return type-id='type-id-2'/>
     </function-decl>
-    <function-decl name='zpool_pool_state_to_name' mangled-name='zpool_pool_state_to_name' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_pool_state_to_name'>
-      <parameter type-id='type-id-131' name='state'/>
-      <return type-id='type-id-87'/>
-    </function-decl>
-    <function-decl name='zpool_state_to_name' mangled-name='zpool_state_to_name' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_state_to_name'>
-      <parameter type-id='type-id-149' name='state'/>
-      <parameter type-id='type-id-147' name='aux'/>
-      <return type-id='type-id-87'/>
-    </function-decl>
     <enum-decl name='__anonymous_enum__' is-anonymous='yes' id='type-id-162'>
       <underlying-type type-id='type-id-41'/>
       <enumerator name='ZPOOL_PROP_INVAL' value='-1'/>
@@ -3086,6 +3076,24 @@
       <enumerator name='ZPOOL_NUM_PROPS' value='33'/>
     </enum-decl>
     <typedef-decl name='zpool_prop_t' type-id='type-id-162' id='type-id-163'/>
+    <function-decl name='zpool_get_prop' mangled-name='zpool_get_prop' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_get_prop'>
+      <parameter type-id='type-id-4' name='zhp'/>
+      <parameter type-id='type-id-163' name='prop'/>
+      <parameter type-id='type-id-14' name='buf'/>
+      <parameter type-id='type-id-18' name='len'/>
+      <parameter type-id='type-id-116' name='srctype'/>
+      <parameter type-id='type-id-9' name='literal'/>
+      <return type-id='type-id-2'/>
+    </function-decl>
+    <function-decl name='zpool_pool_state_to_name' mangled-name='zpool_pool_state_to_name' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_pool_state_to_name'>
+      <parameter type-id='type-id-131' name='state'/>
+      <return type-id='type-id-87'/>
+    </function-decl>
+    <function-decl name='zpool_state_to_name' mangled-name='zpool_state_to_name' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_state_to_name'>
+      <parameter type-id='type-id-149' name='state'/>
+      <parameter type-id='type-id-147' name='aux'/>
+      <return type-id='type-id-87'/>
+    </function-decl>
     <function-decl name='zpool_get_prop_int' mangled-name='zpool_get_prop_int' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_get_prop_int'>
       <parameter type-id='type-id-4' name='zhp'/>
       <parameter type-id='type-id-163' name='prop'/>
@@ -3143,7 +3151,7 @@
     <function-decl name='memcmp' mangled-name='memcmp' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='__realpath_alias' mangled-name='realpath' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='realpath' mangled-name='realpath' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='strncasecmp' mangled-name='strncasecmp' visibility='default' binding='global' size-in-bits='64'>
@@ -3270,7 +3278,7 @@
       <return type-id='type-id-1'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='libzfs_sendrecv.c' comp-dir-path='/home/allan/openzfs/lib/libzfs' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='libzfs_sendrecv.c' comp-dir-path='/store0/home/cw/wk/zfsonlinux/zfs/lib/libzfs' language='LANG_C99'>
     <class-decl name='recvflags' size-in-bits='416' is-struct='yes' visibility='default' id='type-id-166'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='verbose' type-id='type-id-9' visibility='default'/>
@@ -3441,7 +3449,7 @@
     <function-decl name='fletcher_4_incremental_byteswap' mangled-name='fletcher_4_incremental_byteswap' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='__builtin___strcat_chk' mangled-name='__strcat_chk' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='strcat' mangled-name='strcat' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='fnvlist_merge' mangled-name='fnvlist_merge' visibility='default' binding='global' size-in-bits='64'>
@@ -3465,16 +3473,13 @@
     <function-decl name='lzc_receive_with_cmdprops' mangled-name='lzc_receive_with_cmdprops' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='__builtin___sprintf_chk' mangled-name='__sprintf_chk' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='sprintf' mangled-name='sprintf' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='__builtin_puts' mangled-name='puts' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='fnvlist_lookup_uint64_array' mangled-name='fnvlist_lookup_uint64_array' visibility='default' binding='global' size-in-bits='64'>
-      <return type-id='type-id-1'/>
-    </function-decl>
-    <function-decl name='fletcher_4_incremental_native' mangled-name='fletcher_4_incremental_native' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='lzc_send_redacted' mangled-name='lzc_send_redacted' visibility='default' binding='global' size-in-bits='64'>
@@ -3487,6 +3492,9 @@
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='fnvlist_size' mangled-name='fnvlist_size' visibility='default' binding='global' size-in-bits='64'>
+      <return type-id='type-id-1'/>
+    </function-decl>
+    <function-decl name='fletcher_4_incremental_native' mangled-name='fletcher_4_incremental_native' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='write' mangled-name='write' visibility='default' binding='global' size-in-bits='64'>
@@ -3537,7 +3545,7 @@
       <return type-id='type-id-9'/>
     </function-type>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='libzfs_status.c' comp-dir-path='/home/allan/openzfs/lib/libzfs' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='libzfs_status.c' comp-dir-path='/store0/home/cw/wk/zfsonlinux/zfs/lib/libzfs' language='LANG_C99'>
     <enum-decl name='__anonymous_enum__' is-anonymous='yes' id='type-id-176'>
       <underlying-type type-id='type-id-41'/>
       <enumerator name='ZPOOL_STATUS_CORRUPT_CACHE' value='0'/>
@@ -3602,12 +3610,19 @@
       <return type-id='type-id-1'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='libzfs_util.c' comp-dir-path='/home/allan/openzfs/lib/libzfs' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='libzfs_util.c' comp-dir-path='/store0/home/cw/wk/zfsonlinux/zfs/lib/libzfs' language='LANG_C99'>
     <function-decl name='printf_color' mangled-name='printf_color' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='printf_color'>
       <parameter type-id='type-id-14' name='color'/>
       <parameter type-id='type-id-14' name='format'/>
       <parameter is-variadic='yes'/>
       <return type-id='type-id-2'/>
+    </function-decl>
+    <function-decl name='color_end' mangled-name='color_end' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='color_end'>
+      <return type-id='type-id-1'/>
+    </function-decl>
+    <function-decl name='color_start' mangled-name='color_start' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='color_start'>
+      <parameter type-id='type-id-14' name='color'/>
+      <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='zfs_version_print' mangled-name='zfs_version_print' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_version_print'>
       <return type-id='type-id-2'/>
@@ -3782,14 +3797,7 @@
       <parameter type-id='type-id-16' name='hdl'/>
       <return type-id='type-id-87'/>
     </function-decl>
-    <function-decl name='color_start' mangled-name='color_start' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='color_start'>
-      <parameter type-id='type-id-14' name='color'/>
-      <return type-id='type-id-1'/>
-    </function-decl>
-    <function-decl name='color_end' mangled-name='color_end' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='color_end'>
-      <return type-id='type-id-1'/>
-    </function-decl>
-    <function-decl name='__vfprintf_chk' mangled-name='__vfprintf_chk' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='vfprintf' mangled-name='vfprintf' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='zfs_version_kernel' mangled-name='zfs_version_kernel' visibility='default' binding='global' size-in-bits='64'>
@@ -3900,16 +3908,16 @@
     <function-decl name='execvpe' mangled-name='execvpe' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='execv' mangled-name='execv' visibility='default' binding='global' size-in-bits='64'>
-      <return type-id='type-id-1'/>
-    </function-decl>
     <function-decl name='execvp' mangled-name='execvp' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='__vasprintf_chk' mangled-name='__vasprintf_chk' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='execv' mangled-name='execv' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='__builtin___vsnprintf_chk' mangled-name='__vsnprintf_chk' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='vasprintf' mangled-name='vasprintf' visibility='default' binding='global' size-in-bits='64'>
+      <return type-id='type-id-1'/>
+    </function-decl>
+    <function-decl name='vsnprintf' mangled-name='vsnprintf' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='exit' mangled-name='exit' visibility='default' binding='global' size-in-bits='64'>
@@ -3921,7 +3929,7 @@
       <return type-id='type-id-2'/>
     </function-type>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='os/linux/libzfs_mount_os.c' comp-dir-path='/home/allan/openzfs/lib/libzfs' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='os/linux/libzfs_mount_os.c' comp-dir-path='/store0/home/cw/wk/zfsonlinux/zfs/lib/libzfs' language='LANG_C99'>
     <function-decl name='zfs_mount_delegation_check' mangled-name='zfs_mount_delegation_check' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_mount_delegation_check'>
       <return type-id='type-id-2'/>
     </function-decl>
@@ -3958,7 +3966,7 @@
       <return type-id='type-id-1'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='os/linux/libzfs_pool_os.c' comp-dir-path='/home/allan/openzfs/lib/libzfs' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='os/linux/libzfs_pool_os.c' comp-dir-path='/store0/home/cw/wk/zfsonlinux/zfs/lib/libzfs' language='LANG_C99'>
     <function-decl name='zpool_label_disk' mangled-name='zpool_label_disk' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_label_disk'>
       <parameter type-id='type-id-16' name='hdl'/>
       <parameter type-id='type-id-4' name='zhp'/>
@@ -3996,15 +4004,15 @@
       <return type-id='type-id-1'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='os/linux/libzfs_sendrecv_os.c' comp-dir-path='/home/allan/openzfs/lib/libzfs' language='LANG_C99'>
-    <function-decl name='fscanf' mangled-name='__isoc99_fscanf' visibility='default' binding='global' size-in-bits='64'>
+  <abi-instr version='1.0' address-size='64' path='os/linux/libzfs_sendrecv_os.c' comp-dir-path='/store0/home/cw/wk/zfsonlinux/zfs/lib/libzfs' language='LANG_C99'>
+    <function-decl name='fscanf' mangled-name='fscanf' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='fcntl' mangled-name='fcntl64' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='os/linux/libzfs_util_os.c' comp-dir-path='/home/allan/openzfs/lib/libzfs' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='os/linux/libzfs_util_os.c' comp-dir-path='/store0/home/cw/wk/zfsonlinux/zfs/lib/libzfs' language='LANG_C99'>
     <function-decl name='zfs_version_kernel' mangled-name='zfs_version_kernel' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_version_kernel'>
       <parameter type-id='type-id-14' name='version'/>
       <parameter type-id='type-id-2' name='len'/>
@@ -4272,12 +4280,12 @@
       <return type-id='type-id-1'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='../../module/icp/algs/sha2/sha2.c' comp-dir-path='/home/allan/openzfs/lib/libzfs' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='../../module/icp/algs/sha2/sha2.c' comp-dir-path='/store0/home/cw/wk/zfsonlinux/zfs/lib/libzfs' language='LANG_C99'>
     <function-decl name='htonl' mangled-name='htonl' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='../../module/zcommon/cityhash.c' comp-dir-path='/home/allan/openzfs/lib/libzfs' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='../../module/zcommon/cityhash.c' comp-dir-path='/store0/home/cw/wk/zfsonlinux/zfs/lib/libzfs' language='LANG_C99'>
     <function-decl name='cityhash4' mangled-name='cityhash4' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='cityhash4'>
       <parameter type-id='type-id-7' name='w1'/>
       <parameter type-id='type-id-7' name='w2'/>
@@ -4286,7 +4294,7 @@
       <return type-id='type-id-7'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='../../module/zcommon/zfeature_common.c' comp-dir-path='/home/allan/openzfs/lib/libzfs' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='../../module/zcommon/zfeature_common.c' comp-dir-path='/store0/home/cw/wk/zfsonlinux/zfs/lib/libzfs' language='LANG_C99'>
     <var-decl name='zfeature_checks_disable' type-id='type-id-9' mangled-name='zfeature_checks_disable' visibility='default' elf-symbol-id='zfeature_checks_disable'/>
     <class-decl name='zfeature_info' size-in-bits='448' is-struct='yes' visibility='default' id='type-id-212'>
       <data-member access='public' layout-offset-in-bits='0'>
@@ -4408,7 +4416,7 @@
       <return type-id='type-id-9'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='../../module/zcommon/zfs_comutil.c' comp-dir-path='/home/allan/openzfs/lib/libzfs' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='../../module/zcommon/zfs_comutil.c' comp-dir-path='/store0/home/cw/wk/zfsonlinux/zfs/lib/libzfs' language='LANG_C99'>
 
     <array-type-def dimensions='1' type-id='type-id-87' size-in-bits='2624' id='type-id-225'>
       <subrange length='41' type-id='type-id-24' id='type-id-226'/>
@@ -4461,7 +4469,7 @@
       <return type-id='type-id-1'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='../../module/zcommon/zfs_deleg.c' comp-dir-path='/home/allan/openzfs/lib/libzfs' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='../../module/zcommon/zfs_deleg.c' comp-dir-path='/store0/home/cw/wk/zfsonlinux/zfs/lib/libzfs' language='LANG_C99'>
     <class-decl name='zfs_deleg_perm_tab' size-in-bits='128' is-struct='yes' visibility='default' id='type-id-230'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='z_perm' type-id='type-id-14' visibility='default'/>
@@ -4550,7 +4558,7 @@
       <return type-id='type-id-1'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='../../module/zcommon/zfs_fletcher.c' comp-dir-path='/home/allan/openzfs/lib/libzfs' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='../../module/zcommon/zfs_fletcher.c' comp-dir-path='/store0/home/cw/wk/zfsonlinux/zfs/lib/libzfs' language='LANG_C99'>
     <class-decl name='zio_abd_checksum_func' size-in-bits='192' is-struct='yes' visibility='default' id='type-id-238'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='acf_init' type-id='type-id-239' visibility='default'/>
@@ -4756,7 +4764,7 @@
       <return type-id='type-id-1'/>
     </function-type>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='../../module/zcommon/zfs_fletcher_avx512.c' comp-dir-path='/home/allan/openzfs/lib/libzfs' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='../../module/zcommon/zfs_fletcher_avx512.c' comp-dir-path='/store0/home/cw/wk/zfsonlinux/zfs/lib/libzfs' language='LANG_C99'>
     <class-decl name='fletcher_4_func' size-in-bits='512' is-struct='yes' visibility='default' id='type-id-276'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='init_native' type-id='type-id-277' visibility='default'/>
@@ -4813,20 +4821,20 @@
       <return type-id='type-id-1'/>
     </function-type>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='../../module/zcommon/zfs_fletcher_intel.c' comp-dir-path='/home/allan/openzfs/lib/libzfs' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='../../module/zcommon/zfs_fletcher_intel.c' comp-dir-path='/store0/home/cw/wk/zfsonlinux/zfs/lib/libzfs' language='LANG_C99'>
     <var-decl name='fletcher_4_avx2_ops' type-id='type-id-289' mangled-name='fletcher_4_avx2_ops' visibility='default' elf-symbol-id='fletcher_4_avx2_ops'/>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='../../module/zcommon/zfs_fletcher_sse.c' comp-dir-path='/home/allan/openzfs/lib/libzfs' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='../../module/zcommon/zfs_fletcher_sse.c' comp-dir-path='/store0/home/cw/wk/zfsonlinux/zfs/lib/libzfs' language='LANG_C99'>
     <var-decl name='fletcher_4_sse2_ops' type-id='type-id-289' mangled-name='fletcher_4_sse2_ops' visibility='default' elf-symbol-id='fletcher_4_sse2_ops'/>
     <var-decl name='fletcher_4_ssse3_ops' type-id='type-id-289' mangled-name='fletcher_4_ssse3_ops' visibility='default' elf-symbol-id='fletcher_4_ssse3_ops'/>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='../../module/zcommon/zfs_fletcher_superscalar.c' comp-dir-path='/home/allan/openzfs/lib/libzfs' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='../../module/zcommon/zfs_fletcher_superscalar.c' comp-dir-path='/store0/home/cw/wk/zfsonlinux/zfs/lib/libzfs' language='LANG_C99'>
     <var-decl name='fletcher_4_superscalar_ops' type-id='type-id-289' mangled-name='fletcher_4_superscalar_ops' visibility='default' elf-symbol-id='fletcher_4_superscalar_ops'/>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='../../module/zcommon/zfs_fletcher_superscalar4.c' comp-dir-path='/home/allan/openzfs/lib/libzfs' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='../../module/zcommon/zfs_fletcher_superscalar4.c' comp-dir-path='/store0/home/cw/wk/zfsonlinux/zfs/lib/libzfs' language='LANG_C99'>
     <var-decl name='fletcher_4_superscalar4_ops' type-id='type-id-289' mangled-name='fletcher_4_superscalar4_ops' visibility='default' elf-symbol-id='fletcher_4_superscalar4_ops'/>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='../../module/zcommon/zfs_namecheck.c' comp-dir-path='/home/allan/openzfs/lib/libzfs' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='../../module/zcommon/zfs_namecheck.c' comp-dir-path='/store0/home/cw/wk/zfsonlinux/zfs/lib/libzfs' language='LANG_C99'>
     <var-decl name='zfs_max_dataset_nesting' type-id='type-id-2' mangled-name='zfs_max_dataset_nesting' visibility='default' elf-symbol-id='zfs_max_dataset_nesting'/>
     <enum-decl name='__anonymous_enum__' is-anonymous='yes' id='type-id-290'>
       <underlying-type type-id='type-id-41'/>
@@ -4902,7 +4910,7 @@
       <return type-id='type-id-2'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='../../module/zcommon/zfs_prop.c' comp-dir-path='/home/allan/openzfs/lib/libzfs' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='../../module/zcommon/zfs_prop.c' comp-dir-path='/store0/home/cw/wk/zfsonlinux/zfs/lib/libzfs' language='LANG_C99'>
 
     <array-type-def dimensions='1' type-id='type-id-87' size-in-bits='768' id='type-id-293'>
       <subrange length='12' type-id='type-id-24' id='type-id-294'/>
@@ -5108,7 +5116,7 @@
       <return type-id='type-id-1'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='../../module/zcommon/zpool_prop.c' comp-dir-path='/home/allan/openzfs/lib/libzfs' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='../../module/zcommon/zpool_prop.c' comp-dir-path='/store0/home/cw/wk/zfsonlinux/zfs/lib/libzfs' language='LANG_C99'>
     <function-decl name='zpool_prop_align_right' mangled-name='zpool_prop_align_right' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_prop_align_right'>
       <parameter type-id='type-id-163' name='prop'/>
       <return type-id='type-id-9'/>
@@ -5178,7 +5186,7 @@
       <return type-id='type-id-306'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='../../module/zcommon/zprop_common.c' comp-dir-path='/home/allan/openzfs/lib/libzfs' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='../../module/zcommon/zprop_common.c' comp-dir-path='/store0/home/cw/wk/zfsonlinux/zfs/lib/libzfs' language='LANG_C99'>
     <function-decl name='zprop_width' mangled-name='zprop_width' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zprop_width'>
       <parameter type-id='type-id-2' name='prop'/>
       <parameter type-id='type-id-88' name='fixed'/>
@@ -5291,7 +5299,7 @@
       <return type-id='type-id-1'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='libshare.c' comp-dir-path='/home/allan/openzfs/lib/libshare' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='libshare.c' comp-dir-path='/store0/home/cw/wk/zfsonlinux/zfs/lib/libshare' language='LANG_C99'>
     <function-decl name='sa_validate_shareopts' mangled-name='sa_validate_shareopts' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='sa_validate_shareopts'>
       <parameter type-id='type-id-14' name='options'/>
       <parameter type-id='type-id-14' name='proto'/>
@@ -5329,7 +5337,7 @@
       <return type-id='type-id-1'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='nfs.c' comp-dir-path='/home/allan/openzfs/lib/libshare' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='nfs.c' comp-dir-path='/store0/home/cw/wk/zfsonlinux/zfs/lib/libshare' language='LANG_C99'>
     <function-decl name='mkostemp' mangled-name='mkostemp64' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
@@ -5349,7 +5357,7 @@
       <return type-id='type-id-1'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='os/linux/nfs.c' comp-dir-path='/home/allan/openzfs/lib/libshare' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='os/linux/nfs.c' comp-dir-path='/store0/home/cw/wk/zfsonlinux/zfs/lib/libshare' language='LANG_C99'>
     <function-decl name='register_fstype' mangled-name='register_fstype' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
@@ -5363,7 +5371,7 @@
       <return type-id='type-id-1'/>
     </function-decl>
   </abi-instr>
-  <abi-instr version='1.0' address-size='64' path='os/linux/smb.c' comp-dir-path='/home/allan/openzfs/lib/libshare' language='LANG_C99'>
+  <abi-instr version='1.0' address-size='64' path='os/linux/smb.c' comp-dir-path='/store0/home/cw/wk/zfsonlinux/zfs/lib/libshare' language='LANG_C99'>
     <class-decl name='smb_share_s' size-in-bits='36992' is-struct='yes' visibility='default' id='type-id-307'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='name' type-id='type-id-308' visibility='default'/>
@@ -5390,10 +5398,10 @@
     <typedef-decl name='smb_share_t' type-id='type-id-307' id='type-id-311'/>
     <pointer-type-def type-id='type-id-311' size-in-bits='64' id='type-id-312'/>
     <var-decl name='smb_shares' type-id='type-id-312' visibility='default'/>
-    <function-decl name='__fgets_alias' mangled-name='fgets' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='opendir' mangled-name='opendir' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
-    <function-decl name='opendir' mangled-name='opendir' visibility='default' binding='global' size-in-bits='64'>
+    <function-decl name='fgets' mangled-name='fgets' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
   </abi-instr>

@@ -368,8 +368,8 @@ main(int argc, char **argv)
 				    "mount the filesystem again.\n"), dataset);
 				return (MOUNT_SYSERR);
 			}
-			/* fallthru */
 #endif
+			/* FALLTHROUGH */
 		default:
 			(void) fprintf(stderr, gettext("filesystem "
 			    "'%s' can not be mounted: %s\n"), dataset,

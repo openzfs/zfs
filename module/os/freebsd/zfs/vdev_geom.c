@@ -1100,6 +1100,10 @@ vdev_geom_check_unmapped(zio_t *zio, struct g_consumer *cp)
 {
 	struct vdev_geom_check_unmapped_cb_state s;
 
+	/* If unmapped I/O is administratively disabled, respect that. */
+	if (!unmapped_buf_allowed)
+		return (0);
+
 	/* If the buffer is already linear, then nothing to do here. */
 	if (abd_is_linear(zio->io_abd))
 		return (0);

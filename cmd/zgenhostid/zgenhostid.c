@@ -36,7 +36,7 @@
 #include <time.h>
 #include <unistd.h>
 
-static void
+static __attribute__((noreturn)) void
 usage(void)
 {
 	(void) fprintf(stderr,
@@ -51,7 +51,6 @@ usage(void)
 	    " will be generated.\n"
 	    "The value must be unique among your systems.\n");
 	exit(EXIT_FAILURE);
-	/* NOTREACHED */
 }
 
 int

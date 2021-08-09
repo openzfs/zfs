@@ -40,7 +40,6 @@
 #define	_SHA2_IMPL
 #include <sys/sha2.h>
 #include <sys/stdtypes.h>
-#define NOTE(x)
 
 
 /*
@@ -196,7 +195,6 @@ main(int argc, char *argv[])
 			(void) printf("FAILED!\n");			\
 			failed = B_TRUE;				\
 		}							\
-		NOTE(CONSTCOND)						\
 	} while (0)
 
 #define	SHA2_PERF_TEST(mode, diglen)					\
@@ -223,7 +221,6 @@ main(int argc, char *argv[])
 		}							\
 		(void) printf("SHA%-9s%llu us (%.02f CPB)\n", #mode,	\
 		    (u_longlong_t)delta, cpb);				\
-		NOTE(CONSTCOND)						\
 	} while (0)
 
 	(void) printf("Running algorithm correctness tests:\n");

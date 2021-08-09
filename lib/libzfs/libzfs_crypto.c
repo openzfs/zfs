@@ -486,7 +486,7 @@ get_key_material_file(libzfs_handle_t *hdl, const char *uri,
 		ret = errno;
 		errno = 0;
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "Failed to open key material file"));
+		    "Failed to open key material file: %s"), strerror(ret));
 		return (ret);
 	}
 

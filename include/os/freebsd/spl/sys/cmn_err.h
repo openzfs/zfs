@@ -49,36 +49,29 @@ extern "C" {
 
 #ifndef _ASM
 
-/*PRINTFLIKE2*/
 extern void cmn_err(int, const char *, ...)
-    __KPRINTFLIKE(2);
+    __attribute__((format(printf, 2, 3)));
 
 extern void vzcmn_err(zoneid_t, int, const char *, __va_list)
-    __KVPRINTFLIKE(3);
+    __attribute__((format(printf, 3, 0)));
 
 extern void vcmn_err(int, const char *, __va_list)
-    __KVPRINTFLIKE(2);
+    __attribute__((format(printf, 2, 0)));
 
-/*PRINTFLIKE3*/
 extern void zcmn_err(zoneid_t, int, const char *, ...)
-    __KPRINTFLIKE(3);
+    __attribute__((format(printf, 3, 4)));
 
 extern void vzprintf(zoneid_t, const char *, __va_list)
-    __KVPRINTFLIKE(2);
+    __attribute__((format(printf, 2, 0)));
 
-/*PRINTFLIKE2*/
 extern void zprintf(zoneid_t, const char *, ...)
-    __KPRINTFLIKE(2);
+    __attribute__((format(printf, 2, 3)));
 
 extern void vuprintf(const char *, __va_list)
-    __KVPRINTFLIKE(1);
+    __attribute__((format(printf, 1, 0)));
 
-/*PRINTFLIKE1*/
 extern void panic(const char *, ...)
-    __KPRINTFLIKE(1) __NORETURN;
-
-extern void vpanic(const char *, __va_list)
-    __KVPRINTFLIKE(1) __NORETURN;
+    __attribute__((format(printf, 1, 2)));
 
 #endif /* !_ASM */
 

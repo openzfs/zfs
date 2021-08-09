@@ -1084,7 +1084,7 @@ zfsctl_snapdir_readdir(struct vop_readdir_args *ap)
 		}
 		zfs_uio_setoffset(&uio, cookie + dots_offset);
 	}
-	/* NOTREACHED */
+	__builtin_unreachable();
 }
 
 static int
