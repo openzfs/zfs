@@ -2610,7 +2610,8 @@ spa_start_livelist_destroy_thread(spa_t *spa)
 	ASSERT3P(spa->spa_livelist_delete_zthr, ==, NULL);
 	spa->spa_livelist_delete_zthr =
 	    zthr_create("z_livelist_destroy",
-	    spa_livelist_delete_cb_check, spa_livelist_delete_cb, spa);
+	    spa_livelist_delete_cb_check, spa_livelist_delete_cb, spa,
+	    minclsyspri);
 }
 
 typedef struct livelist_new_arg {
@@ -2820,7 +2821,7 @@ spa_start_livelist_condensing_thread(spa_t *spa)
 	spa->spa_livelist_condense_zthr =
 	    zthr_create("z_livelist_condense",
 	    spa_livelist_condense_cb_check,
-	    spa_livelist_condense_cb, spa);
+	    spa_livelist_condense_cb, spa, minclsyspri);
 }
 
 static void
@@ -2838,7 +2839,7 @@ spa_spawn_aux_threads(spa_t *spa)
 	spa->spa_checkpoint_discard_zthr =
 	    zthr_create("z_checkpoint_discard",
 	    spa_checkpoint_discard_thread_check,
-	    spa_checkpoint_discard_thread, spa);
+	    spa_checkpoint_discard_thread, spa, minclsyspri);
 }
 
 /*
