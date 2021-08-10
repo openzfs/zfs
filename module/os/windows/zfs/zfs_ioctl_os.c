@@ -114,7 +114,7 @@ zfsdev_private_get_state(void *priv)
 	zfsdev_state_t *zs;
 	mutex_enter(&zfsdev_state_lock);
 	zs = zfsdev_get_state(dev, ZST_ALL);
-	mutex_exit(&zfsdev_state_lock);                                             
+	mutex_exit(&zfsdev_state_lock);
 	return (zs);
 }
 
@@ -292,7 +292,7 @@ DriverNotificationRoutine(_In_ struct _DEVICE_OBJECT *DeviceObject,
 		dprintf("Filesystem %p: '%wZ'\n", DeviceObject, name_info);
 	} else {
 		dprintf("Filesystem %p: '%wZ'\n", DeviceObject,
-		    DeviceObject->DriverObject->DriverName);
+		    &DeviceObject->DriverObject->DriverName);
 	}
 }
 
@@ -514,16 +514,16 @@ zfsdev_detach(void)
 /* Update the VFS's cache of mountpoint properties */
 void
 zfs_ioctl_update_mount_cache(const char *dsname)
-{   
+{
 	zfsvfs_t *zfsvfs;
 
 	if (getzfsvfs(dsname, &zfsvfs) == 0) {
 		/* insert code here */
 		zfs_vfs_rele(zfsvfs);
 	}
-	/*                                                                          
-	 * Ignore errors; we can't do anything useful if either getzfsvfs or        
-	 * VFS_STATFS fails.                                                        
+	/*
+	 * Ignore errors; we can't do anything useful if either getzfsvfs or
+	 * VFS_STATFS fails.
 	 */
 }
 

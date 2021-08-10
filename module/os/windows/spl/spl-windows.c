@@ -254,7 +254,8 @@ ddi_copyin(const void *from, void *to, size_t len, int flags)
 	}
 
 	// Lets try reading from the input nvlist
-	dprintf("SPL: trying windows copyin: %p:%d\n", from, len);
+	TraceEvent(TRACE_NOISY, "%s:%d: SPL: trying windows copyin: %p:%d\n",
+	    __func__, __LINE__, from, len);
 
 	try {
 		ProbeForRead((void *)from, len, sizeof (UCHAR));
@@ -299,7 +300,8 @@ ddi_copyin(const void *from, void *to, size_t len, int flags)
 			bcopy(buffer, to, len);
 	}
 
-	dprintf("SPL: copyin return %d (%d bytes)\n", error, len);
+	TraceEvent(TRACE_NOISY, "SPL: copyin return %d (%d bytes)\n",
+	    error, len);
 
 out:
 	if (mdl) {

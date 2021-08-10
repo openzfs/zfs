@@ -48,7 +48,8 @@ unsigned int zvol_threads = 8;
 
 taskq_t *zvol_taskq;
 
-extern void wzvol_clear_targetid(uint8_t targetid, uint8_t lun, zvol_state_t *zv);
+extern void wzvol_clear_targetid(uint8_t targetid, uint8_t lun,
+    zvol_state_t *zv);
 extern void wzvol_announce_buschange(void);
 extern int wzvol_assign_targetid(zvol_state_t *zv);
 
@@ -95,7 +96,7 @@ zvol_os_spawn(void (*func)(void *), void *arg)
  * Windows.
  * Returning FALSE makes caller process everything async,
  * which will deadlock if zpool-in-zvol exists.
- * Returning TRUE goes into slow, but safe, path. 
+ * Returning TRUE goes into slow, but safe, path.
  */
 static boolean_t
 zvol_os_is_zvol(const char *device)
@@ -212,7 +213,7 @@ zvol_os_register_device_cb(void *param)
 	if ((locks = zvol_os_verify_and_lock(zv, zv->zv_open_count == 0)) == 0)
 		return;
 
-        zvol_os_verify_lock_exit(zv, locks);
+	zvol_os_verify_lock_exit(zv, locks);
 }
 
 int
@@ -253,8 +254,8 @@ zvol_os_read_zv(zvol_state_t *zv, zfs_uio_t *uio, int flags)
 		if (bytes > volsize - zfs_uio_offset(uio))
 			bytes = volsize - zfs_uio_offset(uio);
 
-		dprintf("%s %llu len %llu bytes %llu\n",
-		    "zvol_read_iokit: position",
+		TraceEvent(TRACE_VERBOSE, "%s:%d: %s %llu len %llu bytes"
+		    " %llu\n", __func__, __LINE__, "zvol_read_iokit: position",
 		    zfs_uio_offset(uio), zfs_uio_resid(uio), bytes);
 
 		error = dmu_read_uio_dnode(zv->zv_dn, uio, bytes);
@@ -316,8 +317,9 @@ zvol_os_write_zv(zvol_state_t *zv, zfs_uio_t *uio, int flags)
 		rw_downgrade(&zv->zv_suspend_lock);
 	}
 
-	dprintf("zvol_write_zv(position %llu offset "
-	    "0x%llx bytes 0x%llx)\n",  zfs_uio_offset(uio), zfs_uio_resid(uio), bytes);
+	TraceEvent(TRACE_VERBOSE, "%s:%d: zvol_write_iokit(offset "
+	    "0x%llx bytes 0x%llx)\n", __func__, __LINE__,
+	    zfs_uio_offset(uio), zfs_uio_resid(uio), bytes);
 
 	sync = (zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS);
 
@@ -626,7 +628,8 @@ zvol_os_attach(char *name)
 		// Assign new TargetId and Lun
 		wzvol_assign_targetid(zv);
 		mutex_exit(&zv->zv_state_lock);
-		zvol_os_open_zv(zv, zv->zv_flags & ZVOL_RDONLY ? FREAD : FWRITE, 0, NULL); //readonly?
+		zvol_os_open_zv(zv, zv->zv_flags & ZVOL_RDONLY ?
+		    FREAD : FWRITE, 0, NULL); // readonly?
 		wzvol_announce_buschange();
 	}
 }
@@ -854,7 +857,7 @@ zvol_os_open_zv(zvol_state_t *zv, int flag, int otyp, struct proc *p)
 	 * ordering - zv_suspend_lock before zv_state_lock
 	 */
 	if ((locks = zvol_os_verify_and_lock(zv, zv->zv_open_count == 0))
-	    == 0) 
+	    == 0)
 		return (SET_ERROR(ENOENT));
 
 	ASSERT(MUTEX_HELD(&zv->zv_state_lock));

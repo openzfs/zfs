@@ -1,14 +1,5 @@
 #pragma once
 
-#if !defined WPPFILE || !defined RUN_WPP
-// To enable Wpp; Select Yes under Run Wpp Tracing in Project properties
-#undef WPPFILE
-// And define both RUN_WPP and WPPFILE="%(FileName).tmh" in C/C++ preprocessor
-#undef RUN_WPP
-// To disable Wpp; Select No under Run Wpp Tracing;
-// undef RUN_WPP/WPPFILE in C/C++ preprocessor
-#endif
-
 static const int TRACE_FATAL = 1;
 static const int TRACE_ERROR = 2;
 static const int TRACE_WARNING = 3;
@@ -16,8 +7,8 @@ static const int TRACE_INFO = 4;
 static const int TRACE_VERBOSE = 5;
 static const int TRACE_NOISY = 8;
 
-#if defined RUN_WPP && defined WPPFILE
-#define	WPPNAME		ZFSinTraceGuid
+#ifdef WPPFILE
+#define	WPPNAME		OpenZFSTraceGuid
 #define	WPPGUID		c20c603c, afd4, 467d, bf76, c0a4c10553df
 
 #define	WPP_DEFINE_DEFAULT_BITS \
@@ -50,7 +41,10 @@ static const int TRACE_NOISY = 8;
 // FUNC TraceEvent{FLAGS=MYDRIVER_ALL_INFO}(LEVEL, MSG, ...);
 // end_wpp
 
-#include WPPFILE
+#define	STRINGIZE_DETAIL(x) #x
+#define	STRINGIZE(x) STRINGIZE_DETAIL(x)
+
+#include STRINGIZE(WPPFILE)
 
 #else
 

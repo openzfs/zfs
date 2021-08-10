@@ -1304,7 +1304,7 @@ vnode_drain_delayclose(int force)
 	}
 	last = curtime;
 
-	dprintf("%s: scanning\n", __func__);
+	TraceEvent(8, "%s: scanning\n", __func__);
 
 	for (vp = list_head(&vnode_all_list);
 	    vp;
@@ -1701,11 +1701,11 @@ vnode_flushcache(vnode_t *vp, FILE_OBJECT *fileobject, boolean_t hard)
 	    FALSE);
 
 	// Try to release cache
-	dprintf("calling CcUninit: fo %p\n", fileobject);
+	TraceEvent(8, "calling CcUninit: fo %p\n", fileobject);
 	CcUninitializeCacheMap(fileobject,
 	    hard ? &Zero : NULL,
 	    NULL);
-	dprintf("complete CcUninit\n");
+	TraceEvent(8, "complete CcUninit\n");
 
 	ret = 1;
 	if (fileobject && fileobject->SectionObjectPointer)
@@ -1725,7 +1725,7 @@ vnode_flushcache(vnode_t *vp, FILE_OBJECT *fileobject, boolean_t hard)
 	atomic_dec_32(&vp->v_usecount);
 
 	// Unable to fully release CcMgr
-	dprintf("%s: ret %d : vp %p fo %p\n", __func__, ret,
+	TraceEvent(8, "%s: ret %d : vp %p fo %p\n", __func__, ret,
 	    vp, fileobject);
 
 	return (ret);

@@ -77,6 +77,8 @@ extern PDRIVER_OBJECT WIN_DriverObject;
 #include <sys/seg_kmem.h>
 #include <sys/kmem.h>
 
+#include <Trace.h>
+
 /* Since Linux code uses vmem_free() and we already have one: */
 #define	vmem_free(A, B)			zfs_kmem_free((A), (B))
 #define	vmem_alloc(A, B)		zfs_kmem_alloc((A), (B))

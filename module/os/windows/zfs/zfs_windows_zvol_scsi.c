@@ -285,10 +285,9 @@ ScsiExecuteMain(
 {
 	UCHAR status = SRB_STATUS_INVALID_REQUEST;
 
-	dprintf("ScsiExecute: pSrb = 0x%p, CDB = 0x%x Path: %x "
-	    "TID: %x Lun: %x\n",
-	    pSrb, pSrb->Cdb[0], pSrb->PathId, pSrb->TargetId, pSrb->Lun);
-
+	TraceEvent(TRACE_VERBOSE, "%s:%d: ScsiExecute: pSrb = 0x%p, CDB = 0x%x"
+	    " Path: %x TID: %x Lun: %x\n", __func__, __LINE__, pSrb,
+	    pSrb->Cdb[0], pSrb->PathId, pSrb->TargetId, pSrb->Lun);
 	*pResult = ResultDone;
 
 	// Verify that the B/T/L is not out of bound.
@@ -779,8 +778,8 @@ ScsiOpUnmap_impl(
 		    ((UINT32)Src->LbaCount[3]);
 
 		ret = zvol_os_unmap(zv,
-			BlockAddress * zv->zv_volblocksize,
-			BlockCount * zv->zv_volblocksize);
+		    BlockAddress * zv->zv_volblocksize,
+		    BlockCount * zv->zv_volblocksize);
 		if (ret != 0)
 			break;
 	}
@@ -945,11 +944,11 @@ wzvol_WkRtn(__in PVOID pWkParms)
 
 	sectorOffset = startingSector * MP_BLOCK_SIZE;
 
-	dprintf("MpWkRtn Action: %X, starting sector: 0x%llX, "
-	    "sector offset: 0x%llX\n", pWkRtnParms->Action,
-	    startingSector, sectorOffset);
-	dprintf("MpWkRtn pSrb: 0x%p, pSrb->DataBuffer: 0x%p\n",
-	    pSrb, pSrb->DataBuffer);
+	TraceEvent(TRACE_VERBOSE, "%s:%d: MpWkRtn Action: %X, starting sector:"
+	    " 0x%llX, sector offset: 0x%llX\n", __func__, __LINE__,
+	    pWkRtnParms->Action, startingSector, sectorOffset);
+	TraceEvent(TRACE_VERBOSE, "%s:%d: MpWkRtn pSrb: 0x%p, pSrb->DataBuffer"
+	    ": 0x%p\n", __func__, __LINE__, pSrb, pSrb->DataBuffer);
 
 	if (sectorOffset >= zv->zv_volsize) {
 		dprintf("%s: invalid starting sector: %d\n", __func__,
@@ -966,7 +965,8 @@ wzvol_WkRtn(__in PVOID pWkParms)
 	iov.iov_len = pSrb->DataTransferLength;
 
 	zfs_uio_t uio;
-	zfs_uio_iovec_init(&uio, &iov, 1, sectorOffset, UIO_SYSSPACE, pSrb->DataTransferLength, 0);
+	zfs_uio_iovec_init(&uio, &iov, 1, sectorOffset, UIO_SYSSPACE,
+	    pSrb->DataTransferLength, 0);
 	//    ActionRead == pWkRtnParms->Action ? UIO_READ : UIO_WRITE);
 
 	/* Call ZFS to read/write data */

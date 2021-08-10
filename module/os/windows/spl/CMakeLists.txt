@@ -34,3 +34,70 @@ wdk_add_library(splkern
 # set(CMAKE_TOOLCHAIN_FILE $ENV{CMAKE_TOOLCHAIN_FILE})
 
 target_include_directories(splkern BEFORE PUBLIC "${CMAKE_SOURCE_DIR}/include/os/windows/" PUBLIC "${CMAKE_SOURCE_DIR}/include/os/windows/spl")
+
+file(GLOB CSOURCES CONFIGURE_DEPENDS "*.c")
+
+list(REMOVE_ITEM CSOURCES "${CMAKE_CURRENT_SOURCE_DIR}/spl-wmsum.c")
+
+function(set_file_properties)
+        foreach (I ${CSOURCES})
+                get_filename_component(OUTPUT_FILE_WE ${I} NAME_WE)
+                set_source_files_properties(${I} PROPERTIES COMPILE_FLAGS -DWPPFILE=${CMAKE_SOURCE_DIR}/out/build/${OUTPUT_FILE_WE}.tmh)
+                message(STATUS "FILES_IN ======: ${CMAKE_SOURCE_DIR}/out/build/${OUTPUT_FILE_WE}.tmh") 
+        endforeach()
+endfunction()
+
+function(tracewpp OUTPUT_VAR OUTPUT_DIR SOURCE)
+        # [mlr] list of .tmh files to be generated -> TMH
+        set(WPP_DIR "C:\\Program Files (x86)\\Windows Kits\\10\\bin\\10.0.19041.0")
+        get_filename_component(FILEN ${SOURCE} NAME)
+        set(TMH_FILEN ${FILEN}.tmh)
+        set(TMH ${OUTPUT_DIR}/${TMH_FILEN})
+        set(EXTENSIONS ".c")
+
+        # [mlr] cmake only converts the command name to the native path format. the
+        # path names to be used in arguments must be converted manually.
+
+        file(TO_NATIVE_PATH ${SOURCE} NATIVE_SOURCE)
+        file(TO_NATIVE_PATH ${WPP_DIR} NATIVE_WPP_DIR)
+        file(TO_NATIVE_PATH ${OUTPUT_DIR} NATIVE_OUTPUT_DIR)
+
+        # [mlr] note that if -preserveext: occurs after the source file specification, it has
+        # no effect.
+
+        set(TRACE "TraceEvent{FLAGS=MYDRIVER_ALL_INFO}(LEVEL, MSG, ...)")
+        set(DPRINT "dprintf{FLAGS=MYDRIVER_ALL_INFO, LEVEL=TRACE_INFO}(MSG, ...)")
+        set(CFGDIR "C:/Program Files (x86)/Windows Kits/10/bin/10.0.19041.0/wppconfig/rev1")
+        set(SCAN "C:/Program Files (x86)/Windows Kits/10/Include/wdf/kmdf/1.9/WdfTraceEnums.h")
+        set(CFGDIR1 "C:/Users/rsoni/Desktop/Desktop/openzfs/module/os/windows")
+        set(IC "C:/Users/rsoni/Desktop/Desktop/openzfs/include/os/windows/")
+        set(WPP_MACRO "WPP_INLINE __inline")
+
+        execute_process(COMMAND "${NATIVE_WPP_DIR}\\x64\\tracewpp.exe"
+ -scan:${SCAN} /D${WPP_MACRO}
+ -cfgdir:${CFGDIR} -I${IC} -odir:${NATIVE_OUTPUT_DIR} -km -func:${TRACE}
+ -func:${DPRINT} -gen:{km-default.tpl}*.tmh ${NATIVE_SOURCE})
+
+        # [mlr] export the value of TMH into OUTPUT_VAR.
+        set(${OUTPUT_VAR} ${TMH} PARENT_SCOPE)
+endfunction()
+
+
+function(wpp OUTPUT_VAR OUTPUT_DIR)
+
+        # [mlr] invoke tracewpp() for each source file, adding the resulting file to a list
+        # named TMH.
+        message(STATUS "OUTPUT_DIR ======: ${OUTPUT_DIR}")
+        foreach ( I ${CSOURCES} )
+                tracewpp(J ${OUTPUT_DIR} ${I})
+                list(APPEND TMH ${J})
+        endforeach()
+
+        source_group("WPP Files (generated)" REGULAR_EXPRESSION ".+\\.tmh$")
+
+        # [mlr] export the value of TMH into OUTPUT_VAR.
+        set(${OUTPUT_VAR} ${TMH} PARENT_SCOPE)
+endfunction()
+
+set_file_properties()
+wpp(OUTPUT_VAR "${CMAKE_SOURCE_DIR}/out/build")

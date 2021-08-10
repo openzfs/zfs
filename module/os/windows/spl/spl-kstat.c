@@ -171,8 +171,8 @@ struct sbuf {
 #define	SBUF_MAXEXTENDSIZE	PAGE_SIZE
 #define	SBUF_MAXEXTENDINCR	PAGE_SIZE
 
-#define SBUF_INCLUDENUL 0x00000002 /* FBSD: nulterm byte is counted in len */
-#define SBUF_NULINCLUDED(s) ((s)->s_flags & SBUF_INCLUDENUL)
+#define	SBUF_INCLUDENUL 0x00000002 /* FBSD: nulterm byte is counted in len */
+#define	SBUF_NULINCLUDED(s) ((s)->s_flags & SBUF_INCLUDENUL)
 
 void
 sbuf_finish(struct sbuf *s)
@@ -429,7 +429,10 @@ sbuf_hexdump(struct sbuf *sb, const void *ptr, int length, const char *hdr,
 	}
 }
 
-/* kmem sets up kstats before it is ready to be called, so have some initial space */
+/*
+ * kmem sets up kstats before it is ready to be called,
+ * so have some initial space
+ */
 static uint64_t kstat_initial[16384];
 static void *kstat_initial_ptr = kstat_initial;
 static size_t kstat_initial_avail = sizeof (kstat_initial);
@@ -2222,7 +2225,8 @@ int spl_kstat_chain_id(PDEVICE_OBJECT DiskDevice, PIRP Irp,
 	    sizeof (ksp));
 	ddi_copyout(&ksp, IrpSp->Parameters.DeviceIoControl.Type3InputBuffer,
 	    sizeof (ksp), 0);
-	dprintf("%s: returning kstat_chain_id %d\n", __func__, kstat_chain_id);
+	dprintf("%s:%d: returning kstat_chain_id %d\n",
+	    __func__, __LINE__, kstat_chain_id);
 	return (0);
 }
 
