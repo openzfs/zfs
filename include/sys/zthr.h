@@ -25,10 +25,11 @@ typedef void (zthr_func_t)(void *, zthr_t *);
 typedef boolean_t (zthr_checkfunc_t)(void *, zthr_t *);
 
 extern zthr_t *zthr_create(const char *zthr_name,
-    zthr_checkfunc_t checkfunc, zthr_func_t *func, void *arg);
+    zthr_checkfunc_t checkfunc, zthr_func_t *func, void *arg,
+	pri_t pri);
 extern zthr_t *zthr_create_timer(const char *zthr_name,
     zthr_checkfunc_t *checkfunc, zthr_func_t *func, void *arg,
-	hrtime_t nano_wait);
+	hrtime_t nano_wait, pri_t pri);
 extern void zthr_destroy(zthr_t *t);
 
 extern void zthr_wakeup(zthr_t *t);

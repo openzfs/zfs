@@ -7950,9 +7950,9 @@ arc_init(void)
 	}
 
 	arc_evict_zthr = zthr_create("arc_evict",
-	    arc_evict_cb_check, arc_evict_cb, NULL);
+	    arc_evict_cb_check, arc_evict_cb, NULL, defclsyspri);
 	arc_reap_zthr = zthr_create_timer("arc_reap",
-	    arc_reap_cb_check, arc_reap_cb, NULL, SEC2NSEC(1));
+	    arc_reap_cb_check, arc_reap_cb, NULL, SEC2NSEC(1), minclsyspri);
 
 	arc_warm = B_FALSE;
 
