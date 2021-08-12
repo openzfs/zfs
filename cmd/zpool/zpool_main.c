@@ -375,7 +375,7 @@ get_usage(zpool_help_t idx)
 		    "\t    [[pool ...]|[pool vdev ...]|[vdev ...]]"
 		    " [[-n] interval [count]]\n"));
 	case HELP_LABELCLEAR:
-		return (gettext("\tlabelclear [-f] <vdev>\n"));
+		return (gettext("\tlabelclear [-f [--unsafe]] <vdev>\n"));
 	case HELP_LIST:
 		return (gettext("\tlist [-gHLpPv] [-o property[,...]] "
 		    "[-T d|u] [pool] ... \n"
@@ -1215,10 +1215,12 @@ zpool_do_remove(int argc, char **argv)
 }
 
 /*
- * zpool labelclear [-f] <vdev>
+ * zpool labelclear [-f[--unsafe]] <vdev>
  *
  *	-f	Force clearing the label for the vdevs which are members of
  *		the exported or foreign pools.
+ *
+ *	--unsafe	Perform no checks and unconditionally clear the label.
  *
  * Verifies that the vdev is not active and zeros out the label information
  * on the device.
@@ -1234,12 +1236,23 @@ zpool_do_labelclear(int argc, char **argv)
 	pool_state_t state;
 	boolean_t inuse = B_FALSE;
 	boolean_t force = B_FALSE;
+	boolean_t unsafe = B_FALSE;
+
+#define	ZPOOL_LABELCLEAR_UNSAFE	0xBAD1DEA
+
+	struct option long_options[] = {
+		{"unsafe", no_argument, NULL, ZPOOL_LABELCLEAR_UNSAFE},
+		{0, 0, 0, 0}
+	};
 
 	/* check options */
-	while ((c = getopt(argc, argv, "f")) != -1) {
+	while ((c = getopt_long(argc, argv, "f", long_options, NULL)) != -1) {
 		switch (c) {
 		case 'f':
 			force = B_TRUE;
+			break;
+		case ZPOOL_LABELCLEAR_UNSAFE:
+			unsafe = B_TRUE;
 			break;
 		default:
 			(void) fprintf(stderr, gettext("invalid option '%c'\n"),
@@ -1258,6 +1271,11 @@ zpool_do_labelclear(int argc, char **argv)
 	}
 	if (argc > 1) {
 		(void) fprintf(stderr, gettext("too many arguments\n"));
+		usage(B_FALSE);
+	}
+
+	if (unsafe && !force) {
+		(void) fprintf(stderr, gettext("--unsafe requires -f\n"));
 		usage(B_FALSE);
 	}
 
@@ -1323,6 +1341,8 @@ zpool_do_labelclear(int argc, char **argv)
 	case POOL_STATE_ACTIVE:
 	case POOL_STATE_SPARE:
 	case POOL_STATE_L2CACHE:
+		if (force && unsafe)
+			break;
 		(void) fprintf(stderr, gettext(
 		    "%s is a member (%s) of pool \"%s\"\n"),
 		    vdev, zpool_pool_state_to_name(state), name);

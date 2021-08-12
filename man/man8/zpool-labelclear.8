@@ -36,7 +36,7 @@
 .Sh SYNOPSIS
 .Nm zpool
 .Cm labelclear
-.Op Fl f
+.Op Fl f Op Fl -unsafe
 .Ar device
 .
 .Sh DESCRIPTION
@@ -51,6 +51,8 @@ must not be part of an active pool configuration.
 .Bl -tag -width Ds
 .It Fl f
 Treat exported or foreign devices as inactive.
+.It Fl -unsafe
+Perform no checks and clear the label unconditionally.
 .El
 .
 .Sh SEE ALSO
