@@ -908,28 +908,26 @@ send_progress_thread(void *arg)
 	char buf[16];
 	time_t t;
 	struct tm *tm;
-	boolean_t firstloop = B_TRUE;
+	int err;
+
+	if (!pa->pa_parsable) {
+		(void) fprintf(stderr,
+		    "TIME       %s   %sSNAPSHOT %s\n",
+		    pa->pa_estimate ? "BYTES" : " SENT",
+		    pa->pa_verbosity >= 2 ? "   BLOCKS    " : "",
+		    zhp->zfs_name);
+	}
 
 	/*
 	 * Print the progress from ZFS_IOC_SEND_PROGRESS every second.
 	 */
 	for (;;) {
-		int err;
 		(void) sleep(1);
 		if ((err = zfs_send_progress(zhp, pa->pa_fd, &bytes,
 		    &blocks)) != 0) {
 			if (err == EINTR || err == ENOENT)
 				return ((void *)0);
 			return ((void *)(uintptr_t)err);
-		}
-
-		if (firstloop && !pa->pa_parsable) {
-			(void) fprintf(stderr,
-			    "TIME       %s   %sSNAPSHOT %s\n",
-			    pa->pa_estimate ? "BYTES" : " SENT",
-			    pa->pa_verbosity >= 2 ? "   BLOCKS    " : "",
-			    zhp->zfs_name);
-			firstloop = B_FALSE;
 		}
 
 		(void) time(&t);
