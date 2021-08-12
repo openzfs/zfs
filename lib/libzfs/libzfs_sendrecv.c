@@ -981,39 +981,33 @@ send_print_verbose(FILE *fout, const char *tosnap, const char *fromsnap,
 {
 	if (parsable) {
 		if (fromsnap != NULL) {
-			(void) fprintf(fout, "incremental\t%s\t%s",
-			    fromsnap, tosnap);
+			(void) fprintf(fout, dgettext(TEXT_DOMAIN,
+			    "incremental\t%s\t%s"), fromsnap, tosnap);
 		} else {
-			(void) fprintf(fout, "full\t%s",
-			    tosnap);
+			(void) fprintf(fout, dgettext(TEXT_DOMAIN,
+			    "full\t%s"), tosnap);
 		}
+		(void) fprintf(fout, "\t%llu", (longlong_t)size);
 	} else {
 		if (fromsnap != NULL) {
 			if (strchr(fromsnap, '@') == NULL &&
 			    strchr(fromsnap, '#') == NULL) {
 				(void) fprintf(fout, dgettext(TEXT_DOMAIN,
-				    "send from @%s to %s"),
-				    fromsnap, tosnap);
+				    "send from @%s to %s"), fromsnap, tosnap);
 			} else {
 				(void) fprintf(fout, dgettext(TEXT_DOMAIN,
-				    "send from %s to %s"),
-				    fromsnap, tosnap);
+				    "send from %s to %s"), fromsnap, tosnap);
 			}
 		} else {
 			(void) fprintf(fout, dgettext(TEXT_DOMAIN,
-			    "full send of %s"),
-			    tosnap);
+			    "full send of %s"), tosnap);
 		}
-	}
-
-	if (parsable) {
-		(void) fprintf(fout, "\t%llu",
-		    (longlong_t)size);
-	} else if (size != 0) {
-		char buf[16];
-		zfs_nicebytes(size, buf, sizeof (buf));
-		(void) fprintf(fout, dgettext(TEXT_DOMAIN,
-		    " estimated size is %s"), buf);
+		if (size != 0) {
+			char buf[16];
+			zfs_nicebytes(size, buf, sizeof (buf));
+			(void) fprintf(fout, dgettext(TEXT_DOMAIN,
+			    " estimated size is %s"), buf);
+		}
 	}
 	(void) fprintf(fout, "\n");
 }
