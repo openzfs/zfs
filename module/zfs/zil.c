@@ -1179,8 +1179,21 @@ zil_lwb_flush_vdevs_done(zio_t *zio)
 		ASSERT3P(zcw->zcw_lwb, ==, lwb);
 		zcw->zcw_lwb = NULL;
 
-		if (zio->io_error != 0)
+		/*
+		 * Overwrite zcw_zio_error only if there is an error
+		 * in flush, otherwise propagate the zcw_zio_error
+		 * that is already set during the zil_lwb_write_done.
+		 * Refer https://github.com/openzfs/zfs/issues/12391
+		 * for more details.
+		 */
+		if (zio->io_error != 0) {
+			/*
+			 * If the flush has failed, then the write must have
+			 * been successful. VERIFY the same.
+			 */
+			VERIFY(zcw->zcw_zio_error == 0);
 			zcw->zcw_zio_error = zio->io_error;
+		}
 
 		ASSERT3B(zcw->zcw_done, ==, B_FALSE);
 		zcw->zcw_done = B_TRUE;
@@ -1254,14 +1267,6 @@ zil_lwb_write_done(zio_t *zio)
 	 * written out.
 	 */
 	if (zio->io_error != 0) {
-		/*
-		 * Copy the write error to zcw, becaues the zil_lwb_write_done
-		 * error is not propagated to zil_lwb_flush_vdevs_done, which
-		 * will cause zil_commit_impl to return without committing
-		 * the data.
-		 * Refer https://github.com/openzfs/zfs/issues/12391
-		 * for more details.
-		 */
 		zil_commit_waiter_t *zcw;
 		for (zcw = list_head(&lwb->lwb_waiters); zcw != NULL;
 		    zcw = list_next(&lwb->lwb_waiters, zcw)) {
