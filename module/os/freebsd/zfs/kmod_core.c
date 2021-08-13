@@ -371,3 +371,4 @@ MODULE_DEPEND(zfsctrl, krpc, 1, 1, 1);
 #endif
 MODULE_DEPEND(zfsctrl, acl_nfs4, 1, 1, 1);
 MODULE_DEPEND(zfsctrl, crypto, 1, 1, 1);
+MODULE_DEPEND(zfsctrl, zlib, 1, 1, 1);
