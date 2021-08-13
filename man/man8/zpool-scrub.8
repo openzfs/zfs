@@ -22,11 +22,11 @@
 .\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
 .\" Copyright (c) 2012 Cyril Plisko. All Rights Reserved.
 .\" Copyright (c) 2017 Datto Inc.
-.\" Copyright (c) 2018 George Melikov. All Rights Reserved.
+.\" Copyright (c) 2018, 2021 George Melikov. All Rights Reserved.
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd May 27, 2021
+.Dd July 25, 2021
 .Dt ZPOOL-SCRUB 8
 .Os
 .
@@ -64,6 +64,11 @@ faults or disk failure.
 .Pp
 Because scrubbing and resilvering are I/O-intensive operations, ZFS only allows
 one at a time.
+.Pp
+A scrub is split into two parts: metadata scanning and block scrubbing.
+The metadata scanning sorts blocks into large sequential ranges which can then
+be read much more efficiently from disk when issuing the scrub I/O.
+.Pp
 If a scrub is paused, the
 .Nm zpool Cm scrub
 resumes it.
@@ -90,6 +95,26 @@ To resume a paused scrub issue
 again.
 .It Fl w
 Wait until scrub has completed before returning.
+.El
+.Sh EXAMPLES
+.Bl -tag -width "Exam"
+.It Sy Example 1 : Status of pool with ongoing scrub:
+Output:
+.Bd -literal -compact -offset Ds
+.No # Nm zpool Cm status
+  ...
+  scan: scrub in progress since Sun Jul 25 16:07:49 2021
+        403M scanned at 100M/s, 68.4M issued at 10.0M/s, 405M total
+        0B repaired, 16.91% done, 00:00:04 to go
+  ...
+.Ed
+Where:
+.Bl -dash -offset indent
+.It
+Metadata which references 403M of file data has been
+scanned at 100M/s, and 68.4M of that file data has been
+scrubbed sequentially at 10.0M/s.
+.El
 .El
 .
 .Sh SEE ALSO
