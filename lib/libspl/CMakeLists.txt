@@ -32,4 +32,4 @@ add_library(libspl
     os/windows/zone.c
 )
 
-target_link_libraries(libspl PRIVATE libpthread advapi32 shell32)
+target_link_libraries(libspl PUBLIC libpthread PRIVATE advapi32 shell32)

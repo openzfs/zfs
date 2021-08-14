@@ -171,20 +171,19 @@ typedef int pthread_condattr_t;
 typedef CONDITION_VARIABLE pthread_cond_t;
 typedef int pthread_rwlockattr_t;
 
-/* These should not be static, it will look like duplicate symbols but its other symbols */
-volatile long _pthread_cancelling;
+extern volatile long _pthread_cancelling;
 
-int _pthread_concur;
+extern int _pthread_concur;
 
 /* Will default to zero as needed */
-pthread_once_t _pthread_tls_once;
-DWORD _pthread_tls;
+extern pthread_once_t _pthread_tls_once;
+extern DWORD _pthread_tls;
 
 /* Note initializer is zero, so this works */
-pthread_rwlock_t _pthread_key_lock;
-long _pthread_key_max;
-long _pthread_key_sch;
-void (**_pthread_key_dest)(void *);
+extern pthread_rwlock_t _pthread_key_lock;
+extern long _pthread_key_max;
+extern long _pthread_key_sch;
+extern void (**_pthread_key_dest)(void *);
 
 
 #define	pthread_cleanup_push(F, A)\
