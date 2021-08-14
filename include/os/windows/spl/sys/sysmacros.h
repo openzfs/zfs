@@ -133,7 +133,8 @@ extern void spl_setup(void);
 extern void spl_cleanup(void);
 
 #define	boot_ncpus max_ncpus
-#define	SET_ERROR(X) (X)
+#define	SET_ERROR(err) \
+	(__set_error(__FILE__, __func__, __LINE__, err), err)
 
 #define	NBITSMINOR 20
 #define	MINORMASK ((1UL<<NBITSMINOR) - 1)
