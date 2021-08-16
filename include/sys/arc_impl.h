@@ -1005,6 +1005,8 @@ extern void arc_unregister_hotplug(void);
 
 extern int param_set_arc_long(ZFS_MODULE_PARAM_ARGS);
 extern int param_set_arc_int(ZFS_MODULE_PARAM_ARGS);
+extern int param_set_arc_min(ZFS_MODULE_PARAM_ARGS);
+extern int param_set_arc_max(ZFS_MODULE_PARAM_ARGS);
 
 /* used in zdb.c */
 boolean_t l2arc_log_blkptr_valid(l2arc_dev_t *dev,
