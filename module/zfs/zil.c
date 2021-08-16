@@ -1273,6 +1273,7 @@ zil_lwb_write_done(zio_t *zio)
 			mutex_enter(&zcw->zcw_lock);
 			ASSERT(list_link_active(&zcw->zcw_node));
 			ASSERT3P(zcw->zcw_lwb, ==, lwb);
+			ASSERT3S(zcw->zcw_zio_error, ==, 0);
 			zcw->zcw_zio_error = zio->io_error;
 			mutex_exit(&zcw->zcw_lock);
 		}
