@@ -1,7 +1,7 @@
 
 use_clang()
 
-add_definitions(-DLIB_ZPOOL_BUILD)
+add_definitions(-DLIB_ZPOOL_BUILD -DDEBUG -UNDEBUG -DZFS_DEBUG)
 # Unfortunately, libbootenv uses kernel headers as well.
 include_directories(PRIVATE "${CMAKE_SOURCE_DIR}/include/os/windows/zfs")
 
