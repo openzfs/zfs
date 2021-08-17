@@ -1225,7 +1225,7 @@ typedef struct ddt_histogram {
 #define	ZVOL_DEV_NAME		"zd"
 
 #define	ZVOL_PROP_NAME		"name"
-#define	ZVOL_DEFAULT_BLOCKSIZE	8192
+#define	ZVOL_DEFAULT_BLOCKSIZE	16384
 
 typedef enum {
 	VDEV_INITIALIZE_NONE,
