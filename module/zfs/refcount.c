@@ -112,13 +112,13 @@ zfs_refcount_destroy(zfs_refcount_t *rc)
 int
 zfs_refcount_is_zero(zfs_refcount_t *rc)
 {
-	return (rc->rc_count == 0);
+	return (zfs_refcount_count(rc) == 0);
 }
 
 int64_t
 zfs_refcount_count(zfs_refcount_t *rc)
 {
-	return (rc->rc_count);
+	return (atomic_load_64(&rc->rc_count));
 }
 
 int64_t
@@ -127,15 +127,18 @@ zfs_refcount_add_many(zfs_refcount_t *rc, uint64_t number, const void *holder)
 	reference_t *ref = NULL;
 	int64_t count;
 
-	if (rc->rc_tracked) {
-		ref = kmem_cache_alloc(reference_cache, KM_SLEEP);
-		ref->ref_holder = holder;
-		ref->ref_number = number;
+	if (!rc->rc_tracked) {
+		count = atomic_add_64_nv(&(rc)->rc_count, number);
+		ASSERT3U(count, >=, number);
+		return (count);
 	}
+
+	ref = kmem_cache_alloc(reference_cache, KM_SLEEP);
+	ref->ref_holder = holder;
+	ref->ref_number = number;
 	mutex_enter(&rc->rc_mtx);
 	ASSERT3U(rc->rc_count, >=, 0);
-	if (rc->rc_tracked)
-		list_insert_head(&rc->rc_list, ref);
+	list_insert_head(&rc->rc_list, ref);
 	rc->rc_count += number;
 	count = rc->rc_count;
 	mutex_exit(&rc->rc_mtx);
@@ -156,16 +159,14 @@ zfs_refcount_remove_many(zfs_refcount_t *rc, uint64_t number,
 	reference_t *ref;
 	int64_t count;
 
-	mutex_enter(&rc->rc_mtx);
-	ASSERT3U(rc->rc_count, >=, number);
-
 	if (!rc->rc_tracked) {
-		rc->rc_count -= number;
-		count = rc->rc_count;
-		mutex_exit(&rc->rc_mtx);
+		count = atomic_add_64_nv(&(rc)->rc_count, -number);
+		ASSERT3S(count, >=, 0);
 		return (count);
 	}
 
+	mutex_enter(&rc->rc_mtx);
+	ASSERT3U(rc->rc_count, >=, number);
 	for (ref = list_head(&rc->rc_list); ref;
 	    ref = list_next(&rc->rc_list, ref)) {
 		if (ref->ref_holder == holder && ref->ref_number == number) {
@@ -242,12 +243,10 @@ zfs_refcount_transfer_ownership_many(zfs_refcount_t *rc, uint64_t number,
 	reference_t *ref;
 	boolean_t found = B_FALSE;
 
-	mutex_enter(&rc->rc_mtx);
-	if (!rc->rc_tracked) {
-		mutex_exit(&rc->rc_mtx);
+	if (!rc->rc_tracked)
 		return;
-	}
 
+	mutex_enter(&rc->rc_mtx);
 	for (ref = list_head(&rc->rc_list); ref;
 	    ref = list_next(&rc->rc_list, ref)) {
 		if (ref->ref_holder == current_holder &&
@@ -279,13 +278,10 @@ zfs_refcount_held(zfs_refcount_t *rc, const void *holder)
 {
 	reference_t *ref;
 
+	if (!rc->rc_tracked)
+		return (zfs_refcount_count(rc) > 0);
+
 	mutex_enter(&rc->rc_mtx);
-
-	if (!rc->rc_tracked) {
-		mutex_exit(&rc->rc_mtx);
-		return (rc->rc_count > 0);
-	}
-
 	for (ref = list_head(&rc->rc_list); ref;
 	    ref = list_next(&rc->rc_list, ref)) {
 		if (ref->ref_holder == holder) {
@@ -307,13 +303,10 @@ zfs_refcount_not_held(zfs_refcount_t *rc, const void *holder)
 {
 	reference_t *ref;
 
-	mutex_enter(&rc->rc_mtx);
-
-	if (!rc->rc_tracked) {
-		mutex_exit(&rc->rc_mtx);
+	if (!rc->rc_tracked)
 		return (B_TRUE);
-	}
 
+	mutex_enter(&rc->rc_mtx);
 	for (ref = list_head(&rc->rc_list); ref;
 	    ref = list_next(&rc->rc_list, ref)) {
 		if (ref->ref_holder == holder) {
