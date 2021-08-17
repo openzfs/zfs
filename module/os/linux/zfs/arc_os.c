@@ -350,6 +350,18 @@ param_set_arc_long(const char *buf, zfs_kernel_param_t *kp)
 }
 
 int
+param_set_arc_min(const char *buf, zfs_kernel_param_t *kp)
+{
+	return (param_set_arc_long(buf, kp));
+}
+
+int
+param_set_arc_max(const char *buf, zfs_kernel_param_t *kp)
+{
+	return (param_set_arc_long(buf, kp));
+}
+
+int
 param_set_arc_int(const char *buf, zfs_kernel_param_t *kp)
 {
 	int error;

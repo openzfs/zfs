@@ -144,6 +144,55 @@ extern arc_state_t ARC_l2c_only;
 
 /* arc.c */
 
+int
+param_set_arc_max(SYSCTL_HANDLER_ARGS)
+{
+	uint64_t val;
+	int err;
+
+	val = zfs_arc_max;
+	err = sysctl_handle_long(oidp, &val, 0, req);
+	if (err != 0 || req->newptr == NULL)
+		return (SET_ERROR(err));
+
+	if (val != 0 && (val < MIN_ARC_MAX || val <= arc_c_min ||
+	    val >= arc_all_memory()))
+		return (SET_ERROR(EINVAL));
+
+	zfs_arc_max = val;
+	arc_tuning_update(B_TRUE);
+
+	/* Update the sysctl to the tuned value */
+	if (val != 0)
+		zfs_arc_max = arc_c_max;
+
+	return (0);
+}
+
+int
+param_set_arc_min(SYSCTL_HANDLER_ARGS)
+{
+	uint64_t val;
+	int err;
+
+	val = zfs_arc_min;
+	err = sysctl_handle_64(oidp, &val, 0, req);
+	if (err != 0 || req->newptr == NULL)
+		return (SET_ERROR(err));
+
+	if (val != 0 && (val < 2ULL << SPA_MAXBLOCKSHIFT || val > arc_c_max))
+		return (SET_ERROR(EINVAL));
+
+	zfs_arc_min = val;
+	arc_tuning_update(B_TRUE);
+
+	/* Update the sysctl to the tuned value */
+	if (val != 0)
+		zfs_arc_min = arc_c_min;
+
+	return (0);
+}
+
 /* legacy compat */
 extern uint64_t l2arc_write_max;	/* def max write size */
 extern uint64_t l2arc_write_boost;	/* extra warmup write */
@@ -278,11 +327,11 @@ param_set_arc_int(SYSCTL_HANDLER_ARGS)
 
 SYSCTL_PROC(_vfs_zfs, OID_AUTO, arc_min,
     CTLTYPE_ULONG | CTLFLAG_RWTUN | CTLFLAG_MPSAFE,
-    &zfs_arc_min, sizeof (zfs_arc_min), param_set_arc_long, "LU",
+    &zfs_arc_min, sizeof (zfs_arc_min), param_set_arc_min, "LU",
     "min arc size (LEGACY)");
 SYSCTL_PROC(_vfs_zfs, OID_AUTO, arc_max,
     CTLTYPE_ULONG | CTLFLAG_RWTUN | CTLFLAG_MPSAFE,
-    &zfs_arc_max, sizeof (zfs_arc_max), param_set_arc_long, "LU",
+    &zfs_arc_max, sizeof (zfs_arc_max), param_set_arc_max, "LU",
     "max arc size (LEGACY)");
 
 /* dbuf.c */
