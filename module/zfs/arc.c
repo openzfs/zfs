@@ -2741,12 +2741,6 @@ arc_buf_alloc_impl(arc_buf_hdr_t *hdr, spa_t *spa, const zbookmark_phys_t *zb,
 	ASSERT3P(*ret, ==, NULL);
 	IMPLY(encrypted, compressed);
 
-	hdr->b_l1hdr.b_mru_hits = 0;
-	hdr->b_l1hdr.b_mru_ghost_hits = 0;
-	hdr->b_l1hdr.b_mfu_hits = 0;
-	hdr->b_l1hdr.b_mfu_ghost_hits = 0;
-	hdr->b_l1hdr.b_l2_hits = 0;
-
 	buf = *ret = kmem_cache_alloc(buf_cache, KM_PUSHPAGE);
 	buf->b_hdr = hdr;
 	buf->b_data = NULL;
@@ -3278,6 +3272,10 @@ arc_hdr_alloc(uint64_t spa, int32_t psize, int32_t lsize,
 
 	hdr->b_l1hdr.b_state = arc_anon;
 	hdr->b_l1hdr.b_arc_access = 0;
+	hdr->b_l1hdr.b_mru_hits = 0;
+	hdr->b_l1hdr.b_mru_ghost_hits = 0;
+	hdr->b_l1hdr.b_mfu_hits = 0;
+	hdr->b_l1hdr.b_mfu_ghost_hits = 0;
 	hdr->b_l1hdr.b_bufcnt = 0;
 	hdr->b_l1hdr.b_buf = NULL;
 
@@ -3466,7 +3464,6 @@ arc_hdr_realloc_crypt(arc_buf_hdr_t *hdr, boolean_t need_crypt)
 	nhdr->b_l1hdr.b_mru_ghost_hits = hdr->b_l1hdr.b_mru_ghost_hits;
 	nhdr->b_l1hdr.b_mfu_hits = hdr->b_l1hdr.b_mfu_hits;
 	nhdr->b_l1hdr.b_mfu_ghost_hits = hdr->b_l1hdr.b_mfu_ghost_hits;
-	nhdr->b_l1hdr.b_l2_hits = hdr->b_l1hdr.b_l2_hits;
 	nhdr->b_l1hdr.b_acb = hdr->b_l1hdr.b_acb;
 	nhdr->b_l1hdr.b_pabd = hdr->b_l1hdr.b_pabd;
 
@@ -3511,7 +3508,6 @@ arc_hdr_realloc_crypt(arc_buf_hdr_t *hdr, boolean_t need_crypt)
 	hdr->b_l1hdr.b_mru_ghost_hits = 0;
 	hdr->b_l1hdr.b_mfu_hits = 0;
 	hdr->b_l1hdr.b_mfu_ghost_hits = 0;
-	hdr->b_l1hdr.b_l2_hits = 0;
 	hdr->b_l1hdr.b_acb = NULL;
 	hdr->b_l1hdr.b_pabd = NULL;
 
@@ -5433,7 +5429,7 @@ arc_access(arc_buf_hdr_t *hdr, kmutex_t *hash_lock)
 				arc_hdr_clear_flags(hdr,
 				    ARC_FLAG_PREFETCH |
 				    ARC_FLAG_PRESCIENT_PREFETCH);
-				atomic_inc_32(&hdr->b_l1hdr.b_mru_hits);
+				hdr->b_l1hdr.b_mru_hits++;
 				ARCSTAT_BUMP(arcstat_mru_hits);
 				if (HDR_HAS_L2HDR(hdr))
 					l2arc_hdr_arcstats_increment_state(hdr);
@@ -5458,7 +5454,7 @@ arc_access(arc_buf_hdr_t *hdr, kmutex_t *hash_lock)
 			DTRACE_PROBE1(new_state__mfu, arc_buf_hdr_t *, hdr);
 			arc_change_state(arc_mfu, hdr, hash_lock);
 		}
-		atomic_inc_32(&hdr->b_l1hdr.b_mru_hits);
+		hdr->b_l1hdr.b_mru_hits++;
 		ARCSTAT_BUMP(arcstat_mru_hits);
 	} else if (hdr->b_l1hdr.b_state == arc_mru_ghost) {
 		arc_state_t	*new_state;
@@ -5487,7 +5483,7 @@ arc_access(arc_buf_hdr_t *hdr, kmutex_t *hash_lock)
 		hdr->b_l1hdr.b_arc_access = ddi_get_lbolt();
 		arc_change_state(new_state, hdr, hash_lock);
 
-		atomic_inc_32(&hdr->b_l1hdr.b_mru_ghost_hits);
+		hdr->b_l1hdr.b_mru_ghost_hits++;
 		ARCSTAT_BUMP(arcstat_mru_ghost_hits);
 	} else if (hdr->b_l1hdr.b_state == arc_mfu) {
 		/*
@@ -5500,7 +5496,7 @@ arc_access(arc_buf_hdr_t *hdr, kmutex_t *hash_lock)
 		 * the head of the list now.
 		 */
 
-		atomic_inc_32(&hdr->b_l1hdr.b_mfu_hits);
+		hdr->b_l1hdr.b_mfu_hits++;
 		ARCSTAT_BUMP(arcstat_mfu_hits);
 		hdr->b_l1hdr.b_arc_access = ddi_get_lbolt();
 	} else if (hdr->b_l1hdr.b_state == arc_mfu_ghost) {
@@ -5523,7 +5519,7 @@ arc_access(arc_buf_hdr_t *hdr, kmutex_t *hash_lock)
 		DTRACE_PROBE1(new_state__mfu, arc_buf_hdr_t *, hdr);
 		arc_change_state(new_state, hdr, hash_lock);
 
-		atomic_inc_32(&hdr->b_l1hdr.b_mfu_ghost_hits);
+		hdr->b_l1hdr.b_mfu_ghost_hits++;
 		ARCSTAT_BUMP(arcstat_mfu_ghost_hits);
 	} else if (hdr->b_l1hdr.b_state == arc_l2c_only) {
 		/*
@@ -6294,7 +6290,7 @@ top:
 
 				DTRACE_PROBE1(l2arc__hit, arc_buf_hdr_t *, hdr);
 				ARCSTAT_BUMP(arcstat_l2_hits);
-				atomic_inc_32(&hdr->b_l2hdr.b_hits);
+				hdr->b_l2hdr.b_hits++;
 
 				cb = kmem_zalloc(sizeof (l2arc_read_callback_t),
 				    KM_SLEEP);
@@ -6701,11 +6697,6 @@ arc_release(arc_buf_t *buf, void *tag)
 		nhdr->b_l1hdr.b_bufcnt = 1;
 		if (ARC_BUF_ENCRYPTED(buf))
 			nhdr->b_crypt_hdr.b_ebufcnt = 1;
-		nhdr->b_l1hdr.b_mru_hits = 0;
-		nhdr->b_l1hdr.b_mru_ghost_hits = 0;
-		nhdr->b_l1hdr.b_mfu_hits = 0;
-		nhdr->b_l1hdr.b_mfu_ghost_hits = 0;
-		nhdr->b_l1hdr.b_l2_hits = 0;
 		(void) zfs_refcount_add(&nhdr->b_l1hdr.b_refcnt, tag);
 		buf->b_hdr = nhdr;
 
@@ -6722,7 +6713,6 @@ arc_release(arc_buf_t *buf, void *tag)
 		hdr->b_l1hdr.b_mru_ghost_hits = 0;
 		hdr->b_l1hdr.b_mfu_hits = 0;
 		hdr->b_l1hdr.b_mfu_ghost_hits = 0;
-		hdr->b_l1hdr.b_l2_hits = 0;
 		arc_change_state(arc_anon, hdr, hash_lock);
 		hdr->b_l1hdr.b_arc_access = 0;
 
