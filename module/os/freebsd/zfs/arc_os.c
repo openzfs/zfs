@@ -233,7 +233,7 @@ arc_lowmem(void *arg __unused, int howto __unused)
 	 * with ARC reclaim thread.
 	 */
 	if (curproc == pageproc)
-		arc_wait_for_eviction(to_free);
+		arc_wait_for_eviction(to_free, B_FALSE);
 }
 
 void
