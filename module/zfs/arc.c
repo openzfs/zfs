@@ -2578,13 +2578,6 @@ arc_change_state(arc_state_t *new_state, arc_buf_hdr_t *hdr,
 			l2arc_hdr_arcstats_increment_state(hdr);
 		}
 	}
-
-	/*
-	 * L2 headers should never be on the L2 state list since they don't
-	 * have L1 headers allocated.
-	 */
-	ASSERT(multilist_is_empty(&arc_l2c_only->arcs_list[ARC_BUFC_DATA]) &&
-	    multilist_is_empty(&arc_l2c_only->arcs_list[ARC_BUFC_METADATA]));
 }
 
 void
@@ -7456,6 +7449,12 @@ arc_state_multilist_index_func(multilist_t *ml, void *obj)
 	    multilist_get_num_sublists(ml));
 }
 
+static unsigned int
+arc_state_l2c_multilist_index_func(multilist_t *ml, void *obj)
+{
+	panic("Header %p insert into arc_l2c_only %p", obj, ml);
+}
+
 #define	WARN_IF_TUNING_IGNORED(tuning, value, do_warn) do {	\
 	if ((do_warn) && (tuning) && ((tuning) != (value))) {	\
 		cmn_err(CE_WARN,				\
@@ -7603,14 +7602,18 @@ arc_state_init(void)
 	    sizeof (arc_buf_hdr_t),
 	    offsetof(arc_buf_hdr_t, b_l1hdr.b_arc_node),
 	    arc_state_multilist_index_func);
+	/*
+	 * L2 headers should never be on the L2 state list since they don't
+	 * have L1 headers allocated.  Special index function asserts that.
+	 */
 	multilist_create(&arc_l2c_only->arcs_list[ARC_BUFC_METADATA],
 	    sizeof (arc_buf_hdr_t),
 	    offsetof(arc_buf_hdr_t, b_l1hdr.b_arc_node),
-	    arc_state_multilist_index_func);
+	    arc_state_l2c_multilist_index_func);
 	multilist_create(&arc_l2c_only->arcs_list[ARC_BUFC_DATA],
 	    sizeof (arc_buf_hdr_t),
 	    offsetof(arc_buf_hdr_t, b_l1hdr.b_arc_node),
-	    arc_state_multilist_index_func);
+	    arc_state_l2c_multilist_index_func);
 
 	zfs_refcount_create(&arc_anon->arcs_esize[ARC_BUFC_METADATA]);
 	zfs_refcount_create(&arc_anon->arcs_esize[ARC_BUFC_DATA]);
