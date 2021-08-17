@@ -153,24 +153,22 @@ typedef struct l1arc_buf_hdr {
 	kmutex_t		b_freeze_lock;
 	zio_cksum_t		*b_freeze_cksum;
 
-	arc_buf_t		*b_buf;
-	uint32_t		b_bufcnt;
-	/* for waiting on writes to complete */
+	/* for waiting on reads to complete */
 	kcondvar_t		b_cv;
 	uint8_t			b_byteswap;
-
 
 	/* protected by arc state mutex */
 	arc_state_t		*b_state;
 	multilist_node_t	b_arc_node;
 
-	/* updated atomically */
+	/* protected by hash lock */
 	clock_t			b_arc_access;
 	uint32_t		b_mru_hits;
 	uint32_t		b_mru_ghost_hits;
 	uint32_t		b_mfu_hits;
 	uint32_t		b_mfu_ghost_hits;
-	uint32_t		b_l2_hits;
+	uint32_t		b_bufcnt;
+	arc_buf_t		*b_buf;
 
 	/* self protecting */
 	zfs_refcount_t		b_refcnt;
