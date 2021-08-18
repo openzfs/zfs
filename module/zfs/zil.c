@@ -1179,21 +1179,7 @@ zil_lwb_flush_vdevs_done(zio_t *zio)
 		ASSERT3P(zcw->zcw_lwb, ==, lwb);
 		zcw->zcw_lwb = NULL;
 
-		/*
-		 * Overwrite zcw_zio_error only if there is an error
-		 * in flush, otherwise propagate the zcw_zio_error
-		 * that is already set during the zil_lwb_write_done.
-		 * Refer https://github.com/openzfs/zfs/issues/12391
-		 * for more details.
-		 */
-		if (zio->io_error != 0) {
-			/*
-			 * If the flush has failed, then the write must have
-			 * been successful. VERIFY the same.
-			 */
-			VERIFY(zcw->zcw_zio_error == 0);
-			zcw->zcw_zio_error = zio->io_error;
-		}
+		zcw->zcw_zio_error = zio->io_error;
 
 		ASSERT3B(zcw->zcw_done, ==, B_FALSE);
 		zcw->zcw_done = B_TRUE;
@@ -1267,17 +1253,6 @@ zil_lwb_write_done(zio_t *zio)
 	 * written out.
 	 */
 	if (zio->io_error != 0) {
-		zil_commit_waiter_t *zcw;
-		for (zcw = list_head(&lwb->lwb_waiters); zcw != NULL;
-		    zcw = list_next(&lwb->lwb_waiters, zcw)) {
-			mutex_enter(&zcw->zcw_lock);
-			ASSERT(list_link_active(&zcw->zcw_node));
-			ASSERT3P(zcw->zcw_lwb, ==, lwb);
-			ASSERT3S(zcw->zcw_zio_error, ==, 0);
-			zcw->zcw_zio_error = zio->io_error;
-			mutex_exit(&zcw->zcw_lock);
-		}
-
 		while ((zv = avl_destroy_nodes(t, &cookie)) != NULL)
 			kmem_free(zv, sizeof (*zv));
 		return;
@@ -1424,8 +1399,7 @@ zil_lwb_write_open(zilog_t *zilog, lwb_t *lwb)
 		lwb->lwb_write_zio = zio_rewrite(lwb->lwb_root_zio,
 		    zilog->zl_spa, 0, &lwb->lwb_blk, lwb_abd,
 		    BP_GET_LSIZE(&lwb->lwb_blk), zil_lwb_write_done, lwb,
-		    prio, ZIO_FLAG_CANFAIL | ZIO_FLAG_DONT_PROPAGATE |
-		    ZIO_FLAG_FASTWRITE, &zb);
+		    prio, ZIO_FLAG_CANFAIL | ZIO_FLAG_FASTWRITE, &zb);
 		ASSERT3P(lwb->lwb_write_zio, !=, NULL);
 
 		lwb->lwb_state = LWB_STATE_OPENED;
