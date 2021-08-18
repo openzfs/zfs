@@ -995,6 +995,10 @@ send_print_verbose(FILE *fout, const char *tosnap, const char *fromsnap,
 	(void) fprintf(fout, "\n");
 }
 
+/*
+ * Send a single filesystem snapshot, updating the send dump data.
+ * This interface is intended for use as a zfs_iter_snapshots_sorted visitor.
+ */
 static int
 dump_snapshot(zfs_handle_t *zhp, void *arg)
 {
@@ -1016,8 +1020,7 @@ dump_snapshot(zfs_handle_t *zhp, void *arg)
 	if (!sdd->seenfrom && isfromsnap) {
 		gather_holds(zhp, sdd);
 		sdd->seenfrom = B_TRUE;
-		(void) strlcpy(sdd->prevsnap, thissnap,
-		    sizeof (sdd->prevsnap));
+		(void) strlcpy(sdd->prevsnap, thissnap, sizeof (sdd->prevsnap));
 		sdd->prevsnap_obj = zfs_prop_get_int(zhp, ZFS_PROP_OBJSETID);
 		zfs_close(zhp);
 		return (0);
@@ -1097,14 +1100,12 @@ dump_snapshot(zfs_handle_t *zhp, void *arg)
 			(void) strlcat(fromds, sdd->prevsnap, sizeof (fromds));
 		}
 		if (zfs_send_space(zhp, zhp->zfs_name,
-		    sdd->prevsnap[0] ? fromds : NULL, flags, &size) != 0) {
-			size = 0; /* cannot estimate send space */
-		} else {
+		    sdd->prevsnap[0] ? fromds : NULL, flags, &size) == 0) {
 			send_print_verbose(fout, zhp->zfs_name,
 			    sdd->prevsnap[0] ? sdd->prevsnap : NULL,
 			    size, sdd->parsable);
+			sdd->size += size;
 		}
-		sdd->size += size;
 	}
 
 	if (!sdd->dryrun) {
@@ -1135,12 +1136,9 @@ dump_snapshot(zfs_handle_t *zhp, void *arg)
 			(void) pthread_join(tid, &status);
 			int error = (int)(uintptr_t)status;
 			if (error != 0 && status != PTHREAD_CANCELED) {
-				char errbuf[1024];
-				(void) snprintf(errbuf, sizeof (errbuf),
-				    dgettext(TEXT_DOMAIN,
-				    "progress thread exited nonzero"));
 				return (zfs_standard_error(zhp->zfs_hdl, error,
-				    errbuf));
+				    dgettext(TEXT_DOMAIN,
+				    "progress thread exited nonzero")));
 			}
 		}
 	}
