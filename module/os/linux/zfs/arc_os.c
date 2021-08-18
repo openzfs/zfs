@@ -217,7 +217,7 @@ arc_shrinker_scan(struct shrinker *shrink, struct shrink_control *sc)
 	 * for the requested amount of data to be evicted.
 	 */
 	arc_reduce_target_size(ptob(sc->nr_to_scan));
-	arc_wait_for_eviction(ptob(sc->nr_to_scan));
+	arc_wait_for_eviction(ptob(sc->nr_to_scan), B_FALSE);
 	if (current->reclaim_state != NULL)
 		current->reclaim_state->reclaimed_slab += sc->nr_to_scan;
 
@@ -369,6 +369,18 @@ param_set_arc_long(const char *buf, zfs_kernel_param_t *kp)
 	arc_tuning_update(B_TRUE);
 
 	return (0);
+}
+
+int
+param_set_arc_min(const char *buf, zfs_kernel_param_t *kp)
+{
+	return (param_set_arc_long(buf, kp));
+}
+
+int
+param_set_arc_max(const char *buf, zfs_kernel_param_t *kp)
+{
+	return (param_set_arc_long(buf, kp));
 }
 
 int
