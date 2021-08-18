@@ -28,9 +28,15 @@ typeset ds_name="panic"
 typeset sendfs="$POOL/$ds_name"
 typeset recvfs="$POOL2/$ds_name"
 typeset clone="$POOL/${ds_name}_clone"
-typeset stream=$(mktemp $tmpdir/stream.XXXX)
+typeset stream=$(mktemp $TEST_BASE_DIR/stream.XXXX)
 
-log_onexit redacted_cleanup $sendfs $recvfs
+function cleanup
+{
+	redacted_cleanup $sendfs $recvfs
+	rm -f $stream
+}
+
+log_onexit cleanup
 
 log_must zfs create -o recsize=8k $sendfs
 log_must dd if=/dev/urandom of=/$sendfs/file bs=1024k count=2048

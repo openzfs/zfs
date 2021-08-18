@@ -76,6 +76,12 @@ python_deps_reason = 'Python modules missing: python-cffi'
 tmpfile_reason = 'Kernel O_TMPFILE support required'
 
 #
+# Some tests require the statx(2) system call on Linux which was first
+# introduced in the 4.11 kernel.
+#
+statx_reason = 'Kernel statx(2) system call required on Linux'
+
+#
 # Some tests require that the NFS client and server utilities be installed.
 #
 share_reason = 'NFS client and server utilities required'
@@ -193,6 +199,7 @@ elif sys.platform.startswith('linux'):
 #
 maybe = {
     'chattr/setup': ['SKIP', exec_reason],
+    'crtime/crtime_001_pos': ['SKIP', statx_reason],
     'cli_root/zdb/zdb_006_pos': ['FAIL', known_reason],
     'cli_root/zfs_destroy/zfs_destroy_dev_removal_condense':
         ['FAIL', known_reason],

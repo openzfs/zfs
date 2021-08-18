@@ -575,6 +575,10 @@ tags = ['functional', 'compression']
 tests = ['cp_files_001_pos']
 tags = ['functional', 'cp_files']
 
+[tests/functional/crtime]
+tests = ['crtime_001_pos' ]
+tags = ['functional', 'crtime']
+
 [tests/functional/ctime]
 tests = ['ctime_001_pos' ]
 tags = ['functional', 'ctime']
