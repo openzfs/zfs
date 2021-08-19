@@ -41,6 +41,10 @@
 #include <sys/ccompat.h>
 #include <linux/types.h>
 
+#if KSTACK_PAGES * PAGE_SIZE >= 16384
+#define	HAVE_LARGE_STACKS	1
+#endif
+
 #define	cond_resched()		kern_yield(PRI_USER)
 
 #define	taskq_create_sysdc(a, b, d, e, p, dc, f) \
