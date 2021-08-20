@@ -141,6 +141,7 @@ Usage: vdev_id [-h]
   -h    show this summary
 EOF
 	exit 1
+	# exit with error to avoid processing usage message by a udev rule
 }
 
 map_slot() {
