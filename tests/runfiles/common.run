@@ -603,6 +603,10 @@ tags = ['functional', 'delegate']
 tests = ['exec_001_pos', 'exec_002_neg']
 tags = ['functional', 'exec']
 
+[tests/functional/fallocate]
+tests = ['fallocate_punch-hole']
+tags = ['functional', 'fallocate']
+
 [tests/functional/features/async_destroy]
 tests = ['async_destroy_001_pos']
 tags = ['functional', 'features', 'async_destroy']
