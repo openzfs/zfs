@@ -94,7 +94,7 @@ tests = ['events_001_pos', 'events_002_pos', 'zed_rc_filter', 'zed_fd_spill']
 tags = ['functional', 'events']
 
 [tests/functional/fallocate:Linux]
-tests = ['fallocate_prealloc', 'fallocate_punch-hole']
+tests = ['fallocate_prealloc']
 tags = ['functional', 'fallocate']
 
 [tests/functional/fault:Linux]
