@@ -52,10 +52,10 @@
 Removes the specified device from the pool.
 This command supports removing hot spare, cache, log, and both mirrored and
 non-redundant primary top-level vdevs, including dedup and special vdevs.
-When the primary pool storage includes a top-level raidz vdev only hot spare,
-cache, and log devices can be removed.
-Note that keys for all encrypted datasets must be loaded for top-level vdevs
-to be removed.
+.Pp
+Top-level vdevs can only be removed if the primary pool storage does not contain
+a top-level raidz vdev, all top-level vdevs have the same sector size, and the
+keys for all encrypted datasets are loaded.
 .Pp
 Removing a top-level vdev reduces the total amount of space in the storage pool.
 The specified device will be evacuated by copying all allocated space from it to
