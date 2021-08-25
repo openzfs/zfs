@@ -140,7 +140,8 @@ Usage: vdev_id [-h]
   -p    number of phy's per switch port [default=$PHYS_PER_PORT]
   -h    show this summary
 EOF
-	exit 0
+	exit 1
+	# exit with error to avoid processing usage message by a udev rule
 }
 
 map_slot() {
@@ -728,7 +729,7 @@ done
 
 if [ ! -r "$CONFIG" ] ; then
 	echo "Error: Config file \"$CONFIG\" not found"
-	exit 0
+	exit 1
 fi
 
 if [ -z "$DEV" ] && [ -z "$ENCLOSURE_MODE" ] ; then
