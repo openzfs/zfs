@@ -533,8 +533,53 @@ zfs_log_rename(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype, znode_t *sdzp,
  */
 long zfs_immediate_write_sz = 32768;
 
+static inline itx_t *
+zfs_log_write_itx_create(size_t copied_len,
+    size_t __maybe_unused max_wr_copied_lr_length,
+    itx_wr_state_t write_state,
+    znode_t *zp, uint64_t gen, offset_t off, ssize_t len, boolean_t sync,
+    zil_callback_t callback, void *callback_data, void **copied_start)
+{
+	itx_t *itx;
+	lr_write_t *lr;
+
+	itx = zil_itx_create(TX_WRITE, sizeof (*lr) + copied_len);
+	lr = (lr_write_t *)&itx->itx_lr;
+	itx->itx_wr_state = write_state;
+	lr->lr_foid = zp->z_id;
+	lr->lr_offset = off;
+	lr->lr_length = len;
+	lr->lr_blkoff = 0;
+	BP_ZERO(&lr->lr_blkptr);
+
+	itx->itx_private = ZTOZSB(zp);
+	itx->itx_gen = gen;
+	itx->itx_sync = sync;
+
+	itx->itx_callback = callback;
+	itx->itx_callback_data = callback_data;
+
+	switch (write_state) {
+	case WR_COPIED:
+		ASSERT3U(copied_len, <=, max_wr_copied_lr_length);
+		ASSERT(copied_start);
+		*copied_start = (uint8_t *)(lr + 1);
+		break;
+	case WR_NEED_COPY:
+		/* fallthrough */
+	case WR_INDIRECT:
+		ASSERT3U(copied_len, ==, 0);
+		ASSERT3P(copied_start, ==, NULL);
+		break;
+	default:
+		panic("unexpected write_state %d", write_state);
+	}
+
+	return (itx);
+}
+
 void
-zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
+zfs_log_write(zilog_t *zilog, dmu_tx_t *tx,
     znode_t *zp, offset_t off, ssize_t resid, int ioflag,
     zil_callback_t callback, void *callback_data)
 {
@@ -562,6 +607,10 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 	else
 		write_state = WR_NEED_COPY;
 
+	uint64_t max_wr_copied_lr_length = zil_max_copied_data(zilog);
+	if (write_state == WR_COPIED && resid > max_wr_copied_lr_length)
+		write_state = WR_NEED_COPY;
+
 	if (write_state == WR_INDIRECT && !zil_supports_wr_indirect(zilog))
 		write_state = WR_NEED_COPY;
 
@@ -572,65 +621,87 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 	(void) sa_lookup(zp->z_sa_hdl, SA_ZPL_GEN(ZTOZSB(zp)), &gen,
 	    sizeof (gen));
 
-	while (resid) {
-		itx_t *itx;
-		lr_write_t *lr;
-		itx_wr_state_t wr_state = write_state;
-		ssize_t len = resid;
+	boolean_t sync = B_TRUE;
+	if (!(ioflag & (O_SYNC | O_DSYNC)) && (zp->z_sync_cnt == 0) &&
+	    (fsync_cnt == 0))
+		sync = B_FALSE;
 
-		/*
-		 * A WR_COPIED record must fit entirely in one log block.
-		 * Large writes can use WR_NEED_COPY, which the ZIL will
-		 * split into multiple records across several log blocks
-		 * if necessary.
-		 */
-		if (wr_state == WR_COPIED &&
-		    resid > zil_max_copied_data(zilog))
-			wr_state = WR_NEED_COPY;
-		else if (wr_state == WR_INDIRECT)
-			len = MIN(blocksize - P2PHASE(off, blocksize), resid);
-
-		itx = zil_itx_create(txtype, sizeof (*lr) +
-		    (wr_state == WR_COPIED ? len : 0));
-		lr = (lr_write_t *)&itx->itx_lr;
-
-		/*
-		 * For WR_COPIED records, copy the data into the lr_write_t.
-		 */
-		if (wr_state == WR_COPIED) {
-			int err;
-			DB_DNODE_ENTER(db);
-			err = dmu_read_by_dnode(DB_DNODE(db), off, len, lr + 1,
-			    DMU_READ_NO_PREFETCH);
-			if (err != 0) {
-				zil_itx_destroy(itx);
-				itx = zil_itx_create(txtype, sizeof (*lr));
-				lr = (lr_write_t *)&itx->itx_lr;
-				wr_state = WR_NEED_COPY;
-			}
-			DB_DNODE_EXIT(db);
-		}
-
-		itx->itx_wr_state = wr_state;
-		lr->lr_foid = zp->z_id;
-		lr->lr_offset = off;
-		lr->lr_length = len;
-		lr->lr_blkoff = 0;
-		BP_ZERO(&lr->lr_blkptr);
-
-		itx->itx_private = ZTOZSB(zp);
-		itx->itx_gen = gen;
-
-		if (!(ioflag & (O_SYNC | O_DSYNC)) && (zp->z_sync_cnt == 0) &&
-		    (fsync_cnt == 0))
-			itx->itx_sync = B_FALSE;
-
-		itx->itx_callback = callback;
-		itx->itx_callback_data = callback_data;
+	itx_t *itx;
+	if (write_state == WR_NEED_COPY) {
+		itx = zfs_log_write_itx_create(
+		    0,
+		    max_wr_copied_lr_length,
+		    write_state,
+		    zp,
+		    gen,
+		    off,
+		    resid,
+		    sync,
+		    callback,
+		    callback_data,
+		    NULL);
 		zil_itx_assign(zilog, itx, tx);
+	} else if (write_state == WR_INDIRECT) {
+		while (resid) {
+			ssize_t len =
+			    MIN(blocksize - P2PHASE(off, blocksize), resid);
+			itx = zfs_log_write_itx_create(
+			    0,
+			    max_wr_copied_lr_length,
+			    write_state,
+			    zp,
+			    gen,
+			    off,
+			    len,
+			    sync,
+			    callback,
+			    callback_data,
+			    NULL);
+			zil_itx_assign(zilog, itx, tx);
+			off += len;
+			resid -= len;
+		}
+	} else {
+		ASSERT3S(write_state, ==, WR_COPIED);
 
-		off += len;
-		resid -= len;
+		ASSERT3U(resid, <=, max_wr_copied_lr_length);
+
+		void *copied_start;
+		itx = zfs_log_write_itx_create(
+		    resid,
+		    max_wr_copied_lr_length,
+		    write_state,
+		    zp,
+		    gen,
+		    off,
+		    resid,
+		    sync,
+		    callback,
+		    callback_data,
+		    &copied_start);
+
+		int err;
+		DB_DNODE_ENTER(db);
+		err = dmu_read_by_dnode(DB_DNODE(db), off, resid, copied_start,
+		    DMU_READ_NO_PREFETCH);
+		if (err != 0) {
+			zil_itx_free_do_not_run_callback(itx);
+			itx = zfs_log_write_itx_create(
+			    0,
+			    max_wr_copied_lr_length,
+			    WR_NEED_COPY,
+			    zp,
+			    gen,
+			    off,
+			    resid,
+			    sync,
+			    callback,
+			    callback_data,
+			    &copied_start);
+		}
+		DB_DNODE_EXIT(db);
+
+		zil_itx_assign(zilog, itx, tx);
 	}
 
 	if (write_state == WR_COPIED || write_state == WR_NEED_COPY) {

@@ -665,7 +665,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 
 		error = sa_bulk_update(zp->z_sa_hdl, bulk, count, tx);
 
-		zfs_log_write(zilog, tx, TX_WRITE, zp, woff, tx_bytes, ioflag,
+		zfs_log_write(zilog, tx, zp, woff, tx_bytes, ioflag,
 		    NULL, NULL);
 		dmu_tx_commit(tx);
 
