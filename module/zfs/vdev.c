@@ -4583,13 +4583,10 @@ vdev_stat_update(zio_t *zio, uint64_t psize)
 			 *   ZIO_PRIORITY_ASYNC_READ,
 			 *   ZIO_PRIORITY_ASYNC_WRITE,
 			 *   ZIO_PRIORITY_SCRUB,
-			 *   ZIO_PRIORITY_TRIM.
+			 *   ZIO_PRIORITY_TRIM,
+			 *   ZIO_PRIORITY_REBUILD.
 			 */
-			if (priority == ZIO_PRIORITY_REBUILD) {
-				priority = ((type == ZIO_TYPE_WRITE) ?
-				    ZIO_PRIORITY_ASYNC_WRITE :
-				    ZIO_PRIORITY_SCRUB);
-			} else if (priority == ZIO_PRIORITY_INITIALIZING) {
+			if (priority == ZIO_PRIORITY_INITIALIZING) {
 				ASSERT3U(type, ==, ZIO_TYPE_WRITE);
 				priority = ZIO_PRIORITY_ASYNC_WRITE;
 			} else if (priority == ZIO_PRIORITY_REMOVAL) {
