@@ -1,0 +1,46 @@
+---
+- hosts: 127.0.0.1
+  connection: local
+  vars:
+    bridge: devbr0
+  tasks:
+    - apt:
+        state: present
+        name: bridge-utils
+    - command:
+        creates: /sys/class/net/{{bridge}}
+        argv: [ "brctl", "addbr", "{{bridge}}" ]
+    - command:
+        argv: [ "ip", "link", "set", "{{bridge}}", "up" ]
+    - shell: "(ip a show dev {{bridge}} | grep 192.168.124.1 >/dev/null) || ip a add dev {{bridge}} 192.168.124.1/24"
+
+    - shell: "echo 1 > /proc/sys/net/ipv4/ip_forward"
+    - iptables:
+        table: filter
+        chain: INPUT
+        ctstate: ESTABLISHED,RELATED
+        jump: ACCEPT
+    - iptables:
+        table: filter
+        chain: FORWARD
+        source: "192.168.124.0/24"
+        jump: ACCEPT
+    - iptables:
+        table: filter
+        chain: FORWARD
+        destination: "192.168.124.0/24"
+        jump: ACCEPT
+    - iptables:
+        table: nat
+        chain: POSTROUTING
+        action: insert
+        ip_version: ipv4
+        jump: MASQUERADE
+        out_interface: "!{{bridge}}"
+        source: "192.168.124.0/24"
+
+
+    - apt:
+        state: present
+        name: dnsmasq
+    # start dnsmasq in devvm/ like so: dnsmasq -C ./dnsmasq.conf
