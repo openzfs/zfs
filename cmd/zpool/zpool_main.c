@@ -211,7 +211,7 @@ enum iostat_type {
  * of all the nvlists a flag requires.  Also specifies the order in
  * which data gets printed in zpool iostat.
  */
-static const char *vsx_type_to_nvlist[IOS_COUNT][13] = {
+static const char *vsx_type_to_nvlist[IOS_COUNT][15] = {
 	[IOS_L_HISTO] = {
 	    ZPOOL_CONFIG_VDEV_TOT_R_LAT_HISTO,
 	    ZPOOL_CONFIG_VDEV_TOT_W_LAT_HISTO,
@@ -223,6 +223,7 @@ static const char *vsx_type_to_nvlist[IOS_COUNT][13] = {
 	    ZPOOL_CONFIG_VDEV_ASYNC_W_LAT_HISTO,
 	    ZPOOL_CONFIG_VDEV_SCRUB_LAT_HISTO,
 	    ZPOOL_CONFIG_VDEV_TRIM_LAT_HISTO,
+	    ZPOOL_CONFIG_VDEV_REBUILD_LAT_HISTO,
 	    NULL},
 	[IOS_LATENCY] = {
 	    ZPOOL_CONFIG_VDEV_TOT_R_LAT_HISTO,
@@ -230,6 +231,7 @@ static const char *vsx_type_to_nvlist[IOS_COUNT][13] = {
 	    ZPOOL_CONFIG_VDEV_DISK_R_LAT_HISTO,
 	    ZPOOL_CONFIG_VDEV_DISK_W_LAT_HISTO,
 	    ZPOOL_CONFIG_VDEV_TRIM_LAT_HISTO,
+	    ZPOOL_CONFIG_VDEV_REBUILD_LAT_HISTO,
 	    NULL},
 	[IOS_QUEUES] = {
 	    ZPOOL_CONFIG_VDEV_SYNC_R_ACTIVE_QUEUE,
@@ -238,6 +240,7 @@ static const char *vsx_type_to_nvlist[IOS_COUNT][13] = {
 	    ZPOOL_CONFIG_VDEV_ASYNC_W_ACTIVE_QUEUE,
 	    ZPOOL_CONFIG_VDEV_SCRUB_ACTIVE_QUEUE,
 	    ZPOOL_CONFIG_VDEV_TRIM_ACTIVE_QUEUE,
+	    ZPOOL_CONFIG_VDEV_REBUILD_ACTIVE_QUEUE,
 	    NULL},
 	[IOS_RQ_HISTO] = {
 	    ZPOOL_CONFIG_VDEV_SYNC_IND_R_HISTO,
@@ -252,6 +255,8 @@ static const char *vsx_type_to_nvlist[IOS_COUNT][13] = {
 	    ZPOOL_CONFIG_VDEV_AGG_SCRUB_HISTO,
 	    ZPOOL_CONFIG_VDEV_IND_TRIM_HISTO,
 	    ZPOOL_CONFIG_VDEV_AGG_TRIM_HISTO,
+	    ZPOOL_CONFIG_VDEV_IND_REBUILD_HISTO,
+	    ZPOOL_CONFIG_VDEV_AGG_REBUILD_HISTO,
 	    NULL},
 };
 
@@ -3844,22 +3849,23 @@ typedef struct name_and_columns {
 	unsigned int columns;	/* Center name to this number of columns */
 } name_and_columns_t;
 
-#define	IOSTAT_MAX_LABELS	13	/* Max number of labels on one line */
+#define	IOSTAT_MAX_LABELS	15	/* Max number of labels on one line */
 
 static const name_and_columns_t iostat_top_labels[][IOSTAT_MAX_LABELS] =
 {
 	[IOS_DEFAULT] = {{"capacity", 2}, {"operations", 2}, {"bandwidth", 2},
 	    {NULL}},
 	[IOS_LATENCY] = {{"total_wait", 2}, {"disk_wait", 2}, {"syncq_wait", 2},
-	    {"asyncq_wait", 2}, {"scrub", 1}, {"trim", 1}, {NULL}},
+	    {"asyncq_wait", 2}, {"scrub", 1}, {"trim", 1}, {"rebuild", 1},
+	    {NULL}},
 	[IOS_QUEUES] = {{"syncq_read", 2}, {"syncq_write", 2},
 	    {"asyncq_read", 2}, {"asyncq_write", 2}, {"scrubq_read", 2},
-	    {"trimq_write", 2}, {NULL}},
+	    {"trimq_write", 2}, {"rebuildq_write", 2}, {NULL}},
 	[IOS_L_HISTO] = {{"total_wait", 2}, {"disk_wait", 2}, {"syncq_wait", 2},
 	    {"asyncq_wait", 2}, {NULL}},
 	[IOS_RQ_HISTO] = {{"sync_read", 2}, {"sync_write", 2},
 	    {"async_read", 2}, {"async_write", 2}, {"scrub", 2},
-	    {"trim", 2}, {NULL}},
+	    {"trim", 2}, {"rebuild", 2}, {NULL}},
 };
 
 /* Shorthand - if "columns" field not set, default to 1 column */
@@ -3868,14 +3874,17 @@ static const name_and_columns_t iostat_bottom_labels[][IOSTAT_MAX_LABELS] =
 	[IOS_DEFAULT] = {{"alloc"}, {"free"}, {"read"}, {"write"}, {"read"},
 	    {"write"}, {NULL}},
 	[IOS_LATENCY] = {{"read"}, {"write"}, {"read"}, {"write"}, {"read"},
-	    {"write"}, {"read"}, {"write"}, {"wait"}, {"wait"}, {NULL}},
+	    {"write"}, {"read"}, {"write"}, {"wait"}, {"wait"}, {"wait"},
+	    {NULL}},
 	[IOS_QUEUES] = {{"pend"}, {"activ"}, {"pend"}, {"activ"}, {"pend"},
 	    {"activ"}, {"pend"}, {"activ"}, {"pend"}, {"activ"},
-	    {"pend"}, {"activ"}, {NULL}},
+	    {"pend"}, {"activ"}, {"pend"}, {"activ"}, {NULL}},
 	[IOS_L_HISTO] = {{"read"}, {"write"}, {"read"}, {"write"}, {"read"},
-	    {"write"}, {"read"}, {"write"}, {"scrub"}, {"trim"}, {NULL}},
+	    {"write"}, {"read"}, {"write"}, {"scrub"}, {"trim"}, {"rebuild"},
+	    {NULL}},
 	[IOS_RQ_HISTO] = {{"ind"}, {"agg"}, {"ind"}, {"agg"}, {"ind"}, {"agg"},
-	    {"ind"}, {"agg"}, {"ind"}, {"agg"}, {"ind"}, {"agg"}, {NULL}},
+	    {"ind"}, {"agg"}, {"ind"}, {"agg"}, {"ind"}, {"agg"},
+	    {"ind"}, {"agg"}, {NULL}},
 };
 
 static const char *histo_to_title[] = {
@@ -4507,6 +4516,8 @@ print_iostat_queues(iostat_cbdata_t *cb, nvlist_t *oldnv,
 		ZPOOL_CONFIG_VDEV_SCRUB_ACTIVE_QUEUE,
 		ZPOOL_CONFIG_VDEV_TRIM_PEND_QUEUE,
 		ZPOOL_CONFIG_VDEV_TRIM_ACTIVE_QUEUE,
+		ZPOOL_CONFIG_VDEV_REBUILD_PEND_QUEUE,
+		ZPOOL_CONFIG_VDEV_REBUILD_ACTIVE_QUEUE,
 	};
 
 	struct stat_array *nva;
@@ -4546,6 +4557,7 @@ print_iostat_latency(iostat_cbdata_t *cb, nvlist_t *oldnv,
 		ZPOOL_CONFIG_VDEV_ASYNC_W_LAT_HISTO,
 		ZPOOL_CONFIG_VDEV_SCRUB_LAT_HISTO,
 		ZPOOL_CONFIG_VDEV_TRIM_LAT_HISTO,
+		ZPOOL_CONFIG_VDEV_REBUILD_LAT_HISTO,
 	};
 	struct stat_array *nva;
 

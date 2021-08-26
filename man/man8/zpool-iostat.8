@@ -201,6 +201,9 @@ Does not include disk time.
 .It Sy scrub
 Amount of time I/O spent in scrub queue.
 Does not include disk time.
+.It Sy rebuild
+Amount of time I/O spent in rebuild queue.
+Does not include disk time.
 .El
 .It Fl l
 Include average latency statistics:
@@ -220,6 +223,9 @@ Average queuing time in scrub queue.
 Does not include disk time.
 .It Sy trim
 Average queuing time in trim queue.
+Does not include disk time.
+.It Sy rebuild
+Average queuing time in rebuild queue.
 Does not include disk time.
 .El
 .It Fl q
@@ -242,6 +248,8 @@ Current number of entries in asynchronous priority queues.
 Current number of entries in scrub queue.
 .It Sy trimq_write
 Current number of entries in trim queue.
+.It Sy rebuildq_write
+Current number of entries in rebuild queue.
 .El
 .Pp
 All queue statistics are instantaneous measurements of the number of
