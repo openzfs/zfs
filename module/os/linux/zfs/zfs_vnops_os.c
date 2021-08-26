@@ -759,6 +759,14 @@ top:
 				dl = NULL;
 			}
 			error = zfs_freesp(zp, 0, 0, mode, TRUE);
+		} else {
+			/* we need to call zil_replaying() */
+			tx = dmu_tx_create(os);
+			error = dmu_tx_assign(tx, TXG_WAIT); /* XXX need to respected the `waited` variable here? */
+			VERIFY0(error); /* XXX need to handle errors? */
+			boolean_t replaying = zil_replaying(zilog, tx);
+			pr_debug("zfs_create, existing zp, no truncation, replaying=%d\n", replaying);
+			dmu_tx_commit(tx);
 		}
 	}
 out:
