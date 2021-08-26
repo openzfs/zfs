@@ -577,6 +577,7 @@ zfs_iter_mounted(zfs_handle_t *zhp, zfs_iter_f func, void *data)
 		if (strncmp(entry.mnt_special, zhp->zfs_name, namelen) != 0 ||
 		    entry.mnt_special[namelen] != '/')
 			continue;
+
 		/* Skip snapshot of any child dataset */
 		if (strchr(entry.mnt_special, '@') != NULL)
 			continue;
