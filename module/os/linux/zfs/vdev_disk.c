@@ -841,6 +841,10 @@ vdev_disk_rele(vdev_t *vd)
 	/* XXX: Implement me as a vnode rele for the device */
 }
 
+/*
+ * Note: when updating this struct, update the userland version as well.
+ * It is located in vdev_file.c.
+ */
 vdev_ops_t vdev_disk_ops = {
 	.vdev_op_init = NULL,
 	.vdev_op_fini = NULL,
