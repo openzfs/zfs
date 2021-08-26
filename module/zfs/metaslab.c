@@ -1227,6 +1227,8 @@ metaslab_group_allocatable(metaslab_group_t *mg, metaslab_group_t *rotor,
 	spa_t *spa = mg->mg_vd->vdev_spa;
 	metaslab_class_t *mc = mg->mg_class;
 
+	VERIFY(mc != spa_exempt_class(spa)); /* calling context ensures this */
+
 	/*
 	 * We can only consider skipping this metaslab group if it's
 	 * in the normal metaslab class and there are other metaslab
@@ -1836,6 +1838,16 @@ static metaslab_ops_t metaslab_ndf_ops = {
 
 metaslab_ops_t *zfs_metaslab_ops = &metaslab_ndf_ops;
 #endif /* WITH_NDF_BLOCK_ALLOCATOR */
+
+static uint64_t
+metaslab_panic_alloc(metaslab_t *m, uint64_t size)
+{
+	panic("metaslab is in the 'exempt' allocation class");
+}
+
+metaslab_ops_t zfs_metaslab_panic_ops = {
+	metaslab_panic_alloc
+};
 
 
 /*
@@ -5077,6 +5089,8 @@ metaslab_alloc_dva(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
 
 	ASSERT(!DVA_IS_VALID(&dva[d]));
 
+	VERIFY(mc != spa_exempt_class(spa)); /* calling context asserts this */
+
 	/*
 	 * For testing, make some blocks above a certain size be gang blocks.
 	 * This will result in more split blocks when using device removal,
@@ -5793,6 +5807,8 @@ metaslab_alloc(spa_t *spa, metaslab_class_t *mc, uint64_t psize, blkptr_t *bp,
 
 	ASSERT(bp->blk_birth == 0);
 	ASSERT(BP_PHYSICAL_BIRTH(bp) == 0);
+
+	VERIFY(mc != spa_exempt_class(spa));
 
 	spa_config_enter(spa, SCL_ALLOC, FTAG, RW_READER);
 

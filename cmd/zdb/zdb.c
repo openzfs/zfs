@@ -6433,6 +6433,9 @@ dump_block_stats_zil_header_cb(spa_t *spa, uint64_t objset,
 		case ZIL_KIND_LWB:
 			VERIFY3S(zhk_size, ==, sizeof (zil_header_lwb_t));
 			return dump_block_stats_zillwb(spa, objset, zhk, arg);
+		case ZIL_KIND_PMEM:
+			VERIFY3S(zhk_size, ==, sizeof (zil_header_pmem_t));
+			return (0); /* no block pointers */
 		case ZIL_KIND_UNINIT:
 			/* fallthrough */
 		case ZIL_KIND_COUNT:
@@ -6506,6 +6509,7 @@ dump_block_stats(spa_t *spa)
 	zcb.zcb_totalasize += metaslab_class_get_alloc(spa_dedup_class(spa));
 	zcb.zcb_totalasize +=
 	    metaslab_class_get_alloc(spa_embedded_log_class(spa));
+	VERIFY0(metaslab_class_get_alloc(spa_exempt_class(spa)));
 	zcb.zcb_start = zcb.zcb_lastprint = gethrtime();
 
 	err = traverse_pool_no_zil(spa, 0, flags, zdb_blkptr_cb, &zcb);
@@ -6565,6 +6569,7 @@ dump_block_stats(spa_t *spa)
 	    metaslab_class_get_alloc(spa_special_class(spa)) +
 	    metaslab_class_get_alloc(spa_dedup_class(spa)) +
 	    get_unflushed_alloc_space(spa);
+	VERIFY0(metaslab_class_get_alloc(spa_exempt_class(spa)));
 	total_found = tzb->zb_asize - zcb.zcb_dedup_asize +
 	    zcb.zcb_removing_size + zcb.zcb_checkpoint_size;
 

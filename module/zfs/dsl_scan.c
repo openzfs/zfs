@@ -1261,6 +1261,7 @@ dsl_scan_should_clear(dsl_scan_t *scn)
 	alloc = metaslab_class_get_alloc(spa_normal_class(spa));
 	alloc += metaslab_class_get_alloc(spa_special_class(spa));
 	alloc += metaslab_class_get_alloc(spa_dedup_class(spa));
+	VERIFY0(metaslab_class_get_alloc(spa_exempt_class(spa)));
 
 	mlim_hard = MAX((physmem / zfs_scan_mem_lim_fact) * PAGESIZE,
 	    zfs_scan_mem_lim_min);
@@ -2445,6 +2446,9 @@ dsl_scan_visitds(dsl_scan_t *scn, uint64_t dsobj, dmu_tx_t *tx)
 			case ZIL_KIND_LWB:
 				VERIFY3U(zhk_size, ==, sizeof(zil_header_lwb_t));
 				dsl_scan_zillwb(dp, zhk);
+				break;
+			case ZIL_KIND_PMEM:
+				/* XXX TODO ZIL-PMEM */
 				break;
 			default:
 				panic("unimplemented zil_kind = %d", kind);

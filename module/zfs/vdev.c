@@ -285,6 +285,8 @@ vdev_derive_alloc_bias(const char *bias)
 		alloc_bias = VDEV_BIAS_SPECIAL;
 	else if (strcmp(bias, VDEV_ALLOC_BIAS_DEDUP) == 0)
 		alloc_bias = VDEV_BIAS_DEDUP;
+	else if (strcmp(bias, VDEV_ALLOC_BIAS_EXEMPT) == 0)
+		alloc_bias = VDEV_BIAS_EXEMPT;
 
 	return (alloc_bias);
 }
@@ -738,6 +740,18 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 	if (islog && spa_version(spa) < SPA_VERSION_SLOGS)
 		return (SET_ERROR(ENOTSUP));
 
+	/* XXX see comment in zilpmem_reset_logs */
+	if (islog && alloctype == VDEV_ALLOC_ADD && spa->spa_zil_kind == ZIL_KIND_PMEM)
+		return (SET_ERROR(ZFS_ERR_ZIL_PMEM_INVALID_SLOG_CONFIG));
+
+	uint64_t isdax = 0;
+	(void) nvlist_lookup_uint64(nv, ZPOOL_CONFIG_IS_DAX, &isdax);
+	if (isdax && (/* XXX */ B_FALSE /* spa_feature_is_enabled(spa, SPA_FEATURE_DAX)*/ ))
+		return (SET_ERROR(ENOTSUP)); /* libzfs makes pretty error */
+	/* XXX incr spa feature dax somewhere?! */
+	if (isdax && ops->vdev_op_dax_mapping == NULL)
+		return (SET_ERROR(ZFS_ERR_CANNOT_OPEN_AS_DAX_DEVICE));
+
 	if (ops == &vdev_hole_ops && spa_version(spa) < SPA_VERSION_HOLES)
 		return (SET_ERROR(ENOTSUP));
 
@@ -784,6 +798,7 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 	vd = vdev_alloc_common(spa, id, guid, ops);
 	vd->vdev_tsd = tsd;
 	vd->vdev_islog = islog;
+	vd->vdev_isdax = isdax;
 
 	if (top_level && alloc_bias != VDEV_BIAS_NONE)
 		vd->vdev_alloc_bias = alloc_bias;
@@ -1350,7 +1365,8 @@ vdev_metaslab_group_create(vdev_t *vd)
 			vd->vdev_alloc_bias = VDEV_BIAS_LOG;
 
 		ASSERT3U(vd->vdev_islog, ==,
-		    (vd->vdev_alloc_bias == VDEV_BIAS_LOG));
+		    (vd->vdev_alloc_bias == VDEV_BIAS_LOG) ||
+		    (vd->vdev_alloc_bias == VDEV_BIAS_EXEMPT));
 
 		switch (vd->vdev_alloc_bias) {
 		case VDEV_BIAS_LOG:
@@ -1361,6 +1377,9 @@ vdev_metaslab_group_create(vdev_t *vd)
 			break;
 		case VDEV_BIAS_DEDUP:
 			mc = spa_dedup_class(spa);
+			break;
+		case VDEV_BIAS_EXEMPT:
+			mc = spa_exempt_class(spa);
 			break;
 		default:
 			mc = spa_normal_class(spa);
@@ -3185,15 +3204,14 @@ vdev_zap_allocation_data(vdev_t *vd, dmu_tx_t *tx)
 	string =
 	    (alloc_bias == VDEV_BIAS_LOG) ? VDEV_ALLOC_BIAS_LOG :
 	    (alloc_bias == VDEV_BIAS_SPECIAL) ? VDEV_ALLOC_BIAS_SPECIAL :
-	    (alloc_bias == VDEV_BIAS_DEDUP) ? VDEV_ALLOC_BIAS_DEDUP : NULL;
+	    (alloc_bias == VDEV_BIAS_DEDUP) ? VDEV_ALLOC_BIAS_DEDUP :
+	    (alloc_bias == VDEV_BIAS_EXEMPT) ? VDEV_ALLOC_BIAS_EXEMPT : NULL;
 
 	ASSERT(string != NULL);
 	VERIFY0(zap_add(mos, vd->vdev_top_zap, VDEV_TOP_ZAP_ALLOCATION_BIAS,
 	    1, strlen(string) + 1, string, tx));
 
-	if (alloc_bias == VDEV_BIAS_SPECIAL || alloc_bias == VDEV_BIAS_DEDUP) {
-		spa_activate_allocation_classes(spa, tx);
-	}
+	spa_activate_allocation_classes(spa, tx, alloc_bias);
 }
 
 void
@@ -3929,6 +3947,11 @@ vdev_online(spa_t *spa, uint64_t guid, uint64_t flags, vdev_state_t *newstate)
 	if (!vd->vdev_ops->vdev_op_leaf)
 		return (spa_vdev_state_exit(spa, NULL, SET_ERROR(ENOTSUP)));
 
+	if (vd->vdev_islog && spa->spa_zil_kind == ZIL_KIND_PMEM) {
+		/* XXX see comment in zilpmem_reset_logs */
+		panic("unreachable"); /* we prevent offlines in the first place */
+	}
+
 	wasoffline = (vd->vdev_offline || vd->vdev_tmpoffline);
 	oldstate = vd->vdev_state;
 
@@ -4021,6 +4044,11 @@ top:
 
 	if (vd->vdev_ops == &vdev_draid_spare_ops)
 		return (spa_vdev_state_exit(spa, NULL, ENOTSUP));
+
+	/* XXX see comment in zilpmem_reset_logs */
+	if (spa->spa_zil_kind == ZIL_KIND_PMEM) {
+		return (spa_vdev_state_exit(spa, NULL, SET_ERROR(ZFS_ERR_ZIL_PMEM_INVALID_SLOG_CONFIG)));
+	}
 
 	tvd = vd->vdev_top;
 	mg = tvd->vdev_mg;
@@ -4246,7 +4274,7 @@ vdev_allocatable(vdev_t *vd)
 	 * we're asking two separate questions about it.
 	 */
 	return (!(state < VDEV_STATE_DEGRADED && state != VDEV_STATE_CLOSED) &&
-	    !vd->vdev_cant_write && vdev_is_concrete(vd) &&
+	    !vd->vdev_cant_write && vdev_is_concrete(vd) && !vd->vdev_isdax &&
 	    vd->vdev_mg->mg_initialized);
 }
 

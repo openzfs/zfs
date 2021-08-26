@@ -30,6 +30,8 @@
 #
 
 verify_runnable "global"
+not_on_zil_kind "zil-pmem" # ZIL-PMEM does not support online/offline, see tests/zfs-tests/tests/functional/slog/pmem_slog_001_neg.ksh
+# XXX we probably should make this work with ZIL-PMEM, though.
 
 function cleanup
 {

@@ -1184,6 +1184,7 @@ vdev_autotrim_thread(void *arg)
 	mutex_enter(&vd->vdev_autotrim_lock);
 	ASSERT3P(vd->vdev_top, ==, vd);
 	ASSERT3P(vd->vdev_autotrim_thread, !=, NULL);
+	ASSERT3S(vd->vdev_alloc_bias, !=, VDEV_BIAS_EXEMPT);
 	mutex_exit(&vd->vdev_autotrim_lock);
 	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 
@@ -1454,6 +1455,7 @@ vdev_autotrim(spa_t *spa)
 
 		mutex_enter(&tvd->vdev_autotrim_lock);
 		if (vdev_writeable(tvd) && !tvd->vdev_removing &&
+		    tvd->vdev_alloc_bias != VDEV_BIAS_EXEMPT &&
 		    tvd->vdev_autotrim_thread == NULL) {
 			ASSERT3P(tvd->vdev_top, ==, tvd);
 

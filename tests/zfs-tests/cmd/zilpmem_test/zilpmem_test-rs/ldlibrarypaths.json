@@ -1,0 +1,1 @@
+{"ld_library_paths": ["/wrk/zfs/lib/libzpool/.libs"], "shared_libraries": ["d", "l", "p", "m", "e", "m", "p", "t", "h", "r", "e", "a", "d", "r", "t", "zpool"]}

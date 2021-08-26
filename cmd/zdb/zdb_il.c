@@ -406,13 +406,113 @@ print_log_stats(int verbose)
 	(void) printf("\n");
 }
 
+#include <sys/zil_pmem_impl.h>
+#include <sys/zil_pmem_spa.h>
+#include <sys/zil_pmem_prb_impl.h>
 #include <libnvpair.h>
 
 /* ARGSUSED */
 void
 dump_intent_log(zilog_t *super)
 {
-	if (super->zl_vtable != &zillwb_vtable) {
+	if (super->zl_vtable == &zilpmem_vtable) {
+
+		zilog_pmem_t *zilog = zilpmem_downcast(super);
+        (void) printf("\n    ZIL_PMEM State: 0x%x", zilog->zl_st);
+
+        boolean_t invalid;
+        const char *str = zilog_pmem_state_to_str(zilog->zl_st, &invalid);
+        ASSERT0(invalid);
+        (void) printf(" (%s)\n", str);
+
+        if (zilog->zl_st == ZLP_ST_SNAPSHOT)
+            return;
+
+		spa_prb_handle_t *sprbh = zilpmem_spa_prb_hold(zilog);
+		zilpmem_prb_handle_t *hdl = zilpmem_spa_prb_handle_ref_inner(sprbh);
+
+		const zil_header_pmem_t *zh_opaque = zilpmem_zil_header_const(zilog);
+		const zil_header_pmem_impl_t *zh = (const zil_header_pmem_impl_t*)zh_opaque;
+
+		char *zh_dbg = zil_header_pmem_debug_string(zh_opaque);
+		(void) printf("\n    ZIL_PMEM header: %s\n", zh_dbg);
+		kmem_strfree(zh_dbg);
+		printf("\n");
+
+		zfs_btree_t *entries;
+		entries = zilpem_prbh_find_all_entries(hdl, zh, 0);
+
+		size_t entry_buffer_size = 16 * (1<<20);
+		void *entry_buffer = kmem_alloc_aligned(entry_buffer_size, 512, KM_SLEEP);
+
+
+		zfs_btree_index_t where;
+		zilpmem_replay_node_t *rn = zfs_btree_first(entries, &where);
+		for (; rn != NULL; rn = zfs_btree_next(entries, &where, &where)) {
+
+			nvlist_t *rn_nvl = replay_node_to_nvlist(rn);
+
+			uint64_t body_required_size;
+			zilpmem_prb_replay_read_replay_node_result_t res;
+			VERIFY(entry_buffer_size >= sizeof(entry_header_t));
+			res = zilpmem_prb_replay_read_replay_node(rn, entry_buffer, entry_buffer + sizeof(entry_header_t), entry_buffer_size - sizeof(entry_header_t), &body_required_size);
+			if (res != READ_REPLAY_NODE_OK) {
+				printf("      read replay node error: %d\n", res);
+				continue;
+			}
+			const entry_header_t *eh = entry_buffer;
+
+			const entry_header_data_t *ehd = &eh->eh_data;
+			nvlist_t *ehnvl = entry_header_data_to_nvlist(ehd);
+			uint64_t unused;
+			ASSERT3S(nvlist_lookup_uint64(rn_nvl,
+			    "*rn_pmem_ptr", &unused), ==, ENOENT);
+			fnvlist_add_nvlist(rn_nvl, "*rn_pmem_ptr", ehnvl);
+			fnvlist_free(ehnvl);
+
+			fprintf(stdout, "    ");
+			nvlist_print_json(stdout, rn_nvl);
+			fprintf(stdout, "\n");
+
+			print_record_arg_t arg = {
+			    .pra_os = zilog->zl_super.zl_os,
+			    .pra_spa = zilog->zl_super.zl_spa,
+			};
+
+			boolean_t valid;
+			zil_header_pmem_claimtxg_from_header(
+			    zilpmem_zil_header_const(zilog),
+			    &arg.pra_claim_txg, &valid);
+			if (!valid)
+				arg.pra_claim_txg = 0;
+
+			lr_t *lr = (lr_t*)(eh + 1);
+			print_log_record(lr, &arg);
+
+			fnvlist_free(rn_nvl);
+		}
+
+		kmem_free(entry_buffer, entry_buffer_size);
+
+		check_replayable_result_t replayable =
+		    zilpmem_check_replayable(entries, &where,
+		    zh->zhpm_replay_state.claim_txg /* FIXME */);
+		fprintf(stdout,
+		    "\n    check_replayable_result.what ? %d\n",
+		    replayable.what);
+		fflush(stdout);
+
+		zfs_btree_clear(entries);
+		zfs_btree_destroy(entries);
+
+		hdl = NULL;
+		zilpmem_spa_prb_rele(zilog, sprbh);
+
+		fprintf(stdout, "\n");
+
+		return;
+
+	} if (super->zl_vtable != &zillwb_vtable) {
 		/*
 		 * TODO refactor this as a vfunc that only exists when compiling
 		 * zdb.

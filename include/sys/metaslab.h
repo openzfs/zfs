@@ -44,6 +44,7 @@ typedef struct metaslab_ops {
 
 
 extern metaslab_ops_t *zfs_metaslab_ops;
+extern metaslab_ops_t zfs_metaslab_panic_ops;
 
 int metaslab_init(metaslab_group_t *, uint64_t, uint64_t, uint64_t,
     metaslab_t **);

@@ -1,0 +1,28 @@
+[package]
+name = "zilpmem_test"
+version = "0.1.0"
+authors = ["Christian Schwarz <me@cschwarz.com>"]
+edition = "2018"
+
+[dependencies]
+bindings = { path = "../bindings" }
+libc = "0.2.77"
+structopt = "0.3.20"
+anyhow = "1.0.33"
+byteorder = "1.4.2"
+serde_json = "1.0.59"
+serde = { version = "1.0.117", features = ["derive"] }
+ctrlc = "3.1.7"
+nix = "0.19.0"
+derive_more = "0.99.11"
+derivative = "2.1.1"
+uuid = { version = "0.8.2", features = ["v4"] }
+itertools = "0.10"
+maplit = "1.0.2"
+lazy_static = "1.4"
+bytes = "1.0.1"
+
+[build-dependencies]
+subprocess = "*"
+serde_json = "*"
+serde = "*"

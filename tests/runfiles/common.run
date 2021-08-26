@@ -847,6 +847,8 @@ tests = [
     'slog_009_neg', 'slog_010_neg', 'slog_011_neg', 'slog_012_neg',
     'slog_013_pos', 'slog_014_pos', 'slog_015_neg',
     'slog_replay_fs_001__lwb', 'slog_replay_fs_002__lwb', 'slog_replay_volume__lwb',
+    'slog_replay_fs_001__pmem', 'slog_replay_fs_002__pmem', 'slog_replay_volume__pmem',
+    'pmem_slog_001_neg',
     ]
 tags = ['functional', 'slog']
 

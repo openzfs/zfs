@@ -42,6 +42,7 @@
 #
 
 verify_runnable "global"
+not_on_zil_kind "zil-pmem" # ZIL-PMEM only supports exactly one PMEM SLOG, see tests/zfs-tests/tests/functional/slog/pmem_slog_001_neg.ksh
 
 log_assert "log device can survive when one of the pool device get corrupted."
 log_must setup

@@ -743,6 +743,7 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_EXPANSION_TIME	"expansion_time"	/* not stored */
 #define	ZPOOL_CONFIG_REBUILD_STATS	"org.openzfs:rebuild_stats"
 #define	ZPOOL_CONFIG_COMPATIBILITY	"compatibility"
+#define	ZPOOL_CONFIG_IS_DAX		"is_dax"
 
 /*
  * The persistent vdev state is stored as separate values rather than a single
@@ -814,6 +815,7 @@ typedef struct zpool_load_policy {
 #define	VDEV_ALLOC_BIAS_LOG		"log"
 #define	VDEV_ALLOC_BIAS_SPECIAL		"special"
 #define	VDEV_ALLOC_BIAS_DEDUP		"dedup"
+#define	VDEV_ALLOC_BIAS_EXEMPT		"exempt"
 
 /* vdev initialize state */
 #define	VDEV_LEAF_ZAP_INITIALIZE_LAST_OFFSET	\
@@ -911,6 +913,7 @@ typedef enum vdev_aux {
 	VDEV_AUX_ACTIVE,	/* vdev active on a different host	*/
 	VDEV_AUX_CHILDREN_OFFLINE, /* all children are offline		*/
 	VDEV_AUX_ASHIFT_TOO_BIG, /* vdev's min block size is too large   */
+	VDEV_AUX_DAX_MAP_ERROR,  /* cannot establish DAX mapping	*/
 } vdev_aux_t;
 
 /*
@@ -1417,7 +1420,9 @@ typedef enum {
 	ZFS_ERR_RESILVER_IN_PROGRESS,
 	ZFS_ERR_REBUILD_IN_PROGRESS,
 	ZFS_ERR_BADPROP,
+	ZFS_ERR_CANNOT_OPEN_AS_DAX_DEVICE,
 	ZFS_ERR_WRONG_ZIL_KIND,
+	ZFS_ERR_ZIL_PMEM_INVALID_SLOG_CONFIG,
 } zfs_errno_t;
 
 /*

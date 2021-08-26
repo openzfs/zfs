@@ -36,7 +36,7 @@
 #include <sys/stat.h>
 #include <sys/zil.h>
 #include <sys/zil_impl.h>
-#include <sys/zil_lwb.h> /* temporary until the refactoring is complete */
+#include <sys/zil_lwb.h> /* XXX eliminate the need for this */
 #include <sys/dsl_dataset.h>
 #include <sys/vdev_impl.h>
 #include <sys/dmu_tx.h>
@@ -44,6 +44,7 @@
 #include <sys/metaslab.h>
 #include <sys/trace_zfs.h>
 #include <sys/abd.h>
+
 
 /*
  * The ZFS Intent Log (ZIL) saves "transaction records" (itxs) of system
@@ -71,6 +72,7 @@
 const zil_const_zil_vtable_ptr_t zil_vtables[ZIL_KIND_COUNT] = {
 	NULL,			/* ZIL_KIND_UNINIT	*/
 	&zillwb_vtable,	/* ZIL_KIND_LWB	*/
+	&zilpmem_vtable		/* ZIL_KIND_PMEM	*/
 };
 
 static struct {
@@ -1170,6 +1172,8 @@ zil_kind_from_str(const char *val, zh_kind_t *out)
 	/* NB: keep in sync with zil_kind_to_str */
 	if (strcmp(val, "lwb") == 0) {
 		*out = ZIL_KIND_LWB;
+	} else if (strcmp(val, "pmem") == 0) {
+		*out = ZIL_KIND_PMEM;
 	} else {
 		return SET_ERROR(EINVAL);
 	}
@@ -1192,6 +1196,8 @@ zil_default_kind__param_set(const char *val, zfs_kernel_param_t *unused)
 
 	if (strncmp(val, "1", val_len) == 0) {
 		zil_default_kind_set(ZIL_KIND_LWB);
+	} else if (strncmp(val, "2", val_len) == 0) {
+		zil_default_kind_set(ZIL_KIND_PMEM);
 	} else {
 		return (-EINVAL);
 	}

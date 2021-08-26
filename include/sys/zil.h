@@ -58,6 +58,7 @@ struct lwb;
 typedef enum {
 	ZIL_KIND_UNINIT,
 	ZIL_KIND_LWB,
+	ZIL_KIND_PMEM,
 	ZIL_KIND_COUNT /* grep for this identifier when changing this enum */
 } zh_kind_t;
 
@@ -72,6 +73,11 @@ typedef struct zil_header_lwb {
 	uint64_t zh_claim_lr_seq; /* highest claimed lr sequence number */
 } zil_header_lwb_t;
 
+
+typedef struct zil_header_pmem {
+	uint64_t zlph_opaque[3 + (1 + 2*(1 + 2*TXG_CONCURRENT_STATES))];
+} zil_header_pmem_t;
+
 /*
  * Intent log header - this on disk structure holds fields to manage
  * the log.  All fields are 64 bit to easily handle cross architectures.
@@ -79,6 +85,7 @@ typedef struct zil_header_lwb {
 typedef struct zil_header_v2 {
 	union {
 		zil_header_lwb_t zh_lwb;
+		zil_header_pmem_t zh_pmem;
 	};
 	uint64_t zh_kind;
 	uint64_t zh_pad[2];
@@ -482,6 +489,8 @@ zil_kind_to_str(zh_kind_t zil_kind, boolean_t *invalid)
 			return ("uninit");
 		case ZIL_KIND_LWB:
 			return ("lwb");
+		case ZIL_KIND_PMEM:
+			return ("pmem");
 		case ZIL_KIND_COUNT:
 		default:
 			if (invalid)

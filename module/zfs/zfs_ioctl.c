@@ -197,6 +197,7 @@
 #include <sys/dsl_crypt.h>
 #include <sys/rrwlock.h>
 #include <sys/zfs_file.h>
+#include <sys/zfs_pmem.h>
 
 #include <sys/dmu_recv.h>
 #include <sys/dmu_send.h>
@@ -7742,6 +7743,9 @@ zfs_kmod_init(void)
 	if ((error = zvol_init()) != 0)
 		goto err0;
 
+	if ((error = zfs_pmem_ops_init()) != 0)
+		goto err1;
+
 	spa_init(SPA_MODE_READ | SPA_MODE_WRITE);
 
 	zfs_init();
@@ -7751,18 +7755,20 @@ zfs_kmod_init(void)
 	zfsdev_init();
 
 	if ((error = zfsdev_attach()) != 0)
-		goto err1;
+		goto err2;
 
 	tsd_create(&zfs_fsyncer_key, NULL);
 	tsd_create(&rrw_tsd_key, rrw_tsd_destroy);
 	tsd_create(&zfs_allow_log_key, zfs_allow_log_destroy);
 
 	return (0);
-err1:
+err2:
 	zfsdev_fini();
 	/* no counterpart to zfs_ioctl_init(); */
 	zfs_fini();
 	spa_fini();
+	zfs_pmem_ops_fini();
+err1:
 	zvol_fini();
 err0:
 	zfs_dbgmsg_fini();
@@ -7785,6 +7791,7 @@ zfs_kmod_fini(void)
 	/* no counterpart to zfs_ioctl_init() */
 	zfs_fini();
 	spa_fini();
+	zfs_pmem_ops_fini();
 	zvol_fini();
 	zfs_dbgmsg_fini();
 }

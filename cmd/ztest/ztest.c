@@ -102,8 +102,10 @@
 #include <sys/mman.h>
 #include <sys/resource.h>
 #include <sys/zio.h>
-#include <sys/zil_lwb.h>
 #include <sys/zil_impl.h>
+#include <sys/zil_lwb.h>
+#include <sys/zil_pmem_impl.h>
+#include <sys/zil_pmem_prb_impl.h>
 #include <sys/vdev_draid.h>
 #include <sys/vdev_impl.h>
 #include <sys/vdev_file.h>
@@ -1479,6 +1481,15 @@ ztest_random_vdev_top(spa_t *spa, boolean_t log_ok)
 	vdev_t *tvd;
 
 	ASSERT3U(spa_config_held(spa, SCL_ALL, RW_READER), !=, 0);
+
+	/*
+	 * XXX ZIL-PMEM doesn't support any vdev-level operations ATM
+	 * => ztest_random_vdev_top is mostly used to test such stuff
+	 * => ZIL_KIND_PMEM overrides log_ok to false
+	 * */
+	if (log_ok && spa->spa_zil_kind == ZIL_KIND_PMEM) {
+		log_ok = B_FALSE;
+	}
 
 	do {
 		top = ztest_random(rvd->vdev_children);
@@ -2918,6 +2929,8 @@ ztest_zil_commit(ztest_ds_t *zd, uint64_t id)
 		ASSERT3U(zd->zd_shared->zd_seq, <=, zilog_lwb->zl_commit_lr_seq);
 		zd->zd_shared->zd_seq = zilog_lwb->zl_commit_lr_seq;
 		mutex_exit(&zilog_lwb->zl_lock);
+	} else {
+		/* TODO ZIL-PMEM */
 	}
 
 	(void) pthread_rwlock_unlock(&zd->zd_zilog_lock);
@@ -3131,7 +3144,12 @@ ztest_spa_upgrade(ztest_ds_t *zd, uint64_t id)
 	fnvlist_add_uint64(props,
 	    zpool_prop_to_name(ZPOOL_PROP_VERSION), version);
 	int err = spa_create(name, nvroot, props, NULL, NULL);
-	VERIFY0(err);
+	if (zil_default_kind_get() == ZIL_KIND_PMEM) {
+		VERIFY3S(err, ==, ENOTSUP);
+		goto unlock;
+	} else {
+		VERIFY0(err);
+	}
 	fnvlist_free(nvroot);
 	fnvlist_free(props);
 
@@ -3152,6 +3170,7 @@ ztest_spa_upgrade(ztest_ds_t *zd, uint64_t id)
 	spa_close(spa, FTAG);
 
 	kmem_strfree(name);
+unlock:
 	mutex_exit(&ztest_vdev_lock);
 }
 
@@ -3269,6 +3288,7 @@ ztest_vdev_add_remove(ztest_ds_t *zd, uint64_t id)
 
 		/*
 		 * find the first real slog in log allocation class
+		 * XXX spa_exempt_class / ZIL-PMEM
 		 */
 		mg =  spa_log_class(spa)->mc_allocator[0].mca_rotor;
 		while (!mg->mg_vd->vdev_islog)
@@ -3298,6 +3318,10 @@ ztest_vdev_add_remove(ztest_ds_t *zd, uint64_t id)
 		case ZFS_ERR_CHECKPOINT_EXISTS:
 		case ZFS_ERR_DISCARDING_CHECKPOINT:
 			break;
+		case ZFS_ERR_ZIL_PMEM_INVALID_SLOG_CONFIG:
+			/* XXX see comment in zilpmem_reset_logs */
+			ASSERT(spa->spa_zil_kind == ZIL_KIND_PMEM);
+			break;
 		default:
 			fatal(B_FALSE, "spa_vdev_remove() = %d", error);
 		}
@@ -3306,10 +3330,12 @@ ztest_vdev_add_remove(ztest_ds_t *zd, uint64_t id)
 
 		/*
 		 * Make 1/4 of the devices be log devices
+		 * if not ZIL-PMEM
 		 */
 		nvroot = make_vdev_root(NULL, NULL, NULL,
-		    ztest_opts.zo_vdev_size, 0, (ztest_random(4) == 0) ?
-		    "log" : NULL, ztest_opts.zo_raid_children, zs->zs_mirrors,
+		    ztest_opts.zo_vdev_size, 0,
+		    (ztest_random(4) == 0) && spa->spa_zil_kind != ZIL_KIND_PMEM ? "log" : NULL,
+		    ztest_opts.zo_raid_children, zs->zs_mirrors,
 		    1);
 
 		error = spa_vdev_add(spa, nvroot);
@@ -3320,6 +3346,10 @@ ztest_vdev_add_remove(ztest_ds_t *zd, uint64_t id)
 			break;
 		case ENOSPC:
 			ztest_record_enospc("spa_vdev_add");
+			break;
+		case ZFS_ERR_ZIL_PMEM_INVALID_SLOG_CONFIG:
+			/* XXX see comment in zilpmem_reset_logs */
+			ASSERT(spa->spa_zil_kind == ZIL_KIND_PMEM);
 			break;
 		default:
 			fatal(B_FALSE, "spa_vdev_add() = %d", error);
@@ -3660,6 +3690,12 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	 * of removal.
 	 */
 	if (ztest_device_removal_active) {
+		spa_config_exit(spa, SCL_ALL, FTAG);
+		goto out;
+	}
+
+	if (spa->spa_zil_kind == ZIL_KIND_PMEM) {
+		/* XXX see comment in zilpmem_reset_logs */
 		spa_config_exit(spa, SCL_ALL, FTAG);
 		goto out;
 	}
@@ -7269,6 +7305,8 @@ ztest_dataset_open(int d)
 			fatal(B_FALSE, "missing log records: "
 			    "claimed %"PRIu64" < committed %"PRIu64"",
 			    zh->zh_claim_lr_seq, committed_seq);
+	} else {
+		/* TODO ZIL-PMEM */
 	}
 
 	ztest_dataset_dirobj_verify(zd);
@@ -7297,6 +7335,8 @@ ztest_dataset_open(int d)
 			fatal(B_FALSE, "missing log records: "
 			    "replayed %"PRIu64" < committed %"PRIu64"",
 			    zilog->zl_replaying_seq, committed_seq);
+	} else {
+		/* TODO ZIL-PMEM */
 	}
 
 	return (0);
@@ -7343,6 +7383,8 @@ ztest_replay_zil_cb(const char *name, void *arg)
 			    lpr->zlpr_lr_count,
 			    zilog_lwb->zl_replaying_seq);
 		}
+	} else {
+		/* TODO ZIL-PMEM */
 	}
 
 	umem_free(zdtmp, sizeof (ztest_ds_t));
@@ -7374,6 +7416,22 @@ ztest_freeze(void)
 	if (zd->zd_zilog->zl_vtable == &zillwb_vtable) {
 		zilog_lwb_t *zilog = zillwb_downcast(zd->zd_zilog);
 		while (BP_IS_HOLE(&zillwb_zil_header_const(zilog)->zh_log)) {
+			ztest_dmu_object_alloc_free(zd, 0);
+			zil_commit(zd->zd_zilog, 0);
+		}
+	} else if (zd->zd_zilog->zl_vtable == &zilpmem_vtable) {
+		zilog_pmem_t *zilog = zilpmem_downcast(zd->zd_zilog);
+		while (B_TRUE) {
+			zil_header_pmem_state_t state;
+			boolean_t valid;
+			zil_header_pmem_state_from_header(zilpmem_zil_header_const(zilog),
+			    &state, &valid);
+			ASSERT(valid);
+			if (state != ZHPM_ST_NOZIL) {
+				ASSERT3U(state, ==, ZHPM_ST_LOGGING);
+				break;
+			}
+
 			ztest_dmu_object_alloc_free(zd, 0);
 			zil_commit(zd->zd_zilog, 0);
 		}
@@ -7797,6 +7855,54 @@ ztest_init(ztest_shared_t *zs)
 	nvroot = make_vdev_root(NULL, NULL, NULL, ztest_opts.zo_vdev_size, 0,
 	    NULL, ztest_opts.zo_raid_children, zs->zs_mirrors, 1);
 
+	if (zil_default_kind_get() == ZIL_KIND_PMEM) {
+		/*
+		 * XXX Hard-code /dev/pmem0 as a SLOG device for ZIL-PMEM pools.
+		 * We adjusted all other places that call make_vdev_root to never use
+		 * "log" in ZIL_KIND_PMEM pools.
+		 * Once we support changing ZIL kinds on the fly, depending on SLOG VDEV config,
+		 * these changes should be reverted.
+		 */
+
+		/*
+		 * sudo scripts/zloop.sh -- ADDITIONAL_FLAGS
+		 * where we tried the following combinations:
+		 *   -o vdev_file_dax_mmap_sync=0  -o zfs_flags=512 -G -z pmem -k 0 -t 1 -VVVV -F0
+		 *   -o vdev_file_dax_mmap_sync=0  -o zfs_flags=512 -G -z pmem -k 0 -t 1 -VVVV
+		 *   -o vdev_file_dax_mmap_sync=0  -o zfs_flags=512 -G -z pmem -k 0 --VVVV
+		 * sudo scripts/zloop.sh --  -o vdev_file_dax_mmap_sync=0  -o zfs_flags=512 -G -z pmem -k 0 -t 1 -VVVV
+		 * => debug core dumps using
+		 * sudo libtool --mode=execute gdb cmd/ztest/ztest //var/tmp/zloop/zloop-210524-165116/core
+		 * and if that's not helpful, check out the other *.out and *.gdb files in that directory.
+		 */
+		nvlist_t *daxlog =
+		    make_vdev_file("/dev/pmem0", NULL, NULL, 0, 9);
+		fnvlist_add_uint64(daxlog, ZPOOL_CONFIG_IS_LOG, 1);
+		fnvlist_add_uint64(daxlog, ZPOOL_CONFIG_IS_DAX, 1);
+		fnvlist_add_string(daxlog, ZPOOL_CONFIG_ALLOCATION_BIAS, VDEV_ALLOC_BIAS_EXEMPT);
+
+		nvlist_t **children;
+		uint_t nchildren;
+		VERIFY0(nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN, &children, &nchildren));
+
+
+		nvlist_t **new_children = umem_alloc((nchildren + 1) * sizeof (nvlist_t *), UMEM_NOFAIL);
+		for (int i = 0; i < nchildren; i++) {
+			nvlist_dup(children[i], &new_children[i], KM_SLEEP);
+		}
+		new_children[nchildren] = daxlog;
+
+		fnvlist_remove(nvroot, ZPOOL_CONFIG_CHILDREN);
+		fnvlist_add_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN, new_children, nchildren + 1);
+
+		nvlist_free(daxlog);
+		for (int i = 0; i < nchildren; i++) {
+			nvlist_free(new_children[i]);
+		}
+		umem_free(new_children, (nchildren+1) * sizeof (nvlist_t *));
+
+
+	}
 	fprintf(stderr, "Initial VDEV tree:\n");
 	nvlist_print_json(stderr, nvroot);
 	fprintf(stderr, "\n");

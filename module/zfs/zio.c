@@ -3748,6 +3748,15 @@ zio_vdev_io_start(zio_t *zio)
 		return (NULL);
 	}
 
+	/*
+	 * Only allow writes to the label space for VDEVs in the 'exempt' class.
+	 */
+	if (vd->vdev_alloc_bias == VDEV_BIAS_EXEMPT) {
+	    /* NB: we catch vdev_initialize and vdev_trim way up the stack */
+	    VERIFY(VDEV_OFFSET_IS_LABEL(vd, zio->io_offset));
+	    /* TODO VERIFY size within LABEL */
+	}
+
 	ASSERT3P(zio->io_logical, !=, zio);
 	if (zio->io_type == ZIO_TYPE_WRITE) {
 		ASSERT(spa->spa_trust_config);

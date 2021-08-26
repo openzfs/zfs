@@ -36,6 +36,7 @@
 #include <sys/spa_checkpoint.h>
 #include <sys/spa_log_spacemap.h>
 #include <sys/vdev.h>
+#include <sys/vdev_impl.h>
 #include <sys/vdev_rebuild.h>
 #include <sys/vdev_removal.h>
 #include <sys/metaslab.h>
@@ -203,6 +204,8 @@ typedef enum spa_config_source {
 	SPA_CONFIG_SRC_MOS		/* MOS, but not always from right txg */
 } spa_config_source_t;
 
+typedef struct spa_zilpmem spa_zilpmem_t;
+
 struct spa {
 	/*
 	 * Fields protected by spa_namespace_lock.
@@ -234,6 +237,7 @@ struct spa {
 	metaslab_class_t *spa_embedded_log_class; /* log on normal vdevs */
 	metaslab_class_t *spa_special_class;	/* special allocation class */
 	metaslab_class_t *spa_dedup_class;	/* dedup allocation class */
+	metaslab_class_t *spa_exempt_class;	/* exempt allocation cllass */
 	uint64_t	spa_first_txg;		/* first txg after spa_open() */
 	uint64_t	spa_final_txg;		/* txg of export/destroy */
 	uint64_t	spa_freeze_txg;		/* freeze pool at this txg */
@@ -246,6 +250,7 @@ struct spa {
 	kcondvar_t	spa_evicting_os_cv;	/* Objset Eviction Completion */
 	txg_list_t	spa_vdev_txg_list;	/* per-txg dirty vdev list */
 	vdev_t		*spa_root_vdev;		/* top-level vdev container */
+	spa_zilpmem_t	*spa_zilpmem;		/* zilpmem spa-wide state */
 	uint64_t	spa_zil_kind;
 	uint64_t	spa_min_ashift;		/* of vdevs in normal class */
 	uint64_t	spa_max_ashift;		/* of vdevs in normal class */
@@ -458,6 +463,8 @@ extern int param_set_deadman_failmode_common(const char *val);
 extern void spa_set_deadman_synctime(hrtime_t ns);
 extern void spa_set_deadman_ziotime(hrtime_t ns);
 extern const char *spa_history_zone(void);
+extern void spa_activate_allocation_classes(spa_t *, dmu_tx_t *,
+    vdev_alloc_bias_t alloc_bias);
 
 #ifdef	__cplusplus
 }

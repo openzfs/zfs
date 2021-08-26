@@ -62,6 +62,7 @@
 #include <sys/spa_impl.h>
 #include <sys/dmu_recv.h>
 #include <sys/zfs_project.h>
+#include <sys/zil_pmem_spa.h>
 #include "zfs_namecheck.h"
 
 /*
@@ -1136,6 +1137,9 @@ dmu_objset_create_impl_dnstats(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 		os->os_flags = os->os_phys->os_flags;
 	}
 
+	if (ds != NULL)
+		zilpmem_spa_create_objset(spa, os, tx);
+
 	dsl_dataset_dirty(ds, tx);
 
 	return (os);
@@ -1417,6 +1421,7 @@ dmu_objset_clone_sync(void *arg, dmu_tx_t *tx)
 	const char *tail;
 	dsl_dataset_t *origin, *ds;
 	uint64_t obj;
+	objset_t *os;
 	char namebuf[ZFS_MAX_DATASET_NAME_LEN];
 
 	VERIFY0(dsl_dir_hold(dp, doca->doca_clone, FTAG, &pdd, &tail));
@@ -1426,9 +1431,14 @@ dmu_objset_clone_sync(void *arg, dmu_tx_t *tx)
 	    doca->doca_cred, NULL, tx);
 
 	VERIFY0(dsl_dataset_hold_obj(pdd->dd_pool, obj, FTAG, &ds));
+	VERIFY0(dmu_objset_from_ds(ds, &os));
+
+	zilpmem_spa_create_objset(dp->dp_spa, os, tx);
+
 	dsl_dataset_name(origin, namebuf);
 	spa_history_log_internal_ds(ds, "clone", tx,
 	    "origin=%s (%llu)", namebuf, (u_longlong_t)origin->ds_object);
+
 	dsl_dataset_rele(ds, FTAG);
 	dsl_dataset_rele(origin, FTAG);
 	dsl_dir_rele(pdd, FTAG);

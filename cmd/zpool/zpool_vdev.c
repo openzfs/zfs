@@ -267,6 +267,17 @@ is_spare(nvlist_t *config, const char *path)
  *	/xxx		Full path to file
  *	xxx		Shorthand for <zfs_vdev_paths>/xxx
  *	draid*		Virtual dRAID spare
+ *
+ * Also performs DAX detection and override handling to set ZPOOL_CONFIG_IS_DAX.
+ * Overrides for DAX detection can be specified as follows:
+ *
+ * 	nodax:<leaf vdev spec>	Treat vdev specified by <leaf vdev spec> as a
+ *				regular block device.
+ * 	dax:<leaf vdev spec>	Force detection of vdev specified by
+ * 				<leaf vdev spec> as a DAX device. The kernel
+ * 				will reject the config on pool assembly if the
+ * 				device is not a DAX device.
+ *
  */
 static nvlist_t *
 make_leaf_vdev(nvlist_t *props, const char *arg, boolean_t is_primary)
@@ -278,6 +289,18 @@ make_leaf_vdev(nvlist_t *props, const char *arg, boolean_t is_primary)
 	boolean_t wholedisk = B_FALSE;
 	uint64_t ashift = 0;
 	int err;
+	const char *dax_detect_override;
+
+	if (strstr(arg, DAX_DETECT_OVERRIDE_DAX ":") == arg) {
+		dax_detect_override = DAX_DETECT_OVERRIDE_DAX;
+	} else if (strstr(arg, DAX_DETECT_OVERRIDE_NODAX ":") == arg) {
+		dax_detect_override = DAX_DETECT_OVERRIDE_NODAX;
+	} else {
+		dax_detect_override = NULL;
+	}
+	if (dax_detect_override != NULL) {
+		arg = arg + strlen(dax_detect_override) + 1;
+	}
 
 	/*
 	 * Determine what type of vdev this is, and put the full path into
@@ -371,6 +394,24 @@ make_leaf_vdev(nvlist_t *props, const char *arg, boolean_t is_primary)
 	verify(nvlist_alloc(&vdev, NV_UNIQUE_NAME, 0) == 0);
 	verify(nvlist_add_string(vdev, ZPOOL_CONFIG_PATH, path) == 0);
 	verify(nvlist_add_string(vdev, ZPOOL_CONFIG_TYPE, type) == 0);
+
+	boolean_t is_dax;
+	err = dax_detect(path, type, dax_detect_override, &is_dax);
+	switch (err) {
+		case 0:
+			break;
+		case EZFS_BADTYPE:
+			/*
+			 * XXX maybe we shouldn't put a value for
+			 *  ZPOOL_CONFIG_IS_DAX in this case?
+			 */
+			is_dax = B_FALSE;
+			break;
+		default:
+			/* dax_detect prints error */
+			return (NULL);
+	}
+	verify(nvlist_add_uint64(vdev, ZPOOL_CONFIG_IS_DAX, is_dax) == 0);
 
 	if (strcmp(type, VDEV_TYPE_DISK) == 0)
 		verify(nvlist_add_uint64(vdev, ZPOOL_CONFIG_WHOLE_DISK,
@@ -1512,7 +1553,8 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 				argv++;
 				/*
 				 * A log is not a real grouping device.
-				 * We just set is_log and continue.
+				 * We just set is_log and maybe
+				 * ddr.ddr_override and continue.
 				 */
 				continue;
 			}
@@ -1660,14 +1702,28 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 			 * construct the appropriate nvlist describing the vdev.
 			 */
 			if ((nv = make_leaf_vdev(props, argv[0], !(is_log ||
-			    is_special || is_dedup || is_spare))) == NULL)
+			    is_special || is_dedup || is_spare)))
+			    == NULL)
 				goto spec_out;
+
+			/*
+			 * ZPOOL_CONFIG_IS_DAX is always set by make_leaf_vdev.
+			 * => ENOENT is an implementation error.
+			 */
+			uint64_t is_dax;
+			verify(nvlist_lookup_uint64(nv, ZPOOL_CONFIG_IS_DAX,
+			    &is_dax) == 0);
 
 			verify(nvlist_add_uint64(nv,
 			    ZPOOL_CONFIG_IS_LOG, is_log) == 0);
 			if (is_log) {
+				/*
+				 * XXX hacky: always attribute DAX log devices
+				 * to ZIL-PMEM by marking it as exempt
+				 */
 				verify(nvlist_add_string(nv,
 				    ZPOOL_CONFIG_ALLOCATION_BIAS,
+				    is_dax ? VDEV_ALLOC_BIAS_EXEMPT :
 				    VDEV_ALLOC_BIAS_LOG) == 0);
 				nlogs++;
 			}
@@ -1877,4 +1933,41 @@ make_root_vdev(zpool_handle_t *zhp, nvlist_t *props, int force, int check_rep,
 	}
 
 	return (newroot);
+}
+
+
+/*
+ * type: the vdev type detected earlier by the caller, VDEV_TYPE_*
+ * override:
+ * 	!= NULL: set is_dax to the value indicated by the string
+ * 	== NULL: no override, do detection, store result in is_dax
+ *
+ * Returns 0 on successful detection or override.
+ * Returns non-zero otherwise and prints an descriptive to stderr.
+ * Distinguished errors:
+ * 	EZFS_BADTYPE	vdev type does not support detection
+ *
+ * Panics if override is != one of the DAX_DETECT_OVERRIDE_*
+ * constants.
+ */
+int
+dax_detect(const char *path, const char *type, const char *override,
+    boolean_t *is_dax)
+{
+	if (override != NULL) {
+		if (strcmp(override, DAX_DETECT_OVERRIDE_DAX) == 0) {
+			*is_dax = B_TRUE;
+		} else if (strcmp(override, DAX_DETECT_OVERRIDE_NODAX)
+		    == 0) {
+			*is_dax = B_FALSE;
+		} else {
+			/* caller must ensure "dax" or "nodax" */
+			verify(0);
+		}
+	} else {
+		int err = dax_detect_os(path, type, is_dax);
+		if (err)
+			return (err); /* dax_detect prints error */
+	}
+	return (0);
 }

@@ -53,6 +53,7 @@
 #include <sys/zap.h>
 #include <sys/zil.h>
 #include <sys/zil_lwb.h>
+#include <sys/zil_pmem_spa.h>
 #include <sys/ddt.h>
 #include <sys/vdev_impl.h>
 #include <sys/vdev_removal.h>
@@ -310,11 +311,13 @@ spa_prop_get_config(spa_t *spa, nvlist_t **nvp)
 		alloc += metaslab_class_get_alloc(spa_special_class(spa));
 		alloc += metaslab_class_get_alloc(spa_dedup_class(spa));
 		alloc += metaslab_class_get_alloc(spa_embedded_log_class(spa));
+		VERIFY0(metaslab_class_get_alloc(spa_exempt_class(spa)));
 
 		size = metaslab_class_get_space(mc);
 		size += metaslab_class_get_space(spa_special_class(spa));
 		size += metaslab_class_get_space(spa_dedup_class(spa));
 		size += metaslab_class_get_space(spa_embedded_log_class(spa));
+		size += metaslab_class_get_space(spa_exempt_class(spa));
 
 		spa_prop_add_list(*nvp, ZPOOL_PROP_NAME, spa_name(spa), 0, src);
 		spa_prop_add_list(*nvp, ZPOOL_PROP_SIZE, NULL, size, src);
@@ -1250,6 +1253,8 @@ spa_activate(spa_t *spa, spa_mode_t mode)
 	    metaslab_class_create(spa, zfs_metaslab_ops);
 	spa->spa_special_class = metaslab_class_create(spa, zfs_metaslab_ops);
 	spa->spa_dedup_class = metaslab_class_create(spa, zfs_metaslab_ops);
+	spa->spa_exempt_class =
+	    metaslab_class_create(spa, &zfs_metaslab_panic_ops);
 
 	/* Try to create a covering process */
 	mutex_enter(&spa->spa_proc_lock);
@@ -1407,6 +1412,9 @@ spa_deactivate(spa_t *spa)
 
 	metaslab_class_destroy(spa->spa_dedup_class);
 	spa->spa_dedup_class = NULL;
+
+	metaslab_class_destroy(spa->spa_exempt_class);
+	spa->spa_exempt_class = NULL;
 
 	/*
 	 * If this was part of an import or the open otherwise failed, we may
@@ -1643,6 +1651,8 @@ spa_unload(spa_t *spa)
 		kmem_free(spa->spa_async_zio_root, max_ncpus * sizeof (void *));
 		spa->spa_async_zio_root = NULL;
 	}
+
+	zilpmem_spa_unload(spa);
 
 	if (spa->spa_vdev_removal != NULL) {
 		spa_vdev_removal_destroy(spa->spa_vdev_removal);
@@ -2385,6 +2395,16 @@ spa_load_verify_zillwb(spa_t *spa, uint64_t objset,
 	return (0);
 }
 
+
+static int
+spa_load_verify_zilpmem(spa_t *spa, uint64_t objset,
+    const zil_header_pmem_t *zh, void *arg)
+{
+	zfs_dbgmsg("spa_load_verify_zilpmem is unimplemented");
+	return (0); /* TODO */
+}
+
+
 static int
 spa_load_verify_zil_cb(spa_t *spa, uint64_t objset, const zil_header_t *zh,
     void *arg)
@@ -2398,6 +2418,11 @@ spa_load_verify_zil_cb(spa_t *spa, uint64_t objset, const zil_header_t *zh,
 			VERIFY3U(zhk_size, ==, sizeof (zil_header_lwb_t));
 			return spa_load_verify_zillwb(spa, objset,
 			    zhk, arg);
+		case ZIL_KIND_PMEM:
+			VERIFY3U(zhk_size, ==, sizeof (zil_header_pmem_t));
+			return spa_load_verify_zilpmem(spa, objset,
+			    zhk, arg);
+
 		default:
 			panic("unreachable: zil_kind=%s",
 			    zil_kind_to_str(kind, NULL));
@@ -4963,6 +4988,10 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, char **ereport)
 	dsl_pool_config_exit(dp, FTAG);
 	dp = NULL; ds = NULL; os = NULL;
 
+	error = zilpmem_spa_load(spa);
+	if (error != 0)
+		return (error);
+
 	/*
 	 * Verify the logs now to make sure we don't have any unexpected errors
 	 * when we claim log blocks later.
@@ -5984,6 +6013,9 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 		}
 	}
 
+	if (error == 0)
+		error = zilpmem_spa_create(spa);
+
 	if (error != 0) {
 		spa_config_exit(spa, SCL_ALL, FTAG);
 		spa_unload(spa);
@@ -6835,6 +6867,10 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 		return (spa_vdev_exit(spa, NULL, txg, error));
 	}
 
+	/* XXX see comment in zilpmem_reset_logs */
+	if (spa->spa_zil_kind == ZIL_KIND_PMEM)
+		return (spa_vdev_exit(spa, NULL, txg, ZFS_ERR_ZIL_PMEM_INVALID_SLOG_CONFIG));
+
 	if (rebuild) {
 		if (!spa_feature_is_enabled(spa, SPA_FEATURE_DEVICE_REBUILD))
 			return (spa_vdev_exit(spa, NULL, txg, ENOTSUP));
@@ -7359,6 +7395,9 @@ spa_vdev_initialize_impl(spa_t *spa, uint64_t guid, uint64_t cmd_type,
 	} else if (!vdev_writeable(vd)) {
 		spa_config_exit(spa, SCL_CONFIG | SCL_STATE, FTAG);
 		return (SET_ERROR(EROFS));
+	} else if (vd->vdev_alloc_bias == VDEV_BIAS_EXEMPT) {
+		spa_config_exit(spa, SCL_CONFIG | SCL_STATE, FTAG);
+		return (SET_ERROR(EOPNOTSUPP));
 	}
 	mutex_enter(&vd->vdev_initialize_lock);
 	spa_config_exit(spa, SCL_CONFIG | SCL_STATE, FTAG);
@@ -7470,6 +7509,9 @@ spa_vdev_trim_impl(spa_t *spa, uint64_t guid, uint64_t cmd_type,
 	} else if (!vdev_writeable(vd)) {
 		spa_config_exit(spa, SCL_CONFIG | SCL_STATE, FTAG);
 		return (SET_ERROR(EROFS));
+	} else if (vd->vdev_alloc_bias == VDEV_BIAS_EXEMPT) {
+		spa_config_exit(spa, SCL_CONFIG | SCL_STATE, FTAG);
+		return (SET_ERROR(EOPNOTSUPP));
 	} else if (!vd->vdev_has_trim) {
 		spa_config_exit(spa, SCL_CONFIG | SCL_STATE, FTAG);
 		return (SET_ERROR(EOPNOTSUPP));
@@ -7597,6 +7639,11 @@ spa_vdev_split_mirror(spa_t *spa, char *newname, nvlist_t *config,
 		error = (spa_has_checkpoint(spa)) ?
 		    ZFS_ERR_CHECKPOINT_EXISTS : ZFS_ERR_DISCARDING_CHECKPOINT;
 		return (spa_vdev_exit(spa, NULL, txg, error));
+	}
+
+	if (spa->spa_zil_kind == ZIL_KIND_PMEM) {
+		/* XXX see comment in zilpmem_reset_logs */
+		return (spa_vdev_exit(spa, NULL, txg, SET_ERROR(ZFS_ERR_ZIL_PMEM_INVALID_SLOG_CONFIG)));
 	}
 
 	/* clear the log and flush everything up to now */
@@ -8246,6 +8293,7 @@ spa_async_thread(void *arg)
 		old_space += metaslab_class_get_space(spa_dedup_class(spa));
 		old_space += metaslab_class_get_space(
 		    spa_embedded_log_class(spa));
+		old_space += metaslab_class_get_space(spa_exempt_class(spa));
 
 		spa_config_update(spa, SPA_CONFIG_UPDATE_POOL);
 
@@ -8254,6 +8302,7 @@ spa_async_thread(void *arg)
 		new_space += metaslab_class_get_space(spa_dedup_class(spa));
 		new_space += metaslab_class_get_space(
 		    spa_embedded_log_class(spa));
+		new_space += metaslab_class_get_space(spa_exempt_class(spa));
 		mutex_exit(&spa_namespace_lock);
 
 		/*
@@ -9569,6 +9618,28 @@ spa_lookup_by_guid(spa_t *spa, uint64_t guid, boolean_t aux)
 	}
 
 	return (NULL);
+}
+
+static int
+spa_iter_dax_vdevs_impl(vdev_t *vd, spa_iter_vdevs_cb cb, void *arg)
+{
+	if (vd->vdev_isdax) {
+		VERIFY3U(vd->vdev_children, ==, 0);
+		return (cb(vd, arg));
+	}
+
+	int err = 0;
+	for (int c = 0; err == 0 && c < vd->vdev_children; c++) {
+		err = spa_iter_dax_vdevs_impl(vd->vdev_child[c], cb, arg);
+	}
+	return (err);
+}
+
+int
+spa_iter_dax_vdevs(spa_t *spa, spa_iter_vdevs_cb cb, void *arg)
+{
+	VERIFY(spa_config_held(spa, SCL_VDEV, RW_READER));
+	return (spa_iter_dax_vdevs_impl(spa->spa_root_vdev, cb, arg));
 }
 
 void

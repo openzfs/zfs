@@ -599,6 +599,22 @@ zpool_feature_init(void)
 	    "org.openzfs:draid", "draid", "Support for distributed spare RAID",
 	    ZFEATURE_FLAG_MOS, ZFEATURE_TYPE_BOOLEAN, NULL);
 
+	{
+	static const spa_feature_t exempt_deps[] = {
+		SPA_FEATURE_ALLOCATION_CLASSES,
+		SPA_FEATURE_NONE
+	};
+	zfeature_register(SPA_FEATURE_ALLOCATION_CLASS_EXEMPT,
+	    "org.openzfs:allocation_class_exempt", "allocation_class_exempt",
+	    "Support for the hidden 'exempt' allocation class.",
+	    ZFEATURE_FLAG_MOS, ZFEATURE_TYPE_BOOLEAN, exempt_deps);
+	}
+
+	zfeature_register(SPA_FEATURE_DAX,
+	    "org.openzfs:dax_vdevs", "dax_vdevs",
+	    "Support for DAX vdevs.",
+	    0, ZFEATURE_TYPE_BOOLEAN, NULL);
+
 	zfeature_register(SPA_FEATURE_ZIL_KINDS,
 	    "org.openzfs:zil_kinds", "zil_kinds",
 	    "ZIL kinds.",

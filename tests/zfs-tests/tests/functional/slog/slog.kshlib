@@ -54,6 +54,9 @@ function get_zil_default_kind
 		1)
 			echo "zil-lwb"
 			;;
+		2)
+			echo "zil-pmem"
+			;;
 		*)
 			log_note "Unknown zil_default_kind $numeric"
 			return 1
@@ -62,7 +65,7 @@ function get_zil_default_kind
 	return 0
 }
 
-# $1 skip test if the kernel moddule's default zil kinds != $1 ("lwb")
+# $1 skip test if the kernel moddule's default zil kinds != $1 ("lwb", "pmem")
 function only_for_zil_default_kind
 {
 	typeset only_kind=$1

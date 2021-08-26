@@ -37,9 +37,11 @@
 #include <linux/blkpg.h>
 #include <linux/msdos_fs.h>
 #include <linux/vfs_compat.h>
+#include <sys/pmem_spl.h>
 
 typedef struct vdev_disk {
 	struct block_device		*vd_bdev;
+	struct spl_dax_device 		*vd_dax;
 	krwlock_t			vd_lock;
 } vdev_disk_t;
 
@@ -200,6 +202,12 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 		vd->vd_bdev = NULL;
 
 		if (bdev) {
+			EQUIV(v->vdev_isdax, vd->vd_dax != NULL);
+			if (vd->vd_dax) {
+				spl_close_dax_device(vd->vd_dax);
+				vd->vd_dax = NULL;
+			}
+
 			if (v->vdev_expanding && bdev != bdev_whole(bdev)) {
 				bdevname(bdev_whole(bdev), disk_name + 5);
 				/*
@@ -222,6 +230,8 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 			}
 
 			blkdev_put(bdev, mode | FMODE_EXCL);
+		} else {
+			ASSERT3P(vd->vd_dax, ==, NULL);
 		}
 
 		if (reread_part) {
@@ -242,6 +252,8 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 		rw_init(&vd->vd_lock, NULL, RW_DEFAULT, NULL);
 		rw_enter(&vd->vd_lock, RW_WRITER);
 	}
+	ASSERT3P(vd->vd_bdev, ==, NULL);
+	ASSERT3P(vd->vd_dax, ==, NULL);
 
 	/*
 	 * Devices are always opened by the path provided at configuration
@@ -284,14 +296,37 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 		    (u_longlong_t)(gethrtime() - start),
 		    (u_longlong_t)timeout);
 		vd->vd_bdev = NULL;
+		vd->vd_dax = NULL;
 		v->vdev_tsd = vd;
 		rw_exit(&vd->vd_lock);
 		return (SET_ERROR(error));
-	} else {
-		vd->vd_bdev = bdev;
-		v->vdev_tsd = vd;
-		rw_exit(&vd->vd_lock);
 	}
+
+	vd->vd_bdev = bdev;
+
+	uint64_t capacity = bdev_capacity(vd->vd_bdev);
+
+	if (v->vdev_isdax) {
+		ASSERT0(vd->vd_dax);
+		int err = spl_open_dax_device(vd->vd_bdev, capacity,
+		    &vd->vd_dax);
+		if (err != 0) {
+			vdev_dbgmsg(v, "cannot open vdev as DAX device: %d",
+			    err);
+			v->vdev_stat.vs_aux = VDEV_AUX_DAX_MAP_ERROR;
+			blkdev_put(vd->vd_bdev, mode | FMODE_EXCL);
+			vd->vd_bdev = NULL;
+			rw_exit(&vd->vd_lock);
+			return (SET_ERROR(ZFS_ERR_CANNOT_OPEN_AS_DAX_DEVICE));
+		}
+		/* fallthrough */
+	} else {
+		vd->vd_dax = NULL;
+	}
+	EQUIV(v->vdev_isdax, vd->vd_dax != NULL);
+
+	v->vdev_tsd = vd;
+	rw_exit(&vd->vd_lock);
 
 	struct request_queue *q = bdev_get_queue(vd->vd_bdev);
 
@@ -314,7 +349,7 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 	v->vdev_nonrot = blk_queue_nonrot(q);
 
 	/* Physical volume size in bytes for the partition */
-	*psize = bdev_capacity(vd->vd_bdev);
+	*psize  = capacity;
 
 	/* Physical volume size in bytes including possible expansion space */
 	*max_psize = bdev_max_capacity(vd->vd_bdev, v->vdev_wholedisk);
@@ -336,6 +371,10 @@ vdev_disk_close(vdev_t *v)
 
 	if (v->vdev_reopening || vd == NULL)
 		return;
+
+	if (vd->vd_dax != NULL) {
+		spl_close_dax_device(vd->vd_dax);
+	}
 
 	if (vd->vd_bdev != NULL) {
 		blkdev_put(vd->vd_bdev,
@@ -841,6 +880,18 @@ vdev_disk_rele(vdev_t *vd)
 	/* XXX: Implement me as a vnode rele for the device */
 }
 
+static int
+vdev_disk_dax_mapping(vdev_t *v, void **base, uint64_t *len)
+{
+	vdev_disk_t *vd = v->vdev_tsd;
+	if (!v->vdev_isdax) {
+		return (ENXIO);
+	}
+	ASSERT3P(vd->vd_dax, !=, NULL);
+	spl_dax_device_base_len(vd->vd_dax, base, len);
+	return (0);
+}
+
 /*
  * Note: when updating this struct, update the userland version as well.
  * It is located in vdev_file.c.
@@ -860,6 +911,7 @@ vdev_ops_t vdev_disk_ops = {
 	.vdev_op_hold = vdev_disk_hold,
 	.vdev_op_rele = vdev_disk_rele,
 	.vdev_op_remap = NULL,
+	.vdev_op_dax_mapping = vdev_disk_dax_mapping,
 	.vdev_op_xlate = vdev_default_xlate,
 	.vdev_op_rebuild_asize = NULL,
 	.vdev_op_metaslab_init = NULL,

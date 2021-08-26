@@ -233,6 +233,8 @@ AC_CONFIG_FILES([
 	tests/zfs-tests/cmd/threadsappend/Makefile
 	tests/zfs-tests/cmd/user_ns_exec/Makefile
 	tests/zfs-tests/cmd/xattrtest/Makefile
+	tests/zfs-tests/cmd/zilpmem_test/Makefile
+	tests/zfs-tests/cmd/zilpmem_test/bindings/Makefile
 	tests/zfs-tests/include/Makefile
 	tests/zfs-tests/tests/Makefile
 	tests/zfs-tests/tests/functional/Makefile

@@ -28,6 +28,8 @@
 typedef struct zfs_file {
 	int f_fd;
 	int f_dump_fd;
+	void *f_mmap;
+	uint64_t f_mmap_len;
 } zfs_file_t;
 #elif defined(__linux__) || defined(__FreeBSD__)
 typedef struct file zfs_file_t;
@@ -42,6 +44,11 @@ typedef struct zfs_file_attr {
 
 int zfs_file_open(const char *path, int flags, int mode, zfs_file_t **fp);
 void zfs_file_close(zfs_file_t *fp);
+
+int zfs_file_mmap(zfs_file_t *fp, int prot, int flags, uint64_t len);
+int zfs_file_munmap(zfs_file_t *fp);
+int zfs_file_get_mmap(zfs_file_t *fp, void **base, uint64_t *len);
+boolean_t zfs_file_is_mmapped(zfs_file_t *fp);
 
 int zfs_file_write(zfs_file_t *fp, const void *buf, size_t len, ssize_t *resid);
 int zfs_file_pwrite(zfs_file_t *fp, const void *buf, size_t len, loff_t off,

@@ -1034,8 +1034,11 @@ extern metaslab_class_t *spa_log_class(spa_t *spa);
 extern metaslab_class_t *spa_embedded_log_class(spa_t *spa);
 extern metaslab_class_t *spa_special_class(spa_t *spa);
 extern metaslab_class_t *spa_dedup_class(spa_t *spa);
+extern metaslab_class_t *spa_exempt_class(spa_t *spa);
 extern metaslab_class_t *spa_preferred_class(spa_t *spa, uint64_t size,
     dmu_object_type_t objtype, uint_t level, uint_t special_smallblk);
+typedef int (*spa_iter_vdevs_cb)(vdev_t *vd, void *arg);
+extern int spa_iter_dax_vdevs(spa_t *spa, spa_iter_vdevs_cb cb, void *arg);
 
 extern void spa_evicting_os_register(spa_t *, objset_t *os);
 extern void spa_evicting_os_deregister(spa_t *, objset_t *os);
@@ -1103,7 +1106,6 @@ extern boolean_t spa_top_vdevs_spacemap_addressable(spa_t *spa);
 extern uint64_t spa_total_metaslabs(spa_t *spa);
 extern boolean_t spa_multihost(spa_t *spa);
 extern uint32_t spa_get_hostid(spa_t *spa);
-extern void spa_activate_allocation_classes(spa_t *, dmu_tx_t *);
 extern boolean_t spa_livelist_delete_check(spa_t *spa);
 
 extern spa_mode_t spa_mode(spa_t *spa);

@@ -47,6 +47,7 @@
 #include <sys/abd.h>
 #include <sys/vdev_initialize.h>
 #include <sys/vdev_trim.h>
+#include <sys/zil_pmem_spa.h>
 #include <sys/trace_zfs.h>
 
 /*
@@ -1867,6 +1868,11 @@ spa_vdev_remove_log(vdev_t *vd, uint64_t *txg)
 	ASSERT3P(vd->vdev_log_mg, ==, NULL);
 	ASSERT(MUTEX_HELD(&spa_namespace_lock));
 
+	if (spa->spa_zil_kind == ZIL_KIND_PMEM) {
+		/* XXX see comment in zilpmem_reset_logs */
+		return SET_ERROR(ZFS_ERR_ZIL_PMEM_INVALID_SLOG_CONFIG);
+	}
+
 	/*
 	 * Stop allocating from this vdev.
 	 */
@@ -1984,6 +1990,9 @@ spa_vdev_remove_top_check(vdev_t *vd)
 	if (!spa_feature_is_enabled(spa, SPA_FEATURE_DEVICE_REMOVAL))
 		return (SET_ERROR(ENOTSUP));
 
+	/* XXX see comment in zilpmem_reset_logs */
+	if (spa->spa_zil_kind == ZIL_KIND_PMEM)
+		return (SET_ERROR(ZFS_ERR_ZIL_PMEM_INVALID_SLOG_CONFIG)); /* see zilpmem_reset_logs() */
 
 	metaslab_class_t *mc = vd->vdev_mg->mg_class;
 	metaslab_class_t *normal = spa_normal_class(spa);

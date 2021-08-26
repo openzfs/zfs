@@ -27,7 +27,8 @@ SUBDIRS = \
 	rm_lnkcnt_zero_file \
 	send_doall \
 	stride_dd \
-	threadsappend
+	threadsappend \
+	zilpmem_test
 
 if BUILD_LINUX
 SUBDIRS += \

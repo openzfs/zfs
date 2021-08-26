@@ -47,6 +47,7 @@
 #include <sys/bptree.h>
 #include <sys/zfeature.h>
 #include <sys/zil.h>
+#include <sys/zil_pmem_spa.h>
 #include <sys/dsl_userhold.h>
 #include <sys/trace_zfs.h>
 #include <sys/mmp.h>
@@ -873,6 +874,8 @@ dsl_pool_sync_done(dsl_pool_t *dp, uint64_t txg)
 	dsl_pool_wrlog_clear(dp, txg);
 
 	ASSERT(!dmu_objset_is_dirty(dp->dp_meta_objset, txg));
+
+	zilpmem_spa_txg_synced(dp->dp_spa, txg);
 }
 
 /*

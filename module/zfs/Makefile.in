@@ -13,6 +13,8 @@ obj-$(CONFIG_ZFS) := $(MODULE).o
 # Suppress unused-value warnings in sparc64 architecture headers
 ccflags-$(CONFIG_SPARC64) += -Wno-unused-value
 
+GCOV_PROFILE := @CODE_COVERAGE_ENABLED@
+
 $(MODULE)-objs += abd.o
 $(MODULE)-objs += aggsum.o
 $(MODULE)-objs += arc.o
@@ -117,6 +119,8 @@ $(MODULE)-objs += zfs_fuid.o
 $(MODULE)-objs += zfs_ioctl.o
 $(MODULE)-objs += zfs_log.o
 $(MODULE)-objs += zfs_onexit.o
+$(MODULE)-objs += zfs_pmem.o
+$(MODULE)-objs += zfs_pmem_ops_avx512.o
 $(MODULE)-objs += zfs_quota.o
 $(MODULE)-objs += zfs_ratelimit.o
 $(MODULE)-objs += zfs_replay.o
@@ -125,6 +129,9 @@ $(MODULE)-objs += zfs_sa.o
 $(MODULE)-objs += zfs_vnops.o
 $(MODULE)-objs += zil.o
 $(MODULE)-objs += zil_lwb.o
+$(MODULE)-objs += zil_pmem.o
+$(MODULE)-objs += zil_pmem_prb.o
+$(MODULE)-objs += zil_pmem_spa.o
 $(MODULE)-objs += zio.o
 $(MODULE)-objs += zio_checksum.o
 $(MODULE)-objs += zio_compress.o

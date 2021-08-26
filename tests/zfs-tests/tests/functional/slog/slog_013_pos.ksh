@@ -43,6 +43,7 @@
 #
 
 verify_runnable "global"
+not_on_zil_kind "zil-pmem" # ZIL-PMEM only supports exactly one PMEM SLOG, see tests/zfs-tests/tests/functional/slog/pmem_slog_001_neg.ksh
 
 function cleanup_testenv
 {

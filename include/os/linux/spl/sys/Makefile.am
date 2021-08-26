@@ -23,6 +23,7 @@ KERNEL_H = \
 	mod_os.h \
 	mutex.h \
 	param.h \
+	pmem_spl.h \
 	processor.h \
 	proc.h \
 	procfs_list.h \

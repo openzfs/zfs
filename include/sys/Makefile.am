@@ -108,6 +108,7 @@ COMMON_H = \
 	zfs_delay.h \
 	zfs_file.h \
 	zfs_fuid.h \
+	zfs_pmem.h \
 	zfs_project.h \
 	zfs_quota.h \
 	zfs_racct.h \
@@ -123,6 +124,14 @@ COMMON_H = \
 	zil.h \
 	zil_impl.h \
 	zil_lwb.h \
+	zil_pmem.h \
+	zil_pmem_impl.h \
+	zil_pmem_impl_bufpool.h \
+	zil_pmem_impl_hdr_update_chan.h \
+	zil_pmem_impl_state_tracking.h \
+	zil_pmem_prb.h \
+	zil_pmem_prb_impl.h \
+	zil_pmem_spa.h \
 	zio_checksum.h \
 	zio_compress.h \
 	zio_crypt.h \

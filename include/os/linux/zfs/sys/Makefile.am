@@ -14,6 +14,7 @@ KERNEL_H = \
 	trace_txg.h \
 	trace_vdev.h \
 	trace_zil_lwb.h \
+	trace_zil_pmem.h \
 	trace_zio.h \
 	trace_zrlock.h \
 	zfs_bootenv_os.h \

@@ -46,6 +46,7 @@ verify_runnable "global"
 
 log_assert "Attaching a log device passes."
 log_onexit cleanup
+not_on_zil_kind "zil-pmem" # ZIL-PMEM only supports exactly one PMEM SLOG, see tests/zfs-tests/tests/functional/slog/pmem_slog_001_neg.ksh
 log_must setup
 
 for type in "" "mirror" "raidz" "raidz2"

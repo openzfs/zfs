@@ -1,0 +1,13 @@
+[package]
+name = "bindings"
+version = "0.1.0"
+authors = ["Christian Schwarz <me@cschwarz.com>"]
+edition = "2018"
+
+[dependencies]
+libc = "*"
+
+[build-dependencies]
+bindgen = "0.53.1"
+tempfile = "*"
+subprocess = "*"

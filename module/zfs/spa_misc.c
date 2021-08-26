@@ -43,6 +43,7 @@
 #include <sys/vdev_trim.h>
 #include <sys/vdev_file.h>
 #include <sys/vdev_raidz.h>
+#include <sys/vdev_impl.h>
 #include <sys/metaslab.h>
 #include <sys/uberblock_impl.h>
 #include <sys/txg.h>
@@ -1241,6 +1242,7 @@ spa_vdev_config_exit(spa_t *spa, vdev_t *vd, uint64_t txg, int error, char *tag)
 	ASSERT(metaslab_class_validate(spa_embedded_log_class(spa)) == 0);
 	ASSERT(metaslab_class_validate(spa_special_class(spa)) == 0);
 	ASSERT(metaslab_class_validate(spa_dedup_class(spa)) == 0);
+	ASSERT(metaslab_class_validate(spa_exempt_class(spa)) == 0);
 
 	spa_config_exit(spa, SCL_ALL, spa);
 
@@ -1595,13 +1597,32 @@ zfs_strtonum(const char *str, char **nptr)
 }
 
 void
-spa_activate_allocation_classes(spa_t *spa, dmu_tx_t *tx)
+spa_activate_allocation_classes(spa_t *spa, dmu_tx_t *tx,
+    vdev_alloc_bias_t alloc_bias)
 {
+	ASSERT3S(alloc_bias, !=, VDEV_BIAS_NONE);
+
+	/* SLOGs existed before allocation classes */
+	if (alloc_bias == VDEV_BIAS_LOG) {
+		return;
+	}
+
 	/*
-	 * We bump the feature refcount for each special vdev added to the pool
+	 * We bump the feature refcount for each special vdev added to the pool.
 	 */
 	ASSERT(spa_feature_is_enabled(spa, SPA_FEATURE_ALLOCATION_CLASSES));
 	spa_feature_incr(spa, SPA_FEATURE_ALLOCATION_CLASSES, tx);
+
+	/*
+	 * At last, bump the feature refcounts for classes added after the
+	 * SPA_FEATURE_ALLOCATION_CLASSES feature.
+	 */
+
+	if (alloc_bias == VDEV_BIAS_EXEMPT) {
+		ASSERT(spa_feature_is_enabled(spa,
+		    SPA_FEATURE_ALLOCATION_CLASS_EXEMPT));
+		spa_feature_incr(spa, SPA_FEATURE_ALLOCATION_CLASS_EXEMPT, tx);
+	}
 }
 
 /*
@@ -1922,6 +1943,12 @@ metaslab_class_t *
 spa_dedup_class(spa_t *spa)
 {
 	return (spa->spa_dedup_class);
+}
+
+metaslab_class_t *
+spa_exempt_class(spa_t *spa)
+{
+	return (spa->spa_exempt_class);
 }
 
 /*
@@ -2477,6 +2504,7 @@ spa_fini(void)
 boolean_t
 spa_has_slogs(spa_t *spa)
 {
+	/* XXX zil-pmem / spa_exempt_class */
 	return (spa->spa_log_class->mc_groups != 0);
 }
 

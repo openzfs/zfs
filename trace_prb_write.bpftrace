@@ -1,0 +1,38 @@
+struct prb_write_stats {
+	uint64_t get_committer_slot_nanos;
+	uint64_t put_committer_slot_nanos;
+	uint64_t dt_sl_aquisition_nanos;
+	uint64_t dt_sl_held_nanos;
+	uint64_t pmem_nanos;
+
+	size_t get_chunk_calls;
+	size_t get_chunk_calls_sleeps;
+	size_t obsolete;
+	size_t beginning_new_gen;
+	size_t committer_slot;
+
+	void *entry_chunk;
+	uint8_t *entry_pmem_base;
+};
+
+
+kprobe:trace_zfs_zil_pmem_prb_write_entry__done 	// !HAVE_DECLARE_EVENT_CLASS
+// tracepoint:zfs:zfs_zil_pmem_prb_write_entry__done // HAVE_DECLARE_EVENT_CLASS
+{
+	$s = (struct prb_write_stats *)arg1; // !HAVE_DECLARE_EVENT_CLASS
+        // $s = args; // HAVE_DECLARE_EVENT_CLASS
+
+        //@hist_get_committer_slot_nanos        = hist($s->get_committer_slot_nanos);
+        //@hist_dt_sl_aquisition_nanos  = hist($s->dt_sl_aquisition_nanos);
+        //@hist_dt_sl_held_nanos                = hist($s->dt_sl_held_nanos);
+        //@hist_pmem_nanos              = hist($s->pmem_nanos);
+
+        @avg_get_committer_slot_nanos   = avg($s->get_committer_slot_nanos);
+        @avg_dt_sl_aquisition_nanos     = avg($s->dt_sl_aquisition_nanos);
+        @avg_dt_sl_held_nanos           = avg($s->dt_sl_held_nanos);
+        @avg_pmem_nanos                 = avg($s->pmem_nanos);
+	@hist_committer_slot		= lhist($s->committer_slot, 0, 16, 1);
+
+        //printf("zilpmem_prb_write_entry__done %llu\n", $s->pmem_nanos);
+}
+

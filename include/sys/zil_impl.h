@@ -101,6 +101,7 @@ typedef struct zil_vtable {
 } zil_vtable_t;
 
 extern const zil_vtable_t zillwb_vtable;
+extern const zil_vtable_t zilpmem_vtable;
 
 typedef const zil_vtable_t *zil_const_zil_vtable_ptr_t;
 extern const zil_const_zil_vtable_ptr_t zil_vtables[ZIL_KIND_COUNT];
@@ -150,6 +151,10 @@ zil_kind_specific_data_from_header(spa_t *spa, const zil_header_t *zh, const voi
 		case ZIL_KIND_LWB:
 			zhk = &zh->zh_v2.zh_lwb;
 			size = sizeof(zh->zh_v2.zh_lwb);
+			goto okout;
+		case ZIL_KIND_PMEM:
+			zhk = &zh->zh_v2.zh_pmem;
+			size = sizeof(zh->zh_v2.zh_pmem);
 			goto okout;
 		default:
 			/* ZIL_KIND_COUNT for grepping */

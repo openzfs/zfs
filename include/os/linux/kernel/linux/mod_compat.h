@@ -78,7 +78,8 @@ enum scope_prefix_types {
 	zfs_zevent,
 	zfs_zio,
 	zfs_zil,
-	zfs_zil_lwb
+	zfs_zil_lwb,
+	zfs_zil_pmem
 };
 
 /*
