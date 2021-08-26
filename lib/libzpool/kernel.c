@@ -670,6 +670,18 @@ static char ce_suffix[CE_IGNORE][2] = { "", "\n", "\n", "" };
 void
 vpanic(const char *fmt, va_list adx)
 {
+	va_list adx_h;
+	if (libspl_alternative_abort_handler != NULL) {
+		va_copy(adx_h, adx);
+		char *msg;
+		int err = vasprintf(&msg, fmt, adx);
+		if (err == -1)
+			goto nohandler;
+		libspl_alternative_abort_handler(
+		    libspl_alternative_abort_handler_arg, msg);
+		abort();
+	}
+nohandler:
 	(void) fprintf(stderr, "error: ");
 	(void) vfprintf(stderr, fmt, adx);
 	(void) fprintf(stderr, "\n");
