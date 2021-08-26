@@ -1286,6 +1286,12 @@ dmu_read_uio(objset_t *os, uint64_t object, zfs_uio_t *uio, uint64_t size)
 int
 dmu_write_uio_dnode(dnode_t *dn, zfs_uio_t *uio, uint64_t size, dmu_tx_t *tx)
 {
+	return (dmu_write_uioandcc_dnode(dn, uio, NULL, size, tx));
+}
+
+int
+dmu_write_uioandcc_dnode(dnode_t *dn, zfs_uio_t *uio, void *cc_buf, uint64_t size, dmu_tx_t *tx)
+{
 	dmu_buf_t **dbp;
 	int numbufs;
 	int err = 0;
@@ -1313,6 +1319,7 @@ dmu_write_uio_dnode(dnode_t *dn, zfs_uio_t *uio, uint64_t size, dmu_tx_t *tx)
 		else
 			dmu_buf_will_dirty(db, tx);
 
+		uint64_t written = uio->uio_resid;
 		/*
 		 * XXX zfs_uiomove could block forever (eg.nfs-backed
 		 * pages).  There needs to be a uiolockdown() function
@@ -1322,12 +1329,21 @@ dmu_write_uio_dnode(dnode_t *dn, zfs_uio_t *uio, uint64_t size, dmu_tx_t *tx)
 		err = zfs_uio_fault_move((char *)db->db_data + bufoff,
 		    tocpy, UIO_WRITE, uio);
 
+		ASSERT3S(uio->uio_resid, <=, written);
+		written -= uio->uio_resid;
+
+		if (cc_buf != NULL) {
+			bcopy(db->db_data + bufoff, cc_buf, written);
+			cc_buf += written;
+		}
+
 		if (tocpy == db->db_size)
 			dmu_buf_fill_done(db, tx);
 
 		if (err)
 			break;
 
+		ASSERT3U(written, ==, tocpy);
 		size -= tocpy;
 	}
 
@@ -1348,6 +1364,13 @@ int
 dmu_write_uio_dbuf(dmu_buf_t *zdb, zfs_uio_t *uio, uint64_t size,
     dmu_tx_t *tx)
 {
+	return (dmu_write_uioandcc_dbuf(zdb, uio, NULL, size, tx));
+}
+
+int
+dmu_write_uioandcc_dbuf(dmu_buf_t *zdb, zfs_uio_t *uio, void *cc_buf, uint64_t size,
+    dmu_tx_t *tx)
+{
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)zdb;
 	dnode_t *dn;
 	int err;
@@ -1357,7 +1380,7 @@ dmu_write_uio_dbuf(dmu_buf_t *zdb, zfs_uio_t *uio, uint64_t size,
 
 	DB_DNODE_ENTER(db);
 	dn = DB_DNODE(db);
-	err = dmu_write_uio_dnode(dn, uio, size, tx);
+	err = dmu_write_uioandcc_dnode(dn, uio, cc_buf, size, tx);
 	DB_DNODE_EXIT(db);
 
 	return (err);
