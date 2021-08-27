@@ -43,15 +43,39 @@ static zilog_pmem_limits_t zil_pmem_limits_tmpl = {
 	.zlplim_read_maxreclen = 1<<17,
 };
 
+
+enum zilpmem_stat_id {
+	ZILPMEM_STAT_WRITE_ENTRY_TIME,
+	ZILPMEM_STAT_WRITE_ENTRY_COUNT,
+	ZILPMEM_STAT_GET_DATA_TIME,
+	ZILPMEM_STAT_GET_DATA_COUNT,
+	ZILPMEM_STAT__COUNT,
+};
+
+struct zfs_percpu_counter_stat zilpmem_stats[ZILPMEM_STAT__COUNT] = {
+	{ZILPMEM_STAT_WRITE_ENTRY_TIME, "write_entry_time"},
+	{ZILPMEM_STAT_WRITE_ENTRY_COUNT, "write_entry_count"},
+	{ZILPMEM_STAT_GET_DATA_TIME, "get_data_time"},
+	{ZILPMEM_STAT_GET_DATA_COUNT, "get_data_count"},
+};
+
+struct zfs_percpu_counter_statset zilpmem_statset = {
+	.kstat_name = "zil_pmem",
+	.ncounters = ZILPMEM_STAT__COUNT,
+	.counters = zilpmem_stats,
+};
+
 static void
 zilpmem_init(void)
 {
 	zilpmem_prb_init();
+	zfs_percpu_counter_statset_create(&zilpmem_statset);
 }
 
 static void
 zilpmem_fini(void)
 {
+	zfs_percpu_counter_statset_destroy(&zilpmem_statset);
 	zilpmem_prb_fini();
 }
 
@@ -366,6 +390,7 @@ zilpmem_commit_itx(zilog_pmem_t *zilog, zilpmem_prb_handle_t *hdl,
 			lr_write_t *lrw __maybe_unused = (lr_write_t *)&itx->itx_lr;
 			ASSERT3U(lrw->lr_length, <=, max_lr_length); /* the creator of the itx */
 		}
+		const hrtime_t pre = gethrtime();
 		err = zilpmem_prb_write_entry_with_stats(
 		    hdl,
 		    itx->itx_lr.lrc_txg,
@@ -375,6 +400,9 @@ zilpmem_commit_itx(zilog_pmem_t *zilog, zilpmem_prb_handle_t *hdl,
 		    may_wait_for_txg_sync,
 		    NULL
 		);
+		const hrtime_t post = gethrtime();
+		zfs_percpu_counter_statset_add(&zilpmem_statset, ZILPMEM_STAT_WRITE_ENTRY_TIME, post - pre);
+		zfs_percpu_counter_statset_add(&zilpmem_statset, ZILPMEM_STAT_WRITE_ENTRY_COUNT, 1);
 #ifdef _KERNEL
 		if (unlikely(zfs_flags & ZFS_DEBUG_ZIL_PMEM)) {
 			char buf[ZFS_MAX_DATASET_NAME_LEN];
@@ -418,12 +446,16 @@ zilpmem_commit_itx(zilog_pmem_t *zilog, zilpmem_prb_handle_t *hdl,
 		VERIFY3U(staging_buffer->lr_common.lrc_reclen, <=, staging_buffer_len);
 		VERIFY3U(staging_buffer->lr_length, <=, staging_buffer_len - sizeof(*staging_buffer));
 
+		const hrtime_t pre_get_data = gethrtime();
 		err = zilog->zl_super.zl_get_data(itx->itx_private,
 		    itx->itx_gen,
 		    staging_buffer,
 		    (char*)(staging_buffer + 1),
 		    /* XXX use the wr_need_copy-specific function directly */
 		    NULL, NULL);
+		const hrtime_t post_get_data = gethrtime();
+		zfs_percpu_counter_statset_add(&zilpmem_statset, ZILPMEM_STAT_GET_DATA_TIME, post_get_data - pre_get_data);
+		zfs_percpu_counter_statset_add(&zilpmem_statset, ZILPMEM_STAT_GET_DATA_COUNT, 1);
 
 		if (err != 0) {
 			zfs_dbgmsg("error from get_data function while committing wr_need_copy itx: %d",
@@ -431,6 +463,7 @@ zilpmem_commit_itx(zilog_pmem_t *zilog, zilpmem_prb_handle_t *hdl,
 			goto out_dochunk_err;
 		}
 
+		const hrtime_t pre_write_entry = gethrtime();
 		err = zilpmem_prb_write_entry_with_stats(
 		    hdl,
 		    itx->itx_lr.lrc_txg,
@@ -452,6 +485,9 @@ zilpmem_commit_itx(zilog_pmem_t *zilog, zilpmem_prb_handle_t *hdl,
 		    may_wait_for_txg_sync,
 		    NULL
 		);
+		const hrtime_t post_write_entry = gethrtime();
+		zfs_percpu_counter_statset_add(&zilpmem_statset, ZILPMEM_STAT_WRITE_ENTRY_TIME, post_write_entry - pre_write_entry);
+		zfs_percpu_counter_statset_add(&zilpmem_statset, ZILPMEM_STAT_WRITE_ENTRY_COUNT, 1);
 		if (err != 0) {
 			zfs_dbgmsg("pmem write werror while committing wr_need_copy itx: %d", err);
 			goto out_dochunk_err;

@@ -7,6 +7,81 @@
 
 #include <stdbool.h>
 
+enum prb_stat_id {
+	PRB_STAT__PRB_WRITE__GET_COMMITTER_SLOT,
+	PRB_STAT__PRB_WRITE__PUT_COMMITTER_SLOT,
+	PRB_STAT__PRB_WRITE__DT_SL_AQUISITION,
+	PRB_STAT__PRB_WRITE__DT_SL_HELD,
+	PRB_STAT__PRB_WRITE__PMEM,
+	PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_OTHER,
+	PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_0,
+	PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_1,
+	PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_2,
+	PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_3,
+	PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_4,
+	PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_5,
+	PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_6,
+	PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_7,
+	PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_8,
+	PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_9,
+	PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_10,
+	PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_11,
+	PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_12,
+	PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_13,
+	PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_14,
+	PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_15,
+	PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_16,
+	PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_17,
+	PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_18,
+	PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_19,
+	PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_20,
+	PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_21,
+	PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_22,
+	PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_23,
+	PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_24,
+	PRB_STAT__COUNT,
+};
+
+struct zfs_percpu_counter_stat zilpmem_prb_stats[PRB_STAT__COUNT] = {
+	{PRB_STAT__PRB_WRITE__GET_COMMITTER_SLOT, 	"prb_write__get_committer_slot"},
+	{PRB_STAT__PRB_WRITE__PUT_COMMITTER_SLOT, 	"prb_write__put_committer_slot"},
+	{PRB_STAT__PRB_WRITE__DT_SL_AQUISITION, 	"prb_write__dt_sl_aquisition"},
+	{PRB_STAT__PRB_WRITE__DT_SL_HELD, 		"prb_write__dt_sl_held"},
+	{PRB_STAT__PRB_WRITE__PMEM, 			"prb_write__pmem"},
+    {PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_OTHER, "prb_write__committerslothist_b_other"},
+    {PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_0, "prb_write__committerslothist_b_0"},
+    {PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_1, "prb_write__committerslothist_b_1"},
+    {PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_2, "prb_write__committerslothist_b_2"},
+    {PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_3, "prb_write__committerslothist_b_3"},
+    {PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_4, "prb_write__committerslothist_b_4"},
+    {PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_5, "prb_write__committerslothist_b_5"},
+    {PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_6, "prb_write__committerslothist_b_6"},
+    {PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_7, "prb_write__committerslothist_b_7"},
+    {PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_8, "prb_write__committerslothist_b_8"},
+    {PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_9, "prb_write__committerslothist_b_9"},
+    {PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_10, "prb_write__committerslothist_b_10"},
+    {PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_11, "prb_write__committerslothist_b_11"},
+    {PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_12, "prb_write__committerslothist_b_12"},
+    {PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_13, "prb_write__committerslothist_b_13"},
+    {PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_14, "prb_write__committerslothist_b_14"},
+    {PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_15, "prb_write__committerslothist_b_15"},
+    {PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_16, "prb_write__committerslothist_b_16"},
+    {PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_17, "prb_write__committerslothist_b_17"},
+    {PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_18, "prb_write__committerslothist_b_18"},
+    {PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_19, "prb_write__committerslothist_b_19"},
+    {PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_20, "prb_write__committerslothist_b_20"},
+    {PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_21, "prb_write__committerslothist_b_21"},
+    {PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_22, "prb_write__committerslothist_b_22"},
+    {PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_23, "prb_write__committerslothist_b_23"},
+    {PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_24, "prb_write__committerslothist_b_24"},
+};
+
+struct zfs_percpu_counter_statset zilpmem_prb_statset = {
+	.kstat_name = "zil_pmem_prb",
+	.ncounters = PRB_STAT__COUNT,
+	.counters = zilpmem_prb_stats,
+};
+
 static entry_header_t zero_header = {0};
 
 static int
@@ -1261,6 +1336,17 @@ prb_write_result_t zilpmem_prb_write_entry_with_stats(
 	if (stats_out)
 		*stats_out = stats;
 
+	zfs_percpu_counter_statset_add(&zilpmem_prb_statset, PRB_STAT__PRB_WRITE__GET_COMMITTER_SLOT, 	stats.get_committer_slot_nanos);
+	zfs_percpu_counter_statset_add(&zilpmem_prb_statset, PRB_STAT__PRB_WRITE__PUT_COMMITTER_SLOT, 	stats.put_committer_slot_nanos);
+	zfs_percpu_counter_statset_add(&zilpmem_prb_statset, PRB_STAT__PRB_WRITE__DT_SL_AQUISITION, 	stats.dt_sl_aquisition_nanos);
+	zfs_percpu_counter_statset_add(&zilpmem_prb_statset, PRB_STAT__PRB_WRITE__DT_SL_HELD, 		stats.dt_sl_held_nanos);
+	zfs_percpu_counter_statset_add(&zilpmem_prb_statset, PRB_STAT__PRB_WRITE__PMEM, 		stats.pmem_nanos);
+    int slot = PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_OTHER;
+    if (stats.committer_slot >= 0 && stats.committer_slot < 24) {
+	    slot = PRB_STAT__PRB_WRITE__COMMITTERSLOTHIST_B_0 + stats.committer_slot;
+    }
+    zfs_percpu_counter_statset_add(&zilpmem_prb_statset, slot, 1);
+
 #ifdef KERNEL
 	if (res != PRB_WRITE_OK)
 		pr_debug("prb_write returned %d\n", res);
@@ -2183,8 +2269,10 @@ zilpmem_prb_replay_read_replay_node(const zilpmem_replay_node_t *rn,
 
 void zilpmem_prb_init(void)
 {
+	zfs_percpu_counter_statset_create(&zilpmem_prb_statset);
 }
 
 void zilpmem_prb_fini(void)
 {
+	zfs_percpu_counter_statset_destroy(&zilpmem_prb_statset);
 }
