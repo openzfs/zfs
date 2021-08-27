@@ -68,6 +68,16 @@ function log_must
 	(( $? != 0 )) && log_fail
 }
 
+# Execute a positive test (expecting no stderr) and exit $STF_FAIL
+# if test fails
+# $@ - command to execute
+
+function log_must_nostderr
+{
+	log_post_nostderr "$@"
+	(( $? != 0 )) && log_fail
+}
+
 # Execute a positive test but retry the command on failure if the output
 # matches an expected pattern.  Otherwise behave like log_must and exit
 # $STF_FAIL is test fails.
