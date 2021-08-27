@@ -5744,7 +5744,7 @@ zfs_setextattr_impl(struct vop_setextattr_args *ap, boolean_t compat)
 	}
 	if (error) {
 		error = zfs_setextattr_dir(ap, attrname);
-		if (error == 0) {
+		if (error == 0 && zp->z_is_sa) {
 			/*
 			 * Successfully put into dir, we need to clear the one
 			 * in SA if present.
