@@ -64,6 +64,20 @@ DEFINE_TASKQ_EVENT(zfs_taskq_ent__birth);
 DEFINE_TASKQ_EVENT(zfs_taskq_ent__start);
 DEFINE_TASKQ_EVENT(zfs_taskq_ent__finish);
 
+
+TRACE_EVENT(zfs_taskq_ent__delta_start_birth,
+	TP_PROTO(long long delta),
+	TP_ARGS(delta),
+	TP_STRUCT__entry(
+		__field(long long 		, delta)
+	),
+	TP_fast_assign(
+	__entry->delta = delta;
+	),
+	TP_printk("%lld", __entry->delta)
+);
+
+
 #endif /* _TRACE_TASKQ_H */
 
 #undef TRACE_INCLUDE_PATH
@@ -83,6 +97,7 @@ DEFINE_TASKQ_EVENT(zfs_taskq_ent__finish);
 
 DEFINE_DTRACE_PROBE1(taskq_ent__birth);
 DEFINE_DTRACE_PROBE1(taskq_ent__start);
+DEFINE_DTRACE_PROBE1(taskq_ent__delta_start_birth);
 DEFINE_DTRACE_PROBE1(taskq_ent__finish);
 
 #endif /* HAVE_DECLARE_EVENT_CLASS */

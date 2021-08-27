@@ -231,6 +231,7 @@ task_expire_impl(taskq_ent_t *t)
 	}
 
 	t->tqent_birth = jiffies;
+	t->tqent_birth_hr = gethrtime();
 	DTRACE_PROBE1(taskq_ent__birth, taskq_ent_t *, t);
 
 	/*
@@ -610,6 +611,7 @@ taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t flags)
 	t->tqent_timer.expires = 0;
 
 	t->tqent_birth = jiffies;
+	t->tqent_birth_hr = gethrtime();
 	DTRACE_PROBE1(taskq_ent__birth, taskq_ent_t *, t);
 
 	ASSERT(!(t->tqent_flags & TQENT_FLAG_PREALLOC));
@@ -725,6 +727,7 @@ taskq_dispatch_ent(taskq_t *tq, task_func_t func, void *arg, uint_t flags,
 	t->tqent_taskq = tq;
 
 	t->tqent_birth = jiffies;
+	t->tqent_birth_hr = gethrtime();
 	DTRACE_PROBE1(taskq_ent__birth, taskq_ent_t *, t);
 
 	spin_unlock(&t->tqent_lock);
@@ -941,6 +944,9 @@ taskq_thread(void *args)
 			taskq_insert_in_order(tq, tqt);
 			tq->tq_nactive++;
 			spin_unlock_irqrestore(&tq->tq_lock, flags);
+
+			DTRACE_PROBE1(taskq_ent__delta_start_birth, hrtime_t,
+			    gethrtime() - t->tqent_birth_hr);
 
 			DTRACE_PROBE1(taskq_ent__start, taskq_ent_t *, t);
 
