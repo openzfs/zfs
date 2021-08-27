@@ -74,7 +74,7 @@ function log_must
 
 function log_must_nostderr
 {
-	log_post_nostderr "$@"
+	log_pos_nostderr "$@"
 	(( $? != 0 )) && log_fail
 }
 
