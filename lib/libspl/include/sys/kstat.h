@@ -809,6 +809,28 @@ extern void kstat_rele(kstat_t *);
 
 #endif	/* defined(_KERNEL) */
 
+
+struct zfs_percpu_counter_stat {
+	int id;
+	const char *name;
+    int64_t counter_userspace;
+};
+
+struct zfs_percpu_counter_statset {
+	/* the following fields are set by the user */
+	const char *kstat_name;
+	int ncounters;
+	struct zfs_percpu_counter_stat *counters; // ncounters long
+
+	/* the following fields are used by the impl */
+	kstat_t *kstat;
+};
+
+static inline void zfs_percpu_counter_statset_create(struct zfs_percpu_counter_statset *ss) {}
+static inline void zfs_percpu_counter_statset_destroy(struct zfs_percpu_counter_statset *ss) {}
+static inline void zfs_percpu_counter_statset_add(struct zfs_percpu_counter_statset *ss, int id, int64_t amount) {}
+
+
 #ifdef	__cplusplus
 }
 #endif

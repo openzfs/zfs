@@ -215,4 +215,33 @@ extern void __kstat_delete(kstat_t *ksp);
 #define	kstat_install(k)		__kstat_install(k)
 #define	kstat_delete(k)			__kstat_delete(k)
 
+
+struct zfs_percpu_counter_stat {
+	int id;
+	const char *name;
+	struct percpu_counter counter;
+};
+
+struct zfs_percpu_counter_statset {
+	/* the following fields are set by the user */
+	const char *kstat_name;
+	int ncounters;
+	struct zfs_percpu_counter_stat *counters; // ncounters long
+
+	/* the following fields are used by the impl */
+	kstat_t *kstat;
+};
+
+void zfs_percpu_counter_statset_create(struct zfs_percpu_counter_statset *ss);
+void zfs_percpu_counter_statset_destroy(struct zfs_percpu_counter_statset *ss);
+
+static inline void
+zfs_percpu_counter_statset_add(struct zfs_percpu_counter_statset *ss, int id, int64_t amount) {
+	ASSERT3S(id, >=, 0);
+	ASSERT3S(id, <, ss->ncounters);
+	struct zfs_percpu_counter_stat *s = &ss->counters[id];
+	ASSERT3S(s->id, ==, id);
+	percpu_counter_add(&s->counter, amount);
+}
+
 #endif  /* _SPL_KSTAT_H */
