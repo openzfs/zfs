@@ -117,26 +117,26 @@ log_must diff $SRC_FILE $obj
 if is_global_zone; then
 	vol=$TESTPOOL/$TESTFS/vol.$$ ;	volclone=$TESTPOOL/$TESTFS/volclone.$$
 	log_must zfs create -V 100M $vol
-	block_device_wait
 
 	obj=$(target_obj $vol)
+	block_device_wait $obj
 	log_must dd if=$SRC_FILE of=$obj bs=$BS count=$CNT
 
 	snap=${vol}@snap.$$
 	log_must zfs snapshot $snap
 	log_must zfs clone $snap $volclone
-	block_device_wait
 
 	# Rename dataset & clone
 	log_must zfs rename $vol ${vol}-new
 	log_must zfs rename $volclone ${volclone}-new
-	block_device_wait
 
 	# Compare source file and target file
 	obj=$(target_obj ${vol}-new)
+	block_device_wait $obj
 	log_must dd if=$obj of=$DST_FILE bs=$BS count=$CNT
 	log_must diff $SRC_FILE $DST_FILE
 	obj=$(target_obj ${volclone}-new)
+	block_device_wait $obj
 	log_must dd if=$obj of=$DST_FILE bs=$BS count=$CNT
 	log_must diff $SRC_FILE $DST_FILE
 
@@ -144,10 +144,10 @@ if is_global_zone; then
 	log_must zfs rename ${vol}-new $vol
 	log_must zfs rename $snap ${snap}-new
 	log_must zfs clone ${snap}-new $volclone
-	block_device_wait
 
 	# Compare source file and target file
 	obj=$(target_obj $volclone)
+	block_device_wait $obj
 	log_must dd if=$obj of=$DST_FILE bs=$BS count=$CNT
 	log_must diff $SRC_FILE $DST_FILE
 fi
