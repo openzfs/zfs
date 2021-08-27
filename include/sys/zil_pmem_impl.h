@@ -58,6 +58,9 @@ typedef struct zilog_pmem {
 	zfs_bufpool_t zl_commit_lr_bufs; /* NULL while closed, non-NULL while open */
 	uint64_t zl_commit_lr_buf_len;	 /* set once in ctor */
 
+	uint64_t zl_itxg_bypass_waiting_for_sync;
+	uint64_t zl_itxg_bypass_first_itx_committed;
+
 } zilog_pmem_t;
 
 #define ZL_SPA(zilog) (zilog->zl_super.zl_spa)

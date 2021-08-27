@@ -197,6 +197,7 @@ zvol_write(zv_request_t *zvr)
 	const hrtime_t lr_end = gethrtime();
 	zfs_percpu_counter_statset_add(&zvol_os_linux_statset, ZVOL_OS_LINUX_STAT_WRITE_RANGELOCK_ENTER, lr_end - lr_start);
 
+	uint64_t need_wait = 0;
 	uint64_t volsize = zv->zv_volsize;
 	while (uio.uio_resid > 0 && uio.uio_loffset < volsize) {
 		uint64_t bytes = MIN(uio.uio_resid, DMU_MAX_ACCESS >> 1);
@@ -233,7 +234,7 @@ zvol_write(zv_request_t *zvr)
 				zvol_log_write_prefilled(&log_write, bytes);
 			}
 			const hrtime_t pre = gethrtime();
-			zvol_log_write_finish(&log_write, bytes);
+			need_wait = zvol_log_write_finish(&log_write, bytes);
 			const hrtime_t post = gethrtime();
 			zfs_percpu_counter_statset_add(&zvol_os_linux_statset, ZVOL_OS_LINUX_STAT_WRITE_LOG, post - pre);
 		} else {
@@ -250,6 +251,11 @@ zvol_write(zv_request_t *zvr)
 	int64_t nwritten = start_resid - uio.uio_resid;
 	dataset_kstats_update_write_kstats(&zv->zv_kstat, nwritten);
 	task_io_account_write(nwritten);
+
+	if (need_wait != 0) {
+		pr_debug("zfs_log_write_finish() indicated that it needs to wait for txg=%llu to sync\n", need_wait);
+		txg_wait_synced(dmu_objset_pool(zil_objset(zv->zv_zilog)), need_wait);
+	}
 
 	const hrtime_t pre_sync = gethrtime();
 	if (sync)
@@ -331,18 +337,24 @@ zvol_discard(zv_request_t *zvr)
 	zfs_locked_range_t *lr = zfs_rangelock_enter(&zv->zv_rangelock,
 	    start, size, RL_WRITER);
 
+	uint64_t need_wait = 0;
 	tx = dmu_tx_create(zv->zv_objset);
 	dmu_tx_mark_netfree(tx);
 	error = dmu_tx_assign(tx, TXG_WAIT);
 	if (error != 0) {
 		dmu_tx_abort(tx);
 	} else {
-		zvol_log_truncate(zv, tx, start, size, B_TRUE);
+		need_wait = zvol_log_truncate(zv, tx, start, size, B_TRUE);
 		dmu_tx_commit(tx);
 		error = dmu_free_long_range(zv->zv_objset,
 		    ZVOL_OBJ, start, size);
 	}
 	zfs_rangelock_exit(lr);
+
+	if (need_wait != 0) {
+		pr_debug("zfs_log_truncate() indicated that it needs to wait for txg=%llu to sync\n", need_wait);
+		txg_wait_synced(dmu_objset_pool(zil_objset(zv->zv_zilog)), need_wait);
+	}
 
 	if (error == 0 && sync)
 		zil_commit(zv->zv_zilog, ZVOL_OBJ);

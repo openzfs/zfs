@@ -112,6 +112,35 @@ zil_header_kind_matches_vtable(const zilog_t *zilog)
 	} while (0);
 
 
+enum zil_itxg_bypass_stat_id {
+	ZIL_ITXG_BYPASS_STAT_WRITE_UPGRADE,
+	ZIL_ITXG_BYPASS_STAT_DOWNGRADE,
+	ZIL_ITXG_BYPASS_STAT_AQUISITION_TOTAL,
+	ZIL_ITXG_BYPASS_STAT_VTABLE,
+	ZIL_ITXG_BYPASS_STAT_EXIT,
+	ZIL_ITXG_BYPASS_STAT_TOTAL,
+	ZIL_ITXG_BYPASS_STAT_COMMIT_TOTAL,
+	ZIL_ITXG_BYPASS_STAT_COMMIT_AQUIRE,
+	ZIL_ITXG_BYPASS_STAT__COUNT,
+};
+
+struct zfs_percpu_counter_stat zil_itxg_bypass_stats[ZIL_ITXG_BYPASS_STAT__COUNT] = {
+	{ZIL_ITXG_BYPASS_STAT_WRITE_UPGRADE, "assign__write_upgrade" },
+	{ZIL_ITXG_BYPASS_STAT_DOWNGRADE, "assign__downgrade" },
+	{ZIL_ITXG_BYPASS_STAT_AQUISITION_TOTAL, "assign__aquisition_total" },
+	{ZIL_ITXG_BYPASS_STAT_VTABLE, "assign__vtable" },
+	{ZIL_ITXG_BYPASS_STAT_EXIT, "assign__exit" },
+	{ZIL_ITXG_BYPASS_STAT_TOTAL, "assign__total" },
+	{ZIL_ITXG_BYPASS_STAT_COMMIT_TOTAL, "commit__total"},
+	{ZIL_ITXG_BYPASS_STAT_COMMIT_AQUIRE, "commit__aquire"},
+};
+struct zfs_percpu_counter_statset zil_itxg_bypass_statset = {
+	.kstat_name = "zil_itxg_bypass",
+	.ncounters = ZIL_ITXG_BYPASS_STAT__COUNT,
+	.counters = zil_itxg_bypass_stats,
+};
+
+
 /*
  * Called when we create in-memory log transactions so that we know
  * to cleanup the itxs at the end of spa_sync().
@@ -354,7 +383,7 @@ boolean_t zil_lr_is_indirect_write(const lr_t *lr)
  * - Panics if itx is WR_INDIRECT and !zil_supports_wr_indirect.
  * - Panics if itx is WR_COPIED and lr_length > zil_max_copied_data.
  */
-void
+uint64_t
 zil_itx_assign(zilog_t *zilog, itx_t *itx, dmu_tx_t *tx)
 {
 	uint64_t txg;
@@ -368,6 +397,127 @@ zil_itx_assign(zilog_t *zilog, itx_t *itx, dmu_tx_t *tx)
 	IMPLY((lrc->lrc_txtype == TX_WRITE && itx->itx_wr_state == WR_COPIED),
 	    (lrw->lr_length <= zil_max_copied_data(zilog)));
 
+
+	itx->itx_lr.lrc_txg = dmu_tx_get_txg(tx);
+
+	const enum zil_itxg_bypass_mode bypass_mode = zilog->zl_itxg_bypass.mode.mode;
+	if (bypass_mode != ZIL_ITXG_BYPASS_MODE_DISABLED) {
+		VERIFY(bypass_mode == ZIL_ITXG_BYPASS_MODE_CORRECT || bypass_mode == ZIL_ITXG_BYPASS_MODE_NOSERIALIZATION_INCORRECT_FOR_EVALUATION_ONLY);
+		ASSERT(zilog->zl_vtable->zlvt_itxg_bypass);
+
+		// FIXME: ASSERT that all zl_itxg are empty (we don't provide mechanismss to switch zl_itxg_bypass.enabled after allocation)
+
+		krwlock_t *rwlp = &zilog->zl_itxg_bypass.rwl;
+
+		hrtime_t stat_pre_exit = 0;
+		hrtime_t stat_post_exit = 0;
+		hrtime_t stat_pre_vtable_call = 0;
+		hrtime_t stat_post_vtable_call = 0;
+		hrtime_t stat_dontneed_write_pre_dowgrade = 0;
+		hrtime_t stat_post_write_aquire = 0;
+		hrtime_t stat_started = gethrtime();
+		if (bypass_mode == ZIL_ITXG_BYPASS_MODE_CORRECT)
+			rw_enter(rwlp, RW_READER);
+		hrtime_t stat_read_aquired = gethrtime();
+retry:
+		(void) 0;
+
+		boolean_t depends_on_any_previously_written_entry;
+		boolean_t ooo_flank;
+		boolean_t this_txtype_ooo;
+		if (bypass_mode == ZIL_ITXG_BYPASS_MODE_CORRECT) {
+			this_txtype_ooo = TX_OOO(itx->itx_lr.lrc_txtype);
+			ooo_flank = zilog->zl_itxg_bypass.last_txtype_ooo != this_txtype_ooo;
+			depends_on_any_previously_written_entry =
+				(zilog->zl_itxg_bypass.zil_commit_called || ooo_flank);
+
+			/* rwl serves two purposes:
+			* (1) protect zl_itxg_bypass data from concurrent udpates
+			* (2) ensure that only one thread at a time calls zlvt_itx_bypass()
+			*     iff depends_on_any_previously_written_entry. It's our
+			*     job as a caller to guarantee this, see doc omment of
+			*     zlvt_itx_bypass().
+			*/
+			const boolean_t hold_rwl_write_iff = depends_on_any_previously_written_entry || ooo_flank || zilog->zl_itxg_bypass.zil_commit_called;
+			if (hold_rwl_write_iff) {
+				if (!RW_WRITE_HELD(rwlp)) {
+					VERIFY0(stat_post_write_aquire); // only once on this code path
+					if (!rw_tryupgrade(rwlp)) {
+						rw_exit(rwlp);
+						rw_enter(rwlp, RW_WRITER);
+						stat_post_write_aquire = gethrtime();
+						goto retry;
+					}
+					stat_post_write_aquire = gethrtime();
+				}
+			}
+			if (!hold_rwl_write_iff && RW_WRITE_HELD(rwlp)) {
+				stat_dontneed_write_pre_dowgrade = gethrtime();
+				rw_downgrade(rwlp);
+			}
+			ASSERT(RW_LOCK_HELD(rwlp));
+			EQUIV(hold_rwl_write_iff, RW_WRITE_HELD(rwlp));
+		} else {
+			ASSERT(!RW_LOCK_HELD(rwlp));
+			depends_on_any_previously_written_entry = B_FALSE;
+		}
+
+		stat_pre_vtable_call = gethrtime();
+		uint64_t needs_wait_txg =
+		    zilog->zl_vtable->zlvt_itxg_bypass(zilog, tx, itx, depends_on_any_previously_written_entry);
+		stat_post_vtable_call = gethrtime();
+		if (unlikely(needs_wait_txg)) {
+			goto unlock;
+		} else {
+			zil_itx_destroy(itx);
+		}
+
+		if (bypass_mode == ZIL_ITXG_BYPASS_MODE_CORRECT) {
+			if (ooo_flank) {
+				ASSERT(RW_WRITE_HELD(rwlp));
+				zilog->zl_itxg_bypass.last_txtype_ooo = this_txtype_ooo;
+			} else {
+				ASSERT3B(zilog->zl_itxg_bypass.last_txtype_ooo, ==, this_txtype_ooo);
+			}
+
+			if (zilog->zl_itxg_bypass.zil_commit_called) {
+				ASSERT(RW_WRITE_HELD(rwlp));
+				zilog->zl_itxg_bypass.zil_commit_called = B_FALSE;
+			}
+		}
+
+unlock:
+		stat_pre_exit = gethrtime();
+		if (bypass_mode == ZIL_ITXG_BYPASS_MODE_CORRECT)
+			rw_exit(rwlp);
+		stat_post_exit = gethrtime();
+
+		// FIXME dedup with zilog_dirty() call below
+		/*
+		* We don't want to dirty the ZIL using ZILTEST_TXG, because
+		* zil_clean() will never be called using ZILTEST_TXG. Thus, we
+		* need to be careful to always dirty the ZIL using the "real"
+		* TXG (not itxg_txg) even when the SPA is frozen.
+		*/
+		zilog_dirty(zilog, dmu_tx_get_txg(tx)); /* XXX locking!? */
+
+		hrtime_t stat_ended = gethrtime();
+
+		if (stat_post_write_aquire != 0) {
+			zfs_percpu_counter_statset_add(&zil_itxg_bypass_statset, ZIL_ITXG_BYPASS_STAT_WRITE_UPGRADE, stat_post_write_aquire - stat_read_aquired);
+		}
+		if (stat_dontneed_write_pre_dowgrade != 0) {
+			ASSERT(stat_post_write_aquire);
+			zfs_percpu_counter_statset_add(&zil_itxg_bypass_statset, ZIL_ITXG_BYPASS_STAT_DOWNGRADE, stat_pre_vtable_call - stat_dontneed_write_pre_dowgrade);
+		}
+		zfs_percpu_counter_statset_add(&zil_itxg_bypass_statset, ZIL_ITXG_BYPASS_STAT_AQUISITION_TOTAL, stat_pre_vtable_call - stat_started);
+		zfs_percpu_counter_statset_add(&zil_itxg_bypass_statset, ZIL_ITXG_BYPASS_STAT_VTABLE, stat_post_vtable_call - stat_pre_vtable_call);
+		zfs_percpu_counter_statset_add(&zil_itxg_bypass_statset, ZIL_ITXG_BYPASS_STAT_EXIT, stat_post_exit - stat_pre_exit);
+		zfs_percpu_counter_statset_add(&zil_itxg_bypass_statset, ZIL_ITXG_BYPASS_STAT_TOTAL, stat_ended - stat_started);
+
+
+		return needs_wait_txg; // did all the work, yay
+	}
 
 	/*
 	 * Ensure the data of a renamed file is committed before the rename.
@@ -425,7 +575,6 @@ zil_itx_assign(zilog_t *zilog, itx_t *itx, dmu_tx_t *tx)
 		list_insert_tail(&ian->ia_list, itx);
 	}
 
-	itx->itx_lr.lrc_txg = dmu_tx_get_txg(tx);
 
 	/*
 	 * We don't want to dirty the ZIL using ZILTEST_TXG, because
@@ -439,6 +588,8 @@ zil_itx_assign(zilog_t *zilog, itx_t *itx, dmu_tx_t *tx)
 	/* Release the old itxs now we've dropped the lock */
 	if (clean != NULL)
 		zil_itxg_clean(clean);
+
+	return (0);
 }
 
 /*
@@ -635,6 +786,10 @@ zil_validate_header_format(spa_t *spa, const zil_header_t *zh)
 	return (vt->zlvt_validate_header_format(zhk, size));
 }
 
+int zfs_zil_itxg_bypass = 0;
+ZFS_MODULE_PARAM(zfs_zil, zfs_zil_, itxg_bypass, INT, ZMOD_RW,
+	"Enable experimental itxg bypass");
+
 zilog_t *
 zil_alloc(objset_t *os, zil_header_t *zh)
 {
@@ -657,6 +812,23 @@ zil_alloc(objset_t *os, zil_header_t *zh)
 		    MUTEX_DEFAULT, NULL);
 	}
 
+	uint64_t os_type = os->os_phys->os_type;
+	enum zil_itxg_bypass_mode want_bypass = __atomic_load_n(&zfs_zil_itxg_bypass, __ATOMIC_SEQ_CST);
+	boolean_t can_bypass = os_type == DMU_OST_ZVOL;
+	char osname[ZFS_MAX_DATASET_NAME_LEN];
+	dmu_objset_name(os, osname);
+	if (want_bypass && !can_bypass) {
+#ifdef KERNEL
+		pr_debug("objset %s: zfs_zil_itxg_bypass not supported for os_type=%llu\n", osname, os_type);
+#endif
+		want_bypass = ZIL_ITXG_BYPASS_MODE_DISABLED;
+	}
+	zilog->zl_itxg_bypass.mode.mode = want_bypass;
+#ifdef KERNEL
+	pr_debug("objset %s: itxg bypass mode=%d\n", osname, zilog->zl_itxg_bypass.mode.mode);
+#endif
+	rw_init(&zilog->zl_itxg_bypass.rwl, NULL, RW_DEFAULT, NULL);
+
 	ZIL_VCALL_void(zilog, zlvt_ctor, zilog);
 
 	return (zilog);
@@ -666,6 +838,8 @@ void
 zil_free(zilog_t *zilog)
 {
 	ZIL_VCALL_void(zilog, zlvt_dtor, zilog);
+
+	rw_destroy(&zilog->zl_itxg_bypass.rwl);
 
 	for (int i = 0; i < TXG_SIZE; i++) {
 		/*
@@ -721,12 +895,16 @@ zil_init(void)
 	ASSERT3S(zil_default_kind.zdk_val, ==, ZIL_KIND_UNINIT);
 	zil_default_kind.zdk_val = ZIL_KIND_LWB;
 	rrw_init(&zil_default_kind.zdk_rwl, B_FALSE);
+
+	zfs_percpu_counter_statset_create(&zil_itxg_bypass_statset);
 }
 
 
 void
 zil_fini(void)
 {
+	zfs_percpu_counter_statset_destroy(&zil_itxg_bypass_statset);
+
 	zil_default_kind.zdk_val = ZIL_KIND_UNINIT;
 	rrw_destroy(&zil_default_kind.zdk_rwl);
 
@@ -846,8 +1024,25 @@ zil_commit(zilog_t *zilog, uint64_t oid)
 	if (zilog->zl_sync == ZFS_SYNC_DISABLED)
 		return;
 
-	ZIL_VCALL_void(zilog, zlvt_commit, zilog, oid);
-	return;
+	switch (zilog->zl_itxg_bypass.mode.mode) {
+	case ZIL_ITXG_BYPASS_MODE_DISABLED:
+		ZIL_VCALL_void(zilog, zlvt_commit, zilog, oid);
+		return;
+	case ZIL_ITXG_BYPASS_MODE_NOSERIALIZATION_INCORRECT_FOR_EVALUATION_ONLY:
+		return;
+	case ZIL_ITXG_BYPASS_MODE_CORRECT:
+		(void) 0;
+		krwlock_t *rwlp = &zilog->zl_itxg_bypass.rwl;
+		const hrtime_t start = gethrtime();
+		rw_enter(rwlp, RW_WRITER);
+		const hrtime_t entered = gethrtime();
+		zfs_percpu_counter_statset_add(&zil_itxg_bypass_statset, ZIL_ITXG_BYPASS_STAT_COMMIT_AQUIRE,  entered - start);
+		zilog->zl_itxg_bypass.zil_commit_called = B_TRUE;
+		rw_exit(rwlp);
+		const hrtime_t end = gethrtime();
+		zfs_percpu_counter_statset_add(&zil_itxg_bypass_statset, ZIL_ITXG_BYPASS_STAT_COMMIT_TOTAL,  end - start);
+		return;
+	}
 }
 
 int

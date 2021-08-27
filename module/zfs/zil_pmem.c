@@ -148,6 +148,9 @@ ZIL_VFUNC(zilpmem_open)(zilog_t *super)
 
 	zfs_bufpool_ctor(&zl->zl_commit_lr_bufs, zl->zl_commit_lr_buf_len);
 
+	zl->zl_itxg_bypass_waiting_for_sync = 0;
+	zl->zl_itxg_bypass_first_itx_committed = 0;
+
 	VERIFY3P(zl->zl_sprbh, ==, NULL);
 	zl->zl_sprbh = zilpmem_spa_prb_hold(zl);
 	zilpmem_st_upd(zl, ZLP_ST_O_WAIT_REPLAY_OR_DESTROY);
@@ -188,6 +191,11 @@ ZIL_VFUNC(zilpmem_close)(zilog_t *super)
 	zil_header_pmem_t hu;
 	zilpmem_prb_destroy_log(hdl, &hu);
 	zilpmem_hdr_update_chan_send_from_open_txg_wait_synced(zl, hu, FTAG);
+
+	if (zl->zl_itxg_bypass_waiting_for_sync != 0) {
+		txg_wait_synced(ZL_POOL(zl), zl->zl_itxg_bypass_waiting_for_sync);
+		zl->zl_itxg_bypass_waiting_for_sync = 0;
+	}
 
 	hdl = NULL;
 	zilpmem_spa_prb_rele(zl, zl->zl_sprbh);
@@ -510,6 +518,179 @@ out_dochunk_err:
 out_err:
 	VERIFY(err);
 	return (err);
+}
+
+/*
+ * It is the caller's responsiblity to zil_itx_destroy() the itx if this call
+ * succeeds (returns 0) or to zil_itx_free_do_not_run_callback() if the call
+ * fails (returns != 0) and then to txg_wait_synced() for the return value in
+ * the failure case.
+ */
+static uint64_t
+ZIL_VFUNC(zilpmem_itxg_bypass)(zilog_t *super, dmu_tx_t *tx, itx_t *itx, boolean_t depends_on_any_previously_written_entry)
+{
+	uint64_t ret;
+	zilog_pmem_t *zilog = zilpmem_downcast(super);
+
+	zilpmem_st_enter(zilog, ZLP_ST_O_LOGGING, FTAG);
+
+	zilpmem_prb_handle_t *hdl = zilpmem_spa_prb_handle_ref_inner(zilog->zl_sprbh);
+	VERIFY(hdl);
+
+	/*
+	 * Lazily update the ZIL Header to state 'logging' the first time
+	 * we actually call zil_commit().
+	 * The function is not thread safe but and we cannot wait for
+	 * txg sync here because the tx holds the current txg open.
+	 * Thus, any time we'd need to wait for the ZIL header update
+	 * we instead return the MAX(update_txg, itx_txg) to the caller so they
+	 * can wait after committing / aborting the tx.
+	 * While we are queuing the header update we don't know update_txg yet,
+	 * so the code below implements a spinlock that waits for the first
+	 * thread that does the update to finish queuing it.
+	 */
+retry:
+	(void) 0;
+	uint64_t wait_txg;
+	wait_txg = __atomic_load_n(&zilog->zl_itxg_bypass_waiting_for_sync, __ATOMIC_SEQ_CST);
+	if (likely(wait_txg != 0 && wait_txg != UINT64_MAX)) {
+		// if itx > wait_txg we are good, otherwise indicate to caller that they need to wait
+		if (likely(spa_last_synced_txg(ZL_SPA(zilog)) > wait_txg)) {
+			// proceed with commit
+		} else {
+			// indicate to caller that they need to wait for
+			// - the might-not-yet-synced header update
+			// - this itx (because we are lazy)
+			ret = MAX(wait_txg, itx->itx_lr.lrc_txg);
+			goto out;
+		}
+	} else {
+		if (wait_txg == 0) {
+			// no thread has ever attempted create_log yet
+			// let's see if we are the one
+			if (__atomic_compare_exchange_n(&zilog->zl_itxg_bypass_waiting_for_sync, &wait_txg, UINT64_MAX, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)) {
+				// we are the one
+				zil_header_pmem_t hu;
+				// this function is not thread safe, that's why we need to synchronize...
+				boolean_t need_upd = zilpmem_prb_create_log_if_not_exists(
+				    hdl, &hu);
+				VERIFY(need_upd);
+				wait_txg = zilpmem_hdr_update_chan_send(zilog, hu, tx, FTAG);
+				// the following values have special meaning in this code
+				VERIFY3U(wait_txg, !=, 0);
+				VERIFY3U(wait_txg, !=, UINT64_MAX);
+				__atomic_store_n(&zilog->zl_itxg_bypass_waiting_for_sync, wait_txg, __ATOMIC_SEQ_CST);
+				goto retry;
+			} else {
+				// another thread was faster
+				schedule();
+				goto retry;
+			}
+		} else {
+			// waiting for a thread in the `if` branch to be done with it
+			schedule();
+			goto retry;
+
+		}
+	}
+	// ASSERT no header update necessary
+
+
+	/* for the noserialization now we need to ensure the following:
+	 * the first entry that is written needs to pass 'needs_new_gen' == true
+	 * all others can pass needs_new_gen == false, but the others need to
+	 * wait for the first entry
+	 * => yet another spin-based waiting section
+	 */
+	if (zilog->zl_super.zl_itxg_bypass.mode.mode == ZIL_ITXG_BYPASS_MODE_NOSERIALIZATION_INCORRECT_FOR_EVALUATION_ONLY) {
+noser_retry:
+		(void) 0;
+		VERIFY(!depends_on_any_previously_written_entry);
+		uint64_t first_itx_committed = __atomic_load_n(&zilog->zl_itxg_bypass_first_itx_committed, __ATOMIC_SEQ_CST);
+		if (likely(first_itx_committed == 2)) {
+			depends_on_any_previously_written_entry = B_FALSE;
+			goto commit_itx;
+		}
+		first_itx_committed = 0;
+		if (__atomic_compare_exchange_n(&zilog->zl_itxg_bypass_first_itx_committed, &first_itx_committed, 1, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)) {
+			// we are the one
+			depends_on_any_previously_written_entry = B_TRUE;
+			goto commit_itx;
+		} else {
+			// wait for the one
+			schedule();
+			goto noser_retry;
+		}
+	}
+
+commit_itx:
+	(void) 0;
+
+#ifdef ZFS_DEBUG
+	list_t commit_list;
+	list_create(&commit_list, sizeof (itx_t), offsetof(itx_t, itx_node));
+	zil_async_to_sync(super, 0);
+	zil_fill_commit_list(super, &commit_list);
+	VERIFY(list_is_empty(&commit_list));
+	list_destroy(&commit_list);
+#endif
+
+	zfs_bufpool_buf_ref_t lrbuf;
+	zfs_bufpool_get_ref(&zilog->zl_commit_lr_bufs, &lrbuf);
+
+	/* XXX preemption is now disabled, possibly not so great? */
+
+	uint64_t last_synced_txg = spa_last_synced_txg(ZL_SPA(zilog));
+	int err = zilpmem_commit_itx(zilog, hdl, itx, depends_on_any_previously_written_entry,
+		last_synced_txg,
+		/* FIXME check alignment */lrbuf.buf, lrbuf.size,
+		/* Must not block due to
+		[<0>] cv_wait_common+0xf8/0x130 [spl]
+		[<0>] get_chunk.isra.18+0xe5/0xf0 [zfs]
+		[<0>] prb_write+0x4b1/0x5e0 [zfs]
+		[<0>] zilpmem_prb_write_entry_with_stats+0x4c/0xa0 [zfs]
+		[<0>] zilpmem_prb_write_entry+0x12/0x20 [zfs]
+		[<0>] zilpmem_commit_itx.isra.16+0x1a6/0x300 [zfs]
+		[<0>] zilpmem_itxg_bypass+0xaa/0x180 [zfs]
+		[<0>] zil_itx_assign+0x33e/0x520 [zfs]
+		[<0>] zvol_log_write_finish+0x380/0x3b0 [zfs]
+		[<0>] zvol_write.isra.20+0x191/0x5c0 [zfs]
+		[<0>] zvol_write_task+0x15/0x30 [zfs]
+		[<0>] taskq_thread+0x2ec/0x530 [spl]
+		[<0>] kthread+0x116/0x130
+		[<0>] ret_from_fork+0x1f/0x30
+		*/
+		B_FALSE);
+	zfs_bufpool_put(&lrbuf);
+
+	if (zilog->zl_super.zl_itxg_bypass.mode.mode == ZIL_ITXG_BYPASS_MODE_NOSERIALIZATION_INCORRECT_FOR_EVALUATION_ONLY) {
+		if (depends_on_any_previously_written_entry) {
+			// we are the one
+			if (err != 0) {
+				// we can't tell the caller to wait for the itx's txg to sync because
+				// other threads might be spinning already, keeping the txg open
+				panic("itx commit errors for the first ever writer in 'noser' mode cannot be handled");
+			} else {
+				__atomic_store_n(&zilog->zl_itxg_bypass_first_itx_committed, 2, __ATOMIC_SEQ_CST);
+				// other threads can now start committing
+			}
+		}
+	}
+
+	if (err != 0) {
+#ifdef KERNEL
+		pr_debug("zilpmem_itxg_bypass: zilpmem_commit_itx returned an error. last_synced_txg=%llu lrc_txg=%llu\n", last_synced_txg, itx->itx_lr.lrc_txg);
+#endif
+		ret = itx->itx_lr.lrc_txg;
+		goto out;
+	}
+
+	ret = 0;
+
+out:
+	zilpmem_st_exit(zilog, ZLP_ST_O_LOGGING, FTAG);
+
+	return ret;
 }
 
 static void
@@ -1126,6 +1307,7 @@ const zil_vtable_t zilpmem_vtable = {
 
 	.zlvt_commit =	zilpmem_commit,
 	.zlvt_commit_on_spa_not_writeable = zilpmem_commit_on_spa_not_writeable,
+	.zlvt_itxg_bypass = zilpmem_itxg_bypass,
 
 	.zlvt_destroy =	zilpmem_destroy,
 	.zlvt_destroy_sync =	zilpmem_destroy_sync,

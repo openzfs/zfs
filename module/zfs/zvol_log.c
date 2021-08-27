@@ -74,6 +74,12 @@ zvol_log_write_begin(zilog_t *zilog, dmu_tx_t *tx,
 	if (write_state == WR_COPIED && nbytes > max_wr_copied_lr_length)
 		write_state = WR_NEED_COPY;
 
+	if (write_state == WR_NEED_COPY &&
+	    zv->zv_zilog->zl_itxg_bypass.mode.mode != ZIL_ITXG_BYPASS_MODE_DISABLED &&
+	    nbytes <= zil_max_copied_data(zilog))
+		write_state = WR_COPIED;
+
+
 	switch (write_state) {
 	case WR_COPIED:
 		pc->u.precopy = zvol_log_write_itx_create(
@@ -185,9 +191,11 @@ zvol_log_write_prefilled(zvol_log_write_t *pc, uint64_t tx_bytes)
 	}
 }
 
-void
+uint64_t
 zvol_log_write_finish(zvol_log_write_t *pc, uint64_t tx_bytes)
 {
+	uint64_t ret;
+
 	VERIFY3U(tx_bytes, ==, pc->nbytes); /* if this holds we can avoid the need to fill late using dmu_read_by_dnode if we require filling before finish */
 
 	/*
@@ -208,6 +216,7 @@ zvol_log_write_finish(zvol_log_write_t *pc, uint64_t tx_bytes)
 		case ZVOL_LOG_WRITE_NOPRECOPY:
 			/* fallthrough */
 			pc->st = ZVOL_LOG_WRITE_FINISHED;
+			ret = 0;
 			goto out;
 
 		case ZVOL_LOG_WRITE_CANCELLED:
@@ -220,17 +229,20 @@ zvol_log_write_finish(zvol_log_write_t *pc, uint64_t tx_bytes)
 	}
 	ASSERT(!replaying);
 
-
 examine:
 	switch (pc->st) {
 	case ZVOL_LOG_WRITE_UNLINKED:
+		ret = 0;
 		goto out;
 
 	case ZVOL_LOG_WRITE_PRECOPY_FILLED:
 		if (tx_bytes == pc->nbytes) {
 			itx_t *itx = pc->u.precopy;
 			ASSERT3S(itx->itx_wr_state, ==, WR_COPIED);
-			zil_itx_assign(pc->zilog, itx, pc->tx);
+			ret = zil_itx_assign(pc->zilog, itx, pc->tx);
+			if (ret != 0) {
+				zil_itx_free_do_not_run_callback(itx);
+			}
 			goto out_wrlog_count;
 		}
 		/* fallthrough */
@@ -266,12 +278,15 @@ examine:
 		    pc->nbytes,
 		    pc->sync,
 		    pc->zv);
-		zil_itx_assign(pc->zilog, itx, pc->tx);
+		ret = zil_itx_assign(pc->zilog, itx, pc->tx);
+		if (ret != 0) {
+			zil_itx_free_do_not_run_callback(itx);
+		}
 	} else if (write_state == WR_INDIRECT) {
 		const uint32_t blocksize = pc->blocksize;
 		uint64_t resid = pc->nbytes;
 		uint64_t off = pc->off;
-		while (resid) {
+		while (resid && ret == 0) {
 			ssize_t len =
 			    MIN(blocksize - P2PHASE(off, blocksize), resid);
 			itx = zvol_log_write_itx_create(
@@ -282,7 +297,10 @@ examine:
 			    pc->sync,
 			    pc->zv);
 
-			zil_itx_assign(pc->zilog, itx, pc->tx);
+			ret = zil_itx_assign(pc->zilog, itx, pc->tx);
+			if (ret != 0) {
+				zil_itx_free_do_not_run_callback(itx);
+			}
 
 			off += len;
 			resid -= len;
@@ -297,13 +315,13 @@ out_wrlog_count:
 		dsl_pool_wrlog_count(pc->zilog->zl_dmu_pool, pc->nbytes, pc->tx->tx_txg);
 	}
 out:
-	return;
+	return ret;
 }
 
 /*
  * Log a DKIOCFREE/free-long-range to the ZIL with TX_TRUNCATE.
  */
-void
+uint64_t
 zvol_log_truncate(zvol_state_t *zv, dmu_tx_t *tx, uint64_t off, uint64_t len,
     boolean_t sync)
 {
@@ -312,7 +330,7 @@ zvol_log_truncate(zvol_state_t *zv, dmu_tx_t *tx, uint64_t off, uint64_t len,
 	zilog_t *zilog = zv->zv_zilog;
 
 	if (zil_replaying(zilog, tx))
-		return;
+		return 0;
 
 	itx = zil_itx_create(TX_TRUNCATE, sizeof (*lr));
 	lr = (lr_truncate_t *)&itx->itx_lr;
@@ -321,7 +339,11 @@ zvol_log_truncate(zvol_state_t *zv, dmu_tx_t *tx, uint64_t off, uint64_t len,
 	lr->lr_length = len;
 
 	itx->itx_sync = sync;
-	zil_itx_assign(zilog, itx, tx);
+	uint64_t ret = zil_itx_assign(zilog, itx, tx);
+	if (ret != 0) {
+		zil_itx_free_do_not_run_callback(itx);
+	}
+	return ret;
 }
 
 static int
@@ -335,11 +357,51 @@ zvol_get_data_wr_need_copy(void *arg, lr_write_t *lr, char *buf, size_t buf_len)
 	ASSERT3U(size, ==, buf_len);
 
 	zfs_locked_range_t *rl_lr;
-	rl_lr = zfs_rangelock_enter(&zv->zv_rangelock, offset,
-	    size, RL_READER);
+	if (zv->zv_zilog->zl_itxg_bypass.mode.mode == ZIL_ITXG_BYPASS_MODE_DISABLED) {
+		rl_lr = zfs_rangelock_enter(&zv->zv_rangelock, offset,
+		    size, RL_READER);
+	} else {
+		// FIXME assert rangelog is held for the given range!
+		/*
+		[  242.558785] Call Trace:
+		[  242.559208]  __schedule+0x281/0x8a0
+		[  242.559748]  ? slab_pre_alloc_hook.constprop.0+0xd0/0x110
+		[  242.560520]  schedule+0x4a/0xb0
+		[  242.561022]  cv_wait_common+0x151/0x2a0 [spl]
+		[  242.561667]  ? add_wait_queue_exclusive+0x70/0x70
+		[  242.562411]  zfs_rangelock_enter_impl+0x156/0x650 [zfs]
+		[  242.563217]  zvol_get_data+0x55/0x330 [zfs]
+		[  242.563885]  zilpmem_commit_itx.part.0+0x22a/0x3f0 [zfs]
+		[  242.564686]  zilpmem_itxg_bypass+0x1ba/0x330 [zfs]
+		[  242.565371]  ? mutex_lock+0xe/0x30
+		[  242.565934]  ? rrw_exit+0xcf/0x2b0 [zfs]
+		[  242.566532]  ? _cond_resched+0x16/0x40
+		[  242.567094]  ? slab_pre_alloc_hook.constprop.0+0xd0/0x110
+		[  242.567847]  ? spl_kmem_cache_alloc+0xa3/0xc30 [spl]
+		[  242.569759]  ? kmem_cache_alloc+0xf4/0x220
+		[  242.570377]  ? spl_kmem_cache_alloc+0xc6/0xc30 [spl]
+		[  242.571154]  ? dmu_write_uioandcc_dnode+0x226/0x2e0 [zfs]
+		[  242.571916]  ? kfree+0xc0/0x3f0
+		[  242.572458]  ? dmu_write_uioandcc_dnode+0x226/0x2e0 [zfs]
+		[  242.573271]  zil_itx_assign+0x437/0x880 [zfs]
+		[  242.573958]  ? zil_itx_create+0x24/0x60 [zfs]
+		[  242.574668]  ? zvol_log_write_finish+0x2fe/0x440 [zfs]
+		[  242.575448]  zvol_write+0x18c/0x690 [zfs]
+		[  242.576089]  zvol_write_task+0xe/0x20 [zfs]
+		[  242.576712]  taskq_thread+0x309/0x6c0 [spl]
+		[  242.577337]  ? wake_up_q+0xa0/0xa0
+		[  242.577912]  ? zvol_write+0x690/0x690 [zfs]
+		[  242.578548]  ? taskq_thread_spawn+0x50/0x50 [spl]
+		[  242.579231]  kthread+0x11b/0x140
+		[  242.579741]  ? __kthread_bind_mask+0x60/0x60
+		[  242.580352]  ret_from_fork+0x22/0x30
+		*/
+	}
 	error = dmu_read_by_dnode(zv->zv_dn, offset, size, buf,
 	    DMU_READ_NO_PREFETCH);
-	zfs_rangelock_exit(rl_lr);
+	if (zv->zv_zilog->zl_itxg_bypass.mode.mode == ZIL_ITXG_BYPASS_MODE_DISABLED) {
+		zfs_rangelock_exit(rl_lr);
+	}
 
 	return (SET_ERROR(error));
 }

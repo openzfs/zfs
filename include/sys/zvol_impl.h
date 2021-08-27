@@ -85,7 +85,7 @@ uint64_t zvol_name_hash(const char *name);
 void zvol_remove_minors_impl(const char *name);
 void zvol_last_close(zvol_state_t *zv);
 void zvol_insert(zvol_state_t *zv);
-void zvol_log_truncate(zvol_state_t *zv, dmu_tx_t *tx, uint64_t off,
+uint64_t zvol_log_truncate(zvol_state_t *zv, dmu_tx_t *tx, uint64_t off,
     uint64_t len, boolean_t sync);
 
 typedef enum {
@@ -129,7 +129,7 @@ uint8_t *
 zvol_log_write_get_prefill_buf(zvol_log_write_t *pc, size_t *buf_size);
 void
 zvol_log_write_prefilled(zvol_log_write_t *pc, uint64_t tx_bytes);
-void
+uint64_t
 zvol_log_write_finish(zvol_log_write_t *pc, uint64_t tx_bytes);
 
 int zvol_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,

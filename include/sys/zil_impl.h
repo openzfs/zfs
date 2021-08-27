@@ -79,6 +79,7 @@ typedef struct zil_vtable {
 
 	void (*zlvt_commit)(zilog_t *zilog, uint64_t foid);
 	void (*zlvt_commit_on_spa_not_writeable)(zilog_t *zilog);
+	uint64_t (*zlvt_itxg_bypass)(zilog_t *zilog, dmu_tx_t *tx, itx_t *itx, boolean_t depends_on_any_previously_written_entry);
 
 	void (*zlvt_destroy)(zilog_t *zilog);
 	void (*zlvt_destroy_sync)(zilog_t *zilog, dmu_tx_t *tx);
@@ -183,6 +184,12 @@ okout:
  * Stable storage intent log management structure.  One per dataset.
  */
 
+enum zil_itxg_bypass_mode {
+	ZIL_ITXG_BYPASS_MODE_DISABLED,
+	ZIL_ITXG_BYPASS_MODE_CORRECT,
+	ZIL_ITXG_BYPASS_MODE_NOSERIALIZATION_INCORRECT_FOR_EVALUATION_ONLY,
+};
+
 struct zilog {
 	const zil_vtable_t	*zl_vtable;
 
@@ -195,6 +202,18 @@ struct zilog {
 	uint8_t		zl_logbias;	/* latency or throughput */
 	uint8_t		zl_sync;	/* synchronous or asynchronous */
 	itxg_t		zl_itxg[TXG_SIZE]; /* intent log txg chains */
+	struct {
+		struct {
+			enum zil_itxg_bypass_mode mode;
+		} mode;
+
+		krwlock_t rwl;
+
+		/* vars for mode 'correct' */
+		boolean_t last_txtype_ooo;
+		boolean_t zil_commit_called;
+
+	} zl_itxg_bypass;
 
 	txg_node_t	zl_dirty_link;	/* protected by dp_dirty_zilogs list */
 	uint64_t	zl_dirty_max_txg; /* highest txg used to dirty zilog */
