@@ -1939,6 +1939,8 @@ ztest_log_write(ztest_ds_t *zd, dmu_tx_t *tx, lr_write_t *lr)
 	if (write_state == WR_COPIED && lr->lr_length > max_wr_copied_lr_length)
 		write_state = WR_NEED_COPY;
 
+	if (write_state == WR_INDIRECT && !zil_supports_wr_indirect(zilog))
+		write_state = WR_NEED_COPY;
 	/* END copied from zfs_log.c */
 
 	itx = zil_itx_create(TX_WRITE,

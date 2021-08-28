@@ -318,6 +318,16 @@ zil_remove_async(zilog_t *zilog, uint64_t oid)
 	list_destroy(&clean_list);
 }
 
+/*
+ * Returns B_TRUE if the zil kind supports WR_INDIRECT lr_write_t / itxs.
+ * Returns B_FALSE otherwise.
+ */
+boolean_t
+zil_supports_wr_indirect(zilog_t *zilog)
+{
+	return (zilog->zl_vtable->zlvt_supports_wr_indirect);
+}
+
 boolean_t zil_lr_is_indirect_write(const lr_t *lr)
 {
 	uint64_t txtype = lr->lrc_txtype & (~TX_CI);
@@ -333,6 +343,7 @@ boolean_t zil_lr_is_indirect_write(const lr_t *lr)
 }
 
 /*
+ * - Panics if itx is WR_INDIRECT and !zil_supports_wr_indirect.
  * - Panics if itx is WR_COPIED and lr_length > zil_max_copied_data.
  */
 void
@@ -343,6 +354,8 @@ zil_itx_assign(zilog_t *zilog, itx_t *itx, dmu_tx_t *tx)
 	itxs_t *itxs, *clean = NULL;
 
 	const lr_t *lrc = &itx->itx_lr;
+	IMPLY((lrc->lrc_txtype == TX_WRITE && itx->itx_wr_state == WR_INDIRECT),
+	    (zilog->zl_vtable->zlvt_supports_wr_indirect));
 	const lr_write_t *lrw = (const lr_write_t *)&itx->itx_lr;
 	IMPLY((lrc->lrc_txtype == TX_WRITE && itx->itx_wr_state == WR_COPIED),
 	    (lrw->lr_length <= zil_max_copied_data(zilog)));

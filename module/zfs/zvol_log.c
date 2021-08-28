@@ -36,6 +36,9 @@ zvol_log_write(zvol_state_t *zv, dmu_tx_t *tx, uint64_t offset,
 	else
 		write_state = WR_NEED_COPY;
 
+	if (write_state == WR_INDIRECT && !zil_supports_wr_indirect(zilog))
+		write_state = WR_NEED_COPY;
+
 	while (size) {
 		itx_t *itx;
 		lr_write_t *lr;

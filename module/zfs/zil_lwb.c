@@ -3345,6 +3345,7 @@ const zil_vtable_t zillwb_vtable = {
 	.zlvt_init = zillwb_init,
 	.zlvt_fini = zillwb_fini,
 	.zlvt_reset_logs = zillwb_reset_logs,
+	.zlvt_supports_wr_indirect = B_TRUE,
 
 	.zlvt_validate_header_format = zillwb_validate_header_format,
 	.zlvt_init_header = zillwb_init_header,

@@ -65,6 +65,7 @@ typedef struct zil_vtable {
 	void (*zlvt_init)(void);
 	void (*zlvt_fini)(void);
 	int (*zlvt_reset_logs)(spa_t *);
+	boolean_t zlvt_supports_wr_indirect;
 
 	void (*zlvt_init_header)(void *zh, size_t size);
 	boolean_t (*zlvt_validate_header_format)(const void *zh, size_t size);
@@ -201,6 +202,7 @@ boolean_t zilog_is_dirty(zilog_t *zilog);
 
 /* zfs_log.c */
 extern uint64_t	zil_max_copied_data(zilog_t *zilog);
+extern boolean_t zil_supports_wr_indirect(zilog_t *zilog);
 extern void zil_itx_ctor_on_zeroed_memory(itx_t *itx, lr_t *lr, uint64_t txtype, size_t lrsize);
 
 static inline boolean_t
