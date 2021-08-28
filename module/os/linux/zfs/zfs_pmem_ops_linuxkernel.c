@@ -11,7 +11,7 @@ pmem_linuxkernel_drain_impl(void)
 }
 
 static void
-pmem_linuxkernel_memcpy256_nt_nodrain(void *dst, const void *buf, size_t size)
+pmem_linuxkernel_memcpy256_nt_nodrain(void *dst, const void *buf, size_t size, zfs_kfpu_ctx_t *kfpu_ctx)
 {
 	spl_memcpy_flushcache(dst, buf, size);
 }
@@ -19,7 +19,7 @@ pmem_linuxkernel_memcpy256_nt_nodrain(void *dst, const void *buf, size_t size)
 static uint8_t pmem_linuxkernel_256zeroes[256] = {0};
 
 static void
-pmem_linuxkernel_memzero256_nt_nodrain(void *dst, size_t size)
+pmem_linuxkernel_memzero256_nt_nodrain(void *dst, size_t size, zfs_kfpu_ctx_t *kfpu_ctx)
 {
 	CTASSERT(sizeof(pmem_linuxkernel_256zeroes) == 256);
 	/* use VERIFY so that the compiler optimizes divisions to shifts */

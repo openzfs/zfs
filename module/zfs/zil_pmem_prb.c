@@ -277,7 +277,10 @@ void prb_chunk_free(prb_chunk_t *c)
 static void
 chunk_zero_first_256(prb_chunk_t *chunk)
 {
-	zfs_pmem_memzero256_nt_nodrain(chunk->ch_base, sizeof(entry_header_t));
+	zfs_kfpu_ctx_t kfpu_ctx;
+	zfs_kfpu_ctx_init(&kfpu_ctx);
+	zfs_pmem_memzero256_nt_nodrain(chunk->ch_base, sizeof(entry_header_t),
+	    &kfpu_ctx);
 	zfs_pmem_drain();
 }
 
@@ -460,10 +463,11 @@ get_chunk(zilpmem_prb_t *b, boolean_t sleep, prb_write_stats_t *stats)
 }
 
 static void
-entry_body_fletcher4(const void *body_dram, size_t body_len, zio_cksum_t *out)
+entry_body_fletcher4(const void *body_dram, size_t body_len, zio_cksum_t *out,
+    zfs_kfpu_ctx_t *kfpu_ctx)
 {
 	if (IS_P2ALIGNED(body_len, sizeof (uint32_t))) {
-		fletcher_4_native(body_dram, body_len, NULL, out);
+		fletcher_4_native_kfpu_ctx(body_dram, body_len, out, kfpu_ctx);
 	} else {
 		fletcher_4_native_varsize(body_dram, body_len, out);
 	}
@@ -639,10 +643,14 @@ prb_write_raw_chunk_result_t prb_write_chunk(prb_chunk_t *entry_chunk, uint64_t 
 		ASSERT0(memcmp(&tmp, &zero_header, sizeof (tmp)));
 	}
 
+	zfs_kfpu_ctx_t kfpu_ctx;
+	zfs_kfpu_ctx_init(&kfpu_ctx);
+	zfs_kfpu_enter(&kfpu_ctx);
+
 	/* Compute the checksums */
 	/* FIXME handle zero value */
-	entry_body_fletcher4(body_dram, body_len, &header->eh_data.eh_body_csum);
-
+	entry_body_fletcher4(body_dram, body_len,
+	    &header->eh_data.eh_body_csum, &kfpu_ctx);
 	/*
 	 * Put result on stack so that the checksumming function checksums
 	 * header->eh_data.eh_header_csum == {0}
@@ -650,7 +658,7 @@ prb_write_raw_chunk_result_t prb_write_chunk(prb_chunk_t *entry_chunk, uint64_t 
 	/* FIXME handle zero value */
 	ASSERT(ZIO_CHECKSUM_IS_ZERO(&header->eh_data.eh_header_csum));
 	zio_cksum_t header_csum;
-	fletcher_4_native(header, sizeof(*header), NULL, &header_csum);
+	fletcher_4_native_kfpu_ctx(header, sizeof(*header), &header_csum, &kfpu_ctx);
 	header->eh_data.eh_header_csum = header_csum;
 
 	/* zero the follow header space in this chunk */
@@ -658,7 +666,7 @@ prb_write_raw_chunk_result_t prb_write_chunk(prb_chunk_t *entry_chunk, uint64_t 
 	ASSERT3P(entry_chunk_next_cur, <=, entry_chunk->ch_end);
 	uintptr_t rlen = MIN(256, entry_chunk->ch_end - entry_chunk_next_cur);
 	ASSERT3U((rlen % 256), ==, 0); /* that's our granularity anyways */
-	zfs_pmem_memzero256_nt_nodrain(entry_chunk_next_cur, rlen);
+	zfs_pmem_memzero256_nt_nodrain(entry_chunk_next_cur, rlen, &kfpu_ctx);
 
 
 	/* write out bulk of the body */
@@ -668,13 +676,16 @@ prb_write_raw_chunk_result_t prb_write_chunk(prb_chunk_t *entry_chunk, uint64_t 
 	zfs_pmem_memcpy256_nt_nodrain(
 	    header_pmem + sizeof(entry_header_t),
 	    body_dram,
-	    body_bulk_len);
+	    body_bulk_len,
+	    &kfpu_ctx);
 	/* write out trailing part of body */
 	ASSERT3U(staging_len % 256, ==, 0);
 	zfs_pmem_memcpy256_nt_nodrain(
 	    header_pmem + sizeof(entry_header_t) + body_bulk_len,
 	    staging_start,
-	    staging_len);
+	    staging_len,
+	    &kfpu_ctx
+	);
 
 	/* end of phase (1) */
 	zfs_pmem_drain();
@@ -685,7 +696,10 @@ prb_write_raw_chunk_result_t prb_write_chunk(prb_chunk_t *entry_chunk, uint64_t 
 	 */
 	ASSERT((uintptr_t)header_pmem % 256 == 0);
 	zfs_pmem_memcpy256_nt_nodrain(header_pmem, header,
-	    sizeof(entry_header_t));
+	    sizeof(entry_header_t), &kfpu_ctx);
+
+	zfs_kfpu_exit(&kfpu_ctx);
+	ASSERT(!zfs_kfpu_ctx_held(&kfpu_ctx));
 
 	/* end of phase (2) */
 	zfs_pmem_drain();

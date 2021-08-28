@@ -288,20 +288,21 @@ int zfs_pmem_memcpy_mcsafe(void *dst, const void *src_pmem, size_t size)
 }
 #endif /* __KERNEL__ */
 
-void zfs_pmem_memcpy256_nt_nodrain(void *dst, const void *src, size_t size)
+void zfs_pmem_memcpy256_nt_nodrain(void *dst, const void *src, size_t size,
+				   zfs_kfpu_ctx_t *kfpu_ctx)
 {
 	ASSERT0(((uintptr_t)dst) % 64);
 	ASSERT0(size % 4 * 64);
 	const zfs_pmem_ops_t *ops = zfs_pmem_ops_get_current_impl();
-	ops->zpmem_op_memcpy256_nt_nodrain(dst, src, size);
+	ops->zpmem_op_memcpy256_nt_nodrain(dst, src, size, kfpu_ctx);
 }
 
-void zfs_pmem_memzero256_nt_nodrain(void *dst, size_t size)
+void zfs_pmem_memzero256_nt_nodrain(void *dst, size_t size, zfs_kfpu_ctx_t *kfpu_ctx)
 {
 	ASSERT0(((uintptr_t)dst) % 64);
 	ASSERT0(size % (4 * 64));
 	const zfs_pmem_ops_t *ops = zfs_pmem_ops_get_current_impl();
-	ops->zpmem_op_memzero256_nt_nodrain(dst, size);
+	ops->zpmem_op_memzero256_nt_nodrain(dst, size, kfpu_ctx);
 }
 
 void zfs_pmem_drain(void)

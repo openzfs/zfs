@@ -10,8 +10,8 @@
 typedef struct zfs_pmem_ops {
 	const char *zpmem_op_name;
 	boolean_t (*zpmem_op_check_supported)(void);
-	void (*zpmem_op_memcpy256_nt_nodrain)(void *d, const void *s, size_t n);
-	void (*zpmem_op_memzero256_nt_nodrain)(void *d, size_t n);
+	void (*zpmem_op_memcpy256_nt_nodrain)(void *d, const void *s, size_t n, zfs_kfpu_ctx_t *kfpu_ctx);
+	void (*zpmem_op_memzero256_nt_nodrain)(void *d, size_t n, zfs_kfpu_ctx_t *kfpu_ctx);
 	void (*zpmem_op_drain)(void);
 	int (*zpmem_op_init)(void);
 	int (*zpmem_op_fini)(void);
@@ -29,8 +29,8 @@ const zfs_pmem_ops_t* zfs_pmem_ops_get_by_name(const char *val);
 /* ops must have been returned by zfs_pmem_ops_get_by_name */
 void zfs_pmem_ops_set(const zfs_pmem_ops_t *ops);
 
-void zfs_pmem_memcpy256_nt_nodrain(void *dst, const void *src, size_t n);
-void zfs_pmem_memzero256_nt_nodrain(void *dst, size_t s);
+void zfs_pmem_memcpy256_nt_nodrain(void *dst, const void *src, size_t n, zfs_kfpu_ctx_t *kfpu_ctx);
+void zfs_pmem_memzero256_nt_nodrain(void *dst, size_t s, zfs_kfpu_ctx_t *kfpu_ctx);
 void zfs_pmem_drain(void);
 
 int zfs_pmem_memcpy_mcsafe(void *dst, const void *pmem_src, size_t n);

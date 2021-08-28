@@ -10,13 +10,14 @@ void pmem_drain(void);
 void pmem_memcpy_persist(void *, const void *, size_t);
 
 static void
-pmem_libpmem_memcpy256_nt_nodrain(void *dst, const void *src, size_t size)
+pmem_libpmem_memcpy256_nt_nodrain(void *dst, const void *src, size_t size,
+				  zfs_kfpu_ctx_t *kfpu_ctx)
 {
 	pmem_memcpy_nodrain(dst, src, size);
 }
 
 static void
-pmem_libpmem_memzero256_nt_nodrain(void *dst, size_t size)
+pmem_libpmem_memzero256_nt_nodrain(void *dst, size_t size, zfs_kfpu_ctx_t *kfpu_ctx)
 {
 	pmem_memset_nodrain(dst, 0, size);
 }

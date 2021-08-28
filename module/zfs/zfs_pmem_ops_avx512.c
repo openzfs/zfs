@@ -10,12 +10,12 @@ pmem_avx512_drain_impl(void)
 }
 
 static void
-pmem_avx512_memcpy256_nt_nodrain(void *dst, const void *buf, size_t size)
+pmem_avx512_memcpy256_nt_nodrain(void *dst, const void *buf, size_t size, zfs_kfpu_ctx_t *kfpu_ctx)
 {
 	ASSERT0(((uintptr_t)dst) % 64); /* 64 byte alignment required by vmovntdq */
 	ASSERT0(size % 4*64); /* code below only works at that granularity */
 
-	kfpu_begin();
+	zfs_kfpu_enter(kfpu_ctx);
 
 	/*
 	 * by using userspace library, gdb breakpoint on pmem_memcpy_nodrain
@@ -43,17 +43,17 @@ pmem_avx512_memcpy256_nt_nodrain(void *dst, const void *buf, size_t size)
 		__asm("vmovntdq %%zmm3, %0" : "=m"  (*(o + 3*64)));
 	}
 
-	kfpu_end();
+	zfs_kfpu_exit(kfpu_ctx);
 }
 
 
 static void
-pmem_avx512_memzero256_nt_nodrain(void *dst, size_t size)
+pmem_avx512_memzero256_nt_nodrain(void *dst, size_t size, zfs_kfpu_ctx_t *kfpu_ctx)
 {
 	ASSERT0(((uintptr_t)dst) % 64); /* 64 byte alignment required by vmovntdq */
 	ASSERT0(size % 4*64); /* code below only works at that granularity */
 
-	kfpu_begin();
+	zfs_kfpu_enter(kfpu_ctx);
 
 	/*
 	 * Zero out zmm{0,1,2,3}
@@ -77,7 +77,7 @@ pmem_avx512_memzero256_nt_nodrain(void *dst, size_t size)
 		__asm("vmovntdq %%zmm3, %0" : "=m"  (*(o + 3*64)));
 	}
 
-	kfpu_end();
+	zfs_kfpu_exit(kfpu_ctx);
 }
 
 
