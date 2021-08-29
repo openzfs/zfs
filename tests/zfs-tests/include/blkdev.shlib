@@ -93,7 +93,7 @@ function block_device_wait
 		typeset missing=false
 		typeset dev
 		for dev in "${@}"; do
-			if ! [[ -f $dev ]]; then
+			if ! [[ -e $dev ]]; then
 				missing=true
 				break
 			fi

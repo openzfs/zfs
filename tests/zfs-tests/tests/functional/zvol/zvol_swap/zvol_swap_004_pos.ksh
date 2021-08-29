@@ -62,7 +62,7 @@ for vbs in 8192 16384 32768 65536 131072; do
 
 		# Create a sparse volume to test larger sizes
 		log_must zfs create -s -b $vbs -V $volsize $vol
-		block_device_wait
+		block_device_wait $swapname
 		log_must swap_setup $swapname
 
 		new_volsize=$(get_prop volsize $vol)
