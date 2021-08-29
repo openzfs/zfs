@@ -169,6 +169,7 @@ KERNEL_C = \
 	zfs_ratelimit.c \
 	zfs_rlock.c \
 	zil.c \
+	zil_lwb.c \
 	zio.c \
 	zio_checksum.c \
 	zio_compress.c \

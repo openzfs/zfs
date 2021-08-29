@@ -219,6 +219,12 @@ typedef struct zil_bp_node {
 	avl_node_t	zn_node;
 } zil_bp_node_t;
 
+/* zil.c <=> zil_lwb.c */
+extern int zil_maxblocksize;
+void zil_commit_waiter_skip(zil_commit_waiter_t *zcw);
+boolean_t zilog_is_dirty(zilog_t *zilog);
+void zil_get_commit_list(zilog_t *zilog);
+
 #ifdef	__cplusplus
 }
 #endif

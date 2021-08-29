@@ -124,6 +124,7 @@ $(MODULE)-objs += zfs_rlock.o
 $(MODULE)-objs += zfs_sa.o
 $(MODULE)-objs += zfs_vnops.o
 $(MODULE)-objs += zil.o
+$(MODULE)-objs += zil_lwb.o
 $(MODULE)-objs += zio.o
 $(MODULE)-objs += zio_checksum.o
 $(MODULE)-objs += zio_compress.o
