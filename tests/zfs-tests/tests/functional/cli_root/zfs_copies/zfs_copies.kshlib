@@ -87,7 +87,7 @@ function do_vol_test
 
 	log_must zfs create -V $VOLSIZE -o copies=$copies $vol
 	log_must zfs set refreservation=none $vol
-	block_device_wait
+	block_device_wait $vol_r_path
 
 	case "$type" in
 	"ext2")
