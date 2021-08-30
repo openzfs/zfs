@@ -1776,9 +1776,7 @@ zio_write_compress(zio_t *zio)
 		    spa->spa_min_alloc), lsize);
 
 		if (rounded != psize) {
-			abd_t *cdata = abd_get_from_buf(zio_buf_alloc(rounded),
-			    rounded);
-			abd_take_ownership_of_buf(cdata, B_TRUE);
+			abd_t *cdata = abd_alloc_linear(rounded, B_TRUE);
 			abd_zero_off(cdata, psize, rounded - psize);
 			abd_copy_off(cdata, zio->io_abd, 0, 0, psize);
 			psize = rounded;
