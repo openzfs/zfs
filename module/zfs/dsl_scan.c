@@ -1380,7 +1380,7 @@ dsl_scan_check_suspend(dsl_scan_t *scn, const zbookmark_phys_t *zb)
 
 typedef struct zil_scan_arg {
 	dsl_pool_t	*zsa_dp;
-	zil_header_t	*zsa_zh;
+	const zil_header_t	*zsa_zh;
 } zil_scan_arg_t;
 
 /* ARGSUSED */
@@ -1391,7 +1391,7 @@ dsl_scan_zil_block(zilog_t *zilog, const blkptr_t *bp, void *arg,
 	zil_scan_arg_t *zsa = arg;
 	dsl_pool_t *dp = zsa->zsa_dp;
 	dsl_scan_t *scn = dp->dp_scan;
-	zil_header_t *zh = zsa->zsa_zh;
+	const zil_header_t *zh = zsa->zsa_zh;
 	zbookmark_phys_t zb;
 
 	ASSERT(!BP_IS_REDACTED(bp));
@@ -1423,7 +1423,7 @@ dsl_scan_zil_record(zilog_t *zilog, const lr_t *lrc, void *arg,
 		zil_scan_arg_t *zsa = arg;
 		dsl_pool_t *dp = zsa->zsa_dp;
 		dsl_scan_t *scn = dp->dp_scan;
-		zil_header_t *zh = zsa->zsa_zh;
+		const zil_header_t *zh = zsa->zsa_zh;
 		const lr_write_t *lr = (const lr_write_t *)lrc;
 		const blkptr_t *bp = &lr->lr_blkptr;
 		zbookmark_phys_t zb;
