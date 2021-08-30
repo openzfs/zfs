@@ -26,7 +26,7 @@
 #define	TRACE_SYSTEM zfs
 
 #undef TRACE_SYSTEM_VAR
-#define	TRACE_SYSTEM_VAR zfs_zil
+#define	TRACE_SYSTEM_VAR zfs_zil_lwb
 
 #if !defined(_TRACE_ZIL_LWB_H) || defined(TRACE_HEADER_MULTI_READ)
 #define	_TRACE_ZIL_LWB_H
@@ -36,7 +36,7 @@
 #include <linux/tracepoint.h>
 #include <sys/types.h>
 
-#define	ZILOG_TP_STRUCT_ENTRY						    \
+#define	ZIL_LWB_TP_STRUCT_ENTRY						    \
 		__field(uint64_t,	zl_lr_seq)			    \
 		__field(uint64_t,	zl_commit_lr_seq)		    \
 		__field(uint64_t,	zl_destroy_txg)			    \
@@ -57,7 +57,7 @@
 		__field(clock_t,	zl_replay_time)			    \
 		__field(uint64_t,	zl_replay_blks)
 
-#define	ZILOG_TP_FAST_ASSIGN						    \
+#define	ZIL_LWB_TP_FAST_ASSIGN						    \
 		__entry->zl_lr_seq		= zilog->zl_lr_seq;	    \
 		__entry->zl_commit_lr_seq	= zilog->zl_commit_lr_seq;  \
 		__entry->zl_destroy_txg	= zilog->zl_destroy_txg;	    \
@@ -83,7 +83,7 @@
 		__entry->zl_replay_time	= zilog->zl_replay_time;	    \
 		__entry->zl_replay_blks	= zilog->zl_replay_blks;
 
-#define	ZILOG_TP_PRINTK_FMT						    \
+#define	ZIL_LWB_TP_PRINTK_FMT						    \
 	"zl { lr_seq %llu commit_lr_seq %llu destroy_txg %llu "		    \
 	"replaying_seq %llu suspend %u suspending %u keep_first %u "	    \
 	"replay %u stop_sync %u logbias %u sync %u "			    \
@@ -91,7 +91,7 @@
 	"parse_blk_count %llu parse_lr_count %llu "			    \
 	"cur_used %llu replay_time %lu replay_blks %llu }"
 
-#define	ZILOG_TP_PRINTK_ARGS						    \
+#define	ZIL_LWB_TP_PRINTK_ARGS						    \
 	    __entry->zl_lr_seq, __entry->zl_commit_lr_seq,		    \
 	    __entry->zl_destroy_txg, __entry->zl_replaying_seq,		    \
 	    __entry->zl_suspend, __entry->zl_suspending,		    \
@@ -164,16 +164,16 @@ DECLARE_EVENT_CLASS(zfs_zil_process_itx_class,
 	TP_PROTO(zilog_lwb_t *zilog, itx_t *itx),
 	TP_ARGS(zilog, itx),
 	TP_STRUCT__entry(
-	    ZILOG_TP_STRUCT_ENTRY
+	    ZIL_LWB_TP_STRUCT_ENTRY
 	    ITX_TP_STRUCT_ENTRY
 	),
 	TP_fast_assign(
-	    ZILOG_TP_FAST_ASSIGN
+	    ZIL_LWB_TP_FAST_ASSIGN
 	    ITX_TP_FAST_ASSIGN
 	),
 	TP_printk(
-	    ZILOG_TP_PRINTK_FMT " " ITX_TP_PRINTK_FMT,
-	    ZILOG_TP_PRINTK_ARGS, ITX_TP_PRINTK_ARGS)
+	    ZIL_LWB_TP_PRINTK_FMT " " ITX_TP_PRINTK_FMT,
+	    ZIL_LWB_TP_PRINTK_ARGS, ITX_TP_PRINTK_ARGS)
 );
 /* END CSTYLED */
 
@@ -182,8 +182,8 @@ DECLARE_EVENT_CLASS(zfs_zil_process_itx_class,
 DEFINE_EVENT(zfs_zil_process_itx_class, name, \
 	TP_PROTO(zilog_lwb_t *zilog, itx_t *itx), \
 	TP_ARGS(zilog, itx))
-DEFINE_ZIL_PROCESS_ITX_EVENT(zfs_zil__process__commit__itx);
-DEFINE_ZIL_PROCESS_ITX_EVENT(zfs_zil__process__normal__itx);
+DEFINE_ZIL_PROCESS_ITX_EVENT(zfs_zil_lwb__process__commit__itx);
+DEFINE_ZIL_PROCESS_ITX_EVENT(zfs_zil_lwb__process__normal__itx);
 /* END CSTYLED */
 
 /*
@@ -198,16 +198,16 @@ DECLARE_EVENT_CLASS(zfs_zil_commit_io_error_class,
 	TP_PROTO(zilog_lwb_t *zilog, zillwb_commit_waiter_t *zcw),
 	TP_ARGS(zilog, zcw),
 	TP_STRUCT__entry(
-	    ZILOG_TP_STRUCT_ENTRY
+	    ZIL_LWB_TP_STRUCT_ENTRY
 	    ZCW_TP_STRUCT_ENTRY
 	),
 	TP_fast_assign(
-	    ZILOG_TP_FAST_ASSIGN
+	    ZIL_LWB_TP_FAST_ASSIGN
 	    ZCW_TP_FAST_ASSIGN
 	),
 	TP_printk(
-	    ZILOG_TP_PRINTK_FMT " " ZCW_TP_PRINTK_FMT,
-	    ZILOG_TP_PRINTK_ARGS, ZCW_TP_PRINTK_ARGS)
+	    ZIL_LWB_TP_PRINTK_FMT " " ZCW_TP_PRINTK_FMT,
+	    ZIL_LWB_TP_PRINTK_ARGS, ZCW_TP_PRINTK_ARGS)
 );
 
 /* BEGIN CSTYLED */
@@ -215,7 +215,7 @@ DECLARE_EVENT_CLASS(zfs_zil_commit_io_error_class,
 DEFINE_EVENT(zfs_zil_commit_io_error_class, name, \
 	TP_PROTO(zilog_lwb_t *zilog, zillwb_commit_waiter_t *zcw), \
 	TP_ARGS(zilog, zcw))
-DEFINE_ZIL_COMMIT_IO_ERROR_EVENT(zfs_zil__commit__io__error);
+DEFINE_ZIL_COMMIT_IO_ERROR_EVENT(zfs_zil_lwb__commit__io__error);
 /* END CSTYLED */
 
 #endif /* _TRACE_ZIL_LWB_H */
@@ -228,9 +228,9 @@ DEFINE_ZIL_COMMIT_IO_ERROR_EVENT(zfs_zil__commit__io__error);
 
 #else
 
-DEFINE_DTRACE_PROBE2(zil__process__commit__itx);
-DEFINE_DTRACE_PROBE2(zil__process__normal__itx);
-DEFINE_DTRACE_PROBE2(zil__commit__io__error);
+DEFINE_DTRACE_PROBE2(zil_lwb__process__commit__itx);
+DEFINE_DTRACE_PROBE2(zil_lwb__process__normal__itx);
+DEFINE_DTRACE_PROBE2(zil_lwb__commit__io__error);
 
 #endif /* HAVE_DECLARE_EVENT_CLASS */
 #endif /* _KERNEL */

@@ -1939,10 +1939,10 @@ zillwb_process_commit_list(zilog_lwb_t *zilog)
 		ASSERT3U(txg, !=, 0);
 
 		if (lrc->lrc_txtype == TX_COMMIT) {
-			DTRACE_PROBE2(zil__process__commit__itx,
+			DTRACE_PROBE2(zil_lwb__process__commit__itx,
 			    zilog_lwb_t *, zilog, itx_t *, itx);
 		} else {
-			DTRACE_PROBE2(zil__process__normal__itx,
+			DTRACE_PROBE2(zil_lwb__process__normal__itx,
 			    zilog_lwb_t *, zilog, itx_t *, itx);
 		}
 
@@ -2668,8 +2668,9 @@ zillwb_commit_impl(zilog_lwb_t *zilog, uint64_t foid)
 		 * implications, but the expectation is for this to be
 		 * an exceptional case, and shouldn't occur often.
 		 */
-		DTRACE_PROBE2(zil__commit__io__error,
-		    zilog_lwb_t *, zilog, zillwb_commit_waiter_t *, zcw);
+		DTRACE_PROBE2(zil_lwb__commit__io__error,
+		    zilog_lwb_t *, zilog,
+		    zillwb_commit_waiter_t *, zcw);
 		txg_wait_synced(ZL_POOL(zilog), 0);
 	}
 
