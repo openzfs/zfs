@@ -1446,7 +1446,7 @@ zillwb_lwb_write_open(zilog_lwb_t *zilog, lwb_t *lwb)
 struct {
 	uint64_t	limit;
 	uint64_t	blksz;
-} zil_block_buckets[] = {
+} zillwb_block_buckets[] = {
 	{ 4096,		4096 },			/* non TX_WRITE */
 	{ 8192 + 4096,	8192 + 4096 },		/* database */
 	{ 32768 + 4096,	32768 + 4096 },		/* NFS writes */
@@ -1537,9 +1537,10 @@ zillwb_lwb_write_issue(zilog_lwb_t *zilog, lwb_t *lwb)
 	 * pool log space.
 	 */
 	zil_blksz = zilog->zl_cur_used + sizeof (zillwb_chain_t);
-	for (i = 0; zil_blksz > zil_block_buckets[i].limit; i++)
+	for (i = 0; zil_blksz > zillwb_block_buckets[i].limit; i++)
 		continue;
-	zil_blksz = MIN(zil_block_buckets[i].blksz, zilog->zl_max_block_size);
+	zil_blksz = MIN(zillwb_block_buckets[i].blksz,
+	    zilog->zl_max_block_size);
 	zilog->zl_prev_blks[zilog->zl_prev_rotor] = zil_blksz;
 	for (i = 0; i < ZILLWB_PREV_BLKS; i++)
 		zil_blksz = MAX(zil_blksz, zilog->zl_prev_blks[i]);
