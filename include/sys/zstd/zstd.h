@@ -56,20 +56,23 @@ typedef struct zfs_zstd_header {
 
 	/*
 	 * Version and compression level
-	 * We use a union to be able to big endian encode a single 32 bit
-	 * unsigned integer, but still access the individual bitmasked
-	 * components easily.
+	 * We used to use a union to reference compression level
+	 * and version easily, but as it turns out, relying on the
+	 * ordering of bitfields is not remotely portable.
+	 * So now we have get/set functions in zfs_zstd.c for
+	 * manipulating this in just the right way forever.
 	 */
-	union {
-		uint32_t raw_version_level;
-		struct {
-			uint32_t version : 24;
-			uint8_t level;
-		};
-	};
-
+	uint32_t raw_version_level;
 	char data[];
 } zfs_zstdhdr_t;
+
+/*
+ * Simple struct to pass the data from raw_version_level around.
+ */
+typedef struct zfs_zstd_meta {
+	uint8_t level;
+	uint32_t version;
+} zfs_zstdmeta_t;
 
 /*
  * kstat helper macros
@@ -93,6 +96,129 @@ int zfs_zstd_decompress_level(void *s_start, void *d_start, size_t s_len,
 int zfs_zstd_decompress(void *s_start, void *d_start, size_t s_len,
     size_t d_len, int n);
 void zfs_zstd_cache_reap_now(void);
+
+/*
+ * So, the reason we have all these complicated set/get functions is that
+ * originally, in the zstd "header" we wrote out to disk, we used a 32-bit
+ * bitfield to store the "level" (8 bits) and "version" (24 bits).
+ *
+ * Unfortunately, bitfields make few promises about how they're arranged in
+ * memory...
+ *
+ * By way of example, if we were using version 1.4.5 and level 3, it'd be
+ * level = 0x03, version = 10405/0x0028A5, which gets broken into Vhigh = 0x00,
+ * Vmid = 0x28, Vlow = 0xA5. We include these positions below to help follow
+ * which data winds up where.
+ *
+ * As a consequence, we wound up with little endian platforms with a layout
+ * like this in memory:
+ *
+ *      0       8      16      24      32
+ *      +-------+-------+-------+-------+
+ *      | Vlow  | Vmid  | Vhigh | level |
+ *      +-------+-------+-------+-------+
+ *        =A5     =28     =00     =03
+ *
+ * ...and then, after being run through BE_32(), serializing this out to
+ * disk:
+ *
+ *      0       8      16      24      32
+ *      +-------+-------+-------+-------+
+ *      | level | Vhigh | Vmid  | Vlow  |
+ *      +-------+-------+-------+-------+
+ *        =03     =00     =28     =A5
+ *
+ * while on big-endian systems, since BE_32() is a noop there, both in
+ * memory and on disk, we wind up with:
+ *
+ *      0       8      16      24      32
+ *      +-------+-------+-------+-------+
+ *      | Vhigh | Vmid  | Vlow  | level |
+ *      +-------+-------+-------+-------+
+ *        =00     =28     =A5     =03
+ *
+ * (Vhigh is always 0 until version exceeds 6.55.35. Vmid and Vlow are the
+ * other two bytes of the "version" data.)
+ *
+ * So now we use the BF32_SET macros to get consistent behavior (the
+ * ondisk LE encoding, since x86 currently rules the world) across
+ * platforms, but the "get" behavior requires that we check each of the
+ * bytes in the aforementioned former-bitfield for 0x00, and from there,
+ * we can know which possible layout we're dealing with. (Only the two
+ * that have been observed in the wild are illustrated above, but handlers
+ * for all 4 positions of 0x00 are implemented.
+ */
+
+static inline void
+zfs_get_hdrmeta(const zfs_zstdhdr_t *blob, zfs_zstdmeta_t *res)
+{
+	uint32_t raw = blob->raw_version_level;
+	uint8_t findme = 0xff;
+	int shift;
+	for (shift = 0; shift < 4; shift++) {
+		findme = BF32_GET(raw, 8*shift, 8);
+		if (findme == 0)
+			break;
+	}
+	switch (shift) {
+	case 0:
+		res->level = BF32_GET(raw, 24, 8);
+		res->version = BSWAP_32(raw);
+		res->version = BF32_GET(res->version, 8, 24);
+		break;
+	case 1:
+		res->level = BF32_GET(raw, 0, 8);
+		res->version = BSWAP_32(raw);
+		res->version = BF32_GET(res->version, 0, 24);
+		break;
+	case 2:
+		res->level = BF32_GET(raw, 24, 8);
+		res->version = BF32_GET(raw, 0, 24);
+		break;
+	case 3:
+		res->level = BF32_GET(raw, 0, 8);
+		res->version = BF32_GET(raw, 8, 24);
+		break;
+	default:
+		res->level = 0;
+		res->version = 0;
+		break;
+	}
+}
+
+static inline uint8_t
+zfs_get_hdrlevel(const zfs_zstdhdr_t *blob)
+{
+	uint8_t level = 0;
+	zfs_zstdmeta_t res;
+	zfs_get_hdrmeta(blob, &res);
+	level = res.level;
+	return (level);
+}
+
+static inline uint32_t
+zfs_get_hdrversion(const zfs_zstdhdr_t *blob)
+{
+	uint32_t version = 0;
+	zfs_zstdmeta_t res;
+	zfs_get_hdrmeta(blob, &res);
+	version = res.version;
+	return (version);
+
+}
+
+static inline void
+zfs_set_hdrversion(zfs_zstdhdr_t *blob, uint32_t version)
+{
+	BF32_SET(blob->raw_version_level, 0, 24, version);
+}
+
+static inline void
+zfs_set_hdrlevel(zfs_zstdhdr_t *blob, uint8_t level)
+{
+	BF32_SET(blob->raw_version_level, 24, 8, level);
+}
+
 
 #ifdef	__cplusplus
 }
