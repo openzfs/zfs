@@ -27,6 +27,7 @@
 # Copyright (c) 2017, Lawrence Livermore National Security LLC.
 # Copyright (c) 2017, Datto Inc. All rights reserved.
 # Copyright (c) 2017, Open-E Inc. All rights reserved.
+# Copyright (c) 2021, The FreeBSD Foundation.
 # Use is subject to license terms.
 #
 
@@ -4187,6 +4188,25 @@ function get_arcstat # stat
 		;;
 	Linux)
 		kstat arcstats | awk "/$stat/ { print \$3 }"
+		;;
+	*)
+		false
+		;;
+	esac
+}
+
+function punch_hole # offset length file
+{
+	typeset offset=$1
+	typeset length=$2
+	typeset file=$3
+
+	case $(uname) in
+	FreeBSD)
+		truncate -d -o $offset -l $length "$file"
+		;;
+	Linux)
+		fallocate --punch-hole --offset $offset --length $length "$file"
 		;;
 	*)
 		false
