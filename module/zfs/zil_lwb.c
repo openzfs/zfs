@@ -123,8 +123,8 @@ int zfs_zil_lwb_nocacheflush = 0;
  */
 unsigned long zfs_zil_lwb_slog_bulk = 768 * 1024;
 
-static kmem_cache_t *zil_lwb_cache;
-static kmem_cache_t *zil_zcw_cache;
+static kmem_cache_t *zillwb_lwb_cache;
+static kmem_cache_t *zillwb_zcw_cache;
 
 #define	LWB_EMPTY(lwb) ((BP_GET_LSIZE(&lwb->lwb_blk) - \
     sizeof (zillwb_chain_t)) == (lwb->lwb_sz - lwb->lwb_nused))
@@ -596,7 +596,7 @@ zillwb_alloc_lwb(zilog_lwb_t *zilog, const blkptr_t *bp, boolean_t slog,
 {
 	lwb_t *lwb;
 
-	lwb = kmem_cache_alloc(zil_lwb_cache, KM_SLEEP);
+	lwb = kmem_cache_alloc(zillwb_lwb_cache, KM_SLEEP);
 	lwb->lwb_zilog = zilog;
 	lwb->lwb_blk = *bp;
 	lwb->lwb_fastwrite = fastwrite;
@@ -649,7 +649,7 @@ zillwb_free_lwb(zilog_lwb_t *zilog, lwb_t *lwb)
 	if (zilog->zl_last_lwb_opened == lwb)
 		zilog->zl_last_lwb_opened = NULL;
 
-	kmem_cache_free(zil_lwb_cache, lwb);
+	kmem_cache_free(zillwb_lwb_cache, lwb);
 }
 
 /*
@@ -2411,7 +2411,8 @@ zillwb_commit_waiter(zilog_lwb_t *zilog, zillwb_commit_waiter_t *zcw)
 static zillwb_commit_waiter_t *
 zillwb_alloc_commit_waiter(void)
 {
-	zillwb_commit_waiter_t *zcw = kmem_cache_alloc(zil_zcw_cache, KM_SLEEP);
+	zillwb_commit_waiter_t *zcw = kmem_cache_alloc(zillwb_zcw_cache,
+	    KM_SLEEP);
 
 	cv_init(&zcw->zcw_cv, NULL, CV_DEFAULT, NULL);
 	mutex_init(&zcw->zcw_lock, NULL, MUTEX_DEFAULT, NULL);
@@ -2431,7 +2432,7 @@ zillwb_free_commit_waiter(zillwb_commit_waiter_t *zcw)
 	ASSERT3B(zcw->zcw_done, ==, B_TRUE);
 	mutex_destroy(&zcw->zcw_lock);
 	cv_destroy(&zcw->zcw_cv);
-	kmem_cache_free(zil_zcw_cache, zcw);
+	kmem_cache_free(zillwb_zcw_cache, zcw);
 }
 
 /*
@@ -2790,13 +2791,13 @@ zillwb_lwb_dest(void *vbuf, void *unused)
 void
 zillwb_init(void)
 {
-	zil_lwb_cache = kmem_cache_create("zil_lwb_cache",
-	    sizeof (lwb_t), 0, zillwb_lwb_cons, zillwb_lwb_dest, NULL, NULL,
-	    NULL, 0);
+	zillwb_lwb_cache = kmem_cache_create("zillwb_lwb_cache",
+	    sizeof (lwb_t), 0, zillwb_lwb_cons, zillwb_lwb_dest,
+	    NULL, NULL, NULL, 0);
 
-	zil_zcw_cache = kmem_cache_create("zil_zcw_cache",
-	    sizeof (zillwb_commit_waiter_t), 0, NULL, NULL, NULL, NULL, NULL,
-	    0);
+	zillwb_zcw_cache = kmem_cache_create("zillwb_zcw_cache",
+	    sizeof (zillwb_commit_waiter_t), 0, NULL, NULL, NULL, NULL,
+	    NULL, 0);
 
 	zillwb_ksp = kstat_create("zfs", 0, "zil_lwb", "misc",
 	    KSTAT_TYPE_NAMED, sizeof (zil_stats) / sizeof (kstat_named_t),
@@ -2811,13 +2812,13 @@ zillwb_init(void)
 void
 zillwb_fini(void)
 {
-	kmem_cache_destroy(zil_zcw_cache);
-	kmem_cache_destroy(zil_lwb_cache);
-
 	if (zillwb_ksp != NULL) {
 		kstat_delete(zillwb_ksp);
 		zillwb_ksp = NULL;
 	}
+
+	kmem_cache_destroy(zillwb_zcw_cache);
+	kmem_cache_destroy(zillwb_lwb_cache);
 }
 
 /*
