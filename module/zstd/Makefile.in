@@ -33,6 +33,7 @@ $(obj)/zfs_zstd.o: c_flags += -include $(zstd_include)/zstd_compat_wrapper.h
 
 $(MODULE)-objs += zfs_zstd.o
 $(MODULE)-objs += lib/zstd.o
+$(MODULE)-objs += zstd_sparc.o
 
 all:
 	mkdir -p lib
