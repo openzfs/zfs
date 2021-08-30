@@ -618,16 +618,6 @@ zil_objset(zilog_t *zl)
 	return (zl->zl_os);
 }
 
-int zil_parse_phys(spa_t *spa, const zil_header_t *zh,
-    zil_parse_phys_blk_func_t *parse_blk_func,
-	zil_parse_phys_lr_func_t *parse_lr_func, void *arg,
-	boolean_t decrypt, zio_priority_t zio_priority,
-	zil_parse_result_t *result)
-{
-	return (zillwb_parse_phys(spa, zh, parse_blk_func, parse_lr_func, arg,
-	    decrypt, zio_priority, result));
-}
-
 void
 zil_init(void)
 {

@@ -2392,7 +2392,7 @@ spa_load_verify_zil_cb(spa_t *spa, uint64_t objset, const zil_header_t *zh,
 	slvza->slvza_claim_txg = claim_txg;
 	slvza->slvza_rio = rio;
 
-	zil_parse_phys(spa, zh, spa_load_verify_zil_cb_block,
+	zillwb_parse_phys(spa, zh, spa_load_verify_zil_cb_block,
 	    spa_load_verify_zil_cb_record, slvza, B_FALSE, ZIO_PRIORITY_SCRUB,
 	    NULL);
 

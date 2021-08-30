@@ -320,9 +320,9 @@ zillwb_read_log_data(zilog_t *zilog, const lr_write_t *lr, void *wbuf)
 
 int
 zillwb_parse_phys(spa_t *spa, const zil_header_t *zh,
-    zil_parse_phys_blk_func_t *parse_blk_func,
-    zil_parse_phys_lr_func_t *parse_lr_func, void *arg, boolean_t decrypt,
-    zio_priority_t prio, zil_parse_result_t *result)
+    zillwb_parse_phys_blk_func_t *parse_blk_func,
+    zillwb_parse_phys_lr_func_t *parse_lr_func, void *arg, boolean_t decrypt,
+    zio_priority_t prio, zillwb_parse_result_t *result)
 {
 	boolean_t claimed = !!zh->zh_claim_txg;
 	uint64_t claim_blk_seq = claimed ? zh->zh_claim_blk_seq : UINT64_MAX;
@@ -869,7 +869,7 @@ zillwb_claim(dsl_pool_t *dp, dsl_dataset_t *ds, void *txarg)
 		(void) zillwb_parse(zilog, zillwb_claim_log_block,
 		    zillwb_claim_log_record, tx, first_txg, B_FALSE);
 		zh->zh_claim_txg = first_txg;
-		const zil_parse_result_t *lpr = &zilog->zl_last_parse_result;
+		const zillwb_parse_result_t *lpr = &zilog->zl_last_parse_result;
 		zh->zh_claim_blk_seq = lpr->zlpr_blk_seq;
 		zh->zh_claim_lr_seq = lpr->zlpr_lr_seq;
 		if (lpr->zlpr_lr_count || lpr->zlpr_blk_count > 1)

@@ -440,7 +440,7 @@ dump_intent_log(zilog_t *zilog)
 			.pra_spa = zilog->zl_spa,
 			.pra_zh = zh
 		};
-		(void) zil_parse_phys(zilog->zl_spa, zh, print_log_block,
+		(void) zillwb_parse_phys(zilog->zl_spa, zh, print_log_block,
 		    print_log_record, &arg, B_FALSE, ZIO_PRIORITY_SYNC_READ,
 		    NULL);
 		print_log_stats(verbose);

@@ -1468,7 +1468,7 @@ dsl_scan_zil(dsl_pool_t *dp, zil_header_t *zh)
 		return;
 
 	/* TODO we could change the priority to ZIO_PRIORITY_SCRUB */
-	(void) zil_parse_phys(dp->dp_spa, zh, dsl_scan_zil_block,
+	(void) zillwb_parse_phys(dp->dp_spa, zh, dsl_scan_zil_block,
 	    dsl_scan_zil_record, &zsa, B_FALSE, ZIO_PRIORITY_SYNC_READ, NULL);
 
 }

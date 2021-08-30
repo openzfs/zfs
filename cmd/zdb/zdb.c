@@ -6410,7 +6410,7 @@ dump_block_stats_zil_header_cb(spa_t *spa, uint64_t objset,
 		.spa = spa,
 	};
 
-	zil_parse_phys(spa, zh, dump_block_stats_zil_header_cb_block,
+	zillwb_parse_phys(spa, zh, dump_block_stats_zil_header_cb_block,
 	    dump_block_stats_zil_header_cb_record, &dbsa, B_FALSE,
 	    ZIO_PRIORITY_SCRUB, NULL);
 

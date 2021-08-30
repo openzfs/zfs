@@ -187,7 +187,8 @@ struct zilog {
 	kmutex_t	zl_issuer_lock;	/* single writer, per ZIL, at a time */
 	uint8_t		zl_logbias;	/* latency or throughput */
 	uint8_t		zl_sync;	/* synchronous or asynchronous */
-	zil_parse_result_t zl_last_parse_result; /* last zil_parse() result */
+	zillwb_parse_result_t zl_last_parse_result;
+	    /* last zil_parse() result */
 	itxg_t		zl_itxg[TXG_SIZE]; /* intent log txg chains */
 	list_t		zl_itx_commit_list; /* itx list to be committed */
 	uint64_t	zl_cur_used;	/* current commit log size used */

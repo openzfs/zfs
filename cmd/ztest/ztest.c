@@ -7217,7 +7217,7 @@ ztest_dataset_open(int d)
 	ztest_dataset_dirobj_verify(zd);
 
 	if (ztest_opts.zo_verbose >= 6) {
-		zil_parse_result_t *lpr = &zilog->zl_last_parse_result;
+		zillwb_parse_result_t *lpr = &zilog->zl_last_parse_result;
 		(void) printf("%s replay %"PRIu64" blocks, "
 		    "%"PRIu64" records, seq %"PRIu64"\n",
 		    zd->zd_name,
@@ -7265,7 +7265,7 @@ ztest_replay_zil_cb(const char *name, void *arg)
 	ztest_zd_fini(zdtmp);
 
 	zilog_t *zilog = dmu_objset_zil(os);
-	zil_parse_result_t *lpr = &zilog->zl_last_parse_result;
+	zillwb_parse_result_t *lpr = &zilog->zl_last_parse_result;
 	if (lpr->zlpr_lr_count != 0 && ztest_opts.zo_verbose >= 6) {
 		zilog_t *zilog = dmu_objset_zil(os);
 		(void) printf("%s replay %"PRIu64" blocks, "
