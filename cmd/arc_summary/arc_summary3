@@ -66,7 +66,7 @@ SECTION_PATHS = {'arc': 'arcstats',
                  'l2arc': 'arcstats',  # L2ARC stuff lives in arcstats
                  'vdev': 'vdev_cache_stats',
                  'zfetch': 'zfetchstats',
-                 'zil': 'zil'}
+                 'zil_lwb': 'zil_lwb'}
 
 parser = argparse.ArgumentParser(description=DESCRIPTION)
 parser.add_argument('-a', '--alternate', action='store_true', default=False,
@@ -898,24 +898,24 @@ def section_vdev(kstats_dict):
     print()
 
 
-def section_zil(kstats_dict):
+def section_zil_lwb(kstats_dict):
     """Collect information on the ZFS Intent Log. Some of the information
-    taken from https://github.com/openzfs/zfs/blob/master/include/sys/zil.h
+    taken from https://github.com/openzfs/zfs/blob/master/include/sys/zil_lwb.h
     """
 
-    zil_stats = isolate_section('zil', kstats_dict)
+    zil_stats = isolate_section('zil_lwb', kstats_dict)
 
     prt_1('ZIL committed transactions:',
-          f_hits(zil_stats['zil_itx_count']))
-    prt_i1('Commit requests:', f_hits(zil_stats['zil_commit_count']))
+          f_hits(zil_stats['zil_lwb_itx_count']))
+    prt_i1('Commit requests:', f_hits(zil_stats['zil_lwb_commit_count']))
     prt_i1('Flushes to stable storage:',
-           f_hits(zil_stats['zil_commit_writer_count']))
+           f_hits(zil_stats['zil_lwb_commit_writer_count']))
     prt_i2('Transactions to SLOG storage pool:',
-           f_bytes(zil_stats['zil_itx_metaslab_slog_bytes']),
-           f_hits(zil_stats['zil_itx_metaslab_slog_count']))
+           f_bytes(zil_stats['zil_lwb_itx_metaslab_slog_bytes']),
+           f_hits(zil_stats['zil_lwb_itx_metaslab_slog_count']))
     prt_i2('Transactions to non-SLOG storage pool:',
-           f_bytes(zil_stats['zil_itx_metaslab_normal_bytes']),
-           f_hits(zil_stats['zil_itx_metaslab_normal_count']))
+           f_bytes(zil_stats['zil_lwb_itx_metaslab_normal_bytes']),
+           f_hits(zil_stats['zil_lwb_itx_metaslab_normal_count']))
     print()
 
 
@@ -926,7 +926,7 @@ section_calls = {'arc': section_arc,
                  'spl': section_spl,
                  'tunables': section_tunables,
                  'vdev': section_vdev,
-                 'zil': section_zil}
+                 'zil_lwb': section_zil_lwb}
 
 
 def main():

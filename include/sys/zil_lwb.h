@@ -222,38 +222,38 @@ zillwb_zil_header_const(const zilog_lwb_t *zilog)
 }
 
 /*
- * Used for zil kstat.
+ * Used for zil_lwb kstat.
  */
-typedef struct zil_stats {
+typedef struct zillwb_stats {
 	/*
 	 * Number of times a ZIL commit (e.g. fsync) has been requested.
 	 */
-	kstat_named_t zil_commit_count;
+	kstat_named_t zil_lwb_commit_count;
 
 	/*
 	 * Number of times the ZIL has been flushed to stable storage.
 	 * This is less than zil_commit_count when commits are "merged"
 	 * (see the documentation above zil_commit()).
 	 */
-	kstat_named_t zil_commit_writer_count;
+	kstat_named_t zil_lwb_commit_writer_count;
 
 	/*
 	 * Number of transactions (reads, writes, renames, etc.)
 	 * that have been committed.
 	 */
-	kstat_named_t zil_itx_count;
+	kstat_named_t zil_lwb_itx_count;
 
 	/*
 	 * See the documentation for itx_wr_state_t above.
 	 * Note that "bytes" accumulates the length of the transactions
 	 * (i.e. data), not the actual log record sizes.
 	 */
-	kstat_named_t zil_itx_indirect_count;
-	kstat_named_t zil_itx_indirect_bytes;
-	kstat_named_t zil_itx_copied_count;
-	kstat_named_t zil_itx_copied_bytes;
-	kstat_named_t zil_itx_needcopy_count;
-	kstat_named_t zil_itx_needcopy_bytes;
+	kstat_named_t zil_lwb_itx_indirect_count;
+	kstat_named_t zil_lwb_itx_indirect_bytes;
+	kstat_named_t zil_lwb_itx_copied_count;
+	kstat_named_t zil_lwb_itx_copied_bytes;
+	kstat_named_t zil_lwb_itx_needcopy_count;
+	kstat_named_t zil_lwb_itx_needcopy_bytes;
 
 	/*
 	 * Transactions which have been allocated to the "normal"
@@ -261,19 +261,19 @@ typedef struct zil_stats {
 	 * the actual log record sizes - which do not include the actual
 	 * data in case of indirect writes.
 	 */
-	kstat_named_t zil_itx_metaslab_normal_count;
-	kstat_named_t zil_itx_metaslab_normal_bytes;
+	kstat_named_t zil_lwb_itx_metaslab_normal_count;
+	kstat_named_t zil_lwb_itx_metaslab_normal_bytes;
 
 	/*
 	 * Transactions which have been allocated to the "slog" storage pool.
 	 * If there are no separate log devices, this is the same as the
 	 * "normal" pool.
 	 */
-	kstat_named_t zil_itx_metaslab_slog_count;
-	kstat_named_t zil_itx_metaslab_slog_bytes;
-} zil_stats_t;
+	kstat_named_t zil_lwb_itx_metaslab_slog_count;
+	kstat_named_t zil_lwb_itx_metaslab_slog_bytes;
+} zillwb_stats_t;
 
-extern zil_stats_t zil_stats;
+extern zillwb_stats_t zil_stats;
 
 #define	ZIL_STAT_INCR(stat, val) \
     atomic_add_64(&zil_stats.stat.value.ui64, (val));

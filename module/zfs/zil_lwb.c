@@ -87,25 +87,25 @@
 int zfs_zil_lwb_commit_timeout_pct = 5;
 
 /*
- * See zil.h for more information about these fields.
+ * See zil_lwb.h for more information about these fields.
  */
-zil_stats_t zil_stats = {
-	{ "zil_commit_count",			KSTAT_DATA_UINT64 },
-	{ "zil_commit_writer_count",		KSTAT_DATA_UINT64 },
-	{ "zil_itx_count",			KSTAT_DATA_UINT64 },
-	{ "zil_itx_indirect_count",		KSTAT_DATA_UINT64 },
-	{ "zil_itx_indirect_bytes",		KSTAT_DATA_UINT64 },
-	{ "zil_itx_copied_count",		KSTAT_DATA_UINT64 },
-	{ "zil_itx_copied_bytes",		KSTAT_DATA_UINT64 },
-	{ "zil_itx_needcopy_count",		KSTAT_DATA_UINT64 },
-	{ "zil_itx_needcopy_bytes",		KSTAT_DATA_UINT64 },
-	{ "zil_itx_metaslab_normal_count",	KSTAT_DATA_UINT64 },
-	{ "zil_itx_metaslab_normal_bytes",	KSTAT_DATA_UINT64 },
-	{ "zil_itx_metaslab_slog_count",	KSTAT_DATA_UINT64 },
-	{ "zil_itx_metaslab_slog_bytes",	KSTAT_DATA_UINT64 },
+zillwb_stats_t zil_stats = {
+	{ "zil_lwb_commit_count",		KSTAT_DATA_UINT64 },
+	{ "zil_lwb_commit_writer_count",	KSTAT_DATA_UINT64 },
+	{ "zil_lwb_itx_count",			KSTAT_DATA_UINT64 },
+	{ "zil_lwb_itx_indirect_count",		KSTAT_DATA_UINT64 },
+	{ "zil_lwb_itx_indirect_bytes",		KSTAT_DATA_UINT64 },
+	{ "zil_lwb_itx_copied_count",		KSTAT_DATA_UINT64 },
+	{ "zil_lwb_itx_copied_bytes",		KSTAT_DATA_UINT64 },
+	{ "zil_lwb_itx_needcopy_count",		KSTAT_DATA_UINT64 },
+	{ "zil_lwb_itx_needcopy_bytes",		KSTAT_DATA_UINT64 },
+	{ "zil_lwb_itx_metaslab_normal_count",	KSTAT_DATA_UINT64 },
+	{ "zil_lwb_itx_metaslab_normal_bytes",	KSTAT_DATA_UINT64 },
+	{ "zil_lwb_itx_metaslab_slog_count",	KSTAT_DATA_UINT64 },
+	{ "zil_lwb_itx_metaslab_slog_bytes",	KSTAT_DATA_UINT64 },
 };
 
-static kstat_t *zil_ksp;
+static kstat_t *zillwb_ksp;
 
 
 /*
@@ -1549,11 +1549,12 @@ zillwb_lwb_write_issue(zilog_lwb_t *zilog, lwb_t *lwb)
 	BP_ZERO(bp);
 	error = zio_alloc_zil(spa, ZL_OS(zilog), txg, bp, zil_blksz, &slog);
 	if (slog) {
-		ZIL_STAT_BUMP(zil_itx_metaslab_slog_count);
-		ZIL_STAT_INCR(zil_itx_metaslab_slog_bytes, lwb->lwb_nused);
+		ZIL_STAT_BUMP(zil_lwb_itx_metaslab_slog_count);
+		ZIL_STAT_INCR(zil_lwb_itx_metaslab_slog_bytes, lwb->lwb_nused);
 	} else {
-		ZIL_STAT_BUMP(zil_itx_metaslab_normal_count);
-		ZIL_STAT_INCR(zil_itx_metaslab_normal_bytes, lwb->lwb_nused);
+		ZIL_STAT_BUMP(zil_lwb_itx_metaslab_normal_count);
+		ZIL_STAT_INCR(zil_lwb_itx_metaslab_normal_bytes,
+		    lwb->lwb_nused);
 	}
 	if (error == 0) {
 		ASSERT3U(bp->blk_birth, ==, txg);
@@ -1730,7 +1731,7 @@ cont:
 	lrcb = (lr_t *)lr_buf;		/* Like lrc, but inside lwb. */
 	lrwb = (lr_write_t *)lrcb;	/* Like lrw, but inside lwb. */
 
-	ZIL_STAT_BUMP(zil_itx_count);
+	ZIL_STAT_BUMP(zil_lwb_itx_count);
 
 	/*
 	 * If it's a write, fetch the data or get its blkptr as appropriate.
@@ -1739,8 +1740,8 @@ cont:
 		if (txg > spa_freeze_txg(ZL_SPA(zilog)))
 			txg_wait_synced(ZL_POOL(zilog), txg);
 		if (itx->itx_wr_state == WR_COPIED) {
-			ZIL_STAT_BUMP(zil_itx_copied_count);
-			ZIL_STAT_INCR(zil_itx_copied_bytes, lrw->lr_length);
+			ZIL_STAT_BUMP(zil_lwb_itx_copied_count);
+			ZIL_STAT_INCR(zil_lwb_itx_copied_bytes, lrw->lr_length);
 		} else {
 			char *dbuf;
 			int error;
@@ -1752,13 +1753,13 @@ cont:
 					lrwb->lr_length = dnow;
 				lrw->lr_offset += dnow;
 				lrw->lr_length -= dnow;
-				ZIL_STAT_BUMP(zil_itx_needcopy_count);
-				ZIL_STAT_INCR(zil_itx_needcopy_bytes, dnow);
+				ZIL_STAT_BUMP(zil_lwb_itx_needcopy_count);
+				ZIL_STAT_INCR(zil_lwb_itx_needcopy_bytes, dnow);
 			} else {
 				ASSERT3S(itx->itx_wr_state, ==, WR_INDIRECT);
 				dbuf = NULL;
-				ZIL_STAT_BUMP(zil_itx_indirect_count);
-				ZIL_STAT_INCR(zil_itx_indirect_bytes,
+				ZIL_STAT_BUMP(zil_lwb_itx_indirect_count);
+				ZIL_STAT_INCR(zil_lwb_itx_indirect_bytes,
 				    lrw->lr_length);
 			}
 
@@ -2146,7 +2147,7 @@ zillwb_commit_writer(zilog_lwb_t *zilog, zillwb_commit_waiter_t *zcw)
 		goto out;
 	}
 
-	ZIL_STAT_BUMP(zil_commit_writer_count);
+	ZIL_STAT_BUMP(zil_lwb_commit_writer_count);
 
 	zil_get_commit_list(zilog);
 	zillwb_prune_commit_list(zilog);
@@ -2625,7 +2626,7 @@ zillwb_commit(zilog_lwb_t *zilog, uint64_t foid)
 static void
 zillwb_commit_impl(zilog_lwb_t *zilog, uint64_t foid)
 {
-	ZIL_STAT_BUMP(zil_commit_count);
+	ZIL_STAT_BUMP(zil_lwb_commit_count);
 
 	/*
 	 * Move the "async" itxs for the specified foid to the "sync"
@@ -2797,13 +2798,13 @@ zillwb_init(void)
 	    sizeof (zillwb_commit_waiter_t), 0, NULL, NULL, NULL, NULL, NULL,
 	    0);
 
-	zil_ksp = kstat_create("zfs", 0, "zil", "misc",
+	zillwb_ksp = kstat_create("zfs", 0, "zil_lwb", "misc",
 	    KSTAT_TYPE_NAMED, sizeof (zil_stats) / sizeof (kstat_named_t),
 	    KSTAT_FLAG_VIRTUAL);
 
-	if (zil_ksp != NULL) {
-		zil_ksp->ks_data = &zil_stats;
-		kstat_install(zil_ksp);
+	if (zillwb_ksp != NULL) {
+		zillwb_ksp->ks_data = &zil_stats;
+		kstat_install(zillwb_ksp);
 	}
 }
 
@@ -2813,9 +2814,9 @@ zillwb_fini(void)
 	kmem_cache_destroy(zil_zcw_cache);
 	kmem_cache_destroy(zil_lwb_cache);
 
-	if (zil_ksp != NULL) {
-		kstat_delete(zil_ksp);
-		zil_ksp = NULL;
+	if (zillwb_ksp != NULL) {
+		kstat_delete(zillwb_ksp);
+		zillwb_ksp = NULL;
 	}
 }
 
