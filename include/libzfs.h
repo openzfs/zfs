@@ -839,7 +839,7 @@ _LIBZFS_H int zfs_unmount(zfs_handle_t *, const char *, int);
 _LIBZFS_H int zfs_unmountall(zfs_handle_t *, int);
 _LIBZFS_H int zfs_mount_delegation_check(void);
 
-#if defined(__linux__)
+#if defined(__linux__) || defined(__APPLE__)
 _LIBZFS_H int zfs_parse_mount_options(char *mntopts, unsigned long *mntflags,
     unsigned long *zfsflags, int sloppy, char *badopt, char *mtabopt);
 _LIBZFS_H void zfs_adjust_mount_options(zfs_handle_t *zhp, const char *mntpoint,
@@ -930,6 +930,8 @@ _LIBZFS_H int zfs_smb_acl_rename(libzfs_handle_t *, char *, char *, char *,
  */
 _LIBZFS_H int zpool_enable_datasets(zpool_handle_t *, const char *, int);
 _LIBZFS_H int zpool_disable_datasets(zpool_handle_t *, boolean_t);
+_LIBZFS_H void zpool_disable_datasets_os(zpool_handle_t *, boolean_t);
+_LIBZFS_H void zpool_disable_volume_os(const char *);
 
 /*
  * Parse a features file for -o compatibility

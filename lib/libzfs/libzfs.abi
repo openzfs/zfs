@@ -230,6 +230,8 @@
     <elf-symbol name='zpool_create' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_destroy' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_disable_datasets' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zpool_disable_datasets_os' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zpool_disable_volume_os' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_discard_checkpoint' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_enable_datasets' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_events_clear' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -2501,6 +2503,9 @@
     <function-decl name='qsort' mangled-name='qsort' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
+    <function-decl name='zpool_disable_datasets_os' mangled-name='zpool_disable_datasets_os' visibility='default' binding='global' size-in-bits='64'>
+      <return type-id='type-id-1'/>
+    </function-decl>
     <function-decl name='tpool_dispatch' mangled-name='tpool_dispatch' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
@@ -2538,6 +2543,9 @@
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='libzfs_mnttab_remove' mangled-name='libzfs_mnttab_remove' visibility='default' binding='global' size-in-bits='64'>
+      <return type-id='type-id-1'/>
+    </function-decl>
+    <function-decl name='zpool_disable_volume_os' mangled-name='zpool_disable_volume_os' visibility='default' binding='global' size-in-bits='64'>
       <return type-id='type-id-1'/>
     </function-decl>
     <function-decl name='zfs_crypto_get_encryption_root' mangled-name='zfs_crypto_get_encryption_root' visibility='default' binding='global' size-in-bits='64'>
@@ -3937,6 +3945,15 @@
     </function-type>
   </abi-instr>
   <abi-instr version='1.0' address-size='64' path='os/linux/libzfs_mount_os.c' comp-dir-path='/home/runner/work/zfs/zfs/lib/libzfs' language='LANG_C99'>
+    <function-decl name='zpool_disable_volume_os' mangled-name='zpool_disable_volume_os' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_disable_volume_os'>
+      <parameter type-id='type-id-84' name='name'/>
+      <return type-id='type-id-1'/>
+    </function-decl>
+    <function-decl name='zpool_disable_datasets_os' mangled-name='zpool_disable_datasets_os' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_disable_datasets_os'>
+      <parameter type-id='type-id-4' name='zhp'/>
+      <parameter type-id='type-id-9' name='force'/>
+      <return type-id='type-id-1'/>
+    </function-decl>
     <function-decl name='zfs_mount_delegation_check' mangled-name='zfs_mount_delegation_check' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_mount_delegation_check'>
       <return type-id='type-id-2'/>
     </function-decl>
