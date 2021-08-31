@@ -289,7 +289,8 @@ DriverNotificationRoutine(_In_ struct _DEVICE_OBJECT *DeviceObject,
 	status = ObQueryNameString(DeviceObject, name_info,
 	    sizeof (nibuf), &ret_len);
 	if (NT_SUCCESS(status)) {
-		dprintf("Filesystem %p: '%wZ'\n", DeviceObject, name_info);
+		dprintf("Filesystem %p: '%wZ'\n", DeviceObject,
+		    &name_info->Name);
 	} else {
 		dprintf("Filesystem %p: '%wZ'\n", DeviceObject,
 		    &DeviceObject->DriverObject->DriverName);
@@ -302,8 +303,8 @@ zfs_ioc_unregister_fs(void)
 {
 	dprintf("%s\n", __func__);
 	if (zfs_module_busy != 0) {
-		dprintf("%s: datasets still busy: %llu pool(s)\n",
-		    __func__, zfs_module_busy);
+		dprintf("%s: datasets still busy: %llu pool(s)\n", __func__,
+		    zfs_module_busy);
 		return (zfs_module_busy);
 	}
 	if (fsDiskDeviceObject != NULL) {

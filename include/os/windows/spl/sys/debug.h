@@ -107,7 +107,7 @@ extern void printBuffer(const char *fmt, ...);
 #define	IOLog(...) printBuffer(__VA_ARGS__)
 #define	xprintf(...) KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, \
     __VA_ARGS__))
-#define	TraceEvent(x, ...) printBuffer(__VA_ARGS__)
+#define	TraceEvent(x, ...)
 
 #else // LUDICROUS_SPEED
 

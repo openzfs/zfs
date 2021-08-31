@@ -155,6 +155,8 @@ __set_error(const char *file, const char *func, int line, int err)
 	 */
 	if (zfs_flags & ZFS_DEBUG_SET_ERROR)
 		__dprintf(B_FALSE, file, func, line, "error %lu", err);
+
+	TraceEvent(5, "%s:%s Line:%d Error:%d", file, func, line, err);
 }
 
 /*

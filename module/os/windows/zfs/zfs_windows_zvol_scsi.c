@@ -681,8 +681,10 @@ ScsiOpReadCapacity16(
 	blockSize = MP_BLOCK_SIZE;
 	maxBlocks = (zv->zv_volsize / blockSize) - 1;
 
-	dprintf("Block Size: 0x%x Total Blocks: 0x%llx\n", blockSize,
-	    maxBlocks);
+	dprintf("%s:%d Block Size: 0x%x Total Blocks: 0x%llx targetid:%d "
+	    "lun:%d, volname:%s, zv_volsize=%llu\n", __func__, __LINE__,
+	    blockSize, maxBlocks, pSrb->TargetId, pSrb->Lun, zv->zv_name,
+	    zv->zv_volsize);
 	REVERSE_BYTES(&readCapacity->BytesPerBlock, &blockSize);
 	REVERSE_BYTES_QUAD(&readCapacity->LogicalBlockAddress.QuadPart,
 	    &maxBlocks);
@@ -951,8 +953,9 @@ wzvol_WkRtn(__in PVOID pWkParms)
 	    ": 0x%p\n", __func__, __LINE__, pSrb, pSrb->DataBuffer);
 
 	if (sectorOffset >= zv->zv_volsize) {
-		dprintf("%s: invalid starting sector: %d\n", __func__,
-		    startingSector);
+		dprintf("%s:%d invalid starting sector: %d for zvol:%s, "
+		    "volsize=%llu\n", __func__, __LINE__, startingSector,
+		    zv->zv_name, zv->zv_volsize);
 		status = SRB_STATUS_INVALID_REQUEST;
 		goto Done;
 	}
