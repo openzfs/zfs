@@ -24,6 +24,7 @@ jobs:
       run: |
         sh ./autogen.sh
         ./configure
+        make -j$(nproc)
     - name: Checkstyle
       run: |
         make checkstyle
@@ -33,12 +34,11 @@ jobs:
     - name: CheckABI
       id: CheckABI
       run: |
-        make -j$(nproc)
-        make checkabi
+        sudo docker run -v $(pwd):/source ghcr.io/openzfs/libabigail make checkabi
     - name: StoreABI
       if: failure() && steps.CheckABI.outcome == 'failure'
       run: |
-        make storeabi
+        sudo docker run -v $(pwd):/source ghcr.io/openzfs/libabigail make storeabi
     - name: Prepare artifacts
       if: failure() && steps.CheckABI.outcome == 'failure'
       run: |
