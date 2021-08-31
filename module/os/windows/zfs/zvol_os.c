@@ -620,17 +620,20 @@ zvol_os_attach(char *name)
 {
 	zvol_state_t *zv;
 	uint64_t hash = zvol_name_hash(name);
+	int error = 0;
 
 	dprintf("%s\n", __func__);
 
 	zv = zvol_find_by_name_hash(name, hash, RW_NONE);
 	if (zv != NULL) {
-		// Assign new TargetId and Lun
-		wzvol_assign_targetid(zv);
 		mutex_exit(&zv->zv_state_lock);
-		zvol_os_open_zv(zv, zv->zv_flags & ZVOL_RDONLY ?
+		error = zvol_os_open_zv(zv, zv->zv_flags & ZVOL_RDONLY ?
 		    FREAD : FWRITE, 0, NULL); // readonly?
-		wzvol_announce_buschange();
+		// Assign new TargetId and Lun
+		if (error == 0) {
+			wzvol_assign_targetid(zv);
+			wzvol_announce_buschange();
+		}
 	}
 }
 
