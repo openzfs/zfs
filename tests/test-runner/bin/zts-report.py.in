@@ -127,6 +127,13 @@ fio_reason = 'Fio v2.3 or newer required'
 trim_reason = 'DISKS must support discard (TRIM/UNMAP)'
 
 #
+# Some tests on FreeBSD require the fspacectl(2) system call and the
+# truncate(1) utility supporting the -d option.  The system call was first
+# introduced in FreeBSD version 1400032.
+#
+fspacectl_reason = 'fspacectl(2) and truncate -d support required'
+
+#
 # Some tests are not applicable to a platform or need to be updated to operate
 # in the manor required by the platform.  Any tests which are skipped for this
 # reason will be suppressed in the final analysis output.
@@ -224,6 +231,7 @@ maybe = {
     'cli_root/zpool_trim/setup': ['SKIP', trim_reason],
     'cli_root/zpool_upgrade/zpool_upgrade_004_pos': ['FAIL', '6141'],
     'delegate/setup': ['SKIP', exec_reason],
+    'fallocate/fallocate_punch-hole': ['SKIP', fspacectl_reason],
     'history/history_004_pos': ['FAIL', '7026'],
     'history/history_005_neg': ['FAIL', '6680'],
     'history/history_006_neg': ['FAIL', '5657'],
