@@ -2661,7 +2661,8 @@ metaslab_init(metaslab_group_t *mg, uint64_t id, uint64_t object,
 
 	/*
 	 * We only open space map objects that already exist. All others
-	 * will be opened when we finally allocate an object for it.
+	 * will be opened when we finally allocate an object for it. For
+	 * readonly pools there is no need to open the space map object.
 	 *
 	 * Note:
 	 * When called from vdev_expand(), we can't call into the DMU as
@@ -2670,7 +2671,8 @@ metaslab_init(metaslab_group_t *mg, uint64_t id, uint64_t object,
 	 * that case, the object parameter is zero though, so we won't
 	 * call into the DMU.
 	 */
-	if (object != 0) {
+	if (object != 0 && !(spa->spa_mode == SPA_MODE_READ &&
+	    !spa->spa_read_spacemaps)) {
 		error = space_map_open(&ms->ms_sm, mos, object, ms->ms_start,
 		    ms->ms_size, vd->vdev_ashift);
 

@@ -3142,6 +3142,12 @@ vdev_dtl_load(vdev_t *vd)
 	if (vd->vdev_ops->vdev_op_leaf && vd->vdev_dtl_object != 0) {
 		ASSERT(vdev_is_concrete(vd));
 
+		/*
+		 * If the dtl cannot be sync'd there is no need to open it.
+		 */
+		if (spa->spa_mode == SPA_MODE_READ && !spa->spa_read_spacemaps)
+			return (0);
+
 		error = space_map_open(&vd->vdev_dtl_sm, mos,
 		    vd->vdev_dtl_object, 0, -1ULL, 0);
 		if (error)
