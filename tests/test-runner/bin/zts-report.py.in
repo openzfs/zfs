@@ -280,15 +280,8 @@ if sys.platform.startswith('freebsd'):
         'cli_root/zfs_share/zfs_share_concurrent_shares':
             ['FAIL', known_reason],
         'cli_root/zpool_import/zpool_import_012_pos': ['FAIL', known_reason],
-        'cli_root/zpool_import/zpool_import_features_001_pos':
-            ['FAIL', '11854'],
-        'cli_root/zpool_import/zpool_import_features_002_neg':
-            ['FAIL', '11854'],
-        'cli_root/zpool_import/zpool_import_features_003_pos':
-            ['FAIL', '11854'],
         'delegate/zfs_allow_003_pos': ['FAIL', known_reason],
         'inheritance/inherit_001_pos': ['FAIL', '11829'],
-        'pool_checkpoint/checkpoint_zhack_feat': ['FAIL', '11854'],
         'resilver/resilver_restart_001': ['FAIL', known_reason],
         'zvol/zvol_misc/zvol_misc_volmode': ['FAIL', known_reason],
     })
