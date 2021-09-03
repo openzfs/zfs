@@ -27,5 +27,7 @@ storeabi:
 	for lib in $(lib_LTLIBRARIES) ; do \
 		abidw --no-show-locs \
 		--no-corpus-path \
+		--no-comp-dir-path \
+		--type-id-style hash \
 		$${lib%.la}.so > ../$${lib%.la}.abi ; \
 	done
