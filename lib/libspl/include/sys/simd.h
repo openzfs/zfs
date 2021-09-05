@@ -78,7 +78,8 @@ typedef enum cpuid_inst_sets {
 	AVX512VL,
 	AES,
 	PCLMULQDQ,
-	MOVBE
+	MOVBE,
+	SHA,
 } cpuid_inst_sets_t;
 
 /*
@@ -103,6 +104,7 @@ typedef struct cpuid_feature_desc {
 #define	_AES_BIT		(1U << 25)
 #define	_PCLMULQDQ_BIT		(1U << 1)
 #define	_MOVBE_BIT		(1U << 22)
+#define	_SHA_BIT		(1U << 29)
 
 /*
  * Descriptions of supported instruction sets
@@ -131,6 +133,7 @@ static const cpuid_feature_desc_t cpuid_features[] = {
 	[AES]		= {1U, 0U, _AES_BIT,		ECX	},
 	[PCLMULQDQ]	= {1U, 0U, _PCLMULQDQ_BIT,	ECX	},
 	[MOVBE]		= {1U, 0U, _MOVBE_BIT,		ECX	},
+	[SHA]		= {7U, 0U, _SHA_BIT,	EBX	},
 };
 
 /*
@@ -204,6 +207,7 @@ CPUID_FEATURE_CHECK(avx512vl, AVX512VL);
 CPUID_FEATURE_CHECK(aes, AES);
 CPUID_FEATURE_CHECK(pclmulqdq, PCLMULQDQ);
 CPUID_FEATURE_CHECK(movbe, MOVBE);
+CPUID_FEATURE_CHECK(sha, SHA);
 
 /*
  * Detect register set support
@@ -343,6 +347,15 @@ static inline boolean_t
 zfs_movbe_available(void)
 {
 	return (__cpuid_has_movbe());
+}
+
+/*
+ * Check if SHA instruction is available
+ */
+static inline boolean_t
+zfs_sha_available(void)
+{
+	return (__cpuid_has_sha());
 }
 
 /*

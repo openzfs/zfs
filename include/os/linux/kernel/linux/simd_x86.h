@@ -491,6 +491,19 @@ zfs_movbe_available(void)
 }
 
 /*
+ * Check if SHA instruction is available
+ */
+static inline boolean_t
+zfs_sha_available(void)
+{
+#if defined(X86_FEATURE_SHA_NI)
+	return (!!boot_cpu_has(X86_FEATURE_SHA_NI));
+#else
+	return (B_FALSE);
+#endif
+}
+
+/*
  * AVX-512 family of instruction sets:
  *
  * AVX512F	Foundation

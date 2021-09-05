@@ -24,6 +24,7 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_TOOLCHAIN_SIMD], [
 			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_AES
 			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_PCLMULQDQ
 			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_MOVBE
+			ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_SHA
 			;;
 	esac
 ])
@@ -418,6 +419,27 @@ AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_MOVBE], [
 	]])], [
 		AC_MSG_RESULT([yes])
 		AC_DEFINE([HAVE_MOVBE], 1, [Define if host toolchain supports MOVBE])
+	], [
+		AC_MSG_RESULT([no])
+	])
+])
+
+dnl #
+dnl # ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_SHA
+dnl #
+AC_DEFUN([ZFS_AC_CONFIG_TOOLCHAIN_CAN_BUILD_SHA], [
+	AC_MSG_CHECKING([whether host toolchain supports SHA])
+
+	AC_LINK_IFELSE([AC_LANG_SOURCE([
+	[
+		void main()
+		{
+			__asm__ __volatile__("sha1msg1 %xmm0, %xmm1");
+			__asm__ __volatile__("sha256msg1 %xmm0, %xmm1");
+		}
+	]])], [
+		AC_MSG_RESULT([yes])
+		AC_DEFINE([HAVE_SHA], 1, [Define if host toolchain supports SHA])
 	], [
 		AC_MSG_RESULT([no])
 	])
