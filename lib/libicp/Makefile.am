@@ -38,6 +38,7 @@ KERNEL_C = \
 	algs/aes/aes_impl.c \
 	algs/aes/aes_modes.c \
 	algs/edonr/edonr.c \
+	algs/impl/impl.c \
 	algs/modes/modes.c \
 	algs/modes/cbc.c \
 	algs/modes/gcm_generic.c \
