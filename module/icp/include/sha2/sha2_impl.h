@@ -57,6 +57,16 @@ typedef struct sha2_hmac_ctx {
 	SHA2_CTX		hc_ocontext;	/* outer SHA2 context */
 } sha2_hmac_ctx_t;
 
+/*
+ * Initialize sha2 implementations.
+ */
+void sha2_impl_init(void);
+
+/*
+ * Cleanup sha2 implementations.
+ */
+void sha2_impl_fini(void);
+
 #ifdef	__cplusplus
 }
 #endif

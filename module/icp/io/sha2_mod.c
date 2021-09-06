@@ -216,6 +216,11 @@ sha2_mod_init(void)
 {
 	int ret;
 
+#if defined(_KERNEL)
+	/* Determine the fastest available implementation. */
+	sha2_impl_init();
+#endif
+
 	if ((ret = mod_install(&modlinkage)) != 0)
 		return (ret);
 
@@ -247,6 +252,10 @@ sha2_mod_fini(void)
 		}
 		sha2_prov_handle = 0;
 	}
+
+#if defined(_KERNEL)
+	sha2_impl_fini();
+#endif
 
 	return (mod_remove(&modlinkage));
 }

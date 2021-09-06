@@ -56,9 +56,6 @@
  *
  * 3. Removed x86_64-xlate.pl script (not needed for as(1) or gas(1)
  * assemblers).  Replaced the .picmeup macro with assembler code.
- *
- * 4. Added 8 to $ctx, as OpenSolaris OS has an extra 4-byte field, "algotype",
- * at the beginning of SHA2_CTX (the next field is 8-byte aligned).
  */
 
 /*
@@ -73,7 +70,7 @@
 
 /* ARGSUSED */
 void
-SHA256TransformBlocks(SHA2_CTX *ctx, const void *in, size_t num)
+sha256_x86_64_transform(uint32_t *state, const void *in, size_t num)
 {
 }
 
@@ -82,7 +79,7 @@ SHA256TransformBlocks(SHA2_CTX *ctx, const void *in, size_t num)
 #define _ASM
 #include <sys/asm_linkage.h>
 
-ENTRY_NP(SHA256TransformBlocks)
+ENTRY_NP(sha256_x86_64_transform)
 .cfi_startproc
 	movq	%rsp, %rax
 .cfi_def_cfa_register %rax
@@ -103,7 +100,6 @@ ENTRY_NP(SHA256TransformBlocks)
 	sub	$16*4+4*8,%rsp
 	lea	(%rsi,%rdx,4),%rdx	# inp+num*16*4
 	and	$-64,%rsp		# align stack frame
-	add	$8,%rdi		# Skip OpenSolaris field, "algotype"
 	mov	%rdi,16*4+0*8(%rsp)		# save ctx, 1st arg
 	mov	%rsi,16*4+1*8(%rsp)		# save inp, 2nd arg
 	mov	%rdx,16*4+2*8(%rsp)		# save end pointer, "3rd" arg
@@ -2060,7 +2056,7 @@ ENTRY_NP(SHA256TransformBlocks)
 
 	ret
 .cfi_endproc
-SET_SIZE(SHA256TransformBlocks)
+SET_SIZE(sha256_x86_64_transform)
 
 .data
 .align	64

@@ -182,25 +182,31 @@ alg_impl_init(alg_impl_conf_t *conf)
 	conf->bandwidth_fastest.ops = &conf->fastest;
 
 #if defined(_KERNEL)
-	/* Create name for kstat_create. It will be copied to ks_name. */
-	char kstat_name[KSTAT_STRLEN];
-	snprintf(kstat_name, sizeof (kstat_name), "%s_bench", conf->name);
+	if (conf->benchmark) {
+		/*
+		 * Create name for kstat_create.
+		 * It will be copied to ks_name.
+		 */
+		char kstat_name[KSTAT_STRLEN];
+		snprintf(kstat_name, sizeof (kstat_name),
+		    "%s_bench", conf->name);
 
-	/* Create kstat. */
-	conf->benchmark_kstat = kstat_create(
-	    "zfs", 0, kstat_name, "misc",
-	    KSTAT_TYPE_RAW, 0, KSTAT_FLAG_VIRTUAL);
+		/* Create kstat. */
+		conf->benchmark_kstat = kstat_create(
+		    "zfs", 0, kstat_name, "misc",
+		    KSTAT_TYPE_RAW, 0, KSTAT_FLAG_VIRTUAL);
 
-	/* Install kstat. */
-	if (conf->benchmark_kstat != NULL) {
-		conf->benchmark_kstat->ks_data = NULL;
-		conf->benchmark_kstat->ks_ndata = UINT32_MAX;
-		conf->benchmark_kstat->ks_private = conf;
-		kstat_set_raw_ops(conf->benchmark_kstat,
-		    impl_kstat_headers,
-		    impl_kstat_data,
-		    impl_kstat_addr);
-		kstat_install(conf->benchmark_kstat);
+		/* Install kstat. */
+		if (conf->benchmark_kstat != NULL) {
+			conf->benchmark_kstat->ks_data = NULL;
+			conf->benchmark_kstat->ks_ndata = UINT32_MAX;
+			conf->benchmark_kstat->ks_private = conf;
+			kstat_set_raw_ops(conf->benchmark_kstat,
+			    impl_kstat_headers,
+			    impl_kstat_data,
+			    impl_kstat_addr);
+			kstat_install(conf->benchmark_kstat);
+		}
 	}
 #endif
 

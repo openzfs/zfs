@@ -39,7 +39,9 @@
 #include <sys/zfs_context.h>
 #define	_SHA2_IMPL
 #include <sys/sha2.h>
+#include <impl/impl.h>
 #include <sha2/sha2_consts.h>
+#include <sha2/sha2_impl.h>
 
 #define	_RESTRICT_KYWD
 
@@ -53,17 +55,128 @@ static void Encode(uint8_t *, uint32_t *, size_t);
 static void Encode64(uint8_t *, uint64_t *, size_t);
 
 /* userspace only supports the generic version */
-#if	defined(__amd64) && defined(_KERNEL)
-#define	SHA512Transform(ctx, in) SHA512TransformBlocks((ctx), (in), 1)
-#define	SHA256Transform(ctx, in) SHA256TransformBlocks((ctx), (in), 1)
+#if	defined(_KERNEL)
 
-void SHA512TransformBlocks(SHA2_CTX *ctx, const void *in, size_t num);
-void SHA256TransformBlocks(SHA2_CTX *ctx, const void *in, size_t num);
+typedef void (*sha256_block_f)(uint32_t *state, const void *in, size_t num);
+typedef void (*sha512_block_f)(uint64_t *state, const void *in, size_t num);
 
+#endif	/* _KERNEL */
+
+#if defined(_KERNEL)
+
+#define	BENCHMARK_BUFFER_SIZE (32 * 1024)
+
+// SHA-256
+
+static void sha256_alg_impl_benchmark(
+    const alg_impl_ops_t *ops, void *buffer, size_t buffer_n)
+{
+	SHA2_CTX sha2_ctx;
+	sha256_block_f sha256_impl = ops->ctx;
+	sha256_impl(sha2_ctx.state.s32, buffer, buffer_n >> 6);
+}
+
+static void
+SHA256TransformBlocksGeneric(uint32_t *state, const void *in, size_t num);
+
+static alg_impl_ops_t sha256_impl_generic = {
+	SHA256TransformBlocksGeneric, alg_impl_will_always_work, 0, "generic"};
+
+#if defined(__amd64)
+extern void
+sha256_x86_64_transform(uint32_t *state, const void *in, size_t num);
+
+static alg_impl_ops_t sha256_x86_64 = {
+	sha256_x86_64_transform, alg_impl_will_always_work, 1, "x86_64"};
+#endif
+
+/* All compiled in implementations */
+static const alg_impl_ops_t *sha256_all_impl[] = {
+	&sha256_impl_generic,
+#if defined(__amd64)
+	&sha256_x86_64,
+#endif
+};
+
+static alg_impl_ops_t *sha256_supp_impl[ARRAY_SIZE(sha256_all_impl)];
+static alg_impl_ops_bandwidth_t sha256_bw_impl[ARRAY_SIZE(sha256_all_impl)];
+
+static alg_impl_conf_t sha256_conf_impl = ALG_IMPL_CONF_DECL(
+	"sha256",
+	sha256_all_impl,
+	sha256_supp_impl,
+#if defined(__amd64)
+	sha256_x86_64,
 #else
-static void SHA256Transform(SHA2_CTX *, const uint8_t *);
-static void SHA512Transform(SHA2_CTX *, const uint8_t *);
-#endif	/* __amd64 && _KERNEL */
+	sha256_impl_generic,
+#endif
+	sha256_alg_impl_benchmark,
+	BENCHMARK_BUFFER_SIZE,
+	sha256_bw_impl
+);
+
+// SHA-512
+
+static void sha512_alg_impl_benchmark(
+    const alg_impl_ops_t *ops, void *buffer, size_t buffer_n)
+{
+	SHA2_CTX sha2_ctx;
+	sha512_block_f sha512_impl = ops->ctx;
+	sha512_impl(sha2_ctx.state.s64, buffer, buffer_n >> 7);
+}
+
+static void
+SHA512TransformBlocksGeneric(uint64_t *state, const void *in, size_t num);
+
+static alg_impl_ops_t sha512_impl_generic = {
+	SHA512TransformBlocksGeneric, alg_impl_will_always_work, 0, "generic"};
+
+#if defined(__amd64)
+extern void
+sha512_x86_64_transform(uint64_t *state, const void *in, size_t num);
+
+static alg_impl_ops_t sha512_x86_64 = {
+	sha512_x86_64_transform, alg_impl_will_always_work, 1, "x86_64"};
+#endif
+
+/* All compiled in implementations */
+static const alg_impl_ops_t *sha512_all_impl[] = {
+	&sha512_impl_generic,
+#if defined(__amd64)
+	&sha512_x86_64,
+#endif
+};
+
+static alg_impl_ops_t *sha512_supp_impl[ARRAY_SIZE(sha512_all_impl)];
+static alg_impl_ops_bandwidth_t sha512_bw_impl[ARRAY_SIZE(sha512_all_impl)];
+
+static alg_impl_conf_t sha512_conf_impl = ALG_IMPL_CONF_DECL(
+	"sha512",
+	sha512_all_impl,
+	sha512_supp_impl,
+#if defined(__amd64)
+	sha512_x86_64,
+#else
+	sha512_impl_generic,
+#endif
+	sha512_alg_impl_benchmark,
+	BENCHMARK_BUFFER_SIZE,
+	sha512_bw_impl
+);
+
+// SHA init
+
+void sha2_impl_init(void) {
+	alg_impl_init(&sha256_conf_impl);
+	alg_impl_init(&sha512_conf_impl);
+}
+
+void sha2_impl_fini(void) {
+	alg_impl_fini(&sha256_conf_impl);
+	alg_impl_fini(&sha512_conf_impl);
+}
+
+#endif	/* _KERNEL */
 
 static uint8_t PADDING[128] = { 0x80, /* all zeros */ };
 
@@ -143,20 +256,19 @@ static uint8_t PADDING[128] = { 0x80, /* all zeros */ };
 #endif	/* _BIG_ENDIAN */
 
 
-#if	!defined(__amd64) || !defined(_KERNEL)
 /* SHA256 Transform */
 
 static void
-SHA256Transform(SHA2_CTX *ctx, const uint8_t *blk)
+SHA256Transform(uint32_t *state, const uint8_t *blk)
 {
-	uint32_t a = ctx->state.s32[0];
-	uint32_t b = ctx->state.s32[1];
-	uint32_t c = ctx->state.s32[2];
-	uint32_t d = ctx->state.s32[3];
-	uint32_t e = ctx->state.s32[4];
-	uint32_t f = ctx->state.s32[5];
-	uint32_t g = ctx->state.s32[6];
-	uint32_t h = ctx->state.s32[7];
+	uint32_t a = state[0];
+	uint32_t b = state[1];
+	uint32_t c = state[2];
+	uint32_t d = state[3];
+	uint32_t e = state[4];
+	uint32_t f = state[5];
+	uint32_t g = state[6];
+	uint32_t h = state[7];
 
 	uint32_t w0, w1, w2, w3, w4, w5, w6, w7;
 	uint32_t w8, w9, w10, w11, w12, w13, w14, w15;
@@ -188,11 +300,6 @@ SHA256Transform(SHA2_CTX *ctx, const uint8_t *blk)
 		SHA256_CONST_63
 	};
 #endif	/* __sparc */
-
-	if ((uintptr_t)blk & 0x3) {		/* not 4-byte aligned? */
-		bcopy(blk, ctx->buf_un.buf32,  sizeof (ctx->buf_un.buf32));
-		blk = (uint8_t *)ctx->buf_un.buf32;
-	}
 
 	/* LINTED E_BAD_PTR_CAST_ALIGN */
 	w0 =  LOAD_BIG_32(blk + 4 * 0);
@@ -342,31 +449,30 @@ SHA256Transform(SHA2_CTX *ctx, const uint8_t *blk)
 	w15 = SIGMA1_256(w13) + w8 + SIGMA0_256(w0) + w15;
 	SHA256ROUND(b, c, d, e, f, g, h, a, 63, w15);
 
-	ctx->state.s32[0] += a;
-	ctx->state.s32[1] += b;
-	ctx->state.s32[2] += c;
-	ctx->state.s32[3] += d;
-	ctx->state.s32[4] += e;
-	ctx->state.s32[5] += f;
-	ctx->state.s32[6] += g;
-	ctx->state.s32[7] += h;
+	state[0] += a;
+	state[1] += b;
+	state[2] += c;
+	state[3] += d;
+	state[4] += e;
+	state[5] += f;
+	state[6] += g;
+	state[7] += h;
 }
-
 
 /* SHA384 and SHA512 Transform */
 
 static void
-SHA512Transform(SHA2_CTX *ctx, const uint8_t *blk)
+SHA512Transform(uint64_t *state, const uint8_t *blk)
 {
 
-	uint64_t a = ctx->state.s64[0];
-	uint64_t b = ctx->state.s64[1];
-	uint64_t c = ctx->state.s64[2];
-	uint64_t d = ctx->state.s64[3];
-	uint64_t e = ctx->state.s64[4];
-	uint64_t f = ctx->state.s64[5];
-	uint64_t g = ctx->state.s64[6];
-	uint64_t h = ctx->state.s64[7];
+	uint64_t a = state[0];
+	uint64_t b = state[1];
+	uint64_t c = state[2];
+	uint64_t d = state[3];
+	uint64_t e = state[4];
+	uint64_t f = state[5];
+	uint64_t g = state[6];
+	uint64_t h = state[7];
 
 	uint64_t w0, w1, w2, w3, w4, w5, w6, w7;
 	uint64_t w8, w9, w10, w11, w12, w13, w14, w15;
@@ -403,12 +509,6 @@ SHA512Transform(SHA2_CTX *ctx, const uint8_t *blk)
 		SHA512_CONST_78, SHA512_CONST_79
 	};
 #endif	/* __sparc */
-
-
-	if ((uintptr_t)blk & 0x7) {		/* not 8-byte aligned? */
-		bcopy(blk, ctx->buf_un.buf64,  sizeof (ctx->buf_un.buf64));
-		blk = (uint8_t *)ctx->buf_un.buf64;
-	}
 
 	/* LINTED E_BAD_PTR_CAST_ALIGN */
 	w0 =  LOAD_BIG_64(blk + 8 * 0);
@@ -591,18 +691,40 @@ SHA512Transform(SHA2_CTX *ctx, const uint8_t *blk)
 	w15 = SIGMA1(w13) + w8 + SIGMA0(w0) + w15;
 	SHA512ROUND(b, c, d, e, f, g, h, a, 79, w15);
 
-	ctx->state.s64[0] += a;
-	ctx->state.s64[1] += b;
-	ctx->state.s64[2] += c;
-	ctx->state.s64[3] += d;
-	ctx->state.s64[4] += e;
-	ctx->state.s64[5] += f;
-	ctx->state.s64[6] += g;
-	ctx->state.s64[7] += h;
+	state[0] += a;
+	state[1] += b;
+	state[2] += c;
+	state[3] += d;
+	state[4] += e;
+	state[5] += f;
+	state[6] += g;
+	state[7] += h;
 
 }
-#endif	/* !__amd64 || !_KERNEL */
 
+#if defined(_KERNEL)
+
+static void
+SHA256TransformBlocksGeneric(uint32_t *state, const void *in, size_t num)
+{
+	const uint8_t *ptr = in;
+	for (size_t i = 0; i < num; i++) {
+		SHA256Transform(state, ptr);
+		ptr += 64;
+	}
+}
+
+static void
+SHA512TransformBlocksGeneric(uint64_t *state, const void *in, size_t num)
+{
+	const uint8_t *ptr = in;
+	for (size_t i = 0; i < num; i++) {
+		SHA512Transform(state, ptr);
+		ptr += 128;
+	}
+}
+
+#endif /* _KERNEL */
 
 /*
  * Encode()
@@ -785,6 +907,11 @@ SHA2Update(SHA2_CTX *ctx, const void *inptr, size_t input_len)
 	const uint8_t	*input = inptr;
 	uint32_t	algotype = ctx->algotype;
 
+#if	defined(__amd64) && defined(_KERNEL)
+	sha256_block_f sha256_impl = NULL;
+	sha512_block_f sha512_impl = NULL;
+#endif
+
 	/* check for noop */
 	if (input_len == 0)
 		return;
@@ -801,6 +928,10 @@ SHA2Update(SHA2_CTX *ctx, const void *inptr, size_t input_len)
 
 		ctx->count.c32[0] += (input_len >> 29);
 
+#if	defined(__amd64) && defined(_KERNEL)
+		const alg_impl_ops_t *ops = alg_impl_get_ops(&sha256_conf_impl);
+		sha256_impl = (sha256_block_f)(ops->ctx);
+#endif
 	} else {
 		buf_limit = 128;
 
@@ -812,6 +943,11 @@ SHA2Update(SHA2_CTX *ctx, const void *inptr, size_t input_len)
 			ctx->count.c64[0]++;
 
 		ctx->count.c64[0] += (input_len >> 29);
+
+#if	defined(__amd64) && defined(_KERNEL)
+		const alg_impl_ops_t *ops = alg_impl_get_ops(&sha512_conf_impl);
+		sha512_impl = (sha512_block_f)(ops->ctx);
+#endif
 	}
 
 	buf_len = buf_limit - buf_index;
@@ -831,22 +967,34 @@ SHA2Update(SHA2_CTX *ctx, const void *inptr, size_t input_len)
 		 */
 		if (buf_index) {
 			bcopy(input, &ctx->buf_un.buf8[buf_index], buf_len);
+#if !defined(__amd64) || !defined(_KERNEL)
 			if (algotype <= SHA256_HMAC_GEN_MECH_INFO_TYPE)
-				SHA256Transform(ctx, ctx->buf_un.buf8);
+				SHA256Transform(
+				    ctx->state.s32, ctx->buf_un.buf8);
 			else
-				SHA512Transform(ctx, ctx->buf_un.buf8);
-
+				SHA512Transform(
+				    ctx->state.s64, ctx->buf_un.buf8);
+#else
+			if (algotype <= SHA256_HMAC_GEN_MECH_INFO_TYPE)
+				sha256_impl(
+				    ctx->state.s32, ctx->buf_un.buf8, 1);
+			else
+				sha512_impl(
+				    ctx->state.s64, ctx->buf_un.buf8, 1);
+#endif
 			i = buf_len;
 		}
 
 #if !defined(__amd64) || !defined(_KERNEL)
 		if (algotype <= SHA256_HMAC_GEN_MECH_INFO_TYPE) {
 			for (; i + buf_limit - 1 < input_len; i += buf_limit) {
-				SHA256Transform(ctx, &input[i]);
+				SHA256Transform(
+				    ctx->state.s32, &input[i]);
 			}
 		} else {
 			for (; i + buf_limit - 1 < input_len; i += buf_limit) {
-				SHA512Transform(ctx, &input[i]);
+				SHA512Transform(
+				    ctx->state.s64, &input[i]);
 			}
 		}
 
@@ -855,15 +1003,15 @@ SHA2Update(SHA2_CTX *ctx, const void *inptr, size_t input_len)
 		if (algotype <= SHA256_HMAC_GEN_MECH_INFO_TYPE) {
 			block_count = (input_len - i) >> 6;
 			if (block_count > 0) {
-				SHA256TransformBlocks(ctx, &input[i],
-				    block_count);
+				sha256_impl(
+				    ctx->state.s32, &input[i], block_count);
 				i += block_count << 6;
 			}
 		} else {
 			block_count = (input_len - i) >> 7;
 			if (block_count > 0) {
-				SHA512TransformBlocks(ctx, &input[i],
-				    block_count);
+				sha512_impl(
+				    ctx->state.s64, &input[i], block_count);
 				i += block_count << 7;
 			}
 		}
@@ -953,4 +1101,39 @@ SHA2Final(void *digest, SHA2_CTX *ctx)
 EXPORT_SYMBOL(SHA2Init);
 EXPORT_SYMBOL(SHA2Update);
 EXPORT_SYMBOL(SHA2Final);
+#endif
+
+#if defined(_KERNEL) && defined(__linux__)
+
+static int
+icp_sha256_impl_set(const char *val, zfs_kernel_param_t *kp)
+{
+	return (alg_impl_set(&sha256_conf_impl, val));
+}
+
+static int
+icp_sha256_impl_get(char *buffer, zfs_kernel_param_t *kp)
+{
+	return (alg_impl_get(&sha256_conf_impl, buffer));
+}
+
+module_param_call(icp_sha256_impl, icp_sha256_impl_set, icp_sha256_impl_get,
+    NULL, 0644);
+MODULE_PARM_DESC(icp_sha256_impl, "Select sha256 implementation.");
+
+static int
+icp_sha512_impl_set(const char *val, zfs_kernel_param_t *kp)
+{
+	return (alg_impl_set(&sha512_conf_impl, val));
+}
+
+static int
+icp_sha512_impl_get(char *buffer, zfs_kernel_param_t *kp)
+{
+	return (alg_impl_get(&sha512_conf_impl, buffer));
+}
+
+module_param_call(icp_sha512_impl, icp_sha512_impl_set, icp_sha512_impl_get,
+    NULL, 0644);
+MODULE_PARM_DESC(icp_sha512_impl, "Select sha512 implementation.");
 #endif
