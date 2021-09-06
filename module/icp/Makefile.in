@@ -58,7 +58,13 @@ $(MODULE)-$(CONFIG_X86_64) += asm-x86_64/modes/aesni-gcm-x86_64.o
 $(MODULE)-$(CONFIG_X86_64) += asm-x86_64/modes/ghash-x86_64.o
 $(MODULE)-$(CONFIG_X86_64) += asm-x86_64/sha1/sha1-x86_64.o
 $(MODULE)-$(CONFIG_X86_64) += asm-x86_64/sha2/sha256_impl.o
+$(MODULE)-$(CONFIG_X86_64) += asm-x86_64/sha2/sha256_avx.o
+$(MODULE)-$(CONFIG_X86_64) += asm-x86_64/sha2/sha256_ssse3.o
+$(MODULE)-$(CONFIG_X86_64) += asm-x86_64/sha2/sha256_ni.o
 $(MODULE)-$(CONFIG_X86_64) += asm-x86_64/sha2/sha512_impl.o
+$(MODULE)-$(CONFIG_X86_64) += asm-x86_64/sha2/sha512_avx.o
+$(MODULE)-$(CONFIG_X86_64) += asm-x86_64/sha2/sha512_avx2.o
+$(MODULE)-$(CONFIG_X86_64) += asm-x86_64/sha2/sha512_ssse3.o
 
 $(MODULE)-$(CONFIG_X86) += algs/modes/gcm_pclmulqdq.o
 $(MODULE)-$(CONFIG_X86) += algs/aes/aes_impl_aesni.o

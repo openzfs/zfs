@@ -19,6 +19,7 @@ notable exceptions and their respective licenses include:
   * AES Implementation: module/icp/asm-x86_64/aes/THIRDPARTYLICENSE.gladman
   * AES Implementation: module/icp/asm-x86_64/aes/THIRDPARTYLICENSE.openssl
   * PBKDF2 Implementation: lib/libzfs/THIRDPARTYLICENSE.openssl
+  * SHA2 Implementation: module/icp/asm-x86_64/sha2/THIRDPARTYLICENSE.intel
   * SPL Implementation: module/os/linux/spl/THIRDPARTYLICENSE.gplv2
   * GCM Implementation: module/icp/asm-x86_64/modes/THIRDPARTYLICENSE.cryptogams
   * GCM Implementation: module/icp/asm-x86_64/modes/THIRDPARTYLICENSE.openssl
