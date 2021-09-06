@@ -40,6 +40,9 @@ extern int optind;
 
 #include <ctime>
 #include <string>
+#define	_SILENCE_EXPERIMENTAL_FILESYSTEM_DEPRECATION_WARNING 1
+#include <experimental\filesystem>
+namespace fs = std::experimental::filesystem;
 
 #define	MAX_PATH_LEN 1024
 
@@ -55,6 +58,13 @@ extern int optind;
 const unsigned char OPEN_ZFS_GUID[] = "c20c603c-afd4-467d-bf76-c0a4c10553df";
 const unsigned char LOGGER_SESSION[] = "autosession\\OpenZFS_trace";
 const std::string ETL_FILE("\\OpenZFS.etl");
+const std::string MANIFEST_FILE("\\OpenZFS.man");
+
+enum manifest_install_types
+{
+	MAN_INSTALL,
+	MAN_UNINSTALL,
+};
 
 int
 session_exists(void)
@@ -179,6 +189,12 @@ hex_modify(std::string& hex)
 	hex = std::string("0x") + hex;
 }
 
+std::string get_cwd() {
+	CHAR cwd_path[MAX_PATH_LEN] = { 0 };
+	DWORD len = GetCurrentDirectoryA(MAX_PATH_LEN, cwd_path);
+	return (std::string(cwd_path));
+}
+
 int
 arg_parser(int argc, char **argv, std::string &flags,
 	std::string &levels, int &size_in_mb, std::string &etl_file)
@@ -229,7 +245,7 @@ arg_parser(int argc, char **argv, std::string &flags,
 		WideCharToMultiByte(CP_UTF8, 0, &CurrentPath[0],
 			MAX_PATH_LEN, &CwdPath[0], size_needed, NULL, NULL);
 		CwdPath.erase(len);
-		etl_file = CwdPath + ETL_FILE;
+		etl_file = get_cwd() + ETL_FILE;
 	}
 	return (0);
 }
@@ -287,6 +303,47 @@ zfs_log_session_create(int argc, char **argv)
 	return (0);
 }
 
+int perf_counters(char* inf_path, int type) {
+	int error = 0;
+	fs::path path = std::string(inf_path);
+	std::string final_path;
+
+	char driver_path[MAX_PATH_LEN] = { 0 };
+	strncpy_s(driver_path, inf_path, MAX_PATH_LEN);
+	char* slash = strrchr(driver_path, '\\');
+	*slash = '\0';
+
+	if (path.is_absolute())
+		final_path = std::string(driver_path) + MANIFEST_FILE;
+	else if (path.is_relative())
+		final_path = get_cwd() + std::string("\\") + std::string(
+			driver_path) + MANIFEST_FILE;
+
+	char command[MAX_PATH_LEN] = { 0 };
+	switch (type)
+	{
+	case MAN_INSTALL:
+		sprintf_s(command, "lodctr /m:\"%s\"\n", final_path.c_str());
+		break;
+	case MAN_UNINSTALL:
+		sprintf_s(command, "unlodctr /m:\"%s\"\n", final_path.c_str());
+		break;
+	default:
+		break;
+	}
+
+	fprintf(stderr, "Executing %s\n", command);
+	return (system(command));
+}
+
+int perf_counters_install(char* inf_path) {
+	return (perf_counters(inf_path, MAN_INSTALL));
+}
+
+
+int perf_counters_uninstall(char* inf_path) {
+	return (perf_counters(inf_path, MAN_UNINSTALL));
+}
 
 int
 main(int argc, char *argv[])
@@ -391,6 +448,9 @@ DWORD zfs_install(char *inf_path) {
 	if (!error)
 		error = installRootDevice(inf_path);
 
+	if (!error)
+		perf_counters_install(inf_path);
+
 	return (error);
 }
 
@@ -407,8 +467,10 @@ zfs_uninstall(char *inf_path)
 	if (ret == 0)
 		ret = executeInfSection("DefaultUninstall 128 ", inf_path);
 
-	if (ret == 0)
+	if (ret == 0) {
 		ret = uninstallRootDevice(inf_path);
+		perf_counters_uninstall(inf_path);
+	}
 
 	return (ret);
 }

@@ -21,6 +21,7 @@ wdk_add_driver(OpenZFS
   debug.c
   driver.c
   Wpp.c
+  OpenZFS_perf.rc
 )
 
 target_link_libraries(OpenZFS PRIVATE
@@ -49,6 +50,7 @@ set_target_properties(OpenZFS
 )
 
 configure_file(OpenZFS.inf "${CMAKE_CURRENT_BINARY_DIR}/driver/OpenZFS.inf" COPYONLY)
+configure_file(OpenZFS.man "${CMAKE_CURRENT_BINARY_DIR}/driver/OpenZFS.man" COPYONLY)
 
 add_custom_command(
 	TARGET OpenZFS
@@ -71,6 +73,7 @@ install(TARGETS OpenZFS RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}/driver")
 install(FILES 
 	"${CMAKE_CURRENT_BINARY_DIR}/driver/OpenZFS.inf"
 	"${CMAKE_CURRENT_BINARY_DIR}/driver/OpenZFS.cat"
+    "${CMAKE_CURRENT_BINARY_DIR}/driver/OpenZFS.man"
 	DESTINATION "${CMAKE_INSTALL_BINDIR}/driver"
 )
 
@@ -79,6 +82,12 @@ install(FILES
 	DESTINATION "${CMAKE_INSTALL_BINDIR}/driver"
 	OPTIONAL
 )
+
+execute_process(COMMAND  "${WDK_ROOT}/bin/${WDK_VERSION}/x86/ctrpp.exe"
+  -o ${CMAKE_CURRENT_SOURCE_DIR}/OpenZFS_perf.h
+  -rc ${CMAKE_CURRENT_SOURCE_DIR}/OpenZFS_perf.rc
+  -ch ${CMAKE_CURRENT_SOURCE_DIR}/OpenZFS_counters.h
+ ${CMAKE_CURRENT_SOURCE_DIR}/OpenZFS.man )
 
 file(GLOB CSOURCES CONFIGURE_DEPENDS "*.c")
 

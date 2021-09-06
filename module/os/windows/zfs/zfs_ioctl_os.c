@@ -53,6 +53,11 @@
 #include <zfs_gitrev.h>
 
 #include <Wdmsec.h>
+#include <sys/spa_impl.h>
+#include <sys/zfs_ioctl.h>
+#include "../OpenZFS_perf.h"
+#include "../OpenZFS_counters.h"
+#include <sys/vdev_impl.h>
 
 // extern void zfs_windows_vnops_callback(PDEVICE_OBJECT deviceObject);
 
@@ -82,6 +87,588 @@ zfs_vfs_ref(zfsvfs_t **zfvp)
 	}
 	return (error);
 }
+
+NTSTATUS NTAPI
+ZFSinPerfCallBack(PCW_CALLBACK_TYPE Type, PPCW_CALLBACK_INFORMATION Info,
+    PVOID Context)
+{
+    UNREFERENCED_PARAMETER(Context);
+
+    switch (Type) {
+    case PcwCallbackEnumerateInstances:
+    {
+	ZFSinPerfEnumerate(Info->EnumerateInstances);
+	break;
+    }
+    case PcwCallbackCollectData:
+    {
+	ZFSinPerfCollect(Info->CollectData);
+
+	break;
+    }
+    default: break;
+    }
+
+    return (STATUS_SUCCESS);
+}
+
+NTSTATUS NTAPI
+ZFSinPerfVdevCallBack(PCW_CALLBACK_TYPE Type, PPCW_CALLBACK_INFORMATION Info,
+    PVOID Context)
+{
+    UNREFERENCED_PARAMETER(Context);
+
+    switch (Type) {
+    case PcwCallbackEnumerateInstances:
+    {
+	ZFSinPerfVdevEnumerate(Info->EnumerateInstances);
+
+	break;
+    }
+    case PcwCallbackCollectData:
+    {
+	ZFSinPerfVdevCollect(Info->CollectData);
+
+	break;
+    }
+    default: break;
+    }
+
+    return (STATUS_SUCCESS);
+}
+
+NTSTATUS NTAPI
+ZFSinCachePerfCallBack(PCW_CALLBACK_TYPE Type, PPCW_CALLBACK_INFORMATION
+    Info, PVOID Context)
+{
+    UNREFERENCED_PARAMETER(Context);
+
+    switch (Type) {
+    case PcwCallbackEnumerateInstances:
+    {
+	ZFSinCachePerfEnumerate(Info->EnumerateInstances);
+
+	break;
+    }
+    case PcwCallbackCollectData:
+    {
+	ZFSinCachePerfCollect(Info->CollectData);
+
+	break;
+    }
+    default: break;
+    }
+
+    return (STATUS_SUCCESS);
+
+}
+
+
+
+
+PUNICODE_STRING
+MapInvalidChars(PUNICODE_STRING InstanceName)
+{
+    const WCHAR wInvalidChars[] = L"()#\\/";
+    const WCHAR wMappedChars[] = L"[]___";
+    const LONG lArraySize = ARRAY_SIZE(wInvalidChars) - 1;
+
+    for (LONG i = 0; i < InstanceName->Length / sizeof(WCHAR); ++i) {
+	for (LONG j = 0; j < lArraySize; ++j) {
+	    if (InstanceName->Buffer[i] == wInvalidChars[j]) {
+		InstanceName->Buffer[i] = wMappedChars[j];
+		break;
+	    }
+	}
+    }
+    return (InstanceName);
+}
+
+void
+ZFSinPerfVdevEnumerate(PCW_MASK_INFORMATION EnumerateInstances)
+{
+    spa_t* spa_perf = NULL;
+    NTSTATUS status;
+    UNICODE_STRING unicodeName;
+    unicodeName.Buffer = kmem_alloc(sizeof(WCHAR) *
+	ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP);
+    unicodeName.MaximumLength = ZFS_MAX_DATASET_NAME_LEN;
+    mutex_enter(&spa_namespace_lock);
+    while ((spa_perf = spa_next(spa_perf)) != NULL) {
+	vdev_t* vd = spa_perf->spa_root_vdev;
+	char vdev_zpool[ZFS_MAX_DATASET_NAME_LEN] = { 0 };
+
+	for (int c = 0; c < vd->vdev_children; c++) {
+	    char* vdev_name = vd->vdev_child[c]->vdev_path;
+	    if (!vdev_name || !vdev_name[0])
+		continue;
+
+	    snprintf(vdev_zpool, ZFS_MAX_DATASET_NAME_LEN, "%s_%s",
+		vdev_name + 5, spa_perf->spa_name);
+	    /* Neglecting first five characters of vdev_name */
+
+	    ANSI_STRING ansi_vdev;
+	    RtlInitAnsiString(&ansi_vdev, vdev_zpool);
+	    status = RtlAnsiStringToUnicodeString(&unicodeName,
+		&ansi_vdev, FALSE);
+
+	    if (!NT_SUCCESS(status)) {
+		TraceEvent(TRACE_ERROR,
+		    "%s:%d: Ansi to Unicode string conversion failed for %Z\n",
+		    __func__, __LINE__, &ansi_vdev);
+		continue;
+	    }
+
+	    status = AddZFSinPerfVdev(EnumerateInstances.Buffer,
+		MapInvalidChars(&unicodeName), 0, NULL);
+	    if (!NT_SUCCESS(status)) {
+		TraceEvent(TRACE_ERROR,
+		    "%s:%d: AddZFSinPerfVdev failed - status 0x%x\n",
+		    __func__, __LINE__, status);
+	    }
+	}
+    }
+    mutex_exit(&spa_namespace_lock);
+    UNICODE_STRING total;
+    RtlInitUnicodeString(&total, L"_Total");
+    status = AddZFSinPerfVdev(EnumerateInstances.Buffer,
+	MapInvalidChars(&total), 0, NULL);
+    if (!NT_SUCCESS(status)) {
+	TraceEvent(TRACE_ERROR,
+	    "%s:%d: AddZFSinPerfVdev failed - status 0x%x\n",
+	    __func__, __LINE__, status);
+    }
+    kmem_free(unicodeName.Buffer, sizeof(WCHAR) *
+	ZFS_MAX_DATASET_NAME_LEN);
+}
+
+
+void ZFSinPerfEnumerate(PCW_MASK_INFORMATION EnumerateInstances) {
+    NTSTATUS status = STATUS_SUCCESS;
+    UNICODE_STRING unicodeName;
+    unicodeName.Buffer = kmem_alloc(sizeof(WCHAR) *
+	ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP);
+    unicodeName.MaximumLength = ZFS_MAX_DATASET_NAME_LEN;
+
+    spa_t* spa_perf = NULL;
+    ANSI_STRING ansi_spa;
+
+    mutex_enter(&spa_namespace_lock);
+    while ((spa_perf = spa_next(spa_perf)) != NULL) {
+	spa_open_ref(spa_perf, FTAG);
+	RtlInitAnsiString(&ansi_spa, spa_perf->spa_name);
+	spa_close(spa_perf, FTAG);
+
+	status = RtlAnsiStringToUnicodeString(&unicodeName, &ansi_spa, FALSE);
+	if (!NT_SUCCESS(status)) {
+	    TraceEvent(TRACE_ERROR,
+		"%s:%d: Ansi to Unicode string conversion failed for %Z\n",
+		__func__, __LINE__, &ansi_spa);
+	    continue;
+	}
+
+	status = AddZFSinPerf(EnumerateInstances.Buffer,
+	    MapInvalidChars(&unicodeName), 0, NULL);
+	if (!NT_SUCCESS(status)) {
+	    TraceEvent(TRACE_ERROR,
+		"%s:%d: AddZFSinPerf failed - status 0x%x\n",
+		__func__, __LINE__, status);
+	}
+    }
+    mutex_exit(&spa_namespace_lock);
+
+    UNICODE_STRING total;
+    RtlInitUnicodeString(&total, L"_Total");
+    status = AddZFSinPerf(EnumerateInstances.Buffer,
+	MapInvalidChars(&total), 0, NULL);
+    if (!NT_SUCCESS(status)) {
+	TraceEvent(TRACE_ERROR, "%s:%d: AddZFSinPerf failed - status 0x%x\n",
+	    __func__, __LINE__, status);
+    }
+
+    kmem_free(unicodeName.Buffer, sizeof(WCHAR) *
+	ZFS_MAX_DATASET_NAME_LEN);
+}
+
+void ZFSinCachePerfEnumerate(PCW_MASK_INFORMATION EnumerateInstances) {
+    UNICODE_STRING unicodeName;
+    unicodeName.Buffer = kmem_alloc(sizeof(WCHAR) *
+	ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP);
+    unicodeName.MaximumLength = ZFS_MAX_DATASET_NAME_LEN;
+
+    ANSI_STRING ansi_spa;
+    RtlInitAnsiString(&ansi_spa, "Total");
+
+    NTSTATUS status = RtlAnsiStringToUnicodeString(
+	&unicodeName, &ansi_spa, FALSE);
+    if (!NT_SUCCESS(status))
+    {
+	TraceEvent(TRACE_ERROR,
+	    "%s:%d: Ansi to Unicode string conversion failed for %Z\n",
+	    __func__, __LINE__, &ansi_spa);
+    }
+    else
+    {
+	status = AddZFSinCachePerf(EnumerateInstances.Buffer,
+	    MapInvalidChars(&unicodeName), 0, NULL);
+	if (!NT_SUCCESS(status)) {
+	    TraceEvent(TRACE_ERROR,
+		"%s:%d: AddZFSinCachePerf failed - status 0x%x\n",
+		__func__, __LINE__, status);
+	}
+    }
+    kmem_free(unicodeName.Buffer, sizeof(WCHAR) *
+	ZFS_MAX_DATASET_NAME_LEN);
+}
+
+void
+latency_stats(uint64_t* histo, unsigned int buckets, stat_pair* lat)
+{
+    int i;
+    lat->count = 0;
+    lat->total = 0;
+
+    for (i = 0; i < buckets; i++) {
+	/*
+	 * Our buckets are power-of-two latency ranges.  Use the
+	 * midpoint latency of each bucket to calculate the average.
+	 * For example:
+	 *
+	 * Bucket          Midpoint
+	 * 8ns-15ns:       12ns
+	 * 16ns-31ns:      24ns
+	 * ...
+	 */
+	if (histo[i] != 0) {
+	    lat->total += histo[i] * (((1UL << i) + ((1UL << i) / 2)));
+	    lat->count += histo[i];
+	}
+    }
+}
+
+void
+update_perf(vdev_stat_ex_t* vsx, vdev_stat_t* vs, ddt_object_t* ddo,
+    dsl_pool_t* spad, zpool_perf_counters* perf)
+{
+    if (!perf)
+	return;
+
+    if (ddo) {
+	perf->ddt_entry_count = ddo->ddo_count;
+	perf->ddt_dspace = ddo->ddo_dspace * ddo->ddo_count;
+	perf->ddt_mspace = ddo->ddo_mspace * ddo->ddo_count;
+    }
+
+    if (vs) {
+	perf->read_iops = vs->vs_ops[ZIO_TYPE_READ];
+	perf->write_iops = vs->vs_ops[ZIO_TYPE_WRITE];
+	perf->read_bytes = vs->vs_bytes[ZIO_TYPE_READ];
+	perf->write_bytes = vs->vs_bytes[ZIO_TYPE_WRITE];
+	perf->total_bytes = vs->vs_bytes[ZIO_TYPE_WRITE] +
+	    vs->vs_bytes[ZIO_TYPE_READ];
+	perf->total_iops = vs->vs_ops[ZIO_TYPE_WRITE] +
+	    vs->vs_ops[ZIO_TYPE_READ];
+    }
+
+    if (vsx) {
+	perf->vsx_active_queue_sync_read =
+	    vsx->vsx_active_queue[ZIO_PRIORITY_SYNC_READ];
+	perf->vsx_active_queue_sync_write =
+	    vsx->vsx_active_queue[ZIO_PRIORITY_SYNC_WRITE];
+	perf->vsx_active_queue_async_read =
+	    vsx->vsx_active_queue[ZIO_PRIORITY_ASYNC_READ];
+	perf->vsx_active_queue_async_write =
+	    vsx->vsx_active_queue[ZIO_PRIORITY_ASYNC_WRITE];
+	perf->vsx_pend_queue_sync_read =
+	    vsx->vsx_pend_queue[ZIO_PRIORITY_SYNC_READ];
+	perf->vsx_pend_queue_sync_write =
+	    vsx->vsx_pend_queue[ZIO_PRIORITY_SYNC_WRITE];
+	perf->vsx_pend_queue_async_read =
+	    vsx->vsx_pend_queue[ZIO_PRIORITY_ASYNC_READ];
+	perf->vsx_pend_queue_async_write =
+	    vsx->vsx_pend_queue[ZIO_PRIORITY_ASYNC_WRITE];
+
+
+	stat_pair lat;
+	latency_stats(&vsx->vsx_queue_histo[ZIO_PRIORITY_SYNC_READ][0],
+	    VDEV_L_HISTO_BUCKETS, &lat);
+	perf->vsx_queue_histo_sync_read_time = lat.total;
+	perf->vsx_queue_histo_sync_read_count = lat.count;
+
+	latency_stats(&vsx->vsx_queue_histo[ZIO_PRIORITY_SYNC_WRITE][0],
+	    VDEV_L_HISTO_BUCKETS, &lat);
+	perf->vsx_queue_histo_sync_write_time = lat.total;
+	perf->vsx_queue_histo_sync_write_count = lat.count;
+
+	latency_stats(&vsx->vsx_queue_histo[ZIO_PRIORITY_ASYNC_READ][0],
+	    VDEV_L_HISTO_BUCKETS, &lat);
+	perf->vsx_queue_histo_async_read_time = lat.total;
+	perf->vsx_queue_histo_async_read_count = lat.count;
+
+	latency_stats(&vsx->vsx_queue_histo[ZIO_PRIORITY_ASYNC_WRITE][0],
+	    VDEV_L_HISTO_BUCKETS, &lat);
+	perf->vsx_queue_histo_async_write_time = lat.total;
+	perf->vsx_queue_histo_async_write_count = lat.count;
+
+	latency_stats(&vsx->vsx_total_histo[ZIO_TYPE_READ][0],
+	    VDEV_L_HISTO_BUCKETS, &lat);
+	perf->vsx_total_histo_read_time = lat.total;
+	perf->vsx_total_histo_read_count = lat.count;
+
+	latency_stats(&vsx->vsx_total_histo[ZIO_TYPE_WRITE][0],
+	    VDEV_L_HISTO_BUCKETS, &lat);
+	perf->vsx_total_histo_write_time = lat.total;
+	perf->vsx_total_histo_write_count = lat.count;
+
+	latency_stats(&vsx->vsx_disk_histo[ZIO_TYPE_READ][0],
+	    VDEV_L_HISTO_BUCKETS, &lat);
+	perf->vsx_disk_histo_read_time = lat.total;
+	perf->vsx_disk_histo_read_count = lat.count;
+
+	latency_stats(&vsx->vsx_disk_histo[ZIO_TYPE_WRITE][0],
+	    VDEV_L_HISTO_BUCKETS, &lat);
+	perf->vsx_disk_histo_write_time = lat.total;
+	perf->vsx_disk_histo_write_count = lat.count;
+    }
+
+    if (spad)
+	perf->dp_dirty_total_io = spad->dp_dirty_total;
+}
+
+
+void
+update_total_perf(zpool_perf_counters* perf, zpool_perf_counters* total_perf)
+{
+    total_perf->ddt_entry_count += perf->ddt_entry_count;
+    total_perf->ddt_dspace += perf->ddt_dspace;
+    total_perf->ddt_mspace += perf->ddt_mspace;
+    total_perf->read_iops += perf->read_iops;
+    total_perf->write_iops += perf->write_iops;
+    total_perf->read_bytes += perf->read_bytes;
+    total_perf->write_bytes += perf->write_bytes;
+    total_perf->total_iops += (perf->read_iops + perf->write_iops);
+    total_perf->total_bytes += (perf->read_bytes + perf->write_bytes);
+    total_perf->vsx_active_queue_sync_read +=
+	perf->vsx_active_queue_sync_read;
+    total_perf->vsx_active_queue_sync_write +=
+	perf->vsx_active_queue_sync_write;
+    total_perf->vsx_active_queue_async_read +=
+	perf->vsx_active_queue_async_read;
+    total_perf->vsx_active_queue_async_write +=
+	perf->vsx_active_queue_async_write;
+    total_perf->vsx_pend_queue_sync_read +=
+	perf->vsx_pend_queue_sync_read;
+    total_perf->vsx_pend_queue_sync_write +=
+	perf->vsx_pend_queue_sync_write;
+    total_perf->vsx_pend_queue_async_read +=
+	perf->vsx_pend_queue_async_read;
+    total_perf->vsx_pend_queue_async_write +=
+	perf->vsx_pend_queue_async_write;
+    total_perf->vsx_disk_histo_read_time +=
+	perf->vsx_disk_histo_read_time;
+    total_perf->vsx_disk_histo_read_count +=
+	perf->vsx_disk_histo_read_count;
+    total_perf->vsx_disk_histo_write_time +=
+	perf->vsx_disk_histo_write_time;
+    total_perf->vsx_disk_histo_write_count +=
+	perf->vsx_disk_histo_write_count;
+    total_perf->vsx_total_histo_read_time +=
+	perf->vsx_total_histo_read_time;
+    total_perf->vsx_total_histo_read_count +=
+	perf->vsx_total_histo_read_count;
+    total_perf->vsx_total_histo_write_time +=
+	perf->vsx_total_histo_write_time;
+    total_perf->vsx_total_histo_write_count +=
+	perf->vsx_total_histo_write_count;
+    total_perf->vsx_queue_histo_sync_read_time +=
+	perf->vsx_queue_histo_sync_read_time;
+    total_perf->vsx_queue_histo_sync_read_count +=
+	perf->vsx_queue_histo_sync_read_count;
+    total_perf->vsx_queue_histo_sync_write_time +=
+	perf->vsx_queue_histo_sync_write_time;
+    total_perf->vsx_queue_histo_sync_write_count +=
+	perf->vsx_queue_histo_sync_write_count;
+    total_perf->vsx_queue_histo_async_read_time +=
+	perf->vsx_queue_histo_async_read_time;
+    total_perf->vsx_queue_histo_async_read_count +=
+	perf->vsx_queue_histo_async_read_count;
+    total_perf->vsx_queue_histo_async_write_time +=
+	perf->vsx_queue_histo_async_write_time;
+    total_perf->vsx_queue_histo_async_write_count +=
+	perf->vsx_queue_histo_async_write_count;
+    total_perf->dp_dirty_total_io += perf->dp_dirty_total_io;
+}
+
+
+void ZFSinPerfCollect(PCW_MASK_INFORMATION CollectData) {
+    NTSTATUS status = STATUS_SUCCESS;
+    UNICODE_STRING unicodeName;
+    unicodeName.Buffer = kmem_alloc(sizeof(WCHAR) *
+	ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP);
+    unicodeName.MaximumLength = ZFS_MAX_DATASET_NAME_LEN;
+
+    ANSI_STRING ansi_spa;
+    spa_t* spa_perf = NULL;
+    zpool_perf_counters total_perf = { 0 };
+
+    mutex_enter(&spa_namespace_lock);
+    while ((spa_perf = spa_next(spa_perf)) != NULL) {
+	zpool_perf_counters perf = { 0 };
+	spa_open_ref(spa_perf, FTAG);
+	RtlInitAnsiString(&ansi_spa, spa_perf->spa_name);
+	ddt_object_t ddo = { 0 };
+	vdev_stat_t vs = { 0 };
+	vdev_stat_ex_t vsx = { 0 };
+
+	spa_config_enter(spa_perf, SCL_ALL, FTAG, RW_READER);
+	vdev_get_stats_ex(spa_perf->spa_root_vdev, &vs, &vsx);
+	ddt_get_dedup_object_stats(spa_perf, &ddo);
+	dsl_pool_t* spad = spa_get_dsl(spa_perf);
+
+	update_perf(&vsx, &vs, &ddo, spad, &perf);
+	spa_config_exit(spa_perf, SCL_ALL, FTAG);
+	spa_close(spa_perf, FTAG);
+
+	update_total_perf(&perf, &total_perf);
+
+	status = RtlAnsiStringToUnicodeString(&unicodeName, &ansi_spa, FALSE);
+	if (!NT_SUCCESS(status)) {
+	    TraceEvent(TRACE_ERROR,
+		"%s:%d: Ansi to Unicode string conversion failed for %Z\n",
+		__func__, __LINE__, &ansi_spa);
+	    continue;
+	}
+
+	status = AddZFSinPerf(CollectData.Buffer, MapInvalidChars(&unicodeName),
+	    0, &perf);
+
+	if (!NT_SUCCESS(status)) {
+	    TraceEvent(TRACE_ERROR,
+		"%s:%d: AddZFSinPerf failed - status 0x%x\n",
+		__func__, __LINE__, status);
+	}
+    }
+    mutex_exit(&spa_namespace_lock);
+
+    UNICODE_STRING total;
+    RtlInitUnicodeString(&total, L"_Total");
+    status = AddZFSinPerf(CollectData.Buffer, MapInvalidChars(&total),
+	0, &total_perf);
+    if (!NT_SUCCESS(status)) {
+	TraceEvent(TRACE_ERROR, "%s:%d: AddZFSinPerf failed-status 0x%x\n",
+	    __func__, __LINE__, status);
+    }
+
+    kmem_free(unicodeName.Buffer, sizeof(WCHAR) *
+	ZFS_MAX_DATASET_NAME_LEN);
+}
+
+
+void ZFSinPerfVdevCollect(PCW_MASK_INFORMATION CollectData) {
+    NTSTATUS status = STATUS_SUCCESS;
+    UNICODE_STRING unicodeName;
+    unicodeName.Buffer = kmem_alloc(sizeof(WCHAR)
+	* ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP);
+    unicodeName.MaximumLength = ZFS_MAX_DATASET_NAME_LEN;
+
+    spa_t* spa_perf = NULL;
+    zpool_perf_counters total_perf_vdev = { 0 };
+    mutex_enter(&spa_namespace_lock);
+    while ((spa_perf = spa_next(spa_perf)) != NULL) {
+	spa_config_enter(spa_perf, SCL_ALL, FTAG, RW_READER);
+	vdev_t* vd = spa_perf->spa_root_vdev;
+	char vdev_zpool[ZFS_MAX_DATASET_NAME_LEN] = { 0 };
+	zpool_perf_counters perf_vdev = { 0 };
+
+	for (int c = 0; c < vd->vdev_children; c++) {
+	    char* vdev_name = vd->vdev_child[c]->vdev_path;
+	    if (!vdev_name || !vdev_name[0])
+		continue;
+
+	    snprintf(vdev_zpool, ZFS_MAX_DATASET_NAME_LEN, "%s_%s",
+		vdev_name + 5, spa_perf->
+		spa_name); // Neglecting first five characters of vdev_name
+
+	    ANSI_STRING ansi_vdev;
+	    RtlInitAnsiString(&ansi_vdev, vdev_zpool);
+	    status = RtlAnsiStringToUnicodeString(&unicodeName,
+		&ansi_vdev, FALSE);
+
+	    vdev_t* cvd = vd->vdev_child[c];
+
+	    update_perf(&cvd->vdev_stat_ex, &cvd->vdev_stat, NULL, NULL, &perf_vdev);
+	    update_total_perf(&perf_vdev, &total_perf_vdev);
+
+	    status = AddZFSinPerfVdev(CollectData.Buffer,
+		MapInvalidChars(&unicodeName), 0, &perf_vdev);
+
+	    if (!NT_SUCCESS(status)) {
+		TraceEvent(
+		    TRACE_ERROR, "%s:%d: AddZFSinPerfVdev failed-status 0x%x\n",
+		    __func__, __LINE__, status);
+	    }
+	}
+	spa_config_exit(spa_perf, SCL_ALL, FTAG);
+    }
+    mutex_exit(&spa_namespace_lock);
+
+    UNICODE_STRING total;
+    RtlInitUnicodeString(&total, L"_Total");
+    status = AddZFSinPerfVdev(CollectData.Buffer, MapInvalidChars(&total),
+	0, &total_perf_vdev);
+    if (!NT_SUCCESS(status)) {
+	TraceEvent(TRACE_ERROR,
+	    "%s:%d: AddZFSinPerfVdev failed-status 0x%x\n",
+	    __func__, __LINE__, status);
+    }
+    kmem_free(unicodeName.Buffer, sizeof(WCHAR)
+	* ZFS_MAX_DATASET_NAME_LEN);
+}
+
+extern kstat_t* perf_arc_ksp, * perf_zil_ksp;
+void ZFSinCachePerfCollect(PCW_MASK_INFORMATION CollectData) {
+    UNICODE_STRING unicodeName;
+    unicodeName.Buffer = kmem_alloc(sizeof(WCHAR) *
+	ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP);
+    unicodeName.MaximumLength = ZFS_MAX_DATASET_NAME_LEN;
+
+    ANSI_STRING ansi_spa;
+    RtlInitAnsiString(&ansi_spa, "Total");
+
+    NTSTATUS status = RtlAnsiStringToUnicodeString(&unicodeName,
+	&ansi_spa, FALSE);
+    if (!NT_SUCCESS(status)) {
+	TraceEvent(TRACE_ERROR,
+	    "%s:%d: Ansi to Unicode string conversion failed for %Z\n",
+	    __func__, __LINE__, &ansi_spa);
+    }
+    else {
+	cache_counters perf_cache = { 0 };
+
+	KSTAT_ENTER(perf_arc_ksp);
+	int error = KSTAT_UPDATE(perf_arc_ksp, KSTAT_READ);
+	if (!error)
+	    arc_cache_counters_perfmon(&perf_cache, perf_arc_ksp->ks_data);
+	KSTAT_EXIT(perf_arc_ksp);
+
+	KSTAT_ENTER(perf_zil_ksp);
+	error = KSTAT_UPDATE(perf_zil_ksp, KSTAT_READ);
+	if (!error)
+	    zil_cache_counters_perfmon(&perf_cache, perf_zil_ksp->ks_data);
+	KSTAT_EXIT(perf_zil_ksp);
+
+	status = AddZFSinCachePerf(CollectData.Buffer,
+	    MapInvalidChars(&unicodeName), 0, &perf_cache);
+	if (!NT_SUCCESS(status)) {
+	    TraceEvent(TRACE_ERROR,
+		"%s:%d:AddZFSinCachePerf failed-status 0x%x\n",
+		__func__, __LINE__, status);
+	}
+    }
+    kmem_free(unicodeName.Buffer,
+	sizeof(WCHAR) * ZFS_MAX_DATASET_NAME_LEN);
+}
+
 
 void
 zfs_vfs_rele(zfsvfs_t *zfsvfs)
@@ -417,6 +1004,20 @@ zfsdev_attach(void)
 	IoRegisterFileSystem(fsDiskDeviceObject);
 	ObReferenceObject(fsDiskDeviceObject);
 
+	NTSTATUS pcwStatus = RegisterZFSinPerf(ZFSinPerfCallBack, NULL);
+	if (!NT_SUCCESS(pcwStatus)) {
+	    TraceEvent(TRACE_ERROR, "ZFSin perf registration failed\n");
+	}
+	pcwStatus = RegisterZFSinPerfVdev(ZFSinPerfVdevCallBack, NULL);
+	if (!NT_SUCCESS(pcwStatus)) {
+	    TraceEvent(TRACE_ERROR, "ZFSin vdev perf registration failed\n");
+	}
+	pcwStatus = RegisterZFSinCachePerf(ZFSinCachePerfCallBack, NULL);
+	if (!NT_SUCCESS(pcwStatus)) {
+	    TraceEvent(TRACE_ERROR, "ZFSin cache perf registration failed\n");
+	}
+
+
 	// Set all the callbacks to "dispatch()"
 	WIN_DriverObject->MajorFunction[IRP_MJ_CREATE] =
 	    (PDRIVER_DISPATCH)dispatcher;   // zfs_ioctl.c
@@ -491,6 +1092,10 @@ void
 zfsdev_detach(void)
 {
 	zfsdev_state_t *zs, *zsprev = NULL;
+
+	UnregisterZFSinPerf();
+	UnregisterZFSinPerfVdev();
+	UnregisterZFSinCachePerf();
 
 	PDEVICE_OBJECT deviceObject = WIN_DriverObject->DeviceObject;
 	UNICODE_STRING uniWin32NameString;
