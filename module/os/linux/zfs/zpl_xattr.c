@@ -1012,13 +1012,12 @@ zpl_set_acl(struct inode *ip, struct posix_acl *acl, int type)
 }
 #endif /* HAVE_SET_ACL */
 
-struct posix_acl *
-zpl_get_acl(struct inode *ip, int type)
+static struct posix_acl *
+zpl_get_acl_impl(struct inode *ip, int type)
 {
 	struct posix_acl *acl;
 	void *value = NULL;
 	char *name;
-	int size;
 
 	/*
 	 * As of Linux 3.14, the kernel get_acl will check this for us.
@@ -1042,7 +1041,7 @@ zpl_get_acl(struct inode *ip, int type)
 		return (ERR_PTR(-EINVAL));
 	}
 
-	size = zpl_xattr_get(ip, name, NULL, 0);
+	int size = zpl_xattr_get(ip, name, NULL, 0);
 	if (size > 0) {
 		value = kmem_alloc(size, KM_SLEEP);
 		size = zpl_xattr_get(ip, name, value, size);
@@ -1068,6 +1067,25 @@ zpl_get_acl(struct inode *ip, int type)
 	return (acl);
 }
 
+#if defined(HAVE_GET_ACL_RCU)
+struct posix_acl *
+zpl_get_acl(struct inode *ip, int type, bool rcu)
+{
+	if (rcu)
+		return (ERR_PTR(-ECHILD));
+
+	return (zpl_get_acl_impl(ip, type));
+}
+#elif defined(HAVE_GET_ACL)
+struct posix_acl *
+zpl_get_acl(struct inode *ip, int type)
+{
+	return (zpl_get_acl_impl(ip, type));
+}
+#else
+#error "Unsupported iops->get_acl() implementation"
+#endif /* HAVE_GET_ACL_RCU */
+
 int
 zpl_init_acl(struct inode *ip, struct inode *dir)
 {
@@ -1078,7 +1096,7 @@ zpl_init_acl(struct inode *ip, struct inode *dir)
 		return (0);
 
 	if (!S_ISLNK(ip->i_mode)) {
-		acl = zpl_get_acl(dir, ACL_TYPE_DEFAULT);
+		acl = zpl_get_acl_impl(dir, ACL_TYPE_DEFAULT);
 		if (IS_ERR(acl))
 			return (PTR_ERR(acl));
 		if (!acl) {
@@ -1127,7 +1145,7 @@ zpl_chmod_acl(struct inode *ip)
 	if (S_ISLNK(ip->i_mode))
 		return (-EOPNOTSUPP);
 
-	acl = zpl_get_acl(ip, ACL_TYPE_ACCESS);
+	acl = zpl_get_acl_impl(ip, ACL_TYPE_ACCESS);
 	if (IS_ERR(acl) || !acl)
 		return (PTR_ERR(acl));
 
@@ -1189,7 +1207,7 @@ __zpl_xattr_acl_get_access(struct inode *ip, const char *name,
 	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_POSIX)
 		return (-EOPNOTSUPP);
 
-	acl = zpl_get_acl(ip, type);
+	acl = zpl_get_acl_impl(ip, type);
 	if (IS_ERR(acl))
 		return (PTR_ERR(acl));
 	if (acl == NULL)
@@ -1217,7 +1235,7 @@ __zpl_xattr_acl_get_default(struct inode *ip, const char *name,
 	if (ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_POSIX)
 		return (-EOPNOTSUPP);
 
-	acl = zpl_get_acl(ip, type);
+	acl = zpl_get_acl_impl(ip, type);
 	if (IS_ERR(acl))
 		return (PTR_ERR(acl));
 	if (acl == NULL)
