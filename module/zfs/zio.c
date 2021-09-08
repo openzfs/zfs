@@ -1771,6 +1771,18 @@ zio_write_compress(zio_t *zio)
 		    zio->io_abd, NULL, lsize, zp->zp_complevel);
 		if (psize == 0 || psize >= lsize)
 			compress = ZIO_COMPRESS_OFF;
+	} else if (zio->io_flags & ZIO_FLAG_RAW_COMPRESS) {
+		size_t rounded = MIN((size_t)roundup(psize,
+		    spa->spa_min_alloc), lsize);
+
+		if (rounded != psize) {
+			abd_t *cdata = abd_alloc_linear(rounded, B_TRUE);
+			abd_zero_off(cdata, psize, rounded - psize);
+			abd_copy_off(cdata, zio->io_abd, 0, 0, psize);
+			psize = rounded;
+			zio_push_transform(zio, cdata,
+			    psize, rounded, NULL);
+		}
 	} else {
 		ASSERT3U(psize, !=, 0);
 	}
