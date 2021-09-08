@@ -6535,7 +6535,6 @@ arc_release(arc_buf_t *buf, void *tag)
 		ASSERT(!HDR_IO_IN_PROGRESS(hdr));
 		ASSERT(!HDR_IN_HASH_TABLE(hdr));
 		ASSERT(!HDR_HAS_L2HDR(hdr));
-		ASSERT(HDR_EMPTY(hdr));
 
 		ASSERT3U(hdr->b_l1hdr.b_bufcnt, ==, 1);
 		ASSERT3S(zfs_refcount_count(&hdr->b_l1hdr.b_refcnt), ==, 1);
