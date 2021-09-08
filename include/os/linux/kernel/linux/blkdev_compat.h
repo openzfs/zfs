@@ -92,10 +92,13 @@ blk_queue_set_write_cache(struct request_queue *q, bool wc, bool fua)
 static inline void
 blk_queue_set_read_ahead(struct request_queue *q, unsigned long ra_pages)
 {
+#if !defined(HAVE_BLK_QUEUE_UPDATE_READAHEAD) && \
+	!defined(HAVE_DISK_UPDATE_READAHEAD)
 #ifdef HAVE_BLK_QUEUE_BDI_DYNAMIC
 	q->backing_dev_info->ra_pages = ra_pages;
 #else
 	q->backing_dev_info.ra_pages = ra_pages;
+#endif
 #endif
 }
 
