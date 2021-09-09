@@ -170,7 +170,7 @@ windows_kstat_t windows_kstat = {
 	{ "zfs_disable_removablemedia",		KSTAT_DATA_UINT64 },
 	{ "zfs_vdev_initialize_value",		KSTAT_DATA_UINT64 },
 	{ "zfs_autoimport_disable",		KSTAT_DATA_UINT64 },
-
+	{ "zfs_total_memory_limit",		KSTAT_DATA_UINT64 },
 };
 
 
@@ -562,7 +562,7 @@ windows_kstat_update(kstat_t *ksp, int rw)
 		ks->zfs_autoimport_disable.value.ui64 =
 		    zfs_autoimport_disable;
 	}
-
+	arc_kstat_update_windows(ksp, rw);
 	return (0);
 }
 

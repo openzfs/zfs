@@ -19,7 +19,7 @@
  * CDDL HEADER END
  */
 // Get "_daylight: has bad storage class" in time.h
-#define _INC_TIME
+#define	_INC_TIME
 
 #include <sys/kstat.h>
 #include <sys/kstat_windows.h>
@@ -36,7 +36,7 @@ DRIVER_INITIALIZE DriverEntry;
 
 extern int initDbgCircularBuffer(void);
 extern int finiDbgCircularBuffer(void);
-extern int spl_start(void);
+extern int spl_start(PUNICODE_STRING RegistryPath);
 extern int spl_stop(void);
 extern int zfs_start(void);
 extern void zfs_stop(void);
@@ -114,7 +114,7 @@ DriverEntry(_In_ PDRIVER_OBJECT DriverObject,
 	zfs_flags |= 1;
 #endif
 
-	spl_start();
+	spl_start(pRegistryPath);
 
 	kstat_windows_init(pRegistryPath);
 

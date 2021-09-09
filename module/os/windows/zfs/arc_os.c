@@ -75,6 +75,10 @@ static kcondvar_t		arc_reclaim_waiters_cv;
  */
 extern int	arc_no_grow_shift;
 
+extern uint64_t total_memory;
+extern uint64_t real_total_memory;
+
+extern boolean_t spl_minimal_physmem_p_logic();
 
 /*
  * Return a default max arc size based on the amount of physical memory.
@@ -483,7 +487,8 @@ lock_and_sleep:
 		 * running another pass is unlikely to be helpful.
 		 */
 
-		if (aggsum_compare(&arc_sums.arcstat_size, arc_c) <= 0 || d_adj <= 0) {
+		if (aggsum_compare(&arc_sums.arcstat_size, arc_c) <= 0 ||
+		    d_adj <= 0) {
 			/*
 			 * We're either no longer overflowing, or we
 			 * can't evict anything more, so we should wake
@@ -521,15 +526,15 @@ lock_and_sleep:
 uint64_t
 isqrt(uint64_t n)
 {
-        int i;
-        uint64_t r, tmp;
-        r = 0;
-        for (i = 64/2-1; i >= 0; i--) {
-                tmp = r | (1 << i);
-                if (tmp*tmp <= n)
-                        r = tmp;
-        }
-        return (r);
+	int i;
+	uint64_t r, tmp;
+	r = 0;
+	for (i = 64/2-1; i >= 0; i--) {
+		tmp = r | (1 << i);
+		if (tmp*tmp <= n)
+			r = tmp;
+	}
+	return (r);
 }
 
 /* This is called before arc is initialized, and threads are not running */
@@ -606,106 +611,129 @@ arc_os_fini(void)
 int
 arc_kstat_update_windows(kstat_t *ksp, int rw)
 {
-        windows_kstat_t *ks = ksp->ks_data;
+	windows_kstat_t *ks = ksp->ks_data;
 
-        if (rw == KSTAT_WRITE) {
+	if (rw == KSTAT_WRITE) {
 
-                /* Did we change the value ? */
-                if (ks->arc_zfs_arc_max.value.ui64 != zfs_arc_max) {
+		/* Did we change the value ? */
+		if (ks->arc_zfs_arc_max.value.ui64 != zfs_arc_max) {
 
-                        /* Assign new value */
-                        zfs_arc_max = ks->arc_zfs_arc_max.value.ui64;
+			/* Assign new value */
+			zfs_arc_max = ks->arc_zfs_arc_max.value.ui64;
 
-                        /* Update ARC with new value */
-                        if (zfs_arc_max > 64<<20 && zfs_arc_max <
-                            physmem * PAGESIZE)
-                                arc_c_max = zfs_arc_max;
+			/* Update ARC with new value */
+			if (zfs_arc_max > 64<<20 && zfs_arc_max <
+			    physmem * PAGESIZE)
+				arc_c_max = zfs_arc_max;
 
-                        arc_c = arc_c_max;
-                        arc_p = (arc_c >> 1);
+			arc_c = arc_c_max;
+			arc_p = (arc_c >> 1);
 
-                        /* If meta_limit is not set, adjust it automatically */
-                        if (!zfs_arc_meta_limit)
-                                arc_meta_limit = arc_c_max / 4;
-                }
+			/* If meta_limit is not set, adjust it automatically */
+			if (!zfs_arc_meta_limit)
+				arc_meta_limit = arc_c_max / 4;
+		}
 
-                if (ks->arc_zfs_arc_min.value.ui64 != zfs_arc_min) {
-                        zfs_arc_min = ks->arc_zfs_arc_min.value.ui64;
-                        if (zfs_arc_min > 64<<20 && zfs_arc_min <= arc_c_max) {
-                                arc_c_min = zfs_arc_min;
-                                dprintf("ZFS: set arc_c_min %llu, arc_meta_min "
-                                    "%llu, zfs_arc_meta_min %llu\n",
-                                    arc_c_min, arc_meta_min, zfs_arc_meta_min);
-                                if (arc_c < arc_c_min) {
-                                        dprintf("ZFS: raise arc_c %llu to "
-                                            "arc_c_min %llu\n", arc_c,
-                                            arc_c_min);
-                                        arc_c = arc_c_min;
-                                        if (arc_p < (arc_c >> 1)) {
-                                                dprintf("ZFS: raise arc_p %llu "
-                                                    "to %llu\n",
-                                                    arc_p, (arc_c >> 1));
-                                                arc_p = (arc_c >> 1);
-                                        }
-                                }
-                        }
-                }
+		if (ks->arc_zfs_arc_min.value.ui64 != zfs_arc_min) {
+			zfs_arc_min = ks->arc_zfs_arc_min.value.ui64;
+			if (zfs_arc_min > 64<<20 && zfs_arc_min <= arc_c_max) {
+				arc_c_min = zfs_arc_min;
+				dprintf("ZFS: set arc_c_min %llu, arc_meta_min "
+				    "%llu, zfs_arc_meta_min %llu\n",
+				    arc_c_min, arc_meta_min, zfs_arc_meta_min);
+				if (arc_c < arc_c_min) {
+					dprintf("ZFS: raise arc_c %llu to "
+					    "arc_c_min %llu\n", arc_c,
+					    arc_c_min);
+					arc_c = arc_c_min;
+					if (arc_p < (arc_c >> 1)) {
+						dprintf("ZFS: raise arc_p %llu "
+						    "to %llu\n",
+						    arc_p, (arc_c >> 1));
+						arc_p = (arc_c >> 1);
+					}
+				}
+			}
+		}
 
-                if (ks->arc_zfs_arc_meta_limit.value.ui64 !=
-                    zfs_arc_meta_limit) {
-                        zfs_arc_meta_limit =
-                            ks->arc_zfs_arc_meta_limit.value.ui64;
+		if (ks->arc_zfs_arc_meta_limit.value.ui64 !=
+		    zfs_arc_meta_limit) {
+			zfs_arc_meta_limit =
+			    ks->arc_zfs_arc_meta_limit.value.ui64;
 
-                        /* Allow the tunable to override if it is reasonable */
-                        if (zfs_arc_meta_limit > 0 &&
-                            zfs_arc_meta_limit <= arc_c_max)
-                                arc_meta_limit = zfs_arc_meta_limit;
+			/* Allow the tunable to override if it is reasonable */
+			if (zfs_arc_meta_limit > 0 &&
+			    zfs_arc_meta_limit <= arc_c_max)
+				arc_meta_limit = zfs_arc_meta_limit;
 
-                        if (arc_c_min < arc_meta_limit / 2 &&
-                            zfs_arc_min == 0)
-                                arc_c_min = arc_meta_limit / 2;
+			if (arc_c_min < arc_meta_limit / 2 &&
+			    zfs_arc_min == 0)
+				arc_c_min = arc_meta_limit / 2;
 
-                        dprintf("ZFS: set arc_meta_limit %lu, arc_c_min %lu,"
-                            "zfs_arc_meta_limit %lu\n",
-                            arc_meta_limit, arc_c_min, zfs_arc_meta_limit);
-                }
+			dprintf("ZFS: set arc_meta_limit %lu, arc_c_min %lu,"
+			    "zfs_arc_meta_limit %lu\n",
+			    arc_meta_limit, arc_c_min, zfs_arc_meta_limit);
+		}
 
-                if (ks->arc_zfs_arc_meta_min.value.ui64 != zfs_arc_meta_min) {
-                        zfs_arc_meta_min  = ks->arc_zfs_arc_meta_min.value.ui64;
-                        if (zfs_arc_meta_min >= arc_c_min) {
-                                dprintf("ZFS: probable error, zfs_arc_meta_min "
-                                    "%llu >= arc_c_min %llu\n",
-                                    zfs_arc_meta_min, arc_c_min);
-                        }
-                        if (zfs_arc_meta_min > 0 &&
-                            zfs_arc_meta_min <= arc_meta_limit)
-                                arc_meta_min = zfs_arc_meta_min;
-                        dprintf("ZFS: set arc_meta_min %llu\n", arc_meta_min);
-                }
+		if (ks->arc_zfs_arc_meta_min.value.ui64 != zfs_arc_meta_min) {
+			zfs_arc_meta_min  = ks->arc_zfs_arc_meta_min.value.ui64;
+			if (zfs_arc_meta_min >= arc_c_min) {
+				dprintf("ZFS: probable error, zfs_arc_meta_min "
+				    "%llu >= arc_c_min %llu\n",
+				    zfs_arc_meta_min, arc_c_min);
+			}
+			if (zfs_arc_meta_min > 0 &&
+			    zfs_arc_meta_min <= arc_meta_limit)
+				arc_meta_min = zfs_arc_meta_min;
+			dprintf("ZFS: set arc_meta_min %llu\n", arc_meta_min);
+		}
 
-                zfs_arc_grow_retry = ks->arc_zfs_arc_grow_retry.value.ui64;
-                arc_grow_retry = zfs_arc_grow_retry;
-                zfs_arc_shrink_shift = ks->arc_zfs_arc_shrink_shift.value.ui64;
-                zfs_arc_p_min_shift = ks->arc_zfs_arc_p_min_shift.value.ui64;
-                zfs_arc_average_blocksize =
-                    ks->arc_zfs_arc_average_blocksize.value.ui64;
+		zfs_arc_grow_retry = ks->arc_zfs_arc_grow_retry.value.ui64;
+		arc_grow_retry = zfs_arc_grow_retry;
+		zfs_arc_shrink_shift = ks->arc_zfs_arc_shrink_shift.value.ui64;
+		zfs_arc_p_min_shift = ks->arc_zfs_arc_p_min_shift.value.ui64;
+		zfs_arc_average_blocksize =
+		    ks->arc_zfs_arc_average_blocksize.value.ui64;
 
-        } else {
+#ifdef _KERNEL
+		if (ks->zfs_total_memory_limit.value.ui64 > total_memory &&
+		    ks->zfs_total_memory_limit.value.ui64
+		    < real_total_memory) {
+			dprintf("%s Changing total memory limit to: %llu "
+			    "from: %llu. total physical memory: %llu\n",
+			    __func__, ks->zfs_total_memory_limit.value.ui64,
+			    total_memory, real_total_memory);
+			total_memory = ks->zfs_total_memory_limit.value.ui64;
+			physmem = total_memory / PAGE_SIZE;
+			spl_minimal_physmem_p_logic();
+		} else {
+			dprintf("%s Skip changing total memory limit to: %llu"
+			    " from: %llu. total physical memory: %llu\n",
+			    __func__, ks->zfs_total_memory_limit.value.ui64,
+			    total_memory, real_total_memory);
+		}
+#endif
 
-                ks->arc_zfs_arc_max.value.ui64 = zfs_arc_max;
-                ks->arc_zfs_arc_min.value.ui64 = zfs_arc_min;
+	} else {
 
-                ks->arc_zfs_arc_meta_limit.value.ui64 = zfs_arc_meta_limit;
-                ks->arc_zfs_arc_meta_min.value.ui64 = zfs_arc_meta_min;
+		ks->arc_zfs_arc_max.value.ui64 = zfs_arc_max;
+		ks->arc_zfs_arc_min.value.ui64 = zfs_arc_min;
 
-                ks->arc_zfs_arc_grow_retry.value.ui64 =
-                    zfs_arc_grow_retry ? zfs_arc_grow_retry : arc_grow_retry;
-                ks->arc_zfs_arc_shrink_shift.value.ui64 = zfs_arc_shrink_shift;
-                ks->arc_zfs_arc_p_min_shift.value.ui64 = zfs_arc_p_min_shift;
-                ks->arc_zfs_arc_average_blocksize.value.ui64 =
-                    zfs_arc_average_blocksize;
-        }
-        return (0);
+		ks->arc_zfs_arc_meta_limit.value.ui64 = zfs_arc_meta_limit;
+		ks->arc_zfs_arc_meta_min.value.ui64 = zfs_arc_meta_min;
+
+		ks->arc_zfs_arc_grow_retry.value.ui64 =
+		    zfs_arc_grow_retry ? zfs_arc_grow_retry : arc_grow_retry;
+		ks->arc_zfs_arc_shrink_shift.value.ui64 = zfs_arc_shrink_shift;
+		ks->arc_zfs_arc_p_min_shift.value.ui64 = zfs_arc_p_min_shift;
+		ks->arc_zfs_arc_average_blocksize.value.ui64 =
+		    zfs_arc_average_blocksize;
+
+#ifdef _KERNEL
+		ks->zfs_total_memory_limit.value.ui64 = total_memory;
+#endif
+	}
+	return (0);
 }
 
 

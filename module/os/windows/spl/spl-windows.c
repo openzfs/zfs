@@ -51,6 +51,7 @@ volatile unsigned int vm_page_free_count = 5000;
 volatile unsigned int vm_page_speculative_count = 5500;
 
 uint64_t spl_GetPhysMem(void);
+uint64_t spl_GetZfsTotalMemory(PUNICODE_STRING RegistryPath);
 
 #include <sys/types.h>
 #include <Trace.h>
@@ -61,6 +62,7 @@ extern uint64_t	segkmem_total_mem_allocated;
 extern char hostname[MAXHOSTNAMELEN];
 
 uint32_t spl_hostid = 0;
+#define	    ZFS_MIN_MEMORY_LIMIT	2ULL * 1024ULL * 1024ULL * 1024ULL
 
 #if defined(__clang__)
 /*
@@ -470,8 +472,10 @@ ddi_copyinstr(const void *uaddr, void *kaddr, size_t len, size_t *done)
 }
 
 int
-spl_start(void)
+spl_start(PUNICODE_STRING RegistryPath)
 {
+
+	uint64_t  zfs_total_memory_limit = 0;
 	dprintf("SPL: start\n");
 	max_ncpus = KeQueryActiveProcessorCountEx(ALL_PROCESSOR_GROUPS);
 	if (!max_ncpus) max_ncpus = 1;
@@ -481,25 +485,30 @@ spl_start(void)
 	// So until then, pull some numbers out of the aether. Next
 	// we could let users pass in a value, somehow...
 	total_memory = spl_GetPhysMem();
+	real_total_memory = spl_GetPhysMem();
 
 	// Set 2GB as code above doesnt work
-	if (!total_memory)
-		total_memory = 2ULL * 1024ULL * 1024ULL * 1024ULL;
+	if (real_total_memory) {
+		zfs_total_memory_limit = spl_GetZfsTotalMemory(RegistryPath);
+		if (zfs_total_memory_limit > ZFS_MIN_MEMORY_LIMIT &&
+		    zfs_total_memory_limit < real_total_memory)
+			total_memory = zfs_total_memory_limit;
+		else
+			total_memory = real_total_memory * 50ULL / 100ULL;
+	} else {
+		real_total_memory = ZFS_MIN_MEMORY_LIMIT;
+		total_memory = real_total_memory * 50ULL / 100ULL;
+	}
 
-	dprintf("SPL: memsize %llu (before adjustment)\n", total_memory);
-	/*
-	 * Setting the total memory to physmem * 80% here, since kmem is
-	 * not in charge of all memory and we need to leave some room for
-	 * the OS X allocator. We internally add pressure if we step over it
-	 */
-	real_total_memory = total_memory;
-	total_memory = total_memory * 50ULL / 100ULL;
+	dprintf("%s real_total_memory: %llu zfs_total_memory_limit: %llu "
+	    "total_memory: %llu\n", __func__, real_total_memory,
+	    zfs_total_memory_limit, total_memory);
 	physmem = total_memory / PAGE_SIZE;
 
 	// We need to set these to some non-zero values
 	// so we don't think there is permanent memory
 	// pressure.
-	vm_page_free_count = (unsigned int)(physmem/2ULL);
+	vm_page_free_count = (unsigned int)(physmem / 2ULL);
 	vm_page_speculative_count = vm_page_free_count;
 
 	/*
@@ -641,4 +650,92 @@ spl_GetPhysMem(void)
 	}
 
 	return (memory);
+}
+
+uint64_t
+spl_GetZfsTotalMemory(PUNICODE_STRING RegistryPath)
+{
+	OBJECT_ATTRIBUTES		ObjectAttributes;
+	HANDLE				h;
+	NTSTATUS			status;
+	uint64_t			newvalue = 0;
+
+	InitializeObjectAttributes(&ObjectAttributes,
+	    RegistryPath,
+	    OBJ_KERNEL_HANDLE | OBJ_CASE_INSENSITIVE,
+	    NULL,
+	    NULL);
+
+	status = ZwOpenKey(&h, // KeyHandle
+	    KEY_ALL_ACCESS, // DesiredAccess
+	    &ObjectAttributes); // ObjectAttributes
+
+	if (!NT_SUCCESS(status)) {
+		dprintf("%s: Unable to open Registry %wZ: 0x%x. "
+		    "Going with defaults.\n", __func__, RegistryPath, status);
+		return (0);
+	}
+
+	ULONG index = 0;
+	ULONG length = 0;
+	PKEY_VALUE_FULL_INFORMATION    regBuffer = NULL;
+
+	for (index = 0; status != STATUS_NO_MORE_ENTRIES; index++) {
+		// Get the buffer size necessary
+		status = ZwEnumerateValueKey(h, index, KeyValueFullInformation,
+		    NULL, 0, &length);
+
+		if ((status != STATUS_BUFFER_TOO_SMALL) &&
+		    (status != STATUS_BUFFER_OVERFLOW))
+			break; // Something is wrong - or we finished
+
+		// Allocate space to hold
+		regBuffer = (PKEY_VALUE_FULL_INFORMATION)ExAllocatePoolWithTag(
+		    NonPagedPoolNx, length, 'zfsr');
+
+		if (regBuffer == NULL)
+			break;
+
+		status = ZwEnumerateValueKey(h, index, KeyValueFullInformation,
+		    regBuffer, length, &length);
+		if (!NT_SUCCESS(status)) {
+			break;
+		}
+		// Convert name to straight ascii so we compare with kstat
+		ULONG outlen = 0;
+		char keyname[KSTAT_STRLEN + 1] = { 0 };
+		status = RtlUnicodeToUTF8N(keyname, KSTAT_STRLEN, &outlen,
+		    regBuffer->Name, regBuffer->NameLength);
+
+		// Conversion failed? move along..
+		if (status != STATUS_SUCCESS && status
+		    != STATUS_SOME_NOT_MAPPED)
+			break;
+
+		// Output string is only null terminated if input is,
+		// so do so now.
+		keyname[outlen] = 0;
+		if (strcasecmp("zfs_total_memory_limit", keyname) == 0) {
+			if (regBuffer->Type != REG_QWORD ||
+			    regBuffer->DataLength != sizeof (uint64_t)) {
+				dprintf("%s: registry '%s' did not match. "
+				    "Type needs to be REG_QWORD. (8 bytes)\n",
+				    __func__, keyname);
+			} else {
+				newvalue = *(uint64_t *)((uint8_t *)regBuffer
+				    + regBuffer->DataOffset);
+				dprintf("%s: zfs_total_memory_limit is set to:"
+				    " %llu\n", __func__, newvalue);
+			}
+			break;
+		}
+		ExFreePool(regBuffer);
+		regBuffer = NULL;
+	}
+
+	if (regBuffer)
+		ExFreePool(regBuffer);
+
+	ZwClose(h);
+	return (newvalue);
 }

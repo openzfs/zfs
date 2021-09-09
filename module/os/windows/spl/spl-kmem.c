@@ -927,31 +927,20 @@ kmem_error(int error, kmem_cache_t *cparg, void *bufarg)
 	switch (error) {
 
 		case KMERR_MODIFIED:
-<<<<<<< HEAD
 			TraceEvent(TRACE_ERROR,
 			    "buffer modified after being freed\n");
-=======
-			TraceEvent(TRACE_ERROR, "buffer modified after being"
-			    " freed\n");
->>>>>>> 9687e891d... Enable WPP tracing for module/os/windows folder
 			off = verify_pattern(KMEM_FREE_PATTERN, buf,
 			    cp->cache_verify);
 			if (off == NULL)	/* shouldn't happen */
 				off = buf;
-<<<<<<< HEAD
 			TraceEvent(TRACE_ERROR,
 			    "SPL: modification occurred at offset 0x%lx "
 			    "(0x%llx replaced by 0x%llx)\n",
-=======
-			TraceEvent(TRACE_ERROR, "SPL: modification occurred "
-			    "at offset 0x%lx (0x%llx replaced by 0x%llx)\n",
->>>>>>> 9687e891d... Enable WPP tracing for module/os/windows folder
 			    (uintptr_t)off - (uintptr_t)buf,
 			    (longlong_t)KMEM_FREE_PATTERN, (longlong_t)*off);
 			break;
 
 		case KMERR_REDZONE:
-<<<<<<< HEAD
 			TraceEvent(TRACE_ERROR,
 			    "redzone violation: write past end of buffer\n");
 			break;
@@ -964,31 +953,12 @@ kmem_error(int error, kmem_cache_t *cparg, void *bufarg)
 		case KMERR_DUPFREE:
 			TraceEvent(TRACE_ERROR,
 			    "duplicate free: buffer freed twice\n");
-=======
-			TraceEvent(TRACE_ERROR, "redzone violation: write past"
-			    " end of buffer\n");
-			break;
-
-		case KMERR_BADADDR:
-			TraceEvent(TRACE_ERROR, "invalid free: buffer not in"
-			    " cache\n");
-			break;
-
-		case KMERR_DUPFREE:
-			TraceEvent(TRACE_ERROR, "duplicate free: buffer freed"
-			    " twice\n");
->>>>>>> 9687e891d... Enable WPP tracing for module/os/windows folder
 			break;
 
 		case KMERR_BADBUFTAG:
 			TraceEvent(TRACE_ERROR, "boundary tag corrupted\n");
-<<<<<<< HEAD
 			TraceEvent(TRACE_ERROR,
 			    "SPL: bcp ^ bxstat = %lx, should be %lx\n",
-=======
-			TraceEvent(TRACE_ERROR, "SPL: bcp ^ bxstat = %lx, "
-			    "should be %lx\n",
->>>>>>> 9687e891d... Enable WPP tracing for module/os/windows folder
 			    (intptr_t)btp->bt_bufctl ^ btp->bt_bxstat,
 			    KMEM_BUFTAG_FREE);
 			break;
@@ -998,7 +968,6 @@ kmem_error(int error, kmem_cache_t *cparg, void *bufarg)
 			break;
 
 		case KMERR_BADCACHE:
-<<<<<<< HEAD
 			TraceEvent(TRACE_ERROR,
 			    "buffer freed to wrong cache\n");
 			TraceEvent(TRACE_ERROR,
@@ -1012,33 +981,15 @@ kmem_error(int error, kmem_cache_t *cparg, void *bufarg)
 		case KMERR_BADSIZE:
 			TraceEvent(TRACE_ERROR,
 			    "bad free: free size (%u) != alloc size (%u)\n",
-=======
-			TraceEvent(TRACE_ERROR, "buffer freed to wrong "
-			    "cache\n");
-			TraceEvent(TRACE_ERROR, "SPL: buffer was allocated"
-			    " from %s,\n", cp->cache_name);
-			TraceEvent(TRACE_ERROR, "SPL: caller attempting free"
-			    " to %s.\n", cparg->cache_name);
-			break;
-
-		case KMERR_BADSIZE:
-			TraceEvent(TRACE_ERROR, "bad free: free size (%u) !="
-			    " alloc size (%u)\n",
->>>>>>> 9687e891d... Enable WPP tracing for module/os/windows folder
 			    KMEM_SIZE_DECODE(((uint32_t *)btp)[0]),
 			    KMEM_SIZE_DECODE(((uint32_t *)btp)[1]));
 			break;
 
 		case KMERR_BADBASE:
-<<<<<<< HEAD
 			TraceEvent(TRACE_ERROR,
 			    "bad free: free address (%p) != alloc "
 			    "address (%p)\n",
 			    bufarg, buf);
-=======
-			TraceEvent(TRACE_ERROR, "bad free: free address"
-			    " (%p) != alloc address (%p)\n", bufarg, buf);
->>>>>>> 9687e891d... Enable WPP tracing for module/os/windows folder
 			break;
 	}
 
@@ -1053,13 +1004,8 @@ kmem_error(int error, kmem_cache_t *cparg, void *bufarg)
 
 		hrt2ts(kmem_panic_info.kmp_timestamp - bcap->bc_timestamp, &ts);
 		dprintf("SPL: previous transaction on buffer %p:\n", buf);
-<<<<<<< HEAD
 		dprintf("SPL: thread=%p time=T-%ld.%09ld slab=%p cache: %s\n",
 		    (void *)bcap->bc_thread, ts.tv_sec, ts.tv_nsec,
-=======
-		dprintf("SPL: thread=%p  time=T-%ld.%09ld  slab=%p  cache: "
-		    "%s\n", (void *)bcap->bc_thread, ts.tv_sec, ts.tv_nsec,
->>>>>>> 9687e891d... Enable WPP tracing for module/os/windows folder
 		    (void *)sp, cp->cache_name);
 
 		for (d = 0; d < MIN(bcap->bc_depth, KMEM_STACK_DEPTH); d++) {

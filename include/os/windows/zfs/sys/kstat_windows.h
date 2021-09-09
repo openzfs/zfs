@@ -146,6 +146,7 @@ typedef struct windows_kstat {
 
 	kstat_named_t zfs_vdev_initialize_value;
 	kstat_named_t zfs_autoimport_disable;
+	kstat_named_t zfs_total_memory_limit;
 } windows_kstat_t;
 
 
