@@ -110,6 +110,10 @@ extern "C" {
 #define	FM_EREPORT_PAYLOAD_ZFS_BAD_CLEARED_BITS	"bad_cleared_bits"
 #define	FM_EREPORT_PAYLOAD_ZFS_BAD_SET_HISTOGRAM "bad_set_histogram"
 #define	FM_EREPORT_PAYLOAD_ZFS_BAD_CLEARED_HISTOGRAM "bad_cleared_histogram"
+#define	FM_EREPORT_PAYLOAD_ZFS_SNAPSHOT_NAME	"snapshot_name"
+#define	FM_EREPORT_PAYLOAD_ZFS_DEVICE_NAME	"device_name"
+#define	FM_EREPORT_PAYLOAD_ZFS_RAW_DEVICE_NAME	"raw_name"
+#define	FM_EREPORT_PAYLOAD_ZFS_VOLUME	"volume"
 
 #define	FM_EREPORT_FAILMODE_WAIT		"wait"
 #define	FM_EREPORT_FAILMODE_CONTINUE		"continue"
@@ -118,6 +122,11 @@ extern "C" {
 #define	FM_RESOURCE_REMOVED			"removed"
 #define	FM_RESOURCE_AUTOREPLACE			"autoreplace"
 #define	FM_RESOURCE_STATECHANGE			"statechange"
+
+#define	FM_RESOURCE_ZFS_SNAPSHOT_MOUNT		"snapshot_mount"
+#define	FM_RESOURCE_ZFS_SNAPSHOT_UNMOUNT		"snapshot_unmount"
+#define	FM_RESOURCE_ZVOL_CREATE_SYMLINK		"zvol_create"
+#define	FM_RESOURCE_ZVOL_REMOVE_SYMLINK		"zvol_remove"
 
 #ifdef	__cplusplus
 }

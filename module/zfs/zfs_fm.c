@@ -1444,6 +1444,58 @@ zfs_ereport_fini(void)
 	mutex_destroy(&recent_events_lock);
 }
 
+void
+zfs_ereport_snapshot_post(const char *subclass, spa_t *spa, const char *name)
+{
+	nvlist_t *aux;
+
+	aux = fm_nvlist_create(NULL);
+	nvlist_add_string(aux, FM_EREPORT_PAYLOAD_ZFS_SNAPSHOT_NAME, name);
+
+	zfs_post_common(spa, NULL, FM_RSRC_CLASS, subclass, aux);
+	fm_nvlist_destroy(aux, FM_NVA_FREE);
+}
+
+/*
+ * Post when a event when a zvol is created or removed
+ *
+ * This is currently only used by macOS, since it uses the event to create
+ * symlinks between the volume name (mypool/myvol) and the actual /dev
+ * device (/dev/disk3).  For example:
+ *
+ * /var/run/zfs/dsk/mypool/myvol -> /dev/disk3
+ *
+ * name: The full name of the zvol ("mypool/myvol")
+ * dev_name: The full /dev name for the zvol ("/dev/disk3")
+ * raw_name: The raw  /dev name for the zvol ("/dev/rdisk3")
+ */
+void
+zfs_ereport_zvol_post(const char *subclass, const char *name,
+    const char *dev_name, const char *raw_name)
+{
+	nvlist_t *aux;
+	char *r;
+
+	boolean_t locked = mutex_owned(&spa_namespace_lock);
+	if (!locked) mutex_enter(&spa_namespace_lock);
+	spa_t *spa = spa_lookup(name);
+	if (!locked) mutex_exit(&spa_namespace_lock);
+
+	if (spa == NULL)
+		return;
+
+	aux = fm_nvlist_create(NULL);
+	nvlist_add_string(aux, FM_EREPORT_PAYLOAD_ZFS_DEVICE_NAME, dev_name);
+	nvlist_add_string(aux, FM_EREPORT_PAYLOAD_ZFS_RAW_DEVICE_NAME,
+	    raw_name);
+	r = strchr(name, '/');
+	if (r && r[1])
+		nvlist_add_string(aux, FM_EREPORT_PAYLOAD_ZFS_VOLUME, &r[1]);
+
+	zfs_post_common(spa, NULL, FM_RSRC_CLASS, subclass, aux);
+	fm_nvlist_destroy(aux, FM_NVA_FREE);
+}
+
 EXPORT_SYMBOL(zfs_ereport_post);
 EXPORT_SYMBOL(zfs_ereport_is_valid);
 EXPORT_SYMBOL(zfs_ereport_post_checksum);
