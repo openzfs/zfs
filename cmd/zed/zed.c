@@ -291,7 +291,7 @@ idle:
 		rv = zed_event_service(&zcp);
 
 		/* ENODEV: When kernel module is unloaded (osx) */
-		if (rv == ENODEV)
+		if (rv != 0)
 			break;
 	}
 

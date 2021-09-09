@@ -40,6 +40,7 @@
 #include <sys/fm/fs/zfs.h>
 #include <libzfs.h>
 #include <string.h>
+#include <libgen.h>
 
 #include "zfs_agents.h"
 #include "fmd_api.h"
