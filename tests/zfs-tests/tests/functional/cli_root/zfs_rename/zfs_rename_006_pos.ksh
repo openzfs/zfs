@@ -69,7 +69,7 @@ rename_dataset ${vol}-new $vol
 
 clone=$TESTPOOL/${snap}_clone
 create_clone $vol@$snap $clone
-block_device_wait
+block_device_wait $VOLDATA
 
 #verify data integrity
 for input in $VOL_R_PATH $ZVOL_RDEVDIR/$clone; do
