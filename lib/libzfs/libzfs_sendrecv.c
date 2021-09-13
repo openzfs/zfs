@@ -1557,44 +1557,25 @@ redact_snaps_equal(const uint64_t *snaps1, uint64_t num_snaps1,
 	return (B_TRUE);
 }
 
-/*
- * Check that the list of redaction snapshots in the bookmark matches the send
- * we're resuming, and return whether or not it's complete.
- *
- * Note that the caller needs to free the contents of *bookname with free() if
- * this function returns successfully.
- */
 static int
-find_redact_book(libzfs_handle_t *hdl, const char *path,
-    const uint64_t *redact_snap_guids, int num_redact_snaps,
-    char **bookname)
+get_bookmarks(const char *path, nvlist_t **bmarksp)
 {
-	char errbuf[1024];
-	int error = 0;
 	nvlist_t *props = fnvlist_alloc();
-	nvlist_t *bmarks;
-
-	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
-	    "cannot resume send"));
+	int error;
 
 	fnvlist_add_boolean(props, "redact_complete");
 	fnvlist_add_boolean(props, zfs_prop_to_name(ZFS_PROP_REDACT_SNAPS));
-	error = lzc_get_bookmarks(path, props, &bmarks);
+	error = lzc_get_bookmarks(path, props, bmarksp);
 	fnvlist_free(props);
-	if (error != 0) {
-		if (error == ESRCH) {
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "nonexistent redaction bookmark provided"));
-		} else if (error == ENOENT) {
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "dataset to be sent no longer exists"));
-		} else {
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "unknown error: %s"), strerror(error));
-		}
-		return (zfs_error(hdl, EZFS_BADPROP, errbuf));
-	}
+	return (error);
+}
+
+static nvpair_t *
+find_redact_pair(nvlist_t *bmarks, const uint64_t *redact_snap_guids,
+    int num_redact_snaps)
+{
 	nvpair_t *pair;
+
 	for (pair = nvlist_next_nvpair(bmarks, NULL); pair;
 	    pair = nvlist_next_nvpair(bmarks, pair)) {
 
@@ -1609,24 +1590,68 @@ find_redact_book(libzfs_handle_t *hdl, const char *path,
 			break;
 		}
 	}
+	return (pair);
+}
+
+static boolean_t
+get_redact_complete(nvpair_t *pair)
+{
+	nvlist_t *bmark = fnvpair_value_nvlist(pair);
+	nvlist_t *vallist = fnvlist_lookup_nvlist(bmark, "redact_complete");
+	boolean_t complete = fnvlist_lookup_boolean_value(vallist,
+	    ZPROP_VALUE);
+
+	return (complete);
+}
+
+/*
+ * Check that the list of redaction snapshots in the bookmark matches the send
+ * we're resuming, and return whether or not it's complete.
+ *
+ * Note that the caller needs to free the contents of *bookname with free() if
+ * this function returns successfully.
+ */
+static int
+find_redact_book(libzfs_handle_t *hdl, const char *path,
+    const uint64_t *redact_snap_guids, int num_redact_snaps,
+    char **bookname)
+{
+	char errbuf[1024];
+	nvlist_t *bmarks;
+
+	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
+	    "cannot resume send"));
+
+	int error = get_bookmarks(path, &bmarks);
+	if (error != 0) {
+		if (error == ESRCH) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "nonexistent redaction bookmark provided"));
+		} else if (error == ENOENT) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "dataset to be sent no longer exists"));
+		} else {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "unknown error: %s"), strerror(error));
+		}
+		return (zfs_error(hdl, EZFS_BADPROP, errbuf));
+	}
+	nvpair_t *pair = find_redact_pair(bmarks, redact_snap_guids,
+	    num_redact_snaps);
 	if (pair == NULL)  {
 		fnvlist_free(bmarks);
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 		    "no appropriate redaction bookmark exists"));
 		return (zfs_error(hdl, EZFS_BADPROP, errbuf));
 	}
-	char *name = nvpair_name(pair);
-	nvlist_t *bmark = fnvpair_value_nvlist(pair);
-	nvlist_t *vallist = fnvlist_lookup_nvlist(bmark, "redact_complete");
-	boolean_t complete = fnvlist_lookup_boolean_value(vallist,
-	    ZPROP_VALUE);
+	boolean_t complete = get_redact_complete(pair);
 	if (!complete) {
 		fnvlist_free(bmarks);
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 		    "incomplete redaction bookmark provided"));
 		return (zfs_error(hdl, EZFS_BADPROP, errbuf));
 	}
-	*bookname = strndup(name, ZFS_MAX_DATASET_NAME_LEN);
+	*bookname = strndup(nvpair_name(pair), ZFS_MAX_DATASET_NAME_LEN);
 	ASSERT3P(*bookname, !=, NULL);
 	fnvlist_free(bmarks);
 	return (0);
