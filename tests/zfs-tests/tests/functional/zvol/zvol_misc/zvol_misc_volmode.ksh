@@ -107,6 +107,8 @@ log_must zfs create -o mountpoint=none $VOLFS
 log_must zfs create -V $VOLSIZE -s $SUBZVOL
 log_must zfs create -V $VOLSIZE -s $ZVOL
 udev_wait
+blockdev_exists $ZDEV
+blockdev_exists $SUBZDEV
 test_io $ZDEV
 test_io $SUBZDEV
 
