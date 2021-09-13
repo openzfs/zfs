@@ -1041,6 +1041,68 @@ zvol_create_snap_minor_cb(const char *dsname, void *arg)
 }
 
 /*
+ * If spa_keystore_load_wkey() is called for an encrypted zvol,
+ * we need to look for any clones also using the key. This function
+ * is "best effort" - so we just skip over it if there are failures.
+ */
+static void
+zvol_add_clones(const char *dsname, list_t *minors_list)
+{
+	/* Also check if it has clones */
+	dsl_dir_t *dd = NULL;
+	dsl_pool_t *dp = NULL;
+
+	if (dsl_pool_hold(dsname, FTAG, &dp) != 0)
+		return;
+
+	if (!spa_feature_is_enabled(dp->dp_spa,
+	    SPA_FEATURE_ENCRYPTION))
+		goto out;
+
+	if (dsl_dir_hold(dp, dsname, FTAG, &dd, NULL) != 0)
+		goto out;
+
+	if (dsl_dir_phys(dd)->dd_clones == 0)
+		goto out;
+
+	zap_cursor_t *zc = kmem_alloc(sizeof (zap_cursor_t), KM_SLEEP);
+	zap_attribute_t *za = kmem_alloc(sizeof (zap_attribute_t), KM_SLEEP);
+	objset_t *mos = dd->dd_pool->dp_meta_objset;
+
+	for (zap_cursor_init(zc, mos, dsl_dir_phys(dd)->dd_clones);
+	    zap_cursor_retrieve(zc, za) == 0;
+	    zap_cursor_advance(zc)) {
+		dsl_dataset_t *clone;
+		minors_job_t *job;
+
+		if (dsl_dataset_hold_obj(dd->dd_pool,
+		    za->za_first_integer, FTAG, &clone) == 0) {
+
+			char name[ZFS_MAX_DATASET_NAME_LEN];
+			dsl_dataset_name(clone, name);
+
+			char *n = kmem_strdup(name);
+			job = kmem_alloc(sizeof (minors_job_t), KM_SLEEP);
+			job->name = n;
+			job->list = minors_list;
+			job->error = 0;
+			list_insert_tail(minors_list, job);
+
+			dsl_dataset_rele(clone, FTAG);
+		}
+	}
+	zap_cursor_fini(zc);
+	kmem_free(za, sizeof (zap_attribute_t));
+	kmem_free(zc, sizeof (zap_cursor_t));
+
+out:
+	if (dd != NULL)
+		dsl_dir_rele(dd, FTAG);
+	if (dp != NULL)
+		dsl_pool_rele(dp, FTAG);
+}
+
+/*
  * Mask errors to continue dmu_objset_find() traversal
  */
 static int
@@ -1077,6 +1139,8 @@ zvol_create_minors_cb(const char *dsname, void *arg)
 		/* don't care if dispatch fails, because job->error is 0 */
 		taskq_dispatch(system_taskq, zvol_prefetch_minors_impl, job,
 		    TQ_SLEEP);
+
+		zvol_add_clones(dsname, minors_list);
 
 		if (snapdev == ZFS_SNAPDEV_VISIBLE) {
 			/*
