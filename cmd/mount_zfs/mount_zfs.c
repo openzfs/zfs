@@ -368,7 +368,7 @@ main(int argc, char **argv)
 				    "mount the filesystem again.\n"), dataset);
 				return (MOUNT_SYSERR);
 			}
-			/* fallthru */
+			fallthrough;
 #endif
 		default:
 			(void) fprintf(stderr, gettext("filesystem "

@@ -501,7 +501,7 @@ static const char *match (MatchState *ms, const char *s, const char *p) {
             }
             case '+':  /* 1 or more repetitions */
               s++;  /* 1 match already done */
-              /* FALLTHROUGH */
+              fallthrough;
             case '*':  /* 0 or more repetitions */
               s = max_expand(ms, s, p, ep);
               break;
