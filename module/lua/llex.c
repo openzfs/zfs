@@ -477,7 +477,7 @@ static int llex (LexState *ls, SemInfo *seminfo) {
         else if (!lisdigit(ls->current)) return '.';
         /* else go through */
       }
-      /* FALLTHROUGH */
+        fallthrough;
       case '0': case '1': case '2': case '3': case '4':
       case '5': case '6': case '7': case '8': case '9': {
         read_numeral(ls, seminfo);

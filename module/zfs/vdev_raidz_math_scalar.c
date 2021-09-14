@@ -142,7 +142,7 @@ static const struct {
 		a.b[6] = mul_lt[a.b[6]];				\
 		a.b[5] = mul_lt[a.b[5]];				\
 		a.b[4] = mul_lt[a.b[4]];				\
-		/* falls through */					\
+		fallthrough;						\
 	case 4:								\
 		a.b[3] = mul_lt[a.b[3]];				\
 		a.b[2] = mul_lt[a.b[2]];				\
