@@ -122,7 +122,7 @@ main(int argc, char *argv[])
 		switch (sbuf.st_mode & S_IFMT) {
 			case S_IFDIR:
 				isdir = B_TRUE;
-				/* FALLTHROUGH */
+				fallthrough;
 			case S_IFLNK:
 			case S_IFCHR:
 			case S_IFBLK:

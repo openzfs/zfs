@@ -976,7 +976,7 @@ aes_encrypt_atomic(crypto_provider_handle_t provider,
 	case AES_GMAC_MECH_INFO_TYPE:
 		if (plaintext->cd_length != 0)
 			return (CRYPTO_ARGUMENTS_BAD);
-		/* FALLTHROUGH */
+		fallthrough;
 	case AES_GCM_MECH_INFO_TYPE:
 		length_needed = plaintext->cd_length + aes_ctx.ac_tag_len;
 		break;
