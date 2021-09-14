@@ -162,6 +162,29 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_NO_UNUSED_BUT_SET_VARIABLE], [
 ])
 
 dnl #
+dnl # Check if gcc supports -Wimplicit-fallthrough option.
+dnl #
+AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_IMPLICIT_FALLTHROUGH], [
+	AC_MSG_CHECKING([whether $CC supports -Wimplicit-fallthrough])
+
+	saved_flags="$CFLAGS"
+	CFLAGS="$CFLAGS -Werror -Wimplicit-fallthrough"
+
+	AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [])], [
+		IMPLICIT_FALLTHROUGH=-Wimplicit-fallthrough
+		AC_DEFINE([HAVE_IMPLICIT_FALLTHROUGH], 1,
+			[Define if compiler supports -Wimplicit-fallthrough])
+		AC_MSG_RESULT([yes])
+	], [
+		IMPLICIT_FALLTHROUGH=
+		AC_MSG_RESULT([no])
+	])
+
+	CFLAGS="$saved_flags"
+	AC_SUBST([IMPLICIT_FALLTHROUGH])
+])
+
+dnl #
 dnl # Check if gcc supports -fno-omit-frame-pointer option.
 dnl #
 AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_NO_OMIT_FRAME_POINTER], [

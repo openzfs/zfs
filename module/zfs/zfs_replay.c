@@ -362,7 +362,7 @@ zfs_replay_create_acl(void *arg1, void *arg2, boolean_t byteswap)
 		zfsvfs->z_fuid_replay = zfs_replay_fuids(fuidstart,
 		    (void *)&name, lracl->lr_fuidcnt, lracl->lr_domcnt,
 		    lr->lr_uid, lr->lr_gid);
-		/*FALLTHROUGH*/
+		fallthrough;
 	case TX_CREATE_ACL_ATTR:
 		if (name == NULL) {
 			lrattr = (lr_attr_t *)(caddr_t)(lracl + 1);
@@ -394,7 +394,7 @@ zfs_replay_create_acl(void *arg1, void *arg2, boolean_t byteswap)
 		zfsvfs->z_fuid_replay = zfs_replay_fuids(fuidstart,
 		    (void *)&name, lracl->lr_fuidcnt, lracl->lr_domcnt,
 		    lr->lr_uid, lr->lr_gid);
-		/*FALLTHROUGH*/
+		fallthrough;
 	case TX_MKDIR_ACL_ATTR:
 		if (name == NULL) {
 			lrattr = (lr_attr_t *)(caddr_t)(lracl + 1);
@@ -519,8 +519,7 @@ zfs_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 		    zfs_replay_fuid_domain(start, &start,
 		    lr->lr_uid, lr->lr_gid);
 		name = (char *)start;
-
-		/*FALLTHROUGH*/
+		fallthrough;
 	case TX_CREATE:
 		if (name == NULL)
 			name = (char *)start;
@@ -537,8 +536,7 @@ zfs_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 		    zfs_replay_fuid_domain(start, &start,
 		    lr->lr_uid, lr->lr_gid);
 		name = (char *)start;
-
-		/*FALLTHROUGH*/
+		fallthrough;
 	case TX_MKDIR:
 		if (name == NULL)
 			name = (char *)(lr + 1);

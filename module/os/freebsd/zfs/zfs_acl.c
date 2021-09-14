@@ -269,7 +269,7 @@ zfs_ace_fuid_size(void *acep)
 		    entry_type == OWNING_GROUP ||
 		    entry_type == ACE_EVERYONE)
 			return (sizeof (zfs_ace_hdr_t));
-		/*FALLTHROUGH*/
+		fallthrough;
 	default:
 		return (sizeof (zfs_ace_t));
 	}
@@ -2153,7 +2153,7 @@ zfs_zaccess_aces_check(znode_t *zp, uint32_t *working_mode,
 			break;
 		case OWNING_GROUP:
 			who = gowner;
-			/*FALLTHROUGH*/
+			fallthrough;
 		case ACE_IDENTIFIER_GROUP:
 			checkit = zfs_groupmember(zfsvfs, who, cr);
 			break;

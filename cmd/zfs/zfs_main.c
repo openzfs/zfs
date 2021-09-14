@@ -7475,6 +7475,7 @@ unshare_unmount(int op, int argc, char **argv)
 				if (zfs_prop_get_int(zhp, ZFS_PROP_CANMOUNT) ==
 				    ZFS_CANMOUNT_NOAUTO)
 					continue;
+				break;
 			default:
 				break;
 			}
