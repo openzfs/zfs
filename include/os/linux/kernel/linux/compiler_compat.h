@@ -28,6 +28,14 @@
 
 #include <linux/compiler.h>
 
+#if !defined(fallthrough)
+#if defined(HAVE_IMPLICIT_FALLTHROUGH)
+#define	fallthrough		__attribute__((__fallthrough__))
+#else
+#define	fallthrough		((void)0)
+#endif
+#endif
+
 #if !defined(READ_ONCE)
 #define	READ_ONCE(x)		ACCESS_ONCE(x)
 #endif

@@ -67,6 +67,7 @@
 #define	__always_inline			inline
 #define	noinline			__noinline
 #define	____cacheline_aligned		__aligned(CACHE_LINE_SIZE)
+#define	fallthrough			__attribute__((__fallthrough__))
 
 #if !defined(_KERNEL) && !defined(_STANDALONE)
 #define	likely(x)			__builtin_expect(!!(x), 1)

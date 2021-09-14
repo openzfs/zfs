@@ -25,6 +25,7 @@
 
 #include <linux/dcache_compat.h>
 #include <linux/utsname_compat.h>
+#include <linux/compiler_compat.h>
 #include <linux/module.h>
 
 #if THREAD_SIZE >= 16384
