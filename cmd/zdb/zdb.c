@@ -4562,7 +4562,7 @@ dump_path_impl(objset_t *os, uint64_t obj, char *name)
 	case DMU_OT_DIRECTORY_CONTENTS:
 		if (s != NULL && *(s + 1) != '\0')
 			return (dump_path_impl(os, child_obj, s + 1));
-		/*FALLTHROUGH*/
+		fallthrough;
 	case DMU_OT_PLAIN_FILE_CONTENTS:
 		dump_object(os, child_obj, dump_opt['v'], &header, NULL, 0);
 		return (0);

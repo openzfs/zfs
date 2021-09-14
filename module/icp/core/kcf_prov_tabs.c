@@ -377,7 +377,7 @@ kcf_provider_zero_refcnt(kcf_provider_desc_t *desc)
 			mutex_exit(&desc->pd_lock);
 			break;
 		}
-		/* FALLTHRU */
+		fallthrough;
 
 	case CRYPTO_HW_PROVIDER:
 	case CRYPTO_LOGICAL_PROVIDER:

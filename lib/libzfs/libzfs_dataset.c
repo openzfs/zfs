@@ -1365,9 +1365,8 @@ badlabel:
 				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
 				goto error;
 			}
+			fallthrough;
 		}
-
-			/*FALLTHRU*/
 
 		case ZFS_PROP_SHARESMB:
 		case ZFS_PROP_SHARENFS:
@@ -3767,8 +3766,8 @@ zfs_create(libzfs_handle_t *hdl, const char *path, zfs_type_t type,
 			if (type == ZFS_TYPE_VOLUME)
 				return (zfs_error(hdl, EZFS_VOLTOOBIG,
 				    errbuf));
+			fallthrough;
 #endif
-			/* FALLTHROUGH */
 		default:
 			return (zfs_standard_error(hdl, errno, errbuf));
 		}
