@@ -676,7 +676,7 @@ static void freeobj (lua_State *L, GCObject *o) {
     case LUA_TUSERDATA: luaM_freemem(L, o, sizeudata(gco2u(o))); break;
     case LUA_TSHRSTR:
       G(L)->strt.nuse--;
-      /* FALLTHROUGH */
+      fallthrough;
     case LUA_TLNGSTR: {
       luaM_freemem(L, o, sizestring(gco2ts(o)));
       break;

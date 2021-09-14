@@ -63,7 +63,7 @@ lzbe_set_boot_device(const char *pool, lzbe_flags_t flag, const char *device)
 			/* Drop this nvlist */
 			fnvlist_free(nv);
 		}
-		/* FALLTHROUGH */
+		fallthrough;
 	case lzbe_replace:
 		nv = fnvlist_alloc();
 		break;

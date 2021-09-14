@@ -749,7 +749,7 @@ dsl_prop_set_sync_impl(dsl_dataset_t *ds, const char *propname,
 		ASSERT(err == 0 || err == ENOENT);
 		err = zap_remove(mos, zapobj, inheritstr, tx);
 		ASSERT(err == 0 || err == ENOENT);
-		/* FALLTHRU */
+		fallthrough;
 	case (ZPROP_SRC_NONE | ZPROP_SRC_RECEIVED):
 		/*
 		 * remove propname$recvd

@@ -8,6 +8,10 @@
 #define lcode_c
 #define LUA_CORE
 
+#if defined(HAVE_IMPLICIT_FALLTHROUGH)
+#pragma GCC diagnostic ignored "-Wimplicit-fallthrough"
+#endif
+
 #include <sys/lua/lua.h>
 
 #include "lcode.h"

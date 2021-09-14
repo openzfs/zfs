@@ -309,7 +309,7 @@ zpool_get_prop(zpool_handle_t *zhp, zpool_prop_t prop, char *buf,
 				    len);
 				break;
 			}
-			/* FALLTHROUGH */
+			fallthrough;
 		default:
 			(void) strlcpy(buf, "-", len);
 			break;
@@ -400,7 +400,7 @@ zpool_get_prop(zpool_handle_t *zhp, zpool_prop_t prop, char *buf,
 				(void) snprintf(buf, len, "-");
 				break;
 			}
-			/* FALLTHROUGH */
+			fallthrough;
 		default:
 			(void) snprintf(buf, len, "%llu", (u_longlong_t)intval);
 		}
