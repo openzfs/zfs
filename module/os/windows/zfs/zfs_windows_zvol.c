@@ -229,6 +229,7 @@ wzvol_HwFindAdapter(
 	pConfigInfo->VirtualDevice = TRUE;
 	pConfigInfo->WmiDataProvider = TRUE;
 	pConfigInfo->MaximumTransferLength = SP_UNINITIALIZED_VALUE;
+	pConfigInfo->NumberOfPhysicalBreaks = 0x21; // 128K IO size
 	pConfigInfo->AlignmentMask = 0x3;
 	pConfigInfo->CachesData = FALSE;
 	pConfigInfo->ScatterGather = TRUE;
