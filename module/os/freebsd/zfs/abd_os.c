@@ -250,6 +250,7 @@ abd_alloc_zero_scatter(void)
 
 	n = abd_chunkcnt_for_bytes(SPA_MAXBLOCKSIZE);
 	abd_zero_buf = kmem_cache_alloc(abd_chunk_cache, KM_PUSHPAGE);
+	bzero(abd_zero_buf, PAGE_SIZE);
 	abd_zero_scatter = abd_alloc_struct(SPA_MAXBLOCKSIZE);
 
 	abd_zero_scatter->abd_flags |= ABD_FLAG_OWNER | ABD_FLAG_ZEROS;
