@@ -3775,8 +3775,13 @@ arc_hdr_destroy(arc_buf_hdr_t *hdr)
 		 * to acquire the l2ad_mtx. If that happens, we don't
 		 * want to re-destroy the header's L2 portion.
 		 */
-		if (HDR_HAS_L2HDR(hdr))
+		if (HDR_HAS_L2HDR(hdr)) {
+
+			if (!HDR_EMPTY(hdr))
+				buf_discard_identity(hdr);
+
 			arc_hdr_l2hdr_destroy(hdr);
+		}
 
 		if (!buflist_held)
 			mutex_exit(&dev->l2ad_mtx);
