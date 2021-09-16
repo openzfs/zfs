@@ -936,16 +936,16 @@ kmem_asprintf(const char *fmt, ...)
 }
 
 /* ARGSUSED */
-int
+zfs_file_t *
 zfs_onexit_fd_hold(int fd, minor_t *minorp)
 {
 	*minorp = 0;
-	return (0);
+	return (NULL);
 }
 
 /* ARGSUSED */
 void
-zfs_onexit_fd_rele(int fd)
+zfs_onexit_fd_rele(zfs_file_t *fp)
 {
 }
 
@@ -1355,28 +1355,26 @@ zfs_file_unlink(const char *path)
  * Get reference to file pointer
  *
  * fd - input file descriptor
- * fpp - pointer to file pointer
  *
- * Returns 0 on success EBADF on failure.
+ * Returns pointer to file struct or NULL.
  * Unsupported in user space.
  */
-int
-zfs_file_get(int fd, zfs_file_t **fpp)
+zfs_file_t *
+zfs_file_get(int fd)
 {
 	abort();
 
-	return (EOPNOTSUPP);
+	return (NULL);
 }
-
 /*
  * Drop reference to file pointer
  *
- * fd - input file descriptor
+ * fp - pointer to file struct
  *
  * Unsupported in user space.
  */
 void
-zfs_file_put(int fd)
+zfs_file_put(zfs_file_t *fp)
 {
 	abort();
 }

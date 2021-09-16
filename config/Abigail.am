@@ -25,5 +25,9 @@ checkabi:
 storeabi:
 	cd .libs ; \
 	for lib in $(lib_LTLIBRARIES) ; do \
-		abidw $${lib%.la}.so > ../$${lib%.la}.abi ; \
+		abidw --no-show-locs \
+		--no-corpus-path \
+		--no-comp-dir-path \
+		--type-id-style hash \
+		$${lib%.la}.so > ../$${lib%.la}.abi ; \
 	done

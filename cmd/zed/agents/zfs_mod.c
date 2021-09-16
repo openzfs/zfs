@@ -707,9 +707,6 @@ zfs_deliver_add(nvlist_t *nvl, boolean_t is_lofi)
 	 * 1. ZPOOL_CONFIG_DEVID (identifies the unique disk)
 	 * 2. ZPOOL_CONFIG_PHYS_PATH (identifies disk physical location).
 	 * 3. ZPOOL_CONFIG_GUID (identifies unique vdev).
-	 *
-	 * For disks, we only want to pay attention to vdevs marked as whole
-	 * disks or are a multipath device.
 	 */
 	if (devid_iter(devid, zfs_process_add, is_slice))
 		return (0);

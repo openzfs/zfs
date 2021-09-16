@@ -712,20 +712,22 @@ equivalent to the greater of the number of online CPUs and
 The ARC size is considered to be overflowing if it exceeds the current
 ARC target size
 .Pq Sy arc_c
-by a threshold determined by this parameter.
-The threshold is calculated as a fraction of
-.Sy arc_c
-using the formula
-.Sy arc_c >> zfs_arc_overflow_shift .
+by thresholds determined by this parameter.
+Exceeding by
+.Sy ( arc_c >> zfs_arc_overflow_shift ) * 0.5
+starts ARC reclamation process.
+If that appears insufficient, exceeding by
+.Sy ( arc_c >> zfs_arc_overflow_shift ) * 1.5
+blocks new buffer allocation until the reclaim thread catches up.
+Started reclamation process continues till ARC size returns below the
+target size.
 .Pp
 The default value of
 .Sy 8
-causes the ARC to be considered overflowing if it exceeds the target size by
-.Em 1/256th Pq Em 0.3%
-of the target size.
-.Pp
-When the ARC is overflowing, new buffer allocations are stalled until
-the reclaim thread catches up and the overflow condition no longer exists.
+causes the ARC to start reclamation if it exceeds the target size by
+.Em 0.2%
+of the target size, and block allocations by
+.Em 0.6% .
 .
 .It Sy zfs_arc_p_min_shift Ns = Ns Sy 0 Pq int
 If nonzero, this will update
@@ -2020,7 +2022,7 @@ powerpc_altivec	Altivec	PowerPC
 .
 .It Sy zfs_vdev_scheduler Pq charp
 .Sy DEPRECATED .
-Prints warning to kernel log for compatiblity.
+Prints warning to kernel log for compatibility.
 .
 .It Sy zfs_zevent_len_max Ns = Ns Sy 512 Pq int
 Max event queue length.

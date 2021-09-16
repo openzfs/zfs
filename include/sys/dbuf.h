@@ -322,12 +322,12 @@ typedef struct dmu_buf_impl {
 } dmu_buf_impl_t;
 
 /* Note: the dbuf hash table is exposed only for the mdb module */
-#define	DBUF_MUTEXES 8192
+#define	DBUF_MUTEXES 2048
 #define	DBUF_HASH_MUTEX(h, idx) (&(h)->hash_mutexes[(idx) & (DBUF_MUTEXES-1)])
 typedef struct dbuf_hash_table {
 	uint64_t hash_table_mask;
 	dmu_buf_impl_t **hash_table;
-	kmutex_t hash_mutexes[DBUF_MUTEXES];
+	kmutex_t hash_mutexes[DBUF_MUTEXES] ____cacheline_aligned;
 } dbuf_hash_table_t;
 
 typedef void (*dbuf_prefetch_fn)(void *, boolean_t);
@@ -465,7 +465,7 @@ dbuf_find_dirty_eq(dmu_buf_impl_t *db, uint64_t txg)
 	char __db_buf[32]; \
 	uint64_t __db_obj = (dbuf)->db.db_object; \
 	if (__db_obj == DMU_META_DNODE_OBJECT) \
-		(void) strcpy(__db_buf, "mdn"); \
+		(void) strlcpy(__db_buf, "mdn", sizeof (__db_buf));	\
 	else \
 		(void) snprintf(__db_buf, sizeof (__db_buf), "%lld", \
 		    (u_longlong_t)__db_obj); \

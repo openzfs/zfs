@@ -120,7 +120,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV_BDEV_CHECK_MEDIA_CHANGE], [
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_BLKDEV_BDEV_CHECK_MEDIA_CHANGE], [
-	AC_MSG_CHECKING([whether bdev_disk_changed() exists])
+	AC_MSG_CHECKING([whether bdev_check_media_change() exists])
 	ZFS_LINUX_TEST_RESULT([bdev_check_media_change], [
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_BDEV_CHECK_MEDIA_CHANGE, 1,

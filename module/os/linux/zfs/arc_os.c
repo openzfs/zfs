@@ -217,7 +217,7 @@ arc_shrinker_scan(struct shrinker *shrink, struct shrink_control *sc)
 	 * for the requested amount of data to be evicted.
 	 */
 	arc_reduce_target_size(ptob(sc->nr_to_scan));
-	arc_wait_for_eviction(ptob(sc->nr_to_scan));
+	arc_wait_for_eviction(ptob(sc->nr_to_scan), B_FALSE);
 	if (current->reclaim_state != NULL)
 		current->reclaim_state->reclaimed_slab += sc->nr_to_scan;
 
@@ -372,6 +372,18 @@ param_set_arc_long(const char *buf, zfs_kernel_param_t *kp)
 }
 
 int
+param_set_arc_min(const char *buf, zfs_kernel_param_t *kp)
+{
+	return (param_set_arc_long(buf, kp));
+}
+
+int
+param_set_arc_max(const char *buf, zfs_kernel_param_t *kp)
+{
+	return (param_set_arc_long(buf, kp));
+}
+
+int
 param_set_arc_int(const char *buf, zfs_kernel_param_t *kp)
 {
 	int error;
@@ -437,7 +449,7 @@ arc_available_memory(void)
 	int64_t lowest = INT64_MAX;
 
 	/* Every 100 calls, free a small amount */
-	if (spa_get_random(100) == 0)
+	if (random_in_range(100) == 0)
 		lowest = -1024;
 
 	return (lowest);
@@ -458,7 +470,7 @@ arc_all_memory(void)
 uint64_t
 arc_free_memory(void)
 {
-	return (spa_get_random(arc_all_memory() * 20 / 100));
+	return (random_in_range(arc_all_memory() * 20 / 100));
 }
 
 void

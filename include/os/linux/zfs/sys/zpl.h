@@ -70,7 +70,11 @@ extern int zpl_set_acl(struct user_namespace *userns, struct inode *ip,
 extern int zpl_set_acl(struct inode *ip, struct posix_acl *acl, int type);
 #endif /* HAVE_SET_ACL_USERNS */
 #endif /* HAVE_SET_ACL */
+#if defined(HAVE_GET_ACL_RCU)
+extern struct posix_acl *zpl_get_acl(struct inode *ip, int type, bool rcu);
+#elif defined(HAVE_GET_ACL)
 extern struct posix_acl *zpl_get_acl(struct inode *ip, int type);
+#endif
 extern int zpl_init_acl(struct inode *ip, struct inode *dir);
 extern int zpl_chmod_acl(struct inode *ip);
 #else

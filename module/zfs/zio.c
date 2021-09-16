@@ -877,8 +877,7 @@ zio_create(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 		zio->io_bookmark = *zb;
 
 	if (pio != NULL) {
-		if (zio->io_metaslab_class == NULL)
-			zio->io_metaslab_class = pio->io_metaslab_class;
+		zio->io_metaslab_class = pio->io_metaslab_class;
 		if (zio->io_logical == NULL)
 			zio->io_logical = pio->io_logical;
 		if (zio->io_child_type == ZIO_CHILD_GANG)
@@ -1007,7 +1006,7 @@ zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp, boolean_t config_held,
 	 * will be done once the zio is executed in vdev_mirror_map_alloc.
 	 */
 	if (!spa->spa_trust_config)
-		return (B_TRUE);
+		return (errors == 0);
 
 	if (!config_held)
 		spa_config_enter(spa, SCL_VDEV, bp, RW_READER);
@@ -1772,6 +1771,18 @@ zio_write_compress(zio_t *zio)
 		    zio->io_abd, NULL, lsize, zp->zp_complevel);
 		if (psize == 0 || psize >= lsize)
 			compress = ZIO_COMPRESS_OFF;
+	} else if (zio->io_flags & ZIO_FLAG_RAW_COMPRESS) {
+		size_t rounded = MIN((size_t)roundup(psize,
+		    spa->spa_min_alloc), lsize);
+
+		if (rounded != psize) {
+			abd_t *cdata = abd_alloc_linear(rounded, B_TRUE);
+			abd_zero_off(cdata, psize, rounded - psize);
+			abd_copy_off(cdata, zio->io_abd, 0, 0, psize);
+			psize = rounded;
+			zio_push_transform(zio, cdata,
+			    psize, rounded, NULL);
+		}
 	} else {
 		ASSERT3U(psize, !=, 0);
 	}
@@ -1891,8 +1902,8 @@ zio_taskq_dispatch(zio_t *zio, zio_taskq_type_t q, boolean_t cutinline)
 	 * to dispatch the zio to another taskq at the same time.
 	 */
 	ASSERT(taskq_empty_ent(&zio->io_tqent));
-	spa_taskq_dispatch_ent(spa, t, q, (task_func_t *)zio_execute, zio,
-	    flags, &zio->io_tqent);
+	spa_taskq_dispatch_ent(spa, t, q, zio_execute, zio, flags,
+	    &zio->io_tqent);
 }
 
 static boolean_t
@@ -1923,7 +1934,7 @@ zio_issue_async(zio_t *zio)
 }
 
 void
-zio_interrupt(zio_t *zio)
+zio_interrupt(void *zio)
 {
 	zio_taskq_dispatch(zio, ZIO_TASKQ_INTERRUPT, B_FALSE);
 }
@@ -1981,8 +1992,8 @@ zio_delay_interrupt(zio_t *zio)
 				 * OpenZFS's timeout_generic().
 				 */
 				tid = taskq_dispatch_delay(system_taskq,
-				    (task_func_t *)zio_interrupt,
-				    zio, TQ_NOSLEEP, expire_at_tick);
+				    zio_interrupt, zio, TQ_NOSLEEP,
+				    expire_at_tick);
 				if (tid == TASKQID_INVALID) {
 					/*
 					 * Couldn't allocate a task.  Just
@@ -2103,7 +2114,7 @@ static zio_pipe_stage_t *zio_pipeline[];
  * it is externally visible.
  */
 void
-zio_execute(zio_t *zio)
+zio_execute(void *zio)
 {
 	fstrans_cookie_t cookie;
 
@@ -2292,8 +2303,9 @@ zio_nowait(zio_t *zio)
  */
 
 static void
-zio_reexecute(zio_t *pio)
+zio_reexecute(void *arg)
 {
+	zio_t *pio = arg;
 	zio_t *cio, *cio_next;
 
 	ASSERT(pio->io_child_type == ZIO_CHILD_LOGICAL);
@@ -3379,9 +3391,9 @@ zio_io_to_allocate(spa_t *spa, int allocator)
 {
 	zio_t *zio;
 
-	ASSERT(MUTEX_HELD(&spa->spa_alloc_locks[allocator]));
+	ASSERT(MUTEX_HELD(&spa->spa_allocs[allocator].spaa_lock));
 
-	zio = avl_first(&spa->spa_alloc_trees[allocator]);
+	zio = avl_first(&spa->spa_allocs[allocator].spaa_tree);
 	if (zio == NULL)
 		return (NULL);
 
@@ -3393,11 +3405,11 @@ zio_io_to_allocate(spa_t *spa, int allocator)
 	 */
 	ASSERT3U(zio->io_allocator, ==, allocator);
 	if (!metaslab_class_throttle_reserve(zio->io_metaslab_class,
-	    zio->io_prop.zp_copies, zio->io_allocator, zio, 0)) {
+	    zio->io_prop.zp_copies, allocator, zio, 0)) {
 		return (NULL);
 	}
 
-	avl_remove(&spa->spa_alloc_trees[allocator], zio);
+	avl_remove(&spa->spa_allocs[allocator].spaa_tree, zio);
 	ASSERT3U(zio->io_stage, <, ZIO_STAGE_DVA_ALLOCATE);
 
 	return (zio);
@@ -3421,8 +3433,8 @@ zio_dva_throttle(zio_t *zio)
 		return (zio);
 	}
 
+	ASSERT(zio->io_type == ZIO_TYPE_WRITE);
 	ASSERT(zio->io_child_type > ZIO_CHILD_GANG);
-
 	ASSERT3U(zio->io_queued_timestamp, >, 0);
 	ASSERT(zio->io_stage == ZIO_STAGE_DVA_THROTTLE);
 
@@ -3434,14 +3446,14 @@ zio_dva_throttle(zio_t *zio)
 	 * into 2^20 block regions, and then hash based on the objset, object,
 	 * level, and region to accomplish both of these goals.
 	 */
-	zio->io_allocator = cityhash4(bm->zb_objset, bm->zb_object,
+	int allocator = (uint_t)cityhash4(bm->zb_objset, bm->zb_object,
 	    bm->zb_level, bm->zb_blkid >> 20) % spa->spa_alloc_count;
-	mutex_enter(&spa->spa_alloc_locks[zio->io_allocator]);
-	ASSERT(zio->io_type == ZIO_TYPE_WRITE);
+	zio->io_allocator = allocator;
 	zio->io_metaslab_class = mc;
-	avl_add(&spa->spa_alloc_trees[zio->io_allocator], zio);
-	nio = zio_io_to_allocate(spa, zio->io_allocator);
-	mutex_exit(&spa->spa_alloc_locks[zio->io_allocator]);
+	mutex_enter(&spa->spa_allocs[allocator].spaa_lock);
+	avl_add(&spa->spa_allocs[allocator].spaa_tree, zio);
+	nio = zio_io_to_allocate(spa, allocator);
+	mutex_exit(&spa->spa_allocs[allocator].spaa_lock);
 	return (nio);
 }
 
@@ -3450,9 +3462,9 @@ zio_allocate_dispatch(spa_t *spa, int allocator)
 {
 	zio_t *zio;
 
-	mutex_enter(&spa->spa_alloc_locks[allocator]);
+	mutex_enter(&spa->spa_allocs[allocator].spaa_lock);
 	zio = zio_io_to_allocate(spa, allocator);
-	mutex_exit(&spa->spa_alloc_locks[allocator]);
+	mutex_exit(&spa->spa_allocs[allocator].spaa_lock);
 	if (zio == NULL)
 		return;
 
@@ -3642,8 +3654,8 @@ zio_alloc_zil(spa_t *spa, objset_t *os, uint64_t txg, blkptr_t *new_bp,
 	 * some parallelism.
 	 */
 	int flags = METASLAB_FASTWRITE | METASLAB_ZIL;
-	int allocator = cityhash4(0, 0, 0, os->os_dsl_dataset->ds_object) %
-	    spa->spa_alloc_count;
+	int allocator = (uint_t)cityhash4(0, 0, 0,
+	    os->os_dsl_dataset->ds_object) % spa->spa_alloc_count;
 	error = metaslab_alloc(spa, spa_log_class(spa), size, new_bp, 1,
 	    txg, NULL, flags, &io_alloc_list, NULL, allocator);
 	*slog = (error == 0);
@@ -4788,8 +4800,7 @@ zio_done(zio_t *zio)
 			ASSERT(taskq_empty_ent(&zio->io_tqent));
 			spa_taskq_dispatch_ent(zio->io_spa,
 			    ZIO_TYPE_CLAIM, ZIO_TASKQ_ISSUE,
-			    (task_func_t *)zio_reexecute, zio, 0,
-			    &zio->io_tqent);
+			    zio_reexecute, zio, 0, &zio->io_tqent);
 		}
 		return (NULL);
 	}

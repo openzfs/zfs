@@ -42,6 +42,13 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_MAKE_REQUEST_FN], [
 		struct block_device_operations o;
 		o.submit_bio = NULL;
 	])
+
+	ZFS_LINUX_TEST_SRC([blk_alloc_disk], [
+		#include <linux/blkdev.h>
+	],[
+		struct gendisk *disk  __attribute__ ((unused));
+		disk = blk_alloc_disk(NUMA_NO_NODE);
+	])
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_MAKE_REQUEST_FN], [
@@ -56,6 +63,19 @@ AC_DEFUN([ZFS_AC_KERNEL_MAKE_REQUEST_FN], [
 
 		AC_DEFINE(HAVE_SUBMIT_BIO_IN_BLOCK_DEVICE_OPERATIONS, 1,
 		    [submit_bio is member of struct block_device_operations])
+
+		dnl #
+		dnl # Linux 5.14 API Change:
+		dnl # blk_alloc_queue() + alloc_disk() combo replaced by
+		dnl # a single call to blk_alloc_disk().
+		dnl #
+		AC_MSG_CHECKING([whether blk_alloc_disk() exists])
+		ZFS_LINUX_TEST_RESULT([blk_alloc_disk], [
+			AC_MSG_RESULT(yes)
+			AC_DEFINE([HAVE_BLK_ALLOC_DISK], 1, [blk_alloc_disk() exists])
+		], [
+			AC_MSG_RESULT(no)
+		])
 	],[
 		AC_MSG_RESULT(no)
 

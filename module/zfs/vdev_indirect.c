@@ -885,7 +885,7 @@ spa_start_indirect_condensing_thread(spa_t *spa)
 	ASSERT3P(spa->spa_condense_zthr, ==, NULL);
 	spa->spa_condense_zthr = zthr_create("z_indirect_condense",
 	    spa_condense_indirect_thread_check,
-	    spa_condense_indirect_thread, spa);
+	    spa_condense_indirect_thread, spa, minclsyspri);
 }
 
 /*
@@ -1578,7 +1578,7 @@ vdev_indirect_splits_enumerate_randomly(indirect_vsd_t *iv, zio_t *zio)
 			indirect_child_t *ic = list_head(&is->is_unique_child);
 			int children = is->is_unique_children;
 
-			for (int i = spa_get_random(children); i > 0; i--)
+			for (int i = random_in_range(children); i > 0; i--)
 				ic = list_next(&is->is_unique_child, ic);
 
 			ASSERT3P(ic, !=, NULL);
@@ -1742,7 +1742,7 @@ vdev_indirect_reconstruct_io_done(zio_t *zio)
 	 * Known_good will be TRUE when reconstruction is known to be possible.
 	 */
 	if (zfs_reconstruct_indirect_damage_fraction != 0 &&
-	    spa_get_random(zfs_reconstruct_indirect_damage_fraction) == 0)
+	    random_in_range(zfs_reconstruct_indirect_damage_fraction) == 0)
 		known_good = (vdev_indirect_splits_damage(iv, zio) == 0);
 
 	/*

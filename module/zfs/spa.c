@@ -2610,7 +2610,8 @@ spa_start_livelist_destroy_thread(spa_t *spa)
 	ASSERT3P(spa->spa_livelist_delete_zthr, ==, NULL);
 	spa->spa_livelist_delete_zthr =
 	    zthr_create("z_livelist_destroy",
-	    spa_livelist_delete_cb_check, spa_livelist_delete_cb, spa);
+	    spa_livelist_delete_cb_check, spa_livelist_delete_cb, spa,
+	    minclsyspri);
 }
 
 typedef struct livelist_new_arg {
@@ -2820,7 +2821,7 @@ spa_start_livelist_condensing_thread(spa_t *spa)
 	spa->spa_livelist_condense_zthr =
 	    zthr_create("z_livelist_condense",
 	    spa_livelist_condense_cb_check,
-	    spa_livelist_condense_cb, spa);
+	    spa_livelist_condense_cb, spa, minclsyspri);
 }
 
 static void
@@ -2838,7 +2839,7 @@ spa_spawn_aux_threads(spa_t *spa)
 	spa->spa_checkpoint_discard_zthr =
 	    zthr_create("z_checkpoint_discard",
 	    spa_checkpoint_discard_thread_check,
-	    spa_checkpoint_discard_thread, spa);
+	    spa_checkpoint_discard_thread, spa, minclsyspri);
 }
 
 /*
@@ -3186,7 +3187,7 @@ spa_activity_check(spa_t *spa, uberblock_t *ub, nvlist_t *config)
 	import_delay = spa_activity_check_duration(spa, ub);
 
 	/* Add a small random factor in case of simultaneous imports (0-25%) */
-	import_delay += import_delay * spa_get_random(250) / 1000;
+	import_delay += import_delay * random_in_range(250) / 1000;
 
 	import_expire = gethrtime() + import_delay;
 
@@ -4183,7 +4184,7 @@ spa_ld_get_props(spa_t *spa)
 		return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
 
 	if (error == 0) {
-		uint64_t autoreplace;
+		uint64_t autoreplace = 0;
 
 		spa_prop_find(spa, ZPOOL_PROP_BOOTFS, &spa->spa_bootfs);
 		spa_prop_find(spa, ZPOOL_PROP_AUTOREPLACE, &autoreplace);
@@ -4633,7 +4634,7 @@ spa_ld_checkpoint_rewind(spa_t *spa)
 		vdev_t *svd[SPA_SYNC_MIN_VDEVS] = { NULL };
 		int svdcount = 0;
 		int children = rvd->vdev_children;
-		int c0 = spa_get_random(children);
+		int c0 = random_in_range(children);
 
 		for (int c = 0; c < children; c++) {
 			vdev_t *vd = rvd->vdev_child[(c0 + c) % children];
@@ -9132,7 +9133,7 @@ spa_sync_rewrite_vdev_config(spa_t *spa, dmu_tx_t *tx)
 			vdev_t *svd[SPA_SYNC_MIN_VDEVS] = { NULL };
 			int svdcount = 0;
 			int children = rvd->vdev_children;
-			int c0 = spa_get_random(children);
+			int c0 = random_in_range(children);
 
 			for (int c = 0; c < children; c++) {
 				vdev_t *vd =
@@ -9197,9 +9198,9 @@ spa_sync(spa_t *spa, uint64_t txg)
 	spa->spa_sync_pass = 0;
 
 	for (int i = 0; i < spa->spa_alloc_count; i++) {
-		mutex_enter(&spa->spa_alloc_locks[i]);
-		VERIFY0(avl_numnodes(&spa->spa_alloc_trees[i]));
-		mutex_exit(&spa->spa_alloc_locks[i]);
+		mutex_enter(&spa->spa_allocs[i].spaa_lock);
+		VERIFY0(avl_numnodes(&spa->spa_allocs[i].spaa_tree));
+		mutex_exit(&spa->spa_allocs[i].spaa_lock);
 	}
 
 	/*
@@ -9309,9 +9310,9 @@ spa_sync(spa_t *spa, uint64_t txg)
 	dsl_pool_sync_done(dp, txg);
 
 	for (int i = 0; i < spa->spa_alloc_count; i++) {
-		mutex_enter(&spa->spa_alloc_locks[i]);
-		VERIFY0(avl_numnodes(&spa->spa_alloc_trees[i]));
-		mutex_exit(&spa->spa_alloc_locks[i]);
+		mutex_enter(&spa->spa_allocs[i].spaa_lock);
+		VERIFY0(avl_numnodes(&spa->spa_allocs[i].spaa_tree));
+		mutex_exit(&spa->spa_allocs[i].spaa_lock);
 	}
 
 	/*

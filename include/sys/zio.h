@@ -589,8 +589,8 @@ extern void zio_shrink(zio_t *zio, uint64_t size);
 
 extern int zio_wait(zio_t *zio);
 extern void zio_nowait(zio_t *zio);
-extern void zio_execute(zio_t *zio);
-extern void zio_interrupt(zio_t *zio);
+extern void zio_execute(void *zio);
+extern void zio_interrupt(void *zio);
 extern void zio_delay_init(zio_t *zio);
 extern void zio_delay_interrupt(zio_t *zio);
 extern void zio_deadman(zio_t *zio, char *tag);

@@ -317,7 +317,7 @@ get_usage(zfs_help_t idx)
 	case HELP_SEND:
 		return (gettext("\tsend [-DnPpRVvLecwhb] [-[i|I] snapshot] "
 		    "<snapshot>\n"
-		    "\tsend [-nVvPLecw] [-i snapshot|bookmark] "
+		    "\tsend [-DnVvPLecw] [-i snapshot|bookmark] "
 		    "<filesystem|volume|snapshot>\n"
 		    "\tsend [-DnPpVvLec] [-i bookmark|snapshot] "
 		    "--redact <bookmark> <snapshot>\n"

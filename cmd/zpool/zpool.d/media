@@ -4,7 +4,7 @@
 #
 
 if [ "$1" = "-h" ] ; then
-	echo "Show whether a vdev is a file, hdd, or ssd."
+	echo "Show whether a vdev is a file, hdd, ssd, or iscsi."
 	exit
 fi
 
@@ -17,6 +17,13 @@ if [ -b "$VDEV_UPATH" ]; then
 
 	if [ "$val" = "1" ]; then
 		MEDIA="hdd"
+	fi
+
+	vpd_pg83="/sys/block/$device/device/vpd_pg83"
+	if [ -f "$vpd_pg83" ]; then
+		if grep -q --binary "iqn." "$vpd_pg83"; then
+			MEDIA="iscsi"
+		fi
 	fi
 else
 	if [ -f "$VDEV_UPATH" ]; then

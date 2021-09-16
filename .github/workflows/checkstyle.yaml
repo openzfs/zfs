@@ -18,7 +18,7 @@ jobs:
         sudo apt-get install --yes -qq zlib1g-dev uuid-dev libattr1-dev libblkid-dev libselinux-dev libudev-dev libssl-dev python-dev python-setuptools python-cffi python3 python3-dev python3-setuptools python3-cffi
         # packages for tests
         sudo apt-get install --yes -qq parted lsscsi ksh attr acl nfs-kernel-server fio
-        sudo apt-get install --yes -qq mandoc cppcheck pax-utils devscripts abigail-tools
+        sudo apt-get install --yes -qq mandoc cppcheck pax-utils devscripts
         sudo -E pip --quiet install flake8
     - name: Prepare
       run: |
@@ -32,5 +32,19 @@ jobs:
       run: |
         make lint
     - name: CheckABI
+      id: CheckABI
       run: |
-        make checkabi
+        sudo docker run -v $(pwd):/source ghcr.io/openzfs/libabigail make checkabi
+    - name: StoreABI
+      if: failure() && steps.CheckABI.outcome == 'failure'
+      run: |
+        sudo docker run -v $(pwd):/source ghcr.io/openzfs/libabigail make storeabi
+    - name: Prepare artifacts
+      if: failure() && steps.CheckABI.outcome == 'failure'
+      run: |
+        find -name *.abi | tar -cf abi_files.tar -T -
+    - uses: actions/upload-artifact@v2
+      if: failure() && steps.CheckABI.outcome == 'failure'
+      with:
+        name: New ABI files (use only if you're sure about interface changes)
+        path: abi_files.tar

@@ -57,6 +57,11 @@
 extern "C" {
 #endif
 
+typedef struct spa_alloc {
+	kmutex_t	spaa_lock;
+	avl_tree_t	spaa_tree;
+} ____cacheline_aligned spa_alloc_t;
+
 typedef struct spa_error_entry {
 	zbookmark_phys_t	se_bookmark;
 	char			*se_name;
@@ -250,13 +255,11 @@ struct spa {
 	list_t		spa_config_dirty_list;	/* vdevs with dirty config */
 	list_t		spa_state_dirty_list;	/* vdevs with dirty state */
 	/*
-	 * spa_alloc_locks and spa_alloc_trees are arrays, whose lengths are
-	 * stored in spa_alloc_count. There is one tree and one lock for each
-	 * allocator, to help improve allocation performance in write-heavy
-	 * workloads.
+	 * spa_allocs is an array, whose lengths is stored in spa_alloc_count.
+	 * There is one tree and one lock for each allocator, to help improve
+	 * allocation performance in write-heavy workloads.
 	 */
-	kmutex_t	*spa_alloc_locks;
-	avl_tree_t	*spa_alloc_trees;
+	spa_alloc_t	*spa_allocs;
 	int		spa_alloc_count;
 
 	spa_aux_vdev_t	spa_spares;		/* hot spares */

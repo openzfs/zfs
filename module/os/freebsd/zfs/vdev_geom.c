@@ -29,6 +29,7 @@
 #include <sys/param.h>
 #include <sys/kernel.h>
 #include <sys/bio.h>
+#include <sys/buf.h>
 #include <sys/file.h>
 #include <sys/spa.h>
 #include <sys/spa_impl.h>
@@ -36,6 +37,7 @@
 #include <sys/vdev_os.h>
 #include <sys/fs/zfs.h>
 #include <sys/zio.h>
+#include <vm/vm_page.h>
 #include <geom/geom.h>
 #include <geom/geom_disk.h>
 #include <geom/geom_int.h>
@@ -379,7 +381,11 @@ vdev_geom_io(struct g_consumer *cp, int *cmds, void **datas, off_t *offsets,
 	int i, n_bios, j;
 	size_t bios_size;
 
+#if __FreeBSD_version > 1300130
+	maxio = maxphys - (maxphys % cp->provider->sectorsize);
+#else
 	maxio = MAXPHYS - (MAXPHYS % cp->provider->sectorsize);
+#endif
 	n_bios = 0;
 
 	/* How many bios are required for all commands ? */
@@ -1059,6 +1065,84 @@ vdev_geom_io_intr(struct bio *bp)
 	zio_delay_interrupt(zio);
 }
 
+struct vdev_geom_check_unmapped_cb_state {
+	int	pages;
+	uint_t	end;
+};
+
+/*
+ * Callback to check the ABD segment size/alignment and count the pages.
+ * GEOM requires data buffer to look virtually contiguous.  It means only
+ * the first page of the buffer may not start and only the last may not
+ * end on a page boundary.  All other physical pages must be full.
+ */
+static int
+vdev_geom_check_unmapped_cb(void *buf, size_t len, void *priv)
+{
+	struct vdev_geom_check_unmapped_cb_state *s = priv;
+	vm_offset_t off = (vm_offset_t)buf & PAGE_MASK;
+
+	if (s->pages != 0 && off != 0)
+		return (1);
+	if (s->end != 0)
+		return (1);
+	s->end = (off + len) & PAGE_MASK;
+	s->pages += (off + len + PAGE_MASK) >> PAGE_SHIFT;
+	return (0);
+}
+
+/*
+ * Check whether we can use unmapped I/O for this ZIO on this device to
+ * avoid data copying between scattered and/or gang ABD buffer and linear.
+ */
+static int
+vdev_geom_check_unmapped(zio_t *zio, struct g_consumer *cp)
+{
+	struct vdev_geom_check_unmapped_cb_state s;
+
+	/* If unmapped I/O is administratively disabled, respect that. */
+	if (!unmapped_buf_allowed)
+		return (0);
+
+	/* If the buffer is already linear, then nothing to do here. */
+	if (abd_is_linear(zio->io_abd))
+		return (0);
+
+	/*
+	 * If unmapped I/O is not supported by the GEOM provider,
+	 * then we can't do anything and have to copy the data.
+	 */
+	if ((cp->provider->flags & G_PF_ACCEPT_UNMAPPED) == 0)
+		return (0);
+
+	/* Check the buffer chunks sizes/alignments and count pages. */
+	s.pages = s.end = 0;
+	if (abd_iterate_func(zio->io_abd, 0, zio->io_size,
+	    vdev_geom_check_unmapped_cb, &s))
+		return (0);
+	return (s.pages);
+}
+
+/*
+ * Callback to translate the ABD segment into array of physical pages.
+ */
+static int
+vdev_geom_fill_unmap_cb(void *buf, size_t len, void *priv)
+{
+	struct bio *bp = priv;
+	vm_offset_t addr = (vm_offset_t)buf;
+	vm_offset_t end = addr + len;
+
+	if (bp->bio_ma_n == 0)
+		bp->bio_ma_offset = addr & PAGE_MASK;
+	do {
+		bp->bio_ma[bp->bio_ma_n++] =
+		    PHYS_TO_VM_PAGE(pmap_kextract(addr));
+		addr += PAGE_SIZE;
+	} while (addr < end);
+	return (0);
+}
+
 static void
 vdev_geom_io_start(zio_t *zio)
 {
@@ -1123,14 +1207,34 @@ sendreq:
 		zio->io_target_timestamp = zio_handle_io_delay(zio);
 		bp->bio_offset = zio->io_offset;
 		bp->bio_length = zio->io_size;
-		if (zio->io_type == ZIO_TYPE_READ) {
+		if (zio->io_type == ZIO_TYPE_READ)
 			bp->bio_cmd = BIO_READ;
-			bp->bio_data =
-			    abd_borrow_buf(zio->io_abd, zio->io_size);
-		} else {
+		else
 			bp->bio_cmd = BIO_WRITE;
-			bp->bio_data =
-			    abd_borrow_buf_copy(zio->io_abd, zio->io_size);
+
+		/*
+		 * If possible, represent scattered and/or gang ABD buffer to
+		 * GEOM as an array of physical pages.  It allows to satisfy
+		 * requirement of virtually contiguous buffer without copying.
+		 */
+		int pgs = vdev_geom_check_unmapped(zio, cp);
+		if (pgs > 0) {
+			bp->bio_ma = malloc(sizeof (struct vm_page *) * pgs,
+			    M_DEVBUF, M_WAITOK);
+			bp->bio_ma_n = 0;
+			bp->bio_ma_offset = 0;
+			abd_iterate_func(zio->io_abd, 0, zio->io_size,
+			    vdev_geom_fill_unmap_cb, bp);
+			bp->bio_data = unmapped_buf;
+			bp->bio_flags |= BIO_UNMAPPED;
+		} else {
+			if (zio->io_type == ZIO_TYPE_READ) {
+				bp->bio_data = abd_borrow_buf(zio->io_abd,
+				    zio->io_size);
+			} else {
+				bp->bio_data = abd_borrow_buf_copy(zio->io_abd,
+				    zio->io_size);
+			}
 		}
 		break;
 	case ZIO_TYPE_TRIM:
@@ -1169,10 +1273,17 @@ vdev_geom_io_done(zio_t *zio)
 		return;
 	}
 
-	if (zio->io_type == ZIO_TYPE_READ)
-		abd_return_buf_copy(zio->io_abd, bp->bio_data, zio->io_size);
-	else
-		abd_return_buf(zio->io_abd, bp->bio_data, zio->io_size);
+	if (bp->bio_ma != NULL) {
+		free(bp->bio_ma, M_DEVBUF);
+	} else {
+		if (zio->io_type == ZIO_TYPE_READ) {
+			abd_return_buf_copy(zio->io_abd, bp->bio_data,
+			    zio->io_size);
+		} else {
+			abd_return_buf(zio->io_abd, bp->bio_data,
+			    zio->io_size);
+		}
+	}
 
 	g_destroy_bio(bp);
 	zio->io_bio = NULL;

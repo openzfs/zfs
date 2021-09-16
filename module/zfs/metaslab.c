@@ -5084,7 +5084,7 @@ metaslab_alloc_dva(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
 	 * damage can result in extremely long reconstruction times.  This
 	 * will also test spilling from special to normal.
 	 */
-	if (psize >= metaslab_force_ganging && (spa_get_random(100) < 3)) {
+	if (psize >= metaslab_force_ganging && (random_in_range(100) < 3)) {
 		metaslab_trace_add(zal, NULL, NULL, psize, d, TRACE_FORCE_GANG,
 		    allocator);
 		return (SET_ERROR(ENOSPC));
@@ -5611,31 +5611,28 @@ metaslab_class_throttle_reserve(metaslab_class_t *mc, int slots, int allocator,
     zio_t *zio, int flags)
 {
 	metaslab_class_allocator_t *mca = &mc->mc_allocator[allocator];
-	uint64_t available_slots = 0;
-	boolean_t slot_reserved = B_FALSE;
 	uint64_t max = mca->mca_alloc_max_slots;
 
 	ASSERT(mc->mc_alloc_throttle_enabled);
-	mutex_enter(&mc->mc_lock);
-
-	uint64_t reserved_slots = zfs_refcount_count(&mca->mca_alloc_slots);
-	if (reserved_slots < max)
-		available_slots = max - reserved_slots;
-
-	if (slots <= available_slots || GANG_ALLOCATION(flags) ||
-	    flags & METASLAB_MUST_RESERVE) {
+	if (GANG_ALLOCATION(flags) || (flags & METASLAB_MUST_RESERVE) ||
+	    zfs_refcount_count(&mca->mca_alloc_slots) + slots <= max) {
 		/*
+		 * The potential race between _count() and _add() is covered
+		 * by the allocator lock in most cases, or irrelevant due to
+		 * GANG_ALLOCATION() or METASLAB_MUST_RESERVE set in others.
+		 * But even if we assume some other non-existing scenario, the
+		 * worst that can happen is few more I/Os get to allocation
+		 * earlier, that is not a problem.
+		 *
 		 * We reserve the slots individually so that we can unreserve
 		 * them individually when an I/O completes.
 		 */
 		for (int d = 0; d < slots; d++)
 			zfs_refcount_add(&mca->mca_alloc_slots, zio);
 		zio->io_flags |= ZIO_FLAG_IO_ALLOCATING;
-		slot_reserved = B_TRUE;
+		return (B_TRUE);
 	}
-
-	mutex_exit(&mc->mc_lock);
-	return (slot_reserved);
+	return (B_FALSE);
 }
 
 void
@@ -5645,10 +5642,8 @@ metaslab_class_throttle_unreserve(metaslab_class_t *mc, int slots,
 	metaslab_class_allocator_t *mca = &mc->mc_allocator[allocator];
 
 	ASSERT(mc->mc_alloc_throttle_enabled);
-	mutex_enter(&mc->mc_lock);
 	for (int d = 0; d < slots; d++)
 		zfs_refcount_remove(&mca->mca_alloc_slots, zio);
-	mutex_exit(&mc->mc_lock);
 }
 
 static int

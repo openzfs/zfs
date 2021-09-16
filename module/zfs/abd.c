@@ -531,7 +531,7 @@ abd_get_offset_impl(abd_t *abd, abd_t *sabd, size_t off, size_t size)
 		}
 		ASSERT3U(left, ==, 0);
 	} else {
-		abd = abd_get_offset_scatter(abd, sabd, off);
+		abd = abd_get_offset_scatter(abd, sabd, off, size);
 	}
 
 	ASSERT3P(abd, !=, NULL);

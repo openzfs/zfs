@@ -83,10 +83,11 @@
  * can be cancelled while doing work and not while checking for work.
  *
  * To start a zthr:
- *     zthr_t *zthr_pointer = zthr_create(checkfunc, func, args);
+ *     zthr_t *zthr_pointer = zthr_create(checkfunc, func, args,
+ *         pri);
  * or
  *     zthr_t *zthr_pointer = zthr_create_timer(checkfunc, func,
- *         args, max_sleep);
+ *         args, max_sleep, pri);
  *
  * After that you should be able to wakeup, cancel, and resume the
  * zthr from another thread using the zthr_pointer.
@@ -220,6 +221,9 @@ struct zthr {
 	 */
 	hrtime_t	zthr_sleep_timeout;
 
+	/* Thread priority */
+	pri_t		zthr_pri;
+
 	/* consumer-provided callbacks & data */
 	zthr_checkfunc_t	*zthr_checkfunc;
 	zthr_func_t	*zthr_func;
@@ -269,10 +273,10 @@ zthr_procedure(void *arg)
 
 zthr_t *
 zthr_create(const char *zthr_name, zthr_checkfunc_t *checkfunc,
-    zthr_func_t *func, void *arg)
+    zthr_func_t *func, void *arg, pri_t pri)
 {
 	return (zthr_create_timer(zthr_name, checkfunc,
-	    func, arg, (hrtime_t)0));
+	    func, arg, (hrtime_t)0, pri));
 }
 
 /*
@@ -282,7 +286,7 @@ zthr_create(const char *zthr_name, zthr_checkfunc_t *checkfunc,
  */
 zthr_t *
 zthr_create_timer(const char *zthr_name, zthr_checkfunc_t *checkfunc,
-    zthr_func_t *func, void *arg, hrtime_t max_sleep)
+    zthr_func_t *func, void *arg, hrtime_t max_sleep, pri_t pri)
 {
 	zthr_t *t = kmem_zalloc(sizeof (*t), KM_SLEEP);
 	mutex_init(&t->zthr_state_lock, NULL, MUTEX_DEFAULT, NULL);
@@ -296,9 +300,10 @@ zthr_create_timer(const char *zthr_name, zthr_checkfunc_t *checkfunc,
 	t->zthr_arg = arg;
 	t->zthr_sleep_timeout = max_sleep;
 	t->zthr_name = zthr_name;
+	t->zthr_pri = pri;
 
 	t->zthr_thread = thread_create_named(zthr_name, NULL, 0,
-	    zthr_procedure, t, 0, &p0, TS_RUN, minclsyspri);
+	    zthr_procedure, t, 0, &p0, TS_RUN, pri);
 
 	mutex_exit(&t->zthr_state_lock);
 
@@ -423,7 +428,7 @@ zthr_resume(zthr_t *t)
 	 */
 	if (t->zthr_thread == NULL) {
 		t->zthr_thread = thread_create_named(t->zthr_name, NULL, 0,
-		    zthr_procedure, t, 0, &p0, TS_RUN, minclsyspri);
+		    zthr_procedure, t, 0, &p0, TS_RUN, t->zthr_pri);
 	}
 
 	mutex_exit(&t->zthr_state_lock);

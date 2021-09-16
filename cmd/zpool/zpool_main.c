@@ -1216,6 +1216,26 @@ zpool_do_remove(int argc, char **argv)
 }
 
 /*
+ * Return 1 if a vdev is active (being used in a pool)
+ * Return 0 if a vdev is inactive (offlined or faulted, or not in active pool)
+ *
+ * This is useful for checking if a disk in an active pool is offlined or
+ * faulted.
+ */
+static int
+vdev_is_active(char *vdev_path)
+{
+	int fd;
+	fd = open(vdev_path, O_EXCL);
+	if (fd < 0) {
+		return (1);   /* cant open O_EXCL - disk is active */
+	}
+
+	close(fd);
+	return (0);   /* disk is inactive in the pool */
+}
+
+/*
  * zpool labelclear [-f] <vdev>
  *
  *	-f	Force clearing the label for the vdevs which are members of
@@ -1324,9 +1344,23 @@ zpool_do_labelclear(int argc, char **argv)
 	case POOL_STATE_ACTIVE:
 	case POOL_STATE_SPARE:
 	case POOL_STATE_L2CACHE:
+		/*
+		 * We allow the user to call 'zpool offline -f'
+		 * on an offlined disk in an active pool. We can check if
+		 * the disk is online by calling vdev_is_active().
+		 */
+		if (force && !vdev_is_active(vdev))
+			break;
+
 		(void) fprintf(stderr, gettext(
-		    "%s is a member (%s) of pool \"%s\"\n"),
+		    "%s is a member (%s) of pool \"%s\""),
 		    vdev, zpool_pool_state_to_name(state), name);
+
+		if (force) {
+			(void) fprintf(stderr, gettext(
+			    ". Offline the disk first to clear its label."));
+		}
+		printf("\n");
 		ret = 1;
 		goto errout;
 
@@ -3764,9 +3798,10 @@ zpool_do_import(int argc, char **argv)
 		return (1);
 	}
 
-	err = import_pools(pools, props, mntopts, flags, argv[0],
-	    argc == 1 ? NULL : argv[1], do_destroyed, pool_specified,
-	    do_all, &idata);
+	err = import_pools(pools, props, mntopts, flags,
+	    argc >= 1 ? argv[0] : NULL,
+	    argc >= 2 ? argv[1] : NULL,
+	    do_destroyed, pool_specified, do_all, &idata);
 
 	/*
 	 * If we're using the cachefile and we failed to import, then
@@ -3786,9 +3821,10 @@ zpool_do_import(int argc, char **argv)
 		nvlist_free(pools);
 		pools = zpool_search_import(g_zfs, &idata, &libzfs_config_ops);
 
-		err = import_pools(pools, props, mntopts, flags, argv[0],
-		    argc == 1 ? NULL : argv[1], do_destroyed, pool_specified,
-		    do_all, &idata);
+		err = import_pools(pools, props, mntopts, flags,
+		    argc >= 1 ? argv[0] : NULL,
+		    argc >= 2 ? argv[1] : NULL,
+		    do_destroyed, pool_specified, do_all, &idata);
 	}
 
 error:
