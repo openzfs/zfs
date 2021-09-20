@@ -414,7 +414,7 @@ user =
 tags = ['functional', 'cli_user', 'zpool_list']
 
 [tests/functional/compression]
-tests = ['compress_003_pos']
+tests = ['compress_003_pos','compress_zstd_bswap']
 tags = ['functional', 'compression']
 
 [tests/functional/exec]
