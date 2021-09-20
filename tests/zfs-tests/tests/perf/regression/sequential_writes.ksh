@@ -57,7 +57,8 @@ export TOTAL_SIZE=$(($(get_prop avail $PERFPOOL) * 3 / 2))
 # Variables specific to this test for use by fio.
 export PERF_NTHREADS=${PERF_NTHREADS:-'16 32'}
 export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
-export PERF_IOSIZES=${PERF_IOSIZES:-'8k 128k 1m'}
+export PERF_IOSIZES=${PERF_IOSIZES:-'8k 1m'}
+export PERF_SYNC_TYPES=${PERF_SYNC_TYPES:-'0 1'}
 
 # Set up the scripts and output files that will log performance data.
 lun_list=$(pool_to_lun_list $PERFPOOL)
