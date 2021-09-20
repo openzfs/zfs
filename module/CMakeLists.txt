@@ -18,6 +18,17 @@ if (NOT SIGNTOOL_PROGRAM)
 	message(FATAL_ERROR "Failed to find signtool.exe")
 endif()
 
+
+find_program(STAMPINF_PROGRAM
+	stampinf
+	PATHS "${WDK_ROOT}/bin/${WDK_VERSION}/${WDK_PLATFORM}"
+	NO_DEFAULT_PATH
+)
+
+if (NOT STAMPINF_PROGRAM)
+	message(FATAL_ERROR "Failed to find stampinf.exe")
+endif()
+
 if (NOT "${ZFSIN_SIGNTOOL_CERTSTORE}")
 	set(ZFSIN_SIGNTOOL_CERTSTORE PrivateCertStore CACHE STRING "Name of the certificate store (PrivateCertStore) that contains the test certificate.")
 endif()
