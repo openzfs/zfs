@@ -254,6 +254,7 @@ zfs_read(struct znode *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	}
 
 	ASSERT(zfs_uio_offset(uio) < zp->z_size);
+	ssize_t start_offset = zfs_uio_offset(uio);
 	ssize_t n = MIN(zfs_uio_resid(uio), zp->z_size - zfs_uio_offset(uio));
 	ssize_t start_resid = n;
 
@@ -276,6 +277,13 @@ zfs_read(struct znode *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 			/* convert checksum errors into IO errors */
 			if (error == ECKSUM)
 				error = SET_ERROR(EIO);
+			/*
+			 * if we actually read some bytes, bubbling EFAULT
+			 * up to become EAGAIN isn't what we want here.
+			 */
+			if (error == EFAULT &&
+			    (zfs_uio_offset(uio) - start_offset) != 0)
+				error = 0;
 			break;
 		}
 
