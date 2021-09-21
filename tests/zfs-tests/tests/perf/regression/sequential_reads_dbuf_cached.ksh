@@ -53,6 +53,7 @@ export TOTAL_SIZE=$(($(get_dbuf_cache_size) * 3 / 4))
 export PERF_NTHREADS=${PERF_NTHREADS:-'64'}
 export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
 export PERF_IOSIZES=${PERF_IOSIZES:-'64k'}
+export PERF_SYNC_TYPES=${PERF_SYNC_TYPES:-'1'}
 
 # Layout the files to be used by the read tests. Create as many files as the
 # largest number of threads. An fio run with fewer threads will use a subset

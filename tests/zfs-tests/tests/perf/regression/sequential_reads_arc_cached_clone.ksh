@@ -54,7 +54,8 @@ export TOTAL_SIZE=$(($(get_max_arc_size) / 2))
 # Variables specific to this test for use by fio.
 export PERF_NTHREADS=${PERF_NTHREADS:-'64 128'}
 export PERF_NTHREADS_PER_FS=${PERF_NTHREADS_PER_FS:-'0'}
-export PERF_IOSIZES=${PERF_IOSIZES:-'128k 1m'}
+export PERF_IOSIZES=${PERF_IOSIZES:-'128k'}
+export PERF_SYNC_TYPES=${PERF_SYNC_TYPES:-'1'}
 
 # Layout the files to be used by the read tests. Create as many files as the
 # largest number of threads. An fio run with fewer threads will use a subset
