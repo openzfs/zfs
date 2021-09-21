@@ -102,8 +102,11 @@ dist_man_MANS = \
 	man8/zpool_influxdb.8
 
 nodist_man_MANS = \
-	man8/zed.8 \
-	man8/zfs-mount-generator.8
+	man8/zed.8
+
+if BUILD_SYSTEMD
+nodist_man_MANS += man8/zfs-mount-generator.8
+endif
 
 SUBSTFILES += $(nodist_man_MANS)
 
