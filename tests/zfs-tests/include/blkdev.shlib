@@ -73,7 +73,7 @@ function scan_scsi_hosts
 function block_device_wait
 {
 	if is_linux; then
-		udevadm trigger $*
+		udevadm trigger $* 2>/dev/null
 		typeset start=$SECONDS
 		udevadm settle
 		typeset elapsed=$((SECONDS - start))

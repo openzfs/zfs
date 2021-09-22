@@ -37,8 +37,6 @@
 #
 function udev_wait
 {
-	sleep 1
-	is_linux || return 0
 	udevadm trigger --action=change
 	udevadm settle
 	for i in {1..3}; do
@@ -58,7 +56,6 @@ function udev_wait
 #
 function udev_cleanup
 {
-	is_linux || return 0
 	log_note "Pruning broken ZVOL symlinks ..."
 
 	udevadm settle
@@ -79,7 +76,8 @@ function blockdev_exists # device
 	# because there are other commands (zfs snap, zfs inherit, zfs destroy)
 	# that can affect device nodes
 	for i in {1..3}; do
-		udev_wait
+		is_linux && udev_wait
+		block_device_wait "$device"
 		is_disk_device "$device" && return 0
 	done
 	log_fail "$device does not exist as a block device"
@@ -96,8 +94,9 @@ function blockdev_missing # device
 	# because there are other commands (zfs snap, zfs inherit, zfs destroy)
 	# that can affect device nodes
 	for i in {1..3}; do
-		udev_wait
-		[[ ! -e "$device" ]] && return 0
+		is_linux && udev_wait
+		block_device_wait
+		is_disk_device "$device" || return 0
 	done
 	log_fail "$device exists when not expected"
 }
