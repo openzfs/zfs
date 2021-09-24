@@ -650,6 +650,7 @@ _LIBZFS_H int zfs_create_ancestors(libzfs_handle_t *, const char *);
 _LIBZFS_H int zfs_destroy(zfs_handle_t *, boolean_t);
 _LIBZFS_H int zfs_destroy_snaps(zfs_handle_t *, char *, boolean_t);
 _LIBZFS_H int zfs_destroy_snaps_nvl(libzfs_handle_t *, nvlist_t *, boolean_t);
+_LIBZFS_H int zfs_destroy_snaps_nvl_os(libzfs_handle_t *, nvlist_t *);
 _LIBZFS_H int zfs_clone(zfs_handle_t *, const char *, nvlist_t *);
 _LIBZFS_H int zfs_snapshot(libzfs_handle_t *, const char *, boolean_t,
     nvlist_t *);

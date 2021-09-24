@@ -184,6 +184,12 @@ find_shares_object(differ_info_t *di)
 	return (0);
 }
 
+int
+zfs_destroy_snaps_nvl_os(libzfs_handle_t *hdl, nvlist_t *snaps)
+{
+	return (0);
+}
+
 /*
  * Fill given version buffer with zfs kernel version read from ZFS_SYSFS_DIR
  * Returns 0 on success, and -1 on error (with errno set)

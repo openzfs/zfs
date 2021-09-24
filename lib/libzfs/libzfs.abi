@@ -97,6 +97,7 @@
     <elf-symbol name='zfs_destroy' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_destroy_snaps' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_destroy_snaps_nvl' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zfs_destroy_snaps_nvl_os' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_expand_proplist' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_foreach_mountpoint' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_get_all_props' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -4159,6 +4160,11 @@
     <function-decl name='zfs_version_kernel' mangled-name='zfs_version_kernel' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_version_kernel'>
       <parameter type-id='26a90f95' name='version'/>
       <parameter type-id='95e97e5e' name='len'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='zfs_destroy_snaps_nvl_os' mangled-name='zfs_destroy_snaps_nvl_os' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_destroy_snaps_nvl_os'>
+      <parameter type-id='b0382bb3' name='hdl'/>
+      <parameter type-id='5ce45b60' name='snaps'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='libzfs_error_init' mangled-name='libzfs_error_init' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='libzfs_error_init'>
