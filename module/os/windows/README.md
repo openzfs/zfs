@@ -269,7 +269,7 @@ Windows Updates run, you can disable those in gpedit.msc
 
 # Design issues that need addressing.
 
-* Windows do not handle EFI labels, for now they are parsed with
+* Windows does not handle EFI labels, for now they are parsed with
 libefi, and we send offset and size with the filename, that both
 libzfs and kernel will parse out and use. This works for a proof
 of concept.

@@ -7,6 +7,7 @@ um_add_executable(zfs
 	 zfs_iter.h
 	 zfs_util.h
 	 zfs_project.c
+	 os/windows/resource.rc
 )
 target_link_libraries(zfs PRIVATE
 	libnvpair

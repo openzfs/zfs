@@ -22,6 +22,7 @@ wdk_add_driver(OpenZFS
   driver.c
   Wpp.c
   OpenZFS_perf.rc
+  resource.rc
 )
 
 target_link_libraries(OpenZFS PRIVATE

@@ -1,7 +1,7 @@
 
 use_clang()
 
-um_add_executable(kstat kstat.c)
+um_add_executable(kstat kstat.c resource.rc)
 
 include_directories(PRIVATE "${CMAKE_SOURCE_DIR}/lib/os/windows")
 

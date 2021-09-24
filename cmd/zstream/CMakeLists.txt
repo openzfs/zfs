@@ -6,6 +6,7 @@ um_add_executable(zstreamdump
 	zstream_dump.c
 	zstream_redup.c
 	zstream_token.c
+	os/windows/resource.rc
 )
 
 target_link_libraries(zstreamdump PRIVATE

@@ -4,6 +4,7 @@ use_clang()
 um_add_executable(zfsinstaller
 	zfsinstaller.cpp
 	zfsinstaller.h
+	resource.rc
 )
 target_compile_definitions(zfsinstaller PRIVATE UNICODE _UNICODE)
 target_link_libraries(zfsinstaller setupapi libspl)

@@ -28,7 +28,7 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/include/zfs_gitrev.h.in" "${CMAKE_CU
 
 function(use_clang)
 # It seems "-include file" is "/FI file" on Windows
-add_definitions("/FI ${CMAKE_SOURCE_DIR}/include/os/windows/zfs/zfs_config.h")
+add_compile_options(/FI ${CMAKE_SOURCE_DIR}/include/os/windows/zfs/zfs_config.h)
 set(CMAKE_C_COMPILER clang-cl.exe PARENT_SCOPE)
 set(CMAKE_CXX_COMPILER clang-cl.exe PARENT_SCOPE)
 if(CMAKE_SIZEOF_VOID_P EQUAL 4)

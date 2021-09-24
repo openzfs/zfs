@@ -10,6 +10,7 @@ um_add_executable(zpool
 	zpool_vdev.c
 	zpool_util.h
 	os/windows/zpool_vdev_os.c
+	os/windows/resource.rc
 )
 target_link_libraries(zpool PRIVATE
 	libnvpair

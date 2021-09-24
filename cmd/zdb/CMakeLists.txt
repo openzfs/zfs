@@ -5,6 +5,7 @@ um_add_executable(zdb
 	zdb.c
 	zdb.h
 	zdb_il.c
+	os/windows/resource.rc
 )
 target_link_libraries(zdb PRIVATE
 	libnvpair
