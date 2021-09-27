@@ -37,7 +37,6 @@
 #include <utime.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <libzutil.h>
 #include <unistd.h>
 #include <strings.h>
 #include <errno.h>
@@ -96,6 +95,13 @@ get_file_time(const char *pfile, int what, time_t *ptr)
 		default:
 			return (-1);
 	}
+}
+
+static ssize_t
+get_dirnamelen(const char *path)
+{
+	const char *end = strrchr(path, '/');
+	return (end ? end - path : -1);
 }
 
 static int
@@ -161,7 +167,7 @@ do_link(const char *pfile)
 	 * the link file in the same directory.
 	 */
 	(void) snprintf(link_file, sizeof (link_file),
-	    "%.*s/%s", (int)zfs_dirnamelen(pfile), pfile, "link_file");
+	    "%.*s/%s", (int)get_dirnamelen(pfile), pfile, "link_file");
 
 	if (link(pfile, link_file) == -1) {
 		(void) fprintf(stderr, "link(%s, %s) failed with errno %d\n",

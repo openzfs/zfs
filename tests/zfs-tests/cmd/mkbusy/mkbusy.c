@@ -29,7 +29,6 @@
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
-#include <libzutil.h>
 
 
 static __attribute__((noreturn)) void
@@ -62,6 +61,21 @@ daemonize(void)
 	(void) close(0);
 	(void) close(1);
 	(void) close(2);
+}
+
+
+static const char *
+get_basename(const char *path)
+{
+	const char *bn = strrchr(path, '/');
+	return (bn ? bn + 1 : path);
+}
+
+static ssize_t
+get_dirnamelen(const char *path)
+{
+	const char *end = strrchr(path, '/');
+	return (end ? end - path : -1);
 }
 
 int
@@ -103,9 +117,9 @@ main(int argc, char *argv[])
 			arg[arglen - 1] = '\0';
 
 		/* Get the directory and file names. */
-		fname = zfs_basename(arg);
+		fname = get_basename(arg);
 		dname = arg;
-		if ((dnamelen = zfs_dirnamelen(arg)) != -1)
+		if ((dnamelen = get_dirnamelen(arg)) != -1)
 			arg[dnamelen] = '\0';
 		else
 			dname = ".";

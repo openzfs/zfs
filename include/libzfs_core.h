@@ -41,6 +41,9 @@ extern "C" {
 _LIBZFS_CORE_H int libzfs_core_init(void);
 _LIBZFS_CORE_H void libzfs_core_fini(void);
 
+struct zfs_cmd;
+_LIBZFS_CORE_H int lzc_ioctl_fd(int, unsigned long, struct zfs_cmd *);
+
 /*
  * NB: this type should be kept binary-compatible with dmu_objset_type_t.
  */

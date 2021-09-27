@@ -148,7 +148,6 @@ nvlist_t *zfs_ioctl_compat_outnvl(zfs_cmd_t *, nvlist_t *, const int,
 int zfs_ioctl_legacy_to_ozfs(int request);
 int zfs_ioctl_ozfs_to_legacy(int request);
 void zfs_cmd_legacy_to_ozfs(zfs_cmd_legacy_t *src, zfs_cmd_t *dst);
-void zfs_cmd_compat_get(zfs_cmd_t *, caddr_t, const int);
 void zfs_cmd_ozfs_to_legacy(zfs_cmd_t *src, zfs_cmd_legacy_t *dst);
 
 void zfs_cmd_compat_put(zfs_cmd_t *, caddr_t, const int, const int);
