@@ -21,6 +21,7 @@
 // Get "_daylight: has bad storage class" in time.h
 #define	_INC_TIME
 
+
 #include <sys/kstat.h>
 #include <sys/kstat_windows.h>
 
@@ -65,14 +66,14 @@ OpenZFS_Fini(PDRIVER_OBJECT DriverObject)
 
 	zfs_vfsops_fini();
 
-	zfs_kmod_fini();
-
-	system_taskq_fini();
-
 	if (STOR_DriverUnload != NULL) {
 		STOR_DriverUnload(DriverObject);
 		STOR_DriverUnload = NULL;
 	}
+
+	zfs_kmod_fini();
+
+	system_taskq_fini();
 
 	kstat_windows_fini();
 	spl_stop();
