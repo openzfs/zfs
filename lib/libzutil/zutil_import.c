@@ -1705,6 +1705,8 @@ zpool_find_import_cached(libpc_handle_t *hdl, importargs_t *iarg)
 			return (NULL);
 		}
 
+		update_vdevs_config_dev_sysfs_path(src);
+
 		if ((dst = zutil_refresh_config(hdl, src)) == NULL) {
 			nvlist_free(raw);
 			nvlist_free(pools);
@@ -1858,4 +1860,70 @@ zpool_find_config(void *hdl, const char *target, nvlist_t **configp,
 	free(targetdup);
 
 	return (0);
+}
+
+/*
+ * Internal function for iterating over the vdevs.
+ *
+ * For each vdev, func() will be called and will be passed 'zhp' (which is
+ * typically the zpool_handle_t cast as a void pointer), the vdev's nvlist, and
+ * a user-defined data pointer).
+ *
+ * The return values from all the func() calls will be OR'd together and
+ * returned.
+ */
+int
+for_each_vdev_cb(void *zhp, nvlist_t *nv, pool_vdev_iter_f func,
+    void *data)
+{
+	nvlist_t **child;
+	uint_t c, children;
+	int ret = 0;
+	int i;
+	char *type;
+
+	const char *list[] = {
+	    ZPOOL_CONFIG_SPARES,
+	    ZPOOL_CONFIG_L2CACHE,
+	    ZPOOL_CONFIG_CHILDREN
+	};
+
+	for (i = 0; i < ARRAY_SIZE(list); i++) {
+		if (nvlist_lookup_nvlist_array(nv, list[i], &child,
+		    &children) == 0) {
+			for (c = 0; c < children; c++) {
+				uint64_t ishole = 0;
+
+				(void) nvlist_lookup_uint64(child[c],
+				    ZPOOL_CONFIG_IS_HOLE, &ishole);
+
+				if (ishole)
+					continue;
+
+				ret |= for_each_vdev_cb(zhp, child[c],
+				    func, data);
+			}
+		}
+	}
+
+	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE, &type) != 0)
+		return (ret);
+
+	/* Don't run our function on root vdevs */
+	if (strcmp(type, VDEV_TYPE_ROOT) != 0) {
+		ret |= func(zhp, nv, data);
+	}
+
+	return (ret);
+}
+
+/*
+ * Given an ZPOOL_CONFIG_VDEV_TREE nvpair, iterate over all the vdevs, calling
+ * func() for each one.  func() is passed the vdev's nvlist and an optional
+ * user-defined 'data' pointer.
+ */
+int
+for_each_vdev_in_nvlist(nvlist_t *nvroot, pool_vdev_iter_f func, void *data)
+{
+	return (for_each_vdev_cb(NULL, nvroot, func, data));
 }

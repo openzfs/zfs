@@ -27,6 +27,7 @@
 
 #include <libnvpair.h>
 #include <libzfs.h>
+#include <libzutil.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -68,7 +69,6 @@ int for_each_pool(int, char **, boolean_t unavail, zprop_list_t **,
     boolean_t, zpool_iter_f, void *);
 
 /* Vdev list functions */
-typedef int (*pool_vdev_iter_f)(zpool_handle_t *, nvlist_t *, void *);
 int for_each_vdev(zpool_handle_t *zhp, pool_vdev_iter_f func, void *data);
 
 typedef struct zpool_list zpool_list_t;

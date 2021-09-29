@@ -264,51 +264,6 @@ for_each_pool(int argc, char **argv, boolean_t unavail,
 	return (ret);
 }
 
-static int
-for_each_vdev_cb(zpool_handle_t *zhp, nvlist_t *nv, pool_vdev_iter_f func,
-    void *data)
-{
-	nvlist_t **child;
-	uint_t c, children;
-	int ret = 0;
-	int i;
-	char *type;
-
-	const char *list[] = {
-	    ZPOOL_CONFIG_SPARES,
-	    ZPOOL_CONFIG_L2CACHE,
-	    ZPOOL_CONFIG_CHILDREN
-	};
-
-	for (i = 0; i < ARRAY_SIZE(list); i++) {
-		if (nvlist_lookup_nvlist_array(nv, list[i], &child,
-		    &children) == 0) {
-			for (c = 0; c < children; c++) {
-				uint64_t ishole = 0;
-
-				(void) nvlist_lookup_uint64(child[c],
-				    ZPOOL_CONFIG_IS_HOLE, &ishole);
-
-				if (ishole)
-					continue;
-
-				ret |= for_each_vdev_cb(zhp, child[c], func,
-				    data);
-			}
-		}
-	}
-
-	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE, &type) != 0)
-		return (ret);
-
-	/* Don't run our function on root vdevs */
-	if (strcmp(type, VDEV_TYPE_ROOT) != 0) {
-		ret |= func(zhp, nv, data);
-	}
-
-	return (ret);
-}
-
 /*
  * This is the equivalent of for_each_pool() for vdevs.  It iterates thorough
  * all vdevs in the pool, ignoring root vdevs and holes, calling func() on
@@ -327,7 +282,7 @@ for_each_vdev(zpool_handle_t *zhp, pool_vdev_iter_f func, void *data)
 		verify(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE,
 		    &nvroot) == 0);
 	}
-	return (for_each_vdev_cb(zhp, nvroot, func, data));
+	return (for_each_vdev_cb((void *) zhp, nvroot, func, data));
 }
 
 /*
@@ -603,7 +558,7 @@ vdev_run_cmd_thread(void *cb_cmd_data)
 
 /* For each vdev in the pool run a command */
 static int
-for_each_vdev_run_cb(zpool_handle_t *zhp, nvlist_t *nv, void *cb_vcdl)
+for_each_vdev_run_cb(void *zhp_data, nvlist_t *nv, void *cb_vcdl)
 {
 	vdev_cmd_data_list_t *vcdl = cb_vcdl;
 	vdev_cmd_data_t *data;
@@ -611,6 +566,7 @@ for_each_vdev_run_cb(zpool_handle_t *zhp, nvlist_t *nv, void *cb_vcdl)
 	char *vname = NULL;
 	char *vdev_enc_sysfs_path = NULL;
 	int i, match = 0;
+	zpool_handle_t *zhp = zhp_data;
 
 	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &path) != 0)
 		return (1);
