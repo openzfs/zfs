@@ -5593,9 +5593,7 @@ spl_kmem_thread_fini(void)
 	cv_destroy(&spl_free_thread_cv);
 	mutex_destroy(&spl_free_thread_lock);
 
-	dprintf("SPL: bsd_untimeout\n");
-
-	bsd_untimeout(kmem_update,  &kmem_update_timer);
+	bsd_untimeout(kmem_update, &kmem_update_timer);
 	bsd_untimeout(kmem_reap_timeout, &kmem_reaping);
 	bsd_untimeout(kmem_reap_timeout, &kmem_reaping_idspace);
 

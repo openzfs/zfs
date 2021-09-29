@@ -57,6 +57,7 @@ static inline void bsd_untimeout(void(*func)(void *), void *ID)
  */
 	struct bsd_timeout_wrapper *btw = (struct bsd_timeout_wrapper *)ID;
 	LARGE_INTEGER p = { .QuadPart = -1 };
+	VERIFY3P(btw, !=, NULL);
 	btw->init = 0;
 	// Investigate why this assert triggers on Unload
 	// ASSERT(btw->init == BSD_TIMEOUT_MAGIC); // timer was not initialized
@@ -69,8 +70,10 @@ static inline void bsd_timeout(void *FUNC, void *ID, struct timespec *TIM)
 	LARGE_INTEGER duetime;
 	struct bsd_timeout_wrapper *btw = (struct bsd_timeout_wrapper *)ID;
 	void(*func)(void *) = FUNC;
-	if (btw == NULL)
+	if (btw == NULL) {
+		dprintf("%s NULL ID is not implemented\n", __func__);
 		return;
+	}
 	duetime.QuadPart = -((int64_t)(SEC2NSEC100(TIM->tv_sec) +
 	    NSEC2NSEC100(TIM->tv_nsec)));
 	btw->func = func;
