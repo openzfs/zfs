@@ -52,9 +52,9 @@ ChangesEnvironment=true
 WizardSmallImageFile="{#SourcePath}\openzfs-small.bmp"
 WizardImageFile="{#SourcePath}\openzfs-large.bmp"
 ; Tools/Configure Sign Tools -> Add -> 
-; "signtoola" = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.17763.0\x64\signtool.exe sign /sha1 ab8e4f6b94cecfa4638847122b511e507e147c50 /n $qJoergen Lundman$q /t http://timestamp.digicert.com /fd sha1 /d $qOpenZFS on Windows$q $f"
+; "signtoola" = C:\Program Files (x86)\Windows Kits\10\bin\x64\signtool.exe sign /sha1 09A7835D2496C08389CF1CC1031EF73BAE897A08 /n $qWest Coast Enterprises Limited$q /t http://ts.digicert.com /as /fd sha256 /td sha256 /d $qOpenZFS on Windows$q $f
 ; "signtoolb" = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.17763.0\x64\signtool.exe sign /sha1 ab8e4f6b94cecfa4638847122b511e507e147c50 /as /n $qJoergen Lundman$q /tr http://timestamp.digicert.com /td sha256 /fd sha256 /d $qOpenZFS on Windows$q $f"
-; SignTool=signtoola
+SignTool=signtoola
 ; SignTool=signtoolb
 
 [Languages]
@@ -88,6 +88,7 @@ Source: "{#Root}\out\build\x64-Debug\cmd\zstream\zstreamdump.exe"; DestDir: "{ap
 Source: "{#Root}\out\build\x64-Debug\module\os\windows\driver\OpenZFS.sys"; DestDir: "{app}"; Flags: ignoreversion 
 Source: "{#Root}\out\build\x64-Debug\module\os\windows\driver\OpenZFS.cat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#Root}\out\build\x64-Debug\module\os\windows\driver\OpenZFS.inf"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#Root}\out\build\x64-Debug\module\os\windows\driver\OpenZFS.man"; DestDir: "{app}"; Flags: ignoreversion
 ;Source: "{#Root}\x64\Debug\ZFSin.cer"; DestDir: "{app}"; Flags: ignoreversion
 ;Source: "{#Root}\zfs\cmd\arcstat\arcstat.pl"; DestDir: "{app}"; Flags: ignoreversion  
 Source: "{#Root}\out\build\x64-Debug\module\os\windows\driver\*.pdb"; DestDir: "{app}\symbols"; Flags: ignoreversion  
