@@ -644,9 +644,12 @@ zvol_os_detach_zv(zvol_state_t *zv)
 		wzvol_clear_targetid(zv->zv_zso->zso_target_id,
 		    zv->zv_zso->zso_lun_id, zv);
 		/* Last close needs suspect lock, give it a try */
-		if (rw_tryenter(&zv->zv_suspend_lock, RW_READER)) {
-			zvol_last_close(zv);
-			rw_exit(&zv->zv_suspend_lock);
+		if (zv->zv_open_count == 1) {
+			if (rw_tryenter(&zv->zv_suspend_lock, RW_READER)) {
+				zvol_last_close(zv);
+				zv->zv_open_count--;
+				rw_exit(&zv->zv_suspend_lock);
+			}
 		}
 	}
 }
@@ -661,10 +664,8 @@ zvol_os_detach(char *name)
 
 	zv = zvol_find_by_name_hash(name, hash, RW_NONE);
 	if (zv != NULL) {
-		wzvol_clear_targetid(zv->zv_zso->zso_target_id,
-		    zv->zv_zso->zso_lun_id, zv);
-		mutex_exit(&zv->zv_state_lock);
 		zvol_os_detach_zv(zv);
+		mutex_exit(&zv->zv_state_lock);
 		wzvol_announce_buschange();
 	}
 }
