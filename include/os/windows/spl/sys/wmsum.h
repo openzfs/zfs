@@ -33,31 +33,34 @@
 extern "C" {
 #endif
 
-#define	wmsum_t	uint64_t
+struct wmsum
+{
+	uint64_t wm_value;
+};
+
+typedef struct wmsum wmsum_t;
 
 static inline void
 wmsum_init(wmsum_t *ws, uint64_t value)
 {
-	ws = (wmsum_t *)kmem_alloc(sizeof (uint64_t), KM_SLEEP);
-	*ws = value;
+	ws->wm_value = value;
 }
 
 static inline void
 wmsum_fini(wmsum_t *ws)
 {
-	kmem_free(ws, sizeof (uint64_t));
 }
 
 static inline uint64_t
 wmsum_value(wmsum_t *ws)
 {
-	return (atomic_add_64_nv(ws, 0));
+	return (atomic_add_64_nv(&ws->wm_value, 0));
 }
 
 static inline void
 wmsum_add(wmsum_t *ws, int64_t delta)
 {
-	atomic_add_64(ws, delta);
+	atomic_add_64(&ws->wm_value, delta);
 }
 
 #ifdef	__cplusplus
