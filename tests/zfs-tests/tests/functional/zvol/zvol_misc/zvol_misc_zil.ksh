@@ -42,8 +42,8 @@ verify_runnable "global"
 
 function cleanup
 {
-	datasetexists $ZVOL && log_must_busy zfs destroy $ZVOL
-	udev_wait
+	datasetexists $ZVOL && destroy_dataset $ZVOL
+	block_device_wait
 }
 
 log_assert "Verify ZIL functionality on ZVOLs"
