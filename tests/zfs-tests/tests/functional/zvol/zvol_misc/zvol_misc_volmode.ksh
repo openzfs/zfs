@@ -44,19 +44,18 @@
 # 8. Verify "volmode" behaves accordingly to zvol_inhibit_dev (Linux only)
 #
 # NOTE: changing volmode may need to remove minors, which could be open, so call
-#       udev_wait() before we "zfs set volmode=<value>".
+#       block_device_wait() before we "zfs set volmode=<value>".
 
 verify_runnable "global"
 
 function cleanup
 {
-	datasetexists $VOLFS && log_must_busy zfs destroy -r $VOLFS
-	datasetexists $ZVOL && log_must_busy zfs destroy -r $ZVOL
-	log_must zfs inherit volmode $TESTPOOL
-	udev_wait
+	datasetexists $VOLFS && destroy_dataset $VOLFS -r
+	datasetexists $ZVOL && destroy_dataset $ZVOL -r
+	zfs inherit volmode $TESTPOOL
 	sysctl_inhibit_dev 0
 	sysctl_volmode 1
-	udev_cleanup
+	is_linux && udev_cleanup
 }
 
 #
@@ -90,8 +89,8 @@ function test_io # dev
 {
 	typeset dev=$1
 
-	log_must dd if=/dev/zero of=$dev count=1
 	log_must dd if=$dev of=/dev/null count=1
+	log_must dd if=/dev/zero of=$dev count=1
 }
 
 log_assert "Verify that ZFS volume property 'volmode' works as intended"
@@ -99,14 +98,14 @@ log_onexit cleanup
 
 VOLFS="$TESTPOOL/volfs"
 ZVOL="$TESTPOOL/vol"
-ZDEV="${ZVOL_DEVDIR}/$ZVOL"
+ZDEV="$ZVOL_DEVDIR/$ZVOL"
 SUBZVOL="$VOLFS/subvol"
-SUBZDEV="${ZVOL_DEVDIR}/$SUBZVOL"
+SUBZDEV="$ZVOL_DEVDIR/$SUBZVOL"
 
+# 0. Verify basic ZVOL functionality
 log_must zfs create -o mountpoint=none $VOLFS
 log_must zfs create -V $VOLSIZE -s $SUBZVOL
 log_must zfs create -V $VOLSIZE -s $ZVOL
-udev_wait
 blockdev_exists $ZDEV
 blockdev_exists $SUBZDEV
 test_io $ZDEV
@@ -123,62 +122,63 @@ done
 log_must zfs set volmode=none $ZVOL
 blockdev_missing $ZDEV
 log_must_busy zfs destroy $ZVOL
+blockdev_missing $ZDEV
 
 # 3. Verify "volmode=full" exposes a fully functional device
 log_must zfs create -V $VOLSIZE -s $ZVOL
-udev_wait
+blockdev_exists $ZDEV
 log_must zfs set volmode=full $ZVOL
 blockdev_exists $ZDEV
 test_io $ZDEV
 log_must verify_partition $ZDEV
-udev_wait
 # 3.1 Verify "volmode=geom" is an alias for "volmode=full"
 log_must zfs set volmode=geom $ZVOL
 blockdev_exists $ZDEV
 if [[ "$(get_prop 'volmode' $ZVOL)" != "full" ]]; then
 	log_fail " Volmode value 'geom' is not an alias for 'full'"
 fi
-udev_wait
 log_must_busy zfs destroy $ZVOL
+blockdev_missing $ZDEV
 
 # 4. Verify "volmode=dev" hides partition info on the device
 log_must zfs create -V $VOLSIZE -s $ZVOL
-udev_wait
+blockdev_exists $ZDEV
 log_must zfs set volmode=dev $ZVOL
 blockdev_exists $ZDEV
 test_io $ZDEV
 log_mustnot verify_partition $ZDEV
-udev_wait
 log_must_busy zfs destroy $ZVOL
+blockdev_missing $ZDEV
 
 # 5. Verify "volmode=default" behaves accordingly to "volmode" module parameter
 # 5.1 Verify sysctl "volmode=full"
 sysctl_volmode 1
 log_must zfs create -V $VOLSIZE -s $ZVOL
-udev_wait
+blockdev_exists $ZDEV
 log_must zfs set volmode=default $ZVOL
 blockdev_exists $ZDEV
 log_must verify_partition $ZDEV
-udev_wait
 log_must_busy zfs destroy $ZVOL
+blockdev_missing $ZDEV
 # 5.2 Verify sysctl "volmode=dev"
 sysctl_volmode 2
 log_must zfs create -V $VOLSIZE -s $ZVOL
-udev_wait
+blockdev_exists $ZDEV
 log_must zfs set volmode=default $ZVOL
 blockdev_exists $ZDEV
 log_mustnot verify_partition $ZDEV
-udev_wait
 log_must_busy zfs destroy $ZVOL
+blockdev_missing $ZDEV
 # 5.2 Verify sysctl "volmode=none"
 sysctl_volmode 3
 log_must zfs create -V $VOLSIZE -s $ZVOL
-udev_wait
+blockdev_missing $ZDEV
 log_must zfs set volmode=default $ZVOL
 blockdev_missing $ZDEV
 
 # 6. Verify "volmode" property is inherited correctly
 log_must zfs inherit volmode $ZVOL
+blockdev_missing $ZDEV
 # 6.1 Check volmode=full case
 log_must zfs set volmode=full $TESTPOOL
 verify_inherited 'volmode' 'full' $ZVOL $TESTPOOL
@@ -198,9 +198,7 @@ verify_inherited 'volmode' 'default' $ZVOL $TESTPOOL
 blockdev_exists $ZDEV
 # 6.5 Check inheritance on multiple levels
 log_must zfs inherit volmode $SUBZVOL
-udev_wait
 log_must zfs set volmode=none $VOLFS
-udev_wait
 log_must zfs set volmode=full $TESTPOOL
 verify_inherited 'volmode' 'none' $SUBZVOL $VOLFS
 blockdev_missing $SUBZDEV
@@ -215,6 +213,8 @@ blockdev_exists $ZDEV
 blockdev_missing $SUBZDEV
 log_must_busy zfs destroy $ZVOL
 log_must_busy zfs destroy $SUBZVOL
+blockdev_missing $ZDEV
+blockdev_missing $SUBZDEV
 
 # 8. Verify "volmode" behaves accordingly to zvol_inhibit_dev (Linux only)
 if is_linux; then
@@ -226,6 +226,7 @@ if is_linux; then
 	log_must zfs set volmode=full $ZVOL
 	blockdev_missing $ZDEV
 	log_must_busy zfs destroy $ZVOL
+	blockdev_missing $ZDEV
 	# 7.1 Verify device nodes not are not created with "volmode=dev"
 	sysctl_volmode 2
 	log_must zfs create -V $VOLSIZE -s $ZVOL
@@ -233,6 +234,7 @@ if is_linux; then
 	log_must zfs set volmode=dev $ZVOL
 	blockdev_missing $ZDEV
 	log_must_busy zfs destroy $ZVOL
+	blockdev_missing $ZDEV
 	# 7.1 Verify device nodes not are not created with "volmode=none"
 	sysctl_volmode 3
 	log_must zfs create -V $VOLSIZE -s $ZVOL
