@@ -47,7 +47,7 @@ function cleanup
 	datasetexists $ZVOL && destroy_dataset $ZVOL -r
 	log_must zfs inherit snapdev $TESTPOOL
 	block_device_wait
-	udev_cleanup
+	is_linux && udev_cleanup
 }
 
 log_assert "Verify that ZFS volume property 'snapdev' works as expected."

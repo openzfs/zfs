@@ -278,7 +278,6 @@ if sys.platform.startswith('freebsd'):
         'delegate/zfs_allow_003_pos': ['FAIL', known_reason],
         'inheritance/inherit_001_pos': ['FAIL', '11829'],
         'resilver/resilver_restart_001': ['FAIL', known_reason],
-        'zvol/zvol_misc/zvol_misc_volmode': ['FAIL', known_reason],
     })
 elif sys.platform.startswith('linux'):
     maybe.update({
