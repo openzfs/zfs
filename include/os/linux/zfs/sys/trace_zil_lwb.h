@@ -67,8 +67,8 @@
 		__entry->zl_keep_first	= zilog->zl_keep_first;		    \
 		__entry->zl_replay		= zilog->zl_replay;	    \
 		__entry->zl_stop_sync	= zilog->zl_stop_sync;		    \
-		__entry->zl_logbias		= zilog->zl_logbias;	    \
-		__entry->zl_sync		= zilog->zl_sync;	    \
+		__entry->zl_logbias		= zilog->zl_super.zl_logbias; \
+		__entry->zl_sync		= zilog->zl_super.zl_sync;  \
 		__entry->zl_parse_error		= \
 			zilog->zl_last_parse_result.zlpr_error; \
 		__entry->zl_parse_blk_seq	= \

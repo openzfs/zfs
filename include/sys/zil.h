@@ -54,10 +54,15 @@ struct lwb;
  * with a common structure that defines the type, length, and txg.
  */
 
-/*
- * Intent log header - this on disk structure holds fields to manage
- * the log.  All fields are 64 bit to easily handle cross architectures.
- */
+
+typedef enum {
+	ZIL_KIND_UNINIT,
+	ZIL_KIND_LWB,
+	ZIL_KIND_COUNT /* grep for this identifier when changing this enum */
+} zh_kind_t;
+
+#define	ZIL_KIND_FIRST	(ZIL_KIND_LWB)
+
 typedef struct zil_header_lwb {
 	uint64_t zh_claim_txg;	/* txg in which log blocks were claimed */
 	uint64_t zh_replay_seq;	/* highest replayed sequence number */
@@ -65,14 +70,36 @@ typedef struct zil_header_lwb {
 	uint64_t zh_claim_blk_seq; /* highest claimed block sequence number */
 	uint64_t zh_flags;	/* header flags */
 	uint64_t zh_claim_lr_seq; /* highest claimed lr sequence number */
-	uint64_t zh_pad[3];
 } zil_header_lwb_t;
+
+/*
+ * Intent log header - this on disk structure holds fields to manage
+ * the log.  All fields are 64 bit to easily handle cross architectures.
+ */
+typedef struct zil_header_v2 {
+	union {
+		zil_header_lwb_t zh_lwb;
+	};
+	uint64_t zh_kind;
+	uint64_t zh_pad[2];
+} zil_header_v2_t;
+
+typedef struct zil_header_v1 {
+	zil_header_lwb_t zhv1_lwb;
+	uint64_t zhv1_pad[3];
+} zil_header_v1_t;
+
 typedef struct zil_header {
-	zil_header_lwb_t zh_lwb;
+	union {
+	    zil_header_v1_t zh_v1;
+	    zil_header_v2_t zh_v2;
+	};
 } zil_header_t;
 
+CTASSERT_GLOBAL(sizeof(zil_header_v1_t) == sizeof(zil_header_v2_t));
 
-
+/* union must not have unknown padding */
+CTASSERT_GLOBAL(sizeof(zil_header_lwb_t) == sizeof(zil_header_lwb_t));
 
 /*
  * ziltest is by and large an ugly hack, but very useful in
@@ -285,6 +312,8 @@ typedef struct {
 	/* write data will follow for small writes */
 } lr_write_t;
 
+boolean_t zil_lr_is_indirect_write(const lr_t *lr);
+
 typedef struct {
 	lr_t		lr_common;	/* common portion of log record */
 	uint64_t	lr_foid;	/* object id of file to truncate */
@@ -406,42 +435,69 @@ extern void	zil_close(zilog_t *zilog);
 extern void	zil_replay(objset_t *os, void *arg,
     zil_replay_func_t *replay_func[TX_MAX_TYPE]);
 extern boolean_t zil_replaying(zilog_t *zilog, dmu_tx_t *tx);
-extern void	zil_destroy(zilog_t *zilog, boolean_t keep_first);
+extern boolean_t zil_get_is_replaying_no_sideffects(zilog_t *zilog);
+extern void	zil_destroy(zilog_t *zilog);
 extern void	zil_destroy_sync(zilog_t *zilog, dmu_tx_t *tx);
-
 extern itx_t	*zil_itx_create(uint64_t txtype, size_t lrsize);
 extern void	zil_itx_destroy(itx_t *itx);
 extern void	zil_itx_assign(zilog_t *zilog, itx_t *itx, dmu_tx_t *tx);
 
-extern void	zil_async_to_sync(zilog_t *zilog, uint64_t oid);
 extern void	zil_commit(zilog_t *zilog, uint64_t oid);
 extern void	zil_remove_async(zilog_t *zilog, uint64_t oid);
 
-extern int	zil_reset(const char *osname, void *txarg);
-extern int	zil_claim(struct dsl_pool *dp,
+extern int	zil_reset_logs(spa_t *);
+extern int	zil_claim_or_clear(struct dsl_pool *dp,
     struct dsl_dataset *ds, void *txarg);
 extern int 	zil_check_log_chain(struct dsl_pool *dp,
     struct dsl_dataset *ds, void *tx);
 extern void	zil_sync(zilog_t *zilog, dmu_tx_t *tx);
+extern void	zil_sync_done(zilog_t *zilog, uint64_t synced_txg);
 extern void	zil_clean(zilog_t *zilog, uint64_t synced_txg);
 
-extern int	zil_suspend(const char *osname, void **cookiep);
-extern void	zil_resume(void *cookie);
+extern int	zillwb_suspend(const char *osname, void **cookiep);
+extern void	zillwb_resume(void *cookie);
 
-extern int	zil_bp_tree_add(zilog_t *zilog, const blkptr_t *bp);
 
 extern void	zil_set_sync(zilog_t *zilog, uint64_t syncval);
 
 extern void	zil_set_logbias(zilog_t *zilog, uint64_t slogval);
 
-extern uint64_t	zil_max_copied_data(zilog_t *zilog);
-extern uint64_t	zil_max_log_data(zilog_t *zilog);
-
 /* dsl_pool.c */
 extern objset_t *zil_objset(zilog_t *zillog);
 extern void zil_init_dirty_zilogs(txg_list_t *list, spa_t *spa);
 
+/* dmu_objset_open_impl */
+extern void	zil_init_header(spa_t *spa, zil_header_t *zh, zh_kind_t kind);
+extern boolean_t	zil_validate_header_format(spa_t *spa, const zil_header_t *zh);
+
+static inline __attribute__((always_inline))
+const char *
+zil_kind_to_str(zh_kind_t zil_kind, boolean_t *invalid)
+{
+	if (invalid)
+		*invalid = B_FALSE;
+
+	switch (zil_kind) {
+		case ZIL_KIND_UNINIT:
+			return ("uninit");
+		case ZIL_KIND_LWB:
+			return ("lwb");
+		case ZIL_KIND_COUNT:
+		default:
+			if (invalid)
+				*invalid = B_TRUE;
+			return ("invalid");
+	}
+}
+
+extern int zil_kind_from_str(const char *s, zh_kind_t *out);
+
 extern int zil_replay_disable;
+
+extern zh_kind_t zil_default_kind_get(void);
+extern void zil_default_kind_set(zh_kind_t kind);
+extern zh_kind_t zil_default_kind_hold(void *ftag);
+extern void zil_default_kind_rele(void *ftag);
 
 #ifdef	__cplusplus
 }

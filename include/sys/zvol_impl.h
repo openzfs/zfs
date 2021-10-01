@@ -26,7 +26,7 @@
 #include <sys/zfs_rlock.h>
 #include <sys/dataset_kstats.h>
 
-typedef struct zilog_lwb zilog_t;
+typedef struct zilog zilog_t;
 
 #define	ZVOL_RDONLY	0x1
 /*

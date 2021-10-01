@@ -246,6 +246,7 @@ struct spa {
 	kcondvar_t	spa_evicting_os_cv;	/* Objset Eviction Completion */
 	txg_list_t	spa_vdev_txg_list;	/* per-txg dirty vdev list */
 	vdev_t		*spa_root_vdev;		/* top-level vdev container */
+	uint64_t	spa_zil_kind;
 	uint64_t	spa_min_ashift;		/* of vdevs in normal class */
 	uint64_t	spa_max_ashift;		/* of vdevs in normal class */
 	uint64_t	spa_min_alloc;		/* of vdevs in normal class */

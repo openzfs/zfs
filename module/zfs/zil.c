@@ -68,10 +68,47 @@
  */
 
 
+const zil_const_zil_vtable_ptr_t zil_vtables[ZIL_KIND_COUNT] = {
+	NULL,			/* ZIL_KIND_UNINIT	*/
+	&zillwb_vtable,	/* ZIL_KIND_LWB	*/
+};
+
+static struct {
+	int zdk_val;
+	rrwlock_t zdk_rwl;
+} zil_default_kind;
+
 /*
  * Disable intent logging replay.  This global ZIL switch affects all pools.
  */
 int zil_replay_disable = 0;
+
+
+
+static inline
+boolean_t
+zil_header_kind_matches_vtable(const zilog_t *zilog)
+{
+	zil_vtable_t const *vt = NULL;
+	VERIFY0(zil_kind_specific_data_from_header(zilog->zl_spa, zilog->zl_header, NULL, NULL, &vt, NULL));
+	return (zilog->zl_vtable == vt);
+}
+
+
+#define	ZIL_VCALL_void(zilog, vfunc, ...) \
+	do { \
+		zilog_t *zl = zilog; \
+		ASSERT(zil_header_kind_matches_vtable(zl)); \
+		zl->zl_vtable->vfunc(__VA_ARGS__); \
+	} while (0);
+
+#define	ZIL_VCALL_ret(outptr, zilog, vfunc, ...) \
+	do { \
+		zilog_t *zl = zilog; \
+		ASSERT(zil_header_kind_matches_vtable(zl)); \
+		*(outptr) = zl->zl_vtable->vfunc(__VA_ARGS__); \
+	} while (0);
+
 
 /*
  * Called when we create in-memory log transactions so that we know
@@ -92,6 +129,7 @@ zilog_dirty(zilog_t *zilog, uint64_t txg)
 		/* up the hold count until we can be written out */
 		dmu_buf_add_ref(ds->ds_dbuf, zilog);
 
+		/* XXX review locking, this seems to be protected by itxg_lock but we have 4 of those...  */
 		zilog->zl_dirty_max_txg = MAX(txg, zilog->zl_dirty_max_txg);
 	}
 }
@@ -280,12 +318,35 @@ zil_remove_async(zilog_t *zilog, uint64_t oid)
 	list_destroy(&clean_list);
 }
 
+boolean_t zil_lr_is_indirect_write(const lr_t *lr)
+{
+	uint64_t txtype = lr->lrc_txtype & (~TX_CI);
+	const lr_write_t *lrw = (const lr_write_t *)lr;
+	if (txtype == TX_WRITE) {
+		return (BP_IS_HOLE(&lrw->lr_blkptr) ? B_FALSE : B_TRUE);
+	} else {
+		if (txtype == TX_WRITE2) {
+			ASSERT(BP_IS_HOLE(&lrw->lr_blkptr)); /* FIXME shouldn't panic here, it's on-disk input */
+		}
+		return (B_FALSE);
+	}
+}
+
+/*
+ * - Panics if itx is WR_COPIED and lr_length > zil_max_copied_data.
+ */
 void
 zil_itx_assign(zilog_t *zilog, itx_t *itx, dmu_tx_t *tx)
 {
 	uint64_t txg;
 	itxg_t *itxg;
 	itxs_t *itxs, *clean = NULL;
+
+	const lr_t *lrc = &itx->itx_lr;
+	const lr_write_t *lrw = (const lr_write_t *)&itx->itx_lr;
+	IMPLY((lrc->lrc_txtype == TX_WRITE && itx->itx_wr_state == WR_COPIED),
+	    (lrw->lr_length <= zil_max_copied_data(zilog)));
+
 
 	/*
 	 * Ensure the data of a renamed file is committed before the rename.
@@ -401,15 +462,15 @@ zil_clean(zilog_t *zilog, uint64_t synced_txg)
 
 /*
  * This function will traverse the queue of itxs that need to be
- * committed, and move them onto the ZIL's zl_itx_commit_list.
+ * committed, and move them to the tail of commit_list
  */
 void
-zil_get_commit_list(zilog_t *zilog)
+zil_fill_commit_list(zilog_t *zilog, list_t *commit_list)
 {
 	uint64_t otxg, txg;
-	list_t *commit_list = &zilog->zl_itx_commit_list;
 
-	ASSERT(MUTEX_HELD(&zilog->zl_issuer_lock));
+	if (zilog->zl_vtable == &zillwb_vtable)
+		ASSERT(MUTEX_HELD(&zillwb_downcast(zilog)->zl_issuer_lock));
 
 	if (spa_freeze_txg(zilog->zl_spa) != UINT64_MAX) /* ziltest support */
 		otxg = ZILTEST_TXG;
@@ -431,11 +492,11 @@ zil_get_commit_list(zilog_t *zilog)
 		}
 
 		/*
-		 * If we're adding itx records to the zl_itx_commit_list,
+		 * If we're adding itx records to the commit list,
 		 * then the zil better be dirty in this "txg". We can assert
 		 * that here since we're holding the itxg_lock which will
 		 * prevent spa_sync from cleaning it. Once we add the itxs
-		 * to the zl_itx_commit_list we must commit it to disk even
+		 * to the commit list we must commit it to disk even
 		 * if it's unnecessary (i.e. the txg was synced).
 		 */
 		ASSERT(zilog_is_dirty_in_txg(zilog, txg) ||
@@ -514,40 +575,68 @@ zil_set_logbias(zilog_t *zilog, uint64_t logbias)
 	zilog->zl_logbias = logbias;
 }
 
-zilog_t *
-zil_alloc(objset_t *os, zil_header_t *zh_phys)
+void
+zil_init_header(spa_t *spa, zil_header_t *zh, zh_kind_t kind)
 {
-	zilog_t *zilog;
+	bzero(zh, sizeof (*zh));
 
-	zilog = kmem_zalloc(sizeof (zilog_t), KM_SLEEP);
+	if (spa_feature_is_active(spa, SPA_FEATURE_ZIL_KINDS)) {
+		VERIFY(!zil_validate_header_format(spa, zh));
+		zh->zh_v2.zh_kind = kind;
+	} else {
+		/* zeroed header is a valid zillwb header */
+	}
 
-	zilog->zl_header = zh_phys;
+	const zil_vtable_t *vt = NULL;
+	const void *zhk = NULL;
+	size_t size = 0;
+	zh_kind_t zk_out = ZIL_KIND_UNINIT;
+	int err = zil_kind_specific_data_from_header(spa, zh, &zhk, &size, &vt, &zk_out);
+	VERIFY0(err);
+	VERIFY3S(zk_out, ==, kind);
+	VERIFY(vt);
+
+	vt->zlvt_init_header((void *)zhk, size);
+
+	VERIFY(zil_validate_header_format(spa, zh));
+}
+
+boolean_t
+zil_validate_header_format(spa_t *spa, const zil_header_t *zh)
+{
+	const zil_vtable_t *vt = NULL;
+	const void *zhk;
+	size_t size;
+	if (zil_kind_specific_data_from_header(spa, zh, &zhk, &size, &vt, NULL) != 0)
+		return (B_FALSE);
+	VERIFY(vt);
+
+	return (vt->zlvt_validate_header_format(zhk, size));
+}
+
+zilog_t *
+zil_alloc(objset_t *os, zil_header_t *zh)
+{
+	const zil_vtable_t *vt = NULL;
+	VERIFY0(zil_kind_specific_data_from_header(dmu_objset_spa(os), zh, NULL, NULL, &vt, NULL));
+	ASSERT3U(vt->zlvt_alloc_size, >, 0);
+	zilog_t *zilog = kmem_zalloc(vt->zlvt_alloc_size, KM_SLEEP);
+	zilog->zl_vtable = vt;
+
+	zilog->zl_header = zh;
 	zilog->zl_os = os;
 	zilog->zl_spa = dmu_objset_spa(os);
 	zilog->zl_dmu_pool = dmu_objset_pool(os);
-	zilog->zl_destroy_txg = TXG_INITIAL - 1;
 	zilog->zl_logbias = dmu_objset_logbias(os);
 	zilog->zl_sync = dmu_objset_syncprop(os);
 	zilog->zl_dirty_max_txg = 0;
-	zilog->zl_last_lwb_opened = NULL;
-	zilog->zl_last_lwb_latency = 0;
-	zilog->zl_max_block_size = zfs_zil_lwb_maxblocksize;
-
-	mutex_init(&zilog->zl_lock, NULL, MUTEX_DEFAULT, NULL);
-	mutex_init(&zilog->zl_issuer_lock, NULL, MUTEX_DEFAULT, NULL);
 
 	for (int i = 0; i < TXG_SIZE; i++) {
 		mutex_init(&zilog->zl_itxg[i].itxg_lock, NULL,
 		    MUTEX_DEFAULT, NULL);
 	}
 
-	list_create(&zilog->zl_lwb_list, sizeof (lwb_t),
-	    offsetof(lwb_t, lwb_node));
-
-	list_create(&zilog->zl_itx_commit_list, sizeof (itx_t),
-	    offsetof(itx_t, itx_node));
-
-	cv_init(&zilog->zl_cv_suspend, NULL, CV_DEFAULT, NULL);
+	ZIL_VCALL_void(zilog, zlvt_ctor, zilog);
 
 	return (zilog);
 }
@@ -555,20 +644,9 @@ zil_alloc(objset_t *os, zil_header_t *zh_phys)
 void
 zil_free(zilog_t *zilog)
 {
-	int i;
+	ZIL_VCALL_void(zilog, zlvt_dtor, zilog);
 
-	zilog->zl_stop_sync = 1;
-
-	ASSERT0(zilog->zl_suspend);
-	ASSERT0(zilog->zl_suspending);
-
-	ASSERT(list_is_empty(&zilog->zl_lwb_list));
-	list_destroy(&zilog->zl_lwb_list);
-
-	ASSERT(list_is_empty(&zilog->zl_itx_commit_list));
-	list_destroy(&zilog->zl_itx_commit_list);
-
-	for (i = 0; i < TXG_SIZE; i++) {
+	for (int i = 0; i < TXG_SIZE; i++) {
 		/*
 		 * It's possible for an itx to be generated that doesn't dirty
 		 * a txg (e.g. ztest TX_TRUNCATE). So there's no zil_clean()
@@ -581,12 +659,7 @@ zil_free(zilog_t *zilog)
 		mutex_destroy(&zilog->zl_itxg[i].itxg_lock);
 	}
 
-	mutex_destroy(&zilog->zl_issuer_lock);
-	mutex_destroy(&zilog->zl_lock);
-
-	cv_destroy(&zilog->zl_cv_suspend);
-
-	kmem_free(zilog, sizeof (zilog_t));
+	kmem_free(zilog, zilog->zl_vtable->zlvt_alloc_size);
 }
 
 /*
@@ -598,8 +671,7 @@ zil_open(objset_t *os, zil_get_data_t *get_data)
 	zilog_t *zilog = dmu_objset_zil(os);
 
 	ASSERT3P(zilog->zl_get_data, ==, NULL);
-	ASSERT3P(zilog->zl_last_lwb_opened, ==, NULL);
-	ASSERT(list_is_empty(&zilog->zl_lwb_list));
+	ZIL_VCALL_void(zilog, zlvt_open, zilog);
 
 	zilog->zl_get_data = get_data;
 
@@ -621,72 +693,358 @@ zil_objset(zilog_t *zl)
 void
 zil_init(void)
 {
-	zillwb_init();
+	for (size_t i = ZIL_KIND_FIRST; i < ZIL_KIND_COUNT; i++) {
+		zil_vtables[i]->zlvt_init();
+	}
+
+	ASSERT3S(zil_default_kind.zdk_val, ==, ZIL_KIND_UNINIT);
+	zil_default_kind.zdk_val = ZIL_KIND_LWB;
+	rrw_init(&zil_default_kind.zdk_rwl, B_FALSE);
 }
+
 
 void
 zil_fini(void)
 {
-	zillwb_fini();
+	zil_default_kind.zdk_val = ZIL_KIND_UNINIT;
+	rrw_destroy(&zil_default_kind.zdk_rwl);
+
+	for (size_t i = ZIL_KIND_FIRST; i < ZIL_KIND_COUNT; i++) {
+		zil_vtables[i]->zlvt_fini();
+	}
 }
 
 void
 zil_close(zilog_t *zilog)
 {
-	zillwb_close(zilog);
+	ZIL_VCALL_void(zilog, zlvt_close, zilog);
+	zilog->zl_get_data = NULL;
 }
 
+/*
+ * Replay the claimed intent log records.
+ *
+ * Replay is part of regular pool operation and can take multiple txgs.
+ * Replay tracks replay progress in the ZIL header so that we replay every log
+ * record that was discovered during claiming exactly once in a crash-consistent
+ * manner.
+ */
 void
-zil_replay(objset_t *os, void *arg,
-    zil_replay_func_t *replay_func[TX_MAX_TYPE])
+zil_replay(objset_t *os, void *arg, zil_replay_func_t *replay_func[TX_MAX_TYPE])
 {
-	zillwb_replay(os, arg, replay_func);
+	zilog_t *zilog = dmu_objset_zil(os);
+	ZIL_VCALL_void(zilog, zlvt_replay, zilog, os, arg, replay_func);
 }
 
+/*
+ * NOTE: This function is side-effectful, despite the name suggesting otherwise.
+ *
+ * It is called from the replay funcs during zil_replay() to notify the
+ * replay procedure about the dmu_tx_t in which the replay func committed the
+ * log record.
+ *
+ * The ZIL kind implementation should use this information to record replay
+ * progress in the ZIL header in txg of `tx`.
+ * Corrollary: `tx` must still be open when calling zil_replaying.
+ */
 boolean_t
 zil_replaying(zilog_t *zilog, dmu_tx_t *tx)
 {
-	return (zillwb_replaying(zilog, tx));
+	if (zilog->zl_sync == ZFS_SYNC_DISABLED)
+		return (B_TRUE);
+
+	boolean_t ret;
+	ZIL_VCALL_ret(&ret, zilog, zlvt_replaying, zilog, tx);
+	return (ret);
 }
 
-void
-zil_destroy(zilog_t *zilog, boolean_t keep_first)
+boolean_t
+zil_get_is_replaying_no_sideffects(zilog_t *zilog)
 {
-	zillwb_destroy(zilog, keep_first);
+	boolean_t ret;
+	ZIL_VCALL_ret(&ret, zilog, zlvt_get_is_replaying_no_sideffects, zilog);
+	return (ret);
 }
 
+/*
+ * Called from various places in open-context.
+ *
+ * Blocks until the ZIL is destroyed and the corresponding ZIL header update
+ * has been synced to the main pool.
+ */
+void
+zil_destroy(zilog_t *zilog)
+{
+	ZIL_VCALL_void(zilog, zlvt_destroy, zilog);
+}
+
+/*
+ * Called from the DSL synctasks that destroy the dataset.
+ *
+ * Does not update the ZIL header, so the caller must ensure that the ZIL header
+ * will not be read while and after this function executes.
+ */
 void
 zil_destroy_sync(zilog_t *zilog, dmu_tx_t *tx)
 {
-	zillwb_destroy_sync(zilog, tx);
+	ZIL_VCALL_void(zilog, zlvt_destroy_sync, zilog, tx);
 }
 
 void
 zil_commit(zilog_t *zilog, uint64_t oid)
 {
-	zillwb_commit(zilog, oid);
+	/*
+	 * We should never attempt to call zil_commit on a snapshot for
+	 * a couple of reasons:
+	 *
+	 * 1. A snapshot may never be modified, thus it cannot have any
+	 *    in-flight itxs that would have modified the dataset.
+	 *
+	 * 2. By design, when zil_commit() is called, a commit itx will
+	 *    be assigned to this zilog; as a result, the zilog will be
+	 *    dirtied. We must not dirty the zilog of a snapshot; there's
+	 *    checks in the code that enforce this invariant, and will
+	 *    cause a panic if it's not upheld.
+	 */
+	ASSERT3B(dmu_objset_is_snapshot(zilog->zl_os), ==, B_FALSE);
+
+	if (!spa_writeable(zilog->zl_spa)) {
+		/*
+		 * If the SPA is not writable, there should never be any
+		 * pending itxs waiting to be committed to disk. If that
+		 * weren't true, we'd skip writing those itxs out, and
+		 * would break the semantics of zil_commit(); thus, we're
+		 * verifying that truth before we return to the caller.
+		 */
+		for (int i = 0; i < TXG_SIZE; i++)
+			ASSERT3P(zilog->zl_itxg[i].itxg_itxs, ==, NULL);
+		zilog->zl_vtable->zlvt_commit_on_spa_not_writeable(zilog);
+		return;
+	}
+
+	if (zilog->zl_sync == ZFS_SYNC_DISABLED)
+		return;
+
+	ZIL_VCALL_void(zilog, zlvt_commit, zilog, oid);
+	return;
 }
 
 int
-zil_reset(const char *osname, void *txarg)
+zil_reset_logs(spa_t *spa)
 {
-	return (zillwb_reset(osname, txarg));
+	for (size_t i = ZIL_KIND_FIRST; i < ZIL_KIND_COUNT; i++) {
+		int err = zil_vtables[i]->zlvt_reset_logs(spa);
+		if (err != 0)
+			return (err);
+	}
+	return (0);
 }
 
+/*
+ * zil_claim_or_clear is called for each dataset from spa_load if the spa is
+ * spa_writeable(). It implements the following behavior:
+ *
+ * - If SPA_LOG_CLEAR, clear the log using zlvt_clear.
+ * - else if we are rewinding to a checkpoint and the log is unclaimed, clear it
+ *   using zlvt_clear.
+ * - else if the log is not yet claimed, zio_claim() all the blocks that we want
+ *   to replay later, and spa_claim_notify().
+ * - else: noop.
+ *
+ * Notes:
+ * - ZIL implementations will generally have to record the fact that they
+ *   finished claiming in the ZIL header so that they don't claim twice.
+ *   Since spa_sync is not yet running, implementations can just modify the
+ *   in-memory copy of zil_header_t that was passed to zil_alloc().
+ *   zil_sync() will be called when spa_sync() starts and move the header to
+ *   disk.
+ *
+ * - This has to happen during pool import because the log blocks that we
+ *   want to replay are by definition those blocks that were allocated and
+ *   used in a txg that has not yet synced to disk. If we didn't "remind" the
+ *   metaslab allocator through zio_claim(), it would hand out those blocks
+ *   again, leading to pool corruption down the road.
+ *
+ * - The minimum txg that should be claimed is spa_min_claim_txg().
+ *
+ * - spa_claim_notify() was already done by zil_check_log_chain, so, unless
+ *   we had transiently corrupted log records that fixed themselves since
+ *   zil_check_log_chain, this should be a no-op. Note that it doesn't hurt
+ *   if the bitflip shortened the log, we'll just txg_wait_synced a little
+ *   longer in spa_load. But it's crucial that if the log was extended due
+ *   to the healing bitflip, we update spa_claim_max_txg through
+ *   spa_claim_notify() so that there are no blocks from the future when
+ *   spa_sync starts. XXX https://github.com/openzfs/zfs/issues/11364
+ *
+ * - The reason for the destroy-on-checkppint-rewind behavior is as follows:
+ *     - The checkpointed state did not consider the unclaimed blocks
+ *       alloctated.
+ *     - Therefore, we did not preserve them for rewind in zio_free() while
+ *       the checkpoint was active.
+ *     - Therefore, the unclaimed log blocks might have been re-used for
+ *       other data while the checkpoint was active, so they might be
+ *       corrupted.
+ *     - In any way, documented checkpoint rewind semantics are that we
+ *       abandon unclaimed logs.
+ */
 int
-zil_claim(struct dsl_pool *dp,
-    struct dsl_dataset *ds, void *txarg)
+zil_claim_or_clear(struct dsl_pool *dp, struct dsl_dataset *ds, void *txarg)
 {
-	return (zillwb_claim(dp, ds, txarg));
+	dmu_tx_t *tx = txarg;
+	objset_t *os;
+	int error;
+
+	ASSERT3U(tx->tx_txg, ==, spa_first_txg(dp->dp_spa));
+
+	error = dmu_objset_own_obj(dp, ds->ds_object,
+	    DMU_OST_ANY, B_FALSE, B_FALSE, FTAG, &os);
+	if (error != 0) {
+		/*
+		 * EBUSY indicates that the objset is inconsistent, in which
+		 * case it can not have a ZIL.
+		 */
+		if (error != EBUSY) {
+			cmn_err(CE_WARN, "can't open objset for %llu, error %u",
+			    (unsigned long long)ds->ds_object, error);
+		}
+
+		/*
+		 * XXX: we really shouldn't be dropping the error here.
+		 * We might be encountering a checksum (=EIO) error that
+		 * slipped in after spa_load_verify_logs reported all OK.
+		 * See https://github.com/openzfs/zfs/issues/11364
+		 */
+		return (0);
+	}
+
+	zilog_t *zilog = dmu_objset_zil(os);
+
+	/*
+	 * If the spa_log_state is not set to be cleared, check whether
+	 * the current uberblock is a checkpoint one and if the current
+	 * header has been claimed before moving on.
+	 *
+	 * If the current uberblock is a checkpointed uberblock then
+	 * one of the following scenarios took place:
+	 *
+	 * 1] We are currently rewinding to the checkpoint of the pool.
+	 * 2] We crashed in the middle of a checkpoint rewind but we
+	 *    did manage to write the checkpointed uberblock to the
+	 *    vdev labels, so when we tried to import the pool again
+	 *    the checkpointed uberblock was selected from the import
+	 *    procedure.
+	 *
+	 * In both cases we want to zero out all the ZIL blocks, except
+	 * the ones that have been claimed at the time of the checkpoint
+	 * (their zh_claim_txg != 0). The reason is that these blocks
+	 * may be corrupted since we may have reused their locations on
+	 * disk after we took the checkpoint.
+	 *
+	 * We could try to set spa_log_state to SPA_LOG_CLEAR earlier
+	 * when we first figure out whether the current uberblock is
+	 * checkpointed or not. Unfortunately, that would discard all
+	 * the logs, including the ones that are claimed, and we would
+	 * leak space.
+	 */
+	boolean_t is_claimed;
+	ZIL_VCALL_ret(&is_claimed, zilog, zlvt_is_claimed, zilog);
+	boolean_t is_checkpoint_rewind =
+	    zilog->zl_spa->spa_uberblock.ub_checkpoint_txg != 0;
+
+	if (spa_get_log_state(dp->dp_spa) == SPA_LOG_CLEAR ||
+	    (is_checkpoint_rewind && !is_claimed)) {
+		ZIL_VCALL_ret(&error, zilog, zlvt_clear, zilog, tx);
+	} else {
+		/*
+		 * zil_claim isn't a no-op even if we have already claimed
+		 * because it might update spa_claim_max_txg.
+		 */
+		ZIL_VCALL_ret(&error, zilog, zlvt_claim, zilog, tx);
+	}
+
+	dmu_objset_disown(os, B_FALSE, FTAG);
+
+	/*
+	 * XXX inconsistent error handling
+	 * see https://github.com/openzfs/zfs/issues/11364
+	 */
+	return (error);
 }
 
+
+/*
+ * zil_check_log_chain is called from spa_load, both for writeable and read-only
+ * imports, for each dataset, unless SPA_LOG_CLEAR is set.
+ * It serves two independent purposes:
+ *
+ * 1) Do a dry-run of ZIL claim / replay.
+ *    The idea behind doing the dry run is that we can encounter errors early
+ *    during pool import so that we can refuse to import the pool if we cannot
+ *    read all the log entries that we'd *expect* to be present. What we expect
+ *    to be present is dependent on the ZIL implementation. We recommend to read
+ *    through the comments on zil_claim and the comments on the different
+ *    ZIL implementation's vfuncs.
+ *
+ *    NOTE: There is an inherent TIME-OF-CHECK VS. TIME-OF-ACCESS problem with
+ *    doing the check early. zil_claim and zil_replay SHOULD not rely on
+ *    the results of this functions, as on-disk state could change inbetween,
+ *    e.g., due to bitflips. See comment in ZIL-LWB's vfunc for details.
+ *
+ * 2) Call spa_claim_notify() with the max txg that was claimed.
+ *    spa_load will, after claiming, wait for spa_claim_max_txg to sync before
+ *    reporting pool import complete so that no code in ZFS will have to deal
+ *    with blocks 'from the future' once spa_sync starts.
+ *    We do the same thing again in zil_claim_or_clear, where it should almost
+ *    always be a no-op. See the note there.
+ */
+/* ARGSUSED */
 int
-zil_check_log_chain(struct dsl_pool *dp,
-    struct dsl_dataset *ds, void *tx)
+zil_check_log_chain(dsl_pool_t *dp, dsl_dataset_t *ds, void *tx)
 {
-	return (zillwb_check_log_chain(dp, ds, tx));
+	ASSERT3S(spa_get_log_state(dp->dp_spa), !=, SPA_LOG_CLEAR);
+
+	objset_t *os;
+	int error;
+
+	ASSERT(tx == NULL);
+
+	error = dmu_objset_from_ds(ds, &os);
+	if (error != 0) {
+		cmn_err(CE_WARN, "can't open objset %llu, error %d",
+		    (unsigned long long)ds->ds_object, error);
+		return (0);
+	}
+
+	zilog_t *zilog = dmu_objset_zil(os);
+
+	/*
+	 * See block comment in zil_claim_or_clear for why we don't
+	 * check the log chain in zil_check_log_chain.
+	 */
+	boolean_t is_claimed;
+	ZIL_VCALL_ret(&is_claimed, zilog, zlvt_is_claimed, zilog);
+	boolean_t is_checkpoint_rewind =
+	    zilog->zl_spa->spa_uberblock.ub_checkpoint_txg != 0;
+	if (is_checkpoint_rewind && !is_claimed)
+		return (0);
+
+	int ret;
+	ZIL_VCALL_ret(&ret, zilog, zlvt_check_log_chain, zilog);
+	return (ret);
 }
 
+void
+zil_sync(zilog_t *zilog, dmu_tx_t *tx)
+{
+	ZIL_VCALL_void(zilog, zlvt_sync, zilog, tx);
+}
+
+/* BEGIN CSTYLED */
+/*
+ * XXX The following commented-out methods are here to make the git diff
+ * for this commit easier to read
+ */
+/*
 void
 zil_sync(zilog_t *zilog, dmu_tx_t *tx)
 {
@@ -722,45 +1080,127 @@ zil_bp_tree_add(zilog_t *zilog, const blkptr_t *bp)
 {
 	return (zillwb_bp_tree_add(zilog, bp));
 }
+*/
+/* END CSTYLED */
 
+
+/*
+ * Maximum amount of data in a WR_COPIED itx, i.e. max value for the itx's
+ * lr_write_t::lr_length. Consumers MUST fall back to WR_NEED_COPY for longer
+ * lr_write_t records.
+ *
+ * The idea behind enforcing a max size for WR_COPIED records at zil_itx_assign
+ * time is that we want to give the ZIL kind's zil_commit implementation some
+ * flexibility in how it stores the records. And for that, it is helfpul if the
+ * ZIL kind can assume some maximum size for a record.
+ */
 uint64_t
 zil_max_copied_data(zilog_t *zilog)
 {
-	return (zillwb_max_copied_data(zilog));
+	uint64_t ret;
+	ZIL_VCALL_ret(&ret, zilog, zlvt_max_copied_data, zilog);
+	return (ret);
 }
 
-uint64_t
-zil_max_log_data(zilog_t *zilog)
-{
-	return (zillwb_max_log_data(zilog));
-}
+
 
 EXPORT_SYMBOL(zil_alloc);
 EXPORT_SYMBOL(zil_free);
 EXPORT_SYMBOL(zil_open);
+EXPORT_SYMBOL(zil_close);
+EXPORT_SYMBOL(zil_destroy);
+EXPORT_SYMBOL(zil_destroy_sync);
 EXPORT_SYMBOL(zil_itx_create);
 EXPORT_SYMBOL(zil_itx_destroy);
 EXPORT_SYMBOL(zil_itx_assign);
+EXPORT_SYMBOL(zil_commit);
+EXPORT_SYMBOL(zil_claim_or_clear);
+EXPORT_SYMBOL(zil_check_log_chain);
 EXPORT_SYMBOL(zil_sync);
 EXPORT_SYMBOL(zil_clean);
 EXPORT_SYMBOL(zil_set_sync);
 EXPORT_SYMBOL(zil_set_logbias);
 
-/* forwarding functions */
-EXPORT_SYMBOL(zil_close);
-EXPORT_SYMBOL(zil_replay);
-EXPORT_SYMBOL(zil_replaying);
-EXPORT_SYMBOL(zil_destroy);
-EXPORT_SYMBOL(zil_destroy_sync);
-EXPORT_SYMBOL(zil_commit);
-EXPORT_SYMBOL(zil_claim);
-EXPORT_SYMBOL(zil_check_log_chain);
-EXPORT_SYMBOL(zil_suspend);
-EXPORT_SYMBOL(zil_resume);
-EXPORT_SYMBOL(zil_lwb_add_block);
-EXPORT_SYMBOL(zil_bp_tree_add);
+
+zh_kind_t
+zil_default_kind_get(void)
+{
+	zh_kind_t ret;
+	rrw_enter_read(&zil_default_kind.zdk_rwl, FTAG);
+	ret = zil_default_kind.zdk_val;
+	rrw_exit(&zil_default_kind.zdk_rwl, FTAG);
+	return ret;
+}
+
+void
+zil_default_kind_set(zh_kind_t kind)
+{
+	rrw_enter_write(&zil_default_kind.zdk_rwl);
+	zil_default_kind.zdk_val = kind;
+	rrw_exit(&zil_default_kind.zdk_rwl, FTAG);
+}
+
+zh_kind_t zil_default_kind_hold(void *ftag)
+{
+	rrw_enter_read(&zil_default_kind.zdk_rwl, ftag);
+	return zil_default_kind.zdk_val;
+}
+
+void zil_default_kind_rele(void *ftag)
+{
+	rrw_exit(&zil_default_kind.zdk_rwl, ftag);
+}
+
+int
+zil_kind_from_str(const char *val, zh_kind_t *out)
+{
+	/* NB: keep in sync with zil_kind_to_str */
+	if (strcmp(val, "lwb") == 0) {
+		*out = ZIL_KIND_LWB;
+	} else {
+		return SET_ERROR(EINVAL);
+	}
+	return (0);
+}
+
+#ifdef _KERNEL
+
+static int
+zil_default_kind__param_set(const char *val, zfs_kernel_param_t *unused)
+{
+	size_t val_len;
+
+	val_len = strlen(val);
+	while ((val_len > 0) && !!isspace(val[val_len-1])) /* trim '\n' */
+		val_len--;
+
+	/* TODO: fix benchmarking suite to support the 'named zil kinds'
+	 * zil_kind_from_str above */
+
+	if (strncmp(val, "1", val_len) == 0) {
+		zil_default_kind_set(ZIL_KIND_LWB);
+	} else {
+		return (-EINVAL);
+	}
+
+	return (0);
+}
+
+static int
+zil_default_kind__param_get(char *buffer, zfs_kernel_param_t *unused)
+{
+	int ret = snprintf(buffer, 3, "%d\n", (int)zil_default_kind_get());
+	VERIFY3S(ret, ==, 2);
+	return ret;
+}
 
 /* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs_zil, zil_, replay_disable, INT, ZMOD_RW,
 	"Disable intent logging replay");
+
+ZFS_MODULE_VIRTUAL_PARAM_CALL(zfs_zil, zil_, default_kind,
+	zil_default_kind__param_set, zil_default_kind__param_get, ZMOD_RW,
+	"Default ZIL kind for newly initialized ZILs");
 /* END CSTYLED */
+
+#endif /* _KERNEL */

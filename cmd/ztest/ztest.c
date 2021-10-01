@@ -167,6 +167,7 @@ typedef struct ztest_shared_opts {
 	char zo_dir[ZFS_MAX_DATASET_NAME_LEN];
 	char zo_alt_ztest[MAXNAMELEN];
 	char zo_alt_libpath[MAXNAMELEN];
+	zh_kind_t zo_zil_default_kind;
 	uint64_t zo_vdevs;
 	uint64_t zo_vdevtime;
 	size_t zo_vdev_size;
@@ -217,6 +218,7 @@ typedef struct ztest_shared_opts {
 #define	DEFAULT_MAX_LOOPS 50 /* 5 minutes */
 #define	DEFAULT_FORCE_GANGING (64 << 10)
 #define	DEFAULT_FORCE_GANGING_STR "64K"
+#define	DEFAULT_ZIL_KIND "zil-lwb"
 
 /* Simplifying assumption: -1 is not a valid default. */
 #define	NO_DEFAULT -1
@@ -226,6 +228,7 @@ static const ztest_shared_opts_t ztest_opts_defaults = {
 	.zo_dir = DEFAULT_VDEV_DIR,
 	.zo_alt_ztest = { '\0' },
 	.zo_alt_libpath = { '\0' },
+	.zo_zil_default_kind = ZIL_KIND_LWB,
 	.zo_vdevs = DEFAULT_VDEV_COUNT,
 	.zo_ashift = DEFAULT_ASHIFT,
 	.zo_mirrors = DEFAULT_MIRRORS,
@@ -783,6 +786,7 @@ static ztest_option_t option_table[] = {
 	{ 'V',	"verbose", NULL,
 	    "Verbose (use multiple times for ever more verbosity)",
 	    NO_DEFAULT, NULL},
+	{ 'z', "zil-kind", "STRING", "which ZIL kind to use", NO_DEFAULT, NULL},
 	{ 'h',	"help",	NULL, "Show this help",
 	    NO_DEFAULT, NULL},
 	{0, 0, 0, 0, 0, 0}
@@ -956,6 +960,14 @@ process_options(int argc, char **argv)
 			value = nicenumtoull(optarg);
 		}
 		switch (opt) {
+		case 'z':
+            		if (zil_kind_from_str(optarg,
+			    &zo->zo_zil_default_kind) != 0) {
+				(void) fprintf(stderr, "invalid zil kind %s\n",
+					optarg);
+				usage(B_FALSE);
+			}
+            		break;
 		case 'v':
 			zo->zo_vdevs = value;
 			break;
@@ -1911,12 +1923,23 @@ ztest_log_write(ztest_ds_t *zd, dmu_tx_t *tx, lr_write_t *lr)
 {
 	itx_t *itx;
 	itx_wr_state_t write_state = ztest_random(WR_NUM_STATES);
+	zilog_t *zilog = zd->zd_zilog;
 
-	if (zil_replaying(zd->zd_zilog, tx))
+	if (zil_replaying(zilog, tx))
 		return;
 
-	if (lr->lr_length > zil_max_log_data(zd->zd_zilog))
-		write_state = WR_INDIRECT;
+	if (zilog->zl_vtable == &zillwb_vtable) {
+		zilog_lwb_t *zl_lwb= zillwb_downcast(zilog);
+		if (lr->lr_length > zillwb_max_log_data(zl_lwb)) {
+			write_state = WR_INDIRECT;
+		}
+	}
+
+	uint64_t max_wr_copied_lr_length = zil_max_copied_data(zilog);
+	if (write_state == WR_COPIED && lr->lr_length > max_wr_copied_lr_length)
+		write_state = WR_NEED_COPY;
+
+	/* END copied from zfs_log.c */
 
 	itx = zil_itx_create(TX_WRITE,
 	    sizeof (*lr) + (write_state == WR_COPIED ? lr->lr_length : 0));
@@ -2007,7 +2030,8 @@ ztest_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 	if (txg == 0)
 		return (ENOSPC);
 
-	ASSERT3U(dmu_objset_zil(os)->zl_replay, ==, !!lr->lr_foid);
+	zilog_t *zilog = dmu_objset_zil(os);
+	ASSERT3U(zil_get_is_replaying_no_sideffects(zilog), ==, !!lr->lr_foid);
 	bonuslen = DN_BONUS_SIZE(lr->lrz_dnodesize);
 
 	if (lr->lrz_type == DMU_OT_ZAP_OTHER) {
@@ -2034,7 +2058,7 @@ ztest_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 
 	if (error) {
 		ASSERT3U(error, ==, EEXIST);
-		ASSERT(zd->zd_zilog->zl_replay);
+		ASSERT(zil_get_is_replaying_no_sideffects(zilog));
 		dmu_tx_commit(tx);
 		return (error);
 	}
@@ -2211,7 +2235,7 @@ ztest_replay_write(void *arg1, void *arg2, boolean_t byteswap)
 		 * open-context data, which may be different than the data
 		 * as it was when the write was generated.
 		 */
-		if (zd->zd_zilog->zl_replay) {
+		if (zd->zd_zilog->zl_vtable == &zillwb_vtable /* XXX */ && zil_get_is_replaying_no_sideffects(zd->zd_zilog)) {
 			ztest_bt_verify(bt, os, lr->lr_foid, 0, offset,
 			    MAX(gen, bt->bt_gen), MAX(txg, lrtxg),
 			    bt->bt_crtxg);
@@ -2319,7 +2343,7 @@ ztest_replay_setattr(void *arg1, void *arg2, boolean_t byteswap)
 	lrtxg = lr->lr_common.lrc_txg;
 	dnodesize = bbt->bt_dnodesize;
 
-	if (zd->zd_zilog->zl_replay) {
+	if (zil_get_is_replaying_no_sideffects(zd->zd_zilog)) {
 		ASSERT3U(lr->lr_size, !=, 0);
 		ASSERT3U(lr->lr_mode, !=, 0);
 		ASSERT3U(lrtxg, !=, 0);
@@ -2419,9 +2443,11 @@ ztest_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,
 	zgd_t *zgd;
 	int error;
 
-	ASSERT3P(lwb, !=, NULL);
-	ASSERT3P(zio, !=, NULL);
 	ASSERT3U(size, !=, 0);
+	if (zd->zd_zilog->zl_vtable == &zillwb_vtable)
+		ASSERT3P(lwb, !=, NULL);
+	else
+		ASSERT3P(lwb, ==, NULL);
 
 	ztest_object_lock(zd, object, RL_READER);
 	error = dmu_bonus_hold(os, object, FTAG, &db);
@@ -2454,6 +2480,7 @@ ztest_get_data(void *arg, uint64_t arg2, lr_write_t *lr, char *buf,
 		    DMU_READ_NO_PREFETCH);
 		ASSERT0(error);
 	} else {
+		ASSERT3P(zio, !=, NULL);
 		size = doi.doi_data_block_size;
 		if (ISP2(size)) {
 			offset = P2ALIGN(offset, size);
@@ -2882,11 +2909,14 @@ ztest_zil_commit(ztest_ds_t *zd, uint64_t id)
 	 * shared memory.  If we die, the next iteration of ztest_run()
 	 * will verify that the log really does contain this record.
 	 */
-	mutex_enter(&zilog->zl_lock);
-	ASSERT3P(zd->zd_shared, !=, NULL);
-	ASSERT3U(zd->zd_shared->zd_seq, <=, zilog->zl_commit_lr_seq);
-	zd->zd_shared->zd_seq = zilog->zl_commit_lr_seq;
-	mutex_exit(&zilog->zl_lock);
+	if (zilog->zl_vtable == &zillwb_vtable) {
+		zilog_lwb_t *zilog_lwb = zillwb_downcast(zilog);
+		mutex_enter(&zilog_lwb->zl_lock);
+		ASSERT3P(zd->zd_shared, !=, NULL);
+		ASSERT3U(zd->zd_shared->zd_seq, <=, zilog_lwb->zl_commit_lr_seq);
+		zd->zd_shared->zd_seq = zilog_lwb->zl_commit_lr_seq;
+		mutex_exit(&zilog_lwb->zl_lock);
+	}
 
 	(void) pthread_rwlock_unlock(&zd->zd_zilog_lock);
 }
@@ -3098,7 +3128,8 @@ ztest_spa_upgrade(ztest_ds_t *zd, uint64_t id)
 	props = fnvlist_alloc();
 	fnvlist_add_uint64(props,
 	    zpool_prop_to_name(ZPOOL_PROP_VERSION), version);
-	VERIFY0(spa_create(name, nvroot, props, NULL, NULL));
+	int err = spa_create(name, nvroot, props, NULL, NULL);
+	VERIFY0(err);
 	fnvlist_free(nvroot);
 	fnvlist_free(props);
 
@@ -3453,7 +3484,9 @@ ztest_vdev_aux_add_remove(ztest_ds_t *zd, uint64_t id)
 		case 0:
 			break;
 		default:
-			fatal(B_FALSE, "spa_vdev_add(%p) = %d", nvroot, error);
+			nvlist_print_json(stderr, nvroot);
+			fprintf(stderr, "\n");
+			fatal(0, "spa_vdev_add(%p) = %d", nvroot, error);
 		}
 		fnvlist_free(nvroot);
 	} else {
@@ -4343,7 +4376,11 @@ ztest_dmu_objset_create_destroy(ztest_ds_t *zd, uint64_t id)
 	    ztest_dmu_objset_own(name, DMU_OST_OTHER, B_FALSE,
 	    B_TRUE, FTAG, &os) == 0) {
 		ztest_zd_init(zdtmp, NULL, os);
+
+		VERIFY3P(zil_open(os, ztest_get_data), ==, zdtmp->zd_zilog);
 		zil_replay(os, zdtmp, ztest_replay_vector);
+		zil_close(zdtmp->zd_zilog);
+
 		ztest_zd_fini(zdtmp);
 		dmu_objset_disown(os, B_TRUE, FTAG);
 	}
@@ -4382,7 +4419,13 @@ ztest_dmu_objset_create_destroy(ztest_ds_t *zd, uint64_t id)
 	/*
 	 * Open the intent log for it.
 	 */
-	zilog = zil_open(os, ztest_get_data);
+	VERIFY3P(zil_open(os, ztest_get_data), ==, zdtmp->zd_zilog);
+	zilog = zdtmp->zd_zilog;
+
+	/*
+	 * We must always call replay before starting to use the zilog.
+	 */
+	zil_replay(os, zdtmp, ztest_replay_vector);
 
 	/*
 	 * Put some objects in there, do a little I/O to them,
@@ -6882,6 +6925,18 @@ ztest_walk_pool_directory(char *header)
 }
 
 static void
+ztest_kernel_init(int mode)
+{
+	kernel_init(mode);
+
+	/*
+	 * zil_default_kind must be set before creating
+	 * a storage pool => centralize that place here.
+	 */
+	zil_default_kind_set(ztest_opts.zo_zil_default_kind);
+}
+
+static void
 ztest_spa_import_export(char *oldname, char *newname)
 {
 	nvlist_t *config, *newconfig;
@@ -7068,6 +7123,8 @@ ztest_execute(int test, ztest_info_t *zi, uint64_t id)
 	hrtime_t functime = gethrtime();
 	int i;
 
+	(void) printf("THREAD-%ld starting %s\n", id, zi->zi_funcname);
+
 	for (i = 0; i < zi->zi_iters; i++)
 		zi->zi_func(zd, id);
 
@@ -7077,7 +7134,7 @@ ztest_execute(int test, ztest_info_t *zi, uint64_t id)
 	atomic_add_64(&zc->zc_time, functime);
 
 	if (ztest_opts.zo_verbose >= 4)
-		(void) printf("%6.2f sec in %s\n",
+		(void) printf("THREAD-%ld %6.2f sec in %s\n", id,
 		    (double)functime / NANOSEC, zi->zi_funcname);
 }
 
@@ -7180,7 +7237,6 @@ ztest_dataset_open(int d)
 	ztest_ds_t *zd = &ztest_ds[d];
 	uint64_t committed_seq = ZTEST_GET_SHARED_DS(d)->zd_seq;
 	objset_t *os;
-	zilog_t *zilog;
 	char name[ZFS_MAX_DATASET_NAME_LEN];
 	int error;
 
@@ -7202,37 +7258,44 @@ ztest_dataset_open(int d)
 
 	ztest_zd_init(zd, ZTEST_GET_SHARED_DS(d), os);
 
-	zilog = zd->zd_zilog;
+	if (zd->zd_zilog->zl_vtable == &zillwb_vtable) {
+		zilog_lwb_t *zilog = zillwb_downcast(zd->zd_zilog);
+		const zil_header_lwb_t *zh = zillwb_zil_header_const(zilog);
 
-	const zil_header_lwb_t *zh = zillwb_zil_header_const(zilog);
-	if (zh->zh_claim_lr_seq != 0 && zh->zh_claim_lr_seq < committed_seq)
-		fatal(B_FALSE, "missing log records: "
-		    "claimed %"PRIu64" < committed %"PRIu64"",
-		    zh->zh_claim_lr_seq, committed_seq);
+		if (zh->zh_claim_lr_seq != 0 &&
+		    zh->zh_claim_lr_seq < committed_seq)
+			fatal(B_FALSE, "missing log records: "
+			    "claimed %"PRIu64" < committed %"PRIu64"",
+			    zh->zh_claim_lr_seq, committed_seq);
+	}
 
 	ztest_dataset_dirobj_verify(zd);
 
+	VERIFY3P(zil_open(os, ztest_get_data), ==, zd->zd_zilog);
 	zil_replay(os, zd, ztest_replay_vector);
 
 	ztest_dataset_dirobj_verify(zd);
 
-	if (ztest_opts.zo_verbose >= 6) {
-		zillwb_parse_result_t *lpr = &zilog->zl_last_parse_result;
-		(void) printf("%s replay %"PRIu64" blocks, "
-		    "%"PRIu64" records, seq %"PRIu64"\n",
-		    zd->zd_name,
-		    lpr->zlpr_blk_count,
-		    lpr->zlpr_lr_count,
-		    zilog->zl_replaying_seq);
+	if (zd->zd_zilog->zl_vtable == &zillwb_vtable) {
+		zilog_lwb_t *zilog = zillwb_downcast(zd->zd_zilog);
+
+		if (ztest_opts.zo_verbose >= 6) {
+			zillwb_parse_result_t *lpr =
+			    &zilog->zl_last_parse_result;
+			(void) printf("%s replay %"PRIu64" blocks, "
+			    "%"PRIu64" records, seq %"PRIu64"\n",
+			    zd->zd_name,
+			    lpr->zlpr_blk_count,
+			    lpr->zlpr_lr_count,
+			    zilog->zl_replaying_seq);
+		}
+
+		if (zilog->zl_replaying_seq != 0 &&
+		    zilog->zl_replaying_seq < committed_seq)
+			fatal(B_FALSE, "missing log records: "
+			    "replayed %"PRIu64" < committed %"PRIu64"",
+			    zilog->zl_replaying_seq, committed_seq);
 	}
-
-	zilog = zil_open(os, ztest_get_data);
-
-	if (zilog->zl_replaying_seq != 0 &&
-	    zilog->zl_replaying_seq < committed_seq)
-		fatal(B_FALSE, "missing log records: "
-		    "replayed %"PRIu64" < committed %"PRIu64"",
-		    zilog->zl_replaying_seq, committed_seq);
 
 	return (0);
 }
@@ -7261,19 +7324,23 @@ ztest_replay_zil_cb(const char *name, void *arg)
 	zdtmp = umem_alloc(sizeof (ztest_ds_t), UMEM_NOFAIL);
 
 	ztest_zd_init(zdtmp, NULL, os);
+	VERIFY3P(zil_open(os, ztest_get_data), ==, zdtmp->zd_zilog);
 	zil_replay(os, zdtmp, ztest_replay_vector);
+	zil_close(zdtmp->zd_zilog);
 	ztest_zd_fini(zdtmp);
 
 	zilog_t *zilog = dmu_objset_zil(os);
-	zillwb_parse_result_t *lpr = &zilog->zl_last_parse_result;
-	if (lpr->zlpr_lr_count != 0 && ztest_opts.zo_verbose >= 6) {
-		zilog_t *zilog = dmu_objset_zil(os);
-		(void) printf("%s replay %"PRIu64" blocks, "
-		    "%"PRIu64" records, seq %"PRIu64"\n",
-		    name,
-		    lpr->zlpr_blk_count,
-		    lpr->zlpr_lr_count,
-		    zilog->zl_replaying_seq);
+	if (zilog->zl_vtable == &zillwb_vtable) {
+		zilog_lwb_t *zilog_lwb = zillwb_downcast(zilog);
+		zillwb_parse_result_t *lpr = &zilog_lwb->zl_last_parse_result;
+		if (lpr->zlpr_lr_count != 0 && ztest_opts.zo_verbose >= 6) {
+			(void) printf("%s replay %"PRIu64" blocks, "
+			    "%"PRIu64" records, seq %"PRIu64"\n",
+			    name,
+			    lpr->zlpr_blk_count,
+			    lpr->zlpr_lr_count,
+			    zilog_lwb->zl_replaying_seq);
+		}
 	}
 
 	umem_free(zdtmp, sizeof (ztest_ds_t));
@@ -7292,7 +7359,7 @@ ztest_freeze(void)
 	if (ztest_opts.zo_verbose >= 3)
 		(void) printf("testing spa_freeze()...\n");
 
-	kernel_init(SPA_MODE_READ | SPA_MODE_WRITE);
+	ztest_kernel_init(SPA_MODE_READ | SPA_MODE_WRITE);
 	VERIFY0(spa_open(ztest_opts.zo_pool, &spa, FTAG));
 	VERIFY0(ztest_dataset_open(0));
 	ztest_spa = spa;
@@ -7302,9 +7369,14 @@ ztest_freeze(void)
 	 * We have to do this before we freeze the pool -- otherwise
 	 * the log chain won't be anchored.
 	 */
-	while (BP_IS_HOLE(&zd->zd_zilog->zl_header->zh_lwb.zh_log)) {
-		ztest_dmu_object_alloc_free(zd, 0);
-		zil_commit(zd->zd_zilog, 0);
+	if (zd->zd_zilog->zl_vtable == &zillwb_vtable) {
+		zilog_lwb_t *zilog = zillwb_downcast(zd->zd_zilog);
+		while (BP_IS_HOLE(&zillwb_zil_header_const(zilog)->zh_log)) {
+			ztest_dmu_object_alloc_free(zd, 0);
+			zil_commit(zd->zd_zilog, 0);
+		}
+	} else {
+		ASSERT(0); /* forgotten ZIL kind */
 	}
 
 	txg_wait_synced(spa_get_dsl(spa), 0);
@@ -7359,7 +7431,7 @@ ztest_freeze(void)
 	/*
 	 * Open and close the pool and dataset to induce log replay.
 	 */
-	kernel_init(SPA_MODE_READ | SPA_MODE_WRITE);
+	ztest_kernel_init(SPA_MODE_READ | SPA_MODE_WRITE);
 	VERIFY0(spa_open(ztest_opts.zo_pool, &spa, FTAG));
 	ASSERT3U(spa_freeze_txg(spa), ==, UINT64_MAX);
 	VERIFY0(ztest_dataset_open(0));
@@ -7404,7 +7476,7 @@ ztest_import(ztest_shared_t *zs)
 	mutex_init(&ztest_checkpoint_lock, NULL, MUTEX_DEFAULT, NULL);
 	VERIFY0(pthread_rwlock_init(&ztest_name_lock, NULL));
 
-	kernel_init(SPA_MODE_READ | SPA_MODE_WRITE);
+	ztest_kernel_init(SPA_MODE_READ | SPA_MODE_WRITE);
 
 	ztest_import_impl(zs);
 
@@ -7468,7 +7540,7 @@ ztest_run(ztest_shared_t *zs)
 	 * Open our pool.  It may need to be imported first depending on
 	 * what tests were running when the previous pass was terminated.
 	 */
-	kernel_init(SPA_MODE_READ | SPA_MODE_WRITE);
+	ztest_kernel_init(SPA_MODE_READ | SPA_MODE_WRITE);
 	error = spa_open(ztest_opts.zo_pool, &spa, FTAG);
 	if (error) {
 		VERIFY3S(error, ==, ENOENT);
@@ -7711,7 +7783,7 @@ ztest_init(ztest_shared_t *zs)
 	mutex_init(&ztest_checkpoint_lock, NULL, MUTEX_DEFAULT, NULL);
 	VERIFY0(pthread_rwlock_init(&ztest_name_lock, NULL));
 
-	kernel_init(SPA_MODE_READ | SPA_MODE_WRITE);
+	ztest_kernel_init(SPA_MODE_READ | SPA_MODE_WRITE);
 
 	/*
 	 * Create the storage pool.
@@ -7722,6 +7794,11 @@ ztest_init(ztest_shared_t *zs)
 	zs->zs_mirrors = ztest_opts.zo_mirrors;
 	nvroot = make_vdev_root(NULL, NULL, NULL, ztest_opts.zo_vdev_size, 0,
 	    NULL, ztest_opts.zo_raid_children, zs->zs_mirrors, 1);
+
+	fprintf(stderr, "Initial VDEV tree:\n");
+	nvlist_print_json(stderr, nvroot);
+	fprintf(stderr, "\n");
+
 	props = make_random_props();
 
 	/*

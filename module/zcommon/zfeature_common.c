@@ -598,6 +598,12 @@ zpool_feature_init(void)
 	zfeature_register(SPA_FEATURE_DRAID,
 	    "org.openzfs:draid", "draid", "Support for distributed spare RAID",
 	    ZFEATURE_FLAG_MOS, ZFEATURE_TYPE_BOOLEAN, NULL);
+
+	zfeature_register(SPA_FEATURE_ZIL_KINDS,
+	    "org.openzfs:zil_kinds", "zil_kinds",
+	    "ZIL kinds.",
+	    ZFEATURE_FLAG_ACTIVATE_ON_ENABLE, ZFEATURE_TYPE_BOOLEAN, NULL);
+
 }
 
 #if defined(_KERNEL)

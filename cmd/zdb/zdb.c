@@ -3812,8 +3812,12 @@ dump_objset(objset_t *os)
 		return;
 	}
 
-	if (dump_opt['i'] != 0 || verbosity >= 2)
-		dump_intent_log(dmu_objset_zil(os));
+	if (dump_opt['i'] != 0 || verbosity >= 2) {
+		EQUIV((os->os_dsl_dataset != NULL), (os->os_zil != NULL));
+		zilog_t *zilog = dmu_objset_zil(os);
+		if (zilog != NULL)
+			dump_intent_log(zilog);
+	}
 
 	if (dmu_objset_ds(os) != NULL) {
 		dsl_dataset_t *ds = dmu_objset_ds(os);
@@ -6343,7 +6347,7 @@ typedef struct {
 } dump_block_stats_arg_t;
 
 static int
-dump_block_stats_zil_header_cb_block(const blkptr_t *bp, void *arg)
+dump_block_stats_zillwb_cb_block(const blkptr_t *bp, void *arg)
 {
 	dump_block_stats_arg_t *dbsa = arg;
 	zbookmark_phys_t zb;
@@ -6364,7 +6368,7 @@ dump_block_stats_zil_header_cb_block(const blkptr_t *bp, void *arg)
 }
 
 static int
-dump_block_stats_zil_header_cb_record(const lr_t *lrc, void *arg)
+dump_block_stats_zillwb_cb_record(const lr_t *lrc, void *arg)
 {
 	dump_block_stats_arg_t *dbsa = arg;
 	uint64_t claim_txg = dbsa->claim_txg;
@@ -6390,11 +6394,9 @@ dump_block_stats_zil_header_cb_record(const lr_t *lrc, void *arg)
 }
 
 static int
-dump_block_stats_zil_header_cb(spa_t *spa, uint64_t objset,
-    const zil_header_t *zh_, void *arg)
+dump_block_stats_zillwb(spa_t *spa, uint64_t objset,
+    const zil_header_lwb_t *zh, void *arg)
 {
-	const zil_header_lwb_t *zh = &zh_->zh_lwb;
-
 	zdb_cb_t *zcb = arg;
 	uint64_t claim_txg = zh->zh_claim_txg;
 
@@ -6412,11 +6414,32 @@ dump_block_stats_zil_header_cb(spa_t *spa, uint64_t objset,
 		.spa = spa,
 	};
 
-	zillwb_parse_phys(spa, zh, dump_block_stats_zil_header_cb_block,
-	    dump_block_stats_zil_header_cb_record, &dbsa, B_FALSE,
+	zillwb_parse_phys(spa, zh, dump_block_stats_zillwb_cb_block,
+	    dump_block_stats_zillwb_cb_record, &dbsa, B_FALSE,
 	    ZIO_PRIORITY_SCRUB, NULL);
 
 	return (0);
+}
+
+static int
+dump_block_stats_zil_header_cb(spa_t *spa, uint64_t objset,
+    const zil_header_t *zh, void *arg)
+{
+	zh_kind_t kind = 0;
+	void const *zhk = NULL;
+	size_t zhk_size = 0;
+	VERIFY0(zil_kind_specific_data_from_header(spa, zh, &zhk, &zhk_size, NULL, &kind));
+	switch (kind) {
+		case ZIL_KIND_LWB:
+			VERIFY3S(zhk_size, ==, sizeof (zil_header_lwb_t));
+			return dump_block_stats_zillwb(spa, objset, zhk, arg);
+		case ZIL_KIND_UNINIT:
+			/* fallthrough */
+		case ZIL_KIND_COUNT:
+			panic("unreachable: zil_kind=%s",
+			    zil_kind_to_str(kind, NULL));
+	}
+	panic("unreachable");
 }
 
 static int

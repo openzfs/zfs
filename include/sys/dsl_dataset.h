@@ -353,6 +353,9 @@ uint64_t dsl_dataset_create_sync(dsl_dir_t *pds, const char *lastname,
     struct dsl_crypto_params *, dmu_tx_t *);
 uint64_t dsl_dataset_create_sync_dd(dsl_dir_t *dd, dsl_dataset_t *origin,
     struct dsl_crypto_params *dcp, uint64_t flags, dmu_tx_t *tx);
+typedef struct zil_header zil_header_t;
+void dsl_dataset_initialized_zil_header(dsl_dataset_t *ds, zil_header_t *out);
+
 void dsl_dataset_snapshot_sync(void *arg, dmu_tx_t *tx);
 int dsl_dataset_snapshot_check(void *arg, dmu_tx_t *tx);
 int dsl_dataset_snapshot(nvlist_t *snaps, nvlist_t *props, nvlist_t *errors);

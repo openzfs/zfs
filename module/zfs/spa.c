@@ -2206,19 +2206,7 @@ spa_activate_log(spa_t *spa)
 int
 spa_reset_logs(spa_t *spa)
 {
-	int error;
-
-	error = dmu_objset_find(spa_name(spa), zil_reset,
-	    NULL, DS_FIND_CHILDREN);
-	if (error == 0) {
-		/*
-		 * We successfully offlined the log device, sync out the
-		 * current txg so that the "stubby" block can be removed
-		 * by zil_sync().
-		 */
-		txg_wait_synced(spa->spa_dsl_pool, 0);
-	}
-	return (error);
+	return (zil_reset_logs(spa));
 }
 
 static void
@@ -2229,16 +2217,11 @@ spa_aux_check_removed(spa_aux_vdev_t *sav)
 }
 
 void
-spa_claim_notify(zio_t *zio)
+spa_claim_notify(spa_t *spa, uint64_t claim_max_txg)
 {
-	spa_t *spa = zio->io_spa;
-
-	if (zio->io_error)
-		return;
-
 	mutex_enter(&spa->spa_props_lock);	/* any mutex will do */
-	if (spa->spa_claim_max_txg < zio->io_bp->blk_birth)
-		spa->spa_claim_max_txg = zio->io_bp->blk_birth;
+	if (spa->spa_claim_max_txg < claim_max_txg)
+		spa->spa_claim_max_txg = claim_max_txg;
 	mutex_exit(&spa->spa_props_lock);
 }
 
@@ -2320,12 +2303,12 @@ typedef struct {
 	uint64_t slvza_objset;
 	uint64_t slvza_claim_txg;
 	zio_t *slvza_rio;
-} spa_load_verify_zil_cb_arg_t;
+} spa_load_verify_zillwb_cb_arg_t;
 
 static int
-spa_load_verify_zil_cb_block(const blkptr_t *bp, void *arg)
+spa_load_verify_zillwb_cb_block(const blkptr_t *bp, void *arg)
 {
-	spa_load_verify_zil_cb_arg_t *slvza = arg;
+	spa_load_verify_zillwb_cb_arg_t *slvza = arg;
 	uint64_t claim_txg = slvza->slvza_claim_txg;
 	zbookmark_phys_t zb;
 	spa_t *spa = slvza->slvza_spa;
@@ -2345,9 +2328,9 @@ spa_load_verify_zil_cb_block(const blkptr_t *bp, void *arg)
 }
 
 static int
-spa_load_verify_zil_cb_record(const lr_t *lrc, void *arg)
+spa_load_verify_zillwb_cb_record(const lr_t *lrc, void *arg)
 {
-	spa_load_verify_zil_cb_arg_t *slvza = arg;
+	spa_load_verify_zillwb_cb_arg_t *slvza = arg;
 	uint64_t claim_txg = slvza->slvza_claim_txg;
 	spa_t *spa = slvza->slvza_spa;
 
@@ -2371,12 +2354,11 @@ spa_load_verify_zil_cb_record(const lr_t *lrc, void *arg)
 	return (0);
 }
 
-static int
-spa_load_verify_zil_cb(spa_t *spa, uint64_t objset, const zil_header_t *zh_,
-    void *arg)
-{
-	const zil_header_lwb_t *zh = &zh_->zh_lwb;
 
+static int
+spa_load_verify_zillwb(spa_t *spa, uint64_t objset,
+    const zil_header_lwb_t *zh, void *arg)
+{
 	zio_t *rio = arg;
 	uint64_t claim_txg = zh->zh_claim_txg;
 
@@ -2387,20 +2369,39 @@ spa_load_verify_zil_cb(spa_t *spa, uint64_t objset, const zil_header_t *zh_,
 	if (claim_txg == 0 && spa_writeable(spa))
 		return (0);
 
-	spa_load_verify_zil_cb_arg_t *slvza =
-	    kmem_zalloc(sizeof (spa_load_verify_zil_cb_arg_t), KM_SLEEP);
+	spa_load_verify_zillwb_cb_arg_t *slvza =
+	    kmem_zalloc(sizeof (spa_load_verify_zillwb_cb_arg_t), KM_SLEEP);
 	slvza->slvza_spa = spa;
 	slvza->slvza_objset = objset;
 	slvza->slvza_claim_txg = claim_txg;
 	slvza->slvza_rio = rio;
 
-	zillwb_parse_phys(spa, zh, spa_load_verify_zil_cb_block,
-	    spa_load_verify_zil_cb_record, slvza, B_FALSE, ZIO_PRIORITY_SCRUB,
-	    NULL);
+	zillwb_parse_phys(spa, zh, spa_load_verify_zillwb_cb_block,
+	    spa_load_verify_zillwb_cb_record, slvza, B_FALSE,
+	    ZIO_PRIORITY_SCRUB, NULL);
 
 	kmem_free(slvza, sizeof (*slvza));
 
 	return (0);
+}
+
+static int
+spa_load_verify_zil_cb(spa_t *spa, uint64_t objset, const zil_header_t *zh,
+    void *arg)
+{
+	zh_kind_t kind = ZIL_KIND_UNINIT;
+	void const *zhk = NULL;
+	size_t zhk_size = 0;
+	VERIFY0(zil_kind_specific_data_from_header(spa, zh, &zhk, &zhk_size, NULL, &kind));
+	switch (kind) {
+		case ZIL_KIND_LWB:
+			VERIFY3U(zhk_size, ==, sizeof (zil_header_lwb_t));
+			return spa_load_verify_zillwb(spa, objset,
+			    zhk, arg);
+		default:
+			panic("unreachable: zil_kind=%s",
+			    zil_kind_to_str(kind, NULL));
+	}
 }
 
 
@@ -4498,7 +4499,7 @@ spa_ld_verify_pool_data(spa_t *spa)
 }
 
 static void
-spa_ld_claim_log_blocks(spa_t *spa)
+spa_ld_claim_or_clear_logs(spa_t *spa)
 {
 	dmu_tx_t *tx;
 	dsl_pool_t *dp = spa_get_dsl(spa);
@@ -4513,8 +4514,14 @@ spa_ld_claim_log_blocks(spa_t *spa)
 	spa->spa_claiming = B_TRUE;
 
 	tx = dmu_tx_create_assigned(dp, spa_first_txg(spa));
+	/*
+	 * XXX: we really shouldn't be dropping the error here.
+	 * We might be encountering a checksum (=EIO) error that
+	 * slipped in after spa_load_verify_logs reported all OK.
+	 * See https://github.com/openzfs/zfs/issues/11364
+	 */
 	(void) dmu_objset_find_dp(dp, dp->dp_root_dir_obj,
-	    zil_claim, tx, DS_FIND_CHILDREN);
+	    zil_claim_or_clear, tx, DS_FIND_CHILDREN);
 	dmu_tx_commit(tx);
 
 	spa->spa_claiming = B_FALSE;
@@ -4932,6 +4939,30 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, char **ereport)
 	if (error != 0)
 		return (error);
 
+	/* determine zil kind */
+	/* XXX this should actually be more dynamic */
+
+	dsl_pool_t *dp = spa_get_dsl(spa);
+	dsl_pool_config_enter(dp, FTAG);
+	dsl_dataset_t *ds;
+	error = dsl_dataset_hold_obj(dp, dsl_dir_phys(dp->dp_root_dir)->dd_head_dataset_obj, FTAG, &ds);
+	if (error != 0)
+		return (error);
+	objset_t *os;
+	error = dmu_objset_from_ds(ds, &os);
+	if (error != 0)
+		return (error);
+
+	zh_kind_t zk = ZIL_KIND_UNINIT;
+	VERIFY0(zil_kind_specific_data_from_header(spa, &os->os_zil_header, NULL, NULL, NULL, &zk));
+	spa->spa_zil_kind = zk;
+	if (spa->spa_zil_kind != ZIL_KIND_LWB) {
+		VERIFY(spa_feature_is_active(spa, SPA_FEATURE_ZIL_KINDS));
+	}
+	dsl_dataset_rele(ds, FTAG);
+	dsl_pool_config_exit(dp, FTAG);
+	dp = NULL; ds = NULL; os = NULL;
+
 	/*
 	 * Verify the logs now to make sure we don't have any unexpected errors
 	 * when we claim log blocks later.
@@ -4992,7 +5023,7 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, char **ereport)
 		/*
 		 * Traverse the ZIL and claim all blocks.
 		 */
-		spa_ld_claim_log_blocks(spa);
+		spa_ld_claim_or_clear_logs(spa);
 
 		/*
 		 * Kick-off the syncing thread.
@@ -5863,6 +5894,7 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	has_features = B_FALSE;
 	has_encryption = B_FALSE;
 	has_allocclass = B_FALSE;
+	volatile boolean_t has_zil_kinds = B_FALSE;
 	for (nvpair_t *elem = nvlist_next_nvpair(props, NULL);
 	    elem != NULL; elem = nvlist_next_nvpair(props, elem)) {
 		if (zpool_prop_feature(nvpair_name(elem))) {
@@ -5874,6 +5906,8 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 				has_encryption = B_TRUE;
 			if (feat == SPA_FEATURE_ALLOCATION_CLASSES)
 				has_allocclass = B_TRUE;
+			if (feat == SPA_FEATURE_ZIL_KINDS)
+				has_zil_kinds = B_TRUE;
 		}
 	}
 
@@ -5934,31 +5968,42 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	if (error == 0 && !zfs_allocatable_devs(nvroot))
 		error = SET_ERROR(EINVAL);
 
-	if (error == 0 &&
-	    (error = vdev_create(rvd, txg, B_FALSE)) == 0 &&
-	    (error = vdev_draid_spare_create(nvroot, rvd, &ndraid, 0)) == 0 &&
-	    (error = spa_validate_aux(spa, nvroot, txg, VDEV_ALLOC_ADD)) == 0) {
-		/*
-		 * instantiate the metaslab groups (this will dirty the vdevs)
-		 * we can no longer error exit past this point
-		 */
-		for (int c = 0; error == 0 && c < rvd->vdev_children; c++) {
-			vdev_t *vd = rvd->vdev_child[c];
+	if (error == 0)
+		error = vdev_create(rvd, txg, B_FALSE);
+	if (error == 0)
+		error = vdev_draid_spare_create(nvroot, rvd, &ndraid, 0);
+	if (error == 0)
+		error = spa_validate_aux(spa, nvroot, txg, VDEV_ALLOC_ADD);
 
-			vdev_metaslab_set_size(vd);
-			vdev_expand(vd, txg);
+	if (error == 0) {
+		spa->spa_zil_kind = zil_default_kind_get();
+		if (spa->spa_zil_kind != ZIL_KIND_LWB) {
+			error = has_zil_kinds ? 0 : SET_ERROR(ENOTSUP);
+		} else {
+			error = 0;
 		}
 	}
 
-	spa_config_exit(spa, SCL_ALL, FTAG);
-
 	if (error != 0) {
+		spa_config_exit(spa, SCL_ALL, FTAG);
 		spa_unload(spa);
 		spa_deactivate(spa);
 		spa_remove(spa);
 		mutex_exit(&spa_namespace_lock);
 		return (error);
 	}
+
+	/*
+	 * instantiate the metaslab groups (this will dirty the vdevs)
+	 * NB: WE CAN NO LONGER ERROR EXIT PAST THIS POINT!
+	 */
+	for (int c = 0; error == 0 && c < rvd->vdev_children; c++) {
+		vdev_t *vd = rvd->vdev_child[c];
+		vdev_metaslab_set_size(vd);
+		vdev_expand(vd, txg);
+	}
+
+	spa_config_exit(spa, SCL_ALL, FTAG);
 
 	/*
 	 * Get the list of spares, if specified.
@@ -5989,7 +6034,7 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	}
 
 	spa->spa_is_initializing = B_TRUE;
-	spa->spa_dsl_pool = dp = dsl_pool_create(spa, zplprops, dcp, txg);
+	spa->spa_dsl_pool = dp = dsl_pool_create(spa, zplprops, dcp, has_zil_kinds, txg);
 	spa->spa_is_initializing = B_FALSE;
 
 	/*

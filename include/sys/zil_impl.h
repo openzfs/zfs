@@ -30,6 +30,7 @@
 
 #include <sys/zil.h>
 #include <sys/dmu_objset.h>
+#include <sys/zfeature.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -56,39 +57,159 @@ typedef struct itx_async_node {
 	avl_node_t	ia_node;	/* AVL tree linkage */
 } itx_async_node_t;
 
+typedef struct zil_vtable {
+	size_t zlvt_alloc_size;
+
+	/* static methods */
+
+	void (*zlvt_init)(void);
+	void (*zlvt_fini)(void);
+	int (*zlvt_reset_logs)(spa_t *);
+
+	void (*zlvt_init_header)(void *zh, size_t size);
+	boolean_t (*zlvt_validate_header_format)(const void *zh, size_t size);
+
+	/* methods */
+
+	void (*zlvt_ctor)(zilog_t *zilog);
+	void (*zlvt_dtor)(zilog_t *zilog);
+
+	uint64_t (*zlvt_max_copied_data)(zilog_t *zilog);
+
+	void (*zlvt_commit)(zilog_t *zilog, uint64_t foid);
+	void (*zlvt_commit_on_spa_not_writeable)(zilog_t *zilog);
+
+	void (*zlvt_destroy)(zilog_t *zilog);
+	void (*zlvt_destroy_sync)(zilog_t *zilog, dmu_tx_t *tx);
+
+	void (*zlvt_sync)(zilog_t *zilog, dmu_tx_t *tx);
+
+	void (*zlvt_open)(zilog_t *zilog);
+	void (*zlvt_close)(zilog_t *zilog);
+
+	void (*zlvt_replay)(zilog_t *zilog, objset_t *os, void *arg,
+	    zil_replay_func_t *replay_func[TX_MAX_TYPE]);
+	boolean_t (*zlvt_replaying)(zilog_t *zilog, dmu_tx_t *tx);
+    boolean_t (*zlvt_get_is_replaying_no_sideffects)(zilog_t *zilog);
+
+	int (*zlvt_check_log_chain)(zilog_t *zilog);
+	boolean_t (*zlvt_is_claimed)(zilog_t *zilog);
+	int (*zlvt_claim)(zilog_t *zilog, dmu_tx_t *tx);
+	int (*zlvt_clear)(zilog_t *zilog, dmu_tx_t *tx);
+
+} zil_vtable_t;
+
+extern const zil_vtable_t zillwb_vtable;
+
+typedef const zil_vtable_t *zil_const_zil_vtable_ptr_t;
+extern const zil_const_zil_vtable_ptr_t zil_vtables[ZIL_KIND_COUNT];
+
+static inline __attribute__((always_inline))
+boolean_t
+zil_is_valid_zil_kind(uint64_t zil_kind)
+{
+	boolean_t invalid;
+	const char *zil_kind_str = zil_kind_to_str(zil_kind, &invalid);
+	if (invalid) {
+		zfs_dbgmsg("zil_kind=%llu (%s) ZIL_KIND_COUNT=%d",
+		    (u_longlong_t)zil_kind,
+		    zil_kind_str, ZIL_KIND_COUNT);
+	}
+	return (!invalid);
+}
+
+static inline __attribute((always_inline))
+const zil_vtable_t *
+zil_vtable_for_kind(uint64_t zil_kind)
+{
+	VERIFY(zil_is_valid_zil_kind(zil_kind));
+	return (zil_vtables[zil_kind]);
+}
+
+static inline
+int
+zil_kind_specific_data_from_header(spa_t *spa, const zil_header_t *zh, const void **zhk_out, size_t *size_out, zil_vtable_t const **vtable_out, zh_kind_t *zk_out)
+{
+	ASSERT(zh);
+
+	const zil_vtable_t *vt;
+	zh_kind_t zk;
+	const void *zhk;
+	size_t size;
+
+	if (!spa_feature_is_active(spa, SPA_FEATURE_ZIL_KINDS)) {
+		zk = ZIL_KIND_LWB;
+		zhk = &zh->zh_v1.zhv1_lwb;
+		size = sizeof(zil_header_lwb_t);
+		goto okout;
+	}
+
+	zk = zh->zh_v2.zh_kind;
+	switch (zh->zh_v2.zh_kind) {
+		case ZIL_KIND_LWB:
+			zhk = &zh->zh_v2.zh_lwb;
+			size = sizeof(zh->zh_v2.zh_lwb);
+			goto okout;
+		default:
+			/* ZIL_KIND_COUNT for grepping */
+			zfs_dbgmsg("unknown zil kind %llu",
+			    (u_longlong_t)zh->zh_v2.zh_kind);
+			return SET_ERROR(EINVAL);
+	}
+
+okout:
+	vt = zil_vtable_for_kind(zk);
+	VERIFY(vt);
+
+	if (vtable_out)
+		*vtable_out = vt;
+	if (zk_out)
+		*zk_out = zk;
+	if (size_out)
+		*size_out = size;
+	if (zhk_out)
+		*zhk_out = zhk;
+	return (0);
+}
 
 
-/* zil.c <=> zil_lwb.c */
+/*
+ * Stable storage intent log management structure.  One per dataset.
+ */
 
-extern int zfs_zil_lwb_maxblocksize;
+struct zilog {
+	const zil_vtable_t	*zl_vtable;
+
+	struct dsl_pool	*zl_dmu_pool;	/* DSL pool */
+	spa_t		*zl_spa;	/* handle for read/write log */
+	const zil_header_t *zl_header;	/* log header buffer */
+	objset_t	*zl_os;		/* object set we're logging */
+	zil_get_data_t	*zl_get_data;	/* callback to get object content */
+
+	uint8_t		zl_logbias;	/* latency or throughput */
+	uint8_t		zl_sync;	/* synchronous or asynchronous */
+	itxg_t		zl_itxg[TXG_SIZE]; /* intent log txg chains */
+
+	txg_node_t	zl_dirty_link;	/* protected by dp_dirty_zilogs list */
+	uint64_t	zl_dirty_max_txg; /* highest txg used to dirty zilog */
+
+};
+
+void zil_fill_commit_list(zilog_t *zilog, list_t *commit_list);
+void zil_async_to_sync(zilog_t *zilog, uint64_t foid);
 boolean_t zilog_is_dirty(zilog_t *zilog);
-void zil_get_commit_list(zilog_t *zilog);
 
-typedef int zil_replay_func_t(void *arg1, void *arg2, boolean_t byteswap);
+/* zfs_log.c */
+extern uint64_t	zil_max_copied_data(zilog_t *zilog);
+extern void zil_itx_ctor_on_zeroed_memory(itx_t *itx, lr_t *lr, uint64_t txtype, size_t lrsize);
 
-extern void	zillwb_init(void);
-extern void	zillwb_fini(void);
-extern void	zillwb_close(zilog_t *zilog);
-extern void	zillwb_replay(objset_t *os, void *arg,
-    zil_replay_func_t *replay_func[TX_MAX_TYPE]);
-extern boolean_t zillwb_replaying(zilog_t *zilog, dmu_tx_t *tx);
-extern void	zillwb_destroy(zilog_t *zilog, boolean_t keep_first);
-extern void	zillwb_destroy_sync(zilog_t *zilog, dmu_tx_t *tx);
-extern void	zillwb_commit(zilog_t *zilog, uint64_t oid);
-extern int	zillwb_reset(const char *osname, void *txarg);
-extern int	zillwb_claim(struct dsl_pool *dp,
-    struct dsl_dataset *ds, void *txarg);
-extern int 	zillwb_check_log_chain(struct dsl_pool *dp,
-    struct dsl_dataset *ds, void *tx);
-extern void	zillwb_sync(zilog_t *zilog, dmu_tx_t *tx);
-extern int	zillwb_suspend(const char *osname, void **cookiep);
-extern void	zillwb_resume(void *cookie);
-extern void	zillwb_lwb_add_block(struct lwb *lwb, const blkptr_t *bp);
-extern void	zillwb_lwb_add_txg(struct lwb *lwb, uint64_t txg);
-extern int	zillwb_bp_tree_add(zilog_t *zilog, const blkptr_t *bp);
-extern uint64_t	zillwb_max_copied_data(zilog_t *zilog);
-extern uint64_t	zillwb_max_log_data(zilog_t *zilog);
-
+static inline boolean_t
+zil_itx_is_write_need_copy(const itx_t *itx)
+{
+	/* short-circuiting effect is important for correctness! */
+	return (itx->itx_lr.lrc_txtype == TX_WRITE &&
+	    itx->itx_wr_state == WR_NEED_COPY);
+}
 
 #ifdef	__cplusplus
 }

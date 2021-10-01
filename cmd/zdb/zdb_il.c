@@ -63,7 +63,7 @@ print_log_bp(const blkptr_t *bp, const char *prefix)
 typedef struct {
 	spa_t *pra_spa;
 	objset_t *pra_os;
-	const zil_header_lwb_t *pra_zh;
+	uint64_t pra_claim_txg;
 } print_record_arg_t;
 
 /* ARGSUSED */
@@ -183,7 +183,7 @@ zil_prt_rec_write(const print_record_arg_t *arg, int txtype, const lr_t *lrc)
 			(void) printf("%s<hole>\n", tab_prefix);
 			return;
 		}
-		if (bp->blk_birth < arg->pra_zh->zh_claim_txg) {
+		if (bp->blk_birth < arg->pra_claim_txg) {
 			(void) printf("%s<block already committed>\n",
 			    tab_prefix);
 			return;
@@ -371,7 +371,7 @@ print_log_block(const blkptr_t *bp, void *varg)
 		blkbuf[0] = '\0';
 	}
 
-	if (arg->pra_zh->zh_claim_txg != 0)
+	if (arg->pra_claim_txg != 0)
 		claim = "already claimed";
 	else if (bp->blk_birth >= spa_min_claim_txg(arg->pra_spa))
 		claim = "will claim";
@@ -406,11 +406,26 @@ print_log_stats(int verbose)
 	(void) printf("\n");
 }
 
+#include <libnvpair.h>
+
 /* ARGSUSED */
 void
-dump_intent_log(zilog_t *zilog)
+dump_intent_log(zilog_t *super)
 {
-	const zil_header_lwb_t *zh = &zilog->zl_header->zh_lwb;
+	if (super->zl_vtable != &zillwb_vtable) {
+		/*
+		 * TODO refactor this as a vfunc that only exists when compiling
+		 * zdb.
+		 */
+		zh_kind_t kind = 0;
+		VERIFY0(zil_kind_specific_data_from_header(super->zl_spa, super->zl_header, NULL, NULL, NULL, &kind));
+		(void) printf("\n    ZIL kind %u dump not supported by zdb\n", kind);
+		return;
+	}
+	zilog_lwb_t *zilog = zillwb_downcast(super);
+
+	const zil_header_lwb_t *zh =
+	    zillwb_zil_header_const(zilog);
 	int verbose = MAX(dump_opt['d'], dump_opt['i']);
 	int i;
 
@@ -429,20 +444,20 @@ dump_intent_log(zilog_t *zilog)
 		zil_rec_info[i].zri_count = 0;
 
 	/* see comment in zil_claim() or zil_check_log_chain() */
-	if (zilog->zl_spa->spa_uberblock.ub_checkpoint_txg != 0 &&
+	if (zilog->zl_super.zl_spa->spa_uberblock.ub_checkpoint_txg != 0 &&
 	    zh->zh_claim_txg == 0)
 		return;
 
 	if (verbose >= 2) {
 		(void) printf("\n");
 		print_record_arg_t arg = {
-			.pra_os = zilog->zl_os,
-			.pra_spa = zilog->zl_spa,
-			.pra_zh = zh
+			.pra_os = zilog->zl_super.zl_os,
+			.pra_spa = zilog->zl_super.zl_spa,
+			.pra_claim_txg = zillwb_zil_header_const(zilog)->zh_claim_txg,
 		};
-		(void) zillwb_parse_phys(zilog->zl_spa, zh, print_log_block,
-		    print_log_record, &arg, B_FALSE, ZIO_PRIORITY_SYNC_READ,
-		    NULL);
+		(void) zillwb_parse_phys(zilog->zl_super.zl_spa, zh,
+		    print_log_block, print_log_record, &arg, B_FALSE,
+		    ZIO_PRIORITY_SYNC_READ, NULL);
 		print_log_stats(verbose);
 	}
 }

@@ -47,6 +47,45 @@ function cleanup
 	rm -rf $TESTDIR $VDIR $VDIR2
 }
 
+function get_zil_default_kind
+{
+	typeset numeric=$(cat /sys/module/zfs/parameters/zil_default_kind)
+	case $numeric in
+		1)
+			echo "zil-lwb"
+			;;
+		*)
+			log_note "Unknown zil_default_kind $numeric"
+			return 1
+			;;
+	esac
+	return 0
+}
+
+# $1 skip test if the kernel moddule's default zil kinds != $1 ("lwb")
+function only_for_zil_default_kind
+{
+	typeset only_kind=$1
+	typeset is_kind=$(get_zil_default_kind)
+	if [[ $is_kind != $only_kind ]]; then
+		log_unsupported "Test only supports zil kind $only_kind, but is $is_kind"
+		return 1
+	fi
+	return 0
+}
+
+# $1 skip test if on specified zil kind
+function not_on_zil_kind
+{
+	typeset not_on_kind=$1
+	typeset is_kind=$(get_zil_default_kind)
+	if [[ $is_kind == $not_on_kind ]]; then
+		log_unsupported "This test does not apply to ZIL kind $is_kind"
+		return 1
+	fi
+	return 0
+}
+
 #
 # Try zpool status/iostat for given pool
 #

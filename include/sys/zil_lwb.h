@@ -3,6 +3,8 @@
 
 #include <sys/zil_impl.h>
 
+typedef struct zilog_lwb zilog_lwb_t;
+
 /*
  * zh_flags bit settings
  */
@@ -113,7 +115,7 @@ typedef enum {
  * "zl_lock" is used to protect the lwb against concurrent access.
  */
 typedef struct lwb {
-	zilog_t		*lwb_zilog;	/* back pointer to log struct */
+	zilog_lwb_t	*lwb_zilog;	/* back pointer to log struct */
 	blkptr_t	lwb_blk;	/* on disk address of this log blk */
 	boolean_t	lwb_fastwrite;	/* is blk marked for fastwrite? */
 	boolean_t	lwb_slog;	/* lwb_blk is on SLOG device */
@@ -150,7 +152,7 @@ typedef struct lwb {
  * "zl_issuer_lock" or "zl_lock" when already holding the "zcw_lock";
  * e.g. see the zillwb_commit_waiter_timeout() function.
  */
-typedef struct zillwb_commit_waiter {
+typedef struct zil_commit_waiter {
 	kcondvar_t	zcw_cv;		/* signalled when "done" */
 	kmutex_t	zcw_lock;	/* protects fields of this struct */
 	list_node_t	zcw_node;	/* linkage in lwb_t:lwb_waiter list */
@@ -165,42 +167,38 @@ typedef struct zillwb_commit_waiter {
  * Stable storage intent log management structure.  One per dataset.
  */
 struct zilog_lwb {
-	kmutex_t	zl_lock;	/* protects most zilog_lwb_t fields */
-	struct dsl_pool	*zl_dmu_pool;	/* DSL pool */
-	spa_t		*zl_spa;	/* handle for read/write log */
-	const zil_header_t *zl_header;	/* log header buffer */
-	objset_t	*zl_os;		/* object set we're logging */
-	zil_get_data_t	*zl_get_data;	/* callback to get object content */
+	zilog_t	zl_super;
+
+	kmutex_t	zl_lock;	/* protects most zilog_t fields */
+
+	uint8_t		zl_stop_sync;	/* for debugging */
+
+	uint64_t	zl_replayed_seq[TXG_SIZE]; /* last replayed rec seq */
+	uint64_t	zl_replaying_seq; /* current replay seq number */
+	uint8_t		zl_replay;	/* replaying records while set */
+	clock_t		zl_replay_time;	/* lbolt of when replay started */
+	uint64_t	zl_replay_blks;	/* number of log blocks replayed */
+
 	lwb_t		*zl_last_lwb_opened; /* most recent lwb opened */
 	hrtime_t	zl_last_lwb_latency; /* zio latency of last lwb done */
 	uint64_t	zl_lr_seq;	/* on-disk log record sequence number */
-	uint64_t	zl_commit_lr_seq; /* last committed on-disk lr seq */
-	uint64_t	zl_destroy_txg;	/* txg of last zil_destroy() */
-	uint64_t	zl_replayed_seq[TXG_SIZE]; /* last replayed rec seq */
-	uint64_t	zl_replaying_seq; /* current replay seq number */
-	uint32_t	zl_suspend;	/* log suspend count */
-	kcondvar_t	zl_cv_suspend;	/* log suspend completion */
-	uint8_t		zl_suspending;	/* log is currently suspending */
-	uint8_t		zl_keep_first;	/* keep first log block in destroy */
-	uint8_t		zl_replay;	/* replaying records while set */
-	uint8_t		zl_stop_sync;	/* for debugging */
-	kmutex_t	zl_issuer_lock;	/* single writer, per ZIL, at a time */
-	uint8_t		zl_logbias;	/* latency or throughput */
-	uint8_t		zl_sync;	/* synchronous or asynchronous */
-	zillwb_parse_result_t zl_last_parse_result;
-	    /* last zil_parse() result */
-	itxg_t		zl_itxg[TXG_SIZE]; /* intent log txg chains */
-	list_t		zl_itx_commit_list; /* itx list to be committed */
-	uint64_t	zl_cur_used;	/* current commit log size used */
 	list_t		zl_lwb_list;	/* in-flight log write list */
 	avl_tree_t	zl_bp_tree;	/* track bps during log parse */
-	clock_t		zl_replay_time;	/* lbolt of when replay started */
-	uint64_t	zl_replay_blks;	/* number of log blocks replayed */
-	zil_header_lwb_t	zl_old_header;	/* debugging aid */
+	kmutex_t	zl_issuer_lock;	/* single writer, per ZIL, at a time */
+	uint64_t	zl_destroy_txg;	/* txg of last zil_destroy() */
+	uint8_t		zl_keep_first;	/* keep first log block in destroy */
+	/* size - sector rounded */
 	uint_t		zl_prev_blks[ZILLWB_PREV_BLKS];
+	uint64_t	zl_cur_used;	/* current commit log size used */
 	uint_t		zl_prev_rotor;	/* rotor for zl_prev[] */
-	txg_node_t	zl_dirty_link;	/* protected by dp_dirty_zilogs list */
-	uint64_t	zl_dirty_max_txg; /* highest txg used to dirty zilog */
+
+	list_t		zl_itx_commit_list; /* itx list to be committed */
+
+	/* last zil_parse() result */
+	zillwb_parse_result_t zl_last_parse_result;
+
+	uint64_t	zl_commit_lr_seq; /* last committed on-disk lr seq */
+
 	/*
 	 * Max block size for this ZIL.  Note that this can not be changed
 	 * while the ZIL is in use because consumers (ZPL/zvol) need to take
@@ -208,9 +206,20 @@ struct zilog_lwb {
 	 * (see zil_max_copied_data()).
 	 */
 	uint64_t	zl_max_block_size;
+
+	uint32_t	zl_suspend;	/* log suspend count */
+	kcondvar_t	zl_cv_suspend;	/* log suspend completion */
+	uint8_t		zl_suspending;	/* log is currently suspending */
+
 };
-typedef struct zilog_lwb zilog_lwb_t;
-typedef struct zilog_lwb zilog_t;
+
+static inline __attribute__((always_inline))
+zilog_lwb_t *
+zillwb_downcast(zilog_t *zilog)
+{
+	VERIFY3P(zilog->zl_vtable, ==, &zillwb_vtable);
+	return ((zilog_lwb_t *)zilog);
+}
 
 void zillwb_commit_waiter_skip(zillwb_commit_waiter_t *zcw);
 
@@ -218,8 +227,16 @@ static inline
 const zil_header_lwb_t *
 zillwb_zil_header_const(const zilog_lwb_t *zilog)
 {
-	return &zilog->zl_header->zh_lwb;
+	if (spa_feature_is_active(zilog->zl_super.zl_spa, SPA_FEATURE_ZIL_KINDS)) {
+		const zil_header_v2_t *super = &zilog->zl_super.zl_header->zh_v2;
+		VERIFY3U(super->zh_kind, ==, ZIL_KIND_LWB);
+		return (&super->zh_lwb);
+	} else {
+		return (&zilog->zl_super.zl_header->zh_v1.zhv1_lwb);
+	}
 }
+
+extern uint64_t	zillwb_max_log_data(zilog_lwb_t *zilog);
 
 /*
  * Used for zil_lwb kstat.
@@ -281,8 +298,8 @@ extern zillwb_stats_t zil_stats;
     ZIL_STAT_INCR(stat, 1);
 
 
-extern void	zil_lwb_add_block(struct lwb *lwb, const blkptr_t *bp);
-extern void	zil_lwb_add_txg(struct lwb *lwb, uint64_t txg);
+extern void	zillwb_lwb_add_block(struct lwb *lwb, const blkptr_t *bp);
+extern void	zillwb_lwb_add_txg(struct lwb *lwb, uint64_t txg);
 
 
 #endif /* _SYS_ZIL_LWB_H_ */

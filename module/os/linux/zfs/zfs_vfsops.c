@@ -909,7 +909,7 @@ zfsvfs_setup(zfsvfs_t *zfsvfs, boolean_t mounting)
 		 */
 		if (spa_writeable(dmu_objset_spa(zfsvfs->z_os))) {
 			if (zil_replay_disable) {
-				zil_destroy(zfsvfs->z_log, B_FALSE);
+				zil_destroy(zfsvfs->z_log);
 			} else {
 				zfsvfs->z_replay = B_TRUE;
 				zil_replay(zfsvfs->z_os, zfsvfs,

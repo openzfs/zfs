@@ -475,7 +475,7 @@ dsl_pool_destroy_obsolete_bpobj(dsl_pool_t *dp, dmu_tx_t *tx)
 }
 
 dsl_pool_t *
-dsl_pool_create(spa_t *spa, nvlist_t *zplprops, dsl_crypto_params_t *dcp,
+dsl_pool_create(spa_t *spa, nvlist_t *zplprops, dsl_crypto_params_t *dcp, boolean_t has_zil_kinds,
     uint64_t txg)
 {
 	int err;
@@ -542,6 +542,9 @@ dsl_pool_create(spa_t *spa, nvlist_t *zplprops, dsl_crypto_params_t *dcp,
 	if (dcp != NULL && dcp->cp_crypt != ZIO_CRYPT_OFF &&
 	    dcp->cp_crypt != ZIO_CRYPT_INHERIT)
 		spa_feature_enable(spa, SPA_FEATURE_ENCRYPTION, tx);
+
+	if (has_zil_kinds)
+		spa_feature_enable(spa, SPA_FEATURE_ZIL_KINDS, tx);
 
 	/* create the root dataset */
 	obj = dsl_dataset_create_sync_dd(dp->dp_root_dir, NULL, dcp, 0, tx);

@@ -156,7 +156,7 @@ int dsl_pool_init(spa_t *spa, uint64_t txg, dsl_pool_t **dpp);
 int dsl_pool_open(dsl_pool_t *dp);
 void dsl_pool_close(dsl_pool_t *dp);
 dsl_pool_t *dsl_pool_create(spa_t *spa, nvlist_t *zplprops,
-    struct dsl_crypto_params *dcp, uint64_t txg);
+    struct dsl_crypto_params *dcp, boolean_t has_zil_kinds, uint64_t txg);
 void dsl_pool_sync(dsl_pool_t *dp, uint64_t txg);
 void dsl_pool_sync_done(dsl_pool_t *dp, uint64_t txg);
 int dsl_pool_sync_context(dsl_pool_t *dp);

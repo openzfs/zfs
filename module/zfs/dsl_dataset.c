@@ -101,8 +101,6 @@ static void unload_zfeature(dsl_dataset_t *ds, spa_feature_t f);
 
 extern int spa_asize_inflation;
 
-static zil_header_t zero_zil;
-
 /*
  * Figure out how much of this delta should be propagated to the dsl_dir
  * layer.  If there's a refreservation, that space has already been
@@ -1244,17 +1242,29 @@ dsl_dataset_create_sync_dd(dsl_dir_t *dd, dsl_dataset_t *origin,
 	return (dsobj);
 }
 
+void
+dsl_dataset_initialized_zil_header(dsl_dataset_t *ds, zil_header_t *out)
+{
+	spa_t *spa = ds->ds_dir->dd_pool->dp_spa;
+	zil_init_header(spa, out, spa->spa_zil_kind);
+}
+
 static void
-dsl_dataset_zero_zil(dsl_dataset_t *ds, dmu_tx_t *tx)
+dsl_dataset_init_zil_header(dsl_dataset_t *ds, dmu_tx_t *tx)
 {
 	objset_t *os;
 
 	VERIFY0(dmu_objset_from_ds(ds, &os));
-	if (bcmp(&os->os_zil_header, &zero_zil, sizeof (zero_zil)) != 0) {
+
+	zil_header_t desired;
+	dsl_dataset_initialized_zil_header(ds, &desired);
+
+	if (bcmp(&os->os_zil_header, &desired, sizeof (desired)) != 0) {
 		dsl_pool_t *dp = ds->ds_dir->dd_pool;
 		zio_t *zio;
 
-		bzero(&os->os_zil_header, sizeof (os->os_zil_header));
+		bcopy(&desired, &os->os_zil_header, sizeof (desired));
+
 		if (os->os_encrypted)
 			os->os_next_write_raw[tx->tx_txg & TXG_MASK] = B_TRUE;
 
@@ -1335,7 +1345,7 @@ dsl_dataset_create_sync(dsl_dir_t *pdd, const char *lastname,
 		dsl_dataset_t *ds;
 
 		VERIFY0(dsl_dataset_hold_obj(dp, dsobj, FTAG, &ds));
-		dsl_dataset_zero_zil(ds, tx);
+		dsl_dataset_init_zil_header(ds, tx);
 		dsl_dataset_rele(ds, FTAG);
 	}
 
@@ -1687,8 +1697,6 @@ dsl_dataset_snapshot_sync_impl(dsl_dataset_t *ds, const char *snapname,
 	dsl_dataset_phys_t *dsphys;
 	uint64_t dsobj, crtxg;
 	objset_t *mos = dp->dp_meta_objset;
-	static zil_header_t zero_zil __maybe_unused;
-	objset_t *os __maybe_unused;
 
 	ASSERT(RRW_WRITE_HELD(&dp->dp_config_rwlock));
 
@@ -1696,10 +1704,14 @@ dsl_dataset_snapshot_sync_impl(dsl_dataset_t *ds, const char *snapname,
 	 * If we are on an old pool, the zil must not be active, in which
 	 * case it will be zeroed.  Usually zil_suspend() accomplishes this.
 	 */
-	ASSERT(spa_version(dmu_tx_pool(tx)->dp_spa) >= SPA_VERSION_FAST_SNAP ||
-	    dmu_objset_from_ds(ds, &os) != 0 ||
-	    bcmp(&os->os_phys->os_zil_header, &zero_zil,
-	    sizeof (zero_zil)) == 0);
+	if (unlikely(spa_version(dmu_tx_pool(tx)->dp_spa) < SPA_VERSION_FAST_SNAP)) {
+		objset_t *os;
+		VERIFY0(dmu_objset_from_ds(ds, &os)); // REVIEW: before this commit, an error would go unnoticed.
+		static zil_header_t desired;
+		dsl_dataset_initialized_zil_header(ds, &desired);
+
+		VERIFY(bcmp(&os->os_phys->os_zil_header, &desired, sizeof (desired)) == 0);
+	}
 
 	/* Should not snapshot a dirty dataset. */
 	ASSERT(!txg_list_member(&ds->ds_dir->dd_pool->dp_dirty_datasets,
@@ -1928,7 +1940,7 @@ dsl_dataset_snapshot(nvlist_t *snaps, nvlist_t *props, nvlist_t *errors)
 			}
 			(void) strlcpy(fsname, snapname, atp - snapname + 1);
 
-			error = zil_suspend(fsname, &cookie);
+			error = zillwb_suspend(fsname, &cookie);
 			if (error != 0)
 				break;
 			fnvlist_add_uint64(suspended, fsname,
@@ -1951,7 +1963,7 @@ dsl_dataset_snapshot(nvlist_t *snaps, nvlist_t *props, nvlist_t *errors)
 	if (suspended != NULL) {
 		for (pair = nvlist_next_nvpair(suspended, NULL); pair != NULL;
 		    pair = nvlist_next_nvpair(suspended, pair)) {
-			zil_resume((void *)(uintptr_t)
+			zillwb_resume((void *)(uintptr_t)
 			    fnvpair_value_uint64(pair));
 		}
 		fnvlist_free(suspended);
@@ -2048,7 +2060,7 @@ dsl_dataset_snapshot_tmp(const char *fsname, const char *snapname,
 	spa_close(spa, FTAG);
 
 	if (needsuspend) {
-		error = zil_suspend(fsname, &cookie);
+		error = zillwb_suspend(fsname, &cookie);
 		if (error != 0)
 			return (error);
 	}
@@ -2057,7 +2069,7 @@ dsl_dataset_snapshot_tmp(const char *fsname, const char *snapname,
 	    dsl_dataset_snapshot_tmp_sync, &ddsta, 3, ZFS_SPACE_CHECK_RESERVED);
 
 	if (needsuspend)
-		zil_resume(cookie);
+		zillwb_resume(cookie);
 	return (error);
 }
 
@@ -3255,7 +3267,7 @@ dsl_dataset_rollback_sync(void *arg, dmu_tx_t *tx)
 	VERIFY0(dsl_dataset_hold_obj(dp, cloneobj, FTAG, &clone));
 
 	dsl_dataset_clone_swap_sync_impl(clone, ds, tx);
-	dsl_dataset_zero_zil(ds, tx);
+	dsl_dataset_init_zil_header(ds, tx);
 
 	dsl_destroy_head_sync_impl(clone, tx);
 

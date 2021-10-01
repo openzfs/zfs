@@ -1386,7 +1386,7 @@ typedef struct zil_scan_arg {
 
 /* ARGSUSED */
 static int
-dsl_scan_zil_block(const blkptr_t *bp, void *arg)
+dsl_scan_zillwb_block(const blkptr_t *bp, void *arg)
 {
 	zil_scan_arg_t *zsa = arg;
 	uint64_t claim_txg = zsa->zsa_claim_txg;
@@ -1418,7 +1418,7 @@ dsl_scan_zil_block(const blkptr_t *bp, void *arg)
 
 /* ARGSUSED */
 static int
-dsl_scan_zil_record(const lr_t *lrc, void *arg)
+dsl_scan_zillwb_record(const lr_t *lrc, void *arg)
 {
 	if (lrc->lrc_txtype == TX_WRITE) {
 		zil_scan_arg_t *zsa = arg;
@@ -1454,7 +1454,7 @@ dsl_scan_zil_record(const lr_t *lrc, void *arg)
 }
 
 static void
-dsl_scan_zil(dsl_pool_t *dp, zil_header_lwb_t *zh)
+dsl_scan_zillwb(dsl_pool_t *dp, const zil_header_lwb_t *zh)
 {
 	uint64_t claim_txg = zh->zh_claim_txg;
 	zil_scan_arg_t zsa = { dp, zh, claim_txg };
@@ -1469,8 +1469,9 @@ dsl_scan_zil(dsl_pool_t *dp, zil_header_lwb_t *zh)
 		return;
 
 	/* TODO we could change the priority to ZIO_PRIORITY_SCRUB */
-	(void) zillwb_parse_phys(dp->dp_spa, zh, dsl_scan_zil_block,
-	    dsl_scan_zil_record, &zsa, B_FALSE, ZIO_PRIORITY_SYNC_READ, NULL);
+	(void) zillwb_parse_phys(dp->dp_spa, zh, dsl_scan_zillwb_block,
+	    dsl_scan_zillwb_record, &zsa, B_FALSE, ZIO_PRIORITY_SYNC_READ,
+	    NULL);
 
 }
 
@@ -2436,7 +2437,18 @@ dsl_scan_visitds(dsl_scan_t *scn, uint64_t dsobj, dmu_tx_t *tx)
 		if (dmu_objset_from_ds(ds, &os) != 0) {
 			goto out;
 		}
-		dsl_scan_zil(dp, &os->os_zil_header.zh_lwb);
+		void const *zhk = NULL;
+		zh_kind_t kind = ZIL_KIND_UNINIT;
+		size_t zhk_size = 0;
+		VERIFY0(zil_kind_specific_data_from_header(dp->dp_spa, &os->os_zil_header, &zhk, &zhk_size, NULL, &kind));
+		switch (kind) {
+			case ZIL_KIND_LWB:
+				VERIFY3U(zhk_size, ==, sizeof(zil_header_lwb_t));
+				dsl_scan_zillwb(dp, zhk);
+				break;
+			default:
+				panic("unimplemented zil_kind = %d", kind);
+		}
 	}
 
 	/*

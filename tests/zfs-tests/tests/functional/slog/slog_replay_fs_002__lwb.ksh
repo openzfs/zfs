@@ -53,6 +53,7 @@ function cleanup_fs
 
 log_assert "Replay of intent log succeeds."
 log_onexit cleanup_fs
+only_for_zil_default_kind "zil-lwb"
 log_must setup
 
 #

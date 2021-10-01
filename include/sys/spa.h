@@ -60,7 +60,7 @@ typedef struct metaslab metaslab_t;
 typedef struct metaslab_group metaslab_group_t;
 typedef struct metaslab_class metaslab_class_t;
 typedef struct zio zio_t;
-typedef struct zilog_lwb zilog_t;
+typedef struct zilog zilog_t;
 typedef struct spa_aux_vdev spa_aux_vdev_t;
 typedef struct ddt ddt_t;
 typedef struct ddt_entry ddt_entry_t;
@@ -999,7 +999,7 @@ extern void spa_set_log_state(spa_t *spa, spa_log_state_t state);
 extern int spa_reset_logs(spa_t *spa);
 
 /* Log claim callback */
-extern void spa_claim_notify(zio_t *zio);
+extern void spa_claim_notify(spa_t *spa, uint64_t claim_max_txg);
 extern void spa_deadman(void *);
 
 /* Accessor functions */

@@ -1024,7 +1024,7 @@ zvol_os_create_minor(const char *name)
 	zv->zv_zilog = zil_open(os, zvol_get_data);
 	if (spa_writeable(dmu_objset_spa(os))) {
 		if (zil_replay_disable)
-			zil_destroy(zv->zv_zilog, B_FALSE);
+			zil_destroy(zv->zv_zilog);
 		else
 			zil_replay(os, zv, zvol_replay_vector);
 	}
