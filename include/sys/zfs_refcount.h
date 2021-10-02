@@ -72,6 +72,14 @@ int zfs_refcount_is_zero(zfs_refcount_t *);
 int64_t zfs_refcount_count(zfs_refcount_t *);
 int64_t zfs_refcount_add(zfs_refcount_t *, const void *);
 int64_t zfs_refcount_remove(zfs_refcount_t *, const void *);
+/*
+ * Note that (add|remove)_many add/remove one reference with "number" N,
+ * _not_ make N references with "number" 1, which is what vanilla
+ * zfs_refcount_(add|remove) would do if called N times.
+ *
+ * Attempting to remove a reference with number N when none exists is a
+ * panic on debug kernels with reference_tracking enabled.
+ */
 int64_t zfs_refcount_add_many(zfs_refcount_t *, uint64_t, const void *);
 int64_t zfs_refcount_remove_many(zfs_refcount_t *, uint64_t, const void *);
 void zfs_refcount_transfer(zfs_refcount_t *, zfs_refcount_t *);
