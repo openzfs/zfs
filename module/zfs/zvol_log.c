@@ -3,6 +3,7 @@
 #include <sys/zvol.h>
 #include <sys/zvol_impl.h>
 #include <sys/zil_impl.h>
+#include <sys/zil_lwb.h>
 #include <sys/dmu_tx.h>
 
 /*

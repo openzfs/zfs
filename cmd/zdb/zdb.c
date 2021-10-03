@@ -58,7 +58,7 @@
 #include <sys/dsl_pool.h>
 #include <sys/dsl_bookmark.h>
 #include <sys/dbuf.h>
-#include <sys/zil.h>
+#include <sys/zil_lwb.h>
 #include <sys/zil_impl.h>
 #include <sys/stat.h>
 #include <sys/resource.h>

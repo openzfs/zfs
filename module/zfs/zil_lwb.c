@@ -35,6 +35,7 @@
 #include <sys/arc.h>
 #include <sys/stat.h>
 #include <sys/zil.h>
+#include <sys/zil_lwb.h>
 #include <sys/zil_impl.h>
 #include <sys/dsl_dataset.h>
 #include <sys/vdev_impl.h>

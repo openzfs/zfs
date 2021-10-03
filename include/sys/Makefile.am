@@ -122,6 +122,7 @@ COMMON_H = \
 	zfs_znode.h \
 	zil.h \
 	zil_impl.h \
+	zil_lwb.h \
 	zio_checksum.h \
 	zio_compress.h \
 	zio_crypt.h \

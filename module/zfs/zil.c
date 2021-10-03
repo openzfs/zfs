@@ -36,6 +36,7 @@
 #include <sys/stat.h>
 #include <sys/zil.h>
 #include <sys/zil_impl.h>
+#include <sys/zil_lwb.h> /* temporary until the refactoring is complete */
 #include <sys/dsl_dataset.h>
 #include <sys/vdev_impl.h>
 #include <sys/dmu_tx.h>

@@ -29,7 +29,7 @@
 #include <sys/spa_impl.h>
 #include <sys/zio.h>
 #include <sys/zio_checksum.h>
-#include <sys/zil.h>
+#include <sys/zil_lwb.h>
 #include <sys/abd.h>
 #include <zfs_fletcher.h>
 

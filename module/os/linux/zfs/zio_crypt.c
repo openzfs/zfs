@@ -23,7 +23,7 @@
 #include <sys/dnode.h>
 #include <sys/fs/zfs.h>
 #include <sys/zio.h>
-#include <sys/zil.h>
+#include <sys/zil_lwb.h>
 #include <sys/sha2.h>
 #include <sys/hkdf.h>
 #include <sys/qat.h>

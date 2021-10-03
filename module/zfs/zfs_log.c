@@ -35,6 +35,7 @@
 #include <sys/zfs_znode.h>
 #include <sys/zfs_dir.h>
 #include <sys/zil.h>
+#include <sys/zil_lwb.h>
 #include <sys/zil_impl.h>
 #include <sys/byteorder.h>
 #include <sys/policy.h>

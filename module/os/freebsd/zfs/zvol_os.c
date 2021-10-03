@@ -91,6 +91,7 @@
 #include <sys/zfeature.h>
 #include <sys/zio_checksum.h>
 #include <sys/zil_impl.h>
+#include <sys/zil_lwb.h>
 #include <sys/filio.h>
 
 #include <geom/geom.h>

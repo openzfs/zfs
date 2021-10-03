@@ -31,6 +31,8 @@
 #if !defined(_TRACE_ZIL_H) || defined(TRACE_HEADER_MULTI_READ)
 #define	_TRACE_ZIL_H
 
+#include <sys/zil_lwb.h>
+
 #include <linux/tracepoint.h>
 #include <sys/types.h>
 

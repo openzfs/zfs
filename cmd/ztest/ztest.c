@@ -102,7 +102,7 @@
 #include <sys/mman.h>
 #include <sys/resource.h>
 #include <sys/zio.h>
-#include <sys/zil.h>
+#include <sys/zil_lwb.h>
 #include <sys/zil_impl.h>
 #include <sys/vdev_draid.h>
 #include <sys/vdev_impl.h>

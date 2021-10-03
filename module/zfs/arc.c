@@ -297,6 +297,7 @@
 #include <sys/multilist.h>
 #include <sys/abd.h>
 #include <sys/zil.h>
+#include <sys/zil_lwb.h>
 #include <sys/fm/fs/zfs.h>
 #include <sys/callb.h>
 #include <sys/kstat.h>

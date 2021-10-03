@@ -40,7 +40,7 @@
 #include <sys/dmu.h>
 #include <sys/stat.h>
 #include <sys/resource.h>
-#include <sys/zil.h>
+#include <sys/zil_lwb.h>
 #include <sys/zil_impl.h>
 #include <sys/spa_impl.h>
 #include <sys/abd.h>
