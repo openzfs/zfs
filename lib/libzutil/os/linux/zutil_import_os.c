@@ -65,6 +65,7 @@
 #include <thread_pool.h>
 #include <libzutil.h>
 #include <libnvpair.h>
+#include <libzfs.h>
 
 #include "zutil_import.h"
 
@@ -758,6 +759,58 @@ no_dev:
 }
 
 /*
+ * Rescan the enclosure sysfs path for turning on enclosure LEDs and store it
+ * in the nvlist * (if applicable).  Like:
+ *    vdev_enc_sysfs_path: '/sys/class/enclosure/11:0:1:0/SLOT 4'
+ */
+static void
+update_vdev_config_dev_sysfs_path(nvlist_t *nv, char *path)
+{
+	char *upath, *spath;
+
+	/* Add enclosure sysfs path (if disk is in an enclosure). */
+	upath = zfs_get_underlying_path(path);
+	spath = zfs_get_enclosure_sysfs_path(upath);
+
+	if (spath) {
+		nvlist_add_string(nv, ZPOOL_CONFIG_VDEV_ENC_SYSFS_PATH, spath);
+	} else {
+		nvlist_remove_all(nv, ZPOOL_CONFIG_VDEV_ENC_SYSFS_PATH);
+	}
+
+	free(upath);
+	free(spath);
+}
+
+/*
+ * This will get called for each leaf vdev.
+ */
+static int
+sysfs_path_pool_vdev_iter_f(void *hdl_data, nvlist_t *nv, void *data)
+{
+	char *path = NULL;
+	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &path) != 0)
+		return (1);
+
+	/* Rescan our enclosure sysfs path for this vdev */
+	update_vdev_config_dev_sysfs_path(nv, path);
+	return (0);
+}
+
+/*
+ * Given an nvlist for our pool (with vdev tree), iterate over all the
+ * leaf vdevs and update their ZPOOL_CONFIG_VDEV_ENC_SYSFS_PATH.
+ */
+void
+update_vdevs_config_dev_sysfs_path(nvlist_t *config)
+{
+	nvlist_t *nvroot = NULL;
+	verify(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE,
+	    &nvroot) == 0);
+	for_each_vdev_in_nvlist(nvroot, sysfs_path_pool_vdev_iter_f, NULL);
+}
+
+/*
  * Update a leaf vdev's persistent device strings
  *
  * - only applies for a dedicated leaf vdev (aka whole disk)
@@ -783,7 +836,6 @@ update_vdev_config_dev_strs(nvlist_t *nv)
 	vdev_dev_strs_t vds;
 	char *env, *type, *path;
 	uint64_t wholedisk = 0;
-	char *upath, *spath;
 
 	/*
 	 * For the benefit of legacy ZFS implementations, allow
@@ -830,18 +882,7 @@ update_vdev_config_dev_strs(nvlist_t *nv)
 			(void) nvlist_add_string(nv, ZPOOL_CONFIG_PHYS_PATH,
 			    vds.vds_devphys);
 		}
-
-		/* Add enclosure sysfs path (if disk is in an enclosure). */
-		upath = zfs_get_underlying_path(path);
-		spath = zfs_get_enclosure_sysfs_path(upath);
-		if (spath)
-			nvlist_add_string(nv, ZPOOL_CONFIG_VDEV_ENC_SYSFS_PATH,
-			    spath);
-		else
-			nvlist_remove_all(nv, ZPOOL_CONFIG_VDEV_ENC_SYSFS_PATH);
-
-		free(upath);
-		free(spath);
+		update_vdev_config_dev_sysfs_path(nv, path);
 	} else {
 		/* Clear out any stale entries. */
 		(void) nvlist_remove_all(nv, ZPOOL_CONFIG_DEVID);
