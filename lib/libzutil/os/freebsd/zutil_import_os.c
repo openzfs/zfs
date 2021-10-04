@@ -247,3 +247,8 @@ zfs_dev_flush(int fd __unused)
 {
 	return (0);
 }
+
+void
+update_vdevs_config_dev_sysfs_path(nvlist_t *config)
+{
+}

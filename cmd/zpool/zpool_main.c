@@ -5165,11 +5165,12 @@ get_stat_flags(zpool_list_t *list)
  * Return 1 if cb_data->cb_vdev_names[0] is this vdev's name, 0 otherwise.
  */
 static int
-is_vdev_cb(zpool_handle_t *zhp, nvlist_t *nv, void *cb_data)
+is_vdev_cb(void *zhp_data, nvlist_t *nv, void *cb_data)
 {
 	iostat_cbdata_t *cb = cb_data;
 	char *name = NULL;
 	int ret = 0;
+	zpool_handle_t *zhp = zhp_data;
 
 	name = zpool_vdev_name(g_zfs, zhp, nv, cb->cb_name_flags);
 
