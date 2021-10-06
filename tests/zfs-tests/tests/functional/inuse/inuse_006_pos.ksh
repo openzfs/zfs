@@ -85,7 +85,7 @@ while (( i < ${#vdevs[*]} )); do
 
 	# If this is for raidz2, use 3 disks for the pool.
 	[[ ${vdevs[i]} = "raidz2" ]] && spare="$sdisks"
-	create_pool $TESTPOOL1 ${vdevs[i]} $vdisks $spare
+	create_pool -p $TESTPOOL1 -d "${vdevs[i]} $vdisks $spare"
 	verify_assertion "$disktargets"
 	destroy_pool $TESTPOOL1
 

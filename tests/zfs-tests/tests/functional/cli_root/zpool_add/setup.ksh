@@ -34,4 +34,8 @@
 
 verify_runnable "global"
 
+if use_object_store; then
+	log_unsupported "Zpool add not applicable for object storage run."
+fi
+
 log_pass

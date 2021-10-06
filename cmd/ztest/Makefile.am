@@ -14,6 +14,8 @@ sbin_PROGRAMS = ztest
 ztest_SOURCES = \
 	ztest.c
 
+ztest_DEPENDENCIES = $(abs_top_builddir)/cmd/zfs_object_agent
+
 ztest_LDADD = \
 	$(abs_top_builddir)/lib/libzpool/libzpool.la \
 	$(abs_top_builddir)/lib/libzfs_core/libzfs_core.la \
@@ -21,5 +23,11 @@ ztest_LDADD = \
 
 ztest_LDADD += -lm
 ztest_LDFLAGS = -pthread
+
+if BUILD_RUST
+ztest_LDADD += -lzoa
+ztest_LDFLAGS += -L$(abs_top_builddir)/cmd/zfs_object_agent
+ztest_CFLAGS = -DHAVE_LIBZOA
+endif
 
 include $(top_srcdir)/config/CppCheck.am

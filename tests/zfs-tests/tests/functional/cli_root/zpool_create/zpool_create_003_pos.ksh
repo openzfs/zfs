@@ -48,12 +48,9 @@ verify_runnable "global"
 function cleanup
 {
 	poolexists $TESTPOOL && destroy_pool $TESTPOOL
-	rm -f $tmpfile
 }
 
-tmpfile="$TEST_BASE_DIR/zpool_create_003.tmp$$"
-
-log_assert "'zpool create -n <pool> <vspec> ...' can display the configuration" \
+log_assert "'zpool create -n <pool> ...' can display the configuration" \
         "without actually creating the pool."
 
 log_onexit cleanup
@@ -67,17 +64,15 @@ do
 	#
 	# Make sure disk is clean before we use it
 	#
-	create_pool $TESTPOOL $DISK0 > $tmpfile
+	log_must create_pool -p $TESTPOOL -d "$DISK0"
 	destroy_pool $TESTPOOL
 
-	log_must eval "zpool create -n $prop $TESTPOOL $DISK0 > $tmpfile"
+	str="would create '$TESTPOOL' with the following layout:"
+	log_must_expect "$str" \
+		create_pool -p $TESTPOOL -d "$DISK0" -e "-n $prop"
 
 	poolexists $TESTPOOL && \
-		log_fail "'zpool create -n <pool> <vspec> ...' fail."
-
-	str="would create '$TESTPOOL' with the following layout:"
-	grep "$str" $tmpfile >/dev/null 2>&1 || \
-		log_fail "'zpool create -n <pool> <vspec>...' is executed as unexpected."
+		log_fail "'zpool create -n <pool> ...' fail."
 done
 
 # Verify zpool create -n with invalid options
@@ -86,10 +81,10 @@ do
 	#
 	# Make sure disk is clean before we use it
 	#
-	create_pool $TESTPOOL $DISK0 > $tmpfile
+	log_must create_pool -p $TESTPOOL -d "$DISK0"
 	destroy_pool $TESTPOOL
 
-	log_mustnot zpool create -n $prop $TESTPOOL $DISK0
+	log_mustnot create_pool -p $TESTPOOL -d "$DISK0" -e "-n $prop"
 done
 
-log_pass "'zpool create -n <pool> <vspec>...' success."
+log_pass "'zpool create -n <pool>...' success."

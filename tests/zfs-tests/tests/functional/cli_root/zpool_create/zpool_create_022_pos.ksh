@@ -80,7 +80,7 @@ while (( $i < ${#RW_FS_PROP[*]} )); do
 	(( i = i + 1 ))
 done
 
-log_must zpool create $opts -f $TESTPOOL $DISKS
+log_must create_pool -p $TESTPOOL -d "$DISKS" -e "$opts"
 datasetexists $TESTPOOL || log_fail "zpool create $TESTPOOL fail."
 
 i=0

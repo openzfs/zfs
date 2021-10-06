@@ -45,9 +45,9 @@ test_change_state_after_checkpoint
 log_must zpool checkpoint -d $TESTPOOL
 
 log_must zpool export $TESTPOOL
-log_mustnot zpool import --rewind-to-checkpoint $TESTPOOL
+log_mustnot import_pool -e "--rewind-to-checkpoint" -p $TESTPOOL
 
-log_must zpool import $TESTPOOL
+log_must import_pool -p $TESTPOOL
 test_verify_post_checkpoint_state
 
 log_pass "Discard checkpoint from pool."

@@ -60,11 +60,11 @@ log_onexit cleanup
 
 log_assert "'zpool create -d' creates pools with all features disabled"
 
-log_must zpool create -f -d $TESTPOOL $DISKS
+log_must create_pool -e "-d" -p $TESTPOOL -d "$DISKS"
 check_features
 log_must zpool destroy -f $TESTPOOL
 
-log_must zpool create -f -o version=28 $TESTPOOL $DISKS
+log_must create_pool -e "-o version=28" -p $TESTPOOL -d "$DISKS"
 check_features
 
 log_pass

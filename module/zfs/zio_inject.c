@@ -45,8 +45,11 @@
 #include <sys/zio.h>
 #include <sys/zfs_ioctl.h>
 #include <sys/vdev_impl.h>
+#include <sys/vdev_object_store.h>
 #include <sys/dmu_objset.h>
 #include <sys/dsl_dataset.h>
+#include <sys/metaslab_impl.h>
+#include <sys/spa_impl.h>
 #include <sys/fs/zfs.h>
 
 uint32_t zio_injection_enabled = 0;
@@ -174,8 +177,14 @@ zio_handle_panic_injection(spa_t *spa, char *tag, uint64_t type)
 			continue;
 
 		if (handler->zi_record.zi_type == type &&
-		    strcmp(tag, handler->zi_record.zi_func) == 0)
-			panic("Panic requested in function %s\n", tag);
+		    strcmp(tag, handler->zi_record.zi_func) == 0) {
+			if (spa_normal_class(spa)->mc_ops->msop_block_based) {
+				panic("Panic requested in function %s\n", tag);
+			} else {
+				vdev_t *vd = spa->spa_root_vdev->vdev_child[0];
+				object_store_restart_agent(vd);
+			}
+		}
 	}
 
 	rw_exit(&inject_lock);

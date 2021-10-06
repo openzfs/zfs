@@ -44,7 +44,7 @@
 #
 # STRATEGY:
 #
-# 1. Create a zvol 
+# 1. Create a zvol
 # 2. Verify that we can't set the bootfs to that dataset
 #
 
@@ -77,7 +77,7 @@ log_onexit cleanup
 typeset VDEV=$TESTDIR/bootfs_002_neg_a.$$.dat
 
 log_must mkfile 400m $VDEV
-create_pool "$TESTPOOL" "$VDEV"
+create_pool -p "$TESTPOOL" -d "$VDEV"
 log_must zfs create -V 10m $TESTPOOL/vol
 block_device_wait
 

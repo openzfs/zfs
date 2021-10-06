@@ -2066,7 +2066,14 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
 	zp->zp_checksum = checksum;
 	zp->zp_type = (wp & WP_SPILL) ? dn->dn_bonustype : type;
 	zp->zp_level = level;
-	zp->zp_copies = MIN(copies, spa_max_replication(os->os_spa));
+	/*
+	 * Object-based pools ignore the 'copies' value since
+	 * object-based storage devices already create multiple
+	 * copies. We leverage that functionality directly.
+	 */
+	zp->zp_copies = MIN(copies,
+	    spa_is_object_based(os->os_spa) ? 1 :
+	    spa_max_replication(os->os_spa));
 	zp->zp_dedup = dedup;
 	zp->zp_dedup_verify = dedup && dedup_verify;
 	zp->zp_nopwrite = nopwrite;

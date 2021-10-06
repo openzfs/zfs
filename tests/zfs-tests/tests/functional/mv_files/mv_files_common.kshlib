@@ -84,7 +84,7 @@ function init_setup
 
 	typeset disklist=$1
 
-        create_pool $TESTPOOL "$disklist"
+        create_pool -p $TESTPOOL -d "$disklist"
 
 	if ! is_global_zone ; then
 		reexport_pool

@@ -57,7 +57,7 @@ log_assert "A zpool may be increased in capacity by adding a disk"
 log_onexit cleanup
 
 truncate -s $SPA_MINDEVSIZE $DEVICE1 $DEVICE2
-create_pool $TESTPOOL $pooltype $DEVICE1 $DEVICE2
+create_pool -p $TESTPOOL -d "$pooltype $DEVICE1 $DEVICE2"
 
 log_must zfs create $TESTPOOL/$TESTFS
 log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS

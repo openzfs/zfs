@@ -36,9 +36,11 @@
 .Sh SYNOPSIS
 .Nm zpool
 .Cm status
-.Op Fl DigLpPstvx
+.Op Fl dDigLpPstvxw
 .Op Fl T Sy u Ns | Ns Sy d
 .Op Fl c Op Ar SCRIPT1 Ns Oo , Ns Ar SCRIPT2 Oc Ns …
+.Op Fl -list-destroyed
+.Op Fl -clear-destroyed
 .Oo Ar pool Oc Ns …
 .Op Ar interval Op Ar count
 .
@@ -115,6 +117,10 @@ Specify
 for standard date format.
 See
 .Xr date 1 .
+.It Fl d , -list-destroyed
+Displays information about pools that have been destroyed.
+.It Fl w , -clear-destroyed
+Clears information about pools that have been successfully destroyed.
 .It Fl v
 Displays verbose data error information, printing out a complete list of all
 data errors since the last complete pool scrub.

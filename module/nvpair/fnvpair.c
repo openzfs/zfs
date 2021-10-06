@@ -411,6 +411,7 @@ fnvlist_lookup_nvlist(nvlist_t *nvl, const char *name)
 	VERIFY0(nvlist_lookup_nvlist(nvl, name, &rv));
 	return (rv);
 }
+
 boolean_t *
 fnvlist_lookup_boolean_array(nvlist_t *nvl, const char *name, uint_t *n)
 {
@@ -642,6 +643,17 @@ EXPORT_SYMBOL(fnvlist_lookup_int64);
 EXPORT_SYMBOL(fnvlist_lookup_uint64);
 EXPORT_SYMBOL(fnvlist_lookup_string);
 EXPORT_SYMBOL(fnvlist_lookup_nvlist);
+
+EXPORT_SYMBOL(fnvlist_lookup_boolean_array);
+EXPORT_SYMBOL(fnvlist_lookup_byte_array);
+EXPORT_SYMBOL(fnvlist_lookup_int8_array);
+EXPORT_SYMBOL(fnvlist_lookup_uint8_array);
+EXPORT_SYMBOL(fnvlist_lookup_int16_array);
+EXPORT_SYMBOL(fnvlist_lookup_uint16_array);
+EXPORT_SYMBOL(fnvlist_lookup_int32_array);
+EXPORT_SYMBOL(fnvlist_lookup_uint32_array);
+EXPORT_SYMBOL(fnvlist_lookup_int64_array);
+EXPORT_SYMBOL(fnvlist_lookup_uint64_array);
 
 EXPORT_SYMBOL(fnvpair_value_boolean_value);
 EXPORT_SYMBOL(fnvpair_value_byte);

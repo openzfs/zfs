@@ -70,8 +70,8 @@ log_note "Verify parallel mount ordering is consistent"
 log_must truncate -s $MINVDEVSIZE $DISK1
 log_must truncate -s $MINVDEVSIZE $DISK2
 
-log_must zpool create -f $TESTPOOL1 $DISK1
-log_must zpool create -f $TESTPOOL2 $DISK2
+log_must create_pool -p $TESTPOOL1 -d "$DISK1"
+log_must create_pool -p $TESTPOOL2 -d "$DISK2"
 
 log_must zfs create $TESTPOOL1/$TESTFS1
 log_must zfs create $TESTPOOL2/$TESTFS2

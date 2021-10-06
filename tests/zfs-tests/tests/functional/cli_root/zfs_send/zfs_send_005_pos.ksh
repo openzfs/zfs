@@ -47,7 +47,7 @@ verify_runnable "both"
 function cleanup
 {
 	poolexists $TESTPOOL && log_must_busy zpool export $TESTPOOL
-	log_must zpool import $TESTPOOL
+	log_must import_pool -p $TESTPOOL
 
 	datasetexists $TESTPOOL@snap && \
 	    log_must zfs destroy -r $TESTPOOL@snap
@@ -59,7 +59,7 @@ log_onexit cleanup
 log_must zfs snapshot -r $TESTPOOL@snap
 
 log_must zpool export $TESTPOOL
-log_must zpool import -o readonly=on $TESTPOOL
+log_must import_pool -p $TESTPOOL -e "-o readonly=on"
 
 log_must eval "zfs send -R $TESTPOOL@snap >$TEST_BASE_DIR/devnull"
 

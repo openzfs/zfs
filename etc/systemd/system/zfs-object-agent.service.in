@@ -1,0 +1,16 @@
+[Unit]
+Description=ZFS object agent
+DefaultDependencies=no
+After=local-fs.target
+Before=zfs-import-cache.service
+
+[Service]
+Environment="RUST_BACKTRACE=1"
+Environment="AWS_SECRET_ACCESS_KEY="
+Environment="AWS_ACCESS_KEY_ID="
+EnvironmentFile=-/etc/zfs/zoa.conf
+ExecStart=/usr/bin/start_zoa
+Restart=always
+
+[Install]
+WantedBy=zfs-import.target

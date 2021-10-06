@@ -68,7 +68,7 @@ while (( i < 2 )); do
 		log_must touch $TESTDIR/testfile
 	fi
 
-	log_mustnot zpool create -m $TESTDIR -f $TESTPOOL $DISK0
+	log_mustnot create_pool -p $TESTPOOL -d "$DISK0" -e "-m $TESTDIR"
 	log_mustnot poolexists $TESTPOOL
 
 	(( i = i + 1 ))

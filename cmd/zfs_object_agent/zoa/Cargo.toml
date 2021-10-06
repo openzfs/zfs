@@ -1,0 +1,18 @@
+[package]
+name = "zoa"
+version = "0.1.0"
+authors = ["Delphix"]
+edition = "2018"
+build = "src/build.rs"
+
+[build-dependencies]
+cbindgen = "0.20"
+
+[lib]
+crate-type = ["cdylib"]      # Creates dynamic lib
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+zettacache = { path =  "../zettacache" }
+zettaobject = { path =  "../zettaobject" }

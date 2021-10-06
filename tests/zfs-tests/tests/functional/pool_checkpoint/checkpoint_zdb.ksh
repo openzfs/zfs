@@ -26,7 +26,7 @@
 #	1. Create pool
 #	2. Populate it
 #	3. Take checkpoint
-#	4. Modify data (include at least one destructive change) 
+#	4. Modify data (include at least one destructive change)
 #	5. Verify zdb finds checkpoint when run on current state
 #	6. Verify zdb finds old dataset when run on checkpointed
 #	   state
@@ -84,7 +84,7 @@ zdb -e $TESTPOOL | grep "Dataset $FS1" && \
 zdb -k -e $TESTPOOL | grep "Dataset $CHECKPOINTED_FS1" || \
 	log_fail "zdb could not find destroyed dataset in checkpoint"
 
-log_must zpool import $TESTPOOL
+log_must import_pool -p $TESTPOOL
 
 log_must zpool checkpoint -d $TESTPOOL
 

@@ -69,7 +69,7 @@ log_assert "'zfs rename' should fail while datasets are within different pool."
 additional_setup
 
 log_must mkfile $MINVDEVSIZE $TESTDIR/$TESTFILE1
-create_pool $TESTPOOL1 $TESTDIR/$TESTFILE1
+create_pool -p $TESTPOOL1 -d "$TESTDIR/$TESTFILE1"
 
 for src in ${src_dataset[@]} ; do
 	dest=${src#$TESTPOOL/}

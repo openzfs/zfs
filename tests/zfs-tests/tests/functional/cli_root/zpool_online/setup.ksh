@@ -28,6 +28,11 @@
 . $STF_SUITE/include/libtest.shlib
 
 verify_runnable "global"
+
+if use_object_store; then
+	log_unsupported "Zpool online not applicable for object storage run."
+fi
+
 verify_disk_count "$DISKS" 2
 
 DISK=${DISKS%% *}

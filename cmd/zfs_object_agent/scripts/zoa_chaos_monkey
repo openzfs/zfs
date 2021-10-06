@@ -1,0 +1,47 @@
+#!/bin/sh
+
+#
+# This Chaos Monkey script kills the ZFS Object Agent process periodically
+# and may be use to test agent recovery. It sleeps for a random number of
+# seconds, between $MAX_KILL_DELAY and $MIN_KILL_DELAY . On waking up, it
+# sends a kill signal to the zfs_object_agent process and then goes back to
+# sleep again.
+#
+
+error() {
+    echo "$@" 1>&2
+}
+
+fatal() {
+    error "$@";
+    exit 1;
+}
+
+MAX="${MAX_KILL_DELAY:-300}"
+MIN="${MIN_KILL_DELAY:-0}"
+
+echo "Max kill delay: $MAX"
+echo "Min kill delay: $MIN"
+
+if [ ! "$MAX" -gt 0 ]; then
+    fatal "MAX_KILL_DELAY should be a positive integer.
+else if [ ! "$MIN" -gt 0 ]; then
+    fatal "MAX_KILL_DELAY should be a positive integer.
+fi
+
+while true; do
+    # Sleep for a random number of seconds between MIN and MAX.
+    RAND=$(awk -v MIN="$MIN" -v MAX="$MAX" \
+        'BEGIN{srand();print int(rand() * (MAX - MIN)) + MIN }')
+    echo "Sleeping for $RAND seconds."
+    sleep $RAND
+
+    AGENT_PID=$(systemctl show -p MainPID zfs-object-agent.service \
+        | cut -f 2 -d '=')
+    if [ "$AGENT_PID" -gt 0 ]; then
+        kill -s KILL $AGENT_PID
+        echo "Killed zfs_object_agent pid: ${AGENT_PID}."
+    else
+        error "agent process not found."
+    fi
+done

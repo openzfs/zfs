@@ -63,7 +63,7 @@ for i in 0 1 2; do
 done
 disk=($specials_list)
 
-create_pool $TESTPOOL1 $specials_list
+create_pool -p $TESTPOOL1 -d "$specials_list"
 log_must zfs create $TESTPOOL1/$TESTFS1
 log_must zfs set mountpoint=$TESTDIR1 $TESTPOOL1/$TESTFS1
 

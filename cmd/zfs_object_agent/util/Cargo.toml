@@ -1,0 +1,18 @@
+[package]
+name = "util"
+version = "0.1.0"
+authors = ["Delphix"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[dependencies]
+async-trait = "0.1.51"
+backtrace = "0.3"
+config = "0.11"
+lazy_static = "1.4.0"
+log = "0.4"
+more-asserts = "0.2.1"
+rand = "0.8.3"
+roaring = "0.7.0"
+serde = { version = "1.0.125", features = ["derive"] }
+tokio = { version = "1.4", features = ["full"] }

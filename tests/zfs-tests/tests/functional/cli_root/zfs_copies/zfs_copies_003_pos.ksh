@@ -45,6 +45,11 @@
 
 verify_runnable "global"
 
+if use_object_store; then
+	log_unsupported "Multiple zfs copies inapplicable for object storage \
+		run."
+fi
+
 function cleanup
 {
 	if poolexists $TESTPOOL1; then

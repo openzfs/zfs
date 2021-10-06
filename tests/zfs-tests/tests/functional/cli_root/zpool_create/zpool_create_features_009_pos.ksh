@@ -72,7 +72,8 @@ CACHE_FILE=$TEST_BASE_DIR/cachefile.$$
 
 # 1. Create a pool with '-o compatibility=legacy', then verify
 #    the property exists in the MOS config and cache file.
-log_must zpool create -f -o cachefile=$CACHE_FILE -o compatibility=legacy $TESTPOOL $DISKS
+log_must create_pool -e "-o cachefile=$CACHE_FILE -o compatibility=legacy" \
+	-p $TESTPOOL -d "$DISKS"
 log_must check_config legacy
 log_must zpool export -F $TESTPOOL
 log_must zpool import -c $CACHE_FILE $TESTPOOL
@@ -81,7 +82,7 @@ log_must zpool destroy -f $TESTPOOL
 
 # 2. Create a pool, set the 'compatibility=off' property, then
 #    verify the property exists in the MOS config and cache file.
-log_must zpool create -f -o cachefile=$CACHE_FILE $TESTPOOL $DISKS
+log_must create_pool -e "-o cachefile=$CACHE_FILE" -p $TESTPOOL -d "$DISKS"
 log_must zpool set compatibility=legacy $TESTPOOL
 log_must check_config legacy
 log_must zpool export -F $TESTPOOL

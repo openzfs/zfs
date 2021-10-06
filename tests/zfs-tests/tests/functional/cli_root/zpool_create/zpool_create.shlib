@@ -41,15 +41,20 @@
 function create_pool_test
 {
 	typeset pool=$1
-	typeset keywd=$2
-	typeset vdevs
-	eval "typeset -a diskarray=($3)"
 
-	for vdevs in "${diskarray[@]}"; do
-		create_pool $pool $keywd $vdevs
-		log_must poolexists $pool
-		destroy_pool $pool
-	done
+	if use_object_store; then
+		create_pool -p $pool
+	else
+		typeset keywd=$2
+		typeset vdevs
+		eval "typeset -a diskarray=($3)"
+
+		for vdevs in "${diskarray[@]}"; do
+			create_pool -p $pool -d "$keywd $vdevs"
+			log_must poolexists $pool
+			destroy_pool $pool
+		done
+	fi
 }
 
 #

@@ -61,11 +61,12 @@ log_onexit cleanup
 
 log_assert "'zpool create' creates pools with all features enabled"
 
-log_must zpool create -f $TESTPOOL $DISKS
+log_must create_pool -p $TESTPOOL -d "$DISKS"
 check_features
 log_must zpool destroy -f $TESTPOOL
 
-log_must zpool create -f -o feature@async_destroy=enabled $TESTPOOL $DISKS
+log_must create_pool -e "-o feature@async_destroy=enabled" -p $TESTPOOL \
+	-d "$DISKS"
 check_features
 
 log_pass "'zpool create' creates pools with all features enabled"

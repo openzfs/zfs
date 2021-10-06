@@ -178,6 +178,7 @@ typedef struct metaslab_class_allocator {
  */
 struct metaslab_class {
 	kmutex_t		mc_lock;
+	kmutex_t		mc_object_store_lock;
 	spa_t			*mc_spa;
 	metaslab_ops_t		*mc_ops;
 

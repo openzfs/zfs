@@ -1,0 +1,327 @@
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+# This run file contains all of the common functional tests.  When
+# adding a new test consider also adding it to the sanity.run file
+# if the new test runs to completion in only a few seconds.
+#
+# Approximate run time: 4-5 hours
+#
+
+[DEFAULT]
+pre = setup
+quiet = False
+pre_user = root
+user = root
+timeout = 600
+post_user = root
+post = cleanup
+failsafe_user = root
+failsafe = callbacks/zfs_failsafe
+outputdir = /var/tmp/test_results
+tags = ['functional']
+
+[tests/functional/acl/off]
+tests = ['posixmode']
+tags = ['functional', 'acl']
+
+[tests/functional/acl/posix:Linux]
+tests = ['posix_001_pos', 'posix_002_pos', 'posix_003_pos', 'posix_004_pos']
+tags = ['functional', 'acl', 'posix']
+
+[tests/functional/acl/posix-sa:Linux]
+tests = ['posix_001_pos', 'posix_002_pos', 'posix_003_pos', 'posix_004_pos']
+tags = ['functional', 'acl', 'posix-sa']
+
+# -------------------------------------------------------------
+# TODO: Pool checkpoint functionality hasn't been implemented yet. Uncomment the
+# below section once its done.
+# DOSE-596 - make 'zpool checkpoint' work with object store pools
+# -------------------------------------------------------------
+# [tests/functional/pool_checkpoint]
+# tests = ['checkpoint_after_rewind', 'checkpoint_big_rewind',
+#     'checkpoint_capacity', 'checkpoint_conf_change', 'checkpoint_discard',
+#     'checkpoint_discard_busy', 'checkpoint_discard_many',
+#     'checkpoint_indirect', 'checkpoint_invalid', 'checkpoint_lun_expsz',
+#     'checkpoint_open', 'checkpoint_removal', 'checkpoint_rewind',
+#     'checkpoint_ro_rewind', 'checkpoint_sm_scale', 'checkpoint_twice',
+#     'checkpoint_vdev_add', 'checkpoint_zdb', 'checkpoint_zhack_feat']
+# tags = ['functional', 'pool_checkpoint']
+# timeout = 1800
+
+[tests/functional/chattr]
+tests = ['chattr_001_pos', 'chattr_002_neg']
+tags = ['functional', 'chattr']
+
+[tests/functional/cp_files]
+tests = ['cp_files_001_pos']
+tags = ['functional', 'cp_files']
+
+[tests/functional/atime]
+tests = ['atime_001_pos', 'atime_002_neg', 'atime_003_pos',
+   'root_atime_off', 'root_atime_on', 'root_relatime_on']
+tags = ['functional', 'atime']
+
+[tests/functional/ctime]
+tests = ['ctime_001_pos']
+tags = ['functional', 'ctime']
+
+[tests/functional/exec]
+tests = ['exec_001_pos', 'exec_002_neg']
+tags = ['functional', 'exec']
+
+[tests/functional/fallocate]
+tests = ['fallocate_prealloc', 'fallocate_punch-hole']
+tags = ['functional', 'fallocate']
+
+[tests/functional/mount]
+tests = ['umount_001', 'umountall_001', 'umount_unlinked_drain']
+tags = ['functional', 'mount']
+
+[tests/functional/suid]
+tests = ['suid_write_to_none', 'suid_write_to_sgid',
+	'suid_write_to_suid', 'suid_write_to_suid_sgid']
+tags = ['functional', 'suid']
+
+[tests/functional/cli_root/zfs]
+tests = ['zfs_001_neg', 'zfs_002_pos', 'zfs_003_neg']
+tags = ['functional', 'cli_root', 'zfs']
+
+[tests/functional/cli_root/zfs_bookmark]
+tests = ['zfs_bookmark_cliargs']
+tags = ['functional', 'cli_root', 'zfs_bookmark']
+
+[tests/functional/cli_root/zfs_change-key]
+tests = ['zfs_change-key', 'zfs_change-key_child', 'zfs_change-key_clones',
+	'zfs_change-key_format', 'zfs_change-key_inherit', 'zfs_change-key_load',
+	'zfs_change-key_location', 'zfs_change-key_pbkdf2iters']
+tags = ['functional', 'cli_root', 'zfs_change-key']
+
+# -------------------------------------------------------------
+# TODO: Add the following tests back after relevant bug fixes.
+# zpool_create_007_neg - DOSE-608
+# zpool_create_018_pos - DOSE-550
+# zpool_create_encrypted - DOSE-550
+# zpool_create_features_002_pos - DOSE-550
+# zpool_create_features_003_pos - DOSE-550
+# zpool_create_features_006_pos - DOSE-550
+# zpool_create_features_009_pos - DOSE-550
+# zpool_create_024_pos - DOSE-568
+# -------------------------------------------------------------
+# TODO: zpool_create_003_pos fails because of DOSE-545. Its not creating a
+# panic, hence, keeping it in the suite.
+# -------------------------------------------------------------
+[tests/functional/cli_root/zpool_create]
+tests = ['zpool_create_001_pos', 'zpool_create_002_pos',
+	'zpool_create_003_pos', 'zpool_create_004_pos', 'zpool_create_005_pos',
+	'zpool_create_006_pos', 'zpool_create_008_pos',
+	'zpool_create_009_neg', 'zpool_create_010_neg', 'zpool_create_011_neg',
+	'zpool_create_012_neg', 'zpool_create_014_neg', 'zpool_create_015_neg',
+	'zpool_create_017_neg', 'zpool_create_019_pos',
+	'zpool_create_020_pos', 'zpool_create_021_pos', 'zpool_create_022_pos',
+	'zpool_create_023_neg', 'zpool_create_crypt_combos',
+	'zpool_create_draid_001_pos', 'zpool_create_draid_002_pos',
+	'zpool_create_draid_003_pos', 'zpool_create_draid_004_pos',
+	'zpool_create_features_001_pos', 'zpool_create_features_004_neg',
+	'zpool_create_features_005_pos',
+	'zpool_create_features_007_pos', 'zpool_create_features_008_pos',
+	'create-o_ashift',
+	'zpool_create_tempname', 'zpool_create_dryrun_output']
+tags = ['functional', 'cli_root', 'zpool_create']
+
+[tests/functional/cli_root/zpool_get]
+tests = ['zpool_get_001_pos', 'zpool_get_002_pos', 'zpool_get_003_pos',
+    'zpool_get_004_neg', 'zpool_get_005_pos']
+tags = ['functional', 'cli_root', 'zpool_get']
+
+[tests/functional/cli_root/zpool_status]
+tests = ['zpool_status_001_pos', 'zpool_status_002_pos',
+    'zpool_status_features_001_pos']
+tags = ['functional', 'cli_root', 'zpool_status']
+
+[tests/functional/cli_root/zpool]
+tests = ['zpool_001_neg', 'zpool_002_pos', 'zpool_003_pos', 'zpool_colors']
+tags = ['functional', 'cli_root', 'zpool']
+
+[tests/functional/cli_root/zpool_add]
+tests = ['zpool_add_001_pos', 'zpool_add_002_pos', 'zpool_add_003_pos',
+    'zpool_add_004_pos', 'zpool_add_006_pos', 'zpool_add_007_neg',
+    'zpool_add_008_neg', 'zpool_add_009_neg', 'zpool_add_010_pos',
+    'add-o_ashift', 'add_prop_ashift', 'zpool_add_dryrun_output']
+tags = ['functional', 'cli_root', 'zpool_add']
+
+[tests/functional/cli_root/zpool_attach]
+tests = ['zpool_attach_001_neg', 'attach-o_ashift']
+tags = ['functional', 'cli_root', 'zpool_attach']
+
+[tests/functional/cli_root/zpool_detach]
+tests = ['zpool_detach_001_neg']
+tags = ['functional', 'cli_root', 'zpool_detach']
+
+[tests/functional/cli_root/zpool_offline]
+tests = ['zpool_offline_001_pos', 'zpool_offline_002_neg',
+    'zpool_offline_003_pos']
+tags = ['functional', 'cli_root', 'zpool_offline']
+
+[tests/functional/cli_root/zpool_online]
+tests = ['zpool_online_001_pos', 'zpool_online_002_neg']
+tags = ['functional', 'cli_root', 'zpool_online']
+
+[tests/functional/cli_root/zfs_clone]
+tests = ['zfs_clone_001_neg', 'zfs_clone_002_pos',
+	'zfs_clone_003_pos', 'zfs_clone_004_pos',
+	'zfs_clone_005_pos', 'zfs_clone_006_pos',
+	'zfs_clone_007_pos', 'zfs_clone_008_neg',
+	'zfs_clone_009_neg', 'zfs_clone_010_pos',
+	'zfs_clone_deeply_nested', 'zfs_clone_encrypted',
+	'zfs_clone_rm_nested']
+tags = ['functional', 'cli_root', 'zfs_clone']
+
+[tests/functional/cli_root/zfs_rename]
+tests = ['zfs_rename_001_pos', 'zfs_rename_002_pos',
+	'zfs_rename_003_pos', 'zfs_rename_004_neg',
+	'zfs_rename_005_neg', 'zfs_rename_006_pos',
+	'zfs_rename_007_pos', 'zfs_rename_008_pos',
+	'zfs_rename_009_neg', 'zfs_rename_010_neg',
+	'zfs_rename_011_pos', 'zfs_rename_012_neg',
+	'zfs_rename_013_pos', 'zfs_rename_014_neg',
+	'zfs_rename_encrypted_child', 'zfs_rename_mountpoint',
+	'zfs_rename_nounmount', 'zfs_rename_to_encrypted']
+tags = ['functional', 'cli_root', 'zfs_rename']
+
+[tests/functional/cli_root/zfs_share]
+tests = ['zfs_share_001_pos', 'zfs_share_002_pos',
+	'zfs_share_003_pos', 'zfs_share_004_pos',
+	'zfs_share_005_pos', 'zfs_share_006_pos',
+	'zfs_share_007_neg', 'zfs_share_008_neg',
+	'zfs_share_009_neg', 'zfs_share_010_neg',
+	'zfs_share_011_pos', 'zfs_share_012_pos',
+	'zfs_share_concurrent_shares']
+tags = ['functional', 'cli_root', 'zfs_share']
+
+[tests/functional/cli_root/zfs_unshare]
+tests = ['zfs_unshare_001_pos', 'zfs_unshare_002_pos',
+	'zfs_unshare_003_pos', 'zfs_unshare_004_neg',
+	'zfs_unshare_005_neg', 'zfs_unshare_006_pos',
+	'zfs_unshare_007_pos']
+tags = ['functional', 'cli_root', 'zfs_unshare']
+
+[tests/functional/cli_root/zfs_copies]
+tests = ['zfs_copies_001_pos', 'zfs_copies_002_pos', 'zfs_copies_003_pos',
+    'zfs_copies_004_neg', 'zfs_copies_005_neg', 'zfs_copies_006_pos']
+tags = ['functional', 'cli_root', 'zfs_copies']
+
+[tests/functional/cli_root/zfs_create]
+tests = ['zfs_create_001_pos', 'zfs_create_002_pos', 'zfs_create_003_pos',
+	'zfs_create_004_pos', 'zfs_create_005_pos', 'zfs_create_006_pos',
+	'zfs_create_007_pos', 'zfs_create_008_neg', 'zfs_create_009_neg',
+	'zfs_create_010_neg', 'zfs_create_011_pos', 'zfs_create_012_pos',
+	'zfs_create_013_pos', 'zfs_create_014_pos', 'zfs_create_encrypted',
+	'zfs_create_crypt_combos', 'zfs_create_dryrun', 'zfs_create_nomount',
+	'zfs_create_verbose']
+tags = ['functional', 'cli_root', 'zfs_create']
+
+# -------------------------------------------------------------
+# TODO: Add the following tests back after relevant bug fixes.
+# zfs_clone_livelist_condense_and_disable - DOSE-650
+# zfs_destroy_clone_livelist - DOSE-652
+# -------------------------------------------------------------
+[tests/functional/cli_root/zfs_destroy]
+tests = ['zfs_clone_livelist_condense_races', 'zfs_clone_livelist_dedup',
+	'zfs_destroy_001_pos', 'zfs_destroy_002_pos', 'zfs_destroy_003_pos',
+	'zfs_destroy_004_pos', 'zfs_destroy_005_neg', 'zfs_destroy_006_neg',
+	'zfs_destroy_007_neg', 'zfs_destroy_008_pos', 'zfs_destroy_009_pos',
+	'zfs_destroy_010_pos', 'zfs_destroy_011_pos', 'zfs_destroy_012_pos',
+	'zfs_destroy_013_neg', 'zfs_destroy_014_pos', 'zfs_destroy_015_pos',
+	'zfs_destroy_016_pos',
+	'zfs_destroy_dev_removal', 'zfs_destroy_dev_removal_condense']
+tags = ['functional', 'cli_root', 'zfs_destroy']
+
+[tests/functional/cli_root/zfs_diff]
+tests = ['zfs_diff_changes', 'zfs_diff_cliargs', 'zfs_diff_timestamp',
+	'zfs_diff_types', 'zfs_diff_encrypted']
+tags = ['functional', 'cli_root', 'zfs_diff']
+
+[tests/functional/cli_root/zfs_get]
+tests = ['zfs_get_001_pos', 'zfs_get_002_pos', 'zfs_get_003_pos',
+	'zfs_get_004_pos', 'zfs_get_005_neg', 'zfs_get_006_neg', 'zfs_get_007_neg',
+	'zfs_get_008_pos', 'zfs_get_009_pos', 'zfs_get_010_neg']
+tags = ['functional', 'cli_root', 'zfs_get']
+
+[tests/functional/cli_root/zfs_ids_to_path]
+tests = ['zfs_ids_to_path_001_pos']
+tags = ['functional', 'cli_root', 'zfs_ids_to_path']
+
+[tests/functional/cli_root/zfs_inherit]
+tests = ['zfs_inherit_001_neg', 'zfs_inherit_002_neg', 'zfs_inherit_003_pos',
+	'zfs_inherit_mountpoint']
+tags = ['functional', 'cli_root', 'zfs_inherit']
+
+[tests/functional/cli_root/zfs_load-key]
+tests = ['zfs_load-key', 'zfs_load-key_all', 'zfs_load-key_file',
+	'zfs_load-key_https', 'zfs_load-key_location', 'zfs_load-key_noop',
+	'zfs_load-key_recursive']
+tags = ['functional', 'cli_root', 'zfs_load-key']
+
+[tests/functional/cli_root/zfs_mount]
+tests = ['zfs_mount_001_pos', 'zfs_mount_002_pos', 'zfs_mount_003_pos',
+	'zfs_mount_004_pos', 'zfs_mount_005_pos', 'zfs_mount_007_pos',
+	'zfs_mount_009_neg', 'zfs_mount_010_neg', 'zfs_mount_011_neg',
+	'zfs_mount_012_pos', 'zfs_mount_all_001_pos', 'zfs_mount_encrypted',
+	'zfs_mount_all_fail', 'zfs_mount_all_mountpoints',
+	'zfs_mount_remount', 'zfs_mount_test_race']
+tags = ['functional', 'cli_root', 'zfs_mount']
+
+[tests/functional/cli_root/zfs_set]
+tests = ['cache_001_pos', 'cache_002_neg', 'canmount_001_pos',
+    'canmount_002_pos', 'canmount_003_pos', 'canmount_004_pos',
+    'checksum_001_pos', 'compression_001_pos', 'mountpoint_001_pos',
+    'mountpoint_002_pos', 'mountpoint_003_pos', 'onoffs_001_pos',
+    'property_alias_001_pos', 'readonly_001_pos', 'reservation_001_neg',
+    'ro_props_001_pos', 'share_mount_001_neg', 'snapdir_001_pos',
+    'user_property_001_pos', 'user_property_002_pos', 'user_property_003_neg',
+    'user_property_004_pos', 'version_001_neg', 'zfs_set_001_neg',
+    'zfs_set_002_neg', 'zfs_set_003_neg', 'zfs_set_feature_activation',
+    'zfs_set_keylocation']
+tags = ['functional', 'cli_root', 'zfs_set']
+
+[tests/functional/mv_files]
+tests = ["mv_files_001_pos", "mv_files_002_pos"]
+tags = ['functional', 'mv_files']
+
+[tests/functional/cli_root/zfs_snapshot]
+tests = ['zfs_snapshot_001_neg', 'zfs_snapshot_002_neg', 'zfs_snapshot_003_neg',
+        'zfs_snapshot_004_neg', 'zfs_snapshot_005_neg', 'zfs_snapshot_006_pos',
+        'zfs_snapshot_007_neg', 'zfs_snapshot_008_neg', 'zfs_snapshot_009_pos']
+tags = ['functional', 'cli_root', 'zfs_snapshot']
+
+[tests/functional/cli_root/zfs_sysfs]
+tests = ['zfeature_set_unsupported', 'zfs_get_unsupported', 'zfs_set_unsupported',
+        'zpool_get_unsupported', 'zpool_set_unsupported']
+tags = ['functional', 'cli_root', 'zfs_sysfs']
+
+[tests/functional/cli_root/zfs_unmount]
+tests = ['zfs_unmount_001_pos', 'zfs_unmount_002_pos', 'zfs_unmount_003_pos',
+        'zfs_unmount_004_pos', 'zfs_unmount_005_pos', 'zfs_unmount_006_pos',
+        'zfs_unmount_007_neg', 'zfs_unmount_008_neg', 'zfs_unmount_009_pos',
+        'zfs_unmount_all_001_pos', 'zfs_unmount_nested', 'zfs_unmount_unload_keys']
+tags = ['functional', 'cli_root', 'zfs_unmount']
+
+[tests/functional/cli_root/zfs_unload-key]
+tests = ['zfs_unload-key', 'zfs_unload-key_all', 'zfs_unload-key_recursive']
+tags = ['functional', 'cli_root', 'zfs_unload-key']
+
+[tests/functional/cli_root/zfs_send]
+tests = ['zfs_send_001_pos', 'zfs_send_002_pos', 'zfs_send_003_pos',
+        'zfs_send_004_neg', 'zfs_send_005_pos', 'zfs_send_006_pos',
+        'zfs_send_007_pos', 'zfs_send_encrypted_unloaded',
+        'zfs_send_encrypted', 'zfs_send_raw', 'zfs_send_skip_missing',
+        'zfs_send_sparse', 'zfs_send-b']
+tags = ['functional', 'cli_root', 'zfs_send']

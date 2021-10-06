@@ -58,10 +58,10 @@ log_assert "'zpool add <pool> <vdev> ...' can add zfs volume to the pool."
 
 log_onexit cleanup
 
-create_pool $TESTPOOL $DISK0
+create_pool -p $TESTPOOL -d "$DISK0"
 log_must poolexists $TESTPOOL
 
-create_pool $TESTPOOL1 $DISK1
+create_pool -p $TESTPOOL1 -d "$DISK1"
 log_must poolexists $TESTPOOL1
 log_must zfs create -V $VOLSIZE $TESTPOOL1/$TESTVOL
 block_device_wait

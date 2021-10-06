@@ -45,6 +45,12 @@
 
 verify_runnable "global"
 
+if use_object_store; then
+	log_unsupported "Uses -f to override the devices to create new pools." \
+		"Hence, not applicable for object storage run."
+fi
+
+
 function cleanup
 {
 	for pool in $TESTPOOL $TESTPOOL1; do
@@ -63,7 +69,7 @@ log_onexit cleanup
 log_assert "'zpool create -f <pool> <vspec> ...' can successfully create" \
 	"a new pool in some cases."
 
-create_pool $TESTPOOL $DISK0
+create_pool -p $TESTPOOL -d "$DISK0"
 log_must eval "new_fs ${DEV_RDSKDIR}/${DISK1} >/dev/null 2>&1"
 typeset disk1=$(create_blockfile $FILESIZE)
 typeset disk2=$(create_blockfile $FILESIZE1)
@@ -73,7 +79,7 @@ log_must zpool export $TESTPOOL
 log_note "'zpool create' without '-f' will fail " \
 	"while device belongs to an exported pool."
 log_mustnot zpool create $TESTPOOL1 $DISK0
-create_pool $TESTPOOL1 $DISK0
+create_pool -p $TESTPOOL1 -d "$DISK0"
 log_must poolexists $TESTPOOL1
 
 log_must destroy_pool $TESTPOOL1
@@ -91,7 +97,7 @@ if is_freebsd; then
 	log_must umount -f $TESTDIR
 	log_must rm -rf $TESTDIR
 fi
-create_pool $TESTPOOL $DISK1
+create_pool -p $TESTPOOL -d "$DISK1"
 log_must poolexists $TESTPOOL
 
 log_must destroy_pool $TESTPOOL
@@ -99,7 +105,7 @@ log_must destroy_pool $TESTPOOL
 log_note "'zpool create' mirror without '-f' will fail " \
 	"while devices have different size."
 log_mustnot zpool create $TESTPOOL mirror $disk1 $disk2
-create_pool $TESTPOOL mirror $disk1 $disk2
+create_pool -p $TESTPOOL -d "mirror $disk1 $disk2"
 log_must poolexists $TESTPOOL
 
 log_must destroy_pool $TESTPOOL
@@ -108,7 +114,7 @@ if ! is_freebsd; then
 	log_note "'zpool create' mirror without '-f' will fail " \
 		"while devices are of different types."
 	log_mustnot zpool create $TESTPOOL mirror $disk1 $DISK0
-	create_pool $TESTPOOL mirror $disk1 $DISK0
+	create_pool -p $TESTPOOL -d "mirror $disk1 $DISK0"
 	log_must poolexists $TESTPOOL
 
 	log_must destroy_pool $TESTPOOL
@@ -116,11 +122,11 @@ fi
 
 log_note "'zpool create' without '-f' will fail " \
 	"while a device is part of a potentially active pool."
-create_pool $TESTPOOL mirror $DISK0 $DISK1
+create_pool -p $TESTPOOL -d "mirror $DISK0 $DISK1"
 log_must zpool offline $TESTPOOL $DISK0
 log_must zpool export $TESTPOOL
 log_mustnot zpool create $TESTPOOL1 $DISK0
-create_pool $TESTPOOL1 $DISK0
+create_pool -p $TESTPOOL1 -d "$DISK0"
 log_must poolexists $TESTPOOL1
 
 log_must destroy_pool $TESTPOOL1

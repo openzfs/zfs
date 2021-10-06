@@ -44,6 +44,11 @@
 
 verify_runnable "global"
 
+if use_object_store; then
+	log_unsupported "Uses -f to create new pools." \
+		"Hence, not applicable for object storage run."
+fi
+
 function cleanup
 {
 	if [[ $exported_pool == true ]]; then
@@ -72,18 +77,18 @@ typeset force_pool=false
 # overlapped slices as vdev need -f to create pool
 
 # Make the disk is EFI labeled first via pool creation
-create_pool $TESTPOOL $DISK0
+create_pool -p $TESTPOOL -d "$DISK0"
 destroy_pool $TESTPOOL
 
 # exported device to be as spare vdev need -f to create pool
 
 log_must zpool create -f $TESTPOOL $DISK0
 destroy_pool $TESTPOOL
-create_pool $TESTPOOL $DISK0 $DISK1
+create_pool -p $TESTPOOL -d "$DISK0 $DISK1"
 log_must zpool export $TESTPOOL
 exported_pool=true
 log_mustnot zpool create $TESTPOOL1 $DISK1 spare $DISK2
-create_pool $TESTPOOL1 $DISK1 spare $DISK2
+create_pool -p $TESTPOOL1 -d "$DISK1 spare $DISK2"
 force_pool=true
 destroy_pool $TESTPOOL1
 

@@ -81,7 +81,7 @@ while (( $i < ${#keywords[*]} )); do
         case ${keywords[i]} in
         ""|spare)
 		for vdev in "${poolarray[@]}"; do
-			create_pool "$TESTPOOL" "$disk0"
+			create_pool -p "$TESTPOOL" -d "$disk0"
 			log_must poolexists "$TESTPOOL"
 			log_must zpool add -f "$TESTPOOL" ${keywords[i]} $vdev
 			log_must vdevs_in_pool "$TESTPOOL" "$vdev"
@@ -91,8 +91,7 @@ while (( $i < ${#keywords[*]} )); do
 		;;
         mirror)
 		for vdev in "${mirrorarray[@]}"; do
-			create_pool "$TESTPOOL" "${keywords[i]}" \
-				"$disk0" "$disk1"
+			create_pool -p "$TESTPOOL" -d "${keywords[i]} $disk0 $disk1"
 			log_must poolexists "$TESTPOOL"
 			log_must zpool add "$TESTPOOL" ${keywords[i]} $vdev
 			log_must vdevs_in_pool "$TESTPOOL" "$vdev"
@@ -102,8 +101,7 @@ while (( $i < ${#keywords[*]} )); do
 		;;
         raidz|raidz1)
 		for vdev in "${raidzarray[@]}"; do
-			create_pool "$TESTPOOL" "${keywords[i]}" \
-				"$disk0" "$disk1"
+			create_pool -p "$TESTPOOL" -d "${keywords[i]} $disk0 $disk1"
 			log_must poolexists "$TESTPOOL"
 			log_must zpool add "$TESTPOOL" ${keywords[i]} $vdev
 			log_must vdevs_in_pool "$TESTPOOL" "$vdev"
@@ -113,8 +111,7 @@ while (( $i < ${#keywords[*]} )); do
 		;;
         draid:1s|draid1:1s)
 		for vdev in "${draidarray[@]}"; do
-			create_pool "$TESTPOOL" "${keywords[i]}" \
-				"$disk0" "$disk1" "$disk2"
+			create_pool -p "$TESTPOOL" -d "${keywords[i]} $disk0 $disk1 $disk2"
 			log_must poolexists "$TESTPOOL"
 			log_must zpool add "$TESTPOOL" ${keywords[i]} $vdev
 			log_must vdevs_in_pool "$TESTPOOL" "$vdev"

@@ -136,7 +136,7 @@ done
 truncate -s $MINVDEVSIZE $TESTDIR/$REPLACEFILE
 
 for op in "" "-f"; do
-	create_pool $TESTPOOL1 mirror $specials_list
+	create_pool -p $TESTPOOL1 -d "mirror $specials_list"
 	log_must zfs create $TESTPOOL1/$TESTFS1
 	log_must zfs set mountpoint=$TESTDIR1 $TESTPOOL1/$TESTFS1
 
@@ -154,7 +154,7 @@ log_note "Verify 'zpool attach' fails with non-mirrors."
 
 for type in "" "raidz" "raidz1" "draid" "draid1"; do
 	for op in "" "-f"; do
-		create_pool $TESTPOOL1 $type $specials_list
+		create_pool -p $TESTPOOL1 -d "$type $specials_list"
 		log_must zfs create $TESTPOOL1/$TESTFS1
 		log_must zfs set mountpoint=$TESTDIR1 $TESTPOOL1/$TESTFS1
 

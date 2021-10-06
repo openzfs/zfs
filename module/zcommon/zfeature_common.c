@@ -253,6 +253,10 @@ zfeature_register(spa_feature_t fid, const char *guid, const char *name,
 	    (flags & ZFEATURE_FLAG_MOS) == 0);
 	ASSERT3U(fid, <, SPA_FEATURES);
 	ASSERT(zfeature_is_valid_guid(guid));
+	IMPLY(flags & ZFEATURE_FLAG_AGENT,
+	    !(flags & ZFEATURE_FLAG_PER_DATASET));
+	IMPLY(flags & ZFEATURE_FLAG_AGENT,
+	    !(flags & ZFEATURE_FLAG_ACTIVATE_ON_ENABLE));
 
 	if (deps == NULL)
 		deps = nodeps;

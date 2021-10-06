@@ -60,6 +60,12 @@
 .Op Fl s
 .Ar pool Ns | Ns Ar id
 .Op Ar newpool
+.Nm zpool
+.Cm import
+.Op Fl d Ar dir Ns | Ns Ar device
+.Oo Fl o Ar property Ns = Ns Ar value Oc Ns …
+.Op Fl -resume-destroy
+.Ar pool Ns | Ns Ar id
 .
 .Sh DESCRIPTION
 .Bl -tag -width Ds
@@ -122,6 +128,7 @@ Lists destroyed pools only.
 .Oo Fl o Ar property Ns = Ns Ar value Oc Ns …
 .Op Fl R Ar root
 .Op Fl s
+.Op Fl r
 .Xc
 Imports all pools found in the search directories.
 Identical to the previous command, except that all pools with a sufficient
@@ -400,6 +407,29 @@ in all label updates and therefore is retained upon export.
 Will also set
 .Fl o Sy cachefile Ns = Ns Sy none
 when not explicitly specified.
+.El
+.It Xo
+.Nm zpool
+.Cm import
+.Op Fl d Ar dir Ns | Ns Ar device
+.Oo Fl o Ar property Ns = Ns Ar value Oc Ns …
+.Fl -resume-destroy
+.Ar pool Ns | Ns Ar id
+.Xc
+Resume destroying a partially destroyed pool.
+.Bl -tag -width Ds
+.It Fl d Ar dir Ns | Ns Ar device
+Uses
+.Ar device
+or searches for devices or files in
+.Ar dir .
+The
+.Fl d
+option can be specified multiple times.
+.It Fl o Ar property Ns = Ns Ar value
+Uses the specified property to locate the pool.
+.It Fl r , -resume-destroy
+Instead of importing, resume destroying a partially destroyed pool.
 .El
 .El
 .

@@ -969,6 +969,10 @@ Encrypted datasets may not have
 .Sy copies Ns = Ns Ar 3
 since the implementation stores some encryption metadata where the third copy
 would normally be.
+.Pp
+For object based pools
+.Sy copies Ns = Ns Ar 1
+is the only supported value.
 .It Sy devices Ns = Ns Sy on Ns | Ns Sy off
 Controls whether device nodes can be opened on this file system.
 The default value is

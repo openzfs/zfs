@@ -492,19 +492,44 @@ spa_config_tryenter(spa_t *spa, int locks, void *tag, krw_t rw)
 	return (1);
 }
 
+/*
+ * This function should only be called as an exception since it
+ * will not check for any waiting writers and could lead to starvation.
+ */
+void
+spa_config_enter_read_priority(spa_t *spa, int locks, const void *tag)
+{
+	ASSERT3U(SCL_LOCKS, <, sizeof (int) * NBBY);
+
+	for (int i = 0; i < SCL_LOCKS; i++) {
+		spa_config_lock_t *scl = &spa->spa_config_lock[i];
+		if (!(locks & (1 << i)))
+			continue;
+
+		mutex_enter(&scl->scl_lock);
+		while (scl->scl_writer) {
+			cv_wait(&scl->scl_cv, &scl->scl_lock);
+		}
+		VERIFY3P(scl->scl_writer, ==, NULL);
+		scl->scl_count++;
+		mutex_exit(&scl->scl_lock);
+	}
+}
+
 void
 spa_config_enter(spa_t *spa, int locks, const void *tag, krw_t rw)
 {
 	int wlocks_held = 0;
-
 	ASSERT3U(SCL_LOCKS, <, sizeof (wlocks_held) * NBBY);
 
 	for (int i = 0; i < SCL_LOCKS; i++) {
+		vdev_t *rvd = spa->spa_root_vdev;
 		spa_config_lock_t *scl = &spa->spa_config_lock[i];
 		if (scl->scl_writer == curthread)
 			wlocks_held |= (1 << i);
 		if (!(locks & (1 << i)))
 			continue;
+
 		mutex_enter(&scl->scl_lock);
 		if (rw == RW_READER) {
 			while (scl->scl_writer || scl->scl_write_wanted) {
@@ -514,6 +539,24 @@ spa_config_enter(spa_t *spa, int locks, const void *tag, krw_t rw)
 			ASSERT(scl->scl_writer != curthread);
 			while (scl->scl_count != 0) {
 				scl->scl_write_wanted++;
+
+				boolean_t flush_needed =
+				    spa_is_object_based(spa) &&
+				    ((1 << i) == SCL_ZIO);
+
+				/*
+				 * If we're on object based pool and
+				 * we're trying to lock the SCL_LOCK,
+				 * then we need to notify the object
+				 * store agent to flush out any active
+				 * I/Os that are currently inflight.
+				 * Set the flush offset so that we can
+				 * flush any I/Os quickly that might
+				 * be holding the SCL_ZIO lock as reader.
+				 */
+				if (flush_needed) {
+					vdev_object_store_enable_passthru(rvd);
+				}
 				cv_wait(&scl->scl_cv, &scl->scl_lock);
 				scl->scl_write_wanted--;
 			}
@@ -2800,6 +2843,18 @@ spa_suspend_async_destroy(spa_t *spa)
 
 	return (B_FALSE);
 }
+
+boolean_t
+spa_is_object_based(spa_t *spa)
+{
+	vdev_t *rvd = spa->spa_root_vdev;
+	for (uint64_t c = 0; c < rvd->vdev_children; c++) {
+		if (vdev_is_object_based(rvd->vdev_child[c]))
+			return (B_TRUE);
+	}
+	return (B_FALSE);
+}
+
 
 #if defined(_KERNEL)
 

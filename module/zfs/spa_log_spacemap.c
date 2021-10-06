@@ -613,6 +613,13 @@ spa_estimate_metaslabs_to_flush(spa_t *spa)
 	uint64_t incoming = spa_estimate_incoming_log_blocks(spa);
 
 	/*
+	 * If our incoming rate is 0, then flush the minimal number of
+	 * metaslabs.
+	 */
+	if (incoming == 0)
+		return (zfs_min_metaslabs_to_flush);
+
+	/*
 	 * At any point in time this variable tells us how many
 	 * TXGs in the future we are so we can make our estimations.
 	 */
@@ -858,8 +865,22 @@ spa_sync_close_syncing_log_sm(spa_t *spa)
 	 * because there is the case where the first metaslab
 	 * in spa_metaslabs_by_flushed is loading and we were
 	 * not able to flush any metaslabs the current TXG.
+	 *
+	 * There is an assumption that after we call spa_flush_metaslabs(),
+	 * which allocates our spa_syncing_log_sm object, that
+	 * there will also be allocs and frees that metaslab_sync()
+	 * will write to the log. As a result, the value of 'sls_nblocks'
+	 * will not be 0. However, on object-based pools, we don't
+	 * maintain allocs/frees metadata in space_maps for normal
+	 * allocations. Only allocations to slog devices will ever
+	 * be written to space_maps. This means that we can
+	 * have occurences where spa_flush_metaslab() is called
+	 * without metaslab_sync() adding any alloc/free entries.
+	 * When this happens, the value of 'sls_nblocks' will be 0
+	 * and thus this assertion can only be made on block-based pools.
 	 */
-	ASSERT(sls->sls_nblocks != 0);
+	if (!spa_is_object_based(spa))
+		ASSERT(sls->sls_nblocks != 0);
 
 	spa_log_summary_add_incoming_blocks(spa, sls->sls_nblocks);
 	spa_log_summary_verify_counts(spa);

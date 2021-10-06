@@ -10,7 +10,7 @@
 #
 
 #
-# Copyright (c) 2017, 2018 by Delphix. All rights reserved.
+# Copyright (c) 2017, 2021 by Delphix. All rights reserved.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -25,8 +25,9 @@
 # For the first group we don't really care about the size of
 # the pool or the individual file sizes within the filesystems.
 # This is why these tests run directly on pools that use a
-# "real disk vdev" (meaning not a file based one). These tests
-# use the $TESTPOOL pool that is created on top of $TESTDISK.
+# "real disk vdev" or object storage (meaning not a file based one).
+# These tests use the $TESTPOOL pool that is created on top of $TESTDISK
+# or object storage.
 # This pool is referred to as the "test pool" and thus all
 # the tests of this group use the testpool-related functions of
 # this file (not the nested_pools ones).
@@ -51,8 +52,10 @@
 #
 # These disks are used to back $TESTPOOL
 #
-TESTDISK="$(echo $DISKS | cut -d' ' -f1)"
-EXTRATESTDISK="$(echo $DISKS | cut -d' ' -f2)"
+if ! use_object_store; then
+    TESTDISK="$(echo $DISKS | cut -d' ' -f1)"
+    EXTRATESTDISK="$(echo $DISKS | cut -d' ' -f2)"
+fi
 
 FS0=$TESTPOOL/$TESTFS
 FS1=$TESTPOOL/$TESTFS1
@@ -138,12 +141,16 @@ function setup_nested_pool
 	log_must truncate -s $DISKSIZE $FILEDISK1
 	log_must truncate -s $DISKSIZE $FILEDISK2
 
-	log_must zpool create -O sync=disabled $NESTEDPOOL $FILEDISKS
+    log_must zpool create -O sync=disabled $NESTEDPOOL $FILEDISKS
 }
 
+#
+# Calling create_pool method so that it can configure the pool using object
+# storage is ZTS_OBJECT_STORE environment variable is set.
+#
 function setup_test_pool
 {
-	log_must zpool create -O sync=disabled $TESTPOOL "$TESTDISK"
+    create_pool -p $TESTPOOL -d "$TESTDISK" -e "-O sync=disabled"
 }
 
 function setup_nested_pools
@@ -173,9 +180,11 @@ function cleanup_test_pool
 	# or zdb do not get confused with leftover
 	# data from old pools.
 	#
-	for disk in $DISKS; do
-		zpool labelclear -f $disk
-	done
+	if ! use_object_store; then
+		for disk in $DISKS; do
+			zpool labelclear -f $disk
+		done
+	fi
 }
 
 function cleanup_nested_pools

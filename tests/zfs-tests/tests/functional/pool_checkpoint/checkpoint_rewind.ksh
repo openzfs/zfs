@@ -25,7 +25,7 @@
 #	1. Create pool
 #	2. Populate it
 #	3. Take checkpoint
-#	4. Modify data (include at least one destructive change) 
+#	4. Modify data (include at least one destructive change)
 #	5. Rewind to checkpoint
 #	6. Verify that the data before the checkpoint are present
 #	   and the data after the checkpoint is gone.
@@ -42,7 +42,7 @@ log_must zpool checkpoint $TESTPOOL
 test_change_state_after_checkpoint
 
 log_must zpool export $TESTPOOL
-log_must zpool import --rewind-to-checkpoint $TESTPOOL
+log_must import_pool -e "--rewind-to-checkpoint" -p $TESTPOOL
 
 test_verify_pre_checkpoint_state
 

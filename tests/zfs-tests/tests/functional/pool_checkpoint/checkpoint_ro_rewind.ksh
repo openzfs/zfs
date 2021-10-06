@@ -26,7 +26,7 @@
 #	1. Create pool
 #	2. Populate it
 #	3. Take checkpoint
-#	4. Modify data (include at least one destructive change) 
+#	4. Modify data (include at least one destructive change)
 #	5. Export and import the checkpointed state as readonly
 #	6. Verify that we can see the checkpointed state and not
 #	   the actual current state.
@@ -45,12 +45,12 @@ log_must zpool checkpoint $TESTPOOL
 test_change_state_after_checkpoint
 
 log_must zpool export $TESTPOOL
-log_must zpool import -o readonly=on --rewind-to-checkpoint $TESTPOOL
+log_must import_pool -e "-o readonly=on --rewind-to-checkpoint" -p $TESTPOOL
 
 test_verify_pre_checkpoint_state "ro-check"
 
 log_must zpool export $TESTPOOL
-log_must zpool import $TESTPOOL
+log_must import_pool -p $TESTPOOL
 
 test_verify_post_checkpoint_state
 

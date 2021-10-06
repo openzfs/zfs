@@ -129,7 +129,8 @@ done
 typeset badvals=("off" "on" "1" "8" "17" "1b" "ff" "-")
 for badval in ${badvals[@]}
 do
-	log_mustnot zpool create -o ashift="$badval" $TESTPOOL $disk
+	log_mustnot create_pool -e "-o ashift=\"$badval\"" -p $TESTPOOL \
+		-d "$disk"
 done
 
 log_pass "zpool create -o ashift=<n>' works with different ashift values"

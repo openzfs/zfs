@@ -4099,6 +4099,30 @@ error:
 	return (ret);
 }
 
+static void
+zfs_adjust_copies_prop(libzfs_handle_t *hdl, char *fsname, nvlist_t *recvprops)
+{
+	uint64_t copies;
+	char namebuf[ZFS_MAX_DATASET_NAME_LEN];
+
+	if (nvlist_lookup_uint64(recvprops, zfs_prop_to_name(ZFS_PROP_COPIES),
+	    &copies) == 0 && copies > 1) {
+		strlcpy(namebuf, fsname, ZFS_MAX_DATASET_NAME_LEN);
+		char *cp = strchr(namebuf, '/');
+		if (cp != NULL)
+			*cp = '\0';
+		zpool_handle_t *zpool_hdl = zpool_open(hdl, namebuf);
+		if (zpool_hdl != NULL) {
+			/* object based pools only support copies = 1 */
+			if (zpool_is_object_based(zpool_hdl)) {
+				(void) nvlist_remove_all(recvprops,
+				    zfs_prop_to_name(ZFS_PROP_COPIES));
+			}
+			zpool_close(zpool_hdl);
+		}
+	}
+}
+
 /*
  * Restores a backup of tosnap from the file descriptor specified by infd.
  */
@@ -4650,6 +4674,10 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		fnvlist_add_uint64(oxprops,
 		    zfs_prop_to_name(ZFS_PROP_ENCRYPTION), ZIO_CRYPT_OFF);
 	}
+
+	/* Adjust for an object based pool that is receiving copies > 1 */
+	if (rcvprops != NULL)
+		zfs_adjust_copies_prop(hdl, name, rcvprops);
 
 	if (flags->dryrun) {
 		void *buf = zfs_alloc(hdl, SPA_MAXBLOCKSIZE);

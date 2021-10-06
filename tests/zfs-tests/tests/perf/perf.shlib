@@ -53,6 +53,19 @@ function get_suffix
 	echo $suffix
 }
 
+function fill_zetta_cache
+{
+	[ -z "$ZETTA_CACHE_DEV" ] && return
+
+	log_note "Filling ZettaCache: $ZETTA_CACHE_DEV"
+
+	export RUNTIME=$1
+	export BLOCKSIZE=1m
+	export SYNC_TYPE=1
+	export DIRECT=0
+	log_must fio  --output /tmp/fio_fill.out $FIO_SCRIPTS/sequential_reads.fio
+}
+
 function do_fio_run_impl
 {
 	typeset script=$1
@@ -301,7 +314,7 @@ function recreate_perf_pool
 	# This function handles the case where the pool already exists,
 	# and will destroy the previous pool and recreate a new pool.
 	#
-	create_pool $PERFPOOL $DISKS
+	create_pool -p $PERFPOOL -d "$DISKS"
 }
 
 function verify_threads_per_fs

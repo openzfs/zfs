@@ -47,7 +47,7 @@ log_onexit cleanup
 
 log_assert "creates a pool with a specified feature set enabled"
 
-log_must zpool create -f -o compatibility=compat-2020 $TESTPOOL $DISKS
+log_must create_pool -e "-o compatibility=compat-2020" -p $TESTPOOL -d "$DISKS"
 check_feature_set $TESTPOOL compat-2020
 log_must zpool destroy -f $TESTPOOL
 

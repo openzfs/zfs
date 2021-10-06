@@ -141,6 +141,12 @@ fspacectl_reason = 'fspacectl(2) and truncate -d support required'
 na_reason = "Not applicable"
 
 #
+# Some tests are not applicable for object-store. Any tests which are skipped
+# for this reason will be suppressed in the final analysis output.
+#
+object_store_skip = "Not applicable for object_store"
+
+#
 # Some test cases doesn't have all requirements to run on Github actions CI.
 #
 ci_reason = 'CI runner doesn\'t have all requirements'
@@ -192,6 +198,60 @@ elif sys.platform.startswith('linux'):
         'removal/removal_with_zdb': ['SKIP', known_reason],
     })
 
+if os.environ.get('ZTS_OBJECT_STORE') == 'true':
+    known.update({
+        'cli_root/zfs_copies/zfs_copies_002_pos': ['SKIP', object_store_skip],
+        'cli_root/zfs_copies/zfs_copies_003_pos': ['SKIP', object_store_skip],
+        'cli_root/zfs_copies/zfs_copies_005_neg': ['SKIP', object_store_skip],
+        'cli_root/zfs_copies/zfs_copies_006_pos': ['SKIP', object_store_skip],
+        'cli_root/zfs_destroy/zfs_destroy_dev_removal':
+            ['SKIP', object_store_skip],
+        'cli_root/zfs_destroy/zfs_destroy_dev_removal_condense':
+            ['SKIP', object_store_skip],
+        'cli_root/zpool/zpool_003_pos': ['SKIP', object_store_skip],
+        'cli_root/zpool/zpool_colors': ['SKIP', object_store_skip],
+        'cli_root/zpool_add/add-o_ashift': ['SKIP', object_store_skip],
+        'cli_root/zpool_add/add_prop_ashift': ['SKIP', object_store_skip],
+        'cli_root/zpool_add/setup': ['SKIP', object_store_skip],
+        'cli_root/zpool_add/zpool_add_001_pos': ['SKIP', object_store_skip],
+        'cli_root/zpool_add/zpool_add_002_pos': ['SKIP', object_store_skip],
+        'cli_root/zpool_add/zpool_add_003_pos': ['SKIP', object_store_skip],
+        'cli_root/zpool_add/zpool_add_004_pos': ['SKIP', object_store_skip],
+        'cli_root/zpool_add/zpool_add_006_pos': ['SKIP', object_store_skip],
+        'cli_root/zpool_add/zpool_add_007_neg': ['SKIP', object_store_skip],
+        'cli_root/zpool_add/zpool_add_008_neg': ['SKIP', object_store_skip],
+        'cli_root/zpool_add/zpool_add_009_neg': ['SKIP', object_store_skip],
+        'cli_root/zpool_add/zpool_add_010_pos': ['SKIP', object_store_skip],
+        'cli_root/zpool_add/zpool_add_dryrun_output':
+            ['SKIP', object_store_skip],
+        'cli_root/zpool_attach/attach-o_ashift': ['SKIP', object_store_skip],
+        'cli_root/zpool_attach/setup': ['SKIP', object_store_skip],
+        'cli_root/zpool_attach/zpool_attach_001_neg':
+            ['SKIP', object_store_skip],
+        'cli_root/zpool_create/zpool_create_002_pos':
+            ['SKIP', object_store_skip],
+        'cli_root/zpool_create/zpool_create_008_pos':
+            ['SKIP', object_store_skip],
+        'cli_root/zpool_create/zpool_create_009_neg':
+            ['SKIP', object_store_skip],
+        'cli_root/zpool_create/zpool_create_011_neg':
+            ['SKIP', object_store_skip],
+        'cli_root/zpool_detach/setup': ['SKIP', object_store_skip],
+        'cli_root/zpool_detach/zpool_detach_001_neg':
+            ['SKIP', object_store_skip],
+        'cli_root/zpool_offline/setup': ['SKIP', object_store_skip],
+        'cli_root/zpool_offline/zpool_offline_001_pos':
+            ['SKIP', object_store_skip],
+        'cli_root/zpool_offline/zpool_offline_002_neg':
+            ['SKIP', object_store_skip],
+        'cli_root/zpool_offline/zpool_offline_003_pos':
+            ['SKIP', object_store_skip],
+        'cli_root/zpool_online/setup': ['SKIP', object_store_skip],
+        'cli_root/zpool_online/zpool_online_001_pos':
+            ['SKIP', object_store_skip],
+        'cli_root/zpool_online/zpool_online_002_neg':
+            ['SKIP', object_store_skip],
+    })
 
 #
 # These tests may occasionally fail or be skipped.  We want there failures
@@ -310,6 +370,10 @@ elif sys.platform.startswith('linux'):
         'snapshot/rollback_003_pos': ['FAIL', known_reason],
     })
 
+if os.environ.get('ZTS_OBJECT_STORE') == 'true':
+    maybe.update({
+        'cli_root/zpool_create/zpool_create_003_pos': ['FAIL', 'DOSE-545'],
+    })
 
 # Not all Github actions runners have scsi_debug module, so we may skip
 #   some tests which use it.

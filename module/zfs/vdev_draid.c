@@ -1606,7 +1606,8 @@ vdev_draid_rebuild_asize(vdev_t *vd, uint64_t start, uint64_t asize,
  * on metaslab boundaries which vdev_xlate() expects to be aligned.
  */
 static void
-vdev_draid_metaslab_init(vdev_t *vd, uint64_t *ms_start, uint64_t *ms_size)
+vdev_draid_metaslab_init(vdev_t *vd, metaslab_t *msp, uint64_t *ms_start,
+    uint64_t *ms_size)
 {
 	vdev_draid_config_t *vdc = vd->vdev_tsd;
 

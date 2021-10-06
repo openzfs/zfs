@@ -67,10 +67,10 @@ vfstab_dev=$(find_vfstab_dev)
 saved_dump_dev=$(save_dump_dev)
 dump_dev=$DISK2
 
-create_pool $TESTPOOL $DISK0
+create_pool -p $TESTPOOL -d "$DISK0"
 log_must poolexists $TESTPOOL
 
-create_pool $TESTPOOL1 $DISK1
+create_pool -p $TESTPOOL1 -d "$DISK1"
 log_must poolexists $TESTPOOL1
 
 unset NOINUSE_CHECK

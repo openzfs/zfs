@@ -36,6 +36,10 @@
 
 verify_runnable "global"
 
+if use_object_store; then
+    log_unsupported "Runs disk removal. Hence, not applicable for object storage run."
+fi
+
 function callback
 {
 	log_mustnot zpool checkpoint $TESTPOOL

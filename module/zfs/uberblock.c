@@ -70,5 +70,12 @@ uberblock_update(uberblock_t *ub, vdev_t *rvd, uint64_t txg, uint64_t mmp_delay)
 	}
 	ub->ub_checkpoint_txg = 0;
 
+	/*
+	 * XXX - Object-based storage requires that we always update
+	 * the uberblock even if the pool was not updated.
+	 */
+	if (vdev_is_object_based(rvd))
+		return (B_TRUE);
+
 	return (ub->ub_rootbp.blk_birth == txg);
 }

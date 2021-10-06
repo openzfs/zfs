@@ -32,6 +32,9 @@
 #define	EZFS_BADPATH	"must be an absolute path"
 #define	EZFS_NOMEM	"out of memory"
 #define	EZFS_EACESS	"some devices require root privileges"
+#define	EZFS_SOCKETFAILURE	"socket failure"
+#define	EZFS_CONNECT_REFUSED	"agent may not be running"
+#define	EZFS_CONNECT_RETRY	"retrying connection"
 
 #define	IMPORT_ORDER_PREFERRED_1	1
 #define	IMPORT_ORDER_PREFERRED_2	2
@@ -55,6 +58,8 @@ int zpool_find_import_blkid(libpc_handle_t *hdl, pthread_mutex_t *lock,
 
 void * zutil_alloc(libpc_handle_t *hdl, size_t size);
 char *zutil_strdup(libpc_handle_t *hdl, const char *str);
+int zutil_error(libpc_handle_t *hdl, const char *error, const char *msg);
+void zutil_error_aux(libpc_handle_t *hdl, const char *fmt, ...);
 
 typedef struct rdsk_node {
 	char *rn_name;			/* Full path to device */
@@ -67,6 +72,7 @@ typedef struct rdsk_node {
 	avl_node_t rn_node;
 	pthread_mutex_t *rn_lock;
 	boolean_t rn_labelpaths;
+	boolean_t rn_external;		/* True if the disk cannot be opened. */
 } rdsk_node_t;
 
 int slice_cache_compare(const void *, const void *);

@@ -152,7 +152,7 @@ typedef struct trim_args {
 	trim_type_t	trim_type;		/* Manual or auto TRIM */
 	uint64_t	trim_extent_bytes_max;	/* Maximum TRIM I/O size */
 	uint64_t	trim_extent_bytes_min;	/* Minimum TRIM I/O size */
-	enum trim_flag	trim_flags;		/* TRIM flags (secure) */
+	enum zio_control_flag	trim_flags;	/* TRIM flags (secure) */
 
 	/*
 	 * These fields are updated by vdev_trim_ranges().
@@ -872,7 +872,7 @@ vdev_trim_thread(void *arg)
 	 * minimum TRIM size to prevent ranges from being skipped.
 	 */
 	if (vd->vdev_trim_secure) {
-		ta.trim_flags |= ZIO_TRIM_SECURE;
+		ta.trim_flags |= ZIO_CONTROL_TRIM_SECURE;
 		ta.trim_extent_bytes_min = SPA_MINBLOCKSIZE;
 	}
 

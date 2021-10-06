@@ -28,13 +28,17 @@
 #	2. Populate it
 #	3. Take checkpoint
 #	4. Add device and modify data
-#	   (include at least one destructive change) 
+#	   (include at least one destructive change)
 #	5. Rewind to checkpoint
 #	6. Verify that we rewinded successfully and check if the
 #	   device shows up in the vdev list
 #
 
 verify_runnable "global"
+
+if use_object_store; then
+    log_unsupported "Adds disk to the pool. Hence, not applicable for object storage run."
+fi
 
 setup_test_pool
 log_onexit cleanup_test_pool

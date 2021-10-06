@@ -35,6 +35,7 @@
 #include <sys/space_map.h>
 #include <sys/metaslab.h>
 #include <sys/fs/zfs.h>
+#include <sys/zfeature.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -67,6 +68,7 @@ extern void vdev_reopen(vdev_t *);
 extern int vdev_validate_aux(vdev_t *vd);
 extern zio_t *vdev_probe(vdev_t *vd, zio_t *pio);
 extern boolean_t vdev_is_concrete(vdev_t *vd);
+extern boolean_t vdev_is_object_based(vdev_t *vd);
 extern boolean_t vdev_is_bootable(vdev_t *vd);
 extern vdev_t *vdev_lookup_top(spa_t *spa, uint64_t vdev);
 extern vdev_t *vdev_lookup_by_guid(vdev_t *vd, uint64_t guid);
@@ -133,6 +135,8 @@ extern void vdev_space_update(vdev_t *vd,
 extern int64_t vdev_deflated_space(vdev_t *vd, int64_t space);
 
 extern uint64_t vdev_psize_to_asize(vdev_t *vd, uint64_t psize);
+
+extern void vdev_enable_feature(vdev_t *, zfeature_info_t *);
 
 /*
  * Return the amount of space allocated for a gang block header.

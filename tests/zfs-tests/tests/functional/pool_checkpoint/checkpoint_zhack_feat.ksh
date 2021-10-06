@@ -26,13 +26,13 @@
 #	1. Create pool
 #	2. Populate it
 #	3. Take checkpoint
-#	4. Modify data (include at least one destructive change) 
+#	4. Modify data (include at least one destructive change)
 #	5. Export pool
 #	6. Introduce a new feature in the pool which is unsupported
 #	   but readonly-compatible and increment its reference
 #	   number so it is marked active.
 #	7. Verify that the pool can't be opened writeable, but we
-#	   can rewind to the checkpoint (before the feature was 
+#	   can rewind to the checkpoint (before the feature was
 #	   introduced) if we want to.
 #
 
@@ -58,8 +58,8 @@ log_must zpool export $TESTPOOL
 log_must zhack feature enable -r $TESTPOOL 'com.company:future_feature'
 log_must zhack feature ref $TESTPOOL 'com.company:future_feature'
 
-log_mustnot zpool import $TESTPOOL
-log_must zpool import --rewind-to-checkpoint $TESTPOOL
+log_mustnot import_pool -p $TESTPOOL
+log_must import_pool -e "--rewind-to-checkpoint" -p $TESTPOOL
 
 test_verify_pre_checkpoint_state
 

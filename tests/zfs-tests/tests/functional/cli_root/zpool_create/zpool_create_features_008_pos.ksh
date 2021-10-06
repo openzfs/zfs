@@ -47,7 +47,8 @@ log_onexit cleanup
 
 log_assert "creates a pool with multiple feature sets enabled"
 
-log_must zpool create -f -o compatibility=freebsd-11.0,zol-0.8 $TESTPOOL $DISKS
+log_must create_pool -e "-o compatibility=freebsd-11.0,zol-0.8" \
+	-p $TESTPOOL -d "$DISKS"
 check_feature_set $TESTPOOL freebsd-11.0 zol-0.8
 log_must zpool destroy -f $TESTPOOL
 

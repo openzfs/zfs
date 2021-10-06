@@ -765,7 +765,7 @@ vdev_disk_io_start(zio_t *zio)
 
 	case ZIO_TYPE_TRIM:
 #if defined(BLKDEV_DISCARD_SECURE)
-		if (zio->io_trim_flags & ZIO_TRIM_SECURE)
+		if (zio->io_control_flags & ZIO_CONTROL_TRIM_SECURE)
 			trim_flags |= BLKDEV_DISCARD_SECURE;
 #endif
 		zio->io_error = -blkdev_issue_discard(vd->vd_bdev,

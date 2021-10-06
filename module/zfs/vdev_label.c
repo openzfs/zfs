@@ -143,6 +143,7 @@
 #include <sys/vdev.h>
 #include <sys/vdev_impl.h>
 #include <sys/vdev_draid.h>
+#include <sys/vdev_object_store.h>
 #include <sys/uberblock_impl.h>
 #include <sys/metaslab.h>
 #include <sys/metaslab_impl.h>
@@ -795,6 +796,10 @@ vdev_label_read_config(vdev_t *vd, uint64_t txg)
 	if (vd->vdev_ops == &vdev_draid_spare_ops)
 		return (vdev_draid_read_config_spare(vd));
 
+	if (vdev_is_object_based(vd)) {
+		return (vdev_object_store_get_config(vd));
+	}
+
 	for (int l = 0; l < VDEV_LABELS; l++) {
 		vp_abd[l] = abd_alloc_linear(sizeof (vdev_phys_t), B_TRUE);
 		vp[l] = abd_to_buf(vp_abd[l]);
@@ -1014,7 +1019,8 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 	/* Track the creation time for this vdev */
 	vd->vdev_crtxg = crtxg;
 
-	if (!vd->vdev_ops->vdev_op_leaf || !spa_writeable(spa))
+	if (!vd->vdev_ops->vdev_op_leaf || !spa_writeable(spa) ||
+	    vdev_is_object_based(vd))
 		return (0);
 
 	/*
@@ -1478,17 +1484,12 @@ struct ubl_cbdata {
 };
 
 static void
-vdev_uberblock_load_done(zio_t *zio)
+vdev_uberblock_load_done_impl(spa_t *spa, vdev_t *vd, uberblock_t *ub,
+    zio_t *rio)
 {
-	vdev_t *vd = zio->io_vd;
-	spa_t *spa = zio->io_spa;
-	zio_t *rio = zio->io_private;
-	uberblock_t *ub = abd_to_buf(zio->io_abd);
 	struct ubl_cbdata *cbp = rio->io_private;
 
-	ASSERT3U(zio->io_size, ==, VDEV_UBERBLOCK_SIZE(vd));
-
-	if (zio->io_error == 0 && uberblock_verify(ub) == 0) {
+	if (uberblock_verify(ub) == 0) {
 		mutex_enter(&rio->io_lock);
 		if (ub->ub_txg <= spa->spa_load_max_txg &&
 		    vdev_uberblock_compare(ub, cbp->ubl_ubbest) > 0) {
@@ -1503,6 +1504,21 @@ vdev_uberblock_load_done(zio_t *zio)
 		}
 		mutex_exit(&rio->io_lock);
 	}
+}
+
+static void
+vdev_uberblock_load_done(zio_t *zio)
+{
+	vdev_t *vd = zio->io_vd;
+	spa_t *spa = zio->io_spa;
+	zio_t *rio = zio->io_private;
+	uberblock_t *ub = abd_to_buf(zio->io_abd);
+
+	ASSERT3U(zio->io_size, ==, VDEV_UBERBLOCK_SIZE(vd));
+
+	if (zio->io_error == 0) {
+		vdev_uberblock_load_done_impl(spa, vd, ub, rio);
+	}
 
 	abd_free(zio->io_abd);
 }
@@ -1514,8 +1530,14 @@ vdev_uberblock_load_impl(zio_t *zio, vdev_t *vd, int flags,
 	for (int c = 0; c < vd->vdev_children; c++)
 		vdev_uberblock_load_impl(zio, vd->vdev_child[c], flags, cbp);
 
-	if (vd->vdev_ops->vdev_op_leaf && vdev_readable(vd) &&
-	    vd->vdev_ops != &vdev_draid_spare_ops) {
+	if (!vd->vdev_ops->vdev_op_leaf)
+		return;
+
+	if (vdev_is_object_based(vd)) {
+		uberblock_t *ub = vdev_object_store_get_uberblock(vd);
+		ASSERT3P(ub, !=, NULL);
+		vdev_uberblock_load_done_impl(zio->io_spa, vd, ub, zio);
+	} else if (vdev_readable(vd) && vd->vdev_ops != &vdev_draid_spare_ops) {
 		for (int l = 0; l < VDEV_LABELS; l++) {
 			for (int n = 0; n < VDEV_UBERBLOCK_COUNT(vd); n++) {
 				vdev_label_read(zio, vd, l,
@@ -1563,7 +1585,7 @@ vdev_uberblock_load(vdev_t *rvd, uberblock_t *ub, nvlist_t **config)
 	 * Search all labels on this vdev to find the configuration that
 	 * matches the txg for our uberblock.
 	 */
-	if (cb.ubl_vd != NULL) {
+	if (cb.ubl_vd != NULL && !vdev_is_object_based(cb.ubl_vd)) {
 		vdev_dbgmsg(cb.ubl_vd, "best uberblock found for spa %s. "
 		    "txg %llu", spa->spa_name, (u_longlong_t)ub->ub_txg);
 
@@ -1575,6 +1597,12 @@ vdev_uberblock_load(vdev_t *rvd, uberblock_t *ub, nvlist_t **config)
 		}
 		if (*config == NULL) {
 			vdev_dbgmsg(cb.ubl_vd, "failed to read label config");
+		}
+	} else if (cb.ubl_vd != NULL && vdev_is_object_based(cb.ubl_vd)) {
+		*config = vdev_object_store_get_config(cb.ubl_vd);
+		if (*config == NULL) {
+			vdev_dbgmsg(cb.ubl_vd, "failed to read objstore "
+			    "label config");
 		}
 	}
 	spa_config_exit(spa, SCL_ALL, FTAG);
@@ -1926,7 +1954,28 @@ retry:
 	if (txg > spa_freeze_txg(spa))
 		return (0);
 
-	ASSERT(txg <= spa->spa_final_txg);
+	/*
+	 * If this pool is using object storage, then
+	 * it only needs to notify the backend that
+	 * we've completed the txg and return.
+	 */
+	if (spa_is_object_based(spa)) {
+		/*
+		 * XXX - Right now we don't update the labels on
+		 * any slog devices if we're using object-based pools.
+		 * This seems to be fine since the mos config object
+		 * will have all the information we need. However, there
+		 * might be some corner cases where need to look at the
+		 * label on the slog device directly. If that is
+		 * the case, then we will need to revisit this.
+		 */
+		nvlist_t *label = spa_config_generate(spa,
+		    svd[0], txg, B_FALSE);
+		object_store_end_txg(svd[0], label, txg);
+		return (0);
+	}
+
+	ASSERT3U(txg, <=, spa_final_dirty_txg(spa));
 
 	/*
 	 * Flush the write cache of every disk that's been written to

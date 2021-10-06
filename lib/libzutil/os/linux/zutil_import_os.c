@@ -122,6 +122,11 @@ zpool_open_func(void *arg)
 	    (S_ISREG(statbuf.st_mode) && statbuf.st_size < SPA_MINDEVSIZE))
 		return;
 
+	if (rn->rn_config != NULL) {
+		rn->rn_num_labels = 4; /* TODO: Do we need to set this? */
+		return;
+	}
+
 	/*
 	 * Preferentially open using O_DIRECT to bypass the block device
 	 * cache which may be stale for multipath devices.  An EINVAL errno
@@ -198,6 +203,7 @@ zpool_open_func(void *arg)
 			slice->rn_hdl = hdl;
 			slice->rn_order = IMPORT_ORDER_PREFERRED_1;
 			slice->rn_labelpaths = B_FALSE;
+			slice->rn_external = B_FALSE;
 			pthread_mutex_lock(rn->rn_lock);
 			if (avl_find(rn->rn_avl, slice, &where)) {
 			pthread_mutex_unlock(rn->rn_lock);
@@ -224,6 +230,7 @@ zpool_open_func(void *arg)
 			slice->rn_hdl = hdl;
 			slice->rn_order = IMPORT_ORDER_PREFERRED_2;
 			slice->rn_labelpaths = B_FALSE;
+			slice->rn_external = B_FALSE;
 			pthread_mutex_lock(rn->rn_lock);
 			if (avl_find(rn->rn_avl, slice, &where)) {
 				pthread_mutex_unlock(rn->rn_lock);
@@ -347,6 +354,7 @@ zpool_find_import_blkid(libpc_handle_t *hdl, pthread_mutex_t *lock,
 		slice->rn_avl = *slice_cache;
 		slice->rn_hdl = hdl;
 		slice->rn_labelpaths = B_TRUE;
+		slice->rn_external = B_FALSE;
 
 		error = zfs_path_order(slice->rn_name, &slice->rn_order);
 		if (error == 0)

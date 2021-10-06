@@ -48,6 +48,11 @@
 
 verify_runnable "global"
 
+if use_object_store; then
+	log_unsupported "Creates pool with same devices twice." \
+		"Hence, not applicable for object storage run."
+fi
+
 function cleanup
 {
 	typeset pool
@@ -71,12 +76,12 @@ for opt in "" "mirror" "raidz" "draid"; do
 	fi
 
 	# Create two pools but using the same disks.
-	create_pool $TESTPOOL $opt $disks
+	create_pool -p $TESTPOOL -d "$opt $disks"
 	log_mustnot zpool create -f $TESTPOOL1 $opt $disks
 	destroy_pool $TESTPOOL
 
 	# Create two pools and part of the devices were overlapped
-	create_pool $TESTPOOL $opt $disks
+	create_pool -p $TESTPOOL -d "$opt $disks"
 	log_mustnot zpool create -f $TESTPOOL1 $opt $DISK0
 	destroy_pool $TESTPOOL
 

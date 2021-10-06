@@ -1,0 +1,10 @@
+[Unit]
+Description=ZFS Object Agent Chaos Monkey
+After=zfs-object-agent.service
+
+[Service]
+Type=simple
+Environment=MAX_KILL_DELAY=300
+Environment=MIN_KILL_DELAY=0
+ExecStart=/usr/bin/zoa_chaos_monkey
+Restart=on-failure

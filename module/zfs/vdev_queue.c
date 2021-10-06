@@ -236,6 +236,13 @@ int zfs_vdev_def_queue_depth = 32;
 int zfs_vdev_aggregate_trim = 0;
 
 static int
+vdev_queue_pointer_compare(const void *x1, const void *x2)
+{
+
+	return (TREE_PCMP(x1, x2));
+}
+
+static int
 vdev_queue_offset_compare(const void *x1, const void *x2)
 {
 	const zio_t *z1 = (const zio_t *)x1;
@@ -244,6 +251,15 @@ vdev_queue_offset_compare(const void *x1, const void *x2)
 	int cmp = TREE_CMP(z1->io_offset, z2->io_offset);
 
 	if (likely(cmp))
+		return (cmp);
+
+	/*
+	 * If the zio we are trying to find is requesting
+	 * an exact offset match then return once TREE_CMP finds
+	 * the offset.
+	 */
+	if (z1->io_control_flags & ZIO_CONTROL_OFFSET_MATCH ||
+	    z2->io_control_flags & ZIO_CONTROL_OFFSET_MATCH)
 		return (cmp);
 
 	return (TREE_PCMP(z1, z2));
@@ -462,8 +478,13 @@ vdev_queue_init(vdev_t *vd)
 	vq->vq_vdev = vd;
 	taskq_init_ent(&vd->vdev_queue.vq_io_search.io_tqent);
 
-	avl_create(&vq->vq_active_tree, vdev_queue_offset_compare,
-	    sizeof (zio_t), offsetof(struct zio, io_queue_node));
+	if (vdev_is_object_based(vd)) {
+		avl_create(&vq->vq_active_tree, vdev_queue_pointer_compare,
+		    sizeof (zio_t), offsetof(struct zio, io_queue_node));
+	} else {
+		avl_create(&vq->vq_active_tree, vdev_queue_offset_compare,
+		    sizeof (zio_t), offsetof(struct zio, io_queue_node));
+	}
 	avl_create(vdev_queue_type_tree(vq, ZIO_TYPE_READ),
 	    vdev_queue_offset_compare, sizeof (zio_t),
 	    offsetof(struct zio, io_offset_node));
@@ -541,7 +562,7 @@ vdev_queue_is_interactive(zio_priority_t p)
 	}
 }
 
-static void
+void
 vdev_queue_pending_add(vdev_queue_t *vq, zio_t *zio)
 {
 	ASSERT(MUTEX_HELD(&vq->vq_lock));
@@ -556,7 +577,7 @@ vdev_queue_pending_add(vdev_queue_t *vq, zio_t *zio)
 	avl_add(&vq->vq_active_tree, zio);
 }
 
-static void
+void
 vdev_queue_pending_remove(vdev_queue_t *vq, zio_t *zio)
 {
 	ASSERT(MUTEX_HELD(&vq->vq_lock));
@@ -876,6 +897,12 @@ vdev_queue_io(zio_t *zio)
 		return (zio);
 
 	/*
+	 * Object-based pools do not buffer any
+	 * I/Os in the kernel.
+	 */
+	ASSERT(!vdev_is_object_based(vq->vq_vdev));
+
+	/*
 	 * Children i/os inherent their parent's priority, which might
 	 * not match the child's i/o type.  Fix it up here.
 	 */
@@ -941,6 +968,19 @@ vdev_queue_io_done(zio_t *zio)
 	vq->vq_io_delta_ts = zio->io_delta = now - zio->io_timestamp;
 
 	mutex_enter(&vq->vq_lock);
+
+	/*
+	 * Object-based pools do not buffer any
+	 * I/Os in the kernel so we can simply return.
+	 * The I/O would have already been removed from
+	 * the active queue.
+	 */
+	if (vdev_is_object_based(vq->vq_vdev)) {
+		ASSERT3P(vdev_queue_io_to_issue(vq), ==, NULL);
+		mutex_exit(&vq->vq_lock);
+		return;
+	}
+
 	vdev_queue_pending_remove(vq, zio);
 
 	while ((nio = vdev_queue_io_to_issue(vq)) != NULL) {

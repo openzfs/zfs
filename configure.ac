@@ -80,6 +80,8 @@ AC_CONFIG_FILES([
 	cmd/zfs/Makefile
 	cmd/zfs_file/Makefile
 	cmd/zfs_ids_to_path/Makefile
+	cmd/zfs_object_agent/Makefile
+	cmd/zfs_object_agent/scripts/Makefile
 	cmd/zgenhostid/Makefile
 	cmd/zhack/Makefile
 	cmd/zinject/Makefile

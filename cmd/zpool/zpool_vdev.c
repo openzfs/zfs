@@ -258,6 +258,42 @@ is_spare(nvlist_t *config, const char *path)
 	return (B_FALSE);
 }
 
+static nvlist_t *
+make_objstore_vdev(nvlist_t *props, const char *arg)
+{
+	nvlist_t *vdev = fnvlist_alloc();
+	char *endpoint, *region, *profile;
+	fnvlist_add_string(vdev, ZPOOL_CONFIG_PATH, arg);
+	fnvlist_add_string(vdev, ZPOOL_CONFIG_TYPE, VDEV_TYPE_OBJSTORE);
+
+	if ((nvlist_lookup_string(props,
+	    zpool_prop_to_name(ZPOOL_PROP_OBJ_ENDPOINT), &endpoint)) != 0) {
+		fprintf(stderr, gettext("No endpoint provided for objstore "
+		    "vdev %s\n"), arg);
+		fnvlist_free(vdev);
+		return (NULL);
+	}
+	fnvlist_add_string(vdev, zpool_prop_to_name(ZPOOL_PROP_OBJ_ENDPOINT),
+	    endpoint);
+
+	if ((nvlist_lookup_string(props,
+	    zpool_prop_to_name(ZPOOL_PROP_OBJ_REGION), &region)) != 0) {
+		fprintf(stderr, gettext("No region provided for objstore "
+		    "vdev %s\n"), arg);
+		fnvlist_free(vdev);
+		return (NULL);
+	}
+	fnvlist_add_string(vdev, zpool_prop_to_name(ZPOOL_PROP_OBJ_REGION),
+	    region);
+
+	if ((nvlist_lookup_string(props,
+	    zpool_prop_to_name(ZPOOL_PROP_OBJ_CRED_PROFILE), &profile)) == 0) {
+		fnvlist_add_string(vdev, ZPOOL_CONFIG_CRED_PROFILE, profile);
+	}
+
+	return (vdev);
+}
+
 /*
  * Create a leaf vdev.  Determine if this is a file or a device.  If it's a
  * device, fill in the device id to make a complete nvlist.  Valid forms for a
@@ -1116,6 +1152,10 @@ is_device_in_use(nvlist_t *config, nvlist_t *nv, boolean_t force,
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
 	    &child, &children) != 0) {
 
+		if (strcmp(type, VDEV_TYPE_OBJSTORE) == 0) {
+			return (B_FALSE); /* TODO: FIXME */
+		}
+
 		verify(!nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &path));
 		if (strcmp(type, VDEV_TYPE_DISK) == 0)
 			verify(!nvlist_lookup_uint64(nv,
@@ -1459,7 +1499,7 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 	int t, toplevels, mindev, maxdev, nspares, nlogs, nl2cache;
 	const char *type, *fulltype;
 	boolean_t is_log, is_special, is_dedup, is_spare;
-	boolean_t seen_logs;
+	boolean_t seen_logs, seen_obj;
 
 	top = NULL;
 	toplevels = 0;
@@ -1469,7 +1509,7 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 	nlogs = 0;
 	nl2cache = 0;
 	is_log = is_special = is_dedup = is_spare = B_FALSE;
-	seen_logs = B_FALSE;
+	seen_logs = seen_obj = B_FALSE;
 	nvroot = NULL;
 
 	while (argc > 0) {
@@ -1654,6 +1694,19 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 					nvlist_free(child[c]);
 				free(child);
 			}
+		} else if (strcmp(fulltype, "s3") == 0) {
+			if (argc == 1) {
+				(void) fprintf(stderr,
+				    gettext("invalid vdev specification: 's3' "
+				    "requires a parameter\n"));
+				goto spec_out;
+			}
+			seen_obj = B_TRUE;
+			if ((nv = make_objstore_vdev(props, argv[1])) == NULL) {
+				goto spec_out;
+			}
+			argc -= 2;
+			argv += 2;
 		} else {
 			/*
 			 * We have a device.  Pass off to make_leaf_vdev() to
@@ -1697,6 +1750,18 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 		(void) fprintf(stderr, gettext("invalid vdev "
 		    "specification: at least one toplevel vdev must be "
 		    "specified\n"));
+		goto spec_out;
+	}
+
+	if (seen_obj && toplevels - nlogs > 1) {
+		(void) fprintf(stderr, gettext("invalid vdev specification: "
+		    "for object storage pools, no other top-level vdevs "
+		    "are allowed\n"));
+		goto spec_out;
+	} else if (seen_obj && nspares != 0) {
+		(void) fprintf(stderr, gettext("invalid vdev specification: "
+		    "for object storage pools, spare devices are not "
+		    "allowed\n"));
 		goto spec_out;
 	}
 

@@ -55,7 +55,7 @@ log_assert "'zpool create' with invalid feature names/states fails"
 log_onexit cleanup
 
 for prop in $properties; do
-	log_mustnot zpool create -f -o "$prop" $TESTPOOL $DISKS
+	log_mustnot create_pool -e "-o \"$prop\"" -p $TESTPOOL -d "$DISKS"
 	log_mustnot datasetexists $TESTPOOL
 done
 

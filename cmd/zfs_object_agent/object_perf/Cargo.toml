@@ -1,0 +1,17 @@
+[package]
+name = "zfs_object_perf"
+version = "0.1.0"
+authors = ["Delphix"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+clap = "2"
+log = "0.4"
+metered = "0.8"
+futures = "0.3.16"
+serde = { version = "1.0.125", features = ["derive"] }
+uuid = {version = "0.8"}
+tokio = { version = "1.4", features = ["full"] }
+zettaobject = { path = "../zettaobject" }

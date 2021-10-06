@@ -399,12 +399,24 @@ typedef zio_t *zio_pipe_stage_t(zio_t *zio);
 #define	ZIO_REEXECUTE_NOW	0x01
 #define	ZIO_REEXECUTE_SUSPEND	0x02
 
-/*
- * The io_trim flags are used to specify the type of TRIM to perform.  They
- * only apply to ZIO_TYPE_TRIM zios are distinct from io_flags.
- */
-enum trim_flag {
-	ZIO_TRIM_SECURE		= 1 << 0,
+enum zio_control_flag {
+	/*
+	 * The io_trim flags are used to specify the type of TRIM to
+	 * perform.  They only apply to ZIO_TYPE_TRIM zios, and are distinct
+	 * from io_flags.
+	 */
+	ZIO_CONTROL_TRIM_SECURE		= 1 << 0,
+
+	/*
+	 * Controls the lookup of zios in avl to match only by
+	 * offsets.
+	 */
+	ZIO_CONTROL_OFFSET_MATCH	= 1 << 1,
+
+	/*
+	 * Controls pipeline to flush writes to object storage.
+	 */
+	ZIO_CONTROL_FLUSH_WRITES	= 1 << 2,
 };
 
 typedef struct zio_alloc_list {
@@ -425,7 +437,7 @@ struct zio {
 	zio_prop_t	io_prop;
 	zio_type_t	io_type;
 	enum zio_child	io_child_type;
-	enum trim_flag	io_trim_flags;
+	enum zio_control_flag	io_control_flags;
 	int		io_cmd;
 	zio_priority_t	io_priority;
 	uint8_t		io_reexecute;
@@ -464,6 +476,7 @@ struct zio {
 	metaslab_class_t *io_metaslab_class;	/* dva throttle class */
 
 	uint64_t	io_offset;
+	uint64_t	io_max_offset;
 	hrtime_t	io_timestamp;	/* submitted at */
 	hrtime_t	io_queued_timestamp;
 	hrtime_t	io_target_timestamp;
@@ -550,7 +563,7 @@ extern zio_t *zio_ioctl(zio_t *pio, spa_t *spa, vdev_t *vd, int cmd,
 
 extern zio_t *zio_trim(zio_t *pio, vdev_t *vd, uint64_t offset, uint64_t size,
     zio_done_func_t *done, void *priv, zio_priority_t priority,
-    enum zio_flag flags, enum trim_flag trim_flags);
+    enum zio_flag flags, enum zio_control_flag zio_control_flags);
 
 extern zio_t *zio_read_phys(zio_t *pio, vdev_t *vd, uint64_t offset,
     uint64_t size, struct abd *data, int checksum,

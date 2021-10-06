@@ -54,13 +54,13 @@ function cleanup
 log_assert "Storage pools with 16 file based vdevs can be created."
 log_onexit cleanup
 
-create_pool $TESTPOOL $DISK0
+create_pool -p $TESTPOOL -d "$DISK0"
 log_must zfs create -o mountpoint=$TESTDIR $TESTPOOL/$TESTFS
 
 vdevs_list=$(echo $TESTDIR/file.{01..16})
 log_must truncate -s $MINVDEVSIZE $vdevs_list
 
-create_pool $TESTPOOL1 $vdevs_list
+log_must zpool create -f $TESTPOOL1 $vdevs_list
 log_must vdevs_in_pool $TESTPOOL1 "$vdevs_list"
 
 if poolexists $TESTPOOL1; then

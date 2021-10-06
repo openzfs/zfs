@@ -40,10 +40,12 @@ extern "C" {
 
 typedef struct metaslab_ops {
 	uint64_t (*msop_alloc)(metaslab_t *, uint64_t);
+	boolean_t msop_block_based;
 } metaslab_ops_t;
 
 
 extern metaslab_ops_t *zfs_metaslab_ops;
+extern metaslab_ops_t *zfs_objectstore_ops;
 
 int metaslab_init(metaslab_group_t *, uint64_t, uint64_t, uint64_t,
     metaslab_t **);

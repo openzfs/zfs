@@ -373,7 +373,8 @@ get_usage(zpool_help_t idx)
 		    "\timport [-o mntopts] [-o property=value] ... \n"
 		    "\t    [-d dir | -c cachefile] [-D] [-l] [-f] [-m] [-N] "
 		    "[-R root] [-F [-n]]\n"
-		    "\t    [--rewind-to-checkpoint] <pool | id> [newpool]\n"));
+		    "\t    [--rewind-to-checkpoint] [-r] <pool | id> "
+		    "[newpool]\n"));
 	case HELP_IOSTAT:
 		return (gettext("\tiostat [[[-c [script1,script2,...]"
 		    "[-lq]]|[-rw]] [-T d | u] [-ghHLpPvy]\n"
@@ -408,7 +409,7 @@ get_usage(zpool_help_t idx)
 		    "[<device> ...]\n"));
 	case HELP_STATUS:
 		return (gettext("\tstatus [-c [script1,script2,...]] "
-		    "[-igLpPstvxD]  [-T d|u] [pool] ... \n"
+		    "[-dDigLpPstvxw] [-T d|u] [-d|-w] [pool] ... \n"
 		    "\t    [interval [count]]\n"));
 	case HELP_UPGRADE:
 		return (gettext("\tupgrade\n"
@@ -1587,11 +1588,24 @@ zpool_do_create(int argc, char **argv)
 		goto errout;
 	}
 
+	char *profile;
+	if ((nvlist_lookup_string(props,
+	    zpool_prop_to_name(ZPOOL_PROP_OBJ_CRED_PROFILE), &profile)) == 0) {
+		fnvlist_add_string(props, ZPOOL_CONFIG_CRED_PROFILE,
+		    profile);
+	}
+
 	/* pass off to make_root_vdev for bulk processing */
 	nvroot = make_root_vdev(NULL, props, force, !force, B_FALSE, dryrun,
 	    argc - 1, argv + 1);
 	if (nvroot == NULL)
 		goto errout;
+
+	/*
+	 * We don't store the creds profile as a normal property, so remove
+	 * it now that is has been consumed.
+	 */
+	(void) nvlist_remove_all(props, ZPOOL_CONFIG_CRED_PROFILE);
 
 	/* make_root_vdev() allows 0 toplevel children if there are spares */
 	if (!zfs_allocatable_devs(nvroot)) {
@@ -2050,6 +2064,8 @@ typedef struct status_cbdata {
 	boolean_t	cb_print_slow_ios;
 	boolean_t	cb_print_vdev_init;
 	boolean_t	cb_print_vdev_trim;
+	boolean_t	cb_print_destroyed;
+	boolean_t	cb_clear_destroyed;
 	vdev_cmd_data_list_t	*vcdl;
 } status_cbdata_t;
 
@@ -3217,7 +3233,6 @@ import_pools(nvlist_t *pools, nvlist_t *props, char *mntopts, int flags,
 	nvpair_t *elem = NULL;
 	boolean_t first = B_TRUE;
 	while ((elem = nvlist_next_nvpair(pools, elem)) != NULL) {
-
 		verify(nvpair_value_nvlist(elem, &config) == 0);
 
 		verify(nvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_STATE,
@@ -3514,6 +3529,7 @@ zpool_do_import(int argc, char **argv)
 	boolean_t do_rewind = B_FALSE;
 	boolean_t xtreme_rewind = B_FALSE;
 	boolean_t do_scan = B_FALSE;
+	boolean_t resume_destroy = B_FALSE;
 	boolean_t pool_exists = B_FALSE;
 	boolean_t pool_specified = B_FALSE;
 	uint64_t txg = -1ULL;
@@ -3523,11 +3539,12 @@ zpool_do_import(int argc, char **argv)
 
 	struct option long_options[] = {
 		{"rewind-to-checkpoint", no_argument, NULL, CHECKPOINT_OPT},
+		{"resume-destroy", no_argument, NULL, 'r'},
 		{0, 0, 0, 0}
 	};
 
 	/* check options */
-	while ((c = getopt_long(argc, argv, ":aCc:d:DEfFlmnNo:R:stT:VX",
+	while ((c = getopt_long(argc, argv, ":aCc:d:DEfFlmnNo:R:rstT:VX",
 	    long_options, NULL)) != -1) {
 		switch (c) {
 		case 'a':
@@ -3580,6 +3597,9 @@ zpool_do_import(int argc, char **argv)
 			if (add_prop_list_default(zpool_prop_to_name(
 			    ZPOOL_PROP_CACHEFILE), "none", &props, B_TRUE))
 				goto error;
+			break;
+		case 'r':
+			resume_destroy = B_TRUE;
 			break;
 		case 's':
 			do_scan = B_TRUE;
@@ -3748,6 +3768,39 @@ zpool_do_import(int argc, char **argv)
 	idata.cachefile = cachefile;
 	idata.scan = do_scan;
 	idata.policy = policy;
+	idata.props = props;
+	idata.resume_destroy = resume_destroy;
+
+	if (resume_destroy) {
+		if (searchguid == 0) {
+			(void) fprintf(stderr,
+			    gettext("-r requires the guid to be specified\n"));
+			usage(B_FALSE);
+		} else if (do_destroyed) {
+			(void) fprintf(stderr,
+			    gettext("-r is not compatible with -D\n"));
+			usage(B_FALSE);
+		} else if (do_rewind) {
+			(void) fprintf(stderr,
+			    gettext("-r is not compatible with -F\n"));
+			usage(B_FALSE);
+		} else if (dryrun) {
+			(void) fprintf(stderr,
+			    gettext("-r is not compatible with -n\n"));
+			usage(B_FALSE);
+		} else if (do_all) {
+			(void) fprintf(stderr,
+			    gettext("-r is not compatible with -a\n"));
+			usage(B_FALSE);
+		}
+
+		if (zoa_resume_destroy(g_zfs, &idata) != 0) {
+			(void) fprintf(stderr,
+			    gettext("Error resuming destroy\n"));
+			return (1);
+		}
+		return (0);
+	}
 
 	pools = zpool_search_import(g_zfs, &idata, &libzfs_config_ops);
 
@@ -8599,7 +8652,7 @@ status_callback(zpool_handle_t *zhp, void *data)
 }
 
 /*
- * zpool status [-c [script1,script2,...]] [-igLpPstvx] [-T d|u] [pool] ...
+ * zpool status [-c [script1,script2,...]] [-dDigLpPstvxw] [-T d|u] [pool] ...
  *              [interval [count]]
  *
  *	-c CMD	For each vdev, run command CMD
@@ -8611,8 +8664,10 @@ status_callback(zpool_handle_t *zhp, void *data)
  *	-s	Display slow IOs column.
  *	-v	Display complete error logs
  *	-x	Display only pools with potential problems
- *	-D	Display dedup status (undocumented)
+ *	-D	Display dedup status
  *	-t	Display vdev TRIM status.
+ *	-d	Display destroying zpools.
+ *	-w	Clear destroyed zpools.
  *	-T	Display a timestamp in date(1) or Unix format
  *
  * Describes the health status of all pools or some subset.
@@ -8627,8 +8682,15 @@ zpool_do_status(int argc, char **argv)
 	status_cbdata_t cb = { 0 };
 	char *cmd = NULL;
 
+	struct option long_options[] = {
+		{"list-destroyed",	no_argument,	NULL, 'd'},
+		{"clear-destroyed",	no_argument,	NULL, 'w'},
+		{0, 0, 0, 0}
+	};
+
 	/* check options */
-	while ((c = getopt(argc, argv, "c:igLpPsvxDtT:")) != -1) {
+	while ((c = getopt_long(argc, argv, "c:igLpPsvxDtT:dw", long_options,
+	    NULL)) != -1) {
 		switch (c) {
 		case 'c':
 			if (cmd != NULL) {
@@ -8684,6 +8746,12 @@ zpool_do_status(int argc, char **argv)
 		case 't':
 			cb.cb_print_vdev_trim = B_TRUE;
 			break;
+		case 'd':
+			cb.cb_print_destroyed = B_TRUE;
+			break;
+		case 'w':
+			cb.cb_clear_destroyed = B_TRUE;
+			break;
 		case 'T':
 			get_timestamp_arg(*optarg);
 			break;
@@ -8704,8 +8772,20 @@ zpool_do_status(int argc, char **argv)
 
 	get_interval_count(&argc, argv, &interval, &count);
 
-	if (argc == 0)
+	if (argc == 0) {
 		cb.cb_allpools = B_TRUE;
+	} else {
+		if (cb.cb_clear_destroyed) {
+			(void) fprintf(stderr, gettext("Specifying a "
+			    "pool|id is incompatible with the -c option\n"));
+			exit(1);
+		}
+		if (cb.cb_print_destroyed) {
+			(void) fprintf(stderr, gettext("Specifying a "
+			    "pool|id is incompatible with the -d option\n"));
+			exit(1);
+		}
+	}
 
 	cb.cb_first = B_TRUE;
 	cb.cb_print_status = B_TRUE;
@@ -8714,12 +8794,22 @@ zpool_do_status(int argc, char **argv)
 		if (timestamp_fmt != NODATE)
 			print_timestamp(timestamp_fmt);
 
+		if (cb.cb_print_destroyed)
+			zoa_list_destroyed_pools(g_zfs);
+		if (cb.cb_clear_destroyed)
+			zoa_clear_destroyed_pools(g_zfs);
+		if (cb.cb_clear_destroyed || cb.cb_print_destroyed)
+			return (0);
+
 		if (cmd != NULL)
 			cb.vcdl = all_pools_for_each_vdev_run(argc, argv, cmd,
 			    NULL, NULL, 0, 0);
 
 		ret = for_each_pool(argc, argv, B_TRUE, NULL, cb.cb_literal,
 		    status_callback, &cb);
+
+		if (cb.cb_allpools)
+			zoa_list_destroying_pools(g_zfs);
 
 		if (cb.vcdl != NULL)
 			free_vdev_cmd_data_list(cb.vcdl);

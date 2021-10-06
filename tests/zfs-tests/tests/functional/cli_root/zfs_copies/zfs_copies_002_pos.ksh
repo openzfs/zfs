@@ -45,6 +45,11 @@
 
 verify_runnable "both"
 
+if use_object_store; then
+	log_unsupported "Multiple zfs copies inapplicable for object storage \
+		run."
+fi
+
 function cleanup
 {
 	typeset val

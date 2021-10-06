@@ -82,6 +82,13 @@ set -A cmds "create $pool mirror $vdev1 $vdev2" "list $pool" "iostat $pool" \
 	"attach $pool $vdev1 $vdev2" "replace $pool $vdev2 $vdev3" \
 	"scrub $pool" "destroy -f $pool"
 
+if use_object_store; then
+	cmds+=("create -o object-endpoint=$ZTS_OBJECT_ENDPOINT \
+		-o object-region=$ZTS_REGION \
+		-o object-credentials-profile=$ZTS_CREDS_PROFILE \
+                $pool s3 $ZTS_BUCKET_NAME")
+fi
+
 set -A badparams "" "create" "destroy" "add" "remove" "list *" "iostat" "status" \
 		"online" "offline" "clear" "attach" "detach" "replace" "scrub" \
 		"import" "export" "upgrade" "history -?" "get" "set"

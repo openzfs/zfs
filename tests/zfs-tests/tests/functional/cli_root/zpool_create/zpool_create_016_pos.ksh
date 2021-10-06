@@ -82,7 +82,7 @@ for sdisk in $swap_disks; do
 	fi
 done
 
-log_must zpool create $TESTPOOL $DISK0
+log_must create_pool -p $TESTPOOL -d "$DISK0"
 log_must zpool destroy $TESTPOOL
 
 log_pass "'zpool create' passed as expected with applicable scenario."

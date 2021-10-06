@@ -188,6 +188,6 @@ done
 
 log_must rmdir $mountpoint # remove the mountpoint we created
 log_must zpool export $TESTPOOL
-log_must zpool import $TESTPOOL
+log_must import_pool -p $TESTPOOL
 
 log_pass "Verified nested dataset are unmounted."

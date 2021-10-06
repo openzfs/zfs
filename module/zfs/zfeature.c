@@ -31,6 +31,7 @@
 #include <sys/dmu_tx.h>
 #include "zfeature_common.h"
 #include <sys/spa_impl.h>
+#include <sys/vdev_impl.h>
 
 /*
  * ZFS Feature Flags
@@ -305,10 +306,11 @@ feature_sync(spa_t *spa, zfeature_info_t *feature, uint64_t refcount,
     dmu_tx_t *tx)
 {
 	ASSERT(VALID_FEATURE_OR_NONE(feature->fi_feature));
-	uint64_t zapobj = (feature->fi_flags & ZFEATURE_FLAG_READONLY_COMPAT) ?
+	uint64_t zapobj =
+	    (feature->fi_flags & ZFEATURE_FLAG_READONLY_COMPAT) ?
 	    spa->spa_feat_for_write_obj : spa->spa_feat_for_read_obj;
-	VERIFY0(zap_update(spa->spa_meta_objset, zapobj, feature->fi_guid,
-	    sizeof (uint64_t), 1, &refcount, tx));
+	VERIFY0(zap_update(spa->spa_meta_objset, zapobj,
+	    feature->fi_guid, sizeof (uint64_t), 1, &refcount, tx));
 
 	/*
 	 * feature_sync is called directly from zhack, allowing the
@@ -354,6 +356,11 @@ feature_enable_sync(spa_t *spa, zfeature_info_t *feature, dmu_tx_t *tx)
 
 	for (int i = 0; feature->fi_depends[i] != SPA_FEATURE_NONE; i++)
 		spa_feature_enable(spa, feature->fi_depends[i], tx);
+
+	if (feature->fi_flags & ZFEATURE_FLAG_AGENT) {
+		vdev_enable_feature(spa->spa_root_vdev, feature);
+		return;
+	}
 
 	VERIFY0(zap_update(spa->spa_meta_objset, spa->spa_feat_desc_obj,
 	    feature->fi_guid, 1, strlen(feature->fi_desc) + 1,

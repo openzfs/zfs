@@ -56,7 +56,7 @@ log_onexit cleanup
 set -A args "" "-f nonexistent_pool $DISK1" \
 	"-f $TESTPOOL nonexistent_vdev"
 
-create_pool $TESTPOOL $DISK0
+create_pool -p $TESTPOOL -d "$DISK0"
 log_must poolexists $TESTPOOL
 
 typeset -i i=0

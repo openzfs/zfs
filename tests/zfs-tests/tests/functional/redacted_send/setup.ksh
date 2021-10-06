@@ -28,9 +28,9 @@
 
 verify_disk_count "$DISKS" 2
 
-create_pool $POOL $DISK1
+create_pool -p $POOL -d "$DISK1"
 log_must zfs snapshot $POOL@init
-create_pool $POOL2 $DISK2
+create_pool -p $POOL2 -d "$DISK2"
 log_must zfs snapshot $POOL2@init
 log_must zfs create $POOL/tmp
 log_pass

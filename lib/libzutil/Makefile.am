@@ -14,7 +14,9 @@ USER_C = \
 	zutil_import.c \
 	zutil_import.h \
 	zutil_nicenum.c \
-	zutil_pool.c
+	zutil_pool.c \
+	zutil_zoa.c \
+	zutil_zoa.h
 
 if BUILD_LINUX
 USER_C += \

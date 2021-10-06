@@ -1,0 +1,30 @@
+#!/bin/sh
+
+#
+# This script starts the ZFS Object Agent process.
+# It uses the following environment variables, typically set by zfs-object-agent.service
+# to determine which command line parameters to pass to the ZFS Object Agent process.
+#  - ZOA_CONFIG: Configuration file to set tunables (toml/json/yaml)
+#  - ZOA_LOG_CONFIG : log4rs configuration
+#  - ZETTACACHE_DEVICE: File/device to use for ZettaCache
+#
+
+error() {
+	echo "$@" 1>&2
+}
+
+ZOA_LOG_CONFIG="${ZOA_LOG_CONFIG:-/etc/zfs/zoa_log4rs.yml}"
+PARAMS="-l ${ZOA_LOG_CONFIG}"
+echo "Logging config: ${ZOA_LOG_CONFIG}"
+
+if [ ! -z $ZOA_CONFIG ]; then
+	echo "Config file: ${ZOA_CONFIG}"
+	PARAMS="${PARAMS} -t ${ZOA_CONFIG}"
+fi
+
+if [ ! -z $ZETTACACHE_DEVICE ]; then
+	echo "ZettaCache: ${ZETTACACHE_DEVICE}"
+	PARAMS="$PARAMS -c ${ZETTACACHE_DEVICE}"
+fi
+
+/sbin/zfs_object_agent ${PARAMS}

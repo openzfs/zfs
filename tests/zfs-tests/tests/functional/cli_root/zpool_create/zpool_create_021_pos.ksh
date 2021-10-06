@@ -79,7 +79,7 @@ fi
 
 typeset -i i=0
 while (( $i < ${#RW_FS_PROP[*]} )); do
-	log_must zpool create -O ${RW_FS_PROP[$i]} -f $TESTPOOL $DISKS
+	log_must create_pool -p $TESTPOOL -d "$DISKS" -e "-O ${RW_FS_PROP[$i]}"
 	datasetexists $TESTPOOL || \
 		log_fail "zpool create $TESTPOOL fail."
 	propertycheck $TESTPOOL ${RW_FS_PROP[i]} || \

@@ -36,9 +36,11 @@
 # DESCRIPTION:
 #	Verify "copies" property can be correctly set as 1,2 and 3 and different
 #	filesystem can have different value of "copies" property within the same pool.
+#	For object storage, verify copies can be set to 1.
 #
 # STRATEGY:
-#	1. Create different filesystems with copies set as 1,2,3;
+#	1. Create different filesystems with copies set as 1,2,3.
+#	   For object storage, create filesystems with copies set to 1.
 #	2. Verify that the "copies" property has been set correctly
 #
 
@@ -60,19 +62,13 @@ log_onexit cleanup
 
 fs=$TESTPOOL/$TESTFS
 fs1=$TESTPOOL/$TESTFS1
-fs2=$TESTPOOL/$TESTFS2
 vol=$TESTPOOL/$TESTVOL
 vol1=$TESTPOOL/$TESTVOL1
-vol2=$TESTPOOL/$TESTVOL2
 
-#
-# Check the default value for copies property
-#
-for ds in $fs $vol; do
-	cmp_prop $ds 1
-done
+function test_zfs_create_with_copies
+{
+	typeset val="$1"
 
-for val in 1 2 3; do
 	log_must zfs create -o copies=$val $fs1
 	if is_global_zone; then
 		log_must zfs create -V $VOLSIZE -o copies=$val $vol1
@@ -84,33 +80,40 @@ for val in 1 2 3; do
 		cmp_prop $ds $val
 	done
 
-	for val2 in 3 2 1; do
-		log_must zfs create -o copies=$val2 $fs2
-		if is_global_zone; then
-			log_must zfs create -V $VOLSIZE -o copies=$val2 $vol2
-			block_device_wait
-		else
-			log_must zfs create -o copies=$val2 $vol2
-		fi
-		for ds in $fs2 $vol2; do
-			cmp_prop $ds $val2
-			log_must zfs destroy $ds
-			block_device_wait
-		done
-	done
-
 	for ds in $fs1 $vol1; do
 		log_must zfs destroy $ds
 		block_device_wait
 	done
+}
 
-done
+function test_zfs_set_with_copies
+{
+	typeset val="$1"
 
-for val in 3 2 1; do
 	for ds in $fs $vol; do
 		log_must zfs set copies=$val $ds
 		cmp_prop $ds $val
 	done
+}
+
+#
+# Check the default value for copies property
+#
+for ds in $fs $vol; do
+	cmp_prop $ds 1
 done
+
+if use_object_store; then
+	test_zfs_create_with_copies 1
+	test_zfs_set_with_copies 1
+else
+	for val in 1 2 3; do
+		test_zfs_create_with_copies $val
+	done
+
+	for val in 3 2 1; do
+		test_zfs_set_with_copies $val
+	done
+fi
 
 log_pass "'copies' property with correct arguments works as expected. "

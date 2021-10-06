@@ -50,8 +50,8 @@ typeset fsprops=('canmount=off' 'mountpoint=none' 'utf8only=on'
 for poolprop in "${poolprops[@]}"; do
 	for fsprop in "${fsprops[@]}"; do
 		# 1. Create a pool with '-t' option
-		log_must zpool create -t $TEMPPOOL -O $fsprop -o $poolprop \
-			$TESTPOOL $DISKS
+		log_must create_pool -e "-t $TEMPPOOL -O $fsprop -o $poolprop" \
+			-p $TESTPOOL -d "$DISKS"
 		# 2. Verify the pool is created with the specified temporary name
 		log_must poolexists $TEMPPOOL
 		log_mustnot poolexists $TESTPOOL

@@ -56,7 +56,7 @@ log_assert "'zpool add -f <pool> <vdev> ...' can successfully add" \
 
 log_onexit cleanup
 
-create_pool $TESTPOOL mirror $DISK0 $DISK1
+create_pool -p $TESTPOOL -d "mirror $DISK0 $DISK1"
 log_must poolexists $TESTPOOL
 
 log_mustnot zpool add $TESTPOOL $DISK2

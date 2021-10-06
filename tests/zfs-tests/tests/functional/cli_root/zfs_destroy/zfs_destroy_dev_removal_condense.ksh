@@ -34,6 +34,10 @@
 . $STF_SUITE/tests/functional/removal/removal.kshlib
 . $STF_SUITE/tests/functional/cli_root/zfs_destroy/zfs_destroy.cfg
 
+if use_object_store; then
+	log_unsupported "Device removal inapplicable for object storage run."
+fi
+
 function cleanup
 {
 	poolexists $TESTPOOL2 && zpool destroy $TESTPOOL2

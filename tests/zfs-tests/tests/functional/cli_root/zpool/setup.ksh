@@ -29,4 +29,8 @@
 
 DISK=${DISKS%% *}
 
-default_mirror_setup $DISKS
+if use_object_store; then
+	default_setup
+else
+	default_mirror_setup $DISKS
+fi

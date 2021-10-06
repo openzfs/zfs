@@ -139,7 +139,7 @@ log_must truncate -s $MINVDEVSIZE $TESTDIR/$REPLACEFILE
 
 for type in "" "mirror" "draid"; do
 	for op in "" "-f"; do
-		create_pool $TESTPOOL1 $type $specials_list
+		create_pool -p $TESTPOOL1 -d "$type $specials_list"
 		log_must zfs create $TESTPOOL1/$TESTFS1
 		log_must zfs set mountpoint=$TESTDIR1 $TESTPOOL1/$TESTFS1
 

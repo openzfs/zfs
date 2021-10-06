@@ -22,4 +22,4 @@ TESTPOOLDISK=${DISKS%% *}
 TESTPOOL2DISK=${DISKS##* }
 
 default_setup ${TESTPOOLDISK}
-create_pool testpool2 ${TESTPOOL2DISK}
+create_pool -p testpool2 -d "${TESTPOOL2DISK}"

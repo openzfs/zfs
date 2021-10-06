@@ -64,7 +64,8 @@ typeset vals=("off" "off" "$CPATH" "3" "on")
 typeset -i i=0;
 while [ $i -lt "${#props[@]}" ]
 do
-	log_must zpool create -o ${props[$i]}=${vals[$i]} $TESTPOOL $DISK0
+	log_must create_pool -p $TESTPOOL -d "$DISK0" \
+		-e "-o ${props[$i]}=${vals[$i]}"
 	RESULT=$(get_pool_prop ${props[$i]} $TESTPOOL)
 	if [[ $RESULT != ${vals[$i]} ]]
 	then
@@ -80,7 +81,8 @@ done
 poolexists $TESTPOOL && destroy_pool $TESTPOOL
 
 # pick two properties, and verify we can create with those as well
-log_must zpool create -o delegation=off -o cachefile=$CPATH $TESTPOOL $DISK0
+log_must create_pool -p $TESTPOOL -d "$DISK0" \
+        -e "-o delegation=off -o cachefile=$CPATH"
 RESULT=$(get_pool_prop delegation $TESTPOOL)
 if [[ $RESULT != off ]]
 then

@@ -134,8 +134,14 @@
 #include <libnvpair.h>
 #include <libzutil.h>
 #include <sys/crypto/icp.h>
+#include <sys/un.h>
+#include <sys/socket.h>
+#include <object_agent.h>
 #if (__GLIBC__ && !__UCLIBC__)
 #include <execinfo.h> /* for backtrace() */
+#endif
+#ifdef HAVE_LIBZOA
+#include <libzoa.h>
 #endif
 
 static int ztest_fd_data = -1;
@@ -165,6 +171,12 @@ enum ztest_class_state {
 typedef struct ztest_shared_opts {
 	char zo_pool[ZFS_MAX_DATASET_NAME_LEN];
 	char zo_dir[ZFS_MAX_DATASET_NAME_LEN];
+	int zo_obj_store;
+	char zo_obj_store_endpoint[MAXPATHLEN];
+	char zo_obj_store_region[MAXNAMELEN];
+	char zo_obj_store_bucket[MAXNAMELEN];
+	char zo_obj_store_creds_profile[MAXNAMELEN];
+	int zo_use_zettacache;
 	char zo_alt_ztest[MAXNAMELEN];
 	char zo_alt_libpath[MAXNAMELEN];
 	uint64_t zo_vdevs;
@@ -196,6 +208,9 @@ typedef struct ztest_shared_opts {
 /* Default values for command line options. */
 #define	DEFAULT_POOL "ztest"
 #define	DEFAULT_VDEV_DIR "/tmp"
+#define	DEFAULT_ENDPOINT "https://s3-us-west-2.amazonaws.com"
+#define	DEFAULT_REGION "us-west-2"
+#define	DEFAULT_CREDS_PROFILE "default"
 #define	DEFAULT_VDEV_COUNT 5
 #define	DEFAULT_VDEV_SIZE (SPA_MINDEVSIZE * 4)	/* 256m default size */
 #define	DEFAULT_VDEV_SIZE_STR "256M"
@@ -224,6 +239,11 @@ typedef struct ztest_shared_opts {
 static const ztest_shared_opts_t ztest_opts_defaults = {
 	.zo_pool = DEFAULT_POOL,
 	.zo_dir = DEFAULT_VDEV_DIR,
+	.zo_obj_store = 0,
+	.zo_obj_store_endpoint = DEFAULT_ENDPOINT,
+	.zo_obj_store_region = DEFAULT_REGION,
+	.zo_obj_store_bucket = { '\0' },
+	.zo_obj_store_creds_profile = DEFAULT_CREDS_PROFILE,
 	.zo_alt_ztest = { '\0' },
 	.zo_alt_libpath = { '\0' },
 	.zo_vdevs = DEFAULT_VDEV_COUNT,
@@ -512,6 +532,7 @@ typedef struct ztest_shared {
 
 static char ztest_dev_template[] = "%s/%s.%llua";
 static char ztest_aux_template[] = "%s/%s.%s.%llu";
+static char ztest_zcache_template[] = "%s/zcache.%d";
 ztest_shared_t *ztest_shared;
 
 static spa_t *ztest_spa = NULL;
@@ -759,6 +780,19 @@ static ztest_option_t option_table[] = {
 	    NO_DEFAULT, DEFAULT_POOL},
 	{ 'f',	"vdev-file-directory", "PATH", "File directory for vdev files",
 	    NO_DEFAULT, DEFAULT_VDEV_DIR},
+#ifdef HAVE_LIBZOA
+	{ 'O',	"object-endpoint", "URI", "Object-store endpoint",
+	    NO_DEFAULT, DEFAULT_ENDPOINT},
+	{ 'A',	"object-region", "STRING", "Object-store region",
+	    NO_DEFAULT, DEFAULT_REGION},
+	{ 'b',	"object-bucket", "STRING", "Object-store bucket",
+	    NO_DEFAULT, NULL},
+	{ 'z',	"object-credentials-profile", "STRING",
+	    "Object store credentials profile",
+	    NO_DEFAULT, DEFAULT_CREDS_PROFILE},
+	{ 'Z',	"use-zettacache", NULL, "use zettacache",
+	    NO_DEFAULT, NULL},
+#endif
 	{ 'M',	"multi-host", NULL,
 	    "Multi-host; simulate pool imported on remote host",
 	    NO_DEFAULT, NULL},
@@ -1015,6 +1049,32 @@ process_options(int argc, char **argv)
 				free(path);
 			}
 			break;
+#ifdef HAVE_LIBZOA
+		case 'O':
+			(void) strlcpy(zo->zo_obj_store_endpoint, optarg,
+			    sizeof (zo->zo_obj_store_endpoint));
+			zo->zo_obj_store = 1;
+			break;
+		case 'A':
+			(void) strlcpy(zo->zo_obj_store_region, optarg,
+			    sizeof (zo->zo_obj_store_region));
+			zo->zo_obj_store = 1;
+			break;
+		case 'b':
+			(void) strlcpy(zo->zo_obj_store_bucket, optarg,
+			    sizeof (zo->zo_obj_store_bucket));
+			zo->zo_obj_store = 1;
+			break;
+		case 'z':
+			(void) strlcpy(zo->zo_obj_store_creds_profile, optarg,
+			    sizeof (zo->zo_obj_store_creds_profile));
+			zo->zo_obj_store = 1;
+			break;
+		case 'Z':
+			zo->zo_use_zettacache = 1;
+			zo->zo_obj_store = 1;
+			break;
+#endif
 		case 'M':
 			zo->zo_mmp_test = 1;
 			break;
@@ -1071,8 +1131,12 @@ process_options(int argc, char **argv)
 
 	fini_options();
 
+	if (zo->zo_obj_store) {
+		ztest_opts.zo_metaslab_force_ganging = SPA_MAXBLOCKSIZE + 1;
+	}
+
 	/* When raid choice is 'random' add a draid pool 50% of the time */
-	if (strcmp(raid_kind, "random") == 0) {
+	if (strcmp(raid_kind, "random") == 0 && zo->zo_obj_store == 0) {
 		(void) strlcpy(raid_kind, (ztest_random(2) == 0) ?
 		    "draid" : "raidz", sizeof (raid_kind));
 
@@ -1113,11 +1177,11 @@ process_options(int argc, char **argv)
 		(void) strlcpy(zo->zo_raid_type, VDEV_TYPE_DRAID,
 		    sizeof (zo->zo_raid_type));
 
-	} else /* using raidz */ {
-		ASSERT0(strcmp(raid_kind, "raidz"));
-
+	} else if (strcmp(raid_kind, "raidz") == 0) {
 		zo->zo_raid_parity = MIN(zo->zo_raid_parity,
 		    zo->zo_raid_children - 1);
+	} else {
+		ASSERT(zo->zo_obj_store);
 	}
 
 	zo->zo_vdevtime =
@@ -1215,6 +1279,22 @@ ztest_is_draid_spare(const char *name)
 	}
 
 	return (B_FALSE);
+}
+
+static nvlist_t *
+make_vdev_obj_store(void)
+{
+	nvlist_t *vdev = fnvlist_alloc();
+	fnvlist_add_string(vdev, ZPOOL_CONFIG_TYPE, VDEV_TYPE_OBJSTORE);
+	fnvlist_add_string(vdev, ZPOOL_CONFIG_PATH,
+	    ztest_opts.zo_obj_store_bucket);
+	fnvlist_add_string(vdev, zpool_prop_to_name(ZPOOL_PROP_OBJ_ENDPOINT),
+	    ztest_opts.zo_obj_store_endpoint);
+	fnvlist_add_string(vdev, zpool_prop_to_name(ZPOOL_PROP_OBJ_REGION),
+	    ztest_opts.zo_obj_store_region);
+	fnvlist_add_string(vdev, ZPOOL_CONFIG_CRED_PROFILE,
+	    ztest_opts.zo_obj_store_creds_profile);
+	return (vdev);
 }
 
 static nvlist_t *
@@ -1357,20 +1437,25 @@ make_vdev_root(char *path, char *aux, char *pool, size_t size, uint64_t ashift,
 
 	log = (class != NULL && strcmp(class, "log") == 0);
 
+	if (ztest_opts.zo_obj_store)
+		t = 1;
 	child = umem_alloc(t * sizeof (nvlist_t *), UMEM_NOFAIL);
 
-	for (c = 0; c < t; c++) {
-		child[c] = make_vdev_mirror(path, aux, pool, size, ashift,
-		    r, m);
-		fnvlist_add_uint64(child[c], ZPOOL_CONFIG_IS_LOG, log);
+	if (ztest_opts.zo_obj_store) {
+		child[0]  = make_vdev_obj_store();
+	} else {
+		for (c = 0; c < t; c++) {
+			child[c] = make_vdev_mirror(path, aux, pool, size,
+			    ashift, r, m);
+			fnvlist_add_uint64(child[c], ZPOOL_CONFIG_IS_LOG, log);
 
-		if (class != NULL && class[0] != '\0') {
-			ASSERT(m > 1 || log);   /* expecting a mirror */
-			fnvlist_add_string(child[c],
-			    ZPOOL_CONFIG_ALLOCATION_BIAS, class);
+			if (class != NULL && class[0] != '\0') {
+				ASSERT(m > 1 || log);   /* expecting a mirror */
+				fnvlist_add_string(child[c],
+				    ZPOOL_CONFIG_ALLOCATION_BIAS, class);
+			}
 		}
 	}
-
 	root = fnvlist_alloc();
 	fnvlist_add_string(root, ZPOOL_CONFIG_TYPE, VDEV_TYPE_ROOT);
 	fnvlist_add_nvlist_array(root, aux ? aux : ZPOOL_CONFIG_CHILDREN,
@@ -2941,8 +3026,12 @@ ztest_spa_create_destroy(ztest_ds_t *zd, uint64_t id)
 	spa_t *spa;
 	nvlist_t *nvroot;
 
-	if (zo->zo_mmp_test)
+	if (zo->zo_mmp_test || ztest_opts.zo_obj_store) {
+		if (ztest_opts.zo_verbose >= 3) {
+			(void) printf("Skipping ztest_spa_create_destroy.\n");
+		}
 		return;
+	}
 
 	/*
 	 * Attempt to create using a bad file.
@@ -3003,8 +3092,12 @@ ztest_mmp_enable_disable(ztest_ds_t *zd, uint64_t id)
 	ztest_shared_opts_t *zo = &ztest_opts;
 	spa_t *spa = ztest_spa;
 
-	if (zo->zo_mmp_test)
+	if (zo->zo_mmp_test || ztest_opts.zo_obj_store) {
+		if (ztest_opts.zo_verbose >= 3) {
+			(void) printf("Skipping ztest_mmp_enable_disable.\n");
+		}
 		return;
+	}
 
 	/*
 	 * Since enabling MMP involves setting a property, it could not be done
@@ -3052,8 +3145,12 @@ ztest_spa_upgrade(ztest_ds_t *zd, uint64_t id)
 	nvlist_t *nvroot, *props;
 	char *name;
 
-	if (ztest_opts.zo_mmp_test)
+	if (ztest_opts.zo_mmp_test || ztest_opts.zo_obj_store) {
+		if (ztest_opts.zo_verbose >= 3) {
+			(void) printf("Skipping ztest_spa_upgrade.\n");
+		}
 		return;
+	}
 
 	/* dRAID added after feature flags, skip upgrade test. */
 	if (strcmp(ztest_opts.zo_raid_type, VDEV_TYPE_DRAID) == 0)
@@ -3217,8 +3314,12 @@ ztest_vdev_add_remove(ztest_ds_t *zd, uint64_t id)
 	nvlist_t *nvroot;
 	int error;
 
-	if (ztest_opts.zo_mmp_test)
+	if (ztest_opts.zo_mmp_test || ztest_opts.zo_obj_store) {
+		if (ztest_opts.zo_verbose >= 3) {
+			(void) printf("Skipping ztest_vdev_add_remove.\n");
+		}
 		return;
+	}
 
 	mutex_enter(&ztest_vdev_lock);
 	leaves = MAX(zs->zs_mirrors + zs->zs_splits, 1) *
@@ -3308,6 +3409,12 @@ ztest_vdev_class_add(ztest_ds_t *zd, uint64_t id)
 	    VDEV_ALLOC_BIAS_SPECIAL : VDEV_ALLOC_BIAS_DEDUP;
 	int error;
 
+	if (ztest_opts.zo_obj_store) {
+		if (ztest_opts.zo_verbose >= 3) {
+			(void) printf("Skipping ztest_vdev_class_add.\n");
+		}
+		return;
+	}
 	/*
 	 * By default add a special vdev 50% of the time
 	 */
@@ -3390,8 +3497,12 @@ ztest_vdev_aux_add_remove(ztest_ds_t *zd, uint64_t id)
 	uint64_t guid = 0;
 	int error, ignore_err = 0;
 
-	if (ztest_opts.zo_mmp_test)
+	if (ztest_opts.zo_mmp_test || ztest_opts.zo_obj_store) {
+		if (ztest_opts.zo_verbose >= 3) {
+			(void) printf("Skipping ztest_vdev_aux_add_remove.\n");
+		}
 		return;
+	}
 
 	path = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
 
@@ -3607,8 +3718,12 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	int oldvd_is_log;
 	int error, expected_error;
 
-	if (ztest_opts.zo_mmp_test)
+	if (ztest_opts.zo_mmp_test || ztest_opts.zo_obj_store) {
+		if (ztest_opts.zo_verbose >= 3) {
+			(void) printf("Skipping ztest_vdev_attach_detach.\n");
+		}
 		return;
+	}
 
 	oldpath = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
 	newpath = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
@@ -3835,6 +3950,13 @@ ztest_device_removal(ztest_ds_t *zd, uint64_t id)
 	vdev_t *vd;
 	uint64_t guid;
 	int error;
+
+	if (ztest_opts.zo_obj_store) {
+		if (ztest_opts.zo_verbose >= 3) {
+			(void) printf("Skipping ztest_device_removal.\n");
+		}
+		return;
+	}
 
 	mutex_enter(&ztest_vdev_lock);
 
@@ -6357,15 +6479,21 @@ ztest_reguid(ztest_ds_t *zd, uint64_t id)
 	spa_t *spa = ztest_spa;
 	uint64_t orig, load;
 	int error;
+	ztest_shared_t *zs = ztest_shared;
 
-	if (ztest_opts.zo_mmp_test)
+	if (ztest_opts.zo_mmp_test || ztest_opts.zo_obj_store) {
+		if (ztest_opts.zo_verbose >= 3) {
+			(void) printf("Skipping ztest_vdev_add_remove.\n");
+		}
 		return;
+	}
 
 	orig = spa_guid(spa);
 	load = spa_load_guid(spa);
 
 	(void) pthread_rwlock_wrlock(&ztest_name_lock);
 	error = spa_change_guid(spa);
+	zs->zs_guid = spa_guid(spa);
 	(void) pthread_rwlock_unlock(&ztest_name_lock);
 
 	if (error != 0)
@@ -6662,6 +6790,13 @@ ztest_initialize(ztest_ds_t *zd, uint64_t id)
 	spa_t *spa = ztest_spa;
 	int error = 0;
 
+	if (ztest_opts.zo_obj_store) {
+		if (ztest_opts.zo_verbose >= 3) {
+			(void) printf("Skipping ztest_initialize.\n");
+		}
+		return;
+	}
+
 	mutex_enter(&ztest_vdev_lock);
 
 	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
@@ -6733,6 +6868,13 @@ ztest_trim(ztest_ds_t *zd, uint64_t id)
 {
 	spa_t *spa = ztest_spa;
 	int error = 0;
+
+	if (ztest_opts.zo_obj_store) {
+		if (ztest_opts.zo_verbose >= 3) {
+			(void) printf("Skipping ztest_trim.\n");
+		}
+		return;
+	}
 
 	mutex_enter(&ztest_vdev_lock);
 
@@ -6807,18 +6949,20 @@ ztest_trim(ztest_ds_t *zd, uint64_t id)
  * Verify pool integrity by running zdb.
  */
 static void
-ztest_run_zdb(char *pool)
+ztest_run_zdb(char *pool, uint64_t guid)
 {
 	int status;
 	char *bin;
 	char *zdb;
 	char *zbuf;
+	char *loc;
 	const int len = MAXPATHLEN + MAXNAMELEN + 20;
 	FILE *fp;
 
 	bin = umem_alloc(len, UMEM_NOFAIL);
 	zdb = umem_alloc(len, UMEM_NOFAIL);
 	zbuf = umem_alloc(1024, UMEM_NOFAIL);
+	loc = umem_alloc(len, UMEM_NOFAIL);
 
 	ztest_get_zdb_bin(bin, len);
 
@@ -6826,17 +6970,30 @@ ztest_run_zdb(char *pool)
 	char *set_gvars_args_joined = join_strings(set_gvars_args, " ");
 	free(set_gvars_args);
 
+	if (ztest_opts.zo_obj_store) {
+		ASSERT3P(guid, !=, 0);
+		snprintf(loc, len, "-a %s -g %s -B %s -f %s %llu",
+		    ztest_opts.zo_obj_store_endpoint,
+		    ztest_opts.zo_obj_store_region,
+		    ztest_opts.zo_obj_store_bucket,
+		    ztest_opts.zo_obj_store_creds_profile,
+		    (u_longlong_t)guid);
+	} else {
+		snprintf(loc, len, "-p %s %s", ztest_opts.zo_dir, pool);
+	}
+
 	size_t would = snprintf(zdb, len,
-	    "%s -bcc%s%s -G -d -Y -e -y %s -p %s %s",
+	    "%s -bcc%s%s%s -d -Y -e -y %s %s",
 	    bin,
 	    ztest_opts.zo_verbose >= 3 ? "s" : "",
 	    ztest_opts.zo_verbose >= 4 ? "v" : "",
+	    ztest_opts.zo_dump_dbgmsg ? "G" : "",
 	    set_gvars_args_joined,
-	    ztest_opts.zo_dir,
-	    pool);
+	    loc);
 	ASSERT3U(would, <, len);
 
 	free(set_gvars_args_joined);
+	free(loc);
 
 	if (ztest_opts.zo_verbose >= 5)
 		(void) printf("Executing %s\n", strstr(zdb, "zdb "));
@@ -6887,6 +7044,12 @@ ztest_spa_import_export(char *oldname, char *newname)
 	spa_t *spa;
 	int error;
 
+	if (ztest_opts.zo_obj_store) {
+		if (ztest_opts.zo_verbose >= 3) {
+			(void) printf("Skipping ztest_spa_import_export.\n");
+		}
+		return;
+	}
 	if (ztest_opts.zo_verbose >= 4) {
 		(void) printf("import/export: old = %s, new = %s\n",
 		    oldname, newname);
@@ -7065,6 +7228,10 @@ ztest_execute(int test, ztest_info_t *zi, uint64_t id)
 	ztest_shared_callstate_t *zc = ZTEST_GET_SHARED_CALLSTATE(test);
 	hrtime_t functime = gethrtime();
 	int i;
+
+	if (ztest_opts.zo_verbose >= 3) {
+		(void) printf("Executing %s\n", zi->zi_funcname);
+	}
 
 	for (i = 0; i < zi->zi_iters; i++)
 		zi->zi_func(zd, id);
@@ -7285,8 +7452,14 @@ ztest_freeze(void)
 	spa_t *spa;
 	int numloops = 0;
 
-	if (ztest_opts.zo_verbose >= 3)
+	if (ztest_opts.zo_obj_store) {
+		if (ztest_opts.zo_verbose >= 3) {
+			(void) printf("Skipping ztest_freeze.\n");
+		}
+		return;
+	} else if (ztest_opts.zo_verbose >= 3) {
 		(void) printf("testing spa_freeze()...\n");
+	}
 
 	kernel_init(SPA_MODE_READ | SPA_MODE_WRITE);
 	VERIFY0(spa_open(ztest_opts.zo_pool, &spa, FTAG));
@@ -7407,14 +7580,15 @@ ztest_import(ztest_shared_t *zs)
 	VERIFY0(spa_open(ztest_opts.zo_pool, &spa, FTAG));
 	zs->zs_metaslab_sz =
 	    1ULL << spa->spa_root_vdev->vdev_child[0]->vdev_ms_shift;
+	zs->zs_guid = spa_guid(spa);
 	spa_close(spa, FTAG);
 
 	kernel_fini();
 
 	if (!ztest_opts.zo_mmp_test) {
-		ztest_run_zdb(ztest_opts.zo_pool);
+		ztest_run_zdb(ztest_opts.zo_pool, zs->zs_guid);
 		ztest_freeze();
-		ztest_run_zdb(ztest_opts.zo_pool);
+		ztest_run_zdb(ztest_opts.zo_pool, zs->zs_guid);
 	}
 
 	(void) pthread_rwlock_destroy(&ztest_name_lock);
@@ -7476,6 +7650,7 @@ ztest_run(ztest_shared_t *zs)
 
 	metaslab_preload_limit = ztest_random(20) + 1;
 	ztest_spa = spa;
+	ASSERT3P(zs->zs_guid, ==, spa_guid(spa));
 
 	VERIFY0(vdev_raidz_impl_set("cycle"));
 
@@ -7485,7 +7660,6 @@ ztest_run(ztest_shared_t *zs)
 	dsl_pool_config_enter(dmu_objset_pool(os), FTAG);
 	dmu_objset_fast_stat(os, &dds);
 	dsl_pool_config_exit(dmu_objset_pool(os), FTAG);
-	zs->zs_guid = dds.dds_guid;
 	dmu_objset_disown(os, B_TRUE, FTAG);
 
 	/*
@@ -7756,14 +7930,14 @@ ztest_init(ztest_shared_t *zs)
 	VERIFY0(spa_open(ztest_opts.zo_pool, &spa, FTAG));
 	zs->zs_metaslab_sz =
 	    1ULL << spa->spa_root_vdev->vdev_child[0]->vdev_ms_shift;
+	zs->zs_guid = spa_guid(spa);
 	spa_close(spa, FTAG);
 
 	kernel_fini();
-
 	if (!ztest_opts.zo_mmp_test) {
-		ztest_run_zdb(ztest_opts.zo_pool);
+		ztest_run_zdb(ztest_opts.zo_pool, zs->zs_guid);
 		ztest_freeze();
-		ztest_run_zdb(ztest_opts.zo_pool);
+		ztest_run_zdb(ztest_opts.zo_pool, zs->zs_guid);
 	}
 
 	(void) pthread_rwlock_destroy(&ztest_name_lock);
@@ -7951,6 +8125,42 @@ ztest_run_init(void)
 	}
 }
 
+static char *
+zoa_get_zettacache(ztest_shared_opts_t *ztest_opts)
+{
+	if (!ztest_opts->zo_use_zettacache) {
+		return (NULL);
+	}
+
+	char *path = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
+	(void) snprintf(path, MAXPATHLEN,
+	    ztest_zcache_template, ztest_opts->zo_dir, getpid());
+
+	int fd = open(path, O_RDWR | O_CREAT | O_TRUNC, 0666);
+	if (fd == -1)
+		fatal(1, "can't open %s", path);
+	if (ftruncate(fd, ztest_opts->zo_vdev_size) != 0)
+		fatal(1, "can't ftruncate %s", path);
+	(void) close(fd);
+
+	return (path);
+}
+
+static void
+zoa_thread(void *arg)
+{
+#ifdef HAVE_LIBZOA
+	char ztest_sock_dir[] = "/tmp/ztest.sock.XXXXXX";
+	char *dir = mkdtemp(ztest_sock_dir);
+	ASSERT3S(dir, !=, NULL);
+	set_object_agent_sock_dir(ztest_sock_dir);
+	char *zcache = zoa_get_zettacache(&ztest_opts);
+	libzoa_init(ztest_sock_dir, "/tmp/zoa.log", zcache);
+#else
+	fatal(0, "libzoa support missing.");
+#endif
+}
+
 int
 main(int argc, char **argv)
 {
@@ -8049,6 +8259,11 @@ main(int argc, char **argv)
 	    UMEM_NOFAIL);
 	zs = ztest_shared;
 
+	if (ztest_opts.zo_obj_store) {
+		thread_create(NULL, 0, zoa_thread, NULL, 0, NULL,
+		    TS_RUN | TS_JOINABLE, defclsyspri);
+	}
+
 	if (fd_data_str) {
 		metaslab_force_ganging = ztest_opts.zo_metaslab_force_ganging;
 		metaslab_df_alloc_threshold =
@@ -8064,14 +8279,24 @@ main(int argc, char **argv)
 	hasalt = (strlen(ztest_opts.zo_alt_ztest) != 0);
 
 	if (ztest_opts.zo_verbose >= 1) {
-		(void) printf("%"PRIu64" vdevs, %d datasets, %d threads,"
-		    "%d %s disks, %"PRIu64" seconds...\n\n",
-		    ztest_opts.zo_vdevs,
-		    ztest_opts.zo_datasets,
-		    ztest_opts.zo_threads,
-		    ztest_opts.zo_raid_children,
-		    ztest_opts.zo_raid_type,
-		    ztest_opts.zo_time);
+		if (ztest_opts.zo_obj_store) {
+			(void) printf("%d datasets, %d threads, object-store"
+			    " %s, %"PRIu64" seconds...\n\n",
+			    ztest_opts.zo_datasets,
+			    ztest_opts.zo_threads,
+			    ztest_opts.zo_obj_store_endpoint,
+			    ztest_opts.zo_time);
+		} else {
+			(void) printf("%"PRIu64" vdevs, %d datasets, "
+			    "%d threads, %d %s disks, %"PRIu64" "
+			    "seconds...\n\n",
+			    ztest_opts.zo_vdevs,
+			    ztest_opts.zo_datasets,
+			    ztest_opts.zo_threads,
+			    ztest_opts.zo_raid_children,
+			    ztest_opts.zo_raid_type,
+			    ztest_opts.zo_time);
+		}
 	}
 
 	cmd = umem_alloc(MAXNAMELEN, UMEM_NOFAIL);
@@ -8182,7 +8407,7 @@ main(int argc, char **argv)
 		}
 
 		if (!ztest_opts.zo_mmp_test)
-			ztest_run_zdb(ztest_opts.zo_pool);
+			ztest_run_zdb(ztest_opts.zo_pool, zs->zs_guid);
 	}
 
 	if (ztest_opts.zo_verbose >= 1) {

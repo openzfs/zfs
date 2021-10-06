@@ -48,6 +48,8 @@ ITERATIONS=1
 ZFS_DBGMSG="$STF_SUITE/callbacks/zfs_dbgmsg.ksh"
 ZFS_DMESG="$STF_SUITE/callbacks/zfs_dmesg.ksh"
 UNAME=$(uname -s)
+ZOA_LOG="/var/zoa.log"
+ZOA_OUTPUT="/var/zoa.stdout"
 
 # Override some defaults if on FreeBSD
 if [ "$UNAME" = "FreeBSD" ] ; then
@@ -129,6 +131,13 @@ cleanup() {
 		rm -f "${TEST_FILE}" >/dev/null 2>&1
 	done
 
+
+	# Cleanup zfs_object_agent process
+	if [ -n "$ZTS_OBJECT_STORE" ]; then
+		sudo pkill -f -TERM zfs_object_agent
+	fi
+
+	# From this point onwards, the script will run with an empty $PATH
 	if [ "$STF_PATH_REMOVE" = "yes" ] && [ -d "$STF_PATH" ]; then
 		rm -Rf "$STF_PATH"
 	fi
@@ -568,10 +577,51 @@ fi
 . "$STF_SUITE/include/default.cfg"
 
 #
-# No DISKS have been provided so a basic file or loopback based devices
-# must be created for the test suite to use.
+# If ZTS_OBJECT_STORE is set, it implies that we are using object storage.
+# Hence, no need to specify disks.
+# If ZTS_OBJECT_STORE is not set and DISKS have not been provided, a basic file
+# or loopback based devices must be created for the test suite to use.
 #
-if [ -z "${DISKS}" ]; then
+
+if [ -n "$ZTS_OBJECT_STORE" ]; then
+	# No need to specify disks if we're using object storage
+
+	#
+	# Ensure that all the required environment variables for object
+	# storage are set. If any of them is unset, exit the script.
+	#
+	[ -n "$ZTS_OBJECT_ENDPOINT" ] || fail "ZTS_OBJECT_ENDPOINT is unset."
+	[ -n "$ZTS_BUCKET_NAME" ] || fail "ZTS_BUCKET_NAME is unset."
+	[ -n "$ZTS_REGION" ] || fail "ZTS_REGION is unset."
+	[ -n "$ZTS_CREDS_PROFILE" ] || export ZTS_CREDS_PROFILE=default
+
+	# Set RUST_BACKTRACE environment variable to generate proper stack
+	# traces for zfs_object_agent service crash.
+	#
+	export RUST_BACKTRACE=1
+
+	#
+	# Start zfs_object_agent service and redirect the output to ZOA_LOG
+	# file.
+	#
+	if [ -n "$ZETTA_CACHE_DEV" ]; then
+		dev=$(basename "$ZETTA_CACHE_DEV")
+		sudo -E /sbin/zfs_object_agent -vv -c "/dev/${dev}" \
+			--output-file=$ZOA_LOG 2>&1 | \
+			sudo tee $ZOA_OUTPUT > /dev/null &
+	else
+		sudo -E /sbin/zfs_object_agent -vv \
+			--output-file=$ZOA_LOG 2>&1 | \
+			sudo tee $ZOA_OUTPUT > /dev/null &
+	fi
+
+	# Verify connectivity before proceeding
+	/sbin/zoa_test -p "$ZTS_CREDS_PROFILE" -b "$ZTS_BUCKET_NAME" \
+		-e "$ZTS_OBJECT_ENDPOINT" \
+		test_connectivity >/dev/null 2>&1 || \
+		fail "Unable to connect to $ZTS_BUCKET_NAME"
+
+elif [ -z "${DISKS}" ]; then
 	#
 	# If this is a performance run, prevent accidental use of
 	# loopback devices.
@@ -622,9 +672,11 @@ fi
 # It may be desirable to test with fewer disks than the default when running
 # the performance tests, but the functional tests require at least three.
 #
-NUM_DISKS=$(echo "${DISKS}" | awk '{print NF}')
-if [ "$TAGS" != "perf" ]; then
-	[ "$NUM_DISKS" -lt 3 ] && fail "Not enough disks ($NUM_DISKS/3 minimum)"
+if [ -z "$ZTS_OBJECT_STORE" ]; then
+	NUM_DISKS=$(echo "${DISKS}" | awk '{print NF}')
+	if [ "$TAGS" != "perf" ]; then
+		[ "$NUM_DISKS" -lt 3 ] && fail "Not enough disks ($NUM_DISKS/3 minimum)"
+	fi
 fi
 
 #
@@ -659,6 +711,9 @@ msg "TAGS:            $TAGS"
 msg "STACK_TRACER:    $STACK_TRACER"
 msg "Keep pool(s):    $KEEP"
 msg "Missing util(s): $STF_MISSING_BIN"
+msg "ZTS_OBJECT_STORE:      $ZTS_OBJECT_STORE"
+msg "ZETTA_CACHE_DEV:       $ZETTA_CACHE_DEV"
+msg "RUST_BACKTRACE:        $RUST_BACKTRACE"
 msg ""
 
 export STF_TOOLS

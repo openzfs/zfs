@@ -41,6 +41,7 @@
 #include <sys/vdev_rebuild.h>
 #include <sys/vdev_removal.h>
 #include <sys/zfs_ratelimit.h>
+#include <zfeature_common.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -96,11 +97,12 @@ typedef void vdev_xlation_func_t(vdev_t *cvd, const range_seg64_t *logical,
     range_seg64_t *physical, range_seg64_t *remain);
 typedef uint64_t vdev_rebuild_asize_func_t(vdev_t *vd, uint64_t start,
     uint64_t size, uint64_t max_segment);
-typedef void vdev_metaslab_init_func_t(vdev_t *vd, uint64_t *startp,
-    uint64_t *sizep);
+typedef void vdev_metaslab_init_func_t(vdev_t *vd, metaslab_t *msp,
+    uint64_t *startp, uint64_t *sizep);
 typedef void vdev_config_generate_func_t(vdev_t *vd, nvlist_t *nv);
 typedef uint64_t vdev_nparity_func_t(vdev_t *vd);
 typedef uint64_t vdev_ndisks_func_t(vdev_t *vd);
+typedef void vdev_enable_feature_func_t(vdev_t *vd, zfeature_info_t *zfeature);
 
 typedef const struct vdev_ops {
 	vdev_init_func_t		*vdev_op_init;
@@ -123,6 +125,7 @@ typedef const struct vdev_ops {
 	vdev_config_generate_func_t	*vdev_op_config_generate;
 	vdev_nparity_func_t		*vdev_op_nparity;
 	vdev_ndisks_func_t		*vdev_op_ndisks;
+	vdev_enable_feature_func_t	*vdev_op_enable_feature;
 	char				vdev_op_type[16];
 	boolean_t			vdev_op_leaf;
 } vdev_ops_t;
@@ -607,6 +610,7 @@ extern vdev_ops_t vdev_missing_ops;
 extern vdev_ops_t vdev_hole_ops;
 extern vdev_ops_t vdev_spare_ops;
 extern vdev_ops_t vdev_indirect_ops;
+extern vdev_ops_t vdev_object_store_ops;
 
 /*
  * Common size functions
@@ -642,6 +646,14 @@ extern int vdev_obsolete_counts_are_precise(vdev_t *vd, boolean_t *are_precise);
  */
 int vdev_checkpoint_sm_object(vdev_t *vd, uint64_t *sm_obj);
 void vdev_metaslab_group_create(vdev_t *vd);
+uberblock_t *vdev_object_store_get_uberblock(vdev_t *vd);
+nvlist_t *vdev_object_store_get_config(vdev_t *vd);
+void vdev_object_store_enable_passthru(vdev_t *vd);
+uint64_t vdev_object_store_flush_point(vdev_t *vd);
+uint64_t vdev_object_store_metaslab_offset(vdev_t *vd);
+
+extern void vdev_queue_pending_add(vdev_queue_t *vq, zio_t *zio);
+extern void vdev_queue_pending_remove(vdev_queue_t *vq, zio_t *zio);
 
 /*
  * Vdev ashift optimization tunables

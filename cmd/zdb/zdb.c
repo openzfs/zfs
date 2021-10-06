@@ -78,10 +78,12 @@
 #include <sys/btree.h>
 #include <zfs_comutil.h>
 #include <sys/zstd/zstd.h>
-
 #include <libnvpair.h>
 #include <libzutil.h>
-
+#include <object_agent.h>
+#ifdef HAVE_LIBZOA
+#include <libzoa.h>
+#endif
 #include "zdb.h"
 
 #define	ZDB_COMPRESS_NAME(idx) ((idx) < ZIO_COMPRESS_FUNCTIONS ?	\
@@ -161,6 +163,7 @@ static int flagbits[256];
 uint64_t max_inflight_bytes = 256 * 1024 * 1024; /* 256MB */
 static int leaked_objects = 0;
 static range_tree_t *mos_refd_objs;
+static int objstore = 0;
 
 static void snprintf_blkptr_compact(char *, size_t, const blkptr_t *,
     boolean_t);
@@ -779,26 +782,30 @@ static void
 usage(void)
 {
 	(void) fprintf(stderr,
-	    "Usage:\t%s [-AbcdDFGhikLMPsvXy] [-e [-V] [-p <path> ...]] "
+	    "Usage:\t%1$s [-AbcdDFGhikLMPsvXy] [-e [-V] [-p <path> ...]] "
 	    "[-I <inflight I/Os>]\n"
 	    "\t\t[-o <var>=<value>]... [-t <txg>] [-U <cache>] [-x <dumpdir>]\n"
 	    "\t\t[<poolname>[/<dataset | objset id>] [<object | range> ...]]\n"
-	    "\t%s [-AdiPv] [-e [-V] [-p <path> ...]] [-U <cache>]\n"
+	    "\t%1$s [-AdiPv] [-e [-V] [-p <path> ...]] [-U <cache>]\n"
 	    "\t\t[<poolname>[/<dataset | objset id>] [<object | range> ...]\n"
-	    "\t%s [-v] <bookmark>\n"
-	    "\t%s -C [-A] [-U <cache>]\n"
-	    "\t%s -l [-Aqu] <device>\n"
-	    "\t%s -m [-AFLPX] [-e [-V] [-p <path> ...]] [-t <txg>] "
+#ifdef HAVE_LIBZOA
+	    "\t%1$s [-AdiPv] [-e [-V] -a <endpoint> -g <region> -B <bucket> "
+	    "-f <creds profile>]\n"
+#endif
+	    "\t\t[<poolname>[/<dataset | objset id>] [<object | range> ...]\n"
+	    "\t%1$s [-v] <bookmark>\n"
+	    "\t%1$s -C [-A] [-U <cache>]\n"
+	    "\t%1$s -l [-Aqu] <device>\n"
+	    "\t%1$s -m [-AFLPX] [-e [-V] [-p <path> ...]] [-t <txg>] "
 	    "[-U <cache>]\n\t\t<poolname> [<vdev> [<metaslab> ...]]\n"
-	    "\t%s -O <dataset> <path>\n"
-	    "\t%s -r <dataset> <path> <destination>\n"
-	    "\t%s -R [-A] [-e [-V] [-p <path> ...]] [-U <cache>]\n"
+	    "\t%1$s -O <dataset> <path>\n"
+	    "\t%1$s -r <dataset> <path> <destination>\n"
+	    "\t%1$s -R [-A] [-e [-V] [-p <path> ...]] [-U <cache>]\n"
 	    "\t\t<poolname> <vdev>:<offset>:<size>[:<flags>]\n"
-	    "\t%s -E [-A] word0:word1:...:word15\n"
-	    "\t%s -S [-AP] [-e [-V] [-p <path> ...]] [-U <cache>] "
+	    "\t%1$s -E [-A] word0:word1:...:word15\n"
+	    "\t%1$s -S [-AP] [-e [-V] [-p <path> ...]] [-U <cache>] "
 	    "<poolname>\n\n",
-	    cmdname, cmdname, cmdname, cmdname, cmdname, cmdname, cmdname,
-	    cmdname, cmdname, cmdname, cmdname);
+	    cmdname);
 
 	(void) fprintf(stderr, "    Dataset name must include at least one "
 	    "separator character '/' or '@'\n");
@@ -863,6 +870,14 @@ usage(void)
 	    "variable to an unsigned 32-bit integer\n");
 	(void) fprintf(stderr, "        -p <path> -- use one or more with "
 	    "-e to specify path to vdev dir\n");
+#ifdef HAVE_LIBZOA
+	(void) fprintf(stderr, "        -a <endpoint> -- use with "
+	    "-e to specify object-store endpoint\n");
+	(void) fprintf(stderr, "        -g <region> object-store region\n");
+	(void) fprintf(stderr, "        -B <bucket> object-store bucket\n");
+	(void) fprintf(stderr, "        -f <profile> object-store credentials "
+	    "profile\n");
+#endif
 	(void) fprintf(stderr, "        -P print numbers in parseable form\n");
 	(void) fprintf(stderr, "        -q don't print label contents\n");
 	(void) fprintf(stderr, "        -t <txg> -- highest txg to use when "
@@ -6350,6 +6365,16 @@ dump_block_stats(spa_t *spa)
 	int e, c, err;
 	bp_embedded_type_t i;
 
+	/*
+	 * For an objectstore based zpool, there are no space maps and zdb leak
+	 * detection will not work.
+	 */
+	if (objstore && !dump_opt['L']) {
+		(void) printf("\nSkipping leak detection for object-store "
+		    "based zpool.\n\n");
+		dump_opt['L'] = 1;
+	}
+
 	bzero(&zcb, sizeof (zcb));
 	(void) printf("\nTraversing all blocks %s%s%s%s%s...\n\n",
 	    (dump_opt['c'] || !dump_opt['L']) ? "to verify " : "",
@@ -8320,6 +8345,53 @@ zdb_embedded_block(char *thing)
 	free(buf);
 }
 
+
+static nvlist_t *
+make_objectstore_prop(char *endpoint, char *region, char *bucket,
+    char *creds_profile)
+{
+	if (endpoint == NULL) {
+		(void) fprintf(stderr,
+		    "object-store endpoint not specified.\n");
+		usage();
+	}
+	if (region == NULL) {
+		(void) fprintf(stderr,
+		    "object-store region not specified.\n");
+		usage();
+	}
+	if (bucket == NULL) {
+		(void) fprintf(stderr,
+		    "object-store bucket not specified.\n");
+		usage();
+	}
+
+	nvlist_t *nv = fnvlist_alloc();
+	fnvlist_add_string(nv, ZPOOL_CONFIG_PATH, bucket);
+	fnvlist_add_string(nv, zpool_prop_to_name(ZPOOL_PROP_OBJ_ENDPOINT),
+	    endpoint);
+	fnvlist_add_string(nv, zpool_prop_to_name(ZPOOL_PROP_OBJ_REGION),
+	    region);
+	fnvlist_add_string(nv, zpool_prop_to_name(ZPOOL_PROP_OBJ_CRED_PROFILE),
+	    creds_profile);
+
+	return (nv);
+}
+
+static void
+zoa_thread(void *arg)
+{
+#ifdef HAVE_LIBZOA
+	char ztest_sock_dir[] = "/tmp/ztest.sock.XXXXXX";
+	char *dir = mkdtemp(ztest_sock_dir);
+	ASSERT3S(dir, !=, NULL);
+	set_object_agent_sock_dir(ztest_sock_dir);
+	libzoa_init(ztest_sock_dir, "/tmp/zoa.log", NULL);
+#else
+	fatal(0, "libzoa support missing.");
+#endif
+}
+
 int
 main(int argc, char **argv)
 {
@@ -8331,6 +8403,10 @@ main(int argc, char **argv)
 	int verbose = 0;
 	int error = 0;
 	char **searchdirs = NULL;
+	char *endpoint = NULL;
+	char *region = NULL;
+	char *bucket = NULL;
+	char *creds_profile = "default";
 	int nsearch = 0;
 	char *target, *target_pool, dsname[ZFS_MAX_DATASET_NAME_LEN];
 	nvlist_t *policy = NULL;
@@ -8365,7 +8441,7 @@ main(int argc, char **argv)
 	zfs_btree_verify_intensity = 3;
 
 	while ((c = getopt(argc, argv,
-	    "AbcCdDeEFGhiI:klLmMo:Op:PqrRsSt:uU:vVx:XYyZ")) != -1) {
+	    "a:AB:bcCdDeEf:Fg:GhiI:klLmMo:Op:PqrRsSt:uU:vVx:XYyZ")) != -1) {
 		switch (c) {
 		case 'b':
 		case 'c':
@@ -8451,6 +8527,24 @@ main(int argc, char **argv)
 				usage();
 			}
 			break;
+#ifdef HAVE_LIBZOA
+		case 'a':
+			endpoint = optarg;
+			objstore = 1;
+			break;
+		case 'B':
+			bucket = optarg;
+			objstore = 1;
+			break;
+		case 'f':
+			creds_profile = optarg;
+			objstore = 1;
+			break;
+		case 'g':
+			region = optarg;
+			objstore = 1;
+			break;
+#endif
 		case 'v':
 			verbose++;
 			break;
@@ -8494,6 +8588,11 @@ main(int argc, char **argv)
 				objset_id = -1;
 			}
 		}
+	}
+
+	if (objstore) {
+		thread_create(NULL, 0, zoa_thread, NULL, 0, NULL,
+		    TS_RUN | TS_JOINABLE, defclsyspri);
 	}
 
 #if defined(_LP64)
@@ -8606,7 +8705,10 @@ main(int argc, char **argv)
 		args.paths = nsearch;
 		args.path = searchdirs;
 		args.can_be_active = B_TRUE;
-
+		if (objstore) {
+			args.props = make_objectstore_prop(endpoint, region,
+			    bucket, creds_profile);
+		}
 		error = zpool_find_config(NULL, target_pool, &cfg, &args,
 		    &libzpool_config_ops);
 

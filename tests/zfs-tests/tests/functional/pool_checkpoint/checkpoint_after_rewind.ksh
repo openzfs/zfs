@@ -44,7 +44,7 @@ log_must zpool checkpoint $TESTPOOL
 test_change_state_after_checkpoint
 
 log_must zpool export $TESTPOOL
-log_must zpool import --rewind-to-checkpoint $TESTPOOL
+log_must import_pool -e "--rewind-to-checkpoint" -p $TESTPOOL
 test_verify_pre_checkpoint_state
 
 log_must zpool checkpoint $TESTPOOL

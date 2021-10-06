@@ -59,17 +59,23 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/un.h>
 #include <sys/dktp/fdisk.h>
 #include <sys/vdev_impl.h>
 #include <sys/fs/zfs.h>
+#include <sys/vdev_object_store.h>
 
 #include <thread_pool.h>
 #include <libzutil.h>
 #include <libnvpair.h>
+#include <libzfs.h>
 
 #include "zutil_import.h"
+#include "zutil_zoa.h"
 
-static __attribute__((format(printf, 2, 3))) void
+__attribute__((format(printf, 2, 3))) void
 zutil_error_aux(libpc_handle_t *hdl, const char *fmt, ...)
 {
 	va_list ap;
@@ -117,7 +123,7 @@ zutil_error_fmt(libpc_handle_t *hdl, const char *error, const char *fmt, ...)
 	return (-1);
 }
 
-static int
+int
 zutil_error(libpc_handle_t *hdl, const char *error, const char *msg)
 {
 	return (zutil_error_fmt(hdl, error, "%s", msg));
@@ -451,6 +457,63 @@ vdev_is_hole(uint64_t *hole_array, uint_t holes, uint_t id)
 			return (B_TRUE);
 	}
 	return (B_FALSE);
+}
+
+static void
+copy_credentials_profile(nvlist_t *src, nvlist_t *dst)
+{
+	nvlist_t *tree, *dsttree;
+	uint_t c, c2, children, dstchildren;
+	nvlist_t **child, **dstchild;
+
+	tree = fnvlist_lookup_nvlist(src, ZPOOL_CONFIG_VDEV_TREE);
+	dsttree = fnvlist_lookup_nvlist(dst, ZPOOL_CONFIG_VDEV_TREE);
+
+	if (nvlist_lookup_nvlist_array(tree, ZPOOL_CONFIG_CHILDREN,
+	    &child, &children) != 0) {
+		return;
+	}
+
+	VERIFY0(nvlist_lookup_nvlist_array(dsttree, ZPOOL_CONFIG_CHILDREN,
+	    &dstchild, &dstchildren));
+
+	for (c = 0; c < children; c++) {
+		char *type, *profile;
+		uint64_t guid;
+		if (nvlist_lookup_string(child[c], ZPOOL_CONFIG_TYPE,
+		    &type) != 0) {
+			continue;
+		}
+
+		if (strcmp(type, VDEV_TYPE_OBJSTORE) != 0)
+			continue;
+
+		if (nvlist_lookup_string(child[c],
+		    ZPOOL_CONFIG_CRED_PROFILE, &profile) != 0) {
+			continue;
+		}
+
+		guid = fnvlist_lookup_uint64(child[c], ZPOOL_CONFIG_GUID);
+
+		for (c2 = 0; c2 < dstchildren; c2++) {
+			if (nvlist_lookup_string(dstchild[c2],
+			    ZPOOL_CONFIG_TYPE, &type) != 0) {
+				continue;
+			}
+
+			if (strcmp(type, VDEV_TYPE_OBJSTORE) != 0 ||
+			    fnvlist_lookup_uint64(dstchild[c2],
+			    ZPOOL_CONFIG_GUID) != guid) {
+				continue;
+			}
+
+			fnvlist_add_string(dstchild[c2],
+			    ZPOOL_CONFIG_CRED_PROFILE, profile);
+			break;
+		}
+		break;
+	}
+
 }
 
 /*
@@ -815,6 +878,8 @@ get_configs(libpc_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 			config = NULL;
 			continue;
 		}
+
+		copy_credentials_profile(config, nvl);
 
 		nvlist_free(config);
 		config = nvl;
@@ -1212,6 +1277,7 @@ zpool_find_import_scan_add_slice(libpc_handle_t *hdl, pthread_mutex_t *lock,
 	slice->rn_hdl = hdl;
 	slice->rn_order = order + IMPORT_ORDER_SCAN_OFFSET;
 	slice->rn_labelpaths = B_FALSE;
+	slice->rn_external = B_FALSE;
 
 	pthread_mutex_lock(lock);
 	if (avl_find(cache, slice, &where)) {
@@ -1469,7 +1535,8 @@ zpool_find_import_impl(libpc_handle_t *hdl, importargs_t *iarg,
 				 */
 				fd = open(slice->rn_name,
 				    O_RDONLY | O_EXCL | O_CLOEXEC);
-				if (fd >= 0 || iarg->can_be_active) {
+				if (fd >= 0 || iarg->can_be_active ||
+				    slice->rn_external) {
 					if (fd >= 0)
 						close(fd);
 					add_config(hdl, &pools,
@@ -1705,25 +1772,173 @@ zpool_find_import_cached(libpc_handle_t *hdl, importargs_t *iarg)
 			return (NULL);
 		}
 
+		/*
+		 * If this is an objstore pool, we need to get the credentials.
+		 */
+		nvlist_t *tree;
+		uint_t c, children;
+		nvlist_t **child;
+
+		tree = fnvlist_lookup_nvlist(src, ZPOOL_CONFIG_VDEV_TREE);
+
+		if (nvlist_lookup_nvlist_array(tree, ZPOOL_CONFIG_CHILDREN,
+		    &child, &children) != 0) {
+			fprintf(stderr, gettext("cannot import '%s': invalid "
+			    "configuration detected.\n"), name);
+			goto errout;
+		}
+
+		boolean_t object_store_pool_found = B_FALSE;
+		for (c = 0; c < children; c++) {
+			char *type, *profile;
+			if (nvlist_lookup_string(child[c], ZPOOL_CONFIG_TYPE,
+			    &type) != 0) {
+				fprintf(stderr, gettext(
+				    "cannot import '%s': invalid "
+				    "configuration detected.\n"), name);
+				goto errout;
+			}
+
+			if (strcmp(type, VDEV_TYPE_OBJSTORE) != 0)
+				continue;
+
+			object_store_pool_found = B_TRUE;
+			if ((nvlist_lookup_string(child[c],
+			    "object-credentials-profile",
+			    &profile)) == 0) {
+				fnvlist_add_string(child[c],
+				    ZPOOL_CONFIG_CRED_PROFILE, profile);
+				break;
+			}
+		}
+
+		if (object_store_pool_found) {
+			/*
+			 * For object based pools, we must first verify
+			 * the agent is alive and well. We do this
+			 * before we pass this pool configuration to
+			 * the kernel since the kernel will wait forever
+			 * on the agent to finish the import.
+			 *
+			 * To ensure that we have a good chance of
+			 * completing the import, we will create
+			 * a test connection to the agent and immediately
+			 * close it down. If it succeeds, then we
+			 * can continue our attempt to import this
+			 * pool. Otherwise, we skip this configuration
+			 * to prevent the import from hanging.
+			 */
+			int sock = zoa_connect_agent(hdl, ZFS_ROOT_SOCKET);
+			if (sock == -1) {
+				continue;
+			}
+			close(sock);
+		}
+
 		update_vdevs_config_dev_sysfs_path(src);
 
-		if ((dst = zutil_refresh_config(hdl, src)) == NULL) {
-			nvlist_free(raw);
-			nvlist_free(pools);
-			return (NULL);
-		}
+		if ((dst = zutil_refresh_config(hdl, src)) == NULL)
+			goto errout;
+		copy_credentials_profile(src, dst);
 
 		if (nvlist_add_nvlist(pools, nvpair_name(elem), dst) != 0) {
 			(void) zutil_no_memory(hdl);
 			nvlist_free(dst);
-			nvlist_free(raw);
-			nvlist_free(pools);
-			return (NULL);
+			goto errout;
 		}
 		nvlist_free(dst);
 	}
 	nvlist_free(raw);
 	return (pools);
+errout:
+	nvlist_free(raw);
+	nvlist_free(pools);
+	return (NULL);
+}
+
+static void
+zpool_find_import_agent(libpc_handle_t *hdl, importargs_t *iarg,
+    pthread_mutex_t *lock, avl_tree_t *cache)
+{
+	char *profile = NULL, *bucket = NULL, *endpoint, *region;
+
+	// TODO: We don't handle multiple search paths yet
+	nvlist_lookup_string(iarg->props, "path", &bucket);
+	if (bucket == NULL && iarg->path != NULL) {
+		bucket = iarg->path[0];
+	}
+	if ((nvlist_lookup_string(iarg->props, "object-endpoint",
+	    &endpoint)) != 0) {
+		return;
+	}
+	if ((nvlist_lookup_string(iarg->props, "object-region",
+	    &region)) != 0) {
+		return;
+	}
+	nvlist_lookup_string(iarg->props, "object-credentials-profile",
+	    &profile);
+
+	nvlist_t *msg = fnvlist_alloc();
+	fnvlist_add_string(msg, AGENT_TYPE, AGENT_TYPE_GET_POOLS);
+	if (bucket != NULL)
+		fnvlist_add_string(msg, AGENT_BUCKET, bucket);
+	fnvlist_add_string(msg, AGENT_REGION, region);
+	fnvlist_add_string(msg, AGENT_ENDPOINT, endpoint);
+	if (profile != NULL) {
+		fnvlist_add_string(msg, AGENT_CRED_PROFILE, profile);
+	}
+	if (iarg->guid != 0)
+		fnvlist_add_uint64(msg, AGENT_GUID, iarg->guid);
+
+	nvlist_t *resp = zoa_send_recv_msg(hdl, msg, ZFS_PUBLIC_SOCKET);
+
+	nvpair_t *elem = NULL;
+	while ((elem = nvlist_next_nvpair(resp, elem)) != NULL) {
+		avl_index_t where;
+		rdsk_node_t *slice;
+		nvlist_t *config;
+		VERIFY0(nvpair_value_nvlist(elem, &config));
+
+		nvlist_t *tree = fnvlist_lookup_nvlist(config,
+		    ZPOOL_CONFIG_VDEV_TREE);
+
+		char *type;
+		if (profile != NULL &&
+		    nvlist_lookup_string(tree, ZPOOL_CONFIG_TYPE, &type) == 0 &&
+		    strcmp(type, VDEV_TYPE_OBJSTORE) == 0) {
+			fnvlist_add_string(tree,
+			    ZPOOL_CONFIG_CRED_PROFILE, profile);
+		}
+		uint64_t guid;
+		if (nvlist_lookup_uint64(tree, ZPOOL_CONFIG_GUID, &guid) != 0) {
+			continue;
+		}
+
+		slice = zutil_alloc(hdl, sizeof (rdsk_node_t));
+		if (asprintf(&slice->rn_name, "%s", fnvlist_lookup_string(tree,
+		    ZPOOL_CONFIG_PATH)) == -1) {
+			free(slice);
+			return;
+		}
+		slice->rn_vdev_guid = guid;
+		slice->rn_lock = lock;
+		slice->rn_avl = cache;
+		slice->rn_hdl = hdl;
+		slice->rn_order = IMPORT_ORDER_PREFERRED_1;
+		slice->rn_labelpaths = B_FALSE;
+		slice->rn_config = fnvlist_dup(config);
+		slice->rn_external = B_TRUE;
+
+		pthread_mutex_lock(lock);
+		if (avl_find(cache, slice, &where)) {
+			free(slice->rn_name);
+			free(slice);
+		} else {
+			avl_insert(cache, slice, where);
+		}
+		pthread_mutex_unlock(lock);
+	}
+	fnvlist_free(resp);
 }
 
 static nvlist_t *
@@ -1760,12 +1975,13 @@ zpool_find_import(libpc_handle_t *hdl, importargs_t *iarg)
 			return (NULL);
 		}
 	}
+	zpool_find_import_agent(hdl, iarg, &lock, cache);
 
 	pools = zpool_find_import_impl(hdl, iarg, &lock, cache);
 	pthread_mutex_destroy(&lock);
+
 	return (pools);
 }
-
 
 nvlist_t *
 zpool_search_import(void *hdl, importargs_t *import,
@@ -1926,4 +2142,59 @@ int
 for_each_vdev_in_nvlist(nvlist_t *nvroot, pool_vdev_iter_f func, void *data)
 {
 	return (for_each_vdev_cb(NULL, nvroot, func, data));
+}
+
+int
+zoa_resume_destroy(void *hdl, importargs_t *iarg)
+{
+	char *endpoint = NULL;
+	char *region = NULL;
+	char *bucket = NULL;
+	char *profile = NULL;
+	libpc_handle_t handle = { 0 };
+
+	handle.lpc_lib_handle = hdl;
+	handle.lpc_printerr = B_TRUE;
+
+	nvlist_lookup_string(iarg->props, "path", &bucket);
+	if (bucket == NULL && iarg->path != NULL) {
+		bucket = iarg->path[0];
+	}
+	if (bucket == NULL) {
+		return (-1);
+	}
+	if (nvlist_lookup_string(iarg->props, "object-endpoint", &endpoint)
+	    != 0) {
+		return (-1);
+	}
+	if (nvlist_lookup_string(iarg->props, "object-region", &region) != 0) {
+		return (-1);
+	}
+	nvlist_lookup_string(iarg->props, "object-credentials-profile",
+	    &profile);
+
+	// Resume destroy
+	nvlist_t *msg = fnvlist_alloc();
+	fnvlist_add_string(msg, AGENT_TYPE, AGENT_TYPE_RESUME_DESTROY_POOL);
+	fnvlist_add_string(msg, AGENT_BUCKET, bucket);
+	fnvlist_add_string(msg, AGENT_REGION, region);
+	fnvlist_add_string(msg, AGENT_ENDPOINT, endpoint);
+	if (profile != NULL) {
+		fnvlist_add_string(msg, AGENT_CRED_PROFILE, profile);
+	}
+	fnvlist_add_uint64(msg, AGENT_GUID, iarg->guid);
+	if (iarg->poolname != NULL) {
+		fnvlist_add_string(msg, AGENT_NAME, iarg->poolname);
+	}
+
+	nvlist_t *resp = zoa_send_recv_msg(&handle, msg, ZFS_ROOT_SOCKET);
+	if (resp == NULL)
+		return (-1);
+
+	const char *type = fnvlist_lookup_string(resp, AGENT_TYPE);
+	if (strcmp(type, AGENT_TYPE_RESUME_DESTROY_POOL_DONE) == 0) {
+		return (0);
+	}
+
+	return (-1);
 }

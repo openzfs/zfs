@@ -56,6 +56,7 @@ zfs_key_location = enum(
     'ZFS_KEYLOCATION_NONE',
     'ZFS_KEYLOCATION_PROMPT',
     'ZFS_KEYLOCATION_URI'
+    'ZFS_KEYLOCATION_ENVIRONMENT'
 )
 #: Encryption key format enum
 zfs_keyformat = enum(

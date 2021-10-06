@@ -83,8 +83,8 @@ typeset -i i=0
 while (( $i < ${#features[*]} )); do
 	log_assert "'zpool create' creates pools with ${features[i]} disabled"
 
-	log_must zpool create -f -o "feature@${features[i]}=disabled" \
-	    $TESTPOOL $DISKS
+	log_must create_pool -e "-o feature@${features[i]}=disabled" \
+		-p $TESTPOOL -d "$DISKS"
 	log_must check_features "${features[i]}"
 	log_must zpool destroy -f $TESTPOOL
 	(( i = i+1 ))

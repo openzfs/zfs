@@ -47,7 +47,7 @@ verify_runnable "both"
 function cleanup
 {
 	log_must_busy zpool export $TESTPOOL
-	log_must zpool import $TESTPOOL
+	log_must import_pool -p $TESTPOOL
 	snapexists $TESTSNAP && log_must zfs destroy $TESTSNAP
 	[[ -d $MNTPSNAP ]] && log_must rmdir $MNTPSNAP
 	return 0
@@ -159,7 +159,7 @@ zpool sync $TESTPOOL
 
 # 6. Re-import the pool readonly
 log_must zpool export $TESTPOOL
-log_must zpool import -o readonly=on $TESTPOOL
+log_must import_pool -e "-o readonly=on" -p $TESTPOOL
 
 # 7. Verify we can't remount its filesystem read-write
 readonlyfs $MNTPFS

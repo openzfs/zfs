@@ -6978,12 +6978,13 @@ arc_write_done(zio_t *zio)
 
 		exists = buf_hash_insert(hdr, &hash_lock);
 		if (exists != NULL) {
-			/*
-			 * This can only happen if we overwrite for
-			 * sync-to-convergence, because we remove
-			 * buffers from the hash table when we arc_free().
-			 */
 			if (zio->io_flags & ZIO_FLAG_IO_REWRITE) {
+				/*
+				 * This can only happen if we overwrite for
+				 * sync-to-convergence, because we remove
+				 * buffers from the hash table when we
+				 * arc_free().
+				 */
 				if (!BP_EQUAL(&zio->io_bp_orig, zio->io_bp))
 					panic("bad overwrite, hdr=%p exists=%p",
 					    (void *)hdr, (void *)exists);

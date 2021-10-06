@@ -39,7 +39,7 @@
 #
 # STRATEGY:
 # 1. Create storage pools with a name in ZFS namespace with different
-# vdev specs.
+# vdev specs or object storage.
 # 2. Verify the pool created successfully
 #
 
@@ -49,31 +49,37 @@ function cleanup
 {
 	poolexists $TESTPOOL && destroy_pool $TESTPOOL
 
-	rm -f $disk1 $disk2
+	if ! use_object_store; then
+		rm -f $disk1 $disk2
+	fi
 }
 
-log_assert "'zpool create <pool> <vspec> ...' can successfully create" \
+log_assert "'zpool create <pool> ...' can successfully create" \
 	"a new pool with a name in ZFS namespace."
 
 log_onexit cleanup
 
-typeset disk1=$(create_blockfile $FILESIZE)
-typeset disk2=$(create_blockfile $FILESIZE)
+if use_object_store; then
+	create_pool_test "$TESTPOOL"
+else
+	typeset disk1=$(create_blockfile $FILESIZE)
+	typeset disk2=$(create_blockfile $FILESIZE)
 
-pooldevs="${DISK0} \
-	\"${DISK0} ${DISK1}\" \
-	\"${DISK0} ${DISK1} ${DISK2}\" \
-	\"$disk1 $disk2\""
-mirrordevs="\"${DISK0} ${DISK1}\" \
-	$raidzdevs \
-	\"$disk1 $disk2\""
-raidzdevs="\"${DISK0} ${DISK1} ${DISK2}\""
-draiddevs="\"${DISK0} ${DISK1} ${DISK2}\""
+	pooldevs="${DISK0} \
+		\"${DISK0} ${DISK1}\" \
+		\"${DISK0} ${DISK1} ${DISK2}\" \
+		\"$disk1 $disk2\""
+	mirrordevs="\"${DISK0} ${DISK1}\" \
+		$raidzdevs \
+		\"$disk1 $disk2\""
+	raidzdevs="\"${DISK0} ${DISK1} ${DISK2}\""
+	draiddevs="\"${DISK0} ${DISK1} ${DISK2}\""
 
-create_pool_test "$TESTPOOL" "" "$pooldevs"
-create_pool_test "$TESTPOOL" "mirror" "$mirrordevs"
-create_pool_test "$TESTPOOL" "raidz" "$raidzdevs"
-create_pool_test "$TESTPOOL" "raidz1" "$raidzdevs"
-create_pool_test "$TESTPOOL" "draid" "$draiddevs"
+	create_pool_test "$TESTPOOL" "" "$pooldevs"
+	create_pool_test "$TESTPOOL" "mirror" "$mirrordevs"
+	create_pool_test "$TESTPOOL" "raidz" "$raidzdevs"
+	create_pool_test "$TESTPOOL" "raidz1" "$raidzdevs"
+	create_pool_test "$TESTPOOL" "draid" "$draiddevs"
+fi
 
-log_pass "'zpool create <pool> <vspec> ...' success."
+log_pass "'zpool create <pool> ...' success."

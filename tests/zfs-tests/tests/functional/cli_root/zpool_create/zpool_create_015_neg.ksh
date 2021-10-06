@@ -69,7 +69,7 @@ log_onexit cleanup
 #
 # use zfs vol device in swap to create pool which should fail.
 #
-create_pool $TESTPOOL $DISK0
+create_pool -p $TESTPOOL -d "$DISK0"
 log_must zfs create -V 100m $vol_name
 block_device_wait
 swap_setup ${ZVOL_DEVDIR}/$vol_name

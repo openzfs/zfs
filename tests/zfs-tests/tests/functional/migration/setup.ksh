@@ -46,7 +46,7 @@ case $DISK_COUNT in
 	;;
 esac
 
-create_pool $TESTPOOL "$ZFS_DISK"
+create_pool -p $TESTPOOL -d "$ZFS_DISK"
 
 rm -rf $TESTDIR  || log_unresolved Could not remove $TESTDIR
 mkdir -p $TESTDIR || log_unresolved Could not create $TESTDIR

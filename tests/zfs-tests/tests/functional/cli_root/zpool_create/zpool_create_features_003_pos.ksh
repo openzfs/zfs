@@ -52,7 +52,8 @@ log_onexit cleanup
 log_assert "'zpool create -d -o feature@async_destroy=enabled' only " \
     "enables async_destroy"
 
-log_must zpool create -f -d -o feature@async_destroy=enabled $TESTPOOL $DISKS
+log_must create_pool -e "-d -o feature@async_destroy=enabled" \
+	-p $TESTPOOL -d "$DISKS"
 
 state=$(zpool list -Ho feature@async_destroy $TESTPOOL)
 if [[ "$state" != "enabled" ]]; then

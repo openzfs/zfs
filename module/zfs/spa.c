@@ -62,6 +62,7 @@
 #include <sys/vdev_trim.h>
 #include <sys/vdev_disk.h>
 #include <sys/vdev_draid.h>
+#include <sys/vdev_object_store.h>
 #include <sys/metaslab.h>
 #include <sys/metaslab_impl.h>
 #include <sys/mmp.h>
@@ -104,6 +105,8 @@
  * should be retried.
  */
 int zfs_ccw_retry_interval = 300;
+
+int zfs_freeing_includes_agent = 0;
 
 typedef enum zti_modes {
 	ZTI_MODE_FIXED,			/* value is # of threads (min 1) */
@@ -356,14 +359,18 @@ spa_prop_get_config(spa_t *spa, nvlist_t **nvp)
 		 * The $FREE directory was introduced in SPA_VERSION_DEADLISTS,
 		 * when opening pools before this version freedir will be NULL.
 		 */
+		uint64_t freeing = 0;
 		if (pool->dp_free_dir != NULL) {
-			spa_prop_add_list(*nvp, ZPOOL_PROP_FREEING, NULL,
-			    dsl_dir_phys(pool->dp_free_dir)->dd_used_bytes,
-			    src);
-		} else {
-			spa_prop_add_list(*nvp, ZPOOL_PROP_FREEING,
-			    NULL, 0, src);
+			freeing +=
+			    dsl_dir_phys(pool->dp_free_dir)->dd_used_bytes;
 		}
+		if (spa_is_object_based(spa) && zfs_freeing_includes_agent) {
+			vdev_object_store_stats_t voss;
+			object_store_get_stats(rvd->vdev_child[0], &voss);
+			freeing += voss.voss_pending_frees_bytes;
+		}
+		spa_prop_add_list(*nvp, ZPOOL_PROP_FREEING, NULL,
+		    freeing, src);
 
 		if (pool->dp_leak_dir != NULL) {
 			spa_prop_add_list(*nvp, ZPOOL_PROP_LEAKED, NULL,
@@ -1602,7 +1609,13 @@ spa_unload(spa_t *spa)
 	 */
 	spa_async_suspend(spa);
 
-	if (spa->spa_root_vdev) {
+	/*
+	 * If we're unloading the pool because it's still active,
+	 * then we need to stop all initialize, trim, and rebuild
+	 * activity here. All other states, like exporting,
+	 * will stop these activities in the export code.
+	 */
+	if (spa->spa_root_vdev && spa->spa_state == POOL_STATE_ACTIVE) {
 		vdev_t *root_vdev = spa->spa_root_vdev;
 		vdev_initialize_stop_all(root_vdev, VDEV_INITIALIZE_ACTIVE);
 		vdev_trim_stop_all(root_vdev, VDEV_TRIM_ACTIVE);
@@ -3717,6 +3730,57 @@ spa_ld_open_rootbp(spa_t *spa)
 	return (0);
 }
 
+static void
+copy_objstore_cred_profile(nvlist_t *src, nvlist_t *dest)
+{
+	nvlist_t **schild, **dchild;
+	uint_t schildren, dchildren;
+
+	if (nvlist_lookup_nvlist_array(src, ZPOOL_CONFIG_CHILDREN,
+	    &schild, &schildren) != 0)
+		return;
+
+	if (nvlist_lookup_nvlist_array(dest, ZPOOL_CONFIG_CHILDREN,
+	    &dchild, &dchildren) != 0)
+		return;
+
+	for (int c1 = 0; c1 < schildren; c1++) {
+		char *type, *profile;
+		uint64_t guid;
+		if (nvlist_lookup_string(schild[c1], ZPOOL_CONFIG_TYPE,
+		    &type) != 0) {
+			continue;
+		}
+
+		if (strcmp(type, VDEV_TYPE_OBJSTORE) != 0)
+			continue;
+
+		if (nvlist_lookup_string(schild[c1], ZPOOL_CONFIG_CRED_PROFILE,
+		    &profile) != 0) {
+			continue;
+		}
+		guid = fnvlist_lookup_uint64(schild[c1], ZPOOL_CONFIG_GUID);
+
+		for (int c2 = 0; c2 < dchildren; c2++) {
+			if (nvlist_lookup_string(dchild[c2], ZPOOL_CONFIG_TYPE,
+			    &type) != 0) {
+				continue;
+			}
+
+			if (strcmp(type, VDEV_TYPE_OBJSTORE) != 0 ||
+			    fnvlist_lookup_uint64(dchild[c2],
+			    ZPOOL_CONFIG_GUID) != guid) {
+				continue;
+			}
+			fnvlist_add_string(dchild[c2],
+			    ZPOOL_CONFIG_CRED_PROFILE, profile);
+			break;
+		}
+
+		break;
+	}
+}
+
 static int
 spa_ld_trusted_config(spa_t *spa, spa_import_type_t type,
     boolean_t reloading)
@@ -3761,6 +3825,13 @@ spa_ld_trusted_config(spa_t *spa, spa_import_type_t type,
 	nv = fnvlist_lookup_nvlist(mos_config, ZPOOL_CONFIG_VDEV_TREE);
 
 	spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
+
+	/*
+	 * Before we build the new vdev tree, we have to copy the credentials
+	 * profile for any objstore vdevs from the untrusted config.
+	 */
+	copy_objstore_cred_profile(fnvlist_lookup_nvlist(spa->spa_config,
+	    ZPOOL_CONFIG_VDEV_TREE), nv);
 
 	/*
 	 * Build a new vdev tree from the trusted config
@@ -9059,9 +9130,15 @@ spa_sync_adjust_vdev_max_queue_depth(spa_t *spa)
 		dedup->mc_allocator[i].mca_alloc_max_slots =
 		    slots_per_allocator;
 	}
-	normal->mc_alloc_throttle_enabled = zio_dva_throttle_enabled;
-	special->mc_alloc_throttle_enabled = zio_dva_throttle_enabled;
-	dedup->mc_alloc_throttle_enabled = zio_dva_throttle_enabled;
+	/*
+	 * For object-based storage, we disable the dva throttle.
+	 */
+	boolean_t dva_throttle_enabled = spa_is_object_based(spa) ?
+	    B_FALSE: zio_dva_throttle_enabled;
+
+	normal->mc_alloc_throttle_enabled = dva_throttle_enabled;
+	special->mc_alloc_throttle_enabled = dva_throttle_enabled;
+	dedup->mc_alloc_throttle_enabled = dva_throttle_enabled;
 }
 
 static void
@@ -9101,7 +9178,8 @@ spa_sync_iterate_to_convergence(spa_t *spa, dmu_tx_t *tx)
 		dsl_pool_sync(dp, txg);
 
 		if (pass < zfs_sync_pass_deferred_free ||
-		    spa_feature_is_active(spa, SPA_FEATURE_LOG_SPACEMAP)) {
+		    spa_feature_is_active(spa, SPA_FEATURE_LOG_SPACEMAP) ||
+		    spa_is_object_based(spa)) {
 			/*
 			 * If the log space map feature is active we don't
 			 * care about deferred frees and the deferred bpobj
@@ -9234,6 +9312,10 @@ spa_sync(spa_t *spa, uint64_t txg)
 	vdev_t *vd = NULL;
 
 	VERIFY(spa_writeable(spa));
+
+	if (!spa_normal_class(spa)->mc_ops->msop_block_based) {
+		object_store_begin_txg(spa->spa_root_vdev->vdev_child[0], txg);
+	}
 
 	/*
 	 * Wait for i/os issued in open context that need to complete
@@ -10002,4 +10084,7 @@ ZFS_MODULE_PARAM(zfs_livelist_condense, zfs_livelist_condense_, zthr_cancel, INT
 ZFS_MODULE_PARAM(zfs_livelist_condense, zfs_livelist_condense_, new_alloc, INT, ZMOD_RW,
 	"Whether extra ALLOC blkptrs were added to a livelist entry while it "
 	"was being condensed");
+
+ZFS_MODULE_PARAM(zfs, zfs_, freeing_includes_agent, INT, ZMOD_RW,
+	"Does freeing property include zfs_object_agent's pending frees?");
 /* END CSTYLED */

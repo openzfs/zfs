@@ -54,6 +54,6 @@ log_assert "'zfs create <filesystem>' can create a ZFS filesystem with name leng
 log_must zfs create $TESTPOOL/$TESTFS1
 log_mustnot zfs create $TESTPOOL/$TESTFS2
 log_must zpool export $TESTPOOL
-log_must zpool import $TESTPOOL
+log_must import_pool -p $TESTPOOL
 
 log_pass "'zfs create <filesystem>' works as expected."

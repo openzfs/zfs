@@ -73,8 +73,8 @@ done
 #
 log_mustnot zpool checkpoint -d $non_checkpointed
 log_must zpool export $non_checkpointed
-log_mustnot zpool import --rewind-to-checkpoint $non_checkpointed
-log_must zpool import $non_checkpointed
+log_mustnot import_pool -e "--rewind-to-checkpoint" -p $non_checkpointed
+log_must import_pool -p $non_checkpointed
 
 log_pass "Badly formed checkpoint related commands with " \
 	"invalid inputs fail as expected."

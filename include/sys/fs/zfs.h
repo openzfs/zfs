@@ -247,6 +247,9 @@ typedef enum {
 	ZPOOL_PROP_LOAD_GUID,
 	ZPOOL_PROP_AUTOTRIM,
 	ZPOOL_PROP_COMPATIBILITY,
+	ZPOOL_PROP_OBJ_ENDPOINT,
+	ZPOOL_PROP_OBJ_REGION,
+	ZPOOL_PROP_OBJ_CRED_PROFILE,
 	ZPOOL_NUM_PROPS
 } zpool_prop_t;
 
@@ -447,6 +450,7 @@ typedef enum zfs_keyformat {
 	ZFS_KEYFORMAT_RAW,
 	ZFS_KEYFORMAT_HEX,
 	ZFS_KEYFORMAT_PASSPHRASE,
+	ZFS_KEYFORMAT_INI,
 	ZFS_KEYFORMAT_FORMATS
 } zfs_keyformat_t;
 
@@ -454,6 +458,7 @@ typedef enum zfs_key_location {
 	ZFS_KEYLOCATION_NONE = 0,
 	ZFS_KEYLOCATION_PROMPT,
 	ZFS_KEYLOCATION_URI,
+	ZFS_KEYLOCATION_ENVIRONMENT,
 	ZFS_KEYLOCATION_LOCATIONS
 } zfs_keylocation_t;
 
@@ -632,6 +637,8 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_CHECKPOINT_STATS	"checkpoint_stats" /* not on disk */
 #define	ZPOOL_CONFIG_VDEV_STATS		"vdev_stats"	/* not stored on disk */
 #define	ZPOOL_CONFIG_INDIRECT_SIZE	"indirect_size"	/* not stored on disk */
+/* not stored on disk */
+#define	ZPOOL_CONFIG_CRED_PROFILE	"credentials_profile"
 
 /* container nvlist of extended stats */
 #define	ZPOOL_CONFIG_VDEV_STATS_EX	"vdev_stats_ex"
@@ -787,6 +794,7 @@ typedef struct zpool_load_policy {
 #define	VDEV_TYPE_LOG			"log"
 #define	VDEV_TYPE_L2CACHE		"l2cache"
 #define	VDEV_TYPE_INDIRECT		"indirect"
+#define	VDEV_TYPE_OBJSTORE		"object_store"
 
 #define	VDEV_RAIDZ_MAXPARITY		3
 
@@ -911,6 +919,7 @@ typedef enum vdev_aux {
 	VDEV_AUX_ACTIVE,	/* vdev active on a different host	*/
 	VDEV_AUX_CHILDREN_OFFLINE, /* all children are offline		*/
 	VDEV_AUX_ASHIFT_TOO_BIG, /* vdev's min block size is too large   */
+	VDEV_AUX_MODIFIED,	/* vdev was modified externally while in use */
 } vdev_aux_t;
 
 /*

@@ -1534,6 +1534,16 @@ badlabel:
 			}
 		}
 
+		/* check properties on object based pools */
+		if (zpool_hdl != NULL && zpool_is_object_based(zpool_hdl) &&
+		    prop == ZFS_PROP_COPIES && intval != 1) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "for object based pools '%s' can only be set to 1"),
+			    propname);
+			(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
+			goto error;
+		}
+
 		/* check encryption properties */
 		if (zhp != NULL) {
 			int64_t crypt = zfs_prop_get_int(zhp,

@@ -34,10 +34,14 @@
 
 #
 # DESCRIPTION:
-#	Verify that copies cannot be set to other value except for 1, 2 or 3
+#	Verify that copies cannot be set to other value except for 1, 2 or 3.
+#	For object store, verify that it can't be set to any other value
+#	except 1.
 #
 # STRATEGY:
-#	1. Create filesystems with copies set as any value other than 1, 2 or 3
+#	1. Create filesystems with copies set as any value other than 1, 2 or 3.
+#	   For object store, create filesystems with copies set as any value
+#	   other than 1.
 #	2. Verify that the create operations fail
 #
 
@@ -46,6 +50,9 @@ verify_runnable "both"
 log_assert "Verify that copies property cannot be set to any value other than 1,2 or 3"
 
 set -A badval 0 01 02 03 0 -1 -2 -3 10 20 30 4 5 6 blah
+if use_object_store; then
+	badval+=(2 3)
+fi
 
 for val in ${badval[@]}; do
 	log_mustnot zfs create -o copies=$val $TESTPOOL/$TESTFS1

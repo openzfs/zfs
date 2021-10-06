@@ -1,0 +1,104 @@
+#
+# log4rs configuration file for ZFS Object Agent
+#
+
+# Scan this file for changes every 60 seconds
+refresh_rate: 60 seconds
+
+appenders:
+  # An appender that sends errors to console
+  stdout:
+    kind: console
+    filters:
+    - kind: threshold
+      level: off
+
+  tracelog:
+    kind: rolling_file
+    path: "/var/log/zoa/trace.log"
+    encoder:
+      pattern: "[{d(%Y-%m-%d %H:%M:%S%.3f)}][{t}][{l}] {m}{n}"
+    policy:
+      kind: compound
+      trigger:
+        kind: size
+        limit: 10mb
+      roller:
+        kind: fixed_window
+        base: 1
+        count: 50
+        pattern: "/var/log/zoa/trace.log.{}"
+    filters:
+    - kind: threshold
+      level: trace
+
+  debuglog:
+    kind: rolling_file
+    path: "/var/log/zoa/debug.log"
+    encoder:
+      pattern: "[{d(%Y-%m-%d %H:%M:%S%.3f)}][{t}][{l}] {m}{n}"
+    policy:
+      kind: compound
+      trigger:
+        kind: size
+        limit: 10mb
+      roller:
+        kind: fixed_window
+        base: 1
+        count: 50
+        pattern: "/var/log/zoa/debug.log.{}"
+    filters:
+    - kind: threshold
+      level: debug
+
+  infolog:
+    kind: rolling_file
+    path: "/var/log/zoa/info.log"
+    encoder:
+      pattern: "[{d(%Y-%m-%d %H:%M:%S%.3f)}][{t}][{l}] {m}{n}"
+    policy:
+      kind: compound
+      trigger:
+        kind: size
+        limit: 10mb
+      roller:
+        kind: fixed_window
+        base: 1
+        count: 50
+        pattern: "/var/log/zoa/info.log.{}"
+    filters:
+    - kind: threshold
+      level: info
+
+  errorlog:
+    kind: rolling_file
+    path: "/var/log/zoa/error.log"
+    encoder:
+      pattern: "[{d(%Y-%m-%d %H:%M:%S%.3f)}][{t}][{l}] {m}{n}"
+    policy:
+      kind: compound
+      trigger:
+        kind: size
+        limit: 10mb
+      roller:
+        kind: fixed_window
+        base: 1
+        count: 50
+        pattern: "/var/log/zoa/error.log.{}"
+    filters:
+    - kind: threshold
+      level: error
+
+# Set the default logging level to "debug"
+root:
+  level: debug
+  appenders:
+    - stdout
+    - debuglog
+    - infolog
+    - errorlog
+
+loggers:
+  # "rusoto_core::request" is very chatty when set to debug.
+  rusoto_core::request:
+    level: info

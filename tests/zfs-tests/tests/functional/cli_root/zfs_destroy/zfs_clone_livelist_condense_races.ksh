@@ -67,7 +67,7 @@ function export_race
 		log_must mkfile 5m /$TESTPOOL/$TESTCLONE/out
 	done
 	log_must zpool export $TESTPOOL
-	log_must zpool import $TESTPOOL
+	log_must import_pool -p $TESTPOOL
 	[[ "1" == "$(get_tunable "$1")" ]] || \
 	    log_fail "export/condense race test failed"
 	log_must zfs destroy $TESTPOOL/$TESTCLONE

@@ -47,12 +47,12 @@ log_onexit cleanup
 
 log_assert "verify '-o compatibility' reserved values 'off, legacy'"
 
-log_must zpool create -f -o compatibility=off $TESTPOOL $DISKS
+log_must create_pool -e "-o compatibility=off" -p $TESTPOOL -d "$DISKS"
 log_must zpool destroy -f $TESTPOOL
 
-log_must zpool create -f -o compatibility=legacy $TESTPOOL $DISKS
+log_must create_pool -e "-o compatibility=legacy" -p $TESTPOOL -d "$DISKS"
 log_must zpool destroy -f $TESTPOOL
 
-log_mustnot zpool create -f -o compatibility=unknown $TESTPOOL $DISKS
+log_mustnot create_pool -e "-o compatibility=unknown" -p $TESTPOOL -d "$DISKS"
 
 log_pass "verify '-o compatibility' reserved values 'off, legacy'"

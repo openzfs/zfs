@@ -47,6 +47,11 @@
 
 verify_runnable "global"
 
+if use_object_store; then
+	log_unsupported "Tests different kind of device combinations." \
+		"Hence, not applicable for object storage run."
+fi
+
 function cleanup
 {
 	for pool in $TESTPOOL $TESTPOOL1
@@ -85,7 +90,7 @@ if is_illumos; then
 	cyl=$(get_endslice $DISK0 6)
 	log_must set_partition 7 "$cyl" $SIZE1 $DISK0
 fi
-create_pool $TESTPOOL $DISK0
+create_pool -p $TESTPOOL -d "$DISK0"
 
 #
 # Set up the testing scenarios parameters

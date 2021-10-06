@@ -25,7 +25,8 @@
 # STRATEGY:
 #	1. Create pool and take checkpoint
 #	2. Attempt to change guid
-#	3. Attempt to attach/replace/remove device
+#	3. Attempt to attach/replace/remove device if its a block storage run. Skip it for
+#      object storage run.
 #
 
 verify_runnable "global"
@@ -36,8 +37,12 @@ log_onexit cleanup_test_pool
 log_must zpool checkpoint $TESTPOOL
 
 log_mustnot zpool reguid $TESTPOOL
-log_mustnot zpool attach -f $TESTPOOL $TESTDISK $EXTRATESTDISK
-log_mustnot zpool replace $TESTPOOL $TESTDISK $EXTRATESTDISK
-log_mustnot zpool remove $TESTPOOL $TESTDISK
+
+# For object storage run, there are no disks to attach/replace/remove.
+if ! use_object_store; then
+    log_mustnot zpool attach -f $TESTPOOL $TESTDISK $EXTRATESTDISK
+    log_mustnot zpool replace $TESTPOOL $TESTDISK $EXTRATESTDISK
+    log_mustnot zpool remove $TESTPOOL $TESTDISK
+fi
 
 log_pass "Cannot change pool's config when pool has checkpoint."

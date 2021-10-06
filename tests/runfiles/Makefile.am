@@ -4,6 +4,7 @@ dist_pkgdata_DATA = \
 	freebsd.run \
 	linux.run \
 	longevity.run \
+	object_store.run \
 	perf-regression.run \
 	sanity.run \
 	sunos.run

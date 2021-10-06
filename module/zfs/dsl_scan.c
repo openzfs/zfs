@@ -3607,8 +3607,15 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 	 * It is possible to switch from unsorted to sorted at any time,
 	 * but afterwards the scan will remain sorted unless reloaded from
 	 * a checkpoint after a reboot.
+	 *
+	 * XXX No sorted scan for object based pools, because the range trees
+	 * we use to find runs of blocks assume that each block is offset +
+	 * asize. But for object based pools, these ranges overlap because
+	 * the offset is in blocks not bytes.  Sequential scan would be
+	 * beneficial for object based pools so that we don't have to re-read
+	 * objects as much, so we should fix this at some point.
 	 */
-	if (!zfs_scan_legacy) {
+	if (!zfs_scan_legacy && !spa_is_object_based(spa)) {
 		scn->scn_is_sorted = B_TRUE;
 		if (scn->scn_last_checkpoint == 0)
 			scn->scn_last_checkpoint = ddi_get_lbolt();

@@ -28,6 +28,10 @@
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/removal/removal.kshlib
 
+if use_object_store; then
+	log_unsupported "Device removal inapplicable for object storage run."
+fi
+
 function cleanup
 {
 	poolexists $TESTPOOL2 && zpool destroy $TESTPOOL2

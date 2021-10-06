@@ -36,6 +36,7 @@
 #include <sys/spa_impl.h>
 #include <sys/vdev_impl.h>
 #include <sys/vdev_trim.h>
+#include <sys/vdev_object_store.h>
 #include <sys/zio_impl.h>
 #include <sys/zio_compress.h>
 #include <sys/zio_checksum.h>
@@ -652,6 +653,20 @@ zio_add_child(zio_t *pio, zio_t *cio)
 	pio->io_child_count++;
 	cio->io_parent_count++;
 
+	/*
+	 * For object-based storage, we need to notify the backend
+	 * to flush out writes when we an I/O waiting. We only
+	 * need to do this if the waiting I/O is waiting for allocating
+	 * children. To make this happen, we set a flag on the parent
+	 * I/O to indicate that if it needs to wait, it also needs
+	 * to flush the backend afterwards.
+	 */
+	if (!spa_normal_class(pio->io_spa)->mc_ops->msop_block_based &&
+	    cio->io_type == ZIO_TYPE_WRITE && IO_IS_ALLOCATING(cio)) {
+		pio->io_control_flags |= ZIO_CONTROL_FLUSH_WRITES;
+	}
+	pio->io_max_offset = MAX(pio->io_max_offset, cio->io_max_offset);
+
 	mutex_exit(&cio->io_lock);
 	mutex_exit(&pio->io_lock);
 }
@@ -712,6 +727,7 @@ zio_notify_parent(zio_t *pio, zio_t *zio, enum zio_wait_type wait,
 	if (zio->io_error && !(zio->io_flags & ZIO_FLAG_DONT_PROPAGATE))
 		*errorp = zio_worst_error(*errorp, zio->io_error);
 	pio->io_reexecute |= zio->io_reexecute;
+	pio->io_max_offset = MAX(pio->io_max_offset, zio->io_max_offset);
 	ASSERT3U(*countp, >, 0);
 
 	(*countp)--;
@@ -1167,6 +1183,15 @@ zio_rewrite(zio_t *pio, spa_t *spa, uint64_t txg, blkptr_t *bp, abd_t *data,
 {
 	zio_t *zio;
 
+	/*
+	 * Object based pools don't handle changing a block's contents,
+	 * and shouldn't need to.
+	 */
+	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
+	VERIFY(!vdev_is_object_based(vdev_lookup_top(spa,
+	    DVA_GET_VDEV(&bp->blk_dva[0]))));
+	spa_config_exit(spa, SCL_VDEV, FTAG);
+
 	zio = zio_create(pio, spa, txg, bp, data, size, size, done, private,
 	    ZIO_TYPE_WRITE, priority, flags | ZIO_FLAG_IO_REWRITE, NULL, 0, zb,
 	    ZIO_STAGE_OPEN, ZIO_REWRITE_PIPELINE);
@@ -1222,7 +1247,8 @@ zio_free(spa_t *spa, uint64_t txg, const blkptr_t *bp)
 	    BP_GET_DEDUP(bp) ||
 	    txg != spa->spa_syncing_txg ||
 	    (spa_sync_pass(spa) >= zfs_sync_pass_deferred_free &&
-	    !spa_feature_is_active(spa, SPA_FEATURE_LOG_SPACEMAP))) {
+	    !spa_feature_is_active(spa, SPA_FEATURE_LOG_SPACEMAP) &&
+	    !spa_is_object_based(spa))) {
 		bplist_append(&spa->spa_free_bplist[txg & TXG_MASK], bp);
 	} else {
 		VERIFY3P(zio_free_sync(NULL, spa, txg, bp, 0), ==, NULL);
@@ -1331,7 +1357,7 @@ zio_ioctl(zio_t *pio, spa_t *spa, vdev_t *vd, int cmd,
 zio_t *
 zio_trim(zio_t *pio, vdev_t *vd, uint64_t offset, uint64_t size,
     zio_done_func_t *done, void *private, zio_priority_t priority,
-    enum zio_flag flags, enum trim_flag trim_flags)
+    enum zio_flag flags, enum zio_control_flag zio_control_flags)
 {
 	zio_t *zio;
 
@@ -1343,7 +1369,7 @@ zio_trim(zio_t *pio, vdev_t *vd, uint64_t offset, uint64_t size,
 	zio = zio_create(pio, vd->vdev_spa, 0, NULL, NULL, size, size, done,
 	    private, ZIO_TYPE_TRIM, priority, flags | ZIO_FLAG_PHYSICAL,
 	    vd, offset, NULL, ZIO_STAGE_OPEN, ZIO_TRIM_PIPELINE);
-	zio->io_trim_flags = trim_flags;
+	zio->io_control_flags |= zio_control_flags;
 
 	return (zio);
 }
@@ -1359,6 +1385,7 @@ zio_read_phys(zio_t *pio, vdev_t *vd, uint64_t offset, uint64_t size,
 	ASSERT(!labels || offset + size <= VDEV_LABEL_START_SIZE ||
 	    offset >= vd->vdev_psize - VDEV_LABEL_END_SIZE);
 	ASSERT3U(offset + size, <=, vd->vdev_psize);
+	ASSERT(!vdev_is_object_based(vd));
 
 	zio = zio_create(pio, vd->vdev_spa, 0, NULL, data, size, size, done,
 	    private, ZIO_TYPE_READ, priority, flags | ZIO_FLAG_PHYSICAL, vd,
@@ -1380,6 +1407,7 @@ zio_write_phys(zio_t *pio, vdev_t *vd, uint64_t offset, uint64_t size,
 	ASSERT(!labels || offset + size <= VDEV_LABEL_START_SIZE ||
 	    offset >= vd->vdev_psize - VDEV_LABEL_END_SIZE);
 	ASSERT3U(offset + size, <=, vd->vdev_psize);
+	ASSERT(!vdev_is_object_based(vd));
 
 	zio = zio_create(pio, vd->vdev_spa, 0, NULL, data, size, size, done,
 	    private, ZIO_TYPE_WRITE, priority, flags | ZIO_FLAG_PHYSICAL, vd,
@@ -1435,9 +1463,16 @@ zio_vdev_child_io(zio_t *pio, blkptr_t *bp, vdev_t *vd, uint64_t offset,
 		pio->io_pipeline &= ~ZIO_STAGE_CHECKSUM_VERIFY;
 	}
 
-	if (vd->vdev_ops->vdev_op_leaf) {
+	/*
+	 * Object-based pools don't contain a label region.
+	 */
+	if (vd->vdev_ops->vdev_op_leaf && !vdev_is_object_based(vd)) {
 		ASSERT0(vd->vdev_children);
 		offset += VDEV_LABEL_START_SIZE;
+	}
+
+	if (vd->vdev_ops->vdev_op_leaf && vdev_is_object_based(vd)) {
+		flags |= ZIO_FLAG_DONT_QUEUE;
 	}
 
 	flags |= ZIO_VDEV_CHILD_FLAGS(pio);
@@ -1797,7 +1832,8 @@ zio_write_compress(zio_t *zio)
 	 */
 	if (!BP_IS_HOLE(bp) && bp->blk_birth == zio->io_txg &&
 	    BP_GET_PSIZE(bp) == psize &&
-	    pass >= zfs_sync_pass_rewrite) {
+	    pass >= zfs_sync_pass_rewrite &&
+	    !spa_is_object_based(spa)) {
 		VERIFY3U(psize, !=, 0);
 		enum zio_stage gang_stages = zio->io_pipeline & ZIO_GANG_STAGES;
 
@@ -3473,6 +3509,51 @@ zio_allocate_dispatch(spa_t *spa, int allocator)
 	zio_taskq_dispatch(zio, ZIO_TASKQ_ISSUE, B_TRUE);
 }
 
+static void
+zio_set_max_offset(zio_t *zio)
+{
+	blkptr_t *bp = zio->io_bp;
+	mutex_enter(&zio->io_lock);
+	for (int d = 0; d < BP_GET_NDVAS(bp); d++) {
+		zio->io_max_offset = MAX(zio->io_max_offset,
+		    DVA_GET_OFFSET(&bp->blk_dva[d]));
+	}
+	mutex_exit(&zio->io_lock);
+}
+
+
+static zio_t *
+zio_object_allocate(zio_t *zio)
+{
+	spa_t *spa = zio->io_spa;
+	metaslab_class_t *mc = spa_normal_class(spa);
+	blkptr_t *bp = zio->io_bp;
+	int flags = 0;
+
+	VERIFY0(zio->io_flags & ZIO_FLAG_FASTWRITE);
+	VERIFY0(zio->io_flags & ZIO_FLAG_GANG_CHILD);
+	if (zio->io_flags & ZIO_FLAG_NODATA)
+		flags |= METASLAB_DONT_THROTTLE;
+	if (zio->io_priority == ZIO_PRIORITY_ASYNC_WRITE)
+		flags |= METASLAB_ASYNC_ALLOC;
+
+	ASSERT(!(zio->io_flags & ZIO_FLAG_CONFIG_WRITER));
+	ASSERT3U(zio->io_prop.zp_copies, ==, 1);
+	int error = metaslab_alloc(spa, mc, zio->io_size, bp,
+	    zio->io_prop.zp_copies, zio->io_txg, NULL, flags,
+	    &zio->io_alloc_list, zio, zio->io_allocator);
+	VERIFY0(error);
+
+	zio_set_max_offset(zio);
+
+	if (zfs_flags & ZFS_DEBUG_OBJECT_STORE) {
+		zfs_dbgmsg("zio=%px allocd %llu",
+		    zio, DVA_GET_OFFSET(&bp->blk_dva[0]));
+	}
+
+	return (zio);
+}
+
 static zio_t *
 zio_dva_allocate(zio_t *zio)
 {
@@ -3481,6 +3562,9 @@ zio_dva_allocate(zio_t *zio)
 	blkptr_t *bp = zio->io_bp;
 	int error;
 	int flags = 0;
+
+	if (!spa_normal_class(spa)->mc_ops->msop_block_based)
+		return (zio_object_allocate(zio));
 
 	if (zio->io_gang_leader == NULL) {
 		ASSERT(zio->io_child_type > ZIO_CHILD_GANG);
@@ -3580,6 +3664,7 @@ zio_dva_allocate(zio_t *zio)
 		zio->io_error = error;
 	}
 
+	zio_set_max_offset(zio);
 	return (zio);
 }
 
@@ -3714,6 +3799,47 @@ zio_alloc_zil(spa_t *spa, objset_t *os, uint64_t txg, blkptr_t *new_bp,
  * ==========================================================================
  */
 
+static void
+zio_spa_config_enter(zio_t *zio)
+{
+	spa_t *spa = zio->io_spa;
+
+	metaslab_class_t *mc = spa_normal_class(spa);
+	if (mc->mc_ops->msop_block_based || zio->io_type != ZIO_TYPE_WRITE) {
+		spa_config_enter(spa, SCL_ZIO, zio, RW_READER);
+		return;
+	}
+
+	/*
+	 * Object based pools may need to continue to push I/Os even
+	 * if there is writer waiting for the SCL_ZIO lock because
+	 * we need to ensure that the agent receives all pending
+	 * writes up to a specific allocated block (see comment at
+	 * vdev_object_store_enable_passthru). When a thread waits
+	 * for the spa_config_lock as writer, it will remember this
+	 * last allocated block. Any zio with an already-allocated blocks
+	 * will be allowed to bypass the normal writer priority logic
+	 * and acquire the reader lock even though a writer is waiting.
+	 * This limited reader priority will not starve writes because it
+	 * only applies to zios that are already in progress (have already
+	 * allocated their blocks). New zios will have to wait for the
+	 * writer to acquire and drop the lock before they can acquire a
+	 * read lock.
+	 */
+	vdev_t *rvd = spa->spa_root_vdev;
+	ASSERT3U(zio->io_type, ==, ZIO_TYPE_WRITE);
+	ASSERT(vdev_is_object_based(rvd));
+
+	if (!spa_config_tryenter(spa, SCL_ZIO, zio, RW_READER)) {
+		uint64_t offset = vdev_object_store_flush_point(rvd);
+		if (offset != -1ULL && zio->io_max_offset <= offset) {
+			spa_config_enter_read_priority(spa, SCL_ZIO, zio);
+		} else {
+			spa_config_enter(spa, SCL_ZIO, zio, RW_READER);
+		}
+	}
+}
+
 /*
  * Issue an I/O to the underlying vdev. Typically the issue pipeline
  * stops after this stage and will resume upon I/O completion.
@@ -3737,8 +3863,9 @@ zio_vdev_io_start(zio_t *zio)
 	ASSERT(zio->io_child_error[ZIO_CHILD_VDEV] == 0);
 
 	if (vd == NULL) {
-		if (!(zio->io_flags & ZIO_FLAG_CONFIG_WRITER))
-			spa_config_enter(spa, SCL_ZIO, zio, RW_READER);
+		if (!(zio->io_flags & ZIO_FLAG_CONFIG_WRITER)) {
+			zio_spa_config_enter(zio);
+		}
 
 		/*
 		 * The mirror_ops handle multiple DVAs in a single BP.
@@ -3860,8 +3987,9 @@ zio_vdev_io_start(zio_t *zio)
 		if (zio->io_type == ZIO_TYPE_READ && vdev_cache_read(zio))
 			return (zio);
 
-		if ((zio = vdev_queue_io(zio)) == NULL)
+		if ((zio = vdev_queue_io(zio)) == NULL) {
 			return (NULL);
+		}
 
 		if (!vdev_accessible(vd, zio)) {
 			zio->io_error = SET_ERROR(ENXIO);
@@ -4367,6 +4495,33 @@ zio_ready(zio_t *zio)
 	if (zio_wait_for_children(zio, ZIO_CHILD_GANG_BIT | ZIO_CHILD_DDT_BIT,
 	    ZIO_WAIT_READY)) {
 		return (NULL);
+	}
+
+	if (!spa_normal_class(zio->io_spa)->mc_ops->msop_block_based &&
+	    zio->io_control_flags & ZIO_CONTROL_FLUSH_WRITES &&
+	    zio->io_waiter) {
+		/*
+		 * XXX - it would be nice to always wait for logical
+		 * zio children to be ready above but we need to see
+		 * if there is an impact to performance. For now, we
+		 * do this only for object store pools.
+		 *
+		 * For object storage pools, we need to make sure that our
+		 * logical I/Os are ready meaning they have completed
+		 * block allocation.
+		 */
+		if ((zio->io_type == ZIO_TYPE_NULL ||
+		    zio->io_type == ZIO_TYPE_WRITE) &&
+		    zio_wait_for_children(zio, ZIO_CHILD_LOGICAL_BIT |
+		    ZIO_CHILD_GANG_BIT, ZIO_WAIT_READY)) {
+			return (NULL);
+		}
+
+		/*
+		 * Now that all logical I/Os are ready, we can
+		 * tell the object store to flush them.
+		 */
+		object_store_flush_writes(zio->io_spa, zio->io_max_offset);
 	}
 
 	if (zio->io_ready) {

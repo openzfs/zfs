@@ -25,7 +25,7 @@
 #	1. Create pool
 #	2. Populate it
 #	3. Take checkpoint
-#	4. Modify data (include at least one destructive change) 
+#	4. Modify data (include at least one destructive change)
 #	5. Export and import pool
 #	6. Verify that the pool was opened with the most current
 #	   data and not the checkpointed state.
@@ -41,7 +41,7 @@ log_must zpool checkpoint $TESTPOOL
 test_change_state_after_checkpoint
 
 log_must zpool export $TESTPOOL
-log_must zpool import $TESTPOOL
+log_must import_pool -p $TESTPOOL
 
 test_verify_post_checkpoint_state
 

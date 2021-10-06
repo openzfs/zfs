@@ -27,7 +27,7 @@ if ! which pamtester; then
 fi
 
 DISK=${DISKS%% *}
-create_pool $TESTPOOL "$DISK"
+create_pool -p $TESTPOOL -d "$DISK"
 
 log_must zfs create -o mountpoint="$TESTDIR" "$TESTPOOL/pam"
 log_must add_group pamtestgroup

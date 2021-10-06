@@ -161,6 +161,32 @@ function is_kmemleak
 	fi
 }
 
+# Determine if zpool should be configured using object store
+#
+# Return 0 if object store should be used, 1 if otherwise
+
+function use_object_store
+{
+	if [ -n "$ZTS_OBJECT_STORE" ]; then
+		return 0
+	else
+		return 1
+	fi
+}
+
+# Determine if ZTS_OBJECT_ENDPOINT points to AWS S3
+#
+# Return 0 if ZTS_OBJECT_ENDPOINT points to AWS S3, 1 if otherwise
+
+function endpoint_is_s3
+{
+	if [[ $ZTS_OBJECT_ENDPOINT == "https://s3*" ]]; then
+		return 0
+	else
+		return 1
+	fi
+}
+
 # Determine whether a dataset is mounted
 #
 # $1 dataset name
@@ -281,11 +307,7 @@ function default_setup_noexit
 	log_note begin default_setup_noexit
 
 	if is_global_zone; then
-		if poolexists $TESTPOOL ; then
-			destroy_pool $TESTPOOL
-		fi
-		[[ -d /$TESTPOOL ]] && rm -rf /$TESTPOOL
-		log_must zpool create -f $TESTPOOL $disklist
+	    create_pool -p $TESTPOOL -d "$disklist"
 	else
 		reexport_pool
 	fi
@@ -662,9 +684,11 @@ function default_cleanup_noexit
 	[[ -d $TESTDIR ]] && \
 		log_must rm -rf $TESTDIR
 
-	disk1=${DISKS%% *}
-	if is_mpath_device $disk1; then
-		delete_partitions
+	if ! use_object_store; then
+		disk1=${DISKS%% *}
+		if is_mpath_device $disk1; then
+			delete_partitions
+		fi
 	fi
 
 	rm -f $TEST_BASE_DIR/{err,out}
@@ -1743,14 +1767,82 @@ function verify_runnable # zone limit
 # Return 0 if create successfully or the pool exists; $? otherwise
 # Note: In local zones, this function should return 0 silently.
 #
-# $1 - pool name
-# $2-n - [keyword] devs_list
+# -p <pool name> - REQUIRED
+# -d "<space separated devices list>" - OPTIONAL, if use_object_store is true
+# -e "<extra options that need to be passed while creating pool>" - OPTIONAL
 
-function create_pool #pool devs_list
+function create_pool
 {
-	typeset pool=${1%%/*}
+	typeset pool=""
+	typeset devices_list=""
+	typeset extra_options=""
 
-	shift
+	typeset opt=""
+	while getopts "p:d:e:" opt; do
+		case $opt in
+			p) pool=$OPTARG ;;
+			d) devices_list=$OPTARG ;;
+			e) extra_options=$OPTARG ;;
+		esac
+	done
+
+	if [[ -z $pool ]]; then
+		log_note "Missing pool name."
+		return 1
+	fi
+
+	if [[ -z $devices_list ]] && ! use_object_store; then
+		log_note "ZTS_OBJECT_STORE and devices list are empty."
+		return 1
+	fi
+
+	if poolexists $pool ; then
+		destroy_pool $pool
+		[[ -d /$pool ]] && rm -rf /$pool
+	fi
+
+	if ! is_global_zone ; then
+		return 0
+	fi
+
+	typeset zpool_create_cmd=""
+	if use_object_store; then
+		zpool_create_cmd="zpool create \
+			-o object-endpoint=$ZTS_OBJECT_ENDPOINT \
+			-o object-region=$ZTS_REGION \
+			-o object-credentials-profile=$ZTS_CREDS_PROFILE \
+			$extra_options \
+			$pool s3 $ZTS_BUCKET_NAME"
+	else
+		zpool_create_cmd="zpool create \
+			$extra_options \
+			-f $pool $devices_list"
+	fi
+
+	log_note $zpool_create_cmd
+	$zpool_create_cmd
+
+	return $?
+}
+
+# Return 0 if import completes successfully; $? otherwise
+# Note: In local zones, this function should return 0 silently.
+#
+# -p <pool name> - REQUIRED
+# -e "<extra options that need to be passed while importing pool>" - OPTIONAL
+
+function import_pool
+{
+	typeset pool=""
+	typeset extra_options=""
+
+	typeset opt=""
+	while getopts "p:e:" opt; do
+		case $opt in
+			p) pool=$OPTARG ;;
+			e) extra_options=$OPTARG ;;
+		esac
+	done
 
 	if [[ -z $pool ]]; then
 		log_note "Missing pool name."
@@ -1758,15 +1850,31 @@ function create_pool #pool devs_list
 	fi
 
 	if poolexists $pool ; then
-		destroy_pool $pool
+		log_note "Pool named $pool already exists."
+		return 1
 	fi
 
-	if is_global_zone ; then
-		[[ -d /$pool ]] && rm -rf /$pool
-		log_must zpool create -f $pool $@
+	if ! is_global_zone ; then
+		return 0
 	fi
 
-	return 0
+	typeset zpool_import_cmd=""
+	if use_object_store; then
+		zpool_import_cmd="zpool import \
+			-d $ZTS_BUCKET_NAME
+			-o object-endpoint=$ZTS_OBJECT_ENDPOINT \
+			-o object-region=$ZTS_REGION \
+			-o object-credentials-profile=$ZTS_CREDS_PROFILE \
+			$extra_options \
+			$pool"
+	else
+		zpool_import_cmd="zpool import $extra_options $pool"
+	fi
+
+	log_note $zpool_import_cmd
+	$zpool_import_cmd
+
+	return $?
 }
 
 # Return 0 if destroy successfully or the pool exists; $? otherwise
@@ -2099,7 +2207,7 @@ function verify_filesys # pool filesystem dir
 		done
 	fi
 
-	log_must zpool import $search_path $pool
+	log_must import_pool -p $pool -e "$search_path"
 
 	zdb -cudi $filesys > $zdbout 2>&1
 	if [[ $? != 0 ]]; then
@@ -2419,7 +2527,7 @@ function cleanup_devices #vdevs
 	done
 
 	poolexists $pool && destroy_pool $pool
-	create_pool $pool $@
+	create_pool -p $pool -d "$@"
 	destroy_pool $pool
 
 	return 0
@@ -3279,21 +3387,14 @@ function get_rootpool
 }
 
 #
-# Get the word numbers from a string separated by white space
-#
-function get_word_count
-{
-	echo $1 | wc -w
-}
-
-#
 # To verify if the require numbers of disks is given
 #
 function verify_disk_count
 {
 	typeset -i min=${2:-1}
+	typeset -i count=$(echo "$1" | wc -w)
 
-	typeset -i count=$(get_word_count "$1")
+	use_object_store && return
 
 	if ((count < min)); then
 		log_untested "A minimum of $min disks is required to run." \

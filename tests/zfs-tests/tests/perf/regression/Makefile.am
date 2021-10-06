@@ -1,5 +1,6 @@
 pkgdatadir = $(datadir)/@PACKAGE@/zfs-tests/tests/perf/regression
 dist_pkgdata_SCRIPTS = \
+	file_deletion.ksh \
 	random_reads.ksh \
 	random_readwrite.ksh \
 	random_readwrite_fixed.ksh \

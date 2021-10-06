@@ -55,7 +55,7 @@ log_assert "'zpool add' should fail if vdevs are the same or vdev is " \
 
 log_onexit cleanup
 
-create_pool $TESTPOOL $DISK0
+create_pool -p $TESTPOOL -d "$DISK0"
 log_must poolexists $TESTPOOL
 
 log_mustnot zpool add -f $TESTPOOL $DISK1 $DISK1

@@ -90,10 +90,10 @@ test_pool ()
 
 test_pool $TESTPOOL
 log_must truncate -s 1G $vdev
-log_must zpool create -o version=1 tmp_pool $vdev
+log_must create_pool -p tmp_pool -d $vdev -e "-o version=1"
 test_pool tmp_pool
 log_must zpool destroy tmp_pool
-log_must zpool create -d tmp_pool $vdev
+log_must create_pool -p tmp_pool -e "-d" -d $vdev
 test_pool tmp_pool
 log_must zpool destroy tmp_pool
 

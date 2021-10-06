@@ -43,7 +43,7 @@ setup_dataset $ds_name ''
 function cleanup
 {
 	destroy_pool $POOL2
-	create_pool $POOL2 $DISK2
+	create_pool -p $POOL2 -d "$DISK2"
 	log_must zfs snapshot $POOL2@init
 	redacted_cleanup $sendfs $recvfs
 }

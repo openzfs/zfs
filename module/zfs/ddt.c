@@ -932,6 +932,7 @@ ddt_repair_done(ddt_t *ddt, ddt_entry_t *dde)
 	ddt_enter(ddt);
 
 	if (dde->dde_repair_abd != NULL && spa_writeable(ddt->ddt_spa) &&
+	    !spa_is_object_based(ddt->ddt_spa) &&
 	    avl_find(&ddt->ddt_repair_tree, dde, &where) == NULL)
 		avl_insert(&ddt->ddt_repair_tree, dde, where);
 	else

@@ -34,7 +34,7 @@
 
 #
 # DESCRIPTION:
-# 'zpool create [-R root][-m mountpoint] <pool> <vdev> ...' can create an
+# 'zpool create [-R root][-m mountpoint] <pool> ...' can create an
 #  alternate root pool or a new pool mounted at the specified mountpoint.
 #
 # STRATEGY:
@@ -50,11 +50,15 @@ function cleanup
 	rm -rf $TESTDIR $TESTDIR1
 }
 
-log_assert "'zpool create [-R root][-m mountpoint] <pool> <vdev> ...' can create" \
+log_assert "'zpool create [-R root][-m mountpoint] <pool> ...' can create" \
 	"an alternate pool or a new pool mounted at the specified mountpoint."
 log_onexit cleanup
 
-set -A pooltype "" "mirror" "raidz" "raidz1" "raidz2" "draid" "draid2"
+if use_object_store; then
+	set -A pooltype ""
+else
+	set -A pooltype "" "mirror" "raidz" "raidz1" "raidz2" "draid" "draid2"
+fi
 
 #
 # cleanup the pools created in previous case if zpool_create_004_pos timedout
@@ -86,8 +90,9 @@ do
 		poolexists $TESTPOOL && \
 			log_must zpool destroy -f $TESTPOOL
 		[[ -d $TESTDIR1 ]] && rm -rf $TESTDIR1
-		log_must zpool create $opt $TESTPOOL ${pooltype[i]} \
-			$file.1 $file.2 $file.3 $file.4
+		log_must create_pool -p $TESTPOOL \
+			-d "${pooltype[i]} $file.1 $file.2 $file.3 $file.4" \
+			-e "$opt"
 		! poolexists $TESTPOOL && \
 			log_fail "Creating pool with $opt fails."
 		mpt=`zfs mount | egrep "^$TESTPOOL[^/]" | awk '{print $2}'`
@@ -121,4 +126,4 @@ do
 	done
 done
 
-log_pass "'zpool create [-R root][-m mountpoint] <pool> <vdev> ...' works as expected."
+log_pass "'zpool create [-R root][-m mountpoint] <pool> ...' works as expected."

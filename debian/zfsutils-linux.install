@@ -6,6 +6,8 @@ lib/systemd/system/zfs-import-cache.service
 lib/systemd/system/zfs.target
 lib/systemd/system/zfs-import.service
 lib/systemd/system/zfs-import.target
+lib/systemd/system/zfs-object-agent.service
+lib/systemd/system/zoa-chaos-monkey.service
 lib/systemd/system/zfs-volume-wait.service
 lib/systemd/system/zfs-volumes.target
 lib/systemd/system-preset/
@@ -15,10 +17,14 @@ lib/udev/
 debian/tmp/etc/default/zfs etc/default/
 debian/tmp/etc/zfs/zfs-functions etc/zfs/
 etc/zfs/zpool.d/
+debian/tmp/etc/zfs/zoa_config.toml etc/zfs/
+debian/tmp/etc/zfs/zoa_log4rs.yml etc/zfs/
+debian/tmp/etc/zfs/zoa.conf etc/zfs/
 usr/lib/*/zfs/zpool.d/
 usr/lib/*/zfs/zpool_influxdb
 sbin/fsck.zfs
 sbin/mount.zfs
+sbin/zcachedb
 sbin/zgenhostid
 sbin/ztest
 sbin/zstream
@@ -30,7 +36,13 @@ sbin/zfs_file
 sbin/zfs_ids_to_path
 sbin/zpool
 sbin/zfs
+sbin/zfs_object_agent
+sbin/zfs_object_perf
+sbin/zoa_test
+cmd/zfs_object_agent/libzoa.so lib/
 usr/bin/zvol_wait
+usr/bin/zoa_chaos_monkey
+usr/bin/start_zoa
 usr/sbin/arc_summary
 usr/sbin/arcstat
 usr/sbin/dbufstat

@@ -88,7 +88,7 @@ function zpool_stress
 		((j = j + 1))
 		sleep 1
 
-		zpool create $pool $vdev0 $vdev1
+		create_pool -p $pool -d "$vdev0 $vdev1"
 		if [ $? -ne 0 ]; then
 			return 1;
 		fi
@@ -140,11 +140,11 @@ for pool in $child_pools; do
 		log_fail "pool $pool exists"
 	fi
 
-	if [ -e $vdev0 ]; then
+	if [ ! use_object_store ] && [ -e $vdev0 ]; then
 		log_fail "pool vdev $vdev0 exists"
 	fi
 
-	if [ -e $vdev1 ]; then
+	if [ ! use_object_store ] && [ -e $vdev1 ]; then
 		log_fail "pool vdev $vdev1 exists"
 	fi
 done

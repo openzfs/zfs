@@ -32,7 +32,7 @@
 . $STF_SUITE/include/libtest.shlib
 
 DISK=${DISKS%% *}
-create_pool $TESTPOOL "$DISK"
+create_pool -p $TESTPOOL -d "$DISK"
 
 for i in 1 2 3; do
 	dir=$TESTDIR.$i

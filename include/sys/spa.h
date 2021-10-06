@@ -407,6 +407,10 @@ typedef struct blkptr {
 	BF64_GET_SB((dva)->dva_word[1], 0, 63, SPA_MINBLOCKSHIFT, 0)
 #define	DVA_SET_OFFSET(dva, x)	\
 	BF64_SET_SB((dva)->dva_word[1], 0, 63, SPA_MINBLOCKSHIFT, 0, x)
+#define	DVA_GET_OBJECTID(dva)	\
+	BF64_GET((dva)->dva_word[1], 0, 63)
+#define	DVA_SET_OBJECTID(dva, x)	\
+	BF64_SET((dva)->dva_word[1], 0, 63, x)
 
 #define	DVA_GET_GANG(dva)	BF64_GET((dva)->dva_word[1], 63, 1)
 #define	DVA_SET_GANG(dva, x)	BF64_SET((dva)->dva_word[1], 63, 1, x)
@@ -973,6 +977,7 @@ extern int spa_config_tryenter(spa_t *spa, int locks, void *tag, krw_t rw);
 extern void spa_config_enter(spa_t *spa, int locks, const void *tag, krw_t rw);
 extern void spa_config_exit(spa_t *spa, int locks, const void *tag);
 extern int spa_config_held(spa_t *spa, int locks, krw_t rw);
+extern void spa_config_enter_read_priority(spa_t *, int, const void *);
 
 /* Pool vdev add/remove lock */
 extern uint64_t spa_vdev_enter(spa_t *spa);
@@ -1105,6 +1110,7 @@ extern boolean_t spa_multihost(spa_t *spa);
 extern uint32_t spa_get_hostid(spa_t *spa);
 extern void spa_activate_allocation_classes(spa_t *, dmu_tx_t *);
 extern boolean_t spa_livelist_delete_check(spa_t *spa);
+extern boolean_t spa_is_object_based(spa_t *spa);
 
 extern spa_mode_t spa_mode(spa_t *spa);
 extern uint64_t zfs_strtonum(const char *str, char **nptr);

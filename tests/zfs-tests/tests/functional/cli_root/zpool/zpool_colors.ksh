@@ -30,6 +30,12 @@
 
 verify_runnable "both"
 
+if use_object_store; then
+	log_unsupported "Skipping for object storage run because there is only \
+		one main vdev and we can't inject errors without causing a \
+		failure."
+fi
+
 function cleanup
 {
 	zinject -c all

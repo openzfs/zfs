@@ -34,7 +34,7 @@
 
 verify_runnable "global"
 
-create_pool "$TESTPOOL" "$DISK"
+create_pool -p "$TESTPOOL" -d "$DISK"
 
 if [[ -d $TESTDIR ]]; then
 	rm -rf $TESTDIR  || log_unresolved Could not remove $TESTDIR

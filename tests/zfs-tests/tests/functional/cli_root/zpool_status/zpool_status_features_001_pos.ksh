@@ -54,7 +54,7 @@ log_onexit cleanup
 log_assert "check 'zpool status' upgrade notice"
 
 log_must truncate -s $MINVDEVSIZE $FILEDEV
-log_must zpool create -f -o compatibility=compat-2018 $TESTPOOL1 $FILEDEV
+log_must create_pool -p $TESTPOOL1 -d $FILEDEV -e "-o compatibility=compat-2018"
 log_mustnot check_pool_status $TESTPOOL1 "status" "features are not enabled"
 
 log_must zpool set compatibility=compat-2020 $TESTPOOL1

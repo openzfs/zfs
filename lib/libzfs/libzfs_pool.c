@@ -1234,6 +1234,41 @@ zpool_has_draid_vdev(nvlist_t *nvroot)
 }
 
 /*
+ * Check if vdev list contains an object store vdev
+ */
+static boolean_t
+zpool_has_object_store_vdev(nvlist_t *nvroot)
+{
+	nvlist_t **child;
+	uint_t children;
+
+	if (nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN,
+	    &child, &children) == 0) {
+		for (uint_t c = 0; c < children; c++) {
+			char *type;
+
+			if (nvlist_lookup_string(child[c],
+			    ZPOOL_CONFIG_TYPE, &type) == 0 &&
+			    strcmp(type, VDEV_TYPE_OBJSTORE) == 0) {
+				return (B_TRUE);
+			}
+		}
+	}
+	return (B_FALSE);
+}
+
+boolean_t
+zpool_is_object_based(zpool_handle_t *zhp)
+{
+	nvlist_t *nvroot;
+
+	verify(nvlist_lookup_nvlist(zpool_get_config(zhp, NULL),
+	    ZPOOL_CONFIG_VDEV_TREE, &nvroot) == 0);
+
+	return (zpool_has_object_store_vdev(nvroot));
+}
+
+/*
  * Output a dRAID top-level vdev name in to the provided buffer.
  */
 static char *
@@ -1319,6 +1354,17 @@ zpool_create(libzfs_handle_t *hdl, const char *pool, nvlist_t *nvroot,
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "%s property requires a special vdev"),
 			    zfs_prop_to_name(ZFS_PROP_SPECIAL_SMALL_BLOCKS));
+			(void) zfs_error(hdl, EZFS_BADPROP, msg);
+			goto create_failed;
+		}
+
+		const char *fs_propname = zfs_prop_to_name(ZFS_PROP_COPIES);
+		if (nvlist_exists(zc_fsprops, fs_propname) &&
+		    zpool_has_object_store_vdev(nvroot) &&
+		    fnvlist_lookup_uint64(zc_fsprops, fs_propname) > 1) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "%s property must be 1 for object based pools"),
+			    fs_propname);
 			(void) zfs_error(hdl, EZFS_BADPROP, msg);
 			goto create_failed;
 		}

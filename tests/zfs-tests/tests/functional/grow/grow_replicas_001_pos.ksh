@@ -61,7 +61,7 @@ for pooltype in "mirror" "raidz"; do
 	log_note "Creating pool type: $pooltype"
 
 	truncate -s $SPA_MINDEVSIZE $DEVICE1 $DEVICE2
-	create_pool $TESTPOOL $pooltype $DEVICE1 $DEVICE2
+	create_pool -p $TESTPOOL -d "$pooltype $DEVICE1 $DEVICE2"
 
 	log_must zfs create $TESTPOOL/$TESTFS
 	log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS

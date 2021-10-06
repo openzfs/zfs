@@ -56,8 +56,9 @@ set -A vals  "100"       "10"       "12345" "HEALTHY" "10"   "10"
 typeset -i i=0;
 while [ $i -lt "${#props[@]}" ]
 do
-        # try to set each property in the prop list with it's corresponding val
-        log_mustnot zpool create -o ${props[$i]}=${vals[$i]} $TESTPOOL $DISK0
+	# try to set each property in the prop list with it's corresponding val
+	log_mustnot create_pool -p $TESTPOOL -d "$DISK0" \
+		-e "-o ${props[$i]}=${vals[$i]}"
 	if poolexists $TESTPOOL
 	then
 		log_fail "$TESTPOOL was created when setting ${props[$i]}!"

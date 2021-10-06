@@ -55,7 +55,7 @@ log_onexit cleanup
 
 log_must mkdir -p $TESTDIR
 log_must truncate -s $MINVDEVSIZE $TESTDIR/file.00
-create_pool "$TESTPOOL1" "$TESTDIR/file.00"
+create_pool -p "$TESTPOOL1" -d "$TESTDIR/file.00"
 
 vdevs_list=$(echo $TESTDIR/file.{01..16})
 log_must truncate -s $MINVDEVSIZE $vdevs_list

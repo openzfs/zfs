@@ -56,7 +56,7 @@ function create_dataset { #name type disks
 	typeset disks=$3
 
 	if [[ $type == "POOL" ]]; then
-		create_pool "$dataset" "$disks"
+		create_pool -p "$dataset" -d "$disks"
 	elif [[ $type == "CTR" ]]; then
 		log_must zfs create $dataset
 		log_must zfs set canmount=off $dataset

@@ -42,6 +42,11 @@
 # 3. Verify it run successfully.
 #
 
+if use_object_store; then
+	log_unsupported "Skipping for object storage run because this test \
+		uses zpool freeze which is not yet supported"
+fi
+
 function cleanup
 {
 	unset ZFS_ABORT
@@ -54,6 +59,7 @@ function cleanup
 
 	# Don't leave the pool frozen.
 	destroy_pool $TESTPOOL
+
 	default_mirror_setup $DISKS
 }
 

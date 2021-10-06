@@ -54,7 +54,7 @@ function cleanup
 log_assert "Verify 'zpool create' succeed with keywords combination."
 log_onexit cleanup
 
-create_pool $TESTPOOL $DISKS
+create_pool -p $TESTPOOL -d "$DISKS"
 mntpnt=$(get_prop mountpoint $TESTPOOL)
 
 typeset -i i=0

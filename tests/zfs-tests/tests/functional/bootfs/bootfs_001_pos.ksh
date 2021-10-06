@@ -71,7 +71,7 @@ log_onexit cleanup
 typeset VDEV=$TESTDIR/bootfs_001_pos_a.$$.dat
 
 log_must mkfile $MINVDEVSIZE $VDEV
-create_pool "$TESTPOOL" "$VDEV"
+create_pool -p "$TESTPOOL" -d "$VDEV"
 log_must zfs create $TESTPOOL/$TESTFS
 
 log_must zfs snapshot $TESTPOOL/$TESTFS@snap

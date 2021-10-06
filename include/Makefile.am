@@ -18,6 +18,7 @@ USER_H = \
 	libzfsbootenv.h \
 	libzfs_core.h \
 	libzutil.h \
+	object_agent.h \
 	thread_pool.h
 
 if CONFIG_USER

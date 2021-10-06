@@ -60,6 +60,7 @@ COMMON_H = \
 	sa.h \
 	sa_impl.h \
 	skein.h \
+	sock.h \
 	spa_boot.h \
 	spa_checkpoint.h \
 	spa_log_spacemap.h \
@@ -86,6 +87,7 @@ COMMON_H = \
 	vdev_indirect_births.h \
 	vdev_indirect_mapping.h \
 	vdev_initialize.h \
+	vdev_object_store.h \
 	vdev_raidz.h \
 	vdev_raidz_impl.h \
 	vdev_rebuild.h \
