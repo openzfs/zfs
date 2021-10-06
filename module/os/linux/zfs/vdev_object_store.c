@@ -1111,8 +1111,11 @@ agent_reader(void *arg)
 			mutex_enter(&vos->vos_outstanding_lock);
 			vos->vos_result = SET_ERROR(EREMOTEIO);
 		} else if (strcmp(cause, "IO") == 0) {
+			char *message = fnvlist_lookup_string(nv,
+			    AGENT_MESSAGE);
+			zfs_dbgmsg("message=\"%s\"", message);
 			mutex_enter(&vos->vos_outstanding_lock);
-			if (strstr(cause, "does not exist") != NULL) {
+			if (strstr(message, "does not exist") != NULL) {
 				vos->vos_result = SET_ERROR(ENOENT);
 			} else {
 				vos->vos_result = SET_ERROR(EIO);

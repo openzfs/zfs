@@ -80,6 +80,7 @@
 #define	AGENT_TOTAL_DATA_OBJECTS	"total_data_objects"
 #define	AGENT_DESTROYED_OBJECTS		"destroyed_objects"
 #define	AGENT_POOLS			"pools"
+#define	AGENT_MESSAGE			"message"
 
 typedef struct vdev_object_store_stats {
 	uint64_t voss_blocks_count;
