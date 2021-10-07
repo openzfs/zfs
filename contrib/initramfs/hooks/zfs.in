@@ -17,7 +17,6 @@ for req in "@sbindir@/zpool" "@sbindir@/zfs" "@mounthelperdir@/mount.zfs"; do
 	}
 done
 
-copy_exec "@sbindir@/zdb"
 copy_exec "@udevdir@/vdev_id"
 copy_exec "@udevdir@/zvol_id"
 if command -v systemd-ask-password > /dev/null; then
