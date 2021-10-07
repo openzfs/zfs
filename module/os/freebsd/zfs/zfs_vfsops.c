@@ -56,7 +56,6 @@
 #include <sys/sa_impl.h>
 #include <sys/policy.h>
 #include <sys/atomic.h>
-#include <sys/zfeature.h>
 #include <sys/zfs_ioctl.h>
 #include <sys/zfs_ctldir.h>
 #include <sys/zfs_fuid.h>
@@ -498,16 +497,6 @@ static void
 xattr_compat_changed_cb(void *arg, uint64_t newval)
 {
 	zfsvfs_t *zfsvfs = arg;
-
-	/*
-	 *  Force the old cross-platform compatible behavior if
-	 *  feature@xattr_compat is disabled.  This contrasts with
-	 *  Linux where the behavior prior to feature@xattr_compat
-	 *  was to use the incompatible Linux-only xattr format.
-	 */
-	if (!spa_feature_is_enabled(dmu_objset_spa(zfsvfs->z_os),
-	    SPA_FEATURE_XATTR_COMPAT))
-		newval = ZFS_XATTR_COMPAT_ALL;
 
 	switch (newval) {
 	case ZFS_XATTR_COMPAT_ALL:

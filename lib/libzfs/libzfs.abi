@@ -822,8 +822,7 @@
       <enumerator name='SPA_FEATURE_DEVICE_REBUILD' value='31'/>
       <enumerator name='SPA_FEATURE_ZSTD_COMPRESS' value='32'/>
       <enumerator name='SPA_FEATURE_DRAID' value='33'/>
-      <enumerator name='SPA_FEATURE_XATTR_COMPAT' value='34'/>
-      <enumerator name='SPA_FEATURES' value='35'/>
+      <enumerator name='SPA_FEATURES' value='34'/>
     </enum-decl>
     <typedef-decl name='zfeature_flags_t' type-id='type-id-88' filepath='../../include/zfeature_common.h' line='96' column='1' id='type-id-84'/>
     <enum-decl name='zfeature_flags' filepath='../../include/zfeature_common.h' line='84' column='1' id='type-id-88'>

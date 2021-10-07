@@ -1845,9 +1845,7 @@ mount options.
 Controls the preferred encoding of xattrs in the user namespace.
 When set to
 .Sy all
-(the default) with
-.Sy feature@xattr_compat
-enabled on the pool, xattrs written in the user namespace are stored in a
+(the default), xattrs written in the user namespace are stored in a
 format compatible across all supported platforms, and xattrs in the user
 namespace from all platforms are accessible.
 There is no notion of xattr namespaces on illumos, so all xattrs from
@@ -1858,28 +1856,14 @@ Existing xattrs in the
 .Sy xattr_compat=linux
 format are accessible and are replaced with the cross-platform compatible
 format when written.
-When
-.Sy feature@xattr_compat
-is disabled, xattrs behave as with
-.Sy xattr_compat=linux
-on Linux and as with
-.Sy xattr_compat=all
-elsewhere.
 When set to
 .Sy linux ,
 xattrs written in the user namespace are stored in a format that is compatible
-with ZFS on Linux prior to
-.Sy feature@xattr_compat
-but not compatible with ZFS on other platforms prior to this feature.
-See
-.Sy feature@xattr_compat
-in
-.Xr zpool-features 5
-for more information.
+with upstream OpenZFS on Linux but not compatible with ZFS on other platforms.
 .Pp
 The default value in TrueNAS SCALE is
 .Sy xattr_compat=linux
-until this feature is merged into upstream OpenZFS.
+until this property is merged into upstream OpenZFS.
 .It Sy xattr_fallback Ns = Ns Sy on Ns | Ns Sy off
 Controls whether to fall back to the alternative encoding of xattrs in the
 user namespace for lookups.

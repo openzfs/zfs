@@ -598,19 +598,6 @@ zpool_feature_init(void)
 	zfeature_register(SPA_FEATURE_DRAID,
 	    "org.openzfs:draid", "draid", "Support for distributed spare RAID",
 	    ZFEATURE_FLAG_MOS, ZFEATURE_TYPE_BOOLEAN, NULL);
-
-
-	{
-	static const spa_feature_t xattr_compat_deps[] = {
-		SPA_FEATURE_EXTENSIBLE_DATASET,
-		SPA_FEATURE_NONE
-	};
-	zfeature_register(SPA_FEATURE_XATTR_COMPAT,
-	    "com.ixsystems:xattr_compat", "xattr_compat",
-	    "Support for cross-platform compatible xattr namespace encoding",
-	    ZFEATURE_FLAG_PER_DATASET, ZFEATURE_TYPE_BOOLEAN,
-	    xattr_compat_deps);
-	}
 }
 
 #if defined(_KERNEL)

@@ -782,17 +782,6 @@ by user and group.
 \*[instant-never]
 \*[remount-upgrade]
 .
-.feature com.ixsystems xattr_compat yes extensible_dataset
-This feature enables the use of a cross-platform compatible encoding for xattr
-names in the "user" namespace on Linux.
-.Pp
-This feature becomes
-.Sy active
-on a filesystem when an xattr is written to the "user" namespace on Linux after
-the feature has been enabled, and returns to
-.Sy enabled
-after all filesystems with the feature active have been destroyed.
-.
 .feature com.delphix zpool_checkpoint yes
 This feature enables the
 .Nm zpool Cm checkpoint

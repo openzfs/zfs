@@ -800,9 +800,6 @@ __zpl_xattr_user_set(struct inode *ip, const char *name,
 		flags &= ~XATTR_REPLACE;
 	error = zpl_xattr_set(ip, name, value, size, flags);
 
-	dsl_dataset_t *ds = dmu_objset_ds(ITOZSB(ip)->z_os);
-	ds->ds_feature_activation[SPA_FEATURE_XATTR_COMPAT] = (void *)B_TRUE;
-
 	return (error);
 }
 ZPL_XATTR_SET_WRAPPER(zpl_xattr_user_set);

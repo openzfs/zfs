@@ -58,7 +58,6 @@
 #include <sys/dsl_dir.h>
 #include <sys/spa_boot.h>
 #include <sys/objlist.h>
-#include <sys/zfeature.h>
 #include <sys/zpl.h>
 #include <linux/vfs_compat.h>
 #include "zfs_comutil.h"
@@ -357,14 +356,6 @@ static void
 xattr_compat_changed_cb(void *arg, uint64_t newval)
 {
 	zfsvfs_t *zfsvfs = arg;
-
-	/*
-	 *  Force the old incompatible Linux behavior
-	 *  if feature@xattr_compat is disabled.
-	 */
-	if (!spa_feature_is_enabled(dmu_objset_spa(zfsvfs->z_os),
-	    SPA_FEATURE_XATTR_COMPAT))
-		newval = ZFS_XATTR_COMPAT_LINUX;
 
 	switch (newval) {
 	case ZFS_XATTR_COMPAT_ALL:

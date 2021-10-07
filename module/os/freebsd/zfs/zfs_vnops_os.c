@@ -5288,7 +5288,7 @@ zfs_create_attrname(int attrnamespace, const char *name, char *attrname,
 		} else {
 			/*
 			 * This is compatible with the user namespace encoding
-			 * on Linux prior to feature@xattr_compat, but nothing
+			 * on Linux prior to xattr_compat, but nothing
 			 * else.
 			 */
 			prefix = "";
