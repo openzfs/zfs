@@ -6369,7 +6369,7 @@ dump_block_stats(spa_t *spa)
 	 * For an objectstore based zpool, there are no space maps and zdb leak
 	 * detection will not work.
 	 */
-	if (objstore && !dump_opt['L']) {
+	if (spa_is_object_based(spa) && !dump_opt['L']) {
 		(void) printf("\nSkipping leak detection for object-store "
 		    "based zpool.\n\n");
 		dump_opt['L'] = 1;
