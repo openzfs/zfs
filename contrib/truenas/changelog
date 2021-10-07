@@ -1,8 +1,15 @@
+openzfs (2.1.1-0) unstable; urgency=medium
+
+  * Merged OpenZFS 2.1.1
+  * Removed feature@xattr_compat and xattr_fallback property
+
+ -- Ryan Moeller <ryan@ixsystems.com>  Thu, 07 Oct 2021 14:09:30 -0400
+
 openzfs (2.1.0-0) unstable; urgency=medium
 
   * Rebased to OpenZFS 2.1.0
 
- -- Ryan Moeller <ryan@ixsystems.com>  Thu, 01 Apr 2021 13:00:00 -500
+ -- Ryan Moeller <ryan@ixsystems.com>  Thu, 01 Apr 2021 13:00:00 -0500
 
 openzfs (2.0.4-0) unstable; urgency=medium
 
