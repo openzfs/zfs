@@ -1864,14 +1864,6 @@ with upstream OpenZFS on Linux but not compatible with ZFS on other platforms.
 The default value in TrueNAS SCALE is
 .Sy xattr_compat=linux
 until this property is merged into upstream OpenZFS.
-.It Sy xattr_fallback Ns = Ns Sy on Ns | Ns Sy off
-Controls whether to fall back to the alternative encoding of xattrs in the
-user namespace for lookups.
-If accessing an xattr in the user namespace fails for the format configured by
-.Sy xattr_compat ,
-when set to
-.Sy on
-(the default), a second attempt will be made using the other xattr name format.
 .It Sy jailed Ns = Ns Sy off Ns | Ns Sy on
 Controls whether the dataset is managed from a jail.
 See

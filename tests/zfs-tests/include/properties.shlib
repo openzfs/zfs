@@ -93,8 +93,7 @@ function get_rand_large_recsize
 #
 # Functions to toggle on/off properties
 #
-typeset -a binary_props=('atime' 'devices' 'exec' 'readonly' 'setuid' 'xattr'
-    'xattr_fallback')
+typeset -a binary_props=('atime' 'devices' 'exec' 'readonly' 'setuid' 'xattr')
 
 if is_freebsd; then
 	binary_props+=('jailed')

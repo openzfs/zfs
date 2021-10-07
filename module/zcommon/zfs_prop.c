@@ -506,9 +506,6 @@ zfs_prop_init(void)
 	    boolean_table);
 	zprop_register_index(ZFS_PROP_OVERLAY, "overlay", 1, PROP_INHERIT,
 	    ZFS_TYPE_FILESYSTEM, "on | off", "OVERLAY", boolean_table);
-	zprop_register_index(ZFS_PROP_XATTR_FALLBACK, "xattr_fallback", 1,
-	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT, "on | off",
-	    "XATTR_FALLBACK", boolean_table);
 
 	/* default index properties */
 	zprop_register_index(ZFS_PROP_VERSION, "version", 0, PROP_DEFAULT,

@@ -173,7 +173,6 @@ struct zfsvfs {
 
 #define	ZSB_XATTR		0x0001	/* Enable user xattrs */
 #define	ZSB_XATTR_COMPAT	0x0002	/* Enable cross-platform user xattrs */
-#define	ZSB_XATTR_FALLBACK	0x0004	/* Enable user xattr compat fallback */
 
 /*
  * Allow a maximum number of links.  While ZFS does not internally limit

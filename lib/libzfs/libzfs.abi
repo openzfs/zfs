@@ -1690,8 +1690,7 @@
       <enumerator name='ZFS_PROP_REDACTED' value='93'/>
       <enumerator name='ZFS_PROP_REDACT_SNAPS' value='94'/>
       <enumerator name='ZFS_PROP_XATTR_COMPAT' value='95'/>
-      <enumerator name='ZFS_PROP_XATTR_FALLBACK' value='96'/>
-      <enumerator name='ZFS_NUM_PROPS' value='97'/>
+      <enumerator name='ZFS_NUM_PROPS' value='96'/>
     </enum-decl>
     <enum-decl name='__anonymous_enum__2' is-anonymous='yes' filepath='../../include/sys/fs/zfs.h' line='52' column='1' id='type-id-182'>
       <underlying-type type-id='type-id-35'/>
@@ -2104,8 +2103,7 @@
       <enumerator name='ZFS_PROP_REDACTED' value='93'/>
       <enumerator name='ZFS_PROP_REDACT_SNAPS' value='94'/>
       <enumerator name='ZFS_PROP_XATTR_COMPAT' value='95'/>
-      <enumerator name='ZFS_PROP_XATTR_FALLBACK' value='96'/>
-      <enumerator name='ZFS_NUM_PROPS' value='97'/>
+      <enumerator name='ZFS_NUM_PROPS' value='96'/>
     </enum-decl>
     <typedef-decl name='uu_avl_pool_t' type-id='type-id-206' filepath='../../include/libuutil.h' line='287' column='1' id='type-id-216'/>
     <typedef-decl name='uu_avl_t' type-id='type-id-205' filepath='../../include/libuutil.h' line='288' column='1' id='type-id-217'/>
