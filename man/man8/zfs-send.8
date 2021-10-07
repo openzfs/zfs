@@ -198,6 +198,9 @@ will not have their data recompressed on the receiver side using
 .Fl o Sy compress Ns = Ar value .
 The data will stay compressed as it was from the sender.
 The new compression property will be set for future data.
+Note that uncompressed data from the sender will still attempt to
+compress on the receiver, unless you specify
+.Fl o Sy compress Ns = Em off .
 .It Fl w , -raw
 For encrypted datasets, send data exactly as it exists on disk.
 This allows backups to be taken even if encryption keys are not currently loaded.
