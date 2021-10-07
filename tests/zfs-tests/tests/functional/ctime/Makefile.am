@@ -11,5 +11,3 @@ pkgexecdir = $(datadir)/@PACKAGE@/zfs-tests/tests/functional/ctime
 
 pkgexec_PROGRAMS = ctime
 ctime_SOURCES = ctime.c
-
-ctime_LDADD = $(abs_top_builddir)/lib/libzfs_core/libzfs_core.la

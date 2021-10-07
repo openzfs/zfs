@@ -11,11 +11,27 @@ include $(top_srcdir)/config/Abigail.am
 USER_C = \
 	libzfs_core.c
 
+if BUILD_LINUX
+USER_C += \
+        os/linux/libzfs_core_ioctl.c
+endif
+
+if BUILD_FREEBSD
+DEFAULT_INCLUDES += -I$(top_srcdir)/include/os/freebsd/zfs
+
+USER_C += \
+        os/freebsd/libzfs_core_ioctl.c
+
+VPATH += $(top_srcdir)/module/os/freebsd/zfs
+
+nodist_libzfs_core_la_SOURCES = zfs_ioctl_compat.c
+endif
+
 libzfs_core_la_SOURCES = $(USER_C)
 
 libzfs_core_la_LIBADD = \
-	$(abs_top_builddir)/lib/libzutil/libzutil.la \
-	$(abs_top_builddir)/lib/libnvpair/libnvpair.la
+	$(abs_top_builddir)/lib/libnvpair/libnvpair.la \
+	$(abs_top_builddir)/lib/libspl/libspl.la
 
 libzfs_core_la_LIBADD += $(LTLIBINTL)
 

@@ -209,7 +209,7 @@ lzc_ioctl(zfs_ioc_t ioc, const char *name,
 		}
 	}
 
-	while (zfs_ioctl_fd(g_fd, ioc, &zc) != 0) {
+	while (lzc_ioctl_fd(g_fd, ioc, &zc) != 0) {
 		/*
 		 * If ioctl exited with ENOMEM, we retry the ioctl after
 		 * increasing the size of the destination nvlist.
@@ -298,7 +298,7 @@ lzc_promote(const char *fsname, char *snapnamebuf, int snapnamelen)
 	VERIFY3S(g_fd, !=, -1);
 
 	(void) strlcpy(zc.zc_name, fsname, sizeof (zc.zc_name));
-	if (zfs_ioctl_fd(g_fd, ZFS_IOC_PROMOTE, &zc) != 0) {
+	if (lzc_ioctl_fd(g_fd, ZFS_IOC_PROMOTE, &zc) != 0) {
 		int error = errno;
 		if (error == EEXIST && snapnamebuf != NULL)
 			(void) strlcpy(snapnamebuf, zc.zc_string, snapnamelen);
@@ -317,7 +317,7 @@ lzc_rename(const char *source, const char *target)
 	VERIFY3S(g_fd, !=, -1);
 	(void) strlcpy(zc.zc_name, source, sizeof (zc.zc_name));
 	(void) strlcpy(zc.zc_value, target, sizeof (zc.zc_value));
-	error = zfs_ioctl_fd(g_fd, ZFS_IOC_RENAME, &zc);
+	error = lzc_ioctl_fd(g_fd, ZFS_IOC_RENAME, &zc);
 	if (error != 0)
 		error = errno;
 	return (error);
@@ -468,7 +468,7 @@ lzc_exists(const char *dataset)
 	VERIFY3S(g_fd, !=, -1);
 
 	(void) strlcpy(zc.zc_name, dataset, sizeof (zc.zc_name));
-	return (zfs_ioctl_fd(g_fd, ZFS_IOC_OBJSET_STATS, &zc) == 0);
+	return (lzc_ioctl_fd(g_fd, ZFS_IOC_OBJSET_STATS, &zc) == 0);
 }
 
 /*
@@ -925,7 +925,7 @@ recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
 		zc.zc_nvlist_dst = (uint64_t)(uintptr_t)
 		    malloc(zc.zc_nvlist_dst_size);
 
-		error = zfs_ioctl_fd(g_fd, ZFS_IOC_RECV, &zc);
+		error = lzc_ioctl_fd(g_fd, ZFS_IOC_RECV, &zc);
 		if (error != 0) {
 			error = errno;
 		} else {

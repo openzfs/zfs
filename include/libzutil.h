@@ -146,7 +146,6 @@ _LIBZUTIL_H int zpool_history_unpack(char *, uint64_t, uint64_t *, nvlist_t ***,
     uint_t *);
 
 struct zfs_cmd;
-_LIBZUTIL_H int zfs_ioctl_fd(int fd, unsigned long request, struct zfs_cmd *zc);
 
 /*
  * List of colors to use
