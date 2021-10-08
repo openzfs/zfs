@@ -488,7 +488,8 @@ dmu_zfetch_run(zstream_t *zs, boolean_t missed, boolean_t have_lock)
 	issued = pf_end - pf_start + ipf_end - ipf_start;
 	if (issued > 1) {
 		/* More references on top of taken in dmu_zfetch_prepare(). */
-		zfs_refcount_add_many(&zs->zs_refs, issued - 1, NULL);
+		for (int i = 0; i < issued - 1; i++)
+			zfs_refcount_add(&zs->zs_refs, NULL);
 	} else if (issued == 0) {
 		/* Some other thread has done our work, so drop the ref. */
 		if (zfs_refcount_remove(&zs->zs_refs, NULL) == 0)
