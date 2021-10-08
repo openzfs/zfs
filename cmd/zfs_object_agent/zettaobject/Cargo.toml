@@ -24,7 +24,7 @@ lazy_static = "1.4.0"
 libc = "0.2"
 log = "0.4"
 log4rs = "1.0.0"
-lru = "0.6.5"
+lru = "0.7.0"
 more-asserts = "0.2.1"
 num = "0.4.0"
 nvpair = { git = "https://github.com/ahrens/rust-libzfs", branch = "work"}
