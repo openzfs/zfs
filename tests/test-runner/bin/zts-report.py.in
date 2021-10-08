@@ -283,6 +283,8 @@ if sys.platform.startswith('freebsd'):
         'delegate/zfs_allow_003_pos': ['FAIL', known_reason],
         'inheritance/inherit_001_pos': ['FAIL', '11829'],
         'resilver/resilver_restart_001': ['FAIL', known_reason],
+        'pool_checkpoint/checkpoint_big_rewind': ['FAIL', '12622'],
+        'pool_checkpoint/checkpoint_indirect': ['FAIL', '12623'],
     })
 elif sys.platform.startswith('linux'):
     maybe.update({
@@ -307,6 +309,7 @@ elif sys.platform.startswith('linux'):
         'rsend/rsend_010_pos': ['FAIL', known_reason],
         'rsend/rsend_011_pos': ['FAIL', known_reason],
         'snapshot/rollback_003_pos': ['FAIL', known_reason],
+        'zvol/zvol_misc/zvol_misc_snapdev': ['FAIL', '12621'],
     })
 
 
