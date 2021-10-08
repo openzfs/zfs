@@ -166,7 +166,12 @@ impl DataObjectPhys {
     }
 
     pub fn get_block(&self, block: BlockId) -> &[u8] {
-        self.blocks.get(&block).unwrap()
+        match self.blocks.get(&block) {
+            Some(buf) => buf,
+            None => {
+                panic!("{:?} not found in {:?}: {:?}", block, self.object, self);
+            }
+        }
     }
 
     pub fn blocks_len(&self) -> u32 {

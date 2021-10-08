@@ -47,6 +47,7 @@ use std::time::Duration;
 use std::time::{Instant, SystemTime};
 use stream_reduce::Reduce;
 use tokio::sync::oneshot;
+use tokio::sync::watch;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use util::get_tunable;
@@ -370,6 +371,7 @@ pub struct PoolState {
     object_block_map: ObjectBlockMap,
     zettacache: Option<ZettaCache>,
     pub shared_state: Arc<PoolSharedState>,
+    resuming: watch::Receiver<bool>,
     _heartbeat_guard: Option<HeartbeatGuard>, // Used for RAII
 }
 
@@ -497,6 +499,7 @@ struct PoolSyncingState {
     cleanup_handle: Option<JoinHandle<()>>,
     delete_objects_handle: Option<JoinHandle<()>>,
     features: HashMap<FeatureFlag, u64>,
+    resuming: watch::Sender<bool>,
 }
 
 type SyncTask =
@@ -797,6 +800,7 @@ impl Pool {
         cache: Option<ZettaCache>,
         heartbeat_guard: Option<HeartbeatGuard>,
         readonly: bool,
+        resuming: bool,
     ) -> Result<(Pool, UberblockPhys, BlockId), PoolOpenError> {
         let phys = UberblockPhys::get(object_access, pool_phys.guid, txg).await?;
 
@@ -830,6 +834,7 @@ impl Pool {
                 ),
             });
         }
+        let (tx, rx) = watch::channel(resuming);
         let pool = Pool {
             state: Arc::new(PoolState {
                 shared_state: shared_state.clone(),
@@ -853,9 +858,11 @@ impl Pool {
                     cleanup_handle: None,
                     delete_objects_handle: None,
                     features: phys.features.iter().cloned().collect(),
+                    resuming: tx,
                 })),
                 zettacache: cache,
                 object_block_map,
+                resuming: rx,
                 _heartbeat_guard: heartbeat_guard,
             }),
         };
@@ -884,7 +891,7 @@ impl Pool {
         txg: Option<Txg>,
         cache: Option<ZettaCache>,
         id: Uuid,
-        resume: bool,
+        resuming: bool,
     ) -> Result<(Pool, Option<UberblockPhys>, BlockId), PoolOpenError> {
         let phys = PoolPhys::get(object_access, guid).await?;
         if phys.last_txg.0 == 0 {
@@ -919,6 +926,8 @@ impl Pool {
                 ),
             });
 
+            let (tx, rx) = watch::channel(false);
+
             let mut pool = Pool {
                 state: Arc::new(PoolState {
                     shared_state: shared_state.clone(),
@@ -942,9 +951,11 @@ impl Pool {
                         cleanup_handle: None,
                         delete_objects_handle: None,
                         features: Default::default(),
+                        resuming: tx,
                     })),
                     zettacache: cache,
                     object_block_map,
+                    resuming: rx,
                     _heartbeat_guard: if !object_access.readonly() {
                         Some(heartbeat::start_heartbeat(object_access.clone(), id).await)
                     } else {
@@ -969,6 +980,7 @@ impl Pool {
                     None
                 },
                 object_access.readonly(),
+                resuming,
             )
             .await?;
 
@@ -1003,7 +1015,7 @@ impl Pool {
                 join3(
                     pool.state.clone().cleanup_log_objects(),
                     pool.state.clone().cleanup_uberblock_objects(last_txg),
-                    if resume {
+                    if resuming {
                         Either::Left(future::ready(()))
                     } else {
                         Either::Right(state.cleanup_data_objects())
@@ -1188,6 +1200,10 @@ impl Pool {
                 None,
             );
             Self::initiate_flush_object_impl(state, syncing_state);
+
+            assert!(*syncing_state.resuming.borrow());
+            // This unwrap is safe because there's a receiver: state.resuming
+            syncing_state.resuming.send(false).unwrap();
 
             info!("resume: completed");
         })
@@ -1561,6 +1577,16 @@ impl Pool {
     }
 
     async fn read_block_impl(&self, block: BlockId, bypass_cache: bool) -> Vec<u8> {
+        // If we are in the middle of resuming, wait for that to complete before
+        // processing this read.  This is needed because we may be reading from
+        // a block that hasn't yet been added to the ObjectBlockMap.
+        if *self.state.resuming.borrow() {
+            let mut resuming = self.state.resuming.clone();
+            while *resuming.borrow_and_update() {
+                resuming.changed().await.unwrap();
+            }
+        }
+
         let object = self.state.object_block_map.block_to_object(block);
         let shared_state = self.state.shared_state.clone();
 

@@ -158,6 +158,7 @@ impl ObjectBlockMap {
 
     pub fn block_to_object(&self, block: BlockId) -> ObjectId {
         let state = self.state.read().unwrap();
+        assert_lt!(block, state.next_block);
         state
             .map
             .range((Unbounded, Included(block)))
@@ -207,9 +208,9 @@ impl ObjectBlockMap {
         state.map.is_empty()
     }
 
-    pub fn for_each<CB>(&self, mut f: CB)
+    pub fn for_each<F>(&self, mut f: F)
     where
-        CB: FnMut(&ObjectBlockMapEntry),
+        F: FnMut(&ObjectBlockMapEntry),
     {
         let state = self.state.read().unwrap();
         for ent in state.map.iter() {
