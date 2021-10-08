@@ -441,73 +441,73 @@ def calculate():
 
     v = dict()
     v["time"] = time.strftime("%H:%M:%S", time.localtime())
-    v["hits"] = d["hits"] / sint
-    v["miss"] = d["misses"] / sint
+    v["hits"] = d["hits"] // sint
+    v["miss"] = d["misses"] // sint
     v["read"] = v["hits"] + v["miss"]
-    v["hit%"] = 100 * v["hits"] / v["read"] if v["read"] > 0 else 0
+    v["hit%"] = 100 * v["hits"] // v["read"] if v["read"] > 0 else 0
     v["miss%"] = 100 - v["hit%"] if v["read"] > 0 else 0
 
-    v["dhit"] = (d["demand_data_hits"] + d["demand_metadata_hits"]) / sint
-    v["dmis"] = (d["demand_data_misses"] + d["demand_metadata_misses"]) / sint
+    v["dhit"] = (d["demand_data_hits"] + d["demand_metadata_hits"]) // sint
+    v["dmis"] = (d["demand_data_misses"] + d["demand_metadata_misses"]) // sint
 
     v["dread"] = v["dhit"] + v["dmis"]
-    v["dh%"] = 100 * v["dhit"] / v["dread"] if v["dread"] > 0 else 0
+    v["dh%"] = 100 * v["dhit"] // v["dread"] if v["dread"] > 0 else 0
     v["dm%"] = 100 - v["dh%"] if v["dread"] > 0 else 0
 
-    v["phit"] = (d["prefetch_data_hits"] + d["prefetch_metadata_hits"]) / sint
+    v["phit"] = (d["prefetch_data_hits"] + d["prefetch_metadata_hits"]) // sint
     v["pmis"] = (d["prefetch_data_misses"] +
-                 d["prefetch_metadata_misses"]) / sint
+                 d["prefetch_metadata_misses"]) // sint
 
     v["pread"] = v["phit"] + v["pmis"]
-    v["ph%"] = 100 * v["phit"] / v["pread"] if v["pread"] > 0 else 0
+    v["ph%"] = 100 * v["phit"] // v["pread"] if v["pread"] > 0 else 0
     v["pm%"] = 100 - v["ph%"] if v["pread"] > 0 else 0
 
     v["mhit"] = (d["prefetch_metadata_hits"] +
-                 d["demand_metadata_hits"]) / sint
+                 d["demand_metadata_hits"]) // sint
     v["mmis"] = (d["prefetch_metadata_misses"] +
-                 d["demand_metadata_misses"]) / sint
+                 d["demand_metadata_misses"]) // sint
 
     v["mread"] = v["mhit"] + v["mmis"]
-    v["mh%"] = 100 * v["mhit"] / v["mread"] if v["mread"] > 0 else 0
+    v["mh%"] = 100 * v["mhit"] // v["mread"] if v["mread"] > 0 else 0
     v["mm%"] = 100 - v["mh%"] if v["mread"] > 0 else 0
 
     v["arcsz"] = cur["size"]
     v["size"] = cur["size"]
     v["c"] = cur["c"]
-    v["mfu"] = d["mfu_hits"] / sint
-    v["mru"] = d["mru_hits"] / sint
-    v["mrug"] = d["mru_ghost_hits"] / sint
-    v["mfug"] = d["mfu_ghost_hits"] / sint
-    v["eskip"] = d["evict_skip"] / sint
-    v["el2skip"] = d["evict_l2_skip"] / sint
-    v["el2cach"] = d["evict_l2_cached"] / sint
-    v["el2el"] = d["evict_l2_eligible"] / sint
-    v["el2mfu"] = d["evict_l2_eligible_mfu"] / sint
-    v["el2mru"] = d["evict_l2_eligible_mru"] / sint
-    v["el2inel"] = d["evict_l2_ineligible"] / sint
-    v["mtxmis"] = d["mutex_miss"] / sint
+    v["mfu"] = d["mfu_hits"] // sint
+    v["mru"] = d["mru_hits"] // sint
+    v["mrug"] = d["mru_ghost_hits"] // sint
+    v["mfug"] = d["mfu_ghost_hits"] // sint
+    v["eskip"] = d["evict_skip"] // sint
+    v["el2skip"] = d["evict_l2_skip"] // sint
+    v["el2cach"] = d["evict_l2_cached"] // sint
+    v["el2el"] = d["evict_l2_eligible"] // sint
+    v["el2mfu"] = d["evict_l2_eligible_mfu"] // sint
+    v["el2mru"] = d["evict_l2_eligible_mru"] // sint
+    v["el2inel"] = d["evict_l2_ineligible"] // sint
+    v["mtxmis"] = d["mutex_miss"] // sint
 
     if l2exist:
-        v["l2hits"] = d["l2_hits"] / sint
-        v["l2miss"] = d["l2_misses"] / sint
+        v["l2hits"] = d["l2_hits"] // sint
+        v["l2miss"] = d["l2_misses"] // sint
         v["l2read"] = v["l2hits"] + v["l2miss"]
-        v["l2hit%"] = 100 * v["l2hits"] / v["l2read"] if v["l2read"] > 0 else 0
+        v["l2hit%"] = 100 * v["l2hits"] // v["l2read"] if v["l2read"] > 0 else 0
 
         v["l2miss%"] = 100 - v["l2hit%"] if v["l2read"] > 0 else 0
         v["l2asize"] = cur["l2_asize"]
         v["l2size"] = cur["l2_size"]
-        v["l2bytes"] = d["l2_read_bytes"] / sint
+        v["l2bytes"] = d["l2_read_bytes"] // sint
 
         v["l2pref"] = cur["l2_prefetch_asize"]
         v["l2mfu"] = cur["l2_mfu_asize"]
         v["l2mru"] = cur["l2_mru_asize"]
         v["l2data"] = cur["l2_bufc_data_asize"]
         v["l2meta"] = cur["l2_bufc_metadata_asize"]
-        v["l2pref%"] = 100 * v["l2pref"] / v["l2asize"]
-        v["l2mfu%"] = 100 * v["l2mfu"] / v["l2asize"]
-        v["l2mru%"] = 100 * v["l2mru"] / v["l2asize"]
-        v["l2data%"] = 100 * v["l2data"] / v["l2asize"]
-        v["l2meta%"] = 100 * v["l2meta"] / v["l2asize"]
+        v["l2pref%"] = 100 * v["l2pref"] // v["l2asize"]
+        v["l2mfu%"] = 100 * v["l2mfu"] // v["l2asize"]
+        v["l2mru%"] = 100 * v["l2mru"] // v["l2asize"]
+        v["l2data%"] = 100 * v["l2data"] // v["l2asize"]
+        v["l2meta%"] = 100 * v["l2meta"] // v["l2asize"]
 
     v["grow"] = 0 if cur["arc_no_grow"] else 1
     v["need"] = cur["arc_need_free"]
