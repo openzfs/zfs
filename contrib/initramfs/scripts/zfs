@@ -630,6 +630,7 @@ setup_snapshot_booting()
 		then
 			# Rollback snapshot
 			rollback_snap "$s" || retval=$((retval + 1))
+			ZFS_BOOTFS="${rootfs}"
 		else
 			# Setup a destination filesystem name.
 			# Ex: Called with 'rpool/ROOT/debian@snap2'

@@ -1059,9 +1059,14 @@ dump_snapshot(zfs_handle_t *zhp, void *arg)
 			nvlist_t *nvfs = fsavl_find(sdd->fsavl,
 			    zhp->zfs_dmustats.dds_guid, &snapname);
 
-			snapprops = fnvlist_lookup_nvlist(nvfs, "snapprops");
-			snapprops = fnvlist_lookup_nvlist(snapprops, thissnap);
-			exclude = !nvlist_exists(snapprops, "is_clone_origin");
+			if (nvfs != NULL) {
+				snapprops = fnvlist_lookup_nvlist(nvfs,
+				    "snapprops");
+				snapprops = fnvlist_lookup_nvlist(snapprops,
+				    thissnap);
+				exclude = !nvlist_exists(snapprops,
+				    "is_clone_origin");
+			}
 		} else {
 			exclude = B_TRUE;
 		}
