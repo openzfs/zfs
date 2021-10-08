@@ -134,4 +134,9 @@ impl SpaceMap {
     pub fn get_alloc_entries(&self) -> u64 {
         self.alloc_entries
     }
+
+    pub fn clear(&mut self) {
+        self.log.clear();
+        self.alloc_entries = 0;
+    }
 }

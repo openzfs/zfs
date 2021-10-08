@@ -761,7 +761,6 @@ pub struct BlockAllocator {
     freeing_space: u64,
 
     block_access: Arc<BlockAccess>,
-    extent_allocator: Arc<ExtentAllocator>,
 }
 
 impl BlockAllocator {
@@ -897,7 +896,6 @@ impl BlockAllocator {
             available_space,
             freeing_space: 0,
             block_access,
-            extent_allocator,
         }
     }
 
@@ -1080,13 +1078,8 @@ impl BlockAllocator {
         }
         if self.next_slab_to_condense.as_index() == self.slabs.0.len() {
             self.next_slab_to_condense = SlabId(0);
-            let coverage = self.spacemap.get_coverage();
-            let new_spacemap = SpaceMap::open(
-                self.block_access.clone(),
-                self.extent_allocator.clone(),
-                SpaceMapPhys::new(coverage.location.offset, coverage.size),
-            );
-            self.spacemap = mem::replace(&mut self.spacemap_next, new_spacemap);
+            self.spacemap.clear();
+            mem::swap(&mut self.spacemap_next, &mut self.spacemap);
         }
         assert_lt!(self.next_slab_to_condense.as_index(), self.slabs.0.len());
         trace!(
