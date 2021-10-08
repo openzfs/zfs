@@ -297,7 +297,7 @@ impl ObjectAccess {
         // in case a bug (or undetected RAM error) resulted in incorrect cached
         // data, we want to invalidate the cache so that we won't get the bad
         // cached data again.
-        Self::invalidate_cache(key, &vec);
+        Self::invalidate_cache(key);
         Ok(Arc::new(vec))
     }
 
@@ -477,22 +477,20 @@ impl ObjectAccess {
         .await
     }
 
-    fn invalidate_cache(key: String, data: &[u8]) {
-        let mut c = CACHE.lock().unwrap();
-        if c.cache.contains(&key) {
-            trace!("found {} in cache - invalidating", key);
-            // XXX unfortuate to be copying; this happens every time when
-            // freeing (we get/modify/put the object).  Maybe when freeing,
-            // the get() should not add to the cache since it's probably
-            // just polluting.
-            c.cache.put(key, Arc::new(data.to_vec()));
-        }
+    fn invalidate_cache(key: String) {
+        CACHE.lock().unwrap().cache.pop(&key);
     }
 
     pub async fn put_object(&self, key: String, data: Vec<u8>) {
-        Self::invalidate_cache(key.clone(), &data);
-
-        self.put_object_impl(key, data, None).await.unwrap();
+        // Note that we need to PutObject before invalidating the cache.  If a
+        // get_object() is called while put_object() is in progress, it may see
+        // the old or new value, which is fine.  After put_object() returns,
+        // get_object() must return the new value.  If we invalidated before the
+        // PutObject, a concurrent get_object() could retrieve the old value and
+        // add it to the cache, allowing the old value to be read (from the
+        // cache) after put_object() returns.
+        self.put_object_impl(key.clone(), data, None).await.unwrap();
+        Self::invalidate_cache(key);
     }
 
     pub async fn put_object_timed(
@@ -501,9 +499,9 @@ impl ObjectAccess {
         data: Vec<u8>,
         timeout: Option<Duration>,
     ) -> Result<PutObjectOutput, OAError<PutObjectError>> {
-        Self::invalidate_cache(key.clone(), &data);
-
-        self.put_object_impl(key, data, timeout).await
+        let result = self.put_object_impl(key.clone(), data, timeout).await;
+        Self::invalidate_cache(key);
+        result
     }
 
     pub async fn delete_object(&self, key: String) {
