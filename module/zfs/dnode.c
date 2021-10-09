@@ -2037,10 +2037,40 @@ dnode_set_dirtyctx(dnode_t *dn, dmu_tx_t *tx, void *tag)
 	}
 }
 
+static void
+dnode_partial_zero(dnode_t *dn, uint64_t off, uint64_t blkoff, uint64_t len,
+    dmu_tx_t *tx)
+{
+	dmu_buf_impl_t *db;
+	int res;
+
+	rw_enter(&dn->dn_struct_rwlock, RW_READER);
+	res = dbuf_hold_impl(dn, 0, dbuf_whichblock(dn, 0, off), TRUE, FALSE,
+	    FTAG, &db);
+	rw_exit(&dn->dn_struct_rwlock);
+	if (res == 0) {
+		db_lock_type_t dblt;
+		boolean_t dirty;
+
+		dblt = dmu_buf_lock_parent(db, RW_READER, FTAG);
+		/* don't dirty if not on disk and not dirty */
+		dirty = !list_is_empty(&db->db_dirty_records) ||
+		    (db->db_blkptr && !BP_IS_HOLE(db->db_blkptr));
+		dmu_buf_unlock_parent(db, dblt, FTAG);
+		if (dirty) {
+			caddr_t data;
+
+			dmu_buf_will_dirty(&db->db, tx);
+			data = db->db.db_data;
+			bzero(data + blkoff, len);
+		}
+		dbuf_rele(db, FTAG);
+	}
+}
+
 void
 dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx)
 {
-	dmu_buf_impl_t *db;
 	uint64_t blkoff, blkid, nblks;
 	int blksz, blkshift, head, tail;
 	int trunc = FALSE;
@@ -2089,31 +2119,10 @@ dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx)
 	}
 	/* zero out any partial block data at the start of the range */
 	if (head) {
-		int res;
 		ASSERT3U(blkoff + head, ==, blksz);
 		if (len < head)
 			head = len;
-		rw_enter(&dn->dn_struct_rwlock, RW_READER);
-		res = dbuf_hold_impl(dn, 0, dbuf_whichblock(dn, 0, off),
-		    TRUE, FALSE, FTAG, &db);
-		rw_exit(&dn->dn_struct_rwlock);
-		if (res == 0) {
-			caddr_t data;
-			boolean_t dirty;
-
-			db_lock_type_t dblt = dmu_buf_lock_parent(db, RW_READER,
-			    FTAG);
-			/* don't dirty if it isn't on disk and isn't dirty */
-			dirty = !list_is_empty(&db->db_dirty_records) ||
-			    (db->db_blkptr && !BP_IS_HOLE(db->db_blkptr));
-			dmu_buf_unlock_parent(db, dblt, FTAG);
-			if (dirty) {
-				dmu_buf_will_dirty(&db->db, tx);
-				data = db->db.db_data;
-				bzero(data + blkoff, head);
-			}
-			dbuf_rele(db, FTAG);
-		}
+		dnode_partial_zero(dn, off, blkoff, head, tx);
 		off += head;
 		len -= head;
 	}
@@ -2135,27 +2144,9 @@ dnode_free_range(dnode_t *dn, uint64_t off, uint64_t len, dmu_tx_t *tx)
 	ASSERT0(P2PHASE(off, blksz));
 	/* zero out any partial block data at the end of the range */
 	if (tail) {
-		int res;
 		if (len < tail)
 			tail = len;
-		rw_enter(&dn->dn_struct_rwlock, RW_READER);
-		res = dbuf_hold_impl(dn, 0, dbuf_whichblock(dn, 0, off+len),
-		    TRUE, FALSE, FTAG, &db);
-		rw_exit(&dn->dn_struct_rwlock);
-		if (res == 0) {
-			boolean_t dirty;
-			/* don't dirty if not on disk and not dirty */
-			db_lock_type_t type = dmu_buf_lock_parent(db, RW_READER,
-			    FTAG);
-			dirty = !list_is_empty(&db->db_dirty_records) ||
-			    (db->db_blkptr && !BP_IS_HOLE(db->db_blkptr));
-			dmu_buf_unlock_parent(db, type, FTAG);
-			if (dirty) {
-				dmu_buf_will_dirty(&db->db, tx);
-				bzero(db->db.db_data, tail);
-			}
-			dbuf_rele(db, FTAG);
-		}
+		dnode_partial_zero(dn, off + len, 0, tail, tx);
 		len -= tail;
 	}
 
