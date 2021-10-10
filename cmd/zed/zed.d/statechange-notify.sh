@@ -15,7 +15,7 @@
 # Send notification in response to a fault induced statechange
 #
 # ZEVENT_SUBCLASS: 'statechange'
-# ZEVENT_VDEV_STATE_STR: 'DEGRADED', 'FAULTED' or 'REMOVED'
+# ZEVENT_VDEV_STATE_STR: 'DEGRADED', 'FAULTED', 'REMOVED', or 'UNAVAIL'
 #
 # Exit codes:
 #   0: notification sent
@@ -31,7 +31,8 @@
 
 if [ "${ZEVENT_VDEV_STATE_STR}" != "FAULTED" ] \
         && [ "${ZEVENT_VDEV_STATE_STR}" != "DEGRADED" ] \
-        && [ "${ZEVENT_VDEV_STATE_STR}" != "REMOVED" ]; then
+        && [ "${ZEVENT_VDEV_STATE_STR}" != "REMOVED" ] \
+        && [ "${ZEVENT_VDEV_STATE_STR}" != "UNAVAIL" ]; then
     exit 3
 fi
 
