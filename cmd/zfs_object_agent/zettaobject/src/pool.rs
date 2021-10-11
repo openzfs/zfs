@@ -19,6 +19,7 @@ use anyhow::Error;
 use anyhow::{Context, Result};
 use conv::ConvUtil;
 use futures::future;
+use futures::future::join;
 use futures::future::Either;
 use futures::future::Future;
 use futures::future::{join3, join5};
@@ -55,6 +56,7 @@ use util::maybe_die_with;
 use util::TerseVec;
 use uuid::Uuid;
 use zettacache::base_types::*;
+use zettacache::InsertSource;
 use zettacache::LookupResponse;
 use zettacache::ZettaCache;
 
@@ -1570,13 +1572,13 @@ impl Pool {
                         block
                     );
                 }
-                LookupResponse::Absent(key) => cache.insert(key, data2),
+                LookupResponse::Absent(key) => cache.insert(key, data2, InsertSource::Write).await,
             }
         }
         receiver.await.unwrap();
     }
 
-    async fn read_block_impl(&self, block: BlockId, bypass_cache: bool) -> Vec<u8> {
+    async fn read_object_for_block(&self, block: BlockId, bypass_cache: bool) -> DataObjectPhys {
         // If we are in the middle of resuming, wait for that to complete before
         // processing this read.  This is needed because we may be reading from
         // a block that hasn't yet been added to the ObjectBlockMap.
@@ -1601,6 +1603,12 @@ impl Pool {
         .unwrap();
         // XXX consider using debug_assert_eq
         assert_eq!(phys.blocks_size, phys.calculate_blocks_size());
+
+        phys
+    }
+
+    async fn read_block_impl(&self, block: BlockId, bypass_cache: bool) -> Vec<u8> {
+        let phys = self.read_object_for_block(block, bypass_cache).await;
         // XXX to_owned() copies the data; would be nice to return a reference
         phys.get_block(block).to_owned()
     }
@@ -1618,9 +1626,38 @@ impl Pool {
                 false => match cache.lookup(self.state.shared_state.guid, block).await {
                     LookupResponse::Present((cached_vec, _key, _value)) => cached_vec,
                     LookupResponse::Absent(key) => {
-                        let vec = self.read_block_impl(block, heal).await;
-                        // XXX clone() copies the data; would be nice to pass a reference
-                        cache.insert(key, vec.clone());
+                        let mut phys = self.read_object_for_block(block, heal).await;
+
+                        let vec = phys.blocks.remove(&block).unwrap().into_vec();
+
+                        join(
+                            async {
+                                // XXX Unfortunately, we must copy `vec` so that we can give it to `cache.insert`, while also returning it.
+                                cache.insert(key, vec.clone(), InsertSource::Read).await;
+                            },
+                            async {
+                                phys.blocks
+                                    .into_iter()
+                                    .map(|(b, buf)| async move {
+                                        if let LookupResponse::Absent(key) =
+                                            cache.lookup(self.state.shared_state.guid, b).await
+                                        {
+                                            cache
+                                                .insert(
+                                                    key,
+                                                    buf.into_vec(),
+                                                    InsertSource::SpeculativeRead,
+                                                )
+                                                .await;
+                                        }
+                                    })
+                                    .collect::<FuturesUnordered<_>>()
+                                    .for_each(|_| async move {})
+                                    .await;
+                            },
+                        )
+                        .await;
+
                         vec
                     }
                 },

@@ -13,6 +13,7 @@ mod space_map;
 mod zcachedb;
 mod zettacache;
 
+pub use crate::zettacache::InsertSource;
 pub use crate::zettacache::LookupResponse;
 pub use crate::zettacache::ZettaCache;
 pub use zcachedb::DumpStructuresOptions;

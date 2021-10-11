@@ -51,8 +51,8 @@ lazy_static! {
     static ref TARGET_CACHE_SIZE_PCT: u64 = get_tunable("target_cache_size_pct", 80);
     static ref HIGH_WATER_CACHE_SIZE_PCT: u64 = get_tunable("high_water_cache_size_pct", 82);
 
-    // number of insertions that can be buffered before we start dropping them; around a second's worth
-    static ref CACHE_INSERT_MAX_BUFFER: usize = get_tunable("cache_insert_max_buffer", 10_000);
+    static ref CACHE_INSERT_BLOCKING_BUFFER_BYTES: usize = get_tunable("cache_insert_blocking_buffer_bytes", 256_000_000);
+    static ref CACHE_INSERT_NONBLOCKING_BUFFER_BYTES: usize = get_tunable("cache_insert_nonblocking_buffer_bytes", 256_000_000);
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -132,7 +132,8 @@ pub struct ZettaCache {
     state: Arc<tokio::sync::Mutex<ZettaCacheState>>,
     outstanding_lookups: LockSet<IndexKey>,
     metrics: Arc<ZettaCacheMetrics>,
-    outstanding_inserts: Arc<Semaphore>,
+    blocking_buffer_bytes_available: Arc<Semaphore>,
+    nonblocking_buffer_bytes_available: Arc<Semaphore>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Copy, Clone)]
@@ -522,6 +523,13 @@ pub enum LookupResponse {
     Absent(LockedKey),
 }
 
+pub enum InsertSource {
+    Heal,
+    Read,
+    SpeculativeRead,
+    Write,
+}
+
 #[metered(registry=ZettaCacheMetrics)]
 impl ZettaCache {
     pub async fn create(path: &str) {
@@ -670,7 +678,12 @@ impl ZettaCache {
             state: Arc::new(tokio::sync::Mutex::new(state)),
             outstanding_lookups: LockSet::new(),
             metrics: Default::default(),
-            outstanding_inserts: Arc::new(Semaphore::new(*CACHE_INSERT_MAX_BUFFER)),
+            blocking_buffer_bytes_available: Arc::new(Semaphore::new(
+                *CACHE_INSERT_BLOCKING_BUFFER_BYTES,
+            )),
+            nonblocking_buffer_bytes_available: Arc::new(Semaphore::new(
+                *CACHE_INSERT_NONBLOCKING_BUFFER_BYTES,
+            )),
         };
 
         let (merge_rx, merge_index) = match checkpoint.merge_progress {
@@ -1033,17 +1046,36 @@ impl ZettaCache {
     #[measure(InFlight)]
     #[measure(Throughput)]
     #[measure(HitCount)]
-    pub fn insert(&self, locked_key: LockedKey, buf: Vec<u8>) {
+    pub async fn insert(&self, locked_key: LockedKey, buf: Vec<u8>, source: InsertSource) {
+        // The passed in buffer is only for a single block, which is capped to SPA_MAXBLOCKSIZE,
+        // and thus we should never have an issue converting the length to a "u32" here.
+        let bytes = u32::try_from(buf.len()).unwrap();
+
         // This permit will be dropped when the write to disk completes.  It
         // serves to limit the number of insert()'s that we can buffer before
         // dropping (ignoring) insertion requests.
-        let insert_permit = match self.outstanding_inserts.clone().try_acquire_owned() {
-            Ok(permit) => permit,
-            Err(tokio::sync::TryAcquireError::NoPermits) => {
-                self.insert_failed_max_queue_depth(locked_key.0.value());
-                return;
-            }
-            Err(e) => panic!("unexpected error from try_acquire: {:?}", e),
+        let insert_permit = match source {
+            InsertSource::Heal | InsertSource::SpeculativeRead | InsertSource::Write => match self
+                .nonblocking_buffer_bytes_available
+                .clone()
+                .try_acquire_many_owned(bytes)
+            {
+                Ok(permit) => permit,
+                Err(tokio::sync::TryAcquireError::NoPermits) => {
+                    self.insert_failed_max_queue_depth(locked_key.0.value());
+                    return;
+                }
+                Err(e) => panic!("unexpected error from try_acquire_many_owned: {:?}", e),
+            },
+            InsertSource::Read => match self
+                .blocking_buffer_bytes_available
+                .clone()
+                .acquire_many_owned(bytes)
+                .await
+            {
+                Ok(permit) => permit,
+                Err(e) => panic!("unexpected error from acquire_many_owned: {:?}", e),
+            },
         };
 
         let block_access = self.block_access.clone();
@@ -1108,7 +1140,8 @@ impl ZettaCache {
                         state.remove_from_index(*locked_key.0.value(), value);
                         state.block_allocator.free(value.extent());
                     }
-                    self.insert(locked_key, buf.to_owned());
+                    self.insert(locked_key, buf.to_owned(), InsertSource::Heal)
+                        .await;
                 }
             }
         }
