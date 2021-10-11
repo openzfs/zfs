@@ -327,7 +327,7 @@ stream_parse(char *filename, char **streamname)
 int
 zfs_find_dvp_vp(zfsvfs_t *zfsvfs, char *filename, int finalpartmaynotexist,
     int finalpartmustnotexist, char **lastname, struct vnode **dvpp,
-    struct vnode **vpp, int flags)
+    struct vnode **vpp, int flags, ULONG options)
 {
 	int error = ENOENT;
 	znode_t *zp;
@@ -402,8 +402,9 @@ zfs_find_dvp_vp(zfsvfs_t *zfsvfs, char *filename, int finalpartmaynotexist,
 		ASSERT(zp != NULL);
 		if (S_ISDIR(zp->z_mode)) {
 
-			// Quick check to see if we are reparsepoint directory
-			if (zp->z_pflags & ZFS_REPARSE) {
+			// Quick check to see if we are reparsepoint directory, and we should
+			// process it.
+			if (zp->z_pflags & ZFS_REPARSE && !(options & FILE_OPEN_REPARSE_POINT)) {
 /*
  * How reparse points work from the point of view of the filesystem appears to
  * undocumented. When returning STATUS_REPARSE, MSDN encourages us to return
@@ -436,6 +437,10 @@ zfs_find_dvp_vp(zfsvfs_t *zfsvfs, char *filename, int finalpartmaynotexist,
 				VN_RELE(dvp);
 				return (STATUS_REPARSE);
 			}
+			//if (zp->z_pflags & ZFS_REPARSE && (options & FILE_OPEN_REPARSE_POINT)) {
+			//	DbgBreakPoint();
+			//}
+
 
 			// Not reparse
 			VN_RELE(dvp);
@@ -816,7 +821,7 @@ zfs_vnop_lookup_impl(PIRP Irp, PIO_STACK_LOCATION IrpSp, mount_t *zmo,
 			error = zfs_find_dvp_vp(zfsvfs, filename,
 			    (CreateFile || OpenTargetDirectory),
 			    (CreateDisposition == FILE_CREATE),
-			    &finalname, &dvp, &vp, flags);
+			    &finalname, &dvp, &vp, flags, Options);
 
 		}
 
@@ -2682,8 +2687,9 @@ set_reparse_point(PDEVICE_OBJECT DeviceObject, PIRP Irp,
 
 	// Like zfs_symlink, write the data as SA attribute.
 	zfsvfs_t *zfsvfs = zp->z_zfsvfs;
-	int err;
+	int error;
 	dmu_tx_t	*tx;
+	boolean_t	fuid_dirtied;
 
 	// Set flags to indicate we are reparse point
 	zp->z_pflags |= ZFS_REPARSE;
@@ -2692,13 +2698,18 @@ set_reparse_point(PDEVICE_OBJECT DeviceObject, PIRP Irp,
 	// This code should probably call zfs_symlink()
 top:
 	tx = dmu_tx_create(zfsvfs->z_os);
+	fuid_dirtied = zfsvfs->z_fuid_dirty;
+	dmu_tx_hold_write(tx, DMU_NEW_OBJECT, 0, MAX(1, inlen));
 	dmu_tx_hold_zap(tx, zp->z_id, TRUE, NULL);
+	dmu_tx_hold_sa_create(tx, inlen);
 	dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
-	zfs_sa_upgrade_txholds(tx, zp);
-	err = dmu_tx_assign(tx, TXG_WAIT);
-	if (err) {
+	if (fuid_dirtied)
+		zfs_fuid_txhold(zfsvfs, tx);
+
+	error = dmu_tx_assign(tx, TXG_WAIT);
+	if (error) {
 		dmu_tx_abort(tx);
-		if (err == ERESTART)
+		if (error == ERESTART)
 			goto top;
 		goto out;
 	}
@@ -2708,13 +2719,101 @@ top:
 
 	mutex_enter(&zp->z_lock);
 	if (zp->z_is_sa)
-		err = sa_update(zp->z_sa_hdl, SA_ZPL_SYMLINK(zfsvfs),
+		error = sa_update(zp->z_sa_hdl, SA_ZPL_SYMLINK(zfsvfs),
 		    buffer, inlen, tx);
 	else
 		zfs_sa_symlink(zp, buffer, inlen, tx);
 	mutex_exit(&zp->z_lock);
 
 	zp->z_size = inlen;
+	(void) sa_update(zp->z_sa_hdl, SA_ZPL_SIZE(zfsvfs),
+	    &zp->z_size, sizeof (zp->z_size), tx);
+
+	dmu_tx_commit(tx);
+
+	if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
+		zil_commit(zfsvfs->z_log, 0);
+
+out:
+	VN_RELE(vp);
+
+	dprintf("%s: returning 0x%x\n", __func__, Status);
+
+	return (Status);
+}
+
+NTSTATUS
+delete_reparse_point(PDEVICE_OBJECT DeviceObject, PIRP Irp,
+    PIO_STACK_LOCATION IrpSp)
+{
+	NTSTATUS Status = STATUS_NOT_IMPLEMENTED;
+	PFILE_OBJECT FileObject = IrpSp->FileObject;
+	DWORD inlen = IrpSp->Parameters.DeviceIoControl.InputBufferLength;
+	void *buffer = Irp->AssociatedIrp.SystemBuffer;
+	REPARSE_DATA_BUFFER *rdb = buffer;
+	ULONG tag;
+	struct vnode *vp = IrpSp->FileObject->FsContext;
+
+	if (!FileObject)
+		return (STATUS_INVALID_PARAMETER);
+
+	if (Irp->UserBuffer)
+		return (STATUS_INVALID_PARAMETER);
+
+	if (inlen < sizeof (ULONG)) {
+		return (STATUS_INVALID_BUFFER_SIZE);
+	}
+
+	if (inlen < offsetof(REPARSE_DATA_BUFFER, GenericReparseBuffer.DataBuffer)) 
+		return (STATUS_INVALID_PARAMETER);
+
+	if (rdb->ReparseDataLength > 0) 
+		return (STATUS_INVALID_PARAMETER);
+
+	VN_HOLD(vp);
+	znode_t *zp = VTOZ(vp);
+
+	// Like zfs_symlink, write the data as SA attribute.
+	zfsvfs_t *zfsvfs = zp->z_zfsvfs;
+	int error;
+	dmu_tx_t	*tx;
+	boolean_t	fuid_dirtied;
+
+	// Remove flags to indicate we are reparse point
+	zp->z_pflags &= ~ZFS_REPARSE;
+
+	// Start TX and save FLAGS, SIZE and SYMLINK to disk.
+	// This code should probably call zfs_symlink()
+top:
+	tx = dmu_tx_create(zfsvfs->z_os);
+	fuid_dirtied = zfsvfs->z_fuid_dirty;
+	dmu_tx_hold_write(tx, DMU_NEW_OBJECT, 0, MAX(1, inlen));
+	dmu_tx_hold_zap(tx, zp->z_id, TRUE, NULL);
+	dmu_tx_hold_sa_create(tx, inlen);
+	dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
+	if (fuid_dirtied)
+		zfs_fuid_txhold(zfsvfs, tx);
+
+	error = dmu_tx_assign(tx, TXG_WAIT);
+	if (error) {
+		dmu_tx_abort(tx);
+		if (error == ERESTART)
+			goto top;
+		goto out;
+	}
+
+	(void) sa_update(zp->z_sa_hdl, SA_ZPL_FLAGS(zfsvfs),
+	    &zp->z_pflags, sizeof (zp->z_pflags), tx);
+
+	mutex_enter(&zp->z_lock);
+	if (zp->z_is_sa)
+		error = sa_remove(zp->z_sa_hdl, SA_ZPL_SYMLINK(zfsvfs),
+		    tx);
+	else
+		zfs_sa_symlink(zp, buffer, 0, tx);
+	mutex_exit(&zp->z_lock);
+
+	zp->z_size = 0;	// If dir size > 2 -> ENOTEMPTY
 	(void) sa_update(zp->z_sa_hdl, SA_ZPL_SIZE(zfsvfs),
 	    &zp->z_size, sizeof (zp->z_size), tx);
 
@@ -2843,6 +2942,10 @@ user_fs_request(PDEVICE_OBJECT DeviceObject, PIRP Irp,
 	case FSCTL_SET_REPARSE_POINT:
 		dprintf("    FSCTL_SET_REPARSE_POINT\n");
 		Status = set_reparse_point(DeviceObject, Irp, IrpSp);
+		break;
+	case FSCTL_DELETE_REPARSE_POINT:
+		dprintf("    FSCTL_DELETE_REPARSE_POINT\n");
+		Status = delete_reparse_point(DeviceObject, Irp, IrpSp);
 		break;
 	case FSCTL_CREATE_OR_GET_OBJECT_ID:
 		dprintf("    FSCTL_CREATE_OR_GET_OBJECT_ID\n");
@@ -3563,7 +3666,6 @@ fs_write(PDEVICE_OBJECT DeviceObject, PIRP Irp, PIO_STACK_LOCATION IrpSp)
 
 	if (!nocache && !CcCanIWrite(fileObject, bufferLength, TRUE, FALSE)) {
 		Status = STATUS_PENDING;
-		DbgBreakPoint();
 		goto out;
 	}
 

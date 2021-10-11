@@ -2317,7 +2317,7 @@ file_link_information(PDEVICE_OBJECT DeviceObject, PIRP Irp,
 		filename = &filename[6];
 
 	error = zfs_find_dvp_vp(zfsvfs, filename, 1, 0, &remainder, &tdvp,
-	    &tvp, 0);
+	    &tvp, 0, 0);
 	if (error) {
 		if (tdvp) VN_RELE(tdvp);
 		if (RootFileObject) ObDereferenceObject(RootFileObject);
@@ -2530,7 +2530,7 @@ file_rename_information(PDEVICE_OBJECT DeviceObject, PIRP Irp,
 		}
 
 		error = zfs_find_dvp_vp(zfsvfs, filename, 1, 0, &remainder,
-		    &tdvp, &tvp, 0);
+		    &tdvp, &tvp, 0, 0);
 		if (error) {
 			Status = STATUS_OBJECTID_NOT_FOUND;
 			goto out;

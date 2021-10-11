@@ -111,7 +111,7 @@ extern uint32_t zfs_getwinflags(znode_t *zp);
 extern NTSTATUS zfs_setunlink(FILE_OBJECT *fo, vnode_t *dvp);
 extern int zfs_find_dvp_vp(zfsvfs_t *, char *, int finalpartmaynotexist,
     int finalpartmustnotexist, char **lastname, struct vnode **dvpp,
-    struct vnode **vpp, int flags);
+    struct vnode **vpp, int flags, ULONG options);
 
 /* IRP_MJ_SET_INFORMATION helpers */
 extern NTSTATUS file_disposition_information(PDEVICE_OBJECT, PIRP,

@@ -827,6 +827,35 @@ CreateReparsePoint(POBJECT_ATTRIBUTES poa, PCUNICODE_STRING SubstituteName,
 	return (status);
 }
 
+NTSTATUS
+DeleteReparsePoint(POBJECT_ATTRIBUTES poa)
+{
+	HANDLE hFile;
+	IO_STATUS_BLOCK iosb;
+	NTSTATUS status;
+	REPARSE_DATA_BUFFER ReparseData;
+	DWORD BytesReturned = 0;
+
+	dprintf("%s: \n", __func__);
+
+	status = ZwCreateFile(&hFile, FILE_ALL_ACCESS, poa, &iosb, 0, 0, 0,
+	    FILE_OPEN_IF, FILE_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT |
+	    FILE_OPEN_FOR_BACKUP_INTENT | FILE_OPEN_REPARSE_POINT,
+	    0, 0);
+	if (0 > status)
+		return (status);
+	dprintf("%s: create ok\n", __func__);
+
+        memset(&ReparseData, 0, REPARSE_DATA_BUFFER_HEADER_SIZE);
+        ReparseData.ReparseTag = IO_REPARSE_TAG_MOUNT_POINT;
+
+	status = ZwFsControlFile(hFile, 0, 0, 0, &iosb, FSCTL_DELETE_REPARSE_POINT, &ReparseData, 
+			REPARSE_DATA_BUFFER_HEADER_SIZE, NULL, 0);
+
+	ZwClose(hFile);
+	return (status);
+}
+
 /*
  * go through all mointpoints (IOCTL_MOUNTMGR_QUERY_POINTS)
  * and check if our driveletter is in the list
@@ -1496,14 +1525,13 @@ zfs_windows_unmount(zfs_cmd_t *zc)
 	int error = EBUSY;
 	znode_t *zp;
 	// int rdonly;
-
 	if (getzfsvfs(zc->zc_name, &zfsvfs) == 0) {
 
 		zmo = zfsvfs->z_vfs;
 		NTSTATUS ntstatus;
 		ASSERT(zmo->type == MOUNT_TYPE_VCB);
 
-		// DbgBreakPoint();
+		//DbgBreakPoint();
 
 #if 0
 		// Try issuing DISMOUNT ... this wont work unless
@@ -1561,7 +1589,8 @@ zfs_windows_unmount(zfs_cmd_t *zc)
 		// rdonly = !spa_writeable(dmu_objset_spa(zfsvfs->z_os));
 		error = zfs_vfs_unmount(zmo, 0, NULL);
 		dprintf("%s: zfs_vfs_unmount %d\n", __func__, error);
-		if (error) goto out_unlock;
+		if (error)
+			goto out_unlock;
 
 		// Delete mountpoints for our volume manually
 		// Query the mountmgr for mountpoints and delete them
@@ -1593,6 +1622,19 @@ zfs_windows_unmount(zfs_cmd_t *zc)
 
 		// Save the parent device
 		zmo_dcb = zmo->parent_device;
+
+		// DbgBreakPoint();
+
+		// If mount uses reparsepoint (not driveletter)
+		OBJECT_ATTRIBUTES poa;
+		InitializeObjectAttributes(&poa,
+		    &zmo_dcb->mountpoint, OBJ_KERNEL_HANDLE, NULL, NULL);
+		dprintf("Deleting reparse mountpoint '%wZ'\n",
+		    &zmo_dcb->mountpoint);
+		DeleteReparsePoint(&poa);
+
+		// Remove directory
+		ZwDeleteFile(&poa);
 
 		// Release any notifications
 #if (NTDDI_VERSION >= NTDDI_VISTA)
