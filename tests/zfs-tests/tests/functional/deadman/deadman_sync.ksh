@@ -80,10 +80,10 @@ else
 fi
 log_must zpool events
 
-# Verify at least 5 deadman events were logged.  The first after 5 seconds,
+# Verify at least 4 deadman events were logged.  The first after 5 seconds,
 # and another each second thereafter until the delay  is clearer.
 events=$(zpool events | grep -c ereport.fs.zfs.deadman)
-if [ "$events" -lt 5 ]; then
+if [ "$events" -lt 4 ]; then
 	log_fail "Expect >=5 deadman events, $events found"
 fi
 
