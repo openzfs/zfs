@@ -254,7 +254,7 @@ impl<T: BlockBasedLogEntry> BlockBasedLog<T> {
     }
 
     /// Iterates the on-disk state; panics if there are pending changes.
-    pub fn iter(&self) -> impl Stream<Item = T> {
+    fn iter_chunks(&self) -> impl Stream<Item = (BlockBasedLogChunk<T>, DiskLocation)> {
         assert!(self.pending_entries.is_empty());
         // XXX is it possible to do this without copying self.phys.extents?  Not
         // a huge deal I guess since it should be small.
@@ -262,7 +262,6 @@ impl<T: BlockBasedLogEntry> BlockBasedLog<T> {
         let block_access = self.block_access.clone();
         let next_chunk_offset = self.phys.next_chunk_offset;
         stream! {
-            let mut num_entries = 0;
             let mut chunk_id = ChunkId(0);
             for (offset, extent) in phys.extents.iter() {
                 // XXX Probably want to do smaller i/os than the entire extent
@@ -284,10 +283,7 @@ impl<T: BlockBasedLogEntry> BlockBasedLog<T> {
                         .with_context(|| format!("{:?} at {:?}", chunk_id, chunk_location))
                         .unwrap();
                     assert_eq!(chunk.id, chunk_id);
-                    for entry in chunk.entries {
-                        yield entry;
-                        num_entries += 1;
-                    }
+                    yield (chunk, chunk_location);
                     chunk_id = chunk_id.next();
                     total_consumed += consumed;
                     if chunk_id == phys.next_chunk {
@@ -295,8 +291,31 @@ impl<T: BlockBasedLogEntry> BlockBasedLog<T> {
                     }
                 }
             }
-            assert_eq!(phys.num_entries, num_entries);
         }
+    }
+
+    pub fn iter(&self) -> impl Stream<Item = T> {
+        let stream = self.iter_chunks();
+        let phys_entries = self.phys.num_entries;
+
+        stream! {
+            let mut num_entries = 0;
+            for await (chunk, _) in stream {
+                for entry in chunk.entries {
+                    yield entry;
+                    num_entries += 1;
+                }
+            };
+            assert_eq!(phys_entries, num_entries);
+        }
+    }
+
+    pub async fn zcachedb_dump_chunks(&self) {
+        self.iter_chunks()
+            .for_each(|(chunk, location)| async move {
+                println!("{:?} from {:?}", chunk.id, location);
+            })
+            .await;
     }
 }
 

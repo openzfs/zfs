@@ -605,6 +605,12 @@ impl ZettaCache {
             zcachedb_dump_spacemaps(block_access, extent_allocator, checkpoint.block_allocator)
                 .await;
         }
+
+        let block_access = Arc::new(BlockAccess::new(path).await);
+        let extent_allocator = Arc::new(ExtentAllocator::open(&checkpoint.extent_allocator));
+        let operation_log =
+            BlockBasedLog::open(block_access, extent_allocator, checkpoint.operation_log);
+        operation_log.zcachedb_dump_chunks().await;
     }
 
     pub async fn open(path: &str) -> ZettaCache {
