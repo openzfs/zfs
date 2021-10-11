@@ -105,11 +105,18 @@
 #ZED_RUNDIR="/var/run"
 
 ##
-# Turn on/off enclosure LEDs when drives get DEGRADED/FAULTED.  This works for
-# device mapper and multipath devices as well.  Your enclosure must be
+# Allow zed to turn on/off enclosure LEDs depending on drive state. This works
+# for device mapper and multipath devices as well.  Your enclosure must be
 # supported by the Linux SES driver for this to work.
-#
-ZED_USE_ENCLOSURE_LEDS=1
+
+# Allow zed to control enclosure Fault LEDs
+ZED_USE_ENCLOSURE_FAULT_LEDS=1
+
+# Allow zed to control enclosure Locate LEDs
+ZED_USE_ENCLOSURE_LOCATE_LEDS=1
+
+# Deprecated, superseeded by ZED_USE_ENCLOSURE_FAULT_LEDS:
+#ZED_USE_ENCLOSURE_LEDS=1
 
 ##
 # Run a scrub after every resilver

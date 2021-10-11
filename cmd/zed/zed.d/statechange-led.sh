@@ -1,9 +1,18 @@
 #!/bin/sh
 #
-# Turn off/on vdevs' enclosure fault LEDs when their pool's state changes.
+# Turn off/on vdevs' enclosure LEDs when their pool's state changes.
+# Honors the zed.rc configuration variables ZED_USE_ENCLOSURE_FAULT_LEDS
+# and ZED_USE_ENCLOSURE_LOCATE_LEDS.
 #
-# Turn a vdev's fault LED on if it becomes FAULTED, DEGRADED or UNAVAIL.
-# Turn its LED off when it's back ONLINE again.
+# If both LEDs are available, they are lit as below depending on the vdev
+# state. If only one LED is available, it is used to indicate all states below.
+#
+# State                         Fault LED       Locate LED
+# ONLINE                        OFF             OFF
+# OFFLINE                       OFF             ON
+# FAULTED or DEGRADED           ON              OFF
+# REMOVED or UNAVAIL            ON              ON
+#
 #
 # This script run in two basic modes:
 #
@@ -33,8 +42,17 @@ if [ ! -d /sys/class/enclosure ] ; then
 	exit 1
 fi
 
-if [ "${ZED_USE_ENCLOSURE_LEDS}" != "1" ] ; then
+if [ "${ZED_USE_ENCLOSURE_FAULT_LEDS}" != "1" ] && \
+	[ "${ZED_USE_ENCLOSURE_LOCATE_LEDS}" != "1" ] && \
+	[ "${ZED_USE_ENCLOSURE_LEDS}" != "1" ]
+then
 	exit 2
+fi
+
+# Honor deprecated setting unless newer setting exists.
+if [ -z "${ZED_USE_ENCLOSURE_FAULT_LEDS}" ] && [ -n "${ZED_USE_ENCLOSURE_LEDS}" ]
+then
+	ZED_USE_ENCLOSURE_FAULT_LEDS="${ZED_USE_ENCLOSURE_LEDS}"
 fi
 
 zed_check_cmd "$ZPOOL" || exit 4
@@ -72,7 +90,7 @@ check_and_set_led()
 	# timeout.
 	for _ in 1 2 3 4 5; do
 		# We want to check the current state first, since writing to the
-		# 'fault' entry always causes a SES command, even if the
+		# led entry always causes a SES command, even if the
 		# current state is already what you want.
 		read -r current < "${file}"
 
@@ -94,13 +112,62 @@ check_and_set_led()
 
 state_to_val()
 {
-	state="$1"
+	led="$1"
+	state="$2"
+
+	if [ "$led" = "fault" ] && [ "${ZED_USE_ENCLOSURE_FAULT_LEDS}" != "1" ]
+	then
+		return 0
+	fi
+	if [ "$led" = "locate" ] && [ "${ZED_USE_ENCLOSURE_LOCATE_LEDS}" != "1" ]
+	then
+		return 0
+	fi
+
+	fault=""
+	locate=""
+
+	# Enumerate based on LED states.
 	case "$state" in
-		FAULTED|DEGRADED|UNAVAIL)
-			echo 1
-			;;
 		ONLINE)
-			echo 0
+			fault=0
+			locate=0
+			;;
+		OFFLINE)
+			fault=0
+			locate=1
+			;;
+		FAULTED|DEGRADED)
+			fault=1
+			locate=0
+			;;
+		REMOVED|UNAVAIL)
+			fault=1
+			locate=1
+			;;
+		*)
+			zed_log_msg "$0 state_to_val state='$state': LED mapping unknown"
+			;;
+	esac
+
+	# If we're not allowed to use both LEDs, map all states onto the one
+	# LED left.
+	if [ "${ZED_USE_ENCLOSURE_FAULT_LEDS}" != "1" ] && [ "$fault" = "1" ]; then
+		locate=1
+	fi
+	if [ "${ZED_USE_ENCLOSURE_LOCATE_LEDS}" != "1" ] && [ "$locate" = "1" ]; then
+		fault=1
+	fi
+
+	case "$led" in
+		fault)
+			echo "$fault"
+			;;
+		locate)
+			echo "$locate"
+			;;
+		*)
+			zed_log_msg "$0 state_to_val error: led=$led not understood"
 			;;
 	esac
 }
@@ -120,56 +187,49 @@ process_pool()
 {
 	pool="$1"
 
-	# The output will be the vdevs only (from "grep '/dev/'"):
+	# The output will be the vdevs only (filtering on '/dev/'):
 	#
-	#    U45     ONLINE       0     0     0   /dev/sdk          0
-	#    U46     ONLINE       0     0     0   /dev/sdm          0
-	#    U47     ONLINE       0     0     0   /dev/sdn          0
-	#    U50     ONLINE       0     0     0  /dev/sdbn          0
+	#    U45     ONLINE       0     0     0   /dev/sdk
+	#    U46     ONLINE       0     0     0   /dev/sdm
+	#    U47     ONLINE       0     0     0   /dev/sdn
+	#    U50     ONLINE       0     0     0   Potential info message /dev/sdbn
 	#
-	ZPOOL_SCRIPTS_AS_ROOT=1 $ZPOOL status -c upath,fault_led "$pool" | grep '/dev/' | (
+	ZPOOL_SCRIPTS_AS_ROOT=1 $ZPOOL status -c upath "$pool" | awk '/\/dev\// {print $1 " " $2 " " $NF}' | (
 	rc=0
-	while read -r vdev state _ _ _ therest; do
-		# Read out current LED value and path
+	while read -r vdev state dev; do
+		# Read out current LED values and path
 		# Get dev name (like 'sda')
-		dev=$(basename "$(echo "$therest" | awk '{print $(NF-1)}')")
-		vdev_enc_sysfs_path=$(realpath "/sys/class/block/$dev/device/enclosure_device"*)
-		current_val=$(echo "$therest" | awk '{print $NF}')
-
-		if [ "$current_val" != "0" ] ; then
-			current_val=1
-		fi
-
+		dev=$(basename "$dev")
+		vdev_enc_sysfs_path=$(realpath "/sys/class/block/$dev/device/enclosure_device"* 2>/dev/null)
 		if [ -z "$vdev_enc_sysfs_path" ] ; then
 			# Skip anything with no sysfs LED entries
 			continue
 		fi
 
-		if [ ! -e "$vdev_enc_sysfs_path/fault" ] ; then
-			rc=3
-			zed_log_msg "vdev $vdev '$file/fault' doesn't exist"
-			continue
-		fi
+		for encled in fault locate; do
+			if [ ! -e "$vdev_enc_sysfs_path/$encled" ] ; then
+				rc=3
+				zed_log_msg "vdev $vdev '$file/$encled' doesn't exist"
+				continue
+			fi
 
-		val=$(state_to_val "$state")
+			val=$(state_to_val "$encled" "$state")
 
-		if [ "$current_val" = "$val" ] ; then
-			# LED is already set correctly
-			continue
-		fi
-
-		if ! check_and_set_led "$vdev_enc_sysfs_path/fault" "$val"; then
-			rc=3
-		fi
+			if ! check_and_set_led "$vdev_enc_sysfs_path/$encled" "$val"; then
+				rc=3
+			fi
+		done
 	done
 	exit "$rc"; )
 }
 
 if [ -n "$ZEVENT_VDEV_ENC_SYSFS_PATH" ] && [ -n "$ZEVENT_VDEV_STATE_STR" ] ; then
 	# Got a statechange for an individual vdev
-	val=$(state_to_val "$ZEVENT_VDEV_STATE_STR")
 	vdev=$(basename "$ZEVENT_VDEV_PATH")
-	check_and_set_led "$ZEVENT_VDEV_ENC_SYSFS_PATH/fault" "$val"
+	for encled in fault locate; do
+		val=$(state_to_val "$encled" "$ZEVENT_VDEV_STATE_STR")
+		check_and_set_led "$ZEVENT_VDEV_ENC_SYSFS_PATH/$encled" "$val"
+	done
 else
 	# Process the entire pool
 	poolname=$(zed_guid_to_pool "$ZEVENT_POOL_GUID")
