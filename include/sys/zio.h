@@ -104,7 +104,7 @@ enum zio_checksum {
 #define	ZIO_CHECKSUM_DEFAULT	ZIO_CHECKSUM_ON
 
 #define	ZIO_CHECKSUM_MASK	0xffULL
-#define	ZIO_CHECKSUM_VERIFY	(1 << 8)
+#define	ZIO_CHECKSUM_VERIFY	(1U << 8)
 
 #define	ZIO_DEDUPCHECKSUM	ZIO_CHECKSUM_SHA256
 
@@ -169,27 +169,27 @@ enum zio_flag {
 	 * Flags inherited by gang, ddt, and vdev children,
 	 * and that must be equal for two zios to aggregate
 	 */
-	ZIO_FLAG_DONT_AGGREGATE	= 1 << 0,
-	ZIO_FLAG_IO_REPAIR	= 1 << 1,
-	ZIO_FLAG_SELF_HEAL	= 1 << 2,
-	ZIO_FLAG_RESILVER	= 1 << 3,
-	ZIO_FLAG_SCRUB		= 1 << 4,
-	ZIO_FLAG_SCAN_THREAD	= 1 << 5,
-	ZIO_FLAG_PHYSICAL	= 1 << 6,
+	ZIO_FLAG_DONT_AGGREGATE	= 1U << 0,
+	ZIO_FLAG_IO_REPAIR	= 1U << 1,
+	ZIO_FLAG_SELF_HEAL	= 1U << 2,
+	ZIO_FLAG_RESILVER	= 1U << 3,
+	ZIO_FLAG_SCRUB		= 1U << 4,
+	ZIO_FLAG_SCAN_THREAD	= 1U << 5,
+	ZIO_FLAG_PHYSICAL	= 1U << 6,
 
 #define	ZIO_FLAG_AGG_INHERIT	(ZIO_FLAG_CANFAIL - 1)
 
 	/*
 	 * Flags inherited by ddt, gang, and vdev children.
 	 */
-	ZIO_FLAG_CANFAIL	= 1 << 7,	/* must be first for INHERIT */
-	ZIO_FLAG_SPECULATIVE	= 1 << 8,
-	ZIO_FLAG_CONFIG_WRITER	= 1 << 9,
-	ZIO_FLAG_DONT_RETRY	= 1 << 10,
-	ZIO_FLAG_DONT_CACHE	= 1 << 11,
-	ZIO_FLAG_NODATA		= 1 << 12,
-	ZIO_FLAG_INDUCE_DAMAGE	= 1 << 13,
-	ZIO_FLAG_IO_ALLOCATING  = 1 << 14,
+	ZIO_FLAG_CANFAIL	= 1U << 7,	/* must be first for INHERIT */
+	ZIO_FLAG_SPECULATIVE	= 1U << 8,
+	ZIO_FLAG_CONFIG_WRITER	= 1U << 9,
+	ZIO_FLAG_DONT_RETRY	= 1U << 10,
+	ZIO_FLAG_DONT_CACHE	= 1U << 11,
+	ZIO_FLAG_NODATA		= 1U << 12,
+	ZIO_FLAG_INDUCE_DAMAGE	= 1U << 13,
+	ZIO_FLAG_IO_ALLOCATING  = 1U << 14,
 
 #define	ZIO_FLAG_DDT_INHERIT	(ZIO_FLAG_IO_RETRY - 1)
 #define	ZIO_FLAG_GANG_INHERIT	(ZIO_FLAG_IO_RETRY - 1)
@@ -197,29 +197,29 @@ enum zio_flag {
 	/*
 	 * Flags inherited by vdev children.
 	 */
-	ZIO_FLAG_IO_RETRY	= 1 << 15,	/* must be first for INHERIT */
-	ZIO_FLAG_PROBE		= 1 << 16,
-	ZIO_FLAG_TRYHARD	= 1 << 17,
-	ZIO_FLAG_OPTIONAL	= 1 << 18,
+	ZIO_FLAG_IO_RETRY	= 1U << 15,	/* must be first for INHERIT */
+	ZIO_FLAG_PROBE		= 1U << 16,
+	ZIO_FLAG_TRYHARD	= 1U << 17,
+	ZIO_FLAG_OPTIONAL	= 1U << 18,
 
 #define	ZIO_FLAG_VDEV_INHERIT	(ZIO_FLAG_DONT_QUEUE - 1)
 
 	/*
 	 * Flags not inherited by any children.
 	 */
-	ZIO_FLAG_DONT_QUEUE	= 1 << 19,	/* must be first for INHERIT */
-	ZIO_FLAG_DONT_PROPAGATE	= 1 << 20,
-	ZIO_FLAG_IO_BYPASS	= 1 << 21,
-	ZIO_FLAG_IO_REWRITE	= 1 << 22,
-	ZIO_FLAG_RAW_COMPRESS	= 1 << 23,
-	ZIO_FLAG_RAW_ENCRYPT	= 1 << 24,
-	ZIO_FLAG_GANG_CHILD	= 1 << 25,
-	ZIO_FLAG_DDT_CHILD	= 1 << 26,
-	ZIO_FLAG_GODFATHER	= 1 << 27,
-	ZIO_FLAG_NOPWRITE	= 1 << 28,
-	ZIO_FLAG_REEXECUTED	= 1 << 29,
-	ZIO_FLAG_DELEGATED	= 1 << 30,
-	ZIO_FLAG_FASTWRITE	= 1 << 31,
+	ZIO_FLAG_DONT_QUEUE	= 1U << 19,	/* must be first for INHERIT */
+	ZIO_FLAG_DONT_PROPAGATE	= 1U << 20,
+	ZIO_FLAG_IO_BYPASS	= 1U << 21,
+	ZIO_FLAG_IO_REWRITE	= 1U << 22,
+	ZIO_FLAG_RAW_COMPRESS	= 1U << 23,
+	ZIO_FLAG_RAW_ENCRYPT	= 1U << 24,
+	ZIO_FLAG_GANG_CHILD	= 1U << 25,
+	ZIO_FLAG_DDT_CHILD	= 1U << 26,
+	ZIO_FLAG_GODFATHER	= 1U << 27,
+	ZIO_FLAG_NOPWRITE	= 1U << 28,
+	ZIO_FLAG_REEXECUTED	= 1U << 29,
+	ZIO_FLAG_DELEGATED	= 1U << 30,
+	ZIO_FLAG_FASTWRITE	= 1U << 31,
 };
 
 #define	ZIO_FLAG_MUSTSUCCEED		0
@@ -237,8 +237,8 @@ enum zio_flag {
 	(((zio)->io_flags & ZIO_FLAG_VDEV_INHERIT) |		\
 	ZIO_FLAG_DONT_PROPAGATE | ZIO_FLAG_CANFAIL)
 
-#define	ZIO_CHILD_BIT(x)		(1 << (x))
-#define	ZIO_CHILD_BIT_IS_SET(val, x)	((val) & (1 << (x)))
+#define	ZIO_CHILD_BIT(x)		(1U << (x))
+#define	ZIO_CHILD_BIT_IS_SET(val, x)	((val) & (1U << (x)))
 
 enum zio_child {
 	ZIO_CHILD_VDEV = 0,
@@ -404,7 +404,7 @@ typedef zio_t *zio_pipe_stage_t(zio_t *zio);
  * only apply to ZIO_TYPE_TRIM zios are distinct from io_flags.
  */
 enum trim_flag {
-	ZIO_TRIM_SECURE		= 1 << 0,
+	ZIO_TRIM_SECURE		= 1U << 0,
 };
 
 typedef struct zio_alloc_list {
