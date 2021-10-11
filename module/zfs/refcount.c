@@ -318,6 +318,14 @@ zfs_refcount_not_held(zfs_refcount_t *rc, const void *holder)
 	return (B_TRUE);
 }
 
+EXPORT_SYMBOL(zfs_refcount_create);
+EXPORT_SYMBOL(zfs_refcount_destroy);
+EXPORT_SYMBOL(zfs_refcount_is_zero);
+EXPORT_SYMBOL(zfs_refcount_count);
+EXPORT_SYMBOL(zfs_refcount_add);
+EXPORT_SYMBOL(zfs_refcount_remove);
+EXPORT_SYMBOL(zfs_refcount_held);
+
 /* BEGIN CSTYLED */
 ZFS_MODULE_PARAM(zfs, ,reference_tracking_enable, INT, ZMOD_RW,
 	"Track reference holders to refcount_t objects");
