@@ -124,8 +124,9 @@ procfs_list_install(const char *module,
 		kstat_set_seq_raw_ops(procfs_kstat, show_header,
 		    procfs_list_data, procfs_list_addr);
 		kstat_install(procfs_kstat);
-		procfs_list->pl_private = procfs_kstat;
 	}
+
+	procfs_list->pl_private = procfs_kstat;
 }
 
 void
@@ -137,7 +138,8 @@ void
 procfs_list_destroy(procfs_list_t *procfs_list)
 {
 	ASSERT(list_is_empty(&procfs_list->pl_list));
-	kstat_delete(procfs_list->pl_private);
+	if (procfs_list->pl_private != NULL)
+		kstat_delete(procfs_list->pl_private);
 	list_destroy(&procfs_list->pl_list);
 	mutex_destroy(&procfs_list->pl_lock);
 }
