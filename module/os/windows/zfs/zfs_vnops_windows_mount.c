@@ -1531,7 +1531,7 @@ zfs_windows_unmount(zfs_cmd_t *zc)
 		NTSTATUS ntstatus;
 		ASSERT(zmo->type == MOUNT_TYPE_VCB);
 
-		//DbgBreakPoint();
+		// DbgBreakPoint();
 
 #if 0
 		// Try issuing DISMOUNT ... this wont work unless
@@ -1548,7 +1548,9 @@ zfs_windows_unmount(zfs_cmd_t *zc)
 		zmo->deviceObject->Vpb->Flags &= ~VPB_MOUNTED;
 
 		// Carry on like ZFSin
-		zfs_remove_driveletter(zmo);
+		// This appears no longer required, and seems to kill the mount
+		// (remounts will fail) 
+		// zfs_remove_driveletter(zmo);
 
 #if 1
 		// Try issuing DISMOUNT ... this wont work unless
