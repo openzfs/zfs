@@ -29,13 +29,13 @@ wdk_add_library(icpkern
   api/kcf_miscapi.c
   asm-x86_64/aes/aeskey.c
   asm-x86_64/aes/aes_aesni.S
-  asm-x86_64/aes/aes_amd64.S
+#  asm-x86_64/aes/aes_amd64.S
   asm-x86_64/modes/aesni-gcm-x86_64.S
   asm-x86_64/modes/gcm_pclmulqdq.S
   asm-x86_64/modes/ghash-x86_64.S
-  asm-x86_64/sha1/sha1-x86_64.S
-  asm-x86_64/sha2/sha256_impl.S
-  asm-x86_64/sha2/sha512_impl.S
+#  asm-x86_64/sha1/sha1-x86_64.S
+#  asm-x86_64/sha2/sha256_impl.S
+#  asm-x86_64/sha2/sha512_impl.S
   core/kcf_callprov.c
   core/kcf_mech_tabs.c
   core/kcf_prov_lib.c

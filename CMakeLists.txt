@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.13)
-project(OpenZFS)
+project(OpenZFS LANGUAGES C CXX ASM)
+SET (CMAKE_ASM_COMPILER_ID Clang)
+SET (CMAKE_ASM_COMPILER clang-cl.exe)
 
 include(GNUInstallDirs)
 
