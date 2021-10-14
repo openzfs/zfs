@@ -39,18 +39,14 @@
 
 verify_runnable "both"
 
-oldvalue=$(get_tunable SPA_ASIZE_INFLATION)
 function cleanup
 {
-	set_tunable32 SPA_ASIZE_INFLATION $oldvalue
         log_must zfs destroy -rf $TESTPOOL/$TESTFS
         log_must zfs create $TESTPOOL/$TESTFS
         log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
 }
 
 log_onexit cleanup
-
-set_tunable32 SPA_ASIZE_INFLATION 2
 
 TESTFILE='testfile'
 FS=$TESTPOOL/$TESTFS
