@@ -79,6 +79,7 @@ static zfs_uri_handler_t uri_handlers[] = {
 	{ NULL, NULL }
 };
 
+#ifndef _WIN32
 static int
 pkcs11_get_urandom(uint8_t *buf, size_t bytes)
 {
@@ -101,6 +102,15 @@ pkcs11_get_urandom(uint8_t *buf, size_t bytes)
 
 	return (bytes_read);
 }
+#else
+static int
+pkcs11_get_urandom(uint8_t *buf, size_t bytes)
+{
+	// random_init()/random_fini() are empty
+	random_get_bytes((uint8_t *)buf, bytes);
+	return (bytes);
+}
+#endif
 
 static int
 zfs_prop_parse_keylocation(libzfs_handle_t *restrict hdl, const char *str,
