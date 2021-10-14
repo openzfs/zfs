@@ -521,15 +521,6 @@ This is useful if you suspect your datasets are affected by a bug in
 .It Sy spa_config_path Ns = Ns Pa /etc/zfs/zpool.cache Pq charp
 SPA config file.
 .
-.It Sy spa_asize_inflation Ns = Ns Sy 24 Pq uint
-Multiplication factor used to estimate actual disk consumption from the
-size of data being written.
-The default value is a worst case estimate,
-but lower values may be valid for a given pool depending on its configuration.
-Pool administrators who understand the factors involved
-may wish to specify a more realistic inflation factor,
-particularly if they operate close to quota or capacity limits.
-.
 .It Sy spa_load_print_vdev_tree Ns = Ns Sy 0 Ns | Ns 1 Pq int
 Whether to print the vdev tree in the debugging message buffer during pool
 import.

@@ -37,6 +37,7 @@
 #include <sys/zio_checksum.h>
 #include <sys/zio_compress.h>
 #include <sys/dmu.h>
+#include <sys/dmu_objset.h>
 #include <sys/dmu_tx.h>
 #include <sys/zap.h>
 #include <sys/zil.h>
@@ -336,17 +337,6 @@ int zfs_deadman_enabled = B_TRUE;
  * panic    - Panic the system
  */
 const char *zfs_deadman_failmode = "wait";
-
-/*
- * The worst case is single-sector max-parity RAID-Z blocks, in which
- * case the space requirement is exactly (VDEV_RAIDZ_MAXPARITY + 1)
- * times the size; so just assume that.  Add to this the fact that
- * we can have up to 3 DVAs per bp, and one more factor of 2 because
- * the block may be dittoed with up to 3 DVAs by ddt_sync().  All together,
- * the worst case is:
- *     (VDEV_RAIDZ_MAXPARITY + 1) * SPA_DVAS_PER_BP * 2 == 24
- */
-uint_t spa_asize_inflation = 24;
 
 /*
  * Normally, we don't allow the last 3.2% (1/(2^spa_slop_shift)) of space in
@@ -1868,11 +1858,21 @@ spa_freeze_txg(spa_t *spa)
  * block anyway.
  */
 uint64_t
-spa_get_worst_case_asize(spa_t *spa, uint64_t lsize)
+spa_get_worst_case_asize(spa_t *spa, objset_t *os, uint64_t lsize)
 {
+	ASSERT3U(spa->spa_worst_alloc, >, 0);
 	if (lsize == 0)
 		return (0);	/* No inflation needed */
-	return (MAX(lsize, 1 << spa->spa_max_ashift) * spa_asize_inflation);
+
+	uint64_t inflation = roundup(lsize, (1 << spa->spa_max_ashift) *
+	    spa->spa_worst_alloc);
+
+	if (os != NULL && os->os_copies > 0)
+		inflation *= os->os_copies;
+	else
+		inflation *= SPA_DVAS_PER_BP;
+
+	return (inflation);
 }
 
 /*
@@ -3141,9 +3141,6 @@ ZFS_MODULE_PARAM(zfs_deadman, zfs_deadman_, checktime_ms, U64, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_deadman, zfs_deadman_, enabled, INT, ZMOD_RW,
 	"Enable deadman timer");
-
-ZFS_MODULE_PARAM(zfs_spa, spa_, asize_inflation, UINT, ZMOD_RW,
-	"SPA size estimate multiplication factor");
 
 ZFS_MODULE_PARAM(zfs, zfs_, ddt_data_is_special, INT, ZMOD_RW,
 	"Place DDT data into the special class");

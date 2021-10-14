@@ -107,8 +107,6 @@ static void dsl_dataset_unset_remap_deadlist_object(dsl_dataset_t *ds,
 
 static void unload_zfeature(dsl_dataset_t *ds, spa_feature_t f);
 
-extern uint_t spa_asize_inflation;
-
 static zil_header_t zero_zil;
 
 /*
@@ -3961,7 +3959,7 @@ dsl_dataset_clone_swap_check_impl(dsl_dataset_t *clone,
 	 * See the bottom of this function for details on its use.
 	 */
 	uint64_t refquota_slack = (uint64_t)DMU_MAX_ACCESS *
-	    spa_asize_inflation;
+	    SPA_MAX_ASIZE_INFLATION;
 	int64_t unused_refres_delta;
 
 	/* they should both be heads */
@@ -4011,7 +4009,7 @@ dsl_dataset_clone_swap_check_impl(dsl_dataset_t *clone,
 	 * transaction to exceed the refquota.  Therefore, this check
 	 * needs to also allow for the space referenced to be more than the
 	 * refquota.  The maximum amount of space that one transaction can use
-	 * on disk is DMU_MAX_ACCESS * spa_asize_inflation.  Allowing this
+	 * on disk is DMU_MAX_ACCESS * SPA_MAX_ASIZE_INFLATION.  Allowing this
 	 * overage ensures that we are able to receive a filesystem that
 	 * exceeds the refquota on the source system.
 	 *
@@ -4068,13 +4066,9 @@ dsl_dataset_clone_swap_sync_impl(dsl_dataset_t *clone,
 	int64_t unused_refres_delta;
 
 	ASSERT(clone->ds_reserved == 0);
-	/*
-	 * NOTE: On DEBUG kernels there could be a race between this and
-	 * the check function if spa_asize_inflation is adjusted...
-	 */
 	ASSERT(origin_head->ds_quota == 0 ||
 	    dsl_dataset_phys(clone)->ds_unique_bytes <= origin_head->ds_quota +
-	    DMU_MAX_ACCESS * spa_asize_inflation);
+	    DMU_MAX_ACCESS * SPA_MAX_ASIZE_INFLATION);
 	ASSERT3P(clone->ds_prev, ==, origin_head->ds_prev);
 
 	dsl_dir_cancel_waiters(origin_head->ds_dir);

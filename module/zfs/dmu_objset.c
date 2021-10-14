@@ -3131,7 +3131,7 @@ void
 dmu_objset_willuse_space(objset_t *os, int64_t space, dmu_tx_t *tx)
 {
 	dsl_dataset_t *ds = os->os_dsl_dataset;
-	int64_t aspace = spa_get_worst_case_asize(os->os_spa, space);
+	int64_t aspace = spa_get_worst_case_asize(os->os_spa, os, space);
 
 	if (ds != NULL) {
 		dsl_dir_willuse_space(ds->ds_dir, aspace, tx);

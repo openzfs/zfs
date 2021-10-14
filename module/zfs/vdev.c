@@ -399,6 +399,20 @@ vdev_get_min_alloc(vdev_t *vd)
 }
 
 /*
+ * Get the worst case allocation size for the top-level vdev.
+ */
+uint64_t
+vdev_get_worst_alloc(vdev_t *vd)
+{
+	uint64_t worst_alloc = 1;
+
+	if (vd->vdev_ops->vdev_op_worst_alloc != NULL)
+		worst_alloc = vd->vdev_ops->vdev_op_worst_alloc(vd);
+
+	return (worst_alloc);
+}
+
+/*
  * Get the parity level for a top-level vdev.
  */
 uint64_t
@@ -1446,8 +1460,11 @@ vdev_gcd(uint64_t a, uint64_t b)
  * Set spa_min_alloc and spa_gcd_alloc.
  */
 static void
-vdev_spa_set_alloc(spa_t *spa, uint64_t min_alloc)
+vdev_spa_set_alloc(spa_t *spa, vdev_t *vd)
 {
+	uint64_t min_alloc = vdev_get_min_alloc(vd);
+	uint64_t worst_alloc = vdev_get_worst_alloc(vd);
+
 	if (min_alloc < spa->spa_min_alloc)
 		spa->spa_min_alloc = min_alloc;
 	if (spa->spa_gcd_alloc == INT_MAX) {
@@ -1456,6 +1473,8 @@ vdev_spa_set_alloc(spa_t *spa, uint64_t min_alloc)
 		spa->spa_gcd_alloc = vdev_gcd(min_alloc,
 		    spa->spa_gcd_alloc);
 	}
+	if (worst_alloc > spa->spa_worst_alloc)
+		spa->spa_worst_alloc = worst_alloc;
 }
 
 void
@@ -1509,8 +1528,7 @@ vdev_metaslab_group_create(vdev_t *vd)
 			if (vd->vdev_ashift < spa->spa_min_ashift)
 				spa->spa_min_ashift = vd->vdev_ashift;
 
-			uint64_t min_alloc = vdev_get_min_alloc(vd);
-			vdev_spa_set_alloc(spa, min_alloc);
+			vdev_spa_set_alloc(spa, vd);
 		}
 	}
 }
@@ -2281,8 +2299,7 @@ vdev_open(vdev_t *vd)
 	 */
 	if (vd->vdev_top == vd && vd->vdev_ashift != 0 &&
 	    vd->vdev_islog == 0 && vd->vdev_aux == NULL) {
-		uint64_t min_alloc = vdev_get_min_alloc(vd);
-		vdev_spa_set_alloc(spa, min_alloc);
+		vdev_spa_set_alloc(spa, vd);
 	}
 
 	/*

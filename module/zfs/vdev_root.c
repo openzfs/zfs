@@ -149,6 +149,7 @@ vdev_ops_t vdev_root_ops = {
 	.vdev_op_asize = vdev_default_asize,
 	.vdev_op_min_asize = vdev_default_min_asize,
 	.vdev_op_min_alloc = NULL,
+	.vdev_op_worst_alloc = NULL,
 	.vdev_op_io_start = NULL,	/* not applicable to the root */
 	.vdev_op_io_done = NULL,	/* not applicable to the root */
 	.vdev_op_state_change = vdev_root_state_change,

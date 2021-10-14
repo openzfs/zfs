@@ -2281,6 +2281,20 @@ vdev_raidz_min_asize(vdev_t *vd)
 	    vd->vdev_children);
 }
 
+/*
+ * When using RAIDz the worst case allocation size is determined by the level
+ * of parity in the redundancy group.
+ */
+static uint64_t
+vdev_raidz_worst_alloc(vdev_t *vd)
+{
+	vdev_raidz_t *vdrz = vd->vdev_tsd;
+
+	ASSERT3P(vd->vdev_ops, ==, &vdev_raidz_ops);
+
+	return (vdrz->vd_nparity + 1);
+}
+
 void
 vdev_raidz_child_done(zio_t *zio)
 {
@@ -5094,6 +5108,7 @@ vdev_ops_t vdev_raidz_ops = {
 	.vdev_op_asize = vdev_raidz_asize,
 	.vdev_op_min_asize = vdev_raidz_min_asize,
 	.vdev_op_min_alloc = NULL,
+	.vdev_op_worst_alloc = vdev_raidz_worst_alloc,
 	.vdev_op_io_start = vdev_raidz_io_start,
 	.vdev_op_io_done = vdev_raidz_io_done,
 	.vdev_op_state_change = vdev_raidz_state_change,
