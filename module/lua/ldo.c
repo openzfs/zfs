@@ -74,7 +74,11 @@ static intptr_t stack_remaining(void) {
 #if defined(__i386__)
 #define	JMP_BUF_CNT	6
 #elif defined(__x86_64__)
+#ifdef _WIN32
+#define	JMP_BUF_CNT	10 // +rsi +rdi see win_setjmp_x86_64.S
+#else
 #define	JMP_BUF_CNT	8
+#endif
 #elif defined(__sparc__) && defined(__arch64__)
 #define	JMP_BUF_CNT	6
 #elif defined(__powerpc__)

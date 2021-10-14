@@ -50,6 +50,6 @@ wdk_add_library(luakern
   #lundump.h
   lvm.h
   lzio.h
-  setjmp/setjmp.S
+  setjmp/win_setjmp_x86_64.S
 )
 target_link_libraries(luakern PRIVATE splkern)
