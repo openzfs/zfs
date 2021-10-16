@@ -7353,9 +7353,10 @@ zpool_do_trim(int argc, char **argv)
 				    "combined with the -c or -s options\n"));
 				usage(B_FALSE);
 			}
-			if (zfs_nicestrtonum(NULL, optarg, &rate) == -1) {
-				(void) fprintf(stderr,
-				    gettext("invalid value for rate\n"));
+			if (zfs_nicestrtonum(g_zfs, optarg, &rate) == -1) {
+				(void) fprintf(stderr, "%s: %s\n",
+				    gettext("invalid value for rate"),
+				    libzfs_error_description(g_zfs));
 				usage(B_FALSE);
 			}
 			break;
