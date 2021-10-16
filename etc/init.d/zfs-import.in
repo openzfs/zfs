@@ -57,8 +57,7 @@ find_pools()
 	local pools
 
 	pools=$("$@" 2> /dev/null | \
-		grep -E "pool:|^[a-zA-Z0-9]" | \
-		sed 's@.*: @@' | \
+		sed -Ee '/pool:|^[a-zA-Z0-9]/!d' -e 's@.*: @@' | \
 		sort | \
 		tr '\n' ';')
 

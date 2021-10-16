@@ -9,15 +9,12 @@ if [ "$1" = "-h" ] ; then
 fi
 
 if [ -b "$VDEV_UPATH" ]; then
-	device=$(basename "$VDEV_UPATH")
-	val=$(cat "/sys/block/$device/queue/rotational" 2>/dev/null)
-	if [ "$val" = "0" ]; then
-		MEDIA="ssd"
-	fi
-
-	if [ "$val" = "1" ]; then
-		MEDIA="hdd"
-	fi
+	device="${VDEV_UPATH##*/}"
+	read -r val 2>/dev/null < "/sys/block/$device/queue/rotational"
+	case "$val" in
+		0) MEDIA="ssd" ;;
+		1) MEDIA="hdd" ;;
+	esac
 
 	vpd_pg83="/sys/block/$device/device/vpd_pg83"
 	if [ -f "$vpd_pg83" ]; then

@@ -69,8 +69,8 @@ install() {
 	dracut_install @mounthelperdir@/mount.zfs
 	dracut_install @udevdir@/vdev_id
 	dracut_install awk
-	dracut_install basename
 	dracut_install cut
+	dracut_install tr
 	dracut_install head
 	dracut_install @udevdir@/zvol_id
 	inst_hook cmdline 95 "${moddir}/parse-zfs.sh"

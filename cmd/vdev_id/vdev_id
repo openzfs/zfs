@@ -596,7 +596,9 @@ enclosure_handler () {
 	# DEVPATH=/sys/devices/pci0000:00/0000:00:03.0/0000:05:00.0/host0/subsystem/devices/0:0:0:0/scsi_generic/sg0
 
 	# Get the enclosure ID ("0:0:0:0")
-	ENC=$(basename $(readlink -m "/sys/$DEVPATH/../.."))
+	ENC="${DEVPATH%/*}"
+	ENC="${ENC%/*}"
+	ENC="${ENC##*/}"
 	if [ ! -d "/sys/class/enclosure/$ENC" ] ; then
 		# Not an enclosure, bail out
 		return
@@ -616,10 +618,11 @@ enclosure_handler () {
 
 	# The PCI directory is two directories up from the port directory
 	# /sys/devices/pci0000:00/0000:00:03.0/0000:05:00.0
-	PCI_ID_LONG=$(basename $(readlink -m "/sys/$PORT_DIR/../.."))
+	PCI_ID_LONG="$(readlink -m "/sys/$PORT_DIR/../..")"
+	PCI_ID_LONG="${PCI_ID_LONG##*/}"
 
 	# Strip down the PCI address from 0000:05:00.0 to 05:00.0
-	PCI_ID=$(echo "$PCI_ID_LONG" | sed -r 's/^[0-9]+://g')
+	PCI_ID="${PCI_ID_LONG#[0-9]*:}"
 
 	# Name our device according to vdev_id.conf (like "L0" or "U1").
 	NAME=$(awk "/channel/{if (\$1 == \"channel\" && \$2 == \"$PCI_ID\" && \
@@ -674,7 +677,7 @@ alias_handler () {
 			link=$(echo "$link" | sed 's/p[0-9][0-9]*$//')
 		fi
 		# Check both the fully qualified and the base name of link.
-		for l in $link $(basename "$link") ; do
+		for l in $link ${link##*/} ; do
 			if [ ! -z "$l" ]; then
 				alias=$(awk -v var="$l" '($1 == "alias") && \
 					($3 == var) \

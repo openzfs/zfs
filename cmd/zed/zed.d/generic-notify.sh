@@ -23,7 +23,7 @@
 
 # Rate-limit the notification based in part on the filename.
 #
-rate_limit_tag="${ZEVENT_POOL};${ZEVENT_SUBCLASS};$(basename -- "$0")"
+rate_limit_tag="${ZEVENT_POOL};${ZEVENT_SUBCLASS};${0##*/}"
 rate_limit_interval="${ZED_NOTIFY_INTERVAL_SECS}"
 zed_rate_limit "${rate_limit_tag}" "${rate_limit_interval}" || exit 3
 

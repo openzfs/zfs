@@ -90,7 +90,7 @@ cleanup_freebsd_loopback() {
 
 cleanup_linux_loopback() {
 	for TEST_LOOPBACK in ${LOOPBACKS}; do
-		LOOP_DEV=$(basename "$TEST_LOOPBACK")
+		LOOP_DEV="${TEST_LOOPBACK##*/}"
 		DM_DEV=$(sudo "${DMSETUP}" ls 2>/dev/null | \
 		    grep "${LOOP_DEV}" | cut -f1)
 
@@ -606,7 +606,7 @@ if [ -z "${DISKS}" ]; then
 				TEST_LOOPBACK=$(sudo "${LOSETUP}" -f)
 				sudo "${LOSETUP}" "${TEST_LOOPBACK}" "${TEST_FILE}" ||
 				    fail "Failed: ${TEST_FILE} -> ${TEST_LOOPBACK}"
-				BASELOOPBACK=$(basename "$TEST_LOOPBACK")
+				BASELOOPBACK="${TEST_LOOPBACK##*/}"
 				DISKS="$DISKS $BASELOOPBACK"
 				LOOPBACKS="$LOOPBACKS $TEST_LOOPBACK"
 			fi

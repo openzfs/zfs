@@ -2,8 +2,8 @@
 
 get_devtype() {
   local typ
-  typ=$(udevadm info --query=property --name="$1" | grep "^ID_FS_TYPE=" | sed 's|^ID_FS_TYPE=||')
-  if [ "$typ" = "" ] ; then
+  typ=$(udevadm info --query=property --name="$1" | sed -n 's|^ID_FS_TYPE=||p')
+  if [ -z "$typ" ] ; then
      typ=$(blkid -c /dev/null "$1" -o value -s TYPE)
   fi
   echo "$typ"
@@ -36,7 +36,6 @@ find_zfs_block_devices() {
     local dev
     local mp
     local fstype
-    local pool
     local _
     numfields="$(awk '{print NF; exit}' /proc/self/mountinfo)"
     if [ "$numfields" = "10" ] ; then
@@ -47,10 +46,7 @@ find_zfs_block_devices() {
     # shellcheck disable=SC2086
     while read -r ${fields?} ; do
        [ "$fstype" = "zfs" ] || continue
-       if [ "$mp" = "$1" ]; then
-           pool=$(echo "$dev" | cut -d / -f 1)
-           get_pool_devices "$pool"
-       fi
+       [ "$mp" = "$1" ] && get_pool_devices "${dev%%/*}"
     done < /proc/self/mountinfo
 }
 
@@ -100,9 +96,9 @@ if [ -n "$hostonly" ]; then
             majmin=$(get_maj_min "$dev")
             if [ -d "/sys/dev/block/$majmin/slaves" ] ; then
                 for _depdev in "/sys/dev/block/$majmin/slaves"/*; do
-                    [[ -f $_depdev/dev ]] || continue
-                    _depdev=/dev/$(basename "$_depdev")
-                    _depdevname=$(udevadm info --query=property --name="$_depdev" | grep "^DEVNAME=" | sed 's|^DEVNAME=||')
+                    [ -f "$_depdev/dev" ] || continue
+                    _depdev="/dev/${_depdev##*/}"
+                    _depdevname=$(udevadm info --query=property --name="$_depdev" | sed -n 's|^DEVNAME=||p')
                     _depdevtype=$(get_devtype "$_depdevname")
                     dinfo "zfsexpandknowledge: underlying block device backing ZFS dataset $mp: ${_depdevname//$'\n'/ }"
                     array_contains "$_depdevname" "${host_devs[@]}" || host_devs+=("$_depdevname")

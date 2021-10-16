@@ -48,7 +48,7 @@ size:	Show the disk capacity.
 vendor:	Show the disk vendor.
 lsblk:	Show the disk size, vendor, and model number."
 
-script=$(basename "$0")
+script="${0##*/}"
 
 if [ "$1" = "-h" ] ; then
         echo "$helpstr" | grep "$script:" | tr -s '\t' | cut -f 2-

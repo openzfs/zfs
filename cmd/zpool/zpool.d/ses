@@ -11,7 +11,7 @@ fault_led:	Show value of the disk enclosure slot fault LED.
 locate_led:	Show value of the disk enclosure slot locate LED.
 ses:		Show disk's enc, enc device, slot, and fault/locate LED values."
 
-script=$(basename "$0")
+script="${0##*/}"
 if [ "$1" = "-h" ] ; then
 	echo "$helpstr" | grep "$script:" | tr -s '\t' | cut -f 2-
 	exit

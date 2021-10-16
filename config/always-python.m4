@@ -28,7 +28,7 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_PYTHON], [
 	dnl #
 	AM_PATH_PYTHON([], [], [:])
 	AS_IF([test -z "$PYTHON_VERSION"], [
-		PYTHON_VERSION=$(basename $PYTHON | tr -cd 0-9.)
+		PYTHON_VERSION=$(echo ${PYTHON##*/} | tr -cd 0-9.)
 	])
 	PYTHON_MINOR=${PYTHON_VERSION#*\.}
 

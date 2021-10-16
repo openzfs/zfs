@@ -345,7 +345,7 @@ read_mtab()
 
 	# Unset all MTAB_* variables
 	# shellcheck disable=SC2046
-	unset $(env | grep ^MTAB_ | sed 's,=.*,,')
+	unset $(env | sed -e '/^MTAB_/!d' -e 's,=.*,,')
 
 	while read -r fs mntpnt fstype opts rest; do
 		if echo "$fs $mntpnt $fstype $opts" | grep -qE "$match"; then
@@ -360,9 +360,8 @@ read_mtab()
 			fs=$(/bin/echo "$fs" | sed 's,\\0,\\00,')
 
 			# Remove 'unwanted' characters.
-			mntpnt=$(printf '%b\n' "$mntpnt" | sed -e 's,/,,g' \
-			    -e 's,-,,g' -e 's,\.,,g' -e 's, ,,g')
-			fs=$(printf '%b\n' "$fs")
+			mntpnt=$(printf '%b' "$mntpnt" | tr -d '/. -')
+			fs=$(printf '%b' "$fs")
 
 			# Set the variable.
 			eval export "MTAB_$mntpnt=\"$fs\""
@@ -374,8 +373,7 @@ in_mtab()
 {
 	local mntpnt="$1"
 	# Remove 'unwanted' characters.
-	mntpnt=$(printf '%b\n' "$mntpnt" | sed -e 's,/,,g' \
-	    -e 's,-,,g' -e 's,\.,,g' -e 's, ,,g')
+	mntpnt=$(printf '%b' "$mntpnt" | tr -d '/. -')
 	local var
 
 	var="$(eval echo "MTAB_$mntpnt")"
@@ -391,7 +389,7 @@ read_fstab()
 
 	# Unset all FSTAB_* variables
 	# shellcheck disable=SC2046
-	unset $(env | grep ^FSTAB_ | sed 's,=.*,,')
+	unset $(env | sed -e '/^FSTAB_/!d' -e 's,=.*,,')
 
 	i=0
 	while read -r fs mntpnt fstype opts; do
@@ -401,7 +399,7 @@ read_fstab()
 
 		if echo "$fs $mntpnt $fstype $opts" | grep -qE "$match"; then
 			eval export "FSTAB_dev_$i=$fs"
-			fs=$(printf '%b\n' "$fs" | sed 's,/,_,g')
+			fs=$(printf '%b' "$fs" | tr '/' '_')
 			eval export "FSTAB_$i=$mntpnt"
 
 			i=$((i + 1))

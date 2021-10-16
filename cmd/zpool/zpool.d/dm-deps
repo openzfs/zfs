@@ -16,14 +16,12 @@ if [ -L "$dev" ] ; then
 	dev=$(readlink "$dev")
 fi
 
-dev=$(basename "$dev")
+dev="${dev##*/}"
 val=""
 if [ -d "/sys/class/block/$dev/slaves" ] ; then
-	# ls -C: output in columns, no newlines
-	val=$(ls -C "/sys/class/block/$dev/slaves")
-
-	# ls -C will print two spaces between files; change to one space.
-	val=$(echo "$val" | sed -r 's/[[:blank:]]+/ /g')
+	# ls -C: output in columns, no newlines, two spaces (change to one)
+	# shellcheck disable=SC2012
+	val=$(ls -C "/sys/class/block/$dev/slaves" | tr -s '[:space:]' ' ')
 fi
 
 echo "dm-deps=$val"
