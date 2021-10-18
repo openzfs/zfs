@@ -622,8 +622,8 @@ enclosure_handler () {
 	PCI_ID=$(echo "$PCI_ID_LONG" | sed -r 's/^[0-9]+://g')
 
 	# Name our device according to vdev_id.conf (like "L0" or "U1").
-	NAME=$(awk '/channel/{if ($1 == "channel" && $2 == "$PCI_ID" && \
-		$3 == "$PORT_ID") {print ${4}int(count[$4])}; count[$4]++}' $CONFIG)
+	NAME=$(awk "/channel/{if (\$1 == \"channel\" && \$2 == \"$PCI_ID\" && \
+		\$3 == \"$PORT_ID\") {print \$4\$3}}" $CONFIG)
 
 	echo "${NAME}"
 }
