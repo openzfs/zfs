@@ -200,7 +200,7 @@ get_format_prompt_string(zfs_keyformat_t format)
 /* do basic validation of the key material */
 static int
 validate_key(libzfs_handle_t *hdl, zfs_keyformat_t keyformat,
-    const char *key, size_t keylen)
+    const char *key, size_t keylen, boolean_t do_verify)
 {
 	switch (keyformat) {
 	case ZFS_KEYFORMAT_RAW:
@@ -245,7 +245,10 @@ validate_key(libzfs_handle_t *hdl, zfs_keyformat_t keyformat,
 		}
 		break;
 	case ZFS_KEYFORMAT_PASSPHRASE:
-		/* verify the length is within bounds */
+		/* verify the length is within bounds when setting a new key,
+		 * but not when loading an existing key */
+		if (!do_verify)
+			break;
 		if (keylen > MAX_PASSPHRASE_LEN) {
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "Passphrase too long (max %u)."),
@@ -380,7 +383,8 @@ get_key_interactive(libzfs_handle_t *restrict hdl, const char *fsname,
 	if (!confirm_key)
 		goto out;
 
-	if ((ret = validate_key(hdl, keyformat, buf, buflen)) != 0) {
+	if ((ret = validate_key(hdl, keyformat, buf, buflen, confirm_key)) !=
+	    0) {
 		free(buf);
 		return (ret);
 	}
@@ -740,7 +744,8 @@ get_key_material(libzfs_handle_t *hdl, boolean_t do_verify, boolean_t newkey,
 		goto error;
 	}
 
-	if ((ret = validate_key(hdl, keyformat, (const char *)km, kmlen)) != 0)
+	if ((ret = validate_key(hdl, keyformat, (const char *)km, kmlen,
+	    do_verify)) != 0)
 		goto error;
 
 	*km_out = km;
