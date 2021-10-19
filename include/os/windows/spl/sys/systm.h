@@ -39,15 +39,16 @@ struct bsd_timeout_wrapper {
  * bsd_timeout will create a new thread, and the new thread will
  * first sleep the desired duration, then call the wanted function
  */
+#define	BSD_TIMEOUT_MAGIC 0x42994299
 static inline void bsd_timeout_handler(void *arg)
 {
 	struct bsd_timeout_wrapper *btw = arg;
 	KeWaitForSingleObject(&btw->timer, Executive, KernelMode, TRUE, NULL);
-	if (btw->init == 0x42994299) btw->func(btw->arg);
+	if (btw->init == BSD_TIMEOUT_MAGIC)
+		btw->func(btw->arg);
 	thread_exit();
 }
 
-#define	BSD_TIMEOUT_MAGIC 0x42994299
 static inline void bsd_untimeout(void(*func)(void *), void *ID)
 {
 /*
@@ -58,11 +59,11 @@ static inline void bsd_untimeout(void(*func)(void *), void *ID)
 	struct bsd_timeout_wrapper *btw = (struct bsd_timeout_wrapper *)ID;
 	LARGE_INTEGER p = { .QuadPart = -1 };
 	VERIFY3P(btw, !=, NULL);
-	btw->init = 0;
-	// Investigate why this assert triggers on Unload
-	// ASSERT(btw->init == BSD_TIMEOUT_MAGIC); // timer was not initialized
-	if (btw->init == BSD_TIMEOUT_MAGIC)
+	// If timer was armed, release it.
+	if (btw->init == BSD_TIMEOUT_MAGIC) {
+		btw->init = 0; // stop it from running func()
 		KeSetTimer(&btw->timer, p, NULL);
+	}
 }
 
 static inline void bsd_timeout(void *FUNC, void *ID, struct timespec *TIM)
