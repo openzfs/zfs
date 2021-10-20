@@ -545,7 +545,7 @@ access for a set of IP addresses and to enable root access for system
 on the
 .Ar tank/home
 file system:
-.Dl # Nm zfs Cm set Sy sharenfs Ns = Ns ' Ns Ar rw Ns =@123.123.0.0/16,root= Ns Ar neo Ns ' tank/home
+.Dl # Nm zfs Cm set Sy sharenfs Ns = Ns ' Ns Ar rw Ns =@123.123.0.0/16:[::1],root= Ns Ar neo Ns ' tank/home
 .Pp
 If you are using DNS for host name resolution,
 specify the fully-qualified hostname.
