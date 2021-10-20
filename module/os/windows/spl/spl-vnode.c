@@ -521,6 +521,45 @@ spl_vnode_init(void)
 void
 spl_vnode_fini(void)
 {
+	// We need to free all delayed vnodes - this can easily go
+	// wrong, still haven't figured out how to tell Windows
+	// to let go for a FILEOBJECT.
+	if (vnode_active > 0) {
+		vnode_drain_delayclose(1);
+		if (vnode_active > 0) {
+			// vnode ages up to 5s. then, we loop all
+			// still active nodes, mark them dead, and old
+			// so they are immediately freed, as well as
+			// go through the tree of fileobjects to free.
+
+			delay(hz*5); // hardcoded age, see vnode_drain_delayclose
+
+			dprintf("%s: forcing free (this can go wrong)n", __func__);
+			struct vnode *rvp;
+			clock_t then = gethrtime() - SEC2NSEC(6); // hardcoded
+
+			mutex_enter(&vnode_all_list_lock);
+			for (rvp = list_head(&vnode_all_list);
+			    rvp;
+			    rvp = list_next(&vnode_all_list, rvp)) {
+				vnode_fileobjects_t *node;
+
+				rvp->v_flags |= VNODE_DEAD|VNODE_FLUSHING;
+				rvp->v_age = then;
+
+				mutex_enter(&rvp->v_mutex);
+				while (node = avl_first(&rvp->v_fileobjects)) {
+					avl_remove(&rvp->v_fileobjects, node);
+					kmem_free(node, sizeof (*node));
+				}
+				mutex_exit(&rvp->v_mutex);
+			}
+			mutex_exit(&vnode_all_list_lock);
+			// here's hopin'
+			vnode_drain_delayclose(1);
+		}
+	}
+
 	mutex_destroy(&vnode_all_list_lock);
 	list_destroy(&vnode_all_list);
 	mutex_destroy(&spl_getf_lock);
