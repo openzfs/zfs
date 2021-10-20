@@ -51,7 +51,7 @@ function cleanup {
 
 set -A badopts \
     "r0" "r0=machine1" "r0=machine1:machine2" \
-    "-g" "-b" "-c" "-d" "--invalid" \
+    "-g" "-b" "-c" "-d" "--invalid" "rw=[::1]a:[::2]" "rw=[::1" \
     "$TESTPOOL" "$TESTPOOL/$TESTFS" "$TESTPOOL\$TESTCTR\$TESTFS1"
 
 log_assert "Verify that invalid share parameters and options are caught."
