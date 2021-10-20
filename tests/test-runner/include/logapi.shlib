@@ -68,6 +68,16 @@ function log_must
 	(( $? != 0 )) && log_fail
 }
 
+# Execute a positive test (expecting no stderr) and exit $STF_FAIL
+# if test fails
+# $@ - command to execute
+
+function log_must_nostderr
+{
+	log_pos_nostderr "$@"
+	(( $? != 0 )) && log_fail
+}
+
 # Execute a positive test but retry the command on failure if the output
 # matches an expected pattern.  Otherwise behave like log_must and exit
 # $STF_FAIL is test fails.
@@ -281,6 +291,46 @@ function log_pos
 		if [[ $? -eq 0 ]]; then
 			print -u2 $($out)
 			_printerror "$@" "internal error or assertion failure" \
+				" exited $status"
+			status=1
+		else
+			[[ -n $LOGAPI_DEBUG ]] && cat $logfile
+			_printsuccess "$@"
+		fi
+	fi
+	_recursive_output $logfile "false"
+	return $status
+}
+
+# Execute and print command with status where success equals zero result
+# and no stderr output
+#
+# $@ command to execute
+#
+# return 0 if command succeeds and no stderr output
+# return 1 othersie
+
+function log_pos_nostderr
+{
+	typeset out=""
+	typeset logfile="/tmp/log.$$"
+
+	while [[ -e $logfile ]]; do
+		logfile="$logfile.$$"
+	done
+
+	"$@" 2>$logfile
+	typeset status=$?
+	out="cat $logfile"
+	typeset out_msg=$($out)
+
+	if (( $status != 0 )) ; then
+		print -u2 $out_msg
+		_printerror "$@" "exited $status"
+	else
+		if [[ ! -z "$out_msg" ]]; then
+			print -u2 $out_msg
+			_printerror "$@" "message in stderr" \
 				" exited $status"
 			status=1
 		else

@@ -83,7 +83,7 @@ for d in ${test_depths[@]}; do
 	log_must zfs snapshot $TESTPOOL/$ds@snap
 	# force snapshot mount in .zfs
 	log_must ls /$TESTPOOL/$ds/.zfs/snapshot/snap
-	log_must zfs unmount $TESTPOOL/$ds
+	log_must_nostderr zfs unmount $TESTPOOL/$ds
 
 	if ! ismounted $TESTPOOL/$ds_pre; then
 		log_fail "$ds_pre is not mounted"
@@ -113,7 +113,7 @@ for d in ${test_depths[@]}; do
 	log_must zfs snapshot $TESTPOOL/$ds@snap
 	# force snapshot mount in .zfs
 	log_must ls /$TESTPOOL/$ds/.zfs/snapshot/snap
-	log_must zfs unmount $TESTPOOL/$ds
+	log_must_nostderr zfs unmount $TESTPOOL/$ds
 
 	if ! ismounted $TESTPOOL/$ds_pre; then
 		log_fail "$TESTPOOL/$ds_pre (pre) not mounted"
@@ -143,7 +143,7 @@ for d in ${test_depths[@]}; do
 	log_must zfs snapshot $TESTPOOL/$ds@snap
 	# force snapshot mount in .zfs
 	log_must ls /$TESTPOOL/$ds/.zfs/snapshot/snap
-	log_must zfs unmount $TESTPOOL/$ds
+	log_must_nostderr zfs unmount $TESTPOOL/$ds
 
 	if ! ismounted $TESTPOOL/$ds_pre; then
 		log_fail "$TESTPOOL/$ds_pre (pre) not mounted"
@@ -173,7 +173,7 @@ for d in ${test_depths[@]}; do
 	log_must zfs snapshot $TESTPOOL/$ds@snap
 	# force snapshot mount in .zfs
 	log_must ls /$TESTPOOL/$ds/.zfs/snapshot/snap
-	log_must zfs unmount $TESTPOOL/$ds
+	log_must_nostderr zfs unmount $TESTPOOL/$ds
 
 	if ! ismounted $TESTPOOL/$ds_pre; then
 		log_fail "$ds_pre is not mounted"
