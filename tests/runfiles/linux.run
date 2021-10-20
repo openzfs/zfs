@@ -53,7 +53,7 @@ tags = ['functional', 'cli_root', 'zfs_mount']
 
 [tests/functional/cli_root/zfs_share:Linux]
 tests = ['zfs_share_005_pos', 'zfs_share_007_neg', 'zfs_share_009_neg',
-    'zfs_share_012_pos']
+    'zfs_share_012_pos', 'zfs_share_013_pos']
 tags = ['functional', 'cli_root', 'zfs_share']
 
 [tests/functional/cli_root/zfs_sysfs:Linux]
