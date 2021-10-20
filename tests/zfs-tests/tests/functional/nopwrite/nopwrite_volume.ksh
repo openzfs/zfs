@@ -37,7 +37,7 @@ log_onexit cleanup
 
 function cleanup
 {
-	datasetexists $origin && log_must zfs destroy -R $origin
+	datasetexists $origin && destroy_dataset $origin -R
 	# No need to recreate the volume as no other tests expect it.
 }
 

@@ -43,8 +43,8 @@ verify_runnable "global"
 
 function cleanup
 {
-	datasetexists $VOLFS && log_must zfs destroy -r $VOLFS
-	datasetexists $ZVOL && log_must zfs destroy -r $ZVOL
+	datasetexists $VOLFS && destroy_dataset $VOLFS -r
+	datasetexists $ZVOL && destroy_dataset $ZVOL -r
 	log_must zfs inherit snapdev $TESTPOOL
 	block_device_wait
 	is_linux && udev_cleanup

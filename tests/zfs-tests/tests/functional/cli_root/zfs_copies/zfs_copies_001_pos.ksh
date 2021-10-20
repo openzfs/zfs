@@ -49,9 +49,7 @@ function cleanup
 	typeset ds
 
 	for ds in $fs1 $fs2 $vol1 $vol2; do
-		if datasetexists $ds; then
-			log_must zfs destroy $ds
-		fi
+		datasetexists $ds && destroy_dataset $ds
 	done
 }
 
@@ -94,13 +92,13 @@ for val in 1 2 3; do
 		fi
 		for ds in $fs2 $vol2; do
 			cmp_prop $ds $val2
-			log_must zfs destroy $ds
+			destroy_dataset $ds
 			block_device_wait
 		done
 	done
 
 	for ds in $fs1 $vol1; do
-		log_must zfs destroy $ds
+		destroy_dataset $ds
 		block_device_wait
 	done
 

@@ -51,9 +51,7 @@ function cleanup
 {
 	pkill ${DD##*/}
 	for snap in $FSSNAP0 $FSSNAP1 $FSSNAP2; do
-		if snapexists $snap; then
-			log_must zfs destroy -Rf $snap
-		fi
+		snapexists $snap && destroy_dataset $snap -Rf
 	done
 }
 

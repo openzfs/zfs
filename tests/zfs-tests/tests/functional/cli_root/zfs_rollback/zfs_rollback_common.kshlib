@@ -181,9 +181,7 @@ function cleanup_env
 
 	for dtst in $FS $VOL; do
 		for snap in $TESTSNAP $TESTSNAP1 $TESTSNAP2; do
-			if snapexists $dtst@$snap; then
-				 log_must zfs destroy -Rf $dtst@$snap
-			fi
+			snapexists $dtst@$snap && destroy_dataset $dtst@$snap -Rf
 		done
 	done
 

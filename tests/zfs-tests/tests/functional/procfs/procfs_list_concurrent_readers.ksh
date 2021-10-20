@@ -43,7 +43,7 @@ function cleanup
 {
 	[[ -z $msgs1 ]] || log_must rm $msgs1
 	[[ -z $msgs2 ]] || log_must rm $msgs2
-	datasetexists $FS && log_must zfs destroy -r $FS
+	datasetexists $FS && destroy_dataset $FS -r
 }
 
 typeset -r ZFS_DBGMSG=/proc/spl/kstat/zfs/dbgmsg

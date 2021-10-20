@@ -28,7 +28,7 @@ limit=50000000
 
 function cleanup
 {
-	datasetexists $rootfs && log_must zfs destroy -R $rootfs
+	datasetexists $rootfs && destroy_dataset $rootfs -R
 }
 
 log_onexit cleanup

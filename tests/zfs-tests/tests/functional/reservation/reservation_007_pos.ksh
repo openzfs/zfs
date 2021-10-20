@@ -56,10 +56,10 @@ log_assert "Verify reservations on data sets doesn't affect other data sets " \
 function cleanup
 {
 	datasetexists $TESTPOOL/$TESTFS2 && \
-	    log_must zfs destroy -f $TESTPOOL/$TESTFS2
+		destroy_dataset $TESTPOOL/$TESTFS2 -f
 
 	datasetexists $TESTPOOL/$TESTFS1 && \
-	    log_must zfs destroy -f $TESTPOOL/$TESTFS1
+		destroy_dataset $TESTPOOL/$TESTFS1 -f
 }
 
 log_onexit cleanup

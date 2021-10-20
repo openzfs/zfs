@@ -66,11 +66,10 @@ function cleanup
 	fi
 
 	datasetexists $TESTPOOL/$TESTFS-clone && \
-		log_must zfs destroy -f $TESTPOOL/$TESTFS-clone
+		destroy_dataset $TESTPOOL/$TESTFS-clone -f
 
-	if snapexists "$TESTPOOL/$TESTFS@snapshot"; then
-		log_must zfs destroy -f $TESTPOOL/$TESTFS@snapshot
-	fi
+	snapexists "$TESTPOOL/$TESTFS@snapshot" && \
+		destroy_dataset $TESTPOOL/$TESTFS@snapshot -f
 
 	log_must zfs share -a
 }

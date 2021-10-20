@@ -59,7 +59,7 @@ log_assert "Verify space released when reservation on a dataset is set "\
 function cleanup
 {
 	for obj in $OBJ_LIST; do
-		datasetexists $obj && log_must zfs destroy -f $obj
+		datasetexists $obj && destroy_dataset $obj -f
 	done
 }
 

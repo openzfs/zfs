@@ -56,9 +56,8 @@ function cleanup
 {
 	cd $SAVED_DIR
 
-	if datasetexists $TESTPOOL/$TESTFS ; then
-		log_must zfs destroy -Rf $TESTPOOL/$TESTFS
-	fi
+	datasetexists $TESTPOOL/$TESTFS && \
+		destroy_dataset $TESTPOOL/$TESTFS -Rf
 
 	log_must zfs create $TESTPOOL/$TESTFS
 	log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
