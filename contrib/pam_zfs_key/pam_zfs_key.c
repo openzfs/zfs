@@ -54,7 +54,7 @@ pam_syslog(pam_handle_t *pamh, int loglevel, const char *fmt, ...)
 #endif
 
 #include <string.h>
-
+#include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/file.h>
@@ -69,10 +69,37 @@ static libzfs_handle_t *g_zfs;
 
 static void destroy_pw(pam_handle_t *pamh, void *data, int errcode);
 
+typedef int (*mlock_func_t) (const void *, size_t);
+
 typedef struct {
 	size_t len;
 	char *value;
 } pw_password_t;
+
+/*
+ * Try to mlock or munlock addr while handling EAGAIN by retrying ten times
+ * and sleeping 10 milliseconds in between for a total of 0.1 seconds.
+ * lock_func must point to either mlock(2) or munlock(2).
+ */
+static int
+try_lock(mlock_func_t lock_func, const void *addr, size_t len)
+{
+	int err;
+	int retries = 10;
+	useconds_t sleep_dur = 10 * 1000;
+
+	if ((err = (*lock_func)(addr, len)) != EAGAIN) {
+		return (err);
+	}
+	for (int i = retries; i > 0; --i) {
+		(void) usleep(sleep_dur);
+		if ((err = (*lock_func)(addr, len)) != EAGAIN) {
+			break;
+		}
+	}
+	return (err);
+}
+
 
 static pw_password_t *
 alloc_pw_size(size_t len)
@@ -91,7 +118,11 @@ alloc_pw_size(size_t len)
 		free(pw);
 		return (NULL);
 	}
-	mlock(pw->value, pw->len);
+	if (try_lock(mlock, pw->value, pw->len) != 0) {
+		free(pw->value);
+		free(pw);
+		return NULL;
+	}
 	return (pw);
 }
 
@@ -112,7 +143,11 @@ alloc_pw_string(const char *source)
 		free(pw);
 		return (NULL);
 	}
-	mlock(pw->value, pw->len);
+	if (try_lock(mlock, pw->value, pw->len) != 0) {
+		free(pw->value);
+		free(pw);
+		return NULL;
+	}
 	memcpy(pw->value, source, pw->len);
 	return (pw);
 }
@@ -121,8 +156,9 @@ static void
 pw_free(pw_password_t *pw)
 {
 	bzero(pw->value, pw->len);
-	munlock(pw->value, pw->len);
-	free(pw->value);
+	if (try_lock(munlock, pw->value, pw->len) == 0) {
+		free(pw->value);
+	}
 	free(pw);
 }
 
