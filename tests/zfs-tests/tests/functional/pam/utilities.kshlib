@@ -22,7 +22,7 @@
 
 . $STF_SUITE/include/libtest.shlib
 
-username="pamTestuser"
+username="pamtestuser"
 runstatedir="${TESTDIR}_run"
 function keystatus {
     log_must [ "$(zfs list -Ho keystatus "$TESTPOOL/pam/${username}")" == "$1" ]
