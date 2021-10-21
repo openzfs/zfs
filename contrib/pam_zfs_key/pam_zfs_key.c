@@ -41,6 +41,7 @@
 
 #if	defined(__linux__)
 #include <security/pam_ext.h>
+#define	MAP_FLAGS MAP_PRIVATE | MAP_ANONYMOUS
 #elif	defined(__FreeBSD__)
 #include <security/pam_appl.h>
 static void
@@ -51,6 +52,7 @@ pam_syslog(pam_handle_t *pamh, int loglevel, const char *fmt, ...)
 	vsyslog(loglevel, fmt, args);
 	va_end(args);
 }
+#define	MAP_FLAGS MAP_PRIVATE | MAP_ANON | MAP_NOCORE
 #endif
 
 #include <string.h>
@@ -77,9 +79,9 @@ typedef struct {
 } pw_password_t;
 
 /*
- * Try to mlock or munlock addr while handling EAGAIN by retrying ten times
- * and sleeping 10 milliseconds in between for a total of 0.1 seconds.
- * lock_func must point to either mlock(2) or munlock(2).
+ * Try to mlock(2) or munlock(2) addr while handling EAGAIN by retrying ten
+ * times and sleeping 10 milliseconds in between for a total of 0.1
+ * seconds. lock_func must point to either mlock(2) or munlock(2).
  */
 static int
 try_lock(mlock_func_t lock_func, const void *addr, size_t len)
@@ -110,18 +112,25 @@ alloc_pw_size(size_t len)
 	}
 	pw->len = len;
 	/*
-	 * The use of malloc() triggers a spurious gcc 11 -Wmaybe-uninitialized
-	 * warning in the mlock() function call below, so use calloc().
+	 * We use mmap(2) rather than malloc(3) since later on we mlock(2) the
+	 * memory region. Since mlock(2) and munlock(2) operate on whole memory
+	 * pages we should allocate a whole page here as mmap(2) does. Further
+	 * this ensures that the addresses passed to mlock(2) an munlock(2) are
+	 * on a page boundary as suggested by FreeBSD and required by some
+	 * other implementations. Finally we avoid inadvertently munlocking
+	 * memory mlocked by an concurrently running instance of us.
 	 */
-	pw->value = calloc(len, 1);
-	if (!pw->value) {
+	pw->value = mmap(NULL, pw->len, PROT_READ | PROT_WRITE, MAP_FLAGS,
+	    -1, 0);
+
+	if (pw->value == MAP_FAILED) {
 		free(pw);
 		return (NULL);
 	}
 	if (try_lock(mlock, pw->value, pw->len) != 0) {
-		free(pw->value);
+		(void) munmap(pw->value, pw->len);
 		free(pw);
-		return NULL;
+		return (NULL);
 	}
 	return (pw);
 }
@@ -129,24 +138,11 @@ alloc_pw_size(size_t len)
 static pw_password_t *
 alloc_pw_string(const char *source)
 {
-	pw_password_t *pw = malloc(sizeof (pw_password_t));
+	size_t len = strlen(source) + 1;
+	pw_password_t *pw = alloc_pw_size(len);
+
 	if (!pw) {
 		return (NULL);
-	}
-	pw->len = strlen(source) + 1;
-	/*
-	 * The use of malloc() triggers a spurious gcc 11 -Wmaybe-uninitialized
-	 * warning in the mlock() function call below, so use calloc().
-	 */
-	pw->value = calloc(pw->len, 1);
-	if (!pw->value) {
-		free(pw);
-		return (NULL);
-	}
-	if (try_lock(mlock, pw->value, pw->len) != 0) {
-		free(pw->value);
-		free(pw);
-		return NULL;
 	}
 	memcpy(pw->value, source, pw->len);
 	return (pw);
@@ -157,7 +153,7 @@ pw_free(pw_password_t *pw)
 {
 	bzero(pw->value, pw->len);
 	if (try_lock(munlock, pw->value, pw->len) == 0) {
-		free(pw->value);
+		(void) munmap(pw->value, pw->len);
 	}
 	free(pw);
 }
