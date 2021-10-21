@@ -61,7 +61,7 @@ log_must zpool create -O encryption=on -O keyformat=passphrase \
 log_must zfs unmount $TESTPOOL/$TESTFS1
 log_must zfs unmount $TESTPOOL1
 
-log_must zfs unload-key -a
+log_must_busy zfs unload-key -a
 
 log_must key_unavailable $TESTPOOL/$TESTFS1
 log_must key_unavailable $TESTPOOL/$TESTFS1/child

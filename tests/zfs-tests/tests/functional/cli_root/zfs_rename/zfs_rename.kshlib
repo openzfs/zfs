@@ -113,7 +113,6 @@ function cleanup
 
 	datasetexists $TESTPOOL/$RECVFS && \
 		destroy_dataset $TESTPOOL/$RECVFS -r
-	fi
 }
 
 function cmp_data #<$1 src data, $2 tgt data>
