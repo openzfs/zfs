@@ -172,6 +172,7 @@ int for_each_vdev_cb(void *zhp, nvlist_t *nv, pool_vdev_iter_f func,
 int for_each_vdev_in_nvlist(nvlist_t *nvroot, pool_vdev_iter_f func,
     void *data);
 void update_vdevs_config_dev_sysfs_path(nvlist_t *config);
+int kstat_read(char *path_suffix, char *kstat_buf, size_t buflen);
 #ifdef	__cplusplus
 }
 #endif

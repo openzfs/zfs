@@ -810,6 +810,44 @@ update_vdevs_config_dev_sysfs_path(nvlist_t *config)
 	for_each_vdev_in_nvlist(nvroot, sysfs_path_pool_vdev_iter_f, NULL);
 }
 
+#define	KSTAT_PREFIX "/proc/spl/kstat/zfs/"
+/*
+ * Read the contents of a kstat into a buffer.  Handles only
+ * kstats which are directly below "zfs".
+ */
+int
+kstat_read(char *path_suffix, char *kstat_buf, size_t buflen)
+{
+	char path[MAXPATHLEN];
+	int import_kstat;
+	int count;
+	int rc;
+
+	if (strlcpy(path, KSTAT_PREFIX, sizeof (path)) >= sizeof (path))
+		return (-ENAMETOOLONG);
+	if (strlcat(path, path_suffix, sizeof (path)) >= sizeof (path))
+		return (-ENAMETOOLONG);
+
+	import_kstat = open(path, O_RDONLY | O_CLOEXEC);
+	if (import_kstat < 0)
+		return (-errno);
+
+	count = read(import_kstat, kstat_buf, buflen);
+	if (count < 0)
+		return (-errno);
+
+	/* buffer is too small */
+	if (count == buflen) {
+		return (-ENOMEM);
+	}
+
+	rc = close(import_kstat);
+	if (rc < 0)
+		return (-errno);
+
+	return (count);
+}
+
 /*
  * Update a leaf vdev's persistent device strings
  *
