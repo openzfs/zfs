@@ -61,15 +61,15 @@ log_must zpool create -O encryption=on -O keyformat=passphrase \
 	-O keylocation=file:///$TESTPOOL/pkey $TESTPOOL1 $DISK2
 
 log_must zfs unmount $TESTPOOL/$TESTFS1
-log_must zfs unload-key $TESTPOOL/$TESTFS1
+log_must_busy zfs unload-key $TESTPOOL/$TESTFS1
 
 log_must zfs unmount $TESTPOOL/$TESTFS2
-log_must zfs unload-key $TESTPOOL/$TESTFS2
+log_must_busy zfs unload-key $TESTPOOL/$TESTFS2
 
-log_must zfs unload-key $TESTPOOL/zvol
+log_must_busy zfs unload-key $TESTPOOL/zvol
 
 log_must zfs unmount $TESTPOOL1
-log_must zfs unload-key $TESTPOOL1
+log_must_busy zfs unload-key $TESTPOOL1
 
 log_must zfs load-key -a
 
