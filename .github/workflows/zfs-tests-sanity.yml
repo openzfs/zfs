@@ -41,6 +41,17 @@ jobs:
         sudo sed -i.bak 's/updates/extra updates/' /etc/depmod.d/ubuntu.conf
         sudo depmod
         sudo modprobe zfs
+        # Workaround for cloud-init bug
+        # see https://github.com/openzfs/zfs/issues/12644
+        FILE=/lib/udev/rules.d/10-cloud-init-hook-hotplug.rules
+        if [ -r "${FILE}" ]; then
+          HASH=$(md5sum "${FILE}" | awk '{ print $1 }')
+          if [ "${HASH}" = "121ff0ef1936cd2ef65aec0458a35772" ]; then
+            # Just shove a zd* exclusion right above the hotplug hook...
+            sudo sed -i -e s/'LABEL="cloudinit_hook"'/'KERNEL=="zd*", GOTO="cloudinit_end"\n&'/ "${FILE}"
+            sudo udevadm control --reload-rules
+          fi
+        fi
         # Workaround to provide additional free space for testing.
         #   https://github.com/actions/virtual-environments/issues/2840
         sudo rm -rf /usr/share/dotnet
