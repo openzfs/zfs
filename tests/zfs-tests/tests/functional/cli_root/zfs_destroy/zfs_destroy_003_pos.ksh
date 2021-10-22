@@ -148,7 +148,7 @@ datasetexists $ctr1 && \
 log_note "Verify that 'zfs destroy -r' succeeds to destroy dataset " \
 	"without dependent clone outside it."
 
-log_must zfs destroy -r $ctr
+log_must_busy zfs destroy -r $ctr
 datasetexists $ctr && \
 	log_fail "'zfs destroy -r' fails to destroy dataset with clone outside it."
 
