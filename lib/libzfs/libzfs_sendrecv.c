@@ -4017,11 +4017,12 @@ zfs_setup_cmdline_props(libzfs_handle_t *hdl, zfs_type_t type,
 			 * locally-set, in which case its value will take
 			 * priority over the received anyway.
 			 */
-			if (nvlist_exists(origprops, name)) {
+			if (nvlist_exists(origprops, newname)) {
 				nvlist_t *attrs;
 				char *source = NULL;
 
-				attrs = fnvlist_lookup_nvlist(origprops, name);
+				attrs = fnvlist_lookup_nvlist(origprops,
+				    newname);
 				if (nvlist_lookup_string(attrs,
 				    ZPROP_SOURCE, &source) == 0 &&
 				    strcmp(source, ZPROP_SOURCE_VAL_RECVD) != 0)
@@ -4034,8 +4035,8 @@ zfs_setup_cmdline_props(libzfs_handle_t *hdl, zfs_type_t type,
 			 */
 			if (!zfs_prop_inheritable(prop) &&
 			    !zfs_prop_user(name) && /* can be inherited too */
-			    nvlist_exists(recvprops, name))
-				fnvlist_remove(recvprops, name);
+			    nvlist_exists(recvprops, newname))
+				fnvlist_remove(recvprops, newname);
 			else
 				fnvlist_add_boolean(*oxprops, newname);
 			break;
