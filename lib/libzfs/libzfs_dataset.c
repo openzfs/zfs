@@ -1022,7 +1022,7 @@ zfs_valid_proplist(libzfs_handle_t *hdl, zfs_type_t type, nvlist_t *nvl,
 		const char *propname = nvpair_name(elem);
 
 		prop = zfs_name_to_prop(propname);
-		if (prop == ZPROP_INVAL && zfs_prop_user(propname)) {
+		if (prop == ZPROP_USERPROP && zfs_prop_user(propname)) {
 			/*
 			 * This is a user property: make sure it's a
 			 * string, and that it's less than ZAP_MAXNAMELEN.
@@ -1061,7 +1061,7 @@ zfs_valid_proplist(libzfs_handle_t *hdl, zfs_type_t type, nvlist_t *nvl,
 			goto error;
 		}
 
-		if (prop == ZPROP_INVAL && zfs_prop_userquota(propname)) {
+		if (prop == ZPROP_USERPROP && zfs_prop_userquota(propname)) {
 			zfs_userquota_prop_t uqtype;
 			char *newpropname = NULL;
 			char domain[128];
@@ -1143,7 +1143,8 @@ zfs_valid_proplist(libzfs_handle_t *hdl, zfs_type_t type, nvlist_t *nvl,
 			}
 			free(newpropname);
 			continue;
-		} else if (prop == ZPROP_INVAL && zfs_prop_written(propname)) {
+		} else if (prop == ZPROP_USERPROP &&
+		    zfs_prop_written(propname)) {
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "'%s' is readonly"),
 			    propname);
@@ -1937,7 +1938,7 @@ zfs_prop_inherit(zfs_handle_t *zhp, const char *propname, boolean_t received)
 	    "cannot inherit %s for '%s'"), propname, zhp->zfs_name);
 
 	zc.zc_cookie = received;
-	if ((prop = zfs_name_to_prop(propname)) == ZPROP_INVAL) {
+	if ((prop = zfs_name_to_prop(propname)) == ZPROP_USERPROP) {
 		/*
 		 * For user properties, the amount of work we have to do is very
 		 * small, so just do it here.
@@ -2356,7 +2357,7 @@ zfs_prop_get_recvd(zfs_handle_t *zhp, const char *propname, char *propbuf,
 
 	prop = zfs_name_to_prop(propname);
 
-	if (prop != ZPROP_INVAL) {
+	if (prop != ZPROP_USERPROP) {
 		uint64_t cookie;
 		if (!nvlist_exists(zhp->zfs_recvd_props, propname))
 			return (-1);
@@ -4635,7 +4636,7 @@ zfs_expand_proplist(zfs_handle_t *zhp, zprop_list_t **plp, boolean_t received,
 		 */
 		start = plp;
 		while (*start != NULL) {
-			if ((*start)->pl_prop == ZPROP_INVAL)
+			if ((*start)->pl_prop == ZPROP_USERPROP)
 				break;
 			start = &(*start)->pl_next;
 		}
@@ -4656,7 +4657,7 @@ zfs_expand_proplist(zfs_handle_t *zhp, zprop_list_t **plp, boolean_t received,
 				entry = zfs_alloc(hdl, sizeof (zprop_list_t));
 				entry->pl_user_prop =
 				    zfs_strdup(hdl, nvpair_name(elem));
-				entry->pl_prop = ZPROP_INVAL;
+				entry->pl_prop = ZPROP_USERPROP;
 				entry->pl_width = strlen(nvpair_name(elem));
 				entry->pl_all = B_TRUE;
 				*last = entry;
@@ -4671,7 +4672,7 @@ zfs_expand_proplist(zfs_handle_t *zhp, zprop_list_t **plp, boolean_t received,
 		if (entry->pl_fixed && !literal)
 			continue;
 
-		if (entry->pl_prop != ZPROP_INVAL) {
+		if (entry->pl_prop != ZPROP_USERPROP) {
 			if (zfs_prop_get(zhp, entry->pl_prop,
 			    buf, sizeof (buf), NULL, NULL, 0, literal) == 0) {
 				if (strlen(buf) > entry->pl_width)
@@ -4720,13 +4721,14 @@ zfs_prune_proplist(zfs_handle_t *zhp, uint8_t *props)
 		next = nvlist_next_nvpair(zhp->zfs_props, curr);
 
 		/*
-		 * User properties will result in ZPROP_INVAL, and since we
+		 * User properties will result in ZPROP_USERPROP (an alias
+		 * for ZPROP_INVAL), and since we
 		 * only know how to prune standard ZFS properties, we always
 		 * leave these in the list.  This can also happen if we
 		 * encounter an unknown DSL property (when running older
 		 * software, for example).
 		 */
-		if (zfs_prop != ZPROP_INVAL && props[zfs_prop] == B_FALSE)
+		if (zfs_prop != ZPROP_USERPROP && props[zfs_prop] == B_FALSE)
 			(void) nvlist_remove(zhp->zfs_props,
 			    nvpair_name(curr), nvpair_type(curr));
 		curr = next;

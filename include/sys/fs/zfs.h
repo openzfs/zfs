@@ -93,6 +93,7 @@ typedef enum dmu_objset_type {
 typedef enum {
 	ZPROP_CONT = -2,
 	ZPROP_INVAL = -1,
+	ZPROP_USERPROP = ZPROP_INVAL,
 	ZFS_PROP_TYPE = 0,
 	ZFS_PROP_CREATION,
 	ZFS_PROP_USED,
@@ -310,7 +311,7 @@ typedef int (*zprop_func)(int, void *);
  */
 typedef enum {
 	VDEV_PROP_INVAL = -1,
-#define	VDEV_PROP_USER	VDEV_PROP_INVAL
+	VDEV_PROP_USERPROP = VDEV_PROP_INVAL,
 	VDEV_PROP_NAME,
 	VDEV_PROP_CAPACITY,
 	VDEV_PROP_STATE,
