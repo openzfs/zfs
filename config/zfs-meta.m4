@@ -79,7 +79,8 @@ AC_DEFUN([ZFS_AC_META], [
 				_zfs_ac_meta_type="git describe"
 			else
 				_tag_info=$(git describe 2>/dev/null)
-				_release=$(echo ${_tag_info}|cut -f3- -d'-'|sed 's/-/_/g')
+				_commits_since_tag=$(echo ${_tag_info}|cut -f3 -d'-')
+				_release="git.${_commits_since_tag}+${_git_rev}"
 				ZFS_META_RELEASE=${_release}
 				_zfs_ac_meta_type="git describe"
 			fi
