@@ -44,7 +44,7 @@ verify_runnable "both"
 
 function cleanup
 {
-	datasetexists $snap && log_must zfs destroy $snap
+	datasetexists $snap && destroy_dataset $snap
 }
 
 log_assert "'zfs rename' can address the abbreviated snapshot name."

@@ -47,9 +47,7 @@ verify_runnable "both"
 function cleanup
 {
 	for ds in $TESTPOOL $TESTPOOL/$TESTFS $TESTPOOL/$TESTVOL ; do
-		if snapexists $ds@$TESTSNAP; then
-			log_must zfs destroy $ds@$TESTSNAP
-		fi
+		snapexists $ds@$TESTSNAP && destroy_dataset $ds@$TESTSNAP
 	done
 	cleanup_user_prop $TESTPOOL
 }

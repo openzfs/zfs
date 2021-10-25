@@ -49,13 +49,8 @@ function cleanup
 	rm -f $BACKDIR/fs-dn-2k
 	rm -f $BACKDIR/fs-attr
 
-	if datasetexists $POOL/fs ; then
-		log_must zfs destroy -rR $POOL/fs
-	fi
-
-	if datasetexists $POOL/newfs ; then
-		log_must zfs destroy -rR $POOL/newfs
-	fi
+	datasetexists $POOL/fs && destroy_dataset $POOL/fs -rR
+	datasetexists $POOL/newfs && destroy_dataset $POOL/newfs -rR
 }
 
 log_onexit cleanup

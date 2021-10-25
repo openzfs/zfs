@@ -102,9 +102,7 @@ function cleanup_testenv
 
 	pkill mkbusy
 
-	if datasetexists $CTR; then
-		log_must zfs destroy -Rf $CTR
-	fi
+	datasetexists $CTR && destroy_dataset $CTR -Rf
 }
 
 #

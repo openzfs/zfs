@@ -48,9 +48,8 @@ function cleanup
 	if [ -e $badpath ]; then
 		rm -f $badpath
 	fi
-	if datasetexists $TESTPOOL/foo; then
-		log_must zfs destroy $TESTPOOL/foo
-	fi
+
+	datasetexists $TESTPOOL/foo && destroy_dataset $TESTPOOL/foo
 }
 
 log_assert "'zfs set mountpoint/sharenfs' fails with invalid scenarios"

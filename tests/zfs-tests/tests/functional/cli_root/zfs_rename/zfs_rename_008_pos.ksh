@@ -47,12 +47,11 @@ function cleanup
 {
 	typeset -i i=0
 	while ((i < ${#datasets[@]})); do
-		if datasetexists ${datasets[$i]}@snap ; then
-			log_must zfs destroy ${datasets[$i]}@snap
-		fi
-		if datasetexists ${datasets[$i]}@snap-new ; then
-			log_must zfs destroy ${datasets[$i]}@snap-new
-		fi
+		datasetexists ${datasets[$i]}@snap && \
+			destroy_dataset ${datasets[$i]}@snap
+
+		datasetexists ${datasets[$i]}@snap-new && \
+			destroy_dataset ${datasets[$i]}@snap-new
 
 		((i += 1))
 	done
