@@ -47,7 +47,7 @@ verify_runnable "global"
 function cleanup
 {
 	is_swap_inuse $swapname && log_must swap_cleanup $swapname
-	datasetexists $vol && log_must zfs destroy $vol
+	datasetexists $vol && destroy_dataset $vol
 }
 
 log_assert "For an added swap zvol, (2G <= volsize <= 16G)"

@@ -55,8 +55,8 @@ verify_runnable "both"
 
 function cleanup
 {
-	datasetexists $TESTPOOL/128k && log_must_busy zfs destroy $TESTPOOL/128k
-	datasetexists $TESTPOOL/1m && log_must_busy zfs destroy $TESTPOOL/1m
+	datasetexists $TESTPOOL/128k && destroy_dataset $TESTPOOL/128k
+	datasetexists $TESTPOOL/1m && destroy_dataset $TESTPOOL/1m
 	cleanup_pool $POOL2
 	destroy_pool $POOL3
 }

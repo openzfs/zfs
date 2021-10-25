@@ -57,7 +57,7 @@ function cleanup
 	typeset -i loop=0
 	while (($loop < $RESV_NUM_FS)); do
 		datasetexists $TESTPOOL/${TESTFS}$loop && \
-		    log_must zfs destroy -f $TESTPOOL/${TESTFS}$loop
+		    destroy_dataset $TESTPOOL/${TESTFS}$loop -f
 
 		[[ -d ${TESTDIR}$loop ]] && log_must rm -r ${TESTDIR}$loop
 

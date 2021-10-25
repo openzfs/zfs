@@ -54,7 +54,7 @@ function cleanup
 	#
 	# Note we don't destroy $TESTFS as it's used by other tests
 	for obj in $OBJ_LIST ; do
-		datasetexists $obj && log_must zfs destroy -f $obj
+		datasetexists $obj && destroy_dataset $obj -f
 	done
 
 	log_must zero_reservation $TESTPOOL/$TESTFS

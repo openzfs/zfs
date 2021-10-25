@@ -48,7 +48,7 @@ verify_runnable "both"
 
 function cleanup
 {
-	datasetexists $TEST_FS && log_must zfs destroy $TEST_FS
+	datasetexists $TEST_FS && destroy_dataset $TEST_FS
 	log_must set_tunable64 ASYNC_BLOCK_MAX_BLOCKS 100000
 }
 

@@ -47,8 +47,7 @@ verify_runnable "both"
 
 function cleanup
 {
-	snapexists $snap && \
-		log_must zfs destroy -rR $snap
+	snapexists $snap && destroy_dataset $snap -rR
 
 	typeset data
 	for data in $TESTDIR/$TESTFILE0 $TESTDIR/$TESTFILE1; do

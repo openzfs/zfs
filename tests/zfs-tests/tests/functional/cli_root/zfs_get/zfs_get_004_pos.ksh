@@ -47,11 +47,9 @@ function cleanup
 {
 	[[ -e $propfile ]] && rm -f $propfile
 
-	datasetexists $clone  && \
-		log_must zfs destroy $clone
+	datasetexists $clone  && destroy_dataset $clone
 	for snap in $fssnap $volsnap ; do
-		snapexists $snap && \
-			log_must zfs destroy $snap
+		snapexists $snap && destroy_dataset $snap
 	done
 
 	if [[ -n $globalzone ]] ; then
@@ -64,8 +62,7 @@ function cleanup
 		done
 	else
 		for fs in $TESTPOOL/$TESTFS1 $TESTPOOL/$TESTFS2 $TESTPOOL/$TESTFS3; do
-			datasetexists $fs && \
-				log_must zfs destroy -rf $fs
+			datasetexists $fs && destroy_dataset $fs -rf
 		done
 	fi
 }

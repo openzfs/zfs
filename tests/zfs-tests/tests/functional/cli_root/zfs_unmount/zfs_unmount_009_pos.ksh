@@ -55,9 +55,7 @@ function cleanup
 
 	for fs in $TESTPOOL/$TESTFS $TESTPOOL ; do
 		typeset snap=$fs@$TESTSNAP
-		if snapexists $snap; then
-			log_must zfs destroy $snap
-		fi
+		snapexists $snap && destroy_dataset $snap
 	done
 
 	if ! poolexists $TESTPOOL && is_global_zone; then

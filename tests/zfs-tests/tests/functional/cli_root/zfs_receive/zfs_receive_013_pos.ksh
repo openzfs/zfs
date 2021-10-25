@@ -39,7 +39,7 @@ tpoolfile=$TEST_BASE_DIR/temptank.$$
 function cleanup
 {
     for fs in $src_fs $dst_fs; do
-        datasetexists $fs && log_must zfs destroy -rf $fs
+        datasetexists $fs && log_must destroy_dataset $fs -rf
     done
     zpool destroy $temppool
     [[ -f $streamfile ]] && log_must rm -f $streamfile

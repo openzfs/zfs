@@ -39,8 +39,8 @@ function local_cleanup
 	typeset -i i=1
 	for ds in $datasets; do
                 datasetexists $ds/$TESTCLONE.$i && \
-		    log_must zfs destroy -rf $ds/$TESTCLONE.$i
-                datasetexists $ds && log_must zfs destroy -Rf $ds
+		    destroy_dataset $ds/$TESTCLONE.$i -rf
+                datasetexists $ds && destroy_dataset $ds -Rf
 		((i=i+1))
 	done
 }

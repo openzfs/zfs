@@ -49,7 +49,7 @@ volsize=$(zfs get -H -o value volsize $TESTPOOL/$TESTVOL)
 function cleanup
 {
 	snapexists $TESTPOOL/$TESTVOL@snap && \
-		zfs destroy $TESTPOOL/$TESTVOL@snap
+		destroy_dataset $TESTPOOL/$TESTVOL@snap
 
 	ismounted $TESTDIR $NEWFS_DEFAULT_FS
 	(( $? == 0 )) && log_must umount $TESTDIR
