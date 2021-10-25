@@ -3519,7 +3519,7 @@ raidz_reflow_complete_sync(void *arg, dmu_tx_t *tx)
 		VERIFY0(vre->vre_offset_pertxg[i]);
 
 	reflow_node_t *re = kmem_zalloc(sizeof (*re), KM_SLEEP);
-	re->re_txg = tx->tx_txg + 1;
+	re->re_txg = tx->tx_txg + TXG_CONCURRENT_STATES;
 	re->re_logical_width = vdrz->vd_physical_width;
 	mutex_enter(&vdrz->vd_expand_lock);
 	avl_add(&vdrz->vd_expand_txgs, re);
