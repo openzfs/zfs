@@ -1324,7 +1324,9 @@ zfs_lookup_internal(znode_t *dzp, const char *name, vnode_t **vpp,
 	cnp->cn_flags = ISLASTCN | SAVENAME;
 	cnp->cn_lkflags = LK_EXCLUSIVE | LK_RETRY;
 	cnp->cn_cred = kcred;
+#if __FreeBSD_version < 1400037
 	cnp->cn_thread = curthread;
+#endif
 
 	if (zfsvfs->z_use_namecache && !zfsvfs->z_replay) {
 		struct vop_lookup_args a;
@@ -4579,7 +4581,7 @@ zfs_freebsd_lookup(struct vop_lookup_args *ap, boolean_t cached)
 	strlcpy(nm, cnp->cn_nameptr, MIN(cnp->cn_namelen + 1, sizeof (nm)));
 
 	return (zfs_lookup(ap->a_dvp, nm, ap->a_vpp, cnp, cnp->cn_nameiop,
-	    cnp->cn_cred, cnp->cn_thread, 0, cached));
+	    cnp->cn_cred, curthread, 0, cached));
 }
 
 static int
