@@ -58,7 +58,7 @@ log_assert "Reservation properties preserved across exports and imports"
 function cleanup
 {
 	for obj in $OBJ_LIST; do
-                datasetexists $obj && log_must zfs destroy -f $obj
+                datasetexists $obj && destroy_dataset $obj -f
         done
 
 	log_must zero_reservation $TESTPOOL/$TESTFS
@@ -91,7 +91,7 @@ log_must zfs set reservation=$resv_set $TESTPOOL/$TESTFS1
 log_must zfs set reservation=$resv_set $TESTPOOL/$TESTFS1/$TESTFS2
 log_must zfs set reservation=$resv_set $TESTPOOL/$TESTVOL2
 
-log_must zpool export $TESTPOOL
+log_must_busy zpool export $TESTPOOL
 log_must zpool import $TESTPOOL
 
 for obj in $TESTPOOL/$TESTFS $OBJ_LIST; do

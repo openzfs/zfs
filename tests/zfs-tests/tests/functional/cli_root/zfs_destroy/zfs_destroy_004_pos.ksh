@@ -49,15 +49,11 @@ function cleanup
 {
 	cd $olddir
 
-	datasetexists $clone && \
-		log_must zfs destroy -f $clone
-
-	snapexists $snap && \
-		log_must zfs destroy -f $snap
+	datasetexists $clone && destroy_dataset $clone -f
+	snapexists $snap && destroy_dataset $snap -f
 
 	for fs in $fs1 $fs2; do
-		datasetexists $fs && \
-			log_must zfs destroy -f $fs
+		datasetexists $fs && destroy_dataset $fs -f
 	done
 
 	for dir in $TESTDIR1 $TESTDIR2; do

@@ -42,9 +42,9 @@ verify_runnable "both"
 function cleanup
 {
 	datasetexists $TESTPOOL/$TESTFS2 && \
-		log_must zfs destroy -r $TESTPOOL/$TESTFS2
+		destroy_dataset $TESTPOOL/$TESTFS2 -r
 	datasetexists $TESTPOOL/recv && \
-		log_must zfs destroy -r $TESTPOOL/recv
+		destroy_dataset $TESTPOOL/recv -r
 	[[ -f $keyfile ]] && log_must rm $keyfile
 	[[ -f $sendfile ]] && log_must rm $sendfile
 }

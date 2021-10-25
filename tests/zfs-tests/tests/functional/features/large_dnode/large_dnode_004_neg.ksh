@@ -44,9 +44,7 @@ TEST_STREAM=$TESTDIR/ldnsnap
 
 function cleanup
 {
-	if datasetexists $TEST_FS ; then
-		log_must zfs destroy -r $TEST_FS
-	fi
+	datasetexists $TEST_FS && destroy_dataset $TEST_FS -r
 
 	if datasetexists $LGCYPOOL ; then
 		log_must zpool destroy -f $LGCYPOOL

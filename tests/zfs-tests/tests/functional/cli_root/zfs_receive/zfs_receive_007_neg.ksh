@@ -47,7 +47,7 @@ verify_runnable "both"
 function cleanup
 {
 	for snap in $snap2 $snap1; do
-		datasetexists $snap && log_must zfs destroy -rf $snap
+		datasetexists $snap && destroy_dataset $snap -rf
 	done
 	for file in $ibackup $mntpnt/file1 $mntpnt/file2; do
 		[[ -f $file ]] && log_must rm -f $file

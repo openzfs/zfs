@@ -42,7 +42,7 @@
 
 function cleanup
 {
-	datasetexists $FS && log_must zfs destroy -r $FS
+	datasetexists $FS && destroy_dataset $FS -r
 }
 
 function count_snap_cmds

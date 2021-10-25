@@ -58,7 +58,9 @@ function cleanup
 {
 	log_must rm -rf $TESTDIR/$TESTFILE1
 	log_must rm -rf $TESTDIR/$TESTFILE2
-	log_must zfs destroy -f $TESTPOOL/$TESTFS1
+
+	datasetexists $TESTPOOL/$TESTFS1 && \
+		destroy_dataset $TESTPOOL/$TESTFS1 -f
 }
 
 log_onexit cleanup

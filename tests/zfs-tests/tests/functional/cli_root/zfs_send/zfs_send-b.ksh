@@ -35,7 +35,7 @@ verify_runnable "both"
 function cleanup
 {
 	for ds in "$SENDFS" "$BACKUP" "$RESTORE"; do
-		datasetexists $ds && log_must zfs destroy -r $ds
+		datasetexists $ds && destroy_dataset $ds -r
 	done
 }
 

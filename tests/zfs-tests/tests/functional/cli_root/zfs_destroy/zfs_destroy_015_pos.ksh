@@ -30,8 +30,8 @@
 
 function cleanup
 {
-	datasetexists $TESTPOOL/$TESTFS1 && zfs destroy -R $TESTPOOL/$TESTFS1
-	datasetexists $TESTPOOL/$TESTFS2 && zfs destroy -R $TESTPOOL/$TESTFS2
+	datasetexists $TESTPOOL/$TESTFS1 && destroy_dataset $TESTPOOL/$TESTFS1 -R
+	datasetexists $TESTPOOL/$TESTFS2 && destroy_dataset $TESTPOOL/$TESTFS2 -R
 	poolexists $TESTPOOL2 && zpool destroy $TESTPOOL2
 	rm -rf $VIRTUAL_DISK
 }

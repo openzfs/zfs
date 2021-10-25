@@ -46,21 +46,17 @@ verify_runnable "both"
 
 function cleanup
 {
-	if datasetexists $TESTPOOL/$TESTCTR@snap-new ; then
-		log_must zfs destroy -f $TESTPOOL/$TESTCTR@snap-new
-	fi
+	datasetexists $TESTPOOL/$TESTCTR@snap-new && \
+		destroy_dataset $TESTPOOL/$TESTCTR@snap-new -f
 
-	if datasetexists $TESTPOOL/$TESTCTR@snap ; then
-		log_must zfs destroy -f $TESTPOOL/$TESTCTR@snap
-	fi
+	datasetexists $TESTPOOL/$TESTCTR@snap && \
+		destroy_dataset $TESTPOOL/$TESTCTR@snap -f
 
-	if datasetexists $TESTPOOL@snap-new ; then
-		log_must zfs destroy -f $TESTPOOL@snap-new
-	fi
+	datasetexists $TESTPOOL@snap-new && \
+		destroy_dataset $TESTPOOL@snap-new -f
 
-	if datasetexists $TESTPOOL@snap ; then
-		log_must zfs destroy -f $TESTPOOL@snap
-	fi
+	datasetexists $TESTPOOL@snap && \
+		destroy_dataset $TESTPOOL@snap -f
 }
 
 log_assert "zfs rename -r can rename snapshot when child datasets" \

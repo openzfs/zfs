@@ -65,9 +65,8 @@ function cleanup
 
 	typeset snap
 	for snap in snap0 snap1 ; do
-		if datasetexists $TESTPOOL/$TESTVOL@$snap ; then
-			log_must zfs destroy $TESTPOOL/$TESTVOL@$snap
-		fi
+		datasetexists $TESTPOOL/$TESTVOL@$snap && \
+			 destroy_dataset $TESTPOOL/$TESTVOL@$snap
 	done
 	zfs set volsize=$volsize $TESTPOOL/$TESTVOL
 }

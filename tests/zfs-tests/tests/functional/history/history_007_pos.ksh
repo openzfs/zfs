@@ -62,7 +62,7 @@ migratedpoolname=$MIGRATEDPOOLNAME
 typeset -i RET=1
 typeset -i linenum=0
 
-[[ ! -d $import_dir ]] && log_must mkdir $import_dir
+[[ ! -d $import_dir ]] && log_must mkdir -p $import_dir
 
 # We test the migrations on both uniform platform and cross platform
 for arch in "i386" "sparc"; do

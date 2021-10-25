@@ -37,7 +37,7 @@ verify_runnable "both"
 function cleanup
 {
 	datasetexists $TESTPOOL/$TESTFS2 && \
-		log_must zfs destroy -r $TESTPOOL/$TESTFS2
+		destroy_dataset $TESTPOOL/$TESTFS2 -r
 }
 log_onexit cleanup
 
