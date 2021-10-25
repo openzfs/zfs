@@ -53,14 +53,10 @@ verify_runnable "both"
 function cleanup
 {
 	for ds in $vol $fs1; do
-		if datasetexists $ds; then
-			log_must zfs destroy -f $ds
-		fi
+		datasetexists $ds && destroy_dataset $ds -f
 	done
 
-	if snapexists $snap; then
-		log_must zfs destroy $snap
-	fi
+	snapexists $snap && destroy_dataset $snap
 
 	if [[ -e /tmp/$file ]]; then
 		rm -f /tmp/$file

@@ -67,11 +67,11 @@ function cleanup
 		fi
 
 		datasetexists $TESTPOOL/$TESTFS1/$fs && \
-			log_must zfs destroy -f $TESTPOOL/$TESTFS1/$fs
+			destroy_dataset $TESTPOOL/$TESTFS1/$fs -f
 		datasetexists $TESTPOOL/$TESTFS2/$fs && \
-			log_must zfs destroy -f $TESTPOOL/$TESTFS2/$fs
+			destroy_dataset $TESTPOOL/$TESTFS2/$fs -f
 		datasetexists $TESTPOOL/$TESTFS3/$fs && \
-			log_must zfs destroy -f $TESTPOOL/$TESTFS3/$fs
+			destroy_dataset $TESTPOOL/$TESTFS3/$fs -f
 	done
 
 	log_must zfs share -a

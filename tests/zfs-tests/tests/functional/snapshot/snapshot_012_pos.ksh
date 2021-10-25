@@ -55,15 +55,14 @@ function cleanup
 {
 	if datasetexists $clone1; then
 		log_must zfs promote $ctrfs
-		log_must zfs destroy $clone1
+		destroy_dataset $clone1
 	fi
 
-	snapexists $snapctr && \
-		log_must zfs destroy -r $snapctr
+	snapexists $snapctr && destroy_dataset $snapctr -r
 
 	if snapexists $clone@$TESTSNAP1; then
 		log_must zfs promote $ctrfs
-		log_must zfs destroy -rR $ctrfs@$TESTSNAP1
+		destroy_dataset $ctrfs@$TESTSNAP1 -rR
 	fi
 }
 

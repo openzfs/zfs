@@ -37,8 +37,7 @@ verify_runnable "global"
 log_must set_tunable32 SCAN_SUSPEND_PROGRESS 0
 
 for pool in "$TESTPOOL" "$TESTPOOL1"; do
-	datasetexists $pool/$TESTFS && \
-		log_must zfs destroy -Rf $pool/$TESTFS
+	datasetexists $pool/$TESTFS && destroy_dataset $pool/$TESTFS -Rf
 	destroy_pool "$pool"
 done
 

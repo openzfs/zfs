@@ -40,13 +40,8 @@ TEST_FILEINCR=bar
 
 function cleanup
 {
-	if datasetexists $TEST_SEND_FS ; then
-		log_must zfs destroy -r $TEST_SEND_FS
-	fi
-
-	if datasetexists $TEST_RECV_FS ; then
-		log_must zfs destroy -r $TEST_RECV_FS
-	fi
+	datasetexists $TEST_SEND_FS && destroy_dataset $TEST_SEND_FS -r
+	datasetexists $TEST_RECV_FS && destroy_dataset $TEST_RECV_FS -r
 
 	rm -f $TEST_STREAM
 	rm -f $TEST_STREAMINCR

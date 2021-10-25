@@ -45,7 +45,7 @@ datasets="$TESTPOOL/$TESTFS1 $TESTPOOL/$TESTFS1/$TESTFS2
 function cleanup
 {
 	for ds in $datasets; do
-		datasetexists $ds && zfs destroy -rf $ds
+		datasetexists $ds && destroy_dataset $ds -rf
 	done
 }
 

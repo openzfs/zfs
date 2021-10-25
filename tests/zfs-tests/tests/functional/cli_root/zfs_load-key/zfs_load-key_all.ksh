@@ -37,11 +37,9 @@ verify_runnable "both"
 
 function cleanup
 {
-	datasetexists $TESTPOOL/$TESTFS1 && \
-		log_must zfs destroy $TESTPOOL/$TESTFS1
-	datasetexists $TESTPOOL/$TESTFS2 && \
-		log_must zfs destroy $TESTPOOL/$TESTFS2
-	datasetexists $TESTPOOL/zvol && log_must zfs destroy $TESTPOOL/zvol
+	datasetexists $TESTPOOL/$TESTFS1 && destroy_dataset $TESTPOOL/$TESTFS1
+	datasetexists $TESTPOOL/$TESTFS2 && destroy_dataset $TESTPOOL/$TESTFS2
+	datasetexists $TESTPOOL/zvol && destroy_dataset $TESTPOOL/zvol
 	poolexists $TESTPOOL1 && log_must destroy_pool $TESTPOOL1
 }
 log_onexit cleanup
@@ -63,15 +61,15 @@ log_must zpool create -O encryption=on -O keyformat=passphrase \
 	-O keylocation=file:///$TESTPOOL/pkey $TESTPOOL1 $DISK2
 
 log_must zfs unmount $TESTPOOL/$TESTFS1
-log_must zfs unload-key $TESTPOOL/$TESTFS1
+log_must_busy zfs unload-key $TESTPOOL/$TESTFS1
 
 log_must zfs unmount $TESTPOOL/$TESTFS2
-log_must zfs unload-key $TESTPOOL/$TESTFS2
+log_must_busy zfs unload-key $TESTPOOL/$TESTFS2
 
-log_must zfs unload-key $TESTPOOL/zvol
+log_must_busy zfs unload-key $TESTPOOL/zvol
 
 log_must zfs unmount $TESTPOOL1
-log_must zfs unload-key $TESTPOOL1
+log_must_busy zfs unload-key $TESTPOOL1
 
 log_must zfs load-key -a
 

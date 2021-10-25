@@ -31,9 +31,7 @@ verify_runnable "both"
 function cleanup
 {
 	for snap in $TESTSNAP1 $TESTSNAP2; do
-		if snapexists "$snap"; then
-			log_must zfs destroy "$snap"
-		fi
+		snapexists "$snap" && destroy_dataset "$snap"
 	done
 	find "$MNTPOINT" -type f -delete
 	rm -f "$FILEDIFF"

@@ -51,7 +51,7 @@ verify_runnable "both"
 function cleanup
 {
 	for snap in $snap2 $snap1; do
-		datasetexists $snap && log_must zfs destroy -rf $snap
+		datasetexists $snap && destroy_dataset $snap -rf
 	done
 	for file in $fbackup1 $fbackup2 $mntpnt/file1 $mntpnt/file2; do
 		[[ -f $file ]] && log_must rm -f $file
@@ -59,10 +59,10 @@ function cleanup
 
 	if is_global_zone; then
 		datasetexists $TESTPOOL/$TESTFS/$TESTFS1 && \
-			log_must zfs destroy -rf $TESTPOOL/$TESTFS/$TESTFS1
+			destroy_dataset $TESTPOOL/$TESTFS/$TESTFS1 -rf
 	else
 		datasetexists $TESTPOOL/${ZONE_CTR}0 && \
-			log_must zfs destroy -rf $TESTPOOL/${ZONE_CTR}0
+			destroy_dataset $TESTPOOL/${ZONE_CTR}0 -rf
 	fi
 
 }

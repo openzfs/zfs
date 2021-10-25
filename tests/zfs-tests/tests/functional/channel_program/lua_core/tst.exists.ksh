@@ -30,7 +30,7 @@ create_clone
 function cleanup
 {
 	datasetexists $TESTPOOL/$TESTFS@$TESTSNAP && \
-	    log_must zfs destroy -R $TESTPOOL/$TESTFS@$TESTSNAP
+	    destroy_dataset $TESTPOOL/$TESTFS@$TESTSNAP -R
 }
 
 log_must_program $TESTPOOL $ZCP_ROOT/lua_core/tst.exists.zcp \

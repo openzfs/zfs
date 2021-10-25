@@ -62,13 +62,9 @@ set -A args "" \
 
 function cleanup
 {
-	if datasetexists $clone; then
-		log_must zfs destroy $clone
-	fi
+	datasetexists $clone && destroy_dataset $clone
 
-	if datasetexists $recvfs; then
-		log_must zfs destroy -r $recvfs
-	fi
+	datasetexists $recvfs && destroy_dataset $recvfs -r
 
 	if snapexists $snap; then
 		destroy_snapshot  $snap

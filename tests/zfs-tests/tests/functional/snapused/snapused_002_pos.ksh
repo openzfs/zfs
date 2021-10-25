@@ -49,7 +49,7 @@ verify_runnable "both"
 
 function cleanup
 {
-	log_must zfs destroy -rR $USEDTEST
+	datasetexists $USEDTEST && destroy_dataset $USEDTEST -rR
 }
 
 log_assert "Verify usedbychildren is correct."
