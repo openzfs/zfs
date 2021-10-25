@@ -207,7 +207,11 @@ zfs_file_getattr(zfs_file_t *fp, zfs_file_attr_t *zfattr)
 
 	td = curthread;
 
+#if __FreeBSD_version < 1400037
 	rc = fo_stat(fp, &sb, td->td_ucred, td);
+#else
+	rc = fo_stat(fp, &sb, td->td_ucred);
+#endif
 	if (rc)
 		return (SET_ERROR(rc));
 	zfattr->zfa_size = sb.st_size;
