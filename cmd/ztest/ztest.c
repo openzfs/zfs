@@ -172,6 +172,7 @@ typedef struct ztest_shared_opts {
 	size_t zo_vdev_size;
 	int zo_ashift;
 	int zo_mirrors;
+	int zo_raid_do_expand;
 	int zo_raid_children;
 	int zo_raid_parity;
 	char zo_raid_type[8];
@@ -372,8 +373,7 @@ typedef void ztest_func_t(ztest_ds_t *zd, uint64_t id);
 
 /*
  * XXX: remove zi_raidz_attach_compatible field, when
- * raidz expansion will be completely integrated together with
- * ztest_raidz_attach_test variable.
+ * raidz expansion will be completely integrated.
  */
 
 typedef struct ztest_info {
@@ -564,7 +564,6 @@ static ztest_ds_t *ztest_ds;
 
 static kmutex_t ztest_vdev_lock;
 static boolean_t ztest_device_removal_active = B_FALSE;
-static boolean_t ztest_raidz_attach_test = B_FALSE;
 static boolean_t ztest_pool_scrubbed = B_FALSE;
 static kmutex_t ztest_checkpoint_lock;
 
@@ -784,7 +783,7 @@ static ztest_option_t option_table[] = {
 	    DEFAULT_RAID_CHILDREN, NULL},
 	{ 'R',	"raid-parity", "INTEGER", "Raid parity",
 	    DEFAULT_RAID_PARITY, NULL},
-	{ 'K',	"raid-kind", "raidz|draid|random", "Raid kind",
+	{ 'K',  "raid-kind", "raidz|eraidz|draid|random", "Raid kind",
 	    NO_DEFAULT, "random"},
 	{ 'D',	"draid-data", "INTEGER", "Number of draid data drives",
 	    DEFAULT_DRAID_DATA, NULL},
@@ -1126,8 +1125,17 @@ process_options(int argc, char **argv)
 
 	/* When raid choice is 'random' add a draid pool 50% of the time */
 	if (strcmp(raid_kind, "random") == 0) {
-		(void) strlcpy(raid_kind, (ztest_random(2) == 0) ?
-		    "draid" : "raidz", sizeof (raid_kind));
+		switch (ztest_random(3)) {
+		case 0:
+			(void) strlcpy(raid_kind, "raidz", sizeof (raid_kind));
+			break;
+		case 1:
+			(void) strlcpy(raid_kind, "eraidz", sizeof (raid_kind));
+			break;
+		case 2:
+			(void) strlcpy(raid_kind, "draid", sizeof (raid_kind));
+			break;
+		}
 
 		if (ztest_opts.zo_verbose >= 3)
 			(void) printf("choosing RAID type '%s'\n", raid_kind);
@@ -1165,6 +1173,16 @@ process_options(int argc, char **argv)
 
 		(void) strlcpy(zo->zo_raid_type, VDEV_TYPE_DRAID,
 		    sizeof (zo->zo_raid_type));
+
+	} else if (strcmp(raid_kind, "eraidz") == 0) {
+		/* using eraidz (expandable raidz) */
+		zo->zo_raid_do_expand = B_TRUE;
+
+		/* No top-level mirrors with raidz expansion for now */
+		zo->zo_mirrors = 0;
+
+		zo->zo_raid_parity = MIN(zo->zo_raid_parity,
+		    zo->zo_raid_children - 1);
 
 	} else /* using raidz */ {
 		ASSERT0(strcmp(raid_kind, "raidz"));
@@ -3911,21 +3929,6 @@ raidz_scratch_verify(void)
 	kernel_fini();
 }
 
-static boolean_t
-ztest_vdev_raidz_attach_possible(spa_t *spa)
-{
-	ztest_shared_t *zs = ztest_shared;
-	vdev_t *rvd = spa->spa_root_vdev;
-	vdev_t *vd = rvd->vdev_child[0];
-
-	if (rvd->vdev_children == 1 &&
-	    strcmp(vd->vdev_ops->vdev_op_type, "raidz") == 0 &&
-	    zs->zs_mirrors == 0)
-		return (B_TRUE);
-
-	return (B_FALSE);
-}
-
 static void
 ztest_scratch_thread(void *arg)
 {
@@ -3955,19 +3958,21 @@ ztest_vdev_raidz_attach(ztest_ds_t *zd, uint64_t id)
 	char *newpath = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
 	int error, expected_error = 0;
 
-	if (ztest_opts.zo_mmp_test)
-		return;
-
 	mutex_enter(&ztest_vdev_lock);
 
 	spa_config_enter(spa, SCL_ALL, FTAG, RW_READER);
 
-	if (ztest_device_removal_active) {
+	if (!ztest_opts.zo_raid_do_expand) {
 		spa_config_exit(spa, SCL_ALL, FTAG);
 		goto out;
 	}
 
-	if (!ztest_vdev_raidz_attach_possible(spa)) {
+	if (ztest_opts.zo_mmp_test) {
+		spa_config_exit(spa, SCL_ALL, FTAG);
+		goto out;
+	}
+
+	if (ztest_device_removal_active) {
 		spa_config_exit(spa, SCL_ALL, FTAG);
 		goto out;
 	}
@@ -7296,7 +7301,7 @@ ztest_execute(int test, ztest_info_t *zi, uint64_t id)
 	int i;
 
 	for (i = 0; i < zi->zi_iters; i++) {
-		if (!ztest_raidz_attach_test)
+		if (!ztest_opts.zo_raid_do_expand)
 			zi->zi_func(zd, id);
 		else if (zi->zi_raidz_attach_compatible)
 			zi->zi_func(zd, id);
@@ -7550,7 +7555,7 @@ ztest_freeze(void)
 	spa_t *spa;
 	int numloops = 0;
 
-	if (ztest_raidz_attach_test)
+	if (ztest_opts.zo_raid_do_expand)
 		return;
 
 	if (ztest_opts.zo_verbose >= 3)
@@ -8105,8 +8110,6 @@ ztest_run(ztest_shared_t *zs)
 
 	metaslab_preload_limit = ztest_random(20) + 1;
 	ztest_spa = spa;
-
-	ztest_raidz_attach_test = ztest_vdev_raidz_attach_possible(spa);
 
 	/*
 	 * BUGBUG raidz expansion do not run this for now
