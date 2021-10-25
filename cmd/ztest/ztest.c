@@ -3934,8 +3934,8 @@ void
 ztest_vdev_raidz_attach(ztest_ds_t *zd, uint64_t id)
 {
 	spa_t *spa = ztest_spa;
-	uint64_t csize, ashift = ztest_get_ashift();
-	vdev_t *cvd, *pvd;
+	uint64_t newsize, ashift = ztest_get_ashift();
+	vdev_t *newvd, *pvd;
 	nvlist_t *root;
 	char *newpath = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
 	int error, expected_error = 0;
@@ -3965,9 +3965,8 @@ ztest_vdev_raidz_attach(ztest_ds_t *zd, uint64_t id)
 	 * Get size of a child of the raidz group,
 	 * make sure device is a bit bigger
 	 */
-	cvd = pvd->vdev_child[0];
-	csize = vdev_get_min_asize(cvd);
-	csize += csize / 10;
+	newvd = pvd->vdev_child[ztest_random(pvd->vdev_children)];
+	newsize = 10 * vdev_get_min_asize(newvd) / (9 + ztest_random(2));
 
 	if (spa->spa_raidz_expand)
 		expected_error = ZFS_ERR_RAIDZ_EXPAND_IN_PROGRESS;
@@ -3983,7 +3982,7 @@ ztest_vdev_raidz_attach(ztest_ds_t *zd, uint64_t id)
 	/*
 	 * Build the nvlist describing newpath.
 	 */
-	root = make_vdev_root(newpath, NULL, NULL, csize, ashift, NULL,
+	root = make_vdev_root(newpath, NULL, NULL, newsize, ashift, NULL,
 	    0, 0, 1);
 
 	/*
@@ -4002,11 +4001,16 @@ ztest_vdev_raidz_attach(ztest_ds_t *zd, uint64_t id)
 
 	nvlist_free(root);
 
+	if (error == EOVERFLOW ||
+	    error == ZFS_ERR_CHECKPOINT_EXISTS ||
+	    error == ZFS_ERR_DISCARDING_CHECKPOINT)
+		expected_error = error;
+
 	if (error == 0) {
 		ztest_shared->zs_raidzs_attached++;
 	} else if (error != 0 && error != expected_error) {
 		fatal(0, "raidz attach (%s %llu) returned %d, expected %d",
-		    newpath, (long long)csize, error, expected_error);
+		    newpath, newsize, error, expected_error);
 	} else if (error == 0 && ztest_shared->zs_do_raidz_scratch_verify) {
 		/*
 		 * Wait raidz expansion thread starting and kill it.
