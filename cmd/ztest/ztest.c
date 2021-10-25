@@ -4227,6 +4227,18 @@ ztest_vdev_LUN_growth(ztest_ds_t *zd, uint64_t id)
 		return;
 	}
 
+	/*
+	* If we under raidz expansion, the test can failed because metaslabs
+	* count will not increase immediately after vdevs growing. It will
+	* happen only after raidz expansion completion.
+	*/
+	if (spa->spa_raidz_expand) {
+		spa_config_exit(spa, SCL_STATE, spa);
+		mutex_exit(&ztest_vdev_lock);
+		mutex_exit(&ztest_checkpoint_lock);
+		return;
+	}
+
 	top = ztest_random_vdev_top(spa, B_TRUE);
 
 	tvd = spa->spa_root_vdev->vdev_child[top];
