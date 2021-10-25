@@ -55,7 +55,7 @@ function cleanup
 		log_must zfs umount -f $TESTDIR2
 
 	datasetexists $TESTPOOL/$TESTFS2 && \
-		log_must zfs destroy $TESTPOOL/$TESTFS2
+		destroy_dataset $TESTPOOL/$TESTFS2
 
 	[[ -d $TESTDIR2 ]] && \
 		log_must rm -rf $TESTDIR2

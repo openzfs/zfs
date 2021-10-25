@@ -53,7 +53,7 @@ function cleanup
 	fi
 
 	datasetexists $TESTPOOL/$TESTCTR/$TESTFS2 && \
-		log_must zfs destroy $TESTPOOL/$TESTCTR/$TESTFS2
+		destroy_dataset $TESTPOOL/$TESTCTR/$TESTFS2
 
 	typeset fs=""
 	for fs in $mntp $TESTDIR1 $TESTDIR2

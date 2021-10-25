@@ -131,9 +131,8 @@ function dry_create_parseable
 
 function cleanup
 {
-	if datasetexists "$TESTPOOL/$TESTFS1"; then
-		log_must_busy zfs destroy -r "$TESTPOOL/$TESTFS1"
-	fi
+	datasetexists "$TESTPOOL/$TESTFS1" && \
+		destroy_dataset "$TESTPOOL/$TESTFS1" -r
 }
 log_onexit cleanup
 

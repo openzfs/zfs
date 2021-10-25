@@ -57,7 +57,7 @@ log_assert "Setting volume reservation to 'none' allows more data to be " \
 function cleanup
 {
 	datasetexists $TESTPOOL/$TESTVOL && \
-	log_must zfs destroy $TESTPOOL/$TESTVOL
+		destroy_dataset $TESTPOOL/$TESTVOL
 
 	[[ -e $TESTDIR/$TESTFILE1 ]] && log_must rm -rf $TESTDIR/$TESTFILE1
 	[[ -e $TESTDIR/$TESTFILE2 ]] && log_must rm -rf $TESTDIR/$TESTFILE2
@@ -76,6 +76,7 @@ space_avail=$(largest_volsize_from_pool $TESTPOOL)
 resv_size_set=$(floor_volsize $resv_size_set)
 
 log_must zfs create -V $resv_size_set $TESTPOOL/$TESTVOL
+block_device_wait $TESTPOOL/$TESTVOL
 
 space_avail_still=`get_prop available $TESTPOOL`
 

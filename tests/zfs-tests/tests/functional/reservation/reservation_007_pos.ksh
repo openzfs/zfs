@@ -56,10 +56,10 @@ log_assert "Verify reservations on data sets doesn't affect other data sets " \
 function cleanup
 {
 	datasetexists $TESTPOOL/$TESTFS2 && \
-	    log_must zfs destroy -f $TESTPOOL/$TESTFS2
+		destroy_dataset $TESTPOOL/$TESTFS2 -f
 
 	datasetexists $TESTPOOL/$TESTFS1 && \
-	    log_must zfs destroy -f $TESTPOOL/$TESTFS1
+		destroy_dataset $TESTPOOL/$TESTFS1 -f
 }
 
 log_onexit cleanup
@@ -100,7 +100,7 @@ function create_resv_destroy { # args1 dataset1 args2 dataset2
 	# available totals should revert back to the values they
 	# had after creating the first dataset.
 	#
-	log_must zfs destroy -f $dataset2
+	log_must_busy zfs destroy -f $dataset2
 
 	avail_dest_dset2=`get_prop available $TESTPOOL`
 	used_dest_dset2=`get_prop used $TESTPOOL`
@@ -112,7 +112,7 @@ function create_resv_destroy { # args1 dataset1 args2 dataset2
 	# After destroying the first dataset the space used and
 	# space available totals should revert back to the values
 	# they had when the pool was first created.
-	log_must zfs destroy -f $dataset1
+	log_must_busy zfs destroy -f $dataset1
 
 	avail_dest_dset1=`get_prop available $TESTPOOL`
 	used_dest_dset1=`get_prop used $TESTPOOL`

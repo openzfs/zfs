@@ -43,8 +43,7 @@ TESTFS2=$(for i in $(seq $((255 - ${#TESTPOOL}))); do echo z ; done | tr -d '\n'
 
 function cleanup
 {
-	datasetexists $TESTPOOL/$TESTFS1 &&
-		log_must zfs destroy $TESTPOOL/$TESTFS1
+	datasetexists $TESTPOOL/$TESTFS1 && destroy_dataset $TESTPOOL/$TESTFS1
 }
 
 log_onexit cleanup

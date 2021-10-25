@@ -44,9 +44,9 @@ verify_runnable "both"
 
 function cleanup
 {
-	snapexists $SNAP && log_must zfs destroy -f $SNAP
+	snapexists $SNAP && destroy_dataset $SNAP -f
 
-	datasetexists $PARENT && log_must zfs destroy -rf $PARENT
+	datasetexists $PARENT && destroy_dataset $PARENT -rf
 
 	[[ -e $WARNF ]] && log_must rm -f $WARNF
 	rm -f $TEST_BASE_DIR/devnull

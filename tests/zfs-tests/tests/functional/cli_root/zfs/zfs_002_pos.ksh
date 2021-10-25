@@ -56,9 +56,7 @@ function cleanup
 		rm -rf $corepath
 	fi
 	for ds in $fs1 $fs $ctr; do
-		if datasetexists $ds; then
-			log_must zfs destroy -rRf $ds
-		fi
+		datasetexists $ds && destroy_dataset $ds -rRf
 	done
 }
 

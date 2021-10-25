@@ -59,7 +59,7 @@ function cleanup
 	typeset -i i=0
 	while (( $i < ${#datasets[*]} )); do
 		datasetexists ${datasets[i]} && \
-			log_must zfs destroy ${datasets[i]}
+			destroy_dataset ${datasets[i]}
 		(( i = i + 1 ))
 	done
 

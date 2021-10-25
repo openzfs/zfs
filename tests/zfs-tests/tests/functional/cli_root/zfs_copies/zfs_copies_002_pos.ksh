@@ -50,9 +50,8 @@ function cleanup
 	typeset val
 
 	for val in 1 2 3; do
-		if datasetexists $TESTPOOL/fs_$val; then
-			log_must zfs destroy $TESTPOOL/fs_$val
-		fi
+		datasetexists $TESTPOOL/fs_$val && \
+			destroy_dataset $TESTPOOL/fs_$val
 	done
 }
 

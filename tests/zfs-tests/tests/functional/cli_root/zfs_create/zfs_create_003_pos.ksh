@@ -46,8 +46,7 @@ verify_runnable "global"
 
 function cleanup
 {
-	datasetexists $vol && \
-		log_must zfs destroy -f $vol
+	datasetexists $vol && destroy_dataset $vol -f
 }
 
 log_assert "Verify creating volume with specified blocksize works."

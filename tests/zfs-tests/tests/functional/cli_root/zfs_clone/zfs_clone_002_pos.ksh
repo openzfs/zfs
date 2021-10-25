@@ -60,14 +60,10 @@ function setup_all
 function cleanup_all
 {
 
-	if datasetexists $TESTPOOL/notexist ; then
-		log_must zfs destroy -rRf $TESTPOOL/notexist
-	fi
+	datasetexists $TESTPOOL/notexist && destroy_dataset $TESTPOOL/notexist -rRf
 
 	for snap in $SNAPFS $SNAPFS1 ; do
-		if snapexists $snap ; then
-			log_must zfs destroy -Rf $snap
-		fi
+		snapexists $snap && destroy_dataset $snap -Rf
 	done
 
 	return 0

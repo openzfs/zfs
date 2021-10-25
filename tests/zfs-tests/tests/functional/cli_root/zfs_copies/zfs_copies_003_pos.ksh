@@ -51,9 +51,7 @@ function cleanup
 		destroy_pool $TESTPOOL1
 	fi
 
-	if datasetexists $vol; then
-		log_must zfs destroy $vol
-	fi
+	datasetexists $vol && destroy_dataset $vol
 }
 
 log_assert "Verify that ZFS volume space used by multiple copies is charged correctly."

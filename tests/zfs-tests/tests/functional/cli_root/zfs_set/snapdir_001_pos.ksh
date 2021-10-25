@@ -48,8 +48,7 @@ verify_runnable "both"
 function cleanup
 {
 	for dataset in $all_datasets; do
-		snapexists ${dataset}@snap && \
-			log_must zfs destroy ${dataset}@snap
+		snapexists ${dataset}@snap && destroy_dataset ${dataset}@snap
 	done
 }
 

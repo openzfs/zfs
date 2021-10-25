@@ -78,7 +78,5 @@ function depth_fs_setup
 #
 function depth_fs_cleanup
 {
-	log_must zfs destroy -rR $DEPTH_FS
+	datasetexists $DEPTH_FS && destroy_dataset $DEPTH_FS -rR
 }
-
-
