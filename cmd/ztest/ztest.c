@@ -3926,6 +3926,20 @@ ztest_vdev_raidz_attach_possible(spa_t *spa)
 	return (B_FALSE);
 }
 
+static void
+ztest_scratch_thread(void *arg)
+{
+	ztest_shared_t *zs = arg;
+	for (int t = 100; t > 0; t -= 1) {
+		if (!zs->zs_do_raidz_scratch_verify)
+			thread_exit();
+
+		(void) poll(NULL, 0, 100);
+	}
+
+	ztest_kill(ztest_shared);
+}
+
 /*
  * Verify that we can attach raidz device.
  */
@@ -3935,6 +3949,7 @@ ztest_vdev_raidz_attach(ztest_ds_t *zd, uint64_t id)
 {
 	spa_t *spa = ztest_spa;
 	uint64_t newsize, ashift = ztest_get_ashift();
+	kthread_t *scratch_thread = NULL;
 	vdev_t *newvd, *pvd;
 	nvlist_t *root;
 	char *newpath = umem_alloc(MAXPATHLEN, UMEM_NOFAIL);
@@ -3985,17 +4000,12 @@ ztest_vdev_raidz_attach(ztest_ds_t *zd, uint64_t id)
 	root = make_vdev_root(newpath, NULL, NULL, newsize, ashift, NULL,
 	    0, 0, 1);
 
-	/*
-	 * XXX this doesn't work right because spa_vdev_attach() won't
-	 * return until it can write the first txg of the reflow, which
-	 * will be paused.  We need to kill off from another thread??
-	 */
-#if 0
 	if (ztest_random(2) == 0 && expected_error == 0) {
 		raidz_expand_max_offset_pause = RAIDZ_REFLOW_OFFSET_PAUSE;
 		ztest_shared->zs_do_raidz_scratch_verify = B_TRUE;
+		scratch_thread = thread_create(NULL, 0, ztest_scratch_thread,
+		    ztest_shared, 0, NULL, TS_RUN | TS_JOINABLE, defclsyspri);
 	}
-#endif
 
 	error = spa_vdev_attach(spa, pvd->vdev_guid, root, B_FALSE, B_FALSE);
 
@@ -4011,12 +4021,19 @@ ztest_vdev_raidz_attach(ztest_ds_t *zd, uint64_t id)
 	} else if (error != 0 && error != expected_error) {
 		fatal(0, "raidz attach (%s %llu) returned %d, expected %d",
 		    newpath, newsize, error, expected_error);
-	} else if (error == 0 && ztest_shared->zs_do_raidz_scratch_verify) {
-		/*
-		 * Wait raidz expansion thread starting and kill it.
-		 */
-		sleep(10);
-		ztest_kill(ztest_shared);
+	}
+
+	if (ztest_shared->zs_do_raidz_scratch_verify) {
+		if (error != 0) {
+			/*
+			 * Do not verify scratch object in case of error
+			 * returned by vdev attaching.
+			 */
+			raidz_expand_max_offset_pause = 0;
+			ztest_shared->zs_do_raidz_scratch_verify = B_FALSE;
+		}
+
+		VERIFY0(thread_join(scratch_thread));
 	}
 
 out:
