@@ -122,11 +122,11 @@ Number of mirror copies.
 Number of raidz/draid disks.
 .It Fl R , -raid-parity Ns = (default: Sy 1 )
 Raid parity (raidz & draid).
-.It Fl K , -raid-kind Ns = Ns Sy raidz Ns | Ns Sy draid Ns | Ns Sy random No (default : Sy random )
+.It Fl K , -raid-kind Ns = Ns Sy raidz Ns | Ns Sy eraidz Ns | Ns Sy draid Ns | Ns Sy random No (default: Sy random )
 The kind of RAID config to use.
 With
 .Sy random
-the kind alternates between raidz and draid.
+the kind alternates between raidz, eraidz (expandable raidz) and draid.
 .It Fl D , -draid-data Ns = (default: Sy 4 )
 Number of data disks in a dRAID redundancy group.
 .It Fl S , -draid-spares Ns = (default: Sy 1 )
