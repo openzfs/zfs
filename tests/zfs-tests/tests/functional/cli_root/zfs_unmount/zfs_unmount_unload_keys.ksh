@@ -46,11 +46,11 @@ verify_runnable "both"
 function cleanup
 {
 	datasetexists $TESTPOOL/$TESTFS2 && \
-		log_must zfs destroy -r $TESTPOOL/$TESTFS2
+		destroy_dataset $TESTPOOL/$TESTFS2 -r
 	datasetexists $TESTPOOL/$TESTFS2/newroot && \
-		log_must zfs destroy -r $TESTPOOL/$TESTFS2/newroot
+		destroy_dataset $TESTPOOL/$TESTFS2/newroot -r
 	datasetexists $TESTPOOL/$TESTFS2/child && \
-		log_must zfs destroy -r $TESTPOOL/$TESTFS2/child
+		destroy_dataset $TESTPOOL/$TESTFS2/child -r
 
 }
 log_onexit cleanup

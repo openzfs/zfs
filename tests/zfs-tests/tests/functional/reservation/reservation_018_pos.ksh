@@ -47,7 +47,7 @@ verify_runnable "both"
 
 function cleanup
 {
-	datasetexists $fs_child && log_must zfs destroy $fs_child
+	datasetexists $fs_child && destroy_dataset $fs_child
 	log_must zfs set reservation=$reserv_val $fs
 }
 

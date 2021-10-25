@@ -63,12 +63,11 @@ set -A values "on" "off"
 
 function cleanup
 {
-	if snapexists $TESTPOOL/$TESTFS@$TESTSNAP ; then
-		log_must zfs destroy -R $TESTPOOL/$TESTFS@$TESTSNAP
-	fi
-	if snapexists $TESTPOOL/$TESTVOL@$TESTSNAP ; then
-		log_must zfs destroy -R $TESTPOOL/$TESTVOL@$TESTSNAP
-	fi
+	snapexists $TESTPOOL/$TESTFS@$TESTSNAP && \
+		destroy_dataset $TESTPOOL/$TESTFS@$TESTSNAP -R
+
+	snapexists $TESTPOOL/$TESTVOL@$TESTSNAP && \
+		destroy_dataset $TESTPOOL/$TESTVOL@$TESTSNAP -R
 
 	[[ -n $old_ctr_canmount ]] && \
 		log_must zfs set canmount=$old_ctr_canmount $TESTPOOL/$TESTCTR

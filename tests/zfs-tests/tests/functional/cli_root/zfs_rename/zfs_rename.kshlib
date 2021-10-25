@@ -108,13 +108,11 @@ function cleanup
                 ((i = i + 1))
 	done
 
-	if snapexists $TESTPOOL/$TESTFS@snapshot; then
-		log_must zfs destroy -fR $TESTPOOL/$TESTFS@snapshot
-	fi
+	snapexists $TESTPOOL/$TESTFS@snapshot && \
+		 destroy_dataset $TESTPOOL/$TESTFS@snapshot -fR
 
-	if datasetexists $TESTPOOL/$RECVFS; then
-		log_must zfs destroy -r $TESTPOOL/$RECVFS
-	fi
+	datasetexists $TESTPOOL/$RECVFS && \
+		destroy_dataset $TESTPOOL/$RECVFS -r
 }
 
 function cmp_data #<$1 src data, $2 tgt data>

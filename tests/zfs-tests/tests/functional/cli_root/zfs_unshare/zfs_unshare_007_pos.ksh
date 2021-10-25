@@ -42,9 +42,8 @@ verify_runnable "global"
 
 function cleanup
 {
-	if datasetexists "$TESTPOOL/$TESTFS/shared1"; then
-		log_must zfs destroy -f $TESTPOOL/$TESTFS/shared1
-	fi
+	datasetexists "$TESTPOOL/$TESTFS/shared1" && \
+		destroy_dataset $TESTPOOL/$TESTFS/shared1 -f
 }
 
 log_assert "Verify 'zfs destroy' will unshare the dataset"
