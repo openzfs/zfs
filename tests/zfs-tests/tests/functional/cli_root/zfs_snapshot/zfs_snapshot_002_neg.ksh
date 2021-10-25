@@ -53,12 +53,11 @@ function cleanup
 	for snap in $TESTPOOL/$TESTCTR/$TESTFS1@$TESTSNAP \
 		$TESTPOOL/$TESTCTR/$TESTVOL@$TESTSNAP;
 	do
-		snapexists $snap && \
-			log_must zfs destroy $snap
+		snapexists $snap && destroy_dataset $snap
 	done
 
 	datasetexists $TESTPOOL/$TESTCTR/$TESTVOL && \
-		log_must zfs destroy -rf $TESTPOOL/$TESTCTR/$TESTVOL
+		destroy_dataset $TESTPOOL/$TESTCTR/$TESTVOL -rf
 
 }
 

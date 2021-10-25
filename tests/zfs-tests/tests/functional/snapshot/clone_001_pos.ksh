@@ -96,8 +96,8 @@ function cleanup_all
 		(( i = i + 4 ))
 	done
 
-	datasetexists $TESTPOOL1/$TESTFS  && \
-		log_must zfs destroy -f $TESTPOOL1/$TESTFS
+	datasetexists $TESTPOOL1/$TESTFS && \
+		destroy_dataset $TESTPOOL1/$TESTFS -f
 
 	destroy_pool $TESTPOOL1
 

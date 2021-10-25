@@ -72,9 +72,9 @@ function run_and_verify
 	# Run the command as the specified user, and find the new history.
 	zpool history $flags $pool > $OLD_HISTORY 2>/dev/null
 	if [[ $user == "root" ]]; then
-		log_must eval "$fullcmd"
+		log_must_busy eval "$fullcmd"
 	else
-		log_must user_run $user "$fullcmd"
+		log_must_busy user_run $user "$fullcmd"
 	fi
 	zpool history $flags $pool > $TMP_HISTORY 2>/dev/null
 	diff $OLD_HISTORY $TMP_HISTORY | grep "^> " | sed 's/^> //g' \

@@ -36,7 +36,7 @@
 function cleanup
 {
 	for ds in $datasets; do
-		datasetexists $ds && log_must zfs destroy -R $TESTPOOL/$TESTFS1
+		datasetexists $ds && destroy_dataset $TESTPOOL/$TESTFS1 -R
 	done
 }
 function get_prop_mb

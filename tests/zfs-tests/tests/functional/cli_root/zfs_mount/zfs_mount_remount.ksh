@@ -48,7 +48,7 @@ function cleanup
 {
 	log_must_busy zpool export $TESTPOOL
 	log_must zpool import $TESTPOOL
-	snapexists $TESTSNAP && log_must zfs destroy $TESTSNAP
+	snapexists $TESTSNAP && destroy_dataset $TESTSNAP
 	[[ -d $MNTPSNAP ]] && log_must rmdir $MNTPSNAP
 	return 0
 }

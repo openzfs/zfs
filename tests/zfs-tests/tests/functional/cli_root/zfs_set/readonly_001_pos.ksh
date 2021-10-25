@@ -48,7 +48,7 @@ function cleanup
 {
 	for dataset in $TESTPOOL/$TESTFS $TESTPOOL/$TESTVOL ; do
 		snapexists ${dataset}@$TESTSNAP && \
-			log_must zfs destroy -R ${dataset}@$TESTSNAP
+			destroy_dataset ${dataset}@$TESTSNAP -R
 	done
 }
 

@@ -63,15 +63,14 @@ function cleanup
 	ds=$TESTPOOL/$TESTCLONE
 	if datasetexists $ds; then
 		mntp=$(get_prop mountpoint $ds)
-		log_must zfs destroy $ds
+		destroy_dataset $ds
 		if [[ -d $mntp ]]; then
 			log_must rm -fr $mntp
 		fi
 	fi
 
-	if snapexists $TESTPOOL/$TESTFS@$TESTSNAP ; then
-		log_must zfs destroy -R $TESTPOOL/$TESTFS@$TESTSNAP
-	fi
+	snapexists $TESTPOOL/$TESTFS@$TESTSNAP && \
+		destroy_dataset $TESTPOOL/$TESTFS@$TESTSNAP -R
 
 	zfs unmount -a > /dev/null 2>&1
 	log_must zfs mount -a

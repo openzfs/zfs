@@ -100,11 +100,11 @@ function setup_all
 function cleanup_all
 {
 	for fs in $targets; do
-		datasetexists $fs && log_must zfs destroy -f $fs
+		datasetexists $fs && destroy_dataset $fs -f
 	done
 
 	for snap in $SNAPFS $SNAPFS1 ; do
-		snapexists $snap && log_must zfs destroy -Rf $snap
+		snapexists $snap && destroy_dataset $snap -Rf
 	done
 
 	return 0

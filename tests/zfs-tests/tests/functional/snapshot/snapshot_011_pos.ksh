@@ -51,8 +51,7 @@ verify_runnable "both"
 
 function cleanup
 {
-	snapexists $SNAPPOOL && \
-		log_must zfs destroy -r $SNAPPOOL
+	snapexists $SNAPPOOL && destroy_dataset $SNAPPOOL -r
 
 	[[ -e $TESTDIR ]] && \
 		log_must rm -rf $TESTDIR/* > /dev/null 2>&1

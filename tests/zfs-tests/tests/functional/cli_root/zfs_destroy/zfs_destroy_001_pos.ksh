@@ -77,9 +77,7 @@ function test_n_check
 	fi
 
 	# Clean the test environment and make it clear.
-	if datasetexists $CTR; then
-		log_must zfs destroy -Rf $CTR
-	fi
+	datasetexists $CTR && destroy_dataset $CTR -Rf
 
 	# According to option create test compatible environment.
 	case $opt in

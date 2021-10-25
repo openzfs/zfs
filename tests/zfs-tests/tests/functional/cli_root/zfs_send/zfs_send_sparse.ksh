@@ -31,8 +31,8 @@ verify_runnable "both"
 
 function cleanup
 {
-        datasetexists $SENDFS && log_must zfs destroy -r $SENDFS
-        datasetexists $RECVFS && log_must zfs destroy -r $RECVFS
+        datasetexists $SENDFS && destroy_dataset $SENDFS -r
+        datasetexists $RECVFS && destroy_dataset $RECVFS -r
 }
 
 #
@@ -63,8 +63,8 @@ function write_compare_files # <sendfs> <recvfs> <offset>
 		log_fail "$sendfile ($sendsz) and $recvfile ($recvsz) differ."
 	fi
 	# cleanup
-	log_must zfs destroy -r $sendfs
-	log_must zfs destroy -r $recvfs
+	destroy_dataset $sendfs -r
+	destroy_dataset $recvfs -r
 }
 
 log_assert "'zfs send' should be able to send (big) sparse files correctly."

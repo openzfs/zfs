@@ -50,9 +50,7 @@ verify_runnable "both"
 
 function cleanup
 {
-	if datasetexists $rootfs ; then
-		log_must zfs destroy -Rf $rootfs
-	fi
+	datasetexists $rootfs && destroy_dataset $rootfs -Rf
 	log_must zfs create $rootfs
 
 	for file in $output $oldoutput ; do
@@ -116,9 +114,7 @@ if (( i != COUNT - OLDCOUNT )); then
 fi
 
 for fs in $old_datasets ; do
-	if datasetexists $fs ; then
-		log_must zfs destroy -Rf $fs
-	fi
+	datasetexists $fs && destroy_dataset $fs -Rf
 done
 
 log_must eval 'zfs upgrade > $output 2>&1'
