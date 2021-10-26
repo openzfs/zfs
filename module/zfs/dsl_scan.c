@@ -467,8 +467,9 @@ dsl_scan_init(dsl_pool_t *dp, uint64_t txg)
 		 * new-style scrub from the beginning.
 		 */
 		scn->scn_restart_txg = txg;
-		zfs_dbgmsg("old-style scrub was in progress; "
+		zfs_dbgmsg("old-style scrub was in progress for %s; "
 		    "restarting new-style scrub in txg %llu",
+		    spa->spa_name,
 		    (longlong_t)scn->scn_restart_txg);
 
 		/*
@@ -540,8 +541,9 @@ dsl_scan_init(dsl_pool_t *dp, uint64_t txg)
 			 * the meantime.
 			 */
 			scn->scn_restart_txg = txg;
-			zfs_dbgmsg("new-style scrub was modified "
+			zfs_dbgmsg("new-style scrub for %s was modified "
 			    "by old software; restarting in txg %llu",
+			    spa->spa_name,
 			    (longlong_t)scn->scn_restart_txg);
 		} else if (dsl_scan_resilvering(dp)) {
 			/*
@@ -553,7 +555,9 @@ dsl_scan_init(dsl_pool_t *dp, uint64_t txg)
 			if (scn->scn_phys.scn_errors > 0) {
 				scn->scn_restart_txg = txg;
 				zfs_dbgmsg("resilver can't excise DTL_MISSING "
-				    "when finished; restarting in txg %llu",
+				    "when finished; restarting on %s in txg "
+				    "%llu",
+				    spa->spa_name,
 				    (u_longlong_t)scn->scn_restart_txg);
 			} else {
 				/* it's safe to excise DTL when finished */
@@ -688,7 +692,8 @@ dsl_scan_sync_state(dsl_scan_t *scn, dmu_tx_t *tx, state_sync_type_t sync_type)
 		    sizeof (scn->scn_phys));
 
 		if (scn->scn_checkpointing)
-			zfs_dbgmsg("finish scan checkpoint");
+			zfs_dbgmsg("finish scan checkpoint for %s",
+			    spa->spa_name);
 
 		scn->scn_checkpointing = B_FALSE;
 		scn->scn_last_checkpoint = ddi_get_lbolt();
@@ -1113,7 +1118,8 @@ dsl_scan_restart_resilver(dsl_pool_t *dp, uint64_t txg)
 	} else {
 		dp->dp_scan->scn_restart_txg = txg;
 	}
-	zfs_dbgmsg("restarting resilver txg=%llu", (longlong_t)txg);
+	zfs_dbgmsg("restarting resilver for %s at txg=%llu",
+	    dp->dp_spa->spa_name, (longlong_t)txg);
 }
 
 void
@@ -2065,18 +2071,20 @@ ds_destroyed_scn_phys(dsl_dataset_t *ds, dsl_scan_phys_t *scn_phys)
 			 */
 			scn_phys->scn_bookmark.zb_objset =
 			    dsl_dataset_phys(ds)->ds_next_snap_obj;
-			zfs_dbgmsg("destroying ds %llu; currently traversing; "
-			    "reset zb_objset to %llu",
+			zfs_dbgmsg("destroying ds %llu on %s; currently "
+			    "traversing; reset zb_objset to %llu",
 			    (u_longlong_t)ds->ds_object,
+			    ds->ds_dir->dd_pool->dp_spa->spa_name,
 			    (u_longlong_t)dsl_dataset_phys(ds)->
 			    ds_next_snap_obj);
 			scn_phys->scn_flags |= DSF_VISIT_DS_AGAIN;
 		} else {
 			SET_BOOKMARK(&scn_phys->scn_bookmark,
 			    ZB_DESTROYED_OBJSET, 0, 0, 0);
-			zfs_dbgmsg("destroying ds %llu; currently traversing; "
-			    "reset bookmark to -1,0,0,0",
-			    (u_longlong_t)ds->ds_object);
+			zfs_dbgmsg("destroying ds %llu on %s; currently "
+			    "traversing; reset bookmark to -1,0,0,0",
+			    (u_longlong_t)ds->ds_object,
+			    ds->ds_dir->dd_pool->dp_spa->spa_name);
 		}
 	}
 }
@@ -2127,14 +2135,17 @@ dsl_scan_ds_destroyed(dsl_dataset_t *ds, dmu_tx_t *tx)
 			    scn->scn_phys.scn_queue_obj,
 			    dsl_dataset_phys(ds)->ds_next_snap_obj,
 			    mintxg, tx) == 0);
-			zfs_dbgmsg("destroying ds %llu; in queue; "
+			zfs_dbgmsg("destroying ds %llu on %s; in queue; "
 			    "replacing with %llu",
 			    (u_longlong_t)ds->ds_object,
+			    dp->dp_spa->spa_name,
 			    (u_longlong_t)dsl_dataset_phys(ds)->
 			    ds_next_snap_obj);
 		} else {
-			zfs_dbgmsg("destroying ds %llu; in queue; removing",
-			    (u_longlong_t)ds->ds_object);
+			zfs_dbgmsg("destroying ds %llu on %s; in queue; "
+			    "removing",
+			    (u_longlong_t)ds->ds_object,
+			    dp->dp_spa->spa_name);
 		}
 	}
 
@@ -2151,9 +2162,10 @@ ds_snapshotted_bookmark(dsl_dataset_t *ds, zbookmark_phys_t *scn_bookmark)
 	if (scn_bookmark->zb_objset == ds->ds_object) {
 		scn_bookmark->zb_objset =
 		    dsl_dataset_phys(ds)->ds_prev_snap_obj;
-		zfs_dbgmsg("snapshotting ds %llu; currently traversing; "
+		zfs_dbgmsg("snapshotting ds %llu on %s; currently traversing; "
 		    "reset zb_objset to %llu",
 		    (u_longlong_t)ds->ds_object,
+		    ds->ds_dir->dd_pool->dp_spa->spa_name,
 		    (u_longlong_t)dsl_dataset_phys(ds)->ds_prev_snap_obj);
 	}
 }
@@ -2192,9 +2204,10 @@ dsl_scan_ds_snapshotted(dsl_dataset_t *ds, dmu_tx_t *tx)
 		VERIFY(zap_add_int_key(dp->dp_meta_objset,
 		    scn->scn_phys.scn_queue_obj,
 		    dsl_dataset_phys(ds)->ds_prev_snap_obj, mintxg, tx) == 0);
-		zfs_dbgmsg("snapshotting ds %llu; in queue; "
+		zfs_dbgmsg("snapshotting ds %llu on %s; in queue; "
 		    "replacing with %llu",
 		    (u_longlong_t)ds->ds_object,
+		    dp->dp_spa->spa_name,
 		    (u_longlong_t)dsl_dataset_phys(ds)->ds_prev_snap_obj);
 	}
 
@@ -2207,15 +2220,17 @@ ds_clone_swapped_bookmark(dsl_dataset_t *ds1, dsl_dataset_t *ds2,
 {
 	if (scn_bookmark->zb_objset == ds1->ds_object) {
 		scn_bookmark->zb_objset = ds2->ds_object;
-		zfs_dbgmsg("clone_swap ds %llu; currently traversing; "
+		zfs_dbgmsg("clone_swap ds %llu on %s; currently traversing; "
 		    "reset zb_objset to %llu",
 		    (u_longlong_t)ds1->ds_object,
+		    ds1->ds_dir->dd_pool->dp_spa->spa_name,
 		    (u_longlong_t)ds2->ds_object);
 	} else if (scn_bookmark->zb_objset == ds2->ds_object) {
 		scn_bookmark->zb_objset = ds1->ds_object;
-		zfs_dbgmsg("clone_swap ds %llu; currently traversing; "
+		zfs_dbgmsg("clone_swap ds %llu on %s; currently traversing; "
 		    "reset zb_objset to %llu",
 		    (u_longlong_t)ds2->ds_object,
+		    ds2->ds_dir->dd_pool->dp_spa->spa_name,
 		    (u_longlong_t)ds1->ds_object);
 	}
 }
@@ -2305,18 +2320,20 @@ dsl_scan_ds_clone_swapped(dsl_dataset_t *ds1, dsl_dataset_t *ds2, dmu_tx_t *tx)
 		    scn->scn_phys.scn_queue_obj, ds1->ds_object, tx));
 		VERIFY3S(0, ==, zap_add_int_key(dp->dp_meta_objset,
 		    scn->scn_phys.scn_queue_obj, ds2->ds_object, mintxg1, tx));
-		zfs_dbgmsg("clone_swap ds %llu; in queue; "
+		zfs_dbgmsg("clone_swap ds %llu on %s; in queue; "
 		    "replacing with %llu",
 		    (u_longlong_t)ds1->ds_object,
+		    dp->dp_spa->spa_name,
 		    (u_longlong_t)ds2->ds_object);
 	} else if (ds2_queued) {
 		VERIFY3S(0, ==, zap_remove_int(dp->dp_meta_objset,
 		    scn->scn_phys.scn_queue_obj, ds2->ds_object, tx));
 		VERIFY3S(0, ==, zap_add_int_key(dp->dp_meta_objset,
 		    scn->scn_phys.scn_queue_obj, ds1->ds_object, mintxg2, tx));
-		zfs_dbgmsg("clone_swap ds %llu; in queue; "
+		zfs_dbgmsg("clone_swap ds %llu on %s; in queue; "
 		    "replacing with %llu",
 		    (u_longlong_t)ds2->ds_object,
+		    dp->dp_spa->spa_name,
 		    (u_longlong_t)ds1->ds_object);
 	}
 
@@ -2451,7 +2468,8 @@ dsl_scan_visitds(dsl_scan_t *scn, uint64_t dsobj, dmu_tx_t *tx)
 	 * If we did not completely visit this dataset, do another pass.
 	 */
 	if (scn->scn_phys.scn_flags & DSF_VISIT_DS_AGAIN) {
-		zfs_dbgmsg("incomplete pass; visiting again");
+		zfs_dbgmsg("incomplete pass on %s; visiting again",
+		    dp->dp_spa->spa_name);
 		scn->scn_phys.scn_flags &= ~DSF_VISIT_DS_AGAIN;
 		scan_ds_queue_insert(scn, ds->ds_object,
 		    scn->scn_phys.scn_cur_max_txg);
@@ -2650,8 +2668,8 @@ dsl_scan_ddt(dsl_scan_t *scn, dmu_tx_t *tx)
 			break;
 	}
 
-	zfs_dbgmsg("scanned %llu ddt entries with class_max = %u; "
-	    "suspending=%u", (longlong_t)n,
+	zfs_dbgmsg("scanned %llu ddt entries on %s with class_max = %u; "
+	    "suspending=%u", (longlong_t)n, scn->scn_dp->dp_spa->spa_name,
 	    (int)scn->scn_phys.scn_ddt_class_max, (int)scn->scn_suspending);
 
 	ASSERT(error == 0 || error == ENOENT);
@@ -3412,11 +3430,11 @@ dsl_process_async_destroys(dsl_pool_t *dp, dmu_tx_t *tx)
 	}
 	if (scn->scn_visited_this_txg) {
 		zfs_dbgmsg("freed %llu blocks in %llums from "
-		    "free_bpobj/bptree txg %llu; err=%u",
+		    "free_bpobj/bptree on %s in txg %llu; err=%u",
 		    (longlong_t)scn->scn_visited_this_txg,
 		    (longlong_t)
 		    NSEC2MSEC(gethrtime() - scn->scn_sync_start_time),
-		    (longlong_t)tx->tx_txg, err);
+		    spa->spa_name, (longlong_t)tx->tx_txg, err);
 		scn->scn_visited_this_txg = 0;
 		scn->scn_dedup_frees_this_txg = 0;
 
@@ -3520,8 +3538,8 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 		dsl_scan_done(scn, B_FALSE, tx);
 		if (vdev_resilver_needed(spa->spa_root_vdev, NULL, NULL))
 			func = POOL_SCAN_RESILVER;
-		zfs_dbgmsg("restarting scan func=%u txg=%llu",
-		    func, (longlong_t)tx->tx_txg);
+		zfs_dbgmsg("restarting scan func=%u on %s txg=%llu",
+		    func, dp->dp_spa->spa_name, (longlong_t)tx->tx_txg);
 		dsl_scan_setup_sync(&func, tx);
 	}
 
@@ -3634,17 +3652,20 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 		    ddi_get_lbolt() - scn->scn_last_checkpoint >
 		    SEC_TO_TICK(zfs_scan_checkpoint_intval)) {
 			if (!scn->scn_checkpointing)
-				zfs_dbgmsg("begin scan checkpoint");
+				zfs_dbgmsg("begin scan checkpoint for %s",
+				    spa->spa_name);
 
 			scn->scn_checkpointing = B_TRUE;
 			scn->scn_clearing = B_TRUE;
 		} else {
 			boolean_t should_clear = dsl_scan_should_clear(scn);
 			if (should_clear && !scn->scn_clearing) {
-				zfs_dbgmsg("begin scan clearing");
+				zfs_dbgmsg("begin scan clearing for %s",
+				    spa->spa_name);
 				scn->scn_clearing = B_TRUE;
 			} else if (!should_clear && scn->scn_clearing) {
-				zfs_dbgmsg("finish scan clearing");
+				zfs_dbgmsg("finish scan clearing for %s",
+				    spa->spa_name);
 				scn->scn_clearing = B_FALSE;
 			}
 		}
@@ -3669,16 +3690,18 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 		if (scnp->scn_ddt_bookmark.ddb_class <=
 		    scnp->scn_ddt_class_max) {
 			ASSERT(ZB_IS_ZERO(&scnp->scn_bookmark));
-			zfs_dbgmsg("doing scan sync txg %llu; "
+			zfs_dbgmsg("doing scan sync for %s txg %llu; "
 			    "ddt bm=%llu/%llu/%llu/%llx",
+			    spa->spa_name,
 			    (longlong_t)tx->tx_txg,
 			    (longlong_t)scnp->scn_ddt_bookmark.ddb_class,
 			    (longlong_t)scnp->scn_ddt_bookmark.ddb_type,
 			    (longlong_t)scnp->scn_ddt_bookmark.ddb_checksum,
 			    (longlong_t)scnp->scn_ddt_bookmark.ddb_cursor);
 		} else {
-			zfs_dbgmsg("doing scan sync txg %llu; "
+			zfs_dbgmsg("doing scan sync for %s txg %llu; "
 			    "bm=%llu/%llu/%llu/%llu",
+			    spa->spa_name,
 			    (longlong_t)tx->tx_txg,
 			    (longlong_t)scnp->scn_bookmark.zb_objset,
 			    (longlong_t)scnp->scn_bookmark.zb_object,
@@ -3707,10 +3730,11 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 		(void) zio_wait(scn->scn_zio_root);
 		scn->scn_zio_root = NULL;
 
-		zfs_dbgmsg("scan visited %llu blocks in %llums "
+		zfs_dbgmsg("scan visited %llu blocks of %s in %llums "
 		    "(%llu os's, %llu holes, %llu < mintxg, "
 		    "%llu in ddt, %llu > maxtxg)",
 		    (longlong_t)scn->scn_visited_this_txg,
+		    spa->spa_name,
 		    (longlong_t)NSEC2MSEC(gethrtime() -
 		    scn->scn_sync_start_time),
 		    (longlong_t)scn->scn_objsets_visited_this_txg,
@@ -3726,7 +3750,8 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 				scn->scn_checkpointing = B_TRUE;
 				scn->scn_clearing = B_TRUE;
 			}
-			zfs_dbgmsg("scan complete txg %llu",
+			zfs_dbgmsg("scan complete for %s txg %llu",
+			    spa->spa_name,
 			    (longlong_t)tx->tx_txg);
 		}
 	} else if (scn->scn_is_sorted && scn->scn_bytes_pending != 0) {
@@ -3743,9 +3768,10 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 		(void) dsl_scan_should_clear(scn);
 		dsl_scan_update_stats(scn);
 
-		zfs_dbgmsg("scan issued %llu blocks (%llu segs) in %llums "
-		    "(avg_block_size = %llu, avg_seg_size = %llu)",
+		zfs_dbgmsg("scan issued %llu blocks for %s (%llu segs) "
+		    "in %llums (avg_block_size = %llu, avg_seg_size = %llu)",
 		    (longlong_t)scn->scn_zios_this_txg,
+		    spa->spa_name,
 		    (longlong_t)scn->scn_segs_this_txg,
 		    (longlong_t)NSEC2MSEC(gethrtime() -
 		    scn->scn_sync_start_time),
@@ -3753,8 +3779,9 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 		    (longlong_t)scn->scn_avg_seg_size_this_txg);
 	} else if (scn->scn_done_txg != 0 && scn->scn_done_txg <= tx->tx_txg) {
 		/* Finished with everything. Mark the scrub as complete */
-		zfs_dbgmsg("scan issuing complete txg %llu",
-		    (longlong_t)tx->tx_txg);
+		zfs_dbgmsg("scan issuing complete txg %llu for %s",
+		    (longlong_t)tx->tx_txg,
+		    spa->spa_name);
 		ASSERT3U(scn->scn_done_txg, !=, 0);
 		ASSERT0(spa->spa_scrub_inflight);
 		ASSERT0(scn->scn_bytes_pending);
