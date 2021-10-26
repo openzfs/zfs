@@ -236,7 +236,8 @@ __internal_opendir(wchar_t *wname, int size)
 	    sizeof (wchar_t) * extra_prefix);
 	wname[size + extra_prefix + extra_suffix - 1] = 0;
 
-	if (memcmp(wname + extra_prefix, L"\\\\?\\",
+	if (memcmp(wname, L"\\\\?\\",
+	// if (memcmp(wname + extra_prefix, L"\\\\?\\",
 	    sizeof (wchar_t) * extra_prefix) == 0) {
 		wname += extra_prefix;
 		extra_prefix = 0;
