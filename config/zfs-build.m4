@@ -564,15 +564,11 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 		*)          DEFAULT_INIT_SCRIPT=lsb    ;;
 	esac
 
-	# On gentoo, it's possible that OpenRC isn't installed.  Check if
-	# /sbin/openrc-run exists, and if not, fall back to generic defaults.
-
-	DEFAULT_INIT_SHELL="/bin/sh"
-	AS_IF([test "$DEFAULT_INIT_SCRIPT" = "openrc"], [
-		AS_IF([test -x "/sbin/openrc-run"],
-			[DEFAULT_INIT_SHELL="/sbin/openrc-run"],
-			[DEFAULT_INIT_SCRIPT=lsb])
-	])
+	case "$VENDOR" in
+		gentoo)     DEFAULT_INIT_SHELL="/sbin/openrc-run";;
+		alpine)     DEFAULT_INIT_SHELL="/sbin/openrc-run";;
+		*)          DEFAULT_INIT_SHELL="/bin/sh"         ;;
+	esac
 
 	AC_MSG_RESULT([$DEFAULT_INIT_SCRIPT:$DEFAULT_INIT_SHELL])
 	AC_SUBST(DEFAULT_INIT_SCRIPT)
