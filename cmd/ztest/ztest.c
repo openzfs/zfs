@@ -4024,7 +4024,7 @@ ztest_vdev_raidz_attach(ztest_ds_t *zd, uint64_t id)
 	if (error == 0) {
 		ztest_shared->zs_raidzs_attached++;
 	} else if (error != 0 && error != expected_error) {
-		fatal(0, "raidz attach (%s %llu) returned %d, expected %d",
+		fatal(0, "raidz attach (%s %"PRIu64") returned %d, expected %d",
 		    newpath, newsize, error, expected_error);
 	}
 
