@@ -3942,7 +3942,7 @@ ioctl_query_unique_id(PDEVICE_OBJECT DeviceObject, PIRP Irp,
 
 	uniqueId->UniqueIdLength = strlen(osname);
 
-	if (sizeof (USHORT) + uniqueId->UniqueIdLength < bufferLength) {
+	if (sizeof (USHORT) + uniqueId->UniqueIdLength <= bufferLength) {
 		RtlCopyMemory((PCHAR)uniqueId->UniqueId, osname,
 		    uniqueId->UniqueIdLength);
 		Irp->IoStatus.Information =
