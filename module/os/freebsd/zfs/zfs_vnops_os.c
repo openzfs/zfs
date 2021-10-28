@@ -2222,7 +2222,7 @@ zfs_setattr(znode_t *zp, vattr_t *vap, int flags, cred_t *cr)
 {
 	vnode_t		*vp = ZTOV(zp);
 	zfsvfs_t	*zfsvfs = zp->z_zfsvfs;
-	objset_t	*os = zfsvfs->z_os;
+	objset_t	*os;
 	zilog_t		*zilog;
 	dmu_tx_t	*tx;
 	vattr_t		oldva;
@@ -2257,6 +2257,7 @@ zfs_setattr(znode_t *zp, vattr_t *vap, int flags, cred_t *cr)
 	ZFS_ENTER(zfsvfs);
 	ZFS_VERIFY_ZP(zp);
 
+	os = zfsvfs->z_os;
 	zilog = zfsvfs->z_log;
 
 	/*
@@ -4060,7 +4061,6 @@ zfs_getpages(struct vnode *vp, vm_page_t *ma, int count, int *rbehind,
 {
 	znode_t *zp = VTOZ(vp);
 	zfsvfs_t *zfsvfs = zp->z_zfsvfs;
-	objset_t *os = zp->z_zfsvfs->z_os;
 	zfs_locked_range_t *lr;
 	vm_object_t object;
 	off_t start, end, obj_size;
@@ -4130,8 +4130,8 @@ zfs_getpages(struct vnode *vp, vm_page_t *ma, int count, int *rbehind,
 	 * ZFS will panic if we request DMU to read beyond the end of the last
 	 * allocated block.
 	 */
-	error = dmu_read_pages(os, zp->z_id, ma, count, &pgsin_b, &pgsin_a,
-	    MIN(end, obj_size) - (end - PAGE_SIZE));
+	error = dmu_read_pages(zfsvfs->z_os, zp->z_id, ma, count, &pgsin_b,
+	    &pgsin_a, MIN(end, obj_size) - (end - PAGE_SIZE));
 
 	if (lr != NULL)
 		zfs_rangelock_exit(lr);
