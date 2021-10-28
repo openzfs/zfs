@@ -3431,7 +3431,6 @@ zfs_rename_(vnode_t *sdvp, vnode_t **svpp, struct componentname *scnp,
 	dmu_tx_commit(tx);
 
 unlockout:			/* all 4 vnodes are locked, ZFS_ENTER called */
-	ZFS_EXIT(zfsvfs);
 	if (want_seqc_end) {
 		vn_seqc_write_end(*svpp);
 		vn_seqc_write_end(sdvp);
@@ -3444,10 +3443,12 @@ unlockout:			/* all 4 vnodes are locked, ZFS_ENTER called */
 	VOP_UNLOCK1(*svpp);
 	VOP_UNLOCK1(sdvp);
 
-out:				/* original two vnodes are locked */
-	MPASS(!want_seqc_end);
 	if (error == 0 && zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		zil_commit(zilog, 0);
+	ZFS_EXIT(zfsvfs);
+
+out:				/* original two vnodes are locked */
+	MPASS(!want_seqc_end);
 
 	if (*tvpp != NULL)
 		VOP_UNLOCK1(*tvpp);
