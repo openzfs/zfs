@@ -1640,6 +1640,11 @@ If the property is set to
 the dataset is shared using the default options:
 .Dl sec=sys,rw,crossmnt,no_subtree_check
 .Pp
+Please note that the options are comma-separated, unlike those found in
+.Xr exports 5 .
+This is done to negate the need for quoting, as well as to make parsing
+with scripts easier.
+.Pp
 See
 .Xr exports 5
 for the meaning of the default options.
