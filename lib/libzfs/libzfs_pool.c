@@ -3364,9 +3364,20 @@ zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
 				    "cannot replace a replacing device"));
 			}
 		} else {
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "can only attach to mirrors and top-level "
-			    "disks"));
+			char status[64] = {0};
+			zpool_prop_get_feature(zhp,
+			    "feature@device_rebuild", status, 63);
+			if (rebuild &&
+			    strncmp(status, ZFS_FEATURE_DISABLED, 64) == 0) {
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "device_rebuild feature must be enabled "
+				    "in order to use sequential "
+				    "reconstruction"));
+			} else {
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "can only attach to mirrors and top-level "
+				    "disks"));
+			}
 		}
 		(void) zfs_error(hdl, EZFS_BADTARGET, msg);
 		break;
