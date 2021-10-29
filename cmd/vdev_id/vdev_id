@@ -375,7 +375,7 @@ sas_handler() {
 		i=$((i + 1))
 	done
 
-	PHY=$(ls -d "$port_dir"/phy* 2>/dev/null | head -1 | awk -F: '{print $NF}')
+	PHY=$(ls -vd "$port_dir"/phy* 2>/dev/null | head -1 | awk -F: '{print $NF}')
 	if [ -z "$PHY" ] ; then
 		PHY=0
 	fi
