@@ -1562,6 +1562,9 @@ badlabel:
 	 *
 	 * If normalization was chosen, but rejecting non-UTF8 names
 	 * was explicitly not chosen, it is an error.
+	 *
+	 * If utf8only was turned off, but the parent has normalization,
+	 * turn off normalization.
 	 */
 	if (chosen_normal > 0 && chosen_utf < 0) {
 		if (nvlist_add_uint64(ret,
@@ -1575,6 +1578,12 @@ badlabel:
 		    zfs_prop_to_name(ZFS_PROP_UTF8ONLY));
 		(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
 		goto error;
+	} else if (chosen_normal < 0 && chosen_utf == 0) {
+		if (nvlist_add_uint64(ret,
+		    zfs_prop_to_name(ZFS_PROP_NORMALIZE), 0) != 0) {
+			(void) no_memory(hdl);
+			goto error;
+		}
 	}
 	return (ret);
 
