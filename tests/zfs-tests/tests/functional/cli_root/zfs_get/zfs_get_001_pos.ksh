@@ -57,11 +57,14 @@ do
 	((i+=1))
 done
 
+typeset -r uint64_max="18446744073709551615"
+
 typeset zfs_props=("type" used available creation volsize referenced \
     compressratio mounted origin recordsize quota reservation mountpoint \
     sharenfs checksum compression atime devices exec readonly setuid \
     snapdir aclinherit canmount primarycache secondarycache version \
-    usedbychildren usedbydataset usedbyrefreservation usedbysnapshots)
+    usedbychildren usedbydataset usedbyrefreservation usedbysnapshots \
+    filesystem_limit snapshot_limit filesystem_count snapshot_count)
 if is_freebsd; then
 	typeset zfs_props_os=(jailed aclmode)
 else
@@ -100,11 +103,21 @@ function check_return_value
 
 		while read line; do
 			typeset item
-			item=$(echo $line | awk '{print $2}' 2>&1)
+			typeset value
 
+			item=$(echo $line | awk '{print $2}' 2>&1)
 			if [[ $item == $p ]]; then
 				((found += 1))
 				cols=$(echo $line | awk '{print NF}')
+			fi
+
+			value=$(echo $line | awk '{print $3}' 2>&1)
+			if [[ $value == $uint64_max ]]; then
+				log_fail "'zfs get $opt $props $dst' return " \
+				    "UINT64_MAX constant."
+			fi
+
+			if ((found > 0)); then
 				break
 			fi
 		done < $TESTDIR/$TESTFILE0

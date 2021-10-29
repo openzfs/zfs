@@ -2767,16 +2767,15 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 			return (-1);
 
 		/*
-		 * If limit is UINT64_MAX, we translate this into 'none' (unless
-		 * literal is set), and indicate that it's the default value.
-		 * Otherwise, we print the number nicely and indicate that it's
-		 * set locally.
+		 * If limit is UINT64_MAX, we translate this into 'none', and
+		 * indicate that it's the default value. Otherwise, we print
+		 * the number nicely and indicate that it's set locally.
 		 */
-		if (literal) {
+		if (val == UINT64_MAX) {
+			(void) strlcpy(propbuf, "none", proplen);
+		} else if (literal) {
 			(void) snprintf(propbuf, proplen, "%llu",
 			    (u_longlong_t)val);
-		} else if (val == UINT64_MAX) {
-			(void) strlcpy(propbuf, "none", proplen);
 		} else {
 			zfs_nicenum(val, propbuf, proplen);
 		}
