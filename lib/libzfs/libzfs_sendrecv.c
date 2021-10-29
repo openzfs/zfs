@@ -3958,6 +3958,19 @@ zfs_setup_cmdline_props(libzfs_handle_t *hdl, zfs_type_t type,
 		const char *name = nvpair_name(nvp);
 		zfs_prop_t prop = zfs_name_to_prop(name);
 
+		/*
+		 * It turns out, if we don't normalize "aliased" names
+		 * e.g. compress= against the "real" names (e.g. compression)
+		 * here, then setting/excluding them does not work as
+		 * intended.
+		 *
+		 * But since user-defined properties wouldn't have a valid
+		 * mapping here, we do this conditional dance.
+		 */
+		const char *newname = name;
+		if (prop >= ZFS_PROP_TYPE)
+			newname = zfs_prop_to_name(prop);
+
 		/* "origin" is processed separately, don't handle it here */
 		if (prop == ZFS_PROP_ORIGIN)
 			continue;
@@ -4004,11 +4017,12 @@ zfs_setup_cmdline_props(libzfs_handle_t *hdl, zfs_type_t type,
 			 * locally-set, in which case its value will take
 			 * priority over the received anyway.
 			 */
-			if (nvlist_exists(origprops, name)) {
+			if (nvlist_exists(origprops, newname)) {
 				nvlist_t *attrs;
 				char *source = NULL;
 
-				attrs = fnvlist_lookup_nvlist(origprops, name);
+				attrs = fnvlist_lookup_nvlist(origprops,
+				    newname);
 				if (nvlist_lookup_string(attrs,
 				    ZPROP_SOURCE, &source) == 0 &&
 				    strcmp(source, ZPROP_SOURCE_VAL_RECVD) != 0)
@@ -4021,10 +4035,10 @@ zfs_setup_cmdline_props(libzfs_handle_t *hdl, zfs_type_t type,
 			 */
 			if (!zfs_prop_inheritable(prop) &&
 			    !zfs_prop_user(name) && /* can be inherited too */
-			    nvlist_exists(recvprops, name))
-				fnvlist_remove(recvprops, name);
+			    nvlist_exists(recvprops, newname))
+				fnvlist_remove(recvprops, newname);
 			else
-				fnvlist_add_nvpair(*oxprops, nvp);
+				fnvlist_add_boolean(*oxprops, newname);
 			break;
 		case DATA_TYPE_STRING: /* -o property=value */
 			/*
@@ -4045,7 +4059,8 @@ zfs_setup_cmdline_props(libzfs_handle_t *hdl, zfs_type_t type,
 				ret = zfs_error(hdl, EZFS_BADPROP, errbuf);
 				goto error;
 			}
-			fnvlist_add_nvpair(oprops, nvp);
+			fnvlist_add_string(oprops, newname,
+			    fnvpair_value_string(nvp));
 			break;
 		default:
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
