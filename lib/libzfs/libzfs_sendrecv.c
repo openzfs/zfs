@@ -5101,7 +5101,10 @@ zfs_receive_impl(libzfs_handle_t *hdl, const char *tosnap,
 		} else {
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "stream has unsupported feature, feature flags = "
-			    "%llx"), (unsigned long long)featureflags);
+			    "%llx (unknown flags = %llx)"),
+			    (u_longlong_t)featureflags,
+			    (u_longlong_t)((featureflags) &
+			    ~DMU_BACKUP_FEATURE_MASK));
 		}
 		return (zfs_error(hdl, EZFS_BADSTREAM, errbuf));
 	}
