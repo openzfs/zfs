@@ -58,6 +58,8 @@
 
 static ulong_t zfs_fsync_sync_cnt = 4;
 
+int zfs_disable_seek_optimizations = 1;
+
 int
 zfs_fsync(znode_t *zp, int syncflag, cred_t *cr)
 {
@@ -105,15 +107,27 @@ zfs_holey_common(znode_t *zp, ulong_t cmd, loff_t *off)
 	if (zn_has_cached_data(zp))
 		zn_flush_cached_data(zp, B_FALSE);
 
-	lr = zfs_rangelock_enter(&zp->z_rangelock, 0, file_sz, RL_READER);
-	error = dmu_offset_next(ZTOZSB(zp)->z_os, zp->z_id, hole, &noff);
-	zfs_rangelock_exit(lr);
+	/*
+	 * Work around OpenZFS #11900
+	 */
+	if (!(zfs_disable_seek_optimizations)) {
+		lr = zfs_rangelock_enter(&zp->z_rangelock, 0, file_sz,
+		    RL_READER);
+		error = dmu_offset_next(ZTOZSB(zp)->z_os, zp->z_id, hole,
+		    &noff);
+		zfs_rangelock_exit(lr);
 
-	if (error == ESRCH)
-		return (SET_ERROR(ENXIO));
+		if (error == ESRCH)
+			return (SET_ERROR(ENXIO));
 
-	/* File was dirty, so fall back to using generic logic */
-	if (error == EBUSY) {
+		/* file was dirty, so fall back to using generic logic */
+		if (error == EBUSY) {
+			if (hole)
+				*off = file_sz;
+
+			return (0);
+		}
+	} else {
 		if (hole)
 			*off = file_sz;
 
@@ -931,3 +945,6 @@ EXPORT_SYMBOL(zfs_setsecattr);
 
 ZFS_MODULE_PARAM(zfs_vnops, zfs_vnops_, read_chunk_size, ULONG, ZMOD_RW,
 	"Bytes to read per chunk");
+
+ZFS_MODULE_PARAM(zfs, zfs_, disable_seek_optimizations, UINT, ZMOD_RW,
+	"Disable SEEK_DATA/SEEK_HOLE");

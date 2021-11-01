@@ -934,6 +934,13 @@ receive of encrypted datasets.
 Intended for users whose pools were created with
 OpenZFS pre-release versions and now have compatibility issues.
 .
+.It Sy zfs_disable_seek_optimizations Ns = Ns Sy 1 Ns | Ns 0 Pq int
+Controls whether SEEK_DATA/SEEK_HOLE will report any results or just
+act like the file is non-sparse (default).
+.Pp
+Note that due to bug #11900, setting this to 0 (e.g. enabling SEEK_*) can
+result in incorrect data being returned.
+.
 .It Sy zfs_key_max_salt_uses Ns = Ns Sy 400000000 Po 4*10^8 Pc Pq ulong
 Maximum number of uses of a single salt value before generating a new one for
 encrypted datasets.
