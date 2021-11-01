@@ -311,6 +311,11 @@ Requires:       libffi
 Requires:       python%{__python_pkg_version}
 Requires:       %{__python_cffi_pkg}
 %if 0%{?rhel}%{?fedora}%{?suse_version}
+%if 0%{?rhel} >= 8 || 0%{?centos} >= 8 || 0%{?fedora} >= 28
+BuildRequires:  python3-packaging
+%else
+BuildRequires:  python-packaging
+%endif
 BuildRequires:  python%{__python_pkg_version}-devel
 BuildRequires:  %{__python_cffi_pkg}
 BuildRequires:  %{__python_setuptools_pkg}
