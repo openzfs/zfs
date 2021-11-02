@@ -107,7 +107,8 @@ static const struct {
 #endif
 };
 
-#define	GENERIC_MASK(mask) ((mask & ~(MAY_READ | MAY_WRITE | MAY_EXEC)) == 0)
+#define	POSIX_MASKS	(MAY_READ|MAY_WRITE|MAY_EXEC|MAY_OPEN)
+#define	GENERIC_MASK(mask) ((mask & ~POSIX_MASKS) == 0)
 
 enum xattr_permission {
 	XAPERM_DENY,

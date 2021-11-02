@@ -114,17 +114,22 @@ secpolicy_vnode_access2(const cred_t *cr, struct inode *ip, uid_t owner,
     mode_t curmode, mode_t wantmode)
 {
 	mode_t remainder = ~curmode & wantmode;
+	uid_t uid = crgetuid(cr);
 	if ((ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_NFSV4) ||
 	    (remainder == 0)) {
 		return (0);
 	}
 
-	/*
-	 * short-circuit if root
-	 */
-	if (capable(CAP_SYS_ADMIN)) {
+	if ((uid == owner) || (uid == 0))
 		return (0);
-	}
+
+	if (zpl_inode_owner_or_capable(kcred->user_ns, ip))
+		return (0);
+
+#if defined(CONFIG_USER_NS)
+	if (!kuid_has_mapping(cr->user_ns, SUID_TO_KUID(owner)))
+		return (EPERM);
+#endif
 
 	/*
 	 * There are some situations in which capabilities
@@ -132,20 +137,22 @@ secpolicy_vnode_access2(const cred_t *cr, struct inode *ip, uid_t owner,
 	 */
 	if (S_ISDIR(ip->i_mode)) {
 		if (!(wantmode & S_IWUSR) &&
-		    capable(CAP_DAC_READ_SEARCH)) {
+		    (priv_policy_user(cr, CAP_DAC_READ_SEARCH, EPERM) == 0)) {
 			return (0);
 		}
-		if (capable(CAP_DAC_OVERRIDE)) {
+		if (priv_policy_user(cr, CAP_DAC_OVERRIDE, EPERM) == 0) {
 			return (0);
 		}
 		return (EACCES);
 	}
 
-	if ((wantmode == S_IRUSR) && capable(CAP_DAC_READ_SEARCH)) {
+	if ((wantmode == S_IRUSR) &&
+	    (priv_policy_user(cr, CAP_DAC_READ_SEARCH, EPERM) == 0)) {
 		return (0);
 	}
 
-	if (!(remainder & S_IXUSR) && capable(CAP_DAC_OVERRIDE)) {
+	if (!(remainder & S_IXUSR) &&
+	    (priv_policy_user(cr, CAP_DAC_OVERRIDE, EPERM) == 0)) {
 		return (0);
 	}
 
