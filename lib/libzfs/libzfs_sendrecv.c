@@ -5103,9 +5103,24 @@ zfs_receive_impl(libzfs_handle_t *hdl, const char *tosnap,
 
 	if (!DMU_STREAM_SUPPORTED(featureflags) ||
 	    (hdrtype != DMU_SUBSTREAM && hdrtype != DMU_COMPOUNDSTREAM)) {
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "stream has unsupported feature, feature flags = %llx"),
-		    (unsigned long long)featureflags);
+		/*
+		 * Let's be explicit about this one, since rather than
+		 * being a new feature we can't know, it's an old
+		 * feature we dropped.
+		 */
+		if (featureflags & DMU_BACKUP_FEATURE_DEDUP) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "stream has deprecated feature: dedup, try "
+			    "'zstream redup [send in a file] | zfs recv "
+			    "[...]'"));
+		} else {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "stream has unsupported feature, feature flags = "
+			    "%llx (unknown flags = %llx)"),
+			    (u_longlong_t)featureflags,
+			    (u_longlong_t)((featureflags) &
+			    ~DMU_BACKUP_FEATURE_MASK));
+		}
 		return (zfs_error(hdl, EZFS_BADSTREAM, errbuf));
 	}
 
