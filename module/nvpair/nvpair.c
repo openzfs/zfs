@@ -533,12 +533,14 @@ nvt_add_nvpair(nvlist_t *nvl, nvpair_t *nvp)
 	uint64_t index = hash & (priv->nvp_nbuckets - 1);
 
 	ASSERT3U(index, <, priv->nvp_nbuckets);
+	// cppcheck-suppress nullPointerRedundantCheck
 	i_nvp_t *bucket = tab[index];
 
 	/* insert link at the beginning of the bucket */
 	i_nvp_t *new_entry = NVPAIR2I_NVP(nvp);
 	ASSERT3P(new_entry->nvi_hashtable_next, ==, NULL);
 	new_entry->nvi_hashtable_next = bucket;
+	// cppcheck-suppress nullPointerRedundantCheck
 	tab[index] = new_entry;
 
 	priv->nvp_nentries++;
@@ -3270,6 +3272,8 @@ NVS_BUILD_XDRPROC_T(u_longlong_t);
 static int
 nvs_xdr_nvp_op(nvstream_t *nvs, nvpair_t *nvp)
 {
+	ASSERT(nvs != NULL && nvp != NULL);
+
 	data_type_t type;
 	char	*buf;
 	char	*buf_end = (char *)nvp + nvp->nvp_size;
@@ -3278,7 +3282,7 @@ nvs_xdr_nvp_op(nvstream_t *nvs, nvpair_t *nvp)
 	bool_t	ret = FALSE;
 	XDR	*xdr = nvs->nvs_private;
 
-	ASSERT(xdr != NULL && nvp != NULL);
+	ASSERT(xdr != NULL);
 
 	/* name string */
 	if ((buf = NVP_NAME(nvp)) >= buf_end)

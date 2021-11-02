@@ -115,7 +115,9 @@ modules_uninstall: modules_uninstall-@ac_system@
 
 cppcheck-Linux:
 	@CPPCHECK@ -j@CPU_COUNT@ --std=c99 --quiet --force --error-exitcode=2 \
-		--inline-suppr --suppress=noValidConfiguration \
+		--inline-suppr \
+		--suppress=unmatchedSuppression \
+		--suppress=noValidConfiguration \
 		--enable=warning,information -D_KERNEL \
 		--include=@LINUX_OBJ@/include/generated/autoconf.h \
 		--include=@top_srcdir@/zfs_config.h \
