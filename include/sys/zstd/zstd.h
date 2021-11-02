@@ -210,12 +210,14 @@ zfs_get_hdrversion(const zfs_zstdhdr_t *blob)
 static inline void
 zfs_set_hdrversion(zfs_zstdhdr_t *blob, uint32_t version)
 {
+	/* cppcheck-suppress syntaxError */
 	BF32_SET(blob->raw_version_level, 0, 24, version);
 }
 
 static inline void
 zfs_set_hdrlevel(zfs_zstdhdr_t *blob, uint8_t level)
 {
+	/* cppcheck-suppress syntaxError */
 	BF32_SET(blob->raw_version_level, 24, 8, level);
 }
 
