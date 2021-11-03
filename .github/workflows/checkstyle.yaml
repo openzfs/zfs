@@ -34,11 +34,11 @@ jobs:
     - name: CheckABI
       id: CheckABI
       run: |
-        sudo docker run -v $(pwd):/source ghcr.io/openzfs/libabigail make checkabi
+        sudo docker run -v $(pwd):/source ghcr.io/xnox/libabigail make checkabi
     - name: StoreABI
       if: failure() && steps.CheckABI.outcome == 'failure'
       run: |
-        sudo docker run -v $(pwd):/source ghcr.io/openzfs/libabigail make storeabi
+        sudo docker run -v $(pwd):/source ghcr.io/xnox/libabigail make storeabi
     - name: Prepare artifacts
       if: failure() && steps.CheckABI.outcome == 'failure'
       run: |
