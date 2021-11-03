@@ -118,6 +118,7 @@ typedef struct {
 	spa_t		*se_spa;	/* pool spa */
 	uint64_t	se_objsetid;	/* snapshot objset id */
 	struct dentry   *se_root_dentry; /* snapshot root dentry */
+	krwlock_t	se_taskqid_lock;  /* scheduled unmount taskqid lock */
 	taskqid_t	se_taskqid;	/* scheduled unmount taskqid */
 	avl_node_t	se_node_name;	/* zfs_snapshots_by_name link */
 	avl_node_t	se_node_objsetid; /* zfs_snapshots_by_objsetid link */
@@ -144,6 +145,7 @@ zfsctl_snapshot_alloc(const char *full_name, const char *full_path, spa_t *spa,
 	se->se_objsetid = objsetid;
 	se->se_root_dentry = root_dentry;
 	se->se_taskqid = TASKQID_INVALID;
+	rw_init(&se->se_taskqid_lock, NULL, RW_DEFAULT, NULL);
 
 	zfs_refcount_create(&se->se_refcount);
 
@@ -160,6 +162,7 @@ zfsctl_snapshot_free(zfs_snapentry_t *se)
 	zfs_refcount_destroy(&se->se_refcount);
 	kmem_strfree(se->se_name);
 	kmem_strfree(se->se_path);
+	rw_destroy(se->se_taskqid_lock);
 
 	kmem_free(se, sizeof (zfs_snapentry_t));
 }
@@ -335,7 +338,9 @@ snapentry_expire(void *data)
 		return;
 	}
 
+	rw_enter(&se->se_taskqid_lock, RW_WRITER);
 	se->se_taskqid = TASKQID_INVALID;
+	rw_exit(&se->se_taskqid_lock);
 	(void) zfsctl_snapshot_unmount(se->se_name, MNT_EXPIRE);
 	zfsctl_snapshot_rele(se);
 
@@ -359,8 +364,18 @@ snapentry_expire(void *data)
 static void
 zfsctl_snapshot_unmount_cancel(zfs_snapentry_t *se)
 {
-	if (taskq_cancel_id(system_delay_taskq, se->se_taskqid) == 0) {
-		se->se_taskqid = TASKQID_INVALID;
+	int err = 0;
+	rw_enter(&se->se_taskqid_lock, RW_WRITER);
+	err = taskq_cancel_id(system_delay_taskq, se->se_taskqid);
+	/*
+	 * if we get ENOENT, the taskq couldn't be found to be
+	 * canceled, so we can just mark it as invalid because
+	 * it's already gone. If we got EBUSY, then we already
+	 * blocked until it was gone _anyway_, so we don't care.
+	 */
+	se->se_taskqid = TASKQID_INVALID;
+	rw_exit(&se->se_taskqid_lock);
+	if (err == 0) {
 		zfsctl_snapshot_rele(se);
 	}
 }
@@ -371,14 +386,16 @@ zfsctl_snapshot_unmount_cancel(zfs_snapentry_t *se)
 static void
 zfsctl_snapshot_unmount_delay_impl(zfs_snapentry_t *se, int delay)
 {
-	ASSERT3S(se->se_taskqid, ==, TASKQID_INVALID);
 
 	if (delay <= 0)
 		return;
 
 	zfsctl_snapshot_hold(se);
+	rw_enter(&se->se_taskqid_lock, RW_WRITER);
+	ASSERT3S(se->se_taskqid, ==, TASKQID_INVALID);
 	se->se_taskqid = taskq_dispatch_delay(system_delay_taskq,
 	    snapentry_expire, se, TQ_SLEEP, ddi_get_lbolt() + delay * HZ);
+	rw_exit(&se->se_taskqid_lock);
 }
 
 /*
