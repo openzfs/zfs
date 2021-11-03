@@ -1,3 +1,11 @@
+openzfs (2.1.2-0) unstable; urgency=medium
+
+  * Merged OpenZFS zfs-2.1.2-staging
+  * Updated Python build dependencies
+  * Linux 5.14 build fixes
+
+ -- Ryan Moeller <ryan@ixsystems.com>  Wed, 03 Nov 2021 10:00:00 -0400
+
 openzfs (2.1.1-0) unstable; urgency=medium
 
   * Merged OpenZFS 2.1.1
