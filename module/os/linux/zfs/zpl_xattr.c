@@ -1482,7 +1482,11 @@ static xattr_handler_t zpl_xattr_acl_default_handler = {
 #endif /* CONFIG_FS_POSIX_ACL */
 
 int
+#if defined(HAVE_IOPS_PERMISSION_USERNS)
+zpl_permission(struct user_namespace *userns, struct inode *ip, int mask)
+#else
 zpl_permission(struct inode *ip, int mask)
+#endif
 {
 	int to_check = 0, i, ret;
 	cred_t *cr = NULL;
@@ -1495,7 +1499,11 @@ zpl_permission(struct inode *ip, int mask)
 	 */
 	if ((ITOZSB(ip)->z_acl_type != ZFS_ACLTYPE_NFSV4) ||
 	    ((ITOZ(ip)->z_pflags & ZFS_ACL_TRIVIAL && GENERIC_MASK(mask)))) {
+#if defined(HAVE_IOPS_PERMISSION_USERNS)
+		return (generic_permission(userns, ip, mask));
+#else
 		return (generic_permission(ip, mask));
+#endif
 	}
 
 	for (i = 0; i < ARRAY_SIZE(mask2zfs); i++) {
@@ -1509,7 +1517,11 @@ zpl_permission(struct inode *ip, int mask)
 	 * NFSv4 ACE. Pass back to default kernel permissions check.
 	 */
 	if (to_check == 0) {
+#if defined(HAVE_IOPS_PERMISSION_USERNS)
+		return (generic_permission(userns, ip, mask));
+#else
 		return (generic_permission(ip, mask));
+#endif
 	}
 
 	/*
