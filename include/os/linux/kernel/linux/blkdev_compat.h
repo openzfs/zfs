@@ -30,9 +30,9 @@
 #define	_ZFS_BLKDEV_H
 
 #include <linux/blkdev.h>
-#include <linux/elevator.h>
 #include <linux/backing-dev.h>
 #include <linux/hdreg.h>
+#include <linux/major.h>
 #include <linux/msdos_fs.h>	/* for SECTOR_* */
 
 #ifndef HAVE_BLK_QUEUE_FLAG_SET
