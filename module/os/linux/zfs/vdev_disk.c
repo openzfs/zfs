@@ -438,9 +438,9 @@ static inline void
 vdev_submit_bio_impl(struct bio *bio)
 {
 #ifdef HAVE_1ARG_SUBMIT_BIO
-	submit_bio(bio);
+	(void) submit_bio(bio);
 #else
-	submit_bio(0, bio);
+	(void) submit_bio(0, bio);
 #endif
 }
 

@@ -294,9 +294,8 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BIO_SUBMIT_BIO], [
 	ZFS_LINUX_TEST_SRC([submit_bio], [
 		#include <linux/bio.h>
 	],[
-		blk_qc_t blk_qc;
 		struct bio *bio = NULL;
-		blk_qc = submit_bio(bio);
+		(void) submit_bio(bio);
 	])
 ])
 
