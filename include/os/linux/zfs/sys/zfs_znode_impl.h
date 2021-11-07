@@ -71,6 +71,7 @@ extern "C" {
 #define	Z_ISDIR(type)	S_ISDIR(type)
 
 #define	zn_has_cached_data(zp)		((zp)->z_is_mapped)
+#define	zn_flush_cached_data(zp, sync)	write_inode_now(ZTOI(zp), sync)
 #define	zn_rlimit_fsize(zp, uio)	(0)
 
 /*
