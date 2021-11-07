@@ -58,7 +58,7 @@ extern "C" {
 struct page;
 struct vnode;
 struct spa;
-typedef struct zilog_lwb zilog_t;
+struct zilog_lwb;
 struct zio;
 struct blkptr;
 struct zap_cursor;
@@ -982,7 +982,7 @@ inode_timespec_t dmu_objset_snap_cmtime(objset_t *os);
 int dmu_objset_is_snapshot(objset_t *os);
 
 extern struct spa *dmu_objset_spa(objset_t *os);
-extern zilog_t *dmu_objset_zil(objset_t *os);
+extern struct zilog_lwb *dmu_objset_zil(objset_t *os);
 extern struct dsl_pool *dmu_objset_pool(objset_t *os);
 extern struct dsl_dataset *dmu_objset_ds(objset_t *os);
 extern void dmu_objset_name(objset_t *os, char *buf);
