@@ -44,6 +44,27 @@
 #include <sys/trace_zfs.h>
 #include <sys/abd.h>
 
+/*
+ * The ZIL on-disk format consists of 3 parts:
+ *
+ * 	- a single, per-dataset, ZIL header; which points to a chain of
+ * 	- zero or more ZIL blocks; each of which contains
+ * 	- zero or more ZIL records
+ *
+ * A ZIL record holds the information necessary to replay a single
+ * system call transaction. A ZIL block can hold many ZIL records, and
+ * the blocks are chained together, similarly to a singly linked list.
+ *
+ * Each ZIL block contains a block pointer (blkptr_t) to the next ZIL
+ * block in the chain, and the ZIL header points to the first block in
+ * the chain.
+ *
+ * Note, there is not a fixed place in the pool to hold these ZIL
+ * blocks; they are dynamically allocated and freed as needed from the
+ * blocks available on the pool, though they can be preferentially
+ * allocated from a dedicated "log" vdev.
+ */
+
 
 /*
  * This controls the amount of time that a ZIL block (lwb) will remain
