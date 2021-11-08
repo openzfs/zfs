@@ -344,19 +344,13 @@ get_special_prop(lua_State *state, dsl_dataset_t *ds, const char *dsname,
 		}
 		break;
 	case ZFS_PROP_RECEIVE_RESUME_TOKEN: {
-		char *token = get_receive_resume_stats_impl(ds);
-
-		(void) strlcpy(strval, token, ZAP_MAXVALUELEN);
-		if (strcmp(strval, "") == 0) {
-			char *childval = get_child_receive_stats(ds);
-
-			(void) strlcpy(strval, childval, ZAP_MAXVALUELEN);
-			if (strcmp(strval, "") == 0)
-				error = ENOENT;
-
-			kmem_strfree(childval);
+		char *token = get_receive_resume_token(ds);
+		if (token != NULL) {
+			(void) strlcpy(strval, token, ZAP_MAXVALUELEN);
+			kmem_strfree(token);
+		} else {
+			error = ENOENT;
 		}
-		kmem_strfree(token);
 		break;
 	}
 	case ZFS_PROP_VOLSIZE:
