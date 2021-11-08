@@ -132,10 +132,11 @@ PHONY += checkabi storeabi
 
 checklibabiversion:
 	libabiversion=`abidw -v | $(SED) 's/[^0-9]//g'`; \
-	if test $$libabiversion -lt "180"; then \
+	if test $$libabiversion -lt "200"; then \
         /bin/echo -e "\n" \
-        "*** Please use libabigail 1.8.0 version or newer;\n" \
-        "*** otherwise results are not consistent!\n"; \
+        "*** Please use libabigail 2.0.0 version or newer;\n" \
+        "*** otherwise results are not consistent!\n" \
+        "(or see https://github.com/openzfs/libabigail-docker )\n"; \
         exit 1; \
     fi;
 
