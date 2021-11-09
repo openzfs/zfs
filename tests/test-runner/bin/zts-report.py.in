@@ -296,6 +296,7 @@ elif sys.platform.startswith('linux'):
         'mmp/mmp_inactive_import': ['FAIL', known_reason],
         'snapshot/rollback_003_pos': ['FAIL', known_reason],
         'zvol/zvol_misc/zvol_misc_snapdev': ['FAIL', '12621'],
+        'zvol/zvol_misc/zvol_misc_volmode': ['FAIL', known_reason],
     })
 
 
