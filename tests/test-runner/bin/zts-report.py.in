@@ -310,6 +310,7 @@ elif sys.platform.startswith('linux'):
         'rsend/rsend_011_pos': ['FAIL', known_reason],
         'snapshot/rollback_003_pos': ['FAIL', known_reason],
         'zvol/zvol_misc/zvol_misc_snapdev': ['FAIL', '12621'],
+        'zvol/zvol_misc/zvol_misc_volmode': ['FAIL', known_reason],
     })
 
 
