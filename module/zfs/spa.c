@@ -181,6 +181,12 @@ boolean_t	spa_create_process = B_TRUE;	/* no process ==> no sysdc */
 boolean_t	spa_load_verify_dryrun = B_FALSE;
 
 /*
+ * Allow read spacemaps in case of readonly import (spa_mode == SPA_MODE_READ).
+ * This is used by zdb for spacemaps verification.
+ */
+boolean_t	spa_mode_readable_spacemaps = B_FALSE;
+
+/*
  * This (illegal) pool name is used when temporarily importing a spa_t in order
  * to get the vdev stats associated with the imported devices.
  */
@@ -1241,6 +1247,7 @@ spa_activate(spa_t *spa, spa_mode_t mode)
 
 	spa->spa_state = POOL_STATE_ACTIVE;
 	spa->spa_mode = mode;
+	spa->spa_read_spacemaps = spa_mode_readable_spacemaps;
 
 	spa->spa_normal_class = metaslab_class_create(spa, zfs_metaslab_ops);
 	spa->spa_log_class = metaslab_class_create(spa, zfs_metaslab_ops);
