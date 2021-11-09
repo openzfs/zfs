@@ -370,6 +370,7 @@ struct spa {
 	boolean_t	spa_is_root;		/* pool is root */
 	int		spa_minref;		/* num refs when first opened */
 	spa_mode_t	spa_mode;		/* SPA_MODE_{READ|WRITE} */
+	boolean_t	spa_read_spacemaps;	/* spacemaps available if ro */
 	spa_log_state_t spa_log_state;		/* log state */
 	uint64_t	spa_autoexpand;		/* lun expansion on/off */
 	ddt_t		*spa_ddt[ZIO_CHECKSUM_FUNCTIONS]; /* in-core DDTs */
