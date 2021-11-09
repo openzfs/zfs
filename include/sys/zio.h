@@ -88,9 +88,7 @@ enum zio_checksum {
 	ZIO_CHECKSUM_NOPARITY,
 	ZIO_CHECKSUM_SHA512,
 	ZIO_CHECKSUM_SKEIN,
-#if !defined(__FreeBSD__)
 	ZIO_CHECKSUM_EDONR,
-#endif
 	ZIO_CHECKSUM_FUNCTIONS
 };
 

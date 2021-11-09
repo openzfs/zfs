@@ -191,12 +191,10 @@ zio_checksum_info_t zio_checksum_table[ZIO_CHECKSUM_FUNCTIONS] = {
 	    abd_checksum_skein_tmpl_init, abd_checksum_skein_tmpl_free,
 	    ZCHECKSUM_FLAG_METADATA | ZCHECKSUM_FLAG_DEDUP |
 	    ZCHECKSUM_FLAG_SALTED | ZCHECKSUM_FLAG_NOPWRITE, "skein"},
-#if !defined(__FreeBSD__)
 	{{abd_checksum_edonr_native,	abd_checksum_edonr_byteswap},
 	    abd_checksum_edonr_tmpl_init, abd_checksum_edonr_tmpl_free,
 	    ZCHECKSUM_FLAG_METADATA | ZCHECKSUM_FLAG_SALTED |
 	    ZCHECKSUM_FLAG_NOPWRITE, "edonr"},
-#endif
 };
 
 /*
@@ -213,10 +211,8 @@ zio_checksum_to_feature(enum zio_checksum cksum)
 		return (SPA_FEATURE_SHA512);
 	case ZIO_CHECKSUM_SKEIN:
 		return (SPA_FEATURE_SKEIN);
-#if !defined(__FreeBSD__)
 	case ZIO_CHECKSUM_EDONR:
 		return (SPA_FEATURE_EDONR);
-#endif
 	default:
 		return (SPA_FEATURE_NONE);
 	}
