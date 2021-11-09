@@ -21,6 +21,10 @@
 # CDDL HEADER END
 #
 
+#
+# Copyright 2020 OmniOS Community Edition (OmniOSce) Association.
+#
+
 BASE_DIR=$(dirname "$0")
 SCRIPT_COMMON=common.sh
 if [ -f "${BASE_DIR}/${SCRIPT_COMMON}" ]; then
@@ -48,6 +52,7 @@ ITERATIONS=1
 ZFS_DBGMSG="$STF_SUITE/callbacks/zfs_dbgmsg.ksh"
 ZFS_DMESG="$STF_SUITE/callbacks/zfs_dmesg.ksh"
 UNAME=$(uname -s)
+RERUN="no"
 
 # Override some defaults if on FreeBSD
 if [ "$UNAME" = "FreeBSD" ] ; then
@@ -322,6 +327,7 @@ OPTIONS:
 	-f          Use files only, disables block device tests
 	-S          Enable stack tracer (negative performance impact)
 	-c          Only create and populate constrained path
+	-R          Automatically rerun failing tests
 	-n NFSFILE  Use the nfsfile to determine the NFS configuration
 	-I NUM      Number of iterations
 	-d DIR      Use DIR for files and loopback devices
@@ -348,7 +354,7 @@ $0 -x
 EOF
 }
 
-while getopts 'hvqxkfScn:d:s:r:?t:T:u:I:' OPTION; do
+while getopts 'hvqxkfScRn:d:s:r:?t:T:u:I:' OPTION; do
 	case $OPTION in
 	h)
 		usage
@@ -375,6 +381,9 @@ while getopts 'hvqxkfScn:d:s:r:?t:T:u:I:' OPTION; do
 	c)
 		constrain_path
 		exit
+		;;
+	R)
+		RERUN="yes"
 		;;
 	n)
 		nfsfile=$OPTARG
@@ -694,6 +703,16 @@ ${TEST_RUNNER} ${QUIET:+-q} \
     -i "${STF_SUITE}" \
     -I "${ITERATIONS}" \
     2>&1 | tee "$RESULTS_FILE"
+if [ "$RERUN" = "yes" ]; then
+	cp "$RESULTS_FILE" "$REPORT_FILE"
+	${TEST_RUNNER} ${QUIET:+-q} \
+	    -c "${RUNFILES}" \
+	    -T "${TAGS}" \
+	    -i "${STF_SUITE}" \
+	    -I "${ITERATIONS}" \
+	    -l "${REPORT_FILE}" \
+	    2>&1 | tee "$RESULTS_FILE"
+fi
 
 #
 # Analyze the results.
