@@ -293,6 +293,7 @@ elif sys.platform.startswith('linux'):
         'alloc_class/alloc_class_011_neg': ['FAIL', known_reason],
         'alloc_class/alloc_class_012_pos': ['FAIL', known_reason],
         'alloc_class/alloc_class_013_pos': ['FAIL', '11888'],
+        'cli_root/zfs_copies/zfs_copies_003_pos': ['FAIL', '12301'],
         'cli_root/zfs_rename/zfs_rename_002_pos': ['FAIL', known_reason],
         'cli_root/zpool_expand/zpool_expand_001_pos': ['FAIL', known_reason],
         'cli_root/zpool_expand/zpool_expand_005_pos': ['FAIL', known_reason],
