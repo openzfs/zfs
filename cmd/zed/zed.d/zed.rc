@@ -89,8 +89,8 @@
 
 ##
 # Turn on/off enclosure LEDs when drives get DEGRADED/FAULTED.  This works for
-# device mapper and multipath devices as well.  Your enclosure must be
-# supported by the Linux SES driver for this to work.
+# device mapper and multipath devices as well.  This works with JBOD enclosures
+# and NVMe PCI drives (assuming they're supported by Linux in sysfs).
 #
 ZED_USE_ENCLOSURE_LEDS=1
 

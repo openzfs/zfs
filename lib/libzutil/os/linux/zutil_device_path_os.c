@@ -155,17 +155,147 @@ zfs_strip_path(char *path)
 }
 
 /*
+ * Read the contents of a sysfs file into an allocated buffer and remove the
+ * last newline.
+ *
+ * This is useful for reading sysfs files that return a single string.  Return
+ * an allocated string pointer on success, NULL otherwise.  Returned buffer
+ * must be freed by the user.
+ */
+static char *
+zfs_read_sysfs_file(char *filepath)
+{
+	char buf[4096];	/* all sysfs files report 4k size */
+	char *str = NULL;
+
+	FILE *fp = fopen(filepath, "r");
+	if (fp == NULL) {
+		return (NULL);
+	}
+	if (fgets(buf, sizeof (buf), fp) == buf) {
+		/* success */
+
+		/* Remove the last newline (if any) */
+		size_t len = strlen(buf);
+		if (buf[len - 1] == '\n') {
+			buf[len - 1] = '\0';
+		}
+		str = strdup(buf);
+	}
+
+	fclose(fp);
+
+	return (str);
+}
+
+/*
+ * Given a dev name like "nvme0n1", return the full PCI slot sysfs path to
+ * the drive (in /sys/bus/pci/slots).
+ *
+ * For example:
+ *     dev:            "nvme0n1"
+ *     returns:        "/sys/bus/pci/slots/0"
+ *
+ * 'dev' must be an NVMe device.
+ *
+ * Returned string must be freed.  Returns NULL on error or no sysfs path.
+ */
+static char *
+zfs_get_pci_slots_sys_path(const char *dev_name)
+{
+	DIR *dp = NULL;
+	struct dirent *ep;
+	char *address1 = NULL;
+	char *address2 = NULL;
+	char *path = NULL;
+	char buf[MAXPATHLEN];
+	char *tmp;
+
+	/* If they preface 'dev' with a path (like "/dev") then strip it off */
+	tmp = strrchr(dev_name, '/');
+	if (tmp != NULL)
+		dev_name = tmp + 1;    /* +1 since we want the chr after '/' */
+
+	if (strncmp("nvme", dev_name, 4) != 0)
+		return (NULL);
+
+	(void) snprintf(buf, sizeof (buf), "/sys/block/%s/device/address",
+	    dev_name);
+
+	address1 = zfs_read_sysfs_file(buf);
+	if (!address1)
+		return (NULL);
+
+	/*
+	 * /sys/block/nvme0n1/device/address format will
+	 * be "0000:01:00.0" while /sys/bus/pci/slots/0/address will be
+	 * "0000:01:00".  Just NULL terminate at the '.' so they match.
+	 */
+	tmp = strrchr(address1, '.');
+	if (tmp != NULL)
+		*tmp = '\0';
+
+	dp = opendir("/sys/bus/pci/slots/");
+	if (dp == NULL) {
+		free(address1);
+		return (NULL);
+	}
+
+	/*
+	 * Look through all the /sys/bus/pci/slots/ subdirs
+	 */
+	while ((ep = readdir(dp))) {
+		/*
+		 * We only care about directory names that are a single number.
+		 * Sometimes there's other directories like
+		 * "/sys/bus/pci/slots/0-3/" in there - skip those.
+		 */
+		if (!zfs_isnumber(ep->d_name))
+			continue;
+
+		(void) snprintf(buf, sizeof (buf),
+		    "/sys/bus/pci/slots/%s/address", ep->d_name);
+
+		address2 = zfs_read_sysfs_file(buf);
+		if (!address2)
+			continue;
+
+		if (strcmp(address1, address2) == 0) {
+			/* Addresses match, we're all done */
+			free(address2);
+			if (asprintf(&path, "/sys/bus/pci/slots/%s",
+			    ep->d_name) == -1) {
+				free(tmp);
+				continue;
+			}
+			break;
+		}
+		free(address2);
+	}
+
+	closedir(dp);
+	free(address1);
+
+	return (path);
+}
+
+/*
  * Given a dev name like "sda", return the full enclosure sysfs path to
  * the disk.  You can also pass in the name with "/dev" prepended
- * to it (like /dev/sda).
+ * to it (like /dev/sda).  This works for both JBODs and NVMe PCI devices.
  *
  * For example, disk "sda" in enclosure slot 1:
- *     dev:            "sda"
+ *     dev_name:       "sda"
  *     returns:        "/sys/class/enclosure/1:0:3:0/Slot 1"
+ *
+ * Or:
+ *
+ *      dev_name:   "nvme0n1"
+ *      returns:    "/sys/bus/pci/slots/0"
  *
  * 'dev' must be a non-devicemapper device.
  *
- * Returned string must be freed.
+ * Returned string must be freed.  Returns NULL on error.
  */
 char *
 zfs_get_enclosure_sysfs_path(const char *dev_name)
@@ -251,6 +381,16 @@ end:
 
 	if (dp != NULL)
 		closedir(dp);
+
+	if (!path) {
+		/*
+		 * This particular disk isn't in a JBOD.  It could be an NVMe
+		 * drive. If so, look up the NVMe device's path in
+		 * /sys/bus/pci/slots/. Within that directory is a 'attention'
+		 * file which controls the NVMe fault LED.
+		 */
+		path = zfs_get_pci_slots_sys_path(dev_name);
+	}
 
 	return (path);
 }

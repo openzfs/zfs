@@ -29,7 +29,8 @@
 [ -f "${ZED_ZEDLET_DIR}/zed.rc" ] && . "${ZED_ZEDLET_DIR}/zed.rc"
 . "${ZED_ZEDLET_DIR}/zed-functions.sh"
 
-if [ ! -d /sys/class/enclosure ] ; then
+if [ ! -d /sys/class/enclosure ] && [ ! -d /sys/bus/pci/slots ] ; then
+	# No JBOD enclosure or NVMe slots
 	exit 1
 fi
 
@@ -92,6 +93,29 @@ check_and_set_led()
 	done
 }
 
+# Fault LEDs for JBODs and NVMe drives are handled a little differently.
+#
+# On JBODs the fault LED is called 'fault' and on a path like this:
+#
+#   /sys/class/enclosure/0:0:1:0/SLOT 10/fault
+#
+# On NVMe it's called 'attention' and on a path like this:
+#
+#   /sys/bus/pci/slot/0/attention
+#
+# This function returns the full path to the fault LED file for a given
+# enclosure/slot directory.
+#
+path_to_led()
+{
+	dir=$1
+	if [ -f "$dir/fault" ] ; then
+		echo "$dir/fault"
+	elif [ -f "$dir/attention" ] ; then
+		echo "$dir/attention"
+	fi
+}
+
 state_to_val()
 {
 	state="$1"
@@ -104,6 +128,38 @@ state_to_val()
 			;;
 	esac
 }
+
+#
+# Given a nvme name like 'nvme0n1', pass back its slot directory
+# like "/sys/bus/pci/slots/0"
+#
+nvme_dev_to_slot()
+{
+	dev="$1"
+
+	# Get the address "0000:01:00.0"
+	address=$(cat "/sys/class/block/$dev/device/address")
+
+	# For each /sys/bus/pci/slots subdir that is an actual number
+	# (rather than weird directories like "1-3/").
+	# shellcheck disable=SC2010
+	for i in $(ls /sys/bus/pci/slots/ | grep -E "^[0-9]+$") ; do
+		this_address=$(cat "/sys/bus/pci/slots/$i/address")
+
+		# The format of address is a little different between
+		# /sys/class/block/$dev/device/address and
+		# /sys/bus/pci/slots/
+		#
+		# address=           "0000:01:00.0"
+		# this_address =     "0000:01:00"
+		#
+		if echo "$address" | grep -Eq ^"$this_address" ; then
+			echo "/sys/bus/pci/slots/$i"
+			break
+		fi
+	done
+}
+
 
 # process_pool (pool)
 #
@@ -134,6 +190,11 @@ process_pool()
 		# Get dev name (like 'sda')
 		dev=$(basename "$(echo "$therest" | awk '{print $(NF-1)}')")
 		vdev_enc_sysfs_path=$(realpath "/sys/class/block/$dev/device/enclosure_device"*)
+		if [ ! -d "$vdev_enc_sysfs_path" ] ; then
+			# This is not a JBOD disk, but it could be a PCI NVMe drive
+			vdev_enc_sysfs_path=$(nvme_dev_to_slot "$dev")
+		fi
+
 		current_val=$(echo "$therest" | awk '{print $NF}')
 
 		if [ "$current_val" != "0" ] ; then
@@ -145,9 +206,10 @@ process_pool()
 			continue
 		fi
 
-		if [ ! -e "$vdev_enc_sysfs_path/fault" ] ; then
+		led_path=$(path_to_led "$vdev_enc_sysfs_path")
+		if [ ! -e "$led_path" ] ; then
 			rc=3
-			zed_log_msg "vdev $vdev '$file/fault' doesn't exist"
+			zed_log_msg "vdev $vdev '$led_path' doesn't exist"
 			continue
 		fi
 
@@ -158,7 +220,7 @@ process_pool()
 			continue
 		fi
 
-		if ! check_and_set_led "$vdev_enc_sysfs_path/fault" "$val"; then
+		if ! check_and_set_led "$led_path" "$val"; then
 			rc=3
 		fi
 	done
@@ -169,7 +231,8 @@ if [ -n "$ZEVENT_VDEV_ENC_SYSFS_PATH" ] && [ -n "$ZEVENT_VDEV_STATE_STR" ] ; the
 	# Got a statechange for an individual vdev
 	val=$(state_to_val "$ZEVENT_VDEV_STATE_STR")
 	vdev=$(basename "$ZEVENT_VDEV_PATH")
-	check_and_set_led "$ZEVENT_VDEV_ENC_SYSFS_PATH/fault" "$val"
+	ledpath=$(path_to_led "$ZEVENT_VDEV_ENC_SYSFS_PATH")
+	check_and_set_led "$ledpath" "$val"
 else
 	# Process the entire pool
 	poolname=$(zed_guid_to_pool "$ZEVENT_POOL_GUID")
