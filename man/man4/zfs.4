@@ -1586,12 +1586,12 @@ Allow no-operation writes.
 The occurrence of nopwrites will further depend on other pool properties
 .Pq i.a. the checksumming and compression algorithms .
 .
-.It Sy zfs_dmu_offset_next_sync Ns = Ns Sy 0 Ns | Ns 1 Pq int
+.It Sy zfs_dmu_offset_next_sync Ns = Ns Sy 1 Ns | Ns 0 Pq int
 Enable forcing TXG sync to find holes.
-When enabled forces ZFS to act like prior versions when
+When enabled forces ZFS to sync data when
 .Sy SEEK_HOLE No or Sy SEEK_DATA
-flags are used, which, when a dnode is dirty,
-causes TXGs to be synced so that this data can be found.
+flags are used allowing holes in a file to be accurately reported.
+When disabled holes will not be reported in recently dirtied files.
 .
 .It Sy zfs_pd_bytes_max Ns = Ns Sy 52428800 Ns B Po 50MB Pc Pq int
 The number of bytes which should be prefetched during a pool traversal, like

@@ -73,9 +73,13 @@ int zfs_nopwrite_enabled = 1;
 unsigned long zfs_per_txg_dirty_frees_percent = 5;
 
 /*
- * Enable/disable forcing txg sync when dirty in dmu_offset_next.
+ * Enable/disable forcing txg sync when dirty checking for holes with lseek().
+ * By default this is enabled to ensure accurate hole reporting, it can result
+ * in a significant performance penalty for lseek(SEEK_HOLE) heavy workloads.
+ * Disabling this option will result in holes never being reported in dirty
+ * files which is always safe.
  */
-int zfs_dmu_offset_next_sync = 0;
+int zfs_dmu_offset_next_sync = 1;
 
 /*
  * Limit the amount we can prefetch with one call to this amount.  This
@@ -2107,8 +2111,8 @@ restart:
 		 * If the zfs_dmu_offset_next_sync module option is enabled
 		 * then strict hole reporting has been requested.  Dirty
 		 * dnodes must be synced to disk to accurately report all
-		 * holes.  When disabled (the default) dirty dnodes are
-		 * reported to not have any holes which is always safe.
+		 * holes.  When disabled dirty dnodes are reported to not
+		 * have any holes which is always safe.
 		 *
 		 * When called by zfs_holey_common() the zp->z_rangelock
 		 * is held to prevent zfs_write() and mmap writeback from
