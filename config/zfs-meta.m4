@@ -71,20 +71,18 @@ AC_DEFUN([ZFS_AC_META], [
 
 		ZFS_META_RELEASE=_ZFS_AC_META_GETVAL([Release]);
 		if test ! -f ".nogitrelease" && git rev-parse --git-dir > /dev/null 2>&1; then
-			_match="${ZFS_META_NAME}-${ZFS_META_VERSION}"
-			_alias=$(git describe --match=${_match} 2>/dev/null)
-			_release=$(echo ${_alias}|sed "s/${ZFS_META_NAME}//"|cut -f3- -d'-'|sed 's/-/_/g')
+			_git_rev=$(git rev-parse --short HEAD)
+			_tag=$(git describe --exact-match ${_git_rev} 2>/dev/null)
+			_release=$(echo ${_tag}|cut -f3- -d'-'|sed 's/-/_/g')
 			if test -n "${_release}"; then
 				ZFS_META_RELEASE=${_release}
 				_zfs_ac_meta_type="git describe"
 			else
-				_match="${ZFS_META_NAME}-${ZFS_META_VERSION}-${ZFS_META_RELEASE}"
-	                        _alias=$(git describe --match=${_match} 2>/dev/null)
-				_release=$(echo ${_alias}|sed 's/${ZFS_META_NAME}//'|cut -f3- -d'-'|sed 's/-/_/g')
-				if test -n "${_release}"; then
-					ZFS_META_RELEASE=${_release}
-					_zfs_ac_meta_type="git describe"
-				fi
+				_tag_info=$(git describe 2>/dev/null)
+				_commits_since_tag=$(echo ${_tag_info}|cut -f3 -d'-')
+				_release="git.${_commits_since_tag}+${_git_rev}"
+				ZFS_META_RELEASE=${_release}
+				_zfs_ac_meta_type="git describe"
 			fi
 		fi
 
@@ -111,7 +109,7 @@ AC_DEFUN([ZFS_AC_META], [
 
 		if test -n "$ZFS_META_NAME" -a -n "$ZFS_META_VERSION"; then
 				ZFS_META_ALIAS="$ZFS_META_NAME-$ZFS_META_VERSION"
-				test -n "$ZFS_META_RELEASE" && 
+				test -n "$ZFS_META_RELEASE" &&
 				        ZFS_META_ALIAS="$ZFS_META_ALIAS-$ZFS_META_RELEASE"
 				AC_DEFINE_UNQUOTED([ZFS_META_ALIAS],
 				    ["$ZFS_META_ALIAS"],
@@ -125,7 +123,7 @@ AC_DEFUN([ZFS_AC_META], [
 		ZFS_META_DATA=_ZFS_AC_META_GETVAL([Date]);
 		if test -n "$ZFS_META_DATA"; then
 			AC_DEFINE_UNQUOTED([ZFS_META_DATA], ["$ZFS_META_DATA"],
-				[Define the project release date.] 
+				[Define the project release date.]
 			)
 			AC_SUBST([ZFS_META_DATA])
 		fi
@@ -177,7 +175,7 @@ AC_DEFUN([ZFS_AC_META], [
 				 version information.]
 			)
 			AC_DEFINE_UNQUOTED([ZFS_META_LT_AGE], ["$ZFS_META_LT_AGE"],
-				[Define the libtool library 'age' 
+				[Define the libtool library 'age'
 				 version information.]
 			)
 			AC_SUBST([ZFS_META_LT_CURRENT])
